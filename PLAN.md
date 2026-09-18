@@ -34,10 +34,14 @@ Mỗi transition được ghi log (audit trail) trong SQLite để Dashboard hi�
 
 **Gap:** Doc ghi Bước 2 là "Tự động 100%" nhưng đồng thời gọi đây là "ĐIỂM KIỂM DUYỆT... QUAN TRỌNG NHẤT" — mâu thuẫn nội tại. Chưa định nghĩa rõ: reject thì job con (regenerate ảnh) được tạo lại như thế nào, ai sở hữu retry count, khi nào dừng hẳn.
 
-**Giải pháp:** Tách rõ 2 chế độ vận hành (config theo project/khách hàng):
-- **Chế độ Speed** (ưu tiên tốc độ, nội dung ít rủi ro thương hiệu): Claude Vision auto-pass theo ngưỡng, review là optional/async — pipeline không block.
-- **Chế độ Quality** (nhân vật/IP quan trọng, video ra mắt chính thức): **bắt buộc** user approve trước khi qua Bước 3, pipeline block (trạng thái `pending_review`) cho tới khi có quyết định.
-Khi Reject: tạo `job` mới `image_gen` với `parent_job_id` trỏ về job cũ + ghi `retry_reason` (note của user), tăng `retry_count`; nếu `retry_count` vượt ngưỡng (vd 3 lần) → tự động chuyển state `failed` và escalate cho user thay vì lặp vô hạn.
+**Giải pháp:** Tách rõ 2 chế độ vận hành qua `operating_mode` (config theo project/khách hàng), dùng chung 1 bước QC scoring — khác nhau ở **ai có quyền quyết định chuyển state**:
+
+- **`auto`** — QC Agent (model AI chuyên duyệt ảnh, tách biệt với Claude Director viết prompt) tự chấm điểm và **tự quyết định** pass/fail theo `auto_pass_threshold`. Score đạt → job tự chuyển `APPROVED_AUTO` → tự động sang Bước 3/4, không ai cần bấm gì.
+- **`human_qc`** — QC Agent vẫn chấm điểm như trên, nhưng chỉ mang tính gợi ý/pre-filter (sort ảnh theo score để user duyệt nhanh hơn). Mọi ảnh dừng ở state `pending_human_review`; chỉ khi **user bấm Approve** job mới được phép đi tiếp.
+
+Khi Reject (dù do QC Agent tự động hay user): tạo `job` mới `image_gen` với `parent_job_id` trỏ về job cũ + ghi `retry_reason`, tăng `retry_count`. Nếu `retry_count` vượt `max_retry_count` (vd 3 lần) → tự động chuyển state `failed` và **escalate cho user** — đây là van an toàn bắt buộc ngay cả ở mode `auto`, tránh lặp vô hạn tốn credit.
+
+Mọi quyết định (AI hay người) đều ghi vào `review_log` với cột `reviewer_type` (`ai_agent` | `user`), để sau này so sánh QC Agent quyết định đúng bao nhiêu % so với user thật — dữ liệu này dùng để tinh chỉnh `auto_pass_threshold` hoặc làm căn cứ chuyển hẳn project sang mode `auto` khi đã đủ tin cậy.
 
 ### Comment 3 — Ngưỡng auto-pass của Claude Vision chưa rõ
 > "Có ngưỡng để Claude Vision cho auto-pass không? User có thể quy định/chỉnh sửa ngưỡng cho Claude hay quá trình ảnh hưởng này do lựa chọn mô hình?"
@@ -65,20 +69,30 @@ Khi Reject: tạo `job` mới `image_gen` với `parent_job_id` trỏ về job c
 - `jobs` — mọi tác vụ async (image_gen, video_gen, render) đều là 1 job: `id, type, scene_id, parent_job_id, state, retry_count, retry_reason, created_at, updated_at`
 - `qc_results` — điểm QC theo tiêu chí (comment 3): `job_id, criterion, score, threshold_at_time, auto_decision`
 - `content_moderation_failures` — log fail vì IP/risk-control (comment 4)
-- `review_log` — audit trail mọi quyết định của user (approve/reject/note) tại 3 điểm chốt
+- `review_log` — audit trail mọi quyết định (comment 2): `job_id, reviewer_type (ai_agent|user), decision, note, decided_at`
 
 ### 3.2 Cấu hình vận hành (theo project, chỉnh trong Dashboard)
-- `operating_mode`: `speed` | `quality` (comment 2)
+- `operating_mode`: `auto` | `human_qc` (comment 2) — xem bảng so sánh dưới đây
 - `qc_auto_pass_threshold`: float, mặc định 0.85 (comment 3)
 - `qc_model_version`: pin cố định
 - `batch_poll_interval_seconds`: mặc định 90s (comment 4)
 - `max_retry_count`: mặc định 3
 
+**So sánh 2 giá trị `operating_mode`:**
+
+| | `auto` | `human_qc` |
+|---|---|---|
+| QC Agent chấm điểm | Có | Có (chỉ để gợi ý/pre-filter) |
+| Ai quyết định pass/fail | QC Agent (theo `auto_pass_threshold`) | User |
+| Pipeline có block chờ Bước 3 không | Không (trừ khi escalate sau `max_retry_count`) | Có, luôn chờ user Approve |
+| Khi nào cần user can thiệp | Chỉ khi retry vượt ngưỡng (safety net) | Mọi ảnh |
+
 ### 3.3 MCP Servers cần build (theo lộ trình 4 tuần gốc, bổ sung chi tiết)
 1. `mcp-server-project-db` — quản lý schema trên, expose state machine transitions dạng tool calls
-2. `mcp-server-deepix` — gen ảnh + ghi `qc_results`
-3. `mcp-server-clipai` — gửi request + **heartbeat polling** batch (comment 4) + pre-flight IP check
-4. `mcp-server-ffmpeg` — concat/render local
+2. `mcp-server-deepix` — gen ảnh + ghi kết quả vào `qc_results`
+3. `mcp-server-qc-agent` — model AI chuyên duyệt ảnh theo `qc_checklist` (tách biệt Claude Director), chạy cho cả 2 mode; provider có thể swap được (Claude Vision với system prompt chuyên biệt, hoặc model fine-tune riêng) qua config `qc_agent_provider`
+4. `mcp-server-clipai` — gửi request + **heartbeat polling** batch (comment 4) + pre-flight IP check
+5. `mcp-server-ffmpeg` — concat/render local
 
 ### 3.4 Streamlit Dashboard — bổ sung yêu cầu
 - Hiển thị pipeline theo state machine (Kanban theo state, không chỉ list)
