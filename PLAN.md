@@ -141,7 +141,11 @@ Ngoài ra: Claude Director (Bước 1, 3, Music Brief), Streamlit Dashboard (V1)
 | 5a. Nhạc nền | Sinh/sửa Music Brief · Gen 3 bản nháp · Nghe thử · Chọn 1 · Gen lại · Upload nhạc · Không dùng nhạc |
 | 5b. Ghép & render | Chọn transition · Render Final · Preview · Tải xuống · Render lại với option khác · **Nghiệm thu (Done)** |
 
-**Bản xem trước bằng Figma:** mockup chi tiết (control bar, stepper, màn hình từng bước 1–5b, tab Lịch sử, trạng thái empty/loading/error, badge theo state machine) — user duyệt trước khi build. Link Figma: _(chưa tạo)_. Lưu ý Streamlit khó khớp 100% pixel với Figma; nếu cần UI sát mockup thì cân nhắc frontend web riêng (quyết định mở).
+**Bản xem trước bằng Figma:** mockup chi tiết (control bar, stepper, màn hình từng bước 1–5b, tab Lịch sử, trạng thái empty/loading/error, badge theo state machine) — user duyệt trước khi build. **Trạng thái mockup (2026-09-19):**
+- **HTML tương tác (đầy đủ):** [mockup/dashboard.html](mockup/dashboard.html) — mở bằng trình duyệt; đủ 6 màn hình (Bước 1, 2, 3, 4, 5a, 5b) + tab Lịch sử, control bar toàn cục, đổi `operating_mode`/threshold thấy tác động lên Bước 2. Dữ liệu giả.
+- **Figma (một phần):** [file Figma](https://www.figma.com/design/NjEZBllciYNbZwIntemWbd) — mới có component TopBar, Stepper (6 biến thể) và Màn hình Bước 1. Các màn còn lại bị chặn do gói Figma Starter đã hết hạn mức gọi công cụ MCP; sẽ làm tiếp khi hạn mức được reset/nâng gói, hoặc chuyển bản HTML sang Figma thủ công.
+
+Lưu ý Streamlit khó khớp 100% pixel với Figma; nếu cần UI sát mockup thì cân nhắc frontend web riêng (quyết định mở).
 
 ### 3.5 Bước 5a — Nhạc nền
 AI đề xuất, user quyết định: (1) Claude Director đọc Visual Mood + tổng thời lượng → sinh Music Brief (thể loại, tempo, cảm xúc, nhạc cụ, instrumental), user sửa hoặc tự viết prompt; (2) gen **3 bản nháp cho cả video** (1 track xuyên suốt, tránh đứt giữa cảnh), nghe thử và chọn/gen lại; (3) hoặc upload nhạc có sẵn/thư viện nội bộ/không dùng nhạc; (4) FFmpeg ghép (fade, ducking, căn độ dài) → preview → render.
@@ -174,6 +178,11 @@ Nguyên tắc: **không train/fine-tune model** — xây knowledge pack có cấ
 - Triển khai 2 giai đoạn: **V0** (thử nghiệm qua Claude Desktop + MCP, phương án B) rồi **V1** (Dashboard hợp nhất + Anthropic API) — xem Mục 7 (2026-09-19)
 - Kiến trúc core dùng chung + MCP vỏ mỏng + LLM runner hoán đổi được — xem 3.3
 - Không train/fine-tune model; dùng Knowledge Base + eval set — xem 3.6
+
+**Đã chốt cho V0 (2026-09-19):**
+- `operating_mode` mặc định V0 = **`human_qc`** (mọi ảnh chờ người duyệt; an toàn credit khi chưa có dữ liệu QC). Chuyển `auto` sau khi dry-run cho thấy % đồng thuận QC Agent–người đủ cao.
+- Ngân sách credit thử nghiệm V0: **nhỏ** (~2 kịch bản, 10–20 cảnh) — đủ dry-run tối thiểu; nếu cần hiệu chỉnh threshold sâu hơn thì xin thêm.
+- **Deepix:** đã kiểm tra, **có API lấy được**. **Clip AI/Kling:** **chờ kiểm tra** (chưa xác nhận có REST/Webhook) — nếu chỉ có Web thì dùng Playwright (+1–2 tuần cho `mcp-server-clipai`). Việc cần làm: kiểm tra Clip AI, đồng thời nắm response schema lỗi risk-control.
 
 **Còn mở, KHÔNG chặn V0 (chốt trước V1):**
 | Quyết định | Ghi chú |
