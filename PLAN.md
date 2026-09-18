@@ -120,12 +120,84 @@ Mọi quyết định (AI hay người) đều ghi vào `review_log` với cột
 | Gen hàng loạt rồi fail vì trùng IP bản quyền | Pre-flight check ở Character Bible + blocklist nội bộ |
 | Không rõ trạng thái job khi lỗi nửa chừng | State machine chuẩn + audit trail `review_log` |
 
-## 5. Next steps đề xuất (bổ sung lộ trình 4 tuần gốc)
+## 5. Quyết định đã chốt & còn mở
 
-- **Tuần 1:** Hạ tầng & API (giữ nguyên) + chốt `operating_mode` mặc định cho từng loại nội dung với team.
-- **Tuần 2:** Build 4 MCP servers + **implement state machine & schema ở trên trước tiên** (nền tảng cho mọi server khác).
-- **Tuần 3:** Dashboard (thêm Kanban theo state, config threshold, cảnh báo IP) + dry-run 2 kịch bản mẫu, đo thử ngưỡng QC thực tế để hiệu chỉnh `qc_auto_pass_threshold`.
-- **Tuần 4:** Đóng gói, viết blocklist IP ban đầu (dựa trên case Wonder Woman + tra cứu thêm), bàn giao vận hành.
+**Đã chốt (2026-09-18):**
+- `qc_agent_provider` = Claude Vision (system prompt QC riêng) — xem 3.2.1
+- Schema state machine, retry logic, `review_log.reviewer_type` — xem Mục 2, 3.1
+
+**Còn mở — cần chốt trước khi code (chặn Tuần 1-2):**
+| Quyết định | Vì sao cần | Ai chốt |
+|---|---|---|
+| `operating_mode` mặc định (`auto` hay `human_qc`) cho từng loại nội dung/dự án | Quyết định luồng review có block hay không — ảnh hưởng thiết kế Dashboard & MCP QC Agent | Bạn + team sản xuất nội dung |
+| Deepix và Clip AI/Kling có REST API + Webhook thật không, hay chỉ có giao diện Web | Nếu chỉ có Web, Bước 2 & 4 phải dùng Playwright automation thay vì gọi API — kiến trúc MCP server khác hẳn (chậm hơn, dễ vỡ hơn khi UI đổi) | Team dev nội bộ giữ API Deepix/Clip AI |
+| `qc_auto_pass_threshold` khởi điểm (0.85 là giả định, chưa có dữ liệu thật) | Threshold sai (quá lỏng/chặt) làm hỏng hiệu quả cả 2 mode ngay từ đầu | Chốt tạm ở dry-run, hiệu chỉnh bằng dữ liệu thật Tuần 3 |
+| Ngân sách credit cho giai đoạn thử nghiệm (Deepix + Clip AI/Kling) | Dry-run + retry loop đều tốn credit thật; cần biết giới hạn trước khi chạy batch | Bạn / người giữ ngân sách |
+
+## 6. Checklist chuẩn bị — cần có gì trước khi bắt đầu Tuần 1
+
+**Truy cập & tài liệu:**
+- [ ] API endpoint + API Key/Authentication của **Deepix** (REST)
+- [ ] API endpoint + API Key/Authentication của **Clip AI / Kling AI** (REST + Webhook nếu có)
+- [ ] Xác nhận rate limit / quota của cả 2 API (ảnh hưởng trực tiếp `batch_poll_interval_seconds`)
+- [ ] Tài liệu response schema của Kling AI khi bị content-moderation chặn (để `mcp-server-clipai` parse đúng lỗi "Failure to pass the risk control system" — Comment 4)
+
+**Hạ tầng vận hành:**
+- [ ] Máy chạy pipeline (PC vận hành) cài **Claude Desktop App** + Python runtime
+- [ ] File `claude_desktop_config.json` trỏ tới các MCP servers local
+- [ ] Môi trường Python cho 5 MCP servers (`project-db`, `deepix`, `qc-agent`, `clipai`, `ffmpeg`) — venv/dependencies
+- [ ] FFmpeg cài local, kiểm tra version + codec cần dùng (transition, re-encode)
+- [ ] Ổ đĩa đủ dung lượng cho `/images/`, `/videos/` khi chạy batch lớn
+
+**Dữ liệu & nội dung:**
+- [ ] 2 kịch bản mẫu (5-10 cảnh/kịch bản) để dry-run Tuần 3
+- [ ] Danh sách IP/nhân vật dự kiến dùng trong dự án thật — để build blocklist ban đầu trước khi chạy batch thật (Comment 4)
+- [ ] Bộ tiêu chí `qc_checklist` cụ thể (không chỉ "đúng nhân vật" chung chung — cần liệt kê rõ: góc mặt, trang phục, tỉ lệ khung hình, độ phân giải tối thiểu...) để Claude Vision QC Agent chấm điểm nhất quán
+
+**Con người / vai trò:**
+- [ ] Người build 5 MCP servers (dev)
+- [ ] Người thiết kế & build Streamlit Dashboard
+- [ ] Người review thẩm mỹ thật (đóng vai "User" ở 3 điểm kiểm duyệt) trong dry-run — cần người này để đo % Claude Vision QC Agent đúng/sai thực tế
+- [ ] Người giữ quan hệ với team dev nội bộ cấp API Deepix/Clip AI
+
+## 7. Lộ trình triển khai chi tiết theo tuần
+
+### Tuần 1 — Hạ tầng & chốt quyết định mở
+- Làm việc với team dev nội bộ: lấy API docs, API Key Deepix + Clip AI/Kling; xác nhận có REST/Webhook hay chỉ Web (quyết định mở #2 ở Mục 5).
+- Cài Claude Desktop App + Python MCP server local trên máy vận hành; test kết nối MCP cơ bản (1 tool "hello world").
+- Chốt `operating_mode` mặc định với team sản xuất nội dung (quyết định mở #1).
+- Chốt ngân sách credit thử nghiệm (quyết định mở #4).
+- **Deliverable:** API access hoạt động (test call thành công), môi trường Claude Desktop + MCP sẵn sàng, 4 quyết định mở đã chốt.
+
+### Tuần 2 — Build nền tảng dữ liệu + 5 MCP servers
+- Implement schema SQLite (`scenes`, `jobs`, `qc_results`, `content_moderation_failures`, `review_log`) + state machine transitions **trước tiên** — đây là nền cho mọi server khác.
+- Build `mcp-server-project-db`: đọc script, chia scene, quản lý Character Bible, expose state transition qua tool calls.
+- Build `mcp-server-deepix`: gọi API gen ảnh, lưu file local, ghi state.
+- Build `mcp-server-qc-agent`: Claude Vision + system prompt QC riêng, chấm theo `qc_checklist`, ghi `qc_results`; implement cả 2 nhánh `auto`/`human_qc`.
+- Build `mcp-server-clipai`: gửi request, **heartbeat polling background**, parse lỗi content-moderation vào `content_moderation_failures`.
+- Build `mcp-server-ffmpeg`: concat/render local.
+- **Deliverable:** Chạy được end-to-end 1 cảnh đơn lẻ qua cả 5 bước bằng tool call thủ công (chưa cần Dashboard).
+
+### Tuần 3 — Dashboard + Dry-run + hiệu chỉnh threshold
+- Dựng Streamlit Dashboard: Kanban theo state, nút Approve/Reject, chỉnh `operating_mode` + `qc_auto_pass_threshold`, cảnh báo Pre-flight IP risk.
+- Dry-run 2 kịch bản mẫu (5-10 cảnh) ở **cả 2 mode** để so sánh.
+- Người review thật chấm song song với Claude Vision QC Agent → tính % đồng thuận, dùng để hiệu chỉnh `qc_auto_pass_threshold` từ giá trị giả định 0.85 sang giá trị dựa trên dữ liệu thật.
+- Build blocklist IP ban đầu dựa trên danh sách nhân vật dự kiến (Mục 6) + case Wonder Woman đã biết.
+- **Deliverable:** Video hoàn chỉnh đầu tiên chạy end-to-end qua Dashboard; threshold đã hiệu chỉnh bằng dữ liệu thật; blocklist v1.
+
+### Tuần 4 — Đóng gói & bàn giao
+- Đóng gói 5 MCP servers thành script 1-Click Startup.
+- Viết tài liệu Prompt Templates chuẩn (Character Bible prompt, QC checklist prompt, Video Motion Prompt) cho bộ phận sản xuất nội dung.
+- Viết runbook vận hành: cách xử lý khi job `failed` bị escalate, cách đọc Dashboard, cách chỉnh threshold an toàn.
+- **Deliverable:** Hệ thống bàn giao vận hành được, có tài liệu, không phụ thuộc người build ngồi cạnh.
+
+## 8. Định nghĩa "Hoàn thành" (Definition of Done) cho toàn dự án
+- [ ] Chạy được ít nhất 1 video hoàn chỉnh end-to-end từ script.docx đến FINAL_VIDEO.mp4 qua Dashboard, không cần chỉnh code tay
+- [ ] Cả 2 `operating_mode` đều test được và cho kết quả đúng như thiết kế ở Mục 3.2
+- [ ] `max_retry_count` + escalate hoạt động đúng khi cố tình cho 1 job fail liên tục
+- [ ] Pre-flight IP check cảnh báo đúng với ít nhất 1 case đã biết (Wonder Woman) trước khi chạy batch thật
+- [ ] Batch >100 video chạy được qua heartbeat polling mà không cần user approve từng cái
+- [ ] Runbook + Prompt Templates đã bàn giao cho bộ phận sản xuất nội dung
 
 ---
 *Tài liệu nguồn: `Quy_Trinh_Auto_Pipeline_Full1.docx` (kèm 4 comment góp ý, đã phân tích ở Mục 2).*
