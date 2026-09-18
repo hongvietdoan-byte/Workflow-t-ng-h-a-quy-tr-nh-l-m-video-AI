@@ -74,7 +74,8 @@ Mọi quyết định (AI hay người) đều ghi vào `review_log` với cột
 ### 3.2 Cấu hình vận hành (theo project, chỉnh trong Dashboard)
 - `operating_mode`: `auto` | `human_qc` (comment 2) — xem bảng so sánh dưới đây
 - `qc_auto_pass_threshold`: float, mặc định 0.85 (comment 3)
-- `qc_model_version`: pin cố định
+- `qc_agent_provider`: **Claude Vision** (system prompt QC riêng, tách biệt system prompt của Claude Director) — quyết định 2026-09-18, xem lý do so sánh ở dưới
+- `qc_model_version`: pin cố định (version cụ thể, không auto-update) để ngưỡng không bị trôi
 - `batch_poll_interval_seconds`: mặc định 90s (comment 4)
 - `max_retry_count`: mặc định 3
 
@@ -87,10 +88,19 @@ Mọi quyết định (AI hay người) đều ghi vào `review_log` với cột
 | Pipeline có block chờ Bước 3 không | Không (trừ khi escalate sau `max_retry_count`) | Có, luôn chờ user Approve |
 | Khi nào cần user can thiệp | Chỉ khi retry vượt ngưỡng (safety net) | Mọi ảnh |
 
+#### 3.2.1 Vì sao chọn Claude Vision làm `qc_agent_provider` (so với GPT-6 Astra)
+
+Đã cân nhắc GPT-6 Astra (OpenAI, ra mắt 09/2026, $10/$50 mỗi 1M token input/output) nhưng chọn Claude Vision vì:
+1. **Đồng bộ vendor** — Claude Director (Bước 1, 3) đã dùng Claude Enterprise; dùng chung Claude cho QC Agent giảm số vendor, đơn giản vận hành, đúng tinh thần "1-Click Startup" trong lộ trình gốc.
+2. **Chi phí phù hợp bài toán** — QC checklist là tác vụ phân loại/so khớp (đúng nhân vật, lỗi tay, bố cục), không cần model reasoning nặng như GPT-6 Astra; chạy hàng trăm-nghìn ảnh/ngày ở mức giá reasoning cao sẽ đội chi phí không cần thiết.
+3. **Data governance** — không phát sinh thêm đường dữ liệu ảnh ra vendor thứ 2, quan trọng vì pipeline xử lý nội dung có rủi ro bản quyền IP (Comment 4).
+
+`qc_agent_provider` vẫn để dạng config swap được — nếu sau này `review_log.reviewer_type` cho thấy Claude Vision chấm sai lệch nhiều so với quyết định thật của user, có thể A/B test model khác mà không phải đổi kiến trúc.
+
 ### 3.3 MCP Servers cần build (theo lộ trình 4 tuần gốc, bổ sung chi tiết)
 1. `mcp-server-project-db` — quản lý schema trên, expose state machine transitions dạng tool calls
 2. `mcp-server-deepix` — gen ảnh + ghi kết quả vào `qc_results`
-3. `mcp-server-qc-agent` — model AI chuyên duyệt ảnh theo `qc_checklist` (tách biệt Claude Director), chạy cho cả 2 mode; provider có thể swap được (Claude Vision với system prompt chuyên biệt, hoặc model fine-tune riêng) qua config `qc_agent_provider`
+3. `mcp-server-qc-agent` — model AI chuyên duyệt ảnh theo `qc_checklist` (tách biệt Claude Director), chạy cho cả 2 mode; mặc định dùng **Claude Vision với system prompt QC riêng** (xem 3.2.1), provider vẫn thiết kế swap được qua config `qc_agent_provider` để A/B test sau này
 4. `mcp-server-clipai` — gửi request + **heartbeat polling** batch (comment 4) + pre-flight IP check
 5. `mcp-server-ffmpeg` — concat/render local
 
