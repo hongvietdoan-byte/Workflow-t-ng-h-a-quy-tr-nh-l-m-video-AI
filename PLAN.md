@@ -6,6 +6,8 @@ Tài liệu này phân tích `Quy_Trinh_Auto_Pipeline_Full1.docx` (bao gồm 4 c
 
 **Kết luận đã chốt trong doc:** Hệ thống có thể auto 100% về mặt kỹ thuật (từ đọc kịch bản → xuất video), nhưng về nghệ thuật/chất lượng nên dùng mô hình **Hybrid Agentic Workflow** — tự động hóa qua MCP, có User duyệt (Human-in-the-Loop) tại 3 điểm chốt.
 
+**Quyết định kiến trúc đã chốt (2026-09-19): điều khiển hợp nhất qua 1 tool duy nhất.** Toàn bộ pipeline (5 bước) được điều khiển từ **một Dashboard web duy nhất**, sắp xếp theo đúng thứ tự bước, mỗi khâu có bộ nút điều khiển riêng; người dùng không phải chạy qua lại giữa nhiều công cụ (xem Mục 3.4). Triển khai 2 giai đoạn: V0 (thử nghiệm qua Claude Desktop + MCP) rồi V1 (Dashboard hợp nhất) — xem Mục 7.
+
 **Quy trình 5 bước:**
 
 | Bước | Thành phần kỹ thuật | Điểm kiểm duyệt | Mức tự động |
@@ -97,18 +99,61 @@ Mọi quyết định (AI hay người) đều ghi vào `review_log` với cột
 
 `qc_agent_provider` vẫn để dạng config swap được — nếu sau này `review_log.reviewer_type` cho thấy Claude Vision chấm sai lệch nhiều so với quyết định thật của user, có thể A/B test model khác mà không phải đổi kiến trúc.
 
-### 3.3 MCP Servers cần build (theo lộ trình 4 tuần gốc, bổ sung chi tiết)
-1. `mcp-server-project-db` — quản lý schema trên, expose state machine transitions dạng tool calls
-2. `mcp-server-deepix` — gen ảnh + ghi kết quả vào `qc_results`
-3. `mcp-server-qc-agent` — model AI chuyên duyệt ảnh theo `qc_checklist` (tách biệt Claude Director), chạy cho cả 2 mode; mặc định dùng **Claude Vision với system prompt QC riêng** (xem 3.2.1), provider vẫn thiết kế swap được qua config `qc_agent_provider` để A/B test sau này
-4. `mcp-server-clipai` — gửi request + **heartbeat polling** batch (comment 4) + pre-flight IP check
-5. `mcp-server-ffmpeg` — concat/render local
+### 3.3 Kiến trúc & MCP Servers (6 server + lớp core dùng chung)
 
-### 3.4 Streamlit Dashboard — bổ sung yêu cầu
-- Hiển thị pipeline theo state machine (Kanban theo state, không chỉ list)
-- Cho phép chỉnh `qc_auto_pass_threshold` và `operating_mode` trực tiếp trên UI
-- Cảnh báo Pre-flight IP/Content risk ngay ở màn hình Character Bible
-- Progress bar real-time cho batch >100 video (heartbeat status)
+**Kiến trúc lớp (để chuyển V0 → V1 không phải làm lại):**
+- **Core Python dùng chung** — toàn bộ logic nghiệp vụ (state machine, gọi Deepix/Clip AI/FFmpeg/nhạc, retry, ghi log) nằm ở đây.
+- **MCP servers** — chỉ là vỏ mỏng bọc core, phục vụ V0 (gọi từ Claude Desktop).
+- **Dashboard (V1)** — gọi cùng core; là **frontend orchestrator duy nhất**, không có đường thao tác nào khác (không mở SQLite tay, không gọi API tay, không chạy script CLI riêng).
+- **LLM runner hoán đổi được** — bước cần Claude (Director Bước 1/3, QC Bước 2, Music Brief) đi qua 1 lớp runner: V0 = chạy thủ công qua chat Claude Desktop, V1 = Anthropic API; dùng chung prompt template + JSON schema đầu ra.
+
+| # | Server | Nhiệm vụ | API/tool bên ngoài cần |
+|---|---|---|---|
+| 1 | `mcp-server-project-db` | SQLite, state machine, parse script.docx, Character Bible, pre-flight IP check | Local; thư viện đọc docx |
+| 2 | `mcp-server-deepix` | Gen ảnh hàng loạt, tải ảnh, ghi kết quả | REST API + key Deepix (nội bộ) |
+| 3 | `mcp-server-qc-agent` | Chấm ảnh theo `qc_checklist`, cả 2 mode; Claude Vision + system prompt QC riêng (xem 3.2.1), provider swap được | Claude (V0: chat; V1: Anthropic API, pin version) |
+| 4 | `mcp-server-clipai` | Gửi/poll gen video, **heartbeat polling** batch, parse lỗi risk-control (comment 4) | REST API (+webhook) Clip AI / Kling |
+| 5 | `mcp-server-ffmpeg` | Concat, transition, mux nhạc, render | FFmpeg local |
+| 6 | `mcp-server-music` | Music Brief, gen 3 bản nháp, thư viện/upload nhạc (xem 3.5) | API nhạc có license thương mại (chọn sau) |
+
+Ngoài ra: Claude Director (Bước 1, 3, Music Brief), Streamlit Dashboard (V1), Figma (mockup giao diện).
+
+### 3.4 Giao diện điều khiển hợp nhất (Unified Control Dashboard)
+
+**Nguyên tắc:**
+1. **Một tool duy nhất** — mọi hành động (upload script, gen ảnh, duyệt, gen video, nhạc, render) thực hiện từ Dashboard; user không phải chuyển qua lại giữa công cụ.
+2. **Bố cục Stepper/Wizard theo đúng thứ tự Bước 1 → 5**, mỗi bước là 1 màn hình riêng, đầu trang luôn hiển thị tiến độ theo state machine. Cho phép quay lại xem/sửa bước trước bất kỳ lúc nào; không cho vào bước sau khi bước trước chưa đủ điều kiện (vd chưa Approve & Lock Character Bible thì chưa vào Bước 2).
+3. **Mỗi khâu có bộ nút điều khiển tác vụ riêng** (bảng dưới), mỗi nút map vào state machine: Run → `queued`→`running`; Retry → `retryable`→`queued` (tăng `retry_count`, ghi `retry_reason`); Cancel → `cancelled`; Approve/Reject → ghi `review_log` (`reviewer_type`).
+4. **Chỉ chạy lại phần thay đổi** (học từ ComfyUI): Reject 1 ảnh và sửa mô tả thì chỉ re-run đúng job đó (qua `parent_job_id`), không re-run các bước/cảnh không đổi.
+5. **Tab Lịch sử:** xem lại các phiên bản ảnh/video đã reject của cùng 1 scene để so sánh.
+6. Giữ giao diện tuyến tính (không dùng node-graph tự do như ComfyUI) vì yêu cầu sắp xếp đúng thứ tự bước.
+
+**Thanh điều khiển toàn cục (luôn hiển thị):** chọn project/kịch bản; switch `operating_mode` (`auto`/`human_qc`); slider `qc_auto_pass_threshold`; Kanban tổng quan scenes theo state; nút khẩn cấp **Pause toàn bộ / Resume toàn bộ / Cancel tất cả job đang chạy**.
+
+**Bộ nút điều khiển theo từng bước:**
+
+| Bước | Nút điều khiển |
+|---|---|
+| 1. Kịch bản & phân tích | Upload script.docx · Chạy phân tích · Sửa Character Bible/bảng cảnh inline · Lưu · **Duyệt & khóa** · Hủy/Reset bước · Cảnh báo Pre-flight IP risk |
+| 2. Gen ảnh + QC | Gen ảnh hàng loạt (tất cả/chọn scene) · mỗi ảnh: Approve · Reject + ghi chú · Gen lại · hàng loạt: Approve tất cả PASS · Gen lại tất cả FAIL · hiển thị mode đang áp dụng + QC score |
+| 3. Video Motion Prompt | Sinh prompt hàng loạt · Sửa prompt · Duyệt từng cái · Duyệt tất cả |
+| 4. Gen video | Bắt đầu gen batch · thanh tiến độ heartbeat (x/y) · Pause/Resume polling · Retry job fail · Cancel job đang chạy · cảnh báo IP risk |
+| 5a. Nhạc nền | Sinh/sửa Music Brief · Gen 3 bản nháp · Nghe thử · Chọn 1 · Gen lại · Upload nhạc · Không dùng nhạc |
+| 5b. Ghép & render | Chọn transition · Render Final · Preview · Tải xuống · Render lại với option khác · **Nghiệm thu (Done)** |
+
+**Bản xem trước bằng Figma:** mockup chi tiết (control bar, stepper, màn hình từng bước 1–5b, tab Lịch sử, trạng thái empty/loading/error, badge theo state machine) — user duyệt trước khi build. Link Figma: _(chưa tạo)_. Lưu ý Streamlit khó khớp 100% pixel với Figma; nếu cần UI sát mockup thì cân nhắc frontend web riêng (quyết định mở).
+
+### 3.5 Bước 5a — Nhạc nền
+AI đề xuất, user quyết định: (1) Claude Director đọc Visual Mood + tổng thời lượng → sinh Music Brief (thể loại, tempo, cảm xúc, nhạc cụ, instrumental), user sửa hoặc tự viết prompt; (2) gen **3 bản nháp cho cả video** (1 track xuyên suốt, tránh đứt giữa cảnh), nghe thử và chọn/gen lại; (3) hoặc upload nhạc có sẵn/thư viện nội bộ/không dùng nhạc; (4) FFmpeg ghép (fade, ducking, căn độ dài) → preview → render.
+- **Suno:** hiện **không có API chính thức** (07/2026 mới mở intake form cho partner, chưa có self-serve; gói Pro/Premier chỉ dùng web/app); các "Suno API" bên thứ ba là wrapper không chính thức → rủi ro ToS/ổn định/bản quyền, không đưa vào pipeline. Dùng Suno thủ công: tạo trên web rồi upload vào slot.
+- `music_provider` swap được; ứng viên có API + license thương mại rõ (vd ElevenLabs Music — cần xác minh). **Chọn provider sau** (chưa chặn V0).
+
+### 3.6 Knowledge Base & Prompt Library (nền chất lượng Bước 1 và Bước 3)
+Nguyên tắc: **không train/fine-tune model** — xây knowledge pack có cấu trúc + ví dụ mẫu + JSON schema đầu ra + bộ đánh giá, nạp vào system prompt Director; rẻ, sửa ngay được, đổi model được.
+- **Bước 1 (biên kịch/đạo diễn):** cấu trúc cảnh (slugline, beat, mục tiêu), bối cảnh, nhân vật/trang phục (= Character Bible), ánh sáng/màu sắc/mood, ngôn ngữ ống kính (cỡ cảnh, góc máy, tiêu cự), continuity giữa cảnh. Đầu ra JSON: scene, location, time, characters, wardrobe, mood, lighting, shot list, image prompt.
+- **Bước 3 (video motion prompt):** thư viện theo thể loại (hành động, kinh dị, drama, game trailer…), từ vựng chuyển động camera (push/pull/pan/tilt/orbit/handheld), tốc độ, hành động nhân vật trong 5s, cú pháp Kling image-to-video; mỗi thể loại có few-shot tốt/xấu + negative prompt.
+- **Nguồn tham khảo (chưa kiểm định — review chất lượng/license trước; chỉ lấy tri thức, không chạy code lạ tùy tiện):** [awesome-ai-video-prompts](https://github.com/geekjourneyx/awesome-ai-video-prompts), [ai-shortfilm-prompts](https://github.com/jnMetaCode/ai-shortfilm-prompts), [visual-skills](https://github.com/smixs/visual-skills), [SKRIPTON](https://github.com/NAMDIE/SKRIPTON), [OpenStory](https://openstory.so/docs/developer-guide/workflow), [awesome-llm-story-generation](https://github.com/Picrew/awesome-llm-story-generation), [Kling Prompt Guide](https://kling.ai/blog/kling-ai-prompt-guide); cộng sách/giáo trình biên kịch-đạo diễn-quay phim do team nội dung chọn và kịch bản/storyboard các dự án đã làm.
+- **Quy trình:** thu thập + lọc → chưng cất knowledge pack → viết system prompt + schema → **eval set** 10–20 mẫu có đáp án do chuyên gia phim/nội dung chấm → lặp cải thiện → khóa version. Cần 1 "chuyên gia miền" duyệt. Ước tính +8–12 ngày công, chạy song song với build MCP ở V0; bộ mẫu dùng luôn để hiệu chỉnh QC checklist (Bước 2).
 
 ## 4. Rủi ro & mitigation tổng hợp
 
@@ -122,11 +167,22 @@ Mọi quyết định (AI hay người) đều ghi vào `review_log` với cột
 
 ## 5. Quyết định đã chốt & còn mở
 
-**Đã chốt (2026-09-18):**
-- `qc_agent_provider` = Claude Vision (system prompt QC riêng) — xem 3.2.1
+**Đã chốt:**
+- `qc_agent_provider` = Claude Vision (system prompt QC riêng) — xem 3.2.1 (2026-09-18)
 - Schema state machine, retry logic, `review_log.reviewer_type` — xem Mục 2, 3.1
+- Điều khiển hợp nhất qua 1 Dashboard duy nhất, stepper theo thứ tự bước, nút điều khiển riêng từng khâu — xem 3.4 (2026-09-19)
+- Triển khai 2 giai đoạn: **V0** (thử nghiệm qua Claude Desktop + MCP, phương án B) rồi **V1** (Dashboard hợp nhất + Anthropic API) — xem Mục 7 (2026-09-19)
+- Kiến trúc core dùng chung + MCP vỏ mỏng + LLM runner hoán đổi được — xem 3.3
+- Không train/fine-tune model; dùng Knowledge Base + eval set — xem 3.6
 
-**Còn mở — cần chốt trước khi code (chặn Tuần 1-2):**
+**Còn mở, KHÔNG chặn V0 (chốt trước V1):**
+| Quyết định | Ghi chú |
+|---|---|
+| Nguồn truy cập Claude cho V1 | Gói Claude (seat Enterprise/Pro/Max) và Anthropic API (Console, API key, tính tiền theo token) là 2 sản phẩm/billing tách biệt; seat không tự sinh API key. Dashboard tự gọi Claude bằng code nên V1 cần API key từ Console org công ty (không nên dùng đăng nhập seat cho ứng dụng tự động — cần xác nhận với admin/điều khoản Anthropic). Việc cần làm: hỏi admin Enterprise (a) có Console org không, (b) hạn mức token, (c) chính sách data cho ảnh nhân vật. |
+| `music_provider` | Suno không có API chính thức; chọn nhà cung cấp có API + license thương mại rõ (vd ElevenLabs Music — cần xác minh). Xem 3.5 |
+| Framework Dashboard | Streamlit (mặc định) hay web frontend riêng nếu cần UI sát mockup Figma |
+
+**Còn mở — cần chốt trước khi code V0 (chặn Tuần 1-2):**
 | Quyết định | Vì sao cần | Ai chốt |
 |---|---|---|
 | `operating_mode` mặc định (`auto` hay `human_qc`) cho từng loại nội dung/dự án | Quyết định luồng review có block hay không — ảnh hưởng thiết kế Dashboard & MCP QC Agent | Bạn + team sản xuất nội dung |
@@ -145,7 +201,8 @@ Mọi quyết định (AI hay người) đều ghi vào `review_log` với cột
 **Hạ tầng vận hành:**
 - [ ] Máy chạy pipeline (PC vận hành) cài **Claude Desktop App** + Python runtime
 - [ ] File `claude_desktop_config.json` trỏ tới các MCP servers local
-- [ ] Môi trường Python cho 5 MCP servers (`project-db`, `deepix`, `qc-agent`, `clipai`, `ffmpeg`) — venv/dependencies
+- [ ] Môi trường Python cho lớp core + 6 MCP servers (`project-db`, `deepix`, `qc-agent`, `clipai`, `ffmpeg`, `music`) — venv/dependencies
+- [ ] (V1) API key Anthropic Console cho Director/QC gọi bằng code — xem Mục 5
 - [ ] FFmpeg cài local, kiểm tra version + codec cần dùng (transition, re-encode)
 - [ ] Ổ đĩa đủ dung lượng cho `/images/`, `/videos/` khi chạy batch lớn
 
@@ -158,41 +215,61 @@ Mọi quyết định (AI hay người) đều ghi vào `review_log` với cột
 - [ ] Người build 5 MCP servers (dev)
 - [ ] Người thiết kế & build Streamlit Dashboard
 - [ ] Người review thẩm mỹ thật (đóng vai "User" ở 3 điểm kiểm duyệt) trong dry-run — cần người này để đo % Claude Vision QC Agent đúng/sai thực tế
+- [ ] "Chuyên gia miền" biên kịch/đạo diễn để duyệt Knowledge Base và chấm eval set (Mục 3.6)
+- [ ] Nguồn tri thức nền: sách/giáo trình biên kịch-đạo diễn-quay phim, kịch bản + storyboard các dự án cũ (Mục 3.6)
 - [ ] Người giữ quan hệ với team dev nội bộ cấp API Deepix/Clip AI
 
-## 7. Lộ trình triển khai chi tiết theo tuần
+## 7. Lộ trình triển khai: V0 → V1
 
-### Tuần 1 — Hạ tầng & chốt quyết định mở
-- Làm việc với team dev nội bộ: lấy API docs, API Key Deepix + Clip AI/Kling; xác nhận có REST/Webhook hay chỉ Web (quyết định mở #2 ở Mục 5).
-- Cài Claude Desktop App + Python MCP server local trên máy vận hành; test kết nối MCP cơ bản (1 tool "hello world").
-- Chốt `operating_mode` mặc định với team sản xuất nội dung (quyết định mở #1).
-- Chốt ngân sách credit thử nghiệm (quyết định mở #4).
-- **Deliverable:** API access hoạt động (test call thành công), môi trường Claude Desktop + MCP sẵn sàng, 4 quyết định mở đã chốt.
+### Giai đoạn V0 — Thử nghiệm (Claude Desktop + MCP, ≈ 3–4 tuần)
+Mục tiêu: chứng minh pipeline end-to-end chạy được, đo chất lượng QC, hiệu chỉnh threshold, chốt Knowledge Base/prompt. Các bước cần Claude (Director Bước 1/3, QC Bước 2, Music Brief) chạy qua chat Claude Desktop với prompt template chuẩn; các thao tác còn lại gọi qua MCP tool. Dashboard V0 tối giản (xem trạng thái + duyệt ảnh) hoặc bỏ qua.
 
-### Tuần 2 — Build nền tảng dữ liệu + 5 MCP servers
-- Implement schema SQLite (`scenes`, `jobs`, `qc_results`, `content_moderation_failures`, `review_log`) + state machine transitions **trước tiên** — đây là nền cho mọi server khác.
-- Build `mcp-server-project-db`: đọc script, chia scene, quản lý Character Bible, expose state transition qua tool calls.
-- Build `mcp-server-deepix`: gọi API gen ảnh, lưu file local, ghi state.
-- Build `mcp-server-qc-agent`: Claude Vision + system prompt QC riêng, chấm theo `qc_checklist`, ghi `qc_results`; implement cả 2 nhánh `auto`/`human_qc`.
-- Build `mcp-server-clipai`: gửi request, **heartbeat polling background**, parse lỗi content-moderation vào `content_moderation_failures`.
-- Build `mcp-server-ffmpeg`: concat/render local.
-- **Deliverable:** Chạy được end-to-end 1 cảnh đơn lẻ qua cả 5 bước bằng tool call thủ công (chưa cần Dashboard).
+**Tuần 1 — Hạ tầng & chốt quyết định mở**
+- Lấy API docs + key Deepix và Clip AI/Kling; xác nhận có REST/Webhook hay chỉ Web (nếu chỉ Web → Playwright, +1–2 tuần).
+- Cài Claude Desktop + Python; test kết nối MCP cơ bản ("hello world").
+- Chốt `operating_mode` mặc định, ngân sách credit thử nghiệm.
+- Khởi động Knowledge Base (Mục 3.6): thu thập + lọc nguồn, chọn chuyên gia miền.
+- **Deliverable:** API access hoạt động, môi trường sẵn sàng, các quyết định chặn V0 đã chốt.
 
-### Tuần 3 — Dashboard + Dry-run + hiệu chỉnh threshold
-- Dựng Streamlit Dashboard: Kanban theo state, nút Approve/Reject, chỉnh `operating_mode` + `qc_auto_pass_threshold`, cảnh báo Pre-flight IP risk.
-- Dry-run 2 kịch bản mẫu (5-10 cảnh) ở **cả 2 mode** để so sánh.
-- Người review thật chấm song song với Claude Vision QC Agent → tính % đồng thuận, dùng để hiệu chỉnh `qc_auto_pass_threshold` từ giá trị giả định 0.85 sang giá trị dựa trên dữ liệu thật.
-- Build blocklist IP ban đầu dựa trên danh sách nhân vật dự kiến (Mục 6) + case Wonder Woman đã biết.
-- **Deliverable:** Video hoàn chỉnh đầu tiên chạy end-to-end qua Dashboard; threshold đã hiệu chỉnh bằng dữ liệu thật; blocklist v1.
+**Tuần 2 — Core + MCP servers**
+- Implement schema SQLite + state machine **trước tiên** trong lớp core dùng chung.
+- Build MCP `project-db`, `deepix`, `qc-agent` (cả 2 nhánh `auto`/`human_qc`), `clipai` (heartbeat polling, parse lỗi moderation), `ffmpeg`; `music` có thể để sau (upload nhạc thủ công ở V0).
+- Song song: viết system prompt + JSON schema cho Director/QC, tạo eval set.
+- **Deliverable:** chạy được end-to-end 1 cảnh qua 5 bước bằng tool call.
 
-### Tuần 4 — Đóng gói & bàn giao
-- Đóng gói 5 MCP servers thành script 1-Click Startup.
-- Viết tài liệu Prompt Templates chuẩn (Character Bible prompt, QC checklist prompt, Video Motion Prompt) cho bộ phận sản xuất nội dung.
-- Viết runbook vận hành: cách xử lý khi job `failed` bị escalate, cách đọc Dashboard, cách chỉnh threshold an toàn.
-- **Deliverable:** Hệ thống bàn giao vận hành được, có tài liệu, không phụ thuộc người build ngồi cạnh.
+**Tuần 3–4 — Dry-run & hiệu chỉnh**
+- Dry-run 2 kịch bản mẫu (5–10 cảnh) ở cả 2 mode; người review thật chấm song song với QC Agent → tính % đồng thuận → hiệu chỉnh `qc_auto_pass_threshold` (0.85 chỉ là giả định).
+- Lặp cải thiện prompt theo eval set; build blocklist IP v1 (case Wonder Woman + danh sách nhân vật dự kiến).
+- **Cổng chuyển V1:** ≥1 video hoàn chỉnh end-to-end, threshold đã hiệu chỉnh bằng dữ liệu, prompt/checklist khóa version.
+
+### Giai đoạn V1 — Hợp nhất trên 1 Dashboard (≈ +3–4 tuần, cần API key Anthropic)
+- **Song song đầu V1:** Figma mockup chi tiết (Mục 3.4) → user duyệt trước khi build.
+- Build Dashboard theo Mục 3.4 (stepper 5 bước, control bar toàn cục, nút điều khiển từng khâu, Kanban, tab Lịch sử, cảnh báo IP, tiến độ heartbeat) gọi lớp core.
+- Thay LLM runner từ chat thủ công sang Anthropic API (cùng prompt template + schema).
+- Build `mcp-server-music` + Bước 5a (Music Brief, 3 bản nháp) sau khi chọn `music_provider`.
+- Đóng gói 1-Click Startup, runbook (xử lý job `failed` bị escalate, chỉnh threshold an toàn), Prompt Templates bàn giao.
+- **Deliverable:** hệ thống bàn giao vận hành được từ 1 giao diện duy nhất, có tài liệu.
+
+### Ước tính nỗ lực (giả định đã có đủ API key/docs/môi trường/kịch bản mẫu; dev Python có Claude Code hỗ trợ)
+| Hạng mục | Ngày công |
+|---|---|
+| Schema + state machine + project-db | 3–4 |
+| deepix | 2–3 |
+| qc-agent (+ checklist prompt) | 3–4 |
+| clipai (heartbeat, moderation, retry) | 4–5 |
+| ffmpeg | 2–3 |
+| music | 2–3 |
+| Knowledge Base + eval set (Mục 3.6) | 8–12 |
+| Dashboard Streamlit (màn hình 5 bước + control bar + lịch sử) | 8–10 |
+| Figma mockup (song song) | 2–3 |
+| Tích hợp E2E + dry-run + hiệu chỉnh threshold | 4–5 |
+| Đóng gói 1-click + runbook + prompt templates | 3 |
+| **Tổng** | **~41–55 ngày công** |
+
+→ **1 dev: ≈ 8–11 tuần; 2 dev (1 backend/MCP + Knowledge Base, 1 dashboard): ≈ 5–7 tuần.** Rủi ro kéo dài: chờ API Deepix/Clip AI; Deepix/Clip AI chỉ có Web (Playwright, +1–2 tuần); hiệu chỉnh QC threshold cần nhiều vòng; chất lượng Knowledge Base phụ thuộc chuyên gia miền.
 
 ## 8. Định nghĩa "Hoàn thành" (Definition of Done) cho toàn dự án
-- [ ] Chạy được ít nhất 1 video hoàn chỉnh end-to-end từ script.docx đến FINAL_VIDEO.mp4 qua Dashboard, không cần chỉnh code tay
+- [ ] Chạy được ít nhất 1 video hoàn chỉnh end-to-end từ script.docx đến FINAL_VIDEO.mp4 qua Dashboard (V1), không cần chỉnh code tay
 - [ ] Cả 2 `operating_mode` đều test được và cho kết quả đúng như thiết kế ở Mục 3.2
 - [ ] `max_retry_count` + escalate hoạt động đúng khi cố tình cho 1 job fail liên tục
 - [ ] Pre-flight IP check cảnh báo đúng với ít nhất 1 case đã biết (Wonder Woman) trước khi chạy batch thật
