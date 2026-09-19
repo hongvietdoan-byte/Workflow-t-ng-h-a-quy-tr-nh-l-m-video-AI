@@ -4,7 +4,7 @@
     py -m core.adapters.trial --yes --model seedance
     py -m core.adapters.trial --yes --image path\\to\\existing.png      (skip Deepix, only the video step)
 
-Without --yes nothing is sent. Results and a report are written to data/trial/ (git-ignored).
+Without --yes nothing is sent. Results and a per-model report are written to data/trial/ (git-ignored; one file per model).
 Tokens come from the environment and are never printed.
 """
 import argparse
@@ -61,11 +61,11 @@ def run_trial(args, image_provider=None, video_provider=None, sleep=time.sleep, 
     status = _wait(video_provider, task, "video", 10, 900, sleep, clock)
     if status.state != "succeeded":
         raise ProviderError(f"video failed: {status.error_code}: {status.error_message}", code="video_failed")
-    video_path = video_provider.download(task, os.path.join(args.out, "trial_video.mp4"))
+    video_path = video_provider.download(task, os.path.join(args.out, f"trial_video_{args.model}.mp4"))
     report["steps"].append({"step": "video", "provider": video_provider.name, "task": task, "model": args.model,
                             "file": video_path, "bytes": os.path.getsize(video_path)})
     print(f"  saved {video_path} ({os.path.getsize(video_path)} bytes)")
-    with open(os.path.join(args.out, "report.json"), "w", encoding="utf-8") as f:
+    with open(os.path.join(args.out, f"report_{args.model}.json"), "w", encoding="utf-8") as f:
         json.dump(report, f, ensure_ascii=False, indent=2)
     return report
 

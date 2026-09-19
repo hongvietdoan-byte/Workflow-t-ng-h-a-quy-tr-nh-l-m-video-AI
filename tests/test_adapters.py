@@ -306,8 +306,8 @@ class TrialTests(unittest.TestCase):
         report = trial.run_trial(args, MockImageProvider(polls_to_finish=2), MockVideoProvider(polls_to_finish=2),
                                  sleep=lambda s: None)
         self.assertEqual([x["step"] for x in report["steps"]], ["image", "video"])
-        self.assertTrue(os.path.exists(os.path.join(out, "trial_video.mp4")))
-        self.assertTrue(os.path.exists(os.path.join(out, "report.json")))
+        self.assertTrue(os.path.exists(os.path.join(out, "trial_video_seedance.mp4")))
+        self.assertTrue(os.path.exists(os.path.join(out, "report_seedance.json")))
 
     def test_video_only_with_existing_image_and_failure_reporting(self):
         from core.adapters import trial

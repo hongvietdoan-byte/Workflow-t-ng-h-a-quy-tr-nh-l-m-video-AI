@@ -51,6 +51,7 @@ _Cập nhật lần cuối: 2026-09-19. Chi tiết kế hoạch xem `PLAN.md`. �
 - [x] Đọc 2 skill Deepix 1.4.1 và Clip AI 1.3.1; viết adapter thật `core/adapters/` (HTTP stdlib, Deepix Seedream 5.0 Pro, Clip AI Kling Omni + Seedance, factory theo env, kiểm tra kết nối chỉ đọc), runner chịu lỗi mạng/risk control, `docs/api_notes.md`; 92 test pass. Thư mục skill để ngoài git (2026-09-19)
 - [x] Kết nối thật đã xác nhận: Clip AI OK (537 tác vụ trong tài khoản) và Deepix OK; sửa lỗi nhập token (lệnh SecureString cũ của tôi sai → dùng `NetworkCredential`); thêm `core.adapters.trial` (1 ảnh + 1 clip, cần `--yes`); 98 test pass (2026-09-19)
 - [x] Chạy thật OK: ảnh Deepix 31s (JPEG 2048x1152), clip Kling 84s (1920x1080, 24fps, 5s, ~10.7MB), nhân vật nhất quán, camera đúng prompt; adapter gửi ảnh đúng định dạng thật; 99 test pass. Kết quả ghi ở `docs/api_notes.md` (2026-09-19)
+- [x] Thử Seedance 2.0 (720p): 167s, 1280x720, 3,6MB, chất lượng gần Kling (Kling 84s, 1080p, 10,7MB); trial lưu file riêng từng model; so sánh ghi ở `docs/api_notes.md` (2026-09-19)
 - [x] Lớp core Python: schema SQLite + state machine + luồng `auto`/`human_qc` + retry/escalate, 10 unit test pass (`core/`, `tests/`) (2026-09-19)
 
 ## ⏸ Tạm gác (theo yêu cầu 2026-09-19)
@@ -69,7 +70,7 @@ _Cập nhật lần cuối: 2026-09-19. Chi tiết kế hoạch xem `PLAN.md`. �
 
 ## 👤 Việc cần người dùng quyết định / cung cấp
 - [ ] Chuyển repo GitHub sang **private** (người dùng tự làm)
-- [ ] **Bạn làm:** thử Seedance với ảnh đã có: `py -m core.adapters.trial --yes --model seedance --image data/trial/trial_image.png` và so sánh với Kling (chất lượng, thời gian); rồi chạy 1 cảnh thật qua Dashboard (`IMAGE_PROVIDER=deepix`, `VIDEO_PROVIDER=clipai`)
+- [ ] **Bạn làm:** thử Seedance ở 1080p (`$env:CLIPAI_RESOLUTION="1080p"`) để so công bằng với Kling; rồi chạy **1 cảnh thật qua Dashboard** (`IMAGE_PROVIDER=deepix`, `VIDEO_PROVIDER=clipai`). Gợi ý: thử thêm cảnh có nhân vật cận cảnh/hành động nhanh từ `eval/cases.json` để so 2 model
 - [ ] Hỏi admin Claude Enterprise: có Console org / API key Anthropic cho V1 không, hạn mức token, chính sách data ảnh nhân vật
 - [ ] Chọn `music_provider`: ưu tiên audio của Clip AI (ElevenLabs/Seed Audio) nếu API mở; Suno không có API chính thức — không chặn V0
 - [ ] Chọn `video_model` mặc định: `kling` (kling-v3-omni) hoặc `seedance` (MiniMax không có trong API) — sau khi thử thực tế cả hai

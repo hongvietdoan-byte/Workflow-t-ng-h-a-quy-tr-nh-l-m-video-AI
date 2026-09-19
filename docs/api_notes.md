@@ -55,3 +55,16 @@ py -m streamlit run dashboard/app.py
 - **Chất lượng clip:** nhân vật giữ nguyên hình dáng qua các khung, camera tiến vào (push-in) đúng prompt, áo choàng lay, sương trôi; ghép được với FFmpeg và nhạc.
 - **Ước tính thời gian batch:** clip ~1,5 phút/cảnh, mặc định 5 cảnh chạy song song → 100 cảnh khoảng 30 phút cho video, ảnh nhanh hơn nhiều.
 - **Chưa kiểm chứng:** negative prompt qua API, thông điệp risk control thật, thời hạn link `video_url`, chi phí credit mỗi lần, hành vi Seedance.
+
+## So sánh Kling và Seedance (cùng ảnh khung đầu, cùng prompt push-in, 5 giây, 2026-09-19)
+| | `kling-v3-omni` (mode `pro`) | `dreamina-seedance-2-0-260128` (720p) |
+|---|---|---|
+| Thời gian chờ | ~84 giây | ~167 giây |
+| Độ phân giải / fps | 1920x1080 / 24 | 1280x720 / 24 |
+| Dung lượng (5 giây) | ~10,7 MB (~17 Mbps) | ~3,6 MB (~5,8 Mbps) |
+| Âm thanh | không | không (`generate_audio` tắt) |
+| Chuyển động | push-in, áo lay, sương trôi | push-in, áo lay, sương trôi; nhân vật rõ hơn một chút |
+| Task id | `omni:<số>` | `seedance:cgt-...` |
+- Chất lượng thị giác gần tương đương ở mẫu này; Kling nhanh hơn và độ phân giải mặc định cao hơn. Seedance 2.0 thường hỗ trợ 1080p (đặt `CLIPAI_RESOLUTION=1080p`), cần thử để so công bằng; Seedance 2.5 kéo dài tới 30 giây.
+- Mẫu chỉ có 1 cảnh phong cảnh có nhân vật nhỏ: **chưa đủ** để kết luận về chuyển động nhân vật, cận cảnh, hành động nhanh, hoặc bộ lọc kiểm duyệt. Nên chạy bộ mẫu `eval/` (hành động, cận cảnh cảm xúc, bẫy IP) trên cả hai.
+- Lệnh chạy thử nay lưu `trial_video_<model>.mp4` riêng từng model (lần đầu Seedance ghi đè file Kling vì dùng chung tên).
