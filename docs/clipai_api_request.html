@@ -4,9 +4,9 @@
 <meta charset="utf-8">
 <title>Clip AI API Integration Proposal - Auto Video Pipeline</title>
 <style>
-@page{size:1600px 1130px;margin:0}
+@page{size:1600px 1220px;margin:0}
 *{box-sizing:border-box}
-body{margin:0;width:1600px;height:1130px;background:#F4F5F8;font-family:"Segoe UI",Arial,sans-serif;color:#1A1F2B;position:relative}
+body{margin:0;width:1600px;height:1220px;background:#F4F5F8;font-family:"Segoe UI",Arial,sans-serif;color:#1A1F2B;position:relative}
 h1{position:absolute;left:40px;top:24px;margin:0;font-size:28px}
 .sub{position:absolute;left:40px;top:64px;font-size:15px;color:#667085}
 .tag{position:absolute;right:40px;top:28px;background:#4F46E5;color:#fff;padding:8px 16px;border-radius:8px;font-size:14px;font-weight:600}
@@ -28,9 +28,10 @@ table{border-collapse:collapse;width:100%;font-size:12.5px}td,th{border:1px soli
 <div class="sub">Workflow diagram and technical requirements for API access approval — based on PLAN.md (2026-09-19)</div>
 <div class="tag">Approval requested: Step 4 — Image-to-video generation</div>
 
-<svg width="1600" height="1130" viewBox="0 0 1600 1130">
+<div class="box desc" style="left:40px;top:96px;width:1520px;height:84px;background:#fff"><b>How the process works</b>A script (.docx) is split into scenes and a Character Bible by an AI director. Deepix generates one image per scene, and each image is quality-checked (automatically or by a person, depending on the project mode). Approved images get a short motion prompt and are sent to Clip AI / Kling, which turns each one into a 5-second video clip. FFmpeg then joins the clips, adds transitions and music, and produces the final video. Everything is controlled from one Dashboard with start, pause, retry and cancel buttons.</div>
+<svg width="1600" height="1220" viewBox="0 0 1600 1220">
 <defs><marker id="a" markerWidth="10" markerHeight="8" refX="9" refY="4" orient="auto"><path d="M0,0 L10,4 L0,8 z" fill="#667085"/></marker>
-<marker id="p" markerWidth="10" markerHeight="8" refX="9" refY="4" orient="auto"><path d="M0,0 L10,4 L0,8 z" fill="#4F46E5"/></marker></defs>
+<marker id="p" markerWidth="10" markerHeight="8" refX="9" refY="4" orient="auto"><path d="M0,0 L10,4 L0,8 z" fill="#4F46E5"/></marker></defs><g transform="translate(0,90)">
 <!-- main pipeline arrows y=205 -->
 <g stroke="#667085" stroke-width="2" fill="none" marker-end="url(#a)">
 <line x1="285" y1="205" x2="325" y2="205"/><line x1="565" y1="205" x2="605" y2="205"/>
@@ -45,24 +46,24 @@ table{border-collapse:collapse;width:100%;font-size:12.5px}td,th{border:1px soli
 <line x1="840" y1="530" x2="720" y2="530"/></g>
 <text x="780" y="458" font-size="12" fill="#4F46E5" text-anchor="middle">① submit</text>
 <text x="780" y="522" font-size="12" fill="#4F46E5" text-anchor="middle">② status / webhook</text>
-</svg>
+</g></svg>
 
-<div class="sec" style="left:40px;top:104px">A. 5-STEP PIPELINE (controlled from a single Dashboard)</div>
-<div class="box" style="left:40px;top:130px;width:245px;height:140px"><b><span class="num">1</span>Script &amp; analysis</b>Claude Director splits scenes and builds the Character Bible.<br><small>Pre-flight copyrighted-IP check</small></div>
-<div class="box" style="left:325px;top:130px;width:240px;height:140px"><b><span class="num">2</span>Image gen + QC</b>Deepix API generates images; Claude Vision scores QC.<br><small>Modes: auto / human_qc</small></div>
-<div class="box" style="left:605px;top:130px;width:240px;height:140px"><b><span class="num">3</span>Video motion prompt</b>Claude writes a 5s motion prompt per scene; a human reviews it.</div>
-<div class="box hi" style="left:885px;top:130px;width:240px;height:140px"><b><span class="num">4</span>Video generation ★</b>Approved image + motion prompt → <b style="display:inline">Clip AI API</b><br><small>API access needed at this step</small></div>
-<div class="box" style="left:1165px;top:130px;width:240px;height:140px"><b><span class="num">5</span>Assemble &amp; render</b>Local FFmpeg: concat clips, transitions, music → FINAL_VIDEO.mp4</div>
-<div class="box ok" style="left:1425px;top:130px;width:135px;height:140px"><b>Output</b>Finished video<br><small>reviewed by a person</small></div>
+<div class="sec" style="left:40px;top:194px">A. 5-STEP PIPELINE (controlled from a single Dashboard)</div>
+<div class="box" style="left:40px;top:220px;width:245px;height:140px"><b><span class="num">1</span>Script &amp; analysis</b>Claude Director splits scenes and builds the Character Bible.<br><small>Pre-flight copyrighted-IP check</small></div>
+<div class="box" style="left:325px;top:220px;width:240px;height:140px"><b><span class="num">2</span>Image gen + QC</b>Deepix API generates images; Claude Vision scores QC.<br><small>Modes: auto / human_qc</small></div>
+<div class="box" style="left:605px;top:220px;width:240px;height:140px"><b><span class="num">3</span>Video motion prompt</b>Claude writes a 5s motion prompt per scene; a human reviews it.</div>
+<div class="box hi" style="left:885px;top:220px;width:240px;height:140px"><b><span class="num">4</span>Video generation ★</b>Approved image + motion prompt → <b style="display:inline">Clip AI API</b><br><small>API access needed at this step</small></div>
+<div class="box" style="left:1165px;top:220px;width:240px;height:140px"><b><span class="num">5</span>Assemble &amp; render</b>Local FFmpeg: concat clips, transitions, music → FINAL_VIDEO.mp4</div>
+<div class="box ok" style="left:1425px;top:220px;width:135px;height:140px"><b>Output</b>Finished video<br><small>reviewed by a person</small></div>
 
-<div class="sec" style="left:40px;top:340px">B. CLIP AI API INTEGRATION DETAILS</div>
-<div class="box" style="left:40px;top:380px;width:290px;height:180px"><b>Dashboard (Streamlit)</b>Controls: Start batch · Pause/Resume polling · Retry failed jobs · Cancel job.<br><small>Shows progress x/y + risk-control warnings</small></div>
-<div class="box hi" style="left:420px;top:380px;width:300px;height:180px"><b>mcp-server-clipai</b><ul><li>Submit: image + prompt + duration</li><li>Heartbeat polling (default 90s)</li><li>Download .mp4 to /videos/</li><li>State machine: queued→running→succeeded/failed</li><li>Max 3 retries, then escalate to a person</li></ul></div>
-<div class="box hi" style="left:840px;top:380px;width:340px;height:180px"><b>Clip AI / Kling API (access requested)</b><ul><li>Create image-to-video task</li><li>Query task status (or webhook)</li><li>Download result · cancel task</li><li>Clear error codes/messages (incl. risk control)</li></ul></div>
-<div class="box" style="left:1240px;top:380px;width:320px;height:180px"><b>Cost &amp; risk controls</b><ul><li>Only approved images are sent</li><li>Pre-flight IP check: flags characters matching IPs blocked by Kling (e.g. Wonder Woman) before any API call</li><li>Retries capped at 3 → prevents wasting credits</li><li>Emergency Pause / Cancel-all buttons</li></ul></div>
+<div class="sec" style="left:40px;top:430px">B. CLIP AI API INTEGRATION DETAILS</div>
+<div class="box" style="left:40px;top:470px;width:290px;height:180px"><b>Dashboard (Streamlit)</b>Controls: Start batch · Pause/Resume polling · Retry failed jobs · Cancel job.<br><small>Shows progress x/y + risk-control warnings</small></div>
+<div class="box hi" style="left:420px;top:470px;width:300px;height:180px"><b>mcp-server-clipai</b><ul><li>Submit: image + prompt + duration</li><li>Heartbeat polling (default 90s)</li><li>Download .mp4 to /videos/</li><li>State machine: queued→running→succeeded/failed</li><li>Max 3 retries, then escalate to a person</li></ul></div>
+<div class="box hi" style="left:840px;top:470px;width:340px;height:180px"><b>Clip AI / Kling API (access requested)</b><ul><li>Create image-to-video task</li><li>Query task status (or webhook)</li><li>Download result · cancel task</li><li>Clear error codes/messages (incl. risk control)</li></ul></div>
+<div class="box" style="left:1240px;top:470px;width:320px;height:180px"><b>Cost &amp; risk controls</b><ul><li>Only approved images are sent</li><li>Pre-flight IP check: flags characters matching IPs blocked by Kling (e.g. Wonder Woman) before any API call</li><li>Retries capped at 3 → prevents wasting credits</li><li>Emergency Pause / Cancel-all buttons</li></ul></div>
 
-<div class="sec" style="left:40px;top:590px">C. REQUESTED APPROVAL</div>
-<div class="box" style="left:40px;top:620px;width:770px;height:300px"><b>Information / access requested</b>
+<div class="sec" style="left:40px;top:680px">C. REQUESTED APPROVAL</div>
+<div class="box" style="left:40px;top:710px;width:770px;height:300px"><b>Information / access requested</b>
 <table><tr><th style="width:26%">Item</th><th>Requirement</th></tr>
 <tr><td>Authentication</td><td>API key / token (kept in an environment variable on the operating machine, never committed to the repo)</td></tr>
 <tr><td>Endpoints</td><td>Create image-to-video task · get status · (webhook if available) · download video · cancel task</td></tr>
@@ -71,11 +72,11 @@ table{border-collapse:collapse;width:100%;font-size:12.5px}td,th{border:1px soli
 <tr><td>Errors</td><td>Error-code documentation, especially "Failure to pass the risk control system"</td></tr>
 <tr><td>Quota &amp; cost</td><td>Quota/credits for the pilot phase and for scaling to batches of &gt;100 clips</td></tr></table></div>
 
-<div class="box warn" style="left:830px;top:620px;width:730px;height:145px"><b>Proposed usage scale</b><ul><li><b style="display:inline">Pilot phase (V0):</b> ~2 scripts, 10–20 clips → at most ~60 requests if every scene needs 3 retries</li><li><b style="display:inline">Production phase:</b> batches may exceed 100 clips → requires long-running polling; per-request manual approval is not feasible</li><li>Requested quota: <b style="display:inline">........ requests/day</b> (to be agreed)</li></ul></div>
-<div class="box ok" style="left:830px;top:780px;width:730px;height:140px"><b>Security &amp; data</b><ul><li>Only pipeline-generated scene images and text prompts are sent; no personal data</li><li>The API key stays on the operating machine; the source repo contains no keys</li><li>Every call is logged (job, state, error) for auditing and cost tracking</li></ul></div>
+<div class="box warn" style="left:830px;top:710px;width:730px;height:145px"><b>Proposed usage scale</b><ul><li><b style="display:inline">Pilot phase (V0):</b> ~2 scripts, 10–20 clips → at most ~60 requests if every scene needs 3 retries</li><li><b style="display:inline">Production phase:</b> batches may exceed 100 clips → requires long-running polling; per-request manual approval is not feasible</li><li>Requested quota: <b style="display:inline">........ requests/day</b> (to be agreed)</li></ul></div>
+<div class="box ok" style="left:830px;top:870px;width:730px;height:140px"><b>Security &amp; data</b><ul><li>Only pipeline-generated scene images and text prompts are sent; no personal data</li><li>The API key stays on the operating machine; the source repo contains no keys</li><li>Every call is logged (job, state, error) for auditing and cost tracking</li></ul></div>
 
-<div class="sec" style="left:40px;top:950px">D. PLAN ONCE ACCESS IS GRANTED</div>
-<div class="box" style="left:40px;top:980px;width:1520px;height:110px">
+<div class="sec" style="left:40px;top:1040px">D. PLAN ONCE ACCESS IS GRANTED</div>
+<div class="box" style="left:40px;top:1070px;width:1520px;height:110px">
 <div style="display:flex;gap:16px;align-items:flex-start">
 <div style="flex:1"><b>1 · Verify the API</b>Run 1 test task; confirm endpoints, error schema, processing time</div>
 <div style="flex:1"><b>2 · Build the connector</b>mcp-server-clipai: submit, heartbeat polling, download video, error logging</div>
