@@ -143,7 +143,7 @@ Ngoài ra: Claude Director (Bước 1, 3, Music Brief), Streamlit Dashboard (V1)
 
 **Bản xem trước bằng Figma:** mockup chi tiết (control bar, stepper, màn hình từng bước 1–5b, tab Lịch sử, trạng thái empty/loading/error, badge theo state machine) — user duyệt trước khi build. **Trạng thái mockup (2026-09-19):**
 - **HTML tương tác (đầy đủ):** [mockup/dashboard.html](mockup/dashboard.html) — mở bằng trình duyệt; đủ 6 màn hình (Bước 1, 2, 3, 4, 5a, 5b) + tab Lịch sử, control bar toàn cục, đổi `operating_mode`/threshold thấy tác động lên Bước 2. Dữ liệu giả.
-- **Figma (một phần):** [file Figma](https://www.figma.com/design/NjEZBllciYNbZwIntemWbd) — mới có component TopBar, Stepper (6 biến thể) và Màn hình Bước 1. Các màn còn lại bị chặn do gói Figma Starter đã hết hạn mức gọi công cụ MCP; sẽ làm tiếp khi hạn mức được reset/nâng gói, hoặc chuyển bản HTML sang Figma thủ công.
+- **Figma:** [file Figma](https://www.figma.com/design/NjEZBllciYNbZwIntemWbd) — có component TopBar, Stepper (6 biến thể), Màn hình Bước 1 (dựng bằng Figma MCP) và **bản import đầy đủ 7 màn** từ [mockup/dashboard_all.html](mockup/dashboard_all.html) bằng plugin html.to.design (frame "dashboard_all.html", các màn xếp dọc). Các màn 2–6 chỉ được dựng qua import HTML vì gói Figma Starter hết hạn mức MCP; layer là kết quả import tự động nên cần tách frame/đặt tên/componentize thủ công nếu muốn dùng làm design system. Việc tồn đọng: Stepper component đang chồng lên Screen 1 trên canvas (cần dời vị trí).
 
 Lưu ý Streamlit khó khớp 100% pixel với Figma; nếu cần UI sát mockup thì cân nhắc frontend web riêng (quyết định mở).
 
