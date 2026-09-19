@@ -45,5 +45,6 @@ Clip AI là cổng vào Kling và Seedance; phản hồi khác API gốc.
 $env:VIDEO_PROVIDER = "clipai"; $env:CLIPAI_TOKEN = "<token của bạn>"
 $env:IMAGE_PROVIDER = "deepix"; $env:DEEPIX_TOKEN = "<token của bạn>"
 py -m core.adapters.check            # kiểm tra kết nối (chỉ đọc, không tốn credit)
+py -m core.adapters.trial --yes      # thử thật 1 ảnh + 1 clip (TỐN CREDIT); thêm --model seedance để thử Seedance
 py -m streamlit run dashboard/app.py
 ```

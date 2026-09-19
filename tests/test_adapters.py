@@ -283,6 +283,37 @@ class TokenCleaningTests(unittest.TestCase):
         self.assertIn("looks fine", out)
 
 
+class TrialTests(unittest.TestCase):
+    def test_refuses_without_confirmation(self):
+        from core.adapters import trial
+        self.assertEqual(trial.main([]), 2)
+
+    def test_full_trial_with_mock_providers(self):
+        from core.adapters import trial
+        from core.providers import MockImageProvider, MockVideoProvider
+        out = tempfile.mkdtemp()
+        args = trial.parse_args(["--yes", "--out", out, "--model", "seedance"])
+        report = trial.run_trial(args, MockImageProvider(polls_to_finish=2), MockVideoProvider(polls_to_finish=2),
+                                 sleep=lambda s: None)
+        self.assertEqual([x["step"] for x in report["steps"]], ["image", "video"])
+        self.assertTrue(os.path.exists(os.path.join(out, "trial_video.mp4")))
+        self.assertTrue(os.path.exists(os.path.join(out, "report.json")))
+
+    def test_video_only_with_existing_image_and_failure_reporting(self):
+        from core.adapters import trial
+        from core.providers import MockVideoProvider
+        out = tempfile.mkdtemp()
+        img = os.path.join(out, "x.png")
+        with open(img, "wb") as f:
+            f.write(b"png")
+        args = trial.parse_args(["--yes", "--out", out, "--image", img])
+        trial.run_trial(args, None, MockVideoProvider(), sleep=lambda s: None)
+        args = trial.parse_args(["--yes", "--out", out, "--image", img, "--motion-prompt", "wonder woman flies"])
+        with self.assertRaises(ProviderError) as cm:
+            trial.run_trial(args, None, MockVideoProvider(), sleep=lambda s: None)
+        self.assertEqual(cm.exception.code, "video_failed")
+
+
 class CheckTests(unittest.TestCase):
     def test_read_only_check_reports_ok_and_failures_without_leaking_token(self):
         from core.adapters import check
