@@ -1,6 +1,6 @@
 # TODO — Theo dõi tiến độ dự án Auto Pipeline Video AI
 
-_Cập nhật lần cuối: 2026-09-19. Chi tiết kế hoạch xem `PLAN.md`._ Đánh dấu `[x]` khi xong, ghi ngày cạnh mục.
+_Cập nhật lần cuối: 2026-09-19._ Chi tiết kế hoạch xem `PLAN.md`._ Đánh dấu `[x]` khi xong, ghi ngày cạnh mục.
 
 ## 🔁 Việc phải làm lại MỖI LẦN (checklist cố định)
 - [ ] Sửa nội dung kế hoạch → chỉ sửa `PLAN.md`, không sửa tay docx/pdf
@@ -19,12 +19,17 @@ _Cập nhật lần cuối: 2026-09-19. Chi tiết kế hoạch xem `PLAN.md`._ 
 - [x] Mockup HTML tương tác (`mockup/`) + import đủ 7 màn vào Figma (2026-09-19)
 - [x] Xuất `PLAN.docx`/`PLAN.pdf` + `tools/build_docs.sh` + `CLAUDE.md` quy ước repo (2026-09-19)
 - [x] Đưa Deepix package ra ngoài repo bằng `.gitignore` (2026-09-19)
+- [x] Lớp core Python: schema SQLite + state machine + luồng `auto`/`human_qc` + retry/escalate, 10 unit test pass (`core/`, `tests/`) (2026-09-19)
+
+## ⏸ Tạm gác (theo yêu cầu 2026-09-19)
+- [ ] API Clip AI/Kling (kiểm tra REST/webhook) và đọc tài liệu API Deepix (`deepix-1.4.1`) — làm sau; các module không cần API làm trước
 
 ## 🚧 Đang làm / kế tiếp (ưu tiên từ trên xuống)
-- [ ] **Kiểm tra Clip AI/Kling có REST API (+webhook) không** — chặn thiết kế `mcp-server-clipai` (nếu chỉ Web → Playwright, +1–2 tuần)
-- [ ] Đọc `deepix-1.4.1` (tài liệu API Deepix) → ghi endpoint/auth/rate limit vào PLAN.md
-- [ ] Khởi động lớp core Python: schema SQLite (`scenes`, `jobs`, `qc_results`, `content_moderation_failures`, `review_log`) + state machine
-- [ ] Build MCP `project-db`, `deepix`, `qc-agent`, `clipai`, `ffmpeg` (V0); `music` để sau
+- [ ] Script parser: đọc script.docx → tách cảnh/nhân vật (không cần API) + lưu vào SQLite
+- [ ] Module FFmpeg: concat/transition/mux nhạc (chạy local, không cần API)
+- [ ] Runner/prompt template cho Director + QC Agent (V0 chạy qua chat Claude Desktop)
+- [ ] MCP server vỏ mỏng bọc `core` (`project-db`, `qc-agent`, `ffmpeg`)
+- [ ] MCP `deepix`, `clipai` (cần API — sau khi hết tạm gác); `music` để sau
 - [ ] Knowledge Base + eval set cho Bước 1 & 3 (PLAN.md Mục 3.6); chọn "chuyên gia miền" duyệt
 - [ ] Chuẩn bị 2 kịch bản mẫu (5–10 cảnh) cho dry-run V0
 - [ ] Dry-run 2 mode, đo % đồng thuận QC Agent–người → hiệu chỉnh `qc_auto_pass_threshold`
