@@ -1,2 +1,4 @@
 deepix-*.zip
 deepix-*/
+__pycache__/
+*.pyc

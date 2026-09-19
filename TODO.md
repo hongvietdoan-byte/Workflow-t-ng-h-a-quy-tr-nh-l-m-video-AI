@@ -1,6 +1,6 @@
 # TODO — Theo dõi tiến độ dự án Auto Pipeline Video AI
 
-_Cập nhật lần cuối: 2026-09-19._ Chi tiết kế hoạch xem `PLAN.md`._ Đánh dấu `[x]` khi xong, ghi ngày cạnh mục.
+_Cập nhật lần cuối: 2026-09-19. Chi tiết kế hoạch xem `PLAN.md`. Đánh dấu `[x]` khi xong, ghi ngày cạnh mục._
 
 ## 🔁 Việc phải làm lại MỖI LẦN (checklist cố định)
 - [ ] Sửa nội dung kế hoạch → chỉ sửa `PLAN.md`, không sửa tay docx/pdf
