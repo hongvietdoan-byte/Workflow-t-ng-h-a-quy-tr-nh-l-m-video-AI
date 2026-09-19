@@ -27,6 +27,15 @@ CREATE TABLE IF NOT EXISTS characters (
     locked INTEGER NOT NULL DEFAULT 0,
     UNIQUE (project_id, name)
 );
+CREATE TABLE IF NOT EXISTS motion_prompts (
+    id INTEGER PRIMARY KEY,
+    scene_id INTEGER NOT NULL UNIQUE REFERENCES scenes(id),
+    motion_prompt TEXT NOT NULL,
+    camera TEXT,
+    duration_sec REAL NOT NULL DEFAULT 5,
+    negative_prompt TEXT,
+    state TEXT NOT NULL DEFAULT 'pending' CHECK (state IN ('pending','approved'))
+);
 CREATE TABLE IF NOT EXISTS jobs (
     id INTEGER PRIMARY KEY,
     project_id INTEGER NOT NULL REFERENCES projects(id),

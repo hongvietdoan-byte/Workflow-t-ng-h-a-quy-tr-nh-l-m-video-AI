@@ -3,7 +3,8 @@ import json
 import unittest
 
 from core.db import connect
-from core.llm_io import (SchemaError, lock_character_bible, store_scene_analysis,
+from core.llm_io import (SchemaError, approve_motion_prompt, lock_character_bible, ready_for_video,
+                         store_motion_prompts, store_scene_analysis,
                          validate_motion_prompts, validate_qc_result, validate_scene_analysis)
 from core.pipeline import Pipeline
 from core.preflight import check_characters, check_text, load_blocklist, record_failure
@@ -71,6 +72,39 @@ class LlmIoTests(unittest.TestCase):
         validate_motion_prompts({"scenes": [{"idx": 1, "motion_prompt": "push in"}]})
         with self.assertRaises(SchemaError):
             validate_motion_prompts({"scenes": [{"idx": 1, "motion_prompt": "x", "duration_sec": 99}]})
+
+
+class MotionPromptTests(unittest.TestCase):
+    def setUp(self):
+        self.p = Pipeline(connect())
+        self.pid = self.p.create_project("t")
+        self.scene = self.p.create_scene(self.pid, 1, "S1")
+
+    def approved_image(self):
+        job = self.p.create_job(self.scene)
+        self.p.start(job)
+        self.p.succeed(job)
+        self.p.approve(job)
+
+    def test_requires_approved_image(self):
+        with self.assertRaises(SchemaError):
+            store_motion_prompts(self.p, self.pid, {"scenes": [{"idx": 1, "motion_prompt": "push in"}]})
+
+    def test_store_approve_and_list_ready(self):
+        self.approved_image()
+        data = {"scenes": [{"idx": 1, "motion_prompt": "slow push-in", "duration_sec": 5}]}
+        self.assertEqual(store_motion_prompts(self.p, self.pid, data), 1)
+        self.assertEqual(ready_for_video(self.p, self.pid), [])
+        approve_motion_prompt(self.p, self.scene)
+        ready = ready_for_video(self.p, self.pid)
+        self.assertEqual([r["motion_prompt"] for r in ready], ["slow push-in"])
+
+    def test_editing_prompt_resets_approval(self):
+        self.approved_image()
+        store_motion_prompts(self.p, self.pid, {"scenes": [{"idx": 1, "motion_prompt": "a"}]})
+        approve_motion_prompt(self.p, self.scene)
+        store_motion_prompts(self.p, self.pid, {"scenes": [{"idx": 1, "motion_prompt": "b"}]})
+        self.assertEqual(ready_for_video(self.p, self.pid), [])
 
 
 class PreflightTests(unittest.TestCase):

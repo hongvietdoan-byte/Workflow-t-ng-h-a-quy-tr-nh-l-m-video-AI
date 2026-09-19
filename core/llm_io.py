@@ -104,3 +104,42 @@ def lock_character_bible(pipeline: Pipeline, project_id: int) -> int:
                      (project_id,)).rowcount
     conn.commit()
     return n
+
+
+def store_motion_prompts(pipeline: Pipeline, project_id: int, data: Any) -> int:
+    """Step 3: save motion prompts for scenes that have an approved image. Editing resets approval."""
+    obj = validate_motion_prompts(data)
+    conn = pipeline.conn
+    for s in obj["scenes"]:
+        row = conn.execute("SELECT id FROM scenes WHERE project_id=? AND idx=?",
+                           (project_id, s["idx"])).fetchone()
+        if row is None:
+            raise SchemaError(f"scene idx {s['idx']} does not exist in project {project_id}")
+        approved = conn.execute("SELECT 1 FROM jobs WHERE scene_id=? AND type='image_gen' AND state='approved'",
+                                (row["id"],)).fetchone()
+        if approved is None:
+            raise SchemaError(f"scene idx {s['idx']} has no approved image yet")
+        conn.execute(
+            "INSERT INTO motion_prompts (scene_id, motion_prompt, camera, duration_sec, negative_prompt, state)"
+            " VALUES (?,?,?,?,?,'pending') ON CONFLICT(scene_id) DO UPDATE SET"
+            " motion_prompt=excluded.motion_prompt, camera=excluded.camera,"
+            " duration_sec=excluded.duration_sec, negative_prompt=excluded.negative_prompt, state='pending'",
+            (row["id"], s["motion_prompt"], s.get("camera"), s.get("duration_sec", 5), s.get("negative_prompt")))
+    conn.commit()
+    return len(obj["scenes"])
+
+
+def approve_motion_prompt(pipeline: Pipeline, scene_id: int) -> None:
+    n = pipeline.conn.execute("UPDATE motion_prompts SET state='approved' WHERE scene_id=?", (scene_id,)).rowcount
+    if n == 0:
+        raise SchemaError(f"scene {scene_id} has no motion prompt")
+    pipeline.conn.commit()
+
+
+def ready_for_video(pipeline: Pipeline, project_id: int) -> List[Dict]:
+    """Scenes with an approved motion prompt (input for the Step 4 video connector)."""
+    rows = pipeline.conn.execute(
+        "SELECT s.id AS scene_id, s.idx, m.motion_prompt, m.camera, m.duration_sec, m.negative_prompt"
+        " FROM motion_prompts m JOIN scenes s ON s.id=m.scene_id"
+        " WHERE s.project_id=? AND m.state='approved' ORDER BY s.idx", (project_id,))
+    return [dict(r) for r in rows]

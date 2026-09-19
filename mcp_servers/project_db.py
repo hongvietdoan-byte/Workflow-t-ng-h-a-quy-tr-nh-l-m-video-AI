@@ -64,6 +64,25 @@ def approve_and_lock_bible(project_id: int) -> dict:
 
 
 @mcp.tool()
+def submit_motion_prompts(project_id: int, motion_json: str) -> dict:
+    """Step 3: validate and store motion prompts (only for scenes with an approved image)."""
+    return {"stored": llm_io.store_motion_prompts(get_pipeline(), project_id, motion_json)}
+
+
+@mcp.tool()
+def approve_motion_prompt(scene_id: int) -> str:
+    """Step 3 review: approve a scene's motion prompt so it can go to video generation."""
+    llm_io.approve_motion_prompt(get_pipeline(), scene_id)
+    return "approved"
+
+
+@mcp.tool()
+def list_ready_for_video(project_id: int) -> List[dict]:
+    """Scenes with approved image + approved motion prompt (input for Step 4)."""
+    return llm_io.ready_for_video(get_pipeline(), project_id)
+
+
+@mcp.tool()
 def list_jobs(project_id: int, state: str = "") -> List[dict]:
     """List jobs (optionally filtered by state) with retry and escalation info."""
     query = "SELECT id, scene_id, type, state, retry_count, retry_reason, escalated FROM jobs WHERE project_id=?"
