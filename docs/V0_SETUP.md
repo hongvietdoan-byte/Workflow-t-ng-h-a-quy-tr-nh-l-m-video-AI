@@ -36,3 +36,9 @@ Khởi động lại Claude Desktop. (Nếu `cwd` không được hỗ trợ ở
 5. `get_qc_prompt(scene_id)` + đính kèm ảnh vào chat → JSON điểm → `submit_qc_result` → (human_qc) `approve_image` / `reject_image`.
 6. Bước 3–4 (motion prompt, Clip AI/Kling): *chờ kết nối Clip AI*. Prompt mẫu ở `prompts/03_video_motion.md`.
 7. `render_final_video` khi đã có clip (cần FFmpeg).
+
+## 4. Dashboard (giao diện hợp nhất, dùng song song hoặc thay cho gọi MCP tay)
+```
+py -m streamlit run dashboard/app.py
+```
+Đặt `PIPELINE_DB` / `PIPELINE_DATA` nếu muốn đổi vị trí dữ liệu (mặc định `data/manifest.sqlite`, `data/projects/`). Các bước cần Claude vẫn dán JSON tay cho tới khi có API key (V1).

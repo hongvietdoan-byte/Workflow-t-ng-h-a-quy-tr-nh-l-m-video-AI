@@ -1,7 +1,7 @@
 import unittest
 
 from core.db import connect
-from core.pipeline import Pipeline
+from core.pipeline import Pipeline, PipelinePaused
 from core.states import InvalidTransition, JobState
 
 GOOD = {"character": 0.95, "hands_face": 0.9, "composition": 0.9, "mood": 0.9}
@@ -105,6 +105,18 @@ class PipelineTests(unittest.TestCase):
         self.p.set_mode(pid, "auto")
         self.p.set_threshold(pid, 0.99)
         self.assertEqual(self.p.apply_qc(job, GOOD), "rejected")
+
+    def test_pause_blocks_start_and_cancel_all_stops_active(self):
+        pid = self.p.create_project("t")
+        scene = self.p.create_scene(pid, 1)
+        a, b = self.p.create_job(scene), self.p.create_job(scene)
+        self.p.start(a)
+        self.p.set_paused(pid, True)
+        with self.assertRaises(PipelinePaused):
+            self.p.start(b)
+        self.p.set_paused(pid, False)
+        self.assertEqual(self.p.cancel_all_active(pid), 2)
+        self.assertEqual({self.p.state(a), self.p.state(b)}, {JobState.CANCELLED})
 
 
 if __name__ == "__main__":

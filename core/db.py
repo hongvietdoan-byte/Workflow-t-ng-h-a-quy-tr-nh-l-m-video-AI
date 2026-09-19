@@ -7,6 +7,7 @@ CREATE TABLE IF NOT EXISTS projects (
     operating_mode TEXT NOT NULL DEFAULT 'human_qc' CHECK (operating_mode IN ('auto','human_qc')),
     qc_auto_pass_threshold REAL NOT NULL DEFAULT 0.85,
     max_retry_count INTEGER NOT NULL DEFAULT 3,
+    paused INTEGER NOT NULL DEFAULT 0,
     created_at TEXT NOT NULL
 );
 CREATE TABLE IF NOT EXISTS scenes (
@@ -89,4 +90,7 @@ def connect(path: str = ":memory:") -> sqlite3.Connection:
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA foreign_keys = ON")
     conn.executescript(SCHEMA)
+    cols = {r["name"] for r in conn.execute("PRAGMA table_info(projects)")}
+    if "paused" not in cols:
+        conn.execute("ALTER TABLE projects ADD COLUMN paused INTEGER NOT NULL DEFAULT 0")
     return conn

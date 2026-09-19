@@ -9,6 +9,10 @@ def _now() -> str:
     return datetime.now(timezone.utc).isoformat(timespec="seconds")
 
 
+class PipelinePaused(Exception):
+    pass
+
+
 class Pipeline:
     def __init__(self, conn: sqlite3.Connection):
         self.conn = conn
@@ -32,6 +36,18 @@ class Pipeline:
     def set_threshold(self, project_id: int, threshold: float) -> None:
         self.conn.execute("UPDATE projects SET qc_auto_pass_threshold=? WHERE id=?", (threshold, project_id))
         self.conn.commit()
+
+    def set_paused(self, project_id: int, paused: bool) -> None:
+        self.conn.execute("UPDATE projects SET paused=? WHERE id=?", (1 if paused else 0, project_id))
+        self.conn.commit()
+
+    def cancel_all_active(self, project_id: int, actor: str = "user") -> int:
+        """Emergency stop: cancel every queued/running/retryable job of the project."""
+        ids = [r["id"] for r in self.conn.execute(
+            "SELECT id FROM jobs WHERE project_id=? AND state IN ('queued','running','retryable')", (project_id,))]
+        for job_id in ids:
+            self.transition(job_id, JobState.CANCELLED, actor=actor, note="cancel all")
+        return len(ids)
 
     def create_scene(self, project_id: int, idx: int, title: str = "") -> int:
         cur = self.conn.execute(
@@ -79,6 +95,8 @@ class Pipeline:
 
     # ---- execution controls (Run / Fail / Retry / Cancel) -------------
     def start(self, job_id: int) -> None:
+        if self.project(self.job(job_id)["project_id"])["paused"]:
+            raise PipelinePaused("project is paused")
         self.transition(job_id, JobState.RUNNING)
 
     def succeed(self, job_id: int) -> None:

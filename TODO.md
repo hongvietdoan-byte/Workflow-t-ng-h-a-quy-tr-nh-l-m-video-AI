@@ -22,6 +22,7 @@ _Cập nhật lần cuối: 2026-09-19. Chi tiết kế hoạch xem `PLAN.md`. �
 - [x] Script parser docx → cảnh/nhân vật; FFmpeg command builders (concat/crossfade/mux nhạc); validators JSON cho Director/QC; lưu + khóa Character Bible; Pre-flight IP check + blocklist seed (2026-09-19)
 - [x] Prompt templates (Director, QC, video motion, music brief) + `qc_checklist` + knowledge pack v0.1 (2026-09-19)
 - [x] 3 MCP server vỏ mỏng: `project-db`, `qc-agent`, `ffmpeg-studio` + hướng dẫn `docs/V0_SETUP.md`; 36 test pass (2026-09-19)
+- [x] Bước 3 core (lưu/duyệt motion prompt, `ready_for_video`), Pause/Resume/Cancel-all; Dashboard Streamlit V1 skeleton `dashboard/app.py` (stepper 7 tab, control bar, nút từng khâu, lịch sử) — Claude steps dán JSON tay; 44 test pass (2026-09-19)
 - [x] Lớp core Python: schema SQLite + state machine + luồng `auto`/`human_qc` + retry/escalate, 10 unit test pass (`core/`, `tests/`) (2026-09-19)
 
 ## ⏸ Tạm gác (theo yêu cầu 2026-09-19)
@@ -30,8 +31,8 @@ _Cập nhật lần cuối: 2026-09-19. Chi tiết kế hoạch xem `PLAN.md`. �
 ## 🚧 Đang làm / kế tiếp (ưu tiên từ trên xuống)
 - [ ] Cài FFmpeg trên máy (chưa có; chưa chạy thử render thật) — việc của người dùng hoặc duyệt cho tôi cài qua winget
 - [ ] Cấu hình Claude Desktop theo `docs/V0_SETUP.md` và chạy thử luồng V0 thật
-- [ ] Streamlit Dashboard V1 (dựa trên `mockup/`, gọi `core`) — không cần API
-- [ ] Bước 3: lưu/duyệt motion prompt trong core (validator đã có, thiếu lưu + state)
+- [ ] Dashboard: chạy thử với dữ liệu thật + tinh chỉnh UI theo mockup (grid ảnh, badge, thanh tiến độ)
+- [ ] Dashboard: nhúng "LLM runner" API (V1, cần API key Anthropic) thay cho dán JSON tay
 - [ ] Vùng "chờ review" 0.6–0.85 cho QC (PLAN Comment 3) — tuỳ chọn
 - [ ] MCP `deepix`, `clipai` (cần API — sau khi hết tạm gác); `music` để sau
 - [ ] Knowledge Base + eval set cho Bước 1 & 3 (PLAN.md Mục 3.6); chọn "chuyên gia miền" duyệt
