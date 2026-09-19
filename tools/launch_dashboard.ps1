@@ -4,7 +4,12 @@
 # - Starts Streamlit minimized and opens the dashboard in its own app-style window.
 $ErrorActionPreference = "Stop"
 $root = Split-Path -Parent $PSScriptRoot
+# Started through the ASCII junction made by make_shortcut.ps1? Python (Store build) misreads a junction as
+# working directory, so switch to the real folder.
+$item = Get-Item $root
+if ($item.LinkType -eq "Junction") { $root = @($item.Target)[0] }
 Set-Location $root
+[Environment]::CurrentDirectory = $root
 $port = if ($env:DASHBOARD_PORT) { [int]$env:DASHBOARD_PORT } else { 8501 }
 $url = "http://localhost:$port"
 
@@ -63,6 +68,8 @@ foreach ($name in "CLIPAI_TOKEN", "DEEPIX_TOKEN") {
     }
 }
 
-Start-Process -WindowStyle Minimized -FilePath "py" -ArgumentList "-m", "streamlit", "run", "dashboard/app.py", "--server.port", $port
+New-Item -ItemType Directory -Force -Path (Join-Path $root "data") | Out-Null
+$log = Join-Path $root "data\dashboard.log"
+Start-Process -WindowStyle Minimized -WorkingDirectory $root -FilePath "cmd.exe" -ArgumentList "/c", "py -m streamlit run dashboard/app.py --server.port $port > `"$log`" 2>&1"
 for ($i = 0; $i -lt 40 -and -not (Test-Port $port); $i++) { Start-Sleep -Milliseconds 500 }
 Open-Dashboard
