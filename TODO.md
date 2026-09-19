@@ -1,13 +1,14 @@
 # TODO — Theo dõi tiến độ dự án Auto Pipeline Video AI
 
-_Cập nhật lần cuối: 2026-09-19 (chiều: audio + Dashboard)._ Chi tiết kế hoạch xem `PLAN.md`. Đánh dấu `[x]` khi xong, ghi ngày cạnh mục._
+_Cập nhật lần cuối: 2026-09-20 (nhóm việc tự động đã xong: Seedance, QC review zone, SFX/TTS, LLM runner, waveform, runbook)._ Chi tiết kế hoạch xem `PLAN.md`. Đánh dấu `[x]` khi xong, ghi ngày cạnh mục._
 
-## 📌 Bàn giao sang phiên chat khác (chốt cuối phiên 2026-09-19)
-**Trạng thái:** repo `main` đã push đầy đủ, working tree sạch, **128 unit test pass**. Đã có: core + state machine + luồng `auto`/`human_qc`; Dashboard Streamlit; MCP server (project-db, qc-agent, ffmpeg-studio, clipai); **adapter thật Deepix (ảnh) và Clip AI (Kling Omni + Seedance)**; ước tính chi phí + sổ mức dùng; bộ đánh giá Director (`eval/`); knowledge pack + nguồn đã kiểm chứng; FFmpeg đã cài. **Đã chạy thật:** token Clip AI/Deepix kết nối OK; 1 ảnh (31s) + 1 clip Kling (84s, 1080p) + 1 clip Seedance (167s, 720p) thành công (số liệu ở `docs/api_notes.md`). **Việc tiếp theo (theo ưu tiên):** (1) bạn đo giá thật rồi điền `data/pricing.json`; (2) chạy 1 cảnh thật qua Dashboard và thử Seedance 1080p / cảnh hành động-cận cảnh để chọn model mặc định; (3) chạy vòng đánh giá `eval/` và V0 trong Claude Desktop (cấu hình đã ghi sẵn, cần mở lại app); (4) chắt lọc prompt Seedance (tài liệu 2.0/2.5) vào knowledge; (5) adapter audio Clip AI cho nhạc nền.
+## 📌 Bàn giao sang phiên chat khác (chốt 2026-09-20)
+**Trạng thái:** repo `main` đã push đầy đủ, **168 unit test pass**. Đã có: core + state machine + luồng `auto`/`human_qc` (kèm vùng chờ review); Dashboard Streamlit theo mockup, mở như phần mềm bằng shortcut Desktop (`Start-Dashboard.bat`); **adapter thật Deepix (ảnh), Clip AI (Kling Omni + Seedance) và Clip AI audio (nhạc/SFX/TTS)**; **LLM runner gọi API Anthropic** (Director/QC/motion, có `mock`); ước tính chi phí + sổ mức dùng (ảnh/clip/âm thanh); ghép + render (cut/crossfade/dip-to-black, nhạc, SFX, giọng đọc); knowledge pack (kể cả `seedance_prompting.md`); bộ đánh giá `eval/`; runbook `docs/RUNBOOK.md`. **Đã chạy thật (2026-09-19):** token Clip AI/Deepix OK; 1 ảnh + 1 clip Kling + 1 clip Seedance (số liệu ở `docs/api_notes.md`). **Chưa chạy thật:** audio Clip AI, LLM runner với key Anthropic, một cảnh end-to-end qua Dashboard.
+**Nhóm việc tôi (Claude) tự làm được: đã hết.** Còn lại đều cần người dùng (mục "Việc cần người dùng" và "Đang làm / kế tiếp"), theo ưu tiên: (1) đo giá thật → điền `data/pricing.json`; (2) chạy 1 cảnh thật qua Dashboard (thử Seedance 1080p, cảnh cận cảnh/hành động) để chọn `video_model` mặc định; (3) thử Bước 5a với API audio thật; (4) hỏi admin về API key Anthropic rồi thử LLM runner; (5) chạy vòng đánh giá `eval/` + dry-run 2 mode để hiệu chỉnh threshold.
 
-**Cách tiếp tục:** `git pull` → đọc `CLAUDE.md`, `PLAN.md` (Mục 5 quyết định, Mục 7 lộ trình, Mục 9 trạng thái) và file này. Chạy test: `py -m unittest discover -s tests -t .`. Dashboard: `py -m streamlit run dashboard/app.py`.
+**Cách tiếp tục:** `git pull` → đọc `CLAUDE.md`, `PLAN.md` (Mục 5 quyết định, Mục 7 lộ trình, Mục 9 trạng thái), `docs/RUNBOOK.md` (vận hành) và file này. Chạy test: `py -m unittest discover -s tests -t .`. Mở Dashboard: shortcut **AI Video Pipeline** trên Desktop (tạo bằng `tools/make_shortcut.ps1`) hoặc `py -m streamlit run dashboard/app.py`; xem thử không tốn credit: `py tools/seed_demo.py` + `powershell -File tools/run_demo.ps1`.
 
-**Quyết định đã chốt:** 1 Dashboard duy nhất theo thứ tự bước; `operating_mode` mặc định `human_qc`; QC Agent = Claude Vision; V0 (Claude Desktop + MCP, dán JSON tay) → V1 (Dashboard + API Anthropic); Clip AI (đa model: Seedance/Kling/MiniMax + audio) **đã có API**, dùng polling; ngân sách V0 nhỏ (~2 kịch bản, 10–20 clip); repo sẽ chuyển private.
+**Quyết định đã chốt:** 1 Dashboard duy nhất theo thứ tự bước; `operating_mode` mặc định `human_qc`; QC Agent = Claude Vision; V0 (Claude Desktop + MCP, dán JSON tay) → V1 (Dashboard + API Anthropic); Clip AI (đa model: Seedance/Kling/MiniMax + audio) **đã có API**, dùng polling; ngân sách V0 nhỏ (~2 kịch bản, 10–20 clip); repo đã private; MCP Claude/V0 tạm gác; dùng chung nhiều người/đăng ký user chỉ bàn lại khi quy trình ổn định (mục "Tạm gác").
 
 **Lưu ý kỹ thuật (đã gặp lỗi, tránh lặp):**
 - **Token API** (`CLIPAI_TOKEN`, `DEEPIX_TOKEN`) chỉ đặt trong biến môi trường PowerShell của người dùng; **không bao giờ** ghi vào repo/chat/log. Nhập bằng `Read-Host` (lệnh SecureString kiểu `PtrToStringAuto` đã từng cho kết quả 1 ký tự — dùng `NetworkCredential`). Kiểm tra: `py -m core.adapters.check`; thử thật (tốn credit): `py -m core.adapters.trial --yes`; chỉ đọc: `py -m core.adapters.inspect_api --usage`.
@@ -66,6 +67,7 @@ _Cập nhật lần cuối: 2026-09-19 (chiều: audio + Dashboard)._ Chi tiết
 - [x] `knowledge/seedance_prompting.md` (chắt lọc tài liệu Seedance 2.0/2.5: 10 nguyên tắc, cấu trúc khung-hình-đầu → sự kiện → camera → kết, giai đoạn cho clip dài, negative viết tích cực, checklist); tự nối vào bundle motion prompt khi `video_model` là seedance (2026-09-20)
 - [x] Vùng "chờ review" cho QC (auto mode): điểm trong [mức sàn, threshold) không tự loại mà chờ người duyệt; cột `projects.qc_review_floor` (migration tự động), điều khiển ở Bước 2 (2026-09-20)
 - [x] Transition "Dip to black" (xfade fadeblack) ở Bước 5b; 133 test pass (2026-09-20)
+- [x] Runbook vận hành `docs/RUNBOOK.md` (cài đặt, biến môi trường, quy trình 7 bước, chế độ QC, xử lý sự cố, chi phí, sao lưu, cập nhật, bảo mật) — hạng mục đóng gói V1 (2026-09-20)
 - [x] Mở Dashboard như phần mềm: `Start-Dashboard.bat` (đúp chuột: tự cài thư viện lần đầu, đọc `dashboard.env`, tìm ffmpeg, mở cửa sổ kiểu app bằng Edge/Chrome; chạy lần 2 thì chỉ mở lại cửa sổ), `Stop-Dashboard.bat`, `tools/make_shortcut.ps1` tạo shortcut + icon `tools/icon.ico` ra Desktop; cấu hình không bí mật ở `dashboard.env` (mẫu `dashboard.env.example`), token vẫn ở biến môi trường; log ở `data/dashboard.log`. Lưu ý: shortcut đi qua junction ASCII `%LOCALAPPDATA%\AIVideoPipeline` vì WScript.Shell không lưu được ký tự tiếng Việt trong đường dẫn; chạy lại `tools/make_shortcut.ps1` nếu di chuyển thư mục repo (2026-09-20)
 - [x] Dashboard chỉnh theo mockup: theme (`.streamlit/config.toml`, `dashboard/ui.py`), thanh đầu trang (thương hiệu, chế độ dạng segmented, threshold, Pause/Resume/Cancel màu), stepper 7 bước có dấu ✓ khi xong, Bước 1 hai cột (Character Bible + badge IP + bảng phân cảnh), Bước 2 lưới thẻ ảnh + chip lọc + panel chi tiết QC bên phải, Bước 3 hàng có ảnh nhỏ, Bước 4 thanh tiến độ + thẻ risk control + danh sách job có badge, Bước 5a 3 thẻ nháp, Bước 5b chia 2 cột, Lịch sử dạng lưới phiên bản. Công cụ dev: `tools/seed_demo.py` (dữ liệu demo, không tốn credit) + `tools/run_demo.ps1`; đã kiểm tra bằng trình duyệt; 128 test pass (2026-09-19)
 - [x] Dashboard Bước 5b: tự nạp clip từ Bước 4 theo thứ tự cảnh (cảnh thiếu được cảnh báo), tick chọn clip, xem thử, độ dài đọc thật bằng ffmpeg (sửa được), crossfade + thời gian fade, âm lượng nhạc, kiểm tra trước khi render, xem/tải FINAL_VIDEO.mp4; sửa lỗi nhạc ngắn hơn video làm video bị cụt (thêm `apad`). Đã render thử thật với ffmpeg (crossfade 3s+4s + nhạc 2s → 6,0s đúng); 128 test pass (2026-09-19)
@@ -89,16 +91,16 @@ _Cập nhật lần cuối: 2026-09-19 (chiều: audio + Dashboard)._ Chi tiết
 - [ ] **Bạn làm (khi có key):** chạy thử LLM runner với `ANTHROPIC_API_KEY` thật (Director / QC / motion trong Dashboard); nếu API trả khác dự kiến (tên model, giới hạn ảnh, định dạng JSON) thì báo để chỉnh `core/llm_runner.py`. Thử không tốn tiền bằng `LLM_PROVIDER=mock`
 - [ ] Đối chiếu hành vi thật của API: negative prompt (`CLIPAI_NEGATIVE=append`?), thông điệp risk control từng model, thời hạn `video_url`, hạn mức credit; ghi vào `docs/api_notes.md`
 - [ ] **Bạn duyệt tạm (không cần chuyên gia lúc này):** chạy vòng đánh giá đầu tiên theo `eval/README.md` (12 mẫu, 9 held-out), chấm phiếu thẩm mỹ, chỉnh `knowledge/`/`prompts/` theo lỗi lặp lại, rồi khóa version. Khi có chuyên gia miền thì bàn giao phần chấm thẩm mỹ
-- [ ] Dry-run V0 với `samples/script_demo_1.docx`, `script_demo_2.docx` (đã có 2 kịch bản mẫu; cần Claude Desktop + MCP cấu hình)
+- [ ] Dry-run V0 với `samples/script_demo_1.docx`, `script_demo_2.docx` (đã có 2 kịch bản mẫu; qua Dashboard, hoặc Claude Desktop + MCP khi mở lại)
 - [ ] Dry-run 2 mode, đo % đồng thuận QC Agent–người → hiệu chỉnh `qc_auto_pass_threshold`
 
 ## 👤 Việc cần người dùng quyết định / cung cấp
 - [ ] **Chi phí:** xem số dư credit trên web Clip AI và Deepix trước/sau 1 lần chạy để suy ra giá mỗi ảnh/clip theo model (Kling 1080p, Seedance 720p/1080p); **điền vào `data/pricing.json`** (`per_image`, `per_video_second` hoặc `per_video_clip`) — Dashboard sẽ tự tính ước tính. Chạy `py -m core.adapters.inspect_api --usage` để xem API có trả trường chi phí không
 - [ ] **Bạn làm:** thử Seedance ở 1080p (`$env:CLIPAI_RESOLUTION="1080p"`) để so công bằng với Kling; rồi chạy **1 cảnh thật qua Dashboard** (`IMAGE_PROVIDER=deepix`, `VIDEO_PROVIDER=clipai`). Gợi ý: thử thêm cảnh có nhân vật cận cảnh/hành động nhanh từ `eval/cases.json` để so 2 model
 - [ ] Hỏi admin Claude Enterprise: có Console org / API key Anthropic cho V1 không, hạn mức token, chính sách data ảnh nhân vật
-- [ ] Chọn `music_provider`: ưu tiên audio của Clip AI (ElevenLabs/Seed Audio) nếu API mở; Suno không có API chính thức — không chặn V0
+- [x] `music_provider` = Clip AI (music_v2/ElevenLabs; đã có adapter, chờ thử thật) — Suno không có API chính thức (2026-09-20)
 - [ ] Chọn `video_model` mặc định: `kling` (kling-v3-omni) hoặc `seedance` (MiniMax không có trong API) — sau khi thử thực tế cả hai
-- [ ] Chọn framework Dashboard V1: Streamlit hay web frontend riêng (nếu cần sát mockup Figma)
+- [ ] Chốt framework Dashboard V1: hiện là Streamlit và đã sát mockup; xác nhận giữ nguyên (không cần frontend riêng)?
 - [ ] Cấp danh sách nhân vật/IP dự kiến để build blocklist IP v1
 
 ## 🐞 Tồn đọng / cần sửa lại
@@ -108,4 +110,4 @@ _Cập nhật lần cuối: 2026-09-19 (chiều: audio + Dashboard)._ Chi tiết
 
 ## 🗓 Mốc theo PLAN.md (Mục 7)
 - [ ] V0 (~3–4 tuần): pipeline end-to-end qua Claude Desktop + MCP, threshold đã hiệu chỉnh
-- [ ] V1 (~+3–4 tuần): Dashboard hợp nhất + Anthropic API + nhạc nền + đóng gói/runbook
+- [ ] V1 (~+3–4 tuần): Dashboard hợp nhất + Anthropic API + nhạc nền + đóng gói/runbook — **code đã xong**, còn chạy thật + hiệu chỉnh (cần key Anthropic và credit)

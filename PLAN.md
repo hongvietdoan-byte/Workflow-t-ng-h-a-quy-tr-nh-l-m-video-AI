@@ -295,14 +295,14 @@ Mục tiêu: chứng minh pipeline end-to-end chạy được, đo chất lượ
 - [ ] Batch >100 video chạy được qua heartbeat polling mà không cần user approve từng cái
 - [ ] Runbook + Prompt Templates đã bàn giao cho bộ phận sản xuất nội dung
 
-## 9. Trạng thái triển khai (cập nhật 2026-09-19)
+## 9. Trạng thái triển khai (cập nhật 2026-09-20)
 
 **Adapter thật đã viết (`core/adapters/`):** Deepix (gen ảnh Seedream 5.0 Pro) và Clip AI (video Kling Omni + Seedance) theo hợp đồng API của skill chính thức; kiểm thử bằng giao thức giả (chưa gọi API thật vì token phải do bạn đặt trong biến môi trường). Kiểm tra kết nối chỉ đọc: `py -m core.adapters.check`. Chạy thử thật: `py -m core.adapters.trial --yes`. Chi phí: ước tính trước khi chạy + sổ mức dùng trong Dashboard theo bảng giá `data/pricing.json` (xem `docs/api_notes.md`).
 
-**Đã build (69 unit test pass, không cần API ngoài):**
+**Đã build (168 unit test pass, không cần API ngoài):**
 - `core/` — schema SQLite, state machine job, luồng QC `auto`/`human_qc`, retry/escalate, Pause/Resume/Cancel-all, script parser (docx → cảnh/nhân vật), validators + lưu JSON của Director/QC, Character Bible + khóa, Pre-flight IP check + blocklist seed, motion prompt (Bước 3), FFmpeg command builders, prompt bundles.
 - `mcp_servers/` — `project-db`, `qc-agent`, `ffmpeg-studio`, `clipai` (vỏ mỏng bọc core; `clipai` mới chạy bản giả lập); hướng dẫn `docs/V0_SETUP.md`.
-- `dashboard/app.py` — Dashboard Streamlit skeleton: stepper 7 tab theo thứ tự bước, control bar toàn cục, nút điều khiển từng khâu, lịch sử; các bước cần Claude tạm dán JSON tay.
+- `dashboard/app.py` + `dashboard/ui.py` — Dashboard Streamlit theo mockup: stepper 7 tab có dấu ✓, control bar toàn cục, nút điều khiển từng khâu, lịch sử; các bước cần Claude chạy bằng API (`core/llm_runner.py`) hoặc dán JSON tay khi chưa có key. Mở như phần mềm bằng `Start-Dashboard.bat`/shortcut Desktop; vận hành xem `docs/RUNBOOK.md`.
 - `prompts/`, `knowledge/` (v0.2: nền tảng đạo diễn, hướng dẫn 7 thể loại, lỗi ảnh AI, từ vựng motion; người duyệt tạm là chủ dự án), `data/qc_checklist.json`, `samples/` (2 kịch bản mẫu cho dry-run).
 - `eval/` + `core/evalset.py` — bộ đánh giá Director: 12 mẫu (3 golden làm few-shot, 9 held-out), bộ chấm tự động phần khách quan, phiếu duyệt thẩm mỹ; hướng dẫn ở `eval/README.md`.
 
@@ -316,11 +316,10 @@ Mục tiêu: chứng minh pipeline end-to-end chạy được, đo chất lượ
 
 **Tạm gác (2026-09-19):** MCP Claude/V0 qua Claude Desktop; ưu tiên hoàn thiện Dashboard.
 
-**Đang chờ điều kiện bên ngoài:**
-- Adapter thật cho Deepix (Bước 2) và Clip AI/Kling (Bước 4) — tạm gác theo yêu cầu. Bộ chạy Bước 2 và Bước 4 (`core/runner.py`: submit, heartbeat polling, tải kết quả, log risk control, retry, concurrency, pause/cancel) đã xong và kiểm thử với provider giả lập; chỉ còn viết adapter theo interface `VideoProvider`/`ImageProvider` khi có API.
-- Cài FFmpeg trên máy để render thật.
-- API key Anthropic (V1) để thay "dán JSON tay" bằng LLM runner tự động.
-- `music_provider`; chạy vòng đánh giá thật (người duyệt tạm = chủ dự án, sau này chuyên gia miền) và dry-run V0 để hiệu chỉnh prompt/threshold.
+**Đang chờ điều kiện bên ngoài (đều cần người dùng):**
+- Chạy thật các phần mới viết chỉ bằng giao thức giả: audio Clip AI, LLM runner (cần `ANTHROPIC_API_KEY`), một cảnh end-to-end qua Dashboard.
+- Đo giá thật để điền `data/pricing.json`; chọn `video_model` mặc định sau khi so Kling và Seedance.
+- Vòng đánh giá `eval/` (người duyệt tạm = chủ dự án) và dry-run 2 mode để hiệu chỉnh prompt/threshold.
 
 ---
 *Tài liệu nguồn: `Quy_Trinh_Auto_Pipeline_Full1.docx` (kèm 4 comment góp ý, đã phân tích ở Mục 2).*
