@@ -1,6 +1,6 @@
 # TODO — Theo dõi tiến độ dự án Auto Pipeline Video AI
 
-_Cập nhật lần cuối: 2026-09-19. Chi tiết kế hoạch xem `PLAN.md`. Đánh dấu `[x]` khi xong, ghi ngày cạnh mục._
+_Cập nhật lần cuối: 2026-09-19 (chiều: audio + Dashboard)._ Chi tiết kế hoạch xem `PLAN.md`. Đánh dấu `[x]` khi xong, ghi ngày cạnh mục._
 
 ## 📌 Bàn giao sang phiên chat khác (chốt cuối phiên 2026-09-19)
 **Trạng thái:** repo `main` đã push đầy đủ, working tree sạch, **108 unit test pass**. Đã có: core + state machine + luồng `auto`/`human_qc`; Dashboard Streamlit; MCP server (project-db, qc-agent, ffmpeg-studio, clipai); **adapter thật Deepix (ảnh) và Clip AI (Kling Omni + Seedance)**; ước tính chi phí + sổ mức dùng; bộ đánh giá Director (`eval/`); knowledge pack + nguồn đã kiểm chứng; FFmpeg đã cài. **Đã chạy thật:** token Clip AI/Deepix kết nối OK; 1 ảnh (31s) + 1 clip Kling (84s, 1080p) + 1 clip Seedance (167s, 720p) thành công (số liệu ở `docs/api_notes.md`). **Việc tiếp theo (theo ưu tiên):** (1) bạn đo giá thật rồi điền `data/pricing.json`; (2) chạy 1 cảnh thật qua Dashboard và thử Seedance 1080p / cảnh hành động-cận cảnh để chọn model mặc định; (3) chạy vòng đánh giá `eval/` và V0 trong Claude Desktop (cấu hình đã ghi sẵn, cần mở lại app); (4) chắt lọc prompt Seedance (tài liệu 2.0/2.5) vào knowledge; (5) adapter audio Clip AI cho nhạc nền.
@@ -58,16 +58,19 @@ _Cập nhật lần cuối: 2026-09-19. Chi tiết kế hoạch xem `PLAN.md`. �
 - [x] Thử Seedance 2.0 (720p): 167s, 1280x720, 3,6MB, chất lượng gần Kling (Kling 84s, 1080p, 10,7MB); trial lưu file riêng từng model; so sánh ghi ở `docs/api_notes.md` (2026-09-19)
 - [x] `core.adapters.inspect_api` (chỉ đọc): xem trường trả về/có trường chi phí không + thống kê mức dùng Clip AI (`--usage`). Tài liệu API không có endpoint số dư/giá (2026-09-19)
 - [x] Ước tính chi phí trong Dashboard: `core/cost.py` + `data/pricing.json` (bảng giá do bạn điền, chưa có số bịa), ước tính trước khi chạy (min/max nếu retry), sổ ghi mức dùng `usage_events` mỗi lần gửi API thật, dòng "đã ghi nhận" trên thanh điều khiển, chốt xác nhận cho batch từ `confirm_batch_at` mục trở lên; 108 test pass (2026-09-19)
+- [x] Repo GitHub đã chuyển private (2026-09-19)
+- [x] Audio Clip AI: adapter `core/adapters/clipai_audio.py` (music_v2, SFX, TTS, danh sách giọng; không tự gửi lại khi lỗi) + `core/music.py` (mock, bản nháp, chọn nhạc) + Dashboard Bước 5a tạo 3 bản nháp/nghe thử/chọn (`AUDIO_PROVIDER=clipai|mock`, mặc định theo `VIDEO_PROVIDER=clipai`); 121 test pass. Chưa gọi API audio thật, chưa ghi credit audio vào sổ mức dùng (2026-09-19)
 - [x] Lớp core Python: schema SQLite + state machine + luồng `auto`/`human_qc` + retry/escalate, 10 unit test pass (`core/`, `tests/`) (2026-09-19)
 
-## ⏸ Tạm gác (theo yêu cầu 2026-09-19)
+## ⏸ Tạm gác
+- MCP Claude / V0 trong Claude Desktop (tạm gác từ 2026-09-19; tập trung build Dashboard). Các mục dry-run V0 và "mở lại Claude Desktop" bên dưới chờ mở lại.
 
 ## 🚧 Đang làm / kế tiếp (ưu tiên từ trên xuống)
 - [ ] **Bạn làm:** thoát hẳn + mở lại Claude Desktop, rồi chạy thử V0 trong Chat theo `docs/V0_SETUP.md` mục 3 (config đã ghi sẵn, đã kiểm thử qua MCP stdio)
+- [ ] **Bạn làm:** thử Bước 5a với API thật (`$env:AUDIO_PROVIDER="clipai"`, tốn credit) để xác nhận hợp đồng audio; nếu lệch thì báo lại để sửa adapter
 - [ ] Dashboard: chạy thử với dữ liệu thật + tinh chỉnh UI theo mockup (grid ảnh, badge, thanh tiến độ)
 - [ ] Dashboard: nhúng "LLM runner" API (V1, cần API key Anthropic) thay cho dán JSON tay
 - [ ] Vùng "chờ review" 0.6–0.85 cho QC (PLAN Comment 3) — tuỳ chọn
-- [ ] Adapter audio Clip AI (nhạc `music_v2`, TTS, SFX) cho Bước 5a + `mcp-server-music`
 - [ ] Tối ưu prompt Seedance theo tài liệu chính thức 2.0/2.5 (`Get this Skill to Claude/clipai-1.3.1/clipai/references/*optimizer.md`, 15 KB + 65 KB): chắt lọc thành `knowledge/seedance_prompting.md` và áp dụng khi `video_model` là seedance
 - [ ] Đối chiếu hành vi thật của API: negative prompt (`CLIPAI_NEGATIVE=append`?), thông điệp risk control từng model, thời hạn `video_url`, hạn mức credit; ghi vào `docs/api_notes.md`
 - [ ] **Bạn duyệt tạm (không cần chuyên gia lúc này):** chạy vòng đánh giá đầu tiên theo `eval/README.md` (12 mẫu, 9 held-out), chấm phiếu thẩm mỹ, chỉnh `knowledge/`/`prompts/` theo lỗi lặp lại, rồi khóa version. Khi có chuyên gia miền thì bàn giao phần chấm thẩm mỹ
@@ -76,7 +79,6 @@ _Cập nhật lần cuối: 2026-09-19. Chi tiết kế hoạch xem `PLAN.md`. �
 
 ## 👤 Việc cần người dùng quyết định / cung cấp
 - [ ] **Chi phí:** xem số dư credit trên web Clip AI và Deepix trước/sau 1 lần chạy để suy ra giá mỗi ảnh/clip theo model (Kling 1080p, Seedance 720p/1080p); **điền vào `data/pricing.json`** (`per_image`, `per_video_second` hoặc `per_video_clip`) — Dashboard sẽ tự tính ước tính. Chạy `py -m core.adapters.inspect_api --usage` để xem API có trả trường chi phí không
-- [ ] Chuyển repo GitHub sang **private** (người dùng tự làm)
 - [ ] **Bạn làm:** thử Seedance ở 1080p (`$env:CLIPAI_RESOLUTION="1080p"`) để so công bằng với Kling; rồi chạy **1 cảnh thật qua Dashboard** (`IMAGE_PROVIDER=deepix`, `VIDEO_PROVIDER=clipai`). Gợi ý: thử thêm cảnh có nhân vật cận cảnh/hành động nhanh từ `eval/cases.json` để so 2 model
 - [ ] Hỏi admin Claude Enterprise: có Console org / API key Anthropic cho V1 không, hạn mức token, chính sách data ảnh nhân vật
 - [ ] Chọn `music_provider`: ưu tiên audio của Clip AI (ElevenLabs/Seed Audio) nếu API mở; Suno không có API chính thức — không chặn V0

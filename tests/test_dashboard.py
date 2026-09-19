@@ -64,6 +64,22 @@ class DashboardSmokeTests(unittest.TestCase):
         next(b for b in at.button if "Pause" in b.label).click().run()
         self.assertEqual(Pipeline(connect(self.db)).project(pid)["paused"], 1)
 
+    def test_music_step_with_mock_audio_creates_and_selects_draft(self):
+        self.seed()
+        os.environ["AUDIO_PROVIDER"] = "mock"
+        try:
+            at = AppTest.from_file(APP, default_timeout=30).run()
+            at.radio(key="step").set_value(at.radio(key="step").options[4]).run()
+            self.assertFalse(at.exception)
+            next(b for b in at.button if "bản nháp" in b.label).click().run()
+            next(b for b in at.button if "Kiểm tra" in b.label).click().run()
+            next(b for b in at.button if "Chọn bản này" in b.label).click().run()
+            self.assertFalse(at.exception)
+        finally:
+            os.environ.pop("AUDIO_PROVIDER", None)
+        music_dir = os.path.join(self.tmp, "projects", "1", "music")
+        self.assertEqual(os.listdir(music_dir), ["selected.wav"])
+
     def test_video_step_with_mock_provider_runs_to_completion(self):
         from core.llm_io import approve_motion_prompt, lock_character_bible, store_motion_prompts
         p, pid = self.seed()

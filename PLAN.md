@@ -306,6 +306,10 @@ Mục tiêu: chứng minh pipeline end-to-end chạy được, đo chất lượ
 - `prompts/`, `knowledge/` (v0.2: nền tảng đạo diễn, hướng dẫn 7 thể loại, lỗi ảnh AI, từ vựng motion; người duyệt tạm là chủ dự án), `data/qc_checklist.json`, `samples/` (2 kịch bản mẫu cho dry-run).
 - `eval/` + `core/evalset.py` — bộ đánh giá Director: 12 mẫu (3 golden làm few-shot, 9 held-out), bộ chấm tự động phần khách quan, phiếu duyệt thẩm mỹ; hướng dẫn ở `eval/README.md`.
 
+**Audio (Bước 5a):** adapter Clip AI audio (`core/adapters/clipai_audio.py`: nhạc `music_v2`, SFX, TTS) + `core/music.py`; Dashboard Bước 5a tạo nhiều bản nháp từ Music Brief, nghe thử, chọn để mix. `music_provider` = Clip AI (đã chốt). Chưa xác nhận bằng API thật.
+
+**Tạm gác (2026-09-19):** MCP Claude/V0 qua Claude Desktop; ưu tiên hoàn thiện Dashboard.
+
 **Đang chờ điều kiện bên ngoài:**
 - Adapter thật cho Deepix (Bước 2) và Clip AI/Kling (Bước 4) — tạm gác theo yêu cầu. Bộ chạy Bước 2 và Bước 4 (`core/runner.py`: submit, heartbeat polling, tải kết quả, log risk control, retry, concurrency, pause/cancel) đã xong và kiểm thử với provider giả lập; chỉ còn viết adapter theo interface `VideoProvider`/`ImageProvider` khi có API.
 - Cài FFmpeg trên máy để render thật.

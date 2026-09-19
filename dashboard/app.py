@@ -5,6 +5,7 @@ Claude steps (Director / QC / motion prompt) use copy-paste JSON until the API r
 """
 import json
 import os
+import shutil
 import sys
 import tempfile
 
@@ -12,7 +13,7 @@ import streamlit as st
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
-from core import cost, ffmpeg_studio, llm_io, preflight, prompts, script_parser  # noqa: E402
+from core import cost, ffmpeg_studio, llm_io, music, preflight, prompts, script_parser  # noqa: E402
 from core.db import connect  # noqa: E402
 from core.pipeline import Pipeline, PipelinePaused  # noqa: E402
 from core.adapters import factory  # noqa: E402
@@ -380,19 +381,67 @@ def step4(p: Pipeline, pid: int):
 
 
 def step5a(p: Pipeline, pid: int):
-    st.caption("Music Brief → 3 bản nháp cần nhà cung cấp nhạc (chưa chọn). Hiện hỗ trợ upload nhạc có sẵn.")
-    st.code(open(os.path.join("prompts", "04_music_brief.md"), encoding="utf-8").read(), language="markdown")
-    up = st.file_uploader("Upload nhạc nền", type=["mp3", "wav", "m4a"], key=f"music_{pid}")
-    if up and st.button("Dùng bản này"):
-        with open(os.path.join(project_dir(pid, "music"), "selected" + os.path.splitext(up.name)[1]), "wb") as f:
-            f.write(up.getvalue())
+    drafts_dir, selected_dir = music.project_dirs(DATA, pid)
+    try:
+        provider = music.audio_provider()
+    except ProviderError as e:
+        st.error(f"Clip AI audio: {e}")
+        provider = None
+    if provider is None:
+        st.info("Chưa cấu hình tạo nhạc: đặt AUDIO_PROVIDER=clipai (hoặc VIDEO_PROVIDER=clipai) và CLIPAI_TOKEN, "
+                "hoặc upload nhạc có sẵn bên dưới.")
+    else:
+        st.success(f"Nhà cung cấp nhạc: {provider.name}"
+                   + (" (giả lập — âm thử 1 giây)" if provider.name == "mock-audio" else " (Clip AI music_v2, tốn credit)"))
+        brief = music.default_brief(p, pid)
+        st.subheader("Music Brief → bản nháp")
+        prompt = st.text_area("Prompt nhạc (≤ 2000 ký tự; tự gợi ý từ mood các cảnh, sửa tùy ý)", brief["prompt"],
+                              key=f"mprompt_{pid}", height=100)
+        c1, c2, c3 = st.columns(3)
+        seconds = c1.number_input("Độ dài (giây)", 3, 600, max(3, brief["length_ms"] // 1000), key=f"mlen_{pid}")
+        instrumental = c2.checkbox("Không lời (instrumental)", brief["instrumental"], key=f"minst_{pid}")
+        count = c3.number_input("Số bản nháp", 1, 5, 3, key=f"mcount_{pid}")
+        b1, b2 = st.columns(2)
+        if b1.button(f"▶ Tạo {int(count)} bản nháp", type="primary", disabled=not prompt.strip()):
+            n = music.submit_drafts(provider, drafts_dir, prompt, int(seconds) * 1000, instrumental, int(count))
+            st.toast(f"Đã gửi {n} bản")
+            st.rerun()
+        if b2.button("⟳ Kiểm tra + tải về"):
+            counts = music.refresh_drafts(provider, drafts_dir)
+            st.toast(f"Đang chạy {counts['running']} · xong {counts['succeeded']} · lỗi {counts['failed']}")
+            st.rerun()
+    drafts = music.load_drafts(drafts_dir)
+    for i, d in enumerate(drafts):
+        with st.container(border=True):
+            st.markdown(f"**Bản {i + 1}** {BADGE.get({'running': 'running', 'succeeded': 'succeeded', 'failed': 'failed'}[d['state']], '')}"
+                        f" `{d['state']}`" + (f" · {d['duration_ms'] / 1000:.0f}s" if d.get("duration_ms") else ""))
+            if d["state"] == "failed":
+                st.warning(f"Không tạo được: {d.get('message')} (không tự gửi lại để tránh tốn credit)")
+            if d.get("file"):
+                st.audio(os.path.join(drafts_dir, d["file"]))
+                if st.button("✔ Chọn bản này", key=f"pick_{pid}_{i}"):
+                    if act(lambda: music.select_draft(drafts_dir, selected_dir, i), "Đã chọn nhạc nền"):
+                        st.rerun()
+    if drafts and st.button("Xóa danh sách bản nháp"):
+        shutil.rmtree(drafts_dir, ignore_errors=True)
         st.rerun()
+    st.divider()
+    with st.expander("Hoặc upload nhạc có sẵn"):
+        up = st.file_uploader("Upload nhạc nền", type=["mp3", "wav", "m4a"], key=f"music_{pid}")
+        if up and st.button("Dùng bản này"):
+            music.clear_selected(selected_dir)
+            with open(os.path.join(selected_dir, "selected" + os.path.splitext(up.name)[1]), "wb") as f:
+                f.write(up.getvalue())
+            st.rerun()
     if st.button("Không dùng nhạc"):
-        for name in os.listdir(project_dir(pid, "music")):
-            os.remove(os.path.join(project_dir(pid, "music"), name))
+        music.clear_selected(selected_dir)
         st.rerun()
-    files = os.listdir(project_dir(pid, "music"))
-    st.write("Nhạc đang chọn:", files[0] if files else "không dùng")
+    files = os.listdir(selected_dir)
+    if files:
+        st.write("Nhạc đang chọn:", files[0])
+        st.audio(os.path.join(selected_dir, files[0]))
+    else:
+        st.write("Nhạc đang chọn: không dùng")
 
 
 def step5b(p: Pipeline, pid: int):
