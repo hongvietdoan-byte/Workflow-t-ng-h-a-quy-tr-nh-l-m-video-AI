@@ -165,6 +165,9 @@ const col=q>=+th.value?'var(--ok)':(q>=.6?'var(--warn)':'var(--bad)');
 const d=document.createElement('div');d.className='img'+(cls==='b-bad'?' fail':'');
 d.innerHTML=`<div class="p" style="background:linear-gradient(135deg,${a},${b})"></div><div class="m"><div class="row"><b>${id}</b><span class="grow"></span><span class="badge ${cls}">${state}</span></div>`+(q>0?`<div class="row"><b style="font-size:11px;color:${col}">QC ${q.toFixed(2)}</b><div class="bar"><i style="width:${q*100}%;background:${col}"></i></div></div><div class="row"><button class="btn sm primary">✔ Approve</button><button class="btn sm bad">✖ Reject</button><button class="btn sm">↻ Gen lại</button></div>`:`<span class="lbl">${q===0?'Đang gen ảnh… ⏳':'Đợi trong hàng đợi'}</span><div class="row"><button class="btn sm bad">■ Cancel</button></div>`)+`</div>`;box.appendChild(d);});}
 upd();render();
+const q=new URLSearchParams(location.search);
+if(q.get('all')==='1'){document.querySelectorAll('.screen').forEach((e,i)=>{e.classList.add('on');e.style.marginTop='40px';const h=document.createElement('h2');h.textContent=steps[i][0]+' · '+steps[i][1];h.style.cssText='margin:0 0 12px;font-size:16px';e.prepend(h);});document.querySelector('.note-top').remove();}
+else{const i=steps.findIndex(s=>'#'+s[3]===location.hash);if(i>=0)go(i);}
 </script>
 </body>
 </html>
