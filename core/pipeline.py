@@ -37,6 +37,12 @@ class Pipeline:
         self.conn.execute("UPDATE projects SET qc_auto_pass_threshold=? WHERE id=?", (threshold, project_id))
         self.conn.commit()
 
+    def set_review_floor(self, project_id: int, floor: Optional[float]) -> None:
+        """Auto mode 'review zone': scores in [floor, threshold) wait for a human instead of auto-rejecting.
+        None disables the zone (below threshold = auto-reject)."""
+        self.conn.execute("UPDATE projects SET qc_review_floor=? WHERE id=?", (floor, project_id))
+        self.conn.commit()
+
     def set_video_model(self, project_id: int, model: Optional[str]) -> None:
         """Model used by the video provider (e.g. 'seedance', 'kling', 'minimax'); None = provider default."""
         self.conn.execute("UPDATE projects SET video_model=? WHERE id=?", (model or None, project_id))
@@ -135,11 +141,14 @@ class Pipeline:
         overall = sum(scores.values()) / len(scores)
         passed = overall >= threshold
         auto = proj["operating_mode"] == "auto"
+        floor = proj["qc_review_floor"]
+        review_zone = auto and not passed and floor is not None and overall >= floor
         for criterion, score in scores.items():
             self.conn.execute(
                 "INSERT INTO qc_results (job_id, criterion, score, threshold_at_time, auto_decision)"
                 " VALUES (?,?,?,?,?)",
-                (job_id, criterion, score, threshold, ("pass" if passed else "fail") if auto else None))
+                (job_id, criterion, score, threshold,
+                 ("pass" if passed else "review" if review_zone else "fail") if auto else None))
         self.conn.commit()
         if not auto:
             self.transition(job_id, JobState.PENDING_REVIEW, actor="ai_agent",
@@ -148,6 +157,10 @@ class Pipeline:
         if passed:
             self.approve(job_id, "ai_agent", f"QC {overall:.2f} >= {threshold}")
             return "approved"
+        if review_zone:
+            self.transition(job_id, JobState.PENDING_REVIEW, actor="ai_agent",
+                            note=f"QC {overall:.2f} in review zone [{floor}, {threshold})")
+            return "pending_review"
         return self.reject(job_id, "ai_agent", f"QC {overall:.2f} < {threshold}")
 
     def approve(self, job_id: int, reviewer_type: str = "user", note: Optional[str] = None) -> None:

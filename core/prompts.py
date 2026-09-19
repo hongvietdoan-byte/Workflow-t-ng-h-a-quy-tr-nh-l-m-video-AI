@@ -52,6 +52,16 @@ def build_qc_bundle(pipeline: Pipeline, scene_id: int) -> str:
     ])
 
 
+def video_family(pipeline: Pipeline, project_id: int):
+    """'omni' (Kling), 'seedance', or None when the project's video model is unset/unknown."""
+    from .adapters.clipai import resolve_model
+    from .providers import ProviderError
+    try:
+        return resolve_model(pipeline.project(project_id)["video_model"])[1]
+    except ProviderError:
+        return None
+
+
 def build_motion_bundle(pipeline: Pipeline, project_id: int) -> str:
     """Step 3: scenes that have an approved image, with their spec and the character descriptions."""
     conn = pipeline.conn
@@ -64,9 +74,13 @@ def build_motion_bundle(pipeline: Pipeline, project_id: int) -> str:
         "scenes": [{"idx": r["idx"], **{k: v for k, v in json.loads(r["data"] or "{}").items() if k in _SCENE_KEYS}}
                    for r in rows],
     }
-    return _SEP.join([
+    parts = [
         _read("prompts", "03_video_motion.md"),
         _read("knowledge", "video_motion_vocab.md"),
         _read("knowledge", "research_notes.md"),
+    ]
+    if video_family(pipeline, project_id) == "seedance":
+        parts.append(_read("knowledge", "seedance_prompting.md"))
+    return _SEP.join(parts + [
         "# Cảnh đã có ảnh được duyệt\n```json\n" + json.dumps(payload, ensure_ascii=False, indent=2) + "\n```",
     ])

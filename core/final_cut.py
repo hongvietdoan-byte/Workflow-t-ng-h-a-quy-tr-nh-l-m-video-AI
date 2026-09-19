@@ -44,17 +44,17 @@ def clip_seconds(path: str, requested: Optional[float]) -> float:
 
 def total_seconds(durations: List[float], transition: str, fade: float) -> float:
     total = sum(durations)
-    return total - fade * (len(durations) - 1) if transition == "crossfade" and durations else total
+    return total - fade * (len(durations) - 1) if transition in ffmpeg_studio.OVERLAP_STYLES and durations else total
 
 
 def render_problems(durations: List[float], transition: str, fade: float) -> List[str]:
     """Reasons the current choice cannot be rendered (shown before pressing Render)."""
     if not durations:
         return ["chưa chọn clip nào"]
-    if transition == "crossfade":
+    if transition in ffmpeg_studio.OVERLAP_STYLES:
         if len(durations) < 2:
-            return ["crossfade cần ít nhất 2 clip"]
+            return [f"{transition} cần ít nhất 2 clip"]
         short = [f"{d:.1f}s" for d in durations if d <= fade]
         if short:
-            return [f"clip ngắn hơn hoặc bằng thời gian crossfade ({fade}s): {', '.join(short)}"]
+            return [f"clip ngắn hơn hoặc bằng thời gian chuyển cảnh ({fade}s): {', '.join(short)}"]
     return []

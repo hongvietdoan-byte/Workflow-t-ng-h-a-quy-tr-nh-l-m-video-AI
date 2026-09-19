@@ -37,8 +37,11 @@ def build_concat_cmd(list_file: str, output: str, ffmpeg: str = "ffmpeg") -> Lis
     return [ffmpeg, "-y", "-f", "concat", "-safe", "0", "-i", list_file, *_ENCODE, "-an", output]
 
 
+OVERLAP_STYLES = {"crossfade": "fade", "dip_to_black": "fadeblack"}
+
+
 def build_crossfade_cmd(clips: Sequence[str], durations: Sequence[float], output: str,
-                        fade: float = 1.0, ffmpeg: str = "ffmpeg") -> List[str]:
+                        fade: float = 1.0, ffmpeg: str = "ffmpeg", style: str = "fade") -> List[str]:
     if len(clips) != len(durations) or len(clips) < 2:
         raise ValueError("need >= 2 clips and one duration per clip")
     if any(d <= fade for d in durations):
@@ -50,7 +53,7 @@ def build_crossfade_cmd(clips: Sequence[str], durations: Sequence[float], output
     for i in range(1, len(clips)):
         offset = round(elapsed - fade, 3)
         label = f"[v{i}]"
-        parts.append(f"{prev}[{i}:v]xfade=transition=fade:duration={fade}:offset={offset}{label}")
+        parts.append(f"{prev}[{i}:v]xfade=transition={style}:duration={fade}:offset={offset}{label}")
         prev = label
         elapsed += durations[i] - fade
     return cmd + ["-filter_complex", ";".join(parts), "-map", prev, *_ENCODE, "-an", output]
@@ -90,10 +93,10 @@ def render_final(clips: Sequence[str], output: str, durations: Optional[Sequence
     """Concat approved clips (in scene order), optionally crossfade and mux music."""
     ffmpeg = find_ffmpeg()
     silent = output if music is None else output + ".silent.mp4"
-    if transition == "crossfade":
+    if transition in OVERLAP_STYLES:
         if durations is None:
-            raise ValueError("durations required for crossfade")
-        run(build_crossfade_cmd(clips, durations, silent, fade, ffmpeg))
+            raise ValueError(f"durations required for {transition}")
+        run(build_crossfade_cmd(clips, durations, silent, fade, ffmpeg, OVERLAP_STYLES[transition]))
     else:
         list_file = write_concat_list(clips)
         try:
@@ -103,7 +106,7 @@ def render_final(clips: Sequence[str], output: str, durations: Optional[Sequence
     if music is not None:
         if durations is None:
             raise ValueError("durations required to fit music")
-        total = sum(durations) - (fade * (len(clips) - 1) if transition == "crossfade" else 0)
+        total = sum(durations) - (fade * (len(clips) - 1) if transition in OVERLAP_STYLES else 0)
         try:
             run(build_mux_music_cmd(silent, music, output, total, volume=music_volume, ffmpeg=ffmpeg))
         finally:

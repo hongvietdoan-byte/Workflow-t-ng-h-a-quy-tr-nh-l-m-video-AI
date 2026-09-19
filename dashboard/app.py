@@ -293,6 +293,17 @@ def step2(p: Pipeline, pid: int):
                              + ("QC Agent tự duyệt theo threshold" if proj["operating_mode"] == "auto"
                                 else "mọi ảnh chờ bạn duyệt"), "b-pri")
                     + f' <span class="muted">Retry tối đa {proj["max_retry_count"]}</span>', unsafe_allow_html=True)
+    if proj["operating_mode"] == "auto":
+        z1, z2, _ = st.columns([2, 3, 3], vertical_alignment="center")
+        zone_on = z1.checkbox("Vùng chờ review", proj["qc_review_floor"] is not None, key=f"zone_{pid}",
+                              help="Điểm nằm giữa mức sàn và threshold: QC Agent không tự loại mà chờ bạn duyệt.")
+        floor = z2.slider("Mức sàn (dưới mức này tự loại)", 0.3, float(proj["qc_auto_pass_threshold"]),
+                          min(float(proj["qc_review_floor"] or 0.6), float(proj["qc_auto_pass_threshold"])), 0.01,
+                          key=f"floor_{pid}", disabled=not zone_on)
+        new_floor = floor if zone_on else None
+        if new_floor != proj["qc_review_floor"] and (new_floor is None or proj["qc_review_floor"] is None
+                                                     or abs(new_floor - proj["qc_review_floor"]) > 1e-9):
+            p.set_review_floor(pid, new_floor)
     if runner is None:
         st.info("Chưa cấu hình Deepix: đặt IMAGE_PROVIDER=deepix và DEEPIX_TOKEN (biến môi trường), hoặc nhập ảnh thủ công cho từng job.")
     else:
@@ -683,9 +694,10 @@ def step5b(p: Pipeline, pid: int):
                     st.download_button("⬇ Tải FINAL_VIDEO.mp4", f, file_name="FINAL_VIDEO.mp4", mime="video/mp4")
     with right, st.container(border=True):
         ui.html(ui.card_title("Tùy chọn render"))
-        transition = st.radio("Transition", ["cut", "crossfade"], horizontal=True, key=f"tr_{pid}")
-        fade = st.slider("Thời gian crossfade (giây)", 0.3, 2.0, 1.0, 0.1, key=f"fade_{pid}",
-                         disabled=transition != "crossfade")
+        transition = st.radio("Transition", ["cut", "crossfade", "dip_to_black"], horizontal=True, key=f"tr_{pid}",
+                              format_func=lambda t: {"cut": "Cut", "crossfade": "Cross-fade", "dip_to_black": "Dip to black"}[t])
+        fade = st.slider("Thời gian chuyển cảnh (giây)", 0.3, 2.0, 1.0, 0.1, key=f"fade_{pid}",
+                         disabled=transition == "cut")
         music_dir = project_dir(pid, "music")
         tracks = os.listdir(music_dir)
         volume = st.slider("Âm lượng nhạc nền", 0.0, 1.0, 0.6, 0.05, key=f"vol_{pid}", disabled=not tracks)

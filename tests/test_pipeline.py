@@ -118,6 +118,29 @@ class PipelineTests(unittest.TestCase):
         self.assertEqual(self.p.cancel_all_active(pid), 2)
         self.assertEqual({self.p.state(a), self.p.state(b)}, {JobState.CANCELLED})
 
+    def test_review_zone_holds_middling_scores_for_a_human(self):
+        pid, _, job = self.make_job("auto", threshold=0.85)
+        self.p.set_review_floor(pid, 0.6)
+        scores = {"character": 0.7, "hands_face": 0.7, "composition": 0.7, "mood": 0.7}
+        self.assertEqual(self.p.apply_qc(job, scores), "pending_review")
+        self.assertEqual(self.p.state(job), JobState.PENDING_REVIEW)
+        row = self.p.conn.execute("SELECT DISTINCT auto_decision FROM qc_results").fetchone()
+        self.assertEqual(row["auto_decision"], "review")
+        self.p.approve(job, "user")
+
+    def test_review_zone_still_rejects_below_floor_and_approves_above_threshold(self):
+        pid, _, job = self.make_job("auto", threshold=0.85)
+        self.p.set_review_floor(pid, 0.6)
+        self.assertEqual(self.p.apply_qc(job, BAD), "rejected")  # mean 0.5 < floor 0.6
+        pid2, _, job2 = self.make_job("auto", threshold=0.85)
+        self.p.set_review_floor(pid2, 0.6)
+        self.assertEqual(self.p.apply_qc(job2, GOOD), "approved")
+
+    def test_no_review_zone_keeps_old_behaviour(self):
+        _, _, job = self.make_job("auto", threshold=0.85)
+        self.assertIsNone(self.p.project(self.p.job(job)["project_id"])["qc_review_floor"])
+        self.assertEqual(self.p.apply_qc(job, {"a": 0.7, "b": 0.7}), "rejected")
+
 
 if __name__ == "__main__":
     unittest.main()

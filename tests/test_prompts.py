@@ -43,6 +43,17 @@ class PromptTests(unittest.TestCase):
         self.assertIn("misty forest", text)
         self.assertIn("Từ vựng camera", text)
 
+    def test_motion_bundle_adds_seedance_guide_only_for_seedance(self):
+        job = self.p.create_job(self.sid)
+        self.p.start(job)
+        self.p.succeed(job)
+        self.p.approve(job)
+        self.assertNotIn("Seedance — cách viết motion prompt", build_motion_bundle(self.p, self.pid))
+        self.p.set_video_model(self.pid, "seedance-2.5")
+        self.assertIn("Seedance — cách viết motion prompt", build_motion_bundle(self.p, self.pid))
+        self.p.set_video_model(self.pid, "kling")
+        self.assertNotIn("Seedance — cách viết motion prompt", build_motion_bundle(self.p, self.pid))
+
     def test_checklist_keys_match_qc_prompt(self):
         keys = qc_criteria()
         self.assertEqual(keys, ["character", "hands_face", "composition", "mood_lighting", "consistency"])
