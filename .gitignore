@@ -2,3 +2,4 @@ deepix-*.zip
 deepix-*/
 __pycache__/
 *.pyc
+data/manifest.sqlite

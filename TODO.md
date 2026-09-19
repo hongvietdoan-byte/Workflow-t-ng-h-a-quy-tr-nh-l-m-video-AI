@@ -19,16 +19,20 @@ _Cập nhật lần cuối: 2026-09-19. Chi tiết kế hoạch xem `PLAN.md`. �
 - [x] Mockup HTML tương tác (`mockup/`) + import đủ 7 màn vào Figma (2026-09-19)
 - [x] Xuất `PLAN.docx`/`PLAN.pdf` + `tools/build_docs.sh` + `CLAUDE.md` quy ước repo (2026-09-19)
 - [x] Đưa Deepix package ra ngoài repo bằng `.gitignore` (2026-09-19)
+- [x] Script parser docx → cảnh/nhân vật; FFmpeg command builders (concat/crossfade/mux nhạc); validators JSON cho Director/QC; lưu + khóa Character Bible; Pre-flight IP check + blocklist seed (2026-09-19)
+- [x] Prompt templates (Director, QC, video motion, music brief) + `qc_checklist` + knowledge pack v0.1 (2026-09-19)
+- [x] 3 MCP server vỏ mỏng: `project-db`, `qc-agent`, `ffmpeg-studio` + hướng dẫn `docs/V0_SETUP.md`; 36 test pass (2026-09-19)
 - [x] Lớp core Python: schema SQLite + state machine + luồng `auto`/`human_qc` + retry/escalate, 10 unit test pass (`core/`, `tests/`) (2026-09-19)
 
 ## ⏸ Tạm gác (theo yêu cầu 2026-09-19)
 - [ ] API Clip AI/Kling (kiểm tra REST/webhook) và đọc tài liệu API Deepix (`deepix-1.4.1`) — làm sau; các module không cần API làm trước
 
 ## 🚧 Đang làm / kế tiếp (ưu tiên từ trên xuống)
-- [ ] Script parser: đọc script.docx → tách cảnh/nhân vật (không cần API) + lưu vào SQLite
-- [ ] Module FFmpeg: concat/transition/mux nhạc (chạy local, không cần API)
-- [ ] Runner/prompt template cho Director + QC Agent (V0 chạy qua chat Claude Desktop)
-- [ ] MCP server vỏ mỏng bọc `core` (`project-db`, `qc-agent`, `ffmpeg`)
+- [ ] Cài FFmpeg trên máy (chưa có; chưa chạy thử render thật) — việc của người dùng hoặc duyệt cho tôi cài qua winget
+- [ ] Cấu hình Claude Desktop theo `docs/V0_SETUP.md` và chạy thử luồng V0 thật
+- [ ] Streamlit Dashboard V1 (dựa trên `mockup/`, gọi `core`) — không cần API
+- [ ] Bước 3: lưu/duyệt motion prompt trong core (validator đã có, thiếu lưu + state)
+- [ ] Vùng "chờ review" 0.6–0.85 cho QC (PLAN Comment 3) — tuỳ chọn
 - [ ] MCP `deepix`, `clipai` (cần API — sau khi hết tạm gác); `music` để sau
 - [ ] Knowledge Base + eval set cho Bước 1 & 3 (PLAN.md Mục 3.6); chọn "chuyên gia miền" duyệt
 - [ ] Chuẩn bị 2 kịch bản mẫu (5–10 cảnh) cho dry-run V0
