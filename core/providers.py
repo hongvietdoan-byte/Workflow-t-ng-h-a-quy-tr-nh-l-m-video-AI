@@ -11,6 +11,15 @@ from typing import Dict, Optional, Protocol
 RISK_CONTROL = "risk_control"
 
 
+class ProviderError(Exception):
+    """Failure talking to (or reported by) a generation provider. Never contains credentials."""
+
+    def __init__(self, message: str, code: Optional[str] = None, transient: bool = False):
+        super().__init__(message)
+        self.code = code
+        self.transient = transient
+
+
 @dataclass
 class TaskStatus:
     state: str  # 'running' | 'succeeded' | 'failed'

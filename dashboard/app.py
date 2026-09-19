@@ -15,7 +15,8 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 from core import ffmpeg_studio, llm_io, preflight, prompts, script_parser  # noqa: E402
 from core.db import connect  # noqa: E402
 from core.pipeline import Pipeline, PipelinePaused  # noqa: E402
-from core.providers import MockImageProvider, MockVideoProvider  # noqa: E402
+from core.adapters import factory  # noqa: E402
+from core.providers import ProviderError  # noqa: E402
 from core.runner import ImageRunner, VideoRunner  # noqa: E402
 from core.states import InvalidTransition, JobState  # noqa: E402
 
@@ -30,17 +31,23 @@ ERRORS = (InvalidTransition, llm_io.SchemaError, PipelinePaused, ffmpeg_studio.F
 
 
 def video_runner(p: Pipeline):
-    """Real Clip AI adapter is not wired yet; VIDEO_PROVIDER=mock enables a simulated provider for demos."""
-    if os.environ.get("VIDEO_PROVIDER") == "mock":
-        return VideoRunner(p, MockVideoProvider(), DATA)
-    return None
+    """Provider chosen by VIDEO_PROVIDER (clipai | mock); None when not configured."""
+    try:
+        provider = factory.video_provider()
+    except ProviderError as e:
+        st.error(f"Clip AI: {e}")
+        return None
+    return VideoRunner(p, provider, DATA) if provider else None
 
 
 def image_runner(p: Pipeline):
-    """Real Deepix adapter is not wired yet; IMAGE_PROVIDER=mock enables a simulated provider for demos."""
-    if os.environ.get("IMAGE_PROVIDER") == "mock":
-        return ImageRunner(p, MockImageProvider(), DATA)
-    return None
+    """Provider chosen by IMAGE_PROVIDER (deepix | mock); None when not configured."""
+    try:
+        provider = factory.image_provider()
+    except ProviderError as e:
+        st.error(f"Deepix: {e}")
+        return None
+    return ImageRunner(p, provider, DATA) if provider else None
 
 
 def project_dir(pid: int, *parts: str) -> str:
@@ -168,9 +175,9 @@ def step2(p: Pipeline, pid: int):
         st.rerun()
     runner = image_runner(p)
     if runner is None:
-        st.info("Kết nối Deepix chưa bật (đặt IMAGE_PROVIDER khi có adapter): nhập ảnh thủ công cho từng job bên dưới.")
+        st.info("Chưa cấu hình Deepix: đặt IMAGE_PROVIDER=deepix và DEEPIX_TOKEN (biến môi trường), hoặc nhập ảnh thủ công cho từng job bên dưới.")
     else:
-        st.success(f"Provider ảnh: {runner.provider.name} (giả lập — ảnh 1x1, không phải ảnh thật)")
+        st.success(f"Provider ảnh: {runner.provider.name}" + (" (giả lập — ảnh 1x1)" if runner.provider.name == "mock-image" else " (gọi API thật, tốn credit)"))
         r1, r2 = st.columns(2)
         if r1.button("⟳ Submit + Poll 1 lần (ảnh)"):
             submitted = runner.submit_pending(pid)
@@ -275,13 +282,13 @@ def step4(p: Pipeline, pid: int):
     runner = video_runner(p)
     st.caption(f"{len(ready)} cảnh sẵn sàng gen video (ảnh + motion prompt đã duyệt)")
     if runner is None:
-        st.info("Kết nối Clip AI/Kling chưa bật (đặt VIDEO_PROVIDER khi có adapter). "
+        st.info("Chưa cấu hình Clip AI: đặt VIDEO_PROVIDER=clipai và CLIPAI_TOKEN (biến môi trường). "
                 "Vẫn có thể tạo job xếp hàng để theo dõi state machine.")
     else:
-        st.success(f"Provider: {runner.provider.name} (giả lập — không tạo video thật)")
-    models = ["(mặc định của Clip AI)", "seedance", "kling", "minimax"]
+        st.success(f"Provider video: {runner.provider.name}" + (" (giả lập — không tạo video thật)" if runner.provider.name == "mock" else " (gọi API thật, tốn credit)"))
+    models = ["(mặc định: kling-v3-omni)", "kling", "kling-o1", "seedance", "seedance-fast", "seedance-2.5"]
     current = p.project(pid)["video_model"]
-    choice = st.selectbox("Model video (Clip AI tích hợp nhiều model; bộ lọc kiểm duyệt khác nhau theo model)", models,
+    choice = st.selectbox("Model video (Clip AI: Kling Omni / Seedance; bộ lọc kiểm duyệt khác nhau theo model)", models,
                           index=models.index(current) if current in models else 0, key=f"vmodel_{pid}")
     if (choice if choice in models[1:] else None) != current:
         p.set_video_model(pid, choice if choice in models[1:] else None)

@@ -1,0 +1,121 @@
+"""Minimal HTTP client for the Deepix / Clip AI gateways (stdlib only, injectable transport).
+
+Envelope rule (from the vendor docs): a response is successful when `code` is absent/0/200 AND
+`status` is absent/'success'/'ok'. The bearer token is only ever sent to the configured API host,
+never to result-download URLs, and is never included in error messages.
+"""
+import json
+import mimetypes
+import os
+import urllib.error
+import urllib.parse
+import urllib.request
+import uuid
+from dataclasses import dataclass
+from typing import Callable, Dict, List, Optional, Tuple
+
+from ..providers import ProviderError
+
+
+@dataclass
+class HttpResponse:
+    status: int
+    body: bytes
+
+
+Transport = Callable[[str, str, Dict[str, str], Optional[bytes], float], HttpResponse]
+
+
+def urllib_transport(method: str, url: str, headers: Dict[str, str], body: Optional[bytes],
+                     timeout: float) -> HttpResponse:
+    req = urllib.request.Request(url, data=body, method=method, headers=headers)
+    try:
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+            return HttpResponse(resp.status, resp.read())
+    except urllib.error.HTTPError as e:
+        return HttpResponse(e.code, e.read())
+    except (urllib.error.URLError, TimeoutError, OSError) as e:
+        raise ProviderError(f"network error: {e}", code="network", transient=True) from None
+
+
+def encode_multipart(fields: Dict[str, str], files: List[Tuple[str, str, bytes]]) -> Tuple[bytes, str]:
+    """files: (field_name, filename, content). Returns (body, content_type)."""
+    boundary = uuid.uuid4().hex
+    parts: List[bytes] = []
+    for name, value in fields.items():
+        parts.append(f'--{boundary}\r\nContent-Disposition: form-data; name="{name}"\r\n\r\n{value}\r\n'.encode())
+    for name, filename, content in files:
+        ctype = mimetypes.guess_type(filename)[0] or "application/octet-stream"
+        parts.append((f'--{boundary}\r\nContent-Disposition: form-data; name="{name}"; filename="{filename}"\r\n'
+                      f"Content-Type: {ctype}\r\n\r\n").encode() + content + b"\r\n")
+    parts.append(f"--{boundary}--\r\n".encode())
+    return b"".join(parts), f"multipart/form-data; boundary={boundary}"
+
+
+def parse_envelope(payload) -> object:
+    """Return `data` of a successful envelope, or raise ProviderError."""
+    if not isinstance(payload, dict):
+        raise ProviderError(f"invalid API response: {str(payload)[:200]}", code="bad_response")
+    code_ok = "code" not in payload or payload["code"] in (0, 200)
+    status_ok = "status" not in payload or payload["status"] in ("success", "ok")
+    if not (code_ok and status_ok):
+        message = payload.get("msg") or payload.get("message") or "unknown error"
+        signal = f"code={payload['code']}" if "code" in payload else f"status={payload.get('status')}"
+        raise ProviderError(f"API error ({signal}): {message}", code="api_error")
+    return payload.get("data")
+
+
+class ApiClient:
+    def __init__(self, base_url: str, token: str, user_agent: str, transport: Transport = urllib_transport,
+                 timeout: float = 60):
+        self.base = base_url.rstrip("/")
+        self._token = token
+        self.user_agent = user_agent
+        self.transport = transport
+        self.timeout = timeout
+
+    def _headers(self, content_type: Optional[str] = None) -> Dict[str, str]:
+        headers = {"Authorization": f"Bearer {self._token}", "User-Agent": self.user_agent}
+        if content_type:
+            headers["Content-Type"] = content_type
+        return headers
+
+    def _send(self, method: str, path: str, body: Optional[bytes] = None, content_type: Optional[str] = None,
+              query: Optional[Dict] = None):
+        url = self.base + path
+        if query:
+            url += "?" + urllib.parse.urlencode({k: v for k, v in query.items() if v is not None})
+        resp = self.transport(method, url, self._headers(content_type), body, self.timeout)
+        if resp.status == 401:
+            raise ProviderError("invalid or missing token (HTTP 401)", code="auth")
+        if resp.status == 413:
+            raise ProviderError("payload too large (HTTP 413): reference image over the size limit", code="too_large")
+        if resp.status >= 500:
+            raise ProviderError(f"server error (HTTP {resp.status})", code="server_error", transient=True)
+        if resp.status >= 400:
+            raise ProviderError(f"HTTP {resp.status}: {resp.body[:300].decode('utf-8', 'replace')}", code="http_error")
+        try:
+            payload = json.loads(resp.body.decode("utf-8"))
+        except ValueError:
+            raise ProviderError(f"invalid JSON response: {resp.body[:200]!r}", code="bad_response") from None
+        return parse_envelope(payload)
+
+    def get(self, path: str, query: Optional[Dict] = None):
+        return self._send("GET", path, query=query)
+
+    def post_json(self, path: str, body: Dict):
+        return self._send("POST", path, json.dumps(body).encode("utf-8"), "application/json")
+
+    def post_multipart(self, path: str, fields: Dict[str, str], files: List[Tuple[str, str, bytes]]):
+        data, content_type = encode_multipart(fields, files)
+        return self._send("POST", path, data, content_type)
+
+    def download(self, url: str, dest_path: str) -> str:
+        """Download a result file. Deliberately sends NO Authorization header (URL is a third-party host)."""
+        resp = self.transport("GET", url, {"User-Agent": self.user_agent}, None, max(self.timeout, 120))
+        if resp.status != 200:
+            raise ProviderError(f"download failed (HTTP {resp.status})", code="download", transient=resp.status >= 500)
+        os.makedirs(os.path.dirname(dest_path) or ".", exist_ok=True)
+        with open(dest_path, "wb") as f:
+            f.write(resp.body)
+        return dest_path

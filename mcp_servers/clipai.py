@@ -1,7 +1,7 @@
 """MCP server: Step 4 video generation (submit / heartbeat poll / cancel).
 
-Uses the provider selected by VIDEO_PROVIDER. Only 'mock' exists until the real Clip AI / Kling
-adapter is written; without a provider the tools return a clear error instead of pretending.
+Uses the provider selected by VIDEO_PROVIDER (clipai | mock). Without a provider the tools return a clear
+error instead of pretending.
 """
 import os
 from typing import List
@@ -9,7 +9,7 @@ from typing import List
 from mcp.server.mcpserver import MCPServer
 
 from core import llm_io
-from core.providers import MockVideoProvider
+from core.adapters import factory
 from core.runner import VideoRunner
 from .common import get_pipeline
 
@@ -17,11 +17,12 @@ mcp = MCPServer("clipai")
 
 
 def _runner() -> VideoRunner:
-    if os.environ.get("VIDEO_PROVIDER") != "mock":
-        raise RuntimeError("No video provider configured (Clip AI adapter pending). "
-                           "Set VIDEO_PROVIDER=mock only for simulated demos.")
+    provider = factory.video_provider()
+    if provider is None:
+        raise RuntimeError("No video provider configured. Set VIDEO_PROVIDER=clipai and CLIPAI_TOKEN "
+                           "(or VIDEO_PROVIDER=mock for simulated demos).")
     data_dir = os.environ.get("PIPELINE_DATA", os.path.join("data", "projects"))
-    return VideoRunner(get_pipeline(), MockVideoProvider(), data_dir)
+    return VideoRunner(get_pipeline(), provider, data_dir)
 
 
 @mcp.tool()

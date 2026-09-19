@@ -122,11 +122,11 @@ Ngoài ra: Claude Director (Bước 1, 3, Music Brief), Streamlit Dashboard (V1)
 Clip AI là nền tảng tạo video và âm thanh AI tích hợp cho team (all-in-one), gộp nhiều model: **Seedance, Kling, MiniMax** (video), **Seed Audio, ElevenLabs** (âm thanh/giọng), kèm thư viện game asset. Tính năng: tạo/chỉnh video đa phương thức, đạo diễn 3D, thoại, âm thanh và nhạc, thiết kế và nhân bản giọng nói.
 
 Hệ quả cho thiết kế:
-1. **Không chỉ Kling:** bộ chạy Bước 4 có cấu hình `video_model` theo dự án (seedance / kling / minimax), truyền vào provider. Bộ lọc kiểm duyệt (risk control) và cú pháp prompt khác nhau theo model → blocklist IP và `content_moderation_failures` nên ghi kèm model; bộ đánh giá `eval/` cần chạy lại khi đổi model.
-2. **Âm thanh:** Bước 5a (nhạc) có thể dùng chính Clip AI (Seed Audio/ElevenLabs), giảm một nhà cung cấp. Cần xác nhận API có endpoint audio và điều khoản thương mại.
+1. **Không chỉ Kling:** bộ chạy Bước 4 có cấu hình `video_model` theo dự án (`kling`, `kling-o1`, `seedance`, `seedance-fast`, `seedance-2.5`), truyền vào provider. **Hợp đồng API thực tế chỉ có Kling Omni và Seedance; MiniMax không có trong API** (xem `docs/api_notes.md`). Bộ lọc kiểm duyệt (risk control) và cú pháp prompt khác nhau theo model → blocklist IP và `content_moderation_failures` nên ghi kèm model; bộ đánh giá `eval/` cần chạy lại khi đổi model.
+2. **Âm thanh (đã xác nhận có endpoint):** API có tạo TTS, sound effect và **nhạc** (`music_v2`, dài 3–600 giây, có tùy chọn instrumental) qua `/api/sound/generate`, bất đồng bộ; Bước 5a dùng chính Clip AI, giảm một nhà cung cấp. Còn cần xác nhận điều khoản thương mại và viết adapter audio.
 3. **Giọng/thoại:** tạo thoại, thiết kế/nhân bản giọng là tính năng có thể thêm ở giai đoạn sau (lồng tiếng nhân vật); chưa nằm trong V0/V1.
 4. **Thư viện game asset:** phù hợp trailer game; xét dùng làm nguồn tham chiếu nhân vật/bối cảnh nhất quán khi API cho phép.
-5. **Cần xác nhận từ tài liệu API Clip AI (đã có API, 2026-09-19):** danh sách model và phiên bản chọn được qua API, tham số chọn model, cách gửi ảnh (upload/base64/URL), endpoint audio, hạn mức/credit theo model, thời hạn link kết quả, chính sách kiểm duyệt theo model, và có endpoint truy vấn trạng thái (polling) hay chỉ webhook.
+5. **Đã có trong tài liệu API (2026-09-19, xem `docs/api_notes.md`):** model chọn được, cách gửi ảnh (multipart cùng lệnh tạo), quét `video-list` để poll (không có endpoint 1 tác vụ), thời lượng/độ phân giải theo model, endpoint audio. **Còn cần xác nhận khi chạy thật:** hạn mức/credit theo model, thời hạn link `video_url`, cách API xử lý negative prompt (hiện không có trường riêng), và thông điệp lỗi risk control thực tế của từng model.
 
 ### 3.4 Giao diện điều khiển hợp nhất (Unified Control Dashboard)
 
@@ -296,6 +296,8 @@ Mục tiêu: chứng minh pipeline end-to-end chạy được, đo chất lượ
 - [ ] Runbook + Prompt Templates đã bàn giao cho bộ phận sản xuất nội dung
 
 ## 9. Trạng thái triển khai (cập nhật 2026-09-19)
+
+**Adapter thật đã viết (`core/adapters/`):** Deepix (gen ảnh Seedream 5.0 Pro) và Clip AI (video Kling Omni + Seedance) theo hợp đồng API của skill chính thức; kiểm thử bằng giao thức giả (chưa gọi API thật vì token phải do bạn đặt trong biến môi trường). Kiểm tra kết nối chỉ đọc: `py -m core.adapters.check`.
 
 **Đã build (69 unit test pass, không cần API ngoài):**
 - `core/` — schema SQLite, state machine job, luồng QC `auto`/`human_qc`, retry/escalate, Pause/Resume/Cancel-all, script parser (docx → cảnh/nhân vật), validators + lưu JSON của Director/QC, Character Bible + khóa, Pre-flight IP check + blocklist seed, motion prompt (Bước 3), FFmpeg command builders, prompt bundles.

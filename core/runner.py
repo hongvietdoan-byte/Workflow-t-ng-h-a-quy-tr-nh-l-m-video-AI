@@ -12,7 +12,7 @@ from typing import Callable, Dict, Optional, Tuple
 
 from .pipeline import Pipeline
 from .preflight import record_failure
-from .providers import RISK_CONTROL
+from .providers import RISK_CONTROL, ProviderError
 
 
 class _Runner:
@@ -54,7 +54,15 @@ class _Runner:
                 self.p.start(job["id"])
                 self.p.fail(job["id"], "missing inputs (approved image / motion prompt / image prompt)")
                 continue
-            task_id = self.provider.submit(*args)
+            try:
+                task_id = self.provider.submit(*args)
+            except ProviderError as e:
+                if e.transient:
+                    break  # network/server hiccup: leave the job queued, try again next heartbeat
+                self.p.start(job["id"])
+                self._record_provider_failure(job, e.code, str(e))
+                self.p.fail(job["id"], f"{e.code or 'error'}: {e}")
+                continue
             self.p.conn.execute("UPDATE jobs SET external_id=? WHERE id=?", (task_id, job["id"]))
             self.p.conn.commit()
             self.p.start(job["id"])
@@ -65,11 +73,28 @@ class _Runner:
     def poll_once(self, project_id: int) -> Dict[str, int]:
         counts = {"succeeded": 0, "failed": 0, "retried": 0, "running": 0}
         for job in self._jobs(project_id, "running"):
-            status = self.provider.status(job["external_id"])
+            try:
+                status = self.provider.status(job["external_id"])
+            except ProviderError as e:
+                if e.transient:
+                    counts["running"] += 1  # keep polling on network/server errors
+                    continue
+                self._record_provider_failure(job, e.code, str(e))
+                self.p.fail(job["id"], f"{e.code or 'error'}: {e}")
+                counts["failed"] += 1
+                continue
             if status.state == "running":
                 counts["running"] += 1
             elif status.state == "succeeded":
-                dest = self.provider.download(job["external_id"], self._dest_path(job))
+                try:
+                    dest = self.provider.download(job["external_id"], self._dest_path(job))
+                except ProviderError as e:
+                    if e.transient:
+                        counts["running"] += 1
+                        continue
+                    self.p.fail(job["id"], f"{e.code or 'error'}: {e}")
+                    counts["failed"] += 1
+                    continue
                 self.p.conn.execute("UPDATE jobs SET result_path=? WHERE id=?", (dest, job["id"]))
                 self.p.conn.commit()
                 self.p.succeed(job["id"])
@@ -83,6 +108,10 @@ class _Runner:
                 if status.transient and self.p.retry(job["id"], message) is not None:
                     counts["retried"] += 1
         return counts
+
+    def _record_provider_failure(self, job, code, message: str) -> None:
+        if code == RISK_CONTROL:
+            record_failure(self.p.conn, job["id"], self.provider.name, message)
 
     def cancel_job(self, job_id: int) -> None:
         job = self.p.job(job_id)
