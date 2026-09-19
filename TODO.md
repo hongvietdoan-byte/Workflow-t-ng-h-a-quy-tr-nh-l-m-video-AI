@@ -24,13 +24,14 @@ _Cập nhật lần cuối: 2026-09-19. Chi tiết kế hoạch xem `PLAN.md`. �
 - [x] 3 MCP server vỏ mỏng: `project-db`, `qc-agent`, `ffmpeg-studio` + hướng dẫn `docs/V0_SETUP.md`; 36 test pass (2026-09-19)
 - [x] Bước 3 core (lưu/duyệt motion prompt, `ready_for_video`), Pause/Resume/Cancel-all; Dashboard Streamlit V1 skeleton `dashboard/app.py` (stepper 7 tab, control bar, nút từng khâu, lịch sử) — Claude steps dán JSON tay; 44 test pass (2026-09-19)
 - [x] 2 kịch bản mẫu `samples/` (parser tách đúng 6 cảnh mỗi file); PLAN.md Mục 9 = trạng thái triển khai (2026-09-19)
+- [x] Cài FFmpeg 9.0.1 qua winget; render thật đã chạy thử OK (cut 8s / crossfade 7s, có nhạc) (2026-09-19). Lưu ý: shell mới mới thấy `ffmpeg` trong PATH; shell cũ đặt `FFMPEG_PATH`
+- [x] Sơ đồ xin duyệt API Clip AI: `docs/clipai_api_request.{html,png,pdf}` (2026-09-19)
 - [x] Lớp core Python: schema SQLite + state machine + luồng `auto`/`human_qc` + retry/escalate, 10 unit test pass (`core/`, `tests/`) (2026-09-19)
 
 ## ⏸ Tạm gác (theo yêu cầu 2026-09-19)
 - [ ] API Clip AI/Kling (kiểm tra REST/webhook) và đọc tài liệu API Deepix (`deepix-1.4.1`) — làm sau; các module không cần API làm trước
 
 ## 🚧 Đang làm / kế tiếp (ưu tiên từ trên xuống)
-- [ ] Cài FFmpeg trên máy (chưa có; chưa chạy thử render thật) — việc của người dùng hoặc duyệt cho tôi cài qua winget
 - [ ] Cấu hình Claude Desktop theo `docs/V0_SETUP.md` và chạy thử luồng V0 thật
 - [ ] Dashboard: chạy thử với dữ liệu thật + tinh chỉnh UI theo mockup (grid ảnh, badge, thanh tiến độ)
 - [ ] Dashboard: nhúng "LLM runner" API (V1, cần API key Anthropic) thay cho dán JSON tay
@@ -42,7 +43,7 @@ _Cập nhật lần cuối: 2026-09-19. Chi tiết kế hoạch xem `PLAN.md`. �
 
 ## 👤 Việc cần người dùng quyết định / cung cấp
 - [ ] Chuyển repo GitHub sang **private** (người dùng tự làm)
-- [ ] Xác nhận API Clip AI/Kling (hỏi team dev nội bộ)
+- [ ] Gửi `docs/clipai_api_request.pdf` để xin duyệt API Clip AI/Kling (điền hạn mức request/ngày)
 - [ ] Hỏi admin Claude Enterprise: có Console org / API key Anthropic cho V1 không, hạn mức token, chính sách data ảnh nhân vật
 - [ ] Chọn `music_provider` (Suno không có API chính thức; ứng viên ElevenLabs Music, cần xác minh) — không chặn V0
 - [ ] Chọn framework Dashboard V1: Streamlit hay web frontend riêng (nếu cần sát mockup Figma)
