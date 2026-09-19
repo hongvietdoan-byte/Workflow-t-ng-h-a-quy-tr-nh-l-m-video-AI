@@ -2,14 +2,18 @@
 
 _Cập nhật lần cuối: 2026-09-19. Chi tiết kế hoạch xem `PLAN.md`. Đánh dấu `[x]` khi xong, ghi ngày cạnh mục._
 
-## 📌 Bàn giao sang phiên chat khác (chốt 2026-09-19)
-**Trạng thái:** repo `main` đã push đầy đủ; 58 unit test pass; cấu hình Claude Desktop (`mcpServers`: project-db, qc-agent, ffmpeg-studio) đã ghi và kiểm thử qua MCP stdio thật. **Đang chờ bạn:** thoát hẳn + mở lại Claude Desktop rồi chạy thử V0 trong tab Chat (`docs/V0_SETUP.md` mục 3), báo kết quả/lỗi cho phiên sau.
+## 📌 Bàn giao sang phiên chat khác (chốt cuối phiên 2026-09-19)
+**Trạng thái:** repo `main` đã push đầy đủ, working tree sạch, **108 unit test pass**. Đã có: core + state machine + luồng `auto`/`human_qc`; Dashboard Streamlit; MCP server (project-db, qc-agent, ffmpeg-studio, clipai); **adapter thật Deepix (ảnh) và Clip AI (Kling Omni + Seedance)**; ước tính chi phí + sổ mức dùng; bộ đánh giá Director (`eval/`); knowledge pack + nguồn đã kiểm chứng; FFmpeg đã cài. **Đã chạy thật:** token Clip AI/Deepix kết nối OK; 1 ảnh (31s) + 1 clip Kling (84s, 1080p) + 1 clip Seedance (167s, 720p) thành công (số liệu ở `docs/api_notes.md`). **Việc tiếp theo (theo ưu tiên):** (1) bạn đo giá thật rồi điền `data/pricing.json`; (2) chạy 1 cảnh thật qua Dashboard và thử Seedance 1080p / cảnh hành động-cận cảnh để chọn model mặc định; (3) chạy vòng đánh giá `eval/` và V0 trong Claude Desktop (cấu hình đã ghi sẵn, cần mở lại app); (4) chắt lọc prompt Seedance (tài liệu 2.0/2.5) vào knowledge; (5) adapter audio Clip AI cho nhạc nền.
 
 **Cách tiếp tục:** `git pull` → đọc `CLAUDE.md`, `PLAN.md` (Mục 5 quyết định, Mục 7 lộ trình, Mục 9 trạng thái) và file này. Chạy test: `py -m unittest discover -s tests -t .`. Dashboard: `py -m streamlit run dashboard/app.py`.
 
 **Quyết định đã chốt:** 1 Dashboard duy nhất theo thứ tự bước; `operating_mode` mặc định `human_qc`; QC Agent = Claude Vision; V0 (Claude Desktop + MCP, dán JSON tay) → V1 (Dashboard + API Anthropic); Clip AI (đa model: Seedance/Kling/MiniMax + audio) **đã có API**, dùng polling; ngân sách V0 nhỏ (~2 kịch bản, 10–20 clip); repo sẽ chuyển private.
 
 **Lưu ý kỹ thuật (đã gặp lỗi, tránh lặp):**
+- **Token API** (`CLIPAI_TOKEN`, `DEEPIX_TOKEN`) chỉ đặt trong biến môi trường PowerShell của người dùng; **không bao giờ** ghi vào repo/chat/log. Nhập bằng `Read-Host` (lệnh SecureString kiểu `PtrToStringAuto` đã từng cho kết quả 1 ký tự — dùng `NetworkCredential`). Kiểm tra: `py -m core.adapters.check`; thử thật (tốn credit): `py -m core.adapters.trial --yes`; chỉ đọc: `py -m core.adapters.inspect_api --usage`.
+- Khi tạo/sửa file có chuỗi thoát byte hoặc xuống dòng bằng script Python trong heredoc, ký tự thoát dễ bị ghi sai (đã làm hỏng 1 commit): dùng Write/Edit tool, hoặc `bytes([0x..])`, rồi **chạy test trước khi commit/push**.
+- Deepix trả ảnh JPEG dù ta lưu đuôi `.png` (adapter Clip AI gửi đúng định dạng theo nội dung).
+- MiniMax **không** có trong API Clip AI (chỉ Kling Omni và Seedance).
 - Python (`py`, bản Store) **không thấy** `%APPDATA%\Claude\...` → đọc/sửa config Claude bằng PowerShell hoặc Read/Edit tool, không dùng Python.
 - Heredoc bash chứa nhiều ký tự đặc biệt/tiếng Việt hay lỗi → dùng Write tool tạo file rồi chạy; `pkill -f "streamlit run"` sẽ tự giết shell.
 - FFmpeg cài qua winget (đường dẫn trong `FFMPEG_PATH` của config); shell mới mới thấy `ffmpeg` trong PATH.
