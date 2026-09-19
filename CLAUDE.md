@@ -9,6 +9,7 @@ Kế hoạch chính nằm ở `PLAN.md` (nguồn tài liệu gốc: `Quy_Trinh_A
    bash tools/build_docs.sh
    ```
    (cần pandoc + Chrome/Edge; script tự tìm trình duyệt). Hai file này luôn phải khớp `PLAN.md` mới nhất để người khác/session khác theo dõi.
+2b. **Luôn cập nhật `TODO.md`** (tiến độ + việc phải làm lại + tồn đọng) trong cùng commit; mục "Việc phải làm lại MỖI LẦN" trong `TODO.md` là checklist bắt buộc.
 3. Sửa nội dung kế hoạch trong `PLAN.md` (nguồn duy nhất); không sửa tay `PLAN.docx`/`PLAN.pdf`.
 4. Khi bắt đầu session mới: `git pull` trước, đọc `PLAN.md` (Mục 5 = quyết định đã chốt/còn mở, Mục 7 = lộ trình).
 5. Commit message có dòng `Co-Authored-By` theo cấu hình session; không commit secrets/API key.
