@@ -48,6 +48,7 @@ _Cập nhật lần cuối: 2026-09-19. Chi tiết kế hoạch xem `PLAN.md`. �
 - [x] Bước 2 Knowledge Base: `knowledge/genre_guides.md` (7 thể loại + công thức image prompt), `ai_image_failure_modes.md`, few-shot từ `eval/golden.json`; bộ đánh giá 12 mẫu `eval/cases.json` + bộ chấm tự động + phiếu duyệt (`py -m core.evalset ...`); nối vào prompt Director/QC/motion (+MCP `get_motion_prompt_bundle`); 69 test pass. Người duyệt: chủ dự án (tạm) (2026-09-19)
 - [x] Ghi nhận Clip AI = nền tảng đa model (Seedance, Kling, MiniMax; Seed Audio, ElevenLabs; game assets): PLAN Mục 3.3b, `video_model` theo dự án (DB + runner + Dashboard Bước 4), music_provider ưu tiên Clip AI; 71 test pass (2026-09-19)
 - [x] Nghiên cứu ~10 repo đạo diễn/prompt phim AI: `knowledge/sources.md` (độ tin cậy, license, cách dùng), `knowledge/research_notes.md` (16 nguyên tắc + 8 chiều điện ảnh), đã nối vào prompt Director/motion và thêm check "từ khen rỗng" cho eval (2026-09-19)
+- [x] Sơ đồ xin API (bản chi tiết + rút gọn, tiếng Anh) đã sửa thành Clip AI đa model (Seedance/Kling/MiniMax) + hỏi endpoint audio (2026-09-19)
 - [x] Lớp core Python: schema SQLite + state machine + luồng `auto`/`human_qc` + retry/escalate, 10 unit test pass (`core/`, `tests/`) (2026-09-19)
 
 ## ⏸ Tạm gác (theo yêu cầu 2026-09-19)
@@ -68,7 +69,6 @@ _Cập nhật lần cuối: 2026-09-19. Chi tiết kế hoạch xem `PLAN.md`. �
 - [ ] Gửi `docs/clipai_api_request.pdf` để xin duyệt API Clip AI/Kling (điền hạn mức request/ngày)
 - [ ] Hỏi admin Claude Enterprise: có Console org / API key Anthropic cho V1 không, hạn mức token, chính sách data ảnh nhân vật
 - [ ] Chọn `music_provider`: ưu tiên audio của Clip AI (ElevenLabs/Seed Audio) nếu API mở; Suno không có API chính thức — không chặn V0
-- [ ] Cập nhật tài liệu xin API (`docs/clipai_api_request*`) cho khớp Clip AI đa model + audio (chờ bạn đồng ý sửa)
 - [ ] Chọn `video_model` mặc định (seedance / kling / minimax) khi biết API Clip AI hỗ trợ gì
 - [ ] Chọn framework Dashboard V1: Streamlit hay web frontend riêng (nếu cần sát mockup Figma)
 - [ ] Cấp danh sách nhân vật/IP dự kiến để build blocklist IP v1

@@ -24,11 +24,11 @@ table{border-collapse:collapse;width:100%;font-size:12.5px}td,th{border:1px soli
 </style>
 </head>
 <body>
-<h1>Integrating the Clip AI / Kling API into the Automated AI Video Production Pipeline</h1>
+<h1>Integrating the Clip AI Multi-Model API into the AI Video Pipeline</h1>
 <div class="sub">Workflow diagram and technical requirements for API access approval — based on PLAN.md (2026-09-19)</div>
 <div class="tag">Approval requested: Step 4 — Image-to-video generation</div>
 
-<div class="box desc" style="left:40px;top:96px;width:1520px;height:84px;background:#fff"><b>How the process works</b>A script (.docx) is split into scenes and a Character Bible by an AI director. Deepix generates one image per scene, and each image is quality-checked (automatically or by a person, depending on the project mode). Approved images get a short motion prompt and are sent to Clip AI / Kling, which turns each one into a 5-second video clip. FFmpeg then joins the clips, adds transitions and music, and produces the final video. Everything is controlled from one Dashboard with start, pause, retry and cancel buttons.</div>
+<div class="box desc" style="left:40px;top:96px;width:1520px;height:94px;background:#fff"><b>How the process works</b>A script (.docx) is split into scenes and a Character Bible by an AI director. Deepix generates one image per scene, and each image is quality-checked (automatically or by a person, depending on the project mode). Approved images get a short motion prompt and are sent to Clip AI (a platform offering Seedance, Kling and MiniMax), which turns each one into a 5-second video clip. FFmpeg then joins the clips, adds transitions and music, and produces the final video. Everything is controlled from one Dashboard with start, pause, retry and cancel buttons.</div>
 <svg width="1600" height="1220" viewBox="0 0 1600 1220">
 <defs><marker id="a" markerWidth="10" markerHeight="8" refX="9" refY="4" orient="auto"><path d="M0,0 L10,4 L0,8 z" fill="#667085"/></marker>
 <marker id="p" markerWidth="10" markerHeight="8" refX="9" refY="4" orient="auto"><path d="M0,0 L10,4 L0,8 z" fill="#4F46E5"/></marker></defs><g transform="translate(0,90)">
@@ -58,9 +58,9 @@ table{border-collapse:collapse;width:100%;font-size:12.5px}td,th{border:1px soli
 
 <div class="sec" style="left:40px;top:430px">B. CLIP AI API INTEGRATION DETAILS</div>
 <div class="box" style="left:40px;top:470px;width:290px;height:180px"><b>Dashboard (Streamlit)</b>Controls: Start batch · Pause/Resume polling · Retry failed jobs · Cancel job.<br><small>Shows progress x/y + risk-control warnings</small></div>
-<div class="box hi" style="left:420px;top:470px;width:300px;height:180px"><b>mcp-server-clipai</b><ul><li>Submit: image + prompt + duration</li><li>Heartbeat polling (default 90s)</li><li>Download .mp4 to /videos/</li><li>State machine: queued→running→succeeded/failed</li><li>Max 3 retries, then escalate to a person</li></ul></div>
-<div class="box hi" style="left:840px;top:470px;width:340px;height:180px"><b>Clip AI / Kling API (access requested)</b><ul><li>Create image-to-video task</li><li>Query task status (or webhook)</li><li>Download result · cancel task</li><li>Clear error codes/messages (incl. risk control)</li></ul></div>
-<div class="box" style="left:1240px;top:470px;width:320px;height:180px"><b>Cost &amp; risk controls</b><ul><li>Only approved images are sent</li><li>Pre-flight IP check: flags characters matching IPs blocked by Kling (e.g. Wonder Woman) before any API call</li><li>Retries capped at 3 → prevents wasting credits</li><li>Emergency Pause / Cancel-all buttons</li></ul></div>
+<div class="box hi" style="left:420px;top:470px;width:300px;height:180px"><b>mcp-server-clipai</b><ul><li>Submit: image, prompt, duration, model</li><li>Heartbeat polling (default 90s)</li><li>Download .mp4 to /videos/</li><li>States: queued→running→succeeded/failed</li><li>Max 3 retries, then escalate to a person</li></ul></div>
+<div class="box hi" style="left:840px;top:470px;width:340px;height:180px"><b>Clip AI API (access requested)</b><ul><li>Create image-to-video task with a model choice (Seedance / Kling / MiniMax)</li><li>Query task status (or webhook)</li><li>Download result · cancel task</li><li>Clear error codes per model (incl. risk control)</li></ul></div>
+<div class="box" style="left:1240px;top:470px;width:320px;height:180px"><b>Cost &amp; risk controls</b><ul><li>Only approved images are sent</li><li>Pre-flight IP check: flags characters matching IPs blocked by the video models (e.g. Kling) before any API call</li><li>Retries capped at 3 → prevents wasting credits</li><li>Emergency Pause / Cancel-all buttons</li></ul></div>
 
 <div class="sec" style="left:40px;top:680px">C. REQUESTED APPROVAL</div>
 <div class="box" style="left:40px;top:710px;width:770px;height:300px"><b>Information / access requested</b>
@@ -68,9 +68,9 @@ table{border-collapse:collapse;width:100%;font-size:12.5px}td,th{border:1px soli
 <tr><td>Authentication</td><td>API key / token (kept in an environment variable on the operating machine, never committed to the repo)</td></tr>
 <tr><td>Endpoints</td><td>Create image-to-video task · get status · (webhook if available) · download video · cancel task</td></tr>
 <tr><td>Input per task</td><td>1 image (png/jpg) + motion prompt + negative prompt + duration (default 5s)</td></tr>
-<tr><td>Limits</td><td>Rate limit, concurrent tasks, average processing time / timeout, file size limits</td></tr>
-<tr><td>Errors</td><td>Error-code documentation, especially "Failure to pass the risk control system"</td></tr>
-<tr><td>Quota &amp; cost</td><td>Quota/credits for the pilot phase and for scaling to batches of &gt;100 clips</td></tr></table></div>
+<tr><td>Models &amp; audio</td><td>Selectable models/versions and how to choose one; audio endpoints (music/voice via Seed Audio / ElevenLabs) if available</td></tr>
+<tr><td>Limits &amp; errors</td><td>Rate limit, concurrent tasks, timeouts; error-code docs, esp. "Failure to pass the risk control system"</td></tr>
+<tr><td>Quota &amp; cost</td><td>Quota/credits per model for the pilot phase and for scaling to batches of &gt;100 clips</td></tr></table></div>
 
 <div class="box warn" style="left:830px;top:710px;width:730px;height:145px"><b>Proposed usage scale</b><ul><li><b style="display:inline">Pilot phase (V0):</b> ~2 scripts, 10–20 clips → at most ~60 requests if every scene needs 3 retries</li><li><b style="display:inline">Production phase:</b> batches may exceed 100 clips → requires long-running polling; per-request manual approval is not feasible</li><li>Requested quota: <b style="display:inline">........ requests/day</b> (to be agreed)</li></ul></div>
 <div class="box ok" style="left:830px;top:870px;width:730px;height:140px"><b>Security &amp; data</b><ul><li>Only pipeline-generated scene images and text prompts are sent; no personal data</li><li>The API key stays on the operating machine; the source repo contains no keys</li><li>Every call is logged (job, state, error) for auditing and cost tracking</li></ul></div>
