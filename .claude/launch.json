@@ -1,0 +1,6 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {"name": "dashboard-demo", "runtimeExecutable": "powershell", "runtimeArgs": ["-NoProfile", "-File", "tools/run_demo.ps1"], "port": 8511}
+  ]
+}

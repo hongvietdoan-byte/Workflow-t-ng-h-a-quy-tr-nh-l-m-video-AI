@@ -310,6 +310,8 @@ Mục tiêu: chứng minh pipeline end-to-end chạy được, đo chất lượ
 
 **Bước 5b (Ghép & Render):** `core/final_cut.py` — tự nạp clip theo thứ tự cảnh từ Bước 4, đọc độ dài thật bằng ffmpeg, cảnh báo cảnh thiếu, chọn clip/transition/âm lượng nhạc, kiểm tra trước khi render, xem và tải bản cuối. Đã render thử thật với ffmpeg.
 
+**Giao diện Dashboard:** đã chỉnh theo `mockup/dashboard.html` (theme, stepper có ✓, lưới thẻ ảnh + panel QC, badge trạng thái, thanh tiến độ). Xem thử không tốn credit: `py tools/seed_demo.py` rồi `powershell -File tools/run_demo.ps1`.
+
 **Tạm gác (2026-09-19):** MCP Claude/V0 qua Claude Desktop; ưu tiên hoàn thiện Dashboard.
 
 **Đang chờ điều kiện bên ngoài:**

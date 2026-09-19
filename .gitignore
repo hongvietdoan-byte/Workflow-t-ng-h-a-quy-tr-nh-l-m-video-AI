@@ -5,3 +5,4 @@ __pycache__/
 data/manifest.sqlite
 Get this Skill to Claude/
 data/trial/
+data/demo/
