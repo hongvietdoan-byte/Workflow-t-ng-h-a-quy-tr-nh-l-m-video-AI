@@ -1,8 +1,8 @@
 <!DOCTYPE html>
-<html lang="vi">
+<html lang="en">
 <head>
 <meta charset="utf-8">
-<title>Đề xuất tích hợp Clip AI API - Auto Pipeline Video AI</title>
+<title>Clip AI API Integration Proposal - Auto Video Pipeline</title>
 <style>
 @page{size:1600px 1130px;margin:0}
 *{box-sizing:border-box}
@@ -24,9 +24,9 @@ table{border-collapse:collapse;width:100%;font-size:12.5px}td,th{border:1px soli
 </style>
 </head>
 <body>
-<h1>Tích hợp Clip AI / Kling API vào Auto Pipeline sản xuất Video AI</h1>
-<div class="sub">Sơ đồ luồng và yêu cầu kỹ thuật để xin duyệt cấp API — theo PLAN.md (2026-09-19)</div>
-<div class="tag">Đề nghị duyệt: Bước 4 — Gen video từ ảnh</div>
+<h1>Integrating the Clip AI / Kling API into the Automated AI Video Production Pipeline</h1>
+<div class="sub">Workflow diagram and technical requirements for API access approval — based on PLAN.md (2026-09-19)</div>
+<div class="tag">Approval requested: Step 4 — Image-to-video generation</div>
 
 <svg width="1600" height="1130" viewBox="0 0 1600 1130">
 <defs><marker id="a" markerWidth="10" markerHeight="8" refX="9" refY="4" orient="auto"><path d="M0,0 L10,4 L0,8 z" fill="#667085"/></marker>
@@ -47,39 +47,39 @@ table{border-collapse:collapse;width:100%;font-size:12.5px}td,th{border:1px soli
 <text x="780" y="522" font-size="12" fill="#4F46E5" text-anchor="middle">② status / webhook</text>
 </svg>
 
-<div class="sec" style="left:40px;top:104px">A. PIPELINE 5 BƯỚC (điều khiển từ 1 Dashboard duy nhất)</div>
-<div class="box" style="left:40px;top:130px;width:245px;height:140px"><b><span class="num">1</span>Kịch bản &amp; phân tích</b>Claude Director tách cảnh, lập Character Bible.<br><small>Pre-flight check IP bản quyền</small></div>
-<div class="box" style="left:325px;top:130px;width:240px;height:140px"><b><span class="num">2</span>Gen ảnh + QC</b>Deepix API gen ảnh; Claude Vision chấm QC.<br><small>Chế độ auto / human_qc</small></div>
-<div class="box" style="left:605px;top:130px;width:240px;height:140px"><b><span class="num">3</span>Video Motion Prompt</b>Claude viết prompt chuyển động 5s/cảnh, người duyệt.</div>
-<div class="box hi" style="left:885px;top:130px;width:240px;height:140px"><b><span class="num">4</span>Gen video ★</b>Ảnh đã duyệt + motion prompt → <b style="display:inline">Clip AI API</b><br><small>Cần được cấp API ở bước này</small></div>
-<div class="box" style="left:1165px;top:130px;width:240px;height:140px"><b><span class="num">5</span>Ghép &amp; Render</b>FFmpeg local: nối clip, transition, nhạc → FINAL_VIDEO.mp4</div>
-<div class="box ok" style="left:1425px;top:130px;width:135px;height:140px"><b>Kết quả</b>Video hoàn chỉnh<br><small>người nghiệm thu</small></div>
+<div class="sec" style="left:40px;top:104px">A. 5-STEP PIPELINE (controlled from a single Dashboard)</div>
+<div class="box" style="left:40px;top:130px;width:245px;height:140px"><b><span class="num">1</span>Script &amp; analysis</b>Claude Director splits scenes and builds the Character Bible.<br><small>Pre-flight copyrighted-IP check</small></div>
+<div class="box" style="left:325px;top:130px;width:240px;height:140px"><b><span class="num">2</span>Image gen + QC</b>Deepix API generates images; Claude Vision scores QC.<br><small>Modes: auto / human_qc</small></div>
+<div class="box" style="left:605px;top:130px;width:240px;height:140px"><b><span class="num">3</span>Video motion prompt</b>Claude writes a 5s motion prompt per scene; a human reviews it.</div>
+<div class="box hi" style="left:885px;top:130px;width:240px;height:140px"><b><span class="num">4</span>Video generation ★</b>Approved image + motion prompt → <b style="display:inline">Clip AI API</b><br><small>API access needed at this step</small></div>
+<div class="box" style="left:1165px;top:130px;width:240px;height:140px"><b><span class="num">5</span>Assemble &amp; render</b>Local FFmpeg: concat clips, transitions, music → FINAL_VIDEO.mp4</div>
+<div class="box ok" style="left:1425px;top:130px;width:135px;height:140px"><b>Output</b>Finished video<br><small>reviewed by a person</small></div>
 
-<div class="sec" style="left:40px;top:340px">B. CHI TIẾT TÍCH HỢP CLIP AI API</div>
-<div class="box" style="left:40px;top:380px;width:290px;height:180px"><b>Dashboard (Streamlit)</b>Nút: Bắt đầu gen batch · Pause/Resume polling · Retry job fail · Cancel job.<br><small>Hiển thị tiến độ x/y + cảnh báo risk control</small></div>
-<div class="box hi" style="left:420px;top:380px;width:300px;height:180px"><b>mcp-server-clipai</b><ul><li>Gửi task: ảnh + motion prompt + duration</li><li>Heartbeat polling (mặc định 90s)</li><li>Tải .mp4 về /videos/</li><li>State machine: queued→running→succeeded/failed</li><li>Retry tối đa 3, quá ngưỡng thì báo người</li></ul></div>
-<div class="box hi" style="left:840px;top:380px;width:340px;height:180px"><b>Clip AI / Kling API (cần cấp)</b><ul><li>Tạo task image-to-video</li><li>Truy vấn trạng thái (hoặc webhook)</li><li>Tải kết quả · hủy task</li><li>Lỗi có mã/thông điệp rõ ràng (gồm risk control)</li></ul></div>
-<div class="box" style="left:1240px;top:380px;width:320px;height:180px"><b>Kiểm soát chi phí &amp; rủi ro</b><ul><li>Chỉ gửi ảnh đã được duyệt</li><li>Pre-flight IP: chặn nhân vật trùng IP bị Kling cấm (vd Wonder Woman) trước khi gọi API</li><li>Retry giới hạn 3 lần → tránh đốt credit</li><li>Nút Pause / Cancel-all khẩn cấp</li></ul></div>
+<div class="sec" style="left:40px;top:340px">B. CLIP AI API INTEGRATION DETAILS</div>
+<div class="box" style="left:40px;top:380px;width:290px;height:180px"><b>Dashboard (Streamlit)</b>Controls: Start batch · Pause/Resume polling · Retry failed jobs · Cancel job.<br><small>Shows progress x/y + risk-control warnings</small></div>
+<div class="box hi" style="left:420px;top:380px;width:300px;height:180px"><b>mcp-server-clipai</b><ul><li>Submit: image + prompt + duration</li><li>Heartbeat polling (default 90s)</li><li>Download .mp4 to /videos/</li><li>State machine: queued→running→succeeded/failed</li><li>Max 3 retries, then escalate to a person</li></ul></div>
+<div class="box hi" style="left:840px;top:380px;width:340px;height:180px"><b>Clip AI / Kling API (access requested)</b><ul><li>Create image-to-video task</li><li>Query task status (or webhook)</li><li>Download result · cancel task</li><li>Clear error codes/messages (incl. risk control)</li></ul></div>
+<div class="box" style="left:1240px;top:380px;width:320px;height:180px"><b>Cost &amp; risk controls</b><ul><li>Only approved images are sent</li><li>Pre-flight IP check: flags characters matching IPs blocked by Kling (e.g. Wonder Woman) before any API call</li><li>Retries capped at 3 → prevents wasting credits</li><li>Emergency Pause / Cancel-all buttons</li></ul></div>
 
-<div class="sec" style="left:40px;top:590px">C. YÊU CẦU ĐỀ NGHỊ DUYỆT</div>
-<div class="box" style="left:40px;top:620px;width:770px;height:300px"><b>Thông tin/quyền cần được cấp</b>
-<table><tr><th style="width:26%">Hạng mục</th><th>Nội dung cần</th></tr>
-<tr><td>Xác thực</td><td>API key / token (lưu bằng biến môi trường trên máy vận hành, không đưa vào repo)</td></tr>
-<tr><td>Endpoint</td><td>Tạo task image-to-video · lấy trạng thái · (webhook nếu có) · tải video · hủy task</td></tr>
-<tr><td>Đầu vào mỗi task</td><td>1 ảnh (png/jpg) + motion prompt + negative prompt + thời lượng (mặc định 5s)</td></tr>
-<tr><td>Giới hạn</td><td>Rate limit, số task chạy song song, thời gian xử lý trung bình/timeout, dung lượng file</td></tr>
-<tr><td>Lỗi</td><td>Tài liệu mã lỗi, đặc biệt "Failure to pass the risk control system"</td></tr>
-<tr><td>Hạn mức &amp; chi phí</td><td>Quota/credit cho giai đoạn thử nghiệm và khi mở rộng batch &gt;100 clip</td></tr></table></div>
+<div class="sec" style="left:40px;top:590px">C. REQUESTED APPROVAL</div>
+<div class="box" style="left:40px;top:620px;width:770px;height:300px"><b>Information / access requested</b>
+<table><tr><th style="width:26%">Item</th><th>Requirement</th></tr>
+<tr><td>Authentication</td><td>API key / token (kept in an environment variable on the operating machine, never committed to the repo)</td></tr>
+<tr><td>Endpoints</td><td>Create image-to-video task · get status · (webhook if available) · download video · cancel task</td></tr>
+<tr><td>Input per task</td><td>1 image (png/jpg) + motion prompt + negative prompt + duration (default 5s)</td></tr>
+<tr><td>Limits</td><td>Rate limit, concurrent tasks, average processing time / timeout, file size limits</td></tr>
+<tr><td>Errors</td><td>Error-code documentation, especially "Failure to pass the risk control system"</td></tr>
+<tr><td>Quota &amp; cost</td><td>Quota/credits for the pilot phase and for scaling to batches of &gt;100 clips</td></tr></table></div>
 
-<div class="box warn" style="left:830px;top:620px;width:730px;height:145px"><b>Quy mô sử dụng đề xuất</b><ul><li><b style="display:inline">Giai đoạn thử nghiệm (V0):</b> ~2 kịch bản, 10–20 clip → tối đa ~60 request nếu mọi cảnh phải retry 3 lần</li><li><b style="display:inline">Giai đoạn vận hành:</b> batch có thể &gt;100 clip → cần polling dài, không thể duyệt tay từng request</li><li>Hạn mức cụ thể: <b style="display:inline">........ request/ngày</b> (điền sau khi thống nhất)</li></ul></div>
-<div class="box ok" style="left:830px;top:780px;width:730px;height:140px"><b>Bảo mật &amp; dữ liệu</b><ul><li>Chỉ gửi ảnh cảnh do pipeline tạo + prompt văn bản; không gửi dữ liệu cá nhân</li><li>API key chỉ nằm trên máy vận hành; repo mã nguồn không chứa key</li><li>Mọi lần gọi được ghi log (job, trạng thái, lỗi) để kiểm toán và tính chi phí</li></ul></div>
+<div class="box warn" style="left:830px;top:620px;width:730px;height:145px"><b>Proposed usage scale</b><ul><li><b style="display:inline">Pilot phase (V0):</b> ~2 scripts, 10–20 clips → at most ~60 requests if every scene needs 3 retries</li><li><b style="display:inline">Production phase:</b> batches may exceed 100 clips → requires long-running polling; per-request manual approval is not feasible</li><li>Requested quota: <b style="display:inline">........ requests/day</b> (to be agreed)</li></ul></div>
+<div class="box ok" style="left:830px;top:780px;width:730px;height:140px"><b>Security &amp; data</b><ul><li>Only pipeline-generated scene images and text prompts are sent; no personal data</li><li>The API key stays on the operating machine; the source repo contains no keys</li><li>Every call is logged (job, state, error) for auditing and cost tracking</li></ul></div>
 
-<div class="sec" style="left:40px;top:950px">D. KẾ HOẠCH SAU KHI ĐƯỢC CẤP</div>
+<div class="sec" style="left:40px;top:950px">D. PLAN ONCE ACCESS IS GRANTED</div>
 <div class="box" style="left:40px;top:980px;width:1520px;height:110px">
 <div style="display:flex;gap:16px;align-items:flex-start">
-<div style="flex:1"><b>1 · Kiểm tra API</b>Gọi thử 1 task, xác nhận endpoint, schema lỗi, thời gian xử lý</div>
-<div style="flex:1"><b>2 · Build connector</b>mcp-server-clipai: submit, heartbeat polling, tải video, ghi log lỗi</div>
-<div style="flex:1"><b>3 · Dry-run V0</b>2 kịch bản mẫu (10–20 clip), đo tỉ lệ lỗi và chi phí</div>
-<div style="flex:1"><b>4 · Mở rộng</b>Batch lớn qua Dashboard, hiệu chỉnh hạn mức theo dữ liệu thật</div></div></div>
+<div style="flex:1"><b>1 · Verify the API</b>Run 1 test task; confirm endpoints, error schema, processing time</div>
+<div style="flex:1"><b>2 · Build the connector</b>mcp-server-clipai: submit, heartbeat polling, download video, error logging</div>
+<div style="flex:1"><b>3 · V0 dry run</b>2 sample scripts (10–20 clips); measure failure rate and cost</div>
+<div style="flex:1"><b>4 · Scale up</b>Large batches via the Dashboard; tune quota from real usage data</div></div></div>
 </body>
 </html>
