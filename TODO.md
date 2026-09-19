@@ -58,6 +58,7 @@ _Cập nhật lần cuối: 2026-09-19 (chiều: audio + Dashboard)._ Chi tiết
 - [x] Thử Seedance 2.0 (720p): 167s, 1280x720, 3,6MB, chất lượng gần Kling (Kling 84s, 1080p, 10,7MB); trial lưu file riêng từng model; so sánh ghi ở `docs/api_notes.md` (2026-09-19)
 - [x] `core.adapters.inspect_api` (chỉ đọc): xem trường trả về/có trường chi phí không + thống kê mức dùng Clip AI (`--usage`). Tài liệu API không có endpoint số dư/giá (2026-09-19)
 - [x] Ước tính chi phí trong Dashboard: `core/cost.py` + `data/pricing.json` (bảng giá do bạn điền, chưa có số bịa), ước tính trước khi chạy (min/max nếu retry), sổ ghi mức dùng `usage_events` mỗi lần gửi API thật, dòng "đã ghi nhận" trên thanh điều khiển, chốt xác nhận cho batch từ `confirm_batch_at` mục trở lên; 108 test pass (2026-09-19)
+- [x] Mở Dashboard như phần mềm: `Start-Dashboard.bat` (đúp chuột: tự cài thư viện lần đầu, đọc `dashboard.env`, tìm ffmpeg, mở cửa sổ kiểu app bằng Edge/Chrome; chạy lần 2 thì chỉ mở lại cửa sổ), `Stop-Dashboard.bat`, `tools/make_shortcut.ps1` tạo shortcut + icon `tools/icon.ico` ra Desktop; cấu hình không bí mật ở `dashboard.env` (mẫu `dashboard.env.example`), token vẫn ở biến môi trường (2026-09-20)
 - [x] Dashboard chỉnh theo mockup: theme (`.streamlit/config.toml`, `dashboard/ui.py`), thanh đầu trang (thương hiệu, chế độ dạng segmented, threshold, Pause/Resume/Cancel màu), stepper 7 bước có dấu ✓ khi xong, Bước 1 hai cột (Character Bible + badge IP + bảng phân cảnh), Bước 2 lưới thẻ ảnh + chip lọc + panel chi tiết QC bên phải, Bước 3 hàng có ảnh nhỏ, Bước 4 thanh tiến độ + thẻ risk control + danh sách job có badge, Bước 5a 3 thẻ nháp, Bước 5b chia 2 cột, Lịch sử dạng lưới phiên bản. Công cụ dev: `tools/seed_demo.py` (dữ liệu demo, không tốn credit) + `tools/run_demo.ps1`; đã kiểm tra bằng trình duyệt; 128 test pass (2026-09-19)
 - [x] Dashboard Bước 5b: tự nạp clip từ Bước 4 theo thứ tự cảnh (cảnh thiếu được cảnh báo), tick chọn clip, xem thử, độ dài đọc thật bằng ffmpeg (sửa được), crossfade + thời gian fade, âm lượng nhạc, kiểm tra trước khi render, xem/tải FINAL_VIDEO.mp4; sửa lỗi nhạc ngắn hơn video làm video bị cụt (thêm `apad`). Đã render thử thật với ffmpeg (crossfade 3s+4s + nhạc 2s → 6,0s đúng); 128 test pass (2026-09-19)
 - [x] Repo GitHub đã chuyển private (2026-09-19)
@@ -65,6 +66,12 @@ _Cập nhật lần cuối: 2026-09-19 (chiều: audio + Dashboard)._ Chi tiết
 - [x] Lớp core Python: schema SQLite + state machine + luồng `auto`/`human_qc` + retry/escalate, 10 unit test pass (`core/`, `tests/`) (2026-09-19)
 
 ## ⏸ Tạm gác
+- **Dùng chung nhiều người + quản lý người dùng (chỉ nhắc lại khi quy trình đã chạy ổn định, hoàn thiện — theo yêu cầu 2026-09-20).** Đã bàn, ghi lại để khỏi bàn lại từ đầu:
+  - Hai mô hình: **A** mỗi người chạy trên PC mình (mỗi người 1 database + token riêng) — đề xuất bắt đầu bằng A; **B** một máy chủ chung, mọi người vào bằng địa chỉ web (1 database chung; cần đăng nhập SSO công ty — Streamlit có `st.login`, phân quyền, máy chủ luôn bật, database chịu nhiều người ghi, token nằm trên máy chủ).
+  - Đăng ký tên người dùng: nên làm. Lần đầu mở hỏi tên/email, gắn vào `usage_events` (ai gửi API) và `review_log` (ai duyệt/từ chối); thêm màn "Chi tiêu" theo người/dự án/model; hạn mức theo người (mở rộng bước xác nhận batch `confirm_batch_at`).
+  - Lưu ý: chi tiêu trong app chỉ là ước tính (cần `data/pricing.json`); nguồn chính xác là web Clip AI/Deepix, nếu mỗi người dùng token riêng thì nền tảng tự thống kê theo tài khoản. Tên đăng ký chỉ là ghi nhận, không phải bảo mật; muốn chặn/phân quyền thật cần đăng nhập (mô hình B).
+  - Câu hỏi cần trả lời khi nhắc lại: số đồng nghiệp, cùng làm 1 dự án hay riêng, token riêng hay chung, công ty có máy chủ/VM nội bộ không.
+  - Nếu cần phát cho nhiều người không cài Python: đóng gói `.exe` (PyInstaller) — chỉ làm khi thật cần.
 - MCP Claude / V0 trong Claude Desktop (tạm gác từ 2026-09-19; tập trung build Dashboard). Các mục dry-run V0 và "mở lại Claude Desktop" bên dưới chờ mở lại.
 
 ## 🚧 Đang làm / kế tiếp (ưu tiên từ trên xuống)
