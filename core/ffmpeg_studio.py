@@ -1,4 +1,5 @@
 import os
+import re
 import shutil
 import subprocess
 import tempfile
@@ -59,7 +60,7 @@ def build_mux_music_cmd(video: str, music: str, output: str, video_duration: flo
                         fade: float = 1.5, volume: float = 0.6, ffmpeg: str = "ffmpeg") -> List[str]:
     fade_out_start = max(video_duration - fade, 0)
     audio = (f"[1:a]atrim=0:{video_duration},afade=t=in:d={fade},"
-             f"afade=t=out:st={fade_out_start}:d={fade},volume={volume}[a]")
+             f"afade=t=out:st={fade_out_start}:d={fade},volume={volume},apad[a]")  # apad: music shorter than video
     return [ffmpeg, "-y", "-i", video, "-i", music, "-filter_complex", audio,
             "-map", "0:v", "-map", "[a]", "-c:v", "copy", "-c:a", "aac", "-shortest", output]
 
@@ -70,8 +71,22 @@ def run(cmd: List[str]) -> None:
         raise FFmpegError(proc.stderr[-2000:])
 
 
+_DURATION = re.compile(r"Duration:\s*(\d+):(\d+):(\d+(?:\.\d+)?)")
+
+
+def probe_duration(path: str) -> Optional[float]:
+    """Length in seconds read from `ffmpeg -i` (no ffprobe needed); None when it cannot be determined."""
+    try:
+        proc = subprocess.run([find_ffmpeg(), "-hide_banner", "-i", path], capture_output=True, text=True)
+    except (FFmpegNotFound, OSError):
+        return None
+    m = _DURATION.search(proc.stderr or "")
+    return int(m.group(1)) * 3600 + int(m.group(2)) * 60 + float(m.group(3)) if m else None
+
+
 def render_final(clips: Sequence[str], output: str, durations: Optional[Sequence[float]] = None,
-                 transition: str = "cut", fade: float = 1.0, music: Optional[str] = None) -> str:
+                 transition: str = "cut", fade: float = 1.0, music: Optional[str] = None,
+                 music_volume: float = 0.6) -> str:
     """Concat approved clips (in scene order), optionally crossfade and mux music."""
     ffmpeg = find_ffmpeg()
     silent = output if music is None else output + ".silent.mp4"
@@ -90,7 +105,7 @@ def render_final(clips: Sequence[str], output: str, durations: Optional[Sequence
             raise ValueError("durations required to fit music")
         total = sum(durations) - (fade * (len(clips) - 1) if transition == "crossfade" else 0)
         try:
-            run(build_mux_music_cmd(silent, music, output, total, ffmpeg=ffmpeg))
+            run(build_mux_music_cmd(silent, music, output, total, volume=music_volume, ffmpeg=ffmpeg))
         finally:
             os.remove(silent)
     return output

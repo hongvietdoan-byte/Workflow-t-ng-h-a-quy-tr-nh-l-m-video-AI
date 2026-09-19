@@ -80,6 +80,20 @@ class DashboardSmokeTests(unittest.TestCase):
         music_dir = os.path.join(self.tmp, "projects", "1", "music")
         self.assertEqual(os.listdir(music_dir), ["selected.wav"])
 
+    def test_final_step_lists_generated_clips_and_shows_total(self):
+        self.seed()
+        videos = os.path.join(self.tmp, "projects", "1", "videos")
+        os.makedirs(videos)
+        open(os.path.join(videos, "01.mp4"), "wb").write(b"not a real video")
+        at = AppTest.from_file(APP, default_timeout=30).run()
+        at.radio(key="step").set_value(at.radio(key="step").options[5]).run()
+        self.assertFalse(at.exception)
+        self.assertTrue(any("CẢNH 1" in c.label for c in at.checkbox))
+        self.assertTrue(any("Tổng thời lượng dự kiến" in i.value for i in at.info))
+        at.radio(key="tr_1").set_value("crossfade").run()
+        self.assertTrue(any("crossfade cần ít nhất 2 clip" in w.value for w in at.warning))
+        self.assertTrue(next(b for b in at.button if "Render Final" in b.label).disabled)
+
     def test_video_step_with_mock_provider_runs_to_completion(self):
         from core.llm_io import approve_motion_prompt, lock_character_bible, store_motion_prompts
         p, pid = self.seed()

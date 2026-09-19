@@ -308,6 +308,8 @@ Mục tiêu: chứng minh pipeline end-to-end chạy được, đo chất lượ
 
 **Audio (Bước 5a):** adapter Clip AI audio (`core/adapters/clipai_audio.py`: nhạc `music_v2`, SFX, TTS) + `core/music.py`; Dashboard Bước 5a tạo nhiều bản nháp từ Music Brief, nghe thử, chọn để mix. `music_provider` = Clip AI (đã chốt). Chưa xác nhận bằng API thật.
 
+**Bước 5b (Ghép & Render):** `core/final_cut.py` — tự nạp clip theo thứ tự cảnh từ Bước 4, đọc độ dài thật bằng ffmpeg, cảnh báo cảnh thiếu, chọn clip/transition/âm lượng nhạc, kiểm tra trước khi render, xem và tải bản cuối. Đã render thử thật với ffmpeg.
+
 **Tạm gác (2026-09-19):** MCP Claude/V0 qua Claude Desktop; ưu tiên hoàn thiện Dashboard.
 
 **Đang chờ điều kiện bên ngoài:**

@@ -13,7 +13,7 @@ import streamlit as st
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
-from core import cost, ffmpeg_studio, llm_io, music, preflight, prompts, script_parser  # noqa: E402
+from core import cost, ffmpeg_studio, final_cut, llm_io, music, preflight, prompts, script_parser  # noqa: E402
 from core.db import connect  # noqa: E402
 from core.pipeline import Pipeline, PipelinePaused  # noqa: E402
 from core.adapters import factory  # noqa: E402
@@ -444,28 +444,76 @@ def step5a(p: Pipeline, pid: int):
         st.write("Nhạc đang chọn: không dùng")
 
 
+@st.cache_data(show_spinner=False)
+def _probe(path: str, mtime: float, requested):
+    return final_cut.clip_seconds(path, requested)
+
+
 def step5b(p: Pipeline, pid: int):
     vdir = project_dir(pid, "videos")
-    up = st.file_uploader("Nhập clip video (.mp4) — tên file theo thứ tự cảnh, vd 01.mp4",
-                          type=["mp4"], accept_multiple_files=True, key=f"vid_{pid}")
-    if up and st.button("Lưu clip"):
-        for f in up:
-            with open(os.path.join(vdir, f.name), "wb") as out:
-                out.write(f.getvalue())
-        st.rerun()
-    clips = sorted(f for f in os.listdir(vdir) if f.lower().endswith(".mp4"))
-    st.write("Clip theo thứ tự:", clips or "chưa có")
-    transition = st.radio("Transition", ["cut", "crossfade"], horizontal=True)
-    durations = None
-    if transition == "crossfade" or os.listdir(project_dir(pid, "music")):
-        durations = [st.number_input(f"Độ dài {c} (giây)", 2.0, 60.0, 5.0, key=f"d_{c}") for c in clips]
-    if st.button("▶ Render Final", disabled=not clips, type="primary"):
-        music_dir = project_dir(pid, "music")
-        music = os.path.join(music_dir, os.listdir(music_dir)[0]) if os.listdir(music_dir) else None
-        out = os.path.join(project_dir(pid, "output"), "FINAL_VIDEO.mp4")
-        if act(lambda: ffmpeg_studio.render_final([os.path.join(vdir, c) for c in clips], out, durations,
-                                                  transition, music=music), "Render xong"):
-            st.video(out)
+    clips = final_cut.collect_clips(p, DATA, pid)
+    present = [c for c in clips if c["path"]]
+    missing = [c for c in clips if not c["path"]]
+    st.caption(f"{len(present)} clip có sẵn / {len(clips)} mục · lấy tự động từ Bước 4 (thư mục videos của dự án)")
+    if not present:
+        st.info("Chưa có clip nào. Chạy Bước 4 (gen video) hoặc nhập clip thủ công bên dưới.")
+    if missing:
+        names = ", ".join(f"cảnh {c['idx']}" + (f" ({c['state']})" if c["state"] else "") for c in missing if c["idx"])
+        if names:
+            st.warning(f"Thiếu clip: {names} — bản ghép sẽ bỏ qua các cảnh này.")
+
+    with st.expander("Nhập clip thủ công (tên file theo thứ tự, vd 01.mp4)"):
+        up = st.file_uploader("Clip .mp4", type=["mp4"], accept_multiple_files=True, key=f"vid_{pid}")
+        if up and st.button("Lưu clip"):
+            for f in up:
+                with open(os.path.join(vdir, f.name), "wb") as out:
+                    out.write(f.getvalue())
+            st.rerun()
+
+    chosen, durations = [], []
+    for c in present:
+        label = f"Cảnh {c['idx']} — {c['title']}" if c["idx"] else c["title"]
+        real = _probe(c["path"], os.path.getmtime(c["path"]), c["requested_sec"])
+        with st.container(border=True):
+            a, b, d = st.columns([3, 1, 1])
+            use = a.checkbox(label, True, key=f"use_{pid}_{os.path.basename(c['path'])}")
+            sec = d.number_input("Giây", 0.5, 60.0, float(round(real, 2)), 0.1, key=f"sec_{pid}_{os.path.basename(c['path'])}",
+                                 label_visibility="collapsed")
+            if b.checkbox("Xem", False, key=f"see_{pid}_{os.path.basename(c['path'])}"):
+                st.video(c["path"])
+            if use:
+                chosen.append(c["path"])
+                durations.append(sec)
+
+    st.subheader("Ghép & Render")
+    c1, c2, c3 = st.columns(3)
+    transition = c1.radio("Transition", ["cut", "crossfade"], horizontal=True, key=f"tr_{pid}")
+    fade = c2.slider("Thời gian crossfade (giây)", 0.3, 2.0, 1.0, 0.1, key=f"fade_{pid}", disabled=transition != "crossfade")
+    music_dir = project_dir(pid, "music")
+    tracks = os.listdir(music_dir)
+    volume = c3.slider("Âm lượng nhạc nền", 0.0, 1.0, 0.6, 0.05, key=f"vol_{pid}", disabled=not tracks)
+    if tracks:
+        st.caption(f"Nhạc nền: {tracks[0]} (chọn ở Bước 5a)")
+    else:
+        st.caption("Không có nhạc nền (chọn ở Bước 5a nếu cần).")
+    problems = final_cut.render_problems(durations, transition, fade)
+    for msg in problems:
+        st.warning(msg)
+    if durations and not problems:
+        st.info(f"Tổng thời lượng dự kiến: {final_cut.total_seconds(durations, transition, fade):.1f} giây · {len(chosen)} clip")
+    out = os.path.join(project_dir(pid, "output"), "FINAL_VIDEO.mp4")
+    if st.button("▶ Render Final", disabled=bool(problems), type="primary"):
+        music = os.path.join(music_dir, tracks[0]) if tracks else None
+        with st.spinner("Đang render…"):
+            ok = act(lambda: ffmpeg_studio.render_final(chosen, out, durations, transition, fade, music, volume),
+                     "Render xong")
+        if ok:
+            st.rerun()
+    if os.path.exists(out):
+        st.success(f"Bản mới nhất: {out} ({os.path.getsize(out) / 1e6:.1f} MB)")
+        st.video(out)
+        with open(out, "rb") as f:
+            st.download_button("⬇ Tải FINAL_VIDEO.mp4", f, file_name="FINAL_VIDEO.mp4", mime="video/mp4")
 
 
 def history(p: Pipeline, pid: int):
