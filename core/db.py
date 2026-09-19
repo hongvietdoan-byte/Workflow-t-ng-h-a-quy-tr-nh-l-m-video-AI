@@ -47,6 +47,8 @@ CREATE TABLE IF NOT EXISTS jobs (
     retry_count INTEGER NOT NULL DEFAULT 0,
     retry_reason TEXT,
     escalated INTEGER NOT NULL DEFAULT 0,
+    external_id TEXT,
+    result_path TEXT,
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL
 );
@@ -93,4 +95,8 @@ def connect(path: str = ":memory:") -> sqlite3.Connection:
     cols = {r["name"] for r in conn.execute("PRAGMA table_info(projects)")}
     if "paused" not in cols:
         conn.execute("ALTER TABLE projects ADD COLUMN paused INTEGER NOT NULL DEFAULT 0")
+    job_cols = {r["name"] for r in conn.execute("PRAGMA table_info(jobs)")}
+    for col in ("external_id", "result_path"):
+        if col not in job_cols:
+            conn.execute(f"ALTER TABLE jobs ADD COLUMN {col} TEXT")
     return conn

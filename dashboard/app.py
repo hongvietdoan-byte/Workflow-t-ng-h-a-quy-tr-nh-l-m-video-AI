@@ -15,6 +15,8 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 from core import ffmpeg_studio, llm_io, preflight, prompts, script_parser  # noqa: E402
 from core.db import connect  # noqa: E402
 from core.pipeline import Pipeline, PipelinePaused  # noqa: E402
+from core.providers import MockVideoProvider  # noqa: E402
+from core.runner import VideoRunner  # noqa: E402
 from core.states import InvalidTransition, JobState  # noqa: E402
 
 DB = os.environ.get("PIPELINE_DB", os.path.join("data", "manifest.sqlite"))
@@ -25,6 +27,13 @@ BADGE = {"queued": "⚪", "running": "🔵", "succeeded": "🟢", "failed": "�
          "pending_review": "🟣", "approved": "✅", "rejected": "❌", "cancelled": "⛔"}
 ERRORS = (InvalidTransition, llm_io.SchemaError, PipelinePaused, ffmpeg_studio.FFmpegNotFound,
           ffmpeg_studio.FFmpegError, ValueError, KeyError)
+
+
+def video_runner(p: Pipeline):
+    """Real Clip AI adapter is not wired yet; VIDEO_PROVIDER=mock enables a simulated provider for demos."""
+    if os.environ.get("VIDEO_PROVIDER") == "mock":
+        return VideoRunner(p, MockVideoProvider(), DATA)
+    return None
 
 
 def project_dir(pid: int, *parts: str) -> str:
@@ -242,19 +251,32 @@ def step3(p: Pipeline, pid: int):
 
 def step4(p: Pipeline, pid: int):
     ready = llm_io.ready_for_video(p, pid)
+    runner = video_runner(p)
     st.caption(f"{len(ready)} cảnh sẵn sàng gen video (ảnh + motion prompt đã duyệt)")
-    st.info("Kết nối Clip AI/Kling chưa bật: nút bên dưới tạo job xếp hàng để theo dõi state machine.")
-    c1, c2 = st.columns(2)
-    if c1.button("▶ Bắt đầu gen batch", disabled=not ready):
+    if runner is None:
+        st.info("Kết nối Clip AI/Kling chưa bật (đặt VIDEO_PROVIDER khi có adapter). "
+                "Vẫn có thể tạo job xếp hàng để theo dõi state machine.")
+    else:
+        st.success(f"Provider: {runner.provider.name} (giả lập — không tạo video thật)")
+    c1, c2, c3, c4 = st.columns(4)
+    if c1.button("▶ Tạo job gen video", disabled=not ready):
         for r in ready:
             exists = p.conn.execute("SELECT 1 FROM jobs WHERE scene_id=? AND type='video_gen'"
                                     " AND state NOT IN ('cancelled','rejected')", (r["scene_id"],)).fetchone()
             if not exists:
                 p.create_job(r["scene_id"], "video_gen")
         st.rerun()
-    if c2.button("↻ Retry tất cả job fail"):
-        for j in p.conn.execute("SELECT id FROM jobs WHERE project_id=? AND type='video_gen' AND state='failed'",
-                                (pid,)).fetchall():
+    if c2.button("⟳ Submit + Poll 1 lần", disabled=runner is None):
+        submitted = runner.submit_pending(pid)
+        st.toast(f"Đã gửi {submitted} · {runner.poll_once(pid)}")
+        st.rerun()
+    if c3.button("▶ Chạy heartbeat tới khi xong", disabled=runner is None):
+        with st.spinner("Đang chạy heartbeat…"):
+            runner.run(pid, interval=float(os.environ.get("HEARTBEAT_SEC", "90")))
+        st.rerun()
+    if c4.button("↻ Retry tất cả job fail"):
+        for j in p.conn.execute("SELECT id FROM jobs WHERE project_id=? AND type='video_gen' AND state='failed'"
+                                " AND escalated=0", (pid,)).fetchall():
             act(lambda: p.retry(j["id"], "retry all"))
         st.rerun()
     jobs = p.conn.execute("SELECT j.*, s.idx FROM jobs j JOIN scenes s ON s.id=j.scene_id"
@@ -268,11 +290,12 @@ def step4(p: Pipeline, pid: int):
         st.warning(f"Risk control (job #{f['job_id']}): {f['error_message']}")
     for j in jobs:
         a, b, c = st.columns([3, 1, 1])
-        a.markdown(f"Cảnh {j['idx']} — job #{j['id']} {BADGE.get(j['state'], '')} `{j['state']}` · retry {j['retry_count']}")
+        a.markdown(f"Cảnh {j['idx']} — job #{j['id']} {BADGE.get(j['state'], '')} `{j['state']}` · retry {j['retry_count']}"
+                   + (" · ⚠ escalated" if j["escalated"] else ""))
         if j["state"] in ("queued", "running") and b.button("■ Cancel", key=f"vc_{j['id']}"):
-            act(lambda: p.cancel(j["id"]))
+            act(lambda: runner.cancel_job(j["id"]) if runner else p.cancel(j["id"]))
             st.rerun()
-        if j["state"] == "failed" and c.button("↻ Retry", key=f"vr_{j['id']}"):
+        if j["state"] == "failed" and not j["escalated"] and c.button("↻ Retry", key=f"vr_{j['id']}"):
             act(lambda: p.retry(j["id"], "retry"))
             st.rerun()
 

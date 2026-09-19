@@ -64,6 +64,33 @@ class DashboardSmokeTests(unittest.TestCase):
         next(b for b in at.button if "Pause" in b.label).click().run()
         self.assertEqual(Pipeline(connect(self.db)).project(pid)["paused"], 1)
 
+    def test_video_step_with_mock_provider_runs_to_completion(self):
+        from core.llm_io import approve_motion_prompt, lock_character_bible, store_motion_prompts
+        p, pid = self.seed()
+        lock_character_bible(p, pid)
+        scene = p.conn.execute("SELECT id FROM scenes").fetchone()["id"]
+        img = p.create_job(scene)
+        p.start(img)
+        p.succeed(img)
+        p.approve(img)
+        store_motion_prompts(p, pid, {"scenes": [{"idx": 1, "motion_prompt": "push in"}]})
+        approve_motion_prompt(p, scene)
+        os.environ["VIDEO_PROVIDER"] = "mock"
+        os.environ["HEARTBEAT_SEC"] = "0"
+        try:
+            at = AppTest.from_file(APP, default_timeout=30).run()
+            at.radio(key="step").set_value(at.radio(key="step").options[3]).run()
+            next(b for b in at.button if "Tạo job gen video" in b.label).click().run()
+            next(b for b in at.button if "heartbeat" in b.label).click().run()
+            self.assertFalse(at.exception)
+        finally:
+            os.environ.pop("VIDEO_PROVIDER", None)
+            os.environ.pop("HEARTBEAT_SEC", None)
+        row = Pipeline(connect(self.db)).conn.execute(
+            "SELECT state, result_path FROM jobs WHERE type='video_gen'").fetchone()
+        self.assertEqual(row["state"], "succeeded")
+        self.assertTrue(os.path.exists(row["result_path"]))
+
 
 if __name__ == "__main__":
     unittest.main()
