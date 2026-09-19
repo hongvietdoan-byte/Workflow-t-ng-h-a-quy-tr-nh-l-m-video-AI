@@ -1,0 +1,39 @@
+import json
+import unittest
+
+from core.db import connect
+from core.llm_io import store_scene_analysis, validate_qc_result
+from core.pipeline import Pipeline
+from core.prompts import build_director_bundle, build_qc_bundle, qc_criteria
+from tests.test_llm_io_preflight import ANALYSIS
+
+
+class PromptTests(unittest.TestCase):
+    def setUp(self):
+        self.p = Pipeline(connect())
+        self.pid = self.p.create_project("t")
+        self.sid = self.p.create_scene(self.pid, 1, "CẢNH 1")
+        self.p.conn.execute("UPDATE scenes SET data=? WHERE id=?",
+                            (json.dumps({"text": "Sương mù dày đặc."}, ensure_ascii=False), self.sid))
+        store_scene_analysis(self.p, self.pid, ANALYSIS)
+
+    def test_director_bundle_contains_prompt_knowledge_and_scenes(self):
+        text = build_director_bundle(self.p, self.pid)
+        self.assertIn("Character Bible", text)
+        self.assertIn("Slugline", text)
+        self.assertIn("Sương mù dày đặc.", text)
+
+    def test_qc_bundle_has_bible_and_spec(self):
+        text = build_qc_bundle(self.p, self.sid)
+        self.assertIn("Lyra", text)
+        self.assertIn("misty forest", text)
+
+    def test_checklist_keys_match_qc_prompt(self):
+        keys = qc_criteria()
+        self.assertEqual(keys, ["character", "hands_face", "composition", "mood_lighting", "consistency"])
+        ok = {"criteria": {k: 0.9 for k in keys}}
+        self.assertEqual(validate_qc_result(ok, keys), ok)
+
+
+if __name__ == "__main__":
+    unittest.main()

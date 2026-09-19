@@ -1,0 +1,10 @@
+{
+  "version": "0.1",
+  "criteria": [
+    {"key": "character", "description": "Đúng nhân vật theo Character Bible (mặt, tóc, trang phục, dấu hiệu nhận diện)"},
+    {"key": "hands_face", "description": "Không lỗi tay/ngón/mặt/biến dạng cơ thể"},
+    {"key": "composition", "description": "Đúng bố cục, cỡ cảnh và góc máy theo thông số cảnh"},
+    {"key": "mood_lighting", "description": "Đúng mood, ánh sáng và bảng màu của cảnh"},
+    {"key": "consistency", "description": "Không có chi tiết thừa/sai (người lạ, chữ, logo, đổi trang phục)"}
+  ]
+}
