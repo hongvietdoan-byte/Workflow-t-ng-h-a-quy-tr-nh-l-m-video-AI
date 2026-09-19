@@ -7,7 +7,7 @@ _Cập nhật lần cuối: 2026-09-19. Chi tiết kế hoạch xem `PLAN.md`. �
 
 **Cách tiếp tục:** `git pull` → đọc `CLAUDE.md`, `PLAN.md` (Mục 5 quyết định, Mục 7 lộ trình, Mục 9 trạng thái) và file này. Chạy test: `py -m unittest discover -s tests -t .`. Dashboard: `py -m streamlit run dashboard/app.py`.
 
-**Quyết định đã chốt:** 1 Dashboard duy nhất theo thứ tự bước; `operating_mode` mặc định `human_qc`; QC Agent = Claude Vision; V0 (Claude Desktop + MCP, dán JSON tay) → V1 (Dashboard + API Anthropic); Kling/Clip AI polling (không webhook); ngân sách V0 nhỏ (~2 kịch bản, 10–20 clip); repo sẽ chuyển private; tài liệu gửi ra ngoài (xin API) viết bằng **tiếng Anh**.
+**Quyết định đã chốt:** 1 Dashboard duy nhất theo thứ tự bước; `operating_mode` mặc định `human_qc`; QC Agent = Claude Vision; V0 (Claude Desktop + MCP, dán JSON tay) → V1 (Dashboard + API Anthropic); Clip AI (đa model: Seedance/Kling/MiniMax + audio) **đã có API**, dùng polling; ngân sách V0 nhỏ (~2 kịch bản, 10–20 clip); repo sẽ chuyển private.
 
 **Lưu ý kỹ thuật (đã gặp lỗi, tránh lặp):**
 - Python (`py`, bản Store) **không thấy** `%APPDATA%\Claude\...` → đọc/sửa config Claude bằng PowerShell hoặc Read/Edit tool, không dùng Python.
@@ -41,32 +41,31 @@ _Cập nhật lần cuối: 2026-09-19. Chi tiết kế hoạch xem `PLAN.md`. �
 - [x] Bước 3 core (lưu/duyệt motion prompt, `ready_for_video`), Pause/Resume/Cancel-all; Dashboard Streamlit V1 skeleton `dashboard/app.py` (stepper 7 tab, control bar, nút từng khâu, lịch sử) — Claude steps dán JSON tay; 44 test pass (2026-09-19)
 - [x] 2 kịch bản mẫu `samples/` (parser tách đúng 6 cảnh mỗi file); PLAN.md Mục 9 = trạng thái triển khai (2026-09-19)
 - [x] Cài FFmpeg 9.0.1 qua winget; render thật đã chạy thử OK (cut 8s / crossfade 7s, có nhạc) (2026-09-19). Lưu ý: shell mới mới thấy `ffmpeg` trong PATH; shell cũ đặt `FFMPEG_PATH`
-- [x] Sơ đồ xin duyệt API Clip AI: `docs/clipai_api_request.{html,png,pdf}` (2026-09-19)
 - [x] Bộ chạy Bước 4 không cần API thật: provider interface + `MockVideoProvider`, `VideoRunner` (submit/heartbeat poll/tải video/risk-control log không retry/transient retry/concurrency/pause/cancel), MCP `clipai`, nối Dashboard Bước 4 (`VIDEO_PROVIDER=mock`); 53 test pass. Khi có API chỉ cần viết adapter `VideoProvider` (2026-09-19)
 - [x] Bộ chạy Bước 2 (`ImageRunner` + `MockImageProvider`, dùng chung vòng heartbeat với Bước 4; prompt retry tự thêm "Fix: <ghi chú reject>"), nối Dashboard Bước 2 (`IMAGE_PROVIDER=mock`); 58 test pass (2026-09-19)
 - [x] Cấu hình Claude Desktop (`mcpServers`: project-db, qc-agent, ffmpeg-studio; có bản sao lưu `.bak-20260919`); smoke test toàn luồng V0 qua MCP stdio thật OK (12+8+1 tool) (2026-09-19)
 - [x] Bước 2 Knowledge Base: `knowledge/genre_guides.md` (7 thể loại + công thức image prompt), `ai_image_failure_modes.md`, few-shot từ `eval/golden.json`; bộ đánh giá 12 mẫu `eval/cases.json` + bộ chấm tự động + phiếu duyệt (`py -m core.evalset ...`); nối vào prompt Director/QC/motion (+MCP `get_motion_prompt_bundle`); 69 test pass. Người duyệt: chủ dự án (tạm) (2026-09-19)
 - [x] Ghi nhận Clip AI = nền tảng đa model (Seedance, Kling, MiniMax; Seed Audio, ElevenLabs; game assets): PLAN Mục 3.3b, `video_model` theo dự án (DB + runner + Dashboard Bước 4), music_provider ưu tiên Clip AI; 71 test pass (2026-09-19)
 - [x] Nghiên cứu ~10 repo đạo diễn/prompt phim AI: `knowledge/sources.md` (độ tin cậy, license, cách dùng), `knowledge/research_notes.md` (16 nguyên tắc + 8 chiều điện ảnh), đã nối vào prompt Director/motion và thêm check "từ khen rỗng" cho eval (2026-09-19)
-- [x] Sơ đồ xin API (bản chi tiết + rút gọn, tiếng Anh) đã sửa thành Clip AI đa model (Seedance/Kling/MiniMax) + hỏi endpoint audio (2026-09-19)
+- [x] Đã có API Clip AI; bỏ các sơ đồ/tài liệu xin duyệt API khỏi repo (2026-09-19)
 - [x] Lớp core Python: schema SQLite + state machine + luồng `auto`/`human_qc` + retry/escalate, 10 unit test pass (`core/`, `tests/`) (2026-09-19)
 
 ## ⏸ Tạm gác (theo yêu cầu 2026-09-19)
-- [ ] API Clip AI/Kling (kiểm tra REST/webhook) và đọc tài liệu API Deepix (`deepix-1.4.1`) — làm sau; các module không cần API làm trước
+- [ ] Adapter thật cho Deepix (`deepix-1.4.1`) — làm sau theo yêu cầu; Clip AI đã có API nên ưu tiên viết adapter ngay khi có tài liệu
 
 ## 🚧 Đang làm / kế tiếp (ưu tiên từ trên xuống)
 - [ ] **Bạn làm:** thoát hẳn + mở lại Claude Desktop, rồi chạy thử V0 trong Chat theo `docs/V0_SETUP.md` mục 3 (config đã ghi sẵn, đã kiểm thử qua MCP stdio)
 - [ ] Dashboard: chạy thử với dữ liệu thật + tinh chỉnh UI theo mockup (grid ảnh, badge, thanh tiến độ)
 - [ ] Dashboard: nhúng "LLM runner" API (V1, cần API key Anthropic) thay cho dán JSON tay
 - [ ] Vùng "chờ review" 0.6–0.85 cho QC (PLAN Comment 3) — tuỳ chọn
-- [ ] Adapter thật cho Clip AI/Kling và Deepix (cần API — sau khi hết tạm gác); `music` để sau
+- [ ] Adapter `VideoProvider` cho Clip AI (ưu tiên, chờ tài liệu API) → sau đó adapter Deepix; `music` qua audio của Clip AI nếu API có
 - [ ] **Bạn duyệt tạm (không cần chuyên gia lúc này):** chạy vòng đánh giá đầu tiên theo `eval/README.md` (12 mẫu, 9 held-out), chấm phiếu thẩm mỹ, chỉnh `knowledge/`/`prompts/` theo lỗi lặp lại, rồi khóa version. Khi có chuyên gia miền thì bàn giao phần chấm thẩm mỹ
 - [ ] Dry-run V0 với `samples/script_demo_1.docx`, `script_demo_2.docx` (đã có 2 kịch bản mẫu; cần Claude Desktop + MCP cấu hình)
 - [ ] Dry-run 2 mode, đo % đồng thuận QC Agent–người → hiệu chỉnh `qc_auto_pass_threshold`
 
 ## 👤 Việc cần người dùng quyết định / cung cấp
 - [ ] Chuyển repo GitHub sang **private** (người dùng tự làm)
-- [ ] Gửi `docs/clipai_api_request.pdf` để xin duyệt API Clip AI/Kling (điền hạn mức request/ngày)
+- [ ] **Cung cấp tài liệu API Clip AI** (endpoint tạo task image-to-video, trạng thái, tải kết quả, hủy; tham số chọn model; audio nếu có; mã lỗi) để viết adapter. Key API đặt vào biến môi trường (KHÔNG dán vào chat/repo)
 - [ ] Hỏi admin Claude Enterprise: có Console org / API key Anthropic cho V1 không, hạn mức token, chính sách data ảnh nhân vật
 - [ ] Chọn `music_provider`: ưu tiên audio của Clip AI (ElevenLabs/Seed Audio) nếu API mở; Suno không có API chính thức — không chặn V0
 - [ ] Chọn `video_model` mặc định (seedance / kling / minimax) khi biết API Clip AI hỗ trợ gì

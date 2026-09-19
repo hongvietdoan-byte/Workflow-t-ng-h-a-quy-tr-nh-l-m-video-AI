@@ -126,7 +126,7 @@ Hệ quả cho thiết kế:
 2. **Âm thanh:** Bước 5a (nhạc) có thể dùng chính Clip AI (Seed Audio/ElevenLabs), giảm một nhà cung cấp. Cần xác nhận API có endpoint audio và điều khoản thương mại.
 3. **Giọng/thoại:** tạo thoại, thiết kế/nhân bản giọng là tính năng có thể thêm ở giai đoạn sau (lồng tiếng nhân vật); chưa nằm trong V0/V1.
 4. **Thư viện game asset:** phù hợp trailer game; xét dùng làm nguồn tham chiếu nhân vật/bối cảnh nhất quán khi API cho phép.
-5. **Điểm cần hỏi khi xin API:** danh sách model và phiên bản có thể chọn qua API, tham số chọn model, endpoint audio, hạn mức/credit theo model, chính sách kiểm duyệt theo model.
+5. **Cần xác nhận từ tài liệu API Clip AI (đã có API, 2026-09-19):** danh sách model và phiên bản chọn được qua API, tham số chọn model, cách gửi ảnh (upload/base64/URL), endpoint audio, hạn mức/credit theo model, thời hạn link kết quả, chính sách kiểm duyệt theo model, và có endpoint truy vấn trạng thái (polling) hay chỉ webhook.
 
 ### 3.4 Giao diện điều khiển hợp nhất (Unified Control Dashboard)
 
@@ -192,7 +192,7 @@ Nguyên tắc: **không train/fine-tune model** — xây knowledge pack có cấ
 **Đã chốt cho V0 (2026-09-19):**
 - `operating_mode` mặc định V0 = **`human_qc`** (mọi ảnh chờ người duyệt; an toàn credit khi chưa có dữ liệu QC). Chuyển `auto` sau khi dry-run cho thấy % đồng thuận QC Agent–người đủ cao.
 - Ngân sách credit thử nghiệm V0: **nhỏ** (~2 kịch bản, 10–20 cảnh) — đủ dry-run tối thiểu; nếu cần hiệu chỉnh threshold sâu hơn thì xin thêm.
-- **Deepix:** đã kiểm tra, **có API lấy được**. **Clip AI/Kling:** **chờ kiểm tra** (chưa xác nhận có REST/Webhook) — nếu chỉ có Web thì dùng Playwright (+1–2 tuần cho `mcp-server-clipai`). Việc cần làm: kiểm tra Clip AI, đồng thời nắm response schema lỗi risk-control.
+- **Deepix:** đã kiểm tra, **có API lấy được**. **Clip AI:** **đã có API (2026-09-19)** — bước tiếp theo là đọc tài liệu API để viết adapter `VideoProvider` (và audio nếu có), nắm response schema lỗi risk-control. Nếu chỉ có webhook mà không có endpoint truy vấn trạng thái thì cần thêm điểm nhận callback.
 
 **Còn mở, KHÔNG chặn V0 (chốt trước V1):**
 | Quyết định | Ghi chú |
@@ -212,8 +212,8 @@ Nguyên tắc: **không train/fine-tune model** — xây knowledge pack có cấ
 ## 6. Checklist chuẩn bị — cần có gì trước khi bắt đầu Tuần 1
 
 **Truy cập & tài liệu:**
-- [ ] API endpoint + API Key/Authentication của **Deepix** (REST)
-- [ ] API endpoint + API Key/Authentication của **Clip AI / Kling AI** (REST + Webhook nếu có)
+- [x] API endpoint + API Key/Authentication của **Deepix** (REST): có API; cần tài liệu chi tiết để viết adapter
+- [x] API của **Clip AI** (đa model): **đã có**; còn thiếu tài liệu endpoint/auth để viết adapter (key đặt trong biến môi trường, không đưa vào repo)
 - [ ] Xác nhận rate limit / quota của cả 2 API (ảnh hưởng trực tiếp `batch_poll_interval_seconds`)
 - [ ] Tài liệu response schema của Kling AI khi bị content-moderation chặn (để `mcp-server-clipai` parse đúng lỗi "Failure to pass the risk control system" — Comment 4)
 
@@ -244,7 +244,7 @@ Nguyên tắc: **không train/fine-tune model** — xây knowledge pack có cấ
 Mục tiêu: chứng minh pipeline end-to-end chạy được, đo chất lượng QC, hiệu chỉnh threshold, chốt Knowledge Base/prompt. Các bước cần Claude (Director Bước 1/3, QC Bước 2, Music Brief) chạy qua chat Claude Desktop với prompt template chuẩn; các thao tác còn lại gọi qua MCP tool. Dashboard V0 tối giản (xem trạng thái + duyệt ảnh) hoặc bỏ qua.
 
 **Tuần 1 — Hạ tầng & chốt quyết định mở**
-- Lấy API docs + key Deepix và Clip AI/Kling; xác nhận có REST/Webhook hay chỉ Web (nếu chỉ Web → Playwright, +1–2 tuần).
+- Đã có API Deepix và Clip AI; đọc tài liệu API để viết adapter (nếu chỉ có Web thì Playwright, +1–2 tuần).
 - Cài Claude Desktop + Python; test kết nối MCP cơ bản ("hello world").
 - Chốt `operating_mode` mặc định, ngân sách credit thử nghiệm.
 - Khởi động Knowledge Base (Mục 3.6): thu thập + lọc nguồn, chọn chuyên gia miền.
