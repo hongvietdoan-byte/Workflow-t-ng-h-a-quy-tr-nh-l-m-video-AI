@@ -5,8 +5,8 @@ import unittest
 from core.db import connect
 from core.llm_io import approve_motion_prompt, store_motion_prompts
 from core.pipeline import Pipeline
-from core.providers import MockVideoProvider
-from core.runner import VideoRunner
+from core.providers import MockImageProvider, MockVideoProvider
+from core.runner import ImageRunner, VideoRunner
 
 
 class RunnerTests(unittest.TestCase):
@@ -83,6 +83,46 @@ class RunnerTests(unittest.TestCase):
         r.cancel_job(job)
         self.assertEqual(r.provider.cancelled, ["mock-1"])
         self.assertEqual(self.p.state(job).value, "cancelled")
+
+
+class ImageRunnerTests(unittest.TestCase):
+    def setUp(self):
+        self.p = Pipeline(connect())
+        self.dir = tempfile.mkdtemp()
+        self.pid = self.p.create_project("t", max_retry=2)
+        self.scene = self.p.create_scene(self.pid, 1, "S1")
+        self.p.conn.execute("UPDATE scenes SET data=? WHERE id=?",
+                            ('{"image_prompt": "misty forest, Lyra"}', self.scene))
+        self.p.conn.commit()
+
+    def test_generates_image_file_and_marks_succeeded(self):
+        job = self.p.create_job(self.scene)
+        runner = ImageRunner(self.p, MockImageProvider(polls_to_finish=2), self.dir)
+        runner.run(self.pid, interval=0, sleep=lambda s: None)
+        self.assertEqual(self.p.state(job).value, "succeeded")
+        self.assertTrue(os.path.exists(os.path.join(self.dir, str(self.pid), "images", f"job_{job}.png")))
+
+    def test_retry_reason_is_added_to_prompt(self):
+        job = self.p.create_job(self.scene)
+        self.p.start(job)
+        self.p.succeed(job)
+        self.p.reject(job, "user", "change to red jacket")
+        provider = MockImageProvider()
+        ImageRunner(self.p, provider, self.dir).submit_pending(self.pid)
+        self.assertIn("Fix: change to red jacket", list(provider.prompts.values())[0])
+
+    def test_scene_without_image_prompt_fails_fast(self):
+        scene = self.p.create_scene(self.pid, 2, "S2")
+        job = self.p.create_job(scene)
+        ImageRunner(self.p, MockImageProvider(), self.dir).submit_pending(self.pid)
+        self.assertEqual(self.p.state(job).value, "failed")
+
+    def test_image_then_qc_flow_in_auto_mode(self):
+        self.p.set_mode(self.pid, "auto")
+        job = self.p.create_job(self.scene)
+        ImageRunner(self.p, MockImageProvider(), self.dir).run(self.pid, interval=0, sleep=lambda s: None)
+        scores = {k: 0.95 for k in ["character", "hands_face"]}
+        self.assertEqual(self.p.apply_qc(job, scores), "approved")
 
 
 if __name__ == "__main__":

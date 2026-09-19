@@ -287,14 +287,14 @@ Mục tiêu: chứng minh pipeline end-to-end chạy được, đo chất lượ
 
 ## 9. Trạng thái triển khai (cập nhật 2026-09-19)
 
-**Đã build (53 unit test pass, không cần API ngoài):**
+**Đã build (58 unit test pass, không cần API ngoài):**
 - `core/` — schema SQLite, state machine job, luồng QC `auto`/`human_qc`, retry/escalate, Pause/Resume/Cancel-all, script parser (docx → cảnh/nhân vật), validators + lưu JSON của Director/QC, Character Bible + khóa, Pre-flight IP check + blocklist seed, motion prompt (Bước 3), FFmpeg command builders, prompt bundles.
 - `mcp_servers/` — `project-db`, `qc-agent`, `ffmpeg-studio`, `clipai` (vỏ mỏng bọc core; `clipai` mới chạy bản giả lập); hướng dẫn `docs/V0_SETUP.md`.
 - `dashboard/app.py` — Dashboard Streamlit skeleton: stepper 7 tab theo thứ tự bước, control bar toàn cục, nút điều khiển từng khâu, lịch sử; các bước cần Claude tạm dán JSON tay.
 - `prompts/`, `knowledge/` (v0.1, cần chuyên gia miền duyệt), `data/qc_checklist.json`, `samples/` (2 kịch bản mẫu cho dry-run).
 
 **Đang chờ điều kiện bên ngoài:**
-- Adapter thật cho Deepix (Bước 2) và Clip AI/Kling (Bước 4) — tạm gác theo yêu cầu. Bộ chạy Bước 4 (`core/runner.py`: submit, heartbeat polling, tải video, log risk control, retry, concurrency, pause/cancel) đã xong và kiểm thử với provider giả lập; chỉ còn viết adapter theo interface `VideoProvider` khi có API.
+- Adapter thật cho Deepix (Bước 2) và Clip AI/Kling (Bước 4) — tạm gác theo yêu cầu. Bộ chạy Bước 2 và Bước 4 (`core/runner.py`: submit, heartbeat polling, tải kết quả, log risk control, retry, concurrency, pause/cancel) đã xong và kiểm thử với provider giả lập; chỉ còn viết adapter theo interface `VideoProvider`/`ImageProvider` khi có API.
 - Cài FFmpeg trên máy để render thật.
 - API key Anthropic (V1) để thay "dán JSON tay" bằng LLM runner tự động.
 - `music_provider`, chuyên gia miền duyệt Knowledge Base, chạy dry-run thật để hiệu chỉnh threshold.

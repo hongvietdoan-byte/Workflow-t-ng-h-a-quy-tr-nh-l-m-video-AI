@@ -15,8 +15,8 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 from core import ffmpeg_studio, llm_io, preflight, prompts, script_parser  # noqa: E402
 from core.db import connect  # noqa: E402
 from core.pipeline import Pipeline, PipelinePaused  # noqa: E402
-from core.providers import MockVideoProvider  # noqa: E402
-from core.runner import VideoRunner  # noqa: E402
+from core.providers import MockImageProvider, MockVideoProvider  # noqa: E402
+from core.runner import ImageRunner, VideoRunner  # noqa: E402
 from core.states import InvalidTransition, JobState  # noqa: E402
 
 DB = os.environ.get("PIPELINE_DB", os.path.join("data", "manifest.sqlite"))
@@ -33,6 +33,13 @@ def video_runner(p: Pipeline):
     """Real Clip AI adapter is not wired yet; VIDEO_PROVIDER=mock enables a simulated provider for demos."""
     if os.environ.get("VIDEO_PROVIDER") == "mock":
         return VideoRunner(p, MockVideoProvider(), DATA)
+    return None
+
+
+def image_runner(p: Pipeline):
+    """Real Deepix adapter is not wired yet; IMAGE_PROVIDER=mock enables a simulated provider for demos."""
+    if os.environ.get("IMAGE_PROVIDER") == "mock":
+        return ImageRunner(p, MockImageProvider(), DATA)
     return None
 
 
@@ -159,7 +166,20 @@ def step2(p: Pipeline, pid: int):
                                 (pid,)).fetchall():
             act(lambda: p.retry(j["id"], "retry all"))
         st.rerun()
-    st.info("Kết nối Deepix chưa bật: nhập ảnh thủ công cho từng job bên dưới.")
+    runner = image_runner(p)
+    if runner is None:
+        st.info("Kết nối Deepix chưa bật (đặt IMAGE_PROVIDER khi có adapter): nhập ảnh thủ công cho từng job bên dưới.")
+    else:
+        st.success(f"Provider ảnh: {runner.provider.name} (giả lập — ảnh 1x1, không phải ảnh thật)")
+        r1, r2 = st.columns(2)
+        if r1.button("⟳ Submit + Poll 1 lần (ảnh)"):
+            submitted = runner.submit_pending(pid)
+            st.toast(f"Đã gửi {submitted} · {runner.poll_once(pid)}")
+            st.rerun()
+        if r2.button("▶ Chạy heartbeat tới khi xong (ảnh)"):
+            with st.spinner("Đang gen ảnh…"):
+                runner.run(pid, interval=float(os.environ.get("HEARTBEAT_SEC", "90")))
+            st.rerun()
     jobs = p.conn.execute(
         "SELECT j.*, s.idx, s.title FROM jobs j JOIN scenes s ON s.id=j.scene_id"
         " WHERE j.project_id=? AND j.type='image_gen' ORDER BY s.idx, j.id", (pid,)).fetchall()

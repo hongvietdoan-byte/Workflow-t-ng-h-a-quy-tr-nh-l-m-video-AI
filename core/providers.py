@@ -4,6 +4,7 @@ A real adapter only has to implement `VideoProvider`; the runner, state machine 
 stay unchanged. `MockVideoProvider` simulates behaviour (delays, risk-control failures,
 transient errors) for tests and demos.
 """
+import base64
 from dataclasses import dataclass
 from typing import Dict, Optional, Protocol
 
@@ -29,6 +30,57 @@ class VideoProvider(Protocol):
     def download(self, task_id: str, dest_path: str) -> str: ...
 
     def cancel(self, task_id: str) -> None: ...
+
+
+class ImageProvider(Protocol):
+    name: str
+
+    def submit(self, prompt: str) -> str: ...
+
+    def status(self, task_id: str) -> TaskStatus: ...
+
+    def download(self, task_id: str, dest_path: str) -> str: ...
+
+    def cancel(self, task_id: str) -> None: ...
+
+
+_PNG_1X1 = base64.b64decode(
+    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==")
+
+
+class MockImageProvider:
+    """Simulated image generator: writes a 1x1 PNG. Never produces a real image."""
+    name = "mock-image"
+
+    def __init__(self, polls_to_finish: int = 1, transient_failures: int = 0):
+        self.polls_to_finish = polls_to_finish
+        self.transient_failures = transient_failures
+        self._polls: Dict[str, int] = {}
+        self._counter = 0
+        self.prompts: Dict[str, str] = {}
+        self.cancelled = []
+
+    def submit(self, prompt: str) -> str:
+        self._counter += 1
+        task_id = f"img-{self._counter}"
+        self._polls[task_id] = 0
+        self.prompts[task_id] = prompt
+        return task_id
+
+    def status(self, task_id: str) -> TaskStatus:
+        self._polls[task_id] += 1
+        if self.transient_failures > 0:
+            self.transient_failures -= 1
+            return TaskStatus("failed", "server_error", "temporary server error", transient=True)
+        return TaskStatus("succeeded" if self._polls[task_id] >= self.polls_to_finish else "running")
+
+    def download(self, task_id: str, dest_path: str) -> str:
+        with open(dest_path, "wb") as f:
+            f.write(_PNG_1X1)
+        return dest_path
+
+    def cancel(self, task_id: str) -> None:
+        self.cancelled.append(task_id)
 
 
 class MockVideoProvider:

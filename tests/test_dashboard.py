@@ -91,6 +91,26 @@ class DashboardSmokeTests(unittest.TestCase):
         self.assertEqual(row["state"], "succeeded")
         self.assertTrue(os.path.exists(row["result_path"]))
 
+    def test_image_step_with_mock_provider_generates_files(self):
+        from core.llm_io import lock_character_bible
+        p, pid = self.seed()
+        lock_character_bible(p, pid)
+        os.environ["IMAGE_PROVIDER"] = "mock"
+        os.environ["HEARTBEAT_SEC"] = "0"
+        try:
+            at = AppTest.from_file(APP, default_timeout=30).run()
+            at.radio(key="step").set_value(at.radio(key="step").options[1]).run()
+            next(b for b in at.button if "Tạo job gen ảnh" in b.label).click().run()
+            next(b for b in at.button if "heartbeat" in b.label).click().run()
+            self.assertFalse(at.exception)
+        finally:
+            os.environ.pop("IMAGE_PROVIDER", None)
+            os.environ.pop("HEARTBEAT_SEC", None)
+        row = Pipeline(connect(self.db)).conn.execute(
+            "SELECT state, result_path FROM jobs WHERE type='image_gen'").fetchone()
+        self.assertEqual(row["state"], "succeeded")
+        self.assertTrue(os.path.exists(row["result_path"]))
+
 
 if __name__ == "__main__":
     unittest.main()
