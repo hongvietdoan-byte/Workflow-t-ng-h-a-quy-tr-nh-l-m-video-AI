@@ -15,7 +15,7 @@ import os
 from typing import Dict, Optional, Tuple
 
 from ..providers import RISK_CONTROL, ProviderError, TaskStatus
-from .http import ApiClient, Transport, urllib_transport
+from .http import ApiClient, Transport, clean_token, urllib_transport
 
 DEFAULT_BASE = "https://clipai.ingarena.net"
 USER_AGENT = "AIVideoPipeline-ClipAI/0.1"
@@ -83,9 +83,7 @@ class ClipAIVideoProvider:
 
     @classmethod
     def from_env(cls, transport: Transport = urllib_transport) -> "ClipAIVideoProvider":
-        token = os.environ.get("CLIPAI_TOKEN", "").strip()
-        if token.lower().startswith("bearer "):
-            token = token[7:].strip()
+        token = clean_token(os.environ.get("CLIPAI_TOKEN", ""))
         if not token:
             raise ProviderError("CLIPAI_TOKEN is not set. Log in to clipai.ingarena.net -> avatar -> API Token, "
                                 "then set it as an environment variable (never commit it).", code="config")

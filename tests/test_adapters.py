@@ -247,6 +247,42 @@ class DeepixTests(unittest.TestCase):
         validate_seedream_size("2048x1152")
 
 
+class TokenCleaningTests(unittest.TestCase):
+    def test_cleaning_and_rejection(self):
+        from core.adapters.http import clean_token, describe_token
+        self.assertEqual(clean_token("  Bearer abc.DEF-123\r\n"), "abc.DEF-123")
+        self.assertEqual(clean_token('"abc123"'), "abc123")
+        self.assertEqual(clean_token(""), "")
+        for bad in ("abc def", "abc\ndef", "tôken123"):
+            with self.assertRaises(ProviderError) as cm:
+                clean_token(bad)
+            self.assertEqual(cm.exception.code, "config")
+            self.assertNotIn(bad, str(cm.exception))
+        self.assertEqual(describe_token("abcDEF123"), [])
+
+    def test_from_env_rejects_corrupted_token(self):
+        with mock.patch.dict(os.environ, {"CLIPAI_TOKEN": "abc\ndef"}):
+            with self.assertRaises(ProviderError):
+                ClipAIVideoProvider.from_env()
+        with mock.patch.dict(os.environ, {"DEEPIX_TOKEN": "abc def"}):
+            with self.assertRaises(ProviderError):
+                DeepixImageProvider.from_env()
+
+    def test_diagnose_never_prints_token(self):
+        import io
+        from contextlib import redirect_stdout
+        from core.adapters import check
+        with mock.patch.dict(os.environ, {"CLIPAI_TOKEN": "sekret\nvalue", "DEEPIX_TOKEN": "cleantoken123"}):
+            buf = io.StringIO()
+            with redirect_stdout(buf):
+                check.diagnose()
+        out = buf.getvalue()
+        self.assertNotIn("sekret", out)
+        self.assertNotIn("cleantoken123", out)
+        self.assertIn("line break", out)
+        self.assertIn("looks fine", out)
+
+
 class CheckTests(unittest.TestCase):
     def test_read_only_check_reports_ok_and_failures_without_leaking_token(self):
         from core.adapters import check

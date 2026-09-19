@@ -52,6 +52,30 @@ def encode_multipart(fields: Dict[str, str], files: List[Tuple[str, str, bytes]]
     return b"".join(parts), f"multipart/form-data; boundary={boundary}"
 
 
+def clean_token(raw: str) -> str:
+    """Normalise a pasted token; raise a clear (token-free) error when it cannot be a valid header value."""
+    token = (raw or "").strip().strip("\"'`<>").strip()
+    if token.lower().startswith("bearer "):
+        token = token[7:].strip()
+    problems = describe_token(token)
+    if token and problems:
+        raise ProviderError("token looks corrupted (" + ", ".join(problems) + "); copy it again from the website "
+                            "and re-enter it with a single paste", code="config")
+    return token
+
+
+def describe_token(token: str) -> List[str]:
+    """Return problems found in a token without revealing its content."""
+    problems = []
+    if any(ch.isspace() for ch in token):
+        problems.append("contains whitespace or a line break")
+    if any(ord(ch) > 126 or ord(ch) < 33 for ch in token if not ch.isspace()):
+        problems.append("contains non-ASCII or control characters")
+    if any(ch in token for ch in "\"'"):
+        problems.append("contains quote characters")
+    return problems
+
+
 def parse_envelope(payload) -> object:
     """Return `data` of a successful envelope, or raise ProviderError."""
     if not isinstance(payload, dict):
@@ -93,7 +117,11 @@ class ApiClient:
         if resp.status >= 500:
             raise ProviderError(f"server error (HTTP {resp.status})", code="server_error", transient=True)
         if resp.status >= 400:
-            raise ProviderError(f"HTTP {resp.status}: {resp.body[:300].decode('utf-8', 'replace')}", code="http_error")
+            text = resp.body[:300].decode("utf-8", "replace")
+            hint = (" (a header was rejected: the token probably contains a hidden character; the checker above "
+                    "reports token problems, then copy the token again and paste it once)"
+                    if "invalid header" in text.lower() else "")
+            raise ProviderError(f"HTTP {resp.status}: {text}{hint}", code="http_error")
         try:
             payload = json.loads(resp.body.decode("utf-8"))
         except ValueError:

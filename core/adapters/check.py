@@ -9,7 +9,10 @@ import sys
 from typing import List, Tuple
 
 from ..providers import ProviderError
+import os
+
 from .clipai import PATH_LIST, ClipAIVideoProvider
+from .http import describe_token
 from .deepix import DeepixImageProvider
 
 PATH_DEEPIX_LIST = "/api/image-generator/message-list"
@@ -32,7 +35,18 @@ def run(clipai=None, deepix=None) -> List[Tuple[str, bool, str]]:
     return results
 
 
+def diagnose() -> None:
+    """Print the shape of each token (length and problems only; the token itself is never shown)."""
+    for var in ("CLIPAI_TOKEN", "DEEPIX_TOKEN"):
+        raw = os.environ.get(var, "")
+        stripped = raw.strip()
+        problems = describe_token(stripped)
+        print(f"{var}: length={len(raw)} (after trim {len(stripped)}), "
+              + ("looks fine" if stripped and not problems else ", ".join(problems) or "EMPTY"))
+
+
 def main() -> int:
+    diagnose()
     ok_all = True
     for name, ok, message in run():
         print(f"{'OK  ' if ok else 'FAIL'} {name}: {message}")
