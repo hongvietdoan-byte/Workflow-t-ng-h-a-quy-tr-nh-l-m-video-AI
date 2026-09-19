@@ -2,6 +2,23 @@
 
 _Cập nhật lần cuối: 2026-09-19. Chi tiết kế hoạch xem `PLAN.md`. Đánh dấu `[x]` khi xong, ghi ngày cạnh mục._
 
+## 📌 Bàn giao sang phiên chat khác (chốt 2026-09-19)
+**Trạng thái:** repo `main` đã push đầy đủ; 58 unit test pass; cấu hình Claude Desktop (`mcpServers`: project-db, qc-agent, ffmpeg-studio) đã ghi và kiểm thử qua MCP stdio thật. **Đang chờ bạn:** thoát hẳn + mở lại Claude Desktop rồi chạy thử V0 trong tab Chat (`docs/V0_SETUP.md` mục 3), báo kết quả/lỗi cho phiên sau.
+
+**Cách tiếp tục:** `git pull` → đọc `CLAUDE.md`, `PLAN.md` (Mục 5 quyết định, Mục 7 lộ trình, Mục 9 trạng thái) và file này. Chạy test: `py -m unittest discover -s tests -t .`. Dashboard: `py -m streamlit run dashboard/app.py`.
+
+**Quyết định đã chốt:** 1 Dashboard duy nhất theo thứ tự bước; `operating_mode` mặc định `human_qc`; QC Agent = Claude Vision; V0 (Claude Desktop + MCP, dán JSON tay) → V1 (Dashboard + API Anthropic); Kling/Clip AI polling (không webhook); ngân sách V0 nhỏ (~2 kịch bản, 10–20 clip); repo sẽ chuyển private; tài liệu gửi ra ngoài (xin API) viết bằng **tiếng Anh**.
+
+**Lưu ý kỹ thuật (đã gặp lỗi, tránh lặp):**
+- Python (`py`, bản Store) **không thấy** `%APPDATA%\Claude\...` → đọc/sửa config Claude bằng PowerShell hoặc Read/Edit tool, không dùng Python.
+- Heredoc bash chứa nhiều ký tự đặc biệt/tiếng Việt hay lỗi → dùng Write tool tạo file rồi chạy; `pkill -f "streamlit run"` sẽ tự giết shell.
+- FFmpeg cài qua winget (đường dẫn trong `FFMPEG_PATH` của config); shell mới mới thấy `ffmpeg` trong PATH.
+- Figma MCP hết hạn mức gói Starter; mockup đầy đủ ở `mockup/*.html` và đã import vào Figma bằng plugin html.to.design.
+- `deepix-*` và `data/manifest.sqlite` nằm ngoài git (`.gitignore`); 4 file `clipai_api_request*.{pdf,png}` ở thư mục gốc là bản sao chưa theo dõi của `docs/` (bỏ qua).
+- Sau mỗi thay đổi `PLAN.md`: `bash tools/build_docs.sh` rồi commit cả `PLAN.docx`/`PLAN.pdf`.
+
+**Đoạn trình bày xin API Clip AI (bản chốt, tiếng Anh):** "We are building an automated pipeline that turns scripts into finished videos, and we need API access to Clip AI / Kling to convert approved images into short video clips. The pilot is small (about 10–20 clips, with retries capped to control cost). Could you please approve API access to the image-to-video model (including which Kling version is available), along with an endpoint to check task status (webhook optional)? We would also appreciate details on how images are submitted (upload, base64 or URL), the credit quota and billing, how long result links stay valid, the content-moderation policy, and the rate limits and error-code documentation."
+
 ## 🔁 Việc phải làm lại MỖI LẦN (checklist cố định)
 - [ ] Sửa nội dung kế hoạch → chỉ sửa `PLAN.md`, không sửa tay docx/pdf
 - [ ] **Build lại `PLAN.docx` + `PLAN.pdf` bản mới nhất:** `bash tools/build_docs.sh`
