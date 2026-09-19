@@ -56,6 +56,8 @@ def split_scenes(paragraphs: List[str]) -> List[ParsedScene]:
             groups.append(current)
         else:
             current["lines"].append(para)
+    if len(groups) > 1 and groups[0]["heading"] == "Mở đầu":
+        groups = groups[1:]  # title/preamble before the first scene heading is not a scene
     return [ParsedScene(i, g["heading"], "\n".join(g["lines"]), _characters(g["lines"]))
             for i, g in enumerate(groups, start=1)]
 

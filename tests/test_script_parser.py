@@ -37,16 +37,16 @@ SCRIPT = [
 
 
 class ScriptParserTests(unittest.TestCase):
-    def test_splits_scenes_and_keeps_preamble(self):
+    def test_splits_scenes_and_drops_title_preamble(self):
         scenes = split_scenes(SCRIPT)
         self.assertEqual([s.heading for s in scenes],
-                         ["Mở đầu", "CẢNH 1 - Đêm, rừng Elder", "Cảnh 2 - Ngày, pháo đài", "INT. HẦM NGẦM - ĐÊM"])
-        self.assertEqual([s.idx for s in scenes], [1, 2, 3, 4])
+                         ["CẢNH 1 - Đêm, rừng Elder", "Cảnh 2 - Ngày, pháo đài", "INT. HẦM NGẦM - ĐÊM"])
+        self.assertEqual([s.idx for s in scenes], [1, 2, 3])
 
     def test_detects_characters_by_frequency(self):
         scenes = split_scenes(SCRIPT)
-        self.assertEqual(scenes[1].characters, ["LYRA", "KAEL"])
-        self.assertEqual(scenes[2].characters, ["ÔNG ORIN"])
+        self.assertEqual(scenes[0].characters, ["LYRA", "KAEL"])
+        self.assertEqual(scenes[1].characters, ["ÔNG ORIN"])
 
     def test_no_headings_gives_single_scene(self):
         scenes = split_scenes(["Một đoạn văn.", "Đoạn nữa."])
@@ -61,8 +61,8 @@ class ScriptParserTests(unittest.TestCase):
         p = Pipeline(connect())
         pid = p.create_project("t")
         ids = import_scenes(p, pid, scenes)
-        self.assertEqual(len(ids), 4)
-        row = p.conn.execute("SELECT data FROM scenes WHERE id=?", (ids[1],)).fetchone()
+        self.assertEqual(len(ids), 3)
+        row = p.conn.execute("SELECT data FROM scenes WHERE id=?", (ids[0],)).fetchone()
         self.assertEqual(json.loads(row["data"])["characters"], ["LYRA", "KAEL"])
 
 
