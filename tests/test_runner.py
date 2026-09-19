@@ -39,6 +39,13 @@ class RunnerTests(unittest.TestCase):
         files = sorted(os.listdir(os.path.join(self.dir, str(self.pid), "videos")))
         self.assertEqual(files, ["01.mp4", "02.mp4"])
 
+    def test_project_video_model_is_passed_to_provider(self):
+        self.video_job(self.scene_ready_for_video(1))
+        self.p.set_video_model(self.pid, "seedance")
+        r = self.runner()
+        r.submit_pending(self.pid)
+        self.assertEqual(r.provider._tasks["mock-1"]["model"], "seedance")
+
     def test_concurrency_limit(self):
         for i in (1, 2, 3):
             self.video_job(self.scene_ready_for_video(i))

@@ -59,6 +59,13 @@ class EvalSetTests(unittest.TestCase):
         self.assertTrue(any("camera move fits genre" in f for f in res["failed"]))
         self.assertTrue(any("appearance" in w for w in res["warnings"]))
 
+    def test_vague_praise_words_are_warned_not_failed(self):
+        out, case = self.golden()
+        out["analysis"]["scenes"][0]["image_prompt"] += ", stunning masterpiece"
+        res = ev.run_case(case, out)
+        self.assertEqual(res["failed"], [])
+        self.assertTrue(any("praise" in w for w in res["warnings"]))
+
     def test_invalid_json_shape_reports_schema_failure(self):
         case = ev.get_case("action_chase")
         res = ev.run_case(case, {"analysis": {"characters": "nope"}})

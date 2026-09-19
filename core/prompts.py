@@ -29,6 +29,7 @@ def build_director_bundle(pipeline: Pipeline, project_id: int) -> str:
         _read("prompts", "01_director_scene_analysis.md"),
         _read("knowledge", "cinematography_basics.md"),
         _read("knowledge", "genre_guides.md"),
+        _read("knowledge", "research_notes.md"),
         few_shot_text(),
         "# Kịch bản đã tách cảnh\n\n" + scenes,
     ])
@@ -66,5 +67,6 @@ def build_motion_bundle(pipeline: Pipeline, project_id: int) -> str:
     return _SEP.join([
         _read("prompts", "03_video_motion.md"),
         _read("knowledge", "video_motion_vocab.md"),
+        _read("knowledge", "research_notes.md"),
         "# Cảnh đã có ảnh được duyệt\n```json\n" + json.dumps(payload, ensure_ascii=False, indent=2) + "\n```",
     ])

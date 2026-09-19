@@ -112,11 +112,21 @@ Mọi quyết định (AI hay người) đều ghi vào `review_log` với cột
 | 1 | `mcp-server-project-db` | SQLite, state machine, parse script.docx, Character Bible, pre-flight IP check | Local; thư viện đọc docx |
 | 2 | `mcp-server-deepix` | Gen ảnh hàng loạt, tải ảnh, ghi kết quả | REST API + key Deepix (nội bộ) |
 | 3 | `mcp-server-qc-agent` | Chấm ảnh theo `qc_checklist`, cả 2 mode; Claude Vision + system prompt QC riêng (xem 3.2.1), provider swap được | Claude (V0: chat; V1: Anthropic API, pin version) |
-| 4 | `mcp-server-clipai` | Gửi/poll gen video, **heartbeat polling** batch, parse lỗi risk-control (comment 4) | REST API (+webhook) Clip AI / Kling |
+| 4 | `mcp-server-clipai` | Gửi/poll gen video, **heartbeat polling** batch, parse lỗi risk-control (comment 4); chọn model theo dự án (`video_model`: seedance / kling / minimax) | REST API (+webhook) Clip AI (nền tảng tích hợp nhiều model) |
 | 5 | `mcp-server-ffmpeg` | Concat, transition, mux nhạc, render | FFmpeg local |
 | 6 | `mcp-server-music` | Music Brief, gen 3 bản nháp, thư viện/upload nhạc (xem 3.5) | API nhạc có license thương mại (chọn sau) |
 
 Ngoài ra: Claude Director (Bước 1, 3, Music Brief), Streamlit Dashboard (V1), Figma (mockup giao diện).
+
+### 3.3b Thông tin về Clip AI (bổ sung 2026-09-19)
+Clip AI là nền tảng tạo video và âm thanh AI tích hợp cho team (all-in-one), gộp nhiều model: **Seedance, Kling, MiniMax** (video), **Seed Audio, ElevenLabs** (âm thanh/giọng), kèm thư viện game asset. Tính năng: tạo/chỉnh video đa phương thức, đạo diễn 3D, thoại, âm thanh và nhạc, thiết kế và nhân bản giọng nói.
+
+Hệ quả cho thiết kế:
+1. **Không chỉ Kling:** bộ chạy Bước 4 có cấu hình `video_model` theo dự án (seedance / kling / minimax), truyền vào provider. Bộ lọc kiểm duyệt (risk control) và cú pháp prompt khác nhau theo model → blocklist IP và `content_moderation_failures` nên ghi kèm model; bộ đánh giá `eval/` cần chạy lại khi đổi model.
+2. **Âm thanh:** Bước 5a (nhạc) có thể dùng chính Clip AI (Seed Audio/ElevenLabs), giảm một nhà cung cấp. Cần xác nhận API có endpoint audio và điều khoản thương mại.
+3. **Giọng/thoại:** tạo thoại, thiết kế/nhân bản giọng là tính năng có thể thêm ở giai đoạn sau (lồng tiếng nhân vật); chưa nằm trong V0/V1.
+4. **Thư viện game asset:** phù hợp trailer game; xét dùng làm nguồn tham chiếu nhân vật/bối cảnh nhất quán khi API cho phép.
+5. **Điểm cần hỏi khi xin API:** danh sách model và phiên bản có thể chọn qua API, tham số chọn model, endpoint audio, hạn mức/credit theo model, chính sách kiểm duyệt theo model.
 
 ### 3.4 Giao diện điều khiển hợp nhất (Unified Control Dashboard)
 
@@ -150,7 +160,7 @@ Lưu ý Streamlit khó khớp 100% pixel với Figma; nếu cần UI sát mockup
 ### 3.5 Bước 5a — Nhạc nền
 AI đề xuất, user quyết định: (1) Claude Director đọc Visual Mood + tổng thời lượng → sinh Music Brief (thể loại, tempo, cảm xúc, nhạc cụ, instrumental), user sửa hoặc tự viết prompt; (2) gen **3 bản nháp cho cả video** (1 track xuyên suốt, tránh đứt giữa cảnh), nghe thử và chọn/gen lại; (3) hoặc upload nhạc có sẵn/thư viện nội bộ/không dùng nhạc; (4) FFmpeg ghép (fade, ducking, căn độ dài) → preview → render.
 - **Suno:** hiện **không có API chính thức** (07/2026 mới mở intake form cho partner, chưa có self-serve; gói Pro/Premier chỉ dùng web/app); các "Suno API" bên thứ ba là wrapper không chính thức → rủi ro ToS/ổn định/bản quyền, không đưa vào pipeline. Dùng Suno thủ công: tạo trên web rồi upload vào slot.
-- `music_provider` swap được; ứng viên có API + license thương mại rõ (vd ElevenLabs Music — cần xác minh). **Chọn provider sau** (chưa chặn V0).
+- `music_provider` swap được. **Ứng viên số 1 nay là chính Clip AI** (nền tảng tích hợp ElevenLabs và Seed Audio, có tạo nhạc/âm thanh) — nếu API Clip AI mở phần audio thì dùng chung 1 nhà cung cấp, 1 hợp đồng, 1 API key; nếu không thì dùng nhà cung cấp riêng có license thương mại rõ. **Chọn sau khi xác nhận API Clip AI** (chưa chặn V0).
 
 ### 3.6 Knowledge Base & Prompt Library (nền chất lượng Bước 1 và Bước 3)
 Nguyên tắc: **không train/fine-tune model** — xây knowledge pack có cấu trúc + ví dụ mẫu + JSON schema đầu ra + bộ đánh giá, nạp vào system prompt Director; rẻ, sửa ngay được, đổi model được.
@@ -188,7 +198,7 @@ Nguyên tắc: **không train/fine-tune model** — xây knowledge pack có cấ
 | Quyết định | Ghi chú |
 |---|---|
 | Nguồn truy cập Claude cho V1 | Gói Claude (seat Enterprise/Pro/Max) và Anthropic API (Console, API key, tính tiền theo token) là 2 sản phẩm/billing tách biệt; seat không tự sinh API key. Dashboard tự gọi Claude bằng code nên V1 cần API key từ Console org công ty (không nên dùng đăng nhập seat cho ứng dụng tự động — cần xác nhận với admin/điều khoản Anthropic). Việc cần làm: hỏi admin Enterprise (a) có Console org không, (b) hạn mức token, (c) chính sách data cho ảnh nhân vật. |
-| `music_provider` | Suno không có API chính thức; chọn nhà cung cấp có API + license thương mại rõ (vd ElevenLabs Music — cần xác minh). Xem 3.5 |
+| `music_provider` | Suno không có API chính thức. Ưu tiên dùng audio của Clip AI (ElevenLabs/Seed Audio tích hợp) nếu API cho phép; xác nhận license thương mại. Xem 3.5 |
 | Framework Dashboard | Streamlit (mặc định) hay web frontend riêng nếu cần UI sát mockup Figma |
 
 **Còn mở — cần chốt trước khi code V0 (chặn Tuần 1-2):**

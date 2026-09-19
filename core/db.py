@@ -8,6 +8,7 @@ CREATE TABLE IF NOT EXISTS projects (
     qc_auto_pass_threshold REAL NOT NULL DEFAULT 0.85,
     max_retry_count INTEGER NOT NULL DEFAULT 3,
     paused INTEGER NOT NULL DEFAULT 0,
+    video_model TEXT,
     created_at TEXT NOT NULL
 );
 CREATE TABLE IF NOT EXISTS scenes (
@@ -95,6 +96,8 @@ def connect(path: str = ":memory:") -> sqlite3.Connection:
     cols = {r["name"] for r in conn.execute("PRAGMA table_info(projects)")}
     if "paused" not in cols:
         conn.execute("ALTER TABLE projects ADD COLUMN paused INTEGER NOT NULL DEFAULT 0")
+    if "video_model" not in cols:
+        conn.execute("ALTER TABLE projects ADD COLUMN video_model TEXT")
     job_cols = {r["name"] for r in conn.execute("PRAGMA table_info(jobs)")}
     for col in ("external_id", "result_path"):
         if col not in job_cols:

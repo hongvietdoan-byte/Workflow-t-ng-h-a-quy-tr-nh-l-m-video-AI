@@ -23,7 +23,7 @@ class VideoProvider(Protocol):
     name: str
 
     def submit(self, image_path: str, prompt: str, negative_prompt: Optional[str],
-               duration_sec: float) -> str: ...
+               duration_sec: float, model: Optional[str] = None) -> str: ...
 
     def status(self, task_id: str) -> TaskStatus: ...
 
@@ -95,10 +95,10 @@ class MockVideoProvider:
         self._counter = 0
         self.cancelled = []
 
-    def submit(self, image_path, prompt, negative_prompt, duration_sec) -> str:
+    def submit(self, image_path, prompt, negative_prompt, duration_sec, model=None) -> str:
         self._counter += 1
         task_id = f"mock-{self._counter}"
-        self._tasks[task_id] = {"prompt": prompt.lower(), "polls": 0}
+        self._tasks[task_id] = {"prompt": prompt.lower(), "polls": 0, "model": model}
         return task_id
 
     def status(self, task_id: str) -> TaskStatus:

@@ -22,6 +22,7 @@ ROOT = os.path.join(os.path.dirname(__file__), "..")
 CASES_PATH = os.path.join(ROOT, "eval", "cases.json")
 GOLDEN_PATH = os.path.join(ROOT, "eval", "golden.json")
 VOCAB_PATH = os.path.join(ROOT, "data", "motion_vocab.json")
+VAGUE_WORDS = ("beautiful", "stunning", "amazing", "awesome", "masterpiece", "gorgeous", "incredible")
 
 
 @dataclass
@@ -107,6 +108,8 @@ def check_scene_analysis(case: Dict, analysis) -> List[Check]:
                             f"want one of {exp['lighting_any']}"))
         checks.append(Check(f"{tag}: mood matches", _any(s["mood"] + " " + prompt, exp["mood_any"]),
                             f"want one of {exp['mood_any']}", hard=False))
+        vague = [w for w in VAGUE_WORDS if w in _norm(prompt).split()]
+        checks.append(Check(f"{tag}: no empty praise words", not vague, f"found: {vague}", hard=False))
         checks.append(Check(f"{tag}: has 'no text' guard", "no text" in prompt.lower(), hard=False))
         for name in s["characters"]:
             head = " ".join(desc.get(name, "").split()[:4])
@@ -193,13 +196,14 @@ def few_shot_text() -> str:
 def director_bundle(case: Dict) -> str:
     return "\n\n---\n\n".join([
         _read("prompts", "01_director_scene_analysis.md"), _read("knowledge", "cinematography_basics.md"),
-        _read("knowledge", "genre_guides.md"), few_shot_text(),
+        _read("knowledge", "genre_guides.md"), _read("knowledge", "research_notes.md"), few_shot_text(),
         "# Kịch bản cần phân tích\n\n" + "\n".join(case["script"])])
 
 
 def motion_bundle(case: Dict, analysis: Dict) -> str:
     return "\n\n---\n\n".join([
         _read("prompts", "03_video_motion.md"), _read("knowledge", "video_motion_vocab.md"),
+        _read("knowledge", "research_notes.md"),
         "# Thông số cảnh và nhân vật (đã duyệt)\n```json\n" + json.dumps(analysis, ensure_ascii=False, indent=2) + "\n```"])
 
 

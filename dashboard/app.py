@@ -279,6 +279,12 @@ def step4(p: Pipeline, pid: int):
                 "Vẫn có thể tạo job xếp hàng để theo dõi state machine.")
     else:
         st.success(f"Provider: {runner.provider.name} (giả lập — không tạo video thật)")
+    models = ["(mặc định của Clip AI)", "seedance", "kling", "minimax"]
+    current = p.project(pid)["video_model"]
+    choice = st.selectbox("Model video (Clip AI tích hợp nhiều model; bộ lọc kiểm duyệt khác nhau theo model)", models,
+                          index=models.index(current) if current in models else 0, key=f"vmodel_{pid}")
+    if (choice if choice in models[1:] else None) != current:
+        p.set_video_model(pid, choice if choice in models[1:] else None)
     c1, c2, c3, c4 = st.columns(4)
     if c1.button("▶ Tạo job gen video", disabled=not ready):
         for r in ready:

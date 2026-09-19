@@ -116,7 +116,8 @@ class VideoRunner(_Runner):
         if mp is None or img is None:
             return None
         path = os.path.join(self.data_dir, str(job["project_id"]), "images", f"job_{img['id']}.png")
-        return path, mp["motion_prompt"], mp["negative_prompt"], mp["duration_sec"]
+        model = self.p.project(job["project_id"])["video_model"]
+        return path, mp["motion_prompt"], mp["negative_prompt"], mp["duration_sec"], model
 
     def _dest_path(self, job) -> str:
         idx = self.p.conn.execute("SELECT idx FROM scenes WHERE id=?", (job["scene_id"],)).fetchone()["idx"]

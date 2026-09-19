@@ -37,6 +37,11 @@ class Pipeline:
         self.conn.execute("UPDATE projects SET qc_auto_pass_threshold=? WHERE id=?", (threshold, project_id))
         self.conn.commit()
 
+    def set_video_model(self, project_id: int, model: Optional[str]) -> None:
+        """Model used by the video provider (e.g. 'seedance', 'kling', 'minimax'); None = provider default."""
+        self.conn.execute("UPDATE projects SET video_model=? WHERE id=?", (model or None, project_id))
+        self.conn.commit()
+
     def set_paused(self, project_id: int, paused: bool) -> None:
         self.conn.execute("UPDATE projects SET paused=? WHERE id=?", (1 if paused else 0, project_id))
         self.conn.commit()
