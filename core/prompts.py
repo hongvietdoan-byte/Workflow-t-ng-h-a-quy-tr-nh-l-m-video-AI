@@ -62,12 +62,15 @@ def video_family(pipeline: Pipeline, project_id: int):
         return None
 
 
-def build_motion_bundle(pipeline: Pipeline, project_id: int) -> str:
-    """Step 3: scenes that have an approved image, with their spec and the character descriptions."""
+def build_motion_bundle(pipeline: Pipeline, project_id: int, only_missing: bool = False) -> str:
+    """Step 3: scenes that have an approved image, with their spec and the character descriptions.
+    only_missing: skip scenes that already have a motion prompt (used by the API runner)."""
     conn = pipeline.conn
     rows = conn.execute(
         "SELECT s.idx, s.data FROM scenes s WHERE s.project_id=? AND EXISTS (SELECT 1 FROM jobs j WHERE"
-        " j.scene_id=s.id AND j.type='image_gen' AND j.state='approved') ORDER BY s.idx", (project_id,)).fetchall()
+        " j.scene_id=s.id AND j.type='image_gen' AND j.state='approved')"
+        + (" AND NOT EXISTS (SELECT 1 FROM motion_prompts m WHERE m.scene_id=s.id)" if only_missing else "")
+        + " ORDER BY s.idx", (project_id,)).fetchall()
     chars = conn.execute("SELECT name, description FROM characters WHERE project_id=?", (project_id,)).fetchall()
     payload = {
         "characters": [dict(c) for c in chars],

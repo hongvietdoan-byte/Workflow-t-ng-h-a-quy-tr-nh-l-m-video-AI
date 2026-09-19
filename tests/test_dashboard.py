@@ -126,6 +126,38 @@ class DashboardSmokeTests(unittest.TestCase):
         self.assertEqual(Pipeline(connect(self.db)).conn.execute(
             "SELECT COUNT(*) c FROM characters WHERE locked=1").fetchone()["c"], 0)
 
+    def test_llm_runner_buttons_with_mock_model(self):
+        p = Pipeline(connect(self.db))
+        pid = p.create_project("Demo")
+        p.create_scene(pid, 1, "CẢNH 1")
+        os.environ["LLM_PROVIDER"] = "mock"
+        try:
+            at = AppTest.from_file(APP, default_timeout=30).run()
+            next(b for b in at.button if b.key == f"llm_dir_{pid}").click().run()
+            self.assertFalse(at.exception)
+            self.assertFalse(at.error)
+            row = Pipeline(connect(self.db)).conn.execute("SELECT name FROM characters").fetchone()
+            self.assertEqual(row["name"], "Nhân vật chính")
+            from core.llm_io import lock_character_bible
+            lock_character_bible(Pipeline(connect(self.db)), pid)
+            q = Pipeline(connect(self.db))
+            scene = q.conn.execute("SELECT id FROM scenes").fetchone()["id"]
+            job = q.create_job(scene)
+            q.start(job)
+            q.succeed(job)
+            img = os.path.join(self.tmp, "projects", str(pid), "images")
+            os.makedirs(img)
+            with open(os.path.join(img, f"job_{job}.png"), "wb") as f:
+                f.write(bytes([0x89]) + b"PNG" + b"0" * 20)
+            at = AppTest.from_file(APP, default_timeout=30).run()
+            at.radio(key="step").set_value(at.radio(key="step").options[1]).run()
+            next(b for b in at.button if b.key == f"llm_qc_all_{pid}").click().run()
+            self.assertFalse(at.exception)
+            state = Pipeline(connect(self.db)).conn.execute("SELECT state FROM jobs").fetchone()["state"]
+            self.assertEqual(state, "pending_review")  # human_qc: mock scores wait for a person
+        finally:
+            os.environ.pop("LLM_PROVIDER", None)
+
     def test_video_step_with_mock_provider_runs_to_completion(self):
         from core.llm_io import approve_motion_prompt, lock_character_bible, store_motion_prompts
         p, pid = self.seed()

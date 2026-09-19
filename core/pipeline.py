@@ -130,13 +130,16 @@ class Pipeline:
         return self._spawn_retry(job_id, reason, close_old=JobState.CANCELLED)
 
     # ---- QC / review ---------------------------------------------------
-    def apply_qc(self, job_id: int, scores: Mapping[str, float]) -> str:
+    def apply_qc(self, job_id: int, scores: Mapping[str, float], issues: Optional[str] = None) -> str:
         """Record per-criterion scores, then decide per project operating_mode.
 
         Returns 'approved', 'rejected', 'escalated' or 'pending_review'.
+        `issues` (concrete defects found by the QC agent) is appended to the notes, so an automatic reject
+        feeds them into the retry prompt.
         """
         job = self.job(job_id)
         proj = self.project(job["project_id"])
+        suffix = f" — {issues}" if issues else ""
         threshold = proj["qc_auto_pass_threshold"]
         overall = sum(scores.values()) / len(scores)
         passed = overall >= threshold
@@ -152,16 +155,16 @@ class Pipeline:
         self.conn.commit()
         if not auto:
             self.transition(job_id, JobState.PENDING_REVIEW, actor="ai_agent",
-                            note=f"QC {overall:.2f} (suggestion only)")
+                            note=f"QC {overall:.2f} (suggestion only){suffix}")
             return "pending_review"
         if passed:
             self.approve(job_id, "ai_agent", f"QC {overall:.2f} >= {threshold}")
             return "approved"
         if review_zone:
             self.transition(job_id, JobState.PENDING_REVIEW, actor="ai_agent",
-                            note=f"QC {overall:.2f} in review zone [{floor}, {threshold})")
+                            note=f"QC {overall:.2f} in review zone [{floor}, {threshold}){suffix}")
             return "pending_review"
-        return self.reject(job_id, "ai_agent", f"QC {overall:.2f} < {threshold}")
+        return self.reject(job_id, "ai_agent", f"QC {overall:.2f} < {threshold}{suffix}")
 
     def approve(self, job_id: int, reviewer_type: str = "user", note: Optional[str] = None) -> None:
         self._require_reviewable(job_id)

@@ -100,6 +100,18 @@ def card_title(title: str, sub: str = "") -> str:
     return f'<div class="cardtitle">{escape(title)}' + (f"<span>{escape(sub)}</span>" if sub else "") + "</div>"
 
 
+def waveform_svg(peaks, height: int = 46) -> str:
+    """Row of bars (0..1) as inline SVG; a striped placeholder when there is nothing to draw."""
+    if not peaks:
+        return '<div class="wave"></div>'
+    n = len(peaks)
+    bars = "".join(f'<rect x="{i * 6}" y="{(height - max(p * height, 2)) / 2:.1f}" width="3" '
+                   f'height="{max(p * height, 2):.1f}" rx="1.5" fill="var(--primary)" opacity="0.75"/>'
+                   for i, p in enumerate(peaks))
+    return (f'<svg viewBox="0 0 {n * 6} {height}" preserveAspectRatio="none" width="100%" height="{height}" '
+            f'style="margin:8px 0;display:block">{bars}</svg>')
+
+
 def item(name: str, desc: str, right: str = "", avatar: str = "") -> str:
     return (f'<div class="item"><div class="av">{escape(avatar or name[:1])}</div><div class="t"><b>{escape(name)}</b>'
             f'<span>{escape(desc)}</span></div>{right}</div>')

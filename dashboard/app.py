@@ -14,7 +14,7 @@ import streamlit as st
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
-from core import audio_lib, cost, ffmpeg_studio, final_cut, llm_io, music, preflight, prompts, script_parser  # noqa: E402
+from core import audio_lib, waveform, cost, ffmpeg_studio, final_cut, llm_io, llm_runner, music, preflight, prompts, script_parser  # noqa: E402
 from core.db import connect  # noqa: E402
 from core.pipeline import Pipeline, PipelinePaused  # noqa: E402
 from core.adapters import factory  # noqa: E402
@@ -29,7 +29,7 @@ DB = os.environ.get("PIPELINE_DB", os.path.join("data", "manifest.sqlite"))
 DATA = os.environ.get("PIPELINE_DATA", os.path.join("data", "projects"))
 STEPS = ["1 · Kịch bản & phân tích", "2 · Gen ảnh + QC", "3 · Video Prompt", "4 · Gen video",
          "5a · Nhạc nền", "5b · Ghép & Render", "Lịch sử"]
-ERRORS = (InvalidTransition, llm_io.SchemaError, PipelinePaused, ffmpeg_studio.FFmpegNotFound,
+ERRORS = (llm_runner.LlmError, InvalidTransition, llm_io.SchemaError, PipelinePaused, ffmpeg_studio.FFmpegNotFound,
           ffmpeg_studio.FFmpegError, ValueError, KeyError)
 CRITERIA_LABEL = {"character": "Đúng nhân vật", "hands_face": "Không lỗi tay/mặt", "composition": "Đúng bố cục",
                   "mood_lighting": "Đúng mood / ánh sáng", "consistency": "Không chi tiết thừa/sai"}
@@ -57,6 +57,19 @@ def image_runner(p: Pipeline):
         st.error(f"Deepix: {e}")
         return None
     return ImageRunner(p, provider, DATA) if provider else None
+
+
+def llm_client():
+    """Claude API client (ANTHROPIC_API_KEY / LLM_PROVIDER=mock); None when not configured -> paste JSON by hand."""
+    try:
+        return llm_runner.client_from_env()
+    except llm_runner.LlmError as e:
+        st.error(f"Claude API: {e}")
+        return None
+
+
+def tokens_text(r: dict) -> str:
+    return f"{r.get('input_tokens', 0)} token vào / {r.get('output_tokens', 0)} token ra"
 
 
 def image_estimate(p: Pipeline, pid: int):
@@ -123,6 +136,14 @@ def act(fn, success: str = ""):
 def job_image(pid: int, jid: int):
     path = os.path.join(DATA, str(pid), "images", f"job_{jid}.png")
     return path if os.path.exists(path) else None
+
+
+def show_image(path, **kwargs):
+    """st.image that survives a corrupt or half-downloaded file (shows a note instead of crashing the page)."""
+    try:
+        st.image(path, **kwargs)
+    except Exception:  # noqa: BLE001 - PIL/streamlit raise many types for unreadable files
+        st.caption(f"⚠ Không đọc được ảnh: {os.path.basename(str(path))}")
 
 
 def qc_scores(p: Pipeline, jid: int):
@@ -229,6 +250,18 @@ def step1(p: Pipeline, pid: int):
         if scenes:
             with st.container(border=True):
                 ui.html(ui.card_title("② Director — phân tích", "Character Bible + thông số cảnh"))
+                client = llm_client()
+                if client is not None:
+                    if st.button("🤖 Chạy Director bằng Claude API", type="primary", key=f"llm_dir_{pid}"):
+                        with st.spinner("Claude đang phân tích kịch bản…"):
+                            ok = act(lambda: st.session_state.__setitem__(
+                                "llm_res", llm_runner.run_director(p, pid, client)))
+                        if ok:
+                            r = st.session_state.pop("llm_res")
+                            st.toast(f"Đã lưu {r['characters']} nhân vật, {r['scenes']} cảnh ({tokens_text(r)})")
+                            st.rerun()
+                else:
+                    st.caption("Chưa có ANTHROPIC_API_KEY: dán JSON từ Claude Desktop vào ô bên dưới.")
                 with st.expander("Prompt gửi Claude (copy)"):
                     st.code(prompts.build_director_bundle(p, pid), language="markdown")
                 raw = st.text_area("Dán JSON kết quả từ Claude", key=f"analysis_{pid}", height=140)
@@ -334,6 +367,20 @@ def step2(p: Pipeline, pid: int):
                 runner.run(pid, interval=float(os.environ.get("HEARTBEAT_SEC", "90")))
             st.rerun()
 
+    client = llm_client()
+    to_check = p.conn.execute("SELECT COUNT(*) c FROM jobs WHERE project_id=? AND type='image_gen' AND state='succeeded'",
+                              (pid,)).fetchone()["c"]
+    if client is not None and to_check:
+        if st.button(f"🤖 QC {to_check} ảnh vừa gen bằng Claude", key=f"llm_qc_all_{pid}"):
+            with st.spinner("Claude đang chấm ảnh…"):
+                ok = act(lambda: st.session_state.__setitem__("llm_res", llm_runner.run_qc_batch(p, pid, client, DATA)))
+            if ok:
+                r = st.session_state.pop("llm_res")
+                st.toast(f"Đã chấm {r['checked']} ảnh {r['decisions']} ({tokens_text(r)})")
+                for jid, msg in r["failed"]:
+                    st.error(f"Job #{jid}: {msg}")
+                if not r["failed"]:
+                    st.rerun()
     jobs = p.conn.execute(
         "SELECT j.*, s.idx, s.title FROM jobs j JOIN scenes s ON s.id=j.scene_id"
         " WHERE j.project_id=? AND j.type='image_gen' ORDER BY s.idx, j.id", (pid,)).fetchall()
@@ -369,7 +416,7 @@ def image_card(p: Pipeline, pid: int, j, proj):
     with st.container(border=True):
         img = job_image(pid, jid)
         if img:
-            st.image(img, width="stretch")
+            show_image(img, width="stretch")
         else:
             ui.html('<div style="height:120px;border-radius:8px;background:var(--bg);display:grid;place-items:center;'
                     f'color:var(--muted)">{"⏳ đang gen…" if state == "running" else "chưa có ảnh"}</div>')
@@ -420,7 +467,7 @@ def image_detail(p: Pipeline, pid: int, j, proj):
             st.caption(f"Lý do retry: {j['retry_reason']}")
         img = job_image(pid, jid)
         if img:
-            st.image(img, width="stretch")
+            show_image(img, width="stretch")
         scores = qc_scores(p, jid)
         if scores:
             ui.html('<div class="muted" style="font-weight:600;margin-top:8px">QC checklist (Claude Vision)</div>')
@@ -440,6 +487,14 @@ def image_detail(p: Pipeline, pid: int, j, proj):
                 if act(done):
                     st.rerun()
         elif state == "succeeded":
+            client = llm_client()
+            if client is not None and st.button("🤖 QC bằng Claude", key=f"llm_qc_{jid}", type="primary"):
+                with st.spinner("Claude đang chấm ảnh…"):
+                    ok = act(lambda: st.session_state.__setitem__("llm_res", llm_runner.run_qc(p, jid, client, DATA)))
+                if ok:
+                    r = st.session_state.pop("llm_res")
+                    st.toast(f"Quyết định: {r['decision']} ({tokens_text(r)})")
+                    st.rerun()
             with st.expander("QC Agent — prompt & kết quả"):
                 st.code(prompts.build_qc_bundle(p, j["scene_id"]), language="markdown")
                 raw = st.text_area("JSON điểm QC từ Claude", key=f"qc_{jid}", height=100)
@@ -479,6 +534,15 @@ def step3(p: Pipeline, pid: int):
             for r in rows:
                 llm_io.approve_motion_prompt(p, r["sid"])
             st.rerun()
+        client = llm_client()
+        if client is not None and st.button("🤖 Sinh motion prompt bằng Claude (cảnh chưa có)", type="primary",
+                                            key=f"llm_mot_{pid}"):
+            with st.spinner("Claude đang viết motion prompt…"):
+                ok = act(lambda: st.session_state.__setitem__("llm_res", llm_runner.run_motion(p, pid, client, DATA)))
+            if ok:
+                r = st.session_state.pop("llm_res")
+                st.toast(f"Đã lưu {r['scenes']} motion prompt ({tokens_text(r)})")
+                st.rerun()
         with st.expander("Prompt gửi Claude (copy) & dán kết quả"):
             st.code(prompts.build_motion_bundle(p, pid), language="markdown")
             raw = st.text_area("Dán JSON motion prompts từ Claude", key=f"motion_{pid}", height=140)
@@ -497,7 +561,7 @@ def step3(p: Pipeline, pid: int):
                 ui.html(f'<b>S{r["idx"]:02d}</b>')
                 path = job_image(pid, img_job["id"]) if img_job else None
                 if path:
-                    st.image(path, width=96)
+                    show_image(path, width=96)
             new = c1.text_area("Motion prompt", r["motion_prompt"], key=f"mp_{r['sid']}", height=70,
                                label_visibility="collapsed")
             c2.markdown(ui.badge("đã duyệt", "b-ok") if r["state"] == "approved" else ui.badge("chờ duyệt", "b-warn"),
@@ -633,7 +697,9 @@ def step5a(p: Pipeline, pid: int):
                 if d["state"] == "failed":
                     st.warning(f"Không tạo được: {d.get('message')} (không tự gửi lại để tránh tốn credit)")
                 elif d.get("file"):
-                    st.audio(os.path.join(drafts_dir, d["file"]))
+                    wpath = os.path.join(drafts_dir, d["file"])
+                    ui.html(ui.waveform_svg(_peaks(wpath, os.path.getmtime(wpath))))
+                    st.audio(wpath)
                     if st.button("Chọn bản này", key=f"pick_{pid}_{i}", type="primary"):
                         if act(lambda: music.select_draft(drafts_dir, selected_dir, i), "Đã chọn nhạc nền"):
                             st.rerun()
@@ -646,7 +712,9 @@ def step5a(p: Pipeline, pid: int):
         files = os.listdir(selected_dir)
         ui.html(ui.card_title("Nhạc nền đang chọn") + (ui.badge(files[0], "b-ok") if files else ui.badge("không dùng")))
         if files:
-            st.audio(os.path.join(selected_dir, files[0]))
+            spath = os.path.join(selected_dir, files[0])
+            ui.html(ui.waveform_svg(_peaks(spath, os.path.getmtime(spath))))
+            st.audio(spath)
         with st.expander("Hoặc upload nhạc có sẵn"):
             up = st.file_uploader("Upload nhạc nền", type=["mp3", "wav", "m4a"], key=f"music_{pid}")
             if up and st.button("Dùng bản này"):
@@ -728,6 +796,11 @@ def extras_section(p: Pipeline, pid: int, provider):
 
 
 # ---- step 5b -------------------------------------------------------------------------
+@st.cache_data(show_spinner=False)
+def _peaks(path: str, mtime: float):
+    return waveform.peaks(path)
+
+
 @st.cache_data(show_spinner=False)
 def _probe(path: str, mtime: float, requested):
     return final_cut.clip_seconds(path, requested)
@@ -819,7 +892,7 @@ def history(p: Pipeline, pid: int):
                 with col, st.container(border=True):
                     img = job_image(j["project_id"], j["id"])
                     if img:
-                        st.image(img, width="stretch")
+                        show_image(img, width="stretch")
                     scores = qc_scores(p, j["id"])
                     qc = f" · QC {sum(s['score'] for s in scores) / len(scores):.2f}" if scores else ""
                     ui.html(f'<div class="cardhead"><b>v{n}</b><span class="grow"></span>{ui.state_badge(j["state"])}</div>'
