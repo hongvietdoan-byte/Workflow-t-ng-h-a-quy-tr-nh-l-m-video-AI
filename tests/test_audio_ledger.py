@@ -65,7 +65,7 @@ class AudioLedgerTests(unittest.TestCase):
         priced = cost.load_pricing()
         priced["per_audio"]["music_v2"] = 9
         summary = cost.spend_summary(p.conn, pid, priced)
-        self.assertEqual((summary["audios"], summary["credits"]), (1, 0.0))
+        self.assertEqual((summary["audios"], summary["credits"]), (0, 0.0))  # mock is never recorded
 
 
 if __name__ == "__main__":

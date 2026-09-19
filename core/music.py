@@ -133,8 +133,8 @@ def _save(drafts_dir: str, drafts: List[Dict]) -> None:
 
 def record_audio_usage(ledger, provider, model: str, count: int = 1) -> None:
     """ledger = (sqlite connection, project_id) or None. Every submission that went out may be billed."""
-    if ledger is None:
-        return
+    if ledger is None or provider.name.startswith("mock"):
+        return  # mock providers cost nothing, like mock images/videos (which are never recorded)
     from .cost import record_usage
     conn, project_id = ledger
     for _ in range(count):
