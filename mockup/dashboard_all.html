@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AI Video Pipeline - Dashboard Mockup</title>
+<style>
+:root{--bg:#F4F5F8;--surface:#fff;--border:#E2E5EB;--text:#1A1F2B;--muted:#667085;--primary:#4F46E5;--primary-soft:#EEF0FF;--ok:#12B76A;--ok-soft:#E7F8EF;--warn:#F79009;--warn-soft:#FFF4E0;--bad:#F04438;--bad-soft:#FDECEA;--info:#0BA5EC;--info-soft:#E5F5FD}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font:13px/1.45 Inter,system-ui,-apple-system,"Segoe UI",sans-serif}
+button{font:inherit;cursor:pointer}
+.topbar{display:flex;align-items:center;gap:20px;padding:12px 24px;background:var(--surface);border-bottom:1px solid var(--border);flex-wrap:wrap}
+.logo{display:flex;align-items:center;gap:8px;font-weight:700;font-size:15px}.logo i{width:28px;height:28px;border-radius:8px;background:var(--primary);display:block}
+.sel{padding:7px 12px;border:1px solid var(--border);border-radius:8px;background:var(--bg);font-size:12px}.sel b{font-weight:600}
+.seg{display:inline-flex;background:var(--bg);border:1px solid var(--border);border-radius:8px}.seg button{border:0;background:none;padding:7px 12px;border-radius:8px;font-size:12px;color:var(--muted)}.seg button.on{background:var(--primary);color:#fff;font-weight:600}
+.lbl{font-size:12px;color:var(--muted)}.grow{flex:1}
+.btn{border:1px solid var(--border);background:var(--surface);color:var(--text);padding:8px 14px;border-radius:8px;font-size:12px;font-weight:500}
+.btn.sm{padding:5px 9px;font-size:11px}.btn.primary{background:var(--primary);border-color:var(--primary);color:#fff}.btn.ok{background:var(--ok-soft);border-color:var(--ok);color:var(--ok)}.btn.bad{background:var(--bad-soft);border-color:var(--bad);color:var(--bad)}.btn.ghost{border-color:transparent;background:none;color:var(--primary)}.btn:hover{filter:brightness(.97)}
+.stepper{display:flex;align-items:center;gap:8px;padding:14px 24px;background:var(--surface);border-bottom:1px solid var(--border);overflow-x:auto}
+.step{display:flex;align-items:center;gap:10px;padding:8px 16px 8px 12px;border-radius:10px;border:1.5px solid transparent;background:none;text-align:left;min-width:max-content}
+.step .n{width:28px;height:28px;border-radius:50%;background:var(--border);color:var(--muted);display:grid;place-items:center;font-size:11px;font-weight:700}
+.step b{display:block;font-size:12px;color:var(--muted);font-weight:500}.step small{font-size:10px;color:var(--muted)}
+.step.done .n{background:var(--ok);color:#fff}.step.done small{color:var(--ok)}
+.step.active{background:var(--primary-soft);border-color:var(--primary)}.step.active .n{background:var(--primary);color:#fff}.step.active b{color:var(--text);font-weight:600}.step.active small{color:var(--primary)}
+.line{width:22px;height:2px;background:var(--border);flex:none}.line.done{background:var(--ok)}
+main{padding:20px 24px 40px}.screen{display:none}.screen.on{display:block}
+.grid2{display:grid;grid-template-columns:520px 1fr;gap:20px}.col{display:flex;flex-direction:column;gap:16px}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:16px}.card h3{margin:0 0 12px;font-size:14px}.card h3 span{font-size:11px;color:var(--muted);font-weight:400;margin-left:6px}
+.card.warn{background:var(--warn-soft);border-color:var(--warn)}
+.drop{border:1.5px dashed var(--border);background:var(--bg);border-radius:10px;padding:22px;text-align:center;margin-bottom:12px}.drop small{display:block;color:var(--muted);margin-top:4px}
+.row{display:flex;align-items:center;gap:8px;flex-wrap:wrap}.row.gap12{gap:12px}
+.badge{display:inline-block;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:600;background:var(--bg);color:var(--muted);white-space:nowrap}
+.b-ok{background:var(--ok-soft);color:var(--ok)}.b-warn{background:var(--warn-soft);color:var(--warn)}.b-bad{background:var(--bad-soft);color:var(--bad)}.b-info{background:var(--info-soft);color:var(--info)}.b-pri{background:var(--primary-soft);color:var(--primary)}
+.item{display:flex;align-items:center;gap:12px;background:var(--bg);border-radius:8px;padding:10px 12px;margin-bottom:8px}.item .av{width:36px;height:36px;border-radius:50%;background:var(--primary-soft);flex:none}.item .t{flex:1}.item .t b{display:block;font-size:12px}.item .t span{font-size:11px;color:var(--muted)}
+.foot{display:flex;align-items:center;gap:10px;background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:14px 16px}
+.chips{display:flex;gap:8px;margin:14px 0}.chip{padding:6px 12px;border-radius:16px;border:1px solid var(--border);background:var(--surface);font-size:11px;font-weight:500;color:var(--muted)}.chip.on{background:var(--primary);border-color:var(--primary);color:#fff}
+.imgs{display:grid;grid-template-columns:repeat(4,1fr);gap:16px}.img{background:var(--surface);border:1px solid var(--border);border-radius:12px;overflow:hidden}.img.fail{border-color:var(--bad)}.img .p{height:135px}.img .m{padding:10px 12px 12px;display:flex;flex-direction:column;gap:8px}
+.bar{height:5px;background:var(--border);border-radius:3px;flex:1;max-width:100px}.bar i{display:block;height:100%;border-radius:3px}
+.split{display:grid;grid-template-columns:1fr 340px;gap:20px;align-items:start}
+.crit{display:flex;justify-content:space-between;font-size:11px;margin:5px 0}
+.note{background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:10px;margin:10px 0}.note small{color:var(--muted);display:block;font-size:10px}
+table{width:100%;border-collapse:collapse;font-size:12px}th,td{text-align:left;padding:9px 10px;border-bottom:1px solid var(--border)}th{font-size:10px;text-transform:uppercase;color:var(--muted);letter-spacing:.04em}
+.prog{height:10px;background:var(--border);border-radius:5px;overflow:hidden}.prog i{display:block;height:100%;background:var(--primary)}
+.music{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}.wave{height:46px;border-radius:8px;background:repeating-linear-gradient(90deg,var(--primary-soft) 0 3px,transparent 3px 6px);margin:10px 0}
+textarea,input[type=text]{width:100%;border:1px solid var(--border);border-radius:8px;padding:9px 10px;font:inherit;background:var(--bg)}
+.video{aspect-ratio:16/9;border-radius:10px;background:linear-gradient(135deg,#1D2B4F,#8A9BD1);display:grid;place-items:center;color:#fff;font-size:28px}
+.legend{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+.note-top{background:var(--primary-soft);border:1px solid var(--primary);color:var(--primary);border-radius:8px;padding:8px 12px;font-size:11px;margin-bottom:16px}
+</style>
+</head>
+<body>
+<div class="topbar">
+  <div class="logo"><i></i>AI Video Pipeline</div>
+  <div class="sel"><span class="lbl">Dự án:</span> <b>Trailer Ep.1 ▾</b></div>
+  <div class="row"><span class="lbl">Chế độ</span><div class="seg" id="mode"><button data-m="auto">auto</button><button data-m="human_qc" class="on">human_qc</button></div></div>
+  <div class="row"><span class="lbl">QC threshold</span><input type="range" id="th" min="0.5" max="1" step="0.01" value="0.85"><b id="thv">0.85</b></div>
+  <span class="grow"></span>
+  <button class="btn">⏸ Pause tất cả</button><button class="btn ok">▶ Resume tất cả</button><button class="btn bad">■ Cancel job đang chạy</button>
+</div>
+<div class="stepper" id="stepper"></div>
+<main>
+<div class="note-top">Bản mockup tương tác (dữ liệu giả) — bấm vào từng bước ở thanh trên để xem màn hình và bộ nút điều khiển của bước đó. Đổi chế độ / threshold để xem tác động.</div>
+
+<!-- STEP 1 -->
+<section class="screen on" id="s1"><div class="grid2">
+ <div class="col">
+  <div class="card"><h3>① Input kịch bản</h3>
+   <div class="drop"><b>Kéo thả script.docx vào đây</b><small>script_trailer_ep1.docx · 42 KB · đã tải lên</small></div>
+   <div class="row"><button class="btn">⬆ Upload script.docx</button><button class="btn primary">▶ Chạy phân tích</button><button class="btn bad">↺ Reset bước</button></div>
+   <div class="row" style="margin-top:12px"><span class="badge b-ok">succeeded</span><span class="lbl">Đã tách 12 cảnh · 4 nhân vật · 2 địa điểm</span></div></div>
+  <div class="card warn"><h3>⚠ Pre-flight IP / Content check</h3><p style="margin:0 0 10px">Phát hiện 1 nhân vật có thể trùng IP bản quyền bị Kling chặn:</p>
+   <div class="item" style="background:#fff"><span class="badge b-bad">Rủi ro cao</span><span class="t"><b>"Nữ chiến binh Amazon" ~ Wonder Woman (blocklist)</b></span></div>
+   <div class="row"><button class="btn">Sửa mô tả nhân vật</button><button class="btn ghost">Bỏ qua cảnh báo</button></div></div>
+ </div>
+ <div class="col">
+  <div class="card"><h3>② Character Bible <span>chỉnh sửa inline · 4 nhân vật</span></h3>
+   <div class="item"><div class="av"></div><div class="t"><b>Lyra</b><span>Nữ, 25 tuổi, tóc bạc dài, giáp xanh cobalt, sẹo mắt trái</span></div><span class="badge b-ok">IP an toàn</span><button class="btn ghost sm">Sửa</button></div>
+   <div class="item"><div class="av"></div><div class="t"><b>Kael</b><span>Nam, 35, râu ngắn, áo choàng đen, kiếm rune</span></div><span class="badge b-ok">IP an toàn</span><button class="btn ghost sm">Sửa</button></div>
+   <div class="item"><div class="av"></div><div class="t"><b>Nữ chiến binh Amazon</b><span>Nữ, 30, giáp vàng, khiên tròn, vòng tay bạc</span></div><span class="badge b-bad">IP rủi ro</span><button class="btn ghost sm">Sửa</button></div>
+   <div class="item"><div class="av"></div><div class="t"><b>Ông lão Orin</b><span>Nam, 70, râu bạc, gậy gỗ, áo len xám</span></div><span class="badge b-ok">IP an toàn</span><button class="btn ghost sm">Sửa</button></div></div>
+  <div class="card"><h3>③ Bảng phân cảnh <span>12 cảnh</span></h3>
+   <table><tr><th>Cảnh</th><th>Bối cảnh</th><th>Nhân vật</th><th>Ống kính / mood</th></tr>
+   <tr><td><b style="color:var(--primary)">S01</b></td><td>Đêm · Rừng Elder</td><td>Lyra</td><td>Wide, tối, sương mù</td></tr>
+   <tr><td><b style="color:var(--primary)">S02</b></td><td>Đêm · Rừng Elder</td><td>Lyra, Kael</td><td>Medium, đối thoại</td></tr>
+   <tr><td><b style="color:var(--primary)">S03</b></td><td>Ngày · Pháo đài</td><td>Kael</td><td>Low angle, hùng vĩ</td></tr></table>
+   <div class="lbl" style="margin-top:8px">… +9 cảnh khác</div></div>
+  <div class="foot"><button class="btn">Lưu chỉnh sửa</button><span class="grow"></span><span class="lbl">Cần Approve &amp; Lock để mở Bước 2</span><button class="btn primary" onclick="go(1)">✔ Duyệt &amp; khóa → Bước 2</button></div>
+ </div></div></section>
+
+<!-- STEP 2 -->
+<section class="screen" id="s2">
+ <div class="foot"><button class="btn primary">▶ Gen ảnh hàng loạt (12 scene READY)</button><button class="btn ok">✔ Approve tất cả PASS</button><button class="btn bad">↻ Gen lại tất cả FAIL</button><button class="btn">Chọn scene…</button><span class="grow"></span><span class="badge b-pri" id="modeBadge">Chế độ: human_qc — mọi ảnh chờ bạn duyệt</span><span class="lbl">Retry tối đa 3</span></div>
+ <div class="chips"><span class="chip on">Tất cả 12</span><span class="chip">Chờ duyệt 7</span><span class="chip">PASS 5</span><span class="chip">FAIL 2</span><span class="chip">Đang chạy 3</span><span class="chip">Lịch sử</span></div>
+ <div class="split"><div class="imgs" id="imgs"></div>
+  <div class="card"><h3>Chi tiết ảnh S03 — Reject + ghi chú</h3>
+   <div class="img"><div class="p" style="height:150px;background:linear-gradient(135deg,#264653,#7FB7BE)"></div></div>
+   <div class="lbl" style="margin:12px 0 4px;font-weight:600">QC checklist (Claude Vision)</div>
+   <div class="crit"><span>Đúng nhân vật</span><b style="color:var(--warn)">0.78</b></div><div class="crit"><span>Không lỗi tay/mặt</span><b style="color:var(--bad)">0.42</b></div><div class="crit"><span>Đúng bố cục cảnh</span><b style="color:var(--warn)">0.71</b></div><div class="crit"><span>Đúng mood màu</span><b style="color:var(--bad)">0.55</b></div>
+   <div class="lbl">QC Agent: "Tay trái 6 ngón, ánh sáng lệch mood đêm."</div>
+   <div class="note"><small>Ghi chú reject (gửi vào prompt gen lại)</small>Đổi sang áo đỏ, sửa bàn tay, giữ mood đêm</div>
+   <div class="row"><button class="btn bad">✖ Reject &amp; Gen lại</button><button class="btn ok">✔ Approve</button></div></div></div>
+</section>
+
+<!-- STEP 3 -->
+<section class="screen" id="s3">
+ <div class="foot"><button class="btn primary">▶ Sinh Video Prompt hàng loạt (5 ảnh đã duyệt)</button><button class="btn ok">✔ Duyệt tất cả</button><span class="grow"></span><span class="badge b-info">Knowledge Base v0.3 · Kling image-to-video</span></div>
+ <div class="card" style="margin-top:16px"><h3>Video Motion Prompt <span>5 giây / cảnh</span></h3>
+  <table><tr><th>Cảnh</th><th>Ảnh</th><th>Motion prompt (chỉnh được)</th><th>Trạng thái</th><th>Nút</th></tr>
+  <tr><td><b>S01</b></td><td><div style="width:64px;height:36px;border-radius:6px;background:linear-gradient(135deg,#2B3A67,#8A9BD1)"></div></td><td>Slow push-in, sương mù trôi ngang, Lyra quay đầu chậm, handheld nhẹ</td><td><span class="badge b-warn">chờ duyệt</span></td><td class="row"><button class="btn sm">Sửa</button><button class="btn sm ok">Duyệt</button></td></tr>
+  <tr><td><b>S02</b></td><td><div style="width:64px;height:36px;border-radius:6px;background:linear-gradient(135deg,#3D2C4E,#B58DB6)"></div></td><td>Medium two-shot, camera orbit 15° quanh Lyra và Kael, ánh lửa nhấp nháy</td><td><span class="badge b-ok">đã duyệt</span></td><td class="row"><button class="btn sm">Sửa</button><button class="btn sm">Sinh lại</button></td></tr>
+  <tr><td><b>S04</b></td><td><div style="width:64px;height:36px;border-radius:6px;background:linear-gradient(135deg,#3A2E1F,#C9A66B)"></div></td><td>Low angle tilt-up, cờ bay, Kael rút kiếm, tốc độ trung bình</td><td><span class="badge b-warn">chờ duyệt</span></td><td class="row"><button class="btn sm">Sửa</button><button class="btn sm ok">Duyệt</button></td></tr></table></div>
+</section>
+
+<!-- STEP 4 -->
+<section class="screen" id="s4">
+ <div class="foot"><button class="btn primary">▶ Bắt đầu gen batch (12 video)</button><button class="btn">⏸ Pause polling</button><button class="btn ok">▶ Resume polling</button><button class="btn bad">↻ Retry job fail (2)</button><span class="grow"></span><span class="lbl">Heartbeat: mỗi 90s · lần cuối 14:32:05</span></div>
+ <div class="card" style="margin-top:16px"><h3>Tiến độ batch <span>Clip AI / Kling</span></h3><div class="row" style="margin-bottom:8px"><b>7 / 12 hoàn thành</b><span class="badge b-info">3 running</span><span class="badge b-bad">2 failed</span></div><div class="prog"><i style="width:58%"></i></div></div>
+ <div class="card warn" style="margin-top:16px"><b>⚠ Failure to pass the risk control system</b> — S06, S09 bị chặn (Nữ chiến binh Amazon ~ IP blocklist). Đã ghi vào content_moderation_failures.<div class="row" style="margin-top:8px"><button class="btn">Sửa nhân vật</button><button class="btn ghost">Xem log</button></div></div>
+ <div class="card" style="margin-top:16px"><h3>Danh sách job</h3><table><tr><th>Cảnh</th><th>State</th><th>Retry</th><th>Nút</th></tr>
+  <tr><td>S01</td><td><span class="badge b-ok">succeeded</span></td><td>0</td><td><button class="btn sm">▶ Xem</button></td></tr>
+  <tr><td>S04</td><td><span class="badge b-info">running</span></td><td>0</td><td><button class="btn sm bad">■ Cancel</button></td></tr>
+  <tr><td>S06</td><td><span class="badge b-bad">failed</span></td><td>1/3</td><td class="row"><button class="btn sm">↻ Retry</button><button class="btn sm ghost">Log</button></td></tr>
+  <tr><td>S10</td><td><span class="badge">queued</span></td><td>0</td><td><button class="btn sm bad">■ Cancel</button></td></tr></table></div>
+</section>
+
+<!-- STEP 5a -->
+<section class="screen" id="s5a">
+ <div class="foot"><button class="btn primary">✨ Gen 3 bản nháp</button><button class="btn">↻ Gen lại</button><button class="btn">⬆ Upload nhạc</button><button class="btn">Không dùng nhạc</button><span class="grow"></span><span class="badge b-info">music_provider: (chọn sau)</span></div>
+ <div class="card" style="margin-top:16px"><h3>Music Brief <span>AI đề xuất — bạn sửa được</span></h3><textarea rows="3">Epic cinematic, dark fantasy, 90 BPM, dàn dây + trống trầm, instrumental, cao trào ở 0:40, dài 1:00 khớp tổng thời lượng video.</textarea></div>
+ <div class="music" style="margin-top:16px">
+  <div class="card"><h3>Bản nháp A</h3><span class="badge b-pri">Epic orchestral</span><div class="wave"></div><div class="row"><button class="btn sm">▶ Nghe</button><button class="btn sm primary">Chọn bản này</button></div></div>
+  <div class="card"><h3>Bản nháp B</h3><span class="badge b-pri">Dark ambient</span><div class="wave"></div><div class="row"><button class="btn sm">▶ Nghe</button><button class="btn sm primary">Chọn bản này</button></div></div>
+  <div class="card"><h3>Bản nháp C</h3><span class="badge b-pri">Hybrid trailer</span><div class="wave"></div><div class="row"><button class="btn sm">▶ Nghe</button><button class="btn sm primary">Chọn bản này</button></div></div></div>
+</section>
+
+<!-- STEP 5b -->
+<section class="screen" id="s5b"><div class="split">
+ <div class="col"><div class="card"><h3>Preview</h3><div class="video">▶</div><div class="row" style="margin-top:12px"><span class="badge b-ok">succeeded</span><span class="lbl">FINAL_VIDEO.mp4 · 1:00 · 1080p · nhạc: Bản nháp A</span></div></div>
+  <div class="foot"><button class="btn">⬇ Tải xuống</button><button class="btn">↻ Render lại với option khác</button><span class="grow"></span><button class="btn primary">✔ Nghiệm thu (Done)</button></div></div>
+ <div class="card"><h3>Tùy chọn render</h3><div class="lbl">Transition</div><div class="seg" style="margin:6px 0 14px"><button class="on">Cross-fade</button><button>Cut</button><button>Dip to black</button></div>
+  <div class="lbl">Nhạc nền</div><div class="sel" style="margin:6px 0 14px">Bản nháp A · ducking bật · fade 1.5s</div>
+  <div class="lbl">Xuất</div><div class="sel" style="margin:6px 0 14px">1080p · H.264 · 24fps</div><button class="btn primary" style="width:100%">▶ Render Final</button></div>
+</div></section>
+
+<!-- HISTORY -->
+<section class="screen" id="s6"><div class="card"><h3>Lịch sử phiên bản <span>S03 — so sánh các lần gen</span></h3>
+ <div class="imgs" style="grid-template-columns:repeat(3,1fr)">
+  <div class="img fail"><div class="p" style="background:linear-gradient(135deg,#264653,#7FB7BE)"></div><div class="m"><b>v1</b><span class="badge b-bad">rejected · QC 0.61</span><span class="lbl">"Tay 6 ngón"</span></div></div>
+  <div class="img fail"><div class="p" style="background:linear-gradient(135deg,#3A5A66,#9CC7CE)"></div><div class="m"><b>v2</b><span class="badge b-bad">rejected · QC 0.66</span><span class="lbl">"Mood lệch"</span></div></div>
+  <div class="img"><div class="p" style="background:linear-gradient(135deg,#1F3A47,#6FA9B4)"></div><div class="m"><b>v3</b><span class="badge b-ok">approved · QC 0.90</span><button class="btn sm">Dùng bản này</button></div></div></div></div></section>
+</main>
+<script>window.FORCE_ALL=true;
+const steps=[['1','Kịch bản & phân tích','Approve & Lock','s1'],['2','Gen ảnh + QC','Duyệt ảnh','s2'],['3','Video Prompt','Duyệt prompt','s3'],['4','Gen video','Batch polling','s4'],['5a','Nhạc nền','3 bản nháp','s5a'],['5b','Ghép & Render','Nghiệm thu','s5b'],['⟲','Lịch sử','So sánh phiên bản','s6']];
+let cur=0;const st=document.getElementById('stepper');
+function render(){st.innerHTML='';steps.forEach((s,i)=>{const b=document.createElement('button');const cls=i===cur?'active':(i<cur&&i<6?'done':'');b.className='step '+cls;b.innerHTML=`<span class="n">${i<cur&&i<6?'✓':s[0]}</span><span><b>${s[1]}</b><small>${i<cur&&i<6?'Hoàn thành':(i===cur?'Đang thực hiện':s[2])}</small></span>`;b.onclick=()=>go(i);st.appendChild(b);if(i<6){const l=document.createElement('span');l.className='line'+(i<cur?' done':'');st.appendChild(l);}});
+document.querySelectorAll('.screen').forEach(e=>e.classList.remove('on'));document.getElementById(steps[cur][3]).classList.add('on');}
+function go(i){cur=i;render();}
+document.querySelectorAll('#mode button').forEach(b=>b.onclick=()=>{document.querySelectorAll('#mode button').forEach(x=>x.classList.remove('on'));b.classList.add('on');upd();});
+const th=document.getElementById('th');th.oninput=upd;
+const cards=[['S01',.92,'#2B3A67','#8A9BD1'],['S02',.88,'#3D2C4E','#B58DB6'],['S03',.61,'#264653','#7FB7BE'],['S04',.90,'#3A2E1F','#C9A66B'],['S05',.86,'#1D3A2F','#7FC8A9'],['S06',.55,'#40263A','#D08DA7'],['S07',0,'#E2E5EB','#F4F5F8'],['S08',-1,'#E2E5EB','#F4F5F8']];
+function upd(){document.getElementById('thv').textContent=(+th.value).toFixed(2);const auto=document.querySelector('#mode .on').dataset.m==='auto';
+document.getElementById('modeBadge').textContent=auto?'Chế độ: auto — QC Agent tự duyệt theo threshold':'Chế độ: human_qc — mọi ảnh chờ bạn duyệt';
+const box=document.getElementById('imgs');box.innerHTML='';cards.forEach(c=>{const [id,q,a,b]=c;let state,cls;
+if(q<=0){state=q===0?'running':'queued';cls=q===0?'b-info':'';}else if(q>=+th.value){state=auto?'auto-approved':'pending_review';cls=auto?'b-ok':'b-pri';}else{state=auto?'auto-reject → retry':'FAIL · chờ bạn';cls='b-bad';}
+const col=q>=+th.value?'var(--ok)':(q>=.6?'var(--warn)':'var(--bad)');
+const d=document.createElement('div');d.className='img'+(cls==='b-bad'?' fail':'');
+d.innerHTML=`<div class="p" style="background:linear-gradient(135deg,${a},${b})"></div><div class="m"><div class="row"><b>${id}</b><span class="grow"></span><span class="badge ${cls}">${state}</span></div>`+(q>0?`<div class="row"><b style="font-size:11px;color:${col}">QC ${q.toFixed(2)}</b><div class="bar"><i style="width:${q*100}%;background:${col}"></i></div></div><div class="row"><button class="btn sm primary">✔ Approve</button><button class="btn sm bad">✖ Reject</button><button class="btn sm">↻ Gen lại</button></div>`:`<span class="lbl">${q===0?'Đang gen ảnh… ⏳':'Đợi trong hàng đợi'}</span><div class="row"><button class="btn sm bad">■ Cancel</button></div>`)+`</div>`;box.appendChild(d);});}
+upd();render();
+const q=new URLSearchParams(location.search);
+if((q.get('all')==='1'||window.FORCE_ALL)){document.querySelectorAll('.screen').forEach((e,i)=>{e.classList.add('on');e.style.marginTop='40px';const h=document.createElement('h2');h.textContent=steps[i][0]+' · '+steps[i][1];h.style.cssText='margin:0 0 12px;font-size:16px';e.prepend(h);});document.querySelector('.note-top').remove();}
+else{const i=steps.findIndex(s=>'#'+s[3]===location.hash);if(i>=0)go(i);}
+</script>
+</body>
+</html>
