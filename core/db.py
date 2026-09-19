@@ -18,6 +18,15 @@ CREATE TABLE IF NOT EXISTS scenes (
     data TEXT,
     UNIQUE (project_id, idx)
 );
+CREATE TABLE IF NOT EXISTS characters (
+    id INTEGER PRIMARY KEY,
+    project_id INTEGER NOT NULL REFERENCES projects(id),
+    name TEXT NOT NULL,
+    description TEXT NOT NULL,
+    wardrobe TEXT,
+    locked INTEGER NOT NULL DEFAULT 0,
+    UNIQUE (project_id, name)
+);
 CREATE TABLE IF NOT EXISTS jobs (
     id INTEGER PRIMARY KEY,
     project_id INTEGER NOT NULL REFERENCES projects(id),
