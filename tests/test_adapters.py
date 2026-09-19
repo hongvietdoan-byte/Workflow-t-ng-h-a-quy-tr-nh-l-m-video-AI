@@ -127,7 +127,7 @@ class ClipAITests(unittest.TestCase):
     def test_upload_is_named_after_real_image_format(self):
         jpeg = os.path.join(self.dir, "job_1.png")
         with open(jpeg, "wb") as f:
-            f.write(b"ÿØÿà" + b"jpegdata")
+            f.write(bytes([0xFF, 0xD8, 0xFF, 0xE0]) + b"jpegdata")
         self.t.on("POST", "/api/kling/omni-video-submit", ok({"tasks": [{"task_id": "T", "task_status": "submitted"}]}))
         self.p.submit(jpeg, "push in", None, 5)
         body = self.t.calls[0]["body"].decode("utf-8", "replace")

@@ -57,11 +57,9 @@ def resolve_model(model: Optional[str]) -> Tuple[str, str]:
 def _upload_name(path: str, content: bytes) -> str:
     """Name the upload after its real format (Deepix returns JPEG even though we save it as .png)."""
     stem = os.path.splitext(os.path.basename(path))[0]
-    if content[:3] == b"ÿØÿ":
+    if content[:3] == bytes([0xFF, 0xD8, 0xFF]):
         return stem + ".jpg"
-    if content[:8] == b"PNG
-
-":
+    if content[:4] == bytes([0x89]) + b"PNG":
         return stem + ".png"
     if content[:4] == b"RIFF" and content[8:12] == b"WEBP":
         return stem + ".webp"
