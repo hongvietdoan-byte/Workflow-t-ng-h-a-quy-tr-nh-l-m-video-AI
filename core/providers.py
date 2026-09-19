@@ -69,6 +69,9 @@ class MockImageProvider:
         self.prompts: Dict[str, str] = {}
         self.cancelled = []
 
+    def usage_info(self):
+        return "mock-image", "default"
+
     def submit(self, prompt: str) -> str:
         self._counter += 1
         task_id = f"img-{self._counter}"
@@ -103,6 +106,9 @@ class MockVideoProvider:
         self._tasks: Dict[str, dict] = {}
         self._counter = 0
         self.cancelled = []
+
+    def usage_info(self, model=None, duration=5):
+        return "mock", "default", duration
 
     def submit(self, image_path, prompt, negative_prompt, duration_sec, model=None) -> str:
         self._counter += 1

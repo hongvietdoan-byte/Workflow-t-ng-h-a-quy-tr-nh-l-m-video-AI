@@ -59,6 +59,9 @@ class DeepixImageProvider:
         return cls(token, os.environ.get("DEEPIX_API_BASE", DEFAULT_BASE).strip() or DEFAULT_BASE, transport,
                    os.environ.get("DEEPIX_MODEL", DEFAULT_MODEL), os.environ.get("DEEPIX_SIZE", DEFAULT_SIZE))
 
+    def usage_info(self):
+        return self.model, "image"
+
     def submit(self, prompt: str) -> str:
         if not prompt.strip():
             raise ProviderError("empty prompt", code="bad_prompt")

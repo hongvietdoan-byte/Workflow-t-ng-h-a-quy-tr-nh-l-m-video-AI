@@ -10,6 +10,7 @@ import os
 import time
 from typing import Callable, Dict, Optional, Tuple
 
+from .cost import record_usage
 from .pipeline import Pipeline
 from .preflight import record_failure
 from .providers import RISK_CONTROL, ProviderError
@@ -65,6 +66,7 @@ class _Runner:
                 continue
             self.p.conn.execute("UPDATE jobs SET external_id=? WHERE id=?", (task_id, job["id"]))
             self.p.conn.commit()
+            self._record_usage(job, args)
             self.p.start(job["id"])
             slots -= 1
             submitted += 1
@@ -109,6 +111,9 @@ class _Runner:
                     counts["retried"] += 1
         return counts
 
+    def _record_usage(self, job, args) -> None:
+        """Ledger entry per submission (each one may be billed by the provider)."""
+
     def _record_provider_failure(self, job, code, message: str) -> None:
         if code == RISK_CONTROL:
             record_failure(self.p.conn, job["id"], self.provider.name, message)
@@ -148,6 +153,12 @@ class VideoRunner(_Runner):
         model = self.p.project(job["project_id"])["video_model"]
         return path, mp["motion_prompt"], mp["negative_prompt"], mp["duration_sec"], model
 
+    def _record_usage(self, job, args) -> None:
+        info = getattr(self.provider, "usage_info", None)
+        if info is not None:
+            model, tier, seconds = info(args[4], args[3])
+            record_usage(self.p.conn, job["id"], "video", self.provider.name, model, tier, seconds, "second")
+
     def _dest_path(self, job) -> str:
         idx = self.p.conn.execute("SELECT idx FROM scenes WHERE id=?", (job["scene_id"],)).fetchone()["idx"]
         return os.path.join(self._dir(job["project_id"], "videos"), f"{idx:02d}.mp4")
@@ -164,6 +175,12 @@ class ImageRunner(_Runner):
         if job["retry_reason"]:
             prompt = f"{prompt}. Fix: {job['retry_reason']}"
         return (prompt,)
+
+    def _record_usage(self, job, args) -> None:
+        info = getattr(self.provider, "usage_info", None)
+        if info is not None:
+            model, tier = info()
+            record_usage(self.p.conn, job["id"], "image", self.provider.name, model, tier, 1, "image")
 
     def _dest_path(self, job) -> str:
         return os.path.join(self._dir(job["project_id"], "images"), f"job_{job['id']}.png")

@@ -53,6 +53,7 @@ _Cập nhật lần cuối: 2026-09-19. Chi tiết kế hoạch xem `PLAN.md`. �
 - [x] Chạy thật OK: ảnh Deepix 31s (JPEG 2048x1152), clip Kling 84s (1920x1080, 24fps, 5s, ~10.7MB), nhân vật nhất quán, camera đúng prompt; adapter gửi ảnh đúng định dạng thật; 99 test pass. Kết quả ghi ở `docs/api_notes.md` (2026-09-19)
 - [x] Thử Seedance 2.0 (720p): 167s, 1280x720, 3,6MB, chất lượng gần Kling (Kling 84s, 1080p, 10,7MB); trial lưu file riêng từng model; so sánh ghi ở `docs/api_notes.md` (2026-09-19)
 - [x] `core.adapters.inspect_api` (chỉ đọc): xem trường trả về/có trường chi phí không + thống kê mức dùng Clip AI (`--usage`). Tài liệu API không có endpoint số dư/giá (2026-09-19)
+- [x] Ước tính chi phí trong Dashboard: `core/cost.py` + `data/pricing.json` (bảng giá do bạn điền, chưa có số bịa), ước tính trước khi chạy (min/max nếu retry), sổ ghi mức dùng `usage_events` mỗi lần gửi API thật, dòng "đã ghi nhận" trên thanh điều khiển, chốt xác nhận cho batch từ `confirm_batch_at` mục trở lên; 108 test pass (2026-09-19)
 - [x] Lớp core Python: schema SQLite + state machine + luồng `auto`/`human_qc` + retry/escalate, 10 unit test pass (`core/`, `tests/`) (2026-09-19)
 
 ## ⏸ Tạm gác (theo yêu cầu 2026-09-19)
@@ -70,7 +71,7 @@ _Cập nhật lần cuối: 2026-09-19. Chi tiết kế hoạch xem `PLAN.md`. �
 - [ ] Dry-run 2 mode, đo % đồng thuận QC Agent–người → hiệu chỉnh `qc_auto_pass_threshold`
 
 ## 👤 Việc cần người dùng quyết định / cung cấp
-- [ ] **Chi phí:** xem số dư credit trên web Clip AI và Deepix trước/sau 1 lần chạy để suy ra giá mỗi ảnh/clip theo model (Kling 1080p, Seedance 720p/1080p); ghi vào `docs/api_notes.md`. Chạy `py -m core.adapters.inspect_api --usage` để xem API có trả trường chi phí không
+- [ ] **Chi phí:** xem số dư credit trên web Clip AI và Deepix trước/sau 1 lần chạy để suy ra giá mỗi ảnh/clip theo model (Kling 1080p, Seedance 720p/1080p); **điền vào `data/pricing.json`** (`per_image`, `per_video_second` hoặc `per_video_clip`) — Dashboard sẽ tự tính ước tính. Chạy `py -m core.adapters.inspect_api --usage` để xem API có trả trường chi phí không
 - [ ] Chuyển repo GitHub sang **private** (người dùng tự làm)
 - [ ] **Bạn làm:** thử Seedance ở 1080p (`$env:CLIPAI_RESOLUTION="1080p"`) để so công bằng với Kling; rồi chạy **1 cảnh thật qua Dashboard** (`IMAGE_PROVIDER=deepix`, `VIDEO_PROVIDER=clipai`). Gợi ý: thử thêm cảnh có nhân vật cận cảnh/hành động nhanh từ `eval/cases.json` để so 2 model
 - [ ] Hỏi admin Claude Enterprise: có Console org / API key Anthropic cho V1 không, hạn mức token, chính sách data ảnh nhân vật

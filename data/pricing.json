@@ -1,0 +1,21 @@
+{
+  "_note": "Điền giá thật (đơn vị: credit) sau khi đo trên web Clip AI/Deepix: ghi số dư, chạy 1 lần, ghi lại số dư. null = chưa biết giá. per_video_second là credit cho MỖI GIÂY video; nếu nền tảng tính theo clip thì điền per_video_clip (credit cho mỗi clip, không phụ thuộc thời lượng) - per_video_clip được ưu tiên.",
+  "currency": "credits",
+  "confirm_batch_at": 10,
+  "per_image": {
+    "dola-seedream-5-0-pro-260628": null
+  },
+  "per_video_second": {
+    "kling-v3-omni:std": null,
+    "kling-v3-omni:pro": null,
+    "kling-v3-omni:4k": null,
+    "kling-video-o1:std": null,
+    "kling-video-o1:pro": null,
+    "dreamina-seedance-2-0-260128:480p": null,
+    "dreamina-seedance-2-0-260128:720p": null,
+    "dreamina-seedance-2-0-260128:1080p": null,
+    "dreamina-seedance-2-0-fast-260128:720p": null,
+    "dreamina-seedance-2-5-260628:720p": null
+  },
+  "per_video_clip": {}
+}

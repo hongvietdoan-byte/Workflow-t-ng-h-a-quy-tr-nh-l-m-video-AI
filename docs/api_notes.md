@@ -68,3 +68,11 @@ py -m streamlit run dashboard/app.py
 - Chất lượng thị giác gần tương đương ở mẫu này; Kling nhanh hơn và độ phân giải mặc định cao hơn. Seedance 2.0 thường hỗ trợ 1080p (đặt `CLIPAI_RESOLUTION=1080p`), cần thử để so công bằng; Seedance 2.5 kéo dài tới 30 giây.
 - Mẫu chỉ có 1 cảnh phong cảnh có nhân vật nhỏ: **chưa đủ** để kết luận về chuyển động nhân vật, cận cảnh, hành động nhanh, hoặc bộ lọc kiểm duyệt. Nên chạy bộ mẫu `eval/` (hành động, cận cảnh cảm xúc, bẫy IP) trên cả hai.
 - Lệnh chạy thử nay lưu `trial_video_<model>.mp4` riêng từng model (lần đầu Seedance ghi đè file Kling vì dùng chung tên).
+
+## Chi phí (ước tính trong Dashboard)
+API không có endpoint giá/số dư, nên giá do bạn khai báo trong `data/pricing.json`:
+1. Ghi số dư credit trên web, chạy đúng 1 lần (1 ảnh, hoặc 1 clip Kling/Seedance), ghi lại số dư; hiệu số là giá.
+2. Điền vào `per_image` (theo model ảnh), và `per_video_second` (credit mỗi giây video) hoặc `per_video_clip` (credit mỗi clip) theo khóa `model:chất-lượng`, ví dụ `kling-v3-omni:pro`, `dreamina-seedance-2-0-260128:720p`. `null` = chưa biết giá.
+3. Dashboard (Bước 2 và Bước 4) hiển thị "Ước tính chi phí" trước khi chạy: số mục, số giây, chi phí tối thiểu và tối đa (nếu mọi mục phải làm lại đủ `max_retry_count` lần). Khi dùng API thật và số mục ≥ `confirm_batch_at` (mặc định 10), các nút chạy bị khóa cho tới khi bạn tick xác nhận.
+4. Mỗi lần gửi API thật được ghi vào bảng `usage_events` (model, chất lượng, số giây); thanh điều khiển hiển thị tổng "đã ghi nhận" theo giá khai báo. Provider giả lập (`mock`) không tính tiền.
+- Số ghi nhận là **ước tính từ giá khai báo**, không phải hóa đơn; nền tảng có thể tính khác (ví dụ tác vụ lỗi có bị trừ credit hay không chưa biết).

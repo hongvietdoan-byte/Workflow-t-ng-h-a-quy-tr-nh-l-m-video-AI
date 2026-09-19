@@ -66,6 +66,14 @@ def _upload_name(path: str, content: bytes) -> str:
     return os.path.basename(path)
 
 
+def effective_duration(canonical: str, family: str, duration: float) -> int:
+    """Duration actually requested from the API (clamped to what each model family accepts)."""
+    if family == "omni":
+        return int(min(max(round(duration), 3), 15))
+    limit = 30 if canonical == "dreamina-seedance-2-5-260628" else 15
+    return int(min(max(round(duration), 4), limit))
+
+
 def classify_failure(message: str) -> str:
     low = (message or "").lower()
     return RISK_CONTROL if any(h in low for h in _RISK_HINTS) else "task_failed"
@@ -103,6 +111,12 @@ class ClipAIVideoProvider:
                    os.environ.get("CLIPAI_ASPECT_RATIO", "16:9"), os.environ.get("CLIPAI_KLING_MODE", "pro"),
                    os.environ.get("CLIPAI_RESOLUTION", "720p"), os.environ.get("CLIPAI_NEGATIVE", "ignore"))
 
+    def usage_info(self, model: Optional[str] = None, duration: float = 5):
+        """(canonical model, quality tier, billed seconds) for the cost ledger."""
+        canonical, family = resolve_model(model)
+        tier = self.kling_mode if family == "omni" else self.resolution
+        return canonical, tier, effective_duration(canonical, family, duration)
+
     # ---- submit ---------------------------------------------------------
     def submit(self, image_path: str, prompt: str, negative_prompt: Optional[str], duration_sec: float,
                model: Optional[str] = None) -> str:
@@ -122,16 +136,15 @@ class ClipAIVideoProvider:
         if family == "omni":
             ctx = {"model_name": canonical, "multi_shot": 0, "prompt": text, "sound": "off",
                    "image_list": [{"image_url": "", "type": "first_frame"}], "mode": self.kling_mode,
-                   "aspect_ratio": self.aspect_ratio, "duration": str(int(min(max(round(duration_sec), 3), 15))),
+                   "aspect_ratio": self.aspect_ratio, "duration": str(effective_duration(canonical, family, duration_sec)),
                    "video_num": 1}
             path = PATH_KLING
         else:
-            max_duration = 30 if canonical == "dreamina-seedance-2-5-260628" else 15
             ctx = {"model_name": canonical,
                    "content": [{"type": "text", "text": text},
                                {"type": "image_url", "image_url": {"url": ""}, "role": "first_frame"}],
                    "resolution": self.resolution, "ratio": self.aspect_ratio,
-                   "duration": int(min(max(round(duration_sec), 4), max_duration)), "generate_audio": False,
+                   "duration": effective_duration(canonical, family, duration_sec), "generate_audio": False,
                    "camera_fixed": False, "seed": -1, "video_num": 1}
             path = PATH_SEEDANCE
         data = self.client.post_multipart(path, {"ctx": json.dumps(ctx, ensure_ascii=False)},

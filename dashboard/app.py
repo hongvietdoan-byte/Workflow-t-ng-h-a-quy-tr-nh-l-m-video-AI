@@ -12,7 +12,7 @@ import streamlit as st
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
-from core import ffmpeg_studio, llm_io, preflight, prompts, script_parser  # noqa: E402
+from core import cost, ffmpeg_studio, llm_io, preflight, prompts, script_parser  # noqa: E402
 from core.db import connect  # noqa: E402
 from core.pipeline import Pipeline, PipelinePaused  # noqa: E402
 from core.adapters import factory  # noqa: E402
@@ -48,6 +48,48 @@ def image_runner(p: Pipeline):
         st.error(f"Deepix: {e}")
         return None
     return ImageRunner(p, provider, DATA) if provider else None
+
+
+def image_estimate(p: Pipeline, pid: int):
+    from core.adapters.deepix import DEFAULT_MODEL
+    return cost.estimate_images(p, pid, cost.load_pricing(), os.environ.get("DEEPIX_MODEL", DEFAULT_MODEL))
+
+
+def video_estimate(p: Pipeline, pid: int):
+    from core.adapters.clipai import effective_duration, resolve_model
+    try:
+        canonical, family = resolve_model(p.project(pid)["video_model"])
+    except ProviderError:
+        return None
+    tier = os.environ.get("CLIPAI_KLING_MODE", "pro") if family == "omni" else os.environ.get("CLIPAI_RESOLUTION", "720p")
+    return cost.estimate_videos(p, pid, cost.load_pricing(), canonical, tier,
+                                lambda seconds: effective_duration(canonical, family, seconds))
+
+
+def show_estimate(est, runner) -> bool:
+    """Show the estimate; for real providers require a confirmation tick on large batches. Returns 'allowed'."""
+    if est is None:
+        return True
+    if est["items"] == 0:
+        return True
+    st.info("Ước tính chi phí: " + cost.format_estimate(est))
+    if runner is None or runner.provider.name.startswith("mock"):
+        return True
+    if est["items"] >= cost.load_pricing()["confirm_batch_at"]:
+        return st.checkbox(f"Tôi xác nhận batch {est['items']} mục này sẽ tốn credit", key=f"confirm_{est['kind']}")
+    return True
+
+
+def spend_line(p: Pipeline, pid: int) -> None:
+    spend = cost.spend_summary(p.conn, pid, cost.load_pricing())
+    if not (spend["images"] or spend["clips"]):
+        return
+    text = f"Đã ghi nhận (gửi API thật): {spend['images']} ảnh · {spend['clips']} clip ({spend['seconds']:.0f} giây)"
+    if spend["unknown_prices"]:
+        text += " — chưa có giá cho: " + ", ".join(spend["unknown_prices"]) + " (điền data/pricing.json)"
+    else:
+        text += f" → khoảng {spend['credits']:.1f} {spend['currency']} theo giá khai báo"
+    st.caption(text)
 
 
 def project_dir(pid: int, *parts: str) -> str:
@@ -101,6 +143,7 @@ def global_bar(p: Pipeline):
         st.rerun()
     if proj["paused"]:
         st.warning("Pipeline đang PAUSE — không job nào được bắt đầu.")
+    spend_line(p, pid)
     return pid
 
 
@@ -178,12 +221,13 @@ def step2(p: Pipeline, pid: int):
         st.info("Chưa cấu hình Deepix: đặt IMAGE_PROVIDER=deepix và DEEPIX_TOKEN (biến môi trường), hoặc nhập ảnh thủ công cho từng job bên dưới.")
     else:
         st.success(f"Provider ảnh: {runner.provider.name}" + (" (giả lập — ảnh 1x1)" if runner.provider.name == "mock-image" else " (gọi API thật, tốn credit)"))
+        allowed = show_estimate(image_estimate(p, pid), runner)
         r1, r2 = st.columns(2)
-        if r1.button("⟳ Submit + Poll 1 lần (ảnh)"):
+        if r1.button("⟳ Submit + Poll 1 lần (ảnh)", disabled=not allowed):
             submitted = runner.submit_pending(pid)
             st.toast(f"Đã gửi {submitted} · {runner.poll_once(pid)}")
             st.rerun()
-        if r2.button("▶ Chạy heartbeat tới khi xong (ảnh)"):
+        if r2.button("▶ Chạy heartbeat tới khi xong (ảnh)", disabled=not allowed):
             with st.spinner("Đang gen ảnh…"):
                 runner.run(pid, interval=float(os.environ.get("HEARTBEAT_SEC", "90")))
             st.rerun()
@@ -292,6 +336,7 @@ def step4(p: Pipeline, pid: int):
                           index=models.index(current) if current in models else 0, key=f"vmodel_{pid}")
     if (choice if choice in models[1:] else None) != current:
         p.set_video_model(pid, choice if choice in models[1:] else None)
+    allowed = show_estimate(video_estimate(p, pid), runner)
     c1, c2, c3, c4 = st.columns(4)
     if c1.button("▶ Tạo job gen video", disabled=not ready):
         for r in ready:
@@ -300,11 +345,11 @@ def step4(p: Pipeline, pid: int):
             if not exists:
                 p.create_job(r["scene_id"], "video_gen")
         st.rerun()
-    if c2.button("⟳ Submit + Poll 1 lần", disabled=runner is None):
+    if c2.button("⟳ Submit + Poll 1 lần", disabled=runner is None or not allowed):
         submitted = runner.submit_pending(pid)
         st.toast(f"Đã gửi {submitted} · {runner.poll_once(pid)}")
         st.rerun()
-    if c3.button("▶ Chạy heartbeat tới khi xong", disabled=runner is None):
+    if c3.button("▶ Chạy heartbeat tới khi xong", disabled=runner is None or not allowed):
         with st.spinner("Đang chạy heartbeat…"):
             runner.run(pid, interval=float(os.environ.get("HEARTBEAT_SEC", "90")))
         st.rerun()
