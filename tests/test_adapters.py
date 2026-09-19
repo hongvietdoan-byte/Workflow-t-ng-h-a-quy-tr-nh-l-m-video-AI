@@ -293,6 +293,23 @@ class TokenCleaningTests(unittest.TestCase):
         self.assertIn("looks fine", out)
 
 
+class InspectTests(unittest.TestCase):
+    def test_field_description_hides_values_except_cost_like_keys(self):
+        from core.adapters.inspect_api import cost_fields, describe_item, usage_summary
+        item = {"id": 1, "prompt": "secret prompt", "video_url": "https://x/v.mp4", "credit_cost": 12, "duration": 5,
+                "model_name": "kling-v3-omni", "task_status": 2}
+        desc = describe_item(item)
+        self.assertEqual(desc["prompt"], "str")
+        self.assertNotIn("secret", " ".join(desc.values()))
+        self.assertIn("12", desc["credit_cost"])
+        self.assertEqual(cost_fields(item), ["credit_cost"])
+        rows = [item, {"model_name": "kling-v3-omni", "duration": 10, "task_status": 3},
+                {"model_name": "dreamina-seedance-2-0-260128", "duration": 5, "task_status": 2}]
+        summary = usage_summary(rows)
+        self.assertEqual(summary["by_model"]["kling-v3-omni"], {"tasks": 2, "seconds": 15})
+        self.assertEqual(summary["status"], {"succeed": 2, "failed": 1})
+
+
 class TrialTests(unittest.TestCase):
     def test_refuses_without_confirmation(self):
         from core.adapters import trial
