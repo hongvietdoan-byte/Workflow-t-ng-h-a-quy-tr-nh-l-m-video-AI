@@ -28,13 +28,14 @@ _Cập nhật lần cuối: 2026-09-19. Chi tiết kế hoạch xem `PLAN.md`. �
 - [x] Sơ đồ xin duyệt API Clip AI: `docs/clipai_api_request.{html,png,pdf}` (2026-09-19)
 - [x] Bộ chạy Bước 4 không cần API thật: provider interface + `MockVideoProvider`, `VideoRunner` (submit/heartbeat poll/tải video/risk-control log không retry/transient retry/concurrency/pause/cancel), MCP `clipai`, nối Dashboard Bước 4 (`VIDEO_PROVIDER=mock`); 53 test pass. Khi có API chỉ cần viết adapter `VideoProvider` (2026-09-19)
 - [x] Bộ chạy Bước 2 (`ImageRunner` + `MockImageProvider`, dùng chung vòng heartbeat với Bước 4; prompt retry tự thêm "Fix: <ghi chú reject>"), nối Dashboard Bước 2 (`IMAGE_PROVIDER=mock`); 58 test pass (2026-09-19)
+- [x] Cấu hình Claude Desktop (`mcpServers`: project-db, qc-agent, ffmpeg-studio; có bản sao lưu `.bak-20260919`); smoke test toàn luồng V0 qua MCP stdio thật OK (12+8+1 tool) (2026-09-19)
 - [x] Lớp core Python: schema SQLite + state machine + luồng `auto`/`human_qc` + retry/escalate, 10 unit test pass (`core/`, `tests/`) (2026-09-19)
 
 ## ⏸ Tạm gác (theo yêu cầu 2026-09-19)
 - [ ] API Clip AI/Kling (kiểm tra REST/webhook) và đọc tài liệu API Deepix (`deepix-1.4.1`) — làm sau; các module không cần API làm trước
 
 ## 🚧 Đang làm / kế tiếp (ưu tiên từ trên xuống)
-- [ ] Cấu hình Claude Desktop theo `docs/V0_SETUP.md` và chạy thử luồng V0 thật
+- [ ] **Bạn làm:** thoát hẳn + mở lại Claude Desktop, rồi chạy thử V0 trong Chat theo `docs/V0_SETUP.md` mục 3 (config đã ghi sẵn, đã kiểm thử qua MCP stdio)
 - [ ] Dashboard: chạy thử với dữ liệu thật + tinh chỉnh UI theo mockup (grid ảnh, badge, thanh tiến độ)
 - [ ] Dashboard: nhúng "LLM runner" API (V1, cần API key Anthropic) thay cho dán JSON tay
 - [ ] Vùng "chờ review" 0.6–0.85 cho QC (PLAN Comment 3) — tuỳ chọn
