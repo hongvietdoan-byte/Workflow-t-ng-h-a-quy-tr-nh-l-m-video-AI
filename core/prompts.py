@@ -3,9 +3,12 @@ import json
 import os
 from typing import List
 
+from .evalset import few_shot_text
 from .pipeline import Pipeline
 
 _ROOT = os.path.join(os.path.dirname(__file__), "..")
+_SEP = "\n\n---\n\n"
+_SCENE_KEYS = ("location", "time", "characters", "mood", "lighting", "shot", "image_prompt")
 
 
 def _read(*parts: str) -> str:
@@ -22,9 +25,11 @@ def build_director_bundle(pipeline: Pipeline, project_id: int) -> str:
         "SELECT idx, title, data FROM scenes WHERE project_id=? ORDER BY idx", (project_id,)).fetchall()
     scenes = "\n\n".join(
         f"### Cảnh {r['idx']} — {r['title']}\n{json.loads(r['data'] or '{}').get('text', '')}" for r in rows)
-    return "\n\n---\n\n".join([
+    return _SEP.join([
         _read("prompts", "01_director_scene_analysis.md"),
         _read("knowledge", "cinematography_basics.md"),
+        _read("knowledge", "genre_guides.md"),
+        few_shot_text(),
         "# Kịch bản đã tách cảnh\n\n" + scenes,
     ])
 
@@ -36,10 +41,30 @@ def build_qc_bundle(pipeline: Pipeline, scene_id: int) -> str:
         (scene["project_id"],)).fetchall()
     bible = "\n".join(f"- {c['name']}: {c['description']} {c['wardrobe'] or ''}".strip() for c in chars)
     data = json.loads(scene["data"] or "{}")
-    spec = {k: data.get(k) for k in ("location", "time", "characters", "mood", "lighting", "shot", "image_prompt")}
-    return "\n\n---\n\n".join([
+    spec = {k: data.get(k) for k in _SCENE_KEYS}
+    return _SEP.join([
         _read("prompts", "02_qc_agent.md"),
+        _read("knowledge", "ai_image_failure_modes.md"),
         "# Character Bible\n" + bible,
         "# Thông số cảnh\n" + json.dumps(spec, ensure_ascii=False, indent=2),
         "(Đính kèm ảnh cần chấm điểm.)",
+    ])
+
+
+def build_motion_bundle(pipeline: Pipeline, project_id: int) -> str:
+    """Step 3: scenes that have an approved image, with their spec and the character descriptions."""
+    conn = pipeline.conn
+    rows = conn.execute(
+        "SELECT s.idx, s.data FROM scenes s WHERE s.project_id=? AND EXISTS (SELECT 1 FROM jobs j WHERE"
+        " j.scene_id=s.id AND j.type='image_gen' AND j.state='approved') ORDER BY s.idx", (project_id,)).fetchall()
+    chars = conn.execute("SELECT name, description FROM characters WHERE project_id=?", (project_id,)).fetchall()
+    payload = {
+        "characters": [dict(c) for c in chars],
+        "scenes": [{"idx": r["idx"], **{k: v for k, v in json.loads(r["data"] or "{}").items() if k in _SCENE_KEYS}}
+                   for r in rows],
+    }
+    return _SEP.join([
+        _read("prompts", "03_video_motion.md"),
+        _read("knowledge", "video_motion_vocab.md"),
+        "# Cảnh đã có ảnh được duyệt\n```json\n" + json.dumps(payload, ensure_ascii=False, indent=2) + "\n```",
     ])

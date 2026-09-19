@@ -241,7 +241,8 @@ def step3(p: Pipeline, pid: int):
         "SELECT s.idx FROM scenes s WHERE s.project_id=? AND EXISTS (SELECT 1 FROM jobs j WHERE j.scene_id=s.id"
         " AND j.type='image_gen' AND j.state='approved') ORDER BY s.idx", (pid,)).fetchall()
     st.caption(f"{len(approved)} cảnh đã có ảnh được duyệt")
-    st.code(open(os.path.join("prompts", "03_video_motion.md"), encoding="utf-8").read(), language="markdown")
+    with st.expander("Prompt gửi Claude (copy)"):
+        st.code(prompts.build_motion_bundle(p, pid), language="markdown")
     raw = st.text_area("Dán JSON motion prompts từ Claude", key=f"motion_{pid}", height=140)
     if st.button("▶ Lưu motion prompts", disabled=not raw.strip()):
         if act(lambda: llm_io.store_motion_prompts(p, pid, raw), "Đã lưu"):

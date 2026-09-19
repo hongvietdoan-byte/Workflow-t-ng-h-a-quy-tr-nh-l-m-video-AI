@@ -4,7 +4,7 @@ import unittest
 from core.db import connect
 from core.llm_io import store_scene_analysis, validate_qc_result
 from core.pipeline import Pipeline
-from core.prompts import build_director_bundle, build_qc_bundle, qc_criteria
+from core.prompts import build_director_bundle, build_motion_bundle, build_qc_bundle, qc_criteria
 from tests.test_llm_io_preflight import ANALYSIS
 
 
@@ -22,11 +22,26 @@ class PromptTests(unittest.TestCase):
         self.assertIn("Character Bible", text)
         self.assertIn("Slugline", text)
         self.assertIn("Sương mù dày đặc.", text)
+        self.assertIn("Hướng dẫn theo thể loại", text)
+        self.assertIn("Ví dụ mẫu", text)
 
     def test_qc_bundle_has_bible_and_spec(self):
         text = build_qc_bundle(self.p, self.sid)
         self.assertIn("Lyra", text)
         self.assertIn("misty forest", text)
+
+    def test_qc_bundle_includes_failure_modes(self):
+        self.assertIn("Lỗi thường gặp của ảnh AI", build_qc_bundle(self.p, self.sid))
+
+    def test_motion_bundle_lists_only_scenes_with_approved_image(self):
+        self.assertNotIn("misty forest", build_motion_bundle(self.p, self.pid))
+        job = self.p.create_job(self.sid)
+        self.p.start(job)
+        self.p.succeed(job)
+        self.p.approve(job)
+        text = build_motion_bundle(self.p, self.pid)
+        self.assertIn("misty forest", text)
+        self.assertIn("Từ vựng camera", text)
 
     def test_checklist_keys_match_qc_prompt(self):
         keys = qc_criteria()

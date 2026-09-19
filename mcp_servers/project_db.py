@@ -64,6 +64,12 @@ def approve_and_lock_bible(project_id: int) -> dict:
 
 
 @mcp.tool()
+def get_motion_prompt_bundle(project_id: int) -> str:
+    """Step 3: prompt bundle (motion prompt rules + vocabulary + scenes with approved images)."""
+    return prompts.build_motion_bundle(get_pipeline(), project_id)
+
+
+@mcp.tool()
 def submit_motion_prompts(project_id: int, motion_json: str) -> dict:
     """Step 3: validate and store motion prompts (only for scenes with an approved image)."""
     return {"stored": llm_io.store_motion_prompts(get_pipeline(), project_id, motion_json)}

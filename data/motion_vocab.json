@@ -1,0 +1,6 @@
+{
+  "camera_terms": ["push-in", "pull-out", "dolly", "pan", "tilt", "orbit", "arc", "tracking", "follow", "crane",
+                   "handheld", "static", "zoom", "rack focus", "whip pan"],
+  "appearance_terms": ["wearing", "dressed in", "armor", "armour", "cloak", "jacket", "sweater", "coat", "beard", "scar"],
+  "default_negative": "deformed hands, extra fingers, distorted face, flickering, text, watermark, sudden cuts, extra people, outfit change"
+}

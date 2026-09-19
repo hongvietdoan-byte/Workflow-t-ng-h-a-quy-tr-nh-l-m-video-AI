@@ -1,0 +1,187 @@
+{
+  "version": "0.1",
+  "note": "Bộ đánh giá khởi đầu (12 mẫu). Phần 'expect' để kiểm tra tự động (khách quan); 'review_questions' là câu hỏi để người duyệt chấm đạt/chưa đạt (thẩm mỹ).",
+  "cases": [
+    {
+      "id": "action_chase",
+      "genre": "action",
+      "script": ["CẢNH 1 - NGÀY, PHỐ CỔ", "Mira (28 tuổi, tóc đen ngắn, áo khoác da bạc) lao qua chợ đông, đạp đổ sạp trái cây. Jax (32 tuổi, cao lớn, tay trái cơ khí) đuổi sát phía sau, mái ngói rung lên.", "MIRA: Chạy nhanh lên!"],
+      "expect": {
+        "characters": ["Mira", "Jax"],
+        "shot_any": ["wide", "medium", "tracking", "low angle"],
+        "lighting_any": ["sun", "daylight", "rim", "backlit", "dust"],
+        "mood_any": ["tense", "urgent", "frantic", "dynamic", "energetic"],
+        "must_not": [],
+        "ip_trap": false,
+        "motion_camera_any": ["tracking", "follow", "handheld", "dolly"]
+      },
+      "review_questions": ["Ảnh có cảm giác tốc độ/nguy hiểm không?", "Hai nhân vật có dễ phân biệt (tóc, áo, tay cơ khí) không?", "Có lỗi tay/chân khi chạy không?"]
+    },
+    {
+      "id": "horror_corridor",
+      "genre": "horror",
+      "script": ["CẢNH 1 - ĐÊM, HÀNH LANG BỆNH VIỆN BỎ HOANG", "Linh (22 tuổi, tóc buộc đuôi ngựa, áo hoodie xanh) soi đèn pin dọc hành lang. Ở cuối hành lang, một cái bóng đứng bất động.", "LINH: Có ai ở đó không?"],
+      "expect": {
+        "characters": ["Linh"],
+        "shot_any": ["wide", "static", "behind", "over"],
+        "lighting_any": ["flashlight", "single", "practical", "low-key", "dim"],
+        "mood_any": ["dread", "eerie", "tense", "unsettling", "fear"],
+        "must_not": [],
+        "ip_trap": false,
+        "motion_camera_any": ["push-in", "static", "handheld", "dolly"]
+      },
+      "review_questions": ["Có cảm giác bất an, thiếu thông tin không?", "Nguồn sáng (đèn pin) có hợp lý và không quá tối không?", "Cái bóng có rõ nhưng không lộ hết không?"]
+    },
+    {
+      "id": "drama_farewell",
+      "genre": "drama",
+      "script": ["CẢNH 1 - HOÀNG HÔN, GA TÀU", "Nam (40 tuổi, tóc muối tiêu, áo măng tô nâu) nắm tay con gái Hà (10 tuổi, hai bím tóc, áo len vàng) lần cuối trước khi tàu chạy.", "HÀ: Bố nhớ về sớm nhé."],
+      "expect": {
+        "characters": ["Nam", "Hà"],
+        "shot_any": ["close", "medium", "over-the-shoulder", "over the shoulder"],
+        "lighting_any": ["golden", "sunset", "soft", "warm"],
+        "mood_any": ["emotional", "tender", "bittersweet", "melancholy", "warm"],
+        "must_not": [],
+        "ip_trap": false,
+        "motion_camera_any": ["push-in", "static", "rack focus", "pull-out"]
+      },
+      "review_questions": ["Biểu cảm có tự nhiên, không gượng không?", "Khác biệt tuổi giữa bố và con gái có rõ không?", "Ánh sáng ấm có tạo cảm xúc không?"]
+    },
+    {
+      "id": "epic_siege",
+      "genre": "epic",
+      "script": ["CẢNH 1 - BÌNH MINH, TƯỜNG THÀNH PHÁO ĐÀI", "Kael (35 tuổi, râu ngắn, áo choàng đen, kiếm khắc rune) đứng trên tường thành, nhìn xuống thung lũng đầy quân địch. Cờ hiệu bay phần phật.", "KAEL: Hôm nay ta giữ vững nơi này."],
+      "expect": {
+        "characters": ["Kael"],
+        "shot_any": ["wide", "low angle", "hero"],
+        "lighting_any": ["sunrise", "dawn", "god rays", "golden", "backlit", "rim"],
+        "mood_any": ["epic", "heroic", "determined", "grand", "resolute"],
+        "must_not": [],
+        "ip_trap": false,
+        "motion_camera_any": ["crane", "orbit", "push-in", "pull-out"]
+      },
+      "review_questions": ["Có cảm giác quy mô hùng vĩ không?", "Nhân vật chính có nổi bật khỏi nền không?", "Cờ, áo choàng có tự nhiên không?"]
+    },
+    {
+      "id": "cyberpunk_rooftop",
+      "genre": "cyberpunk",
+      "script": ["CẢNH 1 - ĐÊM MƯA, MÁI NHÀ CAO TẦNG", "Rin (26 tuổi, tóc hồng ngắn, áo mưa trong suốt, kính chắn gió) đứng sát mép mái nhà, thành phố neon trải dài phía dưới.", "RIN: Ba phút nữa cổng an ninh mở."],
+      "expect": {
+        "characters": ["Rin"],
+        "shot_any": ["wide", "low angle", "medium"],
+        "lighting_any": ["neon", "wet", "reflect", "rain", "haze"],
+        "mood_any": ["tense", "lonely", "moody", "futuristic", "urban"],
+        "must_not": [],
+        "ip_trap": false,
+        "motion_camera_any": ["push-in", "crane", "orbit", "handheld"]
+      },
+      "review_questions": ["Neon và mưa có tạo không khí đô thị tương lai không?", "Biển hiệu có chữ vô nghĩa không?", "Rin có dễ nhận diện (tóc hồng, áo mưa) không?"]
+    },
+    {
+      "id": "fantasy_forest_environment",
+      "genre": "fantasy",
+      "script": ["CẢNH 1 - ĐÊM, RỪNG CỔ THỤ", "Không có nhân vật. Sương mù dày phủ những cây cổ thụ, các phù văn xanh phát sáng trên rễ cây, đom đóm bay chậm."],
+      "expect": {
+        "characters": [],
+        "shot_any": ["wide", "establishing", "extreme wide"],
+        "lighting_any": ["glow", "rune", "moon", "fireflies", "mist", "blue"],
+        "mood_any": ["magical", "mysterious", "ancient", "serene", "eerie"],
+        "must_not": ["person", "man", "woman", "character"],
+        "ip_trap": false,
+        "motion_camera_any": ["push-in", "crane", "pan", "dolly", "tilt"]
+      },
+      "review_questions": ["Cảnh có hoàn toàn không người không?", "Phù văn phát sáng và sương có đẹp và nhất quán không?"]
+    },
+    {
+      "id": "ip_trap_amazon",
+      "genre": "action",
+      "script": ["CẢNH 1 - NGÀY, ĐẤU TRƯỜNG", "Diana, nữ chiến binh Amazon, đeo vòng tay bạc chống đạn, cầm khiên tròn và kiếm, sợi dây thần phát sáng quấn quanh tay, lao vào đấu trường."],
+      "expect": {
+        "characters": ["Diana"],
+        "shot_any": ["wide", "low angle", "medium", "hero"],
+        "lighting_any": ["sun", "daylight", "golden", "rim"],
+        "mood_any": ["heroic", "powerful", "determined", "epic"],
+        "must_not": ["wonder woman", "diana prince", "amazon princess", "lasso of truth", "bracelets of submission"],
+        "ip_trap": true,
+        "motion_camera_any": ["tracking", "low angle", "orbit", "push-in", "dolly"]
+      },
+      "review_questions": ["Nhân vật đã được mô tả lại nguyên bản (không còn giống nhân vật nổi tiếng) chưa?", "Có ghi chú cảnh báo IP không?"]
+    },
+    {
+      "id": "scifi_station",
+      "genre": "scifi",
+      "script": ["CẢNH 1 - TRẠM VŨ TRỤ, PHÒNG ĐIỀU KHIỂN", "Tổng chỉ huy Vega (45 tuổi, tóc bạc cắt sát, đồng phục xám) nhìn cảnh báo đỏ nhấp nháy trên màn hình lớn, phía sau cửa kính là hành tinh xanh.", "VEGA: Cắt liên lạc với mặt đất."],
+      "expect": {
+        "characters": ["Vega"],
+        "shot_any": ["medium", "wide", "over-the-shoulder", "over the shoulder", "close"],
+        "lighting_any": ["red", "screen", "glow", "blue", "cold"],
+        "mood_any": ["tense", "urgent", "serious", "ominous", "cold"],
+        "must_not": [],
+        "ip_trap": false,
+        "motion_camera_any": ["push-in", "static", "pan", "dolly", "rack focus"]
+      },
+      "review_questions": ["Màn hình có cảnh báo đỏ tạo áp lực không?", "Hành tinh phía sau có đúng bối cảnh trạm vũ trụ không?"]
+    },
+    {
+      "id": "martial_bamboo",
+      "genre": "martial_arts",
+      "script": ["CẢNH 1 - SÁNG SỚM, RỪNG TRE", "Thanh Vân (30 tuổi, tóc búi cao, áo dài lụa trắng, kiếm mảnh) đứng thủ thế giữa rừng tre, sương sớm, nắng xuyên kẽ lá."],
+      "expect": {
+        "characters": ["Thanh Vân"],
+        "shot_any": ["wide", "medium", "low angle"],
+        "lighting_any": ["sunlight", "shafts", "mist", "morning", "backlit", "god rays"],
+        "mood_any": ["calm", "focused", "serene", "poised", "tense"],
+        "must_not": [],
+        "ip_trap": false,
+        "motion_camera_any": ["orbit", "push-in", "tracking", "pan", "crane"]
+      },
+      "review_questions": ["Tư thế thủ kiếm có chính xác, không lỗi tay/kiếm không?", "Nắng xuyên rừng tre có đẹp không?"]
+    },
+    {
+      "id": "boss_reveal",
+      "genre": "epic",
+      "script": ["CẢNH 1 - ĐÊM, HANG ĐỘNG NÚI LỬA", "Bóng khổng lồ của con rồng lửa lộ ra sau làn khói. Lyra (25 tuổi, tóc bạc dài, giáp xanh cobalt, sẹo dưới mắt trái) đứng nhỏ bé phía trước, tay nắm cung.", "LYRA: Đêm nay ta không lùi."],
+      "expect": {
+        "characters": ["Lyra"],
+        "shot_any": ["wide", "extreme wide", "low angle", "behind"],
+        "lighting_any": ["lava", "fire", "orange", "glow", "backlit", "rim"],
+        "mood_any": ["epic", "dread", "awe", "determined", "menacing"],
+        "must_not": [],
+        "ip_trap": false,
+        "motion_camera_any": ["pull-out", "crane", "push-in", "tilt", "dolly"]
+      },
+      "review_questions": ["Có cảm giác quy mô (rồng lớn, người nhỏ) không?", "Lyra vẫn dễ nhận diện dù nhỏ trong khung không?"]
+    },
+    {
+      "id": "continuity_two_scenes",
+      "genre": "action",
+      "script": ["CẢNH 1 - ĐÊM, BÌA RỪNG", "Lyra (25 tuổi, tóc bạc dài, giáp xanh cobalt, sẹo dưới mắt trái) rút cung, nhìn vào bóng tối.", "CẢNH 2 - ĐÊM, TRONG RỪNG", "Lyra chạy giữa các thân cây, Kael (35 tuổi, râu ngắn, áo choàng đen) chạy song song bên cạnh."],
+      "expect": {
+        "characters": ["Lyra", "Kael"],
+        "shot_any": ["medium", "wide", "tracking"],
+        "lighting_any": ["moon", "night", "cold", "mist"],
+        "mood_any": ["tense", "urgent", "dark", "moody"],
+        "must_not": [],
+        "ip_trap": false,
+        "motion_camera_any": ["tracking", "push-in", "handheld", "follow"],
+        "consistency_note": "Lyra phải được mô tả giống hệt (tóc, giáp, sẹo) ở cả hai cảnh."
+      },
+      "review_questions": ["Lyra ở cảnh 1 và cảnh 2 có cùng tóc, giáp, sẹo không?", "Kael có xuất hiện đúng ở cảnh 2 và không xuất hiện ở cảnh 1 không?"]
+    },
+    {
+      "id": "closeup_emotion",
+      "genre": "drama",
+      "script": ["CẢNH 1 - ĐÊM, TRONG XE", "Mira (28 tuổi, tóc đen ngắn, áo khoác da bạc) ngồi một mình trong xe, nước mắt rơi khi đọc tin nhắn trên điện thoại, ánh sáng màn hình hắt lên mặt.", "MIRA: Vậy là hết rồi."],
+      "expect": {
+        "characters": ["Mira"],
+        "shot_any": ["close", "extreme close", "medium close"],
+        "lighting_any": ["screen", "phone", "glow", "soft", "dim"],
+        "mood_any": ["sad", "melancholy", "emotional", "lonely", "somber"],
+        "must_not": [],
+        "ip_trap": false,
+        "motion_camera_any": ["push-in", "static", "rack focus"]
+      },
+      "review_questions": ["Biểu cảm buồn có thuyết phục không?", "Ánh sáng từ điện thoại có hợp lý không?"]
+    }
+  ]
+}
