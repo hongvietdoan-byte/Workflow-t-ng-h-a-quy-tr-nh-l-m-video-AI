@@ -94,6 +94,38 @@ class DashboardSmokeTests(unittest.TestCase):
         self.assertTrue(any("crossfade cần ít nhất 2 clip" in w.value for w in at.warning))
         self.assertTrue(next(b for b in at.button if "Render Final" in b.label).disabled)
 
+    def test_sfx_created_selected_and_counted_for_final_mix(self):
+        self.seed()
+        os.environ["AUDIO_PROVIDER"] = "mock"
+        try:
+            at = AppTest.from_file(APP, default_timeout=30).run()
+            at.radio(key="step").set_value(at.radio(key="step").options[4]).run()
+            self.assertFalse(at.exception)
+            at.text_input(key="sfx_p_1").set_value("door slam").run()
+            next(b for b in at.button if "Tạo SFX" in b.label).click().run()
+            next(b for b in at.button if "Kiểm tra" in b.label and b.key == "ax_refresh_1").click().run()
+            at.checkbox(key="ax_use_1_0").set_value(True).run()
+            self.assertFalse(at.exception)
+            at.radio(key="step").set_value(at.radio(key="step").options[5]).run()
+            self.assertTrue(any("đưa vào bản ghép: 1" in c.value for c in at.caption))
+        finally:
+            os.environ.pop("AUDIO_PROVIDER", None)
+
+    def test_character_edit_and_unlock_from_dashboard(self):
+        p, pid = self.seed()
+        at = AppTest.from_file(APP, default_timeout=30).run()
+        at.text_area(key=f"cd_{pid}_Lyra").set_value("Nữ, tóc đỏ").run()
+        next(b for b in at.button if b.key == f"cs_{pid}_Lyra").click().run()
+        self.assertFalse(at.exception)
+        row = Pipeline(connect(self.db)).conn.execute("SELECT description FROM characters WHERE name='Lyra'").fetchone()
+        self.assertEqual(row["description"], "Nữ, tóc đỏ")
+        from core.llm_io import lock_character_bible
+        lock_character_bible(Pipeline(connect(self.db)), pid)
+        at = AppTest.from_file(APP, default_timeout=30).run()
+        next(b for b in at.button if b.key == "btn_bad_unlock").click().run()
+        self.assertEqual(Pipeline(connect(self.db)).conn.execute(
+            "SELECT COUNT(*) c FROM characters WHERE locked=1").fetchone()["c"], 0)
+
     def test_video_step_with_mock_provider_runs_to_completion(self):
         from core.llm_io import approve_motion_prompt, lock_character_bible, store_motion_prompts
         p, pid = self.seed()

@@ -131,8 +131,18 @@ def _save(drafts_dir: str, drafts: List[Dict]) -> None:
         json.dump(drafts, f, ensure_ascii=False, indent=1)
 
 
+def record_audio_usage(ledger, provider, model: str, count: int = 1) -> None:
+    """ledger = (sqlite connection, project_id) or None. Every submission that went out may be billed."""
+    if ledger is None:
+        return
+    from .cost import record_usage
+    conn, project_id = ledger
+    for _ in range(count):
+        record_usage(conn, None, "audio", provider.name, model, "default", 1, "item", project_id=project_id)
+
+
 def submit_drafts(provider, drafts_dir: str, prompt: str, length_ms: Optional[int], instrumental: bool,
-                  count: int = 3) -> int:
+                  count: int = 3, ledger=None) -> int:
     """Submit `count` drafts; stops on the first submission error (kept in the manifest) and returns how many went out."""
     drafts = load_drafts(drafts_dir)
     sent = 0
@@ -144,6 +154,7 @@ def submit_drafts(provider, drafts_dir: str, prompt: str, length_ms: Optional[in
             break
         drafts.append({"asset_id": asset_id, "state": "running", "message": None, "prompt": prompt,
                        "length_ms": length_ms, "file": None})
+        record_audio_usage(ledger, provider, "music_v2")
         sent += 1
     _save(drafts_dir, drafts)
     return sent

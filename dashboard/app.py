@@ -14,7 +14,7 @@ import streamlit as st
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
-from core import cost, ffmpeg_studio, final_cut, llm_io, music, preflight, prompts, script_parser  # noqa: E402
+from core import audio_lib, cost, ffmpeg_studio, final_cut, llm_io, music, preflight, prompts, script_parser  # noqa: E402
 from core.db import connect  # noqa: E402
 from core.pipeline import Pipeline, PipelinePaused  # noqa: E402
 from core.adapters import factory  # noqa: E402
@@ -91,9 +91,10 @@ def show_estimate(est, runner) -> bool:
 
 def spend_line(p: Pipeline, pid: int) -> None:
     spend = cost.spend_summary(p.conn, pid, cost.load_pricing())
-    if not (spend["images"] or spend["clips"]):
+    if not (spend["images"] or spend["clips"] or spend["audios"]):
         return
-    text = f"Đã ghi nhận (gửi API thật): {spend['images']} ảnh · {spend['clips']} clip ({spend['seconds']:.0f} giây)"
+    text = (f"Đã ghi nhận (gửi API thật): {spend['images']} ảnh · {spend['clips']} clip ({spend['seconds']:.0f} giây)"
+            f" · {spend['audios']} âm thanh")
     if spend["unknown_prices"]:
         text += " — chưa có giá cho: " + ", ".join(spend["unknown_prices"]) + " (điền data/pricing.json)"
     else:
@@ -244,6 +245,20 @@ def step1(p: Pipeline, pid: int):
                     if c["locked"]:
                         tag += " " + ui.badge("đã khóa", "b-pri")
                     ui.html(ui.item(c["name"], desc, tag))
+                    if not c["locked"]:
+                        with st.expander(f"Sửa {c['name']}"):
+                            n_name = st.text_input("Tên", c["name"], key=f"cn_{pid}_{c['name']}")
+                            n_desc = st.text_area("Mô tả", c["description"], key=f"cd_{pid}_{c['name']}", height=80)
+                            n_ward = st.text_input("Trang phục / dấu hiệu", c["wardrobe"] or "", key=f"cw_{pid}_{c['name']}")
+                            if st.button("Lưu", key=f"cs_{pid}_{c['name']}"):
+                                if act(lambda: llm_io.update_character(p, pid, c["name"], n_desc, n_ward, n_name),
+                                       f"Đã lưu {n_name}"):
+                                    st.rerun()
+                if any(c["locked"] for c in chars):
+                    st.caption("Character Bible đang khóa. Muốn sửa phải mở khóa (ảnh đã gen vẫn theo mô tả cũ).")
+                    if st.button("🔓 Mở khóa để sửa", key="btn_bad_unlock"):
+                        act(lambda: llm_io.unlock_character_bible(p, pid), "Đã mở khóa Character Bible")
+                        st.rerun()
         if scenes:
             with st.container(border=True):
                 ui.html(ui.card_title("③ Bảng phân cảnh", f"{len(scenes)} cảnh"))
@@ -598,7 +613,8 @@ def step5a(p: Pipeline, pid: int):
             count = c3.number_input("Số bản nháp", 1, 5, 3, key=f"mcount_{pid}")
             b1, b2, b3 = st.columns([2, 2, 3])
             if b1.button(f"✨ Tạo {int(count)} bản nháp", type="primary", disabled=not prompt.strip()):
-                n = music.submit_drafts(provider, drafts_dir, prompt, int(seconds) * 1000, instrumental, int(count))
+                n = music.submit_drafts(provider, drafts_dir, prompt, int(seconds) * 1000, instrumental, int(count),
+                                        ledger=(p.conn, pid))
                 st.toast(f"Đã gửi {n} bản")
                 st.rerun()
             if b2.button("⟳ Kiểm tra + tải về"):
@@ -641,6 +657,74 @@ def step5a(p: Pipeline, pid: int):
         if st.button("Không dùng nhạc"):
             music.clear_selected(selected_dir)
             st.rerun()
+    extras_section(p, pid, provider)
+
+
+def extras_section(p: Pipeline, pid: int, provider):
+    """Sound effects and voice-over: generate, preview, and choose what goes into the final mix."""
+    directory = audio_lib.assets_dir(DATA, pid)
+    with st.container(border=True):
+        ui.html(ui.card_title("Hiệu ứng âm thanh & giọng đọc", "tùy chọn — trộn vào video ở Bước 5b"))
+        if provider is None:
+            st.caption("Cần cấu hình nhà cung cấp âm thanh (AUDIO_PROVIDER hoặc VIDEO_PROVIDER=clipai) để tạo mới.")
+        else:
+            t_sfx, t_tts = st.tabs(["SFX", "Giọng đọc (TTS)"])
+            with t_sfx:
+                s_prompt = st.text_input("Mô tả hiệu ứng (≤ 2000 ký tự)", key=f"sfx_p_{pid}",
+                                         placeholder="A heavy stone door opens slowly")
+                c1, c2, c3 = st.columns([2, 1, 2])
+                s_sec = c1.number_input("Độ dài (giây, 0.5–30)", 0.5, 30.0, 3.0, 0.5, key=f"sfx_d_{pid}")
+                s_loop = c2.checkbox("Loop", False, key=f"sfx_l_{pid}")
+                if c3.button("✨ Tạo SFX", disabled=not s_prompt.strip(), key=f"sfx_go_{pid}"):
+                    entry = audio_lib.submit_sfx(provider, directory, s_prompt, s_sec, s_loop, ledger=(p.conn, pid))
+                    st.toast("Đã gửi SFX" if entry["asset_id"] else f"Lỗi: {entry['message']}")
+                    st.rerun()
+            with t_tts:
+                voices = st.session_state.get(f"voices_{pid}")
+                if voices is None:
+                    try:
+                        voices = provider.voice_actors(owner="official")
+                    except ProviderError as e:
+                        st.error(f"Không lấy được danh sách giọng: {e}")
+                        voices = []
+                    st.session_state[f"voices_{pid}"] = voices
+                if not voices:
+                    st.caption("Chưa có giọng nào để chọn.")
+                else:
+                    v = st.selectbox("Giọng", voices, format_func=lambda x: f"{x.get('name')} (#{x.get('id')})",
+                                     key=f"tts_v_{pid}")
+                    t_text = st.text_area("Nội dung (≤ 2000 ký tự)", key=f"tts_t_{pid}", height=80)
+                    d1, d2 = st.columns(2)
+                    t_model = d1.selectbox("Model", ["eleven_v3", "eleven_multilingual_v2", "eleven_turbo_v2_5"],
+                                           key=f"tts_m_{pid}")
+                    t_lang = d2.text_input("Mã ngôn ngữ (tùy chọn, vd vi, en)", key=f"tts_l_{pid}")
+                    if st.button("✨ Tạo giọng đọc", disabled=not t_text.strip(), key=f"tts_go_{pid}"):
+                        entry = audio_lib.submit_tts(provider, directory, t_text, int(v["id"]), str(v.get("name", "")),
+                                                     t_model, t_lang.strip() or None, ledger=(p.conn, pid))
+                        st.toast("Đã gửi giọng đọc" if entry["asset_id"] else f"Lỗi: {entry['message']}")
+                        st.rerun()
+            if st.button("⟳ Kiểm tra + tải về", key=f"ax_refresh_{pid}"):
+                counts = audio_lib.refresh(provider, directory)
+                st.toast(f"Đang chạy {counts['running']} · xong {counts['succeeded']} · lỗi {counts['failed']}")
+                st.rerun()
+        items = audio_lib.load(directory)
+        for i, e in enumerate(items):
+            with st.container(border=True):
+                ui.html(f'<div class="cardhead"><b>{audio_lib.KINDS.get(e["kind"], e["kind"])}</b>'
+                        f'<span class="muted">{e["label"][:90]}</span><span class="grow"></span>{ui.state_badge(e["state"])}</div>')
+                if e["state"] == "failed":
+                    st.warning(f"Không tạo được: {e.get('message')} (không tự gửi lại để tránh tốn credit)")
+                elif e.get("file"):
+                    st.audio(os.path.join(directory, e["file"]))
+                a, b, c, d = st.columns([2, 1.3, 2, 1], vertical_alignment="center")
+                use = a.checkbox("Đưa vào bản ghép", e["use"], key=f"ax_use_{pid}_{i}", disabled=e["state"] != "succeeded")
+                start = b.number_input("Bắt đầu (giây)", 0.0, 600.0, float(e["start"]), 0.5, key=f"ax_st_{pid}_{i}")
+                vol = c.slider("Âm lượng", 0.0, 2.0, float(e["volume"]), 0.05, key=f"ax_vol_{pid}_{i}")
+                if d.button("Xóa", key=f"ax_rm_{pid}_{i}"):
+                    audio_lib.remove(directory, i)
+                    st.rerun()
+                if e["state"] == "succeeded" and (use, start, vol) != (e["use"], e["start"], e["volume"]):
+                    audio_lib.set_mix(directory, i, use, start, vol)
 
 
 # ---- step 5b -------------------------------------------------------------------------
@@ -702,6 +786,8 @@ def step5b(p: Pipeline, pid: int):
         tracks = os.listdir(music_dir)
         volume = st.slider("Âm lượng nhạc nền", 0.0, 1.0, 0.6, 0.05, key=f"vol_{pid}", disabled=not tracks)
         st.caption(f"Nhạc nền: {tracks[0]} (chọn ở Bước 5a)" if tracks else "Không có nhạc nền (chọn ở Bước 5a nếu cần).")
+        extras = audio_lib.mix_list(audio_lib.assets_dir(DATA, pid))
+        st.caption(f"Hiệu ứng / giọng đọc đưa vào bản ghép: {len(extras)} (chọn ở Bước 5a)")
         problems = final_cut.render_problems(durations, transition, fade)
         for msg in problems:
             st.warning(msg)
@@ -710,7 +796,7 @@ def step5b(p: Pipeline, pid: int):
         if st.button("▶ Render Final", disabled=bool(problems), type="primary", width="stretch"):
             music_file = os.path.join(music_dir, tracks[0]) if tracks else None
             with st.spinner("Đang render…"):
-                ok = act(lambda: ffmpeg_studio.render_final(chosen, out, durations, transition, fade, music_file, volume),
+                ok = act(lambda: ffmpeg_studio.render_final(chosen, out, durations, transition, fade, music_file, volume, extras),
                          "Render xong")
             if ok:
                 st.rerun()

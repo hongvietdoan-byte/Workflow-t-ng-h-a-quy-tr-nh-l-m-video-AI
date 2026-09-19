@@ -68,6 +68,25 @@ def build_mux_music_cmd(video: str, music: str, output: str, video_duration: flo
             "-map", "0:v", "-map", "[a]", "-c:v", "copy", "-c:a", "aac", "-shortest", output]
 
 
+def build_extras_mix_cmd(video: str, extras: Sequence[dict], output: str, has_audio: bool,
+                         ffmpeg: str = "ffmpeg") -> List[str]:
+    """Lay extra audio (sound effects, voice-over) over the video at given start seconds and volumes.
+    extras: [{"path", "start" (s), "volume" (0..2)}]. The video's own audio (music) is kept when has_audio."""
+    if not extras:
+        raise ValueError("no extra audio to mix")
+    cmd = [ffmpeg, "-y", "-i", video]
+    for e in extras:
+        cmd += ["-i", e["path"]]
+    parts, labels = [], ["[0:a]"] if has_audio else []
+    for i, e in enumerate(extras):
+        ms = max(int(round(float(e.get("start", 0)) * 1000)), 0)
+        parts.append(f"[{i + 1}:a]adelay={ms}|{ms},volume={float(e.get('volume', 1.0))}[e{i}]")
+        labels.append(f"[e{i}]")
+    parts.append("".join(labels) + f"amix=inputs={len(labels)}:normalize=0:duration=longest,apad[a]")
+    return cmd + ["-filter_complex", ";".join(parts), "-map", "0:v", "-map", "[a]", "-c:v", "copy",
+                  "-c:a", "aac", "-shortest", output]
+
+
 def run(cmd: List[str]) -> None:
     proc = subprocess.run(cmd, capture_output=True, text=True)
     if proc.returncode != 0:
@@ -89,10 +108,11 @@ def probe_duration(path: str) -> Optional[float]:
 
 def render_final(clips: Sequence[str], output: str, durations: Optional[Sequence[float]] = None,
                  transition: str = "cut", fade: float = 1.0, music: Optional[str] = None,
-                 music_volume: float = 0.6) -> str:
-    """Concat approved clips (in scene order), optionally crossfade and mux music."""
+                 music_volume: float = 0.6, extras: Optional[Sequence[dict]] = None) -> str:
+    """Concat approved clips (in scene order), optionally crossfade, mux music, then lay extra audio over it."""
     ffmpeg = find_ffmpeg()
-    silent = output if music is None else output + ".silent.mp4"
+    extras = list(extras or [])
+    silent = output if music is None and not extras else output + ".silent.mp4"
     if transition in OVERLAP_STYLES:
         if durations is None:
             raise ValueError(f"durations required for {transition}")
@@ -103,12 +123,20 @@ def render_final(clips: Sequence[str], output: str, durations: Optional[Sequence
             run(build_concat_cmd(list_file, silent, ffmpeg))
         finally:
             os.remove(list_file)
+    current = silent
     if music is not None:
         if durations is None:
             raise ValueError("durations required to fit music")
         total = sum(durations) - (fade * (len(clips) - 1) if transition in OVERLAP_STYLES else 0)
+        target = output + ".music.mp4" if extras else output
         try:
-            run(build_mux_music_cmd(silent, music, output, total, volume=music_volume, ffmpeg=ffmpeg))
+            run(build_mux_music_cmd(current, music, target, total, volume=music_volume, ffmpeg=ffmpeg))
         finally:
-            os.remove(silent)
+            os.remove(current)
+        current = target
+    if extras:
+        try:
+            run(build_extras_mix_cmd(current, extras, output, has_audio=music is not None, ffmpeg=ffmpeg))
+        finally:
+            os.remove(current)
     return output

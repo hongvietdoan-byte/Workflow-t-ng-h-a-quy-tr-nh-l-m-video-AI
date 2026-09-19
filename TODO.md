@@ -58,6 +58,9 @@ _Cập nhật lần cuối: 2026-09-19 (chiều: audio + Dashboard)._ Chi tiết
 - [x] Thử Seedance 2.0 (720p): 167s, 1280x720, 3,6MB, chất lượng gần Kling (Kling 84s, 1080p, 10,7MB); trial lưu file riêng từng model; so sánh ghi ở `docs/api_notes.md` (2026-09-19)
 - [x] `core.adapters.inspect_api` (chỉ đọc): xem trường trả về/có trường chi phí không + thống kê mức dùng Clip AI (`--usage`). Tài liệu API không có endpoint số dư/giá (2026-09-19)
 - [x] Ước tính chi phí trong Dashboard: `core/cost.py` + `data/pricing.json` (bảng giá do bạn điền, chưa có số bịa), ước tính trước khi chạy (min/max nếu retry), sổ ghi mức dùng `usage_events` mỗi lần gửi API thật, dòng "đã ghi nhận" trên thanh điều khiển, chốt xác nhận cho batch từ `confirm_batch_at` mục trở lên; 108 test pass (2026-09-19)
+- [x] Sửa Character Bible ngay trong Dashboard (đổi tên cập nhật cả danh sách nhân vật của cảnh; khóa/mở khóa) — `llm_io.update_character` / `unlock_character_bible` (2026-09-20)
+- [x] Sổ mức dùng có âm thanh: `usage_events` thêm `project_id`, `job_id` tùy chọn, loại `audio` (tự migrate DB cũ, giữ dữ liệu); mỗi bản nhạc/SFX/TTS gửi đi được ghi; bảng giá `per_audio` trong `data/pricing.json`; dòng chi tiêu trên Dashboard hiện số âm thanh (2026-09-20)
+- [x] SFX + giọng đọc (TTS) ở Bước 5a: tạo, nghe thử, chọn đưa vào bản ghép với thời điểm bắt đầu + âm lượng; Bước 5b trộn bằng ffmpeg (`build_extras_mix_cmd`, adelay/amix; nhạc nền ngắn hơn video vẫn đúng độ dài). Đã render thử thật: dip-to-black + nhạc + SFX = 6,0s đúng; 148 test pass (2026-09-20)
 - [x] `knowledge/seedance_prompting.md` (chắt lọc tài liệu Seedance 2.0/2.5: 10 nguyên tắc, cấu trúc khung-hình-đầu → sự kiện → camera → kết, giai đoạn cho clip dài, negative viết tích cực, checklist); tự nối vào bundle motion prompt khi `video_model` là seedance (2026-09-20)
 - [x] Vùng "chờ review" cho QC (auto mode): điểm trong [mức sàn, threshold) không tự loại mà chờ người duyệt; cột `projects.qc_review_floor` (migration tự động), điều khiển ở Bước 2 (2026-09-20)
 - [x] Transition "Dip to black" (xfade fadeblack) ở Bước 5b; 133 test pass (2026-09-20)
@@ -80,7 +83,7 @@ _Cập nhật lần cuối: 2026-09-19 (chiều: audio + Dashboard)._ Chi tiết
 ## 🚧 Đang làm / kế tiếp (ưu tiên từ trên xuống)
 - [ ] **Bạn làm:** thoát hẳn + mở lại Claude Desktop, rồi chạy thử V0 trong Chat theo `docs/V0_SETUP.md` mục 3 (config đã ghi sẵn, đã kiểm thử qua MCP stdio)
 - [ ] **Bạn làm:** thử Bước 5a với API thật (`$env:AUDIO_PROVIDER="clipai"`, tốn credit) để xác nhận hợp đồng audio; nếu lệch thì báo lại để sửa adapter
-- [ ] Dashboard: chạy thử với dữ liệu thật; còn thiếu so với mockup: sửa inline Character Bible (nút "Sửa"), waveform thật cho nhạc
+- [ ] Dashboard: chạy thử với dữ liệu thật; còn thiếu so với mockup: waveform thật cho nhạc
 - [ ] Dashboard: nhúng "LLM runner" API (V1, cần API key Anthropic) thay cho dán JSON tay
 - [ ] Đối chiếu hành vi thật của API: negative prompt (`CLIPAI_NEGATIVE=append`?), thông điệp risk control từng model, thời hạn `video_url`, hạn mức credit; ghi vào `docs/api_notes.md`
 - [ ] **Bạn duyệt tạm (không cần chuyên gia lúc này):** chạy vòng đánh giá đầu tiên theo `eval/README.md` (12 mẫu, 9 held-out), chấm phiếu thẩm mỹ, chỉnh `knowledge/`/`prompts/` theo lỗi lặp lại, rồi khóa version. Khi có chuyên gia miền thì bàn giao phần chấm thẩm mỹ

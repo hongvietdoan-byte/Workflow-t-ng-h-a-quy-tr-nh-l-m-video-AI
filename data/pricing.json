@@ -1,5 +1,5 @@
 {
-  "_note": "Điền giá thật (đơn vị: credit) sau khi đo trên web Clip AI/Deepix: ghi số dư, chạy 1 lần, ghi lại số dư. null = chưa biết giá. per_video_second là credit cho MỖI GIÂY video; nếu nền tảng tính theo clip thì điền per_video_clip (credit cho mỗi clip, không phụ thuộc thời lượng) - per_video_clip được ưu tiên.",
+  "_note": "Điền giá thật (đơn vị: credit) sau khi đo trên web Clip AI/Deepix: ghi số dư, chạy 1 lần, ghi lại số dư. null = chưa biết giá. per_video_second là credit cho MỖI GIÂY video; nếu nền tảng tính theo clip thì điền per_video_clip (credit cho mỗi clip, không phụ thuộc thời lượng) - per_video_clip được ưu tiên. per_audio: credit cho MỖI LẦN tạo (mỗi bản nhạc / hiệu ứng / đoạn giọng đọc), khóa theo tên model.",
   "currency": "credits",
   "confirm_batch_at": 10,
   "per_image": {
@@ -17,5 +17,12 @@
     "dreamina-seedance-2-0-fast-260128:720p": null,
     "dreamina-seedance-2-5-260628:720p": null
   },
-  "per_video_clip": {}
+  "per_video_clip": {},
+  "per_audio": {
+    "music_v2": null,
+    "eleven_text_to_sound_v2": null,
+    "eleven_v3": null,
+    "eleven_multilingual_v2": null,
+    "eleven_turbo_v2_5": null
+  }
 }

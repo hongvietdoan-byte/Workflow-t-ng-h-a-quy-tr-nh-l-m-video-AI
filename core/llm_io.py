@@ -4,7 +4,7 @@ V0: the JSON is pasted from a Claude Desktop chat; V1: it comes from the API run
 Either way it passes through the same validators, so the runner is swappable.
 """
 import json
-from typing import Any, Dict, List, Mapping
+from typing import Any, Dict, List, Mapping, Optional
 
 from .pipeline import Pipeline
 
@@ -103,6 +103,43 @@ def lock_character_bible(pipeline: Pipeline, project_id: int) -> int:
     n = conn.execute("UPDATE scenes SET state='ready' WHERE project_id=? AND state!='needs_attention'",
                      (project_id,)).rowcount
     conn.commit()
+    return n
+
+
+def update_character(pipeline: Pipeline, project_id: int, name: str, description: str,
+                     wardrobe: Optional[str] = None, new_name: Optional[str] = None) -> None:
+    """Edit one Character Bible entry (only while unlocked). A rename also updates the scene cast lists."""
+    conn = pipeline.conn
+    row = conn.execute("SELECT id, locked FROM characters WHERE project_id=? AND name=?", (project_id, name)).fetchone()
+    if row is None:
+        raise KeyError(f"character '{name}' does not exist")
+    if row["locked"]:
+        raise ValueError(f"character '{name}' is locked; unlock the Character Bible first")
+    description = (description or "").strip()
+    if not description:
+        raise ValueError("description must not be empty")
+    new_name = (new_name or name).strip()
+    if not new_name:
+        raise ValueError("name must not be empty")
+    if new_name != name and conn.execute("SELECT 1 FROM characters WHERE project_id=? AND name=?",
+                                         (project_id, new_name)).fetchone():
+        raise ValueError(f"a character named '{new_name}' already exists")
+    conn.execute("UPDATE characters SET name=?, description=?, wardrobe=? WHERE id=?",
+                 (new_name, description, (wardrobe or "").strip() or None, row["id"]))
+    if new_name != name:
+        for scene in conn.execute("SELECT id, data FROM scenes WHERE project_id=?", (project_id,)).fetchall():
+            data = json.loads(scene["data"] or "{}")
+            cast = data.get("characters")
+            if cast and name in cast:
+                data["characters"] = [new_name if c == name else c for c in cast]
+                conn.execute("UPDATE scenes SET data=? WHERE id=?", (json.dumps(data, ensure_ascii=False), scene["id"]))
+    conn.commit()
+
+
+def unlock_character_bible(pipeline: Pipeline, project_id: int) -> int:
+    """Allow editing again. Images already generated keep the old look; the caller should warn about that."""
+    n = pipeline.conn.execute("UPDATE characters SET locked=0 WHERE project_id=?", (project_id,)).rowcount
+    pipeline.conn.commit()
     return n
 
 

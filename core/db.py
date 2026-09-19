@@ -56,8 +56,9 @@ CREATE TABLE IF NOT EXISTS jobs (
 );
 CREATE TABLE IF NOT EXISTS usage_events (
     id INTEGER PRIMARY KEY,
-    job_id INTEGER NOT NULL REFERENCES jobs(id),
-    kind TEXT NOT NULL CHECK (kind IN ('image','video')),
+    job_id INTEGER REFERENCES jobs(id),
+    project_id INTEGER REFERENCES projects(id),
+    kind TEXT NOT NULL CHECK (kind IN ('image','video','audio')),
     provider TEXT NOT NULL,
     model TEXT NOT NULL,
     tier TEXT NOT NULL,
@@ -100,6 +101,27 @@ CREATE TABLE IF NOT EXISTS content_moderation_failures (
 """
 
 
+def _migrate_usage_events(conn: sqlite3.Connection) -> None:
+    """Older databases: usage_events had a required job_id and no audio kind. Rebuild it once (keeps rows)."""
+    if "project_id" in {r["name"] for r in conn.execute("PRAGMA table_info(usage_events)")}:
+        return
+    conn.executescript("""
+        ALTER TABLE usage_events RENAME TO usage_events_old;
+        CREATE TABLE usage_events (
+            id INTEGER PRIMARY KEY,
+            job_id INTEGER REFERENCES jobs(id),
+            project_id INTEGER REFERENCES projects(id),
+            kind TEXT NOT NULL CHECK (kind IN ('image','video','audio')),
+            provider TEXT NOT NULL, model TEXT NOT NULL, tier TEXT NOT NULL,
+            quantity REAL NOT NULL, unit TEXT NOT NULL, at TEXT NOT NULL);
+        INSERT INTO usage_events (id, job_id, project_id, kind, provider, model, tier, quantity, unit, at)
+            SELECT e.id, e.job_id, j.project_id, e.kind, e.provider, e.model, e.tier, e.quantity, e.unit, e.at
+            FROM usage_events_old e LEFT JOIN jobs j ON j.id = e.job_id;
+        DROP TABLE usage_events_old;
+    """)
+    conn.commit()
+
+
 def connect(path: str = ":memory:") -> sqlite3.Connection:
     conn = sqlite3.connect(path)
     conn.row_factory = sqlite3.Row
@@ -112,6 +134,7 @@ def connect(path: str = ":memory:") -> sqlite3.Connection:
         conn.execute("ALTER TABLE projects ADD COLUMN video_model TEXT")
     if "qc_review_floor" not in cols:
         conn.execute("ALTER TABLE projects ADD COLUMN qc_review_floor REAL")
+    _migrate_usage_events(conn)
     job_cols = {r["name"] for r in conn.execute("PRAGMA table_info(jobs)")}
     for col in ("external_id", "result_path"):
         if col not in job_cols:

@@ -24,7 +24,7 @@ def load_pricing(path: Optional[str] = None) -> Dict:
         data = {}
     data.setdefault("currency", "credits")
     data.setdefault("confirm_batch_at", 10)
-    for key in ("per_image", "per_video_second", "per_video_clip"):
+    for key in ("per_image", "per_video_second", "per_video_clip", "per_audio"):
         data.setdefault(key, {})
     return data
 
@@ -117,18 +117,24 @@ def format_estimate(est: Dict) -> str:
 
 
 # ---- ledger ---------------------------------------------------------------
-def record_usage(conn: sqlite3.Connection, job_id: int, kind: str, provider: str, model: str, tier: str,
-                 quantity: float, unit: str) -> None:
-    conn.execute("INSERT INTO usage_events (job_id, kind, provider, model, tier, quantity, unit, at)"
-                 " VALUES (?,?,?,?,?,?,?,datetime('now'))", (job_id, kind, provider, model, tier, quantity, unit))
+def record_usage(conn: sqlite3.Connection, job_id: Optional[int], kind: str, provider: str, model: str, tier: str,
+                 quantity: float, unit: str, project_id: Optional[int] = None) -> None:
+    """One billed-looking submission. Job-based usage (image/video) derives the project from the job;
+    audio has no job, so pass `project_id`."""
+    if project_id is None and job_id is not None:
+        row = conn.execute("SELECT project_id FROM jobs WHERE id=?", (job_id,)).fetchone()
+        project_id = row["project_id"] if row else None
+    conn.execute("INSERT INTO usage_events (job_id, project_id, kind, provider, model, tier, quantity, unit, at)"
+                 " VALUES (?,?,?,?,?,?,?,?,datetime('now'))",
+                 (job_id, project_id, kind, provider, model, tier, quantity, unit))
     conn.commit()
 
 
 def spend_summary(conn: sqlite3.Connection, project_id: int, pricing: Dict) -> Dict:
     """Recorded submissions (each may be billed) priced with the declared prices."""
-    rows = conn.execute("SELECT e.* FROM usage_events e JOIN jobs j ON j.id=e.job_id WHERE j.project_id=?",
-                        (project_id,)).fetchall()
+    rows = conn.execute("SELECT * FROM usage_events WHERE project_id=?", (project_id,)).fetchall()
     images = sum(1 for r in rows if r["kind"] == "image")
+    audios = sum(1 for r in rows if r["kind"] == "audio")
     clips = [r for r in rows if r["kind"] == "video"]
     seconds = sum(r["quantity"] for r in clips)
     total, unknown = 0.0, set()
@@ -138,11 +144,14 @@ def spend_summary(conn: sqlite3.Connection, project_id: int, pricing: Dict) -> D
         if r["kind"] == "image":
             price = _number(pricing["per_image"].get(r["model"]))
             cost = None if price is None else price * r["quantity"]
+        elif r["kind"] == "audio":
+            price = _number(pricing.get("per_audio", {}).get(r["model"]))
+            cost = None if price is None else price * r["quantity"]
         else:
             cost = _cost(r["quantity"], 1, video_unit_price(pricing, r["model"], r["tier"]))
         if cost is None:
             unknown.add(f"{r['model']}:{r['tier']}" if r["kind"] == "video" else r["model"])
         else:
             total += cost
-    return {"images": images, "clips": len(clips), "seconds": seconds, "credits": total,
+    return {"images": images, "audios": audios, "clips": len(clips), "seconds": seconds, "credits": total,
             "unknown_prices": sorted(unknown), "currency": pricing["currency"]}

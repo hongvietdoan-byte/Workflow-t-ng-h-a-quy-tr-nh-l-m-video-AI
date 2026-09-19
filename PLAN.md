@@ -312,7 +312,7 @@ Mục tiêu: chứng minh pipeline end-to-end chạy được, đo chất lượ
 
 **Giao diện Dashboard:** đã chỉnh theo `mockup/dashboard.html` (theme, stepper có ✓, lưới thẻ ảnh + panel QC, badge trạng thái, thanh tiến độ). Xem thử không tốn credit: `py tools/seed_demo.py` rồi `powershell -File tools/run_demo.ps1`.
 
-**Cập nhật 2026-09-20:** `knowledge/seedance_prompting.md` (nối tự động vào motion prompt khi model là Seedance); vùng chờ review của QC ở auto mode (`qc_review_floor`); transition Dip to black.
+**Cập nhật 2026-09-20:** `knowledge/seedance_prompting.md` (nối tự động vào motion prompt khi model là Seedance); vùng chờ review của QC ở auto mode (`qc_review_floor`); transition Dip to black; sửa Character Bible trong Dashboard; sổ mức dùng có âm thanh; SFX + giọng đọc (TTS) trộn vào bản cuối (Bước 5a/5b).
 
 **Tạm gác (2026-09-19):** MCP Claude/V0 qua Claude Desktop; ưu tiên hoàn thiện Dashboard.
 
