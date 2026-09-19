@@ -14,10 +14,9 @@ _Cập nhật lần cuối: 2026-09-19. Chi tiết kế hoạch xem `PLAN.md`. �
 - Heredoc bash chứa nhiều ký tự đặc biệt/tiếng Việt hay lỗi → dùng Write tool tạo file rồi chạy; `pkill -f "streamlit run"` sẽ tự giết shell.
 - FFmpeg cài qua winget (đường dẫn trong `FFMPEG_PATH` của config); shell mới mới thấy `ffmpeg` trong PATH.
 - Figma MCP hết hạn mức gói Starter; mockup đầy đủ ở `mockup/*.html` và đã import vào Figma bằng plugin html.to.design.
-- `deepix-*` và `data/manifest.sqlite` nằm ngoài git (`.gitignore`); 4 file `clipai_api_request*.{pdf,png}` ở thư mục gốc là bản sao chưa theo dõi của `docs/` (bỏ qua).
+- `deepix-*` và `data/manifest.sqlite` nằm ngoài git (`.gitignore`).
 - Sau mỗi thay đổi `PLAN.md`: `bash tools/build_docs.sh` rồi commit cả `PLAN.docx`/`PLAN.pdf`.
 
-**Đoạn trình bày xin API Clip AI (bản chốt, tiếng Anh):** "We are building an automated pipeline that turns scripts into finished videos, and we need API access to Clip AI / Kling to convert approved images into short video clips. The pilot is small (about 10–20 clips, with retries capped to control cost). Could you please approve API access to the image-to-video model (including which Kling version is available), along with an endpoint to check task status (webhook optional)? We would also appreciate details on how images are submitted (upload, base64 or URL), the credit quota and billing, how long result links stay valid, the content-moderation policy, and the rate limits and error-code documentation."
 
 ## 🔁 Việc phải làm lại MỖI LẦN (checklist cố định)
 - [ ] Sửa nội dung kế hoạch → chỉ sửa `PLAN.md`, không sửa tay docx/pdf
