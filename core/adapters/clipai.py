@@ -54,6 +54,20 @@ def resolve_model(model: Optional[str]) -> Tuple[str, str]:
                         code="unsupported_model")
 
 
+def _upload_name(path: str, content: bytes) -> str:
+    """Name the upload after its real format (Deepix returns JPEG even though we save it as .png)."""
+    stem = os.path.splitext(os.path.basename(path))[0]
+    if content[:3] == b"ÿØÿ":
+        return stem + ".jpg"
+    if content[:8] == b"PNG
+
+":
+        return stem + ".png"
+    if content[:4] == b"RIFF" and content[8:12] == b"WEBP":
+        return stem + ".webp"
+    return os.path.basename(path)
+
+
 def classify_failure(message: str) -> str:
     low = (message or "").lower()
     return RISK_CONTROL if any(h in low for h in _RISK_HINTS) else "task_failed"
@@ -105,7 +119,8 @@ class ClipAIVideoProvider:
         if not os.path.exists(image_path):
             raise ProviderError(f"reference image not found: {image_path}", code="missing_image")
         with open(image_path, "rb") as f:
-            image = (os.path.basename(image_path), f.read())
+            content = f.read()
+        image = (_upload_name(image_path, content), content)
         if family == "omni":
             ctx = {"model_name": canonical, "multi_shot": 0, "prompt": text, "sound": "off",
                    "image_list": [{"image_url": "", "type": "first_frame"}], "mode": self.kling_mode,

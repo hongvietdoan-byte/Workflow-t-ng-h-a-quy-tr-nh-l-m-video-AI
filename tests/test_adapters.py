@@ -124,6 +124,16 @@ class ClipAITests(unittest.TestCase):
         self.assertIn(b"\x89PNG-fake", call["body"])
         self.assertIn('name="image_files"', call["body"].decode("utf-8", "replace"))
 
+    def test_upload_is_named_after_real_image_format(self):
+        jpeg = os.path.join(self.dir, "job_1.png")
+        with open(jpeg, "wb") as f:
+            f.write(b"ÿØÿà" + b"jpegdata")
+        self.t.on("POST", "/api/kling/omni-video-submit", ok({"tasks": [{"task_id": "T", "task_status": "submitted"}]}))
+        self.p.submit(jpeg, "push in", None, 5)
+        body = self.t.calls[0]["body"].decode("utf-8", "replace")
+        self.assertIn('filename="job_1.jpg"', body)
+        self.assertIn("Content-Type: image/jpeg", body)
+
     def test_negative_prompt_appended_only_when_enabled(self):
         self.t.on("POST", "/api/kling/omni-video-submit", ok({"tasks": [{"task_id": "T", "task_status": "submitted"}]}))
         self.p.negative = "append"

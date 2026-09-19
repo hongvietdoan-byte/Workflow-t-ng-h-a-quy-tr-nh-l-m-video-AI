@@ -48,3 +48,10 @@ py -m core.adapters.check            # kiểm tra kết nối (chỉ đọc, kh�
 py -m core.adapters.trial --yes      # thử thật 1 ảnh + 1 clip (TỐN CREDIT); thêm --model seedance để thử Seedance
 py -m streamlit run dashboard/app.py
 ```
+
+## Kết quả chạy thật đầu tiên (2026-09-19, `core.adapters.trial`)
+- **Deepix** (Seedream 5.0 Pro, `2048x1152`): xong sau ~31 giây. Ảnh đúng prompt (người mặc áo choàng đỏ, núi sương, ánh bình minh viền vàng), chất lượng cao. **File trả về thực chất là JPEG** (~290 KB) dù ta lưu đuôi `.png` → adapter Clip AI nay gửi tên/định dạng đúng theo nội dung.
+- **Clip AI** (`kling-v3-omni`, mode `pro`, 16:9, 5 giây, ảnh khung đầu): xong sau ~84 giây (poll 10 giây/lần). Kết quả: H.264 1920x1080, 24 fps, 5,04 giây, ~10,7 MB (~17 Mbps), **không có luồng audio** (sound off). Task id dạng `omni:<số dài>`.
+- **Chất lượng clip:** nhân vật giữ nguyên hình dáng qua các khung, camera tiến vào (push-in) đúng prompt, áo choàng lay, sương trôi; ghép được với FFmpeg và nhạc.
+- **Ước tính thời gian batch:** clip ~1,5 phút/cảnh, mặc định 5 cảnh chạy song song → 100 cảnh khoảng 30 phút cho video, ảnh nhanh hơn nhiều.
+- **Chưa kiểm chứng:** negative prompt qua API, thông điệp risk control thật, thời hạn link `video_url`, chi phí credit mỗi lần, hành vi Seedance.
