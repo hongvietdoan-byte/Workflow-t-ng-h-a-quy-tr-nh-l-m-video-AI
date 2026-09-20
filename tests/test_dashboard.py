@@ -42,7 +42,7 @@ class DashboardSmokeTests(unittest.TestCase):
         at = AppTest.from_file(APP, default_timeout=30).run()
         self.assertFalse(at.exception)
         options = list(at.radio(key="step").options)
-        self.assertEqual(len(options), 7)
+        self.assertEqual(len(options), 8)
         for option in options:
             at.radio(key="step").set_value(option).run()
             self.assertFalse(at.exception, option)
@@ -489,6 +489,16 @@ class DashboardSmokeTests(unittest.TestCase):
         self.assertFalse(at.exception)
         self.assertTrue(any("tự động hoàn toàn" in m.value for m in at.markdown))
         self.assertTrue(any("✖" in m.value for m in at.markdown))     # reasons shown, no start possible
+
+    def test_performance_monitor_tab_shows_load_and_health(self):
+        self.seed()
+        at = AppTest.from_file(APP, default_timeout=30)
+        at.query_params["step"] = "monitor"
+        at.run()
+        self.assertFalse(at.exception)
+        self.assertTrue(any("Theo dõi hiệu suất" in m.value for m in at.markdown))
+        self.assertTrue(any(m.label == "Job hôm nay" for m in at.metric))
+        self.assertTrue(any("Gen video" in str(d.value) for d in at.dataframe))
 
     def test_risk_corner_lists_ip_and_moderation_notes(self):
         p, pid = self.seed()

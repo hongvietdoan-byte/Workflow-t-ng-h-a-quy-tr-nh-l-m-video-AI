@@ -20,10 +20,11 @@ import time
 from dataclasses import dataclass
 from typing import Callable, Dict, List, Optional
 
-from . import ffmpeg_studio, final_cut, llm_io, llm_runner, music
+from . import ffmpeg_studio, final_cut, llm_io, llm_runner, music, perf
 from .pipeline import Pipeline
 
 RUNNING, WAITING, STOPPED, ATTENTION, DONE, ERROR = "running", "waiting", "stopped", "needs_attention", "done", "error"
+QUEUED = "queued"   # approved, waiting for a free slot (see Manager.max_parallel)
 PHASE_LABELS = {"images": "Gen ảnh + QC", "motion": "Motion prompt", "videos": "Gen video", "music": "Nhạc nền",
                 "render": "Ghép & render", "done": "Hoàn tất"}
 MAX_SCENES = int(os.environ.get("AUTOPILOT_MAX_SCENES", "12"))
@@ -209,6 +210,7 @@ def _images_phase(p: Pipeline, pid: int, ctx: Context) -> Optional[str]:
             continue  # a human must decide
         if _count(p, "SELECT COUNT(*) FROM jobs WHERE project_id=? AND type='image_gen'", pid) >= cap_images:
             raise _Stop(BUDGET_NOTE)
+        _daily_cap(p)
         p.conn.execute("UPDATE scenes SET state='ready' WHERE id=? AND state='needs_attention'", (scene["id"],))
         p.create_job(scene["id"], "image_gen")
     ctx.image_runner.submit_pending(pid)
@@ -234,6 +236,13 @@ class _Stop(Exception):
 
 
 BUDGET_NOTE = "Đã chạm trần số job (kể cả gen lại) — dừng để tránh tốn credit"
+DAILY_NOTE = "Đã chạm trần job trong ngày (AUTOPILOT_DAILY_JOBS) — dừng; bấm Tiếp tục ngày mai hoặc nâng trần"
+
+
+def _daily_cap(p: Pipeline) -> None:
+    limit = perf.daily_limit()
+    if limit and perf.jobs_today(p.conn) >= limit:
+        raise _Stop(DAILY_NOTE)
 
 
 def _motion_phase(p: Pipeline, pid: int, ctx: Context) -> Optional[str]:
@@ -259,6 +268,7 @@ def _videos_phase(p: Pipeline, pid: int, ctx: Context) -> Optional[str]:
             continue
         if _count(p, "SELECT COUNT(*) FROM jobs WHERE project_id=? AND type='video_gen'", pid) >= cap_videos:
             raise _Stop(BUDGET_NOTE)
+        _daily_cap(p)
         p.create_job(r["scene_id"], "video_gen")
     ctx.video_runner.submit_pending(pid)
     ctx.video_runner.poll_once(pid)
@@ -350,28 +360,82 @@ def run_until_done(p: Pipeline, project_id: int, ctx: Context, max_ticks: int = 
 
 # ---- background thread ------------------------------------------------------------------------
 class Manager:
-    """Runs projects in background threads (one per project). Progress is in the database, so a page reload
-    or another browser window sees the same thing."""
+    """Runs projects in background threads (one per project), at most `max_parallel` at a time; the rest wait in a
+    FIFO queue and start as slots free up. Progress is in the database, so a page reload or another browser window
+    sees the same thing."""
 
-    def __init__(self, db_path: str, data_dir: str, context_factory: Callable = default_context, poll_sec: float = 15):
+    def __init__(self, db_path: str, data_dir: str, context_factory: Callable = default_context, poll_sec: float = 15,
+                 max_parallel: Optional[int] = None):
         self.db_path, self.data_dir, self.factory, self.poll_sec = db_path, data_dir, context_factory, poll_sec
+        self.max_parallel = max_parallel if max_parallel is not None else int(os.environ.get("AUTOPILOT_MAX_PARALLEL", "2"))
         self._threads: Dict[int, threading.Thread] = {}
-        self._lock = threading.Lock()
+        self._queue: List[int] = []
+        self._lock = threading.RLock()
 
     def alive(self, project_id: int) -> bool:
         t = self._threads.get(project_id)
         return bool(t and t.is_alive())
 
+    def running_count(self) -> int:
+        return sum(1 for t in self._threads.values() if t.is_alive())
+
+    def queued(self, project_id: int) -> bool:
+        return project_id in self._queue
+
+    def position(self, project_id: int) -> int:
+        """1-based place in the queue (0 = not queued)."""
+        return self._queue.index(project_id) + 1 if project_id in self._queue else 0
+
+    def queue_length(self) -> int:
+        return len(self._queue)
+
     def start(self, project_id: int) -> bool:
+        """Start now if a slot is free, otherwise wait in the queue. False when already running or queued."""
         with self._lock:
             if self.alive(project_id):
                 return False
-            t = threading.Thread(target=self._loop, args=(project_id,), daemon=True, name=f"autopilot-{project_id}")
-            self._threads[project_id] = t
-            t.start()
+            if project_id in self._queue:
+                self._queue.remove(project_id)   # re-queued (e.g. resumed after a stop): goes to the back
+            if self.running_count() >= self.max_parallel:
+                self._queue.append(project_id)
+                self._note_queue()
+                return True
+            self._launch(project_id)
             return True
 
+    def _launch(self, project_id: int) -> None:
+        t = threading.Thread(target=self._loop, args=(project_id,), daemon=True, name=f"autopilot-{project_id}")
+        self._threads[project_id] = t
+        t.start()
+
+    def _note_queue(self) -> None:
+        from .db import connect
+        p = Pipeline(connect(self.db_path))
+        for n, pid in enumerate(self._queue, 1):
+            _set(p, pid, QUEUED, f"Xếp hàng (vị trí {n}): chạy tối đa {self.max_parallel} dự án cùng lúc")
+            _log(p, pid, "Xếp hàng chờ tới lượt")
+
+    def _promote(self) -> None:
+        from .db import connect
+        with self._lock:
+            p = Pipeline(connect(self.db_path))
+            while self._queue and self.running_count() < self.max_parallel:
+                pid = self._queue.pop(0)
+                if status(p, pid)["state"] != QUEUED:
+                    continue   # stopped or reset while waiting
+                _set(p, pid, RUNNING, "Tới lượt, bắt đầu chạy")
+                self._launch(pid)
+            for n, pid in enumerate(self._queue, 1):
+                _set(p, pid, note=f"Xếp hàng (vị trí {n}): chạy tối đa {self.max_parallel} dự án cùng lúc")
+
     def _loop(self, project_id: int) -> None:
+        try:
+            self._run(project_id)
+        finally:
+            # after this thread has ended, so its slot counts as free
+            threading.Timer(0.05, self._promote).start()
+
+    def _run(self, project_id: int) -> None:
         from .db import connect
         p = Pipeline(connect(self.db_path))
         try:

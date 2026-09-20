@@ -111,3 +111,5 @@ Lưu ý chung: nút **↺ Làm lại từ đầu** xuất hiện ở job đã h�
 - Yêu cầu: `IMAGE_PROVIDER`, `VIDEO_PROVIDER`, `ANTHROPIC_API_KEY`, ffmpeg, tối đa 12 cảnh (`AUTOPILOT_MAX_SCENES`). Thiếu gì sẽ báo đỏ.
 - Gặp cảnh cần người (hết lượt thử, bị chặn risk control, chạm trần job) → dừng, báo lý do; xử lý xong bấm **Tiếp tục**. Khởi động lại máy chủ cũng cần bấm Tiếp tục.
 - Lưu ý: tự duyệt ảnh/video nghĩa là không có người xem từng ảnh; hãy xem lại bản cuối và gen lại cảnh chưa ưng.
+- **Nhiều kịch bản cùng lúc:** mỗi kịch bản là một dự án; duyệt và bấm chạy từng dự án. Hệ thống chỉ chạy `AUTOPILOT_MAX_PARALLEL` (mặc định 2) dự án song song, số còn lại hiện "xếp hàng" và tự chạy khi có chỗ. `AUTOPILOT_DAILY_JOBS` (mặc định 300) là trần số job ảnh+video mỗi ngày (giờ UTC) cho tất cả dự án.
+- **Tab "📊 Theo dõi hiệu suất":** xem tải hệ thống. Nếu có cảnh báo tỉ lệ lỗi cao hoặc chậm dần thì giảm `AUTOPILOT_MAX_PARALLEL`. Bắt đầu với 2, tăng dần khi số liệu ổn.

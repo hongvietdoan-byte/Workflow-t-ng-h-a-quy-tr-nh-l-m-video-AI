@@ -19,7 +19,7 @@ import streamlit as st
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
-from core import audio_lib, autopilot, knowledge, regen, subjects, trash, waveform, cost, ffmpeg_studio, final_cut, llm_io, llm_runner, music, preflight, prompts, script_parser  # noqa: E402
+from core import audio_lib, autopilot, knowledge, perf, regen, subjects, trash, waveform, cost, ffmpeg_studio, final_cut, llm_io, llm_runner, music, preflight, prompts, script_parser  # noqa: E402
 from core.db import connect  # noqa: E402
 from core.pipeline import Pipeline, PipelinePaused  # noqa: E402
 from core.adapters import factory  # noqa: E402
@@ -33,7 +33,7 @@ import ui  # noqa: E402
 DB = os.environ.get("PIPELINE_DB", os.path.join("data", "manifest.sqlite"))
 DATA = os.environ.get("PIPELINE_DATA", os.path.join("data", "projects"))
 STEPS = ["1 · Kịch bản & phân tích", "2 · Gen ảnh + QC", "3 · Video Prompt", "4 · Gen video",
-         "5a · Nhạc nền", "5b · Ghép & Render", "Lịch sử"]
+         "5a · Nhạc nền", "5b · Ghép & Render", "Lịch sử", "📊 Theo dõi hiệu suất"]
 ERRORS = (sqlite3.IntegrityError, zipfile.BadZipFile, llm_runner.LlmError, InvalidTransition, llm_io.SchemaError, PipelinePaused, ffmpeg_studio.FFmpegNotFound,
           ffmpeg_studio.FFmpegError, ValueError, KeyError)
 CRITERIA_LABEL = {"character": "Đúng nhân vật", "hands_face": "Không lỗi tay/mặt", "composition": "Đúng bố cục",
@@ -239,7 +239,7 @@ def step_done(p: Pipeline, pid: int) -> list:
     return [bool(q("SELECT COUNT(*) FROM characters WHERE project_id=? AND locked=1", pid)),
             bool(scenes) and approved_imgs >= scenes, bool(scenes) and motion >= scenes,
             bool(scenes) and videos >= scenes, bool(os.listdir(selected_dir)),
-            os.path.exists(os.path.join(DATA, str(pid), "output", "FINAL_VIDEO.mp4")), False]
+            os.path.exists(os.path.join(DATA, str(pid), "output", "FINAL_VIDEO.mp4")), False, False]
 
 
 def step_label(done: list):
@@ -445,8 +445,8 @@ def global_bar(p: Pipeline):
         st.warning("Pipeline đang PAUSE — không job nào được bắt đầu.")
     spend_line(p, pid)
     ap = autopilot.status(p, pid)
-    if ap["state"] == "running":
-        st.caption(f"🚀 Đang chạy tự động: {ap['note']} (xem chi tiết ở Bước 1)")
+    if ap["state"] in ("running", "queued"):
+        st.caption(f"🚀 Chế độ tự động: {ap['note']} (xem chi tiết ở Bước 1)")
     return pid
 
 
@@ -462,17 +462,23 @@ def autopilot_progress(pid: int) -> None:
     p = Pipeline(connect(DB))
     info = autopilot.status(p, pid)
     state = info["state"]
-    tag = {"running": ("đang chạy", "b-info"), "done": ("hoàn tất", "b-ok"), "needs_attention": ("cần bạn xử lý", "b-warn"),
+    tag = {"queued": ("xếp hàng", "b-warn"), "running": ("đang chạy", "b-info"), "done": ("hoàn tất", "b-ok"), "needs_attention": ("cần bạn xử lý", "b-warn"),
            "stopped": ("đã dừng", "b-warn"), "error": ("lỗi", "b-bad")}.get(state, (state, ""))
     ui.html(ui.badge(*tag) + f' <span class="muted">{escape(info["note"])}</span>')
     for label, done, total in autopilot.progress(p, pid, DATA):
         st.progress(0 if not total else min(done / total, 1.0), text=f"{label}: {done}/{total}")
     if info["log"]:
         st.caption(" · ".join(f"{e['at']} {e['msg']}" for e in info["log"][-4:]))
-    stale = autopilot.is_stale(p, pid, float(os.environ.get("AUTOPILOT_POLL_SEC", "15")))
+    mgr = autopilot_manager(DB, DATA)
+    stale = (autopilot.is_stale(p, pid, float(os.environ.get("AUTOPILOT_POLL_SEC", "15")))
+             or (state == "queued" and not mgr.queued(pid) and not mgr.alive(pid)))
     if stale:
         st.warning("Không thấy tiến trình chạy nền (có thể máy chủ vừa khởi động lại). Bấm “Tiếp tục”.")
-    if state == "running" and not stale:
+    if state == "queued" and not stale:
+        if st.button("■ Bỏ khỏi hàng đợi", key=f"ap_unqueue_{pid}"):
+            autopilot.stop(p, pid)
+            st.rerun()
+    elif state == "running" and not stale:
         c1, c2 = st.columns(2)
         if c1.button("⏸ Tạm dừng", key=f"ap_pause_{pid}"):
             p.set_paused(pid, True)
@@ -495,9 +501,9 @@ def autopilot_panel(p: Pipeline, pid: int) -> None:
     info = autopilot.status(p, pid)
     with st.container(border=True):
         ui.html(ui.card_title("🚀 Chế độ tự động hoàn toàn (clip ngắn)", "bạn chỉ duyệt phân cảnh, phần còn lại tự chạy"))
-        if info["state"] in ("running", "done", "needs_attention", "stopped", "error"):
+        if info["state"] in ("queued", "running", "done", "needs_attention", "stopped", "error"):
             autopilot_progress(pid)
-            if info["state"] != "running":
+            if info["state"] not in ("running", "queued"):
                 with st.expander("Chạy lại từ đầu cho dự án này"):
                     st.caption("Đặt lại trạng thái tự động (ảnh/video đã làm được giữ nguyên).")
                     if st.button("↺ Đặt lại chế độ tự động", key=f"ap_reset_{pid}"):
@@ -1467,6 +1473,47 @@ def trash_section(pid: int) -> None:
                             st.rerun()
 
 
+def monitor(p: Pipeline, pid: int) -> None:
+    """Load and performance of the whole system (all projects), to spot overload before it costs credit."""
+    mgr = autopilot_manager(DB, DATA)
+    snap = perf.snapshot(p.conn, mgr.queue_length(), mgr.running_count(), mgr.max_parallel)
+    ui.html(ui.card_title("📊 Theo dõi hiệu suất & tải hệ thống", "toàn bộ dự án, làm mới bằng nút bên phải"))
+    if st.button("↻ Làm mới", key="perf_refresh"):
+        st.rerun()
+    for msg in snap["alerts"]:
+        st.markdown(f":orange[⚠ {msg}]")
+    if not snap["alerts"]:
+        st.markdown(":green[✔ Chưa thấy dấu hiệu quá tải.]")
+    c1, c2, c3, c4 = st.columns(4)
+    c1.metric("Dự án chạy tự động", f"{mgr.running_count()}/{mgr.max_parallel}", help="AUTOPILOT_MAX_PARALLEL")
+    c2.metric("Đang xếp hàng", mgr.queue_length())
+    c3.metric("Job hôm nay", f"{snap['jobs_today']}/{snap['daily_limit'] or '∞'}", help="AUTOPILOT_DAILY_JOBS (giờ UTC)")
+    c4.metric("Job đang chạy/chờ", sum(k["running"] + k["queued"] for k in snap["kinds"]))
+    rows = []
+    for k in snap["kinds"]:
+        total = k["ok_24h"] + k["failed_24h"]
+        rows.append({"Loại": dict(perf.KINDS)[k["kind"]], "Đang chạy": k["running"], "Chờ": k["queued"],
+                     "Xong 1h": k["ok_1h"], "Lỗi 1h": k["failed_1h"], "Xong 24h": k["ok_24h"], "Lỗi 24h": k["failed_24h"],
+                     "Tỉ lệ lỗi 24h": f"{k['failed_24h'] / total:.0%}" if total else "-",
+                     "Thời gian TB": f"{k['avg_sec']:.0f}s" if k["avg_sec"] else "-",
+                     "Gần đây / trước đó": (f"{k['recent_sec']:.0f}s / {k['earlier_sec']:.0f}s"
+                                            if k["recent_sec"] and k["earlier_sec"] else "-")})
+    st.dataframe(rows, hide_index=True, use_container_width=True)
+    if snap["usage_today"]:
+        st.caption("Dùng hôm nay: " + ", ".join(f"{q:g} {unit} ({kind})" for kind, unit, q in snap["usage_today"]))
+    st.markdown("**Các dự án chạy tự động**")
+    if not snap["projects"]:
+        st.caption("Chưa có dự án nào chạy chế độ tự động.")
+    else:
+        st.dataframe([{"Dự án": f"#{r['id']} {r['name']}", "Trạng thái": r["state"], "Ảnh duyệt": f"{r['images']}/{r['scenes']}",
+                       "Video xong": f"{r['videos']}/{r['scenes']}", "Job hoạt động": r["active"],
+                       "Nhịp cuối": "-" if r["idle_sec"] is None else f"{r['idle_sec']:.0f}s trước",
+                       "Ghi chú": r["note"]} for r in snap["projects"]], hide_index=True, use_container_width=True)
+    st.caption("Ngưỡng cảnh báo chỉnh bằng biến môi trường: PERF_MAX_ACTIVE, PERF_FAIL_WARN, PERF_SLOW_WARN; "
+               "song song: AUTOPILOT_MAX_PARALLEL; trần ngày: AUTOPILOT_DAILY_JOBS. "
+               "Chưa đo thời gian gọi Claude (QC/motion).")
+
+
 def history(p: Pipeline, pid: int):
     scenes = p.conn.execute("SELECT id, idx, title FROM scenes WHERE project_id=? ORDER BY idx", (pid,)).fetchall()
     if not scenes:
@@ -1511,13 +1558,13 @@ def main():
     purge_trash(DATA)
     trash.sweep_rejected(p, DATA, pid)
     deep = st.query_params.get("step")  # ?step=2 opens a step directly (1, 2, 3, 4, 5a, 5b, history)
-    keys = ["1", "2", "3", "4", "5a", "5b", "history"]
+    keys = ["1", "2", "3", "4", "5a", "5b", "history", "monitor"]
     if deep in keys and "step" not in st.session_state:
         st.session_state["step"] = STEPS[keys.index(deep)]
     step = st.radio("Bước", STEPS, horizontal=True, key="step", label_visibility="collapsed",
                     format_func=step_label(step_done(p, pid)))
     {STEPS[0]: step1, STEPS[1]: step2, STEPS[2]: step3, STEPS[3]: step4, STEPS[4]: step5a,
-     STEPS[5]: step5b, STEPS[6]: history}[step](p, pid)
+     STEPS[5]: step5b, STEPS[6]: history, STEPS[7]: monitor}[step](p, pid)
 
 
 main()
