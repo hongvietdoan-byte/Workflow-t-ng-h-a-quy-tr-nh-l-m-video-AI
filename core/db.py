@@ -136,9 +136,12 @@ def _migrate_usage_events(conn: sqlite3.Connection) -> None:
 
 
 def connect(path: str = ":memory:") -> sqlite3.Connection:
-    conn = sqlite3.connect(path)
+    conn = sqlite3.connect(path, timeout=60)     # many background threads write: wait for the lock instead of failing
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA foreign_keys = ON")
+    if path != ":memory:":
+        conn.execute("PRAGMA journal_mode = WAL")   # readers (the dashboard) no longer block writers and vice versa
+        conn.execute("PRAGMA synchronous = NORMAL")
     conn.executescript(SCHEMA)
     cols = {r["name"] for r in conn.execute("PRAGMA table_info(projects)")}
     if "paused" not in cols:

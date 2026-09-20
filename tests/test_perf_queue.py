@@ -81,6 +81,13 @@ class QueueTests(unittest.TestCase):
         self.assertTrue(wait(db, [ids[2]], ("done",)))
 
 
+class DatabaseModeTests(unittest.TestCase):
+    def test_file_database_uses_wal_and_waits_for_locks(self):
+        conn = connect(os.path.join(tempfile.mkdtemp(), "m.sqlite"))
+        self.assertEqual(conn.execute("PRAGMA journal_mode").fetchone()[0], "wal")   # many writer threads, no "database is locked"
+        conn.close()
+
+
 class DailyCapTests(Setup):
     def test_daily_job_cap_stops_new_jobs_across_projects(self):
         ctx = self.build()
