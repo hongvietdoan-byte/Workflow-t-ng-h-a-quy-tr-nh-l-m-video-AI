@@ -17,7 +17,7 @@ import streamlit as st
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
-from core import audio_lib, regen, trash, waveform, cost, ffmpeg_studio, final_cut, llm_io, llm_runner, music, preflight, prompts, script_parser  # noqa: E402
+from core import audio_lib, regen, subjects, trash, waveform, cost, ffmpeg_studio, final_cut, llm_io, llm_runner, music, preflight, prompts, script_parser  # noqa: E402
 from core.db import connect  # noqa: E402
 from core.pipeline import Pipeline, PipelinePaused  # noqa: E402
 from core.adapters import factory  # noqa: E402
@@ -210,22 +210,10 @@ def scene_expander(p: Pipeline, scene_id, expanded: bool = False, with_motion: b
         ui.html("".join(f'<div class="muted"><b>{escape(k)}:</b> {escape(v)}</div>' for k, v in lines if v))
 
 
-VIDEO_SIZES = ["Nhỏ", "Vừa", "Lớn"]
-
-
-def video_size_control(key: str) -> str:
-    """One size switch for every video on a page (small / medium / full width). The player's own ⛶ button
-    goes full screen."""
-    return st.radio("Kích thước xem video", VIDEO_SIZES, index=1, horizontal=True, key=key)
-
-
 def show_video(path: str, size: str = "Vừa") -> None:
-    ratio = {"Nhỏ": [1, 3], "Vừa": [1, 1]}.get(size)
+    """Inline player at a comfortable width; the player's own ⛶ button goes full screen."""
     try:
-        if ratio:
-            st.columns(ratio)[0].video(path)
-        else:
-            st.video(path)
+        st.columns([1, 1])[0].video(path)
     except Exception:  # noqa: BLE001 - unreadable file: say so instead of breaking the page
         st.caption(f"⚠ Không phát được video: {os.path.basename(path)}")
 
@@ -405,6 +393,7 @@ def step1(p: Pipeline, pid: int):
                                "IP": "⚠ rủi ro" if c["name"] in risky else "an toàn",
                                "Khóa": "🔒" if c["locked"] else ""} for c in chars],
                              width="stretch", hide_index=True, height=min(38 * (len(chars) + 1) + 3, 220))
+                subject_panel(p, pid, chars)
                 with st.expander("✏ Sửa nhân vật / khóa"):
                     if any(c["locked"] for c in chars):
                         st.caption("Character Bible đang khóa. Muốn sửa phải mở khóa (ảnh đã gen vẫn theo mô tả cũ).")
@@ -423,27 +412,87 @@ def step1(p: Pipeline, pid: int):
                                 st.rerun()
         if scenes:
             with st.container(border=True):
-                ui.html(ui.card_title("③ Phân cảnh", f"{len(scenes)} cảnh"))
-                rows = []
+                ui.html(ui.card_title("③ Phân cảnh", f"{len(scenes)} cảnh · bấm vào từng cảnh để xem và sửa"))
                 for s in scenes:
                     d = json.loads(s["data"] or "{}")
-                    rows.append({"Cảnh": f"S{s['idx']:02d}",
-                                 "Bối cảnh": " · ".join(filter(None, [d.get("time"), d.get("location")])),
-                                 "Nhân vật": ", ".join(d.get("characters") or []),
-                                 "Shot · mood": " · ".join(filter(None, [d.get("shot"), d.get("mood")])),
-                                 "Trạng thái": s["state"]})
-                st.dataframe(rows, width="stretch", hide_index=True, height=min(38 * (len(rows) + 1) + 3, 260))
-                pick = st.selectbox("Xem / sửa chi tiết một cảnh", [s["idx"] for s in scenes], index=None,
-                                    placeholder="Chọn cảnh…", key=f"scene_pick_{pid}",
-                                    format_func=lambda i: scene_title(i, next(s["title"] for s in scenes if s["idx"] == i)))
-                if pick is not None:
-                    scene_editor(p, pid, next(s for s in scenes if s["idx"] == pick), [c["name"] for c in chars])
+                    bits = [f"S{s['idx']:02d}", " · ".join(filter(None, [d.get("time"), d.get("location")])),
+                            ", ".join(d.get("characters") or []), " · ".join(filter(None, [d.get("shot"), d.get("mood")]))]
+                    with st.expander("   |   ".join(x for x in bits if x) + f"   [{s['state']}]"):
+                        scene_editor(p, pid, s, [c["name"] for c in chars])
         if chars:
             with st.container(border=True):
                 a, b = st.columns([2, 1], vertical_alignment="center")
                 a.caption("Cần Approve & Lock để mở Bước 2")
                 if b.button("✔ Duyệt & khóa → Bước 2", type="primary"):
                     act(lambda: llm_io.lock_character_bible(p, pid), "Đã khóa Character Bible")
+                    st.rerun()
+
+
+def subject_panel(p: Pipeline, pid: int, chars) -> None:
+    """Seedance Subject Library: upload each character once, then attach it to Seedance videos."""
+    proj = p.project(pid)
+    rows = p.conn.execute("SELECT name, subject_asset_id, subject_status, subject_name FROM characters"
+                          " WHERE project_id=?", (pid,)).fetchall()
+    active = sum(1 for r in rows if r["subject_status"] == "active")
+    with st.expander(f"🧩 Kho chủ thể Seedance — {active}/{len(rows)} nhân vật đã có"):
+        keys = list(subjects.GAMES)
+        game = st.selectbox("Game của dự án", keys, index=keys.index(proj["game"]) if proj["game"] in keys else 0,
+                            format_func=lambda k: subjects.GAMES[k][0], key=f"game_{pid}")
+        if game != proj["game"]:
+            p.set_game(pid, game)
+        if subjects.is_covered(game):
+            st.success("Free Fire đã ký thỏa thuận bản quyền với Clip AI: chủ thể ở trạng thái active đã qua duyệt "
+                       "người thật + bản quyền, dùng được trong Seedance.")
+        else:
+            st.warning("Game này chưa có thỏa thuận bản quyền: chủ thể active chỉ qua duyệt người thật; khi gen vẫn có "
+                       "thể bị chặn bản quyền.")
+        st.dataframe([{"Nhân vật": r["name"], "Trạng thái": subjects.STATUS_LABEL.get(r["subject_status"], r["subject_status"]),
+                       "Tên trên kho": r["subject_name"] or ""} for r in rows], width="stretch", hide_index=True,
+                     height=min(38 * (len(rows) + 1) + 3, 200))
+        try:
+            library = factory.subject_library()
+        except ProviderError as e:
+            st.error(f"Clip AI: {e}")
+            return
+        if library is None:
+            st.caption("Cần CLIPAI_TOKEN và VIDEO_PROVIDER=clipai (hoặc SUBJECT_PROVIDER=mock để thử) để tải lên kho.")
+            return
+        who = st.selectbox("Nhân vật", [r["name"] for r in rows], key=f"subj_who_{pid}")
+        up = st.file_uploader("Ảnh nhân vật (JPG / PNG / WebP)", type=["jpg", "jpeg", "png", "webp"],
+                              key=f"subj_up_{pid}_{who}")
+        default_name = f"{game}_{who}".replace(" ", "_")
+        name = st.text_input("Tên trên kho", default_name, key=f"subj_name_{pid}_{who}")
+        b1, b2, b3 = st.columns(3)
+        if b1.button("⬆ Tải lên kho chủ thể", disabled=up is None, key=f"subj_go_{pid}", type="primary"):
+            suffix = os.path.splitext(up.name)[1] or ".png"
+            with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as f:
+                f.write(up.getvalue())
+            try:
+                with st.spinner("Đang tải lên và chờ kho duyệt (có thể mất 1–3 phút)…"):
+                    ok = act(lambda: subjects.link(p, pid, who, library.upload(f.name, name)), f"Đã có chủ thể cho {who}")
+            finally:
+                os.remove(f.name)
+            if ok:
+                st.rerun()
+        if b2.button("⟳ Cập nhật trạng thái", key=f"subj_refresh_{pid}"):
+            act(lambda: st.toast(f"{subjects.refresh(p, pid, library)} chủ thể vừa active"))
+            st.rerun()
+        if b3.button("Gỡ liên kết", key=f"subj_unlink_{pid}", help="Chỉ bỏ liên kết trong dự án; ảnh vẫn ở kho Clip AI"):
+            subjects.unlink(p, pid, who)
+            st.rerun()
+        with st.expander("📥 Nhập chủ thể đã có trên kho"):
+            try:
+                assets = [a for a in library.list_assets("image") if a.get("asset_id")]
+            except ProviderError as e:
+                st.error(str(e))
+                assets = []
+            if not assets:
+                st.caption("Kho chưa có ảnh nào (hoặc không đọc được).")
+            else:
+                pick = st.selectbox("Chủ thể trên kho", assets, key=f"subj_pick_{pid}",
+                                    format_func=lambda a: f"{a.get('name')} · {a.get('provider_status')}")
+                if st.button(f"Gắn cho {who}", key=f"subj_link_{pid}"):
+                    act(lambda: subjects.link(p, pid, who, pick), f"Đã gắn cho {who}")
                     st.rerun()
 
 
@@ -783,6 +832,14 @@ def step4(p: Pipeline, pid: int):
                                     "xử lý) nếu lời thoại được ghi trong motion prompt. Có thể đổi giá; chưa thử thật.")
         if audio_on != bool(proj["video_audio"]):
             p.set_video_audio(pid, audio_on)
+        n_subj = p.conn.execute("SELECT COUNT(*) c FROM characters WHERE project_id=? AND subject_status='active'",
+                                (pid,)).fetchone()["c"]
+        use_subj = st.checkbox(f"🧩 Gắn ảnh chủ thể nhân vật vào video (Seedance) — {n_subj} nhân vật có chủ thể active",
+                               bool(proj["use_subjects"]), key=f"vsubj_{pid}",
+                               help="Chỉ Seedance. Mỗi cảnh gắn chủ thể của các nhân vật xuất hiện trong cảnh (kho chủ thể ở Bước 1). "
+                                    "Chưa thử thật; ảnh chủ thể tính vào giới hạn số ảnh tham chiếu.")
+        if use_subj != bool(proj["use_subjects"]):
+            p.set_use_subjects(pid, use_subj)
         if runner is None:
             st.caption("ℹ Clip AI chưa cấu hình: chỉ theo dõi job thủ công.")
             with st.expander("Cách cấu hình"):
@@ -826,8 +883,6 @@ def step4(p: Pipeline, pid: int):
         if blocked:
             st.caption(f"⚠ {blocked} lần bị chặn risk control — chi tiết ở “⚠ Rủi ro” góc trên.")
     size = "Vừa"
-    if any(j["state"] == "succeeded" and j["result_path"] and os.path.exists(j["result_path"]) for j in jobs):
-        size = video_size_control("vsize_4")
     for j in jobs:
         clip = j["result_path"] if j["state"] == "succeeded" and j["result_path"] and os.path.exists(j["result_path"]) else None
         with st.container(border=True):
@@ -897,7 +952,7 @@ def step5a(p: Pipeline, pid: int):
     if shown and os.path.exists(shown[0]):
         with st.container(border=True):
             ui.html(ui.card_title("Xem thử: clip + nhạc", shown[1]))
-            show_video(shown[0], video_size_control("vsize_5a"))
+            show_video(shown[0], "Vừa")
     if not has_clips:
         st.caption("Chưa có clip nào (Bước 4) nên chưa thể xem thử nhạc cùng video.")
 
@@ -1042,7 +1097,7 @@ def step5b(p: Pipeline, pid: int):
     with left:
         with st.container(border=True):
             ui.html(ui.card_title("Clip theo thứ tự cảnh", f"{len(present)} có sẵn / {len(clips)} mục · lấy tự động từ Bước 4"))
-            vsize = video_size_control("vsize_5b") if present else "Vừa"
+            vsize = "Vừa"
             if not present:
                 st.info("Chưa có clip nào. Chạy Bước 4 (gen video) hoặc nhập clip thủ công bên dưới.")
             names = ", ".join(f"cảnh {c['idx']}" + (f" ({c['state']})" if c["state"] else "") for c in missing if c["idx"])
@@ -1074,7 +1129,7 @@ def step5b(p: Pipeline, pid: int):
             with st.container(border=True):
                 ui.html(ui.card_title("Preview", "FINAL_VIDEO.mp4") + ui.badge("succeeded", "b-ok")
                         + f' <span class="muted">{os.path.getsize(out) / 1e6:.1f} MB</span>')
-                show_video(out, video_size_control("vsize_final"))
+                show_video(out, "Vừa")
                 with open(out, "rb") as f:
                     st.download_button("⬇ Tải FINAL_VIDEO.mp4", f, file_name="FINAL_VIDEO.mp4", mime="video/mp4")
     with right, st.container(border=True):
@@ -1140,7 +1195,7 @@ def history(p: Pipeline, pid: int):
                        format_func=lambda i: next(f"{s['idx']} · {s['title']}" for s in scenes if s["id"] == i))
     jobs = p.conn.execute("SELECT * FROM jobs WHERE scene_id=? ORDER BY id", (sid,)).fetchall()
     scene_expander(p, sid, expanded=False, with_motion=True)
-    size = video_size_control("vsize_hist") if any(j["result_path"] and os.path.exists(j["result_path"]) for j in jobs) else "Vừa"
+    size = "Vừa"
     with st.container(border=True):
         ui.html(ui.card_title("Lịch sử phiên bản", "so sánh các lần gen"))
         for start in range(0, len(jobs), 3):

@@ -10,6 +10,7 @@ import os
 import time
 from typing import Callable, Dict, Optional, Tuple
 
+from . import subjects as subject_links
 from . import trash
 from .cost import record_usage
 from .pipeline import Pipeline
@@ -157,7 +158,12 @@ class VideoRunner(_Runner):
         path = os.path.join(self.data_dir, str(job["project_id"]), "images", f"job_{img['id']}.png")
         proj = self.p.project(job["project_id"])
         args = (path, mp["motion_prompt"], mp["negative_prompt"], mp["duration_sec"], proj["video_model"])
-        return args + (True,) if proj["video_audio"] else args  # 6th arg only when on: older providers keep working
+        refs = []
+        if proj["use_subjects"] and "seedance" in (proj["video_model"] or ""):
+            refs = subject_links.usable_for_scene(self.p, job["scene_id"], subject_links.reference_cap(proj["video_model"]))
+        if proj["video_audio"] or refs:  # extra args only when used: older providers keep working
+            args += (bool(proj["video_audio"]),) + ((refs,) if refs else ())
+        return args
 
     def _record_usage(self, job, args) -> None:
         info = getattr(self.provider, "usage_info", None)

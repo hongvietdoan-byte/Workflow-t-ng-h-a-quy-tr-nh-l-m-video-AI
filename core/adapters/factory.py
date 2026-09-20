@@ -30,6 +30,18 @@ def image_provider():
     return None
 
 
+def subject_library():
+    """SUBJECT_PROVIDER = clipai | mock. Unset: follows VIDEO_PROVIDER (clipai -> real library, mock -> mock)."""
+    kind = os.environ.get("SUBJECT_PROVIDER", "").strip().lower() or os.environ.get("VIDEO_PROVIDER", "").strip().lower()
+    if kind == "mock":
+        from .clipai_subjects import MockSubjectLibrary
+        return MockSubjectLibrary()
+    if kind == "clipai":
+        from .clipai_subjects import ClipAISubjectLibrary
+        return ClipAISubjectLibrary.from_env()
+    return None
+
+
 def describe(provider) -> Optional[str]:
     if provider is None:
         return None

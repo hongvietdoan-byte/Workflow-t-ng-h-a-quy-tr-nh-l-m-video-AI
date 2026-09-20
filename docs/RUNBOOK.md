@@ -33,6 +33,7 @@ Dành cho người **vận hành hằng ngày** (không cần đọc code). Kế
 | `PIPELINE_DB`, `PIPELINE_DATA`, `PIPELINE_PRICING` | vị trí DB / thư mục dự án / bảng giá | `data/…` |
 | `DASHBOARD_PORT` | cổng Dashboard | `8501` |
 | `TRASH_DAYS` | số ngày giữ file trong thùng rác | `30` |
+| `SUBJECT_PROVIDER` | `clipai` \| `mock` (kho chủ thể Seedance) | theo `VIDEO_PROVIDER` |
 
 ## 3. Quy trình một video (Dashboard, 7 tab theo thứ tự)
 | Bước | Việc bạn làm | Kiểm tra trước khi qua bước |
@@ -44,7 +45,7 @@ Dành cho người **vận hành hằng ngày** (không cần đọc code). Kế
 | **5a Nhạc/âm thanh** | Sửa prompt nhạc → *Tạo bản nháp* → nghe, **Chọn**; tùy chọn SFX/giọng đọc + thời điểm | Đã chọn nhạc (hoặc "không dùng") |
 | **5b Ghép & Render** | Chọn clip, transition, âm lượng → *Render Final* → xem và tải | Tổng thời lượng đúng dự kiến |
 
-Dưới mỗi ảnh/clip có mũi tên **📖 nội dung kịch bản**: bấm để đọc lại đoạn kịch bản của cảnh đó (kèm bối cảnh, nhân vật, mood, prompt) và so với kết quả. Video xem ngay trong Dashboard (chọn Nhỏ/Vừa/Lớn; ⛶ để toàn màn hình); chưa ưng thì bấm **↻ Gen lại video** (bản cũ vào thùng rác). Ở Bước 5a, nút **🎬 Xem thử với video** ghép nhanh clip + nhạc để nghe có khớp hình không. Góc trên có **⚠ Rủi ro (N)** ghi lại cảnh báo IP và các lần bị chặn. Dấu **✓** trên thanh bước = bước đã hoàn tất. Nút **Pause** dừng việc bắt đầu job mới; **Cancel** hủy job đang chạy/xếp hàng của dự án.
+Dưới mỗi ảnh/clip có mũi tên **📖 nội dung kịch bản**: bấm để đọc lại đoạn kịch bản của cảnh đó (kèm bối cảnh, nhân vật, mood, prompt) và so với kết quả. Video xem ngay trong Dashboard (chọn Nhỏ/Vừa/Lớn; ⛶ để toàn màn hình); chưa ưng thì bấm **↻ Gen lại video** (bản cũ vào thùng rác). Ở Bước 5a, nút **🎬 Xem thử với video** ghép nhanh clip + nhạc để nghe có khớp hình không. **Kho chủ thể (Free Fire):** Bước 1 → "🧩 Kho chủ thể Seedance": chọn nhân vật, tải ảnh lên kho (chờ 1–3 phút tới khi *active*), rồi ở Bước 4 bật "🧩 Gắn ảnh chủ thể nhân vật vào video" (chỉ Seedance). FF đã ký bản quyền nên chủ thể active dùng được; game khác vẫn có thể bị chặn bản quyền. Góc trên có **⚠ Rủi ro (N)** ghi lại cảnh báo IP và các lần bị chặn. Dấu **✓** trên thanh bước = bước đã hoàn tất. Nút **Pause** dừng việc bắt đầu job mới; **Cancel** hủy job đang chạy/xếp hàng của dự án.
 
 ## 4. Hai chế độ QC
 - **Duyệt tất cả** (Bước 2 và 3) hỏi Có/Không một lần trước khi duyệt; duyệt từng ảnh thì bấm ngay tại ảnh. **Ảnh điểm quá thấp** (mặc định dưới 0,50, chỉnh được) bị tự loại ở cả hai chế độ và xếp hàng gen ảnh mới (gen khi bạn bấm chạy).

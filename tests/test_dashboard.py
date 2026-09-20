@@ -315,21 +315,21 @@ class DashboardSmokeTests(unittest.TestCase):
         rows = Pipeline(connect(self.db)).conn.execute("SELECT state FROM jobs WHERE type='video_gen' ORDER BY id").fetchall()
         self.assertEqual([r["state"] for r in rows], ["rejected", "queued"])
 
-    def test_video_size_switch_and_audio_option(self):
+    def test_video_plays_inline_without_a_size_switch_and_audio_option(self):
         p, pid, vid, clip = self._finished_video()
         at = AppTest.from_file(APP, default_timeout=30).run()
         at.radio(key="step").set_value(at.radio(key="step").options[3]).run()
-        for size in ("Nhỏ", "Lớn", "Vừa"):
-            at.radio(key="vsize_4").set_value(size).run()
-            self.assertFalse(at.exception, size)
+        self.assertFalse(at.exception)
+        self.assertGreaterEqual(len(at.get("video")), 1)  # shown right in the list, no tick box needed
+        self.assertFalse(any((r.key or "").startswith("vsize") for r in at.radio))  # no size switch any more
         at.checkbox(key=f"vaudio_{pid}").set_value(True).run()
         self.assertEqual(Pipeline(connect(self.db)).project(pid)["video_audio"], 1)
 
-    def test_scene_detail_is_hidden_until_picked_then_editable(self):
+    def test_every_scene_is_listed_and_editable_in_place(self):
         p, pid = self.seed()
         at = AppTest.from_file(APP, default_timeout=30).run()
-        self.assertFalse(any(t.key == f"sd_{pid}_1_prompt" for t in at.text_area))  # compact by default
-        at.selectbox(key=f"scene_pick_{pid}").set_value(1).run()
+        self.assertTrue(any(e.label.startswith("S01") for e in at.expander))  # the scene row itself, no picker
+        self.assertFalse(any(sb.key == f"scene_pick_{pid}" for sb in at.selectbox))
         at.text_area(key=f"sd_{pid}_1_prompt").set_value("dark forest, low fog").run()
         at.text_area(key=f"sd_{pid}_1_text").set_value("CẢNH 1. Nội dung sửa").run()
         next(b for b in at.button if b.key == f"sds_{pid}_1").click().run()
@@ -338,6 +338,37 @@ class DashboardSmokeTests(unittest.TestCase):
         import json
         data = json.loads(Pipeline(connect(self.db)).conn.execute("SELECT data FROM scenes").fetchone()["data"])
         self.assertEqual((data["image_prompt"], data["text"]), ("dark forest, low fog", "CẢNH 1. Nội dung sửa"))
+
+    def test_subject_library_panel_defaults_to_free_fire_and_links_a_character(self):
+        from core import subjects
+        p, pid = self.seed()
+        os.environ["SUBJECT_PROVIDER"] = "mock"
+        try:
+            at = AppTest.from_file(APP, default_timeout=30).run()
+            self.assertFalse(at.exception)
+            self.assertEqual(at.selectbox(key=f"game_{pid}").value, "FF")
+            self.assertTrue(any("Free Fire đã ký thỏa thuận" in s.value for s in at.success))
+            at.selectbox(key=f"game_{pid}").set_value("AOV").run()
+            self.assertEqual(Pipeline(connect(self.db)).project(pid)["game"], "AOV")
+            self.assertTrue(any("chưa có thỏa thuận" in w.value for w in at.warning))
+        finally:
+            os.environ.pop("SUBJECT_PROVIDER", None)
+        q = Pipeline(connect(self.db))
+        subjects.link(q, pid, "Lyra", {"asset_id": "asset-mock-1", "asset_uri": "asset://asset-mock-1",
+                                       "provider_status": "active", "name": "FF_Lyra"})
+        os.environ["SUBJECT_PROVIDER"] = "mock"
+        try:
+            at = AppTest.from_file(APP, default_timeout=30).run()
+            self.assertTrue(any("1/2 nhân vật đã có" in e.label for e in at.expander))
+        finally:
+            os.environ.pop("SUBJECT_PROVIDER", None)
+
+    def test_attach_subjects_switch_is_saved(self):
+        p, pid = self.seed()
+        at = AppTest.from_file(APP, default_timeout=30).run()
+        at.radio(key="step").set_value(at.radio(key="step").options[3]).run()
+        at.checkbox(key=f"vsubj_{pid}").set_value(True).run()
+        self.assertEqual(Pipeline(connect(self.db)).project(pid)["use_subjects"], 1)
 
     def test_risk_corner_lists_ip_and_moderation_notes(self):
         p, pid = self.seed()

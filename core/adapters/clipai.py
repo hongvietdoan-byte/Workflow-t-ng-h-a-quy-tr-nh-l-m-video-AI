@@ -119,7 +119,7 @@ class ClipAIVideoProvider:
 
     # ---- submit ---------------------------------------------------------
     def submit(self, image_path: str, prompt: str, negative_prompt: Optional[str], duration_sec: float,
-               model: Optional[str] = None, with_audio: bool = False) -> str:
+               model: Optional[str] = None, with_audio: bool = False, subjects: Optional[list] = None) -> str:
         canonical, family = resolve_model(model)
         if with_audio and canonical == "kling-video-o1":
             raise ProviderError("kling-video-o1 does not support generated sound (use kling-v3-omni or Seedance)",
@@ -127,6 +127,14 @@ class ClipAIVideoProvider:
         text = prompt.strip()
         if self.negative == "append" and negative_prompt:
             text += f"\nAvoid: {negative_prompt}"
+        refs = []
+        if family == "seedance" and subjects:
+            cap = 29 if canonical == "dreamina-seedance-2-5-260628" else 8  # image cap minus the first-frame image
+            refs = [s for s in subjects if s.get("uri")][:cap]
+            if refs:  # Seedance wants every reference to have a stated job (@Image 1 is the first frame)
+                text += "\n" + " ".join(
+                    f"@Image {i} is the reference for {s['name']}: keep face, hair and outfit, ignore its background."
+                    for i, s in enumerate(refs, start=2))
         limit = PROMPT_LIMITS["kling" if family == "omni" else canonical]
         if len(text) > limit:
             raise ProviderError(f"prompt is {len(text)} characters; {canonical} allows at most {limit}",
@@ -145,7 +153,8 @@ class ClipAIVideoProvider:
         else:
             ctx = {"model_name": canonical,
                    "content": [{"type": "text", "text": text},
-                               {"type": "image_url", "image_url": {"url": ""}, "role": "first_frame"}],
+                               {"type": "image_url", "image_url": {"url": ""}, "role": "first_frame"}]
+                   + [{"type": "image_url", "image_url": {"url": s["uri"]}, "role": "reference_image"} for s in refs],
                    "resolution": self.resolution, "ratio": self.aspect_ratio,
                    "duration": effective_duration(canonical, family, duration_sec), "generate_audio": bool(with_audio),
                    "camera_fixed": False, "seed": -1, "video_num": 1}

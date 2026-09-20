@@ -55,6 +55,16 @@ class Pipeline:
         self.conn.execute("UPDATE projects SET video_audio=? WHERE id=?", (1 if on else 0, project_id))
         self.conn.commit()
 
+    def set_game(self, project_id: int, game: str) -> None:
+        """Game the characters belong to (FF has the signed copyright agreement for Seedance subjects)."""
+        self.conn.execute("UPDATE projects SET game=? WHERE id=?", (game, project_id))
+        self.conn.commit()
+
+    def set_use_subjects(self, project_id: int, on: bool) -> None:
+        """Attach the active Seedance subjects of a scene's characters to its video requests (Seedance only)."""
+        self.conn.execute("UPDATE projects SET use_subjects=? WHERE id=?", (1 if on else 0, project_id))
+        self.conn.commit()
+
     def set_video_model(self, project_id: int, model: Optional[str]) -> None:
         """Model used by the video provider (e.g. 'seedance', 'kling', 'minimax'); None = provider default."""
         self.conn.execute("UPDATE projects SET video_model=? WHERE id=?", (model or None, project_id))
