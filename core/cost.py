@@ -40,6 +40,22 @@ def video_unit_price(pricing: Dict, model: str, tier: str) -> Dict:
             "per_clip": _number(pricing["per_video_clip"].get(key))}
 
 
+def clip_price(pricing: Dict, model: str, tier: str, seconds: float) -> Optional[float]:
+    """Price of ONE clip. Lookup order (first found wins):
+    1. per_video_clip["model:tier:<N>s"] - exact setup price as shown on the Clip AI web page,
+    2. per_video_clip["model:tier"]      - flat price per clip,
+    3. per_video_second["model:tier"] x seconds."""
+    exact = _number(pricing["per_video_clip"].get(f"{model}:{tier}:{int(round(seconds))}s"))
+    if exact is not None:
+        return exact
+    price = video_unit_price(pricing, model, tier)
+    if price["per_clip"] is not None:
+        return price["per_clip"]
+    if price["per_second"] is not None:
+        return price["per_second"] * seconds
+    return None
+
+
 def _cost(units: float, clips: int, price: Dict) -> Optional[float]:
     if price["per_clip"] is not None:
         return price["per_clip"] * clips
@@ -80,7 +96,7 @@ def estimate_images(pipeline: Pipeline, project_id: int, pricing: Dict, model: s
 def pending_video_seconds(pipeline: Pipeline, project_id: int, clamp) -> Dict:
     """Clips/seconds a video run would submit: queued video jobs plus ready scenes without a live video job."""
     conn = pipeline.conn
-    seconds, clips = 0.0, 0
+    seconds, clips, durations = 0.0, 0, []
     live = {r["scene_id"] for r in conn.execute(
         "SELECT scene_id FROM jobs WHERE project_id=? AND type='video_gen' AND state NOT IN ('cancelled','rejected')",
         (project_id,))}
@@ -89,15 +105,17 @@ def pending_video_seconds(pipeline: Pipeline, project_id: int, clamp) -> Dict:
     for row in ready_for_video(pipeline, project_id):
         if row["scene_id"] in queued or row["scene_id"] not in live:
             seconds += clamp(row["duration_sec"])
+            durations.append(clamp(row["duration_sec"]))
             clips += 1
-    return {"clips": clips, "seconds": seconds}
+    return {"clips": clips, "seconds": seconds, "durations": durations}
 
 
 def estimate_videos(pipeline: Pipeline, project_id: int, pricing: Dict, model: str, tier: str, clamp) -> Dict:
     pending = pending_video_seconds(pipeline, project_id, clamp)
     price = video_unit_price(pricing, model, tier)
     max_retry = pipeline.project(project_id)["max_retry_count"]
-    base = _cost(pending["seconds"], pending["clips"], price)
+    prices = [clip_price(pricing, model, tier, d) for d in pending["durations"]]
+    base = None if any(x is None for x in prices) else sum(prices)
     result = {"kind": "video", "items": pending["clips"], "seconds": pending["seconds"], "model": model, "tier": tier,
               "unit_price": price, "known": base is not None or pending["clips"] == 0,
               "currency": pricing["currency"], "max_retry": max_retry}
@@ -114,6 +132,60 @@ def format_estimate(est: Dict) -> str:
         return head + " — chưa có giá trong data/pricing.json nên chưa tính được chi phí"
     return (f"{head} → ước tính {est['min']:.1f} {est['currency']} "
             f"(tối đa {est['max']:.1f} nếu mọi mục phải làm lại đủ {est['max_retry']} lần)")
+
+
+def save_pricing(pricing: Dict, path: Optional[str] = None) -> None:
+    """Write the price table back (keeps every key; used by the dashboard price editor)."""
+    path = path or os.environ.get("PIPELINE_PRICING") or DEFAULT_PRICING_PATH
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump(pricing, f, ensure_ascii=False, indent=2)
+        f.write("\n")
+
+
+# ---- price table <-> editable rows (dashboard price editor) -------------------------
+PRICE_KINDS = {
+    "per_image": "Ảnh — giá mỗi ảnh (khóa: tên model)",
+    "per_video_clip": "Video — giá mỗi clip (khóa: model:mức:Ns, vd kling-v3-omni:pro:5s)",
+    "per_video_second": "Video — giá mỗi giây (khóa: model:mức)",
+    "per_audio": "Âm thanh — giá mỗi lần tạo (khóa: model)",
+}
+SUGGESTED_CLIP_KEYS = [f"{m}:{t}:{s}s" for m, tiers in (
+    ("kling-v3-omni", ("std", "pro")), ("dreamina-seedance-2-0-260128", ("720p", "1080p")),
+    ("dreamina-seedance-2-5-260628", ("720p",))) for t in tiers for s in (5, 10)]
+
+
+def pricing_to_rows(pricing: Dict, suggest: bool = True) -> List[Dict]:
+    """Flat rows [{kind, key, price}] for a table editor; suggested empty clip rows help the first fill."""
+    rows = [{"kind": kind, "key": key, "price": _number(value)}
+            for kind in PRICE_KINDS for key, value in pricing.get(kind, {}).items()]
+    if suggest:
+        have = {(r["kind"], r["key"]) for r in rows}
+        rows += [{"kind": "per_video_clip", "key": k, "price": None} for k in SUGGESTED_CLIP_KEYS
+                 if ("per_video_clip", k) not in have]
+    return rows
+
+
+def rows_to_pricing(rows: List[Dict], base: Dict) -> Dict:
+    """Validate the edited rows and rebuild the price table (keeps currency, confirm_batch_at and notes)."""
+    result = {k: v for k, v in base.items() if k not in PRICE_KINDS}
+    for kind in PRICE_KINDS:
+        result[kind] = {}
+    for i, row in enumerate(rows, start=1):
+        kind, key, price = row.get("kind"), (row.get("key") or "").strip(), row.get("price")
+        if kind is None and not key and price in (None, ""):
+            continue  # blank line added by the editor
+        if kind not in PRICE_KINDS:
+            raise ValueError(f"dòng {i}: chưa chọn loại giá")
+        if not key:
+            raise ValueError(f"dòng {i}: thiếu khóa")
+        if price in (None, "") or (isinstance(price, float) and price != price):
+            result[kind][key] = None
+            continue
+        number = _number(price)
+        if number is None or number < 0:
+            raise ValueError(f"dòng {i} ({key}): giá phải là số không âm")
+        result[kind][key] = number
+    return result
 
 
 # ---- ledger ---------------------------------------------------------------
@@ -148,7 +220,7 @@ def spend_summary(conn: sqlite3.Connection, project_id: int, pricing: Dict) -> D
             price = _number(pricing.get("per_audio", {}).get(r["model"]))
             cost = None if price is None else price * r["quantity"]
         else:
-            cost = _cost(r["quantity"], 1, video_unit_price(pricing, r["model"], r["tier"]))
+            cost = clip_price(pricing, r["model"], r["tier"], r["quantity"])
         if cost is None:
             unknown.add(f"{r['model']}:{r['tier']}" if r["kind"] == "video" else r["model"])
         else:

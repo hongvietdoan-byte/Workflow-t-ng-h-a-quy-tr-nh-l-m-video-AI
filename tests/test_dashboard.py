@@ -158,6 +158,27 @@ class DashboardSmokeTests(unittest.TestCase):
         finally:
             os.environ.pop("LLM_PROVIDER", None)
 
+    def test_price_editor_saves_table_to_the_pricing_file(self):
+        import json
+        self.seed()
+        path = os.path.join(self.tmp, "pricing.json")
+        with open(path, "w", encoding="utf-8") as f:
+            json.dump({"currency": "credits", "confirm_batch_at": 10, "per_image": {"img": 3},
+                       "per_video_second": {}, "per_video_clip": {}}, f)
+        os.environ["PIPELINE_PRICING"] = path
+        try:
+            at = AppTest.from_file(APP, default_timeout=30).run()
+            self.assertFalse(at.exception)
+            at.text_input(key="price_currency").set_value("token").run()
+            next(b for b in at.button if b.key == "btn_save_prices").click().run()
+            self.assertFalse(at.exception)
+            self.assertFalse(at.error)
+        finally:
+            os.environ.pop("PIPELINE_PRICING", None)
+        saved = json.load(open(path, encoding="utf-8"))
+        self.assertEqual((saved["currency"], saved["per_image"]), ("token", {"img": 3.0}))
+        self.assertIn("kling-v3-omni:pro:5s", saved["per_video_clip"])
+
     def test_video_step_with_mock_provider_runs_to_completion(self):
         from core.llm_io import approve_motion_prompt, lock_character_bible, store_motion_prompts
         p, pid = self.seed()

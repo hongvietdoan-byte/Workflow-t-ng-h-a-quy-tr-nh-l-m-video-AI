@@ -174,6 +174,37 @@ def step_label(done: list):
 
 
 # ---- header --------------------------------------------------------------------------
+def price_editor() -> None:
+    """Edit data/pricing.json in the dashboard: copy the price the Clip AI web page shows before generating."""
+    with st.expander("💲 Bảng giá (nhập giá hiển thị trên web Clip AI / Deepix)"):
+        st.caption("Web Clip AI hiện giá cho từng thiết lập trước khi bấm gen: chỉ cần chép lại. Ưu tiên tra: "
+                   "`model:mức:Ns` (giá đúng thiết lập) → `model:mức` (giá mỗi clip) → giá mỗi giây. "
+                   "Để trống = chưa biết giá (Dashboard vẫn đếm số lượng).")
+        pricing = cost.load_pricing()
+        c1, c2 = st.columns(2)
+        currency = c1.text_input("Đơn vị tiền/credit", pricing["currency"], key="price_currency")
+        confirm = c2.number_input("Xác nhận khi lô từ … mục trở lên", 1, 1000, int(pricing["confirm_batch_at"]),
+                                  key="price_confirm")
+        rows = st.data_editor(
+            cost.pricing_to_rows(pricing), num_rows="dynamic", width="stretch", hide_index=True, key="price_rows",
+            column_config={
+                "kind": st.column_config.SelectboxColumn("Loại", options=list(cost.PRICE_KINDS), required=True,
+                                                         width="large"),
+                "key": st.column_config.TextColumn("Khóa", required=True, width="large"),
+                "price": st.column_config.NumberColumn("Giá", min_value=0.0, format="%.4f"),
+            })
+        st.caption("Loại: " + " · ".join(f"`{k}` = {v}" for k, v in cost.PRICE_KINDS.items()))
+        if st.button("💾 Lưu bảng giá", key="btn_save_prices"):
+            try:
+                base = dict(pricing, currency=currency.strip() or "credits", confirm_batch_at=int(confirm))
+                cost.save_pricing(cost.rows_to_pricing(rows.to_dict("records") if hasattr(rows, "to_dict") else rows, base))
+            except ValueError as e:
+                st.error(str(e))
+            else:
+                st.toast("Đã lưu bảng giá")
+                st.rerun()
+
+
 def global_bar(p: Pipeline):
     projects = p.conn.execute("SELECT id, name FROM projects ORDER BY id").fetchall()
     with st.expander("➕ Tạo dự án mới", expanded=not projects):
@@ -210,6 +241,7 @@ def global_bar(p: Pipeline):
     if proj["paused"]:
         st.warning("Pipeline đang PAUSE — không job nào được bắt đầu.")
     spend_line(p, pid)
+    price_editor()
     return pid
 
 
