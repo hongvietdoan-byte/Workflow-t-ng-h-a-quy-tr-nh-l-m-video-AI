@@ -119,8 +119,11 @@ class ClipAIVideoProvider:
 
     # ---- submit ---------------------------------------------------------
     def submit(self, image_path: str, prompt: str, negative_prompt: Optional[str], duration_sec: float,
-               model: Optional[str] = None) -> str:
+               model: Optional[str] = None, with_audio: bool = False) -> str:
         canonical, family = resolve_model(model)
+        if with_audio and canonical == "kling-video-o1":
+            raise ProviderError("kling-video-o1 does not support generated sound (use kling-v3-omni or Seedance)",
+                                code="unsupported_option")
         text = prompt.strip()
         if self.negative == "append" and negative_prompt:
             text += f"\nAvoid: {negative_prompt}"
@@ -134,7 +137,7 @@ class ClipAIVideoProvider:
             content = f.read()
         image = (_upload_name(image_path, content), content)
         if family == "omni":
-            ctx = {"model_name": canonical, "multi_shot": 0, "prompt": text, "sound": "off",
+            ctx = {"model_name": canonical, "multi_shot": 0, "prompt": text, "sound": "on" if with_audio else "off",
                    "image_list": [{"image_url": "", "type": "first_frame"}], "mode": self.kling_mode,
                    "aspect_ratio": self.aspect_ratio, "duration": str(effective_duration(canonical, family, duration_sec)),
                    "video_num": 1}
@@ -144,7 +147,7 @@ class ClipAIVideoProvider:
                    "content": [{"type": "text", "text": text},
                                {"type": "image_url", "image_url": {"url": ""}, "role": "first_frame"}],
                    "resolution": self.resolution, "ratio": self.aspect_ratio,
-                   "duration": effective_duration(canonical, family, duration_sec), "generate_audio": False,
+                   "duration": effective_duration(canonical, family, duration_sec), "generate_audio": bool(with_audio),
                    "camera_fixed": False, "seed": -1, "video_num": 1}
             path = PATH_SEEDANCE
         data = self.client.post_multipart(path, {"ctx": json.dumps(ctx, ensure_ascii=False)},

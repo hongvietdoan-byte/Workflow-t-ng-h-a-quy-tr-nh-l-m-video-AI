@@ -42,6 +42,17 @@ def clip_seconds(path: str, requested: Optional[float]) -> float:
     return ffmpeg_studio.probe_duration(path) or requested or DEFAULT_SECONDS
 
 
+def preview_with_music(pipeline: Pipeline, data_dir: str, project_id: int, music_path: str, out_path: str,
+                       volume: float = 0.6) -> str:
+    """Quick cut of the clips that exist, with the given music on top: to judge whether a track fits the picture."""
+    clips = [c for c in collect_clips(pipeline, data_dir, project_id) if c["path"]]
+    if not clips:
+        raise ValueError("chưa có clip nào để xem thử cùng nhạc")
+    durations = [clip_seconds(c["path"], c["requested_sec"]) for c in clips]
+    os.makedirs(os.path.dirname(out_path) or ".", exist_ok=True)
+    return ffmpeg_studio.render_final([c["path"] for c in clips], out_path, durations, "cut", 1.0, music_path, volume)
+
+
 def total_seconds(durations: List[float], transition: str, fade: float) -> float:
     total = sum(durations)
     return total - fade * (len(durations) - 1) if transition in ffmpeg_studio.OVERLAP_STYLES and durations else total

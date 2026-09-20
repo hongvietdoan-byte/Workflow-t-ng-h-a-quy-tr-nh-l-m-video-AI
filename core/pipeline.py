@@ -49,6 +49,12 @@ class Pipeline:
         self.conn.execute("UPDATE projects SET qc_reject_floor=? WHERE id=?", (floor, project_id))
         self.conn.commit()
 
+    def set_video_audio(self, project_id: int, on: bool) -> None:
+        """Ask the video model to generate its own audio track (speech/ambience; Kling `sound`, Seedance
+        `generate_audio`). Off by default: it may change the price and needs dialogue written into the prompt."""
+        self.conn.execute("UPDATE projects SET video_audio=? WHERE id=?", (1 if on else 0, project_id))
+        self.conn.commit()
+
     def set_video_model(self, project_id: int, model: Optional[str]) -> None:
         """Model used by the video provider (e.g. 'seedance', 'kling', 'minimax'); None = provider default."""
         self.conn.execute("UPDATE projects SET video_model=? WHERE id=?", (model or None, project_id))

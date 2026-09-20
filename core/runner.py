@@ -155,8 +155,9 @@ class VideoRunner(_Runner):
         if mp is None or img is None:
             return None
         path = os.path.join(self.data_dir, str(job["project_id"]), "images", f"job_{img['id']}.png")
-        model = self.p.project(job["project_id"])["video_model"]
-        return path, mp["motion_prompt"], mp["negative_prompt"], mp["duration_sec"], model
+        proj = self.p.project(job["project_id"])
+        args = (path, mp["motion_prompt"], mp["negative_prompt"], mp["duration_sec"], proj["video_model"])
+        return args + (True,) if proj["video_audio"] else args  # 6th arg only when on: older providers keep working
 
     def _record_usage(self, job, args) -> None:
         info = getattr(self.provider, "usage_info", None)

@@ -106,6 +106,39 @@ def lock_character_bible(pipeline: Pipeline, project_id: int) -> int:
     return n
 
 
+SCENE_FIELDS = ("location", "time", "mood", "lighting", "shot", "image_prompt")
+
+
+def update_scene(pipeline: Pipeline, project_id: int, idx: int, fields: Mapping[str, Any],
+                 text: Optional[str] = None) -> None:
+    """Edit one scene's spec (and optionally its script text). `characters` must be names from the Character Bible.
+    Images already generated keep the old look; only images generated afterwards use the new spec."""
+    conn = pipeline.conn
+    row = conn.execute("SELECT id, data FROM scenes WHERE project_id=? AND idx=?", (project_id, idx)).fetchone()
+    if row is None:
+        raise KeyError(f"scene {idx} does not exist")
+    data = json.loads(row["data"] or "{}")
+    for key in SCENE_FIELDS:
+        if key in fields:
+            value = fields[key]
+            if not isinstance(value, str):
+                raise SchemaError(f"{key}: expected text")
+            data[key] = value.strip()
+    if "image_prompt" in fields and not data.get("image_prompt"):
+        raise SchemaError("image_prompt must not be empty")
+    if "characters" in fields:
+        names = {r["name"] for r in conn.execute("SELECT name FROM characters WHERE project_id=?", (project_id,))}
+        cast = list(fields["characters"] or [])
+        unknown = [c for c in cast if c not in names]
+        if unknown:
+            raise SchemaError(f"characters: {', '.join(unknown)} not in Character Bible")
+        data["characters"] = cast
+    if text is not None:
+        data["text"] = text.strip()
+    conn.execute("UPDATE scenes SET data=? WHERE id=?", (json.dumps(data, ensure_ascii=False), row["id"]))
+    conn.commit()
+
+
 def update_character(pipeline: Pipeline, project_id: int, name: str, description: str,
                      wardrobe: Optional[str] = None, new_name: Optional[str] = None) -> None:
     """Edit one Character Bible entry (only while unlocked). A rename also updates the scene cast lists."""
