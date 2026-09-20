@@ -20,7 +20,7 @@ import time
 from dataclasses import dataclass
 from typing import Callable, Dict, List, Optional
 
-from . import ffmpeg_studio, final_cut, llm_io, llm_runner, music, perf
+from . import diag, ffmpeg_studio, final_cut, llm_io, llm_runner, music, perf
 from .pipeline import Pipeline
 
 RUNNING, WAITING, STOPPED, ATTENTION, DONE, ERROR = "running", "waiting", "stopped", "needs_attention", "done", "error"
@@ -83,6 +83,10 @@ def _set(p: Pipeline, pid: int, state: Optional[str] = None, note: Optional[str]
         p.conn.execute("UPDATE projects SET autopilot_note=? WHERE id=?", (note, pid))
     p.conn.execute("UPDATE projects SET autopilot_beat=? WHERE id=?", (time.time(), pid))
     p.conn.commit()
+
+
+def _d(p: Pipeline, pid: int, stage: str, severity: str, message: str, code: Optional[str] = None) -> None:
+    diag.record(p.conn, stage, severity, message, code, pid)
 
 
 def _log(p: Pipeline, pid: int, message: str) -> None:
@@ -302,6 +306,7 @@ def _music_phase(p: Pipeline, pid: int, ctx: Context) -> Optional[str]:
     if any(d["state"] == "running" for d in drafts):
         return "Nhạc nền: đang tạo"
     _log(p, pid, "Nhạc nền không tạo được → ghép không nhạc")
+    _d(p, pid, "music", "warn", "nhạc nền không tạo được, video cuối sẽ KHÔNG có nhạc (lỗi âm thầm)", "degraded")
     return None
 
 
@@ -325,6 +330,7 @@ def tick(p: Pipeline, project_id: int, ctx: Context) -> str:
                     note = "Cần bạn xử lý: " + "; ".join(blocked)
                     _set(p, project_id, ATTENTION, note)
                     _log(p, project_id, note)
+                    _d(p, project_id, "autopilot", "warn", note, "needs_attention")
                     return ATTENTION
                 _set(p, project_id, note=f"{PHASE_LABELS[name]} — {progress}")
                 _log(p, project_id, f"{PHASE_LABELS[name]}: {progress}")
@@ -341,10 +347,13 @@ def tick(p: Pipeline, project_id: int, ctx: Context) -> str:
     except _Stop as e:
         _set(p, project_id, STOPPED, str(e))
         _log(p, project_id, str(e))
+        _d(p, project_id, "autopilot", "warn", str(e), "stopped")
         return STOPPED
     except (llm_runner.LlmError, ValueError, OSError, ffmpeg_studio.FFmpegError, ffmpeg_studio.FFmpegNotFound) as e:
         _set(p, project_id, ERROR, f"Lỗi: {e}")
         _log(p, project_id, f"Lỗi: {str(e)[:200]}")
+        render_error = isinstance(e, (ffmpeg_studio.FFmpegError, ffmpeg_studio.FFmpegNotFound))
+        _d(p, project_id, "render" if render_error else "autopilot", "error", f"{type(e).__name__}: {e}", "error")
         return ERROR
 
 
@@ -442,6 +451,7 @@ class Manager:
             ctx = self.factory(p, self.data_dir)
         except Exception as e:  # noqa: BLE001 - report configuration problems in the UI, never die silently
             _set(p, project_id, ERROR, f"Không khởi động được: {e}")
+            _d(p, project_id, "autopilot", "error", f"không khởi động được: {e}", "config")
             _log(p, project_id, f"Không khởi động được: {e}")
             return
         while True:
@@ -449,6 +459,7 @@ class Manager:
                 state = tick(p, project_id, ctx)
             except Exception as e:  # noqa: BLE001
                 _set(p, project_id, ERROR, f"Lỗi không lường trước: {e}")
+                _d(p, project_id, "autopilot", "error", f"lỗi không lường trước {type(e).__name__}: {e}", "unexpected")
                 _log(p, project_id, f"Lỗi không lường trước: {str(e)[:200]}")
                 return
             if state != RUNNING:

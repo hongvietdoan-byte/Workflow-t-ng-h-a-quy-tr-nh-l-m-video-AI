@@ -10,6 +10,7 @@ import os
 import time
 from typing import Callable, Dict, Optional, Tuple
 
+from . import diag
 from . import subjects as subject_links
 from . import trash
 from .cost import record_usage
@@ -27,6 +28,10 @@ class _Runner:
         self.provider = provider
         self.data_dir = data_dir
         self.max_concurrent = max_concurrent
+
+    def _diag(self, job, severity: str, code, message: str) -> None:
+        diag.record(self.p.conn, "image" if self.job_type == "image_gen" else "video", severity, message, code,
+                    job["project_id"], job["scene_id"], job["id"])
 
     # ---- hooks -----------------------------------------------------------
     def _submit_args(self, job) -> Optional[Tuple]:
@@ -55,6 +60,7 @@ class _Runner:
                 break
             args = self._submit_args(job)
             if args is None:
+                self._diag(job, "error", "missing_input", "thiếu đầu vào (ảnh đã duyệt / motion prompt / prompt ảnh)")
                 self.p.start(job["id"])
                 self.p.fail(job["id"], "missing inputs (approved image / motion prompt / image prompt)")
                 continue
@@ -68,7 +74,9 @@ class _Runner:
                 if e.code == "rate_limited":
                     THROTTLE.on_rate_limited(self.job_type)   # halve the learned limit; the job stays queued
                 if e.transient:
+                    self._diag(job, "warn", e.code, f"gửi job bị từ chối/tạm lỗi, sẽ thử lại: {e}")
                     break  # network/server hiccup: leave the job queued, try again next heartbeat
+                self._diag(job, "warn" if e.code == RISK_CONTROL else "error", e.code, f"gửi job thất bại: {e}")
                 self.p.start(job["id"])
                 self._record_provider_failure(job, e.code, str(e))
                 self.p.fail(job["id"], f"{e.code or 'error'}: {e}")
@@ -88,8 +96,10 @@ class _Runner:
                 status = self.provider.status(job["external_id"])
             except ProviderError as e:
                 if e.transient:
+                    self._diag(job, "warn", e.code, f"hỏi trạng thái job gặp lỗi tạm: {e}")
                     counts["running"] += 1  # keep polling on network/server errors
                     continue
+                self._diag(job, "error", e.code, f"hỏi trạng thái job thất bại: {e}")
                 self._record_provider_failure(job, e.code, str(e))
                 self.p.fail(job["id"], f"{e.code or 'error'}: {e}")
                 counts["failed"] += 1
@@ -104,6 +114,7 @@ class _Runner:
                                         "bị thay bằng bản gen lại", job["id"])
                     dest = self.provider.download(job["external_id"], target)
                 except ProviderError as e:
+                    self._diag(job, "warn" if e.transient else "error", e.code, f"tải kết quả lỗi: {e}")
                     if e.transient:
                         counts["running"] += 1
                         continue
@@ -117,6 +128,8 @@ class _Runner:
                 counts["succeeded"] += 1
             else:
                 message = f"{status.error_code}: {status.error_message}"
+                self._diag(job, "warn" if status.error_code == RISK_CONTROL else "error", status.error_code,
+                           f"nhà cung cấp báo job thất bại: {status.error_message}")
                 if status.error_code == RISK_CONTROL:
                     record_failure(self.p.conn, job["id"], self.provider.name, status.error_message or "")
                 self.p.fail(job["id"], message)

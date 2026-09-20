@@ -9,6 +9,7 @@ validators/persistence (core/llm_io.py), so a pasted answer and an API answer ar
 - Invalid JSON is retried once with the validation error attached; failures are reported, not hidden.
 """
 import base64
+import functools
 import json
 import os
 import re
@@ -16,7 +17,7 @@ import time
 from dataclasses import dataclass
 from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple
 
-from . import knowledge, llm_io, prompts
+from . import diag, knowledge, llm_io, prompts
 from .adapters.http import HttpResponse, Transport, clean_token, urllib_transport
 from .pipeline import Pipeline
 
@@ -144,7 +145,8 @@ def extract_json(text: str) -> Any:
     raise ValueError("no valid JSON object found in the reply")
 
 
-def ask_json(client, prompt: str, validate: Callable[[Any], Any], images: Sequence[Tuple[str, str]] = ()):
+def ask_json(client, prompt: str, validate: Callable[[Any], Any], images: Sequence[Tuple[str, str]] = (),
+             note: Optional[Callable[[str], None]] = None):
     """Ask, parse, validate; on a bad answer retry once telling the model what was wrong.
     Returns (validated object, total input tokens, total output tokens)."""
     tin = tout = 0
@@ -161,6 +163,8 @@ def ask_json(client, prompt: str, validate: Callable[[Any], Any], images: Sequen
             return obj, tin, tout
         except (ValueError, llm_io.SchemaError) as e:
             error = str(e)[:300]
+            if note is not None and attempt == 0:
+                note(f"câu trả lời lần 1 không hợp lệ, đã hỏi lại: {error}")   # a silent retry that costs tokens
     raise LlmError(f"the model did not return valid JSON twice: {error}", code="bad_json")
 
 
@@ -192,8 +196,28 @@ def run_distill(group: str, client, include_builtin: bool = False) -> Dict:
 
 
 # ---- the three Claude steps -------------------------------------------------------------
+def _diagnosed(stage: str, project_of: Callable):
+    """Report every LlmError of a step to the diagnostics log, then raise it unchanged."""
+    def deco(fn):
+        @functools.wraps(fn)
+        def wrapper(p, ident, *a, **k):
+            try:
+                return fn(p, ident, *a, **k)
+            except LlmError as e:
+                diag.record(p.conn, stage, "warn" if e.transient else "error", str(e), e.code, project_of(p, ident))
+                raise
+        return wrapper
+    return deco
+
+
+def _retry_note(p: Pipeline, stage: str, project_id: int):
+    return lambda message: diag.record(p.conn, stage, "warn", message, "bad_json_retry", project_id)
+
+
+@_diagnosed("director", lambda p, i: i)
 def run_director(p: Pipeline, project_id: int, client) -> Dict:
-    obj, tin, tout = ask_json(client, prompts.build_director_bundle(p, project_id), llm_io.validate_scene_analysis)
+    obj, tin, tout = ask_json(client, prompts.build_director_bundle(p, project_id), llm_io.validate_scene_analysis,
+                              note=_retry_note(p, "director", project_id))
     llm_io.store_scene_analysis(p, project_id, obj)
     return {"characters": len(obj["characters"]), "scenes": len(obj["scenes"]), "input_tokens": tin,
             "output_tokens": tout, "ip_risk_notes": obj.get("ip_risk_notes") or []}
@@ -203,6 +227,7 @@ def image_path(data_dir: str, project_id: int, job_id: int) -> str:
     return os.path.join(data_dir, str(project_id), "images", f"job_{job_id}.png")
 
 
+@_diagnosed("qc", lambda p, i: p.job(i)["project_id"])
 def run_qc(p: Pipeline, job_id: int, client, data_dir: str) -> Dict:
     job = p.job(job_id)
     path = image_path(data_dir, job["project_id"], job_id)
@@ -210,7 +235,8 @@ def run_qc(p: Pipeline, job_id: int, client, data_dir: str) -> Dict:
         raise LlmError("this job has no image file to check", code="no_image")
     criteria = prompts.qc_criteria()
     obj, tin, tout = ask_json(client, prompts.build_qc_bundle(p, job["scene_id"]),
-                              lambda o: llm_io.validate_qc_result(o, criteria), [("Ảnh cần chấm điểm:", path)])
+                              lambda o: llm_io.validate_qc_result(o, criteria), [("Ảnh cần chấm điểm:", path)],
+                              note=_retry_note(p, "qc", job["project_id"]))
     issues = "; ".join(str(i) for i in (obj.get("issues") or [])[:5]) or None
     decision = p.apply_qc(job_id, obj["criteria"], issues=issues)
     return {"decision": decision, "input_tokens": tin, "output_tokens": tout, "issues": issues}
@@ -236,6 +262,7 @@ def run_qc_batch(p: Pipeline, project_id: int, client, data_dir: str) -> Dict:
     return summary
 
 
+@_diagnosed("motion", lambda p, i: i)
 def run_motion(p: Pipeline, project_id: int, client, data_dir: str) -> Dict:
     """Motion prompts for approved-image scenes that do not have one yet (existing/approved prompts are kept)."""
     rows = p.conn.execute(
@@ -248,7 +275,7 @@ def run_motion(p: Pipeline, project_id: int, client, data_dir: str) -> Dict:
     images = [(f"Ảnh cảnh {r['idx']}:", image_path(data_dir, project_id, r["jid"])) for r in todo
               if os.path.exists(image_path(data_dir, project_id, r["jid"]))]
     obj, tin, tout = ask_json(client, prompts.build_motion_bundle(p, project_id, only_missing=True),
-                              llm_io.validate_motion_prompts, images)
+                              llm_io.validate_motion_prompts, images, note=_retry_note(p, "motion", project_id))
     wanted = {r["idx"] for r in todo}
     obj["scenes"] = [s for s in obj["scenes"] if s["idx"] in wanted]
     llm_io.store_motion_prompts(p, project_id, obj)

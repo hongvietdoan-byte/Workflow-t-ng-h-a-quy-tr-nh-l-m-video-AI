@@ -19,7 +19,7 @@ import streamlit as st
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
-from core import audio_lib, autopilot, knowledge, perf, regen, subjects, trash, waveform, cost, ffmpeg_studio, final_cut, llm_io, llm_runner, music, preflight, prompts, script_parser  # noqa: E402
+from core import audio_lib, autopilot, diag, knowledge, perf, regen, subjects, trash, waveform, cost, ffmpeg_studio, final_cut, llm_io, llm_runner, music, preflight, prompts, script_parser  # noqa: E402
 from core.db import connect  # noqa: E402
 from core.pipeline import Pipeline, PipelinePaused  # noqa: E402
 from core.adapters import factory  # noqa: E402
@@ -1516,6 +1516,36 @@ def monitor(p: Pipeline, pid: int) -> None:
                "Chưa đo thời gian gọi Claude (QC/motion).")
 
 
+    st.markdown("---")
+    ui.html(ui.card_title("🩺 Giám sát từng khâu", "lỗi, lỗi âm thầm và chỗ chưa trơn tru trong 24h qua"))
+    stages = diag.stage_table(p.conn)
+    st.dataframe([{"": diag.health(s), "Khâu": s["label"], "Job": "-" if s["jobs"] is None else str(s["jobs"]),
+                   "Xong": "-" if s["ok"] is None else str(s["ok"]), "Lỗi": "-" if s["failed"] is None else str(s["failed"]),
+                   "Gen lại": "-" if s["retried"] is None else str(s["retried"]), "Cảnh báo": s["warn"],
+                   "Lỗi ghi nhận": s["error"]} for s in stages], hide_index=True, use_container_width=True)
+    findings = diag.scan(p.conn, DATA, float(os.environ.get("AUTOPILOT_POLL_SEC", "15")))
+    st.markdown(f"**Vấn đề phát hiện ({len(findings)})** — gồm cả lỗi không ai báo (job kẹt, file mất, tiến trình chết, gen lại nhiều...)")
+    if not findings:
+        st.markdown(":green[✔ Chưa thấy vấn đề âm thầm.]")
+    for f in findings[:30]:
+        color = "red" if f["severity"] == "error" else "orange"
+        st.markdown(f":{color}[● {diag.STAGE_LABEL.get(f['stage'], f['stage'])}] {escape(diag.redact(f['title']))}"
+                    + (f" — {escape(diag.redact(f['detail']))}" if f["detail"] else ""))
+    events = diag.recent(p.conn, 24, 40)
+    with st.expander(f"Sự kiện lỗi/cảnh báo gần đây ({len(events)})"):
+        st.dataframe([{"Giờ": e["last_at"][11:19], "Mức": e["severity"], "Khâu": e["stage"], "Mã": e["code"] or "",
+                       "Lần": e["count"], "Dự án": str(e["project_id"] or ""), "Nội dung": e["message"]} for e in events],
+                     hide_index=True, use_container_width=True)
+    text = diag.report(p.conn, DATA, {"Đang chạy/xếp hàng": f"{mgr.running_count()}/{mgr.queue_length()}",
+                                      "Mức song song tự học": {k: v["limit"] for k, v in snap["learned"].items()}})
+    st.markdown("**📋 Báo cáo chẩn đoán** — bấm nút copy ở góc khung dưới (hoặc tải file), dán vào chat để mình sửa. "
+                "Đã che khóa/token và đường dẫn cá nhân.")
+    st.download_button("⬇ Tải báo cáo (.md)", text, file_name="bao_cao_chan_doan.md", key="diag_dl")
+    st.code(text, language="markdown")
+    st.caption("Giám sát luôn chạy nền khi có thao tác gọi nhà cung cấp/Claude; ngưỡng: DIAG_STUCK_IMAGE_MIN, "
+               "DIAG_STUCK_VIDEO_MIN, DIAG_QUEUED_MIN, DIAG_RETRY_WARN.")
+
+
 def history(p: Pipeline, pid: int):
     scenes = p.conn.execute("SELECT id, idx, title FROM scenes WHERE project_id=? ORDER BY idx", (pid,)).fetchall()
     if not scenes:
@@ -1559,6 +1589,10 @@ def main():
         return
     purge_trash(DATA)
     trash.sweep_rejected(p, DATA, pid)
+    problems = [f for f in diag.scan(p.conn, DATA, float(os.environ.get("AUTOPILOT_POLL_SEC", "15"))) if f["severity"] == "error"]
+    if problems:
+        st.markdown(f":red[🔴 Giám sát: {len(problems)} vấn đề nghiêm trọng, ví dụ: {escape(diag.redact(problems[0]['title']))}] "
+                    "— mở tab “📊 Theo dõi hiệu suất” để xem và lấy báo cáo.")
     deep = st.query_params.get("step")  # ?step=2 opens a step directly (1, 2, 3, 4, 5a, 5b, history)
     keys = ["1", "2", "3", "4", "5a", "5b", "history", "monitor"]
     if deep in keys and "step" not in st.session_state:

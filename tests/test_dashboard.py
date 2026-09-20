@@ -499,6 +499,8 @@ class DashboardSmokeTests(unittest.TestCase):
         self.assertTrue(any("Theo dõi hiệu suất" in m.value for m in at.markdown))
         self.assertTrue(any(m.label == "Job hôm nay" for m in at.metric))
         self.assertTrue(any("Gen video" in str(d.value) for d in at.dataframe))
+        self.assertTrue(any("Giám sát từng khâu" in m.value for m in at.markdown))
+        self.assertTrue(any("Báo cáo chẩn đoán" in c.value for c in at.code))     # the paste-into-chat report
 
     def test_risk_corner_lists_ip_and_moderation_notes(self):
         p, pid = self.seed()

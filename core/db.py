@@ -104,6 +104,20 @@ CREATE TABLE IF NOT EXISTS review_log (
     note TEXT,
     decided_at TEXT NOT NULL
 );
+CREATE TABLE IF NOT EXISTS diag_events (
+    id INTEGER PRIMARY KEY,
+    at TEXT NOT NULL,
+    last_at TEXT NOT NULL,
+    stage TEXT NOT NULL,
+    severity TEXT NOT NULL,
+    code TEXT,
+    message TEXT NOT NULL,
+    project_id INTEGER,
+    scene_id INTEGER,
+    job_id INTEGER,
+    count INTEGER NOT NULL DEFAULT 1
+);
+CREATE INDEX IF NOT EXISTS idx_diag_last ON diag_events(last_at);
 CREATE TABLE IF NOT EXISTS content_moderation_failures (
     id INTEGER PRIMARY KEY,
     job_id INTEGER NOT NULL REFERENCES jobs(id),
