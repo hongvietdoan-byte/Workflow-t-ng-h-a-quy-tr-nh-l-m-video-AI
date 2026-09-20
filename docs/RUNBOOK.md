@@ -105,3 +105,9 @@ Lưu ý chung: nút **↺ Làm lại từ đầu** xuất hiện ở job đã h�
 ## 11. Bảo mật
 - Không commit token, không dán token vào chat/log. `dashboard.env`, `data/`, `deepix-*` nằm ngoài git.
 - Repo GitHub đã private. Ảnh nhân vật gửi Claude API (QC) là dữ liệu của dự án — kiểm tra chính sách dữ liệu công ty trước khi dùng cho nội dung nhạy cảm.
+
+## Chế độ tự động hoàn toàn (clip ngắn)
+- Bước 1 → khung "🚀": sau khi Director xong và bạn xem phân cảnh + Character Bible, bấm **Duyệt phân cảnh & chạy tự động** và xác nhận Có. Hệ thống tự chạy đến `FINAL_VIDEO.mp4`.
+- Yêu cầu: `IMAGE_PROVIDER`, `VIDEO_PROVIDER`, `ANTHROPIC_API_KEY`, ffmpeg, tối đa 12 cảnh (`AUTOPILOT_MAX_SCENES`). Thiếu gì sẽ báo đỏ.
+- Gặp cảnh cần người (hết lượt thử, bị chặn risk control, chạm trần job) → dừng, báo lý do; xử lý xong bấm **Tiếp tục**. Khởi động lại máy chủ cũng cần bấm Tiếp tục.
+- Lưu ý: tự duyệt ảnh/video nghĩa là không có người xem từng ảnh; hãy xem lại bản cuối và gen lại cảnh chưa ưng.

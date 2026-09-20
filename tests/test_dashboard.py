@@ -481,6 +481,15 @@ class DashboardSmokeTests(unittest.TestCase):
         finally:
             os.environ.pop("LLM_PROVIDER", None)
 
+    def test_autopilot_panel_lists_what_is_missing_before_it_can_start(self):
+        self.seed()
+        for k in ("IMAGE_PROVIDER", "VIDEO_PROVIDER", "LLM_PROVIDER", "ANTHROPIC_API_KEY"):
+            os.environ.pop(k, None)
+        at = AppTest.from_file(APP, default_timeout=30).run()
+        self.assertFalse(at.exception)
+        self.assertTrue(any("tự động hoàn toàn" in m.value for m in at.markdown))
+        self.assertTrue(any("✖" in m.value for m in at.markdown))     # reasons shown, no start possible
+
     def test_risk_corner_lists_ip_and_moderation_notes(self):
         p, pid = self.seed()
         scene = p.conn.execute("SELECT id FROM scenes").fetchone()["id"]

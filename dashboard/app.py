@@ -19,7 +19,7 @@ import streamlit as st
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
-from core import audio_lib, knowledge, regen, subjects, trash, waveform, cost, ffmpeg_studio, final_cut, llm_io, llm_runner, music, preflight, prompts, script_parser  # noqa: E402
+from core import audio_lib, autopilot, knowledge, regen, subjects, trash, waveform, cost, ffmpeg_studio, final_cut, llm_io, llm_runner, music, preflight, prompts, script_parser  # noqa: E402
 from core.db import connect  # noqa: E402
 from core.pipeline import Pipeline, PipelinePaused  # noqa: E402
 from core.adapters import factory  # noqa: E402
@@ -444,10 +444,89 @@ def global_bar(p: Pipeline):
     if proj["paused"]:
         st.warning("Pipeline đang PAUSE — không job nào được bắt đầu.")
     spend_line(p, pid)
+    ap = autopilot.status(p, pid)
+    if ap["state"] == "running":
+        st.caption(f"🚀 Đang chạy tự động: {ap['note']} (xem chi tiết ở Bước 1)")
     return pid
 
 
 # ---- step 1 --------------------------------------------------------------------------
+@st.cache_resource
+def autopilot_manager(db: str, data: str):
+    return autopilot.Manager(db, data, poll_sec=float(os.environ.get("AUTOPILOT_POLL_SEC", "15")))
+
+
+@st.fragment(run_every=5)
+def autopilot_progress(pid: int) -> None:
+    """Live progress (refreshes itself every 5 s while the page is open; the run itself lives in a background thread)."""
+    p = Pipeline(connect(DB))
+    info = autopilot.status(p, pid)
+    state = info["state"]
+    tag = {"running": ("đang chạy", "b-info"), "done": ("hoàn tất", "b-ok"), "needs_attention": ("cần bạn xử lý", "b-warn"),
+           "stopped": ("đã dừng", "b-warn"), "error": ("lỗi", "b-bad")}.get(state, (state, ""))
+    ui.html(ui.badge(*tag) + f' <span class="muted">{escape(info["note"])}</span>')
+    for label, done, total in autopilot.progress(p, pid, DATA):
+        st.progress(0 if not total else min(done / total, 1.0), text=f"{label}: {done}/{total}")
+    if info["log"]:
+        st.caption(" · ".join(f"{e['at']} {e['msg']}" for e in info["log"][-4:]))
+    stale = autopilot.is_stale(p, pid, float(os.environ.get("AUTOPILOT_POLL_SEC", "15")))
+    if stale:
+        st.warning("Không thấy tiến trình chạy nền (có thể máy chủ vừa khởi động lại). Bấm “Tiếp tục”.")
+    if state == "running" and not stale:
+        c1, c2 = st.columns(2)
+        if c1.button("⏸ Tạm dừng", key=f"ap_pause_{pid}"):
+            p.set_paused(pid, True)
+        if c2.button("■ Dừng hẳn", key=f"ap_stop_{pid}"):
+            autopilot.stop(p, pid)
+            st.rerun()
+    elif state in ("needs_attention", "stopped", "error") or stale:
+        if st.button("▶ Tiếp tục", key=f"ap_resume_{pid}", type="primary"):
+            autopilot.resume(p, pid)
+            autopilot_manager(DB, DATA).start(pid)
+            st.rerun()
+    if state == "done":
+        out = os.path.join(DATA, str(pid), "output", "FINAL_VIDEO.mp4")
+        if os.path.exists(out):
+            show_video(out)
+
+
+def autopilot_panel(p: Pipeline, pid: int) -> None:
+    """Fully automatic mode for short clips: approve the scene breakdown once, the rest runs by itself."""
+    info = autopilot.status(p, pid)
+    with st.container(border=True):
+        ui.html(ui.card_title("🚀 Chế độ tự động hoàn toàn (clip ngắn)", "bạn chỉ duyệt phân cảnh, phần còn lại tự chạy"))
+        if info["state"] in ("running", "done", "needs_attention", "stopped", "error"):
+            autopilot_progress(pid)
+            if info["state"] != "running":
+                with st.expander("Chạy lại từ đầu cho dự án này"):
+                    st.caption("Đặt lại trạng thái tự động (ảnh/video đã làm được giữ nguyên).")
+                    if st.button("↺ Đặt lại chế độ tự động", key=f"ap_reset_{pid}"):
+                        p.conn.execute("UPDATE projects SET autopilot_state=NULL, autopilot_note=NULL WHERE id=?", (pid,))
+                        p.conn.commit()
+                        st.rerun()
+            return
+        st.caption("Sau khi bạn duyệt phân cảnh và Character Bible, hệ thống tự làm: gen ảnh → Claude chấm QC (đạt ngưỡng "
+                   "thì tự duyệt) → Claude viết motion prompt (tự duyệt) → gen video → 1 bản nhạc nền → ghép video cuối. "
+                   "Gặp việc cần người (cảnh hết số lần thử, bị chặn risk control, chạm trần số job) thì **dừng và báo**, "
+                   "không tự đoán. Cần Claude API, Deepix và Clip AI đã cấu hình.")
+        issues = autopilot.problems(p, pid)
+        for msg in issues:
+            st.markdown(f":red[✖ {msg}]")
+        scenes = p.conn.execute("SELECT COUNT(*) c FROM scenes WHERE project_id=?", (pid,)).fetchone()["c"]
+        per = p.project(pid)["max_retry_count"] + 2
+        if not issues:
+            st.success(f"Sẵn sàng: {scenes} cảnh. Trần an toàn: tối đa {scenes * per} job ảnh và {scenes * per} job video "
+                       "(kể cả gen lại).")
+        if confirm_all(f"ap_start_{pid}", ["go"], "✔ Duyệt phân cảnh & chạy tự động hoàn toàn",
+                       "Bắt đầu chạy tự động? Sẽ gọi Deepix, Clip AI và Claude thật (tốn credit) cho toàn bộ dự án.", st,
+                       "Có, chạy") and not issues:
+            autopilot.start(p, pid)
+            autopilot_manager(DB, DATA).start(pid)
+            st.rerun()
+        if issues:
+            st.caption("Hãy xử lý các mục đỏ ở trên trước khi bấm chạy.")
+
+
 def script_html(text: str) -> str:
     """Whole script as a scrollable block; scene headings in bold so the scenes can be found at a glance."""
     lines = []
@@ -467,6 +546,7 @@ def step1(p: Pipeline, pid: int):
     risky = {w["character"] for w in warnings}
     char_names = [c["name"] for c in chars]
 
+    autopilot_panel(p, pid)
     with st.container(border=True):
         head, info = st.columns([3, 2], vertical_alignment="center")
         head.markdown(ui.card_title("① Kịch bản", "toàn văn (trái) · chia theo cảnh (phải)"), unsafe_allow_html=True)
