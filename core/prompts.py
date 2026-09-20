@@ -3,6 +3,7 @@ import json
 import os
 from typing import List
 
+from . import knowledge
 from .evalset import few_shot_text
 from .pipeline import Pipeline
 
@@ -25,14 +26,15 @@ def build_director_bundle(pipeline: Pipeline, project_id: int) -> str:
         "SELECT idx, title, data FROM scenes WHERE project_id=? ORDER BY idx", (project_id,)).fetchall()
     scenes = "\n\n".join(
         f"### Cảnh {r['idx']} — {r['title']}\n{json.loads(r['data'] or '{}').get('text', '')}" for r in rows)
-    return _SEP.join([
+    return _SEP.join(x for x in [
         _read("prompts", "01_director_scene_analysis.md"),
         _read("knowledge", "cinematography_basics.md"),
         _read("knowledge", "genre_guides.md"),
         _read("knowledge", "research_notes.md"),
+        knowledge.user_text("director"),
         few_shot_text(),
         "# Kịch bản đã tách cảnh\n\n" + scenes,
-    ])
+    ] if x)
 
 
 def build_qc_bundle(pipeline: Pipeline, scene_id: int) -> str:
@@ -43,13 +45,14 @@ def build_qc_bundle(pipeline: Pipeline, scene_id: int) -> str:
     bible = "\n".join(f"- {c['name']}: {c['description']} {c['wardrobe'] or ''}".strip() for c in chars)
     data = json.loads(scene["data"] or "{}")
     spec = {k: data.get(k) for k in _SCENE_KEYS}
-    return _SEP.join([
+    return _SEP.join(x for x in [
         _read("prompts", "02_qc_agent.md"),
         _read("knowledge", "ai_image_failure_modes.md"),
+        knowledge.user_text("qc"),
         "# Character Bible\n" + bible,
         "# Thông số cảnh\n" + json.dumps(spec, ensure_ascii=False, indent=2),
         "(Đính kèm ảnh cần chấm điểm.)",
-    ])
+    ] if x)
 
 
 def video_family(pipeline: Pipeline, project_id: int):
@@ -84,6 +87,7 @@ def build_motion_bundle(pipeline: Pipeline, project_id: int, only_missing: bool 
     ]
     if video_family(pipeline, project_id) == "seedance":
         parts.append(_read("knowledge", "seedance_prompting.md"))
-    return _SEP.join(parts + [
+    extra = knowledge.user_text("motion")
+    return _SEP.join(parts + ([extra] if extra else []) + [
         "# Cảnh đã có ảnh được duyệt\n```json\n" + json.dumps(payload, ensure_ascii=False, indent=2) + "\n```",
     ])

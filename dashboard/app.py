@@ -19,7 +19,7 @@ import streamlit as st
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
-from core import audio_lib, regen, subjects, trash, waveform, cost, ffmpeg_studio, final_cut, llm_io, llm_runner, music, preflight, prompts, script_parser  # noqa: E402
+from core import audio_lib, knowledge, regen, subjects, trash, waveform, cost, ffmpeg_studio, final_cut, llm_io, llm_runner, music, preflight, prompts, script_parser  # noqa: E402
 from core.db import connect  # noqa: E402
 from core.pipeline import Pipeline, PipelinePaused  # noqa: E402
 from core.adapters import factory  # noqa: E402
@@ -290,10 +290,60 @@ def risk_popover(p: Pipeline, pid: int) -> None:
             ui.html(f'{tag} <b>{escape(n["title"])}</b><br><span class="muted">{escape(n["detail"])}</span>')
 
 
+def knowledge_panel() -> None:
+    """Where the Claude steps get their skills from: what ships with the project, what the user added, and a way to
+    add more (documents are appended to that step's prompt while switched on)."""
+    keys = list(knowledge.GROUPS)
+    group = st.selectbox("Bước dùng Claude", keys, format_func=lambda k: knowledge.GROUPS[k][0], key="kb_group")
+    _, purpose, _ = knowledge.GROUPS[group]
+    ov = knowledge.overview(group)
+    st.caption(purpose)
+    m1, m2, m3 = st.columns(3)
+    m1.metric("Tài liệu đang bật", sum(1 for d in ov["docs"] if d["enabled"]))
+    m2.metric("Ký tự gửi Claude mỗi lần chạy", f"{ov['chars']:,}")
+    m3.metric("≈ token mỗi lần chạy", f"{ov['tokens']:,}")
+    st.caption(f"📁 Có sẵn (cùng mã nguồn, có trong git): `{ov['builtin_dir']}` và thư mục `prompts/`  ·  "
+               f"📁 Bạn thêm (ngoài git): `{ov['user_dir']}`")
+    if ov["tokens"] > 25_000:
+        st.warning("Lượng tài liệu khá lớn: mỗi lần chạy bước này sẽ gửi ≈ %s token. Tắt bớt tài liệu ít dùng để tiết kiệm." % f"{ov['tokens']:,}")
+    st.dataframe([{"Tên": d["title"], "Nguồn": "có sẵn" if d["source"] == "builtin" else "bạn thêm",
+                   "Ghi chú": d["note"], "Ký tự": d["chars"], "≈ token": knowledge.approx_tokens(d["chars"]),
+                   "Bật": "✓" if d["enabled"] else "—"} for d in ov["docs"]],
+                 width="stretch", hide_index=True, height=min(38 * (len(ov["docs"]) + 1) + 3, 260))
+    for d in ov["docs"]:
+        tag = "" if d["source"] == "builtin" else " · bạn thêm"
+        with st.expander(f"📄 {d['title']}{tag}"):
+            text = knowledge.read_doc(group, d["source"], d["file"])
+            ui.html('<div class="scriptfull">' + escape(text[:6000]) + ("\n…" if len(text) > 6000 else "") + "</div>")
+            st.caption(f"{d['chars']:,} ký tự · {d['path']}")
+            if d["source"] == "user":
+                on = st.checkbox("Bật (gửi kèm mỗi lần chạy)", d["enabled"], key=f"kb_en_{group}_{d['file']}")
+                if on != d["enabled"]:
+                    knowledge.set_enabled(group, d["file"], on)
+                    st.rerun()
+                if confirm_all(f"kb_del_{group}_{d['file']}", [d["file"]], "🗑 Xóa tài liệu này",
+                               f"Xóa “{d['title']}” khỏi kho?", st, "Có, xóa"):
+                    if act(lambda: knowledge.remove_doc(group, d["file"]), "Đã xóa tài liệu"):
+                        st.rerun()
+            else:
+                st.caption("Tài liệu có sẵn chỉ sửa được trong mã nguồn (thư mục knowledge/ và prompts/).")
+    st.markdown("**➕ Thêm tài liệu để nâng cấp kho**")
+    st.caption(f"File .md, .txt hoặc .docx; mỗi file tối đa {knowledge.MAX_DOC_CHARS:,} ký tự, tổng bổ sung tối đa "
+               f"{knowledge.MAX_USER_CHARS:,} ký tự cho mỗi bước. Ví dụ: hướng dẫn phong cách của studio, kịch bản mẫu và "
+               "kết quả bạn hài lòng, danh sách lỗi hay gặp.")
+    up = st.file_uploader("Tài liệu", type=["md", "txt", "docx"], key=f"kb_up_{group}", label_visibility="collapsed")
+    k1, k2 = st.columns(2)
+    title = k1.text_input("Tên hiển thị (tùy chọn)", key=f"kb_title_{group}")
+    note = k2.text_input("Ghi chú (tùy chọn)", key=f"kb_note_{group}")
+    if st.button("⬆ Thêm vào kho", disabled=up is None, key=f"kb_add_{group}", type="primary"):
+        if act(lambda: knowledge.add_doc(group, up.name, up.getvalue(), title, note), "Đã thêm tài liệu"):
+            st.rerun()
+
+
 def global_bar(p: Pipeline):
     projects = p.conn.execute("SELECT id, name FROM projects ORDER BY id").fetchall()
     with st.expander("⚙ Cài đặt & dự án", expanded=not projects):
-        t_new, t_price = st.tabs(["Dự án mới", "Bảng giá"])
+        t_new, t_price, t_kb = st.tabs(["Dự án mới", "Bảng giá", "Kho kiến thức (Director, QC, Motion)"])
         with t_new:
             name = st.text_input("Tên dự án", key="new_name")
             if st.button("Tạo dự án") and name.strip():
@@ -301,6 +351,8 @@ def global_bar(p: Pipeline):
                 st.rerun()
         with t_price:
             price_editor()
+        with t_kb:
+            knowledge_panel()
     if not projects:
         st.info("Chưa có dự án. Hãy tạo dự án để bắt đầu.")
         return None

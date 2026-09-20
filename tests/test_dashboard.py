@@ -18,8 +18,10 @@ class DashboardSmokeTests(unittest.TestCase):
         self.db = os.path.join(self.tmp, "m.sqlite")
         os.environ["PIPELINE_DB"] = self.db
         os.environ["PIPELINE_DATA"] = os.path.join(self.tmp, "projects")
+        os.environ["KNOWLEDGE_USER_DIR"] = os.path.join(self.tmp, "knowledge_user")
 
     def tearDown(self):
+        os.environ.pop("KNOWLEDGE_USER_DIR", None)
         os.environ.pop("PIPELINE_DB", None)
         os.environ.pop("PIPELINE_DATA", None)
 
@@ -433,6 +435,27 @@ class DashboardSmokeTests(unittest.TestCase):
         self.assertFalse(at.exception)
         states = [r["state"] for r in Pipeline(connect(self.db)).conn.execute("SELECT state FROM jobs ORDER BY id")]
         self.assertEqual(states, ["rejected", "rejected", "queued"])
+
+    def test_knowledge_settings_tab_shows_overview_and_manages_uploaded_documents(self):
+        from core import knowledge
+        self.seed()
+        at = AppTest.from_file(APP, default_timeout=30).run()
+        self.assertFalse(at.exception)
+        self.assertEqual([m.label for m in at.metric][:3], ["Tài liệu đang bật", "Ký tự gửi Claude mỗi lần chạy", "≈ token mỗi lần chạy"])
+        labels = [e.label for e in at.expander]
+        self.assertTrue(any("Cơ bản điện ảnh" in l for l in labels))          # built-in documents are listed
+        self.assertEqual(at.selectbox(key="kb_group").value, "director")
+        at.selectbox(key="kb_group").set_value("qc").run()
+        self.assertTrue(any("Lỗi thường gặp của ảnh AI" in e.label for e in at.expander))
+        entry = knowledge.add_doc("qc", "phong cach.md", "Chấm gắt hơn.".encode("utf-8"))
+        at = AppTest.from_file(APP, default_timeout=30).run()
+        at.selectbox(key="kb_group").set_value("qc").run()
+        self.assertTrue(any("phong cach" in e.label and "bạn thêm" in e.label for e in at.expander))
+        at.checkbox(key=f"kb_en_qc_{entry['file']}").set_value(False).run()
+        self.assertEqual(knowledge.user_text("qc"), "")                        # switched off in the UI
+        next(b for b in at.button if b.key == f"kb_del_qc_{entry['file']}").click().run()
+        next(b for b in at.button if b.key == f"kb_del_qc_{entry['file']}_yes").click().run()
+        self.assertEqual([d for d in knowledge.overview("qc")["docs"] if d["source"] == "user"], [])
 
     def test_risk_corner_lists_ip_and_moderation_notes(self):
         p, pid = self.seed()

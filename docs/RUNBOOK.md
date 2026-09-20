@@ -33,6 +33,7 @@ Dành cho người **vận hành hằng ngày** (không cần đọc code). Kế
 | `PIPELINE_DB`, `PIPELINE_DATA`, `PIPELINE_PRICING` | vị trí DB / thư mục dự án / bảng giá | `data/…` |
 | `DASHBOARD_PORT` | cổng Dashboard | `8501` |
 | `TRASH_DAYS` | số ngày giữ file trong thùng rác | `30` |
+| `KNOWLEDGE_USER_DIR` | nơi lưu tài liệu kiến thức bạn thêm | `data/knowledge_user` |
 | `SUBJECT_PROVIDER` | `clipai` \| `mock` (kho chủ thể Seedance) | theo `VIDEO_PROVIDER` |
 
 ## 3. Quy trình một video (Dashboard, 7 tab theo thứ tự)
@@ -96,6 +97,7 @@ Lưu ý chung: nút **↺ Làm lại từ đầu** xuất hiện ở job đã h�
 | Shortcut không chạy sau khi dời thư mục | Chạy lại `tools/make_shortcut.ps1` |
 
 ## 10. Bàn giao Prompt Templates & kiến thức
+- **Nâng cấp kho kiến thức không cần sửa code:** "⚙ Cài đặt & dự án" → tab "Kho kiến thức": chọn bước (Director / QC / Motion), xem tổng quan, upload thêm tài liệu .md/.txt/.docx. Tài liệu bật sẽ được gửi kèm mỗi lần chạy bước đó (tốn thêm token, có hiển thị ước tính). Lưu ở `data/knowledge_user/` (ngoài git; sao lưu cùng `data/`, đổi vị trí bằng biến `KNOWLEDGE_USER_DIR`). Tài liệu có sẵn (thư mục `knowledge/`, `prompts/`) chỉ sửa trong mã nguồn.
 - Prompt: `prompts/01…04_*.md` (Director, QC, motion, music brief). Kiến thức: `knowledge/` (điện ảnh, thể loại, lỗi ảnh AI, từ vựng motion, Seedance). QC: `data/qc_checklist.json`. Blocklist IP: `data/ip_blocklist.json`.
 - Sửa prompt/kiến thức → chạy bộ đánh giá `eval/` (xem `eval/README.md`) trước khi dùng cho dự án thật, rồi commit và ghi version.
 

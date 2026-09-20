@@ -318,6 +318,8 @@ Mục tiêu: chứng minh pipeline end-to-end chạy được, đo chất lượ
 
 **Duyệt và dọn dẹp (2026-09-20):** duyệt tất cả có hỏi Có/Không; ảnh điểm thấp (mặc định < 0,50) tự loại + xếp hàng gen mới ở cả hai chế độ; thùng rác tách ảnh/video, tự xóa sau 30 ngày, khôi phục được.
 
+**Kho kiến thức (2026-09-20):** tab "Kho kiến thức" trong Cài đặt: xem tổng quan và upload thêm tài liệu để nâng cấp Director/QC/Motion; tài liệu bật được nối vào prompt của bước tương ứng.
+
 **Tạm gác (2026-09-19):** MCP Claude/V0 qua Claude Desktop; ưu tiên hoàn thiện Dashboard.
 
 **Đang chờ điều kiện bên ngoài (đều cần người dùng):**
