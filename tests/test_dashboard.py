@@ -289,7 +289,7 @@ class DashboardSmokeTests(unittest.TestCase):
         restore.click().run()
         self.assertTrue(os.path.exists(os.path.join(img_dir, f"job_{job}.png")))
 
-    def test_delete_clip_moves_it_to_the_video_trash_without_a_new_job(self):
+    def _finished_video(self):
         p, pid = self.seed()
         scene = p.conn.execute("SELECT id FROM scenes").fetchone()["id"]
         vid = p.create_job(scene, "video_gen")
@@ -301,14 +301,85 @@ class DashboardSmokeTests(unittest.TestCase):
             f.write(b"x")
         p.conn.execute("UPDATE jobs SET result_path=? WHERE id=?", (clip, vid))
         p.conn.commit()
+        return p, pid, vid, clip
+
+    def test_regenerate_button_replaces_delete_for_a_finished_video(self):
+        p, pid, vid, clip = self._finished_video()
         at = AppTest.from_file(APP, default_timeout=30).run()
         at.radio(key="step").set_value(at.radio(key="step").options[3]).run()
-        next(b for b in at.button if b.key == f"vdel_{vid}").click().run()
+        self.assertFalse(any((b.key or "").startswith("vdel_") for b in at.button))  # no delete button any more
+        next(b for b in at.button if b.key == f"vregen_{vid}").click().run()
         self.assertFalse(at.exception)
         self.assertFalse(os.path.exists(clip))
         self.assertEqual(len(os.listdir(os.path.join(self.tmp, "projects", str(pid), "trash", "videos"))), 2)  # file + manifest
-        rows = Pipeline(connect(self.db)).conn.execute("SELECT state FROM jobs WHERE type='video_gen'").fetchall()
-        self.assertEqual([r["state"] for r in rows], ["rejected"])
+        rows = Pipeline(connect(self.db)).conn.execute("SELECT state FROM jobs WHERE type='video_gen' ORDER BY id").fetchall()
+        self.assertEqual([r["state"] for r in rows], ["rejected", "queued"])
+
+    def test_video_size_switch_and_audio_option(self):
+        p, pid, vid, clip = self._finished_video()
+        at = AppTest.from_file(APP, default_timeout=30).run()
+        at.radio(key="step").set_value(at.radio(key="step").options[3]).run()
+        for size in ("Nhỏ", "Lớn", "Vừa"):
+            at.radio(key="vsize_4").set_value(size).run()
+            self.assertFalse(at.exception, size)
+        at.checkbox(key=f"vaudio_{pid}").set_value(True).run()
+        self.assertEqual(Pipeline(connect(self.db)).project(pid)["video_audio"], 1)
+
+    def test_scene_detail_is_hidden_until_picked_then_editable(self):
+        p, pid = self.seed()
+        at = AppTest.from_file(APP, default_timeout=30).run()
+        self.assertFalse(any(t.key == f"sd_{pid}_1_prompt" for t in at.text_area))  # compact by default
+        at.selectbox(key=f"scene_pick_{pid}").set_value(1).run()
+        at.text_area(key=f"sd_{pid}_1_prompt").set_value("dark forest, low fog").run()
+        at.text_area(key=f"sd_{pid}_1_text").set_value("CẢNH 1. Nội dung sửa").run()
+        next(b for b in at.button if b.key == f"sds_{pid}_1").click().run()
+        self.assertFalse(at.exception)
+        self.assertFalse(at.error)
+        import json
+        data = json.loads(Pipeline(connect(self.db)).conn.execute("SELECT data FROM scenes").fetchone()["data"])
+        self.assertEqual((data["image_prompt"], data["text"]), ("dark forest, low fog", "CẢNH 1. Nội dung sửa"))
+
+    def test_risk_corner_lists_ip_and_moderation_notes(self):
+        p, pid = self.seed()
+        scene = p.conn.execute("SELECT id FROM scenes").fetchone()["id"]
+        job = p.create_job(scene, "video_gen")
+        from core.preflight import record_failure
+        record_failure(p.conn, job, "clipai", "Failure to pass the risk control system")
+        at = AppTest.from_file(APP, default_timeout=30).run()
+        self.assertFalse(at.exception)
+        self.assertEqual(len(at.get("popover")), 1)
+        text = " ".join(m.value for m in at.markdown)
+        self.assertIn("Cảnh 1 bị chặn (clipai)", text)      # risk-control block, with its scene
+        self.assertIn("Nữ chiến binh Amazon", text)          # IP warning from the Character Bible
+
+    def test_music_can_be_previewed_over_the_clips(self):
+        from unittest import mock
+        self.seed()
+        videos = os.path.join(self.tmp, "projects", "1", "videos")
+        os.makedirs(videos)
+        with open(os.path.join(videos, "01.mp4"), "wb") as f:
+            f.write(b"x")
+        os.environ["AUDIO_PROVIDER"] = "mock"
+        made = []
+
+        def fake_preview(pipeline, data_dir, pid, music_path, out_path, volume=0.6):
+            with open(out_path, "wb") as f:
+                f.write(b"x")
+            made.append(music_path)
+            return out_path
+
+        try:
+            with mock.patch("core.final_cut.preview_with_music", side_effect=fake_preview):
+                at = AppTest.from_file(APP, default_timeout=30).run()
+                at.radio(key="step").set_value(at.radio(key="step").options[4]).run()
+                next(b for b in at.button if "bản nháp" in b.label).click().run()
+                next(b for b in at.button if "Kiểm tra" in b.label).click().run()
+                next(b for b in at.button if b.key == "prevd_1_0").click().run()
+                self.assertFalse(at.exception)
+        finally:
+            os.environ.pop("AUDIO_PROVIDER", None)
+        self.assertEqual(len(made), 1)
+        self.assertTrue(made[0].endswith(".wav"))
 
     def test_reject_floor_slider_is_saved_for_the_project(self):
         p, pid = self.seed()

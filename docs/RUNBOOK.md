@@ -44,7 +44,7 @@ Dành cho người **vận hành hằng ngày** (không cần đọc code). Kế
 | **5a Nhạc/âm thanh** | Sửa prompt nhạc → *Tạo bản nháp* → nghe, **Chọn**; tùy chọn SFX/giọng đọc + thời điểm | Đã chọn nhạc (hoặc "không dùng") |
 | **5b Ghép & Render** | Chọn clip, transition, âm lượng → *Render Final* → xem và tải | Tổng thời lượng đúng dự kiến |
 
-Dưới mỗi ảnh/clip có mũi tên **📖 nội dung kịch bản**: bấm để đọc lại đoạn kịch bản của cảnh đó (kèm bối cảnh, nhân vật, mood, prompt) và so với kết quả. Dấu **✓** trên thanh bước = bước đã hoàn tất. Nút **Pause** dừng việc bắt đầu job mới; **Cancel** hủy job đang chạy/xếp hàng của dự án.
+Dưới mỗi ảnh/clip có mũi tên **📖 nội dung kịch bản**: bấm để đọc lại đoạn kịch bản của cảnh đó (kèm bối cảnh, nhân vật, mood, prompt) và so với kết quả. Video xem ngay trong Dashboard (chọn Nhỏ/Vừa/Lớn; ⛶ để toàn màn hình); chưa ưng thì bấm **↻ Gen lại video** (bản cũ vào thùng rác). Ở Bước 5a, nút **🎬 Xem thử với video** ghép nhanh clip + nhạc để nghe có khớp hình không. Góc trên có **⚠ Rủi ro (N)** ghi lại cảnh báo IP và các lần bị chặn. Dấu **✓** trên thanh bước = bước đã hoàn tất. Nút **Pause** dừng việc bắt đầu job mới; **Cancel** hủy job đang chạy/xếp hàng của dự án.
 
 ## 4. Hai chế độ QC
 - **Duyệt tất cả** (Bước 2 và 3) hỏi Có/Không một lần trước khi duyệt; duyệt từng ảnh thì bấm ngay tại ảnh. **Ảnh điểm quá thấp** (mặc định dưới 0,50, chỉnh được) bị tự loại ở cả hai chế độ và xếp hàng gen ảnh mới (gen khi bạn bấm chạy).

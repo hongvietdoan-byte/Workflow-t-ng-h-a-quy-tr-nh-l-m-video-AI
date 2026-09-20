@@ -17,7 +17,7 @@ import streamlit as st
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
-from core import audio_lib, trash, waveform, cost, ffmpeg_studio, final_cut, llm_io, llm_runner, music, preflight, prompts, script_parser  # noqa: E402
+from core import audio_lib, regen, trash, waveform, cost, ffmpeg_studio, final_cut, llm_io, llm_runner, music, preflight, prompts, script_parser  # noqa: E402
 from core.db import connect  # noqa: E402
 from core.pipeline import Pipeline, PipelinePaused  # noqa: E402
 from core.adapters import factory  # noqa: E402
@@ -210,6 +210,26 @@ def scene_expander(p: Pipeline, scene_id, expanded: bool = False, with_motion: b
         ui.html("".join(f'<div class="muted"><b>{escape(k)}:</b> {escape(v)}</div>' for k, v in lines if v))
 
 
+VIDEO_SIZES = ["Nhỏ", "Vừa", "Lớn"]
+
+
+def video_size_control(key: str) -> str:
+    """One size switch for every video on a page (small / medium / full width). The player's own ⛶ button
+    goes full screen."""
+    return st.radio("Kích thước xem video", VIDEO_SIZES, index=1, horizontal=True, key=key)
+
+
+def show_video(path: str, size: str = "Vừa") -> None:
+    ratio = {"Nhỏ": [1, 3], "Vừa": [1, 1]}.get(size)
+    try:
+        if ratio:
+            st.columns(ratio)[0].video(path)
+        else:
+            st.video(path)
+    except Exception:  # noqa: BLE001 - unreadable file: say so instead of breaking the page
+        st.caption(f"⚠ Không phát được video: {os.path.basename(path)}")
+
+
 def qc_scores(p: Pipeline, jid: int):
     return p.conn.execute("SELECT criterion, score, threshold_at_time FROM qc_results WHERE job_id=? ORDER BY id",
                           (jid,)).fetchall()
@@ -240,7 +260,7 @@ def step_label(done: list):
 # ---- header --------------------------------------------------------------------------
 def price_editor() -> None:
     """Edit data/pricing.json in the dashboard: copy the price the Clip AI web page shows before generating."""
-    with st.expander("💲 Bảng giá (nhập giá hiển thị trên web Clip AI / Deepix)"):
+    with st.container():
         st.caption("Web Clip AI hiện giá cho từng thiết lập trước khi bấm gen: chỉ cần chép lại. Ưu tiên tra: "
                    "`model:mức:Ns` (giá đúng thiết lập) → `model:mức` (giá mỗi clip) → giá mỗi giây. "
                    "Để trống = chưa biết giá (Dashboard vẫn đếm số lượng).")
@@ -269,18 +289,33 @@ def price_editor() -> None:
                 st.rerun()
 
 
+def risk_popover(p: Pipeline, pid: int) -> None:
+    """Small corner note: IP warnings and risk-control blocks seen so far in this project."""
+    notes = preflight.risk_notes(p.conn, pid, preflight.load_blocklist())
+    with st.popover(f"⚠ Rủi ro ({len(notes)})", help="Ghi chú rủi ro đã gặp: cảnh báo IP và các lần bị chặn risk control"):
+        if not notes:
+            st.caption("Chưa ghi nhận rủi ro nào.")
+        for n in notes:
+            tag = ui.badge("IP", "b-warn") if n["kind"] == "ip" else ui.badge("bị chặn", "b-bad")
+            ui.html(f'{tag} <b>{escape(n["title"])}</b><br><span class="muted">{escape(n["detail"])}</span>')
+
+
 def global_bar(p: Pipeline):
     projects = p.conn.execute("SELECT id, name FROM projects ORDER BY id").fetchall()
-    with st.expander("➕ Tạo dự án mới", expanded=not projects):
-        name = st.text_input("Tên dự án", key="new_name")
-        if st.button("Tạo dự án") and name.strip():
-            p.create_project(name.strip())
-            st.rerun()
+    with st.expander("⚙ Cài đặt & dự án", expanded=not projects):
+        t_new, t_price = st.tabs(["Dự án mới", "Bảng giá"])
+        with t_new:
+            name = st.text_input("Tên dự án", key="new_name")
+            if st.button("Tạo dự án") and name.strip():
+                p.create_project(name.strip())
+                st.rerun()
+        with t_price:
+            price_editor()
     if not projects:
         st.info("Chưa có dự án. Hãy tạo dự án để bắt đầu.")
         return None
     with st.container(border=True):
-        c0, c1, c2, c3, c4 = st.columns([1.5, 2, 2.3, 2, 3], vertical_alignment="center")
+        c0, c1, c2, c3, c4, c5 = st.columns([1.4, 1.8, 2.0, 1.6, 1.3, 3.0], vertical_alignment="center")
         c0.markdown('<div class="brand"><i></i>AI Video Pipeline</div>', unsafe_allow_html=True)
         ids = [r["id"] for r in projects]
         pid = c1.selectbox("Dự án", ids, format_func=lambda i: next(r["name"] for r in projects if r["id"] == i))
@@ -292,7 +327,9 @@ def global_bar(p: Pipeline):
         th = c3.slider("QC threshold", 0.5, 1.0, float(proj["qc_auto_pass_threshold"]), 0.01, key=f"th_{pid}")
         if abs(th - proj["qc_auto_pass_threshold"]) > 1e-9:
             p.set_threshold(pid, th)
-        b1, b2, b3 = c4.columns(3)
+        with c4:
+            risk_popover(p, pid)
+        b1, b2, b3 = c5.columns(3)
         if b1.button("⏸ Pause", disabled=bool(proj["paused"]), key="btn_pause"):
             p.set_paused(pid, True)
             st.rerun()
@@ -305,7 +342,6 @@ def global_bar(p: Pipeline):
     if proj["paused"]:
         st.warning("Pipeline đang PAUSE — không job nào được bắt đầu.")
     spend_line(p, pid)
-    price_editor()
     return pid
 
 
@@ -317,13 +353,13 @@ def step1(p: Pipeline, pid: int):
                            (pid,)).fetchall()
     warnings = preflight.check_characters(p.conn, pid, preflight.load_blocklist()) if chars else []
     risky = {w["character"] for w in warnings}
-    left, right = st.columns([1, 1.25], gap="large")
+    left, right = st.columns([1, 1.7], gap="large")
     with left:
         with st.container(border=True):
-            ui.html(ui.card_title("① Input kịch bản"))
-            up = st.file_uploader("script.docx", type=["docx"], key=f"up_{pid}")
+            ui.html(ui.card_title("① Kịch bản"))
+            up = st.file_uploader("script.docx", type=["docx"], key=f"up_{pid}", label_visibility="collapsed")
             c1, c2 = st.columns(2)
-            if c1.button("▶ Chạy phân tích (tách cảnh)", disabled=up is None, type="primary"):
+            if c1.button("▶ Phân tích (tách cảnh)", disabled=up is None, type="primary"):
                 with tempfile.NamedTemporaryFile(suffix=".docx", delete=False) as f:
                     f.write(up.getvalue())
                 try:
@@ -332,20 +368,16 @@ def step1(p: Pipeline, pid: int):
                     os.remove(f.name)
                 if act(lambda: script_parser.import_scenes(p, pid, parsed), f"Đã tách {len(parsed)} cảnh"):
                     st.rerun()
-            if c2.button("↺ Reset bước 1", help="Xóa cảnh + nhân vật chưa khóa", key="btn_bad_reset"):
+            if c2.button("↺ Reset", help="Xóa cảnh + nhân vật chưa khóa", key="btn_bad_reset"):
                 p.conn.execute("DELETE FROM characters WHERE project_id=? AND locked=0", (pid,))
                 p.conn.execute("DELETE FROM scenes WHERE project_id=? AND id NOT IN (SELECT scene_id FROM jobs)", (pid,))
                 p.conn.commit()
                 st.rerun()
             if scenes:
-                ui.html(ui.badge("succeeded", "b-ok") + f' <span class="muted">Đã tách {len(scenes)} cảnh · '
-                        f'{len(chars)} nhân vật</span>')
-        for w in warnings:
-            ui.html(f'<div class="note-warn"><b>⚠ Pre-flight IP / Content check</b><br>{ui.badge("Rủi ro", "b-bad")} '
-                    f'<b>{w["character"]}</b> ~ {w["entry"]} ({w["reason"]})</div>')
+                st.caption(f"✓ {len(scenes)} cảnh · {len(chars)} nhân vật")
         if scenes:
             with st.container(border=True):
-                ui.html(ui.card_title("② Director — phân tích", "Character Bible + thông số cảnh"))
+                ui.html(ui.card_title("② Director", "Character Bible + thông số cảnh"))
                 client = llm_client()
                 if client is not None:
                     if st.button("🤖 Chạy Director bằng Claude API", type="primary", key=f"llm_dir_{pid}"):
@@ -356,49 +388,56 @@ def step1(p: Pipeline, pid: int):
                             r = st.session_state.pop("llm_res")
                             st.toast(f"Đã lưu {r['characters']} nhân vật, {r['scenes']} cảnh ({tokens_text(r)})")
                             st.rerun()
-                else:
-                    st.caption("Chưa có ANTHROPIC_API_KEY: dán JSON từ Claude Desktop vào ô bên dưới.")
-                with st.expander("Prompt gửi Claude (copy)"):
+                with st.expander("✍ Nhập tay: prompt gửi Claude + dán JSON kết quả", expanded=client is None and not chars):
                     st.code(prompts.build_director_bundle(p, pid), language="markdown")
-                raw = st.text_area("Dán JSON kết quả từ Claude", key=f"analysis_{pid}", height=140)
-                if st.button("Lưu phân tích", disabled=not raw.strip()):
-                    if act(lambda: llm_io.store_scene_analysis(p, pid, raw), "Đã lưu Character Bible + thông số cảnh"):
-                        st.rerun()
+                    raw = st.text_area("Dán JSON kết quả từ Claude", key=f"analysis_{pid}", height=120)
+                    if st.button("Lưu phân tích", disabled=not raw.strip()):
+                        if act(lambda: llm_io.store_scene_analysis(p, pid, raw), "Đã lưu Character Bible + thông số cảnh"):
+                            st.rerun()
     with right:
         if chars:
             with st.container(border=True):
-                ui.html(ui.card_title("Character Bible", f"{len(chars)} nhân vật"))
-                for c in chars:
-                    desc = c["description"] + (f" · {c['wardrobe']}" if c["wardrobe"] else "")
-                    tag = (ui.badge("IP rủi ro", "b-bad") if c["name"] in risky else ui.badge("IP an toàn", "b-ok"))
-                    if c["locked"]:
-                        tag += " " + ui.badge("đã khóa", "b-pri")
-                    ui.html(ui.item(c["name"], desc, tag))
-                    if not c["locked"]:
-                        with st.expander(f"Sửa {c['name']}"):
-                            n_name = st.text_input("Tên", c["name"], key=f"cn_{pid}_{c['name']}")
-                            n_desc = st.text_area("Mô tả", c["description"], key=f"cd_{pid}_{c['name']}", height=80)
-                            n_ward = st.text_input("Trang phục / dấu hiệu", c["wardrobe"] or "", key=f"cw_{pid}_{c['name']}")
-                            if st.button("Lưu", key=f"cs_{pid}_{c['name']}"):
-                                if act(lambda: llm_io.update_character(p, pid, c["name"], n_desc, n_ward, n_name),
-                                       f"Đã lưu {n_name}"):
-                                    st.rerun()
-                if any(c["locked"] for c in chars):
-                    st.caption("Character Bible đang khóa. Muốn sửa phải mở khóa (ảnh đã gen vẫn theo mô tả cũ).")
-                    if st.button("🔓 Mở khóa để sửa", key="btn_bad_unlock"):
-                        act(lambda: llm_io.unlock_character_bible(p, pid), "Đã mở khóa Character Bible")
-                        st.rerun()
+                head, status = st.columns([3, 2], vertical_alignment="center")
+                head.markdown(ui.card_title("Character Bible", f"{len(chars)} nhân vật"), unsafe_allow_html=True)
+                if risky:
+                    status.caption(f"⚠ {len(risky)} nhân vật có thể vướng IP (xem “⚠ Rủi ro” ở góc trên)")
+                st.dataframe([{"Nhân vật": c["name"], "Mô tả": c["description"] + (f" · {c['wardrobe']}" if c["wardrobe"] else ""),
+                               "IP": "⚠ rủi ro" if c["name"] in risky else "an toàn",
+                               "Khóa": "🔒" if c["locked"] else ""} for c in chars],
+                             width="stretch", hide_index=True, height=min(38 * (len(chars) + 1) + 3, 220))
+                with st.expander("✏ Sửa nhân vật / khóa"):
+                    if any(c["locked"] for c in chars):
+                        st.caption("Character Bible đang khóa. Muốn sửa phải mở khóa (ảnh đã gen vẫn theo mô tả cũ).")
+                        if st.button("🔓 Mở khóa để sửa", key="btn_bad_unlock"):
+                            act(lambda: llm_io.unlock_character_bible(p, pid), "Đã mở khóa Character Bible")
+                            st.rerun()
+                    else:
+                        who = st.selectbox("Chọn nhân vật", [c["name"] for c in chars], key=f"csel_{pid}")
+                        c = next(c for c in chars if c["name"] == who)
+                        n_name = st.text_input("Tên", c["name"], key=f"cn_{pid}_{c['name']}")
+                        n_desc = st.text_area("Mô tả", c["description"], key=f"cd_{pid}_{c['name']}", height=80)
+                        n_ward = st.text_input("Trang phục / dấu hiệu", c["wardrobe"] or "", key=f"cw_{pid}_{c['name']}")
+                        if st.button("Lưu nhân vật", key=f"cs_{pid}_{c['name']}"):
+                            if act(lambda: llm_io.update_character(p, pid, c["name"], n_desc, n_ward, n_name),
+                                   f"Đã lưu {n_name}"):
+                                st.rerun()
         if scenes:
             with st.container(border=True):
-                ui.html(ui.card_title("③ Bảng phân cảnh", f"{len(scenes)} cảnh"))
+                ui.html(ui.card_title("③ Phân cảnh", f"{len(scenes)} cảnh"))
                 rows = []
                 for s in scenes:
                     d = json.loads(s["data"] or "{}")
-                    rows.append({"Cảnh": f"S{s['idx']:02d}", "Bối cảnh": " · ".join(filter(None, [d.get("time"), d.get("location")])),
+                    rows.append({"Cảnh": f"S{s['idx']:02d}",
+                                 "Bối cảnh": " · ".join(filter(None, [d.get("time"), d.get("location")])),
                                  "Nhân vật": ", ".join(d.get("characters") or []),
-                                 "Ống kính / mood": " · ".join(filter(None, [d.get("shot"), d.get("mood")])),
+                                 "Shot · mood": " · ".join(filter(None, [d.get("shot"), d.get("mood")])),
                                  "Trạng thái": s["state"]})
-                st.dataframe(rows, width="stretch", hide_index=True)
+                st.dataframe(rows, width="stretch", hide_index=True, height=min(38 * (len(rows) + 1) + 3, 260))
+                pick = st.selectbox("Xem / sửa chi tiết một cảnh", [s["idx"] for s in scenes], index=None,
+                                    placeholder="Chọn cảnh…", key=f"scene_pick_{pid}",
+                                    format_func=lambda i: scene_title(i, next(s["title"] for s in scenes if s["idx"] == i)))
+                if pick is not None:
+                    scene_editor(p, pid, next(s for s in scenes if s["idx"] == pick), [c["name"] for c in chars])
         if chars:
             with st.container(border=True):
                 a, b = st.columns([2, 1], vertical_alignment="center")
@@ -406,6 +445,32 @@ def step1(p: Pipeline, pid: int):
                 if b.button("✔ Duyệt & khóa → Bước 2", type="primary"):
                     act(lambda: llm_io.lock_character_bible(p, pid), "Đã khóa Character Bible")
                     st.rerun()
+
+
+def scene_editor(p: Pipeline, pid: int, scene, char_names) -> None:
+    """Detail of one scene: script text and spec, both editable (a scene's spec drives the image prompt)."""
+    idx = scene["idx"]
+    d = json.loads(scene["data"] or "{}")
+    k = f"sd_{pid}_{idx}"
+    text = st.text_area("Nội dung kịch bản của cảnh", d.get("text", ""), key=f"{k}_text", height=130)
+    c1, c2, c3 = st.columns(3)
+    location = c1.text_input("Địa điểm", d.get("location", ""), key=f"{k}_location")
+    time_ = c2.text_input("Thời gian", d.get("time", ""), key=f"{k}_time")
+    shot = c3.text_input("Cỡ cảnh / góc máy", d.get("shot", ""), key=f"{k}_shot")
+    c4, c5 = st.columns(2)
+    mood = c4.text_input("Mood", d.get("mood", ""), key=f"{k}_mood")
+    lighting = c5.text_input("Ánh sáng", d.get("lighting", ""), key=f"{k}_lighting")
+    cast = st.multiselect("Nhân vật trong cảnh", char_names, [c for c in d.get("characters") or [] if c in char_names],
+                          key=f"{k}_cast")
+    image_prompt = st.text_area("Prompt ảnh", d.get("image_prompt", ""), key=f"{k}_prompt", height=80)
+    st.caption("Ảnh đã gen giữ nguyên; chỉ ảnh gen sau khi sửa mới theo nội dung mới.")
+    if st.button("💾 Lưu cảnh", key=f"sds_{pid}_{idx}"):
+        fields = {"location": location, "time": time_, "shot": shot, "mood": mood, "lighting": lighting,
+                  "image_prompt": image_prompt}
+        if char_names:
+            fields["characters"] = cast
+        if act(lambda: llm_io.update_scene(p, pid, idx, fields, text=text), f"Đã lưu cảnh {idx}"):
+            st.rerun()
 
 
 # ---- step 2 --------------------------------------------------------------------------
@@ -440,32 +505,33 @@ def step2(p: Pipeline, pid: int):
                              + ("QC Agent tự duyệt theo threshold" if proj["operating_mode"] == "auto"
                                 else "mọi ảnh chờ bạn duyệt"), "b-pri")
                     + f' <span class="muted">Retry tối đa {proj["max_retry_count"]}</span>', unsafe_allow_html=True)
-    f1, f2, f3 = st.columns([2, 3, 3], vertical_alignment="center")
-    floor_on = f1.checkbox("Tự loại ảnh điểm thấp", proj["qc_reject_floor"] is not None, key=f"rej_on_{pid}",
-                           help="Ảnh có điểm QC dưới mức này bị loại ngay (vào Thùng rác) và xếp hàng gen ảnh mới, "
-                                "ở cả hai chế độ. Ảnh điểm cao vẫn phải chờ bạn duyệt ở human_qc.")
-    reject_floor = f2.slider("Dưới mức này tự loại + xếp hàng gen ảnh mới", 0.30, 0.80,
-                             float(proj["qc_reject_floor"] or 0.5), 0.05, key=f"rej_v_{pid}", disabled=not floor_on)
-    f3.caption("Ảnh bị loại vào 🗑 Thùng rác (tab Lịch sử, giữ 30 ngày). Ảnh mới chỉ được gen khi bạn bấm chạy.")
-    new_reject = round(reject_floor, 2) if floor_on else None
-    if new_reject != proj["qc_reject_floor"] and (new_reject is None or proj["qc_reject_floor"] is None
-                                                  or abs(new_reject - proj["qc_reject_floor"]) > 1e-9):
-        p.set_reject_floor(pid, new_reject)
-    if proj["operating_mode"] == "auto":
-        z1, z2, _ = st.columns([2, 3, 3], vertical_alignment="center")
-        zone_on = z1.checkbox("Vùng chờ review", proj["qc_review_floor"] is not None, key=f"zone_{pid}",
-                              help="Điểm nằm giữa mức sàn và threshold: QC Agent không tự loại mà chờ bạn duyệt.")
-        floor = z2.slider("Mức sàn (dưới mức này tự loại)", 0.3, float(proj["qc_auto_pass_threshold"]),
-                          min(float(proj["qc_review_floor"] or 0.6), float(proj["qc_auto_pass_threshold"])), 0.01,
-                          key=f"floor_{pid}", disabled=not zone_on)
-        new_floor = floor if zone_on else None
-        if new_floor != proj["qc_review_floor"] and (new_floor is None or proj["qc_review_floor"] is None
-                                                     or abs(new_floor - proj["qc_review_floor"]) > 1e-9):
-            p.set_review_floor(pid, new_floor)
+    with st.expander("⚙ Thiết lập QC: tự loại ảnh điểm thấp · vùng chờ review"):
+        f1, f2, f3 = st.columns([2, 3, 3], vertical_alignment="center")
+        floor_on = f1.checkbox("Tự loại ảnh điểm thấp", proj["qc_reject_floor"] is not None, key=f"rej_on_{pid}",
+                               help="Ảnh có điểm QC dưới mức này bị loại ngay (vào Thùng rác) và xếp hàng gen ảnh mới, "
+                                    "ở cả hai chế độ. Ảnh điểm cao vẫn phải chờ bạn duyệt ở human_qc.")
+        reject_floor = f2.slider("Dưới mức này tự loại + xếp hàng gen ảnh mới", 0.30, 0.80,
+                                 float(proj["qc_reject_floor"] or 0.5), 0.05, key=f"rej_v_{pid}", disabled=not floor_on)
+        f3.caption("Ảnh bị loại vào 🗑 Thùng rác (tab Lịch sử, giữ 30 ngày). Ảnh mới chỉ được gen khi bạn bấm chạy.")
+        new_reject = round(reject_floor, 2) if floor_on else None
+        if new_reject != proj["qc_reject_floor"] and (new_reject is None or proj["qc_reject_floor"] is None
+                                                      or abs(new_reject - proj["qc_reject_floor"]) > 1e-9):
+            p.set_reject_floor(pid, new_reject)
+        if proj["operating_mode"] == "auto":
+            z1, z2, _ = st.columns([2, 3, 3], vertical_alignment="center")
+            zone_on = z1.checkbox("Vùng chờ review", proj["qc_review_floor"] is not None, key=f"zone_{pid}",
+                                  help="Điểm nằm giữa mức sàn và threshold: QC Agent không tự loại mà chờ bạn duyệt.")
+            floor = z2.slider("Mức sàn (dưới mức này tự loại)", 0.3, float(proj["qc_auto_pass_threshold"]),
+                              min(float(proj["qc_review_floor"] or 0.6), float(proj["qc_auto_pass_threshold"])), 0.01,
+                              key=f"floor_{pid}", disabled=not zone_on)
+            new_floor = floor if zone_on else None
+            if new_floor != proj["qc_review_floor"] and (new_floor is None or proj["qc_review_floor"] is None
+                                                         or abs(new_floor - proj["qc_review_floor"]) > 1e-9):
+                p.set_review_floor(pid, new_floor)
     if runner is None:
-        st.info("Chưa cấu hình Deepix: đặt IMAGE_PROVIDER=deepix và DEEPIX_TOKEN (biến môi trường), hoặc nhập ảnh thủ công cho từng job.")
+        st.caption("ℹ Deepix chưa cấu hình: nhập ảnh thủ công cho từng job (cách cấu hình: docs/RUNBOOK.md).")
     else:
-        st.success(f"Provider ảnh: {runner.provider.name}" + (" (giả lập — ảnh 1x1)" if runner.provider.name == "mock-image" else " (gọi API thật, tốn credit)"))
+        st.caption(f"Provider ảnh: {runner.provider.name}" + (" (giả lập — ảnh 1x1)" if runner.provider.name == "mock-image" else " (gọi API thật, tốn credit)"))
         allowed = show_estimate(image_estimate(p, pid), runner)
         r1, r2, _ = st.columns([2, 2, 4])
         if r1.button("⟳ Submit + Poll 1 lần (ảnh)", disabled=not allowed):
@@ -702,20 +768,27 @@ def step4(p: Pipeline, pid: int):
     ready = llm_io.ready_for_video(p, pid)
     runner = video_runner(p)
     models = ["(mặc định: kling-v3-omni)", "kling", "kling-o1", "seedance", "seedance-fast", "seedance-2.5"]
-    current = p.project(pid)["video_model"]
+    proj = p.project(pid)
+    current = proj["video_model"]
     with st.container(border=True):
-        m1, m2 = st.columns([3, 2], vertical_alignment="center")
-        m1.markdown(ui.badge(f"{len(ready)} cảnh sẵn sàng gen video", "b-info") +
-                    ' <span class="muted">ảnh + motion prompt đã duyệt</span>', unsafe_allow_html=True)
-        choice = m2.selectbox("Model video (Kling Omni / Seedance; bộ lọc kiểm duyệt khác nhau theo model)", models,
-                              index=models.index(current) if current in models else 0, key=f"vmodel_{pid}")
+        m1, m2, m3 = st.columns([2, 2.4, 2.6], vertical_alignment="center")
+        m1.markdown(ui.badge(f"{len(ready)} cảnh sẵn sàng gen", "b-info") +
+                    ' <span class="muted">ảnh + prompt đã duyệt</span>', unsafe_allow_html=True)
+        choice = m2.selectbox("Model video", models, index=models.index(current) if current in models else 0,
+                              key=f"vmodel_{pid}", help="Kling Omni / Seedance; bộ lọc kiểm duyệt khác nhau theo model")
         if (choice if choice in models[1:] else None) != current:
             p.set_video_model(pid, choice if choice in models[1:] else None)
+        audio_on = m3.checkbox("🔊 Model tự tạo âm thanh / lời thoại", bool(proj["video_audio"]), key=f"vaudio_{pid}",
+                               help="Bật: Kling `sound` / Seedance `generate_audio`. Nhân vật có thể nói (khớp môi do model tự "
+                                    "xử lý) nếu lời thoại được ghi trong motion prompt. Có thể đổi giá; chưa thử thật.")
+        if audio_on != bool(proj["video_audio"]):
+            p.set_video_audio(pid, audio_on)
         if runner is None:
-            st.info("Chưa cấu hình Clip AI: đặt VIDEO_PROVIDER=clipai và CLIPAI_TOKEN (biến môi trường). "
-                    "Vẫn có thể tạo job xếp hàng để theo dõi state machine.")
+            st.caption("ℹ Clip AI chưa cấu hình: chỉ theo dõi job thủ công.")
+            with st.expander("Cách cấu hình"):
+                st.write("Đặt VIDEO_PROVIDER=clipai và CLIPAI_TOKEN (biến môi trường), xem docs/RUNBOOK.md.")
         else:
-            st.success(f"Provider video: {runner.provider.name}" + (" (giả lập — không tạo video thật)" if runner.provider.name == "mock" else " (gọi API thật, tốn credit)"))
+            st.caption(f"Provider video: {runner.provider.name}" + (" (giả lập)" if runner.provider.name == "mock" else " (gọi API thật, tốn credit)"))
         allowed = show_estimate(video_estimate(p, pid), runner)
         c1, c2, c3, c4 = st.columns(4)
         if c1.button("▶ Tạo job gen video", disabled=not ready, type="primary"):
@@ -739,23 +812,26 @@ def step4(p: Pipeline, pid: int):
                 act(lambda: p.retry(j["id"], "retry all"))
             st.rerun()
     jobs = p.conn.execute("SELECT j.*, s.idx FROM jobs j JOIN scenes s ON s.id=j.scene_id"
-                          " WHERE j.project_id=? AND j.type='video_gen' ORDER BY s.idx, j.id", (pid,)).fetchall()
+                          " WHERE j.project_id=? AND j.type='video_gen' AND j.state!='rejected' ORDER BY s.idx, j.id",
+                          (pid,)).fetchall()
     done = sum(1 for j in jobs if j["state"] == "succeeded")
     running = sum(1 for j in jobs if j["state"] == "running")
     failed = sum(1 for j in jobs if j["state"] == "failed")
+    blocked = p.conn.execute("SELECT COUNT(*) c FROM content_moderation_failures f JOIN jobs j ON j.id=f.job_id"
+                             " WHERE j.project_id=?", (pid,)).fetchone()["c"]
     with st.container(border=True):
-        ui.html(ui.card_title("Tiến độ batch", "Clip AI"))
         extra = (ui.badge(f"{running} running", "b-info") if running else "") + " " + \
                 (ui.badge(f"{failed} failed", "b-bad") if failed else "")
-        ui.html(ui.progress(done, len(jobs), extra))
-    fails = p.conn.execute("SELECT job_id, error_message FROM content_moderation_failures f JOIN jobs j"
-                           " ON j.id=f.job_id WHERE j.project_id=?", (pid,)).fetchall()
-    for f in fails:
-        ui.html(f'<div class="note-warn"><b>⚠ Risk control</b> (job #{f["job_id"]}): {f["error_message"]}</div>')
-    with st.container(border=True):
-        ui.html(ui.card_title("Danh sách job", f"{len(jobs)} job"))
-        for j in jobs:
-            a, b, c, d = st.columns([1, 2, 1, 2], vertical_alignment="center")
+        ui.html(ui.card_title("Tiến độ batch") + ui.progress(done, len(jobs), extra))
+        if blocked:
+            st.caption(f"⚠ {blocked} lần bị chặn risk control — chi tiết ở “⚠ Rủi ro” góc trên.")
+    size = "Vừa"
+    if any(j["state"] == "succeeded" and j["result_path"] and os.path.exists(j["result_path"]) for j in jobs):
+        size = video_size_control("vsize_4")
+    for j in jobs:
+        clip = j["result_path"] if j["state"] == "succeeded" and j["result_path"] and os.path.exists(j["result_path"]) else None
+        with st.container(border=True):
+            a, b, c, d = st.columns([1.2, 1.6, 1, 2.2], vertical_alignment="center")
             a.markdown(f"**Cảnh {j['idx']}**")
             b.markdown(ui.state_badge(j["state"]) + (" " + ui.badge("⚠ escalated", "b-warn") if j["escalated"] else ""),
                        unsafe_allow_html=True)
@@ -767,17 +843,26 @@ def step4(p: Pipeline, pid: int):
                 if j["state"] == "failed" and not j["escalated"] and st.button("↻ Retry", key=f"vr_{j['id']}"):
                     act(lambda: p.retry(j["id"], "retry"))
                     st.rerun()
-                if j["state"] == "succeeded" and j["result_path"] and os.path.exists(j["result_path"]):
-                    if st.checkbox("▶ Xem", key=f"vsee_{j['id']}"):
-                        st.video(j["result_path"])
-                    if st.button("🗑 Xóa clip", key=f"vdel_{j['id']}", help="Chuyển vào thùng rác (giữ 30 ngày)"):
-                        trash.move_to_trash(j["result_path"], DATA, pid, "videos", "đã xóa", j["id"], j["idx"])
-                        act(lambda: p.reject(j["id"], "user", "đã xóa clip", respawn=False))
+                if clip and st.button("↻ Gen lại video", key=f"vregen_{j['id']}",
+                                      help="Chưa ưng: clip này vào thùng rác (giữ 30 ngày) và xếp hàng một video mới. "
+                                           "Muốn đổi cách quay thì sửa motion prompt ở Bước 3 trước."):
+                    if act(lambda: regen.regenerate_video(p, DATA, j["id"]), "Đã xếp hàng gen lại video"):
                         st.rerun()
+            if clip:
+                show_video(clip, size)
             scene_expander(p, j["scene_id"], with_motion=True)
 
 
 # ---- step 5a -------------------------------------------------------------------------
+def preview_with_track(p: Pipeline, pid: int, music_path: str, tag: str) -> None:
+    out = os.path.join(project_dir(pid, "output"), f"preview_music_{tag}.mp4")
+    with st.spinner("Đang ghép bản xem thử (clip + nhạc)…"):
+        ok = act(lambda: final_cut.preview_with_music(p, DATA, pid, music_path, out), "Đã tạo bản xem thử")
+    if ok:
+        st.session_state[f"prev5a_{pid}"] = (out, tag)
+        st.rerun()
+
+
 def step5a(p: Pipeline, pid: int):
     drafts_dir, selected_dir = music.project_dirs(DATA, pid)
     try:
@@ -785,15 +870,46 @@ def step5a(p: Pipeline, pid: int):
     except ProviderError as e:
         st.error(f"Clip AI audio: {e}")
         provider = None
+    has_clips = any(c["path"] for c in final_cut.collect_clips(p, DATA, pid))
+
+    files = os.listdir(selected_dir)
+    with st.container(border=True):
+        a, b = st.columns([3, 2], vertical_alignment="center")
+        a.markdown(ui.card_title("Nhạc nền đang chọn") + (ui.badge(files[0], "b-ok") if files else ui.badge("chưa chọn / không dùng")),
+                   unsafe_allow_html=True)
+        if files:
+            spath = os.path.join(selected_dir, files[0])
+            ui.html(ui.waveform_svg(_peaks(spath, os.path.getmtime(spath))))
+            st.audio(spath)
+            if has_clips and b.button("🎬 Xem thử với video", key=f"prev_sel_{pid}"):
+                preview_with_track(p, pid, spath, "selected")
+        with st.expander("Upload nhạc có sẵn / bỏ nhạc"):
+            up = st.file_uploader("Upload nhạc nền", type=["mp3", "wav", "m4a"], key=f"music_{pid}")
+            if up and st.button("Dùng bản này"):
+                music.clear_selected(selected_dir)
+                with open(os.path.join(selected_dir, "selected" + os.path.splitext(up.name)[1]), "wb") as f:
+                    f.write(up.getvalue())
+                st.rerun()
+            if st.button("Không dùng nhạc"):
+                music.clear_selected(selected_dir)
+                st.rerun()
+    shown = st.session_state.get(f"prev5a_{pid}")
+    if shown and os.path.exists(shown[0]):
+        with st.container(border=True):
+            ui.html(ui.card_title("Xem thử: clip + nhạc", shown[1]))
+            show_video(shown[0], video_size_control("vsize_5a"))
+    if not has_clips:
+        st.caption("Chưa có clip nào (Bước 4) nên chưa thể xem thử nhạc cùng video.")
+
     with st.container(border=True):
         if provider is None:
             st.info("Chưa cấu hình tạo nhạc: đặt AUDIO_PROVIDER=clipai (hoặc VIDEO_PROVIDER=clipai) và CLIPAI_TOKEN, "
-                    "hoặc upload nhạc có sẵn bên dưới.")
+                    "hoặc upload nhạc có sẵn ở trên.")
         else:
             ui.html(ui.card_title("Music Brief", "gợi ý từ mood các cảnh — bạn sửa được") + ui.badge(
                 provider.name + (" · giả lập" if provider.name == "mock-audio" else " · music_v2 · tốn credit"), "b-info"))
             brief = music.default_brief(p, pid)
-            prompt = st.text_area("Prompt nhạc (≤ 2000 ký tự)", brief["prompt"], key=f"mprompt_{pid}", height=100)
+            prompt = st.text_area("Prompt nhạc (≤ 2000 ký tự)", brief["prompt"], key=f"mprompt_{pid}", height=90)
             c1, c2, c3 = st.columns(3)
             seconds = c1.number_input("Độ dài (giây)", 3, 600, max(3, brief["length_ms"] // 1000), key=f"mlen_{pid}")
             instrumental = c2.checkbox("Không lời (instrumental)", brief["instrumental"], key=f"minst_{pid}")
@@ -823,6 +939,8 @@ def step5a(p: Pipeline, pid: int):
                     wpath = os.path.join(drafts_dir, d["file"])
                     ui.html(ui.waveform_svg(_peaks(wpath, os.path.getmtime(wpath))))
                     st.audio(wpath)
+                    if has_clips and st.button("🎬 Xem thử với video", key=f"prevd_{pid}_{i}"):
+                        preview_with_track(p, pid, wpath, f"draft_{i + 1}")
                     if st.button("Chọn bản này", key=f"pick_{pid}_{i}", type="primary"):
                         if act(lambda: music.select_draft(drafts_dir, selected_dir, i), "Đã chọn nhạc nền"):
                             st.rerun()
@@ -831,24 +949,8 @@ def step5a(p: Pipeline, pid: int):
     if drafts and st.button("Xóa danh sách bản nháp"):
         shutil.rmtree(drafts_dir, ignore_errors=True)
         st.rerun()
-    with st.container(border=True):
-        files = os.listdir(selected_dir)
-        ui.html(ui.card_title("Nhạc nền đang chọn") + (ui.badge(files[0], "b-ok") if files else ui.badge("không dùng")))
-        if files:
-            spath = os.path.join(selected_dir, files[0])
-            ui.html(ui.waveform_svg(_peaks(spath, os.path.getmtime(spath))))
-            st.audio(spath)
-        with st.expander("Hoặc upload nhạc có sẵn"):
-            up = st.file_uploader("Upload nhạc nền", type=["mp3", "wav", "m4a"], key=f"music_{pid}")
-            if up and st.button("Dùng bản này"):
-                music.clear_selected(selected_dir)
-                with open(os.path.join(selected_dir, "selected" + os.path.splitext(up.name)[1]), "wb") as f:
-                    f.write(up.getvalue())
-                st.rerun()
-        if st.button("Không dùng nhạc"):
-            music.clear_selected(selected_dir)
-            st.rerun()
-    extras_section(p, pid, provider)
+    with st.expander("🎧 Hiệu ứng âm thanh & giọng đọc (tùy chọn)"):
+        extras_section(p, pid, provider)
 
 
 def extras_section(p: Pipeline, pid: int, provider):
@@ -940,6 +1042,7 @@ def step5b(p: Pipeline, pid: int):
     with left:
         with st.container(border=True):
             ui.html(ui.card_title("Clip theo thứ tự cảnh", f"{len(present)} có sẵn / {len(clips)} mục · lấy tự động từ Bước 4"))
+            vsize = video_size_control("vsize_5b") if present else "Vừa"
             if not present:
                 st.info("Chưa có clip nào. Chạy Bước 4 (gen video) hoặc nhập clip thủ công bên dưới.")
             names = ", ".join(f"cảnh {c['idx']}" + (f" ({c['state']})" if c["state"] else "") for c in missing if c["idx"])
@@ -954,7 +1057,7 @@ def step5b(p: Pipeline, pid: int):
                 sec = d.number_input("Giây", 0.5, 60.0, float(round(real, 2)), 0.1, key=f"sec_{pid}_{base}",
                                      label_visibility="collapsed")
                 if b.checkbox("Xem", False, key=f"see_{pid}_{base}"):
-                    st.video(c["path"])
+                    show_video(c["path"], vsize)
                 if use:
                     chosen.append(c["path"])
                     durations.append(sec)
@@ -971,7 +1074,7 @@ def step5b(p: Pipeline, pid: int):
             with st.container(border=True):
                 ui.html(ui.card_title("Preview", "FINAL_VIDEO.mp4") + ui.badge("succeeded", "b-ok")
                         + f' <span class="muted">{os.path.getsize(out) / 1e6:.1f} MB</span>')
-                st.video(out)
+                show_video(out, video_size_control("vsize_final"))
                 with open(out, "rb") as f:
                     st.download_button("⬇ Tải FINAL_VIDEO.mp4", f, file_name="FINAL_VIDEO.mp4", mime="video/mp4")
     with right, st.container(border=True):
@@ -1036,7 +1139,8 @@ def history(p: Pipeline, pid: int):
     sid = st.selectbox("Cảnh", [s["id"] for s in scenes],
                        format_func=lambda i: next(f"{s['idx']} · {s['title']}" for s in scenes if s["id"] == i))
     jobs = p.conn.execute("SELECT * FROM jobs WHERE scene_id=? ORDER BY id", (sid,)).fetchall()
-    scene_expander(p, sid, expanded=True, with_motion=True)
+    scene_expander(p, sid, expanded=False, with_motion=True)
+    size = video_size_control("vsize_hist") if any(j["result_path"] and os.path.exists(j["result_path"]) for j in jobs) else "Vừa"
     with st.container(border=True):
         ui.html(ui.card_title("Lịch sử phiên bản", "so sánh các lần gen"))
         for start in range(0, len(jobs), 3):
@@ -1046,12 +1150,15 @@ def history(p: Pipeline, pid: int):
                     img = job_image(j["project_id"], j["id"])
                     if img:
                         show_image(img, width="stretch")
+                    elif j["type"] == "video_gen" and j["result_path"] and os.path.exists(j["result_path"]):
+                        show_video(j["result_path"], size)
                     scores = qc_scores(p, j["id"])
                     qc = f" · QC {sum(s['score'] for s in scores) / len(scores):.2f}" if scores else ""
                     ui.html(f'<div class="cardhead"><b>v{n}</b><span class="grow"></span>{ui.state_badge(j["state"])}</div>'
                             f'<div class="muted">{j["type"]}{qc}' + (f' · “{j["retry_reason"]}”' if j["retry_reason"] else "") + "</div>")
-    for j in jobs:
-        with st.expander(f"job #{j['id']} {j['type']} — {j['state']} (retry {j['retry_count']})"):
+    with st.expander("Nhật ký chi tiết các job"):
+        for j in jobs:
+            st.markdown(f"**job #{j['id']} {j['type']}** — {j['state']} (retry {j['retry_count']})")
             st.dataframe([dict(h) for h in p.history(j["id"])], width="stretch")
     trash_section(pid)
 

@@ -1,5 +1,7 @@
 # Rà soát khung giao diện Dashboard (2026-09-20) — để tối ưu một thể
 
+> **Cập nhật cùng ngày:** đợt gọn giao diện đầu tiên đã làm theo góp ý (Bước 1, thanh đầu, góc Rủi ro, Bước 2/4/5a/Lịch sử, xem video). Bản kiểm kê dưới đây là hiện trạng TRƯỚC đợt đó.
+
 Ảnh từng màn (dữ liệu demo): `docs/images/audit_2026-09-20/`. Đây là bản kiểm kê **hiện trạng**, chưa sửa gì. Chưa xem: giao diện trên điện thoại (màn hẹp), dữ liệu thật nhiều cảnh (12+), ảnh thật.
 
 ## A. Khung chung (xuất hiện ở mọi bước)
