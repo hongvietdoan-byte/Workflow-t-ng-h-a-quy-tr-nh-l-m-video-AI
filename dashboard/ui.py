@@ -55,6 +55,7 @@ div[data-testid="stVerticalBlockBorderWrapper"]{background:var(--surface);border
 .note-warn{background:var(--warn-soft);border:1px solid var(--warn);border-radius:10px;padding:10px 14px;margin:8px 0}
 .wave{height:46px;border-radius:8px;background:repeating-linear-gradient(90deg,var(--primary-soft) 0 3px,transparent 3px 6px);margin:8px 0}
 .scenetext{white-space:pre-wrap;font-size:13.5px;line-height:1.5;background:var(--bg);border-left:4px solid var(--primary);border-radius:6px;padding:10px 12px;margin:2px 0 8px}
+.scriptfull{white-space:pre-wrap;font-size:13.5px;line-height:1.6;background:var(--bg);border:1px solid var(--border);border-radius:10px;padding:14px 16px;max-height:640px;overflow:auto}
 .thumb{width:64px;height:36px;border-radius:6px;object-fit:cover;background:var(--border)}
 </style>
 """

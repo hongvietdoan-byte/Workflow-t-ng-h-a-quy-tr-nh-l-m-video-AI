@@ -139,6 +139,20 @@ def update_scene(pipeline: Pipeline, project_id: int, idx: int, fields: Mapping[
     conn.commit()
 
 
+def add_character(pipeline: Pipeline, project_id: int, name: str, description: str,
+                  wardrobe: Optional[str] = None) -> None:
+    """Add an entry to the Character Bible by hand: not only people, also creatures, mascots, props or anything else
+    that must look the same in every scene. New entries start unlocked."""
+    name, description = (name or "").strip(), (description or "").strip()
+    if not name or not description:
+        raise ValueError("name and description must not be empty")
+    if pipeline.conn.execute("SELECT 1 FROM characters WHERE project_id=? AND name=?", (project_id, name)).fetchone():
+        raise ValueError(f"'{name}' already exists in the Character Bible")
+    pipeline.conn.execute("INSERT INTO characters (project_id, name, description, wardrobe) VALUES (?,?,?,?)",
+                          (project_id, name, description, (wardrobe or "").strip() or None))
+    pipeline.conn.commit()
+
+
 def update_character(pipeline: Pipeline, project_id: int, name: str, description: str,
                      wardrobe: Optional[str] = None, new_name: Optional[str] = None) -> None:
     """Edit one Character Bible entry (only while unlocked). A rename also updates the scene cast lists."""

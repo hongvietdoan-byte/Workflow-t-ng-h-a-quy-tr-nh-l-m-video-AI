@@ -20,7 +20,7 @@ TRANSITIONS = {
     JobState.RETRYABLE: {JobState.QUEUED, JobState.CANCELLED},
     JobState.SUCCEEDED: {JobState.PENDING_REVIEW, JobState.APPROVED, JobState.REJECTED},
     JobState.PENDING_REVIEW: {JobState.APPROVED, JobState.REJECTED},
-    JobState.APPROVED: set(),
+    JobState.APPROVED: {JobState.REJECTED},  # only through Pipeline.reopen_approved (the user changed their mind)
     JobState.REJECTED: set(),
     JobState.CANCELLED: set(),
 }

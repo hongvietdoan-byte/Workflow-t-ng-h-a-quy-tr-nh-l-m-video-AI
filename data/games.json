@@ -1,0 +1,25 @@
+{
+  "_note": "Danh sách game / loại nội dung cho Kho chủ thể. covered=true nghĩa là đã ký thỏa thuận bản quyền với Clip AI (chủ thể active được coi là đã qua duyệt bản quyền). Thêm mục mới ở đây hoặc trong Dashboard; chỉ đặt covered=true khi thật sự có thỏa thuận.",
+  "games": [
+    {
+      "key": "FF",
+      "label": "Free Fire (FF)",
+      "covered": true
+    },
+    {
+      "key": "AOV",
+      "label": "AOV",
+      "covered": false
+    },
+    {
+      "key": "DF",
+      "label": "DF",
+      "covered": false
+    },
+    {
+      "key": "OTHER",
+      "label": "Nội dung khác (không thuộc game trên)",
+      "covered": false
+    }
+  ]
+}

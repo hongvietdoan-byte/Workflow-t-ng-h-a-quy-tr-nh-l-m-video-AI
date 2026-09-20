@@ -9,20 +9,47 @@ from typing import Dict, List, Optional
 
 from .pipeline import Pipeline
 
-# key -> (label, covered by the signed copyright agreement)
-GAMES: Dict[str, tuple] = {
-    "FF": ("Free Fire (FF)", True),
-    "AOV": ("AOV", False),
-    "DF": ("DF", False),
-    "OTHER": ("Game khác", False),
-}
+import json
+import os
+
+GAMES_PATH = os.path.join(os.path.dirname(__file__), "..", "data", "games.json")
+_DEFAULT_GAMES = [{"key": "FF", "label": "Free Fire (FF)", "covered": True},
+                  {"key": "OTHER", "label": "Nội dung khác", "covered": False}]
+
+
+def games() -> Dict[str, tuple]:
+    """key -> (label, covered by a signed copyright agreement). Read from data/games.json so new games or kinds of
+    content can be added without code."""
+    try:
+        with open(GAMES_PATH, encoding="utf-8") as f:
+            entries = json.load(f)["games"]
+    except (OSError, ValueError, KeyError):
+        entries = _DEFAULT_GAMES
+    return {e["key"]: (e["label"], bool(e.get("covered"))) for e in entries}
+
+
+def add_game(key: str, label: str, covered: bool = False) -> None:
+    key, label = (key or "").strip().upper().replace(" ", "_"), (label or "").strip()
+    if not key or not label:
+        raise ValueError("key and label must not be empty")
+    try:
+        with open(GAMES_PATH, encoding="utf-8") as f:
+            data = json.load(f)
+    except (OSError, ValueError):
+        data = {"games": list(_DEFAULT_GAMES)}
+    if any(g["key"] == key for g in data["games"]):
+        raise ValueError(f"'{key}' already exists")
+    data["games"].insert(max(len(data["games"]) - 1, 0), {"key": key, "label": label, "covered": bool(covered)})
+    with open(GAMES_PATH, "w", encoding="utf-8") as f:
+        json.dump(data, f, ensure_ascii=False, indent=2)
+        f.write("\n")
 STATUS_LABEL = {None: "chưa có", "submitted": "đã gửi", "processing": "đang xử lý", "active": "active ✓",
                 "failed": "lỗi"}
 _IMAGE_CAP = {"seedance-2.5": 29, "default": 8}  # reference images left after the first-frame image
 
 
 def is_covered(game: str) -> bool:
-    return GAMES.get(game, GAMES["OTHER"])[1]
+    return games().get(game, (None, False))[1]
 
 
 def link(pipeline: Pipeline, project_id: int, character: str, asset: Dict) -> None:

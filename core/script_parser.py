@@ -2,7 +2,7 @@ import json
 import re
 import zipfile
 from dataclasses import dataclass, field
-from typing import List
+from typing import List, Optional
 from xml.etree import ElementTree as ET
 
 from .pipeline import Pipeline
@@ -66,7 +66,20 @@ def parse_docx(path: str) -> List[ParsedScene]:
     return split_scenes(read_docx_paragraphs(path))
 
 
-def import_scenes(pipeline: Pipeline, project_id: int, scenes: List[ParsedScene]) -> List[int]:
+def import_scenes(pipeline: Pipeline, project_id: int, scenes: List[ParsedScene],
+                  full_text: Optional[str] = None) -> List[int]:
+    """Create the scenes of a parsed script. Refuses when the project already has scenes with the same numbers
+    (press Reset first) instead of failing halfway; `full_text` keeps the whole script for the side-by-side view."""
+    existing = {r["idx"] for r in pipeline.conn.execute("SELECT idx FROM scenes WHERE project_id=?", (project_id,))}
+    clash = sorted(existing & {s.idx for s in scenes})
+    if clash:
+        raise ValueError("Dự án đã có cảnh " + ", ".join(f"S{i:02d}" for i in clash[:5]) + (" …" if len(clash) > 5 else "")
+                         + ". Bấm Reset (xóa cảnh chưa có ảnh) rồi phân tích lại.")
+    if not scenes:
+        raise ValueError("Không tách được cảnh nào: kịch bản cần có dòng tiêu đề như “Cảnh 1”, “Scene 2” hoặc “INT./EXT.”. "
+                         "Có thể thêm cảnh thủ công.")
+    if full_text is not None:
+        pipeline.set_script_text(project_id, full_text)
     ids = []
     for s in scenes:
         scene_id = pipeline.create_scene(project_id, s.idx, s.heading)

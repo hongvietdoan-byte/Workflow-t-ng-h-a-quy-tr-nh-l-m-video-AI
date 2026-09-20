@@ -8,9 +8,11 @@ import json
 import os
 import re
 import shutil
+import sqlite3
 import sys
 import tempfile
 import time
+import zipfile
 from html import escape
 
 import streamlit as st
@@ -32,7 +34,7 @@ DB = os.environ.get("PIPELINE_DB", os.path.join("data", "manifest.sqlite"))
 DATA = os.environ.get("PIPELINE_DATA", os.path.join("data", "projects"))
 STEPS = ["1 · Kịch bản & phân tích", "2 · Gen ảnh + QC", "3 · Video Prompt", "4 · Gen video",
          "5a · Nhạc nền", "5b · Ghép & Render", "Lịch sử"]
-ERRORS = (llm_runner.LlmError, InvalidTransition, llm_io.SchemaError, PipelinePaused, ffmpeg_studio.FFmpegNotFound,
+ERRORS = (sqlite3.IntegrityError, zipfile.BadZipFile, llm_runner.LlmError, InvalidTransition, llm_io.SchemaError, PipelinePaused, ffmpeg_studio.FFmpegNotFound,
           ffmpeg_studio.FFmpegError, ValueError, KeyError)
 CRITERIA_LABEL = {"character": "Đúng nhân vật", "hands_face": "Không lỗi tay/mặt", "composition": "Đúng bố cục",
                   "mood_lighting": "Đúng mood / ánh sáng", "consistency": "Không chi tiết thừa/sai"}
@@ -136,7 +138,7 @@ def act(fn, success: str = ""):
     return True
 
 
-def confirm_all(key: str, ids, label: str, question: str, container=st) -> bool:
+def confirm_all(key: str, ids, label: str, question: str, container=st, yes_label: str = "Có, duyệt hết") -> bool:
     """One 'approve all' button, then a yes/no question. True only when the user answers Yes.
     The question is tied to the exact set of items it was asked about: if the set changes, it is asked again."""
     ids = tuple(ids)
@@ -150,7 +152,7 @@ def confirm_all(key: str, ids, label: str, question: str, container=st) -> bool:
         return False
     container.warning(question)
     yes, no = container.columns(2)
-    if yes.button("Có, duyệt hết", key=f"{key}_yes", type="primary"):
+    if yes.button(yes_label, key=f"{key}_yes", type="primary"):
         st.session_state[pending_key] = None
         return True
     if no.button("Không", key=f"{key}_no"):
@@ -334,35 +336,81 @@ def global_bar(p: Pipeline):
 
 
 # ---- step 1 --------------------------------------------------------------------------
+def script_html(text: str) -> str:
+    """Whole script as a scrollable block; scene headings in bold so the scenes can be found at a glance."""
+    lines = []
+    for line in text.splitlines():
+        safe = escape(line)
+        lines.append(f"<b>{safe}</b>" if script_parser._HEADING.match(line) else safe)
+    return '<div class="scriptfull">' + "\n".join(lines) + "</div>"
+
+
 def step1(p: Pipeline, pid: int):
+    proj = p.project(pid)
     scenes = p.conn.execute("SELECT idx, title, state, data FROM scenes WHERE project_id=? ORDER BY idx",
                             (pid,)).fetchall()
     chars = p.conn.execute("SELECT name, description, wardrobe, locked FROM characters WHERE project_id=?",
                            (pid,)).fetchall()
     warnings = preflight.check_characters(p.conn, pid, preflight.load_blocklist()) if chars else []
     risky = {w["character"] for w in warnings}
-    left, right = st.columns([1, 1.7], gap="large")
-    with left:
-        with st.container(border=True):
-            ui.html(ui.card_title("① Kịch bản"))
-            up = st.file_uploader("script.docx", type=["docx"], key=f"up_{pid}", label_visibility="collapsed")
-            c1, c2 = st.columns(2)
-            if c1.button("▶ Phân tích (tách cảnh)", disabled=up is None, type="primary"):
-                with tempfile.NamedTemporaryFile(suffix=".docx", delete=False) as f:
-                    f.write(up.getvalue())
-                try:
-                    parsed = script_parser.parse_docx(f.name)
-                finally:
-                    os.remove(f.name)
-                if act(lambda: script_parser.import_scenes(p, pid, parsed), f"Đã tách {len(parsed)} cảnh"):
-                    st.rerun()
-            if c2.button("↺ Reset", help="Xóa cảnh + nhân vật chưa khóa", key="btn_bad_reset"):
-                p.conn.execute("DELETE FROM characters WHERE project_id=? AND locked=0", (pid,))
-                p.conn.execute("DELETE FROM scenes WHERE project_id=? AND id NOT IN (SELECT scene_id FROM jobs)", (pid,))
-                p.conn.commit()
+    char_names = [c["name"] for c in chars]
+
+    with st.container(border=True):
+        head, info = st.columns([3, 2], vertical_alignment="center")
+        head.markdown(ui.card_title("① Kịch bản", "toàn văn (trái) · chia theo cảnh (phải)"), unsafe_allow_html=True)
+        if scenes:
+            info.caption(f"✓ {len(scenes)} cảnh · {len(chars)} nhân vật")
+        if st.session_state.get("parse_warn") and scenes:
+            st.warning(st.session_state["parse_warn"])
+        u1, u2, u3 = st.columns([4, 1.6, 1.2], vertical_alignment="center")
+        up = u1.file_uploader("script.docx", type=["docx"], key=f"up_{pid}", label_visibility="collapsed")
+        if u2.button("▶ Phân tích (tách cảnh)", disabled=up is None, type="primary"):
+            with tempfile.NamedTemporaryFile(suffix=".docx", delete=False) as f:
+                f.write(up.getvalue())
+            try:
+                def analyse():
+                    paragraphs = script_parser.read_docx_paragraphs(f.name)
+                    parsed = script_parser.split_scenes(paragraphs)
+                    script_parser.import_scenes(p, pid, parsed, full_text="\n\n".join(paragraphs))
+                    if len(parsed) == 1 and parsed[0].heading == "Mở đầu":
+                        st.session_state["parse_warn"] = ("Không thấy tiêu đề cảnh (vd “Cảnh 1”, “Scene 2”, “INT./EXT.”): "
+                                                          "cả kịch bản thành 1 cảnh. Hãy thêm/sửa cảnh thủ công.")
+                    st.toast(f"Đã tách {len(parsed)} cảnh")
+                ok = act(analyse)
+            finally:
+                os.remove(f.name)
+            if ok:
                 st.rerun()
-            if scenes:
-                st.caption(f"✓ {len(scenes)} cảnh · {len(chars)} nhân vật")
+        if u3.button("↺ Reset", help="Xóa cảnh chưa có ảnh + nhân vật chưa khóa", key="btn_bad_reset"):
+            p.conn.execute("DELETE FROM characters WHERE project_id=? AND locked=0", (pid,))
+            p.conn.execute("DELETE FROM scenes WHERE project_id=? AND id NOT IN (SELECT scene_id FROM jobs)", (pid,))
+            p.conn.commit()
+            if not p.conn.execute("SELECT 1 FROM scenes WHERE project_id=?", (pid,)).fetchone():
+                p.set_script_text(pid, None)
+            st.rerun()
+        left, right = st.columns(2, gap="large")
+        with left:
+            st.markdown("**Kịch bản đầy đủ**")
+            full = proj["script_text"] or "\n\n".join(
+                (json.loads(s["data"] or "{}").get("text") or s["title"] or "") for s in scenes)
+            if full.strip():
+                ui.html(script_html(full))
+            else:
+                st.caption("Chưa có kịch bản: upload file .docx rồi bấm Phân tích.")
+        with right:
+            st.markdown(f"**Chia theo cảnh** · bấm vào từng cảnh để xem và sửa")
+            for s in scenes:
+                d = json.loads(s["data"] or "{}")
+                bits = [f"S{s['idx']:02d}", " · ".join(filter(None, [d.get("time"), d.get("location")])),
+                        ", ".join(d.get("characters") or []), " · ".join(filter(None, [d.get("shot"), d.get("mood")]))]
+                with st.expander("   |   ".join(x for x in bits if x) + f"   [{s['state']}]"):
+                    scene_editor(p, pid, s, char_names)
+            if st.button("➕ Thêm cảnh", key=f"scene_add_{pid}", help="Cho kịch bản mà công cụ không tự tách được"):
+                act(lambda: p.add_scene_next(pid))
+                st.rerun()
+
+    dl, dr = st.columns([1, 1.7], gap="large")
+    with dl:
         if scenes:
             with st.container(border=True):
                 ui.html(ui.card_title("② Director", "Character Bible + thông số cảnh"))
@@ -382,44 +430,43 @@ def step1(p: Pipeline, pid: int):
                     if st.button("Lưu phân tích", disabled=not raw.strip()):
                         if act(lambda: llm_io.store_scene_analysis(p, pid, raw), "Đã lưu Character Bible + thông số cảnh"):
                             st.rerun()
-    with right:
+    with dr:
         if chars:
             with st.container(border=True):
                 head, status = st.columns([3, 2], vertical_alignment="center")
-                head.markdown(ui.card_title("Character Bible", f"{len(chars)} nhân vật"), unsafe_allow_html=True)
+                head.markdown(ui.card_title("③ Character Bible", f"{len(chars)} mục"), unsafe_allow_html=True)
                 if risky:
-                    status.caption(f"⚠ {len(risky)} nhân vật có thể vướng IP (xem “⚠ Rủi ro” ở góc trên)")
-                st.dataframe([{"Nhân vật": c["name"], "Mô tả": c["description"] + (f" · {c['wardrobe']}" if c["wardrobe"] else ""),
+                    status.caption(f"⚠ {len(risky)} mục có thể vướng IP (xem “⚠ Rủi ro” ở góc trên)")
+                st.dataframe([{"Nhân vật / đối tượng": c["name"],
+                               "Mô tả": c["description"] + (f" · {c['wardrobe']}" if c["wardrobe"] else ""),
                                "IP": "⚠ rủi ro" if c["name"] in risky else "an toàn",
                                "Khóa": "🔒" if c["locked"] else ""} for c in chars],
                              width="stretch", hide_index=True, height=min(38 * (len(chars) + 1) + 3, 220))
                 subject_panel(p, pid, chars)
-                with st.expander("✏ Sửa nhân vật / khóa"):
+                with st.expander("✏ Sửa / thêm nhân vật, đối tượng · khóa"):
                     if any(c["locked"] for c in chars):
                         st.caption("Character Bible đang khóa. Muốn sửa phải mở khóa (ảnh đã gen vẫn theo mô tả cũ).")
                         if st.button("🔓 Mở khóa để sửa", key="btn_bad_unlock"):
                             act(lambda: llm_io.unlock_character_bible(p, pid), "Đã mở khóa Character Bible")
                             st.rerun()
                     else:
-                        who = st.selectbox("Chọn nhân vật", [c["name"] for c in chars], key=f"csel_{pid}")
+                        who = st.selectbox("Chọn mục cần sửa", char_names, key=f"csel_{pid}")
                         c = next(c for c in chars if c["name"] == who)
                         n_name = st.text_input("Tên", c["name"], key=f"cn_{pid}_{c['name']}")
                         n_desc = st.text_area("Mô tả", c["description"], key=f"cd_{pid}_{c['name']}", height=80)
                         n_ward = st.text_input("Trang phục / dấu hiệu", c["wardrobe"] or "", key=f"cw_{pid}_{c['name']}")
-                        if st.button("Lưu nhân vật", key=f"cs_{pid}_{c['name']}"):
+                        if st.button("Lưu", key=f"cs_{pid}_{c['name']}"):
                             if act(lambda: llm_io.update_character(p, pid, c["name"], n_desc, n_ward, n_name),
                                    f"Đã lưu {n_name}"):
                                 st.rerun()
-        if scenes:
-            with st.container(border=True):
-                ui.html(ui.card_title("③ Phân cảnh", f"{len(scenes)} cảnh · bấm vào từng cảnh để xem và sửa"))
-                for s in scenes:
-                    d = json.loads(s["data"] or "{}")
-                    bits = [f"S{s['idx']:02d}", " · ".join(filter(None, [d.get("time"), d.get("location")])),
-                            ", ".join(d.get("characters") or []), " · ".join(filter(None, [d.get("shot"), d.get("mood")]))]
-                    with st.expander("   |   ".join(x for x in bits if x) + f"   [{s['state']}]"):
-                        scene_editor(p, pid, s, [c["name"] for c in chars])
-        if chars:
+                    st.markdown("**➕ Thêm nhân vật / đối tượng**")
+                    st.caption("Không chỉ người: cũng có thể là sinh vật, linh vật, đạo cụ… bất cứ thứ gì cần giống nhau ở mọi cảnh.")
+                    a_name = st.text_input("Tên", key=f"cadd_name_{pid}")
+                    a_desc = st.text_area("Mô tả ngoại hình", key=f"cadd_desc_{pid}", height=70)
+                    a_ward = st.text_input("Trang phục / dấu hiệu (tùy chọn)", key=f"cadd_ward_{pid}")
+                    if st.button("Thêm vào Character Bible", key=f"cadd_{pid}", disabled=not (a_name.strip() and a_desc.strip())):
+                        if act(lambda: llm_io.add_character(p, pid, a_name, a_desc, a_ward), f"Đã thêm {a_name}"):
+                            st.rerun()
             with st.container(border=True):
                 a, b = st.columns([2, 1], vertical_alignment="center")
                 a.caption("Cần Approve & Lock để mở Bước 2")
@@ -435,17 +482,27 @@ def subject_panel(p: Pipeline, pid: int, chars) -> None:
                           " WHERE project_id=?", (pid,)).fetchall()
     active = sum(1 for r in rows if r["subject_status"] == "active")
     with st.expander(f"🧩 Kho chủ thể Seedance — {active}/{len(rows)} nhân vật đã có"):
-        keys = list(subjects.GAMES)
-        game = st.selectbox("Game của dự án", keys, index=keys.index(proj["game"]) if proj["game"] in keys else 0,
-                            format_func=lambda k: subjects.GAMES[k][0], key=f"game_{pid}")
+        catalog = subjects.games()
+        keys = list(catalog)
+        game = st.selectbox("Game / loại nội dung của dự án", keys,
+                            index=keys.index(proj["game"]) if proj["game"] in keys else 0,
+                            format_func=lambda k: catalog[k][0], key=f"game_{pid}")
         if game != proj["game"]:
             p.set_game(pid, game)
         if subjects.is_covered(game):
             st.success("Free Fire đã ký thỏa thuận bản quyền với Clip AI: chủ thể ở trạng thái active đã qua duyệt "
                        "người thật + bản quyền, dùng được trong Seedance.")
         else:
-            st.warning("Game này chưa có thỏa thuận bản quyền: chủ thể active chỉ qua duyệt người thật; khi gen vẫn có "
-                       "thể bị chặn bản quyền.")
+            st.warning("Game / nội dung này chưa có thỏa thuận bản quyền: chủ thể active chỉ qua duyệt người thật; "
+                       "khi gen vẫn có thể bị chặn bản quyền.")
+        with st.expander("➕ Thêm game / loại nội dung khác"):
+            g_key = st.text_input("Mã ngắn (vd AOV, MV_CA_SI)", key=f"gnew_key_{pid}")
+            g_label = st.text_input("Tên hiển thị", key=f"gnew_label_{pid}")
+            g_cov = st.checkbox("Đã ký thỏa thuận bản quyền với Clip AI", False, key=f"gnew_cov_{pid}",
+                                help="Chỉ tick khi thật sự có thỏa thuận; ảnh hưởng thông báo hiển thị.")
+            if st.button("Thêm", key=f"gnew_{pid}", disabled=not (g_key.strip() and g_label.strip())):
+                if act(lambda: subjects.add_game(g_key, g_label, g_cov), "Đã thêm"):
+                    st.rerun()
         st.dataframe([{"Nhân vật": r["name"], "Trạng thái": subjects.STATUS_LABEL.get(r["subject_status"], r["subject_status"]),
                        "Tên trên kho": r["subject_name"] or ""} for r in rows], width="stretch", hide_index=True,
                      height=min(38 * (len(rows) + 1) + 3, 200))
@@ -460,7 +517,7 @@ def subject_panel(p: Pipeline, pid: int, chars) -> None:
         who = st.selectbox("Nhân vật", [r["name"] for r in rows], key=f"subj_who_{pid}")
         up = st.file_uploader("Ảnh nhân vật (JPG / PNG / WebP)", type=["jpg", "jpeg", "png", "webp"],
                               key=f"subj_up_{pid}_{who}")
-        default_name = f"{game}_{who}".replace(" ", "_")
+        default_name = f"{game}_{who}".replace(" ", "_")  # any name is fine; the prefix just keeps the library tidy
         name = st.text_input("Tên trên kho", default_name, key=f"subj_name_{pid}_{who}")
         b1, b2, b3 = st.columns(3)
         if b1.button("⬆ Tải lên kho chủ thể", disabled=up is None, key=f"subj_go_{pid}", type="primary"):
@@ -513,6 +570,9 @@ def scene_editor(p: Pipeline, pid: int, scene, char_names) -> None:
                           key=f"{k}_cast")
     image_prompt = st.text_area("Prompt ảnh", d.get("image_prompt", ""), key=f"{k}_prompt", height=80)
     st.caption("Ảnh đã gen giữ nguyên; chỉ ảnh gen sau khi sửa mới theo nội dung mới.")
+    if confirm_all(f"scene_del_{pid}_{idx}", [idx], "🗑 Xóa cảnh này", f"Xóa cảnh {idx}?", st, "Có, xóa cảnh"):
+        if act(lambda: p.delete_scene(pid, idx), f"Đã xóa cảnh {idx}"):
+            st.rerun()
     if st.button("💾 Lưu cảnh", key=f"sds_{pid}_{idx}"):
         fields = {"location": location, "time": time_, "shot": shot, "mood": mood, "lighting": lighting,
                   "image_prompt": image_prompt}
@@ -669,7 +729,7 @@ def image_card(p: Pipeline, pid: int, j, proj):
             if a.button("🔍", key=f"sel_btn_{jid}", help="Chi tiết / nhập ảnh thủ công"):
                 st.session_state[f"sel_{pid}"] = jid
                 st.rerun()
-        elif state == "failed":
+        elif state == "failed" and not j["escalated"]:
             a, b = st.columns(2)
             if a.button("↻", key=f"retry_{jid}", help="Retry"):
                 act(lambda: p.retry(jid, "retry"))
@@ -678,6 +738,10 @@ def image_card(p: Pipeline, pid: int, j, proj):
                 st.session_state[f"sel_{pid}"] = jid
                 st.rerun()
         else:
+            if j["escalated"] and st.button("↺ Làm lại từ đầu", key=f"rs_{jid}",
+                                            help="Đã hết số lần thử: bắt đầu lại cảnh này với một job mới"):
+                if act(lambda: p.restart_job(jid), "Đã xếp hàng job mới cho cảnh"):
+                    st.rerun()
             if st.button("🔍 Chi tiết", key=f"sel_btn_{jid}"):
                 st.session_state[f"sel_{pid}"] = jid
                 st.rerun()
@@ -743,9 +807,18 @@ def image_detail(p: Pipeline, pid: int, j, proj):
             if st.button("🗑 Xóa (vào thùng rác, không gen lại)", key=f"dd_{jid}"):
                 act(lambda: p.reject(jid, "user", note or "đã xóa", respawn=False))
                 st.rerun()
-        if state == "failed" and st.button("↻ Retry", key=f"dretry_{jid}"):
+        if state == "failed" and not j["escalated"] and st.button("↻ Retry", key=f"dretry_{jid}"):
             act(lambda: p.retry(jid, "retry"))
             st.rerun()
+        if j["escalated"] and st.button("↺ Làm lại từ đầu", key=f"drs_{jid}", type="primary"):
+            if act(lambda: p.restart_job(jid), "Đã xếp hàng job mới cho cảnh"):
+                st.rerun()
+        if state == "approved":
+            r_note = st.text_input("Lý do bỏ duyệt (đưa vào prompt gen lại)", key=f"rn_{jid}")
+            st.caption("Video đã làm từ ảnh này không tự đổi; gen lại video ở Bước 4 nếu cần.")
+            if st.button("↩ Bỏ duyệt & gen lại ảnh", key=f"reopen_{jid}"):
+                if act(lambda: p.reopen_approved(jid, r_note or None), "Đã bỏ duyệt, xếp hàng gen lại"):
+                    st.rerun()
 
 
 # ---- step 3 --------------------------------------------------------------------------
@@ -898,6 +971,10 @@ def step4(p: Pipeline, pid: int):
                 if j["state"] == "failed" and not j["escalated"] and st.button("↻ Retry", key=f"vr_{j['id']}"):
                     act(lambda: p.retry(j["id"], "retry"))
                     st.rerun()
+                if j["escalated"] and st.button("↺ Làm lại từ đầu", key=f"vrs_{j['id']}",
+                                                help="Đã hết số lần thử: bắt đầu lại với một job video mới"):
+                    if act(lambda: p.restart_job(j["id"]), "Đã xếp hàng job video mới"):
+                        st.rerun()
                 if clip and st.button("↻ Gen lại video", key=f"vregen_{j['id']}",
                                       help="Chưa ưng: clip này vào thùng rác (giữ 30 ngày) và xếp hàng một video mới. "
                                            "Muốn đổi cách quay thì sửa motion prompt ở Bước 3 trước."):
@@ -912,7 +989,9 @@ def step4(p: Pipeline, pid: int):
 def preview_with_track(p: Pipeline, pid: int, music_path: str, tag: str) -> None:
     out = os.path.join(project_dir(pid, "output"), f"preview_music_{tag}.mp4")
     with st.spinner("Đang ghép bản xem thử (clip + nhạc)…"):
-        ok = act(lambda: final_cut.preview_with_music(p, DATA, pid, music_path, out), "Đã tạo bản xem thử")
+        ok = act(lambda: final_cut.preview_with_music(p, DATA, pid, music_path, out,
+                                                      keep_audio=bool(p.project(pid)["video_audio"])),
+                 "Đã tạo bản xem thử")
     if ok:
         st.session_state[f"prev5a_{pid}"] = (out, tag)
         st.rerun()
@@ -1082,6 +1161,11 @@ def _peaks(path: str, mtime: float):
 
 
 @st.cache_data(show_spinner=False)
+def _has_audio(path: str, mtime: float) -> bool:
+    return ffmpeg_studio.has_audio(path)
+
+
+@st.cache_data(show_spinner=False)
 def _probe(path: str, mtime: float, requested):
     return final_cut.clip_seconds(path, requested)
 
@@ -1142,6 +1226,12 @@ def step5b(p: Pipeline, pid: int):
         tracks = os.listdir(music_dir)
         volume = st.slider("Âm lượng nhạc nền", 0.0, 1.0, 0.6, 0.05, key=f"vol_{pid}", disabled=not tracks)
         st.caption(f"Nhạc nền: {tracks[0]} (chọn ở Bước 5a)" if tracks else "Không có nhạc nền (chọn ở Bước 5a nếu cần).")
+        keep = st.checkbox("🔊 Giữ âm thanh gốc của clip (lời thoại do model tạo)", bool(p.project(pid)["video_audio"]),
+                           key=f"keepaud_{pid}", help="Nhạc nền được trộn bên dưới lời thoại. Cần MỌI clip đã chọn có âm thanh.")
+        if keep and chosen:
+            silent_clips = [os.path.basename(c) for c in chosen if not _has_audio(c, os.path.getmtime(c))]
+            if silent_clips:
+                st.warning("Clip không có âm thanh: " + ", ".join(silent_clips) + " → âm thanh gốc sẽ bị bỏ cho cả bản ghép.")
         extras = audio_lib.mix_list(audio_lib.assets_dir(DATA, pid))
         st.caption(f"Hiệu ứng / giọng đọc đưa vào bản ghép: {len(extras)} (chọn ở Bước 5a)")
         problems = final_cut.render_problems(durations, transition, fade)
@@ -1152,7 +1242,7 @@ def step5b(p: Pipeline, pid: int):
         if st.button("▶ Render Final", disabled=bool(problems), type="primary", width="stretch"):
             music_file = os.path.join(music_dir, tracks[0]) if tracks else None
             with st.spinner("Đang render…"):
-                ok = act(lambda: ffmpeg_studio.render_final(chosen, out, durations, transition, fade, music_file, volume, extras),
+                ok = act(lambda: ffmpeg_studio.render_final(chosen, out, durations, transition, fade, music_file, volume, extras, keep),
                          "Render xong")
             if ok:
                 st.rerun()

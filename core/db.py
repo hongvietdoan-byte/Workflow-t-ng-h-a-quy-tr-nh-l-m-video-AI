@@ -14,6 +14,7 @@ CREATE TABLE IF NOT EXISTS projects (
     video_audio INTEGER NOT NULL DEFAULT 0,
     game TEXT NOT NULL DEFAULT 'FF',
     use_subjects INTEGER NOT NULL DEFAULT 0,
+    script_text TEXT,
     created_at TEXT NOT NULL
 );
 CREATE TABLE IF NOT EXISTS scenes (
@@ -142,6 +143,8 @@ def connect(path: str = ":memory:") -> sqlite3.Connection:
         conn.execute("ALTER TABLE projects ADD COLUMN video_model TEXT")
     if "qc_review_floor" not in cols:
         conn.execute("ALTER TABLE projects ADD COLUMN qc_review_floor REAL")
+    if "script_text" not in cols:
+        conn.execute("ALTER TABLE projects ADD COLUMN script_text TEXT")
     if "game" not in cols:
         conn.execute("ALTER TABLE projects ADD COLUMN game TEXT NOT NULL DEFAULT 'FF'")
     if "use_subjects" not in cols:

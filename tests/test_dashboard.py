@@ -370,6 +370,70 @@ class DashboardSmokeTests(unittest.TestCase):
         at.checkbox(key=f"vsubj_{pid}").set_value(True).run()
         self.assertEqual(Pipeline(connect(self.db)).project(pid)["use_subjects"], 1)
 
+    def test_step1_shows_the_full_script_next_to_the_scene_list(self):
+        p, pid = self.seed()
+        p.set_script_text(pid, "TÊN KỊCH BẢN" + chr(10) + "CẢNH 1. ĐÊM" + chr(10) + "Lyra: Đi thôi.")
+        at = AppTest.from_file(APP, default_timeout=30).run()
+        self.assertFalse(at.exception)
+        markup = " ".join(m.value for m in at.markdown)
+        self.assertIn("scriptfull", markup)
+        self.assertIn("TÊN KỊCH BẢN", markup)                       # whole script, including the part before scene 1
+        self.assertIn("<b>CẢNH 1. ĐÊM</b>", markup)                 # scene headings stand out
+        self.assertTrue(any(e.label.startswith("S01") for e in at.expander))  # ...and the scene rows sit beside it
+
+    def test_add_and_delete_a_scene_from_the_scene_list(self):
+        p, pid = self.seed()
+        at = AppTest.from_file(APP, default_timeout=30).run()
+        next(b for b in at.button if b.key == f"scene_add_{pid}").click().run()
+        self.assertFalse(at.exception)
+        self.assertEqual(Pipeline(connect(self.db)).conn.execute("SELECT COUNT(*) c FROM scenes").fetchone()["c"], 2)
+        next(b for b in at.button if b.key == f"scene_del_{pid}_2").click().run()
+        self.assertEqual(Pipeline(connect(self.db)).conn.execute("SELECT COUNT(*) c FROM scenes").fetchone()["c"], 2)  # asked first
+        next(b for b in at.button if b.key == f"scene_del_{pid}_2_yes").click().run()
+        self.assertEqual(Pipeline(connect(self.db)).conn.execute("SELECT COUNT(*) c FROM scenes").fetchone()["c"], 1)
+
+    def test_bible_accepts_a_non_human_entry_from_the_dashboard(self):
+        p, pid = self.seed()
+        at = AppTest.from_file(APP, default_timeout=30).run()
+        at.text_input(key=f"cadd_name_{pid}").set_value("Rồng lửa").run()
+        at.text_area(key=f"cadd_desc_{pid}").set_value("Rồng đỏ cao 5m").run()
+        next(b for b in at.button if b.key == f"cadd_{pid}").click().run()
+        self.assertFalse(at.exception)
+        names = [r["name"] for r in Pipeline(connect(self.db)).conn.execute("SELECT name FROM characters")]
+        self.assertIn("Rồng lửa", names)
+
+    def test_escalated_image_offers_a_restart_and_an_approved_one_can_be_reopened(self):
+        from core.llm_io import lock_character_bible
+        p, pid = self.seed()
+        lock_character_bible(p, pid)
+        p.conn.execute("UPDATE projects SET max_retry_count=0 WHERE id=?", (pid,))
+        p.conn.commit()
+        scene = p.conn.execute("SELECT id FROM scenes").fetchone()["id"]
+        job = p.create_job(scene)
+        p.start(job)
+        p.succeed(job)
+        self.assertEqual(p.reject(job, "user", "sai"), "escalated")
+        at = AppTest.from_file(APP, default_timeout=30).run()
+        at.radio(key="step").set_value(at.radio(key="step").options[1]).run()
+        self.assertFalse(at.exception)
+        next(b for b in at.button if b.key == f"rs_{job}").click().run()
+        rows = Pipeline(connect(self.db)).conn.execute("SELECT state FROM jobs ORDER BY id").fetchall()
+        self.assertEqual([r["state"] for r in rows], ["rejected", "queued"])
+        # an approved image: reopen it from the detail panel
+        q = Pipeline(connect(self.db))
+        new = q.conn.execute("SELECT id FROM jobs WHERE state='queued'").fetchone()["id"]
+        q.start(new)
+        q.succeed(new)
+        q.approve(new, "user")
+        at = AppTest.from_file(APP, default_timeout=30).run()
+        at.radio(key="step").set_value(at.radio(key="step").options[1]).run()
+        next(b for b in at.button if b.key == f"sel_btn_{new}").click().run()  # open its detail panel
+        at.text_input(key=f"rn_{new}").set_value("đổi màu áo").run()
+        next(b for b in at.button if b.key == f"reopen_{new}").click().run()
+        self.assertFalse(at.exception)
+        states = [r["state"] for r in Pipeline(connect(self.db)).conn.execute("SELECT state FROM jobs ORDER BY id")]
+        self.assertEqual(states, ["rejected", "rejected", "queued"])
+
     def test_risk_corner_lists_ip_and_moderation_notes(self):
         p, pid = self.seed()
         scene = p.conn.execute("SELECT id FROM scenes").fetchone()["id"]

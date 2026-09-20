@@ -114,7 +114,7 @@ class PreviewWithMusicTests(unittest.TestCase):
         write(os.path.join(data, str(pid), "videos", "03.mp4"))
         calls = []
         with mock.patch.object(ffmpeg_studio, "probe_duration", return_value=4.0), \
-                mock.patch.object(ffmpeg_studio, "render_final", side_effect=lambda *a: calls.append(a) or a[1]):
+                mock.patch.object(ffmpeg_studio, "render_final", side_effect=lambda *a, **k: calls.append(a) or a[1]):
             out = final_cut.preview_with_music(p, data, pid, "m.mp3", os.path.join(data, "prev.mp4"), 0.5)
         clips, output, durations, transition, fade, music, volume = calls[0]
         self.assertEqual([os.path.basename(c) for c in clips], ["01.mp4", "03.mp4"])

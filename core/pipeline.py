@@ -55,6 +55,61 @@ class Pipeline:
         self.conn.execute("UPDATE projects SET video_audio=? WHERE id=?", (1 if on else 0, project_id))
         self.conn.commit()
 
+    def set_script_text(self, project_id: int, text: str) -> None:
+        self.conn.execute("UPDATE projects SET script_text=? WHERE id=?", (text, project_id))
+        self.conn.commit()
+
+    def add_scene_next(self, project_id: int, title: str = "") -> int:
+        """Append an empty scene after the last one (for scripts the parser could not split). Returns its idx."""
+        idx = (self.conn.execute("SELECT COALESCE(MAX(idx),0) m FROM scenes WHERE project_id=?",
+                                 (project_id,)).fetchone()["m"]) + 1
+        self.create_scene(project_id, idx, title or f"CẢNH {idx}")
+        return idx
+
+    def delete_scene(self, project_id: int, idx: int) -> None:
+        """Remove a scene that has no jobs yet (a scene with images/videos must be handled through its jobs)."""
+        row = self.conn.execute("SELECT id FROM scenes WHERE project_id=? AND idx=?", (project_id, idx)).fetchone()
+        if row is None:
+            raise KeyError(f"scene {idx} does not exist")
+        if self.conn.execute("SELECT 1 FROM jobs WHERE scene_id=?", (row["id"],)).fetchone():
+            raise ValueError(f"cảnh {idx} đã có ảnh/video nên không xóa được; hãy loại các bản đã gen trước")
+        self.conn.execute("DELETE FROM motion_prompts WHERE scene_id=?", (row["id"],))
+        self.conn.execute("DELETE FROM scenes WHERE id=?", (row["id"],))
+        self.conn.commit()
+
+    def reopen_approved(self, job_id: int, note: Optional[str] = None, respawn: bool = True) -> str:
+        """The user changed their mind about an approved IMAGE: reject it and (by default) queue a new one.
+        Videos already made from it are not touched."""
+        job = self.job(job_id)
+        if job["type"] != "image_gen":
+            raise ValueError("only approved images can be reopened")
+        if self.state(job_id) != JobState.APPROVED:
+            raise InvalidTransition(f"job {job_id} is {self.state(job_id).value}, not approved")
+        self._log_review(job_id, "user", "reject", note or "bỏ duyệt")
+        self.transition(job_id, JobState.REJECTED, actor="user", note=note or "bỏ duyệt")
+        if respawn:  # a fresh job, not an automatic retry: a user asking for another take is not capped by max_retry_count
+            self._insert_job(job["project_id"], job["scene_id"], "image_gen", parent_job_id=job_id,
+                             retry_count=0, retry_reason=note)
+        return "rejected"
+
+    def restart_job(self, job_id: int) -> int:
+        """Escalated job (retries used up): start the scene's image/video over with a fresh job (retry count 0).
+        Without this an escalated scene would stay stuck in 'needs_attention'. Returns the new job id."""
+        job = self.job(job_id)
+        if not job["escalated"]:
+            raise InvalidTransition(f"job {job_id} is not escalated")
+        state = self.state(job_id)
+        if state == JobState.FAILED:
+            self.transition(job_id, JobState.RETRYABLE, note="restart")
+            self.transition(job_id, JobState.CANCELLED, note="restart")
+        elif state not in (JobState.REJECTED, JobState.CANCELLED):
+            raise InvalidTransition(f"job {job_id} is {state.value}, cannot restart")
+        self.conn.execute("UPDATE jobs SET escalated=0 WHERE id=?", (job_id,))
+        if not self.conn.execute("SELECT 1 FROM jobs WHERE scene_id=? AND escalated=1", (job["scene_id"],)).fetchone():
+            self.conn.execute("UPDATE scenes SET state='ready' WHERE id=? AND state='needs_attention'", (job["scene_id"],))
+        self.conn.commit()
+        return self.create_job(job["scene_id"], job["type"])
+
     def set_game(self, project_id: int, game: str) -> None:
         """Game the characters belong to (FF has the signed copyright agreement for Seedance subjects)."""
         self.conn.execute("UPDATE projects SET game=? WHERE id=?", (game, project_id))
