@@ -55,6 +55,8 @@ Dưới mỗi ảnh/clip có mũi tên **📖 nội dung kịch bản**: bấm �
 **Chỉnh threshold an toàn:** đừng hạ threshold để "cho qua nhanh". Chỉ đổi sau khi so sánh ít nhất 20 ảnh giữa QC Agent và người duyệt (tỉ lệ đồng thuận). Nghi ngờ thì nâng threshold hoặc bật vùng chờ review. Mỗi kết quả QC lưu lại `threshold_at_time`, nên đổi threshold không làm sai lịch sử.
 
 ## 5. Xử lý sự cố job
+Lưu ý chung: nút **↺ Làm lại từ đầu** xuất hiện ở job đã hết số lần thử (⚠ escalated); **↩ Bỏ duyệt & gen lại ảnh** ở ảnh đã duyệt (panel chi tiết); **↻ Gen lại video** ở clip đã xong. Giới hạn và lỗi đã biết: `docs/WORKFLOW_REVIEW.md`.
+
 | Hiện tượng | Nguyên nhân thường gặp | Cách xử lý |
 |---|---|---|
 | Job **failed** (ảnh/video) | Lỗi mạng tạm thời, tác vụ lỗi | *Retry* (tự retry tối đa `max_retry_count`, mặc định 3). Mỗi lần gửi API có thể tốn credit |

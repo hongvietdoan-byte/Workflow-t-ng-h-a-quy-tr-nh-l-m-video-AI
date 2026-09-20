@@ -457,7 +457,7 @@ class DashboardSmokeTests(unittest.TestCase):
         os.environ["AUDIO_PROVIDER"] = "mock"
         made = []
 
-        def fake_preview(pipeline, data_dir, pid, music_path, out_path, volume=0.6):
+        def fake_preview(pipeline, data_dir, pid, music_path, out_path, volume=0.6, keep_audio=False):
             with open(out_path, "wb") as f:
                 f.write(b"x")
             made.append(music_path)
