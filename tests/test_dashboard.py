@@ -234,34 +234,39 @@ class DashboardSmokeTests(unittest.TestCase):
             ids.append(job)
         return p, pid, ids
 
-    def test_bulk_approve_needs_an_explicit_confirmation(self):
+    def test_approve_all_asks_yes_or_no_once(self):
         p, pid, ids = self._pending_images(2)
+
+        def states():
+            return [r["state"] for r in Pipeline(connect(self.db)).conn.execute("SELECT state FROM jobs ORDER BY id")]
+
         at = AppTest.from_file(APP, default_timeout=30).run()
         at.radio(key="step").set_value(at.radio(key="step").options[1]).run()
-        bulk = next(b for b in at.button if b.key == "approve_all")
-        self.assertTrue(bulk.disabled)  # nothing ticked yet
-        tick = next(c for c in at.checkbox if c.label.startswith("Tôi đã xem 2 ảnh"))
-        tick.set_value(True).run()
-        bulk = next(b for b in at.button if b.key == "approve_all")
-        self.assertFalse(bulk.disabled)
-        bulk.click().run()
-        states = [r["state"] for r in Pipeline(connect(self.db)).conn.execute("SELECT state FROM jobs ORDER BY id")]
-        self.assertEqual(states, ["approved", "approved"])
+        next(b for b in at.button if b.key == "approve_all").click().run()
+        self.assertEqual(states(), ["pending_review", "pending_review"])  # nothing approved by the first click
+        self.assertTrue(any("Duyệt tất cả 2 ảnh" in w.value for w in at.warning))
+        next(b for b in at.button if b.key == "approve_all_no").click().run()
+        self.assertEqual(states(), ["pending_review", "pending_review"])  # "No" changes nothing
+        self.assertFalse(any("Duyệt tất cả 2 ảnh" in w.value for w in at.warning))
+        next(b for b in at.button if b.key == "approve_all").click().run()
+        next(b for b in at.button if b.key == "approve_all_yes").click().run()
+        self.assertEqual(states(), ["approved", "approved"])
 
-    def test_a_new_pending_image_invalidates_an_old_confirmation(self):
+    def test_a_new_pending_image_cancels_a_question_already_asked(self):
         p, pid, ids = self._pending_images(1)
         at = AppTest.from_file(APP, default_timeout=30).run()
         at.radio(key="step").set_value(at.radio(key="step").options[1]).run()
-        next(c for c in at.checkbox if c.label.startswith("Tôi đã xem 1 ảnh")).set_value(True).run()
+        next(b for b in at.button if b.key == "approve_all").click().run()
+        self.assertTrue(any("Duyệt tất cả 1 ảnh" in w.value for w in at.warning))
         q = Pipeline(connect(self.db))
-        p2 = q.create_scene(pid, 2, "CẢNH 2")
-        job = q.create_job(p2)
+        job = q.create_job(q.create_scene(pid, 2, "CẢNH 2"))
         q.start(job)
         q.succeed(job)
         q.apply_qc(job, {"a": 0.9, "b": 0.9})
         at = AppTest.from_file(APP, default_timeout=30).run()
         at.radio(key="step").set_value(at.radio(key="step").options[1]).run()
-        self.assertTrue(next(b for b in at.button if b.key == "approve_all").disabled)  # 2 images now: tick again
+        self.assertFalse(any("Duyệt tất cả" in w.value for w in at.warning))  # the old question is gone
+        self.assertTrue(any(b.key == "approve_all" for b in at.button))  # asks again from the button
 
     def test_low_score_image_lands_in_the_trash_tab_and_can_be_restored(self):
         p, pid, ids = self._pending_images(1)

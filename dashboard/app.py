@@ -136,6 +136,29 @@ def act(fn, success: str = ""):
     return True
 
 
+def confirm_all(key: str, ids, label: str, question: str, container=st) -> bool:
+    """One 'approve all' button, then a yes/no question. True only when the user answers Yes.
+    The question is tied to the exact set of items it was asked about: if the set changes, it is asked again."""
+    ids = tuple(ids)
+    pending_key = f"ask_{key}"
+    if st.session_state.get(pending_key) not in (None, ids):
+        st.session_state[pending_key] = None  # the list changed since the question: forget it
+    if st.session_state.get(pending_key) != ids:
+        if container.button(label, key=key, disabled=not ids):
+            st.session_state[pending_key] = ids
+            st.rerun()
+        return False
+    container.warning(question)
+    yes, no = container.columns(2)
+    if yes.button("Có, duyệt hết", key=f"{key}_yes", type="primary"):
+        st.session_state[pending_key] = None
+        return True
+    if no.button("Không", key=f"{key}_no"):
+        st.session_state[pending_key] = None
+        st.rerun()
+    return False
+
+
 def job_image(pid: int, jid: int):
     """The job's image; a rejected/deleted one is looked up in the trash so versions can still be compared."""
     path = os.path.join(DATA, str(pid), "images", f"job_{jid}.png")
@@ -403,10 +426,8 @@ def step2(p: Pipeline, pid: int):
         pending = [j["id"] for j in p.conn.execute(
             "SELECT id FROM jobs WHERE project_id=? AND type='image_gen' AND state='pending_review' ORDER BY id",
             (pid,)).fetchall()]
-        # the tick is keyed by the exact set of pending images: a new/changed set needs a fresh confirmation
-        sure = c2.checkbox(f"Tôi đã xem {len(pending)} ảnh đang chờ duyệt", key=f"sure_bulk_{pid}_{hash(tuple(pending))}",
-                           disabled=not pending)
-        if c2.button(f"✔ Approve {len(pending)} ảnh đã xem", key="approve_all", disabled=not (pending and sure)):
+        if confirm_all("approve_all", pending, f"✔ Duyệt tất cả ({len(pending)} ảnh)",
+                       f"Duyệt tất cả {len(pending)} ảnh đang chờ duyệt?", c2):
             for jid in pending:
                 p.approve(jid, "user")
             st.rerun()
@@ -625,9 +646,8 @@ def step3(p: Pipeline, pid: int):
         a.markdown(ui.badge(f"{len(approved)} cảnh đã có ảnh được duyệt", "b-info") +
                    ' <span class="muted">Knowledge Base · image-to-video</span>', unsafe_allow_html=True)
         waiting = [r["sid"] for r in rows if r["state"] != "approved"]
-        b_sure = b.checkbox(f"Tôi đã đọc {len(waiting)} prompt", key=f"sure_mp_{pid}_{hash(tuple(waiting))}",
-                            disabled=not waiting)
-        if b.button(f"✔ Duyệt {len(waiting)} prompt đã đọc", disabled=not (waiting and b_sure), key="btn_ok_all"):
+        if confirm_all("btn_ok_all", waiting, f"✔ Duyệt tất cả ({len(waiting)} prompt)",
+                       f"Duyệt tất cả {len(waiting)} motion prompt đang chờ?", b):
             for sid in waiting:
                 llm_io.approve_motion_prompt(p, sid)
             st.rerun()

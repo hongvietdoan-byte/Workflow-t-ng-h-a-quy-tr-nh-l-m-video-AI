@@ -316,7 +316,7 @@ Mục tiêu: chứng minh pipeline end-to-end chạy được, đo chất lượ
 
 **Chi phí & ngân sách (2026-09-20):** Dashboard có 💲 Bảng giá để chép giá hiển thị trên web Clip AI (giá theo từng thiết lập model/mức/độ dài); ước tính từng clip theo giá riêng. Claude: gói doanh nghiệp có hạn mức cứng 400$/tháng cho Chat + Code của tài khoản cá nhân (không phải ngân sách API); LLM runner cần API key riêng, chưa có thì dán JSON tay.
 
-**Duyệt và dọn dẹp (2026-09-20):** duyệt hàng loạt phải xác nhận; ảnh điểm thấp (mặc định < 0,50) tự loại + xếp hàng gen mới ở cả hai chế độ; thùng rác tách ảnh/video, tự xóa sau 30 ngày, khôi phục được.
+**Duyệt và dọn dẹp (2026-09-20):** duyệt tất cả có hỏi Có/Không; ảnh điểm thấp (mặc định < 0,50) tự loại + xếp hàng gen mới ở cả hai chế độ; thùng rác tách ảnh/video, tự xóa sau 30 ngày, khôi phục được.
 
 **Tạm gác (2026-09-19):** MCP Claude/V0 qua Claude Desktop; ưu tiên hoàn thiện Dashboard.
 

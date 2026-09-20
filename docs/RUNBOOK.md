@@ -47,7 +47,7 @@ Dành cho người **vận hành hằng ngày** (không cần đọc code). Kế
 Dưới mỗi ảnh/clip có mũi tên **📖 nội dung kịch bản**: bấm để đọc lại đoạn kịch bản của cảnh đó (kèm bối cảnh, nhân vật, mood, prompt) và so với kết quả. Dấu **✓** trên thanh bước = bước đã hoàn tất. Nút **Pause** dừng việc bắt đầu job mới; **Cancel** hủy job đang chạy/xếp hàng của dự án.
 
 ## 4. Hai chế độ QC
-- **Duyệt hàng loạt** (Bước 2 và 3) cần tick xác nhận đã xem/đọc. **Ảnh điểm quá thấp** (mặc định dưới 0,50, chỉnh được) bị tự loại ở cả hai chế độ và xếp hàng gen ảnh mới (gen khi bạn bấm chạy).
+- **Duyệt tất cả** (Bước 2 và 3) hỏi Có/Không một lần trước khi duyệt; duyệt từng ảnh thì bấm ngay tại ảnh. **Ảnh điểm quá thấp** (mặc định dưới 0,50, chỉnh được) bị tự loại ở cả hai chế độ và xếp hàng gen ảnh mới (gen khi bạn bấm chạy).
 - `human_qc` (mặc định V0): mọi ảnh chờ bạn duyệt; điểm QC chỉ là gợi ý.
 - `auto`: QC Agent tự duyệt nếu điểm ≥ **threshold**, tự loại nếu thấp hơn. Có thể bật **Vùng chờ review**: điểm nằm giữa *mức sàn* và threshold sẽ chờ bạn duyệt thay vì tự loại.
 
