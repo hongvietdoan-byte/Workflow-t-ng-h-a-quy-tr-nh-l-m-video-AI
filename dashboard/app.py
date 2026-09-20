@@ -10,13 +10,14 @@ import re
 import shutil
 import sys
 import tempfile
+import time
 from html import escape
 
 import streamlit as st
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
-from core import audio_lib, waveform, cost, ffmpeg_studio, final_cut, llm_io, llm_runner, music, preflight, prompts, script_parser  # noqa: E402
+from core import audio_lib, trash, waveform, cost, ffmpeg_studio, final_cut, llm_io, llm_runner, music, preflight, prompts, script_parser  # noqa: E402
 from core.db import connect  # noqa: E402
 from core.pipeline import Pipeline, PipelinePaused  # noqa: E402
 from core.adapters import factory  # noqa: E402
@@ -136,8 +137,15 @@ def act(fn, success: str = ""):
 
 
 def job_image(pid: int, jid: int):
+    """The job's image; a rejected/deleted one is looked up in the trash so versions can still be compared."""
     path = os.path.join(DATA, str(pid), "images", f"job_{jid}.png")
-    return path if os.path.exists(path) else None
+    return path if os.path.exists(path) else trash.find_for_job(DATA, pid, "images", jid)
+
+
+@st.cache_data(ttl=3600, show_spinner=False)
+def purge_trash(data_dir: str) -> int:
+    """Delete trash entries older than the retention period (checked at most once an hour)."""
+    return trash.purge_expired(data_dir)
 
 
 def show_image(path, **kwargs):
@@ -392,10 +400,15 @@ def step2(p: Pipeline, pid: int):
                 p.create_job(r["id"], "image_gen")
             st.toast(f"Đã tạo {len(rows)} job")
             st.rerun()
-        if c2.button("✔ Approve tất cả đang chờ duyệt", key="approve_all"):
-            for j in p.conn.execute("SELECT id FROM jobs WHERE project_id=? AND type='image_gen'"
-                                    " AND state='pending_review'", (pid,)).fetchall():
-                p.approve(j["id"], "user")
+        pending = [j["id"] for j in p.conn.execute(
+            "SELECT id FROM jobs WHERE project_id=? AND type='image_gen' AND state='pending_review' ORDER BY id",
+            (pid,)).fetchall()]
+        # the tick is keyed by the exact set of pending images: a new/changed set needs a fresh confirmation
+        sure = c2.checkbox(f"Tôi đã xem {len(pending)} ảnh đang chờ duyệt", key=f"sure_bulk_{pid}_{hash(tuple(pending))}",
+                           disabled=not pending)
+        if c2.button(f"✔ Approve {len(pending)} ảnh đã xem", key="approve_all", disabled=not (pending and sure)):
+            for jid in pending:
+                p.approve(jid, "user")
             st.rerun()
         if c3.button("↻ Gen lại tất cả FAIL", key="reject_all"):
             for j in p.conn.execute("SELECT id FROM jobs WHERE project_id=? AND type='image_gen' AND state='failed'",
@@ -406,6 +419,17 @@ def step2(p: Pipeline, pid: int):
                              + ("QC Agent tự duyệt theo threshold" if proj["operating_mode"] == "auto"
                                 else "mọi ảnh chờ bạn duyệt"), "b-pri")
                     + f' <span class="muted">Retry tối đa {proj["max_retry_count"]}</span>', unsafe_allow_html=True)
+    f1, f2, f3 = st.columns([2, 3, 3], vertical_alignment="center")
+    floor_on = f1.checkbox("Tự loại ảnh điểm thấp", proj["qc_reject_floor"] is not None, key=f"rej_on_{pid}",
+                           help="Ảnh có điểm QC dưới mức này bị loại ngay (vào Thùng rác) và xếp hàng gen ảnh mới, "
+                                "ở cả hai chế độ. Ảnh điểm cao vẫn phải chờ bạn duyệt ở human_qc.")
+    reject_floor = f2.slider("Dưới mức này tự loại + xếp hàng gen ảnh mới", 0.30, 0.80,
+                             float(proj["qc_reject_floor"] or 0.5), 0.05, key=f"rej_v_{pid}", disabled=not floor_on)
+    f3.caption("Ảnh bị loại vào 🗑 Thùng rác (tab Lịch sử, giữ 30 ngày). Ảnh mới chỉ được gen khi bạn bấm chạy.")
+    new_reject = round(reject_floor, 2) if floor_on else None
+    if new_reject != proj["qc_reject_floor"] and (new_reject is None or proj["qc_reject_floor"] is None
+                                                  or abs(new_reject - proj["qc_reject_floor"]) > 1e-9):
+        p.set_reject_floor(pid, new_reject)
     if proj["operating_mode"] == "auto":
         z1, z2, _ = st.columns([2, 3, 3], vertical_alignment="center")
         zone_on = z1.checkbox("Vùng chờ review", proj["qc_review_floor"] is not None, key=f"zone_{pid}",
@@ -580,6 +604,9 @@ def image_detail(p: Pipeline, pid: int, j, proj):
             if a.button("✔ Approve", key=f"da_{jid}", type="primary"):
                 act(lambda: p.approve(jid, "user"))
                 st.rerun()
+            if st.button("🗑 Xóa (vào thùng rác, không gen lại)", key=f"dd_{jid}"):
+                act(lambda: p.reject(jid, "user", note or "đã xóa", respawn=False))
+                st.rerun()
         if state == "failed" and st.button("↻ Retry", key=f"dretry_{jid}"):
             act(lambda: p.retry(jid, "retry"))
             st.rerun()
@@ -597,9 +624,12 @@ def step3(p: Pipeline, pid: int):
         a, b = st.columns([3, 1], vertical_alignment="center")
         a.markdown(ui.badge(f"{len(approved)} cảnh đã có ảnh được duyệt", "b-info") +
                    ' <span class="muted">Knowledge Base · image-to-video</span>', unsafe_allow_html=True)
-        if b.button("✔ Duyệt tất cả", disabled=not rows, key="btn_ok_all"):
-            for r in rows:
-                llm_io.approve_motion_prompt(p, r["sid"])
+        waiting = [r["sid"] for r in rows if r["state"] != "approved"]
+        b_sure = b.checkbox(f"Tôi đã đọc {len(waiting)} prompt", key=f"sure_mp_{pid}_{hash(tuple(waiting))}",
+                            disabled=not waiting)
+        if b.button(f"✔ Duyệt {len(waiting)} prompt đã đọc", disabled=not (waiting and b_sure), key="btn_ok_all"):
+            for sid in waiting:
+                llm_io.approve_motion_prompt(p, sid)
             st.rerun()
         client = llm_client()
         if client is not None and st.button("🤖 Sinh motion prompt bằng Claude (cảnh chưa có)", type="primary",
@@ -717,9 +747,13 @@ def step4(p: Pipeline, pid: int):
                 if j["state"] == "failed" and not j["escalated"] and st.button("↻ Retry", key=f"vr_{j['id']}"):
                     act(lambda: p.retry(j["id"], "retry"))
                     st.rerun()
-                if j["state"] == "succeeded" and j["result_path"] and os.path.exists(j["result_path"]) \
-                        and st.checkbox("▶ Xem", key=f"vsee_{j['id']}"):
-                    st.video(j["result_path"])
+                if j["state"] == "succeeded" and j["result_path"] and os.path.exists(j["result_path"]):
+                    if st.checkbox("▶ Xem", key=f"vsee_{j['id']}"):
+                        st.video(j["result_path"])
+                    if st.button("🗑 Xóa clip", key=f"vdel_{j['id']}", help="Chuyển vào thùng rác (giữ 30 ngày)"):
+                        trash.move_to_trash(j["result_path"], DATA, pid, "videos", "đã xóa", j["id"], j["idx"])
+                        act(lambda: p.reject(j["id"], "user", "đã xóa clip", respawn=False))
+                        st.rerun()
             scene_expander(p, j["scene_id"], with_motion=True)
 
 
@@ -947,10 +981,37 @@ def step5b(p: Pipeline, pid: int):
 
 
 # ---- history -------------------------------------------------------------------------
+def trash_section(pid: int) -> None:
+    """Deleted/rejected images and clips, kept for the retention period; restorable."""
+    with st.container(border=True):
+        ui.html(ui.card_title("🗑 Thùng rác", f"ảnh và video bị xóa/loại · tự xóa vĩnh viễn sau {trash.retention_days()} ngày"))
+        t_img, t_vid = st.tabs(["Ảnh", "Video"])
+        for tab, kind in ((t_img, "images"), (t_vid, "videos")):
+            with tab:
+                entries = trash.items(DATA, pid, kind)
+                if not entries:
+                    st.caption("Trống.")
+                for e in entries:
+                    a, b = st.columns([3, 1], vertical_alignment="center")
+                    with a:
+                        if kind == "images":
+                            show_image(e["path"], width=220)
+                        else:
+                            with st.expander("▶ Xem video"):
+                                st.video(e["path"])
+                        scene = f"Cảnh {e['scene_idx']} · " if e.get("scene_idx") else ""
+                        st.caption(f"{scene}{e['reason']} · xóa {time.strftime('%d/%m/%Y %H:%M', time.localtime(e['deleted_at']))}"
+                                   f" · còn {e['days_left']} ngày · {e['original']}")
+                    if b.button("↩ Khôi phục", key=f"tr_{kind}_{e['file']}"):
+                        if act(lambda: trash.restore(DATA, pid, kind, e["file"]), "Đã khôi phục"):
+                            st.rerun()
+
+
 def history(p: Pipeline, pid: int):
     scenes = p.conn.execute("SELECT id, idx, title FROM scenes WHERE project_id=? ORDER BY idx", (pid,)).fetchall()
     if not scenes:
         st.caption("Chưa có cảnh.")
+        trash_section(pid)
         return
     sid = st.selectbox("Cảnh", [s["id"] for s in scenes],
                        format_func=lambda i: next(f"{s['idx']} · {s['title']}" for s in scenes if s["id"] == i))
@@ -972,6 +1033,7 @@ def history(p: Pipeline, pid: int):
     for j in jobs:
         with st.expander(f"job #{j['id']} {j['type']} — {j['state']} (retry {j['retry_count']})"):
             st.dataframe([dict(h) for h in p.history(j["id"])], width="stretch")
+    trash_section(pid)
 
 
 def main():
@@ -982,6 +1044,8 @@ def main():
     pid = global_bar(p)
     if pid is None:
         return
+    purge_trash(DATA)
+    trash.sweep_rejected(p, DATA, pid)
     deep = st.query_params.get("step")  # ?step=2 opens a step directly (1, 2, 3, 4, 5a, 5b, history)
     keys = ["1", "2", "3", "4", "5a", "5b", "history"]
     if deep in keys and "step" not in st.session_state:

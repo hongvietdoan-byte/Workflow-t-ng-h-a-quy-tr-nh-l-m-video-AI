@@ -218,6 +218,102 @@ class DashboardSmokeTests(unittest.TestCase):
         at.radio(key="step").set_value(at.radio(key="step").options[3]).run()
         self.assertTrue(any("push in slowly" in m.value for m in at.markdown))
 
+    def _pending_images(self, n=2):
+        from core.llm_io import lock_character_bible
+        p, pid = self.seed()
+        lock_character_bible(p, pid)
+        ids = []
+        for idx in range(1, n + 1):
+            if idx > 1:
+                p.create_scene(pid, idx, f"CẢNH {idx}")
+            scene = p.conn.execute("SELECT id FROM scenes WHERE idx=?", (idx,)).fetchone()["id"]
+            job = p.create_job(scene)
+            p.start(job)
+            p.succeed(job)
+            p.apply_qc(job, {"a": 0.9, "b": 0.9})  # human_qc: waits for a person
+            ids.append(job)
+        return p, pid, ids
+
+    def test_bulk_approve_needs_an_explicit_confirmation(self):
+        p, pid, ids = self._pending_images(2)
+        at = AppTest.from_file(APP, default_timeout=30).run()
+        at.radio(key="step").set_value(at.radio(key="step").options[1]).run()
+        bulk = next(b for b in at.button if b.key == "approve_all")
+        self.assertTrue(bulk.disabled)  # nothing ticked yet
+        tick = next(c for c in at.checkbox if c.label.startswith("Tôi đã xem 2 ảnh"))
+        tick.set_value(True).run()
+        bulk = next(b for b in at.button if b.key == "approve_all")
+        self.assertFalse(bulk.disabled)
+        bulk.click().run()
+        states = [r["state"] for r in Pipeline(connect(self.db)).conn.execute("SELECT state FROM jobs ORDER BY id")]
+        self.assertEqual(states, ["approved", "approved"])
+
+    def test_a_new_pending_image_invalidates_an_old_confirmation(self):
+        p, pid, ids = self._pending_images(1)
+        at = AppTest.from_file(APP, default_timeout=30).run()
+        at.radio(key="step").set_value(at.radio(key="step").options[1]).run()
+        next(c for c in at.checkbox if c.label.startswith("Tôi đã xem 1 ảnh")).set_value(True).run()
+        q = Pipeline(connect(self.db))
+        p2 = q.create_scene(pid, 2, "CẢNH 2")
+        job = q.create_job(p2)
+        q.start(job)
+        q.succeed(job)
+        q.apply_qc(job, {"a": 0.9, "b": 0.9})
+        at = AppTest.from_file(APP, default_timeout=30).run()
+        at.radio(key="step").set_value(at.radio(key="step").options[1]).run()
+        self.assertTrue(next(b for b in at.button if b.key == "approve_all").disabled)  # 2 images now: tick again
+
+    def test_low_score_image_lands_in_the_trash_tab_and_can_be_restored(self):
+        p, pid, ids = self._pending_images(1)
+        q = Pipeline(connect(self.db))
+        job = ids[0]
+        img_dir = os.path.join(self.tmp, "projects", str(pid), "images")
+        os.makedirs(img_dir, exist_ok=True)
+        with open(os.path.join(img_dir, f"job_{job}.png"), "wb") as f:
+            f.write(b"x")
+        q.conn.execute("UPDATE jobs SET state='succeeded' WHERE id=?", (job,))
+        q.conn.commit()
+        self.assertEqual(q.apply_qc(job, {"a": 0.2, "b": 0.3}), "rejected")
+        at = AppTest.from_file(APP, default_timeout=30).run()
+        at.radio(key="step").set_value(at.radio(key="step").options[6]).run()
+        self.assertFalse(at.exception)
+        trashed = os.listdir(os.path.join(self.tmp, "projects", str(pid), "trash", "images"))
+        self.assertTrue(any(name.startswith(f"job_{job}__") for name in trashed))
+        self.assertFalse(os.path.exists(os.path.join(img_dir, f"job_{job}.png")))
+        restore = next(b for b in at.button if (b.key or "").startswith("tr_images_"))
+        restore.click().run()
+        self.assertTrue(os.path.exists(os.path.join(img_dir, f"job_{job}.png")))
+
+    def test_delete_clip_moves_it_to_the_video_trash_without_a_new_job(self):
+        p, pid = self.seed()
+        scene = p.conn.execute("SELECT id FROM scenes").fetchone()["id"]
+        vid = p.create_job(scene, "video_gen")
+        p.start(vid)
+        p.succeed(vid)
+        clip = os.path.join(self.tmp, "projects", str(pid), "videos", "01.mp4")
+        os.makedirs(os.path.dirname(clip))
+        with open(clip, "wb") as f:
+            f.write(b"x")
+        p.conn.execute("UPDATE jobs SET result_path=? WHERE id=?", (clip, vid))
+        p.conn.commit()
+        at = AppTest.from_file(APP, default_timeout=30).run()
+        at.radio(key="step").set_value(at.radio(key="step").options[3]).run()
+        next(b for b in at.button if b.key == f"vdel_{vid}").click().run()
+        self.assertFalse(at.exception)
+        self.assertFalse(os.path.exists(clip))
+        self.assertEqual(len(os.listdir(os.path.join(self.tmp, "projects", str(pid), "trash", "videos"))), 2)  # file + manifest
+        rows = Pipeline(connect(self.db)).conn.execute("SELECT state FROM jobs WHERE type='video_gen'").fetchall()
+        self.assertEqual([r["state"] for r in rows], ["rejected"])
+
+    def test_reject_floor_slider_is_saved_for_the_project(self):
+        p, pid = self.seed()
+        at = AppTest.from_file(APP, default_timeout=30).run()
+        at.radio(key="step").set_value(at.radio(key="step").options[1]).run()
+        at.slider(key=f"rej_v_{pid}").set_value(0.7).run()
+        self.assertEqual(Pipeline(connect(self.db)).project(pid)["qc_reject_floor"], 0.7)
+        at.checkbox(key=f"rej_on_{pid}").set_value(False).run()
+        self.assertIsNone(Pipeline(connect(self.db)).project(pid)["qc_reject_floor"])
+
     def test_video_step_with_mock_provider_runs_to_completion(self):
         from core.llm_io import approve_motion_prompt, lock_character_bible, store_motion_prompts
         p, pid = self.seed()

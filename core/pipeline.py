@@ -43,6 +43,12 @@ class Pipeline:
         self.conn.execute("UPDATE projects SET qc_review_floor=? WHERE id=?", (floor, project_id))
         self.conn.commit()
 
+    def set_reject_floor(self, project_id: int, floor: Optional[float]) -> None:
+        """Images scoring below this are rejected automatically in BOTH modes (and a new one is queued).
+        None disables it."""
+        self.conn.execute("UPDATE projects SET qc_reject_floor=? WHERE id=?", (floor, project_id))
+        self.conn.commit()
+
     def set_video_model(self, project_id: int, model: Optional[str]) -> None:
         """Model used by the video provider (e.g. 'seedance', 'kling', 'minimax'); None = provider default."""
         self.conn.execute("UPDATE projects SET video_model=? WHERE id=?", (model or None, project_id))
@@ -146,13 +152,18 @@ class Pipeline:
         auto = proj["operating_mode"] == "auto"
         floor = proj["qc_review_floor"]
         review_zone = auto and not passed and floor is not None and overall >= floor
+        reject_floor = proj["qc_reject_floor"]
+        too_low = reject_floor is not None and overall < reject_floor
         for criterion, score in scores.items():
             self.conn.execute(
                 "INSERT INTO qc_results (job_id, criterion, score, threshold_at_time, auto_decision)"
                 " VALUES (?,?,?,?,?)",
                 (job_id, criterion, score, threshold,
-                 ("pass" if passed else "review" if review_zone else "fail") if auto else None))
+                 ("fail" if too_low else "pass" if passed else "review" if review_zone else "fail") if auto
+                 else ("fail" if too_low else None)))
         self.conn.commit()
+        if too_low:  # far below the bar: not worth a human's time, whatever the mode
+            return self.reject(job_id, "ai_agent", f"QC {overall:.2f} < mức tối thiểu {reject_floor}{suffix}")
         if not auto:
             self.transition(job_id, JobState.PENDING_REVIEW, actor="ai_agent",
                             note=f"QC {overall:.2f} (suggestion only){suffix}")
@@ -171,11 +182,15 @@ class Pipeline:
         self._log_review(job_id, reviewer_type, "approve", note)
         self.transition(job_id, JobState.APPROVED, actor=reviewer_type, note=note)
 
-    def reject(self, job_id: int, reviewer_type: str = "user", note: Optional[str] = None) -> str:
-        """Reject and spawn a retry job; escalate when max_retry_count is exceeded."""
+    def reject(self, job_id: int, reviewer_type: str = "user", note: Optional[str] = None,
+               respawn: bool = True) -> str:
+        """Reject and spawn a retry job (unless respawn=False = plain delete); escalate when
+        max_retry_count is exceeded."""
         self._require_reviewable(job_id)
         self._log_review(job_id, reviewer_type, "reject", note)
         self.transition(job_id, JobState.REJECTED, actor=reviewer_type, note=note)
+        if not respawn:
+            return "rejected"
         new_id = self._spawn_retry(job_id, note)
         return "rejected" if new_id else "escalated"
 

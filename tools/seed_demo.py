@@ -66,7 +66,7 @@ def main() -> None:
                     "shot": shot, "image_prompt": f"{loc}, {t}, {mood}"} for i, (loc, t, ch, mood, shot) in enumerate(SCENES, 1)]})
     lock_character_bible(p, pid)
     images = os.path.join(out, "projects", str(pid), "images")
-    plan = ["approved", "approved", "review_low", "review_high", "ok", "failed", "running", "queued"]
+    plan = ["approved", "approved", "review_low", "review_high", "ok", "failed", "running", "auto_rejected"]
     for i, kind in enumerate(plan, 1):
         scene = p.conn.execute("SELECT id FROM scenes WHERE project_id=? AND idx=?", (pid, i)).fetchone()["id"]
         job = p.create_job(scene)
@@ -82,9 +82,9 @@ def main() -> None:
         draw(os.path.join(images, f"job_{job}.png"), *COLORS[i - 1], f"S{i:02d}")
         if kind == "ok":
             continue
-        scores = {"approved": .92, "review_high": .90, "review_low": .61}[kind]
-        vals = [scores + d for d in (0.03, -0.08, 0.02, -0.02, 0.05)] if kind != "review_low" else [.78, .42, .71, .55, .60]
-        p.apply_qc(job, dict(zip(CRITERIA, vals)))
+        scores = {"approved": .92, "review_high": .90, "review_low": .61, "auto_rejected": .30}[kind]
+        vals = [scores + d for d in (0.03, -0.08, 0.02, -0.02, 0.05)] if kind not in ("review_low", "auto_rejected")             else ([.78, .42, .71, .55, .60] if kind == "review_low" else [.35, .20, .30, .25, .40])
+        p.apply_qc(job, dict(zip(CRITERIA, vals)), issues="tay trái 6 ngón, sai màu áo" if kind == "auto_rejected" else None)
         if kind == "approved":
             p.approve(job)
     store_motion_prompts(p, pid, {"scenes": [

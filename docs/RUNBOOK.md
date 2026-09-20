@@ -32,6 +32,7 @@ Dành cho người **vận hành hằng ngày** (không cần đọc code). Kế
 | `HEARTBEAT_SEC` | chu kỳ hỏi trạng thái tác vụ | `90` |
 | `PIPELINE_DB`, `PIPELINE_DATA`, `PIPELINE_PRICING` | vị trí DB / thư mục dự án / bảng giá | `data/…` |
 | `DASHBOARD_PORT` | cổng Dashboard | `8501` |
+| `TRASH_DAYS` | số ngày giữ file trong thùng rác | `30` |
 
 ## 3. Quy trình một video (Dashboard, 7 tab theo thứ tự)
 | Bước | Việc bạn làm | Kiểm tra trước khi qua bước |
@@ -46,6 +47,7 @@ Dành cho người **vận hành hằng ngày** (không cần đọc code). Kế
 Dưới mỗi ảnh/clip có mũi tên **📖 nội dung kịch bản**: bấm để đọc lại đoạn kịch bản của cảnh đó (kèm bối cảnh, nhân vật, mood, prompt) và so với kết quả. Dấu **✓** trên thanh bước = bước đã hoàn tất. Nút **Pause** dừng việc bắt đầu job mới; **Cancel** hủy job đang chạy/xếp hàng của dự án.
 
 ## 4. Hai chế độ QC
+- **Duyệt hàng loạt** (Bước 2 và 3) cần tick xác nhận đã xem/đọc. **Ảnh điểm quá thấp** (mặc định dưới 0,50, chỉnh được) bị tự loại ở cả hai chế độ và xếp hàng gen ảnh mới (gen khi bạn bấm chạy).
 - `human_qc` (mặc định V0): mọi ảnh chờ bạn duyệt; điểm QC chỉ là gợi ý.
 - `auto`: QC Agent tự duyệt nếu điểm ≥ **threshold**, tự loại nếu thấp hơn. Có thể bật **Vùng chờ review**: điểm nằm giữa *mức sàn* và threshold sẽ chờ bạn duyệt thay vì tự loại.
 
@@ -69,6 +71,7 @@ Dưới mỗi ảnh/clip có mũi tên **📖 nội dung kịch bản**: bấm �
 
 ## 7. Dữ liệu và sao lưu
 - Cơ sở dữ liệu: `data/manifest.sqlite`. Ảnh/clip/nhạc/output: `data/projects/<id>/` (`images`, `videos`, `music`, `music_drafts`, `audio_assets`, `output`). Cả hai **không nằm trong git**: sao lưu thư mục `data/` định kỳ (copy sang ổ khác/ổ mạng), đặc biệt trước khi cập nhật phần mềm.
+- **Thùng rác:** ảnh bị loại, ảnh/clip bạn xóa (nút 🗑) và clip bị thay bằng bản gen lại được chuyển vào `data/projects/<id>/trash/images` và `trash/videos` (không xóa ngay). Xem/khôi phục ở tab **Lịch sử → 🗑 Thùng rác**; tự xóa vĩnh viễn sau 30 ngày.
 - Xóa dự án hoặc làm lại: dùng *Reset* ở Bước 1 (chỉ xóa cảnh/nhân vật chưa có job, chưa khóa). Muốn xóa hẳn dữ liệu thì đóng Dashboard rồi xóa `data/projects/<id>/`.
 - DB cũ tự được nâng cấp khi mở (không mất dữ liệu).
 

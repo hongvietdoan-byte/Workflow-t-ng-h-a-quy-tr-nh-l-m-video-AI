@@ -10,6 +10,7 @@ CREATE TABLE IF NOT EXISTS projects (
     paused INTEGER NOT NULL DEFAULT 0,
     video_model TEXT,
     qc_review_floor REAL,
+    qc_reject_floor REAL DEFAULT 0.5,
     created_at TEXT NOT NULL
 );
 CREATE TABLE IF NOT EXISTS scenes (
@@ -134,6 +135,8 @@ def connect(path: str = ":memory:") -> sqlite3.Connection:
         conn.execute("ALTER TABLE projects ADD COLUMN video_model TEXT")
     if "qc_review_floor" not in cols:
         conn.execute("ALTER TABLE projects ADD COLUMN qc_review_floor REAL")
+    if "qc_reject_floor" not in cols:
+        conn.execute("ALTER TABLE projects ADD COLUMN qc_reject_floor REAL DEFAULT 0.5")
     _migrate_usage_events(conn)
     job_cols = {r["name"] for r in conn.execute("PRAGMA table_info(jobs)")}
     for col in ("external_id", "result_path"):

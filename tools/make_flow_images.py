@@ -27,8 +27,8 @@ STEPS = [
         ("ext", "Deepix gen ảnh (hệ thống tự hỏi trạng thái, tự tải về)"),
         ("ai", "Chấm điểm 5 tiêu chí: nhân vật, tay/mặt, bố cục, mood, chi tiết thừa"),
         ("sys", "human_qc: mọi ảnh chờ bạn.  auto: ≥ ngưỡng tự duyệt, thấp hơn tự loại (có vùng chờ bạn ở giữa)"),
-        ("me", "Duyệt hoặc Loại (kèm ghi chú lỗi)"),
-        ("sys", "Bị loại → tự gen lại, ghi chú đưa vào prompt. Quá 3 lần → “cần chú ý”")]),
+        ("me", "Duyệt hoặc Loại (kèm ghi chú lỗi). Duyệt hàng loạt phải tick xác nhận đã xem"),
+        ("sys", "Điểm quá thấp (mặc định < 0,50) → tự loại ở cả hai chế độ. Bị loại → vào 🗑 Thùng rác (giữ 30 ngày), xếp hàng gen ảnh mới, ghi chú đưa vào prompt. Quá 3 lần → “cần chú ý”")]),
     ("3", "Video Prompt", "Mỗi cảnh một câu lệnh chuyển động", [
         ("ai", "Viết motion prompt cho từng cảnh có ảnh đã duyệt (Seedance: kèm hướng dẫn riêng)"),
         ("sys", "Kiểm tra + lưu, trạng thái “chờ duyệt”"),

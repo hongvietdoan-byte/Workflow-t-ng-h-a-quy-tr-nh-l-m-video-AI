@@ -10,6 +10,7 @@ import os
 import time
 from typing import Callable, Dict, Optional, Tuple
 
+from . import trash
 from .cost import record_usage
 from .pipeline import Pipeline
 from .preflight import record_failure
@@ -89,7 +90,11 @@ class _Runner:
                 counts["running"] += 1
             elif status.state == "succeeded":
                 try:
-                    dest = self.provider.download(job["external_id"], self._dest_path(job))
+                    target = self._dest_path(job)
+                    trash.move_to_trash(target, self.data_dir, job["project_id"],
+                                        "videos" if self.job_type == "video_gen" else "images",
+                                        "bị thay bằng bản gen lại", job["id"])
+                    dest = self.provider.download(job["external_id"], target)
                 except ProviderError as e:
                     if e.transient:
                         counts["running"] += 1
