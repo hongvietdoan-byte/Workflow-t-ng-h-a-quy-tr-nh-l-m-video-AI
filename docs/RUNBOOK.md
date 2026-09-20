@@ -98,6 +98,7 @@ Lưu ý chung: nút **↺ Làm lại từ đầu** xuất hiện ở job đã h�
 
 ## 10. Bàn giao Prompt Templates & kiến thức
 - **Nâng cấp kho kiến thức không cần sửa code:** "⚙ Cài đặt & dự án" → tab "Kho kiến thức": chọn bước (Director / QC / Motion), xem tổng quan, upload thêm tài liệu .md/.txt/.docx. Tài liệu bật sẽ được gửi kèm mỗi lần chạy bước đó (tốn thêm token, có hiển thị ước tính). Lưu ở `data/knowledge_user/` (ngoài git; sao lưu cùng `data/`, đổi vị trí bằng biến `KNOWLEDGE_USER_DIR`). Tài liệu có sẵn (thư mục `knowledge/`, `prompts/`) chỉ sửa trong mã nguồn.
+- **Chắt lọc:** khi tài liệu nhiều, bấm **"🤖 Chắt lọc bằng Claude API"** (hoặc chắt lọc tay) để tạo cẩm nang ngắn chia theo mảng; bước đó sẽ chỉ đọc cẩm nang. Thêm/sửa/bật-tắt tài liệu sau đó làm cẩm nang "đã cũ": bước tạm dùng lại tài liệu gốc cho tới khi bạn chắt lọc lại. Nên đọc lại cẩm nang trước khi dùng vì đó là bản Claude tóm tắt.
 - Prompt: `prompts/01…04_*.md` (Director, QC, motion, music brief). Kiến thức: `knowledge/` (điện ảnh, thể loại, lỗi ảnh AI, từ vựng motion, Seedance). QC: `data/qc_checklist.json`. Blocklist IP: `data/ip_blocklist.json`.
 - Sửa prompt/kiến thức → chạy bộ đánh giá `eval/` (xem `eval/README.md`) trước khi dùng cho dự án thật, rồi commit và ghi version.
 

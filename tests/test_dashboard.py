@@ -457,6 +457,30 @@ class DashboardSmokeTests(unittest.TestCase):
         next(b for b in at.button if b.key == f"kb_del_qc_{entry['file']}_yes").click().run()
         self.assertEqual([d for d in knowledge.overview("qc")["docs"] if d["source"] == "user"], [])
 
+    def test_distilling_the_knowledge_into_a_short_playbook_from_the_settings(self):
+        from core import knowledge
+        self.seed()
+        knowledge.add_doc("director", "studio.md", ("Tông lạnh, sương mù. " * 300).encode("utf-8"), title="studio")
+        os.environ["LLM_PROVIDER"] = "mock"
+        try:
+            at = AppTest.from_file(APP, default_timeout=30).run()
+            self.assertFalse(at.exception)
+            self.assertTrue(any("Chưa có cẩm nang" in i.value for i in at.info))
+            at.checkbox(key="kb_inc_director").set_value(True).run()      # fold the built-in knowledge in too
+            next(b for b in at.button if b.key == "kb_distill_director").click().run()
+            self.assertFalse(at.exception)
+            self.assertFalse(at.error)
+            status = knowledge.distilled_status("director")
+            self.assertTrue(status["active"] and status["include_builtin"])
+            self.assertTrue(any("Đang dùng cẩm nang" in s.value for s in at.success))
+            ov = knowledge.overview("director")
+            self.assertLess(ov["chars"], ov["raw_chars"])                  # every run now sends less
+            knowledge.add_doc("director", "moi.md", "Quy tắc mới.".encode("utf-8"))
+            at = AppTest.from_file(APP, default_timeout=30).run()
+            self.assertTrue(any("cẩm nang đã cũ" in w.value for w in at.warning))  # asks to distil again
+        finally:
+            os.environ.pop("LLM_PROVIDER", None)
+
     def test_risk_corner_lists_ip_and_moderation_notes(self):
         p, pid = self.seed()
         scene = p.conn.execute("SELECT id FROM scenes").fetchone()["id"]

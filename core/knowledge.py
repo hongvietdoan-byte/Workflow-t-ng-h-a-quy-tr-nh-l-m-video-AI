@@ -8,6 +8,7 @@ appended to that step's prompt while they are switched on, so the step improves 
 Every enabled document is sent to Claude on every run of the step, so size costs tokens: per-document and per-step
 limits keep prompts (and the bill) bounded.
 """
+import hashlib
 import json
 import os
 import re
@@ -108,9 +109,16 @@ def user_docs(group: str) -> List[Dict]:
 def overview(group: str) -> Dict:
     """Everything the step knows: documents (built-in + user) and how much text one run sends to Claude."""
     docs = builtin_docs(group) + user_docs(group)
-    sent = sum(d["chars"] for d in docs if d["enabled"])
-    user_sent = sum(d["chars"] for d in docs if d["enabled"] and d["source"] == "user")
+    raw = sum(d["chars"] for d in docs if d["enabled"])            # everything, as the documents are
+    playbook = distilled_active(group)
+    folded = folded_builtin(group)
+    for d in docs:
+        d["folded"] = d["source"] == "builtin" and d["file"] in folded
+        d["replaced"] = bool(playbook) and (d["source"] == "user" or d["folded"])  # not sent: the playbook stands in
+    sent = sum(d["chars"] for d in docs if d["enabled"] and not d["replaced"]) + (playbook["chars"] if playbook else 0)
+    user_sent = sum(d["chars"] for d in docs if d["enabled"] and d["source"] == "user" and not d["replaced"])
     return {"docs": docs, "chars": sent, "tokens": approx_tokens(sent), "user_chars": user_sent,
+            "raw_chars": raw, "raw_tokens": approx_tokens(raw), "distilled": distilled_status(group),
             "user_dir": group_dir(group), "builtin_dir": os.path.abspath(os.path.join(ROOT, "knowledge"))}
 
 
@@ -199,9 +207,143 @@ def remove_doc(group: str, file: str) -> None:
 
 
 def user_text(group: str) -> str:
-    """The enabled uploaded documents as one block appended to the step's prompt ('' when there are none)."""
+    """What is appended to the step's prompt: the distilled playbook when one is active, else the enabled uploaded
+    documents as they are ('' when there is nothing)."""
+    active = distilled_active(group)
+    if active:
+        return ("# Cẩm nang kiến thức đã chắt lọc (từ tài liệu do người dùng cung cấp)\n\nÁp dụng cẩm nang dưới đây cùng "
+                "với hướng dẫn ở trên; nếu mâu thuẫn, ưu tiên cẩm nang.\n\n" + active["text"])
     parts = [f"## {d['title']}\n\n{_read(d['path']).strip()}" for d in user_docs(group) if d["enabled"]]
     if not parts:
         return ""
     return ("# Tài liệu bổ sung do người dùng cung cấp\n\nÁp dụng các tài liệu dưới đây cùng với hướng dẫn ở trên; "
             "nếu mâu thuẫn, ưu tiên tài liệu bổ sung.\n\n" + "\n\n".join(parts))
+
+
+# ---- distillation: read everything once, keep a short structured playbook ---------------------------------
+MAX_DISTILLED_CHARS = 12_000
+TARGET_CHARS = {"director": 6_000, "qc": 3_500, "motion": 4_500}
+# the topic areas the playbook must have, in order (the same for every run so results are comparable)
+DISTILL_SECTIONS = {
+    "director": ["Phong cách & tông chung", "Nhân vật & đối tượng", "Bố cục, cỡ cảnh, góc máy", "Ánh sáng & màu sắc",
+                 "Công thức viết prompt ảnh", "Nhịp & cảm xúc theo thể loại", "Điều cần tránh", "Ví dụ ngắn tiêu biểu",
+                 "Mâu thuẫn / chưa rõ"],
+    "qc": ["Tiêu chí & cách cho điểm", "Lỗi thường gặp cần bắt", "Nhất quán nhân vật", "Cách ghi lỗi (issues) rõ ràng",
+           "Ví dụ ngắn tiêu biểu", "Mâu thuẫn / chưa rõ"],
+    "motion": ["Camera & chuyển động", "Nhịp & thời lượng", "Hành động & cảm xúc", "Viết theo từng model (Kling, Seedance)",
+               "Điều cần tránh", "Ví dụ ngắn tiêu biểu", "Mâu thuẫn / chưa rõ"],
+}
+# built-in documents that may be folded into the playbook (the prompt files and few-shot examples never are)
+_FOLDABLE = {"director": {"knowledge/cinematography_basics.md", "knowledge/genre_guides.md", "knowledge/research_notes.md"},
+             "qc": {"knowledge/ai_image_failure_modes.md"},
+             "motion": {"knowledge/video_motion_vocab.md", "knowledge/research_notes.md", "knowledge/seedance_prompting.md"}}
+
+
+def _distilled_path(group: str) -> str:
+    return os.path.join(group_dir(group), "distilled.json")
+
+
+def _load_distilled(group: str) -> Optional[Dict]:
+    try:
+        with open(_distilled_path(group), encoding="utf-8") as f:
+            return json.load(f)
+    except (OSError, ValueError):
+        return None
+
+
+def distill_inputs(group: str, include_builtin: bool) -> List[tuple]:
+    """(title, text) of every document that would be folded into the playbook."""
+    docs = []
+    for d in user_docs(group):
+        if d["enabled"]:
+            docs.append((d["title"], _read(d["path"]).strip()))
+    if include_builtin:
+        for rel, title, _ in GROUPS[group][2]:
+            if rel in _FOLDABLE[group]:
+                docs.append((title, _read(os.path.join(ROOT, *rel.split("/"))).strip()))
+    return [(t, x) for t, x in docs if x]
+
+
+def fingerprint(inputs: List[tuple]) -> str:
+    h = hashlib.sha1()
+    for title, text in sorted(inputs):
+        h.update(title.encode("utf-8") + b"\0" + text.encode("utf-8") + b"\0")
+    return h.hexdigest()
+
+
+def build_distill_bundle(group: str, include_builtin: bool = False) -> str:
+    """The prompt for Claude: instructions + required sections + every source document."""
+    inputs = distill_inputs(group, include_builtin)
+    if not inputs:
+        raise ValueError("Chưa có tài liệu nào để chắt lọc: hãy thêm tài liệu (hoặc chọn gồm cả tài liệu có sẵn).")
+    sections = "\n".join(f"{i}. {name}" for i, name in enumerate(DISTILL_SECTIONS[group], 1))
+    head = _read(os.path.join(ROOT, "prompts", "05_knowledge_distill.md"))
+    docs = "\n\n".join(f"### Tài liệu: {title}\n\n{text}" for title, text in inputs)
+    return (f"{head}\n\n---\n\n# Bước cần dạy: {GROUPS[group][0]}\n{GROUPS[group][1]}\n\n"
+            f"# Mục bắt buộc (giữ nguyên tên và thứ tự, mỗi mục là một tiêu đề `## `)\n{sections}\n\n"
+            f"# Độ dài mục tiêu\nKhoảng {TARGET_CHARS[group]:,} ký tự (tối đa {MAX_DISTILLED_CHARS:,}).\n\n---\n\n"
+            f"# Tài liệu nguồn ({len(inputs)} tài liệu, {sum(len(t) for _, t in inputs):,} ký tự)\n\n{docs}")
+
+
+def validate_distilled(group: str, text: str) -> str:
+    text = re.sub(r"^```(?:markdown|md)?\s*|\s*```$", "", (text or "").strip()).strip()
+    if not text:
+        raise ValueError("Bản chắt lọc rỗng")
+    if len(text) > MAX_DISTILLED_CHARS:
+        raise ValueError(f"Bản chắt lọc dài {len(text):,} ký tự; tối đa {MAX_DISTILLED_CHARS:,}. Cần rút gọn thêm.")
+    headings = re.findall(r"^## .+$", text, flags=re.M)
+    if len(headings) < 3:
+        raise ValueError("Bản chắt lọc cần chia thành các mục có tiêu đề `## ` (ít nhất 3 mục).")
+    return text
+
+
+def store_distilled(group: str, text: str, include_builtin: bool = False, use: bool = True) -> Dict:
+    text = validate_distilled(group, text)
+    inputs = distill_inputs(group, include_builtin)
+    record = {"text": text, "created_at": time.strftime("%Y-%m-%d %H:%M"), "include_builtin": bool(include_builtin),
+              "use": bool(use), "fingerprint": fingerprint(inputs), "source_chars": sum(len(t) for _, t in inputs),
+              "sources": [t for t, _ in inputs]}
+    with open(_distilled_path(group), "w", encoding="utf-8") as f:
+        json.dump(record, f, ensure_ascii=False, indent=1)
+    return record
+
+
+def set_use_distilled(group: str, use: bool) -> None:
+    record = _load_distilled(group)
+    if record is None:
+        raise KeyError("chưa có bản chắt lọc")
+    record["use"] = bool(use)
+    with open(_distilled_path(group), "w", encoding="utf-8") as f:
+        json.dump(record, f, ensure_ascii=False, indent=1)
+
+
+def clear_distilled(group: str) -> None:
+    try:
+        os.remove(_distilled_path(group))
+    except OSError:
+        pass
+
+
+def distilled_status(group: str) -> Dict:
+    """exists / fresh (sources unchanged since it was made) / active (will really be used in prompts)."""
+    record = _load_distilled(group)
+    if record is None:
+        return {"exists": False, "fresh": False, "active": False, "use": False, "chars": 0, "tokens": 0}
+    fresh = fingerprint(distill_inputs(group, record["include_builtin"])) == record["fingerprint"]
+    return {"exists": True, "fresh": fresh, "use": record["use"], "active": record["use"] and fresh,
+            "chars": len(record["text"]), "tokens": approx_tokens(len(record["text"])), "text": record["text"],
+            "created_at": record["created_at"], "include_builtin": record["include_builtin"],
+            "source_chars": record["source_chars"], "sources": record["sources"]}
+
+
+def distilled_active(group: str) -> Optional[Dict]:
+    """The playbook to use instead of the raw documents, or None (raw documents are used: no playbook, switched
+    off, or the sources changed since it was made and it has to be redone)."""
+    status = distilled_status(group)
+    return status if status["active"] else None
+
+
+def folded_builtin(group: str) -> set:
+    """Built-in documents already summarised in the active playbook (so prompts leave them out)."""
+    status = distilled_active(group)
+    return set(_FOLDABLE[group]) if status and status["include_builtin"] else set()

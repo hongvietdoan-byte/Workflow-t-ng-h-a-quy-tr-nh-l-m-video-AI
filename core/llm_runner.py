@@ -16,7 +16,7 @@ import time
 from dataclasses import dataclass
 from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple
 
-from . import llm_io, prompts
+from . import knowledge, llm_io, prompts
 from .adapters.http import HttpResponse, Transport, clean_token, urllib_transport
 from .pipeline import Pipeline
 
@@ -164,6 +164,33 @@ def ask_json(client, prompt: str, validate: Callable[[Any], Any], images: Sequen
     raise LlmError(f"the model did not return valid JSON twice: {error}", code="bad_json")
 
 
+def ask_text(client, prompt: str, validate: Callable[[str], str]):
+    """Like ask_json but for plain text (Markdown): validate returns the cleaned text or raises ValueError.
+    One retry that tells the model what was wrong. Returns (text, input tokens, output tokens)."""
+    tin = tout = 0
+    error = ""
+    for attempt in range(2):
+        text = prompt if not error else (prompt + f"\n\n---\n\nBản trước không đạt ({error}). Viết lại đúng yêu cầu, "
+                                                   "chỉ trả về nội dung cẩm nang.")
+        reply = client.complete(text)
+        tin, tout = tin + reply.input_tokens, tout + reply.output_tokens
+        try:
+            return validate(reply.text), tin, tout
+        except ValueError as e:
+            error = str(e)[:300]
+    raise LlmError(f"the model did not return a usable playbook twice: {error}", code="bad_text")
+
+
+def run_distill(group: str, client, include_builtin: bool = False) -> Dict:
+    """Read every document of a step once and store a short, sectioned playbook that the step then uses instead of
+    the raw documents."""
+    bundle = knowledge.build_distill_bundle(group, include_builtin)
+    text, tin, tout = ask_text(client, bundle, lambda t: knowledge.validate_distilled(group, t))
+    record = knowledge.store_distilled(group, text, include_builtin, use=True)
+    return {"chars": len(record["text"]), "source_chars": record["source_chars"], "input_tokens": tin,
+            "output_tokens": tout}
+
+
 # ---- the three Claude steps -------------------------------------------------------------
 def run_director(p: Pipeline, project_id: int, client) -> Dict:
     obj, tin, tout = ask_json(client, prompts.build_director_bundle(p, project_id), llm_io.validate_scene_analysis)
@@ -234,6 +261,11 @@ class MockLlm:
     name = "mock-llm"
 
     def complete(self, prompt: str, images: Sequence[Tuple[str, str]] = ()) -> LlmReply:
+        if "Biên tập viên kiến thức" in prompt:
+            block = prompt.split("# Mục bắt buộc", 1)[1].split("# Độ dài mục tiêu", 1)[0]
+            names = re.findall(r"^\d+\. (.+)$", block, flags=re.M)
+            body = "\n\n".join(f"## {n}\n- (tóm tắt giả lập) quy tắc chính về {n.lower()}" for n in names)
+            return LlmReply(body, 200, 80)
         if "# Cảnh đã có ảnh được duyệt" in prompt:
             block = re.search(r"# Cảnh đã có ảnh được duyệt\s*```json\s*(.*?)```", prompt, re.S).group(1)
             scenes = json.loads(block)["scenes"]

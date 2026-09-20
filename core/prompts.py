@@ -26,11 +26,13 @@ def build_director_bundle(pipeline: Pipeline, project_id: int) -> str:
         "SELECT idx, title, data FROM scenes WHERE project_id=? ORDER BY idx", (project_id,)).fetchall()
     scenes = "\n\n".join(
         f"### Cảnh {r['idx']} — {r['title']}\n{json.loads(r['data'] or '{}').get('text', '')}" for r in rows)
+    folded = knowledge.folded_builtin("director")
+    keep = lambda rel: "" if f"knowledge/{rel}" in folded else _read("knowledge", rel)  # noqa: E731
     return _SEP.join(x for x in [
         _read("prompts", "01_director_scene_analysis.md"),
-        _read("knowledge", "cinematography_basics.md"),
-        _read("knowledge", "genre_guides.md"),
-        _read("knowledge", "research_notes.md"),
+        keep("cinematography_basics.md"),
+        keep("genre_guides.md"),
+        keep("research_notes.md"),
         knowledge.user_text("director"),
         few_shot_text(),
         "# Kịch bản đã tách cảnh\n\n" + scenes,
@@ -47,7 +49,8 @@ def build_qc_bundle(pipeline: Pipeline, scene_id: int) -> str:
     spec = {k: data.get(k) for k in _SCENE_KEYS}
     return _SEP.join(x for x in [
         _read("prompts", "02_qc_agent.md"),
-        _read("knowledge", "ai_image_failure_modes.md"),
+        "" if "knowledge/ai_image_failure_modes.md" in knowledge.folded_builtin("qc")
+        else _read("knowledge", "ai_image_failure_modes.md"),
         knowledge.user_text("qc"),
         "# Character Bible\n" + bible,
         "# Thông số cảnh\n" + json.dumps(spec, ensure_ascii=False, indent=2),
@@ -80,12 +83,12 @@ def build_motion_bundle(pipeline: Pipeline, project_id: int, only_missing: bool 
         "scenes": [{"idx": r["idx"], **{k: v for k, v in json.loads(r["data"] or "{}").items() if k in _SCENE_KEYS}}
                    for r in rows],
     }
-    parts = [
-        _read("prompts", "03_video_motion.md"),
-        _read("knowledge", "video_motion_vocab.md"),
-        _read("knowledge", "research_notes.md"),
-    ]
-    if video_family(pipeline, project_id) == "seedance":
+    folded = knowledge.folded_builtin("motion")
+    parts = [_read("prompts", "03_video_motion.md")]
+    for rel in ("video_motion_vocab.md", "research_notes.md"):
+        if f"knowledge/{rel}" not in folded:
+            parts.append(_read("knowledge", rel))
+    if video_family(pipeline, project_id) == "seedance" and "knowledge/seedance_prompting.md" not in folded:
         parts.append(_read("knowledge", "seedance_prompting.md"))
     extra = knowledge.user_text("motion")
     return _SEP.join(parts + ([extra] if extra else []) + [

@@ -290,6 +290,64 @@ def risk_popover(p: Pipeline, pid: int) -> None:
             ui.html(f'{tag} <b>{escape(n["title"])}</b><br><span class="muted">{escape(n["detail"])}</span>')
 
 
+def distill_panel(group: str, ov: dict) -> None:
+    """Read all documents ONCE, keep a short playbook split by topic; the step then reads the playbook only."""
+    st.markdown("**🧪 Chắt lọc thành cẩm nang ngắn**")
+    st.caption("Claude đọc và phân tích toàn bộ tài liệu một lần, tổng kết thành cẩm nang ngắn chia rõ theo từng mảng nội dung "
+               "(" + " · ".join(knowledge.DISTILL_SECTIONS[group][:5]) + " …). Sau đó bước này chỉ đọc cẩm nang, "
+               "không đọc lại từng tài liệu.")
+    d = ov["distilled"]
+    include = st.checkbox("Gồm cả tài liệu kiến thức có sẵn (giảm thêm token mỗi lần chạy)",
+                          bool(d.get("include_builtin")) if d["exists"] else False, key=f"kb_inc_{group}")
+    inputs = knowledge.distill_inputs(group, include)
+    src = sum(len(t) for _, t in inputs)
+    st.caption(f"Nguồn để chắt lọc: {len(inputs)} tài liệu · {src:,} ký tự (≈ {knowledge.approx_tokens(src):,} token, chỉ đọc "
+               f"một lần khi chắt lọc). Cẩm nang mục tiêu ≈ {knowledge.TARGET_CHARS[group]:,} ký tự.")
+    if not d["exists"]:
+        st.info("Chưa có cẩm nang: mỗi lần chạy bước này vẫn gửi nguyên các tài liệu.")
+    elif d["active"]:
+        st.success(f"Đang dùng cẩm nang ({d['chars']:,} ký tự ≈ {d['tokens']:,} token, tạo {d['created_at']}) thay cho "
+                   f"≈ {ov['raw_tokens']:,} token tài liệu gốc.")
+    elif not d["fresh"]:
+        st.warning("Tài liệu đã thay đổi sau lần chắt lọc → cẩm nang đã cũ, tạm thời bước này dùng lại tài liệu gốc. "
+                   "Hãy chắt lọc lại.")
+    else:
+        st.info("Cẩm nang đang TẮT: bước này dùng tài liệu gốc.")
+    client = llm_client()
+    if client is not None and inputs:
+        if st.button("🤖 Chắt lọc bằng Claude API", type="primary", key=f"kb_distill_{group}"):
+            with st.spinner("Claude đang đọc và tổng kết tài liệu…"):
+                ok = act(lambda: st.session_state.__setitem__("llm_res", llm_runner.run_distill(group, client, include)))
+            if ok:
+                r = st.session_state.pop("llm_res")
+                st.toast(f"Cẩm nang {r['chars']:,} ký tự từ {r['source_chars']:,} ký tự ({tokens_text(r)})")
+                st.rerun()
+    with st.expander("✍ Chắt lọc tay: prompt gửi Claude + dán cẩm nang"):
+        if inputs:
+            st.code(knowledge.build_distill_bundle(group, include), language="markdown")
+        else:
+            st.caption("Chưa có tài liệu để chắt lọc.")
+        raw = st.text_area("Dán cẩm nang Claude trả về (Markdown, các mục `## `)", key=f"kb_paste_{group}", height=140)
+        if st.button("Lưu cẩm nang", disabled=not raw.strip(), key=f"kb_save_{group}"):
+            if act(lambda: knowledge.store_distilled(group, raw, include), "Đã lưu cẩm nang"):
+                st.rerun()
+    if d["exists"]:
+        with st.expander("📘 Xem / sửa cẩm nang"):
+            use = st.checkbox("Dùng cẩm nang thay cho tài liệu gốc", d["use"], key=f"kb_use_{group}")
+            if use != d["use"]:
+                knowledge.set_use_distilled(group, use)
+                st.rerun()
+            st.caption("Nguồn: " + ", ".join(d["sources"]))
+            edited = st.text_area("Nội dung (sửa được)", d["text"], key=f"kb_edit_{group}", height=260)
+            if st.button("Lưu chỉnh sửa", key=f"kb_edit_save_{group}", disabled=edited == d["text"]):
+                if act(lambda: knowledge.store_distilled(group, edited, d["include_builtin"], d["use"]), "Đã lưu"):
+                    st.rerun()
+            if confirm_all(f"kb_dclear_{group}", ["x"], "🗑 Xóa cẩm nang", "Xóa cẩm nang (tài liệu gốc vẫn còn)?", st,
+                           "Có, xóa"):
+                knowledge.clear_distilled(group)
+                st.rerun()
+
+
 def knowledge_panel() -> None:
     """Where the Claude steps get their skills from: what ships with the project, what the user added, and a way to
     add more (documents are appended to that step's prompt while switched on)."""
@@ -308,8 +366,10 @@ def knowledge_panel() -> None:
         st.warning("Lượng tài liệu khá lớn: mỗi lần chạy bước này sẽ gửi ≈ %s token. Tắt bớt tài liệu ít dùng để tiết kiệm." % f"{ov['tokens']:,}")
     st.dataframe([{"Tên": d["title"], "Nguồn": "có sẵn" if d["source"] == "builtin" else "bạn thêm",
                    "Ghi chú": d["note"], "Ký tự": d["chars"], "≈ token": knowledge.approx_tokens(d["chars"]),
-                   "Bật": "✓" if d["enabled"] else "—"} for d in ov["docs"]],
+                   "Bật": "✓" if d["enabled"] else "—",
+                   "Cẩm nang thay thế": "✓" if d.get("replaced") else ""} for d in ov["docs"]],
                  width="stretch", hide_index=True, height=min(38 * (len(ov["docs"]) + 1) + 3, 260))
+    distill_panel(group, ov)
     for d in ov["docs"]:
         tag = "" if d["source"] == "builtin" else " · bạn thêm"
         with st.expander(f"📄 {d['title']}{tag}"):
