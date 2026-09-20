@@ -91,6 +91,7 @@ _Cập nhật lần cuối: 2026-09-20 (nhóm việc tự động đã xong: See
 - MCP Claude / V0 trong Claude Desktop (tạm gác từ 2026-09-19; tập trung build Dashboard). Các mục dry-run V0 và "mở lại Claude Desktop" bên dưới chờ mở lại.
 
 ## 🚧 Đang làm / kế tiếp (ưu tiên từ trên xuống)
+- [ ] **Tối ưu giao diện Dashboard một thể** — đã kiểm kê khung từng bước ở `docs/UI_AUDIT.md` (+ ảnh `docs/images/audit_2026-09-20/`); chờ người dùng rà và chọn hướng (mục D), chưa sửa gì. Chưa kiểm tra màn hình điện thoại
 - [ ] **Bạn làm:** thoát hẳn + mở lại Claude Desktop, rồi chạy thử V0 trong Chat theo `docs/V0_SETUP.md` mục 3 (config đã ghi sẵn, đã kiểm thử qua MCP stdio)
 - [ ] **Bạn làm:** thử Bước 5a với API thật (`$env:AUDIO_PROVIDER="clipai"`, tốn credit) để xác nhận hợp đồng audio; nếu lệch thì báo lại để sửa adapter
 - [ ] Dashboard: chạy thử với dữ liệu thật; đã đủ so với mockup
