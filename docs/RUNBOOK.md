@@ -65,7 +65,7 @@ Dấu **✓** trên thanh bước = bước đã hoàn tất. Nút **Pause** d�
 - Trước mỗi lô gen, Dashboard hiện **ước tính** (min và max nếu mọi mục retry đủ lần). Lô ≥ `confirm_batch_at` (mặc định 10) phải tick xác nhận.
 - Muốn có số tiền: mở **💲 Bảng giá** ở đầu Dashboard và chép giá mà web Clip AI hiện **trước khi bấm gen** cho từng thiết lập. Khóa `model:mức:Ns` (vd `kling-v3-omni:pro:5s`) = giá đúng của clip đó; `model:mức` = giá mỗi clip; `per_video_second` = giá mỗi giây. Có thể sửa trực tiếp `data/pricing.json`. Deepix không biết giá thì để trống. Khi cần đối chiếu: so số tổng đã dùng trên web trước/sau một lần chạy.
 - Thanh trên cùng hiện "đã ghi nhận (gửi API thật)": số ảnh, clip (giây), âm thanh. Đây là ước tính từ sổ của app; **số dư trên web mới là nguồn chính xác**. Provider `mock` không tính tiền.
-- Chưa ghi nhận: token của Claude API. Gói Claude doanh nghiệp có hạn mức cứng 400$/tháng ở phía Anthropic (tới ngưỡng tự dừng), nên không cần trần riêng trong app.
+- Chưa ghi nhận: token của Claude API. Gói Claude doanh nghiệp có hạn mức cứng 400$/tháng cho Chat + Code của tài khoản (tới ngưỡng tự dừng; dùng chung với các phiên làm việc khác). Đây không phải ngân sách API: LLM runner cần API key riêng do admin cấp; chưa có thì dán JSON từ Claude Desktop.
 
 ## 7. Dữ liệu và sao lưu
 - Cơ sở dữ liệu: `data/manifest.sqlite`. Ảnh/clip/nhạc/output: `data/projects/<id>/` (`images`, `videos`, `music`, `music_drafts`, `audio_assets`, `output`). Cả hai **không nằm trong git**: sao lưu thư mục `data/` định kỳ (copy sang ổ khác/ổ mạng), đặc biệt trước khi cập nhật phần mềm.

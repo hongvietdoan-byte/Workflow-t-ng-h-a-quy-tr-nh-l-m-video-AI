@@ -314,7 +314,7 @@ Mục tiêu: chứng minh pipeline end-to-end chạy được, đo chất lượ
 
 **Cập nhật 2026-09-20:** `knowledge/seedance_prompting.md` (nối tự động vào motion prompt khi model là Seedance); vùng chờ review của QC ở auto mode (`qc_review_floor`); transition Dip to black; sửa Character Bible trong Dashboard; sổ mức dùng có âm thanh; SFX + giọng đọc (TTS) trộn vào bản cuối (Bước 5a/5b); LLM runner gọi API Anthropic cho Director/QC/motion (code xong, chờ key thật); waveform nhạc.
 
-**Chi phí & ngân sách (2026-09-20):** Dashboard có 💲 Bảng giá để chép giá hiển thị trên web Clip AI (giá theo từng thiết lập model/mức/độ dài); ước tính từng clip theo giá riêng. Claude: gói doanh nghiệp có hạn mức cứng 400$/tháng do phía Anthropic dừng khi chạm.
+**Chi phí & ngân sách (2026-09-20):** Dashboard có 💲 Bảng giá để chép giá hiển thị trên web Clip AI (giá theo từng thiết lập model/mức/độ dài); ước tính từng clip theo giá riêng. Claude: gói doanh nghiệp có hạn mức cứng 400$/tháng cho Chat + Code của tài khoản cá nhân (không phải ngân sách API); LLM runner cần API key riêng, chưa có thì dán JSON tay.
 
 **Tạm gác (2026-09-19):** MCP Claude/V0 qua Claude Desktop; ưu tiên hoàn thiện Dashboard.
 
