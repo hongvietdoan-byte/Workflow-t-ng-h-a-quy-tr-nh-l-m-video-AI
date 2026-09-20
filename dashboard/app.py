@@ -1499,6 +1499,8 @@ def monitor(p: Pipeline, pid: int) -> None:
                      "Gần đây / trước đó": (f"{k['recent_sec']:.0f}s / {k['earlier_sec']:.0f}s"
                                             if k["recent_sec"] and k["earlier_sec"] else "-")})
     st.dataframe(rows, hide_index=True, use_container_width=True)
+    st.caption("Mức song song tự học (tăng dần khi chạy êm, giảm một nửa khi nhà cung cấp báo quá tải 429): " + "; ".join(
+        f"{dict(perf.KINDS)[k]}: {v['limit']} job cùng lúc, đã bị giới hạn {v['hits']} lần" for k, v in snap["learned"].items()))
     if snap["usage_today"]:
         st.caption("Dùng hôm nay: " + ", ".join(f"{q:g} {unit} ({kind})" for kind, unit, q in snap["usage_today"]))
     st.markdown("**Các dự án chạy tự động**")

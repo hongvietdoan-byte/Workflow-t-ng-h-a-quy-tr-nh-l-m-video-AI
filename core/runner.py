@@ -16,6 +16,7 @@ from .cost import record_usage
 from .pipeline import Pipeline
 from .preflight import record_failure
 from .providers import RISK_CONTROL, ProviderError
+from .throttle import THROTTLE
 
 
 class _Runner:
@@ -57,9 +58,15 @@ class _Runner:
                 self.p.start(job["id"])
                 self.p.fail(job["id"], "missing inputs (approved image / motion prompt / image prompt)")
                 continue
+            running_all = self.p.conn.execute("SELECT COUNT(*) FROM jobs WHERE type=? AND state='running'",
+                                              (self.job_type,)).fetchone()[0]
+            if not THROTTLE.allow(self.job_type, running_all + submitted):
+                break  # learned limit for all projects together: wait for a slot
             try:
                 task_id = self.provider.submit(*args)
             except ProviderError as e:
+                if e.code == "rate_limited":
+                    THROTTLE.on_rate_limited(self.job_type)   # halve the learned limit; the job stays queued
                 if e.transient:
                     break  # network/server hiccup: leave the job queued, try again next heartbeat
                 self.p.start(job["id"])
@@ -106,6 +113,7 @@ class _Runner:
                 self.p.conn.execute("UPDATE jobs SET result_path=? WHERE id=?", (dest, job["id"]))
                 self.p.conn.commit()
                 self.p.succeed(job["id"])
+                THROTTLE.on_success(self.job_type)
                 counts["succeeded"] += 1
             else:
                 message = f"{status.error_code}: {status.error_message}"

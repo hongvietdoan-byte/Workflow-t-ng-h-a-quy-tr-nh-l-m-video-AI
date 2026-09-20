@@ -111,6 +111,8 @@ def snapshot(conn, queued_projects: int = 0, running_projects: int = 0, max_para
     today, limit = jobs_today(conn), daily_limit()
     units = conn.execute("SELECT kind, unit, SUM(quantity) q FROM usage_events WHERE at>=? GROUP BY kind, unit",
                          (_iso(_midnight()),)).fetchall()
-    return {"kinds": kinds, "projects": project_rows(conn), "jobs_today": today, "daily_limit": limit,
+    from .throttle import THROTTLE
+    learned = {k: THROTTLE.info(k) for k, _ in KINDS}
+    return {"kinds": kinds, "learned": learned, "projects": project_rows(conn), "jobs_today": today, "daily_limit": limit,
             "usage_today": [(u["kind"], u["unit"], u["q"]) for u in units],
             "alerts": alerts(kinds, today, limit, queued_projects, running_projects, max_parallel)}

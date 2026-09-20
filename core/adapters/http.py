@@ -114,6 +114,8 @@ class ApiClient:
             raise ProviderError("invalid or missing token (HTTP 401)", code="auth")
         if resp.status == 413:
             raise ProviderError("payload too large (HTTP 413): reference image over the size limit", code="too_large")
+        if resp.status == 429:   # rate limited: rejected before generating (no cost) - wait and try again, never a failure
+            raise ProviderError("rate limited (HTTP 429)", code="rate_limited", transient=True)
         if resp.status >= 500:
             raise ProviderError(f"server error (HTTP {resp.status})", code="server_error", transient=True)
         if resp.status >= 400:
