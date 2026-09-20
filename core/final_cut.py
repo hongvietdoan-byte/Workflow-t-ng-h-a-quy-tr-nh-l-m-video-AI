@@ -26,13 +26,13 @@ def collect_clips(pipeline: Pipeline, data_dir: str, project_id: int) -> List[Di
         job = pipeline.conn.execute("SELECT state FROM jobs WHERE scene_id=? AND type='video_gen'"
                                     " AND state!='cancelled' ORDER BY id DESC LIMIT 1", (r["id"],)).fetchone()
         known.add(os.path.basename(path))
-        clips.append({"idx": r["idx"], "title": r["title"], "path": path if os.path.exists(path) else None,
+        clips.append({"idx": r["idx"], "scene_id": r["id"], "title": r["title"], "path": path if os.path.exists(path) else None,
                       "state": job["state"] if job else None, "requested_sec": r["duration_sec"]})
     folder = os.path.dirname(clip_path(data_dir, project_id, 0))
     extras = sorted(n for n in (os.listdir(folder) if os.path.isdir(folder) else [])
                     if n.lower().endswith(".mp4") and n not in known)
     for name in extras:
-        clips.append({"idx": None, "title": name, "path": os.path.join(folder, name), "state": None,
+        clips.append({"idx": None, "scene_id": None, "title": name, "path": os.path.join(folder, name), "state": None,
                       "requested_sec": None})
     return clips
 

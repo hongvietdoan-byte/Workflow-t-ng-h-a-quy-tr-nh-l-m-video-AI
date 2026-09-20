@@ -43,7 +43,7 @@ Dành cho người **vận hành hằng ngày** (không cần đọc code). Kế
 | **5a Nhạc/âm thanh** | Sửa prompt nhạc → *Tạo bản nháp* → nghe, **Chọn**; tùy chọn SFX/giọng đọc + thời điểm | Đã chọn nhạc (hoặc "không dùng") |
 | **5b Ghép & Render** | Chọn clip, transition, âm lượng → *Render Final* → xem và tải | Tổng thời lượng đúng dự kiến |
 
-Dấu **✓** trên thanh bước = bước đã hoàn tất. Nút **Pause** dừng việc bắt đầu job mới; **Cancel** hủy job đang chạy/xếp hàng của dự án.
+Dưới mỗi ảnh/clip có mũi tên **📖 nội dung kịch bản**: bấm để đọc lại đoạn kịch bản của cảnh đó (kèm bối cảnh, nhân vật, mood, prompt) và so với kết quả. Dấu **✓** trên thanh bước = bước đã hoàn tất. Nút **Pause** dừng việc bắt đầu job mới; **Cancel** hủy job đang chạy/xếp hàng của dự án.
 
 ## 4. Hai chế độ QC
 - `human_qc` (mặc định V0): mọi ảnh chờ bạn duyệt; điểm QC chỉ là gợi ý.

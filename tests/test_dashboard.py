@@ -179,6 +179,45 @@ class DashboardSmokeTests(unittest.TestCase):
         self.assertEqual((saved["currency"], saved["per_image"]), ("token", {"img": 3.0}))
         self.assertIn("kling-v3-omni:pro:5s", saved["per_video_clip"])
 
+    def test_scene_number_and_script_dropdown_under_image_video_and_history(self):
+        import json
+        from core.llm_io import approve_motion_prompt, lock_character_bible, store_motion_prompts
+        p, pid = self.seed()
+        lock_character_bible(p, pid)
+        scene = p.conn.execute("SELECT id FROM scenes").fetchone()["id"]
+        p.conn.execute("UPDATE scenes SET data=json_set(data, '$.text', ?) WHERE id=?",
+                       ("CẢNH 1. ĐÊM - RỪNG ELDER" + chr(10) + "Lyra: Đi tiếp thôi.", scene))
+        p.conn.commit()
+        img = p.create_job(scene)
+        p.start(img)
+        p.succeed(img)
+        p.approve(img)
+        store_motion_prompts(p, pid, {"scenes": [{"idx": 1, "motion_prompt": "push in slowly"}]})
+        approve_motion_prompt(p, scene)
+        vid = p.create_job(scene, "video_gen")
+        p.start(vid)
+        p.succeed(vid)
+        videos = os.path.join(self.tmp, "projects", str(pid), "videos")
+        os.makedirs(videos)
+        with open(os.path.join(videos, "01.mp4"), "wb") as f:
+            f.write(b"x")
+
+        def labels(at):
+            return [e.label for e in at.expander]
+
+        at = AppTest.from_file(APP, default_timeout=30).run()
+        for index in (1, 2, 3, 5, 6):
+            at.radio(key="step").set_value(at.radio(key="step").options[index]).run()
+            self.assertFalse(at.exception, index)
+            self.assertTrue(any("Cảnh 1" in l and "nội dung kịch bản" in l for l in labels(at)), (index, labels(at)))
+        at.radio(key="step").set_value(at.radio(key="step").options[1]).run()
+        self.assertTrue(any("Cảnh 1" in m.value for m in at.markdown))
+        # the detail panel shows the script text itself
+        joined = " ".join(m.value for m in at.markdown)
+        self.assertIn("Lyra: Đi tiếp thôi.", joined)
+        at.radio(key="step").set_value(at.radio(key="step").options[3]).run()
+        self.assertTrue(any("push in slowly" in m.value for m in at.markdown))
+
     def test_video_step_with_mock_provider_runs_to_completion(self):
         from core.llm_io import approve_motion_prompt, lock_character_bible, store_motion_prompts
         p, pid = self.seed()

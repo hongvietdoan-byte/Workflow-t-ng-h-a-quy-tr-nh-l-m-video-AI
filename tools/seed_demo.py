@@ -6,6 +6,7 @@
 No API calls, no credits. Needs Pillow only to draw the placeholder images.
 """
 import argparse
+import json
 import os
 import sys
 
@@ -50,8 +51,12 @@ def main() -> None:
         os.remove(db)
     p = Pipeline(connect(db))
     pid = p.create_project("Trailer Ep.1 (demo)")
-    for i in range(1, len(SCENES) + 1):
-        p.create_scene(pid, i, f"CẢNH {i}")
+    for i, (loc, t, ch, mood, shot) in enumerate(SCENES, 1):
+        sid = p.create_scene(pid, i, f"CẢNH {i}")
+        text = (f"CẢNH {i}. {t.upper()} — {loc.upper()}\n{', '.join(ch)} xuất hiện trong khung cảnh {mood}. "
+                f"Camera {shot}. (Đoạn kịch bản mẫu để thử giao diện.)\n{ch[0]}: Chúng ta phải đi tiếp trước khi trời sáng.")
+        p.conn.execute("UPDATE scenes SET data=? WHERE id=?", (json.dumps({"text": text}, ensure_ascii=False), sid))
+    p.conn.commit()
     store_scene_analysis(p, pid, {
         "characters": [{"name": "Lyra", "description": "Nữ, 25 tuổi, tóc bạc dài, giáp xanh cobalt, sẹo mắt trái"},
                        {"name": "Kael", "description": "Nam, 35, râu ngắn, áo choàng đen, kiếm rune"},

@@ -6,9 +6,11 @@ Claude steps (Director / QC / motion prompt) use copy-paste JSON until the API r
 """
 import json
 import os
+import re
 import shutil
 import sys
 import tempfile
+from html import escape
 
 import streamlit as st
 
@@ -144,6 +146,37 @@ def show_image(path, **kwargs):
         st.image(path, **kwargs)
     except Exception:  # noqa: BLE001 - PIL/streamlit raise many types for unreadable files
         st.caption(f"⚠ Không đọc được ảnh: {os.path.basename(str(path))}")
+
+
+_GENERIC_TITLE = re.compile(r"(?i)^\s*(cảnh|canh|scene|sc|s)\s*\.?\s*\d+\s*$")
+
+
+def scene_title(idx, title) -> str:
+    """'Cảnh 3' or 'Cảnh 3 — Rừng Elder' (a bare 'CẢNH 3' heading is not repeated)."""
+    t = (title or "").strip()
+    return f"Cảnh {idx}" + ("" if not t or _GENERIC_TITLE.match(t) else f" — {t}")
+
+
+def scene_expander(p: Pipeline, scene_id, expanded: bool = False, with_motion: bool = False) -> None:
+    """Drop-down under an image/video: the script text of that scene plus its spec, so the result can be checked
+    against what the script says."""
+    row = p.conn.execute("SELECT idx, title, data FROM scenes WHERE id=?", (scene_id,)).fetchone()
+    if row is None:
+        return
+    d = json.loads(row["data"] or "{}")
+    with st.expander(f"📖 {scene_title(row['idx'], row['title'])} · nội dung kịch bản", expanded=expanded):
+        if d.get("text"):
+            ui.html(f'<div class="scenetext">{escape(d["text"])}</div>')
+        else:
+            st.caption("Chưa có nội dung kịch bản (chạy phân tích ở Bước 1).")
+        lines = [("Bối cảnh", " · ".join(filter(None, [d.get("time"), d.get("location")]))),
+                 ("Nhân vật", ", ".join(d.get("characters") or [])),
+                 ("Mood / ánh sáng / cỡ cảnh", " · ".join(filter(None, [d.get("mood"), d.get("lighting"), d.get("shot")]))),
+                 ("Prompt ảnh", d.get("image_prompt") or "")]
+        if with_motion:
+            m = p.conn.execute("SELECT motion_prompt FROM motion_prompts WHERE scene_id=?", (scene_id,)).fetchone()
+            lines.append(("Motion prompt", m["motion_prompt"] if m else ""))
+        ui.html("".join(f'<div class="muted"><b>{escape(k)}:</b> {escape(v)}</div>' for k, v in lines if v))
 
 
 def qc_scores(p: Pipeline, jid: int):
@@ -453,7 +486,7 @@ def image_card(p: Pipeline, pid: int, j, proj):
             ui.html('<div style="height:120px;border-radius:8px;background:var(--bg);display:grid;place-items:center;'
                     f'color:var(--muted)">{"⏳ đang gen…" if state == "running" else "chưa có ảnh"}</div>')
         flag = " " + ui.badge("⚠ escalated", "b-warn") if j["escalated"] else ""
-        ui.html(f'<div class="cardhead"><b>S{j["idx"]:02d}</b><span class="grow"></span>{ui.state_badge(state)}{flag}</div>')
+        ui.html(f'<div class="cardhead"><b>Cảnh {j["idx"]}</b><span class="grow"></span>{ui.state_badge(state)}{flag}</div>')
         if scores:
             mean = sum(s["score"] for s in scores) / len(scores)
             ui.html(ui.qc_bar(mean, proj["qc_auto_pass_threshold"]))
@@ -488,18 +521,20 @@ def image_card(p: Pipeline, pid: int, j, proj):
             if st.button("🔍 Chi tiết", key=f"sel_btn_{jid}"):
                 st.session_state[f"sel_{pid}"] = jid
                 st.rerun()
+        scene_expander(p, j["scene_id"])
 
 
 def image_detail(p: Pipeline, pid: int, j, proj):
     jid, state = j["id"], j["state"]
     with st.container(border=True):
-        ui.html(ui.card_title(f"Chi tiết ảnh S{j['idx']:02d}", f"job #{jid} · retry {j['retry_count']}"))
+        ui.html(ui.card_title(f"Chi tiết ảnh — Cảnh {j['idx']}", f"job #{jid} · retry {j['retry_count']}"))
         ui.html(ui.state_badge(state))
         if j["retry_reason"]:
             st.caption(f"Lý do retry: {j['retry_reason']}")
         img = job_image(pid, jid)
         if img:
             show_image(img, width="stretch")
+        scene_expander(p, j["scene_id"], expanded=True)
         scores = qc_scores(p, jid)
         if scores:
             ui.html('<div class="muted" style="font-weight:600;margin-top:8px">QC checklist (Claude Vision)</div>')
@@ -590,7 +625,7 @@ def step3(p: Pipeline, pid: int):
                                      " ORDER BY id DESC LIMIT 1", (r["sid"],)).fetchone()
             c0, c1, c2, c3 = st.columns([1.2, 5, 1.1, 1.6], vertical_alignment="center")
             with c0:
-                ui.html(f'<b>S{r["idx"]:02d}</b>')
+                ui.html(f'<b>Cảnh {r["idx"]}</b>')
                 path = job_image(pid, img_job["id"]) if img_job else None
                 if path:
                     show_image(path, width=96)
@@ -608,6 +643,7 @@ def step3(p: Pipeline, pid: int):
             if c3.button("✔ Duyệt", key=f"mpa_{r['sid']}", disabled=r["state"] == "approved", type="primary"):
                 act(lambda: llm_io.approve_motion_prompt(p, r["sid"]))
                 st.rerun()
+            scene_expander(p, r["sid"])
             st.divider()
 
 
@@ -670,7 +706,7 @@ def step4(p: Pipeline, pid: int):
         ui.html(ui.card_title("Danh sách job", f"{len(jobs)} job"))
         for j in jobs:
             a, b, c, d = st.columns([1, 2, 1, 2], vertical_alignment="center")
-            a.markdown(f"**S{j['idx']:02d}**")
+            a.markdown(f"**Cảnh {j['idx']}**")
             b.markdown(ui.state_badge(j["state"]) + (" " + ui.badge("⚠ escalated", "b-warn") if j["escalated"] else ""),
                        unsafe_allow_html=True)
             c.caption(f"retry {j['retry_count']}")
@@ -684,6 +720,7 @@ def step4(p: Pipeline, pid: int):
                 if j["state"] == "succeeded" and j["result_path"] and os.path.exists(j["result_path"]) \
                         and st.checkbox("▶ Xem", key=f"vsee_{j['id']}"):
                     st.video(j["result_path"])
+            scene_expander(p, j["scene_id"], with_motion=True)
 
 
 # ---- step 5a -------------------------------------------------------------------------
@@ -867,6 +904,8 @@ def step5b(p: Pipeline, pid: int):
                 if use:
                     chosen.append(c["path"])
                     durations.append(sec)
+                if c.get("scene_id"):
+                    scene_expander(p, c["scene_id"], with_motion=True)
             with st.expander("Nhập clip thủ công (tên file theo thứ tự, vd 01.mp4)"):
                 up = st.file_uploader("Clip .mp4", type=["mp4"], accept_multiple_files=True, key=f"vid_{pid}")
                 if up and st.button("Lưu clip"):
@@ -916,6 +955,7 @@ def history(p: Pipeline, pid: int):
     sid = st.selectbox("Cảnh", [s["id"] for s in scenes],
                        format_func=lambda i: next(f"{s['idx']} · {s['title']}" for s in scenes if s["id"] == i))
     jobs = p.conn.execute("SELECT * FROM jobs WHERE scene_id=? ORDER BY id", (sid,)).fetchall()
+    scene_expander(p, sid, expanded=True, with_motion=True)
     with st.container(border=True):
         ui.html(ui.card_title("Lịch sử phiên bản", "so sánh các lần gen"))
         for start in range(0, len(jobs), 3):
