@@ -942,6 +942,10 @@ def main():
     pid = global_bar(p)
     if pid is None:
         return
+    deep = st.query_params.get("step")  # ?step=2 opens a step directly (1, 2, 3, 4, 5a, 5b, history)
+    keys = ["1", "2", "3", "4", "5a", "5b", "history"]
+    if deep in keys and "step" not in st.session_state:
+        st.session_state["step"] = STEPS[keys.index(deep)]
     step = st.radio("Bước", STEPS, horizontal=True, key="step", label_visibility="collapsed",
                     format_func=step_label(step_done(p, pid)))
     {STEPS[0]: step1, STEPS[1]: step2, STEPS[2]: step3, STEPS[3]: step4, STEPS[4]: step5a,
