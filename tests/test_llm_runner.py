@@ -206,5 +206,52 @@ class StepTests(unittest.TestCase):
         self.assertEqual(self.p.conn.execute("SELECT state FROM motion_prompts").fetchone()["state"], "approved")
 
 
+class ClaudeCliTests(unittest.TestCase):
+    """The no-API-key route: Claude Code on this PC (`claude -p`). The process is faked here; the real login was not exercised."""
+
+    class Done:
+        def __init__(self, out, code=0, err=""):
+            self.stdout, self.returncode, self.stderr = out, code, err
+
+    def client(self, done, calls):
+        def run(args, **kw):
+            calls.append((args, kw))
+            return done
+        return lr.ClaudeCliClient(run=run)
+
+    def test_a_reply_is_read_from_the_json_output_and_the_prompt_goes_through_stdin(self):
+        calls = []
+        done = self.Done('{"result": "{\\"ok\\": true}", "is_error": false, "usage": {"input_tokens": 7, "output_tokens": 3}}')
+        reply = self.client(done, calls).complete("xin chào")
+        self.assertEqual((reply.text, reply.input_tokens, reply.output_tokens), ('{"ok": true}', 7, 3))
+        args, kw = calls[0]
+        self.assertEqual(kw["input"], "xin chào")
+        self.assertNotIn("xin chào", args)
+
+    def test_images_are_passed_as_readable_file_paths(self):
+        import tempfile
+        calls = []
+        path = os.path.join(tempfile.mkdtemp(), "a.png")
+        with open(path, "wb") as f:
+            f.write(b"x")
+        self.client(self.Done('{"result": "ok"}'), calls).complete("chấm ảnh", [("Ảnh 1", path)])
+        args, kw = calls[0]
+        self.assertIn("Read", args)
+        self.assertIn(os.path.dirname(path), args)
+        self.assertIn(path, kw["input"])
+
+    def test_not_logged_in_is_reported_with_what_to_do(self):
+        done = self.Done('{"is_error": true, "result": "Failed to authenticate: OAuth session expired"}', 1)
+        with self.assertRaises(lr.LlmError) as ctx:
+            self.client(done, []).complete("x")
+        self.assertEqual(ctx.exception.code, "auth")
+        self.assertIn("đăng nhập", str(ctx.exception))
+
+    def test_it_is_chosen_by_the_environment_setting(self):
+        import unittest.mock as mock
+        with mock.patch.dict(os.environ, {"LLM_PROVIDER": "claude_cli"}), mock.patch("shutil.which", return_value="claude"):
+            self.assertEqual(lr.client_from_env().name, "claude-cli")
+
+
 if __name__ == "__main__":
     unittest.main()

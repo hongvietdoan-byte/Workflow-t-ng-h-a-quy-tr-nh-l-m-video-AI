@@ -21,10 +21,10 @@ class Pipeline:
 
     # ---- projects / scenes / jobs -------------------------------------
     def create_project(self, name: str, operating_mode: str = "human_qc",
-                       threshold: float = 0.85, max_retry: int = 3) -> int:
+                       threshold: float = 0.85, max_retry: int = 3, created_by: Optional[str] = None) -> int:
         cur = self.conn.execute(
-            "INSERT INTO projects (name, operating_mode, qc_auto_pass_threshold, max_retry_count, created_at)"
-            " VALUES (?,?,?,?,?)", (name, operating_mode, threshold, max_retry, _now()))
+            "INSERT INTO projects (name, operating_mode, qc_auto_pass_threshold, max_retry_count, created_at, created_by)"
+            " VALUES (?,?,?,?,?,?)", (name, operating_mode, threshold, max_retry, _now(), created_by))
         self.conn.commit()
         return cur.lastrowid
 

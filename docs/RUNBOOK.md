@@ -21,7 +21,8 @@ Dành cho người **vận hành hằng ngày** (không cần đọc code). Kế
 | `IMAGE_PROVIDER` | `deepix` \| `mock` | chưa đặt = nhập ảnh tay |
 | `VIDEO_PROVIDER` | `clipai` \| `mock` | chưa đặt = chỉ theo dõi job |
 | `AUDIO_PROVIDER` | `clipai` \| `mock` | theo `VIDEO_PROVIDER=clipai` |
-| `LLM_PROVIDER` | `anthropic` \| `mock` | `anthropic` nếu có `ANTHROPIC_API_KEY` |
+| `LLM_PROVIDER` | `anthropic` \| `claude_cli` \| `mock` | `anthropic` nếu có `ANTHROPIC_API_KEY` |
+| `CLAUDE_CLI_MODEL` | model cho chế độ `claude_cli` (tùy chọn) | mặc định của Claude Code |
 | `CLIPAI_TOKEN`, `DEEPIX_TOKEN`, `ANTHROPIC_API_KEY` | khóa API (bí mật) | — |
 | `ANTHROPIC_MODEL` | model Claude (cần đọc ảnh) | `claude-sonnet-5` |
 | `CLIPAI_RESOLUTION` | Seedance `480p`/`720p`/`1080p` | `720p` |

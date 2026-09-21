@@ -351,10 +351,80 @@ class MockLlm:
 
 
 def client_from_env(transport: Transport = urllib_transport):
-    """LLM_PROVIDER = anthropic | mock. Unset: anthropic when ANTHROPIC_API_KEY exists, else None."""
+    """LLM_PROVIDER = anthropic | claude_cli (Claude Code on this PC, no key) | mock. Unset: anthropic when ANTHROPIC_API_KEY exists, else None."""
     kind = os.environ.get("LLM_PROVIDER", "").strip().lower()
     if kind == "mock":
         return MockLlm()
+    if kind in ("claude_cli", "claude-cli", "cli"):
+        return ClaudeCliClient.from_env()
     if kind == "anthropic" or (not kind and os.environ.get("ANTHROPIC_API_KEY", "").strip()):
         return AnthropicClient.from_env(transport)
     return None
+
+
+class ClaudeCliClient:
+    """Uses the Claude Code installed on this PC (`claude -p`, logged in with the person's own account) instead of an API key.
+
+    For trying the pipeline before an API key exists: it spends the plan's usage, runs one call at a time and is slower than the API.
+    Images are handed over as files that Claude reads. Failures (not logged in, not installed, time-out) are reported, not hidden.
+    """
+    name = "claude-cli"
+
+    def __init__(self, model: str = "", timeout: int = 600, run=None):
+        import subprocess
+        self.model = model
+        self.timeout = timeout
+        self._run = run or subprocess.run
+
+    @classmethod
+    def from_env(cls) -> "ClaudeCliClient":
+        import shutil
+        if not shutil.which("claude"):
+            raise LlmError("Không tìm thấy lệnh `claude` (Claude Code) trên máy này.", code="config")
+        return cls(os.environ.get("CLAUDE_CLI_MODEL", "").strip())
+
+    def complete(self, prompt: str, images: Sequence[Tuple[str, str]] = ()) -> LlmReply:
+        import shutil
+        import subprocess
+        import tempfile
+        work = tempfile.mkdtemp(prefix="claude_cli_")
+        try:
+            args = [shutil.which("claude") or "claude", "-p", "--output-format", "json", "--no-session-persistence"]
+            if self.model:
+                args += ["--model", self.model]
+            text = prompt
+            if images:
+                lines, folders = [], []
+                for label, path in list(images)[:MAX_IMAGES]:
+                    if not os.path.exists(path):
+                        raise LlmError(f"cannot read image {label}", code="bad_image")
+                    lines.append(f"- {label}: {os.path.abspath(path)}")
+                    folder = os.path.dirname(os.path.abspath(path))
+                    if folder not in folders:
+                        folders.append(folder)
+                text = ("Các ảnh đính kèm là file trên máy, hãy mở và xem từng ảnh (công cụ Read) trước khi trả lời:\n"
+                        + "\n".join(lines) + "\n\n" + prompt)
+                args += ["--allowedTools", "Read"]
+                for folder in folders:
+                    args += ["--add-dir", folder]
+            try:
+                proc = self._run(args, input=text, capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=self.timeout, cwd=work)
+            except subprocess.TimeoutExpired:
+                raise LlmError("Claude Code trả lời quá lâu (quá thời gian chờ).", code="timeout", transient=True)
+            except OSError as e:
+                raise LlmError(f"Không chạy được Claude Code: {e}", code="config")
+            try:
+                out = json.loads(proc.stdout or "{}")
+            except ValueError:
+                out = {}
+            if proc.returncode != 0 or out.get("is_error") or "result" not in out:
+                detail = str(out.get("result") or proc.stderr or proc.stdout or "")[:300].strip()
+                hint = " Mở Claude Code (lệnh `claude`) một lần để đăng nhập lại rồi thử lại." if "authenticate" in detail.lower() or "oauth" in detail.lower() else ""
+                raise LlmError(f"Claude Code báo lỗi: {detail}.{hint}", code="auth" if hint else "cli_error")
+            usage = out.get("usage") or {}
+            return LlmReply(str(out["result"]), int(usage.get("input_tokens", 0)), int(usage.get("output_tokens", 0)))
+        finally:
+            shutil.rmtree(work, ignore_errors=True)
+
+    def complete_with_search(self, prompt: str, max_uses: int = 3) -> LlmReply:
+        raise LlmError("Nghiên cứu hàng tháng cần Claude API (tìm kiếm web); chế độ Claude Code trên máy chưa hỗ trợ.", code="config")

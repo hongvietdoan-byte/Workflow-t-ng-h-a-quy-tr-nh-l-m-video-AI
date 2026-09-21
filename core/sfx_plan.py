@@ -39,7 +39,7 @@ def timeline(p: Pipeline, data_dir: str, pid: int, transition: str = "cut", fade
 
 def catalog(conn, limit: int = MAX_CATALOG) -> List[Dict]:
     """A compact, varied selection of the sound effects (an even share of every folder) to show the model."""
-    rows = [dict(r) for r in conn.execute("SELECT id, name, category FROM sounds WHERE kind='sfx' ORDER BY category, name")]
+    rows = [dict(r) for r in conn.execute("SELECT id, name, category, tags, duration FROM sounds WHERE kind='sfx' ORDER BY category, name")]
     if len(rows) <= limit:
         return rows
     groups: Dict[str, List[Dict]] = {}
@@ -56,7 +56,8 @@ def catalog(conn, limit: int = MAX_CATALOG) -> List[Dict]:
 def build_prompt(scenes: List[Dict], sounds: List[Dict], total: float, wish: str = "") -> str:
     lines = [{"scene": s["idx"], "start": s["start"], "length": s["length"], "mood": s["mood"], "shot": s["shot"], "script": s["text"]}
              for s in scenes]
-    library = [{"id": s["id"], "name": s["name"], "folder": s["category"]} for s in sounds]
+    library = [{"id": s["id"], "name": s["name"], "folder": s["category"], **({"tags": s["tags"]} if s.get("tags") else {}),
+                **({"sec": round(s["duration"], 1)} if s.get("duration") else {})} for s in sounds]
     return (f"{MARKER} cho video game ngắn. Đọc các cảnh và chọn hiệu ứng âm thanh từ kho có sẵn để thêm vào video.\n\n"
             "Nguyên tắc: hiệu ứng chỉ dùng cho **điểm chuyển cảnh và điểm nhấn** (va chạm, ra đòn, xuất hiện, chuyển cảnh nhanh), "
             "KHÔNG phủ kín video và không chọi với nhạc nền. Ít mà đúng chỗ: tối đa 1 hiệu ứng mỗi ~4 giây, tổng tối đa "

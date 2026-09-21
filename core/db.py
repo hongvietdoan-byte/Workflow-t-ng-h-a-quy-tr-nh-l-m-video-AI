@@ -179,7 +179,8 @@ CREATE TABLE IF NOT EXISTS sounds (
     ext TEXT,
     size INTEGER,
     mtime INTEGER,
-    duration REAL
+    duration REAL,
+    tags TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_sounds_kind ON sounds(kind, category);
 CREATE TABLE IF NOT EXISTS asset_sources (
@@ -323,4 +324,8 @@ def connect(path: str = ":memory:") -> sqlite3.Connection:
         conn.execute("ALTER TABLE projects ADD COLUMN world_bible TEXT")
     if "autopilot_user" not in cols:
         conn.execute("ALTER TABLE projects ADD COLUMN autopilot_user TEXT")
+    if "created_by" not in cols:
+        conn.execute("ALTER TABLE projects ADD COLUMN created_by TEXT")
+    if "tags" not in {r["name"] for r in conn.execute("PRAGMA table_info(sounds)")}:
+        conn.execute("ALTER TABLE sounds ADD COLUMN tags TEXT")
     return conn

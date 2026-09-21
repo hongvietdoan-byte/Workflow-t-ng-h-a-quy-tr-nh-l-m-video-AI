@@ -237,6 +237,79 @@ def ensure_duration(conn, sound_id: int) -> Optional[float]:
     return seconds
 
 
+# ---- listening (measured, not guessed from the name) ------------------------------------------------------------------
+_MEAN = re.compile(r"mean_volume:\s*(-?[\d.]+) dB")
+_MAX = re.compile(r"max_volume:\s*(-?[\d.]+) dB")
+_LENGTH = re.compile(r"Duration:\s*(\d+):(\d+):([\d.]+)")
+
+
+def measure(path: str) -> Optional[Dict]:
+    """Length and loudness of a file from one ffmpeg pass (`volumedetect`); None when it cannot be read."""
+    import subprocess
+    try:
+        proc = subprocess.run([ffmpeg_studio.find_ffmpeg(), "-hide_banner", "-i", path, "-vn", "-af", "volumedetect", "-f", "null", "-"],
+                              capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=90)
+    except (ffmpeg_studio.FFmpegNotFound, OSError, subprocess.TimeoutExpired):
+        return None
+    text = proc.stderr or ""
+    d, mean, peak = _LENGTH.search(text), _MEAN.search(text), _MAX.search(text)
+    if not (d and mean and peak):
+        return None
+    return {"seconds": int(d.group(1)) * 3600 + int(d.group(2)) * 60 + float(d.group(3)), "mean": float(mean.group(1)), "peak": float(peak.group(1))}
+
+
+def tags_from(kind: str, seconds: float, mean: float, peak: float) -> str:
+    """Words describing what the sound is good for, from its length and loudness (comma separated)."""
+    tags = []
+    if kind == "sfx":
+        if seconds < 0.7:
+            tags.append("điểm nhấn ngắn (click, hit)")
+        elif seconds < 2.5:
+            tags.append("hiệu ứng vừa (whoosh, va chạm)")
+        elif seconds < 8:
+            tags.append("hiệu ứng dài (nổ, dâng lên)")
+        else:
+            tags.append("âm nền / môi trường dài")
+        if peak > -3 and seconds < 4:
+            tags.append("mạnh")
+        elif peak < -18:
+            tags.append("nhẹ")
+    else:
+        if mean > -14:
+            tags.append("năng lượng cao")
+        elif mean < -22:
+            tags.append("nhẹ nhàng")
+    return ", ".join(tags)
+
+
+def analyze(conn, limit: Optional[int] = None, workers: int = 4) -> Dict:
+    """Listen (measure) to tracks that were not analysed yet, store length + tags and, for music without a mood, an energy mood.
+    Safe to repeat: only unanalysed files are touched. Returns {'done', 'failed', 'left'}."""
+    from concurrent.futures import ThreadPoolExecutor
+    rows = conn.execute("SELECT id, path, kind, mood, category, name FROM sounds WHERE tags IS NULL ORDER BY id" + (f" LIMIT {int(limit)}" if limit else "")).fetchall()
+    done = failed = 0
+    with ThreadPoolExecutor(max_workers=max(workers, 1)) as pool:
+        results = list(pool.map(lambda r: measure(r["path"]) if os.path.exists(r["path"]) else None, rows))
+    for r, m in zip(rows, results):
+        if m is None:
+            failed += 1
+            conn.execute("UPDATE sounds SET tags='' WHERE id=?", (r["id"],))          # unreadable: do not retry every time
+            continue
+        kind = r["kind"]
+        if m["seconds"] > 75 and kind == "sfx":
+            kind = "music"                                                           # a long file in an effects folder is a track
+        tags = tags_from(kind, m["seconds"], m["mean"], m["peak"])
+        mood = r["mood"]
+        if kind == "music" and not mood:
+            mood = "sôi động" if m["mean"] > -14 else ("thư giãn" if m["mean"] < -22 else "")
+        conn.execute("UPDATE sounds SET duration=?, tags=?, kind=?, mood=?, search=? WHERE id=?",
+                     (m["seconds"], tags, kind, mood, fold(f"{r['name']} {r['category']} {mood or ''} {tags}"), r["id"]))
+        done += 1
+    conn.commit()
+    left = conn.execute("SELECT COUNT(*) FROM sounds WHERE tags IS NULL").fetchone()[0]
+    return {"done": done, "failed": failed, "left": left}
+
+
 # ---- choosing for a project -------------------------------------------------------------------------------------------
 def suggest_music(conn, scene_mood_texts: List[str], limit: int = 5, seed: int = 0) -> List[Dict]:
     """Background tracks that fit the scene moods: tracks of a wanted mood first (the first scene mood weighs most)."""

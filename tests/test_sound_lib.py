@@ -7,7 +7,7 @@ import wave
 
 from streamlit.testing.v1 import AppTest
 
-from core import audio_lib, autopilot, music, sound_lib
+from core import audio_lib, autopilot, llm_runner, music, sound_lib
 from core.db import connect
 from core.sound_lib import SoundError
 from tests.test_autopilot import Setup
@@ -170,6 +170,39 @@ class UsingATrackTests(Base):
             sound_lib.copy_into({"path": os.path.join(self.dir, "gone.wav"), "ext": ".wav"}, directory, "x")
 
 
+class AutomaticSfxTests(Setup):
+    def test_the_ai_judges_and_adds_sound_effects_in_the_automatic_run_and_they_reach_the_render(self):
+        ctx = self.build()
+        lib = os.path.join(tempfile.mkdtemp(), "Sound FX Pack")
+        wav(os.path.join(lib, "Whoosh.wav"), 1.0)
+        sound_lib.scan(self.p.conn, sound_lib.add_source(self.p.conn, os.path.dirname(lib)))
+        autopilot.start(self.p, self.pid)
+        self.assertEqual(autopilot.run_until_done(self.p, self.pid, ctx), autopilot.DONE)
+        log = [e["msg"] for e in autopilot.status(self.p, self.pid)["log"]]
+        self.assertTrue(any(m.startswith("Hiệu ứng âm thanh: thêm") for m in log), log)
+        self.assertTrue(audio_lib.mix_list(audio_lib.assets_dir(self.data, self.pid)))
+
+    def test_an_ai_that_finds_no_use_for_effects_adds_none_and_a_failure_does_not_stop_the_video(self):
+        ctx = self.build()
+        lib = os.path.join(tempfile.mkdtemp(), "Sound FX Pack")
+        wav(os.path.join(lib, "Whoosh.wav"), 1.0)
+        sound_lib.scan(self.p.conn, sound_lib.add_source(self.p.conn, os.path.dirname(lib)))
+
+        class NoEffects:
+            def __init__(self, inner):
+                self.inner = inner
+
+            def complete(self, prompt, images=()):
+                if "Chuyên viên sound design" in prompt:
+                    return llm_runner.LlmReply('{"summary": "Cảnh đủ dồn dập, không cần hiệu ứng", "cues": []}')
+                return self.inner.complete(prompt, images)
+        ctx.llm = NoEffects(ctx.llm)
+        autopilot.start(self.p, self.pid)
+        self.assertEqual(autopilot.run_until_done(self.p, self.pid, ctx), autopilot.DONE)
+        self.assertEqual(audio_lib.mix_list(audio_lib.assets_dir(self.data, self.pid)), [])
+        self.assertTrue(any(e["msg"].startswith("Hiệu ứng âm thanh: không thêm") for e in autopilot.status(self.p, self.pid)["log"]))
+
+
 class AutomaticLibraryMusicTests(Setup):
     def test_without_the_library_mode_ai_music_is_the_default_and_the_library_only_backs_it_up(self):
         ctx = self.build()
@@ -320,6 +353,45 @@ class OldDatabaseTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class ListeningTests(Base):
+    def test_tags_come_from_length_and_loudness(self):
+        self.assertIn("điểm nhấn ngắn", sound_lib.tags_from("sfx", 0.3, -20, -1))
+        self.assertIn("mạnh", sound_lib.tags_from("sfx", 0.3, -20, -1))
+        self.assertIn("hiệu ứng dài", sound_lib.tags_from("sfx", 5, -20, -10))
+        self.assertIn("âm nền", sound_lib.tags_from("sfx", 30, -20, -10))
+        self.assertIn("năng lượng cao", sound_lib.tags_from("music", 90, -10, -1))
+        self.assertIn("nhẹ nhàng", sound_lib.tags_from("music", 90, -30, -12))
+
+    def test_analyze_measures_each_file_once_and_fills_length_and_tags(self):
+        wav(os.path.join(self.src, "Loose", "Blip.wav"), 0.3)
+        wav(os.path.join(self.src, "Loose", "Rumble.wav"), 4.0)
+        sound_lib.scan(self.conn, sound_lib.add_source(self.conn, self.src))
+        self.assertEqual(self.conn.execute("SELECT COUNT(*) FROM sounds WHERE tags IS NULL").fetchone()[0], 2)
+        report = sound_lib.analyze(self.conn)
+        self.assertEqual((report["done"], report["failed"], report["left"]), (2, 0, 0))
+        rows = {r["name"]: r for r in self.conn.execute("SELECT * FROM sounds")}
+        self.assertAlmostEqual(rows["Blip"]["duration"], 0.3, delta=0.1)
+        self.assertIn("điểm nhấn ngắn", rows["Blip"]["tags"])
+        self.assertIn("hiệu ứng dài", rows["Rumble"]["tags"])
+        self.assertIn("hiệu ứng dài", sound_lib.search(self.conn, "hieu ung dai")["rows"][0]["tags"])     # searchable by what it was heard to be
+        self.assertEqual(sound_lib.analyze(self.conn), {"done": 0, "failed": 0, "left": 0})                   # nothing to redo
+
+    def test_an_unreadable_file_is_marked_so_it_is_not_retried(self):
+        fake(os.path.join(self.src, "Loose", "broken.mp3"), 100)
+        sound_lib.scan(self.conn, sound_lib.add_source(self.conn, self.src))
+        self.assertEqual(sound_lib.analyze(self.conn)["failed"], 1)
+        self.assertEqual(sound_lib.analyze(self.conn)["failed"], 0)
+
+    def test_the_ai_sees_the_tags_and_length_of_each_effect(self):
+        from core import sfx_plan
+        wav(os.path.join(self.src, "Loose", "Blip.wav"), 0.3)
+        sound_lib.scan(self.conn, sound_lib.add_source(self.conn, self.src))
+        sound_lib.analyze(self.conn)
+        prompt = sfx_plan.build_prompt([{"idx": 1, "start": 0, "length": 5, "mood": "", "shot": "", "text": ""}], sfx_plan.catalog(self.conn), 5)
+        self.assertIn("điểm nhấn ngắn", prompt)
+        self.assertIn('"sec"', prompt)
 
 
 class SfxPlanTests(Base):

@@ -20,7 +20,7 @@ import time
 from dataclasses import dataclass
 from typing import Callable, Dict, List, Optional
 
-from . import sound_lib, subtitles, dialogue, diag, ffmpeg_studio, final_cut, llm_io, llm_runner, music, perf
+from . import audio_lib, sfx_plan, sound_lib, subtitles, dialogue, diag, ffmpeg_studio, final_cut, llm_io, llm_runner, music, perf
 from .pipeline import Pipeline
 
 RUNNING, WAITING, STOPPED, ATTENTION, DONE, ERROR = "running", "waiting", "stopped", "needs_attention", "done", "error"
@@ -52,7 +52,8 @@ def default_render(p: Pipeline, project_id: int, data_dir: str, music_path: Opti
     os.makedirs(out_dir, exist_ok=True)
     out = os.path.join(out_dir, "FINAL_VIDEO.mp4")
     keep = bool(p.project(project_id)["video_audio"])
-    return ffmpeg_studio.render_final([c["path"] for c in clips], out, durations, "cut", 1.0, music_path, 0.6,
+    extras = audio_lib.mix_list(audio_lib.assets_dir(data_dir, project_id))            # sound effects / voice-over chosen for this project
+    return ffmpeg_studio.render_final([c["path"] for c in clips], out, durations, "cut", 1.0, music_path, 0.6, extras,
                                       keep_audio=keep)
 
 
@@ -397,6 +398,27 @@ def _music_phase(p: Pipeline, pid: int, ctx: Context) -> Optional[str]:
     return None
 
 
+def _sfx_phase(p: Pipeline, pid: int, ctx: Context) -> Optional[str]:
+    """Let the AI judge whether sound effects are worth adding (scene changes, accents) and add the ones it picks. Once per project;
+    it may decide to add none. Failures never stop the video: it just goes without."""
+    marker = os.path.join(audio_lib.assets_dir(ctx.data_dir, pid), "ai_sfx_done")
+    if os.path.exists(marker) or ctx.llm is None or not sound_lib.counts(p.conn).get("sfx"):
+        return None
+    if not [c for c in final_cut.collect_clips(p, ctx.data_dir, pid) if c["path"]]:
+        return None
+    try:
+        plan = sfx_plan.propose(ctx.llm, p, ctx.data_dir, pid)
+        chosen = [{"id": c["id"], "at": c["at"], "volume": c["volume"]} for c in plan["cues"]]
+        added = sfx_plan.apply(p, ctx.data_dir, pid, chosen) if chosen else 0
+        _log(p, pid, (f"Hiệu ứng âm thanh: thêm {added} — " if added else "Hiệu ứng âm thanh: không thêm — ") + (plan["summary"] or "AI thấy không cần")[:160])
+    except (sfx_plan.SfxPlanError, llm_runner.LlmError, OSError) as e:
+        _log(p, pid, f"Hiệu ứng âm thanh bỏ qua: {str(e)[:120]}")
+        _d(p, pid, "music", "warn", f"AI chọn hiệu ứng âm thanh thất bại, video cuối không có hiệu ứng: {e}", "sfx_plan")
+    with open(marker, "w", encoding="utf-8") as f:
+        f.write("done")
+    return None
+
+
 def tick(p: Pipeline, project_id: int, ctx: Context) -> str:
     """One step of the run. Returns the resulting state."""
     st = status(p, project_id)["state"]
@@ -408,7 +430,7 @@ def tick(p: Pipeline, project_id: int, ctx: Context) -> str:
         return RUNNING
     try:
         phases = [("director", _director_phase), ("images", _images_phase), ("motion", _motion_phase), ("videos", _videos_phase),
-                  ("music", _music_phase)]
+                  ("music", _music_phase), ("sfx", _sfx_phase)]
         for name, fn in phases:
             progress = fn(p, project_id, ctx)
             if progress is not None:

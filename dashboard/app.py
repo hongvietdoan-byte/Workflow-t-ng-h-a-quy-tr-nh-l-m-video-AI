@@ -594,6 +594,15 @@ def user_bar() -> str:
     return typed
 
 
+def can_delete_project(proj) -> bool:
+    """Only the person who created a project may delete it (an old project with no recorded creator: the Owner)."""
+    if not auth_on():
+        return True
+    creator = proj["created_by"] if "created_by" in proj.keys() else None
+    who = me()
+    return who["email"] == creator if creator else who["role"] == "owner"
+
+
 def global_bar(p: Pipeline):
     projects = p.conn.execute("SELECT id, name FROM projects ORDER BY id").fetchall()
     with st.expander("⚙ Cài đặt & dự án", expanded=not projects):
@@ -603,7 +612,7 @@ def global_bar(p: Pipeline):
         with tabs["Dự án mới"]:
             name = st.text_input("Tên dự án", key="new_name")
             if st.button("Tạo dự án") and name.strip():
-                p.create_project(name.strip())
+                p.create_project(name.strip(), created_by=me()["email"])
                 st.rerun()
         if "Kho tài nguyên" in tabs:
             with tabs["Kho tài nguyên"]:
@@ -643,8 +652,12 @@ def global_bar(p: Pipeline):
             st.toast(f"Đã hủy {p.cancel_all_active(pid)} job")
             st.rerun()
     with st.expander("🗑 Xóa dự án này"):
-        st.caption("Xóa dự án cùng cảnh, ảnh, clip, nhạc và video đã tạo của nó (tài nguyên trong kho chung không bị xóa; lịch sử chi tiêu được giữ).")
-        if confirm_all(f"proj_del_{pid}", [pid], "🗑 Xóa dự án", f"Xóa hẳn dự án “{proj['name']}”? Không thể khôi phục.", st, "Có, xóa dự án"):
+        st.caption("Xóa dự án cùng cảnh, ảnh, clip, nhạc và video đã tạo của nó (tài nguyên trong kho chung không bị xóa; lịch sử chi tiêu được giữ). "
+                   "Chỉ người tạo dự án mới xóa được (dự án cũ chưa ghi người tạo thì Owner xóa).")
+        if not can_delete_project(proj):
+            who = proj["created_by"]
+            st.caption("Dự án này do " + (escape(who) if who else "người dùng cũ") + " tạo nên bạn không xóa được.")
+        elif confirm_all(f"proj_del_{pid}", [pid], "🗑 Xóa dự án", f"Xóa hẳn dự án “{proj['name']}”? Không thể khôi phục.", st, "Có, xóa dự án"):
             autopilot.stop(p, pid, "Dự án bị xóa")
             p.cancel_all_active(pid)
             p.delete_project(pid, DATA)
@@ -2461,7 +2474,7 @@ def main():
         run_startup_sync(assets.auto_sync, "đồng bộ tài nguyên", "assets_sync")
     if "sounds_scanned" not in st.session_state:        # sound folders marked "auto": list new files, once per browser session
         st.session_state["sounds_scanned"] = True
-        run_startup_sync(sound_lib.auto_scan, "quét kho âm thanh", "sounds_scan")
+        run_startup_sync(lambda conn: (sound_lib.auto_scan(conn), sound_lib.analyze(conn, limit=150)), "quét và nghe kho âm thanh", "sounds_scan")
     if "research_checked" not in st.session_state:      # monthly research, at most once per browser session
         st.session_state["research_checked"] = True
         research.maybe_run_in_background(DB)

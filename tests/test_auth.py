@@ -204,6 +204,20 @@ class DashboardGateTests(unittest.TestCase):
         self.assertFalse(any(l.startswith("Kho kiến thức") for l in labels))
         self.assertIn("Dự án mới", labels)
 
+    def test_only_the_creator_can_delete_a_project(self):
+        pid = self.conn.execute("SELECT id FROM projects").fetchone()[0]
+        self.conn.execute("UPDATE projects SET created_by='maker@garena.vn' WHERE id=?", (pid,))
+        self.conn.commit()
+        for email, can in (("other@garena.vn", False), (OWNER, False), ("maker@garena.vn", True)):
+            at = self.sign_in(email)
+            self.assertFalse(at.exception)
+            self.assertEqual(any(b.key == f"proj_del_{pid}" for b in at.button), can, email)
+
+    def test_an_old_project_without_a_creator_can_be_deleted_by_the_owner_only(self):
+        pid = self.conn.execute("SELECT id FROM projects").fetchone()[0]
+        self.assertTrue(any(b.key == f"proj_del_{pid}" for b in self.sign_in(OWNER).button))
+        self.assertFalse(any(b.key == f"proj_del_{pid}" for b in self.sign_in("someone@garena.vn").button))
+
     def test_a_granted_permission_shows_up_for_that_person(self):
         auth.add_user(self.conn, owner(), "boss2@garena.vn", ["monitor", "settings"])
         at = self.sign_in("boss2@garena.vn")
