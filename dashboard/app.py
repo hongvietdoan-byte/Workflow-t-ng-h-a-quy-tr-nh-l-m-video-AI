@@ -12,6 +12,7 @@ import sqlite3
 import subprocess
 import sys
 import tempfile
+import threading
 import time
 import zipfile
 from html import escape
@@ -2019,6 +2020,7 @@ def step5b(p: Pipeline, pid: int):
                     st.download_button("⬇ Tải FINAL_VIDEO.mp4", f, file_name="FINAL_VIDEO.mp4", mime="video/mp4")
                 resize_panel(pid, out)
         subtitle_panel(p, pid, out)
+        music_branch(p, pid)
     with right, st.container(border=True):
         ui.html(ui.card_title("Tùy chọn render"))
         transition = st.radio("Transition", ["cut", "crossfade", "dip_to_black"], horizontal=True, key=f"tr_{pid}",
@@ -2399,9 +2401,11 @@ def sound_picker(p: Pipeline, pid: int) -> None:
     n = sound_lib.counts(p.conn)
     if not n:
         return
-    with st.expander(f"🎼 Kho âm thanh của bạn — {n.get('music', 0)} nhạc nền · {n.get('sfx', 0)} hiệu ứng"):
+    with st.expander(f"🎼 Kho âm thanh của bạn (hỗ trợ) — {n.get('music', 0)} nhạc nền · {n.get('sfx', 0)} hiệu ứng"):
+        st.caption("Nhạc nền chính vẫn là AI tạo (ở trên). Kho này chỉ để hỗ trợ: nghe thử, chọn thủ công, thêm hiệu ứng, và là phương án dự phòng "
+                   "khi AI tạo nhạc lỗi.")
         mode = p.project(pid)["music_mode"] == "library"
-        auto = st.checkbox("Chế độ tự động hoàn toàn: lấy nhạc nền từ kho này theo tâm trạng các cảnh (không tốn credit tạo nhạc)", mode,
+        auto = st.checkbox("Chế độ tự động: ưu tiên lấy nhạc từ kho này thay vì để AI tạo (tiết kiệm credit). Bỏ chọn = AI tạo, kho chỉ dự phòng", mode,
                            key=f"music_mode_{pid}")
         if auto != mode:
             p.conn.execute("UPDATE projects SET music_mode=? WHERE id=?", ("library" if auto else None, pid))
@@ -2433,11 +2437,32 @@ def sound_picker(p: Pipeline, pid: int) -> None:
 
 def step5(p: Pipeline, pid: int):
     """Music and the final render are one step now."""
-    ui.html(ui.card_title("🎵 Nhạc nền", "chọn hoặc tạo nhạc, nghe thử cùng clip"))
-    sound_picker(p, pid)
-    step5a(p, pid)
-    ui.html(ui.card_title("🎞 Ghép & render", "cắt ghép clip, gắn nhạc, phụ đề"))
+    ui.html(ui.card_title("🎞 Ghép & render", "cắt ghép clip; nhạc nền và phụ đề là các nhánh phụ"))
     step5b(p, pid)
+
+
+def music_branch(p: Pipeline, pid: int) -> None:
+    """Background music as a side branch of the render step (like the subtitles): AI-made music first, the own library as support."""
+    _, selected_dir = music.project_dirs(DATA, pid)
+    st.markdown("---")
+    ui.html(ui.card_title("🎵 Nhạc nền (nhánh phụ)", "AI tạo nhạc theo mood các cảnh; kho nhạc của bạn chỉ hỗ trợ")
+            + (ui.badge("đã chọn", "b-ok") if os.listdir(selected_dir) else ui.badge("chưa chọn")))
+    step5a(p, pid)
+    sound_picker(p, pid)
+
+
+def run_startup_sync(fn, what: str, code: str) -> None:
+    """Folder auto-sync (possibly over a slow Drive) runs in the background so the page opens at once; new items show on the next refresh."""
+    def work():
+        conn = connect(DB)
+        try:
+            fn(conn)
+        except Exception as e:  # noqa: BLE001 - a library problem must never stop the dashboard from opening
+            diag.record(conn, "system", "warn", f"{what} lỗi: {type(e).__name__}: {e}", code)
+    if os.environ.get("DASHBOARD_SYNC_BACKGROUND", "1") == "0":
+        work()
+    else:
+        threading.Thread(target=work, daemon=True).start()
 
 
 def main():
@@ -2456,16 +2481,10 @@ def main():
     trash.sweep_rejected(p, DATA, pid)
     if "assets_synced" not in st.session_state:         # folders marked "auto": pick up new pictures, once per browser session
         st.session_state["assets_synced"] = True
-        try:
-            assets.auto_sync(p.conn)
-        except Exception as e:  # noqa: BLE001 - a library problem must never stop the dashboard from opening
-            diag.record(p.conn, "system", "warn", f"đồng bộ tài nguyên lỗi: {type(e).__name__}: {e}", "assets_sync")
+        run_startup_sync(assets.auto_sync, "đồng bộ tài nguyên", "assets_sync")
     if "sounds_scanned" not in st.session_state:        # sound folders marked "auto": list new files, once per browser session
         st.session_state["sounds_scanned"] = True
-        try:
-            sound_lib.auto_scan(p.conn)
-        except Exception as e:  # noqa: BLE001
-            diag.record(p.conn, "system", "warn", f"quét kho âm thanh lỗi: {type(e).__name__}: {e}", "sounds_scan")
+        run_startup_sync(sound_lib.auto_scan, "quét kho âm thanh", "sounds_scan")
     if "research_checked" not in st.session_state:      # monthly research, at most once per browser session
         st.session_state["research_checked"] = True
         research.maybe_run_in_background(DB)

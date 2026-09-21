@@ -148,6 +148,7 @@ _Cập nhật lần cuối: 2026-09-20 (nhóm việc tự động đã xong: See
 ## 🐞 Tồn đọng / cần sửa lại
 - [ ] Figma: component **Stepper đang chồng lên Screen 1** trên canvas — dời vị trí (Figma MCP đang hết hạn mức Starter; sửa tay hoặc chờ reset)
 - [ ] Figma: frame import từ html.to.design là layer tự động — tách từng màn, đặt tên, componentize nếu dùng làm design system
+- [x] **Nhạc nền = nhánh phụ của Ghép & render; AI là chính, kho chỉ hỗ trợ; tối ưu tải trang** (2026-09-21): Bước 5 chỉ còn khối Ghép & render, nhạc nền nằm dưới phụ đề (`music_branch`: AI tạo trước, kho nhạc là mục hỗ trợ); tự động: dùng AI, khi AI lỗi/chưa cấu hình mới lấy nhạc từ kho (tùy chọn dự án "ưu tiên kho" vẫn còn). Kiểm tra Clip AI: **có** tạo nhạc (`music_v2` qua `/api/sound/generate`, provider elevenlabs) → không thêm adapter ElevenLabs riêng (gói Free phi thương mại). Tải trang: đồng bộ thư mục kho ảnh/âm thanh đầu phiên chạy nền (đo: đăng nhập→dashboard 2,7s, lần sau 0,4s; lần mở đầu ~4s là nạp thư viện của máy chủ)
 - [ ] Memory repo (`{{MEMORY_DIR}}`/bootstrap URL) trong `~/.claude/CLAUDE.md` chưa điền URL thật → chưa setup được memory sync
 
 ## 🗓 Mốc theo PLAN.md (Mục 7)

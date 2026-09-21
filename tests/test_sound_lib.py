@@ -171,6 +171,23 @@ class UsingATrackTests(Base):
 
 
 class AutomaticLibraryMusicTests(Setup):
+    def test_without_the_library_mode_ai_music_is_the_default_and_the_library_only_backs_it_up(self):
+        ctx = self.build()
+        lib = os.path.join(tempfile.mkdtemp(), "nhạc nền kịch tính")
+        wav(os.path.join(lib, "Dark Storm.wav"), 2.0)
+        sound_lib.scan(self.p.conn, sound_lib.add_source(self.p.conn, os.path.dirname(lib)))
+        autopilot.start(self.p, self.pid)                                                # music_mode not set: the AI provider makes the music
+        self.assertEqual(autopilot.run_until_done(self.p, self.pid, ctx), autopilot.DONE)
+        self.assertFalse(any("Nhạc nền từ kho" in e["msg"] for e in autopilot.status(self.p, self.pid)["log"]))
+        _, selected = music.project_dirs(self.data, self.pid)
+        self.assertEqual(len(os.listdir(selected)), 1)
+        for name in os.listdir(selected):
+            os.remove(os.path.join(selected, name))
+        ctx.audio = None                                                                 # AI music unavailable: the library is the safety net
+        autopilot.start(self.p, self.pid)
+        self.assertEqual(autopilot.run_until_done(self.p, self.pid, ctx), autopilot.DONE)
+        self.assertTrue(any("Nhạc nền từ kho" in e["msg"] for e in autopilot.status(self.p, self.pid)["log"]))
+
     def test_library_mode_uses_a_track_that_fits_the_mood_and_spends_nothing(self):
         ctx = self.build()
         lib = os.path.join(tempfile.mkdtemp(), "nhạc nền kịch tính")
@@ -238,7 +255,7 @@ class DashboardTests(Base):
         self.assertEqual(sound_lib.counts(self.conn), {"music": 1, "sfx": 1})
         at = self.app("5")
         self.assertFalse(at.exception)
-        self.assertTrue(any("Kho âm thanh của bạn — 1 nhạc nền · 1 hiệu ứng" in e.label for e in at.expander))
+        self.assertTrue(any("Kho âm thanh của bạn (hỗ trợ) — 1 nhạc nền · 1 hiệu ứng" in e.label for e in at.expander))
         music_id = sound_lib.search(self.conn, kind="music")["rows"][0]["id"]
         sfx_id = sound_lib.search(self.conn, kind="sfx")["rows"][0]["id"]
         next(b for b in at.button if b.key == f"sr_use_{music_id}").click().run()

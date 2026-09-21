@@ -345,14 +345,16 @@ def _videos_phase(p: Pipeline, pid: int, ctx: Context) -> Optional[str]:
     return None if done == len(rows) else f"Video: {done}/{len(rows)} xong"
 
 
-def _music_from_library(p: Pipeline, pid: int, data_dir: str) -> bool:
-    """When the project asks for it: pick a background track of the person's own library that fits the scene moods (no credit spent)."""
+def _music_from_library(p: Pipeline, pid: int, data_dir: str, fallback: bool = False) -> bool:
+    """Pick a background track of the person's own library that fits the scene moods (no credit spent). Used first only when the
+    project asks for it; otherwise (fallback=True) only as a safety net when the AI music is unavailable or failed."""
     row = p.project(pid)
-    if not ("music_mode" in row.keys() and row["music_mode"] == "library"):
+    if not fallback and not ("music_mode" in row.keys() and row["music_mode"] == "library"):
         return False
     picked = sound_lib.pick_music(p.conn, music.scene_moods(p, pid), music.total_duration_sec(p, pid), seed=pid)
     if picked is None:
-        _log(p, pid, "Kho nhạc của bạn chưa có bản nhạc nền phù hợp → tạo bằng Clip AI")
+        if not fallback:
+            _log(p, pid, "Kho nhạc của bạn chưa có bản nhạc nền phù hợp → tạo bằng AI")
         return False
     _, selected_dir = music.project_dirs(data_dir, pid)
     try:
@@ -371,6 +373,7 @@ def _music_phase(p: Pipeline, pid: int, ctx: Context) -> Optional[str]:
     if _music_from_library(p, pid, ctx.data_dir):
         return None
     if ctx.audio is None:
+        _music_from_library(p, pid, ctx.data_dir, fallback=True)      # no AI music configured: a library track is better than silence
         return None
     drafts = music.load_drafts(drafts_dir)
     if not drafts:
@@ -386,6 +389,9 @@ def _music_phase(p: Pipeline, pid: int, ctx: Context) -> Optional[str]:
         return None
     if any(d["state"] == "running" for d in drafts):
         return "Nhạc nền: đang tạo"
+    if _music_from_library(p, pid, ctx.data_dir, fallback=True):
+        _log(p, pid, "Nhạc AI không tạo được → dùng nhạc từ kho của bạn")
+        return None
     _log(p, pid, "Nhạc nền không tạo được → ghép không nhạc")
     _d(p, pid, "music", "warn", "nhạc nền không tạo được, video cuối sẽ KHÔNG có nhạc (lỗi âm thầm)", "degraded")
     return None
