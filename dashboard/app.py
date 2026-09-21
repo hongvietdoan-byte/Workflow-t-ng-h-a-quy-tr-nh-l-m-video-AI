@@ -21,7 +21,7 @@ import streamlit as st
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
-from core import autoqc, ff_site, sfx_plan, sound_lib, assets, audio_lib, subtitles, script_reader, auth, autopilot, dialogue, diag, knowledge, lessons, perf, regen, research, style, subjects, trash, waveform, cost, ffmpeg_studio, final_cut, llm_io, llm_runner, music, preflight, prompts, script_parser  # noqa: E402
+from core import asset_vision, autoqc, ff_site, sfx_plan, sound_lib, assets, audio_lib, subtitles, script_reader, auth, autopilot, dialogue, diag, knowledge, lessons, perf, regen, research, style, subjects, trash, waveform, cost, ffmpeg_studio, final_cut, llm_io, llm_runner, music, preflight, prompts, script_parser  # noqa: E402
 from core.db import connect  # noqa: E402
 from core.pipeline import Pipeline, PipelinePaused  # noqa: E402
 from core.adapters import factory  # noqa: E402
@@ -1000,6 +1000,26 @@ def asset_library_panel(p: Pipeline) -> None:
         if st.button("🌐 Cập nhật ngay", key="ff_site_go", disabled=info["running"], type="primary"):
             if ff_site.start_background(DB, game, me().get("email")):
                 st.toast("Đang đọc website ở nền, vài phút; bấm tải lại trang để xem kết quả")
+            st.rerun()
+    with st.expander("🤖 Đọc mô tả ngoại hình bằng Claude (nhân vật / thú cưng)"):
+        st.caption("Ảnh đầu của mỗi nhân vật thường là một bảng thiết kế nhiều góc/tư thế (turn-around, bảng màu, phụ kiện) — rất nhiều chi tiết hữu ích, "
+                   "nhưng gửi thẳng tấm đó cho AI vẽ ảnh lại làm nó chép lẫn lộn giữa các nhân vật trong cùng một cảnh, nên Bước 2 không dùng tấm này làm ảnh "
+                   "tham chiếu (xem “🖼 Ảnh tham chiếu” ở Bước 1). Chữ thì không bị chép lẫn như vậy: nút này cho Claude **nhìn ảnh và viết lại** màu/kiểu tóc, "
+                   "trang phục, phụ kiện thành một đoạn mô tả, lưu vào mô tả của mục (không đè phần bạn đã viết) — Director sẽ đọc được đoạn này khi phân tích kịch bản.")
+        n_pending = asset_vision.pending(p.conn, game)
+        st.caption(f"{n_pending} mục nhân vật/thú cưng chưa được đọc" if n_pending else "Mọi mục nhân vật/thú cưng đã được đọc.")
+        prog = asset_vision.progress(game)
+        if asset_vision.active(game) and prog["total"]:
+            st.progress(prog["done"] / prog["total"], text=f"Đang đọc {prog['done']}/{prog['total']} mục…")
+        problem = asset_vision.last_error(game)
+        if problem:
+            st.warning(f"⚠ Đã dừng: {problem}")
+            if st.button("↻ Thử lại", key="asset_vision_retry"):
+                asset_vision.clear_error(game)
+                st.rerun()
+        if st.button("🤖 Đọc mô tả ngoại hình", key="asset_vision_go", disabled=not n_pending or asset_vision.active(game), type="primary"):
+            if asset_vision.start(DB, game):
+                st.toast("Đang đọc ở nền; bấm tải lại trang để xem tiến độ")
             st.rerun()
     with st.expander("⬆ Tải nhiều ảnh cùng lúc (tên file = tên tài nguyên)"):
         st.caption("Chọn nhiều ảnh một lượt: `Lyra_front.png` + `Lyra_back.png` thành một mục Lyra; mục đã có thì được thêm ảnh; ảnh trùng bị bỏ qua.")

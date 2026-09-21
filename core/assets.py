@@ -339,6 +339,12 @@ def _is_composite_sheet(shape) -> bool:
     return w > h and w >= 1200
 
 
+def is_composite_sheet(path: str) -> bool:
+    """Public wrapper of `_is_composite_sheet` for other modules (e.g. core/asset_vision.py) that want the same "is this a design
+    board, not a single-figure shot" check without reaching into assets.py internals."""
+    return _is_composite_sheet(_shape(path))
+
+
 def best_references(asset: Dict, limit: int = 1) -> List[Dict]:
     """The `limit` pictures that work best as a reference, for `asset["kind"]`:
     - character/pet: single-figure shots (portrait/full-body), a composite sheet only as a last resort — one straight-on shot rarely
