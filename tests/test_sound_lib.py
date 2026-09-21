@@ -23,6 +23,12 @@ def wav(path, seconds=1.0, rate=8000):
     return path
 
 
+def listened(conn, label="Whoosh, swoosh, swish", score=0.9):
+    """Mark every effect as already listened to and recognised (the real model is not needed in most tests)."""
+    conn.execute("UPDATE sounds SET heard=?, heard_label=?, heard_score=?, voice=0 WHERE kind='sfx'", (f"{label} {score}", label, score))
+    conn.commit()
+
+
 def fake(path, size=100):
     os.makedirs(os.path.dirname(path), exist_ok=True)
     with open(path, "wb") as f:
@@ -176,6 +182,7 @@ class AutomaticSfxTests(Setup):
         lib = os.path.join(tempfile.mkdtemp(), "Sound FX Pack")
         wav(os.path.join(lib, "Whoosh.wav"), 1.0)
         sound_lib.scan(self.p.conn, sound_lib.add_source(self.p.conn, os.path.dirname(lib)))
+        listened(self.p.conn)
         autopilot.start(self.p, self.pid)
         self.assertEqual(autopilot.run_until_done(self.p, self.pid, ctx), autopilot.DONE)
         log = [e["msg"] for e in autopilot.status(self.p, self.pid)["log"]]
@@ -187,6 +194,7 @@ class AutomaticSfxTests(Setup):
         lib = os.path.join(tempfile.mkdtemp(), "Sound FX Pack")
         wav(os.path.join(lib, "Whoosh.wav"), 1.0)
         sound_lib.scan(self.p.conn, sound_lib.add_source(self.p.conn, os.path.dirname(lib)))
+        listened(self.p.conn)
 
         class NoEffects:
             def __init__(self, inner):
@@ -303,6 +311,7 @@ class DashboardTests(Base):
         wav(os.path.join(self.src, "Sound FX Pack", "Whoosh.wav"), 1.0)
         wav(os.path.join(self.src, "popup", "Pop.wav"), 1.0)
         sound_lib.scan(self.conn, sound_lib.add_source(self.conn, self.src))
+        listened(self.conn)
         self.clips()
         at = self.app("5")
         os.environ["LLM_PROVIDER"] = "mock"
@@ -389,9 +398,11 @@ class ListeningTests(Base):
         wav(os.path.join(self.src, "Loose", "Blip.wav"), 0.3)
         sound_lib.scan(self.conn, sound_lib.add_source(self.conn, self.src))
         sound_lib.analyze(self.conn)
+        listened(self.conn)
         prompt = sfx_plan.build_prompt([{"idx": 1, "start": 0, "length": 5, "mood": "", "shot": "", "text": ""}], sfx_plan.catalog(self.conn), 5)
         self.assertIn("điểm nhấn ngắn", prompt)
         self.assertIn('"sec"', prompt)
+        self.assertIn('"heard": "Whoosh, swoosh, swish"', prompt)
 
 
 class SfxPlanTests(Base):
@@ -409,6 +420,7 @@ class SfxPlanTests(Base):
         wav(os.path.join(self.src, "Sound FX Pack", "Whoosh.wav"), 1.0)
         wav(os.path.join(self.src, "popup", "Pop.wav"), 1.0)
         sound_lib.scan(self.conn, sound_lib.add_source(self.conn, self.src))
+        listened(self.conn)
 
     def test_the_proposal_is_reviewed_first_then_replaces_only_earlier_ai_effects(self):
         from core import llm_runner, sfx_plan
@@ -442,12 +454,64 @@ class SfxPlanTests(Base):
         with self.assertRaises(llm_runner.LlmError):
             sfx_plan.propose(Wrong(), self.p, self.data, self.pid)
 
-    def test_a_big_library_is_shown_as_an_even_share_of_every_folder(self):
+    def test_a_big_library_is_shown_as_the_best_few_of_every_recognised_kind(self):
         from core import sfx_plan
         source = sound_lib.list_sources(self.conn)[0]["id"]
         for n in range(300):
-            self.conn.execute("INSERT INTO sounds (source_id, path, name, category, kind, mood, search, ext, size, mtime) VALUES (?,?,?,?,?,?,?,?,?,?)",
-                              (source, f"/x/{n}.mp3", f"big {n}", "Big", "sfx", "", "big", ".mp3", 10, 0))
-        picked = sfx_plan.catalog(self.conn, 40)
-        self.assertLessEqual(len(picked), 40)
-        self.assertIn("popup", {r["category"] for r in picked})
+            self.conn.execute("INSERT INTO sounds (source_id, path, name, category, kind, mood, search, ext, size, mtime, heard, heard_label, heard_score, voice)"
+                              " VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,0)",
+                              (source, f"/x/{n}.mp3", f"big {n}", "Big", "sfx", "", "big", ".mp3", 10, 0, "x", "Explosion", 0.5 + n / 1000))
+        picked = sfx_plan.catalog(self.conn, per_kind=6)
+        self.assertEqual(len([r for r in picked if r["heard_label"] == "Explosion"]), 6)
+        self.assertEqual(max(r["heard_score"] for r in picked if r["heard_label"] == "Explosion"), 0.5 + 299 / 1000)   # the most certain ones
+        self.assertIn("Whoosh, swoosh, swish", {r["heard_label"] for r in picked})                                     # other kinds are still there
+
+    def test_only_recognised_accent_sounds_are_offered_never_a_guess_from_the_name(self):
+        from core import sfx_plan
+        self.conn.execute("UPDATE sounds SET heard=NULL, heard_label=NULL, heard_score=NULL")
+        with self.assertRaises(sfx_plan.SfxPlanError) as ctx:                                          # nothing listened to: nothing chosen
+            sfx_plan.propose(llm_runner_mock(), self.p, self.data, self.pid)
+        self.assertTrue(ctx.exception.not_ready)
+        rows = self.conn.execute("SELECT id FROM sounds WHERE kind='sfx' ORDER BY id").fetchall()
+        for r, (label, score, voice) in zip(rows, (("Whoosh, swoosh, swish", 0.39, 0), ("Speech", 0.95, 1))):
+            self.conn.execute("UPDATE sounds SET heard=?, heard_label=?, heard_score=?, voice=? WHERE id=?", ("x", label, score, voice, r["id"]))
+        self.assertEqual(sfx_plan.catalog(self.conn), [])                                              # too unsure, and a voice
+
+    def test_listening_stores_what_was_heard_and_keeps_voices_and_non_accents_out(self):
+        import unittest.mock as mock
+        from core import sound_ai
+        wav(os.path.join(self.src, "L", "a.wav"), 1.0)
+        wav(os.path.join(self.src, "L", "b.wav"), 1.0)
+        wav(os.path.join(self.src, "L", "c.wav"), 1.0)
+        fake_hear = {"a.wav": [("Whoosh, swoosh, swish", 0.9)], "b.wav": [("Speech", 0.95)], "c.wav": [("Toilet flush", 0.9)]}
+        sound_lib.scan(self.conn, sound_lib.list_sources(self.conn)[0]["id"])
+        self.conn.execute("DELETE FROM sounds WHERE name NOT IN ('a','b','c')")
+        with mock.patch.object(sound_ai, "available", return_value=True), \
+                mock.patch.object(sound_ai, "hear", side_effect=lambda path: fake_hear[os.path.basename(path)]):
+            report = sound_lib.listen(self.conn)
+        self.assertEqual((report["available"], report["done"], report["left"]), (True, 3, 0))
+        usable = [r["name"] for r in self.conn.execute(f"SELECT name FROM sounds WHERE {sound_lib.TRUSTED_SQL}")]
+        self.assertEqual(usable, ["a"])                                        # b is a voice, c is real but not an accent sound
+
+    def test_without_the_model_nothing_is_listened_to_and_nothing_is_added_automatically(self):
+        import unittest.mock as mock
+        from core import sound_ai
+        wav(os.path.join(self.src, "L", "a.wav"), 1.0)
+        sound_lib.scan(self.conn, sound_lib.list_sources(self.conn)[0]["id"])
+        self.conn.execute("UPDATE sounds SET heard=NULL, heard_label=NULL, heard_score=NULL")
+        with mock.patch.object(sound_ai, "available", return_value=False):
+            self.assertFalse(sound_lib.listen(self.conn)["available"])
+        self.assertEqual(self.conn.execute("SELECT COUNT(*) FROM sounds WHERE heard IS NOT NULL").fetchone()[0], 0)
+
+    def test_the_real_model_recognises_a_generated_tone_as_not_an_accent(self):
+        from core import sound_ai
+        if not sound_ai.available():
+            self.skipTest("mô hình nhận dạng âm thanh chưa có trên máy")
+        path = wav(os.path.join(self.src, "t.wav"), 2.0, rate=16000)
+        heard = sound_ai.hear(path)
+        self.assertTrue(heard is None or isinstance(heard, list))
+
+
+def llm_runner_mock():
+    from core import llm_runner
+    return llm_runner.MockLlm()

@@ -15,7 +15,7 @@ import re
 import shutil
 from typing import Dict, List, Optional
 
-from . import ffmpeg_studio
+from . import ffmpeg_studio, sound_ai
 from .assets import fold
 
 AUDIO_EXT = (".mp3", ".wav", ".m4a", ".ogg", ".flac", ".aac")
@@ -308,6 +308,37 @@ def analyze(conn, limit: Optional[int] = None, workers: int = 4) -> Dict:
     conn.commit()
     left = conn.execute("SELECT COUNT(*) FROM sounds WHERE tags IS NULL").fetchone()[0]
     return {"done": done, "failed": failed, "left": left}
+
+
+def listen(conn, limit: Optional[int] = None, workers: int = 4) -> Dict:
+    """Recognise what each sound effect is (YAMNet on this PC) and store it. Only effects not yet listened to are processed.
+    Returns {'available': bool, 'done', 'failed', 'left'}; without the model nothing changes and 'available' is False."""
+    from concurrent.futures import ThreadPoolExecutor
+    if not sound_ai.available(download=True):
+        return {"available": False, "done": 0, "failed": 0, "left": conn.execute("SELECT COUNT(*) FROM sounds WHERE kind='sfx' AND heard IS NULL").fetchone()[0]}
+    rows = conn.execute("SELECT id, path FROM sounds WHERE kind='sfx' AND heard IS NULL ORDER BY id" + (f" LIMIT {int(limit)}" if limit else "")).fetchall()
+
+    def one(r):
+        try:
+            return sound_ai.hear(r["path"]) if os.path.exists(r["path"]) else None
+        except sound_ai.SoundAiError:
+            return False
+    with ThreadPoolExecutor(max_workers=max(workers, 1)) as pool:
+        results = list(pool.map(one, rows))
+    done = failed = 0
+    for r, heard in zip(rows, results):
+        if heard is False:
+            return {"available": False, "done": done, "failed": failed, "left": len(rows) - done - failed}
+        info = sound_ai.summary(heard)
+        conn.execute("UPDATE sounds SET heard=?, heard_label=?, heard_score=?, voice=? WHERE id=?",
+                     (info["text"], info["label"], info["score"], 1 if info["voice"] else 0, r["id"]))
+        done, failed = (done + 1, failed) if heard else (done, failed + 1)
+    conn.commit()
+    return {"available": True, "done": done, "failed": failed,
+            "left": conn.execute("SELECT COUNT(*) FROM sounds WHERE kind='sfx' AND heard IS NULL").fetchone()[0]}
+
+
+TRUSTED_SQL = "kind='sfx' AND voice=0 AND heard_label IS NOT NULL AND heard_label!='' AND heard_score>=" + str(sound_ai.TRUST)
 
 
 # ---- choosing for a project -------------------------------------------------------------------------------------------

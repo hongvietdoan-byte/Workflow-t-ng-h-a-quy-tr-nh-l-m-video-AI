@@ -402,7 +402,7 @@ def _sfx_phase(p: Pipeline, pid: int, ctx: Context) -> Optional[str]:
     """Let the AI judge whether sound effects are worth adding (scene changes, accents) and add the ones it picks. Once per project;
     it may decide to add none. Failures never stop the video: it just goes without."""
     marker = os.path.join(audio_lib.assets_dir(ctx.data_dir, pid), "ai_sfx_done")
-    if os.path.exists(marker) or ctx.llm is None or not sound_lib.counts(p.conn).get("sfx"):
+    if os.path.exists(marker) or ctx.llm is None or not p.conn.execute(f"SELECT 1 FROM sounds WHERE {sound_lib.TRUSTED_SQL} LIMIT 1").fetchone():
         return None
     if not [c for c in final_cut.collect_clips(p, ctx.data_dir, pid) if c["path"]]:
         return None
@@ -411,7 +411,13 @@ def _sfx_phase(p: Pipeline, pid: int, ctx: Context) -> Optional[str]:
         chosen = [{"id": c["id"], "at": c["at"], "volume": c["volume"]} for c in plan["cues"]]
         added = sfx_plan.apply(p, ctx.data_dir, pid, chosen) if chosen else 0
         _log(p, pid, (f"Hiệu ứng âm thanh: thêm {added} — " if added else "Hiệu ứng âm thanh: không thêm — ") + (plan["summary"] or "AI thấy không cần")[:160])
-    except (sfx_plan.SfxPlanError, llm_runner.LlmError, OSError) as e:
+    except sfx_plan.SfxPlanError as e:
+        if e.not_ready:
+            _log(p, pid, "Hiệu ứng âm thanh: bỏ qua (kho chưa được nghe/nhận dạng nên không tự chọn để tránh nhầm)")
+            return None
+        _log(p, pid, f"Hiệu ứng âm thanh bỏ qua: {str(e)[:120]}")
+        _d(p, pid, "music", "warn", f"AI chọn hiệu ứng âm thanh thất bại, video cuối không có hiệu ứng: {e}", "sfx_plan")
+    except (llm_runner.LlmError, OSError) as e:
         _log(p, pid, f"Hiệu ứng âm thanh bỏ qua: {str(e)[:120]}")
         _d(p, pid, "music", "warn", f"AI chọn hiệu ứng âm thanh thất bại, video cuối không có hiệu ứng: {e}", "sfx_plan")
     with open(marker, "w", encoding="utf-8") as f:

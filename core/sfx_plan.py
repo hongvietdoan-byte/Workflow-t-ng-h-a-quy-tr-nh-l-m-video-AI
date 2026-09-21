@@ -14,11 +14,16 @@ from .pipeline import Pipeline
 
 MARKER = "Chuyên viên sound design"
 LABEL_PREFIX = "AI: "
-MAX_CATALOG = 220
+MAX_CATALOG = 260
+PER_KIND = 6            # the best few of every kind of sound, so a library of any size is represented
 
 
 class SfxPlanError(Exception):
-    """A message that can be shown to the person."""
+    """A message that can be shown to the person. `not_ready`: the library has not been listened to (yet), nothing was decided."""
+
+    def __init__(self, message: str, not_ready: bool = False):
+        super().__init__(message)
+        self.not_ready = not_ready
 
 
 def timeline(p: Pipeline, data_dir: str, pid: int, transition: str = "cut", fade: float = 1.0) -> List[Dict]:
@@ -37,32 +42,33 @@ def timeline(p: Pipeline, data_dir: str, pid: int, transition: str = "cut", fade
     return out
 
 
-def catalog(conn, limit: int = MAX_CATALOG) -> List[Dict]:
-    """A compact, varied selection of the sound effects (an even share of every folder) to show the model."""
-    rows = [dict(r) for r in conn.execute("SELECT id, name, category, tags, duration FROM sounds WHERE kind='sfx' ORDER BY category, name")]
-    if len(rows) <= limit:
-        return rows
-    groups: Dict[str, List[Dict]] = {}
-    for r in rows:
-        groups.setdefault(r["category"] or "", []).append(r)
-    share = max(limit // len(groups), 4)
+def catalog(conn, limit: int = MAX_CATALOG, per_kind: int = PER_KIND) -> List[Dict]:
+    """Only effects that were LISTENED to and recognised with confidence (never chosen by file name alone; human voices are left out):
+    the best `per_kind` of each recognised kind of sound, so the whole library is represented without listing every file."""
+    rows = [dict(r) for r in conn.execute(
+        f"SELECT id, name, category, tags, duration, heard_label, heard_score FROM sounds WHERE {sound_lib.TRUSTED_SQL} ORDER BY heard_label, heard_score DESC, name")]
     picked: List[Dict] = []
-    for items in groups.values():
-        step = max(len(items) / share, 1.0)
-        picked.extend(items[int(i * step)] for i in range(min(share, len(items))))
+    seen: Dict[str, int] = {}
+    for r in rows:
+        if seen.get(r["heard_label"], 0) < per_kind:
+            seen[r["heard_label"]] = seen.get(r["heard_label"], 0) + 1
+            picked.append(r)
+    picked.sort(key=lambda r: -r["heard_score"])
     return picked[:limit]
 
 
 def build_prompt(scenes: List[Dict], sounds: List[Dict], total: float, wish: str = "") -> str:
     lines = [{"scene": s["idx"], "start": s["start"], "length": s["length"], "mood": s["mood"], "shot": s["shot"], "script": s["text"]}
              for s in scenes]
-    library = [{"id": s["id"], "name": s["name"], "folder": s["category"], **({"tags": s["tags"]} if s.get("tags") else {}),
+    library = [{"id": s["id"], "heard": s["heard_label"], "name": s["name"], "folder": s["category"], **({"tags": s["tags"]} if s.get("tags") else {}),
                 **({"sec": round(s["duration"], 1)} if s.get("duration") else {})} for s in sounds]
     return (f"{MARKER} cho video game ngắn. Đọc các cảnh và chọn hiệu ứng âm thanh từ kho có sẵn để thêm vào video.\n\n"
             "Nguyên tắc: hiệu ứng chỉ dùng cho **điểm chuyển cảnh và điểm nhấn** (va chạm, ra đòn, xuất hiện, chuyển cảnh nhanh), "
             "KHÔNG phủ kín video và không chọi với nhạc nền. Ít mà đúng chỗ: tối đa 1 hiệu ứng mỗi ~4 giây, tổng tối đa "
             f"{max(2, len(scenes) * 2)}. Đặt điểm nhấn đúng giây hành động xảy ra (chuyển cảnh = đúng giây bắt đầu cảnh mới, có thể sớm 0.1–0.3s). "
             "Tránh đặt lên câu thoại nếu tiếng to. Chỉ dùng `id` có trong danh sách. Âm lượng 0.3–1.0 (nhấn mạnh 0.8–1.0, chi tiết nhỏ 0.3–0.5). "
+            "Mỗi hiệu ứng trong kho có `heard` = loại âm thanh mà mô hình nhận dạng âm thanh ĐÃ NGHE ra (đáng tin); tên file có thể sai nên chọn theo `heard`. "
+            "Chỉ chọn khi loại âm thanh khớp đúng nhu cầu của khoảnh khắc đó; không có cái nào khớp thì KHÔNG thêm. `heard` cho biết LOẠI âm thanh chứ không cho biết sắc thái: tên file gợi ý dễ thương/hài (cute, meme, fun...) thì đừng dùng cho cảnh nghiêm túc hay hành động. "
             "Mỗi hiệu ứng có `reason` ngắn bằng tiếng Việt nói rõ vì sao chọn.\n"
             + (f"\n# Yêu cầu thêm của người dùng (ưu tiên làm theo)\n{wish.strip()}\n" if wish.strip() else "")
             + f"\n# Các cảnh (tổng {total:.1f} giây)\n```json\n" + json.dumps(lines, ensure_ascii=False) + "\n```\n"
@@ -81,7 +87,10 @@ def propose(client, p: Pipeline, data_dir: str, pid: int, transition: str = "cut
         raise SfxPlanError("Chưa có clip nào (Bước 4) nên chưa biết đặt hiệu ứng ở đâu.")
     sounds = catalog(p.conn)
     if not sounds:
-        raise SfxPlanError("Kho hiệu ứng âm thanh còn trống: thêm thư mục ở ⚙ Cài đặt → Kho tài nguyên → Kho âm thanh.")
+        heard = sound_lib.sound_ai.available()
+        raise SfxPlanError("Chưa có hiệu ứng nào đã được nghe và nhận dạng chắc chắn" + ("" if heard else " (máy chưa có mô hình nhận dạng âm thanh)")
+                           + ": AI không tự chọn hiệu ứng theo tên file để tránh nhầm. Thêm thư mục ở ⚙ Cài đặt → Kho âm thanh và chờ hệ thống nghe xong.",
+                           not_ready=True)
     by_id = {s["id"]: s for s in sounds}
     total = scenes[-1]["start"] + scenes[-1]["length"]
 

@@ -2474,7 +2474,7 @@ def main():
         run_startup_sync(assets.auto_sync, "đồng bộ tài nguyên", "assets_sync")
     if "sounds_scanned" not in st.session_state:        # sound folders marked "auto": list new files, once per browser session
         st.session_state["sounds_scanned"] = True
-        run_startup_sync(lambda conn: (sound_lib.auto_scan(conn), sound_lib.analyze(conn, limit=150)), "quét và nghe kho âm thanh", "sounds_scan")
+        run_startup_sync(lambda conn: (sound_lib.auto_scan(conn), sound_lib.analyze(conn, limit=150), sound_lib.listen(conn, limit=150)), "quét và nghe kho âm thanh", "sounds_scan")
     if "research_checked" not in st.session_state:      # monthly research, at most once per browser session
         st.session_state["research_checked"] = True
         research.maybe_run_in_background(DB)

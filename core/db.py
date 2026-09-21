@@ -180,7 +180,11 @@ CREATE TABLE IF NOT EXISTS sounds (
     size INTEGER,
     mtime INTEGER,
     duration REAL,
-    tags TEXT
+    tags TEXT,
+    heard TEXT,
+    heard_label TEXT,
+    heard_score REAL,
+    voice INTEGER NOT NULL DEFAULT 0
 );
 CREATE INDEX IF NOT EXISTS idx_sounds_kind ON sounds(kind, category);
 CREATE TABLE IF NOT EXISTS asset_sources (
@@ -326,6 +330,8 @@ def connect(path: str = ":memory:") -> sqlite3.Connection:
         conn.execute("ALTER TABLE projects ADD COLUMN autopilot_user TEXT")
     if "created_by" not in cols:
         conn.execute("ALTER TABLE projects ADD COLUMN created_by TEXT")
-    if "tags" not in {r["name"] for r in conn.execute("PRAGMA table_info(sounds)")}:
-        conn.execute("ALTER TABLE sounds ADD COLUMN tags TEXT")
+    sound_cols = {r["name"] for r in conn.execute("PRAGMA table_info(sounds)")}
+    for column, ddl in (("tags", "TEXT"), ("heard", "TEXT"), ("heard_label", "TEXT"), ("heard_score", "REAL"), ("voice", "INTEGER NOT NULL DEFAULT 0")):
+        if column not in sound_cols:
+            conn.execute(f"ALTER TABLE sounds ADD COLUMN {column} {ddl}")
     return conn
