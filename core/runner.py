@@ -66,7 +66,7 @@ class _Runner:
                 continue
             running_all = self.p.conn.execute("SELECT COUNT(*) FROM jobs WHERE type=? AND state='running'",
                                               (self.job_type,)).fetchone()[0]
-            if not THROTTLE.allow(self.job_type, running_all + submitted):
+            if not THROTTLE.allow(self.job_type, running_all):       # already includes the jobs this pass has started (they are 'running' now)
                 break  # learned limit for all projects together: wait for a slot
             try:
                 task_id = self.provider.submit(*args)

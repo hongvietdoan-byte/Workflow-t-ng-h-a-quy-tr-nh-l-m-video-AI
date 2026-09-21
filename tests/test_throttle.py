@@ -77,6 +77,32 @@ class ThrottleUnitTests(unittest.TestCase):
         self.assertEqual(ctx.exception.code, "rate_limited")
 
 
+class OnePassSubmitTests(unittest.TestCase):
+    """One click on "Submit" must fill the allowed number of slots (it used to count each job it had just started twice)."""
+    def setUp(self):
+        THROTTLE.reset()
+        self._saved = (THROTTLE.start, THROTTLE.maximum, THROTTLE.up_every)
+        THROTTLE.start, THROTTLE.maximum, THROTTLE.up_every = 4, 20, 5
+
+    def tearDown(self):
+        THROTTLE.start, THROTTLE.maximum, THROTTLE.up_every = self._saved
+        THROTTLE.reset()
+
+    def test_a_single_pass_submits_as_many_jobs_as_the_limit_allows(self):
+        tmp = tempfile.mkdtemp()
+        p = Pipeline(connect(os.path.join(tmp, "m.sqlite")))
+        pid = p.create_project("slots")
+        for i in range(1, 8):
+            sid = p.create_scene(pid, i, f"s{i}")
+            p.conn.execute("UPDATE scenes SET data=? WHERE id=?", ('{"image_prompt": "a hero"}', sid))
+            p.conn.commit()
+            p.create_job(sid, "image_gen")
+        runner = ImageRunner(p, MockImageProvider(polls_to_finish=5), os.path.join(tmp, "projects"), max_concurrent=10)
+        self.assertEqual(runner.submit_pending(pid), 4)                     # the limit (4), not 2
+        self.assertEqual(p.conn.execute("SELECT COUNT(*) FROM jobs WHERE state='running'").fetchone()[0], 4)
+        self.assertEqual(runner.submit_pending(pid), 0)                     # full: the rest waits for a free slot
+
+
 class LearningTests(unittest.TestCase):
     def setUp(self):
         THROTTLE.reset()
