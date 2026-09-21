@@ -21,7 +21,7 @@ import streamlit as st
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
-from core import sound_lib, assets, audio_lib, subtitles, script_reader, auth, autopilot, dialogue, diag, knowledge, lessons, perf, regen, research, style, subjects, trash, waveform, cost, ffmpeg_studio, final_cut, llm_io, llm_runner, music, preflight, prompts, script_parser  # noqa: E402
+from core import sfx_plan, sound_lib, assets, audio_lib, subtitles, script_reader, auth, autopilot, dialogue, diag, knowledge, lessons, perf, regen, research, style, subjects, trash, waveform, cost, ffmpeg_studio, final_cut, llm_io, llm_runner, music, preflight, prompts, script_parser  # noqa: E402
 from core.db import connect  # noqa: E402
 from core.pipeline import Pipeline, PipelinePaused  # noqa: E402
 from core.adapters import factory  # noqa: E402
@@ -516,7 +516,7 @@ def users_tab(p: Pipeline, pid: int) -> None:
         table = [{"E-mail": u["email"], "Được vào": u["active"],
                   **{label: key in u["perms"] for key, label in perm_cols},
                   "Đăng nhập gần nhất": u["last_login"] or "-"} for u in people]
-        edited = st.data_editor(table, hide_index=True, use_container_width=True, key="perm_table",
+        edited = st.data_editor(table, hide_index=True, width="stretch", key="perm_table",
                                 disabled=["E-mail", "Đăng nhập gần nhất"])
         if st.button("💾 Lưu bảng phân quyền", key="perm_save", type="primary"):
             try:
@@ -2320,7 +2320,7 @@ def subtitle_panel(p: Pipeline, pid: int, out: str) -> None:
                 st.error(str(e))
         rows = st.session_state.get(key)
         if rows:
-            edited = st.data_editor(rows, hide_index=True, use_container_width=True, key=f"sub_table_{pid}",
+            edited = st.data_editor(rows, hide_index=True, width="stretch", key=f"sub_table_{pid}",
                                     disabled=["Cảnh", "Người nói"], num_rows="fixed")
             table = edited.to_dict("records") if hasattr(edited, "to_dict") else edited
             cues = [subtitles.Cue(float(r["Bắt đầu (s)"]), float(r["Kết thúc (s)"]), str(r["Nội dung"]).strip(), str(r["Người nói"] or ""),
@@ -2356,83 +2356,60 @@ def subtitle_panel(p: Pipeline, pid: int, out: str) -> None:
                                    key=f"sub_dl_{pid}")
 
 
-def sound_rows(p: Pipeline, pid: int, rows: list, prefix: str) -> None:
-    """Result list of the sound library: preview, use as background music, add as an effect at a given second."""
-    _, selected_dir = music.project_dirs(DATA, pid)
-    for r in rows:
-        c1, c2, c3 = st.columns([5, 1.2, 3], vertical_alignment="center")
-        where = " · ".join(x for x in (r["category"], r["mood"]) if x)
-        size = f"{(r['size'] or 0) / 1e6:.1f} MB"
-        dur = f" · {r['duration']:.0f}s" if r["duration"] else ""
-        c1.markdown(f"**{escape(r['name'])}**  \n<span class='muted'>{escape(where)} · {size}{dur}</span>", unsafe_allow_html=True)
-        if c2.button("▶ Nghe", key=f"{prefix}_play_{r['id']}"):
-            st.session_state["snd_preview"] = r["id"]
-            sound_lib.ensure_duration(p.conn, r["id"])
-        if r["kind"] == "music":
-            if c3.button("🎵 Dùng làm nhạc nền", key=f"{prefix}_use_{r['id']}"):
-                try:
-                    music.use_library_track(selected_dir, r["path"])
-                except (ValueError, OSError) as e:
-                    st.error(str(e))
-                else:
-                    st.toast(f"Đã chọn “{r['name']}” làm nhạc nền")
-                    st.rerun()
-        else:
-            s1, s2 = c3.columns([1.2, 1.4])
-            at = s1.number_input("Giây", 0.0, 600.0, 0.0, 0.5, key=f"{prefix}_at_{r['id']}", label_visibility="collapsed")
-            if s2.button("➕ Thêm", key=f"{prefix}_add_{r['id']}", help="Thêm vào bản ghép tại giây này"):
-                try:
-                    seconds = sound_lib.ensure_duration(p.conn, r["id"])
-                    audio_lib.add_local(audio_lib.assets_dir(DATA, pid), r["path"], r["name"], at, 1.0, int(seconds * 1000) if seconds else None)
-                except OSError as e:
-                    st.error(str(e))
-                else:
-                    st.toast(f"Đã thêm “{r['name']}” tại giây {at:g}")
-                    st.rerun()
-        if st.session_state.get("snd_preview") == r["id"]:
-            if os.path.exists(r["path"]):
-                st.audio(r["path"])
-            else:
-                st.caption("File không còn ở vị trí cũ (Drive chưa kết nối?)")
-
-
-def sound_picker(p: Pipeline, pid: int) -> None:
-    """Step 5: search the person's own sound library, preview, use as background music or as an effect."""
+def sfx_assistant(p: Pipeline, pid: int) -> None:
+    """One button: AI reads the scenes and the sound library and proposes effects; the person reviews, edits and adds them."""
     n = sound_lib.counts(p.conn)
     if not n:
         return
-    with st.expander(f"🎼 Kho âm thanh của bạn (hỗ trợ) — {n.get('music', 0)} nhạc nền · {n.get('sfx', 0)} hiệu ứng"):
-        st.caption("Nhạc nền chính vẫn là AI tạo (ở trên). Kho này chỉ để hỗ trợ: nghe thử, chọn thủ công, thêm hiệu ứng, và là phương án dự phòng "
-                   "khi AI tạo nhạc lỗi.")
-        mode = p.project(pid)["music_mode"] == "library"
-        auto = st.checkbox("Chế độ tự động: ưu tiên lấy nhạc từ kho này thay vì để AI tạo (tiết kiệm credit). Bỏ chọn = AI tạo, kho chỉ dự phòng", mode,
-                           key=f"music_mode_{pid}")
-        if auto != mode:
-            p.conn.execute("UPDATE projects SET music_mode=? WHERE id=?", ("library" if auto else None, pid))
-            p.conn.commit()
-        moods = music.scene_moods(p, pid)
-        if moods and st.button("🎯 Gợi ý nhạc nền theo tâm trạng các cảnh", key=f"snd_suggest_{pid}"):
-            st.session_state[f"snd_sug_{pid}"] = [r["id"] for r in sound_lib.suggest_music(p.conn, moods, 6, seed=pid)]
-        sug = st.session_state.get(f"snd_sug_{pid}")
-        if sug:
-            st.markdown("**Gợi ý** (tâm trạng: " + escape(", ".join(sound_lib.moods_of_text(" ".join(moods))) or "chưa rõ") + ")")
-            sound_rows(p, pid, [sound_lib.get(p.conn, i) for i in sug if sound_lib.get(p.conn, i)], "sg")
-            st.markdown("---")
-        f1, f2 = st.columns([2, 2])
-        kind = f1.radio("Loại", ["", "music", "sfx"], horizontal=True, key=f"snd_kind_{pid}",
-                        format_func=lambda k: {"": "Tất cả", "music": "Nhạc nền", "sfx": "Hiệu ứng"}[k])
-        cats = ["(tất cả thư mục)"] + [c for c, _ in sound_lib.categories(p.conn, kind or None)]
-        cat = f2.selectbox("Thư mục", cats, key=f"snd_cat_{pid}")
-        g1, g2 = st.columns([3, 2])
-        query = g1.text_input("Tìm theo tên / thư mục", key=f"snd_q_{pid}", placeholder="vd swoosh, kịch tính, trailer")
-        mood = g2.selectbox("Tâm trạng", ["(bất kỳ)"] + list(sound_lib.MOODS), key=f"snd_mood_{pid}")
-        page_size = 10
-        first = sound_lib.search(p.conn, query, kind or None, None if cat == cats[0] else cat, None if mood == "(bất kỳ)" else mood, 1, 0)
-        pages = max((first["total"] + page_size - 1) // page_size, 1)
-        page = st.number_input(f"Trang (có {first['total']} bản, {pages} trang)", 1, pages, 1, key=f"snd_page_{pid}") if pages > 1 else 1
-        res = sound_lib.search(p.conn, query, kind or None, None if cat == cats[0] else cat, None if mood == "(bất kỳ)" else mood,
-                               page_size, (int(page) - 1) * page_size)
-        sound_rows(p, pid, res["rows"], "sr")
+    key = f"sfxplan_{pid}"
+    with st.container(border=True):
+        ui.html(ui.card_title("🎧 Hiệu ứng âm thanh", "AI đọc kịch bản + kho của bạn, đề xuất chỗ cần điểm nhấn / chuyển cảnh"))
+        if not n.get("sfx"):
+            st.caption("Kho âm thanh chưa có hiệu ứng nào.")
+        else:
+            wish = st.text_input("Yêu cầu thêm (không bắt buộc)", key=f"sfx_wish_{pid}",
+                                 placeholder="vd: ít thôi, chỉ ở chuyển cảnh · thêm tiếng va chạm ở cảnh 3")
+            transition = st.session_state.get(f"tr_{pid}", "cut")
+            fade = float(st.session_state.get(f"fade_{pid}", 1.0))
+            if st.button("🤖 AI tự đề xuất hiệu ứng", key=f"sfx_go_{pid}", type="primary"):
+                client = llm_client()
+                try:
+                    with st.spinner("AI đang đọc các cảnh và chọn hiệu ứng…"):
+                        st.session_state[key] = sfx_plan.propose(client, p, DATA, pid, transition, fade, wish)
+                except (sfx_plan.SfxPlanError, llm_runner.LlmError) as e:
+                    st.error(str(e))
+            plan = st.session_state.get(key)
+            if plan is not None:
+                if plan["summary"]:
+                    st.info(plan["summary"])
+                if not plan["cues"]:
+                    st.caption("AI không thấy chỗ nào cần thêm hiệu ứng.")
+                else:
+                    import pandas as pd
+                    frame = pd.DataFrame([{"Dùng": True, "Giây": c["at"], "Cảnh": c["scene"], "Hiệu ứng": c["name"], "Thư mục": c["folder"],
+                                           "Âm lượng": c["volume"], "Vì sao": c["reason"]} for c in plan["cues"]])
+                    edited = st.data_editor(frame, key=f"sfx_table_{pid}", hide_index=True, width="stretch",
+                                            disabled=["Cảnh", "Hiệu ứng", "Thư mục", "Vì sao"],
+                                            column_config={"Giây": st.column_config.NumberColumn(min_value=0.0, step=0.1),
+                                                           "Âm lượng": st.column_config.NumberColumn(min_value=0.0, max_value=1.5, step=0.05)})
+                    b1, b2 = st.columns([2, 1])
+                    if b1.button("✅ Thêm các hiệu ứng đã chọn vào video", key=f"sfx_apply_{pid}", type="primary"):
+                        chosen = [{"id": plan["cues"][i]["id"], "at": float(row["Giây"]), "volume": float(row["Âm lượng"])}
+                                  for i, row in edited.iterrows() if row["Dùng"]]
+                        added = sfx_plan.apply(p, DATA, pid, chosen)
+                        st.session_state.pop(key, None)
+                        st.toast(f"Đã thêm {added} hiệu ứng (chỉnh tiếp ở mục Hiệu ứng âm thanh & giọng đọc bên trên)")
+                        st.rerun()
+                    if b2.button("Bỏ đề xuất", key=f"sfx_drop_{pid}"):
+                        st.session_state.pop(key, None)
+                        st.rerun()
+        if n.get("music"):
+            mode = p.project(pid)["music_mode"] == "library"
+            auto = st.checkbox("Nhạc nền: ưu tiên lấy từ kho của tôi thay vì để AI tạo (tiết kiệm credit; AI tạo nhạc vẫn là mặc định)", mode,
+                               key=f"music_mode_{pid}")
+            if auto != mode:
+                p.conn.execute("UPDATE projects SET music_mode=? WHERE id=?", ("library" if auto else None, pid))
+                p.conn.commit()
 
 
 def step5(p: Pipeline, pid: int):
@@ -2448,7 +2425,7 @@ def music_branch(p: Pipeline, pid: int) -> None:
     ui.html(ui.card_title("🎵 Nhạc nền (nhánh phụ)", "AI tạo nhạc theo mood các cảnh; kho nhạc của bạn chỉ hỗ trợ")
             + (ui.badge("đã chọn", "b-ok") if os.listdir(selected_dir) else ui.badge("chưa chọn")))
     step5a(p, pid)
-    sound_picker(p, pid)
+    sfx_assistant(p, pid)
 
 
 def run_startup_sync(fn, what: str, code: str) -> None:

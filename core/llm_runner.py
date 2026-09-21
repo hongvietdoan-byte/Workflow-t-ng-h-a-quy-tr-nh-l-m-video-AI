@@ -310,6 +310,13 @@ class MockLlm:
             cues = json.loads(re.search(r"```json\s*(.*?)```", block, re.S).group(1))
             out = {"cues": [{"id": c["id"], "text": f"[{lang}] {c['text']}"} for c in cues]}
             return LlmReply("```json\n" + json.dumps(out, ensure_ascii=False) + "\n```", 60, 40)
+        if "Chuyên viên sound design" in prompt:
+            scenes = json.loads(re.search(r"# Các cảnh.*?```json\s*(.*?)```", prompt, re.S).group(1))
+            sounds = json.loads(re.search(r"# Hiệu ứng có sẵn\s*```json\s*(.*?)```", prompt, re.S).group(1))
+            cues = [{"at": s["start"], "scene": s["scene"], "id": sounds[i % len(sounds)]["id"], "volume": 0.8,
+                     "reason": f"điểm chuyển sang cảnh {s['scene']} (giả lập)"} for i, s in enumerate(scenes[1:] or scenes)]
+            out = {"summary": "Đặt hiệu ứng ở các điểm chuyển cảnh (giả lập).", "cues": cues}
+            return LlmReply("```json\n" + json.dumps(out, ensure_ascii=False) + "\n```", 90, 60)
         if "Chuyên gia phong cách hình ảnh" in prompt:
             out = {"render_style": "Hoạt hình 3D mềm (giả lập): không viền, chuyển sắc liên tục",
                    "palette": "Tím lam chủ đạo, vàng ấm điểm nhấn ở nguồn sáng; no bloom, no oversaturation",

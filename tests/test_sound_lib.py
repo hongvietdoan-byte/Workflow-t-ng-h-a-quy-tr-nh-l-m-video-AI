@@ -244,7 +244,15 @@ class DashboardTests(Base):
         at.query_params["step"] = step
         return at.run()
 
-    def test_the_library_is_added_in_settings_and_used_in_step_5(self):
+    def clips(self):
+        from core import final_cut
+        for r in self.conn.execute("SELECT idx FROM scenes WHERE project_id=? ORDER BY idx", (self.pid,)).fetchall():
+            path = final_cut.clip_path(self.data, self.pid, r["idx"])
+            os.makedirs(os.path.dirname(path), exist_ok=True)
+            with open(path, "wb") as f:
+                f.write(b"not a real clip")
+
+    def test_the_library_is_added_in_settings_and_step_5_shows_only_the_ai_button(self):
         wav(os.path.join(self.src, "nhạc nền kịch tính", "Dark Storm.wav"), 1.0)
         wav(os.path.join(self.src, "Sound FX Pack", "Whoosh.wav"), 1.0)
         at = self.app("1")
@@ -255,36 +263,38 @@ class DashboardTests(Base):
         self.assertEqual(sound_lib.counts(self.conn), {"music": 1, "sfx": 1})
         at = self.app("5")
         self.assertFalse(at.exception)
-        self.assertTrue(any("Kho âm thanh của bạn (hỗ trợ) — 1 nhạc nền · 1 hiệu ứng" in e.label for e in at.expander))
-        music_id = sound_lib.search(self.conn, kind="music")["rows"][0]["id"]
-        sfx_id = sound_lib.search(self.conn, kind="sfx")["rows"][0]["id"]
-        next(b for b in at.button if b.key == f"sr_use_{music_id}").click().run()
-        _, selected = music.project_dirs(self.data, self.pid)
-        self.assertEqual(os.listdir(selected), ["selected.wav"])
-        at = self.app("5")
-        at.number_input(key=f"sr_at_{sfx_id}").set_value(2.5).run()
-        next(b for b in at.button if b.key == f"sr_add_{sfx_id}").click().run()
-        extras = audio_lib.mix_list(audio_lib.assets_dir(self.data, self.pid))
-        self.assertEqual((len(extras), extras[0]["start"]), (1, 2.5))
-        next(b for b in at.button if b.key == f"sr_play_{sfx_id}").click().run()
-        self.assertFalse(at.exception)                                                   # the preview player rendered
+        self.assertTrue(any(b.key == f"sfx_go_{self.pid}" for b in at.button))
+        self.assertFalse(any((b.key or "").startswith(("sr_", "sg_")) for b in at.button))          # no search / preview / per-track buttons
 
-    def test_automatic_music_setting_is_saved_per_project_and_search_filters(self):
+    def test_the_ai_button_proposes_and_only_the_kept_rows_are_added(self):
+        wav(os.path.join(self.src, "Sound FX Pack", "Whoosh.wav"), 1.0)
+        wav(os.path.join(self.src, "popup", "Pop.wav"), 1.0)
+        sound_lib.scan(self.conn, sound_lib.add_source(self.conn, self.src))
+        self.clips()
+        at = self.app("5")
+        os.environ["LLM_PROVIDER"] = "mock"
+        try:
+            next(b for b in at.button if b.key == f"sfx_go_{self.pid}").click().run()
+        finally:
+            os.environ.pop("LLM_PROVIDER", None)
+        self.assertFalse(at.exception)
+        self.assertEqual(audio_lib.load(audio_lib.assets_dir(self.data, self.pid)), [])             # nothing added before the person agrees
+        next(b for b in at.button if b.key == f"sfx_apply_{self.pid}").click().run()
+        self.assertFalse(at.exception)
+        added = audio_lib.load(audio_lib.assets_dir(self.data, self.pid))
+        self.assertTrue(added and all(e["label"].startswith("AI: ") for e in added))
+
+    def test_automatic_music_setting_is_saved_per_project(self):
         wav(os.path.join(self.src, "nhạc nền vui vẻ", "Sunny.wav"), 1.0)
-        wav(os.path.join(self.src, "nhạc nền kịch tính", "Dark.wav"), 1.0)
         sound_lib.scan(self.conn, sound_lib.add_source(self.conn, self.src))
         at = self.app("5")
         at.checkbox(key=f"music_mode_{self.pid}").set_value(True).run()
         self.assertEqual(self.conn.execute("SELECT music_mode FROM projects WHERE id=?", (self.pid,)).fetchone()[0], "library")
-        at.text_input(key=f"snd_q_{self.pid}").set_value("kich tinh").run()
-        self.assertFalse(at.exception)
-        self.assertTrue(any(k.startswith("sr_use_") for k in [b.key for b in at.button if b.key]))
-        self.assertEqual(len([b for b in at.button if (b.key or "").startswith("sr_use_")]), 1)          # only the dramatic one
 
     def test_an_empty_library_adds_nothing_to_step_5(self):
         at = self.app("5")
         self.assertFalse(at.exception)
-        self.assertFalse(any("Kho âm thanh của bạn" in e.label for e in at.expander))
+        self.assertFalse(any(b.key == f"sfx_go_{self.pid}" for b in at.button))
 
     def test_the_dashboard_lists_new_sound_files_when_it_opens(self):
         wav(os.path.join(self.src, "nhạc nền vui vẻ", "Sunny.wav"), 1.0)
@@ -310,3 +320,62 @@ class OldDatabaseTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class SfxPlanTests(Base):
+    def setUp(self):
+        super().setUp()
+        from core import final_cut
+        from tests.test_step1_flow import split_only
+        self.tmp, self.db, self.data, self.p, self.pid = split_only()
+        self.conn = self.p.conn
+        for r in self.conn.execute("SELECT idx FROM scenes WHERE project_id=? ORDER BY idx", (self.pid,)).fetchall():
+            path = final_cut.clip_path(self.data, self.pid, r["idx"])
+            os.makedirs(os.path.dirname(path), exist_ok=True)
+            with open(path, "wb") as f:
+                f.write(b"x")
+        wav(os.path.join(self.src, "Sound FX Pack", "Whoosh.wav"), 1.0)
+        wav(os.path.join(self.src, "popup", "Pop.wav"), 1.0)
+        sound_lib.scan(self.conn, sound_lib.add_source(self.conn, self.src))
+
+    def test_the_proposal_is_reviewed_first_then_replaces_only_earlier_ai_effects(self):
+        from core import llm_runner, sfx_plan
+        plan = sfx_plan.propose(llm_runner.MockLlm(), self.p, self.data, self.pid)
+        self.assertTrue(plan["cues"] and plan["summary"])
+        self.assertTrue(all(c["reason"] and c["name"] for c in plan["cues"]))
+        directory = audio_lib.assets_dir(self.data, self.pid)
+        self.assertEqual(audio_lib.load(directory), [])
+        audio_lib.add_local(directory, os.path.join(self.src, "popup", "Pop.wav"), "my own", 1.0)
+        chosen = [{"id": c["id"], "at": c["at"], "volume": c["volume"]} for c in plan["cues"]]
+        self.assertEqual(sfx_plan.apply(self.p, self.data, self.pid, chosen), len(chosen))
+        self.assertEqual(sfx_plan.apply(self.p, self.data, self.pid, chosen[:1]), 1)                 # a second run replaces the AI ones
+        labels = [e["label"] for e in audio_lib.load(directory)]
+        self.assertEqual(len(labels), 2)
+        self.assertIn("my own", labels)
+
+    def test_nothing_to_plan_without_a_model_or_effects(self):
+        from core import llm_runner, sfx_plan
+        with self.assertRaises(sfx_plan.SfxPlanError):
+            sfx_plan.propose(None, self.p, self.data, self.pid)
+        sound_lib.remove_source(self.conn, sound_lib.list_sources(self.conn)[0]["id"])
+        with self.assertRaises(sfx_plan.SfxPlanError):
+            sfx_plan.propose(llm_runner.MockLlm(), self.p, self.data, self.pid)
+
+    def test_an_answer_with_an_unknown_id_is_asked_again_and_then_refused(self):
+        from core import llm_runner, sfx_plan
+
+        class Wrong:
+            def complete(self, prompt, images=()):
+                return llm_runner.LlmReply('{"summary": "x", "cues": [{"at": 1, "id": 999999, "volume": 1, "reason": "r"}]}')
+        with self.assertRaises(llm_runner.LlmError):
+            sfx_plan.propose(Wrong(), self.p, self.data, self.pid)
+
+    def test_a_big_library_is_shown_as_an_even_share_of_every_folder(self):
+        from core import sfx_plan
+        source = sound_lib.list_sources(self.conn)[0]["id"]
+        for n in range(300):
+            self.conn.execute("INSERT INTO sounds (source_id, path, name, category, kind, mood, search, ext, size, mtime) VALUES (?,?,?,?,?,?,?,?,?,?)",
+                              (source, f"/x/{n}.mp3", f"big {n}", "Big", "sfx", "", "big", ".mp3", 10, 0))
+        picked = sfx_plan.catalog(self.conn, 40)
+        self.assertLessEqual(len(picked), 40)
+        self.assertIn("popup", {r["category"] for r in picked})
