@@ -134,6 +134,29 @@ CREATE TABLE IF NOT EXISTS audit_log (
     action TEXT NOT NULL,
     detail TEXT
 );
+CREATE TABLE IF NOT EXISTS assets (
+    id INTEGER PRIMARY KEY,
+    game TEXT NOT NULL,
+    kind TEXT NOT NULL,
+    name TEXT NOT NULL,
+    aliases TEXT,
+    description TEXT,
+    project_id INTEGER,
+    created_by TEXT,
+    created_at TEXT
+);
+CREATE TABLE IF NOT EXISTS asset_images (
+    id INTEGER PRIMARY KEY,
+    asset_id INTEGER NOT NULL,
+    path TEXT NOT NULL,
+    label TEXT,
+    sort INTEGER
+);
+CREATE TABLE IF NOT EXISTS project_assets (
+    project_id INTEGER NOT NULL,
+    asset_id INTEGER NOT NULL,
+    PRIMARY KEY (project_id, asset_id)
+);
 CREATE TABLE IF NOT EXISTS mistakes (
     id INTEGER PRIMARY KEY,
     source TEXT NOT NULL,

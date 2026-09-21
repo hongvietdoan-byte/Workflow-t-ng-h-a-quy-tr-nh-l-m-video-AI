@@ -122,3 +122,7 @@ Lưu ý chung: nút **↺ Làm lại từ đầu** xuất hiện ở job đã h�
 - **Bảng phân quyền** (tab "👥 Phân quyền", chỉ Owner): tick từng người được dùng thêm Cài đặt & bảng giá / Kho kiến thức / Theo dõi hiệu suất / Bài học rồi bấm Lưu; bỏ tick "Được vào" để chặn (người đó bị đăng xuất ngay). Thêm e-mail mới, xóa khỏi bảng, đổi tên miền tự vào cũng ở đây. Nhật ký đăng nhập ở cuối trang.
 - Địa chỉ đưa cho người khác: `http://<IP máy chạy>:8501` (tab Phân quyền hiện sẵn). Nên đánh dấu trang `...?login=ten@garena.vn` để khỏi nhập lại.
 - **Lưu ý bảo mật:** không có mật khẩu, nên chỉ dùng trong mạng tin cậy. Muốn Owner chỉ đăng nhập từ máy chạy Dashboard: thêm `DASHBOARD_OWNER_LOCAL_ONLY=1` vào `dashboard.env`.
+
+## Kho tài nguyên
+- **Người quản lý** (Owner hoặc người có quyền "Kho tài nguyên"): "⚙ Cài đặt & dự án" → tab "Kho tài nguyên" → chọn game → thêm mục (tên, tên gọi khác, mô tả, ảnh) hoặc "Nhập hàng loạt từ thư mục" (nhập đường dẫn thư mục trên máy chạy Dashboard). Ảnh nên là ảnh chính thức, rõ nhân vật, ≤10 MB.
+- **Mọi người:** Bước 1, sau khi phân tích kịch bản → "🧰 Tài nguyên đi kèm kịch bản": bấm "Dùng" cho các gợi ý (tên có trong kịch bản), chọn thêm từ kho, hoặc tải ảnh riêng cho dự án. Sau đó chạy Director (thủ công hoặc tự động) để dùng đúng thiết kế đã chọn.

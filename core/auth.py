@@ -27,7 +27,7 @@ DEFAULT_DOMAINS = "garena.vn"
 SESSION_SECONDS = 12 * 3600
 # permissions the owner can hand out one by one; the video workflow itself is for everyone
 PERM_LABELS = {"settings": "Cài đặt & bảng giá", "knowledge": "Kho kiến thức", "monitor": "Theo dõi hiệu suất",
-               "lessons": "Bài học"}
+               "lessons": "Bài học", "assets": "Kho tài nguyên"}
 OWNER_ONLY = ("users", "shutdown")
 ALWAYS = ("workflow", "autopilot")
 _EMAIL = re.compile(r"^[a-z0-9._%+\-]+@[a-z0-9\-]+(\.[a-z0-9\-]+)+$")

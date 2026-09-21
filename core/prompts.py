@@ -3,7 +3,7 @@ import json
 import os
 from typing import List
 
-from . import dialogue, knowledge
+from . import assets, dialogue, knowledge
 from .evalset import few_shot_text
 from .pipeline import Pipeline
 
@@ -54,6 +54,7 @@ def build_director_bundle(pipeline: Pipeline, project_id: int) -> str:
         keep("genre_guides.md"),
         keep("research_notes.md"),
         keep("film_director_method.md"),
+        assets.context_text(pipeline.conn, project_id),
         world_bible_text(pipeline, project_id),
         knowledge.user_text("director"),
         few_shot_text(),

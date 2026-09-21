@@ -20,7 +20,7 @@ import streamlit as st
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
-from core import audio_lib, auth, autopilot, dialogue, diag, knowledge, lessons, perf, regen, research, style, subjects, trash, waveform, cost, ffmpeg_studio, final_cut, llm_io, llm_runner, music, preflight, prompts, script_parser  # noqa: E402
+from core import assets, audio_lib, auth, autopilot, dialogue, diag, knowledge, lessons, perf, regen, research, style, subjects, trash, waveform, cost, ffmpeg_studio, final_cut, llm_io, llm_runner, music, preflight, prompts, script_parser  # noqa: E402
 from core.db import connect  # noqa: E402
 from core.pipeline import Pipeline, PipelinePaused  # noqa: E402
 from core.adapters import factory  # noqa: E402
@@ -596,7 +596,7 @@ def user_bar() -> str:
 def global_bar(p: Pipeline):
     projects = p.conn.execute("SELECT id, name FROM projects ORDER BY id").fetchall()
     with st.expander("⚙ Cài đặt & dự án", expanded=not projects):
-        labels = ["Dự án mới"] + (["Bảng giá"] if allowed("settings") else []) + (
+        labels = ["Dự án mới"] + (["Kho tài nguyên"] if allowed("assets") else []) + (["Bảng giá"] if allowed("settings") else []) + (
             ["Kho kiến thức (Director, QC, Motion)"] if allowed("knowledge") else [])
         tabs = dict(zip(labels, st.tabs(labels)))
         with tabs["Dự án mới"]:
@@ -604,6 +604,9 @@ def global_bar(p: Pipeline):
             if st.button("Tạo dự án") and name.strip():
                 p.create_project(name.strip())
                 st.rerun()
+        if "Kho tài nguyên" in tabs:
+            with tabs["Kho tài nguyên"]:
+                asset_library_panel(p)
         if "Bảng giá" in tabs:
             with tabs["Bảng giá"]:
                 price_editor()
@@ -743,7 +746,7 @@ WB_LABELS = (("render_style", "Phong cách dựng hình", "vd: hoạt hình 3D m
 def world_bible_panel(p: Pipeline, pid: int) -> None:
     """Project style bible: written by hand or drafted by Claude from reference pictures, then inherited by every prompt."""
     saved = style.load(p, pid)
-    with st.expander("🎨 Phong cách hình ảnh (World Bible) — giúp mọi cảnh nhất quán" + (" ✓" if any(saved.values()) else ""),
+    with st.expander("⚙ Tùy chọn nâng cao · 🎨 Phong cách hình ảnh (World Bible)" + (" ✓" if any(saved.values()) else ""),
                      expanded=False):
         st.caption("Khóa một bộ tham số phong cách dùng chung: Director và Motion sẽ kế thừa cho **mọi** cảnh, tránh cảnh này một kiểu cảnh kia "
                    "một kiểu. Gõ tay, hoặc tải 2–6 ảnh tham khảo để Claude soạn bản nháp rồi bạn sửa. Bản nháp chỉ có tác dụng sau khi bạn bấm Lưu.")
@@ -822,6 +825,154 @@ def resize_panel(pid: int, src: str) -> None:
                                        key=f"rs_dl_{pid}")
 
 
+def asset_thumbs(items, width: int = 80) -> None:
+    """A row of the first picture of each asset."""
+    with_pics = [a for a in items if a["images"]]
+    if with_pics:
+        cols = st.columns(min(len(with_pics), 8))
+        for col, a in zip(cols, with_pics[:8]):
+            col.image(a["images"][0]["path"], caption=a["name"], width=width)
+
+
+def assets_panel(p: Pipeline, pid: int) -> None:
+    """Step 1, after the script is split: pick the resources (characters, weapons, pets, places...) that go with this script."""
+    proj = p.project(pid)
+    game = proj["game"]
+    text = proj["script_text"] or "\n".join(json.loads(s["data"] or "{}").get("text", "") for s in
+                                            p.conn.execute("SELECT data FROM scenes WHERE project_id=?", (pid,)))
+    chosen = assets.project_assets(p.conn, pid)
+    chosen_ids = {a["id"] for a in chosen}
+    suggested = [a for a in assets.find_in_text(p.conn, text, game, pid) if a["id"] not in chosen_ids]
+    label = f"🧰 Tài nguyên đi kèm kịch bản — {len(chosen)} đã chọn" + (f" · {len(suggested)} gợi ý mới" if suggested else "")
+    with st.expander(label, expanded=bool(suggested) or bool(chosen)):
+        st.caption("Chọn nhân vật, vũ khí, thú cưng, bản đồ… có sẵn trong kho (hoặc tải ảnh riêng) để dùng cùng kịch bản. Director sẽ dùng đúng "
+                   "tên và thiết kế này thay vì tự nghĩ ra, và ảnh của chúng là ảnh tham khảo khi gen.")
+        if suggested:
+            st.markdown("**Tìm thấy trong kịch bản** (gợi ý):")
+            for a in suggested:
+                c1, c2, c3 = st.columns([1, 6, 1.6], vertical_alignment="center")
+                if a["images"]:
+                    c1.image(a["images"][0]["path"], width=56)
+                c2.markdown(f"**{escape(a['name'])}** · {a['kind_label']} · xuất hiện {a['mentions']} lần"
+                            + (f" — {escape(a['description'][:90])}" if a["description"] else ""))
+                if c3.button("➕ Dùng", key=f"as_use_{pid}_{a['id']}"):
+                    assets.attach(p.conn, pid, a["id"])
+                    st.rerun()
+            if st.button("➕ Dùng tất cả gợi ý", key=f"as_use_all_{pid}"):
+                for a in suggested:
+                    assets.attach(p.conn, pid, a["id"])
+                st.rerun()
+        if chosen:
+            st.markdown("**Đang dùng cho dự án này:**")
+            for a in chosen:
+                c1, c2, c3 = st.columns([1, 6, 1.4], vertical_alignment="center")
+                if a["images"]:
+                    c1.image(a["images"][0]["path"], width=56)
+                scope = "riêng dự án" if a["project_id"] else "kho chung"
+                c2.markdown(f"**{escape(a['name'])}** · {a['kind_label']} · {scope} · {len(a['images'])} ảnh")
+                if c3.button("✖ Bỏ", key=f"as_drop_{pid}_{a['id']}"):
+                    assets.detach(p.conn, pid, a["id"])
+                    st.rerun()
+        library = [a for a in assets.list_assets(p.conn, game, None, pid) if a["id"] not in chosen_ids]
+        if library:
+            pick = st.selectbox("Thêm từ kho", [None] + [a["id"] for a in library], key=f"as_pick_{pid}",
+                                format_func=lambda i: "— chọn —" if i is None else next(
+                                    f"{a['kind_label']}: {a['name']}" for a in library if a["id"] == i))
+            if pick is not None and st.button("➕ Thêm vào dự án", key=f"as_add_{pid}"):
+                assets.attach(p.conn, pid, pick)
+                st.rerun()
+        elif not chosen:
+            st.caption(f"Kho tài nguyên của game này đang trống. Người quản lý có thể thêm ở “⚙ Cài đặt & dự án” → Kho tài nguyên; "
+                       "hoặc bạn tải ảnh riêng ở dưới.")
+        with st.container(border=True):
+            st.markdown("**⬆ Tải ảnh riêng cho dự án này** (nhân vật gốc, đạo cụ…)")
+            n1, n2 = st.columns([3, 2])
+            name = n1.text_input("Tên", key=f"as_new_name_{pid}", placeholder="vd Lyra")
+            kind = n2.selectbox("Loại", list(assets.KINDS), format_func=lambda k: assets.KINDS[k], key=f"as_new_kind_{pid}")
+            desc = st.text_input("Mô tả ngắn (tùy chọn)", key=f"as_new_desc_{pid}", placeholder="tóc bạc dài, giáp xanh…")
+            files = st.file_uploader("Ảnh (JPG/PNG/WebP, tối đa 10 MB mỗi ảnh)", type=["png", "jpg", "jpeg", "webp"],
+                                     accept_multiple_files=True, key=f"as_new_files_{pid}")
+            share = allowed("assets") and st.checkbox("Lưu cả vào kho dùng chung", key=f"as_new_share_{pid}")
+            if st.button("Lưu vào dự án", key=f"as_new_go_{pid}", disabled=not (name.strip() and files)):
+                try:
+                    aid = assets.create(p.conn, game, kind, name, desc, "", None if share else pid, me().get("email"))
+                    for f in files[: assets.MAX_IMAGES_PER_ASSET]:
+                        assets.add_image(p.conn, aid, f.name, f.getvalue())
+                    assets.attach(p.conn, pid, aid)
+                except assets.AssetError as e:
+                    st.error(str(e))
+                else:
+                    st.rerun()
+
+
+def asset_library_panel(p: Pipeline) -> None:
+    """Settings: the shared resource library (people with the Kho tài nguyên right)."""
+    catalog = subjects.games()
+    keys = list(catalog)
+    game = st.selectbox("Game / loại nội dung", keys, format_func=lambda k: catalog[k][0], key="lib_game")
+    items = assets.list_assets(p.conn, game, None, None, shared_only=True)
+    st.caption(f"{len(items)} mục trong kho **{catalog[game][0]}**. Mọi dự án của game này đều chọn dùng được.")
+    with st.expander("📥 Nhập hàng loạt từ thư mục trên máy chạy Dashboard"):
+        st.caption("Cấu trúc nhận được: `Thư mục/Lyra_front.png, Lyra_back.png` (ảnh cùng tên thành một mục), hoặc `Thư mục/Lyra/1.png…`, "
+                   "hoặc chia theo thư mục con `Nhân vật`, `Vũ khí`, `Thú cưng`, `Bản đồ`, `Đạo cụ`. Chỉ nhận JPG/PNG/WebP ≤ 10 MB. Không xóa gì.")
+        path = st.text_input("Đường dẫn thư mục", key="lib_import_path", placeholder=r"D:\FF\Resources")
+        default_kind = st.selectbox("Loại mặc định (khi thư mục không nói rõ)", list(assets.KINDS), format_func=lambda k: assets.KINDS[k],
+                                    key="lib_import_kind")
+        if st.button("Nhập vào kho", key="lib_import_go", disabled=not path.strip()):
+            try:
+                r = assets.import_folder(p.conn, path.strip().strip('"'), game, default_kind, me().get("email"))
+            except assets.AssetError as e:
+                st.error(str(e))
+            else:
+                st.success(f"Đã tạo {r['assets_created']} mục, thêm {r['images_added']} ảnh" + (f", bỏ qua {r['images_skipped']} ảnh lỗi" if r["images_skipped"] else ""))
+    with st.expander("➕ Thêm một mục"):
+        c1, c2 = st.columns([3, 2])
+        name = c1.text_input("Tên", key="lib_new_name")
+        kind = c2.selectbox("Loại", list(assets.KINDS), format_func=lambda k: assets.KINDS[k], key="lib_new_kind")
+        aliases = st.text_input("Tên gọi khác trong kịch bản (cách nhau bằng dấu phẩy)", key="lib_new_aliases")
+        desc = st.text_area("Mô tả (ngoại hình, đặc điểm để Director dùng)", key="lib_new_desc", height=70)
+        files = st.file_uploader("Ảnh tham khảo", type=["png", "jpg", "jpeg", "webp"], accept_multiple_files=True, key="lib_new_files")
+        if st.button("Thêm vào kho", key="lib_new_go", disabled=not name.strip()):
+            try:
+                aid = assets.create(p.conn, game, kind, name, desc, aliases, None, me().get("email"))
+                for f in files[: assets.MAX_IMAGES_PER_ASSET]:
+                    assets.add_image(p.conn, aid, f.name, f.getvalue())
+            except assets.AssetError as e:
+                st.error(str(e))
+            else:
+                st.rerun()
+    kind_filter = st.radio("Xem", ["all"] + list(assets.KINDS), horizontal=True, key="lib_filter",
+                           format_func=lambda k: "Tất cả" if k == "all" else assets.KINDS[k])
+    for a in items:
+        if kind_filter != "all" and a["kind"] != kind_filter:
+            continue
+        with st.expander(f"{a['kind_label']} · {a['name']} · {len(a['images'])} ảnh"):
+            if a["images"]:
+                cols = st.columns(min(len(a["images"]), 6))
+                for col, img in zip(cols, a["images"]):
+                    col.image(img["path"], width=110)
+                    if col.button("Xóa ảnh", key=f"lib_img_rm_{img['id']}"):
+                        assets.remove_image(p.conn, img["id"])
+                        st.rerun()
+            e_name = st.text_input("Tên", a["name"], key=f"lib_e_name_{a['id']}")
+            e_alias = st.text_input("Tên gọi khác", a["aliases"], key=f"lib_e_alias_{a['id']}")
+            e_desc = st.text_area("Mô tả", a["description"], key=f"lib_e_desc_{a['id']}", height=70)
+            more = st.file_uploader("Thêm ảnh", type=["png", "jpg", "jpeg", "webp"], accept_multiple_files=True, key=f"lib_e_up_{a['id']}")
+            b1, b2 = st.columns(2)
+            if b1.button("💾 Lưu", key=f"lib_e_save_{a['id']}", type="primary"):
+                try:
+                    assets.update(p.conn, a["id"], e_name, e_alias, e_desc)
+                    for f in more:
+                        assets.add_image(p.conn, a["id"], f.name, f.getvalue())
+                except assets.AssetError as e:
+                    st.error(str(e))
+                else:
+                    st.rerun()
+            if confirm_all(f"lib_del_{a['id']}", [a["id"]], "🗑 Xóa mục này", f"Xóa “{a['name']}” khỏi kho (các dự án đang dùng cũng mất)?", b2, "Có, xóa"):
+                assets.delete(p.conn, a["id"])
+                st.rerun()
+
+
 def script_html(text: str) -> str:
     """Whole script as a scrollable block; scene headings in bold so the scenes can be found at a glance."""
     lines = []
@@ -895,8 +1046,8 @@ def step1(p: Pipeline, pid: int):
                 act(lambda: p.add_scene_next(pid))
                 st.rerun()
 
-    world_bible_panel(p, pid)
     if scenes:
+        assets_panel(p, pid)
         ui.html(ui.card_title("④ Chọn cách chạy", "sau khi đã tách cảnh ở trên"))
         auto_col, manual_col = st.columns(2, gap="large")
         with auto_col:
@@ -976,6 +1127,7 @@ def step1(p: Pipeline, pid: int):
                 if b.button("✔ Duyệt & khóa → Bước 2", type="primary"):
                     act(lambda: llm_io.lock_character_bible(p, pid), "Đã khóa Character Bible")
                     st.rerun()
+    world_bible_panel(p, pid)
 
 
 def subject_panel(p: Pipeline, pid: int, chars) -> None:
