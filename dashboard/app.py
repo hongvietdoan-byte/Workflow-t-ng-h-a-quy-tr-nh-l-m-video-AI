@@ -1009,6 +1009,19 @@ def asset_library_panel(p: Pipeline) -> None:
             e_alias = st.text_input("Tên gọi khác", a["aliases"], key=f"lib_e_alias_{a['id']}")
             e_desc = st.text_area("Mô tả", a["description"], key=f"lib_e_desc_{a['id']}", height=70)
             more = st.file_uploader("Thêm ảnh", type=["png", "jpg", "jpeg", "webp"], accept_multiple_files=True, key=f"lib_e_up_{a['id']}")
+            others = [x for x in items if x["id"] != a["id"]]
+            if others:
+                g1, g2 = st.columns([3, 1.4], vertical_alignment="bottom")
+                target = g1.selectbox("Gộp mục này vào mục khác (ảnh chuyển sang, tên này thành tên gọi khác)", [None] + [x["id"] for x in others],
+                                      format_func=lambda i: "— không gộp —" if i is None else next(f"{x['kind_label']}: {x['name']}" for x in others if x["id"] == i),
+                                      key=f"lib_merge_{a['id']}")
+                if target is not None and g2.button("Gộp", key=f"lib_merge_go_{a['id']}"):
+                    try:
+                        assets.merge(p.conn, a["id"], target)
+                    except assets.AssetError as e:
+                        st.error(str(e))
+                    else:
+                        st.rerun()
             b1, b2 = st.columns(2)
             if b1.button("💾 Lưu", key=f"lib_e_save_{a['id']}", type="primary"):
                 try:

@@ -331,6 +331,42 @@ class SyncTests(unittest.TestCase):
         self.assertEqual(assets.list_sources(conn), [])
 
 
+class MergeTests(unittest.TestCase):
+    def setUp(self):
+        self.dir = tempfile.mkdtemp()
+        os.environ["ASSET_DIR"] = os.path.join(self.dir, "assets")
+        self.conn = connect()
+
+    def tearDown(self):
+        os.environ.pop("ASSET_DIR", None)
+        shutil.rmtree(self.dir, ignore_errors=True)
+
+    def test_merging_moves_the_pictures_keeps_them_on_disk_and_turns_the_name_into_an_alias(self):
+        keep = assets.create(self.conn, "FF", "character", "CHRONO")
+        dup = assets.create(self.conn, "FF", "character", "CHRONO1", aliases="Chrono Mới")
+        assets.add_image(self.conn, keep, "a.png", PNG + b"a")
+        assets.add_image(self.conn, dup, "b.png", PNG + b"b")
+        assets.add_image(self.conn, dup, "c.png", PNG + b"c")
+        p = Pipeline(self.conn)
+        pid = p.create_project("m")
+        assets.attach(self.conn, pid, dup)
+        self.assertEqual(assets.merge(self.conn, dup, keep), 2)
+        merged = assets.get(self.conn, keep)
+        self.assertEqual(len(merged["images"]), 3)
+        self.assertTrue(all(os.path.exists(i["path"]) for i in merged["images"]))          # files were moved, not lost with the old folder
+        self.assertIsNone(assets.get(self.conn, dup))
+        self.assertIn("CHRONO1", merged["aliases"])
+        self.assertIn("Chrono Mới", merged["aliases"])
+        self.assertEqual([a["name"] for a in assets.project_assets(self.conn, pid)], ["CHRONO"])   # projects follow the merge
+        with self.assertRaises(AssetError):
+            assets.merge(self.conn, keep, keep)
+
+    def test_trailing_words_new_and_old_are_not_part_of_the_name(self):
+        self.assertEqual(assets._stem_name("FORD new.png"), "FORD")
+        self.assertEqual(assets._stem_name("Kelly_new_2.png"), "Kelly")
+        self.assertEqual(assets._stem_name("A124.png"), "A124")
+
+
 class SyncDashboardTests(unittest.TestCase):
     def setUp(self):
         self.tmp, self.db, self.data, self.p, self.pid = split_only()

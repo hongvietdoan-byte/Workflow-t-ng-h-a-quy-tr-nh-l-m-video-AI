@@ -29,7 +29,7 @@ IMAGE_EXT = (".png", ".jpg", ".jpeg", ".webp")
 MAX_IMAGE_BYTES = 10 * 1024 * 1024        # the image generator refuses larger reference pictures
 MAX_IMAGES_PER_ASSET = 6
 _NOISE = {"front", "back", "side", "full", "avatar", "face", "portrait", "main", "ref", "reference", "hd", "final", "copy",
-          "truoc", "sau", "ngang", "mat"}
+          "truoc", "sau", "ngang", "mat", "new", "old", "moi", "cu"}
 
 
 class AssetError(Exception):
@@ -124,6 +124,42 @@ def delete(conn, asset_id: int) -> None:
     conn.execute("DELETE FROM assets WHERE id=?", (asset_id,))
     conn.commit()
     shutil.rmtree(os.path.join(root(), str(asset_id)), ignore_errors=True)
+
+
+def merge(conn, from_id: int, into_id: int) -> int:
+    """Fold asset `from_id` into `into_id` (same picture set, one name): its pictures are moved (up to the 6-picture limit), its
+    other names become aliases of the target, and it is deleted. Returns how many pictures moved."""
+    if from_id == into_id:
+        raise AssetError("Chọn một mục khác để gộp vào")
+    src, dst = get(conn, from_id), get(conn, into_id)
+    if src is None or dst is None:
+        raise AssetError("Không có mục này")
+    have = len(dst["images"])
+    moved = 0
+    for img in src["images"]:
+        if have >= MAX_IMAGES_PER_ASSET:
+            break
+        ext = os.path.splitext(img["path"])[1]
+        folder = os.path.join(root(), str(into_id))
+        os.makedirs(folder, exist_ok=True)
+        n = have + 1
+        while os.path.exists(os.path.join(folder, f"{n}{ext}")):
+            n += 1
+        target = os.path.join(folder, f"{n}{ext}")
+        shutil.move(img["path"], target)
+        conn.execute("UPDATE asset_images SET asset_id=?, path=?, sort=? WHERE id=?", (into_id, target, n, img["id"]))
+        have += 1
+        moved += 1
+    names = [n for n in re.split(r"[,;|]", dst["aliases"]) if n.strip()]
+    for n in [src["name"]] + [x for x in re.split(r"[,;|]", src["aliases"]) if x.strip()]:
+        if fold(n) != fold(dst["name"]) and fold(n) not in {fold(x) for x in names}:
+            names.append(n.strip())
+    conn.execute("UPDATE assets SET aliases=? WHERE id=?", (", ".join(names), into_id))
+    conn.execute("UPDATE project_assets SET asset_id=? WHERE asset_id=? AND NOT EXISTS (SELECT 1 FROM project_assets p2"
+                 " WHERE p2.project_id=project_assets.project_id AND p2.asset_id=?)", (into_id, from_id, into_id))
+    conn.commit()
+    delete(conn, from_id)
+    return moved
 
 
 def _row(conn, r) -> Dict:
