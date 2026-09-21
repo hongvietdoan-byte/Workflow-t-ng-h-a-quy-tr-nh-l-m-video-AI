@@ -20,7 +20,7 @@ import streamlit as st
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
-from core import assets, audio_lib, auth, autopilot, dialogue, diag, knowledge, lessons, perf, regen, research, style, subjects, trash, waveform, cost, ffmpeg_studio, final_cut, llm_io, llm_runner, music, preflight, prompts, script_parser  # noqa: E402
+from core import assets, audio_lib, script_reader, auth, autopilot, dialogue, diag, knowledge, lessons, perf, regen, research, style, subjects, trash, waveform, cost, ffmpeg_studio, final_cut, llm_io, llm_runner, music, preflight, prompts, script_parser  # noqa: E402
 from core.db import connect  # noqa: E402
 from core.pipeline import Pipeline, PipelinePaused  # noqa: E402
 from core.adapters import factory  # noqa: E402
@@ -999,31 +999,42 @@ def step1(p: Pipeline, pid: int):
             info.caption(f"✓ {len(scenes)} cảnh · {len(chars)} nhân vật")
         if st.session_state.get("parse_warn") and scenes:
             st.warning(st.session_state["parse_warn"])
-        u1, u2, u3 = st.columns([4, 1.6, 1.2], vertical_alignment="center")
-        up = u1.file_uploader("script.docx", type=["docx"], key=f"up_{pid}", label_visibility="collapsed")
-        if u2.button("▶ Phân tích (tách cảnh)", disabled=up is None, type="primary"):
-            with tempfile.NamedTemporaryFile(suffix=".docx", delete=False) as f:
-                f.write(up.getvalue())
-            try:
-                def analyse():
-                    paragraphs = script_parser.read_docx_paragraphs(f.name)
-                    parsed = script_parser.split_scenes(paragraphs)
-                    script_parser.import_scenes(p, pid, parsed, full_text="\n\n".join(paragraphs))
-                    if len(parsed) == 1 and parsed[0].heading == "Mở đầu":
-                        st.session_state["parse_warn"] = ("Không thấy tiêu đề cảnh (vd “Cảnh 1”, “Scene 2”, “INT./EXT.”): "
-                                                          "cả kịch bản thành 1 cảnh. Hãy thêm/sửa cảnh thủ công.")
-                    st.toast(f"Đã tách {len(parsed)} cảnh")
-                ok = act(analyse)
-            finally:
-                os.remove(f.name)
-            if ok:
+        t_file, t_text = st.tabs(["📎 Tải file", "✍ Gõ / dán văn bản"])
+        with t_file:
+            up = st.file_uploader("Kịch bản", type=list(script_reader.SUPPORTED), key=f"up_{pid}", label_visibility="collapsed",
+                                  help="Word (.docx, kể cả kịch bản viết trong bảng), Excel (.xlsx), CSV/TSV, .txt, .md")
+            st.caption("Đọc được: Word (.docx, cả bảng), Excel (.xlsx), CSV/TSV, .txt, .md. Kịch bản dạng bảng cần dòng tiêu đề cột như "
+                       "Cảnh, Mô tả, Nhân vật, Lời thoại, Bối cảnh, Thời gian, Góc máy.")
+        with t_text:
+            pasted = st.text_area("Gõ hoặc dán kịch bản", key=f"paste_{pid}", height=170, label_visibility="collapsed",
+                                  placeholder="CẢNH 1 - ĐÊM, RỪNG ELDER\nSương mù phủ kín khu rừng…\nLYRA: Có thứ gì đó đang theo chúng ta.\n\n"
+                                              "Dán cả bảng copy từ Excel / Google Sheets cũng được.")
+        u2, u3, u4 = st.columns([2.4, 1.2, 4], vertical_alignment="center")
+        has_input = up is not None or bool(pasted.strip())
+        if u2.button("▶ Phân tích (tách cảnh)", disabled=not has_input, type="primary", key=f"btn_analyse_{pid}"):
+            def analyse():
+                res = script_reader.read_script(up.name, up.getvalue()) if up is not None else script_reader.from_text(pasted)
+                parsed = script_parser.split_scenes(res.paragraphs)
+                script_parser.import_scenes(p, pid, parsed, full_text="\n\n".join(res.paragraphs))
+                st.session_state["parse_info"] = res.info
+                if len(parsed) == 1 and parsed[0].heading == "Mở đầu":
+                    st.session_state["parse_warn"] = ("Không thấy tiêu đề cảnh (vd “Cảnh 1”, “Scene 2”, “INT./EXT.”): "
+                                                      "cả kịch bản thành 1 cảnh. Hãy thêm/sửa cảnh thủ công.")
+                st.toast(f"Đã tách {len(parsed)} cảnh")
+            if act(analyse):
                 st.rerun()
+        u4.caption("Nếu có cả file lẫn văn bản, hệ thống dùng file." if has_input else "Chọn file hoặc dán văn bản, rồi bấm Phân tích.")
+        if st.session_state.get("parse_info") and scenes:
+            with st.expander("Hệ thống đã đọc kịch bản thế nào (kiểm tra lại)"):
+                for line in st.session_state["parse_info"]:
+                    st.caption("• " + line)
         if u3.button("↺ Reset", help="Xóa cảnh chưa có ảnh + nhân vật chưa khóa", key="btn_bad_reset"):
             p.conn.execute("DELETE FROM characters WHERE project_id=? AND locked=0", (pid,))
             p.conn.execute("DELETE FROM scenes WHERE project_id=? AND id NOT IN (SELECT scene_id FROM jobs)", (pid,))
             p.conn.commit()
             if not p.conn.execute("SELECT 1 FROM scenes WHERE project_id=?", (pid,)).fetchone():
                 p.set_script_text(pid, None)
+            st.session_state.pop("parse_info", None)
             st.rerun()
         left, right = st.columns(2, gap="large")
         with left:
@@ -1033,7 +1044,7 @@ def step1(p: Pipeline, pid: int):
             if full.strip():
                 ui.html(script_html(full))
             else:
-                st.caption("Chưa có kịch bản: upload file .docx rồi bấm Phân tích.")
+                st.caption("Chưa có kịch bản: tải file hoặc gõ/dán văn bản rồi bấm Phân tích.")
         with right:
             st.markdown(f"**Chia theo cảnh** · bấm vào từng cảnh để xem và sửa")
             for s in scenes:
