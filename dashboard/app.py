@@ -912,19 +912,70 @@ def asset_library_panel(p: Pipeline) -> None:
     game = st.selectbox("Game / loại nội dung", keys, format_func=lambda k: catalog[k][0], key="lib_game")
     items = assets.list_assets(p.conn, game, None, None, shared_only=True)
     st.caption(f"{len(items)} mục trong kho **{catalog[game][0]}**. Mọi dự án của game này đều chọn dùng được.")
-    with st.expander("📥 Nhập hàng loạt từ thư mục trên máy chạy Dashboard"):
-        st.caption("Cấu trúc nhận được: `Thư mục/Lyra_front.png, Lyra_back.png` (ảnh cùng tên thành một mục), hoặc `Thư mục/Lyra/1.png…`, "
-                   "hoặc chia theo thư mục con `Nhân vật`, `Vũ khí`, `Thú cưng`, `Bản đồ`, `Đạo cụ`. Chỉ nhận JPG/PNG/WebP ≤ 10 MB. Không xóa gì.")
-        path = st.text_input("Đường dẫn thư mục", key="lib_import_path", placeholder=r"D:\FF\Resources")
-        default_kind = st.selectbox("Loại mặc định (khi thư mục không nói rõ)", list(assets.KINDS), format_func=lambda k: assets.KINDS[k],
-                                    key="lib_import_kind")
-        if st.button("Nhập vào kho", key="lib_import_go", disabled=not path.strip()):
-            try:
-                r = assets.import_folder(p.conn, path.strip().strip('"'), game, default_kind, me().get("email"))
-            except assets.AssetError as e:
-                st.error(str(e))
-            else:
-                st.success(f"Đã tạo {r['assets_created']} mục, thêm {r['images_added']} ảnh" + (f", bỏ qua {r['images_skipped']} ảnh lỗi" if r["images_skipped"] else ""))
+    with st.expander("🔄 Nguồn đồng bộ: thư mục tài nguyên (cập nhật kho bằng 1 cú bấm hoặc tự động)", expanded=not assets.list_sources(p.conn, game)):
+        st.caption("Chọn một thư mục trên máy chạy Dashboard chứa ảnh (ví dụ thư mục đang đồng bộ với Google Drive). Kho sẽ giống thư mục đó: "
+                   "ảnh mới được thêm, ảnh sửa được cập nhật, ảnh trùng không bị thêm hai lần; tên, mô tả bạn đã sửa trong Dashboard **không bị ghi đè**. "
+                   "Bật “Tự động” thì mỗi lần mở Dashboard hệ thống tự kiểm tra thư mục có gì mới.")
+        st.caption("Cấu trúc nhận được: `Lyra_front.png`, `Lyra_back.png` (cùng tên = một mục), hoặc thư mục `Lyra/1.png…`, hoặc chia theo thư mục con "
+                   "`Nhân vật`, `Vũ khí`, `Thú cưng`, `Bản đồ`, `Đạo cụ`. Chỉ nhận JPG/PNG/WebP ≤ 10 MB, tối đa 6 ảnh mỗi mục.")
+        for src in assets.list_sources(p.conn, game):
+            with st.container(border=True):
+                st.markdown(f"**{escape(src['path'])}**")
+                st.caption(f"Lần đồng bộ gần nhất: {src['last_sync'] or 'chưa'}" + (f" — {escape(src['last_summary'])}" if src["last_summary"] else ""))
+                c1, c2, c3 = st.columns([2, 3, 1.4], vertical_alignment="bottom")
+                k = c1.selectbox("Loại mặc định", list(assets.KINDS), index=list(assets.KINDS).index(src["kind"]) if src["kind"] in assets.KINDS else 0,
+                                 format_func=lambda x: assets.KINDS[x], key=f"src_kind_{src['id']}")
+                ig = c2.text_input("Bỏ qua file/thư mục có từ (cách nhau bằng dấu phẩy)", src["ignore"] or "", key=f"src_ign_{src['id']}")
+                auto = c3.checkbox("Tự động", bool(src["auto"]), key=f"src_auto_{src['id']}")
+                if (k, ig.strip(), bool(auto)) != (src["kind"], (src["ignore"] or "").strip(), bool(src["auto"])):
+                    assets.set_source(p.conn, src["id"], k, ig, auto)
+                b1, b2, b3 = st.columns([1.6, 1.6, 1.6])
+                rm = b3.checkbox("Xóa ảnh không còn trong thư mục", key=f"src_rm_{src['id']}")
+                if b1.button("🔄 Đồng bộ ngay", key=f"src_run_{src['id']}", type="primary"):
+                    try:
+                        st.session_state[f"src_rep_{src['id']}"] = assets.run_source(p.conn, src["id"], me().get("email"), rm)
+                    except (assets.AssetError, OSError) as e:
+                        st.error(str(e))
+                    else:
+                        st.rerun()
+                if confirm_all(f"src_del_{src['id']}", [src["id"]], "🗑 Bỏ nguồn này", "Bỏ thư mục này khỏi danh sách (ảnh đã nhập vẫn giữ)?", b2, "Có, bỏ"):
+                    assets.remove_source(p.conn, src["id"])
+                    st.rerun()
+                rep = st.session_state.get(f"src_rep_{src['id']}")
+                if rep:
+                    st.success(assets.summary(rep) or "Không có gì thay đổi")
+                    for title, key in (("Mục mới", "created"), ("Không còn trong thư mục", "missing"), ("Lỗi / không nhận", "skipped")):
+                        if rep[key]:
+                            with st.expander(f"{title} ({len(rep[key])})"):
+                                for item in rep[key][:80]:
+                                    st.caption(f"• {item if isinstance(item, str) else item[0] + ' — ' + item[1]}")
+        with st.container(border=True):
+            st.markdown("**➕ Thêm thư mục nguồn**")
+            path = st.text_input("Đường dẫn thư mục", key="lib_import_path",
+                                 placeholder=r"G:\My Drive\Free Fire Save resources\ingame Free Fire\FF_Character_Reference")
+            d1, d2 = st.columns([2, 3])
+            default_kind = d1.selectbox("Loại mặc định (khi thư mục không nói rõ)", list(assets.KINDS), format_func=lambda k: assets.KINDS[k],
+                                        key="lib_import_kind")
+            ignore = d2.text_input("Bỏ qua file/thư mục có từ", assets.DEFAULT_IGNORE, key="lib_import_ignore")
+            if st.button("Thêm và đồng bộ ngay", key="lib_import_go", disabled=not path.strip(), type="primary"):
+                try:
+                    sid = assets.add_source(p.conn, game, path, default_kind, ignore, True)
+                    st.session_state[f"src_rep_{sid}"] = assets.run_source(p.conn, sid, me().get("email"))
+                except (assets.AssetError, OSError) as e:
+                    st.error(str(e))
+                else:
+                    st.rerun()
+        st.caption("💡 Cách dễ nhất để luôn cập nhật: cài **Google Drive cho máy tính** (Drive for desktop), để thư mục tài nguyên ở chế độ "
+                   "“Ngoại tuyến/Mirror”, rồi thêm chính thư mục đó làm nguồn với “Tự động” bật. Ai thêm ảnh lên Drive, lần mở Dashboard sau ảnh tự vào kho.")
+    with st.expander("⬆ Tải nhiều ảnh cùng lúc (tên file = tên tài nguyên)"):
+        st.caption("Chọn nhiều ảnh một lượt: `Lyra_front.png` + `Lyra_back.png` thành một mục Lyra; mục đã có thì được thêm ảnh; ảnh trùng bị bỏ qua.")
+        bulk_kind = st.selectbox("Loại", list(assets.KINDS), format_func=lambda k: assets.KINDS[k], key="lib_bulk_kind")
+        bulk = st.file_uploader("Ảnh", type=["png", "jpg", "jpeg", "webp"], accept_multiple_files=True, key="lib_bulk_files")
+        if st.button("Thêm vào kho", key="lib_bulk_go", disabled=not bulk):
+            r = assets.add_files(p.conn, game, bulk_kind, [(f.name, f.getvalue()) for f in bulk], me().get("email"))
+            st.success(f"Mục mới: {len(r['created'])}, ảnh thêm: {r['added']}, trùng bỏ qua: {r['unchanged']}" + (f", lỗi: {len(r['skipped'])}" if r["skipped"] else ""))
+            for name, why in r["skipped"][:20]:
+                st.caption(f"• {name} — {why}")
     with st.expander("➕ Thêm một mục"):
         c1, c2 = st.columns([3, 2])
         name = c1.text_input("Tên", key="lib_new_name")
@@ -2266,6 +2317,12 @@ def main():
         return
     purge_trash(DATA)
     trash.sweep_rejected(p, DATA, pid)
+    if "assets_synced" not in st.session_state:         # folders marked "auto": pick up new pictures, once per browser session
+        st.session_state["assets_synced"] = True
+        try:
+            assets.auto_sync(p.conn)
+        except Exception as e:  # noqa: BLE001 - a library problem must never stop the dashboard from opening
+            diag.record(p.conn, "system", "warn", f"đồng bộ tài nguyên lỗi: {type(e).__name__}: {e}", "assets_sync")
     if "research_checked" not in st.session_state:      # monthly research, at most once per browser session
         st.session_state["research_checked"] = True
         research.maybe_run_in_background(DB)

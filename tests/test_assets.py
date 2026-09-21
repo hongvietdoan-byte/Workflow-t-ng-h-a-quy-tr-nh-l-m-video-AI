@@ -119,10 +119,10 @@ class ImportTests(unittest.TestCase):
 
     def test_the_three_folder_layouts_are_understood(self):
         self.put("Nhân vật", "Lyra_front.png")
-        self.put("Nhân vật", "Lyra_back.png")
+        self.put("Nhân vật", "Lyra_back.png", data=PNG + b"back")
         self.put("Nhân vật", "Kael 2.jpg")
         self.put("Vũ khí", "Cung băng", "1.png")
-        self.put("Vũ khí", "Cung băng", "2.png")
+        self.put("Vũ khí", "Cung băng", "2.png", data=PNG + b"two")
         self.put("Bản đồ", "Rừng Elder.webp")
         self.put("Sói.png")                                                        # loose file: the default kind
         self.put("Nhân vật", "notes.txt", data=b"not a picture")
@@ -140,7 +140,7 @@ class ImportTests(unittest.TestCase):
     def test_importing_again_adds_to_existing_assets_instead_of_duplicating(self):
         self.put("Lyra_front.png")
         assets.import_folder(self.conn, os.path.join(self.dir, "src"), "FF", "character")
-        self.put("Lyra_side.png")
+        self.put("Lyra_side.png", data=PNG + b"side")
         assets.import_folder(self.conn, os.path.join(self.dir, "src"), "FF", "character")
         found = assets.list_assets(self.conn, "FF")
         self.assertEqual(len(found), 1)
@@ -194,6 +194,183 @@ class DashboardTests(unittest.TestCase):
         self.assertIn("Kho tài nguyên", labels("editor@garena.vn"))
         self.assertNotIn("Kho tài nguyên", labels("plain@garena.vn"))
         self.assertIn("assets", auth.PERM_LABELS)                                   # shows up as a column of the permission table
+
+
+
+class SyncTests(unittest.TestCase):
+    """Keeping the library in step with a folder that people keep adding to (for example a synced Google Drive folder)."""
+
+    def setUp(self):
+        self.dir = tempfile.mkdtemp()
+        os.environ["ASSET_DIR"] = os.path.join(self.dir, "assets")
+        self.conn = connect()
+        self.src = os.path.join(self.dir, "src")
+
+    def tearDown(self):
+        os.environ.pop("ASSET_DIR", None)
+        shutil.rmtree(self.dir, ignore_errors=True)
+
+    def put(self, *parts, data=PNG):
+        path = os.path.join(self.src, *parts)
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        with open(path, "wb") as f:
+            f.write(data)
+        return path
+
+    def sync(self, **kw):
+        return assets.sync_folder(self.conn, self.src, "FF", "character", **kw)
+
+    def count(self):
+        return self.conn.execute("SELECT COUNT(*) FROM asset_images").fetchone()[0]
+
+    def test_a_second_run_only_does_the_difference(self):
+        self.put("LYRA.png", data=PNG + b"1")
+        self.put("KAEL.png", data=PNG + b"2")
+        first = self.sync()
+        self.assertEqual((sorted(first["created"]), first["added"]), (["KAEL", "LYRA"], 2))
+        again = self.sync()
+        self.assertEqual((again["added"], again["updated"], again["unchanged"], again["created"]), (0, 0, 2, []))
+        self.put("ORIN.png", data=PNG + b"3")                                       # someone drops a new character in the folder
+        third = self.sync()
+        self.assertEqual((third["created"], third["added"], third["unchanged"]), (["ORIN"], 1, 2))
+        self.assertEqual(self.count(), 3)
+
+    def test_an_edited_file_replaces_its_picture_and_keeps_what_people_typed_in_the_dashboard(self):
+        path = self.put("LYRA.png", data=PNG + b"old")
+        self.sync()
+        asset = assets.list_assets(self.conn, "FF")[0]
+        assets.update(self.conn, asset["id"], "Lyra", "Lyra Bạc", "tóc bạc dài")        # edited by hand in the dashboard
+        with open(path, "wb") as f:
+            f.write(PNG + b"new version")
+        rep = self.sync()
+        self.assertEqual((rep["updated"], rep["added"]), (1, 0))
+        after = assets.get(self.conn, asset["id"])
+        self.assertEqual((after["name"], after["aliases"], after["description"]), ("Lyra", "Lyra Bạc", "tóc bạc dài"))
+        with open(after["images"][0]["path"], "rb") as f:
+            self.assertEqual(f.read(), PNG + b"new version")
+        self.assertEqual(len(after["images"]), 1)
+
+    def test_a_renamed_or_moved_picture_is_not_added_twice(self):
+        old = self.put("LYRA.png", data=PNG + b"same picture")
+        self.sync()
+        os.rename(old, os.path.join(self.src, "LYRA_final.png"))
+        rep = self.sync()
+        self.assertEqual((rep["moved"], rep["added"]), (1, 0))
+        self.assertEqual(self.count(), 1)
+
+    def test_ignore_words_skip_frames_and_folders(self):
+        self.put("LYRA.png", data=PNG + b"1")
+        self.put("LYRA_khung.png", data=PNG + b"2")
+        self.put("khung", "KAEL.png", data=PNG + b"3")
+        self.put("Backup", "ORIN.png", data=PNG + b"4")
+        rep = self.sync()
+        self.assertEqual([a["name"] for a in assets.list_assets(self.conn, "FF")], ["LYRA"])
+        self.assertEqual(rep["ignored"], 1)                                          # the file; the two folders are skipped whole
+        custom = self.sync(ignore="")                                                # nothing ignored when the words are cleared
+        self.assertGreaterEqual(len(custom["created"]), 2)
+
+    def test_files_that_disappeared_are_reported_and_only_removed_on_request(self):
+        keep = self.put("LYRA.png", data=PNG + b"1")
+        gone = self.put("KAEL.png", data=PNG + b"2")
+        self.sync()
+        os.remove(gone)
+        rep = self.sync()
+        self.assertEqual(len(rep["missing"]), 1)
+        self.assertIn("KAEL", rep["missing"][0])
+        self.assertEqual(self.count(), 2)                                            # still there: nothing is deleted by default
+        rep = self.sync(remove_missing=True)
+        self.assertEqual((rep["removed"], self.count()), (1, 1))
+        self.assertTrue(os.path.exists(keep))
+
+    def test_a_saved_source_is_synced_automatically_only_when_its_folder_changed(self):
+        self.put("LYRA.png", data=PNG + b"1")
+        sid = assets.add_source(self.conn, "FF", self.src, "character")
+        with self.assertRaises(AssetError):
+            assets.add_source(self.conn, "FF", self.src)                              # no duplicates
+        with self.assertRaises(AssetError):
+            assets.add_source(self.conn, "FF", os.path.join(self.dir, "nowhere"))
+        first = assets.auto_sync(self.conn)
+        self.assertEqual(len(first), 1)
+        self.assertEqual(first[0]["report"]["created"], ["LYRA"])
+        self.assertIn("mục mới", assets.list_sources(self.conn)[0]["last_summary"])
+        self.assertEqual(assets.auto_sync(self.conn), [])                             # nothing changed: no work
+        self.put("KAEL.png", data=PNG + b"2")
+        second = assets.auto_sync(self.conn)
+        self.assertEqual(second[0]["report"]["created"], ["KAEL"])
+        assets.set_source(self.conn, sid, "character", "khung", False)               # auto switched off: left alone
+        self.put("ORIN.png", data=PNG + b"3")
+        self.assertEqual(assets.auto_sync(self.conn), [])
+        self.assertEqual(assets.run_source(self.conn, sid)["created"], ["ORIN"])     # but "sync now" still works
+
+    def test_an_unavailable_folder_is_reported_not_fatal(self):
+        self.put("LYRA.png")
+        assets.add_source(self.conn, "FF", self.src)
+        assets.auto_sync(self.conn)
+        shutil.rmtree(self.src)                                                       # e.g. the Drive is not connected today
+        self.assertEqual(assets.auto_sync(self.conn), [])
+        self.assertIn("Lỗi", assets.list_sources(self.conn)[0]["last_summary"])
+        self.assertEqual(self.count(), 1)                                             # the library keeps what it has
+
+    def test_uploading_many_pictures_at_once_groups_by_name_and_skips_duplicates(self):
+        files = [("LYRA_front.png", PNG + b"1"), ("LYRA_back.png", PNG + b"2"), ("KAEL.png", PNG + b"3"), ("LYRA_copy.png", PNG + b"1")]
+        rep = assets.add_files(self.conn, "FF", "character", files)
+        self.assertEqual((sorted(rep["created"]), rep["added"], rep["unchanged"]), (["KAEL", "LYRA"], 3, 1))
+        again = assets.add_files(self.conn, "FF", "character", files)
+        self.assertEqual((again["created"], again["added"], again["unchanged"]), ([], 0, 4))
+
+    def test_old_databases_get_the_new_columns_and_table(self):
+        path = os.path.join(self.dir, "old.sqlite")
+        conn = connect(path)
+        conn.execute("ALTER TABLE asset_images DROP COLUMN src_path")
+        conn.execute("ALTER TABLE asset_images DROP COLUMN sha256")
+        conn.execute("DROP TABLE asset_sources")
+        conn.commit()
+        conn.close()
+        conn = connect(path)
+        self.assertTrue({"src_path", "sha256"} <= {r["name"] for r in conn.execute("PRAGMA table_info(asset_images)")})
+        self.assertEqual(assets.list_sources(conn), [])
+
+
+class SyncDashboardTests(unittest.TestCase):
+    def setUp(self):
+        self.tmp, self.db, self.data, self.p, self.pid = split_only()
+        self.src = os.path.join(self.tmp, "resources")
+        os.makedirs(self.src)
+        with open(os.path.join(self.src, "LYRA.png"), "wb") as f:
+            f.write(PNG + b"1")
+        os.environ.update({"PIPELINE_DB": self.db, "PIPELINE_DATA": self.data, "ASSET_DIR": os.path.join(self.tmp, "assets")})
+
+    def tearDown(self):
+        for k in ("PIPELINE_DB", "PIPELINE_DATA", "ASSET_DIR"):
+            os.environ.pop(k, None)
+
+    def test_adding_a_folder_source_syncs_it_and_shows_the_result(self):
+        at = AppTest.from_file(APP, default_timeout=40).run()
+        at.text_input(key="lib_import_path").set_value(self.src).run()
+        next(b for b in at.button if b.key == "lib_import_go").click().run()
+        self.assertFalse(at.exception)
+        self.assertEqual([a["name"] for a in assets.list_assets(self.p.conn, "FF")], ["LYRA"])
+        self.assertEqual(len(assets.list_sources(self.p.conn)), 1)
+        self.assertTrue(any("mục mới" in s.value for s in at.success))
+        at.text_input(key="lib_import_path").set_value(os.path.join(self.tmp, "no-such-folder")).run()
+        next(b for b in at.button if b.key == "lib_import_go").click().run()
+        self.assertTrue(any("Không tìm thấy thư mục" in e.value for e in at.error))
+
+    def test_opening_the_dashboard_picks_up_new_pictures_of_auto_folders(self):
+        assets.add_source(self.p.conn, "FF", self.src, "character")
+        at = AppTest.from_file(APP, default_timeout=40).run()
+        self.assertFalse(at.exception)
+        self.assertEqual([a["name"] for a in assets.list_assets(self.p.conn, "FF")], ["LYRA"])          # imported without any click
+        with open(os.path.join(self.src, "KAEL.png"), "wb") as f:
+            f.write(PNG + b"2")
+        AppTest.from_file(APP, default_timeout=40).run()                                                  # a new session later
+        self.assertEqual(sorted(a["name"] for a in assets.list_assets(self.p.conn, "FF")), ["KAEL", "LYRA"])
+
+    def test_a_broken_source_does_not_stop_the_dashboard_from_opening(self):
+        assets.add_source(self.p.conn, "FF", self.src, "character")
+        shutil.rmtree(self.src)
+        at = AppTest.from_file(APP, default_timeout=40).run()
+        self.assertFalse(at.exception)
 
 
 if __name__ == "__main__":

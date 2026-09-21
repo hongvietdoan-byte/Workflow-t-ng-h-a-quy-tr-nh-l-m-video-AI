@@ -151,7 +151,20 @@ CREATE TABLE IF NOT EXISTS asset_images (
     asset_id INTEGER NOT NULL,
     path TEXT NOT NULL,
     label TEXT,
-    sort INTEGER
+    sort INTEGER,
+    src_path TEXT,
+    sha256 TEXT
+);
+CREATE TABLE IF NOT EXISTS asset_sources (
+    id INTEGER PRIMARY KEY,
+    game TEXT NOT NULL,
+    path TEXT NOT NULL,
+    kind TEXT NOT NULL DEFAULT 'character',
+    ignore TEXT,
+    auto INTEGER NOT NULL DEFAULT 1,
+    last_sync TEXT,
+    last_signature TEXT,
+    last_summary TEXT
 );
 CREATE TABLE IF NOT EXISTS project_assets (
     project_id INTEGER NOT NULL,
@@ -271,6 +284,10 @@ def connect(path: str = ":memory:") -> sqlite3.Connection:
     user_cols = {r["name"] for r in conn.execute("PRAGMA table_info(users)")}
     if "perms" not in user_cols:
         conn.execute("ALTER TABLE users ADD COLUMN perms TEXT")
+    img_cols = {r["name"] for r in conn.execute("PRAGMA table_info(asset_images)")}
+    for col in ("src_path", "sha256"):
+        if col not in img_cols:
+            conn.execute(f"ALTER TABLE asset_images ADD COLUMN {col} TEXT")
     if "sub_settings" not in cols:
         conn.execute("ALTER TABLE projects ADD COLUMN sub_settings TEXT")
     if "world_bible" not in cols:

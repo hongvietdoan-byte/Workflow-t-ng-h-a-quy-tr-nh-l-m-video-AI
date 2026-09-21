@@ -10,6 +10,7 @@ How it is used with a script
     real names and designs instead of inventing them;
   * their pictures are the references for image / video generation (`reference_paths`).
 """
+import hashlib
 import os
 import re
 import shutil
@@ -81,7 +82,7 @@ def update(conn, asset_id: int, name: str, aliases: str, description: str) -> No
     conn.commit()
 
 
-def add_image(conn, asset_id: int, filename: str, data: bytes) -> str:
+def add_image(conn, asset_id: int, filename: str, data: bytes, src_path: Optional[str] = None, sha256: Optional[str] = None) -> str:
     ext = os.path.splitext(filename or "")[1].lower()
     if ext not in IMAGE_EXT:
         raise AssetError(f"“{filename}”: chỉ nhận ảnh JPG / PNG / WebP")
@@ -100,8 +101,8 @@ def add_image(conn, asset_id: int, filename: str, data: bytes) -> str:
     path = os.path.join(folder, f"{n}{ext}")
     with open(path, "wb") as f:
         f.write(data)
-    conn.execute("INSERT INTO asset_images (asset_id, path, label, sort) VALUES (?,?,?,?)",
-                 (asset_id, path, os.path.splitext(os.path.basename(filename))[0], n))
+    conn.execute("INSERT INTO asset_images (asset_id, path, label, sort, src_path, sha256) VALUES (?,?,?,?,?,?)",
+                 (asset_id, path, os.path.splitext(os.path.basename(filename))[0], n, src_path, sha256 or hashlib.sha256(data).hexdigest()))
     conn.commit()
     return path
 
@@ -213,7 +214,10 @@ def context_text(conn, project_id: int) -> str:
             "Chỉ thêm nhân vật/đạo cụ mới khi kịch bản cần mà danh sách không có.")
 
 
-# ---- import from a folder ---------------------------------------------------------------------------------------------
+# ---- keeping the library in step with a folder ---------------------------------------------------------------------
+DEFAULT_IGNORE = "khung, thumb, thumbnail, backup"
+
+
 def _stem_name(filename: str) -> str:
     stem = os.path.splitext(filename)[0]
     words = [w for w in re.split(r"[\s_\-\.]+", stem) if w]
@@ -222,39 +226,98 @@ def _stem_name(filename: str) -> str:
     return " ".join(words) or stem
 
 
-def import_folder(conn, folder: str, game: str, kind: str = "character", created_by: Optional[str] = None) -> Dict[str, int]:
-    """Bring a folder of pictures into the shared library.
+def _sha(data: bytes) -> str:
+    return hashlib.sha256(data).hexdigest()
 
-    Recognised layouts (they can be mixed):
-      folder/Lyra_front.png, Lyra_back.png      -> asset "Lyra" with 2 pictures (numbers and words like front/back are dropped)
+
+def _ignored(path_parts: List[str], words: List[str]) -> bool:
+    """A folder or file name that contains one of the words (whole word, accents ignored) is left out."""
+    for part in path_parts:
+        padded = " " + fold(re.sub(r"[_\-\.]+", " ", os.path.splitext(part)[0])) + " "
+        if any(" " + w + " " in padded for w in words):
+            return True
+    return False
+
+
+def _words(text: str) -> List[str]:
+    return [fold(w) for w in re.split(r"[,;\n]+", text or "") if fold(w)]
+
+
+def sync_folder(conn, folder: str, game: str, kind: str = "character", created_by: Optional[str] = None,
+                ignore: str = DEFAULT_IGNORE, remove_missing: bool = False) -> Dict:
+    """Make the shared library of `game` match a folder of pictures, re-runnable at any time.
+
+    Layouts understood (they can be mixed):
+      folder/Lyra_front.png, Lyra_back.png      -> asset "Lyra" (trailing numbers and words like front/back/khung are dropped)
       folder/Lyra/1.png, 2.png                   -> asset "Lyra" (the folder name)
-      folder/Nhân vật/..., Vũ khí/..., Bản đồ/...  -> the folder name chooses the kind (characters, weapons, pets, maps, props, styles)
-    Existing assets with the same name/kind get the extra pictures; nothing is deleted."""
+      folder/Nhân vật/..., Vũ khí/..., Bản đồ/...  -> the folder name chooses the kind
+    Every picture remembers the file it came from and its fingerprint, so a second run only does the difference:
+      new file -> added;  same file changed -> replaced;  same picture under another name/place -> just re-linked;
+      unchanged -> skipped;  file gone from the folder -> reported (deleted only when remove_missing).
+    Names, descriptions and other edits made in the dashboard are never overwritten."""
     if not os.path.isdir(folder):
         raise AssetError("Không tìm thấy thư mục này trên máy chạy Dashboard")
-    made = added = skipped = 0
+    words = _words(ignore)
+    rep = {"created": [], "added": 0, "updated": 0, "unchanged": 0, "moved": 0, "skipped": [], "ignored": 0, "missing": [], "removed": 0}
+    seen: set = set()
 
-    def take(name: str, k: str, files: List[str]) -> None:
-        nonlocal made, added, skipped
-        if not files:
-            return
+    def asset_for(name: str, k: str) -> int:
         row = conn.execute("SELECT id FROM assets WHERE game=? AND kind=? AND lower(name)=lower(?) AND project_id IS NULL",
                            (game, k, name)).fetchone()
-        aid = row["id"] if row else create(conn, game, k, name, created_by=created_by)
-        made += 0 if row else 1
+        if row:
+            return row["id"]
+        aid = create(conn, game, k, name, created_by=created_by)
+        rep["created"].append(name)
+        return aid
+
+    def take(name: str, k: str, files: List[str]) -> None:
+        aid = None
         for path in files:
             try:
                 with open(path, "rb") as f:
-                    add_image(conn, aid, os.path.basename(path), f.read())
-                added += 1
-            except (AssetError, OSError):
-                skipped += 1
+                    data = f.read()
+            except OSError as e:
+                rep["skipped"].append((path, str(e.strerror or e)))
+                continue
+            key = os.path.abspath(path)
+            seen.add(key)
+            sha = _sha(data)
+            known = conn.execute("SELECT i.id, i.sha256, i.path, i.asset_id FROM asset_images i JOIN assets a ON a.id=i.asset_id"
+                                 " WHERE i.src_path=? AND a.game=?", (key, game)).fetchone()
+            if known and known["sha256"] == sha:
+                rep["unchanged"] += 1
+                continue
+            if known:                                                       # the same file, edited: replace the stored picture
+                if len(data) > MAX_IMAGE_BYTES:
+                    rep["skipped"].append((path, "lớn hơn 10 MB"))
+                    continue
+                with open(known["path"], "wb") as f:
+                    f.write(data)
+                conn.execute("UPDATE asset_images SET sha256=? WHERE id=?", (sha, known["id"]))
+                conn.commit()
+                rep["updated"] += 1
+                continue
+            aid = aid or asset_for(name, k)
+            twin = conn.execute("SELECT id FROM asset_images WHERE asset_id=? AND sha256=?", (aid, sha)).fetchone()
+            if twin:                                                        # same picture, new name or place
+                conn.execute("UPDATE asset_images SET src_path=? WHERE id=?", (key, twin["id"]))
+                conn.commit()
+                rep["moved"] += 1
+                continue
+            try:
+                add_image(conn, aid, os.path.basename(path), data, src_path=key, sha256=sha)
+                rep["added"] += 1
+            except AssetError as e:
+                rep["skipped"].append((path, str(e)))
 
-    def walk(directory: str, k: str, top: bool) -> None:
+    def walk(directory: str, k: str, top: bool, parts: List[str]) -> None:
         entries = sorted(os.listdir(directory))
         files = [e for e in entries if os.path.isfile(os.path.join(directory, e)) and e.lower().endswith(IMAGE_EXT)]
         groups: Dict[str, List[str]] = {}
         for e in files:
+            if _ignored(parts + [e], words):
+                rep["ignored"] += 1
+                continue
             key = os.path.basename(directory) if (not top and kind_from_word(os.path.basename(directory)) is None) else _stem_name(e)
             groups.setdefault(key, []).append(os.path.join(directory, e))
         for name, paths in groups.items():
@@ -262,7 +325,130 @@ def import_folder(conn, folder: str, game: str, kind: str = "character", created
         for e in entries:
             sub = os.path.join(directory, e)
             if os.path.isdir(sub):
-                walk(sub, kind_from_word(e) or k, False)
+                if _ignored(parts + [e], words):
+                    continue
+                walk(sub, kind_from_word(e) or k, False, parts + [e])
 
-    walk(folder, kind, True)
-    return {"assets_created": made, "images_added": added, "images_skipped": skipped}
+    walk(folder, kind, True, [])
+    base = os.path.abspath(folder)
+    for r in conn.execute("SELECT i.id, i.src_path, i.path, a.name FROM asset_images i JOIN assets a ON a.id=i.asset_id"
+                          " WHERE a.game=? AND a.project_id IS NULL AND i.src_path LIKE ?", (game, base + os.sep + "%")).fetchall():
+        if r["src_path"] not in seen and not os.path.exists(r["src_path"]):
+            rep["missing"].append(f"{r['name']}: {os.path.basename(r['src_path'])}")
+            if remove_missing:
+                remove_image(conn, r["id"])
+                rep["removed"] += 1
+    return rep
+
+
+def summary(rep: Dict) -> str:
+    bits = [(rep["created"], "mục mới"), (rep["added"], "ảnh thêm"), (rep["updated"], "ảnh cập nhật"), (rep["moved"], "ảnh đổi tên/vị trí"),
+            (rep["unchanged"], "không đổi"), (rep["ignored"], "bỏ qua theo từ khóa"), (rep["skipped"], "lỗi/không nhận"),
+            (rep["missing"], "không còn trong thư mục"), (rep["removed"], "đã xóa")]
+    return ", ".join(f"{len(v) if isinstance(v, list) else v} {label}" for v, label in bits if (len(v) if isinstance(v, list) else v))
+
+
+def import_folder(conn, folder: str, game: str, kind: str = "character", created_by: Optional[str] = None) -> Dict[str, int]:
+    """One-off import (same as a sync without remembering the folder). Kept for callers that want the short result."""
+    rep = sync_folder(conn, folder, game, kind, created_by)
+    return {"assets_created": len(rep["created"]), "images_added": rep["added"] + rep["updated"], "images_skipped": len(rep["skipped"])}
+
+
+def add_files(conn, game: str, kind: str, files: List[tuple], created_by: Optional[str] = None) -> Dict:
+    """Several uploaded pictures at once: the file name is the asset name (Lyra_front.png + Lyra_back.png -> Lyra).
+    Known assets get the extra pictures; identical pictures are not added twice."""
+    rep = {"created": [], "added": 0, "unchanged": 0, "skipped": []}
+    groups: Dict[str, List[tuple]] = {}
+    for name, data in files:
+        groups.setdefault(_stem_name(name), []).append((name, data))
+    for asset_name, items in groups.items():
+        row = conn.execute("SELECT id FROM assets WHERE game=? AND kind=? AND lower(name)=lower(?) AND project_id IS NULL",
+                           (game, kind, asset_name)).fetchone()
+        aid = row["id"] if row else create(conn, game, kind, asset_name, created_by=created_by)
+        if not row:
+            rep["created"].append(asset_name)
+        for name, data in items:
+            sha = _sha(data)
+            if conn.execute("SELECT 1 FROM asset_images WHERE asset_id=? AND sha256=?", (aid, sha)).fetchone():
+                rep["unchanged"] += 1
+                continue
+            try:
+                add_image(conn, aid, name, data, sha256=sha)
+                rep["added"] += 1
+            except AssetError as e:
+                rep["skipped"].append((name, str(e)))
+    return rep
+
+
+# ---- remembered folders ("sources") that can be re-synced with one click or automatically -----------------------------
+def folder_signature(folder: str) -> str:
+    """Cheap fingerprint (file count, total size, newest change) to tell whether a folder changed since the last sync."""
+    count = size = newest = 0
+    for dirpath, _, names in os.walk(folder):
+        for n in names:
+            if n.lower().endswith(IMAGE_EXT):
+                try:
+                    st = os.stat(os.path.join(dirpath, n))
+                except OSError:
+                    continue
+                count += 1
+                size += st.st_size
+                newest = max(newest, int(st.st_mtime))
+    return f"{count}:{size}:{newest}"
+
+
+def add_source(conn, game: str, path: str, kind: str = "character", ignore: str = DEFAULT_IGNORE, auto: bool = True) -> int:
+    path = os.path.abspath((path or "").strip().strip('"'))
+    if not os.path.isdir(path):
+        raise AssetError("Không tìm thấy thư mục này trên máy chạy Dashboard")
+    if kind not in KINDS:
+        raise AssetError("Loại mặc định không hợp lệ")
+    if conn.execute("SELECT 1 FROM asset_sources WHERE game=? AND path=?", (game, path)).fetchone():
+        raise AssetError("Thư mục này đã có trong danh sách nguồn")
+    cur = conn.execute("INSERT INTO asset_sources (game, path, kind, ignore, auto) VALUES (?,?,?,?,?)",
+                       (game, path, kind, ignore.strip(), 1 if auto else 0))
+    conn.commit()
+    return cur.lastrowid
+
+
+def list_sources(conn, game: Optional[str] = None) -> List[Dict]:
+    sql = "SELECT * FROM asset_sources" + (" WHERE game=?" if game else "") + " ORDER BY id"
+    return [dict(r) for r in conn.execute(sql, (game,) if game else ()).fetchall()]
+
+
+def set_source(conn, source_id: int, kind: str, ignore: str, auto: bool) -> None:
+    conn.execute("UPDATE asset_sources SET kind=?, ignore=?, auto=? WHERE id=?", (kind, ignore.strip(), 1 if auto else 0, source_id))
+    conn.commit()
+
+
+def remove_source(conn, source_id: int) -> None:
+    conn.execute("DELETE FROM asset_sources WHERE id=?", (source_id,))
+    conn.commit()
+
+
+def run_source(conn, source_id: int, created_by: Optional[str] = None, remove_missing: bool = False) -> Dict:
+    src = conn.execute("SELECT * FROM asset_sources WHERE id=?", (source_id,)).fetchone()
+    if src is None:
+        raise AssetError("Không có nguồn này")
+    rep = sync_folder(conn, src["path"], src["game"], src["kind"], created_by, src["ignore"] or "", remove_missing)
+    conn.execute("UPDATE asset_sources SET last_sync=datetime('now'), last_signature=?, last_summary=? WHERE id=?",
+                 (folder_signature(src["path"]), summary(rep) or "không có gì thay đổi", source_id))
+    conn.commit()
+    return rep
+
+
+def auto_sync(conn, created_by: Optional[str] = "auto-sync") -> List[Dict]:
+    """Re-sync every source marked 'auto' whose folder looks different from the last time. Never raises: a folder that is
+    unavailable (a drive that is not connected) is just reported."""
+    done = []
+    for src in list_sources(conn):
+        if not src["auto"]:
+            continue
+        try:
+            if folder_signature(src["path"]) == src["last_signature"]:
+                continue
+            done.append({"source": src["path"], "report": run_source(conn, src["id"], created_by)})
+        except (AssetError, OSError) as e:
+            conn.execute("UPDATE asset_sources SET last_summary=? WHERE id=?", (f"Lỗi: {e}", src["id"]))
+            conn.commit()
+    return done
