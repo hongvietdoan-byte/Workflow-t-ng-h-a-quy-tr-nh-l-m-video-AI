@@ -21,7 +21,7 @@ import streamlit as st
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
-from core import sfx_plan, sound_lib, assets, audio_lib, subtitles, script_reader, auth, autopilot, dialogue, diag, knowledge, lessons, perf, regen, research, style, subjects, trash, waveform, cost, ffmpeg_studio, final_cut, llm_io, llm_runner, music, preflight, prompts, script_parser  # noqa: E402
+from core import ff_site, sfx_plan, sound_lib, assets, audio_lib, subtitles, script_reader, auth, autopilot, dialogue, diag, knowledge, lessons, perf, regen, research, style, subjects, trash, waveform, cost, ffmpeg_studio, final_cut, llm_io, llm_runner, music, preflight, prompts, script_parser  # noqa: E402
 from core.db import connect  # noqa: E402
 from core.pipeline import Pipeline, PipelinePaused  # noqa: E402
 from core.adapters import factory  # noqa: E402
@@ -989,6 +989,18 @@ def asset_library_panel(p: Pipeline) -> None:
                     st.rerun()
         st.caption("💡 Cách dễ nhất để luôn cập nhật: cài **Google Drive cho máy tính** (Drive for desktop), để thư mục tài nguyên ở chế độ "
                    "“Ngoại tuyến/Mirror”, rồi thêm chính thư mục đó làm nguồn với “Tự động” bật. Ai thêm ảnh lên Drive, lần mở Dashboard sau ảnh tự vào kho.")
+    with st.expander("🌐 Cập nhật từ website Free Fire (ff.garena.com)"):
+        st.caption("Đọc trang web chính thức: 6 bản đồ và mọi khu vực (tên, mô tả, ảnh), cùng 12 nhân vật / thú cưng / vũ khí mới nhất (tiểu sử, kỹ năng, chỉ số). "
+                   "Mục đã có trong kho chỉ được **bổ sung** mô tả (đặt trong khối `[ff.garena.com]`, chạy lại thì thay khối đó) và ảnh chính thức, "
+                   "không ghi đè phần bạn đã viết. Website không cho lấy toàn bộ danh sách nên đây chỉ là các mục mới nhất; phần còn lại vẫn lấy từ thư mục Drive. "
+                   "Tự động chạy lại mỗi 30 ngày. Cần Node.js trên máy.")
+        info = ff_site.status(p.conn)
+        if info["last"] or info["text"]:
+            st.caption(f"Lần gần nhất: {info['last'] or '—'} — {escape(info['text'])}")
+        if st.button("🌐 Cập nhật ngay", key="ff_site_go", disabled=info["running"], type="primary"):
+            if ff_site.start_background(DB, game, me().get("email")):
+                st.toast("Đang đọc website ở nền, vài phút; bấm tải lại trang để xem kết quả")
+            st.rerun()
     with st.expander("⬆ Tải nhiều ảnh cùng lúc (tên file = tên tài nguyên)"):
         st.caption("Chọn nhiều ảnh một lượt: `Lyra_front.png` + `Lyra_back.png` thành một mục Lyra; mục đã có thì được thêm ảnh; ảnh trùng bị bỏ qua.")
         bulk_kind = st.selectbox("Loại", list(assets.KINDS), format_func=lambda k: assets.KINDS[k], key="lib_bulk_kind")
@@ -2475,6 +2487,12 @@ def main():
     if "sounds_scanned" not in st.session_state:        # sound folders marked "auto": list new files, once per browser session
         st.session_state["sounds_scanned"] = True
         run_startup_sync(lambda conn: (sound_lib.auto_scan(conn), sound_lib.analyze(conn, limit=150), sound_lib.listen(conn, limit=150)), "quét và nghe kho âm thanh", "sounds_scan")
+    if "ff_site_checked" not in st.session_state:       # official website refresh, at most monthly, in the background
+        st.session_state["ff_site_checked"] = True
+        try:
+            ff_site.maybe_monthly(DB)
+        except Exception as e:  # noqa: BLE001
+            diag.record(p.conn, "system", "warn", f"kiểm tra cập nhật website lỗi: {type(e).__name__}: {e}", "ff_site")
     if "research_checked" not in st.session_state:      # monthly research, at most once per browser session
         st.session_state["research_checked"] = True
         research.maybe_run_in_background(DB)

@@ -2,4 +2,5 @@
 import os
 
 os.environ.setdefault("DASHBOARD_AUTH", "off")
+os.environ.setdefault("FF_SITE_AUTO", "0")                       # tests never reach out to the real website on their own
 os.environ.setdefault("DASHBOARD_SYNC_BACKGROUND", "0")      # folder auto-sync runs inline so tests are deterministic
