@@ -14,6 +14,7 @@ CREATE TABLE IF NOT EXISTS projects (
     video_audio INTEGER NOT NULL DEFAULT 0,
     game TEXT NOT NULL DEFAULT 'FF',
     use_subjects INTEGER NOT NULL DEFAULT 0,
+    qc_autofix INTEGER NOT NULL DEFAULT 1,
     script_text TEXT,
     world_bible TEXT,
     sub_settings TEXT,
@@ -308,6 +309,8 @@ def connect(path: str = ":memory:") -> sqlite3.Connection:
         conn.execute("ALTER TABLE projects ADD COLUMN script_text TEXT")
     if "game" not in cols:
         conn.execute("ALTER TABLE projects ADD COLUMN game TEXT NOT NULL DEFAULT 'FF'")
+    if "qc_autofix" not in cols:
+        conn.execute("ALTER TABLE projects ADD COLUMN qc_autofix INTEGER NOT NULL DEFAULT 1")
     if "use_subjects" not in cols:
         conn.execute("ALTER TABLE projects ADD COLUMN use_subjects INTEGER NOT NULL DEFAULT 0")
     char_cols = {r["name"] for r in conn.execute("PRAGMA table_info(characters)")}

@@ -17,7 +17,7 @@ import time
 from dataclasses import dataclass
 from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple
 
-from . import diag, knowledge, llm_io, prompts
+from . import assets, diag, knowledge, llm_io, prompts
 from .adapters.http import HttpResponse, Transport, clean_token, urllib_transport
 from .pipeline import Pipeline
 
@@ -238,17 +238,22 @@ def image_path(data_dir: str, project_id: int, job_id: int) -> str:
 
 
 @_diagnosed("qc", lambda p, i: p.job(i)["project_id"])
-def run_qc(p: Pipeline, job_id: int, client, data_dir: str) -> Dict:
+def run_qc(p: Pipeline, job_id: int, client, data_dir: str, autofix: bool = False) -> Dict:
+    """Score one generated picture against the scene spec AND the chosen resources' reference pictures. autofix: a faulty picture is
+    regenerated automatically (up to the project's max_retry_count) instead of waiting for the person."""
     job = p.job(job_id)
     path = image_path(data_dir, job["project_id"], job_id)
     if not os.path.exists(path):
         raise LlmError("this job has no image file to check", code="no_image")
     criteria = prompts.qc_criteria()
+    scene = json.loads(p.conn.execute("SELECT data FROM scenes WHERE id=?", (job["scene_id"],)).fetchone()["data"] or "{}")
+    refs = assets.scene_references(p.conn, job["project_id"], scene)
+    images = [("Ảnh cần chấm điểm:", path)] + [(f"Ảnh tham chiếu {i} — {r['label']}:", assets.thumbnail(r["path"], 900)) for i, r in enumerate(refs, 1)]
     obj, tin, tout = ask_json(client, prompts.build_qc_bundle(p, job["scene_id"]),
-                              lambda o: llm_io.validate_qc_result(o, criteria), [("Ảnh cần chấm điểm:", path)],
+                              lambda o: llm_io.validate_qc_result(o, criteria), images,
                               note=_retry_note(p, "qc", job["project_id"]))
     issues = "; ".join(str(i) for i in (obj.get("issues") or [])[:5]) or None
-    decision = p.apply_qc(job_id, obj["criteria"], issues=issues)
+    decision = p.apply_qc(job_id, obj["criteria"], issues=issues, autofix=autofix)
     return {"decision": decision, "input_tokens": tin, "output_tokens": tout, "issues": issues}
 
 

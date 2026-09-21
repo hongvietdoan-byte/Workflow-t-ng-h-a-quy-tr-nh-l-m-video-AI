@@ -156,14 +156,20 @@ def thumbnail(path: str, side: int = 220) -> str:
     """Small cached copy of a picture for lists (decoding a 2560 px original for every rerun made the page slow)."""
     try:
         thumb_dir = os.path.join(root(), "_thumbs")
-        out = os.path.join(thumb_dir, f"{fold(os.path.basename(os.path.dirname(path)))}_{os.path.basename(path)}.jpg")
+        out = os.path.join(thumb_dir, f"{fold(os.path.basename(os.path.dirname(path)))}_{side}_{os.path.basename(path)}.jpg")
         if os.path.exists(out) and os.path.getmtime(out) >= os.path.getmtime(path):
             return out
         os.makedirs(thumb_dir, exist_ok=True)
         from PIL import Image
         with Image.open(path) as im:
             im.thumbnail((side, side))
-            im.convert("RGB").save(out, "JPEG", quality=80)
+            if im.mode in ("RGBA", "LA", "P"):                # cut-out art: a light-grey background, not black
+                rgba = im.convert("RGBA")
+                flat = Image.new("RGB", rgba.size, (232, 232, 232))
+                flat.paste(rgba, mask=rgba.getchannel("A"))
+                flat.save(out, "JPEG", quality=85)
+            else:
+                im.convert("RGB").save(out, "JPEG", quality=85)
         return out
     except Exception:  # noqa: BLE001 - fall back to the original
         return path
@@ -292,7 +298,7 @@ def reference_paths(conn, project_id: int, kinds=("character",), limit: int = 4)
     return out[:limit]
 
 
-MAX_REFERENCES = 4                 # pictures sent with one image job (Seedream 5.0 Pro accepts up to 10)
+MAX_REFERENCES = 6                 # pictures sent with one image job (Seedream 5.0 Pro accepts up to 10)
 
 
 def match_character(chosen: List[Dict], name: str) -> Optional[Dict]:
@@ -386,6 +392,17 @@ def scene_references(conn, project_id: int, scene: Dict, limit: int = MAX_REFERE
         for a in chosen:
             if a["kind"] == "location" and a["images"] and fold(a["name"]) and fold(a["name"]) in place and len(refs) < limit:
                 refs.append({"path": a["images"][0]["path"], "label": a["name"], "role": "location"})
+    # every other chosen resource (weapon, prop, pet, place) that the scene names is a reference too
+    blob = " " + fold(" ".join(str(scene.get(k) or "") for k in ("text", "image_prompt", "location"))) + " "
+    cast = {fold(n) for n in names}
+    for a in chosen:
+        if len(refs) >= limit:
+            break
+        if a["kind"] not in ("weapon", "prop", "pet", "location") or not a["images"] or any(r["label"] == a["name"] for r in refs):
+            continue
+        keys = [fold(n) for n in names_of(a) if len(fold(n)) >= 3 and fold(n) not in cast]
+        if any(" " + k + " " in blob for k in keys):
+            refs.append({"path": a["images"][0]["path"], "label": a["name"], "role": "location" if a["kind"] == "location" else "object"})
     return refs
 
 
@@ -395,6 +412,8 @@ def reference_note(refs: List[Dict]) -> str:
     for i, r in enumerate(refs, 1):
         if r["role"] == "location":
             bits.append(f"Image {i} is the location {r['label']}: keep the look of this environment")
+        elif r["role"] == "object":
+            bits.append(f"Image {i} is the object {r['label']}: draw it exactly like this whenever it appears")
         else:
             people += 1
             bits.append(f"Image {i} is {r['label']}: the person called {r['label']} in the scene must be exactly this person "

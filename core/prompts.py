@@ -62,6 +62,14 @@ def build_director_bundle(pipeline: Pipeline, project_id: int) -> str:
     ] if x)
 
 
+def _reference_block(pipeline: Pipeline, project_id: int, scene_data: dict) -> str:
+    refs = assets.scene_references(pipeline.conn, project_id, scene_data)
+    if not refs:
+        return ""
+    return "# Ảnh tham chiếu (đính kèm sau ảnh cần chấm, theo thứ tự)\n" + "\n".join(
+        f"{i}. {r['label']} ({'địa điểm' if r['role'] == 'location' else 'đạo cụ' if r['role'] == 'object' else 'nhân vật'})" for i, r in enumerate(refs, 1))
+
+
 def build_qc_bundle(pipeline: Pipeline, scene_id: int) -> str:
     scene = pipeline.conn.execute("SELECT * FROM scenes WHERE id=?", (scene_id,)).fetchone()
     chars = pipeline.conn.execute(
@@ -77,7 +85,8 @@ def build_qc_bundle(pipeline: Pipeline, scene_id: int) -> str:
         knowledge.user_text("qc"),
         "# Character Bible\n" + bible,
         "# Thông số cảnh\n" + json.dumps(spec, ensure_ascii=False, indent=2),
-        "(Đính kèm ảnh cần chấm điểm.)",
+        _reference_block(pipeline, scene["project_id"], data),
+        "(Đính kèm ảnh cần chấm điểm" + (", rồi các ảnh tham chiếu." if _reference_block(pipeline, scene["project_id"], data) else ".") + ")",
     ] if x)
 
 

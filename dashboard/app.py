@@ -21,7 +21,7 @@ import streamlit as st
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
-from core import ff_site, sfx_plan, sound_lib, assets, audio_lib, subtitles, script_reader, auth, autopilot, dialogue, diag, knowledge, lessons, perf, regen, research, style, subjects, trash, waveform, cost, ffmpeg_studio, final_cut, llm_io, llm_runner, music, preflight, prompts, script_parser  # noqa: E402
+from core import autoqc, ff_site, sfx_plan, sound_lib, assets, audio_lib, subtitles, script_reader, auth, autopilot, dialogue, diag, knowledge, lessons, perf, regen, research, style, subjects, trash, waveform, cost, ffmpeg_studio, final_cut, llm_io, llm_runner, music, preflight, prompts, script_parser  # noqa: E402
 from core.db import connect  # noqa: E402
 from core.pipeline import Pipeline, PipelinePaused  # noqa: E402
 from core.adapters import factory  # noqa: E402
@@ -1437,32 +1437,58 @@ def scene_editor(p: Pipeline, pid: int, scene, char_names) -> None:
 POLL_SECONDS = {"image": 6, "video": 15}
 
 
+def image_busy(conn, pid: int) -> bool:
+    """Something the page should keep watching: a job at the provider, pictures being / waiting to be checked automatically, or an
+    automatic fix (retry) that is queued."""
+    one = lambda sql: conn.execute(sql, (pid,)).fetchone()[0]                     # noqa: E731
+    if one("SELECT COUNT(*) FROM jobs WHERE project_id=? AND type='image_gen' AND state='running'"):
+        return True
+    if autoqc.active(pid) or autoqc.can_run(conn, pid):
+        return True
+    return bool(conn.execute("SELECT qc_autofix FROM projects WHERE id=?", (pid,)).fetchone()[0]
+                and one("SELECT COUNT(*) FROM jobs WHERE project_id=? AND type='image_gen' AND state='queued' AND retry_count>0"))
+
+
 def _poll_running(pid: int, kind: str) -> None:
-    """Ask the provider about this project's submitted jobs (read-only, no credit) and refresh the page when one finished or failed."""
+    """Ask the provider about this project's submitted jobs (read-only, no credit), start the automatic picture check, send queued automatic
+    fixes, and redraw the page when anything changed."""
     conn = connect(DB)
     job_type = "image_gen" if kind == "image" else "video_gen"
-    if not conn.execute("SELECT 1 FROM jobs WHERE project_id=? AND type=? AND state='running' LIMIT 1", (pid, job_type)).fetchone():
-        st.rerun()                                     # nothing left running (finished elsewhere): show the final state
+    busy = image_busy(conn, pid) if kind == "image" else bool(
+        conn.execute("SELECT 1 FROM jobs WHERE project_id=? AND type=? AND state='running' LIMIT 1", (pid, job_type)).fetchone())
+    if not busy:
+        st.rerun()                                     # nothing left to watch (finished elsewhere): show the final state
     try:
         provider = factory.image_provider() if kind == "image" else factory.video_provider()
     except ProviderError:
         provider = None
-    if provider is None:
-        return
     p = Pipeline(conn)
-    runner = ImageRunner(p, provider, DATA) if kind == "image" else VideoRunner(p, provider, DATA)
-    try:
-        counts = runner.poll_once(pid)
-        if counts["succeeded"] or counts["failed"] or counts["retried"]:
-            runner.submit_pending(pid)                 # a slot is free: send the next queued job the person already created (like the heartbeat)
-    except InvalidTransition:
-        st.rerun()                                     # another tab finished the same job first
-    except ProviderError as e:
-        st.caption(f"⚠ Chưa hỏi được trạng thái ({e}); sẽ thử lại.")
-        return
+    counts = {"succeeded": 0, "failed": 0, "retried": 0, "running": 0}
+    if provider is not None:
+        runner = ImageRunner(p, provider, DATA) if kind == "image" else VideoRunner(p, provider, DATA)
+        try:
+            counts = runner.poll_once(pid)
+            queued_fix = kind == "image" and p.project(pid)["qc_autofix"] and conn.execute(
+                "SELECT 1 FROM jobs WHERE project_id=? AND type='image_gen' AND state='queued' AND retry_count>0 LIMIT 1", (pid,)).fetchone()
+            if counts["succeeded"] or counts["failed"] or counts["retried"] or queued_fix:
+                runner.submit_pending(pid)             # a slot is free: send the next queued job (the person's, or an automatic fix)
+        except InvalidTransition:
+            st.rerun()                                 # another tab finished the same job first
+        except ProviderError as e:
+            st.caption(f"⚠ Chưa hỏi được trạng thái ({e}); sẽ thử lại.")
+    if kind == "image":
+        autoqc.start(DB, DATA, pid)                    # freshly generated pictures are checked by Claude in the background
+        rows = conn.execute("SELECT id, state FROM jobs WHERE project_id=? AND type='image_gen' ORDER BY id", (pid,)).fetchall()
+        signature = tuple((r["id"], r["state"]) for r in rows)
+        key = f"imgsig_{pid}"
+        previous = st.session_state.get(key)
+        st.session_state[key] = signature
+        if previous is not None and previous != signature:
+            st.rerun()                                 # a job changed state (finished, checked, sent again): redraw with it
     if counts["succeeded"] or counts["failed"] or counts["retried"]:
         st.rerun()                                     # a result arrived: redraw the whole page with it
-    st.caption(f"🔄 Tự cập nhật mỗi {POLL_SECONDS[kind]} giây · {counts['running']} còn đang chạy · kiểm tra lúc {time.strftime('%H:%M:%S')}")
+    checking = " · 🔍 đang tự kiểm tra ảnh" if kind == "image" and autoqc.active(pid) else ""
+    st.caption(f"🔄 Tự cập nhật mỗi {POLL_SECONDS[kind]} giây · {counts['running']} còn đang chạy{checking} · kiểm tra lúc {time.strftime('%H:%M:%S')}")
 
 
 @st.fragment(run_every=POLL_SECONDS["image"])
@@ -1496,6 +1522,18 @@ def image_progress(p: Pipeline, pid: int, runner) -> None:
                         "🖼 Chưa có nhân vật nào gắn tài nguyên: ảnh sẽ vẽ chỉ theo mô tả chữ (dễ lệch thiết kế).")
                        + (f" Chưa có ảnh tham chiếu cho: {', '.join(lack)} (vẽ theo mô tả)." if have and lack else ""))
         st.progress(done / total, text=f"{done}/{total} ảnh đã có · {queued} đang chờ · {running} đang gen · {failed} lỗi")
+        fixed = p.conn.execute("SELECT COUNT(*) FROM jobs WHERE project_id=? AND type='image_gen' AND retry_count>0 AND state NOT IN ('cancelled')", (pid,)).fetchone()[0]
+        flagged = p.conn.execute("SELECT COUNT(*) FROM jobs WHERE project_id=? AND type='image_gen' AND escalated=1 AND state='pending_review'", (pid,)).fetchone()[0]
+        if autoqc.active(pid):
+            st.info("🔍 **Đang tự kiểm tra ảnh** bằng Claude (so từng người với ảnh tham chiếu). Ảnh lỗi sẽ được gen lại tự động; ảnh đạt mới đến chỗ bạn duyệt.")
+        if fixed:
+            st.caption(f"🛠 Đã tự gen lại {fixed} lần vì QC thấy lỗi" + (f" · {flagged} ảnh vẫn còn lỗi sau các lần sửa, đã đánh dấu để bạn xem." if flagged else "."))
+        problem = autoqc.last_error(pid)
+        if problem:
+            st.warning(f"⚠ **Tự kiểm tra ảnh đã dừng**: {problem}")
+            if st.button("↻ Thử kiểm tra lại", key=f"autoqc_retry_{pid}"):
+                autoqc.clear_error(pid)
+                st.rerun()
         if queued + running == 0:
             st.success("Không còn job nào chờ: " + (f"{counts.get('pending_review', 0)} ảnh đang chờ bạn duyệt." if counts.get("pending_review") else "xong."))
         elif proj["paused"]:
@@ -1544,8 +1582,8 @@ def step2(p: Pipeline, pid: int):
                                 else "mọi ảnh chờ bạn duyệt"), "b-pri")
                     + f' <span class="muted">Retry tối đa {proj["max_retry_count"]}</span>', unsafe_allow_html=True)
     image_progress(p, pid, runner)
-    if p.conn.execute("SELECT 1 FROM jobs WHERE project_id=? AND type='image_gen' AND state='running' LIMIT 1", (pid,)).fetchone():
-        auto_poll_images(pid)                           # results show up by themselves
+    if image_busy(p.conn, pid):
+        auto_poll_images(pid)                           # results, the automatic check and automatic fixes all show up by themselves
     with st.expander("⚙ Thiết lập QC: tự loại ảnh điểm thấp · vùng chờ review"):
         f1, f2, f3 = st.columns([2, 3, 3], vertical_alignment="center")
         floor_on = f1.checkbox("Tự loại ảnh điểm thấp", proj["qc_reject_floor"] is not None, key=f"rej_on_{pid}",
@@ -1558,6 +1596,12 @@ def step2(p: Pipeline, pid: int):
         if new_reject != proj["qc_reject_floor"] and (new_reject is None or proj["qc_reject_floor"] is None
                                                       or abs(new_reject - proj["qc_reject_floor"]) > 1e-9):
             p.set_reject_floor(pid, new_reject)
+        autofix = st.checkbox(f"Tự kiểm tra bằng Claude và tự gen lại ảnh lỗi trước khi đến bạn duyệt (tối đa {proj['max_retry_count']} lần mỗi ảnh; mỗi lần gen tốn credit)",
+                              bool(proj["qc_autofix"]), key=f"autofix_{pid}",
+                              help="Ảnh vừa gen được so với ảnh tham chiếu của từng nhân vật. Ảnh đạt threshold mới đến bạn duyệt; ảnh lỗi được gen lại với lỗi ghi vào prompt. "
+                                   "Tắt thì QC chỉ cho điểm gợi ý và mọi ảnh đều chờ bạn.")
+        if autofix != bool(proj["qc_autofix"]):
+            p.set_qc_autofix(pid, autofix)
         if proj["operating_mode"] == "auto":
             z1, z2, _ = st.columns([2, 3, 3], vertical_alignment="center")
             zone_on = z1.checkbox("Vùng chờ review", proj["qc_review_floor"] is not None, key=f"zone_{pid}",

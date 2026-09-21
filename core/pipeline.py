@@ -235,7 +235,13 @@ class Pipeline:
         return self._spawn_retry(job_id, reason, close_old=JobState.CANCELLED)
 
     # ---- QC / review ---------------------------------------------------
-    def apply_qc(self, job_id: int, scores: Mapping[str, float], issues: Optional[str] = None) -> str:
+    def set_qc_autofix(self, project_id: int, on: bool) -> None:
+        """On: a picture the QC agent finds faulty is regenerated automatically (its issues go into the retry prompt) up to
+        max_retry_count times; only a picture that passes, or that is still faulty after the last try, reaches the person."""
+        self.conn.execute("UPDATE projects SET qc_autofix=? WHERE id=?", (1 if on else 0, project_id))
+        self.conn.commit()
+
+    def apply_qc(self, job_id: int, scores: Mapping[str, float], issues: Optional[str] = None, autofix: bool = False) -> str:
         """Record per-criterion scores, then decide per project operating_mode.
 
         Returns 'approved', 'rejected', 'escalated' or 'pending_review'.
@@ -261,9 +267,19 @@ class Pipeline:
                  ("fail" if too_low else "pass" if passed else "review" if review_zone else "fail") if auto
                  else ("fail" if too_low else None)))
         self.conn.commit()
-        if too_low:  # far below the bar: not worth a human's time, whatever the mode
+        if too_low and not (autofix and not auto):  # far below the bar: not worth a human's time (with auto-fix on, the fix branch below handles it)
             return self.reject(job_id, "ai_agent", f"QC {overall:.2f} < mức tối thiểu {reject_floor}{suffix}")
         if not auto:
+            if autofix and not passed:
+                if self._retries_exhausted(job):     # still faulty after the last try: keep this picture for the person, flagged
+                    self.transition(job_id, JobState.PENDING_REVIEW, actor="ai_agent",
+                                    note=f"QC {overall:.2f} < {threshold} sau {job['retry_count']} lần tự sửa — cần bạn xem{suffix}")
+                    self.conn.execute("UPDATE jobs SET escalated=1 WHERE id=?", (job_id,))
+                    self.conn.commit()
+                    return "needs_review"
+                self.transition(job_id, JobState.PENDING_REVIEW, actor="ai_agent", note=f"QC {overall:.2f} < {threshold}, tự sửa{suffix}")
+                self.reject(job_id, "ai_agent", f"QC {overall:.2f} < {threshold}{suffix}")   # queues a new job whose prompt carries the issues
+                return "auto_fix"
             self.transition(job_id, JobState.PENDING_REVIEW, actor="ai_agent",
                             note=f"QC {overall:.2f} (suggestion only){suffix}")
             return "pending_review"
