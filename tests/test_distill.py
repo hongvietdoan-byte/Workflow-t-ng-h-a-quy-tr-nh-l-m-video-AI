@@ -57,7 +57,7 @@ class DistillTests(unittest.TestCase):
         ov = knowledge.overview("director")
         self.assertLess(ov["chars"], ov["raw_chars"])
         replaced = {d["title"] for d in ov["docs"] if d["replaced"]}
-        self.assertEqual(replaced, {"Cơ bản điện ảnh", "Hướng dẫn 7 thể loại", "Nguyên tắc từ nguồn nghiên cứu", "studio"})
+        self.assertEqual(replaced, {"Cơ bản điện ảnh", "Hướng dẫn 7 thể loại", "Nguyên tắc từ nguồn nghiên cứu", "Phương pháp đạo diễn", "studio"})
         # the prompt file and the few-shot examples are never folded
         self.assertFalse(next(d for d in ov["docs"] if d["title"] == "Ví dụ mẫu (few-shot)")["replaced"])
         self.assertIn("Kịch bản đã tách cảnh", folded)

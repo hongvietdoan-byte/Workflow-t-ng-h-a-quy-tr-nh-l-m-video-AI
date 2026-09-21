@@ -152,6 +152,40 @@ def probe_duration(path: str) -> Optional[float]:
     return int(m.group(1)) * 3600 + int(m.group(2)) * 60 + float(m.group(3)) if m else None
 
 
+def resize_to_size(src: str, dst: str, width: int, height: int, max_mb: Optional[float] = None, audio_kbps: int = 128) -> dict:
+    """Fit the video into width x height (keeps the picture's shape, black bars if needed). With max_mb: 2-pass H.264
+    at a bitrate worked out from the target size, and re-encode at a lower bitrate until the file fits (max 4 tries).
+    Returns {"path", "size_mb", "video_kbps", "attempts", "fits"}."""
+    ffmpeg = find_ffmpeg()
+    width, height = int(width) // 2 * 2, int(height) // 2 * 2          # H.264 needs even sizes
+    if width < 64 or height < 64:
+        raise ValueError("kích thước quá nhỏ")
+    vf = f"scale={width}:{height}:force_original_aspect_ratio=decrease,pad={width}:{height}:(ow-iw)/2:(oh-ih)/2,setsar=1"
+    audio = ["-c:a", "aac", "-b:a", f"{audio_kbps}k"] if has_audio(src) else ["-an"]
+    if not max_mb:
+        run([ffmpeg, "-y", "-i", src, "-vf", vf, "-c:v", "libx264", "-crf", "23", "-pix_fmt", "yuv420p", *audio, dst])
+        return {"path": dst, "size_mb": os.path.getsize(dst) / 1e6, "video_kbps": None, "attempts": 1, "fits": True}
+    seconds = probe_duration(src)
+    if not seconds or seconds <= 0:
+        raise ValueError("không đọc được độ dài video")
+    kbps = max_mb * 8000 * 0.95 / seconds - (audio_kbps if audio[0] != "-an" else 0)   # 5% safety margin
+    limit = max_mb * 1e6
+    null = "NUL" if os.name == "nt" else "/dev/null"
+    log_dir = tempfile.mkdtemp()
+    for attempt in range(1, 5):
+        if kbps < 50:
+            raise ValueError(f"giới hạn {max_mb:g} MB quá nhỏ cho video dài {seconds:.0f}s ở kích thước này")
+        log = os.path.join(log_dir, "pass")
+        base = [ffmpeg, "-y", "-i", src, "-vf", vf, "-c:v", "libx264", "-b:v", f"{int(kbps)}k", "-pix_fmt", "yuv420p", "-passlogfile", log]
+        run(base + ["-pass", "1", "-an", "-f", "null", null])
+        run(base + ["-pass", "2", *audio, dst])
+        size = os.path.getsize(dst)
+        if size <= limit:
+            return {"path": dst, "size_mb": size / 1e6, "video_kbps": int(kbps), "attempts": attempt, "fits": True}
+        kbps *= 0.85 * limit / size                                         # over the limit: aim lower and encode again
+    return {"path": dst, "size_mb": os.path.getsize(dst) / 1e6, "video_kbps": int(kbps), "attempts": 4, "fits": False}
+
+
 def render_final(clips: Sequence[str], output: str, durations: Optional[Sequence[float]] = None,
                  transition: str = "cut", fade: float = 1.0, music: Optional[str] = None,
                  music_volume: float = 0.6, extras: Optional[Sequence[dict]] = None,

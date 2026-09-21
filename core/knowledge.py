@@ -29,6 +29,7 @@ GROUPS: Dict[str, tuple] = {
                   ("knowledge/cinematography_basics.md", "Cơ bản điện ảnh", "cỡ cảnh, góc máy, ánh sáng, chuyển động"),
                   ("knowledge/genre_guides.md", "Hướng dẫn 7 thể loại", "công thức viết prompt ảnh theo thể loại"),
                   ("knowledge/research_notes.md", "Nguyên tắc từ nguồn nghiên cứu", "16 nguyên tắc, 8 chiều điện ảnh"),
+                  ("knowledge/film_director_method.md", "Phương pháp đạo diễn", "ý định cảm xúc, 3 trục quan hệ, dàn dựng, nhịp phủ cảnh"),
                   ("eval/golden.json", "Ví dụ mẫu (few-shot)", "3 cặp đầu vào → kết quả chuẩn")]),
     "qc": ("QC — chấm điểm ảnh (Bước 2)",
            "Chấm ảnh theo 5 tiêu chí so với Character Bible và thông số cảnh.",
@@ -39,7 +40,10 @@ GROUPS: Dict[str, tuple] = {
                [("prompts/03_video_motion.md", "Prompt motion", "quy tắc và định dạng JSON"),
                 ("knowledge/video_motion_vocab.md", "Từ vựng camera / chuyển động", ""),
                 ("knowledge/research_notes.md", "Nguyên tắc từ nguồn nghiên cứu", "dùng chung với Director"),
-                ("knowledge/seedance_prompting.md", "Cách viết prompt Seedance", "chỉ gắn khi model video là Seedance")]),
+                ("knowledge/t2v_prompt_structure.md", "Cấu trúc prompt video (World Bible + 7 đoạn)", "nguồn sáng, chất liệu, nhất quán giữa cảnh"),
+                ("knowledge/motion_complex_shots.md", "Cảnh hành động phức tạp", "khóa không gian, chia nhịp, whip pan đúng chỗ"),
+                ("knowledge/seedance_prompting.md", "Cách viết prompt Seedance", "chỉ gắn khi model video là Seedance"),
+                ("knowledge/seedance_director_workflow.md", "Quy trình Seedance Director", "chỉ gắn khi model video là Seedance")]),
 }
 
 
@@ -234,9 +238,12 @@ DISTILL_SECTIONS = {
                "Điều cần tránh", "Ví dụ ngắn tiêu biểu", "Mâu thuẫn / chưa rõ"],
 }
 # built-in documents that may be folded into the playbook (the prompt files and few-shot examples never are)
-_FOLDABLE = {"director": {"knowledge/cinematography_basics.md", "knowledge/genre_guides.md", "knowledge/research_notes.md"},
+_FOLDABLE = {"director": {"knowledge/cinematography_basics.md", "knowledge/genre_guides.md", "knowledge/research_notes.md",
+                          "knowledge/film_director_method.md"},
              "qc": {"knowledge/ai_image_failure_modes.md"},
-             "motion": {"knowledge/video_motion_vocab.md", "knowledge/research_notes.md", "knowledge/seedance_prompting.md"}}
+             "motion": {"knowledge/video_motion_vocab.md", "knowledge/research_notes.md", "knowledge/seedance_prompting.md",
+                        "knowledge/t2v_prompt_structure.md", "knowledge/motion_complex_shots.md",
+                        "knowledge/seedance_director_workflow.md"}}
 
 
 def _distilled_path(group: str) -> str:

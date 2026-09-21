@@ -24,3 +24,8 @@ Số liệu lấy từ GitHub API tại thời điểm kiểm tra. **Chỉ dùng
 - Phần lớn repo về prompt video AI là dự án cộng đồng mới (2026) với số sao khiêm tốn; giá trị nằm ở nguyên tắc dựng phim chung, không ở cú pháp cụ thể của từng model.
 - **Cú pháp/giới hạn từng model (Seedance, Kling, MiniMax) phải lấy từ tài liệu chính thức của model hoặc của Clip AI**, và kiểm tra bằng bộ đánh giá `eval/`, không tin hoàn toàn vào repo cộng đồng.
 - Kiểm tra lại số liệu này định kỳ (mỗi quý) vì các model và repo thay đổi nhanh.
+
+## Bộ kỹ năng nội bộ đã chắt lọc (2026-09-21)
+- "AI Film Direction & Prompt Workflow Kit" 1.0.0 (film-director, motion-director, narration-writer, style-analyst) → `film_director_method.md`, `t2v_prompt_structure.md`, `motion_complex_shots.md`, tính năng World Bible.
+- "Seedance Director — Prompt Optimization Skill" 1.0 → `seedance_director_workflow.md`.
+- Đây là tài liệu nội bộ do người dùng cung cấp, chưa được kiểm chứng bằng bộ đánh giá `eval/`.

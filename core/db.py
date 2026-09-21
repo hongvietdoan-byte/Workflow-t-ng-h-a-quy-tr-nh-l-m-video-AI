@@ -15,6 +15,7 @@ CREATE TABLE IF NOT EXISTS projects (
     game TEXT NOT NULL DEFAULT 'FF',
     use_subjects INTEGER NOT NULL DEFAULT 0,
     script_text TEXT,
+    world_bible TEXT,
     autopilot_state TEXT,
     autopilot_note TEXT,
     autopilot_beat REAL,
@@ -215,6 +216,8 @@ def connect(path: str = ":memory:") -> sqlite3.Connection:
     for col in ("external_id", "result_path", "created_by"):
         if col not in job_cols:
             conn.execute(f"ALTER TABLE jobs ADD COLUMN {col} TEXT")
+    if "world_bible" not in cols:
+        conn.execute("ALTER TABLE projects ADD COLUMN world_bible TEXT")
     if "autopilot_user" not in cols:
         conn.execute("ALTER TABLE projects ADD COLUMN autopilot_user TEXT")
     return conn

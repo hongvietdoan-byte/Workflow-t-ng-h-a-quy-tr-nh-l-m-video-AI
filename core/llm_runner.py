@@ -304,6 +304,15 @@ class MockLlm:
         return LlmReply("```json\n" + json.dumps(out, ensure_ascii=False) + "\n```", 100, 50)
 
     def complete(self, prompt: str, images: Sequence[Tuple[str, str]] = ()) -> LlmReply:
+        if "Chuyên gia phong cách hình ảnh" in prompt:
+            out = {"render_style": "Hoạt hình 3D mềm (giả lập): không viền, chuyển sắc liên tục",
+                   "palette": "Tím lam chủ đạo, vàng ấm điểm nhấn ở nguồn sáng; no bloom, no oversaturation",
+                   "texture_finish": "Hạt phim rất nhẹ, tương phản vừa, chất ống kính thật", "lighting_logic": None,
+                   "candidate_elements": [{"label": "Bụi mịn", "prose": "a fine haze of dust catching light",
+                                           "evidence": "ảnh 1", "density_hint": "nhạt"}],
+                   "evidence_notes": ["bản nháp giả lập"], "confidence": "medium", "check_flags": [],
+                   "plain_note": "Tông chung giả lập cho thử nghiệm."}
+            return LlmReply("```json\n" + json.dumps(out, ensure_ascii=False) + "\n```", 80, 60)
         if "Biên tập viên bài học" in prompt:
             return LlmReply("Quy tắc mẫu (giả lập): kiểm tra kỹ lỗi này khi viết prompt và chấm ảnh.", 50, 20)
         if "Biên tập viên kiến thức" in prompt:

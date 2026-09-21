@@ -20,7 +20,7 @@ import streamlit as st
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
-from core import audio_lib, autopilot, diag, knowledge, lessons, perf, regen, research, subjects, trash, waveform, cost, ffmpeg_studio, final_cut, llm_io, llm_runner, music, preflight, prompts, script_parser  # noqa: E402
+from core import audio_lib, autopilot, diag, knowledge, lessons, perf, regen, research, style, subjects, trash, waveform, cost, ffmpeg_studio, final_cut, llm_io, llm_runner, music, preflight, prompts, script_parser  # noqa: E402
 from core.db import connect  # noqa: E402
 from core.pipeline import Pipeline, PipelinePaused  # noqa: E402
 from core.adapters import factory  # noqa: E402
@@ -554,6 +554,96 @@ def autopilot_panel(p: Pipeline, pid: int) -> None:
             st.caption("Hãy xử lý các mục đỏ ở trên trước khi bấm chạy.")
 
 
+WB_LABELS = (("render_style", "Phong cách dựng hình", "vd: hoạt hình 3D mềm, không viền, chuyển sắc liên tục"),
+             ("palette", "Bảng màu", "màu chủ đạo, màu điểm nhấn, phủ định (no bloom...)"),
+             ("texture_finish", "Chất liệu / hoàn thiện", "hạt phim, tương phản, chất ống kính"),
+             ("lighting_logic", "Logic ánh sáng (tùy chọn)", "ánh sáng đến từ nguồn nào"),
+             ("era_lore", "Thời đại / thế giới (tùy chọn)", "ràng buộc để không lệch thời đại"),
+             ("physics", "Vật lý / thời tiết (tùy chọn)", "mưa, trọng lực, chất liệu chuyển động thế nào"))
+
+
+def world_bible_panel(p: Pipeline, pid: int) -> None:
+    """Project style bible: written by hand or drafted by Claude from reference pictures, then inherited by every prompt."""
+    saved = style.load(p, pid)
+    with st.expander("🎨 Phong cách hình ảnh (World Bible) — giúp mọi cảnh nhất quán" + (" ✓" if any(saved.values()) else ""),
+                     expanded=False):
+        st.caption("Khóa một bộ tham số phong cách dùng chung: Director và Motion sẽ kế thừa cho **mọi** cảnh, tránh cảnh này một kiểu cảnh kia "
+                   "một kiểu. Gõ tay, hoặc tải 2–6 ảnh tham khảo để Claude soạn bản nháp rồi bạn sửa. Bản nháp chỉ có tác dụng sau khi bạn bấm Lưu.")
+        uploads = st.file_uploader("Ảnh tham khảo phong cách", type=["png", "jpg", "jpeg", "webp"], accept_multiple_files=True,
+                                   key=f"wb_up_{pid}")
+        llm = llm_runner.client_from_env()
+        if st.button("🤖 Phân tích ảnh phong cách bằng Claude", key=f"wb_run_{pid}", disabled=not uploads or llm is None,
+                     help="Cần ANTHROPIC_API_KEY và ít nhất 1 ảnh"):
+            folder = project_dir(pid, "style_refs")
+            paths = []
+            for i, f in enumerate(uploads[:style.MAX_REFS], 1):
+                path = os.path.join(folder, f"ref_{i}{os.path.splitext(f.name)[1].lower() or '.png'}")
+                with open(path, "wb") as fh:
+                    fh.write(f.getvalue())
+                paths.append(path)
+            try:
+                draft = style.analyse(llm, paths, note=lambda m: diag.record(p.conn, "director", "warn", m, "bad_json_retry", pid))
+            except ERRORS as e:
+                st.error(str(e))
+            else:
+                for key, _, _ in WB_LABELS:
+                    st.session_state[f"wb_{key}_{pid}"] = draft.get(key) or ""
+                st.session_state[f"wb_draft_{pid}"] = draft
+        draft = st.session_state.get(f"wb_draft_{pid}")
+        if draft:
+            st.info(draft.get("plain_note") or "Đã soạn bản nháp: xem và sửa các ô bên dưới rồi Lưu.")
+            for flag in draft.get("check_flags") or []:
+                st.markdown(f":orange[⚠ {escape(str(flag))}]")
+            if draft.get("candidate_elements"):
+                with st.expander("Yếu tố bầu không khí nhận ra (gợi ý, tùy chọn)"):
+                    for el in draft["candidate_elements"]:
+                        st.markdown(f"- **{escape(str(el.get('label', '')))}**: `{escape(str(el.get('prose', '')))}` "
+                                    f"— {escape(str(el.get('evidence', '')))}")
+        values = {}
+        for key, label, hint in WB_LABELS:
+            values[key] = st.text_area(label, value=saved.get(key, ""), key=f"wb_{key}_{pid}", placeholder=hint, height=68)
+        c1, c2 = st.columns(2)
+        if c1.button("💾 Lưu World Bible", key=f"wb_save_{pid}", type="primary"):
+            style.save(p, pid, values)
+            st.success("Đã lưu. Chạy lại Director/Motion để áp dụng cho các cảnh chưa làm.")
+        if c2.button("Xóa World Bible", key=f"wb_clear_{pid}"):
+            style.save(p, pid, {})
+            for key, _, _ in WB_LABELS:
+                st.session_state.pop(f"wb_{key}_{pid}", None)
+            st.rerun()
+
+
+RESIZE_PRESETS = {"Dọc 1080×1920 (TikTok/Reels/Shorts)": (1080, 1920), "Ngang 1920×1080": (1920, 1080),
+                  "Ngang 1558×720": (1558, 720), "Vuông 1080×1080": (1080, 1080), "Tự nhập": None}
+
+
+def resize_panel(pid: int, src: str) -> None:
+    """Export a copy at a given size and file-size limit (2-pass encoding), e.g. for upload limits."""
+    with st.expander("📐 Xuất bản theo kích thước / dung lượng"):
+        st.caption("Tạo thêm một bản của video cuối theo kích thước và dung lượng tối đa bạn cần (tự tính bitrate, mã hóa 2 lượt, "
+                   "tự nén lại nếu vượt). Bản gốc không bị đổi.")
+        preset = st.selectbox("Kích thước", list(RESIZE_PRESETS), key=f"rs_preset_{pid}")
+        size = RESIZE_PRESETS[preset]
+        c1, c2, c3 = st.columns(3)
+        width = c1.number_input("Rộng", 64, 7680, size[0] if size else 1080, 2, key=f"rs_w_{pid}", disabled=size is not None)
+        height = c2.number_input("Cao", 64, 7680, size[1] if size else 1920, 2, key=f"rs_h_{pid}", disabled=size is not None)
+        limit = c3.number_input("Dung lượng tối đa (MB, 0 = không giới hạn)", 0.0, 2000.0, 15.0, 1.0, key=f"rs_mb_{pid}")
+        if st.button("Xuất bản", key=f"rs_go_{pid}"):
+            w, h = size if size else (int(width), int(height))
+            dst = os.path.join(project_dir(pid, "output"), f"FINAL_VIDEO_{w}x{h}.mp4")
+            try:
+                with st.spinner("Đang mã hóa…"):
+                    res = ffmpeg_studio.resize_to_size(src, dst, w, h, limit or None)
+            except ERRORS as e:
+                st.error(str(e))
+            else:
+                (st.success if res["fits"] else st.warning)(
+                    f"Xong: {res['size_mb']:.1f} MB" + ("" if res["fits"] else f" — vẫn vượt {limit:g} MB sau {res['attempts']} lần, thử kích thước nhỏ hơn"))
+                with open(dst, "rb") as f:
+                    st.download_button(f"⬇ Tải {os.path.basename(dst)}", f, file_name=os.path.basename(dst), mime="video/mp4",
+                                       key=f"rs_dl_{pid}")
+
+
 def script_html(text: str) -> str:
     """Whole script as a scrollable block; scene headings in bold so the scenes can be found at a glance."""
     lines = []
@@ -574,6 +664,7 @@ def step1(p: Pipeline, pid: int):
     char_names = [c["name"] for c in chars]
 
     autopilot_panel(p, pid)
+    world_bible_panel(p, pid)
     with st.container(border=True):
         head, info = st.columns([3, 2], vertical_alignment="center")
         head.markdown(ui.card_title("① Kịch bản", "toàn văn (trái) · chia theo cảnh (phải)"), unsafe_allow_html=True)
@@ -1435,6 +1526,7 @@ def step5b(p: Pipeline, pid: int):
                 show_video(out, "Vừa")
                 with open(out, "rb") as f:
                     st.download_button("⬇ Tải FINAL_VIDEO.mp4", f, file_name="FINAL_VIDEO.mp4", mime="video/mp4")
+                resize_panel(pid, out)
     with right, st.container(border=True):
         ui.html(ui.card_title("Tùy chọn render"))
         transition = st.radio("Transition", ["cut", "crossfade", "dip_to_black"], horizontal=True, key=f"tr_{pid}",

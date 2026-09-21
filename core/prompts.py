@@ -21,6 +21,25 @@ def qc_criteria() -> List[str]:
     return [c["key"] for c in json.loads(_read("data", "qc_checklist.json"))["criteria"]]
 
 
+WORLD_BIBLE_FIELDS = (("render_style", "Phong cách dựng hình"), ("palette", "Bảng màu"), ("lighting_logic", "Logic ánh sáng"),
+                      ("texture_finish", "Chất liệu/hoàn thiện hình ảnh"), ("era_lore", "Thời đại/thế giới"),
+                      ("physics", "Vật lý/thời tiết"))
+
+
+def world_bible_text(pipeline: Pipeline, project_id: int) -> str:
+    """The project's style bible (set in step 1), as a block every step must inherit; empty when not set."""
+    raw = pipeline.project(project_id)["world_bible"]
+    try:
+        data = json.loads(raw or "{}")
+    except ValueError:
+        return ""
+    lines = [f"- **{label}:** {str(data[key]).strip()}" for key, label in WORLD_BIBLE_FIELDS if str(data.get(key) or "").strip()]
+    if not lines:
+        return ""
+    return ("# World Bible của dự án (BẮT BUỘC kế thừa, không mâu thuẫn)\n" + "\n".join(lines) +
+            "\nMọi prompt ảnh/video của dự án dùng lại cách diễn đạt này để các cảnh nhất quán (không cần chép nguyên văn ở mỗi cảnh).")
+
+
 def build_director_bundle(pipeline: Pipeline, project_id: int) -> str:
     rows = pipeline.conn.execute(
         "SELECT idx, title, data FROM scenes WHERE project_id=? ORDER BY idx", (project_id,)).fetchall()
@@ -33,6 +52,8 @@ def build_director_bundle(pipeline: Pipeline, project_id: int) -> str:
         keep("cinematography_basics.md"),
         keep("genre_guides.md"),
         keep("research_notes.md"),
+        keep("film_director_method.md"),
+        world_bible_text(pipeline, project_id),
         knowledge.user_text("director"),
         few_shot_text(),
         "# Kịch bản đã tách cảnh\n\n" + scenes,
@@ -85,11 +106,16 @@ def build_motion_bundle(pipeline: Pipeline, project_id: int, only_missing: bool 
     }
     folded = knowledge.folded_builtin("motion")
     parts = [_read("prompts", "03_video_motion.md")]
-    for rel in ("video_motion_vocab.md", "research_notes.md"):
+    for rel in ("video_motion_vocab.md", "research_notes.md", "t2v_prompt_structure.md", "motion_complex_shots.md"):
         if f"knowledge/{rel}" not in folded:
             parts.append(_read("knowledge", rel))
-    if video_family(pipeline, project_id) == "seedance" and "knowledge/seedance_prompting.md" not in folded:
-        parts.append(_read("knowledge", "seedance_prompting.md"))
+    if video_family(pipeline, project_id) == "seedance":
+        for rel in ("seedance_prompting.md", "seedance_director_workflow.md"):
+            if f"knowledge/{rel}" not in folded:
+                parts.append(_read("knowledge", rel))
+    wb = world_bible_text(pipeline, project_id)
+    if wb:
+        parts.append(wb)
     extra = knowledge.user_text("motion")
     return _SEP.join(parts + ([extra] if extra else []) + [
         "# Cảnh đã có ảnh được duyệt\n```json\n" + json.dumps(payload, ensure_ascii=False, indent=2) + "\n```",
