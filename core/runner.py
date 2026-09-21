@@ -10,7 +10,7 @@ import os
 import time
 from typing import Callable, Dict, Optional, Tuple
 
-from . import diag
+from . import assets, diag
 from . import subjects as subject_links
 from . import trash
 from .cost import record_usage
@@ -207,6 +207,9 @@ class ImageRunner(_Runner):
             return None
         if job["retry_reason"]:
             prompt = f"{prompt}. Fix: {job['retry_reason']}"
+        refs = assets.scene_references(self.p.conn, job["project_id"], json.loads(scene["data"] or "{}"))
+        if refs:                                       # the chosen resources' pictures go with the prompt (image-to-image)
+            return (assets.reference_note(refs) + "Scene: " + prompt, [r["path"] for r in refs])
         return (prompt,)
 
     def _record_usage(self, job, args) -> None:

@@ -45,7 +45,7 @@ class VideoProvider(Protocol):
 class ImageProvider(Protocol):
     name: str
 
-    def submit(self, prompt: str) -> str: ...
+    def submit(self, prompt: str, references=None) -> str: ...
 
     def status(self, task_id: str) -> TaskStatus: ...
 
@@ -68,16 +68,18 @@ class MockImageProvider:
         self._polls: Dict[str, int] = {}
         self._counter = 0
         self.prompts: Dict[str, str] = {}
+        self.references: Dict[str, list] = {}
         self.cancelled = []
 
     def usage_info(self):
         return "mock-image", "default"
 
-    def submit(self, prompt: str) -> str:
+    def submit(self, prompt: str, references=None) -> str:
         self._counter += 1
         task_id = f"img-{self._counter}"
         self._polls[task_id] = 0
         self.prompts[task_id] = prompt
+        self.references[task_id] = list(references or [])
         return task_id
 
     def status(self, task_id: str) -> TaskStatus:

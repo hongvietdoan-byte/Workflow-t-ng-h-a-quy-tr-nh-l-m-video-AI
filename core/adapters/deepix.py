@@ -21,6 +21,7 @@ USER_AGENT = "AIVideoPipeline-Deepix/0.1"
 PATH_CREATE = "/api/image-generator/conversation-create"
 PATH_STATUS = "/api/image-generator/message-status"
 DEFAULT_MODEL = "dola-seedream-5-0-pro-260628"
+MAX_REFERENCES = 10          # Seedream 5.0 Pro takes at most 10 reference pictures
 DEFAULT_SIZE = "2048x1152"  # 16:9, both sides multiples of 16, inside the Seedream Pro pixel bounds
 
 _DONE = {"completed", "succeed", "success"}
@@ -62,13 +63,23 @@ class DeepixImageProvider:
     def usage_info(self):
         return self.model, "image"
 
-    def submit(self, prompt: str) -> str:
+    def submit(self, prompt: str, references=None) -> str:
+        """Text-to-image, or image-to-image when reference picture paths are given (prompt_key 1, pictures in `file[]`, each up to 10 MB)."""
         if not prompt.strip():
             raise ProviderError("empty prompt", code="bad_prompt")
-        fields = {"prompt_key": "2", "message_type": "text-to-image",
+        files = []
+        for path in list(references or [])[:MAX_REFERENCES]:
+            try:
+                with open(path, "rb") as f:
+                    content = f.read()
+            except OSError:
+                continue                                   # a missing picture must not stop the job: it just goes without
+            if content and len(content) <= 10 * 1024 * 1024:
+                files.append(("file[]", os.path.basename(path), content))
+        fields = {"prompt_key": "1" if files else "2", "message_type": "image-to-image" if files else "text-to-image",
                   "prompts": json.dumps([{"key": "positive_prompt", "text": prompt}], ensure_ascii=False),
                   "model": self.model, "size": self.size, "quality": "high"}
-        data = self.client.post_multipart(PATH_CREATE, fields, []) or {}
+        data = self.client.post_multipart(PATH_CREATE, fields, files) or {}
         message_id = data.get("msg_id") or data.get("id")
         if message_id is None:
             raise ProviderError("create returned no message id", code="bad_response")

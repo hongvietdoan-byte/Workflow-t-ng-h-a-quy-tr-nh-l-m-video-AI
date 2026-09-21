@@ -292,6 +292,57 @@ def reference_paths(conn, project_id: int, kinds=("character",), limit: int = 4)
     return out[:limit]
 
 
+MAX_REFERENCES = 4                 # pictures sent with one image job (Seedream 5.0 Pro accepts up to 10)
+
+
+def match_character(chosen: List[Dict], name: str) -> Optional[Dict]:
+    """The chosen character asset that is this Character Bible entry ("Kelly" -> KELLY): same name or alias, else the shortest asset whose
+    first word is the name ("Kelly" -> "Kelly thức tỉnh"). None when nothing fits (the picture is then drawn from the text description)."""
+    key = fold(name)
+    if not key:
+        return None
+    pool = [a for a in chosen if a["kind"] in ("character", "pet") and a["images"]]
+    for a in pool:
+        if key in {fold(n) for n in names_of(a)}:
+            return a
+    close = [a for a in pool if fold(a["name"]).split(" ")[0] == key.split(" ")[0] and key.split(" ")[0]]
+    return min(close, key=lambda a: len(a["name"])) if close else None
+
+
+def link_characters(conn, project_id: int, names: List[str]) -> Dict[str, Optional[Dict]]:
+    """Character Bible name -> the chosen asset whose pictures are its reference (or None)."""
+    chosen = project_assets(conn, project_id)
+    return {n: match_character(chosen, n) for n in names}
+
+
+def scene_references(conn, project_id: int, scene: Dict, limit: int = MAX_REFERENCES) -> List[Dict]:
+    """Reference pictures for one scene: the first picture of each chosen asset for the characters in the scene, then of a chosen
+    place that the scene's location names. [{path, label, role}]"""
+    chosen = project_assets(conn, project_id)
+    refs: List[Dict] = []
+    for name in scene.get("characters") or []:
+        a = match_character(chosen, str(name))
+        if a and len(refs) < limit and all(r["label"] != a["name"] for r in refs):
+            refs.append({"path": a["images"][0]["path"], "label": a["name"], "role": "character"})
+    place = fold(str(scene.get("location") or ""))
+    if place:
+        for a in chosen:
+            if a["kind"] == "location" and a["images"] and fold(a["name"]) and fold(a["name"]) in place and len(refs) < limit:
+                refs.append({"path": a["images"][0]["path"], "label": a["name"], "role": "location"})
+    return refs
+
+
+def reference_note(refs: List[Dict]) -> str:
+    """Words that tell the image model what each attached picture is for."""
+    bits = []
+    for i, r in enumerate(refs, 1):
+        if r["role"] == "location":
+            bits.append(f"Image {i} shows the location {r['label']}: keep the look of this environment")
+        else:
+            bits.append(f"Image {i} shows the character {r['label']}: keep exactly this face, hairstyle, outfit and body proportions")
+    return "Reference images are attached. " + "; ".join(bits) + ". "
+
+
 def _news_for(conn, items: List[Dict], limit: int = 3, around: int = 170) -> str:
     """Short passages of the official news that mention the chosen characters / pets / places (newest first), so the video follows what
     the game itself says about them. Empty when no news was read or nothing matches. OFF unless FF_NEWS_IN_CONTEXT=1: the news read so far

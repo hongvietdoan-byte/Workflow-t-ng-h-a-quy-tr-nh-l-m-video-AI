@@ -1241,8 +1241,11 @@ def step1(p: Pipeline, pid: int):
                 head.markdown(ui.card_title("③ Character Bible", f"{len(chars)} mục"), unsafe_allow_html=True)
                 if risky:
                     status.caption(f"⚠ {len(risky)} mục có thể vướng IP (xem “⚠ Rủi ro” ở góc trên)")
+                linked = assets.link_characters(p.conn, pid, char_names)
                 st.dataframe([{"Nhân vật / đối tượng": c["name"],
                                "Mô tả": c["description"] + (f" · {c['wardrobe']}" if c["wardrobe"] else ""),
+                               "Ảnh tham chiếu": (f"✔ {linked[c['name']]['name']} · {len(linked[c['name']]['images'])} ảnh" if linked.get(c["name"])
+                                                  else "— vẽ theo mô tả"),
                                "IP": "⚠ rủi ro" if c["name"] in risky else "an toàn",
                                "Khóa": "🔒" if c["locked"] else ""} for c in chars],
                              width="stretch", hide_index=True, height=min(38 * (len(chars) + 1) + 3, 220))
@@ -1399,7 +1402,15 @@ def image_progress(p: Pipeline, pid: int, runner) -> None:
     queued, running, failed = counts.get("queued", 0) + counts.get("retryable", 0), counts.get("running", 0), counts.get("failed", 0)
     done = counts.get("succeeded", 0) + counts.get("pending_review", 0) + counts.get("approved", 0)
     ap_running = autopilot.status(p, pid)["state"] in ("running", "queued")
+    names = [r["name"] for r in p.conn.execute("SELECT name FROM characters WHERE project_id=?", (pid,))]
+    linked = assets.link_characters(p.conn, pid, names) if names else {}
     with st.container(border=True):
+        if linked:
+            have = [n for n, a in linked.items() if a]
+            lack = [n for n, a in linked.items() if not a]
+            st.caption(("🖼 Ảnh tham chiếu gửi kèm mỗi cảnh (theo nhân vật trong cảnh): " + ", ".join(have) + "." if have else
+                        "🖼 Chưa có nhân vật nào gắn tài nguyên: ảnh sẽ vẽ chỉ theo mô tả chữ (dễ lệch thiết kế).")
+                       + (f" Chưa có ảnh tham chiếu cho: {', '.join(lack)} (vẽ theo mô tả)." if have and lack else ""))
         st.progress(done / total, text=f"{done}/{total} ảnh đã có · {queued} đang chờ · {running} đang gen · {failed} lỗi")
         if queued + running == 0:
             st.success("Không còn job nào chờ: " + (f"{counts.get('pending_review', 0)} ảnh đang chờ bạn duyệt." if counts.get("pending_review") else "xong."))
