@@ -20,7 +20,7 @@ import streamlit as st
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
-from core import assets, audio_lib, subtitles, script_reader, auth, autopilot, dialogue, diag, knowledge, lessons, perf, regen, research, style, subjects, trash, waveform, cost, ffmpeg_studio, final_cut, llm_io, llm_runner, music, preflight, prompts, script_parser  # noqa: E402
+from core import sound_lib, assets, audio_lib, subtitles, script_reader, auth, autopilot, dialogue, diag, knowledge, lessons, perf, regen, research, style, subjects, trash, waveform, cost, ffmpeg_studio, final_cut, llm_io, llm_runner, music, preflight, prompts, script_parser  # noqa: E402
 from core.db import connect  # noqa: E402
 from core.pipeline import Pipeline, PipelinePaused  # noqa: E402
 from core.adapters import factory  # noqa: E402
@@ -976,6 +976,38 @@ def asset_library_panel(p: Pipeline) -> None:
             st.success(f"Mục mới: {len(r['created'])}, ảnh thêm: {r['added']}, trùng bỏ qua: {r['unchanged']}" + (f", lỗi: {len(r['skipped'])}" if r["skipped"] else ""))
             for name, why in r["skipped"][:20]:
                 st.caption(f"• {name} — {why}")
+    with st.expander("🎼 Kho âm thanh (nhạc nền & hiệu ứng) — thư mục nguồn", expanded=not sound_lib.list_sources(p.conn)):
+        st.caption("Thư mục chứa nhạc và hiệu ứng (mp3, wav, m4a, ogg, flac). Hệ thống chỉ liệt kê file (không mở từng file) nên thư mục vài GB vẫn xong ngay; "
+                   "phân loại nhạc nền / hiệu ứng và tâm trạng (vui vẻ, sôi động, kịch tính, hài...) dựa theo tên thư mục. Ở Bước 5 mọi người tìm, nghe thử và dùng.")
+        for src in sound_lib.list_sources(p.conn):
+            with st.container(border=True):
+                st.markdown(f"**{escape(src['path'])}** · {src['tracks']} bản")
+                st.caption(f"Lần quét gần nhất: {src['last_sync'] or 'chưa'}" + (f" — {escape(src['last_summary'])}" if src["last_summary"] else ""))
+                s1, s2, s3 = st.columns([3, 1.2, 1.4], vertical_alignment="bottom")
+                ig = s1.text_input("Bỏ qua thư mục có từ", src["ignore"] or "", key=f"snd_ign_{src['id']}")
+                auto = s2.checkbox("Tự động", bool(src["auto"]), key=f"snd_auto_{src['id']}")
+                if (ig.strip(), bool(auto)) != ((src["ignore"] or "").strip(), bool(src["auto"])):
+                    sound_lib.set_source(p.conn, src["id"], ig, auto)
+                if s3.button("🔄 Quét ngay", key=f"snd_scan_{src['id']}", type="primary"):
+                    try:
+                        sound_lib.scan(p.conn, src["id"])
+                    except (sound_lib.SoundError, OSError) as e:
+                        st.error(str(e))
+                    else:
+                        st.rerun()
+                if confirm_all(f"snd_del_{src['id']}", [src["id"]], "🗑 Bỏ nguồn này", "Bỏ thư mục khỏi kho âm thanh (file gốc không bị xóa)?", st, "Có, bỏ"):
+                    sound_lib.remove_source(p.conn, src["id"])
+                    st.rerun()
+        a1, a2 = st.columns([4, 1.4], vertical_alignment="bottom")
+        snd_path = a1.text_input("Thêm thư mục âm thanh", key="snd_new_path", placeholder=r"G:\My Drive\...\Free Fire Save resources\Sound Effect")
+        if a2.button("Thêm và quét", key="snd_new_go", disabled=not snd_path.strip(), type="primary"):
+            try:
+                sid = sound_lib.add_source(p.conn, snd_path)
+                sound_lib.scan(p.conn, sid)
+            except (sound_lib.SoundError, OSError) as e:
+                st.error(str(e))
+            else:
+                st.rerun()
     with st.expander("➕ Thêm một mục"):
         c1, c2 = st.columns([3, 2])
         name = c1.text_input("Tên", key="lib_new_name")
@@ -2308,9 +2340,87 @@ def subtitle_panel(p: Pipeline, pid: int, out: str) -> None:
                                    key=f"sub_dl_{pid}")
 
 
+def sound_rows(p: Pipeline, pid: int, rows: list, prefix: str) -> None:
+    """Result list of the sound library: preview, use as background music, add as an effect at a given second."""
+    _, selected_dir = music.project_dirs(DATA, pid)
+    for r in rows:
+        c1, c2, c3 = st.columns([5, 1.2, 3], vertical_alignment="center")
+        where = " · ".join(x for x in (r["category"], r["mood"]) if x)
+        size = f"{(r['size'] or 0) / 1e6:.1f} MB"
+        dur = f" · {r['duration']:.0f}s" if r["duration"] else ""
+        c1.markdown(f"**{escape(r['name'])}**  \n<span class='muted'>{escape(where)} · {size}{dur}</span>", unsafe_allow_html=True)
+        if c2.button("▶ Nghe", key=f"{prefix}_play_{r['id']}"):
+            st.session_state["snd_preview"] = r["id"]
+            sound_lib.ensure_duration(p.conn, r["id"])
+        if r["kind"] == "music":
+            if c3.button("🎵 Dùng làm nhạc nền", key=f"{prefix}_use_{r['id']}"):
+                try:
+                    music.use_library_track(selected_dir, r["path"])
+                except (ValueError, OSError) as e:
+                    st.error(str(e))
+                else:
+                    st.toast(f"Đã chọn “{r['name']}” làm nhạc nền")
+                    st.rerun()
+        else:
+            s1, s2 = c3.columns([1.2, 1.4])
+            at = s1.number_input("Giây", 0.0, 600.0, 0.0, 0.5, key=f"{prefix}_at_{r['id']}", label_visibility="collapsed")
+            if s2.button("➕ Thêm", key=f"{prefix}_add_{r['id']}", help="Thêm vào bản ghép tại giây này"):
+                try:
+                    seconds = sound_lib.ensure_duration(p.conn, r["id"])
+                    audio_lib.add_local(audio_lib.assets_dir(DATA, pid), r["path"], r["name"], at, 1.0, int(seconds * 1000) if seconds else None)
+                except OSError as e:
+                    st.error(str(e))
+                else:
+                    st.toast(f"Đã thêm “{r['name']}” tại giây {at:g}")
+                    st.rerun()
+        if st.session_state.get("snd_preview") == r["id"]:
+            if os.path.exists(r["path"]):
+                st.audio(r["path"])
+            else:
+                st.caption("File không còn ở vị trí cũ (Drive chưa kết nối?)")
+
+
+def sound_picker(p: Pipeline, pid: int) -> None:
+    """Step 5: search the person's own sound library, preview, use as background music or as an effect."""
+    n = sound_lib.counts(p.conn)
+    if not n:
+        return
+    with st.expander(f"🎼 Kho âm thanh của bạn — {n.get('music', 0)} nhạc nền · {n.get('sfx', 0)} hiệu ứng"):
+        mode = p.project(pid)["music_mode"] == "library"
+        auto = st.checkbox("Chế độ tự động hoàn toàn: lấy nhạc nền từ kho này theo tâm trạng các cảnh (không tốn credit tạo nhạc)", mode,
+                           key=f"music_mode_{pid}")
+        if auto != mode:
+            p.conn.execute("UPDATE projects SET music_mode=? WHERE id=?", ("library" if auto else None, pid))
+            p.conn.commit()
+        moods = music.scene_moods(p, pid)
+        if moods and st.button("🎯 Gợi ý nhạc nền theo tâm trạng các cảnh", key=f"snd_suggest_{pid}"):
+            st.session_state[f"snd_sug_{pid}"] = [r["id"] for r in sound_lib.suggest_music(p.conn, moods, 6, seed=pid)]
+        sug = st.session_state.get(f"snd_sug_{pid}")
+        if sug:
+            st.markdown("**Gợi ý** (tâm trạng: " + escape(", ".join(sound_lib.moods_of_text(" ".join(moods))) or "chưa rõ") + ")")
+            sound_rows(p, pid, [sound_lib.get(p.conn, i) for i in sug if sound_lib.get(p.conn, i)], "sg")
+            st.markdown("---")
+        f1, f2 = st.columns([2, 2])
+        kind = f1.radio("Loại", ["", "music", "sfx"], horizontal=True, key=f"snd_kind_{pid}",
+                        format_func=lambda k: {"": "Tất cả", "music": "Nhạc nền", "sfx": "Hiệu ứng"}[k])
+        cats = ["(tất cả thư mục)"] + [c for c, _ in sound_lib.categories(p.conn, kind or None)]
+        cat = f2.selectbox("Thư mục", cats, key=f"snd_cat_{pid}")
+        g1, g2 = st.columns([3, 2])
+        query = g1.text_input("Tìm theo tên / thư mục", key=f"snd_q_{pid}", placeholder="vd swoosh, kịch tính, trailer")
+        mood = g2.selectbox("Tâm trạng", ["(bất kỳ)"] + list(sound_lib.MOODS), key=f"snd_mood_{pid}")
+        page_size = 10
+        first = sound_lib.search(p.conn, query, kind or None, None if cat == cats[0] else cat, None if mood == "(bất kỳ)" else mood, 1, 0)
+        pages = max((first["total"] + page_size - 1) // page_size, 1)
+        page = st.number_input(f"Trang (có {first['total']} bản, {pages} trang)", 1, pages, 1, key=f"snd_page_{pid}") if pages > 1 else 1
+        res = sound_lib.search(p.conn, query, kind or None, None if cat == cats[0] else cat, None if mood == "(bất kỳ)" else mood,
+                               page_size, (int(page) - 1) * page_size)
+        sound_rows(p, pid, res["rows"], "sr")
+
+
 def step5(p: Pipeline, pid: int):
     """Music and the final render are one step now."""
     ui.html(ui.card_title("🎵 Nhạc nền", "chọn hoặc tạo nhạc, nghe thử cùng clip"))
+    sound_picker(p, pid)
     step5a(p, pid)
     ui.html(ui.card_title("🎞 Ghép & render", "cắt ghép clip, gắn nhạc, phụ đề"))
     step5b(p, pid)
@@ -2336,6 +2446,12 @@ def main():
             assets.auto_sync(p.conn)
         except Exception as e:  # noqa: BLE001 - a library problem must never stop the dashboard from opening
             diag.record(p.conn, "system", "warn", f"đồng bộ tài nguyên lỗi: {type(e).__name__}: {e}", "assets_sync")
+    if "sounds_scanned" not in st.session_state:        # sound folders marked "auto": list new files, once per browser session
+        st.session_state["sounds_scanned"] = True
+        try:
+            sound_lib.auto_scan(p.conn)
+        except Exception as e:  # noqa: BLE001
+            diag.record(p.conn, "system", "warn", f"quét kho âm thanh lỗi: {type(e).__name__}: {e}", "sounds_scan")
     if "research_checked" not in st.session_state:      # monthly research, at most once per browser session
         st.session_state["research_checked"] = True
         research.maybe_run_in_background(DB)

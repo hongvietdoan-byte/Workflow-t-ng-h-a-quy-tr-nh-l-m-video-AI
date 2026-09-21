@@ -82,14 +82,48 @@ def update(conn, asset_id: int, name: str, aliases: str, description: str) -> No
     conn.commit()
 
 
-def add_image(conn, asset_id: int, filename: str, data: bytes, src_path: Optional[str] = None, sha256: Optional[str] = None) -> str:
+MAX_SIDE = 2560            # longest side kept when a big picture is shrunk to fit the 10 MB limit
+
+
+def _shrink(data: bytes, filename: str) -> tuple:
+    """(bytes, extension) of a copy of a too-big picture that fits the size limit, or raise AssetError. Only the stored copy is
+    smaller: the original file stays where it is."""
+    try:
+        import io
+        from PIL import Image
+        Image.MAX_IMAGE_PIXELS = None
+        img = Image.open(io.BytesIO(data))
+        img.load()
+    except Exception:  # noqa: BLE001 - not a readable picture
+        raise AssetError(f"“{filename}” lớn hơn 10 MB và không đọc được để thu nhỏ") from None
+    if img.mode not in ("RGB", "L"):
+        background = Image.new("RGB", img.size, (255, 255, 255))
+        rgba = img.convert("RGBA")
+        background.paste(rgba, mask=rgba.split()[-1])
+        img = background
+    side = MAX_SIDE
+    for _ in range(6):
+        work = img.copy()
+        work.thumbnail((side, side))
+        for quality in (90, 82, 74):
+            buf = io.BytesIO()
+            work.save(buf, "JPEG", quality=quality, optimize=True)
+            if buf.tell() <= MAX_IMAGE_BYTES:
+                return buf.getvalue(), ".jpg"
+        side = int(side * 0.75)
+    raise AssetError(f"“{filename}” quá lớn, không thu nhỏ được xuống 10 MB")
+
+
+def add_image(conn, asset_id: int, filename: str, data: bytes, src_path: Optional[str] = None, sha256: Optional[str] = None,
+              src_size: Optional[int] = None, src_mtime: Optional[int] = None) -> str:
     ext = os.path.splitext(filename or "")[1].lower()
     if ext not in IMAGE_EXT:
         raise AssetError(f"“{filename}”: chỉ nhận ảnh JPG / PNG / WebP")
-    if len(data) > MAX_IMAGE_BYTES:
-        raise AssetError(f"“{filename}” lớn hơn 10 MB: hãy giảm dung lượng (bộ tạo ảnh không nhận)")
     if not data:
         raise AssetError(f"“{filename}” rỗng")
+    fingerprint = sha256 or hashlib.sha256(data).hexdigest()          # of the original file, so a re-sync recognises it
+    if len(data) > MAX_IMAGE_BYTES:
+        data, ext = _shrink(data, filename)
     have = conn.execute("SELECT COUNT(*) FROM asset_images WHERE asset_id=?", (asset_id,)).fetchone()[0]
     if have >= MAX_IMAGES_PER_ASSET:
         raise AssetError(f"Mỗi tài nguyên tối đa {MAX_IMAGES_PER_ASSET} ảnh")
@@ -101,8 +135,8 @@ def add_image(conn, asset_id: int, filename: str, data: bytes, src_path: Optiona
     path = os.path.join(folder, f"{n}{ext}")
     with open(path, "wb") as f:
         f.write(data)
-    conn.execute("INSERT INTO asset_images (asset_id, path, label, sort, src_path, sha256) VALUES (?,?,?,?,?,?)",
-                 (asset_id, path, os.path.splitext(os.path.basename(filename))[0], n, src_path, sha256 or hashlib.sha256(data).hexdigest()))
+    conn.execute("INSERT INTO asset_images (asset_id, path, label, sort, src_path, sha256, src_size, src_mtime) VALUES (?,?,?,?,?,?,?,?)",
+                 (asset_id, path, os.path.splitext(os.path.basename(filename))[0], n, src_path, fingerprint, src_size, src_mtime))
     conn.commit()
     return path
 
@@ -262,6 +296,20 @@ def _stem_name(filename: str) -> str:
     return " ".join(words) or stem
 
 
+def _spread(items: List[str], n: int) -> List[str]:
+    """n items evenly spaced over the sorted list (first and last included)."""
+    items = sorted(items)
+    if len(items) <= n:
+        return items
+    return [items[round(i * (len(items) - 1) / (n - 1))] for i in range(n)]
+
+
+def _alias_after_dash(name: str) -> str:
+    """'Khu vực - Dock' -> 'Dock' (what a script is likely to call it)."""
+    parts = re.split(r"\s+-\s+", name or "")
+    return parts[-1].strip() if len(parts) > 1 else ""
+
+
 def _sha(data: bytes) -> str:
     return hashlib.sha256(data).hexdigest()
 
@@ -297,16 +345,18 @@ def sync_folder(conn, folder: str, game: str, kind: str = "character", created_b
     rep = {"created": [], "added": 0, "updated": 0, "unchanged": 0, "moved": 0, "skipped": [], "ignored": 0, "missing": [], "removed": 0}
     seen: set = set()
 
-    def asset_for(name: str, k: str) -> int:
+    def asset_for(name: str, k: str, description: str = "", aliases: str = "") -> int:
         row = conn.execute("SELECT id FROM assets WHERE game=? AND kind=? AND lower(name)=lower(?) AND project_id IS NULL",
                            (game, k, name)).fetchone()
         if row:
             return row["id"]
-        aid = create(conn, game, k, name, created_by=created_by)
+        aid = create(conn, game, k, name, description, aliases, created_by=created_by)
         rep["created"].append(name)
         return aid
 
-    def take(name: str, k: str, files: List[str]) -> None:
+    def take_untracked(name: str, k: str, files: List[str], description: str, aliases: str) -> None:
+        """Pictures that are also shown elsewhere (the overview of a map re-uses the first picture of each area): kept without
+        remembering their file, so the area keeps its own record of the same file; a re-run recognises them by fingerprint."""
         aid = None
         for path in files:
             try:
@@ -315,25 +365,57 @@ def sync_folder(conn, folder: str, game: str, kind: str = "character", created_b
             except OSError as e:
                 rep["skipped"].append((path, str(e.strerror or e)))
                 continue
-            key = os.path.abspath(path)
-            seen.add(key)
+            aid = aid or asset_for(name, k, description, aliases)
             sha = _sha(data)
-            known = conn.execute("SELECT i.id, i.sha256, i.path, i.asset_id FROM asset_images i JOIN assets a ON a.id=i.asset_id"
-                                 " WHERE i.src_path=? AND a.game=?", (key, game)).fetchone()
+            if conn.execute("SELECT 1 FROM asset_images WHERE asset_id=? AND sha256=?", (aid, sha)).fetchone():
+                continue
+            try:
+                add_image(conn, aid, os.path.basename(path), data, sha256=sha)
+                rep["added"] += 1
+            except AssetError as e:
+                rep["skipped"].append((path, str(e)))
+
+    def take(name: str, k: str, files: List[str], description: str = "", aliases: str = "") -> None:
+        aid = None
+        for path in files:
+            key = os.path.abspath(path)
+            try:
+                st = os.stat(path)
+            except OSError as e:
+                rep["skipped"].append((path, str(e.strerror or e)))
+                continue
+            seen.add(key)
+            known = conn.execute("SELECT i.id, i.sha256, i.path, i.asset_id, i.src_size, i.src_mtime FROM asset_images i"
+                                 " JOIN assets a ON a.id=i.asset_id WHERE i.src_path=? AND a.game=?", (key, game)).fetchone()
+            if known and known["src_size"] == st.st_size and known["src_mtime"] == int(st.st_mtime):
+                rep["unchanged"] += 1                                          # same size and date: no need to read the file at all
+                continue
+            try:
+                with open(path, "rb") as f:
+                    data = f.read()
+            except OSError as e:
+                rep["skipped"].append((path, str(e.strerror or e)))
+                continue
+            sha = _sha(data)
             if known and known["sha256"] == sha:
+                conn.execute("UPDATE asset_images SET src_size=?, src_mtime=? WHERE id=?", (st.st_size, int(st.st_mtime), known["id"]))
+                conn.commit()
                 rep["unchanged"] += 1
                 continue
             if known:                                                       # the same file, edited: replace the stored picture
-                if len(data) > MAX_IMAGE_BYTES:
-                    rep["skipped"].append((path, "lớn hơn 10 MB"))
+                try:
+                    stored = data if len(data) <= MAX_IMAGE_BYTES else _shrink(data, os.path.basename(path))[0]
+                except AssetError as e:
+                    rep["skipped"].append((path, str(e)))
                     continue
                 with open(known["path"], "wb") as f:
-                    f.write(data)
-                conn.execute("UPDATE asset_images SET sha256=? WHERE id=?", (sha, known["id"]))
+                    f.write(stored)
+                conn.execute("UPDATE asset_images SET sha256=?, src_size=?, src_mtime=? WHERE id=?",
+                             (sha, st.st_size, int(st.st_mtime), known["id"]))
                 conn.commit()
                 rep["updated"] += 1
                 continue
-            aid = aid or asset_for(name, k)
+            aid = aid or asset_for(name, k, description, aliases)
             twin = conn.execute("SELECT id FROM asset_images WHERE asset_id=? AND sha256=?", (aid, sha)).fetchone()
             if twin:                                                        # same picture, new name or place
                 conn.execute("UPDATE asset_images SET src_path=? WHERE id=?", (key, twin["id"]))
@@ -341,7 +423,7 @@ def sync_folder(conn, folder: str, game: str, kind: str = "character", created_b
                 rep["moved"] += 1
                 continue
             try:
-                add_image(conn, aid, os.path.basename(path), data, src_path=key, sha256=sha)
+                add_image(conn, aid, os.path.basename(path), data, src_path=key, sha256=sha, src_size=st.st_size, src_mtime=int(st.st_mtime))
                 rep["added"] += 1
             except AssetError as e:
                 rep["skipped"].append((path, str(e)))
@@ -350,20 +432,43 @@ def sync_folder(conn, folder: str, game: str, kind: str = "character", created_b
         entries = sorted(os.listdir(directory))
         files = [e for e in entries if os.path.isfile(os.path.join(directory, e)) and e.lower().endswith(IMAGE_EXT)]
         groups: Dict[str, List[str]] = {}
+        # "Lyra/1.png, 2.png": the folder is the name. "Map/burger 2.png, khu nha kinh 4.png": every picture names its own thing.
+        folder_is_the_name = kind_from_word(os.path.basename(directory)) is None and all(
+            re.fullmatch(r"(img[_ -]?)?\d+|\d+[_ -]?\d*|[a-z]{0,3}\d{1,4}", fold(os.path.splitext(e)[0]).replace(" ", "")) for e in files)
         for e in files:
             if _ignored(parts + [e], words):
                 rep["ignored"] += 1
                 continue
-            key = os.path.basename(directory) if (not top and kind_from_word(os.path.basename(directory)) is None) else _stem_name(e)
+            key = os.path.basename(directory) if (not top and folder_is_the_name) else _stem_name(e)
             groups.setdefault(key, []).append(os.path.join(directory, e))
+        parent = os.path.basename(directory) if not top else ""
         for name, paths in groups.items():
-            take(name, k, paths)
-        for e in entries:
-            sub = os.path.join(directory, e)
-            if os.path.isdir(sub):
-                if _ignored(parts + [e], words):
-                    continue
-                walk(sub, kind_from_word(e) or k, False, parts + [e])
+            if len(paths) > MAX_IMAGES_PER_ASSET:      # a folder with 66 shots: take an even spread, not the first six (often near-identical)
+                paths = _spread(paths, MAX_IMAGES_PER_ASSET)
+            # a picture folder that lives inside another folder is an "area" of it: remember where it belongs
+            from_folder = not top and folder_is_the_name and name == parent
+            desc = f"Thuộc: {os.path.basename(os.path.dirname(directory))}" if from_folder and len(parts) >= 2 else ""
+            take(name, k, paths, desc, _alias_after_dash(name) if from_folder else "")
+        subdirs = [e for e in entries if os.path.isdir(os.path.join(directory, e)) and not _ignored(parts + [e], words)]
+        if not top and not files and len(subdirs) >= 2:
+            overview(directory, k, subdirs, parts)
+        for e in subdirs:
+            walk(os.path.join(directory, e), kind_from_word(e) or k, False, parts + [e])
+
+    def overview(directory: str, k: str, subdirs: List[str], parts: List[str]) -> None:
+        """A folder made only of sub-folders of pictures (a map made of areas) also gets one asset of its own, with the first
+        picture of up to 6 areas and the list of areas in its description, so a script that names the whole map finds it."""
+        firsts, names = [], []
+        for e in subdirs:
+            pics = sorted(x for x in os.listdir(os.path.join(directory, e)) if x.lower().endswith(IMAGE_EXT))
+            if pics:
+                names.append(e)
+                if len(firsts) < MAX_IMAGES_PER_ASSET:
+                    firsts.append(os.path.join(directory, e, pics[0]))
+        if len(names) >= 2:
+            label = re.sub(r"^\s*map\s+", "", os.path.basename(directory), flags=re.I).strip() or os.path.basename(directory)
+            take_untracked(label, k, firsts, "Gồm các khu vực: " + ", ".join(_alias_after_dash(n) or n for n in names),
+                           os.path.basename(directory))
 
     walk(folder, kind, True, [])
     base = os.path.abspath(folder)

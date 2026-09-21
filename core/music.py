@@ -193,6 +193,16 @@ def select_draft(drafts_dir: str, selected_dir: str, index: int) -> str:
     return dest
 
 
+def use_library_track(selected_dir: str, src_path: str) -> str:
+    """Make a file of the person's own library the project's background music (copied; the original is untouched)."""
+    if not os.path.exists(src_path):
+        raise ValueError("file nhạc không còn ở vị trí cũ")
+    clear_selected(selected_dir)
+    dest = os.path.join(selected_dir, "selected" + os.path.splitext(src_path)[1].lower())
+    shutil.copyfile(src_path, dest)
+    return dest
+
+
 def clear_selected(selected_dir: str) -> None:
     for name in os.listdir(selected_dir):
         os.remove(os.path.join(selected_dir, name))

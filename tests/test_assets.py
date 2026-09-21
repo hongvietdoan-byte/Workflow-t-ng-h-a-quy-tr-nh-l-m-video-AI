@@ -361,10 +361,117 @@ class MergeTests(unittest.TestCase):
         with self.assertRaises(AssetError):
             assets.merge(self.conn, keep, keep)
 
+    def test_a_folder_of_descriptively_named_pictures_gives_one_asset_per_name(self):
+        src = os.path.join(self.dir, "maps", "MAP Đảo Thế Kỷ")
+        os.makedirs(src)
+        for name, seed in (("burger 1.png", 1), ("burger 2.png", 2), ("khu vuc nha kinh 4.png", 3), ("cong dich chuyen.png", 4)):
+            with open(os.path.join(src, name), "wb") as f:
+                f.write(PNG + bytes([seed]))
+        assets.sync_folder(self.conn, os.path.join(self.dir, "maps"), "FF", "location")
+        by = {a["name"]: len(a["images"]) for a in assets.list_assets(self.conn, "FF")}
+        self.assertEqual(by, {"burger": 2, "khu vuc nha kinh": 1, "cong dich chuyen": 1})
+        numbered = os.path.join(self.dir, "maps2", "Khu vực - Dock")
+        os.makedirs(numbered)
+        for n in (1, 2):
+            with open(os.path.join(numbered, f"{n}.png"), "wb") as f:
+                f.write(PNG + bytes([10 + n]))
+        assets.sync_folder(self.conn, os.path.join(self.dir, "maps2"), "FF", "location")
+        self.assertEqual(len(next(a for a in assets.list_assets(self.conn, "FF") if a["name"] == "Khu vực - Dock")["images"]), 2)   # 1.png, 2.png: the folder names it
+
+    def test_a_big_folder_is_sampled_evenly_instead_of_taking_the_first_shots(self):
+        self.assertEqual(assets._spread([f"{i:02d}.png" for i in range(1, 67)], 6), ["01.png", "14.png", "27.png", "40.png", "53.png", "66.png"])
+        self.assertEqual(assets._spread(["a", "b"], 6), ["a", "b"])
+        src = os.path.join(self.dir, "maps")
+        for n in range(1, 21):
+            os.makedirs(os.path.join(src, "Khu vực - Đền"), exist_ok=True)
+            with open(os.path.join(src, "Khu vực - Đền", f"{n:02d}.png"), "wb") as f:
+                f.write(PNG + bytes([n]))
+        rep = assets.sync_folder(self.conn, src, "FF", "location")
+        self.assertEqual(rep["added"], 6)
+        labels = [i["label"] for i in assets.list_assets(self.conn, "FF")[0]["images"]]
+        self.assertEqual(labels, ["01", "05", "09", "12", "16", "20"])                    # spread over the 20 shots
+
     def test_trailing_words_new_and_old_are_not_part_of_the_name(self):
         self.assertEqual(assets._stem_name("FORD new.png"), "FORD")
         self.assertEqual(assets._stem_name("Kelly_new_2.png"), "Kelly")
         self.assertEqual(assets._stem_name("A124.png"), "A124")
+
+
+class BigPicturesAndMapsTests(unittest.TestCase):
+    def setUp(self):
+        self.dir = tempfile.mkdtemp()
+        os.environ["ASSET_DIR"] = os.path.join(self.dir, "assets")
+        self.conn = connect()
+        self.src = os.path.join(self.dir, "maps")
+        self.saved_limit = assets.MAX_IMAGE_BYTES
+
+    def tearDown(self):
+        assets.MAX_IMAGE_BYTES = self.saved_limit
+        os.environ.pop("ASSET_DIR", None)
+        shutil.rmtree(self.dir, ignore_errors=True)
+
+    def noise_png(self, path, size=700):
+        import io
+        from PIL import Image
+        img = Image.frombytes("RGB", (size, size), os.urandom(size * size * 3))
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        img.save(path, "PNG")
+
+    def test_a_picture_over_the_limit_is_stored_as_a_smaller_copy_and_the_original_is_untouched(self):
+        assets.MAX_IMAGE_BYTES = 300_000                                          # pretend 300 KB is the limit
+        path = os.path.join(self.src, "Khu vực - Dock", "1.png")
+        self.noise_png(path)
+        original = os.path.getsize(path)
+        self.assertGreater(original, assets.MAX_IMAGE_BYTES)
+        rep = assets.sync_folder(self.conn, self.src, "FF", "location")
+        self.assertEqual((rep["added"], rep["skipped"]), (1, []))
+        stored = assets.list_assets(self.conn, "FF")[0]["images"][0]["path"]
+        self.assertTrue(stored.endswith(".jpg"))
+        self.assertLessEqual(os.path.getsize(stored), assets.MAX_IMAGE_BYTES)
+        self.assertEqual(os.path.getsize(path), original)
+        again = assets.sync_folder(self.conn, self.src, "FF", "location")          # and it is recognised next time
+        self.assertEqual((again["unchanged"], again["added"]), (1, 0))
+
+    def test_something_that_is_not_a_picture_is_still_refused_when_too_big(self):
+        assets.MAX_IMAGE_BYTES = 1000
+        aid = assets.create(self.conn, "FF", "location", "X")
+        with self.assertRaises(AssetError):
+            assets.add_image(self.conn, aid, "fake.png", b"0" * 5000)
+
+    def test_unchanged_files_are_not_even_read_on_a_second_run(self):
+        self.noise_png(os.path.join(self.src, "A.png"), 50)
+        assets.sync_folder(self.conn, self.src, "FF", "location")
+        real_open = open
+        opened = []
+
+        def spy(file, *a, **k):
+            if str(file).startswith(self.src):
+                opened.append(file)
+            return real_open(file, *a, **k)
+
+        from unittest import mock
+        with mock.patch("builtins.open", spy):
+            rep = assets.sync_folder(self.conn, self.src, "FF", "location")
+        self.assertEqual((rep["unchanged"], opened), (1, []))                        # matters for a 4 GB folder on a network drive
+
+    def test_a_map_of_areas_gives_one_asset_per_area_and_one_for_the_whole_map(self):
+        for area in ("Khu vực - Dock", "Khu vực - Forest Red", "Khu vực - Mill"):
+            for n in (1, 2):
+                self.noise_png(os.path.join(self.src, "MAP Đảo Mặt Trời", area, f"{n}.png"), 30)
+        self.noise_png(os.path.join(self.src, "MAP Đảo Thế Kỷ", "1.png"), 30)           # a map without areas
+        rep = assets.sync_folder(self.conn, self.src, "FF", "location")
+        by = {a["name"]: a for a in assets.list_assets(self.conn, "FF")}
+        self.assertIn("Khu vực - Dock", by)
+        self.assertEqual(by["Khu vực - Dock"]["aliases"], "Dock")                    # what a script would call it
+        self.assertEqual(by["Khu vực - Dock"]["description"], "Thuộc: MAP Đảo Mặt Trời")
+        self.assertEqual(len(by["Khu vực - Dock"]["images"]), 2)
+        whole = by["Đảo Mặt Trời"]                                                    # "MAP " dropped
+        self.assertEqual(len(whole["images"]), 3)                                    # first picture of each area
+        self.assertIn("Dock", whole["description"])
+        self.assertIn("MAP Đảo Mặt Trời", whole["aliases"])
+        self.assertIn("MAP Đảo Thế Kỷ", by)                                           # no areas: just the folder
+        found = assets.find_in_text(self.conn, "Nhóm hạ cánh xuống Dock rồi chạy về Đảo Mặt Trời.", "FF")
+        self.assertEqual(sorted(a["name"] for a in found), ["Khu vực - Dock", "Đảo Mặt Trời"])
 
 
 class SyncDashboardTests(unittest.TestCase):

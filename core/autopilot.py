@@ -20,7 +20,7 @@ import time
 from dataclasses import dataclass
 from typing import Callable, Dict, List, Optional
 
-from . import subtitles, dialogue, diag, ffmpeg_studio, final_cut, llm_io, llm_runner, music, perf
+from . import sound_lib, subtitles, dialogue, diag, ffmpeg_studio, final_cut, llm_io, llm_runner, music, perf
 from .pipeline import Pipeline
 
 RUNNING, WAITING, STOPPED, ATTENTION, DONE, ERROR = "running", "waiting", "stopped", "needs_attention", "done", "error"
@@ -345,11 +345,32 @@ def _videos_phase(p: Pipeline, pid: int, ctx: Context) -> Optional[str]:
     return None if done == len(rows) else f"Video: {done}/{len(rows)} xong"
 
 
+def _music_from_library(p: Pipeline, pid: int, data_dir: str) -> bool:
+    """When the project asks for it: pick a background track of the person's own library that fits the scene moods (no credit spent)."""
+    row = p.project(pid)
+    if not ("music_mode" in row.keys() and row["music_mode"] == "library"):
+        return False
+    picked = sound_lib.pick_music(p.conn, music.scene_moods(p, pid), music.total_duration_sec(p, pid), seed=pid)
+    if picked is None:
+        _log(p, pid, "Kho nhạc của bạn chưa có bản nhạc nền phù hợp → tạo bằng Clip AI")
+        return False
+    _, selected_dir = music.project_dirs(data_dir, pid)
+    try:
+        music.use_library_track(selected_dir, picked["path"])
+    except (ValueError, OSError) as e:
+        _d(p, pid, "music", "warn", f"không dùng được nhạc từ kho ({picked['name']}): {e}", "library_music")
+        return False
+    _log(p, pid, f"Nhạc nền từ kho: {picked['name']}" + (f" ({picked['mood']})" if picked.get("mood") else ""))
+    return True
+
+
 def _music_phase(p: Pipeline, pid: int, ctx: Context) -> Optional[str]:
-    if ctx.audio is None:
-        return None
     drafts_dir, selected_dir = music.project_dirs(ctx.data_dir, pid)
     if os.listdir(selected_dir):
+        return None
+    if _music_from_library(p, pid, ctx.data_dir):
+        return None
+    if ctx.audio is None:
         return None
     drafts = music.load_drafts(drafts_dir)
     if not drafts:

@@ -47,6 +47,23 @@ def _add(directory: str, kind: str, label: str, asset_id: Optional[str], message
     return entry
 
 
+def add_local(directory: str, src_path: str, label: str, start: float = 0.0, volume: float = 1.0, duration_ms: Optional[int] = None) -> Dict:
+    """Put a file of the person's own sound library into the mix (copied into the project, ready to use)."""
+    import shutil
+    ext = os.path.splitext(src_path)[1].lower()
+    items = load(directory)
+    n = len(items) + 1
+    while os.path.exists(os.path.join(directory, f"local_{n}{ext}")):
+        n += 1
+    name = f"local_{n}{ext}"
+    shutil.copyfile(src_path, os.path.join(directory, name))
+    entry = {"kind": "sound_effect", "label": label, "asset_id": "local", "file": name, "duration_ms": duration_ms, "state": "succeeded",
+             "message": None, "use": True, "start": max(float(start), 0.0), "volume": max(min(float(volume), 2.0), 0.0)}
+    items.append(entry)
+    _save(directory, items)
+    return entry
+
+
 def submit_sfx(provider, directory: str, prompt: str, duration_seconds: Optional[float] = None,
                loop: bool = False, ledger=None) -> Dict:
     try:

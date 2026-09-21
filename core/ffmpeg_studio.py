@@ -122,7 +122,7 @@ def build_extras_mix_cmd(video: str, extras: Sequence[dict], output: str, has_au
 
 
 def run(cmd: List[str]) -> None:
-    proc = subprocess.run(cmd, capture_output=True, text=True)
+    proc = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8", errors="replace")
     if proc.returncode != 0:
         raise FFmpegError(proc.stderr[-2000:])
 
@@ -133,7 +133,7 @@ _AUDIO_STREAM = re.compile(r"Stream #\d+:\d+.*Audio:")
 def has_audio(path: str) -> bool:
     """True when the file has an audio stream (read from `ffmpeg -i`)."""
     try:
-        proc = subprocess.run([find_ffmpeg(), "-hide_banner", "-i", path], capture_output=True, text=True)
+        proc = subprocess.run([find_ffmpeg(), "-hide_banner", "-i", path], capture_output=True, text=True, encoding="utf-8", errors="replace")
     except (FFmpegNotFound, OSError):
         return False
     return bool(_AUDIO_STREAM.search(proc.stderr or ""))
@@ -145,7 +145,7 @@ _DURATION = re.compile(r"Duration:\s*(\d+):(\d+):(\d+(?:\.\d+)?)")
 def probe_duration(path: str) -> Optional[float]:
     """Length in seconds read from `ffmpeg -i` (no ffprobe needed); None when it cannot be determined."""
     try:
-        proc = subprocess.run([find_ffmpeg(), "-hide_banner", "-i", path], capture_output=True, text=True)
+        proc = subprocess.run([find_ffmpeg(), "-hide_banner", "-i", path], capture_output=True, text=True, encoding="utf-8", errors="replace")
     except (FFmpegNotFound, OSError):
         return None
     m = _DURATION.search(proc.stderr or "")

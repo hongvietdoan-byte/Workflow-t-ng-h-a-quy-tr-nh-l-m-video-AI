@@ -306,7 +306,7 @@ def _selected_by_libass(ass_text: str) -> str:
         with open(os.path.join(work, "t.ass"), "w", encoding="utf-8") as f:
             f.write(ass_text)
         proc = subprocess.run([ffmpeg_studio.find_ffmpeg(), "-v", "verbose", "-y", "-f", "lavfi", "-i", "color=c=black:s=640x360:d=0.5",
-                               "-vf", "ass=t.ass", "-f", "null", "-"], capture_output=True, text=True, cwd=work)
+                               "-vf", "ass=t.ass", "-f", "null", "-"], capture_output=True, text=True, encoding="utf-8", errors="replace", cwd=work)
         for line in (proc.stderr or "").splitlines():
             if "fontselect" in line.lower() and "->" in line:
                 return line.split("->")[-1].split(",")[0].strip()
@@ -364,7 +364,7 @@ def translate(client, cues: List[Cue], lang: str) -> List[Cue]:
 
 # ---- burn into the video --------------------------------------------------------------------------------------------
 def probe_size(path: str) -> Tuple[int, int]:
-    proc = subprocess.run([ffmpeg_studio.find_ffmpeg(), "-hide_banner", "-i", path], capture_output=True, text=True)
+    proc = subprocess.run([ffmpeg_studio.find_ffmpeg(), "-hide_banner", "-i", path], capture_output=True, text=True, encoding="utf-8", errors="replace")
     for line in (proc.stderr or "").splitlines():
         if "Video:" in line:
             m = re.search(r",\s*(\d{2,5})x(\d{2,5})[\s,\[]", line)
@@ -395,7 +395,7 @@ def burn(video: str, cues: List[Cue], out_path: str, font: Font, size: str = "M"
             f.write(to_ass(cues, width, height, font, size, pos, color, show_speaker) + embed_font(font))
         cmd = [ffmpeg, "-y", "-i", os.path.abspath(video), "-vf", "ass=sub.ass", "-c:v", "libx264", "-crf", "18",
                "-preset", "medium", "-pix_fmt", "yuv420p", "-c:a", "copy", os.path.abspath(out_path)]
-        proc = subprocess.run(cmd, capture_output=True, text=True, cwd=work)
+        proc = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8", errors="replace", cwd=work)
         if proc.returncode != 0:
             tail = (proc.stderr or "")[-600:]
             if "No such filter" in tail:

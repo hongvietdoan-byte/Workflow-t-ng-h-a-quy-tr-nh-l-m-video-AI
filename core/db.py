@@ -17,6 +17,7 @@ CREATE TABLE IF NOT EXISTS projects (
     script_text TEXT,
     world_bible TEXT,
     sub_settings TEXT,
+    music_mode TEXT,
     autopilot_state TEXT,
     autopilot_note TEXT,
     autopilot_beat REAL,
@@ -153,8 +154,34 @@ CREATE TABLE IF NOT EXISTS asset_images (
     label TEXT,
     sort INTEGER,
     src_path TEXT,
-    sha256 TEXT
+    sha256 TEXT,
+    src_size INTEGER,
+    src_mtime INTEGER
 );
+CREATE TABLE IF NOT EXISTS sound_sources (
+    id INTEGER PRIMARY KEY,
+    path TEXT NOT NULL,
+    ignore TEXT,
+    auto INTEGER NOT NULL DEFAULT 1,
+    last_sync TEXT,
+    last_signature TEXT,
+    last_summary TEXT
+);
+CREATE TABLE IF NOT EXISTS sounds (
+    id INTEGER PRIMARY KEY,
+    source_id INTEGER NOT NULL,
+    path TEXT NOT NULL UNIQUE,
+    name TEXT NOT NULL,
+    category TEXT NOT NULL DEFAULT '',
+    kind TEXT NOT NULL,
+    mood TEXT,
+    search TEXT,
+    ext TEXT,
+    size INTEGER,
+    mtime INTEGER,
+    duration REAL
+);
+CREATE INDEX IF NOT EXISTS idx_sounds_kind ON sounds(kind, category);
 CREATE TABLE IF NOT EXISTS asset_sources (
     id INTEGER PRIMARY KEY,
     game TEXT NOT NULL,
@@ -285,9 +312,11 @@ def connect(path: str = ":memory:") -> sqlite3.Connection:
     if "perms" not in user_cols:
         conn.execute("ALTER TABLE users ADD COLUMN perms TEXT")
     img_cols = {r["name"] for r in conn.execute("PRAGMA table_info(asset_images)")}
-    for col in ("src_path", "sha256"):
+    for col, typ in (("src_path", "TEXT"), ("sha256", "TEXT"), ("src_size", "INTEGER"), ("src_mtime", "INTEGER")):
         if col not in img_cols:
-            conn.execute(f"ALTER TABLE asset_images ADD COLUMN {col} TEXT")
+            conn.execute(f"ALTER TABLE asset_images ADD COLUMN {col} {typ}")
+    if "music_mode" not in cols:
+        conn.execute("ALTER TABLE projects ADD COLUMN music_mode TEXT")
     if "sub_settings" not in cols:
         conn.execute("ALTER TABLE projects ADD COLUMN sub_settings TEXT")
     if "world_bible" not in cols:
