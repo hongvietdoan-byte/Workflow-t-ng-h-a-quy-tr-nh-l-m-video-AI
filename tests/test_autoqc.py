@@ -179,5 +179,35 @@ class BackgroundCheckTests(Base):
         self.assertFalse(autoqc.start(self.db, self.data, self.pid, lambda: None))                # no Claude configured
 
 
+class RaceTests(Base):
+    def test_a_picture_already_judged_by_another_check_is_skipped_not_a_crash(self):
+        jid = self.generated_job(self.scene())
+        self.assertEqual(llm_runner.run_qc(self.p, jid, FakeQc(0.95), self.data)["decision"], "pending_review")
+        # a second, concurrent check (the old race: a manual click and the background thread landing on the same picture)
+        self.assertEqual(self.p.apply_qc(jid, {"character": 0.9}), "already_processed")
+        self.assertEqual(self.p.state(jid).value, "pending_review")            # untouched by the second check
+
+    def test_auto_mode_projects_are_not_polled_for_automatic_qc(self):
+        """"auto" mode already runs its own QC via autopilot; the dashboard page must not start a second, racing check."""
+        from unittest import mock
+        from streamlit.testing.v1 import AppTest
+        from core.adapters import factory
+        from tests.test_step1_flow import APP
+        self.p.set_mode(self.pid, "auto")
+        self.generated_job(self.scene())
+        os.environ.update({"PIPELINE_DB": self.db, "PIPELINE_DATA": self.data})
+        try:
+            with mock.patch.object(factory, "image_provider", return_value=self.provider), \
+                    mock.patch("core.llm_runner.client_from_env", return_value=FakeQc(0.95)):
+                at = AppTest.from_file(APP, default_timeout=60)
+                at.query_params["step"] = "2"
+                at.run()
+            self.assertFalse(at.exception)
+        finally:
+            os.environ.pop("PIPELINE_DB", None)
+            os.environ.pop("PIPELINE_DATA", None)
+        self.assertFalse(autoqc.active(self.pid))
+
+
 if __name__ == "__main__":
     unittest.main()

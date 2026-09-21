@@ -242,6 +242,10 @@ class Pipeline:
         self.conn.commit()
 
     def apply_qc(self, job_id: int, scores: Mapping[str, float], issues: Optional[str] = None, autofix: bool = False) -> str:
+        """... Returns 'already_processed' instead of raising when the picture was already judged by another check in the
+        meantime (the automatic background check and a manual click can land on the same picture)."""
+        if self.state(job_id) != JobState.SUCCEEDED:
+            return "already_processed"
         """Record per-criterion scores, then decide per project operating_mode.
 
         Returns 'approved', 'rejected', 'escalated' or 'pending_review'.

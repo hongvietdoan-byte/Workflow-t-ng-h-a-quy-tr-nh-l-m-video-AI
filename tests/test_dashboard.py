@@ -151,9 +151,10 @@ class DashboardSmokeTests(unittest.TestCase):
             os.makedirs(img)
             with open(os.path.join(img, f"job_{job}.png"), "wb") as f:
                 f.write(bytes([0x89]) + b"PNG" + b"0" * 20)
+            from core import llm_runner as lr
+            self.assertEqual(lr.run_qc(q, job, lr.MockLlm(), os.path.join(self.tmp, "projects"))["decision"], "pending_review")
             at = AppTest.from_file(APP, default_timeout=30).run()
             at.radio(key="step").set_value(at.radio(key="step").options[1]).run()
-            next(b for b in at.button if b.key == f"llm_qc_all_{pid}").click().run()
             self.assertFalse(at.exception)
             state = Pipeline(connect(self.db)).conn.execute("SELECT state FROM jobs").fetchone()["state"]
             self.assertEqual(state, "pending_review")  # human_qc: mock scores wait for a person

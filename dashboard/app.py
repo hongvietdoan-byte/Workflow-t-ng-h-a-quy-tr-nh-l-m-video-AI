@@ -1476,7 +1476,7 @@ def _poll_running(pid: int, kind: str) -> None:
             st.rerun()                                 # another tab finished the same job first
         except ProviderError as e:
             st.caption(f"⚠ Chưa hỏi được trạng thái ({e}); sẽ thử lại.")
-    if kind == "image":
+    if kind == "image" and p.project(pid)["operating_mode"] != "auto":  # "auto" mode already runs its own QC via autopilot; avoid doing it twice
         autoqc.start(DB, DATA, pid)                    # freshly generated pictures are checked by Claude in the background
         rows = conn.execute("SELECT id, state FROM jobs WHERE project_id=? AND type='image_gen' ORDER BY id", (pid,)).fetchall()
         signature = tuple((r["id"], r["state"]) for r in rows)
@@ -1634,17 +1634,6 @@ def step2(p: Pipeline, pid: int):
     if client is None and to_check:
         st.warning(f"⚠ **Chưa có điểm QC**: {to_check} ảnh vừa gen chưa được chấm vì chưa có Claude (cần `ANTHROPIC_API_KEY`, hoặc `LLM_PROVIDER=claude_cli` "
                    "để dùng Claude Code trên máy). Trong lúc đó hãy tự xem từng ảnh (đúng nhân vật? đúng bối cảnh? lỗi tay/mặt?) rồi ✓ duyệt hoặc ✕ loại.")
-    if client is not None and to_check:
-        if st.button(f"🤖 QC {to_check} ảnh vừa gen bằng Claude", key=f"llm_qc_all_{pid}"):
-            with st.spinner("Claude đang chấm ảnh…"):
-                ok = act(lambda: st.session_state.__setitem__("llm_res", llm_runner.run_qc_batch(p, pid, client, DATA)))
-            if ok:
-                r = st.session_state.pop("llm_res")
-                st.toast(f"Đã chấm {r['checked']} ảnh {r['decisions']} ({tokens_text(r)})")
-                for jid, msg in r["failed"]:
-                    st.error(f"Job #{jid}: {msg}")
-                if not r["failed"]:
-                    st.rerun()
     jobs = p.conn.execute(
         "SELECT j.*, s.idx, s.title FROM jobs j JOIN scenes s ON s.id=j.scene_id"
         " WHERE j.project_id=? AND j.type='image_gen' ORDER BY s.idx, j.id", (pid,)).fetchall()
@@ -1758,13 +1747,8 @@ def image_detail(p: Pipeline, pid: int, j, proj):
                     st.rerun()
         elif state == "succeeded":
             client = llm_client()
-            if client is not None and st.button("🤖 QC bằng Claude", key=f"llm_qc_{jid}", type="primary"):
-                with st.spinner("Claude đang chấm ảnh…"):
-                    ok = act(lambda: st.session_state.__setitem__("llm_res", llm_runner.run_qc(p, jid, client, DATA)))
-                if ok:
-                    r = st.session_state.pop("llm_res")
-                    st.toast(f"Quyết định: {r['decision']} ({tokens_text(r)})")
-                    st.rerun()
+            if client is not None:
+                st.caption("🔍 Claude tự kiểm tra ảnh này ở nền (không cần bấm); xem tiến độ ở đầu Bước 2.")
             with st.expander("QC Agent — prompt & kết quả"):
                 st.code(prompts.build_qc_bundle(p, j["scene_id"]), language="markdown")
                 raw = st.text_area("JSON điểm QC từ Claude", key=f"qc_{jid}", height=100)
