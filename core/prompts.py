@@ -3,7 +3,7 @@ import json
 import os
 from typing import List
 
-from . import knowledge
+from . import dialogue, knowledge
 from .evalset import few_shot_text
 from .pipeline import Pipeline
 
@@ -99,10 +99,14 @@ def build_motion_bundle(pipeline: Pipeline, project_id: int, only_missing: bool 
         + (" AND NOT EXISTS (SELECT 1 FROM motion_prompts m WHERE m.scene_id=s.id)" if only_missing else "")
         + " ORDER BY s.idx", (project_id,)).fetchall()
     chars = conn.execute("SELECT name, description FROM characters WHERE project_id=?", (project_id,)).fetchall()
+    def dialogue_hint(data: dict) -> dict:
+        need = dialogue.needed_seconds(dialogue.lines(data.get("text", "")))
+        return {"dialogue_min_sec": need} if need else {}
+
     payload = {
         "characters": [dict(c) for c in chars],
-        "scenes": [{"idx": r["idx"], **{k: v for k, v in json.loads(r["data"] or "{}").items() if k in _SCENE_KEYS}}
-                   for r in rows],
+        "scenes": [{"idx": r["idx"], **{k: v for k, v in json.loads(r["data"] or "{}").items() if k in _SCENE_KEYS},
+                    **dialogue_hint(json.loads(r["data"] or "{}"))} for r in rows],
     }
     folded = knowledge.folded_builtin("motion")
     parts = [_read("prompts", "03_video_motion.md")]

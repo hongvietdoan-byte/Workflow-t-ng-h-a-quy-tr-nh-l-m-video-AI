@@ -20,7 +20,7 @@ import streamlit as st
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
-from core import audio_lib, autopilot, diag, knowledge, lessons, perf, regen, research, style, subjects, trash, waveform, cost, ffmpeg_studio, final_cut, llm_io, llm_runner, music, preflight, prompts, script_parser  # noqa: E402
+from core import audio_lib, autopilot, dialogue, diag, knowledge, lessons, perf, regen, research, style, subjects, trash, waveform, cost, ffmpeg_studio, final_cut, llm_io, llm_runner, music, preflight, prompts, script_parser  # noqa: E402
 from core.db import connect  # noqa: E402
 from core.pipeline import Pipeline, PipelinePaused  # noqa: E402
 from core.adapters import factory  # noqa: E402
@@ -1132,6 +1132,29 @@ def image_detail(p: Pipeline, pid: int, j, proj):
 
 
 # ---- step 3 --------------------------------------------------------------------------
+def dialogue_panel(p: Pipeline, pid: int, key: str) -> None:
+    """Warn when a scene's dialogue is longer than its clip (cut-off / rushed lines, wasted credit)."""
+    entries = dialogue.check(p, pid)
+    if not entries:
+        return
+    bad = dialogue.problems(entries)
+    proj = p.project(pid)
+    label = f"🗣 Thoại so với độ dài clip — {len(bad)} cảnh cần chú ý" if bad else f"🗣 Thoại so với độ dài clip — {len(entries)} cảnh có thoại, đều vừa"
+    with st.expander(label, expanded=bool(bad)):
+        if not proj["video_audio"]:
+            st.caption("Đang tắt “Model tự tạo âm thanh/lời thoại”: thoại sẽ được lồng tiếng riêng (Bước 5a), độ dài clip chỉ cần đủ cho hình.")
+        for e in entries:
+            icon = {"ok": "✔", "tight": "◐", "extend": "⚠", "split": "✖"}[e["status"]]
+            color = {"ok": "green", "tight": "orange", "extend": "orange", "split": "red"}[e["status"]]
+            st.markdown(f":{color}[{icon} S{e['idx']:02d}] {escape(', '.join(e['speakers']))} · {e['syllables']} âm tiết ≈ {e['needed']:g}s "
+                        f"/ clip {e['planned']:g}s" + (f" — {escape(e['advice'])}" if e["advice"] else ""))
+        fixable = [e for e in bad if e["status"] == "extend"]
+        if fixable and st.button(f"⏱ Tự tăng thời lượng {len(fixable)} clip cho vừa thoại", key=f"dlg_fix_{key}_{pid}"):
+            dialogue.extend(p, entries)
+            st.rerun()
+        st.caption("Ước lượng theo tốc độ nói ~3,5 âm tiết/giây (DIALOGUE_SYLLABLES_PER_SEC) cộng 0,5s chừa hơi; chỉ là ước lượng.")
+
+
 def step3(p: Pipeline, pid: int):
     approved = p.conn.execute(
         "SELECT s.idx FROM scenes s WHERE s.project_id=? AND EXISTS (SELECT 1 FROM jobs j WHERE j.scene_id=s.id"
@@ -1139,6 +1162,7 @@ def step3(p: Pipeline, pid: int):
     rows = p.conn.execute(
         "SELECT s.id sid, s.idx, m.* FROM motion_prompts m JOIN scenes s ON s.id=m.scene_id"
         " WHERE s.project_id=? ORDER BY s.idx", (pid,)).fetchall()
+    dialogue_panel(p, pid, "s3")
     with st.container(border=True):
         a, b = st.columns([3, 1], vertical_alignment="center")
         a.markdown(ui.badge(f"{len(approved)} cảnh đã có ảnh được duyệt", "b-info") +
@@ -1198,6 +1222,7 @@ def step3(p: Pipeline, pid: int):
 # ---- step 4 --------------------------------------------------------------------------
 def step4(p: Pipeline, pid: int):
     ready = llm_io.ready_for_video(p, pid)
+    dialogue_panel(p, pid, "s4")
     runner = video_runner(p)
     models = ["(mặc định: kling-v3-omni)", "kling", "kling-o1", "seedance", "seedance-fast", "seedance-2.5"]
     proj = p.project(pid)

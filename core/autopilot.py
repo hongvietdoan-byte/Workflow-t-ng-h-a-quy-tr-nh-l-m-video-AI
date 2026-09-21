@@ -20,7 +20,7 @@ import time
 from dataclasses import dataclass
 from typing import Callable, Dict, List, Optional
 
-from . import diag, ffmpeg_studio, final_cut, llm_io, llm_runner, music, perf
+from . import dialogue, diag, ffmpeg_studio, final_cut, llm_io, llm_runner, music, perf
 from .pipeline import Pipeline
 
 RUNNING, WAITING, STOPPED, ATTENTION, DONE, ERROR = "running", "waiting", "stopped", "needs_attention", "done", "error"
@@ -269,7 +269,30 @@ def _motion_phase(p: Pipeline, pid: int, ctx: Context) -> Optional[str]:
         if m is not None and m["state"] != "approved":
             llm_io.approve_motion_prompt(p, s["id"])
     done = sum(1 for s in rows if _count(p, "SELECT COUNT(*) FROM motion_prompts WHERE scene_id=? AND state='approved'", s["id"]))
+    if done == len(rows):
+        _dialogue_gate(p, pid)
     return None if done == len(rows) else f"Motion prompt: {done}/{len(rows)}"
+
+
+def _dialogue_gate(p: Pipeline, pid: int) -> None:
+    """Before any video credit is spent: dialogue must fit the clip. When the video model speaks the lines (sound on),
+    clips that are too short are lengthened, and dialogue that cannot fit even the longest clip STOPS the run;
+    with sound off the lines are voiced later (TTS), so it is only reported."""
+    entries = dialogue.check(p, pid)
+    bad = dialogue.problems(entries)
+    if not bad:
+        return
+    if not p.project(pid)["video_audio"]:
+        for e in bad:
+            _d(p, pid, "motion", "warn", f"S{e['idx']:02d}: {e['advice']}", "dialogue_length")
+        return
+    fixed = dialogue.extend(p, entries)
+    if fixed:
+        _log(p, pid, f"Tăng thời lượng {fixed} clip cho vừa lời thoại")
+    splits = [e for e in bad if e["status"] == "split"]
+    if splits:
+        raise _Stop("Thoại quá dài cho clip: " + "; ".join(f"S{e['idx']:02d} cần ~{e['needed']:g}s, tối đa {e['max']}s" for e in splits)
+                    + " — rút gọn thoại hoặc tách cảnh rồi bấm Tiếp tục")
 
 
 def _videos_phase(p: Pipeline, pid: int, ctx: Context) -> Optional[str]:
