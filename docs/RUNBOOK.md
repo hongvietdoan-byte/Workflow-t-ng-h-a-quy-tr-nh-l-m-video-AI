@@ -118,7 +118,7 @@ Lưu ý chung: nút **↺ Làm lại từ đầu** xuất hiện ở job đã h�
 - **World Bible phong cách (Bước 1 → 🎨):** tải 2–6 ảnh tham khảo và bấm phân tích (cần API), hoặc gõ tay; sửa rồi Lưu. Các cảnh làm sau đó (Director/Motion) kế thừa phong cách chung. **Xuất bản theo kích thước/dung lượng (Bước 5b → 📐):** chọn kích thước và dung lượng tối đa, tạo thêm bản `FINAL_VIDEO_<rộng>x<cao>.mp4`. Sau khi thêm tài liệu kiến thức mới (tự có sẵn trong Director/Motion), nên chắt lọc lại ở Cài đặt → Kho kiến thức.
 
 ## Đăng nhập & phân quyền
-- **Owner (hongviet.doan@garena.vn):** lần đầu mở Dashboard → tab "Lần đầu / được mời" → nhập e-mail Owner, **mã trong file `data/owner_setup_code.txt`** (trên máy chạy Dashboard) và đặt mật khẩu. Quên mật khẩu: chạy `py tools/reset_owner.py` trên máy đó.
-- **Mời người khác:** tab "👥 Người dùng" → nhập e-mail, chọn vai trò → "Tạo mã mời" → gửi mã (một lần, hết hạn 7 ngày) qua kênh riêng. Họ mở địa chỉ Dashboard → "Lần đầu / được mời" → e-mail + mã + mật khẩu mới. Quên mật khẩu: bấm "Cấp lại mã".
-- **Vô hiệu hóa** một người: người đó bị đăng xuất ngay. Chỉ Owner cấp/đổi quyền Admin.
-- **Lưu ý bảo mật:** HTTP không mã hóa — chỉ mở cho mạng tin cậy (`DASHBOARD_LAN=1`), hoặc dùng VPN/HTTPS. Đừng gửi mã mời trong kênh nhiều người thấy.
+- Vào Dashboard chỉ cần nhập **e-mail**. Owner: hongviet.doan@garena.vn. E-mail công ty (garena.vn) tự vào ở quyền cơ bản (các bước làm video). E-mail khác phải được Owner thêm.
+- **Bảng phân quyền** (tab "👥 Phân quyền", chỉ Owner): tick từng người được dùng thêm Cài đặt & bảng giá / Kho kiến thức / Theo dõi hiệu suất / Bài học rồi bấm Lưu; bỏ tick "Được vào" để chặn (người đó bị đăng xuất ngay). Thêm e-mail mới, xóa khỏi bảng, đổi tên miền tự vào cũng ở đây. Nhật ký đăng nhập ở cuối trang.
+- Địa chỉ đưa cho người khác: `http://<IP máy chạy>:8501` (tab Phân quyền hiện sẵn). Nên đánh dấu trang `...?login=ten@garena.vn` để khỏi nhập lại.
+- **Lưu ý bảo mật:** không có mật khẩu, nên chỉ dùng trong mạng tin cậy. Muốn Owner chỉ đăng nhập từ máy chạy Dashboard: thêm `DASHBOARD_OWNER_LOCAL_ONLY=1` vào `dashboard.env`.

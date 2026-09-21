@@ -111,6 +111,7 @@ CREATE TABLE IF NOT EXISTS users (
     name TEXT,
     role TEXT NOT NULL CHECK (role IN ('owner','admin','member')),
     pw_hash TEXT,
+    perms TEXT,
     active INTEGER NOT NULL DEFAULT 1,
     failed INTEGER NOT NULL DEFAULT 0,
     locked_until REAL,
@@ -243,6 +244,9 @@ def connect(path: str = ":memory:") -> sqlite3.Connection:
     for col in ("external_id", "result_path", "created_by"):
         if col not in job_cols:
             conn.execute(f"ALTER TABLE jobs ADD COLUMN {col} TEXT")
+    user_cols = {r["name"] for r in conn.execute("PRAGMA table_info(users)")}
+    if "perms" not in user_cols:
+        conn.execute("ALTER TABLE users ADD COLUMN perms TEXT")
     if "world_bible" not in cols:
         conn.execute("ALTER TABLE projects ADD COLUMN world_bible TEXT")
     if "autopilot_user" not in cols:

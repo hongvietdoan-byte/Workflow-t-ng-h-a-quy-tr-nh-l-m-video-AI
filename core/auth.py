@@ -1,59 +1,59 @@
-"""Sign-in by e-mail and role-based permissions for the dashboard.
+"""Sign-in by e-mail (no password) and per-person permissions for the dashboard.
 
-Roles
-  owner   the single top-level owner (DASHBOARD_OWNER_EMAIL). Everything, including users, roles and shutdown.
-  admin   delegated by the owner: settings, prices, knowledge base, monitoring, lessons; may invite members.
-  member  the video workflow only (script -> images -> prompts -> video -> music -> render, automatic mode).
+Simple on purpose:
+  * Everyone signs in with just an e-mail address. Whoever the owner has listed gets the permissions the owner set.
+  * An e-mail that is not listed but belongs to an auto-member domain (default garena.vn, owner can change it) is
+    added as a plain member on first sign-in: it only gets the video workflow.
+  * Any other e-mail is refused until the owner adds it.
+  * Owner = DASHBOARD_OWNER_EMAIL (default hongviet.doan@garena.vn). Only the owner manages people and can shut the
+    dashboard down. The owner cannot be removed or changed by anyone.
 
-How people get in (no e-mail server needed)
-  * Passwords are stored only as scrypt hashes. Nobody can sign in with just an e-mail address.
-  * The owner's account is created at first start with NO password; a one-time setup code is written to
-    data/owner_setup_code.txt on the machine running the dashboard. Whoever can read that file (i.e. has the machine)
-    sets the owner password. `tools/reset_owner.py` does the same from a terminal if the owner forgets it.
-  * The owner / an admin invites a person by e-mail and gets a one-time invite code to hand over (chat, in person).
-    The invited person enters their e-mail, the code and a new password. Codes expire and work once.
-  * 5 wrong passwords lock the account for 15 minutes. Sessions last 12 hours and are checked on every page action, so
-    deactivating a person or changing a role takes effect at once.
-Limits: the dashboard speaks plain HTTP, so on a network passwords travel unencrypted (use a trusted network / VPN or
-put it behind HTTPS). Sessions live in the browser tab: a page reload asks for the password again.
+IMPORTANT LIMIT: with no password, an e-mail address is only a claim, not proof. Anyone who can open the dashboard and
+types someone's e-mail is signed in as that person, including the owner's. That is acceptable only on a trusted network.
+Optional hardening: DASHBOARD_OWNER_LOCAL_ONLY=1 lets the owner sign in only from the machine running the dashboard.
+Every sign-in and permission change is written to the audit log (with the address it came from).
 """
-import base64
-import hashlib
-import hmac
+import json
 import os
 import re
 import secrets
 import time
-from dataclasses import dataclass
+import hashlib
+from dataclasses import dataclass, field
 from typing import Dict, List, Optional
 
 OWNER_EMAIL = os.environ.get("DASHBOARD_OWNER_EMAIL", "hongviet.doan@garena.vn").strip().lower()
+DEFAULT_DOMAINS = "garena.vn"
 SESSION_SECONDS = 12 * 3600
-INVITE_SECONDS = 7 * 24 * 3600
-LOCK_AFTER, LOCK_SECONDS = 5, 15 * 60
-MIN_PASSWORD = 8
-ROLES = ("owner", "admin", "member")
-ROLE_LABEL = {"owner": "Owner (cao nhất)", "admin": "Admin", "member": "Thành viên"}
-_MEMBER = {"workflow", "autopilot"}
-_ADMIN = _MEMBER | {"settings", "pricing", "knowledge", "monitor", "lessons", "invite_members"}
-_OWNER = _ADMIN | {"users", "roles", "shutdown"}
-PERMISSIONS = {"owner": _OWNER, "admin": _ADMIN, "member": _MEMBER}
+# permissions the owner can hand out one by one; the video workflow itself is for everyone
+PERM_LABELS = {"settings": "Cài đặt & bảng giá", "knowledge": "Kho kiến thức", "monitor": "Theo dõi hiệu suất",
+               "lessons": "Bài học"}
+OWNER_ONLY = ("users", "shutdown")
+ALWAYS = ("workflow", "autopilot")
 _EMAIL = re.compile(r"^[a-z0-9._%+\-]+@[a-z0-9\-]+(\.[a-z0-9\-]+)+$")
 
 
 class AuthError(Exception):
-    """Something the person can be told (wrong password, locked, weak password...). Never leaks whether an e-mail exists."""
+    """A message that can be shown to the person."""
 
 
 @dataclass
 class Identity:
     email: str
     name: str
-    role: str
+    role: str                                   # 'owner' | 'member'
+    perms: List[str] = field(default_factory=list)
 
 
-def can(role: Optional[str], permission: str) -> bool:
-    return permission in PERMISSIONS.get(role or "", ())
+def can(who, permission: str) -> bool:
+    """`who` is an Identity or the identity dict kept in the session ({'role', 'perms'})."""
+    role = getattr(who, "role", None) if not isinstance(who, dict) else who.get("role")
+    perms = getattr(who, "perms", None) if not isinstance(who, dict) else who.get("perms")
+    if role == "owner":
+        return True
+    if role != "member":
+        return False
+    return permission in ALWAYS or (permission in PERM_LABELS and permission in (perms or []))
 
 
 def normalize_email(raw: str) -> str:
@@ -71,191 +71,109 @@ def _stamp() -> str:
     return time.strftime("%Y-%m-%d %H:%M:%S")
 
 
-# ---- passwords -------------------------------------------------------------------------------------
-def hash_password(password: str) -> str:
-    salt = secrets.token_bytes(16)
-    digest = hashlib.scrypt(password.encode("utf-8"), salt=salt, n=2 ** 14, r=8, p=1, dklen=32)
-    return "scrypt$" + base64.b64encode(salt).decode() + "$" + base64.b64encode(digest).decode()
-
-
-def verify_password(password: str, stored: Optional[str]) -> bool:
-    try:
-        _, salt_b64, digest_b64 = (stored or "").split("$")
-        salt, want = base64.b64decode(salt_b64), base64.b64decode(digest_b64)
-        got = hashlib.scrypt(password.encode("utf-8"), salt=salt, n=2 ** 14, r=8, p=1, dklen=32)
-        return hmac.compare_digest(got, want)
-    except (ValueError, TypeError):
-        return False
-
-
-_DUMMY = hash_password("not-a-real-password")      # so an unknown e-mail costs the same time as a wrong password
-
-
-def check_new_password(password: str, email: str = "") -> None:
-    if len(password or "") < MIN_PASSWORD:
-        raise AuthError(f"Mật khẩu cần ít nhất {MIN_PASSWORD} ký tự")
-    if email and password.strip().lower() == email:
-        raise AuthError("Mật khẩu không được trùng e-mail")
-
-
-def _hash_secret(value: str) -> str:
+def _hash(value: str) -> str:
     return hashlib.sha256(value.encode("utf-8")).hexdigest()
 
 
-def _new_code() -> str:
-    alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"        # no look-alike characters
-    raw = "".join(secrets.choice(alphabet) for _ in range(10))
-    return raw[:5] + "-" + raw[5:]
-
-
-# ---- audit ---------------------------------------------------------------------------------------------
 def audit(conn, who: Optional[str], action: str, detail: str = "") -> None:
     conn.execute("INSERT INTO audit_log (at, email, action, detail) VALUES (?,?,?,?)", (_stamp(), who, action, detail[:300]))
     conn.commit()
 
 
-def recent_audit(conn, limit: int = 60) -> List[Dict]:
+def recent_audit(conn, limit: int = 80) -> List[Dict]:
     return [dict(r) for r in conn.execute("SELECT at, email, action, detail FROM audit_log ORDER BY id DESC LIMIT ?", (limit,))]
 
 
-# ---- the owner ---------------------------------------------------------------------------------------------
-def ensure_owner(conn, data_dir: str = "data") -> Optional[str]:
-    """Make sure the owner account exists. While it has no password, keep a fresh one-time setup code in
-    <data_dir>/owner_setup_code.txt and return it; once the owner has a password the file is removed."""
-    path = os.path.join(data_dir, "owner_setup_code.txt")
-    row = conn.execute("SELECT * FROM users WHERE email=?", (OWNER_EMAIL,)).fetchone()
+def meta(conn, key: str, default: str = "") -> str:
+    row = conn.execute("SELECT value FROM learning_meta WHERE key=?", (key,)).fetchone()
+    return row["value"] if row else default
+
+
+def auto_domains(conn) -> List[str]:
+    raw = meta(conn, "auto_member_domains", DEFAULT_DOMAINS)
+    return [d.strip().lower().lstrip("@") for d in raw.split(",") if d.strip()]
+
+
+def set_auto_domains(conn, actor: Identity, text: str) -> None:
+    _need_owner(actor)
+    domains = [d.strip().lower().lstrip("@") for d in re.split(r"[,\s;]+", text or "") if d.strip()]
+    if any(not re.match(r"^[a-z0-9\-]+(\.[a-z0-9\-]+)+$", d) for d in domains):
+        raise AuthError("Tên miền không hợp lệ (ví dụ: garena.vn)")
+    conn.execute("INSERT INTO learning_meta (key, value) VALUES ('auto_member_domains', ?) ON CONFLICT(key) DO UPDATE SET value=excluded.value",
+                 (",".join(domains),))
+    conn.commit()
+    audit(conn, actor.email, "auto_domains", ",".join(domains) or "(none)")
+
+
+def _need_owner(actor: Identity) -> None:
+    if not can(actor, "users"):
+        raise AuthError("Chỉ Owner được quản lý người dùng")
+
+
+def ensure_owner(conn) -> None:
+    """The owner e-mail always exists, is active and is the owner."""
+    row = conn.execute("SELECT role, active FROM users WHERE email=?", (OWNER_EMAIL,)).fetchone()
     if row is None:
         conn.execute("INSERT INTO users (email, name, role, active, created_at, created_by) VALUES (?,?,?,?,?,?)",
                      (OWNER_EMAIL, OWNER_EMAIL.split("@")[0], "owner", 1, _stamp(), "system"))
-        conn.commit()
-        row = conn.execute("SELECT * FROM users WHERE email=?", (OWNER_EMAIL,)).fetchone()
-    if row["role"] != "owner":                                  # the owner e-mail is always the owner
+    elif row["role"] != "owner" or not row["active"]:
         conn.execute("UPDATE users SET role='owner', active=1 WHERE email=?", (OWNER_EMAIL,))
-        conn.commit()
-    if row["pw_hash"]:
-        if os.path.exists(path):
-            os.remove(path)
-        return None
-    if row["invite_hash"] and (row["invite_expires"] or 0) > _now() and os.path.exists(path):
-        return open(path, encoding="utf-8").read().split()[-1]
-    code = _new_code()
-    conn.execute("UPDATE users SET invite_hash=?, invite_expires=? WHERE email=?", (_hash_secret(code), _now() + INVITE_SECONDS, OWNER_EMAIL))
     conn.commit()
-    os.makedirs(data_dir, exist_ok=True)
-    with open(path, "w", encoding="utf-8") as f:
-        f.write(f"Ma thiet lap mat khau Owner ({OWNER_EMAIL}), dung 1 lan, het han sau 7 ngay:\n{code}\n")
-    audit(conn, "system", "owner_setup_code", "created")
-    return code
 
 
-# ---- invitations ----------------------------------------------------------------------------------------------
-def _manageable(actor_role: str, target_role: str) -> bool:
-    """May someone with actor_role act on an account of target_role? The owner is never touched."""
-    if target_role == "owner":
-        return False
-    if actor_role == "owner":
-        return True
-    return actor_role == "admin" and target_role == "member"
-
-
-def invite(conn, actor: Identity, email: str, role: str = "member", name: str = "") -> str:
-    """Create (or re-issue) an account for `email` and return the one-time code to hand to that person."""
-    email = normalize_email(email)
-    if role not in ("admin", "member"):
-        raise AuthError("Vai trò không hợp lệ")
-    if not can(actor.role, "invite_members") and not can(actor.role, "users"):
-        raise AuthError("Bạn không có quyền mời người dùng")
-    if not _manageable(actor.role, role):
-        raise AuthError("Bạn chỉ được mời thành viên (Owner mới được cấp quyền Admin)")
-    row = conn.execute("SELECT * FROM users WHERE email=?", (email,)).fetchone()
-    if row is not None and not _manageable(actor.role, row["role"]):
-        raise AuthError("Không thể thay đổi tài khoản này")
-    code = _new_code()
-    if row is None:
-        conn.execute("INSERT INTO users (email, name, role, active, invite_hash, invite_expires, created_at, created_by)"
-                     " VALUES (?,?,?,?,?,?,?,?)", (email, name.strip() or email.split("@")[0], role, 1, _hash_secret(code),
-                                                    _now() + INVITE_SECONDS, _stamp(), actor.email))
-    else:                                    # re-invite = also the way to reset a forgotten password
-        conn.execute("UPDATE users SET role=?, active=1, pw_hash=NULL, invite_hash=?, invite_expires=?, failed=0, locked_until=NULL"
-                     " WHERE email=?", (role, _hash_secret(code), _now() + INVITE_SECONDS, email))
-        revoke_sessions(conn, email)
-    conn.commit()
-    audit(conn, actor.email, "invite", f"{email} as {role}")
-    return code
-
-
-def accept_invite(conn, email: str, code: str, new_password: str, data_dir: Optional[str] = None) -> None:
-    email = normalize_email(email)
-    check_new_password(new_password, email)
-    row = conn.execute("SELECT * FROM users WHERE email=?", (email,)).fetchone()
-    _guard_lock(row)
-    ok = (row is not None and row["active"] and row["invite_hash"] and (row["invite_expires"] or 0) > _now()
-          and hmac.compare_digest(row["invite_hash"], _hash_secret((code or "").strip().upper())))
-    if not ok:
-        _count_failure(conn, row)
-        raise AuthError("Mã không đúng hoặc đã hết hạn")
-    conn.execute("UPDATE users SET pw_hash=?, invite_hash=NULL, invite_expires=NULL, failed=0, locked_until=NULL WHERE email=?",
-                 (hash_password(new_password), email))
-    conn.commit()
-    audit(conn, email, "password_set", "via invite/setup code")
-    if email == OWNER_EMAIL and data_dir:
-        ensure_owner(conn, data_dir)            # removes the one-time setup code file
-
-
-# ---- sign in / sessions ----------------------------------------------------------------------------------------
-def _guard_lock(row) -> None:
-    if row is not None and (row["locked_until"] or 0) > _now():
-        minutes = int(((row["locked_until"] - _now()) // 60) + 1)
-        raise AuthError(f"Tài khoản tạm khóa do nhập sai nhiều lần. Thử lại sau {minutes} phút")
-
-
-def _count_failure(conn, row) -> None:
-    if row is None:
-        return
-    failed = (row["failed"] or 0) + 1
-    locked = _now() + LOCK_SECONDS if failed >= LOCK_AFTER else None
-    conn.execute("UPDATE users SET failed=?, locked_until=? WHERE email=?", (0 if locked else failed, locked, row["email"]))
-    conn.commit()
-    if locked:
-        audit(conn, row["email"], "locked", f"{LOCK_AFTER} wrong attempts")
-
-
-def login(conn, email: str, password: str) -> str:
-    """Return a session token, or raise AuthError with a message safe to show (it does not reveal whether the e-mail exists)."""
+def _perms(raw) -> List[str]:
     try:
-        email = normalize_email(email)
-    except AuthError:
-        raise AuthError("Email hoặc mật khẩu không đúng") from None
+        return [p for p in json.loads(raw or "[]") if p in PERM_LABELS]
+    except ValueError:
+        return []
+
+
+# ---- sign in ------------------------------------------------------------------------------------------------
+def login(conn, email: str, source: str = "", local: bool = True) -> str:
+    """Sign in with just an e-mail. Returns a session token. `source` (address the request came from) goes to the audit log."""
+    email = normalize_email(email)
+    ensure_owner(conn)
+    if email == OWNER_EMAIL and os.environ.get("DASHBOARD_OWNER_LOCAL_ONLY", "").strip() in ("1", "true", "on") and not local:
+        audit(conn, email, "owner_login_refused", f"not local ({source})")
+        raise AuthError("Owner chỉ được đăng nhập từ chính máy đang chạy Dashboard (DASHBOARD_OWNER_LOCAL_ONLY)")
     row = conn.execute("SELECT * FROM users WHERE email=?", (email,)).fetchone()
-    _guard_lock(row)
-    good = verify_password(password or "", row["pw_hash"] if row else _DUMMY)
-    if row is None or not good or not row["active"]:
-        _count_failure(conn, row)
-        raise AuthError("Email hoặc mật khẩu không đúng")
+    if row is None:
+        domain = email.split("@", 1)[1]
+        if domain not in auto_domains(conn):
+            audit(conn, email, "login_refused", f"not listed ({source})")
+            raise AuthError("E-mail này chưa được cấp quyền. Nhờ Owner thêm e-mail của bạn vào bảng phân quyền.")
+        conn.execute("INSERT INTO users (email, name, role, active, perms, created_at, created_by) VALUES (?,?,?,?,?,?,?)",
+                     (email, email.split("@")[0], "member", 1, "[]", _stamp(), "auto-domain"))
+        conn.commit()
+        audit(conn, email, "auto_member", f"domain {domain}")
+        row = conn.execute("SELECT * FROM users WHERE email=?", (email,)).fetchone()
+    if not row["active"]:
+        audit(conn, email, "login_refused", f"deactivated ({source})")
+        raise AuthError("Tài khoản này đã bị vô hiệu hóa. Liên hệ Owner.")
     token = secrets.token_urlsafe(32)
     conn.execute("INSERT INTO sessions (token_hash, email, created_at, expires_at) VALUES (?,?,?,?)",
-                 (_hash_secret(token), email, _now(), _now() + SESSION_SECONDS))
-    conn.execute("UPDATE users SET failed=0, locked_until=NULL, last_login=? WHERE email=?", (_stamp(), email))
+                 (_hash(token), email, _now(), _now() + SESSION_SECONDS))
+    conn.execute("UPDATE users SET last_login=? WHERE email=?", (_stamp(), email))
     conn.execute("DELETE FROM sessions WHERE expires_at < ?", (_now(),))
     conn.commit()
-    audit(conn, email, "login", "")
+    audit(conn, email, "login", source)
     return token
 
 
 def identity(conn, token: Optional[str]) -> Optional[Identity]:
-    """Who is behind this session token right now (None when expired, signed out or the account was deactivated)."""
+    """Who is behind this session right now (re-read on every page action, so changes apply at once)."""
     if not token:
         return None
-    row = conn.execute("SELECT u.email, u.name, u.role, u.active, s.expires_at FROM sessions s JOIN users u ON u.email=s.email"
-                       " WHERE s.token_hash=?", (_hash_secret(token),)).fetchone()
+    row = conn.execute("SELECT u.email, u.name, u.role, u.perms, u.active, s.expires_at FROM sessions s JOIN users u ON u.email=s.email"
+                       " WHERE s.token_hash=?", (_hash(token),)).fetchone()
     if row is None or row["expires_at"] < _now() or not row["active"]:
         return None
-    return Identity(row["email"], row["name"] or row["email"], row["role"])
+    return Identity(row["email"], row["name"] or row["email"], row["role"], _perms(row["perms"]))
 
 
 def logout(conn, token: Optional[str]) -> None:
     if token:
-        conn.execute("DELETE FROM sessions WHERE token_hash=?", (_hash_secret(token),))
+        conn.execute("DELETE FROM sessions WHERE token_hash=?", (_hash(token),))
         conn.commit()
 
 
@@ -264,47 +182,66 @@ def revoke_sessions(conn, email: str) -> None:
     conn.commit()
 
 
-def change_password(conn, email: str, old: str, new: str) -> None:
-    row = conn.execute("SELECT * FROM users WHERE email=?", (email,)).fetchone()
-    if row is None or not verify_password(old or "", row["pw_hash"]):
-        raise AuthError("Mật khẩu hiện tại không đúng")
-    check_new_password(new, email)
-    conn.execute("UPDATE users SET pw_hash=? WHERE email=?", (hash_password(new), email))
-    conn.commit()
-    audit(conn, email, "password_changed", "")
-
-
-# ---- managing people ---------------------------------------------------------------------------------------------
+# ---- the permission table (owner only) ------------------------------------------------------------------------
 def list_users(conn) -> List[Dict]:
-    order = "CASE role WHEN 'owner' THEN 0 WHEN 'admin' THEN 1 ELSE 2 END, email"
-    return [dict(r, pending=not r["pw_hash"]) for r in conn.execute(
-        "SELECT email, name, role, active, pw_hash, last_login, created_at, created_by, invite_expires FROM users ORDER BY " + order)]
+    out = []
+    for r in conn.execute("SELECT * FROM users ORDER BY CASE role WHEN 'owner' THEN 0 ELSE 1 END, email"):
+        out.append({"email": r["email"], "name": r["name"], "role": r["role"], "active": bool(r["active"]),
+                    "perms": _perms(r["perms"]), "last_login": r["last_login"], "created_by": r["created_by"]})
+    return out
 
 
-def _target(conn, actor: Identity, email: str):
-    row = conn.execute("SELECT * FROM users WHERE email=?", (normalize_email(email),)).fetchone()
+def add_user(conn, actor: Identity, email: str, perms: Optional[List[str]] = None) -> None:
+    _need_owner(actor)
+    email = normalize_email(email)
+    if conn.execute("SELECT 1 FROM users WHERE email=?", (email,)).fetchone():
+        raise AuthError("E-mail này đã có trong bảng")
+    conn.execute("INSERT INTO users (email, name, role, active, perms, created_at, created_by) VALUES (?,?,?,?,?,?,?)",
+                 (email, email.split("@")[0], "member", 1, json.dumps(_perms(json.dumps(perms or []))), _stamp(), actor.email))
+    conn.commit()
+    audit(conn, actor.email, "add_user", f"{email} perms={perms or []}")
+
+
+def set_user(conn, actor: Identity, email: str, perms: List[str], active: bool) -> None:
+    """Save one row of the permission table."""
+    _need_owner(actor)
+    email = normalize_email(email)
+    if email == OWNER_EMAIL:
+        raise AuthError("Không thể thay đổi Owner")
+    row = conn.execute("SELECT perms, active FROM users WHERE email=?", (email,)).fetchone()
     if row is None:
         raise AuthError("Không có người dùng này")
-    if not _manageable(actor.role, row["role"]) or not (can(actor.role, "users") or can(actor.role, "invite_members")):
-        raise AuthError("Bạn không có quyền thay đổi tài khoản này")
-    return row
-
-
-def set_role(conn, actor: Identity, email: str, role: str) -> None:
-    if not can(actor.role, "roles"):
-        raise AuthError("Chỉ Owner được đổi vai trò")
-    if role not in ("admin", "member"):
-        raise AuthError("Vai trò không hợp lệ")
-    row = _target(conn, actor, email)
-    conn.execute("UPDATE users SET role=? WHERE email=?", (role, row["email"]))
-    conn.commit()
-    audit(conn, actor.email, "role", f"{row['email']} -> {role}")
-
-
-def set_active(conn, actor: Identity, email: str, active: bool) -> None:
-    row = _target(conn, actor, email)
-    conn.execute("UPDATE users SET active=? WHERE email=?", (1 if active else 0, row["email"]))
+    new_perms = _perms(json.dumps(perms))
+    if new_perms == _perms(row["perms"]) and bool(row["active"]) == bool(active):
+        return
+    conn.execute("UPDATE users SET perms=?, active=? WHERE email=?", (json.dumps(new_perms), 1 if active else 0, email))
     if not active:
-        revoke_sessions(conn, row["email"])
+        revoke_sessions(conn, email)
     conn.commit()
-    audit(conn, actor.email, "activate" if active else "deactivate", row["email"])
+    audit(conn, actor.email, "set_user", f"{email} perms={new_perms} active={bool(active)}")
+
+
+def remove_user(conn, actor: Identity, email: str) -> None:
+    _need_owner(actor)
+    email = normalize_email(email)
+    if email == OWNER_EMAIL:
+        raise AuthError("Không thể xóa Owner")
+    conn.execute("DELETE FROM users WHERE email=?", (email,))
+    revoke_sessions(conn, email)
+    conn.commit()
+    audit(conn, actor.email, "remove_user", email)
+
+
+def apply_table(conn, actor: Identity, rows: List[Dict]) -> int:
+    """Save the whole permission table ([{'email', 'active', 'perms'}]). Returns how many rows actually changed."""
+    _need_owner(actor)
+    before = {u["email"]: (u["perms"], u["active"]) for u in list_users(conn)}
+    changed = 0
+    for r in rows:
+        email = normalize_email(r["email"])
+        if email == OWNER_EMAIL:
+            continue
+        if before.get(email) != (_perms(json.dumps(r["perms"])), bool(r["active"])):
+            set_user(conn, actor, email, r["perms"], r["active"])
+            changed += 1
+    return changed

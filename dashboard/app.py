@@ -34,8 +34,8 @@ import ui  # noqa: E402
 DB = os.environ.get("PIPELINE_DB", os.path.join("data", "manifest.sqlite"))
 DATA = os.environ.get("PIPELINE_DATA", os.path.join("data", "projects"))
 STEPS = ["1 · Kịch bản & phân tích", "2 · Gen ảnh + QC", "3 · Video Prompt", "4 · Gen video",
-         "5a · Nhạc nền", "5b · Ghép & Render", "Lịch sử", "📊 Theo dõi hiệu suất", "🎓 Bài học", "👥 Người dùng"]
-STEP_PERMISSION = {"📊 Theo dõi hiệu suất": "monitor", "🎓 Bài học": "lessons", "👥 Người dùng": "invite_members"}
+         "5a · Nhạc nền", "5b · Ghép & Render", "Lịch sử", "📊 Theo dõi hiệu suất", "🎓 Bài học", "👥 Phân quyền"]
+STEP_PERMISSION = {"📊 Theo dõi hiệu suất": "monitor", "🎓 Bài học": "lessons", "👥 Phân quyền": "users"}
 ERRORS = (sqlite3.IntegrityError, zipfile.BadZipFile, llm_runner.LlmError, InvalidTransition, llm_io.SchemaError, PipelinePaused, ffmpeg_studio.FFmpegNotFound,
           ffmpeg_studio.FFmpegError, ValueError, KeyError)
 CRITERIA_LABEL = {"character": "Đúng nhân vật", "hands_face": "Không lỗi tay/mặt", "composition": "Đúng bố cục",
@@ -407,12 +407,23 @@ def auth_on() -> bool:
 
 
 def me() -> dict:
-    """The signed-in person of THIS browser session ({'email','name','role'})."""
+    """The signed-in person of THIS browser session ({'email','name','role','perms'})."""
     return st.session_state.get("identity") or {}
 
 
 def allowed(permission: str) -> bool:
-    return auth.can(me().get("role"), permission)
+    return auth.can(me(), permission)
+
+
+def request_source() -> tuple:
+    """(where the request came from for the audit log, whether it is the dashboard machine itself)."""
+    try:
+        host = st.context.headers.get("Host", "") or ""
+        ip = st.context.ip_address or ""
+    except Exception:  # noqa: BLE001 - an older Streamlit or a test runner: unknown origin
+        return "", True
+    local = host.split(":")[0].strip("[]") in ("localhost", "127.0.0.1", "::1", "")
+    return f"host={host} ip={ip}", local
 
 
 def lan_address() -> str:
@@ -426,150 +437,140 @@ def lan_address() -> str:
     return f"http://{ip}:{os.environ.get('DASHBOARD_PORT', '8501')}"
 
 
+def sign_in(conn, email: str) -> bool:
+    """Try to sign this browser session in. True on success (the address remembers the e-mail for reloads)."""
+    source, local = request_source()
+    try:
+        st.session_state["auth_token"] = auth.login(conn, email, source, local)
+    except auth.AuthError as e:
+        st.session_state["login_error"] = str(e)
+        return False
+    st.session_state.pop("login_error", None)
+    st.query_params["login"] = auth.normalize_email(email)
+    return True
+
+
 def login_screen(conn) -> None:
-    """Sign-in / first-time password screen. Nothing else is shown until someone signs in."""
-    owner = conn.execute("SELECT pw_hash FROM users WHERE email=?", (auth.OWNER_EMAIL,)).fetchone()
+    """Sign-in screen: only an e-mail. Nothing else is shown until someone signs in."""
     _, mid, _ = st.columns([1, 1.6, 1])
     with mid:
         ui.html('<div class="brand" style="font-size:20px"><i></i>AI Video Pipeline</div>')
-        t_in, t_first = st.tabs(["Đăng nhập", "Lần đầu / được mời"])
-        with t_in:
-            email = st.text_input("E-mail", key="login_email")
-            pw = st.text_input("Mật khẩu", type="password", key="login_pw")
-            if st.button("Đăng nhập", key="login_btn", type="primary"):
-                try:
-                    st.session_state["auth_token"] = auth.login(conn, email, pw)
-                except auth.AuthError as e:
-                    st.error(str(e))
-                else:
-                    st.rerun()
-        with t_first:
-            st.caption("Nhập e-mail được mời, **mã mời** do người quản lý đưa cho bạn, và đặt mật khẩu mới.")
-            if owner is not None and not owner["pw_hash"]:
-                st.info(f"Owner ({auth.OWNER_EMAIL}) chưa đặt mật khẩu: mở file `data/owner_setup_code.txt` trên máy đang chạy "
-                        "Dashboard để lấy mã thiết lập.")
-            f_email = st.text_input("E-mail", key="setup_email")
-            f_code = st.text_input("Mã mời / mã thiết lập", key="setup_code")
-            f_pw = st.text_input("Mật khẩu mới (≥ 8 ký tự)", type="password", key="setup_pw")
-            f_pw2 = st.text_input("Nhập lại mật khẩu", type="password", key="setup_pw2")
-            if st.button("Đặt mật khẩu và đăng nhập", key="setup_btn", type="primary"):
-                try:
-                    if f_pw != f_pw2:
-                        raise auth.AuthError("Hai mật khẩu không giống nhau")
-                    auth.accept_invite(conn, f_email, f_code, f_pw, os.path.dirname(DB) or "data")
-                    st.session_state["auth_token"] = auth.login(conn, f_email, f_pw)
-                except auth.AuthError as e:
-                    st.error(str(e))
-                else:
-                    st.rerun()
-        st.caption("Chưa có tài khoản? Nhờ người quản lý Dashboard mời bạn bằng e-mail.")
+        email = st.text_input("E-mail của bạn", key="login_email", placeholder="ten@garena.vn")
+        if st.button("Vào Dashboard", key="login_btn", type="primary") and sign_in(conn, email):
+            st.rerun()
+        if st.session_state.get("login_error"):
+            st.error(st.session_state["login_error"])
+        st.caption("Chỉ cần nhập e-mail. E-mail công ty được vào với quyền làm video; quyền khác do Owner cấp.")
 
 
 def require_login(conn) -> None:
     """Sets st.session_state['identity']; shows the sign-in screen and stops the page when nobody is signed in."""
     if not auth_on():
-        st.session_state["identity"] = {"email": "local", "name": "Local (đăng nhập tắt)", "role": "owner"}
+        st.session_state["identity"] = {"email": "local", "name": "Local (đăng nhập tắt)", "role": "owner", "perms": []}
         return
-    auth.ensure_owner(conn, os.path.dirname(DB) or "data")
+    auth.ensure_owner(conn)
     ident = auth.identity(conn, st.session_state.get("auth_token"))
     if ident is None:
         st.session_state.pop("identity", None)
         st.session_state.pop("auth_token", None)
-        login_screen(conn)
-        st.stop()
-    st.session_state["identity"] = {"email": ident.email, "name": ident.name, "role": ident.role}
+        remembered = st.query_params.get("login")          # a reload or a bookmark: ?login=ten@garena.vn
+        if remembered and not st.session_state.get("login_tried") and sign_in(conn, remembered):
+            st.session_state["login_tried"] = True
+            ident = auth.identity(conn, st.session_state.get("auth_token"))
+        st.session_state["login_tried"] = True
+        if ident is None:
+            login_screen(conn)
+            st.stop()
+    st.session_state["identity"] = {"email": ident.email, "name": ident.name, "role": ident.role, "perms": ident.perms}
 
 
 def account_bar(conn) -> None:
-    """Who is signed in, change password, sign out."""
+    """Who is signed in and the sign-out button."""
     who = me()
-    c1, c2, c3 = st.columns([5, 1.4, 1.2], vertical_alignment="center")
-    c1.markdown(f"👤 **{escape(who['name'])}** · {escape(who['email'])} · {auth.ROLE_LABEL.get(who['role'], who['role'])}")
+    c1, c2 = st.columns([6, 1.2], vertical_alignment="center")
+    role = "Owner" if who["role"] == "owner" else "Thành viên"
+    c1.markdown(f"👤 **{escape(who['name'])}** · {escape(who['email'])} · {role}")
     if not auth_on():
         c1.caption("Đăng nhập đang tắt (DASHBOARD_AUTH=off): mọi người đều là Owner.")
         return
-    with c2.popover("Đổi mật khẩu"):
-        old = st.text_input("Mật khẩu hiện tại", type="password", key="pw_old")
-        new = st.text_input("Mật khẩu mới (≥ 8 ký tự)", type="password", key="pw_new")
-        if st.button("Lưu mật khẩu", key="pw_save"):
-            try:
-                auth.change_password(conn, who["email"], old, new)
-            except auth.AuthError as e:
-                st.error(str(e))
-            else:
-                st.success("Đã đổi mật khẩu")
-    if c3.button("Đăng xuất", key="logout_btn"):
+    if c2.button("Đăng xuất", key="logout_btn"):
         auth.logout(conn, st.session_state.get("auth_token"))
-        for key in ("auth_token", "identity"):
+        for key in ("auth_token", "identity", "login_tried"):
             st.session_state.pop(key, None)
+        st.query_params.pop("login", None)
         st.rerun()
 
 
 def users_tab(p: Pipeline, pid: int) -> None:
-    """Owner / admin: invite people, change roles, deactivate, read the audit log."""
+    """Owner only: the permission table."""
     conn = p.conn
-    actor = auth.Identity(me()["email"], me()["name"], me()["role"])
-    ui.html(ui.card_title("👥 Người dùng & quyền", "mời bằng e-mail; Owner cấp quyền Admin"))
-    st.caption("**Owner** (cao nhất): mọi quyền, gồm người dùng, vai trò, tắt Dashboard. **Admin**: cài đặt, bảng giá, kho kiến thức, "
-               "theo dõi, bài học, mời thành viên. **Thành viên**: chỉ các bước làm video (kể cả chế độ tự động).")
-    people = auth.list_users(conn)
-    status = lambda u: "Vô hiệu" if not u["active"] else ("Chờ đặt mật khẩu" if u["pending"] else "Hoạt động")  # noqa: E731
-    st.dataframe([{"E-mail": u["email"], "Tên": u["name"] or "", "Vai trò": auth.ROLE_LABEL[u["role"]], "Trạng thái": status(u),
-                   "Đăng nhập gần nhất": u["last_login"] or "-"} for u in people], hide_index=True, use_container_width=True)
-    roles_allowed = ["member", "admin"] if allowed("roles") else ["member"]
-    with st.container(border=True):
-        st.markdown("**Mời người mới** (hoặc cấp lại mã cho người quên mật khẩu)")
-        c1, c2, c3 = st.columns([3, 2, 2], vertical_alignment="bottom")
-        email = c1.text_input("E-mail", key="inv_email", placeholder="ten@garena.vn")
-        role = c2.selectbox("Vai trò", roles_allowed, format_func=lambda r: auth.ROLE_LABEL[r], key="inv_role")
-        if c3.button("Tạo mã mời", key="inv_go", type="primary"):
+    actor = auth.Identity(me()["email"], me()["name"], me()["role"], me().get("perms", []))
+    ui.html(ui.card_title("👥 Bảng phân quyền", "nhập e-mail và tick những gì người đó được dùng"))
+    st.caption("Mọi người đều có các bước làm video (kể cả chế độ tự động). Ở đây bạn cấp thêm: cài đặt & bảng giá, kho kiến thức, theo dõi "
+               "hiệu suất, bài học. Quản lý người dùng và tắt Dashboard chỉ dành cho Owner.")
+    people = [u for u in auth.list_users(conn) if u["role"] != "owner"]
+    st.markdown(f"**Owner:** {escape(auth.OWNER_EMAIL)} — toàn quyền, không ai đổi được.")
+    perm_cols = list(auth.PERM_LABELS.items())
+    if people:
+        table = [{"E-mail": u["email"], "Được vào": u["active"],
+                  **{label: key in u["perms"] for key, label in perm_cols},
+                  "Đăng nhập gần nhất": u["last_login"] or "-"} for u in people]
+        edited = st.data_editor(table, hide_index=True, use_container_width=True, key="perm_table",
+                                disabled=["E-mail", "Đăng nhập gần nhất"])
+        if st.button("💾 Lưu bảng phân quyền", key="perm_save", type="primary"):
             try:
-                st.session_state["last_invite"] = (auth.normalize_email(email), auth.invite(conn, actor, email, role))
+                rows = [{"email": r["E-mail"], "active": bool(r["Được vào"]),
+                         "perms": [key for key, label in perm_cols if r[label]]} for r in edited.to_dict("records")
+                        ] if hasattr(edited, "to_dict") else [
+                    {"email": r["E-mail"], "active": bool(r["Được vào"]), "perms": [k for k, l in perm_cols if r[l]]} for r in edited]
+                changed = auth.apply_table(conn, actor, rows)
             except auth.AuthError as e:
                 st.error(str(e))
-        if st.session_state.get("last_invite"):
-            who, code = st.session_state["last_invite"]
-            st.success(f"Đã tạo mã cho {who}. Gửi cho họ **qua kênh riêng** (mã dùng 1 lần, hết hạn sau 7 ngày):")
-            st.code(code)
-            st.caption(f"Họ mở {lan_address()} → tab “Lần đầu / được mời” → nhập e-mail, mã này và đặt mật khẩu. Mã chỉ hiện ở đây một lần.")
-            if st.button("Ẩn mã", key="inv_hide"):
-                st.session_state.pop("last_invite", None)
+            else:
+                st.success(f"Đã lưu ({changed} thay đổi). Có hiệu lực ngay, kể cả với người đang đăng nhập.")
+    else:
+        st.caption("Chưa có ai khác trong bảng. Người dùng e-mail công ty tự vào được ở quyền cơ bản (xem mục tên miền bên dưới).")
+    with st.container(border=True):
+        st.markdown("**Thêm e-mail**")
+        c1, c2, c3 = st.columns([3, 3, 1.4], vertical_alignment="bottom")
+        new_email = c1.text_input("E-mail", key="add_email", placeholder="ten@garena.vn")
+        new_perms = c2.multiselect("Quyền thêm", list(auth.PERM_LABELS), format_func=lambda k: auth.PERM_LABELS[k], key="add_perms")
+        if c3.button("Thêm", key="add_go", type="primary"):
+            try:
+                auth.add_user(conn, actor, new_email, new_perms)
+            except auth.AuthError as e:
+                st.error(str(e))
+            else:
                 st.rerun()
-    manageable = [u["email"] for u in people if auth._manageable(actor.role, u["role"])]
-    if manageable:
+    if people:
         with st.container(border=True):
-            st.markdown("**Quản lý tài khoản**")
-            target = st.selectbox("Tài khoản", manageable, key="mng_target")
-            row = next(u for u in people if u["email"] == target)
-            a, b, c = st.columns(3, vertical_alignment="bottom")
-            if allowed("roles"):
-                new_role = a.selectbox("Vai trò", ["member", "admin"], index=["member", "admin"].index(row["role"]),
-                                       format_func=lambda r: auth.ROLE_LABEL[r], key=f"mng_role_{target}")
-                if new_role != row["role"] and a.button("Đổi vai trò", key=f"mng_role_go_{target}"):
-                    try:
-                        auth.set_role(conn, actor, target, new_role)
-                    except auth.AuthError as e:
-                        st.error(str(e))
-                    else:
-                        st.rerun()
-            if b.button("Kích hoạt lại" if not row["active"] else "Vô hiệu hóa (đăng xuất ngay)", key=f"mng_act_{target}"):
+            st.markdown("**Xóa khỏi bảng**")
+            gone = st.selectbox("E-mail", [u["email"] for u in people], key="rm_email")
+            if confirm_all("rm_user", [gone], "Xóa khỏi bảng", f"Xóa {gone}? (nếu là e-mail công ty, họ vẫn tự vào lại được ở quyền cơ bản)", st,
+                           "Có, xóa"):
                 try:
-                    auth.set_active(conn, actor, target, not row["active"])
+                    auth.remove_user(conn, actor, gone)
                 except auth.AuthError as e:
                     st.error(str(e))
                 else:
                     st.rerun()
-            if c.button("Cấp lại mã (đặt lại mật khẩu)", key=f"mng_reset_{target}"):
-                try:
-                    st.session_state["last_invite"] = (target, auth.invite(conn, actor, target, row["role"]))
-                except auth.AuthError as e:
-                    st.error(str(e))
-                else:
-                    st.rerun()
-    if allowed("users"):
-        with st.expander("Nhật ký thao tác quản trị (đăng nhập, mời, đổi quyền)"):
-            st.dataframe([{"Lúc": r["at"], "Ai": r["email"] or "", "Việc": r["action"], "Chi tiết": r["detail"] or ""}
-                          for r in auth.recent_audit(conn)], hide_index=True, use_container_width=True)
+    with st.container(border=True):
+        st.markdown("**Ai tự vào được (quyền cơ bản)**")
+        domains = st.text_input("Tên miền e-mail được tự vào làm Thành viên (cách nhau bằng dấu phẩy; để trống = chỉ e-mail trong bảng)",
+                                ", ".join(auth.auto_domains(conn)), key="auto_domains")
+        if st.button("Lưu tên miền", key="auto_domains_save"):
+            try:
+                auth.set_auto_domains(conn, actor, domains)
+            except auth.AuthError as e:
+                st.error(str(e))
+            else:
+                st.success("Đã lưu")
+        st.caption(f"Địa chỉ đưa cho người khác: {lan_address()}")
+    st.markdown(":orange[Không có mật khẩu: ai mở được Dashboard và gõ đúng e-mail của một người thì vào như người đó, kể cả Owner. "
+                "Chỉ dùng trong mạng tin cậy. Muốn Owner chỉ đăng nhập từ máy chạy Dashboard, đặt DASHBOARD_OWNER_LOCAL_ONLY=1.]")
+    with st.expander("Nhật ký (đăng nhập, thay đổi quyền)"):
+        st.dataframe([{"Lúc": r["at"], "Ai": r["email"] or "", "Việc": r["action"], "Chi tiết": r["detail"] or ""}
+                      for r in auth.recent_audit(conn)], hide_index=True, use_container_width=True)
 
 
 def clean_name(raw: str) -> str:
@@ -595,7 +596,7 @@ def user_bar() -> str:
 def global_bar(p: Pipeline):
     projects = p.conn.execute("SELECT id, name FROM projects ORDER BY id").fetchall()
     with st.expander("⚙ Cài đặt & dự án", expanded=not projects):
-        labels = ["Dự án mới"] + (["Bảng giá"] if allowed("pricing") else []) + (
+        labels = ["Dự án mới"] + (["Bảng giá"] if allowed("settings") else []) + (
             ["Kho kiến thức (Director, QC, Motion)"] if allowed("knowledge") else [])
         tabs = dict(zip(labels, st.tabs(labels)))
         with tabs["Dự án mới"]:
