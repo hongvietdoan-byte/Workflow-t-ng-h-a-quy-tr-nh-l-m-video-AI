@@ -37,7 +37,8 @@ function Find-Browser {
 }
 
 function Open-Dashboard([string]$target = $url) {
-    $browser = Find-Browser
+    # Default: a tab in your normal web browser. DASHBOARD_APP_WINDOW=1 (in dashboard.env) = separate app-style window.
+    $browser = if ($env:DASHBOARD_APP_WINDOW -eq "1") { Find-Browser } else { $null }
     if ($browser) { Start-Process -FilePath $browser -ArgumentList "--app=$target" } else { Start-Process $target }
 }
 
@@ -82,7 +83,12 @@ foreach ($name in "CLIPAI_TOKEN", "DEEPIX_TOKEN") {
 
 New-Item -ItemType Directory -Force -Path (Join-Path $root "data") | Out-Null
 $log = Join-Path $root "data\dashboard.log"
-Start-Process -WindowStyle Minimized -WorkingDirectory $root -FilePath "cmd.exe" -ArgumentList "/c", "py -m streamlit run dashboard/app.py --server.port $port > `"$log`" 2>&1"
+# Headless: Streamlit must not open its own tab or ask for an e-mail on first run (that prompt would block the server).
+# Local only by default (the dashboard spends credits and has no login): DASHBOARD_LAN=1 opens it to your network.
+$address = if ($env:DASHBOARD_LAN -eq "1") { "0.0.0.0" } else { "127.0.0.1" }
+$errLog = Join-Path $root "data\dashboard_err.log"
+Start-Process -WindowStyle Hidden -WorkingDirectory $root -FilePath "py" -RedirectStandardOutput $log -RedirectStandardError $errLog `
+    -ArgumentList "-m", "streamlit", "run", "dashboard/app.py", "--server.port", "$port", "--server.address", $address, "--server.headless", "true", "--browser.gatherUsageStats", "false"
 for ($i = 0; $i -lt 40 -and -not (Test-Port $port); $i++) { Start-Sleep -Milliseconds 500 }
 if (-not (Test-Port $port)) { Show-Failure "May chu chua len sau 20 giay (cong $port)."; exit 1 }
 if (-not $showedLoading) { Open-Dashboard }

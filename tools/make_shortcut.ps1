@@ -15,8 +15,9 @@ $ps = Join-Path $env:SystemRoot "System32\WindowsPowerShell\v1.0\powershell.exe"
 function New-Link($name, $script, $icon) {
     $file = Join-Path $desktop "$name.lnk"
     $lnk = $shell.CreateShortcut($file)
-    $lnk.TargetPath = $ps
-    $lnk.Arguments = "-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File `"$(Join-Path $link $script)`""
+    # wscript + .vbs starts the launcher with no console window at all (a PowerShell shortcut flashes a black one)
+    $lnk.TargetPath = Join-Path $env:SystemRoot "System32\wscript.exe"
+    $lnk.Arguments = "//B //Nologo `"$(Join-Path $link $script)`""
     $lnk.WorkingDirectory = $link
     $lnk.IconLocation = $icon
     $lnk.Save()
@@ -27,7 +28,7 @@ $iconDir = Join-Path $env:APPDATA "AIVideoPipeline"
 New-Item -ItemType Directory -Force -Path $iconDir | Out-Null
 Copy-Item (Join-Path $root "tools\logo_g.ico") (Join-Path $iconDir "logo_g.ico") -Force
 $icon = Join-Path $iconDir "logo_g.ico"
-New-Link "AI Video Pipeline" "tools\launch_dashboard.ps1" "$icon,0"
+New-Link "AI Video Pipeline" "tools\launch_hidden.vbs" "$icon,0"
 # One shortcut only. Stopping is done from the dashboard itself (button "Tat Dashboard"), or Stop-Dashboard.bat.
 $old = Join-Path $desktop "Tat AI Video Pipeline.lnk"
 if (Test-Path $old) { Remove-Item $old -Force; Write-Host "Da xoa shortcut cu: $old" }
