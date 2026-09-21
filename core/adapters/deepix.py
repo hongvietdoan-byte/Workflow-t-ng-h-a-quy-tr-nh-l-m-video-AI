@@ -39,6 +39,27 @@ def validate_seedream_size(size: str) -> None:
         raise ProviderError("total pixels must be within 921,600-4,624,220 for Seedream 5.0 Pro", code="bad_size")
 
 
+def flatten_transparency(content: bytes, filename: str):
+    """A transparent PNG (cut-out character art) is sent on a light-grey background: the model would otherwise read the see-through pixels
+    as black. Anything else is returned unchanged."""
+    try:
+        import io
+        from PIL import Image
+        img = Image.open(io.BytesIO(content))
+        if img.mode not in ("RGBA", "LA", "P") or (img.mode == "P" and "transparency" not in img.info):
+            return content, filename
+        rgba = img.convert("RGBA")
+        if rgba.getchannel("A").getextrema()[0] == 255:
+            return content, filename                            # has an alpha channel but nothing is transparent
+        background = Image.new("RGB", rgba.size, (232, 232, 232))
+        background.paste(rgba, mask=rgba.getchannel("A"))
+        out = io.BytesIO()
+        background.save(out, "PNG")
+        return out.getvalue(), os.path.splitext(filename)[0] + ".png"
+    except Exception:  # noqa: BLE001 - not a picture PIL can read: send as it is
+        return content, filename
+
+
 class DeepixImageProvider:
     name = "deepix"
 
@@ -75,7 +96,8 @@ class DeepixImageProvider:
             except OSError:
                 continue                                   # a missing picture must not stop the job: it just goes without
             if content and len(content) <= 10 * 1024 * 1024:
-                files.append(("file[]", os.path.basename(path), content))
+                content, name = flatten_transparency(content, os.path.basename(path))
+                files.append(("file[]", name, content))
         fields = {"prompt_key": "1" if files else "2", "message_type": "image-to-image" if files else "text-to-image",
                   "prompts": json.dumps([{"key": "positive_prompt", "text": prompt}], ensure_ascii=False),
                   "model": self.model, "size": self.size, "quality": "high"}

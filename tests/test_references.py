@@ -55,8 +55,8 @@ class ReferenceTests(unittest.TestCase):
         self.assertEqual([(r["label"], r["role"]) for r in refs], [("KELLY", "character"), ("Đảo Quân Sự", "location")])
         self.assertEqual(assets.scene_references(self.conn, self.pid, {"characters": ["Maxim"], "location": "Hang động"}), [])
         note = assets.reference_note(refs)
-        self.assertIn("Image 1 shows the character KELLY", note)
-        self.assertIn("Image 2 shows the location Đảo Quân Sự", note)
+        self.assertIn("Image 1 is KELLY", note)
+        self.assertIn("Image 2 is the location Đảo Quân Sự", note)
 
     def job(self, characters, location=""):
         sid = self.p.create_scene(self.pid, 1, "s")
@@ -71,7 +71,7 @@ class ReferenceTests(unittest.TestCase):
         self.job(["Kelly", "Kenta"])
         self.assertEqual(runner.submit_pending(self.pid), 1)
         prompt = provider.prompts["img-1"]
-        self.assertTrue(prompt.startswith("Reference images are attached."))
+        self.assertTrue(prompt.startswith("Reference images are attached"))
         self.assertTrue(prompt.endswith("Scene: hero on a rooftop"))
         self.assertEqual(len(provider.references["img-1"]), 2)
         self.assertTrue(all(os.path.exists(x) for x in provider.references["img-1"]))
@@ -98,6 +98,54 @@ class ReferenceTests(unittest.TestCase):
         t2.on("POST", "/api/image-generator/conversation-create", ok({"id": 1, "msg_id": 56}))
         DeepixImageProvider(TOKEN, "https://deepix.example", t2).submit("no refs")
         self.assertIn(b'name="prompt_key"\r\n\r\n2', t2.calls[0]["body"])          # without pictures it stays text-to-image
+
+
+class BestPictureTests(unittest.TestCase):
+    def setUp(self):
+        self.dir = tempfile.mkdtemp()
+        os.environ["ASSET_DIR"] = os.path.join(self.dir, "assets")
+        self.conn = connect(os.path.join(self.dir, "m.sqlite"))
+
+    def tearDown(self):
+        os.environ.pop("ASSET_DIR", None)
+        shutil.rmtree(self.dir, ignore_errors=True)
+
+    def picture(self, w, h, name):
+        from PIL import Image
+        import io
+        buf = io.BytesIO()
+        Image.new("RGBA", (w, h), (200, 0, 0, 0 if name == "cutout" else 255)).save(buf, "PNG")
+        return buf.getvalue()
+
+    def test_a_single_figure_beats_a_wide_character_sheet(self):
+        a = assets.create(self.conn, "FF", "character", "KELLY", "", "", None, "x")
+        for name, w, h in (("sheet", 1536, 1024), ("small", 220, 394), ("art", 550, 800)):
+            assets.add_image(self.conn, a, f"{name}.png", self.picture(w, h, name))
+        asset = assets.get(self.conn, a)
+        self.assertEqual(os.path.basename(assets.best_reference(asset)["path"]), "3.png")            # the 550x800 portrait
+        pid = Pipeline(self.conn).create_project("x")
+        assets.attach(self.conn, pid, a)
+        self.conn.execute("INSERT INTO characters (project_id, name, description) VALUES (?,?,?)", (pid, "Kelly", "d"))
+        self.conn.commit()
+        self.assertEqual(os.path.basename(assets.link_characters(self.conn, pid, ["Kelly"])["Kelly"]["ref"]["path"]), "3.png")
+
+    def test_a_cut_out_picture_is_sent_on_a_plain_background(self):
+        from core.adapters.deepix import flatten_transparency
+        import io
+        from PIL import Image
+        out, name = flatten_transparency(self.picture(20, 30, "cutout"), "kelly.png")
+        self.assertEqual(name, "kelly.png")
+        img = Image.open(io.BytesIO(out))
+        self.assertEqual(img.mode, "RGB")
+        self.assertEqual(img.getpixel((5, 5)), (232, 232, 232))                                     # not black
+        opaque = self.picture(20, 30, "solid")
+        self.assertEqual(flatten_transparency(opaque, "a.png")[0], opaque)                          # an opaque picture is left alone
+
+    def test_the_prompt_ties_each_picture_to_one_person_and_forbids_mixing(self):
+        note = assets.reference_note([{"label": "KELLY", "role": "character"}, {"label": "KENTA", "role": "character"}])
+        self.assertIn("Image 1 is KELLY", note)
+        self.assertIn("Image 2 is KENTA", note)
+        self.assertIn("never swap or blend", note)
 
 
 class ChoiceTests(ReferenceTests):

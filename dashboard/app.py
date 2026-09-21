@@ -1587,6 +1587,9 @@ def step2(p: Pipeline, pid: int):
     client = llm_client()
     to_check = p.conn.execute("SELECT COUNT(*) c FROM jobs WHERE project_id=? AND type='image_gen' AND state='succeeded'",
                               (pid,)).fetchone()["c"]
+    if client is None and to_check:
+        st.warning(f"⚠ **Chưa có điểm QC**: {to_check} ảnh vừa gen chưa được chấm vì chưa có Claude (cần `ANTHROPIC_API_KEY`, hoặc `LLM_PROVIDER=claude_cli` "
+                   "để dùng Claude Code trên máy). Trong lúc đó hãy tự xem từng ảnh (đúng nhân vật? đúng bối cảnh? lỗi tay/mặt?) rồi ✓ duyệt hoặc ✕ loại.")
     if client is not None and to_check:
         if st.button(f"🤖 QC {to_check} ảnh vừa gen bằng Claude", key=f"llm_qc_all_{pid}"):
             with st.spinner("Claude đang chấm ảnh…"):

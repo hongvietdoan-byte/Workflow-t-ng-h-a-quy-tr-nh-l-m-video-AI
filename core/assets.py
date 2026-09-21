@@ -313,11 +313,32 @@ def _reference_rows(conn, project_id: int) -> Dict[str, Dict]:
     return {r["name"]: dict(r) for r in conn.execute("SELECT name, ref_asset_id, ref_image_id FROM characters WHERE project_id=?", (project_id,))}
 
 
+def _shape(path: str):
+    try:
+        from PIL import Image
+        with Image.open(path) as im:                         # only the header is read
+            return im.size
+    except Exception:  # noqa: BLE001
+        return None
+
+
+def best_reference(asset: Dict) -> Dict:
+    """The picture that works best as a character's reference: ONE figure (a portrait / full-body shot), the sharpest one. A wide
+    character sheet (turn-around, expressions, props on one board) is the last choice: image models copy pieces of it and mix people up."""
+    def score(img):
+        shape = _shape(img["path"])
+        if not shape:
+            return (0, 0)
+        w, h = shape
+        return (1 if h >= w * 1.05 else 0, w * h)              # portrait first, then the biggest
+    return max(asset["images"], key=score)
+
+
 def _pick_image(asset: Dict, image_id: Optional[int]) -> Dict:
     for img in asset["images"]:
         if image_id and img["id"] == image_id:
             return img
-    return asset["images"][0]
+    return best_reference(asset) if asset.get("kind") in ("character", "pet") else asset["images"][0]
 
 
 def link_characters(conn, project_id: int, names: List[str]) -> Dict[str, Optional[Dict]]:
@@ -370,13 +391,19 @@ def scene_references(conn, project_id: int, scene: Dict, limit: int = MAX_REFERE
 
 def reference_note(refs: List[Dict]) -> str:
     """Words that tell the image model what each attached picture is for."""
-    bits = []
+    bits, people = [], 0
     for i, r in enumerate(refs, 1):
         if r["role"] == "location":
-            bits.append(f"Image {i} shows the location {r['label']}: keep the look of this environment")
+            bits.append(f"Image {i} is the location {r['label']}: keep the look of this environment")
         else:
-            bits.append(f"Image {i} shows the character {r['label']}: keep exactly this face, hairstyle, outfit and body proportions")
-    return "Reference images are attached. " + "; ".join(bits) + ". "
+            people += 1
+            bits.append(f"Image {i} is {r['label']}: the person called {r['label']} in the scene must be exactly this person "
+                        "(same face, hairstyle and hair color, outfit and its colors, body build)")
+    rule = ""
+    if people:
+        rule = (" Each person keeps ONLY the look of their own reference image: never swap or blend faces, hair or outfits between people, and ignore any "
+                "clothing or hair words in the scene text that contradict the reference images. The people are different individuals.")
+    return "Reference images are attached, one per named subject. " + "; ".join(bits) + "." + rule + " "
 
 
 def _news_for(conn, items: List[Dict], limit: int = 3, around: int = 170) -> str:
