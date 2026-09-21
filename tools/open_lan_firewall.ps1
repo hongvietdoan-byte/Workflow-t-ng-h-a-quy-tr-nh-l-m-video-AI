@@ -12,10 +12,10 @@ if (-not $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administra
 Get-NetFirewallRule -DisplayName $name -ErrorAction SilentlyContinue | Remove-NetFirewallRule
 New-NetFirewallRule -DisplayName $name -Direction Inbound -Action Allow -Protocol TCP -LocalPort $port `
     -Profile Domain,Private -RemoteAddress "10.0.0.0/8","172.16.0.0/12","192.168.0.0/16" | Out-Null
-$ips = Get-NetIPAddress -AddressFamily IPv4 | Where-Object { $_.IPAddress -notlike "127.*" -and $_.IPAddress -notlike "169.254.*" }
+# ONE link only: the full computer name (stays valid when the DHCP address changes)
+$host_name = try { [System.Net.Dns]::GetHostEntry($env:COMPUTERNAME).HostName } catch { $env:COMPUTERNAME }
 Write-Host ""
-Write-Host "Da mo cong $port cho mang noi bo. Gui link nay cho dong nghiep:" -ForegroundColor Green
-foreach ($ip in $ips) { Write-Host ("  http://{0}:{1}" -f $ip.IPAddress, $port) }
-Write-Host ("  http://{0}:{1}   (theo ten may)" -f $env:COMPUTERNAME, $port)
+Write-Host "Da mo cong $port cho mang noi bo. Gui MOT link nay cho dong nghiep:" -ForegroundColor Green
+Write-Host ("  http://{0}:{1}" -f $host_name, $port)
 Write-Host ""
 Write-Host "Luu y: may nay phai bat va Dashboard dang chay (Start-Dashboard.bat)."
