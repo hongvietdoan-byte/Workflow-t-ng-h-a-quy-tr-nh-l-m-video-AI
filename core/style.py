@@ -46,7 +46,8 @@ def analyse(client, image_paths: List[str], note=None) -> Dict:
 
 def load(pipeline: Pipeline, project_id: int) -> Dict[str, str]:
     try:
-        data = json.loads(pipeline.project(project_id)["world_bible"] or "{}")
+        row = pipeline.project(project_id)
+        data = json.loads((row["world_bible"] if "world_bible" in row.keys() else None) or "{}")
     except ValueError:
         return {}
     return {k: str(data.get(k) or "") for k in FIELDS}

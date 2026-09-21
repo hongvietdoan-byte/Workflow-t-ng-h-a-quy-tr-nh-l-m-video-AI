@@ -28,7 +28,8 @@ WORLD_BIBLE_FIELDS = (("render_style", "Phong cách dựng hình"), ("palette", 
 
 def world_bible_text(pipeline: Pipeline, project_id: int) -> str:
     """The project's style bible (set in step 1), as a block every step must inherit; empty when not set."""
-    raw = pipeline.project(project_id)["world_bible"]
+    row = pipeline.project(project_id)
+    raw = row["world_bible"] if "world_bible" in row.keys() else None   # old database not migrated yet
     try:
         data = json.loads(raw or "{}")
     except ValueError:

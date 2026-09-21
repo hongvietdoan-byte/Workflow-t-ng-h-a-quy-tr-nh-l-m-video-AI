@@ -107,6 +107,15 @@ class ResizeTests(unittest.TestCase):
             ffmpeg_studio.resize_to_size(self.src, os.path.join(self.dir, "tiny.mp4"), 320, 180, max_mb=0.005)
 
 
+class OldDatabaseTests(Setup):
+    def test_style_bible_reads_do_not_crash_on_a_database_without_the_column(self):
+        self.build()
+        self.p.conn.execute("ALTER TABLE projects DROP COLUMN world_bible")     # a database from before the feature
+        self.p.conn.commit()
+        self.assertEqual(style.load(self.p, self.pid)["palette"], "")
+        self.assertNotIn("World Bible của dự án", prompts.build_director_bundle(self.p, self.pid))
+
+
 class PanelTests(unittest.TestCase):
     def test_style_panel_is_in_step_1(self):
         tmp = tempfile.mkdtemp()
