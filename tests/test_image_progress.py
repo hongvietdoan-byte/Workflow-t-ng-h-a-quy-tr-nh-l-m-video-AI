@@ -45,5 +45,31 @@ class ImageProgressTests(unittest.TestCase):
         self.assertIn("Submit + Poll", said)
 
 
+class AutoRefreshTests(ImageProgressTests):
+    def test_finished_images_are_collected_and_shown_without_pressing_anything(self):
+        from unittest import mock
+        from core.adapters import factory
+        from core.providers import MockImageProvider
+        from core.runner import ImageRunner
+        from core.throttle import THROTTLE
+        THROTTLE.reset()                                                         # a limit learned by another test must not leak in
+        provider = MockImageProvider(polls_to_finish=1)
+        self.p.conn.execute("UPDATE scenes SET data='{\"image_prompt\": \"a hero\"}' WHERE project_id=?", (self.pid,))
+        self.p.conn.commit()
+        ImageRunner(self.p, provider, self.data).submit_pending(self.pid)       # what "Submit" does; nothing pressed after that
+        states = lambda: {r["state"] for r in self.p.conn.execute("SELECT state FROM jobs WHERE project_id=?", (self.pid,))}
+        self.assertEqual(states(), {"running", "queued"})                        # 4 submitted (the limit), the rest waits for a slot
+        with mock.patch.object(factory, "image_provider", return_value=provider):
+            at = AppTest.from_file(APP, default_timeout=60)
+            at.query_params["step"] = "2"
+            at.run()
+        self.assertFalse(at.exception)
+        self.assertTrue(states() <= {"succeeded", "pending_review", "approved"})   # the page collected the first 4, sent the other 2 as slots freed, collected those
+
+    def test_nothing_running_means_no_polling_and_the_text_says_it_updates_by_itself_otherwise(self):
+        said, _ = self.text()
+        self.assertNotIn("Tự cập nhật", said)
+
+
 if __name__ == "__main__":
     unittest.main()

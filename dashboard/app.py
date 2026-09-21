@@ -1434,6 +1434,47 @@ def scene_editor(p: Pipeline, pid: int, scene, char_names) -> None:
 
 
 # ---- step 2 --------------------------------------------------------------------------
+POLL_SECONDS = {"image": 6, "video": 15}
+
+
+def _poll_running(pid: int, kind: str) -> None:
+    """Ask the provider about this project's submitted jobs (read-only, no credit) and refresh the page when one finished or failed."""
+    conn = connect(DB)
+    job_type = "image_gen" if kind == "image" else "video_gen"
+    if not conn.execute("SELECT 1 FROM jobs WHERE project_id=? AND type=? AND state='running' LIMIT 1", (pid, job_type)).fetchone():
+        st.rerun()                                     # nothing left running (finished elsewhere): show the final state
+    try:
+        provider = factory.image_provider() if kind == "image" else factory.video_provider()
+    except ProviderError:
+        provider = None
+    if provider is None:
+        return
+    p = Pipeline(conn)
+    runner = ImageRunner(p, provider, DATA) if kind == "image" else VideoRunner(p, provider, DATA)
+    try:
+        counts = runner.poll_once(pid)
+        if counts["succeeded"] or counts["failed"] or counts["retried"]:
+            runner.submit_pending(pid)                 # a slot is free: send the next queued job the person already created (like the heartbeat)
+    except InvalidTransition:
+        st.rerun()                                     # another tab finished the same job first
+    except ProviderError as e:
+        st.caption(f"⚠ Chưa hỏi được trạng thái ({e}); sẽ thử lại.")
+        return
+    if counts["succeeded"] or counts["failed"] or counts["retried"]:
+        st.rerun()                                     # a result arrived: redraw the whole page with it
+    st.caption(f"🔄 Tự cập nhật mỗi {POLL_SECONDS[kind]} giây · {counts['running']} còn đang chạy · kiểm tra lúc {time.strftime('%H:%M:%S')}")
+
+
+@st.fragment(run_every=POLL_SECONDS["image"])
+def auto_poll_images(pid: int) -> None:
+    _poll_running(pid, "image")
+
+
+@st.fragment(run_every=POLL_SECONDS["video"])
+def auto_poll_videos(pid: int) -> None:
+    _poll_running(pid, "video")
+
+
 def image_progress(p: Pipeline, pid: int, runner) -> None:
     """One plain answer to "is it generating?": the progress, and when nothing moves, the reason and what to press."""
     proj = p.project(pid)
@@ -1460,7 +1501,7 @@ def image_progress(p: Pipeline, pid: int, runner) -> None:
         elif proj["paused"]:
             st.warning(f"⏸ **Chưa tạo ảnh nào**: dự án đang **PAUSE** nên {queued + running} job xếp hàng nhưng không job nào được bắt đầu. Bấm **▶ Resume** ở thanh trên cùng.")
         elif running:
-            st.info(f"🔄 **Đang tạo ảnh**: {running} ảnh đang được xử lý, {queued} đang chờ. Bấm ⟳ Submit + Poll bên dưới để cập nhật kết quả.")
+            st.info(f"🔄 **Đang tạo ảnh**: {running} ảnh đang được xử lý, {queued} đang chờ. Trang tự cập nhật, ảnh xong sẽ tự hiện; bạn không cần bấm gì.")
         elif ap_running:
             st.info("🚀 Chế độ tự động đang xử lý các ảnh này (xem tiến độ chi tiết ở Bước 1).")
         elif runner is None:
@@ -1503,6 +1544,8 @@ def step2(p: Pipeline, pid: int):
                                 else "mọi ảnh chờ bạn duyệt"), "b-pri")
                     + f' <span class="muted">Retry tối đa {proj["max_retry_count"]}</span>', unsafe_allow_html=True)
     image_progress(p, pid, runner)
+    if p.conn.execute("SELECT 1 FROM jobs WHERE project_id=? AND type='image_gen' AND state='running' LIMIT 1", (pid,)).fetchone():
+        auto_poll_images(pid)                           # results show up by themselves
     with st.expander("⚙ Thiết lập QC: tự loại ảnh điểm thấp · vùng chờ review"):
         f1, f2, f3 = st.columns([2, 3, 3], vertical_alignment="center")
         floor_on = f1.checkbox("Tự loại ảnh điểm thấp", proj["qc_reject_floor"] is not None, key=f"rej_on_{pid}",
@@ -1834,6 +1877,9 @@ def step4(p: Pipeline, pid: int):
         else:
             st.caption(f"Provider video: {runner.provider.name}" + (" (giả lập)" if runner.provider.name == "mock" else " (gọi API thật, tốn credit)"))
         allowed = show_estimate(video_estimate(p, pid), runner)
+        if p.conn.execute("SELECT 1 FROM jobs WHERE project_id=? AND type='video_gen' AND state='running' LIMIT 1", (pid,)).fetchone():
+            st.info("🔄 Video đang được tạo: trang tự cập nhật, clip xong sẽ tự hiện; bạn không cần bấm gì.")
+            auto_poll_videos(pid)
         c1, c2, c3, c4 = st.columns(4)
         if c1.button("▶ Tạo job gen video", disabled=not ready, type="primary"):
             for r in ready:
