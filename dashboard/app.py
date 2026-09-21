@@ -1249,6 +1249,7 @@ def step1(p: Pipeline, pid: int):
                                "IP": "⚠ rủi ro" if c["name"] in risky else "an toàn",
                                "Khóa": "🔒" if c["locked"] else ""} for c in chars],
                              width="stretch", hide_index=True, height=min(38 * (len(chars) + 1) + 3, 220))
+                character_reference_panel(p, pid, chars)
                 subject_panel(p, pid, chars)
                 with st.expander("✏ Sửa / thêm nhân vật, đối tượng · khóa"):
                     if any(c["locked"] for c in chars):
@@ -1281,6 +1282,48 @@ def step1(p: Pipeline, pid: int):
                     act(lambda: llm_io.lock_character_bible(p, pid), "Đã khóa Character Bible")
                     st.rerun()
     world_bible_panel(p, pid)
+
+
+def character_reference_panel(p: Pipeline, pid: int, chars) -> None:
+    """Character Bible: the reference picture of each character, visible here and changeable (it is what image generation copies)."""
+    linked = assets.link_characters(p.conn, pid, [c["name"] for c in chars])
+    pool = [a for a in assets.project_assets(p.conn, pid) if a["kind"] in ("character", "pet") and a["images"]]
+    saved = {r["name"]: r for r in p.conn.execute("SELECT name, ref_asset_id, ref_image_id FROM characters WHERE project_id=?", (pid,))}
+    have = sum(1 for a in linked.values() if a)
+    with st.expander(f"🖼 Ảnh tham chiếu của từng nhân vật — {have}/{len(chars)} đã có", expanded=have < len(chars) or not pool):
+        st.caption("Đây là ảnh mà bước gen ảnh sẽ **bám theo** (gương mặt, tóc, trang phục). Tự chọn theo tên; bạn đổi được sang tài nguyên khác "
+                   "hoặc ảnh khác của tài nguyên. Muốn thêm tài nguyên, chọn ở mục “🧰 Tài nguyên đi kèm kịch bản” phía trên.")
+        if not pool:
+            st.warning("Dự án chưa chọn tài nguyên nhân vật nào, nên ảnh sẽ vẽ chỉ theo mô tả chữ (dễ lệch thiết kế). Chọn ở “🧰 Tài nguyên đi kèm kịch bản”.")
+        options = ["auto", "none"] + [a["id"] for a in pool]
+        labels = {"auto": "Tự động (theo tên)", "none": "Không dùng ảnh (vẽ theo mô tả)", **{a["id"]: f"{a['name']} ({len(a['images'])} ảnh)" for a in pool}}
+        for c in chars:
+            row = saved.get(c["name"])
+            a = linked[c["name"]]
+            with st.container(border=True):
+                left, right = st.columns([1.1, 3], vertical_alignment="top")
+                if a:
+                    left.image(assets.thumbnail(a["ref"]["path"], 240), width=110)
+                else:
+                    left.caption("— chưa có ảnh")
+                right.markdown(f"**{escape(c['name'])}** — " + (f"dùng ảnh của **{escape(a['name'])}**" if a else "vẽ theo mô tả chữ"))
+                mode = "auto" if row["ref_asset_id"] is None else ("none" if row["ref_asset_id"] == 0 else row["ref_asset_id"])
+                if mode not in options:
+                    mode = "auto"
+                pick = right.selectbox("Ảnh tham chiếu lấy từ", options, options.index(mode), format_func=lambda o: labels[o], key=f"cref_{pid}_{c['name']}")
+                new_asset = None if pick == "auto" else (0 if pick == "none" else pick)
+                if pick != mode:                                     # another source picked: save it (its first picture until chosen otherwise)
+                    assets.set_character_link(p.conn, pid, c["name"], new_asset, None)
+                    st.rerun()
+                shown = a if pick == "auto" else next((x for x in pool if x["id"] == pick), None)
+                if shown and len(shown["images"]) > 1:
+                    numbers = list(range(1, len(shown["images"]) + 1))
+                    current = next((i for i, img in enumerate(shown["images"], 1) if a and img["id"] == a["ref"]["id"]), 1)
+                    n = right.radio("Dùng ảnh số", numbers, numbers.index(current), horizontal=True, key=f"cimg_{pid}_{c['name']}")
+                    right.image([assets.thumbnail(img["path"], 160) for img in shown["images"]], width=70, caption=[str(i) for i in numbers])
+                    if n != current:                                 # a different picture of the same asset: keep it as the person's choice
+                        assets.set_character_link(p.conn, pid, c["name"], shown["id"], shown["images"][n - 1]["id"])
+                        st.rerun()
 
 
 def subject_panel(p: Pipeline, pid: int, chars) -> None:

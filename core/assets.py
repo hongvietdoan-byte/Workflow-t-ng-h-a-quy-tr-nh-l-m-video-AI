@@ -309,21 +309,57 @@ def match_character(chosen: List[Dict], name: str) -> Optional[Dict]:
     return min(close, key=lambda a: len(a["name"])) if close else None
 
 
+def _reference_rows(conn, project_id: int) -> Dict[str, Dict]:
+    return {r["name"]: dict(r) for r in conn.execute("SELECT name, ref_asset_id, ref_image_id FROM characters WHERE project_id=?", (project_id,))}
+
+
+def _pick_image(asset: Dict, image_id: Optional[int]) -> Dict:
+    for img in asset["images"]:
+        if image_id and img["id"] == image_id:
+            return img
+    return asset["images"][0]
+
+
 def link_characters(conn, project_id: int, names: List[str]) -> Dict[str, Optional[Dict]]:
-    """Character Bible name -> the chosen asset whose pictures are its reference (or None)."""
+    """Character Bible name -> the asset whose picture is its reference, with the chosen picture in `ref` (or None).
+    The person's own choice wins (a chosen asset, or "no picture" = ref_asset_id 0); otherwise the chosen asset that matches the name."""
     chosen = project_assets(conn, project_id)
-    return {n: match_character(chosen, n) for n in names}
+    saved = _reference_rows(conn, project_id)
+    out: Dict[str, Optional[Dict]] = {}
+    for n in names:
+        row = saved.get(n) or {}
+        asset = None
+        if row.get("ref_asset_id") == 0:
+            asset = None                                            # explicitly no reference picture
+        elif row.get("ref_asset_id"):
+            asset = get(conn, row["ref_asset_id"])
+            if asset is not None and not asset["images"]:
+                asset = None
+        else:
+            asset = match_character(chosen, n)
+        if asset is not None:
+            asset = dict(asset, ref=_pick_image(asset, row.get("ref_image_id")))
+        out[n] = asset
+    return out
+
+
+def set_character_link(conn, project_id: int, name: str, asset_id: Optional[int], image_id: Optional[int] = None) -> None:
+    """asset_id None = automatic (by name), 0 = no reference picture, else that asset (and image_id, or its first picture)."""
+    conn.execute("UPDATE characters SET ref_asset_id=?, ref_image_id=? WHERE project_id=? AND name=?", (asset_id, image_id, project_id, name))
+    conn.commit()
 
 
 def scene_references(conn, project_id: int, scene: Dict, limit: int = MAX_REFERENCES) -> List[Dict]:
-    """Reference pictures for one scene: the first picture of each chosen asset for the characters in the scene, then of a chosen
-    place that the scene's location names. [{path, label, role}]"""
+    """Reference pictures for one scene: the reference picture of each character in the scene, then of a chosen place that the scene's
+    location names. [{path, label, role}]"""
     chosen = project_assets(conn, project_id)
     refs: List[Dict] = []
-    for name in scene.get("characters") or []:
-        a = match_character(chosen, str(name))
+    names = [str(n) for n in scene.get("characters") or []]
+    linked = link_characters(conn, project_id, names) if names else {}
+    for name in names:
+        a = linked.get(name)
         if a and len(refs) < limit and all(r["label"] != a["name"] for r in refs):
-            refs.append({"path": a["images"][0]["path"], "label": a["name"], "role": "character"})
+            refs.append({"path": a["ref"]["path"], "label": a["name"], "role": "character"})
     place = fold(str(scene.get("location") or ""))
     if place:
         for a in chosen:

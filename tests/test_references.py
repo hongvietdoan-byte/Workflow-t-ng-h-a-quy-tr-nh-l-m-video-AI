@@ -100,5 +100,47 @@ class ReferenceTests(unittest.TestCase):
         self.assertIn(b'name="prompt_key"\r\n\r\n2', t2.calls[0]["body"])          # without pictures it stays text-to-image
 
 
+class ChoiceTests(ReferenceTests):
+    """The person can change which asset / which picture is a character's reference; the choice wins over the automatic match."""
+
+    def asset_id(self, name):
+        return next(a["id"] for a in assets.list_assets(self.conn, "FF", None, None, shared_only=True) if a["name"] == name)
+
+    def test_the_default_is_the_first_picture_and_a_chosen_picture_is_used_instead(self):
+        kelly = self.asset_id("KELLY")
+        assets.add_image(self.conn, kelly, "second.png", png(77))
+        first, second = [i["id"] for i in assets.get(self.conn, kelly)["images"]]
+        self.assertEqual(assets.link_characters(self.conn, self.pid, ["Kelly"])["Kelly"]["ref"]["id"], first)
+        assets.set_character_link(self.conn, self.pid, "Kelly", kelly, second)
+        self.assertEqual(assets.link_characters(self.conn, self.pid, ["Kelly"])["Kelly"]["ref"]["id"], second)
+        refs = assets.scene_references(self.conn, self.pid, {"characters": ["Kelly"]})
+        self.assertTrue(refs[0]["path"].endswith("2.png"))                    # what image generation will really send
+
+    def test_another_asset_or_no_picture_can_be_chosen(self):
+        assets.set_character_link(self.conn, self.pid, "Maxim", self.asset_id("KENTA"))
+        self.assertEqual(assets.link_characters(self.conn, self.pid, ["Maxim"])["Maxim"]["name"], "KENTA")   # Maxim had nothing by name
+        assets.set_character_link(self.conn, self.pid, "Kelly", 0)
+        self.assertIsNone(assets.link_characters(self.conn, self.pid, ["Kelly"])["Kelly"])                  # explicitly none: text only
+        self.assertEqual(assets.scene_references(self.conn, self.pid, {"characters": ["Kelly"]}), [])
+        assets.set_character_link(self.conn, self.pid, "Kelly", None)
+        self.assertEqual(assets.link_characters(self.conn, self.pid, ["Kelly"])["Kelly"]["name"], "KELLY")  # back to automatic
+
+    def test_the_character_bible_shows_the_pictures_and_saves_a_change(self):
+        from streamlit.testing.v1 import AppTest
+        from tests.test_step1_flow import APP
+        db = os.path.join(self.dir, "m.sqlite")
+        os.environ.update({"PIPELINE_DB": db, "PIPELINE_DATA": os.path.join(self.dir, "projects")})
+        self.addCleanup(lambda: [os.environ.pop(k, None) for k in ("PIPELINE_DB", "PIPELINE_DATA")])
+        at = AppTest.from_file(APP, default_timeout=60)
+        at.run()
+        self.assertFalse(at.exception)
+        self.assertTrue(any("Ảnh tham chiếu của từng nhân vật — 2/3 đã có" in e.label for e in at.expander))
+        at.selectbox(key=f"cref_{self.pid}_Kelly").set_value("none").run()
+        self.assertFalse(at.exception)
+        row = self.conn.execute("SELECT ref_asset_id FROM characters WHERE project_id=? AND name='Kelly'", (self.pid,)).fetchone()
+        self.assertEqual(row["ref_asset_id"], 0)
+        self.assertTrue(any("1/3 đã có" in e.label for e in at.expander))
+
+
 if __name__ == "__main__":
     unittest.main()
