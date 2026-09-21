@@ -375,6 +375,14 @@ class ClaudeCliClient:
     """
     name = "claude-cli"
 
+    @staticmethod
+    def clean_env() -> Dict[str, str]:
+        """The environment for `claude`: without the markers of a parent Claude session (desktop app / SDK). A dashboard started from inside another
+        Claude session inherits them, and the CLI then believes it is a child that must borrow that session's login instead of using the
+        person's own (`claude` logged in from a terminal)."""
+        drop = ("CLAUDE_CODE", "CLAUDECODE", "CLAUDE_AGENT_SDK", "CLAUDE_PID", "CLAUDE_PREVIEW")
+        return {k: v for k, v in os.environ.items() if not k.startswith(drop)}
+
     def __init__(self, model: str = "", timeout: int = 600, run=None):
         import subprocess
         self.model = model
@@ -413,7 +421,8 @@ class ClaudeCliClient:
                 for folder in folders:
                     args += ["--add-dir", folder]
             try:
-                proc = self._run(args, input=text, capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=self.timeout, cwd=work)
+                proc = self._run(args, input=text, capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=self.timeout, cwd=work,
+                                 env=self.clean_env())
             except subprocess.TimeoutExpired:
                 raise LlmError("Claude Code trả lời quá lâu (quá thời gian chờ).", code="timeout", transient=True)
             except OSError as e:

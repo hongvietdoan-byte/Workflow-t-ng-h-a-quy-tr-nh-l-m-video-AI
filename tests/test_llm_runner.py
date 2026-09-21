@@ -247,6 +247,28 @@ class ClaudeCliTests(unittest.TestCase):
         self.assertEqual(ctx.exception.code, "auth")
         self.assertIn("đăng nhập", str(ctx.exception))
 
+    def test_the_connection_check_reports_a_working_and_a_broken_claude(self):
+        from core.adapters import check
+        class Works:
+            name = "fake"
+            def complete(self, prompt, images=()):
+                return lr.LlmReply("OK")
+        class Broken:
+            def complete(self, prompt, images=()):
+                raise lr.LlmError("Claude Code chưa đăng nhập", code="auth")
+        self.assertEqual(check.check_llm(Works())[1], True)
+        ok, message = check.check_llm(Broken())[1:]
+        self.assertFalse(ok)
+        self.assertIn("chưa đăng nhập", message)
+
+    def test_the_claude_process_gets_no_markers_of_a_parent_session(self):
+        with mock.patch.dict(os.environ, {"CLAUDE_CODE_ENTRYPOINT": "claude-desktop", "CLAUDECODE": "1", "CLAUDE_CODE_OAUTH_SCOPES": "x", "KEEP_ME": "1"}):
+            env = lr.ClaudeCliClient.clean_env()
+        self.assertNotIn("CLAUDE_CODE_ENTRYPOINT", env)
+        self.assertNotIn("CLAUDECODE", env)
+        self.assertNotIn("CLAUDE_CODE_OAUTH_SCOPES", env)
+        self.assertEqual(env.get("KEEP_ME"), "1")
+
     def test_it_is_chosen_by_the_environment_setting(self):
         import unittest.mock as mock
         with mock.patch.dict(os.environ, {"LLM_PROVIDER": "claude_cli"}), mock.patch("shutil.which", return_value="claude"):
