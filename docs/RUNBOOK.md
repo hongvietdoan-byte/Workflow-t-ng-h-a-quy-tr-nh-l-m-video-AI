@@ -5,7 +5,7 @@ Dành cho người **vận hành hằng ngày** (không cần đọc code). Kế
 ## 1. Cài đặt một lần
 1. **Python 3** (lệnh `py` chạy được) và **FFmpeg** (`winget install --id Gyan.FFmpeg -e`). Launcher tự tìm ffmpeg; nếu không thấy, đặt `FFMPEG_PATH` trong `dashboard.env`.
 2. `git pull` thư mục dự án.
-3. Chạy `powershell -File tools/make_shortcut.ps1` → có 2 shortcut trên Desktop: **AI Video Pipeline** (mở) và **Tat AI Video Pipeline** (tắt). Lần mở đầu tiên tự cài thư viện.
+3. Mở Dashboard bằng web: nhấp đúp `Start-Dashboard.bat` (tự khởi động máy chủ ẩn rồi mở trình duyệt), hoặc nếu máy chủ đang chạy thì vào thẳng **http://localhost:8501** (nên đánh dấu trang). Lần đầu tự cài thư viện. Tắt: mục "⏻ Tắt Dashboard" cuối trang hoặc `Stop-Dashboard.bat`.
 4. Chép `dashboard.env.example` → `dashboard.env` và sửa (không chứa token):
    ```
    IMAGE_PROVIDER=deepix
@@ -80,7 +80,7 @@ Lưu ý chung: nút **↺ Làm lại từ đầu** xuất hiện ở job đã h�
 - DB cũ tự được nâng cấp khi mở (không mất dữ liệu).
 
 ## 8. Cập nhật phần mềm
-1. Tắt Dashboard (shortcut **Tat**), sao lưu `data/`.
+1. Tắt Dashboard (mục ⏻ cuối trang hoặc `Stop-Dashboard.bat`), sao lưu `data/`.
 2. `git pull`.
 3. Mở lại. Thư viện mới (nếu có) tự cài. Nếu giao diện không đổi: tắt hẳn rồi mở lại (Streamlit không nạp lại file giao diện phụ).
 4. Chạy kiểm tra: `py -m unittest discover -s tests -t .` (kỳ vọng: OK).
@@ -89,12 +89,12 @@ Lưu ý chung: nút **↺ Làm lại từ đầu** xuất hiện ở job đã h�
 | Triệu chứng | Cách xử lý |
 |---|---|
 | Không thấy cửa sổ | Xem `data/dashboard.log` (lỗi in ở đây) |
-| "port 8501 đang dùng" | Bấm shortcut **Tat** rồi mở lại; hoặc đổi `DASHBOARD_PORT` |
+| "port 8501 đang dùng" | Tắt bằng `Stop-Dashboard.bat` rồi mở lại; hoặc đổi `DASHBOARD_PORT` |
 | "ffmpeg not found" khi render | Đặt `FFMPEG_PATH=<đường dẫn ffmpeg.exe>` trong `dashboard.env` |
 | "token looks corrupted" | Lấy lại token từ web, dán **một lần** vào biến môi trường (`Read-Host`/`NetworkCredential`, không dán nhiều dòng) |
 | HTTP 401 | Token sai/hết hạn |
 | HTTP 403 (Deepix, không có JSON) | Mạng bị whitelist chặn — dùng mạng công ty/VPN đúng |
-| Shortcut không chạy sau khi dời thư mục | Chạy lại `tools/make_shortcut.ps1` |
+| Không vào được http://localhost:8501 | Chạy `Start-Dashboard.bat`; xem `data/launcher.log` và `data/dashboard_err.log` |
 
 ## 10. Bàn giao Prompt Templates & kiến thức
 - **Nâng cấp kho kiến thức không cần sửa code:** "⚙ Cài đặt & dự án" → tab "Kho kiến thức": chọn bước (Director / QC / Motion), xem tổng quan, upload thêm tài liệu .md/.txt/.docx. Tài liệu bật sẽ được gửi kèm mỗi lần chạy bước đó (tốn thêm token, có hiển thị ước tính). Lưu ở `data/knowledge_user/` (ngoài git; sao lưu cùng `data/`, đổi vị trí bằng biến `KNOWLEDGE_USER_DIR`). Tài liệu có sẵn (thư mục `knowledge/`, `prompts/`) chỉ sửa trong mã nguồn.

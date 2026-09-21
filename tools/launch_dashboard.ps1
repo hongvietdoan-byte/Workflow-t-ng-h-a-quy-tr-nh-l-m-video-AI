@@ -1,9 +1,9 @@
-# Opens the AI Video Pipeline dashboard like a desktop app (double-click Start-Dashboard.bat).
+# Starts the AI Video Pipeline dashboard (if needed) and opens it in your web browser: http://localhost:8501
+# Double-click Start-Dashboard.bat. Web only: no desktop shortcut.
 # - Reads optional non-secret settings from dashboard.env (copy dashboard.env.example).
 # - API tokens (CLIPAI_TOKEN, DEEPIX_TOKEN) come from your Windows user environment; never store them here.
-# - Starts Streamlit minimized and opens the dashboard in its own app-style window.
 $ErrorActionPreference = "Stop"
-# The shortcut runs this window-less: a failure is written to data\launcher.log and shown in a message box.
+# Runs window-less: a failure is written to data\launcher.log and shown in a message box.
 function Show-Failure([string]$msg) {
     $logDir = Join-Path $PSScriptRoot "..\data"
     try { New-Item -ItemType Directory -Force -Path $logDir | Out-Null; Add-Content (Join-Path $logDir "launcher.log") "$(Get-Date -Format s) $msg" -Encoding UTF8 } catch {}
@@ -11,8 +11,7 @@ function Show-Failure([string]$msg) {
 }
 trap { Show-Failure $_.Exception.Message; exit 1 }
 $root = Split-Path -Parent $PSScriptRoot
-$asciiRoot = $root   # path as launched (ASCII junction): safe inside a file:// URL
-# Started through the ASCII junction made by make_shortcut.ps1? Python (Store build) misreads a junction as
+# Started through an ASCII junction? Python (Store build) misreads a junction as
 # working directory, so switch to the real folder.
 $item = Get-Item $root
 if ($item.LinkType -eq "Junction") { $root = @($item.Target)[0] }
@@ -42,12 +41,7 @@ function Open-Dashboard([string]$target = $url) {
     if ($browser) { Start-Process -FilePath $browser -ArgumentList "--app=$target" } else { Start-Process $target }
 }
 
-if (Test-Port $port) { Open-Dashboard; exit 0 }   # already running: just open a window
-
-# Not running yet: show a loading window with the logo at once; it switches to the dashboard when the server answers.
-$loadingFile = Join-Path $asciiRoot "tools\loading.html"
-$showedLoading = $false
-if (Test-Path $loadingFile) { Open-Dashboard ("file:///" + $loadingFile.Replace('\', '/') + "?port=$port"); $showedLoading = $true }
+if (Test-Port $port) { Open-Dashboard; exit 0 }   # already running: just open the page
 
 if (-not (Get-Command py -ErrorAction SilentlyContinue)) {
     Show-Failure "Chua cai Python (lenh 'py'). Cai Python 3 tu python.org roi mo lai."; exit 1
@@ -91,4 +85,4 @@ Start-Process -WindowStyle Hidden -WorkingDirectory $root -FilePath "py" -Redire
     -ArgumentList "-m", "streamlit", "run", "dashboard/app.py", "--server.port", "$port", "--server.address", $address, "--server.headless", "true", "--browser.gatherUsageStats", "false"
 for ($i = 0; $i -lt 40 -and -not (Test-Port $port); $i++) { Start-Sleep -Milliseconds 500 }
 if (-not (Test-Port $port)) { Show-Failure "May chu chua len sau 20 giay (cong $port)."; exit 1 }
-if (-not $showedLoading) { Open-Dashboard }
+Open-Dashboard
