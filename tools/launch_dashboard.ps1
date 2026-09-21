@@ -11,6 +11,7 @@ function Show-Failure([string]$msg) {
 }
 trap { Show-Failure $_.Exception.Message; exit 1 }
 $root = Split-Path -Parent $PSScriptRoot
+$asciiRoot = $root   # path as launched (ASCII junction): safe inside a file:// URL
 # Started through the ASCII junction made by make_shortcut.ps1? Python (Store build) misreads a junction as
 # working directory, so switch to the real folder.
 $item = Get-Item $root
@@ -35,23 +36,27 @@ function Find-Browser {
     return $candidates | Where-Object { $_ -and (Test-Path $_) } | Select-Object -First 1
 }
 
-function Open-Dashboard {
+function Open-Dashboard([string]$target = $url) {
     $browser = Find-Browser
-    if ($browser) { Start-Process -FilePath $browser -ArgumentList "--app=$url" } else { Start-Process $url }
+    if ($browser) { Start-Process -FilePath $browser -ArgumentList "--app=$target" } else { Start-Process $target }
 }
 
 if (Test-Port $port) { Open-Dashboard; exit 0 }   # already running: just open a window
 
+# Not running yet: show a loading window with the logo at once; it switches to the dashboard when the server answers.
+$loadingFile = Join-Path $asciiRoot "tools\loading.html"
+$showedLoading = $false
+if (Test-Path $loadingFile) { Open-Dashboard ("file:///" + $loadingFile.Replace('\', '/') + "?port=$port"); $showedLoading = $true }
+
 if (-not (Get-Command py -ErrorAction SilentlyContinue)) {
-    Write-Host "Chua cai Python (lenh 'py'). Cai Python 3 tu python.org roi mo lai." -ForegroundColor Red
-    Read-Host "Nhan Enter de dong"; exit 1
+    Show-Failure "Chua cai Python (lenh 'py'). Cai Python 3 tu python.org roi mo lai."; exit 1
 }
 
 py -c "import streamlit" 2>$null
 if ($LASTEXITCODE -ne 0) {
     Write-Host "Lan dau chay: dang cai thu vien (requirements.txt)..." -ForegroundColor Yellow
     py -m pip install -r requirements.txt
-    if ($LASTEXITCODE -ne 0) { Read-Host "Cai thu vien that bai. Nhan Enter de dong"; exit 1 }
+    if ($LASTEXITCODE -ne 0) { Show-Failure "Cai thu vien that bai (py -m pip install -r requirements.txt)."; exit 1 }
 }
 
 $envFile = Join-Path $root "dashboard.env"
@@ -80,4 +85,4 @@ $log = Join-Path $root "data\dashboard.log"
 Start-Process -WindowStyle Minimized -WorkingDirectory $root -FilePath "cmd.exe" -ArgumentList "/c", "py -m streamlit run dashboard/app.py --server.port $port > `"$log`" 2>&1"
 for ($i = 0; $i -lt 40 -and -not (Test-Port $port); $i++) { Start-Sleep -Milliseconds 500 }
 if (-not (Test-Port $port)) { Show-Failure "May chu chua len sau 20 giay (cong $port)."; exit 1 }
-Open-Dashboard
+if (-not $showedLoading) { Open-Dashboard }

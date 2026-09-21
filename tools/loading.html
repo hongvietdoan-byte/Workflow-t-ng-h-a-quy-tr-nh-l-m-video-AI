@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<title>AI Video Pipeline</title>
+<style>
+  body { margin: 0; height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center;
+         font-family: Segoe UI, Arial, sans-serif; background: #fff; color: #333; }
+  img { width: 128px; height: 128px; animation: pulse 1.4s ease-in-out infinite; }
+  @keyframes pulse { 50% { transform: scale(1.08); } }
+  #msg { margin-top: 18px; font-size: 18px; }
+  #sub { margin-top: 6px; font-size: 13px; color: #888; }
+</style>
+</head>
+<body>
+<img src="../assets/logo_g_192.png" alt="G">
+<div id="msg">Đang mở AI Video Pipeline…</div>
+<div id="sub">Lần đầu có thể mất vài chục giây.</div>
+<script>
+  // opened as loading.html?port=8501 : wait until the dashboard answers, then switch to it
+  var port = new URLSearchParams(location.search).get("port") || "8501";
+  var url = "http://localhost:" + port + "/";
+  var started = Date.now();
+  function tryOpen() {
+    fetch(url, { mode: "no-cors" }).then(function () { location.href = url; }).catch(function () {
+      if (Date.now() - started > 90000) {
+        document.getElementById("msg").textContent = "Chưa mở được Dashboard.";
+        document.getElementById("sub").textContent = "Xem file data\\dashboard.log và data\\launcher.log trong thư mục dự án.";
+        return;
+      }
+      setTimeout(tryOpen, 1000);
+    });
+  }
+  tryOpen();
+</script>
+</body>
+</html>
