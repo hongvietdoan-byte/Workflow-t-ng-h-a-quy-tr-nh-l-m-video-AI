@@ -22,5 +22,6 @@ function New-Link($name, $script, $icon) {
     $lnk.Save()
     Write-Host "Da tao: $file"
 }
-New-Link "AI Video Pipeline" "tools\launch_dashboard.ps1" (Join-Path $link "tools\icon.ico")
-New-Link "Tat AI Video Pipeline" "tools\stop_dashboard.ps1" "shell32.dll,131"
+$icon = Join-Path $link "tools\logo_g.ico"   # one logo for both shortcuts
+New-Link "AI Video Pipeline" "tools\launch_dashboard.ps1" $icon
+New-Link "Tat AI Video Pipeline" "tools\stop_dashboard.ps1" $icon

@@ -3,6 +3,13 @@
 # - API tokens (CLIPAI_TOKEN, DEEPIX_TOKEN) come from your Windows user environment; never store them here.
 # - Starts Streamlit minimized and opens the dashboard in its own app-style window.
 $ErrorActionPreference = "Stop"
+# The shortcut runs this window-less: a failure is written to data\launcher.log and shown in a message box.
+function Show-Failure([string]$msg) {
+    $logDir = Join-Path $PSScriptRoot "..\data"
+    try { New-Item -ItemType Directory -Force -Path $logDir | Out-Null; Add-Content (Join-Path $logDir "launcher.log") "$(Get-Date -Format s) $msg" -Encoding UTF8 } catch {}
+    try { Add-Type -AssemblyName System.Windows.Forms; [void][System.Windows.Forms.MessageBox]::Show("Khong mo duoc Dashboard.`n`n$msg`n`nXem data\dashboard.log va data\launcher.log", "AI Video Pipeline") } catch {}
+}
+trap { Show-Failure $_.Exception.Message; exit 1 }
 $root = Split-Path -Parent $PSScriptRoot
 # Started through the ASCII junction made by make_shortcut.ps1? Python (Store build) misreads a junction as
 # working directory, so switch to the real folder.
@@ -72,4 +79,5 @@ New-Item -ItemType Directory -Force -Path (Join-Path $root "data") | Out-Null
 $log = Join-Path $root "data\dashboard.log"
 Start-Process -WindowStyle Minimized -WorkingDirectory $root -FilePath "cmd.exe" -ArgumentList "/c", "py -m streamlit run dashboard/app.py --server.port $port > `"$log`" 2>&1"
 for ($i = 0; $i -lt 40 -and -not (Test-Port $port); $i++) { Start-Sleep -Milliseconds 500 }
+if (-not (Test-Port $port)) { Show-Failure "May chu chua len sau 20 giay (cong $port)."; exit 1 }
 Open-Dashboard

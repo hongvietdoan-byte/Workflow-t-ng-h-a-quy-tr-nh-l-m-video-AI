@@ -1644,7 +1644,8 @@ def history(p: Pipeline, pid: int):
 
 
 def main():
-    st.set_page_config(layout="wide", page_title="AI Video Pipeline")
+    logo = os.path.join(os.path.dirname(__file__), "..", "assets", "logo_g_192.png")
+    st.set_page_config(layout="wide", page_title="AI Video Pipeline", page_icon=logo if os.path.exists(logo) else None)
     ui.inject_css()
     os.makedirs(os.path.dirname(DB) or ".", exist_ok=True)
     p = Pipeline(connect(DB))
