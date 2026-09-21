@@ -148,6 +148,73 @@ class BestPictureTests(unittest.TestCase):
         self.assertIn("never swap or blend", note)
 
 
+class MultiPictureTests(unittest.TestCase):
+    """Automatic references: more than a single straight-on shot, and a good widescreen shot for a location."""
+
+    def setUp(self):
+        self.dir = tempfile.mkdtemp()
+        os.environ["ASSET_DIR"] = os.path.join(self.dir, "assets")
+        self.conn = connect(os.path.join(self.dir, "m.sqlite"))
+        self.p = Pipeline(self.conn)
+        self.pid = self.p.create_project("multi")
+
+    def tearDown(self):
+        os.environ.pop("ASSET_DIR", None)
+        shutil.rmtree(self.dir, ignore_errors=True)
+
+    def picture(self, w, h, seed=0):
+        from PIL import Image
+        import io
+        buf = io.BytesIO()
+        Image.new("RGB", (w, h), (seed, seed, seed)).save(buf, "PNG")
+        return buf.getvalue()
+
+    def test_the_automatic_pick_is_two_single_figure_pictures_not_the_sheet_and_not_a_duplicate(self):
+        a = assets.create(self.conn, "FF", "character", "KELLY", "", "", None, "x")
+        assets.add_image(self.conn, a, "sheet.png", self.picture(1536, 1024, 1))    # the composite turn-around board
+        assets.add_image(self.conn, a, "full.png", self.picture(550, 800, 2))       # full-body
+        assets.add_image(self.conn, a, "face.png", self.picture(400, 600, 3))       # a closer, smaller portrait
+        asset = assets.get(self.conn, a)
+        picked = assets.best_references(asset, 2)
+        names = {os.path.basename(img["path"]) for img in picked}
+        self.assertEqual(len(picked), 2)
+        self.assertNotIn("1.png", names)                                            # the sheet (sorted first by id) is not among them
+        self.assertEqual(names, {"2.png", "3.png"})
+
+    def test_a_scene_sends_both_automatic_pictures_of_a_character_grouped_in_the_note(self):
+        a = assets.create(self.conn, "FF", "character", "KELLY", "", "", None, "x")
+        assets.add_image(self.conn, a, "full.png", self.picture(550, 800, 2))
+        assets.add_image(self.conn, a, "face.png", self.picture(400, 600, 3))
+        assets.attach(self.conn, self.pid, a)
+        self.conn.execute("INSERT INTO characters (project_id, name, description) VALUES (?,?,?)", (self.pid, "Kelly", "d"))
+        self.conn.commit()
+        refs = assets.scene_references(self.conn, self.pid, {"characters": ["Kelly"]})
+        self.assertEqual(len(refs), 2)
+        self.assertEqual({r["label"] for r in refs}, {"KELLY"})
+        note = assets.reference_note(refs)
+        self.assertIn("Images 1/2 show KELLY", note)
+        self.assertIn("different angles/details", note)
+
+    def test_a_location_picks_the_widest_shot_not_a_tall_crop(self):
+        loc = assets.create(self.conn, "FF", "location", "Đảo Quân Sự", "", "", None, "x")
+        assets.add_image(self.conn, loc, "crop.png", self.picture(300, 900, 1))      # a tall detail crop
+        assets.add_image(self.conn, loc, "wide.png", self.picture(1920, 1080, 2))    # the establishing shot
+        asset = assets.get(self.conn, loc)
+        self.assertEqual(os.path.basename(assets.best_reference(asset)["path"]), "2.png")
+
+    def test_choosing_two_specific_pictures_by_hand_is_kept_and_wins_over_automatic(self):
+        a = assets.create(self.conn, "FF", "character", "KELLY", "", "", None, "x")
+        for i in range(3):
+            assets.add_image(self.conn, a, f"p{i}.png", self.picture(550, 800, i))
+        assets.attach(self.conn, self.pid, a)
+        self.conn.execute("INSERT INTO characters (project_id, name, description) VALUES (?,?,?)", (self.pid, "Kelly", "d"))
+        self.conn.commit()
+        img_ids = [img["id"] for img in assets.get(self.conn, a)["images"]]
+        assets.set_character_link(self.conn, self.pid, "Kelly", a, img_ids[0], [img_ids[0], img_ids[2]])
+        linked = assets.link_characters(self.conn, self.pid, ["Kelly"])
+        self.assertEqual([img["id"] for img in linked["Kelly"]["refs"]], [img_ids[0], img_ids[2]])
+
+
 class ChoiceTests(ReferenceTests):
     """The person can change which asset / which picture is a character's reference; the choice wins over the automatic match."""
 

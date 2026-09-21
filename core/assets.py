@@ -298,7 +298,8 @@ def reference_paths(conn, project_id: int, kinds=("character",), limit: int = 4)
     return out[:limit]
 
 
-MAX_REFERENCES = 6                 # pictures sent with one image job (Seedream 5.0 Pro accepts up to 10)
+MAX_REFERENCES = 8                 # pictures sent with one image job (Seedream 5.0 Pro accepts up to 10)
+MAX_REFS_PER_CHARACTER = 2         # one straight-on shot is not enough to lock a face/outfit; a second angle or close-up helps a lot
 
 
 def match_character(chosen: List[Dict], name: str) -> Optional[Dict]:
@@ -316,7 +317,8 @@ def match_character(chosen: List[Dict], name: str) -> Optional[Dict]:
 
 
 def _reference_rows(conn, project_id: int) -> Dict[str, Dict]:
-    return {r["name"]: dict(r) for r in conn.execute("SELECT name, ref_asset_id, ref_image_id FROM characters WHERE project_id=?", (project_id,))}
+    return {r["name"]: dict(r) for r in conn.execute(
+        "SELECT name, ref_asset_id, ref_image_id, ref_image_ids FROM characters WHERE project_id=?", (project_id,))}
 
 
 def _shape(path: str):
@@ -328,28 +330,72 @@ def _shape(path: str):
         return None
 
 
+def _is_composite_sheet(shape) -> bool:
+    """A wide board with a character's turn-around, expressions and props all on one canvas: sending it as a reference makes an
+    image model copy random pieces of it (and, with several people in a scene, mix faces/outfits between them)."""
+    if not shape:
+        return False
+    w, h = shape
+    return w > h and w >= 1200
+
+
+def best_references(asset: Dict, limit: int = 1) -> List[Dict]:
+    """The `limit` pictures that work best as a reference, for `asset["kind"]`:
+    - character/pet: single-figure shots (portrait/full-body), a composite sheet only as a last resort — one straight-on shot rarely
+      pins down a face well, so a second angle or a close-up is included when available.
+    - location: the widest, biggest establishing shot (an environment, not a portrait).
+    - everything else (weapon, prop): its first picture."""
+    images = asset["images"]
+    if not images:
+        return []
+    kind = asset.get("kind")
+    if kind in ("character", "pet"):
+        singles = [i for i in images if not _is_composite_sheet(_shape(i["path"]))]
+        pool = singles or images
+
+        def score(img):
+            shape = _shape(img["path"])
+            if not shape:
+                return (0, 0)
+            w, h = shape
+            return (1 if h >= w * 1.05 else 0, w * h)          # portrait first, then the biggest
+        ranked = sorted(pool, key=score, reverse=True)
+    elif kind == "location":
+        def score(img):
+            shape = _shape(img["path"])
+            if not shape:
+                return (0, 0)
+            w, h = shape
+            return (1 if w >= h else 0, w * h)                 # a wide establishing shot, not a portrait crop
+        ranked = sorted(images, key=score, reverse=True)
+    else:
+        ranked = images
+    return ranked[:max(limit, 1)]
+
+
 def best_reference(asset: Dict) -> Dict:
-    """The picture that works best as a character's reference: ONE figure (a portrait / full-body shot), the sharpest one. A wide
-    character sheet (turn-around, expressions, props on one board) is the last choice: image models copy pieces of it and mix people up."""
-    def score(img):
-        shape = _shape(img["path"])
-        if not shape:
-            return (0, 0)
-        w, h = shape
-        return (1 if h >= w * 1.05 else 0, w * h)              # portrait first, then the biggest
-    return max(asset["images"], key=score)
+    return best_references(asset, 1)[0]
 
 
-def _pick_image(asset: Dict, image_id: Optional[int]) -> Dict:
-    for img in asset["images"]:
-        if image_id and img["id"] == image_id:
-            return img
-    return best_reference(asset) if asset.get("kind") in ("character", "pet") else asset["images"][0]
+def _chosen_images(asset: Dict, row: Dict, limit: int = MAX_REFS_PER_CHARACTER) -> List[Dict]:
+    """The pictures to use for this asset: the person's explicit multi-picture choice, else their single-picture choice, else the
+    automatic pick (up to `limit`)."""
+    by_id = {img["id"]: img for img in asset["images"]}
+    ids_field = str(row.get("ref_image_ids") or "").strip()
+    if ids_field:
+        wanted = [int(x) for x in ids_field.split(",") if x.strip().isdigit()]
+        chosen = [by_id[i] for i in wanted if i in by_id]
+        if chosen:
+            return chosen
+    if row.get("ref_image_id") in by_id:
+        return [by_id[row["ref_image_id"]]]
+    return best_references(asset, limit)
 
 
 def link_characters(conn, project_id: int, names: List[str]) -> Dict[str, Optional[Dict]]:
-    """Character Bible name -> the asset whose picture is its reference, with the chosen picture in `ref` (or None).
-    The person's own choice wins (a chosen asset, or "no picture" = ref_asset_id 0); otherwise the chosen asset that matches the name."""
+    """Character Bible name -> the asset whose pictures are its reference, with the chosen pictures in `refs` (`ref` = refs[0], kept for
+    single-picture callers) or None. The person's own choice wins (a chosen asset/pictures, or "no picture" = ref_asset_id 0);
+    otherwise the chosen asset that matches the name, with an automatically picked set of pictures."""
     chosen = project_assets(conn, project_id)
     saved = _reference_rows(conn, project_id)
     out: Dict[str, Optional[Dict]] = {}
@@ -365,33 +411,42 @@ def link_characters(conn, project_id: int, names: List[str]) -> Dict[str, Option
         else:
             asset = match_character(chosen, n)
         if asset is not None:
-            asset = dict(asset, ref=_pick_image(asset, row.get("ref_image_id")))
+            imgs = _chosen_images(asset, row)
+            asset = dict(asset, ref=imgs[0], refs=imgs)
         out[n] = asset
     return out
 
 
-def set_character_link(conn, project_id: int, name: str, asset_id: Optional[int], image_id: Optional[int] = None) -> None:
-    """asset_id None = automatic (by name), 0 = no reference picture, else that asset (and image_id, or its first picture)."""
-    conn.execute("UPDATE characters SET ref_asset_id=?, ref_image_id=? WHERE project_id=? AND name=?", (asset_id, image_id, project_id, name))
+def set_character_link(conn, project_id: int, name: str, asset_id: Optional[int], image_id: Optional[int] = None,
+                       image_ids: Optional[List[int]] = None) -> None:
+    """asset_id None = automatic (by name), 0 = no reference picture, else that asset. image_ids (several pictures) wins over
+    image_id (one picture); neither given = automatic picture choice for that asset."""
+    ids_text = ",".join(str(i) for i in image_ids) if image_ids else None
+    conn.execute("UPDATE characters SET ref_asset_id=?, ref_image_id=?, ref_image_ids=? WHERE project_id=? AND name=?",
+                (asset_id, image_id, ids_text, project_id, name))
     conn.commit()
 
 
 def scene_references(conn, project_id: int, scene: Dict, limit: int = MAX_REFERENCES) -> List[Dict]:
-    """Reference pictures for one scene: the reference picture of each character in the scene, then of a chosen place that the scene's
-    location names. [{path, label, role}]"""
+    """Reference pictures for one scene: the reference picture(s) of each character in the scene, then of a chosen place that the
+    scene's location names. [{path, label, role}]"""
     chosen = project_assets(conn, project_id)
     refs: List[Dict] = []
     names = [str(n) for n in scene.get("characters") or []]
     linked = link_characters(conn, project_id, names) if names else {}
     for name in names:
         a = linked.get(name)
-        if a and len(refs) < limit and all(r["label"] != a["name"] for r in refs):
-            refs.append({"path": a["ref"]["path"], "label": a["name"], "role": "character"})
+        if not a or any(r["label"] == a["name"] for r in refs):
+            continue
+        for img in a["refs"]:
+            if len(refs) >= limit:
+                break
+            refs.append({"path": img["path"], "label": a["name"], "role": "character"})
     place = fold(str(scene.get("location") or ""))
     if place:
         for a in chosen:
             if a["kind"] == "location" and a["images"] and fold(a["name"]) and fold(a["name"]) in place and len(refs) < limit:
-                refs.append({"path": a["images"][0]["path"], "label": a["name"], "role": "location"})
+                refs.append({"path": best_reference(a)["path"], "label": a["name"], "role": "location"})
     # every other chosen resource (weapon, prop, pet, place) that the scene names is a reference too
     blob = " " + fold(" ".join(str(scene.get(k) or "") for k in ("text", "image_prompt", "location"))) + " "
     cast = {fold(n) for n in names}
@@ -402,27 +457,38 @@ def scene_references(conn, project_id: int, scene: Dict, limit: int = MAX_REFERE
             continue
         keys = [fold(n) for n in names_of(a) if len(fold(n)) >= 3 and fold(n) not in cast]
         if any(" " + k + " " in blob for k in keys):
-            refs.append({"path": a["images"][0]["path"], "label": a["name"], "role": "location" if a["kind"] == "location" else "object"})
+            refs.append({"path": best_reference(a)["path"], "label": a["name"], "role": "location" if a["kind"] == "location" else "object"})
     return refs
 
 
 def reference_note(refs: List[Dict]) -> str:
-    """Words that tell the image model what each attached picture is for."""
-    bits, people = [], 0
+    """Words that tell the image model what each attached picture is for. Several pictures of the same person (different angles /
+    a close-up) are grouped: "Images 1-2 show KELLY..." instead of repeating a separate, disconnected line per picture."""
+    groups: List[Dict] = []
     for i, r in enumerate(refs, 1):
-        if r["role"] == "location":
-            bits.append(f"Image {i} is the location {r['label']}: keep the look of this environment")
-        elif r["role"] == "object":
-            bits.append(f"Image {i} is the object {r['label']}: draw it exactly like this whenever it appears")
+        if groups and groups[-1]["label"] == r["label"] and groups[-1]["role"] == r["role"]:
+            groups[-1]["nums"].append(i)
+        else:
+            groups.append({"label": r["label"], "role": r["role"], "nums": [i]})
+    bits, people = [], 0
+    for g in groups:
+        nums = g["nums"]
+        tag = f"Image {nums[0]}" if len(nums) == 1 else f"Images {'/'.join(map(str, nums))}"
+        if g["role"] == "location":
+            bits.append(f"{tag} is the location {g['label']}: keep the look of this environment")
+        elif g["role"] == "object":
+            bits.append(f"{tag} is the object {g['label']}: draw it exactly like this whenever it appears")
         else:
             people += 1
-            bits.append(f"Image {i} is {r['label']}: the person called {r['label']} in the scene must be exactly this person "
+            angles = " (different angles/details of the same person)" if len(nums) > 1 else ""
+            verb = "show" if len(nums) > 1 else "is"
+            bits.append(f"{tag} {verb} {g['label']}{angles}: the person called {g['label']} in the scene must be exactly this person "
                         "(same face, hairstyle and hair color, outfit and its colors, body build)")
     rule = ""
     if people:
-        rule = (" Each person keeps ONLY the look of their own reference image: never swap or blend faces, hair or outfits between people, and ignore any "
-                "clothing or hair words in the scene text that contradict the reference images. The people are different individuals.")
-    return "Reference images are attached, one per named subject. " + "; ".join(bits) + "." + rule + " "
+        rule = (" Each person keeps ONLY the look of their own reference image(s): never swap or blend faces, hair or outfits between people, and ignore "
+                "any clothing or hair words in the scene text that contradict the reference images. The people are different individuals.")
+    return "Reference images are attached, grouped per named subject. " + "; ".join(bits) + "." + rule + " "
 
 
 def _news_for(conn, items: List[Dict], limit: int = 3, around: int = 170) -> str:

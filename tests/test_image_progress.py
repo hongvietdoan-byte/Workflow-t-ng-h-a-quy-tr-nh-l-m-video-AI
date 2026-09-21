@@ -71,5 +71,15 @@ class AutoRefreshTests(ImageProgressTests):
         self.assertNotIn("Tự cập nhật", said)
 
 
+class StatusTableTests(ImageProgressTests):
+    def test_the_per_scene_status_table_lists_every_scene_with_its_state(self):
+        _, at = self.text()
+        table = next(d for d in at.dataframe if list(d.value.columns) == ["Cảnh", "Trạng thái", "Điểm QC", "Đã tự sửa"])
+        rows = table.value.to_dict("records")
+        self.assertGreater(len(rows), 0)
+        self.assertTrue(all(r["Trạng thái"] for r in rows))
+        self.assertTrue(all(r["Điểm QC"] == "—" for r in rows))                # nothing scored yet
+
+
 if __name__ == "__main__":
     unittest.main()

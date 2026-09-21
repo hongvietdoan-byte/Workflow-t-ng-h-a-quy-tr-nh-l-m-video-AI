@@ -1285,14 +1285,15 @@ def step1(p: Pipeline, pid: int):
 
 
 def character_reference_panel(p: Pipeline, pid: int, chars) -> None:
-    """Character Bible: the reference picture of each character, visible here and changeable (it is what image generation copies)."""
+    """Character Bible: the reference picture(s) of each character, visible here and changeable (this is what image generation copies)."""
     linked = assets.link_characters(p.conn, pid, [c["name"] for c in chars])
     pool = [a for a in assets.project_assets(p.conn, pid) if a["kind"] in ("character", "pet") and a["images"]]
-    saved = {r["name"]: r for r in p.conn.execute("SELECT name, ref_asset_id, ref_image_id FROM characters WHERE project_id=?", (pid,))}
+    saved = {r["name"]: r for r in p.conn.execute("SELECT name, ref_asset_id, ref_image_id, ref_image_ids FROM characters WHERE project_id=?", (pid,))}
     have = sum(1 for a in linked.values() if a)
     with st.expander(f"🖼 Ảnh tham chiếu của từng nhân vật — {have}/{len(chars)} đã có", expanded=have < len(chars) or not pool):
-        st.caption("Đây là ảnh mà bước gen ảnh sẽ **bám theo** (gương mặt, tóc, trang phục). Tự chọn theo tên; bạn đổi được sang tài nguyên khác "
-                   "hoặc ảnh khác của tài nguyên. Muốn thêm tài nguyên, chọn ở mục “🧰 Tài nguyên đi kèm kịch bản” phía trên.")
+        st.caption("Đây là (những) ảnh mà bước gen ảnh sẽ **bám theo** (gương mặt, tóc, trang phục). Mặc định tự chọn theo tên, ưu tiên ảnh MỘT người rõ mặt "
+                   "(không phải cả tấm bảng nhiều tư thế) và lấy thêm góc/chi tiết thứ hai nếu có, để nhân vật không bị lẫn với người khác trong cảnh. "
+                   "Bạn đổi được sang tài nguyên khác, hoặc tự chọn 1-2 ảnh cụ thể. Muốn thêm tài nguyên, chọn ở mục “🧰 Tài nguyên đi kèm kịch bản” phía trên.")
         if not pool:
             st.warning("Dự án chưa chọn tài nguyên nhân vật nào, nên ảnh sẽ vẽ chỉ theo mô tả chữ (dễ lệch thiết kế). Chọn ở “🧰 Tài nguyên đi kèm kịch bản”.")
         options = ["auto", "none"] + [a["id"] for a in pool]
@@ -1303,26 +1304,29 @@ def character_reference_panel(p: Pipeline, pid: int, chars) -> None:
             with st.container(border=True):
                 left, right = st.columns([1.1, 3], vertical_alignment="top")
                 if a:
-                    left.image(assets.thumbnail(a["ref"]["path"], 240), width=110)
+                    left.image([assets.thumbnail(img["path"], 220) for img in a["refs"]], width=105)
                 else:
                     left.caption("— chưa có ảnh")
-                right.markdown(f"**{escape(c['name'])}** — " + (f"dùng ảnh của **{escape(a['name'])}**" if a else "vẽ theo mô tả chữ"))
+                right.markdown(f"**{escape(c['name'])}** — " + (f"dùng {len(a['refs'])} ảnh của **{escape(a['name'])}**" if a else "vẽ theo mô tả chữ"))
                 mode = "auto" if row["ref_asset_id"] is None else ("none" if row["ref_asset_id"] == 0 else row["ref_asset_id"])
                 if mode not in options:
                     mode = "auto"
                 pick = right.selectbox("Ảnh tham chiếu lấy từ", options, options.index(mode), format_func=lambda o: labels[o], key=f"cref_{pid}_{c['name']}")
                 new_asset = None if pick == "auto" else (0 if pick == "none" else pick)
-                if pick != mode:                                     # another source picked: save it (its first picture until chosen otherwise)
-                    assets.set_character_link(p.conn, pid, c["name"], new_asset, None)
+                if pick != mode:                                     # another source picked: save it (automatic picture choice until chosen otherwise)
+                    assets.set_character_link(p.conn, pid, c["name"], new_asset, None, None)
                     st.rerun()
                 shown = a if pick == "auto" else next((x for x in pool if x["id"] == pick), None)
                 if shown and len(shown["images"]) > 1:
                     numbers = list(range(1, len(shown["images"]) + 1))
-                    current = next((i for i, img in enumerate(shown["images"], 1) if a and img["id"] == a["ref"]["id"]), 1)
-                    n = right.radio("Dùng ảnh số", numbers, numbers.index(current), horizontal=True, key=f"cimg_{pid}_{c['name']}")
+                    current_ids = {img["id"] for img in a["refs"]} if a and a["id"] == shown["id"] else set()
+                    default = [i for i, img in enumerate(shown["images"], 1) if img["id"] in current_ids] or [1]
+                    chosen_nums = right.multiselect("Dùng ảnh số (chọn 1-2 ảnh rõ mặt, nhiều góc/chi tiết thì càng chuẩn)", numbers, default,
+                                                    key=f"cimg_{pid}_{c['name']}")
                     right.image([assets.thumbnail(img["path"], 160) for img in shown["images"]], width=70, caption=[str(i) for i in numbers])
-                    if n != current:                                 # a different picture of the same asset: keep it as the person's choice
-                        assets.set_character_link(p.conn, pid, c["name"], shown["id"], shown["images"][n - 1]["id"])
+                    if chosen_nums and set(chosen_nums) != set(default):
+                        ids = [shown["images"][i - 1]["id"] for i in sorted(chosen_nums)]
+                        assets.set_character_link(p.conn, pid, c["name"], shown["id"], ids[0], ids)
                         st.rerun()
 
 
@@ -1522,6 +1526,18 @@ def image_progress(p: Pipeline, pid: int, runner) -> None:
                         "🖼 Chưa có nhân vật nào gắn tài nguyên: ảnh sẽ vẽ chỉ theo mô tả chữ (dễ lệch thiết kế).")
                        + (f" Chưa có ảnh tham chiếu cho: {', '.join(lack)} (vẽ theo mô tả)." if have and lack else ""))
         st.progress(done / total, text=f"{done}/{total} ảnh đã có · {queued} đang chờ · {running} đang gen · {failed} lỗi")
+        rows = p.conn.execute(
+            "SELECT j.state, j.retry_count, j.escalated, s.idx, (SELECT AVG(score) FROM qc_results WHERE job_id=j.id) AS qc "
+            "FROM jobs j JOIN scenes s ON s.id=j.scene_id WHERE j.project_id=? AND j.type='image_gen' AND j.state NOT IN ('rejected','cancelled') "
+            "ORDER BY s.idx", (pid,)).fetchall()
+        if rows:
+            client_ready = llm_client() is not None
+            wait_label = "Chờ Claude kiểm tra" if client_ready else "Chờ bạn duyệt (chưa có Claude)"
+            state_label = {"queued": "Chờ gen", "retryable": "Chờ gửi lại", "running": "Đang gen", "succeeded": wait_label,
+                          "pending_review": "Chờ bạn duyệt", "approved": "Đã duyệt", "failed": "Lỗi"}
+            st.dataframe([{"Cảnh": r["idx"], "Trạng thái": state_label.get(r["state"], r["state"]) + (" ⚠ cần xem" if r["escalated"] else ""),
+                          "Điểm QC": f"{r['qc']:.2f}" if r["qc"] is not None else "—", "Đã tự sửa": r["retry_count"]} for r in rows],
+                         hide_index=True, width="stretch", height=min(38 * (len(rows) + 1) + 3, 230))
         fixed = p.conn.execute("SELECT COUNT(*) FROM jobs WHERE project_id=? AND type='image_gen' AND retry_count>0 AND state NOT IN ('cancelled')", (pid,)).fetchone()[0]
         flagged = p.conn.execute("SELECT COUNT(*) FROM jobs WHERE project_id=? AND type='image_gen' AND escalated=1 AND state='pending_review'", (pid,)).fetchone()[0]
         if autoqc.active(pid):
