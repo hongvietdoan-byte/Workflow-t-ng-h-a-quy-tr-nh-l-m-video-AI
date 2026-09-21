@@ -9,6 +9,7 @@ import os
 import re
 import shutil
 import sqlite3
+import subprocess
 import sys
 import tempfile
 import time
@@ -1669,6 +1670,13 @@ def main():
                     format_func=step_label(step_done(p, pid)))
     {STEPS[0]: step1, STEPS[1]: step2, STEPS[2]: step3, STEPS[3]: step4, STEPS[4]: step5a,
      STEPS[5]: step5b, STEPS[6]: history, STEPS[7]: monitor, STEPS[8]: lessons_tab}[step](p, pid)
+    with st.expander("⏻ Tắt Dashboard"):
+        st.caption("Dừng máy chủ Dashboard trên máy này (các việc đang chạy nền cũng dừng; tiến độ đã lưu, bấm Tiếp tục khi mở lại).")
+        if confirm_all("shutdown", ["go"], "⏻ Tắt Dashboard", "Tắt Dashboard ngay bây giờ?", st, "Có, tắt"):
+            stop = os.path.join(os.path.dirname(__file__), "..", "tools", "stop_dashboard.ps1")
+            subprocess.Popen(["powershell.exe", "-NoProfile", "-ExecutionPolicy", "Bypass", "-WindowStyle", "Hidden", "-File", stop],
+                             creationflags=0x00000008)
+            st.info("Đang tắt… có thể đóng cửa sổ này.")
 
 
 main()

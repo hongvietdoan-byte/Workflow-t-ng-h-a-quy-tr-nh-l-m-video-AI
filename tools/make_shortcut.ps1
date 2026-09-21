@@ -1,4 +1,4 @@
-# Creates Desktop shortcuts: "AI Video Pipeline" (start) and "Tat AI Video Pipeline" (stop).
+# Creates ONE Desktop shortcut, "AI Video Pipeline" (starts the dashboard, or just opens it when already running).
 # Windows shortcuts made through WScript.Shell cannot store non-ASCII characters (this repo's folder
 # name has Vietnamese letters), so the shortcuts point through an ASCII folder junction:
 #   %LOCALAPPDATA%\AIVideoPipeline  ->  <this repo>
@@ -24,4 +24,6 @@ function New-Link($name, $script, $icon) {
 }
 $icon = Join-Path $link "tools\logo_g.ico"   # one logo for both shortcuts
 New-Link "AI Video Pipeline" "tools\launch_dashboard.ps1" $icon
-New-Link "Tat AI Video Pipeline" "tools\stop_dashboard.ps1" $icon
+# One shortcut only. Stopping is done from the dashboard itself (button "Tat Dashboard"), or Stop-Dashboard.bat.
+$old = Join-Path $desktop "Tat AI Video Pipeline.lnk"
+if (Test-Path $old) { Remove-Item $old -Force; Write-Host "Da xoa shortcut cu: $old" }

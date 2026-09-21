@@ -10,7 +10,8 @@ from PIL import Image, ImageChops, ImageDraw
 
 ROOT = os.path.join(os.path.dirname(__file__), "..")
 S = 2048                      # drawn at 2x, scaled down for smooth edges
-TOP, BOTTOM = (79, 70, 229), (219, 39, 119)          # indigo -> pink
+TOP, BOTTOM = (255, 255, 255), (236, 236, 242)         # white -> light grey background
+RED = (222, 28, 44, 255)                                # the G
 
 
 def gradient() -> Image.Image:
@@ -38,24 +39,25 @@ def draw() -> Image.Image:
     ImageDraw.Draw(mask).rounded_rectangle([40, 40, S - 40, S - 40], radius=470, fill=255)
     logo = Image.new("RGBA", (S, S), (0, 0, 0, 0))
     logo.paste(bg, (0, 0), mask)
+    ImageDraw.Draw(logo).rounded_rectangle([40, 40, S - 40, S - 40], radius=470, outline=(205, 205, 215, 255), width=16)
 
     fg = Image.new("RGBA", (S, S), (0, 0, 0, 0))
     d = ImageDraw.Draw(fg)
     cx = cy = S // 2
     outer, width = 640, 210
     box = [cx - outer, cy - outer, cx + outer, cy + outer]
-    d.arc(box, start=-4, end=312, fill="white", width=width)      # the G: a ring open at the upper right
+    d.arc(box, start=-4, end=312, fill=RED, width=width)      # the G: a ring open at the upper right
     mid = outer - width / 2                                        # round caps on both ends of the ring
     for ang in (-4, 312):
         x, y = cx + mid * math.cos(math.radians(ang)), cy + mid * math.sin(math.radians(ang))
-        d.ellipse([x - width / 2, y - width / 2, x + width / 2, y + width / 2], fill="white")
-    d.polygon([(cx - 300, cy - 240), (cx - 300, cy + 240), (cx + 90, cy)], fill="white")     # the play button ...
-    d.rectangle([cx + 40, cy - 78, cx + outer - width / 2, cy + 78], fill="white")            # ... continues as the G's bar
-    spark(d, cx + 470, cy - 500, 210, (255, 224, 102, 255))        # the "transformation" spark in the ring's opening
-    spark(d, cx + 655, cy - 245, 90, (255, 255, 255, 235))
+        d.ellipse([x - width / 2, y - width / 2, x + width / 2, y + width / 2], fill=RED)
+    d.polygon([(cx - 300, cy - 240), (cx - 300, cy + 240), (cx + 90, cy)], fill=RED)     # the play button ...
+    d.rectangle([cx + 40, cy - 78, cx + outer - width / 2, cy + 78], fill=RED)            # ... continues as the G's bar
+    spark(d, cx + 470, cy - 500, 210, (255, 170, 0, 255))        # the "transformation" spark in the ring's opening
+    spark(d, cx + 655, cy - 245, 90, (255, 122, 0, 255))
 
-    shadow = ImageChops.offset(fg.split()[3], 0, 28).point(lambda v: int(v * 0.28))
-    dark = Image.new("RGBA", (S, S), (30, 20, 80, 0))
+    shadow = ImageChops.offset(fg.split()[3], 0, 28).point(lambda v: int(v * 0.22))
+    dark = Image.new("RGBA", (S, S), (120, 0, 10, 0))
     dark.putalpha(shadow)
     logo = Image.alpha_composite(Image.alpha_composite(logo, dark), fg)
     return logo.resize((1024, 1024), Image.LANCZOS)
