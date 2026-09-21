@@ -42,7 +42,7 @@ class DashboardSmokeTests(unittest.TestCase):
         at = AppTest.from_file(APP, default_timeout=30).run()
         self.assertFalse(at.exception)
         options = list(at.radio(key="step").options)
-        self.assertEqual(len(options), 8)
+        self.assertEqual(len(options), 9)
         for option in options:
             at.radio(key="step").set_value(option).run()
             self.assertFalse(at.exception, option)
@@ -501,6 +501,25 @@ class DashboardSmokeTests(unittest.TestCase):
         self.assertTrue(any("Gen video" in str(d.value) for d in at.dataframe))
         self.assertTrue(any("Giám sát từng khâu" in m.value for m in at.markdown))
         self.assertTrue(any("Báo cáo chẩn đoán" in c.value for c in at.code))     # the paste-into-chat report
+
+    def test_lessons_tab_lists_proposals_and_approving_feeds_the_knowledge_base(self):
+        import tempfile
+        from core import knowledge, lessons
+        os.environ["KNOWLEDGE_USER_DIR"] = tempfile.mkdtemp()
+        try:
+            p, pid = self.seed()
+            conn = connect(self.db)
+            lessons.add_research(conn, "director", "Mẹo thử nghiệm", "Luôn nêu rõ cỡ cảnh.", "https://example.com/x")
+            at = AppTest.from_file(APP, default_timeout=30)
+            at.query_params["step"] = "lessons"
+            at.run()
+            self.assertFalse(at.exception)
+            self.assertTrue(any("Đề xuất chờ duyệt (1)" in m.value for m in at.markdown))
+            next(b for b in at.button if b.label == "👍 Duyệt").click().run()
+            self.assertFalse(at.exception)
+            self.assertEqual([d["title"] for d in knowledge.user_docs("director")], [lessons.DOC_TITLE])
+        finally:
+            os.environ.pop("KNOWLEDGE_USER_DIR", None)
 
     def test_risk_corner_lists_ip_and_moderation_notes(self):
         p, pid = self.seed()

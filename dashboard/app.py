@@ -19,7 +19,7 @@ import streamlit as st
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
-from core import audio_lib, autopilot, diag, knowledge, perf, regen, subjects, trash, waveform, cost, ffmpeg_studio, final_cut, llm_io, llm_runner, music, preflight, prompts, script_parser  # noqa: E402
+from core import audio_lib, autopilot, diag, knowledge, lessons, perf, regen, research, subjects, trash, waveform, cost, ffmpeg_studio, final_cut, llm_io, llm_runner, music, preflight, prompts, script_parser  # noqa: E402
 from core.db import connect  # noqa: E402
 from core.pipeline import Pipeline, PipelinePaused  # noqa: E402
 from core.adapters import factory  # noqa: E402
@@ -33,7 +33,7 @@ import ui  # noqa: E402
 DB = os.environ.get("PIPELINE_DB", os.path.join("data", "manifest.sqlite"))
 DATA = os.environ.get("PIPELINE_DATA", os.path.join("data", "projects"))
 STEPS = ["1 · Kịch bản & phân tích", "2 · Gen ảnh + QC", "3 · Video Prompt", "4 · Gen video",
-         "5a · Nhạc nền", "5b · Ghép & Render", "Lịch sử", "📊 Theo dõi hiệu suất"]
+         "5a · Nhạc nền", "5b · Ghép & Render", "Lịch sử", "📊 Theo dõi hiệu suất", "🎓 Bài học"]
 ERRORS = (sqlite3.IntegrityError, zipfile.BadZipFile, llm_runner.LlmError, InvalidTransition, llm_io.SchemaError, PipelinePaused, ffmpeg_studio.FFmpegNotFound,
           ffmpeg_studio.FFmpegError, ValueError, KeyError)
 CRITERIA_LABEL = {"character": "Đúng nhân vật", "hands_face": "Không lỗi tay/mặt", "composition": "Đúng bố cục",
@@ -239,7 +239,7 @@ def step_done(p: Pipeline, pid: int) -> list:
     return [bool(q("SELECT COUNT(*) FROM characters WHERE project_id=? AND locked=1", pid)),
             bool(scenes) and approved_imgs >= scenes, bool(scenes) and motion >= scenes,
             bool(scenes) and videos >= scenes, bool(os.listdir(selected_dir)),
-            os.path.exists(os.path.join(DATA, str(pid), "output", "FINAL_VIDEO.mp4")), False, False]
+            os.path.exists(os.path.join(DATA, str(pid), "output", "FINAL_VIDEO.mp4")), False, False, False]
 
 
 def step_label(done: list):
@@ -1546,6 +1546,70 @@ def monitor(p: Pipeline, pid: int) -> None:
                "DIAG_STUCK_VIDEO_MIN, DIAG_QUEUED_MIN, DIAG_RETRY_WARN.")
 
 
+def lessons_tab(p: Pipeline, pid: int) -> None:
+    """Learning across projects: repeated mistakes and monthly research become lessons a person approves."""
+    conn = p.conn
+    ui.html(ui.card_title("🎓 Bài học rút ra từ các dự án", "hệ thống tự phát hiện lỗi lặp lại; bạn duyệt thì mới vào kiến thức"))
+    st.caption("Lỗi lặp lại (cùng loại, nhiều lần, nhiều dự án) và tài liệu mới tìm được sẽ thành **đề xuất**. Chỉ khi bạn bấm "
+               "Duyệt, đề xuất mới vào Kho kiến thức của Director/QC/Motion. Sau đó nhớ chắt lọc lại cẩm nang ở Cài đặt.")
+    llm = llm_runner.client_from_env()
+    c1, c2 = st.columns(2)
+    if c1.button("🔎 Rút bài học từ các lỗi đã gặp", key="ls_mine", use_container_width=True):
+        made = lessons.propose(conn, llm)
+        st.success(f"Có {made} đề xuất mới." if made else "Chưa có loại lỗi nào lặp đủ nhiều để đề xuất.")
+    if c2.button("🌐 Nghiên cứu tài liệu mới ngay", key="ls_research", use_container_width=True, disabled=llm is None,
+                 help="Cần ANTHROPIC_API_KEY. Có tính phí tìm kiếm web (tối đa vài lượt tìm cho mỗi chủ đề)."):
+        try:
+            r = research.run(conn, llm)
+            st.success(f"Nghiên cứu xong: {r['proposed']} đề xuất mới." + (f" Có lỗi: {r['errors'][0]}" if r["errors"] else ""))
+        except ERRORS as e:
+            st.error(str(e))
+    monthly = st.checkbox("Tự nghiên cứu hàng tháng (khi mở Dashboard và đã đến hạn)", value=research.enabled(conn), key="ls_monthly",
+                          help="Mặc định tắt vì tốn phí. Máy phải mở Dashboard ít nhất một lần trong tháng, hoặc dùng "
+                               "tools/monthly_research.py với Task Scheduler.")
+    if monthly != research.enabled(conn):
+        lessons.set_meta(conn, "research_monthly", "1" if monthly else "0")
+    last = lessons.meta(conn, "research_last_run")
+    st.caption(f"Lần nghiên cứu gần nhất: {last or 'chưa có'}. Nội dung web coi là không đáng tin: chỉ thành đề xuất, không tự áp dụng.")
+    proposed = lessons.list_lessons(conn, "proposed")
+    st.markdown(f"**Đề xuất chờ duyệt ({len(proposed)})**")
+    for row in proposed:
+        with st.container(border=True):
+            ev = json.loads(row["evidence"] or "{}")
+            where = knowledge.GROUPS[row["group_name"]][0]
+            origin = ("nghiên cứu web: " + ", ".join(ev.get("urls", []))) if row["source"] == "research" else (
+                f"{ev.get('events')} lần ở {ev.get('projects')} dự án")
+            st.markdown(f"**{escape(row['title'])}** · {escape(where)}")
+            st.caption(f"Nguồn: {origin}")
+            title = st.text_input("Tiêu đề", row["title"], key=f"ls_t_{row['id']}", label_visibility="collapsed")
+            body = st.text_area("Nội dung quy tắc", row["body"], key=f"ls_b_{row['id']}", height=100)
+            a, b, _ = st.columns([1, 1, 3])
+            if a.button("👍 Duyệt", key=f"ls_ok_{row['id']}", type="primary"):
+                lessons.edit(conn, row["id"], title, body)
+                lessons.decide(conn, row["id"], True)
+                st.rerun()
+            if b.button("👎 Bỏ", key=f"ls_no_{row['id']}"):
+                lessons.decide(conn, row["id"], False)
+                st.rerun()
+    approved = lessons.list_lessons(conn, "approved")
+    with st.expander(f"Bài học đã duyệt ({len(approved)})"):
+        for row in approved:
+            st.markdown(f"- **{escape(row['title'])}** ({row['group_name']}): {escape(row['body'])}")
+            if st.button("Gỡ bài học này", key=f"ls_rm_{row['id']}"):
+                lessons.decide(conn, row["id"], False)
+                st.rerun()
+    lessons.harvest(conn)
+    rows = lessons.clusters(conn)
+    with st.expander(f"Các loại lỗi đã ghi nhận ({len(rows)})"):
+        if rows:
+            st.dataframe([{"Bước": r["group"], "Loại lỗi": r["label"], "Số lần": r["events"], "Số dự án": r["projects"],
+                           "Đủ để đề xuất": "có" if r["ready"] else "chưa"} for r in rows], hide_index=True,
+                         use_container_width=True)
+        else:
+            st.caption("Chưa có lỗi nào được ghi nhận (lấy từ ảnh/video bị loại kèm lý do và các lần bị risk control chặn).")
+        st.caption(f"Ngưỡng đề xuất: ≥{lessons.MIN_EVENTS} lần và ≥{lessons.MIN_PROJECTS} dự án.")
+
+
 def history(p: Pipeline, pid: int):
     scenes = p.conn.execute("SELECT id, idx, title FROM scenes WHERE project_id=? ORDER BY idx", (pid,)).fetchall()
     if not scenes:
@@ -1589,18 +1653,21 @@ def main():
         return
     purge_trash(DATA)
     trash.sweep_rejected(p, DATA, pid)
+    if "research_checked" not in st.session_state:      # monthly research, at most once per browser session
+        st.session_state["research_checked"] = True
+        research.maybe_run_in_background(DB)
     problems = [f for f in diag.scan(p.conn, DATA, float(os.environ.get("AUTOPILOT_POLL_SEC", "15"))) if f["severity"] == "error"]
     if problems:
         st.markdown(f":red[🔴 Giám sát: {len(problems)} vấn đề nghiêm trọng, ví dụ: {escape(diag.redact(problems[0]['title']))}] "
                     "— mở tab “📊 Theo dõi hiệu suất” để xem và lấy báo cáo.")
     deep = st.query_params.get("step")  # ?step=2 opens a step directly (1, 2, 3, 4, 5a, 5b, history)
-    keys = ["1", "2", "3", "4", "5a", "5b", "history", "monitor"]
+    keys = ["1", "2", "3", "4", "5a", "5b", "history", "monitor", "lessons"]
     if deep in keys and "step" not in st.session_state:
         st.session_state["step"] = STEPS[keys.index(deep)]
     step = st.radio("Bước", STEPS, horizontal=True, key="step", label_visibility="collapsed",
                     format_func=step_label(step_done(p, pid)))
     {STEPS[0]: step1, STEPS[1]: step2, STEPS[2]: step3, STEPS[3]: step4, STEPS[4]: step5a,
-     STEPS[5]: step5b, STEPS[6]: history, STEPS[7]: monitor}[step](p, pid)
+     STEPS[5]: step5b, STEPS[6]: history, STEPS[7]: monitor, STEPS[8]: lessons_tab}[step](p, pid)
 
 
 main()

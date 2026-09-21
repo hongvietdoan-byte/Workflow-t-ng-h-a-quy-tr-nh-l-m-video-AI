@@ -94,8 +94,18 @@ class AnthropicClient:
         return blocks
 
     def complete(self, prompt: str, images: Sequence[Tuple[str, str]] = ()) -> LlmReply:
-        body = json.dumps({"model": self.model, "max_tokens": self.max_tokens,
-                           "messages": [{"role": "user", "content": self._content(prompt, images)}]}).encode("utf-8")
+        return self._request(prompt, images, None)
+
+    def complete_with_search(self, prompt: str, max_uses: int = 3) -> LlmReply:
+        """Like complete, with the Anthropic web search tool (a few searches, costs extra). Not verified against the live API."""
+        return self._request(prompt, (), [{"type": "web_search_20250305", "name": "web_search", "max_uses": max_uses}])
+
+    def _request(self, prompt: str, images: Sequence[Tuple[str, str]], tools) -> LlmReply:
+        payload = {"model": self.model, "max_tokens": self.max_tokens,
+                   "messages": [{"role": "user", "content": self._content(prompt, images)}]}
+        if tools:
+            payload["tools"] = tools
+        body = json.dumps(payload).encode("utf-8")
         headers = {"x-api-key": self._key, "anthropic-version": API_VERSION, "content-type": "application/json",
                    "User-Agent": "AIVideoPipeline-LLM/0.1"}
         last: Optional[LlmError] = None
@@ -287,7 +297,15 @@ class MockLlm:
     """Deterministic fake model: valid JSON for each step without any API call."""
     name = "mock-llm"
 
+    def complete_with_search(self, prompt: str, max_uses: int = 3) -> LlmReply:
+        topic = prompt.split("về: ", 1)[-1][:40].strip()
+        out = {"findings": [{"title": f"Mẹo mới (giả lập): {topic}", "rule": "Quy tắc mẫu từ nghiên cứu giả lập.",
+                             "url": "https://example.com/guide"}]}
+        return LlmReply("```json\n" + json.dumps(out, ensure_ascii=False) + "\n```", 100, 50)
+
     def complete(self, prompt: str, images: Sequence[Tuple[str, str]] = ()) -> LlmReply:
+        if "Biên tập viên bài học" in prompt:
+            return LlmReply("Quy tắc mẫu (giả lập): kiểm tra kỹ lỗi này khi viết prompt và chấm ảnh.", 50, 20)
         if "Biên tập viên kiến thức" in prompt:
             block = prompt.split("# Mục bắt buộc", 1)[1].split("# Độ dài mục tiêu", 1)[0]
             names = re.findall(r"^\d+\. (.+)$", block, flags=re.M)

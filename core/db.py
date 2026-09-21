@@ -104,6 +104,33 @@ CREATE TABLE IF NOT EXISTS review_log (
     note TEXT,
     decided_at TEXT NOT NULL
 );
+CREATE TABLE IF NOT EXISTS mistakes (
+    id INTEGER PRIMARY KEY,
+    source TEXT NOT NULL,
+    ref_id INTEGER NOT NULL,
+    at TEXT NOT NULL,
+    project_id INTEGER,
+    stage TEXT NOT NULL,
+    group_name TEXT NOT NULL,
+    text TEXT NOT NULL,
+    UNIQUE (source, ref_id)
+);
+CREATE TABLE IF NOT EXISTS lessons (
+    id INTEGER PRIMARY KEY,
+    created_at TEXT NOT NULL,
+    group_name TEXT NOT NULL,
+    key TEXT NOT NULL,
+    title TEXT NOT NULL,
+    body TEXT NOT NULL,
+    source TEXT NOT NULL,
+    evidence TEXT,
+    state TEXT NOT NULL DEFAULT 'proposed',
+    decided_at TEXT
+);
+CREATE TABLE IF NOT EXISTS learning_meta (
+    key TEXT PRIMARY KEY,
+    value TEXT NOT NULL
+);
 CREATE TABLE IF NOT EXISTS diag_events (
     id INTEGER PRIMARY KEY,
     at TEXT NOT NULL,
