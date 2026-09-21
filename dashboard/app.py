@@ -41,7 +41,7 @@ ERRORS = (sqlite3.IntegrityError, zipfile.BadZipFile, llm_runner.LlmError, Inval
           ffmpeg_studio.FFmpegError, ValueError, KeyError)
 CRITERIA_LABEL = {"character": "Đúng nhân vật", "hands_face": "Không lỗi tay/mặt", "composition": "Đúng bố cục",
                   "mood_lighting": "Đúng mood / ánh sáng", "consistency": "Không chi tiết thừa/sai"}
-FILTERS = {"all": "Tất cả", "review": "Chờ duyệt", "pass": "Đã duyệt", "fail": "FAIL", "run": "Đang chạy"}
+FILTERS = {"all": "Tất cả", "review": "Chờ duyệt", "pass": "Đã duyệt", "fail": "FAIL", "run": "Chờ / đang gen"}
 FILTER_STATES = {"review": ("succeeded", "pending_review"), "pass": ("approved",), "fail": ("failed", "rejected"),
                  "run": ("queued", "running")}
 
@@ -1388,6 +1388,35 @@ def scene_editor(p: Pipeline, pid: int, scene, char_names) -> None:
 
 
 # ---- step 2 --------------------------------------------------------------------------
+def image_progress(p: Pipeline, pid: int, runner) -> None:
+    """One plain answer to "is it generating?": the progress, and when nothing moves, the reason and what to press."""
+    proj = p.project(pid)
+    counts = {r["state"]: r["n"] for r in p.conn.execute(
+        "SELECT state, COUNT(*) n FROM jobs WHERE project_id=? AND type='image_gen' AND state NOT IN ('rejected','cancelled') GROUP BY state", (pid,))}
+    total = sum(counts.values())
+    if not total:
+        return
+    queued, running, failed = counts.get("queued", 0) + counts.get("retryable", 0), counts.get("running", 0), counts.get("failed", 0)
+    done = counts.get("succeeded", 0) + counts.get("pending_review", 0) + counts.get("approved", 0)
+    ap_running = autopilot.status(p, pid)["state"] in ("running", "queued")
+    with st.container(border=True):
+        st.progress(done / total, text=f"{done}/{total} ảnh đã có · {queued} đang chờ · {running} đang gen · {failed} lỗi")
+        if queued + running == 0:
+            st.success("Không còn job nào chờ: " + (f"{counts.get('pending_review', 0)} ảnh đang chờ bạn duyệt." if counts.get("pending_review") else "xong."))
+        elif proj["paused"]:
+            st.warning(f"⏸ **Chưa tạo ảnh nào**: dự án đang **PAUSE** nên {queued + running} job xếp hàng nhưng không job nào được bắt đầu. Bấm **▶ Resume** ở thanh trên cùng.")
+        elif running:
+            st.info(f"🔄 **Đang tạo ảnh**: {running} ảnh đang được xử lý, {queued} đang chờ. Bấm ⟳ Submit + Poll bên dưới để cập nhật kết quả.")
+        elif ap_running:
+            st.info("🚀 Chế độ tự động đang xử lý các ảnh này (xem tiến độ chi tiết ở Bước 1).")
+        elif runner is None:
+            st.warning(f"⚠ **Chưa tạo ảnh nào**: Deepix chưa được cấu hình (thiếu `DEEPIX_TOKEN`) nên hệ thống không tự gen. {queued} job đang chờ bạn "
+                       "nhập ảnh thủ công ở từng cảnh, hoặc nhờ quản trị cấu hình Deepix.")
+        else:
+            st.warning(f"⚠ **Chưa tạo ảnh nào**: {queued} job đã xếp hàng nhưng chưa được gửi đi. Ở chế độ từng bước hãy bấm **⟳ Submit + Poll 1 lần** "
+                       "hoặc **▶ Chạy heartbeat tới khi xong** bên dưới (hoặc dùng chế độ tự động).")
+
+
 def step2(p: Pipeline, pid: int):
     proj = p.project(pid)
     runner = image_runner(p)
@@ -1419,6 +1448,7 @@ def step2(p: Pipeline, pid: int):
                              + ("QC Agent tự duyệt theo threshold" if proj["operating_mode"] == "auto"
                                 else "mọi ảnh chờ bạn duyệt"), "b-pri")
                     + f' <span class="muted">Retry tối đa {proj["max_retry_count"]}</span>', unsafe_allow_html=True)
+    image_progress(p, pid, runner)
     with st.expander("⚙ Thiết lập QC: tự loại ảnh điểm thấp · vùng chờ review"):
         f1, f2, f3 = st.columns([2, 3, 3], vertical_alignment="center")
         floor_on = f1.checkbox("Tự loại ảnh điểm thấp", proj["qc_reject_floor"] is not None, key=f"rej_on_{pid}",
