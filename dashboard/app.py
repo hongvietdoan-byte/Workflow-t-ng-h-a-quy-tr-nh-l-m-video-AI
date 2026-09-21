@@ -20,7 +20,7 @@ import streamlit as st
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
-from core import audio_lib, autopilot, dialogue, diag, knowledge, lessons, perf, regen, research, style, subjects, trash, waveform, cost, ffmpeg_studio, final_cut, llm_io, llm_runner, music, preflight, prompts, script_parser  # noqa: E402
+from core import audio_lib, auth, autopilot, dialogue, diag, knowledge, lessons, perf, regen, research, style, subjects, trash, waveform, cost, ffmpeg_studio, final_cut, llm_io, llm_runner, music, preflight, prompts, script_parser  # noqa: E402
 from core.db import connect  # noqa: E402
 from core.pipeline import Pipeline, PipelinePaused  # noqa: E402
 from core.adapters import factory  # noqa: E402
@@ -34,7 +34,8 @@ import ui  # noqa: E402
 DB = os.environ.get("PIPELINE_DB", os.path.join("data", "manifest.sqlite"))
 DATA = os.environ.get("PIPELINE_DATA", os.path.join("data", "projects"))
 STEPS = ["1 · Kịch bản & phân tích", "2 · Gen ảnh + QC", "3 · Video Prompt", "4 · Gen video",
-         "5a · Nhạc nền", "5b · Ghép & Render", "Lịch sử", "📊 Theo dõi hiệu suất", "🎓 Bài học"]
+         "5a · Nhạc nền", "5b · Ghép & Render", "Lịch sử", "📊 Theo dõi hiệu suất", "🎓 Bài học", "👥 Người dùng"]
+STEP_PERMISSION = {"📊 Theo dõi hiệu suất": "monitor", "🎓 Bài học": "lessons", "👥 Người dùng": "invite_members"}
 ERRORS = (sqlite3.IntegrityError, zipfile.BadZipFile, llm_runner.LlmError, InvalidTransition, llm_io.SchemaError, PipelinePaused, ffmpeg_studio.FFmpegNotFound,
           ffmpeg_studio.FFmpegError, ValueError, KeyError)
 CRITERIA_LABEL = {"character": "Đúng nhân vật", "hands_face": "Không lỗi tay/mặt", "composition": "Đúng bố cục",
@@ -240,7 +241,7 @@ def step_done(p: Pipeline, pid: int) -> list:
     return [bool(q("SELECT COUNT(*) FROM characters WHERE project_id=? AND locked=1", pid)),
             bool(scenes) and approved_imgs >= scenes, bool(scenes) and motion >= scenes,
             bool(scenes) and videos >= scenes, bool(os.listdir(selected_dir)),
-            os.path.exists(os.path.join(DATA, str(pid), "output", "FINAL_VIDEO.mp4")), False, False, False]
+            os.path.exists(os.path.join(DATA, str(pid), "output", "FINAL_VIDEO.mp4")), False, False, False, False]
 
 
 def step_label(done: list):
@@ -401,6 +402,176 @@ def knowledge_panel() -> None:
             st.rerun()
 
 
+def auth_on() -> bool:
+    return os.environ.get("DASHBOARD_AUTH", "on").strip().lower() not in ("off", "0", "false", "no")
+
+
+def me() -> dict:
+    """The signed-in person of THIS browser session ({'email','name','role'})."""
+    return st.session_state.get("identity") or {}
+
+
+def allowed(permission: str) -> bool:
+    return auth.can(me().get("role"), permission)
+
+
+def lan_address() -> str:
+    import socket
+    try:
+        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
+            s.connect(("10.255.255.255", 1))
+            ip = s.getsockname()[0]
+    except OSError:
+        ip = "localhost"
+    return f"http://{ip}:{os.environ.get('DASHBOARD_PORT', '8501')}"
+
+
+def login_screen(conn) -> None:
+    """Sign-in / first-time password screen. Nothing else is shown until someone signs in."""
+    owner = conn.execute("SELECT pw_hash FROM users WHERE email=?", (auth.OWNER_EMAIL,)).fetchone()
+    _, mid, _ = st.columns([1, 1.6, 1])
+    with mid:
+        ui.html('<div class="brand" style="font-size:20px"><i></i>AI Video Pipeline</div>')
+        t_in, t_first = st.tabs(["Đăng nhập", "Lần đầu / được mời"])
+        with t_in:
+            email = st.text_input("E-mail", key="login_email")
+            pw = st.text_input("Mật khẩu", type="password", key="login_pw")
+            if st.button("Đăng nhập", key="login_btn", type="primary"):
+                try:
+                    st.session_state["auth_token"] = auth.login(conn, email, pw)
+                except auth.AuthError as e:
+                    st.error(str(e))
+                else:
+                    st.rerun()
+        with t_first:
+            st.caption("Nhập e-mail được mời, **mã mời** do người quản lý đưa cho bạn, và đặt mật khẩu mới.")
+            if owner is not None and not owner["pw_hash"]:
+                st.info(f"Owner ({auth.OWNER_EMAIL}) chưa đặt mật khẩu: mở file `data/owner_setup_code.txt` trên máy đang chạy "
+                        "Dashboard để lấy mã thiết lập.")
+            f_email = st.text_input("E-mail", key="setup_email")
+            f_code = st.text_input("Mã mời / mã thiết lập", key="setup_code")
+            f_pw = st.text_input("Mật khẩu mới (≥ 8 ký tự)", type="password", key="setup_pw")
+            f_pw2 = st.text_input("Nhập lại mật khẩu", type="password", key="setup_pw2")
+            if st.button("Đặt mật khẩu và đăng nhập", key="setup_btn", type="primary"):
+                try:
+                    if f_pw != f_pw2:
+                        raise auth.AuthError("Hai mật khẩu không giống nhau")
+                    auth.accept_invite(conn, f_email, f_code, f_pw, os.path.dirname(DB) or "data")
+                    st.session_state["auth_token"] = auth.login(conn, f_email, f_pw)
+                except auth.AuthError as e:
+                    st.error(str(e))
+                else:
+                    st.rerun()
+        st.caption("Chưa có tài khoản? Nhờ người quản lý Dashboard mời bạn bằng e-mail.")
+
+
+def require_login(conn) -> None:
+    """Sets st.session_state['identity']; shows the sign-in screen and stops the page when nobody is signed in."""
+    if not auth_on():
+        st.session_state["identity"] = {"email": "local", "name": "Local (đăng nhập tắt)", "role": "owner"}
+        return
+    auth.ensure_owner(conn, os.path.dirname(DB) or "data")
+    ident = auth.identity(conn, st.session_state.get("auth_token"))
+    if ident is None:
+        st.session_state.pop("identity", None)
+        st.session_state.pop("auth_token", None)
+        login_screen(conn)
+        st.stop()
+    st.session_state["identity"] = {"email": ident.email, "name": ident.name, "role": ident.role}
+
+
+def account_bar(conn) -> None:
+    """Who is signed in, change password, sign out."""
+    who = me()
+    c1, c2, c3 = st.columns([5, 1.4, 1.2], vertical_alignment="center")
+    c1.markdown(f"👤 **{escape(who['name'])}** · {escape(who['email'])} · {auth.ROLE_LABEL.get(who['role'], who['role'])}")
+    if not auth_on():
+        c1.caption("Đăng nhập đang tắt (DASHBOARD_AUTH=off): mọi người đều là Owner.")
+        return
+    with c2.popover("Đổi mật khẩu"):
+        old = st.text_input("Mật khẩu hiện tại", type="password", key="pw_old")
+        new = st.text_input("Mật khẩu mới (≥ 8 ký tự)", type="password", key="pw_new")
+        if st.button("Lưu mật khẩu", key="pw_save"):
+            try:
+                auth.change_password(conn, who["email"], old, new)
+            except auth.AuthError as e:
+                st.error(str(e))
+            else:
+                st.success("Đã đổi mật khẩu")
+    if c3.button("Đăng xuất", key="logout_btn"):
+        auth.logout(conn, st.session_state.get("auth_token"))
+        for key in ("auth_token", "identity"):
+            st.session_state.pop(key, None)
+        st.rerun()
+
+
+def users_tab(p: Pipeline, pid: int) -> None:
+    """Owner / admin: invite people, change roles, deactivate, read the audit log."""
+    conn = p.conn
+    actor = auth.Identity(me()["email"], me()["name"], me()["role"])
+    ui.html(ui.card_title("👥 Người dùng & quyền", "mời bằng e-mail; Owner cấp quyền Admin"))
+    st.caption("**Owner** (cao nhất): mọi quyền, gồm người dùng, vai trò, tắt Dashboard. **Admin**: cài đặt, bảng giá, kho kiến thức, "
+               "theo dõi, bài học, mời thành viên. **Thành viên**: chỉ các bước làm video (kể cả chế độ tự động).")
+    people = auth.list_users(conn)
+    status = lambda u: "Vô hiệu" if not u["active"] else ("Chờ đặt mật khẩu" if u["pending"] else "Hoạt động")  # noqa: E731
+    st.dataframe([{"E-mail": u["email"], "Tên": u["name"] or "", "Vai trò": auth.ROLE_LABEL[u["role"]], "Trạng thái": status(u),
+                   "Đăng nhập gần nhất": u["last_login"] or "-"} for u in people], hide_index=True, use_container_width=True)
+    roles_allowed = ["member", "admin"] if allowed("roles") else ["member"]
+    with st.container(border=True):
+        st.markdown("**Mời người mới** (hoặc cấp lại mã cho người quên mật khẩu)")
+        c1, c2, c3 = st.columns([3, 2, 2], vertical_alignment="bottom")
+        email = c1.text_input("E-mail", key="inv_email", placeholder="ten@garena.vn")
+        role = c2.selectbox("Vai trò", roles_allowed, format_func=lambda r: auth.ROLE_LABEL[r], key="inv_role")
+        if c3.button("Tạo mã mời", key="inv_go", type="primary"):
+            try:
+                st.session_state["last_invite"] = (auth.normalize_email(email), auth.invite(conn, actor, email, role))
+            except auth.AuthError as e:
+                st.error(str(e))
+        if st.session_state.get("last_invite"):
+            who, code = st.session_state["last_invite"]
+            st.success(f"Đã tạo mã cho {who}. Gửi cho họ **qua kênh riêng** (mã dùng 1 lần, hết hạn sau 7 ngày):")
+            st.code(code)
+            st.caption(f"Họ mở {lan_address()} → tab “Lần đầu / được mời” → nhập e-mail, mã này và đặt mật khẩu. Mã chỉ hiện ở đây một lần.")
+            if st.button("Ẩn mã", key="inv_hide"):
+                st.session_state.pop("last_invite", None)
+                st.rerun()
+    manageable = [u["email"] for u in people if auth._manageable(actor.role, u["role"])]
+    if manageable:
+        with st.container(border=True):
+            st.markdown("**Quản lý tài khoản**")
+            target = st.selectbox("Tài khoản", manageable, key="mng_target")
+            row = next(u for u in people if u["email"] == target)
+            a, b, c = st.columns(3, vertical_alignment="bottom")
+            if allowed("roles"):
+                new_role = a.selectbox("Vai trò", ["member", "admin"], index=["member", "admin"].index(row["role"]),
+                                       format_func=lambda r: auth.ROLE_LABEL[r], key=f"mng_role_{target}")
+                if new_role != row["role"] and a.button("Đổi vai trò", key=f"mng_role_go_{target}"):
+                    try:
+                        auth.set_role(conn, actor, target, new_role)
+                    except auth.AuthError as e:
+                        st.error(str(e))
+                    else:
+                        st.rerun()
+            if b.button("Kích hoạt lại" if not row["active"] else "Vô hiệu hóa (đăng xuất ngay)", key=f"mng_act_{target}"):
+                try:
+                    auth.set_active(conn, actor, target, not row["active"])
+                except auth.AuthError as e:
+                    st.error(str(e))
+                else:
+                    st.rerun()
+            if c.button("Cấp lại mã (đặt lại mật khẩu)", key=f"mng_reset_{target}"):
+                try:
+                    st.session_state["last_invite"] = (target, auth.invite(conn, actor, target, row["role"]))
+                except auth.AuthError as e:
+                    st.error(str(e))
+                else:
+                    st.rerun()
+    if allowed("users"):
+        with st.expander("Nhật ký thao tác quản trị (đăng nhập, mời, đổi quyền)"):
+            st.dataframe([{"Lúc": r["at"], "Ai": r["email"] or "", "Việc": r["action"], "Chi tiết": r["detail"] or ""}
+                          for r in auth.recent_audit(conn)], hide_index=True, use_container_width=True)
+
+
 def clean_name(raw: str) -> str:
     return " ".join((raw or "").split())[:40]
 
@@ -424,16 +595,20 @@ def user_bar() -> str:
 def global_bar(p: Pipeline):
     projects = p.conn.execute("SELECT id, name FROM projects ORDER BY id").fetchall()
     with st.expander("⚙ Cài đặt & dự án", expanded=not projects):
-        t_new, t_price, t_kb = st.tabs(["Dự án mới", "Bảng giá", "Kho kiến thức (Director, QC, Motion)"])
-        with t_new:
+        labels = ["Dự án mới"] + (["Bảng giá"] if allowed("pricing") else []) + (
+            ["Kho kiến thức (Director, QC, Motion)"] if allowed("knowledge") else [])
+        tabs = dict(zip(labels, st.tabs(labels)))
+        with tabs["Dự án mới"]:
             name = st.text_input("Tên dự án", key="new_name")
             if st.button("Tạo dự án") and name.strip():
                 p.create_project(name.strip())
                 st.rerun()
-        with t_price:
-            price_editor()
-        with t_kb:
-            knowledge_panel()
+        if "Bảng giá" in tabs:
+            with tabs["Bảng giá"]:
+                price_editor()
+        if "Kho kiến thức (Director, QC, Motion)" in tabs:
+            with tabs["Kho kiến thức (Director, QC, Motion)"]:
+                knowledge_panel()
     if not projects:
         st.info("Chưa có dự án. Hãy tạo dự án để bắt đầu.")
         return None
@@ -519,6 +694,8 @@ def autopilot_progress(pid: int) -> None:
 
 def autopilot_panel(p: Pipeline, pid: int) -> None:
     """Fully automatic mode for short clips: approve the scene breakdown once, the rest runs by itself."""
+    if not allowed("autopilot"):
+        return
     info = autopilot.status(p, pid)
     with st.container(border=True):
         ui.html(ui.card_title("🚀 Chế độ tự động hoàn toàn (clip ngắn)", "bạn chỉ duyệt phân cảnh, phần còn lại tự chạy"))
@@ -1801,7 +1978,9 @@ def main():
     ui.inject_css()
     os.makedirs(os.path.dirname(DB) or ".", exist_ok=True)
     p = Pipeline(connect(DB))
-    p.actor = user_bar() or None
+    require_login(p.conn)
+    account_bar(p.conn)
+    p.actor = me()["email"] if auth_on() else (user_bar() or None)
     pid = global_bar(p)
     if pid is None:
         return
@@ -1815,14 +1994,18 @@ def main():
         st.markdown(f":red[🔴 Giám sát: {len(problems)} vấn đề nghiêm trọng, ví dụ: {escape(diag.redact(problems[0]['title']))}] "
                     "— mở tab “📊 Theo dõi hiệu suất” để xem và lấy báo cáo.")
     deep = st.query_params.get("step")  # ?step=2 opens a step directly (1, 2, 3, 4, 5a, 5b, history)
-    keys = ["1", "2", "3", "4", "5a", "5b", "history", "monitor", "lessons"]
-    if deep in keys and "step" not in st.session_state:
+    keys = ["1", "2", "3", "4", "5a", "5b", "history", "monitor", "lessons", "users"]
+    visible = [s for s in STEPS if allowed(STEP_PERMISSION.get(s, "workflow"))]
+    if deep in keys and "step" not in st.session_state and STEPS[keys.index(deep)] in visible:
         st.session_state["step"] = STEPS[keys.index(deep)]
-    step = st.radio("Bước", STEPS, horizontal=True, key="step", label_visibility="collapsed",
+    if st.session_state.get("step") not in visible:
+        st.session_state.pop("step", None)
+    step = st.radio("Bước", visible, horizontal=True, key="step", label_visibility="collapsed",
                     format_func=step_label(step_done(p, pid)))
     {STEPS[0]: step1, STEPS[1]: step2, STEPS[2]: step3, STEPS[3]: step4, STEPS[4]: step5a,
-     STEPS[5]: step5b, STEPS[6]: history, STEPS[7]: monitor, STEPS[8]: lessons_tab}[step](p, pid)
-    with st.expander("⏻ Tắt Dashboard"):
+     STEPS[5]: step5b, STEPS[6]: history, STEPS[7]: monitor, STEPS[8]: lessons_tab, STEPS[9]: users_tab}[step](p, pid)
+    if allowed("shutdown"):
+      with st.expander("⏻ Tắt Dashboard"):
         st.caption("Dừng máy chủ Dashboard trên máy này (các việc đang chạy nền cũng dừng; tiến độ đã lưu, bấm Tiếp tục khi mở lại).")
         if confirm_all("shutdown", ["go"], "⏻ Tắt Dashboard", "Tắt Dashboard ngay bây giờ?", st, "Có, tắt"):
             stop = os.path.join(os.path.dirname(__file__), "..", "tools", "stop_dashboard.ps1")

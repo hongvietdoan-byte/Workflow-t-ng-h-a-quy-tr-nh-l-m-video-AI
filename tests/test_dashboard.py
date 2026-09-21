@@ -42,7 +42,7 @@ class DashboardSmokeTests(unittest.TestCase):
         at = AppTest.from_file(APP, default_timeout=30).run()
         self.assertFalse(at.exception)
         options = list(at.radio(key="step").options)
-        self.assertEqual(len(options), 9)
+        self.assertEqual(len(options), 10)
         for option in options:
             at.radio(key="step").set_value(option).run()
             self.assertFalse(at.exception, option)
