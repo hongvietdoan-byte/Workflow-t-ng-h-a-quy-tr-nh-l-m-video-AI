@@ -65,7 +65,8 @@ CREATE TABLE IF NOT EXISTS jobs (
     external_id TEXT,
     result_path TEXT,
     created_at TEXT NOT NULL,
-    updated_at TEXT NOT NULL
+    updated_at TEXT NOT NULL,
+    created_by TEXT
 );
 CREATE TABLE IF NOT EXISTS usage_events (
     id INTEGER PRIMARY KEY,
@@ -211,7 +212,9 @@ def connect(path: str = ":memory:") -> sqlite3.Connection:
         conn.execute("ALTER TABLE projects ADD COLUMN qc_reject_floor REAL DEFAULT 0.5")
     _migrate_usage_events(conn)
     job_cols = {r["name"] for r in conn.execute("PRAGMA table_info(jobs)")}
-    for col in ("external_id", "result_path"):
+    for col in ("external_id", "result_path", "created_by"):
         if col not in job_cols:
             conn.execute(f"ALTER TABLE jobs ADD COLUMN {col} TEXT")
+    if "autopilot_user" not in cols:
+        conn.execute("ALTER TABLE projects ADD COLUMN autopilot_user TEXT")
     return conn

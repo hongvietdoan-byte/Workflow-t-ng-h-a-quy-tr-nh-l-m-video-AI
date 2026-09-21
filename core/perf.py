@@ -86,6 +86,32 @@ def project_rows(conn) -> List[Dict]:
     return out
 
 
+NO_NAME = "(chưa nhập tên)"
+
+
+def by_user(conn, days: Optional[float] = None) -> List[Dict]:
+    """Per person: videos/images sent to the providers by them (dashboard clicks and the automatic runs they started)."""
+    since = _iso(datetime.now(timezone.utc) - timedelta(days=days)) if days else "0000"
+    rows = conn.execute(
+        "SELECT COALESCE(NULLIF(TRIM(created_by), ''), ?) AS who,"
+        " SUM(type='video_gen') AS videos, SUM(type='video_gen' AND state IN ('succeeded','pending_review','approved')) AS videos_ok,"
+        " SUM(type='video_gen' AND state='failed') AS videos_failed,"
+        " SUM(type='video_gen' AND parent_job_id IS NOT NULL) AS videos_retry,"
+        " SUM(type='image_gen') AS images, MAX(created_at) AS last_at, COUNT(DISTINCT project_id) AS projects"
+        " FROM jobs WHERE type IN ('image_gen','video_gen') AND created_at>=? GROUP BY who ORDER BY videos DESC, images DESC",
+        (NO_NAME, since)).fetchall()
+    out = []
+    for r in rows:
+        seconds = conn.execute(
+            "SELECT COALESCE(SUM(u.quantity), 0) FROM usage_events u JOIN jobs j ON j.id=u.job_id WHERE u.kind='video'"
+            " AND u.unit='second' AND j.created_at>=? AND COALESCE(NULLIF(TRIM(j.created_by), ''), ?)=?",
+            (since, NO_NAME, r["who"])).fetchone()[0]
+        out.append({"who": r["who"], "videos": r["videos"] or 0, "videos_ok": r["videos_ok"] or 0,
+                    "videos_failed": r["videos_failed"] or 0, "videos_retry": r["videos_retry"] or 0,
+                    "images": r["images"] or 0, "seconds": seconds, "projects": r["projects"], "last_at": r["last_at"]})
+    return out
+
+
 def alerts(kinds: List[Dict], today: int, limit: int, queued_projects: int, running_projects: int, max_parallel: int) -> List[str]:
     out = []
     labels = dict(KINDS)

@@ -132,8 +132,16 @@ def problems(p: Pipeline, project_id: int, ctx: Optional[Context] = None) -> Lis
     return out
 
 
-def start(p: Pipeline, project_id: int) -> None:
+def _owner(p: Pipeline, project_id: int, user: Optional[str]) -> None:
+    """Remember who runs this project: every job the background thread creates is counted for them."""
+    if user:
+        p.conn.execute("UPDATE projects SET autopilot_user=? WHERE id=?", (user, project_id))
+        p.conn.commit()
+
+
+def start(p: Pipeline, project_id: int, user: Optional[str] = None) -> None:
     """The user approved the scene breakdown: lock the Character Bible, use automatic QC and mark the run as started."""
+    _owner(p, project_id, user)
     llm_io.lock_character_bible(p, project_id)
     p.set_mode(project_id, "auto")
     p.set_review_floor(project_id, None)   # nothing may wait for a human
@@ -142,8 +150,9 @@ def start(p: Pipeline, project_id: int) -> None:
     _log(p, project_id, "Bạn đã duyệt phân cảnh → bắt đầu chạy tự động")
 
 
-def resume(p: Pipeline, project_id: int) -> None:
+def resume(p: Pipeline, project_id: int, user: Optional[str] = None) -> None:
     """Continue after a stop / needs_attention / error / restart (the tick picks up where the project stands)."""
+    _owner(p, project_id, user)
     p.set_paused(project_id, False)
     _set(p, project_id, RUNNING, "Tiếp tục chạy tự động")
     _log(p, project_id, "Tiếp tục chạy tự động")
@@ -315,6 +324,7 @@ def tick(p: Pipeline, project_id: int, ctx: Context) -> str:
     st = status(p, project_id)["state"]
     if st != RUNNING:
         return st
+    p.actor = p.project(project_id)["autopilot_user"]
     if p.project(project_id)["paused"]:
         _set(p, project_id, note="Đang PAUSE")
         return RUNNING

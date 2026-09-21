@@ -16,6 +16,7 @@ class PipelinePaused(Exception):
 class Pipeline:
     def __init__(self, conn: sqlite3.Connection):
         self.conn = conn
+        self.actor: Optional[str] = None   # who is working (dashboard user name); stamped on the jobs created through this object
 
     # ---- projects / scenes / jobs -------------------------------------
     def create_project(self, name: str, operating_mode: str = "human_qc",
@@ -158,11 +159,15 @@ class Pipeline:
                     parent_job_id: Optional[int] = None, retry_count: int = 0,
                     retry_reason: Optional[str] = None) -> int:
         now = _now()
+        who = self.actor
+        if who is None and parent_job_id is not None:   # a retry made by the system belongs to whoever started the original
+            row = self.conn.execute("SELECT created_by FROM jobs WHERE id=?", (parent_job_id,)).fetchone()
+            who = row["created_by"] if row else None
         cur = self.conn.execute(
             "INSERT INTO jobs (project_id, scene_id, type, state, parent_job_id, retry_count,"
-            " retry_reason, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?)",
+            " retry_reason, created_at, updated_at, created_by) VALUES (?,?,?,?,?,?,?,?,?,?)",
             (project_id, scene_id, job_type, JobState.QUEUED.value, parent_job_id, retry_count,
-             retry_reason, now, now))
+             retry_reason, now, now, who))
         self._event(cur.lastrowid, None, JobState.QUEUED, "system", retry_reason)
         self.conn.commit()
         return cur.lastrowid

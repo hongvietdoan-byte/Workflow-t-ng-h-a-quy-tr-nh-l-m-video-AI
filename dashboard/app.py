@@ -401,6 +401,26 @@ def knowledge_panel() -> None:
             st.rerun()
 
 
+def clean_name(raw: str) -> str:
+    return " ".join((raw or "").split())[:40]
+
+
+def user_bar() -> str:
+    """Who is using the dashboard (honour system, no password). Kept in the address (?user=Ten) so a refresh or a
+    bookmark remembers it; every job created from this browser is counted for this name."""
+    if "user_name" not in st.session_state:
+        st.session_state["user_name"] = clean_name(st.query_params.get("user", ""))
+    c1, c2 = st.columns([2, 5], vertical_alignment="center")
+    typed = clean_name(c1.text_input("👤 Tên của bạn", value=st.session_state["user_name"], placeholder="ví dụ: Viet",
+                                     key="user_input", help="Để hệ thống ghi nhận ai đã gen video. Không cần mật khẩu."))
+    if typed != st.session_state["user_name"]:
+        st.session_state["user_name"] = typed
+        st.query_params["user"] = typed
+    if not typed:
+        c2.markdown(":orange[Nhập tên trước khi gen ảnh/video để lượt gen được ghi cho bạn (nếu để trống sẽ tính là “chưa nhập tên”).]")
+    return typed
+
+
 def global_bar(p: Pipeline):
     projects = p.conn.execute("SELECT id, name FROM projects ORDER BY id").fetchall()
     with st.expander("⚙ Cài đặt & dự án", expanded=not projects):
@@ -488,7 +508,7 @@ def autopilot_progress(pid: int) -> None:
             st.rerun()
     elif state in ("needs_attention", "stopped", "error") or stale:
         if st.button("▶ Tiếp tục", key=f"ap_resume_{pid}", type="primary"):
-            autopilot.resume(p, pid)
+            autopilot.resume(p, pid, p.actor)
             autopilot_manager(DB, DATA).start(pid)
             st.rerun()
     if state == "done":
@@ -527,7 +547,7 @@ def autopilot_panel(p: Pipeline, pid: int) -> None:
         if confirm_all(f"ap_start_{pid}", ["go"], "✔ Duyệt phân cảnh & chạy tự động hoàn toàn",
                        "Bắt đầu chạy tự động? Sẽ gọi Deepix, Clip AI và Claude thật (tốn credit) cho toàn bộ dự án.", st,
                        "Có, chạy") and not issues:
-            autopilot.start(p, pid)
+            autopilot.start(p, pid, p.actor)
             autopilot_manager(DB, DATA).start(pid)
             st.rerun()
         if issues:
@@ -1504,6 +1524,20 @@ def monitor(p: Pipeline, pid: int) -> None:
         f"{dict(perf.KINDS)[k]}: {v['limit']} job cùng lúc, đã bị giới hạn {v['hits']} lần" for k, v in snap["learned"].items()))
     if snap["usage_today"]:
         st.caption("Dùng hôm nay: " + ", ".join(f"{q:g} {unit} ({kind})" for kind, unit, q in snap["usage_today"]))
+    ui.html(ui.card_title("👥 Số video theo người dùng", "ai đã gen bao nhiêu (tính theo tên nhập ở góc trên)"))
+    period = st.radio("Khoảng thời gian", ["Hôm nay", "7 ngày", "30 ngày", "Tất cả"], horizontal=True, key="by_user_period")
+    days = {"Hôm nay": 1, "7 ngày": 7, "30 ngày": 30, "Tất cả": None}[period]
+    people = perf.by_user(p.conn, days)
+    if people:
+        st.dataframe([{"Người dùng": r["who"], "Video đã gen": str(r["videos_ok"]), "Video đã gửi": str(r["videos"]),
+                       "Lỗi": str(r["videos_failed"]), "Gen lại": str(r["videos_retry"]),
+                       "Tổng giây video": f"{r['seconds']:g}", "Ảnh đã gen": str(r["images"]), "Dự án": str(r["projects"]),
+                       "Lần gần nhất": (r["last_at"] or "")[:16].replace("T", " ")} for r in people],
+                     hide_index=True, use_container_width=True)
+        st.caption("“Video đã gen” = video thành công; “đã gửi” gồm cả lỗi và gen lại. Tên là tự khai, không phải tài khoản: "
+                   "chỉ dùng để thống kê, không ngăn được người khác mạo danh.")
+    else:
+        st.caption("Chưa có lượt gen nào trong khoảng này.")
     st.markdown("**Các dự án chạy tự động**")
     if not snap["projects"]:
         st.caption("Chưa có dự án nào chạy chế độ tự động.")
@@ -1650,6 +1684,7 @@ def main():
     ui.inject_css()
     os.makedirs(os.path.dirname(DB) or ".", exist_ok=True)
     p = Pipeline(connect(DB))
+    p.actor = user_bar() or None
     pid = global_bar(p)
     if pid is None:
         return
