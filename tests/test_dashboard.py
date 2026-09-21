@@ -42,7 +42,7 @@ class DashboardSmokeTests(unittest.TestCase):
         at = AppTest.from_file(APP, default_timeout=30).run()
         self.assertFalse(at.exception)
         options = list(at.radio(key="step").options)
-        self.assertEqual(len(options), 10)
+        self.assertEqual(len(options), 9)
         for option in options:
             at.radio(key="step").set_value(option).run()
             self.assertFalse(at.exception, option)
@@ -88,7 +88,7 @@ class DashboardSmokeTests(unittest.TestCase):
         os.makedirs(videos)
         open(os.path.join(videos, "01.mp4"), "wb").write(b"not a real video")
         at = AppTest.from_file(APP, default_timeout=30).run()
-        at.radio(key="step").set_value(at.radio(key="step").options[5]).run()
+        at.radio(key="step").set_value(at.radio(key="step").options[4]).run()
         self.assertFalse(at.exception)
         self.assertTrue(any("CẢNH 1" in c.label for c in at.checkbox))
         self.assertTrue(any("Tổng thời lượng dự kiến" in i.value for i in at.info))
@@ -108,7 +108,7 @@ class DashboardSmokeTests(unittest.TestCase):
             next(b for b in at.button if "Kiểm tra" in b.label and b.key == "ax_refresh_1").click().run()
             at.checkbox(key="ax_use_1_0").set_value(True).run()
             self.assertFalse(at.exception)
-            at.radio(key="step").set_value(at.radio(key="step").options[5]).run()
+            at.radio(key="step").set_value(at.radio(key="step").options[4]).run()
             self.assertTrue(any("đưa vào bản ghép: 1" in c.value for c in at.caption))
         finally:
             os.environ.pop("AUDIO_PROVIDER", None)
@@ -208,7 +208,7 @@ class DashboardSmokeTests(unittest.TestCase):
             return [e.label for e in at.expander]
 
         at = AppTest.from_file(APP, default_timeout=30).run()
-        for index in (1, 2, 3, 5, 6):
+        for index in (1, 2, 3, 4, 5):
             at.radio(key="step").set_value(at.radio(key="step").options[index]).run()
             self.assertFalse(at.exception, index)
             self.assertTrue(any("Cảnh 1" in l and "nội dung kịch bản" in l for l in labels(at)), (index, labels(at)))
@@ -282,7 +282,7 @@ class DashboardSmokeTests(unittest.TestCase):
         q.conn.commit()
         self.assertEqual(q.apply_qc(job, {"a": 0.2, "b": 0.3}), "rejected")
         at = AppTest.from_file(APP, default_timeout=30).run()
-        at.radio(key="step").set_value(at.radio(key="step").options[6]).run()
+        at.radio(key="step").set_value(at.radio(key="step").options[5]).run()
         self.assertFalse(at.exception)
         trashed = os.listdir(os.path.join(self.tmp, "projects", str(pid), "trash", "images"))
         self.assertTrue(any(name.startswith(f"job_{job}__") for name in trashed))

@@ -1,0 +1,406 @@
+"""Automatic subtitles from the script's dialogue, in the language and font the person chooses.
+
+Where the text comes from: the dialogue lines of each scene ("LYRA: Có thứ gì đó đang theo chúng ta."), the same lines the
+dialogue-length check uses. This is NOT speech recognition: when the video model speaks the lines itself, the exact moment
+each word is said is not known, so timing is estimated (time inside each clip is shared out by syllable count).
+
+Language: the script's own language, or a translation made by Claude (needs the API key).
+Font: any installed / uploaded font. Default "GFF Latin Bold" (Garena's Free Fire font; Vietnamese-capable). A font that cannot
+show the chosen language (e.g. GFF for Thai or Chinese) is swapped for one that can, and the person is told.
+Output: an .srt file and a copy of the video with the subtitles burned in (ffmpeg + libass); the original is never changed.
+"""
+import glob
+import json
+import math
+import os
+import re
+import shutil
+import subprocess
+import tempfile
+from dataclasses import dataclass, field, replace
+from typing import Dict, List, Optional, Tuple
+
+from . import dialogue, ffmpeg_studio, final_cut, llm_runner
+from .pipeline import Pipeline
+
+LANGS = {"src": "Giữ nguyên ngôn ngữ kịch bản", "vi": "Tiếng Việt", "en": "English", "id": "Bahasa Indonesia", "th": "ไทย (Thái)",
+         "pt": "Português (Brasil)", "es": "Español", "zh-tw": "中文 繁體", "zh-cn": "中文 简体", "ja": "日本語", "ko": "한국어",
+         "ru": "Русский"}
+SIZES = {"S": ("Nhỏ", 0.050), "M": ("Vừa", 0.065), "L": ("Lớn", 0.085)}       # fraction of the shorter side of the picture
+POSITIONS = {"bottom": ("Dưới", 2), "middle": ("Giữa", 5), "top": ("Trên", 8)}
+COLORS = {"white": ("Trắng", "FFFFFF"), "yellow": ("Vàng", "FFE066")}
+DEFAULT_FONT = os.environ.get("DEFAULT_SUBTITLE_FONT", "GFF Latin Bold")
+DEFAULTS = {"enabled": False, "lang": "src", "font": "", "size": "M", "pos": "bottom", "color": "white", "speaker": False}
+_VN_TEST = "ếệỗơưăằẳẵặđĐẤỨ"
+
+_SYSTEM_FALLBACK = ("arial.ttf", "arialbd.ttf", "tahoma.ttf", "tahomabd.ttf", "segoeui.ttf", "segoeuib.ttf", "leelawui.ttf",
+                    "leelawad.ttf", "msyh.ttc", "msjh.ttc", "malgun.ttf", "yugothr.ttc", "msgothic.ttc", "seguisym.ttf")
+
+
+class SubtitleError(ValueError):
+    """Shown to the person as it is."""
+
+
+# ---- fonts -------------------------------------------------------------------------------------------------
+@dataclass
+class Font:
+    path: str
+    family: str                 # the full name libass matches, e.g. "GFF Latin Bold"
+    label: str
+    vietnamese: bool
+    source: str = ""
+    cmap: frozenset = field(default_factory=frozenset, repr=False)
+    ass_name: str = ""          # the name that made libass pick THIS file (see resolve_ass_name)
+    names: tuple = ()           # candidate names to try: full name, PostScript name, family
+
+
+_CACHE: Dict[Tuple[str, float], Optional[Font]] = {}
+
+
+def uploads_dir() -> str:
+    return os.environ.get("FONT_DIR") or os.path.join("data", "fonts")
+
+
+def _read_font(path: str, source: str) -> Optional[Font]:
+    try:
+        stamp = (path, os.path.getmtime(path))
+    except OSError:
+        return None
+    if stamp in _CACHE:
+        return _CACHE[stamp]
+    font = None
+    try:
+        from fontTools.ttLib import TTFont
+        t = TTFont(path, fontNumber=0, lazy=True)
+        names = {}
+        for rec in t["name"].names:
+            if rec.nameID in (1, 2, 4, 6) and rec.nameID not in names:
+                try:
+                    names[rec.nameID] = rec.toUnicode()
+                except UnicodeError:
+                    pass
+        full = names.get(4) or " ".join(x for x in (names.get(1), names.get(2)) if x) or os.path.splitext(os.path.basename(path))[0]
+        cmap = frozenset((t.getBestCmap() or {}).keys())
+        font = Font(path, full, full, all(ord(c) in cmap for c in _VN_TEST), source, cmap, names.get(6) or names.get(1) or full,
+                    tuple(dict.fromkeys(n for n in (full, names.get(6), names.get(1)) if n)))
+    except Exception:  # noqa: BLE001 - a broken or unusual font file is just left out
+        font = None
+    _CACHE[stamp] = font
+    return font
+
+
+def _windows_font_dirs() -> List[str]:
+    dirs = []
+    if os.environ.get("WINDIR"):
+        dirs.append(os.path.join(os.environ["WINDIR"], "Fonts"))
+    if os.environ.get("LOCALAPPDATA"):
+        dirs.append(os.path.join(os.environ["LOCALAPPDATA"], "Microsoft", "Windows", "Fonts"))
+    return [d for d in dirs if os.path.isdir(d)]
+
+
+def discover() -> List[Font]:
+    """Fonts the person can choose: uploaded fonts, GFF fonts found on this machine, and a few safe system fonts."""
+    found: Dict[str, Font] = {}
+    custom = [uploads_dir()] + [d for d in os.environ.get("FONT_DIRS", "").split(os.pathsep) if d]
+    for directory in custom:
+        for path in sorted(glob.glob(os.path.join(directory, "**", "*"), recursive=True)):
+            if path.lower().endswith((".ttf", ".otf", ".ttc")):
+                f = _read_font(path, "tải lên / thư mục riêng")
+                if f:
+                    found.setdefault(f.family, f)
+    for directory in _windows_font_dirs():
+        for name in sorted(os.listdir(directory)):
+            low = name.lower()
+            if low.startswith("gff") or low in _SYSTEM_FALLBACK:
+                f = _read_font(os.path.join(directory, name), "GFF (Free Fire)" if low.startswith("gff") else "hệ thống")
+                if f:
+                    found.setdefault(f.family, f)
+    return sorted(found.values(), key=lambda f: (not f.family.lower().startswith("gff"), f.family.lower()))
+
+
+def default_font(fonts: List[Font]) -> Optional[Font]:
+    for f in fonts:
+        if f.family.lower() == DEFAULT_FONT.lower() and f.vietnamese:
+            return f
+    return next((f for f in fonts if f.vietnamese), fonts[0] if fonts else None)
+
+
+def font_by_family(fonts: List[Font], family: str) -> Optional[Font]:
+    return next((f for f in fonts if f.family == family), None)
+
+
+def missing_chars(font: Font, text: str) -> str:
+    return "".join(sorted({c for c in text if c.isalnum() and ord(c) not in font.cmap}))
+
+
+def font_for_text(preferred: Optional[Font], fonts: List[Font], text: str) -> Tuple[Optional[Font], Optional[str]]:
+    """The preferred font when it can draw every letter, else the first installed font that can (with a note for the person)."""
+    if preferred is not None and not missing_chars(preferred, text):
+        return preferred, None
+    for f in fonts:
+        if not missing_chars(f, text):
+            note = (f"Font “{preferred.family}” không có một số chữ của ngôn ngữ này ({missing_chars(preferred, text)[:12]}…): dùng “{f.family}”."
+                    if preferred else f"Dùng font “{f.family}”.")
+            return f, note
+    return preferred, "Không có font nào trên máy hiển thị đủ chữ của ngôn ngữ này: hãy tải một font hỗ trợ (ví dụ Noto Sans)."
+
+
+def save_uploaded_font(filename: str, data: bytes) -> Font:
+    ext = os.path.splitext(filename or "")[1].lower()
+    if ext not in (".ttf", ".otf"):
+        raise SubtitleError("Chỉ nhận font .ttf hoặc .otf")
+    if not data or len(data) > 30 * 1024 * 1024:
+        raise SubtitleError("File font rỗng hoặc lớn hơn 30 MB")
+    os.makedirs(uploads_dir(), exist_ok=True)
+    path = os.path.join(uploads_dir(), re.sub(r"[^\w.\- ]", "_", os.path.basename(filename)))
+    with open(path, "wb") as f:
+        f.write(data)
+    font = _read_font(path, "tải lên")
+    if font is None:
+        os.remove(path)
+        raise SubtitleError("Không đọc được file font này")
+    return font
+
+
+# ---- settings per project ---------------------------------------------------------------------------------------
+def get_settings(pipeline: Pipeline, project_id: int) -> Dict:
+    row = pipeline.project(project_id)
+    try:
+        saved = json.loads((row["sub_settings"] if "sub_settings" in row.keys() else None) or "{}")
+    except ValueError:
+        saved = {}
+    return {**DEFAULTS, **{k: v for k, v in saved.items() if k in DEFAULTS}}
+
+
+def save_settings(pipeline: Pipeline, project_id: int, settings: Dict) -> None:
+    clean = {k: settings.get(k, DEFAULTS[k]) for k in DEFAULTS}
+    pipeline.conn.execute("UPDATE projects SET sub_settings=? WHERE id=?", (json.dumps(clean, ensure_ascii=False), project_id))
+    pipeline.conn.commit()
+
+
+# ---- cues ---------------------------------------------------------------------------------------------------------
+@dataclass
+class Cue:
+    start: float
+    end: float
+    text: str
+    speaker: str = ""
+    scene: Optional[int] = None
+
+
+def build_cues(pipeline: Pipeline, data_dir: str, project_id: int, transition: str = "cut", fade: float = 1.0) -> List[Cue]:
+    """One cue per dialogue line, timed inside its clip on the final video's timeline."""
+    clips = [c for c in final_cut.collect_clips(pipeline, data_dir, project_id) if c["path"]]
+    texts = {r["idx"]: json.loads(r["data"] or "{}").get("text", "") for r in
+             pipeline.conn.execute("SELECT idx, data FROM scenes WHERE project_id=?", (project_id,))}
+    overlap = fade if transition in ffmpeg_studio.OVERLAP_STYLES else 0.0
+    cues: List[Cue] = []
+    t = 0.0
+    for clip in clips:
+        length = final_cut.clip_seconds(clip["path"], clip["requested_sec"])
+        rows = dialogue.lines(texts.get(clip["idx"], "")) if clip["idx"] is not None else []
+        if rows:
+            lead, tail = min(0.3, length * 0.08), 0.25
+            avail = max(length - lead - tail, 0.6)
+            weights = [max(dialogue.syllables(said), 1) for _, said in rows]
+            floor = min(0.8, avail / len(rows))
+            spare = max(avail - floor * len(rows), 0.0)
+            cursor = t + lead
+            for (who, said), w in zip(rows, weights):
+                span = floor + spare * w / sum(weights)
+                cues.append(Cue(round(cursor, 2), round(cursor + span - 0.05, 2), said, who, clip["idx"]))
+                cursor += span
+        t += length - overlap
+    return cues
+
+
+def wrap_text(text: str, max_chars: int) -> str:
+    """Break a long line into at most three balanced lines at spaces."""
+    words = text.split()
+    if len(text) <= max_chars or len(words) < 2:
+        return text
+    parts = min(3, math.ceil(len(text) / max_chars))
+    target = len(text) / parts
+    lines, cur = [], ""
+    for w in words:
+        if cur and len(cur) + 1 + len(w) > target * 1.15 and len(lines) < parts - 1:
+            lines.append(cur)
+            cur = w
+        else:
+            cur = f"{cur} {w}".strip()
+    lines.append(cur)
+    return "\n".join(lines)
+
+
+def _clock(seconds: float, sep: str) -> str:
+    ms = int(round(max(seconds, 0) * 1000))
+    return f"{ms // 3600000:02d}:{ms // 60000 % 60:02d}:{ms // 1000 % 60:02d}{sep}{ms % 1000:03d}"
+
+
+def to_srt(cues: List[Cue], show_speaker: bool = False) -> str:
+    out = []
+    for i, c in enumerate(cues, 1):
+        text = f"{c.speaker.title()}: {c.text}" if show_speaker and c.speaker else c.text
+        out.append(f"{i}\n{_clock(c.start, ',')} --> {_clock(c.end, ',')}\n{text}\n")
+    return "\n".join(out)
+
+
+def to_ass(cues: List[Cue], width: int, height: int, font: Font, size: str = "M", pos: str = "bottom", color: str = "white",
+           show_speaker: bool = False) -> str:
+    short = min(width, height)
+    fontsize = max(int(short * SIZES.get(size, SIZES["M"])[1]), 14)
+    align = POSITIONS.get(pos, POSITIONS["bottom"])[1]
+    margin_v = int(height * (0.12 if height > width else 0.08)) if align == 2 else int(height * 0.06)
+    rgb = COLORS.get(color, COLORS["white"])[1]
+    bgr = rgb[4:6] + rgb[2:4] + rgb[0:2]
+    outline = max(int(fontsize * 0.07), 2)
+    max_chars = max(int(width / (fontsize * 0.55)), 12)
+    lines = ["[Script Info]", "ScriptType: v4.00+", f"PlayResX: {width}", f"PlayResY: {height}", "WrapStyle: 0", "",
+             "[V4+ Styles]",
+             "Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, "
+             "StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding",
+             f"Style: Default,{font.ass_name or font.family},{fontsize},&H00{bgr},&H00{bgr},&H00000000,&H80000000,0,0,0,0,100,100,0,0,1,{outline},1,"
+             f"{align},{int(width * 0.06)},{int(width * 0.06)},{margin_v},1", "", "[Events]",
+             "Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text"]
+    for c in cues:
+        text = f"{c.speaker.title()}: {c.text}" if show_speaker and c.speaker else c.text
+        text = wrap_text(text, max_chars).replace("{", "(").replace("}", ")").replace("\n", "\\N")
+        lines.append(f"Dialogue: 0,{_clock(c.start, '.')[:-1]},{_clock(c.end, '.')[:-1]},Default,,0,0,0,,{text}")
+    return "\n".join(lines) + "\n"
+
+
+def _uuencode(data: bytes) -> str:
+    """The ASS flavour of uuencode used by the [Fonts] section (6 bits per character, offset 33, lines of 80)."""
+    out = []
+    for i in range(0, len(data), 3):
+        chunk = data[i:i + 3]
+        n = len(chunk)
+        b = chunk + bytes(3 - n)
+        v = (b[0] << 16) | (b[1] << 8) | b[2]
+        out.append("".join(chr(33 + c) for c in [(v >> 18) & 63, (v >> 12) & 63, (v >> 6) & 63, v & 63][:n + 1]))
+    text = "".join(out)
+    return "\n".join(text[i:i + 80] for i in range(0, len(text), 80))
+
+
+EMBED_MAX_BYTES = 8 * 1024 * 1024
+
+
+def embed_font(font: Font) -> str:
+    """[Fonts] section that carries the chosen font inside the subtitle file, so libass uses exactly that file (a font name
+    alone is looked up among system fonts and silently falls back to Arial when the style is not a plain Bold/Regular).
+    Very large fonts (CJK collections) are left to the system lookup."""
+    ext = os.path.splitext(font.path)[1].lower()
+    if ext not in (".ttf", ".otf") or os.path.getsize(font.path) > EMBED_MAX_BYTES:
+        return ""
+    with open(font.path, "rb") as f:
+        return "\n[Fonts]\nfontname: font_0" + ext + "\n" + _uuencode(f.read()) + "\n"
+
+
+_NAME_CACHE: Dict[Tuple[str, float], str] = {}
+
+
+def _selected_by_libass(ass_text: str) -> str:
+    """PostScript name of the face libass really used for this subtitle file ('' when unknown)."""
+    work = tempfile.mkdtemp()
+    try:
+        with open(os.path.join(work, "t.ass"), "w", encoding="utf-8") as f:
+            f.write(ass_text)
+        proc = subprocess.run([ffmpeg_studio.find_ffmpeg(), "-v", "verbose", "-y", "-f", "lavfi", "-i", "color=c=black:s=640x360:d=0.5",
+                               "-vf", "ass=t.ass", "-f", "null", "-"], capture_output=True, text=True, cwd=work)
+        for line in (proc.stderr or "").splitlines():
+            if "fontselect" in line.lower() and "->" in line:
+                return line.split("->")[-1].split(",")[0].strip()
+    finally:
+        shutil.rmtree(work, ignore_errors=True)
+    return ""
+
+
+def resolve_ass_name(font: Font) -> Tuple[str, bool]:
+    """The font name to write in the subtitle file so libass draws with exactly this font. libass matches names differently
+    for .otf and .ttf files, so each candidate name is tried once (cached) and the one that selects this file is kept.
+    Returns (name, verified)."""
+    key = (font.path, os.path.getmtime(font.path))
+    if key in _NAME_CACHE:
+        return _NAME_CACHE[key], True
+    want = re.sub(r"[^a-z0-9]", "", (font.names[1] if len(font.names) > 1 else font.ass_name).lower())
+    for cand in font.names or (font.ass_name,):
+        trial = to_ass([Cue(0, 0.4, "Xin chao", "", 1)], 640, 360, replace(font, ass_name=cand)) + embed_font(font)
+        got = re.sub(r"[^a-z0-9]", "", _selected_by_libass(trial).lower())
+        if got and got == want:
+            _NAME_CACHE[key] = cand
+            return cand, True
+    return font.ass_name or font.family, False
+
+
+# ---- translation --------------------------------------------------------------------------------------------------
+def translate(client, cues: List[Cue], lang: str) -> List[Cue]:
+    """Same cues and timing, text translated by Claude. `lang` is a key of LANGS (not 'src')."""
+    if lang == "src" or not cues:
+        return cues
+    if client is None:
+        raise SubtitleError("Dịch phụ đề cần Claude API (ANTHROPIC_API_KEY).")
+    label = LANGS.get(lang, lang)
+    out: List[Cue] = []
+    for i in range(0, len(cues), 40):
+        chunk = cues[i:i + 40]
+        payload = [{"id": n, "speaker": c.speaker, "text": c.text} for n, c in enumerate(chunk, 1)]
+        prompt = ("Dịch phụ đề cho video game. Dịch các câu thoại sau sang " + label + ". Giữ nguyên tên nhân vật, tên kỹ năng và thuật ngữ "
+                  "game; giọng tự nhiên như người bản xứ nói; ngắn gọn, không dài hơn câu gốc quá 25% vì phải vừa màn hình; "
+                  "không thêm ý. Trả về **một JSON duy nhất**: {\"cues\": [{\"id\": 1, \"text\": \"...\"}]} đủ và đúng thứ tự id.\n\n"
+                  "# Phụ đề cần dịch\n```json\n" + json.dumps(payload, ensure_ascii=False) + "\n```")
+
+        def validate(obj, n=len(chunk)):
+            if not isinstance(obj, dict) or not isinstance(obj.get("cues"), list) or len(obj["cues"]) != n:
+                raise ValueError(f"cần đúng {n} câu dịch")
+            if any(not str(x.get("text", "")).strip() for x in obj["cues"]):
+                raise ValueError("có câu dịch trống")
+
+        obj, _, _ = llm_runner.ask_json(client, prompt, validate)
+        by_id = {int(x["id"]): str(x["text"]).strip() for x in obj["cues"]}
+        for n, c in enumerate(chunk, 1):
+            out.append(Cue(c.start, c.end, by_id.get(n, c.text), c.speaker, c.scene))
+    return out
+
+
+# ---- burn into the video --------------------------------------------------------------------------------------------
+def probe_size(path: str) -> Tuple[int, int]:
+    proc = subprocess.run([ffmpeg_studio.find_ffmpeg(), "-hide_banner", "-i", path], capture_output=True, text=True)
+    for line in (proc.stderr or "").splitlines():
+        if "Video:" in line:
+            m = re.search(r",\s*(\d{2,5})x(\d{2,5})[\s,\[]", line)
+            if m:
+                return int(m.group(1)), int(m.group(2))
+    raise SubtitleError("Không đọc được kích thước video")
+
+
+def burn(video: str, cues: List[Cue], out_path: str, font: Font, size: str = "M", pos: str = "bottom", color: str = "white",
+         show_speaker: bool = False) -> Dict:
+    """Write <out>.srt and a copy of `video` with the subtitles drawn in. Returns {'video', 'srt', 'cues'}."""
+    if not cues:
+        raise SubtitleError("Chưa có dòng phụ đề nào (kịch bản cần có dòng thoại dạng “TÊN: lời”).")
+    if font is None:
+        raise SubtitleError("Chưa có font để in phụ đề.")
+    width, height = probe_size(video)
+    ffmpeg = ffmpeg_studio.find_ffmpeg()
+    name, verified = resolve_ass_name(font)
+    font = replace(font, ass_name=name)
+    srt_path = os.path.splitext(out_path)[0] + ".srt"
+    os.makedirs(os.path.dirname(out_path) or ".", exist_ok=True)
+    with open(srt_path, "w", encoding="utf-8") as f:
+        f.write(to_srt(cues, show_speaker))
+    work = tempfile.mkdtemp()
+    try:
+        # ffmpeg runs inside this folder so the filter needs no drive-letter escaping on Windows
+        with open(os.path.join(work, "sub.ass"), "w", encoding="utf-8") as f:
+            f.write(to_ass(cues, width, height, font, size, pos, color, show_speaker) + embed_font(font))
+        cmd = [ffmpeg, "-y", "-i", os.path.abspath(video), "-vf", "ass=sub.ass", "-c:v", "libx264", "-crf", "18",
+               "-preset", "medium", "-pix_fmt", "yuv420p", "-c:a", "copy", os.path.abspath(out_path)]
+        proc = subprocess.run(cmd, capture_output=True, text=True, cwd=work)
+        if proc.returncode != 0:
+            tail = (proc.stderr or "")[-600:]
+            if "No such filter" in tail:
+                raise SubtitleError("Bản ffmpeg này không có bộ vẽ phụ đề (libass). Cài bản “full” (vd Gyan.FFmpeg).")
+            raise ffmpeg_studio.FFmpegError(tail)
+    finally:
+        shutil.rmtree(work, ignore_errors=True)
+    return {"video": out_path, "srt": srt_path, "cues": len(cues), "font": font.family, "font_verified": verified}

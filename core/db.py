@@ -16,6 +16,7 @@ CREATE TABLE IF NOT EXISTS projects (
     use_subjects INTEGER NOT NULL DEFAULT 0,
     script_text TEXT,
     world_bible TEXT,
+    sub_settings TEXT,
     autopilot_state TEXT,
     autopilot_note TEXT,
     autopilot_beat REAL,
@@ -270,6 +271,8 @@ def connect(path: str = ":memory:") -> sqlite3.Connection:
     user_cols = {r["name"] for r in conn.execute("PRAGMA table_info(users)")}
     if "perms" not in user_cols:
         conn.execute("ALTER TABLE users ADD COLUMN perms TEXT")
+    if "sub_settings" not in cols:
+        conn.execute("ALTER TABLE projects ADD COLUMN sub_settings TEXT")
     if "world_bible" not in cols:
         conn.execute("ALTER TABLE projects ADD COLUMN world_bible TEXT")
     if "autopilot_user" not in cols:

@@ -187,7 +187,7 @@ class DashboardGateTests(unittest.TestCase):
         at = self.sign_in(OWNER)
         self.assertFalse(at.exception)
         options = list(at.radio(key="step").options)
-        self.assertEqual(len(options), 10)
+        self.assertEqual(len(options), 9)
         self.assertTrue(any("Phân quyền" in o for o in options))
         self.assertTrue(any("Tắt Dashboard" in e.label for e in at.expander))
         self.assertIn("login", at.query_params)                                       # remembered for reloads
@@ -196,7 +196,7 @@ class DashboardGateTests(unittest.TestCase):
         at = self.sign_in("new.person@garena.vn")
         self.assertFalse(at.exception)
         options = list(at.radio(key="step").options)
-        self.assertEqual(len(options), 7)
+        self.assertEqual(len(options), 6)
         self.assertFalse(any(w in o for o in options for w in ("Theo dõi", "Bài học", "Phân quyền")))
         self.assertFalse(any("Tắt Dashboard" in e.label for e in at.expander))
         labels = [t.label for t in at.tabs]
@@ -208,7 +208,7 @@ class DashboardGateTests(unittest.TestCase):
         auth.add_user(self.conn, owner(), "boss2@garena.vn", ["monitor", "settings"])
         at = self.sign_in("boss2@garena.vn")
         options = list(at.radio(key="step").options)
-        self.assertEqual(len(options), 8)
+        self.assertEqual(len(options), 7)
         self.assertTrue(any("Theo dõi" in o for o in options))
         self.assertIn("Bảng giá", [t.label for t in at.tabs])
         self.assertFalse(any("Phân quyền" in o for o in options))
@@ -221,7 +221,7 @@ class DashboardGateTests(unittest.TestCase):
     def test_the_e_mail_in_the_address_signs_in_again_after_a_reload(self):
         at = self.sign_in(None, {"login": "back@garena.vn"})
         self.assertFalse(at.exception)
-        self.assertEqual(len(at.radio(key="step").options), 7)
+        self.assertEqual(len(at.radio(key="step").options), 6)
 
     def test_owner_permission_table_page_renders(self):
         auth.add_user(self.conn, owner(), "x@garena.vn", ["lessons"])

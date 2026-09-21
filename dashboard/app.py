@@ -20,7 +20,7 @@ import streamlit as st
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
-from core import assets, audio_lib, script_reader, auth, autopilot, dialogue, diag, knowledge, lessons, perf, regen, research, style, subjects, trash, waveform, cost, ffmpeg_studio, final_cut, llm_io, llm_runner, music, preflight, prompts, script_parser  # noqa: E402
+from core import assets, audio_lib, subtitles, script_reader, auth, autopilot, dialogue, diag, knowledge, lessons, perf, regen, research, style, subjects, trash, waveform, cost, ffmpeg_studio, final_cut, llm_io, llm_runner, music, preflight, prompts, script_parser  # noqa: E402
 from core.db import connect  # noqa: E402
 from core.pipeline import Pipeline, PipelinePaused  # noqa: E402
 from core.adapters import factory  # noqa: E402
@@ -34,7 +34,7 @@ import ui  # noqa: E402
 DB = os.environ.get("PIPELINE_DB", os.path.join("data", "manifest.sqlite"))
 DATA = os.environ.get("PIPELINE_DATA", os.path.join("data", "projects"))
 STEPS = ["1 · Kịch bản & phân tích", "2 · Gen ảnh + QC", "3 · Video Prompt", "4 · Gen video",
-         "5a · Nhạc nền", "5b · Ghép & Render", "Lịch sử", "📊 Theo dõi hiệu suất", "🎓 Bài học", "👥 Phân quyền"]
+         "5 · Nhạc nền & Ghép video", "Lịch sử", "📊 Theo dõi hiệu suất", "🎓 Bài học", "👥 Phân quyền"]
 STEP_PERMISSION = {"📊 Theo dõi hiệu suất": "monitor", "🎓 Bài học": "lessons", "👥 Phân quyền": "users"}
 ERRORS = (sqlite3.IntegrityError, zipfile.BadZipFile, llm_runner.LlmError, InvalidTransition, llm_io.SchemaError, PipelinePaused, ffmpeg_studio.FFmpegNotFound,
           ffmpeg_studio.FFmpegError, ValueError, KeyError)
@@ -240,7 +240,7 @@ def step_done(p: Pipeline, pid: int) -> list:
     drafts_dir, selected_dir = music.project_dirs(DATA, pid)
     return [bool(q("SELECT COUNT(*) FROM characters WHERE project_id=? AND locked=1", pid)),
             bool(scenes) and approved_imgs >= scenes, bool(scenes) and motion >= scenes,
-            bool(scenes) and videos >= scenes, bool(os.listdir(selected_dir)),
+            bool(scenes) and videos >= scenes,
             os.path.exists(os.path.join(DATA, str(pid), "output", "FINAL_VIDEO.mp4")), False, False, False, False]
 
 
@@ -1908,6 +1908,7 @@ def step5b(p: Pipeline, pid: int):
                 with open(out, "rb") as f:
                     st.download_button("⬇ Tải FINAL_VIDEO.mp4", f, file_name="FINAL_VIDEO.mp4", mime="video/mp4")
                 resize_panel(pid, out)
+        subtitle_panel(p, pid, out)
     with right, st.container(border=True):
         ui.html(ui.card_title("Tùy chọn render"))
         transition = st.radio("Transition", ["cut", "crossfade", "dip_to_black"], horizontal=True, key=f"tr_{pid}",
@@ -2151,6 +2152,106 @@ def history(p: Pipeline, pid: int):
     trash_section(pid)
 
 
+def subtitle_panel(p: Pipeline, pid: int, out: str) -> None:
+    """Step 5: automatic subtitles from the script's dialogue (language, font, size...), burned into a copy of the final video."""
+    settings = subtitles.get_settings(p, pid)
+    fonts = subtitles.discover()
+    default = subtitles.default_font(fonts)
+    with st.expander("🔤 Phụ đề tự động (từ lời thoại trong kịch bản)", expanded=os.path.exists(out)):
+        st.caption("Lấy các dòng thoại `TÊN: lời` của từng cảnh, chia thời gian trong clip theo độ dài câu (ước lượng, **không phải nhận dạng "
+                   "giọng nói**), có thể dịch sang ngôn ngữ khác bằng Claude, rồi in vào một bản sao của video cuối. Bạn sửa được chữ và "
+                   "thời điểm trước khi in.")
+        llm = llm_client()
+        c1, c2, c3 = st.columns([2, 2, 1.4])
+        langs = list(subtitles.LANGS)
+        lang = c1.selectbox("Ngôn ngữ phụ đề", langs, index=langs.index(settings["lang"]) if settings["lang"] in langs else 0,
+                            format_func=lambda k: subtitles.LANGS[k], key=f"sub_lang_{pid}")
+        families = [f.family for f in fonts]
+        current = settings["font"] if settings["font"] in families else (default.family if default else None)
+        font_name = c2.selectbox("Font", families, index=families.index(current) if current in families else 0, key=f"sub_font_{pid}",
+                                 help="Mặc định GFF Latin Bold (font Free Fire). Font không có đủ chữ của ngôn ngữ chọn sẽ được đổi tự động.") \
+            if families else None
+        size = c3.selectbox("Cỡ chữ", list(subtitles.SIZES), index=list(subtitles.SIZES).index(settings["size"]),
+                            format_func=lambda k: subtitles.SIZES[k][0], key=f"sub_size_{pid}")
+        d1, d2, d3 = st.columns([1.4, 1.4, 2.2], vertical_alignment="bottom")
+        pos = d1.selectbox("Vị trí", list(subtitles.POSITIONS), index=list(subtitles.POSITIONS).index(settings["pos"]),
+                           format_func=lambda k: subtitles.POSITIONS[k][0], key=f"sub_pos_{pid}")
+        color = d2.selectbox("Màu chữ", list(subtitles.COLORS), index=list(subtitles.COLORS).index(settings["color"]),
+                             format_func=lambda k: subtitles.COLORS[k][0], key=f"sub_color_{pid}")
+        speaker = d3.checkbox("Ghi tên người nói trước câu", settings["speaker"], key=f"sub_speaker_{pid}")
+        auto = st.checkbox("Tự thêm phụ đề khi chạy tự động hoàn toàn", settings["enabled"], key=f"sub_auto_{pid}")
+        new = {"enabled": auto, "lang": lang, "font": font_name or "", "size": size, "pos": pos, "color": color, "speaker": speaker}
+        if new != {k: settings[k] for k in new}:
+            subtitles.save_settings(p, pid, new)
+        up = st.file_uploader("Thêm font riêng (.ttf / .otf)", type=["ttf", "otf"], key=f"sub_fontup_{pid}")
+        if up is not None and st.button("Thêm font này", key=f"sub_fontadd_{pid}"):
+            try:
+                subtitles.save_uploaded_font(up.name, up.getvalue())
+            except subtitles.SubtitleError as e:
+                st.error(str(e))
+            else:
+                st.rerun()
+        if lang != "src" and llm is None:
+            st.markdown(":orange[Dịch sang ngôn ngữ khác cần Claude API (ANTHROPIC_API_KEY). Chưa có thì chỉ dùng được “Giữ nguyên ngôn ngữ kịch bản”.]")
+        key = f"sub_cues_{pid}"
+        if st.button("📝 Tạo danh sách phụ đề", key=f"sub_make_{pid}", type="primary", disabled=lang != "src" and llm is None):
+            try:
+                cues = subtitles.build_cues(p, DATA, pid, st.session_state.get(f"tr_{pid}", "cut"), float(st.session_state.get(f"fade_{pid}", 1.0)))
+                if not cues:
+                    st.info("Chưa có dòng thoại nào (cần dòng `TÊN: lời` trong cảnh) hoặc chưa có clip ở Bước 4.")
+                else:
+                    with st.spinner("Đang dịch…" if lang != "src" else "Đang tạo…"):
+                        cues = subtitles.translate(llm, cues, lang)
+                    st.session_state[key] = [{"Cảnh": c.scene, "Người nói": c.speaker, "Bắt đầu (s)": c.start, "Kết thúc (s)": c.end,
+                                              "Nội dung": c.text} for c in cues]
+            except ERRORS + (subtitles.SubtitleError,) as e:
+                st.error(str(e))
+        rows = st.session_state.get(key)
+        if rows:
+            edited = st.data_editor(rows, hide_index=True, use_container_width=True, key=f"sub_table_{pid}",
+                                    disabled=["Cảnh", "Người nói"], num_rows="fixed")
+            table = edited.to_dict("records") if hasattr(edited, "to_dict") else edited
+            cues = [subtitles.Cue(float(r["Bắt đầu (s)"]), float(r["Kết thúc (s)"]), str(r["Nội dung"]).strip(), str(r["Người nói"] or ""),
+                                  r["Cảnh"]) for r in table if str(r["Nội dung"]).strip()]
+            font, note = subtitles.font_for_text(subtitles.font_by_family(fonts, font_name) if font_name else default, fonts,
+                                                 " ".join(c.text for c in cues))
+            if note:
+                st.markdown(f":orange[{escape(note)}]")
+            bad = [c for c in cues if c.end <= c.start]
+            if bad:
+                st.error("Có dòng kết thúc trước khi bắt đầu: sửa lại cột thời gian.")
+            b1, b2 = st.columns(2)
+            srt = subtitles.to_srt(cues, speaker)
+            b1.download_button("⬇ Tải file .srt", srt.encode("utf-8"), file_name=f"phu_de_{lang}.srt", mime="application/x-subrip",
+                               key=f"sub_srt_{pid}")
+            if b2.button("🔥 In phụ đề vào video", key=f"sub_burn_{pid}", disabled=not os.path.exists(out) or bool(bad)):
+                target = os.path.join(project_dir(pid, "output"), f"FINAL_VIDEO_sub_{lang}.mp4")
+                try:
+                    with st.spinner("Đang in phụ đề (mã hóa lại video)…"):
+                        res = subtitles.burn(out, cues, target, font, size, pos, color, speaker)
+                except ERRORS + (subtitles.SubtitleError,) as e:
+                    st.error(str(e))
+                else:
+                    st.session_state[f"sub_done_{pid}"] = res
+            if not os.path.exists(out):
+                st.caption("Ghép video cuối trước, rồi mới in được phụ đề.")
+        done = st.session_state.get(f"sub_done_{pid}")
+        if done and os.path.exists(done["video"]):
+            st.success(f"Đã in {done['cues']} dòng bằng font {done['font']}" + ("" if done["font_verified"] else " (không xác nhận được font, có thể bị thay)"))
+            show_video(done["video"], "Vừa")
+            with open(done["video"], "rb") as f:
+                st.download_button(f"⬇ Tải {os.path.basename(done['video'])}", f, file_name=os.path.basename(done["video"]), mime="video/mp4",
+                                   key=f"sub_dl_{pid}")
+
+
+def step5(p: Pipeline, pid: int):
+    """Music and the final render are one step now."""
+    ui.html(ui.card_title("🎵 Nhạc nền", "chọn hoặc tạo nhạc, nghe thử cùng clip"))
+    step5a(p, pid)
+    ui.html(ui.card_title("🎞 Ghép & render", "cắt ghép clip, gắn nhạc, phụ đề"))
+    step5b(p, pid)
+
+
 def main():
     logo = os.path.join(os.path.dirname(__file__), "..", "assets", "logo_g_192.png")
     st.set_page_config(layout="wide", page_title="AI Video Pipeline", page_icon=logo if os.path.exists(logo) else None)
@@ -2172,8 +2273,9 @@ def main():
     if problems:
         st.markdown(f":red[🔴 Giám sát: {len(problems)} vấn đề nghiêm trọng, ví dụ: {escape(diag.redact(problems[0]['title']))}] "
                     "— mở tab “📊 Theo dõi hiệu suất” để xem và lấy báo cáo.")
-    deep = st.query_params.get("step")  # ?step=2 opens a step directly (1, 2, 3, 4, 5a, 5b, history)
-    keys = ["1", "2", "3", "4", "5a", "5b", "history", "monitor", "lessons", "users"]
+    deep = st.query_params.get("step")  # ?step=2 opens a step directly (1, 2, 3, 4, 5, history...); 5a / 5b still work
+    deep = {"5a": "5", "5b": "5"}.get(deep, deep)
+    keys = ["1", "2", "3", "4", "5", "history", "monitor", "lessons", "users"]
     visible = [s for s in STEPS if allowed(STEP_PERMISSION.get(s, "workflow"))]
     if deep in keys and "step" not in st.session_state and STEPS[keys.index(deep)] in visible:
         st.session_state["step"] = STEPS[keys.index(deep)]
@@ -2181,8 +2283,8 @@ def main():
         st.session_state.pop("step", None)
     step = st.radio("Bước", visible, horizontal=True, key="step", label_visibility="collapsed",
                     format_func=step_label(step_done(p, pid)))
-    {STEPS[0]: step1, STEPS[1]: step2, STEPS[2]: step3, STEPS[3]: step4, STEPS[4]: step5a,
-     STEPS[5]: step5b, STEPS[6]: history, STEPS[7]: monitor, STEPS[8]: lessons_tab, STEPS[9]: users_tab}[step](p, pid)
+    {STEPS[0]: step1, STEPS[1]: step2, STEPS[2]: step3, STEPS[3]: step4, STEPS[4]: step5,
+     STEPS[5]: history, STEPS[6]: monitor, STEPS[7]: lessons_tab, STEPS[8]: users_tab}[step](p, pid)
     if allowed("shutdown"):
       with st.expander("⏻ Tắt Dashboard"):
         st.caption("Dừng máy chủ Dashboard trên máy này (các việc đang chạy nền cũng dừng; tiến độ đã lưu, bấm Tiếp tục khi mở lại).")

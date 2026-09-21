@@ -20,7 +20,7 @@ import time
 from dataclasses import dataclass
 from typing import Callable, Dict, List, Optional
 
-from . import dialogue, diag, ffmpeg_studio, final_cut, llm_io, llm_runner, music, perf
+from . import subtitles, dialogue, diag, ffmpeg_studio, final_cut, llm_io, llm_runner, music, perf
 from .pipeline import Pipeline
 
 RUNNING, WAITING, STOPPED, ATTENTION, DONE, ERROR = "running", "waiting", "stopped", "needs_attention", "done", "error"
@@ -40,6 +40,7 @@ class Context:
     llm: object
     audio: Optional[object] = None
     render: Optional[Callable] = None   # (pipeline, project_id, data_dir, music_path) -> output path
+    subtitle: Optional[Callable] = None  # (pipeline, project_id, data_dir, video_path, llm) -> dict | None
 
 
 def default_render(p: Pipeline, project_id: int, data_dir: str, music_path: Optional[str]) -> str:
@@ -53,6 +54,23 @@ def default_render(p: Pipeline, project_id: int, data_dir: str, music_path: Opti
     keep = bool(p.project(project_id)["video_audio"])
     return ffmpeg_studio.render_final([c["path"] for c in clips], out, durations, "cut", 1.0, music_path, 0.6,
                                       keep_audio=keep)
+
+
+def default_subtitle(p: Pipeline, pid: int, data_dir: str, video: str, llm) -> Optional[dict]:
+    """Burn the project's subtitle settings into a copy of the final video (only when 'auto subtitles' is switched on)."""
+    settings = subtitles.get_settings(p, pid)
+    if not settings["enabled"]:
+        return None
+    cues = subtitles.build_cues(p, data_dir, pid, "cut", 1.0)
+    if not cues:
+        return None
+    if settings["lang"] != "src":
+        cues = subtitles.translate(llm, cues, settings["lang"])
+    fonts = subtitles.discover()
+    preferred = subtitles.font_by_family(fonts, settings["font"]) or subtitles.default_font(fonts)
+    font, _ = subtitles.font_for_text(preferred, fonts, " ".join(c.text for c in cues))
+    out = os.path.join(os.path.dirname(video), f"FINAL_VIDEO_sub_{settings['lang']}.mp4")
+    return subtitles.burn(video, cues, out, font, settings["size"], settings["pos"], settings["color"], settings["speaker"])
 
 
 def default_context(p: Pipeline, data_dir: str) -> Context:
@@ -384,7 +402,16 @@ def tick(p: Pipeline, project_id: int, ctx: Context) -> str:
         if chosen:
             music_file = os.path.join(selected_dir, chosen[0])
         out = (ctx.render or default_render)(p, project_id, ctx.data_dir, music_file)
-        _set(p, project_id, DONE, f"Xong: {out}")
+        extra = ""
+        try:
+            made = (ctx.subtitle or default_subtitle)(p, project_id, ctx.data_dir, out, ctx.llm)
+            if made:
+                extra = f" + phụ đề: {made['video']}"
+                _log(p, project_id, f"Đã thêm phụ đề ({made['cues']} dòng)")
+        except (subtitles.SubtitleError, llm_runner.LlmError, ffmpeg_studio.FFmpegError, ffmpeg_studio.FFmpegNotFound, OSError) as e:
+            _d(p, project_id, "render", "warn", f"phụ đề thất bại, video cuối vẫn có (không phụ đề): {e}", "subtitles")
+            _log(p, project_id, f"Phụ đề thất bại: {str(e)[:120]}")
+        _set(p, project_id, DONE, f"Xong: {out}{extra}")
         _log(p, project_id, "Đã ghép video cuối")
         return DONE
     except _Stop as e:

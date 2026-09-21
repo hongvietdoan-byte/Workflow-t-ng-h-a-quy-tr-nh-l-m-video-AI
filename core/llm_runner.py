@@ -304,6 +304,12 @@ class MockLlm:
         return LlmReply("```json\n" + json.dumps(out, ensure_ascii=False) + "\n```", 100, 50)
 
     def complete(self, prompt: str, images: Sequence[Tuple[str, str]] = ()) -> LlmReply:
+        if "Dịch phụ đề cho video game" in prompt:
+            lang = re.search(r"sang (.+?)\. Giữ nguyên", prompt).group(1)
+            block = prompt.split("# Phụ đề cần dịch", 1)[1]
+            cues = json.loads(re.search(r"```json\s*(.*?)```", block, re.S).group(1))
+            out = {"cues": [{"id": c["id"], "text": f"[{lang}] {c['text']}"} for c in cues]}
+            return LlmReply("```json\n" + json.dumps(out, ensure_ascii=False) + "\n```", 60, 40)
         if "Chuyên gia phong cách hình ảnh" in prompt:
             out = {"render_style": "Hoạt hình 3D mềm (giả lập): không viền, chuyển sắc liên tục",
                    "palette": "Tím lam chủ đạo, vàng ấm điểm nhấn ở nguồn sáng; no bloom, no oversaturation",
