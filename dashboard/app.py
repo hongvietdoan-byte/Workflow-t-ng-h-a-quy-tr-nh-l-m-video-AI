@@ -874,7 +874,7 @@ def assets_panel(p: Pipeline, pid: int) -> None:
             for a in suggested:
                 c1, c2, c3 = st.columns([1, 6, 1.6], vertical_alignment="center")
                 if a["images"]:
-                    c1.image(a["images"][0]["path"], width=56)
+                    c1.image(assets.thumbnail(a["images"][0]["path"], 112), width=56)
                 c2.markdown(f"**{escape(a['name'])}** · {a['kind_label']} · xuất hiện {a['mentions']} lần"
                             + (f" — {escape(a['description'][:90])}" if a["description"] else ""))
                 if c3.button("➕ Dùng", key=f"as_use_{pid}_{a['id']}"):
@@ -889,7 +889,7 @@ def assets_panel(p: Pipeline, pid: int) -> None:
             for a in chosen:
                 c1, c2, c3 = st.columns([1, 6, 1.4], vertical_alignment="center")
                 if a["images"]:
-                    c1.image(a["images"][0]["path"], width=56)
+                    c1.image(assets.thumbnail(a["images"][0]["path"], 112), width=56)
                 scope = "riêng dự án" if a["project_id"] else "kho chung"
                 c2.markdown(f"**{escape(a['name'])}** · {a['kind_label']} · {scope} · {len(a['images'])} ảnh")
                 if c3.button("✖ Bỏ", key=f"as_drop_{pid}_{a['id']}"):
@@ -897,9 +897,9 @@ def assets_panel(p: Pipeline, pid: int) -> None:
                     st.rerun()
         library = [a for a in assets.list_assets(p.conn, game, None, pid) if a["id"] not in chosen_ids]
         if library:
-            pick = st.selectbox("Thêm từ kho", [None] + [a["id"] for a in library], key=f"as_pick_{pid}",
-                                format_func=lambda i: "— chọn —" if i is None else next(
-                                    f"{a['kind_label']}: {a['name']}" for a in library if a["id"] == i))
+            labels = {a["id"]: f"{a['kind_label']}: {a['name']}" for a in library}
+            pick = st.selectbox("Thêm từ kho", [None] + list(labels), key=f"as_pick_{pid}",
+                                format_func=lambda i: "— chọn —" if i is None else labels[i])
             if pick is not None and st.button("➕ Thêm vào dự án", key=f"as_add_{pid}"):
                 assets.attach(p.conn, pid, pick)
                 st.rerun()
@@ -1077,36 +1077,39 @@ def asset_library_panel(p: Pipeline) -> None:
                     if col.button("Xóa ảnh", key=f"lib_img_rm_{img['id']}"):
                         assets.remove_image(p.conn, img["id"])
                         st.rerun()
-            e_name = st.text_input("Tên", a["name"], key=f"lib_e_name_{a['id']}")
-            e_alias = st.text_input("Tên gọi khác", a["aliases"], key=f"lib_e_alias_{a['id']}")
-            e_desc = st.text_area("Mô tả", a["description"], key=f"lib_e_desc_{a['id']}", height=70)
-            more = st.file_uploader("Thêm ảnh", type=["png", "jpg", "jpeg", "webp"], accept_multiple_files=True, key=f"lib_e_up_{a['id']}")
-            others = [x for x in items if x["id"] != a["id"]]
-            if others:
-                g1, g2 = st.columns([3, 1.4], vertical_alignment="bottom")
-                target = g1.selectbox("Gộp mục này vào mục khác (ảnh chuyển sang, tên này thành tên gọi khác)", [None] + [x["id"] for x in others],
-                                      format_func=lambda i: "— không gộp —" if i is None else next(f"{x['kind_label']}: {x['name']}" for x in others if x["id"] == i),
-                                      key=f"lib_merge_{a['id']}")
-                if target is not None and g2.button("Gộp", key=f"lib_merge_go_{a['id']}"):
+            if a["description"]:
+                st.caption(a["description"][:700])
+            if st.checkbox("✏️ Sửa, gộp hoặc xóa mục này", key=f"lib_edit_{a['id']}"):     # the form only exists when asked for (keeps the page light)
+                e_name = st.text_input("Tên", a["name"], key=f"lib_e_name_{a['id']}")
+                e_alias = st.text_input("Tên gọi khác", a["aliases"], key=f"lib_e_alias_{a['id']}")
+                e_desc = st.text_area("Mô tả", a["description"], key=f"lib_e_desc_{a['id']}", height=70)
+                more = st.file_uploader("Thêm ảnh", type=["png", "jpg", "jpeg", "webp"], accept_multiple_files=True, key=f"lib_e_up_{a['id']}")
+                others = [x for x in items if x["id"] != a["id"]]
+                if others:
+                    g1, g2 = st.columns([3, 1.4], vertical_alignment="bottom")
+                    names = {x["id"]: f"{x['kind_label']}: {x['name']}" for x in others}
+                    target = g1.selectbox("Gộp mục này vào mục khác (ảnh chuyển sang, tên này thành tên gọi khác)", [None] + list(names),
+                                          format_func=lambda i: "— không gộp —" if i is None else names[i], key=f"lib_merge_{a['id']}")
+                    if target is not None and g2.button("Gộp", key=f"lib_merge_go_{a['id']}"):
+                        try:
+                            assets.merge(p.conn, a["id"], target)
+                        except assets.AssetError as e:
+                            st.error(str(e))
+                        else:
+                            st.rerun()
+                b1, b2 = st.columns(2)
+                if b1.button("💾 Lưu", key=f"lib_e_save_{a['id']}", type="primary"):
                     try:
-                        assets.merge(p.conn, a["id"], target)
+                        assets.update(p.conn, a["id"], e_name, e_alias, e_desc)
+                        for f in more:
+                            assets.add_image(p.conn, a["id"], f.name, f.getvalue())
                     except assets.AssetError as e:
                         st.error(str(e))
                     else:
                         st.rerun()
-            b1, b2 = st.columns(2)
-            if b1.button("💾 Lưu", key=f"lib_e_save_{a['id']}", type="primary"):
-                try:
-                    assets.update(p.conn, a["id"], e_name, e_alias, e_desc)
-                    for f in more:
-                        assets.add_image(p.conn, a["id"], f.name, f.getvalue())
-                except assets.AssetError as e:
-                    st.error(str(e))
-                else:
+                if confirm_all(f"lib_del_{a['id']}", [a["id"]], "🗑 Xóa mục này", f"Xóa “{a['name']}” khỏi kho (các dự án đang dùng cũng mất)?", b2, "Có, xóa"):
+                    assets.delete(p.conn, a["id"])
                     st.rerun()
-            if confirm_all(f"lib_del_{a['id']}", [a["id"]], "🗑 Xóa mục này", f"Xóa “{a['name']}” khỏi kho (các dự án đang dùng cũng mất)?", b2, "Có, xóa"):
-                assets.delete(p.conn, a["id"])
-                st.rerun()
 
 
 def script_html(text: str) -> str:

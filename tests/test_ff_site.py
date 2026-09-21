@@ -24,7 +24,7 @@ def page(data) -> str:
 
 RAY = {"id": 796, "name": "Ray", "abstract": "Kẻ Phán Quyết", "en_name": "Ray", "sex": 1, "age": 24, "birthday": 1276941832, "introduction": "<p>Mệt mỏi với chiến đấu.</p>",
        "ability": "Phán Quyết", "ability_introduction": "Hạ gục ngay khi địch ít HP.", "cover_img": "https://c/r1.png", "head_icon": "https://c/r2.png",
-       "character_pc": "https://c/r0.png", "awaken": 0, "next_char": {"id": 786, "name": "Morse"}}
+       "character_pc": "https://c/r0.png", "abstract_detail": "Mặt trăng và mặt trời không phải là kẻ thù.", "awaken": 0, "next_char": {"id": 786, "name": "Morse"}}
 MORSE = {"id": 786, "name": "Morse ", "abstract": "Điệp Viên Tàng Hình", "en_name": "Morse", "sex": 1, "age": 20, "introduction": "Tĩnh lặng.", "cover_img": "https://c/mo1.png",
          "awaken": 1, "awaken_name": "Morse Thức Tỉnh", "awaken_introduction": "Tàng hình lâu hơn.", "next_char": None}
 PAGES = {
@@ -38,6 +38,9 @@ PAGES = {
     f"{ff_site.BASE}/weapons/": page([{}, {}, {"data": [], "count": 0, "weapon_category": [{"id": -1, "name": "TẤT CẢ"}, {"id": 162, "name": "SR"}, {"id": 43, "name": "LMG"}]}]),
     f"{ff_site.BASE}/weapons/162/": page([{}, {}, {"data": [{"id": 9, "name": "VSK94", "abstract": "Súng ngắm nhẹ", "damage": 91, "range": 62, "tags": ["Tầm xa"],
                                                              "normal_img": "https://c/w1.png"}], "count": 1}]),
+    f"{ff_site.BASE}/news/": page([{}, {"newsList": [{"id": 1715, "title": "Chi tiết phiên bản OB55", "category": "Cập nhật", "time": 1789034100}]}]),
+    f"{ff_site.BASE}/article/1715/": page([{"lang": "vn", "detail": {"title": "Chi tiết phiên bản OB55", "content": "<p>Phiên bản mới mang Ray trở lại với sự kiện Cửu Vĩ tại "
+                                                                       "Đảo Bình Minh, nơi mọi người tụ họp.</p>"}}]),
     f"{ff_site.BASE}/chars/": page([{}, {"list": [{"id": 796, "name": "Ray"}]}]),
     f"{ff_site.BASE}/chars/796/": page([{"charDetail": RAY}]),
     f"{ff_site.BASE}/chars/786/": page([{"charDetail": MORSE}]),
@@ -85,10 +88,31 @@ class FfSiteTests(unittest.TestCase):
         self.assertIn("Kỹ năng Phán Quyết: Hạ gục ngay khi địch ít HP.", ray["description"])
         self.assertIn("Mệt mỏi với chiến đấu.", ray["description"])                      # HTML tags are stripped
         self.assertIn("24 tuổi", ray["description"])
+        self.assertIn("Câu nói đặc trưng: “Mặt trăng và mặt trời không phải là kẻ thù.”", ray["description"])
         self.assertEqual(len(ray["images"]), 3)
         self.assertIn(("character", "Morse"), got)                                       # reached by following "next" from Ray
         self.assertIn("Thức tỉnh Morse Thức Tỉnh", got[("character", "Morse")]["description"])
         self.assertEqual(report["created"], 8)
+
+    def test_news_articles_are_stored_and_the_director_sees_the_passage_about_a_chosen_character(self):
+        from core.pipeline import Pipeline
+        report = ff_site.sync(self.conn, "FF", None, getter, download)
+        self.assertEqual(report["articles"], 1)
+        p = Pipeline(self.conn)
+        pid = p.create_project("clip")
+        assets.attach(self.conn, pid, self.names()[("character", "Ray")]["id"])
+        assets.attach(self.conn, pid, self.names()[("location", "Đảo Bình Minh")]["id"])
+        self.assertNotIn("Tin tức", assets.context_text(self.conn, pid))                 # off by default: version notes are mostly numbers
+        os.environ["FF_NEWS_IN_CONTEXT"] = "1"
+        self.addCleanup(os.environ.pop, "FF_NEWS_IN_CONTEXT", None)
+        context = assets.context_text(self.conn, pid)
+        self.assertIn("Tin tức chính thức liên quan", context)
+        self.assertIn("theo “Chi tiết phiên bản OB55”", context)
+        self.assertIn("Ray trở lại với sự kiện Cửu Vĩ", context)
+        self.assertLess(len(context), 4000)                                              # a bounded block, not the whole article
+        other = p.create_project("no match")
+        assets.attach(self.conn, other, self.names()[("pet", "Fang")]["id"])
+        self.assertNotIn("Tin tức", assets.context_text(self.conn, other))                # only what mentions the chosen names
 
     def test_running_it_again_changes_nothing(self):
         ff_site.sync(self.conn, "FF", None, getter, download)

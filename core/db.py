@@ -147,6 +147,14 @@ CREATE TABLE IF NOT EXISTS assets (
     created_by TEXT,
     created_at TEXT
 );
+CREATE TABLE IF NOT EXISTS ff_articles (
+    id INTEGER PRIMARY KEY,
+    title TEXT NOT NULL,
+    category TEXT,
+    published INTEGER,
+    url TEXT,
+    text TEXT NOT NULL
+);
 CREATE TABLE IF NOT EXISTS asset_images (
     id INTEGER PRIMARY KEY,
     asset_id INTEGER NOT NULL,

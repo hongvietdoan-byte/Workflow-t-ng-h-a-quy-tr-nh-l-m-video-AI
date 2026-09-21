@@ -26,6 +26,8 @@ BASE = "https://ff.garena.com/vn"
 MARK = "[ff.garena.com]"
 UA = "Mozilla/5.0 (AIVideoPipeline resource reader)"
 PICS_PER_ITEM = 3                      # official pictures kept per entry (the library holds at most 6)
+ARTICLES = 12                          # newest news articles kept
+ARTICLE_CHARS = 8000
 MAX_WALK = 400                         # safety stop when following next-links
 PAUSE = 0.25                           # seconds between page requests: be gentle with the website
 _NODE = r"""
@@ -137,6 +139,9 @@ def _characters(getter) -> List[Dict]:
         story = _text(c.get("introduction", ""))
         if story:
             profile.append(story)
+        quote = _text(c.get("abstract_detail", ""))
+        if quote:
+            profile.append(f"Câu nói đặc trưng: “{quote}”")
         if c.get("ability"):
             profile.append(f"Kỹ năng {c['ability']}: {_text(c.get('ability_introduction', ''))}")
         if c.get("awaken") and c.get("awaken_name"):
@@ -187,6 +192,38 @@ def _weapons(getter) -> List[Dict]:
                         "text": f"Vũ khí ({cat.get('name', '')}): {_text(w.get('abstract', ''))}." + (f" Chỉ số: {stats}." if stats else "") + (f" Đặc điểm: {tags}." if tags else ""),
                         "images": [w["normal_img"]] if w.get("normal_img") else []})
     return out
+
+
+def collect_articles(getter=fetch, limit: int = ARTICLES) -> List[Dict]:
+    """The newest news / version articles (title, category, date, plain text): events, collaborations and new characters of each version."""
+    listing = []
+    for block in _page_data(f"{BASE}/news/", getter):
+        if isinstance(block, dict) and block.get("newsList"):
+            listing = block["newsList"]
+    out = []
+    for n in listing[:limit]:
+        try:
+            detail = _detail(f"{BASE}/article/{n['id']}/", "detail", getter)
+        except (FfSiteError, KeyError):
+            continue
+        text = _text(detail.get("content", ""))
+        if not text:
+            continue
+        out.append({"id": int(n["id"]), "title": (n.get("title") or detail.get("title") or "").strip(), "category": n.get("category") or "",
+                    "published": n.get("time"), "url": f"{BASE}/article/{n['id']}/", "text": text[:ARTICLE_CHARS]})
+        time.sleep(PAUSE)
+    return out
+
+
+def sync_articles(conn, getter=fetch) -> int:
+    n = 0
+    for a in collect_articles(getter):
+        conn.execute("INSERT INTO ff_articles (id, title, category, published, url, text) VALUES (?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET "
+                     "title=excluded.title, category=excluded.category, published=excluded.published, url=excluded.url, text=excluded.text",
+                     (a["id"], a["title"], a["category"], a["published"], a["url"], a["text"]))
+        n += 1
+    conn.commit()
+    return n
 
 
 def collect(getter=fetch) -> List[Dict]:
@@ -251,12 +288,16 @@ def sync(conn, game: str = "FF", created_by: Optional[str] = None, getter=fetch,
                 report["pictures"] += 1
             except (assets.AssetError, FfSiteError):
                 report["skipped"] += 1
+    try:
+        report["articles"] = sync_articles(conn, getter)
+    except (FfSiteError, OSError):
+        report["articles"] = 0
     return report
 
 
 def summary(report: Dict) -> str:
-    return (f"{report['created']} mục mới, {report['enriched']} mục được bổ sung mô tả, {report['pictures']} ảnh chính thức"
-            + (f", {report['skipped']} bỏ qua" if report["skipped"] else ""))
+    return (f"{report['created']} mục mới, {report['enriched']} mục được bổ sung mô tả, {report['pictures']} ảnh chính thức, "
+            f"{report.get('articles', 0)} bài tin tức" + (f", {report['skipped']} bỏ qua" if report["skipped"] else ""))
 
 
 # ---- running it: a button (or once a month) starts it in the background; the outcome is kept for the panel ----------------

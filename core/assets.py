@@ -213,8 +213,11 @@ def merge(conn, from_id: int, into_id: int) -> int:
     return moved
 
 
-def _row(conn, r) -> Dict:
-    images = [dict(i) for i in conn.execute("SELECT id, path, label FROM asset_images WHERE asset_id=? ORDER BY sort, id", (r["id"],))]
+def _row(conn, r, images_by_asset: Optional[Dict] = None) -> Dict:
+    if images_by_asset is not None:
+        images = images_by_asset.get(r["id"], [])
+    else:
+        images = [dict(i) for i in conn.execute("SELECT id, path, label FROM asset_images WHERE asset_id=? ORDER BY sort, id", (r["id"],))]
     return {"id": r["id"], "game": r["game"], "kind": r["kind"], "kind_label": KINDS.get(r["kind"], r["kind"]), "name": r["name"],
             "aliases": r["aliases"] or "", "description": r["description"] or "", "project_id": r["project_id"],
             "created_by": r["created_by"], "images": [i for i in images if os.path.exists(i["path"])]}
@@ -240,7 +243,11 @@ def list_assets(conn, game: Optional[str] = None, kind: Optional[str] = None, pr
         sql += " AND kind=?"
         args.append(kind)
     sql += " ORDER BY kind, lower(name)"
-    return [_row(conn, r) for r in conn.execute(sql, args).fetchall()]
+    rows = conn.execute(sql, args).fetchall()
+    images: Dict[int, List[Dict]] = {}                # one query for every picture instead of one per entry (a library has hundreds)
+    for i in conn.execute("SELECT asset_id, id, path, label FROM asset_images ORDER BY sort, id"):
+        images.setdefault(i["asset_id"], []).append({"id": i["id"], "path": i["path"], "label": i["label"]})
+    return [_row(conn, r, images) for r in rows]
 
 
 # ---- finding assets in a script ---------------------------------------------------------------------------------
@@ -285,6 +292,33 @@ def reference_paths(conn, project_id: int, kinds=("character",), limit: int = 4)
     return out[:limit]
 
 
+def _news_for(conn, items: List[Dict], limit: int = 3, around: int = 170) -> str:
+    """Short passages of the official news that mention the chosen characters / pets / places (newest first), so the video follows what
+    the game itself says about them. Empty when no news was read or nothing matches. OFF unless FF_NEWS_IN_CONTEXT=1: the news read so far
+    is version notes (prices, balance changes), which is more noise than background for a script."""
+    if os.environ.get("FF_NEWS_IN_CONTEXT", "0") != "1":
+        return ""
+    try:
+        if not conn.execute("SELECT 1 FROM ff_articles LIMIT 1").fetchone():
+            return ""
+    except Exception:  # noqa: BLE001 - an old database without the table
+        return ""
+    lines, used = [], set()
+    for a in items:
+        if a["kind"] not in ("character", "pet", "location") or len(a["name"]) < 4:
+            continue
+        row = conn.execute("SELECT id, title, text FROM ff_articles WHERE text LIKE ? ORDER BY published DESC LIMIT 1", (f"%{a['name']}%",)).fetchone()
+        if row is None or row["id"] in used:
+            continue
+        at = row["text"].lower().find(a["name"].lower())
+        snippet = " ".join(row["text"][max(at - around, 0): at + len(a["name"]) + around].split())
+        lines.append(f"- {a['name']} — theo “{row['title']}”: …{snippet}…")
+        used.add(row["id"])
+        if len(lines) >= limit:
+            break
+    return ("\n\n## Tin tức chính thức liên quan (tham khảo bối cảnh, không bắt buộc)\n" + "\n".join(lines) + "\n") if lines else ""
+
+
 def context_text(conn, project_id: int) -> str:
     """Block for the Director prompt; empty when the project has no chosen assets."""
     items = project_assets(conn, project_id)
@@ -296,7 +330,8 @@ def context_text(conn, project_id: int) -> str:
         pics = f" — có {len(a['images'])} ảnh tham khảo" if a["images"] else ""
         desc = f": {a['description']}" if a["description"] else ""
         lines.append(f"- [{a['kind_label']}] **{a['name']}**{also}{desc}{pics}")
-    return ("# Tài nguyên có sẵn cho dự án này (BẮT BUỘC dùng)\n" + "\n".join(lines) +
+    news = _news_for(conn, items)
+    return ("# Tài nguyên có sẵn cho dự án này (BẮT BUỘC dùng)\n" + "\n".join(lines) + news +
             "\nDùng đúng tên và thiết kế ở trên cho Character Bible và các cảnh; không tự bịa lại ngoại hình của những mục này. "
             "Chỉ thêm nhân vật/đạo cụ mới khi kịch bản cần mà danh sách không có.")
 
