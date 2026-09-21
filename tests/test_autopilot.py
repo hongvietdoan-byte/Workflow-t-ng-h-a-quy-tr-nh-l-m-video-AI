@@ -172,7 +172,7 @@ class PreconditionTests(Setup):
             self.p.create_scene(self.pid, i, title)
         text = " ".join(autopilot.problems(self.p, self.pid, ctx))
         self.assertIn("clip ngắn", text)                 # too many scenes for a short clip
-        self.assertIn("chưa có prompt ảnh", text.lower())  # the new empty scenes have no image prompt
+        self.assertNotIn("prompt ảnh", text.lower())      # the Director phase writes them, it is not a precondition
         empty = Pipeline(connect())
         pid = empty.create_project("empty")
         self.assertIn("Chưa có cảnh", autopilot.problems(empty, pid, ctx)[0])

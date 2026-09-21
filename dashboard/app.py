@@ -710,8 +710,8 @@ def autopilot_panel(p: Pipeline, pid: int) -> None:
                         p.conn.commit()
                         st.rerun()
             return
-        st.caption("Sau khi bạn duyệt phân cảnh và Character Bible, hệ thống tự làm: gen ảnh → Claude chấm QC (đạt ngưỡng "
-                   "thì tự duyệt) → Claude viết motion prompt (tự duyệt) → gen video → 1 bản nhạc nền → ghép video cuối. "
+        st.caption("Sau khi bạn duyệt phân cảnh, hệ thống tự làm: Director (Character Bible + thông số cảnh) → gen ảnh → Claude chấm QC "
+                   "(đạt ngưỡng thì tự duyệt) → Claude viết motion prompt (tự duyệt) → gen video → 1 bản nhạc nền → ghép video cuối. "
                    "Gặp việc cần người (cảnh hết số lần thử, bị chặn risk control, chạm trần số job) thì **dừng và báo**, "
                    "không tự đoán. Cần Claude API, Deepix và Clip AI đã cấu hình.")
         issues = autopilot.problems(p, pid)
@@ -841,8 +841,6 @@ def step1(p: Pipeline, pid: int):
     risky = {w["character"] for w in warnings}
     char_names = [c["name"] for c in chars]
 
-    autopilot_panel(p, pid)
-    world_bible_panel(p, pid)
     with st.container(border=True):
         head, info = st.columns([3, 2], vertical_alignment="center")
         head.markdown(ui.card_title("① Kịch bản", "toàn văn (trái) · chia theo cảnh (phải)"), unsafe_allow_html=True)
@@ -896,6 +894,23 @@ def step1(p: Pipeline, pid: int):
             if st.button("➕ Thêm cảnh", key=f"scene_add_{pid}", help="Cho kịch bản mà công cụ không tự tách được"):
                 act(lambda: p.add_scene_next(pid))
                 st.rerun()
+
+    world_bible_panel(p, pid)
+    if scenes:
+        ui.html(ui.card_title("④ Chọn cách chạy", "sau khi đã tách cảnh ở trên"))
+        auto_col, manual_col = st.columns(2, gap="large")
+        with auto_col:
+            autopilot_panel(p, pid)
+        with manual_col, st.container(border=True):
+            ui.html(ui.card_title("🧭 Chạy lần lượt từng bước", "bạn kiểm soát và duyệt ở mỗi bước"))
+            st.caption("Tự xem và duyệt từng khâu: chạy Director và khóa Character Bible ở bên dưới → Bước 2 gen ảnh + QC (bạn duyệt ảnh) "
+                       "→ Bước 3 duyệt motion prompt → Bước 4 gen video → Bước 5 nhạc và ghép. Hợp với dự án dài hoặc cần chỉnh kỹ.")
+            st.button("⏭ Sang Bước 2 (gen ảnh + QC)", key=f"go_step2_{pid}", disabled=not any(c["locked"] for c in chars),
+                      help="Bật sau khi Character Bible đã khóa",
+                      on_click=lambda: st.session_state.__setitem__("step", STEPS[1]))
+            if not any(c["locked"] for c in chars):
+                st.caption("Chạy Director và khóa Character Bible ở phần bên dưới trước.")
+        st.markdown("##### Chạy lần lượt: ② Director và ③ Character Bible")
 
     dl, dr = st.columns([1, 1.7], gap="large")
     with dl:

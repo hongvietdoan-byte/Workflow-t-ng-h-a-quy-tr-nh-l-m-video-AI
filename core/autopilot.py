@@ -25,7 +25,7 @@ from .pipeline import Pipeline
 
 RUNNING, WAITING, STOPPED, ATTENTION, DONE, ERROR = "running", "waiting", "stopped", "needs_attention", "done", "error"
 QUEUED = "queued"   # approved, waiting for a free slot (see Manager.max_parallel)
-PHASE_LABELS = {"images": "Gen ảnh + QC", "motion": "Motion prompt", "videos": "Gen video", "music": "Nhạc nền",
+PHASE_LABELS = {"director": "Director (Character Bible + thông số cảnh)", "images": "Gen ảnh + QC", "motion": "Motion prompt", "videos": "Gen video", "music": "Nhạc nền",
                 "render": "Ghép & render", "done": "Hoàn tất"}
 MAX_SCENES = int(os.environ.get("AUTOPILOT_MAX_SCENES", "12"))
 LOG_KEEP = 60
@@ -112,11 +112,6 @@ def problems(p: Pipeline, project_id: int, ctx: Optional[Context] = None) -> Lis
         return ["Chưa có cảnh: upload kịch bản và bấm Phân tích."]
     if len(scenes) > MAX_SCENES:
         out.append(f"Chế độ này dành cho clip ngắn: tối đa {MAX_SCENES} cảnh (kịch bản có {len(scenes)}).")
-    if not p.conn.execute("SELECT 1 FROM characters WHERE project_id=?", (project_id,)).fetchone():
-        out.append("Chưa có Character Bible: chạy Director trước.")
-    missing = [f"S{s['idx']:02d}" for s in scenes if not (json.loads(s["data"] or "{}").get("image_prompt") or "").strip()]
-    if missing:
-        out.append("Cảnh chưa có prompt ảnh: " + ", ".join(missing) + " (chạy Director hoặc điền tay).")
     if p.project(project_id)["paused"]:
         out.append("Dự án đang PAUSE.")
     if ctx is None:
@@ -142,7 +137,8 @@ def _owner(p: Pipeline, project_id: int, user: Optional[str]) -> None:
 def start(p: Pipeline, project_id: int, user: Optional[str] = None) -> None:
     """The user approved the scene breakdown: lock the Character Bible, use automatic QC and mark the run as started."""
     _owner(p, project_id, user)
-    llm_io.lock_character_bible(p, project_id)
+    if _count(p, "SELECT COUNT(*) FROM characters WHERE project_id=?", project_id):
+        llm_io.lock_character_bible(p, project_id)      # already analysed by hand: freeze it (otherwise the Director phase does it)
     p.set_mode(project_id, "auto")
     p.set_review_floor(project_id, None)   # nothing may wait for a human
     p.set_paused(project_id, False)
@@ -211,6 +207,20 @@ def _blocked_scenes(p: Pipeline, pid: int) -> List[str]:
 def _active(p: Pipeline, pid: int, kind: str) -> int:
     return _count(p, "SELECT COUNT(*) FROM jobs WHERE project_id=? AND type=? AND state IN ('queued','running','retryable')",
                   pid, kind)
+
+
+def _director_phase(p: Pipeline, pid: int, ctx: Context) -> Optional[str]:
+    """Scenes are split but nobody analysed them yet: Claude writes the Character Bible and the scene specs (once).
+    Anything still missing afterwards stops the run instead of asking Claude again and again."""
+    if not _count(p, "SELECT COUNT(*) FROM characters WHERE project_id=?", pid):
+        r = llm_runner.run_director(p, pid, ctx.llm)
+        llm_io.lock_character_bible(p, pid)
+        _log(p, pid, f"Director: {r['characters']} nhân vật, {r['scenes']} cảnh")
+    missing = [f"S{s['idx']:02d}" for s in p.conn.execute("SELECT idx, data FROM scenes WHERE project_id=? ORDER BY idx", (pid,))
+               if not (json.loads(s["data"] or "{}").get("image_prompt") or "").strip()]
+    if missing:
+        raise _Stop("Cảnh chưa có prompt ảnh sau khi chạy Director: " + ", ".join(missing) + " — điền tay hoặc sửa kịch bản rồi bấm Tiếp tục")
+    return None
 
 
 def _images_phase(p: Pipeline, pid: int, ctx: Context) -> Optional[str]:
@@ -352,7 +362,7 @@ def tick(p: Pipeline, project_id: int, ctx: Context) -> str:
         _set(p, project_id, note="Đang PAUSE")
         return RUNNING
     try:
-        phases = [("images", _images_phase), ("motion", _motion_phase), ("videos", _videos_phase),
+        phases = [("director", _director_phase), ("images", _images_phase), ("motion", _motion_phase), ("videos", _videos_phase),
                   ("music", _music_phase)]
         for name, fn in phases:
             progress = fn(p, project_id, ctx)
