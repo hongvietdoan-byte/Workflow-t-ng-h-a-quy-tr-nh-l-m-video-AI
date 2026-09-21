@@ -152,6 +152,23 @@ def remove_image(conn, image_id: int) -> None:
         conn.commit()
 
 
+def thumbnail(path: str, side: int = 220) -> str:
+    """Small cached copy of a picture for lists (decoding a 2560 px original for every rerun made the page slow)."""
+    try:
+        thumb_dir = os.path.join(root(), "_thumbs")
+        out = os.path.join(thumb_dir, f"{fold(os.path.basename(os.path.dirname(path)))}_{os.path.basename(path)}.jpg")
+        if os.path.exists(out) and os.path.getmtime(out) >= os.path.getmtime(path):
+            return out
+        os.makedirs(thumb_dir, exist_ok=True)
+        from PIL import Image
+        with Image.open(path) as im:
+            im.thumbnail((side, side))
+            im.convert("RGB").save(out, "JPEG", quality=80)
+        return out
+    except Exception:  # noqa: BLE001 - fall back to the original
+        return path
+
+
 def delete(conn, asset_id: int) -> None:
     conn.execute("DELETE FROM asset_images WHERE asset_id=?", (asset_id,))
     conn.execute("DELETE FROM project_assets WHERE asset_id=?", (asset_id,))

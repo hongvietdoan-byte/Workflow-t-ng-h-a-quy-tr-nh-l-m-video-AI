@@ -641,6 +641,14 @@ def global_bar(p: Pipeline):
         if b3.button("■ Cancel", key="btn_cancel"):
             st.toast(f"Đã hủy {p.cancel_all_active(pid)} job")
             st.rerun()
+    with st.expander("🗑 Xóa dự án này"):
+        st.caption("Xóa dự án cùng cảnh, ảnh, clip, nhạc và video đã tạo của nó (tài nguyên trong kho chung không bị xóa; lịch sử chi tiêu được giữ).")
+        if confirm_all(f"proj_del_{pid}", [pid], "🗑 Xóa dự án", f"Xóa hẳn dự án “{proj['name']}”? Không thể khôi phục.", st, "Có, xóa dự án"):
+            autopilot.stop(p, pid, "Dự án bị xóa")
+            p.cancel_all_active(pid)
+            p.delete_project(pid, DATA)
+            st.toast(f"Đã xóa dự án “{proj['name']}”")
+            st.rerun()
     if proj["paused"]:
         st.warning("Pipeline đang PAUSE — không job nào được bắt đầu.")
     spend_line(p, pid)
@@ -1026,14 +1034,20 @@ def asset_library_panel(p: Pipeline) -> None:
                 st.rerun()
     kind_filter = st.radio("Xem", ["all"] + list(assets.KINDS), horizontal=True, key="lib_filter",
                            format_func=lambda k: "Tất cả" if k == "all" else assets.KINDS[k])
-    for a in items:
-        if kind_filter != "all" and a["kind"] != kind_filter:
-            continue
+    query = st.text_input("Tìm theo tên", key="lib_query", placeholder="vd Lyra, Đền, Bermuda")
+    shown = [a for a in items if (kind_filter == "all" or a["kind"] == kind_filter)
+             and (not query.strip() or assets.fold(query) in assets.fold(a["name"] + " " + (a["aliases"] or "")))]
+    per_page = 12                                     # every picture on the page is decoded on each rerun: never draw the whole library at once
+    pages = max((len(shown) + per_page - 1) // per_page, 1)
+    if pages > 1:
+        page = int(st.number_input(f"Trang (có {len(shown)} mục, {pages} trang)", 1, pages, 1, key="lib_page"))
+        shown = shown[(page - 1) * per_page: page * per_page]
+    for a in shown:
         with st.expander(f"{a['kind_label']} · {a['name']} · {len(a['images'])} ảnh"):
             if a["images"]:
                 cols = st.columns(min(len(a["images"]), 6))
                 for col, img in zip(cols, a["images"]):
-                    col.image(img["path"], width=110)
+                    col.image(assets.thumbnail(img["path"]), width=110)
                     if col.button("Xóa ảnh", key=f"lib_img_rm_{img['id']}"):
                         assets.remove_image(p.conn, img["id"])
                         st.rerun()

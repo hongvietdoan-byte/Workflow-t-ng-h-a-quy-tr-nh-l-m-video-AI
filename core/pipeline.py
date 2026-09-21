@@ -1,3 +1,4 @@
+import os
 import sqlite3
 from datetime import datetime, timezone
 from typing import Mapping, Optional
@@ -29,6 +30,28 @@ class Pipeline:
 
     def project(self, project_id: int) -> sqlite3.Row:
         return self.conn.execute("SELECT * FROM projects WHERE id=?", (project_id,)).fetchone()
+
+    def delete_project(self, project_id: int, data_dir: Optional[str] = None) -> None:
+        """Remove a project with its scenes, jobs, results, own assets and files. Spend history (usage_events) is kept, detached from the jobs."""
+        from . import assets
+        c = self.conn
+        jobs = "(SELECT id FROM jobs WHERE project_id=?)"
+        c.execute(f"UPDATE usage_events SET job_id=NULL WHERE job_id IN {jobs}", (project_id,))
+        c.execute("UPDATE usage_events SET project_id=NULL WHERE project_id=?", (project_id,))
+        for table in ("job_events", "qc_results", "review_log", "content_moderation_failures"):
+            c.execute(f"DELETE FROM {table} WHERE job_id IN {jobs}", (project_id,))
+        c.execute("UPDATE jobs SET parent_job_id=NULL WHERE project_id=?", (project_id,))
+        c.execute("DELETE FROM jobs WHERE project_id=?", (project_id,))
+        c.execute("DELETE FROM motion_prompts WHERE scene_id IN (SELECT id FROM scenes WHERE project_id=?)", (project_id,))
+        for table in ("scenes", "characters", "project_assets"):
+            c.execute(f"DELETE FROM {table} WHERE project_id=?", (project_id,))
+        for r in c.execute("SELECT id FROM assets WHERE project_id=?", (project_id,)).fetchall():
+            assets.delete(c, r["id"])
+        c.execute("DELETE FROM projects WHERE id=?", (project_id,))
+        c.commit()
+        if data_dir:
+            import shutil
+            shutil.rmtree(os.path.join(data_dir, str(project_id)), ignore_errors=True)
 
     def set_mode(self, project_id: int, mode: str) -> None:
         self.conn.execute("UPDATE projects SET operating_mode=? WHERE id=?", (mode, project_id))
