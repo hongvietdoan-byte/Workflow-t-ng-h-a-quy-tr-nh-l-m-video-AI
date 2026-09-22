@@ -712,43 +712,20 @@ def can_delete_project(proj) -> bool:
     return who["email"] == creator if creator else who["role"] == "owner"
 
 
-def global_bar(p: Pipeline):
-    """Project picker + per-project controls. Project creation and the Kho tài nguyên/Bảng giá/Kho kiến thức
-    panels moved to the header (account_bar -> new_project_control / settings_menu) so this only handles the
-    currently selected project."""
-    projects = p.conn.execute("SELECT id, name FROM projects ORDER BY id").fetchall()
-    if not projects:
-        st.info("Chưa có dự án. Bấm “➕ Dự án mới” ở đầu trang để bắt đầu.")
-        return None
-    with st.container(border=True):
-        c0, c1, c2, c3, c4, c5 = st.columns([1.4, 1.8, 2.0, 1.6, 1.3, 3.0], vertical_alignment="center")
-        c0.markdown('<div class="brand"><i></i>AI Video Pipeline</div>', unsafe_allow_html=True)
-        ids = [r["id"] for r in projects]
-        default_pid = current_pid(p)
-        pid = c1.selectbox("Dự án", ids, index=ids.index(default_pid) if default_pid in ids else 0,
-                           format_func=lambda i: next(r["name"] for r in projects if r["id"] == i), key="global_pid")
-        proj = p.project(pid)
-        mode = c2.radio("Chế độ QC", ["auto", "human_qc"], index=0 if proj["operating_mode"] == "auto" else 1,
+def project_settings_popover(p: Pipeline, pid: int, proj) -> None:
+    """Gear next to the project picker: QC mode/threshold + delete -- moved off the control bar itself
+    (2026-09-22 cleanup, same "gear -> popover" pattern as the header's settings_menu) so that row only
+    keeps the picker, the risk note and the frequently-used Pause/Resume/Cancel buttons."""
+    with st.popover("⚙", help="Cấu hình dự án: chế độ QC, threshold, xóa dự án"):
+        mode = st.radio("Chế độ QC", ["auto", "human_qc"], index=0 if proj["operating_mode"] == "auto" else 1,
                         horizontal=True, key=f"mode_{pid}")
         if mode != proj["operating_mode"]:
             p.set_mode(pid, mode)
-        th = c3.slider("QC threshold", 0.5, 1.0, float(proj["qc_auto_pass_threshold"]), 0.01, key=f"th_{pid}")
+        th = st.slider("QC threshold", 0.5, 1.0, float(proj["qc_auto_pass_threshold"]), 0.01, key=f"th_{pid}")
         if abs(th - proj["qc_auto_pass_threshold"]) > 1e-9:
             p.set_threshold(pid, th)
-        with c4:
-            risk_popover(p, pid)
-        b1, b2, b3 = c5.columns(3)
-        if b1.button("⏸ Pause", disabled=bool(proj["paused"]), key="btn_pause"):
-            p.set_paused(pid, True)
-            st.rerun()
-        if b2.button("▶ Resume", disabled=not proj["paused"], key="btn_resume"):
-            p.set_paused(pid, False)
-            st.rerun()
-        if b3.button("■ Cancel", key="btn_cancel"):
-            st.toast(f"Đã hủy {p.cancel_all_active(pid)} job")
-            st.rerun()
-    with st.expander("🗑 Xóa dự án này"):
-        st.caption("Xóa dự án cùng cảnh, ảnh, clip, nhạc và video đã tạo của nó (tài nguyên trong kho chung không bị xóa; lịch sử chi tiêu được giữ). "
+        st.divider()
+        st.caption("🗑 Xóa dự án cùng cảnh, ảnh, clip, nhạc và video đã tạo (tài nguyên trong kho chung không bị xóa; lịch sử chi tiêu được giữ). "
                    "Chỉ người tạo dự án mới xóa được (dự án cũ chưa ghi người tạo thì Owner xóa).")
         if not can_delete_project(proj):
             who = proj["created_by"]
@@ -758,6 +735,38 @@ def global_bar(p: Pipeline):
             p.cancel_all_active(pid)
             p.delete_project(pid, DATA)
             st.toast(f"Đã xóa dự án “{proj['name']}”")
+            st.rerun()
+
+
+def global_bar(p: Pipeline):
+    """Project picker + per-project controls. Project creation and the Kho tài nguyên/Bảng giá/Kho kiến thức
+    panels moved to the header (account_bar -> new_project_control / settings_menu); mode/threshold/delete
+    moved into project_settings_popover so this row only keeps the picker, risk note and Pause/Resume/Cancel."""
+    projects = p.conn.execute("SELECT id, name FROM projects ORDER BY id").fetchall()
+    if not projects:
+        st.info("Chưa có dự án. Bấm “➕ Dự án mới” ở đầu trang để bắt đầu.")
+        return None
+    with st.container(border=True):
+        c0, c1, c2, c3, c4 = st.columns([1.4, 2.2, 1.3, 0.6, 3.0], vertical_alignment="center")
+        c0.markdown('<div class="brand"><i></i>AI Video Pipeline</div>', unsafe_allow_html=True)
+        ids = [r["id"] for r in projects]
+        default_pid = current_pid(p)
+        pid = c1.selectbox("Dự án", ids, index=ids.index(default_pid) if default_pid in ids else 0,
+                           format_func=lambda i: next(r["name"] for r in projects if r["id"] == i), key="global_pid")
+        proj = p.project(pid)
+        with c2:
+            risk_popover(p, pid)
+        with c3:
+            project_settings_popover(p, pid, proj)
+        b1, b2, b3 = c4.columns(3)
+        if b1.button("⏸ Pause", disabled=bool(proj["paused"]), key="btn_pause"):
+            p.set_paused(pid, True)
+            st.rerun()
+        if b2.button("▶ Resume", disabled=not proj["paused"], key="btn_resume"):
+            p.set_paused(pid, False)
+            st.rerun()
+        if b3.button("■ Cancel", key="btn_cancel"):
+            st.toast(f"Đã hủy {p.cancel_all_active(pid)} job")
             st.rerun()
     if proj["paused"]:
         st.warning("Pipeline đang PAUSE — không job nào được bắt đầu.")

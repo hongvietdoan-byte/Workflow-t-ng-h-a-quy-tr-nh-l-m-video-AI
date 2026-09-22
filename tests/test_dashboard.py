@@ -567,7 +567,7 @@ class DashboardSmokeTests(unittest.TestCase):
         record_failure(p.conn, job, "clipai", "Failure to pass the risk control system")
         at = AppTest.from_file(APP, default_timeout=30).run()
         self.assertFalse(at.exception)
-        self.assertEqual(len(at.get("popover")), 3)          # risk corner + header's "new project" + settings gear
+        self.assertEqual(len(at.get("popover")), 4)          # risk corner + project settings gear + header's "new project" + settings gear
         text = " ".join(m.value for m in at.markdown)
         self.assertIn("Cảnh 1 bị chặn (clipai)", text)      # risk-control block, with its scene
         self.assertIn("Nữ chiến binh Amazon", text)          # IP warning from the Character Bible
