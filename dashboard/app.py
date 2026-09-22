@@ -2662,7 +2662,7 @@ def sfx_assistant(p: Pipeline, pid: int) -> None:
                                  placeholder="vd: ít thôi, chỉ ở chuyển cảnh · thêm tiếng va chạm ở cảnh 3")
             transition = st.session_state.get(f"tr_{pid}", "cut")
             fade = float(st.session_state.get(f"fade_{pid}", 1.0))
-            if st.button("🤖 AI tự đề xuất hiệu ứng", key=f"sfx_go_{pid}", type="primary"):
+            if st.button("🤖 AI tự đề xuất hiệu ứng", key=f"sfx_ai_go_{pid}", type="primary"):
                 client = llm_client()
                 try:
                     with st.spinner("AI đang đọc các cảnh và chọn hiệu ứng…"):

@@ -304,7 +304,7 @@ class DashboardTests(Base):
         self.assertEqual(sound_lib.counts(self.conn), {"music": 1, "sfx": 1})
         at = self.app("5")
         self.assertFalse(at.exception)
-        self.assertTrue(any(b.key == f"sfx_go_{self.pid}" for b in at.button))
+        self.assertTrue(any(b.key == f"sfx_ai_go_{self.pid}" for b in at.button))
         self.assertFalse(any((b.key or "").startswith(("sr_", "sg_")) for b in at.button))          # no search / preview / per-track buttons
 
     def test_the_ai_button_proposes_and_only_the_kept_rows_are_added(self):
@@ -316,7 +316,7 @@ class DashboardTests(Base):
         at = self.app("5")
         os.environ["LLM_PROVIDER"] = "mock"
         try:
-            next(b for b in at.button if b.key == f"sfx_go_{self.pid}").click().run()
+            next(b for b in at.button if b.key == f"sfx_ai_go_{self.pid}").click().run()
         finally:
             os.environ.pop("LLM_PROVIDER", None)
         self.assertFalse(at.exception)
@@ -336,7 +336,22 @@ class DashboardTests(Base):
     def test_an_empty_library_adds_nothing_to_step_5(self):
         at = self.app("5")
         self.assertFalse(at.exception)
-        self.assertFalse(any(b.key == f"sfx_go_{self.pid}" for b in at.button))
+        self.assertFalse(any(b.key == f"sfx_ai_go_{self.pid}" for b in at.button))
+
+    def test_the_manual_and_ai_sfx_buttons_coexist_without_a_key_collision(self):
+        """Regression: extras_section's manual '+ Tạo SFX' button and sfx_assistant's AI button used to
+        share the same key (f"sfx_go_{pid}") whenever a real audio provider was configured, crashing Step 5
+        with StreamlitDuplicateElementKey. Both must render side by side under distinct keys."""
+        wav(os.path.join(self.src, "Sound FX Pack", "Whoosh.wav"), 1.0)
+        sound_lib.scan(self.conn, sound_lib.add_source(self.conn, self.src))
+        os.environ["AUDIO_PROVIDER"] = "mock"
+        try:
+            at = self.app("5")
+        finally:
+            os.environ.pop("AUDIO_PROVIDER", None)
+        self.assertFalse(at.exception)
+        self.assertTrue(any(b.key == f"sfx_go_{self.pid}" for b in at.button))
+        self.assertTrue(any(b.key == f"sfx_ai_go_{self.pid}" for b in at.button))
 
     def test_the_dashboard_lists_new_sound_files_when_it_opens(self):
         wav(os.path.join(self.src, "nhạc nền vui vẻ", "Sunny.wav"), 1.0)
