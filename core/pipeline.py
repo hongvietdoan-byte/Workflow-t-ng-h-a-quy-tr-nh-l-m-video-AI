@@ -79,6 +79,13 @@ class Pipeline:
         self.conn.execute("UPDATE projects SET video_audio=? WHERE id=?", (1 if on else 0, project_id))
         self.conn.commit()
 
+    def set_storyboard_mode(self, project_id: int, on: bool) -> None:
+        """Deepix has no scriptable Storyboard tool (web UI only) — this is the workaround: when on, each scene's
+        image generation also gets the PREVIOUS scene's approved image as an extra reference (image-to-image),
+        so style/lighting/palette carry over the way a real storyboard would, without a Storyboard API to call."""
+        self.conn.execute("UPDATE projects SET storyboard_mode=? WHERE id=?", (1 if on else 0, project_id))
+        self.conn.commit()
+
     def set_motion_ref_video(self, scene_id: int, path: Optional[str], refer_type: str = "feature") -> None:
         """A local video the generator copies MOTION from for this scene (never appearance — that still comes only
         from the approved first-frame image / Character Bible). `refer_type`: "feature" copies the motion into a new

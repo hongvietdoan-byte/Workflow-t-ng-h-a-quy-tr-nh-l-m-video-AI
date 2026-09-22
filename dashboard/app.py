@@ -772,6 +772,16 @@ def world_bible_panel(p: Pipeline, pid: int) -> None:
                      expanded=False):
         st.caption("Khóa một bộ tham số phong cách dùng chung: Director và Motion sẽ kế thừa cho **mọi** cảnh, tránh cảnh này một kiểu cảnh kia "
                    "một kiểu. Gõ tay, hoặc tải 2–6 ảnh tham khảo để Claude soạn bản nháp rồi bạn sửa. Bản nháp chỉ có tác dụng sau khi bạn bấm Lưu.")
+        proj_wb = p.project(pid)
+        sb_on = st.checkbox("📽 Chế độ Storyboard (mỗi cảnh dùng ảnh cảnh TRƯỚC làm thêm 1 ảnh tham chiếu)",
+                            bool(proj_wb["storyboard_mode"]), key=f"sb_mode_{pid}",
+                            help="Deepix không có Storyboard qua API (chỉ web) — đây là cách thay thế: khi gen ảnh cảnh N, "
+                                 "ảnh cảnh N-1 đã duyệt được gửi kèm làm ảnh tham chiếu bổ sung (giữ phong cách/ánh sáng/bố cục "
+                                 "liên tục như storyboard thật), cộng với ảnh nhân vật/bối cảnh như bình thường. Chỉ áp dụng khi "
+                                 "cảnh trước ĐÃ có ảnh duyệt; cảnh đầu tiên không có gì để nối nên vẽ như cũ. Tắt mặc định vì không "
+                                 "phải dự án nào cũng có các cảnh nối tiếp nhau về không gian/thời gian.")
+        if sb_on != bool(proj_wb["storyboard_mode"]):
+            p.set_storyboard_mode(pid, sb_on)
         uploads = st.file_uploader("Ảnh tham khảo phong cách", type=["png", "jpg", "jpeg", "webp"], accept_multiple_files=True,
                                    key=f"wb_up_{pid}")
         llm = llm_runner.client_from_env()

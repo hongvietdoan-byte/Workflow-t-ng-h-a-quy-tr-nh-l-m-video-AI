@@ -14,6 +14,7 @@ CREATE TABLE IF NOT EXISTS projects (
     video_audio INTEGER NOT NULL DEFAULT 0,
     game TEXT NOT NULL DEFAULT 'FF',
     use_subjects INTEGER NOT NULL DEFAULT 0,
+    storyboard_mode INTEGER NOT NULL DEFAULT 0,
     qc_autofix INTEGER NOT NULL DEFAULT 1,
     script_text TEXT,
     world_bible TEXT,
@@ -355,6 +356,8 @@ def connect(path: str = ":memory:") -> sqlite3.Connection:
     for column, ddl in (("tags", "TEXT"), ("heard", "TEXT"), ("heard_label", "TEXT"), ("heard_score", "REAL"), ("voice", "INTEGER NOT NULL DEFAULT 0")):
         if column not in sound_cols:
             conn.execute(f"ALTER TABLE sounds ADD COLUMN {column} {ddl}")
+    if "storyboard_mode" not in cols:
+        conn.execute("ALTER TABLE projects ADD COLUMN storyboard_mode INTEGER NOT NULL DEFAULT 0")
     mp_cols = {r["name"] for r in conn.execute("PRAGMA table_info(motion_prompts)")}
     if "ref_video_path" not in mp_cols:
         conn.execute("ALTER TABLE motion_prompts ADD COLUMN ref_video_path TEXT")

@@ -217,13 +217,27 @@ class ImageRunner(_Runner):
     job_type = "image_gen"
 
     def _submit_args(self, job):
-        scene = self.p.conn.execute("SELECT data FROM scenes WHERE id=?", (job["scene_id"],)).fetchone()
+        conn = self.p.conn
+        scene = conn.execute("SELECT idx, data FROM scenes WHERE id=?", (job["scene_id"],)).fetchone()
         prompt = json.loads(scene["data"] or "{}").get("image_prompt")
         if not prompt:
             return None
         if job["retry_reason"]:
             prompt = f"{prompt}. Fix: {job['retry_reason']}"
-        refs = assets.scene_references(self.p.conn, job["project_id"], json.loads(scene["data"] or "{}"))
+        refs = assets.scene_references(conn, job["project_id"], json.loads(scene["data"] or "{}"))
+        proj = self.p.project(job["project_id"])
+        if proj["storyboard_mode"] and len(refs) < assets.MAX_REFERENCES:
+            # Deepix has no scriptable Storyboard (web UI only, see docs/CLIPAI_FEATURES.md) — this chains the
+            # previous scene's approved picture in as an extra image-to-image reference instead, so style/lighting
+            # carry over the way a real storyboard would.
+            prev = conn.execute(
+                "SELECT j.id FROM jobs j JOIN scenes s ON s.id=j.scene_id WHERE s.project_id=? AND s.idx=?"
+                " AND j.type='image_gen' AND j.state='approved' ORDER BY j.id DESC LIMIT 1",
+                (job["project_id"], scene["idx"] - 1)).fetchone()
+            if prev is not None:
+                prev_path = os.path.join(self.data_dir, str(job["project_id"]), "images", f"job_{prev['id']}.png")
+                if os.path.exists(prev_path):
+                    refs = refs + [{"path": prev_path, "label": "previous scene", "role": "previous_scene"}]
         if refs:                                       # the chosen resources' pictures go with the prompt (image-to-image)
             return (assets.reference_note(refs) + "Scene: " + prompt, [r["path"] for r in refs])
         return (prompt,)
