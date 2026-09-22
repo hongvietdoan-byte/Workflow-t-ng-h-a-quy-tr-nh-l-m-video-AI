@@ -4,6 +4,8 @@ Nguồn cơ chế: mô tả kỹ năng chính thức đồng bộ từ ff.garena
 
 **Cách dùng:** khi viết prompt ảnh (Director) hoặc motion prompt (Bước 3) cho một cảnh có nhân vật đang dùng kỹ năng, copy phần *"Hình ảnh"* của nhân vật đó vào đoạn hành động/chất liệu, giữ nguyên ngoại hình đã chốt trong Character Bible. Đây là suy luận hợp lý từ cơ chế game (không phải ảnh chụp màn hình thật), nên coi là **gợi ý mặc định** — sửa lại nếu người duyệt có ảnh/video tham chiếu chính xác hơn.
 
+**Chính xác hơn nữa (khuyến khích cho skill quan trọng):** thay vì chỉ copy chữ "Hình ảnh" ở dưới, tải luôn video gameplay/showcase thật của skill đó vào ô "🎥 Video tham chiếu chuyển động" ở Bước 3 — model sẽ theo đúng chuyển động thật thay vì suy luận từ mô tả cơ chế. Xem `knowledge/motion_complex_shots.md` mục "Khi chữ vẫn không đủ" để biết cách viết prompt đúng khi có video tham chiếu (không tả lại diện mạo nhân vật trong video đó).
+
 Không xếp: **A PATROA** (khe kỹ năng trống, không có hiệu ứng riêng), **ANDREW thuc tinh** (id 62, chưa có dữ liệu đồng bộ), **Kenta ở OB55** (id 377, placeholder "thông tin update").
 
 ## Chủ động vs Bị động — nguồn xác thực, không suy luận

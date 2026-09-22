@@ -33,3 +33,11 @@ Chỉ khi **cùng lúc**: từ 2 chủ thể trở lên **và** chuyển động
 - Có nhịp nào bắt cả chủ thể và máy cùng chuyển động lớn? (sẽ nhòe) → chỉ để một bên động.
 - Không tự ý đổi cỡ cảnh/góc/kiểu chuyển động đã chọn ở bước đạo diễn; chỉ phục vụ chúng bằng câu chữ.
 - Ghi chú phần nào là **suy đoán** (vd dựng lại vị trí khi không có thông tin cảnh trước) để người duyệt biết chỗ cần xem lại.
+
+## Khi chữ vẫn không đủ: dùng video tham chiếu chuyển động thay vì cố viết chi tiết hơn
+
+Đã tự kiểm hết mục trên mà cảnh vẫn phức tạp tới mức không mã hóa được bằng chữ (vd một combo chiêu thức nhân vật nhiều pha, chuyển động đặc thù không có tên gọi quen thuộc) — **đừng cố viết dài hơn**, gợi ý người duyệt cảnh dùng **video tham chiếu chuyển động** thay thế/bổ sung cho phần mô tả hành động:
+- Đây là tính năng thật của Clip AI (Kling `video_list`/`refer_type=feature`, Seedance `content[].role=reference_video`), đã lập trình sẵn trong Bước 3 của dashboard này (expander "🎥 Video tham chiếu chuyển động" dưới mỗi motion prompt) — không cần code thêm, chỉ cần người duyệt tải lên 1 clip.
+- **Nguyên tắc tách vai trò, LUÔN giữ khi viết prompt cho cảnh có video tham chiếu:** ảnh khung đầu (và Character Bible) quyết định toàn bộ **diện mạo**; video tham chiếu chỉ quyết định **chuyển động/nhịp/lực** — **không được tả lại diện mạo nhân vật trong video đó** vào motion prompt (model có thể lẫn diện mạo nếu prompt mơ tả cả hai). Câu prompt nên viết kiểu: "nhân vật trong ảnh thực hiện đúng chuyển động/nhịp độ như trong video tham chiếu" thay vì diễn giải lại từng động tác bằng chữ.
+- Ví dụ cụ thể của dự án: skill chủ động của nhân vật Free Fire (xem `knowledge/ff_character_skills_visual.md`) — dùng video gameplay/showcase thật của skill đó làm tham chiếu chuyển động, thay vì cố diễn tả VFX bằng chữ khi chưa xem video.
+- Đây là gợi ý **thay thế cách viết chữ chi tiết hơn**, không phải bước bắt buộc thêm vào — cảnh đơn giản vẫn viết chữ như bình thường.

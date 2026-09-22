@@ -170,8 +170,8 @@ class VideoRunner(_Runner):
 
     def _submit_args(self, job):
         conn = self.p.conn
-        mp = conn.execute("SELECT motion_prompt, negative_prompt, duration_sec FROM motion_prompts"
-                          " WHERE scene_id=? AND state='approved'", (job["scene_id"],)).fetchone()
+        mp = conn.execute("SELECT motion_prompt, negative_prompt, duration_sec, ref_video_path, ref_video_type"
+                          " FROM motion_prompts WHERE scene_id=? AND state='approved'", (job["scene_id"],)).fetchone()
         img = conn.execute("SELECT id FROM jobs WHERE scene_id=? AND type='image_gen' AND state='approved'"
                            " ORDER BY id DESC LIMIT 1", (job["scene_id"],)).fetchone()
         if mp is None or img is None:
@@ -192,8 +192,14 @@ class VideoRunner(_Runner):
                 self._diag(job, "warn", "missing_reference",
                           "ảnh tham chiếu không đọc được (bỏ qua, video vẫn gen): " + ", ".join(r["label"] for r in missing))
                 image_refs = [r for r in image_refs if r not in missing]
-        if proj["video_audio"] or subj_refs or image_refs:  # extra args only when used: older providers keep working
-            args += (bool(proj["video_audio"]), subj_refs or None, image_refs or None)
+        ref_video = None
+        if mp["ref_video_path"] and os.path.exists(mp["ref_video_path"]):
+            ref_video = {"path": mp["ref_video_path"], "refer_type": mp["ref_video_type"] or "feature"}
+        elif mp["ref_video_path"]:
+            self._diag(job, "warn", "missing_reference",
+                      f"video tham chiếu chuyển động không đọc được (bỏ qua, video vẫn gen): {mp['ref_video_path']}")
+        if proj["video_audio"] or subj_refs or image_refs or ref_video:  # extra args only when used: older providers keep working
+            args += (bool(proj["video_audio"]), subj_refs or None, image_refs or None, ref_video)
         return args
 
     def _record_usage(self, job, args) -> None:

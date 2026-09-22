@@ -57,7 +57,9 @@ CREATE TABLE IF NOT EXISTS motion_prompts (
     camera TEXT,
     duration_sec REAL NOT NULL DEFAULT 5,
     negative_prompt TEXT,
-    state TEXT NOT NULL DEFAULT 'pending' CHECK (state IN ('pending','approved'))
+    state TEXT NOT NULL DEFAULT 'pending' CHECK (state IN ('pending','approved')),
+    ref_video_path TEXT,
+    ref_video_type TEXT NOT NULL DEFAULT 'feature' CHECK (ref_video_type IN ('feature','base'))
 );
 CREATE TABLE IF NOT EXISTS jobs (
     id INTEGER PRIMARY KEY,
@@ -353,4 +355,9 @@ def connect(path: str = ":memory:") -> sqlite3.Connection:
     for column, ddl in (("tags", "TEXT"), ("heard", "TEXT"), ("heard_label", "TEXT"), ("heard_score", "REAL"), ("voice", "INTEGER NOT NULL DEFAULT 0")):
         if column not in sound_cols:
             conn.execute(f"ALTER TABLE sounds ADD COLUMN {column} {ddl}")
+    mp_cols = {r["name"] for r in conn.execute("PRAGMA table_info(motion_prompts)")}
+    if "ref_video_path" not in mp_cols:
+        conn.execute("ALTER TABLE motion_prompts ADD COLUMN ref_video_path TEXT")
+    if "ref_video_type" not in mp_cols:
+        conn.execute("ALTER TABLE motion_prompts ADD COLUMN ref_video_type TEXT NOT NULL DEFAULT 'feature'")
     return conn

@@ -1938,6 +1938,28 @@ def step3(p: Pipeline, pid: int):
             if c3.button("✔ Duyệt", key=f"mpa_{r['sid']}", disabled=r["state"] == "approved", type="primary"):
                 act(lambda: llm_io.approve_motion_prompt(p, r["sid"]))
                 st.rerun()
+            with st.expander("🎥 Video tham chiếu chuyển động" + (" — đã gắn" if r["ref_video_path"] else ""),
+                             expanded=False):
+                st.caption("Video chỉ cho model **chuyển động/nhịp/lực** (vd clip gameplay thật của một skill); "
+                          "**diện mạo nhân vật vẫn lấy từ ảnh khung đầu / Character Bible**, không lấy từ video này. "
+                          "Kling: chọn 'feature' (mặc định, tạo clip mới theo chuyển động) hoặc 'base' (sửa trực tiếp "
+                          "clip này). Seedance: luôn coi là ví dụ chuyển động, không phân biệt feature/base. "
+                          "Không dùng cùng lúc với '🔊 Model tự tạo âm thanh' trên Kling (API sẽ từ chối).")
+                if r["ref_video_path"]:
+                    st.caption(f"Đang gắn: `{os.path.basename(r['ref_video_path'])}`")
+                    if st.button("✖ Bỏ video tham chiếu", key=f"mprv_clear_{r['sid']}"):
+                        act(lambda: p.set_motion_ref_video(r["sid"], None), "Đã bỏ")
+                        st.rerun()
+                up = st.file_uploader("Tải video tham chiếu (MP4)", type=["mp4", "mov", "webm"],
+                                      key=f"mprv_up_{r['sid']}")
+                refer_type = st.radio("Kiểu tham chiếu (chỉ Kling)", ["feature", "base"],
+                                      horizontal=True, key=f"mprv_type_{r['sid']}")
+                if st.button("⬆ Lưu video tham chiếu", key=f"mprv_save_{r['sid']}", disabled=up is None):
+                    dest = os.path.join(project_dir(pid, "motion_ref"), f"scene_{r['idx']}_{up.name}")
+                    with open(dest, "wb") as f:
+                        f.write(up.getbuffer())
+                    act(lambda: p.set_motion_ref_video(r["sid"], dest, refer_type), "Đã gắn video tham chiếu")
+                    st.rerun()
             scene_expander(p, r["sid"])
             st.divider()
 

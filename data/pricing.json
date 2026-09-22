@@ -1,5 +1,6 @@
 {
-  "_note": "Điền giá thật (đơn vị: credit) sau khi đo trên web Clip AI/Deepix: ghi số dư, chạy 1 lần, ghi lại số dư. null = chưa biết giá. per_video_second là credit cho MỖI GIÂY video; nếu nền tảng tính theo clip thì điền per_video_clip (credit cho mỗi clip, không phụ thuộc thời lượng) - per_video_clip được ưu tiên. per_audio: credit cho MỖI LẦN tạo (mỗi bản nhạc / hiệu ứng / đoạn giọng đọc), khóa theo tên model.",
+  "_note": "Đơn vị: USD/giây (không phải credit — xem _note_usd). Nguồn: slide chính thức ClipAI 'Hôm nay tôi chọn mô hình video như thế nào' (DPX·CLP/09-17, 2026-09-22), cơ sở 720p·16:9·5s·không có video đầu vào; 1 USD ≈ 7.2 CNY. Đây là giá NIÊM YẾT theo model, không phụ thuộc dự án — khác với usage_events (chi phí thực tế đã ghi log). Kling 3.0 Omni trong slide có thể tương ứng `kling-v3-omni:std`, chưa xác nhận 100% khớp mode nào; MiniMax H3 chưa công bố giá (null) và hiện KHÔNG có trong contract Clip AI đang dùng (core/adapters/clipai.py chỉ hỗ trợ Kling + Seedance — xem docs/CLIPAI_FEATURES.md #2). Video tham chiếu chuyển động (reference_video, xem #18) có thể đổi giá — CHƯA đo, coi giá dưới đây là ước lượng khi không dùng video tham chiếu.",
+  "_note_usd": "per_video_second dưới đây lấy trực tiếp từ USD trong slide (không tự quy đổi từ CNY để tránh sai số làm tròn). Nếu đo giá thật bằng credit trên web sau này, thêm field per_video_second_credits song song, không xóa field USD.",
   "currency": "credits",
   "confirm_batch_at": 10,
   "per_image": {
@@ -24,5 +25,23 @@
     "eleven_v3": null,
     "eleven_multilingual_v2": null,
     "eleven_turbo_v2_5": null
+  },
+  "listed_usd_per_video_second": {
+    "_note": "Giá niêm yết công khai (USD/giây), KHÔNG dùng trực tiếp cho cost ledger (đơn vị hệ thống là credit) — chỉ để so sánh/chọn model. Xem _note ở trên.",
+    "dreamina-seedance-2-0-260128:720p": 0.15,
+    "dreamina-seedance-2-0-fast-260128:720p": 0.12,
+    "dreamina-seedance-2-0-mini-260128:720p": 0.08,
+    "dreamina-seedance-2-5-260628:720p": 0.23,
+    "kling-v3-omni:std": 0.08,
+    "minimax-h3": null
+  },
+  "model_choice_guide": {
+    "_note": "Bảng xếp hạng chính thức ClipAI, dùng để gợi ý model trong dashboard (Bước 4). Không phải giá — chỉ thứ tự ưu tiên.",
+    "priority_quality": ["dreamina-seedance-2-5-260628", "minimax-h3 (chưa hỗ trợ trong contract này)",
+                        "dreamina-seedance-2-0-260128", "dreamina-seedance-2-0-fast-260128",
+                        "dreamina-seedance-2-0-mini-260128 (chưa hỗ trợ trong contract này)", "kling-v3-omni"],
+    "priority_value": ["minimax-h3 (chưa hỗ trợ trong contract này)", "dreamina-seedance-2-0-260128",
+                       "dreamina-seedance-2-0-fast-260128", "dreamina-seedance-2-0-mini-260128 (chưa hỗ trợ trong contract này)",
+                       "kling-v3-omni", "dreamina-seedance-2-5-260628"]
   }
 }

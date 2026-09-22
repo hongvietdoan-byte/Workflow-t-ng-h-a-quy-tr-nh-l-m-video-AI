@@ -79,6 +79,14 @@ class Pipeline:
         self.conn.execute("UPDATE projects SET video_audio=? WHERE id=?", (1 if on else 0, project_id))
         self.conn.commit()
 
+    def set_motion_ref_video(self, scene_id: int, path: Optional[str], refer_type: str = "feature") -> None:
+        """A local video the generator copies MOTION from for this scene (never appearance — that still comes only
+        from the approved first-frame image / Character Bible). `refer_type`: "feature" copies the motion into a new
+        clip (default), "base" edits the given clip instead — only meaningful on Kling. `path=None` clears it."""
+        self.conn.execute("UPDATE motion_prompts SET ref_video_path=?, ref_video_type=? WHERE scene_id=?",
+                          (path, refer_type, scene_id))
+        self.conn.commit()
+
     def set_script_text(self, project_id: int, text: str) -> None:
         self.conn.execute("UPDATE projects SET script_text=? WHERE id=?", (text, project_id))
         self.conn.commit()

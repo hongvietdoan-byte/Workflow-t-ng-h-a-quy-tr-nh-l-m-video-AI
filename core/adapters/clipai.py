@@ -9,6 +9,11 @@ Contract source: the vendor skill/reference (clipai 1.3.1). Key facts encoded he
 - Delete: POST /api/kling/video-delete with the numeric row `id` (not the task_id).
 - Use canonical `dreamina-seedance-*` names (never `doubao-*`).
 - The public contract lists no negative-prompt field, so it is not sent unless CLIPAI_NEGATIVE=append.
+- Reference video for motion (not appearance): Kling `video_list: [{video_url, refer_type, keep_original_sound}]`
+  uploaded as multipart field `video_files` (`refer_type` "feature" = copy the motion/style into a NEW clip,
+  "base" = edit the given clip; mutually exclusive with `sound: "on"`). Seedance instead takes a `content[]` item
+  `{type: "video_url", video_url: {...}, role: "reference_video"}`, also uploaded as `video_files`; Seedance has
+  no feature/base distinction, the reference is always a motion example. See docs/CLIPAI_FEATURES.md #18.
 """
 import json
 import os
@@ -120,14 +125,29 @@ class ClipAIVideoProvider:
     # ---- submit ---------------------------------------------------------
     def submit(self, image_path: str, prompt: str, negative_prompt: Optional[str], duration_sec: float,
                model: Optional[str] = None, with_audio: bool = False, subjects: Optional[list] = None,
-              image_references: Optional[list] = None) -> str:
+              image_references: Optional[list] = None, reference_video: Optional[dict] = None) -> str:
         """image_references: this project's own resource-library pictures (local files, [{"path","label","role"}], from
         `assets.scene_references`) — no separate Subject Library upload/approval needed. `subjects`: Subject Library entries
-        already hosted on Clip AI ([{"name","uri"}]). Seedance only; both share one reference-image budget, local pictures first."""
+        already hosted on Clip AI ([{"name","uri"}]). Seedance only; both share one reference-image budget, local pictures first.
+        reference_video: {"path": local file, "refer_type": "feature"|"base"} — a video the generator copies MOTION from
+        (identity/appearance still comes only from `image_path`/`image_references`, never from this video). `refer_type`
+        only applies to Kling (Omni/O1); Seedance always treats the video as a motion example. Mutually exclusive with
+        `with_audio` on Kling (the vendor API rejects `sound=on` together with a reference video)."""
         canonical, family = resolve_model(model)
         if with_audio and canonical == "kling-video-o1":
             raise ProviderError("kling-video-o1 does not support generated sound (use kling-v3-omni or Seedance)",
                                 code="unsupported_option")
+        if reference_video and with_audio and family == "omni":
+            raise ProviderError("Kling rejects a reference video together with generated sound (sound=on); turn "
+                                "audio off or drop the reference video", code="unsupported_option")
+        video_files: List[Tuple[str, bytes]] = []
+        if reference_video:
+            vpath = reference_video["path"]
+            if not os.path.exists(vpath):
+                raise ProviderError(f"reference video not found: {vpath}", code="missing_video")
+            with open(vpath, "rb") as f:
+                vcontent = f.read()
+            video_files.append((_upload_name(vpath, vcontent), vcontent))
         text = prompt.strip()
         if self.negative == "append" and negative_prompt:
             text += f"\nAvoid: {negative_prompt}"
@@ -172,18 +192,23 @@ class ClipAIVideoProvider:
                    "image_list": [{"image_url": "", "type": "first_frame"}], "mode": self.kling_mode,
                    "aspect_ratio": self.aspect_ratio, "duration": str(effective_duration(canonical, family, duration_sec)),
                    "video_num": 1}
+            if reference_video:
+                ctx["video_list"] = [{"video_url": "", "refer_type": reference_video.get("refer_type", "feature"),
+                                      "keep_original_sound": "no"}]
             path = PATH_KLING
         else:
             ctx = {"model_name": canonical,
                    "content": [{"type": "text", "text": text},
                                {"type": "image_url", "image_url": {"url": ""}, "role": "first_frame"}]
                    + [{"type": "image_url", "image_url": {"url": "" if r["kind"] == "local" else r["uri"]}, "role": "reference_image"}
-                      for r in content_refs],
+                      for r in content_refs]
+                   + ([{"type": "video_url", "video_url": {"url": ""}, "role": "reference_video"}] if reference_video else []),
                    "resolution": self.resolution, "ratio": self.aspect_ratio,
                    "duration": effective_duration(canonical, family, duration_sec), "generate_audio": bool(with_audio),
                    "camera_fixed": False, "seed": -1, "video_num": 1}
             path = PATH_SEEDANCE
-        files = [("image_files", image[0], image[1])] + [("image_files", name, data) for name, data in extra_files]
+        files = ([("image_files", image[0], image[1])] + [("image_files", name, data) for name, data in extra_files]
+                + [("video_files", name, data) for name, data in video_files])
         data = self.client.post_multipart(path, {"ctx": json.dumps(ctx, ensure_ascii=False)}, files)
         tasks = (data or {}).get("tasks") or []
         if not tasks:
