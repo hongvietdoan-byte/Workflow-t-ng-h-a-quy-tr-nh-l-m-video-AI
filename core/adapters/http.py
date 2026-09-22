@@ -76,8 +76,16 @@ def describe_token(token: str) -> List[str]:
     return problems
 
 
+_RATE_LIMIT_HINTS = ("too many request", "rate limit", "retry after")
+
+
 def parse_envelope(payload) -> object:
-    """Return `data` of a successful envelope, or raise ProviderError."""
+    """Return `data` of a successful envelope, or raise ProviderError.
+
+    A "too many requests" style error (the vendor is asking us to slow down, not reporting that the
+    underlying job failed) is marked transient: the caller keeps polling instead of marking a running
+    job "failed" just because the *status check itself* got rate-limited (a real job kept generating
+    successfully server-side while its poll calls kept hitting this and being wrongly declared failed)."""
     if not isinstance(payload, dict):
         raise ProviderError(f"invalid API response: {str(payload)[:200]}", code="bad_response")
     code_ok = "code" not in payload or payload["code"] in (0, 200)
@@ -85,7 +93,8 @@ def parse_envelope(payload) -> object:
     if not (code_ok and status_ok):
         message = payload.get("msg") or payload.get("message") or "unknown error"
         signal = f"code={payload['code']}" if "code" in payload else f"status={payload.get('status')}"
-        raise ProviderError(f"API error ({signal}): {message}", code="api_error")
+        transient = any(h in message.lower() for h in _RATE_LIMIT_HINTS)
+        raise ProviderError(f"API error ({signal}): {message}", code="api_error", transient=transient)
     return payload.get("data")
 
 

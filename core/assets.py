@@ -499,6 +499,11 @@ def reference_note(refs: List[Dict]) -> str:
     if people:
         rule = (" Each person keeps ONLY the look of their own reference image(s): never swap or blend faces, hair or outfits between people, and ignore "
                 "any clothing or hair words in the scene text that contradict the reference images. The people are different individuals.")
+        if people > 1:
+            rule += (" Before drawing, pick ONE unmistakable visual anchor per named person from their reference image (hair color/style, "
+                     "headwear, or a distinct clothing color) and keep checking each person against their own anchor as you draw the rest of "
+                     "the scene. If two people would otherwise look similar in age, build or pose, exaggerate their point of difference "
+                     "(e.g. hair color vs. no color) rather than letting them drift toward the same look.")
     return "Reference images are attached, grouped per named subject. " + "; ".join(bits) + "." + rule + " "
 
 

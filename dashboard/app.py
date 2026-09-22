@@ -724,6 +724,9 @@ def project_settings_popover(p: Pipeline, pid: int, proj) -> None:
         th = st.slider("QC threshold", 0.5, 1.0, float(proj["qc_auto_pass_threshold"]), 0.01, key=f"th_{pid}")
         if abs(th - proj["qc_auto_pass_threshold"]) > 1e-9:
             p.set_threshold(pid, th)
+        max_retry = st.slider("Retry tối đa mỗi job (rồi báo cho bạn xử lý)", 1, 8, int(proj["max_retry_count"]), 1, key=f"maxretry_{pid}")
+        if max_retry != proj["max_retry_count"]:
+            p.set_max_retry(pid, max_retry)
         st.divider()
         st.caption("🗑 Xóa dự án cùng cảnh, ảnh, clip, nhạc và video đã tạo (tài nguyên trong kho chung không bị xóa; lịch sử chi tiêu được giữ). "
                    "Chỉ người tạo dự án mới xóa được (dự án cũ chưa ghi người tạo thì Owner xóa).")

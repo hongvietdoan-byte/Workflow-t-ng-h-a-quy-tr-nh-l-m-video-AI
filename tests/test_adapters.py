@@ -70,6 +70,16 @@ class HttpLayerTests(unittest.TestCase):
             with self.assertRaises(ProviderError):
                 parse_envelope(bad)
 
+    def test_rate_limit_envelope_error_is_transient(self):
+        """A "too many requests" answer means the status check itself got throttled, not that the job
+        failed -- the caller must keep polling instead of declaring a still-running job dead."""
+        with self.assertRaises(ProviderError) as cm:
+            parse_envelope({"code": 1130, "msg": "Too many requests, please retry after 2s"})
+        self.assertTrue(cm.exception.transient)
+        with self.assertRaises(ProviderError) as cm:
+            parse_envelope({"code": 1, "msg": "unrelated error"})
+        self.assertFalse(cm.exception.transient)
+
     def test_bearer_header_only_on_api_calls_and_errors_hide_token(self):
         t = FakeTransport()
         t.on("GET", "/x", ok({"v": 1}))

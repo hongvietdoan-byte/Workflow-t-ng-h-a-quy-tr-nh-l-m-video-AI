@@ -79,6 +79,11 @@ class Pipeline:
         self.conn.execute("UPDATE projects SET video_audio=? WHERE id=?", (1 if on else 0, project_id))
         self.conn.commit()
 
+    def set_max_retry(self, project_id: int, max_retry: int) -> None:
+        """How many automatic re-gens a rejected job gets before it is escalated to a human, unfixed."""
+        self.conn.execute("UPDATE projects SET max_retry_count=? WHERE id=?", (max_retry, project_id))
+        self.conn.commit()
+
     def set_storyboard_mode(self, project_id: int, on: bool) -> None:
         """Deepix has no scriptable Storyboard tool (web UI only) — this is the workaround: when on, each scene's
         image generation also gets the PREVIOUS scene's approved image as an extra reference (image-to-image),
