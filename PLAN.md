@@ -185,6 +185,8 @@ Bối cảnh: kịch bản thật dài ~60 giây, 3–5 nhân vật, bối cản
 
 **Kết luận:** mỗi cảnh 1 ảnh giữ được mặt/trang phục (khi ≤3 người) nhưng **không giữ được không gian**: bối cảnh, vị trí đứng, tỉ lệ người/cảnh, hướng nhìn. AI vẽ lại toàn bộ khung hình nên dễ ra nhân vật quá to, đứng lơ lửng, bối cảnh lệch so với in-game.
 
+**Ưu tiên đã chốt (2026-09-23):** mục 1–4 và 6 dưới đây thuộc **hướng chính (ảnh + text)**, làm ngay. Mục 5 (previz 3D) là **hướng nghiên cứu cho tương lai** (xem `docs/RESEARCH_3D_PREVIZ.md`). Bàn đạo diễn Clip AI là hướng 2, dò lại ở lần dùng API tiếp theo (`docs/CLIPAI_FEATURES.md`). Bổ sung cho hướng chính: ảnh nền chung cho mỗi nhóm cảnh (gen 1 ảnh bối cảnh trống từ ảnh in-game, duyệt 1 lần, mọi shot trong nhóm dùng lại), tự gắn nhãn góc/cỡ cảnh/mốc cho ảnh bối cảnh bằng Claude Vision để chọn đúng ảnh góc theo shot, tách vai trò ảnh tham chiếu mặt/tóc và trang phục + gen bảng nhân vật (trước/nghiêng/sau) khi đổi trang phục.
+
 **Hướng giải quyết (theo thứ tự):**
 
 1. **Sửa nhanh cách chọn ảnh tham chiếu (A):** luôn giữ 1 chỗ cho bối cảnh (và 1 cho Storyboard); cảnh ≥4 người → 1 ảnh/người.
@@ -227,7 +229,7 @@ Bối cảnh: kịch bản thật dài ~60 giây, 3–5 nhân vật, bối cản
 - **Deepix:** đã kiểm tra, **có API lấy được**. **Clip AI:** **đã có API (2026-09-19)** — bước tiếp theo là đọc tài liệu API để viết adapter `VideoProvider` (và audio nếu có), nắm response schema lỗi risk-control. Nếu chỉ có webhook mà không có endpoint truy vấn trạng thái thì cần thêm điểm nhận callback.
 
 **Đã chốt (2026-09-22, sau khi đối chiếu slide chính thức ClipAI/Deepix với API thật):**
-- **"Bàn đạo diễn" (ClipAI 3D director's desk) — tạm gác.** Không phải sản phẩm giả — có thật trên web ClipAI — nhưng không dò được endpoint qua các đường dẫn đoán mù; không đầu tư thêm thời gian trừ khi có URL/payload thật từ tab Network.
+- **"Bàn đạo diễn" (ClipAI 3D director's desk) — tạm gác** *(cập nhật 2026-09-23: chuyển thành hướng 2 — dò lại ở lần dùng API tiếp theo, xem bên dưới)*. Không phải sản phẩm giả — có thật trên web ClipAI — nhưng không dò được endpoint qua các đường dẫn đoán mù; không đầu tư thêm thời gian trừ khi có URL/payload thật từ tab Network.
 - **Không dùng Kho chủ thể Seedance (upload nhân vật riêng lên Subject Library của Clip AI).** Chưa thấy hiệu quả rõ rệt so với công sức. Ưu tiên: ảnh tham chiếu lấy thẳng từ **tài nguyên đã gắn cho cảnh trong Kho tài nguyên dự án** (`assets.scene_references`) — cơ chế này đã dùng cho Deepix (Bước 2) và từ 2026-09-22 cũng dùng cho Clip AI Seedance (Bước 4), không cần bước upload/chờ `active` riêng của Kho chủ thể. Panel "🧩 Kho chủ thể" ở Bước 1 và tuỳ chọn "🧩 Gắn ảnh chủ thể" ở Bước 4 vẫn giữ trong code (không xoá) nhưng không còn là hướng ưu tiên.
 - **Video tham chiếu chuyển động (`reference_video`) — chưa ưu tiên thử nghiệm.** Ưu tiên hoàn thiện dictionary "kỹ năng nhân vật → hình ảnh" (`knowledge/ff_character_skills_visual.md`) làm nguồn chính mô tả chuyển động skill bằng chữ trong prompt, thay vì cần video mẫu thật. Code đã hỗ trợ gửi ĐỒNG THỜI ảnh tham chiếu nhân vật + video tham chiếu chuyển động trong cùng một lần gen (`core/adapters/clipai.py::submit()` nhận cả `image_references` và `reference_video`, không loại trừ nhau trừ khi bật audio sinh trên Kling) — khi nào thật sự cần độ chính xác chuyển động cao hơn chữ mô tả thì kết hợp cả hai, không phải chọn một trong hai.
 - **Đồng bộ môi (Lip Sync) trên ClipAI — không ưu tiên vì còn Beta** (yêu cầu tải video có sẵn + chọn giọng lồng tiếng riêng, quy trình 2 bước cồng kềnh). Tập trung vào việc gen video có thoại ngay từ prompt (tuỳ chọn "🔊 Model tự tạo âm thanh/lời thoại" ở Bước 4 dùng Kling `sound`/Seedance `generate_audio`) — không cần hỏi team Clip AI về lip-sync/voice design nữa.
@@ -240,16 +242,18 @@ Bối cảnh: kịch bản thật dài ~60 giây, 3–5 nhân vật, bối cản
 
 - Workflow hiện **chạy được** (đã ra video 8 cảnh ~46 giây) nhưng **chưa chứng minh hiệu quả**: chưa đạt cổng chuyển V1 (threshold QC chưa hiệu chỉnh bằng dữ liệu, prompt chưa khóa version qua `eval/`), chưa có số liệu so với làm tay. Cần báo cáo 5 chỉ số: thời gian/giây video, chi phí/giây video, tỉ lệ đạt lần đầu, đồng thuận QC–người, số lần can thiệp tay/cảnh.
 - Không dựng quy trình riêng cho từng model video; chỉ có hồ sơ khả năng từng model ở Bước 4 + bộ test cố định 3 cảnh.
-- Hướng chính cho bối cảnh chân thực = **previz 3D từ map FF** (Blender tự động), thử trước bằng map fan trên mạng; không yêu cầu người dùng đánh dấu tay ảnh.
-- Thứ tự: sửa chọn ảnh tham chiếu/bối cảnh/blocking (A–C) → thử previz 3D + Deepix bám layout (cổng quyết định) → tích hợp Dashboard → test so model.
+- **CHỐT 3 hướng theo thứ tự ưu tiên (người dùng, 2026-09-23):**
+  1. **Hướng chính — tối ưu cách dùng ảnh + text** (đơn giản nhất, giữ linh hoạt thay trang phục khi không có file 3D). Làm ngay: sửa chọn ảnh tham chiếu (A), chọn bối cảnh theo ID (B), blocking + nhóm cảnh (C), ảnh nền chung cho mỗi nhóm cảnh, tự gắn nhãn góc ảnh bối cảnh bằng Claude Vision, tách ảnh tham chiếu mặt/trang phục + bảng nhân vật khi đổi trang phục, QC 3 tiêu chí mới, báo cáo 5 chỉ số.
+  2. **Bàn đạo diễn của Clip AI — dò lại ở lần dùng API tiếp theo, để build sau.** Lần tới làm việc với API Clip AI: đọc kỹ toàn bộ tính năng API cho phép (gói skill mới nhất nếu có, danh sách video/`task_type`, trường mới), kiểm tra video lưu từ Bàn đạo diễn có hiện trong API không, hỏi team Clip AI. Kết quả của nó (video white model) đã dùng được qua `reference_video` của Seedance theo tài liệu API. Xem `docs/CLIPAI_FEATURES.md`.
+  3. **Combo Deepix + Blender + Meshy + Clip AI (previz 3D) — nghiên cứu dần, dùng trong tương lai.** Mới và khó; ghi chép nghiên cứu ở `docs/RESEARCH_3D_PREVIZ.md`, không chặn hướng 1.
 
 **Còn mở (2026-09-23):**
 
 | Quyết định | Ghi chú |
 |---|---|
-| Deepix có bám ảnh layout từ 3D không | Quyết định có đưa previz 3D vào Dashboard hay không; cần thử 3–5 ảnh |
-| Nguồn map 3D | Tạm dùng map fan để thử; bản phát hành cần asset chính thức từ team game (định dạng, texture, quyền dùng) |
-| Model 3D nhân vật FF | Nếu có thì thay ma-nơ-canh, tư thế/tỉ lệ chuẩn hơn |
+| API Clip AI có cho dùng Bàn đạo diễn không | Hướng 2 — kiểm tra ở lần dùng API tiếp theo; hỏi team Clip AI gói skill mới hơn 1.3.1 |
+| Deepix có bám ảnh layout từ 3D không | Hướng 3 (nghiên cứu) — cổng quyết định trước khi đầu tư previz 3D |
+| Nguồn map 3D / model 3D nhân vật FF | Hướng 3 — map fan chỉ để thử nội bộ; bản phát hành cần asset chính thức |
 
 **Còn mở, KHÔNG chặn V0 (chốt trước V1):**
 | Quyết định | Ghi chú |
@@ -381,17 +385,17 @@ Mục tiêu: chứng minh pipeline end-to-end chạy được, đo chất lượ
 
 **Cập nhật 2026-09-23:** đã chạy thật 1 video hoàn chỉnh 8 cảnh (~46 giây, 3 nhân vật, thoại TTS + phụ đề + nhạc + card cuối) qua Dashboard; sửa lỗi rate-limit bị hiểu là lỗi vĩnh viễn và job kẹt do `external_id` lệch; thêm "đặc điểm neo" chống nhầm nhân vật; 548 test pass. Rà soát nhất quán nhân vật/bối cảnh/bố cục và lên kế hoạch previz 3D — xem 3.7 và Mục 5.
 
-**Kế hoạch tiếp theo (2026-09-23, chi tiết từng việc ở `TODO.md`):**
-| Giai đoạn | Việc | Ai | Credit |
-|---|---|---|---|
-| P0 | (A) giữ chỗ ảnh bối cảnh/Storyboard; (B) chọn bối cảnh theo ID + ô chọn ở Bước 1; (C) `blocking` + `sequence` trong Director, Storyboard nối theo nhóm; skip 3 test `sound_lib` khi thiếu ffmpeg | Claude | Không |
-| P0 | Báo cáo "Hiệu quả workflow" 5 chỉ số từ `manifest.sqlite` | Claude | Không |
-| P1 | Script Blender `tools/previz/`: nhập map, tìm mặt đất, kiểm tra tỉ lệ, bản đồ từ trên, đặt ma-nơ-canh + 3 camera, render layout + độ sâu (thử bằng map giả trên cloud) | Claude | Không |
-| P1 | Tải 1 map FF (GLB/FBX có texture), cài Blender, chạy script | Người dùng | Không |
-| P2 (cổng) | Gửi 3–5 ảnh layout qua Deepix, so với cách hiện tại → quyết định có tích hợp | Người dùng + Claude | ~5 ảnh |
-| P3 | Tích hợp previz vào Dashboard (khu vực từ map, blocking → 3D, render từng shot, QC 3 tiêu chí mới, video tham chiếu camera) | Claude | Không |
-| P4 | Hồ sơ model + tự đề xuất model từng cảnh; bộ test 3 cảnh × Kling/Seedance | Claude + người dùng | ~$3,5 |
-| P5 | Chạy lại 1 kịch bản 60 giây, đo 5 chỉ số, so với làm tay | Người dùng | Theo kịch bản |
+**Kế hoạch tiếp theo (chốt 2026-09-23, chi tiết từng việc ở `TODO.md`):**
+
+| Hướng | Giai đoạn | Việc | Ai | Credit |
+|---|---|---|---|---|
+| 1 — Ảnh + text (chính) | P0 | (A) giữ chỗ ảnh bối cảnh/Storyboard; (B) chọn bối cảnh theo ID + ô chọn ở Bước 1; (C) `blocking` + `sequence`, Storyboard nối theo nhóm; skip 3 test `sound_lib` khi thiếu ffmpeg | Claude | Không |
+| 1 | P0 | Ảnh nền chung mỗi nhóm cảnh; tự gắn nhãn góc ảnh bối cảnh (Claude Vision); ảnh tham chiếu mặt/trang phục + bảng nhân vật khi đổi trang phục; QC 3 tiêu chí (tỉ lệ, chân chạm đất, lệch bối cảnh) | Claude | Không (gắn nhãn cần Claude) |
+| 1 | P0 | Báo cáo "Hiệu quả workflow" 5 chỉ số từ `manifest.sqlite` | Claude | Không |
+| 1 | P1 | Hồ sơ model video + tự đề xuất model từng cảnh; bộ test 3 cảnh × Kling/Seedance | Claude + người dùng | ~$3,5 |
+| 1 | P2 | Chạy lại 1 kịch bản 60 giây, đo 5 chỉ số, so với làm tay | Người dùng | Theo kịch bản |
+| 2 — Bàn đạo diễn | Lần dùng API tới | Đọc kỹ toàn bộ tính năng API; kiểm tra video Bàn đạo diễn có trong API không; hỏi team Clip AI; thử `reference_video` Seedance thật (~$1–2) | Claude + người dùng | ~$2 |
+| 3 — Previz 3D | Nghiên cứu dần | Blender + map FF + Meshy (rig/tư thế) + Deepix/Clip AI; ghi ở `docs/RESEARCH_3D_PREVIZ.md` | Khi có thời gian | — |
 
 **Tạm gác (2026-09-19):** MCP Claude/V0 qua Claude Desktop; ưu tiên hoàn thiện Dashboard.
 

@@ -109,3 +109,12 @@ Phần lớn việc còn lại trong `TODO.md` (mục "Đang làm/kế tiếp", 
 - Build PLAN.pdf trên Linux cloud: pandoc lấy từ `pip install pypandoc_binary`, Chrome ở `/opt/pw-browsers/chromium-*/chrome-linux/chrome --no-sandbox` (script `tools/build_docs.sh` chỉ chạy trên Windows vì dùng `cygpath`). Danh sách markdown cần 1 dòng trống sau dòng tiêu đề in đậm, nếu không pandoc dồn thành đoạn văn.
 - 3 test `test_sound_lib` fail khi máy không có ffmpeg (không phải lỗi logic).
 **Source**: trao đổi trực tiếp trong chat.
+
+## 2026-09-23 — CHỐT 3 hướng cho nhất quán nhân vật/bối cảnh
+**Context**: Sau khi bàn previz 3D (Blender + map FF), Meshy (user có Pro + API), file 3D nhân vật FF có sẵn trên mạng, và Bàn đạo diễn Clip AI, user chốt thứ tự.
+**Finding / quyết định**:
+1. **Hướng chính = tối ưu ảnh + text** (đơn giản, giữ linh hoạt thay trang phục khi không có file 3D). P0: A/B/C + ảnh nền chung mỗi nhóm cảnh + tự gắn nhãn góc ảnh bối cảnh (Claude Vision) + tách ảnh mặt/trang phục + bảng nhân vật khi đổi trang phục + QC 3 tiêu chí + báo cáo 5 chỉ số. P1 hồ sơ model + test 3 cảnh × 2 model. P2 chạy lại kịch bản 60s.
+2. **Bàn đạo diễn Clip AI — dò lại ở LẦN DÙNG API TIẾP THEO**: đọc kỹ toàn bộ tính năng API, kiểm tra video "Lưu vào thư viện" có hiện trong `/api/kling/video-list` (`inspect_api --usage`), thử `reference_video` Seedance 2.5 thật, hỏi team Clip AI. Checklist ở `docs/CLIPAI_FEATURES.md`. Nghiên cứu web: nhiều khả năng giống updream "预演台" (1–3 ảnh → 3D white model → quay video làm tham chiếu cho Seedance 2.5) — CHƯA xác nhận.
+3. **Previz 3D (Deepix + Blender + Meshy + Clip AI) — nghiên cứu dần** ở `docs/RESEARCH_3D_PREVIZ.md`, không chặn hướng 1.
+**Áp dụng**: phiên sau bắt đầu từ P0 của hướng 1; khi chạm API Clip AI thì làm checklist hướng 2 trước. Không đề xuất lại Blender/map/Meshy như việc gấp.
+**Source**: user chốt trực tiếp trong chat.

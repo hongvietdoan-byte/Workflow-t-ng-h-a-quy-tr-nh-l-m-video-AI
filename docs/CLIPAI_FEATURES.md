@@ -61,6 +61,27 @@ Lần rà soát đầu (bên trên, mục "Chọn model" cũ) kết luận sai v
 
 **Trong lúc chờ xác nhận, vấn đề gốc mà "Bàn đạo diễn" giải quyết** (prompt chữ không khóa được quan hệ không gian trong cảnh quay phức tạp) **đã có giải pháp khác trong dự án**: `knowledge/motion_complex_shots.md` (gắn vào Bước 3) giải quyết bằng cách **khóa không gian và chia nhịp bằng chữ**, cộng thêm mục "Khi chữ vẫn không đủ" (dùng video tham chiếu chuyển động, mục 18) — hai cách không loại trừ nhau và không cần chờ xác nhận API.
 
+### Cập nhật 2026-09-23 — nghiên cứu thêm + quyết định: dò lại ở LẦN DÙNG API TIẾP THEO
+
+**Nhiều khả năng Bàn đạo diễn là gì** (suy luận từ tìm kiếm web, CHƯA xác nhận với Clip AI): giao diện trong ảnh chụp (3D, "Góc nhìn đạo diễn"/"Góc nhìn camera", "Lưu vào thư viện") khớp với tính năng **"预演台" (Previs Stage)** của hệ sinh thái Seedance/updream ra mắt giữa tháng 8/2026:
+- Tải lên 1–3 ảnh bối cảnh → AI dựng **cảnh 3D white model** (khối xám, tách được từng vật) trong ~4–7 phút, xoay 360°.
+- Đặt nhân vật, vẽ đường di chuyển, đặt camera + đường camera → **quay video white model** → gửi làm video tham chiếu cho Seedance/Kling.
+- Seedance 2.5 được quảng bá là model đầu tiên nhận video white model làm khung camera/vị trí (tới 50 tham chiếu, clip 30 giây). Khi có white model, prompt chỉ tả phong cách/ánh sáng/trang phục, không tả chuyển động camera.
+- Ý nghĩa với dự án: dựng không gian 3D **từ ảnh in-game có sẵn** (kể cả ảnh chụp từ cao), không cần file 3D; nhân vật/trang phục vẫn lấy từ ảnh tham chiếu.
+
+**Đã chắc chắn:** gói skill `clipai-1.3.1` không có endpoint nào cho Bàn đạo diễn; nhưng API **có** trường video tham chiếu cho Seedance (`role: "reference_video"`) và Kling (`video_list`), adapter dự án đã hỗ trợ (chưa gửi thật lần nào). Kling không nhận video tham chiếu cùng `sound: "on"`.
+
+**Checklist cho lần dùng API Clip AI tiếp theo:**
+1. Đọc kỹ toàn bộ tính năng API cho phép: gói skill mới nhất (hỏi có bản > 1.3.1 không), mọi endpoint, mọi trường và `task_type` xuất hiện trong `/api/kling/video-list`.
+2. Người dùng dựng 1 cảnh trong Bàn đạo diễn (2–3 ảnh in-game "Đảo Quân Sự", 2 nhân vật, 2 shot), bấm "Lưu vào thư viện" → chạy `py -m core.adapters.inspect_api --usage` (chỉ đọc, không tốn credit) xem video white model có hiện trong API không.
+3. Xem tab Network (F12 → Fetch/XHR) khi thao tác: chỉ chép URL + tên trường, **không gửi header `Authorization`/cookie hay file HAR**. Endpoint nội bộ không tài liệu cần team Clip AI đồng ý trước khi dựa vào.
+4. Thử thật `reference_video` với Seedance 2.5 (~$1–2) để xác nhận API nhận đúng.
+5. Hỏi team Clip AI: *"Bàn đạo diễn (dựng cảnh 3D từ ảnh, đặt camera/nhân vật, quay white model) có API không? Nếu có, cho tài liệu/gói skill mới hơn 1.3.1. Video lưu từ Bàn đạo diễn có dùng làm `reference_video` cho Seedance 2.5 qua `/api/kling/seedance-video-submit` được không?"*
+
+**Khi build (sau này):** ảnh khung đầu phải khớp bố cục white model (lấy frame đầu của video white model cho Deepix vẽ lại cùng ảnh nhân vật, hoặc bỏ khung đầu nếu Seedance cho phép); prompt Bước 3 bỏ phần chuyển động camera khi có white model; cảnh có thoại dùng Seedance. Không có API điều khiển → luồng bán tự động: quay trên web, gắn video vào cảnh ở Bước 3 (nút đã có), Dashboard lo phần còn lại.
+
+Nguồn: [Seedance 2.5 3D Blockout to Video – Dreamina](https://dreamina.capcut.com/seedance/seedance-2-5-3d-blockout-to-video), [Seedance 2.5 API – CineD](https://www.cined.com/bytedance-seedance-2-5-api-goes-live-30-second-single-shot-clips-50-reference-inputs-and-3d-camera-blockouts/), [updream 预演台 – Houdao AI](https://www.houdao.com/d/19789-updream-yu-yan-tai-gong-neng-xiang-jie-yong-3D-bai-mo-yu-yan-jiang-di-AI-shi-pin-chou-ka-cheng-ben-ti-sheng-jing-tou-kong-zhi-jing-du), [updream 预演台 – zglg.work](https://zglg.work/ai/news/zh/2026-08-19-updream-s-previs-studio-brings-3d-white-model-previsualization-to-ai-video-cr), [Seedance camera control – cozyclay](https://cozyclay.org/seedance-camera-control/).
+
 ## Đề xuất thứ tự (cần bạn quyết)
 1. **Mở "Bàn đạo diễn" trên web + chụp Network tab** — cách nhanh nhất để biết có tích hợp được không, xem hướng dẫn ở mục ngay trên.
 2. **Thử thật video tham chiếu chuyển động** (mục 18, đã code xong) — 1 cảnh dùng clip gameplay FF thật, xác nhận API nhận đúng `refer_type`/`role`.
