@@ -10,6 +10,7 @@ Memory repo dùng chung cho các phiên Claude Code trên mọi máy của hongv
 
 | Ngày | Tiêu đề | File |
 |---|---|---|
+| 2026-09-22 | Phân tích video kỹ năng KENTA không cần API key (Claude tự xem khung hình); phát hiện skill OB55 mới; dọn ảnh trùng | projects/ai-video-pipeline.md |
 | 2026-09-22 | Dọn tiếp thanh điều khiển dự án: mode/threshold/xóa dự án vào popover "⚙" riêng | projects/ai-video-pipeline.md |
 | 2026-09-22 | Setup memory repo trong chính repo dự án (`.claude-memory/`) | projects/ai-video-pipeline.md |
 | 2026-09-22 | 530 unit test pass sau khi sửa 1 test lỗi thời (test_distill.py) | projects/ai-video-pipeline.md |
