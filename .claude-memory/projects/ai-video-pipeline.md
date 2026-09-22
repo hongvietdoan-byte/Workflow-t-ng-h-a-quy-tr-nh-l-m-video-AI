@@ -35,6 +35,14 @@ Phần lớn việc còn lại trong `TODO.md` (mục "Đang làm/kế tiếp", 
 - Chưa test được việc tải video thật qua UI (công cụ trình duyệt không đưa file vào hộp thoại OS file picker được) — cần user tự thử.
 **Source**: user nhắn trực tiếp kèm 2 ảnh chụp Dashboard/slide + 1 file PDF.
 
+## 2026-09-22 — Thiết kế lại đầu trang Dashboard (gear + dialog)
+**Context**: User phàn nàn quá nhiều nút/panel chưa tối ưu, yêu cầu cụ thể: gear "⚙" cạnh Đăng xuất gộp Cài đặt, "+ Dự án mới" tách riêng cạnh tên người dùng, Lịch sử/Bài học/Phân quyền chuyển thành panel mở/đóng (có dấu X) thay vì luôn hiện trên thanh bước. Cũng yêu cầu đọc skill `uiux-pro-max` (`Get this Skill to Claude/uiux-pro-max-0.1.0`) để áp dụng thêm.
+**Finding — bài học kỹ thuật quan trọng nhất phiên này**: `st.dialog` (Streamlit) **KHÔNG tự giữ trạng thái mở qua các lần rerun** do widget BÊN TRONG nó gây ra, nếu chỉ viết `if st.button(...): show()` (đã tự kiểm chứng bằng 2 script dò nhỏ trước khi viết code chính — xác nhận bug này xảy ra cả trong `AppTest` và về mặt logic script). Cách đúng: giữ 1 cờ trong `st.session_state`, gọi lại hàm dialog ở MỌI lần rerun khi cờ còn `True`, và dùng `on_dismiss` callback để tắt cờ khi người dùng bấm X. Áp dụng cách này cho MỌI dialog mới trong dự án sau này.
+**Bài học công cụ — `sed` thay thế chuỗi không giới hạn dòng cực nguy hiểm**: dùng `sed -i 's/use_container_width=True)/width="stretch")/'` (không giới hạn dòng) đã vô tình sửa luôn 9 chỗ KHÔNG liên quan trong `dashboard/app.py` (dataframe/image/button khác) vì pattern trùng khắp file. Phải luôn `git diff` kiểm tra ngay sau khi dùng `sed` thay thế toàn file, và revert phần ngoài ý muốn bằng `sed -i '<số dòng>s/.../.../'` (giới hạn đúng dòng) trước khi commit.
+**Kết quả**: 16 test cũ phải sửa (đếm số option radio, đếm popover, tìm nút theo `at.tabs` cũ), thêm 2 test mới; 547 test pass. Đã tự bấm thử trên Dashboard thật qua browser pane: gear mở đúng menu, Bảng giá mở modal có ✕ hoạt động đúng, "+ Dự án mới" mở popover nhẹ tạo dự án và tự chuyển sang dự án đó.
+**Chưa làm** (nếu user muốn dọn tiếp theo hướng skill `uiux-pro-max`): thanh điều khiển dự án (Chế độ QC/threshold/Rủi ro/Pause/Resume/Cancel) vẫn dày trên 1 dòng; chưa rà nút hành động theo từng thẻ ảnh/video.
+**Source**: user nói trực tiếp trong chat, 4 yêu cầu cụ thể.
+
 ## 2026-09-22 — Chạy thật 1 cảnh đầy đủ qua Dashboard + tìm 1 bug thật
 **Context**: User cho phép Claude tự chạy test thật (tốn credit) vì token `CLIPAI_TOKEN`/`DEEPIX_TOKEN` đã cấu hình sẵn và hoạt động trong environment này. Chạy toàn bộ Bước 1→5 qua giao diện Dashboard thật (không phải script), dự án "Real API Test 2026-09-22", nhân vật KELLY.
 **Finding**:
