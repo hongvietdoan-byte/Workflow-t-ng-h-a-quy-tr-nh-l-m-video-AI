@@ -26,7 +26,9 @@ Free Fire có 2 loại thay đổi kỹ năng dễ nhầm lẫn nhau, cả hai �
 - ✅ Đã xác minh qua video chính thức (skill gốc, còn hiệu lực): **KENTA** (rework vĩnh viễn OB55 — đổi hẳn sang "Đột Kích Lốc Xoáy"), **OSCAR** (dáng lướt gốc, video quay sau OB55).
 - ✅ Đã đối chiếu UI trong game xác nhận tag Chủ động: **CHRONO**.
 - 📌 Có ghi chú lịch sử Skill Boost OB54 đã hết hạn (không ảnh hưởng mô tả gốc): CHRONO, HOMER, KASSIE, OSCAR, SKYLER, WUKONG, ALOK, KODA.
-- ⏳ Chưa xác minh bằng video (mô tả vẫn là suy luận hợp lý từ cơ chế + màu icon, ưu tiên xác minh trước khi dùng cho cảnh quan trọng): A124, Alok, Clu, Dimitri, Homer, Ignis, Iris, K, Kassie, Koda, Morse, Nero, Orion, Ray, Ryden, Santino, Skyler, Steffie, Tatsuya, Wukong, Xayne. Cách làm tiếp: tìm video mới nhất trên kênh chính thức [Garena Free Fire VN](https://www.youtube.com/@GarenaFreeFireVN) (6.16M sub) theo tên nhân vật, ưu tiên video đăng **sau ngày 16/9/2026 (ngày ra mắt OB55)** vì kỹ năng hay bị chỉnh sửa qua các bản OB.
+- ⏳ Chưa xác minh bằng video (mô tả vẫn là suy luận hợp lý từ cơ chế + màu icon, ưu tiên xác minh trước khi dùng cho cảnh quan trọng): A124, Alok, Clu, Dimitri, Homer, Ignis, Iris, K, Kassie, Koda, Morse, Nero, Orion, Ray, Ryden, Santino, Skyler, Steffie, Tatsuya, Wukong, Xayne. Cách làm tiếp: tìm video mới nhất trên kênh chính thức [Garena Free Fire VN](https://www.youtube.com/@GarenaFreeFireVN) (6.16M sub) theo tên nhân vật.
+
+**Lưu ý khi tiếp tục xác minh:** không phải nhân vật nào cũng được chỉnh sửa/cập nhật ở OB55 — thực tế trong đợt kiểm tra này chỉ có **Kenta** là rework thật sự ở OB55 (tìm qua search "rework"/"OB55" trên kênh chính thức không ra thêm nhân vật nào khác). Với 21 nhân vật còn lại trong danh sách "chưa xác minh", **không mặc định là họ cũng vừa bị đổi** — cứ tìm video mới nhất có sẵn của nhân vật đó để xem đúng hình dạng/cách vận hành VFX là đủ; nếu video cũ nhất tìm được vẫn khớp với mô tả cơ chế hiện tại trong kho (không có dấu hiệu "rework"/"OB" nào mới hơn), thì coi như hình ảnh đã ổn định, không cần cố tìm video "mới hơn OB55" bằng mọi giá.
 
 ---
 
