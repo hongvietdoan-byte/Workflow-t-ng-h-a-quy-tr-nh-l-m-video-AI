@@ -15,3 +15,4 @@ Memory repo dùng chung cho các phiên Claude Code trên mọi máy của hongv
 | 2026-09-22 | Quyết định ClipAI/Deepix: gác Bàn đạo diễn, bỏ Kho chủ thể Seedance, hạ ưu tiên video tham chiếu, không ưu tiên lip-sync, thu hẹp blocklist IP | projects/ai-video-pipeline.md |
 | 2026-09-22 | Đối chiếu + bổ sung độ khó/vai trò 65 nhân vật FF từ Google Sheet; bài học: Claude xem video qua browser không hiệu quả | projects/ai-video-pipeline.md |
 | 2026-09-22 | Chạy thật 1 cảnh qua Dashboard; tìm bug key trùng Bước 5; claude_cli hoạt động rồi hết hạn mức tháng | projects/ai-video-pipeline.md |
+| 2026-09-22 | Bảng giá ước tính + bảng tổng quan tất cả dự án + phân tích video kỹ năng (MVP); bài học Streamlit hot-reload + PowerShell tool | projects/ai-video-pipeline.md |

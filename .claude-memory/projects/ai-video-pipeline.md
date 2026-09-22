@@ -24,6 +24,17 @@ Phần lớn việc còn lại trong `TODO.md` (mục "Đang làm/kế tiếp", 
 - MiniMax không có trong API Clip AI (chỉ Kling Omni và Seedance).
 - Repo đã chuyển private; dùng chung nhiều người vẫn tạm gác (xem TODO.md mục "Tạm gác").
 
+## 2026-09-22 — Bảng giá ước tính + bảng tổng quan tất cả dự án + phân tích video kỹ năng
+**Context**: User yêu cầu 3 việc: (1) bảng giá không cần chuẩn 100%, chỉ cần có số để theo dõi; (2) phát hiện Dashboard chưa có bảng tổng quan theo dõi TOÀN BỘ dự án (tab cũ chỉ hiện dự án đã chạy autopilot); (3) gửi PDF "AI Video Analysis & Prompt Generation Standard" (Free Fire/Kenta v2.0, đã test 1 lần với ChatGPT) yêu cầu làm tính năng phân tích video gameplay để bổ sung Kho tài nguyên chính xác hơn.
+**Finding**:
+- `data/pricing.json`: đổi `currency` sang `"usd"`, điền `per_video_second` từ giá niêm yết đã có sẵn (`listed_usd_per_video_second`) — ƯỚC TÍNH, không phải giá credit đo thật. `per_image`/`per_audio` vẫn `null` (không có nguồn nào). Có 1 test chính sách (`test_shipped_template_has_no_invented_prices`) chặn bịa giá — phải sửa test này khi đổi chính sách, không xóa bỏ nó.
+- `core/perf.py::portfolio_rows()` — bảng MỌI dự án (không lọc theo autopilot_state), suy ra "bước hiện tại" từ số ảnh/prompt/video đã duyệt so với tổng cảnh + có FINAL_VIDEO.mp4 chưa. Tránh nhầm với `project_rows()`/`snapshot()` cũ (chỉ autopilot) — đã giữ nguyên hàm cũ, thêm hàm mới, không sửa hàm cũ (tránh vỡ test cũ).
+- `core/video_analysis.py` — bản MVP rút gọn rất nhiều so với PDF gốc (18 phần, có Reference Pack/manifest/QA Gate riêng): chỉ làm lấy mẫu khung hình đều theo thời gian (không phải motion-aware event detection) + 1 lần gọi Claude viết nhận dạng có gắn nhãn OBSERVED/EXPLICIT/INFERRED/UNKNOWN + người dùng tự duyệt trước khi lưu. Nguyên tắc lõi giữ đúng từ PDF: **video là ground truth, không tự bịa số liệu** (sát thương/thời gian hồi/tầm bắn) nếu không thấy trong khung hình.
+- **Bài học quan trọng — Streamlit hot-reload KHÔNG áp dụng cho core/*.py**: sửa `dashboard/app.py` thì tiến trình streamlit đang chạy tự áp dụng ngay, nhưng sửa bất kỳ file trong `core/` (module đã import rồi) thì KHÔNG — phải dừng (`tools/stop_dashboard.ps1`) và chạy lại (`tools/launch_dashboard.ps1`) mới thấy thay đổi. Gặp lỗi `AttributeError: module 'core.perf' has no attribute 'portfolio_rows'` dù code đã đúng, do cache module.
+- **Bài học công cụ — PowerShell nên gọi qua tool PowerShell riêng, không qua Bash wrap `powershell.exe`**: gọi `powershell.exe` từ Bash tool làm biến `$_` bị bash nuốt/biến dạng (`$_.ProcessName` → `unsetenv.ProcessName`), lệnh chạy sai mà không báo lỗi rõ. Dùng tool PowerShell riêng cho cú pháp PowerShell.
+- Chưa test được việc tải video thật qua UI (công cụ trình duyệt không đưa file vào hộp thoại OS file picker được) — cần user tự thử.
+**Source**: user nhắn trực tiếp kèm 2 ảnh chụp Dashboard/slide + 1 file PDF.
+
 ## 2026-09-22 — Chạy thật 1 cảnh đầy đủ qua Dashboard + tìm 1 bug thật
 **Context**: User cho phép Claude tự chạy test thật (tốn credit) vì token `CLIPAI_TOKEN`/`DEEPIX_TOKEN` đã cấu hình sẵn và hoạt động trong environment này. Chạy toàn bộ Bước 1→5 qua giao diện Dashboard thật (không phải script), dự án "Real API Test 2026-09-22", nhân vật KELLY.
 **Finding**:
