@@ -24,6 +24,15 @@ Phần lớn việc còn lại trong `TODO.md` (mục "Đang làm/kế tiếp", 
 - MiniMax không có trong API Clip AI (chỉ Kling Omni và Seedance).
 - Repo đã chuyển private; dùng chung nhiều người vẫn tạm gác (xem TODO.md mục "Tạm gác").
 
+## 2026-09-22 — Chạy thật 1 cảnh đầy đủ qua Dashboard + tìm 1 bug thật
+**Context**: User cho phép Claude tự chạy test thật (tốn credit) vì token `CLIPAI_TOKEN`/`DEEPIX_TOKEN` đã cấu hình sẵn và hoạt động trong environment này. Chạy toàn bộ Bước 1→5 qua giao diện Dashboard thật (không phải script), dự án "Real API Test 2026-09-22", nhân vật KELLY.
+**Finding**:
+- Deepix, Clip AI video (kling-v3-omni, bật audio-in-video ra track AAC thật), Clip AI audio (music_v2) đều hoạt động qua API thật.
+- **`LLM_PROVIDER=claude_cli` chạy được thật lần đầu tiên** (AutoQC Bước 2 thành công) — nhưng ngay sau đó **hết hạn mức chi tiêu THÁNG** của tài khoản cá nhân khi gọi tiếp (Bước 3). Xác nhận: claude_cli dùng CHUNG hạn mức với các phiên Claude Code khác, không phải ngân sách API riêng. Đừng đề xuất chạy nhiều lệnh claude_cli liên tiếp trong 1 phiên nếu chưa biết hạn mức còn lại.
+- **Bug tìm được (không phải do session này gây ra, đã tồn tại từ 2026-09-21)**: 2 nút trong Bước 5 (nhạc/SFX) dùng trùng `key` Streamlit → crash bất cứ khi nào audio provider được cấu hình thật. Không lộ ra trong 530 test cũ vì test không set provider thật. **Bài học**: khi thêm nút Streamlit mới, luôn kiểm tra key không trùng với nút khác TRONG CÙNG TRANG kể cả khi chúng ở 2 function khác nhau — và cân nhắc thêm 1 test render cả trang với provider thật/mock để bắt lỗi loại này (không chỉ test riêng từng widget).
+- Ảnh tham chiếu (Kho tài nguyên) đã thắng thế đúng so với mô tả chữ tôi tự đoán sai khi thiết lập test (tôi ghi "tóc vàng" nhưng Kelly thật tóc nâu đen — ảnh ra đúng nâu đen) — xác nhận cơ chế ưu tiên ảnh tham chiếu hơn text hoạt động tốt.
+**Source**: chạy thật, xem `docs/api_notes.md` mục "Chạy thật 1 cảnh đầy đủ qua Dashboard" để biết số liệu đầy đủ.
+
 ## 2026-09-22 — Quyết định về tính năng ClipAI/Deepix (sau khi rà slide chính thức)
 **Context**: User có bộ ảnh slide chính thức ClipAI/Deepix ở `Get this Skill to Claude/Tài nguyên tham khảo để AI làm tốt hơn/` — luôn kiểm tra thư mục này trước khi hỏi lại về giá/model/tính năng, có thể câu trả lời đã nằm sẵn trong đó.
 **Finding**:
