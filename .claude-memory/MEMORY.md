@@ -10,6 +10,7 @@ Memory repo dùng chung cho các phiên Claude Code trên mọi máy của hongv
 
 | Ngày | Tiêu đề | File |
 |---|---|---|
+| 2026-09-23 | Rà soát nhất quán nhân vật/bối cảnh (mất ảnh bối cảnh khi ≥4 nhân vật); hướng previz 3D từ map FF; kế hoạch P0–P5 | projects/ai-video-pipeline.md |
 | 2026-09-23 | Chạy thật 1 video hoàn chỉnh qua Dashboard browser; sửa 2 bug thật (rate-limit vĩnh viễn hóa, external_id lệch); quy tắc "kênh thực hiện" khi user chỉ định dùng browser | projects/ai-video-pipeline.md |
 | 2026-09-22 | Phân tích video kỹ năng KENTA không cần API key (Claude tự xem khung hình); phát hiện skill OB55 mới; dọn ảnh trùng | projects/ai-video-pipeline.md |
 | 2026-09-22 | Dọn tiếp thanh điều khiển dự án: mode/threshold/xóa dự án vào popover "⚙" riêng | projects/ai-video-pipeline.md |

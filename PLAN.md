@@ -170,6 +170,37 @@ Nguyên tắc: **không train/fine-tune model** — xây knowledge pack có cấ
 - **Nguồn tham khảo (chưa kiểm định — review chất lượng/license trước; chỉ lấy tri thức, không chạy code lạ tùy tiện):** [awesome-ai-video-prompts](https://github.com/geekjourneyx/awesome-ai-video-prompts), [ai-shortfilm-prompts](https://github.com/jnMetaCode/ai-shortfilm-prompts), [visual-skills](https://github.com/smixs/visual-skills), [SKRIPTON](https://github.com/NAMDIE/SKRIPTON), [OpenStory](https://openstory.so/docs/developer-guide/workflow), [awesome-llm-story-generation](https://github.com/Picrew/awesome-llm-story-generation), [Kling Prompt Guide](https://kling.ai/blog/kling-ai-prompt-guide); cộng sách/giáo trình biên kịch-đạo diễn-quay phim do team nội dung chọn và kịch bản/storyboard các dự án đã làm.
 - **Quy trình:** thu thập + lọc → chưng cất knowledge pack → viết system prompt + schema → **eval set** 10–20 mẫu có đáp án do chuyên gia phim/nội dung chấm → lặp cải thiện → khóa version. Cần 1 "chuyên gia miền" duyệt. Ước tính +8–12 ngày công, chạy song song với build MCP ở V0; bộ mẫu dùng luôn để hiệu chỉnh QC checklist (Bước 2).
 
+### 3.7 Nhất quán nhân vật – bối cảnh – bố cục (rà soát 2026-09-23)
+Bối cảnh: kịch bản thật dài ~60 giây, 3–5 nhân vật, bối cảnh là map Free Fire. Hiện mỗi cảnh = 1 ảnh gen độc lập (không phải storyboard), nên cần biết video có giữ nhất quán nhân vật, bối cảnh và vị trí nhân vật giữa các cảnh không.
+
+**Hiện trạng (đọc code + mô phỏng, không tốn credit):**
+
+- `assets.scene_references` gửi tối đa 8 ảnh/cảnh, **nhân vật lấy trước (2 ảnh/người), bối cảnh xét sau**. Mô phỏng: 2–3 nhân vật → có ảnh bối cảnh; **4 nhân vật → mất ảnh bối cảnh; 5 nhân vật → mất bối cảnh và nhân vật thứ 5 không có ảnh**. Chế độ Storyboard cũng tự tắt khi hết chỗ.
+- Ảnh bối cảnh chỉ được gửi khi tên tài nguyên nằm nguyên văn trong trường `location` do Director viết (ví dụ Director viết "abandoned factory rooftop" thay vì tên trong kho → không gửi) và tài nguyên phải được tick vào dự án.
+- Mỗi bối cảnh chỉ dùng **1 ảnh ngang lớn nhất** cho mọi cảnh; các góc chụp khác trong kho không được dùng.
+- Director không có trường **vị trí nhân vật** (trái/phải, hướng nhìn, tiền/hậu cảnh) → vị trí đứng ngẫu nhiên giữa các shot, trục 180° dễ bị đảo.
+- Chế độ Storyboard nối với **cảnh liền trước theo số thứ tự**, không theo nhóm cùng bối cảnh.
+- Bước 4: **Kling chỉ nhận ảnh khung đầu**; ảnh nhân vật/bối cảnh chỉ gửi kèm khi dùng Seedance.
+- Bằng chứng tích cực (chạy thật 2026-09-23, dự án "Kenta xuyên tường", 3 nhân vật): gắn tài nguyên địa điểm "Đảo Quân Sự" (6 ảnh in-game) → 5/6 cảnh gen lại đúng bối cảnh FF ngay; thêm "đặc điểm neo tương phản" cho mỗi người → hết nhầm Kelly/Maxim. Tức là cơ chế tham chiếu **có hiệu quả khi còn đủ chỗ** — vấn đề chính là cảnh đông người và chọn góc/bố cục.
+
+**Kết luận:** mỗi cảnh 1 ảnh giữ được mặt/trang phục (khi ≤3 người) nhưng **không giữ được không gian**: bối cảnh, vị trí đứng, tỉ lệ người/cảnh, hướng nhìn. AI vẽ lại toàn bộ khung hình nên dễ ra nhân vật quá to, đứng lơ lửng, bối cảnh lệch so với in-game.
+
+**Hướng giải quyết (theo thứ tự):**
+
+1. **Sửa nhanh cách chọn ảnh tham chiếu (A):** luôn giữ 1 chỗ cho bối cảnh (và 1 cho Storyboard); cảnh ≥4 người → 1 ảnh/người.
+2. **Chọn bối cảnh theo ID (B):** Director chọn `location_asset` từ danh sách tài nguyên của dự án; Bước 1 có ô chọn background từng cảnh để sửa tay.
+3. **Blocking + nhóm cảnh (C):** Director thêm `blocking` (vị trí trái/giữa/phải, hướng nhìn, tiền/trung/hậu cảnh) và `sequence` (nhóm cảnh cùng bối cảnh liên tục, giữ trục 180°). Storyboard nối theo nhóm, không theo số thứ tự.
+4. **Hồ sơ model video:** Bước 1–3 và 5 dùng chung cho mọi model; chỉ Bước 4 khác theo khả năng từng model (số ảnh tham chiếu, âm thanh, xung đột tùy chọn, giá). Mặc định Kling; tự đề xuất Seedance khi cảnh ≥3 người, có nhân vật đi vào khung hình giữa clip, hoặc hành động mạnh. Không cần dựng quy trình riêng cho từng model — chỉ cần bộ test cố định 3 cảnh chạy trên mỗi model.
+5. **Previz 3D từ map Free Fire (D, hướng chính cho độ chân thực):** thay vì để AI vẽ lại toàn bộ khung hình, dựng bố cục bằng 3D trước rồi mới cho AI "render đẹp":
+   - Nhập model 3D của map (GLB/FBX) vào **Blender chạy tự động bằng script** (miễn phí, chạy trên máy người dùng). Script tự đọc tên object, tự tìm mặt đất, tự kiểm tra đơn vị bằng vật mốc (cửa/xe/container), xuất bản đồ nhìn từ trên + danh sách khu vực — **người dùng không phải đánh dấu tay ảnh nào**.
+   - Director viết blocking bằng lời (khu vực, vị trí so với mốc, cỡ cảnh, độ cao camera) → code đặt **ma-nơ-canh cao ~1,75 m đúng trên mặt đất** (dò mặt đất bằng raycast → không lơ lửng, đúng tỉ lệ) và camera theo cỡ cảnh; góc cao/thấp/ngang mắt đều được, không cần ảnh chụp sẵn.
+   - Render ảnh layout (màu + độ sâu) → Deepix vẽ ảnh cuối từ layout + ảnh nhân vật trong kho. Vị trí nhân vật lưu trong 3D nên đổi góc máy vẫn nhất quán, shot ngược góc tự đúng.
+   - Video: ảnh cuối làm khung đầu; chuyển động camera render từ Blender làm video tham chiếu (`reference_video`) khi cần; nếu không, chỉ cho camera chuyển động nhỏ (push-in/pan/tilt) để model không phải bịa phần bối cảnh ngoài khung.
+   - Tạm dùng **map fan dựng trên mạng** (Sketchfab/CGTrader, vd "Free Fire Old Bermuda Three 3D Places") để thử nội bộ; video phát hành nên chuyển sang asset chính thức từ team game. File map không đưa lên GitHub (để trong `data/`). Tải chỉ file model (`.glb/.gltf/.fbx/.obj`); mở `.blend` thì tắt "Auto Run Python Scripts".
+   - Dự phòng khi không có 3D cho một map: ước lượng độ sâu từ 1 ảnh bằng model chạy cục bộ để tự tìm mặt đất/tỉ lệ (kém chính xác hơn).
+   - **Rủi ro lớn nhất cần thử trước:** API Deepix không có tham số khoá bố cục (mask/strength/ControlNet) → phải thử 3–5 ảnh xem Deepix có bám layout không, trước khi đưa vào Dashboard.
+6. **QC bổ sung 3 tiêu chí:** tỉ lệ người/cảnh, chân chạm đất/có bóng, độ lệch bối cảnh so với ảnh gốc (đo vùng ngoài nhân vật, không cần AI chấm).
+
 ## 4. Rủi ro & mitigation tổng hợp
 
 | Rủi ro | Mitigation |
@@ -204,6 +235,21 @@ Nguyên tắc: **không train/fine-tune model** — xây knowledge pack có cấ
 - **Giá + gợi ý chọn model** theo slide chính thức ClipAI ("Hôm nay tôi chọn mô hình video như thế nào") đã điền vào `data/pricing.json` (`listed_usd_per_video_second`, `model_choice_guide`).
 - **`video_model` mặc định = `kling-v3-omni`.** Theo gợi ý chính thức của slide, Kling 3.0 Omni ghi rõ thế mạnh "tái sử dụng nhân vật, đối thoại nhiều nhân vật" — đúng nhu cầu dự án (nhân vật FF lặp lại nhiều cảnh, nhiều nhân vật đối thoại) và cũng rẻ nhất trong 2 model thật đang dùng (`$0.08/giây` so với Seedance `$0.15–0.23/giây`). Không cần sửa code — `resolve_model(None)` đã mặc định về `kling-v3-omni` từ trước. `seedance`/`seedance-2.5` vẫn chọn thủ công được cho cảnh cần chất lượng điện ảnh cao hơn.
 - **"📽 Chế độ Storyboard" (ảnh cảnh trước làm tham chiếu liên tục) — vẫn giữ trong kế hoạch thử nghiệm**, không gộp vào quyết định bỏ Kho chủ thể ở trên: đây là hai vấn đề khác nhau (Storyboard = liên tục phong cách/ánh sáng giữa các cảnh; Kho chủ thể = khoá nhận diện nhân vật).
+
+**Đã chốt hướng (2026-09-23, rà soát nhất quán — xem 3.7):**
+
+- Workflow hiện **chạy được** (đã ra video 8 cảnh ~46 giây) nhưng **chưa chứng minh hiệu quả**: chưa đạt cổng chuyển V1 (threshold QC chưa hiệu chỉnh bằng dữ liệu, prompt chưa khóa version qua `eval/`), chưa có số liệu so với làm tay. Cần báo cáo 5 chỉ số: thời gian/giây video, chi phí/giây video, tỉ lệ đạt lần đầu, đồng thuận QC–người, số lần can thiệp tay/cảnh.
+- Không dựng quy trình riêng cho từng model video; chỉ có hồ sơ khả năng từng model ở Bước 4 + bộ test cố định 3 cảnh.
+- Hướng chính cho bối cảnh chân thực = **previz 3D từ map FF** (Blender tự động), thử trước bằng map fan trên mạng; không yêu cầu người dùng đánh dấu tay ảnh.
+- Thứ tự: sửa chọn ảnh tham chiếu/bối cảnh/blocking (A–C) → thử previz 3D + Deepix bám layout (cổng quyết định) → tích hợp Dashboard → test so model.
+
+**Còn mở (2026-09-23):**
+
+| Quyết định | Ghi chú |
+|---|---|
+| Deepix có bám ảnh layout từ 3D không | Quyết định có đưa previz 3D vào Dashboard hay không; cần thử 3–5 ảnh |
+| Nguồn map 3D | Tạm dùng map fan để thử; bản phát hành cần asset chính thức từ team game (định dạng, texture, quyền dùng) |
+| Model 3D nhân vật FF | Nếu có thì thay ma-nơ-canh, tư thế/tỉ lệ chuẩn hơn |
 
 **Còn mở, KHÔNG chặn V0 (chốt trước V1):**
 | Quyết định | Ghi chú |
@@ -306,7 +352,7 @@ Mục tiêu: chứng minh pipeline end-to-end chạy được, đo chất lượ
 - [ ] Batch >100 video chạy được qua heartbeat polling mà không cần user approve từng cái
 - [ ] Runbook + Prompt Templates đã bàn giao cho bộ phận sản xuất nội dung
 
-## 9. Trạng thái triển khai (cập nhật 2026-09-20)
+## 9. Trạng thái triển khai (cập nhật 2026-09-23)
 
 **Adapter thật đã viết (`core/adapters/`):** Deepix (gen ảnh Seedream 5.0 Pro) và Clip AI (video Kling Omni + Seedance) theo hợp đồng API của skill chính thức; kiểm thử bằng giao thức giả (chưa gọi API thật vì token phải do bạn đặt trong biến môi trường). Kiểm tra kết nối chỉ đọc: `py -m core.adapters.check`. Chạy thử thật: `py -m core.adapters.trial --yes`. Chi phí: ước tính trước khi chạy + sổ mức dùng trong Dashboard theo bảng giá `data/pricing.json` (xem `docs/api_notes.md`).
 
@@ -332,6 +378,20 @@ Mục tiêu: chứng minh pipeline end-to-end chạy được, đo chất lượ
 **Kho kiến thức (2026-09-20):** tab "Kho kiến thức" trong Cài đặt: xem tổng quan và upload thêm tài liệu để nâng cấp Director/QC/Motion; tài liệu bật được nối vào prompt của bước tương ứng.
 
 **Cập nhật 2026-09-22:** đã chạy thật 1 cảnh đầy đủ Bước 1→5 qua Dashboard (Deepix + Clip AI video/audio + render, xem `docs/api_notes.md`) — xác nhận `claude_cli` hoạt động được nhưng dùng chung hạn mức chi tiêu tháng với phiên Claude Code, không phải ngân sách riêng. `data/pricing.json` đã có giá ƯỚC TÍNH (USD, từ slide niêm yết ClipAI) để Dashboard tính chi phí thay vì luôn báo "chưa có giá". Tab "📊 Theo dõi hiệu suất" nay có bảng tổng quan **mọi** dự án (không chỉ dự án tự động hoàn toàn), kèm bước hiện tại và video hoàn tất xem/tải ngay (`core/perf.py::portfolio_rows`). Thêm tính năng **phân tích video kỹ năng bằng Claude** (bản MVP theo tài liệu "AI Video Analysis & Prompt Generation Standard" người dùng cung cấp): tải video gameplay → Claude viết nhận dạng nhân vật + kỹ năng/VFX thành chữ có gắn nhãn OBSERVED/EXPLICIT/INFERRED/UNKNOWN, người dùng duyệt trước khi lưu vào Kho tài nguyên (`core/video_analysis.py`, panel trong nút "⚙" → Kho tài nguyên). **Thiết kế lại đầu trang Dashboard** (tham khảo skill `uiux-pro-max`): nút "⚙" cạnh Đăng xuất gộp Kho tài nguyên/Bảng giá/Kho kiến thức/Lịch sử/Bài học/Phân quyền — mỗi mục mở một modal riêng (`st.dialog`, có nút ✕) thay cho `st.tabs` lồng trong `st.expander` cũ; nút "+ Dự án mới" tách ra cạnh tên người dùng; thanh bước chính chỉ còn 5 bước + Theo dõi hiệu suất. Deep link cũ (`?step=history/lessons/users`) vẫn hoạt động. Chi tiết + phần chưa làm xem `TODO.md`.
+
+**Cập nhật 2026-09-23:** đã chạy thật 1 video hoàn chỉnh 8 cảnh (~46 giây, 3 nhân vật, thoại TTS + phụ đề + nhạc + card cuối) qua Dashboard; sửa lỗi rate-limit bị hiểu là lỗi vĩnh viễn và job kẹt do `external_id` lệch; thêm "đặc điểm neo" chống nhầm nhân vật; 548 test pass. Rà soát nhất quán nhân vật/bối cảnh/bố cục và lên kế hoạch previz 3D — xem 3.7 và Mục 5.
+
+**Kế hoạch tiếp theo (2026-09-23, chi tiết từng việc ở `TODO.md`):**
+| Giai đoạn | Việc | Ai | Credit |
+|---|---|---|---|
+| P0 | (A) giữ chỗ ảnh bối cảnh/Storyboard; (B) chọn bối cảnh theo ID + ô chọn ở Bước 1; (C) `blocking` + `sequence` trong Director, Storyboard nối theo nhóm; skip 3 test `sound_lib` khi thiếu ffmpeg | Claude | Không |
+| P0 | Báo cáo "Hiệu quả workflow" 5 chỉ số từ `manifest.sqlite` | Claude | Không |
+| P1 | Script Blender `tools/previz/`: nhập map, tìm mặt đất, kiểm tra tỉ lệ, bản đồ từ trên, đặt ma-nơ-canh + 3 camera, render layout + độ sâu (thử bằng map giả trên cloud) | Claude | Không |
+| P1 | Tải 1 map FF (GLB/FBX có texture), cài Blender, chạy script | Người dùng | Không |
+| P2 (cổng) | Gửi 3–5 ảnh layout qua Deepix, so với cách hiện tại → quyết định có tích hợp | Người dùng + Claude | ~5 ảnh |
+| P3 | Tích hợp previz vào Dashboard (khu vực từ map, blocking → 3D, render từng shot, QC 3 tiêu chí mới, video tham chiếu camera) | Claude | Không |
+| P4 | Hồ sơ model + tự đề xuất model từng cảnh; bộ test 3 cảnh × Kling/Seedance | Claude + người dùng | ~$3,5 |
+| P5 | Chạy lại 1 kịch bản 60 giây, đo 5 chỉ số, so với làm tay | Người dùng | Theo kịch bản |
 
 **Tạm gác (2026-09-19):** MCP Claude/V0 qua Claude Desktop; ưu tiên hoàn thiện Dashboard.
 
