@@ -14,9 +14,19 @@ Ban đầu bản nháp đầu tiên của file này suy luận Chủ động/B�
 
 Tất cả 43 nhân vật còn lại (có kỹ năng) là **Bị động** — bao gồm cả những cái dễ đọc nhầm thành chủ động: **Antonio, Joseph, Kapella, Rin, Rafael, Kelly, Jai** (đã sửa lại phần "Hình ảnh" bên dưới cho đúng — bỏ chữ "kích hoạt", chuyển sang mô tả hiệu ứng tự động/thường trực).
 
-**Trạng thái xác minh bằng video thật** (xem trực tiếp gameplay/showcase thay vì suy luận từ text — chuẩn xác hơn hẳn vì mô tả text không tả được hình dạng/cách vận hành thật của VFX):
-- ✅ Đã xác minh qua video chính thức: **CHRONO** (phát hiện thêm: bản OB54 đổi cơ chế, khiên giờ di chuyển theo người dùng thay vì đứng yên — đã cập nhật).
-- ⏳ Chưa xác minh (23 nhân vật chủ động còn lại) — mô tả "Hình ảnh" hiện tại vẫn là suy luận hợp lý từ cơ chế + màu icon trong game, **ưu tiên xác minh trước khi dùng cho cảnh quan trọng**. Cách làm tiếp: tìm video mới nhất trên kênh chính thức [Garena Free Fire VN](https://www.youtube.com/@GarenaFreeFireVN) (6.16M sub) theo tên nhân vật, ưu tiên video có ngày đăng gần nhất vì kỹ năng hay bị chỉnh sửa qua các bản OB (như trường hợp Chrono).
+## ⚠ Phân biệt "sửa kỹ năng gốc vĩnh viễn" vs "Skill Boost theo sự kiện có thời hạn"
+
+Free Fire có 2 loại thay đổi kỹ năng dễ nhầm lẫn nhau, cả hai đều xuất hiện trong patch note gắn tag `#OBxx`:
+1. **Rework vĩnh viễn** (đổi kỹ năng gốc, áp dụng mãi mãi cho tới lần đổi tiếp theo) — ví dụ Kenta ở OB55: đổi hẳn từ "Khiên Thịnh Nộ" sang "Đột Kích Lốc Xoáy", không phải sự kiện.
+2. **Skill Boost theo sự kiện** (chỉ có hiệu lực trong thời gian sự kiện của đúng bản OB đó, hết sự kiện thì kỹ năng trở lại bản gốc) — ví dụ Chrono/Homer/Kassie/Oscar/Skyler/Wukong/Alok/Koda ở OB54: đã hết hạn, không còn áp dụng từ OB55 (22/9/2026, thời điểm viết file này).
+
+**Trước khi ghi nhận bất kỳ thay đổi kỹ năng nào tìm được qua patch note/video, phải xác minh nó thuộc loại nào** — nếu không chắc, coi là sự kiện tạm thời và không đưa vào mô tả "Hình ảnh" gốc, chỉ ghi chú riêng kèm ngày hết hạn.
+
+**Trạng thái xác minh bằng video thật** (xem trực tiếp gameplay/showcase thay vì suy luận từ text):
+- ✅ Đã xác minh qua video chính thức (skill gốc, còn hiệu lực): **KENTA** (rework vĩnh viễn OB55 — đổi hẳn sang "Đột Kích Lốc Xoáy"), **OSCAR** (dáng lướt gốc, video quay sau OB55).
+- ✅ Đã đối chiếu UI trong game xác nhận tag Chủ động: **CHRONO**.
+- 📌 Có ghi chú lịch sử Skill Boost OB54 đã hết hạn (không ảnh hưởng mô tả gốc): CHRONO, HOMER, KASSIE, OSCAR, SKYLER, WUKONG, ALOK, KODA.
+- ⏳ Chưa xác minh bằng video (mô tả vẫn là suy luận hợp lý từ cơ chế + màu icon, ưu tiên xác minh trước khi dùng cho cảnh quan trọng): A124, Alok, Clu, Dimitri, Homer, Ignis, Iris, K, Kassie, Koda, Morse, Nero, Orion, Ray, Ryden, Santino, Skyler, Steffie, Tatsuya, Wukong, Xayne. Cách làm tiếp: tìm video mới nhất trên kênh chính thức [Garena Free Fire VN](https://www.youtube.com/@GarenaFreeFireVN) (6.16M sub) theo tên nhân vật, ưu tiên video đăng **sau ngày 16/9/2026 (ngày ra mắt OB55)** vì kỹ năng hay bị chỉnh sửa qua các bản OB.
 
 ---
 
@@ -27,6 +37,7 @@ Hình ảnh: A124 giơ thẳng một tay, khớp nối cơ khí phát sáng xanh
 ## ALOK — Giai Điệu Sinh Mệnh [CHỦ ĐỘNG — xác nhận `isActive:true`]
 Cơ chế: hồi HP theo thời gian + tăng tốc chạy, tạo vùng hiệu ứng lan cho đồng đội.
 Hình ảnh: Alok giậm nhẹ xuống sàn giữ nhịp DJ, một vòng tròn ánh sáng vàng-xanh lá pulse theo bass lan ra từ chân, các nốt nhạc phát sáng bay lơ lửng quanh vòng tròn, ai bước vào vùng sáng thì viền cơ thể ánh lên nhẹ và bước chân nhanh hơn thấy rõ.
+**Đã HẾT HẠN — sự kiện OB54:** từng có Skill Boost tạm thời chỉ tăng số liệu (bán kính vùng, %tốc độ, HP/s), không đổi hình ảnh; đã hết cùng sự kiện OB54, không còn liên quan từ OB55.
 
 ## ALVARO — Bom Phân Hạch
 Cơ chế: tăng sát thương/tầm nổ, lựu đạn tách thành nhiều mảnh sau khi nổ.
@@ -44,10 +55,11 @@ Hình ảnh: một lớp màng khiên tím-xám dạng lục giác luôn âm ỉ
 Cơ chế: tăng tốc chạy khi cầm Shotgun.
 Hình ảnh: khi rút shotgun lên ngang hông, Caroline bật người lao nhanh về phía trước, tà váy/áo khoác tung theo gió do tốc độ, vệt mờ chuyển động (motion blur) kéo dài phía sau hai chân.
 
-## CHRONO — Hào Quang Hộ Mệnh [CHỦ ĐỘNG — xác nhận qua UI trong game, video chính thức @GarenaFreeFireVN, tháng 7/2026]
-Cơ chế: trường lực không thể xuyên phá + tăng tốc di chuyển bên trong. **Cập nhật OB54:** khiên giờ có thể **di chuyển theo người dùng** thay vì đứng yên một chỗ, và khi nâng cấp kỹ năng người chơi chọn 1 trong 2 nhánh — "Di động" (khiên bám theo, ưu tiên linh hoạt) hoặc "Xem Chặn Sát Thương" (khiên đứng yên, ưu tiên chặn sát thương xuyên qua để nhìn/bắn ra ngoài).
-Hình ảnh: Chrono giơ hai tay ra trước, một mái vòm trong suốt màu xanh cyan bung ra từ người và **trôi theo bám sát khi anh di chuyển** (nếu chọn nhánh Di động), đạn bắn tới bị chặn lại ở bề mặt vòm tạo gợn sóng năng lượng lan tỏa như mặt nước bị ném đá, đồng đội bên trong di chuyển với vệt tốc độ nhẹ quanh chân.
-Nguồn: [video showcase Chrono OB54, kênh chính thức Garena Free Fire VN](https://www.youtube.com/watch?v=kJbwf2aaCco) — màn hình chọn kỹ năng trong game hiển thị tag "[CHỦ ĐỘNG]" ngay cạnh tên Chrono, xác nhận trực tiếp từ UI thật (không suy luận).
+## CHRONO — Hào Quang Hộ Mệnh [CHỦ ĐỘNG — xác nhận qua UI trong game, video chính thức @GarenaFreeFireVN]
+Cơ chế: trường lực không thể xuyên phá + tăng tốc di chuyển bên trong. Khiên đứng yên một chỗ tại vị trí kích hoạt (không di chuyển theo người dùng).
+Hình ảnh: Chrono giơ hai tay ra trước, một mái vòm trong suốt màu xanh cyan bung ra từ người và đứng cố định tại chỗ, đạn bắn tới bị chặn lại ở bề mặt vòm tạo gợn sóng năng lượng lan tỏa như mặt nước bị ném đá, đồng đội bên trong di chuyển với vệt tốc độ nhẹ quanh chân.
+**Đã HẾT HẠN — sự kiện OB54 (đã qua, giờ là OB55, 22/9/2026):** OB54 từng có "Skill Boost" tạm thời cho chọn 1 trong 2 nhánh — "Di động" (khiên bám theo người dùng) hoặc "Xem Chặn Sát Thương" (khiên đứng yên, chặn sát thương nhiều hơn) — nhưng đây là nội dung sự kiện có thời hạn, đã hết. Kỹ năng hiện tại đã trở lại đúng mô tả gốc ở trên (khiên đứng yên).
+Nguồn: [video showcase Chrono OB54 (đã hết hạn, chỉ dùng để đối chiếu UI/tag Chủ động), kênh chính thức Garena Free Fire VN](https://www.youtube.com/watch?v=kJbwf2aaCco) — màn hình chọn kỹ năng trong game hiển thị tag "[CHỦ ĐỘNG]" ngay cạnh tên Chrono, xác nhận trực tiếp từ UI thật.
 
 ## CLU — Truy Vết [CHỦ ĐỘNG — xác nhận `isActive:true`]
 Cơ chế: xác định vị trí kẻ địch (trừ người đang ngồi/nằm).
@@ -76,6 +88,8 @@ Hình ảnh: khi HP giảm, lưỡi kiếm của Hayato bắt đầu ánh đỏ 
 ## HOMER — Bom Tầm Xa [CHỦ ĐỘNG — xác nhận `isActive:true`]
 Cơ chế: thả drone tự tìm địch, bay đến và phát nổ.
 Hình ảnh: một drone nhỏ hình cầu tách khỏi thắt lưng Homer, đèn báo đỏ nhấp nháy, bay là là mặt đất dò đường rồi tăng tốc thẳng về phía mục tiêu, phát nổ tạo quầng lửa cam nhỏ gọn và mảnh vỡ kim loại văng ra.
+**Đã HẾT HẠN — sự kiện OB54 (24/6/2026), không còn áp dụng từ OB55 trở đi:** OB54 từng có "Skill Boost" tạm thời cho Homer (chọn 1 trong 2: quét khu vực hiện hình địch, hoặc drone bay lượn nhanh hơn 15%) nhưng đây là nội dung sự kiện có thời hạn, đã hết khi OB54 kết thúc — kỹ năng hiện tại (OB55, 22/9/2026) đã trở lại đúng mô tả gốc ở trên. Ghi chú lại chỉ để tránh nhầm khi xem video/tài liệu cũ còn nhắc tới Skill Boost này.
+Nguồn: [OB54 Patch Notes, ff.garena.com](https://ff.garena.com/en/article/1673/).
 
 ## IGNIS — Ảo Ảnh Lửa [CHỦ ĐỘNG — xác nhận `isActive:true`]
 Cơ chế: triệu hồi màn lửa di chuyển về phía trước, sát thương thiêu đốt + phá Bom Keo, tích lũy lần dùng.
@@ -116,14 +130,17 @@ Hình ảnh: Kapella chĩa súng lục vào đồng đội và bắn như một 
 ## KASSIE — Liên Kết Hồi Phục [CHỦ ĐỘNG — xác nhận `isActive:true`]
 Cơ chế: tạo liên kết hồi máu từ từ với một đồng đội; tái kích hoạt hồi ngay lượng lớn.
 Hình ảnh: một sợi dây năng lượng tím-hồng mảnh, lấp lánh như tia điện, nối liền giữa Kassie và đồng đội được chọn, dây rung nhẹ theo nhịp hồi máu; khi tái kích hoạt, dây sáng bùng lên một nhịp mạnh rồi mờ trở lại bình thường.
+**Đã HẾT HẠN — sự kiện OB54 (24/6/2026), không còn áp dụng từ OB55 trở đi:** OB54 từng có "Skill Boost" tạm thời cho Kassie (chọn 1 trong 2: hồi thêm HP cho bản thân, hoặc hiệu ứng "Kassie thu nhỏ" đứng sau hai người) nhưng là nội dung sự kiện có thời hạn, đã hết — kỹ năng hiện tại (OB55) đã trở lại đúng mô tả gốc ở trên.
+Nguồn: [OB54 Patch Notes, ff.garena.com](https://ff.garena.com/en/article/1673/).
 
 ## KELLY — Phát Bắn Tối Thượng / Phát Bắn Gia Tốc (thức tỉnh) [BỊ ĐỘNG — xác nhận `isActive:false`; tự kích hoạt sau khi chạy đủ lâu, không có nút bấm riêng]
 Cơ chế: chạy nước rút 4 giây để kích hoạt, phát bắn đầu tiên sau đó gây thêm sát thương.
 Hình ảnh: Kelly bứt tốc chạy nước rút, tóc và vệt mờ tốc độ kéo dài phía sau như vận động viên điền kinh; khi dừng lại nâng súng bắn phát đầu, đầu nòng lóe một tia sáng trắng ngắn mạnh hơn phát bắn thường.
 
-## KENTA — Khiên Thịnh Nộ [CHỦ ĐỘNG — xác nhận `isActive:true`]
-Cơ chế: lá chắn giảm sát thương từ phía trước, giảm hiệu ứng khi bắn.
-Hình ảnh: Kenta dựng thanh kiếm rèn chắn ngang trước ngực, một lớp khiên kim loại mờ ánh bạc hiện lên ốp theo lưỡi kiếm, đạn bắn tới va vào khiên bắn tóe tia lửa; lúc anh vung kiếm để bắn trả, khiên mờ đi tạm thời.
+## KENTA — ⚠ ĐÃ ĐỔI KỸ NĂNG Ở OB55 (7 ngày trước tính đến 22/9/2026): "Đột Kích Lốc Xoáy" thay cho "Khiên Thịnh Nộ" [CHỦ ĐỘNG — xác nhận `isActive:true` + video chính thức]
+**Mô tả cũ trong kho (`Khiên Thịnh Nộ`) đã lỗi thời — đây là bản vá kỹ năng gốc, áp dụng từ OB55 trở đi, không phải sự kiện tạm thời của riêng bản OB đó.** Cơ chế mới: vung kiếm giải phóng một cơn lốc xoáy bay về phía trước, gây sát thương xuyên qua cả Bom Keo.
+Hình ảnh (đã xem trực tiếp video showcase): Kenta rút kiếm vung một nhát dứt khoát, một cơn lốc xoáy trắng-xanh dương cuộn tròn dày đặc hạt bụi/mảnh vụn bắn ra ngay trước mũi kiếm và lăn thẳng về phía trước theo mặt đất; khi lốc xuyên trúng Bom Keo, để lại một vệt chém đỏ dài cắt ngang bề mặt tường như vừa bị lưỡi kiếm khổng lồ chém qua, tường không vỡ vụn mà mang vết cắt rõ nét.
+Nguồn: [Kenta Rework OB55 - Swordsman's Wrath Skill, kênh chính thức Garena Free Fire VN](https://www.youtube.com/watch?v=BjsCv0MRRrs) — đã xem trực tiếp khung hình 0:16–0:20, không suy luận.
 
 ## KLA — Muay Thái
 Cơ chế: tăng sát thương nắm đấm.
@@ -132,6 +149,7 @@ Hình ảnh: trước mỗi cú đấm/gối, cổ tay và ống chân Kla quấ
 ## KODA — Mắt Thần [CHỦ ĐỘNG — xác nhận `isActive:true`]
 Cơ chế: phát hiện địch qua tường + tăng tốc di chuyển; phát hiện địch khi nhảy dù.
 Hình ảnh: mắt Koda ánh lên một lớp quét màu xanh lá nhạt, các bóng địch phía sau vật cản hiện dạng viền sáng mờ xuyên qua tường như tia X, bước chạy có vệt tốc độ nhẹ theo sau gót chân.
+**Đã HẾT HẠN — sự kiện OB54:** từng có Skill Boost tạm thời gắn thêm "dấu ấn" (imprint) tích lũy tới 3 lần khi phát hiện địch; đã hết cùng sự kiện OB54, không còn liên quan từ OB55.
 
 ## LAURA — Siêu Xạ Thủ
 Cơ chế: tăng độ chính xác khi ngắm qua ống ngắm.
@@ -201,9 +219,11 @@ Hình ảnh: bàn tay Olivia chạm nhẹ lên vết thương phát ra một qu�
 Cơ chế: miễn nhiễm sát thương + hút máu địch khi kích hoạt.
 Hình ảnh: cơ thể Orion bọc trong một lớp giáp đỏ sẫm phát sáng rực khi kích hoạt, đạn bắn tới nảy bật ra không để lại dấu vết; mỗi cú đấm trúng địch kéo theo một vệt máu-năng lượng đỏ mỏng bay ngược về phía Orion.
 
-## OSCAR — Tiến Công [CHỦ ĐỘNG — xác nhận `isActive:true`]
+## OSCAR — Tiến Công [CHỦ ĐỘNG — xác nhận `isActive:true` + video showcase chính thức đối chiếu, xem "Kenta vs Tatsuya vs Oscar" bên dưới]
 Cơ chế: lướt về phía trước, phá Bom Keo trên đường đi, gây sát thương/đẩy lùi khi va chạm.
 Hình ảnh: Oscar khom người lao thẳng về phía trước với vệt mờ tốc độ tím-đen kéo dài sau lưng như bóng đêm, gloo wall chắn đường vỡ vụn ngay khi anh xuyên qua, địch va chạm bị hất văng ngược theo hướng lao tới.
+**Đã HẾT HẠN — sự kiện OB54 (24/6/2026), không còn áp dụng từ OB55 trở đi:** OB54 từng có "Skill Boost" tạm thời cho Oscar (chọn 1 trong 2: triệu hồi "bóng ma" tăng tầm lướt, hoặc lướt dài 8s nhưng chậm hơn) nhưng là nội dung sự kiện có thời hạn, đã hết — kỹ năng hiện tại (OB55) đã trở lại đúng mô tả gốc ở trên.
+Nguồn: [OB54 Patch Notes, ff.garena.com](https://ff.garena.com/en/article/1673/); dáng lướt gốc đã đối chiếu qua video ["How does the reworked Kenta compare to Tatsuya and Oscar?"](https://www.youtube.com/watch?v=lSBSVfUVJkE), kênh chính thức Garena Free Fire VN — video này quay sau OB55 nên là dáng lướt hiện hành, đáng tin cậy.
 
 ## OTHO — Vén Màn Bí Ẩn
 Cơ chế: sau khi hạ gục/bị hạ gục, đánh dấu + làm chậm địch quanh người bị hạ.
@@ -244,6 +264,8 @@ Hình ảnh: ngay khi Shirou trúng đạn, kẻ vừa bắn anh hiện lên m�
 ## SKYLER — Hủy Diệt Băng Thành [CHỦ ĐỘNG — xác nhận `isActive:true`]
 Cơ chế: bắn luồng sóng năng lượng gây sát thương lớn lên Bom Keo.
 Hình ảnh: Skyler giơ tay theo động tác vũ đạo, một luồng sóng âm hình quạt màu tím-hồng lan ra từ lòng bàn tay như đang biểu diễn, luồng sóng chạm gloo wall làm bề mặt tường rung nứt rồi vỡ vụn theo từng lớp.
+**Đã HẾT HẠN — sự kiện OB54 (24/6/2026), không còn áp dụng từ OB55 trở đi:** OB54 từng có "Skill Boost" tạm thời cho Skyler (chọn 1 trong 2: vùng năng lượng tự khóa địch gần nhất, hoặc tự động quét/bắn mọi Bom Keo trong 75m) nhưng là nội dung sự kiện có thời hạn, đã hết — kỹ năng hiện tại (OB55) đã trở lại đúng mô tả gốc ở trên.
+Nguồn: [OB54 Patch Notes, ff.garena.com](https://ff.garena.com/en/article/1673/).
 
 ## SONIA — Khiên Hồi Sinh
 Cơ chế: sau khi nhận sát thương chí mạng, nhận lá chắn công nghệ; hạ gục khi khiên hết hiệu lực.
@@ -272,6 +294,8 @@ Hình ảnh: khi ngắm bắn vào đầu, khung ngắm của Wolfrahh có một
 ## WUKONG — Ảo Ảnh [CHỦ ĐỘNG — xác nhận `isActive:true`]
 Cơ chế: biến hình thành bụi cây; hồi chiêu ngay khi hạ gục đối phương.
 Hình ảnh: cơ thể cơ khí-hữu cơ của Wukong tan biến thành các mảnh lá và cành cây xoáy quanh người trước khi định hình lại thành một bụi cây tĩnh, chỉ còn ánh mắt le lói ẩn trong tán lá; lúc hạ gục địch trong lúc ẩn nấp, bụi cây rung nhẹ và một tia sáng ngắn báo hồi chiêu.
+**Đã HẾT HẠN — sự kiện OB54 (24/6/2026), không còn áp dụng từ OB55 trở đi:** OB54 từng có "Skill Boost" tạm thời cho Wukong (chọn 1 trong 2: để lại Wukong giả tự di chuyển, hoặc tạo thêm 2 bụi cây giả) nhưng là nội dung sự kiện có thời hạn, đã hết — kỹ năng hiện tại (OB55) đã trở lại đúng mô tả gốc ở trên.
+Nguồn: [OB54 Patch Notes, ff.garena.com](https://ff.garena.com/en/article/1673/).
 
 ## XAYNE — Cuồng Bạo [CHỦ ĐỘNG — xác nhận `isActive:true`]
 Cơ chế: nhận Lá Chắn tạm thời; hạ gục trong thời gian hiệu lực hồi lại Lá Chắn.
