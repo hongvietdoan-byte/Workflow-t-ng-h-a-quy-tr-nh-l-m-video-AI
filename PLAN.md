@@ -195,6 +195,14 @@ Nguyên tắc: **không train/fine-tune model** — xây knowledge pack có cấ
 - Ngân sách credit thử nghiệm V0: **nhỏ** (~2 kịch bản, 10–20 cảnh) — đủ dry-run tối thiểu; nếu cần hiệu chỉnh threshold sâu hơn thì xin thêm.
 - **Deepix:** đã kiểm tra, **có API lấy được**. **Clip AI:** **đã có API (2026-09-19)** — bước tiếp theo là đọc tài liệu API để viết adapter `VideoProvider` (và audio nếu có), nắm response schema lỗi risk-control. Nếu chỉ có webhook mà không có endpoint truy vấn trạng thái thì cần thêm điểm nhận callback.
 
+**Đã chốt (2026-09-22, sau khi đối chiếu slide chính thức ClipAI/Deepix với API thật):**
+- **"Bàn đạo diễn" (ClipAI 3D director's desk) — tạm gác.** Không phải sản phẩm giả — có thật trên web ClipAI — nhưng không dò được endpoint qua các đường dẫn đoán mù; không đầu tư thêm thời gian trừ khi có URL/payload thật từ tab Network.
+- **Không dùng Kho chủ thể Seedance (upload nhân vật riêng lên Subject Library của Clip AI).** Chưa thấy hiệu quả rõ rệt so với công sức. Ưu tiên: ảnh tham chiếu lấy thẳng từ **tài nguyên đã gắn cho cảnh trong Kho tài nguyên dự án** (`assets.scene_references`) — cơ chế này đã dùng cho Deepix (Bước 2) và từ 2026-09-22 cũng dùng cho Clip AI Seedance (Bước 4), không cần bước upload/chờ `active` riêng của Kho chủ thể. Panel "🧩 Kho chủ thể" ở Bước 1 và tuỳ chọn "🧩 Gắn ảnh chủ thể" ở Bước 4 vẫn giữ trong code (không xoá) nhưng không còn là hướng ưu tiên.
+- **Video tham chiếu chuyển động (`reference_video`) — chưa ưu tiên thử nghiệm.** Ưu tiên hoàn thiện dictionary "kỹ năng nhân vật → hình ảnh" (`knowledge/ff_character_skills_visual.md`) làm nguồn chính mô tả chuyển động skill bằng chữ trong prompt, thay vì cần video mẫu thật. Code đã hỗ trợ gửi ĐỒNG THỜI ảnh tham chiếu nhân vật + video tham chiếu chuyển động trong cùng một lần gen (`core/adapters/clipai.py::submit()` nhận cả `image_references` và `reference_video`, không loại trừ nhau trừ khi bật audio sinh trên Kling) — khi nào thật sự cần độ chính xác chuyển động cao hơn chữ mô tả thì kết hợp cả hai, không phải chọn một trong hai.
+- **Đồng bộ môi (Lip Sync) trên ClipAI — không ưu tiên vì còn Beta** (yêu cầu tải video có sẵn + chọn giọng lồng tiếng riêng, quy trình 2 bước cồng kềnh). Tập trung vào việc gen video có thoại ngay từ prompt (tuỳ chọn "🔊 Model tự tạo âm thanh/lời thoại" ở Bước 4 dùng Kling `sound`/Seedance `generate_audio`) — không cần hỏi team Clip AI về lip-sync/voice design nữa.
+- **Blocklist IP — thu hẹp phạm vi:** hiện tại hầu như chỉ dùng nhân vật Free Fire (đã có thoả thuận bản quyền), chưa dùng nhân vật IP khác. Không cần xây blocklist rộng ngay; danh sách nhân vật FF đã có sẵn (từ `ff.garena.com`, xem Kho tài nguyên) là đủ cho giai đoạn này.
+- **Giá + gợi ý chọn model** theo slide chính thức ClipAI ("Hôm nay tôi chọn mô hình video như thế nào") đã điền vào `data/pricing.json` (`listed_usd_per_video_second`, `model_choice_guide`).
+
 **Còn mở, KHÔNG chặn V0 (chốt trước V1):**
 | Quyết định | Ghi chú |
 |---|---|
