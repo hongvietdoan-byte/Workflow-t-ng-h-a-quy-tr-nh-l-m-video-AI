@@ -24,6 +24,17 @@ Phần lớn việc còn lại trong `TODO.md` (mục "Đang làm/kế tiếp", 
 - MiniMax không có trong API Clip AI (chỉ Kling Omni và Seedance).
 - Repo đã chuyển private; dùng chung nhiều người vẫn tạm gác (xem TODO.md mục "Tạm gác").
 
+## 2026-09-22 — Quyết định về tính năng ClipAI/Deepix (sau khi rà slide chính thức)
+**Context**: User có bộ ảnh slide chính thức ClipAI/Deepix ở `Get this Skill to Claude/Tài nguyên tham khảo để AI làm tốt hơn/` — luôn kiểm tra thư mục này trước khi hỏi lại về giá/model/tính năng, có thể câu trả lời đã nằm sẵn trong đó.
+**Finding**:
+- **Bàn đạo diễn** (3D director's desk ClipAI) — tạm gác, không điều tra thêm.
+- **Không dùng Kho chủ thể Seedance** (`core/adapters/clipai_subjects.py`, panel "🧩 Kho chủ thể" Bước 1) — user thấy không hiệu quả. Ưu tiên: ảnh tài nguyên đã gắn cho cảnh (`assets.scene_references`) làm tham chiếu cho CẢ Deepix lẫn Clip AI (cơ chế này đã có sẵn, không cần Kho chủ thể). Code cũ vẫn giữ, không xoá, nhưng đừng đề xuất user thử/dùng nó nữa.
+- **Video tham chiếu chuyển động** (`reference_video`) — hạ ưu tiên thử thật; ưu tiên `knowledge/ff_character_skills_visual.md` (mô tả skill bằng chữ). Nhưng code ĐÃ hỗ trợ gửi đồng thời ảnh tham chiếu + video tham chiếu chuyển động cùng lúc (không loại trừ nhau) — dùng khi cần.
+- **Lip-sync (Đồng bộ môi) trên ClipAI còn Beta** — user không muốn đầu tư, ưu tiên gen video có thoại bằng prompt trực tiếp (Kling `sound`/Seedance `generate_audio`).
+- **Blocklist IP thu hẹp**: hiện tại chỉ dùng nhân vật Free Fire (đã có bản quyền), chưa cần blocklist IP khác.
+- **`video_model` mặc định — có gợi ý nhưng CHƯA chốt**: theo slide chính thức, Kling 3.0 Omni ghi rõ "tái sử dụng nhân vật, đối thoại nhiều nhân vật" — khớp nhu cầu dự án (nhân vật FF lặp lại + hội thoại nhiều người) và rẻ nhất ($0.08/s). Đã đề xuất với user, đang chờ họ xác nhận lần cuối trước khi đặt làm mặc định.
+**Source**: user nói trực tiếp trong chat kèm 6 ảnh chụp slide + 1 ảnh chụp UI lip-sync beta của ClipAI.
+
 ## 2026-09-22 — Setup memory repo trong chính repo dự án
 **Context**: User có hệ thống memory sync đa máy định nghĩa trong `~/.claude/CLAUDE.md` (global, mọi dự án) nhưng `{{GITHUB_RAW_BOOTSTRAP}}`/`{{MEMORY_DIR}}` chưa điền — placeholder rỗng, không tự đoán URL để chạy `irm | iex` (rủi ro thực thi mã lạ).
 **Finding**: User chọn phương án lưu memory trong thư mục `.claude-memory/` ngay bên trong repo dự án này (thay vì repo riêng), đồng bộ qua git pull/push cùng code. `~/.claude/CLAUDE.md` đã được cập nhật trỏ `MEMORY_DIR` = `D:\AI-Video-Pipeline\.claude-memory`. Trên máy khác: chỉ cần `git clone` repo này vào đúng đường dẫn `D:\AI-Video-Pipeline` là dùng được ngay, không cần script bootstrap riêng.
