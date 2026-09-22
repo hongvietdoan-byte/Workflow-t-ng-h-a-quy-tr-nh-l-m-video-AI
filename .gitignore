@@ -3,6 +3,8 @@ deepix-*/
 __pycache__/
 *.pyc
 data/manifest.sqlite
+data/manifest.sqlite-shm
+data/manifest.sqlite-wal
 Get this Skill to Claude/
 data/trial/
 data/demo/

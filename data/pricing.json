@@ -1,22 +1,22 @@
 {
-  "_note": "Đơn vị: USD/giây (không phải credit — xem _note_usd). Nguồn: slide chính thức ClipAI 'Hôm nay tôi chọn mô hình video như thế nào' (DPX·CLP/09-17, 2026-09-22), cơ sở 720p·16:9·5s·không có video đầu vào; 1 USD ≈ 7.2 CNY. Đây là giá NIÊM YẾT theo model, không phụ thuộc dự án — khác với usage_events (chi phí thực tế đã ghi log). Kling 3.0 Omni trong slide có thể tương ứng `kling-v3-omni:std`, chưa xác nhận 100% khớp mode nào; MiniMax H3 chưa công bố giá (null) và hiện KHÔNG có trong contract Clip AI đang dùng (core/adapters/clipai.py chỉ hỗ trợ Kling + Seedance — xem docs/CLIPAI_FEATURES.md #2). Video tham chiếu chuyển động (reference_video, xem #18) có thể đổi giá — CHƯA đo, coi giá dưới đây là ước lượng khi không dùng video tham chiếu.",
-  "_note_usd": "per_video_second dưới đây lấy trực tiếp từ USD trong slide (không tự quy đổi từ CNY để tránh sai số làm tròn). Nếu đo giá thật bằng credit trên web sau này, thêm field per_video_second_credits song song, không xóa field USD.",
-  "currency": "credits",
+  "_note": "Đơn vị hiện là USD (đổi từ 'credits' 2026-09-22, xem _note_usd) — ƯỚC TÍNH GẦN ĐÚNG, không phải giá credit đo thật, theo yêu cầu người dùng 'không cần chuẩn 100% cũng được' để Dashboard có con số theo dõi thay vì luôn hiện 'chưa có giá'. Nguồn: slide chính thức ClipAI 'Hôm nay tôi chọn mô hình video như thế nào' (DPX·CLP/09-17, 2026-09-22), cơ sở 720p·16:9·5s·không có video đầu vào; 1 USD ≈ 7.2 CNY. Slide chỉ cho 1 giá/model (không tách theo tier std/pro/4k hay theo độ phân giải) — các tier/độ phân giải của cùng model tạm dùng CHUNG giá đó (thực tế pro/4k/1080p nhiều khả năng đắt hơn std/720p, chưa đo được chênh lệch). Kling 3.0 Omni trong slide có thể tương ứng `kling-v3-omni:std`; MiniMax H3 chưa công bố giá (null) và hiện KHÔNG có trong contract Clip AI đang dùng. Deepix (`per_image`) và `per_audio` chưa có bất kỳ nguồn giá nào (kể cả niêm yết) nên vẫn để `null`. Video tham chiếu chuyển động (reference_video) có thể đổi giá — CHƯA đo.",
+  "_note_usd": "Đổi `currency` sang \"usd\" (2026-09-22) vì số liệu duy nhất đang có là giá niêm yết USD từ slide ClipAI — không có cách quy đổi sang \"credits\" (nền tảng không công bố tỉ giá). Nếu đo được giá credit thật trên web sau này, thêm field `per_video_second_credits` song song và đổi currency lại, không xóa field USD.",
+  "currency": "usd",
   "confirm_batch_at": 10,
   "per_image": {
     "dola-seedream-5-0-pro-260628": null
   },
   "per_video_second": {
-    "kling-v3-omni:std": null,
-    "kling-v3-omni:pro": null,
-    "kling-v3-omni:4k": null,
+    "kling-v3-omni:std": 0.08,
+    "kling-v3-omni:pro": 0.08,
+    "kling-v3-omni:4k": 0.08,
     "kling-video-o1:std": null,
     "kling-video-o1:pro": null,
-    "dreamina-seedance-2-0-260128:480p": null,
-    "dreamina-seedance-2-0-260128:720p": null,
-    "dreamina-seedance-2-0-260128:1080p": null,
-    "dreamina-seedance-2-0-fast-260128:720p": null,
-    "dreamina-seedance-2-5-260628:720p": null
+    "dreamina-seedance-2-0-260128:480p": 0.15,
+    "dreamina-seedance-2-0-260128:720p": 0.15,
+    "dreamina-seedance-2-0-260128:1080p": 0.15,
+    "dreamina-seedance-2-0-fast-260128:720p": 0.12,
+    "dreamina-seedance-2-5-260628:720p": 0.23
   },
   "per_video_clip": {},
   "per_audio": {

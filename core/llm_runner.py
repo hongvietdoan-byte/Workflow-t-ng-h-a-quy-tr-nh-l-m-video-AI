@@ -338,6 +338,12 @@ class MockLlm:
             names = re.findall(r"^\d+\. (.+)$", block, flags=re.M)
             body = "\n\n".join(f"## {n}\n- (tóm tắt giả lập) quy tắc chính về {n.lower()}" for n in names)
             return LlmReply(body, 200, 80)
+        if "NGUỒN THẬT DUY NHẤT" in prompt:
+            body = ("### Nhận dạng nhân vật\n- Trang phục và vũ khí như thấy trong khung hình (giả lập). [OBSERVED]\n\n"
+                    "### Kỹ năng / hiệu ứng đang dùng (nếu khung hình cho thấy)\n"
+                    "- Hiệu ứng hình học/màu như thấy trong khung hình (giả lập). [OBSERVED]\n\n"
+                    "### Không xác nhận được\n- Sát thương, thời gian hồi, tầm (giả lập). [UNKNOWN]")
+            return LlmReply(body, 150, 60)
         if "# Cảnh đã có ảnh được duyệt" in prompt:
             block = re.search(r"# Cảnh đã có ảnh được duyệt\s*```json\s*(.*?)```", prompt, re.S).group(1)
             scenes = json.loads(block)["scenes"]

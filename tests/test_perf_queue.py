@@ -115,6 +115,22 @@ class PerfTests(Setup):
         self.assertEqual(snap["projects"][0]["videos"], snap["projects"][0]["scenes"])
         self.assertGreater(snap["jobs_today"], 0)
 
+    def test_portfolio_rows_covers_both_a_finished_autopilot_project_and_a_fresh_manual_one(self):
+        """The portfolio table must show every project side by side -- autopilot or step-by-step,
+        finished or not -- unlike the autopilot-only project_rows/snapshot table above."""
+        ctx = self.build()
+        autopilot.start(self.p, self.pid)
+        autopilot.run_until_done(self.p, self.pid, ctx)
+        fresh_pid = self.p.create_project("brand new", "human_qc", 0.85, 2)
+        rows = {r["id"]: r for r in perf.portfolio_rows(self.p.conn, self.data)}
+        finished, fresh = rows[self.pid], rows[fresh_pid]
+        self.assertTrue(finished["done"])
+        self.assertEqual(finished["step_label"], "✅ Hoàn tất")
+        self.assertTrue(os.path.exists(finished["final_video"]))
+        self.assertFalse(fresh["done"])
+        self.assertIsNone(fresh["final_video"])
+        self.assertEqual((fresh["step_label"], fresh["scenes"]), ("① Kịch bản", 0))
+
     def test_alerts_flag_overload_failures_slowdown_and_queue(self):
         base = {"kind": "video_gen", "running": 0, "queued": 0, "ok_1h": 0, "failed_1h": 0, "ok_24h": 0, "failed_24h": 0,
                 "avg_sec": None, "recent_sec": None, "earlier_sec": None, "recent_fail_rate": 0.0, "recent_outcomes": 0}

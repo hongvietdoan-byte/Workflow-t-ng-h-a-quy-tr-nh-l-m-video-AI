@@ -331,12 +331,14 @@ Mục tiêu: chứng minh pipeline end-to-end chạy được, đo chất lượ
 
 **Kho kiến thức (2026-09-20):** tab "Kho kiến thức" trong Cài đặt: xem tổng quan và upload thêm tài liệu để nâng cấp Director/QC/Motion; tài liệu bật được nối vào prompt của bước tương ứng.
 
+**Cập nhật 2026-09-22:** đã chạy thật 1 cảnh đầy đủ Bước 1→5 qua Dashboard (Deepix + Clip AI video/audio + render, xem `docs/api_notes.md`) — xác nhận `claude_cli` hoạt động được nhưng dùng chung hạn mức chi tiêu tháng với phiên Claude Code, không phải ngân sách riêng. `data/pricing.json` đã có giá ƯỚC TÍNH (USD, từ slide niêm yết ClipAI) để Dashboard tính chi phí thay vì luôn báo "chưa có giá". Tab "📊 Theo dõi hiệu suất" nay có bảng tổng quan **mọi** dự án (không chỉ dự án tự động hoàn toàn), kèm bước hiện tại và video hoàn tất xem/tải ngay (`core/perf.py::portfolio_rows`). Thêm tính năng **phân tích video kỹ năng bằng Claude** (bản MVP theo tài liệu "AI Video Analysis & Prompt Generation Standard" người dùng cung cấp): tải video gameplay → Claude viết nhận dạng nhân vật + kỹ năng/VFX thành chữ có gắn nhãn OBSERVED/EXPLICIT/INFERRED/UNKNOWN, người dùng duyệt trước khi lưu vào Kho tài nguyên (`core/video_analysis.py`, panel trong ⚙ Cài đặt & dự án → Kho tài nguyên). Chi tiết + phần chưa làm của MVP này xem `TODO.md`.
+
 **Tạm gác (2026-09-19):** MCP Claude/V0 qua Claude Desktop; ưu tiên hoàn thiện Dashboard.
 
 **Đang chờ điều kiện bên ngoài (đều cần người dùng):**
-- Chạy thật các phần mới viết chỉ bằng giao thức giả: audio Clip AI, LLM runner (cần `ANTHROPIC_API_KEY`), một cảnh end-to-end qua Dashboard.
-- Đo giá credit thật để đối chiếu với giá niêm yết đã điền (`video_model` mặc định đã chốt `kling-v3-omni`, xem Mục 5).
+- Đo giá credit thật để đối chiếu với giá ước tính đã điền (`video_model` mặc định đã chốt `kling-v3-omni`, xem Mục 5).
 - Vòng đánh giá `eval/` (người duyệt tạm = chủ dự án) và dry-run 2 mode để hiệu chỉnh prompt/threshold.
+- Thử tải video thật qua panel "Phân tích video kỹ năng" (chưa tự động hóa được việc chọn file qua trình duyệt để test).
 
 ---
 *Tài liệu nguồn: `Quy_Trinh_Auto_Pipeline_Full1.docx` (kèm 4 comment góp ý, đã phân tích ở Mục 2).*

@@ -21,7 +21,7 @@ import streamlit as st
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
-from core import asset_vision, autoqc, ff_site, sfx_plan, sound_lib, assets, audio_lib, subtitles, script_reader, auth, autopilot, dialogue, diag, knowledge, lessons, perf, regen, research, style, subjects, trash, waveform, cost, ffmpeg_studio, final_cut, llm_io, llm_runner, music, preflight, prompts, script_parser  # noqa: E402
+from core import asset_vision, autoqc, ff_site, sfx_plan, sound_lib, assets, audio_lib, subtitles, script_reader, auth, autopilot, dialogue, diag, knowledge, lessons, perf, regen, research, style, subjects, trash, waveform, cost, ffmpeg_studio, final_cut, llm_io, llm_runner, music, preflight, prompts, script_parser, video_analysis  # noqa: E402
 from core.db import connect  # noqa: E402
 from core.pipeline import Pipeline, PipelinePaused  # noqa: E402
 from core.adapters import factory  # noqa: E402
@@ -1031,6 +1031,68 @@ def asset_library_panel(p: Pipeline) -> None:
             if asset_vision.start(DB, game):
                 st.toast("Đang đọc ở nền; bấm tải lại trang để xem tiến độ")
             st.rerun()
+    with st.expander("📹 Phân tích video kỹ năng bằng Claude (nhân vật quay trong gameplay)"):
+        st.caption("Tải video gameplay quay skill của một nhân vật — Claude nhìn các khung hình lấy mẫu đều theo thời gian và viết lại "
+                   "nhận dạng nhân vật + kỹ năng/VFX thành chữ, MỖI câu gắn nhãn [OBSERVED] (thấy trực tiếp) / [EXPLICIT] (chữ overlay nói rõ) / "
+                   "[INFERRED] (suy luận có lý do) / [UNKNOWN] (không xác nhận được) — video là bằng chứng gốc, không tự bịa sát thương/thời gian hồi/"
+                   "tầm bắn nếu video không xác nhận. Bạn xem, sửa và tự chọn ảnh muốn giữ trước khi lưu — không tự động ghi gì cả.")
+        characters = [a for a in items if a["kind"] in ("character", "pet")]
+        if not characters:
+            st.caption("Kho chưa có nhân vật/thú cưng nào.")
+        else:
+            by_id = {a["id"]: a["name"] for a in characters}
+            va_asset_id = st.selectbox("Nhân vật / thú cưng", list(by_id), format_func=lambda i: by_id[i], key="va_asset")
+            va_video = st.file_uploader("Video gameplay (mp4/mov/webm/mkv, tối đa 200 MB)", type=["mp4", "mov", "webm", "mkv"], key="va_video")
+            va_note = st.text_input("Ghi chú thêm cho Claude (tuỳ chọn)", key="va_note",
+                                    placeholder="vd: chỉ nhìn skill chủ động, bỏ qua trang phục")
+            va_count = st.slider("Số khung hình lấy mẫu", 4, video_analysis.MAX_FRAMES, 8, key="va_count")
+            if st.button("🎬 Phân tích video", key="va_go", disabled=not va_video, type="primary"):
+                client = llm_client()
+                if client is not None:
+                    try:
+                        with st.spinner("Đang trích khung hình + hỏi Claude…"):
+                            tmp_dir = tempfile.mkdtemp(prefix="va_")
+                            video_path = os.path.join(tmp_dir, va_video.name)
+                            with open(video_path, "wb") as f:
+                                f.write(va_video.getvalue())
+                            meta = video_analysis.probe(video_path)
+                            frames = video_analysis.extract_frames(video_path, os.path.join(tmp_dir, "frames"), va_count)
+                            text = video_analysis.analyze(client, by_id[va_asset_id], frames, meta, va_note)
+                    except (video_analysis.VideoAnalysisError, llm_runner.LlmError) as e:
+                        st.error(str(e))
+                    else:
+                        st.session_state[f"va_draft_{va_asset_id}"] = {"text": text, "frames": frames, "source": va_video.name}
+                        st.rerun()
+            draft = st.session_state.get(f"va_draft_{va_asset_id}")
+            if draft:
+                st.markdown(f"**Bản nháp phân tích — {by_id[va_asset_id]}** (từ `{draft['source']}`)")
+                cols = st.columns(min(len(draft["frames"]), 5) or 1)
+                keep = []
+                for i, fp in enumerate(draft["frames"]):
+                    with cols[i % len(cols)]:
+                        st.image(fp, use_container_width=True)
+                        if st.checkbox("Thêm làm ảnh tham chiếu", key=f"va_kf_{va_asset_id}_{i}"):
+                            keep.append(fp)
+                edited = st.text_area("Nội dung (sửa được trước khi lưu)", draft["text"], height=220, key=f"va_text_{va_asset_id}")
+                b1, b2 = st.columns(2)
+                if b1.button("💾 Lưu vào mô tả", key=f"va_save_{va_asset_id}", type="primary"):
+                    asset = assets.get(p.conn, va_asset_id)
+                    new_desc = video_analysis.with_block(asset["description"], edited, draft["source"])
+                    assets.update(p.conn, va_asset_id, asset["name"], asset["aliases"], new_desc)
+                    st.session_state.pop(f"va_draft_{va_asset_id}", None)
+                    st.success("Đã lưu vào mô tả.")
+                    st.rerun()
+                if b2.button(f"🖼 Thêm {len(keep)} ảnh đã tick vào tài nguyên", key=f"va_addimg_{va_asset_id}", disabled=not keep):
+                    added = 0
+                    for fp in keep:
+                        with open(fp, "rb") as f:
+                            try:
+                                assets.add_image(p.conn, va_asset_id, os.path.basename(fp), f.read())
+                                added += 1
+                            except assets.AssetError as e:
+                                st.warning(str(e))
+                    st.success(f"Đã thêm {added} ảnh.")
+                    st.rerun()
     with st.expander("⬆ Tải nhiều ảnh cùng lúc (tên file = tên tài nguyên)"):
         st.caption("Chọn nhiều ảnh một lượt: `Lyra_front.png` + `Lyra_back.png` thành một mục Lyra; mục đã có thì được thêm ảnh; ảnh trùng bị bỏ qua.")
         bulk_kind = st.selectbox("Loại", list(assets.KINDS), format_func=lambda k: assets.KINDS[k], key="lib_bulk_kind")
@@ -2415,14 +2477,31 @@ def monitor(p: Pipeline, pid: int) -> None:
                    "chỉ dùng để thống kê, không ngăn được người khác mạo danh.")
     else:
         st.caption("Chưa có lượt gen nào trong khoảng này.")
-    st.markdown("**Các dự án chạy tự động**")
-    if not snap["projects"]:
-        st.caption("Chưa có dự án nào chạy chế độ tự động.")
+    ui.html(ui.card_title("📁 Tổng quan tất cả dự án", "mọi dự án — tự động hoàn toàn lẫn từng bước/bán tự động — cùng lúc"))
+    portfolio = perf.portfolio_rows(p.conn, DATA)
+    if not portfolio:
+        st.caption("Chưa có dự án nào.")
     else:
-        st.dataframe([{"Dự án": f"#{r['id']} {r['name']}", "Trạng thái": r["state"], "Ảnh duyệt": f"{r['images']}/{r['scenes']}",
-                       "Video xong": f"{r['videos']}/{r['scenes']}", "Job hoạt động": r["active"],
-                       "Nhịp cuối": "-" if r["idle_sec"] is None else f"{r['idle_sec']:.0f}s trước",
-                       "Ghi chú": r["note"]} for r in snap["projects"]], hide_index=True, use_container_width=True)
+        mode_label = {"auto": "Auto", "human_qc": "Human QC"}
+        st.dataframe([{"Dự án": f"#{r['id']} {r['name']}",
+                       "Chế độ QC": mode_label.get(r["operating_mode"], r["operating_mode"]),
+                       "Đang chạy": ("⏸ Tạm dừng" if r["paused"] else "🚀 Tự động hoàn toàn" if r["running_auto"]
+                                    else "🧭 Từng bước" if not r["done"] else "-"),
+                       "Bước hiện tại": r["step_label"], "Ảnh duyệt": f"{r['images']}/{r['scenes']}",
+                       "Prompt duyệt": f"{r['motion']}/{r['scenes']}", "Video xong": f"{r['videos']}/{r['scenes']}",
+                       "Job hoạt động": r["active"], "Chờ duyệt": r["needs_review"],
+                       "Người tạo": r["created_by"], "Ghi chú tự động": r["autopilot_note"]}
+                      for r in portfolio], hide_index=True, use_container_width=True)
+        finished = [r for r in portfolio if r["done"]]
+        with st.expander(f"🎬 Sản phẩm đã hoàn tất ({len(finished)})", expanded=bool(finished)):
+            if not finished:
+                st.caption("Chưa có dự án nào ra FINAL_VIDEO.mp4.")
+            for r in finished:
+                st.markdown(f"**#{r['id']} {r['name']}**")
+                show_video(r["final_video"], "Nhỏ")
+                with open(r["final_video"], "rb") as f:
+                    st.download_button("⬇ Tải FINAL_VIDEO.mp4", f, file_name=f"{r['name']}_FINAL_VIDEO.mp4",
+                                       key=f"portfolio_dl_{r['id']}")
     st.caption("Ngưỡng cảnh báo chỉnh bằng biến môi trường: PERF_MAX_ACTIVE, PERF_FAIL_WARN, PERF_SLOW_WARN; "
                "song song: AUTOPILOT_MAX_PARALLEL; trần ngày: AUTOPILOT_DAILY_JOBS. "
                "Chưa đo thời gian gọi Claude (QC/motion).")

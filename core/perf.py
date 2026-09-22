@@ -70,6 +70,49 @@ def by_kind(conn, kind: str, now: Optional[datetime] = None) -> Dict:
             "recent_fail_rate": (last_fail / len(last)) if last else 0.0, "recent_outcomes": len(last)}
 
 
+STEP_LABELS = ("① Kịch bản", "② Gen ảnh", "③ Video Prompt", "④ Gen video", "⑤ Ghép & render", "✅ Hoàn tất")
+
+
+def portfolio_rows(conn, data_dir: str) -> List[Dict]:
+    """Every project (auto or step-by-step, running or idle) with its current step and final output, so a
+    portfolio of many projects (e.g. 10 auto, or 3 semi-auto + 7 auto) can be tracked from one table."""
+    out = []
+    for r in conn.execute("SELECT id, name, operating_mode, autopilot_state, autopilot_note, paused, created_by"
+                          " FROM projects ORDER BY id DESC").fetchall():
+        def c(sql: str) -> int:
+            return conn.execute(sql, (r["id"],)).fetchone()["c"]
+
+        scenes = c("SELECT COUNT(*) c FROM scenes WHERE project_id=?")
+        images = c("SELECT COUNT(DISTINCT scene_id) c FROM jobs WHERE project_id=? AND type='image_gen' AND state='approved'")
+        motion = c("SELECT COUNT(DISTINCT s.id) c FROM scenes s JOIN motion_prompts mp ON mp.scene_id=s.id"
+                   " WHERE s.project_id=? AND mp.state='approved'")
+        videos = c("SELECT COUNT(DISTINCT scene_id) c FROM jobs WHERE project_id=? AND type='video_gen' AND state='succeeded'")
+        active = c("SELECT COUNT(*) c FROM jobs WHERE project_id=? AND state IN ('queued','running','retryable')")
+        needs_review = c("SELECT COUNT(*) c FROM jobs WHERE project_id=? AND state='pending_review'")
+        final_video = os.path.join(data_dir, str(r["id"]), "output", "FINAL_VIDEO.mp4")
+        done = os.path.exists(final_video)
+        if done:
+            step = 5
+        elif not scenes:
+            step = 0
+        elif images < scenes:
+            step = 1
+        elif motion < scenes:
+            step = 2
+        elif videos < scenes:
+            step = 3
+        else:
+            step = 4
+        out.append({"id": r["id"], "name": r["name"], "operating_mode": r["operating_mode"],
+                    "running_auto": bool(r["autopilot_state"] and r["autopilot_state"] not in ("done", "stopped", "error")),
+                    "autopilot_state": r["autopilot_state"], "autopilot_note": r["autopilot_note"] or "",
+                    "paused": bool(r["paused"]), "created_by": r["created_by"] or "",
+                    "scenes": scenes, "images": images, "motion": motion, "videos": videos,
+                    "active": active, "needs_review": needs_review, "step": step, "step_label": STEP_LABELS[step],
+                    "done": done, "final_video": final_video if done else None})
+    return out
+
+
 def project_rows(conn) -> List[Dict]:
     out = []
     for r in conn.execute("SELECT id, name, autopilot_state, autopilot_note, autopilot_beat FROM projects"
