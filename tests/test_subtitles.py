@@ -205,7 +205,7 @@ class MergedStepTests(unittest.TestCase):
             at.run()
             self.assertFalse(at.exception)
             options = list(at.radio(key="step").options)
-            self.assertEqual(len(options), 9)
+            self.assertEqual(len(options), 6)
             self.assertFalse(any(o.startswith(("5a", "5b")) for o in options))
             self.assertTrue(any(o.startswith("5 · Nhạc nền & Ghép video") for o in options))
             self.assertEqual(at.radio(key="step").value, next(o for o in options if o.startswith("5 ·")))

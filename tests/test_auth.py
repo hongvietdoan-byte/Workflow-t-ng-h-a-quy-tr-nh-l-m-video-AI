@@ -187,8 +187,9 @@ class DashboardGateTests(unittest.TestCase):
         at = self.sign_in(OWNER)
         self.assertFalse(at.exception)
         options = list(at.radio(key="step").options)
-        self.assertEqual(len(options), 9)
-        self.assertTrue(any("Phân quyền" in o for o in options))
+        self.assertEqual(len(options), 6)                                             # 5 steps + Theo dõi hiệu suất
+        button_keys = [b.key for b in at.button]
+        self.assertIn("settings_users", button_keys)                                  # Phân quyền: in the settings gear now
         self.assertTrue(any("Tắt Dashboard" in e.label for e in at.expander))
         self.assertIn("login", at.query_params)                                       # remembered for reloads
 
@@ -196,13 +197,16 @@ class DashboardGateTests(unittest.TestCase):
         at = self.sign_in("new.person@garena.vn")
         self.assertFalse(at.exception)
         options = list(at.radio(key="step").options)
-        self.assertEqual(len(options), 6)
+        self.assertEqual(len(options), 5)                                             # just the 5 steps
         self.assertFalse(any(w in o for o in options for w in ("Theo dõi", "Bài học", "Phân quyền")))
         self.assertFalse(any("Tắt Dashboard" in e.label for e in at.expander))
-        labels = [t.label for t in at.tabs]
-        self.assertNotIn("Bảng giá", labels)
-        self.assertFalse(any(l.startswith("Kho kiến thức") for l in labels))
-        self.assertIn("Dự án mới", labels)
+        button_keys = [b.key for b in at.button]
+        self.assertNotIn("settings_pricing", button_keys)
+        self.assertNotIn("settings_knowledge", button_keys)
+        self.assertNotIn("settings_lessons", button_keys)
+        self.assertNotIn("settings_users", button_keys)
+        self.assertIn("settings_history", button_keys)                                # no special permission needed
+        self.assertIn("new_project_go", button_keys)
 
     def test_only_the_creator_can_delete_a_project(self):
         pid = self.conn.execute("SELECT id FROM projects").fetchone()[0]
@@ -222,10 +226,10 @@ class DashboardGateTests(unittest.TestCase):
         auth.add_user(self.conn, owner(), "boss2@garena.vn", ["monitor", "settings"])
         at = self.sign_in("boss2@garena.vn")
         options = list(at.radio(key="step").options)
-        self.assertEqual(len(options), 7)
+        self.assertEqual(len(options), 6)                                  # 5 steps + Theo dõi hiệu suất (granted)
         self.assertTrue(any("Theo dõi" in o for o in options))
-        self.assertIn("Bảng giá", [t.label for t in at.tabs])
-        self.assertFalse(any("Phân quyền" in o for o in options))
+        self.assertIn("settings_pricing", [b.key for b in at.button])      # "settings" perm granted
+        self.assertNotIn("settings_users", [b.key for b in at.button])     # "users" perm not granted
 
     def test_unlisted_outside_e_mail_is_refused_with_a_clear_message(self):
         at = self.sign_in("stranger@gmail.com")
@@ -235,7 +239,7 @@ class DashboardGateTests(unittest.TestCase):
     def test_the_e_mail_in_the_address_signs_in_again_after_a_reload(self):
         at = self.sign_in(None, {"login": "back@garena.vn"})
         self.assertFalse(at.exception)
-        self.assertEqual(len(at.radio(key="step").options), 6)
+        self.assertEqual(len(at.radio(key="step").options), 5)
 
     def test_owner_permission_table_page_renders(self):
         auth.add_user(self.conn, owner(), "x@garena.vn", ["lessons"])

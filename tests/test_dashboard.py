@@ -37,15 +37,44 @@ class DashboardSmokeTests(unittest.TestCase):
         self.assertFalse(at.exception)
         self.assertTrue(any("Chưa có dự án" in i.value for i in at.info))
 
+    def test_new_project_button_creates_it_and_switches_the_picker_to_it(self):
+        """The "+" button next to the user's name (2026-09-22 header redesign) works even with zero projects,
+        and the header picker switches straight to the project it just made."""
+        at = AppTest.from_file(APP, default_timeout=30).run()
+        at.text_input(key="new_name").set_value("Fresh One").run()
+        next(b for b in at.button if b.key == "new_project_go").click().run()
+        self.assertFalse(at.exception)
+        pid = Pipeline(connect(self.db)).conn.execute("SELECT id FROM projects WHERE name='Fresh One'").fetchone()["id"]
+        self.assertEqual(at.selectbox(key="global_pid").value, pid)
+
+    def test_settings_gear_opens_one_dialog_at_a_time(self):
+        """Kho tài nguyên / Bảng giá / Kho kiến thức / Lịch sử / Bài học / Phân quyền each open as their own
+        st.dialog panel; opening one must close whichever was open before (st.dialog only allows one at once)."""
+        self.seed()
+        at = AppTest.from_file(APP, default_timeout=30).run()
+        at.button(key="settings_pricing").click().run()
+        self.assertFalse(at.exception)
+        self.assertTrue(any(t.key == "price_currency" for t in at.text_input))
+        at.button(key="settings_history").click().run()
+        self.assertFalse(at.exception)
+        self.assertFalse(any(t.key == "price_currency" for t in at.text_input))          # Bảng giá closed
+        self.assertTrue(any(s.label == "Cảnh" for s in at.selectbox))                    # Lịch sử's scene picker
+
     def test_every_step_renders_without_error(self):
         self.seed()
         at = AppTest.from_file(APP, default_timeout=30).run()
         self.assertFalse(at.exception)
         options = list(at.radio(key="step").options)
-        self.assertEqual(len(options), 9)
+        self.assertEqual(len(options), 6)                      # 5 steps + Theo dõi hiệu suất
         for option in options:
             at.radio(key="step").set_value(option).run()
             self.assertFalse(at.exception, option)
+        # Kho tài nguyên / Bảng giá / Kho kiến thức / Lịch sử / Bài học / Phân quyền: moved to the settings
+        # gear, each its own dialog -- must render without error too.
+        for key in ("settings_assets", "settings_pricing", "settings_knowledge", "settings_history",
+                   "settings_lessons", "settings_users"):
+            at.button(key=key).click().run()
+            self.assertFalse(at.exception, key)
 
     def test_create_image_jobs_and_mode_switch(self):
         p, pid = self.seed()
@@ -172,6 +201,7 @@ class DashboardSmokeTests(unittest.TestCase):
         try:
             at = AppTest.from_file(APP, default_timeout=30).run()
             self.assertFalse(at.exception)
+            at.button(key="settings_pricing").click().run()
             at.text_input(key="price_currency").set_value("token").run()
             next(b for b in at.button if b.key == "btn_save_prices").click().run()
             self.assertFalse(at.exception)
@@ -209,10 +239,13 @@ class DashboardSmokeTests(unittest.TestCase):
             return [e.label for e in at.expander]
 
         at = AppTest.from_file(APP, default_timeout=30).run()
-        for index in (1, 2, 3, 4, 5):
+        for index in (1, 2, 3, 4):                             # steps 2-5; Lịch sử (below) is its own panel now
             at.radio(key="step").set_value(at.radio(key="step").options[index]).run()
             self.assertFalse(at.exception, index)
             self.assertTrue(any("Cảnh 1" in l and "nội dung kịch bản" in l for l in labels(at)), (index, labels(at)))
+        at.button(key="settings_history").click().run()
+        self.assertFalse(at.exception)
+        self.assertTrue(any("Cảnh 1" in l and "nội dung kịch bản" in l for l in labels(at)), labels(at))
         at.radio(key="step").set_value(at.radio(key="step").options[1]).run()
         self.assertTrue(any("Cảnh 1" in m.value for m in at.markdown))
         # the detail panel shows the script text itself
@@ -283,7 +316,7 @@ class DashboardSmokeTests(unittest.TestCase):
         q.conn.commit()
         self.assertEqual(q.apply_qc(job, {"a": 0.2, "b": 0.3}), "rejected")
         at = AppTest.from_file(APP, default_timeout=30).run()
-        at.radio(key="step").set_value(at.radio(key="step").options[5]).run()
+        at.button(key="settings_history").click().run()                     # Lịch sử now opens as its own panel
         self.assertFalse(at.exception)
         trashed = os.listdir(os.path.join(self.tmp, "projects", str(pid), "trash", "images"))
         self.assertTrue(any(name.startswith(f"job_{job}__") for name in trashed))
@@ -441,6 +474,7 @@ class DashboardSmokeTests(unittest.TestCase):
         from core import knowledge
         self.seed()
         at = AppTest.from_file(APP, default_timeout=30).run()
+        at.button(key="settings_knowledge").click().run()
         self.assertFalse(at.exception)
         self.assertEqual([m.label for m in at.metric][:3], ["Tài liệu đang bật", "Ký tự gửi Claude mỗi lần chạy", "≈ token mỗi lần chạy"])
         labels = [e.label for e in at.expander]
@@ -450,6 +484,7 @@ class DashboardSmokeTests(unittest.TestCase):
         self.assertTrue(any("Lỗi thường gặp của ảnh AI" in e.label for e in at.expander))
         entry = knowledge.add_doc("qc", "phong cach.md", "Chấm gắt hơn.".encode("utf-8"))
         at = AppTest.from_file(APP, default_timeout=30).run()
+        at.button(key="settings_knowledge").click().run()
         at.selectbox(key="kb_group").set_value("qc").run()
         self.assertTrue(any("phong cach" in e.label and "bạn thêm" in e.label for e in at.expander))
         at.checkbox(key=f"kb_en_qc_{entry['file']}").set_value(False).run()
@@ -465,6 +500,7 @@ class DashboardSmokeTests(unittest.TestCase):
         os.environ["LLM_PROVIDER"] = "mock"
         try:
             at = AppTest.from_file(APP, default_timeout=30).run()
+            at.button(key="settings_knowledge").click().run()
             self.assertFalse(at.exception)
             self.assertTrue(any("Chưa có cẩm nang" in i.value for i in at.info))
             at.checkbox(key="kb_inc_director").set_value(True).run()      # fold the built-in knowledge in too
@@ -478,6 +514,7 @@ class DashboardSmokeTests(unittest.TestCase):
             self.assertLess(ov["chars"], ov["raw_chars"])                  # every run now sends less
             knowledge.add_doc("director", "moi.md", "Quy tắc mới.".encode("utf-8"))
             at = AppTest.from_file(APP, default_timeout=30).run()
+            at.button(key="settings_knowledge").click().run()
             self.assertTrue(any("cẩm nang đã cũ" in w.value for w in at.warning))  # asks to distil again
         finally:
             os.environ.pop("LLM_PROVIDER", None)
@@ -530,7 +567,7 @@ class DashboardSmokeTests(unittest.TestCase):
         record_failure(p.conn, job, "clipai", "Failure to pass the risk control system")
         at = AppTest.from_file(APP, default_timeout=30).run()
         self.assertFalse(at.exception)
-        self.assertEqual(len(at.get("popover")), 1)
+        self.assertEqual(len(at.get("popover")), 3)          # risk corner + header's "new project" + settings gear
         text = " ".join(m.value for m in at.markdown)
         self.assertIn("Cảnh 1 bị chặn (clipai)", text)      # risk-control block, with its scene
         self.assertIn("Nữ chiến binh Amazon", text)          # IP warning from the Character Bible

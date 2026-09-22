@@ -178,21 +178,21 @@ class DashboardTests(unittest.TestCase):
 
     def test_library_tab_is_for_owner_and_people_with_the_right(self):
         at = AppTest.from_file(APP, default_timeout=40).run()
-        self.assertIn("Kho tài nguyên", [t.label for t in at.tabs])                 # auth off = owner
+        self.assertIn("settings_assets", [b.key for b in at.button])                 # auth off = owner
         os.environ["DASHBOARD_AUTH"] = "on"
         conn = connect(self.db)
         owner = auth.Identity(auth.OWNER_EMAIL, "o", "owner", [])
         auth.ensure_owner(conn)
         auth.add_user(conn, owner, "editor@garena.vn", ["assets"])
 
-        def labels(email):
+        def button_keys(email):
             a = AppTest.from_file(APP, default_timeout=40).run()
             a.text_input(key="login_email").set_value(email)
             next(b for b in a.button if b.key == "login_btn").click().run()
-            return [t.label for t in a.tabs]
+            return [b.key for b in a.button]
 
-        self.assertIn("Kho tài nguyên", labels("editor@garena.vn"))
-        self.assertNotIn("Kho tài nguyên", labels("plain@garena.vn"))
+        self.assertIn("settings_assets", button_keys("editor@garena.vn"))
+        self.assertNotIn("settings_assets", button_keys("plain@garena.vn"))
         self.assertIn("assets", auth.PERM_LABELS)                                   # shows up as a column of the permission table
 
 
@@ -489,6 +489,7 @@ class SyncDashboardTests(unittest.TestCase):
 
     def test_adding_a_folder_source_syncs_it_and_shows_the_result(self):
         at = AppTest.from_file(APP, default_timeout=40).run()
+        at.button(key="settings_assets").click().run()
         at.text_input(key="lib_import_path").set_value(self.src).run()
         next(b for b in at.button if b.key == "lib_import_go").click().run()
         self.assertFalse(at.exception)

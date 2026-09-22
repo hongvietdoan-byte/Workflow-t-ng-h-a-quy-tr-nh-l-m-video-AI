@@ -298,6 +298,7 @@ class DashboardTests(Base):
         wav(os.path.join(self.src, "Sound FX Pack", "Whoosh.wav"), 1.0)
         at = self.app("1")
         self.assertFalse(at.exception)
+        at.button(key="settings_assets").click().run()
         at.text_input(key="snd_new_path").set_value(self.src).run()
         next(b for b in at.button if b.key == "snd_new_go").click().run()
         self.assertFalse(at.exception)

@@ -35,8 +35,21 @@ import ui  # noqa: E402
 DB = os.environ.get("PIPELINE_DB", os.path.join("data", "manifest.sqlite"))
 DATA = os.environ.get("PIPELINE_DATA", os.path.join("data", "projects"))
 STEPS = ["1 · Kịch bản & phân tích", "2 · Gen ảnh + QC", "3 · Video Prompt", "4 · Gen video",
-         "5 · Nhạc nền & Ghép video", "Lịch sử", "📊 Theo dõi hiệu suất", "🎓 Bài học", "👥 Phân quyền"]
-STEP_PERMISSION = {"📊 Theo dõi hiệu suất": "monitor", "🎓 Bài học": "lessons", "👥 Phân quyền": "users"}
+         "5 · Nhạc nền & Ghép video", "📊 Theo dõi hiệu suất"]
+STEP_PERMISSION = {"📊 Theo dõi hiệu suất": "monitor"}
+# Lịch sử / Bài học / Phân quyền moved off the step bar into the settings gear (see settings_menu()) --
+# each opens as its own closable st.dialog panel instead of living inline in the stepper.
+DIALOG_FLAGS = ("dlg_assets", "dlg_pricing", "dlg_knowledge", "dlg_history", "dlg_lessons", "dlg_users")
+
+
+def open_dialog(flag: str) -> None:
+    """Only one st.dialog may be open per script run: opening one always closes any other."""
+    for f in DIALOG_FLAGS:
+        st.session_state[f] = (f == flag)
+
+
+def close_dialog(flag: str) -> None:
+    st.session_state[flag] = False
 ERRORS = (sqlite3.IntegrityError, zipfile.BadZipFile, llm_runner.LlmError, InvalidTransition, llm_io.SchemaError, PipelinePaused, ffmpeg_studio.FFmpegNotFound,
           ffmpeg_studio.FFmpegError, ValueError, KeyError)
 CRITERIA_LABEL = {"character": "Đúng nhân vật", "hands_face": "Không lỗi tay/mặt", "composition": "Đúng bố cục",
@@ -485,16 +498,112 @@ def require_login(conn) -> None:
     st.session_state["identity"] = {"email": ident.email, "name": ident.name, "role": ident.role, "perms": ident.perms}
 
 
-def account_bar(conn) -> None:
-    """Who is signed in and the sign-out button."""
+def current_pid(p: Pipeline):
+    """The project selected in the header dropdown (global_bar), read from session_state so the header row
+    (rendered above the dropdown) already knows it in the same script run -- selectbox key="global_pid"."""
+    ids = [r["id"] for r in p.conn.execute("SELECT id FROM projects ORDER BY id").fetchall()]
+    pid = st.session_state.get("global_pid")
+    return pid if pid in ids else (ids[0] if ids else None)
+
+
+def new_project_control(p: Pipeline) -> None:
+    """The "+ new project" action, next to the user's name -- a lightweight popover, not a full dialog."""
+    with st.popover("➕ Dự án mới", help="Tạo dự án mới"):
+        name = st.text_input("Tên dự án", key="new_name")
+        if st.button("Tạo dự án", key="new_project_go", type="primary", disabled=not name.strip()):
+            pid = p.create_project(name.strip(), created_by=me()["email"])
+            st.session_state["global_pid"] = pid
+            st.rerun()
+
+
+def settings_menu(p: Pipeline, pid) -> None:
+    """Gear icon next to sign-out: every settings-like feature opens as its own closable panel (st.dialog,
+    native X) instead of living inline in the page. Kho tài nguyên/Bảng giá/Kho kiến thức only need the DB;
+    Lịch sử/Bài học/Phân quyền act on the project selected in the header. Old ?step=history/lessons/users
+    deep links still work -- they open the matching dialog once per browser session."""
+    deep = st.query_params.get("step")
+    if deep in ("history", "lessons", "users") and "deep_dialog_done" not in st.session_state:
+        st.session_state["deep_dialog_done"] = True
+        if deep == "history":
+            open_dialog("dlg_history")
+        elif deep == "lessons" and allowed("lessons"):
+            open_dialog("dlg_lessons")
+        elif deep == "users" and allowed("users"):
+            open_dialog("dlg_users")
+    with st.popover("⚙", help="Cài đặt"):
+        if allowed("assets") and st.button("📁 Kho tài nguyên", key="settings_assets", width="stretch"):
+            open_dialog("dlg_assets")
+        if allowed("settings") and st.button("💲 Bảng giá", key="settings_pricing", width="stretch"):
+            open_dialog("dlg_pricing")
+        if allowed("knowledge") and st.button("📚 Kho kiến thức", key="settings_knowledge", width="stretch"):
+            open_dialog("dlg_knowledge")
+        if pid is not None:
+            st.divider()
+            if st.button("🗒 Lịch sử", key="settings_history", width="stretch"):
+                open_dialog("dlg_history")
+            if allowed("lessons") and st.button("🎓 Bài học", key="settings_lessons", width="stretch"):
+                open_dialog("dlg_lessons")
+            if allowed("users") and st.button("👥 Phân quyền", key="settings_users", width="stretch"):
+                open_dialog("dlg_users")
+    if st.session_state.get("dlg_assets"):
+        _dialog_assets(p)
+    if st.session_state.get("dlg_pricing"):
+        _dialog_pricing()
+    if st.session_state.get("dlg_knowledge"):
+        _dialog_knowledge()
+    if pid is not None and st.session_state.get("dlg_history"):
+        _dialog_history(p, pid)
+    if pid is not None and st.session_state.get("dlg_lessons"):
+        _dialog_lessons(p, pid)
+    if pid is not None and st.session_state.get("dlg_users"):
+        _dialog_users(p, pid)
+
+
+@st.dialog("📁 Kho tài nguyên", width="large", on_dismiss=lambda: close_dialog("dlg_assets"))
+def _dialog_assets(p: Pipeline) -> None:
+    asset_library_panel(p)
+
+
+@st.dialog("💲 Bảng giá", on_dismiss=lambda: close_dialog("dlg_pricing"))
+def _dialog_pricing() -> None:
+    price_editor()
+
+
+@st.dialog("📚 Kho kiến thức (Director, QC, Motion)", width="large", on_dismiss=lambda: close_dialog("dlg_knowledge"))
+def _dialog_knowledge() -> None:
+    knowledge_panel()
+
+
+@st.dialog("🗒 Lịch sử", width="large", on_dismiss=lambda: close_dialog("dlg_history"))
+def _dialog_history(p: Pipeline, pid: int) -> None:
+    history(p, pid)
+
+
+@st.dialog("🎓 Bài học", width="large", on_dismiss=lambda: close_dialog("dlg_lessons"))
+def _dialog_lessons(p: Pipeline, pid: int) -> None:
+    lessons_tab(p, pid)
+
+
+@st.dialog("👥 Phân quyền", width="large", on_dismiss=lambda: close_dialog("dlg_users"))
+def _dialog_users(p: Pipeline, pid: int) -> None:
+    users_tab(p, pid)
+
+
+def account_bar(p: Pipeline) -> None:
+    """Identity + quick actions (new project, settings gear) + sign-out, all in one top bar."""
+    conn = p.conn
     who = me()
-    c1, c2 = st.columns([6, 1.2], vertical_alignment="center")
+    c1, c2, c3, c4 = st.columns([5, 1.6, 0.6, 1.1], vertical_alignment="center")
     role = "Owner" if who["role"] == "owner" else "Thành viên"
     c1.markdown(f"👤 **{escape(who['name'])}** · {escape(who['email'])} · {role}")
+    with c2:
+        new_project_control(p)
+    with c3:
+        settings_menu(p, current_pid(p))
     if not auth_on():
         c1.caption("Đăng nhập đang tắt (DASHBOARD_AUTH=off): mọi người đều là Owner.")
         return
-    if c2.button("Đăng xuất", key="logout_btn"):
+    if c4.button("Đăng xuất", key="logout_btn"):
         auth.logout(conn, st.session_state.get("auth_token"))
         for key in ("auth_token", "identity", "login_tried"):
             st.session_state.pop(key, None)
@@ -604,33 +713,20 @@ def can_delete_project(proj) -> bool:
 
 
 def global_bar(p: Pipeline):
+    """Project picker + per-project controls. Project creation and the Kho tài nguyên/Bảng giá/Kho kiến thức
+    panels moved to the header (account_bar -> new_project_control / settings_menu) so this only handles the
+    currently selected project."""
     projects = p.conn.execute("SELECT id, name FROM projects ORDER BY id").fetchall()
-    with st.expander("⚙ Cài đặt & dự án", expanded=not projects):
-        labels = ["Dự án mới"] + (["Kho tài nguyên"] if allowed("assets") else []) + (["Bảng giá"] if allowed("settings") else []) + (
-            ["Kho kiến thức (Director, QC, Motion)"] if allowed("knowledge") else [])
-        tabs = dict(zip(labels, st.tabs(labels)))
-        with tabs["Dự án mới"]:
-            name = st.text_input("Tên dự án", key="new_name")
-            if st.button("Tạo dự án") and name.strip():
-                p.create_project(name.strip(), created_by=me()["email"])
-                st.rerun()
-        if "Kho tài nguyên" in tabs:
-            with tabs["Kho tài nguyên"]:
-                asset_library_panel(p)
-        if "Bảng giá" in tabs:
-            with tabs["Bảng giá"]:
-                price_editor()
-        if "Kho kiến thức (Director, QC, Motion)" in tabs:
-            with tabs["Kho kiến thức (Director, QC, Motion)"]:
-                knowledge_panel()
     if not projects:
-        st.info("Chưa có dự án. Hãy tạo dự án để bắt đầu.")
+        st.info("Chưa có dự án. Bấm “➕ Dự án mới” ở đầu trang để bắt đầu.")
         return None
     with st.container(border=True):
         c0, c1, c2, c3, c4, c5 = st.columns([1.4, 1.8, 2.0, 1.6, 1.3, 3.0], vertical_alignment="center")
         c0.markdown('<div class="brand"><i></i>AI Video Pipeline</div>', unsafe_allow_html=True)
         ids = [r["id"] for r in projects]
-        pid = c1.selectbox("Dự án", ids, format_func=lambda i: next(r["name"] for r in projects if r["id"] == i))
+        default_pid = current_pid(p)
+        pid = c1.selectbox("Dự án", ids, index=ids.index(default_pid) if default_pid in ids else 0,
+                           format_func=lambda i: next(r["name"] for r in projects if r["id"] == i), key="global_pid")
         proj = p.project(pid)
         mode = c2.radio("Chế độ QC", ["auto", "human_qc"], index=0 if proj["operating_mode"] == "auto" else 1,
                         horizontal=True, key=f"mode_{pid}")
@@ -914,7 +1010,7 @@ def assets_panel(p: Pipeline, pid: int) -> None:
                 assets.attach(p.conn, pid, pick)
                 st.rerun()
         elif not chosen:
-            st.caption(f"Kho tài nguyên của game này đang trống. Người quản lý có thể thêm ở “⚙ Cài đặt & dự án” → Kho tài nguyên; "
+            st.caption(f"Kho tài nguyên của game này đang trống. Người quản lý có thể thêm ở nút “⚙” (Cài đặt) → Kho tài nguyên; "
                        "hoặc bạn tải ảnh riêng ở dưới.")
         with st.container(border=True):
             st.markdown("**⬆ Tải ảnh riêng cho dự án này** (nhân vật gốc, đạo cụ…)")
@@ -2819,7 +2915,7 @@ def main():
     os.makedirs(os.path.dirname(DB) or ".", exist_ok=True)
     p = Pipeline(connect(DB))
     require_login(p.conn)
-    account_bar(p.conn)
+    account_bar(p)
     p.actor = me()["email"] if auth_on() else (user_bar() or None)
     pid = global_bar(p)
     if pid is None:
@@ -2845,9 +2941,9 @@ def main():
     if problems:
         st.markdown(f":red[🔴 Giám sát: {len(problems)} vấn đề nghiêm trọng, ví dụ: {escape(diag.redact(problems[0]['title']))}] "
                     "— mở tab “📊 Theo dõi hiệu suất” để xem và lấy báo cáo.")
-    deep = st.query_params.get("step")  # ?step=2 opens a step directly (1, 2, 3, 4, 5, history...); 5a / 5b still work
-    deep = {"5a": "5", "5b": "5"}.get(deep, deep)
-    keys = ["1", "2", "3", "4", "5", "history", "monitor", "lessons", "users"]
+    deep = st.query_params.get("step")  # ?step=2 opens a step directly (1..5, monitor); 5a/5b and the
+    deep = {"5a": "5", "5b": "5"}.get(deep, deep)  # history/lessons/users dialog deep links still work (settings_menu)
+    keys = ["1", "2", "3", "4", "5", "monitor"]
     visible = [s for s in STEPS if allowed(STEP_PERMISSION.get(s, "workflow"))]
     if deep in keys and "step" not in st.session_state and STEPS[keys.index(deep)] in visible:
         st.session_state["step"] = STEPS[keys.index(deep)]
@@ -2856,7 +2952,7 @@ def main():
     step = st.radio("Bước", visible, horizontal=True, key="step", label_visibility="collapsed",
                     format_func=step_label(step_done(p, pid)))
     {STEPS[0]: step1, STEPS[1]: step2, STEPS[2]: step3, STEPS[3]: step4, STEPS[4]: step5,
-     STEPS[5]: history, STEPS[6]: monitor, STEPS[7]: lessons_tab, STEPS[8]: users_tab}[step](p, pid)
+     STEPS[5]: monitor}[step](p, pid)
     if allowed("shutdown"):
       with st.expander("⏻ Tắt Dashboard"):
         st.caption("Dừng máy chủ Dashboard trên máy này (các việc đang chạy nền cũng dừng; tiến độ đã lưu, bấm Tiếp tục khi mở lại).")

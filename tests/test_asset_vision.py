@@ -134,6 +134,7 @@ class DashboardTests(Base):
         os.environ.update({"PIPELINE_DB": self.db, "PIPELINE_DATA": os.path.join(self.dir, "projects"), "LLM_PROVIDER": "mock"})
         try:
             at = AppTest.from_file(self.APP, default_timeout=40).run()
+            at.button(key="settings_assets").click().run()
             self.assertFalse(at.exception)
             self.assertTrue(any("1 mục nhân vật/thú cưng chưa được đọc" in c.value for c in at.caption))
             next(b for b in at.button if b.key == "asset_vision_go").click().run()
