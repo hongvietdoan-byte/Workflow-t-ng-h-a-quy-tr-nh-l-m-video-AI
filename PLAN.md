@@ -202,6 +202,8 @@ Nguyên tắc: **không train/fine-tune model** — xây knowledge pack có cấ
 - **Đồng bộ môi (Lip Sync) trên ClipAI — không ưu tiên vì còn Beta** (yêu cầu tải video có sẵn + chọn giọng lồng tiếng riêng, quy trình 2 bước cồng kềnh). Tập trung vào việc gen video có thoại ngay từ prompt (tuỳ chọn "🔊 Model tự tạo âm thanh/lời thoại" ở Bước 4 dùng Kling `sound`/Seedance `generate_audio`) — không cần hỏi team Clip AI về lip-sync/voice design nữa.
 - **Blocklist IP — thu hẹp phạm vi:** hiện tại hầu như chỉ dùng nhân vật Free Fire (đã có thoả thuận bản quyền), chưa dùng nhân vật IP khác. Không cần xây blocklist rộng ngay; danh sách nhân vật FF đã có sẵn (từ `ff.garena.com`, xem Kho tài nguyên) là đủ cho giai đoạn này.
 - **Giá + gợi ý chọn model** theo slide chính thức ClipAI ("Hôm nay tôi chọn mô hình video như thế nào") đã điền vào `data/pricing.json` (`listed_usd_per_video_second`, `model_choice_guide`).
+- **`video_model` mặc định = `kling-v3-omni`.** Theo gợi ý chính thức của slide, Kling 3.0 Omni ghi rõ thế mạnh "tái sử dụng nhân vật, đối thoại nhiều nhân vật" — đúng nhu cầu dự án (nhân vật FF lặp lại nhiều cảnh, nhiều nhân vật đối thoại) và cũng rẻ nhất trong 2 model thật đang dùng (`$0.08/giây` so với Seedance `$0.15–0.23/giây`). Không cần sửa code — `resolve_model(None)` đã mặc định về `kling-v3-omni` từ trước. `seedance`/`seedance-2.5` vẫn chọn thủ công được cho cảnh cần chất lượng điện ảnh cao hơn.
+- **"📽 Chế độ Storyboard" (ảnh cảnh trước làm tham chiếu liên tục) — vẫn giữ trong kế hoạch thử nghiệm**, không gộp vào quyết định bỏ Kho chủ thể ở trên: đây là hai vấn đề khác nhau (Storyboard = liên tục phong cách/ánh sáng giữa các cảnh; Kho chủ thể = khoá nhận diện nhân vật).
 
 **Còn mở, KHÔNG chặn V0 (chốt trước V1):**
 | Quyết định | Ghi chú |
@@ -333,7 +335,7 @@ Mục tiêu: chứng minh pipeline end-to-end chạy được, đo chất lượ
 
 **Đang chờ điều kiện bên ngoài (đều cần người dùng):**
 - Chạy thật các phần mới viết chỉ bằng giao thức giả: audio Clip AI, LLM runner (cần `ANTHROPIC_API_KEY`), một cảnh end-to-end qua Dashboard.
-- Đo giá thật để điền `data/pricing.json`; chọn `video_model` mặc định sau khi so Kling và Seedance.
+- Đo giá credit thật để đối chiếu với giá niêm yết đã điền (`video_model` mặc định đã chốt `kling-v3-omni`, xem Mục 5).
 - Vòng đánh giá `eval/` (người duyệt tạm = chủ dự án) và dry-run 2 mode để hiệu chỉnh prompt/threshold.
 
 ---
