@@ -30,6 +30,8 @@ GROUPS: Dict[str, tuple] = {
                   ("knowledge/genre_guides.md", "Hướng dẫn 7 thể loại", "công thức viết prompt ảnh theo thể loại"),
                   ("knowledge/research_notes.md", "Nguyên tắc từ nguồn nghiên cứu", "16 nguyên tắc, 8 chiều điện ảnh"),
                   ("knowledge/film_director_method.md", "Phương pháp đạo diễn", "ý định cảm xúc, 3 trục quan hệ, dàn dựng, nhịp phủ cảnh"),
+                  ("knowledge/ff_character_skills_visual.md", "Dịch skill → hình ảnh (67 nhân vật FF)",
+                   "cơ chế kỹ năng → hành động/hiệu ứng nhìn thấy được, dùng khi cảnh có nhân vật Free Fire dùng kỹ năng"),
                   ("eval/golden.json", "Ví dụ mẫu (few-shot)", "3 cặp đầu vào → kết quả chuẩn")]),
     "qc": ("QC — chấm điểm ảnh (Bước 2)",
            "Chấm ảnh theo 5 tiêu chí so với Character Bible và thông số cảnh.",
@@ -43,7 +45,9 @@ GROUPS: Dict[str, tuple] = {
                 ("knowledge/t2v_prompt_structure.md", "Cấu trúc prompt video (World Bible + 7 đoạn)", "nguồn sáng, chất liệu, nhất quán giữa cảnh"),
                 ("knowledge/motion_complex_shots.md", "Cảnh hành động phức tạp", "khóa không gian, chia nhịp, whip pan đúng chỗ"),
                 ("knowledge/seedance_prompting.md", "Cách viết prompt Seedance", "chỉ gắn khi model video là Seedance"),
-                ("knowledge/seedance_director_workflow.md", "Quy trình Seedance Director", "chỉ gắn khi model video là Seedance")]),
+                ("knowledge/seedance_director_workflow.md", "Quy trình Seedance Director", "chỉ gắn khi model video là Seedance"),
+                ("knowledge/ff_character_skills_visual.md", "Dịch skill → hình ảnh (67 nhân vật FF)",
+                 "cơ chế kỹ năng → hành động/hiệu ứng nhìn thấy được, dùng khi cảnh có nhân vật Free Fire dùng kỹ năng")]),
 }
 
 
@@ -239,11 +243,11 @@ DISTILL_SECTIONS = {
 }
 # built-in documents that may be folded into the playbook (the prompt files and few-shot examples never are)
 _FOLDABLE = {"director": {"knowledge/cinematography_basics.md", "knowledge/genre_guides.md", "knowledge/research_notes.md",
-                          "knowledge/film_director_method.md"},
+                          "knowledge/film_director_method.md", "knowledge/ff_character_skills_visual.md"},
              "qc": {"knowledge/ai_image_failure_modes.md"},
              "motion": {"knowledge/video_motion_vocab.md", "knowledge/research_notes.md", "knowledge/seedance_prompting.md",
                         "knowledge/t2v_prompt_structure.md", "knowledge/motion_complex_shots.md",
-                        "knowledge/seedance_director_workflow.md"}}
+                        "knowledge/seedance_director_workflow.md", "knowledge/ff_character_skills_visual.md"}}
 
 
 def _distilled_path(group: str) -> str:

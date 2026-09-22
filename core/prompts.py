@@ -54,6 +54,7 @@ def build_director_bundle(pipeline: Pipeline, project_id: int) -> str:
         keep("genre_guides.md"),
         keep("research_notes.md"),
         keep("film_director_method.md"),
+        keep("ff_character_skills_visual.md"),
         assets.context_text(pipeline.conn, project_id),
         world_bible_text(pipeline, project_id),
         knowledge.user_text("director"),
@@ -121,7 +122,8 @@ def build_motion_bundle(pipeline: Pipeline, project_id: int, only_missing: bool 
     }
     folded = knowledge.folded_builtin("motion")
     parts = [_read("prompts", "03_video_motion.md")]
-    for rel in ("video_motion_vocab.md", "research_notes.md", "t2v_prompt_structure.md", "motion_complex_shots.md"):
+    for rel in ("video_motion_vocab.md", "research_notes.md", "t2v_prompt_structure.md", "motion_complex_shots.md",
+                "ff_character_skills_visual.md"):
         if f"knowledge/{rel}" not in folded:
             parts.append(_read("knowledge", rel))
     if video_family(pipeline, project_id) == "seedance":
