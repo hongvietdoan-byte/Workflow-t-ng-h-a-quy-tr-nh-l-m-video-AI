@@ -33,7 +33,7 @@ class VideoProvider(Protocol):
 
     def submit(self, image_path: str, prompt: str, negative_prompt: Optional[str],
                duration_sec: float, model: Optional[str] = None, with_audio: bool = False,
-               subjects: Optional[list] = None) -> str: ...
+               subjects: Optional[list] = None, image_references: Optional[list] = None) -> str: ...
 
     def status(self, task_id: str) -> TaskStatus: ...
 
@@ -113,11 +113,12 @@ class MockVideoProvider:
     def usage_info(self, model=None, duration=5):
         return "mock", "default", duration
 
-    def submit(self, image_path, prompt, negative_prompt, duration_sec, model=None, with_audio=False, subjects=None) -> str:
+    def submit(self, image_path, prompt, negative_prompt, duration_sec, model=None, with_audio=False, subjects=None,
+              image_references=None) -> str:
         self._counter += 1
         task_id = f"mock-{self._counter}"
         self._tasks[task_id] = {"prompt": prompt.lower(), "polls": 0, "model": model, "with_audio": with_audio,
-                                  "subjects": subjects or []}
+                                  "subjects": subjects or [], "image_references": image_references or []}
         return task_id
 
     def status(self, task_id: str) -> TaskStatus:

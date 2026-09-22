@@ -12,7 +12,7 @@ Contract source: the vendor skill/reference (clipai 1.3.1). Key facts encoded he
 """
 import json
 import os
-from typing import Dict, Optional, Tuple
+from typing import Dict, List, Optional, Tuple
 
 from ..providers import RISK_CONTROL, ProviderError, TaskStatus
 from .http import ApiClient, Transport, clean_token, urllib_transport
@@ -119,7 +119,11 @@ class ClipAIVideoProvider:
 
     # ---- submit ---------------------------------------------------------
     def submit(self, image_path: str, prompt: str, negative_prompt: Optional[str], duration_sec: float,
-               model: Optional[str] = None, with_audio: bool = False, subjects: Optional[list] = None) -> str:
+               model: Optional[str] = None, with_audio: bool = False, subjects: Optional[list] = None,
+              image_references: Optional[list] = None) -> str:
+        """image_references: this project's own resource-library pictures (local files, [{"path","label","role"}], from
+        `assets.scene_references`) — no separate Subject Library upload/approval needed. `subjects`: Subject Library entries
+        already hosted on Clip AI ([{"name","uri"}]). Seedance only; both share one reference-image budget, local pictures first."""
         canonical, family = resolve_model(model)
         if with_audio and canonical == "kling-video-o1":
             raise ProviderError("kling-video-o1 does not support generated sound (use kling-v3-omni or Seedance)",
@@ -127,14 +131,33 @@ class ClipAIVideoProvider:
         text = prompt.strip()
         if self.negative == "append" and negative_prompt:
             text += f"\nAvoid: {negative_prompt}"
-        refs = []
-        if family == "seedance" and subjects:
+        extra_files: List[Tuple[str, bytes]] = []
+        content_refs: List[Dict] = []                     # [{"note_label", "note_role"}] in the order attached, for the @Image note
+        if family == "seedance":
             cap = 29 if canonical == "dreamina-seedance-2-5-260628" else 8  # image cap minus the first-frame image
-            refs = [s for s in subjects if s.get("uri")][:cap]
-            if refs:  # Seedance wants every reference to have a stated job (@Image 1 is the first frame)
+            for ref in (image_references or [])[:cap]:
+                try:
+                    with open(ref["path"], "rb") as f:
+                        data = f.read()
+                except OSError:
+                    continue                               # a missing/unreadable file must not fail the whole submit
+                if not data:
+                    continue
+                extra_files.append((_upload_name(ref["path"], data), data))
+                content_refs.append({"kind": "local", "label": ref["label"], "role": ref.get("role", "character")})
+            remaining = cap - len(content_refs)
+            for s in (subjects or [])[:max(remaining, 0)]:
+                if not s.get("uri"):
+                    continue
+                content_refs.append({"kind": "hosted", "uri": s["uri"], "label": s["name"], "role": "character"})
+            if content_refs:  # Seedance wants every reference to have a stated job (@Image 1 is the first frame, so refs start at 2)
+                people = [r for r in content_refs if r["role"] != "location"]
                 text += "\n" + " ".join(
-                    f"@Image {i} is the reference for {s['name']}: keep face, hair and outfit, ignore its background."
-                    for i, s in enumerate(refs, start=2))
+                    f"@Image {i} is the location {r['label']}: keep the look of this environment" if r["role"] == "location"
+                    else f"@Image {i} is {r['label']}: keep exactly this person's face, hair and outfit; do not swap or blend with other people in the scene"
+                    for i, r in enumerate(content_refs, start=2))
+                if len(people) > 1:
+                    text += ". Each person keeps only the look of their own reference image."
         limit = PROMPT_LIMITS["kling" if family == "omni" else canonical]
         if len(text) > limit:
             raise ProviderError(f"prompt is {len(text)} characters; {canonical} allows at most {limit}",
@@ -154,13 +177,14 @@ class ClipAIVideoProvider:
             ctx = {"model_name": canonical,
                    "content": [{"type": "text", "text": text},
                                {"type": "image_url", "image_url": {"url": ""}, "role": "first_frame"}]
-                   + [{"type": "image_url", "image_url": {"url": s["uri"]}, "role": "reference_image"} for s in refs],
+                   + [{"type": "image_url", "image_url": {"url": "" if r["kind"] == "local" else r["uri"]}, "role": "reference_image"}
+                      for r in content_refs],
                    "resolution": self.resolution, "ratio": self.aspect_ratio,
                    "duration": effective_duration(canonical, family, duration_sec), "generate_audio": bool(with_audio),
                    "camera_fixed": False, "seed": -1, "video_num": 1}
             path = PATH_SEEDANCE
-        data = self.client.post_multipart(path, {"ctx": json.dumps(ctx, ensure_ascii=False)},
-                                          [("image_files", image[0], image[1])])
+        files = [("image_files", image[0], image[1])] + [("image_files", name, data) for name, data in extra_files]
+        data = self.client.post_multipart(path, {"ctx": json.dumps(ctx, ensure_ascii=False)}, files)
         tasks = (data or {}).get("tasks") or []
         if not tasks:
             raise ProviderError("create returned no task", code="bad_response")

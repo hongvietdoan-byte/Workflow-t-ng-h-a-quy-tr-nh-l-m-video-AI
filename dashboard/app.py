@@ -1673,33 +1673,61 @@ def step2(p: Pipeline, pid: int):
     jobs = p.conn.execute(
         "SELECT j.*, s.idx, s.title FROM jobs j JOIN scenes s ON s.id=j.scene_id"
         " WHERE j.project_id=? AND j.type='image_gen' ORDER BY s.idx, j.id", (pid,)).fetchall()
-    counts = {k: sum(1 for j in jobs if j["state"] in v) for k, v in FILTER_STATES.items()}
-    counts["all"] = len(jobs)
-    flt = st.radio("Lọc", list(FILTERS), horizontal=True, key=f"filter_{pid}", label_visibility="collapsed",
-                   format_func=lambda k: f"{FILTERS[k]} {counts[k]}")
-    shown = [j for j in jobs if flt == "all" or j["state"] in FILTER_STATES[flt]]
     if not jobs:
         st.caption("Chưa có job gen ảnh. Duyệt Character Bible ở Bước 1 rồi bấm ‘Tạo job gen ảnh’.")
         return
+    history = {}                                          # scene_id -> its jobs, oldest first (every retry / "gen lại" kept, not just the newest)
+    for j in jobs:
+        history.setdefault(j["scene_id"], []).append(j)
+    latest = {sid: hist[-1] for sid, hist in history.items()}
+    counts = {k: sum(1 for j in latest.values() if j["state"] in v) for k, v in FILTER_STATES.items()}
+    counts["all"] = len(latest)
+    flt = st.radio("Lọc", list(FILTERS), horizontal=True, key=f"filter_{pid}", label_visibility="collapsed",
+                   format_func=lambda k: f"{FILTERS[k]} {counts[k]}")
+    shown_sids = [sid for sid, j in latest.items() if flt == "all" or j["state"] in FILTER_STATES[flt]]
     sel_key = f"sel_{pid}"
     if st.session_state.get(sel_key) not in {j["id"] for j in jobs}:
-        st.session_state[sel_key] = shown[0]["id"] if shown else jobs[0]["id"]
+        st.session_state[sel_key] = latest[shown_sids[0]]["id"] if shown_sids else jobs[0]["id"]
     grid, detail = st.columns([3, 1.15], gap="large")
     with grid:
         per_row = 3
-        for start in range(0, len(shown), per_row):
+        for start in range(0, len(shown_sids), per_row):
             cols = st.columns(per_row)
-            for col, j in zip(cols, shown[start:start + per_row]):
+            for col, sid in zip(cols, shown_sids[start:start + per_row]):
                 with col:
-                    image_card(p, pid, j, proj)
-        if not shown:
+                    image_card_group(p, pid, history[sid], proj)
+        if not shown_sids:
             st.caption("Không có ảnh nào trong bộ lọc này.")
     with detail:
         job = next(j for j in jobs if j["id"] == st.session_state[sel_key])
         image_detail(p, pid, job, proj)
 
 
-def image_card(p: Pipeline, pid: int, j, proj):
+def image_card_group(p: Pipeline, pid: int, history: list, proj) -> None:
+    """One card per SCENE (not per job): every "gen lại" adds an attempt to this scene's history instead of a new card in the
+    grid, which would make a scene with several retries hard to tell apart from others once there are many scenes. ‹ › pages
+    through the attempts; only the newest attempt is live (can be approved/rejected/retried), older ones are for comparison."""
+    sid = history[0]["scene_id"]
+    n = len(history)
+    key = f"hist_{pid}_{sid}"
+    pointer = min(st.session_state.get(key, n - 1), n - 1)
+    j = history[pointer]
+    is_latest = pointer == n - 1
+    with st.container(border=True):
+        if n > 1:
+            nav = st.columns([1, 3, 1], vertical_alignment="center")
+            if nav[0].button("‹", key=f"{key}_prev", disabled=pointer == 0, help="Bản trước"):
+                st.session_state[key] = pointer - 1
+                st.rerun()
+            nav[1].markdown(f"<div style='text-align:center' class='muted'>Bản {pointer + 1}/{n}"
+                            + ("" if is_latest else " · bản cũ") + "</div>", unsafe_allow_html=True)
+            if nav[2].button("›", key=f"{key}_next", disabled=is_latest, help="Bản sau (mới hơn)"):
+                st.session_state[key] = pointer + 1
+                st.rerun()
+        image_card(p, pid, j, proj, read_only=not is_latest)
+
+
+def image_card(p: Pipeline, pid: int, j, proj, read_only: bool = False):
     jid, state = j["id"], j["state"]
     scores = qc_scores(p, jid)
     with st.container(border=True):
@@ -1714,7 +1742,13 @@ def image_card(p: Pipeline, pid: int, j, proj):
         if scores:
             mean = sum(s["score"] for s in scores) / len(scores)
             ui.html(ui.qc_bar(mean, proj["qc_auto_pass_threshold"]))
-        if state in ("succeeded", "pending_review"):
+        if read_only:                                     # an older attempt: for comparison only, no approve/reject/retry here
+            if j["retry_reason"]:
+                st.caption(f"Lý do gen lại lúc đó: {j['retry_reason'][:160]}")
+            if st.button("🔍 Chi tiết", key=f"sel_btn_{jid}", width="stretch"):
+                st.session_state[f"sel_{pid}"] = jid
+                st.rerun()
+        elif state in ("succeeded", "pending_review"):
             a, b, c = st.columns(3)
             if a.button("✔", key=f"a_{jid}", help="Approve"):
                 act(lambda: p.approve(jid, "user"))

@@ -99,8 +99,9 @@ class SeedanceSubmitTests(unittest.TestCase):
         self.assertEqual(roles, [("image_url", "first_frame", ""), ("image_url", "reference_image", "asset://asset-A"),
                                  ("image_url", "reference_image", "asset://asset-B")])
         text = ctx["content"][0]["text"]
-        self.assertIn("@Image 2 is the reference for Lyra", text)
-        self.assertIn("@Image 3 is the reference for Kael", text)
+        self.assertIn("@Image 2 is Lyra", text)
+        self.assertIn("@Image 3 is Kael", text)
+        self.assertIn("do not swap or blend with other people", text)
 
     def test_kling_and_no_subjects_are_unchanged(self):
         self.p.submit(self.img, "x", None, 5, "kling", False, self.subj)

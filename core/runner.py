@@ -179,11 +179,21 @@ class VideoRunner(_Runner):
         path = os.path.join(self.data_dir, str(job["project_id"]), "images", f"job_{img['id']}.png")
         proj = self.p.project(job["project_id"])
         args = (path, mp["motion_prompt"], mp["negative_prompt"], mp["duration_sec"], proj["video_model"])
-        refs = []
+        subj_refs = []
         if proj["use_subjects"] and "seedance" in (proj["video_model"] or ""):
-            refs = subject_links.usable_for_scene(self.p, job["scene_id"], subject_links.reference_cap(proj["video_model"]))
-        if proj["video_audio"] or refs:  # extra args only when used: older providers keep working
-            args += (bool(proj["video_audio"]),) + ((refs,) if refs else ())
+            subj_refs = subject_links.usable_for_scene(self.p, job["scene_id"], subject_links.reference_cap(proj["video_model"]))
+        image_refs = []
+        if "seedance" in (proj["video_model"] or ""):
+            # the project's own chosen resource pictures (same as Step 2's Deepix references) — automatic, no Subject Library upload needed
+            scene_data = json.loads(conn.execute("SELECT data FROM scenes WHERE id=?", (job["scene_id"],)).fetchone()["data"] or "{}")
+            image_refs = assets.scene_references(conn, job["project_id"], scene_data)
+            missing = [r for r in image_refs if not os.path.exists(r["path"])]
+            if missing:  # traceable: shows up in 📊 Theo dõi hiệu suất, points at exactly which picture went missing
+                self._diag(job, "warn", "missing_reference",
+                          "ảnh tham chiếu không đọc được (bỏ qua, video vẫn gen): " + ", ".join(r["label"] for r in missing))
+                image_refs = [r for r in image_refs if r not in missing]
+        if proj["video_audio"] or subj_refs or image_refs:  # extra args only when used: older providers keep working
+            args += (bool(proj["video_audio"]), subj_refs or None, image_refs or None)
         return args
 
     def _record_usage(self, job, args) -> None:
