@@ -11,6 +11,8 @@ _ROOT = os.path.join(os.path.dirname(__file__), "..")
 _SEP = "\n\n---\n\n"
 _SCENE_KEYS = ("location", "time", "characters", "mood", "lighting", "shot", "blocking", "image_prompt", "emotional_intent", "beat",
                "camera_complexity", "shot_role", "dialogue", "duration_s", "sequence")
+# v3 shot rows: what the shot contract adds (only present on shot rows, so v2 prompts do not change)
+_SHOT_KEYS = ("story_scene", "shot_no", "size", "angle", "camera_move", "role", "action", "end_state", "continuous_with_next")
 
 
 def _read(*parts: str) -> str:
@@ -72,14 +74,30 @@ def project_frame_block(pipeline: Pipeline, project_id: int) -> str:
     return ("# Khung hình và thể loại\n" + "\n".join(f"- {b}" for b in bits)) if bits else ""
 
 
+def shot_style_block(proj) -> str:
+    """v3: how Free Fire videos are cut (knowledge/ff_directing.md) + the project's editing style (knowledge/ff_styles/<STYLE>.md)."""
+    from . import shots
+    parts = [_read("prompts", "17_director_shots.md"), _read("knowledge", "ff_directing.md")]
+    st_name = shots.style(proj)
+    if st_name:
+        path = os.path.join(_ROOT, "knowledge", "ff_styles", f"{st_name}.md")
+        if os.path.exists(path):
+            parts.append("# Phong cách dựng của dự án (" + st_name + ")\n\n" + _read("knowledge", f"ff_styles/{st_name}.md"))
+    return _SEP.join(p for p in parts if p)
+
+
 def build_director_bundle(pipeline: Pipeline, project_id: int) -> str:
-    rows = pipeline.conn.execute(
-        "SELECT idx, title, data FROM scenes WHERE project_id=? ORDER BY idx", (project_id,)).fetchall()
-    scenes = "\n\n".join(
-        f"### Cảnh {r['idx']} — {r['title']}\n{json.loads(r['data'] or '{}').get('text', '')}" for r in rows)
+    from . import shots
+    proj = pipeline.project(project_id)
+    if shots.mode(proj):         # v3: the Director reads the script's scenes (story_scenes) and splits each into shots
+        scenes = "\n\n".join(f"### Cảnh {s['idx']} — {s['heading']}\n{s['text']}" for s in shots.story_scenes(pipeline, project_id))
+    else:
+        rows = pipeline.conn.execute(
+            "SELECT idx, title, data FROM scenes WHERE project_id=? ORDER BY idx", (project_id,)).fetchall()
+        scenes = "\n\n".join(
+            f"### Cảnh {r['idx']} — {r['title']}\n{json.loads(r['data'] or '{}').get('text', '')}" for r in rows)
     folded = knowledge.folded_builtin("director")
     keep = lambda rel: "" if f"knowledge/{rel}" in folded else _read("knowledge", rel)  # noqa: E731
-    proj = pipeline.project(project_id)
     ff = "" if "knowledge/ff_character_skills_visual.md" in folded else knowledge.ff_skills_for(people_in_project(pipeline, project_id))
     return _SEP.join(x for x in [
         _read("prompts", "01_director_scene_analysis.md"),
@@ -87,6 +105,7 @@ def build_director_bundle(pipeline: Pipeline, project_id: int) -> str:
         keep("cinematography_basics.md"),
         keep("genre_guides.md"),
         knowledge.genre_text(proj["genre"] if "genre" in proj.keys() else None),
+        shot_style_block(proj) if shots.mode(proj) else "",
         keep("research_notes.md"),
         keep("film_director_method.md"),
         keep("character_lock.md"),
@@ -96,7 +115,7 @@ def build_director_bundle(pipeline: Pipeline, project_id: int) -> str:
         world_bible_text(pipeline, project_id),
         knowledge.user_text("director"),
         few_shot_text(),
-        locked_block(pipeline, project_id),
+        "" if shots.mode(proj) else locked_block(pipeline, project_id),
         script_preamble(proj),
         "# Kịch bản đã tách cảnh\n\n" + scenes,
     ] if x)
@@ -159,6 +178,7 @@ def build_qc_bundle(pipeline: Pipeline, scene_id: int, data_dir: Optional[str] =
     data = json.loads(scene["data"] or "{}")
     refs = qc_references(pipeline, scene["project_id"], scene["idx"], data, data_dir)
     spec = {k: data.get(k) for k in _SCENE_KEYS}
+    spec.update({k: data[k] for k in _SHOT_KEYS if k in data})
     return _SEP.join(x for x in [
         _read("prompts", "02_qc_agent.md"),
         "" if "knowledge/ai_image_failure_modes.md" in knowledge.folded_builtin("qc")
@@ -220,7 +240,8 @@ def build_motion_bundle(pipeline: Pipeline, project_id: int, only_missing: bool 
             out["previous_spatial_state"] = prev["spatial_state"]
         return out
 
-    scenes = [{"idx": r["idx"], **{k: v for k, v in json.loads(r["data"] or "{}").items() if k in _SCENE_KEYS}, **extra(r)}
+    scenes = [{"idx": r["idx"], **{k: v for k, v in json.loads(r["data"] or "{}").items() if k in _SCENE_KEYS or k in _SHOT_KEYS},
+               **extra(r)}
               for r in rows]
     payload = {"characters": [dict(c) for c in chars], "scenes": scenes}
     folded = knowledge.folded_builtin("motion")

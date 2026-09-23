@@ -276,6 +276,15 @@ CREATE TABLE IF NOT EXISTS outputs (
     created_by TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_outputs_project ON outputs(project_id, kind, id);
+CREATE TABLE IF NOT EXISTS story_scenes (
+    id INTEGER PRIMARY KEY,
+    project_id INTEGER NOT NULL REFERENCES projects(id),
+    idx INTEGER NOT NULL,              -- the script's own scene number (kế hoạch v3: a scene becomes several shot rows in `scenes`)
+    heading TEXT,
+    text TEXT,
+    data TEXT,                         -- Director fields of the whole scene (location, mood, sequence, ...)
+    UNIQUE (project_id, idx)
+);
 CREATE TABLE IF NOT EXISTS style_presets (
     id INTEGER PRIMARY KEY,
     name TEXT NOT NULL UNIQUE,
@@ -398,9 +407,13 @@ V2_COLUMNS = {
     "projects": (("aspect", "TEXT"), ("genre", "TEXT"), ("genre_locked", "INTEGER NOT NULL DEFAULT 0"),
                  ("model_priority", "TEXT"), ("render_settings", "TEXT"), ("qc_policy", "TEXT"),
                  ("qc_video", "INTEGER NOT NULL DEFAULT 1"), ("autopilot_gates", "TEXT"), ("autopilot_saved_cfg", "TEXT"),
-                 ("pilot", "TEXT")),
+                 ("pilot", "TEXT"),
+                 # kế hoạch v3: NULL shot_mode = one clip per script scene (v2); 'per_shot' / 'multishot' = the Director splits
+                 # scenes into shots; style_profile = the Free Fire editing style the Director follows (knowledge/ff_styles)
+                 ("shot_mode", "TEXT"), ("style_profile", "TEXT"), ("test_quality", "INTEGER NOT NULL DEFAULT 0")),
     "characters": (("lock_rules", "TEXT"), ("voice_profile", "TEXT"), ("anchor_approved", "INTEGER NOT NULL DEFAULT 0")),
-    "jobs": (("input_hash", "TEXT"), ("source_job_id", "INTEGER"), ("model", "TEXT")),
+    "jobs": (("input_hash", "TEXT"), ("source_job_id", "INTEGER"), ("model", "TEXT"),
+             ("group_leader", "INTEGER")),     # v3 Kling multi-shot: the job that makes this shot's clip together with its group
     "motion_prompts": (("image_job_id", "INTEGER"), ("spec_hash", "TEXT"), ("video_model", "TEXT"), ("check_flags", "TEXT"),
                        ("lint", "TEXT")),
 }

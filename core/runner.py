@@ -6,6 +6,7 @@ automatically (that would only burn credits); transient errors are retried throu
 machine up to the project's max_retry_count.
 """
 import json
+import math
 import os
 import time
 from typing import Callable, Dict, Optional, Tuple
@@ -52,6 +53,10 @@ class _Runner:
 
     def _dest_path(self, job) -> str:
         raise NotImplementedError
+
+    def _after_download(self, job, path: str) -> str:
+        """Hook after a result is downloaded (v3: a shot clip is cut to the shot's length). Returns the final path."""
+        return path
 
     # ---- shared ----------------------------------------------------------
     def _dir(self, project_id: int, kind: str) -> str:
@@ -152,6 +157,7 @@ class _Runner:
                     self._diag(job, "warn", "download_error", f"tải kết quả gặp lỗi không lường trước ({type(e).__name__}: {e}); sẽ thử lại")
                     counts["running"] += 1
                     continue
+                dest = self._after_download(job, dest)
                 self.p.conn.execute("UPDATE jobs SET result_path=? WHERE id=?", (dest, job["id"]))
                 self.p.conn.commit()
                 self.p.succeed(job["id"])
@@ -239,7 +245,10 @@ class VideoRunner(_Runner):
         path = os.path.join(self.data_dir, str(job["project_id"]), "images", f"job_{img['id']}.png")
         proj = self.p.project(job["project_id"])
         model = self._choice(job)["model"]            # per scene (ClipAI model guide) — see core.model_router
-        args = (path, mp["motion_prompt"], mp["negative_prompt"], mp["duration_sec"], model)
+        duration = mp["duration_sec"]
+        if json.loads(conn.execute("SELECT data FROM scenes WHERE id=?", (job["scene_id"],)).fetchone()["data"] or "{}").get("shot_no"):
+            duration = math.ceil(float(duration or 0) - 1e-6)   # v3 shot: never shorter than planned (it is cut afterwards)
+        args = (path, mp["motion_prompt"], mp["negative_prompt"], duration, model)
         subj_refs = []
         if proj["use_subjects"] and "seedance" in (model or ""):
             subj_refs = subject_links.usable_for_scene(self.p, job["scene_id"], subject_links.reference_cap(model))
@@ -276,6 +285,16 @@ class VideoRunner(_Runner):
     def _dest_path(self, job) -> str:
         idx = self.p.conn.execute("SELECT idx FROM scenes WHERE id=?", (job["scene_id"],)).fetchone()["idx"]
         return os.path.join(self._dir(job["project_id"], "videos"), f"{idx:02d}.mp4")
+
+    def _after_download(self, job, path: str) -> str:
+        """v3 shot rows: the model makes at least 3-4 s, a shot may be shorter -> keep the full clip as <idx>_raw.mp4 and cut the
+        shot's own length into <idx>.mp4, so render, voice placement and subtitles all use the cut length."""
+        from . import shots
+        try:
+            shots.trim_clip(self.p, job["scene_id"], path)
+        except Exception as e:  # noqa: BLE001 - a clip that cannot be cut is still a usable (longer) clip
+            self._diag(job, "warn", "trim_error", f"không cắt được clip theo độ dài shot ({type(e).__name__}: {e}); dùng nguyên clip")
+        return path
 
 
 def previous_frame_job(conn, project_id: int, idx: int, sequence=None):

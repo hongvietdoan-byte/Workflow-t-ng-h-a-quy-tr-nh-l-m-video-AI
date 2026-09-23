@@ -58,7 +58,7 @@ def step3(p: Pipeline, pid: int):
             choice = model_router.scene_choice(p.conn, r["sid"])
             c0, c1, c2, c3 = st.columns([1.2, 5, 1.4, 1.6], vertical_alignment="top")
             with c0:
-                ui.html(f'<b>Cảnh {r["idx"]}</b>' + (" ⭐" if data.get("shot_role") == "hero" else "")
+                ui.html(f'<b>{C.unit_label(p, pid, r["idx"])}</b>' + (" ⭐" if data.get("shot_role") == "hero" else "")
                         + (" 🌀" if data.get("camera_complexity") == "complex" else ""))
                 path = job_image(pid, img_id) if img_id else None
                 if path:
@@ -174,7 +174,7 @@ def voice_panel(p: Pipeline, pid: int) -> None:
         for ln in voice.planned_lines(p.conn, pid):
             if ln["idx"] != cur:
                 cur = ln["idx"]
-                st.markdown(f"**Cảnh {cur}**")
+                st.markdown(f"**{C.unit_label(p, pid, cur)}**")
             e = items.get((ln["scene_id"], ln["line"]))
             a, b = st.columns([3, 2], vertical_alignment="center")
             a.markdown(f"{escape(ln['speaker'] or '—')}: {escape(ln['text'])}")

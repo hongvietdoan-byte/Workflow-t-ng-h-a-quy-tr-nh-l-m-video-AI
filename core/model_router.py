@@ -6,6 +6,7 @@ recommendation with its reason and price, which the person can override per scen
 A project that still has the v1 `projects.video_model` set keeps using that one model everywhere.
 """
 import json
+import math
 import os
 from typing import Dict, List, Optional
 
@@ -141,10 +142,22 @@ def plan(conn, project_id: int, pricing: Optional[Dict] = None, priority: Option
         else:
             choice = scene_choice(conn, s["id"], proj, mp)
         seconds = float(mp["duration_sec"]) if mp is not None else float(data.get("duration_s") or 5)
+        billed = billed_seconds(choice["model"], math.ceil(seconds - 1e-6) if data.get("shot_no") else seconds)
         unit = price_per_sec(choice["model"], choice.get("resolution"), pricing)
-        rows.append({"scene_id": s["id"], "idx": s["idx"], **choice, "seconds": seconds, "usd_per_sec": unit,
-                     "cost": None if unit is None else unit * seconds})
+        rows.append({"scene_id": s["id"], "idx": s["idx"], **choice, "seconds": seconds, "billed_seconds": billed,
+                     "usd_per_sec": unit, "cost": None if unit is None else unit * billed})
     return rows
+
+
+def billed_seconds(alias: str, seconds: float) -> float:
+    """Seconds the model really makes and charges: a v3 shot shorter than the model's minimum (Kling 3s, Seedance 4s) is made
+    at the minimum and cut afterwards."""
+    from .adapters.clipai import effective_duration, resolve_model
+    try:
+        canonical, family = resolve_model(alias)[:2]
+    except Exception:  # noqa: BLE001 - unknown / web-only model: price what was asked
+        return float(seconds)
+    return float(effective_duration(canonical, family, seconds))
 
 
 def total(rows: List[Dict]) -> Optional[float]:

@@ -14,6 +14,9 @@ USABLE_VIDEO = ("succeeded", "approved")              # a clip that may go into 
 IMAGE_KEYS = ("image_prompt", "blocking", "location", "location_asset", "layout")
 MOTION_KEYS = ("text", "dialogue", "camera_complexity", "duration_s", "emotional_intent", "beat")
 CAST_KEYS = ("name", "description", "wardrobe", "ref_asset_id", "ref_image_ids", "outfit_image_ids", "lock_rules")
+# v3 shot rows add these; they join the fingerprint only when present, so a v2 row keeps the hash it had
+IMAGE_SHOT_KEYS = ("size", "angle")
+MOTION_SHOT_KEYS = ("action", "camera_move", "end_state", "continuous_with_next")
 
 
 def _hash(obj) -> str:
@@ -25,11 +28,15 @@ def image_spec_hash(scene_data: Dict, cast_rows, aspect: Optional[str]) -> str:
     cast = set(scene_data.get("characters") or [])
     people = sorted(({k: (r[k] if k in r.keys() else None) for k in CAST_KEYS} for r in cast_rows if r["name"] in cast),
                     key=lambda d: d["name"])
-    return _hash({"scene": {k: scene_data.get(k) for k in IMAGE_KEYS}, "cast": people, "aspect": aspect or ""})
+    scene = {k: scene_data.get(k) for k in IMAGE_KEYS}
+    scene.update({k: scene_data[k] for k in IMAGE_SHOT_KEYS if k in scene_data})
+    return _hash({"scene": scene, "cast": people, "aspect": aspect or ""})
 
 
 def motion_spec_hash(scene_data: Dict) -> str:
-    return _hash({k: scene_data.get(k) for k in MOTION_KEYS})
+    spec = {k: scene_data.get(k) for k in MOTION_KEYS}
+    spec.update({k: scene_data[k] for k in MOTION_SHOT_KEYS if k in scene_data})
+    return _hash(spec)
 
 
 def video_input_hash(mp_row, aspect: Optional[str]) -> str:

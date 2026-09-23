@@ -94,6 +94,8 @@ def import_scenes(pipeline: Pipeline, project_id: int, scenes: List[ParsedScene]
             (json.dumps({"text": s.text, "characters": s.characters}, ensure_ascii=False), scene_id))
         ids.append(scene_id)
     pipeline.conn.commit()
+    from .shots import save_story_scenes          # v3: the script's own scenes, kept apart from the shot rows
+    save_story_scenes(pipeline, project_id, scenes)
     return ids
 
 

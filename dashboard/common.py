@@ -217,6 +217,19 @@ def scene_title(idx, title) -> str:
     t = (title or "").strip()
     return f"Cảnh {idx}" + ("" if not t or _GENERIC_TITLE.match(t) else f" — {t}")
 
+def unit_label(p: Pipeline, pid: int, idx: int) -> str:
+    """'Cảnh 3' (v2: one clip per script scene) or 'Shot S02·3' (v3 shot row: shot 3 of script scene 2)."""
+    from core import shots
+    row = p.conn.execute("SELECT data FROM scenes WHERE project_id=? AND idx=?", (pid, idx)).fetchone()
+    data = json.loads(row["data"] or "{}") if row else {}
+    return f"Shot {shots.label(data, idx)}" if data.get("shot_no") else f"Cảnh {idx}"
+
+def unit_code(p: Pipeline, pid: int, idx: int) -> str:
+    """Short code: 'S02·3' for a shot row, 'S02' for a v2 scene."""
+    from core import shots
+    row = p.conn.execute("SELECT data FROM scenes WHERE project_id=? AND idx=?", (pid, idx)).fetchone()
+    return shots.label(json.loads(row["data"] or "{}") if row else {}, idx)
+
 def scene_expander(p: Pipeline, scene_id, expanded: bool = False, with_motion: bool = False) -> None:
     """Drop-down under an image/video: the script text of that scene plus its spec, so the result can be checked
     against what the script says."""
@@ -224,7 +237,9 @@ def scene_expander(p: Pipeline, scene_id, expanded: bool = False, with_motion: b
     if row is None:
         return
     d = json.loads(row["data"] or "{}")
-    with st.expander(f"📖 {scene_title(row['idx'], row['title'])} · nội dung kịch bản", expanded=expanded):
+    from core import shots
+    head = f"Shot {shots.label(d, row['idx'])} — {row['title']}" if d.get("shot_no") else scene_title(row["idx"], row["title"])
+    with st.expander(f"📖 {head} · nội dung kịch bản", expanded=expanded):
         if d.get("text"):
             ui.html(f'<div class="scenetext">{escape(d["text"])}</div>')
         else:

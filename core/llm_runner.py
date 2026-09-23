@@ -407,7 +407,35 @@ class MockLlm:
                                "shot_role": "hero" if i == idxs[-1] else "normal",
                                "dialogue": [{"speaker": w, "text": t} for w, t in lines[i]], "duration_s": 5} for i in idxs],
                    "ip_risk_notes": []}
+            if "# Phân shot (dự án chia shot" in prompt:        # v3: split every scene into shots (core.shots)
+                for sc in out["scenes"]:
+                    sc["shots"] = _mock_shots(sc, first=sc["idx"] == idxs[0], last=sc["idx"] == idxs[-1])
         return LlmReply("```json\n" + json.dumps(out, ensure_ascii=False) + "\n```", 100, 50)
+
+
+def _mock_shots(scene: Dict, first: bool, last: bool) -> List[Dict]:
+    """Offline stand-in for the Director's shot split: a wide setup shot, one medium close-up per spoken line (sized to the
+    line), a reaction after every second line, an ending shot at the end of the film."""
+    from . import dialogue as _dlg
+    cast = scene["characters"]
+    out = [{"size": "WS", "angle": "eye", "camera_move": "static", "role": "hook" if first else "setup", "duration_s": 1.5,
+            "action": f"toàn cảnh {scene['location']} (giả lập)", "start_frame": "everyone in frame, wide (mock)",
+            "image_prompt": f"wide shot of scene {scene['idx']}, all characters (mock)", "characters": cast}]
+    for k, d in enumerate(scene["dialogue"], 1):
+        need = _dlg.needed_seconds([(d["speaker"], d["text"])])
+        out.append({"size": "MCU", "angle": "eye", "camera_move": "push_in" if k % 3 == 0 else "static", "role": "dialogue",
+                    "duration_s": round(max(1.0, need + 0.2), 1), "action": f"{d['speaker']} nói (giả lập)",
+                    "start_frame": f"{d['speaker']} centre frame (mock)", "image_prompt": f"medium close-up of {d['speaker']} speaking (mock)",
+                    "characters": [d["speaker"]] if d["speaker"] in cast else cast[:1], "dialogue": [d]})
+        if k % 2 == 0:
+            other = [c for c in cast if c != d["speaker"]] or cast
+            out.append({"size": "CU", "angle": "eye", "camera_move": "static", "role": "reaction", "duration_s": 1.0,
+                        "action": f"{other[0]} phản ứng (giả lập)", "image_prompt": f"close-up reaction of {other[0]} (mock)",
+                        "characters": other[:1]})
+    if last:
+        out.append({"size": "MS", "angle": "low", "camera_move": "push_in", "role": "ending", "duration_s": 2.0, "hero": True,
+                    "action": "tạo dáng kết (giả lập)", "image_prompt": "final pose, low angle (mock)", "characters": cast})
+    return out
 
 
 def _mock_v2(prompt: str):

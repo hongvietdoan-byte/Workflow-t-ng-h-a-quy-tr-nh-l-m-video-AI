@@ -20,3 +20,6 @@ Dùng knowledge pack video motion (và luật cảnh phức tạp khi cảnh là
 {"scenes": [{"idx": 1, "motion_prompt": "", "camera": "", "duration_sec": 5, "negative_prompt": "",
              "spatial_state": "", "check_flags": []}]}
 ```
+
+## Dự án chia shot (mục có `shot_no`)
+Mỗi mục là **một shot** (không phải cả cảnh): viết đúng **một hành động chính** (`action`) trong đúng cỡ cảnh `size`, góc `angle`, chuyển động máy `camera_move`, bắt đầu từ ảnh khung đầu đã duyệt và kết thúc ở `end_state` (nếu có). `duration_sec` = `duration_s` của shot (clip có thể được gen dài hơn rồi cắt). Không kể thêm diễn biến của các shot khác. `GAME_TPS` = camera sau lưng nhân vật, cao hơn vai, bám theo nhân vật. Shot có `continuous_with_next: true` phải kết thúc ở tư thế/vị trí nối được sang shot kế tiếp.

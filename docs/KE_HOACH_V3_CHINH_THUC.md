@@ -113,7 +113,7 @@ Cộng dự phòng gen lại ×1,5 + TTS → **ước tính ~$25–30, trần c�
 | GĐ | Trạng thái | Ghi chú |
 |---|---|---|
 | GĐ1 · Thư viện phong cách | **Xong phần cần cho GĐ2** (2026-09-24) | 19 video / 519 shot; 6 file phong cách + `ff_directing.md` + `docs/FF_STYLE_RESEARCH.md`; test. **Phân tích thêm video: để sau** (quyết định 2026-09-24) |
-| GĐ2 · Lớp shot + nhịp | Chưa bắt đầu | Đã đọc code nền (xem "Ghi chú thiết kế" dưới) |
+| GĐ2 · Lớp shot + nhịp | **Xong** (2026-09-24) | Director chia cảnh → shot; mỗi shot 1 dòng `scenes`; cắt clip theo độ dài shot; nhãn S02·3; 645 test pass |
 | GĐ3 · Nhất quán + Kling multi-shot | Chưa bắt đầu | |
 | GĐ4 · Giọng Việt + storyboard theo shot | Chưa bắt đầu | So `eleven_v3`/`multilingual_v2` tốn credit → hỏi trước |
 | GĐ5 · Trần ngân sách, thử rẻ, so sánh | Chưa bắt đầu | |
@@ -156,6 +156,15 @@ Cộng dự phòng gen lại ×1,5 + TTS → **ước tính ~$25–30, trần c�
 2. Viết `knowledge/ff_styles/<STYLE>.md` ×6 (phần số liệu sinh bằng `py tools/reference_video.py stats <STYLE>`, phần chữ tổng hợp từ `overall` của từng video), `knowledge/ff_directing.md`, `docs/FF_STYLE_RESEARCH.md`.
 3. Khối nhỏ trong ⚙ Kho kiến thức (chạy `analyze_file` cho MP4 trên máy).
 4. Test cho `core/reference_analysis.py` (`tests/test_v3.py`: `shots_from_cuts`, `cuts_from_diffs`, `validate_labels`, `style_stats`, mock label). Chưa chạy lại toàn bộ bộ test trên nhánh.
+
+### GĐ2 — đã xong (2026-09-24)
+- **Lưu trữ:** bảng `story_scenes` (kịch bản gốc, ghi khi nhập kịch bản), cột `projects.shot_mode` (NULL = v2 / `per_shot` / `multishot`), `projects.style_profile`, `projects.test_quality`, `jobs.group_leader`. Mỗi shot là một dòng `scenes` (`idx` = số thứ tự shot cả phim; `data.story_scene`, `shot_no`, `sequence`) → ảnh / motion / video / lineage / QC / giọng / phụ đề / render chạy theo shot không cần sửa. Dự án không bật chia shot giữ nguyên hành vi v2.
+- **Director v3:** `prompts/17_director_shots.md` (chia beat → shot, nhịp theo kịch bản, mỗi câu thoại nằm trọn trong 1 shot, hook/ending/reaction, `GAME_TPS`, không làm shot chữ/logo) + `knowledge/ff_directing.md` + `knowledge/ff_styles/<style>.md` được nạp khi dự án chia shot; Director đọc cảnh từ `story_scenes`; mỗi cảnh trả `shots[]` (cỡ, góc, chuyển động, vai trò, `duration_s` 0,5–15, hành động, khung đầu, trạng thái cuối, prompt ảnh, nhân vật, thoại, nối liền, hero). `core/shots.py`: kiểm tra, lưu (từ chối nếu đã có ảnh/video), nhãn `S02·3`, cảnh báo nhịp mềm. Director giả lập cũng chia shot (kịch bản Kenta → 25 shot, ~60s, đủ 14 câu).
+- **Thoại:** shot không có thoại không đọc lại chữ mô tả (`dialogue.scene_lines`); motion prompt nhận trường shot (`prompts/03` thêm mục shot), độ dài motion = độ dài shot Director đặt.
+- **Độ dài tối thiểu của model:** `data/video_models.json` có `min_sec` (Kling 3, Seedance 4); shot gửi đi làm tròn lên giây nguyên; khi tải về, clip dài hơn shot được cắt đúng độ dài (`videos/{idx}.mp4`, giữ nguyên bản `{idx}_raw.mp4`) nên render/giọng/phụ đề tự dùng độ dài đã cắt; bảng model tính tiền theo giây bị tính thật (`model_router.billed_seconds`).
+- **Dấu vân tay "⚠ cũ":** thêm trường shot (cỡ, góc / hành động, chuyển động, trạng thái cuối) chỉ khi có → dự án v2 không bị báo cũ.
+- **Giao diện:** 📐 Định dạng có "Cách chia cảnh" + "Phong cách dựng Free Fire"; danh sách cảnh ở Bước 1 nhóm shot theo cảnh (số shot, tổng giây, cảnh báo nhịp); nhãn `Shot S02·3` ở Bước 2–5. Chế độ tự động đếm giới hạn 12 theo cảnh kịch bản.
+- **Test:** `tests/test_v3.py` 13 test (8 cho GĐ2); toàn bộ 645 test pass.
 
 ### Ghi chú thiết kế cho GĐ2–3 (đọc code, chưa làm)
 - Cột mới theo mẫu `V2_COLUMNS` trong `core/db.py`; bảng `story_scenes` thêm vào `SCHEMA`.

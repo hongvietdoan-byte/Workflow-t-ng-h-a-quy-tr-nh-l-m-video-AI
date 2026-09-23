@@ -397,7 +397,7 @@ def clips_panel(p: Pipeline, pid: int):
         if names:
             st.warning(f"Thiếu clip: {names} — bản ghép sẽ bỏ qua các cảnh này.")
         for c in present:
-            label = f"Cảnh {c['idx']} — {c['title']}" if c["idx"] else c["title"]
+            label = f"{C.unit_label(p, pid, c['idx'])} — {c['title']}" if c["idx"] else c["title"]
             base = os.path.basename(c["path"])
             real = _probe(c["path"], os.path.getmtime(c["path"]), c["requested_sec"])
             srow = status.get(c.get("scene_id")) or {}

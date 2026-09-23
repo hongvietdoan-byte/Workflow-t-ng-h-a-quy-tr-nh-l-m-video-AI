@@ -55,6 +55,8 @@ def scene_lines(scene_data: Dict) -> List[Tuple[str, str]]:
     """The scene's dialogue: the Director's structured `dialogue` list when there is one (v2), else the 'NAME: words' rows of
     the script text. Used by the length check, subtitles, voice-over and the motion prompt hint alike."""
     structured = scene_data.get("dialogue")
+    if scene_data.get("shot_no") and not structured:
+        return []            # v3 shot row: its lines are exactly `dialogue` (an action line must never be read as speech)
     if isinstance(structured, list) and structured:
         return [(str(d.get("speaker") or "").strip(), str(d.get("text") or "").strip()) for d in structured
                 if isinstance(d, dict) and str(d.get("text") or "").strip()]

@@ -69,6 +69,12 @@ def validate_scene_analysis(data: Any) -> Dict:
         for name in _req(s, "characters", list, w):
             if name not in names:
                 raise SchemaError(f"{w}.characters: '{name}' not in Character Bible")
+        if s.get("shots") is not None:                  # v3: the scene split into shots (core.shots)
+            from .shots import ShotError, validate as _validate_shots
+            try:
+                _validate_shots(s["shots"], f"{w}.shots", names)
+            except ShotError as e:
+                raise SchemaError(str(e)) from e
     return obj
 
 
@@ -185,6 +191,17 @@ def store_scene_analysis(pipeline: Pipeline, project_id: int, data: Any) -> Dict
                          (json.dumps({k: c["lock"].get(k, "") for k in LOCK_KEYS}, ensure_ascii=False), project_id, c["name"]))
     if obj.get("genre"):
         conn.execute("UPDATE projects SET genre=? WHERE id=? AND genre_locked=0", (obj["genre"].strip().upper(), project_id))
+    from . import shots as _shots
+    if _shots.active(pipeline, project_id):             # v3: rows become the Director's shots
+        missing = [s["idx"] for s in obj["scenes"] if not s.get("shots")]
+        if missing:
+            raise SchemaError("dự án chia shot: cảnh " + ", ".join(map(str, missing)) + " thiếu danh sách `shots`")
+        try:
+            _shots.store_plan(pipeline, project_id, obj["scenes"])
+        except _shots.ShotError as e:
+            raise SchemaError(str(e)) from e
+        conn.commit()
+        return obj
     for s in obj["scenes"]:
         row = conn.execute("SELECT id, data FROM scenes WHERE project_id=? AND idx=?",
                            (project_id, s["idx"])).fetchone()
@@ -369,6 +386,8 @@ def store_motion_prompts(pipeline: Pipeline, project_id: int, data: Any) -> int:
         duration = s.get("duration_sec") or scene_data.get("duration_s") or 5
         if "duration_s" in set(scene_data.get("_user_locked") or []) and scene_data.get("duration_s"):
             duration = scene_data["duration_s"]          # length the person set (e.g. sized to the dialogue) wins
+        elif scene_data.get("shot_no") and scene_data.get("duration_s"):
+            duration = scene_data["duration_s"]          # v3 shot: the film length the Director planned (the clip is cut to it)
         conn.execute(
             "INSERT INTO motion_prompts (scene_id, motion_prompt, camera, duration_sec, negative_prompt, state, check_flags)"
             " VALUES (?,?,?,?,?,'pending',?) ON CONFLICT(scene_id) DO UPDATE SET"

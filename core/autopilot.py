@@ -111,8 +111,10 @@ def problems(p: Pipeline, project_id: int, ctx: Optional[Context] = None) -> Lis
     scenes = p.conn.execute("SELECT idx, data FROM scenes WHERE project_id=? ORDER BY idx", (project_id,)).fetchall()
     if not scenes:
         return ["Chưa có cảnh: upload kịch bản và bấm Phân tích."]
-    if len(scenes) > MAX_SCENES:
-        out.append(f"Chế độ này dành cho clip ngắn: tối đa {MAX_SCENES} cảnh (kịch bản có {len(scenes)}).")
+    from . import shots
+    n_story = shots.story_scene_count(p, project_id) if shots.active(p, project_id) else len(scenes)   # v3: count script scenes
+    if n_story > MAX_SCENES:
+        out.append(f"Chế độ này dành cho clip ngắn: tối đa {MAX_SCENES} cảnh (kịch bản có {n_story}).")
     if p.project(project_id)["paused"]:
         out.append("Dự án đang PAUSE.")
     if ctx is None:
@@ -232,7 +234,8 @@ def _director_phase(p: Pipeline, pid: int, ctx: Context) -> Optional[str]:
     waits for the person before any picture is paid for (a wrong description would repeat in every scene)."""
     if not _count(p, "SELECT COUNT(*) FROM characters WHERE project_id=?", pid):
         r = llm_runner.run_director(p, pid, ctx.llm)
-        _log(p, pid, f"Director: {r['characters']} nhân vật, {r['scenes']} cảnh")
+        n_shots = _count(p, "SELECT COUNT(*) FROM scenes WHERE project_id=?", pid)
+        _log(p, pid, f"Director: {r['characters']} nhân vật, {r['scenes']} cảnh" + (f", {n_shots} shot" if n_shots != r["scenes"] else ""))
     missing = [f"S{s['idx']:02d}" for s in p.conn.execute("SELECT idx, data FROM scenes WHERE project_id=? ORDER BY idx", (pid,))
                if not (json.loads(s["data"] or "{}").get("image_prompt") or "").strip()]
     if missing:

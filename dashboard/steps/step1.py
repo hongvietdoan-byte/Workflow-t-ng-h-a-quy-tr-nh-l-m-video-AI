@@ -299,6 +299,8 @@ def step1(p: Pipeline, pid: int):
                 p.conn.commit()
                 if not p.conn.execute("SELECT 1 FROM scenes WHERE project_id=?", (pid,)).fetchone():
                     p.set_script_text(pid, None)
+                    p.conn.execute("DELETE FROM story_scenes WHERE project_id=?", (pid,))
+                    p.conn.commit()
                 st.session_state.pop("parse_info", None)
                 st.rerun()
         left, right = st.columns(2, gap="large")
@@ -670,6 +672,34 @@ def project_format_panel(p: Pipeline, pid: int) -> None:
         elif new_prio != prio:
             p.set_project_field(pid, "model_priority", new_prio)
             st.rerun()
+        shot_format_controls(p, pid, proj)
+
+
+def shot_format_controls(p: Pipeline, pid: int, proj) -> None:
+    """v3: split scenes into shots (and how their clips are made) + the Free Fire editing style the Director follows."""
+    from core import reference_analysis, shots
+    d1, d2 = st.columns(2)
+    modes = list(shots.MODES)
+    cur_mode = shots.mode(proj)
+    new_mode = d1.selectbox("Cách chia cảnh", modes, index=modes.index(cur_mode), format_func=lambda m: shots.MODES[m],
+                            key=f"fmt_shot_{pid}",
+                            help="Chia shot: Director chia mỗi cảnh kịch bản thành nhiều shot ngắn (nhịp theo kịch bản), mỗi shot một ảnh + "
+                                 "một clip. Kling multi-shot: các shot liền nhau của một nhóm cảnh gen chung một lần.")
+    styles = [None] + list(reference_analysis.STYLES)
+    cur_style = shots.style(proj)
+    new_style = d2.selectbox("Phong cách dựng Free Fire", styles, index=styles.index(cur_style) if cur_style in styles else 0,
+                             format_func=lambda s: "Chưa chọn" if s is None else reference_analysis.STYLES[s], key=f"fmt_style_{pid}",
+                             help="Director học nhịp, cỡ cảnh, cách mở/kết từ video Free Fire thật của phong cách này (knowledge/ff_styles).")
+    if new_mode != cur_mode:
+        if shots.has_work(p.conn, pid):
+            st.warning("Dự án đã có ảnh/video: đổi cách chia cảnh chỉ áp dụng khi chạy lại Director sau khi “↺ Làm lại”.")
+        p.set_project_field(pid, "shot_mode", new_mode)
+        st.rerun()
+    if new_style != cur_style:
+        p.set_project_field(pid, "style_profile", new_style)
+        st.rerun()
+    if new_mode and not shots.has_work(p.conn, pid) and not any(s["data"].get("shot_no") for s in shots.shots_of(p, pid)):
+        st.caption("Chạy Director (1d) để chia các cảnh thành shot.")
 
 
 def director_panel(p: Pipeline, pid: int, chars) -> None:
@@ -890,9 +920,29 @@ def scene_list(p: Pipeline, pid: int, scenes, char_names) -> None:
     if mode != proj["storyboard_mode"]:
         p.conn.execute("UPDATE projects SET storyboard_mode=? WHERE id=?", (mode, pid))
         p.conn.commit()
+    from core import shots as _shots
+    story = {x["idx"]: x for x in _shots.story_scenes(p, pid)}
+    cur_story = None
     for s in scenes:
         d = json.loads(s["data"] or "{}")
         st_row = by_idx.get(s["idx"])
+        if d.get("shot_no"):                          # v3 shot rows: grouped under their script scene
+            if d.get("story_scene") != cur_story:
+                cur_story = d.get("story_scene")
+                group = [json.loads(x["data"] or "{}") for x in scenes if json.loads(x["data"] or "{}").get("story_scene") == cur_story]
+                total = sum(float(g.get("duration_s") or 0) for g in group)
+                st.markdown(f"**Cảnh {cur_story} — {escape((story.get(cur_story) or {}).get('heading') or '')}** · "
+                            f"{len(group)} shot · {total:.1f}s")
+                warn = _shots.pacing_warnings(group)
+                if warn:
+                    st.caption("⚠ " + " · ".join(warn))
+            lines = "; ".join(f"{x.get('speaker')}: {x.get('text')}" for x in d.get("dialogue") or [])
+            head = [f"{_shots.label(d, s['idx'])} · {d.get('size')} · {d.get('role')} · {float(d.get('duration_s') or 0):g}s"
+                    + (" · ⭐" if d.get("shot_role") == "hero" else ""),
+                    (d.get("action") or "")[:60], lines[:70], scene_status_text(st_row) if st_row else ""]
+            with st.expander("   |   ".join(x for x in head if x)):
+                scene_editor(p, pid, s, char_names)
+            continue
         bits = [f"S{s['idx']:02d}" + (f" · nhóm {d['sequence']}" if d.get("sequence") else "")
                 + (" · ⭐" if d.get("shot_role") == "hero" else "") + (" · 🌀 phức tạp" if d.get("camera_complexity") == "complex" else ""),
                 " · ".join(filter(None, [d.get("time"), d.get("location")])), ", ".join(d.get("characters") or []),

@@ -123,7 +123,7 @@ def model_plan_panel(p: Pipeline, pid: int) -> None:
         options = [None] + list(api)
         for r in rows:
             c0, c1, c2, c3 = st.columns([0.8, 2.2, 4, 1.4], vertical_alignment="center")
-            c0.markdown(f"**S{r['idx']:02d}**" + ("" if r["scene_id"] in ready else " ·"))
+            c0.markdown(f"**{C.unit_code(p, pid, r['idx'])}**" + ("" if r["scene_id"] in ready else " ·"))
             cur = r["model"] if r["source"] == "override" else None
             pick = c1.selectbox("Model", options, index=options.index(cur) if cur in options else 0, key=f"vm_{pid}_{r['scene_id']}",
                                 label_visibility="collapsed",
@@ -145,7 +145,7 @@ def video_card(p: Pipeline, pid: int, j, runner, stale_reason) -> None:
     scores = qc_scores(p, j["id"])
     with st.container(border=True):
         a, b, c = st.columns([1.2, 3, 2.4], vertical_alignment="center")
-        a.markdown(f"**Cảnh {j['idx']}**")
+        a.markdown(f"**{C.unit_label(p, j['project_id'], j['idx'])}**")
         badges = ui.state_badge(j["state"], "video_gen") + (" " + ui.badge("⚠ cần xem", "b-warn") if j["escalated"] else "") \
             + (" " + ui.badge("bị chặn nội dung", "b-bad") if blocked else "") + (" " + ui.stale_badge(stale_reason) if stale_reason else "")
         b.markdown(badges + f' <span class="muted">{escape(j["model"] or "")} · gen lại {j["retry_count"]} lần</span>', unsafe_allow_html=True)

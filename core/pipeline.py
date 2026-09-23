@@ -57,7 +57,7 @@ class Pipeline:
     def set_project_field(self, project_id: int, field: str, value) -> None:
         """Plain v2 project settings (aspect, genre, model_priority, qc_video, render_settings, qc_policy, autopilot_gates, pilot)."""
         allowed = {"aspect", "genre", "genre_locked", "model_priority", "qc_video", "render_settings", "qc_policy",
-                   "autopilot_gates", "autopilot_saved_cfg", "pilot"}
+                   "autopilot_gates", "autopilot_saved_cfg", "pilot", "shot_mode", "style_profile", "test_quality"}
         if field not in allowed:
             raise ValueError(f"unknown project setting '{field}'")
         self.conn.execute(f"UPDATE projects SET {field}=? WHERE id=?", (value, project_id))
@@ -78,7 +78,7 @@ class Pipeline:
         c.execute("UPDATE jobs SET parent_job_id=NULL WHERE project_id=?", (project_id,))
         c.execute("DELETE FROM jobs WHERE project_id=?", (project_id,))
         c.execute("DELETE FROM motion_prompts WHERE scene_id IN (SELECT id FROM scenes WHERE project_id=?)", (project_id,))
-        for table in ("scenes", "characters", "project_assets"):
+        for table in ("scenes", "story_scenes", "characters", "project_assets"):
             c.execute(f"DELETE FROM {table} WHERE project_id=?", (project_id,))
         for r in c.execute("SELECT id FROM assets WHERE project_id=?", (project_id,)).fetchall():
             assets.delete(c, r["id"])

@@ -190,7 +190,7 @@ def image_card(p: Pipeline, pid: int, j, proj, read_only: bool = False, stale_re
                     f'color:var(--muted)">{"⏳ đang gen…" if state == "running" else "chưa có ảnh"}</div>')
         flag = " " + ui.badge("⚠ cần xem", "b-warn") if j["escalated"] else ""
         old = " " + ui.stale_badge(stale_reason) if stale_reason and state == "approved" else ""
-        ui.html(f'<div class="cardhead"><b>Cảnh {j["idx"]}</b><span class="grow"></span>{ui.state_badge(state)}{flag}{old}</div>')
+        ui.html(f'<div class="cardhead"><b>{C.unit_label(p, j["project_id"], j["idx"])}</b><span class="grow"></span>{ui.state_badge(state)}{flag}{old}</div>')
         if scores:
             mean = sum(s["score"] for s in scores) / len(scores)
             ui.html(ui.qc_bar(mean, proj["qc_auto_pass_threshold"]))
@@ -243,7 +243,7 @@ def image_card(p: Pipeline, pid: int, j, proj, read_only: bool = False, stale_re
 def image_detail(p: Pipeline, pid: int, j, proj):
     jid, state = j["id"], j["state"]
     with st.container(border=True):
-        ui.html(ui.card_title(f"Chi tiết ảnh — Cảnh {j['idx']}", f"lần gen #{jid} · đã gen lại {j['retry_count']} lần"))
+        ui.html(ui.card_title(f"Chi tiết ảnh — {C.unit_label(p, j['project_id'], j['idx'])}", f"lần gen #{jid} · đã gen lại {j['retry_count']} lần"))
         ui.html(ui.state_badge(state))
         if j["retry_reason"]:
             st.caption(f"Lý do gen lại: {j['retry_reason']}")
