@@ -1,6 +1,8 @@
 # TODO — Theo dõi tiến độ dự án Auto Pipeline Video AI
 
-_Cập nhật lần cuối: 2026-09-23 (khuya, sau) — **Chốt kế hoạch v3** (PLAN.md 3.9): tổng hợp mọi đề xuất; chỉ dùng tính năng có API; đơn vị sản xuất chuyển từ cảnh sang shot; Director học dựng Free Fire từ kênh chính thức. Chờ bạn chốt 5 điểm cuối 3.9._
+_Cập nhật lần cuối: 2026-09-23 (chốt v3) — **Kế hoạch v3 chính thức** `docs/KE_HOACH_V3_CHINH_THUC.md` (+ docx/pdf): người dùng chốt thử cả 2 cách (từng shot / Kling multi-shot) rồi so sánh, nghiên cứu nhiều phong cách Free Fire (thêm 3D fan viral), nhịp theo kịch bản, ngân sách thử ≤ $50 ở 720p; thực hiện trên tài khoản phụ._
+
+_Trước đó, 2026-09-23 (khuya, sau) — **Chốt kế hoạch v3** (PLAN.md 3.9): tổng hợp mọi đề xuất; chỉ dùng tính năng có API; đơn vị sản xuất chuyển từ cảnh sang shot; Director học dựng Free Fire từ kênh chính thức. Chờ bạn chốt 5 điểm cuối 3.9._
 
 _Trước đó, 2026-09-23 (khuya) — **Dashboard v2 xong (GĐ0–9) và đã test một lượt**: làm theo kế hoạch v2 (PLAN.md 3.8) trên nhánh `dashboard-v2`, rồi test một lượt = toàn bộ unit test + chạy thử qua trình duyệt bằng kịch bản Kenta của người dùng (3 cảnh, 9:16, giả lập). Tìm và sửa 29 lỗi (3 lỗi nặng: thanh bước nhảy về Bước 1, bảng trộn âm tắt mất giọng thoại, bản xuất cắt khung mất phụ đề) — danh sách ở `docs/V2_TEST_REPORT.md`. Model video giờ chọn **theo từng cảnh** theo slide ClipAI (bỏ Kling mặc định). Việc tiếp theo cần người dùng: chạy thật 1 dự án 2–3 cảnh (tốn credit) để xác nhận Deepix 9:16, model từng cảnh, TTS tiếng Việt._
 
@@ -152,7 +154,7 @@ _Cập nhật 2026-09-22 (dùng thật tính năng phân tích video kỹ năng 
 - MCP Claude / V0 trong Claude Desktop (tạm gác từ 2026-09-19; tập trung build Dashboard). Các mục dry-run V0 và "mở lại Claude Desktop" bên dưới chờ mở lại.
 
 ## 🚧 Đang làm / kế tiếp (ưu tiên từ trên xuống)
-- [ ] **Kế hoạch v3 (PLAN.md 3.9, tổng hợp 2026-09-23) — chờ bạn chốt 5 điểm cuối 3.9 rồi làm theo thứ tự:**
+- [ ] **Kế hoạch v3 CHÍNH THỨC (chốt 2026-09-23): `docs/KE_HOACH_V3_CHINH_THUC.md` (+ .docx/.pdf) — thực hiện trên tài khoản phụ, nhánh `v3-shots`, đọc mục "Bàn giao" cuối file.** Thứ tự: GĐ1 thư viện phong cách (≥ 6 video/dạng, thêm 3D fan viral) → GĐ2 lớp shot + nhịp theo kịch bản → GĐ3 nhất quán + Kling multi-shot → GĐ4 giọng Việt + storyboard theo shot → GĐ5 trần ngân sách $50 + chế độ thử rẻ 720p + so sánh → GĐ6 thử thật 3 phương án + đánh giá. Tóm tắt cũ (giữ tham khảo):
   - [ ] **C · Director hiểu Free Fire:** công cụ phân tích video tham khảo (cắt shot + Claude gắn nhãn), bộ 10–20 video kênh [Garena Free Fire VN](https://www.youtube.com/@GarenaFreeFireVN/videos) (Kenta's Obsession, Eclipse Rises, FF x Gintama CGI, Pitch Party, Thánh Nữ Tái Sinh, Kelly Show, Kenta Rework OB55…), `knowledge/ff_directing.md` + 3 khuôn mẫu (kỹ năng / tiểu phẩm hài / phim ngắn CGI), cỡ cảnh "camera game", "look" dự án. Đã thử: Kenta's Obsession 75,7s ≈ 43 shot (~1,8s/shot).
   - [ ] **A · Phân shot + hợp đồng shot:** đơn vị ảnh/motion/video/giọng/phụ đề/⚠ cũ chuyển từ cảnh sang shot; kiểm tra nhịp + đa dạng cỡ cảnh; Bước 1 thành bảng storyboard theo shot.
   - [ ] **B · Nhất quán ảnh ↔ prompt ↔ video:** prompt ảnh + video cùng sinh từ hợp đồng shot; bảng nhãn tài nguyên chung; Seedance khung đầu + cuối; nối khung cuối → khung đầu trong nhóm; cùng model trong nhóm; Kling multi-shot cho nhóm shot ngắn; QC đồng bộ bộ clip; cân màu khi dựng.

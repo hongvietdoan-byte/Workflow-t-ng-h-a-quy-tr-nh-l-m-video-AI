@@ -267,7 +267,7 @@ Tổng hợp từ: báo cáo rà soát `docs/DASHBOARD_REVIEW_2026-09-23.md`, k�
 
 **Bỏ qua cho tới khi API có:** Lip Sync, Kling Elements, Voice Design/Clone, Director Workspace, Motion Control, Storyboard Deepix. Ghi nhận để hỏi team ClipAI mở API.
 
-**Cần người dùng chốt trước khi code:** (1) mặc định gen từng shot riêng hay Kling multi-shot theo nhóm cảnh; (2) "look" mặc định cho video Free Fire; (3) nhịp mục tiêu cho video ngắn (đề xuất 2–3s/shot); (4) ngân sách credit cho GĐ F; (5) đồng ý dùng video kênh chính thức làm tư liệu phân tích (chỉ phân tích nội bộ, không dùng lại hình).
+**Đã chốt (2026-09-23) — kế hoạch v3 chính thức:** `docs/KE_HOACH_V3_CHINH_THUC.md` (kèm `.docx`/`.pdf`), gồm 6 giai đoạn: GĐ1 thư viện phong cách Free Fire (≥ 6 video mỗi dạng: anime CGI, CGI tả thực/kỹ xảo, gameplay, Kelly Show, phim ngắn, 3D fan viral) → GĐ2 lớp shot + nhịp theo kịch bản → GĐ3 nhất quán ảnh ↔ prompt ↔ video + Kling multi-shot → GĐ4 giọng Việt + storyboard theo shot → GĐ5 trần ngân sách + chế độ thử rẻ + so sánh → GĐ6 thử thật 3 phương án (v2 / từng shot / Kling multi-shot) và đánh giá. Quyết định của người dùng: thử cả hai cách rồi so sánh; nhịp dựng do kịch bản quyết định (không cố định); ngân sách thử ≤ $50, 720p hoặc thấp hơn; được dùng video kênh chính thức làm tư liệu phân tích nội bộ, thêm video 3D fan viral; tính năng không có API thì bỏ qua. Thực hiện trên tài khoản phụ, nhánh `v3-shots`.
 
 ## 4. Rủi ro & mitigation tổng hợp
 
@@ -289,7 +289,7 @@ Tổng hợp từ: báo cáo rà soát `docs/DASHBOARD_REVIEW_2026-09-23.md`, k�
 - Kiến trúc core dùng chung + MCP vỏ mỏng + LLM runner hoán đổi được — xem 3.3
 - Không train/fine-tune model; dùng Knowledge Base + eval set — xem 3.6
 - **Chỉ dùng tính năng có trong API**; tính năng chỉ có trên web ClipAI/Deepix (Lip Sync, Kling Elements, Voice Design/Clone, Director Workspace, Motion Control, Storyboard Deepix) tạm bỏ qua — xem 3.9 (2026-09-23)
-- Đơn vị sản xuất chuyển từ **cảnh** sang **shot** (phân shot + hợp đồng shot), Director học ngữ pháp dựng Free Fire từ video kênh chính thức — xem 3.9 (2026-09-23, chờ chốt 5 điểm cuối 3.9)
+- Đơn vị sản xuất chuyển từ **cảnh** sang **shot**, Director học ngữ pháp dựng Free Fire từ video kênh chính thức + 3D fan viral; nhịp theo kịch bản; thử thật 3 phương án ≤ $50 ở 720p rồi mới chốt mặc định — kế hoạch v3 chính thức `docs/KE_HOACH_V3_CHINH_THUC.md` (2026-09-23)
 
 **Đã chốt cho V0 (2026-09-19):**
 - `operating_mode` mặc định V0 = **`human_qc`** (mọi ảnh chờ người duyệt; an toàn credit khi chưa có dữ liệu QC). Chuyển `auto` sau khi dry-run cho thấy % đồng thuận QC Agent–người đủ cao.
