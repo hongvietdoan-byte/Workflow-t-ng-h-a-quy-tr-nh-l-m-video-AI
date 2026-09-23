@@ -82,12 +82,26 @@ def image_runner(p: Pipeline):
 
 
 def llm_client():
-    """Claude API client (ANTHROPIC_API_KEY / LLM_PROVIDER=mock); None when not configured -> paste JSON by hand."""
+    """Claude client (ANTHROPIC_API_KEY, LLM_PROVIDER=claude_cli or mock); None when not configured -> paste JSON by hand."""
     try:
         return llm_runner.client_from_env()
     except llm_runner.LlmError as e:
-        st.error(f"Claude API: {e}")
+        st.error(f"Claude: {e}")
         return None
+
+
+def subjects_visible(p: Pipeline, pid: int) -> bool:
+    """Seedance Subject Library is not used any more (decision 2026-09-22: the project's own resource pictures do the job). Its panels
+    stay only for a project that already uses it (so it can be switched off) or when SHOW_SUBJECT_LIBRARY=1."""
+    if os.environ.get("SHOW_SUBJECT_LIBRARY", "").strip() == "1" or p.project(pid)["use_subjects"]:
+        return True
+    return bool(p.conn.execute("SELECT 1 FROM characters WHERE project_id=? AND subject_asset_id IS NOT NULL LIMIT 1", (pid,)).fetchone())
+
+
+def llm_label(client) -> str:
+    """How Claude is reached, for button labels: the API, the Claude Code on this PC (uses the plan's quota) or the simulator."""
+    return {"anthropic": "Claude API", "claude-cli": "Claude (Claude Code trên máy)", "mock-llm": "Claude giả lập"}.get(
+        getattr(client, "name", ""), "Claude")
 
 
 def tokens_text(r: dict) -> str:
@@ -333,7 +347,7 @@ def distill_panel(group: str, ov: dict) -> None:
         st.info("Cẩm nang đang TẮT: bước này dùng tài liệu gốc.")
     client = llm_client()
     if client is not None and inputs:
-        if st.button("🤖 Chắt lọc bằng Claude API", type="primary", key=f"kb_distill_{group}"):
+        if st.button(f"🤖 Chắt lọc bằng {llm_label(client)}", type="primary", key=f"kb_distill_{group}"):
             with st.spinner("Claude đang đọc và tổng kết tài liệu…"):
                 ok = act(lambda: st.session_state.__setitem__("llm_res", llm_runner.run_distill(group, client, include)))
             if ok:
@@ -848,7 +862,8 @@ def autopilot_panel(p: Pipeline, pid: int) -> None:
         st.caption("Sau khi bạn duyệt phân cảnh, hệ thống tự làm: Director (Character Bible + thông số cảnh) → gen ảnh → Claude chấm QC "
                    "(đạt ngưỡng thì tự duyệt) → Claude viết motion prompt (tự duyệt) → gen video → 1 bản nhạc nền → ghép video cuối. "
                    "Gặp việc cần người (cảnh hết số lần thử, bị chặn risk control, chạm trần số job) thì **dừng và báo**, "
-                   "không tự đoán. Cần Claude API, Deepix và Clip AI đã cấu hình.")
+                   "không tự đoán. Cảnh đã có Background được tự dựng layout trước khi gen ảnh (Claude lỗi thì gen như cũ). "
+                   "Cần Claude (API key hoặc Claude Code trên máy), Deepix và Clip AI đã cấu hình.")
         issues = autopilot.problems(p, pid)
         for msg in issues:
             st.markdown(f":red[✖ {msg}]")
@@ -1388,6 +1403,10 @@ def step1(p: Pipeline, pid: int):
                 st.caption("Chưa có kịch bản: tải file hoặc gõ/dán văn bản rồi bấm Phân tích.")
         with right:
             st.markdown(f"**Chia theo cảnh** · bấm vào từng cảnh để xem và sửa")
+            with_bg = sum(1 for s in scenes if assets.scene_location(p.conn, pid, json.loads(s["data"] or "{}")))
+            st.caption(f"🏞 {with_bg}/{len(scenes)} cảnh đã có Background (ảnh bối cảnh trong kho)"
+                       + ("" if with_bg == len(scenes) else " — cảnh chưa có thì không dựng được storyboard; chọn trong từng cảnh "
+                                                            "hoặc gắn địa điểm ở “🧰 Tài nguyên đi kèm kịch bản” rồi chạy Director"))
             for s in scenes:
                 d = json.loads(s["data"] or "{}")
                 bits = [f"S{s['idx']:02d}" + (f" · nhóm {d['sequence']}" if d.get("sequence") else ""),
@@ -1401,29 +1420,29 @@ def step1(p: Pipeline, pid: int):
 
     if scenes:
         assets_panel(p, pid)
-        ui.html(ui.card_title("④ Chọn cách chạy", "sau khi đã tách cảnh ở trên"))
+        ui.html(ui.card_title("② Chọn cách chạy", "sau khi đã tách cảnh ở trên"))
         auto_col, manual_col = st.columns(2, gap="large")
         with auto_col:
             autopilot_panel(p, pid)
         with manual_col, st.container(border=True):
             ui.html(ui.card_title("🧭 Chạy lần lượt từng bước", "bạn kiểm soát và duyệt ở mỗi bước"))
-            st.caption("Tự xem và duyệt từng khâu: chạy Director và khóa Character Bible ở bên dưới → Bước 2 gen ảnh + QC (bạn duyệt ảnh) "
+            st.caption("Tự xem và duyệt từng khâu: ③ Director → ④ Character Bible → ⑤ Storyboard (tùy chọn) → duyệt & khóa ở bên dưới → Bước 2 gen ảnh + QC (bạn duyệt ảnh) "
                        "→ Bước 3 duyệt motion prompt → Bước 4 gen video → Bước 5 nhạc và ghép. Hợp với dự án dài hoặc cần chỉnh kỹ.")
             st.button("⏭ Sang Bước 2 (gen ảnh + QC)", key=f"go_step2_{pid}", disabled=not any(c["locked"] for c in chars),
                       help="Bật sau khi Character Bible đã khóa",
                       on_click=lambda: st.session_state.__setitem__("step", STEPS[1]))
             if not any(c["locked"] for c in chars):
-                st.caption("Chạy Director và khóa Character Bible ở phần bên dưới trước.")
-        st.markdown("##### Chạy lần lượt: ② Director và ③ Character Bible")
+                st.caption("Chạy ③ Director, xem ④ Character Bible (⑤ Storyboard nếu muốn) rồi duyệt & khóa ở phần bên dưới trước.")
+        st.markdown("##### Chạy lần lượt: ③ Director → ④ Character Bible → ⑤ Storyboard → duyệt & khóa")
 
     dl, dr = st.columns([1, 1.7], gap="large")
     with dl:
         if scenes:
             with st.container(border=True):
-                ui.html(ui.card_title("② Director", "Character Bible + thông số cảnh"))
+                ui.html(ui.card_title("③ Director", "Character Bible + thông số cảnh"))
                 client = llm_client()
                 if client is not None:
-                    if st.button("🤖 Chạy Director bằng Claude API", type="primary", key=f"llm_dir_{pid}"):
+                    if st.button(f"🤖 Chạy Director bằng {llm_label(client)}", type="primary", key=f"llm_dir_{pid}"):
                         with st.spinner("Claude đang phân tích kịch bản…"):
                             ok = act(lambda: st.session_state.__setitem__(
                                 "llm_res", llm_runner.run_director(p, pid, client)))
@@ -1441,7 +1460,7 @@ def step1(p: Pipeline, pid: int):
         if chars:
             with st.container(border=True):
                 head, status = st.columns([3, 2], vertical_alignment="center")
-                head.markdown(ui.card_title("③ Character Bible", f"{len(chars)} mục"), unsafe_allow_html=True)
+                head.markdown(ui.card_title("④ Character Bible", f"{len(chars)} mục"), unsafe_allow_html=True)
                 if risky:
                     status.caption(f"⚠ {len(risky)} mục có thể vướng IP (xem “⚠ Rủi ro” ở góc trên)")
                 linked = assets.link_characters(p.conn, pid, char_names)
@@ -1453,7 +1472,8 @@ def step1(p: Pipeline, pid: int):
                                "Khóa": "🔒" if c["locked"] else ""} for c in chars],
                              width="stretch", hide_index=True, height=min(38 * (len(chars) + 1) + 3, 220))
                 character_reference_panel(p, pid, chars)
-                subject_panel(p, pid, chars)
+                if subjects_visible(p, pid):
+                    subject_panel(p, pid, chars)
                 with st.expander("✏ Sửa / thêm nhân vật, đối tượng · khóa"):
                     if any(c["locked"] for c in chars):
                         st.caption("Character Bible đang khóa. Muốn sửa phải mở khóa (ảnh đã gen vẫn theo mô tả cũ).")
@@ -1478,14 +1498,14 @@ def step1(p: Pipeline, pid: int):
                     if st.button("Thêm vào Character Bible", key=f"cadd_{pid}", disabled=not (a_name.strip() and a_desc.strip())):
                         if act(lambda: llm_io.add_character(p, pid, a_name, a_desc, a_ward), f"Đã thêm {a_name}"):
                             st.rerun()
-            with st.container(border=True):
-                a, b = st.columns([2, 1], vertical_alignment="center")
-                a.caption("Cần Approve & Lock để mở Bước 2")
-                if b.button("✔ Duyệt & khóa → Bước 2", type="primary"):
-                    act(lambda: llm_io.lock_character_bible(p, pid), "Đã khóa Character Bible")
-                    st.rerun()
     if chars:
         storyboard_panel(p, pid)
+        with st.container(border=True):
+            a, b = st.columns([2, 1], vertical_alignment="center")
+            a.caption("Xong Character Bible (và storyboard nếu dựng): duyệt & khóa để mở Bước 2. Chế độ tự động không cần bước này.")
+            if b.button("✔ Duyệt & khóa → Bước 2", type="primary"):
+                act(lambda: llm_io.lock_character_bible(p, pid), "Đã khóa Character Bible")
+                st.rerun()
     world_bible_panel(p, pid)
 
 
@@ -1494,7 +1514,7 @@ def storyboard_panel(p: Pipeline, pid: int) -> None:
     Claude check continuity. Nothing to approve: Step 2 simply follows the layouts; the sheet is there to look at."""
     board = os.path.join(previz.layouts_dir(DATA, pid), "storyboard.png")
     with st.container(border=True):
-        ui.html(ui.card_title("🎬 Storyboard (dựng layout trước khi gen ảnh)",
+        ui.html(ui.card_title("⑤ 🎬 Storyboard (dựng layout trước khi gen ảnh)",
                               "không bắt buộc · Bước 2 tự bám theo layout của cảnh nào đã dựng"))
         st.caption("Claude đọc góc máy/đường chân trời/mặt đất của ảnh bối cảnh (mỗi ảnh chỉ đọc 1 lần), đặt từng nhân vật theo "
                    "“Vị trí nhân vật” của cảnh; chương trình tự tính cỡ người theo phối cảnh và giữ chân trên mặt đất. "
@@ -2259,14 +2279,15 @@ def step4(p: Pipeline, pid: int):
                                     "xử lý) nếu lời thoại được ghi trong motion prompt. Có thể đổi giá; chưa thử thật.")
         if audio_on != bool(proj["video_audio"]):
             p.set_video_audio(pid, audio_on)
-        n_subj = p.conn.execute("SELECT COUNT(*) c FROM characters WHERE project_id=? AND subject_status='active'",
-                                (pid,)).fetchone()["c"]
-        use_subj = st.checkbox(f"🧩 Gắn ảnh chủ thể nhân vật vào video (Seedance) — {n_subj} nhân vật có chủ thể active",
-                               bool(proj["use_subjects"]), key=f"vsubj_{pid}",
-                               help="Chỉ Seedance. Mỗi cảnh gắn chủ thể của các nhân vật xuất hiện trong cảnh (kho chủ thể ở Bước 1). "
-                                    "Chưa thử thật; ảnh chủ thể tính vào giới hạn số ảnh tham chiếu.")
-        if use_subj != bool(proj["use_subjects"]):
-            p.set_use_subjects(pid, use_subj)
+        if subjects_visible(p, pid):
+            n_subj = p.conn.execute("SELECT COUNT(*) c FROM characters WHERE project_id=? AND subject_status='active'",
+                                    (pid,)).fetchone()["c"]
+            use_subj = st.checkbox(f"🧩 Gắn ảnh chủ thể nhân vật vào video (Seedance) — {n_subj} nhân vật có chủ thể active",
+                                   bool(proj["use_subjects"]), key=f"vsubj_{pid}",
+                                   help="Chỉ Seedance. Mỗi cảnh gắn chủ thể của các nhân vật xuất hiện trong cảnh (kho chủ thể ở Bước 1). "
+                                        "Chưa thử thật; ảnh chủ thể tính vào giới hạn số ảnh tham chiếu.")
+            if use_subj != bool(proj["use_subjects"]):
+                p.set_use_subjects(pid, use_subj)
         if runner is None:
             st.caption("ℹ Clip AI chưa cấu hình: chỉ theo dõi job thủ công.")
             with st.expander("Cách cấu hình"):
@@ -2900,7 +2921,7 @@ def subtitle_panel(p: Pipeline, pid: int, out: str) -> None:
             else:
                 st.rerun()
         if lang != "src" and llm is None:
-            st.markdown(":orange[Dịch sang ngôn ngữ khác cần Claude API (ANTHROPIC_API_KEY). Chưa có thì chỉ dùng được “Giữ nguyên ngôn ngữ kịch bản”.]")
+            st.markdown(":orange[Dịch sang ngôn ngữ khác cần Claude (ANTHROPIC_API_KEY hoặc LLM_PROVIDER=claude_cli). Chưa có thì chỉ dùng được “Giữ nguyên ngôn ngữ kịch bản”.]")
         key = f"sub_cues_{pid}"
         if st.button("📝 Tạo danh sách phụ đề", key=f"sub_make_{pid}", type="primary", disabled=lang != "src" and llm is None):
             try:

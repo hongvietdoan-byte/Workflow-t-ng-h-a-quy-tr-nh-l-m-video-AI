@@ -20,12 +20,12 @@ import time
 from dataclasses import dataclass
 from typing import Callable, Dict, List, Optional
 
-from . import audio_lib, sfx_plan, sound_lib, subtitles, dialogue, diag, ffmpeg_studio, final_cut, llm_io, llm_runner, music, perf
+from . import audio_lib, previz, sfx_plan, sound_lib, subtitles, dialogue, diag, ffmpeg_studio, final_cut, llm_io, llm_runner, music, perf
 from .pipeline import Pipeline
 
 RUNNING, WAITING, STOPPED, ATTENTION, DONE, ERROR = "running", "waiting", "stopped", "needs_attention", "done", "error"
 QUEUED = "queued"   # approved, waiting for a free slot (see Manager.max_parallel)
-PHASE_LABELS = {"director": "Director (Character Bible + thông số cảnh)", "images": "Gen ảnh + QC", "motion": "Motion prompt", "videos": "Gen video", "music": "Nhạc nền",
+PHASE_LABELS = {"director": "Director (Character Bible + thông số cảnh)", "previz": "Dựng layout / storyboard", "images": "Gen ảnh + QC", "motion": "Motion prompt", "videos": "Gen video", "music": "Nhạc nền",
                 "render": "Ghép & render", "done": "Hoàn tất"}
 MAX_SCENES = int(os.environ.get("AUTOPILOT_MAX_SCENES", "12"))
 LOG_KEEP = 60
@@ -242,6 +242,25 @@ def _director_phase(p: Pipeline, pid: int, ctx: Context) -> Optional[str]:
     return None
 
 
+def _previz_phase(p: Pipeline, pid: int, ctx: Context) -> Optional[str]:
+    """Lay the shots out (previz 2D) once, before any picture, so Step 2 follows the layouts. Never blocks the run: no scene with a
+    background picture, or Claude failing / out of quota, means the pictures are made the old way (a warning says so)."""
+    marker = os.path.join(previz.layouts_dir(ctx.data_dir, pid), ".autopilot_done")
+    if os.path.exists(marker) or _count(p, "SELECT COUNT(*) FROM jobs WHERE project_id=? AND type='image_gen'", pid):
+        return None                                        # done before, or pictures already started: keep what exists
+    try:
+        r = previz.plan_layouts(p, pid, ctx.llm, ctx.data_dir)
+        _log(p, pid, f"Layout: dựng {len(r['laid_out'])} cảnh" + (f", {len(r['skipped'])} cảnh chưa có Background (gen như cũ)"
+                                                                if r["skipped"] else ""))
+    except (llm_runner.LlmError, ValueError, OSError) as e:
+        _log(p, pid, f"Không dựng được layout, gen ảnh theo cách cũ: {str(e)[:150]}")
+        _d(p, pid, "previz", "warn", f"autopilot bỏ qua layout: {e}", "previz_skipped")
+    os.makedirs(os.path.dirname(marker), exist_ok=True)
+    with open(marker, "w") as f:
+        f.write("1")
+    return None
+
+
 def _images_phase(p: Pipeline, pid: int, ctx: Context) -> Optional[str]:
     """Returns None when every scene has an approved image, else a progress message."""
     cap_images, _ = _job_caps(p, pid)
@@ -435,7 +454,7 @@ def tick(p: Pipeline, project_id: int, ctx: Context) -> str:
         _set(p, project_id, note="Đang PAUSE")
         return RUNNING
     try:
-        phases = [("director", _director_phase), ("images", _images_phase), ("motion", _motion_phase), ("videos", _videos_phase),
+        phases = [("director", _director_phase), ("previz", _previz_phase), ("images", _images_phase), ("motion", _motion_phase), ("videos", _videos_phase),
                   ("music", _music_phase), ("sfx", _sfx_phase)]
         for name, fn in phases:
             progress = fn(p, project_id, ctx)

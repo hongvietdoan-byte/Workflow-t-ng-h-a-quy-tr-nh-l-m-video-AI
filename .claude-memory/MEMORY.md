@@ -10,6 +10,7 @@ Memory repo dùng chung cho các phiên Claude Code trên mọi máy của hongv
 
 | Ngày | Tiêu đề | File |
 |---|---|---|
+| 2026-09-23 | Rà soát Dashboard đầu-cuối (Playwright + mock) + sửa 5 điểm; 594 test | projects/ai-video-pipeline.md |
 | 2026-09-23 | Xong code P0 hướng 1: báo cáo 5 chỉ số hiệu quả (core/effectiveness.py, tab 📊); 588 test; chờ user thử thật | projects/ai-video-pipeline.md |
 | 2026-09-23 | QC 3 tiêu chí (scale/grounding/set_match) + thay trang phục bằng ảnh + bộ ảnh nhân vật; 586 test | projects/ai-video-pipeline.md |
 | 2026-09-23 | Previz 2D xong phần Claude (core/previz.py) + khối Storyboard Bước 1 + Bước 2 gen theo layout; 579 test | projects/ai-video-pipeline.md |

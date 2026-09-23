@@ -152,3 +152,7 @@ Phần lớn việc còn lại trong `TODO.md` (mục "Đang làm/kế tiếp", 
 - `core/effectiveness.py`: đọc `job_events` (thời gian running→succeeded; tổng thời gian = tạo dự án → video xong cuối), `usage_events` qua `cost.spend_summary`, `jobs.retry_count` + số job/cảnh (đạt lần đầu), `qc_results` vs `review_log` user (đồng thuận), `job_events.actor='user'` (thao tác tay). Khối UI `effectiveness_panel` trong `monitor`.
 - Bẫy test: `apply_qc` với điểm < `qc_reject_floor` (0.5) tự loại ảnh → muốn giả lập "AI chê, người duyệt" phải dùng điểm 0.5–0.85.
 - Tiếp theo (cần user): thử Previz 2D thật + kịch bản 60s; sau đó đọc báo cáo hiệu quả để quyết định chỉnh gì.
+
+## 2026-09-23 — Rà soát Dashboard đầu-cuối + sửa 5 điểm
+- Cách rà: `tools/seed_demo.py --out /tmp/...` + streamlit với IMAGE/VIDEO/AUDIO/LLM_PROVIDER=mock, Playwright (chromium ở /opt/pw-browsers/chromium-*/chrome-linux/chrome; truyền executable_path). Đăng nhập: điền e-mail rồi bấm "Vào Dashboard". Streamlit cuộn trong khung riêng → chụp với viewport cao (5200px). Tắt dashboard: tìm PID bằng `ps aux | grep "[s]erver.port"` — `pkill -f`/`pgrep -f` với chuỗi có trong chính lệnh bash sẽ tự giết shell (exit 144).
+- Sửa: poll lỗi bất ngờ không làm sập trang; autopilot có `_previz_phase` (không chặn, 1 lần/dự án); Bước 1 đánh số ①–⑤ + nút khóa sau Storyboard ("Chọn cách chạy" đứng trước Director là CÓ CHỦ Ý — test Step1LayoutTests khóa thứ tự này); ẩn Kho chủ thể (`subjects_visible`); `llm_label`.

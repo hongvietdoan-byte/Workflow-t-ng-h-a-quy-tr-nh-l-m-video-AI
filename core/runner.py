@@ -104,6 +104,11 @@ class _Runner:
                 self.p.fail(job["id"], f"{e.code or 'error'}: {e}")
                 counts["failed"] += 1
                 continue
+            except Exception as e:  # noqa: BLE001 - an unexpected answer must not take the whole page down
+                self._diag(job, "warn", "status_error", f"hỏi trạng thái job gặp lỗi không lường trước ({type(e).__name__}: {e}); "
+                                                        "job giữ nguyên, sẽ hỏi lại")
+                counts["running"] += 1
+                continue
             if status.state == "running":
                 counts["running"] += 1
             elif status.state == "succeeded":
@@ -120,6 +125,10 @@ class _Runner:
                         continue
                     self.p.fail(job["id"], f"{e.code or 'error'}: {e}")
                     counts["failed"] += 1
+                    continue
+                except Exception as e:  # noqa: BLE001 - e.g. disk full: keep the job, report it, keep the page alive
+                    self._diag(job, "warn", "download_error", f"tải kết quả gặp lỗi không lường trước ({type(e).__name__}: {e}); sẽ thử lại")
+                    counts["running"] += 1
                     continue
                 self.p.conn.execute("UPDATE jobs SET result_path=? WHERE id=?", (dest, job["id"]))
                 self.p.conn.commit()

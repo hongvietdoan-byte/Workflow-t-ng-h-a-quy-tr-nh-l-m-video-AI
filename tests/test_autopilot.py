@@ -253,3 +253,44 @@ class ThreadTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class PrevizInAutopilotTests(Setup):
+    """The automatic run lays the shots out before the pictures (so they follow the layouts) and never stops because of it."""
+
+    def place(self):
+        from PIL import Image
+        from core import assets
+        os.environ["ASSET_DIR"] = os.path.join(self.data, "assets")
+        self.addCleanup(os.environ.pop, "ASSET_DIR", None)
+        loc = assets.create(self.p.conn, "FF", "location", "Đảo Quân Sự", "", "", None, "x")
+        path = os.path.join(self.data, "bg.png")
+        Image.new("RGB", (320, 180), (120, 150, 110)).save(path)
+        assets.add_image(self.p.conn, loc, "bg.png", open(path, "rb").read())
+        assets.attach(self.p.conn, self.pid, loc)
+        first = self.p.conn.execute("SELECT idx FROM scenes WHERE project_id=? ORDER BY idx LIMIT 1", (self.pid,)).fetchone()["idx"]
+        llm_io.update_scene(self.p, self.pid, first, {"location_asset": loc})
+        return first
+
+    def test_the_run_lays_out_the_scene_with_a_background_and_its_picture_follows_the_layout(self):
+        image = MockImageProvider()
+        self.build(image=image)
+        first = self.place()
+        autopilot.start(self.p, self.pid)
+        self.assertEqual(autopilot.run_until_done(self.p, self.pid, self.ctx), autopilot.DONE)
+        layout = os.path.join(self.data, str(self.pid), "layouts", f"S{first:02d}.png")
+        self.assertTrue(os.path.exists(layout))
+        self.assertIn(layout, [refs[0] for refs in image.references.values() if refs])
+        self.assertTrue(os.path.exists(os.path.join(self.data, str(self.pid), "layouts", ".autopilot_done")))   # only once per project
+
+    def test_claude_failing_on_the_layout_does_not_stop_the_run(self):
+        class NoLayout(llm_runner.MockLlm):
+            def complete(self, prompt, images=()):
+                if prompt.startswith("# Phân tích ảnh nền"):
+                    raise llm_runner.LlmError("monthly spend limit", code="quota")
+                return super().complete(prompt, images)
+        self.build(llm=NoLayout())
+        self.place()
+        autopilot.start(self.p, self.pid)
+        self.assertEqual(autopilot.run_until_done(self.p, self.pid, self.ctx), autopilot.DONE)
+        self.assertTrue(self.p.conn.execute("SELECT COUNT(*) FROM diag_events WHERE code='previz_skipped'").fetchone()[0])

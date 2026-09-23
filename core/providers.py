@@ -84,6 +84,8 @@ class MockImageProvider:
         return task_id
 
     def status(self, task_id: str) -> TaskStatus:
+        if task_id not in self._polls:
+            raise ProviderError(f"unknown task {task_id} (the simulator forgets its tasks when the dashboard restarts)", code="not_found")
         self._polls[task_id] += 1
         if self.transient_failures > 0:
             self.transient_failures -= 1
@@ -124,6 +126,8 @@ class MockVideoProvider:
         return task_id
 
     def status(self, task_id: str) -> TaskStatus:
+        if task_id not in self._tasks:
+            raise ProviderError(f"unknown task {task_id} (the simulator forgets its tasks when the dashboard restarts)", code="not_found")
         task = self._tasks[task_id]
         task["polls"] += 1
         if any(w in task["prompt"] for w in self.blocked_words):

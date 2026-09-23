@@ -463,6 +463,8 @@ class DashboardSmokeTests(unittest.TestCase):
         from core import subjects
         p, pid = self.seed()
         os.environ["SUBJECT_PROVIDER"] = "mock"
+        os.environ["SHOW_SUBJECT_LIBRARY"] = "1"                 # hidden by default since the 2026-09-22 decision
+        self.addCleanup(os.environ.pop, "SHOW_SUBJECT_LIBRARY", None)
         try:
             at = AppTest.from_file(APP, default_timeout=30).run()
             self.assertFalse(at.exception)
@@ -483,8 +485,21 @@ class DashboardSmokeTests(unittest.TestCase):
         finally:
             os.environ.pop("SUBJECT_PROVIDER", None)
 
+    def test_the_subject_library_is_hidden_unless_a_project_already_uses_it(self):
+        p, pid = self.seed()
+        at = AppTest.from_file(APP, default_timeout=30).run()
+        self.assertFalse(any("Kho chủ thể" in e.label for e in at.expander))
+        at.radio(key="step").set_value(at.radio(key="step").options[3]).run()
+        self.assertFalse(any(c.key == f"vsubj_{pid}" for c in at.checkbox))
+        p.set_use_subjects(pid, True)                                         # an older project that turned it on can still turn it off
+        at = AppTest.from_file(APP, default_timeout=30).run()
+        at.radio(key="step").set_value(at.radio(key="step").options[3]).run()
+        self.assertTrue(any(c.key == f"vsubj_{pid}" for c in at.checkbox))
+
     def test_attach_subjects_switch_is_saved(self):
         p, pid = self.seed()
+        os.environ["SHOW_SUBJECT_LIBRARY"] = "1"
+        self.addCleanup(os.environ.pop, "SHOW_SUBJECT_LIBRARY", None)
         at = AppTest.from_file(APP, default_timeout=30).run()
         at.radio(key="step").set_value(at.radio(key="step").options[3]).run()
         at.checkbox(key=f"vsubj_{pid}").set_value(True).run()

@@ -78,11 +78,11 @@ class Step1LayoutTests(unittest.TestCase):
             self.assertFalse(at.exception)
             texts = [m.value for m in at.markdown]
             index = lambda needle: next(i for i, t in enumerate(texts) if needle in t)  # noqa: E731
-            script, choice = index("① Kịch bản"), index("④ Chọn cách chạy")
+            script, choice = index("① Kịch bản"), index("② Chọn cách chạy")
             self.assertLess(script, choice)
             self.assertLess(choice, index("Chế độ tự động hoàn toàn"))
             self.assertLess(index("Chế độ tự động hoàn toàn"), index("Chạy lần lượt từng bước"))
-            self.assertLess(index("Chạy lần lượt từng bước"), index("② Director"))
+            self.assertLess(index("Chạy lần lượt từng bước"), index("③ Director"))
         finally:
             os.environ.pop("PIPELINE_DB", None)
             os.environ.pop("PIPELINE_DATA", None)

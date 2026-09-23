@@ -133,7 +133,7 @@ def scan(conn, data_dir: str, poll_sec: float = 15) -> List[Dict]:
                 "Tỉ lệ gen lại cao = tốn credit và quy trình chưa trơn. Xem lý do lỗi ở bảng sự kiện.")
     moderation = conn.execute("SELECT COUNT(*) FROM content_moderation_failures WHERE at>=?", (_hours_ago(24),)).fetchone()[0]
     if moderation:
-        add("warn", "video", f"{moderation} lần bị risk control chặn trong 24h", "Xem góc Rủi ro, cân nhắc Kho chủ thể/đổi prompt.")
+        add("warn", "video", f"{moderation} lần bị risk control chặn trong 24h", "Xem góc Rủi ro, đổi prompt (bớt từ nhạy cảm) hoặc đổi model.")
     for r in conn.execute("SELECT id, name FROM projects WHERE autopilot_state='done'").fetchall():
         if not os.path.exists(os.path.join(data_dir, str(r["id"]), "output", "FINAL_VIDEO.mp4")):
             add("error", "render", f"Dự án #{r['id']} báo Hoàn tất nhưng không có FINAL_VIDEO.mp4", "", r["id"])
