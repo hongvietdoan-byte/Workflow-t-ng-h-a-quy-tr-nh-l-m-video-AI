@@ -397,6 +397,19 @@ class DashboardSmokeTests(unittest.TestCase):
         data = json.loads(Pipeline(connect(self.db)).conn.execute("SELECT data FROM scenes").fetchone()["data"])
         self.assertEqual(data["location_asset"], loc)
 
+    def test_blocking_and_sequence_are_edited_in_the_scene_and_shown_in_its_row(self):
+        import json
+        p, pid = self.seed()
+        at = AppTest.from_file(APP, default_timeout=30).run()
+        at.text_input(key=f"sd_{pid}_1_blocking").set_value("Kelly frame-left facing right").run()
+        at.number_input(key=f"sd_{pid}_1_seq").set_value(2).run()
+        next(b for b in at.button if b.key == f"sds_{pid}_1").click().run()
+        self.assertFalse(at.exception)
+        data = json.loads(Pipeline(connect(self.db)).conn.execute("SELECT data FROM scenes").fetchone()["data"])
+        self.assertEqual((data["blocking"], data["sequence"]), ("Kelly frame-left facing right", 2))
+        at = AppTest.from_file(APP, default_timeout=30).run()
+        self.assertTrue(any(e.label.startswith("S01 · nhóm 2") for e in at.expander))
+
     def test_subject_library_panel_defaults_to_free_fire_and_links_a_character(self):
         from core import subjects
         p, pid = self.seed()

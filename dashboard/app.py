@@ -221,6 +221,7 @@ def scene_expander(p: Pipeline, scene_id, expanded: bool = False, with_motion: b
         lines = [("Bối cảnh", " · ".join(filter(None, [d.get("time"), d.get("location")]))),
                  ("Nhân vật", ", ".join(d.get("characters") or [])),
                  ("Mood / ánh sáng / cỡ cảnh", " · ".join(filter(None, [d.get("mood"), d.get("lighting"), d.get("shot")]))),
+                 ("Vị trí nhân vật", d.get("blocking") or ""),
                  ("Prompt ảnh", d.get("image_prompt") or "")]
         if with_motion:
             m = p.conn.execute("SELECT motion_prompt FROM motion_prompts WHERE scene_id=?", (scene_id,)).fetchone()
@@ -1388,7 +1389,8 @@ def step1(p: Pipeline, pid: int):
             st.markdown(f"**Chia theo cảnh** · bấm vào từng cảnh để xem và sửa")
             for s in scenes:
                 d = json.loads(s["data"] or "{}")
-                bits = [f"S{s['idx']:02d}", " · ".join(filter(None, [d.get("time"), d.get("location")])),
+                bits = [f"S{s['idx']:02d}" + (f" · nhóm {d['sequence']}" if d.get("sequence") else ""),
+                        " · ".join(filter(None, [d.get("time"), d.get("location")])),
                         ", ".join(d.get("characters") or []), " · ".join(filter(None, [d.get("shot"), d.get("mood")]))]
                 with st.expander("   |   ".join(x for x in bits if x) + f"   [{s['state']}]"):
                     scene_editor(p, pid, s, char_names)
@@ -1623,6 +1625,12 @@ def scene_editor(p: Pipeline, pid: int, scene, char_names) -> None:
     lighting = c5.text_input("Ánh sáng", d.get("lighting", ""), key=f"{k}_lighting")
     cast = st.multiselect("Nhân vật trong cảnh", char_names, [c for c in d.get("characters") or [] if c in char_names],
                           key=f"{k}_cast")
+    c6, c7 = st.columns([4, 1])
+    blocking = c6.text_input("🧍 Vị trí nhân vật (blocking)", d.get("blocking") or "", key=f"{k}_blocking",
+                             help="Ai đứng bên trái/giữa/phải khung, tiền/hậu cảnh, nhìn về đâu. Các cảnh cùng nhóm giữ nguyên bên trái/phải.")
+    seq_value = d.get("sequence") if isinstance(d.get("sequence"), int) else 0
+    sequence = c7.number_input("Nhóm cảnh", min_value=0, value=seq_value, step=1, key=f"{k}_seq",
+                               help="Các cảnh liên tiếp cùng nơi, liền mạch dùng chung 1 số (0 = không nhóm). Chế độ Storyboard nối ảnh trong cùng nhóm.")
     places = {a["id"]: a for a in assets.project_assets(p.conn, pid) if a["kind"] == "location" and a["images"]}
     current = d.get("location_asset")
     if isinstance(current, int) and current not in places:
@@ -1643,7 +1651,8 @@ def scene_editor(p: Pipeline, pid: int, scene, char_names) -> None:
             st.rerun()
     if st.button("💾 Lưu cảnh", key=f"sds_{pid}_{idx}"):
         fields = {"location": location, "time": time_, "shot": shot, "mood": mood, "lighting": lighting,
-                  "image_prompt": image_prompt, "location_asset": bg}
+                  "image_prompt": image_prompt, "location_asset": bg, "blocking": blocking,
+                  "sequence": int(sequence) or None}
         if char_names:
             fields["characters"] = cast
         if act(lambda: llm_io.update_scene(p, pid, idx, fields, text=text), f"Đã lưu cảnh {idx}"):

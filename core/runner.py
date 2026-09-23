@@ -213,28 +213,43 @@ class VideoRunner(_Runner):
         return os.path.join(self._dir(job["project_id"], "videos"), f"{idx:02d}.mp4")
 
 
+def previous_frame_job(conn, project_id: int, idx: int, sequence=None):
+    """The approved picture a storyboard frame follows on from: with a `sequence`, the nearest earlier scene of the SAME sequence
+    (same place, continuous action — a new sequence starts fresh instead of copying another place); without one, the scene right
+    before. Row with `id`, or None."""
+    rows = conn.execute("SELECT s.idx, s.data, (SELECT j.id FROM jobs j WHERE j.scene_id=s.id AND j.type='image_gen'"
+                        " AND j.state='approved' ORDER BY j.id DESC LIMIT 1) AS id FROM scenes s"
+                        " WHERE s.project_id=? AND s.idx<? ORDER BY s.idx DESC", (project_id, idx)).fetchall()
+    for r in rows:
+        if sequence is None:
+            return r if r["idx"] == idx - 1 and r["id"] is not None else None
+        if json.loads(r["data"] or "{}").get("sequence") == sequence and r["id"] is not None:
+            return r
+    return None
+
+
 class ImageRunner(_Runner):
     job_type = "image_gen"
 
     def _submit_args(self, job):
         conn = self.p.conn
         scene = conn.execute("SELECT idx, data FROM scenes WHERE id=?", (job["scene_id"],)).fetchone()
-        prompt = json.loads(scene["data"] or "{}").get("image_prompt")
+        data = json.loads(scene["data"] or "{}")
+        prompt = data.get("image_prompt")
         if not prompt:
             return None
+        if (data.get("blocking") or "").strip():       # where each person stands/faces, so shots of one sequence agree
+            prompt = f"{prompt}. Blocking: {data['blocking'].strip()}"
         if job["retry_reason"]:
             prompt = f"{prompt}. Fix: {job['retry_reason']}"
         proj = self.p.project(job["project_id"])
-        refs = assets.scene_references(conn, job["project_id"], json.loads(scene["data"] or "{}"),
+        refs = assets.scene_references(conn, job["project_id"], data,
                                        reserve=1 if proj["storyboard_mode"] else 0)   # the previous frame keeps its slot
         if proj["storyboard_mode"] and len(refs) < assets.MAX_REFERENCES:
             # Deepix has no scriptable Storyboard (web UI only, see docs/CLIPAI_FEATURES.md) — this chains the
             # previous scene's approved picture in as an extra image-to-image reference instead, so style/lighting
             # carry over the way a real storyboard would.
-            prev = conn.execute(
-                "SELECT j.id FROM jobs j JOIN scenes s ON s.id=j.scene_id WHERE s.project_id=? AND s.idx=?"
-                " AND j.type='image_gen' AND j.state='approved' ORDER BY j.id DESC LIMIT 1",
-                (job["project_id"], scene["idx"] - 1)).fetchone()
+            prev = previous_frame_job(conn, job["project_id"], scene["idx"], data.get("sequence"))
             if prev is not None:
                 prev_path = os.path.join(self.data_dir, str(job["project_id"]), "images", f"job_{prev['id']}.png")
                 if os.path.exists(prev_path):

@@ -511,8 +511,9 @@ def reference_note(refs: List[Dict]) -> str:
         elif g["role"] == "previous_scene":
             bits.append(f"{tag} is the PREVIOUS scene in this sequence (storyboard continuity): keep the same render style, "
                         "color palette, lighting mood and level of detail as this image, and keep any character/prop/location "
-                        "already fixed by the other reference images exactly as those say — but draw a NEW moment in time "
-                        "(new pose, action, camera angle or framing), never a copy of this image")
+                        "already fixed by the other reference images exactly as those say; it is the same place, so keep its layout "
+                        "and keep each person on the same side of the frame unless the blocking says they moved — but draw a NEW "
+                        "moment in time (new pose, action, camera angle or framing), never a copy of this image")
         else:
             people += 1
             angles = " (different angles/details of the same person)" if len(nums) > 1 else ""

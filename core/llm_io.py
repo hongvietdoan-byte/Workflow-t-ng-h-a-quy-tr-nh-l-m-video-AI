@@ -43,6 +43,9 @@ def validate_scene_analysis(data: Any) -> Dict:
         for key in ("location", "time", "mood", "lighting", "shot", "image_prompt"):
             _req(s, key, str, w)
         _check_location_asset(s.get("location_asset"), w)
+        _check_sequence(s.get("sequence"), w)
+        if s.get("blocking") is not None and not isinstance(s.get("blocking"), str):
+            raise SchemaError(f"{w}.blocking: expected text")
         for name in _req(s, "characters", list, w):
             if name not in names:
                 raise SchemaError(f"{w}.characters: '{name}' not in Character Bible")
@@ -55,6 +58,14 @@ def _check_location_asset(value: Any, where: str) -> None:
         return
     if not isinstance(value, int) or isinstance(value, bool) or value <= 0:
         raise SchemaError(f"{where}.location_asset: must be null or a resource id (positive whole number)")
+
+
+def _check_sequence(value: Any, where: str) -> None:
+    """`sequence` is optional: null, or a positive whole number shared by consecutive scenes in the same place/continuous action."""
+    if value is None:
+        return
+    if not isinstance(value, int) or isinstance(value, bool) or value <= 0:
+        raise SchemaError(f"{where}.sequence: must be null or a positive whole number")
 
 
 def validate_qc_result(data: Any, required_criteria: List[str]) -> Dict:
@@ -99,8 +110,9 @@ def store_scene_analysis(pipeline: Pipeline, project_id: int, data: Any) -> Dict
         merged = json.loads(row["data"] or "{}")
         merged.update({k: s[k] for k in ("location", "time", "characters", "mood", "lighting",
                                           "shot", "image_prompt")})
-        if "location_asset" in s:
-            merged["location_asset"] = s["location_asset"]
+        for key in ("location_asset", "sequence", "blocking"):
+            if key in s:
+                merged[key] = s[key]
         conn.execute("UPDATE scenes SET data=? WHERE id=?",
                      (json.dumps(merged, ensure_ascii=False), row["id"]))
     conn.commit()
@@ -117,7 +129,7 @@ def lock_character_bible(pipeline: Pipeline, project_id: int) -> int:
     return n
 
 
-SCENE_FIELDS = ("location", "time", "mood", "lighting", "shot", "image_prompt")
+SCENE_FIELDS = ("location", "time", "mood", "lighting", "shot", "image_prompt", "blocking")
 
 
 def update_scene(pipeline: Pipeline, project_id: int, idx: int, fields: Mapping[str, Any],
@@ -147,6 +159,9 @@ def update_scene(pipeline: Pipeline, project_id: int, idx: int, fields: Mapping[
     if "location_asset" in fields:
         _check_location_asset(fields["location_asset"], "scene")
         data["location_asset"] = fields["location_asset"]
+    if "sequence" in fields:
+        _check_sequence(fields["sequence"], "scene")
+        data["sequence"] = fields["sequence"]
     if text is not None:
         data["text"] = text.strip()
     conn.execute("UPDATE scenes SET data=? WHERE id=?", (json.dumps(data, ensure_ascii=False), row["id"]))

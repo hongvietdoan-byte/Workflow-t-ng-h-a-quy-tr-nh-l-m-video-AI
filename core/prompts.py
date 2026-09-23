@@ -9,7 +9,7 @@ from .pipeline import Pipeline
 
 _ROOT = os.path.join(os.path.dirname(__file__), "..")
 _SEP = "\n\n---\n\n"
-_SCENE_KEYS = ("location", "time", "characters", "mood", "lighting", "shot", "image_prompt")
+_SCENE_KEYS = ("location", "time", "characters", "mood", "lighting", "shot", "blocking", "image_prompt")
 
 
 def _read(*parts: str) -> str:

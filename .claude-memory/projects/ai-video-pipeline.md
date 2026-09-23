@@ -124,3 +124,10 @@ Phần lớn việc còn lại trong `TODO.md` (mục "Đang làm/kế tiếp", 
 - `assets.scene_location(conn, pid, scene)`: `location_asset` (id, chỉ nhận kind=location có ảnh) → rồi so tên trong `location`. Director thấy `(id N)` cạnh địa điểm trong `context_text`; validator `_check_location_asset` (null hoặc int dương); `update_scene` nhận `location_asset`; Bước 1 có selectbox key `sd_{pid}_{idx}_bg`.
 - Bài học: lớp test kế thừa lớp test khác sẽ chạy lại cả test của lớp cha → dùng lại helper bằng gán thuộc tính (`picture = MultiPictureTests.picture`) thay vì kế thừa. Test cũ khóa rằng prompt Director không chứa cụm "Tài nguyên có sẵn" khi dự án không có tài nguyên — đừng nhắc cụm này trong file prompt tĩnh.
 - Còn lại của P0: (C) blocking + sequence, ảnh nền chung mỗi nhóm cảnh, gắn nhãn góc ảnh bối cảnh, ảnh mặt/trang phục + bảng nhân vật, QC 3 tiêu chí, báo cáo 5 chỉ số.
+
+## 2026-09-23 — Xong P0 (C) blocking + sequence
+- Scene data có thêm `sequence` (int dương, tùy chọn) và `blocking` (chữ, tùy chọn). `_check_sequence` trong `llm_io`; `SCENE_FIELDS` có `blocking`; `update_scene` nhận `sequence`. `prompts._SCENE_KEYS` có `blocking` → QC và motion (Bước 3) thấy.
+- `ImageRunner` nối `. Blocking: ...` vào prompt ảnh. `runner.previous_frame_job(conn, pid, idx, sequence)`: có sequence → ảnh đã duyệt gần nhất cùng sequence (nhóm mới → None); không có → idx-1 như cũ.
+- UI Bước 1: key `sd_{pid}_{idx}_blocking`, `sd_{pid}_{idx}_seq` (0 = không nhóm → lưu None).
+- Bài học: commit message trong `-m "..."` có dấu backtick bị bash thực thi (mất chữ trong message commit 40e0958) → luôn ghi message ra file rồi `git commit -F`.
+- Còn lại của P0: ảnh nền chung mỗi nhóm cảnh (giờ đã có `sequence` để gắn), gắn nhãn góc ảnh bối cảnh, ảnh mặt/trang phục + bảng nhân vật, QC 3 tiêu chí, báo cáo 5 chỉ số.

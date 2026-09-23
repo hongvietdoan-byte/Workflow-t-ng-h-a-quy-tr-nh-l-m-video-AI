@@ -10,6 +10,7 @@ Memory repo dùng chung cho các phiên Claude Code trên mọi máy của hongv
 
 | Ngày | Tiêu đề | File |
 |---|---|---|
+| 2026-09-23 | Xong P0 (C) blocking + sequence, Storyboard nối theo nhóm; 563 test; commit message dùng -F | projects/ai-video-pipeline.md |
 | 2026-09-23 | Xong P0 (A) giữ chỗ ảnh bối cảnh + (B) bối cảnh theo ID/ô Background Bước 1; 556 test | projects/ai-video-pipeline.md |
 | 2026-09-23 | CHỐT 3 hướng: ảnh+text là chính (làm ngay); Bàn đạo diễn dò lại ở lần dùng API tới; previz 3D nghiên cứu dần | projects/ai-video-pipeline.md |
 | 2026-09-23 | Rà soát nhất quán nhân vật/bối cảnh (mất ảnh bối cảnh khi ≥4 nhân vật); hướng previz 3D từ map FF; kế hoạch P0–P5 | projects/ai-video-pipeline.md |
