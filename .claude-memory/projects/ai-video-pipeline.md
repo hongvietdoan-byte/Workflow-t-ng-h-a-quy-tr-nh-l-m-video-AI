@@ -131,3 +131,8 @@ Phần lớn việc còn lại trong `TODO.md` (mục "Đang làm/kế tiếp", 
 - UI Bước 1: key `sd_{pid}_{idx}_blocking`, `sd_{pid}_{idx}_seq` (0 = không nhóm → lưu None).
 - Bài học: commit message trong `-m "..."` có dấu backtick bị bash thực thi (mất chữ trong message commit 40e0958) → luôn ghi message ra file rồi `git commit -F`.
 - Còn lại của P0: ảnh nền chung mỗi nhóm cảnh (giờ đã có `sequence` để gắn), gắn nhãn góc ảnh bối cảnh, ảnh mặt/trang phục + bảng nhân vật, QC 3 tiêu chí, báo cáo 5 chỉ số.
+
+## 2026-09-23 — Chốt Previz 2D; xong bộ dựng layout `core/layout.py`
+- User không muốn thêm bước duyệt ảnh nền → hướng mới: dựng cảnh bằng lớp ảnh (phân tích ảnh nền → layout từng shot do CODE dựng theo phối cảnh → storyboard + Claude rà liên tục → Deepix gen từ layout). Chạy bằng `claude_cli` trước (qua `llm_runner.ask_json`), API khi chất lượng video đạt. Gọi Claude tối thiểu: 1 lần/ảnh nền (lưu), 1 lần layout cả kịch bản, 1 lần rà storyboard.
+- `core/layout.py`: toạ độ phân số (0..1, y xuống); `camera_height` từ vật mốc: cam_h = h_m*(y_bottom - horizon)/(y_bottom - y_top), lấy trung vị; `person_height(foot_y) = (foot_y - horizon)*1.75/cam_h` (xấp xỉ camera ngang); `on_ground` kéo chân về đa giác mặt đất; vẽ xa trước; ảnh tách nền (có alpha) nếu có, không thì ma-nơ-canh màu (COLORS/COLOR_NAMES, `layout_note` nói màu nào là ai); ảnh gửi Deepix không có chữ, storyboard có chữ.
+- Tiếp theo: prompt phân tích ảnh nền + layout shot + rà storyboard; bảng lưu phân tích; nối Dashboard Bước 1/2; thử thật ~6 ảnh.

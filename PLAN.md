@@ -187,6 +187,8 @@ Bối cảnh: kịch bản thật dài ~60 giây, 3–5 nhân vật, bối cản
 
 **Ưu tiên đã chốt (2026-09-23):** mục 1–4 và 6 dưới đây thuộc **hướng chính (ảnh + text)**, làm ngay. Mục 5 (previz 3D) là **hướng nghiên cứu cho tương lai** (xem `docs/RESEARCH_3D_PREVIZ.md`). Bàn đạo diễn Clip AI là hướng 2, dò lại ở lần dùng API tiếp theo (`docs/CLIPAI_FEATURES.md`). Bổ sung cho hướng chính: ảnh nền chung cho mỗi nhóm cảnh (gen 1 ảnh bối cảnh trống từ ảnh in-game, duyệt 1 lần, mọi shot trong nhóm dùng lại), tự gắn nhãn góc/cỡ cảnh/mốc cho ảnh bối cảnh bằng Claude Vision để chọn đúng ảnh góc theo shot, tách vai trò ảnh tham chiếu mặt/tóc và trang phục + gen bảng nhân vật (trước/nghiêng/sau) khi đổi trang phục.
 
+**Previz 2D — dựng cảnh bằng lớp ảnh trước khi gen (chốt 2026-09-23, thay cho "ảnh nền chung cần người duyệt"):** không thêm bước duyệt nào. (1) *Phân tích ảnh nền* 1 lần/ảnh, lưu lại: Claude Vision đọc góc máy so với mặt đất, đường chân trời, vùng mặt đất đứng được, vật mốc + kích thước thật, hướng sáng. (2) *Layout từng shot*: Claude chọn ảnh nền hợp góc, đặt chân từng người + hướng mặt, đánh dấu "cần vẽ lại nền" khi không có ảnh đúng góc; **code** (`core/layout.py`) tính chiều cao theo phối cảnh (từ đường chân trời + vật mốc), kéo chân về mặt đất, vẽ người xa trước, bóng tiếp xúc; dùng ảnh nhân vật tách nền nếu có, không thì ma-nơ-canh màu. (3) *Storyboard* ghép mọi layout thành 1 tấm (không tốn credit), Claude tự rà lỗi liên tục (trục 180°, hướng di chuyển); người dùng xem nếu muốn, không chặn. (4) *Gen từng cảnh*: Deepix nhận ảnh layout làm tham chiếu chính (giữ bố cục/vị trí/cỡ/góc máy) + ảnh nhân vật/bối cảnh; QC so với layout. (5) Sau này thay nguồn layout bằng render map 3D hoặc Bàn đạo diễn mà không đổi các bước sau. **Chạy bằng `claude_cli` trước** (qua `llm_runner.ask_json`, cùng code với API): mỗi ảnh nền 1 lần (lưu lại), mỗi dự án thêm 1 lần dựng layout + 1 lần rà storyboard; chuyển sang API key khi chất lượng video đạt. Rủi ro chính: Deepix có bám layout không (API không có tham số khoá bố cục); Claude ước lượng chân trời/mặt đất có thể sai với một số ảnh.
+
 **Hướng giải quyết (theo thứ tự):**
 
 1. **Sửa nhanh cách chọn ảnh tham chiếu (A):** luôn giữ 1 chỗ cho bối cảnh (và 1 cho Storyboard); cảnh ≥4 người → 1 ảnh/người.
@@ -390,7 +392,8 @@ Mục tiêu: chứng minh pipeline end-to-end chạy được, đo chất lượ
 | Hướng | Giai đoạn | Việc | Ai | Credit |
 |---|---|---|---|---|
 | 1 — Ảnh + text (chính) | P0 | (A) giữ chỗ ảnh bối cảnh/Storyboard; (B) chọn bối cảnh theo ID + ô chọn ở Bước 1; (C) `blocking` + `sequence`, Storyboard nối theo nhóm; skip 3 test `sound_lib` khi thiếu ffmpeg | Claude | Không |
-| 1 | P0 | Ảnh nền chung mỗi nhóm cảnh; tự gắn nhãn góc ảnh bối cảnh (Claude Vision); ảnh tham chiếu mặt/trang phục + bảng nhân vật khi đổi trang phục; QC 3 tiêu chí (tỉ lệ, chân chạm đất, lệch bối cảnh) | Claude | Không (gắn nhãn cần Claude) |
+| 1 | P0 | **Previz 2D** (thay "ảnh nền chung"): phân tích ảnh nền (góc máy, chân trời, mặt đất, vật mốc) → layout từng shot do code dựng theo phối cảnh → storyboard + Claude rà liên tục → Deepix gen từ layout; chạy bằng `claude_cli` | Claude | Hạn mức `claude_cli`; thử thật ~6 ảnh |
+| 1 | P0 | Ảnh tham chiếu mặt/trang phục + bảng nhân vật khi đổi trang phục; QC 3 tiêu chí (tỉ lệ, chân chạm đất, lệch layout) | Claude | Không |
 | 1 | P0 | Báo cáo "Hiệu quả workflow" 5 chỉ số từ `manifest.sqlite` | Claude | Không |
 | 1 | P1 | Hồ sơ model video + tự đề xuất model từng cảnh; bộ test 3 cảnh × Kling/Seedance | Claude + người dùng | ~$3,5 |
 | 1 | P2 | Chạy lại 1 kịch bản 60 giây, đo 5 chỉ số, so với làm tay | Người dùng | Theo kịch bản |
