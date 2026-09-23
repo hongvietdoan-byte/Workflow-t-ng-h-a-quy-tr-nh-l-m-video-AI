@@ -235,6 +235,40 @@ Nguồn: báo cáo rà soát `docs/DASHBOARD_REVIEW_2026-09-23.md` và kiểm k�
 
 Kết quả test và danh sách lỗi: `docs/V2_TEST_REPORT.md`.
 
+### 3.9 Kế hoạch v3 — tổng hợp mọi đề xuất, chốt việc cần làm (2026-09-23)
+
+Tổng hợp từ: báo cáo rà soát `docs/DASHBOARD_REVIEW_2026-09-23.md`, kế hoạch/kết quả v2 (3.8, `docs/V2_TEST_REPORT.md`), câu trả lời 4 câu hỏi về nhất quán/Director/giọng/storyboard, và phân tích `docs/PHAN_TICH_2026-09-23_NHAT_QUAN_DIRECTOR_LIPSYNC_STORYBOARD.md`. **Nguyên tắc người dùng chốt: tính năng nào API chưa có thì tạm bỏ qua.**
+
+**Bảng đối chiếu tính năng (tra tài liệu skill + API thật, chỉ đọc):**
+
+| Tính năng | API (token) | Dùng trong v3 |
+|---|---|---|
+| Kling 3.0 Omni multi-shot (`multi_shot` + `multi_prompt`, mỗi shot 1 prompt + thời lượng) | Có | **Có** |
+| Seedance khung đầu + **khung cuối** (`first_frame` / `last_frame`), ảnh tham chiếu, video tham chiếu, âm thanh tham chiếu | Có | **Có** (âm thanh tham chiếu: chỉ thử nghiệm) |
+| TTS ElevenLabs (`eleven_v3`, `eleven_multilingual_v2`), danh sách giọng có trường `languages` | Có | **Có** — chỉ 5 giọng ghi hỗ trợ `vi` (4 nam, 1 nữ) |
+| Kling Elements (`element_list` có trong lệnh gen, nhưng **tạo** Element chỉ trên web) | Không đủ | Bỏ qua |
+| Lip Sync, Voice Design / Clone, Director Workspace (3D), Motion Control, Storyboard của Deepix | Không (web; token bị `LoginErr`) | Bỏ qua |
+
+**Vấn đề gốc phải giải (từ bản chạy thử kịch bản Kenta):** 1 cảnh = 1 shot = 1 ảnh = 1 clip → 56 giây chỉ có 3 shot (15/15/26s), trong khi video Free Fire chính thức: phim ngắn "Kenta's Obsession" 75,7s ≈ 43 shot (~1,8s/shot), video kỹ năng Kenta OB55 38,8s ≈ 12 shot (1–5s/shot). Ảnh chỉ là trạng thái đầu của một cảnh dài nên nhân vật/vị trí trôi; prompt ảnh và prompt video viết ở hai lúc; Kling chỉ nhận khung đầu.
+
+**Việc cần làm — theo thứ tự:**
+
+| GĐ | Việc | Chi tiết | Credit |
+|---|---|---|---|
+| **C** (làm trước, ngắn) | **Director hiểu Free Fire** | Công cụ phân tích video tham khảo (cắt shot + Claude gắn nhãn cỡ cảnh/góc/chuyển động/vai trò; đã thử được ngay trong trình duyệt với kênh [Garena Free Fire VN](https://www.youtube.com/@GarenaFreeFireVN/videos)); bộ 10–20 video: phim ngắn CGI (Kenta's Obsession, Eclipse Rises, Free Fire x Gintama, Pitch Party, Thánh Nữ Tái Sinh), tiểu phẩm **Kelly Show**, video kỹ năng (Kenta Rework OB55), VFX; ra `knowledge/ff_directing.md` + 3 khuôn mẫu: **video kỹ năng**, **tiểu phẩm hài**, **phim ngắn CGI**; thêm cỡ cảnh "camera game" (góc thứ ba sau lưng) và lựa chọn "look" dự án (trong game / anime CGI / CGI thực) | Không (chỉ hạn mức Claude) |
+| **A** (lớn nhất) | **Phân shot + "hợp đồng shot"** | Director chia mỗi cảnh thành shot 1,5–6s theo khuôn mẫu thể loại; mỗi shot một bản ghi: cỡ cảnh, góc, chuyển động máy, thời lượng, vai trò (hook/hành động/phản ứng/chèn/thoại/chuyển), khung đầu, khung cuối (nếu đổi trạng thái), 1 hành động chính, người nói + câu thoại, tài nguyên + vai trò (@Hình), điều QC phải kiểm. Kiểm tra nhịp + đa dạng cỡ cảnh + trục 180° + shot/đáp cho thoại. Đơn vị của ảnh, motion, video, giọng, phụ đề, "⚠ cũ", timeline chuyển từ **cảnh** sang **shot**; Bước 1 thành bảng storyboard theo shot | Không |
+| **B** | **Nhất quán ảnh ↔ prompt ↔ video** | Prompt ảnh và prompt video cùng sinh từ hợp đồng shot; một bảng nhãn tài nguyên dùng chung cho Deepix và Seedance; ảnh khung cuối + Seedance `last_frame` cho shot đổi trạng thái; shot liền mạch cùng nhóm: khung cuối shot trước làm khung đầu shot sau; **cùng model trong một nhóm cảnh**; nhóm cảnh nhiều shot ngắn dùng **Kling multi-shot** (1 lần gọi, tránh thời lượng tối thiểu 3–4s mỗi clip); shot cận/trung của nhân vật chính ưu tiên Seedance (có ảnh tham chiếu nhân vật); QC đồng bộ cả bộ clip; cân màu khi dựng | Không (code); thử thật ở F |
+| **D** | **Giọng tiếng Việt (chỉ API)** | Chỉ đề xuất giọng có `vi`; cảnh báo khi số nhân vật nữ > số giọng nữ; so `eleven_v3` với `eleven_multilingual_v2`; bảng cách đọc từ game (loot, skill, Booyah, tên nhân vật); nút nghe thử câu mẫu tiếng Việt | Rất ít (vài câu TTS) |
+| **E1** | **Storyboard theo shot** | Ảnh khung đầu từng shot (Deepix, rẻ) chính là storyboard để duyệt trước khi gen video; previz 2D chạy theo từng shot (cỡ người theo cỡ cảnh); Claude tự gắn nhãn góc/cỡ cho ảnh bối cảnh trong kho | Ảnh Deepix |
+| **F** | **Kiểm chứng thật** (cần duyệt ngân sách) | 1 dự án 2–3 cảnh (~10–15 shot) ở Đảo Quân Sự: Deepix 9:16, Kling multi-shot + Seedance khung đầu/cuối, TTS tiếng Việt; đo giá thật, nghe giọng, so với bản 3 shot; chạy chế độ tự động qua giao diện; hiệu chỉnh ngưỡng QC | Có |
+| E2 (nghiên cứu dần) | Storyboard 3D kiểu Blender (khung camera trong không gian 3D, nhiều lớp) | Vì Director Workspace của ClipAI chỉ có trên web: nghiên cứu Blender chạy nền (bpy) — cần mô hình 3D map/nhân vật; làm sau khi A–F ổn (`docs/RESEARCH_3D_PREVIZ.md`) | — |
+
+**Chi phí khi chuyển sang nhiều shot:** giá tính theo giây nên tổng giây gần như không đổi; phần phát sinh là shot ngắn hơn thời lượng tối thiểu (Kling 3s, Seedance 4s) phải gen dài rồi cắt → dùng Kling multi-shot cho nhóm shot ngắn để tránh.
+
+**Bỏ qua cho tới khi API có:** Lip Sync, Kling Elements, Voice Design/Clone, Director Workspace, Motion Control, Storyboard Deepix. Ghi nhận để hỏi team ClipAI mở API.
+
+**Cần người dùng chốt trước khi code:** (1) mặc định gen từng shot riêng hay Kling multi-shot theo nhóm cảnh; (2) "look" mặc định cho video Free Fire; (3) nhịp mục tiêu cho video ngắn (đề xuất 2–3s/shot); (4) ngân sách credit cho GĐ F; (5) đồng ý dùng video kênh chính thức làm tư liệu phân tích (chỉ phân tích nội bộ, không dùng lại hình).
+
 ## 4. Rủi ro & mitigation tổng hợp
 
 | Rủi ro | Mitigation |
@@ -254,6 +288,8 @@ Kết quả test và danh sách lỗi: `docs/V2_TEST_REPORT.md`.
 - Triển khai 2 giai đoạn: **V0** (thử nghiệm qua Claude Desktop + MCP, phương án B) rồi **V1** (Dashboard hợp nhất + Anthropic API) — xem Mục 7 (2026-09-19)
 - Kiến trúc core dùng chung + MCP vỏ mỏng + LLM runner hoán đổi được — xem 3.3
 - Không train/fine-tune model; dùng Knowledge Base + eval set — xem 3.6
+- **Chỉ dùng tính năng có trong API**; tính năng chỉ có trên web ClipAI/Deepix (Lip Sync, Kling Elements, Voice Design/Clone, Director Workspace, Motion Control, Storyboard Deepix) tạm bỏ qua — xem 3.9 (2026-09-23)
+- Đơn vị sản xuất chuyển từ **cảnh** sang **shot** (phân shot + hợp đồng shot), Director học ngữ pháp dựng Free Fire từ video kênh chính thức — xem 3.9 (2026-09-23, chờ chốt 5 điểm cuối 3.9)
 
 **Đã chốt cho V0 (2026-09-19):**
 - `operating_mode` mặc định V0 = **`human_qc`** (mọi ảnh chờ người duyệt; an toàn credit khi chưa có dữ liệu QC). Chuyển `auto` sau khi dry-run cho thấy % đồng thuận QC Agent–người đủ cao.
@@ -283,7 +319,7 @@ Kết quả test và danh sách lỗi: `docs/V2_TEST_REPORT.md`.
 
 | Quyết định | Ghi chú |
 |---|---|
-| API Clip AI có cho dùng Bàn đạo diễn không | Hướng 2 — kiểm tra ở lần dùng API tiếp theo; hỏi team Clip AI gói skill mới hơn 1.3.1 |
+| ~~API Clip AI có cho dùng Bàn đạo diễn không~~ | **Đã kiểm (2026-09-23): không** — Director Workspace chỉ có trên web (token bị `LoginErr`) → bỏ qua theo 3.9; hỏi team Clip AI mở API |
 | Deepix có bám ảnh layout từ 3D không | Hướng 3 (nghiên cứu) — cổng quyết định trước khi đầu tư previz 3D |
 | Nguồn map 3D / model 3D nhân vật FF | Hướng 3 — map fan chỉ để thử nội bộ; bản phát hành cần asset chính thức |
 
