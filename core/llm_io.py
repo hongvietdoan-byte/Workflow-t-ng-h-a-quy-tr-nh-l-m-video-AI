@@ -42,10 +42,19 @@ def validate_scene_analysis(data: Any) -> Dict:
         _req(s, "idx", int, w)
         for key in ("location", "time", "mood", "lighting", "shot", "image_prompt"):
             _req(s, key, str, w)
+        _check_location_asset(s.get("location_asset"), w)
         for name in _req(s, "characters", list, w):
             if name not in names:
                 raise SchemaError(f"{w}.characters: '{name}' not in Character Bible")
     return obj
+
+
+def _check_location_asset(value: Any, where: str) -> None:
+    """`location_asset` is optional: null, or the id (a positive whole number) of a place in the resource library."""
+    if value is None:
+        return
+    if not isinstance(value, int) or isinstance(value, bool) or value <= 0:
+        raise SchemaError(f"{where}.location_asset: must be null or a resource id (positive whole number)")
 
 
 def validate_qc_result(data: Any, required_criteria: List[str]) -> Dict:
@@ -90,6 +99,8 @@ def store_scene_analysis(pipeline: Pipeline, project_id: int, data: Any) -> Dict
         merged = json.loads(row["data"] or "{}")
         merged.update({k: s[k] for k in ("location", "time", "characters", "mood", "lighting",
                                           "shot", "image_prompt")})
+        if "location_asset" in s:
+            merged["location_asset"] = s["location_asset"]
         conn.execute("UPDATE scenes SET data=? WHERE id=?",
                      (json.dumps(merged, ensure_ascii=False), row["id"]))
     conn.commit()
@@ -133,6 +144,9 @@ def update_scene(pipeline: Pipeline, project_id: int, idx: int, fields: Mapping[
         if unknown:
             raise SchemaError(f"characters: {', '.join(unknown)} not in Character Bible")
         data["characters"] = cast
+    if "location_asset" in fields:
+        _check_location_asset(fields["location_asset"], "scene")
+        data["location_asset"] = fields["location_asset"]
     if text is not None:
         data["text"] = text.strip()
     conn.execute("UPDATE scenes SET data=? WHERE id=?", (json.dumps(data, ensure_ascii=False), row["id"]))

@@ -1623,6 +1623,19 @@ def scene_editor(p: Pipeline, pid: int, scene, char_names) -> None:
     lighting = c5.text_input("Ánh sáng", d.get("lighting", ""), key=f"{k}_lighting")
     cast = st.multiselect("Nhân vật trong cảnh", char_names, [c for c in d.get("characters") or [] if c in char_names],
                           key=f"{k}_cast")
+    places = {a["id"]: a for a in assets.project_assets(p.conn, pid) if a["kind"] == "location" and a["images"]}
+    current = d.get("location_asset")
+    if isinstance(current, int) and current not in places:
+        extra = assets.get(p.conn, current)
+        if extra is not None and extra["images"]:
+            places[current] = extra
+    options = [None] + list(places)
+    by_name = assets.scene_location(p.conn, pid, dict(d, location_asset=None))
+    auto_label = f"Tự động theo tên địa điểm ({by_name['name']})" if by_name else "Tự động theo tên địa điểm (chưa khớp bối cảnh nào)"
+    bg = st.selectbox("🏞 Background (ảnh in-game gửi kèm khi gen ảnh)", options,
+                      index=options.index(current) if current in options else 0, key=f"{k}_bg",
+                      format_func=lambda i: auto_label if i is None else places[i]["name"],
+                      help="Chọn bối cảnh trong Kho tài nguyên của dự án. Để tự động thì dùng bối cảnh có tên nằm trong ô Địa điểm.")
     image_prompt = st.text_area("Prompt ảnh", d.get("image_prompt", ""), key=f"{k}_prompt", height=80)
     st.caption("Ảnh đã gen giữ nguyên; chỉ ảnh gen sau khi sửa mới theo nội dung mới.")
     if confirm_all(f"scene_del_{pid}_{idx}", [idx], "🗑 Xóa cảnh này", f"Xóa cảnh {idx}?", st, "Có, xóa cảnh"):
@@ -1630,7 +1643,7 @@ def scene_editor(p: Pipeline, pid: int, scene, char_names) -> None:
             st.rerun()
     if st.button("💾 Lưu cảnh", key=f"sds_{pid}_{idx}"):
         fields = {"location": location, "time": time_, "shot": shot, "mood": mood, "lighting": lighting,
-                  "image_prompt": image_prompt}
+                  "image_prompt": image_prompt, "location_asset": bg}
         if char_names:
             fields["characters"] = cast
         if act(lambda: llm_io.update_scene(p, pid, idx, fields, text=text), f"Đã lưu cảnh {idx}"):

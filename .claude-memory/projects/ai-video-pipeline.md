@@ -118,3 +118,9 @@ Phần lớn việc còn lại trong `TODO.md` (mục "Đang làm/kế tiếp", 
 3. **Previz 3D (Deepix + Blender + Meshy + Clip AI) — nghiên cứu dần** ở `docs/RESEARCH_3D_PREVIZ.md`, không chặn hướng 1.
 **Áp dụng**: phiên sau bắt đầu từ P0 của hướng 1; khi chạm API Clip AI thì làm checklist hướng 2 trước. Không đề xuất lại Blender/map/Meshy như việc gấp.
 **Source**: user chốt trực tiếp trong chat.
+
+## 2026-09-23 — Xong P0 (A) + (B)
+- `assets.scene_references(..., reserve=0)`: bối cảnh luôn có chỗ; mỗi người 1 ảnh trước, ảnh góc thứ 2 cho người đứng trước khi còn chỗ; Storyboard gọi với `reserve=1`.
+- `assets.scene_location(conn, pid, scene)`: `location_asset` (id, chỉ nhận kind=location có ảnh) → rồi so tên trong `location`. Director thấy `(id N)` cạnh địa điểm trong `context_text`; validator `_check_location_asset` (null hoặc int dương); `update_scene` nhận `location_asset`; Bước 1 có selectbox key `sd_{pid}_{idx}_bg`.
+- Bài học: lớp test kế thừa lớp test khác sẽ chạy lại cả test của lớp cha → dùng lại helper bằng gán thuộc tính (`picture = MultiPictureTests.picture`) thay vì kế thừa. Test cũ khóa rằng prompt Director không chứa cụm "Tài nguyên có sẵn" khi dự án không có tài nguyên — đừng nhắc cụm này trong file prompt tĩnh.
+- Còn lại của P0: (C) blocking + sequence, ảnh nền chung mỗi nhóm cảnh, gắn nhãn góc ảnh bối cảnh, ảnh mặt/trang phục + bảng nhân vật, QC 3 tiêu chí, báo cáo 5 chỉ số.

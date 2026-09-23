@@ -224,8 +224,9 @@ class ImageRunner(_Runner):
             return None
         if job["retry_reason"]:
             prompt = f"{prompt}. Fix: {job['retry_reason']}"
-        refs = assets.scene_references(conn, job["project_id"], json.loads(scene["data"] or "{}"))
         proj = self.p.project(job["project_id"])
+        refs = assets.scene_references(conn, job["project_id"], json.loads(scene["data"] or "{}"),
+                                       reserve=1 if proj["storyboard_mode"] else 0)   # the previous frame keeps its slot
         if proj["storyboard_mode"] and len(refs) < assets.MAX_REFERENCES:
             # Deepix has no scriptable Storyboard (web UI only, see docs/CLIPAI_FEATURES.md) — this chains the
             # previous scene's approved picture in as an extra image-to-image reference instead, so style/lighting

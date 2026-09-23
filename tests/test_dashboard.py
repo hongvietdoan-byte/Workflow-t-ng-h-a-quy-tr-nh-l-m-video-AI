@@ -375,6 +375,28 @@ class DashboardSmokeTests(unittest.TestCase):
         data = json.loads(Pipeline(connect(self.db)).conn.execute("SELECT data FROM scenes").fetchone()["data"])
         self.assertEqual((data["image_prompt"], data["text"]), ("dark forest, low fog", "CẢNH 1. Nội dung sửa"))
 
+    def test_a_scene_background_is_chosen_from_the_project_places_and_saved_by_id(self):
+        import io
+        import json
+        from PIL import Image
+        from core import assets
+        os.environ["ASSET_DIR"] = os.path.join(self.tmp, "assets")
+        self.addCleanup(os.environ.pop, "ASSET_DIR", None)
+        p, pid = self.seed()
+        buf = io.BytesIO()
+        Image.new("RGB", (64, 36), (10, 90, 40)).save(buf, "PNG")
+        loc = assets.create(p.conn, "FF", "location", "Đảo Quân Sự", "", "", None, "x")
+        assets.add_image(p.conn, loc, "wide.png", buf.getvalue())
+        assets.attach(p.conn, pid, loc)
+        at = AppTest.from_file(APP, default_timeout=30).run()
+        box = at.selectbox(key=f"sd_{pid}_1_bg")
+        self.assertIsNone(box.value)                                                  # automatic by default
+        box.set_value(loc).run()
+        next(b for b in at.button if b.key == f"sds_{pid}_1").click().run()
+        self.assertFalse(at.exception)
+        data = json.loads(Pipeline(connect(self.db)).conn.execute("SELECT data FROM scenes").fetchone()["data"])
+        self.assertEqual(data["location_asset"], loc)
+
     def test_subject_library_panel_defaults_to_free_fire_and_links_a_character(self):
         from core import subjects
         p, pid = self.seed()

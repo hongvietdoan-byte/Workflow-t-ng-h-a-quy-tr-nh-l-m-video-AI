@@ -11,6 +11,9 @@ from core import audio_lib, autopilot, llm_runner, music, sound_lib
 from core.db import connect
 from core.sound_lib import SoundError
 from tests.test_autopilot import Setup
+from tests.test_keep_audio import ffmpeg_available
+
+NEEDS_FFMPEG = unittest.skipUnless(ffmpeg_available(), "ffmpeg not installed (lengths are measured with ffmpeg)")
 
 
 def wav(path, seconds=1.0, rate=8000):
@@ -136,6 +139,7 @@ class ChoosingTests(Base):
         self.assertTrue(anything and all(r["kind"] == "music" for r in anything))       # no mood match: still offers music
         self.assertEqual(sound_lib.suggest_music(self.conn, ["vui"], seed=0)[0]["name"], "Sunny Day")
 
+    @NEEDS_FFMPEG
     def test_the_length_is_measured_once_and_a_long_enough_track_is_preferred(self):
         short = wav(os.path.join(self.dir, "lib", "nhạc nền kịch tính", "Short.wav"), 1.0)
         longer = wav(os.path.join(self.dir, "lib", "nhạc nền kịch tính", "Longer.wav"), 4.0)
@@ -389,6 +393,7 @@ class ListeningTests(Base):
         self.assertIn("năng lượng cao", sound_lib.tags_from("music", 90, -10, -1))
         self.assertIn("nhẹ nhàng", sound_lib.tags_from("music", 90, -30, -12))
 
+    @NEEDS_FFMPEG
     def test_analyze_measures_each_file_once_and_fills_length_and_tags(self):
         wav(os.path.join(self.src, "Loose", "Blip.wav"), 0.3)
         wav(os.path.join(self.src, "Loose", "Rumble.wav"), 4.0)
@@ -409,6 +414,7 @@ class ListeningTests(Base):
         self.assertEqual(sound_lib.analyze(self.conn)["failed"], 1)
         self.assertEqual(sound_lib.analyze(self.conn)["failed"], 0)
 
+    @NEEDS_FFMPEG
     def test_the_ai_sees_the_tags_and_length_of_each_effect(self):
         from core import sfx_plan
         wav(os.path.join(self.src, "Loose", "Blip.wav"), 0.3)

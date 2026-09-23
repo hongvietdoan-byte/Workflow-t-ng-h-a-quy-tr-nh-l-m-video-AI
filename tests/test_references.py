@@ -215,6 +215,85 @@ class MultiPictureTests(unittest.TestCase):
         self.assertEqual([img["id"] for img in linked["Kelly"]["refs"]], [img_ids[0], img_ids[2]])
 
 
+class CrowdedSceneTests(unittest.TestCase):
+    """A crowded scene (4-5 people) must keep its background picture, and a scene can name its place by resource id."""
+
+    CAST = ["Kelly", "Alok", "Chrono", "Kenta", "Skyler"]
+
+    picture = MultiPictureTests.picture
+    tearDown = MultiPictureTests.tearDown
+
+    def setUp(self):
+        MultiPictureTests.setUp(self)
+        seed = 10
+        for name in self.CAST:
+            a = assets.create(self.conn, "FF", "character", name.upper(), "", "", None, "x")
+            for _ in range(2):
+                seed += 1
+                assets.add_image(self.conn, a, f"{name}{seed}.png", self.picture(550, 800, seed))
+            assets.attach(self.conn, self.pid, a)
+            self.conn.execute("INSERT INTO characters (project_id, name, description) VALUES (?,?,?)", (self.pid, name, "d"))
+        self.loc = assets.create(self.conn, "FF", "location", "Đảo Quân Sự", "", "", None, "x")
+        assets.add_image(self.conn, self.loc, "wide.png", self.picture(1920, 1080, 99))
+        assets.attach(self.conn, self.pid, self.loc)
+        self.conn.commit()
+
+    def labels(self, refs):
+        return [(r["label"], r["role"]) for r in refs]
+
+    def test_up_to_three_people_keep_two_pictures_each_and_the_place(self):
+        refs = assets.scene_references(self.conn, self.pid, {"characters": self.CAST[:3], "location": "Đảo Quân Sự, bãi cát"})
+        self.assertEqual(len(refs), 7)
+        self.assertEqual(refs[-1]["role"], "location")
+
+    def test_four_people_share_the_slots_and_keep_the_place(self):
+        refs = assets.scene_references(self.conn, self.pid, {"characters": self.CAST[:4], "location": "Đảo Quân Sự"})
+        self.assertEqual(len(refs), assets.MAX_REFERENCES)                   # no slot left empty
+        self.assertEqual(self.labels(refs), [("KELLY", "character")] * 2 + [("ALOK", "character")] * 2 + [("CHRONO", "character")] * 2
+                         + [("KENTA", "character"), ("Đảo Quân Sự", "location")])  # the 2nd angle goes to those listed first
+
+    def test_five_people_each_get_a_picture_and_the_place_is_still_there(self):
+        refs = assets.scene_references(self.conn, self.pid, {"characters": self.CAST, "location": "Đảo Quân Sự"})
+        self.assertEqual({r["label"] for r in refs if r["role"] == "character"}, {n.upper() for n in self.CAST})
+        self.assertIn(("Đảo Quân Sự", "location"), self.labels(refs))
+
+    def test_a_reserved_slot_stays_free_and_the_place_still_fits(self):
+        refs = assets.scene_references(self.conn, self.pid, {"characters": self.CAST[:4], "location": "Đảo Quân Sự"}, reserve=1)
+        self.assertLessEqual(len(refs), assets.MAX_REFERENCES - 1)
+        self.assertIn(("Đảo Quân Sự", "location"), self.labels(refs))
+
+    def test_the_place_is_found_by_id_even_when_the_text_names_it_differently(self):
+        scene = {"characters": ["Kelly"], "location": "abandoned military base at dusk"}
+        self.assertNotIn("location", [r["role"] for r in assets.scene_references(self.conn, self.pid, scene)])
+        refs = assets.scene_references(self.conn, self.pid, dict(scene, location_asset=self.loc))
+        self.assertEqual(refs[-1]["label"], "Đảo Quân Sự")
+        kelly = assets.list_assets(self.conn, "FF", "character", None, shared_only=True)[0]["id"]
+        wrong = assets.scene_references(self.conn, self.pid, dict(scene, location_asset=kelly))   # an id that is not a place
+        self.assertNotIn("location", [r["role"] for r in wrong])
+
+    def test_a_scene_that_names_no_place_sends_only_people(self):
+        refs = assets.scene_references(self.conn, self.pid, {"characters": ["Kelly", "Alok"]})
+        self.assertEqual({r["role"] for r in refs}, {"character"})
+        self.assertEqual(len(refs), 4)
+
+    def test_the_director_sees_the_place_id_and_its_answer_is_checked_and_stored(self):
+        self.assertIn(f"**Đảo Quân Sự** (id {self.loc})", assets.context_text(self.conn, self.pid))
+        from core import llm_io
+        sid = self.p.create_scene(self.pid, 1, "s")
+        base = {"characters": [{"name": "Kelly", "description": "d"}],
+                "scenes": [{"idx": 1, "location": "beach", "time": "day", "characters": ["Kelly"], "mood": "m",
+                            "lighting": "l", "shot": "s", "image_prompt": "p", "location_asset": self.loc}]}
+        llm_io.store_scene_analysis(self.p, self.pid, base)
+        data = json.loads(self.conn.execute("SELECT data FROM scenes WHERE id=?", (sid,)).fetchone()["data"])
+        self.assertEqual(data["location_asset"], self.loc)
+        base["scenes"][0]["location_asset"] = "Đảo Quân Sự"
+        with self.assertRaises(llm_io.SchemaError):
+            llm_io.validate_scene_analysis(base)
+        llm_io.update_scene(self.p, self.pid, 1, {"location_asset": None})
+        data = json.loads(self.conn.execute("SELECT data FROM scenes WHERE id=?", (sid,)).fetchone()["data"])
+        self.assertIsNone(data["location_asset"])
+
+
 class ChoiceTests(ReferenceTests):
     """The person can change which asset / which picture is a character's reference; the choice wins over the automatic match."""
 

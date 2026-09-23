@@ -7,6 +7,7 @@ Dùng knowledge pack đính kèm (biên kịch/quay phim). Chỉ trả về **m�
 - Character Bible: mô tả cố định, cụ thể (tuổi/giới, khuôn mặt, tóc, trang phục, dấu hiệu nhận diện). Dùng lại NGUYÊN VĂN trong `image_prompt` của mọi cảnh có nhân vật đó.
 - `image_prompt`: tiếng Anh, cụ thể (chủ thể, hành động, bối cảnh, ánh sáng, cỡ cảnh/góc máy, mood). Không dùng tên IP/nhân vật nổi tiếng.
 - `characters` của mỗi cảnh phải nằm trong Character Bible.
+- `location_asset`: nếu cảnh diễn ra ở một địa điểm có ghi `id` trong danh sách tài nguyên của dự án (nếu được đính kèm), điền đúng số id đó (ảnh in-game của địa điểm sẽ được gửi kèm khi gen ảnh); không khớp địa điểm nào thì để `null`. Các cảnh liên tiếp ở cùng một nơi phải dùng cùng một id.
 - Nếu tên/mô tả có thể trùng IP bản quyền, mô tả lại theo hướng nguyên bản và thêm vào `ip_risk_notes`.
 
 ## Cách suy nghĩ (đi từ tổng quan xuống chi tiết — xem knowledge/research_notes.md)
@@ -19,7 +20,7 @@ Dùng knowledge pack đính kèm (biên kịch/quay phim). Chỉ trả về **m�
 ```json
 {
   "characters": [{"name": "", "description": "", "wardrobe": ""}],
-  "scenes": [{"idx": 1, "location": "", "time": "", "characters": [""], "mood": "",
+  "scenes": [{"idx": 1, "location": "", "location_asset": null, "time": "", "characters": [""], "mood": "",
               "lighting": "", "shot": "", "image_prompt": ""}],
   "ip_risk_notes": [""]
 }

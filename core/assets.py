@@ -433,26 +433,50 @@ def set_character_link(conn, project_id: int, name: str, asset_id: Optional[int]
     conn.commit()
 
 
-def scene_references(conn, project_id: int, scene: Dict, limit: int = MAX_REFERENCES) -> List[Dict]:
-    """Reference pictures for one scene: the reference picture(s) of each character in the scene, then of a chosen place that the
-    scene's location names. [{path, label, role}]"""
+def scene_location(conn, project_id: int, scene: Dict) -> Optional[Dict]:
+    """The place a scene is set in: the resource the scene names by id (`location_asset`, chosen by the Director or by hand), else a
+    chosen place whose name appears in the scene's `location` text. None when neither has a picture."""
+    lid = scene.get("location_asset")
+    if isinstance(lid, int) and not isinstance(lid, bool) and lid > 0:
+        a = get(conn, lid)
+        if a is not None and a["kind"] == "location" and a["images"]:
+            return a
+    place = fold(str(scene.get("location") or ""))
+    if place:
+        for a in project_assets(conn, project_id):
+            if a["kind"] == "location" and a["images"] and fold(a["name"]) and fold(a["name"]) in place:
+                return a
+    return None
+
+
+def scene_references(conn, project_id: int, scene: Dict, limit: int = MAX_REFERENCES, reserve: int = 0) -> List[Dict]:
+    """Reference pictures for one scene: the reference picture(s) of each character in the scene, then its place, then any other
+    chosen resource the scene names. [{path, label, role}]
+    The place always keeps its slot (a crowded scene used to fill every slot with faces and lose the background), and `reserve`
+    slots are left free for the caller (e.g. the previous storyboard frame). Every person gets 1 picture first, then a 2nd angle
+    goes to the people listed first while slots remain; when even 1 each does not fit, the people listed first win."""
     chosen = project_assets(conn, project_id)
     refs: List[Dict] = []
     names = [str(n) for n in scene.get("characters") or []]
     linked = link_characters(conn, project_id, names) if names else {}
+    people, seen = [], set()
     for name in names:
         a = linked.get(name)
-        if not a or any(r["label"] == a["name"] for r in refs):
-            continue
-        for img in a["refs"]:
-            if len(refs) >= limit:
-                break
-            refs.append({"path": img["path"], "label": a["name"], "role": "character"})
-    place = fold(str(scene.get("location") or ""))
-    if place:
-        for a in chosen:
-            if a["kind"] == "location" and a["images"] and fold(a["name"]) and fold(a["name"]) in place and len(refs) < limit:
-                refs.append({"path": best_reference(a)["path"], "label": a["name"], "role": "location"})
+        if a and a["name"] not in seen:
+            seen.add(a["name"])
+            people.append(a)
+    loc = scene_location(conn, project_id, scene)
+    room = max(limit - reserve - (1 if loc else 0), 0)
+    counts = [0] * len(people)                     # 1 picture each first, then a 2nd angle for the people listed first while room lasts
+    for n in range(1, MAX_REFS_PER_CHARACTER + 1):
+        for i, a in enumerate(people):
+            if sum(counts) < room and len(a["refs"]) >= n:
+                counts[i] = n
+    for a, k in zip(people, counts):               # grouped per person, so the note reads "Images 1/2 show KELLY"
+        refs += [{"path": img["path"], "label": a["name"], "role": "character"} for img in a["refs"][:k]]
+    if loc and len(refs) < limit - reserve:
+        refs.append({"path": best_reference(loc)["path"], "label": loc["name"], "role": "location"})
+    limit = limit - reserve
     # every other chosen resource (weapon, prop, pet, place) that the scene names is a reference too
     blob = " " + fold(" ".join(str(scene.get(k) or "") for k in ("text", "image_prompt", "location"))) + " "
     cast = {fold(n) for n in names}
@@ -544,11 +568,14 @@ def context_text(conn, project_id: int) -> str:
         also = f" (tên khác: {a['aliases']})" if a["aliases"].strip() else ""
         pics = f" — có {len(a['images'])} ảnh tham khảo" if a["images"] else ""
         desc = f": {a['description']}" if a["description"] else ""
-        lines.append(f"- [{a['kind_label']}] **{a['name']}**{also}{desc}{pics}")
+        ident = f" (id {a['id']})" if a["kind"] == "location" and a["images"] else ""
+        lines.append(f"- [{a['kind_label']}] **{a['name']}**{ident}{also}{desc}{pics}")
     news = _news_for(conn, items)
     return ("# Tài nguyên có sẵn cho dự án này (BẮT BUỘC dùng)\n" + "\n".join(lines) + news +
             "\nDùng đúng tên và thiết kế ở trên cho Character Bible và các cảnh; không tự bịa lại ngoại hình của những mục này. "
-            "Chỉ thêm nhân vật/đạo cụ mới khi kịch bản cần mà danh sách không có.")
+            "Chỉ thêm nhân vật/đạo cụ mới khi kịch bản cần mà danh sách không có. "
+            "Cảnh diễn ra ở một địa điểm có `id` ở trên thì ghi đúng số đó vào `location_asset` của cảnh (ảnh địa điểm sẽ được "
+            "gửi kèm khi gen ảnh); không có địa điểm nào khớp thì để `location_asset` là null.")
 
 
 # ---- keeping the library in step with a folder ---------------------------------------------------------------------
