@@ -180,3 +180,21 @@ def status(conn, project_id: int, data_dir: str) -> Dict:
 
 def exists_file(data_dir: str, project_id: int, entry: Dict) -> bool:
     return bool(entry.get("file")) and os.path.exists(os.path.join(audio_lib.assets_dir(data_dir, project_id), entry["file"]))
+
+
+def timeline_extras(conn, project_id: int, data_dir: str, scene_seconds_list) -> List[Dict]:
+    """Voice lines laid on a timeline made of [(scene_id, seconds), ...] (e.g. the animatic), as mix extras — without changing the
+    saved placement of the final render."""
+    directory = audio_lib.assets_dir(data_dir, project_id)
+    items = [e for _, e in _line_items(directory) if e["state"] == "succeeded" and e.get("file")]
+    out, t, prev_end = [], 0.0, -1.0
+    for sid, seconds in scene_seconds_list:
+        cursor = max(t + LEAD, prev_end + GAP)
+        for e in sorted([e for e in items if e.get("scene_id") == sid], key=lambda e: e.get("line") or 0):
+            path = os.path.join(directory, e["file"])
+            if os.path.exists(path):
+                out.append({"path": path, "start": round(cursor, 2), "volume": 1.0})
+            cursor += (e.get("duration_ms") or 0) / 1000.0 + GAP
+            prev_end = cursor - GAP
+        t += seconds
+    return out

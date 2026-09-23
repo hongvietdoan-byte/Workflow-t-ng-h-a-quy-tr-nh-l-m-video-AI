@@ -295,3 +295,39 @@ def deliver(p: Pipeline, project_id: int, data_dir: str, llm=None, music_path: O
             warnings.append(f"xuất {spec.get('w')}x{spec.get('h')}: {e}")
             diag.record(p.conn, "render", "warn", f"xuất bản {spec} thất bại: {e}", "export", project_id)
     return {"final": final_path, "layers": layers, "warnings": warnings}
+
+
+# ---- animatic: the film's rhythm before any video credit ------------------------------------------------------------------
+def animatic(p: Pipeline, project_id: int, data_dir: str, with_music: bool = True) -> Dict:
+    """Approved pictures held for each scene's planned length, with the voiced lines and the chosen music: judge the pacing and the
+    dialogue timing before paying for video. Returns {"path", "seconds", "scenes"}."""
+    import tempfile
+    aspect = formats.project_aspect(p.project(project_id))
+    size = formats.spec(aspect)["render"] if aspect else (1920, 1080)
+    rows = p.conn.execute(
+        "SELECT s.id, s.idx, s.data, m.duration_sec, (SELECT j.id FROM jobs j WHERE j.scene_id=s.id AND j.type='image_gen'"
+        " AND j.state='approved' ORDER BY j.id DESC LIMIT 1) AS jid FROM scenes s LEFT JOIN motion_prompts m ON m.scene_id=s.id"
+        " WHERE s.project_id=? ORDER BY s.idx", (project_id,)).fetchall()
+    scenes = [r for r in rows if r["jid"] and os.path.exists(os.path.join(data_dir, str(project_id), "images", f"job_{r['jid']}.png"))]
+    if not scenes:
+        raise ValueError("chưa có ảnh đã duyệt nào để dựng animatic")
+    ffmpeg = ffmpeg_studio.find_ffmpeg()
+    work = tempfile.mkdtemp(prefix="animatic_")
+    stills, durations = [], []
+    for r in scenes:
+        secs = float(r["duration_sec"] or json.loads(r["data"] or "{}").get("duration_s") or 5)
+        img = os.path.join(data_dir, str(project_id), "images", f"job_{r['jid']}.png")
+        clip = os.path.join(work, f"{r['idx']:02d}.mp4")
+        ffmpeg_studio.run([ffmpeg, "-y", "-loop", "1", "-t", f"{secs:.2f}", "-i", img, "-vf", ffmpeg_studio._fit(size),
+                           "-c:v", "libx264", "-pix_fmt", "yuv420p", "-r", "24", "-an", clip])
+        stills.append(clip)
+        durations.append(secs)
+    extras = voice.timeline_extras(p.conn, project_id, data_dir, [(r["id"], d) for r, d in zip(scenes, durations)])
+    track = selected_music(data_dir, project_id) if with_music else None
+    out = os.path.join(output_dir(data_dir, project_id), "ANIMATIC.mp4")
+    try:
+        ffmpeg_studio.render_final(stills, out, durations, "cut", 1.0, track, 0.5, extras, False, size)
+    finally:
+        import shutil
+        shutil.rmtree(work, ignore_errors=True)
+    return {"path": out, "seconds": sum(durations), "scenes": len(scenes)}
