@@ -45,38 +45,42 @@ def autopilot_progress(pid: int) -> None:
 
 
 def autopilot_panel(p: Pipeline, pid: int) -> None:
-    """Fully automatic mode for short clips: approve the scene breakdown once, the rest runs by itself."""
+    """Fully automatic mode: approve the scene breakdown (and, by default, the Character Bible), the rest runs by itself."""
     if not allowed("autopilot"):
         return
     info = autopilot.status(p, pid)
     with st.container(border=True):
-        ui.html(ui.card_title("🚀 Chế độ tự động hoàn toàn (clip ngắn)", "bạn chỉ duyệt phân cảnh, phần còn lại tự chạy"))
-        if info["state"] in ("queued", "running", "done", "needs_attention", "stopped", "error"):
+        ui.html(ui.card_title("🚀 Tự động hoàn toàn", "bạn duyệt phân cảnh (và nhân vật), phần còn lại tự chạy"))
+        if info["state"] in ("queued", "running", "done", "needs_attention", "stopped", "error", "waiting"):
             autopilot_progress(pid)
             if info["state"] not in ("running", "queued"):
                 with st.expander("Chạy lại từ đầu cho dự án này"):
                     st.caption("Đặt lại trạng thái tự động (ảnh/video đã làm được giữ nguyên).")
                     if st.button("↺ Đặt lại chế độ tự động", key=f"ap_reset_{pid}"):
-                        p.conn.execute("UPDATE projects SET autopilot_state=NULL, autopilot_note=NULL WHERE id=?", (pid,))
-                        p.conn.commit()
+                        autopilot.reset(p, pid)
                         st.rerun()
             return
-        st.caption("Sau khi bạn duyệt phân cảnh, hệ thống tự làm: Director (Character Bible + thông số cảnh) → gen ảnh → Claude chấm QC "
-                   "(đạt ngưỡng thì tự duyệt) → Claude viết motion prompt (tự duyệt) → gen video → 1 bản nhạc nền → ghép video cuối. "
-                   "Gặp việc cần người (cảnh hết số lần thử, bị chặn risk control, chạm trần số job) thì **dừng và báo**, "
-                   "không tự đoán. Cảnh đã có Background được tự dựng layout trước khi gen ảnh (Claude lỗi thì gen như cũ). "
-                   "Cần Claude (API key hoặc Claude Code trên máy), Deepix và Clip AI đã cấu hình.")
+        st.caption("Chuỗi: Director → (dừng để bạn duyệt nhân vật, nếu bật) → dựng layout → ảnh + Claude QC → QC đồng bộ cả bộ → "
+                   "motion prompt + rà prompt → giọng thoại → chọn model từng cảnh → video + QC video → nhạc, hiệu ứng → "
+                   "bản giao (phụ đề, card cuối, bản xuất theo thiết lập ở Bước 5). Gặp việc cần người thì **dừng và báo**.")
+        gates = autopilot.get_gates(p, pid)
+        g1, g2 = st.columns(2)
+        bible = g1.checkbox("Dừng để duyệt Character Bible + Character Lock + giọng + ảnh mốc trước khi gen", gates["bible"],
+                            key=f"ap_gate_bible_{pid}", help="Nên bật: sai mô tả nhân vật sẽ lan ra MỌI cảnh (bài học từ lần hậu kiểm 2026-09-23).")
+        pilot = g2.checkbox("Gen thử 2–3 cảnh đại diện trước, dừng để bạn xem rồi mới gen hết", gates["pilot"], key=f"ap_gate_pilot_{pid}",
+                            help="Tiết kiệm credit ở dự án nhiều cảnh: lỗi phong cách/nhân vật lộ ra ở mẫu thử thay vì ở cả lô.")
+        if (bible, pilot) != (gates["bible"], gates["pilot"]):
+            autopilot.set_gates(p, pid, {"bible": bible, "pilot": pilot})
         issues = autopilot.problems(p, pid)
         for msg in issues:
             st.markdown(f":red[✖ {msg}]")
         scenes = p.conn.execute("SELECT COUNT(*) c FROM scenes WHERE project_id=?", (pid,)).fetchone()["c"]
         per = p.project(pid)["max_retry_count"] + 2
         if not issues:
-            st.success(f"Sẵn sàng: {scenes} cảnh. Trần an toàn: tối đa {scenes * per} job ảnh và {scenes * per} job video "
-                       "(kể cả gen lại).")
-        if confirm_all(f"ap_start_{pid}", ["go"], "✔ Duyệt phân cảnh & chạy tự động hoàn toàn",
-                       "Bắt đầu chạy tự động? Sẽ gọi Deepix, Clip AI và Claude thật (tốn credit) cho toàn bộ dự án.", st,
-                       "Có, chạy") and not issues:
+            st.success(f"Sẵn sàng: {scenes} cảnh. Trần an toàn: tối đa {scenes * per} job ảnh và {scenes * per} job video (kể cả gen lại).")
+        if confirm_all(f"ap_start_{pid}", ["go"], "✔ Duyệt phân cảnh & chạy tự động",
+                       "Bắt đầu chạy tự động? Sẽ gọi Deepix, Clip AI và Claude thật (tốn credit). Trong lúc chạy, dự án chuyển sang "
+                       "“QC tự duyệt theo ngưỡng”; dừng hoặc xong sẽ trả lại cách duyệt cũ.", st, "Có, chạy") and not issues:
             autopilot.start(p, pid, p.actor)
             autopilot_manager(C.DB, C.DATA).start(pid)
             st.rerun()
@@ -93,27 +97,26 @@ WB_LABELS = (("render_style", "Phong cách dựng hình", "vd: hoạt hình 3D m
 
 
 def world_bible_panel(p: Pipeline, pid: int) -> None:
-    """Project style bible: written by hand or drafted by Claude from reference pictures, then inherited by every prompt."""
+    """Project style bible: typed, drafted by Claude from reference pictures, or taken from a saved preset; inherited by every prompt."""
     saved = style.load(p, pid)
-    with st.expander("⚙ Tùy chọn nâng cao · 🎨 Phong cách hình ảnh (World Bible)" + (" ✓" if any(saved.values()) else ""),
-                     expanded=False):
-        st.caption("Khóa một bộ tham số phong cách dùng chung: Director và Motion sẽ kế thừa cho **mọi** cảnh, tránh cảnh này một kiểu cảnh kia "
-                   "một kiểu. Gõ tay, hoặc tải 2–6 ảnh tham khảo để Claude soạn bản nháp rồi bạn sửa. Bản nháp chỉ có tác dụng sau khi bạn bấm Lưu.")
-        proj_wb = p.project(pid)
-        sb_on = st.checkbox("📽 Chế độ Storyboard (mỗi cảnh dùng ảnh cảnh TRƯỚC làm thêm 1 ảnh tham chiếu)",
-                            bool(proj_wb["storyboard_mode"]), key=f"sb_mode_{pid}",
-                            help="Deepix không có Storyboard qua API (chỉ web) — đây là cách thay thế: khi gen ảnh cảnh N, "
-                                 "ảnh cảnh N-1 đã duyệt được gửi kèm làm ảnh tham chiếu bổ sung (giữ phong cách/ánh sáng/bố cục "
-                                 "liên tục như storyboard thật), cộng với ảnh nhân vật/bối cảnh như bình thường. Chỉ áp dụng khi "
-                                 "cảnh trước ĐÃ có ảnh duyệt; cảnh đầu tiên không có gì để nối nên vẽ như cũ. Tắt mặc định vì không "
-                                 "phải dự án nào cũng có các cảnh nối tiếp nhau về không gian/thời gian.")
-        if sb_on != bool(proj_wb["storyboard_mode"]):
-            p.set_storyboard_mode(pid, sb_on)
+    with st.expander("🎨 Phong cách hình ảnh (World Bible)" + (" ✓" if any(saved.values()) else " — chưa đặt"), expanded=False):
+        st.caption("Khóa một bộ tham số phong cách dùng chung: Director, QC và Motion kế thừa cho **mọi** cảnh. Đặt TRƯỚC khi chạy Director. "
+                   "Gõ tay, dùng mẫu đã lưu, hoặc tải 2–6 ảnh để Claude soạn nháp (skill style-analyst) rồi bạn sửa và Lưu.")
+        presets = style.list_presets(p.conn)
+        if presets:
+            c1, c2 = st.columns([3, 1], vertical_alignment="bottom")
+            pick = c1.selectbox("Dùng mẫu phong cách đã lưu", [None] + [x["id"] for x in presets], key=f"wb_preset_{pid}",
+                                format_func=lambda i: "— chọn —" if i is None else next(x["name"] for x in presets if x["id"] == i))
+            if pick is not None and c2.button("Áp dụng mẫu", key=f"wb_preset_go_{pid}"):
+                style.use_preset(p, pid, pick)
+                for key, _, _ in WB_LABELS:
+                    st.session_state.pop(f"wb_{key}_{pid}", None)
+                st.rerun()
         uploads = st.file_uploader("Ảnh tham khảo phong cách", type=["png", "jpg", "jpeg", "webp"], accept_multiple_files=True,
                                    key=f"wb_up_{pid}")
-        llm = llm_runner.client_from_env()
+        llm = llm_client()
         if st.button("🤖 Phân tích ảnh phong cách bằng Claude", key=f"wb_run_{pid}", disabled=not uploads or llm is None,
-                     help="Cần ANTHROPIC_API_KEY và ít nhất 1 ảnh"):
+                     help=None if llm else claude_hint()):
             folder = project_dir(pid, "style_refs")
             paths = []
             for i, f in enumerate(uploads[:style.MAX_REFS], 1):
@@ -134,23 +137,30 @@ def world_bible_panel(p: Pipeline, pid: int) -> None:
             st.info(draft.get("plain_note") or "Đã soạn bản nháp: xem và sửa các ô bên dưới rồi Lưu.")
             for flag in draft.get("check_flags") or []:
                 st.markdown(f":orange[⚠ {escape(str(flag))}]")
-            if draft.get("candidate_elements"):
-                with st.expander("Yếu tố bầu không khí nhận ra (gợi ý, tùy chọn)"):
-                    for el in draft["candidate_elements"]:
-                        st.markdown(f"- **{escape(str(el.get('label', '')))}**: `{escape(str(el.get('prose', '')))}` "
-                                    f"— {escape(str(el.get('evidence', '')))}")
+            elements = draft.get("candidate_elements") or []
+            if elements:
+                st.markdown("**Yếu tố bầu không khí nhận ra** — tick để thêm vào “Chất liệu / hoàn thiện”:")
+                for n, el in enumerate(elements):
+                    if st.checkbox(f"{el.get('label', '')}: {el.get('prose', '')}", key=f"wb_el_{pid}_{n}",
+                                   help=str(el.get("evidence", ""))):
+                        cur = st.session_state.get(f"wb_texture_finish_{pid}", saved.get("texture_finish", ""))
+                        if el.get("prose") and el["prose"] not in cur:
+                            st.session_state[f"wb_texture_finish_{pid}"] = (cur + "; " if cur else "") + el["prose"]
         values = {}
         for key, label, hint in WB_LABELS:
             values[key] = st.text_area(label, value=saved.get(key, ""), key=f"wb_{key}_{pid}", placeholder=hint, height=68)
-        c1, c2 = st.columns(2)
+        c1, c2, c3 = st.columns([1.2, 1, 2], vertical_alignment="bottom")
         if c1.button("💾 Lưu World Bible", key=f"wb_save_{pid}", type="primary"):
             style.save(p, pid, values)
-            st.success("Đã lưu. Chạy lại Director/Motion để áp dụng cho các cảnh chưa làm.")
-        if c2.button("Xóa World Bible", key=f"wb_clear_{pid}"):
+            st.success("Đã lưu. Director/Motion chạy sau sẽ dùng phong cách này.")
+        if c2.button("Xóa", key=f"wb_clear_{pid}"):
             style.save(p, pid, {})
             for key, _, _ in WB_LABELS:
                 st.session_state.pop(f"wb_{key}_{pid}", None)
             st.rerun()
+        name = c3.text_input("Lưu làm mẫu dùng lại (tên mẫu)", key=f"wb_preset_name_{pid}", placeholder="vd FF trailer tối")
+        if name.strip() and st.button("⭐ Lưu làm mẫu phong cách", key=f"wb_preset_save_{pid}"):
+            act(lambda: style.save_preset(p, pid, name), f"Đã lưu mẫu “{name.strip()}”")
 
 
 def assets_panel(p: Pipeline, pid: int) -> None:
@@ -235,19 +245,18 @@ def script_html(text: str) -> str:
 
 def step1(p: Pipeline, pid: int):
     proj = p.project(pid)
-    scenes = p.conn.execute("SELECT idx, title, state, data FROM scenes WHERE project_id=? ORDER BY idx",
-                            (pid,)).fetchall()
-    chars = p.conn.execute("SELECT name, description, wardrobe, locked FROM characters WHERE project_id=?",
-                           (pid,)).fetchall()
+    scenes = p.conn.execute("SELECT idx, title, state, data FROM scenes WHERE project_id=? ORDER BY idx", (pid,)).fetchall()
+    chars = p.conn.execute("SELECT * FROM characters WHERE project_id=?", (pid,)).fetchall()
     warnings = preflight.check_characters(p.conn, pid, preflight.load_blocklist()) if chars else []
     risky = {w["character"] for w in warnings}
     char_names = [c["name"] for c in chars]
+    locked = any(c["locked"] for c in chars)
+    stale = len(lineage.stale_scene_ids(p.conn, pid)) if scenes else 0
+    step_header("Bước 1 · Kịch bản & đạo diễn", "tách cảnh → chuẩn bị → Director → nhân vật → thoại → khóa",
+                f"{len(scenes)} cảnh · {len(chars)} nhân vật" + (" · đã khóa" if locked else ""), stale)
 
     with st.container(border=True):
-        head, info = st.columns([3, 2], vertical_alignment="center")
-        head.markdown(ui.card_title("① Kịch bản", "toàn văn (trái) · chia theo cảnh (phải)"), unsafe_allow_html=True)
-        if scenes:
-            info.caption(f"✓ {len(scenes)} cảnh · {len(chars)} nhân vật")
+        ui.html(ui.card_title("1a · 📜 Kịch bản", "toàn văn (trái) · chia theo cảnh (phải)"))
         if st.session_state.get("parse_warn") and scenes:
             st.warning(st.session_state["parse_warn"])
         t_file, t_text = st.tabs(["📎 Tải file", "✍ Gõ / dán văn bản"])
@@ -279,129 +288,60 @@ def step1(p: Pipeline, pid: int):
             with st.expander("Hệ thống đã đọc kịch bản thế nào (kiểm tra lại)"):
                 for line in st.session_state["parse_info"]:
                     st.caption("• " + line)
-        if u3.button("↺ Reset", help="Xóa cảnh chưa có ảnh + nhân vật chưa khóa", key="btn_bad_reset"):
-            p.conn.execute("DELETE FROM characters WHERE project_id=? AND locked=0", (pid,))
-            p.conn.execute("DELETE FROM scenes WHERE project_id=? AND id NOT IN (SELECT scene_id FROM jobs)", (pid,))
-            p.conn.commit()
-            if not p.conn.execute("SELECT 1 FROM scenes WHERE project_id=?", (pid,)).fetchone():
-                p.set_script_text(pid, None)
-            st.session_state.pop("parse_info", None)
-            st.rerun()
+        with u3:
+            if confirm_all(f"btn_bad_reset_{pid}", ["reset"], "↺ Làm lại",
+                           "Xóa các cảnh CHƯA có ảnh/video và các nhân vật CHƯA khóa để tách lại kịch bản? Cảnh đã có ảnh được giữ.",
+                           st, "Có, xóa"):
+                p.conn.execute("DELETE FROM characters WHERE project_id=? AND locked=0", (pid,))
+                p.conn.execute("DELETE FROM motion_prompts WHERE scene_id IN (SELECT id FROM scenes WHERE project_id=? AND id NOT IN (SELECT scene_id FROM jobs))", (pid,))
+                p.conn.execute("DELETE FROM scenes WHERE project_id=? AND id NOT IN (SELECT scene_id FROM jobs)", (pid,))
+                p.conn.commit()
+                if not p.conn.execute("SELECT 1 FROM scenes WHERE project_id=?", (pid,)).fetchone():
+                    p.set_script_text(pid, None)
+                st.session_state.pop("parse_info", None)
+                st.rerun()
         left, right = st.columns(2, gap="large")
         with left:
             st.markdown("**Kịch bản đầy đủ**")
-            full = proj["script_text"] or "\n\n".join(
-                (json.loads(s["data"] or "{}").get("text") or s["title"] or "") for s in scenes)
+            full = proj["script_text"] or "\n\n".join((json.loads(s["data"] or "{}").get("text") or s["title"] or "") for s in scenes)
             if full.strip():
                 ui.html(script_html(full))
             else:
                 st.caption("Chưa có kịch bản: tải file hoặc gõ/dán văn bản rồi bấm Phân tích.")
         with right:
-            st.markdown(f"**Chia theo cảnh** · bấm vào từng cảnh để xem và sửa")
-            with_bg = sum(1 for s in scenes if assets.scene_location(p.conn, pid, json.loads(s["data"] or "{}")))
-            st.caption(f"🏞 {with_bg}/{len(scenes)} cảnh đã có Background (ảnh bối cảnh trong kho)"
-                       + ("" if with_bg == len(scenes) else " — cảnh chưa có thì không dựng được storyboard; chọn trong từng cảnh "
-                                                            "hoặc gắn địa điểm ở “🧰 Tài nguyên đi kèm kịch bản” rồi chạy Director"))
-            for s in scenes:
-                d = json.loads(s["data"] or "{}")
-                bits = [f"S{s['idx']:02d}" + (f" · nhóm {d['sequence']}" if d.get("sequence") else ""),
-                        " · ".join(filter(None, [d.get("time"), d.get("location")])),
-                        ", ".join(d.get("characters") or []), " · ".join(filter(None, [d.get("shot"), d.get("mood")]))]
-                with st.expander("   |   ".join(x for x in bits if x) + f"   [{s['state']}]"):
-                    scene_editor(p, pid, s, char_names)
-            if st.button("➕ Thêm cảnh", key=f"scene_add_{pid}", help="Cho kịch bản mà công cụ không tự tách được"):
-                act(lambda: p.add_scene_next(pid))
-                st.rerun()
+            st.markdown("**Chia theo cảnh** · bấm vào từng cảnh để xem và sửa")
+            if scenes:
+                scene_list(p, pid, scenes, char_names)
+    if not scenes:
+        return
 
-    if scenes:
-        assets_panel(p, pid)
-        ui.html(ui.card_title("② Chọn cách chạy", "sau khi đã tách cảnh ở trên"))
-        auto_col, manual_col = st.columns(2, gap="large")
-        with auto_col:
-            autopilot_panel(p, pid)
-        with manual_col, st.container(border=True):
-            ui.html(ui.card_title("🧭 Chạy lần lượt từng bước", "bạn kiểm soát và duyệt ở mỗi bước"))
-            st.caption("Tự xem và duyệt từng khâu: ③ Director → ④ Character Bible → ⑤ Storyboard (tùy chọn) → duyệt & khóa ở bên dưới → Bước 2 gen ảnh + QC (bạn duyệt ảnh) "
-                       "→ Bước 3 duyệt motion prompt → Bước 4 gen video → Bước 5 nhạc và ghép. Hợp với dự án dài hoặc cần chỉnh kỹ.")
-            st.button("⏭ Sang Bước 2 (gen ảnh + QC)", key=f"go_step2_{pid}", disabled=not any(c["locked"] for c in chars),
-                      help="Bật sau khi Character Bible đã khóa",
-                      on_click=lambda: st.session_state.__setitem__("step", STEPS[1]))
-            if not any(c["locked"] for c in chars):
-                st.caption("Chạy ③ Director, xem ④ Character Bible (⑤ Storyboard nếu muốn) rồi duyệt & khóa ở phần bên dưới trước.")
-        st.markdown("##### Chạy lần lượt: ③ Director → ④ Character Bible → ⑤ Storyboard → duyệt & khóa")
+    ui.html(ui.card_title("1b · 🧰 Chuẩn bị", "làm TRƯỚC Director: định dạng, tài nguyên, phong cách"))
+    project_format_panel(p, pid)
+    assets_panel(p, pid)
+    world_bible_panel(p, pid)
 
-    dl, dr = st.columns([1, 1.7], gap="large")
-    with dl:
-        if scenes:
-            with st.container(border=True):
-                ui.html(ui.card_title("③ Director", "Character Bible + thông số cảnh"))
-                client = llm_client()
-                if client is not None:
-                    if st.button(f"🤖 Chạy Director bằng {llm_label(client)}", type="primary", key=f"llm_dir_{pid}"):
-                        with st.spinner("Claude đang phân tích kịch bản…"):
-                            ok = act(lambda: st.session_state.__setitem__(
-                                "llm_res", llm_runner.run_director(p, pid, client)))
-                        if ok:
-                            r = st.session_state.pop("llm_res")
-                            st.toast(f"Đã lưu {r['characters']} nhân vật, {r['scenes']} cảnh ({tokens_text(r)})")
-                            st.rerun()
-                with st.expander("✍ Nhập tay: prompt gửi Claude + dán JSON kết quả", expanded=client is None and not chars):
-                    st.code(prompts.build_director_bundle(p, pid), language="markdown")
-                    raw = st.text_area("Dán JSON kết quả từ Claude", key=f"analysis_{pid}", height=120)
-                    if st.button("Lưu phân tích", disabled=not raw.strip()):
-                        if act(lambda: llm_io.store_scene_analysis(p, pid, raw), "Đã lưu Character Bible + thông số cảnh"):
-                            st.rerun()
-    with dr:
-        if chars:
-            with st.container(border=True):
-                head, status = st.columns([3, 2], vertical_alignment="center")
-                head.markdown(ui.card_title("④ Character Bible", f"{len(chars)} mục"), unsafe_allow_html=True)
-                if risky:
-                    status.caption(f"⚠ {len(risky)} mục có thể vướng IP (xem “⚠ Rủi ro” ở góc trên)")
-                linked = assets.link_characters(p.conn, pid, char_names)
-                st.dataframe([{"Nhân vật / đối tượng": c["name"],
-                               "Mô tả": c["description"] + (f" · {c['wardrobe']}" if c["wardrobe"] else ""),
-                               "Ảnh tham chiếu": (f"✔ {linked[c['name']]['name']} · {len(linked[c['name']]['images'])} ảnh" if linked.get(c["name"])
-                                                  else "— vẽ theo mô tả"),
-                               "IP": "⚠ rủi ro" if c["name"] in risky else "an toàn",
-                               "Khóa": "🔒" if c["locked"] else ""} for c in chars],
-                             width="stretch", hide_index=True, height=min(38 * (len(chars) + 1) + 3, 220))
-                character_reference_panel(p, pid, chars)
-                if subjects_visible(p, pid):
-                    subject_panel(p, pid, chars)
-                with st.expander("✏ Sửa / thêm nhân vật, đối tượng · khóa"):
-                    if any(c["locked"] for c in chars):
-                        st.caption("Character Bible đang khóa. Muốn sửa phải mở khóa (ảnh đã gen vẫn theo mô tả cũ).")
-                        if st.button("🔓 Mở khóa để sửa", key="btn_bad_unlock"):
-                            act(lambda: llm_io.unlock_character_bible(p, pid), "Đã mở khóa Character Bible")
-                            st.rerun()
-                    else:
-                        who = st.selectbox("Chọn mục cần sửa", char_names, key=f"csel_{pid}")
-                        c = next(c for c in chars if c["name"] == who)
-                        n_name = st.text_input("Tên", c["name"], key=f"cn_{pid}_{c['name']}")
-                        n_desc = st.text_area("Mô tả", c["description"], key=f"cd_{pid}_{c['name']}", height=80)
-                        n_ward = st.text_input("Trang phục / dấu hiệu", c["wardrobe"] or "", key=f"cw_{pid}_{c['name']}")
-                        if st.button("Lưu", key=f"cs_{pid}_{c['name']}"):
-                            if act(lambda: llm_io.update_character(p, pid, c["name"], n_desc, n_ward, n_name),
-                                   f"Đã lưu {n_name}"):
-                                st.rerun()
-                    st.markdown("**➕ Thêm nhân vật / đối tượng**")
-                    st.caption("Không chỉ người: cũng có thể là sinh vật, linh vật, đạo cụ… bất cứ thứ gì cần giống nhau ở mọi cảnh.")
-                    a_name = st.text_input("Tên", key=f"cadd_name_{pid}")
-                    a_desc = st.text_area("Mô tả ngoại hình", key=f"cadd_desc_{pid}", height=70)
-                    a_ward = st.text_input("Trang phục / dấu hiệu (tùy chọn)", key=f"cadd_ward_{pid}")
-                    if st.button("Thêm vào Character Bible", key=f"cadd_{pid}", disabled=not (a_name.strip() and a_desc.strip())):
-                        if act(lambda: llm_io.add_character(p, pid, a_name, a_desc, a_ward), f"Đã thêm {a_name}"):
-                            st.rerun()
+    ui.html(ui.card_title("1c · Chọn cách chạy", "tự động hoàn toàn, hoặc lần lượt từng bước"))
+    auto_col, manual_col = st.columns(2, gap="large")
+    with auto_col:
+        autopilot_panel(p, pid)
+    with manual_col, st.container(border=True):
+        ui.html(ui.card_title("🧭 Lần lượt từng bước", "bạn kiểm soát và duyệt ở mỗi bước"))
+        st.caption("1d Director → 1e Character Bible (Lock, giọng, ảnh mốc) → 1f Rà thoại → 1g Storyboard (tùy chọn) → khóa & sang Bước 2 "
+                   "→ Bước 3 motion + giọng thoại → Bước 4 video → Bước 5 âm thanh & xuất bản. Hợp với dự án dài hoặc cần chỉnh kỹ.")
+
+    director_panel(p, pid, chars)
     if chars:
+        character_bible_panel(p, pid, chars, risky)
+        dialogue_review_panel(p, pid)
         storyboard_panel(p, pid)
         with st.container(border=True):
             a, b = st.columns([2, 1], vertical_alignment="center")
-            a.caption("Xong Character Bible (và storyboard nếu dựng): duyệt & khóa để mở Bước 2. Chế độ tự động không cần bước này.")
-            if b.button("✔ Duyệt & khóa → Bước 2", type="primary"):
-                act(lambda: llm_io.lock_character_bible(p, pid), "Đã khóa Character Bible")
-                st.rerun()
-    world_bible_panel(p, pid)
+            missing_anchor = [c["name"] for c in chars if not c["anchor_approved"]]
+            a.caption("Xong nhân vật (và storyboard nếu dựng): duyệt & khóa rồi sang Bước 2."
+                      + (f" Chưa duyệt ảnh mốc: {', '.join(missing_anchor)}." if missing_anchor else ""))
+            b.button("✔ Duyệt & khóa → Bước 2", type="primary", key=f"lock_go_{pid}", on_click=_lock_and_go, args=(p, pid))
+            if st.session_state.get("lock_error"):
+                st.error(st.session_state.pop("lock_error"))
 
 
 def storyboard_panel(p: Pipeline, pid: int) -> None:
@@ -409,7 +349,7 @@ def storyboard_panel(p: Pipeline, pid: int) -> None:
     Claude check continuity. Nothing to approve: Step 2 simply follows the layouts; the sheet is there to look at."""
     board = os.path.join(previz.layouts_dir(C.DATA, pid), "storyboard.png")
     with st.container(border=True):
-        ui.html(ui.card_title("⑤ 🎬 Storyboard (dựng layout trước khi gen ảnh)",
+        ui.html(ui.card_title("1g · 🎬 Storyboard (dựng layout trước khi gen ảnh)",
                               "không bắt buộc · Bước 2 tự bám theo layout của cảnh nào đã dựng"))
         st.caption("Claude đọc góc máy/đường chân trời/mặt đất của ảnh bối cảnh (mỗi ảnh chỉ đọc 1 lần), đặt từng nhân vật theo "
                    "“Vị trí nhân vật” của cảnh; chương trình tự tính cỡ người theo phối cảnh và giữ chân trên mặt đất. "
@@ -477,6 +417,7 @@ def character_reference_panel(p: Pipeline, pid: int, chars) -> None:
                 new_asset = None if pick == "auto" else (0 if pick == "none" else pick)
                 if pick != mode:                                     # another source picked: save it (automatic picture choice until chosen otherwise)
                     assets.set_character_link(p.conn, pid, c["name"], new_asset, None, None)
+                    _anchor_reset(p, pid, c["name"])
                     st.rerun()
                 shown = a if pick == "auto" else next((x for x in pool if x["id"] == pick), None)
                 if shown and len(shown["images"]) > 1:
@@ -489,6 +430,7 @@ def character_reference_panel(p: Pipeline, pid: int, chars) -> None:
                     if chosen_nums and set(chosen_nums) != set(default):
                         ids = [shown["images"][i - 1]["id"] for i in sorted(chosen_nums)]
                         assets.set_character_link(p.conn, pid, c["name"], shown["id"], ids[0], ids)
+                        _anchor_reset(p, pid, c["name"])
                         st.rerun()
                 outfit_panel(p, pid, c["name"], right)
 
@@ -598,26 +540,43 @@ def subject_panel(p: Pipeline, pid: int, chars) -> None:
 
 
 def scene_editor(p: Pipeline, pid: int, scene, char_names) -> None:
-    """Detail of one scene: script text and spec, both editable (a scene's spec drives the image prompt)."""
+    """Detail of one scene: script text and spec (all editable). A field you change is kept when the Director runs again (🔒)."""
     idx = scene["idx"]
     d = json.loads(scene["data"] or "{}")
     k = f"sd_{pid}_{idx}"
-    text = st.text_area("Nội dung kịch bản của cảnh", d.get("text", ""), key=f"{k}_text", height=130)
+    locked = set(d.get("_user_locked") or [])
+    lk = lambda name: " 🔒" if name in locked else ""  # noqa: E731
+    text = st.text_area("Nội dung kịch bản của cảnh", d.get("text", ""), key=f"{k}_text", height=110)
     c1, c2, c3 = st.columns(3)
-    location = c1.text_input("Địa điểm", d.get("location", ""), key=f"{k}_location")
-    time_ = c2.text_input("Thời gian", d.get("time", ""), key=f"{k}_time")
-    shot = c3.text_input("Cỡ cảnh / góc máy", d.get("shot", ""), key=f"{k}_shot")
+    location = c1.text_input("Địa điểm" + lk("location"), d.get("location", ""), key=f"{k}_location")
+    time_ = c2.text_input("Thời gian" + lk("time"), d.get("time", ""), key=f"{k}_time")
+    shot = c3.text_input("Cỡ cảnh / góc máy" + lk("shot"), d.get("shot", ""), key=f"{k}_shot")
     c4, c5 = st.columns(2)
-    mood = c4.text_input("Mood", d.get("mood", ""), key=f"{k}_mood")
-    lighting = c5.text_input("Ánh sáng", d.get("lighting", ""), key=f"{k}_lighting")
-    cast = st.multiselect("Nhân vật trong cảnh", char_names, [c for c in d.get("characters") or [] if c in char_names],
+    mood = c4.text_input("Mood" + lk("mood"), d.get("mood", ""), key=f"{k}_mood")
+    lighting = c5.text_input("Ánh sáng" + lk("lighting"), d.get("lighting", ""), key=f"{k}_lighting")
+    intent = st.text_input("💡 Ý đồ cảm xúc (người xem phải cảm thấy gì)" + lk("emotional_intent"), d.get("emotional_intent") or "",
+                           key=f"{k}_intent")
+    cast = st.multiselect("Nhân vật trong cảnh" + lk("characters"), char_names, [c for c in d.get("characters") or [] if c in char_names],
                           key=f"{k}_cast")
     c6, c7 = st.columns([4, 1])
-    blocking = c6.text_input("🧍 Vị trí nhân vật (blocking)", d.get("blocking") or "", key=f"{k}_blocking",
+    blocking = c6.text_input("🧍 Vị trí nhân vật (blocking)" + lk("blocking"), d.get("blocking") or "", key=f"{k}_blocking",
                              help="Ai đứng bên trái/giữa/phải khung, tiền/hậu cảnh, nhìn về đâu. Các cảnh cùng nhóm giữ nguyên bên trái/phải.")
     seq_value = d.get("sequence") if isinstance(d.get("sequence"), int) else 0
-    sequence = c7.number_input("Nhóm cảnh", min_value=0, value=seq_value, step=1, key=f"{k}_seq",
-                               help="Các cảnh liên tiếp cùng nơi, liền mạch dùng chung 1 số (0 = không nhóm). Chế độ Storyboard nối ảnh trong cùng nhóm.")
+    sequence = c7.number_input("Nhóm cảnh" + lk("sequence"), min_value=0, value=seq_value, step=1, key=f"{k}_seq",
+                               help="Các cảnh liên tiếp cùng nơi, liền mạch dùng chung 1 số (0 = không nhóm).")
+    c8, c9, c10 = st.columns(3)
+    comp_opts = [None, "simple", "complex"]
+    complexity = c8.selectbox("Độ phức tạp máy/hành động" + lk("camera_complexity"), comp_opts,
+                              index=comp_opts.index(d.get("camera_complexity")) if d.get("camera_complexity") in comp_opts else 0,
+                              format_func=lambda v: {None: "—", "simple": "Đơn giản", "complex": "Phức tạp (đánh nhau, đuổi, nhiều người)"}[v],
+                              key=f"{k}_cx")
+    role_opts = [None, "hero", "normal", "transition"]
+    role = c9.selectbox("Vai trò cảnh" + lk("shot_role"), role_opts,
+                        index=role_opts.index(d.get("shot_role")) if d.get("shot_role") in role_opts else 0,
+                        format_func=lambda v: {None: "—", "hero": "⭐ Then chốt", "normal": "Thường", "transition": "Chuyển tiếp"}[v],
+                        key=f"{k}_role")
+    duration = c10.number_input("Thời lượng đề xuất (giây)" + lk("duration_s"), 0, 15, int(d.get("duration_s") or 0), 1, key=f"{k}_dur",
+                                help="0 = để Director/Motion quyết")
     places = {a["id"]: a for a in assets.project_assets(p.conn, pid) if a["kind"] == "location" and a["images"]}
     current = d.get("location_asset")
     if isinstance(current, int) and current not in places:
@@ -627,20 +586,321 @@ def scene_editor(p: Pipeline, pid: int, scene, char_names) -> None:
     options = [None] + list(places)
     by_name = assets.scene_location(p.conn, pid, dict(d, location_asset=None))
     auto_label = f"Tự động theo tên địa điểm ({by_name['name']})" if by_name else "Tự động theo tên địa điểm (chưa khớp bối cảnh nào)"
-    bg = st.selectbox("🏞 Background (ảnh in-game gửi kèm khi gen ảnh)", options,
+    bg = st.selectbox("🏞 Background (ảnh in-game gửi kèm khi gen ảnh)" + lk("location_asset"), options,
                       index=options.index(current) if current in options else 0, key=f"{k}_bg",
                       format_func=lambda i: auto_label if i is None else places[i]["name"],
                       help="Chọn bối cảnh trong Kho tài nguyên của dự án. Để tự động thì dùng bối cảnh có tên nằm trong ô Địa điểm.")
-    image_prompt = st.text_area("Prompt ảnh", d.get("image_prompt", ""), key=f"{k}_prompt", height=80)
-    st.caption("Ảnh đã gen giữ nguyên; chỉ ảnh gen sau khi sửa mới theo nội dung mới.")
-    if confirm_all(f"scene_del_{pid}_{idx}", [idx], "🗑 Xóa cảnh này", f"Xóa cảnh {idx}?", st, "Có, xóa cảnh"):
-        if act(lambda: p.delete_scene(pid, idx), f"Đã xóa cảnh {idx}"):
+    st.markdown("**🗣 Thoại của cảnh**" + lk("dialogue"))
+    rows = [{"Người nói": w, "Lời thoại": t} for w, t in dialogue.scene_lines(d)]
+    lines_edit = st.data_editor(rows or [{"Người nói": "", "Lời thoại": ""}], num_rows="dynamic", hide_index=True, width="stretch",
+                                key=f"{k}_dlg", column_config={"Người nói": st.column_config.SelectboxColumn(
+                                    options=char_names + ["NARRATOR"], width="small")})
+    image_prompt = st.text_area("Prompt ảnh" + lk("image_prompt"), d.get("image_prompt", ""), key=f"{k}_prompt", height=80)
+    if locked:
+        st.caption("🔒 = bạn đã sửa tay, Director chạy lại sẽ giữ nguyên.")
+        if st.button("🔓 Cho Director điền lại các trường 🔒 của cảnh này", key=f"{k}_unlock"):
+            act(lambda: llm_io.unlock_scene_fields(p, pid, idx))
             st.rerun()
-    if st.button("💾 Lưu cảnh", key=f"sds_{pid}_{idx}"):
+    st.caption("Sửa cảnh đã có ảnh/video: các kết quả cũ sẽ hiện ⚠ cũ để bạn làm lại đúng phần bị ảnh hưởng.")
+    b1, b2 = st.columns(2)
+    if b1.button("💾 Lưu cảnh", key=f"sds_{pid}_{idx}", type="primary"):
+        table = lines_edit.to_dict("records") if hasattr(lines_edit, "to_dict") else lines_edit
+        dlg = [{"speaker": str(r.get("Người nói") or "").strip(), "text": str(r.get("Lời thoại") or "").strip()} for r in table
+               if str(r.get("Lời thoại") or "").strip()]
         fields = {"location": location, "time": time_, "shot": shot, "mood": mood, "lighting": lighting,
-                  "image_prompt": image_prompt, "location_asset": bg, "blocking": blocking,
-                  "sequence": int(sequence) or None}
+                  "image_prompt": image_prompt, "location_asset": bg, "blocking": blocking, "emotional_intent": intent,
+                  "sequence": int(sequence) or None, "camera_complexity": complexity, "shot_role": role,
+                  "duration_s": int(duration) or None}
+        if rows or dlg:
+            fields["dialogue"] = dlg
         if char_names:
             fields["characters"] = cast
         if act(lambda: llm_io.update_scene(p, pid, idx, fields, text=text), f"Đã lưu cảnh {idx}"):
             st.rerun()
+    with b2:
+        if confirm_all(f"scene_del_{pid}_{idx}", [idx], "🗑 Xóa cảnh này", f"Xóa cảnh {idx}?", st, "Có, xóa cảnh"):
+            if act(lambda: p.delete_scene(pid, idx), f"Đã xóa cảnh {idx}"):
+                st.rerun()
+
+
+
+def project_format_panel(p: Pipeline, pid: int) -> None:
+    """Frame format, genre and model priority of the project: decided before the Director so every picture and clip is made for it."""
+    proj = p.project(pid)
+    aspect = formats.project_aspect(proj)
+    genre = proj["genre"]
+    prio = model_router.priority_of(proj)
+    label = f"📐 Định dạng: {formats.label(aspect)} · thể loại {llm_io.GENRES.get(genre, 'chưa chọn')} · model: " \
+            f"{model_router.load_profiles()['priorities'][prio]['label']}"
+    with st.expander(label, expanded=aspect is None or not genre):
+        c1, c2, c3 = st.columns(3)
+        aspects = list(formats.ASPECTS)
+        new_aspect = c1.selectbox("Tỉ lệ khung", aspects, index=aspects.index(aspect) if aspect else aspects.index(formats.DEFAULT_NEW),
+                                  format_func=formats.label, key=f"fmt_aspect_{pid}",
+                                  help="Ảnh (Deepix), video (Clip AI), layout và render đều theo khung này. Đổi sau khi đã có ảnh thì ảnh/video cũ sẽ báo ⚠ cũ.")
+        genres = [None] + list(llm_io.GENRES)
+        new_genre = c2.selectbox("Thể loại (hướng dẫn đạo diễn)", genres, index=genres.index(genre) if genre in genres else 0,
+                                 format_func=lambda g: "Để Director tự chọn" if g is None else f"{g} — {llm_io.GENRES[g]}",
+                                 key=f"fmt_genre_{pid}")
+        prios = list(model_router.PRIORITIES)
+        pr = model_router.load_profiles()["priorities"]
+        new_prio = c3.selectbox("Ưu tiên model video", prios, index=prios.index(prio), key=f"fmt_prio_{pid}",
+                                format_func=lambda k: pr[k]["label"], help=pr[prio]["note"])
+        st.caption("Ưu tiên model theo slide ClipAI “Hôm nay tôi chọn mô hình video như thế nào”: " + pr[new_prio]["note"]
+                   + " Model cụ thể được đề xuất cho TỪNG cảnh ở Bước 4, đổi được.")
+        has_images = p.conn.execute("SELECT 1 FROM jobs WHERE project_id=? AND type='image_gen' AND state='approved' LIMIT 1",
+                                    (pid,)).fetchone()
+        if new_aspect != aspect:
+            if has_images and aspect is not None:
+                if confirm_all(f"fmt_aspect_ok_{pid}", [new_aspect], "Đổi tỉ lệ khung",
+                               "Đã có ảnh duyệt: đổi tỉ lệ khung sẽ đánh dấu mọi ảnh/video là ⚠ cũ (cần gen lại). Đổi?", st, "Có, đổi"):
+                    p.set_project_field(pid, "aspect", new_aspect)
+                    st.rerun()
+            else:
+                p.set_project_field(pid, "aspect", new_aspect)
+                st.rerun()
+        if new_genre != genre:
+            p.set_project_field(pid, "genre", new_genre)
+            p.set_project_field(pid, "genre_locked", 1 if new_genre else 0)
+            st.rerun()
+        if new_prio != prio:
+            p.set_project_field(pid, "model_priority", new_prio)
+            st.rerun()
+
+
+def director_panel(p: Pipeline, pid: int, chars) -> None:
+    locked = any(c["locked"] for c in chars)
+    kept = llm_io.locked_fields(p.conn, pid)
+    with st.container(border=True):
+        ui.html(ui.card_title("1d · 🎬 Director", "Character Bible + thông số, ý đồ, thoại từng cảnh"))
+        if kept:
+            st.caption(f"🔒 {sum(len(r['fields']) for r in kept)} trường bạn đã sửa tay ở {len(kept)} cảnh được giữ nguyên khi chạy lại.")
+        client = llm_client()
+        if client is not None:
+            label = f"🤖 Chạy Director bằng {llm_label(client)}"
+            go = (confirm_all(f"llm_dir_{pid}", ["again"], label + " (chạy lại)",
+                              "Character Bible đã khóa: chạy lại chỉ cập nhật thông số cảnh (trường bạn đã sửa tay được giữ), nhân vật đã khóa "
+                              "không đổi. Chạy?", st, "Có, chạy lại") if locked
+                  else st.button(label, type="primary", key=f"llm_dir_{pid}"))
+            if go:
+                with st.spinner("Claude đang phân tích kịch bản…"):
+                    ok = act(lambda: st.session_state.__setitem__("llm_res", llm_runner.run_director(p, pid, client)))
+                if ok:
+                    r = st.session_state.pop("llm_res")
+                    st.toast(f"Đã lưu {r['characters']} nhân vật, {r['scenes']} cảnh ({tokens_text(r)})")
+                    st.rerun()
+        else:
+            st.caption(claude_hint() + " Hoặc dùng cách nhập tay bên dưới.")
+        with st.expander("✍ Nâng cao: prompt gửi Claude + dán JSON kết quả", expanded=client is None and not chars):
+            st.code(prompts.build_director_bundle(p, pid), language="markdown")
+            raw = st.text_area("Dán JSON kết quả từ Claude", key=f"analysis_{pid}", height=120)
+            if st.button("Lưu phân tích", disabled=not raw.strip(), key=f"dir_paste_{pid}"):
+                if act(lambda: llm_io.store_scene_analysis(p, pid, raw), "Đã lưu Character Bible + thông số cảnh"):
+                    st.rerun()
+
+
+def _voices(pid: int):
+    key = f"voices_{pid}"
+    if key not in st.session_state:
+        try:
+            provider = music.audio_provider()
+            st.session_state[key] = provider.voice_actors(owner="official") if provider else []
+        except ProviderError as e:
+            st.session_state[key] = []
+            st.caption(f"Không lấy được danh sách giọng: {e}")
+    return st.session_state[key]
+
+
+def character_detail_panel(p: Pipeline, pid: int, c, voices, client, locked: bool) -> None:
+    """Character Lock + voice + anchor of one character (skills: consistency designer, narration-writer)."""
+    lock = claude_tasks.get_lock(c)
+    prof = voice.get_profile(c)
+    head = f"**{escape(c['name'])}** — " + ("🔒 Lock ✓" if lock else "🔒 chưa có Lock") + " · " \
+           + (f"🎙 {escape(prof.get('voice_name') or str(prof.get('voice_id')))}" if prof.get("voice_id") else "🎙 chưa có giọng") \
+           + " · " + ("🖼 ảnh mốc đã duyệt" if c["anchor_approved"] else "🖼 ảnh mốc chưa duyệt")
+    with st.expander(head.replace("**", ""), expanded=False):
+        st.markdown("**🔒 Character Lock** — điều không được lệch ở mọi cảnh (dùng cho prompt ảnh, QC ảnh, QC video)")
+        k = f"lock_{pid}_{c['name']}"
+        must = st.text_area("Bắt buộc giữ", lock.get("must_keep", ""), key=f"{k}_must", height=60, disabled=locked)
+        may = st.text_input("Được đổi giữa các cảnh", lock.get("may_change", ""), key=f"{k}_may", disabled=locked)
+        forb = st.text_area("Cấm lệch", lock.get("forbidden", ""), key=f"{k}_forb", height=60, disabled=locked)
+        b1, b2 = st.columns(2)
+        if b1.button("💾 Lưu Lock", key=f"{k}_save", disabled=locked):
+            act(lambda: claude_tasks.set_lock(p, pid, c["name"], {"must_keep": must, "may_change": may, "forbidden": forb}), "Đã lưu")
+            st.rerun()
+        if b2.button("🤖 Claude viết Lock từ ảnh", key=f"{k}_ai", disabled=locked or client is None, help=None if client else claude_hint()):
+            with st.spinner("Claude đang xem ảnh tham chiếu…"):
+                if act(lambda: claude_tasks.character_lock(p, pid, c["name"], client), "Đã viết Character Lock"):
+                    for suffix in ("must", "may", "forb"):
+                        st.session_state.pop(f"{k}_{suffix}", None)
+                    st.rerun()
+        st.markdown("**🎙 Giọng nói (TTS)** — thoại tiếng Việt được đọc bằng giọng này (Bước 3)")
+        if voices:
+            ids = [None] + [v.get("id") for v in voices]
+            names = {v.get("id"): v.get("name") for v in voices}
+            cur = prof.get("voice_id") if prof.get("voice_id") in ids else None
+            v1, v2 = st.columns([2, 3])
+            pick = v1.selectbox("Giọng", ids, index=ids.index(cur), key=f"voice_{pid}_{c['name']}",
+                                format_func=lambda i: "— chưa chọn —" if i is None else f"{names.get(i)} (#{i})")
+            persona = v2.text_input("Cách nói (persona)", prof.get("persona", ""), key=f"persona_{pid}_{c['name']}",
+                                    placeholder="câu ngắn, hay cà khịa, nói 'nha'…")
+            if (pick, persona) != (cur, prof.get("persona", "")) and st.button("💾 Lưu giọng", key=f"voice_save_{pid}_{c['name']}"):
+                voice.set_profile(p.conn, pid, c["name"], {"voice_id": pick, "voice_name": names.get(pick), "persona": persona} if pick else None)
+                st.rerun()
+        else:
+            st.caption("Chưa có danh sách giọng (cần AUDIO_PROVIDER / Clip AI). Voice Design / Voice Clone chỉ có trên web ClipAI: tạo ở đó rồi chọn ở đây.")
+        st.markdown("**🖼 Ảnh mốc** — ảnh tham chiếu bạn xác nhận là ĐÚNG nhân vật trước khi gen cả loạt")
+        if c["anchor_approved"]:
+            if st.button("↩ Bỏ duyệt ảnh mốc", key=f"anchor_off_{pid}_{c['name']}"):
+                p.conn.execute("UPDATE characters SET anchor_approved=0 WHERE project_id=? AND name=?", (pid, c["name"]))
+                p.conn.commit()
+                st.rerun()
+        elif st.button("✔ Ảnh tham chiếu ở trên là đúng — duyệt ảnh mốc", key=f"anchor_on_{pid}_{c['name']}"):
+            p.conn.execute("UPDATE characters SET anchor_approved=1 WHERE project_id=? AND name=?", (pid, c["name"]))
+            p.conn.commit()
+            st.rerun()
+
+
+def character_bible_panel(p: Pipeline, pid: int, chars, risky) -> None:
+    char_names = [c["name"] for c in chars]
+    locked = any(c["locked"] for c in chars)
+    rows = p.conn.execute("SELECT * FROM characters WHERE project_id=?", (pid,)).fetchall()
+    with st.container(border=True):
+        head, status = st.columns([3, 2], vertical_alignment="center")
+        head.markdown(ui.card_title("1e · 👥 Character Bible", f"{len(chars)} mục" + (" · 🔒 đã khóa" if locked else "")), unsafe_allow_html=True)
+        if risky:
+            status.caption(f"⚠ {len(risky)} mục có thể vướng IP (xem “⚠ Rủi ro” ở góc trên)")
+        linked = assets.link_characters(p.conn, pid, char_names)
+        st.dataframe([{"Nhân vật / đối tượng": r["name"],
+                       "Mô tả": r["description"] + (f" · {r['wardrobe']}" if r["wardrobe"] else ""),
+                       "Ảnh tham chiếu": (f"✔ {linked[r['name']]['name']} · {len(linked[r['name']]['refs'])} ảnh" if linked.get(r["name"]) else "— vẽ theo mô tả"),
+                       "Lock": "✔" if r["lock_rules"] else "—",
+                       "Giọng": voice.get_profile(r).get("voice_name") or ("—" if not voice.get_profile(r).get("voice_id") else "✔"),
+                       "Ảnh mốc": "✔" if r["anchor_approved"] else "—",
+                       "IP": "⚠" if r["name"] in risky else "",
+                       } for r in rows], width="stretch", hide_index=True, height=min(38 * (len(rows) + 1) + 3, 260))
+        character_reference_panel(p, pid, chars)
+        client = llm_client()
+        voices = _voices(pid)
+        st.markdown("**🔒 Lock · 🎙 Giọng · 🖼 Ảnh mốc của từng nhân vật**")
+        speakers = {ln["speaker"].upper() for ln in voice.planned_lines(p.conn, pid) if ln["speaker"]}
+        no_voice = [r["name"] for r in rows if r["name"].upper() in speakers and not voice.get_profile(r).get("voice_id")]
+        if no_voice and voices and client is not None:
+            if st.button(f"🤖 Claude chọn giọng cho {len(no_voice)} nhân vật có thoại", key=f"cast_{pid}"):
+                with st.spinner("Claude đang chọn giọng…"):
+                    act(lambda: claude_tasks.cast_voices(p, pid, client, voices), "Đã chọn giọng")
+                st.rerun()
+        for r in rows:
+            character_detail_panel(p, pid, r, voices, client, locked)
+        if subjects_visible(p, pid):
+            subject_panel(p, pid, chars)
+        with st.expander("✏ Sửa / thêm nhân vật, đối tượng · khóa"):
+            if locked:
+                st.caption("Character Bible đang khóa. Muốn sửa phải mở khóa (ảnh đã gen sẽ báo ⚠ cũ nếu mô tả đổi).")
+                if st.button("🔓 Mở khóa để sửa", key="btn_bad_unlock"):
+                    act(lambda: llm_io.unlock_character_bible(p, pid), "Đã mở khóa Character Bible")
+                    st.rerun()
+            else:
+                who = st.selectbox("Chọn mục cần sửa", char_names, key=f"csel_{pid}")
+                c = next(c for c in chars if c["name"] == who)
+                n_name = st.text_input("Tên", c["name"], key=f"cn_{pid}_{c['name']}")
+                n_desc = st.text_area("Mô tả", c["description"], key=f"cd_{pid}_{c['name']}", height=80)
+                n_ward = st.text_input("Trang phục / dấu hiệu", c["wardrobe"] or "", key=f"cw_{pid}_{c['name']}")
+                if st.button("Lưu", key=f"cs_{pid}_{c['name']}"):
+                    if act(lambda: llm_io.update_character(p, pid, c["name"], n_desc, n_ward, n_name), f"Đã lưu {n_name}"):
+                        st.rerun()
+            st.markdown("**➕ Thêm nhân vật / đối tượng**")
+            st.caption("Không chỉ người: cũng có thể là sinh vật, linh vật, đạo cụ… bất cứ thứ gì cần giống nhau ở mọi cảnh.")
+            a_name = st.text_input("Tên", key=f"cadd_name_{pid}")
+            a_desc = st.text_area("Mô tả ngoại hình", key=f"cadd_desc_{pid}", height=70)
+            a_ward = st.text_input("Trang phục / dấu hiệu (tùy chọn)", key=f"cadd_ward_{pid}")
+            if st.button("Thêm vào Character Bible", key=f"cadd_{pid}", disabled=not (a_name.strip() and a_desc.strip())):
+                if act(lambda: llm_io.add_character(p, pid, a_name, a_desc, a_ward), f"Đã thêm {a_name}"):
+                    st.rerun()
+
+
+def dialogue_review_panel(p: Pipeline, pid: int) -> None:
+    """Dialogue: length against the clip (real voice length when voiced) and Claude's review (narration-writer skill)."""
+    entries = dialogue.check(p, pid, voice.scene_seconds(p.conn, pid, C.DATA))
+    if not entries:
+        return
+    bad = dialogue.problems(entries)
+    key = f"dlg_review_{pid}"
+    with st.expander(f"1f · 🗣 Rà thoại — {len(entries)} cảnh có thoại" + (f", {len(bad)} cần chú ý" if bad else ", độ dài đều vừa"),
+                     expanded=bool(bad) or key in st.session_state):
+        for e in entries:
+            icon = {"ok": "✔", "tight": "◐", "extend": "⚠", "split": "✖"}[e["status"]]
+            color = {"ok": "green", "tight": "orange", "extend": "orange", "split": "red"}[e["status"]]
+            st.markdown(f":{color}[{icon} S{e['idx']:02d}] {escape(', '.join(e['speakers']))} · "
+                        + (f"giọng thật ≈ {e['needed']:g}s" if e["measured"] else f"{e['syllables']} âm tiết ≈ {e['needed']:g}s")
+                        + f" / clip {e['planned']:g}s (model tối đa {e['max']}s)" + (f" — {escape(e['advice'])}" if e["advice"] else ""))
+        fixable = [e for e in bad if e["status"] == "extend"]
+        if fixable and st.button(f"⏱ Tự tăng thời lượng {len(fixable)} clip cho vừa thoại", key=f"dlg_fix_s1_{pid}"):
+            dialogue.extend(p, entries)
+            st.rerun()
+        client = llm_client()
+        if st.button("🤖 Claude rà thoại (6 lỗi thoại + độ dài)", key=f"dlg_ai_{pid}", disabled=client is None,
+                     help=None if client else claude_hint()):
+            with st.spinner("Claude đang đọc thoại…"):
+                act(lambda: st.session_state.__setitem__(key, claude_tasks.review_dialogue(p, pid, client)))
+        res = st.session_state.get(key)
+        if res:
+            if res.get("summary"):
+                st.info(res["summary"])
+            for n, ln in enumerate(res.get("lines") or []):
+                with st.container(border=True):
+                    st.markdown(f"**S{ln['idx']:02d} · câu {ln['line']}** {escape(ln.get('speaker') or '')} — {escape(ln.get('problem') or '')}")
+                    new = st.text_input("Đề xuất", ln["suggestion"], key=f"dlg_sug_{pid}_{n}")
+                    if st.button("Áp dụng câu này", key=f"dlg_apply_{pid}_{n}"):
+                        if act(lambda: claude_tasks.apply_dialogue_fix(p, pid, ln["idx"], ln["line"], new), "Đã sửa thoại"):
+                            res["lines"] = [x for x in res["lines"] if x is not ln]
+                            st.rerun()
+            for sp in res.get("split") or []:
+                st.warning(f"S{sp.get('idx')}: nên tách cảnh — {sp.get('why', '')}")
+            if not res.get("lines") and not res.get("split"):
+                st.success("Claude không thấy lỗi thoại cần sửa.")
+
+
+def scene_list(p: Pipeline, pid: int, scenes, char_names) -> None:
+    status = lineage.scan(p.conn, pid)
+    by_idx = {r["idx"]: r for r in status.values()}
+    with_bg = sum(1 for s in scenes if assets.scene_location(p.conn, pid, json.loads(s["data"] or "{}")))
+    st.caption(f"🏞 {with_bg}/{len(scenes)} cảnh đã có Background"
+               + ("" if with_bg == len(scenes) else " — cảnh chưa có thì không dựng được layout; chọn trong từng cảnh hoặc gắn địa điểm ở 1b"))
+    proj = p.project(pid)
+    modes = {0: "Tự động: nối trong cùng nhóm cảnh", 1: "Luôn nối cảnh liền trước", 2: "Không nối"}
+    mode = st.radio("🔗 Nối ảnh cảnh trước (giữ liên tục ánh sáng/vị trí khi gen ảnh)", list(modes), horizontal=True,
+                    index=list(modes).index(proj["storyboard_mode"] if proj["storyboard_mode"] in modes else 0),
+                    format_func=modes.get, key=f"chain_{pid}",
+                    help="Ảnh đã duyệt của cảnh trước (cùng nhóm) được gửi kèm làm tham chiếu khi gen ảnh cảnh sau — cách thay cho Storyboard của Deepix.")
+    if mode != proj["storyboard_mode"]:
+        p.conn.execute("UPDATE projects SET storyboard_mode=? WHERE id=?", (mode, pid))
+        p.conn.commit()
+    for s in scenes:
+        d = json.loads(s["data"] or "{}")
+        st_row = by_idx.get(s["idx"])
+        bits = [f"S{s['idx']:02d}" + (f" · nhóm {d['sequence']}" if d.get("sequence") else "")
+                + (" · ⭐" if d.get("shot_role") == "hero" else "") + (" · 🌀 phức tạp" if d.get("camera_complexity") == "complex" else ""),
+                " · ".join(filter(None, [d.get("time"), d.get("location")])), ", ".join(d.get("characters") or []),
+                scene_status_text(st_row) if st_row else ""]
+        with st.expander("   |   ".join(x for x in bits if x)):
+            scene_editor(p, pid, s, char_names)
+    if st.button("➕ Thêm cảnh", key=f"scene_add_{pid}", help="Cho kịch bản mà công cụ không tự tách được"):
+        act(lambda: p.add_scene_next(pid))
+        st.rerun()
+
+
+def _lock_and_go(p: Pipeline, pid: int) -> None:
+    """Button callback: lock the Character Bible and move to Step 2 (a callback may still change the step selector)."""
+    try:
+        llm_io.lock_character_bible(p, pid)
+    except ERRORS as e:
+        st.session_state["lock_error"] = str(e)
+        return
+    st.session_state["step"] = STEPS[1]
+
+
+def _anchor_reset(p: Pipeline, pid: int, name: str) -> None:
+    """Other reference pictures chosen: the approved anchor no longer applies."""
+    p.conn.execute("UPDATE characters SET anchor_approved=0 WHERE project_id=? AND name=?", (pid, name))
+    p.conn.commit()

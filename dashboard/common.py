@@ -20,6 +20,7 @@ import streamlit as st
 
 
 from core import effectiveness, costume, previz, asset_vision, autoqc, ff_site, sfx_plan, sound_lib, assets, audio_lib, subtitles, script_reader, auth, autopilot, dialogue, diag, knowledge, lessons, perf, regen, research, style, subjects, trash, waveform, cost, ffmpeg_studio, final_cut, llm_io, llm_runner, music, preflight, prompts, script_parser, video_analysis  # noqa: E402
+from core import claude_tasks, delivery, formats, lineage, model_router, qc_policy, voice  # noqa: E402
 from core.db import connect  # noqa: E402
 from core.pipeline import Pipeline, PipelinePaused  # noqa: E402
 from core.adapters import factory  # noqa: E402
@@ -291,3 +292,24 @@ def autopilot_manager(db: str, data: str):
 
 # ---- step 2 --------------------------------------------------------------------------
 POLL_SECONDS = {"image": 6, "video": 15}
+
+
+
+def step_header(title: str, goal: str, progress: str = "", stale: int = 0) -> None:
+    """Same head on every step: what the step is for, where it stands, what is outdated (uiux: one clear 'next thing')."""
+    extra = (f' {ui.badge(f"⚠ {stale} mục cũ", "b-warn")}' if stale else "")
+    ui.html(f'<div class="stephead"><b>{escape(title)}</b> <span class="muted">{escape(goal)}</span>'
+            + (f' <span class="badge b-info">{escape(progress)}</span>' if progress else "") + extra + "</div>")
+
+
+def claude_hint() -> str:
+    return "Cần Claude: ANTHROPIC_API_KEY hoặc LLM_PROVIDER=claude_cli (Claude Code trên máy)."
+
+
+def scene_status_text(row) -> str:
+    """One short status of a scene across the chain, from core.lineage.scan: 'ảnh ✓ · prompt ⚠ · video —'."""
+    def mark(done, stale):
+        return "⚠" if stale else ("✓" if done else "—")
+    return " · ".join([f"ảnh {mark(row['image_job_id'], row['image_stale'])}",
+                       f"prompt {mark(row['motion_state'] == 'approved', row['motion_stale'])}",
+                       f"video {mark(row['video_state'] in ('succeeded', 'approved'), row['video_stale'])}"])

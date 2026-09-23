@@ -58,3 +58,31 @@ def save(pipeline: Pipeline, project_id: int, fields: Dict[str, str]) -> None:
     pipeline.conn.execute("UPDATE projects SET world_bible=? WHERE id=?", (json.dumps(clean, ensure_ascii=False) if clean else None,
                                                                             project_id))
     pipeline.conn.commit()
+
+
+# ---- presets: a saved World Bible reused by other projects (style-analyst "preset library") -----------------------------
+def list_presets(conn) -> List[Dict]:
+    return [{"id": r["id"], "name": r["name"], "data": json.loads(r["data"] or "{}"), "created_by": r["created_by"]}
+            for r in conn.execute("SELECT * FROM style_presets ORDER BY name")]
+
+
+def save_preset(pipeline: Pipeline, project_id: int, name: str) -> None:
+    from datetime import datetime, timezone
+    name = (name or "").strip()
+    data = load(pipeline, project_id)
+    if not name:
+        raise ValueError("cần đặt tên cho mẫu phong cách")
+    if not any((v or "").strip() for v in data.values()):
+        raise ValueError("World Bible của dự án đang trống: chưa có gì để lưu làm mẫu")
+    pipeline.conn.execute("INSERT INTO style_presets (name, data, created_at, created_by) VALUES (?,?,?,?)"
+                          " ON CONFLICT(name) DO UPDATE SET data=excluded.data", (name, json.dumps(data, ensure_ascii=False),
+                                                                             datetime.now(timezone.utc).isoformat(timespec="seconds"),
+                                                                             pipeline.actor))
+    pipeline.conn.commit()
+
+
+def use_preset(pipeline: Pipeline, project_id: int, preset_id: int) -> None:
+    row = pipeline.conn.execute("SELECT data FROM style_presets WHERE id=?", (preset_id,)).fetchone()
+    if row is None:
+        raise ValueError("không tìm thấy mẫu phong cách")
+    save(pipeline, project_id, json.loads(row["data"] or "{}"))

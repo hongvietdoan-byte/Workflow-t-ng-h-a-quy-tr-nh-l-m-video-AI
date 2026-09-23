@@ -139,8 +139,11 @@ def compose_scene(p: Pipeline, project_id: int, scene: Dict, shot: Dict, backgro
     linked = assets.link_characters(p.conn, project_id, names) if names else {}
     cutouts = {n: (a or {}).get("ref", {}).get("path") for n, a in linked.items()}
     cutouts = {n: path for n, path in cutouts.items() if path and layout._cutout(path) is not None}
-    _, people = layout.compose(background, analysis, shot, cutouts, layout_path(data_dir, project_id, scene["idx"]))
-    layout.compose(background, analysis, shot, cutouts, layout_path(data_dir, project_id, scene["idx"], board=True), labels=True)
+    from . import formats
+    size = formats.canvas(formats.project_aspect(p.project(project_id)))       # the layout has the project's frame
+    _, people = layout.compose(background, analysis, shot, cutouts, layout_path(data_dir, project_id, scene["idx"]), size=size)
+    layout.compose(background, analysis, shot, cutouts, layout_path(data_dir, project_id, scene["idx"], board=True), size=size,
+                   labels=True)
     data = {k: v for k, v in scene.items() if k not in ("_id", "idx")}
     data["layout"] = shot
     data["layout_people"] = [{"name": pp["name"], "color_index": pp["color_index"], "cutout": pp["name"] in cutouts} for pp in people]
@@ -159,7 +162,9 @@ def build_storyboard(p: Pipeline, project_id: int, data_dir: str) -> Optional[st
             frames.append((path, " · ".join(b for b in bits if b)))
     if not frames:
         return None
-    return layout.storyboard(frames, os.path.join(layouts_dir(data_dir, project_id), "storyboard.png"))
+    from . import formats
+    cell = formats.spec(formats.project_aspect(p.project(project_id)))["cell"]
+    return layout.storyboard(frames, os.path.join(layouts_dir(data_dir, project_id), "storyboard.png"), cell=cell)
 
 
 # ---- 3. Claude checks the storyboard ------------------------------------------------------------------------------

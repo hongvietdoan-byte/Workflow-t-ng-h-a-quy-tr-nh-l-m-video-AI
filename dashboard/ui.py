@@ -57,6 +57,11 @@ div[data-testid="stVerticalBlockBorderWrapper"]{background:var(--surface);border
 .scenetext{white-space:pre-wrap;font-size:13.5px;line-height:1.5;background:var(--bg);border-left:4px solid var(--primary);border-radius:6px;padding:10px 12px;margin:2px 0 8px}
 .scriptfull{white-space:pre-wrap;font-size:13.5px;line-height:1.6;background:var(--bg);border:1px solid var(--border);border-radius:10px;padding:14px 16px;max-height:640px;overflow:auto}
 .thumb{width:64px;height:36px;border-radius:6px;object-fit:cover;background:var(--border)}
+.stephead{display:flex;flex-wrap:wrap;align-items:center;gap:8px;padding:10px 14px;margin:2px 0 10px;background:var(--surface);
+border:1px solid var(--border);border-left:4px solid var(--primary);border-radius:10px;font-size:14px}
+.stephead b{font-size:16px}
+.sub-num{display:inline-block;min-width:26px;padding:1px 7px;margin-right:6px;border-radius:6px;background:var(--primary-soft);
+color:var(--primary);font-weight:700;font-size:12px;text-align:center}
 </style>
 """
 

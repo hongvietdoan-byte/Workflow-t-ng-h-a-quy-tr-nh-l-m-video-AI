@@ -71,11 +71,26 @@ def current_pid(p: Pipeline):
 
 
 def new_project_control(p: Pipeline) -> None:
-    """The "+ new project" action, next to the user's name -- a lightweight popover, not a full dialog."""
+    """"+ new project": name plus the decisions every later step depends on — frame format, genre, model priority, game."""
     with st.popover("➕ Dự án mới", help="Tạo dự án mới"):
         name = st.text_input("Tên dự án", key="new_name")
+        aspects = list(formats.ASPECTS)
+        aspect = st.selectbox("Tỉ lệ khung", aspects, index=aspects.index(formats.DEFAULT_NEW), format_func=formats.label, key="new_aspect",
+                              help="Ảnh, video, layout và bản dựng đều làm theo khung này ngay từ đầu (không phải thêm viền đen ở cuối).")
+        genres = [None] + list(llm_io.GENRES)
+        genre = st.selectbox("Thể loại", genres, index=genres.index("SHORT_FORM"), key="new_genre",
+                             format_func=lambda g: "Để Director tự chọn" if g is None else f"{g} — {llm_io.GENRES[g]}")
+        prios = list(model_router.PRIORITIES)
+        pr = model_router.load_profiles()["priorities"]
+        prio = st.selectbox("Ưu tiên model video", prios, index=prios.index(model_router.DEFAULT_PRIORITY), key="new_prio",
+                            format_func=lambda k: pr[k]["label"], help="Theo slide ClipAI: Chất lượng / Cân bằng / Tiết kiệm.")
+        catalog = subjects.games()
+        games = list(catalog)
+        game = st.selectbox("Game / nội dung", games, index=games.index("FF") if "FF" in games else 0, key="new_game",
+                            format_func=lambda k: catalog[k][0])
         if st.button("Tạo dự án", key="new_project_go", type="primary", disabled=not name.strip()):
-            pid = p.create_project(name.strip(), created_by=me()["email"])
+            pid = p.create_project(name.strip(), created_by=me()["email"], aspect=aspect, genre=genre, model_priority=prio, game=game)
+            qc_policy.apply(p, pid, "balanced")
             st.session_state["global_pid"] = pid
             st.rerun()
 
