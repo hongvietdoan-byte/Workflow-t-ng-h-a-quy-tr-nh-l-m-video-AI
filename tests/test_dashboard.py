@@ -142,6 +142,30 @@ class DashboardSmokeTests(unittest.TestCase):
         finally:
             os.environ.pop("AUDIO_PROVIDER", None)
 
+    def test_tts_overlap_warning_and_reschedule_button(self):
+        """Two voice-over lines whose real audio overlaps must show a warning with a fix button; clicking it
+        must not crash even when there is no clip/subtitle data yet to match cues against (PLAN.md 3.7b #5)."""
+        from core import audio_lib
+        from core.music import MockAudioProvider
+        p, pid = self.seed()
+        directory = audio_lib.assets_dir(os.path.join(self.tmp, "projects"), pid)
+        provider = MockAudioProvider()
+        audio_lib.submit_tts(provider, directory, "A", 1, "V")
+        audio_lib.submit_tts(provider, directory, "B", 1, "V")
+        audio_lib.refresh(provider, directory)
+        audio_lib.set_mix(directory, 0, True, 0.0, 1.0)
+        audio_lib.set_mix(directory, 1, True, 0.5, 1.0)      # mock TTS duration is 1.5s -> overlaps
+        os.environ["AUDIO_PROVIDER"] = "mock"
+        try:
+            at = AppTest.from_file(APP, default_timeout=30).run()
+            at.radio(key="step").set_value(at.radio(key="step").options[4]).run()
+            self.assertFalse(at.exception)
+            self.assertTrue(any("đè lên nhau" in w.value for w in at.warning))
+            next(b for b in at.button if "Xếp lại theo thoại" in b.label).click().run()
+            self.assertFalse(at.exception)
+        finally:
+            os.environ.pop("AUDIO_PROVIDER", None)
+
     def test_character_edit_and_unlock_from_dashboard(self):
         p, pid = self.seed()
         at = AppTest.from_file(APP, default_timeout=30).run()

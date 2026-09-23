@@ -5,12 +5,13 @@ import tempfile
 import unittest
 from unittest import mock
 
-from core import llm_io, llm_runner as lr
+from core import assets, llm_io, llm_runner as lr
 from core.adapters.http import HttpResponse
 from core.db import connect
 from core.llm_io import lock_character_bible, store_scene_analysis
 from core.pipeline import Pipeline
 from tests.test_llm_io_preflight import ANALYSIS
+from tests.test_references import png
 
 KEY = "sk-ant-secret-123"
 PNG = bytes([0x89]) + b"PNG" + b"0" * 20
@@ -161,6 +162,44 @@ class StepTests(unittest.TestCase):
         r = lr.run_director(self.p, self.pid, self.client)
         self.assertEqual((r["characters"], r["scenes"]), (1, 1))
         self.assertEqual(self.p.conn.execute("SELECT COUNT(*) c FROM characters").fetchone()["c"], 1)
+
+    def test_director_sees_reference_pictures_of_attached_characters(self):
+        """The Director must write the Character Bible from the resource's real picture, not invent an appearance
+        that QC then has to unlearn one retry at a time (found by comparing a real project's rejected-job history
+        against its character resources: the invented text matched neither the picture nor the final approved
+        image consistently across scenes)."""
+        with mock.patch.dict(os.environ, {"ASSET_DIR": tempfile.mkdtemp()}):
+            aid = assets.create(self.p.conn, "FF", "character", "KELLY", "", "", None, "x")
+            assets.add_image(self.p.conn, aid, "kelly.png", png(1))
+            assets.attach(self.p.conn, self.pid, aid)
+            seen = []
+
+            class Spy:
+                def __init__(self, inner):
+                    self.inner = inner
+
+                def complete(self, prompt, images=()):
+                    seen.append(list(images))
+                    return self.inner.complete(prompt, images)
+
+            lr.run_director(self.p, self.pid, Spy(self.client))
+        self.assertEqual(len(seen[0]), 1)
+        self.assertIn("KELLY", seen[0][0][0])
+        self.assertTrue(os.path.exists(seen[0][0][1]))
+
+    def test_director_gets_no_pictures_when_no_character_resource_is_attached(self):
+        seen = []
+
+        class Spy:
+            def __init__(self, inner):
+                self.inner = inner
+
+            def complete(self, prompt, images=()):
+                seen.append(list(images))
+                return self.inner.complete(prompt, images)
+
+        lr.run_director(self.p, self.pid, Spy(self.client))
+        self.assertEqual(seen[0], [])
 
     def test_qc_applies_decision_and_reports_tokens(self):
         store_scene_analysis(self.p, self.pid, ANALYSIS)

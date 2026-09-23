@@ -224,10 +224,23 @@ def _retry_note(p: Pipeline, stage: str, project_id: int):
     return lambda message: diag.record(p.conn, stage, "warn", message, "bad_json_retry", project_id)
 
 
+def _director_references(conn, project_id: int) -> List[Tuple[str, str]]:
+    """One picture per character/pet resource already attached to the project, so the Director writes the
+    Character Bible from the real design instead of inventing a plausible-sounding but wrong appearance (wrong
+    hair colour/style, missing accessories) that QC then has to unlearn one retry at a time, unevenly across
+    scenes (found by comparing a rejected job's `retry_reason` history against the resource's own reference
+    picture: the first attempt repeated the invented text almost verbatim)."""
+    out = []
+    for a in assets.project_assets(conn, project_id):
+        if a["kind"] in ("character", "pet") and a["images"]:
+            out.append((f"Ảnh tham chiếu — {a['name']}:", assets.thumbnail(assets.best_reference(a)["path"], 900)))
+    return out
+
+
 @_diagnosed("director", lambda p, i: i)
 def run_director(p: Pipeline, project_id: int, client) -> Dict:
     obj, tin, tout = ask_json(client, prompts.build_director_bundle(p, project_id), llm_io.validate_scene_analysis,
-                              note=_retry_note(p, "director", project_id))
+                              _director_references(p.conn, project_id), note=_retry_note(p, "director", project_id))
     llm_io.store_scene_analysis(p, project_id, obj)
     return {"characters": len(obj["characters"]), "scenes": len(obj["scenes"]), "input_tokens": tin,
             "output_tokens": tout, "ip_risk_notes": obj.get("ip_risk_notes") or []}

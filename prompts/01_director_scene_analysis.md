@@ -5,6 +5,7 @@ Dùng knowledge pack đính kèm (biên kịch/quay phim). Chỉ trả về **m�
 
 ## Quy tắc
 - Character Bible: mô tả cố định, cụ thể (tuổi/giới, khuôn mặt, tóc, trang phục, dấu hiệu nhận diện). Dùng lại NGUYÊN VĂN trong `image_prompt` của mọi cảnh có nhân vật đó.
+- **Nếu có ảnh tham chiếu đính kèm** (mỗi ảnh ghi rõ tên nhân vật ở chú thích, trước phần hướng dẫn này): đó là THIẾT KẾ CHÍNH THỨC — viết `description`/`wardrobe` ĐÚNG theo ảnh (màu/kiểu tóc thật, phụ kiện thật như vòng cổ/khuyên/mũ, màu và hoa văn trang phục thật). Không suy đoán hay bịa chi tiết khác với ảnh dù nghe hợp lý với vai diễn — sai 1 chi tiết (màu tóc, thiếu phụ kiện) sẽ khiến ảnh gen sau này bị lệch thiết kế và tốn nhiều lượt sửa. Nhân vật KHÔNG có ảnh đính kèm mới mô tả tự do theo kịch bản.
 - `image_prompt`: tiếng Anh, cụ thể (chủ thể, hành động, bối cảnh, ánh sáng, cỡ cảnh/góc máy, mood). Không dùng tên IP/nhân vật nổi tiếng.
 - `characters` của mỗi cảnh phải nằm trong Character Bible.
 - `location_asset`: nếu cảnh diễn ra ở một địa điểm có ghi `id` trong danh sách tài nguyên của dự án (nếu được đính kèm), điền đúng số id đó (ảnh in-game của địa điểm sẽ được gửi kèm khi gen ảnh); không khớp địa điểm nào thì để `null`. Các cảnh liên tiếp ở cùng một nơi phải dùng cùng một id.

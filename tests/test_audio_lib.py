@@ -10,6 +10,7 @@ from core.llm_io import lock_character_bible, store_scene_analysis, unlock_chara
 from core.music import MockAudioProvider
 from core.pipeline import Pipeline
 from core.providers import ProviderError
+from core.subtitles import Cue
 from tests.test_llm_io_preflight import ANALYSIS
 
 
@@ -48,6 +49,46 @@ class AudioLibTests(unittest.TestCase):
         entry = audio_lib.submit_sfx(Rejecting(), self.dir, "x")
         self.assertEqual((entry["state"], entry["message"]), ("failed", "too long"))
         self.assertEqual(audio_lib.refresh(self.provider, self.dir)["failed"], 1)
+
+    def _tts_with_duration(self, text: str, voice: str, ms: int) -> int:
+        """Submit + finish a voice-over line, then force its real duration (the mock always answers 1500ms —
+        these tests need to control it to exercise the overlap math)."""
+        audio_lib.submit_tts(self.provider, self.dir, text, 1, voice)
+        audio_lib.refresh(self.provider, self.dir)
+        items = audio_lib.load(self.dir)
+        index = len(items) - 1
+        items[index]["duration_ms"] = ms
+        audio_lib._save(self.dir, items)
+        return index
+
+    def test_overlapping_tts_detects_crosstalk_and_clears_once_fixed(self):
+        a = self._tts_with_duration("A", "V", 3000)
+        b = self._tts_with_duration("B", "V", 3000)
+        audio_lib.set_mix(self.dir, a, True, 0.0, 1.0)
+        audio_lib.set_mix(self.dir, b, True, 2.0, 1.0)     # starts before line a (ends at 3.0) finishes
+        self.assertEqual(audio_lib.overlapping_tts(self.dir), [{"a": a, "b": b, "overlap": 1.0}])
+        audio_lib.set_mix(self.dir, b, True, 3.5, 1.0)
+        self.assertEqual(audio_lib.overlapping_tts(self.dir), [])
+
+    def test_schedule_by_cues_pushes_the_next_line_past_the_real_end(self):
+        """The planned cue timing (from an estimate made before the voice existed) has line B starting at 2.0s,
+        but line A's REAL audio (4.0s) runs past that — schedule_by_cues must push B out instead of trusting
+        the stale estimate."""
+        self._tts_with_duration("Hello there", "V", 4000)
+        self._tts_with_duration("General Kenobi", "V", 2000)
+        cues = [Cue(0.0, 2.0, "Hello there", "A", 1), Cue(2.0, 4.0, "General Kenobi", "B", 1)]
+        changed = audio_lib.schedule_by_cues(self.dir, cues, min_gap=0.1)
+        self.assertEqual(changed, 2)
+        items = audio_lib.load(self.dir)
+        self.assertEqual((items[0]["use"], items[0]["start"]), (True, 0.0))
+        self.assertEqual(items[1]["start"], 4.1)  # pushed past line A's real end (4.0) + the 0.1s gap
+        self.assertEqual(audio_lib.overlapping_tts(self.dir), [])
+
+    def test_schedule_by_cues_leaves_unmatched_lines_alone(self):
+        self._tts_with_duration("Hi", "V", 1000)
+        changed = audio_lib.schedule_by_cues(self.dir, [Cue(0.0, 1.0, "Bye", "A", 1)])
+        self.assertEqual(changed, 0)
+        self.assertFalse(audio_lib.load(self.dir)[0]["use"])
 
     def test_ledger_records_each_submission(self):
         p = Pipeline(connect())

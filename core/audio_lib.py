@@ -131,3 +131,61 @@ def mix_list(directory: str) -> List[Dict]:
     return [{"path": os.path.join(directory, e["file"]), "start": e["start"], "volume": e["volume"]}
             for e in load(directory) if e["use"] and e["state"] == "succeeded" and e.get("file")
             and os.path.exists(os.path.join(directory, e["file"]))]
+
+
+def _duration(e: Dict) -> float:
+    return (e.get("duration_ms") or 0) / 1000.0
+
+
+def overlapping_tts(directory: str) -> List[Dict]:
+    """Pairs of consecutive voice-over lines switched on for the mix whose REAL audio overlaps in time (two
+    people talking at once): the final mix (`core/ffmpeg_studio.py::build_extras_mix_cmd`) just adds every
+    track's waveform together with no ducking, so an overlap here is audible as cross-talk in the rendered
+    video. Empty when nothing overlaps."""
+    items = load(directory)
+    on = sorted([(i, e) for i, e in enumerate(items) if e["kind"] == "tts" and e["use"] and e["state"] == "succeeded"],
+               key=lambda pair: pair[1]["start"])
+    out = []
+    for (i, a), (j, b) in zip(on, on[1:]):
+        a_end = a["start"] + _duration(a)
+        if b["start"] < a_end - 1e-9:
+            out.append({"a": i, "b": j, "overlap": round(a_end - b["start"], 2)})
+    return out
+
+
+def schedule_by_cues(directory: str, cues, min_gap: float = 0.12) -> int:
+    """Move every voice-over line to a start time that follows speaking order without overlapping the previous
+    line's REAL audio.
+
+    The start time a person types (or a script computes) before the voice exists is only an estimate — usually
+    `core/subtitles.py::build_cues()`, which shares out a scene's already-fixed clip length by syllable count.
+    ElevenLabs often takes longer than that estimate to say the line, so the next cue's start (unaware of this)
+    can land before the previous line finished (measured on a real render: 8 of 13 line-to-line joins
+    overlapped, up to 1.29s — see PLAN.md 3.7b). This walks the cues in speaking order and pushes each line's
+    start to `max(its own cue estimate, previous line's real end + min_gap)`, using the REAL `duration_ms` that
+    came back from the provider, not the estimate.
+
+    Matches each cue to the voice-over asset with the same line (the label after "[Voice name] "); a cue with
+    no matching finished asset, or an asset already used by an earlier cue, is left alone. Returns how many
+    starts were changed."""
+    items = load(directory)
+    by_text: Dict[str, List[int]] = {}
+    for i, e in enumerate(items):
+        if e["kind"] == "tts" and e["state"] == "succeeded":
+            text = e["label"].split("] ", 1)[-1].strip()
+            by_text.setdefault(text, []).append(i)
+    changed = 0
+    end = -min_gap                     # so the first line isn't pushed past its own cue start by the gap
+    for cue in sorted(cues, key=lambda c: c.start):
+        pool = by_text.get(cue.text.strip())
+        if not pool:
+            continue
+        e = items[pool.pop(0)]
+        new_start = round(max(cue.start, end + min_gap), 2)
+        end = new_start + _duration(e)
+        if not e["use"] or abs(e["start"] - new_start) > 1e-9:
+            e.update(use=True, start=new_start)
+            changed += 1
+    if changed:
+        _save(directory, items)
+    return changed

@@ -2512,6 +2512,17 @@ def extras_section(p: Pipeline, pid: int, provider):
                 counts = audio_lib.refresh(provider, directory)
                 st.toast(f"Đang chạy {counts['running']} · xong {counts['succeeded']} · lỗi {counts['failed']}")
                 st.rerun()
+        overlaps = audio_lib.overlapping_tts(directory)
+        if overlaps:
+            st.warning(f"⚠ {len(overlaps)} chỗ giọng đọc đè lên nhau (2 người nói cùng lúc) — thời điểm bắt đầu "
+                      "chỉ là ước lượng, không khớp với độ dài giọng đọc thật đã tạo ra.")
+            if st.button("🗓 Xếp lại theo thoại (hết chồng tiếng)", key=f"ax_reschedule_{pid}"):
+                cues = subtitles.build_cues(p, DATA, pid, st.session_state.get(f"tr_{pid}", "cut"),
+                                            float(st.session_state.get(f"fade_{pid}", 1.0)))
+                n = audio_lib.schedule_by_cues(directory, cues)
+                st.toast(f"Đã xếp lại {n} dòng giọng đọc theo đúng thứ tự, không còn chồng tiếng" if n else
+                        "Không khớp được dòng thoại nào với phụ đề (kiểm tra lại nội dung có đúng như kịch bản không)")
+                st.rerun()
         items = audio_lib.load(directory)
         for i, e in enumerate(items):
             with st.container(border=True):
