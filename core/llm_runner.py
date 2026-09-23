@@ -291,19 +291,24 @@ def run_qc_batch(p: Pipeline, project_id: int, client, data_dir: str) -> Dict:
 
 
 @_diagnosed("motion", lambda p, i: i)
-def run_motion(p: Pipeline, project_id: int, client, data_dir: str) -> Dict:
-    """Motion prompts for approved-image scenes that do not have one yet (existing/approved prompts are kept)."""
+def run_motion(p: Pipeline, project_id: int, client, data_dir: str, only_idx=None) -> Dict:
+    """Motion prompts for approved-image scenes that do not have one yet (existing/approved prompts are kept).
+    only_idx: rewrite exactly these scenes (e.g. the ones whose prompt is outdated because the image or the scene changed)."""
     rows = p.conn.execute(
         "SELECT s.idx, (SELECT j.id FROM jobs j WHERE j.scene_id=s.id AND j.type='image_gen' AND j.state='approved'"
-        " ORDER BY j.id DESC LIMIT 1) AS jid FROM scenes s WHERE s.project_id=? AND NOT EXISTS"
-        " (SELECT 1 FROM motion_prompts m WHERE m.scene_id=s.id) ORDER BY s.idx", (project_id,)).fetchall()
-    todo = [r for r in rows if r["jid"]]
+        " ORDER BY j.id DESC LIMIT 1) AS jid, EXISTS (SELECT 1 FROM motion_prompts m WHERE m.scene_id=s.id) AS has_mp"
+        " FROM scenes s WHERE s.project_id=? ORDER BY s.idx", (project_id,)).fetchall()
+    if only_idx is not None:
+        todo = [r for r in rows if r["jid"] and r["idx"] in set(only_idx)]
+    else:
+        todo = [r for r in rows if r["jid"] and not r["has_mp"]]
     if not todo:
         return {"scenes": 0, "input_tokens": 0, "output_tokens": 0}
     images = [(f"Ảnh cảnh {r['idx']}:", image_path(data_dir, project_id, r["jid"])) for r in todo
               if os.path.exists(image_path(data_dir, project_id, r["jid"]))]
-    obj, tin, tout = ask_json(client, prompts.build_motion_bundle(p, project_id, only_missing=True),
-                              llm_io.validate_motion_prompts, images, note=_retry_note(p, "motion", project_id))
+    bundle = (prompts.build_motion_bundle(p, project_id, only_idx={r["idx"] for r in todo}) if only_idx is not None
+              else prompts.build_motion_bundle(p, project_id, only_missing=True))
+    obj, tin, tout = ask_json(client, bundle, llm_io.validate_motion_prompts, images, note=_retry_note(p, "motion", project_id))
     wanted = {r["idx"] for r in todo}
     obj["scenes"] = [s for s in obj["scenes"] if s["idx"] in wanted]
     llm_io.store_motion_prompts(p, project_id, obj)
@@ -322,6 +327,9 @@ class MockLlm:
         return LlmReply("```json\n" + json.dumps(out, ensure_ascii=False) + "\n```", 100, 50)
 
     def complete(self, prompt: str, images: Sequence[Tuple[str, str]] = ()) -> LlmReply:
+        v2 = self._v2(prompt)
+        if v2 is not None:
+            return LlmReply("```json\n" + json.dumps(v2, ensure_ascii=False) + "\n```", 90, 50)
         if prompt.startswith("# Phân tích ảnh nền (previz 2D)"):
             out = {"camera": "eye", "horizon_y": 0.4, "camera_height_m": 1.7, "ground": [[0, 0.55], [1, 0.55], [1, 1], [0, 1]],
                    "landmarks": [], "light": "nắng trưa (giả lập)", "notes": "bối cảnh giả lập"}
@@ -374,17 +382,61 @@ class MockLlm:
             block = re.search(r"# Cảnh đã có ảnh được duyệt\s*```json\s*(.*?)```", prompt, re.S).group(1)
             scenes = json.loads(block)["scenes"]
             out = {"scenes": [{"idx": s["idx"], "motion_prompt": f"Slow push-in on the subject, scene {s['idx']}",
-                               "camera": "push-in", "duration_sec": 5, "negative_prompt": ""} for s in scenes]}
+                               "camera": "push-in", "duration_sec": max(5, int(s.get("duration_s") or 5)), "negative_prompt": "",
+                               "spatial_state": f"everyone holds position at the end of scene {s['idx']} (mock)",
+                               "check_flags": []} for s in scenes]}
         elif "Đính kèm ảnh cần chấm điểm" in prompt:
             out = {"criteria": {k: 0.9 for k in prompts.qc_criteria()}, "issues": []}
         else:
-            idxs = sorted({int(n) for n in re.findall(r"### Cảnh (\d+)", prompt)}) or [1]
-            out = {"characters": [{"name": "Nhân vật chính", "description": "mô tả mẫu (giả lập)"}],
-                   "scenes": [{"idx": i, "location": "Bối cảnh mẫu", "time": "Ngày", "characters": ["Nhân vật chính"],
+            from . import dialogue as _dlg
+            blocks = re.split(r"^### Cảnh (\d+)[^\n]*$", prompt.split("# Kịch bản đã tách cảnh", 1)[-1], flags=re.M)
+            texts = {int(blocks[i]): blocks[i + 1] for i in range(1, len(blocks) - 1, 2)}
+            idxs = sorted(texts) or [1]
+            lines = {i: _dlg.lines(texts.get(i, "")) for i in idxs}
+            names = sorted({who for rows in lines.values() for who, _ in rows}) or ["Nhân vật chính"]
+            out = {"genre": "SHORT_FORM",
+                   "characters": [{"name": n, "description": f"mô tả mẫu của {n} (giả lập)",
+                                   "lock": {"must_keep": "same face, hair and outfit colours (mock)", "may_change": "pose, expression",
+                                            "forbidden": "outfit swapped with others (mock)"}} for n in names],
+                   "scenes": [{"idx": i, "location": "Bối cảnh mẫu", "time": "Ngày",
+                               "characters": sorted({w for w, _ in lines[i]}) or names[:1],
                                "mood": "trung tính", "lighting": "tự nhiên", "shot": "medium",
-                               "image_prompt": f"scene {i}, cinematic still"} for i in idxs],
+                               "image_prompt": f"scene {i}, cinematic still", "emotional_intent": "người xem tò mò (giả lập)",
+                               "beat": {"want": "đi tiếp", "obstacle": "trời tối", "turn": "quyết định lên đường"},
+                               "camera_complexity": "complex" if i % 3 == 0 else "simple",
+                               "shot_role": "hero" if i == idxs[-1] else "normal",
+                               "dialogue": [{"speaker": w, "text": t} for w, t in lines[i]], "duration_s": 5} for i in idxs],
                    "ip_risk_notes": []}
         return LlmReply("```json\n" + json.dumps(out, ensure_ascii=False) + "\n```", 100, 50)
+
+
+def _mock_v2(prompt: str):
+    """Answers of the offline stand-in for the v2 Claude tasks (core.claude_tasks); None for other prompts."""
+    if prompt.startswith("# Rà thoại"):
+        return {"summary": "Thoại ổn, một câu hơi văn viết (giả lập).", "lines": [], "split": []}
+    if prompt.startswith("# Rà motion prompt"):
+        idxs = [int(n) for n in re.findall(r'"idx":\s*(\d+)', prompt.split("# Motion prompt cần rà", 1)[-1])]
+        return {"scenes": [{"idx": i, "ok": True, "issues": [], "revised_prompt": ""} for i in sorted(set(idxs))]}
+    if prompt.startswith("# QC Agent — chấm clip video"):
+        return {"criteria": {"identity": 0.9, "physics": 0.88, "motion_match": 0.9, "artifacts": 0.9}, "issues": ""}
+    if prompt.startswith("# QC đồng bộ cả bộ ảnh"):
+        return {"ok": True, "summary": "Các ảnh đồng bộ (giả lập).", "issues": []}
+    if prompt.startswith("# Character Lock từ ảnh"):
+        return {"must_keep": "same face, hair colour and outfit colour blocks (mock)", "may_change": "pose, expression, camera",
+                "forbidden": "hair colour change, missing accessories (mock)"}
+    if prompt.startswith("# Chọn giọng cho nhân vật"):
+        chars = json.loads(re.search(r"# Nhân vật\s*```json\s*(.*?)```", prompt, re.S).group(1))
+        voices = json.loads(re.search(r"# Giọng có sẵn\s*```json\s*(.*?)```", prompt, re.S).group(1))
+        return {"cast": [{"name": c["name"], "voice_id": voices[i % len(voices)]["id"], "why": "giả lập",
+                          "persona": "câu ngắn, thẳng (giả lập)"} for i, c in enumerate(chars)] if voices else []}
+    if prompt.startswith("# Director — Music Brief"):
+        return {"genre": "cinematic", "tempo_bpm": 110, "mood": "căng rồi bùng nổ", "instruments": ["drums", "synth"],
+                "instrumental": True, "duration_sec": 30, "structure": "0-10s dựng, 10-25s tăng, 25-30s chốt",
+                "prompt": "Instrumental cinematic game trailer music (mock), building tension then a final hit."}
+    return None
+
+
+MockLlm._v2 = staticmethod(_mock_v2)
 
 
 def client_from_env(transport: Transport = urllib_transport):
@@ -426,9 +478,22 @@ class ClaudeCliClient:
         import shutil
         if not shutil.which("claude"):
             raise LlmError("Không tìm thấy lệnh `claude` (Claude Code) trên máy này.", code="config")
-        return cls(os.environ.get("CLAUDE_CLI_MODEL", "").strip())
+        try:
+            timeout = int(os.environ.get("CLAUDE_CLI_TIMEOUT", "600"))
+        except ValueError:
+            timeout = 600
+        return cls(os.environ.get("CLAUDE_CLI_MODEL", "").strip(), timeout)
 
     def complete(self, prompt: str, images: Sequence[Tuple[str, str]] = ()) -> LlmReply:
+        """One retry when Claude Code times out (a slow turn is common with several pictures); other errors are reported."""
+        try:
+            return self._complete_once(prompt, images)
+        except LlmError as e:
+            if e.code != "timeout":
+                raise
+            return self._complete_once(prompt, images)
+
+    def _complete_once(self, prompt: str, images: Sequence[Tuple[str, str]] = ()) -> LlmReply:
         import shutil
         import subprocess
         import tempfile
@@ -468,7 +533,8 @@ class ClaudeCliClient:
                 hint = " Mở Claude Code (lệnh `claude`) một lần để đăng nhập lại rồi thử lại." if "authenticate" in detail.lower() or "oauth" in detail.lower() else ""
                 raise LlmError(f"Claude Code báo lỗi: {detail}.{hint}", code="auth" if hint else "cli_error")
             usage = out.get("usage") or {}
-            return LlmReply(str(out["result"]), int(usage.get("input_tokens", 0)), int(usage.get("output_tokens", 0)))
+            tokens_in = sum(int(usage.get(k, 0) or 0) for k in ("input_tokens", "cache_read_input_tokens", "cache_creation_input_tokens"))
+            return LlmReply(str(out["result"]), tokens_in, int(usage.get("output_tokens", 0)))
         finally:
             shutil.rmtree(work, ignore_errors=True)
 

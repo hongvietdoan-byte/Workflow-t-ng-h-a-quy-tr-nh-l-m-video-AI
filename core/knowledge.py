@@ -31,12 +31,16 @@ GROUPS: Dict[str, tuple] = {
                   ("knowledge/research_notes.md", "Nguyên tắc từ nguồn nghiên cứu", "16 nguyên tắc, 8 chiều điện ảnh"),
                   ("knowledge/film_director_method.md", "Phương pháp đạo diễn", "ý định cảm xúc, 3 trục quan hệ, dàn dựng, nhịp phủ cảnh"),
                   ("knowledge/ff_character_skills_visual.md", "Dịch skill → hình ảnh (67 nhân vật FF)",
-                   "cơ chế kỹ năng → hành động/hiệu ứng nhìn thấy được, dùng khi cảnh có nhân vật Free Fire dùng kỹ năng"),
+                   "chỉ gửi mục của nhân vật có trong dự án (v2)"),
+                  ("knowledge/character_lock.md", "Character Lock", "nét bắt buộc giữ / được đổi / cấm lệch (skill consistency designer)"),
+                  ("knowledge/dialogue_craft.md", "Viết thoại", "6 lỗi thoại (skill narration-writer)"),
+                  ("knowledge/genre/SHORT_FORM.md", "Thể loại theo dự án", "chỉ gửi file đúng thể loại của dự án (skill film-director)"),
                   ("eval/golden.json", "Ví dụ mẫu (few-shot)", "3 cặp đầu vào → kết quả chuẩn")]),
     "qc": ("QC — chấm điểm ảnh (Bước 2)",
            "Chấm ảnh theo 5 tiêu chí so với Character Bible và thông số cảnh.",
            [("prompts/02_qc_agent.md", "Prompt QC", "tiêu chí và định dạng chấm"),
-            ("knowledge/ai_image_failure_modes.md", "Lỗi thường gặp của ảnh AI", "tay, mặt, chữ, chi tiết thừa…")]),
+            ("knowledge/ai_image_failure_modes.md", "Lỗi thường gặp của ảnh AI", "tay, mặt, chữ, chi tiết thừa…"),
+            ("knowledge/character_lock.md", "Character Lock + thứ tự rà", "7 bước rà nhất quán nhân vật")]),
     "motion": ("Motion prompt — chuyển động video (Bước 3)",
                "Viết câu lệnh chuyển động cho từng cảnh có ảnh đã duyệt.",
                [("prompts/03_video_motion.md", "Prompt motion", "quy tắc và định dạng JSON"),
@@ -46,8 +50,9 @@ GROUPS: Dict[str, tuple] = {
                 ("knowledge/motion_complex_shots.md", "Cảnh hành động phức tạp", "khóa không gian, chia nhịp, whip pan đúng chỗ"),
                 ("knowledge/seedance_prompting.md", "Cách viết prompt Seedance", "chỉ gắn khi model video là Seedance"),
                 ("knowledge/seedance_director_workflow.md", "Quy trình Seedance Director", "chỉ gắn khi model video là Seedance"),
+                ("knowledge/motion_prompt_lint.md", "Checklist rà motion prompt", "Seedance Final QC + 4 kiểm tra mơ hồ của slide ClipAI"),
                 ("knowledge/ff_character_skills_visual.md", "Dịch skill → hình ảnh (67 nhân vật FF)",
-                 "cơ chế kỹ năng → hành động/hiệu ứng nhìn thấy được, dùng khi cảnh có nhân vật Free Fire dùng kỹ năng")]),
+                 "chỉ gửi mục của nhân vật có trong dự án (v2)")]),
 }
 
 
@@ -243,7 +248,8 @@ DISTILL_SECTIONS = {
 }
 # built-in documents that may be folded into the playbook (the prompt files and few-shot examples never are)
 _FOLDABLE = {"director": {"knowledge/cinematography_basics.md", "knowledge/genre_guides.md", "knowledge/research_notes.md",
-                          "knowledge/film_director_method.md", "knowledge/ff_character_skills_visual.md"},
+                          "knowledge/film_director_method.md", "knowledge/ff_character_skills_visual.md",
+                          "knowledge/dialogue_craft.md", "knowledge/character_lock.md"},
              "qc": {"knowledge/ai_image_failure_modes.md"},
              "motion": {"knowledge/video_motion_vocab.md", "knowledge/research_notes.md", "knowledge/seedance_prompting.md",
                         "knowledge/t2v_prompt_structure.md", "knowledge/motion_complex_shots.md",
@@ -358,3 +364,50 @@ def folded_builtin(group: str) -> set:
     """Built-in documents already summarised in the active playbook (so prompts leave them out)."""
     status = distilled_active(group)
     return set(_FOLDABLE[group]) if status and status["include_builtin"] else set()
+
+
+# ---- v2: send only the part that applies ------------------------------------------------------------------------------
+GENRE_DIR = os.path.join(os.path.dirname(__file__), "..", "knowledge", "genre")
+
+
+def genre_text(genre: Optional[str]) -> str:
+    """The film-director reference of the project's genre (SHORT_FORM, COMMERCIAL, ...), or '' when unknown."""
+    if not genre:
+        return ""
+    path = os.path.join(GENRE_DIR, f"{genre.strip().upper()}.md")
+    return _read(path) if os.path.exists(path) else ""
+
+
+def _norm_name(name: str) -> str:
+    import unicodedata
+    text = unicodedata.normalize("NFD", name or "")
+    return "".join(ch for ch in text if unicodedata.category(ch) != "Mn").upper().replace(" ", "").replace("-", "").replace(".", "")
+
+
+def ff_skills_for(names) -> str:
+    """ff_character_skills_visual.md cut down to its general notes + the sections of the characters named (67 characters,
+    ~34k characters in full, most of it about people not in the video)."""
+    path = os.path.join(os.path.dirname(__file__), "..", "knowledge", "ff_character_skills_visual.md")
+    text = _read(path)
+    wanted = {_norm_name(n) for n in names if n}
+    if not text or not wanted:
+        return ""
+    blocks, cur = [], []
+    for line in text.splitlines():
+        if line.startswith("## ") and cur:
+            blocks.append(cur)
+            cur = []
+        cur.append(line)
+    if cur:
+        blocks.append(cur)
+    head, keep = [], []
+    for block in blocks:
+        title = block[0][3:] if block[0].startswith("## ") else ""
+        who = _norm_name(title.split("—")[0].split(" - ")[0].strip()) if title else ""
+        if not title or title.startswith(("Chủ động", "⚠")):
+            head.append(chr(10).join(block))
+        elif any(w and (w == who or (len(w) > 2 and w in who)) for w in wanted):
+            keep.append(chr(10).join(block))
+    if not keep:
+        return ""
+    return (chr(10) * 2).join(head + keep)

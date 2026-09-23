@@ -9,7 +9,8 @@ from .pipeline import Pipeline
 
 _ROOT = os.path.join(os.path.dirname(__file__), "..")
 _SEP = "\n\n---\n\n"
-_SCENE_KEYS = ("location", "time", "characters", "mood", "lighting", "shot", "blocking", "image_prompt")
+_SCENE_KEYS = ("location", "time", "characters", "mood", "lighting", "shot", "blocking", "image_prompt", "emotional_intent", "beat",
+               "camera_complexity", "shot_role", "dialogue", "duration_s", "sequence")
 
 
 def _read(*parts: str) -> str:
@@ -41,6 +42,36 @@ def world_bible_text(pipeline: Pipeline, project_id: int) -> str:
             "\nMọi prompt ảnh/video của dự án dùng lại cách diễn đạt này để các cảnh nhất quán (không cần chép nguyên văn ở mỗi cảnh).")
 
 
+def people_in_project(pipeline: Pipeline, project_id: int) -> List[str]:
+    """Names the FF skill notes are filtered by: Character Bible, the project's character resources, capitalised speakers."""
+    conn = pipeline.conn
+    names = [r["name"] for r in conn.execute("SELECT name FROM characters WHERE project_id=?", (project_id,))]
+    names += [a["name"] for a in assets.project_assets(conn, project_id) if a["kind"] in ("character", "pet")]
+    for r in conn.execute("SELECT data FROM scenes WHERE project_id=?", (project_id,)):
+        names += [who for who, _ in dialogue.scene_lines(json.loads(r["data"] or "{}")) if who]
+    return sorted(set(names))
+
+
+def locked_block(pipeline: Pipeline, project_id: int) -> str:
+    from .llm_io import locked_fields
+    rows = locked_fields(pipeline.conn, project_id)
+    if not rows:
+        return ""
+    return ("# Giá trị người dùng đã khóa (GIỮ NGUYÊN, lên kế hoạch xung quanh)\n"
+            + "\n".join(f"- Cảnh {r['idx']}: " + json.dumps(r["fields"], ensure_ascii=False) for r in rows))
+
+
+def project_frame_block(pipeline: Pipeline, project_id: int) -> str:
+    from . import formats
+    proj = pipeline.project(project_id)
+    bits = [formats.director_line(formats.project_aspect(proj))]
+    genre = proj["genre"] if "genre" in proj.keys() else None
+    if genre:
+        bits.append(f"Thể loại của dự án: {genre}" + (" (người dùng đã chọn — giữ nguyên)" if proj["genre_locked"] else ""))
+    bits = [b for b in bits if b]
+    return ("# Khung hình và thể loại\n" + "\n".join(f"- {b}" for b in bits)) if bits else ""
+
+
 def build_director_bundle(pipeline: Pipeline, project_id: int) -> str:
     rows = pipeline.conn.execute(
         "SELECT idx, title, data FROM scenes WHERE project_id=? ORDER BY idx", (project_id,)).fetchall()
@@ -48,19 +79,41 @@ def build_director_bundle(pipeline: Pipeline, project_id: int) -> str:
         f"### Cảnh {r['idx']} — {r['title']}\n{json.loads(r['data'] or '{}').get('text', '')}" for r in rows)
     folded = knowledge.folded_builtin("director")
     keep = lambda rel: "" if f"knowledge/{rel}" in folded else _read("knowledge", rel)  # noqa: E731
+    proj = pipeline.project(project_id)
+    ff = "" if "knowledge/ff_character_skills_visual.md" in folded else knowledge.ff_skills_for(people_in_project(pipeline, project_id))
     return _SEP.join(x for x in [
         _read("prompts", "01_director_scene_analysis.md"),
+        project_frame_block(pipeline, project_id),
         keep("cinematography_basics.md"),
         keep("genre_guides.md"),
+        knowledge.genre_text(proj["genre"] if "genre" in proj.keys() else None),
         keep("research_notes.md"),
         keep("film_director_method.md"),
-        keep("ff_character_skills_visual.md"),
+        keep("character_lock.md"),
+        keep("dialogue_craft.md"),
+        ff,
         assets.context_text(pipeline.conn, project_id),
         world_bible_text(pipeline, project_id),
         knowledge.user_text("director"),
         few_shot_text(),
+        locked_block(pipeline, project_id),
         "# Kịch bản đã tách cảnh\n\n" + scenes,
     ] if x)
+
+
+def lock_text(conn, project_id: int, names=None) -> str:
+    """Character Lock of the characters (all, or the given names) as a readable block."""
+    rows = []
+    for r in conn.execute("SELECT name, lock_rules FROM characters WHERE project_id=?", (project_id,)):
+        if names is not None and r["name"] not in names or not r["lock_rules"]:
+            continue
+        try:
+            lock = json.loads(r["lock_rules"])
+        except ValueError:
+            continue
+        rows.append(f"- **{r['name']}** — giữ: {lock.get('must_keep', '')}; được đổi: {lock.get('may_change', '')}; "
+                    f"cấm lệch: {lock.get('forbidden', '')}")
+    return ("# Character Lock\n" + "\n".join(rows)) if rows else ""
 
 
 _ROLE_LABEL = {"location": "địa điểm", "object": "đạo cụ", "character": "nhân vật",
@@ -95,8 +148,11 @@ def build_qc_bundle(pipeline: Pipeline, scene_id: int, data_dir: Optional[str] =
         _read("prompts", "02_qc_agent.md"),
         "" if "knowledge/ai_image_failure_modes.md" in knowledge.folded_builtin("qc")
         else _read("knowledge", "ai_image_failure_modes.md"),
+        _read("knowledge", "character_lock.md"),
         knowledge.user_text("qc"),
+        world_bible_text(pipeline, scene["project_id"]),
         "# Character Bible\n" + bible,
+        lock_text(pipeline.conn, scene["project_id"], data.get("characters")),
         "# Thông số cảnh\n" + json.dumps(spec, ensure_ascii=False, indent=2),
         _reference_block(refs),
         "(Đính kèm ảnh cần chấm điểm" + (", rồi các ảnh tham chiếu." if refs else ".") + ")",
@@ -113,32 +169,65 @@ def video_family(pipeline: Pipeline, project_id: int):
         return None
 
 
-def build_motion_bundle(pipeline: Pipeline, project_id: int, only_missing: bool = False) -> str:
-    """Step 3: scenes that have an approved image, with their spec and the character descriptions.
-    only_missing: skip scenes that already have a motion prompt (used by the API runner)."""
-    conn = pipeline.conn
-    rows = conn.execute(
-        "SELECT s.idx, s.data FROM scenes s WHERE s.project_id=? AND EXISTS (SELECT 1 FROM jobs j WHERE"
+def motion_scene_rows(pipeline: Pipeline, project_id: int, only_missing: bool = False, only_idx=None):
+    """Scenes with an approved image; only_missing: without a motion prompt yet; only_idx: exactly these scenes (e.g. the ones
+    whose prompt is outdated)."""
+    rows = pipeline.conn.execute(
+        "SELECT s.id, s.idx, s.data FROM scenes s WHERE s.project_id=? AND EXISTS (SELECT 1 FROM jobs j WHERE"
         " j.scene_id=s.id AND j.type='image_gen' AND j.state='approved')"
         + (" AND NOT EXISTS (SELECT 1 FROM motion_prompts m WHERE m.scene_id=s.id)" if only_missing else "")
         + " ORDER BY s.idx", (project_id,)).fetchall()
-    chars = conn.execute("SELECT name, description FROM characters WHERE project_id=?", (project_id,)).fetchall()
-    def dialogue_hint(data: dict) -> dict:
-        need = dialogue.needed_seconds(dialogue.lines(data.get("text", "")))
-        return {"dialogue_min_sec": need} if need else {}
+    return [r for r in rows if only_idx is None or r["idx"] in only_idx]
 
-    payload = {
-        "characters": [dict(c) for c in chars],
-        "scenes": [{"idx": r["idx"], **{k: v for k, v in json.loads(r["data"] or "{}").items() if k in _SCENE_KEYS},
-                    **dialogue_hint(json.loads(r["data"] or "{}"))} for r in rows],
-    }
+
+def build_motion_bundle(pipeline: Pipeline, project_id: int, only_missing: bool = False, only_idx=None) -> str:
+    """Step 3: scenes that have an approved image, with their spec, the model each will use and the character descriptions.
+    only_missing: skip scenes that already have a motion prompt (used by the API runner); only_idx: just these scenes."""
+    from . import model_router
+    conn = pipeline.conn
+    rows = motion_scene_rows(pipeline, project_id, only_missing, only_idx)
+    chars = conn.execute("SELECT name, description, wardrobe FROM characters WHERE project_id=?", (project_id,)).fetchall()
+    profiles = model_router.load_profiles()["models"]
+    all_scenes = {r["idx"]: json.loads(r["data"] or "{}") for r in conn.execute(
+        "SELECT idx, data FROM scenes WHERE project_id=?", (project_id,))}
+
+    def extra(r) -> dict:
+        data = json.loads(r["data"] or "{}")
+        out = {}
+        need = dialogue.needed_seconds(dialogue.scene_lines(data))
+        if need:
+            out["dialogue_min_sec"] = need
+        choice = model_router.scene_choice(conn, r["id"])
+        out["video_model"] = choice["model"]
+        out["max_sec"] = (profiles.get(choice["model"]) or {}).get("max_sec", 15)
+        prev = all_scenes.get(r["idx"] - 1) or {}
+        if data.get("sequence") and prev.get("sequence") == data.get("sequence") and prev.get("spatial_state"):
+            out["previous_spatial_state"] = prev["spatial_state"]
+        return out
+
+    scenes = [{"idx": r["idx"], **{k: v for k, v in json.loads(r["data"] or "{}").items() if k in _SCENE_KEYS}, **extra(r)}
+              for r in rows]
+    payload = {"characters": [dict(c) for c in chars], "scenes": scenes}
     folded = knowledge.folded_builtin("motion")
+    complexity_known = any(s.get("camera_complexity") for s in scenes)
+    any_complex = any(s.get("camera_complexity") == "complex" for s in scenes)
+    uses_seedance = any("seedance" in (s.get("video_model") or "") for s in scenes) or video_family(pipeline, project_id) == "seedance"
     parts = [_read("prompts", "03_video_motion.md")]
-    for rel in ("video_motion_vocab.md", "research_notes.md", "t2v_prompt_structure.md", "motion_complex_shots.md",
-                "ff_character_skills_visual.md"):
+    for rel in ("video_motion_vocab.md", "research_notes.md", "t2v_prompt_structure.md"):
         if f"knowledge/{rel}" not in folded:
             parts.append(_read("knowledge", rel))
-    if video_family(pipeline, project_id) == "seedance":
+    if (any_complex or not complexity_known) and "knowledge/motion_complex_shots.md" not in folded:
+        parts.append(_read("knowledge", "motion_complex_shots.md"))
+    if any_complex:
+        parts.append(_read("knowledge", "motion_prompt_lint.md"))
+    if "knowledge/ff_character_skills_visual.md" not in folded:
+        ff = knowledge.ff_skills_for(people_in_project(pipeline, project_id))
+        if ff:
+            parts.append(ff)
+    lock = lock_text(conn, project_id)
+    if lock:
+        parts.append(lock)
+    if uses_seedance:
         for rel in ("seedance_prompting.md", "seedance_director_workflow.md"):
             if f"knowledge/{rel}" not in folded:
                 parts.append(_read("knowledge", rel))
