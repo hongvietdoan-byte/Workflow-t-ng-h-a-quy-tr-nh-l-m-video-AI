@@ -20,7 +20,7 @@ import streamlit as st
 
 
 from core import effectiveness, costume, previz, asset_vision, autoqc, ff_site, sfx_plan, sound_lib, assets, audio_lib, subtitles, script_reader, auth, autopilot, dialogue, diag, knowledge, lessons, perf, regen, research, style, subjects, trash, waveform, cost, ffmpeg_studio, final_cut, llm_io, llm_runner, music, preflight, prompts, script_parser, video_analysis  # noqa: E402
-from core import claude_tasks, delivery, formats, lineage, model_router, qc_policy, voice  # noqa: E402
+from core import batch, claude_tasks, delivery, formats, lineage, model_router, pilot, qc_policy, voice  # noqa: E402
 from core.db import connect  # noqa: E402
 from core.pipeline import Pipeline, PipelinePaused  # noqa: E402
 from core.adapters import factory  # noqa: E402
@@ -63,7 +63,7 @@ CRITERIA_LABEL = {"character": "Đúng nhân vật", "hands_face": "Không lỗi
                   "mood_lighting": "Đúng mood / ánh sáng", "consistency": "Không chi tiết thừa/sai",
                   "scale": "Đúng tỉ lệ người/cảnh", "grounding": "Chân chạm đất", "set_match": "Khớp layout / bối cảnh"}
 
-FILTERS = {"all": "Tất cả", "review": "Chờ duyệt", "pass": "Đã duyệt", "fail": "FAIL", "run": "Chờ / đang gen"}
+FILTERS = {"all": "Tất cả", "review": "Chờ duyệt", "pass": "Đã duyệt", "fail": "Lỗi / đã loại", "run": "Chờ / đang gen"}
 
 FILTER_STATES = {"review": ("succeeded", "pending_review"), "pass": ("approved",), "fail": ("failed", "rejected"),
                  "run": ("queued", "running")}
