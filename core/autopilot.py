@@ -278,8 +278,11 @@ def _images_phase(p: Pipeline, pid: int, ctx: Context) -> Optional[str]:
         _log(p, pid, "Gen thử các cảnh đại diện trước")
     cap_images, _ = _job_caps(p, pid)
     stale = {sid: r for sid, r in lineage.scan(p.conn, pid).items() if r["image_stale"] and r["image_job_id"]}
+    from .shots import needs_own_image
     for scene in _scene_rows(p, pid):
         if pilot.allowed_scenes(p, pid, [scene["id"]]) == []:
+            continue
+        if not needs_own_image(p.conn, scene["id"]):    # v3 multi-shot: later shots of a group start from the group's picture
             continue
         if scene["id"] in stale:
             if _count(p, "SELECT COUNT(*) FROM jobs WHERE project_id=? AND type='image_gen'", pid) >= cap_images:

@@ -117,7 +117,8 @@ Cộng dự phòng gen lại ×1,5 + TTS → **ước tính ~$25–30, trần c�
 | GĐ3 · Nhất quán + Kling multi-shot | **Xong** (2026-09-24) | Seedance khung đầu+cuối, ảnh shot nối liền chờ shot trước, một model mỗi nhóm, Kling multi-shot trưởng nhóm → cắt cho từng shot, QC đồng bộ cả bộ clip; 648 test pass |
 | GĐ4 · Giọng Việt + storyboard theo shot | **Xong phần không tốn credit** (2026-09-24) | Giọng có `vi` lên đầu + chọn giọng chỉ trong đó, bảng cách đọc từ game, nghe thử câu mẫu, storyboard theo shot; so `eleven_v3`/`multilingual_v2` dời sang GĐ6; 652 test pass |
 | GĐ5 · Trần ngân sách, thử rẻ, so sánh | **Xong** (2026-09-24) | Trần chi cứng ($50, bật khi bắt đầu đợt thử), chế độ thử rẻ (720p, Kling std, Seedance → Fast), nhân bản dự án, bảng so sánh + chấm điểm ở 📊 Theo dõi; multi-shot chỉ gen ảnh cho shot đầu nhóm; 657 test pass |
-| GĐ6 · Thử thật 3 phương án | Chưa bắt đầu | Cần bạn duyệt chi tiêu |
+| Chạy giả lập 3 phương án | **Xong** (2026-09-24) | Kịch bản Kenta ở v2 / từng shot / multi-shot tới bản giao (tự động + bấm tay trên Dashboard); tìm và sửa 10 lỗi; 659 test pass |
+| GĐ6 · Thử thật 3 phương án | **Đang làm** (người dùng duyệt 2026-09-24) | Trần $50, 720p |
 
 ### GĐ1 — đã xong
 - `core/reference_analysis.py`: cắt shot bằng ffmpeg (`scale=192`, `select='gt(scene,T)',showinfo`, mặc định T=0,30; video hướng dẫn dạng chia đôi màn hình/slide dùng 0,15), khung giữa mỗi shot, bảng khung 12 ô/bảng (qua `layout.storyboard`), gắn nhãn bằng `llm_runner.ask_json` + `prompts/16_reference_shots.md` (từ vựng cố định: cỡ cảnh ECU…EWS + `GAME_TPS` + `GRAPHIC`, góc, chuyển động máy, 8 vai trò, chữ/giao diện game/hiệu ứng), `MockLlm` có câu trả lời giả lập, lưu **chỉ dữ liệu chữ** vào `research/ff_styles/<STYLE>/<id>.json`, thống kê theo phong cách (`style_stats`, `stats_markdown`: độ dài shot p10–p90, khoảng p25–p75 theo vai trò, tỉ lệ cỡ cảnh/chuyển động, chữ/UI/hiệu ứng, mở–kết).
@@ -185,11 +186,37 @@ Cộng dự phòng gen lại ×1,5 + TTS → **ước tính ~$25–30, trần c�
 
 ### GĐ5 — đã xong (2026-09-24)
 - **Trần ngân sách cứng** (`core/budget.py`, ⚙ → 💵 Ngân sách thử): tắt mặc định (làm video thật không bị chặn); bấm "Bắt đầu đợt thử" → tính từ mốc đó, tổng chi video + âm thanh theo sổ `usage_events` (mọi dự án, theo bảng giá) + ước tính lệnh sắp gửi > trần ($50, từ biến `BUDGET_USD`) → job **giữ trong hàng đợi**, báo lý do "budget" ở 📊 Theo dõi. Ảnh Deepix chưa có giá → đếm số ảnh, trần 80 ảnh. Nhà cung cấp giả lập không tính.
-- **Chế độ thử rẻ** (cờ dự án `test_quality`, ô "🧪 Thử rẻ" trong ⚙): không xin 1080p, Kling gửi `mode=std`, Seedance 2.0 → 2.0 Fast; ước tính giá ở Bước 4 theo đúng lựa chọn này.
+- **Chế độ thử rẻ** (cờ dự án `test_quality`, ô "🧪 Thử rẻ" trong ⚙): không xin 1080p, Kling gửi `mode=std`, Seedance 2.0 và 2.5 → 2.0 Fast (các phương án so sánh cùng mức giá); ước tính giá ở Bước 4 theo đúng lựa chọn này.
 - **Nhân bản dự án** (`core/compare.clone_project`, ⚙ → 🧬): chép kịch bản, cảnh kịch bản, (tùy chọn) các dòng cảnh/shot, Character Bible + Lock + giọng + tài nguyên, World Bible, thiết lập bản giao; đổi được cách chia cảnh (v2 / từng shot / multi-shot) — không chép ảnh/prompt/clip.
 - **Bảng so sánh** (📊 Theo dõi → ⚖): 2–3 dự án cạnh nhau, video bản giao, chỉ số (số shot, độ dài phim/shot, chi phí, số ảnh/lần gen video, giây bị tính, thời gian làm, số lần gen lại, QC ảnh/video, clip lệch, thoại không vừa clip) + ô chấm điểm 1–5 (nhân vật, bối cảnh, nhịp, chất Free Fire, tổng thể) → bảng Markdown dùng cho `docs/V3_AB_REPORT.md`.
 - **Multi-shot không gen ảnh thừa:** shot đi kèm trong nhóm Kling multi-shot không cần ảnh riêng (`shots.needs_own_image` / `image_scene`), vẫn có motion prompt riêng.
 - **Test:** 5 test mới (`BudgetAndCompareTests`) + kiểm số ảnh multi-shot; toàn bộ 657 test pass.
+
+### Chạy giả lập 3 phương án — kết quả (2026-09-24)
+Nhà cung cấp giả lập, `MOCK_REAL_MEDIA=1` (ảnh/clip là file thật nhỏ, dựng bằng ffmpeg thật), kịch bản Kenta, 9:16, chế độ thử rẻ. Dự án V1 (từng shot) tạo từ kịch bản, V2 (multi-shot) và V0 (v2) nhân bản từ V1 bằng tính năng mới.
+
+| | V0 v2 | V1 từng shot | V2 multi-shot |
+|---|---|---|---|
+| Shot / clip | 3 | 25 | 25 |
+| Ảnh / lần gen video | 3 / 3 | 25 / 25 | 7 / 7 |
+| Độ dài phim (giọng giả 1,5s/câu) | 30s | 68s | 68s |
+| Ước tính chi phí video thật (theo bảng giá, `model_router.plan`) | ~$2 cho 15s (Director giả; thật ~56s ≈ $5–7) | ~$12,7 (106 giây bị tính: Seedance Fast tối thiểu 4s/shot) | ~$7,2 (90 giây bị tính: Kling tối thiểu 3s/shot) |
+
+Nhận xét: shot rất ngắn (1–1,5s, phản ứng/chèn) làm giá tăng vì mọi model có độ dài tối thiểu (clip được cắt lại sau); multi-shot rẻ hơn ~40% và cần ít ảnh hơn nhiều. Chất lượng thật chỉ biết ở GĐ6.
+
+**Lỗi tìm thấy và đã sửa:**
+1. Nhân bản "chạy lại Director" để bản sao không có dòng cảnh nào → Director v2 báo lỗi. Nay bản sao có một dòng mỗi cảnh kịch bản.
+2. Chế độ tự động gen ảnh cho cả 25 shot của multi-shot (chỉ cần 7).
+3. Sau khi sửa (2): lineage coi shot đi kèm là "ảnh đã bỏ duyệt" → chế độ tự động lặp mãi ở 7/25. Nay shot đi kèm được xét theo ảnh đầu nhóm; job đi kèm ghi đúng ảnh nguồn.
+4. Bước 2 multi-shot ước tính thừa 18 ảnh; storyboard ghi "7/25 ảnh" → nay "7/7 ảnh · 18 shot dùng ảnh đầu nhóm".
+5. Hộp thoại 💵 Ngân sách thử và 🧬 Nhân bản không mở (thiếu trong `DIALOG_FLAGS`) → thêm + test chặn tái diễn.
+6. Bấm nút trong hộp thoại → lỗi SQLite khác luồng (hộp thoại chạy lại ở luồng khác). Nay mọi hộp thoại (cả Kho tài nguyên, Lịch sử, Bài học, Phân quyền) tự mở kết nối riêng.
+7. Ký hiệu "$" trong hộp thoại ngân sách / bảng so sánh bị hiểu là công thức toán → mất chữ.
+8. Lưu điểm ở bảng so sánh không cập nhật bảng ngay.
+9. Nhãn "25 cảnh" ở dự án chia shot → "3 cảnh · 25 shot"; khối thử nghiệm multi-shot cũ ẩn với dự án chia shot.
+10. Chế độ thử rẻ vẫn để Seedance 2.5 (đắt nhất) → nay 2.0 và 2.5 đều xuống 2.0 Fast (so sánh cùng mặt bằng giá).
+
+Không phải lỗi: shot có thoại được kéo dài theo giọng thật (đúng thiết kế); clip "chờ duyệt" chưa tính là "dùng được" ở chế độ người duyệt.
 
 ### Ghi chú thiết kế cho GĐ2–3 (đọc code, chưa làm)
 - Cột mới theo mẫu `V2_COLUMNS` trong `core/db.py`; bảng `story_scenes` thêm vào `SCHEMA`.

@@ -389,7 +389,7 @@ class VideoRunner(_Runner):
             mp = self._motion(r["id"])
             conn.execute("UPDATE jobs SET group_leader=?, external_id=?, model='kling', input_hash=?, source_job_id=? WHERE id=?",
                          (leader["id"], leader["external_id"], lineage.video_input_hash(mp, aspect) if mp else None,
-                          lineage.approved_image_id(conn, r["id"]), jid))
+                          lineage.approved_image_id(conn, shots.image_scene(conn, r["id"])), jid))
             conn.commit()
             self.p.start(jid)
             try:

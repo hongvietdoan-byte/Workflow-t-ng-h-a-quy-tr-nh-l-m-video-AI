@@ -411,7 +411,7 @@ class BudgetAndCompareTests(unittest.TestCase):
         llm_runner.run_director(p, pid, llm_runner.MockLlm())
         choices = [model_router.scene_choice(p.conn, r["id"]) for r in p.conn.execute("SELECT id FROM scenes WHERE project_id=?", (pid,))]
         self.assertFalse(any(c["resolution"] for c in choices))
-        self.assertNotIn("seedance", {c["model"] for c in choices})  # 2.0 became 2.0 Fast
+        self.assertFalse({"seedance", "seedance-2.5"} & {c["model"] for c in choices})  # 2.0 and 2.5 became 2.0 Fast
         _approve_all_images(p, pid, data)
         _approve_all_motion(p, pid, data)
         provider = MockVideoProvider()
@@ -421,6 +421,41 @@ class BudgetAndCompareTests(unittest.TestCase):
         vr.submit_pending(pid)
         self.assertTrue(provider._tasks)
         self.assertTrue(all(t["kling_mode"] == "std" and t["resolution"] in (None, "720p") for t in provider._tasks.values()))
+
+    def test_the_automatic_run_makes_one_picture_per_multishot_group(self):
+        from core import autopilot, music, shots
+        from core.providers import MockImageProvider, MockVideoProvider
+        from core.runner import ImageRunner, VideoRunner
+        p, pid = kenta_project(shot_mode="multishot")
+        llm_runner.run_director(p, pid, llm_runner.MockLlm())
+        data = tempfile.mkdtemp()
+
+        def render(pp, i, d, m):
+            out = os.path.join(d, str(i), "output", "FINAL_VIDEO.mp4")
+            os.makedirs(os.path.dirname(out), exist_ok=True)
+            open(out, "wb").write(b"x")
+            return out
+        ctx = autopilot.Context(data, ImageRunner(p, MockImageProvider(), data), VideoRunner(p, MockVideoProvider(polls_to_finish=1), data),
+                                llm_runner.MockLlm(), music.MockAudioProvider(), render)
+        autopilot.set_gates(p, pid, {"bible": False})
+        autopilot.start(p, pid)
+        from unittest import mock
+        with mock.patch("core.claude_tasks.unchecked_videos", return_value=[]):     # the simulator's clips are not real videos
+            self.assertEqual(autopilot.run_until_done(p, pid, ctx, max_ticks=400), autopilot.DONE)
+        groups = shots.multishot_groups(p.conn, pid)
+        count = lambda sql: p.conn.execute(sql, (pid,)).fetchone()[0]  # noqa: E731
+        self.assertEqual(count("SELECT COUNT(*) FROM jobs WHERE project_id=? AND type='image_gen'"), len(groups))
+        self.assertEqual(count("SELECT COUNT(*) FROM jobs WHERE project_id=? AND type='video_gen' AND group_leader IS NULL"), len(groups))
+
+    def test_every_dialog_the_dashboard_opens_is_known_to_open_dialog(self):
+        import glob
+        import re
+        root = os.path.join(os.path.dirname(__file__), "..", "dashboard")
+        text = "".join(open(f, encoding="utf-8").read() for f in glob.glob(os.path.join(root, "**", "*.py"), recursive=True))
+        flags = set(re.findall(r'open_dialog\("(dlg_\w+)"\)', text))
+        known = set(re.search(r"DIALOG_FLAGS = \(([^)]*)\)", text).group(1).replace('"', "").replace(" ", "").split(","))
+        self.assertTrue(flags)
+        self.assertEqual(flags - known, set())        # a flag missing there never opens its dialog
 
     def test_a_clone_starts_from_the_same_point_without_any_result(self):
         from core import compare, shots
@@ -435,7 +470,10 @@ class BudgetAndCompareTests(unittest.TestCase):
         self.assertEqual(p.conn.execute("SELECT COUNT(*) FROM jobs WHERE project_id=?", (new,)).fetchone()[0], 0)
         self.assertEqual(p.project(new)["render_settings"], p.project(pid)["render_settings"])     # same end card
         bare = compare.clone_project(p, pid, "chạy lại Director", None, with_rows=False)
-        self.assertEqual(p.conn.execute("SELECT COUNT(*) FROM scenes WHERE project_id=?", (bare,)).fetchone()[0], 0)
+        self.assertEqual([r["title"] for r in p.conn.execute("SELECT title FROM scenes WHERE project_id=? ORDER BY idx", (bare,))],
+                         [s["heading"] for s in shots.story_scenes(p, pid)])     # one row per script scene, as after the import
+        llm_runner.run_director(p, bare, llm_runner.MockLlm())                    # the v2 Director works on the copy
+        self.assertEqual(p.conn.execute("SELECT COUNT(*) FROM scenes WHERE project_id=?", (bare,)).fetchone()[0], 3)
 
     def test_metrics_scores_and_report(self):
         from core import compare

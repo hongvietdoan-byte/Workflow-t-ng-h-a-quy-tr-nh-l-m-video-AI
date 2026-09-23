@@ -75,11 +75,11 @@ def pending_image_units(pipeline: Pipeline, project_id: int) -> int:
     """Image jobs that a run would submit: queued jobs plus ready scenes that have no live image job yet."""
     queued = pipeline.conn.execute("SELECT COUNT(*) c FROM jobs WHERE project_id=? AND type='image_gen'"
                                    " AND state='queued'", (project_id,)).fetchone()["c"]
-    fresh = pipeline.conn.execute(
-        "SELECT COUNT(*) c FROM scenes WHERE project_id=? AND state='ready' AND id NOT IN"
-        " (SELECT scene_id FROM jobs WHERE type='image_gen' AND state NOT IN ('rejected','cancelled'))",
-        (project_id,)).fetchone()["c"]
-    return queued + fresh
+    from .shots import needs_own_image
+    fresh = [r["id"] for r in pipeline.conn.execute(
+        "SELECT id FROM scenes WHERE project_id=? AND state='ready' AND id NOT IN"
+        " (SELECT scene_id FROM jobs WHERE type='image_gen' AND state NOT IN ('rejected','cancelled'))", (project_id,))]
+    return queued + sum(1 for sid in fresh if needs_own_image(pipeline.conn, sid))   # v3 multi-shot: one picture per group
 
 
 def estimate_images(pipeline: Pipeline, project_id: int, pricing: Dict, model: str) -> Dict:

@@ -394,8 +394,11 @@ def shot_storyboard_panel(p: Pipeline, pid: int) -> None:
     if not rows:
         return
     total = sum(float(r["data"].get("duration_s") or 0) for r in rows)
-    have = [r for r in rows if shots.approved_image_path(p.conn, C.DATA, pid, r["id"])]
-    with st.expander(f"🎞 Storyboard theo shot — {len(have)}/{len(rows)} ảnh đã duyệt · {len(rows)} shot · {total:.0f}s", expanded=False):
+    own = [r for r in rows if shots.needs_own_image(p.conn, r["id"])]      # multi-shot: later shots of a group use the group's picture
+    have = [r for r in own if shots.approved_image_path(p.conn, C.DATA, pid, r["id"])]
+    note = "" if len(own) == len(rows) else f" (multi-shot: {len(rows) - len(own)} shot dùng ảnh đầu nhóm)"
+    with st.expander(f"🎞 Storyboard theo shot — {len(have)}/{len(own)} ảnh đã duyệt · {len(rows)} shot · {total:.0f}s{note}",
+                     expanded=False):
         st.caption("Ảnh khung đầu của từng shot theo thứ tự phim: kiểm tra nhịp, cỡ cảnh, sự liên tục trước khi gen video (rẻ hơn nhiều).")
         per_row = 6
         for k in range(0, len(rows), per_row):
@@ -405,6 +408,10 @@ def shot_storyboard_panel(p: Pipeline, pid: int) -> None:
                 path = shots.approved_image_path(p.conn, C.DATA, pid, r["id"])
                 if path:
                     col.image(path, width="stretch")
+                elif not shots.needs_own_image(p.conn, r["id"]):
+                    lead = shots.image_scene(p.conn, r["id"])
+                    col.caption("↳ tiếp nối trong clip multi-shot của "
+                                + next((x["label"] for x in rows if x["id"] == lead), "shot đầu nhóm"))
                 else:
                     col.caption("— chưa có ảnh")
                 lines = " / ".join(f"{x.get('speaker')}: {x.get('text')}" for x in d.get("dialogue") or [])

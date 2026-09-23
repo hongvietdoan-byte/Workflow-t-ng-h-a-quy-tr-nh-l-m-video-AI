@@ -46,6 +46,12 @@ def clone_project(p: Pipeline, project_id: int, name: str, shot_mode: Optional[s
     if with_rows:
         conn.execute("INSERT INTO scenes (project_id, idx, title, state, data) SELECT ?, idx, title, 'ready', data"
                      " FROM scenes WHERE project_id=?", (new, project_id))
+    else:                                 # one row per script scene, as right after the import: the Director starts again
+        from .shots import story_scenes
+        for s in story_scenes(p, project_id):
+            conn.execute("INSERT INTO scenes (project_id, idx, title, data) VALUES (?,?,?,?)",
+                         (new, s["idx"], s["heading"], json.dumps({"text": s["text"], "characters": s["data"].get("characters") or []},
+                                                                  ensure_ascii=False)))
     conn.commit()
     return new
 

@@ -244,6 +244,14 @@ def script_html(text: str) -> str:
     return '<div class="scriptfull">' + "\n".join(lines) + "</div>"
 
 
+def _count_label(p: Pipeline, pid: int, scenes) -> str:
+    """'3 cảnh' (v2) or '3 cảnh · 25 shot' (v3 shot rows)."""
+    from core import shots
+    if scenes and any(json.loads(s["data"] or "{}").get("shot_no") for s in scenes):
+        return f"{shots.story_scene_count(p, pid)} cảnh · {len(scenes)} shot"
+    return f"{len(scenes)} cảnh"
+
+
 def step1(p: Pipeline, pid: int):
     proj = p.project(pid)
     scenes = p.conn.execute("SELECT idx, title, state, data FROM scenes WHERE project_id=? ORDER BY idx", (pid,)).fetchall()
@@ -254,7 +262,7 @@ def step1(p: Pipeline, pid: int):
     locked = any(c["locked"] for c in chars)
     stale = len(lineage.stale_scene_ids(p.conn, pid)) if scenes else 0
     step_header("Bước 1 · Kịch bản & đạo diễn", "tách cảnh → chuẩn bị → Director → nhân vật → thoại → khóa",
-                f"{len(scenes)} cảnh · {len(chars)} nhân vật" + (" · đã khóa" if locked else ""), stale)
+                _count_label(p, pid, scenes) + f" · {len(chars)} nhân vật" + (" · đã khóa" if locked else ""), stale)
 
     with st.container(border=True):
         ui.html(ui.card_title("1a · 📜 Kịch bản", "toàn văn (trái) · chia theo cảnh (phải)"))
@@ -950,8 +958,9 @@ def scene_list(p: Pipeline, pid: int, scenes, char_names) -> None:
     status = lineage.scan(p.conn, pid)
     by_idx = {r["idx"]: r for r in status.values()}
     with_bg = sum(1 for s in scenes if assets.scene_location(p.conn, pid, json.loads(s["data"] or "{}")))
-    st.caption(f"🏞 {with_bg}/{len(scenes)} cảnh đã có Background"
-               + ("" if with_bg == len(scenes) else " — cảnh chưa có thì không dựng được layout; chọn trong từng cảnh hoặc gắn địa điểm ở 1b"))
+    unit = "shot" if scenes and any(json.loads(s["data"] or "{}").get("shot_no") for s in scenes) else "cảnh"
+    st.caption(f"🏞 {with_bg}/{len(scenes)} {unit} đã có Background"
+               + ("" if with_bg == len(scenes) else f" — {unit} chưa có thì không dựng được layout; chọn trong từng {unit} hoặc gắn địa điểm ở 1b"))
     proj = p.project(pid)
     modes = {0: "Tự động: nối trong cùng nhóm cảnh", 1: "Luôn nối cảnh liền trước", 2: "Không nối"}
     mode = st.radio("🔗 Nối ảnh cảnh trước (giữ liên tục ánh sáng/vị trí khi gen ảnh)", list(modes), horizontal=True,

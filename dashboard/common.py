@@ -46,7 +46,7 @@ STEP_PERMISSION = {"📊 Theo dõi": "monitor"}
 
 # Lịch sử / Bài học / Phân quyền moved off the step bar into the settings gear (see settings_menu()) --
 # each opens as its own closable st.dialog panel instead of living inline in the stepper.
-DIALOG_FLAGS = ("dlg_assets", "dlg_pricing", "dlg_knowledge", "dlg_history", "dlg_lessons", "dlg_users")
+DIALOG_FLAGS = ("dlg_assets", "dlg_pricing", "dlg_knowledge", "dlg_history", "dlg_lessons", "dlg_users", "dlg_budget", "dlg_clone")
 
 def open_dialog(flag: str) -> None:
     """Only one st.dialog may be open per script run: opening one always closes any other."""

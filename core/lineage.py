@@ -85,13 +85,23 @@ def scan(conn, project_id: int) -> Dict[int, Dict]:
         "SELECT j.scene_id, j.id, j.input_hash, j.source_job_id, j.state FROM jobs j WHERE j.project_id=? AND j.type='video_gen'"
         f" AND j.state IN {USABLE_VIDEO + ('pending_review',)} AND j.id=(SELECT MAX(k.id) FROM jobs k WHERE k.scene_id=j.scene_id"
         f" AND k.type='video_gen' AND k.state IN {USABLE_VIDEO + ('pending_review',)})", (project_id,))}
+    image_stale_of = {}
+    for s in scenes:
+        img = images.get(s["id"])
+        if img is not None and img["input_hash"] and img["input_hash"] != image_spec_hash(json.loads(s["data"] or "{}"), cast_rows, aspect):
+            image_stale_of[s["id"]] = "nội dung cảnh / nhân vật / tỉ lệ khung đã đổi"
+    base = {}                                           # v3 multi-shot: later shots of a group start from the group's picture
+    mode = conn.execute("SELECT shot_mode FROM projects WHERE id=?", (project_id,)).fetchone()
+    if mode is not None and mode["shot_mode"] == "multishot":
+        from .shots import image_scene
+        base = {s["id"]: image_scene(conn, s["id"]) for s in scenes}
     out = {}
     for s in scenes:
         data = json.loads(s["data"] or "{}")
         img, mp, vid = images.get(s["id"]), motions.get(s["id"]), videos.get(s["id"])
-        image_stale = None
-        if img is not None and img["input_hash"] and img["input_hash"] != image_spec_hash(data, cast_rows, aspect):
-            image_stale = "nội dung cảnh / nhân vật / tỉ lệ khung đã đổi"
+        image_stale = image_stale_of.get(s["id"])
+        if base.get(s["id"], s["id"]) != s["id"]:        # a follower judges its prompt and clip against the group's picture
+            img, image_stale = images.get(base[s["id"]]), image_stale_of.get(base[s["id"]])
         motion_stale = None
         if mp is not None:
             if img is None:
@@ -114,7 +124,8 @@ def scan(conn, project_id: int) -> Dict[int, Dict]:
                 video_stale = "motion prompt / thời lượng đã đổi"
             elif motion_stale or image_stale:
                 video_stale = "ảnh hoặc motion prompt đang cũ"
-        out[s["id"]] = {"idx": s["idx"], "image_job_id": img["id"] if img else None, "image_stale": image_stale,
+        own = base.get(s["id"], s["id"]) == s["id"]
+        out[s["id"]] = {"idx": s["idx"], "image_job_id": img["id"] if img and own else None, "image_stale": image_stale if own else None,
                         "motion_state": mp["state"] if mp else None, "motion_stale": motion_stale,
                         "video_job_id": vid["id"] if vid else None, "video_state": vid["state"] if vid else None,
                         "video_stale": video_stale}

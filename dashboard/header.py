@@ -126,7 +126,7 @@ def settings_menu(p: Pipeline, pid) -> None:
                 st.rerun()
             if st.button("🗒 Lịch sử & thùng rác", key="settings_history", width="stretch"):
                 open_dialog("dlg_history")
-            cheap = st.checkbox("🧪 Thử rẻ (720p · Kling std · Seedance 2.0 → Fast)", bool(proj["test_quality"]), key=f"cheap_{pid}",
+            cheap = st.checkbox("🧪 Thử rẻ (720p · Kling std · Seedance 2.0/2.5 → Fast)", bool(proj["test_quality"]), key=f"cheap_{pid}",
                                 help="Cho đợt thử nghiệm: không gen 1080p, dùng bản rẻ hơn của model. Tắt khi làm video thật.")
             if cheap != bool(proj["test_quality"]):
                 p.set_project_field(pid, "test_quality", 1 if cheap else 0)
@@ -171,18 +171,28 @@ def settings_menu(p: Pipeline, pid) -> None:
         _dialog_users(p, pid)
 
 
+def _own(p: Pipeline) -> Pipeline:
+    """A dialog's buttons rerun only the dialog, in another thread than the one that made `p` (SQLite refuses to share a
+    connection across threads): every dialog works on its own connection, as the same person."""
+    fresh = Pipeline(connect(C.DB))
+    fresh.actor = p.actor
+    return fresh
+
+
 @st.dialog("📁 Kho tài nguyên", width="large", on_dismiss=lambda: close_dialog("dlg_assets"))
 def _dialog_assets(p: Pipeline) -> None:
+    p = _own(p)
     asset_library_panel(p)
 
 
 @st.dialog("💵 Ngân sách thử", on_dismiss=lambda: close_dialog("dlg_budget"))
 def _dialog_budget(p: Pipeline) -> None:
     """Hard spending limit of a test round (kế hoạch v3: ≤ $50): jobs that would pass it stay queued."""
+    p = _own(p)
     from core import budget
     s = budget.status(p.conn)
     if s["enabled"]:
-        st.markdown(f"**Đang bật** — tính từ {s['since']} (UTC): đã chi ≈ **${s['spent']:.2f} / ${s['usd']:.0f}**, "
+        st.markdown(f"**Đang bật** — tính từ {s['since']} (UTC): đã chi ≈ **\\${s['spent']:.2f} / \\${s['usd']:.0f}**, "
                     f"{s['images']}/{s['image_cap']} ảnh.")
         st.progress(min(s["spent"] / s["usd"], 1.0) if s["usd"] else 0.0)
         if s["unknown"]:
@@ -209,6 +219,7 @@ def _dialog_budget(p: Pipeline) -> None:
 @st.dialog("🧬 Nhân bản dự án", on_dismiss=lambda: close_dialog("dlg_clone"))
 def _dialog_clone(p: Pipeline, pid: int) -> None:
     """Same script, Character Bible (Lock, voices, references), World Bible and delivery settings — another way of making it."""
+    p = _own(p)
     from core import compare, shots
     proj = p.project(pid)
     st.caption("Bản sao bắt đầu cùng điểm xuất phát (kịch bản, nhân vật, giọng, phong cách, thiết lập bản giao) nhưng chưa có ảnh/clip — "
@@ -236,16 +247,19 @@ def _dialog_knowledge() -> None:
 
 @st.dialog("🗒 Lịch sử", width="large", on_dismiss=lambda: close_dialog("dlg_history"))
 def _dialog_history(p: Pipeline, pid: int) -> None:
+    p = _own(p)
     history(p, pid)
 
 
 @st.dialog("🎓 Bài học", width="large", on_dismiss=lambda: close_dialog("dlg_lessons"))
 def _dialog_lessons(p: Pipeline, pid: int) -> None:
+    p = _own(p)
     lessons_tab(p, pid)
 
 
 @st.dialog("👥 Phân quyền", width="large", on_dismiss=lambda: close_dialog("dlg_users"))
 def _dialog_users(p: Pipeline, pid: int) -> None:
+    p = _own(p)
     users_tab(p, pid)
 
 

@@ -245,7 +245,9 @@ def video_card(p: Pipeline, pid: int, j, runner, stale_reason) -> None:
 
 def experiments_panel(p: Pipeline, pid: int, runner) -> None:
     """Experiment (off the main path): Kling multi-shot for one sequence, to compare continuity with the per-scene clips."""
-    from core import experiments
+    from core import experiments, shots
+    if shots.active(p, pid):       # v3 shot projects have the real thing (shot_mode = multishot)
+        return
     seqs = experiments.sequences(p, pid)
     items = experiments.load(C.DATA, pid)
     if not seqs and not items:

@@ -539,7 +539,8 @@ def compare_panel(p: Pipeline) -> None:
                 if st.button("💾 Lưu điểm", key=f"cmp_save_{r['project_id']}"):
                     compare.save_scores(p.conn, r["project_id"], {**new, "note": note})
                     st.toast("Đã lưu điểm")
-        st.markdown(compare.report_markdown(rows))
+                    st.rerun()                     # the table below was built before the save
+        st.markdown(compare.report_markdown(rows).replace("$", "\\$"))      # "$" would start a formula
         st.caption("Chi phí theo bảng giá (ước tính); thời gian làm = từ job đầu tiên đến job cuối cùng của dự án.")
 
 
