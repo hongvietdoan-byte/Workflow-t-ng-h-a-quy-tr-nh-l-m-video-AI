@@ -1,109 +1,184 @@
 """Step 4: video generation."""
 from dashboard.common import *  # noqa: F401,F403  (shared imports + helpers)
 from dashboard import common as C
-from dashboard.widgets import auto_poll_videos, dialogue_panel
+from dashboard.widgets import auto_poll_videos, video_busy
 
 
-# ---- step 4 --------------------------------------------------------------------------
 def step4(p: Pipeline, pid: int):
-    ready = llm_io.ready_for_video(p, pid)
-    dialogue_panel(p, pid, "s4")
     runner = video_runner(p)
-    models = ["(mặc định: kling-v3-omni)", "kling", "kling-o1", "seedance", "seedance-fast", "seedance-2.5"]
     proj = p.project(pid)
-    current = proj["video_model"]
+    summ = lineage.summary(p.conn, pid)
+    step_header("Bước 4 · Gen video + QC video", "mỗi cảnh một clip đúng nhân vật, đúng vật lý, khớp motion prompt",
+                f"{summ['videos'][0]}/{summ['total']} cảnh có clip dùng được", summ["videos"][1])
+    ready = llm_io.ready_for_video(p, pid)
+    model_plan_panel(p, pid)
     with st.container(border=True):
-        m1, m2, m3 = st.columns([2, 2.4, 2.6], vertical_alignment="center")
-        m1.markdown(ui.badge(f"{len(ready)} cảnh sẵn sàng gen", "b-info") +
-                    ' <span class="muted">ảnh + prompt đã duyệt</span>', unsafe_allow_html=True)
-        choice = m2.selectbox("Model video", models, index=models.index(current) if current in models else 0,
-                              key=f"vmodel_{pid}", help="Kling Omni / Seedance; bộ lọc kiểm duyệt khác nhau theo model")
-        if (choice if choice in models[1:] else None) != current:
-            p.set_video_model(pid, choice if choice in models[1:] else None)
-        audio_on = m3.checkbox("🔊 Model tự tạo âm thanh / lời thoại", bool(proj["video_audio"]), key=f"vaudio_{pid}",
-                               help="Bật: Kling `sound` / Seedance `generate_audio`. Nhân vật có thể nói (khớp môi do model tự "
-                                    "xử lý) nếu lời thoại được ghi trong motion prompt. Có thể đổi giá; chưa thử thật.")
+        m1, m2 = st.columns(2)
+        audio_on = m1.checkbox("🔊 Model tự tạo âm thanh (tiếng động, không khí)", bool(proj["video_audio"]), key=f"vaudio_{pid}",
+                               help="Kling `sound` / Seedance `generate_audio`. Thoại tiếng Việt nên dùng giọng TTS ở Bước 3: theo blog Kling, "
+                                    "giọng tự sinh của Kling 3.0 chỉ có 5 ngôn ngữ (chưa có tiếng Việt). Có thể đổi giá.")
         if audio_on != bool(proj["video_audio"]):
             p.set_video_audio(pid, audio_on)
+        qc_on = m2.checkbox("🔍 Claude kiểm tra từng clip (giữ nhân vật, vật lý, khớp prompt, biến dạng)", bool(proj["qc_video"]),
+                            key=f"vqc_{pid}", help="Clip đạt mới vào bản ghép; theo chính sách QC của dự án (tự gen lại hay chờ bạn duyệt).")
+        if qc_on != bool(proj["qc_video"]):
+            p.set_project_field(pid, "qc_video", 1 if qc_on else 0)
         if subjects_visible(p, pid):
-            n_subj = p.conn.execute("SELECT COUNT(*) c FROM characters WHERE project_id=? AND subject_status='active'",
-                                    (pid,)).fetchone()["c"]
+            n_subj = p.conn.execute("SELECT COUNT(*) c FROM characters WHERE project_id=? AND subject_status='active'", (pid,)).fetchone()["c"]
             use_subj = st.checkbox(f"🧩 Gắn ảnh chủ thể nhân vật vào video (Seedance) — {n_subj} nhân vật có chủ thể active",
-                                   bool(proj["use_subjects"]), key=f"vsubj_{pid}",
-                                   help="Chỉ Seedance. Mỗi cảnh gắn chủ thể của các nhân vật xuất hiện trong cảnh (kho chủ thể ở Bước 1). "
-                                        "Chưa thử thật; ảnh chủ thể tính vào giới hạn số ảnh tham chiếu.")
+                                   bool(proj["use_subjects"]), key=f"vsubj_{pid}")
             if use_subj != bool(proj["use_subjects"]):
                 p.set_use_subjects(pid, use_subj)
+        allowed_run = True
         if runner is None:
-            st.caption("ℹ Clip AI chưa cấu hình: chỉ theo dõi job thủ công.")
-            with st.expander("Cách cấu hình"):
-                st.write("Đặt VIDEO_PROVIDER=clipai và CLIPAI_TOKEN (biến môi trường), xem docs/RUNBOOK.md.")
+            st.caption("ℹ Clip AI chưa cấu hình (VIDEO_PROVIDER=clipai + CLIPAI_TOKEN, xem docs/RUNBOOK.md).")
         else:
-            st.caption(f"Provider video: {runner.provider.name}" + (" (giả lập)" if runner.provider.name == "mock" else " (gọi API thật, tốn credit)"))
-        allowed = show_estimate(video_estimate(p, pid), runner)
-        if p.conn.execute("SELECT 1 FROM jobs WHERE project_id=? AND type='video_gen' AND state='running' LIMIT 1", (pid,)).fetchone():
-            st.info("🔄 Video đang được tạo: trang tự cập nhật, clip xong sẽ tự hiện; bạn không cần bấm gì.")
+            st.caption(f"Nhà cung cấp video: {runner.provider.name}" + (" (giả lập)" if runner.provider.name.startswith("mock") else " (gọi API thật, tốn credit)")
+                       + f" · khung {formats.label(formats.project_aspect(proj))}")
+            allowed_run = show_estimate(cost.estimate_videos_by_scene(p, pid, cost.load_pricing()), runner)
+        stale_videos = [r for r in lineage.scan(p.conn, pid).values() if r["video_stale"]]
+        c1, c2 = st.columns([2.6, 2])
+        if c1.button(f"▶ Gen video ({len(ready)} cảnh sẵn sàng" + (f", {len(stale_videos)} đã cũ" if stale_videos else "") + ")",
+                     type="primary", key=f"gen_vid_{pid}", disabled=runner is None or not allowed_run or not (ready or stale_videos)):
+            def go():
+                r = batch.queue_videos(p, pid, C.DATA)
+                sent = runner.submit_pending(pid)
+                st.toast(f"Xếp hàng {r['created']} clip mới, {r['redo']} clip làm lại · đã gửi {sent}")
+            if act(go):
+                st.rerun()
+        failed = p.conn.execute("SELECT j.id FROM jobs j WHERE j.project_id=? AND j.type='video_gen' AND j.state='failed' AND j.escalated=0"
+                                " AND NOT EXISTS (SELECT 1 FROM content_moderation_failures f WHERE f.job_id=j.id)", (pid,)).fetchall()
+        if c2.button(f"↻ Gen lại clip lỗi ({len(failed)})", key="btn_bad_retry", disabled=not failed,
+                     help="Clip bị bộ lọc nội dung chặn không nằm trong nút này: sửa prompt trước."):
+            for j in failed:
+                act(lambda: p.retry(j["id"], "gen lại clip lỗi"))
+            st.rerun()
+        if video_busy(p.conn, pid):
             auto_poll_videos(pid)
-        c1, c2, c3, c4 = st.columns(4)
-        if c1.button("▶ Tạo job gen video", disabled=not ready, type="primary"):
-            for r in ready:
-                exists = p.conn.execute("SELECT 1 FROM jobs WHERE scene_id=? AND type='video_gen'"
-                                        " AND state NOT IN ('cancelled','rejected')", (r["scene_id"],)).fetchone()
-                if not exists:
-                    p.create_job(r["scene_id"], "video_gen")
-            st.rerun()
-        if c2.button("⟳ Submit + Poll 1 lần", disabled=runner is None or not allowed):
-            submitted = runner.submit_pending(pid)
-            st.toast(f"Đã gửi {submitted} · {runner.poll_once(pid)}")
-            st.rerun()
-        if c3.button("▶ Chạy heartbeat tới khi xong", disabled=runner is None or not allowed):
-            with st.spinner("Đang chạy heartbeat…"):
-                runner.run(pid, interval=float(os.environ.get("HEARTBEAT_SEC", "90")))
-            st.rerun()
-        if c4.button("↻ Retry tất cả job fail", key="btn_bad_retry"):
-            for j in p.conn.execute("SELECT id FROM jobs WHERE project_id=? AND type='video_gen' AND state='failed'"
-                                    " AND escalated=0", (pid,)).fetchall():
-                act(lambda: p.retry(j["id"], "retry all"))
-            st.rerun()
+        problem = autoqc.video_last_error(pid)
+        if problem:
+            st.warning(f"⚠ Tự kiểm tra video đã dừng: {problem}")
+            if st.button("↻ Thử kiểm tra lại", key=f"vqc_retry_{pid}"):
+                autoqc.clear_video_error(pid)
+                st.rerun()
     jobs = p.conn.execute("SELECT j.*, s.idx FROM jobs j JOIN scenes s ON s.id=j.scene_id"
-                          " WHERE j.project_id=? AND j.type='video_gen' AND j.state!='rejected' ORDER BY s.idx, j.id",
+                          " WHERE j.project_id=? AND j.type='video_gen' AND j.state NOT IN ('rejected','cancelled') ORDER BY s.idx, j.id",
                           (pid,)).fetchall()
-    done = sum(1 for j in jobs if j["state"] == "succeeded")
-    running = sum(1 for j in jobs if j["state"] == "running")
-    failed = sum(1 for j in jobs if j["state"] == "failed")
-    blocked = p.conn.execute("SELECT COUNT(*) c FROM content_moderation_failures f JOIN jobs j ON j.id=f.job_id"
-                             " WHERE j.project_id=?", (pid,)).fetchone()["c"]
-    with st.container(border=True):
-        extra = (ui.badge(f"{running} running", "b-info") if running else "") + " " + \
-                (ui.badge(f"{failed} failed", "b-bad") if failed else "")
-        ui.html(ui.card_title("Tiến độ batch") + ui.progress(done, len(jobs), extra))
-        if blocked:
-            st.caption(f"⚠ {blocked} lần bị chặn risk control — chi tiết ở “⚠ Rủi ro” góc trên.")
-    size = "Vừa"
+    latest = {}
     for j in jobs:
-        clip = j["result_path"] if j["state"] == "succeeded" and j["result_path"] and os.path.exists(j["result_path"]) else None
-        with st.container(border=True):
-            a, b, c, d = st.columns([1.2, 1.6, 1, 2.2], vertical_alignment="center")
-            a.markdown(f"**Cảnh {j['idx']}**")
-            b.markdown(ui.state_badge(j["state"]) + (" " + ui.badge("⚠ escalated", "b-warn") if j["escalated"] else ""),
-                       unsafe_allow_html=True)
-            c.caption(f"retry {j['retry_count']}")
-            with d:
-                if j["state"] in ("queued", "running") and st.button("■ Cancel", key=f"vc_{j['id']}"):
-                    act(lambda: runner.cancel_job(j["id"]) if runner else p.cancel(j["id"]))
+        latest[j["scene_id"]] = j
+    blocked = p.conn.execute("SELECT COUNT(*) c FROM content_moderation_failures f JOIN jobs j ON j.id=f.job_id WHERE j.project_id=?",
+                             (pid,)).fetchone()["c"]
+    if blocked:
+        st.caption(f"⚠ {blocked} lần bị bộ lọc nội dung chặn — chi tiết ở “⚠ Rủi ro” góc trên.")
+    status = lineage.scan(p.conn, pid)
+    for j in sorted(latest.values(), key=lambda x: x["idx"]):
+        video_card(p, pid, j, runner, (status.get(j["scene_id"]) or {}).get("video_stale"))
+    if not latest:
+        st.caption("Chưa có clip nào: duyệt motion prompt ở Bước 3 rồi bấm “▶ Gen video”.")
+
+
+
+def _go_step3() -> None:
+    st.session_state["step"] = STEPS[2]
+
+
+def model_plan_panel(p: Pipeline, pid: int) -> None:
+    """Which model for which scene, from the ClipAI model guide (no fixed default): recommendation + reason + price, overridable."""
+    pricing = cost.load_pricing()
+    rows = model_router.plan(p.conn, pid, pricing)
+    ready = {r["scene_id"] for r in llm_io.ready_for_video(p, pid, include_stale=True)}
+    has_mp = {r["scene_id"] for r in p.conn.execute("SELECT m.scene_id FROM motion_prompts m JOIN scenes s ON s.id=m.scene_id WHERE s.project_id=?", (pid,))}
+    rows = [r for r in rows if r["scene_id"] in has_mp]
+    proj = p.project(pid)
+    prio = model_router.priority_of(proj)
+    profiles = model_router.load_profiles()
+    with st.expander(f"🎛 Model cho từng cảnh — ưu tiên “{profiles['priorities'][prio]['label']}”"
+                     + (f" · ≈ ${model_router.total(rows):.2f}" if rows and model_router.total(rows) is not None else ""),
+                     expanded=bool(rows)):
+        st.caption("Theo slide ClipAI “Hôm nay tôi chọn mô hình video như thế nào”: cảnh then chốt / phức tạp / có video tham chiếu → Seedance 2.5; "
+                   "cảnh thường → Seedance 2.0 hoặc 2.0 Fast; đối thoại nhiều nhân vật / cảnh chuyển tiếp rẻ → Kling 3.0 Omni. "
+                   "MiniMax H3 và Seedance 2.0 Mini chỉ có trên web ClipAI (không gen tự động được). Đổi ưu tiên ở Bước 1 · 📐 Định dạng.")
+        if proj["video_model"]:
+            st.warning(f"Dự án đang đặt MỘT model chung cho mọi cảnh (cách cũ): {proj['video_model']}.")
+            if st.button("Bỏ model chung — dùng đề xuất theo cảnh", key=f"vm_clear_{pid}"):
+                p.set_video_model(pid, None)
+                st.rerun()
+        if not rows:
+            st.caption("Chưa có motion prompt nào: viết ở Bước 3.")
+            return
+        api = model_router.api_models(profiles)
+        options = [None] + list(api)
+        for r in rows:
+            c0, c1, c2, c3 = st.columns([0.8, 2.2, 4, 1.4], vertical_alignment="center")
+            c0.markdown(f"**S{r['idx']:02d}**" + ("" if r["scene_id"] in ready else " ·"))
+            cur = r["model"] if r["source"] == "override" else None
+            pick = c1.selectbox("Model", options, index=options.index(cur) if cur in options else 0, key=f"vm_{pid}_{r['scene_id']}",
+                                label_visibility="collapsed",
+                                format_func=lambda a: f"Đề xuất: {api.get(r['recommended']['model'], {}).get('label', r['recommended']['model'])}"
+                                if a is None else api[a]["label"])
+            if pick != cur:
+                act(lambda: model_router.set_override(p.conn, r["scene_id"], pick))
+                st.rerun()
+            c2.caption(r["reason"])
+            c3.caption(f"{r['seconds']:g}s · " + (f"${r['cost']:.2f}" if r["cost"] is not None else "chưa có giá"))
+        totals = {k: model_router.total(model_router.plan(p.conn, pid, pricing, priority=k)) for k in model_router.PRIORITIES}
+        st.caption("So sánh tổng (chưa tính gen lại): " + " · ".join(
+            f"{profiles['priorities'][k]['label']} ≈ " + (f"${v:.2f}" if v is not None else "?") for k, v in totals.items()))
+
+
+def video_card(p: Pipeline, pid: int, j, runner, stale_reason) -> None:
+    clip = j["result_path"] if j["state"] in ("succeeded", "pending_review", "approved") and j["result_path"] and os.path.exists(j["result_path"]) else None
+    blocked = p.conn.execute("SELECT error_message FROM content_moderation_failures WHERE job_id=? ORDER BY id DESC LIMIT 1", (j["id"],)).fetchone()
+    scores = qc_scores(p, j["id"])
+    with st.container(border=True):
+        a, b, c = st.columns([1.2, 3, 2.4], vertical_alignment="center")
+        a.markdown(f"**Cảnh {j['idx']}**")
+        badges = ui.state_badge(j["state"], "video_gen") + (" " + ui.badge("⚠ cần xem", "b-warn") if j["escalated"] else "") \
+            + (" " + ui.badge("bị chặn nội dung", "b-bad") if blocked else "") + (" " + ui.stale_badge(stale_reason) if stale_reason else "")
+        b.markdown(badges + f' <span class="muted">{escape(j["model"] or "")} · gen lại {j["retry_count"]} lần</span>', unsafe_allow_html=True)
+        if scores:
+            mean = sum(s["score"] for s in scores) / len(scores)
+            b.markdown(ui.qc_bar(mean, p.project(pid)["qc_auto_pass_threshold"]), unsafe_allow_html=True)
+        with c:
+            if j["state"] in ("queued", "running") and st.button("■ Hủy", key=f"vc_{j['id']}"):
+                act(lambda: runner.cancel_job(j["id"]) if runner else p.cancel(j["id"]))
+                st.rerun()
+            if j["state"] == "pending_review":
+                x, y = st.columns(2)
+                if x.button("✔ Duyệt clip", key=f"va_{j['id']}", type="primary"):
+                    act(lambda: p.approve(j["id"], "user"))
                     st.rerun()
-                if j["state"] == "failed" and not j["escalated"] and st.button("↻ Retry", key=f"vr_{j['id']}"):
-                    act(lambda: p.retry(j["id"], "retry"))
+                if y.button("✖ Loại & gen lại", key=f"vr_rej_{j['id']}"):
+                    act(lambda: p.reject(j["id"], "user", st.session_state.get(f"vnote_{j['id']}") or None))
                     st.rerun()
-                if j["escalated"] and st.button("↺ Làm lại từ đầu", key=f"vrs_{j['id']}",
-                                                help="Đã hết số lần thử: bắt đầu lại với một job video mới"):
-                    if act(lambda: p.restart_job(j["id"]), "Đã xếp hàng job video mới"):
-                        st.rerun()
-                if clip and st.button("↻ Gen lại video", key=f"vregen_{j['id']}",
-                                      help="Chưa ưng: clip này vào thùng rác (giữ 30 ngày) và xếp hàng một video mới. "
-                                           "Muốn đổi cách quay thì sửa motion prompt ở Bước 3 trước."):
-                    if act(lambda: regen.regenerate_video(p, C.DATA, j["id"]), "Đã xếp hàng gen lại video"):
-                        st.rerun()
-            if clip:
-                show_video(clip, size)
-            scene_expander(p, j["scene_id"], with_motion=True)
+            if j["state"] == "failed" and blocked:
+                st.caption("Bị bộ lọc nội dung chặn: gen lại nguyên prompt sẽ lại bị chặn và tốn credit.")
+                st.button("✏ Sửa motion prompt rồi gen lại", key=f"vfix_{j['id']}", on_click=_go_step3)
+            elif j["state"] == "failed" and not j["escalated"] and st.button("↻ Gen lại", key=f"vr_{j['id']}"):
+                act(lambda: p.retry(j["id"], "gen lại"))
+                st.rerun()
+            if j["escalated"] and not blocked and st.button("↺ Làm lại từ đầu", key=f"vrs_{j['id']}",
+                                                            help="Đã hết số lần thử: bắt đầu lại với một job video mới"):
+                if act(lambda: p.restart_job(j["id"]), "Đã xếp hàng video mới"):
+                    st.rerun()
+            if clip and j["state"] in ("succeeded", "approved") and st.button(
+                    "↻ Gen lại theo ảnh/prompt mới" if stale_reason else "↻ Gen lại video", key=f"vregen_{j['id']}",
+                    help="Clip này vào thùng rác (giữ 30 ngày) và xếp hàng video mới. Muốn đổi cách quay thì sửa motion prompt ở Bước 3 trước."):
+                if act(lambda: regen.regenerate_video(p, C.DATA, j["id"], f"làm lại vì {stale_reason}" if stale_reason else None),
+                       "Đã xếp hàng gen lại video"):
+                    st.rerun()
+        if clip:
+            left, right = st.columns([1, 2])
+            src = job_image(pid, j["source_job_id"]) if j["source_job_id"] else None
+            if src:
+                left.caption("Ảnh khung đầu")
+                with left:
+                    show_image(src, width="stretch")
+            with right:
+                show_video(clip)
+        if scores:
+            st.caption(" · ".join(f"{CRITERIA_LABEL.get(s['criterion'], s['criterion'])} {s['score']:.2f}" for s in scores))
+        if j["state"] == "pending_review":
+            st.text_input("Ghi chú lý do loại (đưa vào lần gen lại)", key=f"vnote_{j['id']}")
+        scene_expander(p, j["scene_id"], with_motion=True)

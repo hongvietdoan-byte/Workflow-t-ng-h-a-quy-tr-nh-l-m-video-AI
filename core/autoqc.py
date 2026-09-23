@@ -98,3 +98,71 @@ def _work(db_path: str, data_dir: str, project_id: int, client_factory: Callable
     finally:
         with _lock:
             _active.discard(project_id)
+
+
+# ---- video clips (v2): same pattern, scores frames of each finished clip ---------------------------------------------------
+_video_active = set()
+_video_errors: Dict[int, Tuple[str, float]] = {}
+
+
+def video_active(project_id: int) -> bool:
+    return project_id in _video_active
+
+
+def video_last_error(project_id: int) -> Optional[str]:
+    entry = _video_errors.get(project_id)
+    if entry and time.time() - entry[1] < RETRY_AFTER:
+        return entry[0]
+    return None
+
+
+def clear_video_error(project_id: int) -> None:
+    _video_errors.pop(project_id, None)
+
+
+def start_video(db_path: str, data_dir: str, project_id: int, client_factory: Callable = llm_runner.client_from_env) -> bool:
+    """Check this project's finished, unscored clips in the background (project switch `qc_video`). True if started."""
+    from . import claude_tasks
+    conn = connect(db_path)
+    p = Pipeline(conn)
+    with _lock:
+        if video_active(project_id) or video_last_error(project_id) or not claude_tasks.unchecked_videos(p, project_id):
+            return False
+        try:
+            if client_factory() is None:
+                return False
+        except llm_runner.LlmError:
+            return False
+        _video_active.add(project_id)
+    threading.Thread(target=_video_work, args=(db_path, data_dir, project_id, client_factory), daemon=True,
+                     name=f"autoqc-video-{project_id}").start()
+    return True
+
+
+def _video_work(db_path: str, data_dir: str, project_id: int, client_factory: Callable) -> None:
+    from . import claude_tasks
+    conn = None
+    try:
+        conn = connect(db_path)
+        p = Pipeline(conn)
+        client = client_factory()
+        for _ in range(200):
+            todo = claude_tasks.unchecked_videos(p, project_id)
+            if not todo or client is None:
+                break
+            try:
+                claude_tasks.qc_video(p, todo[0], client, data_dir)
+            except llm_runner.LlmError as e:
+                if e.code in ("auth", "config", "timeout", "cli_error", "rate_limit", "server_error"):
+                    _video_errors[project_id] = (str(e), time.time())
+                    diag.record(conn, "video", "warn", f"tự kiểm tra video dừng: {e}", "autoqc_video", project_id)
+                    return
+                p.transition(todo[0], JobState.PENDING_REVIEW, actor="ai_agent", note=f"tự kiểm tra video lỗi: {e}")
+            except Exception as e:  # noqa: BLE001 - an unreadable clip goes to the person instead of looping
+                diag.record(conn, "video", "warn", f"không kiểm tra được clip {todo[0]}: {e}", "autoqc_video", project_id)
+                p.transition(todo[0], JobState.PENDING_REVIEW, actor="ai_agent", note=f"không kiểm tra được: {e}")
+    except Exception as e:  # noqa: BLE001
+        _video_errors[project_id] = (f"{type(e).__name__}: {e}", time.time())
+    finally:
+        with _lock:
+            _video_active.discard(project_id)

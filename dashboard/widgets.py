@@ -16,13 +16,23 @@ def image_busy(conn, pid: int) -> bool:
                 and one("SELECT COUNT(*) FROM jobs WHERE project_id=? AND type='image_gen' AND state='queued' AND retry_count>0"))
 
 
+def video_busy(conn, pid: int) -> bool:
+    """Clips at the provider, clips being / waiting to be checked by Claude, or a queued automatic redo."""
+    one = lambda sql: conn.execute(sql, (pid,)).fetchone()[0]                     # noqa: E731
+    if one("SELECT COUNT(*) FROM jobs WHERE project_id=? AND type='video_gen' AND state='running'"):
+        return True
+    if autoqc.video_active(pid):
+        return True
+    if not autoqc.video_last_error(pid) and claude_tasks.unchecked_videos(Pipeline(conn), pid) and llm_client() is not None:
+        return True
+    return bool(one("SELECT COUNT(*) FROM jobs WHERE project_id=? AND type='video_gen' AND state='queued' AND retry_count>0"))
+
+
 def _poll_running(pid: int, kind: str) -> None:
-    """Ask the provider about this project's submitted jobs (read-only, no credit), start the automatic picture check, send queued automatic
-    fixes, and redraw the page when anything changed."""
+    """Ask the provider about this project's submitted jobs (read-only, no credit), start the automatic check (pictures or clips),
+    send queued automatic fixes, and redraw the page when anything changed."""
     conn = connect(C.DB)
-    job_type = "image_gen" if kind == "image" else "video_gen"
-    busy = image_busy(conn, pid) if kind == "image" else bool(
-        conn.execute("SELECT 1 FROM jobs WHERE project_id=? AND type=? AND state='running' LIMIT 1", (pid, job_type)).fetchone())
+    busy = image_busy(conn, pid) if kind == "image" else video_busy(conn, pid)
     if not busy:
         st.rerun()                                     # nothing left to watch (finished elsewhere): show the final state
     try:
@@ -30,31 +40,37 @@ def _poll_running(pid: int, kind: str) -> None:
     except ProviderError:
         provider = None
     p = Pipeline(conn)
+    job_type = "image_gen" if kind == "image" else "video_gen"
     counts = {"succeeded": 0, "failed": 0, "retried": 0, "running": 0}
     if provider is not None:
         runner = ImageRunner(p, provider, C.DATA) if kind == "image" else VideoRunner(p, provider, C.DATA)
         try:
             counts = runner.poll_once(pid)
-            queued_fix = kind == "image" and p.project(pid)["qc_autofix"] and conn.execute(
-                "SELECT 1 FROM jobs WHERE project_id=? AND type='image_gen' AND state='queued' AND retry_count>0 LIMIT 1", (pid,)).fetchone()
+            queued_fix = conn.execute(f"SELECT 1 FROM jobs WHERE project_id=? AND type='{job_type}' AND state='queued' AND retry_count>0 LIMIT 1",
+                                      (pid,)).fetchone() and (kind == "video" or p.project(pid)["qc_autofix"])
             if counts["succeeded"] or counts["failed"] or counts["retried"] or queued_fix:
                 runner.submit_pending(pid)             # a slot is free: send the next queued job (the person's, or an automatic fix)
         except InvalidTransition:
             st.rerun()                                 # another tab finished the same job first
         except ProviderError as e:
             st.caption(f"⚠ Chưa hỏi được trạng thái ({e}); sẽ thử lại.")
-    if kind == "image" and p.project(pid)["operating_mode"] != "auto":  # "auto" mode already runs its own QC via autopilot; avoid doing it twice
-        autoqc.start(C.DB, C.DATA, pid)                    # freshly generated pictures are checked by Claude in the background
-        rows = conn.execute("SELECT id, state FROM jobs WHERE project_id=? AND type='image_gen' ORDER BY id", (pid,)).fetchall()
-        signature = tuple((r["id"], r["state"]) for r in rows)
-        key = f"imgsig_{pid}"
-        previous = st.session_state.get(key)
-        st.session_state[key] = signature
-        if previous is not None and previous != signature:
-            st.rerun()                                 # a job changed state (finished, checked, sent again): redraw with it
+    auto_run = autopilot.status(p, pid)["state"] in ("running", "queued")
+    if not auto_run:                                   # the automatic run does its own checks; avoid doing them twice
+        if kind == "image" and p.project(pid)["operating_mode"] != "auto":
+            autoqc.start(C.DB, C.DATA, pid)
+        if kind == "video":
+            autoqc.start_video(C.DB, C.DATA, pid)
+    rows = conn.execute(f"SELECT id, state FROM jobs WHERE project_id=? AND type='{job_type}' ORDER BY id", (pid,)).fetchall()
+    signature = tuple((r["id"], r["state"]) for r in rows)
+    key = f"{kind}sig_{pid}"
+    previous = st.session_state.get(key)
+    st.session_state[key] = signature
+    if previous is not None and previous != signature:
+        st.rerun()                                     # a job changed state (finished, checked, sent again): redraw with it
     if counts["succeeded"] or counts["failed"] or counts["retried"]:
-        st.rerun()                                     # a result arrived: redraw the whole page with it
-    checking = " · 🔍 đang tự kiểm tra ảnh" if kind == "image" and autoqc.active(pid) else ""
+        st.rerun()
+    checking = (" · 🔍 đang tự kiểm tra ảnh" if kind == "image" and autoqc.active(pid) else
+                " · 🔍 đang tự kiểm tra video" if kind == "video" and autoqc.video_active(pid) else "")
     st.caption(f"🔄 Tự cập nhật mỗi {POLL_SECONDS[kind]} giây · {counts['running']} còn đang chạy{checking} · kiểm tra lúc {time.strftime('%H:%M:%S')}")
 
 

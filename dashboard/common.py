@@ -61,7 +61,8 @@ ERRORS = (sqlite3.IntegrityError, zipfile.BadZipFile, llm_runner.LlmError, Inval
 
 CRITERIA_LABEL = {"character": "Đúng nhân vật", "hands_face": "Không lỗi tay/mặt", "composition": "Đúng bố cục",
                   "mood_lighting": "Đúng mood / ánh sáng", "consistency": "Không chi tiết thừa/sai",
-                  "scale": "Đúng tỉ lệ người/cảnh", "grounding": "Chân chạm đất", "set_match": "Khớp layout / bối cảnh"}
+                  "scale": "Đúng tỉ lệ người/cảnh", "grounding": "Chân chạm đất", "set_match": "Khớp layout / bối cảnh",
+                  "identity": "Giữ đúng nhân vật", "physics": "Vật lý hợp lý", "motion_match": "Khớp motion prompt", "artifacts": "Không biến dạng"}
 
 FILTERS = {"all": "Tất cả", "review": "Chờ duyệt", "pass": "Đã duyệt", "fail": "Lỗi / đã loại", "run": "Chờ / đang gen"}
 
