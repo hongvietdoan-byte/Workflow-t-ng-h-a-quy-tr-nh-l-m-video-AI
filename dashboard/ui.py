@@ -60,9 +60,15 @@ div[data-testid="stVerticalBlockBorderWrapper"]{background:var(--surface);border
 </style>
 """
 
-BADGES = {"queued": ("queued", ""), "running": ("running", "b-info"), "succeeded": ("succeeded", "b-ok"),
-          "failed": ("failed", "b-bad"), "retryable": ("retryable", "b-warn"), "pending_review": ("chờ duyệt", "b-pri"),
-          "approved": ("approved", "b-ok"), "rejected": ("rejected", "b-bad"), "cancelled": ("cancelled", "")}
+STATE_LABELS = {"queued": ("Chờ gen", ""), "running": ("Đang gen", "b-info"), "succeeded": ("Xong · chờ kiểm tra", "b-ok"),
+                "failed": ("Lỗi", "b-bad"), "retryable": ("Chờ gửi lại", "b-warn"), "pending_review": ("Chờ duyệt", "b-pri"),
+                "approved": ("Đã duyệt", "b-ok"), "rejected": ("Đã loại", "b-bad"), "cancelled": ("Đã hủy", ""),
+                "stale": ("⚠ cũ", "b-warn"), "missing": ("Chưa có", ""), "draft": ("Nháp", ""), "ready": ("Sẵn sàng", "b-info"),
+                "needs_attention": ("Cần xem", "b-warn"), "pending": ("Chờ duyệt", "b-pri"), "done": ("Xong", "b-ok")}
+KIND_LABELS = {("video_gen", "succeeded"): ("Đã gen · chờ duyệt", "b-ok"), ("audio", "succeeded"): ("Xong", "b-ok"),
+               ("audio", "running"): ("Đang tạo", "b-info")}
+BADGES = STATE_LABELS
+MODE_LABELS = {"auto": "Tự duyệt theo QC", "human_qc": "Người duyệt"}
 
 
 def inject_css() -> None:
@@ -77,9 +83,19 @@ def badge(text: str, kind: str = "") -> str:
     return f'<span class="badge {kind}">{escape(text)}</span>'
 
 
-def state_badge(state: str) -> str:
-    text, kind = BADGES.get(state, (state, ""))
-    return badge(text, kind)
+def state_label(state: str, kind: str = None) -> str:
+    """The one Vietnamese wording of a job/scene/output state, used by every step."""
+    return (KIND_LABELS.get((kind, state)) or STATE_LABELS.get(state, (state, "")))[0]
+
+
+def state_badge(state: str, kind: str = None) -> str:
+    text, css = KIND_LABELS.get((kind, state)) or STATE_LABELS.get(state, (state, ""))
+    return badge(text, css)
+
+
+def stale_badge(reason: str = "") -> str:
+    """'⚠ cũ' marker for a result made from inputs that have changed since (reason in the tooltip)."""
+    return f'<span class="badge b-warn" title="{escape(reason)}">⚠ cũ{(" · " + escape(reason)) if reason else ""}</span>'
 
 
 def score_color(score: float, threshold: float) -> str:

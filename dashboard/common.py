@@ -1,0 +1,293 @@
+"""Shared helpers of the dashboard: providers, cost, small widgets, auth lookups, constants.
+
+DB / DATA are set by configure() on every script run (tests switch PIPELINE_DB / PIPELINE_DATA between runs while this module stays
+imported), so other modules must read them as common.DB / common.DATA at call time.
+"""
+import json
+import os
+import re
+import shutil
+import sqlite3
+import subprocess
+import sys
+import tempfile
+import threading
+import time
+import zipfile
+from html import escape
+
+import streamlit as st
+
+
+from core import effectiveness, costume, previz, asset_vision, autoqc, ff_site, sfx_plan, sound_lib, assets, audio_lib, subtitles, script_reader, auth, autopilot, dialogue, diag, knowledge, lessons, perf, regen, research, style, subjects, trash, waveform, cost, ffmpeg_studio, final_cut, llm_io, llm_runner, music, preflight, prompts, script_parser, video_analysis  # noqa: E402
+from core.db import connect  # noqa: E402
+from core.pipeline import Pipeline, PipelinePaused  # noqa: E402
+from core.adapters import factory  # noqa: E402
+from core.providers import ProviderError  # noqa: E402
+from core.runner import ImageRunner, VideoRunner  # noqa: E402
+from core.states import InvalidTransition, JobState  # noqa: E402
+
+from dashboard import ui  # noqa: E402
+
+DB = os.path.join("data", "manifest.sqlite")
+DATA = os.path.join("data", "projects")
+
+
+def configure(db: str, data: str) -> None:
+    global DB, DATA
+    DB, DATA = db, data
+
+
+STEPS = ["1 · Kịch bản & phân tích", "2 · Gen ảnh + QC", "3 · Video Prompt", "4 · Gen video",
+         "5 · Nhạc nền & Ghép video", "📊 Theo dõi hiệu suất"]
+
+STEP_PERMISSION = {"📊 Theo dõi hiệu suất": "monitor"}
+
+# Lịch sử / Bài học / Phân quyền moved off the step bar into the settings gear (see settings_menu()) --
+# each opens as its own closable st.dialog panel instead of living inline in the stepper.
+DIALOG_FLAGS = ("dlg_assets", "dlg_pricing", "dlg_knowledge", "dlg_history", "dlg_lessons", "dlg_users")
+
+def open_dialog(flag: str) -> None:
+    """Only one st.dialog may be open per script run: opening one always closes any other."""
+    for f in DIALOG_FLAGS:
+        st.session_state[f] = (f == flag)
+
+def close_dialog(flag: str) -> None:
+    st.session_state[flag] = False
+
+ERRORS = (sqlite3.IntegrityError, zipfile.BadZipFile, llm_runner.LlmError, InvalidTransition, llm_io.SchemaError, PipelinePaused, ffmpeg_studio.FFmpegNotFound,
+          ffmpeg_studio.FFmpegError, ValueError, KeyError)
+
+CRITERIA_LABEL = {"character": "Đúng nhân vật", "hands_face": "Không lỗi tay/mặt", "composition": "Đúng bố cục",
+                  "mood_lighting": "Đúng mood / ánh sáng", "consistency": "Không chi tiết thừa/sai",
+                  "scale": "Đúng tỉ lệ người/cảnh", "grounding": "Chân chạm đất", "set_match": "Khớp layout / bối cảnh"}
+
+FILTERS = {"all": "Tất cả", "review": "Chờ duyệt", "pass": "Đã duyệt", "fail": "FAIL", "run": "Chờ / đang gen"}
+
+FILTER_STATES = {"review": ("succeeded", "pending_review"), "pass": ("approved",), "fail": ("failed", "rejected"),
+                 "run": ("queued", "running")}
+
+# ---- providers / cost helpers ---------------------------------------------------------
+def video_runner(p: Pipeline):
+    """Provider chosen by VIDEO_PROVIDER (clipai | mock); None when not configured."""
+    try:
+        provider = factory.video_provider()
+    except ProviderError as e:
+        st.error(f"Clip AI: {e}")
+        return None
+    return VideoRunner(p, provider, DATA) if provider else None
+
+def image_runner(p: Pipeline):
+    """Provider chosen by IMAGE_PROVIDER (deepix | mock); None when not configured."""
+    try:
+        provider = factory.image_provider()
+    except ProviderError as e:
+        st.error(f"Deepix: {e}")
+        return None
+    return ImageRunner(p, provider, DATA) if provider else None
+
+def llm_client():
+    """Claude client (ANTHROPIC_API_KEY, LLM_PROVIDER=claude_cli or mock); None when not configured -> paste JSON by hand."""
+    try:
+        return llm_runner.client_from_env()
+    except llm_runner.LlmError as e:
+        st.error(f"Claude: {e}")
+        return None
+
+def subjects_visible(p: Pipeline, pid: int) -> bool:
+    """Seedance Subject Library is not used any more (decision 2026-09-22: the project's own resource pictures do the job). Its panels
+    stay only for a project that already uses it (so it can be switched off) or when SHOW_SUBJECT_LIBRARY=1."""
+    if os.environ.get("SHOW_SUBJECT_LIBRARY", "").strip() == "1" or p.project(pid)["use_subjects"]:
+        return True
+    return bool(p.conn.execute("SELECT 1 FROM characters WHERE project_id=? AND subject_asset_id IS NOT NULL LIMIT 1", (pid,)).fetchone())
+
+def llm_label(client) -> str:
+    """How Claude is reached, for button labels: the API, the Claude Code on this PC (uses the plan's quota) or the simulator."""
+    return {"anthropic": "Claude API", "claude-cli": "Claude (Claude Code trên máy)", "mock-llm": "Claude giả lập"}.get(
+        getattr(client, "name", ""), "Claude")
+
+def tokens_text(r: dict) -> str:
+    return f"{r.get('input_tokens', 0)} token vào / {r.get('output_tokens', 0)} token ra"
+
+def image_estimate(p: Pipeline, pid: int):
+    from core.adapters.deepix import DEFAULT_MODEL
+    return cost.estimate_images(p, pid, cost.load_pricing(), os.environ.get("DEEPIX_MODEL", DEFAULT_MODEL))
+
+def video_estimate(p: Pipeline, pid: int):
+    from core.adapters.clipai import effective_duration, resolve_model
+    try:
+        canonical, family = resolve_model(p.project(pid)["video_model"])
+    except ProviderError:
+        return None
+    tier = os.environ.get("CLIPAI_KLING_MODE", "pro") if family == "omni" else os.environ.get("CLIPAI_RESOLUTION", "720p")
+    return cost.estimate_videos(p, pid, cost.load_pricing(), canonical, tier,
+                                lambda seconds: effective_duration(canonical, family, seconds))
+
+def show_estimate(est, runner) -> bool:
+    """Show the estimate; for real providers require a confirmation tick on large batches. Returns 'allowed'."""
+    if est is None:
+        return True
+    if est["items"] == 0:
+        return True
+    st.info("Ước tính chi phí: " + cost.format_estimate(est))
+    if runner is None or runner.provider.name.startswith("mock"):
+        return True
+    if est["items"] >= cost.load_pricing()["confirm_batch_at"]:
+        return st.checkbox(f"Tôi xác nhận batch {est['items']} mục này sẽ tốn credit", key=f"confirm_{est['kind']}")
+    return True
+
+def spend_line(p: Pipeline, pid: int) -> None:
+    spend = cost.spend_summary(p.conn, pid, cost.load_pricing())
+    if not (spend["images"] or spend["clips"] or spend["audios"]):
+        return
+    text = (f"Đã ghi nhận (gửi API thật): {spend['images']} ảnh · {spend['clips']} clip ({spend['seconds']:.0f} giây)"
+            f" · {spend['audios']} âm thanh")
+    if spend["unknown_prices"]:
+        text += " — chưa có giá cho: " + ", ".join(spend["unknown_prices"]) + " (điền data/pricing.json)"
+    else:
+        text += f" → khoảng {spend['credits']:.1f} {spend['currency']} theo giá khai báo"
+    st.caption(text)
+
+def project_dir(pid: int, *parts: str) -> str:
+    path = os.path.join(DATA, str(pid), *parts)
+    os.makedirs(path, exist_ok=True)
+    return path
+
+def act(fn, success: str = ""):
+    """Run an action, show errors instead of crashing, rerun on success."""
+    try:
+        fn()
+    except ERRORS as e:
+        st.error(f"{type(e).__name__}: {e}")
+        return False
+    if success:
+        st.toast(success)
+    return True
+
+def confirm_all(key: str, ids, label: str, question: str, container=st, yes_label: str = "Có, duyệt hết") -> bool:
+    """One 'approve all' button, then a yes/no question. True only when the user answers Yes.
+    The question is tied to the exact set of items it was asked about: if the set changes, it is asked again."""
+    ids = tuple(ids)
+    pending_key = f"ask_{key}"
+    if st.session_state.get(pending_key) not in (None, ids):
+        st.session_state[pending_key] = None  # the list changed since the question: forget it
+    if st.session_state.get(pending_key) != ids:
+        if container.button(label, key=key, disabled=not ids):
+            st.session_state[pending_key] = ids
+            st.rerun()
+        return False
+    container.warning(question)
+    yes, no = container.columns(2)
+    if yes.button(yes_label, key=f"{key}_yes", type="primary"):
+        st.session_state[pending_key] = None
+        return True
+    if no.button("Không", key=f"{key}_no"):
+        st.session_state[pending_key] = None
+        st.rerun()
+    return False
+
+def job_image(pid: int, jid: int):
+    """The job's image; a rejected/deleted one is looked up in the trash so versions can still be compared."""
+    path = os.path.join(DATA, str(pid), "images", f"job_{jid}.png")
+    return path if os.path.exists(path) else trash.find_for_job(DATA, pid, "images", jid)
+
+@st.cache_data(ttl=3600, show_spinner=False)
+def purge_trash(data_dir: str) -> int:
+    """Delete trash entries older than the retention period (checked at most once an hour)."""
+    return trash.purge_expired(data_dir)
+
+def show_image(path, **kwargs):
+    """st.image that survives a corrupt or half-downloaded file (shows a note instead of crashing the page)."""
+    try:
+        st.image(path, **kwargs)
+    except Exception:  # noqa: BLE001 - PIL/streamlit raise many types for unreadable files
+        st.caption(f"⚠ Không đọc được ảnh: {os.path.basename(str(path))}")
+
+_GENERIC_TITLE = re.compile(r"(?i)^\s*(cảnh|canh|scene|sc|s)\s*\.?\s*\d+\s*$")
+
+def scene_title(idx, title) -> str:
+    """'Cảnh 3' or 'Cảnh 3 — Rừng Elder' (a bare 'CẢNH 3' heading is not repeated)."""
+    t = (title or "").strip()
+    return f"Cảnh {idx}" + ("" if not t or _GENERIC_TITLE.match(t) else f" — {t}")
+
+def scene_expander(p: Pipeline, scene_id, expanded: bool = False, with_motion: bool = False) -> None:
+    """Drop-down under an image/video: the script text of that scene plus its spec, so the result can be checked
+    against what the script says."""
+    row = p.conn.execute("SELECT idx, title, data FROM scenes WHERE id=?", (scene_id,)).fetchone()
+    if row is None:
+        return
+    d = json.loads(row["data"] or "{}")
+    with st.expander(f"📖 {scene_title(row['idx'], row['title'])} · nội dung kịch bản", expanded=expanded):
+        if d.get("text"):
+            ui.html(f'<div class="scenetext">{escape(d["text"])}</div>')
+        else:
+            st.caption("Chưa có nội dung kịch bản (chạy phân tích ở Bước 1).")
+        lines = [("Bối cảnh", " · ".join(filter(None, [d.get("time"), d.get("location")]))),
+                 ("Nhân vật", ", ".join(d.get("characters") or [])),
+                 ("Mood / ánh sáng / cỡ cảnh", " · ".join(filter(None, [d.get("mood"), d.get("lighting"), d.get("shot")]))),
+                 ("Vị trí nhân vật", d.get("blocking") or ""),
+                 ("Prompt ảnh", d.get("image_prompt") or "")]
+        if with_motion:
+            m = p.conn.execute("SELECT motion_prompt FROM motion_prompts WHERE scene_id=?", (scene_id,)).fetchone()
+            lines.append(("Motion prompt", m["motion_prompt"] if m else ""))
+        ui.html("".join(f'<div class="muted"><b>{escape(k)}:</b> {escape(v)}</div>' for k, v in lines if v))
+
+def show_video(path: str, size: str = "Vừa") -> None:
+    """Inline player at a comfortable width; the player's own ⛶ button goes full screen."""
+    try:
+        st.columns([1, 1])[0].video(path)
+    except Exception:  # noqa: BLE001 - unreadable file: say so instead of breaking the page
+        st.caption(f"⚠ Không phát được video: {os.path.basename(path)}")
+
+def qc_scores(p: Pipeline, jid: int):
+    return p.conn.execute("SELECT criterion, score, threshold_at_time FROM qc_results WHERE job_id=? ORDER BY id",
+                          (jid,)).fetchall()
+
+def auth_on() -> bool:
+    return os.environ.get("DASHBOARD_AUTH", "on").strip().lower() not in ("off", "0", "false", "no")
+
+def me() -> dict:
+    """The signed-in person of THIS browser session ({'email','name','role','perms'})."""
+    return st.session_state.get("identity") or {}
+
+def allowed(permission: str) -> bool:
+    return auth.can(me(), permission)
+
+def request_source() -> tuple:
+    """(where the request came from for the audit log, whether it is the dashboard machine itself)."""
+    try:
+        host = st.context.headers.get("Host", "") or ""
+        ip = st.context.ip_address or ""
+    except Exception:  # noqa: BLE001 - an older Streamlit or a test runner: unknown origin
+        return "", True
+    local = host.split(":")[0].strip("[]") in ("localhost", "127.0.0.1", "::1", "")
+    return f"host={host} ip={ip}", local
+
+def lan_address() -> str:
+    import socket
+    try:
+        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
+            s.connect(("10.255.255.255", 1))
+            ip = s.getsockname()[0]
+    except OSError:
+        ip = "localhost"
+    return f"http://{ip}:{os.environ.get('DASHBOARD_PORT', '8501')}"
+
+def clean_name(raw: str) -> str:
+    return " ".join((raw or "").split())[:40]
+
+def can_delete_project(proj) -> bool:
+    """Only the person who created a project may delete it (an old project with no recorded creator: the Owner)."""
+    if not auth_on():
+        return True
+    creator = proj["created_by"] if "created_by" in proj.keys() else None
+    who = me()
+    return who["email"] == creator if creator else who["role"] == "owner"
+
+# ---- step 1 --------------------------------------------------------------------------
+@st.cache_resource
+def autopilot_manager(db: str, data: str):
+    return autopilot.Manager(db, data, poll_sec=float(os.environ.get("AUTOPILOT_POLL_SEC", "15")))
+
+# ---- step 2 --------------------------------------------------------------------------
+POLL_SECONDS = {"image": 6, "video": 15}
