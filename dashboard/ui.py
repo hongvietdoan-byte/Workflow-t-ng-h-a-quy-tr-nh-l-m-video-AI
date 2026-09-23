@@ -26,8 +26,8 @@ div[data-testid="stVerticalBlockBorderWrapper"]{background:var(--surface);border
 .brand{display:flex;align-items:center;gap:8px;font-weight:700;font-size:16px;white-space:nowrap}
 .brand i{width:28px;height:28px;border-radius:8px;background:var(--primary);display:inline-block}
 /* radios restyled: stepper (key "step"), segmented mode and filter chips */
-.st-key-step [data-testid="stRadioGroup"]{display:flex;gap:6px;flex-wrap:nowrap;overflow-x:auto;padding:4px 2px}
-.st-key-step [data-testid="stRadioGroup"]>div{flex:1 1 0;min-width:max-content}
+.st-key-step [data-testid="stRadioGroup"]{display:flex;gap:6px;flex-wrap:wrap;padding:4px 2px}
+.st-key-step [data-testid="stRadioGroup"]>div{flex:1 1 auto;min-width:max-content}
 .st-key-step label[data-testid="stRadioOption"]{width:100%;background:var(--surface);border:1.5px solid var(--border);border-radius:10px;padding:9px 14px;margin:0;cursor:pointer}
 .st-key-step label[data-testid="stRadioOption"][data-selected="true"]{background:var(--primary-soft);border-color:var(--primary)}
 .st-key-step label[data-testid="stRadioOption"][data-selected="true"] p{color:var(--text);font-weight:600}

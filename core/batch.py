@@ -1,6 +1,6 @@
 """One action per step instead of "create jobs" + "submit": queue what is missing or outdated, then send it.
 Shared by the dashboard buttons and the automatic run, so both redo exactly the parts a change affected (core.lineage)."""
-from typing import Dict
+from typing import Dict, List
 
 from . import lineage, llm_io, pilot, regen
 from .pipeline import Pipeline
@@ -23,6 +23,13 @@ def queue_images(p: Pipeline, project_id: int) -> Dict:
     for sid in redo_ids:
         p.reopen_approved(stale[sid]["image_job_id"], f"Nội dung cảnh đã đổi: {stale[sid]['image_stale']}")
     return {"created": len(fresh), "redo": len(redo_ids), "pilot": pilot.active(p, project_id)}
+
+
+def videos_to_make(p: Pipeline, project_id: int) -> List[Dict]:
+    """Scenes ready for video (image + motion prompt approved and current) that have no clip made or in progress yet."""
+    return [r for r in llm_io.ready_for_video(p, project_id)
+            if not p.conn.execute(f"SELECT 1 FROM jobs WHERE scene_id=? AND type='video_gen' AND state IN {LIVE}",
+                                  (r["scene_id"],)).fetchone()]
 
 
 def queue_videos(p: Pipeline, project_id: int, data_dir: str) -> Dict:

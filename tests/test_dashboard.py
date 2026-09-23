@@ -82,7 +82,7 @@ class DashboardSmokeTests(unittest.TestCase):
         lock_character_bible(p, pid)
         at = AppTest.from_file(APP, default_timeout=30).run()
         at.radio(key="step").set_value(at.radio(key="step").options[1]).run()
-        next(b for b in at.button if "Tạo job gen ảnh" in b.label).click().run()
+        next(b for b in at.button if "Gen ảnh các cảnh" in b.label).click().run()
         self.assertFalse(at.exception)
         rows = Pipeline(connect(self.db)).conn.execute("SELECT type, state FROM jobs").fetchall()
         self.assertEqual([(r["type"], r["state"]) for r in rows], [("image_gen", "queued")])
@@ -92,7 +92,7 @@ class DashboardSmokeTests(unittest.TestCase):
     def test_pause_button_sets_flag(self):
         p, pid = self.seed()
         at = AppTest.from_file(APP, default_timeout=30).run()
-        next(b for b in at.button if "Pause" in b.label).click().run()
+        next(b for b in at.button if "Tạm dừng" in b.label).click().run()
         self.assertEqual(Pipeline(connect(self.db)).project(pid)["paused"], 1)
 
     def test_music_step_with_mock_audio_creates_and_selects_draft(self):
@@ -123,7 +123,7 @@ class DashboardSmokeTests(unittest.TestCase):
         self.assertTrue(any("Tổng thời lượng dự kiến" in i.value for i in at.info))
         at.radio(key="tr_1").set_value("crossfade").run()
         self.assertTrue(any("crossfade cần ít nhất 2 clip" in w.value for w in at.warning))
-        self.assertTrue(next(b for b in at.button if "Render Final" in b.label).disabled)
+        self.assertTrue(next(b for b in at.button if "Dựng video cuối" in b.label).disabled)
 
     def test_sfx_created_selected_and_counted_for_final_mix(self):
         self.seed()
@@ -135,10 +135,10 @@ class DashboardSmokeTests(unittest.TestCase):
             at.text_input(key="sfx_p_1").set_value("door slam").run()
             next(b for b in at.button if "Tạo SFX" in b.label).click().run()
             next(b for b in at.button if "Kiểm tra" in b.label and b.key == "ax_refresh_1").click().run()
-            at.checkbox(key="ax_use_1_0").set_value(True).run()
+            at.checkbox(key="ax_use_1_0_0_0.0_1.0").set_value(True).run()   # key carries the stored values (see step5 mixer)
             self.assertFalse(at.exception)
             at.radio(key="step").set_value(at.radio(key="step").options[4]).run()
-            self.assertTrue(any("đưa vào bản ghép: 1" in c.value for c in at.caption))
+            self.assertTrue(any("trong bản trộn: 1" in c.value for c in at.caption))
         finally:
             os.environ.pop("AUDIO_PROVIDER", None)
 
@@ -691,7 +691,7 @@ class DashboardSmokeTests(unittest.TestCase):
         at = AppTest.from_file(APP, default_timeout=30).run()
         self.assertFalse(at.exception)
         bars = [x for x in at.get("popover") if not x.proto.popover.label.startswith("👗")]     # the per-character outfit popovers aside
-        self.assertEqual(len(bars), 4)                        # risk corner + project settings gear + header's "new project" + settings gear
+        self.assertEqual(len(bars), 3)                        # risk corner + "new project" + the one settings gear (v2)
         text = " ".join(m.value for m in at.markdown)
         self.assertIn("Cảnh 1 bị chặn (clipai)", text)      # risk-control block, with its scene
         self.assertIn("Nữ chiến binh Amazon", text)          # IP warning from the Character Bible
@@ -750,8 +750,9 @@ class DashboardSmokeTests(unittest.TestCase):
         try:
             at = AppTest.from_file(APP, default_timeout=30).run()
             at.radio(key="step").set_value(at.radio(key="step").options[3]).run()
-            next(b for b in at.button if "Tạo job gen video" in b.label).click().run()
-            next(b for b in at.button if "heartbeat" in b.label).click().run()
+            next(b for b in at.button if "Gen video" in b.label).click().run()   # queue + send; the page then polls by itself
+            at.run()
+            at.run()
             self.assertFalse(at.exception)
         finally:
             os.environ.pop("VIDEO_PROVIDER", None)
@@ -770,8 +771,8 @@ class DashboardSmokeTests(unittest.TestCase):
         try:
             at = AppTest.from_file(APP, default_timeout=30).run()
             at.radio(key="step").set_value(at.radio(key="step").options[1]).run()
-            next(b for b in at.button if "Tạo job gen ảnh" in b.label).click().run()
-            next(b for b in at.button if "heartbeat" in b.label).click().run()
+            next(b for b in at.button if "Gen ảnh các cảnh" in b.label).click().run()   # queue + send; the page then polls by itself
+            at.run()
             self.assertFalse(at.exception)
         finally:
             os.environ.pop("IMAGE_PROVIDER", None)

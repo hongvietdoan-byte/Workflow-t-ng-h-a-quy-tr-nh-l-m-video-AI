@@ -10,7 +10,6 @@ def step4(p: Pipeline, pid: int):
     summ = lineage.summary(p.conn, pid)
     step_header("Bước 4 · Gen video + QC video", "mỗi cảnh một clip đúng nhân vật, đúng vật lý, khớp motion prompt",
                 f"{summ['videos'][0]}/{summ['total']} cảnh có clip dùng được", summ["videos"][1])
-    ready = llm_io.ready_for_video(p, pid)
     model_plan_panel(p, pid)
     with st.container(border=True):
         m1, m2 = st.columns(2)
@@ -29,17 +28,17 @@ def step4(p: Pipeline, pid: int):
                                    bool(proj["use_subjects"]), key=f"vsubj_{pid}")
             if use_subj != bool(proj["use_subjects"]):
                 p.set_use_subjects(pid, use_subj)
-        allowed_run = True
         if runner is None:
             st.caption("ℹ Clip AI chưa cấu hình (VIDEO_PROVIDER=clipai + CLIPAI_TOKEN, xem docs/RUNBOOK.md).")
         else:
             st.caption(f"Nhà cung cấp video: {runner.provider.name}" + (" (giả lập)" if runner.provider.name.startswith("mock") else " (gọi API thật, tốn credit)")
                        + f" · khung {formats.label(formats.project_aspect(proj))}")
-            allowed_run = show_estimate(cost.estimate_videos_by_scene(p, pid, cost.load_pricing()), runner)
+        allowed_run = show_estimate(cost.estimate_videos_by_scene(p, pid, cost.load_pricing()), runner)
         stale_videos = [r for r in lineage.scan(p.conn, pid).values() if r["video_stale"]]
         c1, c2 = st.columns([2.6, 2])
-        if c1.button(f"▶ Gen video ({len(ready)} cảnh sẵn sàng" + (f", {len(stale_videos)} đã cũ" if stale_videos else "") + ")",
-                     type="primary", key=f"gen_vid_{pid}", disabled=runner is None or not allowed_run or not (ready or stale_videos)):
+        todo = batch.videos_to_make(p, pid)
+        if c1.button(f"▶ Gen video ({len(todo)} cảnh sẵn sàng" + (f", {len(stale_videos)} đã cũ" if stale_videos else "") + ")",
+                     type="primary", key=f"gen_vid_{pid}", disabled=runner is None or not allowed_run or not (todo or stale_videos)):
             def go():
                 r = batch.queue_videos(p, pid, C.DATA)
                 sent = runner.submit_pending(pid)
@@ -52,6 +51,13 @@ def step4(p: Pipeline, pid: int):
                      help="Clip bị bộ lọc nội dung chặn không nằm trong nút này: sửa prompt trước."):
             for j in failed:
                 act(lambda: p.retry(j["id"], "gen lại clip lỗi"))
+            st.rerun()
+        waiting = [j["id"] for j in p.conn.execute(
+            "SELECT id FROM jobs WHERE project_id=? AND type='video_gen' AND state='pending_review' ORDER BY id", (pid,)).fetchall()]
+        if waiting and confirm_all(f"vid_ok_all_{pid}", waiting, f"✔ Duyệt tất cả ({len(waiting)} clip)",
+                                   f"Duyệt tất cả {len(waiting)} clip đang chờ duyệt?"):
+            for jid in waiting:
+                p.approve(jid, "user")
             st.rerun()
         if video_busy(p.conn, pid):
             auto_poll_videos(pid)
@@ -100,6 +106,11 @@ def model_plan_panel(p: Pipeline, pid: int) -> None:
         st.caption("Theo slide ClipAI “Hôm nay tôi chọn mô hình video như thế nào”: cảnh then chốt / phức tạp / có video tham chiếu → Seedance 2.5; "
                    "cảnh thường → Seedance 2.0 hoặc 2.0 Fast; đối thoại nhiều nhân vật / cảnh chuyển tiếp rẻ → Kling 3.0 Omni. "
                    "MiniMax H3 và Seedance 2.0 Mini chỉ có trên web ClipAI (không gen tự động được). Đổi ưu tiên ở Bước 1 · 📐 Định dạng.")
+        if model_router.chosen_priority(proj) is None and not proj["video_model"]:
+            st.warning("Dự án cũ chưa chọn ưu tiên model nên đang dùng mặc định cũ (Kling cho mọi cảnh).")
+            if st.button("Dùng đề xuất theo cảnh (ưu tiên Cân bằng)", key=f"vm_prio_{pid}"):
+                p.set_project_field(pid, "model_priority", model_router.DEFAULT_PRIORITY)
+                st.rerun()
         if proj["video_model"]:
             st.warning(f"Dự án đang đặt MỘT model chung cho mọi cảnh (cách cũ): {proj['video_model']}.")
             if st.button("Bỏ model chung — dùng đề xuất theo cảnh", key=f"vm_clear_{pid}"):
@@ -122,10 +133,10 @@ def model_plan_panel(p: Pipeline, pid: int) -> None:
                 act(lambda: model_router.set_override(p.conn, r["scene_id"], pick))
                 st.rerun()
             c2.caption(r["reason"])
-            c3.caption(f"{r['seconds']:g}s · " + (f"${r['cost']:.2f}" if r["cost"] is not None else "chưa có giá"))
+            c3.caption(f"{r['seconds']:g}s · " + (f"\\${r['cost']:.2f}" if r["cost"] is not None else "chưa có giá"))
         totals = {k: model_router.total(model_router.plan(p.conn, pid, pricing, priority=k)) for k in model_router.PRIORITIES}
         st.caption("So sánh tổng (chưa tính gen lại): " + " · ".join(
-            f"{profiles['priorities'][k]['label']} ≈ " + (f"${v:.2f}" if v is not None else "?") for k, v in totals.items()))
+            f"{profiles['priorities'][k]['label']} ≈ " + (f"\\${v:.2f}" if v is not None else "?") for k, v in totals.items()))
 
 
 def video_card(p: Pipeline, pid: int, j, runner, stale_reason) -> None:

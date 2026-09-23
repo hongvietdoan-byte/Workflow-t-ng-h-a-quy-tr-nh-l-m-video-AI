@@ -176,9 +176,10 @@ def extras_section(p: Pipeline, pid: int, provider):
                 elif e.get("file"):
                     st.audio(os.path.join(directory, e["file"]))
                 a, b, c, d = st.columns([2, 1.3, 2, 1], vertical_alignment="center")
-                use = a.checkbox("Đưa vào bản ghép", e["use"], key=f"ax_use_{pid}_{i}", disabled=e["state"] != "succeeded")
-                start = b.number_input("Bắt đầu (giây)", 0.0, 600.0, float(e["start"]), 0.5, key=f"ax_st_{pid}_{i}")
-                vol = c.slider("Âm lượng", 0.0, 2.0, float(e["volume"]), 0.05, key=f"ax_vol_{pid}_{i}")
+                sig = f"{i}_{int(bool(e['use']))}_{e['start']}_{e['volume']}"   # file changed elsewhere (voice placement) -> fresh widgets
+                use = a.checkbox("Đưa vào bản ghép", e["use"], key=f"ax_use_{pid}_{sig}", disabled=e["state"] != "succeeded")
+                start = b.number_input("Bắt đầu (giây)", 0.0, 600.0, float(e["start"]), 0.5, key=f"ax_st_{pid}_{sig}")
+                vol = c.slider("Âm lượng", 0.0, 2.0, float(e["volume"]), 0.05, key=f"ax_vol_{pid}_{sig}")
                 if d.button("Xóa", key=f"ax_rm_{pid}_{i}"):
                     audio_lib.remove(directory, i)
                     st.rerun()
@@ -409,6 +410,8 @@ def clips_panel(p: Pipeline, pid: int):
             if use:
                 chosen.append(c["path"])
                 durations.append(sec)
+            if c.get("scene_id"):
+                scene_expander(p, c["scene_id"], with_motion=True)
         with st.expander("Nhập clip thủ công (tên file theo thứ tự, vd 01.mp4)"):
             up = st.file_uploader("Clip .mp4", type=["mp4"], accept_multiple_files=True, key=f"vid_{pid}")
             if up and st.button("Lưu clip", key=f"vid_save_{pid}"):

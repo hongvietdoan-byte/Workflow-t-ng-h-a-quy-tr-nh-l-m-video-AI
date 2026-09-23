@@ -5,6 +5,8 @@ stay unchanged. `MockVideoProvider` simulates behaviour (delays, risk-control fa
 transient errors) for tests and demos.
 """
 import base64
+import os
+import subprocess
 from dataclasses import dataclass
 from typing import Dict, Optional, Protocol
 
@@ -59,6 +61,53 @@ _PNG_1X1 = base64.b64decode(
     "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==")
 
 
+def _real_media() -> bool:
+    """MOCK_REAL_MEDIA=1 (demo / walkthrough): the simulators write a small real picture / video in the project's frame
+    instead of a 1x1 PNG / fake MP4, so render, subtitles, end card and exports can be tried end to end without credit."""
+    return os.environ.get("MOCK_REAL_MEDIA", "").lower() in ("1", "true", "yes")
+
+
+_COLOURS = [(72, 94, 140), (140, 88, 72), (70, 128, 96), (120, 80, 140), (150, 130, 60)]
+
+
+def _placeholder_png(dest_path: str, size: Optional[str], label: str, n: int) -> bool:
+    """Write a placeholder picture at 1/8 of the requested size ("1152x2048"). False when Pillow is missing."""
+    try:
+        from PIL import Image, ImageDraw
+        w, h = (int(v) for v in (size or "2048x1152").lower().split("x"))
+        w, h = max(w // 8, 16), max(h // 8, 16)
+        img = Image.new("RGB", (w, h), _COLOURS[n % len(_COLOURS)])
+        ImageDraw.Draw(img).text((8, h // 2 - 6), label, fill=(255, 255, 255))
+        img.save(dest_path, "PNG")
+        return True
+    except (ImportError, ValueError, OSError):
+        return False
+
+
+_CLIP_SIZE = {"9:16": (360, 640), "16:9": (640, 360), "1:1": (480, 480)}
+
+
+def _placeholder_mp4(dest_path: str, image_path: Optional[str], aspect: Optional[str], seconds: float) -> bool:
+    """A real short clip (still image + silent stereo track) made with ffmpeg. False when ffmpeg or the image is missing."""
+    from .ffmpeg_studio import find_ffmpeg
+    try:
+        ffmpeg = find_ffmpeg()
+    except Exception:
+        return False
+    w, h = _CLIP_SIZE.get(aspect or "16:9", (640, 360))
+    src = ["-loop", "1", "-i", image_path] if image_path and os.path.exists(image_path) else \
+        ["-f", "lavfi", "-i", f"color=c=0x485e8c:s={w}x{h}"]
+    cmd = [ffmpeg, "-y", "-loglevel", "error", *src, "-f", "lavfi", "-i", "anullsrc=r=44100:cl=stereo",
+           "-t", f"{max(float(seconds or 5), 1):g}", "-r", "24",
+           "-vf", f"scale={w}:{h}:force_original_aspect_ratio=increase,crop={w}:{h},format=yuv420p",
+           "-c:v", "libx264", "-preset", "ultrafast", "-c:a", "aac", "-shortest", dest_path]
+    try:
+        subprocess.run(cmd, check=True, capture_output=True, timeout=120)
+        return True
+    except (OSError, subprocess.SubprocessError):
+        return False
+
+
 class MockImageProvider:
     """Simulated image generator: writes a 1x1 PNG. Never produces a real image."""
     name = "mock-image"
@@ -96,6 +145,8 @@ class MockImageProvider:
         return TaskStatus("succeeded" if self._polls[task_id] >= self.polls_to_finish else "running")
 
     def download(self, task_id: str, dest_path: str) -> str:
+        if _real_media() and _placeholder_png(dest_path, self.sizes.get(task_id), f"mock {task_id}", self._counter):
+            return dest_path
         with open(dest_path, "wb") as f:
             f.write(_PNG_1X1)
         return dest_path
@@ -127,7 +178,8 @@ class MockVideoProvider:
         self._tasks[task_id] = {"prompt": prompt.lower(), "polls": 0, "model": model, "with_audio": with_audio,
                                   "subjects": subjects or [], "image_references": image_references or [],
                                   "reference_video": reference_video, "aspect_ratio": aspect_ratio,
-                                  "resolution": resolution, "multi_prompt": multi_prompt}
+                                  "resolution": resolution, "multi_prompt": multi_prompt,
+                                  "image_path": image_path, "duration": duration_sec}
         return task_id
 
     def status(self, task_id: str) -> TaskStatus:
@@ -145,6 +197,9 @@ class MockVideoProvider:
         return TaskStatus("running")
 
     def download(self, task_id: str, dest_path: str) -> str:
+        task = self._tasks.get(task_id) or {}
+        if _real_media() and _placeholder_mp4(dest_path, task.get("image_path"), task.get("aspect_ratio"), task.get("duration") or 5):
+            return dest_path
         with open(dest_path, "wb") as f:
             f.write(b"MOCK-MP4")
         return dest_path

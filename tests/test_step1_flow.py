@@ -35,6 +35,9 @@ class AutomaticFromSplitScenesTests(unittest.TestCase):
         self.assertEqual(p.conn.execute("SELECT COUNT(*) FROM characters").fetchone()[0], 0)
         self.assertEqual(autopilot.problems(p, pid, ctx), [])                # a missing Character Bible is no longer a blocker
         autopilot.start(p, pid)
+        self.assertEqual(autopilot.run_until_done(p, pid, ctx), autopilot.WAITING)     # v2: stops for the Character Bible review
+        self.assertEqual(p.conn.execute("SELECT COUNT(*) FROM jobs").fetchone()[0], 0)
+        autopilot.resume(p, pid)                                                     # the person approved it
         self.assertEqual(autopilot.run_until_done(p, pid, ctx), autopilot.DONE)
         self.assertGreater(p.conn.execute("SELECT COUNT(*) FROM characters WHERE locked=1").fetchone()[0], 0)
         self.assertTrue(any("Director" in e["msg"] for e in autopilot.status(p, pid)["log"]))
@@ -78,11 +81,12 @@ class Step1LayoutTests(unittest.TestCase):
             self.assertFalse(at.exception)
             texts = [m.value for m in at.markdown]
             index = lambda needle: next(i for i, t in enumerate(texts) if needle in t)  # noqa: E731
-            script, choice = index("① Kịch bản"), index("② Chọn cách chạy")
-            self.assertLess(script, choice)
-            self.assertLess(choice, index("Chế độ tự động hoàn toàn"))
-            self.assertLess(index("Chế độ tự động hoàn toàn"), index("Chạy lần lượt từng bước"))
-            self.assertLess(index("Chạy lần lượt từng bước"), index("③ Director"))
+            script, prep, choice = index("1a · 📜 Kịch bản"), index("1b · 🧰 Chuẩn bị"), index("1c · Chọn cách chạy")
+            self.assertLess(script, prep)                                       # v2: style/format are set before the Director
+            self.assertLess(prep, choice)
+            self.assertLess(choice, index("Tự động hoàn toàn"))
+            self.assertLess(index("Tự động hoàn toàn"), index("Lần lượt từng bước"))
+            self.assertLess(index("Lần lượt từng bước"), index("1d · 🎬 Director"))
         finally:
             os.environ.pop("PIPELINE_DB", None)
             os.environ.pop("PIPELINE_DATA", None)

@@ -38,7 +38,7 @@ def validate_scene_analysis(data: Any) -> Dict:
     """Director JSON. v2 adds optional fields (from the film-director skill contract); JSON without them stays valid:
     root `genre`; per character `lock` {must_keep, may_change, forbidden}; per scene `emotional_intent`, `beat`
     {want, obstacle, turn}, `camera_complexity` simple|complex, `shot_role` hero|normal|transition, `dialogue`
-    [{speaker, text}], `duration_s` (1-15)."""
+    [{speaker, text}], `duration_s` (1-30; each model clamps to its own limit)."""
     obj = _load(data)
     if obj.get("genre") is not None and not isinstance(obj.get("genre"), str):
         raise SchemaError("root.genre: expected text")
@@ -98,8 +98,8 @@ def _check_dialogue(value: Any, where: str) -> None:
 def _check_duration(value: Any, where: str) -> None:
     if value is None:
         return
-    if not isinstance(value, (int, float)) or isinstance(value, bool) or not 1 <= value <= 15:
-        raise SchemaError(f"{where}: must be a number of seconds between 1 and 15")
+    if not isinstance(value, (int, float)) or isinstance(value, bool) or not 1 <= value <= 30:
+        raise SchemaError(f"{where}: must be a number of seconds between 1 and 30")
 
 
 LOCK_KEYS = ("must_keep", "may_change", "forbidden")
@@ -288,7 +288,13 @@ def update_scene(pipeline: Pipeline, project_id: int, idx: int, fields: Mapping[
         data["dialogue"] = rows or None
     if text is not None:
         data["text"] = text.strip()
-    changed = [k for k in set(before) | set(data) if k not in ("_user_locked", "text") and before.get(k) != data.get(k)]
+        if (data["text"] != (before.get("text") or "") and "dialogue" not in fields
+                and "dialogue" not in set(data.get("_user_locked") or [])):
+            from .dialogue import lines as _lines         # script text changed: the structured dialogue follows it
+            rows = _lines(data["text"])
+            data["dialogue"] = [{"speaker": w, "text": t} for w, t in rows] or None
+    changed = [k for k in set(before) | set(data) if k not in ("_user_locked", "text") and before.get(k) != data.get(k)
+               and not (k == "dialogue" and "dialogue" not in fields)]
     data["_user_locked"] = sorted(set(data.get("_user_locked") or []) | set(changed))
     conn.execute("UPDATE scenes SET data=? WHERE id=?", (json.dumps(data, ensure_ascii=False), row["id"]))
     conn.commit()
@@ -361,6 +367,8 @@ def store_motion_prompts(pipeline: Pipeline, project_id: int, data: Any) -> int:
             raise SchemaError(f"scene idx {s['idx']} has no approved image yet")
         scene_data = json.loads(conn.execute("SELECT data FROM scenes WHERE id=?", (row["id"],)).fetchone()["data"] or "{}")
         duration = s.get("duration_sec") or scene_data.get("duration_s") or 5
+        if "duration_s" in set(scene_data.get("_user_locked") or []) and scene_data.get("duration_s"):
+            duration = scene_data["duration_s"]          # length the person set (e.g. sized to the dialogue) wins
         conn.execute(
             "INSERT INTO motion_prompts (scene_id, motion_prompt, camera, duration_sec, negative_prompt, state, check_flags)"
             " VALUES (?,?,?,?,?,'pending',?) ON CONFLICT(scene_id) DO UPDATE SET"

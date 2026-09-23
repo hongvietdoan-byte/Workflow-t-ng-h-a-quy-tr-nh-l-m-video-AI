@@ -33,6 +33,7 @@ def clips_with_dialogue(test, lines=None):
             f.write(b"not a real video")                             # probe fails -> the planned duration is used
         data = json.loads(r["data"] or "{}")
         data["text"] = (lines or {}).get(r["idx"], "" if lines else data.get("text", ""))
+        data.pop("dialogue", None)                                   # the script text is the source of the lines here
         p.conn.execute("UPDATE scenes SET data=? WHERE id=?", (json.dumps(data, ensure_ascii=False), r["id"]))
         p.conn.execute("DELETE FROM motion_prompts WHERE scene_id=?", (r["id"],))
         p.conn.execute("INSERT INTO motion_prompts (scene_id, motion_prompt, duration_sec, state) VALUES (?,?,?,?)",
@@ -179,7 +180,8 @@ class AutopilotSubtitleTests(Setup):
 
     def test_default_settings_leave_the_automatic_run_untouched(self):
         ctx = clips_with_dialogue(self)
-        self.assertFalse(subtitles.get_settings(self.p, self.pid)["enabled"])
+        self.assertTrue(subtitles.get_settings(self.p, self.pid)["enabled"])        # a script with dialogue: on by default (v2)
+        subtitles.save_settings(self.p, self.pid, {**subtitles.get_settings(self.p, self.pid), "enabled": False})
         self.assertIsNone(autopilot.default_subtitle(self.p, self.pid, self.data, "whatever.mp4", None))
         autopilot.start(self.p, self.pid)
         self.assertEqual(autopilot.run_until_done(self.p, self.pid, ctx), autopilot.DONE)
@@ -187,7 +189,7 @@ class AutopilotSubtitleTests(Setup):
 
     def test_settings_are_saved_per_project_and_unknown_keys_are_ignored(self):
         self.build()
-        self.assertEqual(subtitles.get_settings(self.p, self.pid), subtitles.DEFAULTS)
+        self.assertEqual(subtitles.get_settings(self.p, self.pid), {**subtitles.DEFAULTS, "enabled": True})  # script has dialogue
         subtitles.save_settings(self.p, self.pid, {"lang": "th", "size": "L", "bogus": 1})
         got = subtitles.get_settings(self.p, self.pid)
         self.assertEqual((got["lang"], got["size"], got["pos"]), ("th", "L", "bottom"))
@@ -207,9 +209,9 @@ class MergedStepTests(unittest.TestCase):
             options = list(at.radio(key="step").options)
             self.assertEqual(len(options), 6)
             self.assertFalse(any(o.startswith(("5a", "5b")) for o in options))
-            self.assertTrue(any(o.startswith("5 · Nhạc nền & Ghép video") for o in options))
+            self.assertTrue(any(o.startswith("5 · Âm thanh & xuất bản") for o in options))
             self.assertEqual(at.radio(key="step").value, next(o for o in options if o.startswith("5 ·")))
-            self.assertTrue(any("Phụ đề tự động" in e.label for e in at.expander))
+            self.assertTrue(any("Phụ đề" in e.label for e in at.expander))
         finally:
             os.environ.pop("PIPELINE_DB", None)
             os.environ.pop("PIPELINE_DATA", None)

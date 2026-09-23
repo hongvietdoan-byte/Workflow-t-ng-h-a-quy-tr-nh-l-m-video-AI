@@ -97,8 +97,23 @@ def build_director_bundle(pipeline: Pipeline, project_id: int) -> str:
         knowledge.user_text("director"),
         few_shot_text(),
         locked_block(pipeline, project_id),
+        script_preamble(proj),
         "# Kịch bản đã tách cảnh\n\n" + scenes,
     ] if x)
+
+
+def script_preamble(proj) -> str:
+    """What the script says before its first scene (title, length, cast, setting such as "Map Đảo Quân Sự — Tháp Đồng Hồ"): it
+    applies to every scene, so the Director gets it too."""
+    from .script_parser import _HEADING
+    text = (proj["script_text"] if "script_text" in proj.keys() else None) or ""
+    head = []
+    for row in text.splitlines():
+        if _HEADING.match(row):
+            break
+        if row.strip():
+            head.append(row.strip())
+    return ("# Thông tin chung của kịch bản (trước cảnh đầu tiên — áp dụng cho mọi cảnh)\n" + "\n".join(head)) if head else ""
 
 
 def lock_text(conn, project_id: int, names=None) -> str:

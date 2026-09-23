@@ -9,11 +9,20 @@ from typing import Optional
 
 from ..providers import MockImageProvider, MockVideoProvider
 
+# One simulator per process: a new one on every page rerun would forget the tasks it was given and report them missing.
+_MOCKS = {}
+
+
+def _mock(kind: str, cls):
+    if kind not in _MOCKS:
+        _MOCKS[kind] = cls()
+    return _MOCKS[kind]
+
 
 def video_provider():
     kind = os.environ.get("VIDEO_PROVIDER", "").strip().lower()
     if kind == "mock":
-        return MockVideoProvider()
+        return _mock("video", MockVideoProvider)
     if kind == "clipai":
         from .clipai import ClipAIVideoProvider
         return ClipAIVideoProvider.from_env()
@@ -23,7 +32,7 @@ def video_provider():
 def image_provider():
     kind = os.environ.get("IMAGE_PROVIDER", "").strip().lower()
     if kind == "mock":
-        return MockImageProvider()
+        return _mock("image", MockImageProvider)
     if kind == "deepix":
         from .deepix import DeepixImageProvider
         return DeepixImageProvider.from_env()

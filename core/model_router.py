@@ -34,11 +34,17 @@ def api_models(profiles: Optional[Dict] = None) -> Dict[str, Dict]:
 
 
 def priority_of(project_row) -> str:
+    """The project's priority; DEFAULT_PRIORITY for display when it was never chosen (see chosen_priority)."""
+    return chosen_priority(project_row) or DEFAULT_PRIORITY
+
+
+def chosen_priority(project_row) -> Optional[str]:
+    """None for a project made before v2 that never chose a priority: it keeps the v1 behaviour (the provider default model)."""
     try:
         value = project_row["model_priority"]
     except (KeyError, IndexError):
         value = None
-    return value if value in PRIORITIES else DEFAULT_PRIORITY
+    return value if value in PRIORITIES else None
 
 
 def _features(scene_data: Dict, mp_row=None, video_audio: bool = False) -> Dict:
@@ -116,6 +122,9 @@ def scene_choice(conn, scene_id: int, project_row=None, mp_row=None) -> Dict:
     if project_row["video_model"]:
         return {"model": project_row["video_model"], "resolution": None, "reason": "model chung của dự án (cách chọn cũ)",
                 "source": "project", "recommended": rec}
+    if chosen_priority(project_row) is None:
+        return {"model": "kling", "resolution": None, "source": "legacy", "recommended": rec,
+                "reason": "dự án cũ chưa chọn ưu tiên model: dùng mặc định cũ (Kling 3.0 Omni) — chọn ưu tiên ở Bước 1 để dùng đề xuất theo cảnh"}
     return {**rec, "source": "auto", "recommended": rec}
 
 

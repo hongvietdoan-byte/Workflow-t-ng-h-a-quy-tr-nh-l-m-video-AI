@@ -190,7 +190,7 @@ class DashboardGateTests(unittest.TestCase):
         self.assertEqual(len(options), 6)                                             # 5 steps + Theo dõi hiệu suất
         button_keys = [b.key for b in at.button]
         self.assertIn("settings_users", button_keys)                                  # Phân quyền: in the settings gear now
-        self.assertTrue(any("Tắt Dashboard" in e.label for e in at.expander))
+        self.assertTrue(any("Tắt Dashboard" in b.label for b in at.button))          # v2: in the ⚙ menu
         self.assertIn("login", at.query_params)                                       # remembered for reloads
 
     def test_company_e_mail_only_gets_the_video_steps(self):
@@ -199,7 +199,7 @@ class DashboardGateTests(unittest.TestCase):
         options = list(at.radio(key="step").options)
         self.assertEqual(len(options), 5)                                             # just the 5 steps
         self.assertFalse(any(w in o for o in options for w in ("Theo dõi", "Bài học", "Phân quyền")))
-        self.assertFalse(any("Tắt Dashboard" in e.label for e in at.expander))
+        self.assertFalse(any("Tắt Dashboard" in b.label for b in at.button))
         button_keys = [b.key for b in at.button]
         self.assertNotIn("settings_pricing", button_keys)
         self.assertNotIn("settings_knowledge", button_keys)

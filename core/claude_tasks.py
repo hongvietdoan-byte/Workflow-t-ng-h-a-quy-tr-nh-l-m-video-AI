@@ -340,6 +340,6 @@ def music_brief(p: Pipeline, project_id: int, client) -> Dict:
         obj = _run(p, project_id, "music", prompt, _check_brief, client)
     except LlmError:
         return fallback
-    seconds = obj.get("duration_sec") or fallback["length_ms"] / 1000
+    seconds = max(float(obj.get("duration_sec") or 0), fallback["length_ms"] / 1000)   # the music must cover the whole film
     return {"prompt": obj["prompt"][:2000], "length_ms": int(min(max(float(seconds) * 1000, music.MIN_MS), music.MAX_MS)),
             "instrumental": bool(obj.get("instrumental", True)), "brief": obj}

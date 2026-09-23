@@ -269,6 +269,7 @@ def _create_project(p: Pipeline) -> None:
     name = (st.session_state.get("new_name") or "").strip()
     if not name:
         return
+    p = Pipeline(connect(C.DB))                     # a callback runs in another thread than the one that made `p`
     pid = p.create_project(name, created_by=me()["email"], aspect=st.session_state.get("new_aspect"),
                            genre=st.session_state.get("new_genre"), model_priority=st.session_state.get("new_prio"),
                            game=st.session_state.get("new_game"))

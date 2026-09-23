@@ -7,6 +7,9 @@ FINAL_VIDEO_<W>x<H>.mp4.
 """
 import json
 import os
+import shutil
+import tempfile
+from dataclasses import asdict
 from datetime import datetime, timezone
 from typing import Callable, Dict, List, Optional
 
@@ -89,11 +92,12 @@ def status(p: Pipeline, project_id: int, data_dir: str) -> Dict:
     """Latest final render and its layers, each with '⚠ cũ' reasons: {"final": {...}, "layers": [{kind, path, stale}], "best": path}."""
     settings = get_settings(p, project_id)
     fin = lineage.final_status(p.conn, data_dir, project_id, render_hash(settings), audio_hash(data_dir, project_id))
-    layers = []
+    layers, seen = [], set()
     for kind in ("subtitle", "endcard", "export"):
         for row in p.conn.execute("SELECT * FROM outputs WHERE project_id=? AND kind=? ORDER BY id DESC", (project_id, kind)).fetchall():
-            if not os.path.exists(row["path"]):
-                continue
+            if not os.path.exists(row["path"]) or os.path.normcase(os.path.abspath(row["path"])) in seen:
+                continue                                  # the same file name was written again later: only its newest record counts
+            seen.add(os.path.normcase(os.path.abspath(row["path"])))
             layers.append({"id": row["id"], "kind": kind, "path": row["path"], "parent_id": row["parent_id"],
                            "stale": lineage.layer_status(p.conn, row, fin), "at": row["created_at"]})
             if kind != "export":
@@ -165,14 +169,18 @@ def subtitle_layer(p: Pipeline, project_id: int, data_dir: str, parent_id: Optio
             cues = subtitles.translate(llm, cues, sub["lang"])
     if not cues:
         return None
+    out = os.path.join(output_dir(data_dir, project_id), f"FINAL_VIDEO_sub_{sub['lang']}.mp4")
+    res = _burn(parent["path"], cues, out, sub)
+    res["output_id"] = record(p, project_id, "subtitle", out, parent["id"],
+                              {"settings": sub, "cues": len(cues), "cue_list": [asdict(c) for c in cues]})
+    return res
+
+
+def _burn(src: str, cues: list, out: str, sub: Dict) -> Dict:
     fonts = subtitles.discover()
     preferred = subtitles.font_by_family(fonts, sub["font"]) or subtitles.default_font(fonts)
     font, _ = subtitles.font_for_text(preferred, fonts, " ".join(c.text for c in cues))
-    out = os.path.join(output_dir(data_dir, project_id), f"FINAL_VIDEO_sub_{sub['lang']}.mp4")
-    res = subtitles.burn(parent["path"], cues, out, font, sub["size"], sub["pos"], sub["color"], sub["speaker"],
-                         sub.get("speaker_colors", False))
-    res["output_id"] = record(p, project_id, "subtitle", out, parent["id"], {"settings": sub, "cues": len(cues)})
-    return res
+    return subtitles.burn(src, cues, out, font, sub["size"], sub["pos"], sub["color"], sub["speaker"], sub.get("speaker_colors", False))
 
 
 def _parent(p: Pipeline, project_id: int, parent_id: Optional[int], kinds) -> Optional[Dict]:
@@ -245,9 +253,44 @@ def export_layer(p: Pipeline, project_id: int, data_dir: str, spec: Dict, parent
         raise ValueError("chưa có video cuối để xuất")
     w, h = int(spec["w"]), int(spec["h"])
     out = os.path.join(output_dir(data_dir, project_id), f"FINAL_VIDEO_{w}x{h}.mp4")
-    res = ffmpeg_studio.resize_to_size(parent["path"], out, w, h, spec.get("max_mb") or None, fit=spec.get("fit") or "pad")
+    fit = spec.get("fit") or "pad"
+    size = ffmpeg_studio.probe_size(parent["path"])
+    if fit == "crop" and parent["kind"] != "final" and size and abs(size[0] / size[1] - w / h) > 0.01:
+        res = _reframe(p, parent, w, h, spec.get("max_mb") or None, out)
+    else:
+        res = ffmpeg_studio.resize_to_size(parent["path"], out, w, h, spec.get("max_mb") or None, fit=fit)
     res["output_id"] = record(p, project_id, "export", out, parent["id"], {"spec": spec})
     return res
+
+
+def _reframe(p: Pipeline, top: Dict, w: int, h: int, max_mb: Optional[float], out: str) -> Dict:
+    """Cutting a finished version to another shape would cut its subtitles and card text off (a vertical video's subtitles sit
+    below a square crop). Instead: crop the plain final render, burn the same subtitle lines again and draw the card for the new
+    frame, then compress."""
+    chain, row = [], top
+    while row is not None:
+        chain.append(row)
+        row = p.conn.execute("SELECT * FROM outputs WHERE id=?", (row["parent_id"],)).fetchone() if row["parent_id"] else None
+    by_kind = {r["kind"]: r for r in chain}
+    work = tempfile.mkdtemp()
+    try:
+        cur = os.path.join(work, "crop.mp4")
+        ffmpeg_studio.resize_to_size(by_kind["final"]["path"], cur, w, h, None, fit="crop")
+        sub_row = by_kind.get("subtitle")
+        if sub_row is not None:
+            man = json.loads(sub_row["manifest"] or "{}")
+            cues = [subtitles.Cue(**c) for c in man.get("cue_list") or []]
+            if cues and man.get("settings"):
+                cur = _burn(cur, cues, os.path.join(work, "sub.mp4"), {**subtitles.DEFAULTS, **man["settings"]})["video"]
+        end_row = by_kind.get("endcard")
+        if end_row is not None:
+            card = json.loads(end_row["manifest"] or "{}").get("card") or {}
+            png = card_picture(w, h, {**DEFAULT_CARD, **card}, os.path.join(work, "card.png"))
+            ffmpeg_studio.append_still(cur, png, float(card.get("seconds") or 3.0), os.path.join(work, "end.mp4"))
+            cur = os.path.join(work, "end.mp4")
+        return ffmpeg_studio.resize_to_size(cur, out, w, h, max_mb, fit="pad")
+    finally:
+        shutil.rmtree(work, ignore_errors=True)
 
 
 def deliver(p: Pipeline, project_id: int, data_dir: str, llm=None, music_path: Optional[str] = "auto",

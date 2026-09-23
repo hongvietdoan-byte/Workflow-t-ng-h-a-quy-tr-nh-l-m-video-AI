@@ -27,6 +27,7 @@ class Setup(unittest.TestCase):
         self.data = tempfile.mkdtemp()
         self.p = Pipeline(connect())
         self.pid = self.p.create_project("auto", "human_qc", 0.85, max_retry)
+        autopilot.set_gates(self.p, self.pid, {"bible": False})   # these tests cover the unattended run (the v2 checkpoint: test_v2)
         paragraphs = script_parser.read_docx_paragraphs(SAMPLE)
         script_parser.import_scenes(self.p, self.pid, script_parser.split_scenes(paragraphs), full_text="\n".join(paragraphs))
         self.llm = llm or llm_runner.MockLlm()
@@ -55,7 +56,7 @@ class FullRunTests(Setup):
         # nobody clicked approve: only the AI reviewer decided
         reviewers = {r["reviewer_type"] for r in self.p.conn.execute("SELECT reviewer_type FROM review_log")}
         self.assertEqual(reviewers, {"ai_agent"})
-        self.assertEqual(self.p.project(self.pid)["operating_mode"], "auto")
+        self.assertEqual(self.p.project(self.pid)["operating_mode"], "human_qc")   # v2: the review mode is given back at the end
         self.assertEqual(len(music.load_drafts(music.project_dirs(self.data, self.pid)[0])), 1)   # one track, not three
         self.assertNotIn("no-music", st["note"] + open(os.path.join(self.data, str(self.pid), "output", "FINAL_VIDEO.mp4")).read())
 
@@ -213,6 +214,7 @@ class ThreadTests(unittest.TestCase):
         db, data = os.path.join(tmp, "m.sqlite"), os.path.join(tmp, "projects")
         p = Pipeline(connect(db))
         pid = p.create_project("thr", "human_qc", 0.85, 2)
+        autopilot.set_gates(p, pid, {"bible": False})
         paragraphs = script_parser.read_docx_paragraphs(SAMPLE)
         script_parser.import_scenes(p, pid, script_parser.split_scenes(paragraphs))
         llm_runner.run_director(p, pid, llm_runner.MockLlm())

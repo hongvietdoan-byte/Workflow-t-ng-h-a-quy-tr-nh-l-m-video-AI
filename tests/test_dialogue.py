@@ -12,6 +12,7 @@ def set_text(p, pid, idx, text):
     row = p.conn.execute("SELECT id, data FROM scenes WHERE project_id=? AND idx=?", (pid, idx)).fetchone()
     data = json.loads(row["data"] or "{}")
     data["text"] = text
+    data.pop("dialogue", None)             # the script text is the source here (update_scene re-derives it the same way)
     p.conn.execute("UPDATE scenes SET data=? WHERE id=?", (json.dumps(data, ensure_ascii=False), row["id"]))
     p.conn.commit()
     return row["id"]

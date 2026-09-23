@@ -36,6 +36,7 @@ Dành cho người **vận hành hằng ngày** (không cần đọc code). Kế
 | `TRASH_DAYS` | số ngày giữ file trong thùng rác | `30` |
 | `KNOWLEDGE_USER_DIR` | nơi lưu tài liệu kiến thức bạn thêm | `data/knowledge_user` |
 | `SUBJECT_PROVIDER` | `clipai` \| `mock` (kho chủ thể Seedance) | theo `VIDEO_PROVIDER` |
+| `MOCK_REAL_MEDIA` | `1` = ảnh/clip giả lập là file thật nhỏ đúng khung dự án (để thử dựng, phụ đề, card cuối, xuất bản không tốn credit; clip cần ffmpeg) | tắt (file 1×1 / "MOCK-MP4"); `tools/run_demo.ps1` bật sẵn |
 
 ## 3. Quy trình một video (Dashboard, 7 tab theo thứ tự)
 | Bước | Việc bạn làm | Kiểm tra trước khi qua bước |

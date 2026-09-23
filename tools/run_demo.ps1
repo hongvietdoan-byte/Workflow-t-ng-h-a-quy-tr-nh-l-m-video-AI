@@ -4,4 +4,5 @@ $env:PIPELINE_DATA = "data/demo/projects"
 $env:AUDIO_PROVIDER = "mock"
 $env:LLM_PROVIDER = "mock"
 $env:SUBJECT_PROVIDER = "mock"
+$env:MOCK_REAL_MEDIA = "1"   # simulators write small real pictures/clips so render and exports can be tried
 py -m streamlit run dashboard/app.py --server.port 8511

@@ -142,12 +142,17 @@ def spend_line(p: Pipeline, pid: int) -> None:
     spend = cost.spend_summary(p.conn, pid, cost.load_pricing())
     if not (spend["images"] or spend["clips"] or spend["audios"]):
         return
+    if spend["mock"] and spend["mock"] == spend["events"]:
+        st.caption(f"Nhà cung cấp giả lập: {spend['images']} ảnh · {spend['clips']} clip · {spend['audios']} âm thanh — không tốn credit.")
+        return
     text = (f"Đã ghi nhận (gửi API thật): {spend['images']} ảnh · {spend['clips']} clip ({spend['seconds']:.0f} giây)"
             f" · {spend['audios']} âm thanh")
     if spend["unknown_prices"]:
         text += " — chưa có giá cho: " + ", ".join(spend["unknown_prices"]) + " (điền data/pricing.json)"
     else:
         text += f" → khoảng {spend['credits']:.1f} {spend['currency']} theo giá khai báo"
+    if spend["mock"]:
+        text += f" (trong đó {spend['mock']} lượt giả lập, không tính tiền)"
     st.caption(text)
 
 def project_dir(pid: int, *parts: str) -> str:

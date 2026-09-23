@@ -126,7 +126,7 @@ def step2(p: Pipeline, pid: int):
         "SELECT j.*, s.idx, s.title FROM jobs j JOIN scenes s ON s.id=j.scene_id"
         " WHERE j.project_id=? AND j.type='image_gen' ORDER BY s.idx, j.id", (pid,)).fetchall()
     if not jobs:
-        st.caption("Chưa có ảnh nào. Khóa Character Bible ở Bước 1 rồi bấm “▶ Gen ảnh”.")
+        st.caption("Chưa có ảnh nào: bấm “▶ Gen ảnh các cảnh chưa có / đã cũ” (cần khóa Character Bible ở Bước 1 trước).")
         return
     history = {}
     for j in jobs:

@@ -215,6 +215,26 @@ Khác với mục 3.7 (mô phỏng code cho kịch bản TƯƠNG LAI 60s/3-5 ng�
 **Nguyên nhân gốc #5 — Không đối chiếu thời lượng giọng đọc TTS thật với lịch mix (giọng chồng tiếng):**
 `core/dialogue.py::needed_seconds()` (ước lượng 3,5 âm tiết/giây, quyết định độ dài clip TRƯỚC khi có giọng thật) và `core/subtitles.py::build_cues()` (chia đều thời lượng clip đã cố định cho từng dòng thoại) đều chỉ là ước lượng; ElevenLabs trả `duration_ms` THẬT (thường dài hơn) nhưng không có bước nào đối chiếu lại. `core/audio_lib.py::set_mix()` nhận `start` tùy ý không kiểm tra chồng lấn; `core/ffmpeg_studio.py::build_extras_mix_cmd()` dùng `amix=normalize=0` (cộng thẳng, không ducking). Đo được trên video thật: 8/13 điểm nối giữa các câu thoại bị chồng lên nhau (tới 1,29 giây). **Đã sửa (2026-09-23):** `core/audio_lib.py` thêm `overlapping_tts()` (phát hiện) và `schedule_by_cues()` (tính lại lịch mix TUẦN TỰ theo thời lượng thật: start_mới = max(ước lượng cũ, kết thúc thật của dòng trước + khoảng nghỉ tối thiểu), khớp dòng theo đúng nội dung thoại của `subtitles.build_cues`). Dashboard Bước 5a tự cảnh báo + nút "🗓 Xếp lại theo thoại". 4 test mới (`tests/test_audio_lib.py`, `tests/test_dashboard.py`). 600 test pass.
 
+### 3.8 Dashboard v2 (2026-09-23) — nhất quán giữa các bước + kho kỹ năng thành luật trong code
+
+Nguồn: báo cáo rà soát `docs/DASHBOARD_REVIEW_2026-09-23.md` và kiểm kê kho kỹ năng `Get this Skill to Claude/` (mới dùng ~50%, chủ yếu dán tài liệu vào prompt). Quyết định của người dùng: tỉ lệ khung theo dự án (mặc định 9:16), thoại tiếng Việt bằng TTS là chính, kho kỹ năng → luật + cổng kiểm tra trong code, **model video chọn theo từng cảnh** theo slide ClipAI (bỏ Kling mặc định), làm hết rồi test 1 lượt.
+
+| Nền tảng | Làm gì | File |
+|---|---|---|
+| "⚠ cũ" (lineage) | ảnh/motion/video/bản giao lưu dấu vân tay đầu vào; sửa cảnh, bỏ duyệt ảnh, đổi tỉ lệ khung → phần làm từ đầu vào cũ hiện ⚠ và có nút làm lại đúng phần đó; video không gen từ prompt cũ | `core/lineage.py`, `core/batch.py` |
+| Director JSON v2 | thể loại, Character Lock, ý đồ cảm xúc, beat, độ phức tạp máy, vai trò cảnh (then chốt/chuyển tiếp), thoại có cấu trúc, thời lượng; chạy lại không ghi đè trường sửa tay (🔒), null không xóa Background | `core/llm_io.py`, `prompts/01` |
+| Tỉ lệ khung | 16:9 / 9:16 / 1:1 → kích thước Deepix, ratio Clip AI, khung layout, render, xuất bản (cắt khung thay viền đen) | `core/formats.py` |
+| Model theo cảnh | 3 mức ưu tiên (Chất lượng / Cân bằng / Tiết kiệm) = 2 thang của slide; luật: then chốt/phức tạp/video tham chiếu → Seedance 2.5, ≥3 nhân vật → Seedance, đối thoại nhiều người/chuyển tiếp → Kling, cảnh thường → Seedance 2.0 / Fast; đổi được từng cảnh; MiniMax H3 và Seedance Mini chỉ có trên web | `core/model_router.py`, `data/video_models.json` |
+| Giọng thoại | giọng từng nhân vật (Character Bible), TTS mỗi câu, độ dài giọng thật đặt thời lượng clip, xếp không chồng tiếng, phụ đề lấy giờ từ giọng | `core/voice.py` |
+| Bản giao | dựng (thiết lập lưu theo dự án) → phụ đề (màu theo nhân vật, kiểm mật độ, .xlsx) → card cuối → các kích thước; animatic trước khi gen video | `core/delivery.py` |
+| QC | chính sách 3 mức; tiêu chí chặn cứng; QC video tự động (4 tiêu chí); QC đồng bộ cả bộ ảnh; gen thử trước lô | `core/qc_policy.py`, `core/claude_tasks.py`, `core/pilot.py`, `core/autoqc.py` |
+| Kho kỹ năng → luật | film-director (thể loại, JSON), narration-writer (rà thoại, persona), consistency designer (Character Lock, ảnh mốc), asset-set (pilot, QC đồng bộ), seedance25 (rà motion prompt + 4 kiểm tra mơ hồ của slide), style-analyst (mẫu phong cách), auto-dialogue (phụ đề); chỉ gửi mục kỹ năng FF của nhân vật có trong dự án | `knowledge/genre/*`, `knowledge/*.md`, `prompts/10-15` |
+| Giao diện | tách `app.py` thành module; 1 thanh đầu trang, 1 nút ⚙; mỗi bước có đầu bước; nhãn tiếng Việt thống nhất; Bước 1 sắp theo thứ tự dữ liệu cần; Bước 5 thành "Âm thanh & xuất bản" | `dashboard/*` |
+| Chế độ tự động | cổng duyệt Character Bible (mặc định bật), gen thử trước lô, rà storyboard, QC đồng bộ, rà prompt, giọng thoại, QC video, brief nhạc, bản giao; trả lại cách duyệt khi dừng | `core/autopilot.py` |
+| Thử nghiệm (tắt mặc định) | Deepix cutout cho layout (`PREVIZ_CUTOUT=1`); Kling multi-shot cho một nhóm cảnh (không vào bản ghép) | `core/previz.py`, `core/experiments.py` |
+
+Kết quả test và danh sách lỗi: `docs/V2_TEST_REPORT.md`.
+
 ## 4. Rủi ro & mitigation tổng hợp
 
 | Rủi ro | Mitigation |
@@ -247,7 +267,7 @@ Khác với mục 3.7 (mô phỏng code cho kịch bản TƯƠNG LAI 60s/3-5 ng�
 - **Đồng bộ môi (Lip Sync) trên ClipAI — không ưu tiên vì còn Beta** (yêu cầu tải video có sẵn + chọn giọng lồng tiếng riêng, quy trình 2 bước cồng kềnh). Tập trung vào việc gen video có thoại ngay từ prompt (tuỳ chọn "🔊 Model tự tạo âm thanh/lời thoại" ở Bước 4 dùng Kling `sound`/Seedance `generate_audio`) — không cần hỏi team Clip AI về lip-sync/voice design nữa.
 - **Blocklist IP — thu hẹp phạm vi:** hiện tại hầu như chỉ dùng nhân vật Free Fire (đã có thoả thuận bản quyền), chưa dùng nhân vật IP khác. Không cần xây blocklist rộng ngay; danh sách nhân vật FF đã có sẵn (từ `ff.garena.com`, xem Kho tài nguyên) là đủ cho giai đoạn này.
 - **Giá + gợi ý chọn model** theo slide chính thức ClipAI ("Hôm nay tôi chọn mô hình video như thế nào") đã điền vào `data/pricing.json` (`listed_usd_per_video_second`, `model_choice_guide`).
-- **`video_model` mặc định = `kling-v3-omni`.** Theo gợi ý chính thức của slide, Kling 3.0 Omni ghi rõ thế mạnh "tái sử dụng nhân vật, đối thoại nhiều nhân vật" — đúng nhu cầu dự án (nhân vật FF lặp lại nhiều cảnh, nhiều nhân vật đối thoại) và cũng rẻ nhất trong 2 model thật đang dùng (`$0.08/giây` so với Seedance `$0.15–0.23/giây`). Không cần sửa code — `resolve_model(None)` đã mặc định về `kling-v3-omni` từ trước. `seedance`/`seedance-2.5` vẫn chọn thủ công được cho cảnh cần chất lượng điện ảnh cao hơn.
+- ~~**`video_model` mặc định = `kling-v3-omni`.**~~ **Thay bằng quyết định 2026-09-23 (Dashboard v2): chọn model THEO TỪNG CẢNH dựa trên slide "Hôm nay tôi chọn mô hình video như thế nào" — xem 3.8.** Lý do cũ (giữ để tham khảo): theo gợi ý chính thức của slide, Kling 3.0 Omni ghi rõ thế mạnh "tái sử dụng nhân vật, đối thoại nhiều nhân vật" — đúng nhu cầu dự án (nhân vật FF lặp lại nhiều cảnh, nhiều nhân vật đối thoại) và cũng rẻ nhất trong 2 model thật đang dùng (`$0.08/giây` so với Seedance `$0.15–0.23/giây`). Không cần sửa code — `resolve_model(None)` đã mặc định về `kling-v3-omni` từ trước. `seedance`/`seedance-2.5` vẫn chọn thủ công được cho cảnh cần chất lượng điện ảnh cao hơn.
 - **"📽 Chế độ Storyboard" (ảnh cảnh trước làm tham chiếu liên tục) — vẫn giữ trong kế hoạch thử nghiệm**, không gộp vào quyết định bỏ Kho chủ thể ở trên: đây là hai vấn đề khác nhau (Storyboard = liên tục phong cách/ánh sáng giữa các cảnh; Kho chủ thể = khoá nhận diện nhân vật).
 
 **Đã chốt hướng (2026-09-23, rà soát nhất quán — xem 3.7):**
@@ -368,7 +388,7 @@ Mục tiêu: chứng minh pipeline end-to-end chạy được, đo chất lượ
 - [ ] Batch >100 video chạy được qua heartbeat polling mà không cần user approve từng cái
 - [ ] Runbook + Prompt Templates đã bàn giao cho bộ phận sản xuất nội dung
 
-## 9. Trạng thái triển khai (cập nhật 2026-09-23)
+## 9. Trạng thái triển khai (cập nhật 2026-09-23, khuya)
 
 **Adapter thật đã viết (`core/adapters/`):** Deepix (gen ảnh Seedream 5.0 Pro) và Clip AI (video Kling Omni + Seedance) theo hợp đồng API của skill chính thức; kiểm thử bằng giao thức giả (chưa gọi API thật vì token phải do bạn đặt trong biến môi trường). Kiểm tra kết nối chỉ đọc: `py -m core.adapters.check`. Chạy thử thật: `py -m core.adapters.trial --yes`. Chi phí: ước tính trước khi chạy + sổ mức dùng trong Dashboard theo bảng giá `data/pricing.json` (xem `docs/api_notes.md`).
 
@@ -399,6 +419,8 @@ Mục tiêu: chứng minh pipeline end-to-end chạy được, đo chất lượ
 
 **Cập nhật 2026-09-23 (cuối ngày):** xong phần code P0 của hướng 1 — giữ chỗ ảnh bối cảnh + bối cảnh theo ID + ô Background; blocking + nhóm cảnh (Storyboard nối theo nhóm); **Previz 2D** (`core/layout.py`, `core/previz.py`: Claude đọc ảnh nền 1 lần, dựng layout cả kịch bản 1 lần, code đặt người theo phối cảnh, storyboard + Claude rà; Bước 2 gen theo layout; chạy bằng `claude_cli`); QC thêm `scale`/`grounding`/`set_match` và so với layout; thay trang phục bằng ảnh + bộ ảnh nhân vật 2 ảnh (`core/costume.py`); báo cáo 5 chỉ số hiệu quả (`core/effectiveness.py`, tab 📊). 588 test pass. **Chưa kiểm chứng thật** — bước tiếp theo là người dùng thử trên máy (Deepix + `claude_cli`), rồi P2 chạy kịch bản 60 giây và đọc báo cáo hiệu quả. Lưu ý: điểm QC tổng giờ là trung bình 8 tiêu chí, có thể phải chỉnh ngưỡng.
 
+**Cập nhật 2026-09-23 (khuya) — Dashboard v2 xong và đã test một lượt:** làm hết GĐ0–8 theo 3.8 trên nhánh `dashboard-v2`, rồi test một lượt: toàn bộ unit test (lần đầu 66 lỗi) + chạy thử qua trình duyệt bằng kịch bản Kenta của người dùng (3 cảnh, 9:16, nhà cung cấp giả lập) từ tách cảnh đến bản giao (dựng 56s có 14 câu thoại → phụ đề → card cuối → bản vuông). Tìm và sửa 29 lỗi, trong đó 3 lỗi nặng: thanh bước nhảy về Bước 1 khi nhãn tiến độ đổi, bảng trộn âm tắt mất giọng thoại vừa xếp, bản xuất cắt khung mất phụ đề. 632 test pass. Chi tiết: `docs/V2_TEST_REPORT.md`. **Chưa chạy API thật** — bước tiếp theo cần người dùng đồng ý (tốn credit): 1 dự án 2–3 cảnh với Deepix 9:16, Clip AI theo model từng cảnh, TTS tiếng Việt.
+
 **Kế hoạch tiếp theo (chốt 2026-09-23, chi tiết từng việc ở `TODO.md`):**
 
 | Hướng | Giai đoạn | Việc | Ai | Credit |
@@ -415,7 +437,7 @@ Mục tiêu: chứng minh pipeline end-to-end chạy được, đo chất lượ
 **Tạm gác (2026-09-19):** MCP Claude/V0 qua Claude Desktop; ưu tiên hoàn thiện Dashboard.
 
 **Đang chờ điều kiện bên ngoài (đều cần người dùng):**
-- Đo giá credit thật để đối chiếu với giá ước tính đã điền (`video_model` mặc định đã chốt `kling-v3-omni`, xem Mục 5).
+- Đo giá credit thật để đối chiếu với giá ước tính đã điền (model video chọn theo từng cảnh từ Dashboard v2, xem 3.8 và Mục 5).
 - Vòng đánh giá `eval/` (người duyệt tạm = chủ dự án) và dry-run 2 mode để hiệu chỉnh prompt/threshold.
 - Thử tải video thật qua panel "Phân tích video kỹ năng" (chưa tự động hóa được việc chọn file qua trình duyệt để test).
 

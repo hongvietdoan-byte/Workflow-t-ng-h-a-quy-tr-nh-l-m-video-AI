@@ -75,7 +75,7 @@ class FullSequenceTests(unittest.TestCase):
         self.load_script()
         with self.assertRaises(ValueError) as e:
             self.load_script()
-        self.assertIn("Reset", str(e.exception))
+        self.assertIn("Làm lại", str(e.exception))                     # the "↺ Làm lại" button (was "Reset")
         self.assertEqual(self.p.conn.execute("SELECT COUNT(*) c FROM scenes").fetchone()["c"], 6)
 
     def test_a_script_without_scene_headings_gives_a_clear_message(self):

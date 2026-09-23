@@ -40,12 +40,12 @@ def step_done(p: Pipeline, pid: int) -> list:
     def stage(done_stale):
         done, stale = done_stale
         state = "stale" if stale else ("done" if n and done >= n else "todo")
-        return state, f"{done}/{n}" + (f" ⚠{stale}" if stale else "")
+        return state, (f"{done}/{n}" + (f" ⚠{stale}" if stale else "")) if n else ""   # no scenes yet: no "0/0"
 
     fin = delivery.status(p, pid, DATA)["final"]
     return [("done" if locked else "todo", f"{n} cảnh" if n else ""), stage(summ["images"]), stage(summ["motion"]),
             stage(summ["videos"]),
-            ({"fresh": "done", "stale": "stale", "missing": "todo"}[fin["state"]], {"fresh": "✓", "stale": "⚠ cũ", "missing": ""}[fin["state"]]),
+            ({"fresh": "done", "stale": "stale", "missing": "todo"}[fin["state"]], {"fresh": "✓", "stale": "cũ", "missing": ""}[fin["state"]]),
             ("todo", "")]
 
 
@@ -111,10 +111,16 @@ def main():
     visible = [s for s in STEPS if allowed(STEP_PERMISSION.get(s, "workflow"))]
     if deep in keys and "step" not in st.session_state and STEPS[keys.index(deep)] in visible:
         st.session_state["step"] = STEPS[keys.index(deep)]
-    if st.session_state.get("step") not in visible:
+    # The stepper's labels carry progress ("2 · Ảnh 3/3", "⚠ cũ"): when one changes Streamlit sees a new widget and would jump
+    # back to step 1. Re-assert the current step every run so it survives label changes.
+    cur = st.session_state.get("step", st.session_state.get("_step_keep"))
+    if cur in visible:
+        st.session_state["step"] = cur
+    else:
         st.session_state.pop("step", None)
     step = st.radio("Bước", visible, horizontal=True, key="step", label_visibility="collapsed",
                     format_func=step_label(step_done(p, pid)))
+    st.session_state["_step_keep"] = step
     {STEPS[0]: step1, STEPS[1]: step2, STEPS[2]: step3, STEPS[3]: step4, STEPS[4]: step5,
      STEPS[5]: monitor}[step](p, pid)
 

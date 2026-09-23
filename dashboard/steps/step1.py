@@ -313,24 +313,22 @@ def step1(p: Pipeline, pid: int):
             st.markdown("**Chia theo cảnh** · bấm vào từng cảnh để xem và sửa")
             if scenes:
                 scene_list(p, pid, scenes, char_names)
-    if not scenes:
-        return
-
     ui.html(ui.card_title("1b · 🧰 Chuẩn bị", "làm TRƯỚC Director: định dạng, tài nguyên, phong cách"))
     project_format_panel(p, pid)
-    assets_panel(p, pid)
+    if scenes:
+        assets_panel(p, pid)
     world_bible_panel(p, pid)
 
-    ui.html(ui.card_title("1c · Chọn cách chạy", "tự động hoàn toàn, hoặc lần lượt từng bước"))
-    auto_col, manual_col = st.columns(2, gap="large")
-    with auto_col:
-        autopilot_panel(p, pid)
-    with manual_col, st.container(border=True):
-        ui.html(ui.card_title("🧭 Lần lượt từng bước", "bạn kiểm soát và duyệt ở mỗi bước"))
-        st.caption("1d Director → 1e Character Bible (Lock, giọng, ảnh mốc) → 1f Rà thoại → 1g Storyboard (tùy chọn) → khóa & sang Bước 2 "
-                   "→ Bước 3 motion + giọng thoại → Bước 4 video → Bước 5 âm thanh & xuất bản. Hợp với dự án dài hoặc cần chỉnh kỹ.")
-
-    director_panel(p, pid, chars)
+    if scenes:
+        ui.html(ui.card_title("1c · Chọn cách chạy", "tự động hoàn toàn, hoặc lần lượt từng bước"))
+        auto_col, manual_col = st.columns(2, gap="large")
+        with auto_col:
+            autopilot_panel(p, pid)
+        with manual_col, st.container(border=True):
+            ui.html(ui.card_title("🧭 Lần lượt từng bước", "bạn kiểm soát và duyệt ở mỗi bước"))
+            st.caption("1d Director → 1e Character Bible (Lock, giọng, ảnh mốc) → 1f Rà thoại → 1g Storyboard (tùy chọn) → khóa & sang Bước 2 "
+                       "→ Bước 3 motion + giọng thoại → Bước 4 video → Bước 5 âm thanh & xuất bản. Hợp với dự án dài hoặc cần chỉnh kỹ.")
+        director_panel(p, pid, chars)
     if chars:
         character_bible_panel(p, pid, chars, risky)
         dialogue_review_panel(p, pid)
@@ -664,7 +662,12 @@ def project_format_panel(p: Pipeline, pid: int) -> None:
             p.set_project_field(pid, "genre", new_genre)
             p.set_project_field(pid, "genre_locked", 1 if new_genre else 0)
             st.rerun()
-        if new_prio != prio:
+        if model_router.chosen_priority(proj) is None:
+            st.caption("Dự án cũ chưa chọn ưu tiên model: đang dùng Kling cho mọi cảnh.")
+            if st.button("Dùng ưu tiên đã chọn ở trên", key=f"fmt_prio_set_{pid}"):
+                p.set_project_field(pid, "model_priority", new_prio)
+                st.rerun()
+        elif new_prio != prio:
             p.set_project_field(pid, "model_priority", new_prio)
             st.rerun()
 
@@ -712,7 +715,7 @@ def _voices(pid: int):
     return st.session_state[key]
 
 
-def character_detail_panel(p: Pipeline, pid: int, c, voices, client, locked: bool) -> None:
+def character_detail_panel(p: Pipeline, pid: int, c, voices, client, locked: bool, has_ref: bool = True) -> None:
     """Character Lock + voice + anchor of one character (skills: consistency designer, narration-writer)."""
     lock = claude_tasks.get_lock(c)
     prof = voice.get_profile(c)
@@ -756,6 +759,13 @@ def character_detail_panel(p: Pipeline, pid: int, c, voices, client, locked: boo
                 p.conn.execute("UPDATE characters SET anchor_approved=0 WHERE project_id=? AND name=?", (pid, c["name"]))
                 p.conn.commit()
                 st.rerun()
+        elif not has_ref:
+            st.caption("Chưa có ảnh tham chiếu: nhân vật đang vẽ theo mô tả chữ (dễ lệch giữa các cảnh). Chọn tài nguyên ở "
+                       "“🧰 Tài nguyên đi kèm kịch bản” hoặc tạo bộ ảnh ở “👗 Trang phục cho video này”, rồi duyệt ảnh mốc.")
+            if st.button("Vẫn vẽ theo mô tả chữ — bỏ qua ảnh mốc", key=f"anchor_on_{pid}_{c['name']}"):
+                p.conn.execute("UPDATE characters SET anchor_approved=1 WHERE project_id=? AND name=?", (pid, c["name"]))
+                p.conn.commit()
+                st.rerun()
         elif st.button("✔ Ảnh tham chiếu ở trên là đúng — duyệt ảnh mốc", key=f"anchor_on_{pid}_{c['name']}"):
             p.conn.execute("UPDATE characters SET anchor_approved=1 WHERE project_id=? AND name=?", (pid, c["name"]))
             p.conn.commit()
@@ -790,9 +800,12 @@ def character_bible_panel(p: Pipeline, pid: int, chars, risky) -> None:
             if st.button(f"🤖 Claude chọn giọng cho {len(no_voice)} nhân vật có thoại", key=f"cast_{pid}"):
                 with st.spinner("Claude đang chọn giọng…"):
                     act(lambda: claude_tasks.cast_voices(p, pid, client, voices), "Đã chọn giọng")
+                for r in rows:                     # the voice pickers must show the new choice, not their old widget value
+                    st.session_state.pop(f"voice_{pid}_{r['name']}", None)
+                    st.session_state.pop(f"persona_{pid}_{r['name']}", None)
                 st.rerun()
         for r in rows:
-            character_detail_panel(p, pid, r, voices, client, locked)
+            character_detail_panel(p, pid, r, voices, client, locked, has_ref=bool(linked.get(r["name"])))
         if subjects_visible(p, pid):
             subject_panel(p, pid, chars)
         with st.expander("✏ Sửa / thêm nhân vật, đối tượng · khóa"):
@@ -893,6 +906,7 @@ def scene_list(p: Pipeline, pid: int, scenes, char_names) -> None:
 
 def _lock_and_go(p: Pipeline, pid: int) -> None:
     """Button callback: lock the Character Bible and move to Step 2 (a callback may still change the step selector)."""
+    p = Pipeline(connect(C.DB))                     # a callback runs in another thread than the one that made `p`
     try:
         llm_io.lock_character_bible(p, pid)
     except ERRORS as e:

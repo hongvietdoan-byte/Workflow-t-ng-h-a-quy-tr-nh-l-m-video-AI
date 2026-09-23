@@ -28,21 +28,21 @@ class ImageProgressTests(unittest.TestCase):
     def test_a_paused_project_says_so_and_what_to_press(self):
         self.p.set_paused(self.pid, True)
         said, at = self.text()
-        self.assertIn("Chưa tạo ảnh nào", said)
-        self.assertIn("PAUSE", said)
-        self.assertIn("Resume", said)
+        self.assertIn("tạm dừng", said)
+        self.assertIn("chưa gửi", said)
+        self.assertIn("Tiếp tục", said)
         self.assertTrue(any("Chờ / đang gen" in o for o in at.radio(key=f"filter_{self.pid}").options))
 
     def test_without_deepix_it_says_nothing_is_generating_and_why(self):
         said, _ = self.text()
         self.assertIn("Deepix chưa được cấu hình", said)
-        self.assertIn("Chưa tạo ảnh nào", said)
+        self.assertIn("ảnh đang chờ", said)
 
     def test_with_a_provider_but_no_submit_it_says_to_press_submit(self):
         os.environ["IMAGE_PROVIDER"] = "mock"
         said, _ = self.text()
-        self.assertIn("chưa được gửi đi", said)
-        self.assertIn("Submit + Poll", said)
+        self.assertIn("chưa gửi", said)
+        self.assertIn("Gen ảnh", said)
 
 
 class AutoRefreshTests(ImageProgressTests):
@@ -74,7 +74,7 @@ class AutoRefreshTests(ImageProgressTests):
 class StatusTableTests(ImageProgressTests):
     def test_the_per_scene_status_table_lists_every_scene_with_its_state(self):
         _, at = self.text()
-        table = next(d for d in at.dataframe if list(d.value.columns) == ["Cảnh", "Trạng thái", "Điểm QC", "Đã tự sửa"])
+        table = next(d for d in at.dataframe if list(d.value.columns) == ["Cảnh", "Trạng thái", "Điểm QC", "Đã gen lại"])
         rows = table.value.to_dict("records")
         self.assertGreater(len(rows), 0)
         self.assertTrue(all(r["Trạng thái"] for r in rows))

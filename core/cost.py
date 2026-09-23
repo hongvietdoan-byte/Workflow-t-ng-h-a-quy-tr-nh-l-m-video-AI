@@ -263,4 +263,5 @@ def spend_summary(conn: sqlite3.Connection, project_id: int, pricing: Dict) -> D
         else:
             total += cost
     return {"images": images, "audios": audios, "clips": len(clips), "seconds": seconds, "credits": total,
-            "unknown_prices": sorted(unknown), "currency": pricing["currency"]}
+            "unknown_prices": sorted(unknown), "currency": pricing["currency"],
+            "mock": sum(1 for r in rows if r["provider"].startswith("mock")), "events": len(rows)}

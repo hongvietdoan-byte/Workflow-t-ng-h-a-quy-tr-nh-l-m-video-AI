@@ -17,6 +17,7 @@ class DeleteProjectTests(unittest.TestCase):
         other = p.create_project("keep me")
         ctx = autopilot.Context(data, ImageRunner(p, MockImageProvider(), data), VideoRunner(p, MockVideoProvider(polls_to_finish=1), data),
                                 llm_runner.MockLlm(), MockAudioProvider(), fake_render)
+        autopilot.set_gates(p, pid, {"bible": False})   # unattended run (checkpoint: test_v2)
         autopilot.start(p, pid)
         autopilot.run_until_done(p, pid, ctx)
         own = assets.create(p.conn, "ff", "prop", "Only here", "", "", pid, "x@y.z")
