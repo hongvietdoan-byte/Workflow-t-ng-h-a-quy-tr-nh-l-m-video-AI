@@ -95,7 +95,7 @@ def dialogue_panel(p: Pipeline, pid: int, key: str) -> None:
     label = f"🗣 Thoại so với độ dài clip — {len(bad)} cảnh cần chú ý" if bad else f"🗣 Thoại so với độ dài clip — {len(entries)} cảnh có thoại, đều vừa"
     with st.expander(label, expanded=bool(bad)):
         if not proj["video_audio"]:
-            st.caption("Đang tắt “Model tự tạo âm thanh/lời thoại”: thoại sẽ được lồng tiếng riêng (Bước 5a), độ dài clip chỉ cần đủ cho hình.")
+            st.caption("Đang tắt “Model tự tạo âm thanh/lời thoại”: thoại được đọc bằng giọng TTS ở Bước 3 (độ dài giọng thật đặt thời lượng clip).")
         for e in entries:
             icon = {"ok": "✔", "tight": "◐", "extend": "⚠", "split": "✖"}[e["status"]]
             color = {"ok": "green", "tight": "orange", "extend": "orange", "split": "red"}[e["status"]]
