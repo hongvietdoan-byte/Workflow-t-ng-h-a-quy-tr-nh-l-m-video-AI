@@ -99,6 +99,10 @@ class _Runner:
             if not THROTTLE.allow(self.job_type, running_all):       # already includes the jobs this pass has started (they are 'running' now)
                 break  # learned limit for all projects together: wait for a slot
             kwargs = self._submit_kwargs(job) if getattr(self.provider, "supports_aspect", False) else {}
+            over = self._over_budget(job, args, kwargs)
+            if over:
+                self._diag(job, "warn", "budget", over)
+                break                        # v3 test spending limit: leave everything queued, say why
             try:
                 task_id = self.provider.submit(*args, **kwargs)
             except ProviderError as e:
@@ -184,6 +188,10 @@ class _Runner:
     def _record_usage(self, job, args, kwargs=None) -> None:
         """Ledger entry per submission (each one may be billed by the provider)."""
 
+    def _over_budget(self, job, args, kwargs) -> Optional[str]:
+        """A reason not to send (the test spending limit, core.budget), else None."""
+        return None
+
     def _record_provider_failure(self, job, code, message: str) -> None:
         if code == RISK_CONTROL:
             record_failure(self.p.conn, job["id"], self.provider.name, message)
@@ -232,6 +240,9 @@ class VideoRunner(_Runner):
         choice = self._choice(job)
         if choice.get("resolution"):
             out["resolution"] = choice["resolution"]
+        if "test_quality" in proj.keys() and proj["test_quality"]:    # v3 cheap test mode: 720p, Kling std
+            out.pop("resolution", None)
+            out["kling_mode"] = "std"
         mode = shots.mode(proj)
         group = self._sends_group(job)
         if group:
@@ -326,15 +337,26 @@ class VideoRunner(_Runner):
             args += (bool(proj["video_audio"]), subj_refs or None, image_refs or None, ref_video)
         return args
 
-    def _record_usage(self, job, args, kwargs=None) -> None:
+    def _usage(self, args, kwargs):
         info = getattr(self.provider, "usage_info", None)
-        if info is not None:
-            resolution = (kwargs or {}).get("resolution")
-            try:
-                model, tier, seconds = info(args[4], args[3], resolution) if resolution else info(args[4], args[3])
-            except TypeError:
-                model, tier, seconds = info(args[4], args[3])
+        if info is None:
+            return None
+        resolution = (kwargs or {}).get("resolution") or (kwargs or {}).get("kling_mode")
+        try:
+            return info(args[4], args[3], resolution) if resolution else info(args[4], args[3])
+        except TypeError:
+            return info(args[4], args[3])
+
+    def _record_usage(self, job, args, kwargs=None) -> None:
+        usage = self._usage(args, kwargs)
+        if usage is not None:
+            model, tier, seconds = usage
             record_usage(self.p.conn, job["id"], "video", self.provider.name, model, tier, seconds, "second")
+
+    def _over_budget(self, job, args, kwargs) -> Optional[str]:
+        from . import budget
+        usage = self._usage(args, kwargs)
+        return budget.check_video(self.p.conn, self.provider.name, *usage) if usage else None
 
     def _dest_path(self, job) -> str:
         idx = self.p.conn.execute("SELECT idx FROM scenes WHERE id=?", (job["scene_id"],)).fetchone()["idx"]
@@ -425,6 +447,10 @@ class ImageRunner(_Runner):
         from . import formats
         aspect = formats.project_aspect(self.p.project(job["project_id"]))
         return {"size": formats.spec(aspect)["deepix"]} if aspect else {}
+
+    def _over_budget(self, job, args, kwargs) -> Optional[str]:
+        from . import budget
+        return budget.check_image(self.p.conn, self.provider.name)
 
     def _wait(self, job) -> bool:
         """v3: the picture of a shot that continues the previous one waits for that shot's approved picture (sent as reference)."""

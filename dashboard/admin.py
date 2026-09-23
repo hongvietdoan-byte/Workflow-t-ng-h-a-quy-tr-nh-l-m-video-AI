@@ -512,11 +512,43 @@ def effectiveness_panel(p: Pipeline, pid: int) -> None:
         st.code("\n".join(effectiveness.summary_lines(r, manual or None)), language="text")
 
 
+def compare_panel(p: Pipeline) -> None:
+    """v3: the same script made in different ways (v2 / one clip per shot / Kling multi-shot) side by side, with the numbers and
+    the person's 1–5 marks — the base of docs/V3_AB_REPORT.md."""
+    from core import compare
+    projects = p.conn.execute("SELECT id, name FROM projects ORDER BY id DESC").fetchall()
+    with st.expander("⚖ So sánh các cách làm (cùng kịch bản)", expanded=False):
+        chosen = st.multiselect("Chọn 2–3 dự án", [r["id"] for r in projects], max_selections=3, key="cmp_projects",
+                                format_func=lambda i: next(f"#{r['id']} {r['name']}" for r in projects if r["id"] == i))
+        if len(chosen) < 2:
+            st.caption("Nhân bản dự án ở ⚙ → “🧬 Nhân bản dự án”, làm mỗi bản theo một cách, rồi chọn ở đây để so sánh.")
+            return
+        rows = [compare.metrics(p, i, C.DATA) for i in chosen]
+        cols = st.columns(len(rows))
+        for col, r in zip(cols, rows):
+            with col:
+                st.markdown(f"**#{r['project_id']} {escape(r['name'])}**  \n{escape(r['mode'] or 'v2')}")
+                if r["final"] and os.path.exists(r["final"]):
+                    show_video(r["final"])
+                else:
+                    st.caption("chưa có bản giao")
+                old = r["scores"]
+                new = {k: st.slider(label, 1, 5, int(old.get(k) or 3), key=f"cmp_{r['project_id']}_{k}")
+                       for k, label in compare.CRITERIA.items()}
+                note = st.text_area("Nhận xét", old.get("note", ""), key=f"cmp_note_{r['project_id']}", height=70)
+                if st.button("💾 Lưu điểm", key=f"cmp_save_{r['project_id']}"):
+                    compare.save_scores(p.conn, r["project_id"], {**new, "note": note})
+                    st.toast("Đã lưu điểm")
+        st.markdown(compare.report_markdown(rows))
+        st.caption("Chi phí theo bảng giá (ước tính); thời gian làm = từ job đầu tiên đến job cuối cùng của dự án.")
+
+
 def monitor(p: Pipeline, pid: int) -> None:
     """Load and performance of the whole system (all projects), to spot overload before it costs credit."""
     mgr = autopilot_manager(C.DB, C.DATA)
     snap = perf.snapshot(p.conn, mgr.queue_length(), mgr.running_count(), mgr.max_parallel)
     ui.html(ui.card_title("📊 Theo dõi hiệu suất & tải hệ thống", "toàn bộ dự án, làm mới bằng nút bên phải"))
+    compare_panel(p)
     if st.button("↻ Làm mới", key="perf_refresh"):
         st.rerun()
     for msg in snap["alerts"]:

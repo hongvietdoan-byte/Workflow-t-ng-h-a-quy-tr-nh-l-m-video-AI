@@ -126,12 +126,21 @@ def settings_menu(p: Pipeline, pid) -> None:
                 st.rerun()
             if st.button("🗒 Lịch sử & thùng rác", key="settings_history", width="stretch"):
                 open_dialog("dlg_history")
+            cheap = st.checkbox("🧪 Thử rẻ (720p · Kling std · Seedance 2.0 → Fast)", bool(proj["test_quality"]), key=f"cheap_{pid}",
+                                help="Cho đợt thử nghiệm: không gen 1080p, dùng bản rẻ hơn của model. Tắt khi làm video thật.")
+            if cheap != bool(proj["test_quality"]):
+                p.set_project_field(pid, "test_quality", 1 if cheap else 0)
+                st.rerun()
+            if st.button("🧬 Nhân bản dự án (để so sánh cách làm)", key="settings_clone", width="stretch"):
+                open_dialog("dlg_clone")
             st.divider()
         st.markdown("**Hệ thống**")
         if allowed("assets") and st.button("📁 Kho tài nguyên", key="settings_assets", width="stretch"):
             open_dialog("dlg_assets")
         if allowed("settings") and st.button("💲 Bảng giá", key="settings_pricing", width="stretch"):
             open_dialog("dlg_pricing")
+        if allowed("settings") and st.button("💵 Ngân sách thử", key="settings_budget", width="stretch"):
+            open_dialog("dlg_budget")
         if allowed("knowledge") and st.button("📚 Kho kiến thức", key="settings_knowledge", width="stretch"):
             open_dialog("dlg_knowledge")
         if pid is not None and allowed("lessons") and st.button("🎓 Bài học", key="settings_lessons", width="stretch"):
@@ -148,6 +157,10 @@ def settings_menu(p: Pipeline, pid) -> None:
         _dialog_assets(p)
     if st.session_state.get("dlg_pricing"):
         _dialog_pricing()
+    if st.session_state.get("dlg_budget"):
+        _dialog_budget(p)
+    if pid is not None and st.session_state.get("dlg_clone"):
+        _dialog_clone(p, pid)
     if st.session_state.get("dlg_knowledge"):
         _dialog_knowledge()
     if pid is not None and st.session_state.get("dlg_history"):
@@ -161,6 +174,54 @@ def settings_menu(p: Pipeline, pid) -> None:
 @st.dialog("📁 Kho tài nguyên", width="large", on_dismiss=lambda: close_dialog("dlg_assets"))
 def _dialog_assets(p: Pipeline) -> None:
     asset_library_panel(p)
+
+
+@st.dialog("💵 Ngân sách thử", on_dismiss=lambda: close_dialog("dlg_budget"))
+def _dialog_budget(p: Pipeline) -> None:
+    """Hard spending limit of a test round (kế hoạch v3: ≤ $50): jobs that would pass it stay queued."""
+    from core import budget
+    s = budget.status(p.conn)
+    if s["enabled"]:
+        st.markdown(f"**Đang bật** — tính từ {s['since']} (UTC): đã chi ≈ **${s['spent']:.2f} / ${s['usd']:.0f}**, "
+                    f"{s['images']}/{s['image_cap']} ảnh.")
+        st.progress(min(s["spent"] / s["usd"], 1.0) if s["usd"] else 0.0)
+        if s["unknown"]:
+            st.caption("Chưa có giá cho: " + ", ".join(s["unknown"]) + " (không tính vào tổng).")
+    else:
+        st.markdown("**Đang tắt** — không giới hạn chi (dùng cho làm video thật).")
+    st.caption("Giá theo bảng giá (ước tính từ slide ClipAI, chưa đo thật). Nhà cung cấp giả lập không tính. Việc vượt trần được giữ "
+               "trong hàng đợi và báo lý do ở 📊 Theo dõi.")
+    usd = st.number_input("Trần (USD)", 1.0, 1000.0, float(s["usd"]), 5.0, key="budget_usd")
+    cap = st.number_input("Tối đa số ảnh Deepix (chưa có giá)", 0, 1000, int(s["image_cap"]), 10, key="budget_imgs")
+    c1, c2 = st.columns(2)
+    if c1.button("▶ Bắt đầu đợt thử (tính từ bây giờ)", key="budget_start", type="primary"):
+        budget.save(p.conn, image_cap=int(cap))
+        budget.restart(p.conn, usd)
+        st.rerun()
+    if s["enabled"] and c2.button("■ Tắt giới hạn", key="budget_stop"):
+        budget.stop(p.conn)
+        st.rerun()
+    if s["enabled"] and (usd != s["usd"] or cap != s["image_cap"]) and st.button("💾 Lưu trần mới (giữ mốc bắt đầu)", key="budget_save"):
+        budget.save(p.conn, usd=float(usd), image_cap=int(cap))
+        st.rerun()
+
+
+@st.dialog("🧬 Nhân bản dự án", on_dismiss=lambda: close_dialog("dlg_clone"))
+def _dialog_clone(p: Pipeline, pid: int) -> None:
+    """Same script, Character Bible (Lock, voices, references), World Bible and delivery settings — another way of making it."""
+    from core import compare, shots
+    proj = p.project(pid)
+    st.caption("Bản sao bắt đầu cùng điểm xuất phát (kịch bản, nhân vật, giọng, phong cách, thiết lập bản giao) nhưng chưa có ảnh/clip — "
+               "dùng để so sánh cách làm trên cùng kịch bản.")
+    name = st.text_input("Tên dự án mới", f"{proj['name']} — bản so sánh", key="clone_name")
+    modes = list(shots.MODES)
+    mode = st.selectbox("Cách chia cảnh của bản sao", modes, index=modes.index(shots.mode(proj)), format_func=lambda m: shots.MODES[m],
+                        key="clone_mode")
+    rows = st.checkbox("Giữ nguyên các cảnh/shot hiện tại (cùng kế hoạch của Director)", True, key="clone_rows",
+                       help="Bỏ chọn để chạy lại Director ở bản sao (ví dụ đổi từ 'một clip mỗi cảnh' sang 'chia shot').")
+    if st.button("🧬 Tạo bản sao", key="clone_go", type="primary", disabled=not name.strip()):
+        new = compare.clone_project(p, pid, name.strip(), mode, with_rows=rows)
+        st.success(f"Đã tạo dự án #{new} “{name.strip()}” — chọn ở ô Dự án trên cùng.")
 
 
 @st.dialog("💲 Bảng giá", on_dismiss=lambda: close_dialog("dlg_pricing"))

@@ -116,7 +116,7 @@ Cộng dự phòng gen lại ×1,5 + TTS → **ước tính ~$25–30, trần c�
 | GĐ2 · Lớp shot + nhịp | **Xong** (2026-09-24) | Director chia cảnh → shot; mỗi shot 1 dòng `scenes`; cắt clip theo độ dài shot; nhãn S02·3; 645 test pass |
 | GĐ3 · Nhất quán + Kling multi-shot | **Xong** (2026-09-24) | Seedance khung đầu+cuối, ảnh shot nối liền chờ shot trước, một model mỗi nhóm, Kling multi-shot trưởng nhóm → cắt cho từng shot, QC đồng bộ cả bộ clip; 648 test pass |
 | GĐ4 · Giọng Việt + storyboard theo shot | **Xong phần không tốn credit** (2026-09-24) | Giọng có `vi` lên đầu + chọn giọng chỉ trong đó, bảng cách đọc từ game, nghe thử câu mẫu, storyboard theo shot; so `eleven_v3`/`multilingual_v2` dời sang GĐ6; 652 test pass |
-| GĐ5 · Trần ngân sách, thử rẻ, so sánh | Chưa bắt đầu | |
+| GĐ5 · Trần ngân sách, thử rẻ, so sánh | **Xong** (2026-09-24) | Trần chi cứng ($50, bật khi bắt đầu đợt thử), chế độ thử rẻ (720p, Kling std, Seedance → Fast), nhân bản dự án, bảng so sánh + chấm điểm ở 📊 Theo dõi; multi-shot chỉ gen ảnh cho shot đầu nhóm; 657 test pass |
 | GĐ6 · Thử thật 3 phương án | Chưa bắt đầu | Cần bạn duyệt chi tiêu |
 
 ### GĐ1 — đã xong
@@ -182,6 +182,14 @@ Cộng dự phòng gen lại ×1,5 + TTS → **ước tính ~$25–30, trần c�
 - **Storyboard theo shot:** khối "🎞 Storyboard theo shot" ở Bước 2 — ảnh khung đầu mọi shot theo thứ tự phim kèm cỡ cảnh, vai trò, độ dài, thoại, dấu ➜ cho shot nối liền; duyệt nhịp trước khi gen video.
 - **Dời sang GĐ6 (cần duyệt chi):** so `eleven_v3` với `eleven_multilingual_v2` trên 2 câu × 5 giọng Việt.
 - **Test:** 4 test mới (`VietnameseVoiceTests`), toàn bộ 652 test pass.
+
+### GĐ5 — đã xong (2026-09-24)
+- **Trần ngân sách cứng** (`core/budget.py`, ⚙ → 💵 Ngân sách thử): tắt mặc định (làm video thật không bị chặn); bấm "Bắt đầu đợt thử" → tính từ mốc đó, tổng chi video + âm thanh theo sổ `usage_events` (mọi dự án, theo bảng giá) + ước tính lệnh sắp gửi > trần ($50, từ biến `BUDGET_USD`) → job **giữ trong hàng đợi**, báo lý do "budget" ở 📊 Theo dõi. Ảnh Deepix chưa có giá → đếm số ảnh, trần 80 ảnh. Nhà cung cấp giả lập không tính.
+- **Chế độ thử rẻ** (cờ dự án `test_quality`, ô "🧪 Thử rẻ" trong ⚙): không xin 1080p, Kling gửi `mode=std`, Seedance 2.0 → 2.0 Fast; ước tính giá ở Bước 4 theo đúng lựa chọn này.
+- **Nhân bản dự án** (`core/compare.clone_project`, ⚙ → 🧬): chép kịch bản, cảnh kịch bản, (tùy chọn) các dòng cảnh/shot, Character Bible + Lock + giọng + tài nguyên, World Bible, thiết lập bản giao; đổi được cách chia cảnh (v2 / từng shot / multi-shot) — không chép ảnh/prompt/clip.
+- **Bảng so sánh** (📊 Theo dõi → ⚖): 2–3 dự án cạnh nhau, video bản giao, chỉ số (số shot, độ dài phim/shot, chi phí, số ảnh/lần gen video, giây bị tính, thời gian làm, số lần gen lại, QC ảnh/video, clip lệch, thoại không vừa clip) + ô chấm điểm 1–5 (nhân vật, bối cảnh, nhịp, chất Free Fire, tổng thể) → bảng Markdown dùng cho `docs/V3_AB_REPORT.md`.
+- **Multi-shot không gen ảnh thừa:** shot đi kèm trong nhóm Kling multi-shot không cần ảnh riêng (`shots.needs_own_image` / `image_scene`), vẫn có motion prompt riêng.
+- **Test:** 5 test mới (`BudgetAndCompareTests`) + kiểm số ảnh multi-shot; toàn bộ 657 test pass.
 
 ### Ghi chú thiết kế cho GĐ2–3 (đọc code, chưa làm)
 - Cột mới theo mẫu `V2_COLUMNS` trong `core/db.py`; bảng `story_scenes` thêm vào `SCHEMA`.

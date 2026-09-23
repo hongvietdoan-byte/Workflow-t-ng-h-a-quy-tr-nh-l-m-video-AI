@@ -16,6 +16,8 @@ def queue_images(p: Pipeline, project_id: int) -> Dict:
         f"SELECT id FROM scenes WHERE project_id=? AND state='ready' AND id NOT IN (SELECT scene_id FROM jobs WHERE type='image_gen'"
         f" AND state IN {LIVE}) ORDER BY idx", (project_id,))]
     stale = {sid: r for sid, r in lineage.scan(conn, project_id).items() if r["image_stale"] and r["image_job_id"]}
+    from . import shots
+    fresh = [sid for sid in fresh if shots.needs_own_image(conn, sid)]   # v3 multi-shot: later shots of a group need no picture
     fresh = pilot.allowed_scenes(p, project_id, fresh)
     redo_ids = pilot.allowed_scenes(p, project_id, list(stale))
     for sid in fresh:

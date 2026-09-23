@@ -207,11 +207,14 @@ def video_family(pipeline: Pipeline, project_id: int):
 def motion_scene_rows(pipeline: Pipeline, project_id: int, only_missing: bool = False, only_idx=None):
     """Scenes with an approved image; only_missing: without a motion prompt yet; only_idx: exactly these scenes (e.g. the ones
     whose prompt is outdated)."""
-    rows = pipeline.conn.execute(
-        "SELECT s.id, s.idx, s.data FROM scenes s WHERE s.project_id=? AND EXISTS (SELECT 1 FROM jobs j WHERE"
-        " j.scene_id=s.id AND j.type='image_gen' AND j.state='approved')"
+    from .shots import image_scene
+    conn = pipeline.conn
+    rows = conn.execute(
+        "SELECT s.id, s.idx, s.data FROM scenes s WHERE s.project_id=?"
         + (" AND NOT EXISTS (SELECT 1 FROM motion_prompts m WHERE m.scene_id=s.id)" if only_missing else "")
         + " ORDER BY s.idx", (project_id,)).fetchall()
+    rows = [r for r in rows if conn.execute("SELECT 1 FROM jobs WHERE scene_id=? AND type='image_gen' AND state='approved'",
+                                             (image_scene(conn, r["id"]),)).fetchone()]   # v3 multi-shot: the group's picture
     return [r for r in rows if only_idx is None or r["idx"] in only_idx]
 
 

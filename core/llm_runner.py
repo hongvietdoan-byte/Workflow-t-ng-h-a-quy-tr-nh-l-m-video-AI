@@ -294,10 +294,14 @@ def run_qc_batch(p: Pipeline, project_id: int, client, data_dir: str) -> Dict:
 def run_motion(p: Pipeline, project_id: int, client, data_dir: str, only_idx=None) -> Dict:
     """Motion prompts for approved-image scenes that do not have one yet (existing/approved prompts are kept).
     only_idx: rewrite exactly these scenes (e.g. the ones whose prompt is outdated because the image or the scene changed)."""
-    rows = p.conn.execute(
-        "SELECT s.idx, (SELECT j.id FROM jobs j WHERE j.scene_id=s.id AND j.type='image_gen' AND j.state='approved'"
-        " ORDER BY j.id DESC LIMIT 1) AS jid, EXISTS (SELECT 1 FROM motion_prompts m WHERE m.scene_id=s.id) AS has_mp"
-        " FROM scenes s WHERE s.project_id=? ORDER BY s.idx", (project_id,)).fetchall()
+    from . import shots
+    rows = [dict(r) for r in p.conn.execute(
+        "SELECT s.id, s.idx, EXISTS (SELECT 1 FROM motion_prompts m WHERE m.scene_id=s.id) AS has_mp"
+        " FROM scenes s WHERE s.project_id=? ORDER BY s.idx", (project_id,)).fetchall()]
+    for r in rows:                     # v3 multi-shot: a later shot of a group works from the group's first picture
+        j = p.conn.execute("SELECT id FROM jobs WHERE scene_id=? AND type='image_gen' AND state='approved' ORDER BY id DESC LIMIT 1",
+                           (shots.image_scene(p.conn, r["id"]),)).fetchone()
+        r["jid"] = j["id"] if j else None
     if only_idx is not None:
         todo = [r for r in rows if r["jid"] and r["idx"] in set(only_idx)]
     else:

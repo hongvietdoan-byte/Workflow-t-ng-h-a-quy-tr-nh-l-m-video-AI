@@ -377,3 +377,19 @@ def split_group_clip(path: str, group: List[Dict], dest_paths: List[str]) -> Lis
         out.append(dest)
         start += sec
     return out
+
+
+def needs_own_image(conn, scene_id: int) -> bool:
+    """Kling multi-shot makes the later shots of a group from the group's first picture: only that first shot needs a picture."""
+    row = conn.execute("SELECT p.shot_mode FROM scenes s JOIN projects p ON p.id=s.project_id WHERE s.id=?", (scene_id,)).fetchone()
+    if row is None or row["shot_mode"] != "multishot":
+        return True
+    group = multishot_group_of(conn, scene_id) or []
+    return len(group) < 2 or group[0]["id"] == scene_id
+
+
+def image_scene(conn, scene_id: int) -> int:
+    """The shot whose picture this shot's video starts from (itself, or the first shot of its multi-shot group)."""
+    if needs_own_image(conn, scene_id):
+        return scene_id
+    return (multishot_group_of(conn, scene_id) or [{"id": scene_id}])[0]["id"]

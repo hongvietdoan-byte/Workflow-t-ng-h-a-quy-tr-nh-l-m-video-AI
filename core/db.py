@@ -276,6 +276,10 @@ CREATE TABLE IF NOT EXISTS outputs (
     created_by TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_outputs_project ON outputs(project_id, kind, id);
+CREATE TABLE IF NOT EXISTS app_settings (
+    key TEXT PRIMARY KEY,              -- small settings of the whole app (v3: 'budget' = the test spending limit, core.budget)
+    value TEXT
+);
 CREATE TABLE IF NOT EXISTS story_scenes (
     id INTEGER PRIMARY KEY,
     project_id INTEGER NOT NULL REFERENCES projects(id),

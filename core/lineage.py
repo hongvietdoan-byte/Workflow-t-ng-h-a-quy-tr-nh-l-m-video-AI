@@ -123,9 +123,12 @@ def scan(conn, project_id: int) -> Dict[int, Dict]:
 
 def summary(conn, project_id: int) -> Dict:
     """Counts per stage over scenes: done (fresh), stale, total — for the step bar and progress lines."""
-    rows = scan(conn, project_id).values()
+    from .shots import needs_own_image
+    scanned = scan(conn, project_id)
+    rows = scanned.values()
     total = len(rows)
-    img_done = sum(1 for r in rows if r["image_job_id"] and not r["image_stale"])
+    no_image = {sid for sid in scanned if not needs_own_image(conn, sid)}     # v3 multi-shot: later shots of a group
+    img_done = sum(1 for sid, r in scanned.items() if (r["image_job_id"] and not r["image_stale"]) or sid in no_image)
     img_stale = sum(1 for r in rows if r["image_stale"])
     mot_done = sum(1 for r in rows if r["motion_state"] == "approved" and not r["motion_stale"])
     mot_stale = sum(1 for r in rows if r["motion_stale"])

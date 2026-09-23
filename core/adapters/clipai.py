@@ -120,7 +120,8 @@ class ClipAIVideoProvider:
     def usage_info(self, model: Optional[str] = None, duration: float = 5, resolution: Optional[str] = None):
         """(canonical model, quality tier, billed seconds) for the cost ledger."""
         canonical, family = resolve_model(model)
-        tier = self.kling_mode if family == "omni" else (resolution or self.resolution)
+        tier = ((resolution if resolution in ("std", "pro", "4k") else self.kling_mode) if family == "omni"
+                else (resolution if resolution not in ("std", "pro", "4k") else None) or self.resolution)
         return canonical, tier, effective_duration(canonical, family, duration)
 
     # ---- submit ---------------------------------------------------------
@@ -128,7 +129,7 @@ class ClipAIVideoProvider:
                model: Optional[str] = None, with_audio: bool = False, subjects: Optional[list] = None,
               image_references: Optional[list] = None, reference_video: Optional[dict] = None,
               aspect_ratio: Optional[str] = None, resolution: Optional[str] = None,
-              multi_prompt: Optional[list] = None, last_frame: Optional[str] = None) -> str:
+              multi_prompt: Optional[list] = None, last_frame: Optional[str] = None, kling_mode: Optional[str] = None) -> str:
         """aspect_ratio / resolution override the provider defaults for this job (project frame format, per-scene tier).
         image_references: this project's own resource-library pictures (local files, [{"path","label","role"}], from
         `assets.scene_references`) — no separate Subject Library upload/approval needed. `subjects`: Subject Library entries
@@ -207,7 +208,7 @@ class ClipAIVideoProvider:
             end_image = (_upload_name(last_frame, end_bytes), end_bytes)
         if family == "omni":
             ctx = {"model_name": canonical, "multi_shot": 0, "prompt": text, "sound": "on" if with_audio else "off",
-                   "image_list": [{"image_url": "", "type": "first_frame"}], "mode": self.kling_mode,
+                   "image_list": [{"image_url": "", "type": "first_frame"}], "mode": kling_mode or self.kling_mode,
                    "aspect_ratio": aspect_ratio or self.aspect_ratio, "duration": str(effective_duration(canonical, family, duration_sec)),
                    "video_num": 1}
             if reference_video:

@@ -109,6 +109,20 @@ def price_per_sec(alias: str, resolution: Optional[str] = None, pricing: Optiona
 
 
 def scene_choice(conn, scene_id: int, project_row=None, mp_row=None) -> Dict:
+    """_scene_choice, then the project's cheap test mode (kế hoạch v3: test runs at 720p or lower): Seedance 2.0 becomes 2.0 Fast
+    and no 1080p tier is asked for."""
+    if project_row is None:
+        scene = conn.execute("SELECT project_id FROM scenes WHERE id=?", (scene_id,)).fetchone()
+        project_row = conn.execute("SELECT * FROM projects WHERE id=?", (scene["project_id"],)).fetchone()
+    choice = _scene_choice(conn, scene_id, project_row, mp_row)
+    if "test_quality" in project_row.keys() and project_row["test_quality"]:
+        choice = {**choice, "resolution": None}
+        if choice["model"] == "seedance":
+            choice.update(model="seedance-fast", reason=choice["reason"] + " (chế độ thử rẻ: dùng bản Fast 720p)")
+    return choice
+
+
+def _scene_choice(conn, scene_id: int, project_row=None, mp_row=None) -> Dict:
     """The model a scene's video will use: person's override > v1 project-wide model > recommendation.
     {"model", "resolution", "reason", "source": "override"|"project"|"auto", "recommended": {...}}"""
     scene = conn.execute("SELECT project_id, data FROM scenes WHERE id=?", (scene_id,)).fetchone()

@@ -378,8 +378,9 @@ def store_motion_prompts(pipeline: Pipeline, project_id: int, data: Any) -> int:
                            (project_id, s["idx"])).fetchone()
         if row is None:
             raise SchemaError(f"scene idx {s['idx']} does not exist in project {project_id}")
+        from .shots import image_scene
         approved = conn.execute("SELECT 1 FROM jobs WHERE scene_id=? AND type='image_gen' AND state='approved'",
-                                (row["id"],)).fetchone()
+                                (image_scene(conn, row["id"]),)).fetchone()
         if approved is None:
             raise SchemaError(f"scene idx {s['idx']} has no approved image yet")
         scene_data = json.loads(conn.execute("SELECT data FROM scenes WHERE id=?", (row["id"],)).fetchone()["data"] or "{}")

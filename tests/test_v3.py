@@ -284,7 +284,11 @@ class ConsistencyTests(unittest.TestCase):
             multi = [g for g in groups if len(g) > 1]
             self.assertTrue(multi)
             _approve_all_images(p, pid, data)
+            images = p.conn.execute("SELECT COUNT(*) FROM jobs WHERE project_id=? AND type='image_gen'", (pid,)).fetchone()[0]
+            self.assertEqual(images, len(groups))                         # only the first shot of each group needs a picture
             _approve_all_motion(p, pid, data)
+            self.assertEqual(p.conn.execute("SELECT COUNT(*) FROM motion_prompts m JOIN scenes s ON s.id=m.scene_id WHERE s.project_id=?",
+                                            (pid,)).fetchone()[0], len(rows))   # every shot still gets its motion prompt
             provider = MockVideoProvider(polls_to_finish=1)
             vr = VideoRunner(p, provider, data)
             vr.max_concurrent = 99
@@ -357,6 +361,94 @@ class VietnameseVoiceTests(unittest.TestCase):
         chosen = {json.loads(r["voice_profile"] or "{}").get("voice_id") for r in
                   p.conn.execute("SELECT voice_profile FROM characters WHERE project_id=?", (pid,))}
         self.assertTrue(chosen <= {30002, 30007})
+
+
+class BudgetAndCompareTests(unittest.TestCase):
+    def test_the_spending_limit_is_off_until_a_test_round_starts(self):
+        from core import budget, cost
+        p, pid = kenta_project()
+        self.assertIsNone(budget.check_video(p.conn, "clipai", "kling-v3-omni", "pro", 15))
+        budget.restart(p.conn, usd=1.0)
+        self.assertIsNone(budget.check_video(p.conn, "clipai", "kling-v3-omni", "pro", 5))       # $0.40 fits
+        cost.record_usage(p.conn, None, "video", "clipai", "kling-v3-omni", "pro", 10, "second", pid)   # $0.80 spent
+        self.assertIn("trần ngân sách", budget.check_video(p.conn, "clipai", "kling-v3-omni", "pro", 5))
+        self.assertIsNone(budget.check_video(p.conn, "mock", "kling-v3-omni", "pro", 5))          # the simulator never counts
+        budget.save(p.conn, image_cap=1)
+        cost.record_usage(p.conn, None, "image", "deepix", "seedream", "default", 1, "image", pid)
+        self.assertIn("ảnh", budget.check_image(p.conn, "deepix"))
+        budget.stop(p.conn)
+        self.assertIsNone(budget.check_video(p.conn, "clipai", "kling-v3-omni", "pro", 5))
+
+    def test_a_job_over_the_limit_stays_queued(self):
+        from core import batch, budget, cost
+        from core.providers import MockVideoProvider
+        from core.runner import VideoRunner
+        p, pid = kenta_project()
+        data = tempfile.mkdtemp()
+        llm_runner.run_director(p, pid, llm_runner.MockLlm())
+        _approve_all_images(p, pid, data)
+        _approve_all_motion(p, pid, data)
+        budget.restart(p.conn, usd=1.0)
+        cost.record_usage(p.conn, None, "video", "clipai", "kling-v3-omni", "pro", 12, "second", pid)     # $0.96 of $1
+        provider = MockVideoProvider()
+        provider.name = "clipai"                                     # priced like the real service
+        provider.usage_info = lambda model=None, duration=5, resolution=None: ("kling-v3-omni", "pro", duration)
+        vr = VideoRunner(p, provider, data)
+        batch.queue_videos(p, pid, data)
+        self.assertEqual(vr.submit_pending(pid), 0)
+        self.assertTrue(p.conn.execute("SELECT 1 FROM diag_events WHERE code='budget'").fetchone())
+        self.assertFalse(p.conn.execute("SELECT 1 FROM jobs WHERE project_id=? AND type='video_gen' AND state!='queued'",
+                                        (pid,)).fetchone())
+
+    def test_cheap_test_mode_never_asks_for_1080p_or_kling_pro(self):
+        from core import batch, model_router
+        from core.providers import MockVideoProvider
+        from core.runner import VideoRunner
+        p, pid = kenta_project()
+        p.set_project_field(pid, "model_priority", "quality")        # quality asks for Seedance 2.0 at 1080p
+        p.set_project_field(pid, "test_quality", 1)
+        data = tempfile.mkdtemp()
+        llm_runner.run_director(p, pid, llm_runner.MockLlm())
+        choices = [model_router.scene_choice(p.conn, r["id"]) for r in p.conn.execute("SELECT id FROM scenes WHERE project_id=?", (pid,))]
+        self.assertFalse(any(c["resolution"] for c in choices))
+        self.assertNotIn("seedance", {c["model"] for c in choices})  # 2.0 became 2.0 Fast
+        _approve_all_images(p, pid, data)
+        _approve_all_motion(p, pid, data)
+        provider = MockVideoProvider()
+        vr = VideoRunner(p, provider, data)
+        vr.max_concurrent = 99
+        batch.queue_videos(p, pid, data)
+        vr.submit_pending(pid)
+        self.assertTrue(provider._tasks)
+        self.assertTrue(all(t["kling_mode"] == "std" and t["resolution"] in (None, "720p") for t in provider._tasks.values()))
+
+    def test_a_clone_starts_from_the_same_point_without_any_result(self):
+        from core import compare, shots
+        p, pid = kenta_project()
+        llm_runner.run_director(p, pid, llm_runner.MockLlm())
+        p.create_job(shots.shots_of(p, pid)[0]["id"])
+        new = compare.clone_project(p, pid, "bản multi-shot", "multishot")
+        self.assertEqual(shots.mode(p.project(new)), "multishot")
+        self.assertEqual(len(shots.shots_of(p, new)), len(shots.shots_of(p, pid)))
+        self.assertEqual(len(shots.story_scenes(p, new)), 3)
+        self.assertEqual(p.conn.execute("SELECT COUNT(*) FROM characters WHERE project_id=?", (new,)).fetchone()[0], 3)
+        self.assertEqual(p.conn.execute("SELECT COUNT(*) FROM jobs WHERE project_id=?", (new,)).fetchone()[0], 0)
+        self.assertEqual(p.project(new)["render_settings"], p.project(pid)["render_settings"])     # same end card
+        bare = compare.clone_project(p, pid, "chạy lại Director", None, with_rows=False)
+        self.assertEqual(p.conn.execute("SELECT COUNT(*) FROM scenes WHERE project_id=?", (bare,)).fetchone()[0], 0)
+
+    def test_metrics_scores_and_report(self):
+        from core import compare
+        p, pid = kenta_project()
+        llm_runner.run_director(p, pid, llm_runner.MockLlm())
+        other = compare.clone_project(p, pid, "v2", None, with_rows=False)
+        compare.save_scores(p.conn, pid, {"characters": 4, "overall": 5, "note": "ổn", "bogus": 9})
+        self.assertEqual(compare.get_scores(p.conn, pid), {"characters": 4, "overall": 5, "note": "ổn"})
+        rows = [compare.metrics(p, i, tempfile.mkdtemp()) for i in (pid, other)]
+        self.assertEqual(rows[0]["shots"], 25)
+        table = compare.report_markdown(rows)
+        self.assertIn("Số shot / clip", table)
+        self.assertIn("Điểm của bạn — Tổng thể", table)
 
 
 if __name__ == "__main__":

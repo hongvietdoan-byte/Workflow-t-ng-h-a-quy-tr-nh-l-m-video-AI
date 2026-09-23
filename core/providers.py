@@ -173,14 +173,15 @@ class MockVideoProvider:
 
     def submit(self, image_path, prompt, negative_prompt, duration_sec, model=None, with_audio=False, subjects=None,
               image_references=None, reference_video=None, aspect_ratio=None, resolution=None, multi_prompt=None,
-              last_frame=None) -> str:
+              last_frame=None, kling_mode=None) -> str:
         self._counter += 1
         task_id = f"mock-{self._counter}"
         self._tasks[task_id] = {"prompt": prompt.lower(), "polls": 0, "model": model, "with_audio": with_audio,
                                   "subjects": subjects or [], "image_references": image_references or [],
                                   "reference_video": reference_video, "aspect_ratio": aspect_ratio,
                                   "resolution": resolution, "multi_prompt": multi_prompt,
-                                  "image_path": image_path, "duration": duration_sec, "last_frame": last_frame}
+                                  "image_path": image_path, "duration": duration_sec, "last_frame": last_frame,
+                                  "kling_mode": kling_mode}
         return task_id
 
     def status(self, task_id: str) -> TaskStatus:
