@@ -1,6 +1,8 @@
 # TODO — Theo dõi tiến độ dự án Auto Pipeline Video AI
 
-_Cập nhật lần cuối: 2026-09-23 (chốt v3) — **Kế hoạch v3 chính thức** `docs/KE_HOACH_V3_CHINH_THUC.md` (+ docx/pdf): người dùng chốt thử cả 2 cách (từng shot / Kling multi-shot) rồi so sánh, nghiên cứu nhiều phong cách Free Fire (thêm 3D fan viral), nhịp theo kịch bản, ngân sách thử ≤ $50 ở 720p; thực hiện trên tài khoản phụ._
+_Cập nhật lần cuối: 2026-09-24 (thực hiện v3, nhánh `v3-shots`) — **GĐ1 đang làm (~50%)**: xong công cụ phân tích video tham khảo (`core/reference_analysis.py`, `tools/reference_video.py`, prompt 16, cách quét YouTube trong trình duyệt) và đã phân tích **19 video / 519 shot** (INGAME 8 ✔, ANIME_CGI 3/6, REAL_CGI_VFX 4/6, KELLY_SHOW 1/6, SHORT_FILM 3/6, FAN_3D 0/6). **Còn lại GĐ1:** ~17 video nữa (mã video đã liệt kê), 6 file `knowledge/ff_styles/*.md` + `ff_directing.md` + `docs/FF_STYLE_RESEARCH.md`, khối ⚙ Kho kiến thức, test. **GĐ2–GĐ6 chưa bắt đầu.** Chi tiết: mục "Tiến độ thực hiện" trong `docs/KE_HOACH_V3_CHINH_THUC.md`._
+
+_Trước đó, 2026-09-23 (chốt v3) — **Kế hoạch v3 chính thức** `docs/KE_HOACH_V3_CHINH_THUC.md` (+ docx/pdf): người dùng chốt thử cả 2 cách (từng shot / Kling multi-shot) rồi so sánh, nghiên cứu nhiều phong cách Free Fire (thêm 3D fan viral), nhịp theo kịch bản, ngân sách thử ≤ $50 ở 720p; thực hiện trên tài khoản phụ._
 
 _Trước đó, 2026-09-23 (khuya, sau) — **Chốt kế hoạch v3** (PLAN.md 3.9): tổng hợp mọi đề xuất; chỉ dùng tính năng có API; đơn vị sản xuất chuyển từ cảnh sang shot; Director học dựng Free Fire từ kênh chính thức. Chờ bạn chốt 5 điểm cuối 3.9._
 

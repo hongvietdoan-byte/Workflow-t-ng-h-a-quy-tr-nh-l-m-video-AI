@@ -269,6 +269,8 @@ Tổng hợp từ: báo cáo rà soát `docs/DASHBOARD_REVIEW_2026-09-23.md`, k�
 
 **Đã chốt (2026-09-23) — kế hoạch v3 chính thức:** `docs/KE_HOACH_V3_CHINH_THUC.md` (kèm `.docx`/`.pdf`), gồm 6 giai đoạn: GĐ1 thư viện phong cách Free Fire (≥ 6 video mỗi dạng: anime CGI, CGI tả thực/kỹ xảo, gameplay, Kelly Show, phim ngắn, 3D fan viral) → GĐ2 lớp shot + nhịp theo kịch bản → GĐ3 nhất quán ảnh ↔ prompt ↔ video + Kling multi-shot → GĐ4 giọng Việt + storyboard theo shot → GĐ5 trần ngân sách + chế độ thử rẻ + so sánh → GĐ6 thử thật 3 phương án (v2 / từng shot / Kling multi-shot) và đánh giá. Quyết định của người dùng: thử cả hai cách rồi so sánh; nhịp dựng do kịch bản quyết định (không cố định); ngân sách thử ≤ $50, 720p hoặc thấp hơn; được dùng video kênh chính thức làm tư liệu phân tích nội bộ, thêm video 3D fan viral; tính năng không có API thì bỏ qua. Thực hiện trên tài khoản phụ, nhánh `v3-shots`.
 
+**Tiến độ (2026-09-24):** GĐ1 ~50% — xong công cụ phân tích video tham khảo (cắt shot ffmpeg / quét trong trình duyệt, gắn nhãn, thống kê theo phong cách), đã phân tích 19 video / 519 shot (trung vị 2,0s/shot, 24 shot/phút); còn ~17 video (nhất là Kelly Show và 3D fan), 6 file phong cách và `knowledge/ff_directing.md`. GĐ2–GĐ6 chưa bắt đầu. Chi tiết: mục "Tiến độ thực hiện" của `docs/KE_HOACH_V3_CHINH_THUC.md`.
+
 ## 4. Rủi ro & mitigation tổng hợp
 
 | Rủi ro | Mitigation |

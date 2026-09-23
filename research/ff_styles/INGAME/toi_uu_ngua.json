@@ -1,0 +1,93 @@
+{
+ "video_id": "toi_uu_ngua",
+ "title": "Tối ưu ngựa OB55 (nội bộ)",
+ "source": "toi uu ngua.mp4",
+ "style": "INGAME",
+ "method": "ffmpeg",
+ "analyzed_at": "2026-09-23T13:29:41+00:00",
+ "duration_sec": 23.08,
+ "width": 1080,
+ "height": 1920,
+ "shots": [
+  {
+   "i": 1,
+   "start": 0.0,
+   "end": 6.08,
+   "dur": 6.08,
+   "size": "GAME_TPS",
+   "angle": "eye",
+   "camera_move": "track",
+   "role": "setup",
+   "subject": "chia đôi: OB54 cưỡi ngựa bắn / OB55 ngồi ngựa",
+   "text_on_screen": true,
+   "game_ui": true,
+   "vfx": false,
+   "transition_in": "cut",
+   "note": ""
+  },
+  {
+   "i": 2,
+   "start": 6.08,
+   "end": 7.02,
+   "dur": 0.94,
+   "size": "GAME_TPS",
+   "angle": "eye",
+   "camera_move": "static",
+   "role": "insert",
+   "subject": "OB55: vòng xanh khoanh nút ngựa",
+   "text_on_screen": true,
+   "game_ui": true,
+   "vfx": false,
+   "transition_in": "cut",
+   "note": "khoanh nút giao diện"
+  },
+  {
+   "i": 3,
+   "start": 7.02,
+   "end": 14.9,
+   "dur": 7.88,
+   "size": "GAME_TPS",
+   "angle": "eye",
+   "camera_move": "track",
+   "role": "action",
+   "subject": "OB55: 'Có thể phóng nhanh như xe khác'",
+   "text_on_screen": true,
+   "game_ui": true,
+   "vfx": true,
+   "transition_in": "cut",
+   "note": ""
+  },
+  {
+   "i": 4,
+   "start": 14.9,
+   "end": 23.08,
+   "dur": 8.18,
+   "size": "GAME_TPS",
+   "angle": "eye",
+   "camera_move": "track",
+   "role": "ending",
+   "subject": "OB55 phi ngựa qua cây, chữ giữ nguyên",
+   "text_on_screen": true,
+   "game_ui": true,
+   "vfx": true,
+   "transition_in": "cut",
+   "note": ""
+  }
+ ],
+ "overall": {
+  "style_guess": "INGAME",
+  "structure": {
+   "open": "Màn hình chia đôi OB54 (trên) / OB55 (dưới) ngay từ giây đầu, nhãn phiên bản vàng.",
+   "body": "Mỗi đoạn so sánh giữ 6–13s; chữ trắng giải thích điểm khác (ngựa phóng nhanh) chỉ hiện ở nửa OB55.",
+   "close": "Kết bằng đoạn phi ngựa dài 8s."
+  },
+  "look": "Gameplay gốc 9:16 xếp 2 khung ngang chồng nhau; nhãn OB54/OB55 vàng viền đen; chữ giải thích trắng viền đen.",
+  "dialogue_handling": "",
+  "notable": [
+   "So sánh trước/sau bằng màn hình chia đôi",
+   "Nhãn phiên bản cố định ở góc mỗi nửa",
+   "Shot dài 6–13s để người xem kịp so sánh",
+   "Chữ giải thích chỉ ở nửa bản mới"
+  ]
+ }
+}

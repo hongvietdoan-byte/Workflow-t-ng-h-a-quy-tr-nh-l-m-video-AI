@@ -108,6 +108,56 @@ Cộng dự phòng gen lại ×1,5 + TTS → **ước tính ~$25–30, trần c�
 
 ---
 
+## Tiến độ thực hiện (cập nhật 2026-09-24, nhánh `v3-shots`)
+
+| GĐ | Trạng thái | Ghi chú |
+|---|---|---|
+| GĐ1 · Thư viện phong cách | **Đang làm (~50%)** | Công cụ xong; 19/≥36 video đã phân tích; chưa viết file phong cách |
+| GĐ2 · Lớp shot + nhịp | Chưa bắt đầu | Đã đọc code nền (xem "Ghi chú thiết kế" dưới) |
+| GĐ3 · Nhất quán + Kling multi-shot | Chưa bắt đầu | |
+| GĐ4 · Giọng Việt + storyboard theo shot | Chưa bắt đầu | So `eleven_v3`/`multilingual_v2` tốn credit → hỏi trước |
+| GĐ5 · Trần ngân sách, thử rẻ, so sánh | Chưa bắt đầu | |
+| GĐ6 · Thử thật 3 phương án | Chưa bắt đầu | Cần bạn duyệt chi tiêu |
+
+### GĐ1 — đã xong
+- `core/reference_analysis.py`: cắt shot bằng ffmpeg (`scale=192`, `select='gt(scene,T)',showinfo`, mặc định T=0,30; video hướng dẫn dạng chia đôi màn hình/slide dùng 0,15), khung giữa mỗi shot, bảng khung 12 ô/bảng (qua `layout.storyboard`), gắn nhãn bằng `llm_runner.ask_json` + `prompts/16_reference_shots.md` (từ vựng cố định: cỡ cảnh ECU…EWS + `GAME_TPS` + `GRAPHIC`, góc, chuyển động máy, 8 vai trò, chữ/giao diện game/hiệu ứng), `MockLlm` có câu trả lời giả lập, lưu **chỉ dữ liệu chữ** vào `research/ff_styles/<STYLE>/<id>.json`, thống kê theo phong cách (`style_stats`, `stats_markdown`: độ dài shot p10–p90, khoảng p25–p75 theo vai trò, tỉ lệ cỡ cảnh/chuyển động, chữ/UI/hiệu ứng, mở–kết).
+- `tools/reference_video.py`: `sheets` / `label` (Claude của Dashboard) / `save` (nhãn viết trong phiên chat) / `cuts` (video cắt trong trình duyệt) / `stats`.
+- Cách làm với YouTube (tải bằng dòng lệnh bị chặn; trình phát nhúng `youtube-nocookie` báo lỗi 153): mở trang xem thường, **phát tắt tiếng 2,5–3×**, lấy mẫu độ lệch mỗi ~0,2–0,25s + ảnh nhỏ mỗi 0,4s, tự bấm "Bỏ qua" quảng cáo, tắt tự phát video kế tiếp, dừng trước khi hết video. Điểm cắt = gộp 4 quy tắc: lệch xám > max(18, 4×trung vị) · đỉnh cục bộ > 3× trung vị ±5 mẫu · đỉnh khác biệt màu giữa ảnh nhỏ · đỉnh NCC > 0,85 trong đoạn dài > 5s chưa có cắt (bắt montage chuyển động nhanh). Bộ công cụ JS lưu ở `localStorage['ffkit']` của youtube.com (nạp lại bằng `eval`). Bảng khung phủ lên trang rồi chụp màn hình để gắn nhãn.
+- **Giới hạn đã biết:** cảnh rất tối và montage có thể lệch ~10–20% số điểm cắt; so với danh sách bàn giao của "Kenta's Obsession" (tua 0,2s, 42 điểm cắt) cách phát nhanh bắt 37 → video đó dùng danh sách bàn giao. Cú máy liền (kiểu "phim kỹ xảo") được giữ nguyên là 1 shot dài — đúng, không phải sót cắt.
+- **Dữ liệu (19 video, 519 shot, 1.316s):**
+
+| Dạng | Đã có | Video |
+|---|---|---|
+| `INGAME` | 8 ✔ | nội bộ OB55: Tình huống Kenta, Combo Kenta, Combo ném lựu lửa, Túi cứu thương, Lựu đạn dò, Điều chỉnh vũ khí, Top 3 mở trạm, Tối ưu ngựa (bỏ "combo kenta 2" vì là bản cắt khác của cùng video) |
+| `ANIME_CGI` | 3 / 6 | Chiến Binh Thỏ tập 2 (nội bộ), Kenta's Obsession `cUQ1PhwvfAE`, Oscar – The Toxic Tanker `9XDYAtUUpzo` |
+| `REAL_CGI_VFX` | 4 / 6 | Thánh Nữ Tái Sinh – phim kỹ xảo `VKAAKZ9wiiM`, Thẻ Vô Cực 11 `r-muFciQCko`, Phi Vụ Cuối Cùng `KNngDqkfEHk`, Bí Ẩn Biển Sâu CGI `D3ltkwGqY6M` |
+| `KELLY_SHOW` | 1 / 6 | Nine-Tails Attacks Bermuda OB55 `ylsjBLzKzco` |
+| `SHORT_FILM` | 3 / 6 | Pitch Party `STvs0Q9HEuU`, The Last Hero `d-GLVj-SZS8` (dựng bằng engine game), Free Fire x Blue Lock `p0cl6p_Hrmo` |
+| `FAN_3D` | 0 / 6 | chưa bắt đầu |
+
+- Quy ước phân loại: phim nét anime → `ANIME_CGI` dù tiêu đề ghi "Short Film" (Oscar); giữ đúng danh sách trong kế hoạch (Blue Lock → `SHORT_FILM`, Kenta's Obsession → `ANIME_CGI`); CGI giới thiệu trang phục/sự kiện → `REAL_CGI_VFX`.
+- Nhận xét sơ bộ từ số liệu: trung vị 2,0s/shot, 24 shot/phút (bản v2 của ta: 3 shot/56s); `INGAME` 79% camera game + 90% có giao diện game, chữ chương vàng; `SHORT_FILM` 28 shot/phút, hành động 1,1–2,7s, phản ứng 0,5–1,9s; `REAL_CGI_VFX` nhiều máy tĩnh/vòng chậm, cận chi tiết 1,1–1,8s; Kelly Show có thẻ chương "Kelly Show" lặp 4–5 lần/tập, người dẫn nói thẳng vào máy quay ở đầu/cuối.
+
+### GĐ1 — còn lại
+1. Phân tích thêm (đã có mã video, quét theo cách trên):
+   - `ANIME_CGI` +3: Free Fire Daybreak `c8Ms_7dvSec`, Eclipse Rises `tOvd-m1ZPNY`, Hành Trình Truy Tìm Kho Báu `da4K66mkVtw` (hoặc Jujutsu Kaisen CGI `3Xd3zdyN-NI`)
+   - `REAL_CGI_VFX` +2: 9 Years VFX Masterpiece `QX2XSNo3VLs` (105s, đang quét dở thì dừng), Fury Battle `7vURb1A0XRo` (hoặc Arena of Fire `EqAm3hEcyqQ`)
+   - `KELLY_SHOW` +5: OB54 `TiinJ2XfY_0`, OB53 Biển sâu `kprw35F7AG4`, Music Festival `lhvBqf0mOXA`, OB51 `50lzLEBOWms`, Booyah with Kelly `7ZiwYDisOnM` (+ short `FSRl0aWrY20` nếu cần mẫu tiểu phẩm ngắn)
+   - `SHORT_FILM` +3: Free Fire x Gintama `JNNfVi3Nq20`, Fire & Ice Festival `1-3OZJ__HcQ`, Đảo Mặt Trời `i0t5Tq_tgpM`
+   - `FAN_3D` +6: tìm trên YouTube theo lượt xem ("free fire 3d animation", "free fire animation")
+   - bỏ qua: Siêu phẩm Hayato Thức Tỉnh `luydytusp6w` (MV 5 phút)
+2. Viết `knowledge/ff_styles/<STYLE>.md` ×6 (phần số liệu sinh bằng `py tools/reference_video.py stats <STYLE>`, phần chữ tổng hợp từ `overall` của từng video), `knowledge/ff_directing.md`, `docs/FF_STYLE_RESEARCH.md`.
+3. Khối nhỏ trong ⚙ Kho kiến thức (chạy `analyze_file` cho MP4 trên máy).
+4. Test cho `core/reference_analysis.py` (`tests/test_v3.py`: `shots_from_cuts`, `cuts_from_diffs`, `validate_labels`, `style_stats`, mock label). Chưa chạy lại toàn bộ bộ test trên nhánh.
+
+### Ghi chú thiết kế cho GĐ2–3 (đọc code, chưa làm)
+- Cột mới theo mẫu `V2_COLUMNS` trong `core/db.py`; bảng `story_scenes` thêm vào `SCHEMA`.
+- `dialogue.scene_lines`: dòng có `shot_no` mà `dialogue == []` → không có thoại (không rơi về `text`).
+- Độ dài dùng/cắt: đề xuất giữ file gốc `videos/{idx}_raw.mp4`, cắt ra `videos/{idx}.mp4` khi tải về (runner) → `final_cut.clip_seconds` (đọc độ dài thật bằng ffmpeg), render, `voice.place_on_timeline`, `subtitles.build_cues` tự dùng đúng độ dài đã cắt, không phải sửa từng nơi; chi phí tính theo giây bị tính tiền (`max(use_s, min_sec)`).
+- Multi-shot: `ClipAIVideoProvider.submit(multi_prompt=…)` đã có (từ `core/experiments.py`); cần thêm `role: last_frame` cho Seedance.
+
+---
+
 ## Bàn giao cho phiên thực hiện (tài khoản phụ)
 
 ### Bắt đầu

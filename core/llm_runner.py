@@ -429,6 +429,18 @@ def _mock_v2(prompt: str):
         voices = json.loads(re.search(r"# Giọng có sẵn\s*```json\s*(.*?)```", prompt, re.S).group(1))
         return {"cast": [{"name": c["name"], "voice_id": voices[i % len(voices)]["id"], "why": "giả lập",
                           "persona": "câu ngắn, thẳng (giả lập)"} for i, c in enumerate(chars)] if voices else []}
+    if prompt.startswith("# Phân tích shot video tham khảo"):
+        shots = json.loads(re.search(r"# Các shot\s*```json\s*(.*?)```", prompt, re.S).group(1))
+        roles = ("hook", "setup", "action", "reaction", "insert", "action", "dialogue", "ending")
+        sizes = ("WS", "MS", "CU", "GAME_TPS", "ECU", "MCU")
+        return {"shots": [{"i": s["i"], "size": sizes[k % len(sizes)], "angle": "eye", "camera_move": "static",
+                           "role": "hook" if k == 0 else "ending" if k == len(shots) - 1 else roles[k % len(roles)],
+                           "subject": f"shot {s['i']} (giả lập)", "text_on_screen": k == 0, "game_ui": False, "vfx": k % 4 == 3,
+                           "transition_in": "cut", "note": ""} for k, s in enumerate(shots)],
+                "overall": {"style_guess": "INGAME", "structure": {"open": "mở bằng nhân vật + tiêu đề (giả lập)",
+                                                                  "body": "gameplay xen chèn hiệu ứng (giả lập)",
+                                                                  "close": "kết bằng câu kêu gọi (giả lập)"},
+                            "look": "màu game tươi (giả lập)", "dialogue_handling": "", "notable": ["giả lập"]}}
     if prompt.startswith("# Director — Music Brief"):
         return {"genre": "cinematic", "tempo_bpm": 110, "mood": "căng rồi bùng nổ", "instruments": ["drums", "synth"],
                 "instrumental": True, "duration_sec": 30, "structure": "0-10s dựng, 10-25s tăng, 25-30s chốt",

@@ -1,0 +1,107 @@
+{
+ "video_id": "top_3_cach_mo_tram",
+ "title": "Top 3 cách mở trạm vật phẩm (nội bộ)",
+ "source": "top 3 cach mo tram.mp4",
+ "style": "INGAME",
+ "method": "ffmpeg",
+ "analyzed_at": "2026-09-23T13:29:42+00:00",
+ "duration_sec": 17.47,
+ "width": 1920,
+ "height": 1920,
+ "shots": [
+  {
+   "i": 1,
+   "start": 0.0,
+   "end": 5.37,
+   "dur": 5.37,
+   "size": "GAME_TPS",
+   "angle": "eye",
+   "camera_move": "track",
+   "role": "setup",
+   "subject": "nhân vật đi tới trạm vật phẩm khóa",
+   "text_on_screen": false,
+   "game_ui": true,
+   "vfx": false,
+   "transition_in": "cut",
+   "note": "16:9"
+  },
+  {
+   "i": 2,
+   "start": 5.37,
+   "end": 5.65,
+   "dur": 0.28,
+   "size": "GAME_TPS",
+   "angle": "eye",
+   "camera_move": "static",
+   "role": "transition",
+   "subject": "cửa trạm mở",
+   "text_on_screen": false,
+   "game_ui": true,
+   "vfx": true,
+   "transition_in": "cut",
+   "note": "0,3s"
+  },
+  {
+   "i": 3,
+   "start": 5.65,
+   "end": 10.05,
+   "dur": 4.4,
+   "size": "GAME_TPS",
+   "angle": "eye",
+   "camera_move": "static",
+   "role": "action",
+   "subject": "trạm nổ khi mở, chữ 'CÓ S.Á.T THƯƠNG N.Ổ'",
+   "text_on_screen": true,
+   "game_ui": true,
+   "vfx": true,
+   "transition_in": "cut",
+   "note": ""
+  },
+  {
+   "i": 4,
+   "start": 10.05,
+   "end": 10.33,
+   "dur": 0.28,
+   "size": "GAME_TPS",
+   "angle": "eye",
+   "camera_move": "static",
+   "role": "insert",
+   "subject": "cận vụ nổ trong trạm",
+   "text_on_screen": true,
+   "game_ui": true,
+   "vfx": true,
+   "transition_in": "cut",
+   "note": "0,3s"
+  },
+  {
+   "i": 5,
+   "start": 10.33,
+   "end": 17.47,
+   "dur": 7.14,
+   "size": "GAME_TPS",
+   "angle": "eye",
+   "camera_move": "static",
+   "role": "ending",
+   "subject": "bắn mở trạm từ xa",
+   "text_on_screen": false,
+   "game_ui": true,
+   "vfx": false,
+   "transition_in": "cut",
+   "note": ""
+  }
+ ],
+ "overall": {
+  "style_guess": "INGAME",
+  "structure": {
+   "open": "Vào thẳng gameplay, không tiêu đề.",
+   "body": "Mỗi cách mở trạm là một shot 4–7s, chữ cảnh báo lớn khi có nguy hiểm.",
+   "close": "Cách cuối, không thẻ kết."
+  },
+  "look": "Gameplay gốc 16:9; chữ trắng tách dấu chấm (tránh lọc từ khóa).",
+  "dialogue_handling": "",
+  "notable": [
+   "Chữ viết tách dấu chấm 'S.Á.T THƯƠNG' tránh lọc nền tảng",
+   "Chèn cận 0,3s đúng lúc nổ"
+  ]
+ }
+}
