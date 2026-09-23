@@ -173,6 +173,11 @@ CREATE TABLE IF NOT EXISTS asset_images (
     src_size INTEGER,
     src_mtime INTEGER
 );
+CREATE TABLE IF NOT EXISTS set_analyses (
+    sha256 TEXT PRIMARY KEY,           -- of the background picture: a re-synced copy of the same picture reuses the reading
+    data TEXT NOT NULL,                -- core.layout set analysis (camera, horizon, ground, landmarks...)
+    created_at TEXT NOT NULL
+);
 CREATE TABLE IF NOT EXISTS sound_sources (
     id INTEGER PRIMARY KEY,
     path TEXT NOT NULL,

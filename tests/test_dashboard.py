@@ -397,6 +397,29 @@ class DashboardSmokeTests(unittest.TestCase):
         data = json.loads(Pipeline(connect(self.db)).conn.execute("SELECT data FROM scenes").fetchone()["data"])
         self.assertEqual(data["location_asset"], loc)
 
+    def test_the_storyboard_is_built_from_step_1_and_shown_without_any_approval(self):
+        import io
+        from PIL import Image
+        from core import assets, llm_io
+        os.environ["ASSET_DIR"] = os.path.join(self.tmp, "assets")
+        os.environ["LLM_PROVIDER"] = "mock"
+        self.addCleanup(os.environ.pop, "ASSET_DIR", None)
+        self.addCleanup(os.environ.pop, "LLM_PROVIDER", None)
+        p, pid = self.seed()
+        buf = io.BytesIO()
+        Image.new("RGB", (640, 360), (120, 150, 110)).save(buf, "PNG")
+        loc = assets.create(p.conn, "FF", "location", "Đảo Quân Sự", "", "", None, "x")
+        assets.add_image(p.conn, loc, "wide.png", buf.getvalue())
+        assets.attach(p.conn, pid, loc)
+        llm_io.update_scene(p, pid, 1, {"location_asset": loc})
+        at = AppTest.from_file(APP, default_timeout=30).run()
+        at.button(key=f"pv_plan_{pid}").click().run()
+        self.assertFalse(at.exception)
+        self.assertTrue(os.path.exists(os.path.join(self.tmp, "projects", str(pid), "layouts", "storyboard.png")))
+        at.button(key=f"pv_review_{pid}").click().run()
+        self.assertFalse(at.exception)
+        self.assertTrue(any("không thấy lỗi" in s.value for s in at.success))
+
     def test_blocking_and_sequence_are_edited_in_the_scene_and_shown_in_its_row(self):
         import json
         p, pid = self.seed()

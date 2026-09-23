@@ -504,7 +504,15 @@ def reference_note(refs: List[Dict]) -> str:
     for g in groups:
         nums = g["nums"]
         tag = f"Image {nums[0]}" if len(nums) == 1 else f"Images {'/'.join(map(str, nums))}"
-        if g["role"] == "location":
+        if g["role"] == "layout":
+            from .layout import layout_note
+            r = refs[nums[0] - 1]
+            figures = r.get("people") or []
+            text = layout_note(figures, has_cutouts=bool(figures) and all(x.get("cutout") for x in figures)).strip()
+            if r.get("redraw_note"):
+                text += f" The background of the layout has the wrong camera angle and must be redrawn: {r['redraw_note']}."
+            bits.append(f"{tag} is the LAYOUT. " + text.replace("The LAYOUT image is", "It is"))
+        elif g["role"] == "location":
             bits.append(f"{tag} is the location {g['label']}: keep the look of this environment")
         elif g["role"] == "object":
             bits.append(f"{tag} is the object {g['label']}: draw it exactly like this whenever it appears")

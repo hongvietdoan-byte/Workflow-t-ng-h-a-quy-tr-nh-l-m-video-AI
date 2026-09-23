@@ -15,7 +15,7 @@ import time
 from datetime import datetime, timedelta, timezone
 from typing import Dict, List, Optional
 
-STAGES = (("director", "Director (phân cảnh)"), ("image", "Gen ảnh"), ("qc", "QC ảnh"), ("motion", "Motion prompt"),
+STAGES = (("director", "Director (phân cảnh)"), ("previz", "Layout / storyboard"), ("image", "Gen ảnh"), ("qc", "QC ảnh"), ("motion", "Motion prompt"),
           ("video", "Gen video"), ("music", "Nhạc nền"), ("render", "Ghép & render"), ("autopilot", "Chạy tự động"),
           ("system", "Hệ thống"))
 STAGE_LABEL = dict(STAGES)

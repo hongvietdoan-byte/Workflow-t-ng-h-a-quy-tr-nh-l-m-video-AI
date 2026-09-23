@@ -309,6 +309,19 @@ class MockLlm:
         return LlmReply("```json\n" + json.dumps(out, ensure_ascii=False) + "\n```", 100, 50)
 
     def complete(self, prompt: str, images: Sequence[Tuple[str, str]] = ()) -> LlmReply:
+        if prompt.startswith("# Phân tích ảnh nền (previz 2D)"):
+            out = {"camera": "eye", "horizon_y": 0.4, "camera_height_m": 1.7, "ground": [[0, 0.55], [1, 0.55], [1, 1], [0, 1]],
+                   "landmarks": [], "light": "nắng trưa (giả lập)", "notes": "bối cảnh giả lập"}
+            return LlmReply(json.dumps(out, ensure_ascii=False), 80, 40)
+        if prompt.startswith("# Dựng layout từng shot (previz 2D)"):
+            specs = json.loads(prompt.split("# Các cảnh\n", 1)[1])
+            shots = [{"idx": s["idx"], "background": s["backgrounds"][0], "redraw": False, "redraw_note": "",
+                      "people": [{"name": n, "foot": [round((i + 1) / (len(s["characters"]) + 1), 3), 0.85],
+                                  "facing": "right" if i % 2 == 0 else "left", "pose": ""} for i, n in enumerate(s["characters"])]}
+                     for s in specs]
+            return LlmReply(json.dumps({"shots": shots}, ensure_ascii=False), 120, 80)
+        if prompt.startswith("# Rà storyboard (previz 2D)"):
+            return LlmReply(json.dumps({"ok": True, "issues": []}), 60, 10)
         if "Dịch phụ đề cho video game" in prompt:
             lang = re.search(r"sang (.+?)\. Giữ nguyên", prompt).group(1)
             block = prompt.split("# Phụ đề cần dịch", 1)[1]

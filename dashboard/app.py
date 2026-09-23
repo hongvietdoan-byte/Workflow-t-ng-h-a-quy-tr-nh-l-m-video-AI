@@ -21,7 +21,7 @@ import streamlit as st
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
-from core import asset_vision, autoqc, ff_site, sfx_plan, sound_lib, assets, audio_lib, subtitles, script_reader, auth, autopilot, dialogue, diag, knowledge, lessons, perf, regen, research, style, subjects, trash, waveform, cost, ffmpeg_studio, final_cut, llm_io, llm_runner, music, preflight, prompts, script_parser, video_analysis  # noqa: E402
+from core import previz, asset_vision, autoqc, ff_site, sfx_plan, sound_lib, assets, audio_lib, subtitles, script_reader, auth, autopilot, dialogue, diag, knowledge, lessons, perf, regen, research, style, subjects, trash, waveform, cost, ffmpeg_studio, final_cut, llm_io, llm_runner, music, preflight, prompts, script_parser, video_analysis  # noqa: E402
 from core.db import connect  # noqa: E402
 from core.pipeline import Pipeline, PipelinePaused  # noqa: E402
 from core.adapters import factory  # noqa: E402
@@ -1483,7 +1483,51 @@ def step1(p: Pipeline, pid: int):
                 if b.button("✔ Duyệt & khóa → Bước 2", type="primary"):
                     act(lambda: llm_io.lock_character_bible(p, pid), "Đã khóa Character Bible")
                     st.rerun()
+    if chars:
+        storyboard_panel(p, pid)
     world_bible_panel(p, pid)
+
+
+def storyboard_panel(p: Pipeline, pid: int) -> None:
+    """Previz 2D: lay out every shot on its background (people placed by perspective, by code), put them on one storyboard and let
+    Claude check continuity. Nothing to approve: Step 2 simply follows the layouts; the sheet is there to look at."""
+    board = os.path.join(previz.layouts_dir(DATA, pid), "storyboard.png")
+    with st.container(border=True):
+        ui.html(ui.card_title("🎬 Storyboard (dựng layout trước khi gen ảnh)",
+                              "không bắt buộc · Bước 2 tự bám theo layout của cảnh nào đã dựng"))
+        st.caption("Claude đọc góc máy/đường chân trời/mặt đất của ảnh bối cảnh (mỗi ảnh chỉ đọc 1 lần), đặt từng nhân vật theo "
+                   "“Vị trí nhân vật” của cảnh; chương trình tự tính cỡ người theo phối cảnh và giữ chân trên mặt đất. "
+                   "Chỉ cảnh đã có Background (ảnh bối cảnh trong kho) mới dựng được. Không phải duyệt: sửa blocking rồi dựng lại nếu muốn.")
+        client = llm_client()
+        c1, c2 = st.columns(2)
+        if c1.button("🎬 Dựng storyboard", key=f"pv_plan_{pid}", disabled=client is None, type="primary",
+                     help=None if client else "Cần Claude (LLM_PROVIDER=claude_cli hoặc ANTHROPIC_API_KEY)"):
+            with st.spinner("Claude đang đọc ảnh nền và dựng layout…"):
+                if act(lambda: st.session_state.__setitem__("pv_res", previz.plan_layouts(p, pid, client, DATA))):
+                    r = st.session_state.pop("pv_res")
+                    msg = f"Đã dựng {len(r['laid_out'])} cảnh"
+                    if r["skipped"]:
+                        msg += f"; bỏ qua {len(r['skipped'])} cảnh chưa có Background"
+                    st.toast(msg)
+                    if r["moved"]:
+                        st.session_state[f"pv_moved_{pid}"] = r["moved"]
+        if c2.button("🔍 Claude rà storyboard", key=f"pv_review_{pid}", disabled=client is None or not os.path.exists(board)):
+            with st.spinner("Claude đang rà lỗi liên tục…"):
+                act(lambda: previz.review_storyboard(p, pid, client, DATA))
+        if client is None:
+            st.caption("Chưa cấu hình Claude: đặt LLM_PROVIDER=claude_cli (dùng hạn mức Claude Code trên máy) hoặc ANTHROPIC_API_KEY.")
+        moved = st.session_state.get(f"pv_moved_{pid}")
+        if moved:
+            st.caption("Đã kéo chân về mặt đất (vị trí Claude đặt nằm ngoài vùng đứng được): "
+                       + ", ".join(f"S{i:02d} {n}" for i, n in moved))
+        if os.path.exists(board):
+            st.image(board, width="stretch")
+            review = previz.last_review(DATA, pid)
+            if review is not None:
+                if review["ok"] and not review["issues"]:
+                    st.success("Claude rà storyboard: không thấy lỗi liên tục/bố cục.")
+                for issue in review["issues"]:
+                    st.warning(f"S{issue['idx']:02d}: {issue['problem']}" + (f" → {issue['fix']}" if issue.get("fix") else ""))
 
 
 def character_reference_panel(p: Pipeline, pid: int, chars) -> None:

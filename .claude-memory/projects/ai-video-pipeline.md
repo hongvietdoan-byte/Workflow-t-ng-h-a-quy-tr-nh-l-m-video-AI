@@ -136,3 +136,9 @@ Phần lớn việc còn lại trong `TODO.md` (mục "Đang làm/kế tiếp", 
 - User không muốn thêm bước duyệt ảnh nền → hướng mới: dựng cảnh bằng lớp ảnh (phân tích ảnh nền → layout từng shot do CODE dựng theo phối cảnh → storyboard + Claude rà liên tục → Deepix gen từ layout). Chạy bằng `claude_cli` trước (qua `llm_runner.ask_json`), API khi chất lượng video đạt. Gọi Claude tối thiểu: 1 lần/ảnh nền (lưu), 1 lần layout cả kịch bản, 1 lần rà storyboard.
 - `core/layout.py`: toạ độ phân số (0..1, y xuống); `camera_height` từ vật mốc: cam_h = h_m*(y_bottom - horizon)/(y_bottom - y_top), lấy trung vị; `person_height(foot_y) = (foot_y - horizon)*1.75/cam_h` (xấp xỉ camera ngang); `on_ground` kéo chân về đa giác mặt đất; vẽ xa trước; ảnh tách nền (có alpha) nếu có, không thì ma-nơ-canh màu (COLORS/COLOR_NAMES, `layout_note` nói màu nào là ai); ảnh gửi Deepix không có chữ, storyboard có chữ.
 - Tiếp theo: prompt phân tích ảnh nền + layout shot + rà storyboard; bảng lưu phân tích; nối Dashboard Bước 1/2; thử thật ~6 ảnh.
+
+## 2026-09-23 — Previz 2D: phần Claude + Dashboard xong
+- `core/previz.py`: `analyze_background` (cache bảng `set_analyses` theo sha256 ảnh), `plan_layouts` (1 lời gọi cho cả kịch bản; ứng viên nền = mọi ảnh của `scene_location`; validator bắt `background` phải thuộc ứng viên, người phải thuộc cảnh), `compose_scene` (lưu `scene.data.layout` + `layout_people`; file `layouts/S01.png` sạch gửi Deepix, `S01_board.png` có tên cho storyboard), `build_storyboard`, `review_storyboard` (`layouts/review.json`). Giai đoạn chẩn đoán mới `previz`.
+- `ImageRunner._layout_ref`: layout là ảnh tham chiếu đầu tiên (reserve thêm 1 chỗ), `reference_note` role `layout` dùng `layout.layout_note` + `redraw_note`.
+- Bẫy: trong `assets.reference_note` biến `people` là BIẾN ĐẾM — đừng đặt trùng tên. Bảng chẩn đoán tên `diag_events` (không phải `diagnostics`).
+- Chưa thử thật: cần user bật `LLM_PROVIDER=claude_cli` và chạy ~6 ảnh Deepix (hướng dẫn trong TODO).

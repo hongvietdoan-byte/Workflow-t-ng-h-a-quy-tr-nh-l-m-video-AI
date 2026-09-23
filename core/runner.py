@@ -243,8 +243,11 @@ class ImageRunner(_Runner):
         if job["retry_reason"]:
             prompt = f"{prompt}. Fix: {job['retry_reason']}"
         proj = self.p.project(job["project_id"])
-        refs = assets.scene_references(conn, job["project_id"], data,
-                                       reserve=1 if proj["storyboard_mode"] else 0)   # the previous frame keeps its slot
+        plan = self._layout_ref(job["project_id"], scene["idx"], data)
+        refs = assets.scene_references(conn, job["project_id"], data,   # the layout and the previous frame keep their slots
+                                       reserve=(1 if proj["storyboard_mode"] else 0) + (1 if plan else 0))
+        if plan:
+            refs = [plan] + refs
         if proj["storyboard_mode"] and len(refs) < assets.MAX_REFERENCES:
             # Deepix has no scriptable Storyboard (web UI only, see docs/CLIPAI_FEATURES.md) — this chains the
             # previous scene's approved picture in as an extra image-to-image reference instead, so style/lighting
@@ -257,6 +260,15 @@ class ImageRunner(_Runner):
         if refs:                                       # the chosen resources' pictures go with the prompt (image-to-image)
             return (assets.reference_note(refs) + "Scene: " + prompt, [r["path"] for r in refs])
         return (prompt,)
+
+    def _layout_ref(self, project_id: int, idx: int, data: Dict) -> Optional[Dict]:
+        """The composed previz layout of this scene (core.previz) as the first reference picture, when there is one."""
+        shot = data.get("layout")
+        path = os.path.join(self.data_dir, str(project_id), "layouts", f"S{idx:02d}.png")
+        if not shot or not os.path.exists(path):
+            return None
+        return {"path": path, "label": "layout", "role": "layout", "people": data.get("layout_people") or [],
+                "redraw_note": shot.get("redraw_note") if shot.get("redraw") else ""}
 
     def _record_usage(self, job, args) -> None:
         info = getattr(self.provider, "usage_info", None)
