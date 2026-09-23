@@ -33,7 +33,8 @@ def collect_clips(pipeline: Pipeline, data_dir: str, project_id: int) -> List[Di
                       "usable": state in (None, "succeeded", "approved")})
     folder = os.path.dirname(clip_path(data_dir, project_id, 0))
     extras = sorted(n for n in (os.listdir(folder) if os.path.isdir(folder) else [])
-                    if n.lower().endswith(".mp4") and n not in known)
+                    if n.lower().endswith(".mp4") and n not in known
+                    and not n.lower().endswith(("_raw.mp4", "_group.mp4")))   # v3: uncut / whole multi-shot originals of a shot
     for name in extras:
         clips.append({"idx": None, "scene_id": None, "title": name, "path": os.path.join(folder, name), "state": None,
                       "requested_sec": None, "usable": True})

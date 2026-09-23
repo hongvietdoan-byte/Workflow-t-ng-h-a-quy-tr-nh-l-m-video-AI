@@ -189,5 +189,125 @@ class ShotLayerTests(unittest.TestCase):
         self.assertFalse(shots.trim_clip(p, row["id"], path))   # already short enough
 
 
+def _set_data(p, scene_id, **fields):
+    row = p.conn.execute("SELECT data FROM scenes WHERE id=?", (scene_id,)).fetchone()
+    data = {**json.loads(row["data"] or "{}"), **fields}
+    p.conn.execute("UPDATE scenes SET data=? WHERE id=?", (json.dumps(data, ensure_ascii=False), scene_id))
+    p.conn.commit()
+
+
+def _approve_all_images(p, pid, data):
+    from core import batch, llm_io
+    from core.providers import MockImageProvider
+    from core.runner import ImageRunner
+    llm_io.lock_character_bible(p, pid)
+    img = ImageRunner(p, MockImageProvider(), data)
+    img.max_concurrent = 99
+    for _ in range(40):                                  # continuing shots wait for the previous approval: loop until done
+        batch.queue_images(p, pid)
+        img.submit_pending(pid)
+        img.poll_once(pid)
+        done = p.conn.execute("SELECT id FROM jobs WHERE project_id=? AND type='image_gen' AND state='succeeded'", (pid,)).fetchall()
+        for j in done:
+            p.approve(j["id"], "user")
+        if not p.conn.execute("SELECT 1 FROM jobs WHERE project_id=? AND type='image_gen' AND state IN ('queued','running')",
+                              (pid,)).fetchone():
+            break
+    return img
+
+
+def _approve_all_motion(p, pid, data):
+    from core import llm_io
+    llm_runner.run_motion(p, pid, llm_runner.MockLlm(), data)
+    for r in p.conn.execute("SELECT m.scene_id FROM motion_prompts m JOIN scenes s ON s.id=m.scene_id WHERE s.project_id=?",
+                            (pid,)).fetchall():
+        llm_io.approve_motion_prompt(p, r["scene_id"])
+
+
+class ConsistencyTests(unittest.TestCase):
+    def test_a_continuing_shot_waits_for_the_previous_picture_and_ends_on_the_next_one(self):
+        from core import batch, shots
+        from core.providers import MockImageProvider, MockVideoProvider
+        from core.runner import ImageRunner, VideoRunner
+        p, pid = kenta_project()
+        data = tempfile.mkdtemp()
+        llm_runner.run_director(p, pid, llm_runner.MockLlm())
+        rows = shots.shots_of(p, pid)
+        _set_data(p, rows[0]["id"], continuous_with_next=True)
+        from core import llm_io
+        llm_io.lock_character_bible(p, pid)
+        img = ImageRunner(p, MockImageProvider(), data)
+        img.max_concurrent = 99
+        batch.queue_images(p, pid)
+        img.submit_pending(pid)
+        second = p.conn.execute("SELECT state FROM jobs WHERE scene_id=? AND type='image_gen'", (rows[1]["id"],)).fetchone()
+        self.assertEqual(second["state"], "queued")                 # waits: shot 1 has no approved picture yet
+        _approve_all_images(p, pid, data)
+        _approve_all_motion(p, pid, data)
+        p.conn.execute("UPDATE motion_prompts SET video_model='seedance' WHERE scene_id=?", (rows[0]["id"],))
+        p.conn.commit()
+        provider = MockVideoProvider()
+        vr = VideoRunner(p, provider, data)
+        vr.max_concurrent = 99
+        batch.queue_videos(p, pid, data)
+        vr.submit_pending(pid)
+        sent = [t for t in provider._tasks.values() if t["last_frame"]]
+        self.assertEqual(len(sent), 1)
+        self.assertEqual(sent[0]["last_frame"], shots.approved_image_path(p.conn, data, pid, rows[1]["id"]))
+
+    def test_one_model_for_a_continuity_group_in_per_shot_mode(self):
+        from core import model_router, shots
+        p, pid = kenta_project()
+        llm_runner.run_director(p, pid, llm_runner.MockLlm())
+        by_group = {}
+        for r in shots.shots_of(p, pid):
+            by_group.setdefault(r["data"]["story_scene"], set()).add(model_router.scene_choice(p.conn, r["id"])["model"])
+        self.assertTrue(all(len(models) == 1 for models in by_group.values()))
+
+    def test_kling_multishot_makes_one_clip_per_group_and_gives_each_shot_its_part(self):
+        from core import batch, ffmpeg_studio, model_router, shots
+        from core.providers import MockVideoProvider
+        from core.runner import VideoRunner
+        try:
+            ffmpeg_studio.find_ffmpeg()
+        except Exception:  # noqa: BLE001
+            self.skipTest("ffmpeg not installed")
+        os.environ["MOCK_REAL_MEDIA"] = "1"
+        try:
+            p, pid = kenta_project(shot_mode="multishot")
+            data = tempfile.mkdtemp()
+            llm_runner.run_director(p, pid, llm_runner.MockLlm())
+            rows = shots.shots_of(p, pid)
+            self.assertEqual({model_router.scene_choice(p.conn, r["id"])["model"] for r in rows}, {"kling"})
+            groups = shots.multishot_groups(p.conn, pid)
+            self.assertTrue(all(sum(shots.billed_shot_seconds(r["data"]) for r in g) <= 15 for g in groups))
+            multi = [g for g in groups if len(g) > 1]
+            self.assertTrue(multi)
+            _approve_all_images(p, pid, data)
+            _approve_all_motion(p, pid, data)
+            provider = MockVideoProvider(polls_to_finish=1)
+            vr = VideoRunner(p, provider, data)
+            vr.max_concurrent = 99
+            batch.queue_videos(p, pid, data)
+            for _ in range(10):                                           # the learned concurrency limit sends a few at a time
+                vr.submit_pending(pid)
+                vr.poll_once(pid)
+            self.assertEqual(len(provider._tasks), len(groups))          # one generation per group
+            self.assertEqual(sum(1 for t in provider._tasks.values() if t["multi_prompt"]), len(multi))
+            done = p.conn.execute("SELECT scene_id, result_path, group_leader FROM jobs WHERE project_id=? AND type='video_gen'"
+                                  " AND state='succeeded'", (pid,)).fetchall()
+            self.assertEqual(len({d["scene_id"] for d in done}), len(rows))  # every shot got its clip
+            follower = next(d for d in done if d["group_leader"])
+            self.assertTrue(os.path.exists(follower["result_path"]))
+            shot_len = shots.planned_seconds(p.conn, follower["scene_id"])
+            self.assertAlmostEqual(ffmpeg_studio.probe_duration(follower["result_path"]), shot_len, delta=0.3)
+            from core import claude_tasks, final_cut
+            self.assertEqual(len(final_cut.usable_clips(p, data, pid)), len(rows))   # the _raw / _group originals never go in the cut
+            result = claude_tasks.clip_set_consistency(p, pid, llm_runner.MockLlm(), data)
+            self.assertIn("ok", result)
+        finally:
+            os.environ.pop("MOCK_REAL_MEDIA", None)
+
+
 if __name__ == "__main__":
     unittest.main()

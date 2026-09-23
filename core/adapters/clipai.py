@@ -128,7 +128,7 @@ class ClipAIVideoProvider:
                model: Optional[str] = None, with_audio: bool = False, subjects: Optional[list] = None,
               image_references: Optional[list] = None, reference_video: Optional[dict] = None,
               aspect_ratio: Optional[str] = None, resolution: Optional[str] = None,
-              multi_prompt: Optional[list] = None) -> str:
+              multi_prompt: Optional[list] = None, last_frame: Optional[str] = None) -> str:
         """aspect_ratio / resolution override the provider defaults for this job (project frame format, per-scene tier).
         image_references: this project's own resource-library pictures (local files, [{"path","label","role"}], from
         `assets.scene_references`) — no separate Subject Library upload/approval needed. `subjects`: Subject Library entries
@@ -136,7 +136,10 @@ class ClipAIVideoProvider:
         reference_video: {"path": local file, "refer_type": "feature"|"base"} — a video the generator copies MOTION from
         (identity/appearance still comes only from `image_path`/`image_references`, never from this video). `refer_type`
         only applies to Kling (Omni/O1); Seedance always treats the video as a motion example. Mutually exclusive with
-        `with_audio` on Kling (the vendor API rejects `sound=on` together with a reference video)."""
+        `with_audio` on Kling (the vendor API rejects `sound=on` together with a reference video).
+        last_frame: a local picture the clip must END on (Seedance `role: last_frame`; v3 shots that continue into the next shot).
+        It is sent as a first+last frame clip, without the extra reference pictures (the two frames already show the characters);
+        still to be confirmed on the real API (plan v3, GĐ6)."""
         canonical, family = resolve_model(model)
         if with_audio and canonical == "kling-video-o1":
             raise ProviderError("kling-video-o1 does not support generated sound (use kling-v3-omni or Seedance)",
@@ -157,7 +160,9 @@ class ClipAIVideoProvider:
             text += f"\nAvoid: {negative_prompt}"
         extra_files: List[Tuple[str, bytes]] = []
         content_refs: List[Dict] = []                     # [{"note_label", "note_role"}] in the order attached, for the @Image note
-        if family == "seedance":
+        if last_frame and family == "seedance":           # first + last frame clip: the two frames carry the characters
+            text += " The clip starts on the first image and must end exactly on the last image (same people, place and light)."
+        elif family == "seedance":
             cap = 29 if canonical == "dreamina-seedance-2-5-260628" else 8  # image cap minus the first-frame image
             for ref in (image_references or [])[:cap]:
                 try:
@@ -193,6 +198,13 @@ class ClipAIVideoProvider:
         image = (_upload_name(image_path, content), content)
         if multi_prompt and family != "omni":
             raise ProviderError("multi-shot chỉ có ở Kling Omni", code="unsupported_option")
+        end_image = None
+        if last_frame and family == "seedance":
+            if not os.path.exists(last_frame):
+                raise ProviderError(f"last frame image not found: {last_frame}", code="missing_image")
+            with open(last_frame, "rb") as f:
+                end_bytes = f.read()
+            end_image = (_upload_name(last_frame, end_bytes), end_bytes)
         if family == "omni":
             ctx = {"model_name": canonical, "multi_shot": 0, "prompt": text, "sound": "on" if with_audio else "off",
                    "image_list": [{"image_url": "", "type": "first_frame"}], "mode": self.kling_mode,
@@ -212,6 +224,7 @@ class ClipAIVideoProvider:
             ctx = {"model_name": canonical,
                    "content": [{"type": "text", "text": text},
                                {"type": "image_url", "image_url": {"url": ""}, "role": "first_frame"}]
+                   + ([{"type": "image_url", "image_url": {"url": ""}, "role": "last_frame"}] if end_image else [])
                    + [{"type": "image_url", "image_url": {"url": "" if r["kind"] == "local" else r["uri"]}, "role": "reference_image"}
                       for r in content_refs]
                    + ([{"type": "video_url", "video_url": {"url": ""}, "role": "reference_video"}] if reference_video else []),
@@ -219,7 +232,8 @@ class ClipAIVideoProvider:
                    "duration": effective_duration(canonical, family, duration_sec), "generate_audio": bool(with_audio),
                    "camera_fixed": False, "seed": -1, "video_num": 1}
             path = PATH_SEEDANCE
-        files = ([("image_files", image[0], image[1])] + [("image_files", name, data) for name, data in extra_files]
+        files = ([("image_files", image[0], image[1])] + ([("image_files", end_image[0], end_image[1])] if end_image else [])
+                 + [("image_files", name, data) for name, data in extra_files]
                 + [("video_files", name, data) for name, data in video_files])
         data = self.client.post_multipart(path, {"ctx": json.dumps(ctx, ensure_ascii=False)}, files)
         tasks = (data or {}).get("tasks") or []

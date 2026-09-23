@@ -82,7 +82,46 @@ def step4(p: Pipeline, pid: int):
         video_card(p, pid, j, runner, (status.get(j["scene_id"]) or {}).get("video_stale"))
     if not latest:
         st.caption("Chưa có clip nào: duyệt motion prompt ở Bước 3 rồi bấm “▶ Gen video”.")
+    clip_set_panel(p, pid)
     experiments_panel(p, pid, runner)
+
+
+def clip_set_panel(p: Pipeline, pid: int) -> None:
+    """v3: consistency across ALL clips (clips made by different models drift in colour / look / faces) + the cut points between
+    shots that continue each other."""
+    usable = p.conn.execute("SELECT COUNT(DISTINCT scene_id) FROM jobs WHERE project_id=? AND type='video_gen'"
+                            " AND state IN ('succeeded','approved')", (pid,)).fetchone()[0]
+    if usable < 2:
+        return
+    last = claude_tasks.last_clip_set_check(C.DATA, pid)
+    label = "🎨 Kiểm tra đồng bộ cả bộ clip" + ("" if last is None else (" — ổn" if last.get("ok") and not last.get("issues")
+                                                                         else f" — {len(last.get('issues') or [])} clip lệch"))
+    with st.expander(label, expanded=bool(last and last.get("issues"))):
+        st.caption("Claude xem khung giữa của mọi clip và các điểm nối giữa hai shot liền mạch: màu, ánh sáng, chất hình, nhân vật có "
+                   "khớp nhau không (clip do các model khác nhau làm dễ lệch). Nên chạy trước khi dựng ở Bước 5.")
+        client = llm_client()
+        if st.button(f"🤖 Kiểm tra {usable} clip", key=f"clipqc_{pid}", disabled=client is None, help=None if client else claude_hint()):
+            with st.spinner("Claude đang so cả bộ clip…"):
+                act(lambda: claude_tasks.clip_set_consistency(p, pid, client, C.DATA))
+            st.rerun()
+        folder = os.path.join(C.DATA, str(pid), "qc_set", "clips")
+        if last is not None:
+            for name in ("clips_mid.png", "clips_cuts.png"):
+                if os.path.exists(os.path.join(folder, name)):
+                    show_image(os.path.join(folder, name), width="stretch")
+            if last.get("summary"):
+                st.info(last["summary"])
+            for n, it in enumerate(last.get("issues") or []):
+                c1, c2 = st.columns([4, 1.3], vertical_alignment="center")
+                c1.markdown(f"**{C.unit_code(p, pid, it['idx'])}**: {escape(it['problem'])}"
+                            + (f" → _{escape(it.get('fix') or '')}_" if it.get("fix") else ""))
+                job = p.conn.execute("SELECT j.id FROM jobs j JOIN scenes s ON s.id=j.scene_id WHERE s.project_id=? AND s.idx=?"
+                                     " AND j.type='video_gen' AND j.state IN ('succeeded','approved') ORDER BY j.id DESC LIMIT 1",
+                                     (pid, it["idx"])).fetchone()
+                if job and c2.button("↻ Gen lại clip này", key=f"clipqc_redo_{pid}_{n}"):
+                    act(lambda: regen.regenerate_video(p, C.DATA, job["id"], f"Đồng bộ cả bộ clip: {it.get('fix') or it['problem']}"),
+                        "Đã xếp hàng gen lại")
+                    st.rerun()
 
 
 
@@ -106,6 +145,13 @@ def model_plan_panel(p: Pipeline, pid: int) -> None:
         st.caption("Theo slide ClipAI “Hôm nay tôi chọn mô hình video như thế nào”: cảnh then chốt / phức tạp / có video tham chiếu → Seedance 2.5; "
                    "cảnh thường → Seedance 2.0 hoặc 2.0 Fast; đối thoại nhiều nhân vật / cảnh chuyển tiếp rẻ → Kling 3.0 Omni. "
                    "MiniMax H3 và Seedance 2.0 Mini chỉ có trên web ClipAI (không gen tự động được). Đổi ưu tiên ở Bước 1 · 📐 Định dạng.")
+        from core import shots as _shots
+        if _shots.mode(proj) == "multishot":
+            groups = _shots.multishot_groups(p.conn, pid)
+            st.info(f"Kling multi-shot: {len(groups)} lần gen cho {sum(len(g) for g in groups)} shot (mỗi lần ≤ 15s, mỗi shot ≥ 3s rồi cắt đúng độ dài). "
+                    "Shot đầu mỗi nhóm gửi cho cả nhóm khi mọi shot của nhóm đã duyệt motion prompt.")
+        elif _shots.mode(proj) == "per_shot":
+            st.caption("Chia shot: các shot cùng nhóm cảnh dùng chung một model; shot “nối liền” dùng Seedance thì kết thúc đúng ảnh khung đầu của shot sau.")
         if model_router.chosen_priority(proj) is None and not proj["video_model"]:
             st.warning("Dự án cũ chưa chọn ưu tiên model nên đang dùng mặc định cũ (Kling cho mọi cảnh).")
             if st.button("Dùng đề xuất theo cảnh (ưu tiên Cân bằng)", key=f"vm_prio_{pid}"):

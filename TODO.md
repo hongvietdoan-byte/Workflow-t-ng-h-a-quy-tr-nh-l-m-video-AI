@@ -1,6 +1,6 @@
 # TODO — Theo dõi tiến độ dự án Auto Pipeline Video AI
 
-_Cập nhật lần cuối: 2026-09-24 (thực hiện v3, nhánh `v3-shots`) — **GĐ1 khép lại bằng dữ liệu đang có**: 19 video / 519 shot, 6 file `knowledge/ff_styles/*.md`, `knowledge/ff_directing.md`, `docs/FF_STYLE_RESEARCH.md`, test. **Phân tích thêm video: để sau** (người dùng chốt 2026-09-24; danh sách mã video trong `docs/FF_STYLE_RESEARCH.md`). **GĐ2 xong** (lớp shot, 645 test pass). Đang làm GĐ3. Chi tiết: mục "Tiến độ thực hiện" trong `docs/KE_HOACH_V3_CHINH_THUC.md`._
+_Cập nhật lần cuối: 2026-09-24 (thực hiện v3, nhánh `v3-shots`) — **GĐ1 khép lại bằng dữ liệu đang có**: 19 video / 519 shot, 6 file `knowledge/ff_styles/*.md`, `knowledge/ff_directing.md`, `docs/FF_STYLE_RESEARCH.md`, test. **Phân tích thêm video: để sau** (người dùng chốt 2026-09-24; danh sách mã video trong `docs/FF_STYLE_RESEARCH.md`). **GĐ2 xong** (lớp shot, 645 test pass). **GĐ3 xong** (nhất quán + Kling multi-shot, 648 test pass). Đang làm GĐ4. Chi tiết: mục "Tiến độ thực hiện" trong `docs/KE_HOACH_V3_CHINH_THUC.md`._
 
 _Trước đó, 2026-09-23 (chốt v3) — **Kế hoạch v3 chính thức** `docs/KE_HOACH_V3_CHINH_THUC.md` (+ docx/pdf): người dùng chốt thử cả 2 cách (từng shot / Kling multi-shot) rồi so sánh, nghiên cứu nhiều phong cách Free Fire (thêm 3D fan viral), nhịp theo kịch bản, ngân sách thử ≤ $50 ở 720p; thực hiện trên tài khoản phụ._
 

@@ -11,7 +11,7 @@ goes). Same `ask_json` path as the Director/QC/motion steps, so they run with th
 """
 import json
 import os
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Tuple
 
 from . import assets, dialogue, diag, layout, llm_io, model_router, prompts, voice
 from .llm_runner import LlmError, ask_json
@@ -232,6 +232,74 @@ def set_consistency(p: Pipeline, project_id: int, client, data_dir: str) -> Dict
     with open(os.path.join(os.path.dirname(sheet), "result.json"), "w", encoding="utf-8") as f:
         json.dump(obj, f, ensure_ascii=False, indent=1)
     return obj
+
+
+CLIP_SET_NOTE = ("# Lần rà này là các CLIP VIDEO (kế hoạch v3)\n"
+                 "Tấm ghép 1: khung GIỮA của mỗi clip dùng được, theo thứ tự phim (nhãn = mã shot/cảnh). Tấm ghép 2 (nếu có): các ĐIỂM NỐI "
+                 "giữa hai shot liền mạch — khung CUỐI của shot trước đặt cạnh khung ĐẦU của shot sau. Ngoài đồng bộ màu/ánh sáng/phong cách/"
+                 "nhân vật giữa các clip (clip do model khác nhau làm dễ lệch chất hình), kiểm tra điểm nối: người, vị trí, hướng, ánh sáng có "
+                 "khớp không. `idx` = số thứ tự của clip cần làm lại; `fix` = câu tiếng Anh đưa vào motion prompt khi gen lại.")
+
+
+def clip_frames(p: Pipeline, project_id: int, data_dir: str) -> Tuple[Optional[str], Optional[str]]:
+    """(sheet of the middle frame of every usable clip, sheet of the cut points between continuing shots) — None when fewer
+    than 2 clips."""
+    import subprocess
+    from . import final_cut, formats, shots
+    from .ffmpeg_studio import find_ffmpeg, probe_duration
+    folder = os.path.join(data_dir, str(project_id), "qc_set", "clips")
+    os.makedirs(folder, exist_ok=True)
+    clips = [c for c in final_cut.collect_clips(p, data_dir, project_id) if c.get("path") and c.get("idx")]
+    if len(clips) < 2:
+        return None, None
+    ffmpeg = find_ffmpeg()
+    mids, cuts = [], []
+    by_idx = {c["idx"]: c for c in clips}
+
+    def grab(path, t, name):
+        dest = os.path.join(folder, name)
+        subprocess.run([ffmpeg, "-y", "-ss", f"{max(t, 0):.2f}", "-i", path, "-frames:v", "1", "-vf", "scale=480:-2", "-q:v", "4", dest],
+                       capture_output=True, text=True, encoding="utf-8", errors="replace")
+        return dest if os.path.exists(dest) else ""
+
+    for c in clips:
+        row = p.conn.execute("SELECT data FROM scenes WHERE project_id=? AND idx=?", (project_id, c["idx"])).fetchone()
+        data = json.loads(row["data"] or "{}") if row else {}
+        dur = probe_duration(c["path"]) or 2.0
+        mids.append((grab(c["path"], dur / 2, f"mid_{c['idx']:03d}.jpg"), shots.label(data, c["idx"])))
+        nxt = by_idx.get(c["idx"] + 1)
+        if data.get("continuous_with_next") and nxt:
+            cuts.append((grab(c["path"], dur - 0.1, f"end_{c['idx']:03d}.jpg"), shots.label(data, c["idx"]) + " cuối"))
+            cuts.append((grab(nxt["path"], 0.05, f"start_{nxt['idx']:03d}.jpg"), f"#{nxt['idx']} đầu"))
+    cell = formats.spec(formats.project_aspect(p.project(project_id)))["cell"]
+    mid_sheet = layout.storyboard([m for m in mids if m[0]], os.path.join(folder, "clips_mid.png"), cols=6, cell=cell)
+    cut_sheet = layout.storyboard([c for c in cuts if c[0]], os.path.join(folder, "clips_cuts.png"), cols=4, cell=cell) if cuts else None
+    return mid_sheet, cut_sheet
+
+
+def clip_set_consistency(p: Pipeline, project_id: int, client, data_dir: str) -> Dict:
+    """QC across ALL clips (v3): colour / light / look / character drift between clips (models differ) and matching cut points."""
+    mid, cuts = clip_frames(p, project_id, data_dir)
+    if mid is None:
+        raise LlmError("cần ít nhất 2 clip để so đồng bộ", code="not_enough")
+    rows = [{"idx": r["idx"], **{k: json.loads(r["data"] or "{}").get(k) for k in ("story_scene", "shot_no", "sequence", "location",
+                                                                                   "characters", "continuous_with_next")}}
+            for r in p.conn.execute("SELECT idx, data FROM scenes WHERE project_id=? ORDER BY idx", (project_id,))]
+    prompt = "\n\n---\n\n".join(x for x in [_read("prompts", "13_set_consistency.md"), CLIP_SET_NOTE, _read("knowledge", "set_consistency_qa.md"),
+                                            prompts.world_bible_text(p, project_id), _block("Các cảnh", rows)] if x)
+    images = [("Tấm ghép 1 — khung giữa của từng clip:", mid)] + ([("Tấm ghép 2 — các điểm nối shot liền mạch:", cuts)] if cuts else [])
+    obj = _run(p, project_id, "qc", prompt, _check_set, client, images)
+    with open(os.path.join(data_dir, str(project_id), "qc_set", "clips_result.json"), "w", encoding="utf-8") as f:
+        json.dump(obj, f, ensure_ascii=False, indent=1)
+    return obj
+
+
+def last_clip_set_check(data_dir: str, project_id: int) -> Optional[Dict]:
+    try:
+        with open(os.path.join(data_dir, str(project_id), "qc_set", "clips_result.json"), encoding="utf-8") as f:
+            return json.load(f)
+    except (OSError, ValueError):
+        return None
 
 
 def last_set_check(data_dir: str, project_id: int) -> Optional[Dict]:

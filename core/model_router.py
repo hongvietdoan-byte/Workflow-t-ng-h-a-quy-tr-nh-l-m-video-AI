@@ -126,6 +126,23 @@ def scene_choice(conn, scene_id: int, project_row=None, mp_row=None) -> Dict:
     if chosen_priority(project_row) is None:
         return {"model": "kling", "resolution": None, "source": "legacy", "recommended": rec,
                 "reason": "dự án cũ chưa chọn ưu tiên model: dùng mặc định cũ (Kling 3.0 Omni) — chọn ưu tiên ở Bước 1 để dùng đề xuất theo cảnh"}
+    from . import shots
+    mode = shots.mode(project_row)
+    if mode == "multishot" and data.get("shot_no"):
+        return {"model": "kling", "resolution": None, "source": "auto", "recommended": rec,
+                "reason": "Kling multi-shot: các shot liền nhau của nhóm được gen chung một lần"}
+    if mode == "per_shot" and data.get("shot_no"):
+        group = shots.sequence_rows(conn, scene_id)
+        if len(group) > 1:                  # one model for a continuity group: cutting between two models shows
+            recs = []
+            for r in group:
+                mp = conn.execute("SELECT * FROM motion_prompts WHERE scene_id=?", (r["id"],)).fetchone()
+                recs.append(recommend(r["data"], priority_of(project_row), mp, bool(project_row["video_audio"])))
+            models = [x["model"] for x in recs]
+            best = max(dict.fromkeys(models), key=models.count)
+            pick = next(x for x in recs if x["model"] == best)
+            return {**pick, "source": "auto", "recommended": rec,
+                    "reason": pick["reason"] + " — cả nhóm cảnh dùng chung model này (cắt giữa hai model dễ lộ)"}
     return {**rec, "source": "auto", "recommended": rec}
 
 

@@ -248,3 +248,132 @@ def trim_clip(pipeline: Pipeline, scene_id: int, path: str) -> bool:
         shutil.move(raw, path)             # keep the uncut clip rather than losing it
         raise RuntimeError((proc.stderr or "")[-300:])
     return True
+
+
+# ---- continuity groups (GĐ3) -------------------------------------------------------------------------------------------------
+MULTISHOT_MAX = 15          # Kling Omni: one multi-shot generation is at most 15 s, each shot at least 3 s
+MULTISHOT_MIN_SHOT = 3
+
+
+def _rows(conn, project_id: int) -> List[Dict]:
+    return [{"id": r["id"], "idx": r["idx"], "data": json.loads(r["data"] or "{}")}
+            for r in conn.execute("SELECT id, idx, data FROM scenes WHERE project_id=? ORDER BY idx", (project_id,))]
+
+
+def _group_key(data: Dict):
+    return (data.get("story_scene"), data.get("sequence"))
+
+
+def sequence_rows(conn, scene_id: int) -> List[Dict]:
+    """The shots of the same continuity group (same script scene and `sequence`) as this shot, in order; [] for a v2 row."""
+    row = conn.execute("SELECT project_id, data FROM scenes WHERE id=?", (scene_id,)).fetchone()
+    data = json.loads(row["data"] or "{}") if row else {}
+    if not data.get("shot_no"):
+        return []
+    return [r for r in _rows(conn, row["project_id"]) if _group_key(r["data"]) == _group_key(data)]
+
+
+def next_in_sequence(conn, scene_id: int) -> Optional[Dict]:
+    rows = sequence_rows(conn, scene_id)
+    ids = [r["id"] for r in rows]
+    if scene_id not in ids or ids.index(scene_id) == len(ids) - 1:
+        return None
+    return rows[ids.index(scene_id) + 1]
+
+
+def previous_in_sequence(conn, scene_id: int) -> Optional[Dict]:
+    rows = sequence_rows(conn, scene_id)
+    ids = [r["id"] for r in rows]
+    if scene_id not in ids or ids.index(scene_id) == 0:
+        return None
+    return rows[ids.index(scene_id) - 1]
+
+
+def approved_image_path(conn, data_dir: str, project_id: int, scene_id: int) -> Optional[str]:
+    import os
+    j = conn.execute("SELECT id FROM jobs WHERE scene_id=? AND type='image_gen' AND state='approved' ORDER BY id DESC LIMIT 1",
+                     (scene_id,)).fetchone()
+    path = j and os.path.join(data_dir, str(project_id), "images", f"job_{j['id']}.png")
+    return path if path and os.path.exists(path) else None
+
+
+def last_frame_for(conn, data_dir: str, scene_id: int) -> Optional[str]:
+    """A shot marked `continuous_with_next` ends on the approved start picture of the next shot of its group (Seedance
+    first + last frame): the cut between the two shots then matches. None when there is no such picture yet."""
+    row = conn.execute("SELECT project_id, data FROM scenes WHERE id=?", (scene_id,)).fetchone()
+    if row is None or not json.loads(row["data"] or "{}").get("continuous_with_next"):
+        return None
+    nxt = next_in_sequence(conn, scene_id)
+    return approved_image_path(conn, data_dir, row["project_id"], nxt["id"]) if nxt else None
+
+
+def waits_for_previous_image(conn, scene_id: int) -> bool:
+    """Image of a shot that CONTINUES the previous one: made only once the previous shot's picture is approved, so it can be
+    sent along as the reference (runner.chain_previous) — otherwise the batch would send both at once and lose the link."""
+    prev = previous_in_sequence(conn, scene_id)
+    if prev is None or not prev["data"].get("continuous_with_next"):
+        return False
+    approved = conn.execute("SELECT 1 FROM jobs WHERE scene_id=? AND type='image_gen' AND state='approved'", (prev["id"],)).fetchone()
+    return approved is None
+
+
+def billed_shot_seconds(data: Dict) -> int:
+    import math
+    return max(MULTISHOT_MIN_SHOT, math.ceil(float(data.get("duration_s") or MULTISHOT_MIN_SHOT) - 1e-6))
+
+
+def multishot_groups(conn, project_id: int) -> List[List[Dict]]:
+    """Kling multi-shot: consecutive shots of one continuity group, cut into generations of at most 15 s (each shot >= 3 s).
+    A shot longer than 15 s on its own stays a group of one."""
+    groups: List[List[Dict]] = []
+    for r in _rows(conn, project_id):
+        if not r["data"].get("shot_no"):
+            continue
+        sec = billed_shot_seconds(r["data"])
+        last = groups[-1] if groups else None
+        if (last and _group_key(last[-1]["data"]) == _group_key(r["data"])
+                and sum(billed_shot_seconds(x["data"]) for x in last) + sec <= MULTISHOT_MAX):
+            last.append(r)
+        else:
+            groups.append([r])
+    return groups
+
+
+def multishot_group_of(conn, scene_id: int) -> Optional[List[Dict]]:
+    row = conn.execute("SELECT project_id FROM scenes WHERE id=?", (scene_id,)).fetchone()
+    if row is None:
+        return None
+    for g in multishot_groups(conn, row["project_id"]):
+        if any(x["id"] == scene_id for x in g):
+            return g
+    return None
+
+
+def split_group_clip(path: str, group: List[Dict], dest_paths: List[str]) -> List[str]:
+    """Cut a Kling multi-shot clip into one file per shot (each shot's billed length, in order). The whole clip is kept as
+    <name>_group.mp4. Returns the paths written; a shot whose part cannot be cut gets a copy of the whole clip."""
+    import os
+    import shutil
+    import subprocess
+    from .ffmpeg_studio import find_ffmpeg, has_audio
+    whole = os.path.splitext(path)[0] + "_group.mp4"
+    shutil.copyfile(path, whole)
+    start, out = 0.0, []
+    try:
+        ffmpeg = find_ffmpeg()
+        audio = ["-c:a", "aac"] if has_audio(whole) else ["-an"]
+    except Exception:  # noqa: BLE001 - no ffmpeg: every shot keeps the whole clip
+        ffmpeg = None
+    for r, dest in zip(group, dest_paths):
+        sec = billed_shot_seconds(r["data"])
+        ok = False
+        if ffmpeg:
+            proc = subprocess.run([ffmpeg, "-y", "-ss", f"{start:.2f}", "-i", whole, "-t", f"{sec:.2f}", "-c:v", "libx264",
+                                   "-pix_fmt", "yuv420p", "-preset", "veryfast", *audio, dest],
+                                  capture_output=True, text=True, encoding="utf-8", errors="replace")
+            ok = proc.returncode == 0 and os.path.exists(dest)
+        if not ok:
+            shutil.copyfile(whole, dest)
+        out.append(dest)
+        start += sec
+    return out

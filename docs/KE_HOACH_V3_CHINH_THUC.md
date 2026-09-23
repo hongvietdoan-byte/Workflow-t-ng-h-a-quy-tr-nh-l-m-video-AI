@@ -114,7 +114,7 @@ Cộng dự phòng gen lại ×1,5 + TTS → **ước tính ~$25–30, trần c�
 |---|---|---|
 | GĐ1 · Thư viện phong cách | **Xong phần cần cho GĐ2** (2026-09-24) | 19 video / 519 shot; 6 file phong cách + `ff_directing.md` + `docs/FF_STYLE_RESEARCH.md`; test. **Phân tích thêm video: để sau** (quyết định 2026-09-24) |
 | GĐ2 · Lớp shot + nhịp | **Xong** (2026-09-24) | Director chia cảnh → shot; mỗi shot 1 dòng `scenes`; cắt clip theo độ dài shot; nhãn S02·3; 645 test pass |
-| GĐ3 · Nhất quán + Kling multi-shot | Chưa bắt đầu | |
+| GĐ3 · Nhất quán + Kling multi-shot | **Xong** (2026-09-24) | Seedance khung đầu+cuối, ảnh shot nối liền chờ shot trước, một model mỗi nhóm, Kling multi-shot trưởng nhóm → cắt cho từng shot, QC đồng bộ cả bộ clip; 648 test pass |
 | GĐ4 · Giọng Việt + storyboard theo shot | Chưa bắt đầu | So `eleven_v3`/`multilingual_v2` tốn credit → hỏi trước |
 | GĐ5 · Trần ngân sách, thử rẻ, so sánh | Chưa bắt đầu | |
 | GĐ6 · Thử thật 3 phương án | Chưa bắt đầu | Cần bạn duyệt chi tiêu |
@@ -165,6 +165,15 @@ Cộng dự phòng gen lại ×1,5 + TTS → **ước tính ~$25–30, trần c�
 - **Dấu vân tay "⚠ cũ":** thêm trường shot (cỡ, góc / hành động, chuyển động, trạng thái cuối) chỉ khi có → dự án v2 không bị báo cũ.
 - **Giao diện:** 📐 Định dạng có "Cách chia cảnh" + "Phong cách dựng Free Fire"; danh sách cảnh ở Bước 1 nhóm shot theo cảnh (số shot, tổng giây, cảnh báo nhịp); nhãn `Shot S02·3` ở Bước 2–5. Chế độ tự động đếm giới hạn 12 theo cảnh kịch bản.
 - **Test:** `tests/test_v3.py` 13 test (8 cho GĐ2); toàn bộ 645 test pass.
+
+### GĐ3 — đã xong (2026-09-24)
+- **Khung đầu + khung cuối (Seedance):** shot `continuous_with_next` dùng Seedance thì gửi thêm `last_frame` = ảnh khung đầu đã duyệt của shot kế tiếp (`ClipAIVideoProvider.submit(last_frame=…)`; khi có khung cuối không gửi thêm ảnh tham chiếu — hai khung đã chứa nhân vật; **cần xác nhận trên API thật ở GĐ6**).
+- **Nối liền trong nhóm:** ảnh của shot nối tiếp shot trước (`continuous_with_next` của shot trước) chờ ảnh shot trước được duyệt rồi mới gửi (đi kèm làm tham chiếu) — không gửi cả lô cùng lúc (`ImageRunner._wait`, `shots.waits_for_previous_image`).
+- **Một model cho một nhóm (chế độ từng shot):** các shot cùng cảnh/`sequence` dùng chung model được đề xuất nhiều nhất trong nhóm (`model_router.scene_choice`), vẫn đổi tay được từng shot.
+- **Kling multi-shot (`shot_mode = multishot`):** `shots.multishot_groups` gom shot liền nhau cùng nhóm thành lần gen ≤ 15s (mỗi shot ≥ 3s); shot đầu nhóm gửi một lệnh `multi_prompt` cho cả nhóm khi mọi shot đã duyệt motion prompt, các shot còn lại chờ; khi tải về: cắt clip theo từng shot (giữ bản gốc `_group.mp4`), hoàn thành job của các shot đi kèm (`jobs.group_leader`), rồi cắt đúng độ dài shot. Gen lại một shot sau đó thì gửi riêng shot đó. Mọi shot của dự án multi-shot dùng Kling.
+- **QC đồng bộ cả bộ clip:** `claude_tasks.clip_set_consistency` — tấm ghép khung giữa của mọi clip + tấm ghép các điểm nối (khung cuối shot trước ↔ khung đầu shot sau) → clip lệch + câu sửa; khối "🎨 Kiểm tra đồng bộ cả bộ clip" ở Bước 4, nút gen lại clip lệch.
+- **Sửa lỗi phát hiện khi test:** danh sách clip dựng phim (`final_cut.collect_clips`) từng coi các file gốc `_raw.mp4` / `_group.mp4` là clip thêm → đã loại.
+- **Test:** 3 test mới (`ConsistencyTests`), toàn bộ 648 test pass.
 
 ### Ghi chú thiết kế cho GĐ2–3 (đọc code, chưa làm)
 - Cột mới theo mẫu `V2_COLUMNS` trong `core/db.py`; bảng `story_scenes` thêm vào `SCHEMA`.

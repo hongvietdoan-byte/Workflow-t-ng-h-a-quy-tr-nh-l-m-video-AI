@@ -47,6 +47,10 @@ class _Runner:
         """A reason not to send this job now (it would be made from outdated inputs); None = go."""
         return None
 
+    def _wait(self, job) -> bool:
+        """True = leave the job queued for now (not an error)."""
+        return False
+
     def _stamp(self, job, args) -> Dict:
         """Columns written on the job when it is sent: fingerprint of its inputs (core.lineage), source image, model."""
         return {}
@@ -76,6 +80,8 @@ class _Runner:
         for job in self._jobs(project_id, "queued"):
             if slots <= 0:
                 break
+            if self._wait(job):
+                continue            # v3: this job is sent later (after the previous shot's picture / with its multi-shot group)
             blocked = self._blocked(job)
             if blocked:
                 self._diag(job, "warn", "stale_input", f"không gửi: {blocked}")
@@ -217,7 +223,7 @@ class VideoRunner(_Runner):
         return None
 
     def _submit_kwargs(self, job) -> Dict:
-        from . import formats
+        from . import formats, shots
         proj = self.p.project(job["project_id"])
         out = {}
         aspect = formats.project_aspect(proj)
@@ -226,7 +232,50 @@ class VideoRunner(_Runner):
         choice = self._choice(job)
         if choice.get("resolution"):
             out["resolution"] = choice["resolution"]
+        mode = shots.mode(proj)
+        group = self._sends_group(job)
+        if group:
+            out["multi_prompt"] = [{"prompt": self._motion(r["id"])["motion_prompt"], "duration": shots.billed_shot_seconds(r["data"])}
+                                   for r in group]
+        elif mode == "per_shot" and "seedance" in (choice.get("model") or ""):
+            end = shots.last_frame_for(self.p.conn, self.data_dir, job["scene_id"])
+            if end:
+                out["last_frame"] = end
         return out
+
+    def _motion(self, scene_id: int):
+        return self.p.conn.execute("SELECT * FROM motion_prompts WHERE scene_id=?", (scene_id,)).fetchone()
+
+    def _has_clip(self, scene_id: int) -> bool:
+        return bool(self.p.conn.execute("SELECT 1 FROM jobs WHERE scene_id=? AND type='video_gen' AND state IN ('succeeded','approved')",
+                                        (scene_id,)).fetchone())
+
+    def _sends_group(self, job):
+        """The multi-shot group this job generates in one go (Kling multi-shot, first shot of a group whose other shots have no
+        clip yet), else None — a shot remade later is sent on its own."""
+        from . import shots
+        if shots.mode(self.p.project(job["project_id"])) != "multishot":
+            return None
+        group = shots.multishot_group_of(self.p.conn, job["scene_id"]) or []
+        if len(group) < 2 or group[0]["id"] != job["scene_id"] or any(self._has_clip(r["id"]) for r in group[1:]):
+            return None
+        return group
+
+    def _wait(self, job) -> bool:
+        """Kling multi-shot: the first shot of a group sends for the whole group once every shot of it has an approved motion
+        prompt; the other shots wait for their part of that clip (unless the first shot already has its clip: then a remade
+        shot is sent on its own)."""
+        from . import shots
+        if shots.mode(self.p.project(job["project_id"])) != "multishot":
+            return False
+        group = shots.multishot_group_of(self.p.conn, job["scene_id"]) or []
+        if len(group) < 2:
+            return False
+        if group[0]["id"] != job["scene_id"]:
+            return not self._has_clip(group[0]["id"])
+        if self._sends_group(job) is None:
+            return False
+        return any((self._motion(r["id"]) or {"state": None})["state"] != "approved" for r in group)
 
     def _stamp(self, job, args) -> Dict:
         from . import formats, lineage
@@ -248,6 +297,11 @@ class VideoRunner(_Runner):
         duration = mp["duration_sec"]
         if json.loads(conn.execute("SELECT data FROM scenes WHERE id=?", (job["scene_id"],)).fetchone()["data"] or "{}").get("shot_no"):
             duration = math.ceil(float(duration or 0) - 1e-6)   # v3 shot: never shorter than planned (it is cut afterwards)
+            from . import shots
+            group = self._sends_group(job)
+            if group:                                             # the whole group's length, one Kling generation
+                duration = sum(shots.billed_shot_seconds(r["data"]) for r in group)
+                model = "kling"
         args = (path, mp["motion_prompt"], mp["negative_prompt"], duration, model)
         subj_refs = []
         if proj["use_subjects"] and "seedance" in (model or ""):
@@ -288,13 +342,41 @@ class VideoRunner(_Runner):
 
     def _after_download(self, job, path: str) -> str:
         """v3 shot rows: the model makes at least 3-4 s, a shot may be shorter -> keep the full clip as <idx>_raw.mp4 and cut the
-        shot's own length into <idx>.mp4, so render, voice placement and subtitles all use the cut length."""
+        shot's own length into <idx>.mp4, so render, voice placement and subtitles all use the cut length. A Kling multi-shot
+        clip is first split into one clip per shot of its group; the other shots' jobs are completed with their part."""
         from . import shots
+        group = self._sends_group(job)
+        if group:
+            self._finish_group(job, path, group)
         try:
             shots.trim_clip(self.p, job["scene_id"], path)
         except Exception as e:  # noqa: BLE001 - a clip that cannot be cut is still a usable (longer) clip
             self._diag(job, "warn", "trim_error", f"không cắt được clip theo độ dài shot ({type(e).__name__}: {e}); dùng nguyên clip")
         return path
+
+    def _finish_group(self, leader, path: str, group) -> None:
+        from . import formats, lineage, shots
+        conn = self.p.conn
+        dests = [path] + [os.path.join(self._dir(leader["project_id"], "videos"), f"{r['idx']:02d}.mp4") for r in group[1:]]
+        shots.split_group_clip(path, group, dests)
+        aspect = formats.project_aspect(self.p.project(leader["project_id"]))
+        for r, dest in zip(group[1:], dests[1:]):
+            follower = conn.execute("SELECT * FROM jobs WHERE scene_id=? AND type='video_gen' AND state='queued' ORDER BY id DESC LIMIT 1",
+                                    (r["id"],)).fetchone()
+            jid = follower["id"] if follower else self.p.create_job(r["id"], "video_gen")
+            mp = self._motion(r["id"])
+            conn.execute("UPDATE jobs SET group_leader=?, external_id=?, model='kling', input_hash=?, source_job_id=? WHERE id=?",
+                         (leader["id"], leader["external_id"], lineage.video_input_hash(mp, aspect) if mp else None,
+                          lineage.approved_image_id(conn, r["id"]), jid))
+            conn.commit()
+            self.p.start(jid)
+            try:
+                shots.trim_clip(self.p, r["id"], dest)
+            except Exception as e:  # noqa: BLE001
+                self._diag(self.p.job(jid), "warn", "trim_error", f"không cắt được clip theo độ dài shot: {e}")
+            conn.execute("UPDATE jobs SET result_path=? WHERE id=?", (dest, jid))
+            conn.commit()
+            self.p.succeed(jid)
 
 
 def previous_frame_job(conn, project_id: int, idx: int, sequence=None):
@@ -343,6 +425,12 @@ class ImageRunner(_Runner):
         from . import formats
         aspect = formats.project_aspect(self.p.project(job["project_id"]))
         return {"size": formats.spec(aspect)["deepix"]} if aspect else {}
+
+    def _wait(self, job) -> bool:
+        """v3: the picture of a shot that continues the previous one waits for that shot's approved picture (sent as reference)."""
+        from . import shots
+        proj = self.p.project(job["project_id"])
+        return bool(shots.mode(proj)) and proj["storyboard_mode"] != 2 and shots.waits_for_previous_image(self.p.conn, job["scene_id"])
 
     def _stamp(self, job, args) -> Dict:
         from . import lineage
