@@ -1,13 +1,15 @@
 {
-  "version": "0.2",
+  "version": "0.3",
   "criteria": [
     {
       "key": "character",
-      "description": "Đúng nhân vật theo Character Bible (mặt, tóc, trang phục, dấu hiệu nhận diện)"
+      "description": "Đúng nhân vật theo Character Bible (mặt, tóc, trang phục, dấu hiệu nhận diện)",
+      "hard_floor": 0.6
     },
     {
       "key": "hands_face",
-      "description": "Không lỗi tay/ngón/mặt/biến dạng cơ thể"
+      "description": "Không lỗi tay/ngón/mặt/biến dạng cơ thể",
+      "hard_floor": 0.5
     },
     {
       "key": "composition",
@@ -27,11 +29,34 @@
     },
     {
       "key": "grounding",
-      "description": "Chân chạm đất, có bóng đổ hợp hướng sáng; không lơ lửng, không đứng trên tường/mái/vật vô lý"
+      "description": "Chân chạm đất, có bóng đổ hợp hướng sáng; không lơ lửng, không đứng trên tường/mái/vật vô lý",
+      "hard_floor": 0.5
     },
     {
       "key": "set_match",
       "description": "Khớp layout và bối cảnh: đúng vị trí, cỡ, hướng mặt từng người và góc máy như layout; bối cảnh giống ảnh địa điểm (không có layout thì so với blocking)"
+    }
+  ],
+  "_note": "hard_floor: tiêu chí chặn cứng — điểm tiêu chí này dưới mức sàn thì ảnh trượt dù điểm trung bình đạt (sai nhân vật, lỗi tay/mặt, lơ lửng không bù được bằng tiêu chí khác).",
+  "video_criteria": [
+    {
+      "key": "identity",
+      "description": "Giữ đúng nhân vật suốt clip theo Character Lock (mặt, tóc, trang phục không đổi giữa các khung)",
+      "hard_floor": 0.6
+    },
+    {
+      "key": "physics",
+      "description": "Vật lý hợp lý: không xuyên tường/xuyên người, không trôi nổi, va chạm có lực",
+      "hard_floor": 0.5
+    },
+    {
+      "key": "motion_match",
+      "description": "Chuyển động và máy quay khớp motion prompt (hành động, hướng, nhịp)"
+    },
+    {
+      "key": "artifacts",
+      "description": "Không biến dạng, không tay/mặt méo, không nhấp nháy, không vật thể tự sinh/biến mất",
+      "hard_floor": 0.5
     }
   ]
 }

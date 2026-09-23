@@ -37,6 +37,19 @@ class _Runner:
     def _submit_args(self, job) -> Optional[Tuple]:
         raise NotImplementedError
 
+    def _submit_kwargs(self, job) -> Dict:
+        """Extra keyword arguments (frame format, per-scene resolution) — only for providers that declare `supports_aspect`,
+        so simpler providers (and test doubles) keep receiving the v1 call."""
+        return {}
+
+    def _blocked(self, job) -> Optional[str]:
+        """A reason not to send this job now (it would be made from outdated inputs); None = go."""
+        return None
+
+    def _stamp(self, job, args) -> Dict:
+        """Columns written on the job when it is sent: fingerprint of its inputs (core.lineage), source image, model."""
+        return {}
+
     def _dest_path(self, job) -> str:
         raise NotImplementedError
 
@@ -58,6 +71,12 @@ class _Runner:
         for job in self._jobs(project_id, "queued"):
             if slots <= 0:
                 break
+            blocked = self._blocked(job)
+            if blocked:
+                self._diag(job, "warn", "stale_input", f"không gửi: {blocked}")
+                self.p.start(job["id"])
+                self.p.fail(job["id"], f"stale_input: {blocked}")
+                continue
             args = self._submit_args(job)
             if args is None:
                 self._diag(job, "error", "missing_input", "thiếu đầu vào (ảnh đã duyệt / motion prompt / prompt ảnh)")
@@ -68,8 +87,9 @@ class _Runner:
                                               (self.job_type,)).fetchone()[0]
             if not THROTTLE.allow(self.job_type, running_all):       # already includes the jobs this pass has started (they are 'running' now)
                 break  # learned limit for all projects together: wait for a slot
+            kwargs = self._submit_kwargs(job) if getattr(self.provider, "supports_aspect", False) else {}
             try:
-                task_id = self.provider.submit(*args)
+                task_id = self.provider.submit(*args, **kwargs)
             except ProviderError as e:
                 if e.code == "rate_limited":
                     THROTTLE.on_rate_limited(self.job_type)   # halve the learned limit; the job stays queued
@@ -82,8 +102,10 @@ class _Runner:
                 self.p.fail(job["id"], f"{e.code or 'error'}: {e}")
                 continue
             self.p.conn.execute("UPDATE jobs SET external_id=? WHERE id=?", (task_id, job["id"]))
+            for col, value in self._stamp(job, args).items():
+                self.p.conn.execute(f"UPDATE jobs SET {col}=? WHERE id=?", (value, job["id"]))
             self.p.conn.commit()
-            self._record_usage(job, args)
+            self._record_usage(job, args, kwargs)
             self.p.start(job["id"])
             slots -= 1
             submitted += 1
@@ -147,7 +169,7 @@ class _Runner:
                     counts["retried"] += 1
         return counts
 
-    def _record_usage(self, job, args) -> None:
+    def _record_usage(self, job, args, kwargs=None) -> None:
         """Ledger entry per submission (each one may be billed by the provider)."""
 
     def _record_provider_failure(self, job, code, message: str) -> None:
@@ -177,6 +199,35 @@ class _Runner:
 class VideoRunner(_Runner):
     job_type = "video_gen"
 
+    def _choice(self, job) -> Dict:
+        from . import model_router
+        return model_router.scene_choice(self.p.conn, job["scene_id"])
+
+    def _blocked(self, job) -> Optional[str]:
+        from . import lineage
+        row = lineage.scan(self.p.conn, job["project_id"]).get(job["scene_id"]) or {}
+        if row.get("motion_stale"):
+            return f"motion prompt đang cũ ({row['motion_stale']}) — viết lại / duyệt lại ở Bước 3"
+        return None
+
+    def _submit_kwargs(self, job) -> Dict:
+        from . import formats
+        proj = self.p.project(job["project_id"])
+        out = {}
+        aspect = formats.project_aspect(proj)
+        if aspect:
+            out["aspect_ratio"] = formats.spec(aspect)["clip"]
+        choice = self._choice(job)
+        if choice.get("resolution"):
+            out["resolution"] = choice["resolution"]
+        return out
+
+    def _stamp(self, job, args) -> Dict:
+        from . import formats, lineage
+        mp = self.p.conn.execute("SELECT * FROM motion_prompts WHERE scene_id=?", (job["scene_id"],)).fetchone()
+        return {"input_hash": lineage.video_input_hash(mp, formats.project_aspect(self.p.project(job["project_id"]))) if mp else None,
+                "source_job_id": lineage.approved_image_id(self.p.conn, job["scene_id"]), "model": args[4]}
+
     def _submit_args(self, job):
         conn = self.p.conn
         mp = conn.execute("SELECT motion_prompt, negative_prompt, duration_sec, ref_video_path, ref_video_type"
@@ -187,12 +238,13 @@ class VideoRunner(_Runner):
             return None
         path = os.path.join(self.data_dir, str(job["project_id"]), "images", f"job_{img['id']}.png")
         proj = self.p.project(job["project_id"])
-        args = (path, mp["motion_prompt"], mp["negative_prompt"], mp["duration_sec"], proj["video_model"])
+        model = self._choice(job)["model"]            # per scene (ClipAI model guide) — see core.model_router
+        args = (path, mp["motion_prompt"], mp["negative_prompt"], mp["duration_sec"], model)
         subj_refs = []
-        if proj["use_subjects"] and "seedance" in (proj["video_model"] or ""):
-            subj_refs = subject_links.usable_for_scene(self.p, job["scene_id"], subject_links.reference_cap(proj["video_model"]))
+        if proj["use_subjects"] and "seedance" in (model or ""):
+            subj_refs = subject_links.usable_for_scene(self.p, job["scene_id"], subject_links.reference_cap(model))
         image_refs = []
-        if "seedance" in (proj["video_model"] or ""):
+        if "seedance" in (model or ""):
             # the project's own chosen resource pictures (same as Step 2's Deepix references) — automatic, no Subject Library upload needed
             scene_data = json.loads(conn.execute("SELECT data FROM scenes WHERE id=?", (job["scene_id"],)).fetchone()["data"] or "{}")
             image_refs = assets.scene_references(conn, job["project_id"], scene_data)
@@ -211,10 +263,14 @@ class VideoRunner(_Runner):
             args += (bool(proj["video_audio"]), subj_refs or None, image_refs or None, ref_video)
         return args
 
-    def _record_usage(self, job, args) -> None:
+    def _record_usage(self, job, args, kwargs=None) -> None:
         info = getattr(self.provider, "usage_info", None)
         if info is not None:
-            model, tier, seconds = info(args[4], args[3])
+            resolution = (kwargs or {}).get("resolution")
+            try:
+                model, tier, seconds = info(args[4], args[3], resolution) if resolution else info(args[4], args[3])
+            except TypeError:
+                model, tier, seconds = info(args[4], args[3])
             record_usage(self.p.conn, job["id"], "video", self.provider.name, model, tier, seconds, "second")
 
     def _dest_path(self, job) -> str:
@@ -237,8 +293,41 @@ def previous_frame_job(conn, project_id: int, idx: int, sequence=None):
     return None
 
 
+def chain_previous(proj, scene_data) -> bool:
+    """Send the previous approved frame as an extra reference? storyboard_mode 1 = always, 2 = never, 0 (default) = automatic:
+    only inside a sequence (consecutive shots of one place / continuous action, as set by the Director or by hand)."""
+    mode = proj["storyboard_mode"] or 0
+    return mode == 1 or (mode == 0 and bool(scene_data.get("sequence")))
+
+
+def lock_note(conn, project_id: int, cast) -> str:
+    """Character Lock of the people in the shot, as one sentence for the image model (what must never drift)."""
+    parts = []
+    for r in conn.execute("SELECT name, lock_rules FROM characters WHERE project_id=?", (project_id,)):
+        if r["name"] not in (cast or []) or not r["lock_rules"]:
+            continue
+        try:
+            rules = json.loads(r["lock_rules"])
+        except ValueError:
+            continue
+        bits = [f"keep {rules['must_keep']}" if rules.get("must_keep") else "",
+                f"never {rules['forbidden']}" if rules.get("forbidden") else ""]
+        if any(bits):
+            parts.append(f"{r['name']}: " + "; ".join(b for b in bits if b))
+    return (" Identity lock — " + " | ".join(parts) + ".") if parts else ""
+
+
 class ImageRunner(_Runner):
     job_type = "image_gen"
+
+    def _submit_kwargs(self, job) -> Dict:
+        from . import formats
+        aspect = formats.project_aspect(self.p.project(job["project_id"]))
+        return {"size": formats.spec(aspect)["deepix"]} if aspect else {}
+
+    def _stamp(self, job, args) -> Dict:
+        from . import lineage
+        return {"input_hash": lineage.current_image_hash(self.p.conn, job["project_id"], job["scene_id"])}
 
     def _submit_args(self, job):
         conn = self.p.conn
@@ -249,15 +338,17 @@ class ImageRunner(_Runner):
             return None
         if (data.get("blocking") or "").strip():       # where each person stands/faces, so shots of one sequence agree
             prompt = f"{prompt}. Blocking: {data['blocking'].strip()}"
+        prompt += lock_note(conn, job["project_id"], data.get("characters"))
         if job["retry_reason"]:
             prompt = f"{prompt}. Fix: {job['retry_reason']}"
         proj = self.p.project(job["project_id"])
+        chain = chain_previous(proj, data)
         plan = layout.layout_reference(self.data_dir, job["project_id"], scene["idx"], data)
         refs = assets.scene_references(conn, job["project_id"], data,   # the layout and the previous frame keep their slots
-                                       reserve=(1 if proj["storyboard_mode"] else 0) + (1 if plan else 0))
+                                       reserve=(1 if chain else 0) + (1 if plan else 0))
         if plan:
             refs = [plan] + refs
-        if proj["storyboard_mode"] and len(refs) < assets.MAX_REFERENCES:
+        if chain and len(refs) < assets.MAX_REFERENCES:
             # Deepix has no scriptable Storyboard (web UI only, see docs/CLIPAI_FEATURES.md) — this chains the
             # previous scene's approved picture in as an extra image-to-image reference instead, so style/lighting
             # carry over the way a real storyboard would.
@@ -270,7 +361,7 @@ class ImageRunner(_Runner):
             return (assets.reference_note(refs) + "Scene: " + prompt, [r["path"] for r in refs])
         return (prompt,)
 
-    def _record_usage(self, job, args) -> None:
+    def _record_usage(self, job, args, kwargs=None) -> None:
         info = getattr(self.provider, "usage_info", None)
         if info is not None:
             model, tier = info()

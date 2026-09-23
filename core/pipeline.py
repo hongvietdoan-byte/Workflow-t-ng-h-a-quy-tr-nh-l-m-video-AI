@@ -10,6 +10,25 @@ def _now() -> str:
     return datetime.now(timezone.utc).isoformat(timespec="seconds")
 
 
+def hard_floors(kind: str = "image") -> dict:
+    """{criterion: minimum score} of the QC checklist's blocking criteria (data/qc_checklist.json `hard_floor`)."""
+    import json
+    path = os.path.join(os.path.dirname(__file__), "..", "data", "qc_checklist.json")
+    try:
+        with open(path, encoding="utf-8") as f:
+            data = json.load(f)
+    except (OSError, ValueError):
+        return {}
+    items = data.get("video_criteria" if kind == "video" else "criteria") or []
+    return {c["key"]: float(c["hard_floor"]) for c in items if isinstance(c.get("hard_floor"), (int, float))}
+
+
+def hard_failures(scores: Mapping[str, float], kind: str = "image") -> list:
+    """Blocking criteria scored below their floor, as 'criterion 0.40 < 0.60'."""
+    floors = hard_floors(kind)
+    return [f"{k} {v:.2f} < {floors[k]:.2f}" for k, v in scores.items() if k in floors and v < floors[k]]
+
+
 class PipelinePaused(Exception):
     pass
 
@@ -21,12 +40,28 @@ class Pipeline:
 
     # ---- projects / scenes / jobs -------------------------------------
     def create_project(self, name: str, operating_mode: str = "human_qc",
-                       threshold: float = 0.85, max_retry: int = 3, created_by: Optional[str] = None) -> int:
+                       threshold: float = 0.85, max_retry: int = 3, created_by: Optional[str] = None,
+                       aspect: Optional[str] = None, genre: Optional[str] = None, model_priority: Optional[str] = None,
+                       game: Optional[str] = None) -> int:
+        """aspect / genre / model_priority left None keep the v1 behaviour (the dashboard sets them for new projects)."""
         cur = self.conn.execute(
-            "INSERT INTO projects (name, operating_mode, qc_auto_pass_threshold, max_retry_count, created_at, created_by)"
-            " VALUES (?,?,?,?,?,?)", (name, operating_mode, threshold, max_retry, _now(), created_by))
+            "INSERT INTO projects (name, operating_mode, qc_auto_pass_threshold, max_retry_count, created_at, created_by,"
+            " aspect, genre, genre_locked, model_priority)"
+            " VALUES (?,?,?,?,?,?,?,?,?,?)", (name, operating_mode, threshold, max_retry, _now(), created_by,
+                                              aspect, genre, 1 if genre else 0, model_priority))
+        if game:
+            self.conn.execute("UPDATE projects SET game=? WHERE id=?", (game, cur.lastrowid))
         self.conn.commit()
         return cur.lastrowid
+
+    def set_project_field(self, project_id: int, field: str, value) -> None:
+        """Plain v2 project settings (aspect, genre, model_priority, qc_video, render_settings, qc_policy, autopilot_gates, pilot)."""
+        allowed = {"aspect", "genre", "genre_locked", "model_priority", "qc_video", "render_settings", "qc_policy",
+                   "autopilot_gates", "autopilot_saved_cfg", "pilot"}
+        if field not in allowed:
+            raise ValueError(f"unknown project setting '{field}'")
+        self.conn.execute(f"UPDATE projects SET {field}=? WHERE id=?", (value, project_id))
+        self.conn.commit()
 
     def project(self, project_id: int) -> sqlite3.Row:
         return self.conn.execute("SELECT * FROM projects WHERE id=?", (project_id,)).fetchone()
@@ -274,10 +309,13 @@ class Pipeline:
         """
         job = self.job(job_id)
         proj = self.project(job["project_id"])
-        suffix = f" — {issues}" if issues else ""
         threshold = proj["qc_auto_pass_threshold"]
         overall = sum(scores.values()) / len(scores)
-        passed = overall >= threshold
+        hard = hard_failures(scores, "video" if job["type"] == "video_gen" else "image")
+        if hard:                                  # a wrong face / broken hands cannot be averaged away by good lighting
+            issues = ("Tiêu chí chặn cứng dưới mức sàn: " + ", ".join(hard) + (f". {issues}" if issues else ""))
+        suffix = f" — {issues}" if issues else ""
+        passed = overall >= threshold and not hard
         auto = proj["operating_mode"] == "auto"
         floor = proj["qc_review_floor"]
         review_zone = auto and not passed and floor is not None and overall >= floor

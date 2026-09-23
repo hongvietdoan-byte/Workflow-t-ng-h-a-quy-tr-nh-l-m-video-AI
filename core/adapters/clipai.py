@@ -97,6 +97,7 @@ def _state(task_status) -> str:
 
 class ClipAIVideoProvider:
     name = "clipai"
+    supports_aspect = True        # accepts aspect_ratio= / resolution= per job (project frame format, per-scene model tier)
 
     def __init__(self, token: str, base_url: str = DEFAULT_BASE, transport: Transport = urllib_transport,
                  aspect_ratio: str = "16:9", kling_mode: str = "pro", resolution: str = "720p",
@@ -116,17 +117,19 @@ class ClipAIVideoProvider:
                    os.environ.get("CLIPAI_ASPECT_RATIO", "16:9"), os.environ.get("CLIPAI_KLING_MODE", "pro"),
                    os.environ.get("CLIPAI_RESOLUTION", "720p"), os.environ.get("CLIPAI_NEGATIVE", "ignore"))
 
-    def usage_info(self, model: Optional[str] = None, duration: float = 5):
+    def usage_info(self, model: Optional[str] = None, duration: float = 5, resolution: Optional[str] = None):
         """(canonical model, quality tier, billed seconds) for the cost ledger."""
         canonical, family = resolve_model(model)
-        tier = self.kling_mode if family == "omni" else self.resolution
+        tier = self.kling_mode if family == "omni" else (resolution or self.resolution)
         return canonical, tier, effective_duration(canonical, family, duration)
 
     # ---- submit ---------------------------------------------------------
     def submit(self, image_path: str, prompt: str, negative_prompt: Optional[str], duration_sec: float,
                model: Optional[str] = None, with_audio: bool = False, subjects: Optional[list] = None,
-              image_references: Optional[list] = None, reference_video: Optional[dict] = None) -> str:
-        """image_references: this project's own resource-library pictures (local files, [{"path","label","role"}], from
+              image_references: Optional[list] = None, reference_video: Optional[dict] = None,
+              aspect_ratio: Optional[str] = None, resolution: Optional[str] = None) -> str:
+        """aspect_ratio / resolution override the provider defaults for this job (project frame format, per-scene tier).
+        image_references: this project's own resource-library pictures (local files, [{"path","label","role"}], from
         `assets.scene_references`) — no separate Subject Library upload/approval needed. `subjects`: Subject Library entries
         already hosted on Clip AI ([{"name","uri"}]). Seedance only; both share one reference-image budget, local pictures first.
         reference_video: {"path": local file, "refer_type": "feature"|"base"} — a video the generator copies MOTION from
@@ -190,7 +193,7 @@ class ClipAIVideoProvider:
         if family == "omni":
             ctx = {"model_name": canonical, "multi_shot": 0, "prompt": text, "sound": "on" if with_audio else "off",
                    "image_list": [{"image_url": "", "type": "first_frame"}], "mode": self.kling_mode,
-                   "aspect_ratio": self.aspect_ratio, "duration": str(effective_duration(canonical, family, duration_sec)),
+                   "aspect_ratio": aspect_ratio or self.aspect_ratio, "duration": str(effective_duration(canonical, family, duration_sec)),
                    "video_num": 1}
             if reference_video:
                 ctx["video_list"] = [{"video_url": "", "refer_type": reference_video.get("refer_type", "feature"),
@@ -203,7 +206,7 @@ class ClipAIVideoProvider:
                    + [{"type": "image_url", "image_url": {"url": "" if r["kind"] == "local" else r["uri"]}, "role": "reference_image"}
                       for r in content_refs]
                    + ([{"type": "video_url", "video_url": {"url": ""}, "role": "reference_video"}] if reference_video else []),
-                   "resolution": self.resolution, "ratio": self.aspect_ratio,
+                   "resolution": resolution or self.resolution, "ratio": aspect_ratio or self.aspect_ratio,
                    "duration": effective_duration(canonical, family, duration_sec), "generate_audio": bool(with_audio),
                    "camera_fixed": False, "seed": -1, "video_num": 1}
             path = PATH_SEEDANCE

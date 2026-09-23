@@ -1,0 +1,182 @@
+"""Character voices (TTS) for the dialogue — the main way Vietnamese lines are spoken (the video models' own speech does not
+cover Vietnamese reliably).
+
+Each character has a `voice_profile` in the Character Bible ({"voice_id", "voice_name", "model", "persona"}). Every dialogue line
+(core.dialogue.scene_lines) is voiced once with its speaker's voice; the REAL length of the voice then sets the clip length (instead
+of a syllable estimate), and once the clips exist the lines are laid on the final timeline in speaking order without overlap —
+which is also where the subtitles take their timing from.
+"""
+import json
+import math
+import os
+from typing import Dict, List, Optional
+
+from . import audio_lib, dialogue, ffmpeg_studio, final_cut
+
+DEFAULT_MODEL = "eleven_multilingual_v2"
+LEAD = 0.3          # seconds of picture before the first line of a clip
+TAIL = 0.4          # seconds after the last line
+GAP = 0.15          # between two lines
+
+
+def get_profile(row) -> Dict:
+    try:
+        return json.loads(row["voice_profile"] or "{}")
+    except (ValueError, KeyError, IndexError, TypeError):
+        return {}
+
+
+def set_profile(conn, project_id: int, name: str, profile: Optional[Dict]) -> None:
+    clean = None
+    if profile and profile.get("voice_id"):
+        clean = json.dumps({"voice_id": int(profile["voice_id"]), "voice_name": str(profile.get("voice_name") or ""),
+                            "model": profile.get("model") or DEFAULT_MODEL, "persona": str(profile.get("persona") or "")},
+                           ensure_ascii=False)
+    conn.execute("UPDATE characters SET voice_profile=? WHERE project_id=? AND name=?", (clean, project_id, name))
+    conn.commit()
+
+
+def _norm(name: str) -> str:
+    return " ".join((name or "").upper().split())
+
+
+def profiles(conn, project_id: int) -> Dict[str, Dict]:
+    """SPEAKER (upper case) -> voice profile, for characters that have one."""
+    out = {}
+    for r in conn.execute("SELECT name, voice_profile FROM characters WHERE project_id=?", (project_id,)):
+        prof = get_profile(r)
+        if prof.get("voice_id"):
+            out[_norm(r["name"])] = prof
+    return out
+
+
+def planned_lines(conn, project_id: int) -> List[Dict]:
+    """Every dialogue line of the project with the voice it will get (None when the speaker has no voice yet)."""
+    voices = profiles(conn, project_id)
+    out = []
+    for s in conn.execute("SELECT id, idx, data FROM scenes WHERE project_id=? ORDER BY idx", (project_id,)).fetchall():
+        for n, (who, said) in enumerate(dialogue.scene_lines(json.loads(s["data"] or "{}")), 1):
+            out.append({"scene_id": s["id"], "idx": s["idx"], "line": n, "speaker": who, "text": said,
+                        "voice": voices.get(_norm(who))})
+    return out
+
+
+def _line_items(directory: str) -> List[tuple]:
+    return [(i, e) for i, e in enumerate(audio_lib.load(directory)) if e["kind"] == "tts" and e.get("scene_id")]
+
+
+def generate(conn, project_id: int, provider, data_dir: str, scene_ids=None, ledger=True) -> Dict:
+    """Voice every line that has no voice yet (or whose text / voice changed). Returns {"sent", "skipped", "no_voice": [speakers]}."""
+    directory = audio_lib.assets_dir(data_dir, project_id)
+    have = {(e["scene_id"], e.get("line")): (i, e) for i, e in _line_items(directory)}
+    sent, skipped, no_voice = 0, 0, set()
+    for ln in planned_lines(conn, project_id):
+        if scene_ids is not None and ln["scene_id"] not in scene_ids:
+            continue
+        if not ln["voice"]:
+            no_voice.add(ln["speaker"] or "(không tên)")
+            continue
+        old = have.get((ln["scene_id"], ln["line"]))
+        if old is not None:
+            i, e = old
+            same = e.get("text") == ln["text"] and e.get("voice_id") == ln["voice"]["voice_id"]
+            if same and e["state"] in ("running", "succeeded"):
+                skipped += 1
+                continue
+            audio_lib.remove(directory, i)                  # the line or the voice changed: make it again
+            have = {(e2["scene_id"], e2.get("line")): (j, e2) for j, e2 in _line_items(directory)}
+        extra = {"scene_id": ln["scene_id"], "scene_idx": ln["idx"], "line": ln["line"], "speaker": ln["speaker"],
+                 "text": ln["text"], "voice_id": ln["voice"]["voice_id"], "dialogue": True}
+        audio_lib.submit_tts(provider, directory, ln["text"], ln["voice"]["voice_id"], ln["voice"].get("voice_name", ""),
+                             ln["voice"].get("model") or DEFAULT_MODEL, None, ledger=(conn, project_id) if ledger else None,
+                             extra=extra)
+        sent += 1
+    return {"sent": sent, "skipped": skipped, "no_voice": sorted(no_voice)}
+
+
+def scene_seconds(conn, project_id: int, data_dir: str) -> Dict[int, float]:
+    """scene_id -> seconds the voiced lines need (lines + gaps), only for scenes whose every line has a finished voice."""
+    directory = audio_lib.assets_dir(data_dir, project_id)
+    done: Dict[int, List[float]] = {}
+    for _, e in _line_items(directory):
+        if e["state"] == "succeeded" and e.get("duration_ms"):
+            done.setdefault(e["scene_id"], []).append(e["duration_ms"] / 1000.0)
+    expected: Dict[int, int] = {}
+    for ln in planned_lines(conn, project_id):
+        expected[ln["scene_id"]] = expected.get(ln["scene_id"], 0) + 1
+    return {sid: round(sum(d) + GAP * (len(d) - 1), 2) for sid, d in done.items() if len(d) >= expected.get(sid, 0)}
+
+
+def fit_durations(conn, project_id: int, data_dir: str) -> List[Dict]:
+    """Size each voiced scene's clip to its real voice (lead + lines + tail), within what the scene's model can make.
+    Only lengthens (a longer clip than the voice is fine). Returns the changes."""
+    from .dialogue import max_clip_seconds
+    from .pipeline import Pipeline
+    changes = []
+    p = Pipeline(conn)
+    for sid, secs in scene_seconds(conn, project_id, data_dir).items():
+        row = conn.execute("SELECT duration_sec FROM motion_prompts WHERE scene_id=?", (sid,)).fetchone()
+        if row is None:
+            continue
+        need = math.ceil(LEAD + secs + TAIL)
+        target = min(need, max_clip_seconds(p, project_id, sid))
+        if target > float(row["duration_sec"] or 0):
+            conn.execute("UPDATE motion_prompts SET duration_sec=? WHERE scene_id=?", (target, sid))
+            changes.append({"scene_id": sid, "from": row["duration_sec"], "to": target, "short": need > target})
+    conn.commit()
+    return changes
+
+
+def place_on_timeline(conn, project_id: int, data_dir: str, transition: str = "cut", fade: float = 1.0,
+                      clip_paths: Optional[List[str]] = None) -> int:
+    """Put every voiced line on the final video's timeline: inside its scene's clip, in speaking order, never overlapping the
+    previous line's real audio; switch it on for the mix. Returns how many lines were placed."""
+    directory = audio_lib.assets_dir(data_dir, project_id)
+    items = audio_lib.load(directory)
+    clips = [c for c in final_cut.collect_clips_for_render(conn, data_dir, project_id, clip_paths)]
+    overlap = fade if transition in ffmpeg_studio.OVERLAP_STYLES else 0.0
+    t, placed, prev_end = 0.0, 0, -1.0
+    for clip in clips:
+        length = final_cut.clip_seconds(clip["path"], clip["requested_sec"])
+        lines = sorted([e for e in items if e["kind"] == "tts" and e.get("scene_id") == clip.get("scene_id")
+                        and e["state"] == "succeeded" and e.get("file")], key=lambda e: e.get("line") or 0)
+        cursor = max(t + LEAD, prev_end + GAP)
+        for e in lines:
+            e.update(start=round(cursor, 2), use=True)
+            cursor += (e.get("duration_ms") or 0) / 1000.0 + GAP
+            prev_end = cursor - GAP
+            placed += 1
+        t += length - overlap
+    audio_lib._save(directory, items)
+    return placed
+
+
+def cues(conn, project_id: int, data_dir: str) -> List:
+    """Subtitle cues taken from the placed voice lines (exact timing); empty when no line is voiced."""
+    from .subtitles import Cue
+    out = []
+    for _, e in _line_items(audio_lib.assets_dir(data_dir, project_id)):
+        if e["state"] == "succeeded" and e.get("use") and e.get("duration_ms"):
+            out.append(Cue(round(e["start"], 2), round(e["start"] + e["duration_ms"] / 1000.0, 2), e.get("text") or "",
+                           e.get("speaker") or "", e.get("scene_idx")))
+    return sorted(out, key=lambda c: c.start)
+
+
+def status(conn, project_id: int, data_dir: str) -> Dict:
+    """For the dashboard: lines total / voiced / running / failed / speakers without a voice."""
+    directory = audio_lib.assets_dir(data_dir, project_id)
+    planned = planned_lines(conn, project_id)
+    made = {(e["scene_id"], e.get("line")): e for _, e in _line_items(directory)}
+    counts = {"total": len(planned), "succeeded": 0, "running": 0, "failed": 0, "missing": 0}
+    for ln in planned:
+        e = made.get((ln["scene_id"], ln["line"]))
+        if e is None or e.get("text") != ln["text"]:
+            counts["missing"] += 1
+        else:
+            counts[e["state"]] = counts.get(e["state"], 0) + 1
+    counts["no_voice"] = sorted({ln["speaker"] or "(không tên)" for ln in planned if not ln["voice"]})
+    return counts
+
+
+def exists_file(data_dir: str, project_id: int, entry: Dict) -> bool:
+    return bool(entry.get("file")) and os.path.exists(os.path.join(audio_lib.assets_dir(data_dir, project_id), entry["file"]))

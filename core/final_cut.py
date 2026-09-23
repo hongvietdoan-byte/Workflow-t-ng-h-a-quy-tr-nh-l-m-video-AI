@@ -26,15 +26,34 @@ def collect_clips(pipeline: Pipeline, data_dir: str, project_id: int) -> List[Di
         job = pipeline.conn.execute("SELECT state FROM jobs WHERE scene_id=? AND type='video_gen'"
                                     " AND state!='cancelled' ORDER BY id DESC LIMIT 1", (r["id"],)).fetchone()
         known.add(os.path.basename(path))
+        state = job["state"] if job else None
         clips.append({"idx": r["idx"], "scene_id": r["id"], "title": r["title"], "path": path if os.path.exists(path) else None,
-                      "state": job["state"] if job else None, "requested_sec": r["duration_sec"]})
+                      "state": state, "requested_sec": r["duration_sec"],
+                      # a clip still waiting for its video check / a person, or thrown away, does not go into the cut by default
+                      "usable": state in (None, "succeeded", "approved")})
     folder = os.path.dirname(clip_path(data_dir, project_id, 0))
     extras = sorted(n for n in (os.listdir(folder) if os.path.isdir(folder) else [])
                     if n.lower().endswith(".mp4") and n not in known)
     for name in extras:
         clips.append({"idx": None, "scene_id": None, "title": name, "path": os.path.join(folder, name), "state": None,
-                      "requested_sec": None})
+                      "requested_sec": None, "usable": True})
     return clips
+
+
+def usable_clips(pipeline: Pipeline, data_dir: str, project_id: int) -> List[Dict]:
+    """Clips that exist and may go into the final cut, in scene order."""
+    return [c for c in collect_clips(pipeline, data_dir, project_id) if c["path"] and c["usable"]]
+
+
+def collect_clips_for_render(conn, data_dir: str, project_id: int, clip_paths: Optional[List[str]] = None) -> List[Dict]:
+    """The clips of a render in their order: the given paths (as chosen in Step 5), or every usable clip."""
+    clips = collect_clips(Pipeline(conn), data_dir, project_id)
+    if clip_paths is None:
+        return [c for c in clips if c["path"] and c["usable"]]
+    by_path = {os.path.normcase(os.path.abspath(c["path"])): c for c in clips if c["path"]}
+    return [by_path.get(os.path.normcase(os.path.abspath(p)), {"idx": None, "scene_id": None, "title": os.path.basename(p),
+                                                             "path": p, "state": None, "requested_sec": None, "usable": True})
+            for p in clip_paths]
 
 
 def clip_seconds(path: str, requested: Optional[float]) -> float:
@@ -45,7 +64,7 @@ def clip_seconds(path: str, requested: Optional[float]) -> float:
 def preview_with_music(pipeline: Pipeline, data_dir: str, project_id: int, music_path: str, out_path: str,
                        volume: float = 0.6, keep_audio: bool = False) -> str:
     """Quick cut of the clips that exist, with the given music on top: to judge whether a track fits the picture."""
-    clips = [c for c in collect_clips(pipeline, data_dir, project_id) if c["path"]]
+    clips = [c for c in collect_clips(pipeline, data_dir, project_id) if c["path"] and c["usable"]]
     if not clips:
         raise ValueError("chưa có clip nào để xem thử cùng nhạc")
     durations = [clip_seconds(c["path"], c["requested_sec"]) for c in clips]

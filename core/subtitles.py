@@ -30,7 +30,10 @@ SIZES = {"S": ("Nhỏ", 0.050), "M": ("Vừa", 0.065), "L": ("Lớn", 0.085)}   
 POSITIONS = {"bottom": ("Dưới", 2), "middle": ("Giữa", 5), "top": ("Trên", 8)}
 COLORS = {"white": ("Trắng", "FFFFFF"), "yellow": ("Vàng", "FFE066")}
 DEFAULT_FONT = os.environ.get("DEFAULT_SUBTITLE_FONT", "GFF Latin Bold")
-DEFAULTS = {"enabled": False, "lang": "src", "font": "", "size": "M", "pos": "bottom", "color": "white", "speaker": False}
+DEFAULTS = {"enabled": False, "lang": "src", "font": "", "size": "M", "pos": "bottom", "color": "white", "speaker": False,
+            "speaker_colors": False}
+SPEAKER_PALETTE = ("FFFFFF", "FFE066", "7FDBFF", "FFB38A", "B8F28C", "E3B5FF", "FF8FA3", "9DF2E0")
+MAX_CPS = 17.0                  # characters per second a viewer can comfortably read (auto-dialogue-generator skill)
 _VN_TEST = "ếệỗơưăằẳẵặđĐẤỨ"
 
 _SYSTEM_FALLBACK = ("arial.ttf", "arialbd.ttf", "tahoma.ttf", "tahomabd.ttf", "segoeui.ttf", "segoeuib.ttf", "leelawui.ttf",
@@ -191,14 +194,14 @@ class Cue:
 def build_cues(pipeline: Pipeline, data_dir: str, project_id: int, transition: str = "cut", fade: float = 1.0) -> List[Cue]:
     """One cue per dialogue line, timed inside its clip on the final video's timeline."""
     clips = [c for c in final_cut.collect_clips(pipeline, data_dir, project_id) if c["path"]]
-    texts = {r["idx"]: json.loads(r["data"] or "{}").get("text", "") for r in
+    datas = {r["idx"]: json.loads(r["data"] or "{}") for r in
              pipeline.conn.execute("SELECT idx, data FROM scenes WHERE project_id=?", (project_id,))}
     overlap = fade if transition in ffmpeg_studio.OVERLAP_STYLES else 0.0
     cues: List[Cue] = []
     t = 0.0
     for clip in clips:
         length = final_cut.clip_seconds(clip["path"], clip["requested_sec"])
-        rows = dialogue.lines(texts.get(clip["idx"], "")) if clip["idx"] is not None else []
+        rows = dialogue.scene_lines(datas.get(clip["idx"], {})) if clip["idx"] is not None else []
         if rows:
             lead, tail = min(0.3, length * 0.08), 0.25
             avail = max(length - lead - tail, 0.6)
@@ -211,6 +214,11 @@ def build_cues(pipeline: Pipeline, data_dir: str, project_id: int, transition: s
                 cues.append(Cue(round(cursor, 2), round(cursor + span - 0.05, 2), said, who, clip["idx"]))
                 cursor += span
         t += length - overlap
+    from . import voice                                   # voiced lines carry their real timing: use it for those scenes
+    spoken = voice.cues(pipeline.conn, project_id, data_dir)
+    if spoken:
+        voiced = {c.scene for c in spoken}
+        cues = sorted([c for c in cues if c.scene not in voiced] + spoken, key=lambda c: c.start)
     return cues
 
 
@@ -245,12 +253,55 @@ def to_srt(cues: List[Cue], show_speaker: bool = False) -> str:
     return "\n".join(out)
 
 
+def speaker_colors(cues: List[Cue]) -> Dict[str, str]:
+    """One colour per speaker, in order of first appearance (auto-dialogue-generator skill: each character keeps a colour)."""
+    out: Dict[str, str] = {}
+    for c in cues:
+        if c.speaker and c.speaker not in out:
+            out[c.speaker] = SPEAKER_PALETTE[len(out) % len(SPEAKER_PALETTE)]
+    return out
+
+
+def density(cues: List[Cue]) -> List[Dict]:
+    """Lines too fast to read (more than MAX_CPS characters per second) or overlapping the next line."""
+    out = []
+    for i, c in enumerate(cues):
+        span = max(c.end - c.start, 0.01)
+        cps = len(c.text) / span
+        overlap = i + 1 < len(cues) and cues[i + 1].start < c.end - 1e-6
+        if cps > MAX_CPS or overlap:
+            out.append({"i": i, "scene": c.scene, "text": c.text, "cps": round(cps, 1), "overlap": overlap})
+    return out
+
+
+def to_xlsx(cues: List[Cue]) -> bytes:
+    """Review sheet (scene, speaker, start, end, text, chars/second, ⚠) to check or edit the lines before burning them in."""
+    import io
+    from openpyxl import Workbook
+    flagged = {d["i"] for d in density(cues)}
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Phụ đề"
+    ws.append(["Cảnh", "Người nói", "Bắt đầu (s)", "Kết thúc (s)", "Nội dung", "Ký tự/giây", "Cần xem"])
+    for i, c in enumerate(cues):
+        cps = round(len(c.text) / max(c.end - c.start, 0.01), 1)
+        ws.append([c.scene, c.speaker, c.start, c.end, c.text, cps, "⚠" if i in flagged else ""])
+    for col, width in zip("ABCDEFG", (7, 16, 11, 11, 70, 11, 9)):
+        ws.column_dimensions[col].width = width
+    buf = io.BytesIO()
+    wb.save(buf)
+    return buf.getvalue()
+
+
 def to_ass(cues: List[Cue], width: int, height: int, font: Font, size: str = "M", pos: str = "bottom", color: str = "white",
-           show_speaker: bool = False) -> str:
+           show_speaker: bool = False, by_speaker: bool = False, margin_pct: Optional[float] = None) -> str:
     short = min(width, height)
     fontsize = max(int(short * SIZES.get(size, SIZES["M"])[1]), 14)
     align = POSITIONS.get(pos, POSITIONS["bottom"])[1]
-    margin_v = int(height * (0.12 if height > width else 0.08)) if align == 2 else int(height * 0.06)
+    if margin_pct is not None:
+        margin_v = int(height * margin_pct / 100)
+    else:
+        margin_v = int(height * (0.12 if height > width else 0.08)) if align == 2 else int(height * 0.06)
     rgb = COLORS.get(color, COLORS["white"])[1]
     bgr = rgb[4:6] + rgb[2:4] + rgb[0:2]
     outline = max(int(fontsize * 0.07), 2)
@@ -260,12 +311,20 @@ def to_ass(cues: List[Cue], width: int, height: int, font: Font, size: str = "M"
              "Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, "
              "StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding",
              f"Style: Default,{font.ass_name or font.family},{fontsize},&H00{bgr},&H00{bgr},&H00000000,&H80000000,0,0,0,0,100,100,0,0,1,{outline},1,"
-             f"{align},{int(width * 0.06)},{int(width * 0.06)},{margin_v},1", "", "[Events]",
-             "Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text"]
+             f"{align},{int(width * 0.06)},{int(width * 0.06)},{margin_v},1"]
+    palette = speaker_colors(cues) if by_speaker else {}
+    style_of = {}
+    for n, (who, hexrgb) in enumerate(palette.items(), 1):
+        c_bgr = hexrgb[4:6] + hexrgb[2:4] + hexrgb[0:2]
+        style_of[who] = f"S{n}"
+        lines.append(f"Style: S{n},{font.ass_name or font.family},{fontsize},&H00{c_bgr},&H00{c_bgr},&H00000000,&H80000000,0,0,0,0,"
+                     f"100,100,0,0,1,{outline},1,{align},{int(width * 0.06)},{int(width * 0.06)},{margin_v},1")
+    lines += ["", "[Events]", "Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text"]
     for c in cues:
         text = f"{c.speaker.title()}: {c.text}" if show_speaker and c.speaker else c.text
         text = wrap_text(text, max_chars).replace("{", "(").replace("}", ")").replace("\n", "\\N")
-        lines.append(f"Dialogue: 0,{_clock(c.start, '.')[:-1]},{_clock(c.end, '.')[:-1]},Default,,0,0,0,,{text}")
+        style = style_of.get(c.speaker, "Default")
+        lines.append(f"Dialogue: 0,{_clock(c.start, '.')[:-1]},{_clock(c.end, '.')[:-1]},{style},,0,0,0,,{text}")
     return "\n".join(lines) + "\n"
 
 
@@ -374,7 +433,7 @@ def probe_size(path: str) -> Tuple[int, int]:
 
 
 def burn(video: str, cues: List[Cue], out_path: str, font: Font, size: str = "M", pos: str = "bottom", color: str = "white",
-         show_speaker: bool = False) -> Dict:
+         show_speaker: bool = False, by_speaker: bool = False) -> Dict:
     """Write <out>.srt and a copy of `video` with the subtitles drawn in. Returns {'video', 'srt', 'cues'}."""
     if not cues:
         raise SubtitleError("Chưa có dòng phụ đề nào (kịch bản cần có dòng thoại dạng “TÊN: lời”).")
@@ -392,7 +451,7 @@ def burn(video: str, cues: List[Cue], out_path: str, font: Font, size: str = "M"
     try:
         # ffmpeg runs inside this folder so the filter needs no drive-letter escaping on Windows
         with open(os.path.join(work, "sub.ass"), "w", encoding="utf-8") as f:
-            f.write(to_ass(cues, width, height, font, size, pos, color, show_speaker) + embed_font(font))
+            f.write(to_ass(cues, width, height, font, size, pos, color, show_speaker, by_speaker) + embed_font(font))
         cmd = [ffmpeg, "-y", "-i", os.path.abspath(video), "-vf", "ass=sub.ass", "-c:v", "libx264", "-crf", "18",
                "-preset", "medium", "-pix_fmt", "yuv420p", "-c:a", "copy", os.path.abspath(out_path)]
         proc = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8", errors="replace", cwd=work)

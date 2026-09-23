@@ -37,11 +37,12 @@ def _save(directory: str, items: List[Dict]) -> None:
         json.dump(items, f, ensure_ascii=False, indent=1)
 
 
-def _add(directory: str, kind: str, label: str, asset_id: Optional[str], message: Optional[str] = None) -> Dict:
+def _add(directory: str, kind: str, label: str, asset_id: Optional[str], message: Optional[str] = None,
+         extra: Optional[Dict] = None) -> Dict:
     items = load(directory)
     entry = {"kind": kind, "label": label, "asset_id": asset_id, "file": None, "duration_ms": None,
              "state": "running" if asset_id else "failed", "message": message,
-             "use": False, "start": 0.0, "volume": 1.0}
+             "use": False, "start": 0.0, "volume": 1.0, **(extra or {})}
     items.append(entry)
     _save(directory, items)
     return entry
@@ -75,14 +76,22 @@ def submit_sfx(provider, directory: str, prompt: str, duration_seconds: Optional
 
 
 def submit_tts(provider, directory: str, text: str, voice_actor_id: int, voice_name: str = "",
-               model: str = "eleven_v3", language_code: Optional[str] = None, ledger=None) -> Dict:
+               model: str = "eleven_v3", language_code: Optional[str] = None, ledger=None, extra: Optional[Dict] = None) -> Dict:
+    """`extra` tags a dialogue line (scene_id, line, speaker, text, voice_id) so it can be placed on the timeline and
+    subtitled from its real timing. Do not pass language_code for Vietnamese: ElevenLabs answers HTTP 400 (auto-detect works)."""
     label = (f"[{voice_name}] " if voice_name else "") + text
     try:
         asset_id = provider.generate_tts(text, voice_actor_id, model, language_code, name="pipeline-tts")
     except ProviderError as e:
-        return _add(directory, "tts", label, None, str(e))
+        return _add(directory, "tts", label, None, str(e), extra)
     record_audio_usage(ledger, provider, model)
-    return _add(directory, "tts", label, asset_id)
+    return _add(directory, "tts", label, asset_id, extra=extra)
+
+
+def update(directory: str, index: int, **fields) -> None:
+    items = load(directory)
+    items[index].update(fields)
+    _save(directory, items)
 
 
 def refresh(provider, directory: str) -> Dict[str, int]:

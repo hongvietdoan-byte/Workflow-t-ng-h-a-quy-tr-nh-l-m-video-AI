@@ -265,6 +265,24 @@ CREATE TABLE IF NOT EXISTS diag_events (
     count INTEGER NOT NULL DEFAULT 1
 );
 CREATE INDEX IF NOT EXISTS idx_diag_last ON diag_events(last_at);
+CREATE TABLE IF NOT EXISTS outputs (
+    id INTEGER PRIMARY KEY,
+    project_id INTEGER NOT NULL,
+    kind TEXT NOT NULL CHECK (kind IN ('final','subtitle','endcard','export')),
+    path TEXT NOT NULL,
+    parent_id INTEGER REFERENCES outputs(id),
+    manifest TEXT NOT NULL,            -- what it was made from (clip job ids + file times, settings hash, ...) -> '⚠ cũ' check
+    created_at TEXT NOT NULL,
+    created_by TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_outputs_project ON outputs(project_id, kind, id);
+CREATE TABLE IF NOT EXISTS style_presets (
+    id INTEGER PRIMARY KEY,
+    name TEXT NOT NULL UNIQUE,
+    data TEXT NOT NULL,                -- a saved World Bible, reusable by other projects
+    created_at TEXT NOT NULL,
+    created_by TEXT
+);
 CREATE TABLE IF NOT EXISTS content_moderation_failures (
     id INTEGER PRIMARY KEY,
     job_id INTEGER NOT NULL REFERENCES jobs(id),
@@ -371,4 +389,35 @@ def connect(path: str = ":memory:") -> sqlite3.Connection:
         conn.execute("ALTER TABLE motion_prompts ADD COLUMN ref_video_path TEXT")
     if "ref_video_type" not in mp_cols:
         conn.execute("ALTER TABLE motion_prompts ADD COLUMN ref_video_type TEXT NOT NULL DEFAULT 'feature'")
+    _migrate_v2(conn)
     return conn
+
+
+V2_COLUMNS = {
+    # NULL everywhere = the v1 behaviour (a database made before v2 keeps working unchanged)
+    "projects": (("aspect", "TEXT"), ("genre", "TEXT"), ("genre_locked", "INTEGER NOT NULL DEFAULT 0"),
+                 ("model_priority", "TEXT"), ("render_settings", "TEXT"), ("qc_policy", "TEXT"),
+                 ("qc_video", "INTEGER NOT NULL DEFAULT 1"), ("autopilot_gates", "TEXT"), ("autopilot_saved_cfg", "TEXT"),
+                 ("pilot", "TEXT")),
+    "characters": (("lock_rules", "TEXT"), ("voice_profile", "TEXT"), ("anchor_approved", "INTEGER NOT NULL DEFAULT 0")),
+    "jobs": (("input_hash", "TEXT"), ("source_job_id", "INTEGER"), ("model", "TEXT")),
+    "motion_prompts": (("image_job_id", "INTEGER"), ("spec_hash", "TEXT"), ("video_model", "TEXT"), ("check_flags", "TEXT"),
+                       ("lint", "TEXT")),
+}
+
+
+def _migrate_v2(conn: sqlite3.Connection) -> None:
+    """Dashboard v2 columns. The first time `jobs.source_job_id` appears, finished videos are linked to the image they were made
+    from (the approved image of the scene created before the video), so a later image change shows the video as outdated."""
+    backfill = False
+    for table, columns in V2_COLUMNS.items():
+        have = {r["name"] for r in conn.execute(f"PRAGMA table_info({table})")}
+        for col, ddl in columns:
+            if col not in have:
+                conn.execute(f"ALTER TABLE {table} ADD COLUMN {col} {ddl}")
+                backfill = backfill or (table, col) == ("jobs", "source_job_id")
+    if backfill:
+        conn.execute(
+            "UPDATE jobs SET source_job_id=(SELECT MAX(i.id) FROM jobs i JOIN review_log r ON r.job_id=i.id AND r.decision='approve'"
+            " WHERE i.scene_id=jobs.scene_id AND i.type='image_gen' AND i.id<jobs.id) WHERE type='video_gen'")
+    conn.commit()

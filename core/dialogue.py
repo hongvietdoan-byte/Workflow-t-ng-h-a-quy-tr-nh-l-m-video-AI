@@ -35,6 +35,16 @@ def lines(text: str) -> List[Tuple[str, str]]:
     return out
 
 
+def scene_lines(scene_data: Dict) -> List[Tuple[str, str]]:
+    """The scene's dialogue: the Director's structured `dialogue` list when there is one (v2), else the 'NAME: words' rows of
+    the script text. Used by the length check, subtitles, voice-over and the motion prompt hint alike."""
+    structured = scene_data.get("dialogue")
+    if isinstance(structured, list) and structured:
+        return [(str(d.get("speaker") or "").strip(), str(d.get("text") or "").strip()) for d in structured
+                if isinstance(d, dict) and str(d.get("text") or "").strip()]
+    return lines(scene_data.get("text", ""))
+
+
 def syllables(said: str) -> int:
     return len(re.findall(r"\w+", said, re.UNICODE))
 
@@ -44,29 +54,42 @@ def needed_seconds(rows: List[Tuple[str, str]]) -> float:
     return round(total / RATE + BREATH, 1) if total else 0.0
 
 
-def max_clip_seconds(pipeline, project_id: int) -> int:
-    """Longest clip the project's video model can make (15 s when the model is not set)."""
+def max_clip_seconds(pipeline, project_id: int, scene_id=None) -> int:
+    """Longest clip the scene's video model can make (per-scene model choice in v2; 15 s when unknown)."""
     from .adapters.clipai import effective_duration, resolve_model
     from .providers import ProviderError
     try:
-        canonical, family = resolve_model(pipeline.project(project_id)["video_model"])[:2]
+        model = pipeline.project(project_id)["video_model"]
+        if scene_id is not None:
+            from . import model_router
+            model = model_router.scene_choice(pipeline.conn, scene_id)["model"]
+        canonical, family = resolve_model(model)[:2]
         return effective_duration(canonical, family, 999)
-    except (ProviderError, ValueError, TypeError):
+    except (ProviderError, ValueError, TypeError, KeyError):
         return 15
 
 
-def check(pipeline, project_id: int) -> List[Dict]:
-    """One entry per scene that has dialogue."""
-    longest = max_clip_seconds(pipeline, project_id)
+def voiced_seconds(voice: Dict[int, float], scene_id: int) -> float:
+    """Real length of the scene's generated voice lines (seconds, gaps included) when all are made, else 0."""
+    return float(voice.get(scene_id) or 0.0)
+
+
+def check(pipeline, project_id: int, voice: Dict[int, float] = None) -> List[Dict]:
+    """One entry per scene that has dialogue. `voice` = {scene_id: seconds of the real generated voice lines}: when known it
+    replaces the syllable estimate (the clip is then sized to the actual voice)."""
+    voice = voice or {}
     out = []
     for r in pipeline.conn.execute(
             "SELECT s.id, s.idx, s.data, m.duration_sec FROM scenes s LEFT JOIN motion_prompts m ON m.scene_id=s.id"
             " WHERE s.project_id=? ORDER BY s.idx", (project_id,)).fetchall():
-        rows = lines(json.loads(r["data"] or "{}").get("text", ""))
+        data = json.loads(r["data"] or "{}")
+        rows = scene_lines(data)
         if not rows:
             continue
-        need = needed_seconds(rows)
-        planned = float(r["duration_sec"] or DEFAULT_PLANNED)
+        longest = max_clip_seconds(pipeline, project_id, r["id"])
+        real = voiced_seconds(voice, r["id"])
+        need = round(real + BREATH, 1) if real else needed_seconds(rows)
+        planned = float(r["duration_sec"] or data.get("duration_s") or DEFAULT_PLANNED)
         if need > longest:
             status, advice = "split", f"Thoại cần ~{need:g}s nhưng model chỉ làm clip tối đa {longest}s: rút gọn thoại hoặc tách cảnh."
         elif need > planned:
@@ -75,9 +98,9 @@ def check(pipeline, project_id: int) -> List[Dict]:
             status, advice = "tight", "Vừa khít, nên chừa thêm chút thời gian."
         else:
             status, advice = "ok", ""
-        out.append({"scene_id": r["id"], "idx": r["idx"], "speakers": sorted({n for n, _ in rows}),
+        out.append({"scene_id": r["id"], "idx": r["idx"], "speakers": sorted({n for n, _ in rows if n}),
                     "syllables": sum(syllables(s) for _, s in rows), "needed": need, "planned": planned, "max": longest,
-                    "target": min(math.ceil(need), longest), "status": status, "advice": advice})
+                    "target": min(math.ceil(need), longest), "status": status, "advice": advice, "measured": bool(real)})
     return out
 
 

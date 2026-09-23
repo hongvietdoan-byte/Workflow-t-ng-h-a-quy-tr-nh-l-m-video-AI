@@ -1,0 +1,151 @@
+"""Which video model for which scene — from the ClipAI model guide (data/video_models.json, copied from the slide
+"Hôm nay tôi chọn mô hình video như thế nào"), not a fixed default.
+
+The project picks a priority (quality / balanced / value, the two ladders of the slide plus a mix); every scene then gets a
+recommendation with its reason and price, which the person can override per scene (motion_prompts.video_model).
+A project that still has the v1 `projects.video_model` set keeps using that one model everywhere.
+"""
+import json
+import os
+from typing import Dict, List, Optional
+
+from . import dialogue
+
+PROFILES_PATH = os.path.join(os.path.dirname(__file__), "..", "data", "video_models.json")
+PRIORITIES = ("quality", "balanced", "value")
+DEFAULT_PRIORITY = "balanced"
+
+
+def load_profiles(path: Optional[str] = None) -> Dict:
+    try:
+        with open(path or PROFILES_PATH, encoding="utf-8") as f:
+            data = json.load(f)
+    except (OSError, ValueError):
+        data = {}
+    data.setdefault("models", {})
+    data.setdefault("priorities", {p: {"label": p, "note": ""} for p in PRIORITIES})
+    return data
+
+
+def api_models(profiles: Optional[Dict] = None) -> Dict[str, Dict]:
+    """Models the pipeline can actually send (the web-only ones are shown for information only)."""
+    profiles = profiles or load_profiles()
+    return {k: v for k, v in profiles["models"].items() if v.get("api")}
+
+
+def priority_of(project_row) -> str:
+    try:
+        value = project_row["model_priority"]
+    except (KeyError, IndexError):
+        value = None
+    return value if value in PRIORITIES else DEFAULT_PRIORITY
+
+
+def _features(scene_data: Dict, mp_row=None, video_audio: bool = False) -> Dict:
+    lines = dialogue.scene_lines(scene_data)
+    speakers = {who for who, _ in lines if who}
+    return {"complex": scene_data.get("camera_complexity") == "complex",
+            "hero": scene_data.get("shot_role") == "hero",
+            "transition": scene_data.get("shot_role") == "transition",
+            "cast": len(scene_data.get("characters") or []),
+            "speakers": len(speakers),
+            "ref_video": bool(mp_row is not None and "ref_video_path" in mp_row.keys() and mp_row["ref_video_path"]),
+            "native_audio": bool(video_audio)}
+
+
+def recommend(scene_data: Dict, priority: str, mp_row=None, video_audio: bool = False) -> Dict:
+    """{"model": alias, "resolution": tier or None, "reason": Vietnamese sentence} for one scene."""
+    f = _features(scene_data, mp_row, video_audio)
+    multi_dialogue = f["speakers"] >= 2 and f["cast"] >= 2
+    crowd = f["cast"] >= 3
+    if priority == "quality":
+        if f["ref_video"]:
+            return _pick("seedance-2.5", "cần tham chiếu đa phương thức (video chuyển động) — Seedance 2.5 xử lý tham chiếu phức tạp tốt nhất")
+        if f["complex"] or f["hero"]:
+            return _pick("seedance-2.5", "cảnh " + ("phức tạp" if f["complex"] else "quan trọng") + " — ưu tiên chất lượng: Seedance 2.5 (điện ảnh, chi tiết chất liệu)")
+        return _pick("seedance", "ưu tiên chất lượng: Seedance 2.0 ở 1080p", "1080p")
+    if priority == "value":
+        if f["ref_video"]:
+            return _pick("seedance", "có video chuyển động tham chiếu — Seedance 2.0 nhận tham chiếu đa phương thức với giá thấp hơn 2.5")
+        if crowd:
+            return _pick("seedance-fast", "≥3 nhân vật — Seedance nhận ảnh tham chiếu riêng từng người (giữ nhân vật), bản Fast rẻ hơn")
+        if multi_dialogue or f["transition"]:
+            return _pick("kling", ("đối thoại nhiều nhân vật" if multi_dialogue else "cảnh chuyển tiếp đơn giản")
+                         + " — Kling 3.0 Omni rẻ nhất ($0.08/s)")
+        return _pick("seedance-fast", "tiết kiệm: Seedance 2.0 Fast — dòng Seedance 2.0 xếp hạng hiệu quả chi phí cao hơn Kling")
+    # balanced
+    if f["ref_video"] or (f["complex"] and f["hero"]):
+        return _pick("seedance-2.5", "cảnh then chốt / cần tham chiếu phức tạp — dùng Seedance 2.5 cho chất lượng cao nhất")
+    if f["complex"] or f["hero"] or crowd:
+        why = "cảnh phức tạp" if f["complex"] else "cảnh quan trọng" if f["hero"] else "≥3 nhân vật (Seedance nhận ảnh tham chiếu từng người)"
+        return _pick("seedance", f"{why} — Seedance 2.0 cân bằng chất lượng và giá")
+    if multi_dialogue:
+        return _pick("kling", "đối thoại nhiều nhân vật / tái sử dụng nhân vật — điểm mạnh của Kling 3.0 Omni, lại rẻ nhất")
+    if f["transition"]:
+        return _pick("seedance-fast", "cảnh chuyển tiếp — Seedance 2.0 Fast đủ dùng, rẻ hơn")
+    return _pick("seedance-fast", "cảnh thường — Seedance 2.0 Fast (hiệu quả chi phí tốt theo bảng ClipAI)")
+
+
+def _pick(alias: str, reason: str, resolution: Optional[str] = None) -> Dict:
+    return {"model": alias, "resolution": resolution, "reason": reason}
+
+
+def price_per_sec(alias: str, resolution: Optional[str] = None, pricing: Optional[Dict] = None) -> Optional[float]:
+    """Price from the pricing table (what the cost ledger uses), falling back to the slide's listed price."""
+    prof = load_profiles()["models"].get(alias) or {}
+    if pricing:
+        key = f"{prof.get('canonical', alias)}:{resolution or prof.get('tier', '')}"
+        value = (pricing.get("per_video_second") or {}).get(key)
+        if isinstance(value, (int, float)):
+            return float(value)
+    return prof.get("usd_per_sec")
+
+
+def scene_choice(conn, scene_id: int, project_row=None, mp_row=None) -> Dict:
+    """The model a scene's video will use: person's override > v1 project-wide model > recommendation.
+    {"model", "resolution", "reason", "source": "override"|"project"|"auto", "recommended": {...}}"""
+    scene = conn.execute("SELECT project_id, data FROM scenes WHERE id=?", (scene_id,)).fetchone()
+    project_row = project_row or conn.execute("SELECT * FROM projects WHERE id=?", (scene["project_id"],)).fetchone()
+    if mp_row is None:
+        mp_row = conn.execute("SELECT * FROM motion_prompts WHERE scene_id=?", (scene_id,)).fetchone()
+    data = json.loads(scene["data"] or "{}")
+    rec = recommend(data, priority_of(project_row), mp_row, bool(project_row["video_audio"]))
+    override = mp_row["video_model"] if mp_row is not None and "video_model" in mp_row.keys() else None
+    if override:
+        return {"model": override, "resolution": None, "reason": "bạn chọn cho cảnh này", "source": "override", "recommended": rec}
+    if project_row["video_model"]:
+        return {"model": project_row["video_model"], "resolution": None, "reason": "model chung của dự án (cách chọn cũ)",
+                "source": "project", "recommended": rec}
+    return {**rec, "source": "auto", "recommended": rec}
+
+
+def plan(conn, project_id: int, pricing: Optional[Dict] = None, priority: Optional[str] = None) -> List[Dict]:
+    """One row per scene with a motion prompt or an approved image: choice, reason, seconds, price. `priority` forces another
+    ladder (for the "compare with the other priorities" line) and ignores overrides."""
+    proj = conn.execute("SELECT * FROM projects WHERE id=?", (project_id,)).fetchone()
+    rows = []
+    for s in conn.execute("SELECT id, idx, data FROM scenes WHERE project_id=? ORDER BY idx", (project_id,)).fetchall():
+        mp = conn.execute("SELECT * FROM motion_prompts WHERE scene_id=?", (s["id"],)).fetchone()
+        data = json.loads(s["data"] or "{}")
+        if priority:
+            choice = {**recommend(data, priority, mp, bool(proj["video_audio"])), "source": "auto"}
+        else:
+            choice = scene_choice(conn, s["id"], proj, mp)
+        seconds = float(mp["duration_sec"]) if mp is not None else float(data.get("duration_s") or 5)
+        unit = price_per_sec(choice["model"], choice.get("resolution"), pricing)
+        rows.append({"scene_id": s["id"], "idx": s["idx"], **choice, "seconds": seconds, "usd_per_sec": unit,
+                     "cost": None if unit is None else unit * seconds})
+    return rows
+
+
+def total(rows: List[Dict]) -> Optional[float]:
+    costs = [r["cost"] for r in rows]
+    return None if any(c is None for c in costs) else sum(costs)
+
+
+def set_override(conn, scene_id: int, alias: Optional[str]) -> None:
+    """The person's own model for one scene (None = back to the recommendation)."""
+    if alias and alias not in api_models():
+        raise ValueError(f"model '{alias}' không gửi được qua API")
+    conn.execute("UPDATE motion_prompts SET video_model=? WHERE scene_id=?", (alias or None, scene_id))
+    conn.commit()

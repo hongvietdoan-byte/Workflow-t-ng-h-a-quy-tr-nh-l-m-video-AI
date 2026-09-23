@@ -123,6 +123,43 @@ def estimate_videos(pipeline: Pipeline, project_id: int, pricing: Dict, model: s
     return result
 
 
+def estimate_videos_by_scene(pipeline: Pipeline, project_id: int, pricing: Dict) -> Dict:
+    """Like estimate_videos, but every scene priced with ITS model (v2: model chosen per scene, core.model_router)."""
+    from . import model_router
+    from .adapters.clipai import effective_duration, resolve_model
+    from .providers import ProviderError
+    conn = pipeline.conn
+    live = {r["scene_id"] for r in conn.execute(
+        "SELECT scene_id FROM jobs WHERE project_id=? AND type='video_gen' AND state NOT IN ('cancelled','rejected')", (project_id,))}
+    queued = {r["scene_id"] for r in conn.execute(
+        "SELECT scene_id FROM jobs WHERE project_id=? AND type='video_gen' AND state='queued'", (project_id,))}
+    kling_tier = os.environ.get("CLIPAI_KLING_MODE", "pro")
+    profiles = model_router.load_profiles()["models"]
+    items, seconds, base, models = 0, 0.0, 0.0, {}
+    for row in ready_for_video(pipeline, project_id):
+        if not (row["scene_id"] in queued or row["scene_id"] not in live):
+            continue
+        choice = model_router.scene_choice(conn, row["scene_id"])
+        try:
+            canonical, family = resolve_model(choice["model"])
+        except ProviderError:
+            base = None
+            continue
+        tier = kling_tier if family == "omni" else (choice.get("resolution") or (profiles.get(choice["model"]) or {}).get("tier") or "720p")
+        sec = effective_duration(canonical, family, row["duration_sec"])
+        price = clip_price(pricing, canonical, tier, sec)
+        items += 1
+        seconds += sec
+        models[choice["model"]] = models.get(choice["model"], 0) + 1
+        base = None if base is None or price is None else base + price
+    max_retry = pipeline.project(project_id)["max_retry_count"]
+    result = {"kind": "video", "items": items, "seconds": seconds, "model": ", ".join(f"{m}×{n}" for m, n in models.items()) or "-",
+              "tier": "theo cảnh", "unit_price": None, "known": base is not None or items == 0, "currency": pricing["currency"],
+              "max_retry": max_retry}
+    result.update(_range(base if base is not None else (0.0 if items == 0 else None), max_retry))
+    return result
+
+
 def format_estimate(est: Dict) -> str:
     unit = "ảnh" if est["kind"] == "image" else "clip"
     head = f"{est['items']} {unit}"

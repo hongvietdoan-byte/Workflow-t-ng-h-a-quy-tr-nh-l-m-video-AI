@@ -62,6 +62,7 @@ def flatten_transparency(content: bytes, filename: str):
 
 class DeepixImageProvider:
     name = "deepix"
+    supports_aspect = True        # accepts size= per job (project frame format)
 
     def __init__(self, token: str, base_url: str = DEFAULT_BASE, transport: Transport = urllib_transport,
                  model: str = DEFAULT_MODEL, size: str = DEFAULT_SIZE):
@@ -84,8 +85,11 @@ class DeepixImageProvider:
     def usage_info(self):
         return self.model, "image"
 
-    def submit(self, prompt: str, references=None) -> str:
-        """Text-to-image, or image-to-image when reference picture paths are given (prompt_key 1, pictures in `file[]`, each up to 10 MB)."""
+    def submit(self, prompt: str, references=None, size: Optional[str] = None) -> str:
+        """Text-to-image, or image-to-image when reference picture paths are given (prompt_key 1, pictures in `file[]`, each up to 10 MB).
+        `size` overrides the default (e.g. 1152x2048 for a vertical project)."""
+        if size and self.model == DEFAULT_MODEL:
+            validate_seedream_size(size)
         if not prompt.strip():
             raise ProviderError("empty prompt", code="bad_prompt")
         files = []
@@ -100,7 +104,7 @@ class DeepixImageProvider:
                 files.append(("file[]", name, content))
         fields = {"prompt_key": "1" if files else "2", "message_type": "image-to-image" if files else "text-to-image",
                   "prompts": json.dumps([{"key": "positive_prompt", "text": prompt}], ensure_ascii=False),
-                  "model": self.model, "size": self.size, "quality": "high"}
+                  "model": self.model, "size": size or self.size, "quality": "high"}
         data = self.client.post_multipart(PATH_CREATE, fields, files) or {}
         message_id = data.get("msg_id") or data.get("id")
         if message_id is None:

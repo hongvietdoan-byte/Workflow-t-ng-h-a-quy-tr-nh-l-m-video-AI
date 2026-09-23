@@ -62,6 +62,7 @@ _PNG_1X1 = base64.b64decode(
 class MockImageProvider:
     """Simulated image generator: writes a 1x1 PNG. Never produces a real image."""
     name = "mock-image"
+    supports_aspect = True
 
     def __init__(self, polls_to_finish: int = 1, transient_failures: int = 0):
         self.polls_to_finish = polls_to_finish
@@ -70,14 +71,16 @@ class MockImageProvider:
         self._counter = 0
         self.prompts: Dict[str, str] = {}
         self.references: Dict[str, list] = {}
+        self.sizes: Dict[str, Optional[str]] = {}
         self.cancelled = []
 
     def usage_info(self):
         return "mock-image", "default"
 
-    def submit(self, prompt: str, references=None) -> str:
+    def submit(self, prompt: str, references=None, size=None) -> str:
         self._counter += 1
         task_id = f"img-{self._counter}"
+        self.sizes[task_id] = size
         self._polls[task_id] = 0
         self.prompts[task_id] = prompt
         self.references[task_id] = list(references or [])
@@ -103,6 +106,7 @@ class MockImageProvider:
 
 class MockVideoProvider:
     name = "mock"
+    supports_aspect = True
 
     def __init__(self, polls_to_finish: int = 2, blocked_words=("wonder woman",),
                  transient_failures: int = 0):
@@ -113,16 +117,17 @@ class MockVideoProvider:
         self._counter = 0
         self.cancelled = []
 
-    def usage_info(self, model=None, duration=5):
-        return "mock", "default", duration
+    def usage_info(self, model=None, duration=5, resolution=None):
+        return "mock", resolution or "default", duration
 
     def submit(self, image_path, prompt, negative_prompt, duration_sec, model=None, with_audio=False, subjects=None,
-              image_references=None, reference_video=None) -> str:
+              image_references=None, reference_video=None, aspect_ratio=None, resolution=None) -> str:
         self._counter += 1
         task_id = f"mock-{self._counter}"
         self._tasks[task_id] = {"prompt": prompt.lower(), "polls": 0, "model": model, "with_audio": with_audio,
                                   "subjects": subjects or [], "image_references": image_references or [],
-                                  "reference_video": reference_video}
+                                  "reference_video": reference_video, "aspect_ratio": aspect_ratio,
+                                  "resolution": resolution}
         return task_id
 
     def status(self, task_id: str) -> TaskStatus:
