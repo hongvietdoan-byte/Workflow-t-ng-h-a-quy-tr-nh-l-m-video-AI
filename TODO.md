@@ -150,6 +150,13 @@ _Cập nhật 2026-09-22 (dùng thật tính năng phân tích video kỹ năng 
 - MCP Claude / V0 trong Claude Desktop (tạm gác từ 2026-09-19; tập trung build Dashboard). Các mục dry-run V0 và "mở lại Claude Desktop" bên dưới chờ mở lại.
 
 ## 🚧 Đang làm / kế tiếp (ưu tiên từ trên xuống)
+- [ ] **Phân tích trước khi làm tiếp (2026-09-23)** → `docs/PHAN_TICH_2026-09-23_NHAT_QUAN_DIRECTOR_LIPSYNC_STORYBOARD.md` (chỉ phân tích, chưa sửa code). Chờ bạn chọn thứ tự:
+  - [ ] Lớp **phân shot + "hợp đồng shot"** (một bản ghi/shot sinh ra prompt ảnh, prompt video, tiêu chí QC; khung đầu + khung cuối; cùng bảng nhãn @Hình cho Deepix và Seedance; cùng model trong một nhóm cảnh; QC đồng bộ bộ clip).
+  - [ ] **Thư viện ngữ pháp dựng Free Fire** từ 10–20 video tham khảo (cắt shot ffmpeg + Claude gắn nhãn). Máy này bị chặn youtube.com → cần bạn cung cấp file (thử trên `D:/2026/OB55/…Kenta…mp4`: 38,8s, ~12 shot, 1–5s/shot, góc thứ ba sau lưng + chữ chương).
+  - [ ] **Sinh file JSON cho Director Workspace của ClipAI** (nền 360°, camera FOV, tư thế nhân vật, keyframe ≤30s) — cần bạn xuất 1 file mẫu.
+  - [ ] **Thử Lip Sync + Voice Design tiếng Việt trên web** (tốn credit, cần bạn đồng ý). Lip Sync chỉ đảm bảo Trung/Anh, 1 người, 2–10s; có chế độ tải âm thanh lên.
+  - [ ] Hỏi team ClipAI mở API cho Kling Elements / Lip Sync / Voice Design / Director (hiện token API bị từ chối `LoginErr`).
+  - Ghi nhận khi tra API (chỉ đọc): 118 giọng chính thức, chỉ 5 giọng ghi hỗ trợ `vi` (1 nữ), không giọng gốc Việt; Kling chỉ nhận khung đầu trong adapter hiện tại.
 - [ ] **Chạy thật Dashboard v2 với 1 dự án 2–3 cảnh** (cần người dùng đồng ý, tốn credit): Deepix khung 9:16, Clip AI theo model từng cảnh (có 1 cảnh Seedance 2.5 > 15s), TTS tiếng Việt theo giọng nhân vật, Claude thật cho Director/QC/rà thoại/QC video; đối chiếu giá thật với `data/video_models.json`. Xem `docs/V2_TEST_REPORT.md` mục "Chưa kiểm được".
 - [ ] Chạy chế độ tự động v2 qua giao diện đến hết (mới kiểm bằng unit test).
 - [x] **Chọn đợt sửa theo báo cáo rà soát tổng thể** (`docs/DASHBOARD_REVIEW_2026-09-23.md`, mục 5) — người dùng chọn làm cả 3 đợt thành Dashboard v2 (xong 2026-09-23, xem mục Đã xong). Còn lại của mục này: dòng "Kiểm chứng Kling tiếng Việt" bên dưới.
