@@ -387,6 +387,8 @@ Mục tiêu: chứng minh pipeline end-to-end chạy được, đo chất lượ
 
 **Cập nhật 2026-09-23:** đã chạy thật 1 video hoàn chỉnh 8 cảnh (~46 giây, 3 nhân vật, thoại TTS + phụ đề + nhạc + card cuối) qua Dashboard; sửa lỗi rate-limit bị hiểu là lỗi vĩnh viễn và job kẹt do `external_id` lệch; thêm "đặc điểm neo" chống nhầm nhân vật; 548 test pass. Rà soát nhất quán nhân vật/bối cảnh/bố cục và lên kế hoạch previz 3D — xem 3.7 và Mục 5.
 
+**Cập nhật 2026-09-23 (cuối ngày):** xong phần code P0 của hướng 1 — giữ chỗ ảnh bối cảnh + bối cảnh theo ID + ô Background; blocking + nhóm cảnh (Storyboard nối theo nhóm); **Previz 2D** (`core/layout.py`, `core/previz.py`: Claude đọc ảnh nền 1 lần, dựng layout cả kịch bản 1 lần, code đặt người theo phối cảnh, storyboard + Claude rà; Bước 2 gen theo layout; chạy bằng `claude_cli`); QC thêm `scale`/`grounding`/`set_match` và so với layout; thay trang phục bằng ảnh + bộ ảnh nhân vật 2 ảnh (`core/costume.py`); báo cáo 5 chỉ số hiệu quả (`core/effectiveness.py`, tab 📊). 588 test pass. **Chưa kiểm chứng thật** — bước tiếp theo là người dùng thử trên máy (Deepix + `claude_cli`), rồi P2 chạy kịch bản 60 giây và đọc báo cáo hiệu quả. Lưu ý: điểm QC tổng giờ là trung bình 8 tiêu chí, có thể phải chỉnh ngưỡng.
+
 **Kế hoạch tiếp theo (chốt 2026-09-23, chi tiết từng việc ở `TODO.md`):**
 
 | Hướng | Giai đoạn | Việc | Ai | Credit |

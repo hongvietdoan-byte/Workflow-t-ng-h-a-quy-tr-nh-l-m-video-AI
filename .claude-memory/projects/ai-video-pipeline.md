@@ -147,3 +147,8 @@ Phần lớn việc còn lại trong `TODO.md` (mục "Đang làm/kế tiếp", 
 - QC: `scale`, `grounding`, `set_match` (checklist v0.2); QC nhận layout làm ảnh tham chiếu 1 (`prompts.qc_references` + `layout.layout_reference`, dùng chung với Bước 2). Điểm tổng = TB 8 tiêu chí → ngưỡng có thể cần chỉnh.
 - Trang phục: `characters.outfit_image_ids`; `scene_references` xây danh sách mỗi người [mặt, trang phục, góc 2] (tối đa 2/người); `reference_note` vai `outfit` + câu "clothes come from the OUTFIT image". `core/costume.make_character_set`: 2 ảnh dọc, tạm đổi `provider.size` rồi trả lại, lưu thành asset riêng dự án + `set_character_link` + xóa outfit rời.
 - Bẫy Streamlit: không lồng expander trong expander → dùng popover. AppTest: popover là `Block`, nhãn ở `x.proto.popover.label`. Test đếm popover toàn trang phải lọc popover theo nhãn.
+
+## 2026-09-23 — Xong code P0 hướng 1 (báo cáo 5 chỉ số là việc cuối)
+- `core/effectiveness.py`: đọc `job_events` (thời gian running→succeeded; tổng thời gian = tạo dự án → video xong cuối), `usage_events` qua `cost.spend_summary`, `jobs.retry_count` + số job/cảnh (đạt lần đầu), `qc_results` vs `review_log` user (đồng thuận), `job_events.actor='user'` (thao tác tay). Khối UI `effectiveness_panel` trong `monitor`.
+- Bẫy test: `apply_qc` với điểm < `qc_reject_floor` (0.5) tự loại ảnh → muốn giả lập "AI chê, người duyệt" phải dùng điểm 0.5–0.85.
+- Tiếp theo (cần user): thử Previz 2D thật + kịch bản 60s; sau đó đọc báo cáo hiệu quả để quyết định chỉnh gì.

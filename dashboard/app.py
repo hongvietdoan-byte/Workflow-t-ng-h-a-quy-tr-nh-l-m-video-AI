@@ -21,7 +21,7 @@ import streamlit as st
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
-from core import costume, previz, asset_vision, autoqc, ff_site, sfx_plan, sound_lib, assets, audio_lib, subtitles, script_reader, auth, autopilot, dialogue, diag, knowledge, lessons, perf, regen, research, style, subjects, trash, waveform, cost, ffmpeg_studio, final_cut, llm_io, llm_runner, music, preflight, prompts, script_parser, video_analysis  # noqa: E402
+from core import effectiveness, costume, previz, asset_vision, autoqc, ff_site, sfx_plan, sound_lib, assets, audio_lib, subtitles, script_reader, auth, autopilot, dialogue, diag, knowledge, lessons, perf, regen, research, style, subjects, trash, waveform, cost, ffmpeg_studio, final_cut, llm_io, llm_runner, music, preflight, prompts, script_parser, video_analysis  # noqa: E402
 from core.db import connect  # noqa: E402
 from core.pipeline import Pipeline, PipelinePaused  # noqa: E402
 from core.adapters import factory  # noqa: E402
@@ -2635,6 +2635,29 @@ def trash_section(pid: int) -> None:
                             st.rerun()
 
 
+def effectiveness_panel(p: Pipeline, pid: int) -> None:
+    """Is the workflow effective for the project in view: 5 figures from what the pipeline already records."""
+    r = effectiveness.report(p.conn, pid, cost.load_pricing())
+    ui.html(ui.card_title(f"🎯 Hiệu quả workflow — {p.project(pid)['name']}", "5 chỉ số, tính từ dữ liệu đã ghi; chưa đủ dữ liệu thì ghi rõ"))
+    pct = (lambda v: "—" if v is None else f"{v:.0%}")
+    num = (lambda v, d=1: "—" if v is None else f"{v:.{d}f}")
+    c1, c2, c3, c4, c5 = st.columns(5)
+    c1.metric("Phút / giây video", num(r["wall_min_per_sec"]), help="Tổng thời gian từ lúc tạo dự án đến video xong gần nhất, chia cho số giây "
+              f"video đã xong ({r['video_seconds']:g}s). Máy gen: {num(r['gen_min_per_sec'])} phút/giây.")
+    c2.metric(f"Chi phí / giây ({r['currency']})", num(r["cost_per_sec"], 3),
+              help="Theo bảng giá khai báo × lượt gửi đã ghi" + (f"; thiếu giá: {', '.join(r['unknown_prices'])}" if r["unknown_prices"] else ""))
+    c3.metric("Đạt lần đầu (ảnh / video)", f"{pct(r['image']['first_pass'])} / {pct(r['video']['first_pass'])}",
+              help=f"Số lần gen trung bình mỗi cảnh: ảnh {num(r['image']['tries_per_scene'])}, video {num(r['video']['tries_per_scene'])}")
+    c4.metric("QC Agent đồng ý với người", pct(r["qc"]["agreement"]),
+              help=f"Trên {r['qc']['pairs']} ảnh có cả điểm QC lẫn quyết định của người; AI chặt quá {r['qc']['ai_too_strict']}, "
+                   f"lỏng quá {r['qc']['ai_too_lenient']} lần. Dùng để chỉnh ngưỡng QC.")
+    c5.metric("Thao tác tay / cảnh", num(r["touches_per_scene"]), help=f"Duyệt / loại / hủy do người bấm: {r['touches']} lần")
+    manual = st.number_input("Làm tay mất bao nhiêu phút cho 1 giây video (để so sánh, không lưu)", min_value=0.0, value=0.0, step=1.0,
+                             key=f"eff_manual_{pid}")
+    with st.expander("📋 Bản tóm tắt để gửi báo cáo"):
+        st.code("\n".join(effectiveness.summary_lines(r, manual or None)), language="text")
+
+
 def monitor(p: Pipeline, pid: int) -> None:
     """Load and performance of the whole system (all projects), to spot overload before it costs credit."""
     mgr = autopilot_manager(DB, DATA)
@@ -2665,6 +2688,7 @@ def monitor(p: Pipeline, pid: int) -> None:
         f"{dict(perf.KINDS)[k]}: {v['limit']} job cùng lúc, đã bị giới hạn {v['hits']} lần" for k, v in snap["learned"].items()))
     if snap["usage_today"]:
         st.caption("Dùng hôm nay: " + ", ".join(f"{q:g} {unit} ({kind})" for kind, unit, q in snap["usage_today"]))
+    effectiveness_panel(p, pid)
     ui.html(ui.card_title("👥 Số video theo người dùng", "ai đã gen bao nhiêu (tính theo tên nhập ở góc trên)"))
     period = st.radio("Khoảng thời gian", ["Hôm nay", "7 ngày", "30 ngày", "Tất cả"], horizontal=True, key="by_user_period")
     days = {"Hôm nay": 1, "7 ngày": 7, "30 ngày": 30, "Tất cả": None}[period]
