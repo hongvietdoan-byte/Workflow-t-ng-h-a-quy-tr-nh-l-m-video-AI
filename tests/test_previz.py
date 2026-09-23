@@ -105,6 +105,30 @@ class PrevizTests(unittest.TestCase):
         self.assertIn("the red figure is Kelly", prompt)
         self.assertIn("Image 2 is the location Đảo Quân Sự", prompt)
 
+    def test_the_qc_agent_compares_the_picture_with_the_layout_too(self):
+        from core import llm_runner
+        previz.plan_layouts(self.p, self.pid, MockLlm(), self.data)
+        sid = self.conn.execute("SELECT id FROM scenes WHERE project_id=? AND idx=1", (self.pid,)).fetchone()["id"]
+        jid = self.p.create_job(sid, "image_gen")
+        folder = os.path.join(self.data, str(self.pid), "images")
+        os.makedirs(folder, exist_ok=True)
+        Image.new("RGB", (64, 36)).save(os.path.join(folder, f"job_{jid}.png"))
+        for state in ("running", "succeeded"):
+            self.conn.execute("UPDATE jobs SET state=? WHERE id=?", (state, jid))
+        self.conn.commit()
+
+        class Seeing(MockLlm):
+            seen = []
+
+            def complete(self, prompt, images=()):
+                Seeing.seen = [label for label, _ in images]
+                Seeing.prompt = prompt
+                return super().complete(prompt, images)
+        llm_runner.run_qc(self.p, jid, Seeing(), self.data)
+        self.assertEqual(Seeing.seen[1], "Ảnh tham chiếu 1 — layout:")
+        self.assertIn("1. layout (LAYOUT", Seeing.prompt)
+        self.assertIn("set_match", Seeing.prompt)
+
 
 if __name__ == "__main__":
     unittest.main()

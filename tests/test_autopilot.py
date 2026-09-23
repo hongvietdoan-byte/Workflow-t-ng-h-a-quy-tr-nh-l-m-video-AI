@@ -92,7 +92,7 @@ class SafetyTests(Setup):
         class Harsh(llm_runner.MockLlm):
             def complete(self, prompt, images=()):
                 if "Đính kèm ảnh cần chấm điểm" in prompt:
-                    out = {"criteria": {k: 0.2 for k in ("character", "hands_face", "composition", "mood_lighting", "consistency")},
+                    out = {"criteria": {k: 0.2 for k in ("character", "hands_face", "composition", "mood_lighting", "consistency", "scale", "grounding", "set_match")},
                            "issues": ["tay 6 ngón"]}
                     return llm_runner.LlmReply(json.dumps(out), 10, 5)
                 return super().complete(prompt, images)

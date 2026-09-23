@@ -1,7 +1,7 @@
 """Build copy-paste prompt bundles for V0 (Claude Desktop chat). V1 sends the same text via API."""
 import json
 import os
-from typing import List
+from typing import List, Optional
 
 from . import assets, dialogue, knowledge
 from .evalset import few_shot_text
@@ -63,21 +63,33 @@ def build_director_bundle(pipeline: Pipeline, project_id: int) -> str:
     ] if x)
 
 
-def _reference_block(pipeline: Pipeline, project_id: int, scene_data: dict) -> str:
-    refs = assets.scene_references(pipeline.conn, project_id, scene_data)
+_ROLE_LABEL = {"location": "địa điểm", "object": "đạo cụ", "character": "nhân vật",
+               "layout": "LAYOUT — bố cục dựng sẵn: góc máy, vị trí, cỡ và hướng mặt mong muốn; người là hình nộm/ảnh cắt dán"}
+
+
+def qc_references(pipeline: Pipeline, project_id: int, idx: int, scene_data: dict, data_dir: Optional[str] = None) -> List[dict]:
+    """The reference pictures the QC agent compares against: the scene's layout first (when it was laid out), then the same
+    character/place/object pictures the image model got."""
+    from .layout import layout_reference
+    lay = layout_reference(data_dir, project_id, idx, scene_data) if data_dir else None
+    return ([lay] if lay else []) + assets.scene_references(pipeline.conn, project_id, scene_data)
+
+
+def _reference_block(refs: List[dict]) -> str:
     if not refs:
         return ""
     return "# Ảnh tham chiếu (đính kèm sau ảnh cần chấm, theo thứ tự)\n" + "\n".join(
-        f"{i}. {r['label']} ({'địa điểm' if r['role'] == 'location' else 'đạo cụ' if r['role'] == 'object' else 'nhân vật'})" for i, r in enumerate(refs, 1))
+        f"{i}. {r['label']} ({_ROLE_LABEL.get(r['role'], 'nhân vật')})" for i, r in enumerate(refs, 1))
 
 
-def build_qc_bundle(pipeline: Pipeline, scene_id: int) -> str:
+def build_qc_bundle(pipeline: Pipeline, scene_id: int, data_dir: Optional[str] = None) -> str:
     scene = pipeline.conn.execute("SELECT * FROM scenes WHERE id=?", (scene_id,)).fetchone()
     chars = pipeline.conn.execute(
         "SELECT name, description, wardrobe FROM characters WHERE project_id=?",
         (scene["project_id"],)).fetchall()
     bible = "\n".join(f"- {c['name']}: {c['description']} {c['wardrobe'] or ''}".strip() for c in chars)
     data = json.loads(scene["data"] or "{}")
+    refs = qc_references(pipeline, scene["project_id"], scene["idx"], data, data_dir)
     spec = {k: data.get(k) for k in _SCENE_KEYS}
     return _SEP.join(x for x in [
         _read("prompts", "02_qc_agent.md"),
@@ -86,8 +98,8 @@ def build_qc_bundle(pipeline: Pipeline, scene_id: int) -> str:
         knowledge.user_text("qc"),
         "# Character Bible\n" + bible,
         "# Thông số cảnh\n" + json.dumps(spec, ensure_ascii=False, indent=2),
-        _reference_block(pipeline, scene["project_id"], data),
-        "(Đính kèm ảnh cần chấm điểm" + (", rồi các ảnh tham chiếu." if _reference_block(pipeline, scene["project_id"], data) else ".") + ")",
+        _reference_block(refs),
+        "(Đính kèm ảnh cần chấm điểm" + (", rồi các ảnh tham chiếu." if refs else ".") + ")",
     ] if x)
 
 

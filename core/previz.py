@@ -27,6 +27,7 @@ def layouts_dir(data_dir: str, project_id: int) -> str:
 
 
 def layout_path(data_dir: str, project_id: int, idx: int, board: bool = False) -> str:
+    """Same file name as core.layout.layout_reference reads."""
     return os.path.join(layouts_dir(data_dir, project_id), f"S{idx:02d}{'_board' if board else ''}.png")
 
 

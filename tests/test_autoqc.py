@@ -32,7 +32,7 @@ class FakeQc:
     def complete(self, prompt, images=()):
         self.prompts.append(prompt)
         self.images.append(list(images))
-        criteria = {k: self.score for k in ("character", "hands_face", "composition", "mood_lighting", "consistency")}
+        criteria = {k: self.score for k in ("character", "hands_face", "composition", "mood_lighting", "consistency", "scale", "grounding", "set_match")}
         return llm_runner.LlmReply(json.dumps({"criteria": criteria, "issues": self.issues}), 10, 5)
 
 

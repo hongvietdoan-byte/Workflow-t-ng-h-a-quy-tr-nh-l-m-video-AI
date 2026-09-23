@@ -259,6 +259,17 @@ def layout_note(people: List[Dict], has_cutouts: bool = False) -> str:
             "shot. " + (f"In the layout {who}. " if who else ""))
 
 
+def layout_reference(data_dir: str, project_id: int, idx: int, scene_data: Dict) -> Optional[Dict]:
+    """The composed layout of a scene (<data>/<project>/layouts/S01.png, made by core.previz) as a reference picture for the image
+    model and the QC agent: {path, label, role: "layout", people, redraw_note}. None when the scene has not been laid out."""
+    shot = scene_data.get("layout")
+    path = os.path.join(data_dir, str(project_id), "layouts", f"S{idx:02d}.png")
+    if not shot or not os.path.exists(path):
+        return None
+    return {"path": path, "label": "layout", "role": "layout", "people": scene_data.get("layout_people") or [],
+            "redraw_note": shot.get("redraw_note") if shot.get("redraw") else ""}
+
+
 def storyboard(frames: Sequence[Tuple[str, str]], out_path: str, cols: int = 3, cell: Tuple[int, int] = (480, 270)) -> str:
     """All composed shots on one sheet, in order, each with its caption ("S01 · nhóm 1 · ..."). Returns out_path."""
     from PIL import Image, ImageDraw

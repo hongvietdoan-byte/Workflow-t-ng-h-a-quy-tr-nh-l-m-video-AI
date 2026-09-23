@@ -28,6 +28,8 @@ TAGS = {
     "consistency": ("Nhân vật không nhất quán (mặt, trang phục)", ("trang phục", "nhất quán", "sai nhân vật", "khác nhân vật",
                                                                     "costume", "outfit", "consisten", "character")),
     "anatomy": ("Cơ thể méo / thừa chi tiết", ("thừa", "méo", "dị dạng", "anatomy", "extra", "deform", "limb")),
+    "scale": ("Tỉ lệ người / lơ lửng", ("tỉ lệ", "quá to", "quá nhỏ", "lơ lửng", "chạm đất", "scale", "too big", "too small",
+                                        "floating", "feet", "ground")),
     "composition": ("Bố cục / cỡ cảnh", ("bố cục", "cỡ cảnh", "framing", "crop", "composition")),
     "mismatch": ("Không khớp kịch bản", ("kịch bản", "sai bối cảnh", "không khớp", "mismatch", "sai địa điểm")),
     "motion": ("Chuyển động giật / biến dạng", ("giật", "morph", "flicker", "jitter", "biến dạng", "artifact")),

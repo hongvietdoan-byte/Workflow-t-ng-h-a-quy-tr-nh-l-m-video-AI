@@ -56,7 +56,7 @@ class McpServerTests(unittest.TestCase):
         job = call(qc_agent.mcp, "create_image_job", scene_id=scene)
         job_id = job["job_id"]
         call(qc_agent.mcp, "mark_image_ready", job_id=job_id)
-        keys = ["character", "hands_face", "composition", "mood_lighting", "consistency"]
+        keys = ["character", "hands_face", "composition", "mood_lighting", "consistency", "scale", "grounding", "set_match"]
         qc = json.dumps({"criteria": {k: 0.95 for k in keys}})
         res = call(qc_agent.mcp, "submit_qc_result", job_id=job_id, qc_json=qc)
         self.assertEqual(res["decision"], "pending_review")

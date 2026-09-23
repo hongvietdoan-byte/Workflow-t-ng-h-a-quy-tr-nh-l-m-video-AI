@@ -1,10 +1,37 @@
 {
-  "version": "0.1",
+  "version": "0.2",
   "criteria": [
-    {"key": "character", "description": "Đúng nhân vật theo Character Bible (mặt, tóc, trang phục, dấu hiệu nhận diện)"},
-    {"key": "hands_face", "description": "Không lỗi tay/ngón/mặt/biến dạng cơ thể"},
-    {"key": "composition", "description": "Đúng bố cục, cỡ cảnh và góc máy theo thông số cảnh"},
-    {"key": "mood_lighting", "description": "Đúng mood, ánh sáng và bảng màu của cảnh"},
-    {"key": "consistency", "description": "Không có chi tiết thừa/sai (người lạ, chữ, logo, đổi trang phục)"}
+    {
+      "key": "character",
+      "description": "Đúng nhân vật theo Character Bible (mặt, tóc, trang phục, dấu hiệu nhận diện)"
+    },
+    {
+      "key": "hands_face",
+      "description": "Không lỗi tay/ngón/mặt/biến dạng cơ thể"
+    },
+    {
+      "key": "composition",
+      "description": "Đúng bố cục, cỡ cảnh và góc máy theo thông số cảnh"
+    },
+    {
+      "key": "mood_lighting",
+      "description": "Đúng mood, ánh sáng và bảng màu của cảnh"
+    },
+    {
+      "key": "consistency",
+      "description": "Không có chi tiết thừa/sai (người lạ, chữ, logo, đổi trang phục)"
+    },
+    {
+      "key": "scale",
+      "description": "Nhân vật đúng tỉ lệ so với bối cảnh và với nhau (so với cửa, xe, container, người khác; không quá to/quá nhỏ)"
+    },
+    {
+      "key": "grounding",
+      "description": "Chân chạm đất, có bóng đổ hợp hướng sáng; không lơ lửng, không đứng trên tường/mái/vật vô lý"
+    },
+    {
+      "key": "set_match",
+      "description": "Khớp layout và bối cảnh: đúng vị trí, cỡ, hướng mặt từng người và góc máy như layout; bối cảnh giống ảnh địa điểm (không có layout thì so với blocking)"
+    }
   ]
 }

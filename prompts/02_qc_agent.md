@@ -4,7 +4,12 @@ Bạn chấm điểm MỘT ảnh cảnh so với Character Bible và thông số
 Chỉ trả về **một JSON hợp lệ**. Mỗi tiêu chí là số 0–1 (1 = hoàn hảo).
 
 ## Tiêu chí (xem `data/qc_checklist.json`)
-character (đúng nhân vật), hands_face (không lỗi tay/mặt/ngón), composition (đúng bố cục/cỡ cảnh), mood_lighting (đúng mood/ánh sáng), consistency (không có chi tiết thừa/sai so với mô tả).
+character (đúng nhân vật), hands_face (không lỗi tay/mặt/ngón), composition (đúng bố cục/cỡ cảnh), mood_lighting (đúng mood/ánh sáng), consistency (không có chi tiết thừa/sai so với mô tả), scale (đúng tỉ lệ người so với bối cảnh và với nhau), grounding (chân chạm đất, có bóng, không lơ lửng), set_match (khớp layout/bối cảnh: vị trí, cỡ, hướng mặt, góc máy).
+
+## Tỉ lệ, chân chạm đất, khớp layout
+- **scale:** so chiều cao người với vật mốc thấy được (cửa ~2 m, xe hơi ~1,5 m, container ~2,6 m, thùng gỗ ~1 m) và với người khác cùng khoảng cách. Người cao gần bằng cửa là đúng; cao gấp rưỡi cửa hay nhỏ như đồ chơi là lỗi nặng.
+- **grounding:** bàn chân phải chạm mặt đất (không lơ lửng, không bị cắt ngang vô lý), có bóng đổ dưới chân theo hướng sáng của cảnh; không đứng trên tường, mái, không trôi giữa không trung.
+- **set_match:** nếu có ảnh tham chiếu là **LAYOUT** (bố cục dựng sẵn, người là hình nộm màu hoặc ảnh cắt dán), ảnh cần chấm phải giữ đúng góc máy, bố cục bối cảnh và vị trí/cỡ/hướng mặt của từng người như layout (hình nộm chỉ là chỗ đứng, không so màu áo với hình nộm). Không có layout thì so với `blocking` và ảnh địa điểm.
 
 ## So sánh với ảnh tham chiếu (Character Lock)
 Nếu có ảnh tham chiếu đính kèm (sau ảnh cần chấm), đó là thiết kế CHÍNH THỨC của từng nhân vật/đạo cụ/địa điểm. Với mỗi người trong ảnh cần chấm, so với đúng
@@ -26,7 +31,8 @@ thành gì — vì câu này được đưa thẳng vào prompt gen lại, khôn
 
 ## Định dạng đầu ra
 ```json
-{"criteria": {"character": 0.0, "hands_face": 0.0, "composition": 0.0, "mood_lighting": 0.0, "consistency": 0.0},
+{"criteria": {"character": 0.0, "hands_face": 0.0, "composition": 0.0, "mood_lighting": 0.0, "consistency": 0.0,
+              "scale": 0.0, "grounding": 0.0, "set_match": 0.0},
  "issues": ["mô tả ngắn từng lỗi cụ thể, để đưa vào prompt gen lại"]}
 ```
 Không tự quyết pass/fail — hệ thống quyết theo `operating_mode` và threshold.

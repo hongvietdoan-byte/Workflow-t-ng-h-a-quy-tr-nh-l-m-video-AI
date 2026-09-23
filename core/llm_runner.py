@@ -246,10 +246,10 @@ def run_qc(p: Pipeline, job_id: int, client, data_dir: str, autofix: bool = Fals
     if not os.path.exists(path):
         raise LlmError("this job has no image file to check", code="no_image")
     criteria = prompts.qc_criteria()
-    scene = json.loads(p.conn.execute("SELECT data FROM scenes WHERE id=?", (job["scene_id"],)).fetchone()["data"] or "{}")
-    refs = assets.scene_references(p.conn, job["project_id"], scene)
+    row = p.conn.execute("SELECT idx, data FROM scenes WHERE id=?", (job["scene_id"],)).fetchone()
+    refs = prompts.qc_references(p, job["project_id"], row["idx"], json.loads(row["data"] or "{}"), data_dir)
     images = [("Ảnh cần chấm điểm:", path)] + [(f"Ảnh tham chiếu {i} — {r['label']}:", assets.thumbnail(r["path"], 900)) for i, r in enumerate(refs, 1)]
-    obj, tin, tout = ask_json(client, prompts.build_qc_bundle(p, job["scene_id"]),
+    obj, tin, tout = ask_json(client, prompts.build_qc_bundle(p, job["scene_id"], data_dir),
                               lambda o: llm_io.validate_qc_result(o, criteria), images,
                               note=_retry_note(p, "qc", job["project_id"]))
     issues = "; ".join(str(i) for i in (obj.get("issues") or [])[:5]) or None

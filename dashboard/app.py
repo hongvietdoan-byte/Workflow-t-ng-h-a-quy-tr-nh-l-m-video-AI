@@ -53,7 +53,8 @@ def close_dialog(flag: str) -> None:
 ERRORS = (sqlite3.IntegrityError, zipfile.BadZipFile, llm_runner.LlmError, InvalidTransition, llm_io.SchemaError, PipelinePaused, ffmpeg_studio.FFmpegNotFound,
           ffmpeg_studio.FFmpegError, ValueError, KeyError)
 CRITERIA_LABEL = {"character": "Đúng nhân vật", "hands_face": "Không lỗi tay/mặt", "composition": "Đúng bố cục",
-                  "mood_lighting": "Đúng mood / ánh sáng", "consistency": "Không chi tiết thừa/sai"}
+                  "mood_lighting": "Đúng mood / ánh sáng", "consistency": "Không chi tiết thừa/sai",
+                  "scale": "Đúng tỉ lệ người/cảnh", "grounding": "Chân chạm đất", "set_match": "Khớp layout / bối cảnh"}
 FILTERS = {"all": "Tất cả", "review": "Chờ duyệt", "pass": "Đã duyệt", "fail": "FAIL", "run": "Chờ / đang gen"}
 FILTER_STATES = {"review": ("succeeded", "pending_review"), "pass": ("approved",), "fail": ("failed", "rejected"),
                  "run": ("queued", "running")}
@@ -2066,7 +2067,7 @@ def image_detail(p: Pipeline, pid: int, j, proj):
             if client is not None:
                 st.caption("🔍 Claude tự kiểm tra ảnh này ở nền (không cần bấm); xem tiến độ ở đầu Bước 2.")
             with st.expander("QC Agent — prompt & kết quả"):
-                st.code(prompts.build_qc_bundle(p, j["scene_id"]), language="markdown")
+                st.code(prompts.build_qc_bundle(p, j["scene_id"], DATA), language="markdown")
                 raw = st.text_area("JSON điểm QC từ Claude", key=f"qc_{jid}", height=100)
                 if st.button("Chấm điểm", key=f"score_{jid}", disabled=not raw.strip()):
                     def score():

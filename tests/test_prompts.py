@@ -56,7 +56,7 @@ class PromptTests(unittest.TestCase):
 
     def test_checklist_keys_match_qc_prompt(self):
         keys = qc_criteria()
-        self.assertEqual(keys, ["character", "hands_face", "composition", "mood_lighting", "consistency"])
+        self.assertEqual(keys, ["character", "hands_face", "composition", "mood_lighting", "consistency", "scale", "grounding", "set_match"])
         ok = {"criteria": {k: 0.9 for k in keys}}
         self.assertEqual(validate_qc_result(ok, keys), ok)
 

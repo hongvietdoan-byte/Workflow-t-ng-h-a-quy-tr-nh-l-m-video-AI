@@ -10,7 +10,7 @@ import os
 import time
 from typing import Callable, Dict, Optional, Tuple
 
-from . import assets, diag
+from . import assets, diag, layout
 from . import subjects as subject_links
 from . import trash
 from .cost import record_usage
@@ -243,7 +243,7 @@ class ImageRunner(_Runner):
         if job["retry_reason"]:
             prompt = f"{prompt}. Fix: {job['retry_reason']}"
         proj = self.p.project(job["project_id"])
-        plan = self._layout_ref(job["project_id"], scene["idx"], data)
+        plan = layout.layout_reference(self.data_dir, job["project_id"], scene["idx"], data)
         refs = assets.scene_references(conn, job["project_id"], data,   # the layout and the previous frame keep their slots
                                        reserve=(1 if proj["storyboard_mode"] else 0) + (1 if plan else 0))
         if plan:
@@ -260,15 +260,6 @@ class ImageRunner(_Runner):
         if refs:                                       # the chosen resources' pictures go with the prompt (image-to-image)
             return (assets.reference_note(refs) + "Scene: " + prompt, [r["path"] for r in refs])
         return (prompt,)
-
-    def _layout_ref(self, project_id: int, idx: int, data: Dict) -> Optional[Dict]:
-        """The composed previz layout of this scene (core.previz) as the first reference picture, when there is one."""
-        shot = data.get("layout")
-        path = os.path.join(self.data_dir, str(project_id), "layouts", f"S{idx:02d}.png")
-        if not shot or not os.path.exists(path):
-            return None
-        return {"path": path, "label": "layout", "role": "layout", "people": data.get("layout_people") or [],
-                "redraw_note": shot.get("redraw_note") if shot.get("redraw") else ""}
 
     def _record_usage(self, job, args) -> None:
         info = getattr(self.provider, "usage_info", None)
