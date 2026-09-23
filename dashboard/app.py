@@ -30,25 +30,31 @@ DATA = os.environ.get("PIPELINE_DATA", os.path.join("data", "projects"))
 C.configure(DB, DATA)
 
 
-# ---- step completion (stepper checkmarks) ----------------------------------------------
 def step_done(p: Pipeline, pid: int) -> list:
-    q = lambda sql, *a: p.conn.execute(sql, a).fetchone()[0]  # noqa: E731
-    scenes = q("SELECT COUNT(*) FROM scenes WHERE project_id=?", pid)
-    approved_imgs = q("SELECT COUNT(DISTINCT scene_id) FROM jobs WHERE project_id=? AND type='image_gen'"
-                      " AND state='approved'", pid)
-    motion = q("SELECT COUNT(*) FROM motion_prompts m JOIN scenes s ON s.id=m.scene_id WHERE s.project_id=?"
-               " AND m.state='approved'", pid)
-    videos = q("SELECT COUNT(DISTINCT scene_id) FROM jobs WHERE project_id=? AND type='video_gen'"
-               " AND state='succeeded'", pid)
-    drafts_dir, selected_dir = music.project_dirs(DATA, pid)
-    return [bool(q("SELECT COUNT(*) FROM characters WHERE project_id=? AND locked=1", pid)),
-            bool(scenes) and approved_imgs >= scenes, bool(scenes) and motion >= scenes,
-            bool(scenes) and videos >= scenes,
-            os.path.exists(os.path.join(DATA, str(pid), "output", "FINAL_VIDEO.mp4")), False, False, False, False]
+    """Per step: (state, short progress) with state 'done' | 'stale' | 'todo' — counted per SCENE, outdated results not counted
+    as done (core.lineage)."""
+    summ = lineage.summary(p.conn, pid)
+    n = summ["total"]
+    locked = bool(p.conn.execute("SELECT COUNT(*) FROM characters WHERE project_id=? AND locked=1", (pid,)).fetchone()[0])
+
+    def stage(done_stale):
+        done, stale = done_stale
+        state = "stale" if stale else ("done" if n and done >= n else "todo")
+        return state, f"{done}/{n}" + (f" ⚠{stale}" if stale else "")
+
+    fin = delivery.status(p, pid, DATA)["final"]
+    return [("done" if locked else "todo", f"{n} cảnh" if n else ""), stage(summ["images"]), stage(summ["motion"]),
+            stage(summ["videos"]),
+            ({"fresh": "done", "stale": "stale", "missing": "todo"}[fin["state"]], {"fresh": "✓", "stale": "⚠ cũ", "missing": ""}[fin["state"]]),
+            ("todo", "")]
 
 
 def step_label(done: list):
-    marks = {name: ("✓  " if done[i] else "") + name for i, name in enumerate(STEPS)}
+    marks = {}
+    for i, name in enumerate(STEPS):
+        state, text = done[i] if i < len(done) else ("todo", "")
+        head = {"done": "✓  ", "stale": "⚠  ", "todo": ""}[state]
+        marks[name] = head + name + (f" · {text}" if text and state != "done" or (text and i in (1, 2, 3)) else "")
     return lambda name: marks[name]
 
 
@@ -95,10 +101,10 @@ def main():
     if "research_checked" not in st.session_state:      # monthly research, at most once per browser session
         st.session_state["research_checked"] = True
         research.maybe_run_in_background(DB)
-    problems = [f for f in diag.scan(p.conn, DATA, float(os.environ.get("AUTOPILOT_POLL_SEC", "15"))) if f["severity"] == "error"]
+    problems = [f for f in diag.scan(p.conn, DATA, float(os.environ.get("AUTOPILOT_POLL_SEC", "15")))
+                if f["severity"] == "error" and f.get("project_id") in (None, pid)]
     if problems:
-        st.markdown(f":red[🔴 Giám sát: {len(problems)} vấn đề nghiêm trọng, ví dụ: {escape(diag.redact(problems[0]['title']))}] "
-                    "— mở tab “📊 Theo dõi hiệu suất” để xem và lấy báo cáo.")
+        st.caption(f"🔴 {len(problems)} vấn đề cần xem ở dự án này (ví dụ: {escape(diag.redact(problems[0]['title']))}) — tab “📊 Theo dõi”.")
     deep = st.query_params.get("step")  # ?step=2 opens a step directly (1..5, monitor); 5a/5b and the
     deep = {"5a": "5", "5b": "5"}.get(deep, deep)  # history/lessons/users dialog deep links still work (settings_menu)
     keys = ["1", "2", "3", "4", "5", "monitor"]
@@ -111,14 +117,6 @@ def main():
                     format_func=step_label(step_done(p, pid)))
     {STEPS[0]: step1, STEPS[1]: step2, STEPS[2]: step3, STEPS[3]: step4, STEPS[4]: step5,
      STEPS[5]: monitor}[step](p, pid)
-    if allowed("shutdown"):
-      with st.expander("⏻ Tắt Dashboard"):
-        st.caption("Dừng máy chủ Dashboard trên máy này (các việc đang chạy nền cũng dừng; tiến độ đã lưu, bấm Tiếp tục khi mở lại).")
-        if confirm_all("shutdown", ["go"], "⏻ Tắt Dashboard", "Tắt Dashboard ngay bây giờ?", st, "Có, tắt"):
-            stop = os.path.join(os.path.dirname(__file__), "..", "tools", "stop_dashboard.ps1")
-            subprocess.Popen(["powershell.exe", "-NoProfile", "-ExecutionPolicy", "Bypass", "-WindowStyle", "Hidden", "-File", stop],
-                             creationflags=0x00000008)
-            st.info("Đang tắt… có thể đóng cửa sổ này.")
 
 
 main()

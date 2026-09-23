@@ -25,8 +25,9 @@ from .pipeline import Pipeline
 
 RUNNING, WAITING, STOPPED, ATTENTION, DONE, ERROR = "running", "waiting", "stopped", "needs_attention", "done", "error"
 QUEUED = "queued"   # approved, waiting for a free slot (see Manager.max_parallel)
-PHASE_LABELS = {"director": "Director (Character Bible + thông số cảnh)", "previz": "Dựng layout / storyboard", "images": "Gen ảnh + QC", "motion": "Motion prompt", "videos": "Gen video", "music": "Nhạc nền",
-                "render": "Ghép & render", "done": "Hoàn tất"}
+PHASE_LABELS = {"director": "Director (Character Bible + thông số cảnh)", "previz": "Dựng layout / storyboard", "images": "Gen ảnh + QC",
+                "setcheck": "QC đồng bộ cả bộ ảnh", "motion": "Motion prompt", "voice": "Giọng thoại", "videos": "Gen video + QC video",
+                "music": "Nhạc nền", "sfx": "Hiệu ứng âm thanh", "render": "Xuất bản", "done": "Hoàn tất"}
 MAX_SCENES = int(os.environ.get("AUTOPILOT_MAX_SCENES", "12"))
 LOG_KEEP = 60
 
@@ -44,34 +45,15 @@ class Context:
 
 
 def default_render(p: Pipeline, project_id: int, data_dir: str, music_path: Optional[str]) -> str:
-    clips = [c for c in final_cut.collect_clips(p, data_dir, project_id) if c["path"]]
-    if not clips:
-        raise ValueError("no clips to render")
-    durations = [final_cut.clip_seconds(c["path"], c["requested_sec"]) for c in clips]
-    out_dir = os.path.join(data_dir, str(project_id), "output")
-    os.makedirs(out_dir, exist_ok=True)
-    out = os.path.join(out_dir, "FINAL_VIDEO.mp4")
-    keep = bool(p.project(project_id)["video_audio"])
-    extras = audio_lib.mix_list(audio_lib.assets_dir(data_dir, project_id))            # sound effects / voice-over chosen for this project
-    return ffmpeg_studio.render_final([c["path"] for c in clips], out, durations, "cut", 1.0, music_path, 0.6, extras,
-                                      keep_audio=keep)
+    """The project's saved render settings (the same the Step 5 render uses), every usable clip, voices placed on the timeline."""
+    from . import delivery
+    return delivery.render(p, project_id, data_dir, music_path)["path"]
 
 
 def default_subtitle(p: Pipeline, pid: int, data_dir: str, video: str, llm) -> Optional[dict]:
-    """Burn the project's subtitle settings into a copy of the final video (only when 'auto subtitles' is switched on)."""
-    settings = subtitles.get_settings(p, pid)
-    if not settings["enabled"]:
-        return None
-    cues = subtitles.build_cues(p, data_dir, pid, "cut", 1.0)
-    if not cues:
-        return None
-    if settings["lang"] != "src":
-        cues = subtitles.translate(llm, cues, settings["lang"])
-    fonts = subtitles.discover()
-    preferred = subtitles.font_by_family(fonts, settings["font"]) or subtitles.default_font(fonts)
-    font, _ = subtitles.font_for_text(preferred, fonts, " ".join(c.text for c in cues))
-    out = os.path.join(os.path.dirname(video), f"FINAL_VIDEO_sub_{settings['lang']}.mp4")
-    return subtitles.burn(video, cues, out, font, settings["size"], settings["pos"], settings["color"], settings["speaker"])
+    """Subtitles with the project's settings, timed from the voices / the SAVED transition (only when 'auto subtitles' is on)."""
+    from . import delivery
+    return delivery.subtitle_layer(p, pid, data_dir, llm=llm)
 
 
 def default_context(p: Pipeline, data_dir: str) -> Context:
@@ -83,7 +65,7 @@ def default_context(p: Pipeline, data_dir: str) -> Context:
         raise ValueError("Chưa cấu hình nhà cung cấp ảnh/video (IMAGE_PROVIDER, VIDEO_PROVIDER).")
     llm = llm_runner.client_from_env()
     if llm is None:
-        raise ValueError("Chưa có Claude API (ANTHROPIC_API_KEY): chế độ tự động cần để chấm QC và viết motion prompt.")
+        raise ValueError("Chưa có Claude (ANTHROPIC_API_KEY hoặc LLM_PROVIDER=claude_cli): chế độ tự động cần để chấm QC và viết motion prompt.")
     return Context(data_dir, ImageRunner(p, image, data_dir), VideoRunner(p, video, data_dir), llm,
                    music.audio_provider(), default_render)
 
@@ -154,42 +136,59 @@ def _owner(p: Pipeline, project_id: int, user: Optional[str]) -> None:
 
 
 def start(p: Pipeline, project_id: int, user: Optional[str] = None) -> None:
-    """The user approved the scene breakdown: lock the Character Bible, use automatic QC and mark the run as started."""
+    """The user approved the scene breakdown: automatic QC for the run (the previous review setting is restored at the end)."""
     _owner(p, project_id, user)
-    if _count(p, "SELECT COUNT(*) FROM characters WHERE project_id=?", project_id):
-        llm_io.lock_character_bible(p, project_id)      # already analysed by hand: freeze it (otherwise the Director phase does it)
+    _save_cfg(p, project_id)
+    if _count(p, "SELECT COUNT(*) FROM characters WHERE project_id=?", project_id) and not get_gates(p, project_id)["bible"]:
+        llm_io.lock_character_bible(p, project_id)      # already analysed by hand and no review wanted: freeze it
     p.set_mode(project_id, "auto")
     p.set_review_floor(project_id, None)   # nothing may wait for a human
     p.set_paused(project_id, False)
+    set_gates(p, project_id, {"bible_done": False, "pilot_done": False, "waiting_for": None})
     _set(p, project_id, RUNNING, "Đã duyệt phân cảnh, đang chạy tự động")
     _log(p, project_id, "Bạn đã duyệt phân cảnh → bắt đầu chạy tự động")
 
 
 def resume(p: Pipeline, project_id: int, user: Optional[str] = None) -> None:
-    """Continue after a stop / needs_attention / error / restart (the tick picks up where the project stands)."""
+    """Continue after a stop / a checkpoint / needs_attention / error / restart. At a checkpoint, continuing = the person approves it."""
     _owner(p, project_id, user)
+    gates = get_gates(p, project_id)
+    if gates.get("waiting_for") == "bible":
+        llm_io.lock_character_bible(p, project_id)
+        set_gates(p, project_id, {"bible_done": True, "waiting_for": None})
+        _log(p, project_id, "Bạn đã duyệt Character Bible → tiếp tục")
+    elif gates.get("waiting_for") == "pilot":
+        from . import pilot
+        pilot.release(p, project_id)
+        set_gates(p, project_id, {"pilot_done": True, "waiting_for": None})
+        _log(p, project_id, "Bạn đã duyệt ảnh mẫu thử → gen phần còn lại")
+    _save_cfg(p, project_id)
+    p.set_mode(project_id, "auto")
     p.set_paused(project_id, False)
     _set(p, project_id, RUNNING, "Tiếp tục chạy tự động")
     _log(p, project_id, "Tiếp tục chạy tự động")
 
 
 def progress(p: Pipeline, project_id: int, data_dir: str) -> List[tuple]:
-    """(label, done, total) for the checklist shown while the run is going."""
-    n = _count(p, "SELECT COUNT(*) FROM scenes WHERE project_id=?", project_id)
-    distinct = lambda kind, state: _count(p, "SELECT COUNT(DISTINCT scene_id) FROM jobs WHERE project_id=? AND type=?"  # noqa: E731
-                                          " AND state=?", project_id, kind, state)
-    motion = _count(p, "SELECT COUNT(*) FROM motion_prompts m JOIN scenes s ON s.id=m.scene_id WHERE s.project_id=?"
-                       " AND m.state='approved'", project_id)
+    """(label, done, total) for the checklist shown while the run is going — fresh results only (core.lineage)."""
+    from . import lineage, voice
+    summ = lineage.summary(p.conn, project_id)
+    n = summ["total"]
     drafts_dir, selected_dir = music.project_dirs(data_dir, project_id)
-    final = os.path.exists(os.path.join(data_dir, str(project_id), "output", "FINAL_VIDEO.mp4"))
-    return [("Ảnh đã duyệt", distinct("image_gen", "approved"), n), ("Motion prompt đã duyệt", motion, n),
-            ("Video đã gen", distinct("video_gen", "succeeded"), n),
-            ("Nhạc nền", 1 if os.listdir(selected_dir) else 0, 1), ("Video cuối", 1 if final else 0, 1)]
+    vs = voice.status(p.conn, project_id, data_dir)
+    fin = lineage.latest_output(p.conn, project_id, "final")
+    rows = [("Ảnh đã duyệt", summ["images"][0], n), ("Motion prompt đã duyệt", summ["motion"][0], n)]
+    if vs["total"]:
+        rows.append(("Giọng thoại", vs.get("succeeded", 0), vs["total"]))
+    rows += [("Video dùng được", summ["videos"][0], n), ("Nhạc nền", 1 if os.listdir(selected_dir) else 0, 1),
+             ("Bản giao", 1 if fin is not None or os.path.exists(os.path.join(data_dir, str(project_id), "output", "FINAL_VIDEO.mp4")) else 0, 1)]
+    return rows
 
 
 def stop(p: Pipeline, project_id: int, note: str = "Đã dừng theo yêu cầu") -> None:
     _set(p, project_id, STOPPED, note)
     _log(p, project_id, note)
+    _restore_cfg(p, project_id)
 
 
 # ---- the tick ---------------------------------------------------------------------------------
@@ -229,46 +228,65 @@ def _active(p: Pipeline, pid: int, kind: str) -> int:
 
 
 def _director_phase(p: Pipeline, pid: int, ctx: Context) -> Optional[str]:
-    """Scenes are split but nobody analysed them yet: Claude writes the Character Bible and the scene specs (once).
-    Anything still missing afterwards stops the run instead of asking Claude again and again."""
+    """Claude writes the Character Bible and the scene specs (once). Then, when the 'review the characters' checkpoint is on, the run
+    waits for the person before any picture is paid for (a wrong description would repeat in every scene)."""
     if not _count(p, "SELECT COUNT(*) FROM characters WHERE project_id=?", pid):
         r = llm_runner.run_director(p, pid, ctx.llm)
-        llm_io.lock_character_bible(p, pid)
         _log(p, pid, f"Director: {r['characters']} nhân vật, {r['scenes']} cảnh")
     missing = [f"S{s['idx']:02d}" for s in p.conn.execute("SELECT idx, data FROM scenes WHERE project_id=? ORDER BY idx", (pid,))
                if not (json.loads(s["data"] or "{}").get("image_prompt") or "").strip()]
     if missing:
         raise _Stop("Cảnh chưa có prompt ảnh sau khi chạy Director: " + ", ".join(missing) + " — điền tay hoặc sửa kịch bản rồi bấm Tiếp tục")
+    gates = get_gates(p, pid)
+    if gates["bible"] and not gates["bible_done"]:
+        raise _Wait("bible", "Chờ bạn duyệt Character Bible (mô tả, Character Lock, giọng, ảnh mốc) ở Bước 1 rồi bấm Tiếp tục")
+    llm_io.lock_character_bible(p, pid)
     return None
 
 
 def _previz_phase(p: Pipeline, pid: int, ctx: Context) -> Optional[str]:
-    """Lay the shots out (previz 2D) once, before any picture, so Step 2 follows the layouts. Never blocks the run: no scene with a
-    background picture, or Claude failing / out of quota, means the pictures are made the old way (a warning says so)."""
-    marker = os.path.join(previz.layouts_dir(ctx.data_dir, pid), ".autopilot_done")
+    """Lay the shots out once before any picture, and let Claude check the storyboard (continuity). Never blocks the run."""
+    marker = _marker(ctx, pid, "layouts", ".autopilot_done")
     if os.path.exists(marker) or _count(p, "SELECT COUNT(*) FROM jobs WHERE project_id=? AND type='image_gen'", pid):
-        return None                                        # done before, or pictures already started: keep what exists
+        return None
     try:
         r = previz.plan_layouts(p, pid, ctx.llm, ctx.data_dir)
         _log(p, pid, f"Layout: dựng {len(r['laid_out'])} cảnh" + (f", {len(r['skipped'])} cảnh chưa có Background (gen như cũ)"
                                                                 if r["skipped"] else ""))
+        if r.get("storyboard"):
+            review = previz.review_storyboard(p, pid, ctx.llm, ctx.data_dir)
+            if review.get("issues"):
+                _log(p, pid, f"Rà storyboard: {len(review['issues'])} lưu ý liên tục (xem Bước 1)")
     except (llm_runner.LlmError, ValueError, OSError) as e:
         _log(p, pid, f"Không dựng được layout, gen ảnh theo cách cũ: {str(e)[:150]}")
         _d(p, pid, "previz", "warn", f"autopilot bỏ qua layout: {e}", "previz_skipped")
-    os.makedirs(os.path.dirname(marker), exist_ok=True)
     with open(marker, "w") as f:
         f.write("1")
     return None
 
 
 def _images_phase(p: Pipeline, pid: int, ctx: Context) -> Optional[str]:
-    """Returns None when every scene has an approved image, else a progress message."""
+    """Returns None when every scene has an up-to-date approved image, else a progress message. With the pilot checkpoint on, a few
+    representative scenes are made first and the run waits for the person."""
+    from . import lineage, pilot
+    gates = get_gates(p, pid)
+    if gates["pilot"] and not gates["pilot_done"] and not pilot.active(p, pid):
+        pilot.start(p, pid)
+        _log(p, pid, "Gen thử các cảnh đại diện trước")
     cap_images, _ = _job_caps(p, pid)
+    stale = {sid: r for sid, r in lineage.scan(p.conn, pid).items() if r["image_stale"] and r["image_job_id"]}
     for scene in _scene_rows(p, pid):
+        if pilot.allowed_scenes(p, pid, [scene["id"]]) == []:
+            continue
+        if scene["id"] in stale:
+            if _count(p, "SELECT COUNT(*) FROM jobs WHERE project_id=? AND type='image_gen'", pid) >= cap_images:
+                raise _Stop(BUDGET_NOTE)
+            p.reopen_approved(stale[scene["id"]]["image_job_id"], f"Nội dung cảnh đã đổi: {stale[scene['id']]['image_stale']}")
+            continue
         if _has(p, scene["id"], "image_gen", "'approved','queued','running','succeeded','pending_review','retryable','failed'"):
-            continue  # done, in progress, or failed (failed ones are retried below, never re-created blindly)
+            continue
         if _count(p, "SELECT COUNT(*) FROM jobs WHERE scene_id=? AND type='image_gen' AND escalated=1", scene["id"]):
-            continue  # a human must decide
+            continue
         if _count(p, "SELECT COUNT(*) FROM jobs WHERE project_id=? AND type='image_gen'", pid) >= cap_images:
             raise _Stop(BUDGET_NOTE)
         _daily_cap(p)
@@ -278,18 +296,22 @@ def _images_phase(p: Pipeline, pid: int, ctx: Context) -> Optional[str]:
     ctx.image_runner.poll_once(pid)
     for j in p.conn.execute("SELECT id FROM jobs WHERE project_id=? AND type='image_gen' AND state='failed' AND escalated=0",
                             (pid,)).fetchall():
-        p.retry(j["id"], "autopilot: thử lại")  # ordinary failure: counts toward the retry limit, then a human decides
+        p.retry(j["id"], "autopilot: thử lại")
     if _count(p, "SELECT COUNT(*) FROM jobs WHERE project_id=? AND type='image_gen' AND state='succeeded'", pid):
         r = llm_runner.run_qc_batch(p, pid, ctx.llm, ctx.data_dir)
         if r["failed"]:
             _log(p, pid, f"QC lỗi ở {len(r['failed'])} ảnh: {r['failed'][0][1]}")
             if any("API key" in m or "auth" in m.lower() for _, m in r["failed"]):
-                raise _Stop("Claude API từ chối khóa (ANTHROPIC_API_KEY)")
+                raise _Stop("Claude từ chối đăng nhập / khóa API")
     for j in p.conn.execute("SELECT id FROM jobs WHERE project_id=? AND type='image_gen' AND state='pending_review'", (pid,)):
         p.approve(j["id"], "ai_agent", "autopilot")
-    done = sum(1 for s in _scene_rows(p, pid) if _has(p, s["id"], "image_gen", "'approved'"))
+    if pilot.active(p, pid):
+        if pilot.done(p, pid):
+            raise _Wait("pilot", "Ảnh các cảnh gen thử đã xong — xem ở Bước 2, ổn thì bấm Tiếp tục để gen phần còn lại")
+        return "Ảnh gen thử: đang làm"
+    fresh = lineage.summary(p.conn, pid)["images"][0]
     total = len(_scene_rows(p, pid))
-    return None if done == total else f"Ảnh: {done}/{total} đã duyệt"
+    return None if fresh == total else f"Ảnh: {fresh}/{total} đã duyệt"
 
 
 class _Stop(Exception):
@@ -307,11 +329,31 @@ def _daily_cap(p: Pipeline) -> None:
 
 
 def _motion_phase(p: Pipeline, pid: int, ctx: Context) -> Optional[str]:
+    """Motion prompts for scenes without one or with an outdated one; then (once) the prompt check, whose revised prompts are used."""
+    from . import claude_tasks, lineage
     rows = _scene_rows(p, pid)
     missing = [s for s in rows if not _count(p, "SELECT COUNT(*) FROM motion_prompts WHERE scene_id=?", s["id"])]
     if missing:
         r = llm_runner.run_motion(p, pid, ctx.llm, ctx.data_dir)
         _log(p, pid, f"Claude viết {r['scenes']} motion prompt")
+    stale = sorted(r["idx"] for r in lineage.scan(p.conn, pid).values() if r["motion_stale"] and r["image_job_id"])
+    if stale:
+        llm_runner.run_motion(p, pid, ctx.llm, ctx.data_dir, only_idx=stale)
+        _log(p, pid, f"Viết lại motion prompt cảnh {', '.join(map(str, stale))} (ảnh/cảnh đã đổi)")
+    marker = _marker(ctx, pid, ".lint_done")
+    if not os.path.exists(marker):
+        try:
+            res = claude_tasks.lint_motion(p, pid, ctx.llm)
+            fixed = 0
+            for s in res.get("scenes") or []:
+                sid = p.conn.execute("SELECT id FROM scenes WHERE project_id=? AND idx=?", (pid, s["idx"])).fetchone()
+                if sid and not s.get("ok") and claude_tasks.apply_lint(p, pid, sid["id"]):
+                    fixed += 1
+            _log(p, pid, f"Rà motion prompt: sửa {fixed} prompt" if fixed else "Rà motion prompt: ổn")
+        except (llm_runner.LlmError, ValueError) as e:
+            _d(p, pid, "motion", "warn", f"autopilot bỏ qua rà prompt: {e}", "lint_skipped")
+        with open(marker, "w") as f:
+            f.write("1")
     for s in rows:
         m = p.conn.execute("SELECT state FROM motion_prompts WHERE scene_id=?", (s["id"],)).fetchone()
         if m is not None and m["state"] != "approved":
@@ -344,25 +386,37 @@ def _dialogue_gate(p: Pipeline, pid: int) -> None:
 
 
 def _videos_phase(p: Pipeline, pid: int, ctx: Context) -> Optional[str]:
+    """Clips for every scene (per-scene model), redo of outdated clips, Claude's video check when switched on."""
+    from . import claude_tasks, lineage, regen
     _, cap_videos = _job_caps(p, pid)
     for r in llm_io.ready_for_video(p, pid):
-        if _has(p, r["scene_id"], "video_gen", "'queued','running','succeeded','retryable','failed'"):
-            continue  # failed ones: retried below unless blocked by risk control (then a human decides)
+        if _has(p, r["scene_id"], "video_gen", "'queued','running','succeeded','retryable','failed','pending_review','approved'"):
+            continue
         if _count(p, "SELECT COUNT(*) FROM jobs WHERE scene_id=? AND type='video_gen' AND escalated=1", r["scene_id"]):
             continue
         if _count(p, "SELECT COUNT(*) FROM jobs WHERE project_id=? AND type='video_gen'", pid) >= cap_videos:
             raise _Stop(BUDGET_NOTE)
         _daily_cap(p)
         p.create_job(r["scene_id"], "video_gen")
+    for sid, r in lineage.scan(p.conn, pid).items():
+        if r["video_stale"] and r["video_job_id"] and not r["motion_stale"] and r["video_state"] in ("succeeded", "approved"):
+            if _count(p, "SELECT COUNT(*) FROM jobs WHERE project_id=? AND type='video_gen'", pid) >= cap_videos:
+                raise _Stop(BUDGET_NOTE)
+            regen.regenerate_video(p, ctx.data_dir, r["video_job_id"], f"làm lại vì {r['video_stale']}")
     ctx.video_runner.submit_pending(pid)
     ctx.video_runner.poll_once(pid)
     for j in p.conn.execute("SELECT id FROM jobs WHERE project_id=? AND type='video_gen' AND state='failed' AND escalated=0", (pid,)).fetchall():
-        blocked = _count(p, "SELECT COUNT(*) FROM content_moderation_failures WHERE job_id=?", j["id"])
-        if not blocked:
+        if not _count(p, "SELECT COUNT(*) FROM content_moderation_failures WHERE job_id=?", j["id"]):
             p.retry(j["id"], "autopilot: thử lại")   # ordinary failure: one more attempt (counts toward the limit)
-    rows = _scene_rows(p, pid)
-    done = sum(1 for s in rows if _has(p, s["id"], "video_gen", "'succeeded'"))
-    return None if done == len(rows) else f"Video: {done}/{len(rows)} xong"
+    if claude_tasks.unchecked_videos(p, pid):
+        r = claude_tasks.qc_video_batch(p, pid, ctx.llm, ctx.data_dir)
+        if r["failed"]:
+            _log(p, pid, f"QC video lỗi ở {len(r['failed'])} clip: {r['failed'][0][1][:120]}")
+    for j in p.conn.execute("SELECT id FROM jobs WHERE project_id=? AND type='video_gen' AND state='pending_review'", (pid,)):
+        p.approve(j["id"], "ai_agent", "autopilot")
+    fresh = lineage.summary(p.conn, pid)["videos"][0]
+    total = len(_scene_rows(p, pid))
+    return None if fresh == total else f"Video: {fresh}/{total} dùng được"
 
 
 def _music_from_library(p: Pipeline, pid: int, data_dir: str, fallback: bool = False) -> bool:
@@ -393,13 +447,14 @@ def _music_phase(p: Pipeline, pid: int, ctx: Context) -> Optional[str]:
     if _music_from_library(p, pid, ctx.data_dir):
         return None
     if ctx.audio is None:
-        _music_from_library(p, pid, ctx.data_dir, fallback=True)      # no AI music configured: a library track is better than silence
+        _music_from_library(p, pid, ctx.data_dir, fallback=True)
         return None
     drafts = music.load_drafts(drafts_dir)
     if not drafts:
-        brief = music.default_brief(p, pid)
-        music.submit_drafts(ctx.audio, drafts_dir, brief["prompt"], brief["length_ms"], True, 1, ledger=(p.conn, pid))
-        _log(p, pid, "Đã gửi 1 bản nhạc nền")
+        from . import claude_tasks
+        brief = claude_tasks.music_brief(p, pid, ctx.llm)
+        music.submit_drafts(ctx.audio, drafts_dir, brief["prompt"], brief["length_ms"], brief["instrumental"], 1, ledger=(p.conn, pid))
+        _log(p, pid, "Đã gửi 1 bản nhạc nền" + (" (brief do Claude viết)" if brief.get("brief") else ""))
         return "Nhạc nền: đang tạo"
     music.refresh_drafts(ctx.audio, drafts_dir)
     drafts = music.load_drafts(drafts_dir)
@@ -446,19 +501,21 @@ def _sfx_phase(p: Pipeline, pid: int, ctx: Context) -> Optional[str]:
 
 def tick(p: Pipeline, project_id: int, ctx: Context) -> str:
     """One step of the run. Returns the resulting state."""
+    from . import delivery
     st = status(p, project_id)["state"]
     if st != RUNNING:
         return st
     p.actor = p.project(project_id)["autopilot_user"]
     if p.project(project_id)["paused"]:
-        _set(p, project_id, note="Đang PAUSE")
+        _set(p, project_id, note="Đang tạm dừng")
         return RUNNING
     try:
-        phases = [("director", _director_phase), ("previz", _previz_phase), ("images", _images_phase), ("motion", _motion_phase), ("videos", _videos_phase),
-                  ("music", _music_phase), ("sfx", _sfx_phase)]
+        phases = [("director", _director_phase), ("previz", _previz_phase), ("images", _images_phase), ("setcheck", _setcheck_phase),
+                  ("motion", _motion_phase), ("voice", _voice_phase), ("videos", _videos_phase), ("music", _music_phase),
+                  ("sfx", _sfx_phase)]
         for name, fn in phases:
-            progress = fn(p, project_id, ctx)
-            if progress is not None:
+            progress_note = fn(p, project_id, ctx)
+            if progress_note is not None:
                 blocked = _blocked_scenes(p, project_id)
                 idle = not (_active(p, project_id, "image_gen") or _active(p, project_id, "video_gen"))
                 if blocked and idle and name in ("images", "videos"):
@@ -467,27 +524,25 @@ def tick(p: Pipeline, project_id: int, ctx: Context) -> str:
                     _log(p, project_id, note)
                     _d(p, project_id, "autopilot", "warn", note, "needs_attention")
                     return ATTENTION
-                _set(p, project_id, note=f"{PHASE_LABELS[name]} — {progress}")
-                _log(p, project_id, f"{PHASE_LABELS[name]}: {progress}")
+                _set(p, project_id, note=f"{PHASE_LABELS[name]} — {progress_note}")
+                _log(p, project_id, f"{PHASE_LABELS[name]}: {progress_note}")
                 return RUNNING
-        music_file = None
-        drafts_dir, selected_dir = music.project_dirs(ctx.data_dir, project_id)
-        chosen = os.listdir(selected_dir)
-        if chosen:
-            music_file = os.path.join(selected_dir, chosen[0])
-        out = (ctx.render or default_render)(p, project_id, ctx.data_dir, music_file)
-        extra = ""
-        try:
-            made = (ctx.subtitle or default_subtitle)(p, project_id, ctx.data_dir, out, ctx.llm)
-            if made:
-                extra = f" + phụ đề: {made['video']}"
-                _log(p, project_id, f"Đã thêm phụ đề ({made['cues']} dòng)")
-        except (subtitles.SubtitleError, llm_runner.LlmError, ffmpeg_studio.FFmpegError, ffmpeg_studio.FFmpegNotFound, OSError) as e:
-            _d(p, project_id, "render", "warn", f"phụ đề thất bại, video cuối vẫn có (không phụ đề): {e}", "subtitles")
-            _log(p, project_id, f"Phụ đề thất bại: {str(e)[:120]}")
+        res = delivery.deliver(p, project_id, ctx.data_dir, ctx.llm, render_fn=ctx.render or default_render, subtitle_fn=ctx.subtitle)
+        out = res["final"]
+        extra = "".join(f" + {kind}: {path}" for kind, path in res["layers"])
+        for w in res["warnings"]:
+            _log(p, project_id, f"Xuất bản: {w[:120]}")
+        if any(kind == "subtitle" for kind, _ in res["layers"]):
+            _log(p, project_id, "Đã thêm phụ đề")
         _set(p, project_id, DONE, f"Xong: {out}{extra}")
         _log(p, project_id, "Đã ghép video cuối")
+        _restore_cfg(p, project_id)
         return DONE
+    except _Wait as e:
+        set_gates(p, project_id, {"waiting_for": e.gate})
+        _set(p, project_id, WAITING, str(e))
+        _log(p, project_id, str(e))
+        return WAITING
     except _Stop as e:
         _set(p, project_id, STOPPED, str(e))
         _log(p, project_id, str(e))
@@ -609,3 +664,118 @@ class Manager:
             if state != RUNNING:
                 return
             time.sleep(self.poll_sec)
+
+
+
+# ---- gates (human checkpoints the person switches on) ----------------------------------------------------------------
+GATE_DEFAULTS = {"bible": True, "pilot": False}
+
+
+class _Wait(Exception):
+    def __init__(self, gate: str, note: str):
+        super().__init__(note)
+        self.gate = gate
+
+
+def get_gates(p: Pipeline, project_id: int) -> Dict:
+    try:
+        saved = json.loads(p.project(project_id)["autopilot_gates"] or "{}")
+    except (ValueError, KeyError, IndexError, TypeError):
+        saved = {}
+    return {**GATE_DEFAULTS, "bible_done": False, "pilot_done": False, "waiting_for": None, **saved}
+
+
+def set_gates(p: Pipeline, project_id: int, changes: Dict) -> None:
+    gates = get_gates(p, project_id)
+    gates.update(changes)
+    p.set_project_field(project_id, "autopilot_gates", json.dumps(gates, ensure_ascii=False))
+
+
+def _save_cfg(p: Pipeline, project_id: int) -> None:
+    """Remember how the person reviews before the run switches the project to automatic QC (given back when it ends)."""
+    row = p.project(project_id)
+    if not row["autopilot_saved_cfg"]:
+        p.set_project_field(project_id, "autopilot_saved_cfg", json.dumps(
+            {"operating_mode": row["operating_mode"], "qc_review_floor": row["qc_review_floor"]}))
+
+
+def _restore_cfg(p: Pipeline, project_id: int) -> None:
+    raw = p.project(project_id)["autopilot_saved_cfg"]
+    if not raw:
+        return
+    cfg = json.loads(raw)
+    p.set_mode(project_id, cfg.get("operating_mode") or "human_qc")
+    p.set_review_floor(project_id, cfg.get("qc_review_floor"))
+    p.set_project_field(project_id, "autopilot_saved_cfg", None)
+
+
+def reset(p: Pipeline, project_id: int, data_dir: Optional[str] = None) -> None:
+    """Forget the automatic run's state (pictures and clips already made are kept)."""
+    p.conn.execute("UPDATE projects SET autopilot_state=NULL, autopilot_note=NULL WHERE id=?", (project_id,))
+    p.conn.commit()
+    set_gates(p, project_id, {"bible_done": False, "pilot_done": False, "waiting_for": None})
+    _restore_cfg(p, project_id)
+    for marker in (os.path.join("layouts", ".autopilot_done"), os.path.join("qc_set", ".autopilot_done"), ".lint_done"):
+        path = os.path.join(data_dir or os.environ.get("PIPELINE_DATA", os.path.join("data", "projects")), str(project_id), marker)
+        if os.path.exists(path):
+            os.remove(path)
+
+
+def _marker(ctx: Context, pid: int, *parts: str) -> str:
+    path = os.path.join(ctx.data_dir, str(pid), *parts)
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    return path
+
+
+def _setcheck_phase(p: Pipeline, pid: int, ctx: Context) -> Optional[str]:
+    """One whole-set consistency look (once): outliers are redone with the fix sentence, within the job cap."""
+    from . import claude_tasks
+    marker = _marker(ctx, pid, "qc_set", ".autopilot_done")
+    if os.path.exists(marker) or len(_scene_rows(p, pid)) < 2:
+        return None
+    try:
+        r = claude_tasks.set_consistency(p, pid, ctx.llm, ctx.data_dir)
+        issues = r.get("issues") or []
+        cap_images, _ = _job_caps(p, pid)
+        redone = 0
+        for it in issues:
+            if _count(p, "SELECT COUNT(*) FROM jobs WHERE project_id=? AND type='image_gen'", pid) >= cap_images:
+                break
+            try:
+                claude_tasks.redo_from_set_check(p, pid, it["idx"], it.get("fix") or it["problem"])
+                redone += 1
+            except (ValueError, Exception):  # noqa: BLE001 - one scene that cannot be redone must not stop the run
+                continue
+        _log(p, pid, "QC đồng bộ cả bộ ảnh: " + (f"làm lại {redone} cảnh lệch" if redone else "ổn"))
+    except (llm_runner.LlmError, ValueError, OSError) as e:
+        _d(p, pid, "qc", "warn", f"autopilot bỏ qua QC đồng bộ: {e}", "set_check_skipped")
+    with open(marker, "w") as f:
+        f.write("1")
+    return None if not _count(p, "SELECT COUNT(*) FROM jobs WHERE project_id=? AND type='image_gen' AND state IN ('queued','running')", pid) \
+        else "QC đồng bộ: đang gen lại cảnh lệch"
+
+
+def _voice_phase(p: Pipeline, pid: int, ctx: Context) -> Optional[str]:
+    """Character voices for the dialogue (TTS), then clips sized to the real voice. Skipped (with a note) when there is no audio
+    provider or a speaker has no voice: subtitles still carry the lines."""
+    from . import voice
+    if ctx.audio is None:
+        return None
+    stat = voice.status(p.conn, pid, ctx.data_dir)
+    if not stat["total"]:
+        return None
+    if stat["missing"]:
+        r = voice.generate(p.conn, pid, ctx.audio, ctx.data_dir)
+        if r["sent"]:
+            _log(p, pid, f"Gửi {r['sent']} câu thoại cho TTS")
+        if r["no_voice"]:
+            _log(p, pid, "Chưa có giọng cho: " + ", ".join(r["no_voice"]) + " (các câu này chỉ có phụ đề)")
+    if stat.get("running") or stat["missing"]:
+        audio_lib.refresh(ctx.audio, audio_lib.assets_dir(ctx.data_dir, pid))
+        stat = voice.status(p.conn, pid, ctx.data_dir)
+        if stat.get("running"):
+            return f"Giọng thoại: {stat.get('succeeded', 0)}/{stat['total']}"
+    changes = voice.fit_durations(p.conn, pid, ctx.data_dir)
+    if changes:
+        _log(p, pid, f"Kéo dài {len(changes)} clip cho vừa giọng thật")
+    return None

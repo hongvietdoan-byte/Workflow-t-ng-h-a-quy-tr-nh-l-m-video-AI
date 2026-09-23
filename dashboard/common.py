@@ -39,10 +39,10 @@ def configure(db: str, data: str) -> None:
     DB, DATA = db, data
 
 
-STEPS = ["1 · Kịch bản & phân tích", "2 · Gen ảnh + QC", "3 · Video Prompt", "4 · Gen video",
-         "5 · Nhạc nền & Ghép video", "📊 Theo dõi hiệu suất"]
+STEPS = ["1 · Kịch bản & đạo diễn", "2 · Ảnh + QC", "3 · Motion & giọng", "4 · Video + QC",
+         "5 · Âm thanh & xuất bản", "📊 Theo dõi"]
 
-STEP_PERMISSION = {"📊 Theo dõi hiệu suất": "monitor"}
+STEP_PERMISSION = {"📊 Theo dõi": "monitor"}
 
 # Lịch sử / Bài học / Phân quyền moved off the step bar into the settings gear (see settings_menu()) --
 # each opens as its own closable st.dialog panel instead of living inline in the stepper.

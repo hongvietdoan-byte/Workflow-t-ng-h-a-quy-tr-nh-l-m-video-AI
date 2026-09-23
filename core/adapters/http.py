@@ -114,7 +114,7 @@ class ApiClient:
         return headers
 
     def _send(self, method: str, path: str, body: Optional[bytes] = None, content_type: Optional[str] = None,
-              query: Optional[Dict] = None):
+              query: Optional[Dict] = None, raw: bool = False):
         url = self.base + path
         if query:
             url += "?" + urllib.parse.urlencode({k: v for k, v in query.items() if v is not None})
@@ -137,7 +137,7 @@ class ApiClient:
             payload = json.loads(resp.body.decode("utf-8"))
         except ValueError:
             raise ProviderError(f"invalid JSON response: {resp.body[:200]!r}", code="bad_response") from None
-        return parse_envelope(payload)
+        return payload if raw else parse_envelope(payload)
 
     def get(self, path: str, query: Optional[Dict] = None):
         return self._send("GET", path, query=query)
@@ -145,9 +145,10 @@ class ApiClient:
     def post_json(self, path: str, body: Dict):
         return self._send("POST", path, json.dumps(body).encode("utf-8"), "application/json")
 
-    def post_multipart(self, path: str, fields: Dict[str, str], files: List[Tuple[str, str, bytes]]):
+    def post_multipart(self, path: str, fields: Dict[str, str], files: List[Tuple[str, str, bytes]], raw: bool = False):
+        """raw=True: the reply is not the usual {code, data} envelope (e.g. Deepix cutout) and is returned as parsed JSON."""
         data, content_type = encode_multipart(fields, files)
-        return self._send("POST", path, data, content_type)
+        return self._send("POST", path, data, content_type, raw=raw)
 
     def download(self, url: str, dest_path: str) -> str:
         """Download a result file. Deliberately sends NO Authorization header (URL is a third-party host)."""

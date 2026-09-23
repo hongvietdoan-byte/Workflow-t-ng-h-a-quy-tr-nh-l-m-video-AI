@@ -76,6 +76,7 @@ def step4(p: Pipeline, pid: int):
         video_card(p, pid, j, runner, (status.get(j["scene_id"]) or {}).get("video_stale"))
     if not latest:
         st.caption("Chưa có clip nào: duyệt motion prompt ở Bước 3 rồi bấm “▶ Gen video”.")
+    experiments_panel(p, pid, runner)
 
 
 
@@ -182,3 +183,30 @@ def video_card(p: Pipeline, pid: int, j, runner, stale_reason) -> None:
         if j["state"] == "pending_review":
             st.text_input("Ghi chú lý do loại (đưa vào lần gen lại)", key=f"vnote_{j['id']}")
         scene_expander(p, j["scene_id"], with_motion=True)
+
+
+
+def experiments_panel(p: Pipeline, pid: int, runner) -> None:
+    """Experiment (off the main path): Kling multi-shot for one sequence, to compare continuity with the per-scene clips."""
+    from core import experiments
+    seqs = experiments.sequences(p, pid)
+    items = experiments.load(C.DATA, pid)
+    if not seqs and not items:
+        return
+    with st.expander(f"🧪 Thử nghiệm: Kling multi-shot cho một nhóm cảnh ({len(items)})"):
+        st.caption("Gen cả một nhóm cảnh liên tiếp trong MỘT lần (Kling 3.0 Omni, tối đa 15 giây) để so độ liền mạch với clip từng cảnh. "
+                   "Kết quả KHÔNG tự vào bản ghép; tốn credit như một clip cùng độ dài.")
+        if seqs and runner is not None:
+            seq = st.selectbox("Nhóm cảnh", list(seqs), key=f"ms_seq_{pid}",
+                               format_func=lambda k: f"Nhóm {k}: cảnh " + ", ".join(str(s["idx"]) for s in seqs[k]))
+            if confirm_all(f"ms_go_{pid}", [seq], "🧪 Gen thử multi-shot", "Gen thử multi-shot cho nhóm này? (tốn credit)", st, "Có, gen thử"):
+                act(lambda: experiments.kling_multishot(p, pid, seq, runner.provider, C.DATA), "Đã gửi thử nghiệm")
+                st.rerun()
+        if any(e["state"] == "running" for e in items) and runner is not None and st.button("⟳ Kiểm tra thử nghiệm", key=f"ms_refresh_{pid}"):
+            act(lambda: experiments.refresh(runner.provider, C.DATA, pid))
+            st.rerun()
+        for e in reversed(items):
+            st.markdown(f"- Nhóm {e['sequence']} (cảnh {', '.join(map(str, e['scenes']))}, {e['seconds']}s) · {ui.state_label(e['state'])}"
+                        + (f" · {escape(e.get('message') or '')}" if e["state"] == "failed" else ""))
+            if e.get("file") and os.path.exists(e["file"]):
+                show_video(e["file"])

@@ -20,6 +20,7 @@ DEFAULT_BASE = "https://deepix.ingarena.net"
 USER_AGENT = "AIVideoPipeline-Deepix/0.1"
 PATH_CREATE = "/api/image-generator/conversation-create"
 PATH_STATUS = "/api/image-generator/message-status"
+PATH_CUTOUT = "/ai/birefnet/predict"      # one-click background removal (BiRefNet), deepix-1.4.1 reference.md
 DEFAULT_MODEL = "dola-seedream-5-0-pro-260628"
 MAX_REFERENCES = 10          # Seedream 5.0 Pro takes at most 10 reference pictures
 DEFAULT_SIZE = "2048x1152"  # 16:9, both sides multiples of 16, inside the Seedream Pro pixel bounds
@@ -135,3 +136,25 @@ class DeepixImageProvider:
     def cancel(self, external_id: str) -> None:
         """Deepix exposes no cancel endpoint for image tasks; the local job is cancelled by the runner."""
         return None
+
+
+def cutout(provider: "DeepixImageProvider", path: str, dest_path: str, weights: str = "General-dynamic") -> str:
+    """Transparent PNG of the person in `path` (Deepix one-click cutout, no polling). Used by the previz so the layout shows the
+    real character instead of a coloured mannequin. Raises ProviderError."""
+    import base64
+    with open(path, "rb") as f:
+        content = f.read()
+    if len(content) > 10 * 1024 * 1024:
+        raise ProviderError("ảnh lớn hơn 10 MB", code="too_large")
+    data = provider.client.post_multipart(PATH_CUTOUT, {"weights_file": weights, "resolution": "1024x1024", "source": "AIVideoPipeline"},
+                                          [("file", os.path.basename(path), content)], raw=True) or {}
+    result = data.get("result") or {}
+    if data.get("status") != "success" or not (result.get("processed_image_base64") or result.get("processed_image_url")):
+        raise ProviderError(f"cutout failed: {str(data)[:200]}", code="cutout_failed")
+    os.makedirs(os.path.dirname(dest_path) or ".", exist_ok=True)
+    if result.get("processed_image_base64"):
+        raw = result["processed_image_base64"].split(",", 1)[-1]
+        with open(dest_path, "wb") as f:
+            f.write(base64.b64decode(raw))
+        return dest_path
+    return provider.client.download(result["processed_image_url"], dest_path)

@@ -543,7 +543,7 @@ def monitor(p: Pipeline, pid: int) -> None:
     if snap["usage_today"]:
         st.caption("Dùng hôm nay: " + ", ".join(f"{q:g} {unit} ({kind})" for kind, unit, q in snap["usage_today"]))
     effectiveness_panel(p, pid)
-    ui.html(ui.card_title("👥 Số video theo người dùng", "ai đã gen bao nhiêu (tính theo tên nhập ở góc trên)"))
+    ui.html(ui.card_title("👥 Số video theo người dùng", "ai đã gen bao nhiêu (theo e-mail đăng nhập; khi tắt đăng nhập thì theo tên tự khai)"))
     period = st.radio("Khoảng thời gian", ["Hôm nay", "7 ngày", "30 ngày", "Tất cả"], horizontal=True, key="by_user_period")
     days = {"Hôm nay": 1, "7 ngày": 7, "30 ngày": 30, "Tất cả": None}[period]
     people = perf.by_user(p.conn, days)

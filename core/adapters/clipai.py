@@ -127,7 +127,8 @@ class ClipAIVideoProvider:
     def submit(self, image_path: str, prompt: str, negative_prompt: Optional[str], duration_sec: float,
                model: Optional[str] = None, with_audio: bool = False, subjects: Optional[list] = None,
               image_references: Optional[list] = None, reference_video: Optional[dict] = None,
-              aspect_ratio: Optional[str] = None, resolution: Optional[str] = None) -> str:
+              aspect_ratio: Optional[str] = None, resolution: Optional[str] = None,
+              multi_prompt: Optional[list] = None) -> str:
         """aspect_ratio / resolution override the provider defaults for this job (project frame format, per-scene tier).
         image_references: this project's own resource-library pictures (local files, [{"path","label","role"}], from
         `assets.scene_references`) — no separate Subject Library upload/approval needed. `subjects`: Subject Library entries
@@ -190,6 +191,8 @@ class ClipAIVideoProvider:
         with open(image_path, "rb") as f:
             content = f.read()
         image = (_upload_name(image_path, content), content)
+        if multi_prompt and family != "omni":
+            raise ProviderError("multi-shot chỉ có ở Kling Omni", code="unsupported_option")
         if family == "omni":
             ctx = {"model_name": canonical, "multi_shot": 0, "prompt": text, "sound": "on" if with_audio else "off",
                    "image_list": [{"image_url": "", "type": "first_frame"}], "mode": self.kling_mode,
@@ -198,6 +201,12 @@ class ClipAIVideoProvider:
             if reference_video:
                 ctx["video_list"] = [{"video_url": "", "refer_type": reference_video.get("refer_type", "feature"),
                                       "keep_original_sound": "no"}]
+            if multi_prompt:                   # experiment: several shots in one generation (reference.md Text2VideoO1SubmitRequest)
+                shots = [{"index": i, "prompt": str(sh["prompt"])[:2500], "duration": str(effective_duration(canonical, family, sh["duration"]))}
+                         for i, sh in enumerate(multi_prompt, 1)]
+                ctx.update(multi_shot=1, shot_type="customize", multi_prompt=shots,
+                           duration=str(sum(int(sh["duration"]) for sh in shots)))
+                ctx.pop("prompt", None)
             path = PATH_KLING
         else:
             ctx = {"model_name": canonical,

@@ -11,7 +11,7 @@ def autopilot_progress(pid: int) -> None:
     info = autopilot.status(p, pid)
     state = info["state"]
     tag = {"queued": ("xếp hàng", "b-warn"), "running": ("đang chạy", "b-info"), "done": ("hoàn tất", "b-ok"), "needs_attention": ("cần bạn xử lý", "b-warn"),
-           "stopped": ("đã dừng", "b-warn"), "error": ("lỗi", "b-bad")}.get(state, (state, ""))
+           "stopped": ("đã dừng", "b-warn"), "error": ("lỗi", "b-bad"), "waiting": ("chờ bạn duyệt", "b-pri")}.get(state, (state, ""))
     ui.html(ui.badge(*tag) + f' <span class="muted">{escape(info["note"])}</span>')
     for label, done, total in autopilot.progress(p, pid, C.DATA):
         st.progress(0 if not total else min(done / total, 1.0), text=f"{label}: {done}/{total}")
@@ -33,8 +33,9 @@ def autopilot_progress(pid: int) -> None:
         if c2.button("■ Dừng hẳn", key=f"ap_stop_{pid}"):
             autopilot.stop(p, pid)
             st.rerun()
-    elif state in ("needs_attention", "stopped", "error") or stale:
-        if st.button("▶ Tiếp tục", key=f"ap_resume_{pid}", type="primary"):
+    elif state in ("needs_attention", "stopped", "error", "waiting") or stale:
+        label = "✔ Đã duyệt — tiếp tục" if state == "waiting" else "▶ Tiếp tục"
+        if st.button(label, key=f"ap_resume_{pid}", type="primary"):
             autopilot.resume(p, pid, p.actor)
             autopilot_manager(C.DB, C.DATA).start(pid)
             st.rerun()
@@ -57,7 +58,7 @@ def autopilot_panel(p: Pipeline, pid: int) -> None:
                 with st.expander("Chạy lại từ đầu cho dự án này"):
                     st.caption("Đặt lại trạng thái tự động (ảnh/video đã làm được giữ nguyên).")
                     if st.button("↺ Đặt lại chế độ tự động", key=f"ap_reset_{pid}"):
-                        autopilot.reset(p, pid)
+                        autopilot.reset(p, pid, C.DATA)
                         st.rerun()
             return
         st.caption("Chuỗi: Director → (dừng để bạn duyệt nhân vật, nếu bật) → dựng layout → ảnh + Claude QC → QC đồng bộ cả bộ → "

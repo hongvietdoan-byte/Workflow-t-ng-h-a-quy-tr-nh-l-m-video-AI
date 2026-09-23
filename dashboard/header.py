@@ -73,33 +73,28 @@ def current_pid(p: Pipeline):
 def new_project_control(p: Pipeline) -> None:
     """"+ new project": name plus the decisions every later step depends on — frame format, genre, model priority, game."""
     with st.popover("➕ Dự án mới", help="Tạo dự án mới"):
-        name = st.text_input("Tên dự án", key="new_name")
+        st.text_input("Tên dự án", key="new_name")
         aspects = list(formats.ASPECTS)
-        aspect = st.selectbox("Tỉ lệ khung", aspects, index=aspects.index(formats.DEFAULT_NEW), format_func=formats.label, key="new_aspect",
-                              help="Ảnh, video, layout và bản dựng đều làm theo khung này ngay từ đầu (không phải thêm viền đen ở cuối).")
+        st.selectbox("Tỉ lệ khung", aspects, index=aspects.index(formats.DEFAULT_NEW), format_func=formats.label, key="new_aspect",
+                     help="Ảnh, video, layout và bản dựng đều làm theo khung này ngay từ đầu (không phải thêm viền đen ở cuối).")
         genres = [None] + list(llm_io.GENRES)
-        genre = st.selectbox("Thể loại", genres, index=genres.index("SHORT_FORM"), key="new_genre",
-                             format_func=lambda g: "Để Director tự chọn" if g is None else f"{g} — {llm_io.GENRES[g]}")
+        st.selectbox("Thể loại", genres, index=genres.index("SHORT_FORM"), key="new_genre",
+                     format_func=lambda g: "Để Director tự chọn" if g is None else f"{g} — {llm_io.GENRES[g]}")
         prios = list(model_router.PRIORITIES)
         pr = model_router.load_profiles()["priorities"]
-        prio = st.selectbox("Ưu tiên model video", prios, index=prios.index(model_router.DEFAULT_PRIORITY), key="new_prio",
-                            format_func=lambda k: pr[k]["label"], help="Theo slide ClipAI: Chất lượng / Cân bằng / Tiết kiệm.")
+        st.selectbox("Ưu tiên model video", prios, index=prios.index(model_router.DEFAULT_PRIORITY), key="new_prio",
+                     format_func=lambda k: pr[k]["label"], help="Theo slide ClipAI: Chất lượng / Cân bằng / Tiết kiệm.")
         catalog = subjects.games()
         games = list(catalog)
-        game = st.selectbox("Game / nội dung", games, index=games.index("FF") if "FF" in games else 0, key="new_game",
-                            format_func=lambda k: catalog[k][0])
-        if st.button("Tạo dự án", key="new_project_go", type="primary", disabled=not name.strip()):
-            pid = p.create_project(name.strip(), created_by=me()["email"], aspect=aspect, genre=genre, model_priority=prio, game=game)
-            qc_policy.apply(p, pid, "balanced")
-            st.session_state["global_pid"] = pid
-            st.rerun()
+        st.selectbox("Game / nội dung", games, index=games.index("FF") if "FF" in games else 0, key="new_game",
+                     format_func=lambda k: catalog[k][0])
+        st.button("Tạo dự án", key="new_project_go", type="primary", disabled=not (st.session_state.get("new_name") or "").strip(),
+                  on_click=_create_project, args=(p,))
 
 
 def settings_menu(p: Pipeline, pid) -> None:
-    """Gear icon next to sign-out: every settings-like feature opens as its own closable panel (st.dialog,
-    native X) instead of living inline in the page. Kho tài nguyên/Bảng giá/Kho kiến thức only need the C.DB;
-    Lịch sử/Bài học/Phân quyền act on the project selected in the header. Old ?step=history/lessons/users
-    deep links still work -- they open the matching dialog once per browser session."""
+    """ONE gear: 'Dự án này' (review mode, QC policy, delete) and 'Hệ thống' (library, prices, knowledge, history, lessons, users,
+    shut down). Each panel opens as its own closable dialog. Old ?step=history/lessons/users links still open the matching dialog."""
     deep = st.query_params.get("step")
     if deep in ("history", "lessons", "users") and "deep_dialog_done" not in st.session_state:
         st.session_state["deep_dialog_done"] = True
@@ -109,21 +104,46 @@ def settings_menu(p: Pipeline, pid) -> None:
             open_dialog("dlg_lessons")
         elif deep == "users" and allowed("users"):
             open_dialog("dlg_users")
-    with st.popover("⚙", help="Cài đặt"):
+    with st.popover("⚙", help="Cài đặt dự án và hệ thống"):
+        if pid is not None:
+            proj = p.project(pid)
+            st.markdown("**Dự án này**")
+            modes = list(ui.MODE_LABELS)
+            mode = st.radio("Ai duyệt ảnh/clip", modes, index=modes.index(proj["operating_mode"]), format_func=ui.MODE_LABELS.get,
+                            horizontal=True, key=f"mode_{pid}")
+            if mode != proj["operating_mode"]:
+                p.set_mode(pid, mode)
+            st.caption("Chính sách QC (ngưỡng, tự gen lại) chỉnh ở Bước 2. Định dạng khung, thể loại, ưu tiên model ở Bước 1 · 1b.")
+            if not can_delete_project(proj):
+                who = proj["created_by"]
+                st.caption("Dự án này do " + (escape(who) if who else "người dùng cũ") + " tạo nên bạn không xóa được.")
+            elif confirm_all(f"proj_del_{pid}", [pid], "🗑 Xóa dự án", f"Xóa hẳn dự án “{proj['name']}” cùng ảnh, clip, nhạc, video? Không thể khôi phục.",
+                             st, "Có, xóa dự án"):
+                autopilot.stop(p, pid, "Dự án bị xóa")
+                p.cancel_all_active(pid)
+                p.delete_project(pid, C.DATA)
+                st.toast(f"Đã xóa dự án “{proj['name']}”")
+                st.rerun()
+            if st.button("🗒 Lịch sử & thùng rác", key="settings_history", width="stretch"):
+                open_dialog("dlg_history")
+            st.divider()
+        st.markdown("**Hệ thống**")
         if allowed("assets") and st.button("📁 Kho tài nguyên", key="settings_assets", width="stretch"):
             open_dialog("dlg_assets")
         if allowed("settings") and st.button("💲 Bảng giá", key="settings_pricing", width="stretch"):
             open_dialog("dlg_pricing")
         if allowed("knowledge") and st.button("📚 Kho kiến thức", key="settings_knowledge", width="stretch"):
             open_dialog("dlg_knowledge")
-        if pid is not None:
-            st.divider()
-            if st.button("🗒 Lịch sử", key="settings_history", width="stretch"):
-                open_dialog("dlg_history")
-            if allowed("lessons") and st.button("🎓 Bài học", key="settings_lessons", width="stretch"):
-                open_dialog("dlg_lessons")
-            if allowed("users") and st.button("👥 Phân quyền", key="settings_users", width="stretch"):
-                open_dialog("dlg_users")
+        if pid is not None and allowed("lessons") and st.button("🎓 Bài học", key="settings_lessons", width="stretch"):
+            open_dialog("dlg_lessons")
+        if pid is not None and allowed("users") and st.button("👥 Phân quyền", key="settings_users", width="stretch"):
+            open_dialog("dlg_users")
+        if allowed("shutdown"):
+            if confirm_all("shutdown", ["go"], "⏻ Tắt Dashboard", "Tắt Dashboard ngay bây giờ? (việc chạy nền dừng, tiến độ đã lưu)", st, "Có, tắt"):
+                stop = os.path.join(os.path.dirname(__file__), "..", "tools", "stop_dashboard.ps1")
+                subprocess.Popen(["powershell.exe", "-NoProfile", "-ExecutionPolicy", "Bypass", "-WindowStyle", "Hidden", "-File", stop],
+                                 creationflags=0x00000008)
+                st.info("Đang tắt… có thể đóng cửa sổ này.")
     if st.session_state.get("dlg_assets"):
         _dialog_assets(p)
     if st.session_state.get("dlg_pricing"):
@@ -169,21 +189,14 @@ def _dialog_users(p: Pipeline, pid: int) -> None:
 
 
 def account_bar(p: Pipeline) -> None:
-    """Identity + quick actions (new project, settings gear) + sign-out, all in one top bar."""
-    conn = p.conn
+    """Who is signed in (one short line) + sign-out. Actions live in the project bar below."""
     who = me()
-    c1, c2, c3, c4 = st.columns([5, 1.6, 0.6, 1.1], vertical_alignment="center")
+    c1, c4 = st.columns([8, 1.1], vertical_alignment="center")
     role = "Owner" if who["role"] == "owner" else "Thành viên"
-    c1.markdown(f"👤 **{escape(who['name'])}** · {escape(who['email'])} · {role}")
-    with c2:
-        new_project_control(p)
-    with c3:
-        settings_menu(p, current_pid(p))
-    if not auth_on():
-        c1.caption("Đăng nhập đang tắt (DASHBOARD_AUTH=off): mọi người đều là Owner.")
-        return
-    if c4.button("Đăng xuất", key="logout_btn"):
-        auth.logout(conn, st.session_state.get("auth_token"))
+    c1.caption(f"👤 {escape(who['name'])} · {escape(who['email'])} · {role}"
+               + ("" if auth_on() else " · đăng nhập đang tắt (DASHBOARD_AUTH=off)"))
+    if auth_on() and c4.button("Đăng xuất", key="logout_btn"):
+        auth.logout(p.conn, st.session_state.get("auth_token"))
         for key in ("auth_token", "identity", "login_tried"):
             st.session_state.pop(key, None)
         st.query_params.pop("login", None)
@@ -206,69 +219,59 @@ def user_bar() -> str:
     return typed
 
 
-def project_settings_popover(p: Pipeline, pid: int, proj) -> None:
-    """Gear next to the project picker: QC mode/threshold + delete -- moved off the control bar itself
-    (2026-09-22 cleanup, same "gear -> popover" pattern as the header's settings_menu) so that row only
-    keeps the picker, the risk note and the frequently-used Pause/Resume/Cancel buttons."""
-    with st.popover("⚙", help="Cấu hình dự án: chế độ QC, threshold, xóa dự án"):
-        mode = st.radio("Chế độ QC", ["auto", "human_qc"], index=0 if proj["operating_mode"] == "auto" else 1,
-                        horizontal=True, key=f"mode_{pid}")
-        if mode != proj["operating_mode"]:
-            p.set_mode(pid, mode)
-        th = st.slider("QC threshold", 0.5, 1.0, float(proj["qc_auto_pass_threshold"]), 0.01, key=f"th_{pid}")
-        if abs(th - proj["qc_auto_pass_threshold"]) > 1e-9:
-            p.set_threshold(pid, th)
-        max_retry = st.slider("Retry tối đa mỗi job (rồi báo cho bạn xử lý)", 1, 8, int(proj["max_retry_count"]), 1, key=f"maxretry_{pid}")
-        if max_retry != proj["max_retry_count"]:
-            p.set_max_retry(pid, max_retry)
-        st.divider()
-        st.caption("🗑 Xóa dự án cùng cảnh, ảnh, clip, nhạc và video đã tạo (tài nguyên trong kho chung không bị xóa; lịch sử chi tiêu được giữ). "
-                   "Chỉ người tạo dự án mới xóa được (dự án cũ chưa ghi người tạo thì Owner xóa).")
-        if not can_delete_project(proj):
-            who = proj["created_by"]
-            st.caption("Dự án này do " + (escape(who) if who else "người dùng cũ") + " tạo nên bạn không xóa được.")
-        elif confirm_all(f"proj_del_{pid}", [pid], "🗑 Xóa dự án", f"Xóa hẳn dự án “{proj['name']}”? Không thể khôi phục.", st, "Có, xóa dự án"):
-            autopilot.stop(p, pid, "Dự án bị xóa")
-            p.cancel_all_active(pid)
-            p.delete_project(pid, C.DATA)
-            st.toast(f"Đã xóa dự án “{proj['name']}”")
-            st.rerun()
 
 
 def global_bar(p: Pipeline):
-    """Project picker + per-project controls. Project creation and the Kho tài nguyên/Bảng giá/Kho kiến thức
-    panels moved to the header (account_bar -> new_project_control / settings_menu); mode/threshold/delete
-    moved into project_settings_popover so this row only keeps the picker, risk note and Pause/Resume/Cancel."""
+    """ONE bar: brand · project · state · risk · pause/continue/cancel · new project · ⚙."""
     projects = p.conn.execute("SELECT id, name FROM projects ORDER BY id").fetchall()
-    if not projects:
-        st.info("Chưa có dự án. Bấm “➕ Dự án mới” ở đầu trang để bắt đầu.")
-        return None
     with st.container(border=True):
-        c0, c1, c2, c3, c4 = st.columns([1.4, 2.2, 1.3, 0.6, 3.0], vertical_alignment="center")
+        c0, c1, c2, c3, c4, c5 = st.columns([1.3, 2.4, 1.1, 2.6, 1.3, 0.5], vertical_alignment="center")
         c0.markdown('<div class="brand"><i></i>AI Video Pipeline</div>', unsafe_allow_html=True)
+        with c4:
+            new_project_control(p)
+        if not projects:
+            with c5:
+                settings_menu(p, None)
+            st.info("Chưa có dự án. Bấm “➕ Dự án mới” để bắt đầu.")
+            return None
         ids = [r["id"] for r in projects]
         default_pid = current_pid(p)
         pid = c1.selectbox("Dự án", ids, index=ids.index(default_pid) if default_pid in ids else 0,
-                           format_func=lambda i: next(r["name"] for r in projects if r["id"] == i), key="global_pid")
+                           format_func=lambda i: next(r["name"] for r in projects if r["id"] == i), key="global_pid",
+                           label_visibility="collapsed")
         proj = p.project(pid)
         with c2:
             risk_popover(p, pid)
-        with c3:
-            project_settings_popover(p, pid, proj)
-        b1, b2, b3 = c4.columns(3)
-        if b1.button("⏸ Pause", disabled=bool(proj["paused"]), key="btn_pause"):
+        b1, b2, b3 = c3.columns(3)
+        if b1.button("⏸ Tạm dừng", disabled=bool(proj["paused"]), key="btn_pause"):
             p.set_paused(pid, True)
             st.rerun()
-        if b2.button("▶ Resume", disabled=not proj["paused"], key="btn_resume"):
+        if b2.button("▶ Tiếp tục", disabled=not proj["paused"], key="btn_resume"):
             p.set_paused(pid, False)
             st.rerun()
-        if b3.button("■ Cancel", key="btn_cancel"):
-            st.toast(f"Đã hủy {p.cancel_all_active(pid)} job")
+        if confirm_all("btn_cancel", [pid], "■ Hủy việc", "Hủy mọi ảnh/clip đang chờ hoặc đang gen của dự án này?", b3, "Có, hủy"):
+            st.toast(f"Đã hủy {p.cancel_all_active(pid)} việc")
             st.rerun()
+        with c5:
+            settings_menu(p, pid)
     if proj["paused"]:
-        st.warning("Pipeline đang PAUSE — không job nào được bắt đầu.")
+        st.warning("Dự án đang TẠM DỪNG — không ảnh/clip nào được gửi đi. Bấm ▶ Tiếp tục ở thanh trên.")
     spend_line(p, pid)
     ap = autopilot.status(p, pid)
-    if ap["state"] in ("running", "queued"):
+    if ap["state"] in ("running", "queued", "waiting"):
         st.caption(f"🚀 Chế độ tự động: {ap['note']} (xem chi tiết ở Bước 1)")
     return pid
+
+
+
+def _create_project(p: Pipeline) -> None:
+    """Button callback (runs before the widgets, so it may still select the new project in the picker)."""
+    name = (st.session_state.get("new_name") or "").strip()
+    if not name:
+        return
+    pid = p.create_project(name, created_by=me()["email"], aspect=st.session_state.get("new_aspect"),
+                           genre=st.session_state.get("new_genre"), model_priority=st.session_state.get("new_prio"),
+                           game=st.session_state.get("new_game"))
+    qc_policy.apply(p, pid, "balanced")
+    st.session_state["global_pid"] = pid
+    st.session_state["new_name"] = ""

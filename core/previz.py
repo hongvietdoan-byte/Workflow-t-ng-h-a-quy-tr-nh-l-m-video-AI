@@ -138,6 +138,9 @@ def compose_scene(p: Pipeline, project_id: int, scene: Dict, shot: Dict, backgro
     names = [pp["name"] for pp in shot.get("people") or []]
     linked = assets.link_characters(p.conn, project_id, names) if names else {}
     cutouts = {n: (a or {}).get("ref", {}).get("path") for n, a in linked.items()}
+    if os.environ.get("PREVIZ_CUTOUT", "").strip() == "1":          # experiment: real cut-out figures instead of mannequins
+        cutouts = {n: _deepix_cutout(p, project_id, path, data_dir) if path and layout._cutout(path) is None else path
+                   for n, path in cutouts.items()}
     cutouts = {n: path for n, path in cutouts.items() if path and layout._cutout(path) is not None}
     from . import formats
     size = formats.canvas(formats.project_aspect(p.project(project_id)))       # the layout has the project's frame
@@ -202,4 +205,24 @@ def last_review(data_dir: str, project_id: int) -> Optional[Dict]:
         with open(os.path.join(layouts_dir(data_dir, project_id), "review.json"), encoding="utf-8") as f:
             return json.load(f)
     except (OSError, ValueError):
+        return None
+
+
+def _deepix_cutout(p: Pipeline, project_id: int, path: str, data_dir: str) -> Optional[str]:
+    """Cached transparent PNG of a reference picture via Deepix cutout (PREVIZ_CUTOUT=1); None when it cannot be made."""
+    import hashlib
+    from .adapters import factory
+    from .adapters.deepix import DeepixImageProvider, cutout
+    try:
+        with open(path, "rb") as f:
+            digest = hashlib.sha1(f.read()).hexdigest()[:16]
+        dest = os.path.join(data_dir, str(project_id), "cutouts", f"{digest}.png")
+        if os.path.exists(dest):
+            return dest
+        provider = factory.image_provider()
+        if not isinstance(provider, DeepixImageProvider):
+            return None
+        return cutout(provider, path, dest)
+    except Exception as e:  # noqa: BLE001 - an experiment must never stop the layout
+        diag.record(p.conn, "previz", "warn", f"tách nền Deepix lỗi, dùng ma-nơ-canh: {e}", "cutout", project_id)
         return None
