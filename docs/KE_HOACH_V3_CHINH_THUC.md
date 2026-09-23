@@ -112,7 +112,7 @@ Cộng dự phòng gen lại ×1,5 + TTS → **ước tính ~$25–30, trần c�
 
 | GĐ | Trạng thái | Ghi chú |
 |---|---|---|
-| GĐ1 · Thư viện phong cách | **Đang làm (~50%)** | Công cụ xong; 19/≥36 video đã phân tích; chưa viết file phong cách |
+| GĐ1 · Thư viện phong cách | **Xong phần cần cho GĐ2** (2026-09-24) | 19 video / 519 shot; 6 file phong cách + `ff_directing.md` + `docs/FF_STYLE_RESEARCH.md`; test. **Phân tích thêm video: để sau** (quyết định 2026-09-24) |
 | GĐ2 · Lớp shot + nhịp | Chưa bắt đầu | Đã đọc code nền (xem "Ghi chú thiết kế" dưới) |
 | GĐ3 · Nhất quán + Kling multi-shot | Chưa bắt đầu | |
 | GĐ4 · Giọng Việt + storyboard theo shot | Chưa bắt đầu | So `eleven_v3`/`multilingual_v2` tốn credit → hỏi trước |
@@ -137,6 +137,13 @@ Cộng dự phòng gen lại ×1,5 + TTS → **ước tính ~$25–30, trần c�
 
 - Quy ước phân loại: phim nét anime → `ANIME_CGI` dù tiêu đề ghi "Short Film" (Oscar); giữ đúng danh sách trong kế hoạch (Blue Lock → `SHORT_FILM`, Kenta's Obsession → `ANIME_CGI`); CGI giới thiệu trang phục/sự kiện → `REAL_CGI_VFX`.
 - Nhận xét sơ bộ từ số liệu: trung vị 2,0s/shot, 24 shot/phút (bản v2 của ta: 3 shot/56s); `INGAME` 79% camera game + 90% có giao diện game, chữ chương vàng; `SHORT_FILM` 28 shot/phút, hành động 1,1–2,7s, phản ứng 0,5–1,9s; `REAL_CGI_VFX` nhiều máy tĩnh/vòng chậm, cận chi tiết 1,1–1,8s; Kelly Show có thẻ chương "Kelly Show" lặp 4–5 lần/tập, người dẫn nói thẳng vào máy quay ở đầu/cuối.
+
+### GĐ1 — khép lại bằng dữ liệu đang có (2026-09-24)
+- **Người dùng chốt: tạm dừng phân tích thêm video, ưu tiên các bước khác, ghi lại để làm sau.**
+- `knowledge/ff_styles/<STYLE>.md` ×6 (hướng dẫn dựng + look + lưu ý cho AI video; phần số liệu và danh sách nguồn sinh tự động bằng `py tools/ff_style_knowledge.py`; ghi độ tin cậy: KELLY_SHOW 1 video = mỏng, FAN_3D chưa có dữ liệu → tạm dựa SHORT_FILM + ANIME_CGI), `knowledge/ff_directing.md` (ngữ pháp chung: ~24 shot/phút, shot trung vị ~2s, mở bằng hook, xen phản ứng, từ vựng shot thống nhất), `docs/FF_STYLE_RESEARCH.md` (bảng 6 phong cách + nguồn + việc để sau).
+- `tests/test_v3.py`: 5 test cho công cụ (cắt shot, điểm cắt từ quét trình duyệt, từ vựng nhãn, nhãn giả lập → lưu → thống kê, đủ file phong cách).
+
+### Việc để sau — phân tích video (danh sách giữ nguyên dưới đây, cộng khối ⚙ Kho kiến thức; sau khi thêm dữ liệu chạy `py tools/ff_style_knowledge.py`)
 
 ### GĐ1 — còn lại
 1. Phân tích thêm (đã có mã video, quét theo cách trên):

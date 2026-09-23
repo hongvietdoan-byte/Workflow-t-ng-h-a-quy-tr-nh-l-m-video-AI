@@ -1,6 +1,6 @@
 # TODO — Theo dõi tiến độ dự án Auto Pipeline Video AI
 
-_Cập nhật lần cuối: 2026-09-24 (thực hiện v3, nhánh `v3-shots`) — **GĐ1 đang làm (~50%)**: xong công cụ phân tích video tham khảo (`core/reference_analysis.py`, `tools/reference_video.py`, prompt 16, cách quét YouTube trong trình duyệt) và đã phân tích **19 video / 519 shot** (INGAME 8 ✔, ANIME_CGI 3/6, REAL_CGI_VFX 4/6, KELLY_SHOW 1/6, SHORT_FILM 3/6, FAN_3D 0/6). **Còn lại GĐ1:** ~17 video nữa (mã video đã liệt kê), 6 file `knowledge/ff_styles/*.md` + `ff_directing.md` + `docs/FF_STYLE_RESEARCH.md`, khối ⚙ Kho kiến thức, test. **GĐ2–GĐ6 chưa bắt đầu.** Chi tiết: mục "Tiến độ thực hiện" trong `docs/KE_HOACH_V3_CHINH_THUC.md`._
+_Cập nhật lần cuối: 2026-09-24 (thực hiện v3, nhánh `v3-shots`) — **GĐ1 khép lại bằng dữ liệu đang có**: 19 video / 519 shot, 6 file `knowledge/ff_styles/*.md`, `knowledge/ff_directing.md`, `docs/FF_STYLE_RESEARCH.md`, test. **Phân tích thêm video: để sau** (người dùng chốt 2026-09-24; danh sách mã video trong `docs/FF_STYLE_RESEARCH.md`). Đang làm GĐ2. Chi tiết: mục "Tiến độ thực hiện" trong `docs/KE_HOACH_V3_CHINH_THUC.md`._
 
 _Trước đó, 2026-09-23 (chốt v3) — **Kế hoạch v3 chính thức** `docs/KE_HOACH_V3_CHINH_THUC.md` (+ docx/pdf): người dùng chốt thử cả 2 cách (từng shot / Kling multi-shot) rồi so sánh, nghiên cứu nhiều phong cách Free Fire (thêm 3D fan viral), nhịp theo kịch bản, ngân sách thử ≤ $50 ở 720p; thực hiện trên tài khoản phụ._
 
@@ -146,6 +146,7 @@ _Cập nhật 2026-09-22 (dùng thật tính năng phân tích video kỹ năng 
 - [x] Lớp core Python: schema SQLite + state machine + luồng `auto`/`human_qc` + retry/escalate, 10 unit test pass (`core/`, `tests/`) (2026-09-19)
 
 ## ⏸ Tạm gác
+- [ ] **v3 · Phân tích thêm video tham khảo Free Fire** (để sau, người dùng chốt 2026-09-24): ~19 video (ANIME_CGI +3, REAL_CGI_VFX +2, KELLY_SHOW +5, SHORT_FILM +3, FAN_3D +6) — mã video ở `docs/FF_STYLE_RESEARCH.md`; khối ⚙ Kho kiến thức cho `reference_analysis.analyze_file`; xong thì chạy `py tools/ff_style_knowledge.py`.
 - **Kiểm tra API Clip AI có trả trường chi phí không** (`py -m core.adapters.inspect_api`, chỉ đọc, không tốn credit; cần `CLIPAI_TOKEN` trong terminal) — tạm gác vì đang làm việc từ xa, không chạy lệnh được (2026-09-20). Đã xác nhận từ tài liệu chính thức: không có endpoint giá/số dư và phản hồi `video-list` không có trường chi phí; còn khả năng trường không công bố trong phản hồi thật. Trong lúc đó chép giá từ web vào 💲 Bảng giá.
 - **Dùng chung nhiều người + quản lý người dùng (chỉ nhắc lại khi quy trình đã chạy ổn định, hoàn thiện — theo yêu cầu 2026-09-20).** Đã bàn, ghi lại để khỏi bàn lại từ đầu:
   - Hai mô hình: **A** mỗi người chạy trên PC mình (mỗi người 1 database + token riêng) — đề xuất bắt đầu bằng A; **B** một máy chủ chung, mọi người vào bằng địa chỉ web (1 database chung; cần đăng nhập SSO công ty — Streamlit có `st.login`, phân quyền, máy chủ luôn bật, database chịu nhiều người ghi, token nằm trên máy chủ).
