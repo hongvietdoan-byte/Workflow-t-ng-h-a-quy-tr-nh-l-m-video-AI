@@ -142,3 +142,8 @@ Phần lớn việc còn lại trong `TODO.md` (mục "Đang làm/kế tiếp", 
 - `ImageRunner._layout_ref`: layout là ảnh tham chiếu đầu tiên (reserve thêm 1 chỗ), `reference_note` role `layout` dùng `layout.layout_note` + `redraw_note`.
 - Bẫy: trong `assets.reference_note` biến `people` là BIẾN ĐẾM — đừng đặt trùng tên. Bảng chẩn đoán tên `diag_events` (không phải `diagnostics`).
 - Chưa thử thật: cần user bật `LLM_PROVIDER=claude_cli` và chạy ~6 ảnh Deepix (hướng dẫn trong TODO).
+
+## 2026-09-23 — QC 3 tiêu chí + thay trang phục bằng ảnh
+- QC: `scale`, `grounding`, `set_match` (checklist v0.2); QC nhận layout làm ảnh tham chiếu 1 (`prompts.qc_references` + `layout.layout_reference`, dùng chung với Bước 2). Điểm tổng = TB 8 tiêu chí → ngưỡng có thể cần chỉnh.
+- Trang phục: `characters.outfit_image_ids`; `scene_references` xây danh sách mỗi người [mặt, trang phục, góc 2] (tối đa 2/người); `reference_note` vai `outfit` + câu "clothes come from the OUTFIT image". `core/costume.make_character_set`: 2 ảnh dọc, tạm đổi `provider.size` rồi trả lại, lưu thành asset riêng dự án + `set_character_link` + xóa outfit rời.
+- Bẫy Streamlit: không lồng expander trong expander → dùng popover. AppTest: popover là `Block`, nhãn ở `x.proto.popover.label`. Test đếm popover toàn trang phải lọc popover theo nhãn.

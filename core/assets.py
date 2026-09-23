@@ -433,6 +433,26 @@ def set_character_link(conn, project_id: int, name: str, asset_id: Optional[int]
     conn.commit()
 
 
+def set_outfit(conn, project_id: int, name: str, image_ids: Optional[List[int]]) -> None:
+    """The outfit a Character Bible entry wears in this video, as picture(s) from the library (another skin, a costume photo...).
+    Empty/None = the outfit of its own reference pictures. The face, hair and body still come from the reference pictures."""
+    text = ",".join(str(int(i)) for i in image_ids) if image_ids else None
+    conn.execute("UPDATE characters SET outfit_image_ids=? WHERE project_id=? AND name=?", (text, project_id, name))
+    conn.commit()
+
+
+def outfit_images(conn, project_id: int, name: str) -> List[Dict]:
+    """[{id, path}] of the outfit pictures chosen for this character (files that exist), in the chosen order."""
+    row = conn.execute("SELECT outfit_image_ids FROM characters WHERE project_id=? AND name=?", (project_id, name)).fetchone()
+    ids = [int(x) for x in str((row["outfit_image_ids"] if row else "") or "").split(",") if x.strip().isdigit()]
+    out = []
+    for i in ids:
+        r = conn.execute("SELECT id, path FROM asset_images WHERE id=?", (i,)).fetchone()
+        if r and os.path.exists(r["path"]):
+            out.append({"id": r["id"], "path": r["path"]})
+    return out
+
+
 def scene_location(conn, project_id: int, scene: Dict) -> Optional[Dict]:
     """The place a scene is set in: the resource the scene names by id (`location_asset`, chosen by the Director or by hand), else a
     chosen place whose name appears in the scene's `location` text. None when neither has a picture."""
@@ -459,21 +479,25 @@ def scene_references(conn, project_id: int, scene: Dict, limit: int = MAX_REFERE
     refs: List[Dict] = []
     names = [str(n) for n in scene.get("characters") or []]
     linked = link_characters(conn, project_id, names) if names else {}
-    people, seen = [], set()
+    people, seen = [], set()                       # (label, [(path, role)...]) per person: face first, then outfit, then 2nd angle
     for name in names:
         a = linked.get(name)
-        if a and a["name"] not in seen:
-            seen.add(a["name"])
-            people.append(a)
+        label = a["name"] if a else name
+        outfit = outfit_images(conn, project_id, name)
+        if label in seen or not (a or outfit):
+            continue
+        seen.add(label)
+        own = [(img["path"], "character") for img in (a["refs"] if a else [])]
+        people.append((label, own[:1] + [(img["path"], "outfit") for img in outfit[:1]] + own[1:]))
     loc = scene_location(conn, project_id, scene)
     room = max(limit - reserve - (1 if loc else 0), 0)
-    counts = [0] * len(people)                     # 1 picture each first, then a 2nd angle for the people listed first while room lasts
+    counts = [0] * len(people)                     # 1 picture each first, then a 2nd picture for the people listed first while room lasts
     for n in range(1, MAX_REFS_PER_CHARACTER + 1):
-        for i, a in enumerate(people):
-            if sum(counts) < room and len(a["refs"]) >= n:
+        for i, (_, items) in enumerate(people):
+            if sum(counts) < room and len(items) >= n:
                 counts[i] = n
-    for a, k in zip(people, counts):               # grouped per person, so the note reads "Images 1/2 show KELLY"
-        refs += [{"path": img["path"], "label": a["name"], "role": "character"} for img in a["refs"][:k]]
+    for (label, items), k in zip(people, counts):  # grouped per person, so the note reads "Images 1/2 show KELLY"
+        refs += [{"path": path, "label": label, "role": role} for path, role in items[:k]]
     if loc and len(refs) < limit - reserve:
         refs.append({"path": best_reference(loc)["path"], "label": loc["name"], "role": "location"})
     limit = limit - reserve
@@ -495,6 +519,7 @@ def reference_note(refs: List[Dict]) -> str:
     """Words that tell the image model what each attached picture is for. Several pictures of the same person (different angles /
     a close-up) are grouped: "Images 1-2 show KELLY..." instead of repeating a separate, disconnected line per picture."""
     groups: List[Dict] = []
+    dressed = {r["label"] for r in refs if r["role"] == "outfit"}
     for i, r in enumerate(refs, 1):
         if groups and groups[-1]["label"] == r["label"] and groups[-1]["role"] == r["role"]:
             groups[-1]["nums"].append(i)
@@ -514,6 +539,10 @@ def reference_note(refs: List[Dict]) -> str:
             bits.append(f"{tag} is the LAYOUT. " + text.replace("The LAYOUT image is", "It is"))
         elif g["role"] == "location":
             bits.append(f"{tag} is the location {g['label']}: keep the look of this environment")
+        elif g["role"] == "outfit":
+            bits.append(f"{tag} {'shows' if len(nums) == 1 else 'show'} the OUTFIT {g['label']} wears in this video: dress {g['label']} "
+                        "exactly in these clothes (garments, colours, accessories); take only the face, hair and body build from "
+                        f"{g['label']}'s own reference image, never the clothes shown there")
         elif g["role"] == "object":
             bits.append(f"{tag} is the object {g['label']}: draw it exactly like this whenever it appears")
         elif g["role"] == "previous_scene":
@@ -526,8 +555,10 @@ def reference_note(refs: List[Dict]) -> str:
             people += 1
             angles = " (different angles/details of the same person)" if len(nums) > 1 else ""
             verb = "show" if len(nums) > 1 else "is"
+            keep = ("same face, hairstyle and hair color, body build; the clothes come from the OUTFIT image, not from this one"
+                    if g["label"] in dressed else "same face, hairstyle and hair color, outfit and its colors, body build")
             bits.append(f"{tag} {verb} {g['label']}{angles}: the person called {g['label']} in the scene must be exactly this person "
-                        "(same face, hairstyle and hair color, outfit and its colors, body build)")
+                        f"({keep})")
     rule = ""
     if people:
         rule = (" Each person keeps ONLY the look of their own reference image(s): never swap or blend faces, hair or outfits between people, and ignore "

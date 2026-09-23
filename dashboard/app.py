@@ -21,7 +21,7 @@ import streamlit as st
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
-from core import previz, asset_vision, autoqc, ff_site, sfx_plan, sound_lib, assets, audio_lib, subtitles, script_reader, auth, autopilot, dialogue, diag, knowledge, lessons, perf, regen, research, style, subjects, trash, waveform, cost, ffmpeg_studio, final_cut, llm_io, llm_runner, music, preflight, prompts, script_parser, video_analysis  # noqa: E402
+from core import costume, previz, asset_vision, autoqc, ff_site, sfx_plan, sound_lib, assets, audio_lib, subtitles, script_reader, auth, autopilot, dialogue, diag, knowledge, lessons, perf, regen, research, style, subjects, trash, waveform, cost, ffmpeg_studio, final_cut, llm_io, llm_runner, music, preflight, prompts, script_parser, video_analysis  # noqa: E402
 from core.db import connect  # noqa: E402
 from core.pipeline import Pipeline, PipelinePaused  # noqa: E402
 from core.adapters import factory  # noqa: E402
@@ -1575,6 +1575,33 @@ def character_reference_panel(p: Pipeline, pid: int, chars) -> None:
                         ids = [shown["images"][i - 1]["id"] for i in sorted(chosen_nums)]
                         assets.set_character_link(p.conn, pid, c["name"], shown["id"], ids[0], ids)
                         st.rerun()
+                outfit_panel(p, pid, c["name"], right)
+
+
+def outfit_panel(p: Pipeline, pid: int, name: str, box) -> None:
+    """A different outfit for this video, from pictures + text: pick outfit picture(s) from the library (another skin, a costume photo),
+    optionally generate a 2-picture character set wearing it (it then becomes the reference; nothing to approve)."""
+    current = assets.outfit_images(p.conn, pid, name)
+    with box.popover("👗 Trang phục cho video này" + (f" — đang dùng {len(current)} ảnh" if current else ""), width="stretch"):
+        st.caption("Muốn nhân vật mặc trang phục khác (skin khác, đồ theo kịch bản): chọn ảnh trang phục trong kho. Khi gen, mặt/tóc lấy từ ảnh "
+                   "nhân vật, quần áo lấy từ ảnh trang phục. Mô tả thêm bằng chữ ở ô “Trang phục / dấu hiệu” (mục ✏ Sửa nhân vật).")
+        pool = [a for a in assets.project_assets(p.conn, pid) if a["images"]]
+        by_id = {img["id"]: (a, n) for a in pool for n, img in enumerate(a["images"], 1)}
+        chosen = st.multiselect("Ảnh trang phục", list(by_id), [i["id"] for i in current if i["id"] in by_id],
+                                format_func=lambda i: f"{by_id[i][0]['name']} · ảnh {by_id[i][1]}", key=f"outfit_{pid}_{name}",
+                                max_selections=2)
+        if chosen:
+            st.image([assets.thumbnail(by_id[i][0]["images"][by_id[i][1] - 1]["path"], 160) for i in chosen], width=70)
+        if [i["id"] for i in current] != chosen and st.button("💾 Lưu trang phục", key=f"outfit_save_{pid}_{name}"):
+            assets.set_outfit(p.conn, pid, name, chosen)
+            st.rerun()
+        runner = image_runner(p) if current else None
+        if current and st.button("🧍 Tạo bộ ảnh nhân vật mặc trang phục này (2 ảnh Deepix)", key=f"outfit_set_{pid}_{name}",
+                                 disabled=runner is None, help="Chính diện + góc 3/4, toàn thân. Tạo xong tự thành ảnh tham chiếu của nhân vật "
+                                                               "trong dự án này, mọi cảnh bám theo cùng một bộ; đổi lại được ở ô “Ảnh tham chiếu lấy từ”."):
+            with st.spinner("Deepix đang vẽ bộ ảnh nhân vật (khoảng 1 phút)…"):
+                if act(lambda: costume.make_character_set(p, pid, name, runner.provider, DATA), f"Đã tạo bộ ảnh cho {name}"):
+                    st.rerun()
 
 
 def subject_panel(p: Pipeline, pid: int, chars) -> None:

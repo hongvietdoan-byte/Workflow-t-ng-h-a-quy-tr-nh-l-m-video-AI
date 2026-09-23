@@ -49,6 +49,7 @@ CREATE TABLE IF NOT EXISTS characters (
     ref_asset_id INTEGER,
     ref_image_id INTEGER,
     ref_image_ids TEXT,
+    outfit_image_ids TEXT,             -- asset_images ids of the outfit worn in this video (face/hair still from the ref pictures)
     UNIQUE (project_id, name)
 );
 CREATE TABLE IF NOT EXISTS motion_prompts (
@@ -331,6 +332,8 @@ def connect(path: str = ":memory:") -> sqlite3.Connection:
             conn.execute(f"ALTER TABLE characters ADD COLUMN {col} INTEGER")
     if "ref_image_ids" not in char_cols:
         conn.execute("ALTER TABLE characters ADD COLUMN ref_image_ids TEXT")
+    if "outfit_image_ids" not in char_cols:
+        conn.execute("ALTER TABLE characters ADD COLUMN outfit_image_ids TEXT")
     if "video_audio" not in cols:
         conn.execute("ALTER TABLE projects ADD COLUMN video_audio INTEGER NOT NULL DEFAULT 0")
     if "qc_reject_floor" not in cols:

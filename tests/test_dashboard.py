@@ -420,6 +420,32 @@ class DashboardSmokeTests(unittest.TestCase):
         self.assertFalse(at.exception)
         self.assertTrue(any("không thấy lỗi" in s.value for s in at.success))
 
+    def test_an_outfit_is_picked_in_the_character_bible_and_a_character_set_made_from_it(self):
+        import io
+        from PIL import Image
+        from core import assets
+        os.environ["ASSET_DIR"] = os.path.join(self.tmp, "assets")
+        os.environ["IMAGE_PROVIDER"] = "mock"
+        self.addCleanup(os.environ.pop, "ASSET_DIR", None)
+        self.addCleanup(os.environ.pop, "IMAGE_PROVIDER", None)
+        p, pid = self.seed()
+        name = p.conn.execute("SELECT name FROM characters WHERE project_id=? ORDER BY id", (pid,)).fetchone()["name"]
+        buf = io.BytesIO()
+        Image.new("RGB", (60, 90), (200, 30, 30)).save(buf, "PNG")
+        skin = assets.create(p.conn, "FF", "prop", "Áo giáp đỏ", "", "", None, "x")
+        assets.add_image(p.conn, skin, "skin.png", buf.getvalue())
+        assets.attach(p.conn, pid, skin)
+        img_id = assets.get(p.conn, skin)["images"][0]["id"]
+        at = AppTest.from_file(APP, default_timeout=30).run()
+        at.multiselect(key=f"outfit_{pid}_{name}").set_value([img_id]).run()
+        at.button(key=f"outfit_save_{pid}_{name}").click().run()
+        self.assertFalse(at.exception)
+        self.assertEqual([i["id"] for i in assets.outfit_images(p.conn, pid, name)], [img_id])
+        at.button(key=f"outfit_set_{pid}_{name}").click().run()
+        self.assertFalse(at.exception)
+        linked = assets.link_characters(Pipeline(connect(self.db)).conn, pid, [name])[name]
+        self.assertTrue(linked["name"].endswith("· trang phục 1"))
+
     def test_blocking_and_sequence_are_edited_in_the_scene_and_shown_in_its_row(self):
         import json
         p, pid = self.seed()
@@ -625,7 +651,8 @@ class DashboardSmokeTests(unittest.TestCase):
         record_failure(p.conn, job, "clipai", "Failure to pass the risk control system")
         at = AppTest.from_file(APP, default_timeout=30).run()
         self.assertFalse(at.exception)
-        self.assertEqual(len(at.get("popover")), 4)          # risk corner + project settings gear + header's "new project" + settings gear
+        bars = [x for x in at.get("popover") if not x.proto.popover.label.startswith("👗")]     # the per-character outfit popovers aside
+        self.assertEqual(len(bars), 4)                        # risk corner + project settings gear + header's "new project" + settings gear
         text = " ".join(m.value for m in at.markdown)
         self.assertIn("Cảnh 1 bị chặn (clipai)", text)      # risk-control block, with its scene
         self.assertIn("Nữ chiến binh Amazon", text)          # IP warning from the Character Bible
