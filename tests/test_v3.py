@@ -309,5 +309,55 @@ class ConsistencyTests(unittest.TestCase):
             os.environ.pop("MOCK_REAL_MEDIA", None)
 
 
+VOICES = [{"id": 30002, "name": "Xinghe Jiang", "languages": ["en", "vi"], "labels": {"gender": "male"}},
+          {"id": 2, "name": "Xinghe Jiang", "languages": ["en", "vi"], "labels": {"gender": "male"}},
+          {"id": 30007, "name": "Arabella", "languages": ["en", "vi"], "labels": {"gender": "female"}},
+          {"id": 11, "name": "Rachel", "languages": ["en"], "labels": {"gender": "female", "language": "en"}},
+          {"id": 12, "name": "Adam", "labels": {"gender": "male", "language": "en"}}]
+
+
+class VietnameseVoiceTests(unittest.TestCase):
+    def test_vietnamese_voices_come_first_once_each(self):
+        from core import voice
+        ordered = voice.vietnamese_first(VOICES)
+        self.assertEqual([v["name"] for v in ordered], ["Xinghe Jiang", "Arabella", "Rachel", "Adam"])
+        self.assertEqual([v["id"] for v in voice.casting_pool(VOICES)], [30002, 30007])
+        self.assertEqual(len(voice.casting_pool(VOICES[3:])), 2)            # no Vietnamese voice at all: everything is offered
+        self.assertEqual(voice.voice_gender(VOICES[2]), "female")
+
+    def test_game_words_are_spelt_for_the_voice_but_not_inside_other_words(self):
+        from core import voice
+        words = {"loot": "lút", "Kenta": "Ken-ta", "IQ": "ai-kiu"}
+        said = voice.speakable("Kenta đi LOOT, KENTAAAA! chưa làm lại IQ", words)
+        self.assertEqual(said, "Ken-ta đi lút, KENTAAAA! chưa làm lại ai-kiu")
+        self.assertTrue(voice.pronunciation())                              # data/pronunciation_vi.json is shipped
+
+    def test_the_voice_says_the_spelt_line_while_subtitles_keep_the_script(self):
+        from core import audio_lib, voice
+        from core.music import MockAudioProvider
+        p, pid = kenta_project()
+        data = tempfile.mkdtemp()
+        llm_runner.run_director(p, pid, llm_runner.MockLlm())
+        for name in ("KELLY", "MAXIM", "KENTA"):
+            voice.set_profile(p.conn, pid, name, {"voice_id": 30007, "voice_name": "Arabella"})
+        voice.generate(p.conn, pid, MockAudioProvider(), data, ledger=False)
+        items = [e for e in audio_lib.load(audio_lib.assets_dir(data, pid)) if e.get("dialogue")]
+        loot = next(e for e in items if "loot" in e["text"])
+        self.assertIn("lút", loot["label"])                                 # what was sent to TTS
+        self.assertIn("loot", loot["text"])                                 # what subtitles and matching use
+        voice.preview(MockAudioProvider(), data, pid, 30007, "Arabella", "KELLY")
+        self.assertEqual(len(audio_lib.load(voice.previews_dir(data, pid))), 1)
+        self.assertEqual(len([e for e in audio_lib.load(audio_lib.assets_dir(data, pid)) if e.get("dialogue")]), len(items))
+
+    def test_casting_only_offers_voices_that_speak_vietnamese(self):
+        from core import claude_tasks
+        p, pid = kenta_project()
+        llm_runner.run_director(p, pid, llm_runner.MockLlm())
+        claude_tasks.cast_voices(p, pid, llm_runner.MockLlm(), VOICES)
+        chosen = {json.loads(r["voice_profile"] or "{}").get("voice_id") for r in
+                  p.conn.execute("SELECT voice_profile FROM characters WHERE project_id=?", (pid,))}
+        self.assertTrue(chosen <= {30002, 30007})
+
+
 if __name__ == "__main__":
     unittest.main()

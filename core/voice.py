@@ -14,6 +14,8 @@ from typing import Dict, List, Optional
 from . import audio_lib, dialogue, ffmpeg_studio, final_cut
 
 DEFAULT_MODEL = "eleven_multilingual_v2"
+_PRON = os.path.join(os.path.dirname(__file__), "..", "data", "pronunciation_vi.json")
+SAMPLE_VI = "Xin chào, tôi là {name}. Trận này mình đi loot trước rồi leo rank nhé, Booyah!"
 LEAD = 0.3          # seconds of picture before the first line of a clip
 TAIL = 0.4          # seconds after the last line
 GAP = 0.15          # between two lines
@@ -61,6 +63,68 @@ def planned_lines(conn, project_id: int) -> List[Dict]:
     return out
 
 
+# ---- Vietnamese voices (kế hoạch v3, GĐ4 — API only) --------------------------------------------------------------------------
+def speaks_vi(v: Dict) -> bool:
+    """A Clip AI voice that lists Vietnamese (`languages` or `labels.language`)."""
+    langs = v.get("languages") or []
+    labels = v.get("labels") if isinstance(v.get("labels"), dict) else {}
+    return "vi" in langs or labels.get("language") == "vi"
+
+
+def voice_gender(v: Dict) -> str:
+    labels = v.get("labels") if isinstance(v.get("labels"), dict) else {}
+    return (labels.get("gender") or "").lower()
+
+
+def vietnamese_first(voices: List[Dict]) -> List[Dict]:
+    """Voices that speak Vietnamese first (one entry per name — the library lists some twice under two ids), then the rest."""
+    seen, vi, other = set(), [], []
+    for v in voices:
+        key = (v.get("name") or "").strip().lower()
+        if key in seen:
+            continue
+        seen.add(key)
+        (vi if speaks_vi(v) else other).append(v)
+    return vi + other
+
+
+def casting_pool(voices: List[Dict]) -> List[Dict]:
+    """The voices offered for Vietnamese dialogue: only those listing Vietnamese when there are any, else all."""
+    vi = [v for v in vietnamese_first(voices) if speaks_vi(v)]
+    return vi or vietnamese_first(voices)
+
+
+def pronunciation() -> Dict[str, str]:
+    try:
+        with open(_PRON, encoding="utf-8") as f:
+            return dict(json.load(f).get("words") or {})
+    except (OSError, ValueError):
+        return {}
+
+
+def speakable(text: str, words: Optional[Dict[str, str]] = None) -> str:
+    """The text sent to TTS: English game words and names written the way a Vietnamese voice should say them (whole words,
+    any case). The subtitles keep the original text."""
+    import re
+    words = pronunciation() if words is None else words
+    for src in sorted(words, key=len, reverse=True):
+        text = re.sub(r"(?<![\w])" + re.escape(src) + r"(?![\w])", words[src], text, flags=re.IGNORECASE)
+    return text
+
+
+def previews_dir(data_dir: str, project_id: int) -> str:
+    return os.path.join(data_dir, str(project_id), "voice_previews")
+
+
+def preview(provider, data_dir: str, project_id: int, voice_id: int, voice_name: str, character: str, ledger=None) -> Dict:
+    """Voice one Vietnamese sample sentence with this voice (kept apart from the dialogue lines and the mix)."""
+    directory = previews_dir(data_dir, project_id)
+    os.makedirs(directory, exist_ok=True)
+    text = speakable(SAMPLE_VI.format(name=character.title()))
+    return audio_lib.submit_tts(provider, directory, text, voice_id, voice_name, DEFAULT_MODEL, None, ledger=ledger,
+                                extra={"preview_for": character, "voice_id": voice_id})
+
+
 def _line_items(directory: str) -> List[tuple]:
     return [(i, e) for i, e in enumerate(audio_lib.load(directory)) if e["kind"] == "tts" and e.get("scene_id")]
 
@@ -87,7 +151,7 @@ def generate(conn, project_id: int, provider, data_dir: str, scene_ids=None, led
             have = {(e2["scene_id"], e2.get("line")): (j, e2) for j, e2 in _line_items(directory)}
         extra = {"scene_id": ln["scene_id"], "scene_idx": ln["idx"], "line": ln["line"], "speaker": ln["speaker"],
                  "text": ln["text"], "voice_id": ln["voice"]["voice_id"], "dialogue": True}
-        audio_lib.submit_tts(provider, directory, ln["text"], ln["voice"]["voice_id"], ln["voice"].get("voice_name", ""),
+        audio_lib.submit_tts(provider, directory, speakable(ln["text"]), ln["voice"]["voice_id"], ln["voice"].get("voice_name", ""),
                              ln["voice"].get("model") or DEFAULT_MODEL, None, ledger=(conn, project_id) if ledger else None,
                              extra=extra)
         sent += 1

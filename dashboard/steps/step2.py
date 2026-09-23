@@ -115,6 +115,7 @@ def step2(p: Pipeline, pid: int):
         auto_poll_images(pid)                           # results, the automatic check and automatic fixes all show up by themselves
     qc_policy_panel(p, pid)
     set_check_panel(p, pid)
+    shot_storyboard_panel(p, pid)
 
     client = llm_client()
     to_check = p.conn.execute("SELECT COUNT(*) c FROM jobs WHERE project_id=? AND type='image_gen' AND state='succeeded'",
@@ -383,6 +384,32 @@ def pilot_panel(p: Pipeline, pid: int) -> None:
         if c2.button("Bỏ gen thử", key=f"pilot_off_{pid}"):
             pilot.save(p, pid, {"enabled": False, "scenes": [], "released": False})
             st.rerun()
+
+
+def shot_storyboard_panel(p: Pipeline, pid: int) -> None:
+    """v3: the start pictures of all shots in film order with size, role, length and lines — read the rhythm before paying for
+    video. Missing pictures show as an empty slot."""
+    from core import shots
+    rows = [r for r in shots.shots_of(p, pid) if r["data"].get("shot_no")]
+    if not rows:
+        return
+    total = sum(float(r["data"].get("duration_s") or 0) for r in rows)
+    have = [r for r in rows if shots.approved_image_path(p.conn, C.DATA, pid, r["id"])]
+    with st.expander(f"🎞 Storyboard theo shot — {len(have)}/{len(rows)} ảnh đã duyệt · {len(rows)} shot · {total:.0f}s", expanded=False):
+        st.caption("Ảnh khung đầu của từng shot theo thứ tự phim: kiểm tra nhịp, cỡ cảnh, sự liên tục trước khi gen video (rẻ hơn nhiều).")
+        per_row = 6
+        for k in range(0, len(rows), per_row):
+            cols = st.columns(per_row)
+            for col, r in zip(cols, rows[k:k + per_row]):
+                d = r["data"]
+                path = shots.approved_image_path(p.conn, C.DATA, pid, r["id"])
+                if path:
+                    col.image(path, width="stretch")
+                else:
+                    col.caption("— chưa có ảnh")
+                lines = " / ".join(f"{x.get('speaker')}: {x.get('text')}" for x in d.get("dialogue") or [])
+                col.caption(f"**{r['label']}** · {d.get('size')} · {d.get('role')} · {float(d.get('duration_s') or 0):g}s"
+                            + (" · ➜" if d.get("continuous_with_next") else "") + (f" — {lines[:80]}" if lines else ""))
 
 
 def set_check_panel(p: Pipeline, pid: int) -> None:

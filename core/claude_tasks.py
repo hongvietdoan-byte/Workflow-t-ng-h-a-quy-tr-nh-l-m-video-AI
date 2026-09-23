@@ -372,7 +372,8 @@ def cast_voices(p: Pipeline, project_id: int, client, voices: List[Dict], overwr
     for ln in voice.planned_lines(p.conn, project_id):
         samples.setdefault(ln["speaker"].upper(), []).append(ln["text"])
     chars = [{"name": r["name"], "description": r["description"], "lines": samples.get(r["name"].upper(), [])[:3]} for r in todo]
-    pool = [{"id": v.get("id"), "name": v.get("name"), "description": v.get("description") or v.get("labels") or ""} for v in voices]
+    pool = [{"id": v.get("id"), "name": v.get("name"), "description": v.get("description") or v.get("labels") or "",
+             "tieng_viet": voice.speaks_vi(v), "gender": voice.voice_gender(v)} for v in voice.casting_pool(voices)]
     prompt = "\n\n---\n\n".join([_read("prompts", "15_voice_casting.md"), _block("Nhân vật", chars), _block("Giọng có sẵn", pool)])
     obj = _run(p, project_id, "director", prompt, _check_cast, client)
     names = {v.get("id"): v.get("name") for v in voices}

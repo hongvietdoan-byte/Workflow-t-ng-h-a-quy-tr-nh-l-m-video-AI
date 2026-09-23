@@ -5,3 +5,5 @@ Chỉ chọn id có trong danh sách. Chỉ trả về **một JSON hợp lệ**
 ```json
 {"cast": [{"name": "", "voice_id": 0, "why": "", "persona": ""}]}
 ```
+
+Thoại là **tiếng Việt**: danh sách giọng đã lọc — `tieng_viet: true` là giọng ghi hỗ trợ tiếng Việt, chỉ chọn trong số đó khi có; chọn đúng giới tính (`gender`) và tuổi của nhân vật. Được dùng lại một giọng cho hai nhân vật chỉ khi không còn giọng phù hợp (nêu lý do trong `why`).

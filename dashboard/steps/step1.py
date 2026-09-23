@@ -745,6 +745,38 @@ def _voices(pid: int):
     return st.session_state[key]
 
 
+def voice_preview_row(p: Pipeline, pid: int, name: str, voice_id, voice_name) -> None:
+    """🔈 Vietnamese sample sentence in the chosen voice (one short TTS — a little audio credit), to hear accent and tones."""
+    if not voice_id:
+        return
+    directory = voice.previews_dir(C.DATA, pid)
+    mine = [e for e in audio_lib.load(directory) if e.get("preview_for") == name and e.get("voice_id") == voice_id]
+    b1, b2 = st.columns([1.4, 3], vertical_alignment="center")
+    if b1.button("🔈 Nghe thử câu mẫu tiếng Việt", key=f"vprev_{pid}_{name}", help="Tạo 1 câu mẫu bằng giọng này (tốn một chút credit âm thanh)."):
+        try:
+            provider = music.audio_provider()
+        except ProviderError as e:
+            st.error(str(e))
+            provider = None
+        if provider is not None:
+            voice.preview(provider, C.DATA, pid, voice_id, voice_name or "", name, ledger=(p.conn, pid))
+            st.rerun()
+    if mine:
+        e = mine[-1]
+        if e["state"] == "running":
+            try:
+                provider = music.audio_provider()
+                if provider is not None:
+                    audio_lib.refresh(provider, directory)
+                    e = [x for x in audio_lib.load(directory) if x.get("preview_for") == name and x.get("voice_id") == voice_id][-1]
+            except ProviderError:
+                pass
+        if e["state"] == "succeeded" and e.get("file"):
+            b2.audio(os.path.join(directory, e["file"]))
+        else:
+            b2.caption(ui.state_label(e["state"], "audio") + (" — bấm lại sau vài giây" if e["state"] == "running" else ""))
+
+
 def character_detail_panel(p: Pipeline, pid: int, c, voices, client, locked: bool, has_ref: bool = True) -> None:
     """Character Lock + voice + anchor of one character (skills: consistency designer, narration-writer)."""
     lock = claude_tasks.get_lock(c)
@@ -770,8 +802,10 @@ def character_detail_panel(p: Pipeline, pid: int, c, voices, client, locked: boo
                     st.rerun()
         st.markdown("**🎙 Giọng nói (TTS)** — thoại tiếng Việt được đọc bằng giọng này (Bước 3)")
         if voices:
-            ids = [None] + [v.get("id") for v in voices]
-            names = {v.get("id"): v.get("name") for v in voices}
+            ordered = voice.vietnamese_first(voices)          # v3: voices that list Vietnamese first (🇻🇳)
+            ids = [None] + [v.get("id") for v in ordered]
+            names = {v.get("id"): ("🇻🇳 " if voice.speaks_vi(v) else "") + str(v.get("name")) for v in ordered}
+            names.update({v.get("id"): ("🇻🇳 " if voice.speaks_vi(v) else "") + str(v.get("name")) for v in voices if v.get("id") not in names})
             cur = prof.get("voice_id") if prof.get("voice_id") in ids else None
             v1, v2 = st.columns([2, 3])
             pick = v1.selectbox("Giọng", ids, index=ids.index(cur), key=f"voice_{pid}_{c['name']}",
@@ -781,6 +815,7 @@ def character_detail_panel(p: Pipeline, pid: int, c, voices, client, locked: boo
             if (pick, persona) != (cur, prof.get("persona", "")) and st.button("💾 Lưu giọng", key=f"voice_save_{pid}_{c['name']}"):
                 voice.set_profile(p.conn, pid, c["name"], {"voice_id": pick, "voice_name": names.get(pick), "persona": persona} if pick else None)
                 st.rerun()
+            voice_preview_row(p, pid, c["name"], cur, names.get(cur))
         else:
             st.caption("Chưa có danh sách giọng (cần AUDIO_PROVIDER / Clip AI). Voice Design / Voice Clone chỉ có trên web ClipAI: tạo ở đó rồi chọn ở đây.")
         st.markdown("**🖼 Ảnh mốc** — ảnh tham chiếu bạn xác nhận là ĐÚNG nhân vật trước khi gen cả loạt")
@@ -826,6 +861,12 @@ def character_bible_panel(p: Pipeline, pid: int, chars, risky) -> None:
         st.markdown("**🔒 Lock · 🎙 Giọng · 🖼 Ảnh mốc của từng nhân vật**")
         speakers = {ln["speaker"].upper() for ln in voice.planned_lines(p.conn, pid) if ln["speaker"]}
         no_voice = [r["name"] for r in rows if r["name"].upper() in speakers and not voice.get_profile(r).get("voice_id")]
+        vi_pool = [v for v in voice.vietnamese_first(voices) if voice.speaks_vi(v)] if voices else []
+        if voices:
+            n_f = sum(1 for v in vi_pool if voice.voice_gender(v) == "female")
+            st.caption(f"🇻🇳 {len(vi_pool)} giọng ghi hỗ trợ tiếng Việt ({n_f} nữ) trong thư viện Clip AI — không có giọng gốc Việt, nên nghe thử "
+                       "câu mẫu. Từ tiếng Anh/tên riêng được đọc theo `data/pronunciation_vi.json`."
+                       + (f" ⚠ {len(speakers)} nhân vật có thoại nhưng chỉ {len(vi_pool)} giọng tiếng Việt: sẽ phải dùng chung giọng." if 0 < len(vi_pool) < len(speakers) else ""))
         if no_voice and voices and client is not None:
             if st.button(f"🤖 Claude chọn giọng cho {len(no_voice)} nhân vật có thoại", key=f"cast_{pid}"):
                 with st.spinner("Claude đang chọn giọng…"):

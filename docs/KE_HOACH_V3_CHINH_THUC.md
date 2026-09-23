@@ -115,7 +115,7 @@ Cộng dự phòng gen lại ×1,5 + TTS → **ước tính ~$25–30, trần c�
 | GĐ1 · Thư viện phong cách | **Xong phần cần cho GĐ2** (2026-09-24) | 19 video / 519 shot; 6 file phong cách + `ff_directing.md` + `docs/FF_STYLE_RESEARCH.md`; test. **Phân tích thêm video: để sau** (quyết định 2026-09-24) |
 | GĐ2 · Lớp shot + nhịp | **Xong** (2026-09-24) | Director chia cảnh → shot; mỗi shot 1 dòng `scenes`; cắt clip theo độ dài shot; nhãn S02·3; 645 test pass |
 | GĐ3 · Nhất quán + Kling multi-shot | **Xong** (2026-09-24) | Seedance khung đầu+cuối, ảnh shot nối liền chờ shot trước, một model mỗi nhóm, Kling multi-shot trưởng nhóm → cắt cho từng shot, QC đồng bộ cả bộ clip; 648 test pass |
-| GĐ4 · Giọng Việt + storyboard theo shot | Chưa bắt đầu | So `eleven_v3`/`multilingual_v2` tốn credit → hỏi trước |
+| GĐ4 · Giọng Việt + storyboard theo shot | **Xong phần không tốn credit** (2026-09-24) | Giọng có `vi` lên đầu + chọn giọng chỉ trong đó, bảng cách đọc từ game, nghe thử câu mẫu, storyboard theo shot; so `eleven_v3`/`multilingual_v2` dời sang GĐ6; 652 test pass |
 | GĐ5 · Trần ngân sách, thử rẻ, so sánh | Chưa bắt đầu | |
 | GĐ6 · Thử thật 3 phương án | Chưa bắt đầu | Cần bạn duyệt chi tiêu |
 
@@ -174,6 +174,14 @@ Cộng dự phòng gen lại ×1,5 + TTS → **ước tính ~$25–30, trần c�
 - **QC đồng bộ cả bộ clip:** `claude_tasks.clip_set_consistency` — tấm ghép khung giữa của mọi clip + tấm ghép các điểm nối (khung cuối shot trước ↔ khung đầu shot sau) → clip lệch + câu sửa; khối "🎨 Kiểm tra đồng bộ cả bộ clip" ở Bước 4, nút gen lại clip lệch.
 - **Sửa lỗi phát hiện khi test:** danh sách clip dựng phim (`final_cut.collect_clips`) từng coi các file gốc `_raw.mp4` / `_group.mp4` là clip thêm → đã loại.
 - **Test:** 3 test mới (`ConsistencyTests`), toàn bộ 648 test pass.
+
+### GĐ4 — đã xong phần không tốn credit (2026-09-24)
+- **Giọng tiếng Việt (chỉ API):** `voice.speaks_vi` / `vietnamese_first` / `casting_pool` — danh sách giọng ở Character Bible xếp giọng có `vi` lên đầu (🇻🇳, bỏ bản trùng tên), Claude chọn giọng chỉ trong các giọng có `vi` (kèm giới tính; `prompts/15` ghi rõ), dòng thông báo số giọng Việt (nữ) và cảnh báo khi số nhân vật có thoại nhiều hơn số giọng Việt.
+- **Cách đọc từ game:** `data/pronunciation_vi.json` (loot → lút, skill → xờ-kiu, Booyah → Bu-da, tên nhân vật, IQ…) áp vào **chữ gửi TTS** (`voice.speakable`, thay nguyên từ, không phân biệt hoa thường); phụ đề và việc khớp dòng vẫn dùng chữ gốc của kịch bản.
+- **Nghe thử câu mẫu tiếng Việt:** nút 🔈 cạnh giọng của từng nhân vật (1 câu TTS — tốn một chút credit âm thanh khi dùng API thật; lưu riêng ở `voice_previews/`, không vào bản trộn).
+- **Storyboard theo shot:** khối "🎞 Storyboard theo shot" ở Bước 2 — ảnh khung đầu mọi shot theo thứ tự phim kèm cỡ cảnh, vai trò, độ dài, thoại, dấu ➜ cho shot nối liền; duyệt nhịp trước khi gen video.
+- **Dời sang GĐ6 (cần duyệt chi):** so `eleven_v3` với `eleven_multilingual_v2` trên 2 câu × 5 giọng Việt.
+- **Test:** 4 test mới (`VietnameseVoiceTests`), toàn bộ 652 test pass.
 
 ### Ghi chú thiết kế cho GĐ2–3 (đọc code, chưa làm)
 - Cột mới theo mẫu `V2_COLUMNS` trong `core/db.py`; bảng `story_scenes` thêm vào `SCHEMA`.
