@@ -52,6 +52,25 @@ _UNSEEN_LIMIT = 12
 NOT_CREATED = "not_created"
 _NOT_CREATED_LIMIT = 6
 STATUS_PAGES = 3          # list pages scanned per status check (50 tasks each): a running task can sit below the first page
+DEEP_PAGES = 12           # one deeper look before calling a task "not created" when newer tasks fill the first pages
+
+
+class RamTaskMemory:
+    """Per-task counters kept in this object only (tests, one-off scripts). sent_at unknown -> the pages read are trusted."""
+
+    def __init__(self):
+        self._seen, self._unseen = set(), {}
+
+    def state(self, external_id: str):
+        return external_id in self._seen, self._unseen.get(external_id, 0), float("inf")
+
+    def unseen(self, external_id: str) -> int:
+        self._unseen[external_id] = self._unseen.get(external_id, 0) + 1
+        return self._unseen[external_id]
+
+    def seen(self, external_id: str) -> None:
+        self._seen.add(external_id)
+        self._unseen.pop(external_id, None)
 
 
 def resolve_model(model: Optional[str]) -> Tuple[str, str]:
@@ -134,8 +153,7 @@ class ClipAIVideoProvider:
         self.client = ApiClient(base_url, token, USER_AGENT, transport)
         self.aspect_ratio, self.kling_mode, self.resolution, self.negative = aspect_ratio, kling_mode, resolution, negative
         self._urls: Dict[str, str] = {}
-        self._unseen: Dict[str, int] = {}
-        self._seen: set = set()                      # tasks the list has shown at least once
+        self.memory = RamTaskMemory()                # per-task "seen / polls unseen / sent at"; the runner swaps in the database one
         self.list_ttl, self.status_pages = list_ttl, max(1, int(status_pages))
         self._pages: Dict[Tuple[str, int], Tuple[float, list]] = {}   # one list read serves every job polled in the same round
 
@@ -291,29 +309,50 @@ class ClipAIVideoProvider:
         self._pages[key] = (time.monotonic(), rows)
         return rows
 
-    def _find(self, external_id: str) -> Tuple[Optional[dict], str]:
+    def attach_memory(self, memory) -> None:
+        """Keep the per-task counters somewhere that outlives this object (core.runner.TaskMemory: the jobs table). The dashboard
+        builds a new provider on every poll, so counters kept only in this object never reached the 'not created' verdict."""
+        self.memory = memory
+
+    def _find_ex(self, external_id: str, sent_at: Optional[float] = None, pages: Optional[int] = None):
+        """(task or None, covered): `covered` = the pages read reach back to before the job was sent (or the list ended), so a task
+        missing from them was really never created — not merely pushed down by newer tasks (a shared token, several projects)."""
         family, _, task_id = external_id.partition(":")
         if family not in TASK_TYPE or not task_id:
             raise ProviderError(f"malformed external id '{external_id}'", code="bad_id")
-        for page in range(1, self.status_pages + 1):
+        for page in range(1, (pages or self.status_pages) + 1):
             rows = self._page(family, page)
             task = next((t for t in rows if str(t.get("task_id")) == task_id), None)
-            if task is not None or len(rows) < 50:
-                return task, task_id
-        return None, task_id
+            if task is not None:
+                return task, True
+            if len(rows) < 50:
+                return None, True
+            times = [int(t["created_at"]) for t in rows if str(t.get("created_at") or "").isdigit()]
+            if sent_at is not None and times and min(times) <= sent_at:
+                return None, True
+        return None, False
+
+    def _find(self, external_id: str) -> Tuple[Optional[dict], str]:
+        task, _ = self._find_ex(external_id)
+        return task, external_id.partition(":")[2]
 
     def status(self, external_id: str) -> TaskStatus:
-        task, _ = self._find(external_id)
+        seen, _, sent_at = self.memory.state(external_id)
+        task, covered = self._find_ex(external_id, sent_at)
         if task is None:
-            self._unseen[external_id] = self._unseen.get(external_id, 0) + 1
-            if external_id not in self._seen and self._unseen[external_id] >= _NOT_CREATED_LIMIT:
-                return TaskStatus("failed", NOT_CREATED, f"ClipAI trả mã task nhưng không có task này trong {self.status_pages} trang danh "
-                                                         "sách — lệnh không được tạo (không có gì để chờ, không bị tính tiền)")
-            if self._unseen[external_id] >= _UNSEEN_LIMIT:
-                return TaskStatus("failed", "not_found", "task no longer in the list")
-            return TaskStatus("running")
-        self._seen.add(external_id)
-        self._unseen.pop(external_id, None)
+            unseen = self.memory.unseen(external_id)
+            if not seen and unseen >= _NOT_CREATED_LIMIT:
+                if not covered:                               # newer tasks may hide it: look deeper once before deciding
+                    task, covered = self._find_ex(external_id, sent_at, DEEP_PAGES)
+                if task is None and covered:
+                    return TaskStatus("failed", NOT_CREATED, "ClipAI trả mã task nhưng danh sách (đọc tới trước lúc gửi) không có task này "
+                                                             "— lệnh không được tạo (không có gì để chờ, không bị tính tiền)")
+            if task is None:
+                if unseen >= _UNSEEN_LIMIT:
+                    return TaskStatus("failed", "not_found", "không thấy task trong danh sách ClipAI — có thể vẫn đang chạy; "
+                                                             "không tự gửi lại để tránh trả tiền 2 lần")
+                return TaskStatus("running")
+        self.memory.seen(external_id)
         state = _state(task.get("task_status"))
         if state == "succeeded":
             if not task.get("video_url"):

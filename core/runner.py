@@ -25,6 +25,38 @@ NOT_CREATED_RESENDS = 3
 RESEND_NOTE = "gửi lại: nhà cung cấp không tạo task"
 
 
+class TaskMemory:
+    """W12 counters of a provider task kept on its job rows (every job sharing the external id: a multi-shot group), so they survive
+    the dashboard building a new provider on every poll and a restart. sent_at = when the job was sent (epoch seconds) or None."""
+
+    def __init__(self, conn):
+        self.conn = conn
+
+    def state(self, external_id: str):
+        row = self.conn.execute("SELECT id, task_seen, task_unseen FROM jobs WHERE external_id=? ORDER BY id LIMIT 1", (external_id,)).fetchone()
+        if row is None:
+            return False, 0, None
+        ev = self.conn.execute("SELECT at FROM job_events WHERE job_id=? AND to_state='running' ORDER BY id LIMIT 1", (row["id"],)).fetchone()
+        sent = None
+        if ev is not None:
+            from datetime import datetime
+            try:
+                sent = datetime.fromisoformat(ev["at"]).timestamp()
+            except ValueError:
+                sent = None
+        return bool(row["task_seen"]), int(row["task_unseen"] or 0), sent
+
+    def unseen(self, external_id: str) -> int:
+        self.conn.execute("UPDATE jobs SET task_unseen=task_unseen+1 WHERE external_id=?", (external_id,))
+        self.conn.commit()
+        row = self.conn.execute("SELECT MAX(task_unseen) FROM jobs WHERE external_id=?", (external_id,)).fetchone()
+        return int(row[0] or 0)
+
+    def seen(self, external_id: str) -> None:
+        self.conn.execute("UPDATE jobs SET task_seen=1, task_unseen=0 WHERE external_id=? AND (task_seen=0 OR task_unseen>0)", (external_id,))
+        self.conn.commit()
+
+
 class _Runner:
     job_type = ""
 
@@ -33,6 +65,8 @@ class _Runner:
         self.provider = provider
         self.data_dir = data_dir
         self.max_concurrent = max_concurrent
+        if hasattr(provider, "attach_memory"):
+            provider.attach_memory(TaskMemory(pipeline.conn))
 
     def _diag(self, job, severity: str, code, message: str) -> None:
         diag.record(self.p.conn, "image" if self.job_type == "image_gen" else "video", severity, message, code,
@@ -179,6 +213,11 @@ class _Runner:
                 counts["succeeded"] += 1
             elif status.error_code == NOT_CREATED:
                 self._not_created(job, status.error_message or "")
+                counts["failed"] += 1
+            elif status.error_code == "not_found":         # maybe still running at the provider: never resend blindly (paid twice)
+                self._diag(job, "error", "not_found", status.error_message or "không thấy task")
+                self.p.fail(job["id"], f"not_found: {status.error_message}")
+                self.p._escalate(self.p.job(job["id"]))
                 counts["failed"] += 1
             else:
                 message = f"{status.error_code}: {status.error_message}"

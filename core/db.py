@@ -421,7 +421,8 @@ V2_COLUMNS = {
                  ("shot_mode", "TEXT"), ("style_profile", "TEXT"), ("test_quality", "INTEGER NOT NULL DEFAULT 0")),
     "characters": (("lock_rules", "TEXT"), ("voice_profile", "TEXT"), ("anchor_approved", "INTEGER NOT NULL DEFAULT 0")),
     "jobs": (("input_hash", "TEXT"), ("source_job_id", "INTEGER"), ("model", "TEXT"),
-             ("group_leader", "INTEGER")),     # v3 Kling multi-shot: the job that makes this shot's clip together with its group
+             ("group_leader", "INTEGER"),
+             ("task_seen", "INTEGER NOT NULL DEFAULT 0"), ("task_unseen", "INTEGER NOT NULL DEFAULT 0")),   # W12: provider list checks     # v3 Kling multi-shot: the job that makes this shot's clip together with its group
     "motion_prompts": (("image_job_id", "INTEGER"), ("spec_hash", "TEXT"), ("video_model", "TEXT"), ("check_flags", "TEXT"),
                        ("lint", "TEXT")),
 }

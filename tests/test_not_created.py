@@ -128,3 +128,33 @@ class CapTest(unittest.TestCase):
         p.start(first), p.fail(first, "not_created: x")
         p.resend(first, RESEND_NOTE + " (1/3)")
         self.assertEqual(autopilot._video_sends(p, pid), 1)
+
+
+class PersistentCountersTest(NotCreatedTest):
+    """GĐ-A2: the dashboard builds a new provider on every poll — the counters live on the job rows, and a task hidden below many
+    newer tasks (shared token, several projects) is never called 'not created' (it could still be running and billed)."""
+
+    def fresh_runner(self):
+        return VideoRunner(self.p, ClipAIVideoProvider("tok", "https://clipai.example", self.fake), self.dir)
+
+    def test_a_new_provider_on_every_poll_still_reaches_the_verdict(self):
+        self.fake.drop = 1
+        self.fresh_runner().submit_pending(self.pid)
+        for _ in range(6):
+            self.fresh_runner().poll_once(self.pid)
+        self.assertEqual(self.p.state(self.job).value, "cancelled")
+        self.assertEqual(self.ledger(), 0)
+
+    def test_a_task_hidden_under_newer_tasks_is_not_resent(self):
+        import time as _t
+        self.fake.drop = 1
+        self.fresh_runner().submit_pending(self.pid)
+        newer = int(_t.time()) + 3600
+        self.fake.listed = [{"id": 10_000 + i, "task_id": f"N{i}", "task_status": 1, "created_at": newer} for i in range(800)]
+        for _ in range(12):
+            self.fresh_runner().poll_once(self.pid)
+        job = self.p.job(self.job)
+        self.assertEqual((job["state"], job["escalated"]), ("failed", 1))                 # stops for a person
+        self.assertEqual(self.p.conn.execute("SELECT COUNT(*) FROM jobs WHERE type='video_gen'").fetchone()[0], 1)   # nothing resent
+        self.assertEqual(self.ledger(), 1)                                               # may still be billed: kept in the ledger
+        self.assertTrue(self.p.conn.execute("SELECT 1 FROM diag_events WHERE code='not_found'").fetchone())
