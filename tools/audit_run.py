@@ -316,15 +316,18 @@ def report_project(conn, pid: int, pricing: dict, floors: dict) -> tuple:
         totals["usd"] += usd
         totals["wasted"] += 0 if ok else usd
 
-    llm_usd, llm_tok = 0.0, Counter()
+    llm_usd, llm_tok, llm_stage = 0.0, Counter(), Counter()
     for u in d.llm:
-        llm_usd += budget.token_price(pricing, u["model"], u["tier"], u["quantity"]) or 0
+        usd = budget.token_price(pricing, u["model"], u["tier"], u["quantity"]) or 0
+        llm_usd += usd
         llm_tok[u["tier"]] += u["quantity"] or 0
+        llm_stage[(u["stage"] if "stage" in u.keys() else None) or "chưa gắn nhãn"] += usd
 
     w("### 1. Tiền dồn vào đâu")
     w(f"Tổng đã ghi sổ: **video + ảnh {money(totals['usd'])}**, trong đó **không nằm trong bản cuối: {money(totals['wasted'])}"
       f" ({pct(totals['wasted'], totals['usd'])})** · Claude API: {money(llm_usd)} "
-      f"({int(llm_tok['input']):,} token vào / {int(llm_tok['output']):,} token ra; sổ Claude còn thiếu QC — xem C1)"
+      f"({int(llm_tok['input']):,} token vào / {int(llm_tok['output']):,} token ra"
+      + (": " + ", ".join(f"{k} {money(v)}" for k, v in llm_stage.most_common()) if llm_stage else "") + ")"
       f" · âm thanh: {len(d.audio)} lượt")
     if unknown:
         w(f"_Chưa có giá (tính $0): {', '.join(sorted(unknown))}_")

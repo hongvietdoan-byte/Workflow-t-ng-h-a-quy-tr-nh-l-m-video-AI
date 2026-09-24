@@ -185,8 +185,9 @@ def validate_labels(obj, n_shots: int) -> Dict:
 def label(client, style: str, meta: Dict, shots: List[Dict], sheets: List[Tuple[str, str]], title: str = "",
           note: str = "") -> Dict:
     from . import llm_runner
-    obj, _, _ = llm_runner.ask_json(client, build_prompt(style, meta, shots, title, note),
-                                    lambda o: validate_labels(o, len(shots)), sheets)
+    with llm_runner.tagged("style_research"):
+        obj, _, _ = llm_runner.ask_json(client, build_prompt(style, meta, shots, title, note),
+                                        lambda o: validate_labels(o, len(shots)), sheets)
     return obj
 
 

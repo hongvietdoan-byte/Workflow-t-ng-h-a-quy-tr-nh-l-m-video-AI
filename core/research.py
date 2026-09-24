@@ -49,7 +49,8 @@ def run(conn, client, topics: Optional[Dict[str, List[str]]] = None) -> Dict:
     for group, items in (topics or DEFAULT_TOPICS).items():
         for topic in items:
             try:
-                reply = search(_prompt(group, topic), MAX_SEARCHES)
+                with llm_runner.tagged("research"):
+                    reply = search(_prompt(group, topic), MAX_SEARCHES)
                 obj = llm_runner.extract_json(reply.text)
                 _validate(obj)
             except (llm_runner.LlmError, ValueError) as e:
@@ -76,13 +77,13 @@ def due(conn, days: int = INTERVAL_DAYS) -> bool:
     return datetime.now(timezone.utc) - datetime.fromisoformat(last) >= timedelta(days=days)
 
 
-def maybe_run_in_background(db_path: str, client_factory: Callable = llm_runner.client_from_env) -> bool:
+def maybe_run_in_background(db_path: str, client_factory: Optional[Callable] = None) -> bool:
     """Start the monthly round in a thread when it is switched on and due. At most one at a time; returns True if started."""
     from .db import connect
     conn = connect(db_path)
     if not (enabled(conn) and due(conn)):
         return False
-    client = client_factory()
+    client = (client_factory or llm_runner.ledger_factory(db_path))()      # every Claude call -> cost ledger + Claude cap
     if client is None or not _running.acquire(blocking=False):
         return False
     lessons.set_meta(conn, "research_last_run", datetime.now(timezone.utc).isoformat(timespec="seconds"))  # no double start

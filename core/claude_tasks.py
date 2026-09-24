@@ -14,7 +14,7 @@ import os
 from typing import Dict, List, Optional, Tuple
 
 from . import assets, dialogue, diag, layout, llm_io, model_router, prompts, voice
-from .llm_runner import LlmError, ask_json
+from .llm_runner import LlmError, ask_json, tagged
 from .pipeline import Pipeline
 
 _ROOT = os.path.join(os.path.dirname(__file__), "..")
@@ -37,7 +37,8 @@ def _run(p: Pipeline, project_id: int, stage: str, prompt: str, validate, client
     if client is None:
         raise LlmError("Chưa cấu hình Claude (ANTHROPIC_API_KEY hoặc LLM_PROVIDER=claude_cli).", code="config")
     try:
-        return ask_json(client, prompt, validate, images, note=_note(p, stage, project_id))[0]
+        with tagged(stage, project_id):
+            return ask_json(client, prompt, validate, images, note=_note(p, stage, project_id))[0]
     except LlmError as e:
         diag.record(p.conn, stage, "warn" if e.transient else "error", str(e), e.code, project_id)
         raise

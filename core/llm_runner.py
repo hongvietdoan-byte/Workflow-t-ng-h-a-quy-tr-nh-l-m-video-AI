@@ -9,11 +9,14 @@ validators/persistence (core/llm_io.py), so a pasted answer and an API answer ar
 - Invalid JSON is retried once with the validation error attached; failures are reported, not hidden.
 """
 import base64
+import contextlib
 import functools
 import io
 import json
 import os
 import re
+import sys
+import threading
 import time
 from dataclasses import dataclass
 from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple
@@ -46,6 +49,27 @@ class LlmReply:
     text: str
     input_tokens: int = 0
     output_tokens: int = 0
+    stop_reason: str = ""
+
+
+# ---- what each paid call is for (C1/C7): stage + project go into the cost ledger ----------------------------------------------
+_TAG = threading.local()
+
+
+@contextlib.contextmanager
+def tagged(stage: str, project_id: Optional[int] = None):
+    """Label the Claude calls made inside this block (this thread only): usage_events.stage / project_id. Nested blocks keep the
+    outer project when they do not name one."""
+    prev = getattr(_TAG, "value", None)
+    _TAG.value = (stage, project_id if project_id is not None else (prev[1] if prev else None))
+    try:
+        yield
+    finally:
+        _TAG.value = prev
+
+
+def current_tag() -> Tuple[str, Optional[int]]:
+    return getattr(_TAG, "value", None) or ("other", None)
 
 
 def _media_type(content: bytes) -> str:
@@ -87,6 +111,7 @@ class AnthropicClient:
         self.max_tokens = max_tokens
         self._sleep = sleep
         self.retries = retries
+        self.unrecorded = 0           # calls paid but not written to the ledger: the next call is refused until someone looks
 
     @classmethod
     def from_env(cls, transport: Transport = urllib_transport, ledger: Optional[str] = None) -> "AnthropicClient":
@@ -136,6 +161,7 @@ class AnthropicClient:
             try:
                 reply = self._parse(self.transport("POST", self.base + "/v1/messages", headers, body, REQUEST_TIMEOUT))
                 self._record(reply)
+                self._check_stop(reply)
                 return reply
             except LlmError as e:
                 last = e
@@ -154,14 +180,21 @@ class AnthropicClient:
         """Refuse before paying when the Claude API money is used up (core.budget.check_llm)."""
         if not self.ledger:
             return
-        from . import budget
-        conn = self._ledger_conn()
+        from . import budget, cost
+        if self.unrecorded:
+            raise LlmError(f"{self.unrecorded} lời gọi Claude đã trả tiền nhưng không ghi được vào sổ chi — kiểm tra CSDL rồi mở lại "
+                           "Dashboard (không gọi tiếp khi sổ chi không ghi được)", code="budget")
+        if budget.token_price(cost.load_pricing(), self.model, "input", 1) is None:
+            raise LlmError(f"model Claude '{self.model}' chưa có giá trong data/pricing.json (per_million_tokens) — thêm giá trước "
+                           "khi dùng, nếu không sổ chi tính $0 và trần không chặn", code="budget")
         try:
-            reason = budget.check_llm(conn)
-        except Exception:  # noqa: BLE001 - a ledger problem must not stop the work
-            reason = None
-        finally:
-            conn.close()
+            conn = self._ledger_conn()
+            try:
+                reason = budget.check_llm(conn)
+            finally:
+                conn.close()
+        except Exception as e:  # noqa: BLE001 - unknown spend means no call (a cap that cannot be read does not protect)
+            reason = f"không đọc được sổ chi để kiểm trần Claude ({type(e).__name__}: {e})"
         if reason:
             raise LlmError(reason, code="budget")
 
@@ -170,15 +203,31 @@ class AnthropicClient:
         if not self.ledger:
             return
         from .cost import record_usage
-        conn = self._ledger_conn()
-        try:
-            for tier, n in (("input", reply.input_tokens), ("output", reply.output_tokens)):
-                if n:
-                    record_usage(conn, None, "llm", self.name, self.model, tier, n, "token")
-        except Exception:  # noqa: BLE001 - never lose the answer because the ledger is busy
-            pass
-        finally:
-            conn.close()
+        stage, project_id = current_tag()
+        for attempt in range(3):
+            try:
+                conn = self._ledger_conn()
+                try:
+                    for tier, n in (("input", reply.input_tokens), ("output", reply.output_tokens)):
+                        if n:
+                            record_usage(conn, None, "llm", self.name, self.model, tier, n, "token", project_id=project_id,
+                                         stage=stage)
+                finally:
+                    conn.close()
+                return
+            except Exception as e:  # noqa: BLE001 - never lose the paid answer; a busy ledger is retried, then the next call refused
+                last = e
+                self._sleep(0.5 * (attempt + 1))
+        self.unrecorded += 1
+        print(f"[llm] could not write Claude usage to the ledger: {last}", file=sys.stderr)
+
+    def _check_stop(self, reply: LlmReply) -> None:
+        """C5: a cut or refused answer is paid for but useless; asking again the same way pays again for the same cut."""
+        if reply.stop_reason == "max_tokens":
+            raise LlmError(f"câu trả lời của Claude bị cắt ở giới hạn {self.max_tokens} token (đã tính tiền) — chia nhỏ việc "
+                           "(ít cảnh hơn mỗi lần) thay vì hỏi lại", code="truncated")
+        if reply.stop_reason == "refusal":
+            raise LlmError("Claude từ chối trả lời yêu cầu này (đã tính tiền phần đã đọc)", code="refusal")
 
     @staticmethod
     def _parse(resp: HttpResponse) -> LlmReply:
@@ -196,7 +245,8 @@ class AnthropicClient:
             raise LlmError(f"Anthropic error HTTP {resp.status}: {message[:300]}", code="http_error")
         text = "".join(b.get("text", "") for b in payload.get("content", []) if b.get("type") == "text")
         usage = payload.get("usage") or {}
-        return LlmReply(text, int(usage.get("input_tokens", 0)), int(usage.get("output_tokens", 0)))
+        return LlmReply(text, int(usage.get("input_tokens", 0)), int(usage.get("output_tokens", 0)),
+                        str(payload.get("stop_reason") or ""))
 
 
 # ---- JSON extraction + validated call ------------------------------------------------
@@ -260,7 +310,8 @@ def run_distill(group: str, client, include_builtin: bool = False) -> Dict:
     """Read every document of a step once and store a short, sectioned playbook that the step then uses instead of
     the raw documents."""
     bundle = knowledge.build_distill_bundle(group, include_builtin)
-    text, tin, tout = ask_text(client, bundle, lambda t: knowledge.validate_distilled(group, t))
+    with tagged("distill"):
+        text, tin, tout = ask_text(client, bundle, lambda t: knowledge.validate_distilled(group, t))
     record = knowledge.store_distilled(group, text, include_builtin, use=True)
     return {"chars": len(record["text"]), "source_chars": record["source_chars"], "input_tokens": tin,
             "output_tokens": tout}
@@ -272,10 +323,12 @@ def _diagnosed(stage: str, project_of: Callable):
     def deco(fn):
         @functools.wraps(fn)
         def wrapper(p, ident, *a, **k):
+            project_id = project_of(p, ident)
             try:
-                return fn(p, ident, *a, **k)
+                with tagged(stage, project_id):
+                    return fn(p, ident, *a, **k)
             except LlmError as e:
-                diag.record(p.conn, stage, "warn" if e.transient else "error", str(e), e.code, project_of(p, ident))
+                diag.record(p.conn, stage, "warn" if e.transient else "error", str(e), e.code, project_id)
                 raise
         return wrapper
     return deco
@@ -548,6 +601,12 @@ MockLlm._v2 = staticmethod(_mock_v2)
 def db_file(conn) -> Optional[str]:
     """The file behind a SQLite connection (the Claude cost ledger of client_from_env); None for an in-memory database."""
     return next((r[2] for r in conn.execute("PRAGMA database_list") if r[1] == "main"), "") or None
+
+
+def ledger_factory(ledger: Optional[str]) -> Callable:
+    """A client factory bound to the cost ledger (background workers: auto QC, library reading, research) — no Claude API call
+    may bypass the ledger and the Claude cap (C1)."""
+    return lambda: client_from_env(ledger=ledger)
 
 
 def client_from_env(transport: Transport = urllib_transport, ledger: Optional[str] = None):

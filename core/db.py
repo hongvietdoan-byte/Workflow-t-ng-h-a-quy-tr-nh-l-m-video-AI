@@ -425,7 +425,8 @@ V2_COLUMNS = {
     "jobs": (("input_hash", "TEXT"), ("source_job_id", "INTEGER"), ("model", "TEXT"),
              ("group_leader", "INTEGER"),
              ("task_seen", "INTEGER NOT NULL DEFAULT 0"), ("task_unseen", "INTEGER NOT NULL DEFAULT 0")),   # W12: provider list checks     # v3 Kling multi-shot: the job that makes this shot's clip together with its group
-    "usage_events": (("deleted_project_id", "INTEGER"),),        # spend of a deleted project stays readable (its id is never reused)
+    "usage_events": (("deleted_project_id", "INTEGER"),
+                     ("stage", "TEXT")),                      # what a Claude call was for (director, qc, motion, asset_vision…)        # spend of a deleted project stays readable (its id is never reused)
     "motion_prompts": (("image_job_id", "INTEGER"), ("spec_hash", "TEXT"), ("video_model", "TEXT"), ("check_flags", "TEXT"),
                        ("lint", "TEXT")),
 }

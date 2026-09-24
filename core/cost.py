@@ -227,15 +227,15 @@ def rows_to_pricing(rows: List[Dict], base: Dict) -> Dict:
 
 # ---- ledger ---------------------------------------------------------------
 def record_usage(conn: sqlite3.Connection, job_id: Optional[int], kind: str, provider: str, model: str, tier: str,
-                 quantity: float, unit: str, project_id: Optional[int] = None) -> None:
+                 quantity: float, unit: str, project_id: Optional[int] = None, stage: Optional[str] = None) -> None:
     """One billed-looking submission. Job-based usage (image/video) derives the project from the job;
-    audio has no job, so pass `project_id`."""
+    audio has no job, so pass `project_id`. `stage`: what a Claude call was for (director, qc, motion, asset_vision…)."""
     if project_id is None and job_id is not None:
         row = conn.execute("SELECT project_id FROM jobs WHERE id=?", (job_id,)).fetchone()
         project_id = row["project_id"] if row else None
-    conn.execute("INSERT INTO usage_events (job_id, project_id, kind, provider, model, tier, quantity, unit, at)"
-                 " VALUES (?,?,?,?,?,?,?,?,datetime('now'))",
-                 (job_id, project_id, kind, provider, model, tier, quantity, unit))
+    conn.execute("INSERT INTO usage_events (job_id, project_id, kind, provider, model, tier, quantity, unit, at, stage)"
+                 " VALUES (?,?,?,?,?,?,?,?,datetime('now'),?)",
+                 (job_id, project_id, kind, provider, model, tier, quantity, unit, stage))
     conn.commit()
 
 

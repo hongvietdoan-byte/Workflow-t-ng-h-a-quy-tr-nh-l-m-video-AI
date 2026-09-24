@@ -41,19 +41,20 @@ def waiting(conn, project_id: int) -> int:
     return conn.execute("SELECT COUNT(*) FROM jobs WHERE project_id=? AND type='image_gen' AND state='succeeded'", (project_id,)).fetchone()[0]
 
 
-def can_run(conn, project_id: int, client_factory: Callable = llm_runner.client_from_env) -> bool:
+def can_run(conn, project_id: int, client_factory: Optional[Callable] = None) -> bool:
     """True when there is something to check, nothing is running / broken, and a Claude is configured."""
     if active(project_id) or last_error(project_id) or not waiting(conn, project_id):
         return False
     try:
-        return client_factory() is not None
+        return (client_factory or llm_runner.ledger_factory(llm_runner.db_file(conn)))() is not None
     except llm_runner.LlmError:
         return False
 
 
-def start(db_path: str, data_dir: str, project_id: int, client_factory: Callable = llm_runner.client_from_env) -> bool:
+def start(db_path: str, data_dir: str, project_id: int, client_factory: Optional[Callable] = None) -> bool:
     """Start checking this project's unchecked pictures in the background. True if a check was started."""
     conn = connect(db_path)
+    client_factory = client_factory or llm_runner.ledger_factory(db_path)      # every Claude call -> cost ledger + Claude cap
     with _lock:
         if not can_run(conn, project_id, client_factory):
             return False
@@ -120,11 +121,12 @@ def clear_video_error(project_id: int) -> None:
     _video_errors.pop(project_id, None)
 
 
-def start_video(db_path: str, data_dir: str, project_id: int, client_factory: Callable = llm_runner.client_from_env) -> bool:
+def start_video(db_path: str, data_dir: str, project_id: int, client_factory: Optional[Callable] = None) -> bool:
     """Check this project's finished, unscored clips in the background (project switch `qc_video`). True if started."""
     from . import claude_tasks
     conn = connect(db_path)
     p = Pipeline(conn)
+    client_factory = client_factory or llm_runner.ledger_factory(db_path)
     with _lock:
         if video_active(project_id) or video_last_error(project_id) or not claude_tasks.unchecked_videos(p, project_id):
             return False

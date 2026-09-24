@@ -15,7 +15,7 @@ from datetime import datetime, timezone
 from typing import Dict, List, Optional
 
 from . import assets, diag, layout
-from .llm_runner import LlmError, ask_json
+from .llm_runner import LlmError, ask_json, tagged
 from .pipeline import Pipeline
 from .prompts import _read
 
@@ -52,8 +52,9 @@ def analyze_background(p: Pipeline, client, path: str, project_id: Optional[int]
     if found is not None:
         return found
     try:
-        obj, _, _ = ask_json(client, _read("prompts", "07_set_analysis.md"), layout.validate_set_analysis,
-                             [("Ảnh bối cảnh:", assets.thumbnail(path, 1280))], note=_note(p, project_id))
+        with tagged("set_analysis", project_id):
+            obj, _, _ = ask_json(client, _read("prompts", "07_set_analysis.md"), layout.validate_set_analysis,
+                                 [("Ảnh bối cảnh:", assets.thumbnail(path, 1280))], note=_note(p, project_id))
     except LlmError as e:
         diag.record(p.conn, "previz", "warn" if e.transient else "error", f"đọc ảnh nền lỗi: {e}", e.code, project_id)
         raise
@@ -116,7 +117,8 @@ def plan_layouts(p: Pipeline, project_id: int, client, data_dir: str) -> Dict:
     candidates = {s["idx"]: [c["id"] for c in cands] for s, cands in todo}
     casts = {s["idx"]: [str(n) for n in s.get("characters") or []] for s, _ in todo}
     try:
-        obj, _, _ = ask_json(client, prompt, _validator(candidates, casts), images, note=_note(p, project_id))
+        with tagged("layout", project_id):
+            obj, _, _ = ask_json(client, prompt, _validator(candidates, casts), images, note=_note(p, project_id))
     except LlmError as e:
         diag.record(p.conn, "previz", "warn" if e.transient else "error", f"dựng layout lỗi: {e}", e.code, project_id)
         raise
@@ -189,9 +191,10 @@ def review_storyboard(p: Pipeline, project_id: int, client, data_dir: str) -> Di
     scenes = [{"idx": s["idx"], "sequence": s.get("sequence"), "shot": s.get("shot", ""), "blocking": s.get("blocking", "")}
               for s in _scenes(p, project_id) if s.get("layout")]
     try:
-        obj, _, _ = ask_json(client, _read("prompts", "09_storyboard_review.md") + "\n\n---\n\n# Các shot\n"
-                             + json.dumps(scenes, ensure_ascii=False, indent=1), _check_review,
-                             [("Storyboard:", board)], note=_note(p, project_id))
+        with tagged("storyboard_review", project_id):
+            obj, _, _ = ask_json(client, _read("prompts", "09_storyboard_review.md") + "\n\n---\n\n# Các shot\n"
+                                 + json.dumps(scenes, ensure_ascii=False, indent=1), _check_review,
+                                 [("Storyboard:", board)], note=_note(p, project_id))
     except LlmError as e:
         diag.record(p.conn, "previz", "warn" if e.transient else "error", f"rà storyboard lỗi: {e}", e.code, project_id)
         raise

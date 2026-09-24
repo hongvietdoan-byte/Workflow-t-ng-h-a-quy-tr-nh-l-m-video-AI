@@ -109,7 +109,8 @@ def analyze(client, character_name: str, frame_paths: List[str], meta: Dict, not
     images: List[Tuple[str, str]] = [(f"Khung hình {i} (~{meta['duration_sec'] * (i - 1) / max(len(frame_paths) - 1, 1):.1f}s):"
                                       if meta.get("duration_sec") else f"Khung hình {i}:", p)
                                      for i, p in enumerate(frame_paths, 1)]
-    reply = client.complete(build_prompt(character_name, meta, note), images)
+    with llm_runner.tagged("video_analysis"):
+        reply = client.complete(build_prompt(character_name, meta, note), images)
     text = reply.text.strip()
     if not text:
         raise llm_runner.LlmError("Claude không trả lời gì", code="empty")

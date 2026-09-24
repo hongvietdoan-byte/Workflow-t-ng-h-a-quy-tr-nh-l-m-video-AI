@@ -59,11 +59,11 @@ def pending(conn, game: str) -> int:
     return sum(1 for a in assets.list_assets(conn, game, None, None, shared_only=True) if _eligible(a))
 
 
-def can_run(conn, game: str, client_factory: Callable = llm_runner.client_from_env) -> bool:
+def can_run(conn, game: str, client_factory: Optional[Callable] = None) -> bool:
     if active(game) or last_error(game) or not pending(conn, game):
         return False
     try:
-        return client_factory() is not None
+        return (client_factory or llm_runner.ledger_factory(llm_runner.db_file(conn)))() is not None
     except llm_runner.LlmError:
         return False
 
@@ -90,7 +90,8 @@ def describe(client, asset: Dict) -> str:
     images = [(f"Ảnh {i}:", img["path"]) for i, img in enumerate(_pick_images(asset), 1)]
     if not images:
         raise llm_runner.LlmError("mục này chưa có ảnh", code="no_image")
-    reply = client.complete(build_prompt(asset), images)
+    with llm_runner.tagged("asset_vision"):
+        reply = client.complete(build_prompt(asset), images)
     text = reply.text.strip()
     if not text:
         raise llm_runner.LlmError("Claude không trả lời gì", code="empty")
@@ -112,9 +113,10 @@ def sync_one(conn, client, asset_id: int) -> bool:
     return True
 
 
-def start(db_path: str, game: str, client_factory: Callable = llm_runner.client_from_env) -> bool:
+def start(db_path: str, game: str, client_factory: Optional[Callable] = None) -> bool:
     """Start reading this game's unread resources in the background. True if a run was started."""
     conn = connect(db_path)
+    client_factory = client_factory or llm_runner.ledger_factory(db_path)      # every Claude call -> cost ledger + Claude cap
     with _lock:
         if not can_run(conn, game, client_factory):
             return False

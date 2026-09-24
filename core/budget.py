@@ -63,7 +63,12 @@ def stop(conn) -> Dict:
 
 def token_price(pricing: Dict, model: str, tier: str, tokens: float) -> Optional[float]:
     """USD of `tokens` Claude API tokens (tier 'input' or 'output'), None when the model has no price."""
-    table = (pricing.get("per_million_tokens") or {}).get(model) or {}
+    prices = pricing.get("per_million_tokens") or {}
+    table = prices.get(model)
+    if table is None:           # a dated/suffixed id (claude-sonnet-5-20260101) takes the price of its longest known prefix
+        known = [k for k in prices if not k.startswith("_") and model.startswith(k + "-")]
+        table = prices[max(known, key=len)] if known else None
+    table = table if isinstance(table, dict) else {}
     unit = cost._number(table.get(tier))
     return None if unit is None else unit * float(tokens or 0) / 1_000_000
 

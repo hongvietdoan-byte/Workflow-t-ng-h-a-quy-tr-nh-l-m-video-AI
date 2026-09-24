@@ -37,7 +37,8 @@ def analyse(client, image_paths: List[str], note=None) -> Dict:
     if not paths:
         raise llm_runner.LlmError("chưa có ảnh tham khảo để phân tích", code="config")
     images = [(f"Ảnh tham khảo {i}:", p) for i, p in enumerate(paths, 1)]
-    obj, _, _ = llm_runner.ask_json(client, _prompt(), validate, images, note=note)
+    with llm_runner.tagged("style"):
+        obj, _, _ = llm_runner.ask_json(client, _prompt(), validate, images, note=note)
     if len(paths) == 1 and obj.get("confidence") == "high":
         obj["confidence"] = "medium"                     # one picture cannot separate style from accident
         obj.setdefault("check_flags", []).append("chỉ 1 ảnh tham khảo, nên bổ sung thêm ảnh")

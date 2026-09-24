@@ -102,7 +102,8 @@ def propose(client, p: Pipeline, data_dir: str, pid: int, transition: str = "cut
                 raise ValueError("có hiệu ứng không nằm trong danh sách (id sai)")
             float(c.get("at"))
 
-    obj, _, _ = llm_runner.ask_json(client, build_prompt(scenes, sounds, total, wish), validate)
+    with llm_runner.tagged("sfx"):
+        obj, _, _ = llm_runner.ask_json(client, build_prompt(scenes, sounds, total, wish), validate)
     cues = []
     for c in obj["cues"]:
         s = by_id[int(c["id"])]

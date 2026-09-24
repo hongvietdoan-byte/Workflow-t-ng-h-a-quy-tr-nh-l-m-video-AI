@@ -118,7 +118,9 @@ def _write_rule(client, cluster: Dict) -> str:
               f"{cluster['projects']} dự án).\nVí dụ:\n{examples}\n\nViết MỘT quy tắc ngắn (tối đa 3 câu, tiếng Việt, "
               "mệnh lệnh, cụ thể, có thể áp dụng ngay khi viết prompt hoặc chấm ảnh) để lần sau không lặp lại lỗi. "
               "Chỉ trả về nội dung quy tắc.")
-    return client.complete(prompt).text.strip()[:600]
+    from .llm_runner import tagged
+    with tagged("lessons"):
+        return client.complete(prompt).text.strip()[:600]
 
 
 def propose(conn, client=None) -> int:

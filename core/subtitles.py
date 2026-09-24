@@ -414,7 +414,8 @@ def translate(client, cues: List[Cue], lang: str) -> List[Cue]:
             if any(not str(x.get("text", "")).strip() for x in obj["cues"]):
                 raise ValueError("có câu dịch trống")
 
-        obj, _, _ = llm_runner.ask_json(client, prompt, validate)
+        with llm_runner.tagged("subtitles"):
+            obj, _, _ = llm_runner.ask_json(client, prompt, validate)
         by_id = {int(x["id"]): str(x["text"]).strip() for x in obj["cues"]}
         for n, c in enumerate(chunk, 1):
             out.append(Cue(c.start, c.end, by_id.get(n, c.text), c.speaker, c.scene))
