@@ -195,6 +195,63 @@ class Data:
         return bool(self.usage.get(j["id"])) or bool(j["external_id"] and not self.is_follower(j))
 
 
+VISIBLE = 0.6     # điểm tiêu chí bố cục/tỉ lệ dưới mức này = lỗi người xem ảnh thấy ngay (sai cỡ cảnh, người tí hon, sai bối cảnh)
+
+
+def image_flags(d, image_id, floors) -> list:
+    """Lỗi nhìn thấy trên ẢNH khung đầu (trước khi có video): dưới mức sàn, bố cục/tỉ lệ/bối cảnh rất thấp, hoặc về sau ảnh bị chính
+    người/QC đồng bộ loại (tức là ảnh sai mà vẫn đã làm video)."""
+    if not image_id or image_id not in d.jobs:
+        return []
+    sc = d.qc.get(image_id, {})
+    out = [f"{k} {v:.2f} < sàn" for k, v in sc.items() if k in floors and v < floors[k]]
+    out += [f"{k} {v:.2f}" for k, v in sc.items() if k in ("composition", "set_match", "scale") and v < VISIBLE]
+    later = [r for r in d.reviews.get(image_id, []) if r["decision"] == "reject" and r["reviewer_type"] == "user"]
+    if later:
+        out.append("ảnh bị loại sau đó: " + short(later[-1]["note"], 60))
+    return out
+
+
+def group_gaps(d, j) -> list:
+    """Nhóm multi-shot: nhân vật của các shot sau không có trong shot đầu nhóm (ảnh duy nhất Kling nhận) — thấy được nếu
+    storyboard hiện nhóm + danh sách nhân vật."""
+    if not d.has_leader:
+        return []
+    lead = set(json.loads((d.scene.get(j["scene_id"]) or {"data": "{}"})["data"] or "{}").get("characters") or [])
+    missing = set()
+    for x in d.jobs.values():
+        if col(x, "group_leader") == j["id"] and x["id"] != j["id"]:
+            chars = json.loads((d.scene.get(x["scene_id"]) or {"data": "{}"})["data"] or "{}").get("characters") or []
+            missing |= {c for c in chars if c not in lead}
+    return sorted(missing)
+
+
+def storyboard_gate(d, pricing, floors) -> str:
+    rows, total, flagged_usd, flagged_unused, n_flag = [], 0.0, 0.0, 0.0, 0
+    for j in d.jobs.values():
+        if j["type"] != "video_gen" or not d.usage.get(j["id"]):
+            continue
+        usd = d.price(j, pricing)[0]
+        total += usd
+        flags = image_flags(d, col(j, "source_job_id"), floors)
+        gaps = group_gaps(d, j)
+        if gaps:
+            flags.append("nhóm thiếu " + ", ".join(gaps) + " trong ảnh đầu")
+        if flags:
+            n_flag += 1
+            flagged_usd += usd
+            flagged_unused += 0 if d.used(j) else usd
+            rows.append((d.shot_label(j["scene_id"]), j["id"], usd, d.used(j), "; ".join(flags)))
+    head = (f"Video đã chi tiền: {money(total)}. Gửi từ ảnh/nhóm có lỗi **nhìn thấy trước khi gen video**: **{n_flag} lần, "
+            f"{money(flagged_usd)} ({pct(flagged_usd, total)})**, trong đó không vào bản cuối: {money(flagged_unused)}.")
+    if not rows:
+        return head
+    lines = [head, "", "| Shot | Job | Tiền | Vào bản cuối | Lỗi thấy trên ảnh/nhóm |", "|---|---|---|---|---|"]
+    for label, jid, usd, used, why in rows[:25]:
+        lines.append(f"| {label} | {jid} | {money(usd)} | {'có' if used else 'không'} | {short(why, 150)} |")
+    return "\n".join(lines)
+
+
 def overall(scores: dict):
     return sum(scores.values()) / len(scores) if scores else None
 
@@ -318,6 +375,11 @@ def report_project(conn, pid: int, pricing: dict, floors: dict) -> tuple:
     w("")
 
     # 3. lỗi dồn ở tiêu chí nào
+    # 2b. cổng storyboard: video gửi từ ảnh có lỗi NHÌN THẤY ĐƯỢC trước khi chi tiền video
+    w("### 2b. Nếu có cổng duyệt storyboard: video nào lẽ ra bị chặn từ ảnh")
+    w(storyboard_gate(d, pricing, floors))
+    w("")
+
     w("### 3. QC: tiêu chí nào kéo trượt")
     for t, label in (("image_gen", "Ảnh"), ("video_gen", "Video")):
         scored = [(j, d.qc[j["id"]]) for j in d.jobs.values() if j["type"] == t and d.qc.get(j["id"])]

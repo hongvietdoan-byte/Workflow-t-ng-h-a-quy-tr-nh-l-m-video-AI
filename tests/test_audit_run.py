@@ -79,6 +79,25 @@ class AuditRunTest(unittest.TestCase):
         self.assertIn("gửi lại **đầu vào y hệt** (cùng ảnh + cùng motion prompt): **1** (100%)", text)
         self.assertIn("câu sửa chứa điểm số hoặc tiếng Việt (đi thẳng vào prompt Deepix): 1", text)
 
+    def test_storyboard_gate_counts_clips_made_from_visibly_wrong_pictures(self):
+        c = connect(self.db)
+        p = Pipeline(c)
+        s3 = p.create_scene(self.pid, 3)
+        img = p.create_job(s3, "image_gen")
+        p.start(img), p.succeed(img)
+        p.apply_qc(img, dict(GOOD, composition=.4))    # passes on average, but the framing is visibly wrong
+        c.execute("UPDATE jobs SET state='approved' WHERE id=?", (img,))
+        v = p.create_job(s3, "video_gen")
+        c.execute("UPDATE jobs SET external_id='v', source_job_id=? WHERE id=?", (img, v))
+        record_usage(c, v, "video", "clipai", "kling-v3-omni", "std", 10, "second")
+        c.commit(), c.close()
+        conn = audit.open_ro(self.db)
+        text = audit.report_project(conn, self.pid, {"per_video_second": {"kling-v3-omni:std": 0.1}, "per_video_clip": {},
+                                                     "per_image": {}}, audit.load_floors())[0]
+        conn.close()
+        self.assertIn("**1 lần, $1.00 (20%)**", text)
+        self.assertIn("composition 0.40", text)
+
 
 if __name__ == "__main__":
     unittest.main()

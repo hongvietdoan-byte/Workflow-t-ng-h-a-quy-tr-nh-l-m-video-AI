@@ -248,7 +248,51 @@ Hệ quả cho các việc sửa:
   render in-game vì "giống người thật" → với look `FF_INGAME`, **ưu tiên Kling** ngay từ đầu (W11).
 - Bỏ các look khác (CGI tả thực/kỹ xảo, fan 3D, phim ngắn) khỏi lựa chọn ở Bước 1.
 
-Cần người dùng chốt:
-1. Cổng storyboard **bắt buộc** (không tắt được) hay bật mặc định nhưng tắt được cho dự án đã quen?
-2. Mức gen lại tự động: tối đa 1 lần/ảnh và 1 lần/clip có ổn không?
-3. Video mẫu (bậc 6) bật mặc định hay chỉ khi đổi model/kiểu gen?
+### Trả lời của người dùng (2026-09-24) và phân tích tiếp
+
+**Câu 2 — ĐÃ CHỐT: tự gen lại tối đa 2 lần** mỗi ảnh / mỗi clip. Điều kiện đi kèm (từ số liệu 2b-2: gen lại cùng đầu vào 3/3 lần vô
+ích): mỗi lần tự gen lại **phải đổi đầu vào** (câu sửa vào prompt, đổi ảnh khung đầu, đổi model…) theo chẩn đoán F5; đầu vào không đổi
+được → dừng shot, không tính là lần gen lại. W7 sửa theo: tối đa 2 lần tự gen lại ảnh + 2 lần video mỗi shot.
+
+**Câu 3 — ĐỀ XUẤT: bỏ "video mẫu" theo từng dự án**, thay bằng **gói look đã kiểm** — đồng ý với nhận định của người dùng:
+- Một đoạn mẫu ngắn chỉ kiểm được 1–2 shot, không đại diện cho cả dự án; cái nó kiểm thực chất là "look + model có ra đúng không",
+  mà điều đó **không đổi giữa các dự án** nếu look đã cố định (chỉ còn 2 look: anime, in-game Free Fire).
+- Vì vậy kiểm **một lần cho mỗi cặp look × model**, không kiểm lại mỗi dự án: **gói look** = khối prompt phong cách + negative +
+  model video ưu tiên + tham số đã thử + bộ ảnh mẫu đạt (ảnh tài nguyên cho look in-game) + ngưỡng QC riêng của look. Gói được dựng và
+  kiểm ở bậc kiểm thật GĐ4 (1 cảnh), rồi dùng tự động cho mọi dự án sau.
+- Chỉ cần kiểm lại khi **có thứ mới** mà gói chưa gặp: model video mới / phiên bản model đổi, nhân vật mới chưa có trong kho, hoặc
+  look thứ 3. Khi đó hệ thống tự gen 1 shot kiểm và báo — không phải bước cố định của mọi dự án.
+- Lưu ý: gói look chống được lỗi **phong cách** (R2), nhưng **không** chống được lỗi nhận diện/bố cục/tỉ lệ của GĐ6 (R1, R3, R4, R7) —
+  những lỗi đó nằm ở Bible, layout, chia nhóm của từng dự án → vẫn cần F1–F11 và cổng storyboard (câu 1).
+
+**Câu 1 — phân tích tác dụng của cổng duyệt storyboard.**
+
+*Cổng chặn được gì (lỗi nhìn thấy trên ảnh khung đầu, trước khi chi tiền video) — số liệu GĐ6:*
+
+| Lỗi | Ví dụ GĐ6 | Thấy trên ảnh? |
+|---|---|---|
+| Bible sai tham chiếu (R1) | Kelly đuôi ngựa / bob, Maxim tóc đen / bạc | Có — so với ảnh tài nguyên đặt cạnh |
+| Lẫn phong cách (R2) | S18, S22 V2 nửa anime nửa CGI | Có |
+| QC đồng bộ sửa sai (R3) | V0 S02: ảnh sửa thành 2 Maxim cầm katana → clip 15s sai từ khung đầu | Có |
+| Nhóm multi-shot thiếu nhân vật (R4) | Nhóm S14–S17 chỉ có ảnh Maxim, 6/12 shot sau sai nhân vật | Có, **nếu** storyboard hiện nhóm + nhân vật từng shot |
+| Sai cỡ cảnh / tỉ lệ (R7) | V1: `set_match`/`composition` TB 0,52 (36/38, 31/38 ảnh < 0,7); V2 S22 "CU" ra Kenta tí hon | Có |
+
+*Cổng không chặn được:* lỗi chuyển động trong clip (V0 S03 $6,60, `motion_match`), lỗi của nhà cung cấp (task "ma", bản quyền trên
+video đầu ra), QC video gen lại cùng đầu vào — những lỗi này do W3/F5/W10–W12 xử lý.
+
+*Chi phí của cổng:* ~5–10 phút người xem 26 khung (đã có contact sheet); nếu cổng chỉ yêu cầu xem các shot bị QC gắn cờ thì còn ít
+hơn. So sánh: ở GĐ6 V2 người dùng vẫn phải xem clip và **giữ lại 15 clip QC đã loại** — tức là người vẫn phải duyệt, nhưng ở bước
+video (sau khi đã trả tiền) thay vì bước ảnh (chưa tốn tiền video).
+
+*Số đo:* `tools/audit_run.py` mục **2b** đếm số tiền video đã chi cho clip làm từ ảnh/nhóm có lỗi nhìn thấy trước khi gen video
+(ảnh dưới mức sàn, `composition`/`set_match`/`scale` < 0,6, ảnh về sau bị loại, nhóm multi-shot thiếu nhân vật) — **chạy lại trên
+CSDL thật để có con số** (ước tính trên: phần lớn trong $8,84 người bấm gen lại + các clip lần đầu làm từ ảnh sai).
+
+*Cổng và mục tiêu tự động:* cổng mâu thuẫn với "chạy tự động" chỉ khi nó là bắt buộc mãi mãi. Đề xuất **cổng tự nới dần theo dữ liệu**:
+- Bật mặc định. Ghi mỗi quyết định của người ở cổng cạnh quyết định của QC ảnh (đồng ý / không).
+- Khi QC ảnh đồng ý với người ≥ 90% trên ≥ 50 ảnh **của cùng gói look**, cổng chuyển sang "chỉ dừng ở shot bị gắn cờ"; shot không cờ
+  đi thẳng. Tỉ lệ đồng thuận tụt → cổng tự bật lại toàn bộ.
+- Dự án có nhân vật mới / model mới (thứ gói look chưa gặp) → cổng bật toàn bộ cho dự án đó.
+
+→ Chờ số đo mục 2b để chốt câu 1.
+
