@@ -62,7 +62,8 @@ class Pipeline:
     def set_project_field(self, project_id: int, field: str, value) -> None:
         """Plain v2 project settings (aspect, genre, model_priority, qc_video, render_settings, qc_policy, autopilot_gates, pilot)."""
         allowed = {"aspect", "genre", "genre_locked", "model_priority", "qc_video", "render_settings", "qc_policy",
-                   "autopilot_gates", "autopilot_saved_cfg", "pilot", "shot_mode", "style_profile", "test_quality"}
+                   "autopilot_gates", "autopilot_saved_cfg", "pilot", "shot_mode", "style_profile", "test_quality",
+                   "director_raw"}
         if field not in allowed:
             raise ValueError(f"unknown project setting '{field}'")
         self.conn.execute(f"UPDATE projects SET {field}=? WHERE id=?", (value, project_id))

@@ -54,13 +54,28 @@ def people_in_project(pipeline: Pipeline, project_id: int) -> List[str]:
     return sorted(set(names))
 
 
+def bible_block(pipeline: Pipeline, project_id: int) -> str:
+    """The Character Bible as it stands: the Director reuses these exact names (a re-run returning "KELLY" for "Kelly" used to add a
+    duplicate) and does not rewrite a locked or hand-edited entry."""
+    rows = pipeline.conn.execute("SELECT name, description, wardrobe, locked, user_edited FROM characters WHERE project_id=? ORDER BY id",
+                                 (project_id,)).fetchall()
+    if not rows:
+        return ""
+    lines = []
+    for r in rows:
+        keep = "đã khóa" if r["locked"] else ("người dùng đã sửa tay" if r["user_edited"] else "")
+        lines.append(f"- {r['name']}" + (f" ({keep} — giữ nguyên mô tả)" if keep else "") + f": {r['description']}"
+                     + (f" | trang phục: {r['wardrobe']}" if r["wardrobe"] else ""))
+    return ("# Character Bible hiện có (dùng ĐÚNG các tên này, không tạo bản trùng khác hoa/thường hay khác cách viết)\n" + "\n".join(lines))
+
+
 def locked_block(pipeline: Pipeline, project_id: int) -> str:
     from .llm_io import locked_fields
     rows = locked_fields(pipeline.conn, project_id)
     if not rows:
         return ""
     return ("# Giá trị người dùng đã khóa (GIỮ NGUYÊN, lên kế hoạch xung quanh)\n"
-            + "\n".join(f"- Cảnh {r['idx']}: " + json.dumps(r["fields"], ensure_ascii=False) for r in rows))
+            + "\n".join(f"- {r.get('label') or 'Cảnh ' + str(r['idx'])}: " + json.dumps(r["fields"], ensure_ascii=False) for r in rows))
 
 
 def project_frame_block(pipeline: Pipeline, project_id: int) -> str:
@@ -112,10 +127,11 @@ def build_director_bundle(pipeline: Pipeline, project_id: int) -> str:
         keep("dialogue_craft.md"),
         ff,
         assets.context_text(pipeline.conn, project_id),
+        bible_block(pipeline, project_id),
         world_bible_text(pipeline, project_id),
         knowledge.user_text("director"),
         few_shot_text(),
-        "" if shots.mode(proj) else locked_block(pipeline, project_id),
+        locked_block(pipeline, project_id),
         script_preamble(proj),
         "# Kịch bản đã tách cảnh\n\n" + scenes,
     ] if x)

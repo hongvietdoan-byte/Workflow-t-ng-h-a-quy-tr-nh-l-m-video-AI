@@ -300,8 +300,9 @@ def _director_references(conn, project_id: int) -> List[Tuple[str, str]]:
 
 @_diagnosed("director", lambda p, i: i)
 def run_director(p: Pipeline, project_id: int, client) -> Dict:
-    obj, tin, tout = ask_json(client, prompts.build_director_bundle(p, project_id), llm_io.validate_scene_analysis,
+    obj, tin, tout = ask_json(client, prompts.build_director_bundle(p, project_id), llm_io.validate_for_project(p, project_id),
                               _director_references(p.conn, project_id), note=_retry_note(p, "director", project_id))
+    p.set_project_field(project_id, "director_raw", json.dumps(obj, ensure_ascii=False))   # paid for: kept even if saving fails
     llm_io.store_scene_analysis(p, project_id, obj)
     return {"characters": len(obj["characters"]), "scenes": len(obj["scenes"]), "input_tokens": tin,
             "output_tokens": tout, "ip_risk_notes": obj.get("ip_risk_notes") or []}

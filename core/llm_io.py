@@ -78,6 +78,25 @@ def validate_scene_analysis(data: Any) -> Dict:
     return obj
 
 
+def validate_for_project(pipeline: Pipeline, project_id: int):
+    """The Director validator plus the checks that need the project (so a wrong answer is sent back to Claude once, instead of
+    being refused after it was paid for): every scene exists, and a shot-mode project gets a `shots` list for every scene."""
+    def check(data: Any) -> Dict:
+        obj = validate_scene_analysis(data)
+        from . import shots as _shots
+        if _shots.active(pipeline, project_id):
+            missing = [s["idx"] for s in obj["scenes"] if not s.get("shots")]
+            if missing:
+                raise SchemaError("dự án chia shot: cảnh " + ", ".join(map(str, missing)) + " thiếu danh sách `shots`")
+        else:
+            have = {r["idx"] for r in pipeline.conn.execute("SELECT idx FROM scenes WHERE project_id=?", (project_id,))}
+            unknown = [s["idx"] for s in obj["scenes"] if s["idx"] not in have]
+            if unknown:
+                raise SchemaError("scenes: idx " + ", ".join(map(str, unknown)) + " không có trong kịch bản đã tách (chỉ dùng số cảnh đã cho)")
+        return obj
+    return check
+
+
 def _check_choice(value: Any, allowed, where: str) -> None:
     if value is not None and value not in allowed:
         raise SchemaError(f"{where}: must be one of {', '.join(allowed)} or null")
@@ -180,12 +199,27 @@ def store_scene_analysis(pipeline: Pipeline, project_id: int, data: Any) -> Dict
     wipe a hand-picked Background). A locked character keeps its description; a Character Lock is only filled in when empty."""
     obj = validate_scene_analysis(data)
     conn = pipeline.conn
+    try:
+        _store(pipeline, project_id, obj)
+    except Exception:
+        conn.rollback()                          # all or nothing: a refused answer must not leave half the Bible overwritten
+        raise
+    return obj
+
+
+def _store(pipeline: Pipeline, project_id: int, obj: Dict) -> None:
+    conn = pipeline.conn
     for c in obj["characters"]:
-        conn.execute(
-            "INSERT INTO characters (project_id, name, description, wardrobe) VALUES (?,?,?,?)"
-            " ON CONFLICT(project_id, name) DO UPDATE SET description=excluded.description,"
-            " wardrobe=excluded.wardrobe WHERE locked=0",
-            (project_id, c["name"], c["description"], c.get("wardrobe")))
+        row = conn.execute("SELECT locked, user_edited FROM characters WHERE project_id=? AND name=?", (project_id, c["name"])).fetchone()
+        if row is None:
+            conn.execute("INSERT INTO characters (project_id, name, description, wardrobe) VALUES (?,?,?,?)",
+                         (project_id, c["name"], c["description"], c.get("wardrobe")))
+        elif not row["locked"]:
+            edited = set(json.loads(row["user_edited"] or "[]"))
+            if "description" not in edited:
+                conn.execute("UPDATE characters SET description=? WHERE project_id=? AND name=?", (c["description"], project_id, c["name"]))
+            if "wardrobe" not in edited and (c.get("wardrobe") or "").strip():
+                conn.execute("UPDATE characters SET wardrobe=? WHERE project_id=? AND name=?", (c["wardrobe"], project_id, c["name"]))
         if c.get("lock"):
             conn.execute("UPDATE characters SET lock_rules=? WHERE project_id=? AND name=? AND (lock_rules IS NULL OR lock_rules='')",
                          (json.dumps({k: c["lock"].get(k, "") for k in LOCK_KEYS}, ensure_ascii=False), project_id, c["name"]))
@@ -201,7 +235,7 @@ def store_scene_analysis(pipeline: Pipeline, project_id: int, data: Any) -> Dict
         except _shots.ShotError as e:
             raise SchemaError(str(e)) from e
         conn.commit()
-        return obj
+        return
     for s in obj["scenes"]:
         row = conn.execute("SELECT id, data FROM scenes WHERE project_id=? AND idx=?",
                            (project_id, s["idx"])).fetchone()
@@ -218,7 +252,6 @@ def store_scene_analysis(pipeline: Pipeline, project_id: int, data: Any) -> Dict
         conn.execute("UPDATE scenes SET data=? WHERE id=?",
                      (json.dumps(merged, ensure_ascii=False), row["id"]))
     conn.commit()
-    return obj
 
 
 def locked_fields(conn, project_id: int) -> List[Dict]:
@@ -228,7 +261,8 @@ def locked_fields(conn, project_id: int) -> List[Dict]:
         d = json.loads(r["data"] or "{}")
         keys = [k for k in d.get("_user_locked") or [] if k in d]
         if keys:
-            out.append({"idx": r["idx"], "fields": {k: d[k] for k in keys}})
+            label = f"Cảnh {d['story_scene']} · shot {d['shot_no']}" if d.get("shot_no") and d.get("story_scene") else None
+            out.append({"idx": r["idx"], "fields": {k: d[k] for k in keys}, **({"label": label} if label else {})})
     return out
 
 
@@ -350,8 +384,14 @@ def update_character(pipeline: Pipeline, project_id: int, name: str, description
     if new_name != name and conn.execute("SELECT 1 FROM characters WHERE project_id=? AND name=?",
                                          (project_id, new_name)).fetchone():
         raise ValueError(f"a character named '{new_name}' already exists")
-    conn.execute("UPDATE characters SET name=?, description=?, wardrobe=? WHERE id=?",
-                 (new_name, description, (wardrobe or "").strip() or None, row["id"]))
+    old = conn.execute("SELECT description, wardrobe, user_edited FROM characters WHERE id=?", (row["id"],)).fetchone()
+    edited = set(json.loads(old["user_edited"] or "[]"))
+    if description != (old["description"] or ""):
+        edited.add("description")
+    if ((wardrobe or "").strip() or None) != (old["wardrobe"] or None):
+        edited.add("wardrobe")
+    conn.execute("UPDATE characters SET name=?, description=?, wardrobe=?, user_edited=? WHERE id=?",
+                 (new_name, description, (wardrobe or "").strip() or None, json.dumps(sorted(edited)) if edited else None, row["id"]))
     if new_name != name:
         for scene in conn.execute("SELECT id, data FROM scenes WHERE project_id=?", (project_id,)).fetchall():
             data = json.loads(scene["data"] or "{}")

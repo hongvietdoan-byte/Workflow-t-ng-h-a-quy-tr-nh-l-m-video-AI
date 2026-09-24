@@ -418,8 +418,10 @@ V2_COLUMNS = {
                  ("pilot", "TEXT"),
                  # kế hoạch v3: NULL shot_mode = one clip per script scene (v2); 'per_shot' / 'multishot' = the Director splits
                  # scenes into shots; style_profile = the Free Fire editing style the Director follows (knowledge/ff_styles)
-                 ("shot_mode", "TEXT"), ("style_profile", "TEXT"), ("test_quality", "INTEGER NOT NULL DEFAULT 0")),
-    "characters": (("lock_rules", "TEXT"), ("voice_profile", "TEXT"), ("anchor_approved", "INTEGER NOT NULL DEFAULT 0")),
+                 ("shot_mode", "TEXT"), ("style_profile", "TEXT"), ("test_quality", "INTEGER NOT NULL DEFAULT 0"),
+                 ("director_raw", "TEXT")),           # the last paid Director answer, kept even when saving it failed
+    "characters": (("lock_rules", "TEXT"), ("voice_profile", "TEXT"), ("anchor_approved", "INTEGER NOT NULL DEFAULT 0"),
+                   ("user_edited", "TEXT")),         # fields the person edited by hand (description, wardrobe): the Director keeps them
     "jobs": (("input_hash", "TEXT"), ("source_job_id", "INTEGER"), ("model", "TEXT"),
              ("group_leader", "INTEGER"),
              ("task_seen", "INTEGER NOT NULL DEFAULT 0"), ("task_unseen", "INTEGER NOT NULL DEFAULT 0")),   # W12: provider list checks     # v3 Kling multi-shot: the job that makes this shot's clip together with its group

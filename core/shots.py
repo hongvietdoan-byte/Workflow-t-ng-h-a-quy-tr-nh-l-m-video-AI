@@ -184,6 +184,12 @@ def store_plan(pipeline: Pipeline, project_id: int, scenes: List[Dict], force: b
         else:
             conn.execute("INSERT INTO story_scenes (project_id, idx, heading, text, data) VALUES (?,?,?,?,?)",
                          (project_id, s["idx"], f"CẢNH {s['idx']}", "", json.dumps(extra, ensure_ascii=False)))
+    kept = {}                                            # fields the person set by hand, per (script scene, shot number)
+    for r in conn.execute("SELECT data FROM scenes WHERE project_id=?", (project_id,)).fetchall():
+        d = json.loads(r["data"] or "{}")
+        locked = [k for k in d.get("_user_locked") or [] if k in d]
+        if locked and d.get("shot_no"):
+            kept[(d.get("story_scene"), d["shot_no"])] = {"_user_locked": locked, **{k: d[k] for k in locked}}
     conn.execute("DELETE FROM motion_prompts WHERE scene_id IN (SELECT id FROM scenes WHERE project_id=?)", (project_id,))
     conn.execute("DELETE FROM scenes WHERE project_id=?", (project_id,))
     n = 0
@@ -191,9 +197,10 @@ def store_plan(pipeline: Pipeline, project_id: int, scenes: List[Dict], force: b
         heading = (story.get(s["idx"]) or {}).get("heading") or f"CẢNH {s['idx']}"
         for k, shot in enumerate(s["shots"], 1):
             n += 1
+            data = shot_data(s, shot, k)
+            data.update(kept.get((data.get("story_scene"), data.get("shot_no")), {}))
             conn.execute("INSERT INTO scenes (project_id, idx, title, data) VALUES (?,?,?,?)",
-                         (project_id, n, f"{heading} · shot {k}",
-                          json.dumps(shot_data(s, shot, k), ensure_ascii=False)))
+                         (project_id, n, f"{heading} · shot {k}", json.dumps(data, ensure_ascii=False)))
     conn.commit()
     return n
 
