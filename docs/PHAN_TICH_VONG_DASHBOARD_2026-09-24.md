@@ -234,6 +234,20 @@ Bible đúng — 21% người bấm gen lại) → W3 + F5 (gen lại phải đ�
 - W1/W2/W5/W6 là điều kiện để bậc kiểm thật GĐ4 (chữ → ảnh → 1 cảnh video) diễn ra đúng trong Dashboard thay vì làm tay.
 - Tất cả không tốn credit; có test bằng MockLlm + provider giả (luồng) và fixture GĐ6 (nội dung).
 
+**Quyết định phong cách (người dùng chốt 2026-09-24):** chỉ làm **2 look hình**:
+1. **Anime**.
+2. **Giống y hệt mẫu in-game Free Fire**: đúng như ảnh tài nguyên nhân vật trong kho (render 3D của game, mặt/tóc/trang phục/chất
+   liệu/tỉ lệ như ảnh gốc).
+
+Hệ quả cho các việc sửa:
+- **F2 đơn giản hơn:** trường "look" của dự án chỉ có 2 giá trị (`ANIME` / `FF_INGAME`), tách khỏi `style_profile` (nhịp dựng, cỡ
+  cảnh vẫn lấy từ `knowledge/ff_styles/`). GĐ6 chọn `ANIME_CGI` + Lock "anime cel-shade" trong khi ảnh tham chiếu là render in-game → R2.
+  Look `FF_INGAME` = **ảnh tài nguyên là chuẩn tuyệt đối**: Bible, Lock, prompt ảnh và QC đều so với ảnh (F1, F3).
+- Look `ANIME` vẫn phải giữ nhận diện nhân vật (tóc, trang phục, phụ kiện) theo ảnh tài nguyên, chỉ đổi cách vẽ.
+- **Model video:** Seedance đã chặn một clip vì "output video may be related to copyright restrictions" (phát hiện 1) và chặn ảnh
+  render in-game vì "giống người thật" → với look `FF_INGAME`, **ưu tiên Kling** ngay từ đầu (W11).
+- Bỏ các look khác (CGI tả thực/kỹ xảo, fan 3D, phim ngắn) khỏi lựa chọn ở Bước 1.
+
 Cần người dùng chốt:
 1. Cổng storyboard **bắt buộc** (không tắt được) hay bật mặc định nhưng tắt được cho dự án đã quen?
 2. Mức gen lại tự động: tối đa 1 lần/ảnh và 1 lần/clip có ổn không?
