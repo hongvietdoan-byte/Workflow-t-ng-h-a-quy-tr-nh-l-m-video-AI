@@ -99,26 +99,26 @@ tính trong `data/pricing.json`; ảnh Deepix chưa có giá (chỉ đếm); Cla
 | QC video loại → tự gen lại | — | — | $4,80 (3) | **$4,80** | 11% |
 | **Cộng** | $11,88 | $19,60 | $11,40 | **$42,88** | |
 
-→ **59% tiền video ($25,48) là gửi lại**, chỉ 41% là lần gửi đầu. Theo phương án: V1 **không gửi lại lần nào** (rẻ nhất, $11,88
+→ **59% tiền video ($25,48) trong sổ là gửi lại**, chỉ 41% là lần gửi đầu (lưu ý: ~$15 trong sổ là task ClipAI không hề tạo — phát hiện 1). Theo phương án: V1 **không gửi lại lần nào** (rẻ nhất, $11,88
 cho 21 clip); V2 tốn gấp 3,5 lần tiền gửi đầu; V0 không có lần gửi đầu nào thành công ngay (xem lỗi 1.3).
 
-### Phát hiện 1 — Lỗi DÒ TRẠNG THÁI làm mất clip đã trả tiền (khoản lớn nhất, chưa có trong F1–F11)
-- V2: **12 clip đã gửi và đã ghi sổ ($11,68 = 60% tiền V2) bị đánh `not_found`** ("task not found in the first list page"), rồi
-  autopilot gửi lại 8 lần ($8,24). `status()` chỉ quét **trang đầu 50 task** của `video-list` (clipai.py:277); khi 3 dự án chạy song
-  song, task cũ rơi xuống trang 2 → sau 12 lần không thấy thì bị coi là hỏng **vĩnh viễn** (clipai.py:287).
-- Dự án #1 (trước GĐ6): 6 lỗi `Too many requests` **khi hỏi trạng thái** → job bị đánh hỏng → gửi lại 4 lần ($2,00)
-  (đã sửa 2026-09-23, commit dbe0c37: "Too many requests" nay là lỗi tạm thời). V0: 1 `not_found` ($1,20).
-- Nhiều khả năng ClipAI **vẫn làm xong và vẫn tính tiền** các task đó → **trả 2 lần**, và clip gốc vẫn nằm trên ClipAI chưa tải về.
-  → **Có thể lấy lại không tốn tiền**: quét các trang sau của `video-list` theo `jobs.external_id` của 13 job này, task nào
-  `succeeded` có `video_url` thì tải về (W14).
-  **Đã có công cụ:** `tools/recover_clips.py` (chỉ đọc CSDL + danh sách ClipAI, không gửi job mới; `--download` tải về `recovered/`).
-  **Kết quả lần chạy đầu (2026-09-24 15:48, 20 trang/loại):** 20 task tra được → **0 task XONG**, 3 thất bại thật, **17 không thấy**.
-  Chưa kết luận được "trả 2 lần": 17 task hoặc nằm sâu hơn 20 trang, hoặc **chưa từng vào danh sách** (ClipAI nhận lệnh, trả
-  task_id nhưng không tạo task) — khi đó sổ chi Dashboard đang **ghi thừa** ~$13 (sổ ghi tiền lúc gửi, không đối chiếu với ClipAI).
-  Công cụ đã được bổ sung: in số trang/số task đã quét, ngày cũ nhất, đã hết danh sách chưa, và trường `cost` của ClipAI.
-  Hai chi tiết từ trường `cost` của ClipAI: task Kling multi-shot hỏng vì prompt > 512 ký tự vẫn ghi `cost=90` (có thể **bị tính
-  tiền dù hỏng** — cần đối chiếu lịch sử số dư ClipAI); task Seedance bị chặn bản quyền ghi `cost=0` (không tính tiền, sổ Dashboard
-  lại ghi $1,20).
+### Phát hiện 1 — "Gửi" nhưng ClipAI KHÔNG có task: sổ chi ghi thừa, Dashboard chờ rồi gửi lại (khoản lớn nhất, chưa có trong F1–F11)
+- V2: **12 job đã ghi sổ ($11,68 = 60% tiền V2) bị đánh `not_found`** ("task not found in the first list page"), autopilot gửi
+  lại 8 lần. V0: 1 job `not_found` ($1,20). Dự án #1 (trước GĐ6): 4 job gửi lúc ClipAI đang báo `Too many requests`.
+- **Đối chiếu với ClipAI** (`tools/recover_clips.py`, 2026-09-24 15:50): danh sách Kling của tài khoản **đã quét hết — 136 task từ
+  07/01 đến 24/09**, trong đó **không có task nào** trong 16 task Kling bị đánh `not_found`/lỗi dò trạng thái (V2, V0, #1). Tức là
+  ClipAI **đã trả task_id khi nhận lệnh nhưng không tạo task** — không phải task trôi xuống trang 2, cũng không phải clip xong mà
+  chưa tải. Không có clip nào để lấy lại, và **nhiều khả năng không bị tính tiền** (cần đối chiếu lịch sử số dư ClipAI để khẳng định).
+- Hệ quả thật:
+  1. **Sổ chi Dashboard ghi thừa ~$15** (ghi tiền ngay lúc gửi, không đối chiếu ClipAI): $11,68 (V2) + $1,20 (V0) + ~$2 (#1),
+     cộng $1,20 cho clip Seedance bị chặn bản quyền mà ClipAI ghi `cost=0`. **Tiền video GĐ6 thực tế ước ~$28–29, không phải
+     $42,88** → trần $50 bị chạm sớm vì tiền "ma".
+  2. Mỗi task "ma" làm shot đó **chờ 12 lần dò (~vài phút) rồi mới gửi lại**, và nhiều lần gửi lại cũng thành "ma" (V2 S22 3 lần,
+     S01/S05/S14/S18 mỗi shot 2 lần) → chậm, dễ chạm trần số job.
+  3. Các task "ma" dồn vào lúc gửi dồn dập (V2: 11 task trong 31 phút, 00:35–01:06 UTC; #1: 3 task cùng phút 16:41 lúc đang bị
+     giới hạn tốc độ) → giả thuyết: ClipAI **nhận rồi bỏ** lệnh khi quá tải/giới hạn đồng thời. Cần hỏi ClipAI hoặc đo lại.
+- Chi tiết từ trường `cost` của ClipAI: task Kling multi-shot hỏng vì prompt > 512 ký tự vẫn ghi **`cost=90`** (có thể **bị tính
+  tiền dù hỏng** — đối chiếu số dư theo task_id 139299143209, 400512879984); task Seedance bị chặn bản quyền ghi `cost=0`.
 - **Clip bị chặn bản quyền (V0 S03, job 115, Seedance 2.0 Fast, 15s):** ClipAI chỉ trả câu chung "The request failed because the
   output video may be related to copyright restrictions" + Request id, **không nói nhân vật/chi tiết nào**. Bộ lọc chạy trên
   **video đầu ra** (không phải ảnh đầu vào) → nhân vật Free Fire trong clip Seedance có nguy cơ bị chặn bất kỳ lúc nào; Kling chưa
@@ -157,11 +157,12 @@ cho 21 clip); V2 tốn gấp 3,5 lần tiền gửi đầu; V0 không có lần 
 
 | Nhóm | Tiền | Sửa bằng |
 |---|---|---|
-| Gửi lại do dò trạng thái / lỗi gửi | $11,84 | W12 (dò trạng thái không làm mất task) + W14 (lấy lại clip) + W10 (luật từng model) — **tránh gần hết** |
+| Gửi lại do task "ma" / lỗi gửi | $11,84 (phần lớn là tiền ghi thừa, xem phát hiện 1) | W12 (xác nhận task có thật trước khi ghi sổ + gửi lại ngay khi không có) + W10 (luật từng model) — **tránh gần hết** |
 | QC tự gen lại cùng đầu vào | $4,80 | W3 (đổi đầu vào hoặc không gen) + F5 (chẩn đoán) — **tránh gần hết** |
 | Người bấm gen lại | $8,84 | Phần lớn do ảnh/nhóm sai từ đầu (R1–R4, R7) → cổng storyboard W1 + F1–F4, F7–F10 — **tránh phần lớn** |
 
-→ Với cùng kịch bản, **~$20–23 trong $42,88 (≈ 50%) là tránh được** mà không cần đổi model hay giảm chất lượng.
+→ Theo sổ, **~$20–23 trong $42,88 (≈ 50%) là tránh được**; trong đó ~$15 là tiền ghi thừa (không chi thật). Tính trên tiền
+  thật (~$28–29), phần tránh được chủ yếu là người bấm gen lại ($8,84) + QC gen lại cùng đầu vào ($4,80) ≈ **$13–14 (≈ 45–50%)**.
 
 ## 3. Vì sao tổng hợp lại thành "gen lỗi nhiều"
 
@@ -207,9 +208,9 @@ Thay đổi cụ thể trong code (không tốn credit):
 | W9 | Autopilot chỉ thử lại job thất bại **tạm thời** (mạng, hết lượt); lỗi tham số/nội dung → dừng shot đó, báo rõ | core/autopilot.py:305, :430 | V8 |
 | W10 | **Kiểm đầu vào trước khi gửi** theo bảng luật từng model (`data/provider_rules.json`: khung đầu/cuối + ảnh tham chiếu có được đi cùng không, độ dài prompt, thời lượng, tỉ lệ khung); vi phạm → sửa hoặc chặn trước khi tốn tiền; mỗi lỗi API mới gặp → thêm 1 dòng luật + test | core/adapters/clipai.py, core/runner.py, data/ | V8 |
 | W11 | **Chọn model biết trước rủi ro**: phong cách CGI tả thực / ảnh bị chặn trước đó → xếp Kling ngay từ đầu, không đợi Seedance từ chối | core/model_router.py | V8 |
-| W12 | **Dò trạng thái không làm mất task**: quét thêm trang 2–3 trước khi kết luận; `not_found` = "chưa rõ" (tạm thời), không tự gửi job mới; khi tìm lại được thì nhận kết quả; báo nếu nghi trả tiền 2 lần | core/adapters/clipai.py:274–288, core/runner.py | V8 |
+| W12 | **Xác nhận task có thật**: sau khi gửi, kiểm task xuất hiện trong `video-list` (quét nhiều trang); chỉ ghi sổ chi khi thấy task (hoặc ghi "tạm" rồi hủy); không thấy sau vài lần → đánh "ClipAI không tạo task", gửi lại ngay (không tốn tiền) thay vì chờ 12 lần; gửi giãn cách, giới hạn số task đồng thời để tránh bị bỏ lệnh | core/adapters/clipai.py:274–288, core/runner.py | V8 |
 | W13 | Cắt prompt > 512 ký tự thì **báo** phần bị cắt (diag + Bước 3), ưu tiên rút gọn bằng Claude trước khi gửi | core/adapters/clipai.py, core/runner.py | V8 |
-| W14 | **Lấy lại clip đã trả tiền** (công cụ đã có; thêm: sổ chi đối chiếu `cost` thật của ClipAI thay vì ghi lúc gửi): công cụ quét các trang `video-list` theo `external_id` của job bị đánh `not_found`/lỗi dò trạng thái; task xong thì tải về, gắn lại vào job (không gửi lại) | tools/, core/adapters/clipai.py | 2b-1 |
+| W14 | **Đối chiếu với ClipAI** (công cụ `tools/recover_clips.py` đã có — GĐ6: 0 clip để lấy lại; thêm: sổ chi lấy `cost` thật của ClipAI thay vì ghi lúc gửi): công cụ quét các trang `video-list` theo `external_id` của job bị đánh `not_found`/lỗi dò trạng thái; task xong thì tải về, gắn lại vào job (không gửi lại) | tools/, core/adapters/clipai.py | 2b-1 |
 | W15 | Autopilot **không tự duyệt** ảnh/clip `pending_review` có tiêu chí dưới mức sàn; để lại cho người ở cổng storyboard | core/autopilot.py:312, :437 | 2b-3 |
 | W16 | Cổng thoại: tắt tiếng video vẫn kéo dài clip cho vừa giọng TTS; cảnh báo ghi **một lần** mỗi shot, không mỗi nhịp | core/autopilot.py (_dialogue_gate) | 2b-5 |
 
