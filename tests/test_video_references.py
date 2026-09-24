@@ -29,6 +29,10 @@ class ClipAISubmitTests(unittest.TestCase):
     Subject Library upload/approval needed for this."""
 
     def setUp(self):
+        from unittest import mock
+        patcher = mock.patch("core.adapters.clipai.SEEDANCE_REFS_WITH_FIRST_FRAME", True)   # the reference wiring, for when the API allows it
+        patcher.start()
+        self.addCleanup(patcher.stop)
         self.t = FakeTransport()
         self.p = ClipAIVideoProvider(TOKEN, "https://clipai.example", self.t)
         self.dir = tempfile.mkdtemp()
@@ -92,6 +96,18 @@ class ClipAISubmitTests(unittest.TestCase):
         ctx = ctx_of(self.t.calls[0])
         urls = [c.get("image_url", {}).get("url") for c in ctx["content"][1:]]
         self.assertEqual(urls, ["", "", "asset://extra"])                              # first frame, local pic, then the subject
+
+    def test_by_default_seedance_gets_only_the_first_frame(self):
+        from unittest import mock
+        refs = [self.ref("kelly.png", 1), self.ref("kenta.png", 2)]
+        with mock.patch("core.adapters.clipai.SEEDANCE_REFS_WITH_FIRST_FRAME", False):   # real API refuses the mix (2026-09-24)
+            self.p.submit(self.img, "Kelly and Kenta talk", None, 5, "seedance", image_references=refs,
+                          subjects=[{"name": "Extra", "uri": "asset://extra"}])
+        call = self.t.calls[0]
+        ctx = ctx_of(call)
+        self.assertEqual([c.get("role") for c in ctx["content"][1:]], ["first_frame"])
+        self.assertEqual(call["body"].count(b'name="image_files"'), 1)
+        self.assertNotIn("@Image 2", ctx["content"][0]["text"])
 
     def test_kling_omni_is_unaffected_by_image_references(self):
         refs = [self.ref("kelly.png", 1)]

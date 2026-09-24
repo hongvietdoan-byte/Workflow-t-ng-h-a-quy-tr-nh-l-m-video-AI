@@ -447,6 +447,62 @@ class BudgetAndCompareTests(unittest.TestCase):
         self.assertEqual(count("SELECT COUNT(*) FROM jobs WHERE project_id=? AND type='image_gen'"), len(groups))
         self.assertEqual(count("SELECT COUNT(*) FROM jobs WHERE project_id=? AND type='video_gen' AND group_leader IS NULL"), len(groups))
 
+    def test_a_seedance_real_person_refusal_moves_the_continuity_group_to_kling(self):
+        from core import batch, model_router, shots
+        from core.providers import MockVideoProvider, ProviderError
+        from core.runner import VideoRunner
+        p, pid = kenta_project()
+        llm_runner.run_director(p, pid, llm_runner.MockLlm())
+        data = tempfile.mkdtemp()
+        _approve_all_images(p, pid, data)
+        _approve_all_motion(p, pid, data)
+        provider = MockVideoProvider()
+        real_submit, calls = provider.submit, []
+
+        def refuse_first(*a, **k):                     # only the first start picture is refused
+            calls.append(a)
+            if len(calls) == 1:
+                raise ProviderError("[InputImageSensitiveContentDetected.PrivacyInformation] The request failed because the input "
+                                    "image 'content[1]' may contain real person.", code="bad_request")
+            return real_submit(*a, **k)
+        provider.submit = refuse_first
+        vr = VideoRunner(p, provider, data)
+        vr.max_concurrent = 1
+        batch.queue_videos(p, pid, data)
+        first = p.conn.execute("SELECT scene_id FROM jobs WHERE project_id=? AND type='video_gen' ORDER BY id LIMIT 1", (pid,)).fetchone()
+        vr.submit_pending(pid)
+        group = [r["id"] for r in shots.sequence_rows(p.conn, first["scene_id"])]
+        self.assertGreater(len(group), 1)
+        self.assertEqual({model_router.scene_choice(p.conn, sid)["model"] for sid in group}, {"kling"})
+        other = p.conn.execute("SELECT id FROM scenes WHERE project_id=? AND id NOT IN (%s) LIMIT 1" % ",".join("?" * len(group)),
+                               (pid, *group)).fetchone()
+        self.assertIsNone(p.conn.execute("SELECT video_model FROM motion_prompts WHERE scene_id=?", (other["id"],)).fetchone()[0])
+
+    def test_a_seedance_copyright_block_moves_the_scene_to_kling_but_kling_blocks_do_not(self):
+        from core import model_router
+        from core.providers import MockVideoProvider, RISK_CONTROL
+        from core.runner import VideoRunner
+        p, pid = kenta_project(shot_mode=None)
+        llm_runner.run_director(p, pid, llm_runner.MockLlm())
+        data = tempfile.mkdtemp()
+        _approve_all_images(p, pid, data)
+        _approve_all_motion(p, pid, data)
+        vr = VideoRunner(p, MockVideoProvider(), data)
+        rows = p.conn.execute("SELECT id FROM scenes WHERE project_id=? ORDER BY idx", (pid,)).fetchall()
+        msg = "The request failed because the output video may be related to copyright restrictions."
+        vr._on_refused({"id": 0, "project_id": pid, "scene_id": rows[0]["id"], "model": "kling"}, RISK_CONTROL, msg)
+        self.assertNotEqual(model_router.scene_choice(p.conn, rows[0]["id"])["source"], "override")
+        vr._on_refused({"id": 0, "project_id": pid, "scene_id": rows[0]["id"], "model": "seedance-fast"}, RISK_CONTROL, msg)
+        self.assertEqual(model_router.scene_choice(p.conn, rows[0]["id"])["model"], "kling")
+        self.assertIsNone(p.conn.execute("SELECT video_model FROM motion_prompts WHERE scene_id=?", (rows[1]["id"],)).fetchone()[0])
+
+    def test_the_automatic_run_stops_when_claude_is_out_of_usage(self):
+        from core import autopilot
+        with self.assertRaises(autopilot._Stop) as ctx:
+            autopilot._stop_if_claude_blocked([(1, "Claude Code báo lỗi: You've hit your session limit · resets 7:20am")])
+        self.assertIn("hết hạn mức", str(ctx.exception))
+        autopilot._stop_if_claude_blocked([(1, "JSON không hợp lệ")])          # an ordinary QC failure does not stop the run
+
     def test_every_dialog_the_dashboard_opens_is_known_to_open_dialog(self):
         import glob
         import re

@@ -27,6 +27,9 @@ USER_AGENT = "AIVideoPipeline-ClipAI/0.1"
 
 PATH_KLING = "/api/kling/omni-video-submit"
 PATH_SEEDANCE = "/api/kling/seedance-video-submit"
+# Seedance refuses a first frame together with reference pictures ("first/last frame content cannot be mixed with reference media
+# content", real run 2026-09-24): the approved start picture (drawn from the character references) carries the people instead.
+SEEDANCE_REFS_WITH_FIRST_FRAME = False
 PATH_LIST = "/api/kling/video-list"
 PATH_DELETE = "/api/kling/video-delete"
 TASK_TYPE = {"omni": 6, "seedance": 8}
@@ -79,8 +82,14 @@ def effective_duration(canonical: str, family: str, duration: float) -> int:
     return int(min(max(round(duration), 4), limit))
 
 
+REAL_PERSON = "real_person"   # Seedance refuses a start picture that looks like a real person (privacy filter)
+_REAL_PERSON_HINTS = ("may contain real person", "privacyinformation")
+
+
 def classify_failure(message: str) -> str:
     low = (message or "").lower()
+    if any(h in low for h in _REAL_PERSON_HINTS):
+        return REAL_PERSON
     return RISK_CONTROL if any(h in low for h in _RISK_HINTS) else "task_failed"
 
 
@@ -163,7 +172,7 @@ class ClipAIVideoProvider:
         content_refs: List[Dict] = []                     # [{"note_label", "note_role"}] in the order attached, for the @Image note
         if last_frame and family == "seedance":           # first + last frame clip: the two frames carry the characters
             text += " The clip starts on the first image and must end exactly on the last image (same people, place and light)."
-        elif family == "seedance":
+        elif family == "seedance" and SEEDANCE_REFS_WITH_FIRST_FRAME:
             cap = 29 if canonical == "dreamina-seedance-2-5-260628" else 8  # image cap minus the first-frame image
             for ref in (image_references or [])[:cap]:
                 try:

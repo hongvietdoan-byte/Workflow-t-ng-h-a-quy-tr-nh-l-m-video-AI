@@ -179,6 +179,7 @@ class _Runner:
                            f"nhà cung cấp báo job thất bại: {status.error_message}")
                 if status.error_code == RISK_CONTROL:
                     record_failure(self.p.conn, job["id"], self.provider.name, status.error_message or "")
+                self._on_refused(job, status.error_code, status.error_message or "")
                 self.p.fail(job["id"], message)
                 counts["failed"] += 1
                 if status.transient and self.p.retry(job["id"], message) is not None:
@@ -195,6 +196,10 @@ class _Runner:
     def _record_provider_failure(self, job, code, message: str) -> None:
         if code == RISK_CONTROL:
             record_failure(self.p.conn, job["id"], self.provider.name, message)
+        self._on_refused(job, code, message)
+
+    def _on_refused(self, job, code, message: str) -> None:
+        """Hook: react to a job the provider refused (VideoRunner: Seedance "real person" -> Kling)."""
 
     def cancel_job(self, job_id: int) -> None:
         job = self.p.job(job_id)
@@ -357,6 +362,22 @@ class VideoRunner(_Runner):
         from . import budget
         usage = self._usage(args, kwargs)
         return budget.check_video(self.p.conn, self.provider.name, *usage) if usage else None
+
+    def _on_refused(self, job, code, message: str) -> None:
+        """Seedance's privacy filter refuses a start picture that looks like a real person (a realistic CGI frame too), and its
+        copyright filter a clip of a known game character. Kling has neither: the scene — with its whole continuity group, one model per
+        group — switches to Kling, so the retry goes through."""
+        from .adapters.clipai import REAL_PERSON, classify_failure
+        kind = code if code in (REAL_PERSON, RISK_CONTROL) else classify_failure(message)
+        seedance = str(job["model"] or "").startswith("seedance")
+        if not (kind == REAL_PERSON or (kind == RISK_CONTROL and seedance and "copyright" in (message or "").lower())):
+            return
+        from . import model_router, shots
+        ids = [r["id"] for r in shots.sequence_rows(self.p.conn, job["scene_id"])] or [job["scene_id"]]
+        for sid in ids:
+            model_router.set_override(self.p.conn, sid, "kling")
+        why = "ảnh giống người thật" if kind == REAL_PERSON else "video có thể dính bản quyền"
+        self._diag(job, "warn", kind, f"Seedance từ chối ({why}) → {len(ids)} cảnh/shot chuyển sang Kling")
 
     def _dest_path(self, job) -> str:
         idx = self.p.conn.execute("SELECT idx FROM scenes WHERE id=?", (job["scene_id"],)).fetchone()["idx"]

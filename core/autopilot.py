@@ -307,8 +307,7 @@ def _images_phase(p: Pipeline, pid: int, ctx: Context) -> Optional[str]:
         r = llm_runner.run_qc_batch(p, pid, ctx.llm, ctx.data_dir)
         if r["failed"]:
             _log(p, pid, f"QC lỗi ở {len(r['failed'])} ảnh: {r['failed'][0][1]}")
-            if any("API key" in m or "auth" in m.lower() for _, m in r["failed"]):
-                raise _Stop("Claude từ chối đăng nhập / khóa API")
+            _stop_if_claude_blocked(r["failed"])
     for j in p.conn.execute("SELECT id FROM jobs WHERE project_id=? AND type='image_gen' AND state='pending_review'", (pid,)):
         p.approve(j["id"], "ai_agent", "autopilot")
     if pilot.active(p, pid):
@@ -322,6 +321,20 @@ def _images_phase(p: Pipeline, pid: int, ctx: Context) -> Optional[str]:
 
 class _Stop(Exception):
     pass
+
+
+_LIMIT_HINTS = ("hit your session limit", "hit your usage limit", "usage limit", "rate limit", "session limit")
+
+
+def _stop_if_claude_blocked(failed) -> None:
+    """Claude cannot answer at all (login refused, or the plan's usage limit reached): stop with a clear note instead of asking it
+    again on every tick (a real run asked 1,500+ times while the limit lasted). Resume once Claude is available again."""
+    messages = [str(m) for _, m in failed]
+    if any("API key" in m or "auth" in m.lower() for m in messages):
+        raise _Stop("Claude từ chối đăng nhập / khóa API")
+    hit = next((m for m in messages if any(h in m.lower() for h in _LIMIT_HINTS)), None)
+    if hit:
+        raise _Stop("Claude đã hết hạn mức sử dụng — bấm Tiếp tục khi hạn mức được làm mới (" + hit[-80:] + ")")
 
 
 BUDGET_NOTE = "Đã chạm trần số job (kể cả gen lại) — dừng để tránh tốn credit"
@@ -418,6 +431,7 @@ def _videos_phase(p: Pipeline, pid: int, ctx: Context) -> Optional[str]:
         r = claude_tasks.qc_video_batch(p, pid, ctx.llm, ctx.data_dir)
         if r["failed"]:
             _log(p, pid, f"QC video lỗi ở {len(r['failed'])} clip: {r['failed'][0][1][:120]}")
+            _stop_if_claude_blocked(r["failed"])
     for j in p.conn.execute("SELECT id FROM jobs WHERE project_id=? AND type='video_gen' AND state='pending_review'", (pid,)):
         p.approve(j["id"], "ai_agent", "autopilot")
     fresh = lineage.summary(p.conn, pid)["videos"][0]

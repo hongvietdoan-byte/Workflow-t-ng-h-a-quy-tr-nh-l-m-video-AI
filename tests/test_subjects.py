@@ -86,6 +86,10 @@ class LibraryAdapterTests(unittest.TestCase):
 
 class SeedanceSubmitTests(unittest.TestCase):
     def setUp(self):
+        from unittest import mock
+        patcher = mock.patch("core.adapters.clipai.SEEDANCE_REFS_WITH_FIRST_FRAME", True)   # the reference wiring, for when the API allows it
+        patcher.start()
+        self.addCleanup(patcher.stop)
         self.t = FakeTransport()
         self.t.on("POST", "*", ok({"tasks": [{"task_id": "S", "task_status": "submitted"}]}))
         self.p = ClipAIVideoProvider(TOKEN, "https://clipai.example", self.t)
