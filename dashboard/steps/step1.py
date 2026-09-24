@@ -1042,6 +1042,11 @@ def scene_list(p: Pipeline, pid: int, scenes, char_names) -> None:
         p.conn.commit()
     from core import shots as _shots
     story = {x["idx"]: x for x in _shots.story_scenes(p, pid)}
+    cuts = _shots.dialogue_cuts(p, pid) if any(json.loads(s["data"] or "{}").get("shot_no") for s in scenes) else []
+    if cuts:
+        st.warning(f"✂ Director đã bỏ {len(cuts)} câu thoại của kịch bản — xem lại (thêm lại câu vào shot bằng ô sửa shot nếu cần):\n"
+                   + "\n".join(f"- Cảnh {c['scene']} · {c['speaker']}: “{escape(c['text'])}”"
+                                + (f" — ⚠ câu sau có thể là câu đáp lại ({escape(c['next'])})" if c["answered"] else "") for c in cuts))
     cur_story = None
     for s in scenes:
         d = json.loads(s["data"] or "{}")

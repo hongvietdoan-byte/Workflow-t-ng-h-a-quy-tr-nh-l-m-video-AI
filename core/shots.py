@@ -118,14 +118,19 @@ def validate(shots: Any, where: str, names) -> None:
 
 
 def pacing_warnings(shots: List[Dict]) -> List[str]:
-    """Soft checks only — pacing follows the script (decision 3): a spoken line longer than its shot, the same size many times
-    in a row."""
+    """Soft checks only — pacing follows the script (decision 3): a spoken line longer than its shot, a silent shot under 1 s, a wide
+    shot too short to read, the same size many times in a row."""
     from .dialogue import needed_seconds
     out = []
     for k, s in enumerate(shots, 1):
         need = needed_seconds([(d.get("speaker", ""), d["text"]) for d in s.get("dialogue") or []])
         if need and need > float(s["duration_s"]) + 0.3:
             out.append(f"shot {k}: thoại cần ~{need:g}s nhưng shot dài {s['duration_s']:g}s")
+        dur = float(s["duration_s"])
+        if not need and dur < 1 and s.get("role") != "insert":   # "ANH CHỌN AI?" run 4: six silent 0,5–0,6 s shots, each paid as a 3 s clip
+            out.append(f"shot {k}: {dur:g}s không thoại — gộp vào shot bên cạnh (model vẫn tính tiền clip tối thiểu)")
+        elif s.get("size") in ("WS", "EWS") and dur < 1.5:
+            out.append(f"shot {k}: toàn cảnh {dur:g}s — người xem không kịp đọc, nên ≥ 1,5s hoặc bỏ")
     run = 1
     for k in range(1, len(shots)):
         run = run + 1 if shots[k]["size"] == shots[k - 1]["size"] else 1
@@ -225,6 +230,25 @@ def shots_of(pipeline: Pipeline, project_id: int) -> List[Dict]:
     for r in pipeline.conn.execute("SELECT id, idx, title, data FROM scenes WHERE project_id=? ORDER BY idx", (project_id,)):
         d = json.loads(r["data"] or "{}")
         out.append({"id": r["id"], "idx": r["idx"], "title": r["title"], "data": d, "label": label(d, r["idx"])})
+    return out
+
+
+def dialogue_cuts(pipeline: Pipeline, project_id: int) -> List[Dict]:
+    """Script lines that no shot says (projects.dialogue_trim), worked out from the shots themselves — not from the Director's own
+    `dropped_lines` list. `answered`: the next line of the same script scene is kept and said by someone else, so it probably
+    answers the dropped one ("ANH CHỌN AI?": dropping "Kelly, nghe anh giải thích…" left "Không cần." answering nothing)."""
+    from . import dialogue
+    used = {dialogue.norm(d.get("text")) for s in shots_of(pipeline, project_id) for d in s["data"].get("dialogue") or []}
+    out = []
+    for sc in story_scenes(pipeline, project_id):
+        rows = dialogue.lines(sc["text"])
+        for i, (who, said) in enumerate(rows):
+            if dialogue.norm(said) in used:
+                continue
+            nxt = rows[i + 1] if i + 1 < len(rows) else None
+            out.append({"scene": sc["idx"], "speaker": who, "text": said,
+                        "answered": bool(nxt and nxt[0] != who and dialogue.norm(nxt[1]) in used),
+                        "next": f"{nxt[0]}: {nxt[1]}" if nxt else ""})
     return out
 
 

@@ -4,7 +4,6 @@ V0: the JSON is pasted from a Claude Desktop chat; V1: it comes from the API run
 Either way it passes through the same validators, so the runner is swappable.
 """
 import json
-import re
 from typing import Any, Dict, List, Mapping, Optional
 
 from .pipeline import Pipeline
@@ -100,7 +99,8 @@ def validate_for_project(pipeline: Pipeline, project_id: int):
 
 
 def _norm_line(text: str) -> str:
-    return " ".join(re.sub(r"[\"“”'‘’«»]", "", str(text or "")).lower().split())
+    from .dialogue import norm
+    return norm(text)
 
 
 def _check_lines(pipeline: Pipeline, project_id: int, obj: Dict) -> None:

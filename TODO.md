@@ -5,6 +5,26 @@
 > Kế hoạch gốc đã duyệt: **`docs/KE_HOACH_TONG_2026-09-24.md`** (danh mục lỗi A/L/I/M/K/T/D/AU/O/C/S/P/Q/U, lộ trình GĐ-A → GĐ-I).
 > Luật bắt buộc khi sửa pipeline: **`docs/CHUAN_XAY_DUNG.md`** (8 luật + luật chi phí + bảng kế thừa).
 
+### 0. Cập nhật 2026-09-25 — chạy thật kịch bản "ANH CHỌN AI?" (dự án #6, Claude API, GĐ-I bậc 1 phần Director)
+- Dự án #6 "ANH CHỌN AI? · Kelly–Kenta–Maxim": chia shot, look FF_INGAME, ảnh GPT Image 2.5 Sunburst, 9:16. **Director đã chạy 4 lần**
+  (tổng ~$1,6 Claude API). Mỗi lần tìm ra lỗi → sửa gốc (commit):
+  1. `3c3e11c` tách kịch bản: mất phần mở đầu, TWIST/KẾT gộp vào cảnh 3, 0 câu thoại → nhận phần có mốc giây, ghép tên người nói với câu ở dòng dưới.
+  2. `c721ac6` **C4 xong**: effort + max_tokens theo công đoạn (Director medium/64k, QC low/16k…; ghi đè `CLAUDE_EFFORT_<STAGE>` /
+     `CLAUDE_MAX_TOKENS_<STAGE>`) — lần 1 bị cắt ở 32k token (suy nghĩ tính vào max_tokens), mất ~$0,39.
+  3. `0287c7b` Director lần 2: 65 s cho kịch bản 55–58 s, 7 shot cận mặt đang nói, bỏ góc qua vai, "HỆ THỐNG" thành NARRATOR → khối
+     "Thời lượng bắt buộc", giữ góc máy kịch bản ghi, cấm thoại ở cận mặt người nói, chữ hệ thống → `on_screen_text`.
+  4. `3afc7ac` code kiểm câu thoại đúng nguyên văn + tùy chọn `dialogue_trim` (ô ✂ ở Bước 1).
+  5. (commit này) Director lần 3: 11 shot ngắn hơn thời gian nói câu của nó (thiếu 6,8 s) → khối thời lượng ghi **số giây thoại cần nói của
+     từng phần** + luật "shot có thoại ≥ âm tiết ÷ 3,5 + 0,5 s". Lần 4 (bật `dialogue_trim`, ~$0,73 vì 1 lần hỏi lại do `angle` sai ở
+     GAME_TPS): **57,3 s, 0 shot thiếu thời gian nói, 33 shot**, bỏ 2 câu — nhưng **cả 2 câu đều có câu đáp lại ngay sau** (bỏ "Kelly, nghe
+     anh giải thích…" → "Không cần." hụt; bỏ "Ông làm cô ấy khóc rồi." → câu then chốt của Kenta thành độc thoại) và 7 shot im lặng 0,5–0,6 s.
+     → Bài học ghi vào `prompts/17_director_shots.md` (thứ tự cắt: gộp shot im lặng trước, bỏ câu sau cùng; không bỏ câu có câu đáp lại / câu gieo
+     twist; không shot im lặng < 1 s; toàn cảnh ≥ 1,5 s; GAME_TPS dùng `angle: "high"`); code: `shots.dialogue_cuts` (Bước 1 hiện ✂ câu bị bỏ,
+     ⚠ khi câu sau đáp lại), `pacing_warnings` báo shot im lặng < 1 s và toàn cảnh < 1,5 s. 822 test pass.
+- **Dự án #6 đang dừng ở Bước 1** (kết quả Director lần 4, chưa có job ảnh). Việc tiếp: người dùng quyết định thêm lại 2 câu (miễn phí, sửa shot
+  tay) hoặc chạy Director lần 5 với prompt mới (~$0,3–0,7); gộp shot im lặng ngắn; duyệt hồ sơ chuẩn Kelly/Kenta/Maxim; kiểm Bible; đo giá 1 ảnh
+  Sunburst (`data/pricing.json` chưa có giá) rồi mới gen 33 ảnh. Video Kling ước ~100 s trả tiền (~$8) cho 57 s phim nếu giữ shot ngắn.
+
 ### 1. Trạng thái code
 - Nhánh **`claude/upbeat-hawking-6o9njo`** · PR https://github.com/hongvietdoan-byte/Workflow-t-ng-h-a-quy-tr-nh-l-m-video-AI/pull/1 — **CHƯA merge về `main`**.
   Phiên mới: `git fetch && git checkout claude/upbeat-hawking-6o9njo && git pull` (hoặc merge PR trước rồi làm trên `main`).
@@ -73,7 +93,7 @@ M14 chặn bản quyền → Kling rồi kẹt; M16 dấu vân tay video thiếu
 ('start'/'end') hoặc loại job riêng — cẩn thận mọi truy vấn `type='image_gen' AND state='approved'` đang coi là ảnh khung đầu. A17 (shot 1,5 s tính 3 s),
 A18 (đổi chế độ shot khi đã có dữ liệu), A19 ("Làm lại" giữ nhân vật khóa) — gộp vào GĐ-H.
 
-**GĐ-C còn:** C4 `effort` theo việc (chưa rõ tham số API — tra skill `claude-api` trước, không đoán); C8 đo thật 1 lần nhỏ (~$0,1–0,3, **xin phép**).
+**GĐ-C còn:** ~~C4 `effort` theo việc~~ **xong 2026-09-25 (`c721ac6`)**; C8 đo thật 1 lần nhỏ (~$0,1–0,3, **xin phép**) — Director đã có số đo thật ở mục 0.
 
 **GĐ-H (giao diện, xem `docs/KE_HOACH_TONG_2026-09-24.md` mục P8b):** màn chính 4 thẻ (Kịch bản & look → Nhân vật → Storyboard → Kết quả) trên
 autopilot + 2 cổng; công tắc "chế độ chuyên gia" giữ 5 bước cũ; hộp thông báo gom cảnh báo từ `diag`; giá trên mọi nút tốn tiền (đã có
@@ -122,6 +142,8 @@ P3 tab hiệu suất đếm đúng; S4 cảnh báo 2 cửa sổ cùng dự án; 
 - Sửa bằng thay chuỗi phải kiểm lại đoạn xung quanh (đợt này 1 lần làm mất dòng `if job["retry_reason"]:`).
 - Mỗi GĐ một commit; cập nhật TODO trong cùng commit; không đổi PLAN.md thì không cần build docx/pdf.
 - Đổi hành vi mặc định → sửa test cũ theo hành vi mới + ghi lý do (mã lỗi) trong test, và ghi vào mục 4 ở trên.
+- (2026-09-25) Sửa file bằng script Python trong heredoc bash lại làm hỏng chuỗi `\n` trong f-string (step1.py; `'EOF'` giữ nguyên `\\n` nhưng chuỗi Python `'''…'''` biến nó thành xuống dòng thật) — dùng Edit tool cho mọi chuỗi có ký tự thoát; luôn chạy toàn bộ test trước commit.
+- (2026-09-25) Chạy thật Director: đọc kết quả bằng code (thời lượng, thoại/âm tiết, cận mặt người nói, câu bị bỏ) trước khi sang bước tốn tiền; ghi bài học vào prompt Director **và** thêm kiểm bằng code (luật 3).
 
 ---
 

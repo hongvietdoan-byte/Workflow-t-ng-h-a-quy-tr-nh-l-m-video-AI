@@ -127,12 +127,21 @@ def duration_block(pipeline: Pipeline, project_id: int) -> str:
     from . import shots
     proj = pipeline.project(project_id)
     target = target_seconds(proj["script_text"] if "script_text" in proj.keys() else "")
-    parts = []
+    parts, speech = [], 0.0
     for s in shots.story_scenes(pipeline, project_id) if shots.mode(proj) else []:
+        rows = dialogue.lines(s["text"])
+        need = round(sum(dialogue.needed_seconds([r]) for r in rows), 1)   # each line said in its own shot, with its own breath
+        speech += need
+        talk = f"; thoại {len(rows)} câu cần ~{need:g} giây nói" if rows else ""
         m = _SECTION_TIME.search(s["heading"] or "")
         if m:
-            parts.append(f"- Cảnh {s['idx']} ({s['heading'].split('–')[0].strip()}): tổng các shot ≈ {int(m.group(2)) - int(m.group(1))} giây")
-    trim = ("\n**Được phép bỏ bớt câu thoại** (người dùng cho phép): bỏ những câu không cần cho cốt truyện để hầu hết shot dài 2–4 giây. "
+            parts.append(f"- Cảnh {s['idx']} ({s['heading'].split('–')[0].strip()}): tổng các shot ≈ {int(m.group(2)) - int(m.group(1))} giây{talk}")
+        elif talk:
+            parts.append(f"- Cảnh {s['idx']}{talk}")
+    if speech:     # the 3rd Director run of "ANH CHỌN AI?" gave 11 spoken shots less time than their line needs (6,8 s in all)
+        parts.append(f"- Shot có thoại: `duration_s` ≥ (số âm tiết ÷ {dialogue.RATE:g}) + {dialogue.BREATH:g} giây cho câu của nó "
+                     "— không nén câu vào shot ngắn hơn.")
+    trim = ("\n**Được phép bỏ bớt câu thoại** (người dùng cho phép): bỏ những câu không cần cho cốt truyện để hầu hết shot dài 2–4 giây — sau khi đã gộp shot im lặng ngắn; không bỏ câu mà câu sau đáp lại. "
             "KHÔNG thêm câu mới, KHÔNG sửa chữ câu giữ lại (giữ nguyên văn). Ghi mọi câu đã bỏ vào `dropped_lines` ở gốc JSON: "
             "[{\"scene\": số cảnh, \"speaker\": \"TÊN\", \"text\": \"câu nguyên văn\", \"why\": \"lý do ngắn\"}]."
             if "dialogue_trim" in proj.keys() and proj["dialogue_trim"] else "")

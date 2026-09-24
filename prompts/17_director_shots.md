@@ -11,8 +11,11 @@ Dự án này sản xuất **theo shot**, không theo cảnh: mỗi cảnh kịc
 - **Kịch bản ghi rõ góc máy thì giữ đúng**: "GÓC CAMERA SAU VAI X" / "qua vai X" → `angle: "ots"`, X có trong `characters` (vai/lưng mờ ở tiền cảnh); "CẬN CẢNH" → `CU` (không thoại, xem luật trên); "CHÍNH DIỆN" → nhân vật nhìn về máy; "TOÀN CẢNH" → `WS`. Chỉ đổi khi luật khớp môi buộc phải đổi — khi đó đổi cỡ cảnh, giữ tinh thần góc máy.
 - **Chữ trên màn hình không phải thoại**: dòng "HỆ THỐNG: …", thông báo game, chữ kết/tiêu đề → ghi vào `on_screen_text` của shot (danh sách chuỗi), **không** đưa vào `dialogue`, không đặt người dẫn chuyện (NARRATOR) cho nó. Hình ảnh cũng không vẽ chữ (thêm ở hậu kỳ).
 - **Độ dài shot**: shot dưới 2 giây chỉ cho chèn/phản ứng thật nhanh (tối đa khoảng 1/5 số shot) — model video luôn làm clip tối thiểu dài hơn rồi cắt, shot quá ngắn tốn tiền mà không thêm gì; gộp các nhịp nhỏ liền nhau vào một shot.
+  - **Không có shot im lặng dưới 1 giây** (trừ `insert` trong pha hành động nhanh). Toàn cảnh `WS`/`EWS` **≥ 1,5 giây** (0,5 giây người xem không kịp đọc 3 người trong khung).
+  - Nhịp im lặng ngắn (quay lại, khựng lại, nhìn nhau) **gộp vào đầu/cuối shot thoại kề bên** thay vì tách shot: "Kenta quay lại rồi nói…" là MỘT shot.
+  - Không mở mỗi cảnh bằng một shot thiết lập 0,5 giây theo thói quen — chỉ thiết lập khi đổi địa điểm, và đủ dài để đọc.
 - Chữ tiêu đề, chữ chương, logo, giao diện game **không** thành shot (làm ở hậu kỳ) — không dùng cỡ `GRAPHIC`.
-- Gameplay kiểu trong game: dùng `GAME_TPS` (camera sau lưng nhân vật, cao hơn vai).
+- Gameplay kiểu trong game: dùng `GAME_TPS` (camera sau lưng nhân vật, cao hơn vai) với `angle: "high"`. `angle` **chỉ** nhận giá trị trong danh sách ở dưới — không tự đặt "behind", "tps", "back"… (một lần sai trường này là một lần hỏi lại trả tiền cả bản).
 - Các shot liền mạch cùng địa điểm/thời điểm thuộc cùng `sequence` của cảnh; shot nào **nối liền hình với shot kế tiếp** (cùng hành động kéo dài qua điểm cắt) thì `continuous_with_next: true`.
 
 ## Trường của mỗi shot
@@ -33,4 +36,5 @@ Dự án này sản xuất **theo shot**, không theo cảnh: mỗi cảnh kịc
 - `duration_s` từ 0,5 đến 15 giây. Shot ngắn hơn thời lượng tối thiểu của model video sẽ được gen dài hơn rồi cắt — cứ đặt đúng độ dài phim cần.
 - `hero: true` cho 1–3 shot then chốt của cả video (cao trào, cú twist) — được dùng model video tốt nhất.
 - Giữ nguyên văn mọi câu thoại của kịch bản, đúng người nói, đúng thứ tự; không thêm câu mới. (Chỉ khi khối "Thời lượng bắt buộc" ghi **được phép bỏ bớt câu thoại** thì mới được bỏ câu — vẫn không thêm, không sửa chữ câu giữ lại.)
+- **Khi được phép bỏ câu thoại — thứ tự cắt khi thừa thời lượng**: (1) gộp/bỏ shot im lặng ngắn và shot thiết lập; (2) rút shot phản ứng/chèn; (3) chỉ khi vẫn thừa mới bỏ câu thoại. Câu được bỏ phải là câu **không ai đáp lại** và hình ảnh đã nói thay. **Không bỏ** câu mà câu kế tiếp đáp lại (cặp hỏi–đáp, lời xin–lời từ chối: bỏ "Kelly, nghe anh giải thích…" thì "Không cần." thành câu hụt; muốn bỏ thì bỏ cả cặp). **Không bỏ** câu gieo manh mối cho twist/kết, câu thể hiện nhân vật đã cố làm gì (vd cố giải thích — đó là cái khiến cú twist đau). Đọc lại đoạn thoại còn lại như người xem: mỗi câu vẫn có lý do để được nói ra.
 - Các trường của cảnh (`location`, `time`, `mood`, `lighting`, `sequence`, `emotional_intent`, `beat`…) vẫn điền như cũ; `image_prompt`/`shot` của cảnh có thể mô tả chung cảnh.

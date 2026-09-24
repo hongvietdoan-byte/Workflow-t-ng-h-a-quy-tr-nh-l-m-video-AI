@@ -65,6 +65,11 @@ def scene_lines(scene_data: Dict) -> List[Tuple[str, str]]:
     return lines(scene_data.get("text", ""))
 
 
+def norm(text: str) -> str:
+    """A line compared as words only: quotes, case and spacing do not matter (the Director's copy vs the script's)."""
+    return " ".join(re.sub(r"[\"“”'‘’«»]", "", str(text or "")).lower().split())
+
+
 def syllables(said: str) -> int:
     return len(re.findall(r"\w+", said, re.UNICODE))
 

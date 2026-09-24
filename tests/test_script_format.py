@@ -78,6 +78,8 @@ class DirectorFrameTests(unittest.TestCase):
         block = prompts.duration_block(p, pid)
         self.assertIn("55–58 giây", block)
         self.assertIn("tổng các shot ≈ 8 giây", block)                      # CINEMATIC MỞ ĐẦU – 0–8 GIÂY
+        self.assertRegex(block, r"thoại \d+ câu cần ~[\d.]+ giây nói")      # 3rd run: 11 spoken shots shorter than their line
+        self.assertIn("Shot có thoại: `duration_s` ≥", block)
         self.assertIn("# Thời lượng bắt buộc", prompts.build_director_bundle(p, pid))
 
     def test_system_text_becomes_on_screen_text_never_a_voice(self):
@@ -118,6 +120,33 @@ class LineFidelityTests(unittest.TestCase):
         self.p.set_project_field(self.pid, "dialogue_trim", 1)
         llm_io._check_lines(self.p, self.pid, kept)                           # allowed now (quotes/case do not matter)
         self.assertIn("Được phép bỏ bớt câu thoại", prompts.duration_block(self.p, self.pid))
+
+    def test_a_dropped_line_that_the_next_line_answers_is_flagged(self):
+        """Run 4 of "ANH CHỌN AI?" dropped "Kelly, nghe anh giải thích…" and kept "Không cần." — the reply then answers nothing."""
+        from core import shots
+        script = ["CẢNH 3 – 34–44 GIÂY", "Kelly:", "“Anh nói sẽ không để mất em…”", "Kenta:", "“Kelly, nghe anh giải thích…”",
+                  "Kelly:", "“Không cần.”", "Maxim:", "“Ông làm cô ấy khóc rồi.”"]
+        pid = self.p.create_project("cuts")
+        self.p.set_project_field(pid, "shot_mode", "per_shot")
+        script_parser.import_scenes(self.p, pid, script_parser.split_scenes(script), full_text="\n".join(script))
+        shot = lambda who, said: {"size": "MS", "role": "dialogue", "duration_s": 2, "image_prompt": "x", "action": "x",  # noqa: E731
+                                  "dialogue": [{"speaker": who, "text": said}]}
+        shots.store_plan(self.p, pid, [{"idx": 1, "shots": [shot("KELLY", "Anh nói sẽ không để mất em…"), shot("KELLY", "Không cần.")]}])
+        cuts = {c["text"]: c for c in shots.dialogue_cuts(self.p, pid)}
+        self.assertEqual(set(cuts), {"Kelly, nghe anh giải thích…", "Ông làm cô ấy khóc rồi."})
+        self.assertTrue(cuts["Kelly, nghe anh giải thích…"]["answered"])      # "Không cần." answers it
+        self.assertFalse(cuts["Ông làm cô ấy khóc rồi."]["answered"])         # last line of the scene
+
+    def test_silent_micro_shots_and_unreadable_wides_are_warned(self):
+        from core import shots
+        warn = shots.pacing_warnings([{"size": "WS", "role": "setup", "duration_s": 0.5},
+                                      {"size": "MS", "role": "insert", "duration_s": 0.6},
+                                      {"size": "WS", "role": "setup", "duration_s": 1.2},
+                                      {"size": "MS", "role": "reaction", "duration_s": 1.0}])
+        self.assertTrue(any("shot 1: 0.5s không thoại" in w for w in warn))
+        self.assertFalse(any(w.startswith("shot 2:") for w in warn))           # a quick insert may be that short
+        self.assertTrue(any("shot 3: toàn cảnh 1.2s" in w for w in warn))
+        self.assertFalse(any(w.startswith("shot 4:") for w in warn))
 
 
 if __name__ == "__main__":

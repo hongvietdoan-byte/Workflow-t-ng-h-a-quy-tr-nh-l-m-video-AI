@@ -173,3 +173,14 @@ Phần lớn việc còn lại trong `TODO.md` (mục "Đang làm/kế tiếp", 
 ## 2026-09-23 — Rà soát Dashboard đầu-cuối + sửa 5 điểm
 - Cách rà: `tools/seed_demo.py --out /tmp/...` + streamlit với IMAGE/VIDEO/AUDIO/LLM_PROVIDER=mock, Playwright (chromium ở /opt/pw-browsers/chromium-*/chrome-linux/chrome; truyền executable_path). Đăng nhập: điền e-mail rồi bấm "Vào Dashboard". Streamlit cuộn trong khung riêng → chụp với viewport cao (5200px). Tắt dashboard: tìm PID bằng `ps aux | grep "[s]erver.port"` — `pkill -f`/`pgrep -f` với chuỗi có trong chính lệnh bash sẽ tự giết shell (exit 144).
 - Sửa: poll lỗi bất ngờ không làm sập trang; autopilot có `_previz_phase` (không chặn, 1 lần/dự án); Bước 1 đánh số ①–⑤ + nút khóa sau Storyboard ("Chọn cách chạy" đứng trước Director là CÓ CHỦ Ý — test Step1LayoutTests khóa thứ tự này); ẩn Kho chủ thể (`subjects_visible`); `llm_label`.
+
+## 2026-09-25 — Bài học Director (chia shot) từ 4 lần chạy thật kịch bản "ANH CHỌN AI?" (dự án #6)
+**Context**: kịch bản ngắn 55–58 s, 3 nhân vật, dày thoại (23 câu ≈ 46 s nói nếu mỗi câu một shot). Director (Claude API, Sonnet 5) chạy 4 lần, tổng ~$1,6; mỗi lần lộ một lỗi.
+**Finding**:
+- Director không tự cộng thời lượng: phải đưa **con số** (tổng + từng phần có mốc giây + số giây thoại cần nói của từng phần) và luật "shot có thoại ≥ âm tiết ÷ 3,5 + 0,5 s". Chỉ dặn "khớp thời lượng" → 65 s; có tổng mà không có số giây thoại → 11 shot thiếu thời gian nói.
+- Được phép bỏ thoại, Director bỏ câu **có câu đáp lại ngay sau** (cặp hỏi–đáp / lời xin–từ chối) và giữ shot im lặng 0,5 s → phải dặn thứ tự cắt (gộp shot im lặng trước, bỏ câu sau cùng; không bỏ câu có câu đáp, câu gieo twist) VÀ code phải tự tính câu bị bỏ (`shots.dialogue_cuts`, cờ `answered`) — không tin danh sách `dropped_lines` Director tự khai.
+- Luật "shot < 2 s tối đa 1/5" trong prompt bị lờ (19/33 shot < 2 s): luật mềm không có code kiểm thì không có tác dụng → `pacing_warnings` báo shot im lặng < 1 s, toàn cảnh < 1,5 s. Mỗi shot ngắn vẫn trả tiền clip tối thiểu 3–4 s (~100 s trả tiền cho 57 s phim).
+- Một trường enum sai (`angle` của GAME_TPS) = một lần hỏi lại trả tiền cả bản (~$0,3) → ghi rõ giá trị hợp lệ ngay chỗ mô tả.
+- Lỗi đọc kịch bản (phần có mốc giây, tên người nói ở dòng riêng, "HỆ THỐNG:" là chữ màn hình) phải sửa ở parser trước khi gọi Director — sai từ gốc thì Director trả tiền vô ích.
+- Quy trình đúng: sau mỗi lần Director, đo bằng code (miễn phí) thời lượng / thoại-âm tiết / cận mặt người nói / câu bị bỏ → sửa prompt + thêm kiểm code → mới chạy lại. Ước tính Director 58 s ≈ $0,3/lượt, có hỏi lại ≈ $0,7.
+**Source**: chạy thật dự án #6 (usage_events stage=director), phân tích `director_raw`; commit 3c3e11c, 0287c7b, 3afc7ac + commit 2026-09-25.
