@@ -90,5 +90,35 @@ class DirectorFrameTests(unittest.TestCase):
         self.assertNotIn("HỆ THỐNG", data["text"])
 
 
+class LineFidelityTests(unittest.TestCase):
+    def setUp(self):
+        from core.db import connect
+        from core.pipeline import Pipeline
+        self.p = Pipeline(connect())
+        self.pid = self.p.create_project("t")
+        self.p.set_project_field(self.pid, "shot_mode", "per_shot")
+        script_parser.import_scenes(self.p, self.pid, script_parser.split_scenes(SCRIPT), full_text="\n".join(SCRIPT))
+
+    def answer(self, lines):
+        return {"scenes": [{"idx": 1, "shots": [{"dialogue": [{"speaker": w, "text": t} for w, t in lines]}]}]}
+
+    def test_an_invented_or_reworded_line_is_sent_back(self):
+        from core import llm_io
+        with self.assertRaises(llm_io.SchemaError):
+            llm_io._check_lines(self.p, self.pid, self.answer([("KELLY", "Anh thật sự chọn cô ấy sao?"),
+                                                              ("MAXIM", "Kenta! Ông với Kelly cãi nhau à?"),
+                                                              ("KENTA", "Nếu tôi phải hy sinh… hãy dùng nó cứu Maxim.")]))
+
+    def test_dropping_a_line_needs_the_person_s_permission(self):
+        from core import llm_io
+        kept = self.answer([("KELLY", "“Anh thật sự… chọn anh ấy sao?”"), ("MAXIM", "Kenta! Ông với Kelly cãi nhau à?")])
+        with self.assertRaises(llm_io.SchemaError) as e:
+            llm_io._check_lines(self.p, self.pid, kept)
+        self.assertIn("thiếu câu thoại", str(e.exception))
+        self.p.set_project_field(self.pid, "dialogue_trim", 1)
+        llm_io._check_lines(self.p, self.pid, kept)                           # allowed now (quotes/case do not matter)
+        self.assertIn("Được phép bỏ bớt câu thoại", prompts.duration_block(self.p, self.pid))
+
+
 if __name__ == "__main__":
     unittest.main()

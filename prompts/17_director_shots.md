@@ -32,5 +32,5 @@ Dự án này sản xuất **theo shot**, không theo cảnh: mỗi cảnh kịc
 ```
 - `duration_s` từ 0,5 đến 15 giây. Shot ngắn hơn thời lượng tối thiểu của model video sẽ được gen dài hơn rồi cắt — cứ đặt đúng độ dài phim cần.
 - `hero: true` cho 1–3 shot then chốt của cả video (cao trào, cú twist) — được dùng model video tốt nhất.
-- Giữ nguyên văn mọi câu thoại của kịch bản, đúng người nói, đúng thứ tự; không thêm câu mới.
+- Giữ nguyên văn mọi câu thoại của kịch bản, đúng người nói, đúng thứ tự; không thêm câu mới. (Chỉ khi khối "Thời lượng bắt buộc" ghi **được phép bỏ bớt câu thoại** thì mới được bỏ câu — vẫn không thêm, không sửa chữ câu giữ lại.)
 - Các trường của cảnh (`location`, `time`, `mood`, `lighting`, `sequence`, `emotional_intent`, `beat`…) vẫn điền như cũ; `image_prompt`/`shot` của cảnh có thể mô tả chung cảnh.

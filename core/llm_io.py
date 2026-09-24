@@ -4,6 +4,7 @@ V0: the JSON is pasted from a Claude Desktop chat; V1: it comes from the API run
 Either way it passes through the same validators, so the runner is swappable.
 """
 import json
+import re
 from typing import Any, Dict, List, Mapping, Optional
 
 from .pipeline import Pipeline
@@ -88,6 +89,7 @@ def validate_for_project(pipeline: Pipeline, project_id: int):
             missing = [s["idx"] for s in obj["scenes"] if not s.get("shots")]
             if missing:
                 raise SchemaError("dự án chia shot: cảnh " + ", ".join(map(str, missing)) + " thiếu danh sách `shots`")
+            _check_lines(pipeline, project_id, obj)
         else:
             have = {r["idx"] for r in pipeline.conn.execute("SELECT idx FROM scenes WHERE project_id=?", (project_id,))}
             unknown = [s["idx"] for s in obj["scenes"] if s["idx"] not in have]
@@ -95,6 +97,29 @@ def validate_for_project(pipeline: Pipeline, project_id: int):
                 raise SchemaError("scenes: idx " + ", ".join(map(str, unknown)) + " không có trong kịch bản đã tách (chỉ dùng số cảnh đã cho)")
         return obj
     return check
+
+
+def _norm_line(text: str) -> str:
+    return " ".join(re.sub(r"[\"“”'‘’«»]", "", str(text or "")).lower().split())
+
+
+def _check_lines(pipeline: Pipeline, project_id: int, obj: Dict) -> None:
+    """Spoken lines are the script's own words (rule 3: the prompt says so, the code checks it): a line that is not in the script is
+    sent back; every line of the script must be there unless the person allowed dropping lines (projects.dialogue_trim)."""
+    from . import dialogue as _dlg, shots as _shots
+    script = [_norm_line(said) for s in _shots.story_scenes(pipeline, project_id) for _, said in _dlg.lines(s["text"])]
+    if not script:
+        return
+    used = [_norm_line(d.get("text")) for sc in obj["scenes"] for sh in sc.get("shots") or [] for d in sh.get("dialogue") or []
+            if isinstance(d, dict) and str(d.get("speaker") or "").strip().upper() not in _dlg.NOT_SPEAKERS]
+    invented = [t for t in used if t and t not in script]
+    if invented:
+        raise SchemaError("dialogue: câu không có nguyên văn trong kịch bản (không thêm, không sửa chữ): " + "; ".join(invented[:3]))
+    proj = pipeline.project(project_id)
+    if not ("dialogue_trim" in proj.keys() and proj["dialogue_trim"]):
+        dropped = [t for t in script if t not in used]
+        if dropped:
+            raise SchemaError("dialogue: thiếu câu thoại của kịch bản (không được bỏ): " + "; ".join(dropped[:3]))
 
 
 def _check_choice(value: Any, allowed, where: str) -> None:

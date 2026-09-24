@@ -421,7 +421,8 @@ V2_COLUMNS = {
                  ("shot_mode", "TEXT"), ("style_profile", "TEXT"), ("test_quality", "INTEGER NOT NULL DEFAULT 0"),
                  ("director_raw", "TEXT"),            # the last paid Director answer, kept even when saving it failed
                  ("look", "TEXT"),                    # ANIME | FF_INGAME (core/looks.py): the picture look, apart from the editing style
-                 ("image_model", "TEXT")),            # Deepix picture model of the project (core/image_models.py); NULL = default
+                 ("image_model", "TEXT"),             # Deepix picture model of the project (core/image_models.py); NULL = default
+                 ("dialogue_trim", "INTEGER NOT NULL DEFAULT 0")),   # 1 = the Director may drop lines (never add / reword)
     "characters": (("lock_rules", "TEXT"), ("voice_profile", "TEXT"), ("anchor_approved", "INTEGER NOT NULL DEFAULT 0"),
                    ("user_edited", "TEXT"),
                    ("bible_check", "TEXT")),         # F1: {key: sha of pictures + description, ok, mismatches, fixed_description}         # fields the person edited by hand (description, wardrobe): the Director keeps them

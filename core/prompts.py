@@ -132,11 +132,16 @@ def duration_block(pipeline: Pipeline, project_id: int) -> str:
         m = _SECTION_TIME.search(s["heading"] or "")
         if m:
             parts.append(f"- Cảnh {s['idx']} ({s['heading'].split('–')[0].strip()}): tổng các shot ≈ {int(m.group(2)) - int(m.group(1))} giây")
-    if not target and not parts:
+    trim = ("\n**Được phép bỏ bớt câu thoại** (người dùng cho phép): bỏ những câu không cần cho cốt truyện để hầu hết shot dài 2–4 giây. "
+            "KHÔNG thêm câu mới, KHÔNG sửa chữ câu giữ lại (giữ nguyên văn). Ghi mọi câu đã bỏ vào `dropped_lines` ở gốc JSON: "
+            "[{\"scene\": số cảnh, \"speaker\": \"TÊN\", \"text\": \"câu nguyên văn\", \"why\": \"lý do ngắn\"}]."
+            if "dialogue_trim" in proj.keys() and proj["dialogue_trim"] else "")
+    if not target and not parts and not trim:
         return ""
     head = f"Tổng `duration_s` của MỌI shot phải nằm trong {target[0]}–{target[1]} giây (kịch bản yêu cầu)." if target else ""
     return ("# Thời lượng bắt buộc\n" + head + ("\n" + "\n".join(parts) if parts else "")
-            + "\nCộng lại trước khi trả lời; thừa thì gộp shot phản ứng/chèn ngắn, không cắt câu thoại.")
+            + "\nCộng lại trước khi trả lời; thừa thì gộp shot phản ứng/chèn ngắn" + (", hoặc bỏ bớt câu thoại như dưới đây." if trim
+                                                                                   else ", không cắt câu thoại.") + trim)
 
 
 def build_director_bundle(pipeline: Pipeline, project_id: int) -> str:

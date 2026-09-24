@@ -740,6 +740,14 @@ def shot_format_controls(p: Pipeline, pid: int, proj) -> None:
     if new_style != cur_style:
         p.set_project_field(pid, "style_profile", new_style)
         st.rerun()
+    if new_mode:
+        trim = bool(proj["dialogue_trim"]) if "dialogue_trim" in proj.keys() else False
+        new_trim = st.checkbox("✂ Cho phép Director bỏ bớt câu thoại để shot đủ dài (không thêm, không sửa chữ câu giữ lại)", trim,
+                               key=f"fmt_trim_{pid}", help="Kịch bản nhiều thoại trong ít giây làm shot quá ngắn (tốn tiền video). Câu bị bỏ "
+                                                             "được liệt kê sau khi chạy Director; tắt thì mọi câu phải có.")
+        if new_trim != trim:
+            p.set_project_field(pid, "dialogue_trim", 1 if new_trim else 0)
+            st.rerun()
     if new_mode and not shots.has_work(p.conn, pid) and not any(s["data"].get("shot_no") for s in shots.shots_of(p, pid)):
         st.caption("Chạy Director (1d) để chia các cảnh thành shot.")
 
