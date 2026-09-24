@@ -1,6 +1,7 @@
 """Build copy-paste prompt bundles for V0 (Claude Desktop chat). V1 sends the same text via API."""
 import json
 import os
+import re
 from typing import List, Optional
 
 from . import assets, dialogue, knowledge, looks
@@ -107,6 +108,37 @@ def shot_style_block(proj) -> str:
     return _SEP.join(p for p in parts if p)
 
 
+_TARGET = re.compile(r"(thời lượng|thoi luong|duration|độ dài|do dai)\s*:?\s*(\d{1,3})\s*(?:[–—-]\s*(\d{1,3}))?\s*(giây|giay|s|sec|seconds)\b",
+                     re.IGNORECASE)
+_SECTION_TIME = re.compile(r"[–—-]\s*(\d{1,3})\s*[–—-]\s*(\d{1,3})\s*(giây|giay|s|sec|secs|seconds)\b", re.IGNORECASE)
+
+
+def target_seconds(script_text: str):
+    """(low, high) seconds the script asks for ("THỜI LƯỢNG: 55–58 GIÂY" / "Duration: 60s"), or None."""
+    m = _TARGET.search(script_text or "")
+    if not m:
+        return None
+    lo = int(m.group(2))
+    return lo, int(m.group(3) or lo)
+
+
+def duration_block(pipeline: Pipeline, project_id: int) -> str:
+    """A hard frame for the shot plan: the Director of "ANH CHỌN AI?" made 65 s of shots for a 55–58 s script."""
+    from . import shots
+    proj = pipeline.project(project_id)
+    target = target_seconds(proj["script_text"] if "script_text" in proj.keys() else "")
+    parts = []
+    for s in shots.story_scenes(pipeline, project_id) if shots.mode(proj) else []:
+        m = _SECTION_TIME.search(s["heading"] or "")
+        if m:
+            parts.append(f"- Cảnh {s['idx']} ({s['heading'].split('–')[0].strip()}): tổng các shot ≈ {int(m.group(2)) - int(m.group(1))} giây")
+    if not target and not parts:
+        return ""
+    head = f"Tổng `duration_s` của MỌI shot phải nằm trong {target[0]}–{target[1]} giây (kịch bản yêu cầu)." if target else ""
+    return ("# Thời lượng bắt buộc\n" + head + ("\n" + "\n".join(parts) if parts else "")
+            + "\nCộng lại trước khi trả lời; thừa thì gộp shot phản ứng/chèn ngắn, không cắt câu thoại.")
+
+
 def build_director_bundle(pipeline: Pipeline, project_id: int) -> str:
     from . import shots
     proj = pipeline.project(project_id)
@@ -128,6 +160,7 @@ def build_director_bundle(pipeline: Pipeline, project_id: int) -> str:
         keep("genre_guides.md"),
         knowledge.genre_text(proj["genre"] if "genre" in proj.keys() else None),
         shot_style_block(proj) if shots.mode(proj) else "",
+        duration_block(pipeline, project_id) if shots.mode(proj) else "",
         keep("research_notes.md"),
         keep("film_director_method.md"),
         keep("character_lock.md"),

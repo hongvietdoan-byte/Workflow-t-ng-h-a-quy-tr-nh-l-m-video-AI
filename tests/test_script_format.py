@@ -62,5 +62,33 @@ class ScriptFormatTests(unittest.TestCase):
         self.assertNotIn("-----", head)
 
 
+class DirectorFrameTests(unittest.TestCase):
+    def test_the_target_length_is_read_from_the_script(self):
+        self.assertEqual(prompts.target_seconds("THỜI LƯỢNG: 55–58 GIÂY"), (55, 58))
+        self.assertEqual(prompts.target_seconds("Duration: 60s"), (60, 60))
+        self.assertIsNone(prompts.target_seconds("CẢNH 1 – 8–20 GIÂY"))
+
+    def test_the_director_gets_the_total_and_each_timed_section(self):
+        from core.db import connect
+        from core.pipeline import Pipeline
+        p = Pipeline(connect())
+        pid = p.create_project("t")
+        p.set_project_field(pid, "shot_mode", "per_shot")
+        script_parser.import_scenes(p, pid, script_parser.split_scenes(SCRIPT), full_text="\n".join(SCRIPT))
+        block = prompts.duration_block(p, pid)
+        self.assertIn("55–58 giây", block)
+        self.assertIn("tổng các shot ≈ 8 giây", block)                      # CINEMATIC MỞ ĐẦU – 0–8 GIÂY
+        self.assertIn("# Thời lượng bắt buộc", prompts.build_director_bundle(p, pid))
+
+    def test_system_text_becomes_on_screen_text_never_a_voice(self):
+        from core import shots
+        shot = {"size": "WS", "role": "action", "duration_s": 2, "image_prompt": "x", "action": "Maxim bị hạ",
+                "dialogue": [{"speaker": "HỆ THỐNG", "text": "Maxim đã bị hạ."}, {"speaker": "KENTA", "text": "Maxim!"}]}
+        data = shots.shot_data({"idx": 5}, shot, 1)
+        self.assertEqual(data["dialogue"], [{"speaker": "KENTA", "text": "Maxim!"}])
+        self.assertEqual(data["on_screen_text"], ["Maxim đã bị hạ."])
+        self.assertNotIn("HỆ THỐNG", data["text"])
+
+
 if __name__ == "__main__":
     unittest.main()

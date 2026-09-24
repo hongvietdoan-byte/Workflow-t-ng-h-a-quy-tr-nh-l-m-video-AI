@@ -136,12 +136,24 @@ def pacing_warnings(shots: List[Dict]) -> List[str]:
 
 # ---- storing ----------------------------------------------------------------------------------------------------------------
 def _shot_text(s: Dict) -> str:
-    lines = [f"{d.get('speaker') or ''}: {d['text']}".strip(": ") for d in s.get("dialogue") or []]
+    lines = [f"{d.get('speaker') or ''}: {d['text']}".strip(": ") for d in _split_lines(s)[0]]
     return "\n".join([s["action"].strip()] + lines)
+
+
+def _split_lines(s: Dict):
+    """(spoken lines, on-screen text): a 'line' of the system / HUD / a text card is shown on screen, never voiced (kịch bản
+    "ANH CHỌN AI?": "HỆ THỐNG: Maxim đã bị hạ" came back as a NARRATOR line)."""
+    from .dialogue import NOT_SPEAKERS
+    spoken, screen = [], [str(x).strip() for x in s.get("on_screen_text") or [] if str(x).strip()]
+    for d in s.get("dialogue") or []:
+        who, said = str(d.get("speaker") or "").strip(), str(d["text"]).strip()
+        (screen.append(said) if who.upper() in NOT_SPEAKERS else spoken.append({"speaker": who, "text": said}))
+    return spoken, screen
 
 
 def shot_data(scene: Dict, s: Dict, k: int) -> Dict:
     """The data of one shot row: the script scene's setting + the shot's own camera, action and lines."""
+    spoken, screen = _split_lines(s)
     data = {key: scene[key] for key in SCENE_KEYS if key in scene}
     data.update({
         "story_scene": scene["idx"], "shot_no": k,
@@ -154,7 +166,8 @@ def shot_data(scene: Dict, s: Dict, k: int) -> Dict:
         "size": s["size"], "angle": s.get("angle", "eye"), "camera_move": s.get("camera_move", "static"), "role": s["role"],
         "action": s["action"].strip(), "end_state": (s.get("end_state") or "").strip() or None,
         "continuous_with_next": bool(s.get("continuous_with_next")),
-        "dialogue": [{"speaker": str(d.get("speaker") or "").strip(), "text": str(d["text"]).strip()} for d in s.get("dialogue") or []],
+        "dialogue": spoken,
+        "on_screen_text": screen,   # HUD / system message / caption: added in post, never voiced nor drawn by the image model
         "duration_s": round(float(s["duration_s"]), 2),
         "camera_complexity": s.get("camera_complexity") or scene.get("camera_complexity") or "simple",
         "shot_role": "hero" if s.get("hero") else ("transition" if s["role"] == "transition" else "normal"),

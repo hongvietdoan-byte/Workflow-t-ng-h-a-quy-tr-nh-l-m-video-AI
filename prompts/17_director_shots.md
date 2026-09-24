@@ -7,7 +7,10 @@ Dự án này sản xuất **theo shot**, không theo cảnh: mỗi cảnh kịc
 - **Nhịp do kịch bản quyết định**: shot hành động/phản ứng/chèn ngắn; shot thoại dài bằng thời gian nói câu đó (~3,5 âm tiết/giây + 0,4s); thiết lập, kết, money shot được dài hơn. Tổng thời lượng các shot nên khớp thời lượng kịch bản yêu cầu (nếu có ghi).
 - Mở video bằng **hook**; kết bằng **ending** (tạo dáng, nhìn máy quay, câu chốt). Sau câu thoại/hành động quan trọng nên có **reaction**. Đổi cỡ cảnh có lý do; tránh 4 shot liền cùng cỡ.
 - Thoại: **mỗi câu nằm trọn trong một shot**; không cắt ngang câu. Một shot có thể chứa 0, 1 hoặc vài câu ngắn liền nhau của cùng cảnh.
-- **Không có khớp môi**: giọng tiếng Việt được lồng sau, miệng nhân vật trong video không nói đúng câu đó. Vì vậy shot có thoại **tránh cận mặt người đang nói** (`ECU`/`CU`/`MCU` nhìn thấy mặt người nói) trừ khi cảm xúc câu đó thật sự cần. Ưu tiên: `MS`/`WS`; góc `ots` từ sau lưng người nói; người nói quay nghiêng/quay lưng/đang hành động; hoặc đặt câu thoại lên **shot phản ứng của người nghe** (người nói ngoài khung — vẫn ghi `speaker` là người nói, nhưng không đưa họ vào `characters` của shot đó).
+- **Không có khớp môi (BẮT BUỘC)**: giọng tiếng Việt được lồng sau, miệng nhân vật trong video không nói đúng câu đó. Shot có `dialogue` **KHÔNG được** là `ECU`/`CU`/`MCU` mà người nói có trong `characters` và nhìn thấy mặt (angle `eye`/`low`/`high`/`dutch`). Thay bằng: `MS`/`WS`; góc `ots` (qua vai người nghe, người nói ở trung cảnh); người nói quay nghiêng/quay lưng/đang hành động; hoặc đặt câu thoại lên **shot phản ứng của người nghe** (người nói ngoài khung — vẫn ghi `speaker` là người nói nhưng không đưa họ vào `characters`). Cận mặt người nói chỉ dùng cho khoảnh khắc **im lặng** (nước mắt rơi, sững người) — tách thành shot riêng không thoại.
+- **Kịch bản ghi rõ góc máy thì giữ đúng**: "GÓC CAMERA SAU VAI X" / "qua vai X" → `angle: "ots"`, X có trong `characters` (vai/lưng mờ ở tiền cảnh); "CẬN CẢNH" → `CU` (không thoại, xem luật trên); "CHÍNH DIỆN" → nhân vật nhìn về máy; "TOÀN CẢNH" → `WS`. Chỉ đổi khi luật khớp môi buộc phải đổi — khi đó đổi cỡ cảnh, giữ tinh thần góc máy.
+- **Chữ trên màn hình không phải thoại**: dòng "HỆ THỐNG: …", thông báo game, chữ kết/tiêu đề → ghi vào `on_screen_text` của shot (danh sách chuỗi), **không** đưa vào `dialogue`, không đặt người dẫn chuyện (NARRATOR) cho nó. Hình ảnh cũng không vẽ chữ (thêm ở hậu kỳ).
+- **Độ dài shot**: shot dưới 2 giây chỉ cho chèn/phản ứng thật nhanh (tối đa khoảng 1/5 số shot) — model video luôn làm clip tối thiểu dài hơn rồi cắt, shot quá ngắn tốn tiền mà không thêm gì; gộp các nhịp nhỏ liền nhau vào một shot.
 - Chữ tiêu đề, chữ chương, logo, giao diện game **không** thành shot (làm ở hậu kỳ) — không dùng cỡ `GRAPHIC`.
 - Gameplay kiểu trong game: dùng `GAME_TPS` (camera sau lưng nhân vật, cao hơn vai).
 - Các shot liền mạch cùng địa điểm/thời điểm thuộc cùng `sequence` của cảnh; shot nào **nối liền hình với shot kế tiếp** (cùng hành động kéo dài qua điểm cắt) thì `continuous_with_next: true`.
@@ -24,6 +27,7 @@ Dự án này sản xuất **theo shot**, không theo cảnh: mỗi cảnh kịc
  "image_prompt": "tiếng Anh: KHUNG ĐẦU của shot — cỡ cảnh, góc, nhân vật, bối cảnh, ánh sáng, theo khung hình dự án",
  "characters": ["TÊN trong Character Bible có mặt trong khung"],
  "dialogue": [{"speaker": "TÊN", "text": "câu thoại nguyên văn tiếng Việt"}],
+ "on_screen_text": ["chữ hiện trên màn hình (thông báo hệ thống, chữ kết) — không đọc thành tiếng; bỏ khi không có"],
  "continuous_with_next": false, "hero": false}
 ```
 - `duration_s` từ 0,5 đến 15 giây. Shot ngắn hơn thời lượng tối thiểu của model video sẽ được gen dài hơn rồi cắt — cứ đặt đúng độ dài phim cần.
