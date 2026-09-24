@@ -396,13 +396,13 @@ def shot_storyboard_panel(p: Pipeline, pid: int) -> None:
     is_v3 = any(r["data"].get("shot_no") for r in rows)
     total = sum(float(r["data"].get("duration_s") or 0) for r in rows)
     own = [r for r in rows if shots.needs_own_image(p.conn, r["id"])]      # multi-shot: later shots of a group use the group's picture
-    have = [r for r in own if shots.approved_image_path(p.conn, C.DATA, pid, r["id"])]
+    have = [r for r in own if storyboard_gate.picture_path(p.conn, C.DATA, pid, r["id"])[0]]
     note = "" if len(own) == len(rows) else f" (multi-shot: {len(rows) - len(own)} shot dùng ảnh đầu nhóm)"
     gates = autopilot.get_gates(p, pid)
     waiting = gates.get("waiting_for") == "storyboard" and autopilot.status(p, pid)["state"] == "waiting"
     flags = storyboard_gate.flags(p, pid) if have else {}
     flagged = [r for r in rows if flags.get(r["id"])]
-    title = (f"🎞 Storyboard — {len(have)}/{len(own)} ảnh đã duyệt · {len(rows)} {'shot' if is_v3 else 'cảnh'} · {total:.0f}s{note}"
+    title = (f"🎞 Storyboard — {len(have)}/{len(own)} ảnh · {len(rows)} {'shot' if is_v3 else 'cảnh'} · {total:.0f}s{note}"
              + (f" · ⚑ {len(flagged)} có cờ" if flagged else "") + (" · ⏸ CHỜ BẠN DUYỆT" if waiting else ""))
     with st.expander(title, expanded=waiting):
         st.caption("Ảnh khung đầu theo thứ tự phim: kiểm tra nhân vật (so với ảnh tài nguyên bên dưới), cỡ cảnh, nhịp, liên tục TRƯỚC khi gen "
@@ -421,9 +421,9 @@ def shot_storyboard_panel(p: Pipeline, pid: int) -> None:
             cols = st.columns(per_row)
             for col, r in zip(cols, rows[k:k + per_row]):
                 d = r["data"]
-                path = shots.approved_image_path(p.conn, C.DATA, pid, r["id"])
+                path, held = storyboard_gate.picture_path(p.conn, C.DATA, pid, r["id"])
                 if path:
-                    col.image(path, width="stretch")
+                    col.image(path, width="stretch", caption="⏸ chờ bạn duyệt" if held else None)
                 elif not shots.needs_own_image(p.conn, r["id"]):
                     lead = shots.image_scene(p.conn, r["id"])
                     col.caption("↳ tiếp nối trong clip multi-shot của "

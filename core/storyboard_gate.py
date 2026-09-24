@@ -18,8 +18,19 @@ LABELS = {"character": "nhân vật", "hands_face": "tay/mặt", "grounding": "c
 
 
 def _approved_image(conn, scene_id: int):
-    return conn.execute("SELECT id FROM jobs WHERE scene_id=? AND type='image_gen' AND state='approved' ORDER BY id DESC LIMIT 1",
-                        (scene_id,)).fetchone()
+    """The picture the storyboard shows: the approved one, else one held for the person (below a floor, W15)."""
+    return (conn.execute("SELECT id, state FROM jobs WHERE scene_id=? AND type='image_gen' AND state='approved' ORDER BY id DESC LIMIT 1",
+                         (scene_id,)).fetchone()
+            or conn.execute("SELECT id, state FROM jobs WHERE scene_id=? AND type='image_gen' AND state='pending_review' ORDER BY id DESC"
+                            " LIMIT 1", (scene_id,)).fetchone())
+
+
+def picture_path(conn, data_dir: str, project_id: int, scene_id: int):
+    """(path, held) of the picture shown for this shot, or (None, False)."""
+    import os
+    img = _approved_image(conn, scene_id)
+    path = img and os.path.join(data_dir, str(project_id), "images", f"job_{img['id']}.png")
+    return (path, img["state"] == "pending_review") if path and os.path.exists(path) else (None, False)
 
 
 def _scores(conn, job_id: int) -> Dict[str, float]:
@@ -52,6 +63,8 @@ def flags(p: Pipeline, project_id: int) -> Dict[int, List[str]]:
                 found.append("chưa có ảnh đã duyệt")
             else:
                 sc = _scores(p.conn, img["id"])
+                if img["state"] == "pending_review":
+                    found.append("chờ bạn duyệt (QC không tự duyệt)")
                 found += [f"{LABELS.get(k, k)} {v:.2f} dưới mức sàn" for k, v in sc.items() if k in floors and v < floors[k]]
                 found += [f"{LABELS.get(k, k)} {v:.2f}" for k, v in sc.items() if k in FRAMING and v < VISIBLE]
         out[sid] = found

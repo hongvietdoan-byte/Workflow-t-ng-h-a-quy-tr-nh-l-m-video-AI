@@ -122,3 +122,45 @@ class StoryboardPanelTest(unittest.TestCase):
             gates = autopilot.get_gates(Pipeline(connect(db)), pid)
             self.assertIsNone(gates["waiting_for"])
             self.assertEqual(gates["storyboard_ok"], [jid])
+
+
+class HeldForThePersonTest(unittest.TestCase):
+    """GĐ-A5 (W15): the automatic run never approves a picture or a clip that a blocking QC criterion failed."""
+
+    def setUp(self):
+        self.p = Pipeline(connect())
+        self.pid = self.p.create_project("t", operating_mode="human_qc", threshold=0.5)
+        self.sid = self.p.create_scene(self.pid, 1)
+
+    def pending(self, kind, scores):
+        jid = self.p.create_job(self.sid, kind)
+        self.p.start(jid), self.p.succeed(jid)
+        self.p.apply_qc(jid, scores)                                   # human_qc: waits for review
+        self.assertEqual(self.p.state(jid).value, "pending_review")
+        return jid
+
+    def test_a_picture_below_a_floor_is_held_and_the_storyboard_waits_even_when_switched_off(self):
+        ok = self.pending("image_gen", GOOD)
+        bad_scene = self.p.create_scene(self.pid, 2)
+        self.sid = bad_scene
+        bad = self.pending("image_gen", dict(GOOD, character=.3))
+        held = autopilot._approve_unflagged(self.p, self.pid, "image_gen")
+        self.assertEqual(self.p.state(ok).value, "approved")
+        self.assertEqual(self.p.state(bad).value, "pending_review")
+        self.assertIn("character 0.30 < 0.60", held[0])
+        autopilot.set_gates(self.p, self.pid, {"storyboard": False})
+        with self.assertRaises(autopilot._Wait):
+            autopilot._storyboard_phase(self.p, self.pid, None)
+        self.assertIn("chờ bạn duyệt (QC không tự duyệt)", storyboard_gate.flags(self.p, self.pid)[bad_scene])
+        autopilot.set_gates(self.p, self.pid, {"waiting_for": "storyboard"})
+        autopilot.resume(self.p, self.pid)                           # the person looked and approved the storyboard
+        self.assertEqual(self.p.state(bad).value, "approved")
+        self.assertIsNone(autopilot._storyboard_phase(self.p, self.pid, None))
+
+    def test_a_faulty_clip_stops_the_run_for_the_person(self):
+        bad = self.pending("video_gen", {"identity": .3, "physics": .9, "motion_match": .9, "artifacts": .9})
+        self.assertEqual(len(autopilot._approve_unflagged(self.p, self.pid, "video_gen")), 1)
+        self.assertEqual(self.p.state(bad).value, "pending_review")
+        autopilot.set_gates(self.p, self.pid, {"waiting_for": "clips"})
+        autopilot.resume(self.p, self.pid)
+        self.assertEqual(self.p.state(bad).value, "approved")

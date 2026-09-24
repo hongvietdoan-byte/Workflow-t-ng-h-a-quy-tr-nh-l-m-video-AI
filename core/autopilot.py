@@ -26,7 +26,7 @@ from .pipeline import Pipeline
 RUNNING, WAITING, STOPPED, ATTENTION, DONE, ERROR = "running", "waiting", "stopped", "needs_attention", "done", "error"
 QUEUED = "queued"   # approved, waiting for a free slot (see Manager.max_parallel)
 PHASE_LABELS = {"director": "Director (Character Bible + thông số cảnh)", "previz": "Dựng layout / storyboard", "images": "Gen ảnh + QC",
-                "setcheck": "QC đồng bộ cả bộ ảnh", "storyboard": "Duyệt storyboard trước khi gen video", "motion": "Motion prompt", "voice": "Giọng thoại", "videos": "Gen video + QC video",
+                "setcheck": "QC đồng bộ cả bộ ảnh", "storyboard": "Duyệt storyboard trước khi gen video", "clips": "Xem clip còn lỗi", "motion": "Motion prompt", "voice": "Giọng thoại", "videos": "Gen video + QC video",
                 "music": "Nhạc nền", "sfx": "Hiệu ứng âm thanh", "render": "Xuất bản", "done": "Hoàn tất"}
 MAX_SCENES = int(os.environ.get("AUTOPILOT_MAX_SCENES", "12"))
 LOG_KEEP = 60
@@ -166,8 +166,13 @@ def resume(p: Pipeline, project_id: int, user: Optional[str] = None) -> None:
         _log(p, project_id, "Bạn đã duyệt ảnh mẫu thử → gen phần còn lại")
     elif gates.get("waiting_for") == "storyboard":
         from . import storyboard_gate
+        _approve_held(p, project_id, "image_gen", "duyệt ở storyboard")
         set_gates(p, project_id, {"storyboard_ok": storyboard_gate.fingerprint(p, project_id), "waiting_for": None})
         _log(p, project_id, "Bạn đã duyệt storyboard → viết motion prompt và gen video")
+    elif gates.get("waiting_for") == "clips":
+        n = _approve_held(p, project_id, "video_gen", "giữ sau khi xem")
+        set_gates(p, project_id, {"waiting_for": None})
+        _log(p, project_id, f"Bạn đã xem {n} clip còn lỗi → tiếp tục")
     _save_cfg(p, project_id)
     p.set_mode(project_id, "auto")
     p.set_paused(project_id, False)
@@ -312,14 +317,15 @@ def _images_phase(p: Pipeline, pid: int, ctx: Context) -> Optional[str]:
         if r["failed"]:
             _log(p, pid, f"QC lỗi ở {len(r['failed'])} ảnh: {r['failed'][0][1]}")
             _stop_if_claude_blocked(r["failed"])
-    for j in p.conn.execute("SELECT id FROM jobs WHERE project_id=? AND type='image_gen' AND state='pending_review'", (pid,)):
-        p.approve(j["id"], "ai_agent", "autopilot")
+    held = _approve_unflagged(p, pid, "image_gen")         # W15: a picture below a floor waits for the person (storyboard)
     if pilot.active(p, pid):
         if pilot.done(p, pid):
             raise _Wait("pilot", "Ảnh các cảnh gen thử đã xong — xem ở Bước 2, ổn thì bấm Tiếp tục để gen phần còn lại")
         return "Ảnh gen thử: đang làm"
     fresh = lineage.summary(p.conn, pid)["images"][0]
     total = len(_scene_rows(p, pid))
+    if held and fresh + len(held) >= total and not _active(p, pid, "image_gen"):
+        return None                                        # the rest waits at the storyboard for the person's eyes
     return None if fresh == total else f"Ảnh: {fresh}/{total} đã duyệt"
 
 
@@ -357,10 +363,11 @@ def _storyboard_phase(p: Pipeline, pid: int, ctx: Context) -> Optional[str]:
     A picture changed after the approval (redo, set check) brings the checkpoint back."""
     from . import storyboard_gate
     gates = get_gates(p, pid)
-    if not gates["storyboard"] or gates.get("storyboard_ok") == storyboard_gate.fingerprint(p, pid):
-        return None
-    raise _Wait("storyboard", "Ảnh khung đầu đã đủ (" + storyboard_gate.summary(p, pid) + ") — xem “🎞 Storyboard” ở Bước 2, sửa/gen lại "
-                              "shot sai, rồi bấm “Duyệt storyboard” để gen video")
+    held = p.conn.execute("SELECT COUNT(*) FROM jobs WHERE project_id=? AND type='image_gen' AND state='pending_review'", (pid,)).fetchone()[0]
+    if not held and (not gates["storyboard"] or gates.get("storyboard_ok") == storyboard_gate.fingerprint(p, pid)):
+        return None                                         # pictures held below a floor stop here even with the checkpoint off
+    raise _Wait("storyboard", "Ảnh khung đầu đã đủ (" + storyboard_gate.summary(p, pid) + (f", {held} ảnh dưới mức sàn chờ bạn xem" if held else "")
+                              + ") — xem “🎞 Storyboard” ở Bước 2, sửa/gen lại shot sai, rồi bấm “Duyệt storyboard” để gen video")
 
 
 def _motion_phase(p: Pipeline, pid: int, ctx: Context) -> Optional[str]:
@@ -428,6 +435,38 @@ def _video_sends(p: Pipeline, pid: int) -> int:
                      " (SELECT 1 FROM jobs r WHERE r.parent_job_id=j.id AND r.retry_reason LIKE ?))", pid, RESEND_NOTE + "%")
 
 
+def _flag_reasons(p: Pipeline, job) -> List[str]:
+    """Why a result waiting for review must not be approved automatically: a blocking criterion below its floor (wrong face, broken
+    hands, floating) or still faulty after the last automatic fix."""
+    from .pipeline import hard_failures
+    scores = {r["criterion"]: r["score"] for r in p.conn.execute("SELECT criterion, score FROM qc_results WHERE job_id=?", (job["id"],))}
+    out = hard_failures(scores, "video" if job["type"] == "video_gen" else "image")
+    if job["escalated"]:
+        out.append("hết lượt tự sửa")
+    return out
+
+
+def _approve_unflagged(p: Pipeline, pid: int, kind: str) -> List[str]:
+    """Approve the waiting results that nothing flags; return 'S03: character 0.40 < 0.60' notes for the ones held for a person."""
+    held = []
+    for j in p.conn.execute("SELECT j.*, s.idx FROM jobs j JOIN scenes s ON s.id=j.scene_id WHERE j.project_id=? AND j.type=?"
+                            " AND j.state='pending_review'", (pid, kind)).fetchall():
+        why = _flag_reasons(p, j)
+        if why:
+            held.append(f"S{j['idx']:02d}: " + ", ".join(why))
+        else:
+            p.approve(j["id"], "ai_agent", "autopilot")
+    return held
+
+
+def _approve_held(p: Pipeline, pid: int, kind: str, note: str) -> int:
+    """The person looked and went on: what was held for them counts as accepted."""
+    rows = p.conn.execute("SELECT id FROM jobs WHERE project_id=? AND type=? AND state='pending_review'", (pid, kind)).fetchall()
+    for r in rows:
+        p.approve(r["id"], "user", note)
+    return len(rows)
+
+
 def _videos_phase(p: Pipeline, pid: int, ctx: Context) -> Optional[str]:
     """Clips for every scene (per-scene model), redo of outdated clips, Claude's video check when switched on."""
     from . import claude_tasks, lineage, regen
@@ -456,8 +495,10 @@ def _videos_phase(p: Pipeline, pid: int, ctx: Context) -> Optional[str]:
         if r["failed"]:
             _log(p, pid, f"QC video lỗi ở {len(r['failed'])} clip: {r['failed'][0][1][:120]}")
             _stop_if_claude_blocked(r["failed"])
-    for j in p.conn.execute("SELECT id FROM jobs WHERE project_id=? AND type='video_gen' AND state='pending_review'", (pid,)):
-        p.approve(j["id"], "ai_agent", "autopilot")
+    held = _approve_unflagged(p, pid, "video_gen")         # W15: a clip still faulty after its fixes is never approved blindly
+    if held and not _active(p, pid, "video_gen"):
+        raise _Wait("clips", f"{len(held)} clip QC còn lỗi (" + "; ".join(held[:3]) + ") — xem ở Bước 4: giữ, sửa hoặc gen lại, "
+                             "rồi bấm Tiếp tục (clip còn chờ sẽ được giữ như bạn đã xem)")
     fresh = lineage.summary(p.conn, pid)["videos"][0]
     total = len(_scene_rows(p, pid))
     return None if fresh == total else f"Video: {fresh}/{total} dùng được"
