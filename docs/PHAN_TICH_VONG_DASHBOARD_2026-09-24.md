@@ -83,6 +83,74 @@ trước khi gửi** — không phải do chất lượng — và autopilot tự
 pipeline chỉ phát hiện bằng cách gửi thật rồi hỏng. Autopilot lại coi mọi lỗi không phải kiểm duyệt là "thử lại được"
 (autopilot.py:430), nên lỗi cấu hình lặp lại cho tới khi hết trần hoặc có người sửa code giữa chừng.
 
+## 2b. Số liệu thật GĐ6 — tiền và lỗi dồn ở bước nào
+
+Nguồn: `tools/audit_run.py` chạy **chỉ đọc** trên `manifest.sqlite` thật (2026-09-24 15:37). Tổng video 3 dự án GĐ6
+(#2 V1 từng shot, #3 V2 multi-shot, #4 V0 mỗi cảnh một clip) = **$42,88** — khớp đúng số đã chi, nên sổ chi đáng tin. Giá là ước
+tính trong `data/pricing.json`; ảnh Deepix chưa có giá (chỉ đếm); Claude chạy qua CLI (gói thuê bao) nên không có dòng tiền Claude.
+
+### Tiền video theo LÝ DO tạo từng lần gửi
+
+| Lý do gửi | V1 từng shot | V2 multi-shot | V0 mỗi cảnh | **Tổng** | **%** |
+|---|---|---|---|---|---|
+| Lần đầu | $11,88 (21) | $5,52 (5) | — | **$17,40** | 41% |
+| Gửi lại sau lỗi kỹ thuật / nhà cung cấp | — | $8,24 (8) | $3,60 (3) | **$11,84** | 28% |
+| Người bấm gen lại | — | $5,84 (6) | $3,00 (2) | **$8,84** | 21% |
+| QC video loại → tự gen lại | — | — | $4,80 (3) | **$4,80** | 11% |
+| **Cộng** | $11,88 | $19,60 | $11,40 | **$42,88** | |
+
+→ **59% tiền video ($25,48) là gửi lại**, chỉ 41% là lần gửi đầu. Theo phương án: V1 **không gửi lại lần nào** (rẻ nhất, $11,88
+cho 21 clip); V2 tốn gấp 3,5 lần tiền gửi đầu; V0 không có lần gửi đầu nào thành công ngay (xem lỗi 1.3).
+
+### Phát hiện 1 — Lỗi DÒ TRẠNG THÁI làm mất clip đã trả tiền (khoản lớn nhất, chưa có trong F1–F11)
+- V2: **12 clip đã gửi và đã ghi sổ ($11,68 = 60% tiền V2) bị đánh `not_found`** ("task not found in the first list page"), rồi
+  autopilot gửi lại 8 lần ($8,24). `status()` chỉ quét **trang đầu 50 task** của `video-list` (clipai.py:277); khi 3 dự án chạy song
+  song, task cũ rơi xuống trang 2 → sau 12 lần không thấy thì bị coi là hỏng **vĩnh viễn** (clipai.py:287).
+- Dự án #1 (trước GĐ6): 6 lỗi `Too many requests` **khi hỏi trạng thái** → job bị đánh hỏng (runner.py:136–140, lỗi không đánh dấu
+  tạm thời) → gửi lại 4 lần ($2,00). V0: 1 `not_found` ($1,20).
+- Nhiều khả năng ClipAI **vẫn làm xong và vẫn tính tiền** các task đó → **trả 2 lần**, và clip gốc vẫn nằm trên ClipAI chưa tải về.
+  → **Có thể lấy lại không tốn tiền**: quét các trang sau của `video-list` theo `jobs.external_id` của 13 job này, task nào
+  `succeeded` có `video_url` thì tải về (W14).
+
+### Phát hiện 2 — Gen lại video không đổi đầu vào: 100% trường hợp, 0% được dùng
+- V0: 3/3 lần QC loại → tự gen lại đều **cùng ảnh + cùng motion prompt** (khẳng định V2 ở mục 2). $4,80, **0/3 clip được dùng**.
+- V0 S03 một mình tốn **$6,60 (4 clip 15s), không clip nào vào bản cuối**; lý do QC: "Maxim đâm tường sai tư thế ở giây 12" —
+  lỗi nhiều nhịp trong clip dài (R5), gen lại bao nhiêu cũng vậy.
+
+### Phát hiện 3 — QC ảnh THẤY lỗi bố cục/tỉ lệ nhưng không chặn; QC video chặn nhưng người lại giữ
+- V1 ảnh (38 lần chấm): `set_match` TB **0,52 (36/38 dưới 0,7)**, `composition` TB **0,52 (31/38)** — tức là QC đã nhìn thấy lỗi
+  layout/cỡ cảnh R7 ở gần như mọi ảnh, nhưng hai tiêu chí này không có mức sàn → vẫn qua. Chỉ 3/38 ảnh bị loại.
+- V1: `character` có **15/38 ảnh dưới mức sàn 0,6** nhưng chỉ 3 ảnh bị loại → cần xác minh đường đi. Nghi vấn trong code:
+  QC chạy ở chế độ `human_qc` chỉ "gợi ý" → ảnh ở `pending_review` → autopilot **tự duyệt mọi `pending_review`**
+  (autopilot.py:312), kể cả ảnh đã dính mức sàn (W15).
+- V2 video (16 lần chấm): `motion_match` TB **0,49**, `identity` TB **0,58** (7 dưới sàn) — đúng R4 (shot sau trong nhóm không có
+  ảnh bám). Người **giữ lại 15 clip QC đã loại** → hoặc ngưỡng QC video lệch mắt người, hoặc giữ để khỏi trả tiền; cả hai đều
+  cho thấy **QC video chưa hiệu chỉnh** (W8).
+- Dự án #1 (trước GĐ6): QC ảnh loại **68%**, `character` TB 0,57 — và câu sửa của QC đòi "Kelly **high ponytail** with orange
+  streak": QC đang **ép theo Character Bible sai** (R1) → 19 ảnh tự gen lại để đuổi theo một mô tả sai. R1 có từ trước GĐ6.
+
+### Phát hiện 4 — Lỗi gửi (tham số) và chặn nội dung
+- V0: **15 lần gửi bị từ chối** `[InvalidParameter] first/last frame…` (Seedance không nhận khung đầu kèm ảnh tham chiếu), 2
+  `real_person`, 1 bản quyền → autopilot **tự thử lại 13 lần**. Lần gửi bị từ chối ngay có lẽ không tốn tiền nhưng tốn lượt thử,
+  thời gian và làm cảnh 3 dừng "cần bạn xử lý".
+- V2: 3 lần `multiPrompt[0].prompt: size must be between 0 and 512`.
+
+### Phát hiện 5 — Nhiễu làm che lỗi thật
+- `cli_error` "hit your session limit": **1.516 (V1) + 1.625 (V2) + 20 (V0) lần** — autopilot hỏi lại Claude mỗi nhịp khi hết hạn
+  mức (đã sửa: dừng hẳn, `_stop_if_claude_blocked`). Hệ quả còn lại: V1 chỉ **5/21 clip được QC video**.
+- `dialogue_length` **1.092 lần** ở V2: dự án tắt tiếng video nên cổng thoại chỉ ghi cảnh báo mỗi nhịp và **không kéo dài clip**
+  (autopilot.py `_dialogue_gate`) → giọng TTS dài hơn clip ở S23; cảnh báo lặp làm nhật ký khó đọc (W16).
+
+### Ước lượng: bao nhiêu trong $25,48 gửi lại là tránh được
+
+| Nhóm | Tiền | Sửa bằng |
+|---|---|---|
+| Gửi lại do dò trạng thái / lỗi gửi | $11,84 | W12 (dò trạng thái không làm mất task) + W14 (lấy lại clip) + W10 (luật từng model) — **tránh gần hết** |
+| QC tự gen lại cùng đầu vào | $4,80 | W3 (đổi đầu vào hoặc không gen) + F5 (chẩn đoán) — **tránh gần hết** |
+| Người bấm gen lại | $8,84 | Phần lớn do ảnh/nhóm sai từ đầu (R1–R4, R7) → cổng storyboard W1 + F1–F4, F7–F10 — **tránh phần lớn** |
+
+→ Với cùng kịch bản, **~$20–23 trong $42,88 (≈ 50%) là tránh được** mà không cần đổi model hay giảm chất lượng.
+
 ## 3. Vì sao tổng hợp lại thành "gen lỗi nhiều"
 
 ```
@@ -129,8 +197,14 @@ Thay đổi cụ thể trong code (không tốn credit):
 | W11 | **Chọn model biết trước rủi ro**: phong cách CGI tả thực / ảnh bị chặn trước đó → xếp Kling ngay từ đầu, không đợi Seedance từ chối | core/model_router.py | V8 |
 | W12 | **Dò trạng thái không làm mất task**: quét thêm trang 2–3 trước khi kết luận; `not_found` = "chưa rõ" (tạm thời), không tự gửi job mới; khi tìm lại được thì nhận kết quả; báo nếu nghi trả tiền 2 lần | core/adapters/clipai.py:274–288, core/runner.py | V8 |
 | W13 | Cắt prompt > 512 ký tự thì **báo** phần bị cắt (diag + Bước 3), ưu tiên rút gọn bằng Claude trước khi gửi | core/adapters/clipai.py, core/runner.py | V8 |
+| W14 | **Lấy lại clip đã trả tiền**: công cụ quét các trang `video-list` theo `external_id` của job bị đánh `not_found`/lỗi dò trạng thái; task xong thì tải về, gắn lại vào job (không gửi lại) | tools/, core/adapters/clipai.py | 2b-1 |
+| W15 | Autopilot **không tự duyệt** ảnh/clip `pending_review` có tiêu chí dưới mức sàn; để lại cho người ở cổng storyboard | core/autopilot.py:312, :437 | 2b-3 |
+| W16 | Cổng thoại: tắt tiếng video vẫn kéo dài clip cho vừa giọng TTS; cảnh báo ghi **một lần** mỗi shot, không mỗi nhịp | core/autopilot.py (_dialogue_gate) | 2b-5 |
 
 ## 5. Tác động ước tính (phải đo lại ở GĐ4)
+
+**Thứ tự làm theo tiền (số liệu 2b):** W12 + W14 (dò trạng thái, lấy lại clip — 28% tiền video GĐ6) → W1 + F1–F4 (cổng storyboard,
+Bible đúng — 21% người bấm gen lại) → W3 + F5 (gen lại phải đổi đầu vào — 11%) → W10/W11 (luật từng model) → W7/W8/W15 (trần, QC).
 
 - **Lỗi đầu vào (V8):** ~40 lần gen hỏng/thử lại + 21 lần autopilot tự thử lại trong GĐ6 thuộc loại chặn được trước khi gửi
   (W9–W13) → mục tiêu **0 lần hỏng do tham số** ở đợt sau; riêng W12 bịt nguy cơ trả tiền 2 lần cho một clip.
@@ -142,7 +216,7 @@ Thay đổi cụ thể trong code (không tốn credit):
 
 ## 6. Ghép vào kế hoạch hiện có
 
-Đề xuất thêm **W1–W13** làm một giai đoạn "Sắp xếp lại vòng chạy" đặt **sau GĐ2 (lưới an toàn), trước/cùng GĐ3 (F1–F11)**, vì:
+Đề xuất thêm **W1–W16** làm một giai đoạn "Sắp xếp lại vòng chạy" đặt **sau GĐ2 (lưới an toàn), trước/cùng GĐ3 (F1–F11)**, vì:
 - W3/W4/W7/W8 trùng hướng với F5 (chẩn đoán) và F11 (mức sàn) → làm chung.
 - W1/W2/W5/W6 là điều kiện để bậc kiểm thật GĐ4 (chữ → ảnh → 1 cảnh video) diễn ra đúng trong Dashboard thay vì làm tay.
 - Tất cả không tốn credit; có test bằng MockLlm + provider giả (luồng) và fixture GĐ6 (nội dung).

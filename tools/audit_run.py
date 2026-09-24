@@ -169,16 +169,27 @@ class Data:
                 usd += (p or 0) * (u["quantity"] or 1)
         return usd, secs, imgs, unknown
 
+    def in_cut(self, j) -> bool:
+        """Clip mà bản ghép dùng (core.final_cut.collect_clips): job video mới nhất (không tính đã hủy) của shot, trạng thái
+        succeeded/approved."""
+        latest = [x for x in self.jobs.values() if x["scene_id"] == j["scene_id"] and x["type"] == "video_gen" and x["state"] != "cancelled"]
+        return bool(latest) and latest[-1]["id"] == j["id"] and j["state"] in ("succeeded", "approved")
+
     def used(self, j) -> bool:
-        """Kết quả của lần gửi này có nằm trong bản cuối (được duyệt / giữ) không."""
+        """Kết quả của lần gửi này có nằm trong bản cuối không (video: được bản ghép dùng; ảnh: được duyệt / làm khung đầu video)."""
+        if j["type"] == "video_gen":
+            if self.in_cut(j):
+                return True
+            return self.has_leader and any(col(x, "group_leader") == j["id"] and self.in_cut(x) for x in self.jobs.values())
         if j["state"] == "approved":
             return True
-        if j["type"] == "video_gen" and self.has_leader:
-            return any(x["state"] == "approved" and col(x, "group_leader") == j["id"] for x in self.jobs.values())
-        if j["type"] == "image_gen" and "source_job_id" in j.keys():
+        if "source_job_id" in j.keys():
             return any(col(x, "source_job_id") == j["id"] and self.usage.get(x["id"]) for x in self.jobs.values()
                        if x["type"] == "video_gen")
         return False
+
+    def qc_rejected(self, job_id) -> bool:
+        return any(r["reviewer_type"] == "ai_agent" and r["decision"] == "reject" for r in self.reviews.get(job_id, []))
 
     def submitted(self, j) -> bool:
         return bool(self.usage.get(j["id"])) or bool(j["external_id"] and not self.is_follower(j))
@@ -316,10 +327,10 @@ def report_project(conn, pid: int, pricing: dict, floors: dict) -> tuple:
         for _, sc in scored:
             for k, v in sc.items():
                 crit[k].append(v)
-        rejected = [(j, sc) for j, sc in scored if (d.last_review(j["id"]) or {"decision": None})["decision"] == "reject"
-                    and d.last_review(j["id"])["reviewer_type"] == "ai_agent"]
+        rejected = [(j, sc) for j, sc in scored if d.qc_rejected(j["id"])]
         culprit = Counter(min(sc, key=sc.get) for _, sc in rejected)
-        w(f"**{label}** — {len(scored)} lần chấm, QC loại {len(rejected)} ({pct(len(rejected), len(scored))}):")
+        kept = sum(1 for j, _ in rejected if any(r["reviewer_type"] == "user" and r["decision"] == "approve" for r in d.reviews[j["id"]]))
+        w(f"**{label}** — {len(scored)} lần chấm, QC loại {len(rejected)} ({pct(len(rejected), len(scored))}), sau đó người giữ lại {kept}:")
         w("")
         w(f"| Tiêu chí | Điểm TB | < {LOW} | Dưới mức sàn | Là tiêu chí thấp nhất ở lần bị loại |")
         w("|---|---|---|---|---|")
