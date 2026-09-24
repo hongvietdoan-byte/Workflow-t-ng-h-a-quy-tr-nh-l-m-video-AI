@@ -251,3 +251,47 @@ class DashboardGateTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class OwnerRemoteTests(unittest.TestCase):
+    """GĐ-A1: signing in needs only an e-mail, so once the dashboard is on the LAN the owner needs a passcode from another machine."""
+
+    def setUp(self):
+        self.env = {k: os.environ.pop(k, None) for k in ("DASHBOARD_LAN", "DASHBOARD_OWNER_PASSCODE", "DASHBOARD_OWNER_LOCAL_ONLY")}
+
+    def tearDown(self):
+        for k, v in self.env.items():
+            os.environ.pop(k, None)
+            if v is not None:
+                os.environ[k] = v
+
+    def test_on_the_lan_the_owner_needs_the_passcode_from_another_machine(self):
+        conn = fresh()
+        os.environ["DASHBOARD_LAN"] = "1"
+        with self.assertRaises(AuthError):
+            auth.login(conn, OWNER, "ip=10.0.0.9", local=False)                          # no passcode configured: refused
+        os.environ["DASHBOARD_OWNER_PASSCODE"] = "s3cret"
+        with self.assertRaises(AuthError):
+            auth.login(conn, OWNER, "ip=10.0.0.9", local=False, passcode="wrong")
+        self.assertTrue(auth.login(conn, OWNER, "ip=10.0.0.9", local=False, passcode="s3cret"))
+        self.assertTrue(auth.login(conn, OWNER, "", local=True))                          # on the dashboard machine: e-mail only
+        self.assertTrue(auth.login(conn, "m@garena.vn", "ip=10.0.0.9", local=False))       # members are not affected
+
+    def test_without_the_lan_nothing_changes(self):
+        self.assertIsNone(auth.owner_remote_check(OWNER, local=False))
+
+
+class RequestSourceTests(unittest.TestCase):
+    def check(self, host, ip):
+        from types import SimpleNamespace
+        from unittest import mock
+        from dashboard import common
+        fake = SimpleNamespace(context=SimpleNamespace(headers={"Host": host}, ip_address=ip))
+        with mock.patch.object(common, "st", fake):
+            return common.request_source()[1]
+
+    def test_a_forged_host_header_does_not_make_a_lan_visitor_local(self):
+        self.assertFalse(self.check("localhost:8501", "10.0.0.9"))
+        self.assertTrue(self.check("localhost:8501", "127.0.0.1"))
+        self.assertTrue(self.check("localhost:8501", None))       # Streamlit gives no address for a browser on this machine
+        self.assertFalse(self.check("10.0.0.5:8501", None))

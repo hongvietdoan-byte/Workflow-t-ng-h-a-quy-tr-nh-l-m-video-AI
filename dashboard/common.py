@@ -282,7 +282,12 @@ def request_source() -> tuple:
         ip = st.context.ip_address or ""
     except Exception:  # noqa: BLE001 - an older Streamlit or a test runner: unknown origin
         return "", True
-    local = host.split(":")[0].strip("[]") in ("localhost", "127.0.0.1", "::1", "")
+    # The connecting address decides, not the Host header (a LAN visitor can send "Host: localhost"). Streamlit gives no address
+    # for a browser on this machine, so only then is the Host header trusted.
+    if ip:
+        local = ip.strip("[]") in ("127.0.0.1", "::1") or ip.startswith("::ffff:127.")
+    else:
+        local = host.split(":")[0].strip("[]") in ("localhost", "127.0.0.1", "::1", "")
     return f"host={host} ip={ip}", local
 
 def lan_address() -> str:

@@ -15,11 +15,11 @@ def risk_popover(p: Pipeline, pid: int) -> None:
             ui.html(f'{tag} <b>{escape(n["title"])}</b><br><span class="muted">{escape(n["detail"])}</span>')
 
 
-def sign_in(conn, email: str) -> bool:
+def sign_in(conn, email: str, passcode: str = None) -> bool:
     """Try to sign this browser session in. True on success (the address remembers the e-mail for reloads)."""
     source, local = request_source()
     try:
-        st.session_state["auth_token"] = auth.login(conn, email, source, local)
+        st.session_state["auth_token"] = auth.login(conn, email, source, local, passcode)
     except auth.AuthError as e:
         st.session_state["login_error"] = str(e)
         return False
@@ -34,7 +34,10 @@ def login_screen(conn) -> None:
     with mid:
         ui.html('<div class="brand" style="font-size:20px"><i></i>AI Video Pipeline</div>')
         email = st.text_input("E-mail của bạn", key="login_email", placeholder="ten@garena.vn")
-        if st.button("Vào Dashboard", key="login_btn", type="primary") and sign_in(conn, email):
+        passcode = None
+        if (email or "").strip().lower() == auth.OWNER_EMAIL and not request_source()[1]:
+            passcode = st.text_input("Mã Owner (khi đăng nhập Owner từ máy khác)", type="password", key="login_passcode")
+        if st.button("Vào Dashboard", key="login_btn", type="primary") and sign_in(conn, email, passcode):
             st.rerun()
         if st.session_state.get("login_error"):
             st.error(st.session_state["login_error"])
@@ -51,7 +54,9 @@ def require_login(conn) -> None:
     if ident is None:
         st.session_state.pop("identity", None)
         st.session_state.pop("auth_token", None)
-        remembered = st.query_params.get("login")          # a reload or a bookmark: ?login=ten@garena.vn
+        remembered = st.query_params.get("login")          # a reload or a bookmark: ?login=ten@garena.vn (never the owner: see auth)
+        if remembered and remembered.strip().lower() == auth.OWNER_EMAIL and not request_source()[1]:
+            remembered = None                              # a link must not sign anyone in as Owner from another machine
         if remembered and not st.session_state.get("login_tried") and sign_in(conn, remembered):
             st.session_state["login_tried"] = True
             ident = auth.identity(conn, st.session_state.get("auth_token"))

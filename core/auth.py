@@ -129,13 +129,36 @@ def _perms(raw) -> List[str]:
 
 
 # ---- sign in ------------------------------------------------------------------------------------------------
-def login(conn, email: str, source: str = "", local: bool = True) -> str:
-    """Sign in with just an e-mail. Returns a session token. `source` (address the request came from) goes to the audit log."""
+def _on(name: str) -> bool:
+    return os.environ.get(name, "").strip().lower() in ("1", "true", "on")
+
+
+def owner_remote_check(email: str, local: bool, passcode: Optional[str] = None) -> Optional[str]:
+    """Why the owner may not sign in from this machine, else None. Signing in needs only an e-mail, so once the dashboard is open to
+    the network (DASHBOARD_LAN=1) anyone who knows the owner's address could become Owner: from another machine the owner must also
+    give DASHBOARD_OWNER_PASSCODE (set in dashboard.env). DASHBOARD_OWNER_LOCAL_ONLY=1 refuses remote owner sign-in altogether."""
+    if email != OWNER_EMAIL or local:
+        return None
+    if _on("DASHBOARD_OWNER_LOCAL_ONLY"):
+        return "Owner chỉ được đăng nhập từ chính máy đang chạy Dashboard (DASHBOARD_OWNER_LOCAL_ONLY)"
+    code = os.environ.get("DASHBOARD_OWNER_PASSCODE", "").strip()
+    if code:
+        return None if passcode and secrets.compare_digest(passcode.strip(), code) else "Sai hoặc thiếu mã Owner"
+    if _on("DASHBOARD_LAN"):
+        return ("Dashboard đang mở cho mạng LAN: Owner đăng nhập từ máy khác cần mã Owner — đặt DASHBOARD_OWNER_PASSCODE trong dashboard.env "
+                "(hoặc đăng nhập trên chính máy chạy Dashboard)")
+    return None
+
+
+def login(conn, email: str, source: str = "", local: bool = True, passcode: Optional[str] = None) -> str:
+    """Sign in with just an e-mail (the owner, from another machine, also with the owner passcode — see owner_remote_check).
+    Returns a session token. `source` (address the request came from) goes to the audit log."""
     email = normalize_email(email)
     ensure_owner(conn)
-    if email == OWNER_EMAIL and os.environ.get("DASHBOARD_OWNER_LOCAL_ONLY", "").strip() in ("1", "true", "on") and not local:
+    refused = owner_remote_check(email, local, passcode)
+    if refused:
         audit(conn, email, "owner_login_refused", f"not local ({source})")
-        raise AuthError("Owner chỉ được đăng nhập từ chính máy đang chạy Dashboard (DASHBOARD_OWNER_LOCAL_ONLY)")
+        raise AuthError(refused)
     row = conn.execute("SELECT * FROM users WHERE email=?", (email,)).fetchone()
     if row is None:
         domain = email.split("@", 1)[1]
