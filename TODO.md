@@ -81,7 +81,9 @@ P3 tab hiệu suất đếm đúng; S4 cảnh báo 2 cửa sổ cùng dự án; 
 - (2026-09-24, người dùng chốt) **Giọng ưu tiên = 4 giọng clone của team có hậu tố VN** (⭐, `data/voices_vi.json`): nam `voice boy ingame VN` (72),
   `voice Hip VN` (69); nữ `Voice girl ingame VN` (71), `Voice Kelly VN` (70). API lấy được qua `voice-actors?game_code=FF` (tên có tiền tố
   `ClipAI_`, không ghi ngôn ngữ/giới tính → khai trong file cấu hình). Danh sách giọng ở Bước 1/5, Claude chọn giọng (prompt 15) và
-  `tools/voice_trial.py` đều xếp 4 giọng này lên đầu; thư viện official đọc đủ các trang (118 giọng). **Chưa thử TTS thật bằng giọng clone qua API.**
+  `tools/voice_trial.py` đều xếp 4 giọng này lên đầu; thư viện official đọc đủ các trang (118 giọng). **Đã thử thật 1 câu (2026-09-24):**
+  `Voice Kelly VN` (id 70) + `eleven_v3` qua API → xong sau ~10 s, mp3 4,7 s, kiểm tự động AU-f đạt (chưa so chữ: máy chưa cài
+  faster-whisper). File: `data/voice_trial/thu_1_cau_kelly_vn/tts_1609.mp3` — **chờ người dùng nghe chấm** trước khi chạy bộ thử 80 lượt.
 
 ### 5. Người dùng cần làm / cung cấp
 1. Nghe thử giọng Việt với `eleven_v3` (GĐ-I bậc 0) — xác nhận lỗi giọng đã hết.

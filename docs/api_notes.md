@@ -40,6 +40,7 @@ Clip AI là cổng vào Kling và Seedance; phản hồi khác API gốc.
 - **Không có trường negative prompt** trong hợp đồng công khai → adapter mặc định không gửi (`CLIPAI_NEGATIVE=append` để nối "Avoid: …" vào prompt; cần thử thực tế).
 - Skill chính thức yêu cầu **tối ưu prompt Seedance theo tài liệu riêng của từng phiên bản** (2.0 và 2.5) trước khi gửi; xem `TODO.md`.
 - Audio: bất đồng bộ (tạo trả `asset_id`, sau đó poll `audio-list` theo `category` tới `status=success` và có `url`); TTS cần `voice_actor_id` số của Clip AI; mặc định `eleven_v3` (TTS), `eleven_text_to_sound_v2` (SFX), `music_v2` (nhạc); `text`/`prompt` ≤ 2000 ký tự. Chưa có adapter audio.
+- **Giọng clone của team (2026-09-24):** `GET /api/sound/voice-actors?game_code=FF` trả 12 giọng clone nhóm FF (`library_scope=game`, `source_type=cloned`, tên có tiền tố `ClipAI_`, `languages` rỗng); `owner` chỉ nhận `official` (khác → code 1110); danh sách official có 118 giọng (phải đọc trang 2). Thử thật 1 câu TTS bằng `Voice Kelly VN` (id 70) + `eleven_v3`: xong ~10 s, mp3 4,7 s → **API tạo được giọng từ giọng clone**. Giọng ưu tiên cấu hình ở `data/voices_vi.json`.
 - Bản quyền/kiểm duyệt: chủ thể Seedance `active` coi như đã qua duyệt người thật; game FF có thỏa thuận bản quyền, các game khác thì chưa (vẫn có thể bị chặn bản quyền).
 
 ## Cấu hình chạy (PowerShell, chỉ trong phiên hiện tại)
