@@ -41,6 +41,20 @@
 - [x] AU-h `tools/voice_trial.py`: 10 câu mẫu × model Việt × giọng Việt; mặc định chỉ in kế hoạch, `--yes` mới gửi (tính trần lượt âm thanh), `--poll` tải + kiểm AU-f + ghi `bang_cham.csv`, `--summary` xếp hạng theo điểm người nghe. **Chạy ở GĐ-I bậc 0 (xin phép).**
 - Còn của GĐ-G: D10 (SFX chọn theo tên file, 2 nút "Kiểm tra + tải về") — gộp vào GĐ-H; thử `reference_audio` Seedance cho shot cận nói (AU-g phần 2) — GĐ-I.
 
+**Hồ sơ chuẩn nhân vật (T1) — 2026-09-24:** đã **soạn nháp** (chưa duyệt) cho KELLY (#23), KENTA (#24, **ngoại hình OB55 làm lại** — người dùng
+chốt), MAXIM (#33) từ ảnh tham chiếu + ff.garena.com + bảng thiết kế của team (Kelly 1,70 m · Kenta 1,85 m · Maxim 1,82 m); gắn vai trò/look cho
+19 ảnh; ảnh trùng nội dung (6 ảnh) và ảnh Kenta bản cũ trước OB55 (4 ảnh) chuyển về "chờ duyệt" kèm ghi chú → pipeline không gửi (không xóa).
+Lý do: A/B GPT Image 2.5 cho thấy Lock cũ của dự án ghi Kelly "tóc đuôi ngựa", Maxim "tóc tối" (trái ảnh) và Kho trộn 2 ngoại hình Kenta.
+**Kế hoạch làm cho TOÀN BỘ nhân vật (sau khi 3 hồ sơ trên được duyệt và thử lại A/B):**
+1. Script `tools/draft_profiles.py` (không tốn tiền phần 1–3): (1) tìm ảnh trùng theo sha256 trong mỗi mục → "chờ duyệt" + ghi chú;
+   (2) đoán vai trò ảnh theo tỉ lệ (sẵn có) + nhận bảng thiết kế; (3) phát hiện mục có **nhiều ngoại hình** (rework/skin/OB) — ảnh lệch nhau
+   hoặc có mục "<tên> ở OBxx" → liệt kê để người chọn ngoại hình chuẩn hoặc tách mục (như Kenta).
+2. (tốn ít Claude API) mỗi nhân vật 1 lượt Claude Vision: đọc bảng thiết kế (chiều cao/cân nặng) + 2 ảnh tham chiếu + mô tả ff.garena.com →
+   nháp hồ sơ (tiếng Anh cho model, cùng khuôn KELLY/KENTA/MAXIM) — lưu **nháp, không duyệt**. Ước tính ~65 nhân vật × ~$0,02 ≈ $1,3 (đo lại).
+3. Thứ tự: nhân vật đã dùng trong dự án → 24 nhân vật chủ động → phần còn lại → thú cưng.
+4. Người duyệt từng hồ sơ ở ⚙ → 📁 Kho → 📋 (xem ảnh bên cạnh); 🩺 Sức khỏe kho báo mục chưa có hồ sơ duyệt.
+5. Xin team ảnh render sạch cho nhân vật có rework (vd Kenta OB55 hiện chỉ có 1 ảnh nửa người + 1 ảnh gameplay).
+
 **GĐ-F còn:** W2 pilot chọn cảnh đại diện theo nhân vật/bối cảnh/cỡ cảnh (`core/pilot.py`); W8 đo đồng thuận người–QC rồi mới tự nới cổng storyboard;
 W10 bảng luật từng model `data/provider_rules.json` kiểm trước khi gửi (Seedance không trộn khung đầu+tham chiếu, Kling 512 ký tự/15 s, độ dài hợp lệ…);
 M3 khóa poll một nơi (dashboard + autopilot cùng poll 1 job); O6 cổng Bible đòi Lock/ảnh mốc; M12 QC video (6 khung, bỏ 2 đầu, không mốc thời gian);
@@ -90,7 +104,8 @@ P3 tab hiệu suất đếm đúng; S4 cảnh báo 2 cửa sổ cùng dự án; 
 1. ~~Nghe thử giọng Việt với `eleven_v3` (GĐ-I bậc 0)~~ — **xong 2026-09-24:** nghe ổn, dùng 4 giọng clone VN của team.
 2. Gửi `clipai-1.3.1/clipai/reference.md` + `scripts/video.mjs` (mở K1/K2 khung cuối, K5 `element_ids`).
 3. Thử 3D trên máy: `dashboard.env` thêm `MODEL3D_DIR=D:\AI-Video-Pipeline\model 3D`, `BLENDER_PATH=...\Blender 5.0\blender.exe`; làm theo `docs/HUONG_DAN_3D.md`, ghi số liệu vào `docs/RESEARCH_3D_PREVIZ.md`. Cho biết định dạng/dung lượng/số tam giác file tháp, chiều cao thật, ảnh trời in-game, cấu hình máy.
-4. Trong ⚙ → 📁 Kho: duyệt ảnh chờ, đặt vai trò ảnh (nhất là "nền ngang tầm mắt" cho bối cảnh), duyệt 📋 hồ sơ chuẩn cho Kelly, Kenta, Maxim…
+4. Trong ⚙ → 📁 Kho: duyệt ảnh chờ, đặt vai trò ảnh (nhất là "nền ngang tầm mắt" cho bối cảnh), **duyệt 📋 hồ sơ chuẩn nháp đã soạn sẵn cho
+   KELLY, KENTA (OB55), MAXIM** (sửa nếu cần rồi tích ✔ Duyệt). Ảnh "chờ duyệt" có ghi chú "trùng" / "bản cũ trước OB55" là cố ý, đừng duyệt lại.
 5. Đối chiếu số dư ClipAI: `py tools/recover_clips.py --reconcile --project <id>` (chỉ đọc) → báo tỉ giá `cost` ↔ USD.
 6. Quyết định LAN/firewall; merge PR #1 về `main` khi sẵn sàng.
 
