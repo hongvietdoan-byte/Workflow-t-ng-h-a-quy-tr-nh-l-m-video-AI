@@ -21,7 +21,7 @@ TRANSITIONS = {
     JobState.SUCCEEDED: {JobState.PENDING_REVIEW, JobState.APPROVED, JobState.REJECTED},
     JobState.PENDING_REVIEW: {JobState.APPROVED, JobState.REJECTED},
     JobState.APPROVED: {JobState.REJECTED},  # only through Pipeline.reopen_approved (the user changed their mind)
-    JobState.REJECTED: set(),
+    JobState.REJECTED: {JobState.APPROVED},  # only through Pipeline.keep_rejected (the person keeps what the QC agent rejected)
     JobState.CANCELLED: set(),
 }
 

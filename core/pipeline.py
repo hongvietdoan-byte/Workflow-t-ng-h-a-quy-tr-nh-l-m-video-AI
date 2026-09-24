@@ -371,6 +371,38 @@ class Pipeline:
         new_id = self._spawn_retry(job_id, note)
         return "rejected" if new_id else "escalated"
 
+    def keepable_rejected(self, scene_id: int, kind: str = "video_gen"):
+        """The last result the QC agent rejected for this scene, when its file is still the scene's latest result (no later job
+        made a file, none is being made) — the person may keep it instead of paying for another take. Row or None."""
+        row = self.conn.execute("SELECT * FROM jobs WHERE scene_id=? AND type=? AND state='rejected' AND result_path IS NOT NULL"
+                                " ORDER BY id DESC LIMIT 1", (scene_id, kind)).fetchone()
+        if row is None or not os.path.exists(row["result_path"]):
+            return None
+        if self.conn.execute("SELECT 1 FROM jobs WHERE scene_id=? AND type=? AND id>? AND (result_path IS NOT NULL OR state='running')",
+                             (scene_id, kind, row["id"])).fetchone():
+            return None
+        last = self.conn.execute("SELECT reviewer_type FROM review_log WHERE job_id=? ORDER BY id DESC LIMIT 1", (row["id"],)).fetchone()
+        return row if last is not None and last["reviewer_type"] == "ai_agent" else None
+
+    def keep_rejected(self, job_id: int, note: Optional[str] = None) -> None:
+        """The person overrides the QC agent: the rejected result is approved as it is and the takes queued after it are dropped."""
+        job = self.job(job_id)
+        keep = self.keepable_rejected(job["scene_id"], job["type"])
+        if keep is None or keep["id"] != job_id:
+            raise InvalidTransition(f"job {job_id} cannot be kept (not the scene's last QC-rejected result with its file)")
+        for later in self.conn.execute("SELECT id, state FROM jobs WHERE scene_id=? AND type=? AND id>?",
+                                       (job["scene_id"], job["type"], job_id)).fetchall():
+            state = JobState(later["state"])
+            if state == JobState.FAILED:
+                self.transition(later["id"], JobState.RETRYABLE, note="giữ bản QC đã loại")
+                state = JobState.RETRYABLE
+            if state in (JobState.QUEUED, JobState.RETRYABLE):
+                self.transition(later["id"], JobState.CANCELLED, actor="user", note="giữ bản QC đã loại")
+            self.conn.execute("UPDATE jobs SET escalated=0 WHERE id=?", (later["id"],))
+        self.conn.execute("UPDATE scenes SET state='ready' WHERE id=? AND state='needs_attention'", (job["scene_id"],))
+        self._log_review(job_id, "user", "approve", note or "giữ bản QC đã loại")
+        self.transition(job_id, JobState.APPROVED, actor="user", note=note or "giữ bản QC đã loại")
+
     def _require_reviewable(self, job_id: int) -> None:
         if self.state(job_id) not in REVIEWABLE:
             raise InvalidTransition(f"job {job_id} is {self.state(job_id).value}, not reviewable")

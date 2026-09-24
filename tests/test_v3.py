@@ -503,6 +503,41 @@ class BudgetAndCompareTests(unittest.TestCase):
         self.assertIn("hết hạn mức", str(ctx.exception))
         autopilot._stop_if_claude_blocked([(1, "JSON không hợp lệ")])          # an ordinary QC failure does not stop the run
 
+    def test_the_person_can_keep_a_clip_the_qc_agent_rejected_instead_of_paying_again(self):
+        from core.states import InvalidTransition
+        p, pid = kenta_project(shot_mode=None)
+        llm_runner.run_director(p, pid, llm_runner.MockLlm())
+        data = tempfile.mkdtemp()
+        sid = p.conn.execute("SELECT id FROM scenes WHERE project_id=? ORDER BY idx LIMIT 1", (pid,)).fetchone()["id"]
+        jid = p.create_job(sid, "video_gen")
+        clip = os.path.join(data, "01.mp4")
+        open(clip, "wb").write(b"clip")
+        p.start(jid)
+        p.conn.execute("UPDATE jobs SET result_path=? WHERE id=?", (clip, jid))
+        p.succeed(jid)
+        p.reject(jid, "ai_agent", "QC 0.6 < 0.82")                       # the QC agent queues another (paid) take
+        retry = p.conn.execute("SELECT id FROM jobs WHERE scene_id=? AND id>?", (sid, jid)).fetchone()["id"]
+        self.assertEqual(p.keepable_rejected(sid)["id"], jid)
+        p.keep_rejected(jid)
+        self.assertEqual(p.state(jid).value, "approved")
+        self.assertEqual(p.state(retry).value, "cancelled")
+        other = p.create_job(sid, "video_gen")                           # a person's own rejection is not overridden this way
+        p.start(other)
+        p.conn.execute("UPDATE jobs SET result_path=? WHERE id=?", (clip, other))
+        p.succeed(other)
+        p.reject(other, "user", "không đẹp", respawn=False)
+        self.assertIsNone(p.keepable_rejected(sid))
+        with self.assertRaises(InvalidTransition):
+            p.keep_rejected(other)
+
+    def test_a_kling_multishot_prompt_is_cut_to_512_characters_at_a_sentence(self):
+        from core.adapters.clipai import KLING_SHOT_PROMPT_LIMIT, _shorten
+        text = "Kenta draws his katana. " * 40
+        out = _shorten(text, KLING_SHOT_PROMPT_LIMIT)
+        self.assertLessEqual(len(out), 512)
+        self.assertTrue(out.endswith("."))
+        self.assertEqual(_shorten("short.", 512), "short.")
+
     def test_every_dialog_the_dashboard_opens_is_known_to_open_dialog(self):
         import glob
         import re

@@ -68,7 +68,7 @@ def step4(p: Pipeline, pid: int):
                 autoqc.clear_video_error(pid)
                 st.rerun()
     jobs = p.conn.execute("SELECT j.*, s.idx FROM jobs j JOIN scenes s ON s.id=j.scene_id"
-                          " WHERE j.project_id=? AND j.type='video_gen' AND j.state NOT IN ('rejected','cancelled') ORDER BY s.idx, j.id",
+                          " WHERE j.project_id=? AND j.type='video_gen' AND j.state!='cancelled' ORDER BY s.idx, j.id",
                           (pid,)).fetchall()
     latest = {}
     for j in jobs:
@@ -237,6 +237,20 @@ def video_card(p: Pipeline, pid: int, j, runner, stale_reason) -> None:
                 show_video(clip)
         if scores:
             st.caption(" · ".join(f"{CRITERIA_LABEL.get(s['criterion'], s['criterion'])} {s['score']:.2f}" for s in scores))
+        keep = p.keepable_rejected(j["scene_id"]) if j["state"] in ("rejected", "queued", "failed", "retryable") else None
+        if keep is not None:
+            kept = qc_scores(p, keep["id"])
+            mean = sum(s["score"] for s in kept) / len(kept) if kept else None
+            with st.expander("👀 Bản QC đã loại" + (f" (QC {mean:.2f})" if mean is not None else "") + " — xem và giữ lại nếu dùng được",
+                             expanded=j["state"] == "rejected"):
+                show_video(keep["result_path"])
+                if keep["retry_reason"] or kept:
+                    st.caption("Lý do QC loại: " + escape((p.conn.execute("SELECT note FROM review_log WHERE job_id=? ORDER BY id DESC LIMIT 1",
+                                                                          (keep["id"],)).fetchone() or {"note": ""})["note"] or "")[:400])
+                if st.button("✔ Vẫn dùng bản này", key=f"vkeep_{keep['id']}", type="primary",
+                             help="Bạn là người quyết định cuối: giữ clip QC đã loại, hủy lần gen lại đang chờ (không tốn thêm credit)."):
+                    if act(lambda: p.keep_rejected(keep["id"]), "Đã giữ clip"):
+                        st.rerun()
         if j["state"] == "pending_review":
             st.text_input("Ghi chú lý do loại (đưa vào lần gen lại)", key=f"vnote_{j['id']}")
         scene_expander(p, j["scene_id"], with_motion=True)

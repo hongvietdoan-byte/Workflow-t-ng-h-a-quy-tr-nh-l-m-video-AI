@@ -82,6 +82,19 @@ def effective_duration(canonical: str, family: str, duration: float) -> int:
     return int(min(max(round(duration), 4), limit))
 
 
+KLING_SHOT_PROMPT_LIMIT = 512   # each shot of a Kling multi-shot request (API: "multiPrompt[0].prompt: size must be between 0 and 512")
+
+
+def _shorten(text: str, limit: int) -> str:
+    """At most `limit` characters, cut after the last full sentence (or word) that fits."""
+    text = text.strip()
+    if len(text) <= limit:
+        return text
+    cut = text[:limit]
+    end = max(cut.rfind(". "), cut.rfind("; "), cut.rfind(".\n"))
+    return cut[:end + 1] if end > limit // 2 else cut[:cut.rfind(" ")].rstrip(",;: ")
+
+
 REAL_PERSON = "real_person"   # Seedance refuses a start picture that looks like a real person (privacy filter)
 _REAL_PERSON_HINTS = ("may contain real person", "privacyinformation")
 
@@ -224,7 +237,8 @@ class ClipAIVideoProvider:
                 ctx["video_list"] = [{"video_url": "", "refer_type": reference_video.get("refer_type", "feature"),
                                       "keep_original_sound": "no"}]
             if multi_prompt:                   # experiment: several shots in one generation (reference.md Text2VideoO1SubmitRequest)
-                shots = [{"index": i, "prompt": str(sh["prompt"])[:2500], "duration": str(effective_duration(canonical, family, sh["duration"]))}
+                shots = [{"index": i, "prompt": _shorten(str(sh["prompt"]), KLING_SHOT_PROMPT_LIMIT),
+                          "duration": str(effective_duration(canonical, family, sh["duration"]))}
                          for i, sh in enumerate(multi_prompt, 1)]
                 ctx.update(multi_shot=1, shot_type="customize", multi_prompt=shots,
                            duration=str(sum(int(sh["duration"]) for sh in shots)))
