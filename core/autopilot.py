@@ -26,7 +26,7 @@ from .pipeline import Pipeline
 RUNNING, WAITING, STOPPED, ATTENTION, DONE, ERROR = "running", "waiting", "stopped", "needs_attention", "done", "error"
 QUEUED = "queued"   # approved, waiting for a free slot (see Manager.max_parallel)
 PHASE_LABELS = {"director": "Director (Character Bible + thông số cảnh)", "previz": "Dựng layout / storyboard", "images": "Gen ảnh + QC",
-                "setcheck": "QC đồng bộ cả bộ ảnh", "motion": "Motion prompt", "voice": "Giọng thoại", "videos": "Gen video + QC video",
+                "setcheck": "QC đồng bộ cả bộ ảnh", "storyboard": "Duyệt storyboard trước khi gen video", "motion": "Motion prompt", "voice": "Giọng thoại", "videos": "Gen video + QC video",
                 "music": "Nhạc nền", "sfx": "Hiệu ứng âm thanh", "render": "Xuất bản", "done": "Hoàn tất"}
 MAX_SCENES = int(os.environ.get("AUTOPILOT_MAX_SCENES", "12"))
 LOG_KEEP = 60
@@ -146,7 +146,7 @@ def start(p: Pipeline, project_id: int, user: Optional[str] = None) -> None:
     p.set_mode(project_id, "auto")
     p.set_review_floor(project_id, None)   # nothing may wait for a human
     p.set_paused(project_id, False)
-    set_gates(p, project_id, {"bible_done": False, "pilot_done": False, "waiting_for": None})
+    set_gates(p, project_id, {"bible_done": False, "pilot_done": False, "storyboard_ok": None, "waiting_for": None})
     _set(p, project_id, RUNNING, "Đã duyệt phân cảnh, đang chạy tự động")
     _log(p, project_id, "Bạn đã duyệt phân cảnh → bắt đầu chạy tự động")
 
@@ -164,6 +164,10 @@ def resume(p: Pipeline, project_id: int, user: Optional[str] = None) -> None:
         pilot.release(p, project_id)
         set_gates(p, project_id, {"pilot_done": True, "waiting_for": None})
         _log(p, project_id, "Bạn đã duyệt ảnh mẫu thử → gen phần còn lại")
+    elif gates.get("waiting_for") == "storyboard":
+        from . import storyboard_gate
+        set_gates(p, project_id, {"storyboard_ok": storyboard_gate.fingerprint(p, project_id), "waiting_for": None})
+        _log(p, project_id, "Bạn đã duyệt storyboard → viết motion prompt và gen video")
     _save_cfg(p, project_id)
     p.set_mode(project_id, "auto")
     p.set_paused(project_id, False)
@@ -346,6 +350,17 @@ def _daily_cap(p: Pipeline) -> None:
     limit = perf.daily_limit()
     if limit and perf.jobs_today(p.conn) >= limit:
         raise _Stop(DAILY_NOTE)
+
+
+def _storyboard_phase(p: Pipeline, pid: int, ctx: Context) -> Optional[str]:
+    """Every start picture is ready: wait for the person to look at the whole storyboard before any video credit is spent (W1).
+    A picture changed after the approval (redo, set check) brings the checkpoint back."""
+    from . import storyboard_gate
+    gates = get_gates(p, pid)
+    if not gates["storyboard"] or gates.get("storyboard_ok") == storyboard_gate.fingerprint(p, pid):
+        return None
+    raise _Wait("storyboard", "Ảnh khung đầu đã đủ (" + storyboard_gate.summary(p, pid) + ") — xem “🎞 Storyboard” ở Bước 2, sửa/gen lại "
+                              "shot sai, rồi bấm “Duyệt storyboard” để gen video")
 
 
 def _motion_phase(p: Pipeline, pid: int, ctx: Context) -> Optional[str]:
@@ -540,7 +555,7 @@ def tick(p: Pipeline, project_id: int, ctx: Context) -> str:
         return RUNNING
     try:
         phases = [("director", _director_phase), ("previz", _previz_phase), ("images", _images_phase), ("setcheck", _setcheck_phase),
-                  ("motion", _motion_phase), ("voice", _voice_phase), ("videos", _videos_phase), ("music", _music_phase),
+                  ("storyboard", _storyboard_phase), ("motion", _motion_phase), ("voice", _voice_phase), ("videos", _videos_phase), ("music", _music_phase),
                   ("sfx", _sfx_phase)]
         for name, fn in phases:
             progress_note = fn(p, project_id, ctx)
@@ -698,7 +713,7 @@ class Manager:
 
 
 # ---- gates (human checkpoints the person switches on) ----------------------------------------------------------------
-GATE_DEFAULTS = {"bible": True, "pilot": False}
+GATE_DEFAULTS = {"bible": True, "pilot": False, "storyboard": True}
 
 
 class _Wait(Exception):
@@ -712,7 +727,7 @@ def get_gates(p: Pipeline, project_id: int) -> Dict:
         saved = json.loads(p.project(project_id)["autopilot_gates"] or "{}")
     except (ValueError, KeyError, IndexError, TypeError):
         saved = {}
-    return {**GATE_DEFAULTS, "bible_done": False, "pilot_done": False, "waiting_for": None, **saved}
+    return {**GATE_DEFAULTS, "bible_done": False, "pilot_done": False, "storyboard_ok": None, "waiting_for": None, **saved}
 
 
 def set_gates(p: Pipeline, project_id: int, changes: Dict) -> None:
@@ -743,7 +758,7 @@ def reset(p: Pipeline, project_id: int, data_dir: Optional[str] = None) -> None:
     """Forget the automatic run's state (pictures and clips already made are kept)."""
     p.conn.execute("UPDATE projects SET autopilot_state=NULL, autopilot_note=NULL WHERE id=?", (project_id,))
     p.conn.commit()
-    set_gates(p, project_id, {"bible_done": False, "pilot_done": False, "waiting_for": None})
+    set_gates(p, project_id, {"bible_done": False, "pilot_done": False, "storyboard_ok": None, "waiting_for": None})
     _restore_cfg(p, project_id)
     for marker in (os.path.join("layouts", ".autopilot_done"), os.path.join("qc_set", ".autopilot_done"), ".lint_done"):
         path = os.path.join(data_dir or os.environ.get("PIPELINE_DATA", os.path.join("data", "projects")), str(project_id), marker)

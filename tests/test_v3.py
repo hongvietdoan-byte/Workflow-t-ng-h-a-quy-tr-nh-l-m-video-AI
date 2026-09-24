@@ -437,7 +437,7 @@ class BudgetAndCompareTests(unittest.TestCase):
             return out
         ctx = autopilot.Context(data, ImageRunner(p, MockImageProvider(), data), VideoRunner(p, MockVideoProvider(polls_to_finish=1), data),
                                 llm_runner.MockLlm(), music.MockAudioProvider(), render)
-        autopilot.set_gates(p, pid, {"bible": False})
+        autopilot.set_gates(p, pid, {"bible": False, "storyboard": False})
         autopilot.start(p, pid)
         from unittest import mock
         with mock.patch("core.claude_tasks.unchecked_videos", return_value=[]):     # the simulator's clips are not real videos

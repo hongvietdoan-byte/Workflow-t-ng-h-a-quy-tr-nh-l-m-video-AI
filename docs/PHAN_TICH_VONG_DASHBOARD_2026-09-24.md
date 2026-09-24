@@ -197,7 +197,7 @@ Thay đổi cụ thể trong code (không tốn credit):
 
 | # | Sửa | File | Chặn lỗ hổng |
 |---|---|---|---|
-| W1 | Cổng **storyboard** mới giữa ảnh và motion/video (`_Wait("storyboard")`), bật cứng; Bước 2 có nút "Duyệt cả bộ khung" | core/autopilot.py, dashboard/steps/step2.py | V1 |
+| W1 | ✅ **ĐÃ LÀM (2026-09-24)** — Cổng **storyboard** mới giữa ảnh và motion/video (`_Wait("storyboard")`), bật cứng; Bước 2 có nút "Duyệt cả bộ khung" | core/autopilot.py, dashboard/steps/step2.py | V1 |
 | W2 | Pilot bật mặc định lần chạy đầu của dự án; chọn ảnh mẫu theo nhân vật/bối cảnh/cỡ cảnh thay vì 3 cảnh đầu; kết quả pilot = chuẩn cho QC đồng bộ | core/pilot.py, core/autopilot.py | V1, V4 |
 | W3 | Gen lại video phải **đổi đầu vào**: đưa `issues` vào motion prompt (có kiểm độ dài, đúng tên nhân vật); cùng đầu vào → không tự gen lại | core/runner.py (VideoRunner), core/pipeline.py | V2 |
 | W4 | Gen lại ảnh: tách `retry_reason` (ghi chú cho người) khỏi `fix_prompt` (câu tiếng Anh sạch, cộng dồn các lần sửa); bỏ điểm số/tiếng Việt khỏi prompt Deepix | core/pipeline.py, core/runner.py, core/db.py | V3 |
@@ -315,7 +315,9 @@ Kết luận:
   layout chứ không phải của ảnh; cờ `character` dưới sàn và "nhóm thiếu nhân vật" là lỗi chắc chắn. Chính cổng này là nơi ghi quyết
   định người–QC để hiệu chỉnh QC.
 
-**Đề xuất chốt câu 1:** cổng storyboard **bật mặc định**, tự nới dần theo đồng thuận QC–người (như trên); storyboard phải hiện: ảnh
+**Câu 1 — ĐÃ CHỐT (người dùng, 2026-09-24): bật mặc định, thử thật.** Đã làm (W1): `core/storyboard_gate.py` (cờ ⚑, dấu vân tay bộ ảnh đã duyệt — ảnh đổi sau khi duyệt thì cổng bật lại), pha `storyboard` trong autopilot giữa QC đồng bộ và motion, Bước 1 có ô bật/tắt, Bước 2 "🎞 Storyboard" hiện cờ + ảnh tài nguyên nhân vật + nút "✔ Duyệt storyboard — gen video". Phần "tự nới dần" làm sau cùng W8 (cần số đo đồng thuận).
+
+**Đề xuất ban đầu câu 1:** cổng storyboard **bật mặc định**, tự nới dần theo đồng thuận QC–người (như trên); storyboard phải hiện: ảnh
 khung đầu, ảnh tài nguyên của nhân vật trong shot đặt cạnh, cờ QC, và **nhóm multi-shot + nhân vật từng shot**.
 
 **Câu 3 — bổ sung của người dùng (2026-09-24): thư viện prompt mẫu tự đúc kết.** Prompt hiệu quả được giữ lại, đúc kết và tối ưu dần

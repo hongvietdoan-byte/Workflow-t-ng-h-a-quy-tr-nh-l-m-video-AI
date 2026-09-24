@@ -62,7 +62,7 @@ def autopilot_panel(p: Pipeline, pid: int) -> None:
                         st.rerun()
             return
         st.caption("Chuỗi: Director → (dừng để bạn duyệt nhân vật, nếu bật) → dựng layout → ảnh + Claude QC → QC đồng bộ cả bộ → "
-                   "motion prompt + rà prompt → giọng thoại → chọn model từng cảnh → video + QC video → nhạc, hiệu ứng → "
+                   "(dừng để bạn duyệt storyboard, nếu bật) → motion prompt + rà prompt → giọng thoại → chọn model từng cảnh → video + QC video → nhạc, hiệu ứng → "
                    "bản giao (phụ đề, card cuối, bản xuất theo thiết lập ở Bước 5). Gặp việc cần người thì **dừng và báo**.")
         gates = autopilot.get_gates(p, pid)
         g1, g2 = st.columns(2)
@@ -70,8 +70,12 @@ def autopilot_panel(p: Pipeline, pid: int) -> None:
                             key=f"ap_gate_bible_{pid}", help="Nên bật: sai mô tả nhân vật sẽ lan ra MỌI cảnh (bài học từ lần hậu kiểm 2026-09-23).")
         pilot = g2.checkbox("Gen thử 2–3 cảnh đại diện trước, dừng để bạn xem rồi mới gen hết", gates["pilot"], key=f"ap_gate_pilot_{pid}",
                             help="Tiết kiệm credit ở dự án nhiều cảnh: lỗi phong cách/nhân vật lộ ra ở mẫu thử thay vì ở cả lô.")
-        if (bible, pilot) != (gates["bible"], gates["pilot"]):
-            autopilot.set_gates(p, pid, {"bible": bible, "pilot": pilot})
+        board = st.checkbox("Dừng ở **storyboard** (xem cả bộ ảnh khung đầu) trước khi gen video", gates["storyboard"],
+                            key=f"ap_gate_board_{pid}",
+                            help="Nên bật: ở đợt thử GĐ6 ~70% tiền video trả cho clip làm từ ảnh mà lỗi đã nhìn thấy trước (sai nhân vật, "
+                                 "sai cỡ cảnh, nhóm multi-shot thiếu nhân vật). Xem ảnh không tốn tiền; gen video thì có.")
+        if (bible, pilot, board) != (gates["bible"], gates["pilot"], gates["storyboard"]):
+            autopilot.set_gates(p, pid, {"bible": bible, "pilot": pilot, "storyboard": board})
         issues = autopilot.problems(p, pid)
         for msg in issues:
             st.markdown(f":red[✖ {msg}]")

@@ -387,19 +387,35 @@ def pilot_panel(p: Pipeline, pid: int) -> None:
 
 
 def shot_storyboard_panel(p: Pipeline, pid: int) -> None:
-    """v3: the start pictures of all shots in film order with size, role, length and lines — read the rhythm before paying for
-    video. Missing pictures show as an empty slot."""
-    from core import shots
-    rows = [r for r in shots.shots_of(p, pid) if r["data"].get("shot_no")]
+    """Every start picture in film order with size, role, length and lines — and, before any video is paid for, the storyboard
+    checkpoint (W1): flagged shots first, the characters' reference pictures next to each picture, one button to go on to video."""
+    from core import shots, storyboard_gate
+    rows = shots.shots_of(p, pid)
     if not rows:
         return
+    is_v3 = any(r["data"].get("shot_no") for r in rows)
     total = sum(float(r["data"].get("duration_s") or 0) for r in rows)
     own = [r for r in rows if shots.needs_own_image(p.conn, r["id"])]      # multi-shot: later shots of a group use the group's picture
     have = [r for r in own if shots.approved_image_path(p.conn, C.DATA, pid, r["id"])]
     note = "" if len(own) == len(rows) else f" (multi-shot: {len(rows) - len(own)} shot dùng ảnh đầu nhóm)"
-    with st.expander(f"🎞 Storyboard theo shot — {len(have)}/{len(own)} ảnh đã duyệt · {len(rows)} shot · {total:.0f}s{note}",
-                     expanded=False):
-        st.caption("Ảnh khung đầu của từng shot theo thứ tự phim: kiểm tra nhịp, cỡ cảnh, sự liên tục trước khi gen video (rẻ hơn nhiều).")
+    gates = autopilot.get_gates(p, pid)
+    waiting = gates.get("waiting_for") == "storyboard" and autopilot.status(p, pid)["state"] == "waiting"
+    flags = storyboard_gate.flags(p, pid) if have else {}
+    flagged = [r for r in rows if flags.get(r["id"])]
+    title = (f"🎞 Storyboard — {len(have)}/{len(own)} ảnh đã duyệt · {len(rows)} {'shot' if is_v3 else 'cảnh'} · {total:.0f}s{note}"
+             + (f" · ⚑ {len(flagged)} có cờ" if flagged else "") + (" · ⏸ CHỜ BẠN DUYỆT" if waiting else ""))
+    with st.expander(title, expanded=waiting):
+        st.caption("Ảnh khung đầu theo thứ tự phim: kiểm tra nhân vật (so với ảnh tài nguyên bên dưới), cỡ cảnh, nhịp, liên tục TRƯỚC khi gen "
+                   "video — sửa ảnh rẻ hơn nhiều so với gen lại clip. ⚑ = điểm QC cho thấy lỗi dễ thấy (Claude chưa được hiệu chỉnh: "
+                   "tự xem lại, không tin mù).")
+        if waiting:
+            c1, c2 = st.columns([3, 1.4], vertical_alignment="center")
+            c1.warning(f"Chế độ tự động đang dừng ở đây: {storyboard_gate.summary(p, pid)}. Loại/gen lại shot sai ở danh sách ảnh bên trên, "
+                       "rồi bấm duyệt để viết motion prompt và gen video.")
+            if c2.button("✔ Duyệt storyboard — gen video", key=f"board_ok_{pid}", type="primary"):
+                autopilot.resume(p, pid, p.actor)
+                autopilot_manager(C.DB, C.DATA).start(pid)
+                st.rerun()
         per_row = 6
         for k in range(0, len(rows), per_row):
             cols = st.columns(per_row)
@@ -414,9 +430,15 @@ def shot_storyboard_panel(p: Pipeline, pid: int) -> None:
                                 + next((x["label"] for x in rows if x["id"] == lead), "shot đầu nhóm"))
                 else:
                     col.caption("— chưa có ảnh")
+                refs = [x for x in assets.scene_references(p.conn, pid, d) if x["role"] == "character"][:3]
+                if refs:
+                    col.image([x["path"] for x in refs], width=36, caption=[x["label"] for x in refs])
                 lines = " / ".join(f"{x.get('speaker')}: {x.get('text')}" for x in d.get("dialogue") or [])
-                col.caption(f"**{r['label']}** · {d.get('size')} · {d.get('role')} · {float(d.get('duration_s') or 0):g}s"
+                col.caption(f"**{r['label']}** · {d.get('size') or d.get('shot') or ''} · {d.get('role') or ''}"
+                            + (f" · {float(d.get('duration_s') or 0):g}s" if d.get("duration_s") else "")
                             + (" · ➜" if d.get("continuous_with_next") else "") + (f" — {lines[:80]}" if lines else ""))
+                for why in flags.get(r["id"]) or []:
+                    col.markdown(f":orange[⚑ {escape(why)}]")
 
 
 def set_check_panel(p: Pipeline, pid: int) -> None:

@@ -126,7 +126,7 @@ class LearningTests(unittest.TestCase):
 
         mgr = autopilot.Manager(db, data, factory, poll_sec=0.01, max_parallel=6)
         for i in ids:
-            autopilot.set_gates(p, i, {"bible": False})   # unattended run (checkpoint: test_v2)
+            autopilot.set_gates(p, i, {"bible": False, "storyboard": False})   # unattended run (checkpoint: test_v2)
             autopilot.start(p, i)
             mgr.start(i)
         self.assertTrue(wait(db, ids, ("done", "needs_attention", "error", "stopped"), 120))

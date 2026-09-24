@@ -38,6 +38,8 @@ class AutomaticFromSplitScenesTests(unittest.TestCase):
         self.assertEqual(autopilot.run_until_done(p, pid, ctx), autopilot.WAITING)     # v2: stops for the Character Bible review
         self.assertEqual(p.conn.execute("SELECT COUNT(*) FROM jobs").fetchone()[0], 0)
         autopilot.resume(p, pid)                                                     # the person approved it
+        self.assertEqual(autopilot.run_until_done(p, pid, ctx), autopilot.WAITING)     # W1: stops at the storyboard before video
+        autopilot.resume(p, pid)
         self.assertEqual(autopilot.run_until_done(p, pid, ctx), autopilot.DONE)
         self.assertGreater(p.conn.execute("SELECT COUNT(*) FROM characters WHERE locked=1").fetchone()[0], 0)
         self.assertTrue(any("Director" in e["msg"] for e in autopilot.status(p, pid)["log"]))

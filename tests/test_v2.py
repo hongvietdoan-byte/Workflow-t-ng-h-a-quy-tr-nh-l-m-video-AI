@@ -380,11 +380,15 @@ class AutopilotV2Tests(Base):
         self.assertEqual(autopilot.run_until_done(self.p, self.pid, ctx), autopilot.WAITING)
         self.assertEqual(self.p.conn.execute("SELECT COUNT(*) FROM jobs").fetchone()[0], 0)      # nothing paid before the approval
         autopilot.resume(self.p, self.pid)
+        self.assertEqual(autopilot.run_until_done(self.p, self.pid, ctx, max_ticks=400), autopilot.WAITING)   # the storyboard (W1)
+        self.assertEqual(autopilot.get_gates(self.p, self.pid)["waiting_for"], "storyboard")
+        self.assertEqual(self.p.conn.execute("SELECT COUNT(*) FROM jobs WHERE type='video_gen'").fetchone()[0], 0)   # no video paid yet
+        autopilot.resume(self.p, self.pid)
         self.assertEqual(autopilot.run_until_done(self.p, self.pid, ctx, max_ticks=400), autopilot.DONE)
         self.assertEqual(self.p.project(self.pid)["operating_mode"], "human_qc")
 
     def test_without_the_checkpoint_it_runs_straight_through(self):
-        autopilot.set_gates(self.p, self.pid, {"bible": False})
+        autopilot.set_gates(self.p, self.pid, {"bible": False, "storyboard": False})
         autopilot.start(self.p, self.pid)
         self.assertEqual(autopilot.run_until_done(self.p, self.pid, self.ctx(), max_ticks=400), autopilot.DONE)
 

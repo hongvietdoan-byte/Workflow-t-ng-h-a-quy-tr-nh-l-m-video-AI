@@ -47,7 +47,7 @@ class QueueTests(unittest.TestCase):
         p, ids = make_projects(db, 5)
         mgr = autopilot.Manager(db, data, factory, poll_sec=0.02, max_parallel=2)
         for i in ids:
-            autopilot.set_gates(p, i, {"bible": False})   # unattended run (checkpoint: test_v2)
+            autopilot.set_gates(p, i, {"bible": False, "storyboard": False})   # unattended run (checkpoint: test_v2)
             autopilot.start(p, i)
             mgr.start(i)
         states = [autopilot.status(p, i)["state"] for i in ids]
@@ -70,7 +70,7 @@ class QueueTests(unittest.TestCase):
         p, ids = make_projects(db, 3)
         mgr = autopilot.Manager(db, data, factory, poll_sec=0.02, max_parallel=1)
         for i in ids:
-            autopilot.set_gates(p, i, {"bible": False})   # unattended run (checkpoint: test_v2)
+            autopilot.set_gates(p, i, {"bible": False, "storyboard": False})   # unattended run (checkpoint: test_v2)
             autopilot.start(p, i)
             mgr.start(i)
         autopilot.stop(p, ids[2])
@@ -95,7 +95,7 @@ class DailyCapTests(Setup):
         ctx = self.build()
         os.environ["AUTOPILOT_DAILY_JOBS"] = "2"
         try:
-            autopilot.set_gates(self.p, self.pid, {"bible": False})   # unattended run (checkpoint: test_v2)
+            autopilot.set_gates(self.p, self.pid, {"bible": False, "storyboard": False})   # unattended run (checkpoint: test_v2)
             autopilot.start(self.p, self.pid)
             self.assertEqual(autopilot.run_until_done(self.p, self.pid, ctx), autopilot.STOPPED)
             self.assertIn("trong ngày", autopilot.status(self.p, self.pid)["note"])
@@ -107,7 +107,7 @@ class DailyCapTests(Setup):
 class PerfTests(Setup):
     def test_snapshot_reports_throughput_durations_and_projects_after_a_run(self):
         ctx = self.build()
-        autopilot.set_gates(self.p, self.pid, {"bible": False})   # unattended run (checkpoint: test_v2)
+        autopilot.set_gates(self.p, self.pid, {"bible": False, "storyboard": False})   # unattended run (checkpoint: test_v2)
         autopilot.start(self.p, self.pid)
         autopilot.run_until_done(self.p, self.pid, ctx)
         snap = perf.snapshot(self.p.conn, 0, 0, 2)
@@ -123,7 +123,7 @@ class PerfTests(Setup):
         """The portfolio table must show every project side by side -- autopilot or step-by-step,
         finished or not -- unlike the autopilot-only project_rows/snapshot table above."""
         ctx = self.build()
-        autopilot.set_gates(self.p, self.pid, {"bible": False})   # unattended run (checkpoint: test_v2)
+        autopilot.set_gates(self.p, self.pid, {"bible": False, "storyboard": False})   # unattended run (checkpoint: test_v2)
         autopilot.start(self.p, self.pid)
         autopilot.run_until_done(self.p, self.pid, ctx)
         fresh_pid = self.p.create_project("brand new", "human_qc", 0.85, 2)
