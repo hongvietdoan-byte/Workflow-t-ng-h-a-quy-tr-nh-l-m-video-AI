@@ -98,6 +98,12 @@ def main():
             ff_site.maybe_monthly(DB)
         except Exception as e:  # noqa: BLE001
             diag.record(p.conn, "system", "warn", f"kiểm tra cập nhật website lỗi: {type(e).__name__}: {e}", "ff_site")
+    if "asset_files_checked" not in st.session_state:   # A1: library pictures that cannot be read are reported, never skipped silently
+        st.session_state["asset_files_checked"] = True
+        lost = assets.missing_files(p.conn)
+        if lost:
+            diag.record(p.conn, "system", "error", f"{len(lost)} ảnh trong Kho tài nguyên không tìm thấy file (ví dụ {lost[0]['asset']}: "
+                        f"{lost[0]['path']}) — Director/QC/gen ảnh sẽ thiếu ảnh tham chiếu này", "missing_asset_file")
     if "research_checked" not in st.session_state:      # monthly research, at most once per browser session
         st.session_state["research_checked"] = True
         research.maybe_run_in_background(DB)

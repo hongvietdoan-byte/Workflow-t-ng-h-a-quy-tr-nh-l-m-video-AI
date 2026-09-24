@@ -366,7 +366,7 @@ def _storyboard_phase(p: Pipeline, pid: int, ctx: Context) -> Optional[str]:
     held = p.conn.execute("SELECT COUNT(*) FROM jobs WHERE project_id=? AND type='image_gen' AND state='pending_review'", (pid,)).fetchone()[0]
     if not held and (not gates["storyboard"] or gates.get("storyboard_ok") == storyboard_gate.fingerprint(p, pid)):
         return None                                         # pictures held below a floor stop here even with the checkpoint off
-    raise _Wait("storyboard", "Ảnh khung đầu đã đủ (" + storyboard_gate.summary(p, pid) + (f", {held} ảnh dưới mức sàn chờ bạn xem" if held else "")
+    raise _Wait("storyboard", "Ảnh khung đầu đã đủ (" + storyboard_gate.summary(p, pid, ctx.data_dir if ctx else None) + (f", {held} ảnh dưới mức sàn chờ bạn xem" if held else "")
                               + ") — xem “🎞 Storyboard” ở Bước 2, sửa/gen lại shot sai, rồi bấm “Duyệt storyboard” để gen video")
 
 
@@ -820,8 +820,15 @@ def _setcheck_phase(p: Pipeline, pid: int, ctx: Context) -> Optional[str]:
     if os.path.exists(marker) or len(_scene_rows(p, pid)) < 2:
         return None
     try:
+        from . import features
         r = claude_tasks.set_consistency(p, pid, ctx.llm, ctx.data_dir)
         issues = r.get("issues") or []
+        if not features.on("setcheck_autofix"):          # report only: the storyboard shows these to the person (O2/F3)
+            if issues:
+                _d(p, pid, "qc", "warn", "QC đồng bộ thấy lệch ở " + ", ".join(f"cảnh {it['idx']}" for it in issues)
+                   + " — xem cờ ⚑ ở storyboard (không tự gen lại)", "set_check_report")
+            _log(p, pid, "QC đồng bộ cả bộ ảnh: " + (f"{len(issues)} cảnh lệch, chờ bạn xem ở storyboard" if issues else "ổn"))
+            issues = []
         cap_images, _ = _job_caps(p, pid)
         redone = 0
         for it in issues:
@@ -832,7 +839,8 @@ def _setcheck_phase(p: Pipeline, pid: int, ctx: Context) -> Optional[str]:
                 redone += 1
             except (ValueError, Exception):  # noqa: BLE001 - one scene that cannot be redone must not stop the run
                 continue
-        _log(p, pid, "QC đồng bộ cả bộ ảnh: " + (f"làm lại {redone} cảnh lệch" if redone else "ổn"))
+        if redone or features.on("setcheck_autofix"):
+            _log(p, pid, "QC đồng bộ cả bộ ảnh: " + (f"làm lại {redone} cảnh lệch" if redone else "ổn"))
     except (llm_runner.LlmError, ValueError, OSError) as e:
         _d(p, pid, "qc", "warn", f"autopilot bỏ qua QC đồng bộ: {e}", "set_check_skipped")
     with open(marker, "w") as f:

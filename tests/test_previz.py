@@ -5,6 +5,7 @@ import os
 import shutil
 import tempfile
 import unittest
+from unittest import mock
 
 from PIL import Image, ImageDraw
 
@@ -92,6 +93,7 @@ class PrevizTests(unittest.TestCase):
         self.assertEqual(previz.review_storyboard(self.p, self.pid, MockLlm(), self.data), {"ok": True, "issues": []})
         self.assertEqual(previz.last_review(self.data, self.pid)["ok"], True)
 
+    @mock.patch.dict(os.environ, {"FEATURE_LAYOUT_TO_MODEL": "1"})   # mechanism test; off by default until a real test (core/features.py)
     def test_step_2_sends_the_layout_first_and_tells_the_model_to_follow_it(self):
         previz.plan_layouts(self.p, self.pid, MockLlm(), self.data)
         sid = self.conn.execute("SELECT id FROM scenes WHERE project_id=? AND idx=1", (self.pid,)).fetchone()["id"]

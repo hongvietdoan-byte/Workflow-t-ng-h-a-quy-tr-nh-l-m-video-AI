@@ -400,7 +400,7 @@ def shot_storyboard_panel(p: Pipeline, pid: int) -> None:
     note = "" if len(own) == len(rows) else f" (multi-shot: {len(rows) - len(own)} shot dùng ảnh đầu nhóm)"
     gates = autopilot.get_gates(p, pid)
     waiting = gates.get("waiting_for") == "storyboard" and autopilot.status(p, pid)["state"] == "waiting"
-    flags = storyboard_gate.flags(p, pid) if have else {}
+    flags = storyboard_gate.flags(p, pid, C.DATA) if have else {}
     flagged = [r for r in rows if flags.get(r["id"])]
     title = (f"🎞 Storyboard — {len(have)}/{len(own)} ảnh · {len(rows)} {'shot' if is_v3 else 'cảnh'} · {total:.0f}s{note}"
              + (f" · ⚑ {len(flagged)} có cờ" if flagged else "") + (" · ⏸ CHỜ BẠN DUYỆT" if waiting else ""))
@@ -408,9 +408,14 @@ def shot_storyboard_panel(p: Pipeline, pid: int) -> None:
         st.caption("Ảnh khung đầu theo thứ tự phim: kiểm tra nhân vật (so với ảnh tài nguyên bên dưới), cỡ cảnh, nhịp, liên tục TRƯỚC khi gen "
                    "video — sửa ảnh rẻ hơn nhiều so với gen lại clip. ⚑ = điểm QC cho thấy lỗi dễ thấy (Claude chưa được hiệu chỉnh: "
                    "tự xem lại, không tin mù).")
+        from core import features
+        off = features.pending()
+        if off:                                    # rule 5: a feature switched off until its real test is never a mystery
+            st.caption("🧪 Đang tắt tới khi thử thật đạt: " + "; ".join(v["label"] for v in off.values())
+                       + " (bật thử bằng FEATURE_<TÊN>=1, xem core/features.py).")
         if waiting:
             c1, c2 = st.columns([3, 1.4], vertical_alignment="center")
-            c1.warning(f"Chế độ tự động đang dừng ở đây: {storyboard_gate.summary(p, pid)}. Loại/gen lại shot sai ở danh sách ảnh bên trên, "
+            c1.warning(f"Chế độ tự động đang dừng ở đây: {storyboard_gate.summary(p, pid, C.DATA)}. Loại/gen lại shot sai ở danh sách ảnh bên trên, "
                        "rồi bấm duyệt để viết motion prompt và gen video.")
             if c2.button("✔ Duyệt storyboard — gen video", key=f"board_ok_{pid}", type="primary"):
                 autopilot.resume(p, pid, p.actor)

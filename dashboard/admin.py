@@ -659,8 +659,11 @@ def lessons_tab(p: Pipeline, pid: int) -> None:
     llm = llm_runner.client_from_env(ledger=C.DB)
     c1, c2 = st.columns(2)
     if c1.button("🔎 Rút bài học từ các lỗi đã gặp", key="ls_mine", use_container_width=True):
-        made = lessons.propose(conn, llm)
-        st.success(f"Có {made} đề xuất mới." if made else "Chưa có loại lỗi nào lặp đủ nhiều để đề xuất.")
+        try:
+            made = lessons.propose(conn, llm)
+            st.success(f"Có {made} đề xuất mới." if made else "Chưa có loại lỗi nào lặp đủ nhiều để đề xuất.")
+        except ERRORS as e:
+            st.error(str(e))
     if c2.button("🌐 Nghiên cứu tài liệu mới ngay", key="ls_research", use_container_width=True, disabled=llm is None,
                  help="Cần ANTHROPIC_API_KEY. Có tính phí tìm kiếm web (tối đa vài lượt tìm cho mỗi chủ đề)."):
         try:

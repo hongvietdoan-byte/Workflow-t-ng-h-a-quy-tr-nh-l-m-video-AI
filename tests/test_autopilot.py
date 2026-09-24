@@ -3,6 +3,7 @@ import os
 import tempfile
 import time
 import unittest
+from unittest import mock
 
 from core import autopilot, knowledge, llm_io, llm_runner, music, script_parser  # noqa: F401
 from core.db import connect
@@ -274,6 +275,7 @@ class PrevizInAutopilotTests(Setup):
         llm_io.update_scene(self.p, self.pid, first, {"location_asset": loc})
         return first
 
+    @mock.patch.dict(os.environ, {"FEATURE_LAYOUT_TO_MODEL": "1"})   # mechanism test; off by default until a real test (core/features.py)
     def test_the_run_lays_out_the_scene_with_a_background_and_its_picture_follows_the_layout(self):
         image = MockImageProvider()
         self.build(image=image)

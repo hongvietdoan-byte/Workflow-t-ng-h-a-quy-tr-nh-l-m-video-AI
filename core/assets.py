@@ -36,8 +36,25 @@ class AssetError(Exception):
     """A message that can be shown to the person."""
 
 
+REPO = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+
+
 def root() -> str:
     return os.environ.get("ASSET_DIR") or os.path.join("data", "assets")
+
+
+def resolve(path: Optional[str]) -> Optional[str]:
+    """A stored picture path made usable from any working folder (A1): stored paths are relative to the repository ("data/assets/…"),
+    so a Dashboard or tool started elsewhere used to find no picture at all — and the Director then described characters blind."""
+    if not path or os.path.isabs(path) or os.path.exists(path):
+        return path
+    return os.path.join(REPO, path)
+
+
+def missing_files(conn) -> List[Dict]:
+    """Library pictures whose file cannot be found (checked when the Dashboard opens: rule 1 of docs/CHUAN_XAY_DUNG.md)."""
+    return [{"id": r["id"], "asset": r["name"], "path": r["path"]} for r in conn.execute(
+        "SELECT i.id, i.path, a.name FROM asset_images i JOIN assets a ON a.id=i.asset_id") if not os.path.exists(resolve(r["path"]))]
 
 
 def fold(text: str) -> str:
@@ -145,7 +162,7 @@ def remove_image(conn, image_id: int) -> None:
     row = conn.execute("SELECT path FROM asset_images WHERE id=?", (image_id,)).fetchone()
     if row:
         try:
-            os.remove(row["path"])
+            os.remove(resolve(row["path"]))
         except OSError:
             pass
         conn.execute("DELETE FROM asset_images WHERE id=?", (image_id,))
@@ -224,6 +241,7 @@ def _row(conn, r, images_by_asset: Optional[Dict] = None) -> Dict:
         images = images_by_asset.get(r["id"], [])
     else:
         images = [dict(i) for i in conn.execute("SELECT id, path, label FROM asset_images WHERE asset_id=? ORDER BY sort, id", (r["id"],))]
+    images = [dict(i, path=resolve(i["path"])) for i in images]
     return {"id": r["id"], "game": r["game"], "kind": r["kind"], "kind_label": KINDS.get(r["kind"], r["kind"]), "name": r["name"],
             "aliases": r["aliases"] or "", "description": r["description"] or "", "project_id": r["project_id"],
             "created_by": r["created_by"], "images": [i for i in images if os.path.exists(i["path"])]}
@@ -448,8 +466,8 @@ def outfit_images(conn, project_id: int, name: str) -> List[Dict]:
     out = []
     for i in ids:
         r = conn.execute("SELECT id, path FROM asset_images WHERE id=?", (i,)).fetchone()
-        if r and os.path.exists(r["path"]):
-            out.append({"id": r["id"], "path": r["path"]})
+        if r and os.path.exists(resolve(r["path"])):
+            out.append({"id": r["id"], "path": resolve(r["path"])})
     return out
 
 

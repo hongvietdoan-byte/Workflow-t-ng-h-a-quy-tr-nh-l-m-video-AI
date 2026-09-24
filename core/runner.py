@@ -506,8 +506,9 @@ def previous_frame_job(conn, project_id: int, idx: int, sequence=None):
 def chain_previous(proj, scene_data) -> bool:
     """Send the previous approved frame as an extra reference? storyboard_mode 1 = always, 2 = never, 0 (default) = automatic:
     only inside a sequence (consecutive shots of one place / continuous action, as set by the Director or by hand)."""
+    from . import features
     mode = proj["storyboard_mode"] or 0
-    return mode == 1 or (mode == 0 and bool(scene_data.get("sequence")))
+    return mode == 1 or (mode == 0 and bool(scene_data.get("sequence")) and features.on("chain_previous_auto"))
 
 
 def lock_note(conn, project_id: int, cast) -> str:
@@ -542,8 +543,10 @@ class ImageRunner(_Runner):
     def _wait(self, job) -> bool:
         """v3: the picture of a shot that continues the previous one waits for that shot's approved picture (sent as reference)."""
         from . import shots
+        from . import features
         proj = self.p.project(job["project_id"])
-        return bool(shots.mode(proj)) and proj["storyboard_mode"] != 2 and shots.waits_for_previous_image(self.p.conn, job["scene_id"])
+        chains = proj["storyboard_mode"] == 1 or (proj["storyboard_mode"] != 2 and features.on("chain_previous_auto"))
+        return bool(shots.mode(proj)) and chains and shots.waits_for_previous_image(self.p.conn, job["scene_id"])
 
     def _stamp(self, job, args) -> Dict:
         from . import lineage
@@ -563,7 +566,8 @@ class ImageRunner(_Runner):
             prompt = f"{prompt}. Fix: {job['retry_reason']}"
         proj = self.p.project(job["project_id"])
         chain = chain_previous(proj, data)
-        plan = layout.layout_reference(self.data_dir, job["project_id"], scene["idx"], data)
+        from . import features
+        plan = layout.layout_reference(self.data_dir, job["project_id"], scene["idx"], data) if features.on("layout_to_model") else None
         refs = assets.scene_references(conn, job["project_id"], data,   # the layout and the previous frame keep their slots
                                        reserve=(1 if chain else 0) + (1 if plan else 0))
         if plan:

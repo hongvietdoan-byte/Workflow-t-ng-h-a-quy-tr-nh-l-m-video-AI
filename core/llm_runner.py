@@ -379,17 +379,28 @@ def _director_references(conn, project_id: int) -> List[Tuple[str, str]]:
     hair colour/style, missing accessories) that QC then has to unlearn one retry at a time, unevenly across
     scenes (found by comparing a rejected job's `retry_reason` history against the resource's own reference
     picture: the first attempt repeated the invented text almost verbatim)."""
-    out = []
+    out, blind = [], []
     for a in assets.project_assets(conn, project_id):
-        if a["kind"] in ("character", "pet") and a["images"]:
+        if a["kind"] not in ("character", "pet"):
+            continue
+        if a["images"]:
             out.append((f"Ảnh tham chiếu — {a['name']}:", assets.thumbnail(assets.best_reference(a)["path"], 900)))
+        elif conn.execute("SELECT 1 FROM asset_images WHERE asset_id=?", (a["id"],)).fetchone():
+            blind.append(a["name"])            # the library has pictures of it, but none can be read
+    if blind:                                  # A1/R1: never let the Director describe a known character blind (it invents one)
+        raise LlmError(f"Director cần ảnh của {', '.join(blind)} nhưng không đọc được file ảnh trong Kho tài nguyên — kiểm tra thư mục "
+                       "data/assets (📊 Theo dõi liệt kê ảnh thiếu) rồi chạy lại. Chưa gọi Claude, chưa tốn tiền.", code="missing_reference")
     return out
 
 
 @_diagnosed("director", lambda p, i: i)
 def run_director(p: Pipeline, project_id: int, client) -> Dict:
+    refs = _director_references(p.conn, project_id)
+    diag.record(p.conn, "director", "info", f"Director xem {len(refs)} ảnh nhân vật/thú cưng: "
+                + (", ".join(label.split("—", 1)[-1].strip(" :") for label, _ in refs) or "không có (nhân vật không gắn tài nguyên)"),
+                "director_refs", project_id)
     obj, tin, tout = ask_json(client, prompts.build_director_bundle(p, project_id), llm_io.validate_for_project(p, project_id),
-                              _director_references(p.conn, project_id), note=_retry_note(p, "director", project_id))
+                              refs, note=_retry_note(p, "director", project_id))
     p.set_project_field(project_id, "director_raw", json.dumps(obj, ensure_ascii=False))   # paid for: kept even if saving fails
     llm_io.store_scene_analysis(p, project_id, obj)
     return {"characters": len(obj["characters"]), "scenes": len(obj["scenes"]), "input_tokens": tin,

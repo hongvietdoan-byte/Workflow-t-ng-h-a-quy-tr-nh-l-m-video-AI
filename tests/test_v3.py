@@ -3,6 +3,7 @@ import json
 import os
 import tempfile
 import unittest
+from unittest import mock
 
 from core import llm_runner
 from core import reference_analysis as ra
@@ -225,6 +226,7 @@ def _approve_all_motion(p, pid, data):
 
 
 class ConsistencyTests(unittest.TestCase):
+    @mock.patch.dict(os.environ, {"FEATURE_CHAIN_PREVIOUS_AUTO": "1"})   # mechanism test; off by default until a real test (core/features.py)
     def test_a_continuing_shot_waits_for_the_previous_picture_and_ends_on_the_next_one(self):
         from core import batch, shots
         from core.providers import MockImageProvider, MockVideoProvider

@@ -311,7 +311,15 @@ def validate_distilled(group: str, text: str) -> str:
     headings = re.findall(r"^## .+$", text, flags=re.M)
     if len(headings) < 3:
         raise ValueError("Bản chắt lọc cần chia thành các mục có tiêu đề `## ` (ít nhất 3 mục).")
+    have = {_fold_heading(h[3:]) for h in headings}
+    missing = [name for name in DISTILL_SECTIONS.get(group, []) if _fold_heading(name) not in have]
+    if missing:        # Q2: a cut answer (the last sections missing) must not replace the source documents
+        raise ValueError("Bản chắt lọc thiếu mục bắt buộc: " + ", ".join(missing) + " (có thể bị cắt giữa chừng).")
     return text
+
+
+def _fold_heading(text: str) -> str:
+    return re.sub(r"^[\d.\s]+", "", text.strip().lower()).strip(" :")
 
 
 def store_distilled(group: str, text: str, include_builtin: bool = False, use: bool = True) -> Dict:

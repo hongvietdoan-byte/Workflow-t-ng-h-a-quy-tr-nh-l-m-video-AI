@@ -10,6 +10,9 @@ from core.prompts import build_director_bundle, build_motion_bundle, build_qc_bu
 
 GOOD = ("## Phong cách & tông chung\n- Tông lạnh [studio]\n\n## Nhân vật & đối tượng\n- Giữ dấu hiệu nhận biết\n\n"
         "## Điều cần tránh\n- Tay 6 ngón")
+# every required section of every step (Q2: a playbook missing one — e.g. cut off — is refused)
+GOOD += "".join(f"\n\n## {name}\n- ..." for name in dict.fromkeys(n for names in knowledge.DISTILL_SECTIONS.values() for n in names)
+                if f"## {name}\n" not in GOOD)
 
 
 class DistillTests(unittest.TestCase):
@@ -94,7 +97,7 @@ class DistillTests(unittest.TestCase):
 
     def test_each_step_distils_separately(self):
         knowledge.add_doc("qc", "qc.md", "Chấm gắt tay mặt. ".encode("utf-8") * 50)
-        knowledge.store_distilled("qc", "## Tiêu chí\n- a\n\n## Lỗi\n- b\n\n## Ví dụ\n- c")
+        knowledge.store_distilled("qc", GOOD)
         self.assertTrue(knowledge.distilled_status("qc")["active"])
         self.assertFalse(knowledge.distilled_status("director")["exists"])
         self.assertIn("Cẩm nang kiến thức đã chắt lọc", build_qc_bundle(self.p, self.scene))
@@ -103,7 +106,7 @@ class DistillTests(unittest.TestCase):
     def test_motion_folding_leaves_out_the_built_in_files(self):
         knowledge.add_doc("motion", "mo.md", b"Ua chuyen dong cham")
         raw = build_motion_bundle(self.p, self.pid)
-        knowledge.store_distilled("motion", "## Camera\n- a\n\n## Nhịp\n- b\n\n## Tránh\n- c", include_builtin=True)
+        knowledge.store_distilled("motion", GOOD, include_builtin=True)
         folded = build_motion_bundle(self.p, self.pid)
         self.assertLess(len(folded), len(raw))
         self.assertIn("Cẩm nang kiến thức đã chắt lọc", folded)

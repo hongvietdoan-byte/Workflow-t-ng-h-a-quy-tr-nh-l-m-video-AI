@@ -42,11 +42,18 @@ def _cast(data: Dict) -> List[str]:
     return [str(c) for c in data.get("characters") or []]
 
 
-def flags(p: Pipeline, project_id: int) -> Dict[int, List[str]]:
-    """{scene_id: [what looks wrong]} for every shot (empty list = nothing flagged)."""
+def flags(p: Pipeline, project_id: int, data_dir: str = None) -> Dict[int, List[str]]:
+    """{scene_id: [what looks wrong]} for every shot (empty list = nothing flagged). With `data_dir`, the whole-set check's findings
+    are shown too (it only reports: features.setcheck_autofix)."""
     from . import shots
+    set_issues: Dict[int, List[str]] = {}
+    if data_dir:
+        from .claude_tasks import last_set_check
+        for it in (last_set_check(data_dir, project_id) or {}).get("issues") or []:
+            if isinstance(it, dict) and it.get("idx") is not None:
+                set_issues.setdefault(int(it["idx"]), []).append("QC đồng bộ: " + str(it.get("problem") or "")[:160])
     floors = hard_floors("image")
-    rows = p.conn.execute("SELECT id, data FROM scenes WHERE project_id=? ORDER BY idx", (project_id,)).fetchall()
+    rows = p.conn.execute("SELECT id, idx, data FROM scenes WHERE project_id=? ORDER BY idx", (project_id,)).fetchall()
     data = {r["id"]: json.loads(r["data"] or "{}") for r in rows}
     out: Dict[int, List[str]] = {}
     for r in rows:
@@ -67,7 +74,7 @@ def flags(p: Pipeline, project_id: int) -> Dict[int, List[str]]:
                     found.append("chờ bạn duyệt (QC không tự duyệt)")
                 found += [f"{LABELS.get(k, k)} {v:.2f} dưới mức sàn" for k, v in sc.items() if k in floors and v < floors[k]]
                 found += [f"{LABELS.get(k, k)} {v:.2f}" for k, v in sc.items() if k in FRAMING and v < VISIBLE]
-        out[sid] = found
+        out[sid] = found + set_issues.get(r["idx"], [])
     return out
 
 
@@ -82,7 +89,7 @@ def fingerprint(p: Pipeline, project_id: int) -> List[int]:
     return ids
 
 
-def summary(p: Pipeline, project_id: int) -> str:
-    f = flags(p, project_id)
+def summary(p: Pipeline, project_id: int, data_dir: str = None) -> str:
+    f = flags(p, project_id, data_dir)
     bad = sum(1 for v in f.values() if v)
     return f"{bad}/{len(f)} shot có cờ cần xem" if bad else f"{len(f)} shot, không có cờ"

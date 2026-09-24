@@ -526,8 +526,10 @@ class DashboardSmokeTests(unittest.TestCase):
         self.addCleanup(os.environ.pop, "SHOW_SUBJECT_LIBRARY", None)
         at = AppTest.from_file(APP, default_timeout=30).run()
         at.radio(key="step").set_value(at.radio(key="step").options[3]).run()
-        at.checkbox(key=f"vsubj_{pid}").set_value(True).run()
-        self.assertEqual(Pipeline(connect(self.db)).project(pid)["use_subjects"], 1)
+        box = at.checkbox(key=f"vsubj_{pid}")
+        # M7: Seedance drops subjects next to a first frame (every clip has one), so the switch is shown locked, not silently useless
+        self.assertTrue(box.disabled)
+        self.assertEqual(Pipeline(connect(self.db)).project(pid)["use_subjects"], 0)
 
     def test_step1_shows_the_full_script_next_to_the_scene_list(self):
         p, pid = self.seed()

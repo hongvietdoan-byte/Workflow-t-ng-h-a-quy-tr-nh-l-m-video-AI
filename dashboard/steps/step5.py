@@ -370,8 +370,9 @@ def step5(p: Pipeline, pid: int):
     with st.expander("🎧 Hiệu ứng & giọng đọc thêm (tùy chọn)"):
         try:
             provider = music.audio_provider()
-        except ProviderError:
+        except ProviderError as e:                 # U1: say why the audio buttons are missing instead of hiding it
             provider = None
+            st.caption(f"⚠ Chưa dùng được dịch vụ âm thanh: {e}")
         extras_section(p, pid, provider)
     render_panel(p, pid, chosen, durations)
     ui.html(ui.card_title("5.4 · ✨ Hậu kỳ", "phụ đề · card cuối · kích thước khác"))

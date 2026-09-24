@@ -24,9 +24,13 @@ def step4(p: Pipeline, pid: int):
             p.set_project_field(pid, "qc_video", 1 if qc_on else 0)
         if subjects_visible(p, pid):
             n_subj = p.conn.execute("SELECT COUNT(*) c FROM characters WHERE project_id=? AND subject_status='active'", (pid,)).fetchone()["c"]
+            from core.adapters import clipai as _clipai
+            works = _clipai.SEEDANCE_REFS_WITH_FIRST_FRAME       # M7: the API drops subjects/references next to a first frame
             use_subj = st.checkbox(f"🧩 Gắn ảnh chủ thể nhân vật vào video (Seedance) — {n_subj} nhân vật có chủ thể active",
-                                   bool(proj["use_subjects"]), key=f"vsubj_{pid}")
-            if use_subj != bool(proj["use_subjects"]):
+                                   bool(proj["use_subjects"]) and works, key=f"vsubj_{pid}", disabled=not works,
+                                   help=None if works else "Chưa dùng được: Seedance từ chối ảnh chủ thể/ảnh tham chiếu khi clip đã có "
+                                   "khung đầu (mọi clip của pipeline đều có). Sẽ mở lại khi thử xong chế độ tham chiếu (K4).")
+            if works and use_subj != bool(proj["use_subjects"]):
                 p.set_use_subjects(pid, use_subj)
         if runner is None:
             st.caption("ℹ Clip AI chưa cấu hình (VIDEO_PROVIDER=clipai + CLIPAI_TOKEN, xem docs/RUNBOOK.md).")
