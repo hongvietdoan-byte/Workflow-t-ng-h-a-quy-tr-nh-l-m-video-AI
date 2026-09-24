@@ -2,7 +2,7 @@
 
 ## 📌 BÀN GIAO 2026-09-25 — PHIÊN MỚI ĐỌC `docs/KE_HOACH_2026-09-25.md` TRƯỚC TIÊN
 > **Kế hoạch làm tiếp mới nhất:** `docs/KE_HOACH_2026-09-25.md` — đánh giá tổng thể, bài học Director, 6 hướng H1–H6 (bộ chuẩn hóa shot,
-> Director hai tầng/chạy lại từng cảnh, sổ luật + ngân sách prompt, bàn đo offline, **quay theo vị trí máy**, bảng chi phí dự kiến), lộ trình
+> Director hai tầng/chạy lại từng cảnh, bộ nguyên tắc đạo diễn có logic (không trần số luật), bàn đo offline, **quay theo vị trí máy**, bảng chi phí dự kiến), lộ trình
 > **Bậc 1 Director v2 (không tốn credit) → Bậc 2 dự án #6 tới video hoàn chỉnh (xin phép từng bước) → Bậc 3 phần còn lại → Bậc 4 việc người
 > dùng**, và 4 câu cần người dùng chốt (Q1–Q4). Mục 0 bên dưới = trạng thái dự án #6; mục 1–6 = bàn giao 24/09 (vẫn đúng).
 >
