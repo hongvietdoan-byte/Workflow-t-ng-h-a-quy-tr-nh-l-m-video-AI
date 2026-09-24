@@ -112,6 +112,11 @@ def build_crossfade_cmd(clips: Sequence[str], durations: Sequence[float], output
     return cmd + ["-filter_complex", ";".join(parts), "-map", prev, "-map", prev_a, *_ENCODE, "-c:a", "aac", output]
 
 
+# Trial 2A (2026-09-25): voices laid over the clips peaked at 0,0 dBFS (clipping on some phones) — every mix ends in a limiter at
+# -2 dBFS (linear 0.794): the AAC encode after it overshoots ~0.8 dB, so -1 dBFS in the limiter came out at -0.2 dBFS.
+PEAK_LIMIT = "alimiter=limit=0.794:level=false"
+
+
 def build_mux_music_cmd(video: str, music: str, output: str, video_duration: float,
                         fade: float = 1.5, volume: float = 0.6, ffmpeg: str = "ffmpeg",
                         has_audio: bool = False) -> List[str]:
@@ -121,9 +126,9 @@ def build_mux_music_cmd(video: str, music: str, output: str, video_duration: flo
     music_chain = (f"[1:a]atrim=0:{video_duration},afade=t=in:d={fade},"
                    f"afade=t=out:st={fade_out_start}:d={fade},volume={volume},apad")  # apad: music shorter than video
     if has_audio:
-        audio = f"{music_chain}[m];[0:a][m]amix=inputs=2:normalize=0:duration=first[a]"
+        audio = f"{music_chain}[m];[0:a][m]amix=inputs=2:normalize=0:duration=first,{PEAK_LIMIT}[a]"
     else:
-        audio = music_chain + "[a]"
+        audio = music_chain + f",{PEAK_LIMIT}[a]"
     return [ffmpeg, "-y", "-i", video, "-i", music, "-filter_complex", audio,
             "-map", "0:v", "-map", "[a]", "-c:v", "copy", "-c:a", "aac", "-shortest", output]
 
@@ -142,7 +147,7 @@ def build_extras_mix_cmd(video: str, extras: Sequence[dict], output: str, has_au
         ms = max(int(round(float(e.get("start", 0)) * 1000)), 0)
         parts.append(f"[{i + 1}:a]adelay={ms}|{ms},volume={float(e.get('volume', 1.0))}[e{i}]")
         labels.append(f"[e{i}]")
-    parts.append("".join(labels) + f"amix=inputs={len(labels)}:normalize=0:duration=longest,apad[a]")
+    parts.append("".join(labels) + f"amix=inputs={len(labels)}:normalize=0:duration=longest,{PEAK_LIMIT},apad[a]")
     return cmd + ["-filter_complex", ";".join(parts), "-map", "0:v", "-map", "[a]", "-c:v", "copy",
                   "-c:a", "aac", "-shortest", output]
 

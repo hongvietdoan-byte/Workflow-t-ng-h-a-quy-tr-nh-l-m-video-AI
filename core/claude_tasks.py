@@ -155,7 +155,14 @@ def qc_video(p: Pipeline, job_id: int, client, data_dir: str, autofix: Optional[
     mp = p.conn.execute("SELECT motion_prompt FROM motion_prompts WHERE scene_id=?", (job["scene_id"],)).fetchone()
     first = job["source_job_id"] and os.path.join(data_dir, str(job["project_id"]), "images", f"job_{job['source_job_id']}.png")
     refs = assets.scene_references(p.conn, job["project_id"], data)[:4]
-    images = [(f"Khung {n}/{len(frames)} của clip:", f) for n, f in enumerate(frames, 1)]
+    # M12 (trial 2A): the frames carried no time, so QC invented "at 5–6 s" for a 3,1 s clip — label each frame with its real second
+    try:
+        dur = float(video_analysis.probe(path)["duration_sec"] or 0.0)
+    except Exception:  # noqa: BLE001 - no time known: the labels say only the frame number (never a guessed second)
+        dur = 0.0
+    margin, k = min(0.5, dur / (len(frames) + 1)), max(len(frames) - 1, 1)
+    images = [(f"Khung {n}/{len(frames)} của clip" + (f" (≈ {margin + (dur - 2 * margin) * (n - 1) / k:.1f}s / tổng {dur:.1f}s)" if dur else "")
+               + ":", f) for n, f in enumerate(frames, 1)]
     if first and os.path.exists(first):
         images.append(("Ảnh khung đầu đã duyệt:", first))
     images += [(f"Ảnh tham chiếu — {r['label']}:", assets.thumbnail(r["path"], 700)) for r in refs]
@@ -380,7 +387,8 @@ def _check_bible(names):
 
 def _bible_key(row, refs) -> str:
     import hashlib
-    h = hashlib.sha1((row["description"] or "").encode("utf-8") + (row["wardrobe"] or "").encode("utf-8"))
+    h = hashlib.sha1((row["description"] or "").encode("utf-8") + (row["wardrobe"] or "").encode("utf-8")
+                     + (row["lock_rules"] or "").encode("utf-8"))      # trial 2A: a wrong Lock went to every picture unchecked
     for r in refs:
         try:
             with open(r["path"], "rb") as f:
@@ -410,7 +418,9 @@ def bible_check(p: Pipeline, project_id: int, client) -> Dict:
         todo.append((name, row, key))
         images.append((f"Ảnh tài nguyên chuẩn — {name}:", assets.thumbnail(refs[0]["path"], 900)))
     if todo:
-        text = "\n".join(f"- **{n}**: {r['description'] or ''} {r['wardrobe'] or ''}".strip() for n, r, _ in todo)
+        text = "\n".join((f"- **{n}**: {r['description'] or ''} {r['wardrobe'] or ''}".strip()
+                          + (f" | Lock — luôn giữ: {get_lock(r).get('must_keep')}" if get_lock(r).get("must_keep") else ""))
+                         for n, r, _ in todo)
         obj = _run(p, project_id, "director", _read("prompts", "18_bible_check.md") + "\n\n---\n\n# Nhân vật cần kiểm\n" + text,
                    _check_bible([n for n, _, _ in todo]), client, images)
         by_name = {str(c["name"]): c for c in obj["characters"]}

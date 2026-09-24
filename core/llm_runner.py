@@ -467,9 +467,25 @@ def run_qc(p: Pipeline, job_id: int, client, data_dir: str, autofix: bool = Fals
     obj, tin, tout = ask_json(client, prompts.build_qc_bundle(p, job["scene_id"], data_dir),
                               lambda o: llm_io.validate_qc_result(o, criteria), images,
                               note=_retry_note(p, "qc", job["project_id"]))
+    _no_feet_in_frame(json.loads(row["data"] or "{}"), obj)
     issues = "; ".join(str(i) for i in (obj.get("issues") or [])[:5]) or None
     decision = p.apply_qc(job_id, obj["criteria"], issues=issues, autofix=autofix)
     return {"decision": decision, "input_tokens": tin, "output_tokens": tout, "issues": issues}
+
+
+NO_FEET_SIZES = ("ECU", "CU", "MCU", "MS")
+_FEET = re.compile(r"\bfeet\b|\bfoot\b|ground(ed|ing)?\b|contact shadow|sandals|shoes|chân chạm", re.IGNORECASE)
+
+
+def _no_feet_in_frame(shot: Dict, obj: Dict) -> None:
+    """Trial 2A: QC marked medium shots down for "feet cropped, not grounded" — a medium shot is cut above the knees by design. For
+    framings without feet `grounding` does not apply (scored as met) and feet-only issues are dropped, so they never trigger a redo."""
+    if str(shot.get("size") or "").upper() not in NO_FEET_SIZES:
+        return
+    if "grounding" in (obj.get("criteria") or {}):
+        obj["criteria"]["grounding"] = 1.0
+    parts = [s.strip() for i in obj.get("issues") or [] for s in re.split(r";\s*", str(i)) if s.strip()]
+    obj["issues"] = [s for s in parts if not _FEET.search(s)]
 
 
 def run_qc_batch(p: Pipeline, project_id: int, client, data_dir: str) -> Dict:

@@ -33,7 +33,7 @@ class CommandTests(unittest.TestCase):
         replace = f.build_mux_music_cmd("v.mp4", "m.mp3", "o.mp4", 30)
         mixed = f.build_mux_music_cmd("v.mp4", "m.mp3", "o.mp4", 30, has_audio=True)
         self.assertNotIn("amix", replace[replace.index("-filter_complex") + 1])
-        self.assertIn("[0:a][m]amix=inputs=2:normalize=0:duration=first[a]", mixed[mixed.index("-filter_complex") + 1])
+        self.assertIn("[0:a][m]amix=inputs=2:normalize=0:duration=first,alimiter=limit=0.794:level=false[a]", mixed[mixed.index("-filter_complex") + 1])
 
     def test_a_clip_without_sound_gets_a_silent_track_instead_of_silencing_every_clip(self):
         """D4: it used to drop the sound of ALL clips when one clip had none."""

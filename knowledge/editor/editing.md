@@ -27,6 +27,8 @@ Người xem hiểu và cảm được câu chuyện **trên điện thoại, tr
 - Thông báo game ("Maxim đã bị hạ.") khác kiểu phụ đề; card cuối nền tối, chữ giữa khung.
 - Hiển thị đủ lâu để đọc (~3 từ/giây, ≥ 1 s).
 ### E4. Âm thanh
+- **Đỉnh âm ≤ −1 dBFS sau mã hóa** — mọi bước trộn kết thúc bằng bộ giới hạn −2 dBFS (`ffmpeg_studio.PEAK_LIMIT`; AAC vọt thêm ~0,8 dB).
+  *Căn cứ:* chạy thử 2A — giọng lồng trên clip chạm 0,0 dBFS; sau khi thêm giới hạn đo được −1,3 dBFS.
 - Thoại rõ nhất; nhạc hạ khi có thoại. Độ to tổng: nhiều nền tảng tự chuẩn hóa độ to — mục tiêu phổ biến ~ −14 LUFS cho mạng xã hội
   (*nguồn thứ ba, chưa có tài liệu chính thức — đo lại*).
 ### E5. Định dạng xuất

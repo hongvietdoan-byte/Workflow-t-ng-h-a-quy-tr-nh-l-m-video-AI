@@ -125,5 +125,19 @@ class MinorAgeTests(unittest.TestCase):
         self.assertEqual(no_minor_age("KENTA, 38-year-old man"), "KENTA, 38-year-old man")      # adults keep their age
 
 
+class NoFeetInFrameTests(unittest.TestCase):
+    def test_a_medium_shot_is_not_marked_down_or_redone_for_feet(self):
+        """Trial 2A: QC asked for "feet visible touching the ground" on medium shots (cut above the knees by design)."""
+        from core.llm_runner import _no_feet_in_frame
+        obj = {"criteria": {"grounding": 0.4, "character": 0.9},
+               "issues": ["Kenta's feet are cropped out of frame; keep both feet with ground contact; Kenta's right hand is blurred"]}
+        _no_feet_in_frame({"size": "MS"}, obj)
+        self.assertEqual(obj["criteria"]["grounding"], 1.0)
+        self.assertEqual(obj["issues"], ["Kenta's right hand is blurred"])
+        wide = {"criteria": {"grounding": 0.4}, "issues": ["feet float above the ground"]}
+        _no_feet_in_frame({"size": "WS"}, wide)                  # a wide shot shows feet: still judged
+        self.assertEqual((wide["criteria"]["grounding"], wide["issues"]), (0.4, ["feet float above the ground"]))
+
+
 if __name__ == "__main__":
     unittest.main()
