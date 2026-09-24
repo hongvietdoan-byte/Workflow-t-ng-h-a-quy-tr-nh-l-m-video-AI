@@ -23,7 +23,7 @@ Sau cổng đó **không người nào nhìn thấy ảnh hay clip trước khi 
 *có bao nhiêu lần gửi video, và bao nhiêu trong số đó được gửi từ đầu vào đã sai?* GĐ6: V2 gửi Kling 19 lần để có 21/26 shot;
 V0 gửi 8 lần cho 3 cảnh.
 
-## 2. Bảy lỗ hổng cấu trúc của vòng (có bằng chứng trong code)
+## 2. Tám lỗ hổng cấu trúc của vòng (có bằng chứng trong code + số liệu GĐ6)
 
 ### V1 — Không có "cổng duyệt khung hình" trước bước đắt nhất
 Ảnh khung đầu quyết định gần như toàn bộ chất lượng clip (GĐ6: clip ngắn bám ảnh giữ nhân vật 0/5 lỗi; phần không có ảnh bám lỗi
@@ -68,6 +68,21 @@ trung bình clip dưới 0,82 → gen lại trả tiền. Chưa có số đo "QC
 Nhỏ hơn: ảnh thất bại nào cũng được autopilot thử lại (autopilot.py:305) kể cả lỗi không tạm thời; Claude QC chấm ảnh từng cái một
 (mỗi lần gửi lại toàn bộ Bible + ảnh tham chiếu — chi phí Claude, đã có C2 trong kế hoạch).
 
+### V8 — Không kiểm đầu vào trước khi gửi; lỗi API được sửa SAU khi đã hỏng, autopilot thử lại mù *(số liệu thật GĐ6)*
+Phiên trước (máy người dùng, đọc CSDL GĐ6 chỉ đọc) đếm được **khoảng 40 lần gen video hỏng/phải thử lại do lỗi đầu vào kiểm được
+trước khi gửi** — không phải do chất lượng — và autopilot tự "thử lại" **21 lần**:
+
+| Lỗi | Số lần | Trạng thái trong code hiện tại | Lỗ hổng còn lại |
+|---|---|---|---|
+| Sai tham số khung đầu/cuối Seedance (khung đầu đi cùng ảnh tham chiếu bị từ chối) | 9 | Đã sửa trong lúc chạy (`SEEDANCE_REFS_WITH_FIRST_FRAME = False`, commit aa27dd9) | Luật API chỉ được biết **sau khi** bị từ chối; không có bảng "luật từng model" kiểm trước khi gửi |
+| Seedance chặn ảnh "giống người thật" | 8 | Sau khi bị chặn mới chuyển cả nhóm sang Kling (`_on_refused`, runner.py:366) | Mỗi nhóm vẫn phải **hỏng một lần** mới chuyển; biết trước được (phong cách CGI tả thực + Seedance) nhưng `model_router` không dùng |
+| Prompt vượt 512 ký tự (Kling multi-shot) | 3 | Đã cắt ≤ 512 (commit a3f14f2) | Cắt âm thầm, không báo phần bị mất |
+| Dò trạng thái báo `not_found` | 13 | `status()` chỉ quét **trang đầu 50 task** của `video-list` (clipai.py:277), 12 lần không thấy → `failed`, **không tạm thời** (clipai.py:287) | Task rơi khỏi trang 1 khi nhiều dự án chạy song song → job bị đánh hỏng → autopilot **gửi job mới** trong khi task cũ có thể vẫn chạy và **vẫn bị tính tiền** (nguy cơ trả 2 lần) |
+
+Điểm chung: cả 4 loại đều **biết được trước khi chi tiền** (luật API, giới hạn độ dài, rủi ro người thật, cách dò trạng thái) nhưng
+pipeline chỉ phát hiện bằng cách gửi thật rồi hỏng. Autopilot lại coi mọi lỗi không phải kiểm duyệt là "thử lại được"
+(autopilot.py:430), nên lỗi cấu hình lặp lại cho tới khi hết trần hoặc có người sửa code giữa chừng.
+
 ## 3. Vì sao tổng hợp lại thành "gen lỗi nhiều"
 
 ```
@@ -109,9 +124,16 @@ Thay đổi cụ thể trong code (không tốn credit):
 | W6 | Clip cũ do đầu vào đổi → **không tự gen lại**; liệt kê ở cổng storyboard/Bước 4 để người bấm | core/autopilot.py (_videos_phase) | V5 |
 | W7 | Trần theo cảnh: mỗi shot tối đa 1 lần tự gen lại ảnh + 1 lần video; cùng tiêu chí trượt 2 lần → dừng shot đó (`needs_attention`), các shot khác chạy tiếp; trần tiền theo dự án (C6) thay cho trần số job | core/autopilot.py, core/budget.py | V6 |
 | W8 | QC: mức sàn cho `scale`, `set_match`, `composition` (F11); `motion_match` thấp mà `identity/physics/artifacts` đạt → chỉ báo, không gen lại; ghi quyết định người vs QC để đo đồng thuận, chỉ tăng tự động khi đồng thuận ≥ 80% | data/qc_checklist.json, core/pipeline.py | V7 |
-| W9 | Autopilot chỉ thử lại job thất bại **tạm thời** (mạng, hết lượt), không thử lại lỗi nội dung | core/autopilot.py:305 | nhỏ |
+| W9 | Autopilot chỉ thử lại job thất bại **tạm thời** (mạng, hết lượt); lỗi tham số/nội dung → dừng shot đó, báo rõ | core/autopilot.py:305, :430 | V8 |
+| W10 | **Kiểm đầu vào trước khi gửi** theo bảng luật từng model (`data/provider_rules.json`: khung đầu/cuối + ảnh tham chiếu có được đi cùng không, độ dài prompt, thời lượng, tỉ lệ khung); vi phạm → sửa hoặc chặn trước khi tốn tiền; mỗi lỗi API mới gặp → thêm 1 dòng luật + test | core/adapters/clipai.py, core/runner.py, data/ | V8 |
+| W11 | **Chọn model biết trước rủi ro**: phong cách CGI tả thực / ảnh bị chặn trước đó → xếp Kling ngay từ đầu, không đợi Seedance từ chối | core/model_router.py | V8 |
+| W12 | **Dò trạng thái không làm mất task**: quét thêm trang 2–3 trước khi kết luận; `not_found` = "chưa rõ" (tạm thời), không tự gửi job mới; khi tìm lại được thì nhận kết quả; báo nếu nghi trả tiền 2 lần | core/adapters/clipai.py:274–288, core/runner.py | V8 |
+| W13 | Cắt prompt > 512 ký tự thì **báo** phần bị cắt (diag + Bước 3), ưu tiên rút gọn bằng Claude trước khi gửi | core/adapters/clipai.py, core/runner.py | V8 |
 
 ## 5. Tác động ước tính (phải đo lại ở GĐ4)
+
+- **Lỗi đầu vào (V8):** ~40 lần gen hỏng/thử lại + 21 lần autopilot tự thử lại trong GĐ6 thuộc loại chặn được trước khi gửi
+  (W9–W13) → mục tiêu **0 lần hỏng do tham số** ở đợt sau; riêng W12 bịt nguy cơ trả tiền 2 lần cho một clip.
 
 - Lấy GĐ6 V2 làm ví dụ: 19 lần gửi Kling cho 21/26 shot. Nếu cổng storyboard chặn được các nhóm có ảnh/nhóm sai (R4, R7) và gen lại
   video chỉ xảy ra khi đổi đầu vào, số lần gửi ước ~8–10 (bằng số nhóm) + 1–2 lần gen lại → **giảm ~40–50% tiền video**.
@@ -120,7 +142,7 @@ Thay đổi cụ thể trong code (không tốn credit):
 
 ## 6. Ghép vào kế hoạch hiện có
 
-Đề xuất thêm **W1–W9** làm một giai đoạn "Sắp xếp lại vòng chạy" đặt **sau GĐ2 (lưới an toàn), trước/cùng GĐ3 (F1–F11)**, vì:
+Đề xuất thêm **W1–W13** làm một giai đoạn "Sắp xếp lại vòng chạy" đặt **sau GĐ2 (lưới an toàn), trước/cùng GĐ3 (F1–F11)**, vì:
 - W3/W4/W7/W8 trùng hướng với F5 (chẩn đoán) và F11 (mức sàn) → làm chung.
 - W1/W2/W5/W6 là điều kiện để bậc kiểm thật GĐ4 (chữ → ảnh → 1 cảnh video) diễn ra đúng trong Dashboard thay vì làm tay.
 - Tất cả không tốn credit; có test bằng MockLlm + provider giả (luồng) và fixture GĐ6 (nội dung).

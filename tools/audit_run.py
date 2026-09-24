@@ -362,6 +362,12 @@ def report_project(conn, pid: int, pricing: dict, floors: dict) -> tuple:
             w(f"| {kind} | {code} | {'có' if mod else ''} | {n} |")
     else:
         w("Không có job thất bại.")
+    auto_retry = sum(1 for j in d.jobs.values() if (j["retry_reason"] or "").startswith("autopilot: thử lại"))
+    lost = [j for j in d.jobs.values() if j["type"] == "video_gen" and d.usage.get(j["id"]) and "not_found" in d.fail_note(j["id"])]
+    lost_usd = sum(d.price(j, pricing)[0] for j in lost)
+    w("")
+    w(f"Autopilot tự thử lại sau lỗi: **{auto_retry}** lần · video đã gửi (có ghi sổ) rồi bị đánh `not_found`:"
+      f" **{len(lost)}** ({money(lost_usd)} — nguy cơ trả 2 lần nếu task cũ vẫn chạy xong)")
     w("")
 
     # 6. shot tốn nhất
