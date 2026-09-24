@@ -32,6 +32,7 @@ def _now() -> str:
 def defaults() -> Dict:
     return {"usd": float(os.environ.get("BUDGET_USD", "50")), "since": None,
             "image_cap": int(os.environ.get("BUDGET_IMAGE_CAP", "80")), "enabled": False,
+            "audio_cap": int(os.environ.get("BUDGET_AUDIO_CAP", "300")),        # C12: audio has no price yet -> capped by count
             "llm_usd": float(os.environ.get("CLAUDE_BUDGET_USD", "5")), "llm_since": None}
 
 
@@ -82,7 +83,7 @@ def spent(conn, pricing: Optional[Dict] = None, since: Optional[str] = None) -> 
     pricing = pricing or cost.load_pricing()
     rows = conn.execute("SELECT * FROM usage_events WHERE provider NOT LIKE 'mock%'" + (" AND at >= ?" if since else ""),
                         (since,) if since else ()).fetchall()
-    usd, images, unknown, llm = 0.0, 0, set(), 0.0
+    usd, images, unknown, llm, audios = 0.0, 0, set(), 0.0, 0
     for r in rows:
         if r["kind"] == "llm":
             price = token_price(pricing, r["model"], r["tier"], r["quantity"])
@@ -95,6 +96,7 @@ def spent(conn, pricing: Optional[Dict] = None, since: Optional[str] = None) -> 
             price = cost._number(pricing.get("per_image", {}).get(r["model"]))
             usd += (price or 0) * (r["quantity"] or 1)
         elif r["kind"] == "audio":
+            audios += int(r["quantity"] or 1)
             price = cost._number(pricing.get("per_audio", {}).get(r["model"]))
             usd += (price or 0) * (r["quantity"] or 1)
             if price is None:
@@ -104,14 +106,14 @@ def spent(conn, pricing: Optional[Dict] = None, since: Optional[str] = None) -> 
             if price is None:
                 unknown.add(f"{r['model']}:{r['tier']}")
             usd += price or 0
-    return {"usd": round(usd, 2), "images": images, "unknown": sorted(unknown), "llm_usd": round(llm, 4)}
+    return {"usd": round(usd, 2), "images": images, "unknown": sorted(unknown), "llm_usd": round(llm, 4), "audios": audios}
 
 
 def status(conn) -> Dict:
     b = get(conn)
     s = spent(conn, since=b["since"])
     llm = llm_spent(conn)
-    return {**b, "spent": s["usd"], "images": s["images"], "unknown": s["unknown"],
+    return {**b, "spent": s["usd"], "images": s["images"], "audios": s["audios"], "unknown": s["unknown"],
             "left": round(b["usd"] - s["usd"], 2), "llm_spent": llm, "llm_left": round(b["llm_usd"] - llm, 4)}
 
 
@@ -149,6 +151,19 @@ def check_video(conn, provider_name: str, model: str, tier: str, seconds: float)
     if s["usd"] + price > b["usd"] + 1e-9:
         return (f"vượt trần ngân sách thử: đã chi ≈ ${s['usd']:.2f}, clip này ≈ ${price:.2f}, trần ${b['usd']:.0f} "
                 "— nâng trần hoặc bắt đầu đợt mới trong ⚙ → Ngân sách thử")
+    return None
+
+
+def check_audio(conn, provider_name: str) -> Optional[str]:
+    """C12: TTS / music / sound effects have no price in pricing.json, so the money cap cannot see them — cap the count instead."""
+    if provider_name.startswith("mock"):
+        return None
+    b = get(conn)
+    if not b["enabled"]:
+        return None
+    n = spent(conn, since=b["since"])["audios"]
+    if n + 1 > b["audio_cap"]:
+        return f"đã tạo {n} âm thanh trong đợt thử (trần {b['audio_cap']} lượt, âm thanh chưa có giá) — nâng trần trong ⚙ → Ngân sách thử"
     return None
 
 

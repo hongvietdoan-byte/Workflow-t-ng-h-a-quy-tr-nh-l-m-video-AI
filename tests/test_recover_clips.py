@@ -94,6 +94,19 @@ class RecoverClipsTest(unittest.TestCase):
         self.assertIn("omni 2 trang / 62 task", res["text"])                    # how far the list was read
         self.assertIn("đã hết danh sách", res["text"])
 
+    def test_reconcile_compares_the_ledger_with_the_real_clipai_cost(self):
+        self.tasks[6][-2]["cost"] = 90                                          # finished: ClipAI charged it
+        self.tasks[6][-1]["cost"] = 0                                           # copyright block: free
+        provider = ClipAIVideoProvider("tok", transport=fake_clipai(self.tasks, []))
+        conn = rc.open_ro(self.db)
+        res = rc.reconcile(conn, provider, max_pages=5, pause=0, log=lambda *_: None)
+        conn.close()
+        m = res["models"]["kling"]
+        self.assertEqual((m["n"], m["cost"], m["free"], m["unseen"]), (3, 90.0, 1, 1))
+        self.assertAlmostEqual(m["usd"], 3 * 15 * 0.08)
+        self.assertIn("| kling | 3 | $3.60 | 90 | 0.01333 | 1 | 1 |", res["text"])   # $1.20 of the ledger for 90 units
+        self.assertIn("Task lệch giữa hai bên", res["text"])
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -47,7 +47,9 @@ def step4(p: Pipeline, pid: int):
                 st.rerun()
         failed = p.conn.execute("SELECT j.id FROM jobs j WHERE j.project_id=? AND j.type='video_gen' AND j.state='failed' AND j.escalated=0"
                                 " AND NOT EXISTS (SELECT 1 FROM content_moderation_failures f WHERE f.job_id=j.id)", (pid,)).fetchall()
-        if c2.button(f"↻ Gen lại clip lỗi ({len(failed)})", key="btn_bad_retry", disabled=not failed,
+        prices = [cost.clip_estimate(p.conn, p.job(j["id"])["scene_id"]) for j in failed]
+        total = None if any(x is None for x in prices) else sum(prices)
+        if c2.button(f"↻ Gen lại clip lỗi ({len(failed)}){cost.price_tag(total, len(failed))}", key="btn_bad_retry", disabled=not failed,
                      help="Clip bị bộ lọc nội dung chặn không nằm trong nút này: sửa prompt trước."):
             for j in failed:
                 act(lambda: p.retry(j["id"], "gen lại clip lỗi"))
@@ -118,7 +120,8 @@ def clip_set_panel(p: Pipeline, pid: int) -> None:
                 job = p.conn.execute("SELECT j.id FROM jobs j JOIN scenes s ON s.id=j.scene_id WHERE s.project_id=? AND s.idx=?"
                                      " AND j.type='video_gen' AND j.state IN ('succeeded','approved') ORDER BY j.id DESC LIMIT 1",
                                      (pid, it["idx"])).fetchone()
-                if job and c2.button("↻ Gen lại clip này", key=f"clipqc_redo_{pid}_{n}"):
+                if job and c2.button("↻ Gen lại clip này" + cost.price_tag(cost.clip_estimate(p.conn, p.job(job["id"])["scene_id"])),
+                                     key=f"clipqc_redo_{pid}_{n}"):
                     act(lambda: regen.regenerate_video(p, C.DATA, job["id"], f"Đồng bộ cả bộ clip: {it.get('fix') or it['problem']}"),
                         "Đã xếp hàng gen lại")
                     st.rerun()
@@ -189,6 +192,7 @@ def video_card(p: Pipeline, pid: int, j, runner, stale_reason) -> None:
     clip = j["result_path"] if j["state"] in ("succeeded", "pending_review", "approved") and j["result_path"] and os.path.exists(j["result_path"]) else None
     blocked = p.conn.execute("SELECT error_message FROM content_moderation_failures WHERE job_id=? ORDER BY id DESC LIMIT 1", (j["id"],)).fetchone()
     scores = qc_scores(p, j["id"])
+    tag = cost.price_tag(cost.clip_estimate(p.conn, j["scene_id"]))          # M8: price on every button that sends a clip again
     with st.container(border=True):
         a, b, c = st.columns([1.2, 3, 2.4], vertical_alignment="center")
         a.markdown(f"**{C.unit_label(p, j['project_id'], j['idx'])}**")
@@ -207,21 +211,21 @@ def video_card(p: Pipeline, pid: int, j, runner, stale_reason) -> None:
                 if x.button("✔ Duyệt clip", key=f"va_{j['id']}", type="primary"):
                     act(lambda: p.approve(j["id"], "user"))
                     st.rerun()
-                if y.button("✖ Loại & gen lại", key=f"vr_rej_{j['id']}"):
+                if y.button("✖ Loại & gen lại" + tag, key=f"vr_rej_{j['id']}"):
                     act(lambda: p.reject(j["id"], "user", st.session_state.get(f"vnote_{j['id']}") or None))
                     st.rerun()
             if j["state"] == "failed" and blocked:
                 st.caption("Bị bộ lọc nội dung chặn: gen lại nguyên prompt sẽ lại bị chặn và tốn credit.")
                 st.button("✏ Sửa motion prompt rồi gen lại", key=f"vfix_{j['id']}", on_click=_go_step3)
-            elif j["state"] == "failed" and not j["escalated"] and st.button("↻ Gen lại", key=f"vr_{j['id']}"):
+            elif j["state"] == "failed" and not j["escalated"] and st.button("↻ Gen lại" + tag, key=f"vr_{j['id']}"):
                 act(lambda: p.retry(j["id"], "gen lại"))
                 st.rerun()
-            if j["escalated"] and not blocked and st.button("↺ Làm lại từ đầu", key=f"vrs_{j['id']}",
+            if j["escalated"] and not blocked and st.button("↺ Làm lại từ đầu" + tag, key=f"vrs_{j['id']}",
                                                             help="Đã hết số lần thử: bắt đầu lại với một job video mới"):
                 if act(lambda: p.restart_job(j["id"]), "Đã xếp hàng video mới"):
                     st.rerun()
             if clip and j["state"] in ("succeeded", "approved") and st.button(
-                    "↻ Gen lại theo ảnh/prompt mới" if stale_reason else "↻ Gen lại video", key=f"vregen_{j['id']}",
+                    ("↻ Gen lại theo ảnh/prompt mới" if stale_reason else "↻ Gen lại video") + tag, key=f"vregen_{j['id']}",
                     help="Clip này vào thùng rác (giữ 30 ngày) và xếp hàng video mới. Muốn đổi cách quay thì sửa motion prompt ở Bước 3 trước."):
                 if act(lambda: regen.regenerate_video(p, C.DATA, j["id"], f"làm lại vì {stale_reason}" if stale_reason else None),
                        "Đã xếp hàng gen lại video"):

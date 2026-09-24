@@ -3,6 +3,7 @@
     py tools/recover_clips.py                         (chỉ xem: tra mọi job video đã gửi nhưng không thành công)
     py tools/recover_clips.py --download              (tải clip ClipAI đã làm xong về data/projects/<id>/recovered/)
     py tools/recover_clips.py --project 3 --pages 30  (một dự án; quét tối đa 30 trang × 50 task mỗi loại model)
+    py tools/recover_clips.py --reconcile --project 3 (C11: đối chiếu MỌI clip đã gửi — sổ chi USD vs `cost` thật của ClipAI)
 
 KHÔNG gửi job mới (không tốn tiền), KHÔNG ghi vào CSDL (mở chỉ đọc). Chỉ đọc danh sách `video-list` của ClipAI và tải file
 video đã có. Clip tải về nằm ở thư mục `recovered/` riêng — không lẫn vào thư mục `videos/` mà bản ghép tự lấy; xem rồi tự chọn.
@@ -202,6 +203,81 @@ def recover(conn, provider, data_dir: str, projects=None, job_ids=None, max_page
     return {"rows": out, "text": "\n".join(lines) + "\n"}
 
 
+def sent_jobs(conn, projects=None) -> list:
+    """Mọi job video đã gửi tới ClipAI (một dòng mỗi task: nhóm multi-shot lấy job trưởng nhóm)."""
+    cols = {r["name"] for r in conn.execute("PRAGMA table_info(jobs)")}
+    leader = "AND (j.group_leader IS NULL OR j.group_leader = j.id)" if "group_leader" in cols else ""
+    sql = ("SELECT j.id, j.project_id, j.external_id, j.state" + (", j.model" if "model" in cols else ", NULL AS model")
+           + " FROM jobs j WHERE j.type='video_gen' AND j.external_id IS NOT NULL AND j.external_id != '' " + leader)
+    args = []
+    if projects:
+        sql += f" AND j.project_id IN ({','.join('?' * len(projects))})"
+        args += list(projects)
+    rows, seen = [], set()
+    for r in conn.execute(sql + " ORDER BY j.id", args):
+        if r["external_id"] not in seen:
+            seen.add(r["external_id"])
+            rows.append(r)
+    return rows
+
+
+def ledger_usd(conn, job_id, pricing) -> float:
+    from core import cost
+    return sum(cost.clip_price(pricing, u["model"], u["tier"], u["quantity"]) or 0 for u in conn.execute(
+        "SELECT model, tier, quantity FROM usage_events WHERE job_id=? AND kind='video' AND provider NOT LIKE 'mock%'", (job_id,)))
+
+
+def reconcile(conn, provider, projects=None, max_pages: int = 20, pause: float = 1.5, log=print) -> dict:
+    """C11: sổ chi ghi tiền lúc GỬI theo bảng giá ước tính; ClipAI ghi `cost` thật của từng task. So hai bên theo model, tìm
+    task sổ có mà ClipAI không tính (không tạo / hỏng miễn phí) và ngược lại; ước lượng USD cho 1 đơn vị `cost`."""
+    from core import cost
+    pricing = cost.load_pricing()
+    rows = sent_jobs(conn, projects)
+    if not rows:
+        return {"rows": [], "text": "Không có job video nào đã gửi tới ClipAI."}
+    log(f"Đối chiếu {len(rows)} task trên ClipAI...")
+    stats = {}
+    found = scan(provider, {r["external_id"] for r in rows}, max_pages, pause, log, stats)
+    out, by_model = [], {}
+    for r in rows:
+        task = found.get(r["external_id"])
+        try:
+            units = float(task.get("cost")) if task and task.get("cost") not in (None, "") else None
+        except (TypeError, ValueError):
+            units = None
+        usd = ledger_usd(conn, r["id"], pricing)
+        item = {"job": r["id"], "project": r["project_id"], "model": r["model"] or "?", "usd": usd, "cost": units,
+                "seen": task is not None, "status": STATUS.get(int(task["task_status"]) if task and str(task.get("task_status", "")).isdigit()
+                                                            else None, "không thấy" if task is None else "?")}
+        out.append(item)
+        m = by_model.setdefault(item["model"], {"n": 0, "usd": 0.0, "cost": 0.0, "usd_matched": 0.0, "free": 0, "unseen": 0})
+        m["n"] += 1
+        m["usd"] += usd
+        if task is None:
+            m["unseen"] += 1
+        elif units:
+            m["cost"] += units
+            m["usd_matched"] += usd
+        elif usd:
+            m["free"] += 1
+    lines = [f"# Đối chiếu sổ chi video với ClipAI — {datetime.now():%Y-%m-%d %H:%M}",
+             "_`tools/recover_clips.py --reconcile`: chỉ đọc CSDL + danh sách ClipAI, không gửi job (không tốn tiền)._", "",
+             "| Model | Task | Sổ chi (USD, ước tính) | `cost` ClipAI (tổng) | USD ước tính / 1 đơn vị `cost` | Sổ có tiền, ClipAI cost=0 |"
+             " Không thấy trên ClipAI |", "|---|---|---|---|---|---|---|"]
+    for model, m in sorted(by_model.items()):
+        rate = f"{m['usd_matched'] / m['cost']:.5f}" if m["cost"] else "—"
+        lines.append(f"| {model} | {m['n']} | ${m['usd']:.2f} | {m['cost']:g} | {rate} | {m['free']} | {m['unseen']} |")
+    odd = [i for i in out if (i["usd"] and i["seen"] and not i["cost"]) or (i["cost"] and not i["usd"])]
+    if odd:
+        lines += ["", "## Task lệch giữa hai bên", "| Dự án | Job | Model | ClipAI | Sổ chi | `cost` ClipAI |", "|---|---|---|---|---|---|"]
+        lines += [f"| #{i['project']} | {i['job']} | {i['model']} | {i['status']} | ${i['usd']:.2f} | {i['cost'] or 0:g} |" for i in odd]
+    lines += ["", "Đã quét: " + " · ".join(f"{fam} {st['pages']} trang / {st['tasks']} task" + (" (hết danh sách)" if st["ended"] else
+                                                                                            " (chưa hết — tăng --pages)")
+                                          for fam, st in stats.items()),
+              "", "Đơn vị của `cost` do ClipAI quy định (chưa có tỉ giá công bố). Khi đã biết tỉ giá, sổ chi sẽ ghi theo `cost` thật."]
+    return {"rows": out, "models": by_model, "text": "\n".join(lines) + "\n"}
+
+
 def main():
     try:
         sys.stdout.reconfigure(encoding="utf-8")
@@ -214,15 +290,18 @@ def main():
     ap.add_argument("--job", type=int, nargs="*", help="tra đúng các job này (kể cả job không bị đánh hỏng)")
     ap.add_argument("--pages", type=int, default=20, help="số trang tối đa mỗi loại model (50 task/trang)")
     ap.add_argument("--download", action="store_true", help="tải clip ClipAI đã làm xong về thư mục recovered/")
-    ap.add_argument("--out", default=os.path.join("data", "khoi_phuc_clip.md"))
+    ap.add_argument("--out", default=None)
+    ap.add_argument("--reconcile", action="store_true", help="đối chiếu mọi clip đã gửi: sổ chi vs `cost` thật ClipAI (C11)")
     args = ap.parse_args()
+    args.out = args.out or os.path.join("data", "doi_chieu_clipai.md" if args.reconcile else "khoi_phuc_clip.md")
     from core.adapters.check import load_dashboard_env
     load_dashboard_env()
     try:
         provider = ClipAIVideoProvider.from_env()
     except ProviderError as e:
         sys.exit(f"Không kết nối được ClipAI: {e}")
-    res = recover(open_ro(args.db), provider, args.data, args.project, args.job, args.pages, args.download)
+    res = (reconcile(open_ro(args.db), provider, args.project, args.pages) if args.reconcile
+           else recover(open_ro(args.db), provider, args.data, args.project, args.job, args.pages, args.download))
     with open(args.out, "w", encoding="utf-8") as f:
         f.write(res["text"])
     print(res["text"])

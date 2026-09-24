@@ -160,6 +160,32 @@ def estimate_videos_by_scene(pipeline: Pipeline, project_id: int, pricing: Dict)
     return result
 
 
+def clip_estimate(conn, scene_id: int, pricing: Optional[Dict] = None) -> Optional[float]:
+    """M8: USD of sending this one shot's clip again (its model/tier/length; a remade shot of a multi-shot group goes alone).
+    None when the model has no price."""
+    from . import model_router, shots
+    from .adapters.clipai import effective_duration, resolve_model
+    from .providers import ProviderError
+    pricing = pricing or load_pricing()
+    choice = model_router.scene_choice(conn, scene_id)
+    try:
+        canonical, family = resolve_model(choice["model"])
+    except ProviderError:
+        return None
+    tier = os.environ.get("CLIPAI_KLING_MODE", "pro") if family == "omni" else (
+        choice.get("resolution") or (model_router.load_profiles()["models"].get(choice["model"]) or {}).get("tier") or "720p")
+    mp = conn.execute("SELECT duration_sec FROM motion_prompts WHERE scene_id=?", (scene_id,)).fetchone()
+    seconds = (mp["duration_sec"] if mp and mp["duration_sec"] else None) or shots.planned_seconds(conn, scene_id) or 5
+    return clip_price(pricing, canonical, tier, effective_duration(canonical, family, seconds))
+
+
+def price_tag(usd: Optional[float], count: int = 1) -> str:
+    """Text for a paid button: ' · ≈ $0.40' (or 'chưa có giá') — M8: the price is shown before the click."""
+    if count <= 0:
+        return ""
+    return f" · ≈ {usd:.2f} USD" if usd is not None else " · chưa có giá"   # no "$": Streamlit labels read it as math
+
+
 def format_estimate(est: Dict) -> str:
     unit = "ảnh" if est["kind"] == "image" else "clip"
     head = f"{est['items']} {unit}"

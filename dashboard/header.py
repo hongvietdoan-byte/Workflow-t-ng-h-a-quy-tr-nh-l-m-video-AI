@@ -198,7 +198,7 @@ def _dialog_budget(p: Pipeline) -> None:
     s = budget.status(p.conn)
     if s["enabled"]:
         st.markdown(f"**Đang bật** — tính từ {s['since']} (UTC): đã chi ≈ **\\${s['spent']:.2f} / \\${s['usd']:.0f}**, "
-                    f"{s['images']}/{s['image_cap']} ảnh.")
+                    f"{s['images']}/{s['image_cap']} ảnh, {s['audios']}/{s['audio_cap']} âm thanh.")
         st.progress(min(s["spent"] / s["usd"], 1.0) if s["usd"] else 0.0)
         if s["unknown"]:
             st.caption("Chưa có giá cho: " + ", ".join(s["unknown"]) + " (không tính vào tổng).")
@@ -208,16 +208,18 @@ def _dialog_budget(p: Pipeline) -> None:
                "trong hàng đợi và báo lý do ở 📊 Theo dõi.")
     usd = st.number_input("Trần (USD)", 1.0, 1000.0, float(s["usd"]), 5.0, key="budget_usd")
     cap = st.number_input("Tối đa số ảnh Deepix (chưa có giá)", 0, 1000, int(s["image_cap"]), 10, key="budget_imgs")
+    acap = st.number_input("Tối đa số âm thanh — giọng/nhạc/SFX (chưa có giá)", 0, 5000, int(s["audio_cap"]), 50, key="budget_audio")
     c1, c2 = st.columns(2)
     if c1.button("▶ Bắt đầu đợt thử (tính từ bây giờ)", key="budget_start", type="primary"):
-        budget.save(p.conn, image_cap=int(cap))
+        budget.save(p.conn, image_cap=int(cap), audio_cap=int(acap))
         budget.restart(p.conn, usd)
         st.rerun()
     if s["enabled"] and c2.button("■ Tắt giới hạn", key="budget_stop"):
         budget.stop(p.conn)
         st.rerun()
-    if s["enabled"] and (usd != s["usd"] or cap != s["image_cap"]) and st.button("💾 Lưu trần mới (giữ mốc bắt đầu)", key="budget_save"):
-        budget.save(p.conn, usd=float(usd), image_cap=int(cap))
+    if s["enabled"] and (usd != s["usd"] or cap != s["image_cap"] or acap != s["audio_cap"]) \
+            and st.button("💾 Lưu trần mới (giữ mốc bắt đầu)", key="budget_save"):
+        budget.save(p.conn, usd=float(usd), image_cap=int(cap), audio_cap=int(acap))
         st.rerun()
     st.divider()
     st.markdown(f"**🤖 Claude API** — đã dùng ≈ **\\${s['llm_spent']:.2f} / \\${s['llm_usd']:.2f}**"

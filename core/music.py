@@ -141,12 +141,27 @@ def record_audio_usage(ledger, provider, model: str, count: int = 1) -> None:
         record_usage(conn, None, "audio", provider.name, model, "default", 1, "item", project_id=project_id)
 
 
+def audio_refusal(ledger, provider) -> Optional[str]:
+    """A reason not to send one more audio job now (test round's audio cap), else None."""
+    if ledger is None:
+        return None
+    from .budget import check_audio
+    try:
+        return check_audio(ledger[0], provider.name)
+    except Exception as e:  # noqa: BLE001 - a cap that cannot be read does not protect
+        return f"không đọc được sổ chi ({type(e).__name__})"
+
+
 def submit_drafts(provider, drafts_dir: str, prompt: str, length_ms: Optional[int], instrumental: bool,
                   count: int = 3, ledger=None) -> int:
     """Submit `count` drafts; stops on the first submission error (kept in the manifest) and returns how many went out."""
     drafts = load_drafts(drafts_dir)
     sent = 0
     for _ in range(count):
+        refused = audio_refusal(ledger, provider)
+        if refused:
+            drafts.append({"asset_id": None, "state": "failed", "message": refused, "prompt": prompt, "file": None})
+            break
         try:
             asset_id = provider.generate_music(prompt, length_ms, instrumental, name="pipeline-music")
         except ProviderError as e:

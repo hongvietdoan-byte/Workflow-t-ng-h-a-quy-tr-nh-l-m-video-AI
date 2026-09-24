@@ -193,5 +193,46 @@ class MotionBatchTests(unittest.TestCase):
         self.assertEqual(calls, [])
 
 
+class AudioCapAndClipPriceTests(unittest.TestCase):
+    """GĐ-C4: audio (no price yet) is capped by count; a paid button knows its clip's price (M8)."""
+
+    def test_audio_stops_at_the_test_round_count(self):
+        from core import audio_lib
+
+        class Tts:
+            name = "clipai-audio"
+            sent = 0
+
+            def generate_tts(self, *a, **k):
+                Tts.sent += 1
+                return f"a{Tts.sent}"
+
+        db = os.path.join(tempfile.mkdtemp(), "m.sqlite")
+        conn = connect(db)
+        budget.restart(conn, 50)
+        budget.save(conn, audio_cap=2)
+        d = tempfile.mkdtemp()
+        results = [audio_lib.submit_tts(Tts(), d, f"câu {i}", 1, ledger=(conn, None)) for i in range(3)]
+        self.assertEqual(Tts.sent, 2)
+        self.assertEqual(results[2]["state"], "failed")
+        self.assertIn("trần 2 lượt", results[2]["message"])
+        self.assertEqual(budget.status(conn)["audios"], 2)
+
+    def test_a_clip_is_priced_with_its_model_and_length(self):
+        from core import cost
+        from tests.test_v3 import _approve_all_images, _approve_all_motion, kenta_project
+        p, pid = kenta_project()
+        data = tempfile.mkdtemp()
+        llm_runner.run_director(p, pid, llm_runner.MockLlm())
+        _approve_all_images(p, pid, data)
+        _approve_all_motion(p, pid, data)
+        sid = p.conn.execute("SELECT id FROM scenes WHERE project_id=? ORDER BY idx LIMIT 1", (pid,)).fetchone()[0]
+        usd = cost.clip_estimate(p.conn, sid)
+        self.assertIsNotNone(usd)
+        self.assertGreater(usd, 0)
+        self.assertEqual(cost.price_tag(usd), f" · ≈ {usd:.2f} USD")
+        self.assertEqual(cost.price_tag(None), " · chưa có giá")
+
+
 if __name__ == "__main__":
     unittest.main()

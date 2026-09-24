@@ -8,7 +8,7 @@ import json
 import os
 from typing import Dict, List, Optional
 
-from .music import _ext, record_audio_usage
+from .music import _ext, audio_refusal, record_audio_usage
 from .providers import ProviderError
 
 KINDS = {"sound_effect": "SFX", "tts": "Giọng đọc"}
@@ -67,6 +67,9 @@ def add_local(directory: str, src_path: str, label: str, start: float = 0.0, vol
 
 def submit_sfx(provider, directory: str, prompt: str, duration_seconds: Optional[float] = None,
                loop: bool = False, ledger=None) -> Dict:
+    refused = audio_refusal(ledger, provider)
+    if refused:
+        return _add(directory, "sound_effect", prompt, None, refused)
     try:
         asset_id = provider.generate_sfx(prompt, duration_seconds, loop, name="pipeline-sfx")
     except ProviderError as e:
@@ -80,6 +83,9 @@ def submit_tts(provider, directory: str, text: str, voice_actor_id: int, voice_n
     """`extra` tags a dialogue line (scene_id, line, speaker, text, voice_id) so it can be placed on the timeline and
     subtitled from its real timing. Do not pass language_code for Vietnamese: ElevenLabs answers HTTP 400 (auto-detect works)."""
     label = (f"[{voice_name}] " if voice_name else "") + text
+    refused = audio_refusal(ledger, provider)
+    if refused:
+        return _add(directory, "tts", label, None, refused, extra)
     try:
         asset_id = provider.generate_tts(text, voice_actor_id, model, language_code, name="pipeline-tts")
     except ProviderError as e:
