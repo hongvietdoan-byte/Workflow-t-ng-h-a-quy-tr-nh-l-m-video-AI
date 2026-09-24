@@ -101,9 +101,10 @@ class SafetyTests(Setup):
 
         ctx = self.build(llm=Harsh(), max_retry=1)
         autopilot.start(self.p, self.pid)
-        self.assertEqual(autopilot.run_until_done(self.p, self.pid, ctx), autopilot.ATTENTION)
-        note = autopilot.status(self.p, self.pid)["note"]
-        self.assertIn("hết số lần thử", note)
+        # F5: the same fault after one fix -> the picture is held for the person (flagged) and the run waits at the storyboard
+        self.assertEqual(autopilot.run_until_done(self.p, self.pid, ctx), autopilot.WAITING)
+        self.assertIn("dưới mức sàn", autopilot.status(self.p, self.pid)["note"])
+        self.assertTrue(self.p.conn.execute("SELECT 1 FROM jobs WHERE type='image_gen' AND state='pending_review' AND escalated=1").fetchone())
         # nothing was rendered and no video credit was spent
         self.assertEqual(self.p.conn.execute("SELECT COUNT(*) c FROM jobs WHERE type='video_gen'").fetchone()["c"], 0)
 

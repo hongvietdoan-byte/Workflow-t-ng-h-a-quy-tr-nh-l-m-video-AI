@@ -45,13 +45,14 @@ class StoryboardGateTest(unittest.TestCase):
         self.assertIn("khớp bối cảnh 0.50", f[c])
         self.assertEqual(storyboard_gate.summary(self.p, self.pid), "2/3 shot có cờ cần xem")
 
-    def test_a_multishot_group_whose_first_picture_lacks_a_later_shots_people_is_flagged(self):
+    def test_a_later_shot_with_people_missing_from_the_group_picture_gets_its_own_picture(self):
         self.p.set_project_field(self.pid, "shot_mode", "multishot")
         lead, later = self.shot(1, ["Maxim"]), self.shot(2, ["Kenta", "Kelly"])
         self.picture(lead, GOOD)
-        self.assertEqual(storyboard_gate.flags(self.p, self.pid)[later], ["ảnh đầu nhóm không có Kenta, Kelly"])
-        self.assertEqual(storyboard_gate.fingerprint(self.p, self.pid), [self.p.conn.execute(
-            "SELECT id FROM jobs WHERE scene_id=? AND state='approved'", (lead,)).fetchone()["id"]])   # one picture for the group
+        # F4: such a shot starts its own group (GĐ6 R4: the group used to invent the missing people), so it needs a picture
+        self.assertEqual(storyboard_gate.flags(self.p, self.pid)[later], ["chưa có ảnh đã duyệt"])
+        lead_pic = self.p.conn.execute("SELECT id FROM jobs WHERE scene_id=? AND state='approved'", (lead,)).fetchone()["id"]
+        self.assertEqual(storyboard_gate.fingerprint(self.p, self.pid), [lead_pic, 0])
 
     def test_the_checkpoint_waits_and_comes_back_when_a_picture_changes(self):
         sid = self.shot(1, ["Kelly"])

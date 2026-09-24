@@ -361,16 +361,22 @@ class VideoRunner(_Runner):
 
     def _stamp(self, job, args) -> Dict:
         from . import formats, lineage
+        from . import shots
         mp = self.p.conn.execute("SELECT * FROM motion_prompts WHERE scene_id=?", (job["scene_id"],)).fetchone()
+        group = self._sends_group(job)
         return {"input_hash": lineage.video_input_hash(mp, formats.project_aspect(self.p.project(job["project_id"]))) if mp else None,
-                "source_job_id": lineage.approved_image_id(self.p.conn, job["scene_id"]), "model": args[4]}
+                "source_job_id": lineage.approved_image_id(self.p.conn, shots.image_scene(self.p.conn, job["scene_id"])),
+                "model": args[4],
+                "sent_group": json.dumps([{"id": r["id"], "idx": r["idx"], "duration_s": shots.billed_shot_seconds(r["data"])}
+                                          for r in group]) if group else None}
 
     def _submit_args(self, job):
         conn = self.p.conn
         mp = conn.execute("SELECT motion_prompt, negative_prompt, duration_sec, ref_video_path, ref_video_type"
                           " FROM motion_prompts WHERE scene_id=? AND state='approved'", (job["scene_id"],)).fetchone()
-        img = conn.execute("SELECT id FROM jobs WHERE scene_id=? AND type='image_gen' AND state='approved'"
-                           " ORDER BY id DESC LIMIT 1", (job["scene_id"],)).fetchone()
+        from . import shots
+        img = conn.execute("SELECT id FROM jobs WHERE scene_id=? AND type='image_gen' AND state='approved'"   # M1: a later shot of a
+                           " ORDER BY id DESC LIMIT 1", (shots.image_scene(conn, job["scene_id"]),)).fetchone()   # group has no picture
         if mp is None or img is None:
             return None
         path = os.path.join(self.data_dir, str(job["project_id"]), "images", f"job_{img['id']}.png")
@@ -384,7 +390,10 @@ class VideoRunner(_Runner):
             if group:                                             # the whole group's length, one Kling generation
                 duration = sum(shots.billed_shot_seconds(r["data"]) for r in group)
                 model = "kling"
-        args = (path, mp["motion_prompt"], mp["negative_prompt"], duration, model)
+        motion = mp["motion_prompt"]
+        if job["retry_reason"] and not job["retry_reason"].startswith(RESEND_NOTE):
+            motion = f"{motion} Fix: {job['retry_reason']}"      # W3: a retry sends the QC's fix, never the very same input again
+        args = (path, motion, mp["negative_prompt"], duration, model)
         subj_refs = []
         if proj["use_subjects"] and "seedance" in (model or ""):
             subj_refs = subject_links.usable_for_scene(self.p, job["scene_id"], subject_links.reference_cap(model))
@@ -454,7 +463,9 @@ class VideoRunner(_Runner):
         shot's own length into <idx>.mp4, so render, voice placement and subtitles all use the cut length. A Kling multi-shot
         clip is first split into one clip per shot of its group; the other shots' jobs are completed with their part."""
         from . import shots
-        group = self._sends_group(job)
+        sent = json.loads(job["sent_group"]) if "sent_group" in job.keys() and job["sent_group"] else None
+        group = ([{"id": g["id"], "idx": g["idx"], "data": {"duration_s": g["duration_s"]}} for g in sent] if sent
+                 else self._sends_group(job))       # M10: the group as it was sent (a later re-plan must not mis-cut a paid clip)
         if group:
             self._finish_group(job, path, group)
         try:

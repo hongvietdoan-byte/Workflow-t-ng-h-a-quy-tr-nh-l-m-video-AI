@@ -171,7 +171,7 @@ class QcRejectFloorTests(unittest.TestCase):
     def test_floor_can_be_raised_to_70_or_switched_off(self):
         p, pid, job = self.make("human_qc")
         p.set_reject_floor(pid, 0.7)
-        self.assertEqual(p.apply_qc(job, MIDDLE), "rejected")  # 0.60 < 0.70
+        self.assertEqual(p.apply_qc(job, MIDDLE, issues="fix the hand"), "rejected")  # 0.60 < 0.70
         p2, pid2, job2 = self.make("human_qc")
         p2.set_reject_floor(pid2, None)
         self.assertEqual(p2.apply_qc(job2, LOW), "pending_review")
@@ -179,13 +179,15 @@ class QcRejectFloorTests(unittest.TestCase):
     def test_auto_mode_floor_beats_review_zone(self):
         p, pid, job = self.make("auto")
         p.set_review_floor(pid, 0.2)
-        self.assertEqual(p.apply_qc(job, LOW), "rejected")  # 0.35 < reject floor 0.5, though inside the review zone
+        self.assertEqual(p.apply_qc(job, LOW, issues="fix the hand"), "rejected")  # 0.35 < reject floor 0.5, though inside the review zone
 
     def test_repeated_low_scores_escalate_after_max_retries(self):
         p, pid, job = self.make("human_qc")
         p.conn.execute("UPDATE projects SET max_retry_count=0 WHERE id=?", (pid,))
         p.conn.commit()
-        self.assertEqual(p.apply_qc(job, LOW), "escalated")
+        self.assertEqual(p.apply_qc(job, LOW, issues="fix the hand"), "escalated")
+        p2, pid2, job2 = self.make("human_qc")
+        self.assertEqual(p2.apply_qc(job2, LOW), "needs_review")          # F5: no fix named -> no identical paid retry, the person decides
 
 
 if __name__ == "__main__":

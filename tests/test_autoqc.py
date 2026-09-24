@@ -83,7 +83,9 @@ class AutoFixTests(Base):
         self.assertEqual((second[1], second[2]), ("queued", 1))
         self.assertIn("Kelly must wear the yellow tracksuit", second[3])              # the QC's words are the retry instruction
         self.runner.submit_pending(self.pid)
-        self.assertIn("Fix: QC 0.40", list(self.provider.prompts.values())[-1])       # ... and reach the image model
+        sent = list(self.provider.prompts.values())[-1]
+        self.assertIn("Fix: Kelly must wear the yellow tracksuit", sent)                 # ... and reach the image model
+        self.assertNotIn("QC 0.40", sent)                                                # W4: no score line in the model's prompt
 
     def test_a_good_picture_goes_to_the_person_and_so_does_any_picture_when_the_switch_is_off(self):
         jid = self.generated_job(self.scene())
@@ -98,13 +100,10 @@ class AutoFixTests(Base):
         self.runner.submit_pending(self.pid)
         self.runner.poll_once(self.pid)
         second = [s for s in self.states() if s[1] == "succeeded"][0][0]
-        llm_runner.run_qc(self.p, second, FakeQc(0.4), self.data, autofix=True)      # try 2
-        self.runner.submit_pending(self.pid)
-        self.runner.poll_once(self.pid)
-        third = [s for s in self.states() if s[1] == "succeeded"][0][0]
-        result = llm_runner.run_qc(self.p, third, FakeQc(0.4), self.data, autofix=True)
+        # the same fault after the fix: F5 stops here (a third paid try with the same problem is not made)
+        result = llm_runner.run_qc(self.p, second, FakeQc(0.4), self.data, autofix=True)
         self.assertEqual(result["decision"], "needs_review")
-        row = self.p.conn.execute("SELECT state, escalated FROM jobs WHERE id=?", (third,)).fetchone()
+        row = self.p.conn.execute("SELECT state, escalated FROM jobs WHERE id=?", (second,)).fetchone()
         self.assertEqual((row["state"], row["escalated"]), ("pending_review", 1))      # not thrown away: the person decides
 
 

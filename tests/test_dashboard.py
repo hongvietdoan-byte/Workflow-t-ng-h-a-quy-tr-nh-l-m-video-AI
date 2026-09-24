@@ -357,7 +357,7 @@ class DashboardSmokeTests(unittest.TestCase):
             f.write(b"x")
         q.conn.execute("UPDATE jobs SET state='succeeded' WHERE id=?", (job,))
         q.conn.commit()
-        self.assertEqual(q.apply_qc(job, {"a": 0.2, "b": 0.3}), "rejected")
+        self.assertEqual(q.apply_qc(job, {"a": 0.2, "b": 0.3}, issues="Fix the face."), "rejected")
         at = AppTest.from_file(APP, default_timeout=30).run()
         at.button(key="settings_history").click().run()                     # Lịch sử now opens as its own panel
         self.assertFalse(at.exception)

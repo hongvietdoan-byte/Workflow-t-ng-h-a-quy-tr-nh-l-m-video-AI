@@ -51,7 +51,7 @@ class AuditRunTest(unittest.TestCase):
         i1 = img(s1, GOOD)
         i2 = img(s2, GOOD)
         v = vid(s1, i1, "h")
-        p.apply_qc(v, VID_BAD)                      # redo with the very same inputs
+        p.apply_qc(v, VID_BAD, issues="Keep Kelly's face.")   # redo: the motion prompt row stays the same
         p.apply_qc(vid(s1, i1, "h"), VID_OK)
         p.apply_qc(vid(s2, i2, "h2"), VID_OK)
         regen.regenerate_video(p, self.tmp.name, c.execute("SELECT id FROM jobs WHERE scene_id=? AND type='video_gen' AND state='approved'",
@@ -77,7 +77,7 @@ class AuditRunTest(unittest.TestCase):
         self.assertIn("| QC loại → tự gen lại | 1 |", text)
         self.assertIn("| Đầu vào đổi → làm lại | 1 |", text)
         self.assertIn("gửi lại **đầu vào y hệt** (cùng ảnh + cùng motion prompt): **1** (100%)", text)
-        self.assertIn("câu sửa chứa điểm số hoặc tiếng Việt (đi thẳng vào prompt Deepix): 1", text)
+        self.assertIn("câu sửa chứa điểm số hoặc tiếng Việt (đi thẳng vào prompt Deepix): 0", text)   # W4: only the QC's fix now
 
     def test_storyboard_gate_counts_clips_made_from_visibly_wrong_pictures(self):
         c = connect(self.db)

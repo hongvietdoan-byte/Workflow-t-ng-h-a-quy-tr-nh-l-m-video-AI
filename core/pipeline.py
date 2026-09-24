@@ -29,6 +29,20 @@ def hard_failures(scores: Mapping[str, float], kind: str = "image") -> list:
     return [f"{k} {v:.2f} < {floors[k]:.2f}" for k, v in scores.items() if k in floors and v < floors[k]]
 
 
+AUTO_RETRY_CAP = 2          # automatic (QC) retries per picture/clip — user decision 2026-09-24; people may retry more by hand
+
+
+def _combine_fix(previous: Optional[str], new: str) -> str:
+    """The fix sentences for the next try: this QC's issues plus the one before (a fix that worked must not be lost next time)."""
+    from .runner import RESEND_NOTE
+    parts = [p for p in (previous or "", new or "") if p and not p.startswith(RESEND_NOTE) and not p.startswith("QC ")]
+    seen, out = set(), []
+    for p in parts:
+        if p.strip() not in seen:
+            seen.add(p.strip())
+            out.append(p.strip().rstrip("."))
+    return (". Also: ".join(out[-2:]) + ".")[:700] if out else new
+
 class PipelinePaused(Exception):
     pass
 
@@ -328,6 +342,7 @@ class Pipeline:
         threshold = proj["qc_auto_pass_threshold"]
         overall = sum(scores.values()) / len(scores)
         hard = hard_failures(scores, "video" if job["type"] == "video_gen" else "image")
+        fix = (issues or "").strip()             # the QC's own fix sentences (English, for the model): what a retry changes
         if hard:                                  # a wrong face / broken hands cannot be averaged away by good lighting
             issues = ("Tiêu chí chặn cứng dưới mức sàn: " + ", ".join(hard) + (f". {issues}" if issues else ""))
         suffix = f" — {issues}" if issues else ""
@@ -345,18 +360,18 @@ class Pipeline:
                  ("fail" if too_low else "pass" if passed else "review" if review_zone else "fail") if auto
                  else ("fail" if too_low else None)))
         self.conn.commit()
+        hold = None if passed else self._no_auto_retry(job, scores, threshold, fix)
         if too_low and not (autofix and not auto):  # far below the bar: not worth a human's time (with auto-fix on, the fix branch below handles it)
-            return self.reject(job_id, "ai_agent", f"QC {overall:.2f} < mức tối thiểu {reject_floor}{suffix}")
+            if hold:
+                return self._hold(job_id, f"QC {overall:.2f} < mức tối thiểu {reject_floor} — {hold}{suffix}")
+            return self.reject(job_id, "ai_agent", f"QC {overall:.2f} < mức tối thiểu {reject_floor}{suffix}", fix=fix)
         if not auto:
             if autofix and not passed:
-                if self._retries_exhausted(job):     # still faulty after the last try: keep this picture for the person, flagged
-                    self.transition(job_id, JobState.PENDING_REVIEW, actor="ai_agent",
-                                    note=f"QC {overall:.2f} < {threshold} sau {job['retry_count']} lần tự sửa — cần bạn xem{suffix}")
-                    self.conn.execute("UPDATE jobs SET escalated=1 WHERE id=?", (job_id,))
-                    self.conn.commit()
-                    return "needs_review"
+                if self._retries_exhausted(job) or hold:  # F5: no paid retry with the same input — keep it for the person, flagged
+                    return self._hold(job_id, f"QC {overall:.2f} < {threshold} — " + (hold or f"sau {job['retry_count']} lần tự sửa")
+                                      + f" — cần bạn xem{suffix}")
                 self.transition(job_id, JobState.PENDING_REVIEW, actor="ai_agent", note=f"QC {overall:.2f} < {threshold}, tự sửa{suffix}")
-                self.reject(job_id, "ai_agent", f"QC {overall:.2f} < {threshold}{suffix}")   # queues a new job whose prompt carries the issues
+                self.reject(job_id, "ai_agent", f"QC {overall:.2f} < {threshold}{suffix}", fix=fix)   # the new job's prompt carries the fix
                 return "auto_fix"
             self.transition(job_id, JobState.PENDING_REVIEW, actor="ai_agent",
                             note=f"QC {overall:.2f} (suggestion only){suffix}")
@@ -368,7 +383,32 @@ class Pipeline:
             self.transition(job_id, JobState.PENDING_REVIEW, actor="ai_agent",
                             note=f"QC {overall:.2f} in review zone [{floor}, {threshold}){suffix}")
             return "pending_review"
-        return self.reject(job_id, "ai_agent", f"QC {overall:.2f} < {threshold}{suffix}")
+        if hold:
+            return self._hold(job_id, f"QC {overall:.2f} < {threshold} — {hold}{suffix}")
+        return self.reject(job_id, "ai_agent", f"QC {overall:.2f} < {threshold}{suffix}", fix=fix)
+
+    def _no_auto_retry(self, job, scores: Mapping[str, float], threshold: float, fix: str) -> Optional[str]:
+        """F5 (user decision 2026-09-24): an automatic retry only when its input changes, at most AUTO_RETRY_CAP times per shot,
+        and never a third time for the same fault. Returns why not (Vietnamese, for the person), or None."""
+        if not fix:
+            return "QC không nêu lỗi cụ thể để sửa — gen lại sẽ gửi y hệt đầu vào (không tự gen lại)"
+        if job["retry_count"] >= AUTO_RETRY_CAP:
+            return f"đã tự gen lại {job['retry_count']} lần (tối đa {AUTO_RETRY_CAP})"
+        floors = hard_floors("video" if job["type"] == "video_gen" else "image")
+        failing = {k for k, v in scores.items() if v < threshold or (k in floors and v < floors[k])}
+        if job["parent_job_id"] and failing:
+            before = {r["criterion"] for r in self.conn.execute(
+                "SELECT criterion FROM qc_results WHERE job_id=? AND score < threshold_at_time", (job["parent_job_id"],))}
+            if before and failing <= before:
+                return ("cùng lỗi lặp lại sau khi sửa (" + ", ".join(sorted(failing)) + ") — cần sửa lớp gốc (Bible/ảnh tham chiếu/"
+                        "prompt/khung cắt) thay vì gen lại")
+        return None
+
+    def _hold(self, job_id: int, note: str) -> str:
+        self.transition(job_id, JobState.PENDING_REVIEW, actor="ai_agent", note=note)
+        self.conn.execute("UPDATE jobs SET escalated=1 WHERE id=?", (job_id,))
+        self.conn.commit()
+        return "needs_review"
 
     def approve(self, job_id: int, reviewer_type: str = "user", note: Optional[str] = None) -> None:
         self._require_reviewable(job_id)
@@ -376,7 +416,7 @@ class Pipeline:
         self.transition(job_id, JobState.APPROVED, actor=reviewer_type, note=note)
 
     def reject(self, job_id: int, reviewer_type: str = "user", note: Optional[str] = None,
-               respawn: bool = True) -> str:
+               respawn: bool = True, fix: Optional[str] = None) -> str:
         """Reject and spawn a retry job (unless respawn=False = plain delete); escalate when
         max_retry_count is exceeded."""
         self._require_reviewable(job_id)
@@ -384,7 +424,10 @@ class Pipeline:
         self.transition(job_id, JobState.REJECTED, actor=reviewer_type, note=note)
         if not respawn:
             return "rejected"
-        new_id = self._spawn_retry(job_id, note)
+        # W4: the model gets only the fix sentences (the person's note, or the QC's issues added to the earlier fixes) — never the
+        # score line or the Vietnamese note meant for people
+        reason = note if fix is None else _combine_fix(self.job(job_id)["retry_reason"], fix)
+        new_id = self._spawn_retry(job_id, reason, auto=reviewer_type == "ai_agent")
         return "rejected" if new_id else "escalated"
 
     def keepable_rejected(self, scene_id: int, kind: str = "video_gen"):
@@ -430,9 +473,9 @@ class Pipeline:
         self.conn.commit()
 
     def _spawn_retry(self, job_id: int, reason: Optional[str],
-                     close_old: Optional[JobState] = None) -> Optional[int]:
+                     close_old: Optional[JobState] = None, auto: bool = False) -> Optional[int]:
         job = self.job(job_id)
-        if self._retries_exhausted(job):
+        if self._retries_exhausted(job) or (auto and job["retry_count"] + 1 > AUTO_RETRY_CAP):
             self._escalate(job)
             return None
         next_count = job["retry_count"] + 1

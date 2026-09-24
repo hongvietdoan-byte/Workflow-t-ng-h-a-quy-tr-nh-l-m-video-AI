@@ -338,7 +338,11 @@ def multishot_groups(conn, project_id: int) -> List[List[Dict]]:
             continue
         sec = billed_shot_seconds(r["data"])
         last = groups[-1] if groups else None
-        if (last and _group_key(last[-1]["data"]) == _group_key(r["data"])
+        cast = {str(c) for c in r["data"].get("characters") or []}
+        first_cast = {str(c) for c in (last[0]["data"].get("characters") or [])} if last else set()
+        # F4 (GĐ6 R4): the whole group is made from its FIRST shot's picture — a later shot with someone not in that picture got an
+        # invented person, so such a shot starts a new group (with its own picture)
+        if (last and _group_key(last[-1]["data"]) == _group_key(r["data"]) and cast <= first_cast
                 and sum(billed_shot_seconds(x["data"]) for x in last) + sec <= MULTISHOT_MAX):
             last.append(r)
         else:

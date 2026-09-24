@@ -426,7 +426,8 @@ V2_COLUMNS = {
     "jobs": (("input_hash", "TEXT"), ("source_job_id", "INTEGER"), ("model", "TEXT"),
              ("group_leader", "INTEGER"),
              ("task_seen", "INTEGER NOT NULL DEFAULT 0"), ("task_unseen", "INTEGER NOT NULL DEFAULT 0"),
-             ("sent_refs", "TEXT")),   # K7: which pictures (whose, what role) went with the request   # W12: provider list checks     # v3 Kling multi-shot: the job that makes this shot's clip together with its group
+             ("sent_refs", "TEXT"),    # K7: which pictures (whose, what role) went with the request
+             ("sent_group", "TEXT")),  # M10: the Kling multi-shot group exactly as sent (split the clip by it, not by today's plan)   # W12: provider list checks     # v3 Kling multi-shot: the job that makes this shot's clip together with its group
     # G1/G2 (docs/KE_HOACH_TONG_2026-09-24.md): what a library picture shows, for which look, and whether a person approved it
     "assets": (("profile", "TEXT"),),        # T1: the character's standard profile, approved once, inherited by every project
     "asset_images": (("role", "TEXT"), ("look", "TEXT"), ("variant", "TEXT"), ("status", "TEXT NOT NULL DEFAULT 'approved'")),

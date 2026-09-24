@@ -143,6 +143,12 @@ def _scene_choice(conn, scene_id: int, project_row=None, mp_row=None) -> Dict:
     rec = recommend(data, priority_of(project_row), mp_row, bool(project_row["video_audio"]),
                     look=project_row["look"] if "look" in project_row.keys() else None)
     override = mp_row["video_model"] if mp_row is not None and "video_model" in mp_row.keys() else None
+    from . import shots
+    if shots.mode(project_row) == "multishot" and data.get("shot_no") and len(shots.multishot_group_of(conn, scene_id) or []) > 1:
+        # M9: a shot inside a Kling multi-shot group is made in the group's one Kling request — a per-shot override cannot apply
+        return {"model": "kling", "resolution": None, "source": "auto", "recommended": rec,
+                "reason": "Kling multi-shot: các shot liền nhau của nhóm được gen chung một lần"
+                          + (" (model bạn chọn riêng cho shot này không áp dụng trong nhóm)" if override else "")}
     if override:
         return {"model": override, "resolution": None, "reason": "bạn chọn cho cảnh này", "source": "override", "recommended": rec}
     if project_row["video_model"]:

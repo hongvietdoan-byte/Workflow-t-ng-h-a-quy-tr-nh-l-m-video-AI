@@ -284,6 +284,12 @@ def build_motion_bundle(pipeline: Pipeline, project_id: int, only_missing: bool 
         choice = model_router.scene_choice(conn, r["id"])
         out["video_model"] = choice["model"]
         out["max_sec"] = (profiles.get(choice["model"]) or {}).get("max_sec", 15)
+        from . import shots
+        if shots.mode(pipeline.project(project_id)) == "multishot":
+            group = shots.multishot_group_of(conn, r["id"]) or []
+            if len(group) > 1:                 # M9: the real limits of a Kling multi-shot request, not the single-clip ones
+                out.update(multishot_group=[g["idx"] for g in group], prompt_max_chars=512, group_max_sec=shots.MULTISHOT_MAX,
+                           video_model="kling")
         prev = all_scenes.get(r["idx"] - 1) or {}
         if data.get("sequence") and prev.get("sequence") == data.get("sequence") and prev.get("spatial_state"):
             out["previous_spatial_state"] = prev["spatial_state"]
