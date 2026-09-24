@@ -144,7 +144,7 @@ def extras_section(p: Pipeline, pid: int, provider):
                                      key=f"tts_v_{pid}")
                     t_text = st.text_area("Nội dung (≤ 2000 ký tự)", key=f"tts_t_{pid}", height=80)
                     d1, d2 = st.columns(2)
-                    t_model = d1.selectbox("Model", ["eleven_v3", "eleven_multilingual_v2", "eleven_turbo_v2_5"],
+                    t_model = d1.selectbox("Model", ["eleven_v3", "eleven_turbo_v2_5", "eleven_multilingual_v2"],
                                            key=f"tts_m_{pid}")
                     t_lang = d2.text_input("Mã ngôn ngữ (tùy chọn, vd vi, en)", key=f"tts_l_{pid}")
                     if st.button("✨ Tạo giọng đọc", disabled=not t_text.strip(), key=f"tts_go_{pid}"):

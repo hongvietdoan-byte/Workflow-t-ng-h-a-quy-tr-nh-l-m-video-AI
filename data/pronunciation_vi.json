@@ -1,6 +1,9 @@
 {
-  "_note": "Cách đọc từ tiếng Anh / tên riêng trong thoại tiếng Việt khi gửi TTS (chỉ chữ gửi đi đọc; phụ đề giữ nguyên chữ gốc). Khóa không phân biệt hoa thường, chỉ thay nguyên từ. Sửa/thêm tùy dự án.",
+  "_note": "Cách đọc từ tiếng Anh / tên riêng trong thoại tiếng Việt khi gửi TTS (chỉ chữ gửi đi đọc; phụ đề giữ nguyên chữ gốc). Khóa không phân biệt hoa thường, chỉ thay nguyên từ. AU-c (2026-09-24): chỉ thêm từ ĐÃ NGHE THỬ là model đọc sai — phiên âm tự chế có gạch nối làm gãy ngữ điệu, có từ sai nghĩa ('rank' → 'răng'); model eleven_v3 đọc tên riêng tiếng Anh tốt hơn khi để nguyên.",
   "words": {
+    "OB55": "ô bê năm mươi lăm"
+  },
+  "_removed_2026_09_24": {
     "loot": "lút",
     "skill": "xờ-kiu",
     "combo": "com-bô",
@@ -15,7 +18,6 @@
     "headshot": "hét-sót",
     "buff": "bấp",
     "nerf": "nớp",
-    "OB55": "ô bê năm lăm",
     "IQ": "ai-kiu",
     "OK": "ô-kê"
   }

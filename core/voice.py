@@ -13,7 +13,15 @@ from typing import Dict, List, Optional
 
 from . import audio_lib, dialogue, ffmpeg_studio, final_cut
 
-DEFAULT_MODEL = "eleven_multilingual_v2"
+# AU-a (GĐ-G): Multilingual v2 has no Vietnamese in ElevenLabs' language list (29 languages) — the model guessed the language and
+# Vietnamese lines came out with a foreign accent / wrong tones. v3 (70+ languages) and Turbo/Flash v2.5 list Vietnamese.
+DEFAULT_MODEL = "eleven_v3"
+VI_MODELS = ("eleven_v3", "eleven_flash_v2_5", "eleven_turbo_v2_5")
+
+
+def vi_model(model: Optional[str]) -> str:
+    """The TTS model used for a Vietnamese line: the saved one when it speaks Vietnamese, else the default (old profiles saved v2)."""
+    return model if model in VI_MODELS else DEFAULT_MODEL
 _PRON = os.path.join(os.path.dirname(__file__), "..", "data", "pronunciation_vi.json")
 SAMPLE_VI = "Xin chào, tôi là {name}. Trận này mình đi loot trước rồi leo rank nhé, Booyah!"
 LEAD = 0.3          # seconds of picture before the first line of a clip
@@ -89,9 +97,9 @@ def vietnamese_first(voices: List[Dict]) -> List[Dict]:
 
 
 def casting_pool(voices: List[Dict]) -> List[Dict]:
-    """The voices offered for Vietnamese dialogue: only those listing Vietnamese when there are any, else all."""
-    vi = [v for v in vietnamese_first(voices) if speaks_vi(v)]
-    return vi or vietnamese_first(voices)
+    """AU-b: the voices offered for Vietnamese dialogue — only those listing Vietnamese. None -> empty (the caller says so) instead of
+    silently casting a foreign voice to read Vietnamese."""
+    return [v for v in vietnamese_first(voices) if speaks_vi(v)]
 
 
 def pronunciation() -> Dict[str, str]:
@@ -152,7 +160,7 @@ def generate(conn, project_id: int, provider, data_dir: str, scene_ids=None, led
         extra = {"scene_id": ln["scene_id"], "scene_idx": ln["idx"], "line": ln["line"], "speaker": ln["speaker"],
                  "text": ln["text"], "voice_id": ln["voice"]["voice_id"], "dialogue": True}
         audio_lib.submit_tts(provider, directory, speakable(ln["text"]), ln["voice"]["voice_id"], ln["voice"].get("voice_name", ""),
-                             ln["voice"].get("model") or DEFAULT_MODEL, None, ledger=(conn, project_id) if ledger else None,
+                             vi_model(ln["voice"].get("model")), None, ledger=(conn, project_id) if ledger else None,
                              extra=extra)
         sent += 1
     return {"sent": sent, "skipped": skipped, "no_voice": sorted(no_voice)}
@@ -198,6 +206,10 @@ def place_on_timeline(conn, project_id: int, data_dir: str, transition: str = "c
     directory = audio_lib.assets_dir(data_dir, project_id)
     items = audio_lib.load(directory)
     clips = [c for c in final_cut.collect_clips_for_render(conn, data_dir, project_id, clip_paths)]
+    rendered = {c.get("scene_id") for c in clips}
+    for e in items:                                  # D1: the lines of a clip left out of this render must not play at old times
+        if e["kind"] == "tts" and e.get("dialogue") and e.get("scene_id") not in rendered:
+            e["use"] = False
     overlap = fade if transition in ffmpeg_studio.OVERLAP_STYLES else 0.0
     t, placed, prev_end = 0.0, 0, -1.0
     for clip in clips:

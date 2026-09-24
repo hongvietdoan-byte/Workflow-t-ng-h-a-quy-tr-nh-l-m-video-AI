@@ -328,7 +328,7 @@ class VietnameseVoiceTests(unittest.TestCase):
         ordered = voice.vietnamese_first(VOICES)
         self.assertEqual([v["name"] for v in ordered], ["Xinghe Jiang", "Arabella", "Rachel", "Adam"])
         self.assertEqual([v["id"] for v in voice.casting_pool(VOICES)], [30002, 30007])
-        self.assertEqual(len(voice.casting_pool(VOICES[3:])), 2)            # no Vietnamese voice at all: everything is offered
+        self.assertEqual(voice.casting_pool(VOICES[3:]), [])                # AU-b: no Vietnamese voice -> none offered (no foreign voice)
         self.assertEqual(voice.voice_gender(VOICES[2]), "female")
 
     def test_game_words_are_spelt_for_the_voice_but_not_inside_other_words(self):
@@ -349,7 +349,7 @@ class VietnameseVoiceTests(unittest.TestCase):
         voice.generate(p.conn, pid, MockAudioProvider(), data, ledger=False)
         items = [e for e in audio_lib.load(audio_lib.assets_dir(data, pid)) if e.get("dialogue")]
         loot = next(e for e in items if "loot" in e["text"])
-        self.assertIn("lút", loot["label"])                                 # what was sent to TTS
+        self.assertIn("loot", loot["label"])                                # AU-c: game words go as they are (v3 reads them)
         self.assertIn("loot", loot["text"])                                 # what subtitles and matching use
         voice.preview(MockAudioProvider(), data, pid, 30007, "Arabella", "KELLY")
         self.assertEqual(len(audio_lib.load(voice.previews_dir(data, pid))), 1)

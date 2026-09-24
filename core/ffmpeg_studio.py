@@ -225,7 +225,18 @@ def render_final(clips: Sequence[str], output: str, durations: Optional[Sequence
     different models may differ in size)."""
     ffmpeg = find_ffmpeg()
     extras = list(extras or [])
-    keep_audio = bool(keep_audio and clips and all(has_audio(c) for c in clips))
+    padded = []
+    if keep_audio and clips:
+        # D4: a clip made without sound used to silence EVERY clip; it gets a silent track so the others keep theirs
+        clips = list(clips)
+        for i, c in enumerate(clips):
+            if not has_audio(c):
+                tmp = output + f".pad{i}.mp4"
+                run([ffmpeg, "-y", "-i", c, "-f", "lavfi", "-i", "anullsrc=channel_layout=stereo:sample_rate=44100",
+                     "-shortest", "-c:v", "copy", "-c:a", "aac", tmp])
+                clips[i] = tmp
+                padded.append(tmp)
+    keep_audio = bool(keep_audio and clips and all(c in padded or has_audio(c) for c in clips))
     silent = output if music is None and not extras else output + ".silent.mp4"
     if transition in OVERLAP_STYLES:
         if durations is None:
@@ -258,6 +269,11 @@ def render_final(clips: Sequence[str], output: str, durations: Optional[Sequence
             run(build_extras_mix_cmd(current, extras, output, has_audio=music is not None or keep_audio, ffmpeg=ffmpeg))
         finally:
             os.remove(current)
+    for tmp in padded:
+        try:
+            os.remove(tmp)
+        except OSError:
+            pass
     return output
 
 

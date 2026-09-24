@@ -231,7 +231,7 @@ class ClaudeTaskTests(Base):
     def test_character_lock_and_voice_casting(self):
         claude_tasks.character_lock(self.p, self.pid, "KELLY", llm_runner.MockLlm())
         self.assertIn("must_keep", self.p.conn.execute("SELECT lock_rules FROM characters WHERE name='KELLY'").fetchone()[0])
-        cast = claude_tasks.cast_voices(self.p, self.pid, llm_runner.MockLlm(), [{"id": 5, "name": "Giọng A"}])
+        cast = claude_tasks.cast_voices(self.p, self.pid, llm_runner.MockLlm(), [{"id": 5, "name": "Giọng A", "languages": ["vi"]}])
         self.assertTrue(cast["cast"])
         self.assertEqual(voice.profiles(self.p.conn, self.pid)["KENTA"]["voice_id"], 5)
 

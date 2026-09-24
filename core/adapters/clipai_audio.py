@@ -25,7 +25,7 @@ CATEGORIES = ("music", "sound_effect", "tts", "upload")
 TEXT_LIMIT = 2000
 MUSIC_MS = (3000, 600000)
 DEFAULT_MODELS = {"music": "music_v2", "sound_effect": "eleven_text_to_sound_v2", "tts": "eleven_v3"}
-TTS_MODELS = ("eleven_v3", "eleven_multilingual_v2", "eleven_turbo_v2_5")
+TTS_MODELS = ("eleven_v3", "eleven_turbo_v2_5", "eleven_flash_v2_5", "eleven_multilingual_v2")   # v2: no Vietnamese
 _PAGES = 5
 
 

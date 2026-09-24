@@ -141,13 +141,19 @@ def render(p: Pipeline, project_id: int, data_dir: str, music_path: Optional[str
     problems = final_cut.render_problems(durations, settings["transition"], settings["fade"])
     if problems:
         raise ValueError("; ".join(problems))
-    voice.place_on_timeline(p.conn, project_id, data_dir, settings["transition"], settings["fade"], paths)
+    placed = voice.place_on_timeline(p.conn, project_id, data_dir, settings["transition"], settings["fade"], paths)
+    keep_audio = settings["keep_audio"]
+    if placed and keep_audio:        # AU-e: the video model's own speech under the Vietnamese TTS lines = two voices at once
+        keep_audio = False
+        from . import diag
+        diag.record(p.conn, "delivery", "info", "đã có giọng thoại TTS: tắt tiếng gốc của clip trong bản ghép (tránh 2 giọng chồng nhau)",
+                    "clip_audio_muted", project_id)
     track = selected_music(data_dir, project_id) if music_path == "auto" else music_path
     extras = audio_lib.mix_list(audio_lib.assets_dir(data_dir, project_id))
     aspect = formats.project_aspect(p.project(project_id))
     out = os.path.join(output_dir(data_dir, project_id), "FINAL_VIDEO.mp4")
     ffmpeg_studio.render_final(paths, out, durations, settings["transition"], settings["fade"], track, settings["music_volume"],
-                               extras, settings["keep_audio"], formats.spec(aspect)["render"] if aspect else None)
+                               extras, keep_audio, formats.spec(aspect)["render"] if aspect else None)
     oid = record(p, project_id, "final", out, None, final_manifest(p, project_id, data_dir, paths, settings))
     return {"path": out, "output_id": oid, "seconds": final_cut.total_seconds(durations, settings["transition"], settings["fade"])}
 

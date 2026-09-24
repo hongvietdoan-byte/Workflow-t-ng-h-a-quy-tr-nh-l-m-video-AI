@@ -35,17 +35,15 @@ class CommandTests(unittest.TestCase):
         self.assertNotIn("amix", replace[replace.index("-filter_complex") + 1])
         self.assertIn("[0:a][m]amix=inputs=2:normalize=0:duration=first[a]", mixed[mixed.index("-filter_complex") + 1])
 
-    def test_render_final_only_keeps_audio_when_every_clip_has_it(self):
+    def test_a_clip_without_sound_gets_a_silent_track_instead_of_silencing_every_clip(self):
+        """D4: it used to drop the sound of ALL clips when one clip had none."""
         calls = []
-        for present, expected in (([True, True], "concat=n=2:v=1:a=1"), ([True, False], "concat -safe")):
-            calls.clear()
-            with mock.patch.object(f, "find_ffmpeg", return_value="ffmpeg"), \
-                    mock.patch.object(f, "has_audio", side_effect=present), \
-                    mock.patch.object(f, "run", side_effect=calls.append), mock.patch.object(os, "remove"):
-                f.render_final(["a", "b"], "o.mp4", [5, 5], keep_audio=True)
-            self.assertIn(expected.split()[0], " ".join(calls[0]))
-        # the second case had a silent clip: plain concat demuxer, no audio kept
-        self.assertIn("-f concat", " ".join(calls[0]))
+        with mock.patch.object(f, "find_ffmpeg", return_value="ffmpeg"), \
+                mock.patch.object(f, "has_audio", side_effect=lambda c: c == "a"), \
+                mock.patch.object(f, "run", side_effect=calls.append), mock.patch.object(os, "remove"):
+            f.render_final(["a", "b"], "o.mp4", [5, 5], keep_audio=True)
+        self.assertIn("anullsrc", " ".join(calls[0]))                     # b padded with silence
+        self.assertIn("concat=n=2:v=1:a=1", " ".join(calls[1]))           # the sound of a is kept
 
     def test_music_and_extras_know_the_video_has_sound(self):
         calls = []
