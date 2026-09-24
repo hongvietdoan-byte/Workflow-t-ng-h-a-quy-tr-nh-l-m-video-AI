@@ -189,3 +189,12 @@ Phần lớn việc còn lại trong `TODO.md` (mục "Đang làm/kế tiếp", 
 **Context**: người dùng yêu cầu gom 6 phương án tối ưu Director + mọi việc tồn đọng thành kế hoạch mới, có góc nhìn mới, đánh giá tổng thể để mở phiên mới.
 **Finding**: đánh giá — code đủ dày (822 test), điểm yếu lớn nhất là kiểm chứng thật (sau GĐ-A chỉ TTS 1 câu + Director chạy thật) và tiền video (chia shot vụn: #6 ~103 s trả tiền cho 57 s phim). Hướng: H1 bộ chuẩn hóa shot · H2 Director hai tầng + chạy lại từng cảnh + cache · H3 bộ nguyên tắc đạo diễn có logic (mục đích → cách nghĩ → nguyên tắc/luật có lý do + căn cứ → ưu tiên khi xung đột → tự rà; KHÔNG trần số luật — người dùng chốt) · H4 bàn đo offline bằng fixture thật · **H5 quay theo vị trí máy (1 clip cho nhiều shot cùng góc, vì không có khớp môi)** · H6 bảng chi phí dự kiến. Thứ tự: Bậc 1 Director v2 (miễn phí) → Bậc 2 #6 tới video hoàn chỉnh (xin phép từng bước) → Bậc 3 phần còn lại → Bậc 4 việc người dùng; chờ chốt Q1–Q4.
 **Source**: phân tích phiên 2026-09-25 (số đo gói Director 68k ký tự, usage_events, ước tính giây video theo chế độ).
+
+## 2026-09-25 — Quyết định người dùng: tổ làm phim + thứ tự ưu tiên + chạy thử tự động có trần
+**Context**: người dùng góp ý kế hoạch sau khi đọc H1–H6.
+**Finding**:
+- **H7 tổ làm phim:** Đạo diễn = ý đồ, thoại, quan sát tổng, **duyệt chốt**; nhánh phụ **Quay phim** (góc máy, bố cục, coverage — biết sẵn kỹ năng, Director chỉ tư vấn) và **Editor** (hậu kỳ: vùng an toàn đặt chữ theo nền tảng + từng khung, định dạng video, phụ đề, trộn âm) — mỗi vai **một nguồn kiến thức riêng** đủ để tự lo.
+- **Thứ tự ưu tiên** (mạch truyện > thoại + cặp đối đáp > góc máy kịch bản > thời lượng > tiết kiệm video > phong cách): áp dụng ngay, chỉnh dần theo dữ liệu các dự án sau.
+- **#6 chạy thử 0–20 s đầu trước** (CINEMATIC MỞ ĐẦU + CẢNH 1, 10 shot, trên bản sao), gen lại ≤ 2 lần/shot, trần tiền ($8 có giá + $2 Claude + 32 ảnh + 25 lượt âm thanh, đề xuất) → **phiên Claude được tự chạy không cần duyệt từng bước trong trần**; chạm trần thì dừng, không tự nâng.
+- Thứ tự: bàn đo → bộ chuẩn hóa → chạy thử 2A → tổ làm phim → Director theo vai → vị trí máy → phần còn lại #6.
+**Source**: người dùng nói trực tiếp trong chat 2026-09-25.

@@ -1,10 +1,11 @@
 # TODO — Theo dõi tiến độ dự án Auto Pipeline Video AI
 
 ## 📌 BÀN GIAO 2026-09-25 — PHIÊN MỚI ĐỌC `docs/KE_HOACH_2026-09-25.md` TRƯỚC TIÊN
-> **Kế hoạch làm tiếp mới nhất:** `docs/KE_HOACH_2026-09-25.md` — đánh giá tổng thể, bài học Director, 6 hướng H1–H6 (bộ chuẩn hóa shot,
-> Director hai tầng/chạy lại từng cảnh, bộ nguyên tắc đạo diễn có logic (không trần số luật), bàn đo offline, **quay theo vị trí máy**, bảng chi phí dự kiến), lộ trình
-> **Bậc 1 Director v2 (không tốn credit) → Bậc 2 dự án #6 tới video hoàn chỉnh (xin phép từng bước) → Bậc 3 phần còn lại → Bậc 4 việc người
-> dùng**, và 4 câu cần người dùng chốt (Q1–Q4). Mục 0 bên dưới = trạng thái dự án #6; mục 1–6 = bàn giao 24/09 (vẫn đúng).
+> **Kế hoạch làm tiếp mới nhất:** `docs/KE_HOACH_2026-09-25.md` — đánh giá tổng thể, bài học Director, 7 hướng H1–H7 (bộ chuẩn hóa shot,
+> Director hai tầng/chạy lại từng cảnh, bộ nguyên tắc có logic (không trần số luật), bàn đo offline, **quay theo vị trí máy**, bảng chi phí,
+> **H7 tổ làm phim: Đạo diễn + Quay phim + Dựng**, mỗi vai một nguồn kiến thức). **Thứ tự đã chốt: 1.1 bàn đo → 1.2 bộ chuẩn hóa →
+> 2A chạy thử 0–20 s đầu của #6 TỰ CHẠY trong trần ($8 tiền có giá + $2 Claude + 32 ảnh + 25 lượt âm thanh, gen lại ≤ 2 lần/shot, không cần
+> duyệt từng bước) → 1.3 tổ làm phim → 1.4 → 1.5 → 2B phần còn lại.** Còn mở: Q2, Q3, Q4, Q6. Mục 0 = trạng thái dự án #6; mục 1–6 = bàn giao 24/09.
 >
 > (Bàn giao 2026-09-24 tối:) Viết cho phiên (mission) tiếp theo: đọc hết mục này là đủ để làm tiếp, không cần đọc lại hội thoại cũ.
 > Kế hoạch gốc đã duyệt: **`docs/KE_HOACH_TONG_2026-09-24.md`** (danh mục lỗi A/L/I/M/K/T/D/AU/O/C/S/P/Q/U, lộ trình GĐ-A → GĐ-I).
@@ -26,7 +27,8 @@
      → Bài học ghi vào `prompts/17_director_shots.md` (thứ tự cắt: gộp shot im lặng trước, bỏ câu sau cùng; không bỏ câu có câu đáp lại / câu gieo
      twist; không shot im lặng < 1 s; toàn cảnh ≥ 1,5 s; GAME_TPS dùng `angle: "high"`); code: `shots.dialogue_cuts` (Bước 1 hiện ✂ câu bị bỏ,
      ⚠ khi câu sau đáp lại), `pacing_warnings` báo shot im lặng < 1 s và toàn cảnh < 1,5 s. 822 test pass.
-- **Dự án #6 đang dừng ở Bước 1** (kết quả Director lần 4, chưa có job ảnh). Việc tiếp: người dùng quyết định thêm lại 2 câu (miễn phí, sửa shot
+- **Dự án #6 đang dừng ở Bước 1** (kết quả Director lần 4, chưa có job ảnh). **Kế hoạch mới (2026-09-25): chạy thử 0–20 s đầu trên bản sao,
+  tự chạy trong trần — xem Bậc 2A của kế hoạch.** Ghi chú cũ — việc tiếp: người dùng quyết định thêm lại 2 câu (miễn phí, sửa shot
   tay) hoặc chạy Director lần 5 với prompt mới (~$0,3–0,7); gộp shot im lặng ngắn; duyệt hồ sơ chuẩn Kelly/Kenta/Maxim; kiểm Bible; đo giá 1 ảnh
   Sunburst (`data/pricing.json` chưa có giá) rồi mới gen 33 ảnh. Video Kling ước ~100 s trả tiền (~$8) cho 57 s phim nếu giữ shot ngắn.
 
