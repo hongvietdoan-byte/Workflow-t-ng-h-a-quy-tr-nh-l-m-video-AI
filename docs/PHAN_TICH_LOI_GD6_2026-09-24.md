@@ -71,6 +71,28 @@ Clip ngắn bám ảnh khung đầu (V1) giữ nhân vật tốt.
   nên lần sau sai y như lần trước — tiền mất mà điểm không lên (V2 nhóm S35–S38: 0,55 → gen lại vẫn loại).
 - Lỗi motion_match nhỏ (ví dụ "cúi thấp hơn một chút") cũng kích hoạt gen lại một clip trả tiền.
 
+### R7 — Lỗi tỉ lệ: người ↔ cảnh, người ↔ người, cỡ cảnh bị bỏ qua *(lớp: previz + prompt ảnh — người dùng phát hiện)*
+Soi toàn bộ ảnh khung đầu đã duyệt (V1 26, V2 6, V0 3):
+- **Cỡ cảnh không theo kế hoạch:** V1 S04/S07/S17 "MCU" ra toàn thân; S10 "ECU" ra cảnh rộng 3 người; S20 "CU" ra cảnh từ trên cao,
+  người rất nhỏ; S26 "CU" ra toàn thân ngồi; V2 S22 "CU Kenta" ra **cảnh nhìn từ trên cao với Kenta tí hon trên bãi cỏ**.
+- **Tỉ lệ giữa nhân vật trôi:** V1/V2 S18 Maxim (17 tuổi) chỉ cao ~50–60% Kenta, như trẻ con; V1 S24 ba người gần bằng nhau.
+- **Tỉ lệ người ↔ cảnh trôi:** bức tường lúc cao quá đầu người ngồi, lúc ngang vai người đứng, lúc ngang đầu; ngôi nhà mái đỏ của ảnh
+  nền nằm cùng một chỗ trong khung ở hầu hết shot, bất kể góc máy.
+- QC ảnh **có thấy** (điểm "tỉ lệ" nhiều ảnh 0,5–0,7, "khớp bố cục" 0,45–0,6) nhưng tỉ lệ/bố cục không phải tiêu chí chặn → vẫn tự duyệt.
+
+Nguyên nhân (lần ngược từng lớp):
+1. **Layout (previz 2D) sai và được gửi làm ảnh tham chiếu số 1 cho Deepix.** Nền layout là ảnh tài nguyên "Cổng Trời" — một ảnh
+   **chụp từ trên cao** (bản đồ), không có bức tường; nhân vật được dán như hình cắt ~20 px theo phối cảnh của ảnh nền đó, **không
+   theo cỡ cảnh** (layout của shot MCU S04 là một Maxim tí hon ở xa). Module layout được thiết kế cho cảnh rộng dựng trên ảnh nền ngang
+   tầm mắt; dùng cho shot cận thì nó chỉ dẫn sai — V2 S22 chép nguyên bố cục này. QC "khớp bố cục" lại so với chính layout sai.
+2. **Ảnh của shot trước được gửi kèm làm tham chiếu "nối liền"** kể cả khi shot trước khác hẳn cỡ cảnh/góc máy → bố cục shot trước
+   lấn sang shot sau.
+3. **Prompt ảnh dùng ký hiệu kỹ thuật** ("Vertical MCU eye level", "MS", "CU") — không nói rõ khung cắt ở đâu; khung dọc 9:16 càng
+   dễ ra toàn thân.
+4. **Không có thang tỉ lệ nào**: Character Bible không có chiều cao/vóc dáng; prompt chỉ có tuổi ("17-year-old slightly stocky boy")
+   → Deepix vẽ Maxim/Kelly như trẻ con cạnh Kenta 38 tuổi; chiều cao bức tường chỉ có chữ "shoulder-high" trong mô tả bối cảnh.
+5. QC tỉ lệ/bố cục không chặn (xem trên).
+
 ### Lỗi phụ đã sửa trong lúc chạy (đều đã commit)
 Seedance không nhận khung đầu + ảnh tham chiếu; Seedance chặn "giống người thật"/"bản quyền" → tự chuyển Kling; Kling multi-shot
 giới hạn 512 ký tự/shot; chế độ tự động hỏi Claude 1.500+ lần khi hết hạn mức; giữ được clip QC đã loại thay vì gen lại.
@@ -85,9 +107,14 @@ giới hạn 512 ký tự/shot; chế độ tự động hỏi Claude 1.500+ l�
 | F4 | **Chia nhóm multi-shot theo nhân vật**: shot có nhân vật không xuất hiện trong ảnh đầu nhóm → mở nhóm mới (có ảnh riêng); mỗi prompt shot thêm **thẻ ngoại hình ngắn** lấy từ Lock (≤ 512 ký tự) | R4 | Không |
 | F5 | **Chẩn đoán trước khi gen lại** (`core/diagnose.py`): khi QC loại, xác định lớp sai theo chuỗi ở mục 1 (ảnh khung đầu đã sai? nhân vật không có trong ảnh? Bible lệch tham chiếu? prompt quá nhiều nhịp cho thời lượng?) → đề xuất sửa đúng lớp; chỉ tự gen lại khi lỗi là **ngẫu nhiên của model** (đầu vào đúng), tối đa 1 lần; motion_match nhỏ chỉ báo | R6 | Giảm |
 | F6 | V2/v2: cảnh dài nhiều nhịp → gợi ý chia shot (đã là hướng v3) | R5 | — |
+| F7 | **Layout chỉ dùng khi hợp:** chỉ gửi layout cho shot rộng (WS/EWS) có ảnh nền **cùng góc máy** (bỏ ảnh nền chụp từ trên cao cho shot ngang tầm mắt — phân tích ảnh nền đã có trường góc máy); shot MS/MCU/CU/ECU dùng **khung người mẫu theo cỡ cảnh** (người lấp khung đúng chuẩn: MCU = từ giữa ngực trở lên…) thay cho ảnh nền + hình cắt tí hon | R7.1 | Không |
+| F8 | **Nối ảnh shot trước chỉ khi cùng cỡ cảnh + góc máy** và liền mạch | R7.2 | Không |
+| F9 | **Prompt ảnh nói rõ khung cắt** thay cho ký hiệu (MCU → "medium close-up, framed from mid-chest up, face in the upper third"), có dòng "không vẽ toàn thân" cho shot cận | R7.3 | Không |
+| F10 | **Thang tỉ lệ trong Character Bible:** chiều cao (cm) + vóc dáng từng nhân vật (Kelly/Maxim 17 tuổi = người lớn trẻ, không phải trẻ con), mốc bối cảnh (tường cao ~1,2 m = ngang ngực Kelly); đưa vào mọi prompt ảnh có ≥ 2 người hoặc có mốc; kiểm với ảnh tham chiếu (F1) | R7.4 | Không |
+| F11 | **Tỉ lệ + bố cục thành tiêu chí chặn** (mức sàn ~0,6) và đi qua chẩn đoán F5 (sửa đúng lớp, không gen lại mù) | R7.5 | Giảm |
 
 ## 5. Đề xuất bước tiếp theo
-1. Làm F1 → F5 (không tốn credit), có test.
+1. Làm F1 → F11 (không tốn credit), có test — ưu tiên F1 (Bible ↔ tham chiếu), F3 (QC đồng bộ có chuẩn), F7–F10 (layout + khung cắt + thang tỉ lệ), F5 (chẩn đoán trước khi gen lại).
 2. Kiểm lại **chỉ phần chữ/ảnh**: chạy Director lại (thấy ảnh), kiểm Bible ↔ tham chiếu, gen lại ảnh khung đầu của **một cảnh**
    (ví dụ cảnh 2 — cảnh lỗi nhiều nhất) cho V1/V2 → xem ảnh trước khi gen video.
 3. Chỉ khi ảnh đúng mới gen video cảnh đó (~$3–5), so với bản cũ. Phần còn $7,1 của trần $50 đủ cho bước này; làm lại cả phim cần
