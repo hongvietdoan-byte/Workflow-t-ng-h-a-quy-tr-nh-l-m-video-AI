@@ -118,6 +118,7 @@ Cộng dự phòng gen lại ×1,5 + TTS → **ước tính ~$25–30, trần c�
 | GĐ4 · Giọng Việt + storyboard theo shot | **Xong phần không tốn credit** (2026-09-24) | Giọng có `vi` lên đầu + chọn giọng chỉ trong đó, bảng cách đọc từ game, nghe thử câu mẫu, storyboard theo shot; so `eleven_v3`/`multilingual_v2` dời sang GĐ6; 652 test pass |
 | GĐ5 · Trần ngân sách, thử rẻ, so sánh | **Xong** (2026-09-24) | Trần chi cứng ($50, bật khi bắt đầu đợt thử), chế độ thử rẻ (720p, Kling std, Seedance → Fast), nhân bản dự án, bảng so sánh + chấm điểm ở 📊 Theo dõi; multi-shot chỉ gen ảnh cho shot đầu nhóm; 657 test pass |
 | Chạy giả lập 3 phương án | **Xong** (2026-09-24) | Kịch bản Kenta ở v2 / từng shot / multi-shot tới bản giao (tự động + bấm tay trên Dashboard); tìm và sửa 10 lỗi; 659 test pass |
+| Chuyển Claude sang API | **Xong** (2026-09-24) | Người dùng có khóa Claude API: Dashboard gọi `claude-sonnet-5` qua API; tiền Claude vào sổ chi + trần riêng $5; sửa ảnh > 5 MB và giới hạn câu trả lời 32.000 token; 1 dự án 26 shot đủ QC ≈ $2,5–3 → $5 ≈ 2 video chia shot (chi tiết PLAN.md 3.9) |
 | GĐ6 · Thử thật 3 phương án | **Tạm dừng để sửa gốc** (2026-09-24) | Đã chi $42,88/$50: V0 xong bản giao (48s); V1 21/26, V2 21/26 clip. Phần lớn tiền đi vào gen lại. Phân tích nguyên nhân gốc: `docs/PHAN_TICH_LOI_GD6_2026-09-24.md` (Bible lệch ảnh tham chiếu, xung đột phong cách, QC đồng bộ tự sửa sai, nhóm multi-shot thiếu nhân vật, tự gen lại không hội tụ, layout sai + không có thang tỉ lệ → lỗi tỉ lệ người/cảnh và cỡ cảnh) → sửa F1–F11 trước khi gen tiếp |
 
 ### GĐ1 — đã xong
