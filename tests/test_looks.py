@@ -71,6 +71,18 @@ class LookTests(unittest.TestCase):
         self.wb("cold")
         self.assertNotEqual(lineage.current_image_hash(self.conn, self.pid, self.sid), ingame)   # I8: World Bible counts too
 
+    def test_a_picture_just_made_in_a_look_project_is_not_outdated(self):
+        """Trial 2A (2026-09-25): the job stamp added the look but the scan did not — every picture of a look project was "outdated"
+        at once, its motion prompt too, so its clip was blocked (and the autopilot would redo pictures up to the shot cap)."""
+        self.p.set_project_field(self.pid, "look", "FF_INGAME")
+        job = self.p.create_job(self.sid, "image_gen")
+        self.conn.execute("UPDATE jobs SET state='approved', input_hash=? WHERE id=?",
+                          (lineage.current_image_hash(self.conn, self.pid, self.sid), job))
+        self.conn.commit()
+        self.assertIsNone(lineage.scan(self.conn, self.pid)[self.sid]["image_stale"])
+        self.p.set_project_field(self.pid, "look", "ANIME")                  # a real change still shows
+        self.assertIsNotNone(lineage.scan(self.conn, self.pid)[self.sid]["image_stale"])
+
 
 class FramingTests(unittest.TestCase):
     def test_the_shot_size_is_said_in_words(self):

@@ -49,16 +49,23 @@ def _aspect(conn, project_id: int) -> Optional[str]:
     return row["aspect"] if row else None
 
 
-def current_image_hash(conn, project_id: int, scene_id: int) -> str:
-    data = json.loads(conn.execute("SELECT data FROM scenes WHERE id=?", (scene_id,)).fetchone()["data"] or "{}")
-    cast_rows = conn.execute("SELECT * FROM characters WHERE project_id=?", (project_id,)).fetchall()
-    base = image_spec_hash(data, cast_rows, _aspect(conn, project_id))
-    proj = conn.execute("SELECT * FROM projects WHERE id=?", (project_id,)).fetchone()
+def _image_hash(data: Dict, cast_rows, aspect: Optional[str], proj) -> str:
+    """The one fingerprint of a picture's inputs — used both when a job is sent (runner stamp) and when it is judged (scan).
+    Trial 2A (2026-09-25): the stamp added the look but the scan did not, so in every project with a look each picture was
+    "outdated" the moment it was made (motion stale → clips blocked; the autopilot would redo pictures up to the shot cap)."""
+    base = image_spec_hash(data, cast_rows, aspect)
     look = proj["look"] if proj is not None and "look" in proj.keys() else None
     if not look:
         return base
     # I8: a changed look or World Bible changes every picture (projects without a look keep the hash they had)
     return _hash({"base": base, "look": look, "world_bible": proj["world_bible"] if "world_bible" in proj.keys() else None})
+
+
+def current_image_hash(conn, project_id: int, scene_id: int) -> str:
+    data = json.loads(conn.execute("SELECT data FROM scenes WHERE id=?", (scene_id,)).fetchone()["data"] or "{}")
+    cast_rows = conn.execute("SELECT * FROM characters WHERE project_id=?", (project_id,)).fetchall()
+    proj = conn.execute("SELECT * FROM projects WHERE id=?", (project_id,)).fetchone()
+    return _image_hash(data, cast_rows, _aspect(conn, project_id), proj)
 
 
 def approved_image_id(conn, scene_id: int) -> Optional[int]:
@@ -92,9 +99,10 @@ def scan(conn, project_id: int) -> Dict[int, Dict]:
         f" AND j.state IN {USABLE_VIDEO + ('pending_review',)} AND j.id=(SELECT MAX(k.id) FROM jobs k WHERE k.scene_id=j.scene_id"
         f" AND k.type='video_gen' AND k.state IN {USABLE_VIDEO + ('pending_review',)})", (project_id,))}
     image_stale_of = {}
+    proj = conn.execute("SELECT * FROM projects WHERE id=?", (project_id,)).fetchone()
     for s in scenes:
         img = images.get(s["id"])
-        if img is not None and img["input_hash"] and img["input_hash"] != image_spec_hash(json.loads(s["data"] or "{}"), cast_rows, aspect):
+        if img is not None and img["input_hash"] and img["input_hash"] != _image_hash(json.loads(s["data"] or "{}"), cast_rows, aspect, proj):
             image_stale_of[s["id"]] = "nội dung cảnh / nhân vật / tỉ lệ khung đã đổi"
     base = {}                                           # v3 multi-shot: later shots of a group start from the group's picture
     mode = conn.execute("SELECT shot_mode FROM projects WHERE id=?", (project_id,)).fetchone()

@@ -8,6 +8,7 @@ machine up to the project's max_retry_count.
 import json
 import math
 import os
+import re
 import time
 from typing import Callable, Dict, Optional, Tuple
 
@@ -405,7 +406,7 @@ class VideoRunner(_Runner):
             if group:                                             # the whole group's length, one Kling generation
                 duration = sum(shots.billed_shot_seconds(r["data"]) for r in group)
                 model = "kling"
-        motion = mp["motion_prompt"]
+        motion = no_minor_age(mp["motion_prompt"])
         if job["retry_reason"] and not job["retry_reason"].startswith(RESEND_NOTE):
             motion = f"{motion} Fix: {job['retry_reason']}"      # W3: a retry sends the QC's fix, never the very same input again
         args = (path, motion, mp["negative_prompt"], duration, model)
@@ -562,6 +563,16 @@ def chain_previous(proj, scene_data) -> bool:
     return mode == 1 or (mode == 0 and bool(scene_data.get("sequence")) and features.on("chain_previous_auto"))
 
 
+_MINOR_AGE = re.compile(r"\b(?:[1-9]|1[0-7])[- ]?(?:-|\s)?years?[- ]old\b[,]?\s*", re.IGNORECASE)
+
+
+def no_minor_age(text: str) -> str:
+    """No age under 18 in a prompt sent to a picture/video model: GPT Image 2.5 refused "KELLY, 17-year-old young woman … in
+    darkness, eyes red" (safety system, 2026-09-25, trial 2A) while the same shot family without the age passed. The age adds nothing
+    the reference pictures do not already show."""
+    return _MINOR_AGE.sub("", text or "")
+
+
 def lock_note(conn, project_id: int, cast) -> str:
     """Character Lock of the people in the shot, as one sentence for the image model (what must never drift)."""
     parts = []
@@ -657,6 +668,7 @@ class ImageRunner(_Runner):
             prompt += " " + assets.location_text(conn, place)
         self._sent = getattr(self, "_sent", {})
         self._sent[job["id"]] = [{"label": r["label"], "role": r["role"], "file": os.path.basename(r["path"])} for r in refs]
+        prompt = no_minor_age(prompt)
         if refs:                                       # the chosen resources' pictures go with the prompt (image-to-image)
             return (assets.reference_note(refs) + "Scene: " + prompt, [r["path"] for r in refs])
         return (prompt,)

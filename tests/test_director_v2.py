@@ -115,5 +115,15 @@ class ValidatorUsesTheNormaliserTests(unittest.TestCase):
         self.assertTrue(obj["normalized"])
 
 
+class MinorAgeTests(unittest.TestCase):
+    def test_an_age_under_18_never_reaches_the_picture_or_video_model(self):
+        """Trial 2A: GPT Image 2.5 refused "KELLY, 17-year-old young woman … in darkness, eyes red" (safety system); without the
+        age the same shot passed."""
+        from core.runner import no_minor_age
+        self.assertEqual(no_minor_age("KELLY, 17-year-old young woman, dark bob"), "KELLY, young woman, dark bob")
+        self.assertEqual(no_minor_age("a 17 year old boy"), "a boy")
+        self.assertEqual(no_minor_age("KENTA, 38-year-old man"), "KENTA, 38-year-old man")      # adults keep their age
+
+
 if __name__ == "__main__":
     unittest.main()
