@@ -212,6 +212,7 @@ Thay đổi cụ thể trong code (không tốn credit):
 | W13 | Cắt prompt > 512 ký tự thì **báo** phần bị cắt (diag + Bước 3), ưu tiên rút gọn bằng Claude trước khi gửi | core/adapters/clipai.py, core/runner.py | V8 |
 | W14 | **Đối chiếu với ClipAI** (công cụ `tools/recover_clips.py` đã có — GĐ6: 0 clip để lấy lại; thêm: sổ chi lấy `cost` thật của ClipAI thay vì ghi lúc gửi): công cụ quét các trang `video-list` theo `external_id` của job bị đánh `not_found`/lỗi dò trạng thái; task xong thì tải về, gắn lại vào job (không gửi lại) | tools/, core/adapters/clipai.py | 2b-1 |
 | W15 | Autopilot **không tự duyệt** ảnh/clip `pending_review` có tiêu chí dưới mức sàn; để lại cho người ở cổng storyboard | core/autopilot.py:312, :437 | 2b-3 |
+| W17 | **Thư viện prompt mẫu học từ thành công**: shot được duyệt/giữ → mẫu ứng viên (look, model, loại shot, prompt, điểm QC, số lần gen); đạt lần đầu nhiều lần → người duyệt thăng hạng thành mẫu chuẩn của gói look; mẫu tụt tỉ lệ tự hạ | core/lessons.py (mở rộng), core/effectiveness.py, knowledge/ | Câu 3 |
 | W16 | Cổng thoại: tắt tiếng video vẫn kéo dài clip cho vừa giọng TTS; cảnh báo ghi **một lần** mỗi shot, không mỗi nhịp | core/autopilot.py (_dialogue_gate) | 2b-5 |
 
 ## 5. Tác động ước tính (phải đo lại ở GĐ4)
@@ -229,7 +230,7 @@ Bible đúng — 21% người bấm gen lại) → W3 + F5 (gen lại phải đ�
 
 ## 6. Ghép vào kế hoạch hiện có
 
-Đề xuất thêm **W1–W16** làm một giai đoạn "Sắp xếp lại vòng chạy" đặt **sau GĐ2 (lưới an toàn), trước/cùng GĐ3 (F1–F11)**, vì:
+Đề xuất thêm **W1–W17** làm một giai đoạn "Sắp xếp lại vòng chạy" đặt **sau GĐ2 (lưới an toàn), trước/cùng GĐ3 (F1–F11)**, vì:
 - W3/W4/W7/W8 trùng hướng với F5 (chẩn đoán) và F11 (mức sàn) → làm chung.
 - W1/W2/W5/W6 là điều kiện để bậc kiểm thật GĐ4 (chữ → ảnh → 1 cảnh video) diễn ra đúng trong Dashboard thay vì làm tay.
 - Tất cả không tốn credit; có test bằng MockLlm + provider giả (luồng) và fixture GĐ6 (nội dung).
@@ -294,5 +295,36 @@ CSDL thật để có con số** (ước tính trên: phần lớn trong $8,84 n
   đi thẳng. Tỉ lệ đồng thuận tụt → cổng tự bật lại toàn bộ.
 - Dự án có nhân vật mới / model mới (thứ gói look chưa gặp) → cổng bật toàn bộ cho dự án đó.
 
-→ Chờ số đo mục 2b để chốt câu 1.
+*Số đo thật (`audit_run.py` mục 2b, 2026-09-24 16:39) — tiền video đã chi cho clip làm từ ảnh/nhóm có lỗi nhìn thấy trước khi gen:*
+
+| Dự án | Clip từ ảnh/nhóm có lỗi | Tiền | Số clip đó vẫn vào bản cuối | Lỗi thấy trên ảnh |
+|---|---|---|---|---|
+| V1 từng shot | 16/21 | $9,36 (79%) | **16/16** | `character` dưới sàn ở 7 clip; `composition`/`set_match` 0,25–0,55 (sai cỡ cảnh, R7) |
+| V2 multi-shot | 12 | $11,68 (60%) — trong đó ~$3,76 là task "ma" | 5 | `character` dưới sàn; **3 nhóm thiếu nhân vật trong ảnh đầu** (S14 thiếu Kelly+Kenta, S18 thiếu Kelly, S22 thiếu Kelly+Maxim = R4) |
+| V0 mỗi cảnh | 4 | $4,80 (42%) — trong đó $1,20 là task "ma" | 2 | S02 `character` 0,12 (ảnh "2 Maxim" do QC đồng bộ sửa sai, R3) → **clip đó vào bản cuối** |
+| #1 (trước GĐ6) | 5 | $2,32 (25%) | 0 | ảnh về sau bị người loại — video đã làm trước khi người xem ảnh |
+
+Kết luận:
+- Bỏ tiền "ma" ra, **khoảng $21 trong ~$28–29 tiền video thật của GĐ6 (~70%) đã trả cho clip làm từ ảnh/nhóm mà lỗi đã nhìn thấy
+  được trước khi gen video**.
+- Phần lớn các clip đó **vẫn vào bản cuối** (V1: 16/16) → không có cổng, lỗi ảnh không làm mất tiền ngay mà **đi thẳng vào sản
+  phẩm** (nhân vật sai, cỡ cảnh sai), rồi tiếp tục thành tiền gen lại khi người xem clip (V2 $5,84, V0 $3,00 người bấm gen lại; #1 mất
+  trọn $2,32).
+- Cổng ở bước ảnh không tốn tiền gen; sửa ảnh (Deepix, rẻ) trước rồi mới trả tiền video một lần.
+- Lưu ý: cờ lấy từ điểm QC ảnh **chưa hiệu chỉnh** (`set_match` so với layout đã sai — R7), nên một phần cờ `set_match` là lỗi của
+  layout chứ không phải của ảnh; cờ `character` dưới sàn và "nhóm thiếu nhân vật" là lỗi chắc chắn. Chính cổng này là nơi ghi quyết
+  định người–QC để hiệu chỉnh QC.
+
+**Đề xuất chốt câu 1:** cổng storyboard **bật mặc định**, tự nới dần theo đồng thuận QC–người (như trên); storyboard phải hiện: ảnh
+khung đầu, ảnh tài nguyên của nhân vật trong shot đặt cạnh, cờ QC, và **nhóm multi-shot + nhân vật từng shot**.
+
+**Câu 3 — bổ sung của người dùng (2026-09-24): thư viện prompt mẫu tự đúc kết.** Prompt hiệu quả được giữ lại, đúc kết và tối ưu dần
+thành mẫu chuẩn, ổn định. Hiện code đã có vòng học **từ lỗi** (`core/lessons.py`: lỗi lặp lại → bài học → người duyệt → vào kiến thức)
+và đo hiệu quả (`core/effectiveness.py`: tỉ lệ đạt lần đầu), nhưng **chưa có vòng học từ thành công**. Đề xuất (việc W17):
+- Mỗi shot được người duyệt ở cổng storyboard / giữ trong bản cuối → lưu **mẫu ứng viên**: look, model, loại shot (cỡ cảnh, số người,
+  hành động), prompt ảnh + motion prompt đã dùng, điểm QC, số lần gen.
+- Mẫu đạt ngay lần đầu nhiều lần (ví dụ ≥ 3 dự án, tỉ lệ đạt lần đầu cao) → đề xuất **thăng hạng thành mẫu chuẩn** của gói look;
+  người duyệt (giống bài học). Mẫu chuẩn được Director/Motion dùng làm ví dụ theo loại shot.
+- Mẫu chuẩn có số liệu đi kèm (dùng bao nhiêu lần, tỉ lệ đạt) → mẫu tụt tỉ lệ (model đổi phiên bản) tự bị hạ.
+- Như vậy "gói look" của câu 3 không phải viết tay một lần mà **lớn dần từ dữ liệu thật**, đúng với cách làm thực tế.
 
