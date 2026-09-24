@@ -453,7 +453,40 @@ def is_composite_sheet(path: str) -> bool:
     return _is_composite_sheet(_shape(path))
 
 
-def best_references(asset: Dict, limit: int = 1) -> List[Dict]:
+_CLOSE = ("ECU", "CU", "MCU")
+_WIDE = ("WS", "EWS", "GAME_TPS")
+_BACK_WORDS = ("back to camera", "from behind", "back view", "quay lưng", "sau lưng", "nhìn từ sau", "rear view")
+
+
+def shot_size(scene: Optional[Dict]) -> Optional[str]:
+    """ECU…EWS of a shot: the v3 `size` field, else read from the v2 `shot` words."""
+    if not scene:
+        return None
+    if scene.get("size") in _CLOSE + ("MS",) + _WIDE:
+        return scene["size"]
+    words = f" {fold(str(scene.get('shot') or ''))} "
+    for size, keys in (("ECU", ("extreme close", "ecu ")), ("MCU", ("medium close", " mcu ")), ("CU", ("close up", "close-up", " cu ", "can canh")),
+                       ("EWS", ("extreme wide", " ews ")), ("WS", ("wide", "establishing", " ws ", " ls ", "long shot", "toan canh")),
+                       ("MS", ("medium", " ms ", "trung canh"))):
+        if any(k in words for k in keys):
+            return size
+    return None
+
+
+def shot_roles(scene: Optional[Dict]) -> List[Optional[str]]:
+    """T3: which kind of character picture suits the shot, best first (None = a picture whose role nobody set).
+    A close shot needs a face the model can copy; a wide shot the whole figure; a back-to-camera shot a back view."""
+    size = shot_size(scene)
+    order: List[Optional[str]] = (["close_up", "half_body", None, "full_body"] if size in _CLOSE else
+                                  ["full_body", None, "half_body", "close_up"] if size in _WIDE else
+                                  ["half_body", None, "full_body", "close_up"])
+    text = fold(" ".join(str((scene or {}).get(k) or "") for k in ("blocking", "action", "shot", "image_prompt")))
+    if any(fold(w) in text for w in _BACK_WORDS):
+        order = ["back"] + order
+    return order + ["side", "skill_pose"]
+
+
+def best_references(asset: Dict, limit: int = 1, scene: Optional[Dict] = None) -> List[Dict]:
     """The `limit` pictures that work best as a reference, for `asset["kind"]`:
     - character/pet: single-figure shots (portrait/full-body), a composite sheet only as a last resort — one straight-on shot rarely
       pins down a face well, so a second angle or a close-up is included when available.
@@ -464,15 +497,18 @@ def best_references(asset: Dict, limit: int = 1) -> List[Dict]:
         return []
     kind = asset.get("kind")
     if kind in ("character", "pet"):
-        singles = [i for i in images if not _is_composite_sheet(_shape(i["path"]))]
+        singles = [i for i in images if i.get("role") != "design_sheet" and not _is_composite_sheet(_shape(i["path"]))]
         pool = singles or images
+        prefs = shot_roles(scene)
 
         def score(img):
+            role = img.get("role")
+            rank = prefs.index(role) if role in prefs else len(prefs)
             shape = _shape(img["path"])
             if not shape:
-                return (0, 0)
+                return (-rank, 0, 0)
             w, h = shape
-            return (1 if h >= w * 1.05 else 0, w * h)          # portrait first, then the biggest
+            return (-rank, 1 if h >= w * 1.05 else 0, w * h)   # the shot's kind of picture, then portrait, then the biggest
         ranked = sorted(pool, key=score, reverse=True)
     elif kind == "location":
         def score(img):
@@ -491,7 +527,7 @@ def best_reference(asset: Dict) -> Dict:
     return best_references(asset, 1)[0]
 
 
-def _chosen_images(asset: Dict, row: Dict, limit: int = MAX_REFS_PER_CHARACTER) -> List[Dict]:
+def _chosen_images(asset: Dict, row: Dict, limit: int = MAX_REFS_PER_CHARACTER, scene: Optional[Dict] = None) -> List[Dict]:
     """The pictures to use for this asset: the person's explicit multi-picture choice, else their single-picture choice, else the
     automatic pick (up to `limit`)."""
     by_id = {img["id"]: img for img in asset["images"]}
@@ -503,10 +539,10 @@ def _chosen_images(asset: Dict, row: Dict, limit: int = MAX_REFS_PER_CHARACTER) 
             return chosen
     if row.get("ref_image_id") in by_id:
         return [by_id[row["ref_image_id"]]]
-    return best_references(asset, limit)
+    return best_references(asset, limit, scene)
 
 
-def link_characters(conn, project_id: int, names: List[str]) -> Dict[str, Optional[Dict]]:
+def link_characters(conn, project_id: int, names: List[str], scene: Optional[Dict] = None) -> Dict[str, Optional[Dict]]:
     """Character Bible name -> the asset whose pictures are its reference, with the chosen pictures in `refs` (`ref` = refs[0], kept for
     single-picture callers) or None. The person's own choice wins (a chosen asset/pictures, or "no picture" = ref_asset_id 0);
     otherwise the chosen asset that matches the name, with an automatically picked set of pictures."""
@@ -525,7 +561,7 @@ def link_characters(conn, project_id: int, names: List[str]) -> Dict[str, Option
         else:
             asset = match_character(chosen, n)
         if asset is not None:
-            imgs = _chosen_images(asset, row)
+            imgs = _chosen_images(asset, row, scene=scene)
             asset = dict(asset, ref=imgs[0], refs=imgs)
         out[n] = asset
     return out
@@ -577,6 +613,45 @@ def scene_location(conn, project_id: int, scene: Dict) -> Optional[Dict]:
     return None
 
 
+def location_plate(conn, place: Dict, scene: Optional[Dict]) -> Optional[Dict]:
+    """B2/B3: the picture of a place that may be sent to the image model as pixels — an approved EMPTY background taken from the shot's
+    own kind of camera (eye level / low / high), and only for a wide shot. A map screenshot from above, a picture whose camera nobody
+    set, or any background for a close/medium shot is never sent: the model copies its camera and its tiny people (GĐ6, R7). The place
+    then reaches the model as words (location_text)."""
+    if shot_size(scene) not in _WIDE:
+        return None
+    angle = str((scene or {}).get("angle") or "eye")
+    want = "high_angle" if angle in ("high", "overhead") else "low_angle" if angle == "low" else "eye_level"
+    return next((i for i in place["images"] if i.get("role") == want), None)
+
+
+def location_text(conn, place: Dict) -> str:
+    """B1: the place in words for the image prompt — its description and, from the set analyses already read or rendered, the real
+    heights of its landmarks (so people get the right size next to a wall or a door without copying a picture's camera)."""
+    marks, light = [], ""
+    for img in place["images"]:
+        try:
+            with open(img["path"], "rb") as f:
+                sha = hashlib.sha256(f.read()).hexdigest()
+        except OSError:
+            continue
+        row = conn.execute("SELECT data FROM set_analyses WHERE sha256=?", (sha,)).fetchone()
+        data = json.loads(row["data"]) if row else {}
+        light = light or str(data.get("light") or "")
+        for lm in data.get("landmarks") or []:
+            name, h = str(lm.get("name") or "").strip(), lm.get("height_m")
+            if name and isinstance(h, (int, float)) and name not in [m[0] for m in marks]:
+                marks.append((name, float(h)))
+    desc = re.sub(r"\s+", " ", (place.get("description") or "").split("[AI đọc ảnh]")[0]).strip()[:300]
+    bits = [f"Setting: {place['name']}" + (f" — {desc}" if desc else "")]
+    if marks:
+        bits.append("Real sizes: " + ", ".join(f"{n} about {h:g} m tall" for n, h in marks[:6])
+                    + "; an adult is about 1.7 m, keep people in proportion to these")
+    if light and not light.startswith("3D render"):
+        bits.append(f"Light: {light[:120]}")
+    return ". ".join(bits) + "."
+
+
 def scene_references(conn, project_id: int, scene: Dict, limit: int = MAX_REFERENCES, reserve: int = 0) -> List[Dict]:
     """Reference pictures for one scene: the reference picture(s) of each character in the scene, then its place, then any other
     chosen resource the scene names. [{path, label, role}]
@@ -586,7 +661,7 @@ def scene_references(conn, project_id: int, scene: Dict, limit: int = MAX_REFERE
     chosen = project_assets(conn, project_id)
     refs: List[Dict] = []
     names = [str(n) for n in scene.get("characters") or []]
-    linked = link_characters(conn, project_id, names) if names else {}
+    linked = link_characters(conn, project_id, names, scene) if names else {}
     people, seen = [], set()                       # (label, [(path, role)...]) per person: face first, then outfit, then 2nd angle
     for name in names:
         a = linked.get(name)
@@ -597,7 +672,8 @@ def scene_references(conn, project_id: int, scene: Dict, limit: int = MAX_REFERE
         seen.add(label)
         own = [(img["path"], "character") for img in (a["refs"] if a else [])]
         people.append((label, own[:1] + [(img["path"], "outfit") for img in outfit[:1]] + own[1:]))
-    loc = scene_location(conn, project_id, scene)
+    place = scene_location(conn, project_id, scene)
+    loc = location_plate(conn, place, scene) if place else None
     room = max(limit - reserve - (1 if loc else 0), 0)
     counts = [0] * len(people)                     # 1 picture each first, then a 2nd picture for the people listed first while room lasts
     for n in range(1, MAX_REFS_PER_CHARACTER + 1):
@@ -607,7 +683,7 @@ def scene_references(conn, project_id: int, scene: Dict, limit: int = MAX_REFERE
     for (label, items), k in zip(people, counts):  # grouped per person, so the note reads "Images 1/2 show KELLY"
         refs += [{"path": path, "label": label, "role": role} for path, role in items[:k]]
     if loc and len(refs) < limit - reserve:
-        refs.append({"path": best_reference(loc)["path"], "label": loc["name"], "role": "location"})
+        refs.append({"path": loc["path"], "label": place["name"], "role": "location"})
     limit = limit - reserve
     # every other chosen resource (weapon, prop, pet, place) that the scene names is a reference too
     blob = " " + fold(" ".join(str(scene.get(k) or "") for k in ("text", "image_prompt", "location"))) + " "
@@ -617,9 +693,13 @@ def scene_references(conn, project_id: int, scene: Dict, limit: int = MAX_REFERE
             break
         if a["kind"] not in ("weapon", "prop", "pet", "location") or not a["images"] or any(r["label"] == a["name"] for r in refs):
             continue
+        if place is not None and a["id"] == place["id"]:
+            continue                                          # the scene's own place: already decided above (plate or words)
         keys = [fold(n) for n in names_of(a) if len(fold(n)) >= 3 and fold(n) not in cast]
         if any(" " + k + " " in blob for k in keys):
-            refs.append({"path": best_reference(a)["path"], "label": a["name"], "role": "location" if a["kind"] == "location" else "object"})
+            pic = location_plate(conn, a, scene) if a["kind"] == "location" else best_reference(a)
+            if pic is not None:
+                refs.append({"path": pic["path"], "label": a["name"], "role": "location" if a["kind"] == "location" else "object"})
     return refs
 
 
@@ -646,7 +726,8 @@ def reference_note(refs: List[Dict]) -> str:
                 text += f" The background of the layout has the wrong camera angle and must be redrawn: {r['redraw_note']}."
             bits.append(f"{tag} is the LAYOUT. " + text.replace("The LAYOUT image is", "It is"))
         elif g["role"] == "location":
-            bits.append(f"{tag} is the location {g['label']}: keep the look of this environment")
+            bits.append(f"{tag} is the EMPTY background of {g['label']}: copy its architecture, materials and colours only — it does not "
+                        "set the people, their size or their position (those come from the scene text)")
         elif g["role"] == "outfit":
             bits.append(f"{tag} {'shows' if len(nums) == 1 else 'show'} the OUTFIT {g['label']} wears in this video: dress {g['label']} "
                         "exactly in these clothes (garments, colours, accessories); take only the face, hair and body build from "
@@ -670,7 +751,9 @@ def reference_note(refs: List[Dict]) -> str:
     rule = ""
     if people:
         rule = (" Each person keeps ONLY the look of their own reference image(s): never swap or blend faces, hair or outfits between people, and ignore "
-                "any clothing or hair words in the scene text that contradict the reference images. The people are different individuals.")
+                "any clothing or hair words in the scene text that contradict the reference images. The people are different individuals."
+                " The reference images set who each person is, not the pose, the camera or how big they are in the frame: take those from "
+                "the scene text.")                                   # T5: a picture's job and what it does not control
         if people > 1:
             rule += (" Before drawing, pick ONE unmistakable visual anchor per named person from their reference image (hair color/style, "
                      "headwear, or a distinct clothing color) and keep checking each person against their own anchor as you draw the rest of "

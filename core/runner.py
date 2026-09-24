@@ -550,7 +550,9 @@ class ImageRunner(_Runner):
 
     def _stamp(self, job, args) -> Dict:
         from . import lineage
-        return {"input_hash": lineage.current_image_hash(self.p.conn, job["project_id"], job["scene_id"])}
+        sent = getattr(self, "_sent", {}).pop(job["id"], None)
+        return {"input_hash": lineage.current_image_hash(self.p.conn, job["project_id"], job["scene_id"]),
+                "sent_refs": json.dumps(sent, ensure_ascii=False) if sent is not None else None}
 
     def _submit_args(self, job):
         conn = self.p.conn
@@ -581,6 +583,11 @@ class ImageRunner(_Runner):
                 prev_path = os.path.join(self.data_dir, str(job["project_id"]), "images", f"job_{prev['id']}.png")
                 if os.path.exists(prev_path):
                     refs = refs + [{"path": prev_path, "label": "previous scene", "role": "previous_scene"}]
+        place = assets.scene_location(conn, job["project_id"], data)
+        if place is not None:                          # B1: the place in words (+ real landmark heights), whatever pictures go
+            prompt += " " + assets.location_text(conn, place)
+        self._sent = getattr(self, "_sent", {})
+        self._sent[job["id"]] = [{"label": r["label"], "role": r["role"], "file": os.path.basename(r["path"])} for r in refs]
         if refs:                                       # the chosen resources' pictures go with the prompt (image-to-image)
             return (assets.reference_note(refs) + "Scene: " + prompt, [r["path"] for r in refs])
         return (prompt,)

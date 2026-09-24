@@ -34,7 +34,7 @@ class ReferenceTests(unittest.TestCase):
             assets.add_image(self.conn, a, f"{name}.png", png(seed))
             assets.attach(self.conn, self.pid, a)
         loc = assets.create(self.conn, "FF", "location", "Đảo Quân Sự", "", "", None, "x")
-        assets.add_image(self.conn, loc, "loc.png", png(9))
+        assets.add_image(self.conn, loc, "loc.png", png(9), role="eye_level")   # B3: an eye-level empty background
         assets.attach(self.conn, self.pid, loc)
         for n in ("Kelly", "Kenta", "Maxim"):
             self.conn.execute("INSERT INTO characters (project_id, name, description) VALUES (?,?,?)", (self.pid, n, f"{n}, tall"))
@@ -51,12 +51,12 @@ class ReferenceTests(unittest.TestCase):
         self.assertIsNone(linked["Maxim"])                                     # nothing chosen for Maxim: drawn from the description
 
     def test_a_scene_gets_the_pictures_of_its_characters_and_its_place(self):
-        refs = assets.scene_references(self.conn, self.pid, {"characters": ["Kelly", "Maxim"], "location": "Bãi cát trên Đảo Quân Sự"})
+        refs = assets.scene_references(self.conn, self.pid, {"characters": ["Kelly", "Maxim"], "location": "Bãi cát trên Đảo Quân Sự", "size": "WS"})
         self.assertEqual([(r["label"], r["role"]) for r in refs], [("KELLY", "character"), ("Đảo Quân Sự", "location")])
         self.assertEqual(assets.scene_references(self.conn, self.pid, {"characters": ["Maxim"], "location": "Hang động"}), [])
         note = assets.reference_note(refs)
         self.assertIn("Image 1 is KELLY", note)
-        self.assertIn("Image 2 is the location Đảo Quân Sự", note)
+        self.assertIn("Image 2 is the EMPTY background of Đảo Quân Sự", note)
 
     def job(self, characters, location=""):
         sid = self.p.create_scene(self.pid, 1, "s")
@@ -234,7 +234,7 @@ class CrowdedSceneTests(unittest.TestCase):
             assets.attach(self.conn, self.pid, a)
             self.conn.execute("INSERT INTO characters (project_id, name, description) VALUES (?,?,?)", (self.pid, name, "d"))
         self.loc = assets.create(self.conn, "FF", "location", "Đảo Quân Sự", "", "", None, "x")
-        assets.add_image(self.conn, self.loc, "wide.png", self.picture(1920, 1080, 99))
+        assets.add_image(self.conn, self.loc, "wide.png", self.picture(1920, 1080, 99), role="eye_level")
         assets.attach(self.conn, self.pid, self.loc)
         self.conn.commit()
 
@@ -242,28 +242,28 @@ class CrowdedSceneTests(unittest.TestCase):
         return [(r["label"], r["role"]) for r in refs]
 
     def test_up_to_three_people_keep_two_pictures_each_and_the_place(self):
-        refs = assets.scene_references(self.conn, self.pid, {"characters": self.CAST[:3], "location": "Đảo Quân Sự, bãi cát"})
+        refs = assets.scene_references(self.conn, self.pid, {"characters": self.CAST[:3], "location": "Đảo Quân Sự, bãi cát", "size": "WS"})
         self.assertEqual(len(refs), 7)
         self.assertEqual(refs[-1]["role"], "location")
 
     def test_four_people_share_the_slots_and_keep_the_place(self):
-        refs = assets.scene_references(self.conn, self.pid, {"characters": self.CAST[:4], "location": "Đảo Quân Sự"})
+        refs = assets.scene_references(self.conn, self.pid, {"characters": self.CAST[:4], "location": "Đảo Quân Sự", "size": "WS"})
         self.assertEqual(len(refs), assets.MAX_REFERENCES)                   # no slot left empty
         self.assertEqual(self.labels(refs), [("KELLY", "character")] * 2 + [("ALOK", "character")] * 2 + [("CHRONO", "character")] * 2
                          + [("KENTA", "character"), ("Đảo Quân Sự", "location")])  # the 2nd angle goes to those listed first
 
     def test_five_people_each_get_a_picture_and_the_place_is_still_there(self):
-        refs = assets.scene_references(self.conn, self.pid, {"characters": self.CAST, "location": "Đảo Quân Sự"})
+        refs = assets.scene_references(self.conn, self.pid, {"characters": self.CAST, "location": "Đảo Quân Sự", "size": "WS"})
         self.assertEqual({r["label"] for r in refs if r["role"] == "character"}, {n.upper() for n in self.CAST})
         self.assertIn(("Đảo Quân Sự", "location"), self.labels(refs))
 
     def test_a_reserved_slot_stays_free_and_the_place_still_fits(self):
-        refs = assets.scene_references(self.conn, self.pid, {"characters": self.CAST[:4], "location": "Đảo Quân Sự"}, reserve=1)
+        refs = assets.scene_references(self.conn, self.pid, {"characters": self.CAST[:4], "location": "Đảo Quân Sự", "size": "WS"}, reserve=1)
         self.assertLessEqual(len(refs), assets.MAX_REFERENCES - 1)
         self.assertIn(("Đảo Quân Sự", "location"), self.labels(refs))
 
     def test_the_place_is_found_by_id_even_when_the_text_names_it_differently(self):
-        scene = {"characters": ["Kelly"], "location": "abandoned military base at dusk"}
+        scene = {"characters": ["Kelly"], "location": "abandoned military base at dusk", "size": "WS"}
         self.assertNotIn("location", [r["role"] for r in assets.scene_references(self.conn, self.pid, scene)])
         refs = assets.scene_references(self.conn, self.pid, dict(scene, location_asset=self.loc))
         self.assertEqual(refs[-1]["label"], "Đảo Quân Sự")

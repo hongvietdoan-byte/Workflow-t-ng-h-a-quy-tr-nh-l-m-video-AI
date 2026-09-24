@@ -105,7 +105,7 @@ class PrevizTests(unittest.TestCase):
         prompt = next(iter(provider.prompts.values()))
         self.assertIn("Image 1 is the LAYOUT", prompt)
         self.assertIn("the red figure is Kelly", prompt)
-        self.assertIn("Image 2 is the location Đảo Quân Sự", prompt)
+        self.assertNotIn("EMPTY background", prompt)        # B2: a map picture whose camera nobody set is never sent as pixels
 
     def test_the_qc_agent_compares_the_picture_with_the_layout_too(self):
         from core import llm_runner
