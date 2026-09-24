@@ -131,7 +131,11 @@ class FormatAndModelTests(Base):
         self.assertEqual(model_router.recommend({"characters": ["A"]}, "value")["model"], "seedance-fast")
         duo = {"characters": ["A", "B"], "dialogue": [{"speaker": "A", "text": "x"}, {"speaker": "B", "text": "y"}]}
         self.assertEqual(model_router.recommend(duo, "balanced")["model"], "kling")
-        self.assertEqual(model_router.recommend({"characters": ["A", "B", "C"]}, "balanced")["model"], "seedance")
+        # K3: Seedance takes no per-person references next to a first frame, so a crowd no longer means Seedance
+        self.assertEqual(model_router.recommend({"characters": ["A", "B", "C"]}, "balanced")["model"], "kling")
+        # W11: the in-game Free Fire look goes to Kling (Seedance blocked in-game-looking people in GĐ6)
+        self.assertEqual(model_router.recommend(hero, "quality", look="FF_INGAME")["model"], "kling")
+        self.assertEqual(model_router.recommend(hero, "quality", look="ANIME")["model"], "seedance-2.5")
 
     def test_video_jobs_use_the_model_of_their_scene_and_the_project_ratio(self):
         self.approve_images()

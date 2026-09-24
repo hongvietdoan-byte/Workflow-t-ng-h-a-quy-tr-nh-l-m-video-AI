@@ -419,7 +419,8 @@ V2_COLUMNS = {
                  # kế hoạch v3: NULL shot_mode = one clip per script scene (v2); 'per_shot' / 'multishot' = the Director splits
                  # scenes into shots; style_profile = the Free Fire editing style the Director follows (knowledge/ff_styles)
                  ("shot_mode", "TEXT"), ("style_profile", "TEXT"), ("test_quality", "INTEGER NOT NULL DEFAULT 0"),
-                 ("director_raw", "TEXT")),           # the last paid Director answer, kept even when saving it failed
+                 ("director_raw", "TEXT"),            # the last paid Director answer, kept even when saving it failed
+                 ("look", "TEXT")),                   # ANIME | FF_INGAME (core/looks.py): the picture look, apart from the editing style
     "characters": (("lock_rules", "TEXT"), ("voice_profile", "TEXT"), ("anchor_approved", "INTEGER NOT NULL DEFAULT 0"),
                    ("user_edited", "TEXT")),         # fields the person edited by hand (description, wardrobe): the Director keeps them
     "jobs": (("input_hash", "TEXT"), ("source_job_id", "INTEGER"), ("model", "TEXT"),

@@ -60,11 +60,21 @@ def _features(scene_data: Dict, mp_row=None, video_audio: bool = False) -> Dict:
             "native_audio": bool(video_audio)}
 
 
-def recommend(scene_data: Dict, priority: str, mp_row=None, video_audio: bool = False) -> Dict:
+def recommend(scene_data: Dict, priority: str, mp_row=None, video_audio: bool = False, look: Optional[str] = None) -> Dict:
     """{"model": alias, "resolution": tier or None, "reason": Vietnamese sentence} for one scene."""
+    from .adapters.clipai import SEEDANCE_REFS_WITH_FIRST_FRAME
     f = _features(scene_data, mp_row, video_audio)
     multi_dialogue = f["speakers"] >= 2 and f["cast"] >= 2
     crowd = f["cast"] >= 3
+    if look == "FF_INGAME" and not f["ref_video"]:
+        # W11: in GĐ6 Seedance blocked in-game-looking people as "real person"/copyright; Kling keeps the Free Fire render and costs least
+        return _pick("kling", "look in-game Free Fire — Kling 3.0 Omni giữ đúng kiểu render in-game và ít bị chặn “người thật” hơn Seedance")
+    if crowd and not SEEDANCE_REFS_WITH_FIRST_FRAME:
+        # K3: every clip starts from a first frame, and Seedance then takes no per-person references — the old reason no longer holds
+        crowd = False
+        if priority != "quality" and not (f["complex"] or f["hero"] or f["ref_video"]):
+            return _pick("kling", "≥3 nhân vật — mọi model chỉ nhận khung đầu (Seedance bỏ ảnh tham chiếu khi có khung đầu): "
+                                  "Kling 3.0 Omni rẻ nhất, nhân vật lấy từ khung đầu")
     if priority == "quality":
         if f["ref_video"]:
             return _pick("seedance-2.5", "cần tham chiếu đa phương thức (video chuyển động) — Seedance 2.5 xử lý tham chiếu phức tạp tốt nhất")
@@ -130,7 +140,8 @@ def _scene_choice(conn, scene_id: int, project_row=None, mp_row=None) -> Dict:
     if mp_row is None:
         mp_row = conn.execute("SELECT * FROM motion_prompts WHERE scene_id=?", (scene_id,)).fetchone()
     data = json.loads(scene["data"] or "{}")
-    rec = recommend(data, priority_of(project_row), mp_row, bool(project_row["video_audio"]))
+    rec = recommend(data, priority_of(project_row), mp_row, bool(project_row["video_audio"]),
+                    look=project_row["look"] if "look" in project_row.keys() else None)
     override = mp_row["video_model"] if mp_row is not None and "video_model" in mp_row.keys() else None
     if override:
         return {"model": override, "resolution": None, "reason": "bạn chọn cho cảnh này", "source": "override", "recommended": rec}

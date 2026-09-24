@@ -52,7 +52,13 @@ def _aspect(conn, project_id: int) -> Optional[str]:
 def current_image_hash(conn, project_id: int, scene_id: int) -> str:
     data = json.loads(conn.execute("SELECT data FROM scenes WHERE id=?", (scene_id,)).fetchone()["data"] or "{}")
     cast_rows = conn.execute("SELECT * FROM characters WHERE project_id=?", (project_id,)).fetchall()
-    return image_spec_hash(data, cast_rows, _aspect(conn, project_id))
+    base = image_spec_hash(data, cast_rows, _aspect(conn, project_id))
+    proj = conn.execute("SELECT * FROM projects WHERE id=?", (project_id,)).fetchone()
+    look = proj["look"] if proj is not None and "look" in proj.keys() else None
+    if not look:
+        return base
+    # I8: a changed look or World Bible changes every picture (projects without a look keep the hash they had)
+    return _hash({"base": base, "look": look, "world_bible": proj["world_bible"] if "world_bible" in proj.keys() else None})
 
 
 def approved_image_id(conn, scene_id: int) -> Optional[int]:

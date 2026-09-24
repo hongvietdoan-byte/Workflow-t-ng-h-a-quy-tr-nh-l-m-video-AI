@@ -689,7 +689,16 @@ def project_format_panel(p: Pipeline, pid: int) -> None:
 
 def shot_format_controls(p: Pipeline, pid: int, proj) -> None:
     """v3: split scenes into shots (and how their clips are made) + the Free Fire editing style the Director follows."""
-    from core import reference_analysis, shots
+    from core import looks, reference_analysis, shots
+    cur_look = looks.of(proj)
+    options = [None] + list(looks.LOOKS)
+    new_look = st.radio("🎨 Look hình", options, index=options.index(cur_look), horizontal=True, key=f"fmt_look_{pid}",
+                        format_func=lambda k: "Chưa chọn" if k is None else looks.LOOKS[k]["label"],
+                        help="Anime: nét vẽ anime, nhân vật giữ đúng nhận diện theo ảnh tài nguyên. Giống y hệt in-game: ảnh tài nguyên là "
+                             "chuẩn tuyệt đối, video ưu tiên Kling. Đổi look khi đã có ảnh thì ảnh cũ bị đánh dấu “cũ”.")
+    if new_look != cur_look:
+        p.set_project_field(pid, "look", new_look)
+        st.rerun()
     d1, d2 = st.columns(2)
     modes = list(shots.MODES)
     cur_mode = shots.mode(proj)

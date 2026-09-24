@@ -500,15 +500,17 @@ def best_references(asset: Dict, limit: int = 1, scene: Optional[Dict] = None) -
         singles = [i for i in images if i.get("role") != "design_sheet" and not _is_composite_sheet(_shape(i["path"]))]
         pool = singles or images
         prefs = shot_roles(scene)
+        want_look = (scene or {}).get("_look")                 # the project's look: its standard pictures first (T6)
 
         def score(img):
             role = img.get("role")
             rank = prefs.index(role) if role in prefs else len(prefs)
+            look = 1 if want_look and img.get("look") == want_look else 0
             shape = _shape(img["path"])
             if not shape:
-                return (-rank, 0, 0)
+                return (look, -rank, 0, 0)
             w, h = shape
-            return (-rank, 1 if h >= w * 1.05 else 0, w * h)   # the shot's kind of picture, then portrait, then the biggest
+            return (look, -rank, 1 if h >= w * 1.05 else 0, w * h)   # the look, the shot's kind of picture, portrait, the biggest
         ranked = sorted(pool, key=score, reverse=True)
     elif kind == "location":
         def score(img):
@@ -697,6 +699,9 @@ def scene_references(conn, project_id: int, scene: Dict, limit: int = MAX_REFERE
     chosen = project_assets(conn, project_id)
     refs: List[Dict] = []
     names = [str(n) for n in scene.get("characters") or []]
+    from . import looks
+    proj = conn.execute("SELECT * FROM projects WHERE id=?", (project_id,)).fetchone()
+    scene = dict(scene, _look=looks.asset_look(proj)) if proj is not None else scene
     linked = link_characters(conn, project_id, names, scene) if names else {}
     people, seen = [], set()                       # (label, [(path, role)...]) per person: face first, then outfit, then 2nd angle
     for name in names:

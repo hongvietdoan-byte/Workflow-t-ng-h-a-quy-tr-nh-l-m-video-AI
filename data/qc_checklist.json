@@ -13,7 +13,8 @@
     },
     {
       "key": "composition",
-      "description": "Đúng bố cục, cỡ cảnh và góc máy theo thông số cảnh"
+      "description": "Đúng bố cục, cỡ cảnh và góc máy theo thông số cảnh (shot cận mà ra toàn thân = sai)",
+      "hard_floor": 0.45
     },
     {
       "key": "mood_lighting",
@@ -25,7 +26,8 @@
     },
     {
       "key": "scale",
-      "description": "Nhân vật đúng tỉ lệ so với bối cảnh và với nhau (so với cửa, xe, container, người khác; không quá to/quá nhỏ)"
+      "description": "Nhân vật đúng tỉ lệ so với bối cảnh và với nhau (so với cửa, xe, container, người khác; không quá to/quá nhỏ)",
+      "hard_floor": 0.45
     },
     {
       "key": "grounding",
@@ -34,7 +36,8 @@
     },
     {
       "key": "set_match",
-      "description": "Khớp layout và bối cảnh: đúng vị trí, cỡ, hướng mặt từng người và góc máy như layout; bối cảnh giống ảnh địa điểm (không có layout thì so với blocking)"
+      "description": "Khớp bối cảnh theo hồ sơ bối cảnh (kiến trúc, vật liệu, mốc, ánh sáng) và blocking của shot (vị trí, hướng mặt từng người); KHÔNG so với ảnh layout ghép hay ảnh map chụp từ trên cao",
+      "hard_floor": 0.45
     }
   ],
   "_note": "hard_floor: tiêu chí chặn cứng — điểm tiêu chí này dưới mức sàn thì ảnh trượt dù điểm trung bình đạt (sai nhân vật, lỗi tay/mặt, lơ lửng không bù được bằng tiêu chí khác).",

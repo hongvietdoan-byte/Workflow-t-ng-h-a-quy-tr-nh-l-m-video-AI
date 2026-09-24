@@ -503,6 +503,31 @@ def previous_frame_job(conn, project_id: int, idx: int, sequence=None):
     return None
 
 
+FRAMING = {"ECU": "extreme close-up — only the face or one detail fills the frame",
+           "CU": "close-up — head and shoulders fill the frame, no legs or full body",
+           "MCU": "medium close-up — from mid-chest up, no legs",
+           "MS": "medium shot — from the waist up",
+           "WS": "wide shot — whole bodies visible, with the place around them",
+           "EWS": "extreme wide shot — people small inside a large place",
+           "GAME_TPS": "third-person game camera behind the character, slightly above the shoulder"}
+CAMERA = {"eye": "camera at eye level", "low": "low angle looking up", "high": "high angle looking down", "overhead": "top-down view",
+          "dutch": "tilted (dutch) camera", "ots": "over the shoulder", "pov": "first-person view"}
+
+
+def framing_sentence(data: Dict) -> str:
+    """F9/I1: the shot size and camera in words the image model follows ("MCU" alone was read as a full-body picture in GĐ6)."""
+    size = data.get("size") or assets.shot_size(data)
+    bits = [FRAMING[size]] if size in FRAMING else []
+    if data.get("angle") in CAMERA:
+        bits.append(CAMERA[data["angle"]])
+    return ("Framing: " + ", ".join(bits) + ". ") if bits else ""
+
+
+def same_framing(a: Dict, b: Dict) -> bool:
+    """F8: a previous frame only helps when it was shot the same way (a wide frame drags its composition into a close-up)."""
+    return (assets.shot_size(a) == assets.shot_size(b)) and (a.get("angle") or "eye") == (b.get("angle") or "eye")
+
+
 def chain_previous(proj, scene_data) -> bool:
     """Send the previous approved frame as an extra reference? storyboard_mode 1 = always, 2 = never, 0 (default) = automatic:
     only inside a sequence (consecutive shots of one place / continuous action, as set by the Director or by hand)."""
@@ -566,9 +591,12 @@ class ImageRunner(_Runner):
         prompt = data.get("image_prompt")
         if not prompt:
             return None
+        prompt = framing_sentence(data) + prompt
         if (data.get("blocking") or "").strip():       # where each person stands/faces, so shots of one sequence agree
             prompt = f"{prompt}. Blocking: {data['blocking'].strip()}"
         prompt += lock_note(conn, job["project_id"], data.get("characters"))
+        from . import looks
+        prompt += looks.image_sentence(self.p.project(job["project_id"]))
         if job["retry_reason"]:
             prompt = f"{prompt}. Fix: {job['retry_reason']}"
         proj = self.p.project(job["project_id"])
@@ -584,6 +612,8 @@ class ImageRunner(_Runner):
             # previous scene's approved picture in as an extra image-to-image reference instead, so style/lighting
             # carry over the way a real storyboard would.
             prev = previous_frame_job(conn, job["project_id"], scene["idx"], data.get("sequence"))
+            if prev is not None and proj["storyboard_mode"] != 1 and not same_framing(json.loads(prev["data"] or "{}"), data):
+                prev = None                            # F8: automatic chaining only between shots framed the same way
             if prev is not None:
                 prev_path = os.path.join(self.data_dir, str(job["project_id"]), "images", f"job_{prev['id']}.png")
                 if os.path.exists(prev_path):

@@ -3,7 +3,7 @@ import json
 import os
 from typing import List, Optional
 
-from . import assets, dialogue, knowledge
+from . import assets, dialogue, knowledge, looks
 from .evalset import few_shot_text
 from .pipeline import Pipeline
 
@@ -123,6 +123,7 @@ def build_director_bundle(pipeline: Pipeline, project_id: int) -> str:
     return _SEP.join(x for x in [
         _read("prompts", "01_director_scene_analysis.md"),
         project_frame_block(pipeline, project_id),
+        looks.director_note(proj),
         keep("cinematography_basics.md"),
         keep("genre_guides.md"),
         knowledge.genre_text(proj["genre"] if "genre" in proj.keys() else None),
@@ -228,6 +229,7 @@ def build_qc_bundle(pipeline: Pipeline, scene_id: int, data_dir: Optional[str] =
         _read("knowledge", "character_lock.md"),
         knowledge.user_text("qc"),
     ], [                                                 # same for every picture of this project
+        looks.qc_note(pipeline.project(scene["project_id"])),
         world_bible_text(pipeline, scene["project_id"]),
         "# Character Bible\n" + bible,
     ], [                                                 # this shot
