@@ -59,7 +59,7 @@ autopilot + 2 cổng; công tắc "chế độ chuyên gia" giữ 5 bước cũ;
 chữ "Cần ANTHROPIC_API_KEY", nút Claude CLI); P1 kết nối/migration một lần mỗi tiến trình; P2 cache trạng thái Bước 5, không đọc cả video vào RAM;
 P3 tab hiệu suất đếm đúng; S4 cảnh báo 2 cửa sổ cùng dự án; U2 (UI_AUDIT); W17 thư viện prompt mẫu (`core/lessons.py`).
 
-**GĐ-I (TỐN CREDIT — xin phép từng bậc):** 0 giọng Việt (AU-h, nghe chấm) → 1 chữ (Director thấy ảnh, kiểm Bible) → 2 ảnh 2 look + T6 ảnh chuẩn anime
+**GĐ-I (TỐN CREDIT — xin phép từng bậc):** ~~0 giọng Việt (AU-h, nghe chấm)~~ **đạt 2026-09-24** (1 câu Voice Kelly VN, người dùng nghe ổn; bỏ bộ thử 80 lượt) → 1 chữ (Director thấy ảnh, kiểm Bible) → 2 ảnh 2 look + T6 ảnh chuẩn anime
 → 3 video 1 cảnh (A/B khung cuối, K4 chế độ tham chiếu Seedance, K5 Kho chủ thể, đối chiếu `cost` với sổ, kiểm W12 thật) → 3b 3D tháp đồng hồ
 (`docs/HUONG_DAN_3D.md`) → 4 gói look đầu tiên → 5 hiệu chỉnh ngưỡng QC. Tính năng qua thử thật thì đặt `verified: True` + ngày ở `core/features.py`.
 
@@ -83,10 +83,11 @@ P3 tab hiệu suất đếm đúng; S4 cảnh báo 2 cửa sổ cùng dự án; 
   `ClipAI_`, không ghi ngôn ngữ/giới tính → khai trong file cấu hình). Danh sách giọng ở Bước 1/5, Claude chọn giọng (prompt 15) và
   `tools/voice_trial.py` đều xếp 4 giọng này lên đầu; thư viện official đọc đủ các trang (118 giọng). **Đã thử thật 1 câu (2026-09-24):**
   `Voice Kelly VN` (id 70) + `eleven_v3` qua API → xong sau ~10 s, mp3 4,7 s, kiểm tự động AU-f đạt (chưa so chữ: máy chưa cài
-  faster-whisper). File: `data/voice_trial/thu_1_cau_kelly_vn/tts_1609.mp3` — **chờ người dùng nghe chấm** trước khi chạy bộ thử 80 lượt.
+  faster-whisper). File: `data/voice_trial/thu_1_cau_kelly_vn/tts_1609.mp3` — **người dùng nghe: ổn** → chốt dùng 4 giọng VN + `eleven_v3`;
+  **không chạy bộ thử 80 lượt (AU-h) lúc này** — chỉ chạy lại khi giọng có vấn đề hoặc thêm giọng mới. GĐ-I bậc 0 coi như đạt.
 
 ### 5. Người dùng cần làm / cung cấp
-1. Nghe thử giọng Việt với `eleven_v3` (GĐ-I bậc 0) — xác nhận lỗi giọng đã hết.
+1. ~~Nghe thử giọng Việt với `eleven_v3` (GĐ-I bậc 0)~~ — **xong 2026-09-24:** nghe ổn, dùng 4 giọng clone VN của team.
 2. Gửi `clipai-1.3.1/clipai/reference.md` + `scripts/video.mjs` (mở K1/K2 khung cuối, K5 `element_ids`).
 3. Thử 3D trên máy: `dashboard.env` thêm `MODEL3D_DIR=D:\AI-Video-Pipeline\model 3D`, `BLENDER_PATH=...\Blender 5.0\blender.exe`; làm theo `docs/HUONG_DAN_3D.md`, ghi số liệu vào `docs/RESEARCH_3D_PREVIZ.md`. Cho biết định dạng/dung lượng/số tam giác file tháp, chiều cao thật, ảnh trời in-game, cấu hình máy.
 4. Trong ⚙ → 📁 Kho: duyệt ảnh chờ, đặt vai trò ảnh (nhất là "nền ngang tầm mắt" cho bối cảnh), duyệt 📋 hồ sơ chuẩn cho Kelly, Kenta, Maxim…
