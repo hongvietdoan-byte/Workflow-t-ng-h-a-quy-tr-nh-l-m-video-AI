@@ -405,6 +405,14 @@ def _dialogue_gate(p: Pipeline, pid: int) -> None:
                     + " — rút gọn thoại hoặc tách cảnh rồi bấm Tiếp tục")
 
 
+def _video_sends(p: Pipeline, pid: int) -> int:
+    """Video jobs counted against the job cap: an order the provider never created (resent at once, core.runner._not_created) is
+    not an attempt and must not use up the cap."""
+    from .runner import RESEND_NOTE
+    return _count(p, "SELECT COUNT(*) FROM jobs j WHERE j.project_id=? AND j.type='video_gen' AND NOT (j.state='cancelled' AND EXISTS"
+                     " (SELECT 1 FROM jobs r WHERE r.parent_job_id=j.id AND r.retry_reason LIKE ?))", pid, RESEND_NOTE + "%")
+
+
 def _videos_phase(p: Pipeline, pid: int, ctx: Context) -> Optional[str]:
     """Clips for every scene (per-scene model), redo of outdated clips, Claude's video check when switched on."""
     from . import claude_tasks, lineage, regen
@@ -414,13 +422,13 @@ def _videos_phase(p: Pipeline, pid: int, ctx: Context) -> Optional[str]:
             continue
         if _count(p, "SELECT COUNT(*) FROM jobs WHERE scene_id=? AND type='video_gen' AND escalated=1", r["scene_id"]):
             continue
-        if _count(p, "SELECT COUNT(*) FROM jobs WHERE project_id=? AND type='video_gen'", pid) >= cap_videos:
+        if _video_sends(p, pid) >= cap_videos:
             raise _Stop(BUDGET_NOTE)
         _daily_cap(p)
         p.create_job(r["scene_id"], "video_gen")
     for sid, r in lineage.scan(p.conn, pid).items():
         if r["video_stale"] and r["video_job_id"] and not r["motion_stale"] and r["video_state"] in ("succeeded", "approved"):
-            if _count(p, "SELECT COUNT(*) FROM jobs WHERE project_id=? AND type='video_gen'", pid) >= cap_videos:
+            if _video_sends(p, pid) >= cap_videos:
                 raise _Stop(BUDGET_NOTE)
             regen.regenerate_video(p, ctx.data_dir, r["video_job_id"], f"làm lại vì {r['video_stale']}")
     ctx.video_runner.submit_pending(pid)

@@ -289,6 +289,15 @@ class Pipeline:
         self.transition(job_id, JobState.RETRYABLE, note=reason)
         return self._spawn_retry(job_id, reason, close_old=JobState.CANCELLED)
 
+    def resend(self, job_id: int, reason: str) -> int:
+        """failed -> retryable -> cancelled, and the SAME attempt queued again (retry count unchanged): the provider never created the
+        task, so this is not a new try and must not use up max_retry_count. Returns the new job id."""
+        job = self.job(job_id)
+        self.transition(job_id, JobState.RETRYABLE, note=reason)
+        self.transition(job_id, JobState.CANCELLED, note="gửi lại (nhà cung cấp không tạo task)")
+        return self._insert_job(job["project_id"], job["scene_id"], job["type"], parent_job_id=job_id,
+                                retry_count=job["retry_count"], retry_reason=reason)
+
     # ---- QC / review ---------------------------------------------------
     def set_qc_autofix(self, project_id: int, on: bool) -> None:
         """On: a picture the QC agent finds faulty is regenerated automatically (its issues go into the retry prompt) up to

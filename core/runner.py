@@ -20,6 +20,10 @@ from .preflight import record_failure
 from .providers import RISK_CONTROL, ProviderError
 from .throttle import THROTTLE
 
+NOT_CREATED = "not_created"            # core.adapters.clipai.NOT_CREATED: task id returned, task never created
+NOT_CREATED_RESENDS = 3
+RESEND_NOTE = "gửi lại: nhà cung cấp không tạo task"
+
 
 class _Runner:
     job_type = ""
@@ -173,6 +177,9 @@ class _Runner:
                 self.p.succeed(job["id"])
                 THROTTLE.on_success(self.job_type)
                 counts["succeeded"] += 1
+            elif status.error_code == NOT_CREATED:
+                self._not_created(job, status.error_message or "")
+                counts["failed"] += 1
             else:
                 message = f"{status.error_code}: {status.error_message}"
                 self._diag(job, "warn" if status.error_code == RISK_CONTROL else "error", status.error_code,
@@ -185,6 +192,26 @@ class _Runner:
                 if status.transient and self.p.retry(job["id"], message) is not None:
                     counts["retried"] += 1
         return counts
+
+    def _not_created(self, job, message: str) -> None:
+        """The provider answered with a task id but never created the task (nothing generated, nothing billed): the submission
+        leaves the ledger, the provider is treated as overloaded (fewer jobs at once), and the same attempt is sent again at once —
+        without using up a retry — at most NOT_CREATED_RESENDS times in a row; then the scene waits for a person."""
+        from .cost import cancel_usage
+        cancel_usage(self.p.conn, job["id"])
+        THROTTLE.on_rate_limited(self.job_type)
+        self.p.fail(job["id"], f"{NOT_CREATED}: {message}")
+        chain, parent = 0, job
+        while parent is not None and (parent["retry_reason"] or "").startswith(RESEND_NOTE):
+            chain += 1
+            parent = self.p.job(parent["parent_job_id"]) if parent["parent_job_id"] else None
+        if chain >= NOT_CREATED_RESENDS:
+            self._diag(job, "error", NOT_CREATED, f"nhà cung cấp {chain + 1} lần liền không tạo task (đã bỏ khỏi sổ chi) — dừng shot này, "
+                                                  "kiểm tra ClipAI rồi bấm gen lại")
+            self.p._escalate(self.p.job(job["id"]))
+            return
+        new_id = self.p.resend(job["id"], f"{RESEND_NOTE} ({chain + 1}/{NOT_CREATED_RESENDS})")
+        self._diag(job, "warn", NOT_CREATED, f"nhà cung cấp không tạo task (đã bỏ khỏi sổ chi) → gửi lại ngay, job {new_id}")
 
     def _record_usage(self, job, args, kwargs=None) -> None:
         """Ledger entry per submission (each one may be billed by the provider)."""

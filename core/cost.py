@@ -239,6 +239,14 @@ def record_usage(conn: sqlite3.Connection, job_id: Optional[int], kind: str, pro
     conn.commit()
 
 
+def cancel_usage(conn: sqlite3.Connection, job_id: int) -> int:
+    """Take a submission back out of the ledger: the provider never created the task (ClipAI 'not created'), so nothing was
+    billed. Returns how many rows were removed."""
+    cur = conn.execute("DELETE FROM usage_events WHERE job_id=? AND kind IN ('image','video')", (job_id,))
+    conn.commit()
+    return cur.rowcount
+
+
 def spend_summary(conn: sqlite3.Connection, project_id: int, pricing: Dict) -> Dict:
     """Recorded submissions (each may be billed) priced with the declared prices."""
     rows = conn.execute("SELECT * FROM usage_events WHERE project_id=?", (project_id,)).fetchall()

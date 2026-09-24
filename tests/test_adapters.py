@@ -207,9 +207,15 @@ class ClipAITests(unittest.TestCase):
         self.assertIn("task_type=8", self.t.calls[0]["url"])
         self.assertEqual((st.state, st.error_code), ("failed", RISK_CONTROL))
         rows.clear()
-        states = [self.p.status("omni:GONE").state for _ in range(12)]
-        self.assertEqual(states[:11], ["running"] * 11)
-        self.assertEqual(states[11], "failed")
+        states = [self.p.status("omni:GONE") for _ in range(6)]       # never listed: ClipAI dropped the order (not created)
+        self.assertEqual([s.state for s in states[:5]], ["running"] * 5)
+        self.assertEqual((states[5].state, states[5].error_code), ("failed", "not_created"))
+        rows.append({"id": 2, "task_id": "SEEN", "task_status": 1})    # listed once, then gone: waits longer before giving up
+        self.assertEqual(self.p.status("omni:SEEN").state, "running")
+        rows.clear()
+        states = [self.p.status("omni:SEEN") for _ in range(12)]
+        self.assertEqual([s.state for s in states[:11]], ["running"] * 11)
+        self.assertEqual((states[11].state, states[11].error_code), ("failed", "not_found"))
 
     def test_classify_failure(self):
         self.assertEqual(classify_failure("Failure to pass the risk control system"), RISK_CONTROL)

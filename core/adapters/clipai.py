@@ -17,6 +17,7 @@ Contract source: the vendor skill/reference (clipai 1.3.1). Key facts encoded he
 """
 import json
 import os
+import time
 from typing import Dict, List, Optional, Tuple
 
 from ..providers import RISK_CONTROL, ProviderError, TaskStatus
@@ -45,6 +46,12 @@ PROMPT_LIMITS = {"kling": 2500, "dreamina-seedance-2-0-260128": 4000, "dreamina-
                  "dreamina-seedance-2-5-260628": 5000}
 _RISK_HINTS = ("risk control", "risk-control", "风控", "content policy", "moderation", "copyright", "版权", "审核")
 _UNSEEN_LIMIT = 12
+# A task_id ClipAI answered with but never lists: the order was accepted and dropped (real runs 2026-09-22/24: 16 Kling tasks marked
+# "not found" were absent from the account's WHOLE list — 136 tasks — so nothing was generated or kept). After this many polls without
+# ever seeing it the job is reported as NOT_CREATED: nothing to wait for and nothing billed, so it can be sent again at once.
+NOT_CREATED = "not_created"
+_NOT_CREATED_LIMIT = 6
+STATUS_PAGES = 3          # list pages scanned per status check (50 tasks each): a running task can sit below the first page
 
 
 def resolve_model(model: Optional[str]) -> Tuple[str, str]:
@@ -123,11 +130,14 @@ class ClipAIVideoProvider:
 
     def __init__(self, token: str, base_url: str = DEFAULT_BASE, transport: Transport = urllib_transport,
                  aspect_ratio: str = "16:9", kling_mode: str = "pro", resolution: str = "720p",
-                 negative: str = "ignore"):
+                 negative: str = "ignore", list_ttl: float = 0, status_pages: int = STATUS_PAGES):
         self.client = ApiClient(base_url, token, USER_AGENT, transport)
         self.aspect_ratio, self.kling_mode, self.resolution, self.negative = aspect_ratio, kling_mode, resolution, negative
         self._urls: Dict[str, str] = {}
         self._unseen: Dict[str, int] = {}
+        self._seen: set = set()                      # tasks the list has shown at least once
+        self.list_ttl, self.status_pages = list_ttl, max(1, int(status_pages))
+        self._pages: Dict[Tuple[str, int], Tuple[float, list]] = {}   # one list read serves every job polled in the same round
 
     @classmethod
     def from_env(cls, transport: Transport = urllib_transport) -> "ClipAIVideoProvider":
@@ -137,7 +147,8 @@ class ClipAIVideoProvider:
                                 "then set it as an environment variable (never commit it).", code="config")
         return cls(token, os.environ.get("CLIPAI_API_BASE", DEFAULT_BASE).strip() or DEFAULT_BASE, transport,
                    os.environ.get("CLIPAI_ASPECT_RATIO", "16:9"), os.environ.get("CLIPAI_KLING_MODE", "pro"),
-                   os.environ.get("CLIPAI_RESOLUTION", "720p"), os.environ.get("CLIPAI_NEGATIVE", "ignore"))
+                   os.environ.get("CLIPAI_RESOLUTION", "720p"), os.environ.get("CLIPAI_NEGATIVE", "ignore"),
+                   float(os.environ.get("CLIPAI_LIST_TTL", "5")), int(os.environ.get("CLIPAI_STATUS_PAGES", STATUS_PAGES)))
 
     def usage_info(self, model: Optional[str] = None, duration: float = 5, resolution: Optional[str] = None):
         """(canonical model, quality tier, billed seconds) for the cost ledger."""
@@ -270,22 +281,38 @@ class ClipAIVideoProvider:
         return f"{family}:{first['task_id']}"
 
     # ---- status ---------------------------------------------------------
+    def _page(self, family: str, page: int) -> list:
+        key = (family, page)
+        hit = self._pages.get(key)
+        if hit is not None and self.list_ttl > 0 and time.monotonic() - hit[0] < self.list_ttl:
+            return hit[1]
+        data = self.client.get(PATH_LIST, {"page": page, "pageSize": 50, "task_type": TASK_TYPE[family], "order_by_desc": 1})
+        rows = (data or {}).get("data") or []
+        self._pages[key] = (time.monotonic(), rows)
+        return rows
+
     def _find(self, external_id: str) -> Tuple[Optional[dict], str]:
         family, _, task_id = external_id.partition(":")
         if family not in TASK_TYPE or not task_id:
             raise ProviderError(f"malformed external id '{external_id}'", code="bad_id")
-        data = self.client.get(PATH_LIST, {"page": 1, "pageSize": 50, "task_type": TASK_TYPE[family],
-                                           "order_by_desc": 1})
-        rows = (data or {}).get("data") or []
-        return next((t for t in rows if str(t.get("task_id")) == task_id), None), task_id
+        for page in range(1, self.status_pages + 1):
+            rows = self._page(family, page)
+            task = next((t for t in rows if str(t.get("task_id")) == task_id), None)
+            if task is not None or len(rows) < 50:
+                return task, task_id
+        return None, task_id
 
     def status(self, external_id: str) -> TaskStatus:
         task, _ = self._find(external_id)
         if task is None:
             self._unseen[external_id] = self._unseen.get(external_id, 0) + 1
+            if external_id not in self._seen and self._unseen[external_id] >= _NOT_CREATED_LIMIT:
+                return TaskStatus("failed", NOT_CREATED, f"ClipAI trả mã task nhưng không có task này trong {self.status_pages} trang danh "
+                                                         "sách — lệnh không được tạo (không có gì để chờ, không bị tính tiền)")
             if self._unseen[external_id] >= _UNSEEN_LIMIT:
-                return TaskStatus("failed", "not_found", "task not found in the first list page")
+                return TaskStatus("failed", "not_found", "task no longer in the list")
             return TaskStatus("running")
+        self._seen.add(external_id)
         self._unseen.pop(external_id, None)
         state = _state(task.get("task_status"))
         if state == "succeeded":
