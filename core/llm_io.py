@@ -82,7 +82,8 @@ def validate_for_project(pipeline: Pipeline, project_id: int):
     """The Director validator plus the checks that need the project (so a wrong answer is sent back to Claude once, instead of
     being refused after it was paid for): every scene exists, and a shot-mode project gets a `shots` list for every scene."""
     def check(data: Any) -> Dict:
-        obj = validate_scene_analysis(data)
+        obj = _normalized(pipeline, project_id, _load(data))
+        validate_scene_analysis(obj)
         from . import shots as _shots
         if _shots.active(pipeline, project_id):
             missing = [s["idx"] for s in obj["scenes"] if not s.get("shots")]
@@ -96,6 +97,17 @@ def validate_for_project(pipeline: Pipeline, project_id: int):
                 raise SchemaError("scenes: idx " + ", ".join(map(str, unknown)) + " không có trong kịch bản đã tách (chỉ dùng số cảnh đã cho)")
         return obj
     return check
+
+
+def _normalized(pipeline: Pipeline, project_id: int, obj: Dict) -> Dict:
+    """H1: in a shot project, code fixes what it can measure (enum spellings, a spoken shot shorter than its line, 0,5 s silent
+    shots, the total) in place, before validating — a fixable answer is no longer sent back to Claude. Changes: obj["normalized"]."""
+    from . import shots as _shots
+    if isinstance(obj.get("scenes"), list) and _shots.active(pipeline, project_id):
+        from .shot_normalize import normalize
+        proj = pipeline.project(project_id)
+        normalize(obj, (proj["script_text"] if "script_text" in proj.keys() else None) or "", in_place=True)
+    return obj
 
 
 def _norm_line(text: str) -> str:
@@ -222,7 +234,7 @@ def store_scene_analysis(pipeline: Pipeline, project_id: int, data: Any) -> Dict
     """Save the Director's analysis. Never overwrites what the person set by hand: a field listed in the scene's `_user_locked`
     is kept, and an empty / null value from the Director never replaces a value that is there (re-running the Director used to
     wipe a hand-picked Background). A locked character keeps its description; a Character Lock is only filled in when empty."""
-    obj = validate_scene_analysis(data)
+    obj = validate_scene_analysis(_normalized(pipeline, project_id, _load(data)))
     conn = pipeline.conn
     try:
         _store(pipeline, project_id, obj)

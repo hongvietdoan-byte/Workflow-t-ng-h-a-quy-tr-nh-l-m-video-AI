@@ -1047,6 +1047,13 @@ def scene_list(p: Pipeline, pid: int, scenes, char_names) -> None:
         st.warning(f"✂ Director đã bỏ {len(cuts)} câu thoại của kịch bản — xem lại (thêm lại câu vào shot bằng ô sửa shot nếu cần):\n"
                    + "\n".join(f"- Cảnh {c['scene']} · {c['speaker']}: “{escape(c['text'])}”"
                                 + (f" — ⚠ câu sau có thể là câu đáp lại ({escape(c['next'])})" if c["answered"] else "") for c in cuts))
+    try:
+        fixed = (json.loads(p.project(pid)["director_raw"] or "{}").get("normalized") or []) if cuts or scenes else []
+    except (ValueError, KeyError, IndexError, AttributeError):
+        fixed = []
+    if fixed:
+        with st.expander(f"🔧 Code đã chuẩn hóa {len(fixed)} chỗ trong câu trả lời Director (thay vì hỏi lại Claude)"):
+            st.markdown("\n".join(f"- {escape(str(c))}" for c in fixed))
     cur_story = None
     for s in scenes:
         d = json.loads(s["data"] or "{}")

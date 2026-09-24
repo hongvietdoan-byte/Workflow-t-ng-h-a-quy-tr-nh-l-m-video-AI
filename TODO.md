@@ -28,6 +28,14 @@
      → Bài học ghi vào `prompts/17_director_shots.md` (thứ tự cắt: gộp shot im lặng trước, bỏ câu sau cùng; không bỏ câu có câu đáp lại / câu gieo
      twist; không shot im lặng < 1 s; toàn cảnh ≥ 1,5 s; GAME_TPS dùng `angle: "high"`); code: `shots.dialogue_cuts` (Bước 1 hiện ✂ câu bị bỏ,
      ⚠ khi câu sau đáp lại), `pacing_warnings` báo shot im lặng < 1 s và toàn cảnh < 1,5 s. 822 test pass.
+- **Bậc 1.1 + 1.2 xong (2026-09-25, người dùng cho tự chạy toàn bộ kế hoạch):** `core/director_report.py` + `tools/director_report.py`
+  (bàn đo: thời lượng/khung, thoại thiếu giờ, shot im lặng < 1 s, toàn cảnh < 1,5 s, cận mặt người nói, câu bị bỏ + câu đáp, giây video trả
+  tiền theo chế độ); mẫu thật `tests/fixtures/director_anh_chon_ai_run{3,4}.json` + `samples/anh_chon_ai.txt`. `core/shot_normalize.py`
+  (bộ chuẩn hóa, chạy trong `llm_io.validate_for_project` và khi dán JSON; ghi `normalized`, Bước 1 hiện 🔧): sửa enum theo bảng cố định,
+  kéo dài shot có thoại, gộp shot im lặng < 1 s vào shot kề cùng người, toàn cảnh ≥ 1,5 s, co tổng bằng shot im lặng nhưng **không co phần nào
+  dưới mốc giây kịch bản** (mạch truyện > thời lượng). Lần 4 sau chuẩn hóa: 0 thiếu giờ nói, 0 shot im lặng < 1 s, 30 shot, 101 → 92 s trả
+  tiền; **vẫn vượt khung 2,3 s** (thêm lại 2 câu ở Q3 thì ~+4 s nữa) — kịch bản 58 s không đủ chỗ cho mọi câu + khung đọc được → báo người
+  dùng. 830 test pass.
 - **Dự án #6 đang dừng ở Bước 1** (kết quả Director lần 4, chưa có job ảnh). **Kế hoạch mới (2026-09-25): chạy thử 0–20 s đầu trên bản sao,
   tự chạy trong trần — xem Bậc 2A của kế hoạch.** Ghi chú cũ — việc tiếp: người dùng quyết định thêm lại 2 câu (miễn phí, sửa shot
   tay) hoặc chạy Director lần 5 với prompt mới (~$0,3–0,7); gộp shot im lặng ngắn; duyệt hồ sơ chuẩn Kelly/Kenta/Maxim; kiểm Bible; đo giá 1 ảnh

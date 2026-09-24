@@ -1,0 +1,913 @@
+{
+ "genre": "SHORT_FORM",
+ "characters": [
+  {
+   "name": "KELLY",
+   "description": "17-year-old young woman, athletic slim build, dark brown bob haircut with blunt straight bangs, pale skin, expressive eyes that redden easily with tears",
+   "wardrobe": "bright yellow tracksuit jacket and matching joggers with black-and-white striped side panels covered in small black star studs, white cropped tank top underneath, black studded choker necklace, white platform sneakers",
+   "lock": {
+    "must_keep": "dark brown chin-length bob with blunt straight bangs worn down, black studded choker, bright yellow zip-up track jacket with grey star-print side stripes, matching yellow joggers, white platform sneakers, slim athletic build, youthful face",
+    "may_change": "pose, facial expression, hand gestures, camera distance/angle, background action, running vs standing",
+    "forbidden": "changing hair color/length, removing choker, changing tracksuit color or stripe pattern, aging her up, switching to different outfit"
+   }
+  },
+  {
+   "name": "KENTA",
+   "description": "38-year-old man, tall broad-shouldered swordsman, black hair in a high ponytail with a distinct white/grey streak at the front, stern serious face",
+   "wardrobe": "blue-grey scarf draped over the shoulders with a teal tattoo-like pattern on the right shoulder, fitted black top, dark grey-black cargo pants with leather straps, armored knee plates, purple-black wrapped shin guards, black fingerless glove on left hand, dark mechanical/armored gauntlet on right forearm, leather belt with pouches, black sandals, sword sheathed at the hip",
+   "lock": {
+    "must_keep": "black high ponytail with white/grey streak at the front, stern face with light stubble, blue-grey scarf over shoulders, black fitted top, armored right gauntlet, fingerless glove on left hand, sword at hip, sandals, tall broad build",
+    "may_change": "pose, expression, running vs standing, hand position, camera distance/angle",
+    "forbidden": "removing the scarf, changing hair color/losing the white streak, swapping the sword for another weapon, changing armor color scheme"
+   }
+  },
+  {
+   "name": "MAXIM",
+   "description": "17-year-old young man, lean build, light hair mostly hidden under a cap, casual streetwise face",
+   "wardrobe": "grey baseball cap worn backward, silver-grey metallic-look leather jacket over a red hoodie with a graphic patch on the chest, dark ripped jeans with a hanging chain, red-and-black high-top sneakers",
+   "lock": {
+    "must_keep": "backward grey/silver cap, silver-grey metallic leather jacket over red hoodie, chain on jeans, red-and-black high-top sneakers, lean youthful build",
+    "may_change": "pose, expression, running vs standing, camera distance/angle",
+    "forbidden": "removing cap, changing jacket color, swapping hoodie color, aging him up"
+   }
+  }
+ ],
+ "scenes": [
+  {
+   "idx": 1,
+   "location": "dark cinematic void / abstract emotional space",
+   "sequence": 1,
+   "time": "night, undefined space",
+   "characters": [
+    "KELLY",
+    "KENTA"
+   ],
+   "mood": "heartbroken, tense, restrained grief",
+   "lighting": "single soft key light from front-left, deep black background, low-key, cold desaturated palette",
+   "shot": "close-up and over-the-shoulder mix, static camera, shallow depth of field",
+   "blocking": "Kelly stands center frame throughout; Kenta's blurred shoulder occupies foreground frame-left in the ots shot while Kelly stays center-right facing him.",
+   "image_prompt": "Close-up of KELLY, 17-year-old young woman, athletic slim build, dark brown bob haircut with blunt straight bangs, pale skin, wearing bright yellow tracksuit jacket with black-and-white star-studded stripes and a black studded choker, standing alone in near total darkness, eyes reddened, a single tear sliding down her cheek, soft single key light on her face, deep black negative space around her, cinematic, shallow depth of field, no text",
+   "emotional_intent": "Người xem cảm nhận nỗi đau âm thầm của Kelly khi bị từ chối câu trả lời, dù cô cố giữ bình tĩnh.",
+   "beat": {
+    "want": "Kelly muốn Kenta xác nhận sự thật đau lòng",
+    "obstacle": "Kenta im lặng không trả lời",
+    "turn": "Kelly hiểu ra câu trả lời từ chính sự im lặng đó và bỏ đi"
+   },
+   "camera_complexity": "simple",
+   "shot_role": "hero",
+   "dialogue": [
+    {
+     "speaker": "KELLY",
+     "text": "Anh thật sự… chọn anh ấy sao?"
+    },
+    {
+     "speaker": "KELLY",
+     "text": "Em hiểu rồi…"
+    }
+   ],
+   "duration_s": 8.0,
+   "shots": [
+    {
+     "size": "CU",
+     "angle": "eye",
+     "camera_move": "static",
+     "role": "hook",
+     "duration_s": 2.6,
+     "action": "Kelly đứng một mình trong bóng tối, mắt đỏ hoe, nước mắt bắt đầu rơi",
+     "start_frame": "Kelly centered in frame against pure black background, facing camera, tears welling in her eyes",
+     "image_prompt": "Close-up, eye-level, static camera: KELLY, 17-year-old young woman, dark brown bob with blunt bangs, bright yellow tracksuit jacket with star-studded stripes, black choker, standing in near-total darkness, eyes red and glistening, a single soft key light on her face, deep black background, low-key cold palette, cinematic, no text",
+     "characters": [
+      "KELLY"
+     ],
+     "dialogue": []
+    },
+    {
+     "size": "MS",
+     "angle": "ots",
+     "camera_move": "static",
+     "role": "dialogue",
+     "duration_s": 2.6,
+     "action": "Kelly đứng đối diện Kenta, cố mỉm cười trong nước mắt và hỏi anh",
+     "start_frame": "Kenta's blurred shoulder and back of head fill the foreground frame-left; Kelly stands facing him in the midground center-right, tearful half-smile",
+     "image_prompt": "Medium shot, over-the-shoulder from behind KENTA (tall swordsman, black ponytail with white streak, blue-grey scarf, blurred foreground frame-left), KELLY, dark brown bob, bright yellow tracksuit with black choker, standing opposite him in the dark void, forcing a small smile through tears, single soft key light on her face, deep black background, cinematic, no text",
+     "characters": [
+      "KELLY",
+      "KENTA"
+     ],
+     "dialogue": [
+      {
+       "speaker": "KELLY",
+       "text": "Anh thật sự… chọn anh ấy sao?"
+      }
+     ]
+    },
+    {
+     "size": "ECU",
+     "angle": "eye",
+     "camera_move": "static",
+     "role": "reaction",
+     "duration_s": 1.0,
+     "action": "Một giọt nước mắt rơi xuống, Kelly cúi đầu trong im lặng",
+     "start_frame": "Extreme close-up on Kelly's eye and cheek, a tear rolling down, head beginning to tilt down",
+     "image_prompt": "Extreme close-up, eye-level, static: a single tear rolling down KELLY's cheek, dark brown bangs partially covering her eye, deep black background, soft single light source, silent, cinematic, no text",
+     "characters": [
+      "KELLY"
+     ],
+     "dialogue": []
+    },
+    {
+     "size": "MS",
+     "angle": "eye",
+     "camera_move": "push_in",
+     "role": "dialogue",
+     "duration_s": 1.8,
+     "action": "Kelly ngẩng đầu nói câu cuối rồi quay người bước đi",
+     "start_frame": "Kelly centered, facing camera, head lifting from a downward tilt",
+     "end_state": "Kelly has turned her back to camera, walking away into the darkness",
+     "image_prompt": "Medium shot, eye-level, slow push-in: KELLY, dark brown bob, bright yellow tracksuit, black choker, lifting her head with wet eyes, saying a final line, then turning her back and walking away into deep darkness, single soft light fading behind her, cinematic, no text",
+     "characters": [
+      "KELLY"
+     ],
+     "dialogue": [
+      {
+       "speaker": "KELLY",
+       "text": "Em hiểu rồi…"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "idx": 2,
+   "location": "Đảo Quân Sự — residential/housing area",
+   "location_asset": 83,
+   "sequence": 2,
+   "time": "day",
+   "characters": [
+    "KELLY",
+    "KENTA",
+    "MAXIM"
+   ],
+   "mood": "tense curiosity under casual banter",
+   "lighting": "bright daylight, hard overhead sun, high contrast on metal structures",
+   "shot": "tracking medium shots, handheld feel",
+   "blocking": "Kelly and Kenta run frame-left to frame-right through the housing area with Maxim catching up from behind frame-right; camera tracks alongside keeping the trio roughly at eye level.",
+   "image_prompt": "Wide tracking shot of KELLY, KENTA and MAXIM running through the military island housing area in daylight, dust and gravel underfoot, tin-roofed structures on either side, hard overhead sunlight, energetic tension beneath casual teasing, cinematic, no text",
+   "emotional_intent": "Người xem cảm nhận sự gượng gạo, căng thẳng ẩn dưới vẻ đùa cợt của Maxim khi Kenta né tránh câu hỏi.",
+   "beat": {
+    "want": "Maxim muốn khui ra chuyện giữa Kelly và Kenta",
+    "obstacle": "Kenta né tránh, không chịu nói",
+    "turn": "Kelly lên tiếng yêu cầu Kenta nói thẳng nhưng bị từ chối"
+   },
+   "camera_complexity": "simple",
+   "shot_role": "normal",
+   "dialogue": [
+    {
+     "speaker": "MAXIM",
+     "text": "Kenta! Ông với Kelly cãi nhau à?"
+    },
+    {
+     "speaker": "KENTA",
+     "text": "Không liên quan đến ông."
+    },
+    {
+     "speaker": "MAXIM",
+     "text": "Vậy chắc chắn có chuyện rồi."
+    },
+    {
+     "speaker": "KELLY",
+     "text": "Anh nói đi."
+    },
+    {
+     "speaker": "KENTA",
+     "text": "Bây giờ chưa được."
+    }
+   ],
+   "duration_s": 11.4,
+   "shots": [
+    {
+     "size": "WS",
+     "angle": "eye",
+     "camera_move": "track",
+     "role": "setup",
+     "duration_s": 0.6,
+     "action": "Kelly và Kenta chạy qua khu nhà ở, Maxim đuổi theo phía sau",
+     "start_frame": "Kelly and Kenta running center frame through the housing row, Maxim entering from frame-right background catching up",
+     "image_prompt": "Wide tracking shot, eye-level: KELLY and KENTA running through the military island housing area, MAXIM catching up from behind, tin-roofed buildings lining both sides, bright hard daylight, dust kicked up, cinematic, no text",
+     "characters": [
+      "KELLY",
+      "KENTA",
+      "MAXIM"
+     ],
+     "dialogue": []
+    },
+    {
+     "size": "MS",
+     "angle": "eye",
+     "camera_move": "track",
+     "role": "dialogue",
+     "duration_s": 3.1,
+     "action": "Maxim chạy sát bên, trêu chọc hỏi chuyện",
+     "start_frame": "Maxim in midground frame-right, jogging alongside Kenta and Kelly ahead frame-left, grinning",
+     "image_prompt": "Medium tracking shot, eye-level: MAXIM, backward grey cap, silver-grey jacket over red hoodie, jogging beside KENTA and KELLY through the housing area, teasing grin, bright daylight, cinematic, no text",
+     "characters": [
+      "MAXIM",
+      "KENTA",
+      "KELLY"
+     ],
+     "dialogue": [
+      {
+       "speaker": "MAXIM",
+       "text": "Kenta! Ông với Kelly cãi nhau à?"
+      }
+     ]
+    },
+    {
+     "size": "MS",
+     "angle": "eye",
+     "camera_move": "track",
+     "role": "dialogue",
+     "duration_s": 2.0,
+     "action": "Kenta trả lời cộc lốc, mắt vẫn nhìn thẳng phía trước",
+     "start_frame": "Kenta centered, running, stern face forward, Maxim visible frame-right background",
+     "image_prompt": "Medium tracking shot, eye-level: KENTA, black ponytail with white streak, blue-grey scarf, running with stern expression, MAXIM jogging behind him, daylight housing row background, cinematic, no text",
+     "characters": [
+      "KENTA",
+      "MAXIM"
+     ],
+     "dialogue": [
+      {
+       "speaker": "KENTA",
+       "text": "Không liên quan đến ông."
+      }
+     ]
+    },
+    {
+     "size": "MS",
+     "angle": "eye",
+     "camera_move": "track",
+     "role": "dialogue",
+     "duration_s": 2.3,
+     "action": "Maxim nheo mắt cười nói móc",
+     "start_frame": "Maxim centered, jogging, smirking knowingly toward Kenta off-frame",
+     "image_prompt": "Medium tracking shot, eye-level: MAXIM, backward cap, silver-grey jacket, jogging with a knowing smirk, dusty housing structures blurred behind, bright daylight, cinematic, no text",
+     "characters": [
+      "MAXIM"
+     ],
+     "dialogue": [
+      {
+       "speaker": "MAXIM",
+       "text": "Vậy chắc chắn có chuyện rồi."
+      }
+     ]
+    },
+    {
+     "size": "MS",
+     "angle": "eye",
+     "camera_move": "track",
+     "role": "dialogue",
+     "duration_s": 1.5,
+     "action": "Kelly nhìn sang Kenta, giọng nghiêm túc",
+     "start_frame": "Kelly centered frame, running, turning her head to look at Kenta beside her",
+     "image_prompt": "Medium tracking shot, eye-level: KELLY, dark bob, yellow tracksuit, running and turning her head to look at KENTA beside her, serious expression, daylight housing area, cinematic, no text",
+     "characters": [
+      "KELLY",
+      "KENTA"
+     ],
+     "dialogue": [
+      {
+       "speaker": "KELLY",
+       "text": "Anh nói đi."
+      }
+     ]
+    },
+    {
+     "size": "MS",
+     "angle": "eye",
+     "camera_move": "track",
+     "role": "dialogue",
+     "duration_s": 1.9,
+     "action": "Kenta từ chối, Kelly im lặng nhìn về phía trước",
+     "start_frame": "Kenta centered facing forward while running, Kelly visible frame-right slightly behind, face falling silent",
+     "end_state": "Kelly looks away in silence, jaw tightening",
+     "image_prompt": "Medium tracking shot, eye-level: KENTA running with a closed-off expression, KELLY beside him falling silent, both moving forward through the housing row, bright daylight, cinematic, no text",
+     "characters": [
+      "KENTA",
+      "KELLY"
+     ],
+     "dialogue": [
+      {
+       "speaker": "KENTA",
+       "text": "Bây giờ chưa được."
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "idx": 3,
+   "location": "Đảo Quân Sự — sheltered corner between structures",
+   "location_asset": 83,
+   "sequence": 2,
+   "time": "day",
+   "characters": [
+    "MAXIM",
+    "KENTA",
+    "KELLY"
+   ],
+   "mood": "secretive tension escalating to heartbreak",
+   "lighting": "hard daylight with sharp shadow in the sheltered corner, Kelly lit by open sunlight in the background",
+   "shot": "static medium shots for the two men, wide two-shot revealing Kelly overhearing",
+   "blocking": "Maxim and Kenta stand close together frame-left in the shaded corner; Kelly stands alone frame-right in the sunlit background, facing away, unaware she is in earshot until she reacts.",
+   "image_prompt": "Wide shot: MAXIM and KENTA standing close together in a shaded corner between military structures, KELLY visible further back in the sunlit background near a doorway, unaware she can hear them, tense hushed atmosphere, hard daylight contrast, cinematic, no text",
+   "emotional_intent": "Người xem lo sợ cùng Kelly khi cô vô tình nghe được bí mật đang bị giấu kín.",
+   "beat": {
+    "want": "Kenta và Maxim muốn giữ kín một kế hoạch nguy hiểm",
+    "obstacle": "Kelly đứng gần và tình cờ nghe được",
+    "turn": "Kelly nghe câu 'không được để cô ấy biết' và sững người nhận ra họ đang nói về mình"
+   },
+   "camera_complexity": "simple",
+   "shot_role": "normal",
+   "dialogue": [
+    {
+     "speaker": "MAXIM",
+     "text": "Ông chắc muốn làm vậy thật à?"
+    },
+    {
+     "speaker": "KENTA",
+     "text": "Ừ."
+    },
+    {
+     "speaker": "MAXIM",
+     "text": "Nhưng Kelly sẽ hiểu lầm ông đấy."
+    },
+    {
+     "speaker": "KENTA",
+     "text": "Tôi biết."
+    },
+    {
+     "speaker": "KENTA",
+     "text": "Nhất định không được để cô ấy biết."
+    },
+    {
+     "speaker": "KELLY",
+     "text": "Không được để em biết…?"
+    }
+   ],
+   "duration_s": 13.7,
+   "shots": [
+    {
+     "size": "WS",
+     "angle": "eye",
+     "camera_move": "static",
+     "role": "setup",
+     "duration_s": 0.5,
+     "action": "Maxim kéo Kenta vào một góc khuất, Kelly đứng xa phía sau không hay biết",
+     "start_frame": "Maxim pulling Kenta by the arm into a shaded corner frame-left, Kelly standing distant frame-right in sunlight",
+     "image_prompt": "Wide static shot: MAXIM pulling KENTA into a shaded corner between two military structures, KELLY standing alone in bright sunlight further back near a doorway, tense hushed mood, hard daylight contrast, cinematic, no text",
+     "characters": [
+      "MAXIM",
+      "KENTA",
+      "KELLY"
+     ],
+     "dialogue": []
+    },
+    {
+     "size": "MS",
+     "angle": "eye",
+     "camera_move": "static",
+     "role": "dialogue",
+     "duration_s": 2.6,
+     "action": "Maxim hỏi dò với vẻ nghiêm túc hiếm thấy",
+     "start_frame": "Maxim frame-left facing Kenta frame-right, shaded corner background",
+     "image_prompt": "Medium static shot, eye-level: MAXIM facing KENTA in a shaded corner, unusually serious expression, hard shadow lines on the wall behind, cinematic, no text",
+     "characters": [
+      "MAXIM",
+      "KENTA"
+     ],
+     "dialogue": [
+      {
+       "speaker": "MAXIM",
+       "text": "Ông chắc muốn làm vậy thật à?"
+      }
+     ]
+    },
+    {
+     "size": "MS",
+     "angle": "eye",
+     "camera_move": "static",
+     "role": "dialogue",
+     "duration_s": 1.0,
+     "action": "Kenta gật đầu dứt khoát",
+     "start_frame": "Kenta centered, facing Maxim, jaw set",
+     "image_prompt": "Medium static shot, eye-level: KENTA facing MAXIM, giving a single firm nod, shaded corner, hard daylight edge lighting, cinematic, no text",
+     "characters": [
+      "KENTA",
+      "MAXIM"
+     ],
+     "dialogue": [
+      {
+       "speaker": "KENTA",
+       "text": "Ừ."
+      }
+     ]
+    },
+    {
+     "size": "MS",
+     "angle": "eye",
+     "camera_move": "static",
+     "role": "dialogue",
+     "duration_s": 2.9,
+     "action": "Maxim cảnh báo về hậu quả với Kelly",
+     "start_frame": "Maxim leaning slightly toward Kenta, concerned expression",
+     "image_prompt": "Medium static shot, eye-level: MAXIM leaning in with a concerned expression, KENTA listening in the shaded corner, hard daylight contrast, cinematic, no text",
+     "characters": [
+      "MAXIM",
+      "KENTA"
+     ],
+     "dialogue": [
+      {
+       "speaker": "MAXIM",
+       "text": "Nhưng Kelly sẽ hiểu lầm ông đấy."
+      }
+     ]
+    },
+    {
+     "size": "MS",
+     "angle": "eye",
+     "camera_move": "static",
+     "role": "dialogue",
+     "duration_s": 1.2,
+     "action": "Kenta đáp ngắn gọn, ánh mắt trĩu nặng",
+     "start_frame": "Kenta centered, eyes lowered briefly then steady",
+     "image_prompt": "Medium static shot, eye-level: KENTA, heavy resigned expression, shaded corner background, cinematic, no text",
+     "characters": [
+      "KENTA"
+     ],
+     "dialogue": [
+      {
+       "speaker": "KENTA",
+       "text": "Tôi biết."
+      }
+     ]
+    },
+    {
+     "size": "WS",
+     "angle": "eye",
+     "camera_move": "static",
+     "role": "dialogue",
+     "duration_s": 3.0,
+     "action": "Kenta nhấn mạnh yêu cầu giữ bí mật, Kelly vẫn đứng xa phía sau chưa để ý",
+     "start_frame": "Kenta and Maxim frame-left in the shaded corner, Kelly still visible distant frame-right in sunlight",
+     "image_prompt": "Wide static shot: KENTA speaking firmly to MAXIM in the shaded corner frame-left, KELLY distant in sunlight frame-right beginning to turn her head, hard daylight contrast, cinematic, no text",
+     "characters": [
+      "KENTA",
+      "MAXIM",
+      "KELLY"
+     ],
+     "dialogue": [
+      {
+       "speaker": "KENTA",
+       "text": "Nhất định không được để cô ấy biết."
+      }
+     ]
+    },
+    {
+     "size": "CU",
+     "angle": "eye",
+     "camera_move": "static",
+     "role": "reaction",
+     "duration_s": 0.5,
+     "action": "Kelly sững người khi nghe rõ câu nói",
+     "start_frame": "Close-up on Kelly's face, eyes widening in shock, sunlight on her face",
+     "image_prompt": "Close-up, eye-level, static: KELLY's face frozen in shock, eyes widening, bright sunlight on her face, silent, cinematic, no text",
+     "characters": [
+      "KELLY"
+     ],
+     "dialogue": []
+    },
+    {
+     "size": "MS",
+     "angle": "ots",
+     "camera_move": "static",
+     "role": "dialogue",
+     "duration_s": 2.0,
+     "action": "Kelly thì thầm hoang mang khi thấy Kenta và Maxim rời đi",
+     "start_frame": "Over Kelly's shoulder frame-left, Kenta and Maxim walking away in the midground shaded corner",
+     "image_prompt": "Medium shot, over-the-shoulder from behind KELLY (frame-left foreground, out of focus), KENTA and MAXIM walking away into the shaded corner in the midground, hard daylight, cinematic, no text",
+     "characters": [
+      "KELLY",
+      "KENTA",
+      "MAXIM"
+     ],
+     "dialogue": [
+      {
+       "speaker": "KELLY",
+       "text": "Không được để em biết…?"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "idx": 4,
+   "location": "Đảo Quân Sự — open pathway between structures",
+   "location_asset": 83,
+   "sequence": 2,
+   "time": "day",
+   "characters": [
+    "KELLY",
+    "KENTA",
+    "MAXIM"
+   ],
+   "mood": "raw confrontation, quiet devastation",
+   "lighting": "bright daylight, harsh direct sun casting short shadows",
+   "shot": "tracking medium shots into a static confrontation",
+   "blocking": "Kelly enters from frame-right running toward Kenta who stands frame-left facing away; after he turns, they face each other center frame with Maxim watching from midground background.",
+   "image_prompt": "Medium shot: KELLY running up to KENTA on an open pathway of the military island, confronting him directly while MAXIM watches from a distance, bright harsh daylight, raw emotional tension, cinematic, no text",
+   "emotional_intent": "Người xem đau cùng Kelly khi cô đối mặt trực diện với sự im lặng và quyết định hy sinh của Kenta.",
+   "beat": {
+    "want": "Kelly muốn Kenta giữ lời hứa không bỏ rơi mình",
+    "obstacle": "Kenta không thể giải thích vì lý do riêng",
+    "turn": "Kelly quay lưng bỏ đi, để lộ ra Kenta sẵn sàng đánh đổi mạng sống"
+   },
+   "camera_complexity": "simple",
+   "shot_role": "normal",
+   "dialogue": [
+    {
+     "speaker": "KELLY",
+     "text": "Kenta!"
+    },
+    {
+     "speaker": "KELLY",
+     "text": "Anh nói sẽ không để mất em…"
+    },
+    {
+     "speaker": "KELLY",
+     "text": "Không cần."
+    },
+    {
+     "speaker": "KENTA",
+     "text": "Chỉ cần cô ấy còn sống… là được."
+    }
+   ],
+   "duration_s": 9.8,
+   "shots": [
+    {
+     "size": "MS",
+     "angle": "eye",
+     "camera_move": "track",
+     "role": "dialogue",
+     "duration_s": 1.3,
+     "action": "Kelly chạy theo, gọi tên Kenta",
+     "start_frame": "Kelly running from frame-right toward Kenta's back, visible ahead frame-left",
+     "image_prompt": "Medium tracking shot, eye-level: KELLY running after KENTA on an open pathway, calling out, bright harsh daylight, cinematic, no text",
+     "characters": [
+      "KELLY",
+      "KENTA"
+     ],
+     "dialogue": [
+      {
+       "speaker": "KELLY",
+       "text": "Kenta!"
+      }
+     ]
+    },
+    {
+     "size": "MS",
+     "angle": "eye",
+     "camera_move": "static",
+     "role": "reaction",
+     "duration_s": 0.6,
+     "action": "Kenta dừng lại, quay người lại nhìn Kelly",
+     "start_frame": "Kenta centered, mid-turn, stern face beginning to face camera",
+     "image_prompt": "Medium static shot, eye-level: KENTA stopping and turning around on the pathway, stern face, bright daylight, cinematic, no text",
+     "characters": [
+      "KENTA"
+     ],
+     "dialogue": []
+    },
+    {
+     "size": "MS",
+     "angle": "ots",
+     "camera_move": "static",
+     "role": "dialogue",
+     "duration_s": 2.7,
+     "action": "Kelly nói với giọng nghẹn ngào, nhắc lại lời hứa của anh",
+     "start_frame": "Over Kenta's shoulder frame-left foreground, Kelly facing him in the midground center, eyes welling",
+     "image_prompt": "Medium shot, over-the-shoulder from behind KENTA, KELLY facing him with welling eyes, open pathway background, harsh daylight, cinematic, no text",
+     "characters": [
+      "KELLY",
+      "KENTA"
+     ],
+     "dialogue": [
+      {
+       "speaker": "KELLY",
+       "text": "Anh nói sẽ không để mất em…"
+      }
+     ]
+    },
+    {
+     "size": "MS",
+     "angle": "eye",
+     "camera_move": "static",
+     "role": "dialogue",
+     "duration_s": 1.4,
+     "action": "Kelly cắt lời anh, quay lưng bỏ đi",
+     "start_frame": "Kelly centered facing camera, then beginning to turn away",
+     "end_state": "Kelly has her back to camera, walking away down the pathway",
+     "image_prompt": "Medium shot, eye-level: KELLY cutting off the conversation, turning her back and walking away down the pathway, bright daylight, cinematic, no text",
+     "characters": [
+      "KELLY"
+     ],
+     "dialogue": [
+      {
+       "speaker": "KELLY",
+       "text": "Không cần."
+      }
+     ]
+    },
+    {
+     "size": "WS",
+     "angle": "eye",
+     "camera_move": "static",
+     "role": "reaction",
+     "duration_s": 0.6,
+     "action": "Maxim và Kenta nhìn theo Kelly bỏ đi trong im lặng",
+     "start_frame": "Kenta and Maxim standing together frame-left, watching Kelly's retreating figure frame-right background",
+     "image_prompt": "Wide static shot: KENTA and MAXIM standing together watching KELLY's small retreating figure walk away down the pathway, silent, bright daylight, cinematic, no text",
+     "characters": [
+      "MAXIM",
+      "KENTA"
+     ],
+     "dialogue": []
+    },
+    {
+     "size": "MS",
+     "angle": "eye",
+     "camera_move": "static",
+     "role": "dialogue",
+     "duration_s": 3.2,
+     "action": "Kenta nói câu quyết định, ánh mắt kiên định nhìn theo Kelly",
+     "start_frame": "Kenta centered facing away from camera toward Kelly's direction, Maxim beside him frame-right",
+     "image_prompt": "Medium static shot, eye-level: KENTA standing with MAXIM beside him, gazing after KELLY with a resolute expression, bright harsh daylight, cinematic, no text",
+     "characters": [
+      "KENTA",
+      "MAXIM"
+     ],
+     "dialogue": [
+      {
+       "speaker": "KENTA",
+       "text": "Chỉ cần cô ấy còn sống… là được."
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "idx": 5,
+   "location": "Đảo Quân Sự — combat zone",
+   "location_asset": 83,
+   "sequence": 2,
+   "time": "day",
+   "characters": [
+    "KENTA",
+    "MAXIM"
+   ],
+   "mood": "sudden shock, desperate urgency",
+   "lighting": "harsh daylight with sharp motion, dust kicked up from impact",
+   "shot": "insert and medium shots, one warm-toned flashback insert",
+   "blocking": "Maxim falls frame-center in the open combat zone; Kenta rushes in from frame-right to reach him, kneeling over him center frame.",
+   "image_prompt": "Medium shot: MAXIM struck down in an open combat area of the military island, KENTA rushing in from the side to reach him, dust and debris in the air, harsh daylight, urgent tension, cinematic, no text",
+   "emotional_intent": "Người xem giật mình lo lắng khi Maxim ngã xuống, rồi xúc động khi hiểu ra sự hy sinh thầm lặng của Kenta.",
+   "beat": {
+    "want": "Kenta muốn cứu Maxim bằng mọi giá",
+    "obstacle": "Maxim vừa bị hạ giữa trận đấu",
+    "turn": "Đoạn hồi tưởng hé lộ Kenta đã chuẩn bị sẵn sàng hy sinh vì Maxim, giải thích bí mật trước đó"
+   },
+   "camera_complexity": "complex",
+   "shot_role": "hero",
+   "dialogue": [
+    {
+     "speaker": "KENTA",
+     "text": "Maxim!"
+    },
+    {
+     "speaker": "KENTA",
+     "text": "Nếu tôi phải hy sinh… hãy dùng nó cứu Maxim."
+    }
+   ],
+   "duration_s": 6.3,
+   "shots": [
+    {
+     "size": "MS",
+     "angle": "high",
+     "camera_move": "handheld",
+     "role": "insert",
+     "duration_s": 0.8,
+     "action": "Maxim bất ngờ bị địch bắn hạ, ngã xuống đất",
+     "start_frame": "Maxim centered, struck, collapsing to the ground amid dust",
+     "image_prompt": "Medium shot, high angle, handheld: MAXIM struck by enemy fire, collapsing to the ground in an open combat area, dust kicked up, harsh daylight, urgent motion, cinematic, no text",
+     "characters": [
+      "MAXIM"
+     ],
+     "dialogue": [],
+     "on_screen_text": [
+      "Maxim đã bị hạ."
+     ]
+    },
+    {
+     "size": "MS",
+     "angle": "eye",
+     "camera_move": "track",
+     "role": "dialogue",
+     "duration_s": 1.2,
+     "action": "Kenta lao tới, hét gọi tên Maxim",
+     "start_frame": "Kenta sprinting in from frame-right toward Maxim's fallen body frame-left",
+     "image_prompt": "Medium tracking shot, eye-level: KENTA sprinting toward fallen MAXIM, urgent expression, dust in the air, harsh daylight, cinematic, no text",
+     "characters": [
+      "KENTA",
+      "MAXIM"
+     ],
+     "dialogue": [
+      {
+       "speaker": "KENTA",
+       "text": "Maxim!"
+      }
+     ]
+    },
+    {
+     "size": "CU",
+     "angle": "high",
+     "camera_move": "static",
+     "role": "insert",
+     "duration_s": 0.6,
+     "action": "Kenta dùng vật phẩm cứu thương lên người Maxim, cận tay",
+     "start_frame": "Close-up on Kenta's hands applying a revival item to Maxim's chest",
+     "image_prompt": "Close-up, high angle, static: KENTA's hands applying a revival item to MAXIM's chest, faint white glow at the wound, dust settling, cinematic, no text",
+     "characters": [
+      "KENTA",
+      "MAXIM"
+     ],
+     "dialogue": []
+    },
+    {
+     "size": "MS",
+     "angle": "eye",
+     "camera_move": "static",
+     "role": "dialogue",
+     "duration_s": 3.7,
+     "action": "Hồi tưởng ngắn: Kenta dặn dò Maxim với ánh sáng ấm hoài niệm",
+     "start_frame": "Kenta facing Maxim in a warm-toned flashback lighting, calmer setting than the present combat",
+     "image_prompt": "Medium static shot, eye-level, warm nostalgic lighting (flashback): KENTA speaking earnestly to MAXIM in a quieter moment, softer golden light contrasting the harsh combat scenes, cinematic, no text",
+     "characters": [
+      "KENTA",
+      "MAXIM"
+     ],
+     "dialogue": [
+      {
+       "speaker": "KENTA",
+       "text": "Nếu tôi phải hy sinh… hãy dùng nó cứu Maxim."
+      }
+     ],
+     "hero": true
+    }
+   ]
+  },
+  {
+   "idx": 6,
+   "location": "dark cinematic void / abstract emotional space",
+   "sequence": 3,
+   "time": "night, undefined space",
+   "characters": [
+    "KELLY",
+    "KENTA"
+   ],
+   "mood": "bittersweet relief, tearful warmth",
+   "lighting": "single soft key light from front-left, deep black background, warmer tone than opening",
+   "shot": "over-the-shoulder into a close embrace ending",
+   "blocking": "Kelly stands center frame; Kenta's blurred shoulder returns in foreground frame-left for the ots shot, then Kelly steps forward into frame to embrace him in the final wide shot.",
+   "image_prompt": "Medium shot: KELLY standing in the dark cinematic space, smiling through tears as she faces KENTA, whose blurred shoulder occupies the foreground, soft warm key light, deep black background, cinematic, no text",
+   "emotional_intent": "Người xem cảm nhận sự vỡ òa dịu dàng khi hiểu lý do đằng sau sự im lặng của Kenta và chứng kiến hai người hòa giải.",
+   "beat": {
+    "want": "Kelly muốn hiểu vì sao Kenta giấu mình",
+    "obstacle": "Không còn obstacle — sự thật đã lộ ra qua hành động cứu Maxim",
+    "turn": "Kelly bật khóc và bước tới ôm Kenta, khép lại hiểu lầm"
+   },
+   "camera_complexity": "simple",
+   "shot_role": "hero",
+   "dialogue": [
+    {
+     "speaker": "KELLY",
+     "text": "Ngốc… sao anh không nói với em?"
+    },
+    {
+     "speaker": "KENTA",
+     "text": "Vì anh biết… em sẽ không cho anh làm vậy."
+    }
+   ],
+   "duration_s": 8.1,
+   "shots": [
+    {
+     "size": "WS",
+     "angle": "eye",
+     "camera_move": "static",
+     "role": "setup",
+     "duration_s": 0.5,
+     "action": "Kelly đứng một mình trở lại trong không gian cinematic tối",
+     "start_frame": "Kelly centered alone against the black background, softer warm light than the opening scene",
+     "image_prompt": "Wide static shot, eye-level: KELLY standing alone in the dark cinematic space, soft warm key light, deep black background, cinematic, no text",
+     "characters": [
+      "KELLY"
+     ],
+     "dialogue": []
+    },
+    {
+     "size": "MS",
+     "angle": "ots",
+     "camera_move": "static",
+     "role": "dialogue",
+     "duration_s": 2.6,
+     "action": "Kelly nhìn Kenta, mỉm cười qua nước mắt và trách yêu",
+     "start_frame": "Kenta's blurred shoulder foreground frame-left, Kelly facing him midground, tearful smile forming",
+     "image_prompt": "Medium shot, over-the-shoulder from behind KENTA (blurred foreground frame-left), KELLY facing him with a tearful smile, soft warm key light, deep black background, cinematic, no text",
+     "characters": [
+      "KELLY",
+      "KENTA"
+     ],
+     "dialogue": [
+      {
+       "speaker": "KELLY",
+       "text": "Ngốc… sao anh không nói với em?"
+      }
+     ]
+    },
+    {
+     "size": "MS",
+     "angle": "eye",
+     "camera_move": "static",
+     "role": "dialogue",
+     "duration_s": 3.5,
+     "action": "Kenta giải thích lý do giấu cô, ánh mắt dịu lại",
+     "start_frame": "Kenta centered facing Kelly (off-frame), expression softening",
+     "image_prompt": "Medium static shot, eye-level: KENTA facing KELLY, expression softening as he explains, soft warm key light, deep black background, cinematic, no text",
+     "characters": [
+      "KENTA"
+     ],
+     "dialogue": [
+      {
+       "speaker": "KENTA",
+       "text": "Vì anh biết… em sẽ không cho anh làm vậy."
+      }
+     ]
+    },
+    {
+     "size": "CU",
+     "angle": "eye",
+     "camera_move": "static",
+     "role": "reaction",
+     "duration_s": 0.5,
+     "action": "Kelly bật khóc, không kìm được cảm xúc",
+     "start_frame": "Close-up on Kelly's face as tears break free, silent",
+     "image_prompt": "Close-up, eye-level, static: KELLY's face breaking into tears, soft warm light, deep black background, silent, cinematic, no text",
+     "characters": [
+      "KELLY"
+     ],
+     "dialogue": []
+    },
+    {
+     "size": "MS",
+     "angle": "eye",
+     "camera_move": "push_in",
+     "role": "ending",
+     "duration_s": 1.0,
+     "action": "Kelly bước tới ôm Kenta, khép lại câu chuyện",
+     "start_frame": "Kelly stepping forward from center frame toward Kenta, arms opening",
+     "end_state": "Kelly embracing Kenta, both centered in frame, warm light fading in",
+     "image_prompt": "Medium shot, eye-level, slow push-in: KELLY stepping forward and embracing KENTA, both centered in the dark cinematic space, soft warm key light growing, deep black background, tender closing moment, cinematic, no text",
+     "characters": [
+      "KELLY",
+      "KENTA"
+     ],
+     "dialogue": [],
+     "hero": true
+    }
+   ]
+  }
+ ],
+ "dropped_lines": [
+  {
+   "scene": 4,
+   "speaker": "KENTA",
+   "text": "Kelly, nghe anh giải thích…",
+   "why": "Rút gọn để giữ tổng thời lượng cảnh 3 (~10s); ý đã được truyền tải qua phản ứng im lặng của Kelly."
+  },
+  {
+   "scene": 4,
+   "speaker": "MAXIM",
+   "text": "Ông làm cô ấy khóc rồi.",
+   "why": "Rút gọn để giữ tổng thời lượng cảnh 3 (~10s); không thiết yếu cho cốt truyện, cảm xúc đã rõ qua hình ảnh Kelly bỏ đi."
+  }
+ ],
+ "ip_risk_notes": []
+}
