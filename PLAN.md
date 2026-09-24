@@ -376,6 +376,8 @@ Tổng hợp từ: báo cáo rà soát `docs/DASHBOARD_REVIEW_2026-09-23.md`, k�
 
 ## 7. Lộ trình triển khai: V0 → V1
 
+> **Cập nhật 2026-09-24 — Kế hoạch tổng (bản mới nhất, thay thế thứ tự việc cũ):** `docs/KE_HOACH_TONG_2026-09-24.md` — tổng kết đã làm, đánh giá từng phân đoạn (P0–P8), danh mục lỗi đầy đủ (~130 mã), cách dùng ClipAI (khung đầu/cuối, tham chiếu), kho tài nguyên & bối cảnh (bỏ ghép ảnh map), bản đồ 3D (Blender 5.0.1), giọng tiếng Việt, tối giản giao diện; lộ trình GĐ-A (khẩn) → GĐ-B → C → D → E0 → E → F → G → H (không tốn credit) → GĐ-I kiểm thật theo bậc (xin phép từng bậc).
+
 ### Giai đoạn V0 — Thử nghiệm (Claude Desktop + MCP, ≈ 3–4 tuần)
 Mục tiêu: chứng minh pipeline end-to-end chạy được, đo chất lượng QC, hiệu chỉnh threshold, chốt Knowledge Base/prompt. Các bước cần Claude (Director Bước 1/3, QC Bước 2, Music Brief) chạy qua chat Claude Desktop với prompt template chuẩn; các thao tác còn lại gọi qua MCP tool. Dashboard V0 tối giản (xem trạng thái + duyệt ảnh) hoặc bỏ qua.
 
