@@ -65,6 +65,9 @@ def flags(p: Pipeline, project_id: int, data_dir: str = None) -> Dict[int, List[
             if missing:
                 found.append("ảnh đầu nhóm không có " + ", ".join(missing))
         else:
+            dur = float(data[sid].get("duration_s") or 0)
+            if not data[sid].get("shot_no") and dur > 10:     # F6: one long clip with several beats — a retry cannot fix the middle
+                found.append(f"clip dài {dur:.0f}s nhiều nhịp — nên chia shot (gen lại không sửa được nhịp giữa)")
             img = _approved_image(p.conn, sid)
             if img is None:
                 found.append("chưa có ảnh đã duyệt")

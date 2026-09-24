@@ -858,6 +858,28 @@ def character_detail_panel(p: Pipeline, pid: int, c, voices, client, locked: boo
             st.rerun()
 
 
+def bible_check_box(p: Pipeline, pid: int, rows, client, locked: bool) -> None:
+    """F1: the Bible text against the library pictures — mismatches shown with Claude's suggested wording, one click to use it."""
+    flags = claude_tasks.bible_flags(p, pid)
+    for r in rows:
+        if r["name"] not in flags:
+            continue
+        res = json.loads(r["bible_check"] or "{}")
+        box = st.container(border=True)
+        box.warning(f"⚑ **{r['name']}**: mô tả mâu thuẫn với ảnh tài nguyên — " + "; ".join(flags[r["name"]]))
+        fixed = (res.get("fixed_description") or "").strip()
+        if fixed:
+            box.caption(f"Đề xuất: {fixed}")
+            if not locked and box.button("✔ Dùng đề xuất này", key=f"bfix_{pid}_{r['name']}"):
+                act(lambda: llm_io.update_character(p, pid, r["name"], fixed, r["wardrobe"]), "Đã sửa mô tả theo ảnh")
+                st.rerun()
+    if client is not None and st.button("🔍 Kiểm mô tả nhân vật với ảnh tài nguyên (1 lượt Claude, chỉ nhân vật đổi từ lần kiểm trước)",
+                                        key=f"bcheck_{pid}"):
+        with st.spinner("Claude đang so mô tả với ảnh…"):
+            act(lambda: claude_tasks.bible_check(p, pid, client), "Đã kiểm xong")
+        st.rerun()
+
+
 def character_bible_panel(p: Pipeline, pid: int, chars, risky) -> None:
     char_names = [c["name"] for c in chars]
     locked = any(c["locked"] for c in chars)
@@ -876,8 +898,9 @@ def character_bible_panel(p: Pipeline, pid: int, chars, risky) -> None:
                        "Ảnh mốc": "✔" if r["anchor_approved"] else "—",
                        "IP": "⚠" if r["name"] in risky else "",
                        } for r in rows], width="stretch", hide_index=True, height=min(38 * (len(rows) + 1) + 3, 260))
-        character_reference_panel(p, pid, chars)
         client = llm_client()
+        bible_check_box(p, pid, rows, client, locked)
+        character_reference_panel(p, pid, chars)
         voices = _voices(pid)
         st.markdown("**🔒 Lock · 🎙 Giọng · 🖼 Ảnh mốc của từng nhân vật**")
         speakers = {ln["speaker"].upper() for ln in voice.planned_lines(p.conn, pid) if ln["speaker"]}

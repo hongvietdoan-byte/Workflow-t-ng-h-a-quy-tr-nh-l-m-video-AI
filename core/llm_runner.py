@@ -534,6 +534,10 @@ class MockLlm:
             return LlmReply(json.dumps({"shots": shots}, ensure_ascii=False), 120, 80)
         if prompt.startswith("# Rà storyboard (previz 2D)"):
             return LlmReply(json.dumps({"ok": True, "issues": []}), 60, 10)
+        if prompt.startswith("# Kiểm Character Bible so với ảnh tài nguyên"):
+            names = re.findall(r"^- \*\*(.+?)\*\*:", prompt.split("# Nhân vật cần kiểm", 1)[1], flags=re.M)
+            out = {"characters": [{"name": n, "ok": True, "mismatches": [], "fixed_description": ""} for n in names]}
+            return LlmReply(json.dumps(out, ensure_ascii=False), 60, 20)
         if "Dịch phụ đề cho video game" in prompt:
             lang = re.search(r"sang (.+?)\. Giữ nguyên", prompt).group(1)
             block = prompt.split("# Phụ đề cần dịch", 1)[1]

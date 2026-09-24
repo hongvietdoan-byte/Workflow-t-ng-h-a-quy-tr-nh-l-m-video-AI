@@ -353,6 +353,78 @@ def get_lock(row) -> Dict:
         return {}
 
 
+# ---- 5b. Character Bible vs the library pictures (F1) --------------------------------------------------------------------------
+def _check_bible(names):
+    def check(obj) -> None:
+        if not isinstance(obj, dict) or not isinstance(obj.get("characters"), list):
+            raise llm_io.SchemaError("root: {characters: [...]}")
+        got = {str(c.get("name")) for c in obj["characters"] if isinstance(c, dict)}
+        if got != set(names):
+            raise llm_io.SchemaError(f"cần đúng các nhân vật {sorted(names)}, nhận {sorted(got)}")
+        for c in obj["characters"]:
+            if not isinstance(c.get("ok"), bool) or not isinstance(c.get("mismatches", []), list):
+                raise llm_io.SchemaError("mỗi mục cần ok (true/false) và mismatches (danh sách)")
+    return check
+
+
+def _bible_key(row, refs) -> str:
+    import hashlib
+    h = hashlib.sha1((row["description"] or "").encode("utf-8") + (row["wardrobe"] or "").encode("utf-8"))
+    for r in refs:
+        try:
+            with open(r["path"], "rb") as f:
+                h.update(hashlib.sha1(f.read()).digest())
+        except OSError:
+            h.update(r["path"].encode("utf-8"))
+    return h.hexdigest()[:16]
+
+
+def bible_check(p: Pipeline, project_id: int, client) -> Dict:
+    """F1 (GĐ6 R1): does each character's Bible text agree with its library pictures? One Claude call for the characters whose
+    text or pictures changed since the last check (cached per description + pictures). Returns {name: result}."""
+    rows = {r["name"]: r for r in p.conn.execute("SELECT * FROM characters WHERE project_id=?", (project_id,))}
+    linked = assets.link_characters(p.conn, project_id, list(rows))
+    todo, images, out = [], [], {}
+    for name, row in rows.items():
+        refs = ((linked.get(name) or {}).get("refs") or [])[:1]
+        if not refs:
+            continue
+        key = _bible_key(row, refs)
+        old = json.loads(row["bible_check"] or "{}") if row["bible_check"] else {}
+        if old.get("key") == key:
+            out[name] = old
+            continue
+        if len(images) + 1 > 12:
+            break                                          # the rest waits for the next call (never cut silently: they stay unchecked)
+        todo.append((name, row, key))
+        images.append((f"Ảnh tài nguyên chuẩn — {name}:", assets.thumbnail(refs[0]["path"], 900)))
+    if todo:
+        text = "\n".join(f"- **{n}**: {r['description'] or ''} {r['wardrobe'] or ''}".strip() for n, r, _ in todo)
+        obj = _run(p, project_id, "director", _read("prompts", "18_bible_check.md") + "\n\n---\n\n# Nhân vật cần kiểm\n" + text,
+                   _check_bible([n for n, _, _ in todo]), client, images)
+        by_name = {str(c["name"]): c for c in obj["characters"]}
+        for name, _, key in todo:
+            res = dict(by_name[name], key=key)
+            p.conn.execute("UPDATE characters SET bible_check=? WHERE project_id=? AND name=?",
+                           (json.dumps(res, ensure_ascii=False), project_id, name))
+            out[name] = res
+        p.conn.commit()
+    return out
+
+
+def bible_flags(p: Pipeline, project_id: int) -> Dict[str, List[str]]:
+    """{name: [mismatch...]} of the last check whose text/pictures are still current (empty = none known)."""
+    rows = {r["name"]: r for r in p.conn.execute("SELECT * FROM characters WHERE project_id=?", (project_id,))}
+    linked = assets.link_characters(p.conn, project_id, list(rows))
+    out = {}
+    for name, row in rows.items():
+        res = json.loads(row["bible_check"] or "{}") if row["bible_check"] else {}
+        refs = ((linked.get(name) or {}).get("refs") or [])[:1]
+        if res and refs and res.get("key") == _bible_key(row, refs) and not res.get("ok"):
+            out[name] = [str(m) for m in res.get("mismatches") or []] or ["mô tả chưa khớp ảnh"]
+    return out
+
+
 # ---- 6. voice casting ------------------------------------------------------------------------------------------------------
 def _check_cast(obj) -> None:
     if not isinstance(obj, dict) or not isinstance(obj.get("cast"), list):

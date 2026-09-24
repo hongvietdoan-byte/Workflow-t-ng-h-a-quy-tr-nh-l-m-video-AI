@@ -9,7 +9,8 @@ from .pipeline import Pipeline
 
 _W = "{http://schemas.openxmlformats.org/wordprocessingml/2006/main}"
 _HEADING = re.compile(
-    r"^\s*((cảnh|canh|scene|sc|s)\s*\.?\s*\d+\b.*|(int|ext|nội|noi|ngoại|ngoai)[\./\s].*)$", re.IGNORECASE)
+    r"^\s*((cảnh|canh|scene|sc|s)\s*\.?\s*\d+\b.*|(int|ext)[\./\s].*|(nội|noi|ngoại|ngoai)\s*[\./-].*)$", re.IGNORECASE)
+# A20: "Nội dung: …" / "Ngoại hình: …" are body lines, not scene headings (a Vietnamese heading is "NỘI. NHÀ KELLY - NGÀY")
 _DIALOGUE = re.compile(r"^\s*([^\W\d_][^:\n]{0,28}?)\s*:\s*\S")
 
 

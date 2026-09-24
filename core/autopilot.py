@@ -250,6 +250,16 @@ def _director_phase(p: Pipeline, pid: int, ctx: Context) -> Optional[str]:
     if missing:
         raise _Stop("Cảnh chưa có prompt ảnh sau khi chạy Director: " + ", ".join(missing) + " — điền tay hoặc sửa kịch bản rồi bấm Tiếp tục")
     gates = get_gates(p, pid)
+    flags = {}
+    try:                                                    # F1: a Bible that contradicts the pictures is caught before any picture
+        from . import claude_tasks
+        claude_tasks.bible_check(p, pid, ctx.llm)
+        flags = claude_tasks.bible_flags(p, pid)
+    except (llm_runner.LlmError, ValueError) as e:
+        _d(p, pid, "director", "warn", f"không kiểm được Bible với ảnh tài nguyên: {e}", "bible_check_skipped")
+    if flags and not gates["bible_done"]:
+        raise _Wait("bible", "Mô tả nhân vật mâu thuẫn với ảnh tài nguyên: " + "; ".join(f"{n}: {m[0]}" for n, m in flags.items())
+                    + " — sửa ở Bước 1 (đề xuất sửa có sẵn) rồi bấm Tiếp tục")
     if gates["bible"] and not gates["bible_done"]:
         raise _Wait("bible", "Chờ bạn duyệt Character Bible (mô tả, Character Lock, giọng, ảnh mốc) ở Bước 1 rồi bấm Tiếp tục")
     llm_io.lock_character_bible(p, pid)

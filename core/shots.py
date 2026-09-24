@@ -146,7 +146,8 @@ def shot_data(scene: Dict, s: Dict, k: int) -> Dict:
     data.update({
         "story_scene": scene["idx"], "shot_no": k,
         "sequence": scene.get("sequence") or scene["idx"],
-        "characters": list(s.get("characters") or scene.get("characters") or []),
+        # A16: a shot that lists nobody (an insert, an empty establishing shot) stays empty instead of taking the whole cast
+        "characters": list(s["characters"] if isinstance(s.get("characters"), list) else scene.get("characters") or []),
         "image_prompt": s["image_prompt"].strip(),
         "blocking": (s.get("start_frame") or "").strip(),
         "shot": f"{SIZE_WORDS[s['size']]}, {s.get('angle', 'eye')} angle, {s.get('camera_move', 'static').replace('_', ' ')}",

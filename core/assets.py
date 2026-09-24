@@ -421,7 +421,8 @@ def match_character(chosen: List[Dict], name: str) -> Optional[Dict]:
         if key in {fold(n) for n in names_of(a)}:
             return a
     close = [a for a in pool if fold(a["name"]).split(" ")[0] == key.split(" ")[0] and key.split(" ")[0]]
-    return min(close, key=lambda a: len(a["name"])) if close else None
+    # A15: a first-word guess only when it is the only candidate ("Kelly" -> "Kelly thức tỉnh"); two candidates = ask the person
+    return close[0] if len(close) == 1 else None
 
 
 def _reference_rows(conn, project_id: int) -> Dict[str, Dict]:
