@@ -10,6 +10,7 @@ Memory repo dùng chung cho các phiên Claude Code trên mọi máy của hongv
 
 | Ngày | Tiêu đề | File |
 |---|---|---|
+| 2026-09-25 | Kế hoạch làm tiếp `docs/KE_HOACH_2026-09-25.md`: Director v2 (H1–H4) → dự án #6 tới video hoàn chỉnh; hướng mới H5 quay theo vị trí máy | projects/ai-video-pipeline.md |
 | 2026-09-25 | Bài học Director chia shot từ 4 lần chạy thật "ANH CHỌN AI?": đưa con số thời lượng/thoại, thứ tự cắt thoại, luật mềm phải có code kiểm | projects/ai-video-pipeline.md |
 | 2026-09-23 | Sửa xong 2 nguyên nhân gốc (Director nhìn ảnh tham chiếu thật; TTS tự xếp lại hết chồng tiếng); 600 test pass | projects/ai-video-pipeline.md |
 | 2026-09-23 | Hậu kiểm video thật: 2 nguyên nhân gốc mới (Character Bible chưa đối chiếu ảnh, TTS chồng tiếng); đã pull 10 commit phiên khác trước khi lưu, chỉ lưu chưa sửa | projects/ai-video-pipeline.md |
