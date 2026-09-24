@@ -43,12 +43,40 @@ def plain(prompt: str) -> str:
 
 
 class LlmError(Exception):
-    """Failure calling the LLM. Never contains the API key."""
+    """Failure calling the LLM. Never contains the API key. `partial`: the text of a paid answer that was cut off (kept to see where
+    the tokens went)."""
 
-    def __init__(self, message: str, code: Optional[str] = None, transient: bool = False):
+    def __init__(self, message: str, code: Optional[str] = None, transient: bool = False, partial: Optional[str] = None):
         super().__init__(message)
         self.code = code
         self.transient = transient
+        self.partial = partial
+
+
+# C4: how hard Claude thinks and how long it may answer, per stage (usage_events.stage). Thinking tokens count against max_tokens and
+# are billed as output: the Director at the default effort ran out of 32k tokens on a 58-second per-shot script (2026-09-24).
+# Override one stage with CLAUDE_EFFORT_<STAGE> / CLAUDE_MAX_TOKENS_<STAGE> (e.g. CLAUDE_EFFORT_DIRECTOR=high).
+STAGE_SETTINGS: Dict[str, Dict[str, Any]] = {
+    "director": {"effort": "medium", "max_tokens": 64000},     # shot plan of a whole script: long answer
+    "motion": {"effort": "medium", "max_tokens": 48000},
+    "qc": {"effort": "low", "max_tokens": 16000},              # scoring against a checklist: short JSON
+    "video": {"effort": "low", "max_tokens": 16000},
+    "music": {"effort": "low"}, "sfx": {"effort": "low"}, "subtitles": {"effort": "low"}, "lessons": {"effort": "low"},
+}
+EFFORT_MODELS = ("claude-sonnet-5", "claude-opus-5", "claude-fable-5", "claude-opus-4-8", "claude-opus-4-7", "claude-opus-4-6",
+                 "claude-sonnet-4-6")                       # models that take output_config.effort (Haiku 4.5 refuses it)
+
+
+def stage_settings(stage: str) -> Dict[str, Any]:
+    out = dict(STAGE_SETTINGS.get(stage) or {})
+    effort = os.environ.get(f"CLAUDE_EFFORT_{stage.upper()}", "").strip().lower()
+    if effort in ("low", "medium", "high", "xhigh", "max"):
+        out["effort"] = effort
+    try:
+        out["max_tokens"] = int(os.environ[f"CLAUDE_MAX_TOKENS_{stage.upper()}"])
+    except (KeyError, ValueError):
+        pass
+    return out
 
 
 @dataclass
@@ -181,10 +209,15 @@ class AnthropicClient:
         return self._request(prompt, (), [{"type": "web_search_20250305", "name": "web_search", "max_uses": max_uses}])
 
     def _request(self, prompt: str, images: Sequence[Tuple[str, str]], tools) -> LlmReply:
-        payload = {"model": self.model, "max_tokens": self.max_tokens,
+        settings = stage_settings(current_tag()[0])
+        max_tokens = int(settings.get("max_tokens") or self.max_tokens)
+        payload = {"model": self.model, "max_tokens": max_tokens,
                    "messages": [{"role": "user", "content": self._content(prompt, images)}]}
+        if settings.get("effort") and self.model.startswith(EFFORT_MODELS):
+            payload["output_config"] = {"effort": settings["effort"]}
         if tools:
             payload["tools"] = tools
+        self._last_max_tokens = max_tokens
         body = json.dumps(payload).encode("utf-8")
         headers = {"x-api-key": self._key, "anthropic-version": API_VERSION, "content-type": "application/json",
                    "User-Agent": "AIVideoPipeline-LLM/0.1"}
@@ -258,8 +291,10 @@ class AnthropicClient:
     def _check_stop(self, reply: LlmReply) -> None:
         """C5: a cut or refused answer is paid for but useless; asking again the same way pays again for the same cut."""
         if reply.stop_reason == "max_tokens":
-            raise LlmError(f"câu trả lời của Claude bị cắt ở giới hạn {self.max_tokens} token (đã tính tiền) — chia nhỏ việc "
-                           "(ít cảnh hơn mỗi lần) thay vì hỏi lại", code="truncated")
+            cap = getattr(self, "_last_max_tokens", self.max_tokens)
+            raise LlmError(f"câu trả lời của Claude bị cắt ở giới hạn {cap} token (đã tính tiền; {len(reply.text)} ký tự chữ, phần còn "
+                           "lại là suy nghĩ) — chia nhỏ việc (ít cảnh hơn mỗi lần) hoặc giảm effort thay vì hỏi lại",
+                           code="truncated", partial=reply.text)
         if reply.stop_reason == "refusal":
             raise LlmError("Claude từ chối trả lời yêu cầu này (đã tính tiền phần đã đọc)", code="refusal")
 
@@ -399,8 +434,14 @@ def run_director(p: Pipeline, project_id: int, client) -> Dict:
     diag.record(p.conn, "director", "info", f"Director xem {len(refs)} ảnh nhân vật/thú cưng: "
                 + (", ".join(label.split("—", 1)[-1].strip(" :") for label, _ in refs) or "không có (nhân vật không gắn tài nguyên)"),
                 "director_refs", project_id)
-    obj, tin, tout = ask_json(client, prompts.build_director_bundle(p, project_id), llm_io.validate_for_project(p, project_id),
-                              refs, note=_retry_note(p, "director", project_id))
+    try:
+        obj, tin, tout = ask_json(client, prompts.build_director_bundle(p, project_id), llm_io.validate_for_project(p, project_id),
+                                  refs, note=_retry_note(p, "director", project_id))
+    except LlmError as e:
+        if e.partial is not None:                          # paid for: keep what came back, to see where the tokens went
+            p.set_project_field(project_id, "director_raw", json.dumps({"truncated": True, "error": str(e), "text": e.partial},
+                                                                       ensure_ascii=False))
+        raise
     p.set_project_field(project_id, "director_raw", json.dumps(obj, ensure_ascii=False))   # paid for: kept even if saving fails
     llm_io.store_scene_analysis(p, project_id, obj)
     return {"characters": len(obj["characters"]), "scenes": len(obj["scenes"]), "input_tokens": tin,
