@@ -10,6 +10,7 @@ Memory repo dùng chung cho các phiên Claude Code trên mọi máy của hongv
 
 | Ngày | Tiêu đề | File |
 |---|---|---|
+| 2026-09-25 | Chạy thử 2A: ClipAI trả mã chờ tạm rồi tạo task mã mới (W12b); 1 đơn vị cost ≈ $0,01; GPT Image từ chối tuổi < 18; video 22 s $3,00 | projects/ai-video-pipeline.md |
 | 2026-09-25 | Chốt: tổ làm phim (Đạo diễn + Quay phim + Editor), thứ tự ưu tiên, #6 chạy thử 0–20 s tự chạy trong trần (gen lại ≤ 2) | projects/ai-video-pipeline.md |
 | 2026-09-25 | Kế hoạch làm tiếp `docs/KE_HOACH_2026-09-25.md`: Director v2 (H1–H4) → dự án #6 tới video hoàn chỉnh; hướng mới H5 quay theo vị trí máy | projects/ai-video-pipeline.md |
 | 2026-09-25 | Bài học Director chia shot từ 4 lần chạy thật "ANH CHỌN AI?": đưa con số thời lượng/thoại, thứ tự cắt thoại, luật mềm phải có code kiểm | projects/ai-video-pipeline.md |

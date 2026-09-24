@@ -198,3 +198,15 @@ Phần lớn việc còn lại trong `TODO.md` (mục "Đang làm/kế tiếp", 
 - **#6 chạy thử 0–20 s đầu trước** (CINEMATIC MỞ ĐẦU + CẢNH 1, 10 shot, trên bản sao), gen lại ≤ 2 lần/shot, trần tiền ($8 có giá + **$1 Claude API** (người dùng chốt Q6, tối ưu: QC API chỉ mẫu, motion 1 lượt, QC clip theo cảnh) + 32 ảnh + 25 lượt âm thanh). Q2 thử nhỏ quay theo vị trí máy (≤ $1), Q3 giữ lại 2 câu, Q4 PR #1 đã merge về `main` → **phiên Claude được tự chạy không cần duyệt từng bước trong trần**; chạm trần thì dừng, không tự nâng.
 - Thứ tự: bàn đo → bộ chuẩn hóa → chạy thử 2A → tổ làm phim → Director theo vai → vị trí máy → phần còn lại #6.
 **Source**: người dùng nói trực tiếp trong chat 2026-09-25.
+
+## 2026-09-25 — Chạy thử 2A (dự án #7): hành vi API thật + lỗi code chỉ lộ khi chạy thật
+**Context**: 10 shot 0–20 s "ANH CHỌN AI?", tự chạy trong trần; báo cáo `docs/BAO_CAO_CHAY_THU_2A_2026-09-25.md`.
+**Finding**:
+- **ClipAI (Kling) quá 2 task song song → trả mã CHỜ TẠM (12 chữ số, không bao giờ có trong video-list), rồi tạo task thật với mã MỚI (18 chữ số) khi có chỗ.** Tra theo mã = "not_found" dù clip đã làm xong và tính tiền. Sửa: `find_by_prompt` (khớp prompt đã gửi + tạo sau lúc gửi + chưa gắn job khác), `VideoRunner.relink_failed`. Nghi 16 task "not_found" GĐ6 cùng nguyên nhân.
+- **1 đơn vị `cost` ClipAI ≈ $0,01** (Kling pro 8 đơn vị/giây = $0,08/s — khớp sổ chi).
+- **GPT Image 2.5 (Deepix) từ chối prompt ghi tuổi < 18** ("17-year-old … khóc trong bóng tối") → code lọc tuổi < 18. Deepix không trả giá qua API (chỉ khống chế được bằng số ảnh).
+- **Claude đọc ảnh có thể sai chi tiết theo chiều** (báo "mũ Maxim đội xuôi" — ảnh chuẩn đội ngược). Ảnh chuẩn + mắt người là trọng tài; kiểm Bible nay so cả Lock.
+- Lỗi code chỉ lộ khi chạy thật (830 test không thấy): dấu vân tay ảnh lúc gửi có look, lúc kiểm không → mọi ảnh dự án có look "cũ" ngay → video bị chặn.
+- Phụ đề khung dọc mặc định cũ (đáy 12%) nằm trong dải bị app che; Meta chính thức: để trống đáy 35%, đỉnh 14%, hai bên 6%.
+- Chi phí thật 2A: $3,00 (video $2,80 · Claude $0,20); motion 10 shot 1 lượt $0,10; QC ảnh ~$0,014/ảnh; QC clip ~$0,02/clip; Bible ~$0,008.
+**Source**: chạy thật 2026-09-25 (usage_events, ClipAI video-list, job_events).
