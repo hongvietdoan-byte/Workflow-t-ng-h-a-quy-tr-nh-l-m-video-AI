@@ -173,6 +173,21 @@ def voice_panel(p: Pipeline, pid: int) -> None:
             st.rerun()
         if stat.get("running"):
             voice_poll(pid)
+        k1, k2 = st.columns(2)
+        asr = voice_check.asr_available()
+        if k1.button("🎧 Kiểm giọng (miễn phí, chạy trên máy)", key=f"tts_check_{pid}", disabled=not done,
+                     help="Đo độ dài so với số âm tiết, tìm ngắt quãng giữa câu" + (" và nghe lại thành chữ để so với câu gốc" if asr else
+                                                                                   " (cài `pip install faster-whisper` để so cả chữ nghe được)")):
+            with st.spinner("Đang kiểm giọng…"):
+                r = voice_check.check_project(C.DATA, pid)
+            st.toast(f"Đã kiểm {r['checked']} câu mới · {r['bad']} câu nghi lỗi" + ("" if r["asr"] else " (chưa so chữ: chưa cài faster-whisper)"))
+            st.rerun()
+        bad = voice_check.bad_lines(C.DATA, pid)
+        if bad and k2.button(f"🔁 Tạo lại {len(bad)} câu nghi lỗi", key=f"tts_redo_{pid}", disabled=provider is None,
+                             help="Mỗi câu một lần gọi TTS (tốn credit âm thanh, tính vào trần lượt âm thanh)"):
+            r = voice_check.redo(p.conn, pid, provider, C.DATA)
+            st.toast(f"Đã gửi lại {r['sent']} câu")
+            st.rerun()
         directory = audio_lib.assets_dir(C.DATA, pid)
         items = {(e.get("scene_id"), e.get("line")): e for e in audio_lib.load(directory) if e["kind"] == "tts" and e.get("scene_id")}
         cur = None
@@ -187,7 +202,10 @@ def voice_panel(p: Pipeline, pid: int) -> None:
                 b.caption("chưa có giọng" if ln["voice"] else "nhân vật chưa có giọng")
             elif e["state"] == "succeeded" and e.get("file"):
                 b.audio(os.path.join(directory, e["file"]))
-                b.caption(f"{(e.get('duration_ms') or 0) / 1000:.1f}s")
+                chk = e.get("check") or {}
+                b.caption(f"{(e.get('duration_ms') or 0) / 1000:.1f}s" + (" · ✔ đã kiểm" if chk.get("ok") else ""))
+                for prob in chk.get("problems") or []:
+                    b.markdown(f":orange[⚠ {escape(prob)}]")
             else:
                 b.caption(ui.state_label(e["state"], "audio") + (f": {e.get('message')}" if e.get("message") else ""))
 

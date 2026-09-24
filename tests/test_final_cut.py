@@ -72,7 +72,8 @@ class FinalCutTests(unittest.TestCase):
         self.assertIn("apad", " ".join(cmd))
         calls = []
         with mock.patch.object(ffmpeg_studio, "find_ffmpeg", return_value="ffmpeg"), \
-                mock.patch.object(ffmpeg_studio, "run", side_effect=calls.append), mock.patch.object(os, "remove"):
+                mock.patch.object(ffmpeg_studio, "run", side_effect=calls.append), mock.patch.object(os, "remove"), \
+                mock.patch.object(ffmpeg_studio, "_commit"):   # D6: no real file to move
             ffmpeg_studio.render_final(["a", "b"], "o.mp4", [5, 5], music="m.mp3", music_volume=0.3)
         self.assertIn("volume=0.3", " ".join(calls[1]))
 
@@ -82,7 +83,8 @@ class FinalCutTests(unittest.TestCase):
         self.assertEqual(final_cut.total_seconds([5, 5, 5], "dip_to_black", 1), 13)
         self.assertTrue(final_cut.render_problems([5], "dip_to_black", 1))
         calls = []
-        with mock.patch.object(ffmpeg_studio, "find_ffmpeg", return_value="ffmpeg"),                 mock.patch.object(ffmpeg_studio, "run", side_effect=calls.append):
+        with mock.patch.object(ffmpeg_studio, "find_ffmpeg", return_value="ffmpeg"),                 mock.patch.object(ffmpeg_studio, "run", side_effect=calls.append), \
+                mock.patch.object(ffmpeg_studio, "_commit"):
             ffmpeg_studio.render_final(["a", "b"], "o.mp4", [5, 5], "dip_to_black")
         self.assertIn("fadeblack", " ".join(calls[0]))
         self.assertIn("xfade=transition=fade:", " ".join(ffmpeg_studio.build_crossfade_cmd(["a", "b"], [5, 5], "o.mp4")))

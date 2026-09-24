@@ -40,7 +40,8 @@ class CommandTests(unittest.TestCase):
         calls = []
         with mock.patch.object(f, "find_ffmpeg", return_value="ffmpeg"), \
                 mock.patch.object(f, "has_audio", side_effect=lambda c: c == "a"), \
-                mock.patch.object(f, "run", side_effect=calls.append), mock.patch.object(os, "remove"):
+                mock.patch.object(f, "run", side_effect=calls.append), mock.patch.object(os, "remove"), \
+                mock.patch.object(f, "_commit"):   # D6: no real file to move
             f.render_final(["a", "b"], "o.mp4", [5, 5], keep_audio=True)
         self.assertIn("anullsrc", " ".join(calls[0]))                     # b padded with silence
         self.assertIn("concat=n=2:v=1:a=1", " ".join(calls[1]))           # the sound of a is kept
@@ -48,7 +49,8 @@ class CommandTests(unittest.TestCase):
     def test_music_and_extras_know_the_video_has_sound(self):
         calls = []
         with mock.patch.object(f, "find_ffmpeg", return_value="ffmpeg"), mock.patch.object(f, "has_audio", return_value=True), \
-                mock.patch.object(f, "run", side_effect=calls.append), mock.patch.object(os, "remove"):
+                mock.patch.object(f, "run", side_effect=calls.append), mock.patch.object(os, "remove"), \
+                mock.patch.object(f, "_commit"):   # D6: no real file to move
             f.render_final(["a", "b"], "o.mp4", [5, 5], music="m.mp3", extras=[{"path": "x.mp3", "start": 0, "volume": 1}],
                            keep_audio=True)
         self.assertIn("amix=inputs=2", " ".join(calls[1]))      # music mixed with the dialogue
@@ -91,12 +93,14 @@ class RealFfmpegTests(unittest.TestCase):
                        keep_audio=True)
         self.assertTrue(f.has_audio(out))
 
-    def test_a_silent_clip_makes_the_result_fall_back_to_no_clip_audio(self):
+    def test_a_silent_clip_gets_a_silent_track_and_the_others_keep_their_sound(self):
+        # D4 (GĐ-G phần 1): a clip without sound used to silence the whole cut; it is now padded with silence instead
         a, b = self.clip("a.mp4", 3), self.clip("b.mp4", 3, audio=False)
         out = os.path.join(self.dir, "o.mp4")
         f.render_final([a, b], out, [3.0, 3.0], "cut", 1.0, keep_audio=True)
-        self.assertFalse(f.has_audio(out))
+        self.assertTrue(f.has_audio(out))
         self.assertAlmostEqual(f.probe_duration(out), 6.0, delta=0.3)
+        self.assertEqual([n for n in os.listdir(self.dir) if ".pad" in n or ".part-" in n], [])   # no temp file left (D6)
 
 
 if __name__ == "__main__":

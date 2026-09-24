@@ -26,10 +26,14 @@ def step5a(p: Pipeline, pid: int):
         provider = None
     has_clips = any(c["path"] for c in final_cut.collect_clips(p, C.DATA, pid))
     files = os.listdir(selected_dir)
+    off = music.is_off(p, pid)
     with st.container(border=True):
         a, b = st.columns([3, 2], vertical_alignment="center")
-        a.markdown(ui.card_title("🎵 Nhạc nền đang chọn") + (ui.badge(files[0], "b-ok") if files else ui.badge("chưa chọn / không dùng")),
+        a.markdown(ui.card_title("🎵 Nhạc nền đang chọn") + (ui.badge(files[0], "b-ok") if files else
+                                                             ui.badge("không dùng nhạc (đã chọn)", "b-info") if off else ui.badge("chưa chọn")),
                    unsafe_allow_html=True)
+        if off and not files:
+            st.caption("Chạy tự động sẽ không tạo nhạc cho dự án này. Chọn/tải một bản nhạc bên dưới để dùng lại nhạc.")
         if files:
             spath = os.path.join(selected_dir, files[0])
             ui.html(ui.waveform_svg(_peaks(spath, os.path.getmtime(spath))))
@@ -42,9 +46,12 @@ def step5a(p: Pipeline, pid: int):
                 music.clear_selected(selected_dir)
                 with open(os.path.join(selected_dir, "selected" + os.path.splitext(up.name)[1]), "wb") as f:
                     f.write(up.getvalue())
+                music.set_off(p, pid, False)
                 st.rerun()
-            if st.button("Không dùng nhạc", key=f"music_none_{pid}"):
+            if st.button("Không dùng nhạc", key=f"music_none_{pid}", disabled=off and not files,
+                         help="Được ghi nhớ: chạy tự động sẽ không tự tạo nhạc (tốn credit) cho dự án này"):
                 music.clear_selected(selected_dir)
+                music.set_off(p, pid, True)
                 st.rerun()
     shown = st.session_state.get(f"prev5a_{pid}")
     if shown and os.path.exists(shown[0]):
@@ -100,6 +107,7 @@ def step5a(p: Pipeline, pid: int):
                         preview_with_track(p, pid, wpath, f"draft_{i + 1}")
                     if st.button("Chọn bản này", key=f"pick_{pid}_{i}", type="primary"):
                         if act(lambda: music.select_draft(drafts_dir, selected_dir, i), "Đã chọn nhạc nền"):
+                            music.set_off(p, pid, False)
                             st.rerun()
                 else:
                     ui.html('<div class="wave"></div><span class="muted">đang tạo… bấm “Kiểm tra + tải nhạc về”</span>')
@@ -253,25 +261,32 @@ def subtitle_panel(p: Pipeline, pid: int, out: str = None) -> None:
         if lang != "src" and llm is None:
             st.markdown(f":orange[Dịch sang ngôn ngữ khác cần Claude ({claude_hint()}).]")
         key = f"sub_cues_{pid}"
-        rs = delivery.get_settings(p, pid)
         if st.button("📝 Tạo danh sách phụ đề", key=f"sub_make_{pid}", type="primary", disabled=lang != "src" and llm is None):
             try:
-                cues = subtitles.build_cues(p, C.DATA, pid, rs["transition"], rs["fade"])
+                cues = delivery.subtitle_cues(p, pid, C.DATA)   # D2: timed on the latest render (its clips, seconds, transition)
                 if not cues:
                     st.info("Chưa có dòng thoại nào hoặc chưa có clip ở Bước 4.")
                 else:
                     with st.spinner("Đang dịch…" if lang != "src" else "Đang tạo…"):
-                        cues = subtitles.translate(llm, cues, lang)
+                        shown = subtitles.localize(llm, cues, lang, C.DATA, pid)   # D8: saved translations / fixes reused
                     st.session_state[key] = [{"Cảnh": c.scene, "Người nói": c.speaker, "Bắt đầu (s)": c.start, "Kết thúc (s)": c.end,
-                                              "Nội dung": c.text} for c in cues]
+                                              "Nội dung": s.text, "Câu gốc": c.text} for c, s in zip(cues, shown)]
+                    st.session_state[f"sub_lang_rows_{pid}"] = lang
             except ERRORS + (subtitles.SubtitleError,) as e:
                 st.error(str(e))
         rows = st.session_state.get(key)
         if rows:
-            edited = st.data_editor(rows, hide_index=True, width="stretch", key=f"sub_table_{pid}", disabled=["Cảnh", "Người nói"], num_rows="fixed")
+            order = ["Cảnh", "Người nói", "Bắt đầu (s)", "Kết thúc (s)", "Nội dung"] + (["Câu gốc"] if lang != "src" else [])
+            edited = st.data_editor(rows, hide_index=True, width="stretch", key=f"sub_table_{pid}", disabled=["Cảnh", "Người nói", "Câu gốc"],
+                                    num_rows="fixed", column_order=order)
             table = edited.to_dict("records") if hasattr(edited, "to_dict") else edited
             cues = [subtitles.Cue(float(r["Bắt đầu (s)"]), float(r["Kết thúc (s)"]), str(r["Nội dung"]).strip(), str(r["Người nói"] or ""),
                                   r["Cảnh"]) for r in table if str(r["Nội dung"]).strip()]
+            made_lang = st.session_state.get(f"sub_lang_rows_{pid}", lang)
+            fixes = [(subtitles.Cue(0, 0, str(r.get("Câu gốc") or ""), str(r["Người nói"] or ""), r["Cảnh"]), str(r["Nội dung"]))
+                     for r in table if r.get("Câu gốc")]
+            if fixes and subtitles.remember_edits(C.DATA, pid, made_lang, fixes):
+                st.caption("✔ Đã ghi nhớ câu sửa tay — lần in phụ đề sau (kể cả chạy tự động) dùng câu này, không dịch lại.")
             font, note = subtitles.font_for_text(subtitles.font_by_family(fonts, font_name) if font_name else default, fonts,
                                                  " ".join(c.text for c in cues))
             if note:
@@ -352,7 +367,8 @@ def sfx_assistant(p: Pipeline, pid: int) -> None:
         if n.get("music"):
             mode = p.project(pid)["music_mode"] == "library"
             auto = st.checkbox("Nhạc nền: ưu tiên lấy từ kho của tôi thay vì để AI tạo (tiết kiệm credit; AI tạo nhạc vẫn là mặc định)", mode,
-                               key=f"music_mode_{pid}")
+                               key=f"music_mode_{pid}", disabled=music.is_off(p, pid),
+                               help="Đang chọn 'Không dùng nhạc'" if music.is_off(p, pid) else None)
             if auto != mode:
                 p.conn.execute("UPDATE projects SET music_mode=? WHERE id=?", ("library" if auto else None, pid))
                 p.conn.commit()
@@ -360,9 +376,10 @@ def sfx_assistant(p: Pipeline, pid: int) -> None:
 
 def step5(p: Pipeline, pid: int):
     """Sound & delivery: clips → sound (music, effects, voices) → render → post (subtitles, end card, formats) → the deliverable."""
-    fin = delivery.status(p, pid, C.DATA)["final"]
+    stat = delivery.status(p, pid, C.DATA)
+    state = "stale" if stat["final"]["state"] == "fresh" and stat.get("best_stale") else stat["final"]["state"]
     step_header("Bước 5 · Âm thanh & xuất bản", "clip → âm thanh → dựng → phụ đề/card/kích thước → một bản giao",
-                {"missing": "chưa dựng", "fresh": "bản giao mới nhất", "stale": "bản giao cũ"}[fin["state"]], 1 if fin["state"] == "stale" else 0)
+                {"missing": "chưa dựng", "fresh": "bản giao mới nhất", "stale": "bản giao cũ"}[state], 1 if state == "stale" else 0)
     chosen, durations = clips_panel(p, pid)
     ui.html(ui.card_title("5.2 · 🔊 Âm thanh", "nhạc nền · hiệu ứng · giọng thoại (làm ở Bước 3)"))
     step5a(p, pid)
@@ -523,8 +540,10 @@ def delivery_panel(p: Pipeline, pid: int, chosen, durations) -> None:
     fin = stat["final"]
     with st.container(border=True):
         state = {"missing": ("chưa có", ""), "fresh": ("mới nhất", "b-ok"), "stale": ("⚠ cũ", "b-warn")}[fin["state"]]
+        if fin["state"] == "fresh" and stat.get("best_stale"):
+            state = ("⚠ cũ", "b-warn")            # D7: the render is current but its subtitles / card / format are not
         ui.html(ui.card_title("5.5 · 📦 Bản giao", "bản hoàn chỉnh nhất của lần dựng mới nhất") + ui.badge(*state))
-        for r in fin["reasons"]:
+        for r in fin["reasons"] + ([stat["best_stale"]] if stat.get("best_stale") else []):
             st.caption(f"⚠ {r}")
         if st.button("📦 Xuất bản đầy đủ (dựng → phụ đề → card → các kích thước)", type="primary", key=f"deliver_{pid}",
                      disabled=not chosen, width="stretch"):

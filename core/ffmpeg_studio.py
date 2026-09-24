@@ -1,8 +1,10 @@
+import contextlib
 import os
 import re
 import shutil
 import subprocess
 import tempfile
+import uuid
 from typing import List, Optional, Sequence
 
 
@@ -215,6 +217,38 @@ def resize_to_size(src: str, dst: str, width: int, height: int, max_mb: Optional
     return {"path": dst, "size_mb": os.path.getsize(dst) / 1e6, "video_kbps": int(kbps), "attempts": 4, "fits": False}
 
 
+def _commit(staged: str, output: str) -> None:
+    """Put a finished temp file under its final name (and its .srt next to it, written by subtitles.burn)."""
+    if not os.path.exists(staged) or os.path.getsize(staged) == 0:
+        raise FFmpegError(f"ffmpeg báo xong nhưng không có file {os.path.basename(output)} — giữ nguyên bản cũ")
+    try:
+        os.replace(staged, output)
+    except PermissionError:
+        raise FFmpegError(f"không ghi đè được {os.path.basename(output)} (file đang mở ở chương trình khác?) — giữ nguyên bản cũ") from None
+    srt = os.path.splitext(staged)[0] + ".srt"
+    if os.path.exists(srt):
+        os.replace(srt, os.path.splitext(output)[0] + ".srt")
+
+
+@contextlib.contextmanager
+def atomic_output(output: str):
+    """D6: yields a temp path next to `output` for ffmpeg to write; it replaces `output` only when the whole block worked. A failed
+    or half-written render never sits under the final name (where the delivery status would take it for the newest version), and
+    two renders of the same file never share a temp name."""
+    root, ext = os.path.splitext(output)
+    staged = f"{root}.part-{uuid.uuid4().hex[:8]}{ext or '.mp4'}"
+    try:
+        yield staged
+        _commit(staged, output)
+    except BaseException:
+        for path in (staged, os.path.splitext(staged)[0] + ".srt"):
+            try:
+                os.remove(path)
+            except OSError:
+                pass
+        raise
+
+
 def render_final(clips: Sequence[str], output: str, durations: Optional[Sequence[float]] = None,
                  transition: str = "cut", fade: float = 1.0, music: Optional[str] = None,
                  music_volume: float = 0.6, extras: Optional[Sequence[dict]] = None,
@@ -222,10 +256,28 @@ def render_final(clips: Sequence[str], output: str, durations: Optional[Sequence
     """Concat clips (in scene order), optionally crossfade, mux music, then lay extra audio over it.
     keep_audio: keep the clips' own sound (needs an audio stream in EVERY clip; otherwise it is ignored and the
     result is silent before music/extras). size (W, H): the project frame — every clip is brought to it (clips from
-    different models may differ in size)."""
+    different models may differ in size). Written to a temp file first (atomic_output), so `output` is either the old
+    file or the complete new one."""
+    with atomic_output(output) as staged:
+        _render_final(clips, staged, durations, transition, fade, music, music_volume, extras, keep_audio, size)
+    return output
+
+
+def _render_final(clips, output, durations, transition, fade, music, music_volume, extras, keep_audio, size) -> None:
     ffmpeg = find_ffmpeg()
     extras = list(extras or [])
     padded = []
+    try:
+        _render_steps(clips, output, durations, transition, fade, music, music_volume, extras, keep_audio, size, ffmpeg, padded)
+    finally:
+        for tmp in padded:     # also when a later step failed (they used to stay behind)
+            try:
+                os.remove(tmp)
+            except OSError:
+                pass
+
+
+def _render_steps(clips, output, durations, transition, fade, music, music_volume, extras, keep_audio, size, ffmpeg, padded) -> None:
     if keep_audio and clips:
         # D4: a clip made without sound used to silence EVERY clip; it gets a silent track so the others keep theirs
         clips = list(clips)
@@ -269,12 +321,6 @@ def render_final(clips: Sequence[str], output: str, durations: Optional[Sequence
             run(build_extras_mix_cmd(current, extras, output, has_audio=music is not None or keep_audio, ffmpeg=ffmpeg))
         finally:
             os.remove(current)
-    for tmp in padded:
-        try:
-            os.remove(tmp)
-        except OSError:
-            pass
-    return output
 
 
 _SIZE = re.compile(r",\s*(\d{2,5})x(\d{2,5})[\s,\[]")

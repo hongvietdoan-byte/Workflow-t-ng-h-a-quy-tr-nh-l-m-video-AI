@@ -191,17 +191,22 @@ class Cue:
     scene: Optional[int] = None
 
 
-def build_cues(pipeline: Pipeline, data_dir: str, project_id: int, transition: str = "cut", fade: float = 1.0) -> List[Cue]:
-    """One cue per dialogue line, timed inside its clip on the final video's timeline."""
-    clips = [c for c in final_cut.collect_clips(pipeline, data_dir, project_id) if c["path"]]
+def build_cues(pipeline: Pipeline, data_dir: str, project_id: int, transition: str = "cut", fade: float = 1.0,
+               timeline: Optional[List[Dict]] = None) -> List[Cue]:
+    """One cue per dialogue line, timed inside its clip on the final video's timeline.
+    D2: `timeline` = the clips of the render as it was made ([{"idx", "seconds"}], chosen clips + edited seconds, from the final
+    render's manifest); without it, the clips a default render would use (usable ones only, like the render)."""
+    if timeline is None:
+        timeline = [{"idx": c["idx"], "seconds": final_cut.clip_seconds(c["path"], c["requested_sec"])}
+                    for c in final_cut.collect_clips_for_render(pipeline.conn, data_dir, project_id)]
     datas = {r["idx"]: json.loads(r["data"] or "{}") for r in
              pipeline.conn.execute("SELECT idx, data FROM scenes WHERE project_id=?", (project_id,))}
     overlap = fade if transition in ffmpeg_studio.OVERLAP_STYLES else 0.0
     cues: List[Cue] = []
     t = 0.0
-    for clip in clips:
-        length = final_cut.clip_seconds(clip["path"], clip["requested_sec"])
-        rows = dialogue.scene_lines(datas.get(clip["idx"], {})) if clip["idx"] is not None else []
+    for clip in timeline:
+        length = float(clip["seconds"])
+        rows = dialogue.scene_lines(datas.get(clip["idx"], {})) if clip.get("idx") is not None else []
         if rows:
             lead, tail = min(0.3, length * 0.08), 0.25
             avail = max(length - lead - tail, 0.6)
@@ -420,6 +425,65 @@ def translate(client, cues: List[Cue], lang: str) -> List[Cue]:
         for n, c in enumerate(chunk, 1):
             out.append(Cue(c.start, c.end, by_id.get(n, c.text), c.speaker, c.scene))
     return out
+
+
+# ---- saved translations + hand fixes (D8) ----------------------------------------------------------------------------
+def _store_path(data_dir: str, project_id: int) -> str:
+    return os.path.join(data_dir, str(project_id), "subtitles", "texts.json")
+
+
+def _key(lang: str, cue: Cue) -> str:
+    return f"{lang}\x1f{cue.speaker or ''}\x1f{cue.text}"
+
+
+def load_texts(data_dir: str, project_id: int) -> Dict[str, Dict]:
+    """{key: {"text", "manual"}} — a line's shown text per language: Claude's translation, or the person's own fix (manual)."""
+    try:
+        with open(_store_path(data_dir, project_id), encoding="utf-8") as f:
+            data = json.load(f)
+        return data if isinstance(data, dict) else {}
+    except (OSError, ValueError):
+        return {}
+
+
+def _save_texts(data_dir: str, project_id: int, store: Dict[str, Dict]) -> None:
+    path = _store_path(data_dir, project_id)
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    tmp = path + ".tmp"
+    with open(tmp, "w", encoding="utf-8") as f:
+        json.dump(store, f, ensure_ascii=False, indent=1)
+    os.replace(tmp, path)
+
+
+def localize(client, cues: List[Cue], lang: str, data_dir: str, project_id: int) -> List[Cue]:
+    """D8: the cues as they should be shown — the person's fixes first, then translations made before; Claude translates only
+    lines never translated (a changed line counts as new). Same timing as `cues`."""
+    store = load_texts(data_dir, project_id)
+    shown: List[Optional[str]] = [(store.get(_key(lang, c)) or {}).get("text") for c in cues]
+    missing = [c for c, t in zip(cues, shown) if t is None]
+    if lang != "src" and missing:
+        done = translate(client, missing, lang)
+        for c, t in zip(missing, done):
+            store[_key(lang, c)] = {"text": t.text, "manual": False}
+        _save_texts(data_dir, project_id, store)
+    return [replace(c, text=(store.get(_key(lang, c)) or {}).get("text") or c.text) for c in cues]
+
+
+def remember_edits(data_dir: str, project_id: int, lang: str, pairs: List[Tuple[Cue, str]]) -> int:
+    """Keep hand fixes (source cue, text shown) so the next subtitles (Step 5 again, automatic run, other formats) reuse them
+    instead of a new translation. Returns how many changed."""
+    store = load_texts(data_dir, project_id)
+    changed = 0
+    for src, text in pairs:
+        text = (text or "").strip()
+        key = _key(lang, src)
+        now = (store.get(key) or {}).get("text") or src.text
+        if text and text != now:
+            store[key] = {"text": text, "manual": True}
+            changed += 1
+    if changed:
+        _save_texts(data_dir, project_id, store)
+    return changed
 
 
 # ---- burn into the video --------------------------------------------------------------------------------------------

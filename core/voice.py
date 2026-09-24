@@ -200,12 +200,15 @@ def fit_durations(conn, project_id: int, data_dir: str) -> List[Dict]:
 
 
 def place_on_timeline(conn, project_id: int, data_dir: str, transition: str = "cut", fade: float = 1.0,
-                      clip_paths: Optional[List[str]] = None) -> int:
+                      clip_paths: Optional[List[str]] = None, durations: Optional[List[float]] = None) -> int:
     """Put every voiced line on the final video's timeline: inside its scene's clip, in speaking order, never overlapping the
-    previous line's real audio; switch it on for the mix. Returns how many lines were placed."""
+    previous line's real audio; switch it on for the mix. Returns how many lines were placed.
+    durations: the seconds each clip gets in the render (D2: the edited ones), else each clip's real length."""
     directory = audio_lib.assets_dir(data_dir, project_id)
     items = audio_lib.load(directory)
     clips = [c for c in final_cut.collect_clips_for_render(conn, data_dir, project_id, clip_paths)]
+    if durations is not None and len(durations) == len(clips):
+        clips = [{**c, "_seconds": float(d)} for c, d in zip(clips, durations)]
     rendered = {c.get("scene_id") for c in clips}
     for e in items:                                  # D1: the lines of a clip left out of this render must not play at old times
         if e["kind"] == "tts" and e.get("dialogue") and e.get("scene_id") not in rendered:
@@ -213,7 +216,7 @@ def place_on_timeline(conn, project_id: int, data_dir: str, transition: str = "c
     overlap = fade if transition in ffmpeg_studio.OVERLAP_STYLES else 0.0
     t, placed, prev_end = 0.0, 0, -1.0
     for clip in clips:
-        length = final_cut.clip_seconds(clip["path"], clip["requested_sec"])
+        length = clip.get("_seconds") or final_cut.clip_seconds(clip["path"], clip["requested_sec"])
         lines = sorted([e for e in items if e["kind"] == "tts" and e.get("scene_id") == clip.get("scene_id")
                         and e["state"] == "succeeded" and e.get("file")], key=lambda e: e.get("line") or 0)
         cursor = max(t + LEAD, prev_end + GAP)

@@ -122,18 +122,19 @@ class MixCommandTests(unittest.TestCase):
     def test_render_final_chains_music_then_extras_and_cleans_temp_files(self):
         calls, removed = [], []
         with mock.patch.object(f, "find_ffmpeg", return_value="ffmpeg"), mock.patch.object(f, "run", side_effect=calls.append), \
-                mock.patch.object(os, "remove", side_effect=removed.append):
+                mock.patch.object(os, "remove", side_effect=removed.append), mock.patch.object(f, "_commit"):
             f.render_final(["a", "b"], "o.mp4", [5, 5], music="m.mp3", extras=[{"path": "x.mp3", "start": 1, "volume": 1}])
         self.assertEqual(len(calls), 3)
-        self.assertEqual(calls[1][-1], "o.mp4.music.mp4")
-        self.assertEqual(calls[2][-1], "o.mp4")
+        staged = calls[2][-1]                     # D6: the last step writes a temp file next to o.mp4, moved onto it when done
+        self.assertRegex(staged, r"^o\.part-[0-9a-f]{8}\.mp4$")
+        self.assertEqual(calls[1][-1], staged + ".music.mp4")
         self.assertIn("amix=inputs=2", " ".join(calls[2]))
-        self.assertEqual([r for r in removed if r.startswith("o.mp4")], ["o.mp4.silent.mp4", "o.mp4.music.mp4"])
+        self.assertEqual([r for r in removed if r.startswith("o.")], [staged + ".silent.mp4", staged + ".music.mp4"])
 
     def test_render_final_extras_without_music(self):
         calls = []
         with mock.patch.object(f, "find_ffmpeg", return_value="ffmpeg"), mock.patch.object(f, "run", side_effect=calls.append), \
-                mock.patch.object(os, "remove"):
+                mock.patch.object(os, "remove"), mock.patch.object(f, "_commit"):
             f.render_final(["a", "b"], "o.mp4", [5, 5], extras=[{"path": "x.mp3", "start": 0, "volume": 1}])
         self.assertEqual(len(calls), 2)
         self.assertIn("[e0]amix=inputs=1", " ".join(calls[1]))

@@ -5,10 +5,14 @@ Render settings live in the project (`projects.render_settings`), so the manual 
 same video. File names stay the ones people know: FINAL_VIDEO.mp4, FINAL_VIDEO_sub_<lang>.mp4, FINAL_VIDEO_end.mp4,
 FINAL_VIDEO_<W>x<H>.mp4.
 """
+import contextlib
+import functools
 import json
 import os
 import shutil
 import tempfile
+import threading
+import time
 from dataclasses import asdict
 from datetime import datetime, timezone
 from typing import Callable, Dict, List, Optional
@@ -83,6 +87,58 @@ def output_dir(data_dir: str, project_id: int) -> str:
     return path
 
 
+LOCK_STALE_SEC = 3600    # a lock older than this was left by a render that died (crash, closed window) and is taken over
+_held = threading.local()
+
+
+@contextlib.contextmanager
+def render_lock(data_dir: str, project_id: int):
+    """D6: one render of a project at a time (Step 5 button, automatic run, a second window). A file lock (<output>/.render.lock)
+    so it also holds across processes; nested calls in the same thread (deliver → render → subtitles) reuse it."""
+    path = os.path.join(output_dir(data_dir, project_id), ".render.lock")
+    held = getattr(_held, "paths", None)
+    if held is None:
+        held = _held.paths = set()
+    if path in held:
+        yield
+        return
+    try:
+        fd = os.open(path, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+    except FileExistsError:
+        try:
+            age = time.time() - os.path.getmtime(path)
+        except OSError:
+            age = LOCK_STALE_SEC + 1                     # removed meanwhile: try once more below
+        if age < LOCK_STALE_SEC:
+            raise ValueError(f"Dự án đang được dựng ở nơi khác (bắt đầu {int(age // 60)} phút trước) — đợi xong rồi làm lại. "
+                             f"Nếu chắc chắn không còn bản nào đang dựng, xóa file {path}.") from None
+        try:
+            os.remove(path)
+        except OSError:
+            pass
+        fd = os.open(path, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+    os.write(fd, f"{os.getpid()} {_now()}".encode("ascii"))
+    os.close(fd)
+    held.add(path)
+    try:
+        yield
+    finally:
+        held.discard(path)
+        try:
+            os.remove(path)
+        except OSError:
+            pass
+
+
+def _locked(fn):
+    """Run fn(p, project_id, data_dir, ...) under the project's render lock."""
+    @functools.wraps(fn)
+    def wrapper(p, project_id, data_dir, *args, **kwargs):
+        with render_lock(data_dir, project_id):
+            return fn(p, project_id, data_dir, *args, **kwargs)
+    return wrapper
+
+
 def final_manifest(p: Pipeline, project_id: int, data_dir: str, clip_paths: List[str], settings: Dict) -> Dict:
     return {"clips": lineage.clip_manifest(p.conn, data_dir, project_id, clip_paths), "settings_hash": render_hash(settings),
             "audio_hash": audio_hash(data_dir, project_id), "aspect": formats.project_aspect(p.project(project_id))}
@@ -92,6 +148,7 @@ def status(p: Pipeline, project_id: int, data_dir: str) -> Dict:
     """Latest final render and its layers, each with '⚠ cũ' reasons: {"final": {...}, "layers": [{kind, path, stale}], "best": path}."""
     settings = get_settings(p, project_id)
     fin = lineage.final_status(p.conn, data_dir, project_id, render_hash(settings), audio_hash(data_dir, project_id))
+    current = {"subtitle": subtitles.get_settings(p, project_id), "end_card": settings["end_card"]}
     layers, seen = [], set()
     for kind in ("subtitle", "endcard", "export"):
         for row in p.conn.execute("SELECT * FROM outputs WHERE project_id=? AND kind=? ORDER BY id DESC", (project_id, kind)).fetchall():
@@ -99,11 +156,49 @@ def status(p: Pipeline, project_id: int, data_dir: str) -> Dict:
                 continue                                  # the same file name was written again later: only its newest record counts
             seen.add(os.path.normcase(os.path.abspath(row["path"])))
             layers.append({"id": row["id"], "kind": kind, "path": row["path"], "parent_id": row["parent_id"],
-                           "stale": lineage.layer_status(p.conn, row, fin), "at": row["created_at"]})
+                           "stale": lineage.layer_status(p.conn, row, fin) or _layer_change(p, row, current),
+                           "at": row["created_at"]})
             if kind != "export":
                 break                                     # only the newest subtitle / end card matters
     best = latest_layer(p, project_id)
-    return {"final": fin, "layers": layers, "best": best["path"] if best else fin.get("path")}
+    best_path = best["path"] if best else fin.get("path")
+    best_stale = next((x["stale"] for x in layers if x["path"] == best_path and x["stale"]), None) if best is not None else None
+    return {"final": fin, "layers": layers, "best": best_path, "best_stale": best_stale}
+
+
+def _same(a: Dict, b: Dict) -> bool:
+    return lineage.settings_hash(a) == lineage.settings_hash(b)
+
+
+def _layer_change(p: Pipeline, row, current: Dict, depth: int = 0) -> Optional[str]:
+    """D7: what changed since this subtitle / end card / export was made — its own settings (read from its manifest), or, for an
+    export, the subtitle / card version it was made from. None when it still matches (or it has nothing to compare with)."""
+    try:
+        man = json.loads(row["manifest"] or "{}")
+    except ValueError:
+        man = {}
+    kind = row["kind"]
+    if kind == "subtitle" and man.get("settings"):
+        now = current["subtitle"]
+        if not now.get("enabled"):
+            return "phụ đề đã tắt"
+        if not _same({**subtitles.DEFAULTS, **man["settings"]}, {**subtitles.DEFAULTS, **now}):
+            return "thiết lập phụ đề đã đổi"
+    if kind == "endcard" and "card" in man:
+        now = current["end_card"]
+        if not now.get("enabled"):
+            return "card cuối đã tắt"
+        if not _same({**DEFAULT_CARD, **(man["card"] or {})}, {**DEFAULT_CARD, **now}):
+            return "card cuối đã đổi"
+    if row["parent_id"] is not None and depth < 5:
+        parent = p.conn.execute("SELECT * FROM outputs WHERE id=?", (row["parent_id"],)).fetchone()
+        if parent is not None and parent["kind"] in ("subtitle", "endcard"):
+            newest = lineage.latest_output(p.conn, row["project_id"], parent["kind"])
+            if newest is not None and newest["id"] != parent["id"]:
+                return {"subtitle": "đã có phụ đề mới hơn", "endcard": "đã có card cuối mới hơn"}[parent["kind"]]
+            if _layer_change(p, parent, current, depth + 1):
+                return {"subtitle": "phụ đề của bản gốc đã cũ", "endcard": "card cuối của bản gốc đã cũ"}[parent["kind"]]
+    return None
 
 
 def latest_layer(p: Pipeline, project_id: int):
@@ -127,6 +222,7 @@ def latest_layer(p: Pipeline, project_id: int):
 
 
 # ---- the layers ------------------------------------------------------------------------------------------------------------
+@_locked
 def render(p: Pipeline, project_id: int, data_dir: str, music_path: Optional[str] = "auto", clips: Optional[List[str]] = None,
            durations: Optional[List[float]] = None, settings: Optional[Dict] = None) -> Dict:
     """Cut the clips (the chosen ones, or every usable clip) with the project's render settings, the selected music and the
@@ -141,7 +237,7 @@ def render(p: Pipeline, project_id: int, data_dir: str, music_path: Optional[str
     problems = final_cut.render_problems(durations, settings["transition"], settings["fade"])
     if problems:
         raise ValueError("; ".join(problems))
-    placed = voice.place_on_timeline(p.conn, project_id, data_dir, settings["transition"], settings["fade"], paths)
+    placed = voice.place_on_timeline(p.conn, project_id, data_dir, settings["transition"], settings["fade"], paths, durations)
     keep_audio = settings["keep_audio"]
     if placed and keep_audio:        # AU-e: the video model's own speech under the Vietnamese TTS lines = two voices at once
         keep_audio = False
@@ -154,10 +250,14 @@ def render(p: Pipeline, project_id: int, data_dir: str, music_path: Optional[str
     out = os.path.join(output_dir(data_dir, project_id), "FINAL_VIDEO.mp4")
     ffmpeg_studio.render_final(paths, out, durations, settings["transition"], settings["fade"], track, settings["music_volume"],
                                extras, keep_audio, formats.spec(aspect)["render"] if aspect else None)
-    oid = record(p, project_id, "final", out, None, final_manifest(p, project_id, data_dir, paths, settings))
+    manifest = final_manifest(p, project_id, data_dir, paths, settings)
+    manifest["timeline"] = [{"idx": r.get("idx"), "scene_id": r.get("scene_id"), "seconds": float(d)} for r, d in zip(rows, durations)]
+    manifest["transition"], manifest["fade"] = settings["transition"], settings["fade"]
+    oid = record(p, project_id, "final", out, None, manifest)
     return {"path": out, "output_id": oid, "seconds": final_cut.total_seconds(durations, settings["transition"], settings["fade"])}
 
 
+@_locked
 def subtitle_layer(p: Pipeline, project_id: int, data_dir: str, parent_id: Optional[int] = None, llm=None,
                    cues: Optional[list] = None, force: bool = False) -> Optional[Dict]:
     """Burn the project's subtitle settings into a copy of the render. None when subtitles are off (unless forced) or there is
@@ -168,18 +268,34 @@ def subtitle_layer(p: Pipeline, project_id: int, data_dir: str, parent_id: Optio
     parent = _parent(p, project_id, parent_id, ("final",))
     if parent is None:
         raise ValueError("chưa có video cuối để in phụ đề")
-    rs = get_settings(p, project_id)
     if cues is None:
-        cues = subtitles.build_cues(p, data_dir, project_id, rs["transition"], rs["fade"])
-        if cues and sub["lang"] != "src":
-            cues = subtitles.translate(llm, cues, sub["lang"])
+        cues = subtitle_cues(p, project_id, data_dir, parent)
+        if cues:   # D8: saved translations + the person's fixes; Claude only for lines never translated
+            cues = subtitles.localize(llm, cues, sub["lang"], data_dir, project_id)
     if not cues:
         return None
     out = os.path.join(output_dir(data_dir, project_id), f"FINAL_VIDEO_sub_{sub['lang']}.mp4")
-    res = _burn(parent["path"], cues, out, sub)
+    with ffmpeg_studio.atomic_output(out) as staged:
+        res = _burn(parent["path"], cues, staged, sub)
+    res.update(video=out, srt=os.path.splitext(out)[0] + ".srt")
     res["output_id"] = record(p, project_id, "subtitle", out, parent["id"],
                               {"settings": sub, "cues": len(cues), "cue_list": [asdict(c) for c in cues]})
     return res
+
+
+def subtitle_cues(p: Pipeline, project_id: int, data_dir: str, final_row=None) -> list:
+    """D2: subtitle lines timed on the render they go into — the clips it used, their seconds and its transition (kept in the final
+    render's manifest); a render made before that was recorded falls back to the saved settings + the usable clips."""
+    row = final_row if final_row is not None else lineage.latest_output(p.conn, project_id, "final")
+    try:
+        man = json.loads(row["manifest"] or "{}") if row is not None else {}
+    except ValueError:
+        man = {}
+    rs = get_settings(p, project_id)
+    if man.get("timeline"):
+        return subtitles.build_cues(p, data_dir, project_id, man.get("transition", rs["transition"]), man.get("fade", rs["fade"]),
+                                    timeline=man["timeline"])
+    return subtitles.build_cues(p, data_dir, project_id, rs["transition"], rs["fade"])
 
 
 def _burn(src: str, cues: list, out: str, sub: Dict) -> Dict:
@@ -236,6 +352,7 @@ def card_picture(width: int, height: int, card: Dict, out_png: str) -> str:
     return out_png
 
 
+@_locked
 def end_card_layer(p: Pipeline, project_id: int, data_dir: str, parent_id: Optional[int] = None,
                    card: Optional[Dict] = None) -> Optional[Dict]:
     card = card or get_settings(p, project_id)["end_card"]
@@ -248,10 +365,12 @@ def end_card_layer(p: Pipeline, project_id: int, data_dir: str, parent_id: Optio
     folder = output_dir(data_dir, project_id)
     png = card_picture(size[0], size[1], card, os.path.join(folder, "end_card.png"))
     out = os.path.join(folder, "FINAL_VIDEO_end.mp4")
-    ffmpeg_studio.append_still(parent["path"], png, float(card.get("seconds") or 3.0), out)
+    with ffmpeg_studio.atomic_output(out) as staged:
+        ffmpeg_studio.append_still(parent["path"], png, float(card.get("seconds") or 3.0), staged)
     return {"video": out, "output_id": record(p, project_id, "endcard", out, parent["id"], {"card": card})}
 
 
+@_locked
 def export_layer(p: Pipeline, project_id: int, data_dir: str, spec: Dict, parent_id: Optional[int] = None) -> Dict:
     """Another size / file-size limit of the most finished version (with subtitles and card when they exist)."""
     parent = _parent(p, project_id, parent_id, ("final", "subtitle", "endcard"))
@@ -261,10 +380,12 @@ def export_layer(p: Pipeline, project_id: int, data_dir: str, spec: Dict, parent
     out = os.path.join(output_dir(data_dir, project_id), f"FINAL_VIDEO_{w}x{h}.mp4")
     fit = spec.get("fit") or "pad"
     size = ffmpeg_studio.probe_size(parent["path"])
-    if fit == "crop" and parent["kind"] != "final" and size and abs(size[0] / size[1] - w / h) > 0.01:
-        res = _reframe(p, parent, w, h, spec.get("max_mb") or None, out)
-    else:
-        res = ffmpeg_studio.resize_to_size(parent["path"], out, w, h, spec.get("max_mb") or None, fit=fit)
+    with ffmpeg_studio.atomic_output(out) as staged:
+        if fit == "crop" and parent["kind"] != "final" and size and abs(size[0] / size[1] - w / h) > 0.01:
+            res = _reframe(p, parent, w, h, spec.get("max_mb") or None, staged)
+        else:
+            res = ffmpeg_studio.resize_to_size(parent["path"], staged, w, h, spec.get("max_mb") or None, fit=fit)
+    res["path"] = out
     res["output_id"] = record(p, project_id, "export", out, parent["id"], {"spec": spec})
     return res
 
@@ -299,6 +420,7 @@ def _reframe(p: Pipeline, top: Dict, w: int, h: int, max_mb: Optional[float], ou
         shutil.rmtree(work, ignore_errors=True)
 
 
+@_locked
 def deliver(p: Pipeline, project_id: int, data_dir: str, llm=None, music_path: Optional[str] = "auto",
             render_fn: Optional[Callable] = None, subtitle_fn: Optional[Callable] = None, clips=None, durations=None) -> Dict:
     """The whole chain in one go. A failing optional layer is reported (diag + warnings) and the chain goes on: the final video

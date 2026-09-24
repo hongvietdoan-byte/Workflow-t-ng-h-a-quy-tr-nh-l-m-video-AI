@@ -53,7 +53,7 @@ class FFmpegStudioTests(unittest.TestCase):
         calls = []
         with mock.patch.object(f, "find_ffmpeg", return_value="ffmpeg"), \
                 mock.patch.object(f, "run", side_effect=calls.append), \
-                mock.patch.object(os, "remove"):
+                mock.patch.object(os, "remove"), mock.patch.object(f, "_commit"):   # D6: no real file to move
             f.render_final(["a", "b"], "o.mp4", durations=[5, 5], transition="crossfade", music="m.mp3")
         self.assertEqual(len(calls), 2)
         self.assertIn("xfade", " ".join(calls[0]))

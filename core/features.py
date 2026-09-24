@@ -15,6 +15,11 @@ FEATURES: Dict[str, Dict] = {
         "verified": False,
         "why": "GĐ6 (F8/I2): nối bất kể cỡ cảnh/góc máy → shot cận kéo theo bố cục toàn cảnh của shot trước",
     },
+    "voice_check_redo": {
+        "label": "Chạy tự động: tạo lại giọng thoại bị cờ lỗi (cắt/thiếu chữ/ngắt quãng) một lần",
+        "verified": False,
+        "why": "AU-f mới (2026-09-24): ngưỡng độ dài/im lặng và so chữ nghe được chưa đo trên giọng Việt thật — cờ sai thì trả tiền TTS vô ích",
+    },
     "setcheck_autofix": {
         "label": "QC đồng bộ cả bộ ảnh tự gen lại ảnh lệch (autopilot)",
         "verified": False,

@@ -192,7 +192,7 @@ def progress(p: Pipeline, project_id: int, data_dir: str) -> List[tuple]:
     rows = [("Ảnh đã duyệt", summ["images"][0], n), ("Motion prompt đã duyệt", summ["motion"][0], n)]
     if vs["total"]:
         rows.append(("Giọng thoại", vs.get("succeeded", 0), vs["total"]))
-    rows += [("Video dùng được", summ["videos"][0], n), ("Nhạc nền", 1 if os.listdir(selected_dir) else 0, 1),
+    rows += [("Video dùng được", summ["videos"][0], n), ("Nhạc nền", 1 if os.listdir(selected_dir) or music.is_off(p, project_id) else 0, 1),
              ("Bản giao", 1 if fin is not None or os.path.exists(os.path.join(data_dir, str(project_id), "output", "FINAL_VIDEO.mp4")) else 0, 1)]
     return rows
 
@@ -575,6 +575,8 @@ def _music_phase(p: Pipeline, pid: int, ctx: Context) -> Optional[str]:
     drafts_dir, selected_dir = music.project_dirs(ctx.data_dir, pid)
     if os.listdir(selected_dir):
         return None
+    if music.is_off(p, pid):
+        return None   # D5: "không dùng nhạc" is a choice, not a gap to fill with a paid track
     if _music_from_library(p, pid, ctx.data_dir):
         return None
     if ctx.audio is None:
@@ -895,6 +897,26 @@ def _setcheck_phase(p: Pipeline, pid: int, ctx: Context) -> Optional[str]:
         else "QC đồng bộ: đang gen lại cảnh lệch"
 
 
+def _check_voices(p: Pipeline, pid: int, ctx: Context) -> None:
+    """AU-f: free check of every voice (length, silences; speech-to-text when installed). Flags only — a redo (paid TTS) happens here
+    once per project only when the check has passed its real test or is switched on (features.voice_check_redo)."""
+    from . import features, voice_check
+    try:
+        res = voice_check.check_project(ctx.data_dir, pid)
+    except Exception as e:  # noqa: BLE001 - a failing check must not stop the video; it is reported
+        _d(p, pid, "voice", "warn", f"không kiểm được giọng thoại: {e}", "voice_check")
+        return
+    if not res["bad"]:
+        return
+    _d(p, pid, "voice", "warn", f"{res['bad']} câu thoại có giọng nghi lỗi (cắt/thiếu chữ/ngắt quãng) — nghe lại ở Bước 3 → 🎙 Giọng thoại",
+       "voice_check")
+    marker = os.path.join(audio_lib.assets_dir(ctx.data_dir, pid), "voice_redo_done")
+    if features.on("voice_check_redo") and not os.path.exists(marker):
+        open(marker, "w").close()
+        r = voice_check.redo(p.conn, pid, ctx.audio, ctx.data_dir)
+        _log(p, pid, f"Tạo lại {r['sent']} câu thoại bị cờ lỗi (1 lần)")
+
+
 def _voice_phase(p: Pipeline, pid: int, ctx: Context) -> Optional[str]:
     """Character voices for the dialogue (TTS), then clips sized to the real voice. Skipped (with a note) when there is no audio
     provider or a speaker has no voice: subtitles still carry the lines."""
@@ -915,6 +937,7 @@ def _voice_phase(p: Pipeline, pid: int, ctx: Context) -> Optional[str]:
         stat = voice.status(p.conn, pid, ctx.data_dir)
         if stat.get("running"):
             return f"Giọng thoại: {stat.get('succeeded', 0)}/{stat['total']}"
+    _check_voices(p, pid, ctx)
     changes = voice.fit_durations(p.conn, pid, ctx.data_dir)
     if changes:
         _log(p, pid, f"Kéo dài {len(changes)} clip cho vừa giọng thật")

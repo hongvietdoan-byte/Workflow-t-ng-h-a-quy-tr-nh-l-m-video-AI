@@ -42,6 +42,20 @@ def _cast(data: Dict) -> List[str]:
     return [str(c) for c in data.get("characters") or []]
 
 
+CLOSE_SIZES = ("ECU", "CU", "MCU")
+FACING_ANGLES = ("eye", "low", "high", "dutch")   # the speaker's face is seen (not ots / pov / overhead)
+
+
+def lip_sync_risk(shot: Dict) -> bool:
+    """AU-g: a close shot where a speaker of the line is on screen, face seen — there is no lip sync (the Vietnamese voice is laid
+    on afterwards), so moving lips that say something else are plain to see. Director is told to avoid it; this catches it."""
+    lines = shot.get("dialogue") or []
+    if not lines or str(shot.get("size") or "").upper() not in CLOSE_SIZES or (shot.get("angle") or "eye") not in FACING_ANGLES:
+        return False
+    on_screen = {str(c).strip().upper() for c in shot.get("characters") or []}
+    return any(str(d.get("speaker") or "").strip().upper() in on_screen for d in lines if isinstance(d, dict))
+
+
 def flags(p: Pipeline, project_id: int, data_dir: str = None) -> Dict[int, List[str]]:
     """{scene_id: [what looks wrong]} for every shot (empty list = nothing flagged). With `data_dir`, the whole-set check's findings
     are shown too (it only reports: features.setcheck_autofix)."""
@@ -60,7 +74,9 @@ def flags(p: Pipeline, project_id: int, data_dir: str = None) -> Dict[int, List[
         sid = r["id"]
         own = shots.image_scene(p.conn, sid)
         found: List[str] = []
-        if own != sid:                              # later shot of a Kling multi-shot group: the clip only sees the group's picture
+        if lip_sync_risk(data[sid]):
+            found.append("cận mặt người đang nói — không có khớp môi (giọng lồng sau): nên góc nghiêng/sau lưng/xa hơn hoặc chèn phản ứng")
+        if own != sid:                            # later shot of a Kling multi-shot group: the clip only sees the group's picture
             missing = [c for c in _cast(data[sid]) if c not in _cast(data.get(own, {}))]
             if missing:
                 found.append("ảnh đầu nhóm không có " + ", ".join(missing))

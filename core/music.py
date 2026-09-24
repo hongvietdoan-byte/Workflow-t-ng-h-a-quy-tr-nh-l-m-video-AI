@@ -218,6 +218,24 @@ def use_library_track(selected_dir: str, src_path: str) -> str:
     return dest
 
 
+MODE_OFF = "none"   # projects.music_mode: None = AI music (default), 'library' = own library first, 'none' = no music at all
+
+
+def is_off(pipeline: Pipeline, project_id: int) -> bool:
+    """The person chose "no music" for this project — nothing may generate (and pay for) a track behind their back (D5)."""
+    row = pipeline.project(project_id)
+    return "music_mode" in row.keys() and row["music_mode"] == MODE_OFF
+
+
+def set_off(pipeline: Pipeline, project_id: int, off: bool) -> None:
+    """Remember "no music" (off=True), or go back to the default AI music once a track is chosen again (off=False; 'library' kept)."""
+    if off:
+        pipeline.conn.execute("UPDATE projects SET music_mode=? WHERE id=?", (MODE_OFF, project_id))
+    else:
+        pipeline.conn.execute("UPDATE projects SET music_mode=NULL WHERE id=? AND music_mode=?", (project_id, MODE_OFF))
+    pipeline.conn.commit()
+
+
 def clear_selected(selected_dir: str) -> None:
     for name in os.listdir(selected_dir):
         os.remove(os.path.join(selected_dir, name))

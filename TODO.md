@@ -9,6 +9,8 @@
 - Nhánh **`claude/upbeat-hawking-6o9njo`** · PR https://github.com/hongvietdoan-byte/Workflow-t-ng-h-a-quy-tr-nh-l-m-video-AI/pull/1 — **CHƯA merge về `main`**.
   Phiên mới: `git fetch && git checkout claude/upbeat-hawking-6o9njo && git pull` (hoặc merge PR trước rồi làm trên `main`).
 - Commit cuối trước bàn giao: `86ff203`. **775 test pass, 19 skip.** Chạy test: `python -m unittest discover -s tests -t .` (~80 s; đặt timeout ≥ 600 s).
+- **GĐ-G phần 2 xong (2026-09-24, phiên trên máy người dùng có ffmpeg):** **793 test pass, 1 skip** (máy có ffmpeg nên chạy cả test ffmpeg thật —
+  tìm ra 1 test cũ khẳng định hành vi trước D4, đã sửa theo D4). Chi tiết ở mục 3 (GĐ-G) và mục 4.
 - **Chưa có thay đổi nào của đợt này được chạy thật với API** (Claude/Deepix/ClipAI/ElevenLabs). Test chỉ chứng minh luồng, không chứng minh chất lượng (luật 8).
 - Cài để chạy đủ test trên máy mới: `pip install pillow streamlit` (+ mcp, cffi nếu thiếu). Test Blender thật (tùy chọn): `pip install bpy==5.0.1`
   (+ trên Linux `apt-get install libegl1 libgl1`), rồi đặt `BPY_PYTHON=<python có bpy>`.
@@ -23,21 +25,21 @@
 | E0 | Ảnh Kho có vai trò/look/trạng thái + 📥 chờ duyệt + 🩺 sức khỏe; 3D Blender; chọn tham chiếu theo shot; ảnh map không làm nền; hồ sơ nhân vật chuẩn ở Kho | 85 | d98dd72 2c32657 7d0c97c aa5c635 ac22eee |
 | E | Look ANIME/FF_INGAME, khung cắt bằng chữ, nối ảnh cùng khung, sàn QC bố cục; gen lại có chủ đích; multi-shot; kiểm Bible với ảnh | 85 | 497327f 7de46cd f4fc6c0 |
 | F | Autopilot: chỉ thử lại lỗi tạm thời, ≤3 lần gửi/shot, cổng thoại khi tắt tiếng, M5/M6/M11/M13/M17/W13 | 70 | acd3816 |
-| G | Âm thanh: TTS `eleven_v3`, chỉ giọng Việt, bỏ phiên âm tự chế, D1, AU-e, D4 | 40 | 86ff203 |
+| G | Âm thanh: TTS `eleven_v3`, chỉ giọng Việt, bỏ phiên âm tự chế, D1, AU-e, D4 · **phần 2:** D5, D6, D7, D8, D2, AU-f, AU-g, AU-h (script) | 90 | 86ff203 + (GĐ-G phần 2) |
 | H | Giao diện tối giản, hiệu năng, dọn tồn đọng | 0 | — |
 | I | Kiểm thật theo bậc (tốn credit — xin phép từng bậc) | 0 | — |
 
 ### 3. Việc còn lại — làm theo thứ tự (không tốn credit trước)
-**GĐ-G phần 2 (âm thanh):**
-- D5 nhớ lựa chọn "không dùng nhạc" (đang không lưu → autopilot tự gen nhạc trả tiền): `dashboard/steps/step5.py` (~dòng 46), `core/autopilot.py` pha nhạc (`_music_from_library`/gen nhạc) — lưu cờ vào project (ví dụ `projects.music_off` qua `V2_COLUMNS` trong `core/db.py`).
-- D6 render ghi ra file tạm rồi `os.replace` (file hỏng không được coi là "mới"): `core/ffmpeg_studio.render_final`, `core/delivery.render`; thêm khóa render theo dự án.
-- D7 đổi phụ đề/card/xuất bản → đánh dấu bản giao "cũ": `core/lineage.py` (~dòng 218–235), `core/delivery.py`.
-- D8 cache bản dịch phụ đề + dùng bản sửa tay, không gọi Claude dịch lại mỗi lần: `core/delivery.py` (~dòng 167), `core/subtitles.py` (hàm dịch, đã gắn `tagged("subtitles")`).
-- D2 phụ đề lấy đúng timeline đã render (clip đã chọn + giây đã sửa): `core/subtitles.py` (~196–203), `core/voice.cues`.
-- AU-f kiểm giọng bằng ASR (so chữ gốc, phát hiện cắt/im lặng, tự tạo lại TTS): module mới, chạy máy người dùng.
-- AU-g luật shot có thoại (tránh cận miệng khi không cần) đưa vào prompt Director `prompts/17_director_shots.md`.
-- AU-h bộ thử 10 câu × 2–3 model × giọng Việt (script chuẩn bị sẵn, chạy ở GĐ-I bậc 0).
-- Xóa file tạm `*.padN.mp4` trong `render_final` đã có; kiểm lại khi có ffmpeg thật.
+**GĐ-G phần 2 (âm thanh) — ĐÃ XONG 2026-09-24** (test `tests/test_audio_g2.py`; chưa chạy thật với API):
+- [x] D5 "Không dùng nhạc" được nhớ (`projects.music_mode='none'`, `music.is_off/set_off`); autopilot không tạo nhạc trả tiền; chọn/tải nhạc lại → bỏ cờ (giữ chế độ "kho").
+- [x] D6 mọi file xuất (bản dựng, phụ đề, card, bản đổi kích thước, animatic) ghi ra `<tên>.part-xxxx.mp4` rồi mới đổi tên (`ffmpeg_studio.atomic_output`); lỗi giữa chừng → bản cũ còn nguyên, không sót file tạm (kể cả `*.padN.mp4`); file rỗng không được coi là bản mới. Khóa render theo dự án `output/.render.lock` (`delivery.render_lock`, dùng lại được trong cùng luồng, khóa > 1 giờ coi là bỏ lại và lấy lại).
+- [x] D7 lớp phụ đề/card/bản xuất so thiết lập đã dùng (manifest) với thiết lập hiện tại → "⚠ cũ" + lý do; bản xuất làm từ phụ đề/card cũ hoặc đã có bản mới hơn cũng cũ; ô 📦 Bản giao và đầu Bước 5 báo "cũ" khi bản hoàn chỉnh nhất cũ.
+- [x] D8 bản dịch phụ đề lưu ở `<data>/<dự án>/subtitles/texts.json` (`subtitles.localize` / `remember_edits`): Claude chỉ dịch câu chưa từng dịch (câu đổi = câu mới); câu sửa tay trong bảng Bước 5 được ghi nhớ và thắng bản dịch — dùng cả khi chạy tự động.
+- [x] D2 bản dựng ghi `timeline` (clip đã dùng + số giây + chuyển cảnh) vào manifest; phụ đề (`delivery.subtitle_cues`) và giọng thoại (`voice.place_on_timeline(durations=)`) theo đúng timeline đó; không có timeline → chỉ các clip mà bản dựng mặc định dùng (trước đây lấy cả clip đang chờ duyệt).
+- [x] AU-f `core/voice_check.py`: kiểm miễn phí (độ dài so số âm tiết, ngắt quãng giữa câu bằng ffmpeg `silencedetect`; nghe lại thành chữ khi đã `pip install faster-whisper`) → cờ từng câu ở Bước 3 → 🎙 Giọng thoại + nút "🔁 Tạo lại N câu nghi lỗi"; autopilot chỉ báo (cờ `features.voice_check_redo` TẮT tới khi thử thật). **Ngưỡng chưa đo trên giọng Việt thật** (GĐ-I bậc 0).
+- [x] AU-g Director được báo "không có khớp môi" (prompt 17: tránh cận mặt người đang nói; ưu tiên MS/WS, `ots`, quay lưng, đặt câu lên shot phản ứng); storyboard gắn cờ shot cận mặt người nói (`storyboard_gate.lip_sync_risk`).
+- [x] AU-h `tools/voice_trial.py`: 10 câu mẫu × model Việt × giọng Việt; mặc định chỉ in kế hoạch, `--yes` mới gửi (tính trần lượt âm thanh), `--poll` tải + kiểm AU-f + ghi `bang_cham.csv`, `--summary` xếp hạng theo điểm người nghe. **Chạy ở GĐ-I bậc 0 (xin phép).**
+- Còn của GĐ-G: D10 (SFX chọn theo tên file, 2 nút "Kiểm tra + tải về") — gộp vào GĐ-H; thử `reference_audio` Seedance cho shot cận nói (AU-g phần 2) — GĐ-I.
 
 **GĐ-F còn:** W2 pilot chọn cảnh đại diện theo nhân vật/bối cảnh/cỡ cảnh (`core/pilot.py`); W8 đo đồng thuận người–QC rồi mới tự nới cổng storyboard;
 W10 bảng luật từng model `data/provider_rules.json` kiểm trước khi gửi (Seedance không trộn khung đầu+tham chiếu, Kling 512 ký tự/15 s, độ dài hợp lệ…);
@@ -72,6 +74,10 @@ P3 tab hiệu suất đếm đúng; S4 cảnh báo 2 cửa sổ cùng dự án; 
 - Motion prompt đang sửa (chưa duyệt) → job video **chờ**, không bị đánh hỏng. Autopilot **chỉ tự thử lại lỗi tạm thời**.
 - Tắt tiếng video vẫn kéo dài clip theo thoại; thoại quá dài → autopilot dừng.
 - Mọi lời gọi Claude phải qua client có sổ chi (`llm_runner.client_from_env(ledger=...)` hoặc `ledger_factory`) — test `tests/test_llm_ledger.py` chặn đường gọi không có sổ.
+- (GĐ-G phần 2) **"Không dùng nhạc" được nhớ** — chạy tự động không tạo nhạc cho dự án đó tới khi bạn chọn/tải nhạc lại.
+- (GĐ-G phần 2) File xuất ghi qua file tạm `*.part-xxxx.mp4`; **một dự án chỉ dựng một bản một lúc** (bấm dựng khi đang dựng → báo "đang được dựng ở nơi khác"). Nếu Dashboard bị tắt giữa lúc dựng, khóa tự hết sau 1 giờ (hoặc xóa `output/.render.lock`).
+- (GĐ-G phần 2) Phụ đề dùng lại bản dịch đã có + câu sửa tay (`subtitles/texts.json`), và bám **timeline của bản dựng mới nhất** (clip đã chọn + giây đã sửa); đổi phụ đề/card → lớp cũ báo "⚠ cũ".
+- (GĐ-G phần 2) Storyboard có cờ "cận mặt người đang nói — không có khớp môi"; Bước 3 có nút **🎧 Kiểm giọng** (miễn phí) và cờ từng câu.
 
 ### 5. Người dùng cần làm / cung cấp
 1. Nghe thử giọng Việt với `eleven_v3` (GĐ-I bậc 0) — xác nhận lỗi giọng đã hết.
