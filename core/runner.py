@@ -515,14 +515,19 @@ def lock_note(conn, project_id: int, cast) -> str:
     """Character Lock of the people in the shot, as one sentence for the image model (what must never drift)."""
     parts = []
     for r in conn.execute("SELECT name, lock_rules FROM characters WHERE project_id=?", (project_id,)):
-        if r["name"] not in (cast or []) or not r["lock_rules"]:
+        if r["name"] not in (cast or []):
             continue
-        try:
-            rules = json.loads(r["lock_rules"])
-        except ValueError:
+        rules = assets.standard_for(conn, project_id, r["name"])        # T1: the approved library profile wins
+        if rules is None:
+            try:
+                rules = json.loads(r["lock_rules"]) if r["lock_rules"] else None
+            except ValueError:
+                rules = None
+        if not rules:
             continue
         bits = [f"keep {rules['must_keep']}" if rules.get("must_keep") else "",
-                f"never {rules['forbidden']}" if rules.get("forbidden") else ""]
+                f"never {rules['forbidden']}" if rules.get("forbidden") else "",
+                f"about {rules['height_m']:g} m tall" if rules.get("height_m") else ""]
         if any(bits):
             parts.append(f"{r['name']}: " + "; ".join(b for b in bits if b))
     return (" Identity lock — " + " | ".join(parts) + ".") if parts else ""

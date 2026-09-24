@@ -133,6 +133,7 @@ def build_director_bundle(pipeline: Pipeline, project_id: int) -> str:
         keep("dialogue_craft.md"),
         ff,
         assets.context_text(pipeline.conn, project_id),
+        standard_block(pipeline, project_id),
         bible_block(pipeline, project_id),
         world_bible_text(pipeline, project_id),
         knowledge.user_text("director"),
@@ -157,18 +158,37 @@ def script_preamble(proj) -> str:
     return ("# Thông tin chung của kịch bản (trước cảnh đầu tiên — áp dụng cho mọi cảnh)\n" + "\n".join(head)) if head else ""
 
 
+def standard_block(pipeline: Pipeline, project_id: int) -> str:
+    """T1: characters whose look is fixed in the library. The Director writes the story around them, never a new appearance."""
+    rows = []
+    for r in pipeline.conn.execute("SELECT name FROM characters WHERE project_id=?", (project_id,)):
+        prof = assets.standard_for(pipeline.conn, project_id, r["name"])
+        if prof:
+            rows.append(f"- **{r['name']}** ({prof['asset']}): {prof.get('identity') or ''} — giữ: {prof.get('must_keep') or ''}"
+                        + (f"; cao ~{prof['height_m']:g} m" if prof.get("height_m") else ""))
+    return ("# Hồ sơ chuẩn nhân vật (Kho — đã duyệt, KHÔNG viết lại ngoại hình; chỉ ghi biến thể của video này như trang phục/bị thương)\n"
+            + "\n".join(rows)) if rows else ""
+
+
 def lock_text(conn, project_id: int, names=None) -> str:
     """Character Lock of the characters (all, or the given names) as a readable block."""
     rows = []
     for r in conn.execute("SELECT name, lock_rules FROM characters WHERE project_id=?", (project_id,)):
-        if names is not None and r["name"] not in names or not r["lock_rules"]:
+        if names is not None and r["name"] not in names:
             continue
-        try:
-            lock = json.loads(r["lock_rules"])
-        except ValueError:
+        lock, source = assets.standard_for(conn, project_id, r["name"]), " (hồ sơ chuẩn Kho)"   # T1: the library profile wins
+        if lock is None:
+            source = ""
+            try:
+                lock = json.loads(r["lock_rules"]) if r["lock_rules"] else None
+            except ValueError:
+                lock = None
+        if not lock:
             continue
-        rows.append(f"- **{r['name']}** — giữ: {lock.get('must_keep', '')}; được đổi: {lock.get('may_change', '')}; "
-                    f"cấm lệch: {lock.get('forbidden', '')}")
+        size = f"; cao ~{lock['height_m']:g} m" if lock.get("height_m") else ""
+        size += f", {lock['build']}" if lock.get("build") else ""
+        rows.append(f"- **{r['name']}**{source} — giữ: {lock.get('must_keep', '')}; được đổi: {lock.get('may_change', '')}; "
+                    f"cấm lệch: {lock.get('forbidden', '')}{size}")
     return ("# Character Lock\n" + "\n".join(rows)) if rows else ""
 
 

@@ -120,5 +120,31 @@ class SentRefsTest(unittest.TestCase):
         self.assertEqual([(s["label"], s["role"]) for s in sent], [("KELLY", "character")])
 
 
+class StandardProfileTests(PickTests):
+    """T1: an approved library profile is the one source for every project — it wins over a project's own (possibly copied or
+    Director-written) Lock, carries the real height, and the Director is told not to rewrite it."""
+
+    def test_the_approved_profile_wins_over_the_project_lock(self):
+        from core import prompts
+        from core.runner import lock_note
+        self.conn.execute("UPDATE characters SET lock_rules=? WHERE project_id=? AND name='KELLY'",
+                          (json.dumps({"must_keep": "ponytail", "may_change": "", "forbidden": ""}), self.pid))
+        self.conn.commit()
+        self.assertIn("ponytail", lock_note(self.conn, self.pid, ["KELLY"]))          # no approved profile yet: project Lock
+        assets.set_profile(self.conn, self.kelly, {"identity": "young woman, short white hair", "must_keep": "short white hair",
+                                                   "forbidden": "ponytail", "height_m": 1.68}, approved=True)
+        note = lock_note(self.conn, self.pid, ["KELLY"])
+        self.assertIn("keep short white hair", note)
+        self.assertIn("never ponytail", note)
+        self.assertIn("about 1.68 m tall", note)
+        self.assertIn("hồ sơ chuẩn Kho", prompts.lock_text(self.conn, self.pid))
+        self.assertIn("KHÔNG viết lại", prompts.standard_block(self.p, self.pid))
+
+    def test_a_draft_profile_is_not_inherited(self):
+        assets.set_profile(self.conn, self.kelly, {"must_keep": "x"}, approved=False)
+        self.assertIsNone(assets.standard_for(self.conn, self.pid, "KELLY"))
+        self.assertIsNone(assets.set_profile(self.conn, self.kelly, {"height_m": 99}, approved=True)["height_m"])  # not a person
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -613,6 +613,42 @@ def scene_location(conn, project_id: int, scene: Dict) -> Optional[Dict]:
     return None
 
 
+# ---- T1: the standard profile of a character, kept in the library (one source for every project) -------------------------------
+PROFILE_KEYS = ("identity", "must_keep", "may_change", "forbidden", "height_m", "build")
+
+
+def get_profile(conn, asset_id: int) -> Dict:
+    row = conn.execute("SELECT profile FROM assets WHERE id=?", (asset_id,)).fetchone()
+    try:
+        return json.loads(row["profile"]) if row and row["profile"] else {}
+    except ValueError:
+        return {}
+
+
+def set_profile(conn, asset_id: int, data: Dict, approved: bool) -> Dict:
+    """Save the standard profile (identity words, Character Lock, real height, build). Only an approved profile is inherited."""
+    clean: Dict = {k: str(data.get(k) or "").strip() for k in PROFILE_KEYS if k != "height_m"}
+    try:
+        h = float(data.get("height_m") or 0)
+    except (TypeError, ValueError):
+        h = 0
+    clean["height_m"] = round(h, 2) if 0.2 <= h <= 30 else None
+    clean["approved"] = bool(approved)
+    conn.execute("UPDATE assets SET profile=? WHERE id=?", (json.dumps(clean, ensure_ascii=False), asset_id))
+    conn.commit()
+    return clean
+
+
+def standard_for(conn, project_id: int, name: str) -> Optional[Dict]:
+    """The approved library profile of the resource a project character is linked to, or None. It wins over the project's own Lock
+    (which the Director or a copied project may have written wrong — GĐ6 R1/A3)."""
+    asset = link_characters(conn, project_id, [name]).get(name)
+    if asset is None:
+        return None
+    prof = get_profile(conn, asset["id"])
+    return dict(prof, asset=asset["name"]) if prof.get("approved") else None
+
+
 def location_plate(conn, place: Dict, scene: Optional[Dict]) -> Optional[Dict]:
     """B2/B3: the picture of a place that may be sent to the image model as pixels — an approved EMPTY background taken from the shot's
     own kind of camera (eye level / low / high), and only for a wide shot. A map screenshot from above, a picture whose camera nobody

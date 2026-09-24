@@ -247,6 +247,36 @@ def library_health(p: Pipeline, game: str) -> None:
                      hide_index=True, use_container_width=True)
 
 
+def profile_form(p: Pipeline, a: dict) -> None:
+    """T1: the character's standard profile, approved once here and inherited by every project (the Director may not rewrite it)."""
+    prof = assets.get_profile(p.conn, a["id"])
+    label = "📋 Hồ sơ chuẩn" + (" · ✔ đã duyệt" if prof.get("approved") else " · chưa có" if not prof else " · nháp")
+    if not st.checkbox(label, key=f"prof_open_{a['id']}"):
+        return
+    locks = p.conn.execute("SELECT pr.name AS project, c.lock_rules, c.description FROM characters c JOIN projects pr ON pr.id=c.project_id"
+                           " WHERE c.lock_rules IS NOT NULL AND (c.ref_asset_id=? OR lower(c.name)=lower(?)) ORDER BY c.id DESC LIMIT 5",
+                           (a["id"], a["name"])).fetchall()
+    if locks and not prof:
+        pick = st.selectbox("Lấy nháp từ Lock của dự án", range(len(locks)), format_func=lambda i: locks[i]["project"], key=f"prof_src_{a['id']}")
+        if st.button("↧ Dùng làm nháp", key=f"prof_seed_{a['id']}"):
+            seed = json.loads(locks[pick]["lock_rules"] or "{}")
+            assets.set_profile(p.conn, a["id"], dict(seed, identity=(locks[pick]["description"] or "")[:300]), approved=False)
+            st.rerun()
+    identity = st.text_area("Nhận diện (mô tả ngắn, tiếng Anh cho model)", prof.get("identity", ""), key=f"prof_id_{a['id']}", height=60)
+    keep = st.text_area("Luôn giữ (mặt, tóc, màu trang phục, phụ kiện)", prof.get("must_keep", ""), key=f"prof_keep_{a['id']}", height=60)
+    may = st.text_input("Được đổi (tư thế, biểu cảm…)", prof.get("may_change", ""), key=f"prof_may_{a['id']}")
+    forbid = st.text_input("Cấm lệch", prof.get("forbidden", ""), key=f"prof_forbid_{a['id']}")
+    c1, c2 = st.columns(2)
+    height = c1.number_input("Chiều cao thật (m)", 0.0, 30.0, float(prof.get("height_m") or 0), 0.01, key=f"prof_h_{a['id']}",
+                             help="Để model vẽ đúng tỉ lệ với người khác và với bối cảnh (0 = chưa biết)")
+    build = c2.text_input("Vóc dáng", prof.get("build", ""), key=f"prof_build_{a['id']}")
+    ok = st.checkbox("✔ Duyệt — mọi dự án dùng hồ sơ này (thắng Lock của từng dự án)", bool(prof.get("approved")), key=f"prof_ok_{a['id']}")
+    if st.button("💾 Lưu hồ sơ chuẩn", key=f"prof_save_{a['id']}"):
+        assets.set_profile(p.conn, a["id"], {"identity": identity, "must_keep": keep, "may_change": may, "forbidden": forbid,
+                                             "height_m": height, "build": build}, approved=ok)
+        st.rerun()
+
+
 def plates3d_panel(p: Pipeline, game: str) -> None:
     """🏗 3D place -> empty eye-level / low / high backgrounds rendered by Blender on this computer (no AI, no credit), into the review
     box. How to test: docs/HUONG_DAN_3D.md."""
@@ -547,6 +577,8 @@ def asset_library_panel(p: Pipeline) -> None:
                         st.rerun()
             if a["description"]:
                 st.caption(a["description"][:700])
+            if a["kind"] in ("character", "pet"):
+                profile_form(p, a)
             if st.checkbox("✏️ Sửa, gộp hoặc xóa mục này", key=f"lib_edit_{a['id']}"):     # the form only exists when asked for (keeps the page light)
                 e_name = st.text_input("Tên", a["name"], key=f"lib_e_name_{a['id']}")
                 e_alias = st.text_input("Tên gọi khác", a["aliases"], key=f"lib_e_alias_{a['id']}")
