@@ -33,6 +33,13 @@ MAX_IMAGE_EDGE = 1568                 # Claude reads at most this long edge; big
 DEFAULT_MAX_TOKENS = 32000            # the Director's shot plan of a 26-shot script is ~10-20k tokens (8000 cut it off)
 REQUEST_TIMEOUT = 900                 # a long answer takes minutes without streaming
 MAX_IMAGES = 12
+IMAGE_EDGE = int(os.environ.get("LLM_IMAGE_EDGE", "1024") or 1024)   # C3: long edge of pictures sent to Claude (token cost ~ w*h/750)
+CACHE_BREAK = prompts.CACHE_BREAK      # C2: end of a prompt part that repeats between calls (written once, then read at 1/10 price)
+
+
+def plain(prompt: str) -> str:
+    """The prompt without cache marks (clients without caching, text shown to people)."""
+    return prompt.replace(CACHE_BREAK, "\n\n---\n\n")
 
 
 class LlmError(Exception):
@@ -50,6 +57,8 @@ class LlmReply:
     input_tokens: int = 0
     output_tokens: int = 0
     stop_reason: str = ""
+    cache_write_tokens: int = 0
+    cache_read_tokens: int = 0
 
 
 # ---- what each paid call is for (C1/C7): stage + project go into the cost ledger ----------------------------------------------
@@ -80,6 +89,22 @@ def _media_type(content: bytes) -> str:
     if content[:4] == b"RIFF" and content[8:12] == b"WEBP":
         return "image/webp"
     raise LlmError("unsupported image format (need JPEG, PNG or WebP)", code="bad_image")
+
+
+def _fit(data: bytes, edge: int) -> bytes:
+    """C3: a picture larger than `edge` on its long side as a JPEG of that size (unchanged when smaller or unreadable)."""
+    try:
+        from PIL import Image
+        img = Image.open(io.BytesIO(data))
+        if max(img.size) <= edge:
+            return data
+        img = img.convert("RGB")
+        img.thumbnail((edge, edge))
+        out = io.BytesIO()
+        img.save(out, "JPEG", quality=90)
+        return out.getvalue()
+    except Exception:  # noqa: BLE001 - sent as it is; the 5 MB check still applies
+        return data
 
 
 def _shrink(data: bytes) -> Optional[bytes]:
@@ -123,13 +148,19 @@ class AnthropicClient:
                    os.environ.get("ANTHROPIC_API_BASE", DEFAULT_BASE).strip() or DEFAULT_BASE, transport, ledger=ledger)
 
     def _content(self, prompt: str, images: Sequence[Tuple[str, str]]) -> List[Dict]:
-        blocks: List[Dict] = []
+        """[repeating prompt parts, each cached] + pictures + the part that changes every call. Up to 3 cache marks are used."""
+        parts = prompt.split(CACHE_BREAK)
+        fixed, rest = parts[:-1], parts[-1]
+        if len(fixed) > 3:
+            fixed = fixed[:2] + ["\n\n---\n\n".join(fixed[2:])]
+        blocks: List[Dict] = [{"type": "text", "text": t, "cache_control": {"type": "ephemeral"}} for t in fixed if t.strip()]
         for label, path in list(images)[:MAX_IMAGES]:
             try:
                 with open(path, "rb") as f:
                     data = f.read()
             except OSError as e:
                 raise LlmError(f"cannot read image {label}: {e.strerror}", code="bad_image") from None
+            data = _fit(data, IMAGE_EDGE)
             if len(data) > MAX_IMAGE_BYTES:
                 data = _shrink(data)
                 if data is None:
@@ -137,7 +168,7 @@ class AnthropicClient:
             blocks.append({"type": "text", "text": label})
             blocks.append({"type": "image", "source": {"type": "base64", "media_type": _media_type(data),
                                                        "data": base64.b64encode(data).decode("ascii")}})
-        blocks.append({"type": "text", "text": prompt})
+        blocks.append({"type": "text", "text": rest})
         return blocks
 
     def complete(self, prompt: str, images: Sequence[Tuple[str, str]] = ()) -> LlmReply:
@@ -208,7 +239,8 @@ class AnthropicClient:
             try:
                 conn = self._ledger_conn()
                 try:
-                    for tier, n in (("input", reply.input_tokens), ("output", reply.output_tokens)):
+                    for tier, n in (("input", reply.input_tokens), ("output", reply.output_tokens),
+                                    ("cache_write", reply.cache_write_tokens), ("cache_read", reply.cache_read_tokens)):
                         if n:
                             record_usage(conn, None, "llm", self.name, self.model, tier, n, "token", project_id=project_id,
                                          stage=stage)
@@ -245,8 +277,9 @@ class AnthropicClient:
             raise LlmError(f"Anthropic error HTTP {resp.status}: {message[:300]}", code="http_error")
         text = "".join(b.get("text", "") for b in payload.get("content", []) if b.get("type") == "text")
         usage = payload.get("usage") or {}
-        return LlmReply(text, int(usage.get("input_tokens", 0)), int(usage.get("output_tokens", 0)),
-                        str(payload.get("stop_reason") or ""))
+        return LlmReply(text, int(usage.get("input_tokens", 0) or 0), int(usage.get("output_tokens", 0) or 0),
+                        str(payload.get("stop_reason") or ""), int(usage.get("cache_creation_input_tokens", 0) or 0),
+                        int(usage.get("cache_read_input_tokens", 0) or 0))
 
 
 # ---- JSON extraction + validated call ------------------------------------------------
@@ -446,6 +479,7 @@ class MockLlm:
         return LlmReply("```json\n" + json.dumps(out, ensure_ascii=False) + "\n```", 100, 50)
 
     def complete(self, prompt: str, images: Sequence[Tuple[str, str]] = ()) -> LlmReply:
+        prompt = plain(prompt)
         v2 = self._v2(prompt)
         if v2 is not None:
             return LlmReply("```json\n" + json.dumps(v2, ensure_ascii=False) + "\n```", 90, 50)
@@ -673,6 +707,7 @@ class ClaudeCliClient:
             args = [shutil.which("claude") or "claude", "-p", "--output-format", "json", "--no-session-persistence"]
             if self.model:
                 args += ["--model", self.model]
+            prompt = plain(prompt)
             text = prompt
             if images:
                 lines, folders = [], []

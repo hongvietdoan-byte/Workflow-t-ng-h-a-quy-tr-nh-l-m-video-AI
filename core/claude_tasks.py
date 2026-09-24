@@ -159,8 +159,8 @@ def qc_video(p: Pipeline, job_id: int, client, data_dir: str, autofix: Optional[
         images.append(("Ảnh khung đầu đã duyệt:", first))
     images += [(f"Ảnh tham chiếu — {r['label']}:", assets.thumbnail(r["path"], 700)) for r in refs]
     criteria = video_criteria()
-    prompt = "\n\n---\n\n".join(x for x in [
-        _read("prompts", "12_video_qc.md"), _read("knowledge", "character_lock.md"),
+    prompt = _read("prompts", "12_video_qc.md") + "\n\n---\n\n" + _read("knowledge", "character_lock.md") + prompts.CACHE_BREAK \
+        + "\n\n---\n\n".join(x for x in [
         prompts.lock_text(p.conn, job["project_id"], data.get("characters")),
         "# Motion prompt của clip\n" + (mp["motion_prompt"] if mp else ""),
         _block("Thông số cảnh", {k: data.get(k) for k in ("characters", "blocking", "shot", "camera_complexity")})] if x)

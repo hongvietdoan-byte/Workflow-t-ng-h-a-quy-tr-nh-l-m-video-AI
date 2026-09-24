@@ -275,7 +275,7 @@ def image_detail(p: Pipeline, pid: int, j, proj):
             if client is not None:
                 st.caption("🔍 Claude tự kiểm tra ảnh này ở nền (không cần bấm); xem tiến độ ở đầu Bước 2.")
             with st.expander("Nâng cao: prompt QC + dán điểm tay"):
-                st.code(prompts.build_qc_bundle(p, j["scene_id"], C.DATA), language="markdown")
+                st.code(llm_runner.plain(prompts.build_qc_bundle(p, j["scene_id"], C.DATA)), language="markdown")
                 raw = st.text_area("JSON điểm QC từ Claude", key=f"qc_{jid}", height=100)
                 if st.button("Chấm điểm", key=f"score_{jid}", disabled=not raw.strip()):
                     def score():

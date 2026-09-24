@@ -70,6 +70,9 @@ def token_price(pricing: Dict, model: str, tier: str, tokens: float) -> Optional
         table = prices[max(known, key=len)] if known else None
     table = table if isinstance(table, dict) else {}
     unit = cost._number(table.get(tier))
+    if unit is None and tier in ("cache_write", "cache_read"):          # C2: priced from the input price (Anthropic: x1.25 / x0.1)
+        base = cost._number(table.get("input"))
+        unit = None if base is None else base * {"cache_write": 1.25, "cache_read": 0.1}[tier]
     return None if unit is None else unit * float(tokens or 0) / 1_000_000
 
 

@@ -9,6 +9,12 @@ from .pipeline import Pipeline
 
 _ROOT = os.path.join(os.path.dirname(__file__), "..")
 _SEP = "\n\n---\n\n"
+CACHE_BREAK = "\n\n<<<cache>>>\n\n"   # C2: parts before it repeat between calls (Claude API prompt cache); shown to people as _SEP
+
+
+def _cached(*groups: List[str]) -> str:
+    """Join prompt groups (each a list of parts, empty parts dropped) with a cache mark after every group but the last."""
+    return CACHE_BREAK.join(_SEP.join(x for x in g if x) for g in groups if any(g))
 _SCENE_KEYS = ("location", "time", "characters", "mood", "lighting", "shot", "blocking", "image_prompt", "emotional_intent", "beat",
                "camera_complexity", "shot_role", "dialogue", "duration_s", "sequence")
 # v3 shot rows: what the shot contract adds (only present on shot rows, so v2 prompts do not change)
@@ -195,19 +201,21 @@ def build_qc_bundle(pipeline: Pipeline, scene_id: int, data_dir: Optional[str] =
     refs = qc_references(pipeline, scene["project_id"], scene["idx"], data, data_dir)
     spec = {k: data.get(k) for k in _SCENE_KEYS}
     spec.update({k: data[k] for k in _SHOT_KEYS if k in data})
-    return _SEP.join(x for x in [
+    return _cached([                                     # same for every picture of every project
         _read("prompts", "02_qc_agent.md"),
         "" if "knowledge/ai_image_failure_modes.md" in knowledge.folded_builtin("qc")
         else _read("knowledge", "ai_image_failure_modes.md"),
         _read("knowledge", "character_lock.md"),
         knowledge.user_text("qc"),
+    ], [                                                 # same for every picture of this project
         world_bible_text(pipeline, scene["project_id"]),
         "# Character Bible\n" + bible,
+    ], [                                                 # this shot
         lock_text(pipeline.conn, scene["project_id"], data.get("characters")),
         "# Thông số cảnh\n" + json.dumps(spec, ensure_ascii=False, indent=2),
         _reference_block(refs),
         "(Đính kèm ảnh cần chấm điểm" + (", rồi các ảnh tham chiếu." if refs else ".") + ")",
-    ] if x)
+    ])
 
 
 def video_family(pipeline: Pipeline, project_id: int):

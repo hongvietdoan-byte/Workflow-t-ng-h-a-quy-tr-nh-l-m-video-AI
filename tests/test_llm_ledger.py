@@ -99,5 +99,58 @@ class LedgerTests(unittest.TestCase):
         self.assertEqual(bare, [])
 
 
+class CacheAndImageTests(unittest.TestCase):
+    """GĐ-C2/C3: repeating prompt parts are cached (priced x1.25 once, then x0.1) and pictures are sent at a capped size."""
+
+    def test_the_cached_parts_go_first_then_pictures_then_the_changing_part(self):
+        from PIL import Image
+        big = os.path.join(tempfile.mkdtemp(), "big.png")
+        Image.new("RGB", (3000, 1500), (200, 10, 10)).save(big)
+        calls = []
+        c = llm_runner.AnthropicClient("sk-test", transport=_transport(calls), sleep=lambda s: None)
+        c.complete("RULES" + llm_runner.CACHE_BREAK + "BIBLE" + llm_runner.CACHE_BREAK + "SHOT", [("Ảnh:", big)])
+        blocks = calls[0]["messages"][0]["content"]
+        self.assertEqual([b.get("text") for b in blocks[:2]], ["RULES", "BIBLE"])
+        self.assertTrue(all(b["cache_control"] == {"type": "ephemeral"} for b in blocks[:2]))
+        self.assertEqual(blocks[-1], {"type": "text", "text": "SHOT"})
+        img = next(b for b in blocks if b["type"] == "image")
+        import base64
+        import io
+        size = Image.open(io.BytesIO(base64.b64decode(img["source"]["data"]))).size
+        self.assertEqual(max(size), llm_runner.IMAGE_EDGE)
+
+    def test_cache_tokens_are_priced_from_the_input_price(self):
+        db = os.path.join(tempfile.mkdtemp(), "m.sqlite")
+        conn = connect(db)
+
+        def send(method, url, headers, body, timeout):
+            return HttpResponse(200, json.dumps({"content": [{"type": "text", "text": "OK"}], "stop_reason": "end_turn",
+                                                 "usage": {"input_tokens": 0, "output_tokens": 0,
+                                                           "cache_creation_input_tokens": 1_000_000,
+                                                           "cache_read_input_tokens": 1_000_000}}).encode())
+        llm_runner.AnthropicClient("sk-test", "claude-sonnet-5", transport=send, ledger=db).complete("x")
+        self.assertAlmostEqual(budget.llm_spent(conn), 2.0 * 1.25 + 2.0 * 0.1)
+
+    def test_other_clients_and_people_never_see_the_cache_mark(self):
+        text = "A" + llm_runner.CACHE_BREAK + "B"
+        self.assertNotIn("<<<cache>>>", llm_runner.plain(text))
+        seen = []
+        cli = llm_runner.ClaudeCliClient(run=lambda args, **k: seen.append(k["input"]) or mock.Mock(
+            returncode=0, stdout=json.dumps({"result": "OK", "usage": {}}), stderr=""))
+        cli.complete(text)
+        self.assertNotIn("<<<cache>>>", seen[0])
+
+    def test_the_image_qc_prompt_marks_rules_and_project_parts_for_caching(self):
+        from core import prompts
+        from tests.test_v3 import kenta_project
+        p, pid = kenta_project()
+        llm_runner.run_director(p, pid, llm_runner.MockLlm())
+        sid = p.conn.execute("SELECT id FROM scenes WHERE project_id=? ORDER BY idx LIMIT 1", (pid,)).fetchone()[0]
+        parts = prompts.build_qc_bundle(p, sid).split(prompts.CACHE_BREAK)
+        self.assertEqual(len(parts), 3)
+        self.assertIn("Character Bible", parts[1])
+        self.assertIn("Thông số cảnh", parts[2])
+
+
 if __name__ == "__main__":
     unittest.main()
