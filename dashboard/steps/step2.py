@@ -423,7 +423,10 @@ def shot_storyboard_panel(p: Pipeline, pid: int) -> None:
                 d = r["data"]
                 path, held = storyboard_gate.picture_path(p.conn, C.DATA, pid, r["id"])
                 if path:
-                    col.image(path, width="stretch", caption="⏸ chờ bạn duyệt" if held else None)
+                    try:
+                        col.image(path, width="stretch", caption="⏸ chờ bạn duyệt" if held else None)
+                    except Exception:  # noqa: BLE001 - a corrupt / half-downloaded file must not take the page down
+                        col.caption(f"⚠ Không đọc được ảnh: {os.path.basename(path)}")
                 elif not shots.needs_own_image(p.conn, r["id"]):
                     lead = shots.image_scene(p.conn, r["id"])
                     col.caption("↳ tiếp nối trong clip multi-shot của "
