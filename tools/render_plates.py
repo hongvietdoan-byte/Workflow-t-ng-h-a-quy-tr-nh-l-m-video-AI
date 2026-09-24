@@ -1,0 +1,386 @@
+"""Render empty backgrounds ("plates") of a 3D place for the image model — run INSIDE Blender (no person, no AI, no credit).
+
+    blender -b --factory-startup -P tools/render_plates.py -- --config plan.json
+    (or, with the `bpy` module installed:  python tools/render_plates.py --config plan.json)
+
+Why (docs/KE_HOACH_TONG_2026-09-24.md, "Dùng bản đồ 3D"): an in-game map screenshot is taken from one camera — usually high up — and
+the image model copies that camera and the tiny people with it. In 3D the camera goes where the shot needs it (eye level, low, high)
+and sizes are real metres, so a plate rendered from the shot's own camera can be a background reference without dragging a wrong
+composition along. The Dashboard (core/plates3d.py) writes the plan, runs this script and puts the plates in the library's review
+box; this script never touches the database.
+
+Plan (JSON):
+  model            path of .glb/.gltf/.fbx/.obj/.blend/.usd*/.stl
+  out_dir          where plates + manifest.json go
+  resolution       [1280, 720]
+  engine           "auto" (EEVEE, else Cycles on CPU) | "eevee" | "cycles" | "workbench"
+  samples          render samples (EEVEE / Cycles), default 16
+  sky              {"mode": "A" | "B" | "C", "sun_elevation": 35, "sun_azimuth": 140, "strength": 0.35, "sun_strength": 2.5,
+                    "exposure": -0.5,
+                    "hdri": path (mode B, or lighting of mode C), "hdri_rotation": 0}
+                   A = Blender's physical sky (no download), B = HDRI picture, C = light from A/B but the sky left transparent
+                   (the Dashboard puts an in-game sky picture behind it).
+  real_height_m    true height of the model's tallest part (e.g. the clock tower) -> sets the scale; unset = guess the unit
+  decimate         0.05..1 keeps that share of the triangles (heavy maps), default 1
+  ground           true = add a large ground plane under the model (maps cut out of a bigger map end in the void)
+  target           [x, y, z] in metres (after scaling) the preset cameras look at; default the model's centre
+  presets          ["eye_000", "eye_090", "eye_180", "eye_270", "low_000", "high_045"] (angle = degrees around the target)
+  cameras          [{"name", "location": [x,y,z], "look_at": [x,y,z], "lens": 35}] extra cameras in metres
+  lens_mm          35; eye_height_m 1.6; depth true (also render a depth picture: near = white)
+Every number the local test should record (import time, triangles, render time per plate) is written to manifest.json.
+"""
+import json
+import math
+import os
+import sys
+import time
+
+import bpy                                                          # noqa: E402 - only exists inside Blender / with the bpy module
+from mathutils import Vector                                        # noqa: E402
+
+IMPORTERS = {
+    ".glb": lambda p: bpy.ops.import_scene.gltf(filepath=p),
+    ".gltf": lambda p: bpy.ops.import_scene.gltf(filepath=p),
+    ".fbx": lambda p: bpy.ops.import_scene.fbx(filepath=p),
+    ".obj": lambda p: bpy.ops.wm.obj_import(filepath=p),
+    ".stl": lambda p: bpy.ops.wm.stl_import(filepath=p),
+    ".usd": lambda p: bpy.ops.wm.usd_import(filepath=p),
+    ".usda": lambda p: bpy.ops.wm.usd_import(filepath=p),
+    ".usdc": lambda p: bpy.ops.wm.usd_import(filepath=p),
+    ".usdz": lambda p: bpy.ops.wm.usd_import(filepath=p),
+}
+SKY_TYPES = ("MULTIPLE_SCATTERING", "SINGLE_SCATTERING", "NISHITA", "HOSEK_WILKIE", "PREETHAM")   # newest first (names differ by version)
+DEFAULT_PRESETS = ["eye_000", "eye_090", "eye_180", "eye_270", "low_000", "high_045"]
+
+
+def log(msg):
+    print(f"[plates] {msg}", flush=True)
+
+
+def args_config():
+    argv = sys.argv[sys.argv.index("--") + 1:] if "--" in sys.argv else sys.argv[1:]
+    if "--config" not in argv:
+        sys.exit("usage: ... -- --config plan.json")
+    with open(argv[argv.index("--config") + 1], encoding="utf-8") as f:
+        return json.load(f)
+
+
+def enum_items(owner, prop):
+    try:
+        return [i.identifier for i in owner.bl_rna.properties[prop].enum_items]
+    except (KeyError, AttributeError):
+        return []
+
+
+# ---- scene ---------------------------------------------------------------------------------------------------------------
+def load_model(path, warnings):
+    bpy.ops.wm.read_factory_settings(use_empty=True)
+    ext = os.path.splitext(path)[1].lower()
+    before = set(bpy.data.objects)
+    t0 = time.time()
+    if ext == ".blend":
+        with bpy.data.libraries.load(path, link=False) as (src, dst):
+            dst.objects = list(src.objects)
+        for obj in dst.objects:
+            if obj is not None and obj.type not in ("CAMERA", "LIGHT"):
+                bpy.context.scene.collection.objects.link(obj)
+    elif ext in IMPORTERS:
+        IMPORTERS[ext](path)
+    else:
+        raise SystemExit(f"unsupported 3D file type: {ext}")
+    for obj in [o for o in bpy.data.objects if o not in before and o.type in ("CAMERA", "LIGHT")]:
+        bpy.data.objects.remove(obj, do_unlink=True)                  # the file's own cameras/lights would fight ours
+    meshes = [o for o in bpy.context.scene.objects if o.type == "MESH"]
+    if not meshes:
+        raise SystemExit("the 3D file has no mesh")
+    return meshes, time.time() - t0
+
+
+def triangles(meshes):
+    n = 0
+    for o in meshes:
+        m = o.data
+        m.calc_loop_triangles()
+        n += len(m.loop_triangles)
+    return n
+
+
+def bbox(meshes):
+    bpy.context.view_layer.update()
+    pts = [o.matrix_world @ Vector(c) for o in meshes for c in o.bound_box]
+    lo = Vector((min(p.x for p in pts), min(p.y for p in pts), min(p.z for p in pts)))
+    hi = Vector((max(p.x for p in pts), max(p.y for p in pts), max(p.z for p in pts)))
+    return lo, hi
+
+
+def normalise_scale(meshes, real_height, warnings):
+    """Put the model in metres, standing on z = 0. A declared real height wins; else a model over 500 units tall is taken as
+    centimetres (FBX exports often are) — both written to the manifest so the local test can check them against a door (~2 m)."""
+    lo, hi = bbox(meshes)
+    height = hi.z - lo.z
+    factor = 1.0
+    if real_height:
+        factor = float(real_height) / height if height > 0 else 1.0
+    elif height > 500:
+        factor = 0.01
+        warnings.append(f"model {height:.0f} units tall: assumed centimetres (x0.01) — give real_height_m to be sure")
+    root = bpy.data.objects.new("PLATES_ROOT", None)
+    bpy.context.scene.collection.objects.link(root)
+    for o in bpy.context.scene.objects:
+        if o is not root and o.parent is None:
+            o.parent = root
+    root.scale = (factor, factor, factor)
+    bpy.context.view_layer.update()
+    lo, hi = bbox(meshes)
+    root.location = (0, 0, -lo.z)                                      # keep x/y, stand on the ground
+    bpy.context.view_layer.update()
+    return factor, bbox(meshes)
+
+
+def add_ground(lo, hi):
+    size = max(hi.x - lo.x, hi.y - lo.y, 50) * 20
+    bpy.ops.mesh.primitive_plane_add(size=size, location=((lo.x + hi.x) / 2, (lo.y + hi.y) / 2, lo.z - 0.02))
+    plane = bpy.context.active_object
+    plane.name = "PLATES_GROUND"
+    mat = bpy.data.materials.new("PLATES_GROUND")
+    mat.use_nodes = True
+    bsdf = mat.node_tree.nodes.get("Principled BSDF")
+    if bsdf is not None:
+        bsdf.inputs["Base Color"].default_value = (0.32, 0.33, 0.30, 1)
+        bsdf.inputs["Roughness"].default_value = 0.9
+    plane.data.materials.append(mat)
+
+
+def decimate(meshes, ratio):
+    if ratio >= 0.999:
+        return
+    for o in meshes:
+        mod = o.modifiers.new("PLATES_DECIMATE", "DECIMATE")
+        mod.ratio = max(float(ratio), 0.01)
+
+
+# ---- sky + light ----------------------------------------------------------------------------------------------------------
+def setup_world(sky, warnings):
+    scene = bpy.context.scene
+    world = bpy.data.worlds.new("PLATES_WORLD")
+    scene.world = world
+    world.use_nodes = True
+    nt = world.node_tree
+    nt.nodes.clear()
+    out = nt.nodes.new("ShaderNodeOutputWorld")
+    bg = nt.nodes.new("ShaderNodeBackground")
+    bg.inputs["Strength"].default_value = float(sky.get("strength", 0.35))   # the physical sky is very bright next to a 1-W-ish sun
+    nt.links.new(bg.outputs["Background"], out.inputs["Surface"])
+    mode = (sky.get("mode") or "A").upper()
+    elev, azim = math.radians(float(sky.get("sun_elevation", 35))), math.radians(float(sky.get("sun_azimuth", 140)))
+    used = "A"
+    hdri = sky.get("hdri")
+    if hdri and mode in ("B", "C") and os.path.exists(hdri):
+        env = nt.nodes.new("ShaderNodeTexEnvironment")
+        env.image = bpy.data.images.load(hdri)
+        coord, mapping = nt.nodes.new("ShaderNodeTexCoord"), nt.nodes.new("ShaderNodeMapping")
+        mapping.inputs["Rotation"].default_value[2] = math.radians(float(sky.get("hdri_rotation", 0)))
+        nt.links.new(coord.outputs["Generated"], mapping.inputs["Vector"])
+        nt.links.new(mapping.outputs["Vector"], env.inputs["Vector"])
+        nt.links.new(env.outputs["Color"], bg.inputs["Color"])
+        used = "B"
+    else:
+        if mode == "B":
+            warnings.append("sky B: no HDRI file found — using the physical sky (A)")
+        try:
+            tex = nt.nodes.new("ShaderNodeTexSky")
+            kinds = enum_items(tex, "sky_type")
+            pick = next((k for k in SKY_TYPES if k in kinds), None)
+            if pick:
+                tex.sky_type = pick
+            for attr, value in (("sun_elevation", elev), ("sun_rotation", azim), ("sun_disc", False)):
+                if hasattr(tex, attr):
+                    setattr(tex, attr, value)
+            nt.links.new(tex.outputs["Color"], bg.inputs["Color"])
+            used = f"A ({pick or 'default'})"
+        except Exception as e:  # noqa: BLE001 - never stop a render for the sky: a plain gradient-like colour instead
+            bg.inputs["Color"].default_value = (0.55, 0.72, 0.95, 1)
+            warnings.append(f"physical sky unavailable ({e}); plain sky colour used")
+            used = "A (plain colour)"
+    sun_data = bpy.data.lights.new("PLATES_SUN", "SUN")               # sharp shadows in the same direction as the sky's sun
+    sun_data.energy = float(sky.get("sun_strength", 2.5))
+    sun = bpy.data.objects.new("PLATES_SUN", sun_data)
+    scene.collection.objects.link(sun)
+    sun.rotation_euler = (math.pi / 2 - elev, 0, azim + math.pi / 2)
+    scene.render.film_transparent = mode == "C"
+    scene.view_settings.exposure = float(sky.get("exposure", -0.5))
+    return used + (" + transparent sky" if mode == "C" else "")
+
+
+# ---- cameras --------------------------------------------------------------------------------------------------------------
+def look_at(obj, target):
+    direction = Vector(target) - obj.location
+    obj.rotation_euler = direction.to_track_quat("-Z", "Y").to_euler()
+
+
+def preset_cameras(names, lo, hi, target, eye_h):
+    centre = Vector(target) if target else Vector(((lo.x + hi.x) / 2, (lo.y + hi.y) / 2, 0))
+    span = max(hi.x - lo.x, hi.y - lo.y)
+    height = hi.z - lo.z
+    dist = span * 0.75 + 10
+    out = []
+    for name in names:
+        kind, _, deg = name.partition("_")
+        a = math.radians(float(deg or 0))
+        ring = Vector((math.sin(a), -math.cos(a), 0))
+        if kind == "eye":
+            loc = centre + ring * dist + Vector((0, 0, eye_h))
+            aim = centre + Vector((0, 0, eye_h))                         # a level camera: horizon mid-frame, like a person standing
+            angle = "eye_level"
+        elif kind == "low":
+            loc = centre + ring * (dist * 0.6) + Vector((0, 0, 0.4))
+            aim = centre + Vector((0, 0, height * 0.6))
+            angle = "low_angle"
+        elif kind == "high":
+            loc = centre + ring * (dist * 1.2) + Vector((0, 0, height * 0.9 + 8))
+            aim = centre + Vector((0, 0, height * 0.15))
+            angle = "high_angle"
+        else:
+            continue
+        out.append({"name": name, "location": list(loc), "look_at": list(aim), "angle": angle})
+    return out
+
+
+def camera_info(cam, target, res):
+    d = Vector(target) - cam.location
+    pitch = math.degrees(math.atan2(d.z, math.hypot(d.x, d.y)))
+    yaw = math.degrees(math.atan2(d.x, d.y))
+    vfov = 2 * math.atan(math.tan(cam.data.angle / 2) * res[1] / max(res))
+    horizon = 0.5 + 0.5 * math.tan(math.radians(pitch)) / math.tan(vfov / 2)
+    return {"location_m": [round(v, 2) for v in cam.location], "look_at_m": [round(v, 2) for v in target],
+            "height_m": round(cam.location.z, 2), "pitch_deg": round(pitch, 1), "yaw_deg": round(yaw, 1),
+            "lens_mm": cam.data.lens, "vfov_deg": round(math.degrees(vfov), 1), "horizon_y": round(horizon, 3)}
+
+
+def set_analysis(info, angle, sky_used):
+    """The same fields Claude writes when it reads a background picture (core/layout.validate_set_analysis) — exact here, from the
+    camera, so the Dashboard never pays to read a rendered plate."""
+    h = max(min(info["horizon_y"], 3), -2)
+    top = min(max(h + 0.02, 0.0), 0.97)
+    return {"camera": {"eye_level": "eye", "low_angle": "low", "high_angle": "high"}.get(angle, "eye"), "horizon_y": round(h, 3),
+            "camera_height_m": max(info["height_m"], 0.1), "ground": [[0, top], [1, top], [1, 1], [0, 1]], "landmarks": [],
+            "light": f"3D render, sky {sky_used}", "notes": "rendered 3D plate (exact camera)", "source": "3d"}
+
+
+# ---- render ---------------------------------------------------------------------------------------------------------------
+def pick_engine(want, warnings):
+    scene = bpy.context.scene
+    items = enum_items(scene.render, "engine")
+    eevee = next((e for e in ("BLENDER_EEVEE", "BLENDER_EEVEE_NEXT") if e in items), None)
+    order = {"eevee": [eevee], "cycles": ["CYCLES"], "workbench": ["BLENDER_WORKBENCH"]}.get(want, [eevee, "CYCLES"])
+    for e in order:
+        if e and e in items:
+            scene.render.engine = e
+            return e
+    warnings.append(f"engine {want} not available ({items})")
+    return scene.render.engine
+
+
+def render_to(path, rgba):
+    scene = bpy.context.scene
+    scene.render.image_settings.file_format = "PNG"
+    scene.render.image_settings.color_mode = "RGBA" if rgba else "RGB"
+    scene.render.filepath = path
+    t0 = time.time()
+    bpy.ops.render.render(write_still=True)
+    return time.time() - t0
+
+
+def depth_material(far):
+    mat = bpy.data.materials.new("PLATES_DEPTH")
+    mat.use_nodes = True
+    nt = mat.node_tree
+    nt.nodes.clear()
+    cam = nt.nodes.new("ShaderNodeCameraData")
+    rng = nt.nodes.new("ShaderNodeMapRange")
+    rng.inputs["From Min"].default_value, rng.inputs["From Max"].default_value = 0.1, far
+    rng.inputs["To Min"].default_value, rng.inputs["To Max"].default_value = 1.0, 0.0     # near = white
+    emit, out = nt.nodes.new("ShaderNodeEmission"), nt.nodes.new("ShaderNodeOutputMaterial")
+    nt.links.new(cam.outputs["View Z Depth"], rng.inputs["Value"])
+    nt.links.new(rng.outputs["Result"], emit.inputs["Color"])
+    nt.links.new(emit.outputs["Emission"], out.inputs["Surface"])
+    return mat
+
+
+def main():
+    cfg = args_config()
+    out_dir = cfg["out_dir"]
+    os.makedirs(out_dir, exist_ok=True)
+    warnings = []
+    manifest = {"blender": bpy.app.version_string, "model": {"path": cfg["model"],
+                "size_mb": round(os.path.getsize(cfg["model"]) / 1e6, 1)}, "plates": [], "warnings": warnings}
+    meshes, import_sec = load_model(cfg["model"], warnings)
+    manifest["model"].update({"objects": len(meshes), "triangles": triangles(meshes), "import_sec": round(import_sec, 1)})
+    log(f"imported {len(meshes)} meshes, {manifest['model']['triangles']:,} triangles in {import_sec:.1f}s")
+    factor, (lo, hi) = normalise_scale(meshes, cfg.get("real_height_m"), warnings)
+    manifest["scale_factor"] = factor
+    manifest["bbox_m"] = {"min": [round(v, 2) for v in lo], "max": [round(v, 2) for v in hi],
+                          "size": [round(hi[i] - lo[i], 2) for i in range(3)]}
+    decimate(meshes, float(cfg.get("decimate", 1.0)))
+    if cfg.get("ground", True):
+        add_ground(lo, hi)
+    sky = cfg.get("sky") or {}
+    manifest["sky"] = dict(sky, used=setup_world(sky, warnings))
+    scene = bpy.context.scene
+    res = cfg.get("resolution") or [1280, 720]
+    scene.render.resolution_x, scene.render.resolution_y, scene.render.resolution_percentage = int(res[0]), int(res[1]), 100
+    engine = pick_engine((cfg.get("engine") or "auto").lower(), warnings)
+    samples = int(cfg.get("samples", 16))
+    for owner, attr in ((getattr(scene, "eevee", None), "taa_render_samples"), (getattr(scene, "cycles", None), "samples")):
+        if owner is not None and hasattr(owner, attr):
+            setattr(owner, attr, samples)
+    if engine == "CYCLES" and hasattr(scene, "cycles") and hasattr(scene.cycles, "use_denoising"):
+        scene.cycles.use_denoising = False                               # plates are references: speed over the last bit of noise
+    manifest["engine"] = engine
+    cams = preset_cameras(cfg.get("presets") or DEFAULT_PRESETS, lo, hi, cfg.get("target"), float(cfg.get("eye_height_m", 1.6)))
+    cams += [dict(c, angle=c.get("angle") or "eye_level") for c in cfg.get("cameras") or []]
+    span = max(hi.x - lo.x, hi.y - lo.y, hi.z - lo.z)
+    for c in cams:
+        data = bpy.data.cameras.new(c["name"])
+        data.lens = float(c.get("lens") or cfg.get("lens_mm", 35))
+        data.clip_end = max(1000.0, span * 20)
+        cam = bpy.data.objects.new(c["name"], data)
+        scene.collection.objects.link(cam)
+        cam.location = Vector(c["location"])
+        look_at(cam, c["look_at"])
+        scene.camera = cam
+        info = camera_info(cam, c["look_at"], res)
+        plate = os.path.join(out_dir, f"plate_{c['name']}.png")
+        try:
+            sec = render_to(plate, scene.render.film_transparent)
+        except RuntimeError as e:
+            if engine.startswith("BLENDER_EEVEE") and (cfg.get("engine") or "auto") == "auto":
+                warnings.append(f"EEVEE failed ({e}); switched to Cycles")     # no GPU (e.g. a server): slower but works
+                engine = pick_engine("cycles", warnings)
+                manifest["engine"] = engine
+                sec = render_to(plate, scene.render.film_transparent)
+            else:
+                raise
+        item = {"name": c["name"], "angle": c["angle"], "file": os.path.basename(plate), "render_sec": round(sec, 2),
+                "camera": info, "set_analysis": set_analysis(info, c["angle"], manifest["sky"]["used"])}
+        if cfg.get("depth", True) and engine != "BLENDER_WORKBENCH":
+            far = max((Vector(p) - cam.location).length for p in ([lo.x, lo.y, lo.z], [hi.x, hi.y, hi.z],
+                                                                  [lo.x, hi.y, hi.z], [hi.x, lo.y, lo.z]))
+            layer = bpy.context.view_layer
+            keep = (layer.material_override, scene.view_settings.view_transform, scene.render.film_transparent)
+            layer.material_override = depth_material(far)
+            scene.view_settings.view_transform = "Standard"
+            scene.render.film_transparent = True
+            depth = os.path.join(out_dir, f"depth_{c['name']}.png")
+            item["depth_file"] = os.path.basename(depth)
+            item["depth_sec"] = round(render_to(depth, True), 2)
+            layer.material_override, scene.view_settings.view_transform, scene.render.film_transparent = keep
+        manifest["plates"].append(item)
+        log(f"{c['name']}: {item['render_sec']}s")
+    with open(os.path.join(out_dir, "manifest.json"), "w", encoding="utf-8") as f:
+        json.dump(manifest, f, ensure_ascii=False, indent=1)
+    log(f"done: {len(manifest['plates'])} plates -> {out_dir}")
+
+
+if __name__ == "__main__":
+    main()

@@ -247,6 +247,67 @@ def library_health(p: Pipeline, game: str) -> None:
                      hide_index=True, use_container_width=True)
 
 
+def plates3d_panel(p: Pipeline, game: str) -> None:
+    """🏗 3D place -> empty eye-level / low / high backgrounds rendered by Blender on this computer (no AI, no credit), into the review
+    box. How to test: docs/HUONG_DAN_3D.md."""
+    from core import plates3d
+    with st.expander("🏗 Bối cảnh 3D — render nền trống người từ file 3D (Blender, không tốn credit)", expanded=False):
+        blender = plates3d.find_blender()
+        st.caption(("Blender: `" + blender + "`") if blender else "⚠ Chưa thấy Blender — cài Blender 5.0 hoặc đặt BLENDER_PATH trong dashboard.env.")
+        folder = st.text_input("Thư mục file 3D (MODEL3D_DIR)", plates3d.model_dir(), key="p3d_dir")
+        found = plates3d.models(folder)
+        if not found:
+            st.caption("Không thấy file .glb/.gltf/.fbx/.obj/.blend/.usd trong thư mục này. File 3D để trên máy, không đưa lên GitHub.")
+            return
+        pick = st.selectbox("File 3D", range(len(found)), format_func=lambda i: f"{found[i]['name']} · {found[i]['size_mb']} MB", key="p3d_file")
+        model = found[pick]["path"]
+        c1, c2 = st.columns(2)
+        place = c1.text_input("Tên bối cảnh trong Kho", os.path.splitext(os.path.basename(model))[0], key="p3d_place")
+        look = c2.selectbox("Look", ["ingame", "anime"], format_func=assets.LOOKS.get, key="p3d_look")
+        sky = st.radio("Bầu trời", list(plates3d.SKIES), format_func=plates3d.SKIES.get, key="p3d_sky")
+        c1, c2, c3 = st.columns(3)
+        elev = c1.slider("Độ cao mặt trời (°)", 5, 85, 35, key="p3d_elev")
+        azim = c2.slider("Hướng nắng (°)", 0, 355, 140, 5, key="p3d_azim")
+        height = c3.number_input("Chiều cao thật phần cao nhất (m, 0 = tự đoán đơn vị)", 0.0, 500.0, 0.0, 1.0, key="p3d_h",
+                                 help="Ví dụ chiều cao tháp đồng hồ. Không biết thì để 0: file > 500 đơn vị được coi là cm.")
+        hdri = st.text_input("File HDRI (.hdr/.exr) cho cách B, hoặc ánh sáng cho cách C (để trống = trời vật lý)", "", key="p3d_hdri") \
+            if sky in ("B", "C") else ""
+        sky_pic = st.file_uploader("Ảnh trời chụp in-game để ghép (cách C)", type=["png", "jpg", "jpeg", "webp"], key="p3d_skypic") \
+            if sky == "C" else None
+        presets = st.multiselect("Góc máy", list(plates3d.PRESETS), default=list(plates3d.PRESETS), format_func=plates3d.PRESETS.get,
+                                 key="p3d_presets")
+        c1, c2 = st.columns(2)
+        dec = c1.slider("Giữ lại % tam giác (map nặng: giảm)", 5, 100, 100, 5, key="p3d_dec")
+        res = c2.selectbox("Khung", ["1280x720", "1920x1080", "720x1280"], key="p3d_res")
+        if st.button("▶ Render nền (Blender, không tốn credit)", key="p3d_go", type="primary", disabled=not (blender and presets)):
+            try:
+                cfg = plates3d.plan(model, plates3d.out_dir(C.DATA, place), sky=sky, sun_elevation=elev, sun_azimuth=azim,
+                                    hdri=hdri or None, presets=presets, real_height_m=height or None, decimate=dec / 100,
+                                    resolution=tuple(int(x) for x in res.split("x")))
+                with st.spinner("Blender đang render (map nặng có thể mất vài phút)…"):
+                    st.session_state["p3d_manifest"] = plates3d.render(cfg)
+            except plates3d.Plates3DError as e:
+                st.error(str(e))
+        m = st.session_state.get("p3d_manifest")
+        if m:
+            st.success(plates3d.summary(m))
+            for w in m.get("warnings") or []:
+                st.caption("⚠ " + w)
+            cols = st.columns(min(len(m["plates"]), 6) or 1)
+            for col, pl in zip(cols, m["plates"]):
+                col.image(os.path.join(m["out_dir"], pl["file"]), caption=f"{pl['name']} · {pl['render_sec']} s", use_container_width=True)
+            if st.button("📥 Đưa vào hộp chờ duyệt của Kho", key="p3d_add"):
+                sky_path = None
+                if sky_pic is not None:
+                    sky_path = os.path.join(m["out_dir"], "sky_ingame" + os.path.splitext(sky_pic.name)[1].lower())
+                    with open(sky_path, "wb") as f:
+                        f.write(sky_pic.getvalue())
+                r = plates3d.to_library(p.conn, m, game, place, sky_picture=sky_path, look=look)
+                st.success(f"Đã thêm {len(r['added'])} ảnh nền vào “{place}” (chờ duyệt ở 📥 phía trên)."
+                           + (f" Bỏ qua: {'; '.join(r['skipped'])}" if r["skipped"] else ""))
+                st.session_state.pop("p3d_manifest", None)
+
+
 def asset_library_panel(p: Pipeline) -> None:
     """Settings: the shared resource library (people with the Kho tài nguyên right)."""
     catalog = subjects.games()
@@ -256,6 +317,7 @@ def asset_library_panel(p: Pipeline) -> None:
     st.caption(f"{len(items)} mục trong kho **{catalog[game][0]}**. Mọi dự án của game này đều chọn dùng được.")
     library_review_box(p, game)
     library_health(p, game)
+    plates3d_panel(p, game)
     with st.expander("🔄 Nguồn đồng bộ: thư mục tài nguyên (cập nhật kho bằng 1 cú bấm hoặc tự động)", expanded=not assets.list_sources(p.conn, game)):
         st.caption("Chọn một thư mục trên máy chạy Dashboard chứa ảnh (ví dụ thư mục đang đồng bộ với Google Drive). Kho sẽ giống thư mục đó: "
                    "ảnh mới được thêm, ảnh sửa được cập nhật, ảnh trùng không bị thêm hai lần; tên, mô tả bạn đã sửa trong Dashboard **không bị ghi đè**. "

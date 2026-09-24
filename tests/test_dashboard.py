@@ -60,6 +60,25 @@ class DashboardSmokeTests(unittest.TestCase):
         self.assertFalse(any(t.key == "price_currency" for t in at.text_input))          # Bảng giá closed
         self.assertTrue(any(s.label == "Cảnh" for s in at.selectbox))                    # Lịch sử's scene picker
 
+    def test_the_library_shows_the_review_box_and_the_3d_panel(self):
+        from core import assets
+        self.seed()
+        models = os.path.join(self.tmp, "model 3D")
+        os.makedirs(models)
+        open(os.path.join(models, "thap.glb"), "wb").write(b"glTF")
+        os.environ.update({"MODEL3D_DIR": models, "ASSET_DIR": os.path.join(self.tmp, "assets")})
+        self.addCleanup(lambda: [os.environ.pop(k, None) for k in ("MODEL3D_DIR", "ASSET_DIR")])
+        conn = connect(self.db)
+        aid = assets.create(conn, "FF", "character", "KELLY")
+        from tests.test_new_skills import PNG
+        assets.add_image(conn, aid, "k.png", PNG, status="pending")
+        at = AppTest.from_file(APP, default_timeout=30).run()
+        at.button(key="settings_assets").click().run()
+        self.assertFalse(at.exception)
+        self.assertTrue(any("Ảnh chờ duyệt (1)" in e.label for e in at.expander))
+        self.assertTrue(any("Bối cảnh 3D" in e.label for e in at.expander))
+        self.assertTrue(any(s.key == "p3d_file" for s in at.selectbox))
+
     def test_every_step_renders_without_error(self):
         self.seed()
         at = AppTest.from_file(APP, default_timeout=30).run()

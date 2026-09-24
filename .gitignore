@@ -21,3 +21,7 @@ data/dashboard_err.log
 data/launcher.log
 data/projects/
 data/models/
+data/projects/_plates3d/
+data/3d/
+*.hdr
+*.exr
