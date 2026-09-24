@@ -40,7 +40,7 @@ def step3(p: Pipeline, pid: int):
         if client is None:
             st.caption(claude_hint())
         with st.expander("✍ Nâng cao: prompt gửi Claude (copy) & dán kết quả"):
-            st.code(prompts.build_motion_bundle(p, pid), language="markdown")
+            st.code(llm_runner.plain(prompts.build_motion_bundle(p, pid)), language="markdown")
             raw = st.text_area("Dán JSON motion prompts từ Claude", key=f"motion_{pid}", height=140)
             if st.button("▶ Lưu motion prompts", disabled=not raw.strip(), key=f"mot_paste_{pid}"):
                 if act(lambda: llm_io.store_motion_prompts(p, pid, raw), "Đã lưu"):

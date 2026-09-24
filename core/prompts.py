@@ -298,6 +298,5 @@ def build_motion_bundle(pipeline: Pipeline, project_id: int, only_missing: bool 
     if wb:
         parts.append(wb)
     extra = knowledge.user_text("motion")
-    return _SEP.join(parts + ([extra] if extra else []) + [
-        "# Cảnh đã có ảnh được duyệt\n```json\n" + json.dumps(payload, ensure_ascii=False, indent=2) + "\n```",
-    ])
+    return _SEP.join(parts + ([extra] if extra else [])) + CACHE_BREAK + (       # rules repeat between batches (C2)
+        "# Cảnh đã có ảnh được duyệt\n```json\n" + json.dumps(payload, ensure_ascii=False, indent=2) + "\n```")

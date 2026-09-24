@@ -152,5 +152,46 @@ class CacheAndImageTests(unittest.TestCase):
         self.assertIn("Thông số cảnh", parts[2])
 
 
+class MotionBatchTests(unittest.TestCase):
+    """GĐ-C3 (C6/M20/Q1): motion sends each picture once and never more than MAX_IMAGES per call — no silent cut."""
+
+    def test_a_long_project_is_split_into_calls_of_at_most_twelve_pictures(self):
+        from tests.test_v3 import _approve_all_images, kenta_project
+        p, pid = kenta_project()
+        data = tempfile.mkdtemp()
+        llm_runner.run_director(p, pid, llm_runner.MockLlm())
+        _approve_all_images(p, pid, data)
+        seen = []
+        mock_llm = llm_runner.MockLlm()
+
+        class Spy:
+            name = "spy"
+
+            def complete(self, prompt, images=()):
+                seen.append([label for label, _ in images])
+                return mock_llm.complete(prompt, images)
+
+        n = p.conn.execute("SELECT COUNT(*) FROM scenes WHERE project_id=?", (pid,)).fetchone()[0]
+        out = llm_runner.run_motion(p, pid, Spy(), data)
+        self.assertEqual(out["scenes"], n)
+        self.assertTrue(all(len(x) <= llm_runner.MAX_IMAGES for x in seen))
+        self.assertEqual(out["calls"], len(seen))
+        labels = [label for x in seen for label in x]
+        self.assertEqual(len(labels), len(set(labels)))                  # a shared group picture is sent once
+
+    def test_batches_cut_on_distinct_pictures(self):
+        todo = [{"idx": i, "jid": i // 2} for i in range(30)]           # pairs share a picture: 15 pictures
+        batches = llm_runner._motion_batches(todo)
+        self.assertEqual([len({r["jid"] for r in b}) for b in batches], [12, 3])
+
+    def test_too_many_pictures_are_refused_before_paying(self):
+        calls = []
+        c = llm_runner.AnthropicClient("sk-test", transport=_transport(calls), sleep=lambda s: None)
+        with self.assertRaises(llm_runner.LlmError) as err:
+            c.complete("x", [("a", "/nope")] * (llm_runner.MAX_IMAGES + 1))
+        self.assertEqual(err.exception.code, "too_many_images")
+        self.assertEqual(calls, [])
+
+
 if __name__ == "__main__":
     unittest.main()

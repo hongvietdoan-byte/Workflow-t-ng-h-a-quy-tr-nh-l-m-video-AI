@@ -149,6 +149,8 @@ class AnthropicClient:
 
     def _content(self, prompt: str, images: Sequence[Tuple[str, str]]) -> List[Dict]:
         """[repeating prompt parts, each cached] + pictures + the part that changes every call. Up to 3 cache marks are used."""
+        if len(images) > MAX_IMAGES:   # Q1: never drop pictures silently (the caller must split the work)
+            raise LlmError(f"{len(images)} ảnh cho một lời gọi Claude, tối đa {MAX_IMAGES} — chia nhỏ việc", code="too_many_images")
         parts = prompt.split(CACHE_BREAK)
         fixed, rest = parts[:-1], parts[-1]
         if len(fixed) > 3:
@@ -456,15 +458,40 @@ def run_motion(p: Pipeline, project_id: int, client, data_dir: str, only_idx=Non
         todo = [r for r in rows if r["jid"] and not r["has_mp"]]
     if not todo:
         return {"scenes": 0, "input_tokens": 0, "output_tokens": 0}
-    images = [(f"Ảnh cảnh {r['idx']}:", image_path(data_dir, project_id, r["jid"])) for r in todo
-              if os.path.exists(image_path(data_dir, project_id, r["jid"]))]
-    bundle = (prompts.build_motion_bundle(p, project_id, only_idx={r["idx"] for r in todo}) if only_idx is not None
-              else prompts.build_motion_bundle(p, project_id, only_missing=True))
-    obj, tin, tout = ask_json(client, bundle, llm_io.validate_motion_prompts, images, note=_retry_note(p, "motion", project_id))
-    wanted = {r["idx"] for r in todo}
-    obj["scenes"] = [s for s in obj["scenes"] if s["idx"] in wanted]
-    llm_io.store_motion_prompts(p, project_id, obj)
-    return {"scenes": len(obj["scenes"]), "input_tokens": tin, "output_tokens": tout}
+    missing = [r["idx"] for r in todo if not os.path.exists(image_path(data_dir, project_id, r["jid"]))]
+    if missing:                        # rule 1 (docs/CHUAN_XAY_DUNG.md): say what Claude will not see
+        diag.record(p.conn, "motion", "warn", f"ảnh đã duyệt của cảnh {missing} không có file — Claude viết motion không nhìn ảnh",
+                    "missing_image", project_id)
+    batches = _motion_batches(todo)
+    done = tin = tout = 0
+    for batch in batches:              # C6/M20: one picture per multi-shot group, never more than MAX_IMAGES per call (no silent cut)
+        by_job: Dict[int, List[int]] = {}
+        for r in batch:
+            if r["idx"] not in missing:
+                by_job.setdefault(r["jid"], []).append(r["idx"])
+        images = [(f"Ảnh cảnh {', '.join(map(str, idxs))}" + (" (ảnh đầu nhóm multi-shot, dùng chung):" if len(idxs) > 1 else ":"),
+                   image_path(data_dir, project_id, jid)) for jid, idxs in by_job.items()]
+        wanted = {r["idx"] for r in batch}
+        bundle = (prompts.build_motion_bundle(p, project_id, only_idx=wanted) if only_idx is not None or len(batches) > 1
+                  else prompts.build_motion_bundle(p, project_id, only_missing=True))
+        if len(batches) == 1:
+            bundle = plain(bundle)     # one call: nothing to reuse, a cache write would only cost more
+        obj, i, o = ask_json(client, bundle, llm_io.validate_motion_prompts, images, note=_retry_note(p, "motion", project_id))
+        obj["scenes"] = [s for s in obj["scenes"] if s["idx"] in wanted]
+        llm_io.store_motion_prompts(p, project_id, obj)
+        done, tin, tout = done + len(obj["scenes"]), tin + i, tout + o
+    return {"scenes": done, "input_tokens": tin, "output_tokens": tout, "calls": len(batches)}
+
+
+def _motion_batches(todo: List[Dict]) -> List[List[Dict]]:
+    """Scenes in order, cut so that each call carries at most MAX_IMAGES distinct pictures."""
+    batches: List[List[Dict]] = [[]]
+    for r in todo:
+        jobs = {x["jid"] for x in batches[-1]}
+        if r["jid"] not in jobs and len(jobs) >= MAX_IMAGES:
+            batches.append([])
+        batches[-1].append(r)
+    return batches
 
 
 # ---- offline stand-in ---------------------------------------------------------------------
@@ -710,6 +737,8 @@ class ClaudeCliClient:
             prompt = plain(prompt)
             text = prompt
             if images:
+                if len(images) > MAX_IMAGES:
+                    raise LlmError(f"{len(images)} ảnh cho một lời gọi Claude, tối đa {MAX_IMAGES} — chia nhỏ việc", code="too_many_images")
                 lines, folders = [], []
                 for label, path in list(images)[:MAX_IMAGES]:
                     if not os.path.exists(path):
