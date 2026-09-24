@@ -45,6 +45,14 @@
 chốt), MAXIM (#33) từ ảnh tham chiếu + ff.garena.com + bảng thiết kế của team (Kelly 1,70 m · Kenta 1,85 m · Maxim 1,82 m); gắn vai trò/look cho
 19 ảnh; ảnh trùng nội dung (6 ảnh) và ảnh Kenta bản cũ trước OB55 (4 ảnh) chuyển về "chờ duyệt" kèm ghi chú → pipeline không gửi (không xóa).
 Lý do: A/B GPT Image 2.5 cho thấy Lock cũ của dự án ghi Kelly "tóc đuôi ngựa", Maxim "tóc tối" (trái ảnh) và Kho trộn 2 ngoại hình Kenta.
+**Bộ 3 ảnh chuẩn mỗi nhân vật (người dùng chốt 2026-09-24):** 1 chính diện nền xám (`front_standard`) · 2 bảng nhiều góc (`design_sheet`)
+· 3 ảnh liên quan (`related`, vd skill). Model nhận bảng (`accepts_design_sheet` trong `data/provider_rules.json` — hiện chỉ Sunburst, đã
+thử thật) được gửi cả 3 kèm lời dặn riêng (màu của ảnh 1 là màu đúng; bảng chỉ để biết các góc, không chép bố cục; ảnh liên quan không vẽ
+thành icon); Seedream/video chỉ nhận ảnh 1. Đã áp dụng: KELLY (ảnh 1 = bản **không súng** do Sunburst sửa từ ảnh in-game, người dùng duyệt;
+bảng #25; icon skill), MAXIM (ảnh in-game áo da ánh bạc — màu chuẩn; bảng #35 áo màu đen → lời dặn "màu theo ảnh 1"; icon skill), KENTA OB55
+(ảnh toàn thân người dùng gửi; **chưa có bảng nhiều góc OB55**; ảnh gameplay lốc xoáy). Ảnh ngoài bộ → "chờ duyệt" kèm ghi chú (không xóa).
+Code: `assets.standard_set`, `scene_references(sheets=)`, `reference_note` (vai trò sheet/related), `image_models.accepts_sheets`; test
+`tests/test_standard_set.py`. Còn: bảng nhiều góc Kenta OB55; ảnh liên quan tốt hơn icon 128 px.
 **Kế hoạch làm cho TOÀN BỘ nhân vật (sau khi 3 hồ sơ trên được duyệt và thử lại A/B):**
 1. Script `tools/draft_profiles.py` (không tốn tiền phần 1–3): (1) tìm ảnh trùng theo sha256 trong mỗi mục → "chờ duyệt" + ghi chú;
    (2) đoán vai trò ảnh theo tỉ lệ (sẵn có) + nhận bảng thiết kế; (3) phát hiện mục có **nhiều ngoại hình** (rework/skin/OB) — ảnh lệch nhau

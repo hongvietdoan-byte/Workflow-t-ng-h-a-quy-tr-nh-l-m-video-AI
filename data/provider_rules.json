@@ -2,28 +2,65 @@
   "_note": "W10: luật từng model, kiểm TRƯỚC khi gửi (sai thì không gửi, không mất tiền). Nguồn: skill deepix-1.4.1 reference.md + ModelSelectorManager.js công khai của web Deepix (đọc 2026-09-24). Phần video (Kling/Seedance) bổ sung ở W10.",
   "image_models": {
     "dola-seedream-5-0-pro-260628": {
-      "label": "Seedream 5.0 Pro", "provider": "deepix", "default": true,
+      "label": "Seedream 5.0 Pro",
+      "provider": "deepix",
+      "default": true,
       "desc": "Model mặc định cũ của dự án; đã chạy thật nhiều đợt (GĐ6).",
       "max_refs": 10,
-      "size": {"auto": false, "multiple": 16, "max_ratio": 16, "min_pixels": 921600, "max_pixels": 4624220}
+      "size": {
+        "auto": false,
+        "multiple": 16,
+        "max_ratio": 16,
+        "min_pixels": 921600,
+        "max_pixels": 4624220
+      },
+      "accepts_design_sheet": false
     },
     "gpt-image-2.5-sunburst": {
-      "label": "GPT Image 2.5 Sunburst", "provider": "deepix",
+      "label": "GPT Image 2.5 Sunburst",
+      "provider": "deepix",
       "desc": "Deepix: ưu tiên tinh chỉnh · sửa ảnh phức tạp và kiểm soát chi tiết ổn định hơn.",
       "max_refs": 16,
-      "size": {"auto": true, "multiple": 16, "max_ratio": 3, "min_pixels": 655360, "max_pixels": 8294400, "max_long_edge": 3840}
+      "size": {
+        "auto": true,
+        "multiple": 16,
+        "max_ratio": 3,
+        "min_pixels": 655360,
+        "max_pixels": 8294400,
+        "max_long_edge": 3840
+      },
+      "accepts_design_sheet": true
     },
     "gpt-image-2.5-flare": {
-      "label": "GPT Image 2.5 Flare", "provider": "deepix",
+      "label": "GPT Image 2.5 Flare",
+      "provider": "deepix",
       "desc": "Deepix: nhanh, chất lượng cao · hợp tạo ảnh hằng ngày, ra ảnh nhanh.",
       "max_refs": 16,
-      "size": {"auto": true, "multiple": 16, "max_ratio": 3, "min_pixels": 655360, "max_pixels": 8294400, "max_long_edge": 3840}
+      "size": {
+        "auto": true,
+        "multiple": 16,
+        "max_ratio": 3,
+        "min_pixels": 655360,
+        "max_pixels": 8294400,
+        "max_long_edge": 3840
+      },
+      "accepts_design_sheet": false
     },
     "gpt-image-2": {
-      "label": "GPT Image 2", "provider": "deepix",
+      "label": "GPT Image 2",
+      "provider": "deepix",
       "desc": "Deepix: thế hệ trước (tương thích tác vụ cũ).",
       "max_refs": 16,
-      "size": {"auto": true, "multiple": 16, "max_ratio": 3, "min_pixels": 655360, "max_pixels": 8294400, "max_long_edge": 3840}
+      "size": {
+        "auto": true,
+        "multiple": 16,
+        "max_ratio": 3,
+        "min_pixels": 655360,
+        "max_pixels": 8294400,
+        "max_long_edge": 3840
+      },
+      "accepts_design_sheet": false
     }
-  }
+  },
+  "_note_sheets": "accepts_design_sheet: model nhận bảng thiết kế nhiều góc làm ảnh tham chiếu mà không chép bố cục bảng. Chỉ bật khi đã thử thật (luật 5): GPT Image 2.5 Sunburst đạt 2026-09-24 (data/ab_test/multiangle). Flare / GPT Image 2 chưa thử; Seedream chép bố cục bảng (GĐ3–GĐ6)."
 }

@@ -633,11 +633,15 @@ class ImageRunner(_Runner):
         chain = chain_previous(proj, data)
         from . import features
         plan = layout.layout_reference(self.data_dir, job["project_id"], scene["idx"], data) if features.on("layout_to_model") else None
+        from . import image_models
+        model = image_models.of_project(proj)
+        sheets = image_models.accepts_sheets(model) and getattr(self.provider, "supports_model", False)
+        limit = min(image_models.max_refs(model, assets.MAX_REFERENCES), 12) if sheets else assets.MAX_REFERENCES
         refs = assets.scene_references(conn, job["project_id"], data,   # the layout and the previous frame keep their slots
-                                       reserve=(1 if chain else 0) + (1 if plan else 0))
+                                       limit=limit, reserve=(1 if chain else 0) + (1 if plan else 0), sheets=sheets)
         if plan:
             refs = [plan] + refs
-        if chain and len(refs) < assets.MAX_REFERENCES:
+        if chain and len(refs) < limit:
             # Deepix has no scriptable Storyboard (web UI only, see docs/CLIPAI_FEATURES.md) — this chains the
             # previous scene's approved picture in as an extra image-to-image reference instead, so style/lighting
             # carry over the way a real storyboard would.

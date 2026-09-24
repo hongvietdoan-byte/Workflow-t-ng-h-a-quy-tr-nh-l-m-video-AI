@@ -33,8 +33,10 @@ PLATES_PER_LOCATION = 12                  # rendered 3D backgrounds (several cam
 # G1: the job of each library picture. Characters: which framing (a close-up shot needs a face, a back shot a back view). Places: which
 # camera — only an eye-level empty background may be sent to the image model as pixels; a top-down map is information, never a background.
 ROLES = {
-    "character": {"full_body": "toàn thân", "half_body": "nửa người", "close_up": "cận mặt", "back": "sau lưng", "side": "nghiêng",
-                  "skill_pose": "tư thế kỹ năng", "design_sheet": "bảng thiết kế (chỉ đọc chữ)"},
+    "character": {"front_standard": "chính diện nền xám (bộ chuẩn 1)", "design_sheet": "bảng nhiều góc (bộ chuẩn 2 — chỉ gửi model nhận bảng)",
+                  "related": "ảnh liên quan: skill, vũ khí… (bộ chuẩn 3)",
+                  "full_body": "toàn thân", "half_body": "nửa người", "close_up": "cận mặt", "back": "sau lưng", "side": "nghiêng",
+                  "skill_pose": "tư thế kỹ năng"},
     "location": {"eye_level": "nền ngang tầm mắt", "low_angle": "nền góc thấp", "high_angle": "nền góc cao",
                  "top_down": "toàn cảnh từ trên (chỉ thông tin)", "detail": "chi tiết / mốc"},
 }
@@ -498,9 +500,9 @@ def best_references(asset: Dict, limit: int = 1, scene: Optional[Dict] = None) -
         return []
     kind = asset.get("kind")
     if kind in ("character", "pet"):
-        singles = [i for i in images if i.get("role") != "design_sheet" and not _is_composite_sheet(_shape(i["path"]))]
-        pool = singles or images
-        prefs = shot_roles(scene)
+        singles = [i for i in images if i.get("role") not in ("design_sheet", "related") and not _is_composite_sheet(_shape(i["path"]))]
+        pool = singles or [i for i in images if i.get("role") != "related"] or images
+        prefs = ["front_standard"] + shot_roles(scene)          # the person's grey-background front picture always leads
         want_look = (scene or {}).get("_look")                 # the project's look: its standard pictures first (T6)
 
         def score(img):
@@ -528,6 +530,27 @@ def best_references(asset: Dict, limit: int = 1, scene: Optional[Dict] = None) -
 
 def best_reference(asset: Dict) -> Dict:
     return best_references(asset, 1)[0]
+
+
+STANDARD_ROLES = ("front_standard", "design_sheet", "related")
+
+
+def standard_set(asset: Dict, sheets: bool) -> List[tuple]:
+    """The character's standard 3 pictures (user choice 2026-09-24): [(picture, ref role)] = the grey-background front picture
+    ('character'), the multi-angle design sheet ('sheet' — only for a model that takes sheets without copying them), the related
+    picture ('related', e.g. the skill). Empty when the asset has no approved front_standard picture (the automatic pick is used)."""
+    by_role = {}
+    for img in asset.get("images") or []:
+        if img.get("status", "approved") != "pending" and img.get("role") in STANDARD_ROLES:
+            by_role.setdefault(img["role"], img)
+    if "front_standard" not in by_role:
+        return []
+    out = [(by_role["front_standard"], "character")]
+    if sheets and "design_sheet" in by_role:
+        out.append((by_role["design_sheet"], "sheet"))
+    if sheets and "related" in by_role:                  # only with a model that understands what each picture is for
+        out.append((by_role["related"], "related"))
+    return out
 
 
 def _chosen_images(asset: Dict, row: Dict, limit: int = MAX_REFS_PER_CHARACTER, scene: Optional[Dict] = None) -> List[Dict]:
@@ -691,7 +714,8 @@ def location_text(conn, place: Dict) -> str:
     return ". ".join(bits) + "."
 
 
-def scene_references(conn, project_id: int, scene: Dict, limit: int = MAX_REFERENCES, reserve: int = 0) -> List[Dict]:
+def scene_references(conn, project_id: int, scene: Dict, limit: int = MAX_REFERENCES, reserve: int = 0,
+                     sheets: bool = False) -> List[Dict]:
     """Reference pictures for one scene: the reference picture(s) of each character in the scene, then its place, then any other
     chosen resource the scene names. [{path, label, role}]
     The place always keeps its slot (a crowded scene used to fill every slot with faces and lose the background), and `reserve`
@@ -704,7 +728,8 @@ def scene_references(conn, project_id: int, scene: Dict, limit: int = MAX_REFERE
     proj = conn.execute("SELECT * FROM projects WHERE id=?", (project_id,)).fetchone()
     scene = dict(scene, _look=looks.asset_look(proj)) if proj is not None else scene
     linked = link_characters(conn, project_id, names, scene) if names else {}
-    people, seen = [], set()                       # (label, [(path, role)...]) per person: face first, then outfit, then 2nd angle
+    people, seen, caps = [], set(), []             # (label, [(path, role)...]) per person: face first, then outfit, then 2nd angle
+    hand = _reference_rows(conn, project_id) if sheets else {}
     for name in names:
         a = linked.get(name)
         label = a["name"] if a else name
@@ -712,15 +737,22 @@ def scene_references(conn, project_id: int, scene: Dict, limit: int = MAX_REFERE
         if label in seen or not (a or outfit):
             continue
         seen.add(label)
-        own = [(img["path"], "character") for img in (a["refs"] if a else [])]
+        chosen_by_hand = any(str((hand.get(name) or {}).get(k) or "") for k in ("ref_image_ids", "ref_image_id"))   # the person's pick wins
+        standard = standard_set(a, sheets) if a and sheets and not chosen_by_hand else []
+        if standard:                               # the standard 3 pictures: front (identity + true colors), sheet, related
+            own = [(img["path"], role) for img, role in standard]
+            caps.append(len(STANDARD_ROLES))
+        else:
+            own = [(img["path"], "character") for img in (a["refs"] if a else [])]
+            caps.append(MAX_REFS_PER_CHARACTER)
         people.append((label, own[:1] + [(img["path"], "outfit") for img in outfit[:1]] + own[1:]))
     place = scene_location(conn, project_id, scene)
     loc = location_plate(conn, place, scene) if place else None
     room = max(limit - reserve - (1 if loc else 0), 0)
-    counts = [0] * len(people)                     # 1 picture each first, then a 2nd picture for the people listed first while room lasts
-    for n in range(1, MAX_REFS_PER_CHARACTER + 1):
+    counts = [0] * len(people)                     # 1 picture each first, then a 2nd (3rd) picture for the people listed first while room lasts
+    for n in range(1, max(caps, default=0) + 1):
         for i, (_, items) in enumerate(people):
-            if sum(counts) < room and len(items) >= n:
+            if sum(counts) < room and len(items) >= n and n <= caps[i]:
                 counts[i] = n
     for (label, items), k in zip(people, counts):  # grouped per person, so the note reads "Images 1/2 show KELLY"
         refs += [{"path": path, "label": label, "role": role} for path, role in items[:k]]
@@ -750,6 +782,7 @@ def reference_note(refs: List[Dict]) -> str:
     a close-up) are grouped: "Images 1-2 show KELLY..." instead of repeating a separate, disconnected line per picture."""
     groups: List[Dict] = []
     dressed = {r["label"] for r in refs if r["role"] == "outfit"}
+    sheeted = {r["label"] for r in refs if r["role"] == "sheet"}
     for i, r in enumerate(refs, 1):
         if groups and groups[-1]["label"] == r["label"] and groups[-1]["role"] == r["role"]:
             groups[-1]["nums"].append(i)
@@ -776,6 +809,14 @@ def reference_note(refs: List[Dict]) -> str:
                         f"{g['label']}'s own reference image, never the clothes shown there")
         elif g["role"] == "object":
             bits.append(f"{tag} is the object {g['label']}: draw it exactly like this whenever it appears")
+        elif g["role"] == "sheet":
+            bits.append(f"{tag} is the character design sheet of {g['label']} (front / three-quarter / side / back views and details): use it "
+                        f"only to know how {g['label']} looks from every side — do NOT copy its layout, labels, color swatches or its several "
+                        f"poses; where a color differs from {g['label']}'s front picture, the front picture is right")
+        elif g["role"] == "related":
+            bits.append(f"{tag} is related material of {g['label']} (e.g. their skill icon or skill in action): use it only for what the "
+                        f"skill / effect / item looks like when the scene shows it — never draw it as an icon, a UI element or text, and "
+                        f"never take {g['label']}'s appearance from it")
         elif g["role"] == "previous_scene":
             bits.append(f"{tag} is the PREVIOUS scene in this sequence (storyboard continuity): keep the same render style, "
                         "color palette, lighting mood and level of detail as this image, and keep any character/prop/location "
@@ -788,8 +829,9 @@ def reference_note(refs: List[Dict]) -> str:
             verb = "show" if len(nums) > 1 else "is"
             keep = ("same face, hairstyle and hair color, body build; the clothes come from the OUTFIT image, not from this one"
                     if g["label"] in dressed else "same face, hairstyle and hair color, outfit and its colors, body build")
+            front = (" — this front picture is the standard: its colors are the true colors" if g["label"] in sheeted else "")
             bits.append(f"{tag} {verb} {g['label']}{angles}: the person called {g['label']} in the scene must be exactly this person "
-                        f"({keep})")
+                        f"({keep}){front}")
     rule = ""
     if people:
         rule = (" Each person keeps ONLY the look of their own reference image(s): never swap or blend faces, hair or outfits between people, and ignore "

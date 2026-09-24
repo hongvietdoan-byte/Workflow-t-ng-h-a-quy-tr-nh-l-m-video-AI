@@ -43,6 +43,12 @@ def max_refs(model: str, fallback: int = 10) -> int:
     return int(rule(model).get("max_refs") or fallback)
 
 
+def accepts_sheets(model: Optional[str]) -> bool:
+    """The model can take a multi-angle design sheet as a reference without copying the sheet's layout (tested on GPT Image 2.5
+    Sunburst 2026-09-24; Seedream copies it)."""
+    return bool(rule(model or "").get("accepts_design_sheet"))
+
+
 def size_problem(model: str, size: Optional[str]) -> Optional[str]:
     """Why `size` is not accepted by `model` (None = fine). 'auto' / no size = the model decides (only where allowed)."""
     spec = rule(model).get("size")
