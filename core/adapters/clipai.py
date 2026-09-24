@@ -16,6 +16,7 @@ Contract source: the vendor skill/reference (clipai 1.3.1). Key facts encoded he
   no feature/base distinction, the reference is always a motion example. See docs/CLIPAI_FEATURES.md #18.
 """
 import json
+import math
 import os
 import time
 from typing import Dict, List, Optional, Tuple
@@ -103,9 +104,9 @@ def _upload_name(path: str, content: bytes) -> str:
 def effective_duration(canonical: str, family: str, duration: float) -> int:
     """Duration actually requested from the API (clamped to what each model family accepts)."""
     if family == "omni":
-        return int(min(max(round(duration), 3), 15))
+        return int(min(max(math.floor(duration + 0.5), 3), 15))
     limit = 30 if canonical == "dreamina-seedance-2-5-260628" else 15
-    return int(min(max(round(duration), 4), limit))
+    return int(min(max(math.floor(duration + 0.5), 4), limit))       # M11: half up (round() made 4.5 s into 4 s)
 
 
 KLING_SHOT_PROMPT_LIMIT = 512   # each shot of a Kling multi-shot request (API: "multiPrompt[0].prompt: size must be between 0 and 512")
@@ -375,6 +376,6 @@ class ClipAIVideoProvider:
         return self.client.download(url, dest_path)
 
     def cancel(self, external_id: str) -> None:
-        task, _ = self._find(external_id)
+        task, _ = self._find_ex(external_id, pages=DEEP_PAGES)       # M17: a task beyond the first pages must really be cancelled
         if task is not None and task.get("id") is not None:
             self.client.post_json(PATH_DELETE, {"id": int(task["id"])})

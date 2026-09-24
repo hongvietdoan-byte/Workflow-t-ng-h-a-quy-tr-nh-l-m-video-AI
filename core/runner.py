@@ -93,6 +93,13 @@ class _Runner:
         """Columns written on the job when it is sent: fingerprint of its inputs (core.lineage), source image, model."""
         return {}
 
+    def _editing(self, job) -> bool:
+        """A video job whose motion prompt exists but is waiting for approval again (just edited)."""
+        if self.job_type != "video_gen":
+            return False
+        row = self.p.conn.execute("SELECT state FROM motion_prompts WHERE scene_id=?", (job["scene_id"],)).fetchone()
+        return row is not None and row["state"] != "approved"
+
     def _dest_path(self, job) -> str:
         raise NotImplementedError
 
@@ -127,6 +134,8 @@ class _Runner:
                 self.p.fail(job["id"], f"stale_input: {blocked}")
                 continue
             args = self._submit_args(job)
+            if args is None and self._editing(job):
+                continue            # M5: the person is editing this shot's motion prompt — wait for the approval, do not burn a try
             if args is None:
                 self._diag(job, "error", "missing_input", "thiếu đầu vào (ảnh đã duyệt / motion prompt / prompt ảnh)")
                 self.p.start(job["id"])
@@ -319,6 +328,12 @@ class VideoRunner(_Runner):
         if group:
             out["multi_prompt"] = [{"prompt": self._motion(r["id"])["motion_prompt"], "duration": shots.billed_shot_seconds(r["data"])}
                                    for r in group]
+            from .adapters.clipai import KLING_SHOT_PROMPT_LIMIT
+            long = [f"S{r['idx']:02d} ({len(m['prompt'])} ký tự)" for r, m in zip(group, out["multi_prompt"])
+                    if len(m["prompt"]) > KLING_SHOT_PROMPT_LIMIT]
+            if long:                     # W13: the cut is visible (the end of the prompt — often the ending action — is lost)
+                self._diag(job, "warn", "prompt_cut", f"prompt shot dài hơn {KLING_SHOT_PROMPT_LIMIT} ký tự, bị cắt khi gửi Kling: "
+                           + ", ".join(long))
         elif mode == "per_shot" and "seedance" in (choice.get("model") or ""):
             end = shots.last_frame_for(self.p.conn, self.data_dir, job["scene_id"])
             if end:

@@ -14,6 +14,7 @@ Design:
 - Spending is capped by the number of jobs per scene (retries included), not just by good behaviour.
 """
 import json
+import re
 import os
 import threading
 import time
@@ -306,6 +307,10 @@ def _images_phase(p: Pipeline, pid: int, ctx: Context) -> Optional[str]:
         if scene["id"] in stale:
             if _count(p, "SELECT COUNT(*) FROM jobs WHERE project_id=? AND type='image_gen'", pid) >= cap_images:
                 raise _Stop(BUDGET_NOTE)
+            if _shot_sends(p, scene["id"], "image_gen") >= SHOT_SENDS:      # W7: the shot's own cap, not only the project's
+                _d(p, pid, "image", "warn", f"S{scene['idx']:02d}: ảnh đã cũ nhưng shot đã gửi {SHOT_SENDS} lần — không tự làm lại",
+                   "shot_cap")
+                continue
             p.reopen_approved(stale[scene["id"]]["image_job_id"], f"Nội dung cảnh đã đổi: {stale[scene['id']]['image_stale']}")
             continue
         if _has(p, scene["id"], "image_gen", "'approved','queued','running','succeeded','pending_review','retryable','failed'"):
@@ -319,9 +324,7 @@ def _images_phase(p: Pipeline, pid: int, ctx: Context) -> Optional[str]:
         p.create_job(scene["id"], "image_gen")
     ctx.image_runner.submit_pending(pid)
     ctx.image_runner.poll_once(pid)
-    for j in p.conn.execute("SELECT id FROM jobs WHERE project_id=? AND type='image_gen' AND state='failed' AND escalated=0",
-                            (pid,)).fetchall():
-        p.retry(j["id"], "autopilot: thử lại")
+    _retry_or_hold(p, pid, "image_gen")
     if _count(p, "SELECT COUNT(*) FROM jobs WHERE project_id=? AND type='image_gen' AND state='succeeded'", pid):
         r = llm_runner.run_qc_batch(p, pid, ctx.llm, ctx.data_dir)
         if r["failed"]:
@@ -419,22 +422,53 @@ def _motion_phase(p: Pipeline, pid: int, ctx: Context) -> Optional[str]:
 def _dialogue_gate(p: Pipeline, pid: int) -> None:
     """Before any video credit is spent: dialogue must fit the clip. When the video model speaks the lines (sound on),
     clips that are too short are lengthened, and dialogue that cannot fit even the longest clip STOPS the run;
-    with sound off the lines are voiced later (TTS), so it is only reported."""
+    with sound off the lines are voiced later (TTS) and need the same time, so the same applies."""
     entries = dialogue.check(p, pid)
     bad = dialogue.problems(entries)
     if not bad:
         return
-    if not p.project(pid)["video_audio"]:
-        for e in bad:
-            _d(p, pid, "motion", "warn", f"S{e['idx']:02d}: {e['advice']}", "dialogue_length")
-        return
-    fixed = dialogue.extend(p, entries)
+    fixed = dialogue.extend(p, entries)   # W16/D9: with the model's sound off the lines are voiced later (TTS) — they need the time too
     if fixed:
         _log(p, pid, f"Tăng thời lượng {fixed} clip cho vừa lời thoại")
     splits = [e for e in bad if e["status"] == "split"]
     if splits:
         raise _Stop("Thoại quá dài cho clip: " + "; ".join(f"S{e['idx']:02d} cần ~{e['needed']:g}s, tối đa {e['max']}s" for e in splits)
                     + " — rút gọn thoại hoặc tách cảnh rồi bấm Tiếp tục")
+
+
+TRANSIENT = re.compile(r"timeout|timed out|rate.?limit|too many requests|\b429\b|\b50[0-4]\b|server_error|temporar|connection|"
+                       r"network|reset by peer|unavailable|poll_error", re.I)
+SHOT_SENDS = 3                     # W7: per shot, 1 send + 2 automatic retries of the picture and of the clip (user decision)
+
+
+def _transient(p: Pipeline, job_id: int) -> bool:
+    """O5/W9: was the failure temporary (network, timeout, overload)? Only those are retried by themselves; a refusal or a bad
+    input fails the same way again and costs again."""
+    row = p.conn.execute("SELECT note FROM job_events WHERE job_id=? AND to_state='failed' ORDER BY id DESC LIMIT 1", (job_id,)).fetchone()
+    return bool(row and TRANSIENT.search(row["note"] or ""))
+
+
+def _shot_sends(p: Pipeline, scene_id: int, kind: str) -> int:
+    """How many times this shot's picture/clip was really sent (an order the provider never created does not count)."""
+    from .runner import RESEND_NOTE
+    return _count(p, "SELECT COUNT(*) FROM jobs j WHERE j.scene_id=? AND j.type=? AND j.external_id IS NOT NULL AND NOT (j.state='cancelled'"
+                     " AND EXISTS (SELECT 1 FROM jobs r WHERE r.parent_job_id=j.id AND r.retry_reason LIKE ?))",
+                  scene_id, kind, RESEND_NOTE + "%")
+
+
+def _retry_or_hold(p: Pipeline, pid: int, kind: str) -> None:
+    for j in p.conn.execute("SELECT j.id, j.scene_id, s.idx FROM jobs j JOIN scenes s ON s.id=j.scene_id WHERE j.project_id=? AND j.type=?"
+                            " AND j.state='failed' AND j.escalated=0", (pid, kind)).fetchall():
+        if kind == "video_gen" and _count(p, "SELECT COUNT(*) FROM content_moderation_failures WHERE job_id=?", j["id"]):
+            continue
+        if _transient(p, j["id"]) and _shot_sends(p, j["scene_id"], kind) < SHOT_SENDS:
+            p.retry(j["id"], "autopilot: thử lại sau lỗi tạm thời")
+        else:
+            p.conn.execute("UPDATE jobs SET escalated=1 WHERE id=?", (j["id"],))
+            p.conn.commit()
+            _d(p, pid, "video" if kind == "video_gen" else "image", "warn",
+               f"S{j['idx']:02d}: lỗi không tạm thời (hoặc đã gửi {SHOT_SENDS} lần) — không tự thử lại, xem ở Bước "
+               + ("4" if kind == "video_gen" else "2"), "not_retried")
 
 
 def _video_sends(p: Pipeline, pid: int) -> int:
@@ -494,12 +528,14 @@ def _videos_phase(p: Pipeline, pid: int, ctx: Context) -> Optional[str]:
         if r["video_stale"] and r["video_job_id"] and not r["motion_stale"] and r["video_state"] in ("succeeded", "approved"):
             if _video_sends(p, pid) >= cap_videos:
                 raise _Stop(BUDGET_NOTE)
+            if _shot_sends(p, sid, "video_gen") >= SHOT_SENDS:      # O3/W6: an outdated clip is not remade past the shot's cap
+                _d(p, pid, "video", "warn", f"clip của shot #{sid} đã cũ ({r['video_stale']}) nhưng đã gửi {SHOT_SENDS} lần — "
+                   "không tự làm lại, xem ở Bước 4", "shot_cap")
+                continue
             regen.regenerate_video(p, ctx.data_dir, r["video_job_id"], f"làm lại vì {r['video_stale']}")
     ctx.video_runner.submit_pending(pid)
     ctx.video_runner.poll_once(pid)
-    for j in p.conn.execute("SELECT id FROM jobs WHERE project_id=? AND type='video_gen' AND state='failed' AND escalated=0", (pid,)).fetchall():
-        if not _count(p, "SELECT COUNT(*) FROM content_moderation_failures WHERE job_id=?", j["id"]):
-            p.retry(j["id"], "autopilot: thử lại")   # ordinary failure: one more attempt (counts toward the limit)
+    _retry_or_hold(p, pid, "video_gen")
     if claude_tasks.unchecked_videos(p, pid):
         r = claude_tasks.qc_video_batch(p, pid, ctx.llm, ctx.data_dir)
         if r["failed"]:

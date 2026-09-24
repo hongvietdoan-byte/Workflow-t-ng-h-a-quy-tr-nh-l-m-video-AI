@@ -1,0 +1,71 @@
+"""GĐ-F (docs/KE_HOACH_TONG_2026-09-24.md): the automatic run retries only temporary failures (O5/W9), never sends one shot more than
+1 + 2 times (W7/O3), hands a clip whose check keeps failing to the person (M13); ClipAI lengths round half up (M11)."""
+import unittest
+
+from core import autopilot
+from core.adapters.clipai import effective_duration
+from core.db import connect
+from core.pipeline import Pipeline
+
+
+class RetryPolicyTests(unittest.TestCase):
+    def setUp(self):
+        self.p = Pipeline(connect(":memory:"))
+        self.pid = self.p.create_project("P", "human_qc", 0.85, 5)
+        self.sid = self.p.create_scene(self.pid, 1, "x")
+
+    def failed(self, note):
+        jid = self.p.create_job(self.sid, "image_gen")
+        self.p.conn.execute("UPDATE jobs SET external_id=? WHERE id=?", (f"t{jid}", jid))
+        self.p.conn.commit()
+        self.p.start(jid)
+        self.p.fail(jid, note)
+        return jid
+
+    def test_only_a_temporary_failure_is_retried(self):
+        self.failed("poll_error: HTTP 503 Service Unavailable")
+        autopilot._retry_or_hold(self.p, self.pid, "image_gen")
+        self.assertEqual(self.p.conn.execute("SELECT COUNT(*) FROM jobs WHERE state='queued'").fetchone()[0], 1)
+        bad = self.failed("invalid_param: the prompt is too long")
+        autopilot._retry_or_hold(self.p, self.pid, "image_gen")
+        self.assertEqual(self.p.job(bad)["escalated"], 1)                    # the same bad input would fail (and cost) again
+        self.assertEqual(self.p.conn.execute("SELECT COUNT(*) FROM jobs WHERE parent_job_id=?", (bad,)).fetchone()[0], 0)
+
+    def test_a_shot_is_not_sent_more_than_three_times(self):
+        for _ in range(3):
+            last = self.failed("timeout: no answer")
+        autopilot._retry_or_hold(self.p, self.pid, "image_gen")
+        self.assertEqual(self.p.job(last)["escalated"], 1)                   # 1 + 2 sends used up (W7)
+
+
+class RoundingTest(unittest.TestCase):
+    def test_half_a_second_rounds_up(self):
+        self.assertEqual(effective_duration("kling-v3-omni", "omni", 4.5), 5)
+        self.assertEqual(effective_duration("dreamina-seedance-2-0-260128", "seedance", 5.5), 6)
+        self.assertEqual(effective_duration("kling-v3-omni", "omni", 2.0), 3)
+
+
+class EditingTest(unittest.TestCase):
+    def test_a_queued_clip_waits_while_its_motion_prompt_is_being_edited(self):
+        import tempfile
+        from core import batch, llm_io, llm_runner
+        from core.providers import MockVideoProvider
+        from core.runner import VideoRunner
+        from tests.test_v3 import _approve_all_images, _approve_all_motion, kenta_project
+        p, pid = kenta_project()
+        data = tempfile.mkdtemp()
+        llm_runner.run_director(p, pid, llm_runner.MockLlm())
+        _approve_all_images(p, pid, data)
+        _approve_all_motion(p, pid, data)
+        batch.queue_videos(p, pid, data)
+        row = p.conn.execute("SELECT j.id, s.idx, m.camera, m.duration_sec, m.negative_prompt FROM jobs j JOIN scenes s ON s.id=j.scene_id"
+                             " JOIN motion_prompts m ON m.scene_id=s.id WHERE j.project_id=? AND j.type='video_gen' AND j.state='queued'"
+                             " ORDER BY s.idx LIMIT 1", (pid,)).fetchone()
+        llm_io.store_motion_prompts(p, pid, {"scenes": [{"idx": row["idx"], "motion_prompt": "edited", "camera": row["camera"],
+                                                        "duration_sec": row["duration_sec"], "negative_prompt": row["negative_prompt"]}]})
+        VideoRunner(p, MockVideoProvider(polls_to_finish=1), data).submit_pending(pid)
+        self.assertEqual(p.job(row["id"])["state"], "queued")                 # M5: not failed, no try used up
+
+
+if __name__ == "__main__":
+    unittest.main()

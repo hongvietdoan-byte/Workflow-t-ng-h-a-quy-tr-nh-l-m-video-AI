@@ -72,7 +72,12 @@ def step3(p: Pipeline, pid: int):
                                                                              "duration_sec": r["duration_sec"],
                                                                              "negative_prompt": r["negative_prompt"]}]}))
                 st.rerun()
-            if c3.button("✔ Duyệt", key=f"mpa_{r['sid']}", disabled=r["state"] == "approved" and not srow.get("motion_stale"), type="primary"):
+            if c3.button("✔ Duyệt", key=f"mpa_{r['sid']}", disabled=r["state"] == "approved" and not srow.get("motion_stale")
+                         and new == r["motion_prompt"], type="primary"):
+                if new != r["motion_prompt"]:          # M6: approving keeps what was just typed (it used to be thrown away)
+                    act(lambda: llm_io.store_motion_prompts(p, pid, {"scenes": [{"idx": r["idx"], "motion_prompt": new, "camera": r["camera"],
+                                                                                 "duration_sec": r["duration_sec"],
+                                                                                 "negative_prompt": r["negative_prompt"]}]}))
                 act(lambda: llm_io.approve_motion_prompt(p, r["sid"]))
                 st.rerun()
             flags = json.loads(r["check_flags"] or "[]") if r["check_flags"] else []

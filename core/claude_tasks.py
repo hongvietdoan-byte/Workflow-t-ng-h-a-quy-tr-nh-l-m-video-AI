@@ -16,6 +16,7 @@ from typing import Dict, List, Optional, Tuple
 from . import assets, dialogue, diag, layout, llm_io, model_router, prompts, voice
 from .llm_runner import LlmError, ask_json, tagged
 from .pipeline import Pipeline
+from .states import JobState
 
 _ROOT = os.path.join(os.path.dirname(__file__), "..")
 
@@ -188,8 +189,18 @@ def qc_video_batch(p: Pipeline, project_id: int, client, data_dir: str) -> Dict:
             r = qc_video(p, jid, client, data_dir)
         except (LlmError, Exception) as e:  # noqa: BLE001 - one clip that cannot be read must not stop the others
             out["failed"].append((jid, str(e)))
-            if isinstance(e, LlmError) and e.code in ("auth", "config"):
+            if isinstance(e, LlmError) and e.code in ("auth", "config", "budget"):
                 break
+            if not (isinstance(e, LlmError) and e.code in ("bad_json", "no_video", "bad_image", "truncated", "refusal", "empty",
+                                                            "too_many_images")):
+                continue                       # a missing tool / network problem is not this clip's fault: reported by the caller
+            diag.record(p.conn, "video", "warn", f"QC clip #{jid} lỗi: {str(e)[:200]}", "video_qc_error", project_id, job_id=jid)
+            tries = p.conn.execute("SELECT COALESCE(SUM(count), 0) FROM diag_events WHERE job_id=? AND code='video_qc_error'",
+                                   (jid,)).fetchone()[0]
+            if tries >= 2:                 # M13: not every tick forever — the person looks at it (flagged)
+                p.transition(jid, JobState.PENDING_REVIEW, actor="ai_agent", note=f"QC video không chạy được 2 lần — cần bạn xem: {e}")
+                p.conn.execute("UPDATE jobs SET escalated=1 WHERE id=?", (jid,))
+                p.conn.commit()
             continue
         out["checked"] += 1
         out["decisions"][r["decision"]] = out["decisions"].get(r["decision"], 0) + 1

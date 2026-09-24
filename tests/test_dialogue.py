@@ -102,13 +102,15 @@ class AutopilotGateTests(Setup):
         self.assertIn("Thoại quá dài", autopilot.status(p, pid)["note"])
         self.assertEqual(p.conn.execute("SELECT COUNT(*) FROM jobs WHERE type='video_gen'").fetchone()[0], 0)
 
-    def test_sound_off_only_reports(self):
+    def test_sound_off_the_voice_still_needs_the_time(self):
+        """W16/D9: with the model's sound off the line is voiced later by TTS — it needs the same seconds, so a line that cannot fit
+        the longest clip stops the run too (it used to be only reported, every tick, and the voice was cut)."""
         ctx = self.build()
         p, pid = self.p, self.pid
         set_text(p, pid, 2, "KAEL: " + TOO_LONG)
         autopilot.start(p, pid)
-        self.assertEqual(autopilot.run_until_done(p, pid, ctx), autopilot.DONE)     # voiced later, so the run goes on
-        self.assertTrue(p.conn.execute("SELECT 1 FROM diag_events WHERE code='dialogue_length'").fetchone())
+        self.assertEqual(autopilot.run_until_done(p, pid, ctx), autopilot.STOPPED)    # same stop as with the sound on
+        self.assertIn("Thoại quá dài", autopilot.status(p, pid)["note"])
 
 
 if __name__ == "__main__":
