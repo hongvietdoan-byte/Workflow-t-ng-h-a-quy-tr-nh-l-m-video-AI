@@ -36,7 +36,18 @@
   dưới mốc giây kịch bản** (mạch truyện > thời lượng). Lần 4 sau chuẩn hóa: 0 thiếu giờ nói, 0 shot im lặng < 1 s, 30 shot, 101 → 92 s trả
   tiền; **vẫn vượt khung 2,3 s** (thêm lại 2 câu ở Q3 thì ~+4 s nữa) — kịch bản 58 s không đủ chỗ cho mọi câu + khung đọc được → báo người
   dùng. 830 test pass.
-- **Dự án #6 đang dừng ở Bước 1** (kết quả Director lần 4, chưa có job ảnh). **Kế hoạch mới (2026-09-25): chạy thử 0–20 s đầu trên bản sao,
+- **Bậc 2A XONG (2026-09-25) — báo cáo `docs/BAO_CAO_CHAY_THU_2A_2026-09-25.md`:** dự án thử #7 (0–20 s của #6, 10 shot) → **video 22,3 s
+  có giọng Việt + phụ đề** (`data/projects/7/output/FINAL_VIDEO_sub_src.mp4`), **$3,00 / trần $8** (Claude $0,20 / $1; 12 ảnh; 7 câu giọng),
+  **0 video gen lại**. Lộ ra và đã sửa 4 lỗi thật: (1) **W12b** ClipAI trả mã chờ tạm khi quá 2 task song song rồi tạo task thật mã mới → 8/10 clip
+  bị đánh "không tìm thấy" (nhánh "không được tạo" còn gửi lại + xóa sổ chi) → tìm task thật theo prompt (`find_by_prompt`, `relink_failed`),
+  lấy lại cả 8 clip không tốn thêm — **nghi 16 task "not_found" GĐ6 cùng nguyên nhân**; (2) mọi ảnh dự án có look bị coi "cũ" ngay khi gen
+  (dấu vân tay lệch) → chặn video; (3) GPT Image từ chối tuổi < 18 → lọc; (4) phụ đề khung dọc nằm trong dải đáy bị app che → đáy 36%/đỉnh 15%
+  (Meta chính thức). Sửa tay: KENTA găng giáp tay trái + găng hở ngón tay phải, MAXIM mũ đội **ngược** (Claude kiểm Bible đọc sai hướng mũ —
+  ảnh chuẩn + mắt người là trọng tài). **C11 xong:** 1 đơn vị `cost` ClipAI ≈ $0,01. **H5 thử:** 1 clip cho 2 shot tiết kiệm 33%, giữ nhân vật,
+  nhưng mất khung nhấn riêng → dùng có chọn lọc. Còn việc: QC bỏ `grounding` ở cỡ ≤ MS; QC video không dùng mốc giây (M12); limiter đỉnh âm ≤ −1 dB;
+  kiểm Bible so cả Character Lock. Bản nháp kiến thức 3 vai (chờ duyệt): `knowledge/roles/director.md`, `roles/dp.md`, `knowledge/editor/`.
+  Công cụ: `tools/pilot_setup.py`, `tools/pilot_run.py`, `tools/h5_setup_test.py`. 844 test pass.
+- **Dự án #6 đang dừng ở Bước 1** (kết quả Director lần 4, chưa có job ảnh; đã sửa trang phục/Lock/giọng như #7). **Kế hoạch mới (2026-09-25): chạy thử 0–20 s đầu trên bản sao,
   tự chạy trong trần — xem Bậc 2A của kế hoạch.** Ghi chú cũ — việc tiếp: người dùng quyết định thêm lại 2 câu (miễn phí, sửa shot
   tay) hoặc chạy Director lần 5 với prompt mới (~$0,3–0,7); gộp shot im lặng ngắn; duyệt hồ sơ chuẩn Kelly/Kenta/Maxim; kiểm Bible; đo giá 1 ảnh
   Sunburst (`data/pricing.json` chưa có giá) rồi mới gen 33 ảnh. Video Kling ước ~100 s trả tiền (~$8) cho 57 s phim nếu giữ shot ngắn.

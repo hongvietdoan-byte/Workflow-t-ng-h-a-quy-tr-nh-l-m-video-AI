@@ -70,6 +70,18 @@ class CueTests(Setup):
         self.assertIn("&H0066E0FF", ass)                                                     # yellow, BGR order
         self.assertIn("Dialogue: 0,00:00:00.50,00:00:02.25,Default", ass)
 
+    def test_vertical_subtitles_stay_inside_the_app_safe_zone(self):
+        """knowledge/editor/safe_zones.md: Meta keeps the bottom 35 % / top 14 % of a Reel free of text (the old 12 % bottom margin put
+        subtitles under the app's caption bar)."""
+        def margin(ass):
+            style = next(l for l in ass.splitlines() if l.startswith("Style: Default"))
+            return int(style.split(",")[-2])
+        cues = [Cue(0, 1, "Anh nói đi.", "KELLY", 1)]
+        f = font("GFF Latin Bold", VN)
+        self.assertGreaterEqual(margin(subtitles.to_ass(cues, 1080, 1920, f, "M", "bottom")), int(1920 * 0.35))
+        self.assertGreaterEqual(margin(subtitles.to_ass(cues, 1080, 1920, f, "M", "top")), int(1920 * 0.14))
+        self.assertEqual(margin(subtitles.to_ass(cues, 1920, 1080, f, "M", "bottom")), int(1080 * 0.08))   # landscape unchanged
+
     def test_long_lines_are_wrapped_in_balanced_pieces(self):
         text = "Có thứ gì đó đang theo chúng ta hãy ở yên sau lưng ta đừng chạy"
         wrapped = subtitles.wrap_text(text, 30)

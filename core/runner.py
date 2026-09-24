@@ -221,6 +221,8 @@ class _Runner:
                 self.p.succeed(job["id"])
                 THROTTLE.on_success(self.job_type)
                 counts["succeeded"] += 1
+            elif status.error_code in (NOT_CREATED, "not_found") and self._relink(job):
+                counts["running"] += 1                  # W12b: the provider made it under a new id — follow that one
             elif status.error_code == NOT_CREATED:
                 self._not_created(job, status.error_message or "")
                 counts["failed"] += 1
@@ -241,6 +243,31 @@ class _Runner:
                 if status.transient and self.p.retry(job["id"], message) is not None:
                     counts["retried"] += 1
         return counts
+
+    def _relink(self, job) -> bool:
+        """W12b: the provider created the task under another id (queue id → real id). Video only; False = not found that way."""
+        return False
+
+    def relink_failed(self, job_id: int) -> Optional[int]:
+        """A job already written off as not found / not created whose task the provider did make under a new id: the same attempt is
+        re-opened on that task (no new submission, nothing billed twice — the first submission's cost stays in the ledger) and the
+        next poll downloads it. Returns the new job id, or None when no such task is found."""
+        job = self.p.job(job_id)
+        new_ext = self._find_real(job)
+        if new_ext is None:
+            return None
+        new_id = self.p.resend(job_id, f"{RESEND_NOTE} (nối lại task thật {new_ext})")
+        self.p.conn.execute("UPDATE jobs SET external_id=?, task_seen=0, task_unseen=0, input_hash=?, source_job_id=?, model=? WHERE id=?",
+                            (new_ext, job["input_hash"], job["source_job_id"], job["model"], new_id))
+        self.p.conn.execute("UPDATE jobs SET escalated=0 WHERE id IN (?, ?)", (job_id, new_id))
+        self.p.conn.execute("UPDATE scenes SET state='ready' WHERE id=? AND state='needs_attention'", (job["scene_id"],))
+        self.p.conn.commit()
+        self.p.start(new_id)
+        self._diag(job, "info", "relinked", f"task thật của job này mang mã khác ({new_ext}) — nối lại vào job {new_id}, không gửi lại")
+        return new_id
+
+    def _find_real(self, job) -> Optional[str]:
+        return None
 
     def _not_created(self, job, message: str) -> None:
         """The provider answered with a task id but never created the task (nothing generated, nothing billed): the submission
@@ -340,6 +367,31 @@ class VideoRunner(_Runner):
             if end:
                 out["last_frame"] = end
         return out
+
+    def _find_real(self, job) -> Optional[str]:
+        """W12b: the provider's real task for this job, recognised by the prompt that was sent (multi-shot groups send no single
+        prompt — left to the old rule)."""
+        finder = getattr(self.provider, "find_by_prompt", None)
+        if finder is None or not job["external_id"] or self._sends_group(job):
+            return None
+        args = self._submit_args(job)
+        if not args:
+            return None
+        _, _, sent_at = TaskMemory(self.p.conn).state(job["external_id"])
+        taken = {r[0] for r in self.p.conn.execute("SELECT external_id FROM jobs WHERE external_id IS NOT NULL")}
+        try:
+            return finder(job["external_id"], args[1], sent_at, taken)
+        except ProviderError:
+            return None
+
+    def _relink(self, job) -> bool:
+        new_ext = self._find_real(job)
+        if new_ext is None:
+            return False
+        self.p.conn.execute("UPDATE jobs SET external_id=?, task_seen=0, task_unseen=0 WHERE id=?", (new_ext, job["id"]))
+        self.p.conn.commit()
+        self._diag(job, "info", "relinked", f"ClipAI tạo task thật với mã khác ({new_ext}) — theo dõi mã đó, không gửi lại")
+        return True
 
     def _motion(self, scene_id: int):
         return self.p.conn.execute("SELECT * FROM motion_prompts WHERE scene_id=?", (scene_id,)).fetchone()

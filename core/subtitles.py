@@ -28,6 +28,7 @@ LANGS = {"src": "Giữ nguyên ngôn ngữ kịch bản", "vi": "Tiếng Việt"
          "ru": "Русский"}
 SIZES = {"S": ("Nhỏ", 0.050), "M": ("Vừa", 0.065), "L": ("Lớn", 0.085)}       # fraction of the shorter side of the picture
 POSITIONS = {"bottom": ("Dưới", 2), "middle": ("Giữa", 5), "top": ("Trên", 8)}
+SAFE_BOTTOM, SAFE_TOP = 0.36, 0.15      # vertical frames: just inside Meta's official Reels safe zone (35 % bottom / 14 % top free)
 COLORS = {"white": ("Trắng", "FFFFFF"), "yellow": ("Vàng", "FFE066")}
 DEFAULT_FONT = os.environ.get("DEFAULT_SUBTITLE_FONT", "GFF Latin Bold")
 DEFAULTS = {"enabled": False, "lang": "src", "font": "", "size": "M", "pos": "bottom", "color": "white", "speaker": False,
@@ -305,8 +306,12 @@ def to_ass(cues: List[Cue], width: int, height: int, font: Font, size: str = "M"
     align = POSITIONS.get(pos, POSITIONS["bottom"])[1]
     if margin_pct is not None:
         margin_v = int(height * margin_pct / 100)
+    elif height > width:
+        # vertical video is watched inside an app: Meta's Reels guide keeps the bottom 35 % and top 14 % free of text (captions, buttons,
+        # tabs cover them; knowledge/editor/safe_zones.md) — the old 12 % put every subtitle under the app's caption bar
+        margin_v = int(height * (SAFE_BOTTOM if align == 2 else SAFE_TOP))
     else:
-        margin_v = int(height * (0.12 if height > width else 0.08)) if align == 2 else int(height * 0.06)
+        margin_v = int(height * 0.08) if align == 2 else int(height * 0.06)
     rgb = COLORS.get(color, COLORS["white"])[1]
     bgr = rgb[4:6] + rgb[2:4] + rgb[0:2]
     outline = max(int(fontsize * 0.07), 2)

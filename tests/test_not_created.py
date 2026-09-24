@@ -117,6 +117,44 @@ if __name__ == "__main__":
     unittest.main()
 
 
+class RequeuedTaskTest(NotCreatedTest):
+    """W12b (trial 2A, 2026-09-25): past its concurrency limit ClipAI answers with a short queue id that never shows in the list, then
+    creates the real task under a NEW id when a slot frees. 8 of 10 paid clips were written off as "not found" — and the "not created"
+    branch would have resent (paid twice) and taken the cost out of the ledger."""
+
+    def queue_then_create(self, prompt="push in"):
+        import time as _t
+        self.fake.drop = 1                                  # the queue id is never listed
+        self.runner.submit_pending(self.pid)
+        self.fake.listed.insert(0, {"id": 5000, "task_id": "REAL1", "task_status": 1, "prompt": prompt,
+                                    "created_at": int(_t.time()) + 30})
+
+    def test_the_real_task_is_followed_instead_of_resent(self):
+        self.queue_then_create()
+        self.poll(14)
+        job = self.p.job(self.job)
+        self.assertEqual((job["state"], job["external_id"]), ("running", "omni:REAL1"))
+        self.assertEqual(self.fake.created, 1)                                             # never sent twice
+        self.assertEqual(self.ledger(), 1)                                                 # the one paid clip stays counted
+        self.fake.listed[0].update(task_status=2, video_url="https://cdn.example/r1.mp4")
+        self.poll(1)
+        self.assertEqual(self.p.state(self.job).value, "succeeded")
+
+    def test_another_prompt_is_not_taken_for_ours(self):
+        self.queue_then_create(prompt="a different shot")
+        self.poll(14)
+        self.assertNotEqual(self.p.job(self.job)["external_id"], "omni:REAL1")
+
+    def test_a_job_already_written_off_is_reopened_on_its_real_task(self):
+        self.queue_then_create()
+        self.p.start(self.job) if self.p.state(self.job).value == "queued" else None
+        self.p.fail(self.job, "not_found: không thấy task")
+        new = self.runner.relink_failed(self.job)
+        self.assertIsNotNone(new)
+        self.assertEqual((self.p.state(new).value, self.p.job(new)["external_id"]), ("running", "omni:REAL1"))
+        self.assertEqual((self.fake.created, self.ledger()), (1, 1))
+
+
 class CapTest(unittest.TestCase):
     def test_dropped_orders_do_not_use_up_the_autopilot_job_cap(self):
         from core import autopilot

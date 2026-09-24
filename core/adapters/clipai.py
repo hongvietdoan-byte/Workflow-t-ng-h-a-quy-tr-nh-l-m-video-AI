@@ -333,6 +333,30 @@ class ClipAIVideoProvider:
                 return None, True
         return None, False
 
+    def find_by_prompt(self, external_id: str, prompt: str, sent_at: Optional[float], taken=(), pages: int = 3) -> Optional[str]:
+        """W12b (trial 2A, 2026-09-25): past its concurrency limit ClipAI answers a create with a short QUEUE id (12 digits); when a slot
+        frees it creates the real task under a NEW id — the queue id never appears in the list. 8 of 10 paid clips were written off as
+        "not found" that way (and the "not created" branch would even have resent them = paid twice). The real task is recognised by
+        the very prompt that was sent, created after the job was sent, and not already tied to another job. Returns its external id."""
+        family, _, old = external_id.partition(":")
+        want = " ".join((prompt or "").split())[:200]
+        if family not in TASK_TYPE or not want or sent_at is None:
+            return None
+        for page in range(1, pages + 1):
+            rows = self._page(family, page)
+            for t in rows:
+                tid = str(t.get("task_id") or "")
+                ext = f"{family}:{tid}"
+                if not tid or tid == old or ext in taken:
+                    continue
+                if str(t.get("created_at") or "").isdigit() and int(t["created_at"]) + 5 < sent_at:
+                    continue
+                if " ".join(str(t.get("prompt") or "").split())[:200] == want:
+                    return ext
+            if len(rows) < 50:
+                break
+        return None
+
     def _find(self, external_id: str) -> Tuple[Optional[dict], str]:
         task, _ = self._find_ex(external_id)
         return task, external_id.partition(":")[2]

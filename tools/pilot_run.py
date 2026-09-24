@@ -109,6 +109,14 @@ def main(argv=None) -> int:
                 p.create_job(r["id"], kind)
         _wait(p, pid, runner, kind, a.minutes)
         status(p, pid, data_dir)
+    elif a.cmd == "relink":                               # W12b: jobs written off although ClipAI made them under a new id
+        from core.adapters import factory
+        from core.runner import VideoRunner
+        runner = VideoRunner(p, factory.video_provider(), data_dir)
+        for jid in map(int, a.args):
+            print(jid, "→", runner.relink_failed(jid))
+        _wait(p, pid, runner, "video_gen", a.minutes)
+        status(p, pid, data_dir)
     elif a.cmd == "qc":
         for jid in map(int, a.args):
             r = llm_runner.run_qc(p, jid, client(), data_dir)
