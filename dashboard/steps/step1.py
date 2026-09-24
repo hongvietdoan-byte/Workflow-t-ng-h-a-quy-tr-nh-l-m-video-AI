@@ -1024,6 +1024,26 @@ def dialogue_review_panel(p: Pipeline, pid: int) -> None:
                 st.success("Claude không thấy lỗi thoại cần sửa.")
 
 
+def _paid_line(p: Pipeline, pid: int):
+    """H6: seconds of video that will be billed for this shot plan (Kling, the model's minimum clip), one line per way of making it —
+    worked out by code from the stored Director answer, before any picture or clip is paid for."""
+    from core import director_report
+    proj = p.project(pid)
+    try:
+        raw = json.loads(proj["director_raw"] or "{}")
+        if not raw.get("scenes") or raw.get("truncated"):
+            return None
+        r = director_report.report(raw, proj["script_text"] or "")
+    except Exception:  # noqa: BLE001 - an old or odd answer must not break Step 1
+        return None
+    s, u = r["paid_s"], r["paid_usd"]
+    bits = [f"từng shot {s['per_shot']:g}s" + (f" ≈ ${u['per_shot']:g}" if u["per_shot"] else ""),
+            f"gom theo cảnh (multi-shot) {s['per_scene']:g}s" + (f" ≈ ${u['per_scene']:g}" if u["per_scene"] else "")]
+    if s["per_setup"] is not None:
+        bits.append(f"theo vị trí máy ({s['setups']}) {s['per_setup']:g}s" + (f" ≈ ${u['per_setup']:g}" if u["per_setup"] else ""))
+    return f"💵 Video phải trả tiền cho {r['total_s']:g}s phim (Kling, chưa tính gen lại): " + " · ".join(bits)
+
+
 def scene_list(p: Pipeline, pid: int, scenes, char_names) -> None:
     status = lineage.scan(p.conn, pid)
     by_idx = {r["idx"]: r for r in status.values()}
@@ -1054,6 +1074,9 @@ def scene_list(p: Pipeline, pid: int, scenes, char_names) -> None:
     if fixed:
         with st.expander(f"🔧 Code đã chuẩn hóa {len(fixed)} chỗ trong câu trả lời Director (thay vì hỏi lại Claude)"):
             st.markdown("\n".join(f"- {escape(str(c))}" for c in fixed))
+    paid = _paid_line(p, pid)
+    if paid:
+        st.caption(paid)
     cur_story = None
     for s in scenes:
         d = json.loads(s["data"] or "{}")

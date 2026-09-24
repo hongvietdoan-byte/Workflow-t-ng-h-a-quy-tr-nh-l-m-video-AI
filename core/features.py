@@ -20,6 +20,16 @@ FEATURES: Dict[str, Dict] = {
         "verified": False,
         "why": "AU-f mới (2026-09-24): ngưỡng độ dài/im lặng và so chữ nghe được chưa đo trên giọng Việt thật — cờ sai thì trả tiền TTS vô ích",
     },
+    "film_crew": {
+        "label": "Tổ làm phim: Director đọc bộ nguyên tắc Đạo diễn + Quay phim (knowledge/roles/) thay cho 4 tài liệu rải rác, ghi tradeoffs",
+        "verified": False,
+        "why": "Kế hoạch 2026-09-25 H3/H7: bản nháp chờ người dùng duyệt; chưa có lần Director thật nào chạy với bộ nguyên tắc mới",
+    },
+    "camera_setups": {
+        "label": "Quay theo vị trí máy: Director/Quay phim gán camera_setup cho shot (một clip cho nhiều shot cùng góc)",
+        "verified": False,
+        "why": "Chạy thử 2A (H5): một cặp shot tiết kiệm 33% nhưng mất khung nhấn riêng — cần thử thêm ở cảnh thoại dày trước khi bật",
+    },
     "setcheck_autofix": {
         "label": "QC đồng bộ cả bộ ảnh tự gen lại ảnh lệch (autopilot)",
         "verified": False,

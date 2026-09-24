@@ -138,6 +138,11 @@ def duration_block(pipeline: Pipeline, project_id: int) -> str:
             parts.append(f"- Cảnh {s['idx']} ({s['heading'].split('–')[0].strip()}): tổng các shot ≈ {int(m.group(2)) - int(m.group(1))} giây{talk}")
         elif talk:
             parts.append(f"- Cảnh {s['idx']}{talk}")
+    from . import features
+    if features.on("camera_setups"):   # H5 (trial 2A: one clip for two shots of one set-up = 33% fewer paid seconds)
+        parts.append("- **Vị trí máy**: gán `camera_setup` (A, B, C… trong mỗi cảnh) cho mọi shot; các shot cùng góc máy, cùng người trong khung "
+                     "dùng chung một chữ — chúng được gen thành MỘT clip rồi cắt. Đối thoại trong một chỗ: 1 vị trí thiết lập + 2–3 vị trí phủ. "
+                     "Shot cần khung nhấn riêng một nhân vật thì cho vị trí riêng.")
     if speech:     # the 3rd Director run of "ANH CHỌN AI?" gave 11 spoken shots less time than their line needs (6,8 s in all)
         parts.append(f"- Shot có thoại: `duration_s` ≥ (số âm tiết ÷ {dialogue.RATE:g}) + {dialogue.BREATH:g} giây cho câu của nó "
                      "— không nén câu vào shot ngắn hơn.")
@@ -165,6 +170,13 @@ def build_director_bundle(pipeline: Pipeline, project_id: int) -> str:
             f"### Cảnh {r['idx']} — {r['title']}\n{json.loads(r['data'] or '{}').get('text', '')}" for r in rows)
     folded = knowledge.folded_builtin("director")
     keep = lambda rel: "" if f"knowledge/{rel}" in folded else _read("knowledge", rel)  # noqa: E731
+    from . import features
+    if features.on("film_crew"):                   # H3/H7: one reasoned rule book per role instead of the scattered documents
+        crew = [_read("knowledge", "roles", "director.md")] + ([_read("knowledge", "roles", "dp.md")] if shots.mode(proj) else [])
+        keep = lambda rel: "" if rel in ("cinematography_basics.md", "film_director_method.md", "dialogue_craft.md") else (  # noqa: E731
+            "" if f"knowledge/{rel}" in folded else _read("knowledge", rel))
+    else:
+        crew = []
     ff = "" if "knowledge/ff_character_skills_visual.md" in folded else knowledge.ff_skills_for(people_in_project(pipeline, project_id))
     return _SEP.join(x for x in [
         _read("prompts", "01_director_scene_analysis.md"),
@@ -175,6 +187,7 @@ def build_director_bundle(pipeline: Pipeline, project_id: int) -> str:
         knowledge.genre_text(proj["genre"] if "genre" in proj.keys() else None),
         shot_style_block(proj) if shots.mode(proj) else "",
         duration_block(pipeline, project_id) if shots.mode(proj) else "",
+        *crew,
         keep("research_notes.md"),
         keep("film_director_method.md"),
         keep("character_lock.md"),

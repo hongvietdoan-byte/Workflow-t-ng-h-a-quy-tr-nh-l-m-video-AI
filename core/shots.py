@@ -109,6 +109,9 @@ def validate(shots: Any, where: str, names) -> None:
         for key in ("continuous_with_next", "hero"):
             if s.get(key) is not None and not isinstance(s[key], bool):
                 raise ShotError(f"{w}.{key}: true/false")
+        setup = s.get("camera_setup")
+        if setup is not None and (not isinstance(setup, str) or not 1 <= len(setup.strip()) <= 3):
+            raise ShotError(f"{w}.camera_setup: chữ cái ngắn (A, B, C…)")
         chars = s.get("characters") or []
         if not isinstance(chars, list) or any(c not in names for c in chars):
             raise ShotError(f"{w}.characters: chỉ dùng tên trong Character Bible")
@@ -171,6 +174,7 @@ def shot_data(scene: Dict, s: Dict, k: int) -> Dict:
         "size": s["size"], "angle": s.get("angle", "eye"), "camera_move": s.get("camera_move", "static"), "role": s["role"],
         "action": s["action"].strip(), "end_state": (s.get("end_state") or "").strip() or None,
         "continuous_with_next": bool(s.get("continuous_with_next")),
+        "camera_setup": (str(s["camera_setup"]).strip().upper() if s.get("camera_setup") else None),   # H5: one clip per set-up
         "dialogue": spoken,
         "on_screen_text": screen,   # HUD / system message / caption: added in post, never voiced nor drawn by the image model
         "duration_s": round(float(s["duration_s"]), 2),

@@ -125,6 +125,44 @@ class MinorAgeTests(unittest.TestCase):
         self.assertEqual(no_minor_age("KENTA, 38-year-old man"), "KENTA, 38-year-old man")      # adults keep their age
 
 
+class FlagTests(unittest.TestCase):
+    """1.4/1.5 behind flags (off until a real Director run passes)."""
+
+    def setUp(self):
+        from core import script_parser
+        from core.db import connect
+        from core.pipeline import Pipeline
+        self.p = Pipeline(connect())
+        self.pid = self.p.create_project("t")
+        self.p.set_project_field(self.pid, "shot_mode", "per_shot")
+        _, story = script_parser.split_end_card(script_parser.split_scenes([r for r in SCRIPT.splitlines() if r.strip()]))
+        script_parser.import_scenes(self.p, self.pid, story, full_text=SCRIPT)
+        self.p.conn.execute("UPDATE projects SET script_text=? WHERE id=?", (SCRIPT, self.pid))
+        self.addCleanup(os.environ.pop, "FEATURE_FILM_CREW", None)
+        self.addCleanup(os.environ.pop, "FEATURE_CAMERA_SETUPS", None)
+
+    def test_film_crew_swaps_the_scattered_documents_for_the_role_rule_books(self):
+        from core import prompts
+        off = prompts.build_director_bundle(self.p, self.pid)
+        self.assertNotIn("Vai Đạo diễn — bộ nguyên tắc", off)
+        os.environ["FEATURE_FILM_CREW"] = "1"
+        on = prompts.build_director_bundle(self.p, self.pid)
+        self.assertIn("Vai Đạo diễn — bộ nguyên tắc", on)
+        self.assertIn("Vai Quay phim (DP)", on)
+        self.assertNotIn("Phương pháp đạo diễn — ra quyết định hình ảnh", on)     # folded into the role book
+
+    def test_camera_setups_ask_for_and_keep_the_setup_letter(self):
+        from core import prompts, shots
+        self.assertNotIn("camera_setup", prompts.duration_block(self.p, self.pid))
+        os.environ["FEATURE_CAMERA_SETUPS"] = "1"
+        self.assertIn("camera_setup", prompts.duration_block(self.p, self.pid))
+        shot = {"size": "MS", "role": "dialogue", "duration_s": 2, "image_prompt": "x", "action": "y", "camera_setup": "b"}
+        shots.validate([shot], "s", set())
+        self.assertEqual(shots.shot_data({"idx": 2}, shot, 1)["camera_setup"], "B")
+        with self.assertRaises(shots.ShotError):
+            shots.validate([dict(shot, camera_setup="over the shoulder")], "s", set())
+
+
 class NoFeetInFrameTests(unittest.TestCase):
     def test_a_medium_shot_is_not_marked_down_or_redone_for_feet(self):
         """Trial 2A: QC asked for "feet visible touching the ground" on medium shots (cut above the knees by design)."""

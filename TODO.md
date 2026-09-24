@@ -47,7 +47,10 @@
   nhưng mất khung nhấn riêng → dùng có chọn lọc. Còn việc: QC bỏ `grounding` ở cỡ ≤ MS; QC video không dùng mốc giây (M12); limiter đỉnh âm ≤ −1 dB;
   kiểm Bible so cả Character Lock. Bản nháp kiến thức 3 vai (chờ duyệt): `knowledge/roles/director.md`, `roles/dp.md`, `knowledge/editor/`.
   Công cụ: `tools/pilot_setup.py`, `tools/pilot_run.py`, `tools/h5_setup_test.py`. 844 test pass.
-- **Dự án #6 đang dừng ở Bước 1** (kết quả Director lần 4, chưa có job ảnh; đã sửa trang phục/Lock/giọng như #7). **Kế hoạch mới (2026-09-25): chạy thử 0–20 s đầu trên bản sao,
+- **Sau 2A (cùng ngày):** QC ảnh bỏ "chân chạm đất" ở khung ≤ MS; QC video ghi đúng giây trên nhãn khung (M12); kiểm Bible so cả Lock;
+  giới hạn đỉnh âm (−1,3 dBFS đo thật); cờ `film_crew` + `camera_setups` (TẮT) + 💵 giây video trả tiền ở Bước 1. Bảng tiến độ ở mục 0 của
+  `docs/KE_HOACH_2026-09-25.md`. **Chờ người dùng:** xem video 2A → quyết định 2B; duyệt 3 bộ nguyên tắc vai. 847 test pass.
+- **Dự án #6 đang dừng ở Bước 1** (đã sửa trang phục/Lock/giọng như #7; Q3: thêm lại 2 câu → 31 shot, 63,7 s, sẵn sàng cho 2B). **Kế hoạch mới (2026-09-25): chạy thử 0–20 s đầu trên bản sao,
   tự chạy trong trần — xem Bậc 2A của kế hoạch.** Ghi chú cũ — việc tiếp: người dùng quyết định thêm lại 2 câu (miễn phí, sửa shot
   tay) hoặc chạy Director lần 5 với prompt mới (~$0,3–0,7); gộp shot im lặng ngắn; duyệt hồ sơ chuẩn Kelly/Kenta/Maxim; kiểm Bible; đo giá 1 ảnh
   Sunburst (`data/pricing.json` chưa có giá) rồi mới gen 33 ảnh. Video Kling ước ~100 s trả tiền (~$8) cho 57 s phim nếu giữ shot ngắn.
