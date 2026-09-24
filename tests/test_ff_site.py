@@ -89,7 +89,7 @@ class FfSiteTests(unittest.TestCase):
         self.assertIn("Mệt mỏi với chiến đấu.", ray["description"])                      # HTML tags are stripped
         self.assertIn("24 tuổi", ray["description"])
         self.assertIn("Câu nói đặc trưng: “Mặt trăng và mặt trời không phải là kẻ thù.”", ray["description"])
-        self.assertEqual(len(ray["images"]), 3)
+        self.assertEqual(len(ray["pending"]), 3)                                     # downloaded pictures wait for a person (G2)
         self.assertIn(("character", "Morse"), got)                                       # reached by following "next" from Ray
         self.assertIn("Thức tỉnh Morse Thức Tỉnh", got[("character", "Morse")]["description"])
         self.assertEqual(report["created"], 8)
@@ -129,7 +129,7 @@ class FfSiteTests(unittest.TestCase):
         self.assertTrue(a["description"].startswith("Áo khoác đen, tóc bạc"))
         self.assertEqual(a["description"].count(ff_site.MARK), 1)
         self.assertEqual(len(assets.list_assets(self.conn, "FF", "character", None, shared_only=True)), 2)   # not duplicated: RAY + Morse
-        self.assertEqual(len(a["images"]), 4)                                            # the Drive picture stays, official pictures are added
+        self.assertEqual((len(a["images"]), len(a["pending"])), (1, 3))       # the Drive picture stays; official pictures wait for review (G2)
         PAGES_KEY = f"{ff_site.BASE}/chars/796/"
         old = PAGES[PAGES_KEY]
         try:
