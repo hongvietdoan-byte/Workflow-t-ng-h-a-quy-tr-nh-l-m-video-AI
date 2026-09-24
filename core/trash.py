@@ -18,7 +18,7 @@ from typing import Dict, List, Optional
 
 from .pipeline import Pipeline
 
-KINDS = ("images", "videos")
+KINDS = ("images", "videos", "audio")
 DAY = 86400.0
 
 
@@ -118,13 +118,43 @@ def restore(data_dir: str, project_id: int, kind: str, file_name: str) -> str:
     return target
 
 
+DELETED_DIR = "_deleted"          # whole folders of deleted projects wait here for the same retention period
+
+
+def park_project_folder(data_dir: str, project_id: int, now: Optional[float] = None) -> Optional[str]:
+    """Move a deleted project's folder (pictures, clips, its own trash) aside instead of erasing it at once. Returns the new path."""
+    src = os.path.join(data_dir, str(project_id))
+    if not os.path.isdir(src):
+        return None
+    import shutil
+    folder = os.path.join(data_dir, DELETED_DIR)
+    os.makedirs(folder, exist_ok=True)
+    stamp = int(now or time.time())
+    dest = os.path.join(folder, f"{project_id}__{stamp}")
+    shutil.move(src, dest)
+    return dest
+
+
+def _purge_deleted_projects(data_dir: str, current: float, limit: float) -> int:
+    import shutil
+    folder = os.path.join(data_dir, DELETED_DIR)
+    removed = 0
+    for name in os.listdir(folder) if os.path.isdir(folder) else []:
+        stamp = name.rsplit("__", 1)[-1]
+        if stamp.isdigit() and current - int(stamp) >= limit:
+            shutil.rmtree(os.path.join(folder, name), ignore_errors=True)
+            removed += 1
+    return removed
+
+
 def purge_expired(data_dir: str, now: Optional[float] = None, days: Optional[int] = None) -> int:
-    """Delete trash entries older than the retention period, in every project. Returns files removed."""
+    """Delete trash entries (and parked folders of deleted projects) older than the retention period. Returns items removed."""
     limit = (days or retention_days()) * DAY
     current = now or time.time()
     removed = 0
     if not os.path.isdir(data_dir):
         return 0
+    removed += _purge_deleted_projects(data_dir, current, limit)
     for name in os.listdir(data_dir):
         for kind in KINDS:
             folder = os.path.join(data_dir, name, "trash", kind)

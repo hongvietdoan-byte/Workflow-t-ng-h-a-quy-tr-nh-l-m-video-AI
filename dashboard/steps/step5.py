@@ -103,7 +103,8 @@ def step5a(p: Pipeline, pid: int):
                             st.rerun()
                 else:
                     ui.html('<div class="wave"></div><span class="muted">đang tạo… bấm “Kiểm tra + tải nhạc về”</span>')
-    if drafts and st.button("Xóa danh sách bản nháp", key=f"mclear_{pid}"):
+    if drafts and confirm_all(f"mclear_{pid}", [d.get("file") or str(i) for i, d in enumerate(drafts)], "Xóa danh sách bản nháp",
+                              "Xóa mọi bản nháp nhạc? Các bản đã tạo (đã trả tiền) sẽ mất.", st, "Có, xóa"):
         shutil.rmtree(drafts_dir, ignore_errors=True)
         st.rerun()
 
@@ -180,7 +181,9 @@ def extras_section(p: Pipeline, pid: int, provider):
                 use = a.checkbox("Đưa vào bản ghép", e["use"], key=f"ax_use_{pid}_{sig}", disabled=e["state"] != "succeeded")
                 start = b.number_input("Bắt đầu (giây)", 0.0, 600.0, float(e["start"]), 0.5, key=f"ax_st_{pid}_{sig}")
                 vol = c.slider("Âm lượng", 0.0, 2.0, float(e["volume"]), 0.05, key=f"ax_vol_{pid}_{sig}")
-                if d.button("Xóa", key=f"ax_rm_{pid}_{i}"):
+                if d.button("Xóa", key=f"ax_rm_{pid}_{i}", help="Chuyển file vào thùng rác của dự án (khôi phục được trong thời hạn lưu)"):
+                    if e.get("file"):
+                        trash.move_to_trash(os.path.join(directory, e["file"]), C.DATA, pid, "audio", "xóa ở Bước 5")
                     audio_lib.remove(directory, i)
                     st.rerun()
                 if e["state"] == "succeeded" and (use, start, vol) != (e["use"], e["start"], e["volume"]):
@@ -383,7 +386,6 @@ def step5(p: Pipeline, pid: int):
 
 def clips_panel(p: Pipeline, pid: int):
     """5.1 The clips in scene order (usable ones ticked), their real lengths; returns (chosen paths, durations)."""
-    vdir = project_dir(pid, "videos")
     clips = final_cut.collect_clips(p, C.DATA, pid)
     present = [c for c in clips if c["path"]]
     missing = [c for c in clips if not c["path"]]
@@ -416,8 +418,7 @@ def clips_panel(p: Pipeline, pid: int):
             up = st.file_uploader("Clip .mp4", type=["mp4"], accept_multiple_files=True, key=f"vid_{pid}")
             if up and st.button("Lưu clip", key=f"vid_save_{pid}"):
                 for f in up:
-                    with open(os.path.join(vdir, f.name), "wb") as fh:
-                        fh.write(f.getvalue())
+                    act(lambda: final_cut.save_manual_clip(C.DATA, pid, f.name, f.getvalue()))
                 st.rerun()
     return chosen, durations
 

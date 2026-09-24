@@ -41,6 +41,22 @@ def collect_clips(pipeline: Pipeline, data_dir: str, project_id: int) -> List[Di
     return clips
 
 
+def save_manual_clip(data_dir: str, project_id: int, filename: str, data: bytes) -> str:
+    """A clip the person uploads by hand (named by shot order, e.g. 05.mp4). Only the file name is used (no folders), and a clip
+    already there — possibly a paid generation — goes to the trash instead of being overwritten. Returns the saved path."""
+    from . import trash
+    name = os.path.basename((filename or "").replace("\\", "/")).strip()
+    if not name.lower().endswith(".mp4") or name in (".mp4",):
+        raise ValueError("chỉ nhận file .mp4 có tên, ví dụ 05.mp4")
+    folder = os.path.dirname(clip_path(data_dir, project_id, 0))
+    os.makedirs(folder, exist_ok=True)
+    dest = os.path.join(folder, name)
+    trash.move_to_trash(dest, data_dir, project_id, "videos", "thay bằng clip tải lên tay")
+    with open(dest, "wb") as f:
+        f.write(data)
+    return dest
+
+
 def usable_clips(pipeline: Pipeline, data_dir: str, project_id: int) -> List[Dict]:
     """Clips that exist and may go into the final cut, in scene order."""
     return [c for c in collect_clips(pipeline, data_dir, project_id) if c["path"] and c["usable"]]

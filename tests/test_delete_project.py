@@ -29,6 +29,30 @@ class DeleteProjectTests(unittest.TestCase):
         self.assertIsNone(assets.get(p.conn, own))
         self.assertFalse(os.path.exists(os.path.join(data, str(pid))))
         self.assertIsNotNone(p.project(other))
+        parked = os.listdir(os.path.join(data, "_deleted"))                       # files kept for the trash period, not erased at once
+        self.assertEqual(len(parked), 1)
+        self.assertTrue(parked[0].startswith(f"{pid}__"))
+        self.assertEqual(p.conn.execute("SELECT COUNT(*) FROM outputs WHERE project_id=?", (pid,)).fetchone()[0], 0)
+
+    def test_spend_history_keeps_the_project_and_a_new_project_never_reuses_its_id(self):
+        from core.cost import record_usage
+        tmp, db, data, p, pid = split_only()
+        record_usage(p.conn, None, "audio", "clipai", "eleven_v3", "tts", 1, "clip", project_id=pid)
+        biggest = p.conn.execute("SELECT MAX(id) FROM projects").fetchone()[0]
+        p.delete_project(biggest, data)
+        self.assertEqual(p.conn.execute("SELECT COUNT(*) FROM usage_events WHERE project_id=? OR deleted_project_id=?",
+                                        (pid, pid)).fetchone()[0], 1)
+        self.assertGreater(p.create_project("new"), biggest)
+
+    def test_parked_folders_are_purged_after_the_retention_period(self):
+        import time
+        from core import trash
+        tmp, db, data, p, pid = split_only()
+        os.makedirs(os.path.join(data, str(pid)), exist_ok=True)
+        p.delete_project(pid, data)
+        self.assertEqual(trash.purge_expired(data, now=time.time() + 5), 0)
+        self.assertEqual(trash.purge_expired(data, now=time.time() + 400 * 86400), 1)
+        self.assertEqual(os.listdir(os.path.join(data, "_deleted")), [])
 
     def test_the_dashboard_asks_first_then_deletes(self):
         tmp, db, data, p, pid = split_only()

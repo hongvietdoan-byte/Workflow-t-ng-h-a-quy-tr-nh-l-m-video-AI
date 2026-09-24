@@ -43,12 +43,17 @@ class Pipeline:
                        threshold: float = 0.85, max_retry: int = 3, created_by: Optional[str] = None,
                        aspect: Optional[str] = None, genre: Optional[str] = None, model_priority: Optional[str] = None,
                        game: Optional[str] = None) -> int:
-        """aspect / genre / model_priority left None keep the v1 behaviour (the dashboard sets them for new projects)."""
+        """aspect / genre / model_priority left None keep the v1 behaviour (the dashboard sets them for new projects).
+        The id is never one a deleted project used (its spend history, outputs and folder keep that id)."""
+        used = [self.conn.execute(sql).fetchone()[0] or 0 for sql in (
+            "SELECT MAX(id) FROM projects", "SELECT MAX(project_id) FROM usage_events", "SELECT MAX(deleted_project_id) FROM usage_events",
+            "SELECT MAX(project_id) FROM outputs",
+            "SELECT MAX(project_id) FROM diag_events")]
         cur = self.conn.execute(
-            "INSERT INTO projects (name, operating_mode, qc_auto_pass_threshold, max_retry_count, created_at, created_by,"
+            "INSERT INTO projects (id, name, operating_mode, qc_auto_pass_threshold, max_retry_count, created_at, created_by,"
             " aspect, genre, genre_locked, model_priority)"
-            " VALUES (?,?,?,?,?,?,?,?,?,?)", (name, operating_mode, threshold, max_retry, _now(), created_by,
-                                              aspect, genre, 1 if genre else 0, model_priority))
+            " VALUES (?,?,?,?,?,?,?,?,?,?,?)", (max(used) + 1, name, operating_mode, threshold, max_retry, _now(), created_by,
+                                                aspect, genre, 1 if genre else 0, model_priority))
         if game:
             self.conn.execute("UPDATE projects SET game=? WHERE id=?", (game, cur.lastrowid))
         self.conn.commit()
@@ -67,26 +72,27 @@ class Pipeline:
         return self.conn.execute("SELECT * FROM projects WHERE id=?", (project_id,)).fetchone()
 
     def delete_project(self, project_id: int, data_dir: Optional[str] = None) -> None:
-        """Remove a project with its scenes, jobs, results, own assets and files. Spend history (usage_events) is kept, detached from the jobs."""
+        """Remove a project with its scenes, jobs, results and own assets. Spend history (usage_events) is kept, the project id moved to
+        `deleted_project_id` (new projects never reuse it); the files are parked in <data>/_deleted for the trash retention period."""
         from . import assets
         c = self.conn
         jobs = "(SELECT id FROM jobs WHERE project_id=?)"
         c.execute(f"UPDATE usage_events SET job_id=NULL WHERE job_id IN {jobs}", (project_id,))
-        c.execute("UPDATE usage_events SET project_id=NULL WHERE project_id=?", (project_id,))
+        c.execute("UPDATE usage_events SET deleted_project_id=project_id, project_id=NULL WHERE project_id=?", (project_id,))
         for table in ("job_events", "qc_results", "review_log", "content_moderation_failures"):
             c.execute(f"DELETE FROM {table} WHERE job_id IN {jobs}", (project_id,))
         c.execute("UPDATE jobs SET parent_job_id=NULL WHERE project_id=?", (project_id,))
         c.execute("DELETE FROM jobs WHERE project_id=?", (project_id,))
         c.execute("DELETE FROM motion_prompts WHERE scene_id IN (SELECT id FROM scenes WHERE project_id=?)", (project_id,))
-        for table in ("scenes", "story_scenes", "characters", "project_assets"):
+        for table in ("scenes", "story_scenes", "characters", "project_assets", "outputs", "diag_events"):
             c.execute(f"DELETE FROM {table} WHERE project_id=?", (project_id,))
         for r in c.execute("SELECT id FROM assets WHERE project_id=?", (project_id,)).fetchall():
             assets.delete(c, r["id"])
         c.execute("DELETE FROM projects WHERE id=?", (project_id,))
         c.commit()
         if data_dir:
-            import shutil
-            shutil.rmtree(os.path.join(data_dir, str(project_id)), ignore_errors=True)
+            from .trash import park_project_folder
+            park_project_folder(data_dir, project_id)
 
     def set_mode(self, project_id: int, mode: str) -> None:
         self.conn.execute("UPDATE projects SET operating_mode=? WHERE id=?", (mode, project_id))
