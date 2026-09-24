@@ -10,6 +10,7 @@ validators/persistence (core/llm_io.py), so a pasted answer and an API answer ar
 """
 import base64
 import functools
+import io
 import json
 import os
 import re
@@ -25,6 +26,9 @@ DEFAULT_BASE = "https://api.anthropic.com"
 API_VERSION = "2023-06-01"
 DEFAULT_MODEL = "claude-sonnet-5"
 MAX_IMAGE_BYTES = 5 * 1024 * 1024
+MAX_IMAGE_EDGE = 1568                 # Claude reads at most this long edge; bigger pictures are shrunk before sending
+DEFAULT_MAX_TOKENS = 32000            # the Director's shot plan of a 26-shot script is ~10-20k tokens (8000 cut it off)
+REQUEST_TIMEOUT = 900                 # a long answer takes minutes without streaming
 MAX_IMAGES = 12
 
 
@@ -54,12 +58,28 @@ def _media_type(content: bytes) -> str:
     raise LlmError("unsupported image format (need JPEG, PNG or WebP)", code="bad_image")
 
 
+def _shrink(data: bytes) -> Optional[bytes]:
+    """A picture over the API's 5 MB limit (e.g. the contact sheet of a whole project) as a JPEG no longer than MAX_IMAGE_EDGE —
+    the size Claude reads anyway. None when it cannot be done."""
+    try:
+        from PIL import Image
+        img = Image.open(io.BytesIO(data)).convert("RGB")
+        img.thumbnail((MAX_IMAGE_EDGE, MAX_IMAGE_EDGE))
+        out = io.BytesIO()
+        img.save(out, "JPEG", quality=88)
+        small = out.getvalue()
+        return small if len(small) <= MAX_IMAGE_BYTES else None
+    except Exception:  # noqa: BLE001 - reported by the caller as "over 5 MB"
+        return None
+
+
 class AnthropicClient:
     name = "anthropic"
 
     def __init__(self, api_key: str, model: str = DEFAULT_MODEL, base_url: str = DEFAULT_BASE,
-                 transport: Transport = urllib_transport, max_tokens: int = 8000,
-                 sleep: Callable[[float], None] = time.sleep, retries: int = 2):
+                 transport: Transport = urllib_transport, max_tokens: int = DEFAULT_MAX_TOKENS,
+                 sleep: Callable[[float], None] = time.sleep, retries: int = 2, ledger: Optional[str] = None):
+        self.ledger = ledger          # database file: every call is written to the cost ledger and checked against the Claude cap
         self._key = api_key
         self.model = model
         self.base = base_url.rstrip("/")
@@ -69,13 +89,13 @@ class AnthropicClient:
         self.retries = retries
 
     @classmethod
-    def from_env(cls, transport: Transport = urllib_transport) -> "AnthropicClient":
+    def from_env(cls, transport: Transport = urllib_transport, ledger: Optional[str] = None) -> "AnthropicClient":
         key = clean_token(os.environ.get("ANTHROPIC_API_KEY", ""))
         if not key:
             raise LlmError("ANTHROPIC_API_KEY is not set (ask your admin for a Console API key; set it as an "
                            "environment variable, never commit it).", code="config")
         return cls(key, os.environ.get("ANTHROPIC_MODEL", "").strip() or DEFAULT_MODEL,
-                   os.environ.get("ANTHROPIC_API_BASE", DEFAULT_BASE).strip() or DEFAULT_BASE, transport)
+                   os.environ.get("ANTHROPIC_API_BASE", DEFAULT_BASE).strip() or DEFAULT_BASE, transport, ledger=ledger)
 
     def _content(self, prompt: str, images: Sequence[Tuple[str, str]]) -> List[Dict]:
         blocks: List[Dict] = []
@@ -86,7 +106,9 @@ class AnthropicClient:
             except OSError as e:
                 raise LlmError(f"cannot read image {label}: {e.strerror}", code="bad_image") from None
             if len(data) > MAX_IMAGE_BYTES:
-                raise LlmError(f"image {label} is over 5 MB", code="bad_image")
+                data = _shrink(data)
+                if data is None:
+                    raise LlmError(f"image {label} is over 5 MB", code="bad_image")
             blocks.append({"type": "text", "text": label})
             blocks.append({"type": "image", "source": {"type": "base64", "media_type": _media_type(data),
                                                        "data": base64.b64encode(data).decode("ascii")}})
@@ -108,16 +130,55 @@ class AnthropicClient:
         body = json.dumps(payload).encode("utf-8")
         headers = {"x-api-key": self._key, "anthropic-version": API_VERSION, "content-type": "application/json",
                    "User-Agent": "AIVideoPipeline-LLM/0.1"}
+        self._check_budget()
         last: Optional[LlmError] = None
         for attempt in range(self.retries + 1):
             try:
-                return self._parse(self.transport("POST", self.base + "/v1/messages", headers, body, 180))
+                reply = self._parse(self.transport("POST", self.base + "/v1/messages", headers, body, REQUEST_TIMEOUT))
+                self._record(reply)
+                return reply
             except LlmError as e:
                 last = e
                 if not e.transient or attempt == self.retries:
                     raise
                 self._sleep(2 ** attempt * 2)
         raise last  # pragma: no cover
+
+    def _ledger_conn(self):
+        import sqlite3
+        conn = sqlite3.connect(self.ledger, timeout=60)
+        conn.row_factory = sqlite3.Row
+        return conn
+
+    def _check_budget(self) -> None:
+        """Refuse before paying when the Claude API money is used up (core.budget.check_llm)."""
+        if not self.ledger:
+            return
+        from . import budget
+        conn = self._ledger_conn()
+        try:
+            reason = budget.check_llm(conn)
+        except Exception:  # noqa: BLE001 - a ledger problem must not stop the work
+            reason = None
+        finally:
+            conn.close()
+        if reason:
+            raise LlmError(reason, code="budget")
+
+    def _record(self, reply: LlmReply) -> None:
+        """Tokens of one call into usage_events (kind 'llm', tier input/output) — priced by core.budget."""
+        if not self.ledger:
+            return
+        from .cost import record_usage
+        conn = self._ledger_conn()
+        try:
+            for tier, n in (("input", reply.input_tokens), ("output", reply.output_tokens)):
+                if n:
+                    record_usage(conn, None, "llm", self.name, self.model, tier, n, "token")
+        except Exception:  # noqa: BLE001 - never lose the answer because the ledger is busy
+            pass
+        finally:
+            conn.close()
 
     @staticmethod
     def _parse(resp: HttpResponse) -> LlmReply:
@@ -483,15 +544,21 @@ def _mock_v2(prompt: str):
 MockLlm._v2 = staticmethod(_mock_v2)
 
 
-def client_from_env(transport: Transport = urllib_transport):
-    """LLM_PROVIDER = anthropic | claude_cli (Claude Code on this PC, no key) | mock. Unset: anthropic when ANTHROPIC_API_KEY exists, else None."""
+def db_file(conn) -> Optional[str]:
+    """The file behind a SQLite connection (the Claude cost ledger of client_from_env); None for an in-memory database."""
+    return next((r[2] for r in conn.execute("PRAGMA database_list") if r[1] == "main"), "") or None
+
+
+def client_from_env(transport: Transport = urllib_transport, ledger: Optional[str] = None):
+    """LLM_PROVIDER = anthropic | claude_cli (Claude Code on this PC, no key) | mock. Unset: anthropic when ANTHROPIC_API_KEY exists, else None.
+    ledger: the database file where Claude API calls are recorded and checked against the Claude cap (core.budget)."""
     kind = os.environ.get("LLM_PROVIDER", "").strip().lower()
     if kind == "mock":
         return MockLlm()
     if kind in ("claude_cli", "claude-cli", "cli"):
         return ClaudeCliClient.from_env()
     if kind == "anthropic" or (not kind and os.environ.get("ANTHROPIC_API_KEY", "").strip()):
-        return AnthropicClient.from_env(transport)
+        return AnthropicClient.from_env(transport, ledger=ledger)
     return None
 
 

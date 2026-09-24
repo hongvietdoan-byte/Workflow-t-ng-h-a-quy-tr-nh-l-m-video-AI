@@ -37,7 +37,8 @@ def _load_work(work):
 def _label(args):
     from core import llm_runner
     work = _load_work(args.work)
-    client = llm_runner.client_from_env()
+    db = os.environ.get("PIPELINE_DB", os.path.join("data", "manifest.sqlite"))
+    client = llm_runner.client_from_env(ledger=db if os.path.exists(db) else None)
     if client is None:
         raise SystemExit("Chưa cấu hình Claude (LLM_PROVIDER / ANTHROPIC_API_KEY)")
     sheets = [(f"Bảng khung hình {i}:", p) for i, p in enumerate(work["sheets"], 1)]

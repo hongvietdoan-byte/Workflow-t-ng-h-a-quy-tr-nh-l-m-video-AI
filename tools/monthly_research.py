@@ -21,7 +21,7 @@ def main():
     if not force and not (research.enabled(conn) and research.due(conn)):
         print("Chưa đến hạn hoặc chưa bật 'Tự nghiên cứu hàng tháng'. Dùng --force để chạy ngay.")
         return
-    client = llm_runner.client_from_env()
+    client = llm_runner.client_from_env(ledger=llm_runner.db_file(conn))
     if client is None:
         print("Thiếu ANTHROPIC_API_KEY: không nghiên cứu được.")
         return

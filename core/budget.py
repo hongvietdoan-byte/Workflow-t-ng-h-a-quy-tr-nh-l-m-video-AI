@@ -5,9 +5,14 @@ plus the price of that job must stay under the limit — otherwise the job is le
 from data/pricing.json (estimates until measured). Deepix pictures have no price yet, so they are counted instead (a cap on
 the number of pictures). Simulated providers (mock) never count.
 
-Settings live in the `app_settings` table (key 'budget'): {"usd": 50, "since": time or null, "image_cap": 80, "enabled": false}.
+Settings live in the `app_settings` table (key 'budget'): {"usd": 50, "since": time or null, "image_cap": 80, "enabled": false,
+"llm_usd": 5, "llm_since": time or null}.
 The limit is OFF until a test round is started (`restart`, ⚙ → Ngân sách thử), so normal production work is never blocked.
 BUDGET_USD / BUDGET_IMAGE_CAP set the defaults.
+
+Claude API (usage kind 'llm', tokens priced per million from pricing.json `per_million_tokens`) counts in the test round's total and
+has its own cap `llm_usd` (CLAUDE_BUDGET_USD, default $5 = the money loaded on the Anthropic account), always on: when it is used up
+the next Claude call is refused with a clear note (`check_llm`). `llm_since` restarts the count after the person tops up.
 """
 import json
 import os
@@ -26,7 +31,8 @@ def _now() -> str:
 
 def defaults() -> Dict:
     return {"usd": float(os.environ.get("BUDGET_USD", "50")), "since": None,
-            "image_cap": int(os.environ.get("BUDGET_IMAGE_CAP", "80")), "enabled": False}
+            "image_cap": int(os.environ.get("BUDGET_IMAGE_CAP", "80")), "enabled": False,
+            "llm_usd": float(os.environ.get("CLAUDE_BUDGET_USD", "5")), "llm_since": None}
 
 
 def get(conn) -> Dict:
@@ -55,14 +61,28 @@ def stop(conn) -> Dict:
     return save(conn, enabled=False)
 
 
+def token_price(pricing: Dict, model: str, tier: str, tokens: float) -> Optional[float]:
+    """USD of `tokens` Claude API tokens (tier 'input' or 'output'), None when the model has no price."""
+    table = (pricing.get("per_million_tokens") or {}).get(model) or {}
+    unit = cost._number(table.get(tier))
+    return None if unit is None else unit * float(tokens or 0) / 1_000_000
+
+
 def spent(conn, pricing: Optional[Dict] = None, since: Optional[str] = None) -> Dict:
-    """{"usd", "images", "unknown": [model:tier without a price]} of real (non-mock) submissions since `since`."""
+    """{"usd", "images", "unknown": [model:tier without a price], "llm_usd"} of real (non-mock) submissions since `since`
+    ("usd" includes the Claude API part)."""
     pricing = pricing or cost.load_pricing()
     rows = conn.execute("SELECT * FROM usage_events WHERE provider NOT LIKE 'mock%'" + (" AND at >= ?" if since else ""),
                         (since,) if since else ()).fetchall()
-    usd, images, unknown = 0.0, 0, set()
+    usd, images, unknown, llm = 0.0, 0, set(), 0.0
     for r in rows:
-        if r["kind"] == "image":
+        if r["kind"] == "llm":
+            price = token_price(pricing, r["model"], r["tier"], r["quantity"])
+            if price is None:
+                unknown.add(r["model"])
+            llm += price or 0
+            usd += price or 0
+        elif r["kind"] == "image":
             images += int(r["quantity"] or 1)
             price = cost._number(pricing.get("per_image", {}).get(r["model"]))
             usd += (price or 0) * (r["quantity"] or 1)
@@ -76,14 +96,37 @@ def spent(conn, pricing: Optional[Dict] = None, since: Optional[str] = None) -> 
             if price is None:
                 unknown.add(f"{r['model']}:{r['tier']}")
             usd += price or 0
-    return {"usd": round(usd, 2), "images": images, "unknown": sorted(unknown)}
+    return {"usd": round(usd, 2), "images": images, "unknown": sorted(unknown), "llm_usd": round(llm, 4)}
 
 
 def status(conn) -> Dict:
     b = get(conn)
     s = spent(conn, since=b["since"])
+    llm = llm_spent(conn)
     return {**b, "spent": s["usd"], "images": s["images"], "unknown": s["unknown"],
-            "left": round(b["usd"] - s["usd"], 2)}
+            "left": round(b["usd"] - s["usd"], 2), "llm_spent": llm, "llm_left": round(b["llm_usd"] - llm, 4)}
+
+
+def llm_spent(conn) -> float:
+    """Claude API money used since the Claude count started (llm_since; every recorded call when never set)."""
+    return spent(conn, since=get(conn)["llm_since"])["llm_usd"]
+
+
+def restart_llm(conn, usd: float) -> Dict:
+    """The person loaded money on the Anthropic account: count from now against the new amount."""
+    return save(conn, llm_usd=float(usd), llm_since=_now())
+
+
+def check_llm(conn) -> Optional[str]:
+    """A reason not to call the Claude API now (its money is used up), else None. llm_usd <= 0 switches the cap off."""
+    b = get(conn)
+    if b["llm_usd"] <= 0:
+        return None
+    used = llm_spent(conn)
+    if used >= b["llm_usd"] - 1e-9:
+        return (f"Hết ngân sách Claude API: đã dùng ≈ ${used:.2f} / ${b['llm_usd']:.2f} — nạp thêm tiền trên Anthropic Console rồi "
+                "cập nhật trong ⚙ → 💵 Ngân sách thử")
+    return None
 
 
 def check_video(conn, provider_name: str, model: str, tier: str, seconds: float) -> Optional[str]:

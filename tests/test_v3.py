@@ -538,6 +538,58 @@ class BudgetAndCompareTests(unittest.TestCase):
         self.assertTrue(out.endswith("."))
         self.assertEqual(_shorten("short.", 512), "short.")
 
+    def test_claude_api_calls_are_priced_in_the_ledger_and_stop_at_the_claude_cap(self):
+        import json as _json
+        from core import budget
+        from core.adapters.http import HttpResponse
+        from core.db import connect
+        db = os.path.join(tempfile.mkdtemp(), "m.sqlite")
+        conn = connect(db)
+        calls = []
+
+        def transport(method, url, headers, body, timeout):
+            calls.append(url)
+            return HttpResponse(200, _json.dumps({"content": [{"type": "text", "text": "OK"}],
+                                                   "usage": {"input_tokens": 500_000, "output_tokens": 100_000}}).encode())
+        client = llm_runner.AnthropicClient("sk-test", "claude-sonnet-5", transport=transport, ledger=db)
+        self.assertEqual(client.complete("hi").text, "OK")
+        s = budget.status(conn)
+        self.assertAlmostEqual(s["llm_spent"], 0.5 * 2.0 + 0.1 * 10.0)            # $2 / $10 per million tokens
+        self.assertAlmostEqual(budget.spent(conn)["usd"], 2.0)                       # counts in the test round's total too
+        budget.save(conn, llm_usd=2.0)                                               # the $2 are used up
+        with self.assertRaises(llm_runner.LlmError) as err:
+            client.complete("again")
+        self.assertEqual(err.exception.code, "budget")
+        self.assertEqual(len(calls), 1)                                              # refused before paying
+        budget.restart_llm(conn, 5.0)                                                # topped up: count from now
+        self.assertEqual(client.complete("after top-up").text, "OK")
+        free = llm_runner.AnthropicClient("sk-test", "claude-sonnet-5", transport=transport)   # no ledger: nothing written
+        free.complete("x")
+        self.assertEqual(conn.execute("SELECT COUNT(*) FROM usage_events WHERE kind='llm'").fetchone()[0], 4)
+
+    def test_the_api_client_shrinks_a_picture_over_5_mb_and_leaves_room_for_a_long_answer(self):
+        import base64 as _b64
+        import json as _json
+        import random
+        from PIL import Image
+        from core.adapters.http import HttpResponse
+        path = os.path.join(tempfile.mkdtemp(), "sheet.png")
+        rnd = random.Random(1)
+        Image.frombytes("RGB", (1600, 1400), bytes(rnd.getrandbits(8) for _ in range(1600 * 1400 * 3))).save(path)
+        self.assertGreater(os.path.getsize(path), 5 * 1024 * 1024)                  # like the contact sheet of a whole project
+        sent = []
+
+        def transport(method, url, headers, body, timeout):
+            sent.append((_json.loads(body), timeout))
+            return HttpResponse(200, _json.dumps({"content": [{"type": "text", "text": "OK"}], "usage": {}}).encode())
+        llm_runner.AnthropicClient("sk-test", transport=transport).complete("check", [("Tấm ghép:", path)])
+        payload, timeout = sent[0]
+        image = next(b for b in payload["messages"][0]["content"] if b["type"] == "image")
+        self.assertEqual(image["source"]["media_type"], "image/jpeg")
+        self.assertLessEqual(len(_b64.b64decode(image["source"]["data"])), 5 * 1024 * 1024)
+        self.assertEqual(payload["max_tokens"], 32000)                                 # a 26-shot Director plan is ~10-20k tokens
+        self.assertGreaterEqual(timeout, 600)
+
     def test_every_dialog_the_dashboard_opens_is_known_to_open_dialog(self):
         import glob
         import re

@@ -656,7 +656,7 @@ def lessons_tab(p: Pipeline, pid: int) -> None:
     ui.html(ui.card_title("🎓 Bài học rút ra từ các dự án", "hệ thống tự phát hiện lỗi lặp lại; bạn duyệt thì mới vào kiến thức"))
     st.caption("Lỗi lặp lại (cùng loại, nhiều lần, nhiều dự án) và tài liệu mới tìm được sẽ thành **đề xuất**. Chỉ khi bạn bấm "
                "Duyệt, đề xuất mới vào Kho kiến thức của Director/QC/Motion. Sau đó nhớ chắt lọc lại cẩm nang ở Cài đặt.")
-    llm = llm_runner.client_from_env()
+    llm = llm_runner.client_from_env(ledger=C.DB)
     c1, c2 = st.columns(2)
     if c1.button("🔎 Rút bài học từ các lỗi đã gặp", key="ls_mine", use_container_width=True):
         made = lessons.propose(conn, llm)

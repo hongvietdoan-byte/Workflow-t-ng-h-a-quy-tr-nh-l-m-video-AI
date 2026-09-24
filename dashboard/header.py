@@ -214,6 +214,23 @@ def _dialog_budget(p: Pipeline) -> None:
     if s["enabled"] and (usd != s["usd"] or cap != s["image_cap"]) and st.button("💾 Lưu trần mới (giữ mốc bắt đầu)", key="budget_save"):
         budget.save(p.conn, usd=float(usd), image_cap=int(cap))
         st.rerun()
+    st.divider()
+    st.markdown(f"**🤖 Claude API** — đã dùng ≈ **\\${s['llm_spent']:.2f} / \\${s['llm_usd']:.2f}**"
+                + (f" (tính từ {s['llm_since']} UTC)" if s["llm_since"] else "")
+                + (" — **đã hết, Dashboard ngừng gọi Claude**" if s["llm_usd"] > 0 and s["llm_left"] <= 0 else ""))
+    st.progress(min(s["llm_spent"] / s["llm_usd"], 1.0) if s["llm_usd"] > 0 else 0.0)
+    st.caption("Luôn bật (kể cả khi tắt đợt thử): mỗi lần gọi Claude API ghi số token vào/ra × giá niêm yết (data/pricing.json); hết "
+               "thì Dashboard dừng gọi Claude và báo. Tiền Claude cũng cộng vào trần đợt thử ở trên. Claude Code trên máy (claude_cli) "
+               "không tính ở đây. Đặt 0 để bỏ trần.")
+    llm_cap = st.number_input("Số tiền đang có trên tài khoản Claude API (USD)", 0.0, 10000.0, float(s["llm_usd"]), 1.0,
+                              key="budget_llm_usd")
+    d1, d2 = st.columns(2)
+    if d1.button("💾 Vừa nạp tiền — tính lại từ bây giờ", key="budget_llm_restart"):
+        budget.restart_llm(p.conn, llm_cap)
+        st.rerun()
+    if llm_cap != s["llm_usd"] and d2.button("💾 Chỉ đổi trần (giữ số đã dùng)", key="budget_llm_save"):
+        budget.save(p.conn, llm_usd=float(llm_cap))
+        st.rerun()
 
 
 @st.dialog("🧬 Nhân bản dự án", on_dismiss=lambda: close_dialog("dlg_clone"))

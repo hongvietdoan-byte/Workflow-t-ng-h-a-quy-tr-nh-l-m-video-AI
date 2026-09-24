@@ -63,7 +63,7 @@ def default_context(p: Pipeline, data_dir: str) -> Context:
     image, video = factory.image_provider(), factory.video_provider()
     if image is None or video is None:
         raise ValueError("Chưa cấu hình nhà cung cấp ảnh/video (IMAGE_PROVIDER, VIDEO_PROVIDER).")
-    llm = llm_runner.client_from_env()
+    llm = llm_runner.client_from_env(ledger=llm_runner.db_file(p.conn))     # Claude API calls -> cost ledger + Claude cap
     if llm is None:
         raise ValueError("Chưa có Claude (ANTHROPIC_API_KEY hoặc LLM_PROVIDER=claude_cli): chế độ tự động cần để chấm QC và viết motion prompt.")
     return Context(data_dir, ImageRunner(p, image, data_dir), VideoRunner(p, video, data_dir), llm,
@@ -323,7 +323,8 @@ class _Stop(Exception):
     pass
 
 
-_LIMIT_HINTS = ("hit your session limit", "hit your usage limit", "usage limit", "rate limit", "session limit")
+_LIMIT_HINTS = ("hit your session limit", "hit your usage limit", "usage limit", "rate limit", "session limit",
+                "hết ngân sách claude")
 
 
 def _stop_if_claude_blocked(failed) -> None:

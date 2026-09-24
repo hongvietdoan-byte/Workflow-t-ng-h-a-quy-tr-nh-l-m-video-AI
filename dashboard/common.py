@@ -91,7 +91,7 @@ def image_runner(p: Pipeline):
 def llm_client():
     """Claude client (ANTHROPIC_API_KEY, LLM_PROVIDER=claude_cli or mock); None when not configured -> paste JSON by hand."""
     try:
-        return llm_runner.client_from_env()
+        return llm_runner.client_from_env(ledger=DB)       # Claude API calls go into the cost ledger + the Claude cap
     except llm_runner.LlmError as e:
         st.error(f"Claude: {e}")
         return None
