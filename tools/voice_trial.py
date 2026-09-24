@@ -73,9 +73,12 @@ def submit(args):
     if not args.yes:
         print("\nChỉ xem kế hoạch. Thêm --yes để gửi thật (tốn credit âm thanh).")
         return
+    db = os.path.join("data", "manifest.sqlite")
+    if not os.path.exists(db):   # the audio cap and the cost ledger live there: never send against a new empty database
+        sys.exit(f"Không thấy {db} ở thư mục hiện tại ({os.getcwd()}). Chạy từ thư mục dự án có dữ liệu thật, ví dụ D:\\AI-Video-Pipeline.")
     out = os.path.join(ROOT, datetime.now().strftime("%Y%m%d_%H%M"))
     os.makedirs(out, exist_ok=True)
-    conn = connect(os.path.join("data", "manifest.sqlite"))
+    conn = connect(db)
     sent = 0
     for m in models:
         for v in voices:
@@ -147,6 +150,8 @@ def main():
     ap.add_argument("--timeout", type=int, default=600)
     ap.add_argument("--summary", help="thư mục lượt thử có bảng chấm đã điền điểm")
     args = ap.parse_args()
+    from core.adapters.check import load_dashboard_env
+    load_dashboard_env()          # VIDEO_PROVIDER=clipai etc., like the Dashboard launcher (tokens stay in the user environment)
     if args.poll:
         poll(args)
     elif args.summary:
