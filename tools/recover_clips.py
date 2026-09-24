@@ -14,7 +14,7 @@ import os
 import sqlite3
 import sys
 import time
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
@@ -92,17 +92,27 @@ def _get(provider, query, tries: int = 6):
     raise ProviderError("ClipAI vẫn báo quá nhiều yêu cầu sau nhiều lần chờ", code="rate_limited")
 
 
-def scan(provider, wanted: set, max_pages: int, pause: float = 1.5, log=print) -> dict:
-    """{task_id: task} cho các task_id cần tìm, quét lần lượt các trang của cả hai loại model (Omni, Seedance)."""
+def scan(provider, wanted: set, max_pages: int, pause: float = 1.5, log=print, stats=None) -> dict:
+    """{task_id: task} cho các task_id cần tìm, quét lần lượt các trang của cả hai loại model (Omni, Seedance).
+    stats[family] = {pages, tasks, oldest, newest, ended}: đã quét bao xa (để biết task "không thấy" là do danh sách hết hay do
+    chưa quét tới)."""
     found = {}
+    stats = stats if stats is not None else {}
     for family, task_type in TASK_TYPE.items():
         need = {t for t in wanted if t.startswith(family + ":")}
         if not need:
             continue
         ids = {t.split(":", 1)[1] for t in need}
+        st = stats.setdefault(family, {"pages": 0, "tasks": 0, "oldest": None, "newest": None, "ended": False})
         for page in range(1, max_pages + 1):
             data = _get(provider, {"page": page, "pageSize": PAGE_SIZE, "task_type": task_type, "order_by_desc": 1})
             rows = (data or {}).get("data") or []
+            st["pages"], st["tasks"] = page, st["tasks"] + len(rows)
+            times = [int(t["created_at"]) for t in rows if str(t.get("created_at") or "").isdigit()]
+            if times:
+                st["oldest"] = min([x for x in (st["oldest"], min(times)) if x is not None])
+                st["newest"] = max([x for x in (st["newest"], max(times)) if x is not None])
+            st["ended"] = len(rows) < PAGE_SIZE
             for t in rows:
                 tid = str(t.get("task_id"))
                 if tid in ids:
@@ -124,13 +134,18 @@ def details(task: dict) -> str:
     return "; ".join(parts)
 
 
+def _day(ts) -> str:
+    return "?" if not ts else datetime.fromtimestamp(int(ts), timezone.utc).strftime("%Y-%m-%d %H:%M")
+
+
 def recover(conn, provider, data_dir: str, projects=None, job_ids=None, max_pages: int = 20, download: bool = False,
             pause: float = 1.5, log=print) -> dict:
     rows = targets(conn, projects, job_ids)
     if not rows:
         return {"rows": [], "text": "Không có job video nào đã gửi tới ClipAI mà bị đánh hỏng."}
     log(f"Tra {len(rows)} task trên ClipAI...")
-    found = scan(provider, {r["external_id"] for r in rows}, max_pages, pause, log)
+    stats = {}
+    found = scan(provider, {r["external_id"] for r in rows}, max_pages, pause, log, stats)
     out, lines = [], []
     for r in rows:
         task = found.get(r["external_id"])
@@ -146,7 +161,7 @@ def recover(conn, provider, data_dir: str, projects=None, job_ids=None, max_page
                 if task is None else str(status)), "reason": (task or {}).get("task_status_msg") or "", "details": details(task or {}),
                 "has_clip_now": shot_has_clip(conn, r["scene_id"]), "group": r["external_id"] in {x["external_id"] for x in conn.execute(
                     "SELECT external_id FROM jobs WHERE group_leader IS NOT NULL AND group_leader != id")} if "group_leader" in r.keys() else False,
-                "file": None}
+                "file": None, "cost": (task or {}).get("cost"), "sent_at": r["created_at"]}
         if download and status == 2 and task.get("video_url"):
             dest = os.path.join(data_dir, str(r["project_id"]), "recovered", f"job_{r['id']}_{label.replace('·', '_')}.mp4")
             if os.path.exists(dest):
@@ -163,14 +178,18 @@ def recover(conn, provider, data_dir: str, projects=None, job_ids=None, max_page
             f"Tra {len(out)} task · **ClipAI đã làm XONG: {len(ok)}** (Dashboard tưởng hỏng — đã trả tiền mà chưa lấy clip)"
             f" · thất bại thật: {sum(1 for i in out if i['clipai'] == 'thất bại')} · không thấy trong {max_pages} trang: "
             f"{sum(1 for i in out if i['clipai'] == 'không thấy')}", "",
-            "| Dự án | Shot | Job | Model | Đã ghi sổ | Dashboard ghi | ClipAI | Shot đã có clip khác | Clip tải về |",
-            "|---|---|---|---|---|---|---|---|---|"]
+            "Đã quét: " + " · ".join(
+                f"{fam} {st['pages']} trang / {st['tasks']} task, từ {_day(st['oldest'])} đến {_day(st['newest'])}"
+                + (" — **đã hết danh sách**" if st["ended"] else " — chưa hết (tăng --pages để quét sâu hơn)")
+                for fam, st in stats.items()), "",
+            "| Dự án | Shot | Job | Gửi lúc (UTC) | Model | Đã ghi sổ | Dashboard ghi | ClipAI | `cost` ClipAI | Shot đã có clip khác | Clip tải về |",
+            "|---|---|---|---|---|---|---|---|---|---|---|"]
     for i in out:
         f = i["file"]
         shown = "—" if not f else (os.path.relpath(f, data_dir) if os.path.exists(f) else f)
-        head.append(f"| #{i['project']} | {i['shot']}{' (cả nhóm multi-shot)' if i['group'] else ''} | {i['job']} | {i['model'] or ''} |"
-                    f" {'có' if i['paid'] else 'không'} | {i['dashboard'][:70]} | **{i['clipai']}** | {'có' if i['has_clip_now'] else 'không'} |"
-                    f" {shown} |")
+        head.append(f"| #{i['project']} | {i['shot']}{' (cả nhóm multi-shot)' if i['group'] else ''} | {i['job']} | {str(i['sent_at'])[:16]} |"
+                    f" {i['model'] or ''} | {'có' if i['paid'] else 'không'} | {i['dashboard'][:70]} | **{i['clipai']}** |"
+                    f" {'' if i['cost'] is None else i['cost']} | {'có' if i['has_clip_now'] else 'không'} | {shown} |")
     failed = [i for i in out if i["clipai"] == "thất bại"]
     if failed:
         head += ["", "## Lý do ClipAI báo thất bại (nguyên văn)"]

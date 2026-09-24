@@ -91,6 +91,8 @@ class RecoverClipsTest(unittest.TestCase):
         conn.close()
         self.assertFalse(any("cdn.example" in u for _, u in calls))
         self.assertIn("**ClipAI đã làm XONG: 1**", res["text"])
+        self.assertIn("omni 2 trang / 62 task", res["text"])                    # how far the list was read
+        self.assertIn("đã hết danh sách", res["text"])
 
 
 if __name__ == "__main__":

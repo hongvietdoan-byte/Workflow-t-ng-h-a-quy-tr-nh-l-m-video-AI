@@ -112,6 +112,17 @@ cho 21 clip); V2 tốn gấp 3,5 lần tiền gửi đầu; V0 không có lần 
   → **Có thể lấy lại không tốn tiền**: quét các trang sau của `video-list` theo `jobs.external_id` của 13 job này, task nào
   `succeeded` có `video_url` thì tải về (W14).
   **Đã có công cụ:** `tools/recover_clips.py` (chỉ đọc CSDL + danh sách ClipAI, không gửi job mới; `--download` tải về `recovered/`).
+  **Kết quả lần chạy đầu (2026-09-24 15:48, 20 trang/loại):** 20 task tra được → **0 task XONG**, 3 thất bại thật, **17 không thấy**.
+  Chưa kết luận được "trả 2 lần": 17 task hoặc nằm sâu hơn 20 trang, hoặc **chưa từng vào danh sách** (ClipAI nhận lệnh, trả
+  task_id nhưng không tạo task) — khi đó sổ chi Dashboard đang **ghi thừa** ~$13 (sổ ghi tiền lúc gửi, không đối chiếu với ClipAI).
+  Công cụ đã được bổ sung: in số trang/số task đã quét, ngày cũ nhất, đã hết danh sách chưa, và trường `cost` của ClipAI.
+  Hai chi tiết từ trường `cost` của ClipAI: task Kling multi-shot hỏng vì prompt > 512 ký tự vẫn ghi `cost=90` (có thể **bị tính
+  tiền dù hỏng** — cần đối chiếu lịch sử số dư ClipAI); task Seedance bị chặn bản quyền ghi `cost=0` (không tính tiền, sổ Dashboard
+  lại ghi $1,20).
+- **Clip bị chặn bản quyền (V0 S03, job 115, Seedance 2.0 Fast, 15s):** ClipAI chỉ trả câu chung "The request failed because the
+  output video may be related to copyright restrictions" + Request id, **không nói nhân vật/chi tiết nào**. Bộ lọc chạy trên
+  **video đầu ra** (không phải ảnh đầu vào) → nhân vật Free Fire trong clip Seedance có nguy cơ bị chặn bất kỳ lúc nào; Kling chưa
+  chặn lần nào trong GĐ6 → căn cứ cho W11 (nhân vật game → ưu tiên Kling).
 
 ### Phát hiện 2 — Gen lại video không đổi đầu vào: 100% trường hợp, 0% được dùng
 - V0: 3/3 lần QC loại → tự gen lại đều **cùng ảnh + cùng motion prompt** (khẳng định V2 ở mục 2). $4,80, **0/3 clip được dùng**.
@@ -198,7 +209,7 @@ Thay đổi cụ thể trong code (không tốn credit):
 | W11 | **Chọn model biết trước rủi ro**: phong cách CGI tả thực / ảnh bị chặn trước đó → xếp Kling ngay từ đầu, không đợi Seedance từ chối | core/model_router.py | V8 |
 | W12 | **Dò trạng thái không làm mất task**: quét thêm trang 2–3 trước khi kết luận; `not_found` = "chưa rõ" (tạm thời), không tự gửi job mới; khi tìm lại được thì nhận kết quả; báo nếu nghi trả tiền 2 lần | core/adapters/clipai.py:274–288, core/runner.py | V8 |
 | W13 | Cắt prompt > 512 ký tự thì **báo** phần bị cắt (diag + Bước 3), ưu tiên rút gọn bằng Claude trước khi gửi | core/adapters/clipai.py, core/runner.py | V8 |
-| W14 | **Lấy lại clip đã trả tiền**: công cụ quét các trang `video-list` theo `external_id` của job bị đánh `not_found`/lỗi dò trạng thái; task xong thì tải về, gắn lại vào job (không gửi lại) | tools/, core/adapters/clipai.py | 2b-1 |
+| W14 | **Lấy lại clip đã trả tiền** (công cụ đã có; thêm: sổ chi đối chiếu `cost` thật của ClipAI thay vì ghi lúc gửi): công cụ quét các trang `video-list` theo `external_id` của job bị đánh `not_found`/lỗi dò trạng thái; task xong thì tải về, gắn lại vào job (không gửi lại) | tools/, core/adapters/clipai.py | 2b-1 |
 | W15 | Autopilot **không tự duyệt** ảnh/clip `pending_review` có tiêu chí dưới mức sàn; để lại cho người ở cổng storyboard | core/autopilot.py:312, :437 | 2b-3 |
 | W16 | Cổng thoại: tắt tiếng video vẫn kéo dài clip cho vừa giọng TTS; cảnh báo ghi **một lần** mỗi shot, không mỗi nhịp | core/autopilot.py (_dialogue_gate) | 2b-5 |
 
