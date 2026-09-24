@@ -64,15 +64,23 @@ def flatten_transparency(content: bytes, filename: str):
 class DeepixImageProvider:
     name = "deepix"
     supports_aspect = True        # accepts size= per job (project frame format)
+    supports_model = True         # accepts model= per job (the project's picture model, core.image_models)
 
     def __init__(self, token: str, base_url: str = DEFAULT_BASE, transport: Transport = urllib_transport,
                  model: str = DEFAULT_MODEL, size: str = DEFAULT_SIZE):
         self.client = ApiClient(base_url, token, USER_AGENT, transport)
         self.model = model
         self.size = size
-        if model == DEFAULT_MODEL:
-            validate_seedream_size(size)
+        self._check(model, size)
         self._urls: Dict[str, str] = {}
+
+    @staticmethod
+    def _check(model: str, size: Optional[str]) -> None:
+        """W10: the model's size rule (data/provider_rules.json) before anything is sent."""
+        from .. import image_models
+        problem = image_models.size_problem(model, size)
+        if problem:
+            raise ProviderError(problem, code="bad_size")
 
     @classmethod
     def from_env(cls, transport: Transport = urllib_transport) -> "DeepixImageProvider":
@@ -83,18 +91,21 @@ class DeepixImageProvider:
         return cls(token, os.environ.get("DEEPIX_API_BASE", DEFAULT_BASE).strip() or DEFAULT_BASE, transport,
                    os.environ.get("DEEPIX_MODEL", DEFAULT_MODEL), os.environ.get("DEEPIX_SIZE", DEFAULT_SIZE))
 
-    def usage_info(self):
-        return self.model, "image"
+    def usage_info(self, model: Optional[str] = None):
+        return model or self.model, "image"
 
-    def submit(self, prompt: str, references=None, size: Optional[str] = None) -> str:
+    def submit(self, prompt: str, references=None, size: Optional[str] = None, model: Optional[str] = None) -> str:
         """Text-to-image, or image-to-image when reference picture paths are given (prompt_key 1, pictures in `file[]`, each up to 10 MB).
-        `size` overrides the default (e.g. 1152x2048 for a vertical project)."""
-        if size and self.model == DEFAULT_MODEL:
-            validate_seedream_size(size)
+        `size` overrides the default (e.g. 1152x2048 for a vertical project; 'auto' lets a GPT model decide), `model` the provider's
+        model (per project). Size and reference count are checked against the model's rules before sending."""
+        from .. import image_models
+        model = model or self.model
+        size = size or self.size
+        self._check(model, size)
         if not prompt.strip():
             raise ProviderError("empty prompt", code="bad_prompt")
         files = []
-        for path in list(references or [])[:MAX_REFERENCES]:
+        for path in list(references or [])[:image_models.max_refs(model, MAX_REFERENCES)]:
             try:
                 with open(path, "rb") as f:
                     content = f.read()
@@ -105,7 +116,9 @@ class DeepixImageProvider:
                 files.append(("file[]", name, content))
         fields = {"prompt_key": "1" if files else "2", "message_type": "image-to-image" if files else "text-to-image",
                   "prompts": json.dumps([{"key": "positive_prompt", "text": prompt}], ensure_ascii=False),
-                  "model": self.model, "size": size or self.size, "quality": "high"}
+                  "model": model, "quality": "high"}
+        if str(size).lower() != "auto":                # 'auto': the field is left out (Deepix reference.md)
+            fields["size"] = size
         data = self.client.post_multipart(PATH_CREATE, fields, files) or {}
         message_id = data.get("msg_id") or data.get("id")
         if message_id is None:

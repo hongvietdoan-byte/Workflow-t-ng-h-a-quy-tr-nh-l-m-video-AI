@@ -112,8 +112,8 @@ def tokens_text(r: dict) -> str:
     return f"{r.get('input_tokens', 0)} token vào / {r.get('output_tokens', 0)} token ra"
 
 def image_estimate(p: Pipeline, pid: int):
-    from core.adapters.deepix import DEFAULT_MODEL
-    return cost.estimate_images(p, pid, cost.load_pricing(), os.environ.get("DEEPIX_MODEL", DEFAULT_MODEL))
+    from core import image_models
+    return cost.estimate_images(p, pid, cost.load_pricing(), image_models.of_project(p.project(pid)))   # the project's picture model
 
 def video_estimate(p: Pipeline, pid: int):
     from core.adapters.clipai import effective_duration, resolve_model

@@ -420,7 +420,8 @@ V2_COLUMNS = {
                  # scenes into shots; style_profile = the Free Fire editing style the Director follows (knowledge/ff_styles)
                  ("shot_mode", "TEXT"), ("style_profile", "TEXT"), ("test_quality", "INTEGER NOT NULL DEFAULT 0"),
                  ("director_raw", "TEXT"),            # the last paid Director answer, kept even when saving it failed
-                 ("look", "TEXT")),                   # ANIME | FF_INGAME (core/looks.py): the picture look, apart from the editing style
+                 ("look", "TEXT"),                    # ANIME | FF_INGAME (core/looks.py): the picture look, apart from the editing style
+                 ("image_model", "TEXT")),            # Deepix picture model of the project (core/image_models.py); NULL = default
     "characters": (("lock_rules", "TEXT"), ("voice_profile", "TEXT"), ("anchor_approved", "INTEGER NOT NULL DEFAULT 0"),
                    ("user_edited", "TEXT"),
                    ("bible_check", "TEXT")),         # F1: {key: sha of pictures + description, ok, mismatches, fixed_description}         # fields the person edited by hand (description, wardrobe): the Director keeps them

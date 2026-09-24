@@ -687,6 +687,26 @@ def project_format_panel(p: Pipeline, pid: int) -> None:
         shot_format_controls(p, pid, proj)
 
 
+def image_model_control(p: Pipeline, pid: int, proj) -> None:
+    """The Deepix picture model of this project (data/provider_rules.json). New pictures use it; existing ones are kept."""
+    from core import image_models
+    table = image_models.models()
+    if not table:
+        return
+    options = [None] + list(table)
+    cur = proj["image_model"] if "image_model" in proj.keys() and proj["image_model"] in table else None
+    default = image_models.label(os.environ.get("DEEPIX_MODEL", "").strip() or image_models.DEFAULT)
+    pick = st.selectbox("🖼 Model ảnh (Deepix)", options, index=options.index(cur), key=f"fmt_imgmodel_{pid}",
+                        format_func=lambda m: f"Mặc định ({default})" if m is None else table[m]["label"],
+                        help="Model vẽ ảnh khung đầu. Đổi model chỉ áp cho ảnh gen sau đó (ảnh đã có giữ nguyên). "
+                             "Giá mỗi ảnh chưa đo — xem sổ chi sau khi chạy.")
+    if pick is not None:
+        st.caption(f"{table[pick].get('desc', '')} · tối đa {table[pick].get('max_refs')} ảnh tham chiếu")
+    if pick != cur:
+        p.set_project_field(pid, "image_model", pick)
+        st.rerun()
+
+
 def shot_format_controls(p: Pipeline, pid: int, proj) -> None:
     """v3: split scenes into shots (and how their clips are made) + the Free Fire editing style the Director follows."""
     from core import looks, reference_analysis, shots
@@ -699,6 +719,7 @@ def shot_format_controls(p: Pipeline, pid: int, proj) -> None:
     if new_look != cur_look:
         p.set_project_field(pid, "look", new_look)
         st.rerun()
+    image_model_control(p, pid, proj)
     d1, d2 = st.columns(2)
     modes = list(shots.MODES)
     cur_mode = shots.mode(proj)

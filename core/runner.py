@@ -588,9 +588,13 @@ class ImageRunner(_Runner):
     job_type = "image_gen"
 
     def _submit_kwargs(self, job) -> Dict:
-        from . import formats
-        aspect = formats.project_aspect(self.p.project(job["project_id"]))
-        return {"size": formats.spec(aspect)["deepix"]} if aspect else {}
+        from . import formats, image_models
+        proj = self.p.project(job["project_id"])
+        aspect = formats.project_aspect(proj)
+        out = {"size": formats.spec(aspect)["deepix"]} if aspect else {}
+        if getattr(self.provider, "supports_model", False):
+            out["model"] = image_models.of_project(proj)     # the project's picture model (Step 1)
+        return out
 
     def _over_budget(self, job, args, kwargs) -> Optional[str]:
         from . import budget
@@ -656,8 +660,12 @@ class ImageRunner(_Runner):
     def _record_usage(self, job, args, kwargs=None) -> None:
         info = getattr(self.provider, "usage_info", None)
         if info is not None:
-            model, tier = info()
+            chosen = (kwargs or {}).get("model")
+            model, tier = info(chosen) if chosen else info()
             record_usage(self.p.conn, job["id"], "image", self.provider.name, model, tier, 1, "image")
+            if chosen:                                   # which picture model made this job (A/B, cost per model)
+                self.p.conn.execute("UPDATE jobs SET model=? WHERE id=?", (chosen, job["id"]))
+                self.p.conn.commit()
 
     def _dest_path(self, job) -> str:
         return os.path.join(self._dir(job["project_id"], "images"), f"job_{job['id']}.png")

@@ -4,7 +4,10 @@
   "currency": "usd",
   "confirm_batch_at": 10,
   "per_image": {
-    "dola-seedream-5-0-pro-260628": null
+    "dola-seedream-5-0-pro-260628": null,
+    "gpt-image-2.5-sunburst": null,
+    "gpt-image-2.5-flare": null,
+    "gpt-image-2": null
   },
   "per_video_second": {
     "kling-v3-omni:std": 0.08,
