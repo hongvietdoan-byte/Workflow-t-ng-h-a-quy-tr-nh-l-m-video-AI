@@ -4,8 +4,9 @@
 > **Kế hoạch làm tiếp mới nhất:** `docs/KE_HOACH_2026-09-25.md` — đánh giá tổng thể, bài học Director, 7 hướng H1–H7 (bộ chuẩn hóa shot,
 > Director hai tầng/chạy lại từng cảnh, bộ nguyên tắc có logic (không trần số luật), bàn đo offline, **quay theo vị trí máy**, bảng chi phí,
 > **H7 tổ làm phim: Đạo diễn + Quay phim + Dựng**, mỗi vai một nguồn kiến thức). **Thứ tự đã chốt: 1.1 bàn đo → 1.2 bộ chuẩn hóa →
-> 2A chạy thử 0–20 s đầu của #6 TỰ CHẠY trong trần ($8 tiền có giá + $2 Claude + 32 ảnh + 25 lượt âm thanh, gen lại ≤ 2 lần/shot, không cần
-> duyệt từng bước) → 1.3 tổ làm phim → 1.4 → 1.5 → 2B phần còn lại.** Còn mở: Q2, Q3, Q4, Q6. Mục 0 = trạng thái dự án #6; mục 1–6 = bàn giao 24/09.
+> 2A chạy thử 0–20 s đầu của #6 TỰ CHẠY trong trần ($8 tiền có giá + **$1 Claude** + 32 ảnh + 25 lượt âm thanh, gen lại ≤ 2 lần/shot, không cần
+> duyệt từng bước; thử nhỏ "quay theo vị trí máy" ≤ $1) → 1.3 tổ làm phim → 1.4 → 1.5 → 2B phần còn lại (giữ lại 2 câu thoại).**
+> **PR #1 đã merge về `main` (2026-09-25) — từ nay làm trên `main`.** Mục 0 = trạng thái dự án #6; mục 1–6 = bàn giao 24/09.
 >
 > (Bàn giao 2026-09-24 tối:) Viết cho phiên (mission) tiếp theo: đọc hết mục này là đủ để làm tiếp, không cần đọc lại hội thoại cũ.
 > Kế hoạch gốc đã duyệt: **`docs/KE_HOACH_TONG_2026-09-24.md`** (danh mục lỗi A/L/I/M/K/T/D/AU/O/C/S/P/Q/U, lộ trình GĐ-A → GĐ-I).
@@ -33,7 +34,7 @@
   Sunburst (`data/pricing.json` chưa có giá) rồi mới gen 33 ảnh. Video Kling ước ~100 s trả tiền (~$8) cho 57 s phim nếu giữ shot ngắn.
 
 ### 1. Trạng thái code
-- Nhánh **`claude/upbeat-hawking-6o9njo`** · PR https://github.com/hongvietdoan-byte/Workflow-t-ng-h-a-quy-tr-nh-l-m-video-AI/pull/1 — **CHƯA merge về `main`**.
+- Nhánh **`claude/upbeat-hawking-6o9njo`** · PR https://github.com/hongvietdoan-byte/Workflow-t-ng-h-a-quy-tr-nh-l-m-video-AI/pull/1 — **đã merge về `main` (fast-forward, 2026-09-25)**; từ nay làm trên `main`.
   Phiên mới: `git fetch && git checkout claude/upbeat-hawking-6o9njo && git pull` (hoặc merge PR trước rồi làm trên `main`).
 - Commit cuối trước bàn giao: `86ff203`. **775 test pass, 19 skip.** Chạy test: `python -m unittest discover -s tests -t .` (~80 s; đặt timeout ≥ 600 s).
 - **GĐ-G phần 2 xong (2026-09-24, phiên trên máy người dùng có ffmpeg):** **793 test pass, 1 skip** (máy có ffmpeg nên chạy cả test ffmpeg thật —

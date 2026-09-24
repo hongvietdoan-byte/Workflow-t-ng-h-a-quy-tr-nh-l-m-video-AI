@@ -195,6 +195,6 @@ Phần lớn việc còn lại trong `TODO.md` (mục "Đang làm/kế tiếp", 
 **Finding**:
 - **H7 tổ làm phim:** Đạo diễn = ý đồ, thoại, quan sát tổng, **duyệt chốt**; nhánh phụ **Quay phim** (góc máy, bố cục, coverage — biết sẵn kỹ năng, Director chỉ tư vấn) và **Editor** (hậu kỳ: vùng an toàn đặt chữ theo nền tảng + từng khung, định dạng video, phụ đề, trộn âm) — mỗi vai **một nguồn kiến thức riêng** đủ để tự lo.
 - **Thứ tự ưu tiên** (mạch truyện > thoại + cặp đối đáp > góc máy kịch bản > thời lượng > tiết kiệm video > phong cách): áp dụng ngay, chỉnh dần theo dữ liệu các dự án sau.
-- **#6 chạy thử 0–20 s đầu trước** (CINEMATIC MỞ ĐẦU + CẢNH 1, 10 shot, trên bản sao), gen lại ≤ 2 lần/shot, trần tiền ($8 có giá + $2 Claude + 32 ảnh + 25 lượt âm thanh, đề xuất) → **phiên Claude được tự chạy không cần duyệt từng bước trong trần**; chạm trần thì dừng, không tự nâng.
+- **#6 chạy thử 0–20 s đầu trước** (CINEMATIC MỞ ĐẦU + CẢNH 1, 10 shot, trên bản sao), gen lại ≤ 2 lần/shot, trần tiền ($8 có giá + **$1 Claude API** (người dùng chốt Q6, tối ưu: QC API chỉ mẫu, motion 1 lượt, QC clip theo cảnh) + 32 ảnh + 25 lượt âm thanh). Q2 thử nhỏ quay theo vị trí máy (≤ $1), Q3 giữ lại 2 câu, Q4 PR #1 đã merge về `main` → **phiên Claude được tự chạy không cần duyệt từng bước trong trần**; chạm trần thì dừng, không tự nâng.
 - Thứ tự: bàn đo → bộ chuẩn hóa → chạy thử 2A → tổ làm phim → Director theo vai → vị trí máy → phần còn lại #6.
 **Source**: người dùng nói trực tiếp trong chat 2026-09-25.
