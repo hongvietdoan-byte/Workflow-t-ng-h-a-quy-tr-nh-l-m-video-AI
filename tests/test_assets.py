@@ -15,6 +15,15 @@ from tests.test_step1_flow import split_only
 APP = os.path.join(os.path.dirname(__file__), "..", "dashboard", "app.py")
 
 
+
+def sync_and_approve(conn, *a, **k):
+    """Folder sync puts new pictures in the review box (G2); these tests check how folders are read, so approve what came in.
+    The review box itself is tested in tests/test_library_review.py."""
+    rep = assets.sync_folder(conn, *a, **k)
+    assets.approve_images(conn, [i["id"] for i in assets.pending_images(conn)])
+    return rep
+
+
 class LibraryTests(unittest.TestCase):
     def setUp(self):
         self.dir = tempfile.mkdtemp()
@@ -128,7 +137,7 @@ class ImportTests(unittest.TestCase):
         self.put("Nhân vật", "notes.txt", data=b"not a picture")
         self.put("Nhân vật", "huge.png", data=b"0" * (assets.MAX_IMAGE_BYTES + 1))
         res = assets.import_folder(self.conn, os.path.join(self.dir, "src"), "FF", "pet")
-        rows = {(a["kind"], a["name"]): len(a["images"]) for a in assets.list_assets(self.conn, "FF")}
+        rows = {(a["kind"], a["name"]): len(a["images"]) + len(a["pending"]) for a in assets.list_assets(self.conn, "FF")}
         self.assertEqual(rows[("character", "Lyra")], 2)
         self.assertEqual(rows[("character", "Kael")], 1)
         self.assertEqual(rows[("weapon", "Cung băng")], 2)
@@ -218,7 +227,7 @@ class SyncTests(unittest.TestCase):
         return path
 
     def sync(self, **kw):
-        return assets.sync_folder(self.conn, self.src, "FF", "character", **kw)
+        return sync_and_approve(self.conn, self.src, "FF", "character", **kw)
 
     def count(self):
         return self.conn.execute("SELECT COUNT(*) FROM asset_images").fetchone()[0]
@@ -367,7 +376,7 @@ class MergeTests(unittest.TestCase):
         for name, seed in (("burger 1.png", 1), ("burger 2.png", 2), ("khu vuc nha kinh 4.png", 3), ("cong dich chuyen.png", 4)):
             with open(os.path.join(src, name), "wb") as f:
                 f.write(PNG + bytes([seed]))
-        assets.sync_folder(self.conn, os.path.join(self.dir, "maps"), "FF", "location")
+        sync_and_approve(self.conn, os.path.join(self.dir, "maps"), "FF", "location")
         by = {a["name"]: len(a["images"]) for a in assets.list_assets(self.conn, "FF")}
         self.assertEqual(by, {"burger": 2, "khu vuc nha kinh": 1, "cong dich chuyen": 1})
         numbered = os.path.join(self.dir, "maps2", "Khu vực - Dock")
@@ -375,7 +384,7 @@ class MergeTests(unittest.TestCase):
         for n in (1, 2):
             with open(os.path.join(numbered, f"{n}.png"), "wb") as f:
                 f.write(PNG + bytes([10 + n]))
-        assets.sync_folder(self.conn, os.path.join(self.dir, "maps2"), "FF", "location")
+        sync_and_approve(self.conn, os.path.join(self.dir, "maps2"), "FF", "location")
         self.assertEqual(len(next(a for a in assets.list_assets(self.conn, "FF") if a["name"] == "Khu vực - Dock")["images"]), 2)   # 1.png, 2.png: the folder names it
 
     def test_a_big_folder_is_sampled_evenly_instead_of_taking_the_first_shots(self):
@@ -386,7 +395,7 @@ class MergeTests(unittest.TestCase):
             os.makedirs(os.path.join(src, "Khu vực - Đền"), exist_ok=True)
             with open(os.path.join(src, "Khu vực - Đền", f"{n:02d}.png"), "wb") as f:
                 f.write(PNG + bytes([n]))
-        rep = assets.sync_folder(self.conn, src, "FF", "location")
+        rep = sync_and_approve(self.conn, src, "FF", "location")
         self.assertEqual(rep["added"], 6)
         labels = [i["label"] for i in assets.list_assets(self.conn, "FF")[0]["images"]]
         self.assertEqual(labels, ["01", "05", "09", "12", "16", "20"])                    # spread over the 20 shots
@@ -423,13 +432,13 @@ class BigPicturesAndMapsTests(unittest.TestCase):
         self.noise_png(path)
         original = os.path.getsize(path)
         self.assertGreater(original, assets.MAX_IMAGE_BYTES)
-        rep = assets.sync_folder(self.conn, self.src, "FF", "location")
+        rep = sync_and_approve(self.conn, self.src, "FF", "location")
         self.assertEqual((rep["added"], rep["skipped"]), (1, []))
         stored = assets.list_assets(self.conn, "FF")[0]["images"][0]["path"]
         self.assertTrue(stored.endswith(".jpg"))
         self.assertLessEqual(os.path.getsize(stored), assets.MAX_IMAGE_BYTES)
         self.assertEqual(os.path.getsize(path), original)
-        again = assets.sync_folder(self.conn, self.src, "FF", "location")          # and it is recognised next time
+        again = sync_and_approve(self.conn, self.src, "FF", "location")          # and it is recognised next time
         self.assertEqual((again["unchanged"], again["added"]), (1, 0))
 
     def test_something_that_is_not_a_picture_is_still_refused_when_too_big(self):
@@ -440,7 +449,7 @@ class BigPicturesAndMapsTests(unittest.TestCase):
 
     def test_unchanged_files_are_not_even_read_on_a_second_run(self):
         self.noise_png(os.path.join(self.src, "A.png"), 50)
-        assets.sync_folder(self.conn, self.src, "FF", "location")
+        sync_and_approve(self.conn, self.src, "FF", "location")
         real_open = open
         opened = []
 
@@ -451,7 +460,7 @@ class BigPicturesAndMapsTests(unittest.TestCase):
 
         from unittest import mock
         with mock.patch("builtins.open", spy):
-            rep = assets.sync_folder(self.conn, self.src, "FF", "location")
+            rep = sync_and_approve(self.conn, self.src, "FF", "location")
         self.assertEqual((rep["unchanged"], opened), (1, []))                        # matters for a 4 GB folder on a network drive
 
     def test_a_map_of_areas_gives_one_asset_per_area_and_one_for_the_whole_map(self):
@@ -459,7 +468,7 @@ class BigPicturesAndMapsTests(unittest.TestCase):
             for n in (1, 2):
                 self.noise_png(os.path.join(self.src, "MAP Đảo Mặt Trời", area, f"{n}.png"), 30)
         self.noise_png(os.path.join(self.src, "MAP Đảo Thế Kỷ", "1.png"), 30)           # a map without areas
-        rep = assets.sync_folder(self.conn, self.src, "FF", "location")
+        rep = sync_and_approve(self.conn, self.src, "FF", "location")
         by = {a["name"]: a for a in assets.list_assets(self.conn, "FF")}
         self.assertIn("Khu vực - Dock", by)
         self.assertEqual(by["Khu vực - Dock"]["aliases"], "Dock")                    # what a script would call it

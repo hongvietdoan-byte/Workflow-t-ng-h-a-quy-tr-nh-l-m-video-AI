@@ -284,7 +284,8 @@ def sync(conn, game: str = "FF", created_by: Optional[str] = None, getter=fetch,
             if url in have:
                 continue
             try:
-                assets.add_image(conn, aid, os.path.basename(url.split("?")[0]) or "site.png", download(url), src_path=url)
+                assets.add_image(conn, aid, os.path.basename(url.split("?")[0]) or "site.png", download(url), src_path=url,
+                                 status="pending")                       # G2: downloaded without a person looking
                 report["pictures"] += 1
             except (assets.AssetError, FfSiteError):
                 report["skipped"] += 1

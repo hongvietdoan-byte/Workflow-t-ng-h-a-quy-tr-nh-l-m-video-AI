@@ -11,6 +11,7 @@ How it is used with a script
   * their pictures are the references for image / video generation (`reference_paths`).
 """
 import hashlib
+import json
 import os
 import re
 import shutil
@@ -28,6 +29,18 @@ _KIND_WORDS = {"character": ("character", "characters", "char", "chars", "nhan v
 IMAGE_EXT = (".png", ".jpg", ".jpeg", ".webp")
 MAX_IMAGE_BYTES = 10 * 1024 * 1024        # the image generator refuses larger reference pictures
 MAX_IMAGES_PER_ASSET = 6
+PLATES_PER_LOCATION = 12                  # rendered 3D backgrounds (several camera angles) of one place
+# G1: the job of each library picture. Characters: which framing (a close-up shot needs a face, a back shot a back view). Places: which
+# camera — only an eye-level empty background may be sent to the image model as pixels; a top-down map is information, never a background.
+ROLES = {
+    "character": {"full_body": "toàn thân", "half_body": "nửa người", "close_up": "cận mặt", "back": "sau lưng", "side": "nghiêng",
+                  "skill_pose": "tư thế kỹ năng", "design_sheet": "bảng thiết kế (chỉ đọc chữ)"},
+    "location": {"eye_level": "nền ngang tầm mắt", "low_angle": "nền góc thấp", "high_angle": "nền góc cao",
+                 "top_down": "toàn cảnh từ trên (chỉ thông tin)", "detail": "chi tiết / mốc"},
+}
+ROLES["pet"] = ROLES["character"]
+LOOKS = {"ingame": "in-game FF", "anime": "anime"}
+STATUSES = {"approved": "đã duyệt", "pending": "chờ duyệt"}
 _NOISE = {"front", "back", "side", "full", "avatar", "face", "portrait", "main", "ref", "reference", "hd", "final", "copy",
           "truoc", "sau", "ngang", "mat", "new", "old", "moi", "cu"}
 
@@ -132,7 +145,10 @@ def _shrink(data: bytes, filename: str) -> tuple:
 
 
 def add_image(conn, asset_id: int, filename: str, data: bytes, src_path: Optional[str] = None, sha256: Optional[str] = None,
-              src_size: Optional[int] = None, src_mtime: Optional[int] = None) -> str:
+              src_size: Optional[int] = None, src_mtime: Optional[int] = None, status: str = "approved", role: Optional[str] = None,
+              look: Optional[str] = None, variant: Optional[str] = None, limit: int = MAX_IMAGES_PER_ASSET) -> str:
+    """Store one picture. `status` 'pending' = imported without a person looking (folder sync, 3D render): the pipeline does not use it
+    until approved (G2). `role` unset = guessed from the picture's shape (the person corrects it when approving)."""
     ext = os.path.splitext(filename or "")[1].lower()
     if ext not in IMAGE_EXT:
         raise AssetError(f"“{filename}”: chỉ nhận ảnh JPG / PNG / WebP")
@@ -142,8 +158,8 @@ def add_image(conn, asset_id: int, filename: str, data: bytes, src_path: Optiona
     if len(data) > MAX_IMAGE_BYTES:
         data, ext = _shrink(data, filename)
     have = conn.execute("SELECT COUNT(*) FROM asset_images WHERE asset_id=?", (asset_id,)).fetchone()[0]
-    if have >= MAX_IMAGES_PER_ASSET:
-        raise AssetError(f"Mỗi tài nguyên tối đa {MAX_IMAGES_PER_ASSET} ảnh")
+    if have >= limit:
+        raise AssetError(f"Mỗi tài nguyên tối đa {limit} ảnh")
     folder = os.path.join(root(), str(asset_id))
     os.makedirs(folder, exist_ok=True)
     n = have + 1
@@ -152,10 +168,81 @@ def add_image(conn, asset_id: int, filename: str, data: bytes, src_path: Optiona
     path = os.path.join(folder, f"{n}{ext}")
     with open(path, "wb") as f:
         f.write(data)
-    conn.execute("INSERT INTO asset_images (asset_id, path, label, sort, src_path, sha256, src_size, src_mtime) VALUES (?,?,?,?,?,?,?,?)",
-                 (asset_id, path, os.path.splitext(os.path.basename(filename))[0], n, src_path, fingerprint, src_size, src_mtime))
+    kind = (conn.execute("SELECT kind FROM assets WHERE id=?", (asset_id,)).fetchone() or {"kind": None})["kind"]
+    role = role if role in ROLES.get(kind, {}) else guess_role(path, kind, conn)
+    conn.execute("INSERT INTO asset_images (asset_id, path, label, sort, src_path, sha256, src_size, src_mtime, status, role, look, variant)"
+                 " VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
+                 (asset_id, path, os.path.splitext(os.path.basename(filename))[0], n, src_path, fingerprint, src_size, src_mtime,
+                  status if status in STATUSES else "pending", role, look if look in LOOKS else None, variant))
     conn.commit()
     return path
+
+
+def guess_role(path: str, kind: Optional[str], conn=None) -> Optional[str]:
+    """A free first guess of a picture's role (no model call): the design board test, the picture's proportions, and for a place the
+    camera class of its set analysis when it was read before. None = unknown (the person sets it)."""
+    if kind in ("character", "pet"):
+        shape = _shape(path)
+        if not shape:
+            return None
+        if _is_composite_sheet(shape):
+            return "design_sheet"
+        w, h = shape
+        return "full_body" if h >= w * 1.6 else "half_body" if h >= w * 1.05 else None
+    if kind == "location" and conn is not None:
+        try:
+            with open(path, "rb") as f:
+                sha = hashlib.sha256(f.read()).hexdigest()
+        except OSError:
+            return None
+        row = conn.execute("SELECT data FROM set_analyses WHERE sha256=?", (sha,)).fetchone()
+        camera = (json.loads(row["data"]).get("camera") if row else None)
+        return {"eye": "eye_level", "low": "low_angle", "high": "high_angle", "top": "top_down"}.get(camera)
+    return None
+
+
+def set_image_meta(conn, image_id: int, role: Optional[str] = None, look: Optional[str] = None, variant: Optional[str] = None,
+                   status: Optional[str] = None) -> None:
+    """Correct what a picture shows / approve it. Empty string clears a field; None leaves it."""
+    fields = {k: (v or None) for k, v in (("role", role), ("look", look), ("variant", variant)) if v is not None}
+    if status is not None:
+        fields["status"] = status if status in STATUSES else "pending"
+    if fields:
+        conn.execute("UPDATE asset_images SET " + ", ".join(f"{k}=?" for k in fields) + " WHERE id=?", (*fields.values(), image_id))
+        conn.commit()
+
+
+def approve_images(conn, image_ids: List[int]) -> int:
+    cur = conn.execute(f"UPDATE asset_images SET status='approved' WHERE id IN ({','.join('?' * len(image_ids))})", list(image_ids)) \
+        if image_ids else None
+    conn.commit()
+    return cur.rowcount if cur else 0
+
+
+def pending_images(conn, game: Optional[str] = None) -> List[Dict]:
+    """Pictures waiting for a person (G2), with their asset: [{id, path, role, look, variant, asset_id, asset, kind}]."""
+    sql = ("SELECT i.id, i.path, i.role, i.look, i.variant, a.id AS asset_id, a.name AS asset, a.kind FROM asset_images i"
+           " JOIN assets a ON a.id=i.asset_id WHERE i.status='pending'" + (" AND a.game=?" if game else "") + " ORDER BY a.name, i.id")
+    return [dict(r, path=resolve(r["path"])) for r in conn.execute(sql, (game,) if game else ())]
+
+
+def health(conn, game: str) -> List[Dict]:
+    """G6: what each library entry still lacks before a project can rely on it (only approved pictures count)."""
+    out = []
+    for a in list_assets(conn, game, None, None, shared_only=True):
+        if a["kind"] not in ("character", "pet", "location"):
+            continue
+        roles = {i.get("role") for i in a["images"]}
+        looks = {i.get("look") for i in a["images"]}
+        if a["kind"] == "location":
+            need = [] if roles & {"eye_level", "low_angle"} else ["nền ngang tầm mắt"]
+        else:
+            need = [ROLES["character"][r] for r in ("half_body", "close_up", "back") if r not in roles] if a["images"] else ["ảnh"]
+            if "anime" not in looks:
+                need.append("ảnh chuẩn anime")
+        out.append({"id": a["id"], "name": a["name"], "kind": a["kind_label"], "approved": len(a["images"]),
+                    "pending": len(a["pending"]), "unlabelled": sum(1 for i in a["images"] if not i.get("role")), "missing": need})
+    return out
 
 
 def remove_image(conn, image_id: int) -> None:
@@ -240,11 +327,14 @@ def _row(conn, r, images_by_asset: Optional[Dict] = None) -> Dict:
     if images_by_asset is not None:
         images = images_by_asset.get(r["id"], [])
     else:
-        images = [dict(i) for i in conn.execute("SELECT id, path, label FROM asset_images WHERE asset_id=? ORDER BY sort, id", (r["id"],))]
+        images = [dict(i) for i in conn.execute("SELECT id, path, label, role, look, variant, status FROM asset_images WHERE asset_id=?"
+                                                " ORDER BY sort, id", (r["id"],))]
     images = [dict(i, path=resolve(i["path"])) for i in images]
+    pending = [i for i in images if i.get("status") == "pending" and os.path.exists(i["path"])]
+    images = [i for i in images if i.get("status") != "pending"]            # G2: only pictures a person approved are used
     return {"id": r["id"], "game": r["game"], "kind": r["kind"], "kind_label": KINDS.get(r["kind"], r["kind"]), "name": r["name"],
             "aliases": r["aliases"] or "", "description": r["description"] or "", "project_id": r["project_id"],
-            "created_by": r["created_by"], "images": [i for i in images if os.path.exists(i["path"])]}
+            "created_by": r["created_by"], "images": [i for i in images if os.path.exists(i["path"])], "pending": pending}
 
 
 def get(conn, asset_id: int) -> Optional[Dict]:
@@ -269,8 +359,8 @@ def list_assets(conn, game: Optional[str] = None, kind: Optional[str] = None, pr
     sql += " ORDER BY kind, lower(name)"
     rows = conn.execute(sql, args).fetchall()
     images: Dict[int, List[Dict]] = {}                # one query for every picture instead of one per entry (a library has hundreds)
-    for i in conn.execute("SELECT asset_id, id, path, label FROM asset_images ORDER BY sort, id"):
-        images.setdefault(i["asset_id"], []).append({"id": i["id"], "path": i["path"], "label": i["label"]})
+    for i in conn.execute("SELECT asset_id, id, path, label, role, look, variant, status FROM asset_images ORDER BY sort, id"):
+        images.setdefault(i["asset_id"], []).append({k: i[k] for k in ("id", "path", "label", "role", "look", "variant", "status")})
     return [_row(conn, r, images) for r in rows]
 
 
@@ -722,7 +812,7 @@ def sync_folder(conn, folder: str, game: str, kind: str = "character", created_b
             if conn.execute("SELECT 1 FROM asset_images WHERE asset_id=? AND sha256=?", (aid, sha)).fetchone():
                 continue
             try:
-                add_image(conn, aid, os.path.basename(path), data, sha256=sha)
+                add_image(conn, aid, os.path.basename(path), data, sha256=sha, status="pending")    # G2: a person looks first
                 rep["added"] += 1
             except AssetError as e:
                 rep["skipped"].append((path, str(e)))
@@ -775,7 +865,8 @@ def sync_folder(conn, folder: str, game: str, kind: str = "character", created_b
                 rep["moved"] += 1
                 continue
             try:
-                add_image(conn, aid, os.path.basename(path), data, src_path=key, sha256=sha, src_size=st.st_size, src_mtime=int(st.st_mtime))
+                add_image(conn, aid, os.path.basename(path), data, src_path=key, sha256=sha, src_size=st.st_size, src_mtime=int(st.st_mtime),
+                          status="pending")                                  # G2: a person looks first
                 rep["added"] += 1
             except AssetError as e:
                 rep["skipped"].append((path, str(e)))

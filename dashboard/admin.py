@@ -195,6 +195,58 @@ def asset_thumbs(items, width: int = 80) -> None:
             col.image(a["images"][0]["path"], caption=a["name"], width=width)
 
 
+def _role_options(kind: str) -> dict:
+    return {"": "— chưa rõ —", **assets.ROLES.get(kind, {})}
+
+
+def library_review_box(p: Pipeline, game: str) -> None:
+    """G2: pictures that came in without a person looking (folder sync, website, 3D render) wait here; the pipeline only uses approved
+    ones. The role is guessed for free from the picture's shape — correct it when it is wrong."""
+    waiting = assets.pending_images(p.conn, game)
+    if not waiting:
+        return
+    with st.expander(f"📥 Ảnh chờ duyệt ({len(waiting)}) — pipeline chưa dùng các ảnh này", expanded=False):
+        st.caption("Chọn đúng vai trò (toàn thân / nửa người / cận mặt / sau lưng…; bối cảnh: nền ngang tầm mắt / góc cao / toàn cảnh từ trên) "
+                   "và look — shot cận sẽ lấy ảnh cận mặt, shot quay lưng lấy ảnh sau lưng, ảnh bản đồ chụp từ trên cao không bao giờ làm nền.")
+        if st.button(f"✔ Duyệt cả {len(waiting)} ảnh (giữ vai trò đề xuất)", key=f"lib_rev_all_{game}"):
+            assets.approve_images(p.conn, [w["id"] for w in waiting])
+            st.rerun()
+        for w in waiting[:24]:
+            c0, c1, c2, c3, c4 = st.columns([1, 2, 1.6, 1.2, 1.4], vertical_alignment="center")
+            try:
+                c0.image(assets.thumbnail(w["path"]), width=90)
+            except Exception:  # noqa: BLE001 - a broken file must not break the page
+                c0.caption("(không đọc được ảnh)")
+            c1.markdown(f"**{escape(w['asset'])}**")
+            opts = _role_options(w["kind"])
+            role = c2.selectbox("Vai trò", list(opts), index=list(opts).index(w["role"] or ""), format_func=opts.get,
+                                key=f"lib_rev_role_{w['id']}", label_visibility="collapsed")
+            looks = {"": "— look —", **assets.LOOKS}
+            look = c3.selectbox("Look", list(looks), index=list(looks).index(w["look"] or ""), format_func=looks.get,
+                                key=f"lib_rev_look_{w['id']}", label_visibility="collapsed")
+            a, b = c4.columns(2)
+            if a.button("✔", key=f"lib_rev_ok_{w['id']}", help="Duyệt ảnh này"):
+                assets.set_image_meta(p.conn, w["id"], role=role, look=look, status="approved")
+                st.rerun()
+            if b.button("🗑", key=f"lib_rev_rm_{w['id']}", help="Bỏ ảnh này"):
+                assets.remove_image(p.conn, w["id"])
+                st.rerun()
+        if len(waiting) > 24:
+            st.caption(f"… còn {len(waiting) - 24} ảnh: duyệt bớt rồi trang sẽ hiện tiếp.")
+
+
+def library_health(p: Pipeline, game: str) -> None:
+    """G6: what the library still lacks, so a project is not started on a character without a close-up or a place without an
+    eye-level background."""
+    rows = [r for r in assets.health(p.conn, game) if r["missing"] or r["pending"] or r["unlabelled"]]
+    if not rows:
+        return
+    with st.expander(f"🩺 Sức khỏe kho — {len(rows)} mục còn thiếu", expanded=False):
+        st.dataframe([{"Mục": r["name"], "Loại": r["kind"], "Ảnh đã duyệt": r["approved"], "Chờ duyệt": r["pending"],
+                       "Chưa rõ vai trò": r["unlabelled"], "Còn thiếu": ", ".join(r["missing"])} for r in rows],
+                     hide_index=True, use_container_width=True)
+
+
 def asset_library_panel(p: Pipeline) -> None:
     """Settings: the shared resource library (people with the Kho tài nguyên right)."""
     catalog = subjects.games()
@@ -202,6 +254,8 @@ def asset_library_panel(p: Pipeline) -> None:
     game = st.selectbox("Game / loại nội dung", keys, format_func=lambda k: catalog[k][0], key="lib_game")
     items = assets.list_assets(p.conn, game, None, None, shared_only=True)
     st.caption(f"{len(items)} mục trong kho **{catalog[game][0]}**. Mọi dự án của game này đều chọn dùng được.")
+    library_review_box(p, game)
+    library_health(p, game)
     with st.expander("🔄 Nguồn đồng bộ: thư mục tài nguyên (cập nhật kho bằng 1 cú bấm hoặc tự động)", expanded=not assets.list_sources(p.conn, game)):
         st.caption("Chọn một thư mục trên máy chạy Dashboard chứa ảnh (ví dụ thư mục đang đồng bộ với Google Drive). Kho sẽ giống thư mục đó: "
                    "ảnh mới được thêm, ảnh sửa được cập nhật, ảnh trùng không bị thêm hai lần; tên, mô tả bạn đã sửa trong Dashboard **không bị ghi đè**. "
@@ -423,7 +477,9 @@ def asset_library_panel(p: Pipeline) -> None:
             if a["images"]:
                 cols = st.columns(min(len(a["images"]), 6))
                 for col, img in zip(cols, a["images"]):
-                    col.image(assets.thumbnail(img["path"]), width=110)
+                    col.image(assets.thumbnail(img["path"]), width=110,
+                              caption=assets.ROLES.get(a["kind"], {}).get(img.get("role") or "", "chưa rõ vai trò")
+                              + (f" · {assets.LOOKS[img['look']]}" if img.get("look") in assets.LOOKS else ""))
                     if col.button("Xóa ảnh", key=f"lib_img_rm_{img['id']}"):
                         assets.remove_image(p.conn, img["id"])
                         st.rerun()
