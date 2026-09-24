@@ -106,11 +106,12 @@ cho 21 clip); V2 tốn gấp 3,5 lần tiền gửi đầu; V0 không có lần 
 - V2: **12 clip đã gửi và đã ghi sổ ($11,68 = 60% tiền V2) bị đánh `not_found`** ("task not found in the first list page"), rồi
   autopilot gửi lại 8 lần ($8,24). `status()` chỉ quét **trang đầu 50 task** của `video-list` (clipai.py:277); khi 3 dự án chạy song
   song, task cũ rơi xuống trang 2 → sau 12 lần không thấy thì bị coi là hỏng **vĩnh viễn** (clipai.py:287).
-- Dự án #1 (trước GĐ6): 6 lỗi `Too many requests` **khi hỏi trạng thái** → job bị đánh hỏng (runner.py:136–140, lỗi không đánh dấu
-  tạm thời) → gửi lại 4 lần ($2,00). V0: 1 `not_found` ($1,20).
+- Dự án #1 (trước GĐ6): 6 lỗi `Too many requests` **khi hỏi trạng thái** → job bị đánh hỏng → gửi lại 4 lần ($2,00)
+  (đã sửa 2026-09-23, commit dbe0c37: "Too many requests" nay là lỗi tạm thời). V0: 1 `not_found` ($1,20).
 - Nhiều khả năng ClipAI **vẫn làm xong và vẫn tính tiền** các task đó → **trả 2 lần**, và clip gốc vẫn nằm trên ClipAI chưa tải về.
   → **Có thể lấy lại không tốn tiền**: quét các trang sau của `video-list` theo `jobs.external_id` của 13 job này, task nào
   `succeeded` có `video_url` thì tải về (W14).
+  **Đã có công cụ:** `tools/recover_clips.py` (chỉ đọc CSDL + danh sách ClipAI, không gửi job mới; `--download` tải về `recovered/`).
 
 ### Phát hiện 2 — Gen lại video không đổi đầu vào: 100% trường hợp, 0% được dùng
 - V0: 3/3 lần QC loại → tự gen lại đều **cùng ảnh + cùng motion prompt** (khẳng định V2 ở mục 2). $4,80, **0/3 clip được dùng**.
