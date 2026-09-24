@@ -22,7 +22,8 @@ _LINE = re.compile(r"^\s*([^:\n]{1,30}?)\s*:\s*(.+?)\s*$")
 
 
 NOT_SPEAKERS = {"TEXT CUỐI", "CARD CUỐI", "CHỮ CUỐI", "END CARD", "GHI CHÚ", "LƯU Ý", "THỜI LƯỢNG", "NHÂN VẬT", "BỐI CẢNH",
-                "ĐỊA ĐIỂM", "THỜI GIAN", "GÓC MÁY", "MÔ TẢ", "KỊCH BẢN", "NOTE", "CAMERA"}
+                "ĐỊA ĐIỂM", "THỜI GIAN", "GÓC MÁY", "MÔ TẢ", "KỊCH BẢN", "NOTE", "CAMERA",
+                "HỆ THỐNG", "SYSTEM", "THÔNG BÁO", "HUD", "CẤU TRÚC", "FLASHBACK", "FLASHBACK NGẮN"}   # on-screen text, not a voice
 
 
 def _is_speaker(name: str) -> bool:

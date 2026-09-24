@@ -12,6 +12,31 @@ _HEADING = re.compile(
     r"^\s*((cảnh|canh|scene|sc|s)\s*\.?\s*\d+\b.*|(int|ext)[\./\s].*|(nội|noi|ngoại|ngoai)\s*[\./-].*)$", re.IGNORECASE)
 # A20: "Nội dung: …" / "Ngoại hình: …" are body lines, not scene headings (a Vietnamese heading is "NỘI. NHÀ KELLY - NGÀY")
 _DIALOGUE = re.compile(r"^\s*([^\W\d_][^:\n]{0,28}?)\s*:\s*\S")
+# A section of a short-video script named by its time on screen: "CINEMATIC MỞ ĐẦU – 0–8 GIÂY", "TWIST – 44–50 GIÂY" (a line like
+# "THỜI LƯỢNG: 55–58 GIÂY" has no dash before the first number and stays a body line)
+_TIMED_HEADING = re.compile(r"^\s*[^:\n]{1,48}?\s[–—-]\s*\d{1,3}\s*[–—-]\s*\d{1,3}\s*(giây|giay|s|sec|secs|seconds)\b\.?\s*$",
+                            re.IGNORECASE)
+_SEPARATOR = re.compile(r"^\s*[-=_*~·•—–]{3,}\s*$")
+_SPEAKER_ONLY = re.compile(r"^\s*([^\W\d_][^:\n]{0,28}?)\s*:\s*$")
+_QUOTE_START = ("“", '"', "«", "‘", "'", "„")
+
+
+def is_heading(line: str) -> bool:
+    return bool(_HEADING.match(line) or _TIMED_HEADING.match(line))
+
+
+def normalise(paragraphs: List[str]) -> List[str]:
+    """Drop separator rows (-----) and join a speaker written on its own line with the quoted line under it:
+    'Kelly:' + '“Anh nói đi.”' -> 'Kelly: “Anh nói đi.”' (the way `dialogue.lines` and the subtitles read a line)."""
+    out: List[str] = []
+    for para in paragraphs:
+        if _SEPARATOR.match(para):
+            continue
+        if out and _SPEAKER_ONLY.match(out[-1]) and para.lstrip().startswith(_QUOTE_START):
+            out[-1] = out[-1].rstrip() + " " + para.strip()
+            continue
+        out.append(para)
+    return out
 
 
 @dataclass
@@ -40,7 +65,8 @@ def _characters(lines: List[str]) -> List[str]:
         if not m:
             continue
         name = m.group(1).strip()
-        if len(name.split()) > 3 or _HEADING.match(line):
+        from .dialogue import NOT_SPEAKERS
+        if len(name.split()) > 3 or is_heading(line) or name.upper() in NOT_SPEAKERS:
             continue
         seen[name.upper()] = seen.get(name.upper(), 0) + 1
     return sorted(seen, key=lambda n: (-seen[n], n))
@@ -48,8 +74,8 @@ def _characters(lines: List[str]) -> List[str]:
 
 def split_scenes(paragraphs: List[str]) -> List[ParsedScene]:
     groups, current = [], None
-    for para in paragraphs:
-        if _HEADING.match(para):
+    for para in normalise(paragraphs):
+        if is_heading(para):
             current = {"heading": para, "lines": []}
             groups.append(current)
         elif current is None:

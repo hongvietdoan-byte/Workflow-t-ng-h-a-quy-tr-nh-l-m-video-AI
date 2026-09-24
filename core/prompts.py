@@ -148,13 +148,13 @@ def build_director_bundle(pipeline: Pipeline, project_id: int) -> str:
 def script_preamble(proj) -> str:
     """What the script says before its first scene (title, length, cast, setting such as "Map Đảo Quân Sự — Tháp Đồng Hồ"): it
     applies to every scene, so the Director gets it too."""
-    from .script_parser import _HEADING
+    from .script_parser import _SEPARATOR, is_heading
     text = (proj["script_text"] if "script_text" in proj.keys() else None) or ""
     head = []
     for row in text.splitlines():
-        if _HEADING.match(row):
+        if is_heading(row):
             break
-        if row.strip():
+        if row.strip() and not _SEPARATOR.match(row):
             head.append(row.strip())
     return ("# Thông tin chung của kịch bản (trước cảnh đầu tiên — áp dụng cho mọi cảnh)\n" + "\n".join(head)) if head else ""
 
