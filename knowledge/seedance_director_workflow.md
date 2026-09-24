@@ -1,6 +1,6 @@
 # Seedance — quy trình tối ưu prompt theo "Seedance Director" (bổ sung)
 
-Nguồn: kỹ năng "Seedance Director — Prompt Optimization Skill" 1.0 (chắt lọc, bổ sung cho `seedance_prompting.md`, không thay thế). Chỉ dùng khi video model là Seedance. Mục tiêu: làm cảnh **thực thi được** mà không đổi ý tác giả.
+Nguồn: kỹ năng "Seedance Director — Prompt Optimization Skill" 1.0, cập nhật theo bản 1.0.2 ngày 2026-09-24 (chắt lọc, bổ sung cho `seedance_prompting.md`, không thay thế). Chỉ dùng khi video model là Seedance. Mục tiêu: làm cảnh **thực thi được** mà không đổi ý tác giả.
 
 **Nguyên tắc gốc:** tối ưu cách thực thi, không tối ưu ý định. Không được: thêm cú ngoặt cốt truyện, đổi quan hệ nhân vật, thêm nhân vật/lời thoại/đạo cụ lớn không cần thiết, đổi thể loại, đổi kết. Thiếu chi tiết bắt buộc thì suy luận **nhỏ nhất** đủ để cảnh mạch lạc; nếu suy luận làm đổi nghĩa thì giữ nguyên sự mơ hồ.
 
@@ -27,3 +27,12 @@ Giữ nguyên lời thoại của người dùng, luôn nêu rõ ai nói; nhiề
 
 ## Hình thức đầu ra ưa dùng (khi làm rõ được)
 VIDEO (tỉ lệ, độ dài, phong cách) → THAM CHIẾU → NHÂN VẬT/CHỦ THỂ → BỐI CẢNH → DÀN VỊ TRÍ → NGUYÊN TẮC MÁY & DIỄN XUẤT → TIMELINE ([0–Xs] Camera / Action / Performance / Dialogue / Sound) → LIÊN TỤC → TRÁNH (chỉ rủi ro thật). Không phải cảnh nào cũng cần đủ mọi mục; cảnh đơn giản chỉ cần một đoạn văn. Viết bằng ngôn ngữ của người dùng, câu trực tiếp kiểu sản xuất ("C1 quay sang C2 và bước tới một bước"), rõ hơn là văn hoa.
+
+## Ảnh tham chiếu: mỗi ảnh MỘT vai trò (bản 1.0.2 — "reverse asset planning")
+Áp dụng cho mọi ảnh gửi kèm (Seedance, cả ảnh tham chiếu Deepix ở bước ảnh):
+- **Chỉ dùng ảnh tham chiếu khi nó chặn một rủi ro thật:** danh tính nhân vật chính/lặp lại, bối cảnh có bố cục ảnh hưởng dàn vị trí, đạo cụ/xe quan trọng cho liên tục, phong cách không tả nổi bằng chữ, trạng thái đầu phải khớp giữa các clip tách rời. Không làm ảnh cho vật phụ, bối cảnh chung chung, người qua đường.
+- **Mỗi ảnh một vai trò chính, nói rõ nó điều khiển gì và KHÔNG điều khiển gì:** ảnh nhân vật = mặt, tóc, tỉ lệ cơ thể, trang phục — không điều khiển bố cục/góc máy; ảnh bối cảnh = kiến trúc, bố trí, lối vào ra — không điều khiển người, cỡ cảnh; ảnh phong cách = cách render, màu, chất liệu, ánh sáng — **không** được đè lên danh tính, trang phục, hình học cảnh. Khi vai trò có thể chồng nhau, nói rõ ảnh nào thắng (danh tính → ảnh nhân vật, bố cục → ảnh bối cảnh, render → ảnh phong cách).
+- **Ảnh tham chiếu tốt:** nhân vật — một người, mặt không bị che, kiểu tóc/bóng dáng đọc rõ, đúng trang phục liên tục, toàn thân hoặc 3/4, sáng đều, nền đơn giản; không ghép nhiều ảnh, không người lạ, không nhòe chuyển động. Bối cảnh — cảnh rộng sạch **từ một hướng hữu ích**, không có nhân vật chính, không cài sẵn đường máy hay sự kiện.
+- **Gắn nhãn thống nhất:** khối "REFERENCE ASSETS" ở đầu prompt (`@image1: C1 identity, face, hairstyle, proportions, and wardrobe only`); mọi nhãn trong danh sách phải xuất hiện trong prompt và ngược lại; không có nhãn mồ côi.
+- **Nhiều clip tách rời:** dùng lại cùng bộ ảnh ổn định và nêu lại trạng thái đầu từng clip; thay đổi ngoại hình vĩnh viễn giữa hai clip → ảnh "trạng thái đầu" mới, ghi rõ, không lặng lẽ thay ảnh danh tính gốc.
+- Liên hệ GĐ6: ảnh layout (nền chụp từ trên cao + hình cắt tí hon) được gửi làm ảnh số 1 mà không giới hạn vai trò → nó điều khiển luôn cỡ cảnh và tỉ lệ (R7). Theo nguyên tắc trên, layout chỉ được điều khiển vị trí tương đối, không điều khiển cỡ người/cỡ cảnh (xem F7).

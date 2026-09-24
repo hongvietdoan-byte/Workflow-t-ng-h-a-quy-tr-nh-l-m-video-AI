@@ -1,11 +1,12 @@
 # Cấu trúc prompt cho model tạo video (World Bible + khung 7 đoạn)
 
-Nguồn: AI Film Direction & Prompt Workflow Kit 1.0.0 (text-to-video-prompt, chắt lọc). Dùng cho bước Motion prompt và để giữ nhất quán giữa các cảnh.
+Nguồn: AI Film Direction & Prompt Workflow Kit 1.0.0, đối chiếu lại với bản 2.0.0 ngày 2026-09-24 (text-to-video-prompt, chắt lọc). Dùng cho bước Motion prompt và để giữ nhất quán giữa các cảnh.
 
 **Ý chính:** model tạo video không cần viết tắt kiểu "MS / eye_level / dolly_in"; nó cần **một thế giới vật lý có thể dựng lại trong đầu**. Cái làm video "không giống AI" là manh mối vật lý và chất liệu thật, không phải tính từ. "Một chiến binh rất ngầu" ra nhân vật nhựa; "giáp mảnh sơn mài, dây lụa thấm nước sậm màu, khe kim loại có vết xước và vết nước, bước đi thấy sức nặng" ra nhân vật đáng tin.
 
 ## Tầng 1 — World Bible (khóa nhất quán, dùng chung cả dự án)
 AI video hay **trôi giữa các cảnh** (ánh sáng, tông màu, chất liệu mỗi cảnh một kiểu). Cách chữa: khóa một bộ tham số dùng chung, mọi cảnh kế thừa (không chép lại nguyên văn nhưng không được mâu thuẫn):
+- **render_style (phong cách render):** 2D/3D, viền, cách tô — nhãn phong cách + một câu bằng chứng nhìn thấy được. **Bắt buộc với look anime**; viết chung câu với palette ở đoạn 3 (không tách đoạn thứ 8). Thiếu từ khóa phong cách thì model trượt về bán tả thực.
 - **palette:** màu chủ đạo + màu điểm nhấn + phủ định rõ (vd "xanh đô thị lạnh và xám nhạt là chủ đạo, đỏ đèn phanh làm điểm nhấn; no bloom, no artificial glow").
 - **lighting_logic:** ánh sáng **đến từ đâu** và cư xử thế nào; gọi tên theo **nguồn sáng**, không theo cảm xúc ("chỉ đèn natri đường phố, đèn pha xe, đèn giao thông chớp; mưa giảm tầm nhìn").
 - **era_lore:** ràng buộc thời đại/thế giới để không lệch thời.
@@ -22,7 +23,9 @@ Trong dự án này World Bible của dự án (nếu có) được đưa vào p
 6. **Chất liệu/vật lý:** vật liệu cư xử thế nào (ướt thì sậm màu, cũ thì xước, nặng thì bước chân trầm). **Đoạn này quyết định giống hay không giống AI, không được bỏ.**
 7. **Chuyển động môi trường:** thế giới xung quanh chuyển động (dòng xe, nước bắn, tia sáng bất chợt) để cảnh "sống".
 
-**Đổi ký hiệu đạo diễn sang lời cho model:** ECU = cận cực cận, khung đầy [chi tiết]; CU/MCU = cận, mặt/ngực đầy khung; MS = trung cảnh từ eo/đầu gối lên; LS/ELS = toàn/viễn, chủ thể nhỏ trong môi trường; eye_level = máy ngang mắt; low = máy thấp nhìn lên; high/birds_eye = máy cao/nhìn thẳng xuống; dutch = máy nghiêng; dolly_in = máy đẩy chậm vào; dolly_out = máy lùi ra để lộ không gian; tracking = máy chạy ngang bám theo; handheld = rung tay nhẹ, có người cầm; crane_up = máy nâng lên; rack_focus = lấy nét dịch từ tiền cảnh sang hậu cảnh.
+**Đổi ký hiệu đạo diễn sang lời cho model:** ECU = cận cực cận, khung đầy [chi tiết]; CU/MCU = cận, mặt/ngực đầy khung; MS = trung cảnh từ eo/đầu gối lên; LS/ELS = toàn/viễn, chủ thể nhỏ trong môi trường; eye_level = máy ngang mắt; low = máy thấp nhìn lên; high/birds_eye = máy cao/nhìn thẳng xuống; dutch = máy nghiêng; dolly_in = máy đẩy chậm vào; dolly_out = máy lùi ra để lộ không gian; tracking = máy chạy ngang bám theo; handheld = rung tay nhẹ, có người cầm; crane_up = máy nâng lên; crane_down = máy hạ xuống vào cảnh; arc = máy xoay vòng quanh chủ thể; steadicam = máy trôi êm song song chủ thể; tracking_oner = một cú máy liền không cắt bám theo hành động; whip_pan = máy quét nhanh sang [hướng], vệt mờ chuyển động; zoom_in/zoom_out = ống kính zoom (quang học, máy không di chuyển); crash_zoom = zoom giật nhanh vào chủ thể; rack_focus = lấy nét dịch từ tiền cảnh sang hậu cảnh. Đường máy mà ký hiệu không tả được → viết cụ thể từng bước ("xuyên qua khe cửa vào phòng rồi lao xuống mặt nhân vật").
+
+**Áp dụng cho CẢ prompt ảnh khung đầu** (Deepix), không chỉ motion prompt: ảnh khung đầu quyết định cỡ cảnh của clip, nên ký hiệu "MCU/CU" phải đổi thành câu khung cắt (GĐ6: prompt ảnh chỉ ghi "Vertical MCU eye level" → nhiều shot cận ra toàn thân — xem F9).
 
 **Tiêu cự và cảm xúc:** ~24mm rộng: không gian, khoảng cách phóng đại, môi trường bao lấy chủ thể; 40–50mm: gần mắt người, đáng tin; ~85mm: nén, cô lập chủ thể, thân mật; 135mm+: nén mạnh, cảm giác nhìn trộm, hậu cảnh mờ.
 

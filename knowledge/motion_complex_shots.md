@@ -1,6 +1,6 @@
 # Cảnh hành động phức tạp — khóa không gian và chia nhịp chuyển động
 
-Nguồn: AI Film Direction & Prompt Workflow Kit 1.0.0 (motion-director, bản BETA, chắt lọc). Chỉ dùng cho cảnh hành động phức tạp; cảnh thường (tĩnh, đẩy chậm, một chủ thể) để model tự xử lý bằng câu tự nhiên.
+Nguồn: AI Film Direction & Prompt Workflow Kit 1.0.0 (motion-director, bản BETA, chắt lọc); bổ sung từ bản 2.0.0 (perception-physics) ngày 2026-09-24. Chỉ dùng cho cảnh hành động phức tạp; cảnh thường (tĩnh, đẩy chậm, một chủ thể) để model tự xử lý bằng câu tự nhiên.
 
 ## Khi nào áp dụng
 Chỉ khi **cùng lúc**: từ 2 chủ thể trở lên **và** chuyển động thân người nhanh **và** quan hệ không gian đổi nhanh trong khung (đánh nhau, giáp lá cà, rượt đuổi, đối đầu thể chất). Một chủ thể, chậm, hoặc không gian ổn định thì **không** áp dụng, dù cảm xúc căng ("căng ≠ máy phức tạp"). Nếu thấy thực ra không phức tạp → giữ nguyên prompt thường.
@@ -41,3 +41,10 @@ Chỉ khi **cùng lúc**: từ 2 chủ thể trở lên **và** chuyển động
 - **Nguyên tắc tách vai trò, LUÔN giữ khi viết prompt cho cảnh có video tham chiếu:** ảnh khung đầu (và Character Bible) quyết định toàn bộ **diện mạo**; video tham chiếu chỉ quyết định **chuyển động/nhịp/lực** — **không được tả lại diện mạo nhân vật trong video đó** vào motion prompt (model có thể lẫn diện mạo nếu prompt mơ tả cả hai). Câu prompt nên viết kiểu: "nhân vật trong ảnh thực hiện đúng chuyển động/nhịp độ như trong video tham chiếu" thay vì diễn giải lại từng động tác bằng chữ.
 - Ví dụ cụ thể của dự án: skill chủ động của nhân vật Free Fire (xem `knowledge/ff_character_skills_visual.md`) — dùng video gameplay/showcase thật của skill đó làm tham chiếu chuyển động, thay vì cố diễn tả VFX bằng chữ khi chưa xem video.
 - Đây là gợi ý **thay thế cách viết chữ chi tiết hơn**, không phải bước bắt buộc thêm vào — cảnh đơn giản vẫn viết chữ như bình thường.
+
+## Nguyên lý tri giác bổ sung (Kit 2.0.0 — perception-physics)
+Quy tắc trục 180° không phải quy ước tùy ý mà là cách não dựng bản đồ không gian; ba nguyên lý hay bị bỏ sót:
+- **Hướng nhìn bảo toàn:** hai người đối mặt/đối thoại thì hướng nhìn trên màn hình ngược nhau (A nhìn sang phải khung → B nhìn sang trái) và giữ nguyên qua các shot; ai đột nhiên nhìn sai phía = lỗi không gian.
+- **Động lượng và trọng lượng:** người xem đánh giá thật/giả qua dấu hiệu phụ — vật nặng có quán tính (không dừng tức thì), vật bị đánh phản ứng theo khối lượng (nhẹ thì bay, nặng thì nứt), vải/tóc dài trễ sau thân người. Video AI "giả" chủ yếu vì vật chuyển động không có trọng lượng → viết rõ vào đoạn chất liệu.
+- **Quán tính của mắt:** chuyển động nhanh có vệt mờ nhẹ; cú quét máy/dừng gấp được phép hơi "quá đà" kiểu cầm tay — chính xác tuyệt đối lại trông như CGI. Đây là chất cảm phụ, **không** phải chuyển động chính thứ hai.
+Loại chuyển động mới chưa có trong bảng trên → tự suy ra bằng 3 câu hỏi: (1) người xem dựng bản đồ không gian bằng gì (đường nối, hướng nhìn, hướng di chuyển, trục trọng lực)? (2) dấu hiệu vật lý nào quyết định thật/giả? (3) chỗ nào bị che khuất (điểm cắt, chiều sâu)?
