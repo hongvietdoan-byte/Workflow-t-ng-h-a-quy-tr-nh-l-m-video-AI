@@ -279,5 +279,52 @@ class VoiceCheckTests(unittest.TestCase):
         self.assertIn("nghi lỗi", warn.call_args[0][4])       # _d(p, pid, stage, severity, message, code)
 
 
+class PreferredVietnameseVoiceTests(unittest.TestCase):
+    """User choice 2026-09-24: the 4 team clones with the 'VN' suffix first (2 male, 2 female) — the API gives them no language."""
+    OFFICIAL = [{"id": 30002, "name": "Xinghe Jiang", "languages": ["en", "vi"], "labels": {"gender": "male"}},
+                {"id": 11, "name": "Rachel", "languages": ["en"], "labels": {"gender": "female"}}]
+    TEAM = [{"id": 64, "name": "ClipAI_KELLY", "languages": [], "labels": {}},
+            {"id": 70, "name": "ClipAI_Voice Kelly VN", "languages": [], "labels": {}},
+            {"id": 69, "name": "ClipAI_voice Hip VN", "languages": [], "labels": {}},
+            {"id": 71, "name": "ClipAI_Voice girl ingame VN", "languages": [], "labels": {}},
+            {"id": 72, "name": "ClipAI_voice boy ingame VN", "languages": [], "labels": {}}]
+
+    def test_the_four_vn_voices_lead_with_their_gender_then_other_vietnamese_voices(self):
+        from core import voice
+        pool = voice.casting_pool(self.OFFICIAL + self.TEAM)
+        self.assertEqual([v["id"] for v in pool], [72, 69, 71, 70, 30002])        # KELLY (no 'VN', no language) is not offered
+        self.assertEqual([voice.voice_gender(v) for v in pool[:4]], ["male", "male", "female", "female"])
+        self.assertEqual(voice.display_name(pool[3]), "Voice Kelly VN")
+
+    def test_library_reads_the_official_voices_and_the_team_voices(self):
+        from core import voice
+        from core.providers import ProviderError
+        calls = []
+
+        class Provider:
+            def voice_actors(inner, owner=None, game_code=None, **_):
+                calls.append((owner, game_code))
+                return list(self.TEAM) if game_code == "FF" else list(self.OFFICIAL)
+        lib = voice.library(Provider())
+        self.assertIn(("official", None), calls)
+        self.assertIn((None, "FF"), calls)
+        self.assertEqual(lib[0]["id"], 72)
+        self.assertEqual(lib[0]["team"], "FF")
+
+        class NoTeam(Provider):
+            def voice_actors(inner, owner=None, game_code=None, **_):
+                if game_code:
+                    raise ProviderError("down")
+                return list(self.OFFICIAL)
+        self.assertEqual([v["id"] for v in voice.library(NoTeam())], [30002, 11])   # official voices still shown
+
+    def test_the_adapter_reads_every_page(self):
+        from core.adapters.clipai_audio import ClipAIAudioProvider
+        prov = ClipAIAudioProvider("t", transport=lambda *a, **k: None)
+        pages = {1: [{"id": i} for i in range(100)], 2: [{"id": i} for i in range(100, 118)]}
+        prov.client.get = lambda path, params: {"items": pages.get(params["page"], []), "total": 118}
+        self.assertEqual(len(prov.voice_actors(owner="official")), 118)
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -78,6 +78,10 @@ P3 tab hiệu suất đếm đúng; S4 cảnh báo 2 cửa sổ cùng dự án; 
 - (GĐ-G phần 2) File xuất ghi qua file tạm `*.part-xxxx.mp4`; **một dự án chỉ dựng một bản một lúc** (bấm dựng khi đang dựng → báo "đang được dựng ở nơi khác"). Nếu Dashboard bị tắt giữa lúc dựng, khóa tự hết sau 1 giờ (hoặc xóa `output/.render.lock`).
 - (GĐ-G phần 2) Phụ đề dùng lại bản dịch đã có + câu sửa tay (`subtitles/texts.json`), và bám **timeline của bản dựng mới nhất** (clip đã chọn + giây đã sửa); đổi phụ đề/card → lớp cũ báo "⚠ cũ".
 - (GĐ-G phần 2) Storyboard có cờ "cận mặt người đang nói — không có khớp môi"; Bước 3 có nút **🎧 Kiểm giọng** (miễn phí) và cờ từng câu.
+- (2026-09-24, người dùng chốt) **Giọng ưu tiên = 4 giọng clone của team có hậu tố VN** (⭐, `data/voices_vi.json`): nam `voice boy ingame VN` (72),
+  `voice Hip VN` (69); nữ `Voice girl ingame VN` (71), `Voice Kelly VN` (70). API lấy được qua `voice-actors?game_code=FF` (tên có tiền tố
+  `ClipAI_`, không ghi ngôn ngữ/giới tính → khai trong file cấu hình). Danh sách giọng ở Bước 1/5, Claude chọn giọng (prompt 15) và
+  `tools/voice_trial.py` đều xếp 4 giọng này lên đầu; thư viện official đọc đủ các trang (118 giọng). **Chưa thử TTS thật bằng giọng clone qua API.**
 
 ### 5. Người dùng cần làm / cung cấp
 1. Nghe thử giọng Việt với `eleven_v3` (GĐ-I bậc 0) — xác nhận lỗi giọng đã hết.

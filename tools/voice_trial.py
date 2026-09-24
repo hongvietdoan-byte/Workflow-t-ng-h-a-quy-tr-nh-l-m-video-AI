@@ -5,7 +5,8 @@
     py tools/voice_trial.py --poll <thư mục>      (tải file về, kiểm tự động AU-f, ghi bảng chấm bang_cham.csv)
     py tools/voice_trial.py --summary <thư mục>   (đọc điểm người nghe đã điền → điểm trung bình theo model × giọng)
 
-Tùy chọn: --models eleven_v3,eleven_flash_v2_5  --voices 12,34 (id giọng)  --max-voices 3.
+Tùy chọn: --models eleven_v3,eleven_flash_v2_5  --voices 70,72 (id giọng)  --max-voices 4 (mặc định: 4 giọng clone VN ưu tiên,
+data/voices_vi.json; tăng lên để thử thêm giọng official có tiếng Việt).
 Chạy ở GĐ-I bậc 0 (xin phép trước khi --yes). Cần CLIPAI_TOKEN như khi chạy Dashboard. Kết quả ở data/voice_trial/<thời điểm>/.
 """
 import argparse
@@ -41,7 +42,7 @@ ROOT = os.path.join("data", "voice_trial")
 
 
 def vi_voices(provider, ids=None, limit=3):
-    voices = voice.casting_pool(provider.voice_actors(owner="official"))
+    voices = voice.casting_pool(voice.library(provider))     # the 4 preferred team 'VN' voices come first
     if ids:
         voices = [v for v in voices if str(v.get("id")) in ids]
     return voices[:limit] if limit else voices
@@ -64,7 +65,8 @@ def plan(args):
     total = len(SENTENCES) * len(models) * len(voices)
     print(f"{len(SENTENCES)} câu × {len(models)} model × {len(voices)} giọng = {total} lượt TTS")
     print("Model:", ", ".join(models))
-    print("Giọng:", ", ".join(f"{v.get('name')} (id {v.get('id')}, {voice.voice_gender(v) or '?'})" for v in voices))
+    print("Giọng:", ", ".join(("⭐ " if voice.preferred(v) else "") + f"{voice.display_name(v)} (id {v.get('id')}, "
+                                f"{voice.voice_gender(v) or '?'})" for v in voices))
     return provider, models, voices, total
 
 
@@ -85,7 +87,7 @@ def submit(args):
             for key, text in SENTENCES:
                 e = audio_lib.submit_tts(provider, out, voice.speakable(text), int(v["id"]), v.get("name", ""), m, None,
                                          ledger=(conn, None), extra={"trial": key, "text": text, "model": m, "voice_id": v["id"],
-                                                                     "voice_name": v.get("name", "")})
+                                                                     "voice_name": voice.display_name(v)})
                 if not e.get("asset_id"):
                     print(f"Dừng: {e.get('message')}")
                     print(f"Đã gửi {sent}/{total}. Thư mục: {out}")
@@ -145,7 +147,7 @@ def main():
     ap.add_argument("--yes", action="store_true", help="gửi thật (tốn credit)")
     ap.add_argument("--models", help="danh sách model, phân cách bằng dấu phẩy")
     ap.add_argument("--voices", help="id giọng, phân cách bằng dấu phẩy")
-    ap.add_argument("--max-voices", type=int, default=3)
+    ap.add_argument("--max-voices", type=int, default=4, help="mặc định 4 = 4 giọng clone VN ưu tiên (2 nam, 2 nữ)")
     ap.add_argument("--poll", help="thư mục lượt thử để tải + kiểm + ghi bảng chấm")
     ap.add_argument("--timeout", type=int, default=600)
     ap.add_argument("--summary", help="thư mục lượt thử có bảng chấm đã điền điểm")

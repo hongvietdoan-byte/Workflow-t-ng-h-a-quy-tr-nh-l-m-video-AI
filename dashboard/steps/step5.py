@@ -140,7 +140,7 @@ def extras_section(p: Pipeline, pid: int, provider):
                 voices = st.session_state.get(f"voices_{pid}")
                 if voices is None:
                     try:
-                        voices = provider.voice_actors(owner="official")
+                        voices = voice.library(provider)       # official + team voices, the preferred Vietnamese ones first
                     except ProviderError as e:
                         st.error(f"Không lấy được danh sách giọng: {e}")
                         voices = []
@@ -148,8 +148,8 @@ def extras_section(p: Pipeline, pid: int, provider):
                 if not voices:
                     st.caption("Chưa có giọng nào để chọn.")
                 else:
-                    v = st.selectbox("Giọng", voices, format_func=lambda x: f"{x.get('name')} (#{x.get('id')})",
-                                     key=f"tts_v_{pid}")
+                    v = st.selectbox("Giọng", voices, key=f"tts_v_{pid}",
+                                     format_func=lambda x: ("⭐ " if voice.preferred(x) else "") + f"{voice.display_name(x)} (#{x.get('id')})")
                     t_text = st.text_area("Nội dung (≤ 2000 ký tự)", key=f"tts_t_{pid}", height=80)
                     d1, d2 = st.columns(2)
                     t_model = d1.selectbox("Model", ["eleven_v3", "eleven_turbo_v2_5", "eleven_multilingual_v2"],

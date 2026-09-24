@@ -1,0 +1,10 @@
+{
+  "_note": "Giọng tiếng Việt ưu tiên cho thoại (người dùng chốt 2026-09-24): 4 giọng clone của team FF có hậu tố VN (AI Audio → Voice Actors → FF), 2 nam + 2 nữ. Lấy qua API GET /api/sound/voice-actors?game_code=FF; API trả tên có tiền tố 'ClipAI_' và languages rỗng nên giới tính/tiếng Việt khai ở đây. Khớp theo id hoặc tên (bỏ tiền tố, không phân biệt hoa thường). Thứ tự = thứ tự ưu tiên.",
+  "game_codes": ["FF"],
+  "preferred": [
+    {"id": 72, "name": "voice boy ingame VN", "gender": "male"},
+    {"id": 69, "name": "voice Hip VN", "gender": "male"},
+    {"id": 71, "name": "Voice girl ingame VN", "gender": "female"},
+    {"id": 70, "name": "Voice Kelly VN", "gender": "female"}
+  ]
+}

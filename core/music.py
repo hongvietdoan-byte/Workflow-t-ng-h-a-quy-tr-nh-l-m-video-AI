@@ -58,7 +58,9 @@ class MockAudioProvider:
             w.writeframes(frames)
         return dest_path
 
-    def voice_actors(self, owner=None, keyword=None, page_size=100):
+    def voice_actors(self, owner=None, keyword=None, page_size=100, game_code=None):
+        if game_code:
+            return []
         return [{"id": 1, "name": "Mock voice", "library_scope": "official"}]
 
 

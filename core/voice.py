@@ -72,28 +72,90 @@ def planned_lines(conn, project_id: int) -> List[Dict]:
 
 
 # ---- Vietnamese voices (kế hoạch v3, GĐ4 — API only) --------------------------------------------------------------------------
+_VOICES_VI = os.path.join(os.path.dirname(__file__), "..", "data", "voices_vi.json")
+
+
+def _clean_name(name) -> str:
+    """'ClipAI_Voice Kelly VN' -> 'voice kelly vn' (the team voices come back with the 'ClipAI_' prefix)."""
+    text = str(name or "").strip()
+    if text.lower().startswith("clipai_"):
+        text = text[len("clipai_"):]
+    return " ".join(text.lower().split())
+
+
+def voice_config() -> Dict:
+    """data/voices_vi.json: the preferred Vietnamese voices (team clones with the 'VN' suffix, 2 male + 2 female) and the game codes
+    whose team voices are listed. Read again only when the file changes (it is asked once per voice on every page draw)."""
+    try:
+        stamp = os.path.getmtime(_VOICES_VI)
+    except OSError:
+        return {}
+    if _config_cache.get("stamp") != stamp:
+        try:
+            with open(_VOICES_VI, encoding="utf-8") as f:
+                data = json.load(f)
+        except (OSError, ValueError):
+            data = {}
+        _config_cache.update(stamp=stamp, data=data if isinstance(data, dict) else {})
+    return _config_cache["data"]
+
+
+_config_cache: Dict = {}
+
+
+def preferred(v: Dict) -> Optional[Dict]:
+    """The preferred-voice entry this voice matches (by id or name), else None."""
+    name = _clean_name(v.get("name"))
+    for entry in voice_config().get("preferred") or []:
+        if (entry.get("id") is not None and entry.get("id") == v.get("id")) or (entry.get("name") and _clean_name(entry["name"]) == name):
+            return entry
+    return None
+
+
+def display_name(v: Dict) -> str:
+    return str(v.get("name") or "").replace("ClipAI_", "", 1).strip()
+
+
 def speaks_vi(v: Dict) -> bool:
-    """A Clip AI voice that lists Vietnamese (`languages` or `labels.language`)."""
+    """A Clip AI voice that lists Vietnamese (`languages` or `labels.language`), or one of the preferred Vietnamese team voices
+    (cloned voices come back with no language at all)."""
     langs = v.get("languages") or []
     labels = v.get("labels") if isinstance(v.get("labels"), dict) else {}
-    return "vi" in langs or labels.get("language") == "vi"
+    return "vi" in langs or labels.get("language") == "vi" or preferred(v) is not None
 
 
 def voice_gender(v: Dict) -> str:
     labels = v.get("labels") if isinstance(v.get("labels"), dict) else {}
-    return (labels.get("gender") or "").lower()
+    return (labels.get("gender") or (preferred(v) or {}).get("gender") or "").lower()
 
 
 def vietnamese_first(voices: List[Dict]) -> List[Dict]:
-    """Voices that speak Vietnamese first (one entry per name — the library lists some twice under two ids), then the rest."""
-    seen, vi, other = set(), [], []
+    """The preferred Vietnamese team voices first (in the order of data/voices_vi.json), then the other voices that speak Vietnamese,
+    then the rest — one entry per name (the library lists some twice under two ids)."""
+    entries = voice_config().get("preferred") or []
+    seen, pref, vi, other = set(), [], [], []
     for v in voices:
-        key = (v.get("name") or "").strip().lower()
+        key = _clean_name(v.get("name"))
         if key in seen:
             continue
         seen.add(key)
-        (vi if speaks_vi(v) else other).append(v)
-    return vi + other
+        (pref if preferred(v) else vi if speaks_vi(v) else other).append(v)
+    pref.sort(key=lambda v: entries.index(preferred(v)))
+    return pref + vi + other
+
+
+def library(provider) -> List[Dict]:
+    """Every voice the Dashboard can use: the official library (all pages) + the team voices of each game code in
+    data/voices_vi.json (e.g. FF clones). A team list that cannot be read does not hide the official voices (reported by the caller
+    only when everything fails)."""
+    from .providers import ProviderError
+    voices = list(provider.voice_actors(owner="official"))
+    for code in voice_config().get("game_codes") or []:
+        try:
+            voices += [{**v, "team": code} for v in provider.voice_actors(game_code=code)]
+        except ProviderError:
+            continue
+    return vietnamese_first(voices)
 
 
 def casting_pool(voices: List[Dict]) -> List[Dict]:

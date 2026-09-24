@@ -456,8 +456,9 @@ def cast_voices(p: Pipeline, project_id: int, client, voices: List[Dict], overwr
     for ln in voice.planned_lines(p.conn, project_id):
         samples.setdefault(ln["speaker"].upper(), []).append(ln["text"])
     chars = [{"name": r["name"], "description": r["description"], "lines": samples.get(r["name"].upper(), [])[:3]} for r in todo]
-    pool = [{"id": v.get("id"), "name": v.get("name"), "description": v.get("description") or v.get("labels") or "",
-             "tieng_viet": voice.speaks_vi(v), "gender": voice.voice_gender(v)} for v in voice.casting_pool(voices)]
+    pool = [{"id": v.get("id"), "name": voice.display_name(v), "description": v.get("description") or v.get("labels") or "",
+             "tieng_viet": voice.speaks_vi(v), "gender": voice.voice_gender(v), "uu_tien": voice.preferred(v) is not None}
+            for v in voice.casting_pool(voices)]
     if not pool:                           # AU-b: never cast a voice that does not speak Vietnamese for Vietnamese lines
         raise LlmError("thư viện giọng Clip AI không có giọng nào ghi hỗ trợ tiếng Việt — chưa chọn giọng (chưa gọi Claude)",
                        code="no_vi_voice")
@@ -465,7 +466,7 @@ def cast_voices(p: Pipeline, project_id: int, client, voices: List[Dict], overwr
     prompt = "\n\n---\n\n".join([_read("prompts", "15_voice_casting.md"), _block("Nhân vật", chars), _block("Giọng có sẵn", pool)])
     obj = _run(p, project_id, "director", prompt, _check_cast, client)
     vi_ids = names
-    names = {v.get("id"): v.get("name") for v in voices}
+    names = {v.get("id"): voice.display_name(v) for v in voices}
     for c in obj["cast"]:
         if c["voice_id"] in names and c["voice_id"] in vi_ids:
             voice.set_profile(p.conn, project_id, c["name"], {"voice_id": c["voice_id"], "voice_name": names[c["voice_id"]],

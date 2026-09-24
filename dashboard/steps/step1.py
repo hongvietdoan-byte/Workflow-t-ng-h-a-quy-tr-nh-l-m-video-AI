@@ -759,7 +759,7 @@ def _voices(pid: int):
     if key not in st.session_state:
         try:
             provider = music.audio_provider()
-            st.session_state[key] = provider.voice_actors(owner="official") if provider else []
+            st.session_state[key] = voice.library(provider) if provider else []   # official + team voices (FF 'VN' clones first)
         except ProviderError as e:
             st.session_state[key] = []
             st.caption(f"Không lấy được danh sách giọng: {e}")
@@ -825,8 +825,10 @@ def character_detail_panel(p: Pipeline, pid: int, c, voices, client, locked: boo
         if voices:
             ordered = voice.vietnamese_first(voices)          # v3: voices that list Vietnamese first (🇻🇳)
             ids = [None] + [v.get("id") for v in ordered]
-            names = {v.get("id"): ("🇻🇳 " if voice.speaks_vi(v) else "") + str(v.get("name")) for v in ordered}
-            names.update({v.get("id"): ("🇻🇳 " if voice.speaks_vi(v) else "") + str(v.get("name")) for v in voices if v.get("id") not in names})
+            label = lambda v: ("⭐ " if voice.preferred(v) else "🇻🇳 " if voice.speaks_vi(v) else "") + voice.display_name(v) + (  # noqa: E731
+                f" · {'nam' if voice.voice_gender(v) == 'male' else 'nữ'}" if voice.preferred(v) else "")
+            names = {v.get("id"): label(v) for v in ordered}
+            names.update({v.get("id"): label(v) for v in voices if v.get("id") not in names})
             cur = prof.get("voice_id") if prof.get("voice_id") in ids else None
             v1, v2 = st.columns([2, 3])
             pick = v1.selectbox("Giọng", ids, index=ids.index(cur), key=f"voice_{pid}_{c['name']}",
@@ -908,8 +910,11 @@ def character_bible_panel(p: Pipeline, pid: int, chars, risky) -> None:
         vi_pool = [v for v in voice.vietnamese_first(voices) if voice.speaks_vi(v)] if voices else []
         if voices:
             n_f = sum(1 for v in vi_pool if voice.voice_gender(v) == "female")
-            st.caption(f"🇻🇳 {len(vi_pool)} giọng ghi hỗ trợ tiếng Việt ({n_f} nữ) trong thư viện Clip AI — không có giọng gốc Việt, nên nghe thử "
-                       "câu mẫu. Từ tiếng Anh/tên riêng được đọc theo `data/pronunciation_vi.json`."
+            n_pref = sum(1 for v in vi_pool if voice.preferred(v))
+            st.caption(f"🇻🇳 {len(vi_pool)} giọng tiếng Việt ({n_f} nữ)"
+                       + (f", ưu tiên ⭐ {n_pref} giọng clone Việt của team (hậu tố VN, `data/voices_vi.json`)" if n_pref else
+                          " — chưa thấy giọng clone Việt của team (⭐): kiểm tra nhóm FF ở AI Audio → Voice Actors")
+                       + ". Nên nghe thử câu mẫu. Từ tiếng Anh/tên riêng được đọc theo `data/pronunciation_vi.json`."
                        + (f" ⚠ {len(speakers)} nhân vật có thoại nhưng chỉ {len(vi_pool)} giọng tiếng Việt: sẽ phải dùng chung giọng." if 0 < len(vi_pool) < len(speakers) else ""))
         if no_voice and voices and client is not None:
             if st.button(f"🤖 Claude chọn giọng cho {len(no_voice)} nhân vật có thoại", key=f"cast_{pid}"):

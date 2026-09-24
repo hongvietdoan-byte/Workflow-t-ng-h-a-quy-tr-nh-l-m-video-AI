@@ -122,7 +122,17 @@ class ClipAIAudioProvider:
         return self.client.download(url, dest_path)
 
     def voice_actors(self, owner: Optional[str] = None, keyword: Optional[str] = None,
-                     page_size: int = 100) -> List[dict]:
-        data = self.client.get(PATH_VOICES, {"owner": owner, "keyword": keyword, "page": 1,
-                                             "page_size": min(max(page_size, 1), 100)}) or {}
-        return list(data.get("items") or [])
+                     page_size: int = 100, game_code: Optional[str] = None) -> List[dict]:
+        """Every page (the official library has 118 voices > one page of 100). `owner` only accepts 'official' (else code 1110);
+        `game_code='FF'` lists the team's cloned voices (web: AI Audio → Voice Actors → FF), checked 2026-09-24."""
+        out: List[dict] = []
+        size = min(max(page_size, 1), 100)
+        for page in range(1, _PAGES + 1):
+            data = self.client.get(PATH_VOICES, {"owner": owner, "keyword": keyword, "game_code": game_code, "page": page,
+                                                 "page_size": size}) or {}
+            items = list(data.get("items") or [])
+            out += items
+            total = data.get("total")
+            if len(items) < size or (isinstance(total, int) and len(out) >= total):
+                break
+        return out
