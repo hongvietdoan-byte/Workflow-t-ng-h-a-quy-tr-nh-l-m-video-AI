@@ -1,5 +1,7 @@
 # Bàn giao 2026-09-25 (tối) — Tháp đồng hồ giống FF 90–100% + khớp môi (lip-sync)
 
+> **⚠ Đã được thay bằng `docs/KE_HOACH_V4_2026-09-25.md` (người dùng chốt 2026-09-25 tối):** không làm lẻ cảnh đầu — làm "gói bối cảnh" cho cả video/mọi vị trí; khớp môi cho toàn bộ video; hồ sơ 3 nhân vật đã duyệt. Nội dung bên dưới giữ làm tài liệu kỹ thuật (tọa độ, API Seedance, kết quả thử 70%).
+
 > **Phiên sau đọc file này trước**, rồi `TODO.md` (📌 BÀN GIAO + mục 0), `docs/KE_HOACH_2026-09-25.md` (mục 0 = bảng tiến độ) và
 > `docs/CHUAN_XAY_DUNG.md` (luật bắt buộc). Đọc xong file này là làm tiếp được, không cần đọc lại hội thoại cũ.
 

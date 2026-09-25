@@ -322,6 +322,14 @@ Tổng hợp từ: báo cáo rà soát `docs/DASHBOARD_REVIEW_2026-09-23.md`, k�
   2. **Bàn đạo diễn của Clip AI — dò lại ở lần dùng API tiếp theo, để build sau.** Lần tới làm việc với API Clip AI: đọc kỹ toàn bộ tính năng API cho phép (gói skill mới nhất nếu có, danh sách video/`task_type`, trường mới), kiểm tra video lưu từ Bàn đạo diễn có hiện trong API không, hỏi team Clip AI. Kết quả của nó (video white model) đã dùng được qua `reference_video` của Seedance theo tài liệu API. Xem `docs/CLIPAI_FEATURES.md`.
   3. **Combo Deepix + Blender + Meshy + Clip AI (previz 3D) — nghiên cứu dần, dùng trong tương lai.** Mới và khó; ghi chép nghiên cứu ở `docs/RESEARCH_3D_PREVIZ.md`, không chặn hướng 1.
 
+**Đã chốt (2026-09-25 tối, kế hoạch V4 — `docs/KE_HOACH_V4_2026-09-25.md`):**
+- **Thứ tự:** rà soát + hoàn thiện plan/code/dashboard (mục 5 của V4) **trước**; chỉ chạy trọn video #6 khi mọi tính năng đã build xong — khi đó báo người dùng, **người dùng tự chạy thật trên dashboard**. Trước đó chỉ được kiểm chứng nhỏ trong trần còn lại của #7 (≤ ~$2, ≤ 5 ảnh, báo giá trước mỗi lần).
+- **Nền bối cảnh = pixel thật, AI chỉ vẽ nhân vật ("gói bối cảnh")**: 3 cấp nguồn nền — (1) **mô hình 3D chính thức** (người dùng xin team game; bổ sung dần vào `MODEL3D_DIR`) render bằng Blender theo máy ảo suy từ shot, (2) ảnh chụp trong game ở Kho (giữ cách chia thư mục map/khu vực trên Drive), (3) AI vẽ + ảnh mốc (~70%, báo rõ). Nhân vật ăn khớp nhờ cùng máy/cùng nguồn sáng/bóng + vật che từ 3D/hòa ánh sáng; thời gian + thời tiết (mưa, tuyết, băng, sấm chớp, sương, bão cát) theo kịch bản. Việc làm tay tính theo **vị trí**, không theo shot; nhiều dự án dùng chung hàng đợi + bộ nhớ đệm render.
+- ~~Lip Sync không ưu tiên~~ → **Khớp môi cho toàn bộ video** (mọi shot thấy miệng người nói): nghiên cứu các cách (Seedance `reference_audio`, dịch vụ/mô hình khớp môi sau khi có clip), rồi làm bước "Khớp môi" riêng; luật "né cận mặt" thành tùy chọn.
+- **3 vai Đạo diễn / Quay phim / Dựng** nâng thành bộ kỹ năng nghề đầy đủ (được nghiên cứu nguồn bên ngoài), một agent độc lập chấm điểm + so với bên ngoài, gửi người dùng bảng tổng kết trước khi bật `film_crew`.
+- **Hồ sơ chuẩn KELLY / KENTA / MAXIM: người dùng đã duyệt** (sửa sau nếu gặp lỗi khi dựng). Không ghi số tuổi dưới 18 (tả "trẻ tuổi, chưa đến 20"); hồ sơ được tự rút gọn 3 mức cho prompt.
+- **Dashboard** tiếp tục trên Streamlit, làm gọn (công tắc "Chuyên gia", bỏ trùng, màn chính 4 thẻ) + tab ⚙ "Giới hạn hệ thống" tính từ số đo thật.
+
 **Còn mở (2026-09-23):**
 
 | Quyết định | Ghi chú |
@@ -335,7 +343,7 @@ Tổng hợp từ: báo cáo rà soát `docs/DASHBOARD_REVIEW_2026-09-23.md`, k�
 |---|---|
 | Nguồn truy cập Claude cho V1 | Gói Claude (seat Enterprise/Pro/Max) và Anthropic API (Console, API key, tính tiền theo token) là 2 sản phẩm/billing tách biệt; seat không tự sinh API key. Dashboard tự gọi Claude bằng code nên V1 cần API key từ Console org công ty (không nên dùng đăng nhập seat cho ứng dụng tự động — cần xác nhận với admin/điều khoản Anthropic). Việc cần làm: hỏi admin Enterprise (a) có Console org không, (b) hạn mức token, (c) chính sách data cho ảnh nhân vật. |
 | `music_provider` | Suno không có API chính thức. Ưu tiên dùng audio của Clip AI (ElevenLabs/Seed Audio tích hợp) nếu API cho phép; xác nhận license thương mại. Xem 3.5 |
-| Framework Dashboard | Streamlit (mặc định) hay web frontend riêng nếu cần UI sát mockup Figma |
+| Framework Dashboard | Streamlit (mặc định) hay web frontend riêng nếu cần UI sát mockup Figma — *thực tế đang dùng Streamlit; kế hoạch V4 (2026-09-25) làm gọn trên Streamlit* |
 
 **Còn mở — cần chốt trước khi code V0 (chặn Tuần 1-2):**
 | Quyết định | Vì sao cần | Ai chốt |
@@ -375,6 +383,8 @@ Tổng hợp từ: báo cáo rà soát `docs/DASHBOARD_REVIEW_2026-09-23.md`, k�
 - [ ] Người giữ quan hệ với team dev nội bộ cấp API Deepix/Clip AI
 
 ## 7. Lộ trình triển khai: V0 → V1
+
+> **Cập nhật 2026-09-25 (tối) — Kế hoạch V4 (bản mới nhất, thay thứ tự việc của các kế hoạch trước):** `docs/KE_HOACH_V4_2026-09-25.md`. Thứ tự: **GĐ0** dọn tài liệu → **GĐ1 rà soát + hoàn thiện** các việc còn dở (Tầng A Director, Editor đặt chữ tránh mặt, W2/W8/W10/O6/M3/M14/M16/M18/M19, T1 hồ sơ mọi nhân vật, K1/K2 khung cuối, nối `recover_clips` + `music_timing`) và độ bền/giới hạn (giới hạn riêng từng nhà cung cấp, khóa trần tiền, hàng đợi Blender) → **GĐ2** gói bối cảnh (nền 3D/ảnh trong game + ghép + thời tiết + kiểm độ giống nền) → **GĐ3** khớp môi toàn video → **GĐ4** bộ kỹ năng 3 vai + chấm điểm độc lập, hồ sơ rút gọn → **GĐ5** Tầng A → **GĐ6** dashboard gọn + tab "Giới hạn hệ thống" → **GĐ7** test toàn bộ → **GĐ8** kiểm chứng nhỏ trong trần #7 → **GĐ9** báo "sẵn sàng", người dùng chạy trọn #6 trên dashboard. Lộ trình V0/V1 bên dưới là lịch sử (V0/MCP đã tạm gác từ 2026-09-19). **Tiến độ thật: `TODO.md` (nơi duy nhất ghi tiến độ).**
 
 > **Cập nhật 2026-09-25 — Kế hoạch làm tiếp (bản mới nhất, sắp lại thứ tự việc của kế hoạch tổng):** `docs/KE_HOACH_2026-09-25.md` — đánh giá tổng thể (code đủ dày; thiếu một video thật chạy hết vòng mới và một Director rẻ, ổn định); bài học 4 lần chạy Director thật cho kịch bản "ANH CHỌN AI?" (~$1,7); 6 hướng: H1 bộ chuẩn hóa shot (code tự sửa thay vì hỏi lại Claude), H2 Director hai tầng + chạy lại từng cảnh + cache, H3 bộ nguyên tắc đạo diễn 5 tầng (mục đích → cách nghĩ → nguyên tắc/luật có lý do + căn cứ → thứ tự ưu tiên khi xung đột → tự rà; không trần số luật — người dùng bổ sung), H4 bàn đo Director offline bằng fixture thật, **H5 quay theo vị trí máy (1 clip cho nhiều shot cùng góc — giây trả tiền ≈ giây phim; #6: ~103 s ≈ $8,2 theo từng shot → ước ~60–65 s ≈ $5)**, H6 bảng chi phí dự kiến trước mỗi bậc, **H7 tổ làm phim: Đạo diễn (ý đồ, thoại, quan sát tổng, duyệt chốt) + Quay phim (góc máy, bố cục, coverage, prompt hình) + Dựng/Editor (cắt, vùng an toàn đặt chữ theo nền tảng và từng khung, phụ đề, trộn âm, định dạng) — mỗi vai một nguồn kiến thức riêng** (người dùng đề xuất). Thứ tự ưu tiên khi luật xung đột đã chốt, chỉnh dần theo các dự án sau. Lộ trình đã chốt: bàn đo + bộ chuẩn hóa → **chạy thử 0–20 s đầu của #6, tự chạy trong trần** ($8 tiền có giá + $1 Claude API tối ưu + 32 ảnh + 25 lượt âm thanh, gen lại ≤ 2 lần/shot; thử nhỏ quay theo vị trí máy; giữ lại 2 câu thoại cho phần sau; PR #1 đã merge về `main`) → tổ làm phim → Director theo vai → quay theo vị trí máy → phần còn lại của #6 → GĐ-F/E/G/H/T1/I.
 
@@ -436,6 +446,8 @@ Mục tiêu: chứng minh pipeline end-to-end chạy được, đo chất lượ
 - [ ] Runbook + Prompt Templates đã bàn giao cho bộ phận sản xuất nội dung
 
 ## 9. Trạng thái triển khai (cập nhật 2026-09-23, khuya)
+
+> **Ghi chú 2026-09-25:** mục này là ảnh chụp ngày 2026-09-23 (số test, "stepper 7 tab"… đã cũ). Trạng thái mới nhất ở `TODO.md` (📌 BÀN GIAO đầu file); hiện có **865 test** (80 file `tests/test_*.py`) (`py -m unittest discover -s tests -t .`). Kế hoạch mới nhất: `docs/KE_HOACH_V4_2026-09-25.md`.
 
 **Adapter thật đã viết (`core/adapters/`):** Deepix (gen ảnh Seedream 5.0 Pro) và Clip AI (video Kling Omni + Seedance) theo hợp đồng API của skill chính thức; kiểm thử bằng giao thức giả (chưa gọi API thật vì token phải do bạn đặt trong biến môi trường). Kiểm tra kết nối chỉ đọc: `py -m core.adapters.check`. Chạy thử thật: `py -m core.adapters.trial --yes`. Chi phí: ước tính trước khi chạy + sổ mức dùng trong Dashboard theo bảng giá `data/pricing.json` (xem `docs/api_notes.md`).
 

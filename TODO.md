@@ -1,5 +1,39 @@
 # TODO — Theo dõi tiến độ dự án Auto Pipeline Video AI
 
+## 📌 KẾ HOẠCH V4 (2026-09-25 tối) — PHIÊN MỚI ĐỌC `docs/KE_HOACH_V4_2026-09-25.md` TRƯỚC TIÊN
+> **File này là nơi DUY NHẤT ghi tiến độ.** Các tài liệu khác (PLAN.md, KE_HOACH_*, BAN_GIAO_*) chỉ trỏ về đây; chỗ nào lệch thì bảng dưới đúng.
+> Người dùng chốt:
+> - **Rà soát + hoàn thiện trước** (GĐ1).
+> - Chỉ chạy trọn #6 khi mọi thứ đã build xong → báo "sẵn sàng" → **người dùng tự chạy thật trên dashboard**.
+> - Kiểm chứng nhỏ chỉ trong trần còn lại của #7 (≤ ~$2, ≤ 5 ảnh, báo giá trước mỗi lần).
+> - Nền = pixel thật (mô hình 3D chính thức do người dùng bổ sung dần vào `MODEL3D_DIR` / ảnh trong game), AI chỉ vẽ nhân vật, có thời tiết.
+> - Khớp môi cho **toàn bộ video**.
+> - 3 vai nâng thành bộ kỹ năng nghề, có agent chấm điểm độc lập.
+> - Hồ sơ KELLY/KENTA/MAXIM **đã duyệt**; không ghi số tuổi < 18.
+> - Không tự chạy tiếp sau mỗi GĐ: báo kết quả + việc còn lại, chờ người dùng chỉ định.
+
+| GĐ | Việc | Trạng thái |
+|---|---|---|
+| 0 | Lưu kế hoạch V4, sửa tài liệu lệch, `requirements.txt` (pillow/numpy/opencv-python), `.gitignore` (`data/_plates3d/`), gộp asset #77 vào Forest Red | ✅ 2026-09-25 |
+| 1 | Rà soát + hoàn thiện: Tầng A (chuyển sang GĐ5), Editor đặt chữ tránh mặt, W2, W8, W10 (luật video), O6, M3, M14, M16, M18, M19, T1 + `tools/draft_profiles.py`, K1/K2, nối `recover_clips` tìm theo prompt + `music_timing`; giới hạn riêng từng nhà cung cấp, khóa trần tiền, hàng đợi Blender | ⏳ chưa bắt đầu |
+| 2 | Gói bối cảnh: đăng ký 3D + chỗ đứng, máy ảo, render theo lô + bộ nhớ đệm, thời gian/thời tiết, lớp bóng/che, ghép, kiểm nền + ăn khớp, cờ `location_plates`; gắn nhãn góc ảnh Kho (~$1–1,5 Claude, báo trước) | ⏳ |
+| 3 | Khớp môi toàn video: nghiên cứu → bước "Khớp môi" + adapter (Seedance `reference_audio` + dịch vụ khớp môi sau) | ⏳ |
+| 4 | Bộ kỹ năng 3 vai → agent chấm độc lập → bảng tổng kết gửi người dùng; hồ sơ bỏ tuổi + rút gọn 3 mức, T1 mọi nhân vật | ⏳ |
+| 5 | Tầng A Director | ⏳ |
+| 6 | Dashboard gọn + tab ⚙ "Giới hạn hệ thống" | ⏳ |
+| 7 | Chạy toàn bộ test, rà lại | ⏳ |
+| 8 | Kiểm chứng nhỏ trong trần #7 (≤ ~$2, ≤ 5 ảnh) | ⏳ cần báo giá trước |
+| 9 | Báo "sẵn sàng" → người dùng chạy trọn #6 | ⏳ |
+
+**Sửa lệch tài liệu (GĐ0, 2026-09-25):**
+- **Số test thật là 865** (unittest discover, 80 file); các số 168/775/822/839 ở các tài liệu cũ đều đã cũ.
+- **PR #1 đã merge về `main`** (bỏ hướng dẫn checkout nhánh cũ).
+- **M12 đã xong** (`core/claude_tasks.py:158`).
+- **K1/K2 không còn chờ file** — thông tin đã có trong skill `clipai-1.3.1` (`scripts/video.mjs`).
+- **Hồ sơ chuẩn 3 nhân vật đã duyệt** (DB `approved: true`, người dùng xác nhận).
+- `music_timing` mới chỉ `tools/pilot_run.py` dùng (chưa vào dashboard/autopilot).
+- Các ô v3 cũ ở mục "🚧 Đang làm" và `docs/UI_AUDIT.md`, `docs/WORKFLOW_REVIEW.md` (B2, B8) là lịch sử, đã được thay bằng kế hoạch sau.
+
 ## 📌 BÀN GIAO 2026-09-25 (tối) — PHIÊN MỚI ĐỌC `docs/BAN_GIAO_2026-09-25_THAP_VA_KHOP_MOI.md` TRƯỚC TIÊN
 > Người dùng xem video 0–20 s bản sửa: **"khá ok"**, còn 2 việc: **(A) nền tháp đồng hồ phải giống FF 90–100%** — thử "ảnh render 3D làm
 > tham chiếu" chỉ đạt ~70% (model vẽ lại nền) → **hướng chốt: ghép nhân vật phông xanh lên render 3D bằng code** (bước C1–C7 trong file bàn
@@ -78,8 +112,8 @@
 
 ### 1. Trạng thái code
 - Nhánh **`claude/upbeat-hawking-6o9njo`** · PR https://github.com/hongvietdoan-byte/Workflow-t-ng-h-a-quy-tr-nh-l-m-video-AI/pull/1 — **đã merge về `main` (fast-forward, 2026-09-25)**; từ nay làm trên `main`.
-  Phiên mới: `git fetch && git checkout claude/upbeat-hawking-6o9njo && git pull` (hoặc merge PR trước rồi làm trên `main`).
-- Commit cuối trước bàn giao: `86ff203`. **775 test pass, 19 skip.** Chạy test: `python -m unittest discover -s tests -t .` (~80 s; đặt timeout ≥ 600 s).
+  ~~Phiên mới: `git fetch && git checkout claude/upbeat-hawking-6o9njo && git pull`~~ — đã merge, làm trên `main` (`git pull`).
+- Commit cuối trước bàn giao: `86ff203`. **775 test pass, 19 skip** *(số của 2026-09-24; hiện 865 test — xem 📌 V4)*. Chạy test: `python -m unittest discover -s tests -t .` (~80 s; đặt timeout ≥ 600 s).
 - **GĐ-G phần 2 xong (2026-09-24, phiên trên máy người dùng có ffmpeg):** **793 test pass, 1 skip** (máy có ffmpeg nên chạy cả test ffmpeg thật —
   tìm ra 1 test cũ khẳng định hành vi trước D4, đã sửa theo D4). Chi tiết ở mục 3 (GĐ-G) và mục 4.
 - **Chưa có thay đổi nào của đợt này được chạy thật với API** (Claude/Deepix/ClipAI/ElevenLabs). Test chỉ chứng minh luồng, không chứng minh chất lượng (luật 8).
@@ -112,7 +146,7 @@
 - [x] AU-h `tools/voice_trial.py`: 10 câu mẫu × model Việt × giọng Việt; mặc định chỉ in kế hoạch, `--yes` mới gửi (tính trần lượt âm thanh), `--poll` tải + kiểm AU-f + ghi `bang_cham.csv`, `--summary` xếp hạng theo điểm người nghe. **Chạy ở GĐ-I bậc 0 (xin phép).**
 - Còn của GĐ-G: D10 (SFX chọn theo tên file, 2 nút "Kiểm tra + tải về") — gộp vào GĐ-H; thử `reference_audio` Seedance cho shot cận nói (AU-g phần 2) — GĐ-I.
 
-**Hồ sơ chuẩn nhân vật (T1) — 2026-09-24:** đã **soạn nháp** (chưa duyệt) cho KELLY (#23), KENTA (#24, **ngoại hình OB55 làm lại** — người dùng
+**Hồ sơ chuẩn nhân vật (T1) — 2026-09-24:** đã **soạn nháp** (**người dùng duyệt 2026-09-25**) cho KELLY (#23), KENTA (#24, **ngoại hình OB55 làm lại** — người dùng
 chốt), MAXIM (#33) từ ảnh tham chiếu + ff.garena.com + bảng thiết kế của team (Kelly 1,70 m · Kenta 1,85 m · Maxim 1,82 m); gắn vai trò/look cho
 19 ảnh; ảnh trùng nội dung (6 ảnh) và ảnh Kenta bản cũ trước OB55 (4 ảnh) chuyển về "chờ duyệt" kèm ghi chú → pipeline không gửi (không xóa).
 Lý do: A/B GPT Image 2.5 cho thấy Lock cũ của dự án ghi Kelly "tóc đuôi ngựa", Maxim "tóc tối" (trái ảnh) và Kho trộn 2 ngoại hình Kenta.
@@ -136,11 +170,11 @@ Code: `assets.standard_set`, `scene_references(sheets=)`, `reference_note` (vai 
 
 **GĐ-F còn:** W2 pilot chọn cảnh đại diện theo nhân vật/bối cảnh/cỡ cảnh (`core/pilot.py`); W8 đo đồng thuận người–QC rồi mới tự nới cổng storyboard;
 W10 bảng luật từng model `data/provider_rules.json` kiểm trước khi gửi (Seedance không trộn khung đầu+tham chiếu, Kling 512 ký tự/15 s, độ dài hợp lệ…);
-M3 khóa poll một nơi (dashboard + autopilot cùng poll 1 job); O6 cổng Bible đòi Lock/ảnh mốc; M12 QC video (6 khung, bỏ 2 đầu, không mốc thời gian);
+M3 khóa poll một nơi (dashboard + autopilot cùng poll 1 job); O6 cổng Bible đòi Lock/ảnh mốc; ~~M12 QC video (6 khung, bỏ 2 đầu, không mốc thời gian)~~ **xong 2026-09-25** (`core/claude_tasks.py:158`);
 M14 chặn bản quyền → Kling rồi kẹt; M16 dấu vân tay video thiếu model/audio; M18/M19.
 
-**GĐ-E còn:** K1/K2 ảnh **khung cuối** cho shot có `end_state` (Deepix vẽ, storyboard hiện cặp đầu–cuối, gửi first+last frame) — **chờ file
-`Get this Skill to Claude/clipai-1.3.1/clipai/reference.md` + `scripts/video.mjs`** để biết trường khung cuối của Kling; thiết kế: cột `jobs.frame`
+**GĐ-E còn:** K1/K2 ảnh **khung cuối** cho shot có `end_state` (Deepix vẽ, storyboard hiện cặp đầu–cuối, gửi first+last frame) — ~~chờ file `reference.md` + `scripts/video.mjs`~~ **đã có trong skill `clipai-1.3.1`
+(2026-09-25) → làm ở GĐ1 kế hoạch V4** (trường khung cuối của Kling); thiết kế: cột `jobs.frame`
 ('start'/'end') hoặc loại job riêng — cẩn thận mọi truy vấn `type='image_gen' AND state='approved'` đang coi là ảnh khung đầu. A17 (shot 1,5 s tính 3 s),
 A18 (đổi chế độ shot khi đã có dữ liệu), A19 ("Làm lại" giữ nhân vật khóa) — gộp vào GĐ-H.
 
@@ -181,12 +215,14 @@ P3 tab hiệu suất đếm đúng; S4 cảnh báo 2 cửa sổ cùng dự án; 
 
 ### 5. Người dùng cần làm / cung cấp
 1. ~~Nghe thử giọng Việt với `eleven_v3` (GĐ-I bậc 0)~~ — **xong 2026-09-24:** nghe ổn, dùng 4 giọng clone VN của team.
-2. Gửi `clipai-1.3.1/clipai/reference.md` + `scripts/video.mjs` (mở K1/K2 khung cuối, K5 `element_ids`).
+2. ~~Gửi `clipai-1.3.1/clipai/reference.md` + `scripts/video.mjs`~~ — đã có trong skill `clipai-1.3.1` (2026-09-25).
 3. Thử 3D trên máy: `dashboard.env` thêm `MODEL3D_DIR=D:\AI-Video-Pipeline\model 3D`, `BLENDER_PATH=...\Blender 5.0\blender.exe`; làm theo `docs/HUONG_DAN_3D.md`, ghi số liệu vào `docs/RESEARCH_3D_PREVIZ.md`. Cho biết định dạng/dung lượng/số tam giác file tháp, chiều cao thật, ảnh trời in-game, cấu hình máy.
-4. Trong ⚙ → 📁 Kho: duyệt ảnh chờ, đặt vai trò ảnh (nhất là "nền ngang tầm mắt" cho bối cảnh), **duyệt 📋 hồ sơ chuẩn nháp đã soạn sẵn cho
-   KELLY, KENTA (OB55), MAXIM** (sửa nếu cần rồi tích ✔ Duyệt). Ảnh "chờ duyệt" có ghi chú "trùng" / "bản cũ trước OB55" là cố ý, đừng duyệt lại.
+4. Trong ⚙ → 📁 Kho: duyệt ảnh chờ, đặt vai trò ảnh (nhất là "nền ngang tầm mắt" cho bối cảnh) — *vai trò ảnh bối cảnh sẽ được tự gắn ở GĐ2 V4*;
+   ~~duyệt 📋 hồ sơ chuẩn KELLY, KENTA (OB55), MAXIM~~ **đã duyệt (2026-09-25)**. Ảnh "chờ duyệt" có ghi chú "trùng" / "bản cũ trước OB55" là cố ý, đừng duyệt lại.
 5. Đối chiếu số dư ClipAI: `py tools/recover_clips.py --reconcile --project <id>` (chỉ đọc) → báo tỉ giá `cost` ↔ USD.
-6. Quyết định LAN/firewall; merge PR #1 về `main` khi sẵn sàng.
+6. Quyết định LAN/firewall. (~~merge PR #1~~ — đã merge 2026-09-25.)
+7. (V4) Xin team game **mô hình 3D chính thức** theo mẫu ở `docs/KE_HOACH_V4_2026-09-25.md` mục 1.5, bỏ vào `MODEL3D_DIR`; xóa thư mục con
+   rỗng `…\Khu vực - Forest Red\Untitled folder\` (chỉ còn `desktop.ini`).
 
 ### 6. Bài học làm việc của đợt này (phiên mới nên theo)
 - Chạy toàn bộ test **riêng**, đọc kết quả, **rồi** mới commit (đợt này đã 2 lần commit khi test đỏ vì nối lệnh).
@@ -198,7 +234,7 @@ P3 tab hiệu suất đếm đúng; S4 cảnh báo 2 cửa sổ cùng dự án; 
 
 ---
 
-_Cập nhật lần cuối: 2026-09-25 — kế hoạch làm tiếp `docs/KE_HOACH_2026-09-25.md` (PLAN.md mục 7 đã trỏ tới, build lại PLAN.docx/pdf); Director lần 4 cho dự án #6 + bài học vào prompt/code (`cd3b379`)._
+_Cập nhật lần cuối: 2026-09-25 (tối) — **kế hoạch V4** `docs/KE_HOACH_V4_2026-09-25.md`, GĐ0 xong (📌 đầu file). Trước đó cùng ngày: kế hoạch làm tiếp `docs/KE_HOACH_2026-09-25.md` (PLAN.md mục 7 đã trỏ tới, build lại PLAN.docx/pdf); Director lần 4 cho dự án #6 + bài học vào prompt/code (`cd3b379`)._
 
 _Trước đó, 2026-09-24 (tối, bàn giao — xem mục 📌 BÀN GIAO ở đầu file) — **Kế hoạch tổng đã duyệt: `docs/KE_HOACH_TONG_2026-09-24.md`** (rà soát toàn Dashboard bằng code + số liệu thật GĐ6; danh mục lỗi A/L/I/M/K/T/D/AU/O/C/S/P/Q/U; lộ trình GĐ-A → GĐ-I). **GĐ-A xong (2026-09-24):** A1 bảo mật (IP thật thay header Host; bật LAN thì Owner từ máy khác cần `DASHBOARD_OWNER_PASSCODE`; `?login=` không đăng nhập Owner từ xa) · A2 sửa W12 (bộ đếm task lưu trên job, chỉ kết luận "không tạo" khi danh sách đọc lùi tới trước lúc gửi, không chắc → dừng chờ người) · A3 mất dữ liệu (clip tải tay vào thùng rác, xóa dự án giữ lịch sử chi + cất thư mục, id không tái dùng, hỏi trước khi xóa nháp nhạc/audio) · A4 Director (lỗi gửi lại Claude trong lượt, lưu câu trả lời thô, lưu cả gói hoặc không, giữ sửa tay, thấy Bible hiện có) · A5 W15 (không tự duyệt ảnh/clip dưới sàn: ảnh chờ ở storyboard, clip dừng ở Bước 4). 702 test pass. **GĐ-B xong:** `docs/CHUAN_XAY_DUNG.md` (8 luật: không im lặng khi thiếu đầu vào · ma trận luồng · giả định → guard · một nguồn chuẩn · thang kiểm thật · chẩn đoán trước khi gen lại · QC so chuẩn thật · "đã sửa" kèm chạy thật; luật chi phí; bảng kế thừa) — dẫn từ CLAUDE.md và checklist dưới. **GĐ-C1 xong:** mọi lời gọi Claude API (kể cả tự QC nền, đọc ảnh kho, nghiên cứu định kỳ, lệnh kiểm tra) vào sổ chi + trần Claude, có nhãn công đoạn (`usage_events.stage`) + dự án; model chưa có giá / sổ không đọc được / sổ không ghi được → chặn lần gọi sau thay vì cho qua; câu trả lời bị cắt ở max_tokens hoặc bị từ chối → báo rõ, không hỏi lại tốn tiền; `tools/audit_run.py` in tiền Claude theo công đoạn (chưa thử thật với API). **GĐ-C2 xong:** prompt caching cho QC ảnh (luật + kiến thức chung mọi dự án · World/Character Bible của dự án · phần riêng shot) và QC clip; token cache ghi sổ theo giá riêng (ghi ×1,25, đọc ×0,1 giá vào); ảnh gửi Claude thu về cạnh dài 1024 px (`LLM_IMAGE_EDGE`). Director/motion chưa cache (mỗi dự án gọi 1 lần — đo thật ở C8 rồi quyết). **GĐ-C3 xong:** motion gửi mỗi ảnh một lần (ảnh đầu nhóm multi-shot dùng chung không lặp), chia thành nhiều lượt khi quá 12 ảnh (lượt sau đọc phần luật từ cache) thay vì cắt âm thầm ảnh thứ 13+; ảnh đã duyệt mất file → báo trong 📊; mọi client từ chối > 12 ảnh trước khi trả tiền. **GĐ-C4 xong:** âm thanh (TTS/nhạc/SFX chưa có giá) có trần số lượt trong đợt thử (⚙ → 💵, mặc định 300) — vượt thì không gửi, báo rõ; nút gen lại clip ở Bước 4 hiện giá ước tính (từng clip + tổng "Gen lại clip lỗi"); `py tools/recover_clips.py --reconcile` đối chiếu sổ chi USD với `cost` thật ClipAI theo model + ước lượng USD/đơn vị `cost` (chỉ đọc). **GĐ-C còn lại:** C4 effort (chưa rõ tham số API — không đoán, để sau khi đo), C8 đo thật 1 lần nhỏ (~$0,1–0,3, cần bạn cho phép, chạy trên máy có khóa API). **GĐ-D xong (lưới an toàn):** A1 ảnh Kho đọc được từ mọi thư mục (`assets.resolve`), mở Dashboard thì báo ảnh Kho mất file; Director **không gọi Claude** khi nhân vật đã gắn tài nguyên mà không đọc được ảnh (tránh bịa ngoại hình — R1) và ghi "Director xem ảnh của ai" vào 📊; M7 ô "Gắn ảnh chủ thể" khóa kèm lý do (API bỏ khi có khung đầu); Q2 bản chắt lọc thiếu mục bắt buộc (bị cắt) bị từ chối; U1 lỗi âm thanh/rút bài học hiện rõ; **cờ "chưa thử thật" (`core/features.py`, luật 5):** mặc định TẮT gửi ảnh bố cục ghép cho model (R7/L1), TẮT tự nối ảnh shot trước ở chế độ tự động (F8 — chế độ "luôn nối" người chọn vẫn chạy), QC đồng bộ trong autopilot **chỉ báo** (cờ ⚑ ở storyboard), không tự gen lại (R3); bật thử bằng `FEATURE_<TÊN>=1`. **GĐ-E0a xong (kho gọn):** ảnh Kho có **vai trò** (nhân vật: toàn thân / nửa người / cận mặt / sau lưng / nghiêng / tư thế kỹ năng / bảng thiết kế; bối cảnh: nền ngang tầm mắt / góc thấp / góc cao / toàn cảnh từ trên / chi tiết), **look** (in-game / anime), biến thể, **trạng thái**; ảnh vào không qua người xem (đồng bộ thư mục, website FF, render 3D) nằm ở **📥 Ảnh chờ duyệt** và pipeline **không dùng** tới khi duyệt (vai trò đoán miễn phí theo tỉ lệ ảnh / phân tích bối cảnh đã có); ảnh cũ giữ nguyên "đã duyệt"; **🩺 Sức khỏe kho** liệt kê mục thiếu ảnh cận/sau lưng/ảnh chuẩn anime, bối cảnh thiếu nền ngang tầm mắt. ⚠ Sau khi cập nhật, ảnh mới đồng bộ từ thư mục cần bấm duyệt trong ⚙ → Kho tài nguyên. **GĐ-E0b xong (3D build sẵn cho phiên trên máy):** `tools/render_plates.py` (chạy trong Blender 5.0.1: nhập GLB/FBX/OBJ/.blend/USD, tự chuẩn đơn vị m, mặt đất, trời A vật lý / B HDRI / C trong suốt + ghép trời in-game, 6 góc máy chuẩn hoặc JSON, ảnh độ sâu, `manifest.json` ghi số tam giác + thời gian), `core/plates3d.py` (tìm Blender, chạy nền, tự chuyển Cycles khi thiếu GPU, đưa ảnh vào 📥 chờ duyệt kèm thông số camera — không trả tiền Claude đọc ảnh), UI ⚙ → 📁 Kho → **🏗 Bối cảnh 3D**, hướng dẫn **`docs/HUONG_DAN_3D.md`** (quy trình thử tháp đồng hồ + bảng số liệu cần ghi). **Đã chạy thật trên cloud bằng `bpy 5.0.1`** với tháp khối hộp giả (tự nhận cm ×0,01, camera ngang tầm mắt chân trời 0,5, trời C trong suốt, 6 nền + 6 độ sâu ~48 s không GPU). File tháp thật: **chưa thử** (cần phiên trên máy). **GĐ-E0c (phần 1) xong — dùng Kho hợp lý hơn:** ảnh nhân vật chọn **theo shot** (cận/MCU → cận mặt, toàn cảnh → toàn thân, quay lưng → ảnh sau lưng; bảng thiết kế không bao giờ gửi); **ảnh bối cảnh chỉ gửi làm điểm ảnh khi là nền trống đã duyệt, cùng loại góc máy với shot (ngang/thấp/cao) và shot là toàn cảnh** — ảnh map chụp từ trên cao / ảnh chưa rõ góc **không bao giờ làm nền** (R7); bối cảnh luôn vào prompt ảnh **bằng chữ** kèm chiều cao thật của mốc (tường ~1,2 m…, người ~1,7 m) từ phân tích đã có; mỗi ảnh gửi đi nói rõ **không điều khiển** gì (nhân vật: không đặt tư thế/góc/cỡ; nền: không đặt người/cỡ/vị trí); job ảnh ghi lại đã gửi ảnh nào (`jobs.sent_refs`). ⚠ Ảnh bối cảnh cũ chưa có vai trò → sẽ không làm nền tới khi bạn đặt vai trò "nền ngang tầm mắt" ở Kho. **T1 xong — hồ sơ nhân vật chuẩn ở Kho:** mỗi nhân vật/thú cưng trong Kho có **📋 Hồ sơ chuẩn** (nhận diện, luôn giữ, được đổi, cấm lệch, **chiều cao thật**, vóc dáng; lấy nháp miễn phí từ Lock của dự án cũ); đã duyệt thì **mọi dự án kế thừa** và nó **thắng Lock riêng của dự án** (Lock sai do Director/nhân bản — R1/A3), chiều cao vào prompt ảnh, Director được báo "không viết lại ngoại hình". Việc bạn cần làm: duyệt hồ sơ cho các nhân vật hay dùng (Kelly, Kenta, Maxim…). **GĐ-E0 còn lại:** T6 ảnh chuẩn anime + B5c (tốn ảnh — GĐ-I), T7 chủ thể Seedance theo Kho (sau thử K5). **GĐ-E1 xong:** **Look hình** của dự án (Bước 1: *Anime* / *Giống y hệt in-game FF*, tách khỏi phong cách dựng) đi vào prompt ảnh (câu phong cách render), chọn ảnh Kho đúng look trước, Director, QC; **W11** look in-game → video Kling; **K3** bỏ tiền đề sai "Seedance nhận ảnh tham chiếu từng người" (cảnh ≥ 3 người không còn tự sang Seedance); **F9** prompt ảnh nói rõ khung cắt bằng chữ ("close-up — head and shoulders…", góc máy); **F8** tự nối ảnh shot trước chỉ khi cùng cỡ cảnh + góc; **F11** sàn QC 0,45 cho bố cục / tỉ lệ / khớp bối cảnh, `set_match` so hồ sơ bối cảnh + blocking (không so layout — B6); **I8** đổi look / World Bible → ảnh bị đánh dấu cũ (chỉ dự án đã chọn look, dự án cũ không bị đánh cũ hàng loạt). **GĐ-E2 xong — gen lại có chủ đích + multi-shot:** QC chỉ **tự gen lại khi nêu được lỗi cụ thể** (đầu vào phải đổi), **tối đa 2 lần**, **cùng lỗi lặp lại sau khi sửa → dừng, giữ ảnh/clip cho bạn** kèm lý do "sửa lớp gốc" (F5); câu gửi model chỉ là câu sửa tiếng Anh của QC, cộng dồn với lần sửa trước — không còn điểm số/tiếng Việt trong prompt Deepix (W4/I3); **clip gen lại mang câu sửa của QC video vào motion prompt** (W3 — trước là gửi y hệt); multi-shot: shot sau có người không có trong ảnh đầu nhóm → **tự tách nhóm mới** (F4/R4), shot sau gen lại được từ ảnh đầu nhóm (M1), override model không phá nhóm + Claude được báo đúng giới hạn Kling 512 ký tự/15 s (M9), nhóm lưu lúc gửi để cắt clip đúng (M10). **GĐ-E3 xong:** **F1** Claude so mô tả nhân vật (Bible) với ảnh tài nguyên trước khi gen ảnh (1 lượt, cache theo mô tả + ảnh), lệch thì autopilot **dừng ở cổng Bible kể cả khi cổng tắt**, Bước 1 hiện ⚑ + đề xuất sửa 1 bấm; **A20** "Nội dung:" không còn bị coi là tiêu đề cảnh; **A16** shot không có ai giữ rỗng (không kế thừa cả dàn); **A15** đoán theo chữ đầu chỉ khi duy nhất; **F6** clip đơn > 10 s bị cờ "nên chia shot" ở storyboard. **Chưa làm (chờ thông tin):** K1/K2 khung cuối — cần `clipai-1.3.1/clipai/reference.md` để xác nhận trường khung cuối của Kling + thử A/B ở GĐ-I; A17 (shot 1,5 s tính 3 s — do giới hạn tối thiểu của model), A18/A19 (đổi chế độ shot / Làm lại giữ nhân vật khóa — để GĐ-H gộp vào giao diện mới). **GĐ-F xong (phần chính):** autopilot **chỉ tự thử lại lỗi tạm thời** (mạng, timeout, quá tải) — lỗi do đầu vào/từ chối thì dừng shot, báo ở 📊 (O5/W9); **mỗi shot tối đa 3 lần gửi** (1 + 2 tự sửa) cho ảnh và clip, kể cả làm lại clip "cũ" (W7/O3/W6); clip QC video lỗi 2 lần do chính clip → giữ cho bạn xem, không hỏi Claude mỗi nhịp (M13); **tắt tiếng video vẫn kéo dài clip theo thoại** và dừng khi thoại quá dài (W16/D9 — trước chỉ cảnh báo lặp); job video chờ khi motion prompt đang sửa, không bị đánh hỏng mất lượt (M5); "✔ Duyệt" motion prompt giữ nội dung đang gõ (M6); 4,5 s làm tròn lên 5 s (M11); hủy task tìm sâu 12 trang (M17); prompt shot Kling > 512 ký tự bị cắt → báo (W13). **Chưa làm:** W2 pilot chọn đại diện, W8 đo đồng thuận người–QC, W10 bảng luật model (`data/provider_rules.json`), M3 khóa poll, O6 — để sau GĐ-G/H. **GĐ-G (phần 1, CHƯA NGHE THỬ):** model TTS mặc định `eleven_v3` (Multilingual v2 không có tiếng Việt trong danh sách ngôn ngữ — nghi nguyên nhân chính giọng Việt lỗi), hồ sơ cũ lưu v2 tự dùng v3; chỉ chọn giọng ghi hỗ trợ tiếng Việt; rút gọn từ điển phiên âm (bỏ phiên âm tự chế, lưu ở `_removed_2026_09_24`); thoại của clip bị bỏ không phát (D1); có TTS thì tắt tiếng gốc clip (AU-e); clip không tiếng được thêm track im lặng (D4). **Cần bạn:** nghe thử (GĐ-I bậc 0). **Tiếp:** D5–D8, AU-f, rồi GĐ-H._
 

@@ -228,3 +228,13 @@ Phần lớn việc còn lại trong `TODO.md` (mục "Đang làm/kế tiếp", 
 - Khớp môi: ClipAI Lip Sync chỉ có trên web; qua API dùng **Seedance `reference_audio`** (content `{"type":"audio_url","audio_url":{"url":""},"role":"reference_audio"}` + multipart `audio_files`; 2.0 ≤ 3 audio, 2.5 ≤ 10); giá Seedance 2.0 720p $0,15/s, 2.5 $0,23/s (Kling $0,08/s). Đề xuất: né là mặc định, Seedance cho câu then chốt cận mặt.
 - Sinh code Python bằng chuỗi lồng nhau làm hỏng đường dẫn Windows (`\a`, `\1`) → viết file trực tiếp, dùng `r"..."`.
 **Source**: chạy thật 2026-09-25 (ảnh `data/projects/7/plate_test/shot4_plate.png`), `clipai-1.3.1/scripts/video.mjs`, `data/pricing.json` — `docs/BAN_GIAO_2026-09-25_THAP_VA_KHOP_MOI.md`.
+## 2026-09-25 (khuya) — Kế hoạch V4 (người dùng chốt)
+**Context**: người dùng không muốn sửa lẻ cảnh đầu; muốn cả video nhất quán, nhiều vị trí/map, và chỉ xem thành quả cuối.
+**Finding**:
+- Thứ tự: rà soát + hoàn thiện plan/code/dashboard TRƯỚC → build xong mọi tính năng → báo "sẵn sàng" → **người dùng tự chạy trọn #6 trên dashboard**. Trước đó chỉ kiểm chứng nhỏ trong trần #7 (≤ ~$2, ≤ 5 ảnh, báo giá trước).
+- Nền = pixel thật ("gói bối cảnh"): 3D chính thức (người dùng xin team, bổ sung dần vào `MODEL3D_DIR`) > ảnh trong game ở Kho > AI + ảnh mốc. Có thời tiết (mưa, tuyết, băng, sấm chớp…). Người dùng lo "ghép lộ" → cùng máy ảo, cùng nguồn sáng, bóng/vật che từ 3D, hòa ánh sáng AI rồi dán lại nền thật.
+- Khớp môi cho **toàn bộ video**, không chỉ cận mặt. 3 vai nâng thành kỹ năng nghề + agent chấm độc lập + bảng tổng kết.
+- Hồ sơ KELLY/KENTA/MAXIM **đã duyệt**; không ghi số tuổi < 18 ("trẻ tuổi, chưa đến 20"); tự rút gọn hồ sơ 3 mức.
+- Kho: ảnh đã chia theo map/khu vực trên Drive (giữ nguyên); Kho chỉ nhận 6 ảnh/khu vực (`MAX_IMAGES_PER_ASSET`). Asset "Untitled folder" #77 = thư mục con của Forest Red → đã gộp (Drive 67–74.png, xóa mục #77).
+- Số test thật 865 (unittest discover, 80 file). `TODO.md` là nơi duy nhất ghi tiến độ.
+**Source**: người dùng nói trong phiên 2026-09-25 — `docs/KE_HOACH_V4_2026-09-25.md`.

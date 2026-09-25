@@ -10,6 +10,7 @@ Memory repo dùng chung cho các phiên Claude Code trên mọi máy của hongv
 
 | Ngày | Tiêu đề | File |
 |---|---|---|
+| 2026-09-25 | Kế hoạch V4: rà soát trước, gói bối cảnh (nền pixel thật + thời tiết), khớp môi toàn video, kỹ năng 3 vai + agent chấm, hồ sơ 3 nhân vật đã duyệt; người dùng tự chạy trọn #6 | projects/ai-video-pipeline.md |
 | 2026-09-25 | Tháp 90–100%: ảnh render làm tham chiếu chỉ ~70% (model vẽ lại nền) → ghép phông xanh lên render 3D; khớp môi = né + Seedance `reference_audio` | projects/ai-video-pipeline.md |
 | 2026-09-25 | Sửa theo phản hồi video 2A: eleven_v3 cắt cụt câu ngắn (đo đuôi, tạo lại kèm "…"), nền void, tháp FF bằng Blender Store + ảnh mốc, nhạc theo nhịp | projects/ai-video-pipeline.md |
 | 2026-09-25 | Chạy thử 2A: ClipAI trả mã chờ tạm rồi tạo task mã mới (W12b); 1 đơn vị cost ≈ $0,01; GPT Image từ chối tuổi < 18; video 22 s $3,00 | projects/ai-video-pipeline.md |
