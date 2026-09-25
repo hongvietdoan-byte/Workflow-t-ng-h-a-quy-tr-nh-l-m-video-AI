@@ -69,5 +69,23 @@ class HandEditTests(unittest.TestCase):
         self.assertNotIn("why", self.data())
 
 
+
+class TopViewTests(unittest.TestCase):
+    def test_the_floor_plan_marks_cameras_on_opposite_sides(self):
+        import os
+        import tempfile
+        from unittest import mock
+        from core import location_pack
+        entry = {"spots": {"plaza": {"at": [0, 0, 0]}, "far": {"at": [500, 500, 0]}}, "default_spot": "plaza"}
+        def item(idx, cam):
+            return {"idx": idx, "entry": entry, "camera": {"location": cam, "lens": 35, "subject": {"location": [0, 0, 0]}}}
+        items = [item(1, [0, 3, 1.6]), item(2, [0.5, 3.5, 1.6]), item(3, [0, -3, 1.6])]
+        out = os.path.join(tempfile.mkdtemp(), "top.png")
+        with mock.patch.object(location_pack, "plan", return_value=items):
+            res = location_pack.top_view(None, 1, out)
+        self.assertTrue(os.path.exists(out))
+        self.assertEqual(sorted(res["opposite"]), [(1, 3), (2, 3)])
+
+
 if __name__ == "__main__":
     unittest.main()

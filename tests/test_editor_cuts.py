@@ -192,6 +192,32 @@ class AmbienceTests(unittest.TestCase):
         self.assertIn("[bed][vm][e1]amix=inputs=3", graph)                        # the bed is still in the mix
 
 
+class MotionTrimTests(unittest.TestCase):
+    def test_a_late_action_moves_the_cut_start_only_with_the_feature(self):
+        from core import shots
+        from core.db import connect
+        from core.pipeline import Pipeline
+        ff = _ff()
+        d = tempfile.mkdtemp()
+        raw = os.path.join(d, "r.mp4")
+        subprocess.run([ff, "-y", "-loglevel", "error", "-f", "lavfi", "-i", "color=c=black:s=96x168:d=3", "-f", "lavfi", "-i",
+                        "color=c=white:s=24x24:d=3", "-filter_complex", "[0][1]overlay=x='if(gt(t,1.4),(t-1.4)*50,0)':y=60",
+                        "-pix_fmt", "yuv420p", raw], check=True)             # still for 1,4 s, then a white square slides across
+        p = Pipeline(connect())
+        pid = p.create_project("m")
+        sid = p.create_scene(pid, 1, "s1")
+        p.conn.execute("UPDATE scenes SET data=? WHERE id=?", (json.dumps({"shot_no": 1, "role": "reaction"}), sid))
+        p.conn.commit()
+        with mock.patch.dict(os.environ, {"FEATURE_MOTION_TRIM": "1"}):
+            start = shots.motion_start(p.conn, sid, raw, 1.0, 3.0)
+            self.assertGreater(start, 0.3)
+            self.assertLessEqual(start, shots.MOTION_MAX_SHIFT)
+            p.conn.execute("UPDATE scenes SET data=? WHERE id=?", (json.dumps({"shot_no": 1, "role": "dialogue"}), sid))
+            self.assertEqual(shots.motion_start(p.conn, sid, raw, 1.0, 3.0), 0.0)     # a spoken shot keeps its seconds
+        with mock.patch.dict(os.environ, {"FEATURE_MOTION_TRIM": "0"}):
+            self.assertEqual(shots.motion_start(p.conn, sid, raw, 1.0, 3.0), 0.0)
+
+
 class ViewerCheckTests(unittest.TestCase):
     def test_faces_under_the_app_bands_are_named(self):
         self.assertEqual(viewer_check.hidden_faces([(0.02, 0.12)]), ["top"])

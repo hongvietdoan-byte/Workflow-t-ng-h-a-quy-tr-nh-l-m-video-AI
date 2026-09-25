@@ -122,8 +122,10 @@ Làm cho người xem **thấy rõ** điều Đạo diễn muốn họ cảm —
   trục/hướng với shot trước. Đạo diễn duyệt được, người dùng đọc được, lần sau học được.
 - **Trong pipeline.** `why` (tiếng Việt, ≤ ~25 chữ) mỗi shot; lưu trong shot, hiện cho Motion. `camera_setup` (A, B, C… mỗi cảnh) khi cờ
   `camera_setups` bật.
-- **Kiểm.** Người/Claude đọc; người dùng sửa được `why` và diễn xuất ở ô sửa shot (Bước 1). *Chưa có code:* sơ đồ vị trí máy vẽ tự động
-  từ `camera_setup` (việc code V4 trong README).
+- **Kiểm.** Người/Claude đọc; người dùng sửa được `why` và diễn xuất ở ô sửa shot (Bước 1). **Sơ đồ máy nhìn từ trên** (V4) cho shot ở nơi
+  có mô hình 3D: `py tools/location_pack.py topview --project N` vẽ nhân vật, chỗ đứng, máy ảo từng shot (hướng + mm) theo tọa độ thật
+  và báo cặp máy ở hai phía đối diện nhân vật. Thử #7: shot 2 (qua vai) ở phía ngược 3 shot kia — đúng với shot ngược, sai nếu không phải.
+  Nơi chưa có mô hình 3D: chưa có sơ đồ (chỉ có chữ trái/phải trong `start_frame`, V5).
 - **Ví dụ FF.** ✔ "Qua vai Kenta: người xem đứng phía anh, thấy Kelly cố cười — giữ trục như shot 1." ✘ "Góc đẹp."
 
 ### Q8. Ánh sáng

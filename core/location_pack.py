@@ -429,3 +429,66 @@ def ensure_photo_plates(conn, pid: int, data_dir: str, resolution=(1152, 2048)) 
         with open(path, "w", encoding="utf-8") as f:
             json.dump(idx, f, ensure_ascii=False, indent=1)
     return added
+
+
+def _font(px: int):
+    """A font with Vietnamese marks for the drawings (Pillow's default has none), else the default."""
+    from PIL import ImageFont
+    for name in ("arial.ttf", "segoeui.ttf", "tahoma.ttf", "DejaVuSans.ttf"):
+        try:
+            return ImageFont.truetype(name, px)
+        except OSError:
+            continue
+    return ImageFont.load_default()
+
+
+def top_view(conn, pid: int, out_png: str, size: int = 900) -> Dict:
+    """V4 (dp.md Q7/Q9): the floor plan of a project's shots at their 3D places, seen from above — every spot, the character, and each
+    shot's virtual camera (a triangle pointing where it looks, "shot · lens mm"). Two cameras on opposite sides of the same person in one
+    scene are listed (the 180° line). Free, Pillow only. Returns {"path", "shots", "opposite": [(shot, shot)]}."""
+    import math
+    from PIL import Image, ImageDraw
+    items = plan(conn, pid)
+    if not items:
+        raise LocationPackError("dự án chưa có shot nào ở bối cảnh có mô hình 3D")
+    pts = []
+    for it in items:                                  # the frame follows the cameras and the people (far spots would shrink them to a dot)
+        pts += [it["camera"]["location"][:2], it["camera"]["subject"]["location"][:2]]
+    xs, ys = [p[0] for p in pts], [p[1] for p in pts]
+    span = max(max(xs) - min(xs), max(ys) - min(ys), 6.0) * 1.4
+    cx, cy = (max(xs) + min(xs)) / 2, (max(ys) + min(ys)) / 2
+    to_px = lambda x, y: (size / 2 + (x - cx) / span * size, size / 2 - (y - cy) / span * size)  # noqa: E731 - +y up
+    img = Image.new("RGB", (size, size), (24, 26, 30))
+    d = ImageDraw.Draw(img)
+    font = _font(15)
+    for name, sp in (items[0]["entry"].get("spots") or {}).items():
+        x, y = to_px(*sp["at"][:2])
+        if not (0 <= x <= size and 0 <= y <= size):
+            continue
+        d.ellipse([x - 6, y - 6, x + 6, y + 6], outline=(120, 120, 120))
+        d.text((x + 8, y - 6), name, fill=(150, 150, 150), font=font)
+    sides: Dict = {}
+    for it in items:
+        cam, subj = it["camera"]["location"], it["camera"]["subject"]["location"]
+        sx, sy = to_px(*subj[:2])
+        d.ellipse([sx - 7, sy - 7, sx + 7, sy + 7], fill=(250, 200, 40))
+        px, py = to_px(*cam[:2])
+        ang = math.atan2(sy - py, sx - px)
+        tri = [(px + 14 * math.cos(ang), py + 14 * math.sin(ang)), (px + 8 * math.cos(ang + 2.4), py + 8 * math.sin(ang + 2.4)),
+               (px + 8 * math.cos(ang - 2.4), py + 8 * math.sin(ang - 2.4))]
+        d.polygon(tri, fill=(90, 170, 255))
+        d.line([(px, py), (sx, sy)], fill=(60, 90, 130))
+        d.text((px + 10, py + 6), f"shot {it['idx']} · {it['camera']['lens']:g} mm", fill=(200, 220, 255), font=font)
+        side = (cam[0] - subj[0], cam[1] - subj[1])
+        sides.setdefault(tuple(round(v, 1) for v in subj[:2]), []).append((it["idx"], side))
+    opposite = []
+    for shots_here in sides.values():
+        for i, (a, va) in enumerate(shots_here):
+            for b, vb in shots_here[i + 1:]:
+                if va[0] * vb[0] + va[1] * vb[1] < 0:        # the two cameras look at the person from opposite half-planes
+                    opposite.append((a, b))
+    d.text((10, 10), f"Sơ đồ máy nhìn từ trên — vàng: nhân vật · xanh: máy ảo · xám: chỗ đứng · khung {span:.0f} m",
+           fill=(230, 230, 230), font=font)
+    os.makedirs(os.path.dirname(out_png) or ".", exist_ok=True)
+    img.save(out_png)
+    return {"path": out_png, "shots": len(items), "opposite": opposite}

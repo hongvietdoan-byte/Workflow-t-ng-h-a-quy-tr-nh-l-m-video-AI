@@ -51,6 +51,9 @@
 - [x] **Đợt 6 — D4 + D5:** âm nền + âm thời tiết mỗi cảnh từ thư viện âm của người dùng (`core/ambience.py`, cờ `ambience_bed`): thời
   tiết → giờ → bối cảnh, khớp nguyên từ, không đè nhạc (sửa luôn: bước hạ nhạc chỉ nghe giọng/hiệu ứng, không nghe âm nền). Thử #7: cảnh
   đảo ban ngày → Bird Ambience; cảnh đêm → trống vì thư viện **chưa có âm đêm** (cần người dùng bổ sung nếu muốn).
+- [x] **Đợt 7 — D2 + V4:** điểm cắt theo chuyển động (cờ `motion_trim`; #7 shot 3 dời 1,0 s đúng lúc giọt lệ lăn); sơ đồ máy nhìn từ trên
+  (`py tools/location_pack.py topview --project N`, #7: shot 2 qua vai ở phía đối diện — cảnh báo để kiểm). D3 dọn thoại: **cố ý không làm**
+  (chỉ có giọng TTS sạch).
 
 **GĐ4 đã làm (2026-09-25; toàn bộ 971 test qua; tính năng mới có cờ đều TẮT; CHƯA chạy thật với API):**
 - **Nghiên cứu** 3 agent (WebSearch/WebFetch) → `knowledge/sources.md` mục GĐ4: 30 nguồn Đạo diễn [Đn], 35 Quay phim [Qn], 35 Dựng [En]

@@ -347,6 +347,50 @@ def planned_seconds(conn, scene_id: int) -> float:
     return float(json.loads(row["data"] or "{}").get("duration_s") or 0) if row else 0.0
 
 
+MOTION_MAX_SHIFT = 1.0      # D2: the cut may start at most this late in the clip (the approved first frame is what the shot was made from)
+MOTION_GAIN = 1.5           # ... and only when the later window moves clearly more than the start (the action happened late)
+
+
+def motion_profile(path: str, fps: int = 8) -> List[float]:
+    """Mean frame-to-frame change (0..1) of a clip, sampled small and grey — how much happens at each moment."""
+    import subprocess
+    import numpy as np
+    from .ffmpeg_studio import find_ffmpeg
+    proc = subprocess.run([find_ffmpeg(), "-v", "error", "-i", path, "-vf", f"scale=48:84,fps={fps},format=gray", "-f", "rawvideo", "-"],
+                          capture_output=True)
+    frames = np.frombuffer(proc.stdout, np.uint8)
+    n = len(frames) // (48 * 84)
+    if n < 3:
+        return []
+    frames = frames[: n * 48 * 84].reshape(n, 84, 48).astype(np.float32) / 255
+    return [float(x) for x in np.abs(np.diff(frames, axis=0)).mean(axis=(1, 2))]
+
+
+def motion_start(conn, scene_id: int, raw: str, want: float, have: float, fps: int = 8) -> float:
+    """D2 (knowledge/editor/editing.md E1, cờ `motion_trim`): where the cut of a long clip starts — 0 (the start, as the DP planned:
+    "the main action happens early") unless the feature is on, the shot does not continue another one, and a window up to
+    MOTION_MAX_SHIFT later moves MOTION_GAIN times more than the start window (the model made the action late)."""
+    from . import features
+    if not features.on("motion_trim"):
+        return 0.0
+    data = json.loads(conn.execute("SELECT data FROM scenes WHERE id=?", (scene_id,)).fetchone()["data"] or "{}")
+    if data.get("continuous_with_next") or data.get("role") in ("dialogue",) or data.get("lip_sync"):
+        return 0.0                         # a continuing / spoken / lip-synced shot keeps its first frame and its seconds
+    prev = conn.execute("SELECT data FROM scenes WHERE project_id=(SELECT project_id FROM scenes WHERE id=?) AND idx<"
+                        "(SELECT idx FROM scenes WHERE id=?) ORDER BY idx DESC LIMIT 1", (scene_id, scene_id)).fetchone()
+    if prev and json.loads(prev["data"] or "{}").get("continuous_with_next"):
+        return 0.0
+    prof = motion_profile(raw, fps)
+    win = max(int(want * fps), 1)
+    if len(prof) < win + 1:
+        return 0.0
+    most = min(int(min(MOTION_MAX_SHIFT, have - want) * fps), len(prof) - win)
+    score = lambda k: sum(prof[k:k + win]) / win  # noqa: E731
+    first = score(0)
+    best = max(range(most + 1), key=score)
+    return round(best / fps, 2) if best and score(best) > first * MOTION_GAIN + 1e-4 else 0.0
+
+
 def trim_clip(pipeline: Pipeline, scene_id: int, path: str) -> bool:
     """Cut a downloaded clip of a SHOT row to the shot's planned length: the full clip is kept next to it as <name>_raw.mp4.
     Nothing happens for v2 rows, clips already short enough, or files ffmpeg cannot read. Returns True when cut."""
@@ -364,8 +408,10 @@ def trim_clip(pipeline: Pipeline, scene_id: int, path: str) -> bool:
     raw = os.path.splitext(path)[0] + "_raw.mp4"
     shutil.move(path, raw)
     audio = ["-c:a", "aac"] if has_audio(raw) else ["-an"]
-    proc = subprocess.run([find_ffmpeg(), "-y", "-i", raw, "-t", f"{want:.2f}", "-c:v", "libx264", "-pix_fmt", "yuv420p",
-                           "-preset", "veryfast", *audio, path], capture_output=True, text=True, encoding="utf-8", errors="replace")
+    start = motion_start(pipeline.conn, scene_id, raw, want, have)
+    proc = subprocess.run([find_ffmpeg(), "-y", *(["-ss", f"{start:.2f}"] if start else []), "-i", raw, "-t", f"{want:.2f}", "-c:v",
+                           "libx264", "-pix_fmt", "yuv420p", "-preset", "veryfast", *audio, path], capture_output=True, text=True,
+                          encoding="utf-8", errors="replace")
     if proc.returncode != 0 or not os.path.exists(path):
         shutil.move(raw, path)             # keep the uncut clip rather than losing it
         raise RuntimeError((proc.stderr or "")[-300:])

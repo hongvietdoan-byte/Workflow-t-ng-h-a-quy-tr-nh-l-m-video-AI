@@ -33,7 +33,10 @@ xúc, âm thanh làm thế giới game "thật", màu các shot liền nhau như
   - **Nhịp**: độ dài shot liền nhau thay đổi theo **cụm** (cụm nhanh xen cụm chậm), không đều tăm tắp [E4]; cao trào ngắn, chỗ thở dài.
 - **Trong pipeline.** ✅ Cắt theo `duration_s`, lấy đầu clip (Quay phim dặn hành động xảy ra sớm); ✅ một vị trí máy nhiều shot: cắt clip dài
   thành đoạn (`shots.setup_motion`, H5); ✅ chuyển cảnh cắt/mờ chồng/mờ đen (`ffmpeg_studio.OVERLAP_STYLES`). ✅ **Cắt J** (D1): câu của người nói mới vào sớm 0,25 s trước khi hình cắt
-  sang họ, không đè câu trước (`voice.J_LEAD`, cờ `j_cut` TẮT; phụ đề đi theo giọng). ❌ Chọn điểm cắt theo chuyển động trong clip (đo bằng khác biệt khung — việc code D2).
+  sang họ, không đè câu trước (`voice.J_LEAD`, cờ `j_cut` TẮT; phụ đề đi theo giọng). ✅ **Điểm cắt theo chuyển động** (D2, `shots.motion_start`, cờ `motion_trim` TẮT): clip dài hơn shot được cắt từ chỗ
+  hành động thật sự xảy ra — dời đầu ≤ 1 s khi đoạn sau chuyển động gấp 1,5 lần đoạn đầu; bỏ qua shot thoại / nối liền / khớp môi. Thử #7
+  shot 3 (cận rơi lệ): giọt lệ lăn từ ~1,1 s → cắt từ 1,0 s. Rủi ro: model tự chèn cảnh khác cuối clip cũng là "chuyển động mạnh" —
+  giới hạn 1 s giữ đoạn đó ngoài.
 - **Kiểm.** Code: `final_cut.render_problems` (tổng thời lượng, mờ chồng dài hơn shot). Người: xem bản dựng.
 - **Ví dụ FF.** ✔ 519 shot FF: trung vị ~2 s/shot, ~24 shot/phút (`ff_directing.md`). ✘ Lần chạy 4: shot im lặng 0,5 s cắt quá nhanh, người
   xem không kịp đọc.
@@ -45,7 +48,7 @@ xúc, âm thanh làm thế giới game "thật", màu các shot liền nhau như
   `f=80`; `deesser` mặc định không làm gì tới khi đặt cường độ [E22][E29]).
 - **Trong pipeline.** ✅ `voice.fit_durations`, `audio_lib.schedule_by_cues` (không chồng tiếng); ✅ giữ giọng đúng giây shot đã khớp môi
   (GĐ3); ✅ kiểm giọng bị cắt/thiếu chữ (`voice_check`); ✅ chỉ đạo giọng `delivery` (Đạo diễn Đ5, cờ `voice_direction`). ❌ Dọn thoại
-  (lọc 80 Hz + khử xì) trên giọng TTS — việc code D3 (giọng TTS sạch sẵn; cần khi có giọng thu).
+  (lọc 80 Hz + khử xì) — **chưa làm, cố ý** (D3): pipeline chỉ dùng giọng TTS, vốn sạch; lọc thêm chỉ làm mỏng giọng. Làm khi có giọng thu.
 - **Kiểm.** Code: `audio_lib.overlapping_tts`; `voice_check`. Người: nghe có tiếng.
 - **Ví dụ FF.** ✔ 2A: câu "Không liên quan đến ông." bị cắt giữa chữ (0,64 s) → tạo lại có "…" ở cuối → 1,12 s, kết tự nhiên. ✔ 2A: giọng
   lồng chạm 0,0 dBFS → thêm bộ giới hạn, đo −1,3 dBFS.

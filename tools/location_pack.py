@@ -5,6 +5,7 @@ r"""Gói bối cảnh (kế hoạch V4 mục 1): gắn mô hình 3D cho một kh
                                                                                    gắn mô hình + chỗ đứng (tự đề xuất từ dò nếu không đưa)
     py tools/location_pack.py plan   --project 6                                     góc máy + ô nhân vật của từng shot (không render)
     py tools/location_pack.py render --project 6                                     render nền còn thiếu (Blender, bộ nhớ đệm dùng chung)
+    py tools/location_pack.py topview --project 6 [--out sodo.png]                    sơ đồ máy nhìn từ trên (miễn phí, không Blender)
 
 Không tốn tiền. Ghi CSDL chỉ ở lệnh register (hồ sơ khu vực → mục model3d).
 """
@@ -33,7 +34,8 @@ def main():
     except AttributeError:
         pass
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    ap.add_argument("cmd", choices=("probe", "register", "plan", "render"))
+    ap.add_argument("cmd", choices=("probe", "register", "plan", "render", "topview"))
+    ap.add_argument("--out")
     ap.add_argument("--db", default=os.environ.get("PIPELINE_DB", os.path.join("data", "manifest.sqlite")))
     ap.add_argument("--model")
     ap.add_argument("--asset", type=int)
@@ -62,6 +64,11 @@ def main():
             print(f"shot {it['idx']:>3} · {it['place']} · spot {it['spot']} · {it['env']['time']}/{it['env']['weather']} · "
                   f"cách {it['distance_m']} m · ống {it['camera']['lens']} mm · ô nhân vật {it['subject_box']}"
                   + (f" · ⚠ {it['weather_problem']}" if it["weather_problem"] else ""))
+        return
+    if a.cmd == "topview":
+        res = location_pack.top_view(conn, a.project, a.out or os.path.join(DATA, str(a.project), "plates", "top_view.png"))
+        print(f"{res['shots']} shot → {res['path']}" + ("".join(f" · ⚠ shot {x} và {y}: máy hai phía đối diện nhân vật — kiểm lại nếu không phải shot ngược / qua vai"
+                                                             for x, y in res["opposite"])))
         return
     idx = location_pack.ensure_plates(conn, a.project, DATA, os.path.dirname(os.path.abspath(DATA)), log=print)
     print(f"{len(idx)} shot có nền 3D → {os.path.join(DATA, str(a.project), 'plates', 'index.json')}")

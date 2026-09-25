@@ -52,13 +52,13 @@ người xem, nên đứng trước nhịp cắt. Hy sinh mục thấp hơn → 
 | V1 | ✅ Đã làm: cảnh có `beat.payoff` mà không cảnh trước nào có `beat.plant` → ⚠ | Đạo diễn | — |
 | V2 | ✅ Ô sửa diễn xuất (`performance`), `why`, chỉ đạo giọng (nhịp/cường độ/ngắt) ở ô sửa shot Bước 1; lưu tay giữ `delivery` của Director | Đạo diễn/Quay phim | — |
 | V3 | Nghe thử `delivery` với giọng Việt (thẻ âm có bị đọc thành chữ không) rồi bật `voice_direction` | Đạo diễn | Vài lượt âm thanh |
-| V4 | Sơ đồ vị trí máy nhìn từ trên (từ `camera_setup` + `start_frame`) | Quay phim | Không |
+| V4 | ✅ Sơ đồ máy nhìn từ trên cho shot ở nơi có mô hình 3D (`location_pack.top_view`, lệnh `topview`); nơi không có 3D: chưa | Quay phim | — |
 | V5 | ✅ Kiểm trục 180° / hướng màn hình từ `start_frame` (`core/continuity.py`, bàn đo + Bước 1 🧭) | Quay phim | — |
 | V6 | ✅ Trường `motif` + báo motif chỉ xuất hiện một lần; ai-biết-gì vẫn ghi trong `emotional_intent` | Đạo diễn | — |
 | V7 | Kiểm giọng đúng `delivery` bằng máy (hiện chỉ có người nghe theo bảng kiểm) | Đạo diễn | Chưa rõ |
 | D1 | ✅ Cắt J 0,25 s khi đổi người nói (cờ `j_cut` TẮT) | Dựng | — |
-| D2 | Điểm cắt theo chuyển động trong clip (khác biệt khung) | Dựng | Không |
-| D3 | Dọn thoại (lọc 80 Hz, khử xì) khi có giọng thu | Dựng | Không |
+| D2 | ✅ Điểm cắt theo chuyển động, dời ≤ 1 s (cờ `motion_trim`) | Dựng | — |
+| D3 | ⏸ Cố ý chưa làm: chỉ cần khi có giọng thu (giọng TTS đã sạch) | Dựng | — |
 | D4 | ✅ Âm thời tiết từ thư viện (cờ `ambience_bed`); sấm đúng giây chớp: chưa | Dựng | — (thư viện của bạn) |
 | D5 | ✅ Nền không khí mỗi cảnh từ thư viện, không đè nhạc (cờ `ambience_bed`) | Dựng | — |
 | D6 | ✅ Nhạc lặng 0,6 s trước TWIST / shot ⭐ (cờ `music_breath` TẮT) | Dựng | — |
