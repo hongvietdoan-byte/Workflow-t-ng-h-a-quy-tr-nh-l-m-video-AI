@@ -125,6 +125,39 @@ class DeepixImageProvider:
             raise ProviderError("create returned no message id", code="bad_response")
         return str(message_id)
 
+    def submit_storyboard_frame(self, prompt: str, references, story_text: str, storyboard_id: str, frame_index: int,
+                                group_size: int, ref_mode: str, image_mapping: str, size: Optional[str] = None,
+                                model: Optional[str] = None) -> str:
+        """One frame of a Deepix storyboard — the same call the web Weave Canvas makes for its Storyboard node (read from
+        deepix.ingarena.net/weave/app.js, 2026-09-25): prompt_key 14, message_type "storyboard", and extra prompt keys that tell the
+        server this frame belongs to a group (story_text, storyboard_id, frame_index, group_size, storyboard_size_profile, ref_mode,
+        image_mapping). ref_mode "global" = shared references + frame 1 as the continuity anchor; "sequential" = frame 1 + previous."""
+        from .. import image_models
+        model = model or self.model
+        size = size or self.size
+        self._check(model, size)
+        files = []
+        for i, path in enumerate(list(references or [])[:image_models.max_refs(model, MAX_REFERENCES)]):
+            with open(path, "rb") as f:
+                content = f.read()
+            content, name = flatten_transparency(content, os.path.basename(path))
+            files.append(("file[]", f"ref_{i + 1}_{name}", content))
+        prompts = [{"key": "positive_prompt", "text": prompt}, {"key": "story_text", "text": story_text},
+                   {"key": "storyboard_id", "text": storyboard_id}, {"key": "frame_index", "text": str(frame_index)},
+                   {"key": "group_size", "text": str(group_size)}, {"key": "storyboard_size_profile", "text": "clipai-video"},
+                   {"key": "ref_mode", "text": ref_mode}]
+        if image_mapping:
+            prompts.append({"key": "image_mapping", "text": image_mapping})
+        fields = {"prompt_key": "14", "message_type": "storyboard", "prompts": json.dumps(prompts, ensure_ascii=False),
+                  "model": model, "quality": "high"}
+        if str(size).lower() != "auto":
+            fields["size"] = size
+        data = self.client.post_multipart(PATH_CREATE, fields, files) or {}
+        message_id = data.get("msg_id") or data.get("message_id") or data.get("id")
+        if message_id is None:
+            raise ProviderError("storyboard frame: create returned no message id", code="bad_response")
+        return str(message_id)
+
     def status(self, external_id: str) -> TaskStatus:
         data = self.client.get(PATH_STATUS, {"message_id": external_id}) or {}
         state = str(data.get("status", "")).lower()
