@@ -10,6 +10,7 @@ Memory repo dùng chung cho các phiên Claude Code trên mọi máy của hongv
 
 | Ngày | Tiêu đề | File |
 |---|---|---|
+| 2026-09-25 | Sau GĐ4: D/V việc code + GĐ6 (giới hạn hệ thống, chế độ chuyên gia, 4 thẻ) + GĐ7 (12 lỗi rà độc lập); bài học decorator | projects/ai-video-pipeline.md |
 | 2026-09-25 | GĐ4 xong: bộ kỹ năng 3 vai chấm độc lập 37/39/36; performance/voice_direction/profile_digest; bỏ tuổi <18 KELLY/MAXIM | projects/ai-video-pipeline.md |
 | 2026-09-25 | V4 xong GĐ0–3 (gói bối cảnh, storyboard Deepix qua API, khớp môi); bàn giao GĐ4 ở docs/BAN_GIAO_2026-09-25_V4_GD4.md | projects/ai-video-pipeline.md |
 | 2026-09-25 | Kế hoạch V4: rà soát trước, gói bối cảnh (nền pixel thật + thời tiết), khớp môi toàn video, kỹ năng 3 vai + agent chấm, hồ sơ 3 nhân vật đã duyệt; người dùng tự chạy trọn #6 | projects/ai-video-pipeline.md |

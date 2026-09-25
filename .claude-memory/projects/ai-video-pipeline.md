@@ -256,3 +256,12 @@ Phần lớn việc còn lại trong `TODO.md` (mục "Đang làm/kế tiếp", 
 - KELLY/MAXIM bỏ "17-year-old" trong DB (sao lưu manifest.before_age_fix_2026-09-25.sqlite).
 - Sau GĐ4 người dùng cho phép tự chạy mọi việc KHÔNG cần họ quyết (miễn phí, không đổi hướng): D-/V- việc code, GĐ6, GĐ7. Vẫn hỏi: tốn tiền, bật cờ, GĐ5, hồ sơ KENTA.
 **Source**: phiên 2026-09-25.
+
+## 2026-09-25 (khuya) — việc tự chạy sau GĐ4 + GĐ6 + GĐ7 xong
+**Finding**:
+- Đợt 1–7: D1–D14 (trừ D3 cố ý), V2/V4/V5/V6 — mọi tính năng đổi đầu ra sau cờ TẮT: loudness_normalize, shot_color_match, j_cut, music_breath, impact_shake, name_cards, ambience_bed, motion_trim.
+- GĐ6: ⚙ "📏 Giới hạn hệ thống" (core/capacity.py; Kling chạy trung vị 171 s; video 60 s ≈ 43 phút), công tắc Chế độ chuyên gia, thanh trên 1 dòng, 4 thẻ màn chính.
+- GĐ7: agent rà độc lập tìm 12 lỗi (nặng nhất: đổi delivery làm gen lại clip trả tiền) → sửa + tests/test_review_gd7.py; 1009 test.
+- Bài học code: chèn hàm mới ngay trước `def X(` có thể nằm DƯỚI decorator của X (đã làm hỏng delivery.render, test không bắt vì không có test dựng thật) → luôn xem dòng trên `def`, và có test chạy thật đường chính.
+- Chờ người dùng: duyệt 3 bộ kỹ năng → film_crew; mức hạ nhạc DUCK đo 14,5–22,8 dB (khuyên 6–10); thư viện chưa có âm đêm/sương/tuyết.
+**Source**: phiên 2026-09-25, commit e0c82ad…61f98e6.
