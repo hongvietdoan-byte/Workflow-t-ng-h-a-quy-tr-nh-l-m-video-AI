@@ -50,11 +50,11 @@ người xem, nên đứng trước nhịp cắt. Hy sinh mục thấp hơn → 
 | Mã | Việc | Vai | Tốn tiền? |
 |---|---|---|---|
 | V1 | ✅ Đã làm: cảnh có `beat.payoff` mà không cảnh trước nào có `beat.plant` → ⚠ | Đạo diễn | — |
-| V2 | Ô sửa `performance` / `delivery` / `why` trong ô sửa shot (Bước 1) | Đạo diễn/Quay phim | Không |
+| V2 | ✅ Ô sửa diễn xuất (`performance`), `why`, chỉ đạo giọng (nhịp/cường độ/ngắt) ở ô sửa shot Bước 1; lưu tay giữ `delivery` của Director | Đạo diễn/Quay phim | — |
 | V3 | Nghe thử `delivery` với giọng Việt (thẻ âm có bị đọc thành chữ không) rồi bật `voice_direction` | Đạo diễn | Vài lượt âm thanh |
 | V4 | Sơ đồ vị trí máy nhìn từ trên (từ `camera_setup` + `start_frame`) | Quay phim | Không |
-| V5 | Kiểm trục 180° / hướng màn hình từ `start_frame` các shot liền nhau | Quay phim | Không |
-| V6 | Trường motif (`motif_of: <shot>`) + ai-biết-gì để Dựng/QC đối chiếu | Đạo diễn | Không |
+| V5 | ✅ Kiểm trục 180° / hướng màn hình từ `start_frame` (`core/continuity.py`, bàn đo + Bước 1 🧭) | Quay phim | — |
+| V6 | ✅ Trường `motif` + báo motif chỉ xuất hiện một lần; ai-biết-gì vẫn ghi trong `emotional_intent` | Đạo diễn | — |
 | V7 | Kiểm giọng đúng `delivery` bằng máy (hiện chỉ có người nghe theo bảng kiểm) | Đạo diễn | Chưa rõ |
 | D1 | Cắt J/L: giọng vào sớm 4–12 khung ở chỗ đổi người nói | Dựng | Không |
 | D2 | Điểm cắt theo chuyển động trong clip (khác biệt khung) | Dựng | Không |

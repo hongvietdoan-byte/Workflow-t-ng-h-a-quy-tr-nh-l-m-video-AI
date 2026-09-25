@@ -65,7 +65,8 @@ quyết định ở lại hay lướt trong vài giây đầu, nên cảm xúc p
 - **Trong pipeline.** Cảnh: `time`, `lighting`, `mood`; shot/cảnh: `weather` (danh sách cố định, Đ8); hình motif ghi lặp lại trong
   `image_prompt` của các shot cần "vần". Ai-biết-gì ghi trong `emotional_intent` ("người xem biết trước Kelly: …").
 - **Kiểm.** Code: `void_background` (nền "void/black background") trong bàn đo; thời tiết lạ bị báo (`plate_env.weather_of`). Người xem: tắt
-  tiếng còn hiểu không. *Chưa có trường/kiểm riêng* cho motif và ai-biết-gì → việc code V6 (trường `motif_of: <shot>` để Dựng/QC đối chiếu).
+  tiếng còn hiểu không. Motif: trường shot `motif` (nhãn ngắn, cùng nhãn ở các shot "vần") — code báo motif chỉ xuất hiện một lần
+  (`continuity.motif_warnings`, bàn đo + Bước 1 🧭). Ai-biết-gì: chưa có trường riêng (ghi trong `emotional_intent`).
 - **Ví dụ FF.** ✔ #6: người xem biết ít như Kelly (nghe lỏm "không được để cô ấy biết") → twist là bất ngờ; cảnh mở và cảnh kết cùng nơi,
   cùng góc qua vai Kenta — lần đầu khóc, lần sau cười trong nước mắt (motif). ✘ Chạy thử 2A: 4 shot mở đầu nền đen trơn, người xem thấy như
   "chưa làm xong"; tháp đồng hồ chỉ tả bằng chữ ra tháp châu Âu chung chung (sửa bằng gói bối cảnh, Đ8).

@@ -122,7 +122,8 @@ Làm cho người xem **thấy rõ** điều Đạo diễn muốn họ cảm —
   trục/hướng với shot trước. Đạo diễn duyệt được, người dùng đọc được, lần sau học được.
 - **Trong pipeline.** `why` (tiếng Việt, ≤ ~25 chữ) mỗi shot; lưu trong shot, hiện cho Motion. `camera_setup` (A, B, C… mỗi cảnh) khi cờ
   `camera_setups` bật.
-- **Kiểm.** Người/Claude đọc. *Chưa có code:* sơ đồ vị trí máy vẽ tự động từ `camera_setup` (việc code V4 trong README).
+- **Kiểm.** Người/Claude đọc; người dùng sửa được `why` và diễn xuất ở ô sửa shot (Bước 1). *Chưa có code:* sơ đồ vị trí máy vẽ tự động
+  từ `camera_setup` (việc code V4 trong README).
 - **Ví dụ FF.** ✔ "Qua vai Kenta: người xem đứng phía anh, thấy Kelly cố cười — giữ trục như shot 1." ✘ "Góc đẹp."
 
 ### Q8. Ánh sáng
@@ -155,8 +156,10 @@ Làm cho người xem **thấy rõ** điều Đạo diễn muốn họ cảm —
     cách giữa hai người là thông tin — một shot rộng cho thấy nó ở mỗi nhịp đổi.
 - **Trong pipeline.** `camera_setup`; `start_frame`/`end_state` (hướng mặt, bên trái/phải); `continuous_with_next: true` khi hành động kéo qua
   điểm cắt; cờ `end_frames` vẽ khung cuối cho shot đổi trạng thái.
-- **Kiểm.** Code: `same_framing` (chỉ nối ảnh shot trước khi cùng khung), `end_frames`. *Chưa có code:* kiểm trục/hướng màn hình từ
-  `start_frame` (việc code V5). Người/Claude: storyboard liền nhau.
+- **Kiểm.** Code: `same_framing` (chỉ nối ảnh shot trước khi cùng khung), `end_frames`; **trục 180° / hướng màn hình**
+  (`continuity.axis_warnings`, bàn đo + Bước 1 🧭): hai người đổi bên trái/phải giữa hai shot cùng cảnh, hoặc một người đổi hướng chạy —
+  đọc từ chữ "frame-left/right", "left to right" trong `start_frame`; bỏ qua shot qua vai/POV/vòng quanh và shot có `why` ghi "vượt trục".
+  Viết `start_frame` mỗi người một vế ("Kelly frame-left, Kenta frame-right") để code đọc được. Người/Claude: storyboard liền nhau.
 - **Ví dụ FF.** ✔ Chạy thử 2A (H5): hai shot cùng vị trí máy gen chung một clip → giảm 33% giây trả tiền. ✘ #6 từng shot: ~101 s trả tiền cho
   57 s phim (mỗi shot một clip tối thiểu).
 

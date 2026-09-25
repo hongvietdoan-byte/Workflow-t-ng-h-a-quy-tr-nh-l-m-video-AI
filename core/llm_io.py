@@ -382,10 +382,34 @@ def update_scene(pipeline: Pipeline, project_id: int, idx: int, fields: Mapping[
         _check_duration(fields["duration_s"] or None, "duration_s")
         data["duration_s"] = fields["duration_s"] or None
     if "dialogue" in fields:
+        from .voice_direction import clean as clean_delivery
+        old_how = {str(d.get("text") or "").strip(): d.get("delivery") for d in before.get("dialogue") or []
+                   if isinstance(d, dict) and d.get("delivery")}
         rows = [d for d in (fields["dialogue"] or []) if isinstance(d, dict) and str(d.get("text") or "").strip()]
-        rows = [{"speaker": str(d.get("speaker") or "").strip(), "text": str(d["text"]).strip()} for d in rows]
-        _check_dialogue(rows, "dialogue")
-        data["dialogue"] = rows or None
+        kept = []
+        for d in rows:
+            line = {"speaker": str(d.get("speaker") or "").strip(), "text": str(d["text"]).strip()}
+            # GĐ4: the Director's voice direction stays with its line (same words) unless the edit gives a new one
+            how, _ = clean_delivery(d["delivery"] if "delivery" in d else old_how.get(line["text"]))
+            if how:
+                line["delivery"] = how
+            kept.append(line)
+        _check_dialogue(kept, "dialogue")
+        data["dialogue"] = kept or None
+    if "performance" in fields:
+        from .performance import clean as clean_performance
+        acting, _ = clean_performance(fields["performance"])
+        if acting:
+            data["performance"] = acting
+        else:
+            data.pop("performance", None)
+    if "why" in fields:
+        if fields["why"] is not None and not isinstance(fields["why"], str):
+            raise SchemaError("why: expected text")
+        if (fields["why"] or "").strip():
+            data["why"] = fields["why"].strip()
+        else:
+            data.pop("why", None)
     if text is not None:
         data["text"] = text.strip()
         if (data["text"] != (before.get("text") or "") and "dialogue" not in fields

@@ -552,6 +552,26 @@ def subject_panel(p: Pipeline, pid: int, chars) -> None:
                     st.rerun()
 
 
+def _acting_inputs(d, k, lk):
+    """GĐ4 (director.md Đ4, dp.md Q7): the acting of a shot and the DP's reason, editable by hand (English for the models, the motive
+    in Vietnamese). Returns (performance dict or {} to clear, why text)."""
+    p0 = d.get("performance") if isinstance(d.get("performance"), dict) else {}
+    st.markdown("**🎭 Diễn xuất của shot**" + lk("performance") + " — tả việc mặt/mắt/người làm (tiếng Anh), không chỉ tên cảm xúc")
+    c1, c2, c3 = st.columns([1, 3, 3])
+    level = c1.selectbox("Cường độ", [0, 1, 2, 3, 4, 5], index=int(p0.get("intensity") or 0), key=f"{k}_pint",
+                         help="Độ mạnh của khoảnh khắc (1 gần như không thấy · 3 rõ tự nhiên · 5 đỉnh của phim). Cận: code tự vẽ nhỏ hơn 1 bậc.")
+    face = c2.text_input("Mặt (face)", p0.get("face") or "", key=f"{k}_pface")
+    eyes = c3.text_input("Mắt (eyes)", p0.get("eyes") or "", key=f"{k}_peyes")
+    c4, c5, c6 = st.columns(3)
+    body = c4.text_input("Người (body)", p0.get("body") or "", key=f"{k}_pbody")
+    timing = c5.text_input("Nhịp (timing)", p0.get("timing") or "", key=f"{k}_ptime")
+    listener = c6.text_input("Người nghe (listener)", p0.get("listener") or "", key=f"{k}_plisten")
+    motive = st.text_input("Động cơ (vì sao — tiếng Việt)", p0.get("motive") or "", key=f"{k}_pmotive")
+    why = st.text_input("🎥 Vì sao chọn góc/chuyển động này (Quay phim)" + lk("why"), d.get("why") or "", key=f"{k}_why")
+    perf = {"intensity": level or None, "face": face, "eyes": eyes, "body": body, "timing": timing, "listener": listener, "motive": motive}
+    return {x: v for x, v in perf.items() if v}, why
+
+
 def scene_editor(p: Pipeline, pid: int, scene, char_names) -> None:
     """Detail of one scene: script text and spec (all editable). A field you change is kept when the Director runs again (🔒)."""
     idx = scene["idx"]
@@ -604,10 +624,21 @@ def scene_editor(p: Pipeline, pid: int, scene, char_names) -> None:
                       format_func=lambda i: auto_label if i is None else places[i]["name"],
                       help="Chọn bối cảnh trong Kho tài nguyên của dự án. Để tự động thì dùng bối cảnh có tên nằm trong ô Địa điểm.")
     st.markdown("**🗣 Thoại của cảnh**" + lk("dialogue"))
-    rows = [{"Người nói": w, "Lời thoại": t} for w, t in dialogue.scene_lines(d)]
-    lines_edit = st.data_editor(rows or [{"Người nói": "", "Lời thoại": ""}], num_rows="dynamic", hide_index=True, width="stretch",
-                                key=f"{k}_dlg", column_config={"Người nói": st.column_config.SelectboxColumn(
-                                    options=char_names + ["NARRATOR"], width="small")})
+    from core import voice_direction
+    hows = voice_direction.deliveries(d)
+    rows = [{"Người nói": w, "Lời thoại": t, "Nhịp giọng": ((hows[i] or {}).get("pace") or "") if i < len(hows) else "",
+             "Cường độ giọng": ((hows[i] or {}).get("intensity") or 0) if i < len(hows) else 0,
+             "Ngắt trước": bool((hows[i] or {}).get("pause_before")) if i < len(hows) else False}
+            for i, (w, t) in enumerate(dialogue.scene_lines(d))]
+    lines_edit = st.data_editor(rows or [{"Người nói": "", "Lời thoại": "", "Nhịp giọng": "", "Cường độ giọng": 0, "Ngắt trước": False}],
+                                num_rows="dynamic", hide_index=True, width="stretch", key=f"{k}_dlg", column_config={
+                                    "Người nói": st.column_config.SelectboxColumn(options=char_names + ["NARRATOR"], width="small"),
+                                    "Nhịp giọng": st.column_config.SelectboxColumn(options=["", "slow", "normal", "fast"], width="small",
+                                                                                   help="Chỉ đạo giọng (Đạo diễn Đ5) — dùng khi cờ voice_direction bật"),
+                                    "Cường độ giọng": st.column_config.NumberColumn(min_value=0, max_value=5, step=1, width="small",
+                                                                                   help="0 = không chỉ đạo; 5 = đỉnh (giọng biểu cảm nhất)"),
+                                    "Ngắt trước": st.column_config.CheckboxColumn(width="small")})
+    perf, why_text = _acting_inputs(d, k, lk) if d.get("shot_no") else (None, None)
     image_prompt = st.text_area("Prompt ảnh" + lk("image_prompt"), d.get("image_prompt", ""), key=f"{k}_prompt", height=80)
     if locked:
         st.caption("🔒 = bạn đã sửa tay, Director chạy lại sẽ giữ nguyên.")
@@ -618,14 +649,25 @@ def scene_editor(p: Pipeline, pid: int, scene, char_names) -> None:
     b1, b2 = st.columns(2)
     if b1.button("💾 Lưu cảnh", key=f"sds_{pid}_{idx}", type="primary"):
         table = lines_edit.to_dict("records") if hasattr(lines_edit, "to_dict") else lines_edit
-        dlg = [{"speaker": str(r.get("Người nói") or "").strip(), "text": str(r.get("Lời thoại") or "").strip()} for r in table
-               if str(r.get("Lời thoại") or "").strip()]
+        old_how = {str(x.get("text") or "").strip(): x.get("delivery") or {} for x in d.get("dialogue") or [] if isinstance(x, dict)}
+        dlg = []
+        for r in table:
+            said = str(r.get("Lời thoại") or "").strip()
+            if not said:
+                continue
+            how = dict(old_how.get(said) or {})           # emotion / stress / tag written by the Director stay
+            how.update(pace=str(r.get("Nhịp giọng") or "") or None, intensity=int(r.get("Cường độ giọng") or 0) or None,
+                       pause_before=bool(r.get("Ngắt trước")) or None)
+            dlg.append({"speaker": str(r.get("Người nói") or "").strip(), "text": said,
+                        "delivery": {x: v for x, v in how.items() if v is not None}})
         fields = {"location": location, "time": time_, "shot": shot, "mood": mood, "lighting": lighting,
                   "image_prompt": image_prompt, "location_asset": bg, "blocking": blocking, "emotional_intent": intent,
                   "sequence": int(sequence) or None, "camera_complexity": complexity, "shot_role": role,
                   "duration_s": int(duration) or None}
         if rows or dlg:
             fields["dialogue"] = dlg
+        if perf is not None:
+            fields["performance"], fields["why"] = perf, why_text
         if char_names:
             fields["characters"] = cast
         if act(lambda: llm_io.update_scene(p, pid, idx, fields, text=text), f"Đã lưu cảnh {idx}"):
@@ -1087,6 +1129,8 @@ def _crew_notes(p: Pipeline, pid: int) -> None:
     if r.get("payoff_unplanted"):
         st.warning("⚠ Cảnh gặt lại điều chưa được gieo ở cảnh nào trước (`beat.payoff` không có `plant` trước đó): "
                    + ", ".join(map(str, r["payoff_unplanted"])))
+    if r.get("continuity"):
+        st.caption("🧭 Liền mạch: " + " · ".join(escape(w) for w in r["continuity"]))
     if r.get("acting"):
         st.caption("🎭 Diễn xuất: " + " · ".join(escape(w) for w in r["acting"]))
     if r.get("script_notes"):

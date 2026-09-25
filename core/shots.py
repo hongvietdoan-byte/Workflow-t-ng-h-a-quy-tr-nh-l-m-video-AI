@@ -206,6 +206,8 @@ def shot_data(scene: Dict, s: Dict, k: int) -> Dict:
         data["performance"] = acting
     if isinstance(s.get("why"), str) and s["why"].strip():
         data["why"] = s["why"].strip()
+    if isinstance(s.get("motif"), str) and s["motif"].strip():
+        data["motif"] = s["motif"].strip()[:60]           # director.md Đ3: a short tag the shots that rhyme share
     lens = s.get("lens_mm")
     if isinstance(lens, (int, float)) and not isinstance(lens, bool) and 14 <= lens <= 200:
         data["lens_mm"] = int(round(lens))

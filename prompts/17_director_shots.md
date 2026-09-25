@@ -39,7 +39,7 @@ Dự án này sản xuất **theo shot**, không theo cảnh: mỗi cảnh kịc
  "on_screen_text": ["chữ hiện trên màn hình (thông báo hệ thống, chữ kết) — không đọc thành tiếng; bỏ khi không có"],
  "performance": {"intensity": 3, "face": "tiếng Anh: mặt làm gì", "eyes": "nhìn đâu, chớp thế nào", "body": "tư thế, tay",
                  "timing": "đổi thế nào theo thời gian", "listener": "người nghe phản ứng gì", "motive": "tiếng Việt: vì sao"},
- "why": "tiếng Việt, 1 câu: vì sao cỡ/góc/chuyển động này",
+ "why": "tiếng Việt, 1 câu: vì sao cỡ/góc/chuyển động này", "motif": "nhãn ngắn khi shot vần với shot khác",
  "lens_mm": 35, "weather": "clear", "plate_spot": "tên chỗ đứng", "plate_mode": "green", "lip_sync": false,
  "continuous_with_next": false, "hero": false}
 ```
@@ -50,6 +50,8 @@ Dự án này sản xuất **theo shot**, không theo cảnh: mỗi cảnh kịc
 - **`delivery` (chỉ đạo giọng lồng, từng câu, khi câu cần sắc thái rõ):** cảm xúc, cường độ, nhịp; `pause_before` = ngắt trước câu;
   `stress` = một chữ có trong câu; `tag` chỉ một trong: whispers, sighs, shouts, laughs, crying, sarcastic, excited, curious, nervous,
   angry, sad, calm, gulps, clears throat. Không đổi chữ của câu.
+- **`motif`** (tùy chọn): một nhãn ngắn (vd "qua vai Kenta", "vòng cổ đen") cho các shot "vần" với nhau — cùng nhãn ở ít nhất 2 shot
+  (lần đầu gieo, lần sau biến tấu); code báo motif chỉ xuất hiện một lần.
 - **`why`:** một câu cho người duyệt: shot cho người xem biết/cảm gì → vì sao cỡ/góc/chuyển động này → nối với shot trước thế nào.
 - **`lens_mm`** (chỉ khi cần khác mặc định theo cỡ cảnh): 24 đặt gần = anh hùng/ngợp; 85–135 = nén, cô lập. **`weather`**, **`plate_spot`**,
   **`plate_mode`**: chỉ khi có khối "Gói bối cảnh" (danh sách tên hợp lệ ở đó); `weather` có thể ghi ở cảnh cho cả cảnh. **`lip_sync`**:

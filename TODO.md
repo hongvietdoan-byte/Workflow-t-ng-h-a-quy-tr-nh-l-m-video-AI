@@ -37,6 +37,10 @@
 - [x] **Đợt 2 — D7 khớp màu giữa các shot** (`core/color_match.py`): so shot cùng cảnh/nơi/nhóm cỡ với shot neo bằng điểm đen/trắng + ám
   màu vật xám; luôn đo (manifest `color_match`, 🎨 Bước 5), sửa bản sao sau cờ `shot_color_match` TẮT. Đo thật #7: 2/7 shot lệch điểm đen/trắng
   0,14–0,15 (ám màu dưới ngưỡng), sửa thử → ~0,04. Cách đo màu trung bình đã thử và bỏ (nội dung khung làm mọi shot "lệch").
+- [x] **Đợt 3 — V2 + V5 + V6:** ô sửa shot ở Bước 1 có diễn xuất (`performance`), `why`, chỉ đạo giọng từng câu (nhịp/cường độ/ngắt);
+  **sửa lỗi:** lưu tay cảnh từng làm mất `delivery` của Director (nay giữ theo câu). `core/continuity.py`: kiểm trục 180° (hai người đổi
+  bên), đổi hướng chạy, motif chỉ xuất hiện một lần → bàn đo + Bước 1 🧭; trường shot `motif`. Đọc được vị trí ở 11 shot của câu trả lời
+  Director thật lần 4 (không có vượt trục giữa hai người).
 
 **GĐ4 đã làm (2026-09-25; toàn bộ 971 test qua; tính năng mới có cờ đều TẮT; CHƯA chạy thật với API):**
 - **Nghiên cứu** 3 agent (WebSearch/WebFetch) → `knowledge/sources.md` mục GĐ4: 30 nguồn Đạo diễn [Đn], 35 Quay phim [Qn], 35 Dựng [En]
