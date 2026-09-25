@@ -651,13 +651,15 @@ def scene_editor(p: Pipeline, pid: int, scene, char_names) -> None:
     b1, b2 = st.columns(2)
     if b1.button("💾 Lưu cảnh", key=f"sds_{pid}_{idx}", type="primary"):
         table = lines_edit.to_dict("records") if hasattr(lines_edit, "to_dict") else lines_edit
-        old_how = {str(x.get("text") or "").strip(): x.get("delivery") or {} for x in d.get("dialogue") or [] if isinstance(x, dict)}
+        old_lines = [x for x in d.get("dialogue") or [] if isinstance(x, dict)]
         dlg = []
-        for r in table:
+        for n, r in enumerate(table):
             said = str(r.get("Lời thoại") or "").strip()
             if not said:
                 continue
-            how = dict(old_how.get(said) or {})           # emotion / stress / tag written by the Director stay
+            old = old_lines[n] if n < len(old_lines) and str(old_lines[n].get("text") or "").strip() == said else \
+                next((x for x in old_lines if str(x.get("text") or "").strip() == said), {})
+            how = dict(old.get("delivery") or {})         # emotion / stress / tag written by the Director stay (by the line's place)
             how.update(pace=str(r.get("Nhịp giọng") or "") or None, intensity=int(r.get("Cường độ giọng") or 0) or None,
                        pause_before=bool(r.get("Ngắt trước")) or None)
             dlg.append({"speaker": str(r.get("Người nói") or "").strip(), "text": said,

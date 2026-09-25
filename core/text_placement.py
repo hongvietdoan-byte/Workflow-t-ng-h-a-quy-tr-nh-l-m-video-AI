@@ -72,6 +72,12 @@ def model_path() -> Optional[str]:
 
 def face_spans(image_path: str, model: Optional[str] = None) -> Optional[List[Tuple[float, float]]]:
     """(top, bottom) of every face on a picture, fractions of its height; None when no detector is available (not the same as [])."""
+    boxes = face_boxes(image_path, model)
+    return None if boxes is None else [(b[1], b[3]) for b in boxes]
+
+
+def face_boxes(image_path: str, model: Optional[str] = None) -> Optional[List[Tuple[float, float, float, float]]]:
+    """(left, top, right, bottom) of every face, fractions of the picture; None when no detector is available."""
     model = model or model_path()
     if not model:
         return None
@@ -87,9 +93,9 @@ def face_spans(image_path: str, model: Optional[str] = None) -> Optional[List[Tu
         return None
     out = []
     for f in (faces if faces is not None else []):
-        top, height = float(f[1]) / h, float(f[3]) / h
+        left, top, width, height = float(f[0]) / w, float(f[1]) / h, float(f[2]) / w, float(f[3]) / h
         if height >= MIN_FACE:
-            out.append((max(0.0, top), min(1.0, top + height)))
+            out.append((max(0.0, left), max(0.0, top), min(1.0, left + width), min(1.0, top + height)))
     return out
 
 

@@ -405,10 +405,13 @@ def trim_clip(pipeline: Pipeline, scene_id: int, path: str) -> bool:
     have = probe_duration(path) if os.path.exists(path) else None
     if not want or not have or have <= want + TRIM_SLACK:
         return False
+    try:
+        start = motion_start(pipeline.conn, scene_id, path, want, have)   # decided on the clip where it is, before anything moves
+    except Exception:  # noqa: BLE001 - a clip whose motion cannot be read is cut from its start, as always
+        start = 0.0
     raw = os.path.splitext(path)[0] + "_raw.mp4"
     shutil.move(path, raw)
     audio = ["-c:a", "aac"] if has_audio(raw) else ["-an"]
-    start = motion_start(pipeline.conn, scene_id, raw, want, have)
     proc = subprocess.run([find_ffmpeg(), "-y", *(["-ss", f"{start:.2f}"] if start else []), "-i", raw, "-t", f"{want:.2f}", "-c:v",
                            "libx264", "-pix_fmt", "yuv420p", "-preset", "veryfast", *audio, path], capture_output=True, text=True,
                           encoding="utf-8", errors="replace")

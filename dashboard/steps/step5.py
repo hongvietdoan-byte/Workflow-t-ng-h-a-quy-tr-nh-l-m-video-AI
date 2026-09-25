@@ -386,6 +386,11 @@ def step5(p: Pipeline, pid: int):
     ui.html(ui.card_title("5.2 · 🔊 Âm thanh", "nhạc nền · hiệu ứng · giọng thoại (làm ở Bước 3)"))
     step5a(p, pid)
     sfx_assistant(p, pid)
+    if not C.expert():                     # never silent: two voices at once is said in normal mode too
+        overlaps = audio_lib.overlapping_tts(audio_lib.assets_dir(C.DATA, pid))
+        if overlaps:
+            st.warning(f"⚠ {len(overlaps)} chỗ giọng đọc đè lên nhau — bấm ▶ Dựng video cuối (giọng tự xếp theo clip) hoặc bật ⚙ → "
+                       "Chế độ chuyên gia để xếp lại tay.")
     if C.expert():
         with st.expander("🎧 Hiệu ứng & giọng đọc thêm (tùy chọn)"):
             try:
@@ -415,7 +420,8 @@ def clips_panel(p: Pipeline, pid: int):
     with st.container(border=True):
         ui.html(ui.card_title("5.1 · 🎬 Clip theo thứ tự cảnh", f"{len(present)} có sẵn / {len(clips)} · lấy tự động từ Bước 4"))
         if not present:
-            st.info("Chưa có clip nào. Chạy Bước 4 hoặc nhập clip thủ công bên dưới.")
+            st.info("Chưa có clip nào. Chạy Bước 4" + (" hoặc nhập clip thủ công bên dưới." if C.expert()
+                                                          else " (nhập clip thủ công: bật ⚙ → Chế độ chuyên gia)."))
         names = ", ".join(f"cảnh {c['idx']}" + (f" ({ui.state_label(c['state'], 'video_gen')})" if c["state"] else "") for c in missing if c["idx"])
         if names:
             st.warning(f"Thiếu clip: {names} — bản ghép sẽ bỏ qua các cảnh này.")

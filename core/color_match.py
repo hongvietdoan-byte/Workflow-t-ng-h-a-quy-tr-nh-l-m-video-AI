@@ -40,14 +40,15 @@ def measure(path: str, ffmpeg: Optional[str] = None) -> Optional[Dict]:
     """Middle frame of a clip → neutral colour + 5 % / 95 % luminance (0..1). None when it cannot be read."""
     ff = ffmpeg or ffmpeg_studio.find_ffmpeg()
     dur = ffmpeg_studio.probe_duration(path) or 0
-    frame = os.path.join(tempfile.mkdtemp(), "mid.png")
-    proc = subprocess.run([ff, "-y", "-hide_banner", "-loglevel", "error", "-ss", f"{max(dur / 2, 0):.2f}", "-i", path,
-                           "-frames:v", "1", "-vf", "scale=270:-2", frame], capture_output=True, text=True)
-    if proc.returncode != 0 or not os.path.exists(frame):
-        return None
-    from PIL import Image
-    with Image.open(frame) as im:
-        return stats(_np().asarray(im.convert("RGB"), _np().float32) / 255)
+    with tempfile.TemporaryDirectory() as work:          # measured on every render: nothing may pile up
+        frame = os.path.join(work, "mid.png")
+        proc = subprocess.run([ff, "-y", "-hide_banner", "-loglevel", "error", "-ss", f"{max(dur / 2, 0):.2f}", "-i", path,
+                               "-frames:v", "1", "-vf", "scale=270:-2", frame], capture_output=True, text=True)
+        if proc.returncode != 0 or not os.path.exists(frame):
+            return None
+        from PIL import Image
+        with Image.open(frame) as im:
+            return stats(_np().asarray(im.convert("RGB"), _np().float32) / 255)
 
 
 def stats(rgb) -> Dict:
@@ -85,7 +86,10 @@ def groups(conn, project_id: int, rows: Sequence[Dict]) -> List[List[int]]:
         # a close-up's black / white points follow the face, a wide shot's the place: only shots of one size class are compared
         # (#7, 2026-09-25: a CU against its WS anchor read 0,14 "levels" apart from the content alone)
         close = str(data.get("size") or "").upper() in CLOSE_SIZES
-        key = (data.get("story_scene") or data.get("sequence"), str(data.get("location_asset") or data.get("location") or "").lower(), close)
+        scene = data.get("story_scene") or data.get("sequence")
+        if scene is None:                  # an old one-clip-per-scene project: scenes of one place are day AND night — never pulled together
+            continue
+        key = (scene, str(data.get("location_asset") or data.get("location") or "").lower(), close)
         keyed.setdefault(key, []).append(i)
     return [g for g in keyed.values() if len(g) > 1]
 

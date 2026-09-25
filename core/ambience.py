@@ -19,9 +19,11 @@ from . import ffmpeg_studio
 VOLUME = 0.12                 # ~-18 dB under the dialogue (ambience is felt, not listened to)
 FADE_S = 0.6
 MIN_SECONDS = 8.0             # a shorter file loops audibly
+HEARD_MIN = 0.5               # the listener's main label counts only this sure
 # (words in the scene) -> words to look for in the library sound's name / what YAMNet heard, best first
-WEATHER = {"storm": ("thunderstorm", "thunder", "rain"), "rain": ("rain", "thunderstorm"), "sandstorm": ("windy desert", "wind"),
-           "snowfall": ("wind", "winter"), "snow": ("wind", "winter"), "fog": ("wind",), "cloudy": ("wind",)}
+WEATHER = {"storm": ("thunderstorm", "thuderstorm", "thunder", "sấm", "rain", "mưa"), "rain": ("rain", "mưa", "thunderstorm"),
+           "sandstorm": ("windy desert", "wind", "gió"), "snowfall": ("wind", "winter", "gió"), "snow": ("wind", "winter", "gió"),
+           "fog": ("wind", "gió"), "cloudy": ("wind", "gió")}
 NIGHT = ("night", "cricket", "insect", "đêm", "dế")
 PLACES = ((re.compile(r"street|city|town|thị trấn|phố|đường|nhà|house|market|chợ|khu dân cư", re.I), ("busy city street", "street traffic", "city")),
           (re.compile(r"forest|rừng|island|đảo|jungle|garden|vườn|park|công viên|field|cánh đồng", re.I), ("bird ambience", "bird", "nature")),
@@ -46,10 +48,14 @@ def choose(conn, data: Dict) -> Optional[Dict]:
     words = _query(data)
     if not words:
         return None
-    rows = conn.execute("SELECT id, path, name, duration, heard FROM sounds WHERE voice=0 AND duration>=?", (MIN_SECONDS,)).fetchall()
+    rows = conn.execute("SELECT id, path, name, duration, heard_label, heard_score FROM sounds WHERE voice=0 AND duration>=?",
+                        (MIN_SECONDS,)).fetchall()
     for w in words:                                     # the first word that matches wins; the longest file of it (fewer loops)
         word = re.compile(rf"(?<![\w]){re.escape(w)}(?![\w])", re.I)     # whole words: "Crunk Knight" is not a night sound
-        hits = [r for r in rows if word.search(f"{r['name']} {r['heard'] or ''}") and os.path.exists(r["path"])]
+        # the name, or what the listener heard FIRST and surely — a side label ("Wind instrument 0.29" of an air horn, "Rain 0.78" of
+        # a kung-fu clip) is not what the file is (review GĐ7, real library)
+        said = lambda r: r["name"] + (f" {r['heard_label']}" if (r["heard_score"] or 0) >= HEARD_MIN else "")  # noqa: E731
+        hits = [r for r in rows if word.search(said(r)) and os.path.exists(r["path"])]
         if hits:
             best = max(hits, key=lambda r: r["duration"] or 0)
             return {"id": best["id"], "path": best["path"], "name": best["name"], "word": w}

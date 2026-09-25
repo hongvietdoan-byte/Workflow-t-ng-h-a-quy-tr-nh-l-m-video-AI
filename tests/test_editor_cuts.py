@@ -167,17 +167,20 @@ class AmbienceTests(unittest.TestCase):
         self.conn = connect()
         self.dir = tempfile.mkdtemp()
         for i, (name, heard, dur) in enumerate([("Busy City Street", "", 139.0), ("Bird Ambience", "", 115.0),
-                                                ("Thuderstorm", "Thunderstorm 1.00; Rain 0.9", 164.0),
+                                                ("Tiếng Sấm Sét HD", "Thunderstorm 1.00; Rain 0.9", 164.0),
+                                                ("air horn violin", "Air horn 0.78; Wind instrument 0.29", 22.0),
                                                 ("03 Kevin MacLeod - Crunk Knight", "", 120.0), ("Short rain", "Rain 0.9", 3.0)], 1):
             path = os.path.join(self.dir, f"{i}.wav")
             open(path, "wb").close()
-            self.conn.execute("INSERT INTO sounds (id, source_id, path, name, kind, duration, heard, voice) VALUES (?,1,?,?,?,?,?,0)",
-                              (i, path, name, "sfx", dur, heard))
+            label = heard.split(" ")[0].rstrip(";") if heard else None
+            self.conn.execute("INSERT INTO sounds (id, source_id, path, name, kind, duration, heard, heard_label, heard_score, voice)"
+                              " VALUES (?,1,?,?,?,?,?,?,?,0)", (i, path, name, "sfx", dur, heard, label, 0.8 if label else None))
         self.conn.commit()
 
     def test_weather_then_time_then_place(self):
         from core import ambience
-        self.assertEqual(ambience.choose(self.conn, {"weather": "storm", "location": "phố"})["name"], "Thuderstorm")
+        self.assertEqual(ambience.choose(self.conn, {"weather": "storm", "location": "phố"})["name"], "Tiếng Sấm Sét HD")
+        self.assertIsNone(ambience.choose(self.conn, {"weather": "fog"}))                        # never "air horn violin" for wind
         self.assertIsNone(ambience.choose(self.conn, {"time": "night", "location": "quảng trường phố"}))   # no "Crunk Knight"
         self.assertEqual(ambience.choose(self.conn, {"time": "day", "location": "Đảo Quân Sự — khu nhà"})["name"], "Busy City Street")
         self.assertEqual(ambience.choose(self.conn, {"location": "rừng thông"})["name"], "Bird Ambience")
@@ -220,9 +223,11 @@ class MotionTrimTests(unittest.TestCase):
 
 class ViewerCheckTests(unittest.TestCase):
     def test_faces_under_the_app_bands_are_named(self):
-        self.assertEqual(viewer_check.hidden_faces([(0.02, 0.12)]), ["top"])
-        self.assertEqual(viewer_check.hidden_faces([(0.30, 0.45)]), [])
-        self.assertEqual(viewer_check.hidden_faces([(0.70, 0.85)]), ["bottom"])
+        self.assertEqual(viewer_check.hidden_faces([(0.4, 0.02, 0.6, 0.12)]), ["top"])
+        self.assertEqual(viewer_check.hidden_faces([(0.4, 0.30, 0.6, 0.45)]), [])
+        self.assertEqual(viewer_check.hidden_faces([(0.4, 0.70, 0.6, 0.85)]), ["bottom"])
+        self.assertEqual(viewer_check.hidden_faces([(0.85, 0.30, 0.98, 0.45)]), ["right"])       # behind the like / share column
+        self.assertEqual(viewer_check.hidden_faces([(0.4, 0.02, 0.6, 0.12)], vertical=False), [])   # a 16:9 video has no app bands
 
     def test_a_sheet_is_made_from_a_video(self):
         ff = _ff()

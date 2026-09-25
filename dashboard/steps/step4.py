@@ -12,6 +12,11 @@ def step4(p: Pipeline, pid: int):
                 f"{summ['videos'][0]}/{summ['total']} cảnh có clip dùng được", summ["videos"][1])
     if C.expert():
         model_plan_panel(p, pid)
+    else:                                   # never silent: the old-style model settings are said in normal mode too
+        if model_router.chosen_priority(proj) is None and not proj["video_model"]:
+            st.warning("Dự án cũ chưa chọn ưu tiên model nên đang dùng mặc định cũ (Kling cho mọi cảnh) — sửa ở ⚙ → Chế độ chuyên gia.")
+        if proj["video_model"]:
+            st.warning(f"Dự án đang đặt MỘT model chung cho mọi cảnh (cách cũ): {proj['video_model']} — sửa ở ⚙ → Chế độ chuyên gia.")
     with st.container(border=True):
         m1, m2 = st.columns(2)
         audio_on = m1.checkbox("🔊 Model tự tạo âm thanh (tiếng động, không khí)", bool(proj["video_audio"]), key=f"vaudio_{pid}",

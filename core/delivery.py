@@ -229,7 +229,8 @@ def impact_times(directory: str) -> List[float]:
     """D9: the starts of the effects in the mix that are hits (impact, explosion, gunshot, punch…), from their labels."""
     import re
     global _IMPACT
-    _IMPACT = _IMPACT or re.compile(r"impact|explosion|explode|blast|gunshot|gun ?shot|punch|hit\b|slam|crash|va chạm|nổ|súng|đấm|đập", re.I)
+    _IMPACT = _IMPACT or re.compile(r"(?<!\w)(impact|explosion|explode|blast|gunshot|gun ?shot|punch|hit|slam|body fall|va chạm|nổ|"
+                                    r"tiếng súng|bắn|đấm|đập mạnh)(?!\w)", re.I)
     return sorted(round(float(e.get("start") or 0), 2) for e in audio_lib.load(directory)
                   if e.get("kind") == "sound_effect" and e.get("use") and e.get("state") == "succeeded"
                   and _IMPACT.search(str(e.get("label") or "")))[:12]
@@ -323,6 +324,7 @@ def render(p: Pipeline, project_id: int, data_dir: str, music_path: Optional[str
     extras = audio_lib.mix_list(audio_lib.assets_dir(data_dir, project_id))
     aspect = formats.project_aspect(p.project(project_id))
     out = os.path.join(output_dir(data_dir, project_id), "FINAL_VIDEO.mp4")
+    originals = list(paths)                   # lineage follows the shots' own clips, never the colour-matched copies
     colour = _colour_match(p, project_id, rows, paths, os.path.join(output_dir(data_dir, project_id), "_colour"))
     from . import features
     amb = None
@@ -338,17 +340,25 @@ def render(p: Pipeline, project_id: int, data_dir: str, music_path: Optional[str
     ffmpeg_studio.render_final(paths, out, durations, settings["transition"], settings["fade"], track, settings["music_volume"],
                                extras, keep_audio, formats.spec(aspect)["render"] if aspect else None, breaths=breaths)
     hits = impact_times(audio_lib.assets_dir(data_dir, project_id)) if features.on("impact_shake") else []
+    shake_error = None
     if hits:                              # D9: the frame shakes on the hits the sound design placed
         staged = out + ".shake.mp4"
-        ffmpeg_studio.add_shake(out, staged, hits)
-        os.replace(staged, out)
-    manifest = final_manifest(p, project_id, data_dir, paths, settings)
+        try:
+            ffmpeg_studio.add_shake(out, staged, hits)
+            os.replace(staged, out)
+        except Exception as e:  # noqa: BLE001 - the unshaken render is kept; the reason goes into the manifest
+            shake_error, hits = str(e)[:200], []
+            if os.path.exists(staged):
+                os.remove(staged)
+    manifest = final_manifest(p, project_id, data_dir, originals, settings)
     manifest["loudness"] = _loudness(out)
     manifest["color_match"] = colour
     if breaths:
         manifest["music_breaths"] = breaths
     if hits:
         manifest["shakes"] = hits
+    if shake_error:
+        manifest["shake_error"] = shake_error
     if amb is not None:
         manifest["ambience"] = {"beds": [{"scene": e["scene"], "sound": e["sound"]} for e in amb["extras"]],
                                 "missing": amb["missing"], **({"error": amb["error"]} if amb.get("error") else {})}

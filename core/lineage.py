@@ -35,6 +35,8 @@ def image_spec_hash(scene_data: Dict, cast_rows, aspect: Optional[str]) -> str:
 
 def motion_spec_hash(scene_data: Dict) -> str:
     spec = {k: scene_data.get(k) for k in MOTION_KEYS}
+    if isinstance(spec.get("dialogue"), list):       # GĐ4: a line's `delivery` (voice direction) changes the voice, not the picture
+        spec["dialogue"] = [{k: v for k, v in d.items() if k != "delivery"} if isinstance(d, dict) else d for d in spec["dialogue"]]
     spec.update({k: scene_data[k] for k in MOTION_SHOT_KEYS if k in scene_data})
     return _hash(spec)
 

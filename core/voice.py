@@ -228,7 +228,8 @@ def generate(conn, project_id: int, provider, data_dir: str, scene_ids=None, led
         old = have.get((ln["scene_id"], ln["line"]))
         if old is not None:
             i, e = old
-            same = e.get("text") == ln["text"] and e.get("voice_id") == ln["voice"]["voice_id"] and e.get("delivery") == how
+            same = (e.get("text") == ln["text"] and e.get("voice_id") == ln["voice"]["voice_id"]
+                    and (how is None or e.get("delivery") == how))      # feature off: a line made with direction is kept, not re-paid
             if same and e["state"] in ("running", "succeeded"):
                 skipped += 1
                 continue

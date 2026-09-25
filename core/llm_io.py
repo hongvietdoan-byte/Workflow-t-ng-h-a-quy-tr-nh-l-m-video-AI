@@ -383,14 +383,20 @@ def update_scene(pipeline: Pipeline, project_id: int, idx: int, fields: Mapping[
         data["duration_s"] = fields["duration_s"] or None
     if "dialogue" in fields:
         from .voice_direction import clean as clean_delivery
-        old_how = {str(d.get("text") or "").strip(): d.get("delivery") for d in before.get("dialogue") or []
-                   if isinstance(d, dict) and d.get("delivery")}
+        old_lines = [d for d in before.get("dialogue") or [] if isinstance(d, dict)]
         rows = [d for d in (fields["dialogue"] or []) if isinstance(d, dict) and str(d.get("text") or "").strip()]
         kept = []
-        for d in rows:
+        for n, d in enumerate(rows):
             line = {"speaker": str(d.get("speaker") or "").strip(), "text": str(d["text"]).strip()}
-            # GĐ4: the Director's voice direction stays with its line (same words) unless the edit gives a new one
-            how, _ = clean_delivery(d["delivery"] if "delivery" in d else old_how.get(line["text"]))
+            # GĐ4: the Director's voice direction stays with its line — the same place with the same words, else the first unused
+            # old line with those words (two people saying "Đi thôi." keep their own) — unless the edit gives a new one
+            if "delivery" in d:
+                how_src = d["delivery"]
+            else:
+                same = [k for k, o in enumerate(old_lines) if str(o.get("text") or "").strip() == line["text"]]
+                pick = n if n in same else next((k for k in same if k >= n), same[0] if same else None)
+                how_src = old_lines[pick].get("delivery") if pick is not None else None
+            how, _ = clean_delivery(how_src)
             if how:
                 line["delivery"] = how
             kept.append(line)

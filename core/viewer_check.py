@@ -20,14 +20,19 @@ THUMB_W = 240                          # each frame on the sheet
 SMALL_W = 120                          # the "phone held at arm's length" copy (~360 px wide on a 1080 frame, scaled with the sheet)
 
 
-def hidden_faces(spans: List[tuple]) -> List[str]:
-    """Which interface band each face (top, bottom as frame fractions) is under by more than half its height."""
+def hidden_faces(boxes: List[tuple], vertical: bool = True) -> List[str]:
+    """Which interface band each face (left, top, right, bottom as frame fractions) is under by more than half: the top / bottom bars
+    by its height, the right-hand button column by its width. The app's bands are those of a vertical video; a horizontal one has none."""
+    if not vertical:
+        return []
     out = []
-    for top, bottom in spans:
-        h = max(bottom - top, 1e-6)
+    for left, top, right, bottom in boxes:
+        h, w = max(bottom - top, 1e-6), max(right - left, 1e-6)
         for name, (a, b) in BANDS.items():
             if (min(bottom, b) - max(top, a)) / h > 0.5:
                 out.append(name)
+        if (right - max(left, 1 - RIGHT)) / w > 0.5:
+            out.append("right")
     return out
 
 
@@ -47,15 +52,17 @@ def sheet(video: str, out_png: str, ffmpeg: Optional[str] = None, count: int = 8
                            timeout=60)
             if not os.path.exists(png):
                 continue
-            spans = text_placement.face_spans(png)
-            frames.append({"t": round(t, 2), "faces_hidden": hidden_faces(spans or []), "faces_seen": spans is not None})
+            boxes = text_placement.face_boxes(png)
             with Image.open(png) as im:
+                vertical = im.height > im.width
                 big = im.convert("RGB").resize((THUMB_W, int(im.height * THUMB_W / im.width)))
+            frames.append({"t": round(t, 2), "faces_hidden": hidden_faces(boxes or [], vertical), "faces_seen": boxes is not None})
             over = Image.new("RGBA", big.size, (0, 0, 0, 0))
             d = ImageDraw.Draw(over)
-            for a, b in BANDS.values():
-                d.rectangle([0, int(a * big.height), big.width, int(b * big.height)], fill=(220, 40, 40, 90))
-            d.rectangle([int((1 - RIGHT) * big.width), 0, big.width, big.height], fill=(220, 40, 40, 70))
+            if vertical:                         # the app's interface bands belong to a vertical (9:16) video
+                for a, b in BANDS.values():
+                    d.rectangle([0, int(a * big.height), big.width, int(b * big.height)], fill=(220, 40, 40, 90))
+                d.rectangle([int((1 - RIGHT) * big.width), 0, big.width, big.height], fill=(220, 40, 40, 70))
             big = Image.alpha_composite(big.convert("RGBA"), over).convert("RGB")
             ImageDraw.Draw(big).text((4, 4), f"{t:.1f}s" + (" ⚠ mặt dưới giao diện" if frames[-1]["faces_hidden"] else ""),
                                      fill=(255, 255, 0))

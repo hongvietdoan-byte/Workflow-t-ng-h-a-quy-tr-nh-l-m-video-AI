@@ -25,7 +25,7 @@
 | 4 | Bộ kỹ năng 3 vai → agent chấm độc lập → bảng tổng kết gửi người dùng; hồ sơ bỏ tuổi + rút gọn 3 mức, T1 mọi nhân vật | ✅ code + test + tài liệu 2026-09-25 (chi tiết dưới bảng; bảng điểm `docs/DANH_GIA_BO_NGUYEN_TAC_V4.md`) · **chờ người dùng duyệt → bật `film_crew`** · T1 mọi nhân vật: để dành (người dùng chốt) |
 | 5 | Tầng A Director | ⏳ |
 | 6 | Dashboard gọn + tab ⚙ "Giới hạn hệ thống" | ✅ code + test 2026-09-25 (chi tiết "Đợt 8" dưới bảng) · còn: đo lại ước tính sau lần chạy trọn #6 (lệch > 20% thì chỉnh) |
-| 7 | Chạy toàn bộ test, rà lại | ⏳ |
+| 7 | Chạy toàn bộ test, rà lại | ✅ 2026-09-25: agent rà code độc lập tìm 12 lỗi trong phần làm sau GĐ4 → sửa hết + test hồi quy (`tests/test_review_gd7.py`); 1009 test qua; chạy toàn bộ test với mọi cờ mới BẬT: không ngoại lệ (5 test lệch đúng thiết kế do `name_cards`, `profile_digest`) |
 | 8 | Kiểm chứng nhỏ trong trần #7 (≤ ~$2, ≤ 5 ảnh) | ⏳ cần báo giá trước |
 | 9 | Báo "sẵn sàng" → người dùng chạy trọn #6 | ⏳ |
 
@@ -71,6 +71,14 @@
     mở bước; "Đang sản xuất" hiện ảnh/clip xong, hàng đợi, tự động, điểm giữ nền, số shot khớp môi. Thanh bước cũ giữ nguyên bên dưới.
   - Test bắt được: hộp thoại mới chưa khai báo trong `DIALOG_FLAGS` → nút không mở (đã sửa). Xem thử thật trên bản sao CSDL (cổng 8521,
     nhà cung cấp giả lập): thanh trên, dòng trạng thái, ⚙, hộp thoại giới hạn, 4 thẻ hiện đúng, không lỗi máy chủ.
+- [x] **GĐ7 — rà code độc lập (agent riêng), 12 lỗi đã sửa:** (1) đổi `delivery` một câu làm motion + clip bị coi là cũ → autopilot
+  **gen lại clip trả tiền** (kể cả khi cờ tắt) — dấu vân tay motion bỏ `delivery`; (2) bật khớp màu thì manifest ghi bản sao `match_*`
+  → bản dựng luôn "cũ" — manifest ghi clip gốc; (3) âm nền chọn "air horn violin" cho gió (nhãn phụ YAMNet) — chỉ tên + nhãn chính ≥ 0,5;
+  (4) tắt lại `voice_direction` làm tạo lại giọng đã chỉ đạo (tốn tiền) — giữ; (5) rung lỗi làm mất bản ghi lần dựng — giữ bản không rung +
+  lý do; (6) `motion_trim` lỗi có thể mất clip — tính trước khi dời file; (7) chế độ thường giấu cảnh báo model cũ / giọng đè — hiện lại;
+  (8) mẫu tiếng va chạm khớp "nổi", "Cymbal crash" — nguyên từ; (9) khớp màu gom cả phim ở dự án v2 — bỏ shot không có cảnh; (10) thư mục
+  tạm rò mỗi lần dựng — xóa; (11) hai câu trùng chữ tráo `delivery` — theo vị trí; (12) tự rà không xét cột nút bên phải, áp vùng dọc cho
+  video ngang — sửa.
 
 **GĐ4 đã làm (2026-09-25; toàn bộ 971 test qua; tính năng mới có cờ đều TẮT; CHƯA chạy thật với API):**
 - **Nghiên cứu** 3 agent (WebSearch/WebFetch) → `knowledge/sources.md` mục GĐ4: 30 nguồn Đạo diễn [Đn], 35 Quay phim [Qn], 35 Dựng [En]
