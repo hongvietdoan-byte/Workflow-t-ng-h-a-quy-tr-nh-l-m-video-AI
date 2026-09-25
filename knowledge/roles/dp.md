@@ -27,6 +27,10 @@ Làm cho người xem **thấy rõ** điều Đạo diễn muốn họ cảm, v�
 - Prompt khung đầu nói rõ **vị trí người trong khung** (trái/giữa/phải, tiền/trung/hậu cảnh, hướng mặt), cỡ cảnh bằng chữ, nguồn sáng; một
   khoảnh khắc duy nhất. *Căn cứ:* 2A shot 4 — prompt kể "nói rồi quay lưng bước đi" → model vẽ **hai khung ghép**; sửa bằng "one single
   frame, one moment only". Hành động nhiều nhịp thuộc motion prompt, không thuộc khung đầu.
+- **Nền là một nơi thật, kể cả khi tối.** "Bóng tối" = cảnh đêm/thiếu sáng ở bối cảnh của dự án, không phải nền đen trơn. *Căn cứ:* 2A —
+  4 shot nền đen bị người dùng chê. **Mốc nổi tiếng của game phải giống game:** gửi ảnh mốc thật (vai trò "chi tiết / mốc" ở Kho — ảnh
+  render 3D ngang tầm mắt hoặc ảnh chụp trong game) cho shot cận/trung; chỉ tả bằng chữ thì model vẽ một tháp đồng hồ châu Âu chung chung
+  (2A — người dùng: "chưa giống tháp đồng hồ trong Free Fire"). Ảnh chụp từ trên cao/bản đồ không bao giờ làm nền (R7).
 - **Chừa khoảng trống cho chữ** khi Đạo diễn/Editor báo có chữ trên màn hình (thông báo game, phụ đề ở dải dưới vùng an toàn).
 - Toàn cảnh đủ dài để đọc (≥ 1,5 s); cận mặt dành cho im lặng.
 ### Q3. Chuyển động máy

@@ -133,8 +133,11 @@ def build_mux_music_cmd(video: str, music: str, output: str, video_duration: flo
             "-map", "0:v", "-map", "[a]", "-c:v", "copy", "-c:a", "aac", "-shortest", output]
 
 
+DUCK = "sidechaincompress=threshold=0.02:ratio=8:attack=20:release=400"   # music dips ~10 dB while someone speaks
+
+
 def build_extras_mix_cmd(video: str, extras: Sequence[dict], output: str, has_audio: bool,
-                         ffmpeg: str = "ffmpeg") -> List[str]:
+                         ffmpeg: str = "ffmpeg", duck: bool = False) -> List[str]:
     """Lay extra audio (sound effects, voice-over) over the video at given start seconds and volumes.
     extras: [{"path", "start" (s), "volume" (0..2)}]. The video's own audio (music) is kept when has_audio."""
     if not extras:
@@ -147,7 +150,14 @@ def build_extras_mix_cmd(video: str, extras: Sequence[dict], output: str, has_au
         ms = max(int(round(float(e.get("start", 0)) * 1000)), 0)
         parts.append(f"[{i + 1}:a]adelay={ms}|{ms},volume={float(e.get('volume', 1.0))}[e{i}]")
         labels.append(f"[e{i}]")
-    parts.append("".join(labels) + f"amix=inputs={len(labels)}:normalize=0:duration=longest,{PEAK_LIMIT},apad[a]")
+    if duck and has_audio:
+        # the user (2026-09-25) asked for music that follows the cut: the voices press the music bed ([0:a]) down while they speak
+        voices = "".join(f"[e{i}]" for i in range(len(extras)))
+        parts.append(f"{voices}amix=inputs={len(extras)}:normalize=0:duration=longest,asplit=2[vk][vm]")
+        parts.append(f"[0:a][vk]{DUCK}[bed]")
+        parts.append(f"[bed][vm]amix=inputs=2:normalize=0:duration=longest,{PEAK_LIMIT},apad[a]")
+    else:
+        parts.append("".join(labels) + f"amix=inputs={len(labels)}:normalize=0:duration=longest,{PEAK_LIMIT},apad[a]")
     return cmd + ["-filter_complex", ";".join(parts), "-map", "0:v", "-map", "[a]", "-c:v", "copy",
                   "-c:a", "aac", "-shortest", output]
 
@@ -323,7 +333,8 @@ def _render_steps(clips, output, durations, transition, fade, music, music_volum
         current = target
     if extras:
         try:
-            run(build_extras_mix_cmd(current, extras, output, has_audio=music is not None or keep_audio, ffmpeg=ffmpeg))
+            run(build_extras_mix_cmd(current, extras, output, has_audio=music is not None or keep_audio, ffmpeg=ffmpeg,
+                                     duck=music is not None and not keep_audio))
         finally:
             os.remove(current)
 

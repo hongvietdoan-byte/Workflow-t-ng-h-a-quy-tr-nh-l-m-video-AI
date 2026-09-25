@@ -687,6 +687,16 @@ def location_plate(conn, place: Dict, scene: Optional[Dict]) -> Optional[Dict]:
     return next((i for i in place["images"] if i.get("role") == want), None)
 
 
+def location_landmark(conn, place: Dict, scene: Optional[Dict]) -> Optional[Dict]:
+    """A place's LANDMARK picture (role "detail", approved) for a close or medium shot, where no background plate may go: the model sees
+    what the landmark really looks like and draws it in the background at the shot's own camera. The user (2026-09-25): the Free Fire
+    Clock Tower came out as a generic European tower when the place reached the model only as words. The note tells the model to copy
+    shape, materials and colours only — never the picture's camera, framing, time of day or light (R7)."""
+    if shot_size(scene) in _WIDE or shot_size(scene) == "ECU":
+        return None                                  # a wide shot gets the eye-level plate (location_plate) or words; an ECU has no background
+    return next((i for i in place["images"] if i.get("role") == "detail"), None)
+
+
 def location_text(conn, place: Dict) -> str:
     """B1: the place in words for the image prompt — its description and, from the set analyses already read or rendered, the real
     heights of its landmarks (so people get the right size next to a wall or a door without copying a picture's camera)."""
@@ -748,6 +758,9 @@ def scene_references(conn, project_id: int, scene: Dict, limit: int = MAX_REFERE
         people.append((label, own[:1] + [(img["path"], "outfit") for img in outfit[:1]] + own[1:]))
     place = scene_location(conn, project_id, scene)
     loc = location_plate(conn, place, scene) if place else None
+    mark = location_landmark(conn, place, scene) if place and loc is None else None
+    if mark is not None:
+        loc = dict(mark, _landmark=True)
     room = max(limit - reserve - (1 if loc else 0), 0)
     counts = [0] * len(people)                     # 1 picture each first, then a 2nd (3rd) picture for the people listed first while room lasts
     for n in range(1, max(caps, default=0) + 1):
@@ -757,7 +770,7 @@ def scene_references(conn, project_id: int, scene: Dict, limit: int = MAX_REFERE
     for (label, items), k in zip(people, counts):  # grouped per person, so the note reads "Images 1/2 show KELLY"
         refs += [{"path": path, "label": label, "role": role} for path, role in items[:k]]
     if loc and len(refs) < limit - reserve:
-        refs.append({"path": loc["path"], "label": place["name"], "role": "location"})
+        refs.append({"path": loc["path"], "label": place["name"], "role": "landmark" if loc.get("_landmark") else "location"})
     limit = limit - reserve
     # every other chosen resource (weapon, prop, pet, place) that the scene names is a reference too
     blob = " " + fold(" ".join(str(scene.get(k) or "") for k in ("text", "image_prompt", "location"))) + " "
@@ -803,6 +816,10 @@ def reference_note(refs: List[Dict]) -> str:
         elif g["role"] == "location":
             bits.append(f"{tag} is the EMPTY background of {g['label']}: copy its architecture, materials and colours only — it does not "
                         "set the people, their size or their position (those come from the scene text)")
+        elif g["role"] == "landmark":
+            bits.append(f"{tag} shows the real LANDMARK of {g['label']} (from the game): wherever it appears in the background, draw it with "
+                        "exactly this shape, proportions, materials and colours — but NOT this picture's camera angle, framing, time of "
+                        "day or lighting (those come from the scene text); it may be small, blurred or partly out of frame")
         elif g["role"] == "outfit":
             bits.append(f"{tag} {'shows' if len(nums) == 1 else 'show'} the OUTFIT {g['label']} wears in this video: dress {g['label']} "
                         "exactly in these clothes (garments, colours, accessories); take only the face, hair and body build from "

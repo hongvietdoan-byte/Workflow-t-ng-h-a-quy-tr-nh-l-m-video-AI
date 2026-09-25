@@ -199,8 +199,16 @@ def _line_items(directory: str) -> List[tuple]:
     return [(i, e) for i, e in enumerate(audio_lib.load(directory)) if e["kind"] == "tts" and e.get("scene_id")]
 
 
-def generate(conn, project_id: int, provider, data_dir: str, scene_ids=None, ledger=True) -> Dict:
-    """Voice every line that has no voice yet (or whose text / voice changed). Returns {"sent", "skipped", "no_voice": [speakers]}."""
+def slow_end(text: str) -> str:
+    """The TTS text of a line being made again because its end was cut: a trailing "…" makes eleven_v3 finish the last word and let
+    it fall (trial 2A, "Không liên quan đến ông.": 0,64 s cut mid-word → 1,12 s, 4,5 syllables/s, clean ending). Subtitles keep the line."""
+    text = text.rstrip()
+    return text if text.endswith(("…", "...")) else text.rstrip(".!?") + ("…" if not text.endswith(("!", "?")) else text[-1] + "…")
+
+
+def generate(conn, project_id: int, provider, data_dir: str, scene_ids=None, ledger=True, slow=None) -> Dict:
+    """Voice every line that has no voice yet (or whose text / voice changed). Returns {"sent", "skipped", "no_voice": [speakers]}.
+    slow: scene ids whose lines are sent with a trailing "…" (a redo of a line whose end was cut)."""
     directory = audio_lib.assets_dir(data_dir, project_id)
     have = {(e["scene_id"], e.get("line")): (i, e) for i, e in _line_items(directory)}
     sent, skipped, no_voice = 0, 0, set()
@@ -221,7 +229,11 @@ def generate(conn, project_id: int, provider, data_dir: str, scene_ids=None, led
             have = {(e2["scene_id"], e2.get("line")): (j, e2) for j, e2 in _line_items(directory)}
         extra = {"scene_id": ln["scene_id"], "scene_idx": ln["idx"], "line": ln["line"], "speaker": ln["speaker"],
                  "text": ln["text"], "voice_id": ln["voice"]["voice_id"], "dialogue": True}
-        audio_lib.submit_tts(provider, directory, speakable(ln["text"]), ln["voice"]["voice_id"], ln["voice"].get("voice_name", ""),
+        said = speakable(ln["text"])
+        if slow and ln["scene_id"] in slow:
+            said = slow_end(said)
+            extra["slow_end"] = True
+        audio_lib.submit_tts(provider, directory, said, ln["voice"]["voice_id"], ln["voice"].get("voice_name", ""),
                              vi_model(ln["voice"].get("model")), None, ledger=(conn, project_id) if ledger else None,
                              extra=extra)
         sent += 1

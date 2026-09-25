@@ -64,7 +64,59 @@ def find_blender() -> Optional[str]:
     for c in candidates:
         if os.path.exists(c):
             return c
-    return shutil.which("blender")
+    return shutil.which("blender") or store_blender()
+
+
+STORE = "store:"
+
+
+def store_blender() -> Optional[str]:
+    """Blender installed from the Microsoft Store (2026-09-25, this machine: 5.0.1). Its folder under WindowsApps is hidden from file
+    search and its blender.exe cannot be started directly ("Access is denied"); the Store alias blender-launcher.exe drops every
+    argument. It runs headless only inside its package context (Invoke-CommandInDesktopPackage). Returns "store:<family>|<exe>"."""
+    if os.name != "nt":
+        return None
+    try:
+        out = subprocess.run(["powershell", "-NoProfile", "-Command",
+                              "Get-AppxPackage BlenderFoundation.Blender | Select-Object -First 1 | "
+                              "ForEach-Object { $_.PackageFamilyName + '|' + $_.InstallLocation }"],
+                             capture_output=True, text=True, timeout=60).stdout.strip()
+    except (OSError, subprocess.SubprocessError):
+        return None
+    if "|" not in out:
+        return None
+    family, loc = out.split("|", 1)
+    return f"{STORE}{family}|{os.path.join(loc, 'Blender', 'blender.exe')}"
+
+
+class _Done:
+    def __init__(self, returncode: int, stdout: str):
+        self.returncode, self.stdout, self.stderr = returncode, stdout, ""
+
+
+def _run_in_store(blender: str, args: List[str], work: str, timeout: int):
+    """Run Store Blender headless: a .cmd file (Blender + args, output to render.log, exit code to rc.txt) started inside the package
+    context, then wait for rc.txt."""
+    family, exe = blender[len(STORE):].split("|", 1)
+    stamp = time.strftime("%H%M%S")
+    log, rc, bat = (os.path.join(work, f"store_{stamp}.{x}") for x in ("log", "rc", "cmd"))
+    quoted = " ".join(f'"{a}"' for a in args)
+    with open(bat, "w", encoding="ascii", errors="replace") as f:
+        f.write(f'@echo off\r\n"{exe}" {quoted} > "{log}" 2>&1\r\necho %errorlevel% > "{rc}"\r\n')
+    subprocess.run(["powershell", "-NoProfile", "-Command",
+                    f"Invoke-CommandInDesktopPackage -PackageFamilyName '{family}' -AppId 'BLENDER' "
+                    f"-Command 'C:\\Windows\\System32\\cmd.exe' -Args '/c \"{bat}\"' -PreventBreakaway"],
+                   capture_output=True, text=True, timeout=120)
+    end = time.time() + timeout
+    while time.time() < end and not os.path.exists(rc):
+        time.sleep(2)
+    if not os.path.exists(rc):
+        raise subprocess.TimeoutExpired(exe, timeout)
+    time.sleep(0.5)
+    with open(rc, encoding="ascii", errors="replace") as f:
+        code = int((f.read().strip() or "1").split()[0])
+    with open(log, encoding="utf-8", errors="replace") as f:
+        return _Done(code, f.read())
 
 
 def slug(name: str) -> str:
@@ -108,7 +160,10 @@ def render(cfg: Dict, blender: Optional[str] = None, run: Callable = subprocess.
         cmd = [blender, "-b", "--factory-startup", "-P", os.path.abspath(SCRIPT), "--", "--config", plan_path]
     t0 = time.time()
     try:
-        proc = run(cmd, capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=timeout)
+        if blender.startswith(STORE):
+            proc = _run_in_store(blender, cmd[1:], cfg["out_dir"], timeout)
+        else:
+            proc = run(cmd, capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=timeout)
     except subprocess.TimeoutExpired:
         raise Plates3DError(f"Blender chạy quá {timeout // 60} phút — thử giảm lưới (decimate) hoặc cắt khu nhỏ hơn") from None
     except OSError as e:

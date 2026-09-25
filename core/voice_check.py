@@ -17,7 +17,11 @@ from typing import Callable, Dict, List, Optional
 
 from . import audio_lib, dialogue, ffmpeg_studio
 
-SYLL_PER_SEC_MAX = 8.0      # faster than this, words were dropped / the audio was cut
+SYLL_PER_SEC_MAX = 6.5      # faster than this, words were dropped / the audio was cut (trial 2A: a cut Kenta line ran 7,8/s;
+                            # normal Vietnamese TTS measured 2,9–5,7/s)
+CHECK_VERSION = 2           # bump when the rules change, so lines checked under the old rules are checked again
+TAIL_SEC, TAIL_DB = 0.08, -15.0   # the last 80 ms still this loud = the voice stops mid-word (trial 2A: -1,1 dB on the cut line;
+                                  # clean endings measured -20 to -91 dB)
 SYLL_PER_SEC_MIN = 1.6      # slower than this (after the fixed pause), the voice drags, repeats or trails off
 EXTRA_SEC = 1.2             # breath + lead-in allowed on top of the slowest normal pace
 SILENCE_DB = -40
@@ -39,6 +43,30 @@ def silences(path: str) -> List[tuple]:
     starts = [float(x) for x in _START.findall(proc.stderr or "")]
     ends = [float(x) for x in _END.findall(proc.stderr or "")]
     return [(s, ends[i] if i < len(ends) else None) for i, s in enumerate(starts)]
+
+
+_MAX_VOL = re.compile(r"max_volume:\s*(-?[\d.]+|-inf)\s*dB")
+
+
+def tail_db(path: str, seconds: float = TAIL_SEC) -> Optional[float]:
+    """Peak level (dBFS) of the last `seconds` of a voice file, or None when ffmpeg cannot tell."""
+    try:
+        proc = subprocess.run([ffmpeg_studio.find_ffmpeg(), "-hide_banner", "-nostats", "-sseof", f"-{seconds}", "-i", path,
+                               "-af", "volumedetect", "-f", "null", "-"], capture_output=True, text=True, encoding="utf-8",
+                              errors="replace")
+    except (ffmpeg_studio.FFmpegNotFound, OSError):
+        return None
+    m = _MAX_VOL.search(proc.stderr or "")
+    if not m:
+        return None
+    return -120.0 if m.group(1) == "-inf" else float(m.group(1))
+
+
+def tail_problems(level: Optional[float]) -> List[str]:
+    """Trial 2A: eleven_v3 now and then stops a short line mid-word; the file then ends at full loudness."""
+    if level is not None and level > TAIL_DB:
+        return [f"đuôi câu bị cắt (80 ms cuối vẫn to {level:.1f} dB) — tạo lại câu này"]
+    return []
 
 
 def length_problems(text: str, seconds: Optional[float], gaps: List[tuple]) -> List[str]:
@@ -111,7 +139,7 @@ def compare(written: str, heard: str) -> Dict:
 def check_line(path: str, text: str, asr: Optional[Callable[[str], Optional[str]]] = transcribe) -> Dict:
     """{"ok", "problems", "seconds", "heard", "score", "asr"} for one voice file."""
     seconds = ffmpeg_studio.probe_duration(path)
-    problems = length_problems(text, seconds, silences(path) if seconds else [])
+    problems = length_problems(text, seconds, silences(path) if seconds else []) + (tail_problems(tail_db(path)) if seconds else [])
     heard = asr(path) if asr else None
     res = {"seconds": seconds, "heard": heard, "score": None, "asr": heard is not None}
     if heard is not None:
@@ -134,7 +162,7 @@ def check_project(data_dir: str, project_id: int, asr: Optional[Callable[[str], 
         path = os.path.join(directory, e["file"])
         if not os.path.exists(path):
             continue
-        stamp = [e["file"], round(os.path.getmtime(path), 2), e.get("text"), asr_ready(asr)]   # installing ASR later re-checks
+        stamp = [e["file"], round(os.path.getmtime(path), 2), e.get("text"), asr_ready(asr), CHECK_VERSION]   # ASR / new rules re-check
         old = e.get("check") or {}
         if old.get("stamp") == stamp:
             bad += 0 if old.get("ok") else 1
@@ -169,4 +197,4 @@ def redo(conn, project_id: int, provider, data_dir: str) -> Dict:
         audio_lib.remove(directory, i)
     if not scene_ids:
         return {"sent": 0, "skipped": 0, "no_voice": []}
-    return voice.generate(conn, project_id, provider, data_dir, scene_ids=scene_ids)
+    return voice.generate(conn, project_id, provider, data_dir, scene_ids=scene_ids, slow=scene_ids)

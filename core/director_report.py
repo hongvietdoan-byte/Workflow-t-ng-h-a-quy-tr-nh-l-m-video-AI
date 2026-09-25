@@ -20,6 +20,7 @@ _PROFILES = os.path.join(os.path.dirname(__file__), "..", "data", "video_models.
 _SECTION_TIME = re.compile(r"[–—-]\s*(\d{1,3})\s*[–—-]\s*(\d{1,3})\s*(giây|giay|s|sec|secs|seconds)\b", re.IGNORECASE)
 SILENT_MIN = 1.0          # a silent shot shorter than this is paid as a whole minimum-length clip for nothing (inserts excepted)
 WIDE_MIN = 1.5            # a wide shot shorter than this cannot be read
+VOID = re.compile(r"\bvoid\b|black background|abstract (emotional )?space|empty darkness", re.IGNORECASE)
 
 
 def model_limits(model: str = "kling") -> Dict[str, float]:
@@ -60,7 +61,7 @@ def report(obj: Dict, script_text: str, model: str = "kling") -> Dict:
     script_lines = [(sc_i, who, said) for sc_i, sc in enumerate(story, 1) for who, said in dialogue.lines(sc.text)]
     known = {dialogue.norm(said) for _, _, said in script_lines}
 
-    short_speech, silent_micro, wide_short, lip, under2 = [], [], [], [], 0
+    short_speech, silent_micro, wide_short, lip, under2, void = [], [], [], [], 0, []
     for idx, k, s in shots:
         dur = float(s.get("duration_s") or 0)
         lines = _spoken(s)
@@ -75,6 +76,8 @@ def report(obj: Dict, script_text: str, model: str = "kling") -> Dict:
             wide_short.append({"shot": tag, "dur": dur})
         if lip_sync_risk(s):
             lip.append(tag)
+        if VOID.search(str(s.get("image_prompt") or "")):   # 2A: "black void" opening looked unfinished
+            void.append(tag)
 
     dropped = []
     for i, (sc_i, who, said) in enumerate(script_lines):
@@ -108,7 +111,7 @@ def report(obj: Dict, script_text: str, model: str = "kling") -> Dict:
         "shots": len(shots), "total_s": total, "target": target,
         "in_target": bool(target and target[0] - 0.05 <= total <= target[1] + 0.05) if target else None,
         "sections": sections, "short_speech": short_speech, "silent_micro": silent_micro, "wide_short": wide_short,
-        "lip_sync": lip, "under_2s": under2, "dropped": dropped, "dropped_answered": sum(d["answered"] for d in dropped),
+        "lip_sync": lip, "void_background": void, "under_2s": under2, "dropped": dropped, "dropped_answered": sum(d["answered"] for d in dropped),
         "invented": invented, "tradeoffs": obj.get("tradeoffs") or [],
         "paid_s": {"per_shot": per_shot, "per_scene": per_scene, "per_setup": per_setup, "setups": len(setups) or None},
         "paid_usd": {k: (round(v * usd, 2) if (v is not None and usd) else None)
@@ -120,7 +123,7 @@ def report(obj: Dict, script_text: str, model: str = "kling") -> Dict:
 def problems(r: Dict) -> int:
     """How many measured faults (0 = the answer passes every check the code can make)."""
     return (len(r["short_speech"]) + len(r["silent_micro"]) + len(r["wide_short"]) + len(r["lip_sync"]) + r["dropped_answered"]
-            + len(r["invented"]) + (0 if r["in_target"] in (None, True) else 1))
+            + len(r["invented"]) + len(r.get("void_background") or []) + (0 if r["in_target"] in (None, True) else 1))
 
 
 def text(r: Dict) -> str:
@@ -131,6 +134,7 @@ def text(r: Dict) -> str:
             f"Shot im lặng < {SILENT_MIN:g}s: {len(r['silent_micro'])} · toàn cảnh < {WIDE_MIN:g}s: {len(r['wide_short'])} · "
             f"shot < 2s: {r['under_2s']}/{r['shots']}",
             f"Cận mặt người đang nói: {len(r['lip_sync'])}" + (" — " + ", ".join(r["lip_sync"]) if r["lip_sync"] else ""),
+            f"Nền đen trơn / void: {len(r.get('void_background') or [])}" + (" — " + ", ".join(r["void_background"]) if r.get("void_background") else ""),
             f"Câu bị bỏ: {len(r['dropped'])} (có câu đáp lại ngay sau: {r['dropped_answered']}) · câu không có trong kịch bản: {len(r['invented'])}"]
     for d in r["dropped"]:
         rows.append(f"  ✂ cảnh {d['scene']} {d['speaker']}: “{d['text']}”" + (" ⚠ câu sau đáp lại" if d["answered"] else ""))

@@ -148,8 +148,51 @@ def main(argv=None) -> int:
             p.reject(jid, "user", "gen lại có chủ đích (phiên vận hành)", fix=fix)
             new = p.conn.execute("SELECT MAX(id) FROM jobs WHERE scene_id=? AND type=?", (job["scene_id"], job["type"])).fetchone()[0]
         print("job mới", new)
+    elif a.cmd == "regenvideo":                            # a clip remade because its first frame / spec changed (not a QC retry)
+        from core import regen
+        note = a.args[-1]
+        for jid in map(int, a.args[:-1]):
+            print(jid, "→ job mới", regen.regenerate_video(p, data_dir, jid, note))
+    elif a.cmd == "voiceredo":                             # lines flagged by the voice check are made again with a trailing "…"
+        from core import audio_lib, music, voice, voice_check
+        prov = music.audio_provider()
+        print("kiểm:", voice_check.check_project(data_dir, pid, asr=None))
+        print("tạo lại:", voice_check.redo(p.conn, pid, prov, data_dir))
+        end = time.time() + a.minutes * 60
+        while time.time() < end:
+            audio_lib.refresh(prov, audio_lib.assets_dir(data_dir, pid))
+            if not voice.status(p.conn, pid, data_dir).get("running"):
+                break
+            time.sleep(10)
+        print("kiểm lại:", voice_check.check_project(data_dir, pid, asr=None))
+        print("kéo dài clip theo giọng:", voice.fit_durations(p.conn, pid, data_dir))
+        print(_money(p))
+    elif a.cmd == "music":                                 # score timed on the real cut (core/music_timing.py), 2 drafts
+        from core import music, music_timing
+        prov = music.audio_provider()
+        b = music_timing.brief(p, pid)
+        print(f"{b['bpm']} BPM (lệch {b['error_s']}s) · {b['length_ms'] / 1000:.1f}s\n{b['prompt']}")
+        drafts_dir, selected_dir = music.project_dirs(data_dir, pid)
+        n0 = len(music.load_drafts(drafts_dir))
+        print("gửi", music.submit_drafts(prov, drafts_dir, b["prompt"], b["length_ms"], True, count=int(a.args[0]) if a.args else 2,
+                                         ledger=(p.conn, pid)))
+        end = time.time() + a.minutes * 60
+        while time.time() < end and music.refresh_drafts(prov, drafts_dir).get("running"):
+            time.sleep(10)
+        drafts = music.load_drafts(drafts_dir)
+        scored = []
+        for i, d in enumerate(drafts):                 # every finished draft of the project competes (earlier ones too)
+            if d["state"] == "succeeded" and d.get("file"):
+                s = music_timing.score_draft(os.path.join(drafts_dir, d["file"]), b["turns"], b["film_s"])
+                scored.append((s["score"], i))
+                print(i, d.get("duration_ms"), d["file"], s)
+        if scored:
+            _, i = max(scored)
+            print("chọn", i, music.select_draft(drafts_dir, selected_dir, i))
+            music.set_off(p, pid, False)
+        print(_money(p))
     elif a.cmd == "motion":
-        r = llm_runner.run_motion(p, pid, client(), data_dir)
+        r = llm_runner.run_motion(p, pid, client(), data_dir, only_idx=sorted(only) if only else None)
         for s in rows:
             m = p.conn.execute("SELECT state FROM motion_prompts WHERE scene_id=?", (s["id"],)).fetchone()
             if m is not None and m["state"] != "approved":
