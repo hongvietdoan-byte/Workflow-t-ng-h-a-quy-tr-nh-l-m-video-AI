@@ -210,3 +210,13 @@ Phần lớn việc còn lại trong `TODO.md` (mục "Đang làm/kế tiếp", 
 - Phụ đề khung dọc mặc định cũ (đáy 12%) nằm trong dải bị app che; Meta chính thức: để trống đáy 35%, đỉnh 14%, hai bên 6%.
 - Chi phí thật 2A: $3,00 (video $2,80 · Claude $0,20); motion 10 shot 1 lượt $0,10; QC ảnh ~$0,014/ảnh; QC clip ~$0,02/clip; Bible ~$0,008.
 **Source**: chạy thật 2026-09-25 (usage_events, ClipAI video-list, job_events).
+
+## 2026-09-25 — Phản hồi người dùng sau khi xem video 2A + cách sửa
+**Finding**:
+- **eleven_v3 thỉnh thoảng cắt cụt câu ngắn** (giọng "voice Hip VN" id 69: 0,64 s cho 5 âm tiết, 80 ms cuối −1,1 dB). Đo đuôi file bắt được, tạo lại kèm "…" cuối câu → tự nhiên (1,04 s, đuôi −18/−35 dB).
+- Director hiểu "đứng trong bóng tối" thành nền đen trơn (void) → luật: cảnh đêm ở bối cảnh thật.
+- Chỉ tả mốc bằng chữ → model vẽ tháp đồng hồ châu Âu chung chung. Cần **ảnh mốc thật ngang tầm mắt**: render mô hình 3D FF bằng **Blender 5.0.1 bản Microsoft Store** (thư mục WindowsApps ẩn, exe bị chặn, chạy nền qua `Invoke-CommandInDesktopPackage`) → Kho #263 ảnh vai trò "detail".
+- Model nhạc (ElevenLabs qua ClipAI) luôn tắt dần ~5 s cuối và không phải bản nào cũng đổi phần đúng mốc → xin dài +4 s, đo độ to để chọn bản (bản chọn: +27,6 dB đúng 8,6 s).
+- `on_screen_text` chưa từng được in vào video (lỗ hổng) → thông báo kiểu game.
+- Người dùng nói "Blender cài rồi mà" → trước khi nói máy chưa có phần mềm phải kiểm cả app Store (`Get-AppxPackage`).
+**Source**: người dùng xem video 2A, đo bằng ffmpeg/volumedetect, chạy thật 2026-09-25 — `docs/BAO_CAO_SUA_LOI_2A_2026-09-25.md`.
