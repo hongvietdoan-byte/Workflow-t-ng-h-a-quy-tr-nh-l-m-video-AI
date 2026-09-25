@@ -1,4 +1,5 @@
 """Editor: a subtitle never covers eyes or mouth — a whole line of a close-up moves to the top of the safe box (kế hoạch V4 5.1)."""
+import os
 import unittest
 
 from core import subtitles, text_placement
@@ -55,6 +56,24 @@ class AssPlacementTests(unittest.TestCase):
             p.conn.execute("UPDATE scenes SET data=? WHERE id=?", (json.dumps({"size": size}), sid))
         p.conn.commit()
         self.assertEqual(set(text_placement.zones(p.conn, pid)), {1})
+
+
+class RealFaceTests(unittest.TestCase):
+    """YuNet on the real frame wins over the shot-table guess (skipped when the model file is not on this computer)."""
+    def test_a_face_found_low_in_a_wide_shot_moves_the_line(self):
+        cues = [Cue(0.0, 2.0, "Em hiểu rồi.", "KELLY", 1)]
+        seen = {0: (0.50, 0.70)}                                                 # a face low in the frame, on the bottom band
+        ev = [ln for ln in subtitles.to_ass(cues, 1080, 1920, FONT, zones={}, seen=seen).splitlines() if ln.startswith("Dialogue:")]
+        self.assertIn("{\\an8}", ev[0])
+
+    @unittest.skipUnless(text_placement.model_path(), "YuNet face model not installed")
+    def test_the_detector_finds_the_faces_of_a_real_shot(self):
+        import glob
+        pics = sorted(glob.glob(os.path.join(os.path.dirname(text_placement.FACE_MODEL), "..", "projects", "*", "images", "job_*.png")))
+        if not pics:
+            self.skipTest("no generated shot picture on this computer")
+        spans = text_placement.face_spans(pics[0])
+        self.assertIsInstance(spans, list)
 
 
 if __name__ == "__main__":

@@ -45,12 +45,14 @@
   `last_frame`, Kling Omni `end_frame` — skill clipai-1.3.1). Pha autopilot `endframes` trước cổng storyboard.
 - **Editor đặt chữ tránh mặt:** `core/text_placement.py` — vùng mắt–miệng theo cỡ cảnh + góc máy trong bảng shot; câu phụ đề của shot cận
   (dải dưới đè mặt) chuyển **cả câu** lên dải trên vùng an toàn; phụ đề các shot khác giữ một vị trí. Không có bộ dò mặt (OpenCV 5 không kèm
-  model; YuNet phải tải — **hỏi người dùng trước**).
+  model; YuNet phải tải — **hỏi người dùng trước**). → **Người dùng cho tải (2026-09-25): `data/models/face_detection_yunet_2023mar.onnx`
+  (232 KB, opencv_zoo, sha256 8f2383e4…); phụ đề giờ dò mặt trên khung thật ở đầu/giữa/cuối mỗi câu** (thử trên video #7: 5/5 thời điểm
+  thấy mặt; giây 13 và 17 mặt xuống tới 61–65% khung → câu được dời lên); không có model thì quay về suy theo cỡ cảnh.
 - **Nối phần đã có:** `music_timing` → autopilot (dự án theo shot: 2 bản nhạc theo nhịp dựng, giữ bản khớp nhất) + Bước 5 (brief mặc định theo
   nhịp); `recover_clips --relink` + nút "🔎 Tìm task thật (không gửi lại)" ở Bước 4 cho job bị đánh "không thấy / không được tạo".
 - **T1** `tools/draft_profiles.py`: miễn phí — ảnh gần như trùng (average hash) → "chờ duyệt" (không xóa), đoán vai trò, mục là ngoại hình khác,
   nhân vật chưa có hồ sơ; `--draft --limit N` chỉ in ước tính (~$0,02/nhân vật), `--yes` mới gọi Claude, lưu **nháp**, câu trả lời ghi tuổi < 18
-  bị trả lại. **Chưa chạy trên Kho thật** (chờ người dùng cho phép + báo giá).
+  bị trả lại. **Chưa chạy trên Kho thật** — người dùng chốt 2026-09-25: **để dành, soạn sau** (khi cần mới chạy, báo giá trước).
 - Bảng kế thừa cho lớp mới **khung cuối (K1)**: ảnh tham chiếu nhân vật ✔ (`scene_references`) · Lock ✔ (`lock_note`) · khung cắt ✔
   (`framing_sentence`) · luật model ✔ (W10; multi-shot không nhận) · cổng storyboard ⚠ vẽ trước cổng nhưng storyboard **chưa hiện cặp
   đầu–cuối** (GĐ6) · gen lại ⚠ `end_frames.redo` chưa đếm trần 2 lần · sổ chi + trần ✔, ước tính trước ⚠ chưa có giá trên nút (GĐ6) ·

@@ -307,7 +307,7 @@ def to_xlsx(cues: List[Cue]) -> bytes:
 
 def to_ass(cues: List[Cue], width: int, height: int, font: Font, size: str = "M", pos: str = "bottom", color: str = "white",
            show_speaker: bool = False, by_speaker: bool = False, margin_pct: Optional[float] = None,
-           zones: Optional[Dict[int, Tuple[float, float]]] = None) -> str:
+           zones: Optional[Dict[int, Tuple[float, float]]] = None, seen: Optional[Dict[int, Tuple[float, float]]] = None) -> str:
     """zones: scene idx -> (top, bottom) of the face area a subtitle must not cover (core/text_placement.py); a bottom subtitle of
     such a shot moves, whole line, to the top of the safe box."""
     short = min(width, height)
@@ -348,12 +348,14 @@ def to_ass(cues: List[Cue], width: int, height: int, font: Font, size: str = "M"
         style_of[HUD] = "Hud"
     lines += ["", "[Events]", "Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text"]
     moved = {}
-    if zones and align == 2 and height > width and margin_pct is None:
+    if (zones or seen) and align == 2 and height > width and margin_pct is None:
         from . import text_placement
         said = lambda c: f"{c.speaker.title()}: {c.text}" if show_speaker and c.speaker and c.speaker != HUD else c.text  # noqa: E731
         spoken = [c for c in cues if c.speaker != HUD]
-        where = text_placement.placements(spoken, zones, height, fontsize, lambda c: wrap_text(said(c), max_chars).count("\n") + 1,
-                                          SAFE_BOTTOM, SAFE_TOP)
+        index = {id(c): i for i, c in enumerate(cues)}
+        seen_spoken = {j: seen[index[id(c)]] for j, c in enumerate(spoken) if seen and index[id(c)] in seen}
+        where = text_placement.placements(spoken, zones or {}, height, fontsize, lambda c: wrap_text(said(c), max_chars).count("\n") + 1,
+                                          SAFE_BOTTOM, SAFE_TOP, seen=seen_spoken)
         moved = {id(spoken[i]) for i in where}
     for c in cues:
         text = f"{c.speaker.title()}: {c.text}" if show_speaker and c.speaker and c.speaker != HUD else c.text
@@ -549,7 +551,12 @@ def burn(video: str, cues: List[Cue], out_path: str, font: Font, size: str = "M"
     try:
         # ffmpeg runs inside this folder so the filter needs no drive-letter escaping on Windows
         with open(os.path.join(work, "sub.ass"), "w", encoding="utf-8") as f:
-            f.write(to_ass(cues, width, height, font, size, pos, color, show_speaker, by_speaker, zones=zones) + embed_font(font))
+            seen = {}
+            if height > width and pos == "bottom":            # faces on the real frames of each line (YuNet, when installed)
+                from . import text_placement
+                seen = text_placement.video_spans(os.path.abspath(video), cues, ffmpeg)
+            f.write(to_ass(cues, width, height, font, size, pos, color, show_speaker, by_speaker, zones=zones, seen=seen)
+                    + embed_font(font))
         cmd = [ffmpeg, "-y", "-i", os.path.abspath(video), "-vf", "ass=sub.ass", "-c:v", "libx264", "-crf", "18",
                "-preset", "medium", "-pix_fmt", "yuv420p", "-c:a", "copy", os.path.abspath(out_path)]
         proc = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8", errors="replace", cwd=work)
