@@ -25,7 +25,8 @@ Plan (JSON):
   ground           true = add a large ground plane under the model (maps cut out of a bigger map end in the void)
   target           [x, y, z] in metres (after scaling) the preset cameras look at; default the model's centre
   presets          ["eye_000", "eye_090", "eye_180", "eye_270", "low_000", "high_045"] (angle = degrees around the target)
-  cameras          [{"name", "location": [x,y,z], "look_at": [x,y,z], "lens": 35}] extra cameras in metres
+  cameras          [{"name", "location": [x,y,z], "look_at": [x,y,z], "lens": 35, "model_coords": false}] extra cameras in metres;
+                   model_coords true = the points are in the raw model's own coordinates (they get the scale and the lift to z = 0)
   lens_mm          35; eye_height_m 1.6; depth true (also render a depth picture: near = white)
 Every number the local test should record (import time, triangles, render time per plate) is written to manifest.json.
 """
@@ -133,8 +134,19 @@ def normalise_scale(meshes, real_height, warnings):
     bpy.context.view_layer.update()
     lo, hi = bbox(meshes)
     root.location = (0, 0, -lo.z)                                      # keep x/y, stand on the ground
+    global LIFT_Z
+    LIFT_Z = -lo.z
     bpy.context.view_layer.update()
     return factor, bbox(meshes)
+
+
+LIFT_Z = 0.0   # how far the model was raised to stand on z = 0 (a camera given in the model's own coordinates needs it — 2026-09-25:
+               # clock tower cameras placed from a probe of the raw model ended up 2,16 m under the ground)
+
+
+def to_scene(point, factor):
+    """A point in the model's own coordinates (as read from the raw file) -> where it is after scaling and lifting."""
+    return [float(point[0]) * factor, float(point[1]) * factor, float(point[2]) * factor + LIFT_Z]
 
 
 def add_ground(lo, hi):
@@ -338,7 +350,11 @@ def main():
         scene.cycles.use_denoising = False                               # plates are references: speed over the last bit of noise
     manifest["engine"] = engine
     cams = preset_cameras(cfg.get("presets") or DEFAULT_PRESETS, lo, hi, cfg.get("target"), float(cfg.get("eye_height_m", 1.6)))
-    cams += [dict(c, angle=c.get("angle") or "eye_level") for c in cfg.get("cameras") or []]
+    for c in cfg.get("cameras") or []:
+        if c.get("model_coords"):                                        # given in the raw model's coordinates (probe / Blender UI)
+            c = dict(c, location=to_scene(c["location"], factor), look_at=to_scene(c["look_at"], factor))
+        cams.append(dict(c, angle=c.get("angle") or "eye_level"))
+    manifest["lift_z"] = round(LIFT_Z, 3)
     span = max(hi.x - lo.x, hi.y - lo.y, hi.z - lo.z)
     for c in cams:
         data = bpy.data.cameras.new(c["name"])

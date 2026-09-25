@@ -50,7 +50,21 @@
 - **Sau 2A (cùng ngày):** QC ảnh bỏ "chân chạm đất" ở khung ≤ MS; QC video ghi đúng giây trên nhãn khung (M12); kiểm Bible so cả Lock;
   giới hạn đỉnh âm (−1,3 dBFS đo thật); cờ `film_crew` + `camera_setups` (TẮT) + 💵 giây video trả tiền ở Bước 1. Bảng tiến độ ở mục 0 của
   `docs/KE_HOACH_2026-09-25.md`. **Chờ người dùng:** xem video 2A → quyết định 2B; duyệt 3 bộ nguyên tắc vai. 847 test pass.
-- **Dự án #6 đang dừng ở Bước 1** (đã sửa trang phục/Lock/giọng như #7; Q3: thêm lại 2 câu → 31 shot, 63,7 s, sẵn sàng cho 2B). **Kế hoạch mới (2026-09-25): chạy thử 0–20 s đầu trên bản sao,
+- **Sửa theo phản hồi người dùng sau khi xem video 2A (2026-09-25, `docs/BAO_CAO_SUA_LOI_2A_2026-09-25.md`):** (1) giọng Kenta ("voice Hip VN",
+  id 69) cụt đuôi — `eleven_v3` thỉnh thoảng cắt câu ngắn → kiểm giọng đo 80 ms cuối + ngưỡng 6,5 âm tiết/s, tạo lại câu cờ lỗi kèm "…" (đã
+  làm: 2 câu đạt); (2) nền đen → luật "bóng tối = cảnh đêm ở bối cảnh thật", `director_report` báo void; (3) tháp chưa giống FF → **Blender
+  5.0.1 bản Microsoft Store chạy nền được** (`plates3d.store_blender`, qua `Invoke-CommandInDesktopPackage`), render mô hình 3D Tháp Đồng
+  Hồ trong quảng trường → ảnh "chi tiết / mốc" ở Kho #263; code gửi ảnh mốc cho shot cận/trung (`assets.location_landmark`); (4) nhạc theo
+  nhịp → `core/music_timing.py` (timeline thật, BPM khớp ô nhịp, chấm bản nháp, xin dài +4 s) + hạ nhạc khi có thoại (sidechain) + fade-in
+  0,3 s. Video 0–20 s làm lại (4 shot mở đầu, 2 câu giọng, nhạc) — đợt thử **$4,02/$8**, Claude $0,26/$1, ảnh 20/32, âm thanh 15/25.
+- **Code tiếp (cùng ngày):** 1.4 "↻ Chia shot lại cảnh này" (`run_director_scene` + `shots.replace_from`, phần chung cache); H3 mô tả Kho
+  rút gọn (8,5k → 1,9k ký tự); chữ trên màn hình (`on_screen_text`) trước đây KHÔNG vào video → nay thành thông báo kiểu game (vàng, nền
+  tối, dải trên) và luôn in; 1.5 quay theo vị trí máy trong pipeline (cờ `camera_setups` TẮT: một clip liền mạch cho các shot cùng
+  `camera_setup`, cắt đúng số giây, shot sau dùng ảnh shot đầu); `render_plates` nhận camera theo tọa độ gốc mô hình (`model_coords`).
+  **Tra lại GĐ6:** ≥ 2 trong số task "not_found" thực ra đã được ClipAI tạo với mã khác (W12b) — kết luận cũ "không hề được tạo" sai một
+  phần. 865 test pass.
+- **Dự án #6 đang dừng ở Bước 1** (đã sửa trang phục/Lock/giọng như #7; Q3: thêm lại 2 câu → 31 shot, 63,7 s; cảnh cinematic đặt ở
+  Tháp Đồng Hồ ban đêm có ảnh mốc — sẵn sàng cho 2B, **chờ người dùng xem video 0–20 s bản sửa**). **Kế hoạch mới (2026-09-25): chạy thử 0–20 s đầu trên bản sao,
   tự chạy trong trần — xem Bậc 2A của kế hoạch.** Ghi chú cũ — việc tiếp: người dùng quyết định thêm lại 2 câu (miễn phí, sửa shot
   tay) hoặc chạy Director lần 5 với prompt mới (~$0,3–0,7); gộp shot im lặng ngắn; duyệt hồ sơ chuẩn Kelly/Kenta/Maxim; kiểm Bible; đo giá 1 ảnh
   Sunburst (`data/pricing.json` chưa có giá) rồi mới gen 33 ảnh. Video Kling ước ~100 s trả tiền (~$8) cho 57 s phim nếu giữ shot ngắn.
