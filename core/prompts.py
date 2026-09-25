@@ -19,7 +19,8 @@ def _cached(*groups: List[str]) -> str:
 _SCENE_KEYS = ("location", "time", "characters", "mood", "lighting", "shot", "blocking", "image_prompt", "emotional_intent", "beat",
                "camera_complexity", "shot_role", "dialogue", "duration_s", "sequence")
 # v3 shot rows: what the shot contract adds (only present on shot rows, so v2 prompts do not change)
-_SHOT_KEYS = ("story_scene", "shot_no", "size", "angle", "camera_move", "role", "action", "end_state", "continuous_with_next")
+_SHOT_KEYS = ("story_scene", "shot_no", "size", "angle", "camera_move", "role", "action", "end_state", "continuous_with_next",
+              "performance", "why")      # GĐ4: the acting the motion prompt must show over time + the DP's reason for the camera
 
 
 def _read(*parts: str) -> str:
@@ -180,7 +181,7 @@ def build_director_bundle(pipeline: Pipeline, project_id: int, only_scene: Optio
     keep = lambda rel: "" if f"knowledge/{rel}" in folded else _read("knowledge", rel)  # noqa: E731
     from . import features
     if features.on("film_crew"):                   # H3/H7: one reasoned rule book per role instead of the scattered documents
-        crew = [_read("knowledge", "roles", "director.md")] + ([_read("knowledge", "roles", "dp.md")] if shots.mode(proj) else [])
+        crew = [role_text("director.md")] + ([role_text("dp.md")] if shots.mode(proj) else [])
         keep = lambda rel: "" if rel in ("cinematography_basics.md", "film_director_method.md", "dialogue_craft.md") else (  # noqa: E731
             "" if f"knowledge/{rel}" in folded else _read("knowledge", rel))
     else:
@@ -196,6 +197,7 @@ def build_director_bundle(pipeline: Pipeline, project_id: int, only_scene: Optio
         shot_style_block(proj) if shots.mode(proj) else "",
         duration_block(pipeline, project_id) if shots.mode(proj) else "",
         *crew,
+        _location_block(pipeline, project_id) if shots.mode(proj) else "",
         keep("research_notes.md"),
         keep("film_director_method.md"),
         keep("character_lock.md"),
@@ -222,6 +224,24 @@ def build_director_bundle(pipeline: Pipeline, project_id: int, only_scene: Optio
             + (f"\nLý do chia lại: {note}" if note else "")
             + ("\nKế hoạch hiện tại của cảnh này (để biết đang có gì):\n" + json.dumps(current, ensure_ascii=False) if current else ""))
     return body + CACHE_BREAK + task
+
+
+def _location_block(pipeline: Pipeline, project_id: int) -> str:
+    from . import location_pack
+    return location_pack.director_block(pipeline.conn, project_id)
+
+
+MODEL_RULES_MARK = "<!-- model_rules -->"
+
+
+def role_text(name: str) -> str:
+    """A role book of knowledge/roles/. The DP's model limits (dp.md Q4) are not copied by hand: the mark is replaced by the lines of
+    data/provider_rules.json (core/video_rules.summary_lines) — the same table the adapters check before sending."""
+    text = _read("knowledge", "roles", name)
+    if MODEL_RULES_MARK in text:
+        from . import video_rules
+        text = text.replace(MODEL_RULES_MARK, "\n".join(video_rules.summary_lines()))
+    return text
 
 
 def script_preamble(proj) -> str:
@@ -272,6 +292,21 @@ def lock_text(conn, project_id: int, names=None) -> str:
     return ("# Character Lock\n" + "\n".join(rows)) if rows else ""
 
 
+def short_lock_block(conn, project_id: int) -> str:
+    """V4 4.4 (feature profile_digest): the ≤ 200-character form of each approved profile — the words the motion prompt carries for
+    a character (a Kling multi-shot prompt holds 512 characters in all, the full Lock does not fit)."""
+    from . import features, profile_digest
+    if not features.on("profile_digest"):
+        return ""
+    rows = []
+    for r in conn.execute("SELECT name FROM characters WHERE project_id=?", (project_id,)):
+        text = profile_digest.for_character(conn, project_id, r["name"], "lock_short")
+        if text:
+            rows.append(f"- **{r['name']}**: {text}")
+    return ("# Nhận diện ngắn (hồ sơ chuẩn rút gọn ≤ 200 ký tự — motion prompt chỉ nhắc nhân vật bằng các chữ này, không chép Lock dài)\n"
+            + "\n".join(rows)) if rows else ""
+
+
 _ROLE_LABEL = {"location": "địa điểm", "object": "đạo cụ", "character": "nhân vật",
                "layout": "LAYOUT — bố cục dựng sẵn: góc máy, vị trí, cỡ và hướng mặt mong muốn; người là hình nộm/ảnh cắt dán"}
 
@@ -301,6 +336,9 @@ def build_qc_bundle(pipeline: Pipeline, scene_id: int, data_dir: Optional[str] =
     refs = qc_references(pipeline, scene["project_id"], scene["idx"], data, data_dir)
     spec = {k: data.get(k) for k in _SCENE_KEYS}
     spec.update({k: data[k] for k in _SHOT_KEYS if k in data})
+    if spec.get("performance"):
+        from . import performance
+        spec["performance"] = performance.for_prompt(data)
     return _cached([                                     # same for every picture of every project
         _read("prompts", "02_qc_agent.md"),
         "" if "knowledge/ai_image_failure_modes.md" in knowledge.folded_builtin("qc")
@@ -377,6 +415,10 @@ def build_motion_bundle(pipeline: Pipeline, project_id: int, only_missing: bool 
     scenes = [{"idx": r["idx"], **{k: v for k, v in json.loads(r["data"] or "{}").items() if k in _SCENE_KEYS or k in _SHOT_KEYS},
                **extra(r)}
               for r in rows]
+    from . import performance
+    for s in scenes:
+        if s.get("performance"):
+            s["performance"] = performance.for_prompt(s)          # + shown_intensity: the strength to act (close-up one step less)
     payload = {"characters": [dict(c) for c in chars], "scenes": scenes}
     folded = knowledge.folded_builtin("motion")
     complexity_known = any(s.get("camera_complexity") for s in scenes)
@@ -397,6 +439,9 @@ def build_motion_bundle(pipeline: Pipeline, project_id: int, only_missing: bool 
     lock = lock_text(conn, project_id)
     if lock:
         parts.append(lock)
+    short = short_lock_block(conn, project_id)
+    if short:
+        parts.append(short)
     if uses_seedance:
         for rel in ("seedance_prompting.md", "seedance_director_workflow.md"):
             if f"knowledge/{rel}" not in folded:

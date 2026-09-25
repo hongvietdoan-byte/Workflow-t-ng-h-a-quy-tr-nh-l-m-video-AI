@@ -11,3 +11,5 @@ Chỉ trả về **một JSON hợp lệ**:
 ```json
 {"criteria": {"identity": 0.0, "physics": 0.0, "motion_match": 0.0, "artifacts": 0.0}, "issues": ""}
 ```
+
+Nếu "Thông số cảnh" có `performance` (Đạo diễn chỉ đạo diễn xuất: cường độ 1–5, mặt, mắt, người, nhịp): chấm cả biểu cảm trong `motion_match` — biểu cảm sai hẳn (giận thay vì cười nhếch, khóc nấc thay vì cố mỉm cười) hoặc mạnh/yếu lệch quá 1 bậc so với `shown_intensity` là lỗi; ghi vào `issues` biểu cảm đúng phải là gì.

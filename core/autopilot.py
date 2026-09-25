@@ -428,6 +428,8 @@ def _plates_phase(p: Pipeline, pid: int, ctx: Context) -> Optional[str]:
     for it in items:
         if it["weather_problem"]:
             _d(p, pid, "images", "warn", f"shot {it['idx']}: {it['weather_problem']}", "weather")
+        if it.get("spot_problem"):
+            _d(p, pid, "images", "warn", f"shot {it['idx']}: {it['spot_problem']}", "plate_spot")
     idx = location_pack.index(ctx.data_dir, pid)
     if all(str(it["scene_id"]) in idx and idx[str(it["scene_id"])].get("key") == it["key"] for it in items):
         return None

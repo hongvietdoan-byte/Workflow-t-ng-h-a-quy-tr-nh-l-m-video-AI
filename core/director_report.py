@@ -20,6 +20,7 @@ _PROFILES = os.path.join(os.path.dirname(__file__), "..", "data", "video_models.
 _SECTION_TIME = re.compile(r"[–—-]\s*(\d{1,3})\s*[–—-]\s*(\d{1,3})\s*(giây|giay|s|sec|secs|seconds)\b", re.IGNORECASE)
 SILENT_MIN = 1.0          # a silent shot shorter than this is paid as a whole minimum-length clip for nothing (inserts excepted)
 WIDE_MIN = 1.5            # a wide shot shorter than this cannot be read
+TRADEOFF_KEYS = ("chose", "gave_up", "why")   # director.md tầng 4: each sacrifice says what won, what lost and why
 VOID = re.compile(r"\bvoid\b|black background|abstract (emotional )?space|empty darkness", re.IGNORECASE)
 
 
@@ -107,12 +108,25 @@ def report(obj: Dict, script_text: str, model: str = "kling") -> Dict:
             setups.setdefault((idx, str(s["camera_setup"])), []).append(float(s.get("duration_s") or 0))
     per_setup = (sum(_paid(c, lim) for ds in setups.values() for c in _chunks(ds, lim["max"])) if setups else None)
     usd = lim["usd"]
+    from . import performance
+    in_target = bool(target and target[0] - 0.05 <= total <= target[1] + 0.05) if target else None
+    trade = [t for t in (obj.get("tradeoffs") or []) if isinstance(t, dict)]
+    bad_trade = [t for t in (obj.get("tradeoffs") or []) if not isinstance(t, dict) or not all(str(t.get(k) or "").strip()
+                                                                                          for k in TRADEOFF_KEYS)]
+    # director.md tầng 4: giving up something of lower rank is fine, keeping quiet about it is not (dropped lines, a length outside the
+    # script's frame, a line squeezed into a shot too short to say it)
+    gave_up = [why for why, hit in (("bỏ câu thoại", bool(dropped)), ("lệch khung thời lượng", in_target is False),
+                                    ("shot thiếu thời gian nói", bool(short_speech))) if hit]
     return {
         "shots": len(shots), "total_s": total, "target": target,
-        "in_target": bool(target and target[0] - 0.05 <= total <= target[1] + 0.05) if target else None,
+        "in_target": in_target,
         "sections": sections, "short_speech": short_speech, "silent_micro": silent_micro, "wide_short": wide_short,
         "lip_sync": lip, "void_background": void, "under_2s": under2, "dropped": dropped, "dropped_answered": sum(d["answered"] for d in dropped),
         "invented": invented, "tradeoffs": obj.get("tradeoffs") or [],
+        "tradeoffs_bad": len(bad_trade), "unrecorded": gave_up if gave_up and not trade else [],
+        "acting": performance.warnings([s for _, _, s in shots]),
+        "payoff_unplanted": payoff_unplanted(obj),
+        "script_notes": [n for n in obj.get("script_notes") or [] if isinstance(n, dict) and str(n.get("note") or "").strip()],
         "paid_s": {"per_shot": per_shot, "per_scene": per_scene, "per_setup": per_setup, "setups": len(setups) or None},
         "paid_usd": {k: (round(v * usd, 2) if (v is not None and usd) else None)
                      for k, v in (("per_shot", per_shot), ("per_scene", per_scene), ("per_setup", per_setup))},
@@ -120,10 +134,22 @@ def report(obj: Dict, script_text: str, model: str = "kling") -> Dict:
     }
 
 
+def payoff_unplanted(obj: Dict) -> List[int]:
+    """director.md Đ1 (việc code V1): scenes whose `beat.payoff` has no `beat.plant` in any scene before them — a twist nobody set up."""
+    planted, out = False, []
+    for sc in obj.get("scenes") or []:
+        beat = sc.get("beat") if isinstance(sc.get("beat"), dict) else {}
+        if str(beat.get("payoff") or "").strip() and not planted:
+            out.append(sc.get("idx"))
+        planted = planted or bool(str(beat.get("plant") or "").strip())
+    return out
+
+
 def problems(r: Dict) -> int:
     """How many measured faults (0 = the answer passes every check the code can make)."""
     return (len(r["short_speech"]) + len(r["silent_micro"]) + len(r["wide_short"]) + len(r["lip_sync"]) + r["dropped_answered"]
-            + len(r["invented"]) + len(r.get("void_background") or []) + (0 if r["in_target"] in (None, True) else 1))
+            + len(r["invented"]) + len(r.get("void_background") or []) + (0 if r["in_target"] in (None, True) else 1)
+            + (1 if r.get("unrecorded") else 0) + len(r.get("payoff_unplanted") or []))
 
 
 def text(r: Dict) -> str:
@@ -147,6 +173,15 @@ def text(r: Dict) -> str:
                 + (f" · theo vị trí máy ({p['setups']} setup) {p['per_setup']:g}s" + (f" ≈ ${u['per_setup']:g}" if u["per_setup"] else "")
                    if p["per_setup"] is not None else ""))
     if r["tradeoffs"]:
-        rows.append("Đánh đổi Director ghi lại: " + "; ".join(str(x.get("chose") if isinstance(x, dict) else x)[:80] for x in r["tradeoffs"][:5]))
+        rows.append("Đánh đổi Director ghi lại: " + "; ".join(str(x.get("chose") if isinstance(x, dict) else x)[:80] for x in r["tradeoffs"][:5])
+                    + (f" ({r['tradeoffs_bad']} mục thiếu chose/gave_up/why)" if r.get("tradeoffs_bad") else ""))
+    if r.get("unrecorded"):
+        rows.append("⚠ Director đã hy sinh (" + ", ".join(r["unrecorded"]) + ") mà không ghi `tradeoffs`")
+    if r.get("payoff_unplanted"):
+        rows.append("⚠ Cảnh gặt lại điều chưa được gieo ở cảnh nào trước: " + ", ".join(map(str, r["payoff_unplanted"])))
+    for w in r.get("acting") or []:
+        rows.append(f"  🎭 {w}")
+    if r.get("script_notes"):
+        rows.append(f"Ghi chú kịch bản cho người viết: {len(r['script_notes'])} (chỉ đề xuất — thoại không bị sửa)")
     rows.append(f"Tổng lỗi đo được: {problems(r)}")
     return "\n".join(rows)

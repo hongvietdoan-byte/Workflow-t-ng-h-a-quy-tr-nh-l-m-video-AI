@@ -651,9 +651,18 @@ def get_profile(conn, asset_id: int) -> Dict:
         return {}
 
 
-def set_profile(conn, asset_id: int, data: Dict, approved: bool) -> Dict:
-    """Save the standard profile (identity words, Character Lock, real height, build). Only an approved profile is inherited."""
+def set_profile(conn, asset_id: int, data: Dict, approved: bool, reason: Optional[str] = None) -> Dict:
+    """Save the standard profile (identity words, Character Lock, real height, build). Only an approved profile is inherited.
+    The change log (`history`) is kept; `reason` adds a dated entry (kế hoạch V4 4.4: every change of an approved profile says why).
+    The short forms (`digest`, core/profile_digest.py) are made again from the new text the next time they are asked for."""
+    old = get_profile(conn, asset_id)
     clean: Dict = {k: str(data.get(k) or "").strip() for k in PROFILE_KEYS if k != "height_m"}
+    history = list(old.get("history") or [])
+    if reason:
+        import datetime
+        history.append({"date": datetime.date.today().isoformat(), "why": reason.strip()})
+    if history:
+        clean["history"] = history
     try:
         h = float(data.get("height_m") or 0)
     except (TypeError, ValueError):

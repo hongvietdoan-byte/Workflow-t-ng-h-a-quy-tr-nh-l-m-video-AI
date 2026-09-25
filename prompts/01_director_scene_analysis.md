@@ -13,7 +13,9 @@ Dùng knowledge pack đính kèm (biên kịch/quay phim, phương pháp đạo 
 - `sequence`: số nhóm cảnh (1, 2, 3…). Các cảnh liên tiếp diễn ra ở **cùng một nơi, liền mạch về thời gian/hành động** dùng chung một số; đổi địa điểm hoặc nhảy thời gian thì sang số mới. Ảnh các cảnh trong cùng nhóm được nối với nhau để giữ bối cảnh và vị trí nhân vật.
 - `blocking`: tiếng Anh, 1–2 câu, vị trí của từng nhân vật trong khung hình theo góc máy của cảnh: bên trái/giữa/phải khung (frame-left/center/right), tiền/trung/hậu cảnh (foreground/midground/background), hướng nhìn/hướng mặt, khoảng cách tương đối và tỉ lệ so với vật mốc của bối cảnh nếu có (ví dụ "full body, feet on the ground, about as tall as the door"). Trong cùng `sequence`, giữ trục 180°. Cảnh không có người thì để chuỗi rỗng.
 - `emotional_intent`: tiếng Việt, 1 câu — người xem phải CẢM THẤY gì ở cảnh này (không phải tóm tắt hành động).
-- `beat`: `{"want": "", "obstacle": "", "turn": ""}` — nhân vật muốn gì, điều gì cản, cảnh xoay chiều ở đâu (tiếng Việt, ngắn).
+- `beat`: `{"want": "", "obstacle": "", "turn": "", "value": "", "plant": "", "payoff": ""}` — nhân vật muốn gì, điều gì cản, cảnh xoay
+  chiều ở đâu; `value` = giá trị đổi từ đâu sang đâu ("tin → ngờ"); `plant` = điều cảnh này gieo cho sau, `payoff` = điều cảnh này gặt lại
+  từ trước (bỏ trống nếu không có) — tiếng Việt, ngắn. Cảnh gặt mà không cảnh nào trước đó gieo sẽ bị code báo.
 - `camera_complexity`: `"complex"` khi cảnh có đánh nhau/đuổi bắt/va chạm/nhiều người chuyển động cùng lúc/máy di chuyển phức tạp (cần luật cảnh phức tạp và nên dựng layout trước); còn lại `"simple"`.
 - `shot_role`: `"hero"` (khoảnh khắc then chốt/cao trào/cú chốt — dùng model video tốt nhất), `"transition"` (cảnh chuyển tiếp đơn giản), còn lại `"normal"`.
 - `dialogue`: danh sách lời thoại của cảnh theo thứ tự nói, `[{"speaker": "TÊN NHÂN VẬT", "text": "lời thoại"}]`, lấy từ kịch bản, giữ nguyên lời (không tự viết thêm thoại). Cảnh không có thoại thì `[]`. `speaker` là tên trong Character Bible (thuyết minh thì ghi "NARRATOR").
@@ -26,7 +28,7 @@ Dùng knowledge pack đính kèm (biên kịch/quay phim, phương pháp đạo 
 1. Xác định ý chính/thể loại của toàn bộ đoạn kịch bản, rồi lập Character Bible và địa điểm TRƯỚC khi viết từng cảnh.
 2. Với mỗi cảnh, xác định `emotional_intent` và `beat` trước, rồi mới chọn bố cục và cỡ cảnh phục vụ cảm xúc đó. Mỗi cảnh phải đổi cảm xúc, thúc đẩy cốt truyện hoặc tăng căng thẳng.
 3. Chia cảnh thành các `sequence`. Với mỗi nhóm, hình dung sơ đồ nhìn từ trên xuống một lần: ai đứng đâu so với vật mốc, camera đặt phía nào; rồi viết `blocking` của từng shot từ sơ đồ đó.
-4. Viết `shot` và `lighting` bằng từ vựng 8 chiều điện ảnh (cỡ cảnh, bố cục, góc máy, tiêu cự, loại/điều kiện ánh sáng, chuyển động), theo nhịp và cỡ cảnh của thể loại (ví dụ SHORT_FORM dọc: ưu tiên cận trung, hook trong 1,5 giây đầu).
+4. Viết `shot` và `lighting` bằng từ vựng 8 chiều điện ảnh (cỡ cảnh, bố cục, góc máy, tiêu cự, loại/điều kiện ánh sáng, chuyển động), theo nhịp và cỡ cảnh của thể loại (ví dụ SHORT_FORM dọc: ưu tiên cận trung, hook trong 1–3 giây đầu). `lighting` viết theo mẫu *nguồn — phía — màu K — tỉ lệ key:fill — tông* (vd "moonlight from frame-right, cold; sodium lamp behind as rim ~2000K; 8:1; low-key") để mọi shot của cảnh cùng một hướng sáng.
 5. `image_prompt`: cụ thể hơn tính từ; thêm ít nhất một chi tiết môi trường, một vi hành động của cơ thể; tránh từ khen rỗng (beautiful, stunning, amazing, masterpiece).
 
 ## Định dạng đầu ra
@@ -37,7 +39,7 @@ Dùng knowledge pack đính kèm (biên kịch/quay phim, phương pháp đạo 
                   "lock": {"must_keep": "", "may_change": "", "forbidden": ""}}],
   "scenes": [{"idx": 1, "location": "", "location_asset": 12, "sequence": 1, "time": "", "characters": [""], "mood": "",
               "lighting": "", "shot": "", "blocking": "", "image_prompt": "",
-              "emotional_intent": "", "beat": {"want": "", "obstacle": "", "turn": ""},
+              "emotional_intent": "", "beat": {"want": "", "obstacle": "", "turn": "", "value": "", "plant": "", "payoff": ""},
               "camera_complexity": "simple", "shot_role": "normal",
               "dialogue": [{"speaker": "", "text": ""}], "duration_s": 5}],
   "ip_risk_notes": [""]

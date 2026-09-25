@@ -144,10 +144,10 @@ class FlagTests(unittest.TestCase):
     def test_film_crew_swaps_the_scattered_documents_for_the_role_rule_books(self):
         from core import prompts
         off = prompts.build_director_bundle(self.p, self.pid)
-        self.assertNotIn("Vai Đạo diễn — bộ nguyên tắc", off)
+        self.assertNotIn("Vai Đạo diễn — bộ kỹ năng nghề", off)
         os.environ["FEATURE_FILM_CREW"] = "1"
         on = prompts.build_director_bundle(self.p, self.pid)
-        self.assertIn("Vai Đạo diễn — bộ nguyên tắc", on)
+        self.assertIn("Vai Đạo diễn — bộ kỹ năng nghề", on)
         self.assertIn("Vai Quay phim (DP)", on)
         self.assertNotIn("Phương pháp đạo diễn — ra quyết định hình ảnh", on)     # folded into the role book
 

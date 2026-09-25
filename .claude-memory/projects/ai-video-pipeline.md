@@ -246,3 +246,13 @@ Phần lớn việc còn lại trong `TODO.md` (mục "Đang làm/kế tiếp", 
 - Việc tiếp: GĐ4 bộ kỹ năng 3 vai (nghiên cứu → viết → agent chấm độc lập → bảng tổng kết cho người dùng) + hồ sơ bỏ tuổi < 18 + lock_short/lock_medium.
 - Người dùng muốn: sau mỗi đợt code commit + push + git pull ở D:\AI-Video-Pipeline; không tự chạy tiếp GĐ sau.
 **Source**: phiên 2026-09-25 — commit 3f2b2f0 và bàn giao.
+
+## 2026-09-25 (đêm) — GĐ4 xong: bộ kỹ năng 3 vai + hồ sơ
+**Context**: kế hoạch V4 mục 4.2 / 4.4.
+**Finding**:
+- 3 bộ kỹ năng nghề viết lại (director.md Đ1–Đ8, dp.md Q1–Q10, editing.md E1–E9 + safe_zones, roles/README.md); 100 nguồn ở sources.md GĐ4.
+- Agent chấm độc lập (thang 5 tiêu chí): cũ 29/27/27 → lần 1 33/34/33 → lần 2 37/39/36 (/50). Bảng: docs/DANH_GIA_BO_NGUYEN_TAC_V4.md.
+- Code mới: performance (cường độ = độ mạnh khoảnh khắc, code vẽ cận nhỏ 1 bậc), voice_direction (cờ), profile_digest (cờ), why/lens_mm, beat value/plant/payoff, tradeoffs kiểm bằng code, lề phải phụ đề 18%, measure_loudness (#7: −14,7 LUFS, −2,9 dBTP).
+- KELLY/MAXIM bỏ "17-year-old" trong DB (sao lưu manifest.before_age_fix_2026-09-25.sqlite).
+- Sau GĐ4 người dùng cho phép tự chạy mọi việc KHÔNG cần họ quyết (miễn phí, không đổi hướng): D-/V- việc code, GĐ6, GĐ7. Vẫn hỏi: tốn tiền, bật cờ, GĐ5, hồ sơ KENTA.
+**Source**: phiên 2026-09-25.

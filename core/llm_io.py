@@ -63,7 +63,9 @@ def validate_scene_analysis(data: Any) -> Dict:
                 raise SchemaError(f"{w}.{key}: expected text")
         _check_choice(s.get("camera_complexity"), COMPLEXITY, f"{w}.camera_complexity")
         _check_choice(s.get("shot_role"), SHOT_ROLES, f"{w}.shot_role")
-        _check_beat(s.get("beat"), f"{w}.beat")
+        s["beat"] = _clean_beat(s.get("beat")) if "beat" in s else None
+        if s["beat"] is None:
+            s.pop("beat")
         _check_dialogue(s.get("dialogue"), f"{w}.dialogue")
         _check_duration(s.get("duration_s"), f"{w}.duration_s")
         for name in _req(s, "characters", list, w):
@@ -139,11 +141,21 @@ def _check_choice(value: Any, allowed, where: str) -> None:
         raise SchemaError(f"{where}: must be one of {', '.join(allowed)} or null")
 
 
+BEAT_KEYS = ("want", "obstacle", "turn", "value", "plant", "payoff")   # GĐ4 director.md Đ1: value shift + set-up / pay-off
+
+
+def _clean_beat(value: Any) -> Optional[Dict]:
+    """The scene's beat with the known keys as text (unknown keys dropped, null = empty); not an object → None. Never refuses."""
+    if not isinstance(value, dict):
+        return None
+    return {k: ("" if value.get(k) is None else str(value[k])) for k in BEAT_KEYS if k in value}
+
+
 def _check_beat(value: Any, where: str) -> None:
     if value is None:
         return
-    if not isinstance(value, dict) or any(k not in ("want", "obstacle", "turn") or not isinstance(v, str) for k, v in value.items()):
-        raise SchemaError(f"{where}: expected {{want, obstacle, turn}} as text")
+    if not isinstance(value, dict) or any(k not in BEAT_KEYS or not isinstance(v, str) for k, v in value.items()):
+        raise SchemaError(f"{where}: expected {{{', '.join(BEAT_KEYS)}}} as text")
 
 
 def _check_dialogue(value: Any, where: str) -> None:

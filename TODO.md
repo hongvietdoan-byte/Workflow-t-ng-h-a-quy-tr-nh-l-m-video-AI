@@ -22,12 +22,34 @@
 | 1 | Rà soát + hoàn thiện (chi tiết ngay dưới bảng). Tầng A chuyển sang GĐ5 | ✅ code + test 2026-09-25 (chưa chạy thật) |
 | 2 | Gói bối cảnh (chi tiết dưới bảng) | ✅ code + test + render/ghép thật miễn phí 2026-09-25 · còn: gắn nhãn ảnh Kho (Claude ~$1–1,5, chờ người dùng), bước hòa ánh sáng AI / Claude chấm ăn khớp (tốn tiền, sau GĐ8), màn đăng ký trong dashboard (GĐ6) |
 | 3 | Khớp môi toàn video (`docs/NGHIEN_CUU_KHOP_MOI.md`): chọn cách từng shot (tạo kèm giọng Seedance / khớp môi sau sync.so / bỏ qua), giọng từng shot đúng giây timeline, adapter ClipAI `reference_audio` + `core/adapters/syncso.py`, pha autopilot `lipsync`, dựng giữ giọng đúng giây, Đạo diễn được báo; sửa `shot_data` làm rơi trường mới (`lip_sync`, `weather`, `plate_spot`, `plate_mode`); cờ `lip_sync` TẮT | ✅ code + test 2026-09-25 · còn: thử thật (GĐ8) · **cần người dùng: có mở tài khoản sync.so (API từ $5/tháng) không** |
-| 4 | Bộ kỹ năng 3 vai → agent chấm độc lập → bảng tổng kết gửi người dùng; hồ sơ bỏ tuổi + rút gọn 3 mức, T1 mọi nhân vật | ⏳ |
+| 4 | Bộ kỹ năng 3 vai → agent chấm độc lập → bảng tổng kết gửi người dùng; hồ sơ bỏ tuổi + rút gọn 3 mức, T1 mọi nhân vật | ✅ code + test + tài liệu 2026-09-25 (chi tiết dưới bảng; bảng điểm `docs/DANH_GIA_BO_NGUYEN_TAC_V4.md`) · **chờ người dùng duyệt → bật `film_crew`** · T1 mọi nhân vật: để dành (người dùng chốt) |
 | 5 | Tầng A Director | ⏳ |
 | 6 | Dashboard gọn + tab ⚙ "Giới hạn hệ thống" | ⏳ |
 | 7 | Chạy toàn bộ test, rà lại | ⏳ |
 | 8 | Kiểm chứng nhỏ trong trần #7 (≤ ~$2, ≤ 5 ảnh) | ⏳ cần báo giá trước |
 | 9 | Báo "sẵn sàng" → người dùng chạy trọn #6 | ⏳ |
+
+**GĐ4 đã làm (2026-09-25; toàn bộ 971 test qua; tính năng mới có cờ đều TẮT; CHƯA chạy thật với API):**
+- **Nghiên cứu** 3 agent (WebSearch/WebFetch) → `knowledge/sources.md` mục GĐ4: 30 nguồn Đạo diễn [Đn], 35 Quay phim [Qn], 35 Dựng [En]
+  (chính thức: TikTok, YouTube/Google Ads, Meta, Kling, BytePlus Seedance, Runway, Veo, ElevenLabs, Spotify, EBU, AES, Netflix, ffmpeg, Blender, ASC).
+- **Viết lại** `knowledge/roles/director.md` (Đ1–Đ8), `dp.md` (Q1–Q10), `knowledge/editor/editing.md` (E1–E9) + `safe_zones.md`, mới
+  `knowledge/roles/README.md` (bàn giao, thang ưu tiên chung, rà chéo, việc code còn thiếu V2–V7, D1–D14, P1). Mỗi kỹ năng: làm gì · vì
+  sao / trong pipeline / kiểm / ví dụ FF (lý do QC trả clip thật ở CSDL: job 133, 165, 166, 196–206).
+- **Agent chấm độc lập** (thang cố định 5 tiêu chí) → sửa 1 vòng → chấm lại: `docs/DANH_GIA_BO_NGUYEN_TAC_V4.md`.
+- **Code:** `core/performance.py` (trường `performance` → prompt ảnh cả luồng phông xanh, motion, QC ảnh/clip, dấu vân tay; cận hạ 1 bậc;
+  cảnh báo diễn đơ/đường phẳng/đỉnh lặp) · `core/voice_direction.py` + adapter ClipAI TTS nhận `speed/stability/style` (kiểm khoảng trước khi
+  gửi), cờ `voice_direction` · `why`, `lens_mm` (→ `plate_camera.lens_of`) giữ trong shot · `beat` thêm `value/plant/payoff` + kiểm gặt có
+  gieo · bàn đo Director: `tradeoffs` thiếu khi đã hy sinh = lỗi, `script_notes`, cảnh báo diễn xuất → Bước 1 (⚖/🎭/📝) · khối "Gói bối cảnh"
+  cho Director (`location_pack.director_block`) + `spot_problem` báo ở autopilot · Q4 của dp.md sinh từ `provider_rules.json`
+  (`prompts.role_text`) · prompt 17 dạy mọi trường mới, prompt 03/02/12 dùng `performance` · lề phải phụ đề dọc 6% → **18%** (Google Ads
+  192 px) · máy ảo: mắt MS/MCU không còn trong 15% trên · `ffmpeg_studio.measure_loudness` (đo thật bản giao #7: −14,7 LUFS, đỉnh thật −2,9 dBFS).
+- **Hồ sơ (V4 4.4):** KELLY #23, MAXIM #33 bỏ "17-year-old" → "young … not yet 20" (+ `forbidden`/`build`), có `history` ghi lý do; sao
+  lưu CSDL `data/manifest.before_age_fix_2026-09-25.sqlite`. `core/profile_digest.py`: `lock_short` ≤ 200 / `lock_medium` ≤ 500 sinh bằng
+  code (miễn phí), kiểm độ dài + tuổi + chữ chỉ có trong phần cấm, tự sinh lại khi hồ sơ đổi; dùng trong prompt khi cờ `profile_digest` bật.
+  **KENTA:** bản 500 ký tự mất áo khoác xanh + găng tay trái → cần viết tay hoặc Claude soạn (~$0,01, việc P1). Lock riêng của các dự án cũ
+  vẫn ghi 17 (không sửa để ảnh cũ không thành "⚠ cũ"; hồ sơ Kho thắng + `no_minor_age` xoá tuổi ở mọi prompt).
+- **Chưa thử thật:** giọng có `delivery` (thẻ âm/chữ hoa với giọng Việt — V3, vài lượt âm thanh), prompt ảnh dùng bản rút gọn hồ sơ, một lần
+  Director chạy với bộ kỹ năng mới (thêm ~$0,06–0,1 mỗi lần do trường mới).
 
 **Storyboard Deepix qua API (2026-09-25, người dùng chọn thử ngay — xem Weave Canvas):** node Storyboard của Canvas = `conversation-create`
 `prompt_key 14` + khóa phụ (chi tiết `docs/CLIPAI_FEATURES.md`); thêm `DeepixImageProvider.submit_storyboard_frame` + `core/storyboard_frames.py`

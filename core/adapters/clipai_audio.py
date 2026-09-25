@@ -26,6 +26,7 @@ TEXT_LIMIT = 2000
 MUSIC_MS = (3000, 600000)
 DEFAULT_MODELS = {"music": "music_v2", "sound_effect": "eleven_text_to_sound_v2", "tts": "eleven_v3"}
 TTS_MODELS = ("eleven_v3", "eleven_turbo_v2_5", "eleven_flash_v2_5", "eleven_multilingual_v2")   # v2: no Vietnamese
+TTS_PARAM_RANGES = {"speed": (0.7, 1.2), "stability": (0.0, 1.0), "similarity_boost": (0.0, 1.0), "style": (0.0, 1.0)}
 _PAGES = 5
 
 
@@ -90,12 +91,21 @@ class ClipAIAudioProvider:
         return self._generate("sound_effect", name, DEFAULT_MODELS["sound_effect"], {"prompt": prompt}, params)
 
     def generate_tts(self, text: str, voice_actor_id: int, model: str = "eleven_v3",
-                     language_code: Optional[str] = None, name: str = "tts") -> str:
+                     language_code: Optional[str] = None, name: str = "tts", params: Optional[Dict] = None) -> str:
+        """params: voice direction (core/voice_direction.py) — speed 0.7..1.2, stability / similarity_boost / style 0..1 (skill
+        clipai-1.3.1 reference.md); a value out of range is refused here, before anything is paid."""
         text = self._check_text("TTS text", text)
         if model not in TTS_MODELS:
             raise ProviderError(f"unknown TTS model '{model}'. Allowed: {list(TTS_MODELS)}", code="unsupported_model")
-        params = {"language_code": language_code} if language_code else {}
-        return self._generate("tts", name, model, {"text": text, "voice_actor_id": int(voice_actor_id)}, params)
+        extra = {"language_code": language_code} if language_code else {}
+        for key, (low, high) in TTS_PARAM_RANGES.items():
+            if (params or {}).get(key) is None:
+                continue
+            value = params[key]
+            if isinstance(value, bool) or not isinstance(value, (int, float)) or not low <= value <= high:
+                raise ProviderError(f"TTS {key}={value!r} ngoài khoảng {low}..{high}", code="bad_input")
+            extra[key] = float(value)
+        return self._generate("tts", name, model, {"text": text, "voice_actor_id": int(voice_actor_id)}, extra)
 
     # ---- status / download ----------------------------------------------
     def status(self, category: str, asset_id: str) -> AudioStatus:

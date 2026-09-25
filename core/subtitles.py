@@ -30,6 +30,9 @@ SIZES = {"S": ("Nhỏ", 0.050), "M": ("Vừa", 0.065), "L": ("Lớn", 0.085)}   
 POSITIONS = {"bottom": ("Dưới", 2), "middle": ("Giữa", 5), "top": ("Trên", 8)}
 HUD = "__HUD__"         # speaker of an on-screen notice cue (shots' on_screen_text): drawn as a game notice at the top, not a subtitle
 SAFE_BOTTOM, SAFE_TOP = 0.36, 0.15      # vertical frames: just inside Meta's official Reels safe zone (35 % bottom / 14 % top free)
+# sides of a vertical frame (knowledge/editor/safe_zones.md, GĐ4): Meta keeps 6 % each side free; Google Ads' official vertical-video safe
+# zone keeps 192 px of 1080 (17,8 %) free on the RIGHT — the like / comment / share column — the old 6 % put line ends under it
+SAFE_LEFT, SAFE_RIGHT = 0.06, 0.18
 COLORS = {"white": ("Trắng", "FFFFFF"), "yellow": ("Vàng", "FFE066")}
 DEFAULT_FONT = os.environ.get("DEFAULT_SUBTITLE_FONT", "GFF Latin Bold")
 DEFAULTS = {"enabled": False, "lang": "src", "font": "", "size": "M", "pos": "bottom", "color": "white", "speaker": False,
@@ -324,27 +327,28 @@ def to_ass(cues: List[Cue], width: int, height: int, font: Font, size: str = "M"
     rgb = COLORS.get(color, COLORS["white"])[1]
     bgr = rgb[4:6] + rgb[2:4] + rgb[0:2]
     outline = max(int(fontsize * 0.07), 2)
-    max_chars = max(int(width / (fontsize * 0.55)), 12)
+    ml, mr = (int(width * SAFE_LEFT), int(width * SAFE_RIGHT)) if height > width else (int(width * 0.06), int(width * 0.06))
+    max_chars = max(int((width - ml - mr) / (fontsize * 0.55)), 12)
     lines = ["[Script Info]", "ScriptType: v4.00+", f"PlayResX: {width}", f"PlayResY: {height}", "WrapStyle: 0", "",
              "[V4+ Styles]",
              "Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, "
              "StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding",
              f"Style: Default,{font.ass_name or font.family},{fontsize},&H00{bgr},&H00{bgr},&H00000000,&H80000000,0,0,0,0,100,100,0,0,1,{outline},1,"
-             f"{align},{int(width * 0.06)},{int(width * 0.06)},{margin_v},1"]
+             f"{align},{ml},{mr},{margin_v},1"]
     palette = speaker_colors(cues) if by_speaker else {}
     style_of = {}
     for n, (who, hexrgb) in enumerate(palette.items(), 1):
         c_bgr = hexrgb[4:6] + hexrgb[2:4] + hexrgb[0:2]
         style_of[who] = f"S{n}"
         lines.append(f"Style: S{n},{font.ass_name or font.family},{fontsize},&H00{c_bgr},&H00{c_bgr},&H00000000,&H80000000,0,0,0,0,"
-                     f"100,100,0,0,1,{outline},1,{align},{int(width * 0.06)},{int(width * 0.06)},{margin_v},1")
+                     f"100,100,0,0,1,{outline},1,{align},{ml},{mr},{margin_v},1")
     if any(c.speaker == HUD for c in cues):
         # a game notice (knowledge/editor/safe_zones.md: game-notice style at the top of the safe zone, unlike a subtitle): smaller,
         # yellow on a dark box, centred just inside the top safe margin
         hud_size = max(int(fontsize * 0.8), 12)
         hud_margin = int(height * SAFE_TOP) if height > width else int(height * 0.06)
         lines.append(f"Style: Hud,{font.ass_name or font.family},{hud_size},&H0000D7FF,&H0000D7FF,&H00000000,&HA0000000,1,0,0,0,"
-                     f"100,100,0,0,3,{max(int(hud_size * 0.25), 3)},0,8,{int(width * 0.06)},{int(width * 0.06)},{hud_margin},1")
+                     f"100,100,0,0,3,{max(int(hud_size * 0.25), 3)},0,8,{ml},{mr},{hud_margin},1")
         style_of[HUD] = "Hud"
     lines += ["", "[Events]", "Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text"]
     moved = {}

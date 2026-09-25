@@ -152,10 +152,18 @@ def _split_lines(s: Dict):
     """(spoken lines, on-screen text): a 'line' of the system / HUD / a text card is shown on screen, never voiced (kịch bản
     "ANH CHỌN AI?": "HỆ THỐNG: Maxim đã bị hạ" came back as a NARRATOR line)."""
     from .dialogue import NOT_SPEAKERS
+    from .voice_direction import clean as clean_delivery
     spoken, screen = [], [str(x).strip() for x in s.get("on_screen_text") or [] if str(x).strip()]
     for d in s.get("dialogue") or []:
         who, said = str(d.get("speaker") or "").strip(), str(d["text"]).strip()
-        (screen.append(said) if who.upper() in NOT_SPEAKERS else spoken.append({"speaker": who, "text": said}))
+        if who.upper() in NOT_SPEAKERS:
+            screen.append(said)
+            continue
+        line = {"speaker": who, "text": said}
+        how, _ = clean_delivery(d.get("delivery"))       # GĐ4: the Director's voice direction of the line (director.md Đ5)
+        if how:
+            line["delivery"] = how
+        spoken.append(line)
     return spoken, screen
 
 
@@ -190,6 +198,17 @@ def shot_data(scene: Dict, s: Dict, k: int) -> Dict:
         value = s.get(key) or scene.get(key)
         if isinstance(value, str) and value.strip():
             data[key] = value.strip()
+    # GĐ4 (the crew's skill books): the acting of the shot (director.md Đ4 → image + motion prompts), the DP's reason for the camera
+    # (dp.md Q7 — the Director approves the shot by it), the lens of the virtual camera on a 3D place (dp.md Q2 → plate_camera)
+    from . import performance
+    acting, _ = performance.clean(s.get("performance"))
+    if acting:
+        data["performance"] = acting
+    if isinstance(s.get("why"), str) and s["why"].strip():
+        data["why"] = s["why"].strip()
+    lens = s.get("lens_mm")
+    if isinstance(lens, (int, float)) and not isinstance(lens, bool) and 14 <= lens <= 200:
+        data["lens_mm"] = int(round(lens))
     return data
 
 

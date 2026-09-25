@@ -39,7 +39,7 @@ class MockAudioProvider:
     def generate_sfx(self, prompt, duration_seconds=None, loop=False, name="sfx"):
         return self._create("sound_effect", int((duration_seconds or 1) * 1000))
 
-    def generate_tts(self, text, voice_actor_id, model="eleven_v3", language_code=None, name="tts"):
+    def generate_tts(self, text, voice_actor_id, model="eleven_v3", language_code=None, name="tts", params=None):
         return self._create("tts", 1500)
 
     def status(self, category, asset_id):

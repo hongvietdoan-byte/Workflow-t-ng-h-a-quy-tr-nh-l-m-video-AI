@@ -182,6 +182,45 @@ def has_audio(path: str) -> bool:
     return bool(_AUDIO_STREAM.search(proc.stderr or ""))
 
 
+# Loudness of a delivered file (knowledge/editor/editing.md E8, việc code D11 — measuring half). No platform publishes its LUFS (YouTube,
+# TikTok, Meta); Spotify's official -14 LUFS / true peak under -1 dBTP is the common reference, AES TD1008 keeps -1 dBTP before a lossy
+# encoder. The pipeline aims at -14 LUFS integrated, true peak -1,5 dBTP or lower (headroom for AAC).
+LUFS_TARGET, LUFS_TOLERANCE, TRUE_PEAK_MAX = -14.0, 2.0, -1.5
+_EBU = {"lufs": re.compile(r"I:\s*(-?[\d.]+|-inf)\s*LUFS"), "lra": re.compile(r"LRA:\s*(-?[\d.]+)\s*LU\b"),
+        "true_peak_dbfs": re.compile(r"Peak:\s*(-?[\d.]+|-inf)\s*dBFS")}
+
+
+def measure_loudness(path: str, ffmpeg: Optional[str] = None) -> Optional[dict]:
+    """{"lufs", "lra", "true_peak_dbfs"} of a file's sound (EBU R128 meter of ffmpeg, true peak), None without sound / ffmpeg."""
+    try:
+        proc = subprocess.run([ffmpeg or find_ffmpeg(), "-hide_banner", "-nostats", "-i", path, "-map", "0:a:0",
+                               "-af", "ebur128=peak=true", "-f", "null", "-"], capture_output=True, text=True, encoding="utf-8",
+                              errors="replace")
+    except (FFmpegNotFound, OSError):
+        return None
+    summary = (proc.stderr or "").rsplit("Summary:", 1)
+    if proc.returncode != 0 or len(summary) < 2:
+        return None
+    out = {}
+    for key, pat in _EBU.items():
+        m = pat.search(summary[1])
+        out[key] = (float("-inf") if m.group(1) == "-inf" else float(m.group(1))) if m else None
+    return out
+
+
+def loudness_problems(m: Optional[dict]) -> List[str]:
+    """What a person should know about a measured loudness (empty = in range)."""
+    if not m or m.get("lufs") is None:
+        return ["không đo được độ to (không có tiếng?)"]
+    out = []
+    if abs(m["lufs"] - LUFS_TARGET) > LUFS_TOLERANCE:
+        out.append(f"độ to {m['lufs']:g} LUFS — mục tiêu {LUFS_TARGET:g} ± {LUFS_TOLERANCE:g} (nền tảng sẽ tự "
+                   + ("hạ xuống" if m["lufs"] > LUFS_TARGET else "không nâng lên — nghe nhỏ hơn video bên cạnh") + ")")
+    if m.get("true_peak_dbfs") is not None and m["true_peak_dbfs"] > TRUE_PEAK_MAX:
+        out.append(f"đỉnh thật {m['true_peak_dbfs']:g} dBTP > {TRUE_PEAK_MAX:g} — dễ rè sau khi nền tảng mã hóa lại")
+    return out
+
+
 _DURATION = re.compile(r"Duration:\s*(\d+):(\d+):(\d+(?:\.\d+)?)")
 
 

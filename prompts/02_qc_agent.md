@@ -36,3 +36,5 @@ thành gì — vì câu này được đưa thẳng vào prompt gen lại, khôn
  "issues": ["mô tả ngắn từng lỗi cụ thể, để đưa vào prompt gen lại"]}
 ```
 Không tự quyết pass/fail — hệ thống quyết theo `operating_mode` và threshold.
+
+Nếu "Thông số cảnh" có `performance` (Đạo diễn chỉ đạo diễn xuất cho khung đầu: `face`, `eyes`, `body`, cường độ 1–5): chấm biểu cảm trong `mood_lighting`; biểu cảm sai hẳn hoặc lệch quá 1 bậc so với `shown_intensity` là lỗi, ghi vào `issues` biểu cảm đúng.

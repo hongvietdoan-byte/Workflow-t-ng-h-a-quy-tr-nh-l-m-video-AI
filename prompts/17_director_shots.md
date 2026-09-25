@@ -4,10 +4,10 @@ Dự án này sản xuất **theo shot**, không theo cảnh: mỗi cảnh kịc
 
 ## Cách chia
 - Đọc từng beat của cảnh (muốn gì – cản trở – bước ngoặt), mỗi thay đổi hành động, mỗi câu thoại, mỗi phản ứng quan trọng → một shot. Dùng ngữ pháp dựng Free Fire và phong cách của dự án ở phần kiến thức (số liệu là **khoảng tham khảo**, không phải con số cố định).
-- **Nhịp do kịch bản quyết định**: shot hành động/phản ứng/chèn ngắn; shot thoại dài bằng thời gian nói câu đó (~3,5 âm tiết/giây + 0,4s); thiết lập, kết, money shot được dài hơn. Tổng thời lượng các shot nên khớp thời lượng kịch bản yêu cầu (nếu có ghi).
+- **Nhịp do kịch bản quyết định**: shot hành động/phản ứng/chèn ngắn; shot thoại dài bằng thời gian nói câu đó (~3,5 âm tiết/giây + 0,5 s); thiết lập, kết, money shot được dài hơn. Tổng thời lượng các shot nên khớp thời lượng kịch bản yêu cầu (nếu có ghi).
 - Mở video bằng **hook**; kết bằng **ending** (tạo dáng, nhìn máy quay, câu chốt). Sau câu thoại/hành động quan trọng nên có **reaction**. Đổi cỡ cảnh có lý do; tránh 4 shot liền cùng cỡ.
 - Thoại: **mỗi câu nằm trọn trong một shot**; không cắt ngang câu. Một shot có thể chứa 0, 1 hoặc vài câu ngắn liền nhau của cùng cảnh.
-- **Không có khớp môi (BẮT BUỘC)**: giọng tiếng Việt được lồng sau, miệng nhân vật trong video không nói đúng câu đó. Shot có `dialogue` **KHÔNG được** là `ECU`/`CU`/`MCU` mà người nói có trong `characters` và nhìn thấy mặt (angle `eye`/`low`/`high`/`dutch`). Thay bằng: `MS`/`WS`; góc `ots` (qua vai người nghe, người nói ở trung cảnh); người nói quay nghiêng/quay lưng/đang hành động; hoặc đặt câu thoại lên **shot phản ứng của người nghe** (người nói ngoài khung — vẫn ghi `speaker` là người nói nhưng không đưa họ vào `characters`). Cận mặt người nói chỉ dùng cho khoảnh khắc **im lặng** (nước mắt rơi, sững người) — tách thành shot riêng không thoại.
+- **Không có khớp môi (BẮT BUỘC khi khớp môi TẮT — nếu khối "Thời lượng bắt buộc" ghi "Khớp môi đang BẬT" thì theo khối đó)**: giọng tiếng Việt được lồng sau, miệng nhân vật trong video không nói đúng câu đó. Shot có `dialogue` **KHÔNG được** là `ECU`/`CU`/`MCU` mà người nói có trong `characters` và nhìn thấy mặt (angle `eye`/`low`/`high`/`dutch`). Thay bằng: `MS`/`WS`; góc `ots` (qua vai người nghe, người nói ở trung cảnh); người nói quay nghiêng/quay lưng/đang hành động; hoặc đặt câu thoại lên **shot phản ứng của người nghe** (người nói ngoài khung — vẫn ghi `speaker` là người nói nhưng không đưa họ vào `characters`). Cận mặt người nói chỉ dùng cho khoảnh khắc **im lặng** (nước mắt rơi, sững người) — tách thành shot riêng không thoại.
 - **Kịch bản ghi rõ góc máy thì giữ đúng**: "GÓC CAMERA SAU VAI X" / "qua vai X" → `angle: "ots"`, X có trong `characters` (vai/lưng mờ ở tiền cảnh); "CẬN CẢNH" → `CU` (không thoại, xem luật trên); "CHÍNH DIỆN" → nhân vật nhìn về máy; "TOÀN CẢNH" → `WS`. Chỉ đổi khi luật khớp môi buộc phải đổi — khi đó đổi cỡ cảnh, giữ tinh thần góc máy.
 - **"Bóng tối" / "một mình" không phải nền đen trơn**: kịch bản ghi "đứng trong bóng tối" = cảnh ĐÊM hoặc thiếu sáng **trong một bối cảnh thật
   của dự án** (ghi rõ nơi nào, mốc nào nhìn thấy mờ phía sau), ánh sáng tối (low-key) — không dùng "void", "black background", "abstract
@@ -33,10 +33,30 @@ Dự án này sản xuất **theo shot**, không theo cảnh: mỗi cảnh kịc
  "end_state": "tiếng Anh, chỉ khi shot đổi trạng thái rõ (vị trí/tư thế cuối shot); không thì bỏ",
  "image_prompt": "tiếng Anh: KHUNG ĐẦU của shot — cỡ cảnh, góc, nhân vật, bối cảnh, ánh sáng, theo khung hình dự án",
  "characters": ["TÊN trong Character Bible có mặt trong khung"],
- "dialogue": [{"speaker": "TÊN", "text": "câu thoại nguyên văn tiếng Việt"}],
+ "dialogue": [{"speaker": "TÊN", "text": "câu thoại nguyên văn tiếng Việt",
+               "delivery": {"emotion": "tiếng Anh ngắn", "intensity": 3, "pace": "slow|normal|fast", "pause_before": true,
+                            "stress": "chữ cần nhấn", "tag": "whispers"}}],
  "on_screen_text": ["chữ hiện trên màn hình (thông báo hệ thống, chữ kết) — không đọc thành tiếng; bỏ khi không có"],
+ "performance": {"intensity": 3, "face": "tiếng Anh: mặt làm gì", "eyes": "nhìn đâu, chớp thế nào", "body": "tư thế, tay",
+                 "timing": "đổi thế nào theo thời gian", "listener": "người nghe phản ứng gì", "motive": "tiếng Việt: vì sao"},
+ "why": "tiếng Việt, 1 câu: vì sao cỡ/góc/chuyển động này",
+ "lens_mm": 35, "weather": "clear", "plate_spot": "tên chỗ đứng", "plate_mode": "green", "lip_sync": false,
  "continuous_with_next": false, "hero": false}
 ```
+- **`performance` (diễn xuất — mọi shot có người, nhất là thoại/phản ứng/móc/kết):** tả **hành vi nhìn thấy được**, không chỉ tên cảm xúc
+  ("sad" → "lips pressed into a trembling smile, eyes wet, blinking fast"). `intensity` 1 vi biểu cảm · 2 kìm nén · 3 rõ nhưng tự nhiên ·
+  4 mạnh · 5 đỉnh của phim (chỉ 1–2 shot). Ghi **độ mạnh của khoảnh khắc** — kể cả ở cận: code tự vẽ cận CU/ECU nhỏ hơn một bậc, đừng tự hạ. Người nghe cũng diễn (`listener`). Không có model video nào tự biết nhân vật
+  muốn gì — thiếu trường này model tự chọn biểu cảm (chạy thật #6: ra "giận, há miệng" thay vì "cười nhếch").
+- **`delivery` (chỉ đạo giọng lồng, từng câu, khi câu cần sắc thái rõ):** cảm xúc, cường độ, nhịp; `pause_before` = ngắt trước câu;
+  `stress` = một chữ có trong câu; `tag` chỉ một trong: whispers, sighs, shouts, laughs, crying, sarcastic, excited, curious, nervous,
+  angry, sad, calm, gulps, clears throat. Không đổi chữ của câu.
+- **`why`:** một câu cho người duyệt: shot cho người xem biết/cảm gì → vì sao cỡ/góc/chuyển động này → nối với shot trước thế nào.
+- **`lens_mm`** (chỉ khi cần khác mặc định theo cỡ cảnh): 24 đặt gần = anh hùng/ngợp; 85–135 = nén, cô lập. **`weather`**, **`plate_spot`**,
+  **`plate_mode`**: chỉ khi có khối "Gói bối cảnh" (danh sách tên hợp lệ ở đó); `weather` có thể ghi ở cảnh cho cả cảnh. **`lip_sync`**:
+  chỉ khi khớp môi đang BẬT (xem khối Thời lượng). Bỏ trường nào không dùng.
+- **Gốc JSON thêm:** `"tradeoffs": [{"chose", "gave_up", "why", "scene"}]` mỗi khi hy sinh một ưu tiên thấp hơn (bỏ câu, lệch thời lượng,
+  đổi góc kịch bản ghi…) — code kiểm, thiếu là lỗi; `"script_notes": [{"scene", "kind", "note"}]` — ghi chú cho người viết kịch bản (câu
+  thiếu lý do, hụt logic, twist chưa được gieo): **chỉ đề xuất** dạng "vị trí → người xem sẽ thấy gì → câu hỏi", không viết câu thoại mới.
 - `duration_s` từ 0,5 đến 15 giây. Shot ngắn hơn thời lượng tối thiểu của model video sẽ được gen dài hơn rồi cắt — cứ đặt đúng độ dài phim cần.
 - `hero: true` cho 1–3 shot then chốt của cả video (cao trào, cú twist) — được dùng model video tốt nhất.
 - Giữ nguyên văn mọi câu thoại của kịch bản, đúng người nói, đúng thứ tự; không thêm câu mới. (Chỉ khi khối "Thời lượng bắt buộc" ghi **được phép bỏ bớt câu thoại** thì mới được bỏ câu — vẫn không thêm, không sửa chữ câu giữ lại.)

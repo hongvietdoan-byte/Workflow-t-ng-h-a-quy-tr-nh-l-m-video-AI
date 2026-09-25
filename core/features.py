@@ -23,7 +23,19 @@ FEATURES: Dict[str, Dict] = {
     "film_crew": {
         "label": "Tổ làm phim: Director đọc bộ nguyên tắc Đạo diễn + Quay phim (knowledge/roles/) thay cho 4 tài liệu rải rác, ghi tradeoffs",
         "verified": False,
-        "why": "Kế hoạch 2026-09-25 H3/H7: bản nháp chờ người dùng duyệt; chưa có lần Director thật nào chạy với bộ nguyên tắc mới",
+        "why": "Kế hoạch V4 GĐ4: bộ kỹ năng nghề 3 vai (đã chấm độc lập, docs/DANH_GIA_BO_NGUYEN_TAC_V4.md) chờ người dùng duyệt; "
+               "chưa có lần Director thật nào chạy với bộ mới",
+    },
+    "voice_direction": {
+        "label": "Chỉ đạo giọng lồng: câu thoại có `delivery` (cảm xúc, cường độ, nhịp, ngắt, nhấn, thẻ v3) → tham số TTS + chữ gửi TTS",
+        "verified": False,
+        "why": "GĐ4 (director.md Đ5): tài liệu ElevenLabs tự mâu thuẫn về tham số áp dụng cho eleven_v3 (speed); thẻ [whispers] với giọng Việt "
+               "chưa nghe thử — cần tạo thử vài câu (tốn lượt âm thanh) trước khi bật",
+    },
+    "profile_digest": {
+        "label": "Hồ sơ nhân vật rút gọn: prompt ảnh dùng lock_medium (≤ 500 ký tự), prompt video dùng lock_short (≤ 200) thay cho bản đầy đủ",
+        "verified": False,
+        "why": "V4 4.4 (core/profile_digest.py): bản rút gọn bỏ bớt chi tiết — chưa đo model ảnh có giữ đúng nhân vật với bản ngắn không (GĐ8)",
     },
     "camera_setups": {
         "label": "Quay theo vị trí máy: Director/Quay phim gán camera_setup cho shot (một clip cho nhiều shot cùng góc)",

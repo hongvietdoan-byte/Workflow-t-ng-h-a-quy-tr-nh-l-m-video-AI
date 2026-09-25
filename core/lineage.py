@@ -15,8 +15,8 @@ IMAGE_KEYS = ("image_prompt", "blocking", "location", "location_asset", "layout"
 MOTION_KEYS = ("text", "dialogue", "camera_complexity", "duration_s", "emotional_intent", "beat")
 CAST_KEYS = ("name", "description", "wardrobe", "ref_asset_id", "ref_image_ids", "outfit_image_ids", "lock_rules")
 # v3 shot rows add these; they join the fingerprint only when present, so a v2 row keeps the hash it had
-IMAGE_SHOT_KEYS = ("size", "angle")
-MOTION_SHOT_KEYS = ("action", "camera_move", "end_state", "continuous_with_next")
+IMAGE_SHOT_KEYS = ("size", "angle", "performance")        # GĐ4: the acting goes into the first-frame prompt and the motion prompt
+MOTION_SHOT_KEYS = ("action", "camera_move", "end_state", "continuous_with_next", "performance")
 
 
 def _hash(obj) -> str:

@@ -64,10 +64,13 @@ def planned_lines(conn, project_id: int) -> List[Dict]:
     """Every dialogue line of the project with the voice it will get (None when the speaker has no voice yet)."""
     voices = profiles(conn, project_id)
     out = []
+    from . import voice_direction
     for s in conn.execute("SELECT id, idx, data FROM scenes WHERE project_id=? ORDER BY idx", (project_id,)).fetchall():
-        for n, (who, said) in enumerate(dialogue.scene_lines(json.loads(s["data"] or "{}")), 1):
+        data = json.loads(s["data"] or "{}")
+        how = voice_direction.deliveries(data)
+        for n, (who, said) in enumerate(dialogue.scene_lines(data), 1):
             out.append({"scene_id": s["id"], "idx": s["idx"], "line": n, "speaker": who, "text": said,
-                        "voice": voices.get(_norm(who))})
+                        "voice": voices.get(_norm(who)), "delivery": how[n - 1] if n <= len(how) else None})
     return out
 
 
@@ -209,6 +212,7 @@ def slow_end(text: str) -> str:
 def generate(conn, project_id: int, provider, data_dir: str, scene_ids=None, ledger=True, slow=None) -> Dict:
     """Voice every line that has no voice yet (or whose text / voice changed). Returns {"sent", "skipped", "no_voice": [speakers]}.
     slow: scene ids whose lines are sent with a trailing "…" (a redo of a line whose end was cut)."""
+    from . import features, voice_direction
     directory = audio_lib.assets_dir(data_dir, project_id)
     have = {(e["scene_id"], e.get("line")): (i, e) for i, e in _line_items(directory)}
     sent, skipped, no_voice = 0, 0, set()
@@ -218,10 +222,12 @@ def generate(conn, project_id: int, provider, data_dir: str, scene_ids=None, led
         if not ln["voice"]:
             no_voice.add(ln["speaker"] or "(không tên)")
             continue
+        model = vi_model(ln["voice"].get("model"))
+        how = ln.get("delivery") if features.on("voice_direction") else None   # GĐ4: the Director's direction of the line
         old = have.get((ln["scene_id"], ln["line"]))
         if old is not None:
             i, e = old
-            same = e.get("text") == ln["text"] and e.get("voice_id") == ln["voice"]["voice_id"]
+            same = e.get("text") == ln["text"] and e.get("voice_id") == ln["voice"]["voice_id"] and e.get("delivery") == how
             if same and e["state"] in ("running", "succeeded"):
                 skipped += 1
                 continue
@@ -233,9 +239,12 @@ def generate(conn, project_id: int, provider, data_dir: str, scene_ids=None, led
         if slow and ln["scene_id"] in slow:
             said = slow_end(said)
             extra["slow_end"] = True
+        if how:
+            extra["delivery"] = how
+            said = voice_direction.spoken_text(said, how, model)
         audio_lib.submit_tts(provider, directory, said, ln["voice"]["voice_id"], ln["voice"].get("voice_name", ""),
-                             vi_model(ln["voice"].get("model")), None, ledger=(conn, project_id) if ledger else None,
-                             extra=extra)
+                             model, None, ledger=(conn, project_id) if ledger else None,
+                             extra=extra, params=voice_direction.params(how, model))
         sent += 1
     return {"sent": sent, "skipped": skipped, "no_voice": sorted(no_voice)}
 

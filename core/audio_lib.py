@@ -79,7 +79,8 @@ def submit_sfx(provider, directory: str, prompt: str, duration_seconds: Optional
 
 
 def submit_tts(provider, directory: str, text: str, voice_actor_id: int, voice_name: str = "",
-               model: str = "eleven_v3", language_code: Optional[str] = None, ledger=None, extra: Optional[Dict] = None) -> Dict:
+               model: str = "eleven_v3", language_code: Optional[str] = None, ledger=None, extra: Optional[Dict] = None,
+               params: Optional[Dict] = None) -> Dict:
     """`extra` tags a dialogue line (scene_id, line, speaker, text, voice_id) so it can be placed on the timeline and
     subtitled from its real timing. Do not pass language_code for Vietnamese: ElevenLabs answers HTTP 400 (auto-detect works)."""
     label = (f"[{voice_name}] " if voice_name else "") + text
@@ -87,7 +88,8 @@ def submit_tts(provider, directory: str, text: str, voice_actor_id: int, voice_n
     if refused:
         return _add(directory, "tts", label, None, refused, extra)
     try:
-        asset_id = provider.generate_tts(text, voice_actor_id, model, language_code, name="pipeline-tts")
+        asset_id = (provider.generate_tts(text, voice_actor_id, model, language_code, name="pipeline-tts", params=params) if params
+                    else provider.generate_tts(text, voice_actor_id, model, language_code, name="pipeline-tts"))
     except ProviderError as e:
         return _add(directory, "tts", label, None, str(e), extra)
     record_audio_usage(ledger, provider, model)

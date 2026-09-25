@@ -18,13 +18,25 @@ SENSOR_MM = 36.0
 FRAMING = {"EWS": (1.0, 0.18, 20), "WS": (1.0, 0.55, 24), "GAME_TPS": (1.0, 0.42, 24), "MLS": (0.75, 0.80, 32),
            "MS": (0.55, 0.82, 35), "MCU": (0.35, 0.85, 50), "CU": (0.22, 0.88, 65), "ECU": (0.12, 0.95, 85)}
 DEFAULT_SIZE = "MS"
-HEADROOM = {"EWS": 0.40, "WS": 0.14, "GAME_TPS": 0.30, "MLS": 0.08, "MS": 0.07, "MCU": 0.06, "CU": 0.05, "ECU": 0.02}
+# top of the head below the frame's top edge (share of the frame). GĐ4 (dp.md Q3): in a vertical frame the app's top bar covers ~15 % —
+# MS used to put the eyes at ~14 % (inside that bar); measured now (grader GĐ4, camera_for + project): eyes ~20 % (MLS), ~23 % (MS),
+# ~28 % (MCU), ~33 % (CU) — the EYES leave the bar; the top of the head may still touch it
+HEADROOM = {"EWS": 0.40, "WS": 0.14, "GAME_TPS": 0.30, "MLS": 0.14, "MS": 0.13, "MCU": 0.11, "CU": 0.05, "ECU": 0.02}
 SIDE_X = {"left": 0.36, "center": 0.5, "right": 0.64}      # where the character stands across the frame (rule of thirds, softened)
 
 
 def size_of(data: Dict) -> str:
     size = str(data.get("size") or data.get("shot_size") or "").upper()
     return size if size in FRAMING else DEFAULT_SIZE
+
+
+def lens_of(data: Dict, default: float) -> float:
+    """The DP's lens (shot field `lens_mm`, dp.md Q2: e.g. 24 mm close = hero / distorted, 135 mm = compressed, isolated) — the framing
+    (how much of the body fills the frame) stays the size's, so a longer lens moves the camera back and flattens the background."""
+    lens = data.get("lens_mm")
+    if isinstance(lens, (int, float)) and not isinstance(lens, bool) and 14 <= lens <= 200:
+        return float(lens)
+    return default
 
 
 def side_of(data: Dict) -> str:
@@ -56,6 +68,7 @@ def camera_for(data: Dict, spot: Sequence[float], facing_deg: float, height_m: f
     Returns {"camera": {name, location, look_at, lens, angle}, "subject_box": [x0, y0, x1, y1], "feet_y", "distance_m"}."""
     size = size_of(data)
     body_share, fill, lens = FRAMING[size]
+    lens = lens_of(data, lens)
     angle = str(data.get("angle") or "eye").lower()
     words = f"{data.get('start_frame') or ''} {data.get('angle') or ''}".lower()
     behind = angle == "ots" or "from behind" in words or "back to camera" in words or "quay lưng" in words

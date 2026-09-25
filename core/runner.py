@@ -793,9 +793,14 @@ def no_minor_age(text: str) -> str:
 
 def lock_note(conn, project_id: int, cast) -> str:
     """Character Lock of the people in the shot, as one sentence for the image model (what must never drift)."""
+    from . import features, profile_digest
     parts = []
     for r in conn.execute("SELECT name, lock_rules FROM characters WHERE project_id=?", (project_id,)):
         if r["name"] not in (cast or []):
+            continue
+        short = profile_digest.for_character(conn, project_id, r["name"], "lock_medium") if features.on("profile_digest") else None
+        if short:                                   # V4 4.4: the ≤ 500-character form of the approved profile (feature profile_digest)
+            parts.append(f"{r['name']}: {short}")
             continue
         rules = assets.standard_for(conn, project_id, r["name"])        # T1: the approved library profile wins
         if rules is None:
@@ -876,6 +881,8 @@ class ImageRunner(_Runner):
         prompt = framing_sentence(data) + prompt
         if (data.get("blocking") or "").strip():       # where each person stands/faces, so shots of one sequence agree
             prompt = f"{prompt}. Blocking: {data['blocking'].strip()}"
+        from . import performance
+        prompt += performance.image_sentence(data)     # GĐ4: the Director's acting (director.md Đ4) at the start of the shot
         prompt += lock_note(conn, job["project_id"], data.get("characters"))
         from . import looks
         prompt += looks.image_sentence(self.p.project(job["project_id"]))
@@ -921,6 +928,8 @@ class ImageRunner(_Runner):
         prompt = framing_sentence(shot) + data["image_prompt"]
         if (data.get("blocking") or "").strip():
             prompt = f"{prompt}. Blocking: {data['blocking'].strip()}"
+        from . import performance
+        prompt += performance.image_sentence(data)
         prompt += lock_note(conn, job["project_id"], data.get("characters"))
         prompt += looks.image_sentence(self.p.project(job["project_id"]))
         place = assets.scene_location(conn, job["project_id"], data)

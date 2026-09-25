@@ -143,7 +143,7 @@ def video_criteria() -> List[str]:
 def qc_video(p: Pipeline, job_id: int, client, data_dir: str, autofix: Optional[bool] = None) -> Dict:
     """Score one finished clip from evenly spaced frames next to its approved first frame and the character references; the score
     goes through the same decision path as pictures (threshold, hard criteria, automatic redo, escalation)."""
-    from . import video_analysis
+    from . import performance, video_analysis     # GĐ4: QC checks the acting the Director asked for (at the drawn strength)
     job = p.job(job_id)
     path = job["result_path"]
     if not path or not os.path.exists(path):
@@ -171,7 +171,8 @@ def qc_video(p: Pipeline, job_id: int, client, data_dir: str, autofix: Optional[
         + "\n\n---\n\n".join(x for x in [
         prompts.lock_text(p.conn, job["project_id"], data.get("characters")),
         "# Motion prompt của clip\n" + (mp["motion_prompt"] if mp else ""),
-        _block("Thông số cảnh", {k: data.get(k) for k in ("characters", "blocking", "shot", "camera_complexity")})] if x)
+        _block("Thông số cảnh", dict({k: data.get(k) for k in ("characters", "blocking", "shot", "camera_complexity")},
+                                     **({"performance": performance.for_prompt(data)} if data.get("performance") else {})))] if x)
     obj = _run(p, job["project_id"], "video", prompt, lambda o: llm_io.validate_qc_result(o, criteria), client, images)
     proj = p.project(job["project_id"])
     fix = bool(proj["qc_autofix"]) if autofix is None else autofix

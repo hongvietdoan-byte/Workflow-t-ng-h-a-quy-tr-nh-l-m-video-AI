@@ -1065,6 +1065,37 @@ def _paid_line(p: Pipeline, pid: int):
     return f"💵 Video phải trả tiền cho {r['total_s']:g}s phim (Kling, chưa tính gen lại): " + " · ".join(bits)
 
 
+def _crew_notes(p: Pipeline, pid: int) -> None:
+    """GĐ4 (knowledge/roles/): what the Director gave up (`tradeoffs`, and a sacrifice it did not write down), the acting checks
+    (core/performance.py) and the Director's notes for the script writer — suggestions only, the lines are never changed."""
+    from core import director_report
+    proj = p.project(pid)
+    try:
+        raw = json.loads(proj["director_raw"] or "{}")
+        if not raw.get("scenes") or raw.get("truncated"):
+            return
+        r = director_report.report(raw, proj["script_text"] or "")
+    except Exception:  # noqa: BLE001 - an old or odd answer must not break Step 1
+        return
+    if r.get("unrecorded"):
+        st.warning("⚠ Director đã hy sinh (" + ", ".join(r["unrecorded"]) + ") mà không ghi lý do (`tradeoffs`).")
+    trade = [t for t in r["tradeoffs"] if isinstance(t, dict)]
+    if trade:
+        with st.expander(f"⚖ Director đã đánh đổi {len(trade)} chỗ"):
+            st.markdown("\n".join(f"- Cảnh {t.get('scene', '?')}: chọn **{escape(str(t.get('chose') or ''))}**, bỏ "
+                                  f"{escape(str(t.get('gave_up') or ''))} — {escape(str(t.get('why') or ''))}" for t in trade))
+    if r.get("payoff_unplanted"):
+        st.warning("⚠ Cảnh gặt lại điều chưa được gieo ở cảnh nào trước (`beat.payoff` không có `plant` trước đó): "
+                   + ", ".join(map(str, r["payoff_unplanted"])))
+    if r.get("acting"):
+        st.caption("🎭 Diễn xuất: " + " · ".join(escape(w) for w in r["acting"]))
+    if r.get("script_notes"):
+        with st.expander(f"📝 Ghi chú kịch bản của Đạo diễn cho người viết ({len(r['script_notes'])}) — chỉ đề xuất, thoại không bị sửa"):
+            st.markdown("\n".join(f"- Cảnh {n.get('scene', '?')}"
+                                  + (f" · {escape(str(n['kind']))}" if n.get("kind") else "") + f": {escape(str(n['note']))}"
+                                  for n in r["script_notes"]))
+
+
 def scene_list(p: Pipeline, pid: int, scenes, char_names) -> None:
     status = lineage.scan(p.conn, pid)
     by_idx = {r["idx"]: r for r in status.values()}
@@ -1098,6 +1129,7 @@ def scene_list(p: Pipeline, pid: int, scenes, char_names) -> None:
     paid = _paid_line(p, pid)
     if paid:
         st.caption(paid)
+    _crew_notes(p, pid)
     cur_story = None
     for s in scenes:
         d = json.loads(s["data"] or "{}")
