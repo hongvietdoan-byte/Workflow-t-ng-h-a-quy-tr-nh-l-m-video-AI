@@ -220,3 +220,11 @@ Phần lớn việc còn lại trong `TODO.md` (mục "Đang làm/kế tiếp", 
 - `on_screen_text` chưa từng được in vào video (lỗ hổng) → thông báo kiểu game.
 - Người dùng nói "Blender cài rồi mà" → trước khi nói máy chưa có phần mềm phải kiểm cả app Store (`Get-AppxPackage`).
 **Source**: người dùng xem video 2A, đo bằng ffmpeg/volumedetect, chạy thật 2026-09-25 — `docs/BAO_CAO_SUA_LOI_2A_2026-09-25.md`.
+
+## 2026-09-25 (tối) — Tháp đồng hồ 90–100% + khớp môi
+**Context**: người dùng xem video 0–20 s bản sửa: "khá ok", nhưng nền tháp chưa giống FF 90–100%, hỏi cách khớp môi.
+**Finding**:
+- Đưa ảnh render 3D đúng góc máy làm tham chiếu + dặn "giữ nguyên kiến trúc" → GPT Image vẫn **vẽ lại nền** (tự phóng to tháp, mất thân/cửa vòm, lan can khác) ≈ 70%. Muốn 90–100% phải **ghép**: AI chỉ vẽ nhân vật (phông xanh), nền là pixel render 3D (trời C trong suốt + trời đêm tự vẽ).
+- Khớp môi: ClipAI Lip Sync chỉ có trên web; qua API dùng **Seedance `reference_audio`** (content `{"type":"audio_url","audio_url":{"url":""},"role":"reference_audio"}` + multipart `audio_files`; 2.0 ≤ 3 audio, 2.5 ≤ 10); giá Seedance 2.0 720p $0,15/s, 2.5 $0,23/s (Kling $0,08/s). Đề xuất: né là mặc định, Seedance cho câu then chốt cận mặt.
+- Sinh code Python bằng chuỗi lồng nhau làm hỏng đường dẫn Windows (`\a`, `\1`) → viết file trực tiếp, dùng `r"..."`.
+**Source**: chạy thật 2026-09-25 (ảnh `data/projects/7/plate_test/shot4_plate.png`), `clipai-1.3.1/scripts/video.mjs`, `data/pricing.json` — `docs/BAN_GIAO_2026-09-25_THAP_VA_KHOP_MOI.md`.

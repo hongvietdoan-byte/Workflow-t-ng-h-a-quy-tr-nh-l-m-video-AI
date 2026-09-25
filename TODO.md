@@ -1,5 +1,12 @@
 # TODO — Theo dõi tiến độ dự án Auto Pipeline Video AI
 
+## 📌 BÀN GIAO 2026-09-25 (tối) — PHIÊN MỚI ĐỌC `docs/BAN_GIAO_2026-09-25_THAP_VA_KHOP_MOI.md` TRƯỚC TIÊN
+> Người dùng xem video 0–20 s bản sửa: **"khá ok"**, còn 2 việc: **(A) nền tháp đồng hồ phải giống FF 90–100%** — thử "ảnh render 3D làm
+> tham chiếu" chỉ đạt ~70% (model vẽ lại nền) → **hướng chốt: ghép nhân vật phông xanh lên render 3D bằng code** (bước C1–C7 trong file bàn
+> giao; render nền đêm đúng góc máy đã xong, chưa tạo ảnh phông xanh, chưa viết code ghép); **(B) khớp môi** → đề xuất né (mặc định) +
+> **Seedance `reference_audio`** cho câu then chốt cận mặt (adapter chưa hỗ trợ; chi tiết API + giá $0,15–0,23/s ở file bàn giao).
+> Trần đợt thử #7: $4,02/$8 · Claude $0,26/$1 · **ảnh 21/32** · âm thanh 15/25. 2B vẫn **chờ người dùng**.
+
 ## 📌 BÀN GIAO 2026-09-25 — PHIÊN MỚI ĐỌC `docs/KE_HOACH_2026-09-25.md` TRƯỚC TIÊN
 > **Kế hoạch làm tiếp mới nhất:** `docs/KE_HOACH_2026-09-25.md` — đánh giá tổng thể, bài học Director, 7 hướng H1–H7 (bộ chuẩn hóa shot,
 > Director hai tầng/chạy lại từng cảnh, bộ nguyên tắc có logic (không trần số luật), bàn đo offline, **quay theo vị trí máy**, bảng chi phí,
