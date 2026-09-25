@@ -48,6 +48,9 @@
   xem (`core/viewer_check.py`, nút 🧐 Bước 5 — chạy thật #7: không mặt nào dưới giao diện app).
 - [x] **Đợt 5 — D8 + D9 + D10:** khớp hạt người–nền khi ghép (hạt mới mỗi khung; đo trên nền Tháp #263), rung máy 0,25 s ở hiệu ứng
   va chạm (cờ `impact_shake`, thử trên bản giao #7: giữ đúng 1080×1920 và độ dài), bảng tên nhân vật lần đầu xuất hiện (cờ `name_cards`).
+- [x] **Đợt 6 — D4 + D5:** âm nền + âm thời tiết mỗi cảnh từ thư viện âm của người dùng (`core/ambience.py`, cờ `ambience_bed`): thời
+  tiết → giờ → bối cảnh, khớp nguyên từ, không đè nhạc (sửa luôn: bước hạ nhạc chỉ nghe giọng/hiệu ứng, không nghe âm nền). Thử #7: cảnh
+  đảo ban ngày → Bird Ambience; cảnh đêm → trống vì thư viện **chưa có âm đêm** (cần người dùng bổ sung nếu muốn).
 
 **GĐ4 đã làm (2026-09-25; toàn bộ 971 test qua; tính năng mới có cờ đều TẮT; CHƯA chạy thật với API):**
 - **Nghiên cứu** 3 agent (WebSearch/WebFetch) → `knowledge/sources.md` mục GĐ4: 30 nguồn Đạo diễn [Đn], 35 Quay phim [Qn], 35 Dựng [En]

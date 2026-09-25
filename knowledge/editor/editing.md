@@ -58,9 +58,13 @@ xúc, âm thanh làm thế giới game "thật", màu các shot liền nhau như
 - **Trong pipeline.** ✅ Tạo SFX bằng ClipAI (`audio_lib.submit_sfx`, sổ chi lượt âm thanh); ✅ nghe clip để biết âm có sẵn (`sound_ai` YAMNet,
   chỉ dùng tự động khi tin ≥ 0,40); ✅ trộn lớp phụ (`ffmpeg_studio.build_extras_mix_cmd`); ✅ **Claude đặt hiệu ứng** theo cảnh + thư viện âm
   của người dùng (`core/sfx_plan.py`, nút ở Bước 5, autopilot tự đề xuất rồi áp dụng) — cố ý chỉ cho **điểm nhấn** (đập, vút, va chạm) và
-  chuyển cảnh, không làm nền liên tục. ❌ Âm theo **thời tiết** tự động (mưa/sấm theo `weather`, sấm đúng giây chớp của
-  `plate_env.flash_times`) — việc code D4. ❌ **Nền không khí liên tục** cả cảnh — việc code D5, là lớp **riêng** dưới lớp điểm nhấn của
-  `sfx_plan` (hai lớp không thay nhau).
+  chuyển cảnh, không làm nền liên tục. ✅ **Nền không khí + âm thời tiết** (D4/D5, `core/ambience.py`, cờ `ambience_bed` TẮT): mỗi
+  cảnh kịch bản một âm nền từ **thư viện âm của bạn**, chọn theo thời tiết (mưa/bão → thunderstorm, bão cát → windy desert…) → giờ (đêm
+  chỉ nhận âm đêm) → bối cảnh (phố → city/traffic, đảo/rừng → bird), khớp **nguyên từ**, lặp đủ dài, mờ vào/ra 0,6 s, ~−18 dB; là lớp
+  **riêng** dưới lớp điểm nhấn của `sfx_plan`, và **không** tham gia điều khiển việc hạ nhạc (nếu không nhạc bị đè cả cảnh). Không có âm
+  hợp → để trống và báo (🌧 Bước 5), không lấy âm bừa. Thử #7: cảnh ngày khu nhà trên đảo → "Bird Ambience"; cảnh quảng trường đêm → trống
+  (thư viện chưa có âm đêm; hai lần chọn sai đã sửa: "Busy City Street" cho đêm, "Crunk Knight" khớp chữ "night"). ❌ Sấm đúng giây
+  chớp của `plate_env.flash_times` — chưa (cần chạy thật cảnh bão có nền 3D).
 - **Kiểm.** Code: YAMNet nghe lại bản trộn. Người: nghe có tiếng, bằng tai nghe điện thoại.
 - **Ví dụ FF.** ✔ Video FF gốc: hiệu ứng kỹ năng có ở ~38% shot — là "chất Free Fire", cần âm đi kèm. ✘ Cảnh đêm tuyết im lặng hoàn toàn
   (không nền không khí) nghe như chưa làm xong.

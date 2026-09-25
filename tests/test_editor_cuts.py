@@ -161,6 +161,37 @@ class EffectsTests(unittest.TestCase):
             self.assertEqual(subtitles.build_cues(p, tempfile.mkdtemp(), pid, timeline=timeline), [])
 
 
+class AmbienceTests(unittest.TestCase):
+    def setUp(self):
+        from core.db import connect
+        self.conn = connect()
+        self.dir = tempfile.mkdtemp()
+        for i, (name, heard, dur) in enumerate([("Busy City Street", "", 139.0), ("Bird Ambience", "", 115.0),
+                                                ("Thuderstorm", "Thunderstorm 1.00; Rain 0.9", 164.0),
+                                                ("03 Kevin MacLeod - Crunk Knight", "", 120.0), ("Short rain", "Rain 0.9", 3.0)], 1):
+            path = os.path.join(self.dir, f"{i}.wav")
+            open(path, "wb").close()
+            self.conn.execute("INSERT INTO sounds (id, source_id, path, name, kind, duration, heard, voice) VALUES (?,1,?,?,?,?,?,0)",
+                              (i, path, name, "sfx", dur, heard))
+        self.conn.commit()
+
+    def test_weather_then_time_then_place(self):
+        from core import ambience
+        self.assertEqual(ambience.choose(self.conn, {"weather": "storm", "location": "phố"})["name"], "Thuderstorm")
+        self.assertIsNone(ambience.choose(self.conn, {"time": "night", "location": "quảng trường phố"}))   # no "Crunk Knight"
+        self.assertEqual(ambience.choose(self.conn, {"time": "day", "location": "Đảo Quân Sự — khu nhà"})["name"], "Busy City Street")
+        self.assertEqual(ambience.choose(self.conn, {"location": "rừng thông"})["name"], "Bird Ambience")
+        self.assertIsNone(ambience.choose(self.conn, {"location": "phòng kín"}))                     # nothing fits: no random sound
+
+    def test_a_bed_never_holds_the_music_down(self):
+        cmd = ffmpeg_studio.build_extras_mix_cmd("v.mp4", [{"path": "voice.wav", "start": 1, "volume": 1},
+                                                            {"path": "bed.wav", "start": 0, "volume": 0.12, "key": False}],
+                                                 "o.mp4", has_audio=True, duck=True)
+        graph = cmd[cmd.index("-filter_complex") + 1]
+        self.assertIn("[e0]amix=inputs=1", graph)                                 # only the voice is the ducking key
+        self.assertIn("[bed][vm][e1]amix=inputs=3", graph)                        # the bed is still in the mix
+
+
 class ViewerCheckTests(unittest.TestCase):
     def test_faces_under_the_app_bands_are_named(self):
         self.assertEqual(viewer_check.hidden_faces([(0.02, 0.12)]), ["top"])

@@ -59,8 +59,8 @@ người xem, nên đứng trước nhịp cắt. Hy sinh mục thấp hơn → 
 | D1 | ✅ Cắt J 0,25 s khi đổi người nói (cờ `j_cut` TẮT) | Dựng | — |
 | D2 | Điểm cắt theo chuyển động trong clip (khác biệt khung) | Dựng | Không |
 | D3 | Dọn thoại (lọc 80 Hz, khử xì) khi có giọng thu | Dựng | Không |
-| D4 | Âm theo `weather` (mưa/gió/sấm đúng giây chớp `plate_env.flash_times`) | Dựng | Lượt âm thanh (hoặc thư viện) |
-| D5 | Nền không khí liên tục cả cảnh | Dựng | Lượt âm thanh (hoặc thư viện) |
+| D4 | ✅ Âm thời tiết từ thư viện (cờ `ambience_bed`); sấm đúng giây chớp: chưa | Dựng | — (thư viện của bạn) |
+| D5 | ✅ Nền không khí mỗi cảnh từ thư viện, không đè nhạc (cờ `ambience_bed`) | Dựng | — |
 | D6 | ✅ Nhạc lặng 0,6 s trước TWIST / shot ⭐ (cờ `music_breath` TẮT) | Dựng | — |
 | D7 | ✅ Khớp màu giữa các shot cùng nơi/cảnh/nhóm cỡ: luôn đo (🎨 Bước 5), sửa bản sao sau cờ `shot_color_match` (TẮT) — `core/color_match.py` | Dựng | — |
 | D8 | ✅ Khớp hạt người–nền khi ghép (hạt mới mỗi khung) | Dựng | — |

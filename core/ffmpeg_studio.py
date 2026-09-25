@@ -185,12 +185,16 @@ def build_extras_mix_cmd(video: str, extras: Sequence[dict], output: str, has_au
         ms = max(int(round(float(e.get("start", 0)) * 1000)), 0)
         parts.append(f"[{i + 1}:a]adelay={ms}|{ms},volume={float(e.get('volume', 1.0))}[e{i}]")
         labels.append(f"[e{i}]")
-    if duck and has_audio:
-        # the user (2026-09-25) asked for music that follows the cut: the voices press the music bed ([0:a]) down while they speak
-        voices = "".join(f"[e{i}]" for i in range(len(extras)))
-        parts.append(f"{voices}amix=inputs={len(extras)}:normalize=0:duration=longest,asplit=2[vk][vm]")
+    keys = [i for i, e in enumerate(extras) if e.get("key", True)]
+    if duck and has_audio and keys:
+        # the user (2026-09-25) asked for music that follows the cut: the voices press the music bed ([0:a]) down while they speak.
+        # An ambience bed (key False, GĐ4 D5) plays all the time — it must not hold the music down for the whole scene
+        others = [i for i in range(len(extras)) if i not in keys]
+        voices = "".join(f"[e{i}]" for i in keys)
+        parts.append(f"{voices}amix=inputs={len(keys)}:normalize=0:duration=longest,asplit=2[vk][vm]")
         parts.append(f"[0:a][vk]{DUCK}[bed]")
-        parts.append(f"[bed][vm]amix=inputs=2:normalize=0:duration=longest,{PEAK_LIMIT},apad[a]")
+        rest = "".join(f"[e{i}]" for i in others)
+        parts.append(f"[bed][vm]{rest}amix=inputs={2 + len(others)}:normalize=0:duration=longest,{PEAK_LIMIT},apad[a]")
     else:
         parts.append("".join(labels) + f"amix=inputs={len(labels)}:normalize=0:duration=longest,{PEAK_LIMIT},apad[a]")
     return cmd + ["-filter_complex", ";".join(parts), "-map", "0:v", "-map", "[a]", "-c:v", "copy",

@@ -64,6 +64,12 @@ FEATURES: Dict[str, Dict] = {
         "verified": False,
         "why": "GĐ4 (editing.md E6, D10): dùng kiểu chữ thông báo game sẵn có; chưa xem thử — người dùng chọn có cần không",
     },
+    "ambience_bed": {
+        "label": "Âm nền mỗi cảnh từ thư viện âm thanh của bạn (theo thời tiết → giờ → bối cảnh), nhỏ dưới thoại, lặp đủ dài",
+        "verified": False,
+        "why": "GĐ4 (editing.md E3, D4/D5): thử #7 — cảnh ngày khu nhà trên đảo nhận 'Bird Ambience'; cảnh đêm không có âm đêm trong "
+               "thư viện nên để trống (báo) — chưa nghe bản trộn",
+    },
     "profile_digest": {
         "label": "Hồ sơ nhân vật rút gọn: prompt ảnh dùng lock_medium (≤ 500 ký tự), prompt video dùng lock_short (≤ 200) thay cho bản đầy đủ",
         "verified": False,

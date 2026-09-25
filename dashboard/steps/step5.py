@@ -519,6 +519,10 @@ def loudness_line(p: Pipeline, pid: int) -> None:
         st.caption("🎨 Màu: " + ", ".join(f"shot {c['idx']} lệch shot {c['anchor_idx']} (điểm đen/trắng {c['levels']:g}, ám màu {c['cast']:g})"
                                           + (" — đã khớp" if c.get("fixed") else "") for c in off)
                    + ("" if any(c.get("fixed") for c in off) else " · bật cờ khớp màu (FEATURE_SHOT_COLOR_MATCH=1) để tự sửa bản sao"))
+    amb = man.get("ambience")
+    if amb:                                   # GĐ4 D4/D5: which bed each scene got, and the scenes the library had nothing for
+        st.caption("🌧 Âm nền: " + (", ".join(f"cảnh {b['scene']}: {b['sound']}" for b in amb.get("beds") or []) or "không cảnh nào")
+                   + (f" · chưa có âm hợp trong thư viện cho cảnh {', '.join(map(str, amb['missing']))}" if amb.get("missing") else ""))
     m = man.get("loudness")
     if not m or m.get("lufs") is None:
         return

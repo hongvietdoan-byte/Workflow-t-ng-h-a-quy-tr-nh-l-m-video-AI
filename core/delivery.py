@@ -325,6 +325,15 @@ def render(p: Pipeline, project_id: int, data_dir: str, music_path: Optional[str
     out = os.path.join(output_dir(data_dir, project_id), "FINAL_VIDEO.mp4")
     colour = _colour_match(p, project_id, rows, paths, os.path.join(output_dir(data_dir, project_id), "_colour"))
     from . import features
+    amb = None
+    if features.on("ambience_bed"):            # D4/D5: a quiet bed per scene from the person's sound library, under everything
+        from . import ambience
+        try:
+            amb = ambience.beds(p.conn, rows, durations, os.path.join(output_dir(data_dir, project_id), "_ambience"),
+                                settings["transition"], settings["fade"])
+            extras = list(extras) + [dict({k: e[k] for k in ("path", "start", "volume")}, key=False) for e in amb["extras"]]
+        except Exception as e:  # noqa: BLE001 - no bed is better than no render; the reason is kept
+            amb = {"extras": [], "missing": [], "error": str(e)[:200]}
     breaths = twist_times(p, project_id, rows, durations, settings["transition"], settings["fade"]) if features.on("music_breath") and track else []
     ffmpeg_studio.render_final(paths, out, durations, settings["transition"], settings["fade"], track, settings["music_volume"],
                                extras, keep_audio, formats.spec(aspect)["render"] if aspect else None, breaths=breaths)
@@ -340,6 +349,9 @@ def render(p: Pipeline, project_id: int, data_dir: str, music_path: Optional[str
         manifest["music_breaths"] = breaths
     if hits:
         manifest["shakes"] = hits
+    if amb is not None:
+        manifest["ambience"] = {"beds": [{"scene": e["scene"], "sound": e["sound"]} for e in amb["extras"]],
+                                "missing": amb["missing"], **({"error": amb["error"]} if amb.get("error") else {})}
     manifest["timeline"] =[{"idx": r.get("idx"), "scene_id": r.get("scene_id"), "seconds": float(d)} for r, d in zip(rows, durations)]
     manifest["transition"], manifest["fade"] = settings["transition"], settings["fade"]
     oid = record(p, project_id, "final", out, None, manifest)
