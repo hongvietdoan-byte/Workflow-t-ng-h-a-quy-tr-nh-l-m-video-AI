@@ -65,6 +65,7 @@ class DeepixImageProvider:
     name = "deepix"
     supports_aspect = True        # accepts size= per job (project frame format)
     supports_model = True         # accepts model= per job (the project's picture model, core.image_models)
+    supports_storyboard = True    # accepts storyboard= per job (a frame of a scene storyboard, prompt_key 14 — core/scene_storyboard.py)
 
     def __init__(self, token: str, base_url: str = DEFAULT_BASE, transport: Transport = urllib_transport,
                  model: str = DEFAULT_MODEL, size: str = DEFAULT_SIZE):
@@ -94,10 +95,15 @@ class DeepixImageProvider:
     def usage_info(self, model: Optional[str] = None):
         return model or self.model, "image"
 
-    def submit(self, prompt: str, references=None, size: Optional[str] = None, model: Optional[str] = None) -> str:
+    def submit(self, prompt: str, references=None, size: Optional[str] = None, model: Optional[str] = None,
+               storyboard: Optional[Dict] = None) -> str:
         """Text-to-image, or image-to-image when reference picture paths are given (prompt_key 1, pictures in `file[]`, each up to 10 MB).
         `size` overrides the default (e.g. 1152x2048 for a vertical project; 'auto' lets a GPT model decide), `model` the provider's
         model (per project). Size and reference count are checked against the model's rules before sending."""
+        if storyboard:
+            return self.submit_storyboard_frame(prompt, references, storyboard["story_text"], storyboard["storyboard_id"],
+                                                storyboard["frame_index"], storyboard["group_size"], storyboard["ref_mode"],
+                                                storyboard.get("image_mapping", ""), size, model)
         from .. import image_models
         model = model or self.model
         size = size or self.size

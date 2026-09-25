@@ -32,6 +32,18 @@ gửi từ luồng phụ, bước ghi sổ chi dùng kết nối SQLite của lu
 sổ chi (stage `storyboard_test`), sửa: gửi + ghi sổ ở luồng gọi, chỉ chờ/tải song song (test `tests/test_storyboard_frames.py`). Khung 1:
 đúng Kelly + tháp, chất lượng như ảnh shot cũ. **Chưa đánh giá được độ liền mạch 4 khung** — cần chạy lại 3 khung (chờ người dùng cho phép).
 
+**Chế độ storyboard theo cảnh (2026-09-25, cờ `storyboard_api` TẮT):** các shot của một cảnh kịch bản = MỘT storyboard Deepix —
+shot rộng nhất làm neo (vẽ trước, ảnh tham chiếu chung cả cảnh), các shot khác chờ neo rồi gửi kèm ảnh neo + trường storyboard
+(`core/scene_storyboard.py`, `ImageRunner._finish_args`, `DeepixImageProvider.submit(storyboard=)`); vẫn một job ảnh mỗi shot (sổ chi,
+trần, QC, gen lại 1 khung như cũ). Kết quả thử #7 cảnh 1 (4 khung, 3 khung tải ảnh thu nhỏ 400×711 từ web): tháp cùng chỗ, cùng bậc
+thang/đèn/tông sáng ở 4 khung — liền mạch hơn ảnh vẽ riêng (ảnh cũ: tháp đổi chỗ, shot 2 có thêm trăng); nhân vật như nhau.
+**Học từ mã Weave Canvas (đọc 2026-09-25), chưa làm:** (1) Kling Omni nhận khung đầu + khung cuối + ảnh tham chiếu nhân vật cùng lúc
+(`image_list`, ≤ 7) — pipeline mới gửi khung đầu → thêm cờ thử; (2) Canvas gửi Seedance **khung đầu + ảnh tham chiếu cùng lúc** (trái
+với lỗi thật 2026-09-24 ở Seedance 2.0 — có thể 2.5 cho phép, cần thử); (3) Seedance 2.5 **edit / extend** video (`omni_reference_task_type`)
+— nối clip liền mạch; (4) **MiniMax H3** qua `/api/babylon/dock` trên Deepix (trước đây kết luận "không có API"); (5) Agent tối ưu prompt
+`/api/agent/v1/image-prompt/optimize`; (6) Canvas cắt prompt Seedance còn 1000 ký tự; khi có khung đầu Seedance 2.5 bỏ `ratio` (theo ảnh);
+(7) `/api/composition/create` ghép phía máy chủ; (8) nhập Canvas JSON (`importCanvas`) → có thể xuất một cảnh ra Canvas.
+
 **GĐ2 đã làm (2026-09-25; cờ `location_plates` TẮT; chi tiết + số đo ở `docs/HUONG_DAN_3D.md` mục 9):**
 - `core/plate_camera.py` máy ảo từ shot (cỡ cảnh/góc/trái-phải/`camera_setup`) + ô nhân vật trong khung · `core/location_pack.py` đăng
   ký mô hình + chỗ đứng trong hồ sơ khu vực, kế hoạch góc máy, render theo lô + bộ nhớ đệm dùng chung (khóa không gồm tên shot → dự án

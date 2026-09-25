@@ -85,5 +85,62 @@ class AdapterTests(unittest.TestCase):
         self.assertIn('name="file[]"', body)
 
 
+class SceneModeTests(unittest.TestCase):
+    """Feature storyboard_api: the shots of a script scene become one storyboard in the runner — widest shot first (anchor), the others
+    wait for it and go out with the shared references + the anchor picture and the storyboard fields."""
+    def test_the_runner_draws_a_scene_as_one_storyboard(self):
+        from unittest import mock
+        from core import batch, llm_io, llm_runner
+        from core.providers import MockImageProvider
+        from core.runner import ImageRunner
+        from tests.test_v3 import kenta_project
+
+        class StoryboardMock(MockImageProvider):
+            supports_storyboard = True
+
+            def __init__(self):
+                super().__init__()
+                self.boards = {}
+
+            def submit(self, prompt, references=None, size=None, model=None, storyboard=None):
+                task = super().submit(prompt, references, size)
+                self.boards[task] = storyboard
+                return task
+
+        p, pid = kenta_project()
+        llm_runner.run_director(p, pid, llm_runner.MockLlm())
+        llm_io.lock_character_bible(p, pid)
+        data = tempfile.mkdtemp()
+        prov = StoryboardMock()
+        with mock.patch.dict(os.environ, {"FEATURE_STORYBOARD_API": "1"}):
+            runner = ImageRunner(p, prov, data)
+            runner.max_concurrent = 99
+            batch.queue_images(p, pid)
+            runner.submit_pending(pid)
+            first_round = dict(prov.boards)
+            runner.poll_once(pid)
+            runner.submit_pending(pid)
+        from core import scene_storyboard
+        g = scene_storyboard.group_of(p.conn, pid, next(iter(r["id"] for r in p.conn.execute(
+            "SELECT id FROM scenes WHERE project_id=? ORDER BY idx", (pid,)))))
+        self.assertIsNotNone(g)
+        anchors = {b["storyboard_id"] for b in first_round.values() if b}
+        self.assertTrue(first_round)
+        self.assertTrue(all(b is not None and b["ref_mode"] in ("global", "sequential") for b in first_round.values()))
+        later = {t: b for t, b in prov.boards.items() if t not in first_round}
+        self.assertTrue(later)                                                  # the other shots went out after their anchor
+        for task, b in later.items():
+            self.assertIn(b["storyboard_id"], anchors)                          # same storyboard as the anchor of their scene
+            self.assertTrue(any("scene anchor" not in r and os.path.basename(r).startswith("job_") for r in prov.references[task]))
+            self.assertIn("continuity anchor", b["image_mapping"])
+        self.assertEqual(len(first_round), len({s["story_scene"] for s in
+                                                (json.loads(r["data"]) for r in p.conn.execute("SELECT data FROM scenes WHERE project_id=?",
+                                                                                               (pid,)))} ))   # one anchor per scene
+
+    def test_off_by_default_or_without_a_storyboard_provider(self):
+        from core import scene_storyboard
+        self.assertFalse(scene_storyboard.enabled())
+
+
 if __name__ == "__main__":
     unittest.main()

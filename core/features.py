@@ -30,6 +30,11 @@ FEATURES: Dict[str, Dict] = {
         "verified": False,
         "why": "Chạy thử 2A (H5): một cặp shot tiết kiệm 33% nhưng mất khung nhấn riêng — cần thử thêm ở cảnh thoại dày trước khi bật",
     },
+    "storyboard_api": {
+        "label": "Vẽ ảnh các shot của một cảnh bằng MỘT storyboard Deepix (shot rộng nhất làm neo, cùng ảnh tham chiếu) — cách Weave Canvas",
+        "verified": False,
+        "why": "Thử #7 cảnh 1 (2026-09-25): 4 khung giữ tháp/ánh sáng liền mạch hơn ảnh vẽ riêng; mới 1 cảnh, chưa thử cảnh đông người / hành động",
+    },
     "location_plates": {
         "label": "Gói bối cảnh: nền là ảnh render 3D của bối cảnh (đúng góc máy shot), AI chỉ vẽ nhân vật trên phông xanh rồi ghép",
         "verified": False,

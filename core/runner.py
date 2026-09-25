@@ -793,6 +793,9 @@ class ImageRunner(_Runner):
         out = {"size": formats.spec(aspect)["deepix"]} if aspect else {}
         if getattr(self.provider, "supports_model", False):
             out["model"] = image_models.of_project(proj)     # the project's picture model (Step 1)
+        sb = getattr(self, "_storyboard", {}).pop(job["id"], None)
+        if sb is not None:
+            out["storyboard"] = sb                           # storyboard mode: prompt_key 14 + the group fields
         return out
 
     def _over_budget(self, job, args, kwargs) -> Optional[str]:
@@ -811,6 +814,10 @@ class ImageRunner(_Runner):
         V4: a shot set at a 3D place waits for its plate (rendered by the automatic run's plates phase)."""
         from . import shots
         from . import features
+        from . import scene_storyboard
+        if scene_storyboard.enabled() and getattr(self.provider, "supports_storyboard", False) and \
+                scene_storyboard.waits(self.p.conn, self.data_dir, job["project_id"], job["scene_id"]):
+            return True                                      # storyboard mode: the scene's anchor frame is drawn first
         if features.on("location_plates"):
             from . import location_pack
             data = json.loads(self.p.conn.execute("SELECT data FROM scenes WHERE id=?", (job["scene_id"],)).fetchone()["data"] or "{}")
@@ -873,9 +880,7 @@ class ImageRunner(_Runner):
         self._sent = getattr(self, "_sent", {})
         self._sent[job["id"]] = [{"label": r["label"], "role": r["role"], "file": os.path.basename(r["path"])} for r in refs]
         prompt = no_minor_age(prompt)
-        if refs:                                       # the chosen resources' pictures go with the prompt (image-to-image)
-            return (assets.reference_note(refs) + "Scene: " + prompt, [r["path"] for r in refs])
-        return (prompt,)
+        return self._finish_args(job, prompt, refs)
 
     def _green_args(self, job, data, plate):
         """V4 location pack: the character alone on flat green, framed and lit as the plate's camera; only the characters'
@@ -899,7 +904,27 @@ class ImageRunner(_Runner):
         self._sent[job["id"]] = [{"label": r["label"], "role": r["role"], "file": os.path.basename(r["path"])} for r in refs] + \
             [{"label": "plate", "role": "location_pack", "file": os.path.basename(plate["plate"])}]
         prompt = no_minor_age(prompt)
-        if refs:
+        return self._finish_args(job, prompt, refs, without_place=True)
+
+    def _finish_args(self, job, prompt: str, refs, without_place: bool = False):
+        """The picture job's (prompt, reference paths). Storyboard mode (feature storyboard_api, a provider that draws storyboard
+        frames): the scene's shared references + the anchor frame replace the shot's own, and the storyboard fields go with the job
+        (core/scene_storyboard.py, the web Weave Canvas way)."""
+        from . import scene_storyboard
+        if scene_storyboard.enabled() and getattr(self.provider, "supports_storyboard", False):
+            g = scene_storyboard.group_of(self.p.conn, job["project_id"], job["scene_id"])
+            if g is not None:
+                shared = scene_storyboard.shared_references(self.p.conn, job["project_id"], g["shots"], without_place=without_place)
+                fields = scene_storyboard.job_fields(self.p.conn, self.data_dir, job["project_id"], job["scene_id"], shared, job["id"])
+                if fields is not None:
+                    refs = fields["refs"]
+                    self._storyboard = getattr(self, "_storyboard", {})
+                    self._storyboard[job["id"]] = fields["storyboard"]
+                    self._sent = getattr(self, "_sent", {})
+                    self._sent[job["id"]] = [{"label": r["label"], "role": r.get("role", ""), "file": os.path.basename(r["path"])}
+                                             for r in refs] + [{"label": "storyboard", "role": "storyboard",
+                                                                "file": fields["storyboard"]["storyboard_id"]}]
+        if refs:                                       # the chosen resources' pictures go with the prompt (image-to-image)
             return (assets.reference_note(refs) + "Scene: " + prompt, [r["path"] for r in refs])
         return (prompt,)
 
