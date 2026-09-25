@@ -29,6 +29,12 @@
 | 8 | Kiểm chứng nhỏ trong trần #7 (≤ ~$2, ≤ 5 ảnh) | ⏳ cần báo giá trước |
 | 9 | Báo "sẵn sàng" → người dùng chạy trọn #6 | ⏳ |
 
+**Việc tự chạy sau GĐ4 (người dùng cho phép 2026-09-25: mọi việc miễn phí không cần họ quyết; tốn tiền / bật cờ / GĐ5 vẫn hỏi):**
+- [x] **Đợt 1 — D11 + D12 + D14:** mọi bản dựng được **đo độ to** (manifest `loudness`, hiện 🔊 ở Bước 5); chuẩn hóa −14 LUFS / −1,5 dBTP
+  (`ffmpeg_studio.normalize_loudness`, tuyến tính) sau cờ `loudness_normalize` TẮT — thử trên bản sao #7: −14,7 → −14,3 LUFS, hình giữ
+  nguyên. `_ENCODE` thêm `+faststart` + BT.709. **Đo mức hạ nhạc thật:** 14,5–22,8 dB dưới 3 câu giọng thật #7 (nguồn khuyên 6–10 dB) →
+  **cần người dùng quyết** có nhẹ tay hơn không (gu nghe).
+
 **GĐ4 đã làm (2026-09-25; toàn bộ 971 test qua; tính năng mới có cờ đều TẮT; CHƯA chạy thật với API):**
 - **Nghiên cứu** 3 agent (WebSearch/WebFetch) → `knowledge/sources.md` mục GĐ4: 30 nguồn Đạo diễn [Đn], 35 Quay phim [Qn], 35 Dựng [En]
   (chính thức: TikTok, YouTube/Google Ads, Meta, Kling, BytePlus Seedance, Runway, Veo, ElevenLabs, Spotify, EBU, AES, Netflix, ffmpeg, Blender, ASC).

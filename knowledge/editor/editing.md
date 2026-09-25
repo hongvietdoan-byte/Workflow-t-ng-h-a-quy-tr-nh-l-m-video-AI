@@ -71,8 +71,9 @@ xúc, âm thanh làm thế giới game "thật", màu các shot liền nhau như
   nhả hạ nhạc giữa hai câu cách nhau < 0,5 s để tránh "bơm"; **khoảng lặng có chủ ý** 0,3–1 s ngay trước cú ngoặt tăng lực cú đập [KN].
 - **Trong pipeline.** ✅ `music_timing`: đoạn nhạc theo nhịp dựng, BPM 70–140 hợp mốc cắt, chấm bản nháp theo độ to ở mốc ngoặt, giữ bản khớp
   nhất (autopilot + Bước 5); ✅ hạ nhạc khi có giọng (`ffmpeg_studio.DUCK`: ngưỡng 0,02 ≈ −34 dBFS, tỉ lệ 8, attack 20 ms, release 400 ms →
-  **tính từ tham số**, giọng ở −20 dBFS hạ nhạc ~12 dB, giọng to hơn hạ nhiều hơn; nguồn thứ cấp khuyên 6–10 dB [E32] — **chưa đo trên bản
-  trộn thật**); ✅ nhạc mờ vào 0,3 s. ❌ Khoảng lặng trước cú ngoặt — việc code D6.
+  **đo thật** (D14, 2026-09-25: nhạc đã chọn của #7 dưới 3 câu giọng TTS thật −10,4 đến −13,8 LUFS) nhạc hạ **14,5–22,8 dB** khi đang nói —
+  gần như tắt; nguồn thứ cấp khuyên 6–10 dB [E32] → **người dùng quyết** có nhẹ tay hơn không (vd ngưỡng 0,05, tỉ lệ 4 ≈ 8–12 dB), vì đây là
+  gu nghe); ✅ nhạc mờ vào 0,3 s. ❌ Khoảng lặng trước cú ngoặt — việc code D6.
 - **Kiểm.** Code: `music_timing.score_draft` (độ to tại mốc ngoặt). Người: nghe.
 - **Ví dụ FF.** ✔ 2A: model nhạc luôn mờ 5 s cuối → xin dài thêm 4 s rồi cắt ở cuối phim (`TAIL_PAD_MS`).
 
@@ -117,13 +118,15 @@ xúc, âm thanh làm thế giới game "thật", màu các shot liền nhau như
   (24–30 fps), AAC-LC 48 kHz stereo 384 kbps. TikTok quảng cáo: 9:16 ≥ 540×960, phải có tiếng [E6][E7].
 - **Trong pipeline.** ✅ Giới hạn đỉnh −2 dBFS cuối mọi bước trộn (`ffmpeg_studio.PEAK_LIMIT` — `alimiter` chỉ giới hạn đỉnh **mẫu**, không
   phải đỉnh thật); âm 48 kHz stereo; ✅ xuất theo kích thước/dung lượng (`resize_to_size`, 2 lượt). ✅ **Đo** LUFS + đỉnh thật của một file
-  (`ffmpeg_studio.measure_loudness`, thước EBU R128 của ffmpeg; `loudness_problems` so với mục tiêu — GĐ4). ❌ **Chuẩn hóa** LUFS (`loudnorm`
-  2 lượt, I=−14, TP=−1,5; mặc định ffmpeg là I=−24 [E22]) và hiện số đo ở Bước 5 — việc code D11. ❌ `_ENCODE` ép `-r 24`, **thiếu
-  `+faststart` và thẻ màu BT.709** so với bảng YouTube — việc code D12.
-- **Kiểm.** Code: `measure_loudness` + `loudness_problems` (mục tiêu −14 ± 2 LUFS, đỉnh thật ≤ −1,5 dBTP) — **mới là hàm, chưa nối vào Bước 5
-  / autopilot** (việc D11). Người: nghe cạnh một video FF chính thức trên điện thoại.
+  (`ffmpeg_studio.measure_loudness`, thước EBU R128 của ffmpeg; `loudness_problems` so với mục tiêu) — **mọi lần dựng bản giao đều đo**, lưu
+  vào `outputs.manifest.loudness`, hiện ở Bước 5 (🔊). ✅ **Chuẩn hóa** (`normalize_loudness`: `loudnorm` 2 lượt, I=−14, TP=−1,5, tăng/giảm
+  **tuyến tính** — không nén lại bản trộn; mặc định ffmpeg là I=−24 [E22]) khi số đo lệch mục tiêu — sau cờ `loudness_normalize` (TẮT).
+  ✅ Mọi bản mã hóa có `+faststart` + thẻ màu BT.709 (`_ENCODE`, D12); vẫn 24 fps (mọi clip của pipeline là 24).
+- **Kiểm.** Code: số đo ở mỗi bản dựng (`loudness_problems`: −14 ± 2 LUFS, đỉnh thật ≤ −1,5 dBTP). Người: nghe cạnh một video FF chính
+  thức trên điện thoại.
 - **Ví dụ FF.** ✔ 2A: đỉnh 0,0 → −1,3 dBFS sau khi thêm bộ giới hạn. ✔ Đo thật bản giao #7 (2026-09-25): **−14,7 LUFS, đỉnh thật −2,9 dBTP,
-  LRA 5,1** — nằm trong mục tiêu dù chưa chuẩn hóa (một lần đo, chưa phải bảo đảm cho mọi dự án).
+  LRA 5,1** — nằm trong mục tiêu dù chưa chuẩn hóa (một lần đo, chưa phải bảo đảm cho mọi dự án); chuẩn hóa thử một bản sao → −14,3 LUFS,
+  đỉnh −2,4 dBTP, hình và độ dài giữ nguyên.
 
 ### E9. Tự rà như người xem thật
 - **Làm gì · vì sao.** Không có số chính thức về tỉ lệ người xem tắt tiếng (con số "85%" hay nhắc không có nguồn gốc Meta; Facebook IQ 2017 chỉ

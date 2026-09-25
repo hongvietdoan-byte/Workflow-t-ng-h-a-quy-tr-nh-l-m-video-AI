@@ -478,6 +478,21 @@ def render_panel(p: Pipeline, pid: int, chosen, durations) -> None:
                 ok = act(lambda: delivery.render(p, pid, C.DATA, "auto", chosen, durations), "Dựng xong")
             if ok:
                 st.rerun()
+        loudness_line(p, pid)
+
+
+def loudness_line(p: Pipeline, pid: int) -> None:
+    """GĐ4 (editing.md E8): the loudness of the newest render, measured when it was made (target −14 LUFS, true peak ≤ −1,5 dBTP)."""
+    row = p.conn.execute("SELECT manifest FROM outputs WHERE project_id=? AND kind='final' ORDER BY id DESC LIMIT 1", (pid,)).fetchone()
+    try:
+        m = (json.loads(row["manifest"] or "{}") if row else {}).get("loudness")
+    except (ValueError, TypeError):
+        m = None
+    if not m or m.get("lufs") is None:
+        return
+    text = (f"🔊 Độ to bản dựng mới nhất: {m['lufs']:g} LUFS · đỉnh thật {m.get('true_peak_dbfs')} dBTP · LRA {m.get('lra')} LU"
+            + (f" (đã chuẩn hóa từ {m['before']['lufs']:g} LUFS)" if m.get("normalized") else "") + " — mục tiêu −14 LUFS, đỉnh ≤ −1,5")
+    (st.warning if m.get("problems") else st.caption)(text + ("".join(f" · ⚠ {x}" for x in m.get("problems") or [])))
 
 
 def end_card_panel(p: Pipeline, pid: int) -> None:

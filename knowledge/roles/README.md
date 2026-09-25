@@ -66,8 +66,8 @@ người xem, nên đứng trước nhịp cắt. Hy sinh mục thấp hơn → 
 | D8 | Khớp hạt người–nền khi ghép | Dựng | Không |
 | D9 | Rung máy khi va chạm, hạt, lóa | Dựng | Không |
 | D10 | Bảng tên nhân vật động kiểu game | Dựng | Không |
-| D11 | **Chuẩn hóa LUFS** (`loudnorm` 2 lượt, −14 LUFS, đỉnh thật −1,5 dBTP) + hiện số đo ở Bước 5 (phần **đo** đã làm; #7 đo −14,7 LUFS / −2,9 dBFS) | Dựng | Không |
-| D12 | Thông số xuất theo bảng YouTube: `_ENCODE` thiếu `+faststart` và thẻ màu BT.709 | Dựng | Không |
-| D14 | Đo mức hạ nhạc thật của `DUCK` trên một bản trộn (tính từ tham số ~12 dB, khuyên 6–10 dB) | Dựng | Không |
+| D11 | ✅ Đo độ to mọi bản dựng (manifest + Bước 5); chuẩn hóa −14 LUFS / −1,5 dBTP sau cờ `loudness_normalize` (TẮT) | Dựng | — |
+| D12 | ✅ `_ENCODE` có `+faststart` + thẻ màu BT.709 | Dựng | — |
+| D14 | ✅ Đo: nhạc hạ 14,5–22,8 dB dưới giọng thật #7 (khuyên 6–10) → **người dùng quyết** có nhẹ tay hơn | Dựng | — |
 | D13 | Ảnh chồng lớp giao diện app lên khung để tự rà | Dựng | Không |
 | P1 | `lock_short`/`lock_medium` do Claude viết cho hồ sơ dài (KENTA: bản code 500 ký tự mất áo khoác xanh + găng tay trái) | Hồ sơ | ~$0,01/nhân vật |

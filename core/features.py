@@ -32,6 +32,12 @@ FEATURES: Dict[str, Dict] = {
         "why": "GĐ4 (director.md Đ5): tài liệu ElevenLabs tự mâu thuẫn về tham số áp dụng cho eleven_v3 (speed); thẻ [whispers] với giọng Việt "
                "chưa nghe thử — cần tạo thử vài câu (tốn lượt âm thanh) trước khi bật",
     },
+    "loudness_normalize": {
+        "label": "Chuẩn hóa độ to bản giao về −14 LUFS / đỉnh thật −1,5 dBTP (loudnorm 2 lượt, tăng/giảm tuyến tính) khi số đo lệch mục tiêu",
+        "verified": False,
+        "why": "GĐ4 (editing.md E8, D11): không nền tảng nào công bố LUFS; bản giao #7 đo −14,7 LUFS (đã đạt) — chưa nghe thử một bản "
+               "được chuẩn hóa trên điện thoại",
+    },
     "profile_digest": {
         "label": "Hồ sơ nhân vật rút gọn: prompt ảnh dùng lock_medium (≤ 500 ký tự), prompt video dùng lock_short (≤ 200) thay cho bản đầy đủ",
         "verified": False,

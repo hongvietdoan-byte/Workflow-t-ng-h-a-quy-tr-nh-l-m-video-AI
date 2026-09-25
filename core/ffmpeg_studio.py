@@ -23,7 +23,10 @@ def find_ffmpeg() -> str:
     return path
 
 
-_ENCODE = ["-c:v", "libx264", "-pix_fmt", "yuv420p", "-r", "24"]
+# D12 (editing.md E8, YouTube's official upload settings): BT.709 colour tags + the index at the front of the file (faststart: the
+# platform / a phone can start playing before the whole file is read). 24 fps stays: every clip of the pipeline is made at 24.
+_ENCODE = ["-c:v", "libx264", "-pix_fmt", "yuv420p", "-r", "24", "-colorspace", "bt709", "-color_primaries", "bt709",
+           "-color_trc", "bt709", "-movflags", "+faststart"]
 
 
 def write_concat_list(clips: Sequence[str], directory: Optional[str] = None) -> str:
@@ -206,6 +209,29 @@ def measure_loudness(path: str, ffmpeg: Optional[str] = None) -> Optional[dict]:
         m = pat.search(summary[1])
         out[key] = (float("-inf") if m.group(1) == "-inf" else float(m.group(1))) if m else None
     return out
+
+
+_LOUDNORM_JSON = re.compile(r"\{[^{}]*\"input_i\"[^{}]*\}", re.DOTALL)
+
+
+def normalize_loudness(src: str, dst: str, ffmpeg: Optional[str] = None, target: float = LUFS_TARGET,
+                       true_peak: float = TRUE_PEAK_MAX) -> dict:
+    """Two-pass loudnorm (measure, then a LINEAR gain to the target — the mix is not re-compressed), video copied untouched.
+    Returns the measurement after. ffmpeg's own default is I=-24 (broadcast), so the target is always given."""
+    import json
+    ff = ffmpeg or find_ffmpeg()
+    spec = f"loudnorm=I={target:g}:TP={true_peak:g}:LRA=11"
+    proc = subprocess.run([ff, "-hide_banner", "-nostats", "-i", src, "-map", "0:a:0", "-af", spec + ":print_format=json", "-f", "null",
+                           "-"], capture_output=True, text=True, encoding="utf-8", errors="replace")
+    m = _LOUDNORM_JSON.search(proc.stderr or "")
+    if proc.returncode != 0 or not m:
+        raise FFmpegError("không đo được độ to để chuẩn hóa: " + (proc.stderr or "")[-400:])
+    first = json.loads(m.group(0))
+    second = (f"{spec}:measured_I={first['input_i']}:measured_TP={first['input_tp']}:measured_LRA={first['input_lra']}"
+              f":measured_thresh={first['input_thresh']}:offset={first['target_offset']}:linear=true,aresample=48000")
+    run([ff, "-y", "-i", src, "-map", "0:v?", "-map", "0:a:0", "-c:v", "copy", "-af", second, "-c:a", "aac", "-b:a", "192k",
+         "-movflags", "+faststart", dst])
+    return measure_loudness(dst, ff) or {}
 
 
 def loudness_problems(m: Optional[dict]) -> List[str]:

@@ -273,6 +273,15 @@ class LoudnessTests(unittest.TestCase):
         self.assertIn("LUFS", ffmpeg_studio.loudness_problems(m)[0])            # too quiet for -14
         self.assertEqual(ffmpeg_studio.loudness_problems({"lufs": -14.7, "true_peak_dbfs": -2.9}), [])   # the #7 delivery (2026-09-25)
         self.assertIn("đỉnh thật", ffmpeg_studio.loudness_problems({"lufs": -14.0, "true_peak_dbfs": -0.2})[0])
+        after = ffmpeg_studio.normalize_loudness(path, os.path.join(os.path.dirname(path), "n.mp4"), ff)
+        self.assertAlmostEqual(after["lufs"], -14.0, delta=1.0)                 # a quiet file brought to the target
+        self.assertLessEqual(after["true_peak_dbfs"], -1.0)
+
+    def test_every_render_is_encoded_for_the_platforms(self):
+        from core import ffmpeg_studio
+        cmd = ffmpeg_studio.build_concat_cmd("list.txt", "out.mp4")
+        self.assertIn("+faststart", cmd)
+        self.assertEqual(cmd[cmd.index("-colorspace") + 1], "bt709")
 
 
 class SafeZoneTests(unittest.TestCase):

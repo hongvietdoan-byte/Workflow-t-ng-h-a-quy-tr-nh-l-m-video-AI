@@ -223,6 +223,30 @@ def latest_layer(p: Pipeline, project_id: int):
 
 # ---- the layers ------------------------------------------------------------------------------------------------------------
 @_locked
+def _loudness(path: str) -> Optional[Dict]:
+    """editing.md E8 (việc code D11): the delivery's loudness is always measured (free, a few seconds of ffmpeg); with the feature
+    `loudness_normalize` on and the measure off target, the sound is brought to -14 LUFS / -1,5 dBTP by a linear gain (video untouched)."""
+    from . import features
+    try:
+        before = ffmpeg_studio.measure_loudness(path)
+    except Exception:  # noqa: BLE001 - a meter that fails must not lose the render; the missing number is shown as missing
+        return None
+    if not before:
+        return None
+    out = dict(before, problems=ffmpeg_studio.loudness_problems(before))
+    if out["problems"] and features.on("loudness_normalize"):
+        staged = path + ".norm.mp4"
+        try:
+            after = ffmpeg_studio.normalize_loudness(path, staged)
+            os.replace(staged, path)
+            out = dict(after, problems=ffmpeg_studio.loudness_problems(after), before=before, normalized=True)
+        except Exception as e:  # noqa: BLE001 - keep the un-normalized render and say why
+            out["normalize_error"] = str(e)[:200]
+            if os.path.exists(staged):
+                os.remove(staged)
+    return out
+
+
 def render(p: Pipeline, project_id: int, data_dir: str, music_path: Optional[str] = "auto", clips: Optional[List[str]] = None,
            durations: Optional[List[float]] = None, settings: Optional[Dict] = None) -> Dict:
     """Cut the clips (the chosen ones, or every usable clip) with the project's render settings, the selected music and the
@@ -251,7 +275,8 @@ def render(p: Pipeline, project_id: int, data_dir: str, music_path: Optional[str
     ffmpeg_studio.render_final(paths, out, durations, settings["transition"], settings["fade"], track, settings["music_volume"],
                                extras, keep_audio, formats.spec(aspect)["render"] if aspect else None)
     manifest = final_manifest(p, project_id, data_dir, paths, settings)
-    manifest["timeline"] = [{"idx": r.get("idx"), "scene_id": r.get("scene_id"), "seconds": float(d)} for r, d in zip(rows, durations)]
+    manifest["loudness"] = _loudness(out)
+    manifest["timeline"] =[{"idx": r.get("idx"), "scene_id": r.get("scene_id"), "seconds": float(d)} for r, d in zip(rows, durations)]
     manifest["transition"], manifest["fade"] = settings["transition"], settings["fade"]
     oid = record(p, project_id, "final", out, None, manifest)
     return {"path": out, "output_id": oid, "seconds": final_cut.total_seconds(durations, settings["transition"], settings["fade"])}
