@@ -100,15 +100,16 @@ def parse_envelope(payload) -> object:
 
 class ApiClient:
     def __init__(self, base_url: str, token: str, user_agent: str, transport: Transport = urllib_transport,
-                 timeout: float = 60):
+                 timeout: float = 60, auth_header: str = "Authorization", auth_prefix: str = "Bearer "):
         self.base = base_url.rstrip("/")
         self._token = token
+        self.auth_header, self.auth_prefix = auth_header, auth_prefix     # sync.so: x-api-key, no prefix
         self.user_agent = user_agent
         self.transport = transport
         self.timeout = timeout
 
     def _headers(self, content_type: Optional[str] = None) -> Dict[str, str]:
-        headers = {"Authorization": f"Bearer {self._token}", "User-Agent": self.user_agent}
+        headers = {self.auth_header: f"{self.auth_prefix}{self._token}", "User-Agent": self.user_agent}
         if content_type:
             headers["Content-Type"] = content_type
         return headers
@@ -139,8 +140,8 @@ class ApiClient:
             raise ProviderError(f"invalid JSON response: {resp.body[:200]!r}", code="bad_response") from None
         return payload if raw else parse_envelope(payload)
 
-    def get(self, path: str, query: Optional[Dict] = None):
-        return self._send("GET", path, query=query)
+    def get(self, path: str, query: Optional[Dict] = None, raw: bool = False):
+        return self._send("GET", path, query=query, raw=raw)
 
     def post_json(self, path: str, body: Dict):
         return self._send("POST", path, json.dumps(body).encode("utf-8"), "application/json")

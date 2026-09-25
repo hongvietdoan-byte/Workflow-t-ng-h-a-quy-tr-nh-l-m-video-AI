@@ -17,7 +17,7 @@
 | 0 | Lưu kế hoạch V4, sửa tài liệu lệch, `requirements.txt` (pillow/numpy/opencv-python), `.gitignore` (`data/_plates3d/`), gộp asset #77 vào Forest Red | ✅ 2026-09-25 |
 | 1 | Rà soát + hoàn thiện (chi tiết ngay dưới bảng). Tầng A chuyển sang GĐ5 | ✅ code + test 2026-09-25 (chưa chạy thật) |
 | 2 | Gói bối cảnh (chi tiết dưới bảng) | ✅ code + test + render/ghép thật miễn phí 2026-09-25 · còn: gắn nhãn ảnh Kho (Claude ~$1–1,5, chờ người dùng), bước hòa ánh sáng AI / Claude chấm ăn khớp (tốn tiền, sau GĐ8), màn đăng ký trong dashboard (GĐ6) |
-| 3 | Khớp môi toàn video: nghiên cứu → bước "Khớp môi" + adapter (Seedance `reference_audio` + dịch vụ khớp môi sau) | ⏳ |
+| 3 | Khớp môi toàn video (`docs/NGHIEN_CUU_KHOP_MOI.md`): chọn cách từng shot (tạo kèm giọng Seedance / khớp môi sau sync.so / bỏ qua), giọng từng shot đúng giây timeline, adapter ClipAI `reference_audio` + `core/adapters/syncso.py`, pha autopilot `lipsync`, dựng giữ giọng đúng giây, Đạo diễn được báo; sửa `shot_data` làm rơi trường mới (`lip_sync`, `weather`, `plate_spot`, `plate_mode`); cờ `lip_sync` TẮT | ✅ code + test 2026-09-25 · còn: thử thật (GĐ8) · **cần người dùng: có mở tài khoản sync.so (API từ $5/tháng) không** |
 | 4 | Bộ kỹ năng 3 vai → agent chấm độc lập → bảng tổng kết gửi người dùng; hồ sơ bỏ tuổi + rút gọn 3 mức, T1 mọi nhân vật | ⏳ |
 | 5 | Tầng A Director | ⏳ |
 | 6 | Dashboard gọn + tab ⚙ "Giới hạn hệ thống" | ⏳ |

@@ -151,6 +151,10 @@ def _scene_choice(conn, scene_id: int, project_row=None, mp_row=None) -> Dict:
                           + (" (model bạn chọn riêng cho shot này không áp dụng trong nhóm)" if override else "")}
     if override:
         return {"model": override, "resolution": None, "reason": "bạn chọn cho cảnh này", "source": "override", "recommended": rec}
+    from . import lipsync
+    if lipsync.enabled() and data.get("shot_no") and lipsync.method_for(data) == "generate":
+        return {"model": "seedance", "resolution": "720p", "source": "auto", "recommended": rec,
+                "reason": "khớp môi khi tạo: Seedance nhận giọng thoại của shot (reference_audio)"}
     if project_row["video_model"]:
         return {"model": project_row["video_model"], "resolution": None, "reason": "model chung của dự án (cách chọn cũ)",
                 "source": "project", "recommended": rec}

@@ -288,12 +288,15 @@ def place_on_timeline(conn, project_id: int, data_dir: str, transition: str = "c
         if e["kind"] == "tts" and e.get("dialogue") and e.get("scene_id") not in rendered:
             e["use"] = False
     overlap = fade if transition in ffmpeg_studio.OVERLAP_STYLES else 0.0
+    from . import lipsync
+    synced = lipsync.synced_scene_ids(data_dir, project_id)
     t, placed, prev_end = 0.0, 0, -1.0
     for clip in clips:
         length = clip.get("_seconds") or final_cut.clip_seconds(clip["path"], clip["requested_sec"])
         lines = sorted([e for e in items if e["kind"] == "tts" and e.get("scene_id") == clip.get("scene_id")
                         and e["state"] == "succeeded" and e.get("file")], key=lambda e: e.get("line") or 0)
-        cursor = max(t + LEAD, prev_end + GAP)
+        # a lip-synced clip speaks its lines at fixed seconds (lipsync.shot_audio): they are laid there, never pushed later
+        cursor = t + LEAD if clip.get("scene_id") in synced else max(t + LEAD, prev_end + GAP)
         for e in lines:
             e.update(start=round(cursor, 2), use=True)
             cursor += (e.get("duration_ms") or 0) / 1000.0 + GAP

@@ -27,7 +27,7 @@ from .pipeline import Pipeline
 RUNNING, WAITING, STOPPED, ATTENTION, DONE, ERROR = "running", "waiting", "stopped", "needs_attention", "done", "error"
 QUEUED = "queued"   # approved, waiting for a free slot (see Manager.max_parallel)
 PHASE_LABELS = {"director": "Director (Character Bible + thông số cảnh)", "previz": "Dựng layout / storyboard", "images": "Gen ảnh + QC",
-                "plates": "Nền 3D của bối cảnh (render theo góc máy)", "platefix": "Kiểm nền 3D trong clip", "setcheck": "QC đồng bộ cả bộ ảnh", "endframes": "Ảnh khung cuối (shot đổi trạng thái)", "storyboard": "Duyệt storyboard trước khi gen video", "clips": "Xem clip còn lỗi", "motion": "Motion prompt", "voice": "Giọng thoại", "videos": "Gen video + QC video",
+                "plates": "Nền 3D của bối cảnh (render theo góc máy)", "platefix": "Kiểm nền 3D trong clip", "lipsync": "Khớp môi (sau khi có clip)", "setcheck": "QC đồng bộ cả bộ ảnh", "endframes": "Ảnh khung cuối (shot đổi trạng thái)", "storyboard": "Duyệt storyboard trước khi gen video", "clips": "Xem clip còn lỗi", "motion": "Motion prompt", "voice": "Giọng thoại", "videos": "Gen video + QC video",
                 "music": "Nhạc nền", "sfx": "Hiệu ứng âm thanh", "render": "Xuất bản", "done": "Hoàn tất"}
 MAX_SCENES = int(os.environ.get("AUTOPILOT_MAX_SCENES", "12"))
 LOG_KEEP = 60
@@ -436,6 +436,26 @@ def _plates_phase(p: Pipeline, pid: int, ctx: Context) -> Optional[str]:
     return None
 
 
+def _lipsync_phase(p: Pipeline, pid: int, ctx: Context) -> Optional[str]:
+    """V4 GĐ3: the finished clips of the "post" shots are lip-synced to our voice lines (sync.so). Without a key the step is said once
+    and skipped — the clips keep their own mouths, never silently."""
+    from . import ffmpeg_studio, features, lipsync
+    if not features.on("lip_sync"):
+        return None
+    if not any(r["method"] == "post" for r in lipsync.plan(p.conn, pid)):
+        return None
+    from .adapters import syncso
+    provider = syncso.from_env_or_none()
+    if provider is None:
+        marker = _marker(ctx, pid, ".lipsync_nokey")
+        if not os.path.exists(marker):
+            _d(p, pid, "videos", "warn", "khớp môi sau: chưa có SYNC_API_KEY — các shot cần khớp môi giữ nguyên miệng của clip", "lipsync_key")
+            open(marker, "w").close()
+        return None
+    c = lipsync.post_tick(p, pid, ctx.data_dir, provider, ffmpeg_studio.find_ffmpeg(), log=lambda m: _log(p, pid, m))
+    return f"Khớp môi: còn {c['running'] + c['sent']} clip" if c["running"] or c["sent"] else None
+
+
 def _plate_fallback_phase(p: Pipeline, pid: int, ctx: Context) -> Optional[str]:
     """V4: a mode-1 clip whose video model redrew the place (plate_qc below the threshold) is made again ONCE in mode 2 (the character
     acts on green and is keyed onto the plate) — a changed input, counted as a regeneration."""
@@ -778,7 +798,7 @@ def tick(p: Pipeline, project_id: int, ctx: Context) -> str:
     try:
         phases = [("director", _director_phase), ("previz", _previz_phase), ("plates", _plates_phase), ("images", _images_phase), ("setcheck", _setcheck_phase),
                   ("endframes", _end_frame_phase), ("storyboard", _storyboard_phase), ("motion", _motion_phase), ("voice", _voice_phase), ("videos", _videos_phase), ("music", _music_phase),
-                  ("platefix", _plate_fallback_phase), ("sfx", _sfx_phase)]
+                  ("platefix", _plate_fallback_phase), ("lipsync", _lipsync_phase), ("sfx", _sfx_phase)]
         for name, fn in phases:
             progress_note = fn(p, project_id, ctx)
             if progress_note is not None:

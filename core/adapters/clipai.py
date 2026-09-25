@@ -188,7 +188,8 @@ class ClipAIVideoProvider:
                model: Optional[str] = None, with_audio: bool = False, subjects: Optional[list] = None,
               image_references: Optional[list] = None, reference_video: Optional[dict] = None,
               aspect_ratio: Optional[str] = None, resolution: Optional[str] = None,
-              multi_prompt: Optional[list] = None, last_frame: Optional[str] = None, kling_mode: Optional[str] = None) -> str:
+              multi_prompt: Optional[list] = None, last_frame: Optional[str] = None, kling_mode: Optional[str] = None,
+              reference_audio: Optional[list] = None) -> str:
         """aspect_ratio / resolution override the provider defaults for this job (project frame format, per-scene tier).
         image_references: this project's own resource-library pictures (local files, [{"path","label","role"}], from
         `assets.scene_references`) — no separate Subject Library upload/approval needed. `subjects`: Subject Library entries
@@ -199,7 +200,10 @@ class ClipAIVideoProvider:
         `with_audio` on Kling (the vendor API rejects `sound=on` together with a reference video).
         last_frame: a local picture the clip must END on (Seedance `role: last_frame`; v3 shots that continue into the next shot).
         It is sent as a first+last frame clip, without the extra reference pictures (the two frames already show the characters);
-        still to be confirmed on the real API (plan v3, GĐ6)."""
+        still to be confirmed on the real API (plan v3, GĐ6).
+        reference_audio: local audio files (the shot's own voice line, padded to the clip) the character must speak to — Seedance only
+        (content role "reference_audio", files in multipart `audio_files`, like `image_files`; skill clipai-1.3.1 video.mjs; the web
+        Weave Canvas sends the same). Lip sync at generation time (kế hoạch V4 GĐ3)."""
         canonical, family = resolve_model(model)
         if with_audio and canonical == "kling-video-o1":
             raise ProviderError("kling-video-o1 does not support generated sound (use kling-v3-omni or Seedance)",
@@ -208,11 +212,13 @@ class ClipAIVideoProvider:
             raise ProviderError("Kling rejects a reference video together with generated sound (sound=on); turn "
                                 "audio off or drop the reference video", code="unsupported_option")
         from .. import video_rules                       # W10: the model's rules, before any file is read or anything is sent
+        if reference_audio and family != "seedance":
+            raise ProviderError("âm thanh tham chiếu (khớp môi) chỉ có ở Seedance", code="unsupported_option")
         broken = video_rules.problems(canonical, float(duration_sec),
                                       resolution=(resolution or self.resolution) if family == "seedance" else None,
                                       kling_mode=(kling_mode or self.kling_mode) if family == "omni" else None,
                                       reference_video=bool(reference_video), with_audio=bool(with_audio),
-                                      last_frame=bool(last_frame))
+                                      last_frame=bool(last_frame), audios=len(reference_audio or []))
         if broken:
             raise ProviderError("; ".join(broken), code="rule_violation")
         video_files: List[Tuple[str, bytes]] = []
@@ -223,6 +229,12 @@ class ClipAIVideoProvider:
             with open(vpath, "rb") as f:
                 vcontent = f.read()
             video_files.append((_upload_name(vpath, vcontent), vcontent))
+        audio_files: List[Tuple[str, bytes]] = []
+        for apath in reference_audio or []:
+            if not os.path.exists(apath):
+                raise ProviderError(f"reference audio not found: {apath}", code="missing_audio")
+            with open(apath, "rb") as f:
+                audio_files.append((os.path.basename(apath), f.read()))
         text = prompt.strip()
         if self.negative == "append" and negative_prompt:
             text += f"\nAvoid: {negative_prompt}"
@@ -300,14 +312,16 @@ class ClipAIVideoProvider:
                    + ([{"type": "image_url", "image_url": {"url": ""}, "role": "last_frame"}] if end_image else [])
                    + [{"type": "image_url", "image_url": {"url": "" if r["kind"] == "local" else r["uri"]}, "role": "reference_image"}
                       for r in content_refs]
-                   + ([{"type": "video_url", "video_url": {"url": ""}, "role": "reference_video"}] if reference_video else []),
+                   + ([{"type": "video_url", "video_url": {"url": ""}, "role": "reference_video"}] if reference_video else [])
+                   + [{"type": "audio_url", "audio_url": {"url": ""}, "role": "reference_audio"} for _ in audio_files],
                    "resolution": resolution or self.resolution, "ratio": aspect_ratio or self.aspect_ratio,
                    "duration": effective_duration(canonical, family, duration_sec), "generate_audio": bool(with_audio),
                    "camera_fixed": False, "seed": -1, "video_num": 1}
             path = PATH_SEEDANCE
         files = ([("image_files", image[0], image[1])] + ([("image_files", end_image[0], end_image[1])] if end_image else [])
                  + [("image_files", name, data) for name, data in extra_files]
-                + [("video_files", name, data) for name, data in video_files])
+                + [("video_files", name, data) for name, data in video_files]
+                + [("audio_files", name, data) for name, data in audio_files])
         data = self.client.post_multipart(path, {"ctx": json.dumps(ctx, ensure_ascii=False)}, files)
         tasks = (data or {}).get("tasks") or []
         if not tasks:

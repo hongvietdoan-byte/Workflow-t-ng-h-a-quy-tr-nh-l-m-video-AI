@@ -143,6 +143,12 @@ def duration_block(pipeline: Pipeline, project_id: int) -> str:
         parts.append("- **Vị trí máy**: gán `camera_setup` (A, B, C… trong mỗi cảnh) cho mọi shot; các shot cùng góc máy, cùng người trong khung "
                      "dùng chung một chữ — chúng được gen thành MỘT clip rồi cắt. Đối thoại trong một chỗ: 1 vị trí thiết lập + 2–3 vị trí phủ. "
                      "Shot cần khung nhấn riêng một nhân vật thì cho vị trí riêng.")
+    from . import lipsync
+    if lipsync.enabled():   # V4 GĐ3: lip sync is on — the "no close-up on the speaker" rule (N3) becomes a choice
+        parts.append("- **Khớp môi đang BẬT**: được đặt thoại ở shot thấy mặt người nói (kể cả cận) — miệng sẽ được khớp với giọng Việt. "
+                     "Câu then chốt quay cận mặt (CU/ECU/MCU, ngang mắt, mặt không bị che, ≤ 5 s) ghi `\"lip_sync\": true` trong shot "
+                     "(tạo video kèm giọng — đắt hơn, dùng cho ~20% câu quan trọng nhất); các shot thoại khác khớp môi sau khi có clip. "
+                     "Shot người nói quay lưng / ngoài khung thì không cần.")
     if speech:     # the 3rd Director run of "ANH CHỌN AI?" gave 11 spoken shots less time than their line needs (6,8 s in all)
         parts.append(f"- Shot có thoại: `duration_s` ≥ (số âm tiết ÷ {dialogue.RATE:g}) + {dialogue.BREATH:g} giây cho câu của nó "
                      "— không nén câu vào shot ngắn hơn.")

@@ -52,6 +52,9 @@ def lip_sync_risk(shot: Dict) -> bool:
     lines = shot.get("dialogue") or []
     if not lines or str(shot.get("size") or "").upper() not in CLOSE_SIZES or (shot.get("angle") or "eye") not in FACING_ANGLES:
         return False
+    from . import lipsync
+    if lipsync.enabled() and lipsync.method_for(shot) != "skip":
+        return False                                         # V4 GĐ3: this mouth is matched to the voice (generation or post)
     on_screen = {str(c).strip().upper() for c in shot.get("characters") or []}
     return any(str(d.get("speaker") or "").strip().upper() in on_screen for d in lines if isinstance(d, dict))
 

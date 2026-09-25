@@ -182,6 +182,14 @@ def shot_data(scene: Dict, s: Dict, k: int) -> Dict:
         "shot_role": "hero" if s.get("hero") else ("transition" if s["role"] == "transition" else "normal"),
         "text": _shot_text(s),      # the shot's own action + lines; the script scene's text stays in story_scenes (never copied)
     })
+    # V4 fields the Director may write (dropped before — only the listed keys were kept): lip sync of a key close-up (GĐ3), the
+    # weather of the shot / its scene and the spot / mode on a location pack (GĐ2)
+    if isinstance(s.get("lip_sync"), bool):
+        data["lip_sync"] = s["lip_sync"]
+    for key in ("weather", "plate_spot", "plate_mode"):
+        value = s.get(key) or scene.get(key)
+        if isinstance(value, str) and value.strip():
+            data[key] = value.strip()
     return data
 
 

@@ -423,7 +423,11 @@ class VideoRunner(_Runner):
             if long:                     # W13: the cut is visible (the end of the prompt — often the ending action — is lost)
                 self._diag(job, "warn", "prompt_cut", f"prompt shot dài hơn {KLING_SHOT_PROMPT_LIMIT} ký tự, bị cắt khi gửi Kling: "
                            + ", ".join(long))
-        elif mode == "per_shot":
+        if "seedance" in (choice.get("model") or "") and not group:
+            audio = self._lip_sync_audio(job)
+            if audio:
+                out["reference_audio"] = [audio]              # V4 GĐ3: the clip speaks our voice line (lip sync at generation)
+        if mode == "per_shot" and not group:
             end = shots.last_frame_for(self.p.conn, self.data_dir, job["scene_id"])
             from . import end_frames
             if end is None and end_frames.enabled():
@@ -431,6 +435,28 @@ class VideoRunner(_Runner):
             if end and ("seedance" in (choice.get("model") or "") or end_frames.enabled()):
                 out["last_frame"] = end                   # K2: Seedance last_frame; Kling Omni end_frame (only with K1 on)
         return out
+
+    def _lip_sync_audio(self, job) -> Optional[str]:
+        """The shot's voice line file for a "generate" lip-sync shot (feature lip_sync), else None. Missing voice: said, not guessed."""
+        from . import ffmpeg_studio, lipsync
+        if not lipsync.enabled():
+            return None
+        data = json.loads(self.p.conn.execute("SELECT data FROM scenes WHERE id=?", (job["scene_id"],)).fetchone()["data"] or "{}")
+        if lipsync.method_for(data) != "generate":
+            return None
+        mp = self._motion(job["scene_id"])
+        length = float((mp["duration_sec"] if mp is not None and mp["duration_sec"] else None) or data.get("duration_s") or 4)
+        try:
+            seg = lipsync.shot_audio(self.data_dir, job["project_id"], job["scene_id"], max(length, 4.0), ffmpeg_studio.find_ffmpeg())
+        except Exception as e:  # noqa: BLE001
+            self._diag(job, "warn", "lipsync_audio", f"không cắt được giọng cho khớp môi ({e}) — clip gửi không kèm giọng")
+            return None
+        if seg is None:
+            self._diag(job, "warn", "lipsync_audio", "shot khớp môi nhưng câu thoại chưa có giọng — tạo giọng (Bước 3) trước")
+            return None
+        lipsync.mark(self.data_dir, job["project_id"], job["scene_id"], state="generate_sent", job_id=job["id"], offsets=seg["offsets"],
+                     method="generate")
+        return seg["path"]
 
     def _find_real(self, job) -> Optional[str]:
         """W12b: the provider's real task for this job, recognised by the prompt that was sent (multi-shot groups send no single
@@ -628,6 +654,10 @@ class VideoRunner(_Runner):
             self._diag(job, "warn", "trim_error", f"không cắt được clip theo độ dài shot ({type(e).__name__}: {e}); dùng nguyên clip")
         if not group:
             self._plate_video(job, path)
+            from . import lipsync
+            rec = lipsync.index(self.data_dir, job["project_id"]).get(str(job["scene_id"])) or {}
+            if rec.get("state") == "generate_sent" and rec.get("job_id") == job["id"]:
+                lipsync.mark(self.data_dir, job["project_id"], job["scene_id"], state="done")
         return path
 
     def _plate_mode(self, job) -> Optional[str]:

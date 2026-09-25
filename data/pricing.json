@@ -19,7 +19,9 @@
     "dreamina-seedance-2-0-260128:720p": 0.15,
     "dreamina-seedance-2-0-260128:1080p": 0.15,
     "dreamina-seedance-2-0-fast-260128:720p": 0.12,
-    "dreamina-seedance-2-5-260628:720p": 0.23
+    "dreamina-seedance-2-5-260628:720p": 0.23,
+    "lipsync-2-pro:post": 0.084,
+    "lipsync-2:post": null
   },
   "per_video_clip": {},
   "per_audio": {
@@ -36,22 +38,46 @@
     "dreamina-seedance-2-0-mini-260128:720p": 0.08,
     "dreamina-seedance-2-5-260628:720p": 0.23,
     "kling-v3-omni:std": 0.08,
-    "minimax-h3": null
+    "minimax-h3": null,
+    "lipsync-2-pro:post": 0.084
   },
   "model_choice_guide": {
     "_note": "Bảng xếp hạng chính thức ClipAI, dùng để gợi ý model trong dashboard (Bước 4). Không phải giá — chỉ thứ tự ưu tiên.",
-    "priority_quality": ["dreamina-seedance-2-5-260628", "minimax-h3 (chưa hỗ trợ trong contract này)",
-                        "dreamina-seedance-2-0-260128", "dreamina-seedance-2-0-fast-260128",
-                        "dreamina-seedance-2-0-mini-260128 (chưa hỗ trợ trong contract này)", "kling-v3-omni"],
-    "priority_value": ["minimax-h3 (chưa hỗ trợ trong contract này)", "dreamina-seedance-2-0-260128",
-                       "dreamina-seedance-2-0-fast-260128", "dreamina-seedance-2-0-mini-260128 (chưa hỗ trợ trong contract này)",
-                       "kling-v3-omni", "dreamina-seedance-2-5-260628"]
+    "priority_quality": [
+      "dreamina-seedance-2-5-260628",
+      "minimax-h3 (chưa hỗ trợ trong contract này)",
+      "dreamina-seedance-2-0-260128",
+      "dreamina-seedance-2-0-fast-260128",
+      "dreamina-seedance-2-0-mini-260128 (chưa hỗ trợ trong contract này)",
+      "kling-v3-omni"
+    ],
+    "priority_value": [
+      "minimax-h3 (chưa hỗ trợ trong contract này)",
+      "dreamina-seedance-2-0-260128",
+      "dreamina-seedance-2-0-fast-260128",
+      "dreamina-seedance-2-0-mini-260128 (chưa hỗ trợ trong contract này)",
+      "kling-v3-omni",
+      "dreamina-seedance-2-5-260628"
+    ]
   },
   "per_million_tokens": {
     "_note": "Claude API (Anthropic) — giá niêm yết USD cho 1 triệu token vào / ra (tài liệu Claude API, tra 2026-09-24). Ảnh gửi kèm tính vào token vào.",
-    "claude-sonnet-5": {"input": 2.0, "output": 10.0},
-    "claude-opus-5-5": {"input": 4.0, "output": 20.0},
-    "claude-opus-5": {"input": 5.0, "output": 25.0},
-    "claude-haiku-4-5": {"input": 1.0, "output": 5.0}
-  }
+    "claude-sonnet-5": {
+      "input": 2.0,
+      "output": 10.0
+    },
+    "claude-opus-5-5": {
+      "input": 4.0,
+      "output": 20.0
+    },
+    "claude-opus-5": {
+      "input": 5.0,
+      "output": 25.0
+    },
+    "claude-haiku-4-5": {
+      "input": 1.0,
+      "output": 5.0
+    }
+  },
+  "_note_lipsync": "lipsync-2-pro:post = khớp môi sau của sync.so, $0,084/giây làm tròn lên (giá niêm yết trên WaveSpeedAI / Segmind, tra 2026-09-25: wavespeed.ai/models/sync/lipsync-2-pro); giá trên gói sync.so có thể khác — đo lại ở lần chạy thật."
 }

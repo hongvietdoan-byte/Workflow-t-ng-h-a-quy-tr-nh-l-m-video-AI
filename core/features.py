@@ -30,6 +30,11 @@ FEATURES: Dict[str, Dict] = {
         "verified": False,
         "why": "Chạy thử 2A (H5): một cặp shot tiết kiệm 33% nhưng mất khung nhấn riêng — cần thử thêm ở cảnh thoại dày trước khi bật",
     },
+    "lip_sync": {
+        "label": "Khớp môi mọi shot thấy mặt người nói: Seedance nhận giọng khi tạo (shot cận đánh dấu) hoặc khớp môi sau (sync.so)",
+        "verified": False,
+        "why": "Kế hoạch V4 GĐ3: chưa thử thật; Seedance không công bố hỗ trợ tiếng Việt, sync.so cần tài khoản + SYNC_API_KEY",
+    },
     "storyboard_api": {
         "label": "Vẽ ảnh các shot của một cảnh bằng MỘT storyboard Deepix (shot rộng nhất làm neo, cùng ảnh tham chiếu) — cách Weave Canvas",
         "verified": False,
