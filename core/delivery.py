@@ -222,7 +222,29 @@ def latest_layer(p: Pipeline, project_id: int):
 
 
 # ---- the layers ------------------------------------------------------------------------------------------------------------
-@_locked
+def twist_times(p: Pipeline, project_id: int, rows: List[Dict], durations: List[float], transition: str = "cut", fade: float = 1.0) -> List[float]:
+    """D6: where the film turns — the start of the first shot of a script section called TWIST / CAO TRÀO / CLIMAX, else the first ⭐ hero
+    shot — on the render's own timeline (the clips' cut lengths). At most two times."""
+    import re
+    heads = {r["idx"]: r["heading"] or "" for r in p.conn.execute("SELECT idx, heading FROM story_scenes WHERE project_id=?",
+                                                                  (project_id,))}
+    turn = re.compile(r"twist|cao trào|climax|bước ngoặt", re.IGNORECASE)
+    overlap = fade if transition in ffmpeg_studio.OVERLAP_STYLES else 0.0
+    t, seen, marked, hero = 0.0, set(), [], None
+    for r, d in zip([r for r in rows if r.get("path")], durations):
+        row = p.conn.execute("SELECT data FROM scenes WHERE id=?", (r.get("scene_id"),)).fetchone() if r.get("scene_id") else None
+        data = json.loads(row["data"] or "{}") if row else {}
+        sc = data.get("story_scene")
+        if sc is not None and sc not in seen:
+            seen.add(sc)
+            if t > 1 and turn.search(heads.get(sc, "")):
+                marked.append(round(t, 2))
+        if hero is None and data.get("shot_role") == "hero" and t > 1:
+            hero = round(t, 2)
+        t += float(d) - overlap
+    return (marked or ([hero] if hero is not None else []))[:2]
+
+
 def _colour_match(p: Pipeline, project_id: int, rows: List[Dict], paths: List[str], work_dir: str) -> Optional[List[Dict]]:
     """editing.md E5 (việc code D7): shots of one place and size class are measured against their anchor (black / white points, cast of
     grey things); with the feature `shot_color_match` on, the drifting ones go into the cut as corrected copies (originals untouched).
@@ -262,6 +284,7 @@ def _loudness(path: str) -> Optional[Dict]:
     return out
 
 
+@_locked
 def render(p: Pipeline, project_id: int, data_dir: str, music_path: Optional[str] = "auto", clips: Optional[List[str]] = None,
            durations: Optional[List[float]] = None, settings: Optional[Dict] = None) -> Dict:
     """Cut the clips (the chosen ones, or every usable clip) with the project's render settings, the selected music and the
@@ -288,11 +311,15 @@ def render(p: Pipeline, project_id: int, data_dir: str, music_path: Optional[str
     aspect = formats.project_aspect(p.project(project_id))
     out = os.path.join(output_dir(data_dir, project_id), "FINAL_VIDEO.mp4")
     colour = _colour_match(p, project_id, rows, paths, os.path.join(output_dir(data_dir, project_id), "_colour"))
+    from . import features
+    breaths = twist_times(p, project_id, rows, durations, settings["transition"], settings["fade"]) if features.on("music_breath") and track else []
     ffmpeg_studio.render_final(paths, out, durations, settings["transition"], settings["fade"], track, settings["music_volume"],
-                               extras, keep_audio, formats.spec(aspect)["render"] if aspect else None)
+                               extras, keep_audio, formats.spec(aspect)["render"] if aspect else None, breaths=breaths)
     manifest = final_manifest(p, project_id, data_dir, paths, settings)
     manifest["loudness"] = _loudness(out)
     manifest["color_match"] = colour
+    if breaths:
+        manifest["music_breaths"] = breaths
     manifest["timeline"] =[{"idx": r.get("idx"), "scene_id": r.get("scene_id"), "seconds": float(d)} for r, d in zip(rows, durations)]
     manifest["transition"], manifest["fade"] = settings["transition"], settings["fade"]
     oid = record(p, project_id, "final", out, None, manifest)

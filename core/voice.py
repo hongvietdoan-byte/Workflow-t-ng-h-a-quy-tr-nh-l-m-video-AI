@@ -27,6 +27,7 @@ SAMPLE_VI = "Xin chào, tôi là {name}. Trận này mình đi loot trước r�
 LEAD = 0.3          # seconds of picture before the first line of a clip
 TAIL = 0.4          # seconds after the last line
 GAP = 0.15          # between two lines
+J_LEAD = 0.25       # D1 (editing.md E1): a new speaker is heard this long before the cut to their shot (J-cut, ~6 frames at 24 fps)
 
 
 def get_profile(row) -> Dict:
@@ -299,17 +300,23 @@ def place_on_timeline(conn, project_id: int, data_dir: str, transition: str = "c
     overlap = fade if transition in ffmpeg_studio.OVERLAP_STYLES else 0.0
     from . import lipsync
     synced = lipsync.synced_scene_ids(data_dir, project_id)
-    t, placed, prev_end = 0.0, 0, -1.0
+    from . import features
+    j_cut = features.on("j_cut")
+    t, placed, prev_end, prev_speaker = 0.0, 0, -1.0, None
     for clip in clips:
         length = clip.get("_seconds") or final_cut.clip_seconds(clip["path"], clip["requested_sec"])
         lines = sorted([e for e in items if e["kind"] == "tts" and e.get("scene_id") == clip.get("scene_id")
                         and e["state"] == "succeeded" and e.get("file")], key=lambda e: e.get("line") or 0)
         # a lip-synced clip speaks its lines at fixed seconds (lipsync.shot_audio): they are laid there, never pushed later
         cursor = t + LEAD if clip.get("scene_id") in synced else max(t + LEAD, prev_end + GAP)
+        if (j_cut and lines and t > 0 and clip.get("scene_id") not in synced and prev_speaker
+                and (lines[0].get("speaker") or "") != prev_speaker):
+            cursor = max(t - J_LEAD, prev_end + GAP)          # never over the previous line's real audio
         for e in lines:
             e.update(start=round(cursor, 2), use=True)
             cursor += (e.get("duration_ms") or 0) / 1000.0 + GAP
             prev_end = cursor - GAP
+            prev_speaker = e.get("speaker") or prev_speaker
             placed += 1
         t += length - overlap
     audio_lib._save(directory, items)

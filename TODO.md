@@ -41,6 +41,11 @@
   **sửa lỗi:** lưu tay cảnh từng làm mất `delivery` của Director (nay giữ theo câu). `core/continuity.py`: kiểm trục 180° (hai người đổi
   bên), đổi hướng chạy, motif chỉ xuất hiện một lần → bàn đo + Bước 1 🧭; trường shot `motif`. Đọc được vị trí ở 11 shot của câu trả lời
   Director thật lần 4 (không có vượt trục giữa hai người).
+- [x] **Đợt 4 — sửa lỗi + D1 + D6 + D13:** ⚠ **lỗi do đợt 1 gây ra (e0c82ad → sửa ở đợt 4):** hàm phụ đo độ to bị chèn nằm dưới dòng
+  `@_locked` của `delivery.render` → "▶ Dựng video cuối" báo lỗi TypeError và `render` mất khóa chống dựng trùng; không test nào dựng thật nên
+  lọt. Đã trả khóa về `render` + **test dựng thật bằng ffmpeg** (`tests/test_editor_cuts.py::RealRenderTests`, xác nhận báo lỗi trên bản cũ).
+  D1 cắt J 0,25 s khi đổi người nói (cờ `j_cut`), D6 nhạc lặng 0,6 s trước TWIST / shot ⭐ (cờ `music_breath`), D13 bảng tự rà như người
+  xem (`core/viewer_check.py`, nút 🧐 Bước 5 — chạy thật #7: không mặt nào dưới giao diện app).
 
 **GĐ4 đã làm (2026-09-25; toàn bộ 971 test qua; tính năng mới có cờ đều TẮT; CHƯA chạy thật với API):**
 - **Nghiên cứu** 3 agent (WebSearch/WebFetch) → `knowledge/sources.md` mục GĐ4: 30 nguồn Đạo diễn [Đn], 35 Quay phim [Qn], 35 Dựng [En]

@@ -32,8 +32,8 @@ xúc, âm thanh làm thế giới game "thật", màu các shot liền nhau như
     (nén thời gian trên nhạc).
   - **Nhịp**: độ dài shot liền nhau thay đổi theo **cụm** (cụm nhanh xen cụm chậm), không đều tăm tắp [E4]; cao trào ngắn, chỗ thở dài.
 - **Trong pipeline.** ✅ Cắt theo `duration_s`, lấy đầu clip (Quay phim dặn hành động xảy ra sớm); ✅ một vị trí máy nhiều shot: cắt clip dài
-  thành đoạn (`shots.setup_motion`, H5); ✅ chuyển cảnh cắt/mờ chồng/mờ đen (`ffmpeg_studio.OVERLAP_STYLES`). ❌ **Cắt J/L** cho giọng
-  (việc code D1). ❌ Chọn điểm cắt theo chuyển động trong clip (đo bằng khác biệt khung — việc code D2).
+  thành đoạn (`shots.setup_motion`, H5); ✅ chuyển cảnh cắt/mờ chồng/mờ đen (`ffmpeg_studio.OVERLAP_STYLES`). ✅ **Cắt J** (D1): câu của người nói mới vào sớm 0,25 s trước khi hình cắt
+  sang họ, không đè câu trước (`voice.J_LEAD`, cờ `j_cut` TẮT; phụ đề đi theo giọng). ❌ Chọn điểm cắt theo chuyển động trong clip (đo bằng khác biệt khung — việc code D2).
 - **Kiểm.** Code: `final_cut.render_problems` (tổng thời lượng, mờ chồng dài hơn shot). Người: xem bản dựng.
 - **Ví dụ FF.** ✔ 519 shot FF: trung vị ~2 s/shot, ~24 shot/phút (`ff_directing.md`). ✘ Lần chạy 4: shot im lặng 0,5 s cắt quá nhanh, người
   xem không kịp đọc.
@@ -73,7 +73,9 @@ xúc, âm thanh làm thế giới game "thật", màu các shot liền nhau như
   nhất (autopilot + Bước 5); ✅ hạ nhạc khi có giọng (`ffmpeg_studio.DUCK`: ngưỡng 0,02 ≈ −34 dBFS, tỉ lệ 8, attack 20 ms, release 400 ms →
   **đo thật** (D14, 2026-09-25: nhạc đã chọn của #7 dưới 3 câu giọng TTS thật −10,4 đến −13,8 LUFS) nhạc hạ **14,5–22,8 dB** khi đang nói —
   gần như tắt; nguồn thứ cấp khuyên 6–10 dB [E32] → **người dùng quyết** có nhẹ tay hơn không (vd ngưỡng 0,05, tỉ lệ 4 ≈ 8–12 dB), vì đây là
-  gu nghe); ✅ nhạc mờ vào 0,3 s. ❌ Khoảng lặng trước cú ngoặt — việc code D6.
+  gu nghe); ✅ nhạc mờ vào 0,3 s. ✅ **Khoảng lặng trước cú ngoặt** (D6): nhạc xuống ~−26 dB trong 0,6 s ngay trước
+  đầu phần kịch bản TWIST / CAO TRÀO (hoặc shot ⭐ đầu tiên) trên timeline thật của bản dựng (`delivery.twist_times`,
+  `ffmpeg_studio.breath_filter`, cờ `music_breath` TẮT).
 - **Kiểm.** Code: `music_timing.score_draft` (độ to tại mốc ngoặt). Người: nghe.
 - **Ví dụ FF.** ✔ 2A: model nhạc luôn mờ 5 s cuối → xin dài thêm 4 s rồi cắt ở cuối phim (`TAIL_PAD_MS`).
 
@@ -137,7 +139,9 @@ xúc, âm thanh làm thế giới game "thật", màu các shot liền nhau như
   khuyên làm video hiểu được khi tắt tiếng [E35]; Reels mặc định bật tiếng [E10]; TikTok–Kantar: 88% người dùng coi âm thanh là thiết yếu [E8]).
   → Rà cả hai: (1) **tắt tiếng** — truyện hiểu được nhờ hình + phụ đề + chữ; (2) **bật tiếng** — thoại rõ trên nhạc; (3) chồng lớp giao diện app
   lên từng khung — chữ/mặt không lọt vào vùng bị che; (4) thu nhỏ ~360×640 — chữ còn đọc được; (5) đo lại độ to sau mã hóa [KN].
-- **Trong pipeline.** ✅ Bảng khung có chữ, dò mặt; ✅ animatic (Bước 1, `delivery.animatic`). ❌ Ảnh chồng lớp giao diện app lên khung — việc code D13.
+- **Trong pipeline.** ✅ Bảng khung có chữ, dò mặt; ✅ animatic (Bước 1, `delivery.animatic`). ✅ **Tự rà như người xem** (D13,
+  `core/viewer_check.py`, nút 🧐 ở Bước 5): 8 khung của bản giao mới nhất, vùng giao diện app tô đỏ + bản cỡ điện thoại, báo mặt nằm dưới
+  vùng giao diện (YuNet). Chạy thật #7: 8/8 khung không mặt nào bị che.
 - **Kiểm.** Người xem cuối (người dùng) + Đạo diễn duyệt.
 
 ## Tầng 4 — Ưu tiên khi xung đột

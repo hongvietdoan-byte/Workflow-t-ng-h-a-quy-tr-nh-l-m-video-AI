@@ -56,12 +56,12 @@ người xem, nên đứng trước nhịp cắt. Hy sinh mục thấp hơn → 
 | V5 | ✅ Kiểm trục 180° / hướng màn hình từ `start_frame` (`core/continuity.py`, bàn đo + Bước 1 🧭) | Quay phim | — |
 | V6 | ✅ Trường `motif` + báo motif chỉ xuất hiện một lần; ai-biết-gì vẫn ghi trong `emotional_intent` | Đạo diễn | — |
 | V7 | Kiểm giọng đúng `delivery` bằng máy (hiện chỉ có người nghe theo bảng kiểm) | Đạo diễn | Chưa rõ |
-| D1 | Cắt J/L: giọng vào sớm 4–12 khung ở chỗ đổi người nói | Dựng | Không |
+| D1 | ✅ Cắt J 0,25 s khi đổi người nói (cờ `j_cut` TẮT) | Dựng | — |
 | D2 | Điểm cắt theo chuyển động trong clip (khác biệt khung) | Dựng | Không |
 | D3 | Dọn thoại (lọc 80 Hz, khử xì) khi có giọng thu | Dựng | Không |
 | D4 | Âm theo `weather` (mưa/gió/sấm đúng giây chớp `plate_env.flash_times`) | Dựng | Lượt âm thanh (hoặc thư viện) |
 | D5 | Nền không khí liên tục cả cảnh | Dựng | Lượt âm thanh (hoặc thư viện) |
-| D6 | Khoảng lặng nhạc 0,3–1 s trước cú ngoặt | Dựng | Không |
+| D6 | ✅ Nhạc lặng 0,6 s trước TWIST / shot ⭐ (cờ `music_breath` TẮT) | Dựng | — |
 | D7 | ✅ Khớp màu giữa các shot cùng nơi/cảnh/nhóm cỡ: luôn đo (🎨 Bước 5), sửa bản sao sau cờ `shot_color_match` (TẮT) — `core/color_match.py` | Dựng | — |
 | D8 | Khớp hạt người–nền khi ghép | Dựng | Không |
 | D9 | Rung máy khi va chạm, hạt, lóa | Dựng | Không |
@@ -69,5 +69,5 @@ người xem, nên đứng trước nhịp cắt. Hy sinh mục thấp hơn → 
 | D11 | ✅ Đo độ to mọi bản dựng (manifest + Bước 5); chuẩn hóa −14 LUFS / −1,5 dBTP sau cờ `loudness_normalize` (TẮT) | Dựng | — |
 | D12 | ✅ `_ENCODE` có `+faststart` + thẻ màu BT.709 | Dựng | — |
 | D14 | ✅ Đo: nhạc hạ 14,5–22,8 dB dưới giọng thật #7 (khuyên 6–10) → **người dùng quyết** có nhẹ tay hơn | Dựng | — |
-| D13 | Ảnh chồng lớp giao diện app lên khung để tự rà | Dựng | Không |
+| D13 | ✅ Bảng tự rà: vùng giao diện app + bản cỡ điện thoại + mặt bị che (nút 🧐 Bước 5) | Dựng | — |
 | P1 | `lock_short`/`lock_medium` do Claude viết cho hồ sơ dài (KENTA: bản code 500 ký tự mất áo khoác xanh + găng tay trái) | Hồ sơ | ~$0,01/nhân vật |

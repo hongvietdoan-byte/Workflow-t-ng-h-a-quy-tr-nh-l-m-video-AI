@@ -479,6 +479,32 @@ def render_panel(p: Pipeline, pid: int, chosen, durations) -> None:
             if ok:
                 st.rerun()
         loudness_line(p, pid)
+        viewer_check_panel(p, pid)
+
+
+def viewer_check_panel(p: Pipeline, pid: int) -> None:
+    """GĐ4 (editing.md E9, D13): the newest delivery (with subtitles / card when made) as a sheet of frames with the app's interface
+    bands painted over and a phone-size copy — free, a few seconds of ffmpeg."""
+    row = p.conn.execute("SELECT path FROM outputs WHERE project_id=? ORDER BY id DESC LIMIT 1", (pid,)).fetchone()
+    if not row or not os.path.exists(row["path"] or ""):
+        return
+    key = f"viewer_{pid}"
+    if st.button("🧐 Tự rà như người xem (chồng vùng giao diện app + bản cỡ điện thoại)", key=f"{key}_go",
+                 help="Miễn phí. Vùng đỏ = nút/chữ của app (trên 15 %, dưới 35 %, phải 18 %); báo mặt nằm dưới vùng đó."):
+        from core import viewer_check
+        out = os.path.join(os.path.dirname(row["path"]), "viewer_check.png")
+        with st.spinner("Đang lấy khung…"):
+            ok = act(lambda: st.session_state.__setitem__(key, viewer_check.sheet(row["path"], out)))
+        if not ok:
+            return
+    res = st.session_state.get(key)
+    if res and os.path.exists(res["path"]):
+        if res["hidden"]:
+            st.warning("⚠ Mặt nằm dưới giao diện app ở: " + ", ".join(f"{f['t']:g}s ({'/'.join(f['faces_hidden'])})"
+                                                                    for f in res["frames"] if f["faces_hidden"]))
+        elif res["frames"] and not res["frames"][0].get("faces_seen"):
+            st.caption("Không có model dò mặt (data/models/face_detection_yunet_2023mar.onnx) — chỉ xem bằng mắt.")
+        st.image(res["path"], caption=f"{os.path.basename(row['path'])} — {len(res['frames'])} khung")
 
 
 def loudness_line(p: Pipeline, pid: int) -> None:
