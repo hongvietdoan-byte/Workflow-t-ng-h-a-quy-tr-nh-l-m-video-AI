@@ -1,5 +1,9 @@
 # TODO — Theo dõi tiến độ dự án Auto Pipeline Video AI
 
+## 📌 BÀN GIAO 2026-09-25 (khuya) — PHIÊN MỚI ĐỌC `docs/BAN_GIAO_2026-09-25_V4_GD4.md` TRƯỚC TIÊN
+> V4 xong GĐ0–3 (+ storyboard Deepix qua API). **Việc tiếp: GĐ4 bộ kỹ năng 3 vai** (đặc tả ở file bàn giao mục 2). 943 test qua; mọi tính
+> năng mới TẮT tới khi thử thật. Chờ người dùng: tài khoản sync.so, gắn nhãn ảnh Kho (~$1–1,5), mô hình 3D chính thức, kiểm chứng GĐ8.
+
 ## 📌 KẾ HOẠCH V4 (2026-09-25 tối) — PHIÊN MỚI ĐỌC `docs/KE_HOACH_V4_2026-09-25.md` TRƯỚC TIÊN
 > **File này là nơi DUY NHẤT ghi tiến độ.** Các tài liệu khác (PLAN.md, KE_HOACH_*, BAN_GIAO_*) chỉ trỏ về đây; chỗ nào lệch thì bảng dưới đúng.
 > Người dùng chốt:

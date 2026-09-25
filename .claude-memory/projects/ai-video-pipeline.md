@@ -238,3 +238,11 @@ Phần lớn việc còn lại trong `TODO.md` (mục "Đang làm/kế tiếp", 
 - Kho: ảnh đã chia theo map/khu vực trên Drive (giữ nguyên); Kho chỉ nhận 6 ảnh/khu vực (`MAX_IMAGES_PER_ASSET`). Asset "Untitled folder" #77 = thư mục con của Forest Red → đã gộp (Drive 67–74.png, xóa mục #77).
 - Số test thật 865 (unittest discover, 80 file). `TODO.md` là nơi duy nhất ghi tiến độ.
 **Source**: người dùng nói trong phiên 2026-09-25 — `docs/KE_HOACH_V4_2026-09-25.md`.
+
+## 2026-09-25 (khuya) — V4 xong GĐ0–3, bàn giao sang GĐ4
+**Context**: người dùng clear chat; phiên mới đọc `docs/BAN_GIAO_2026-09-25_V4_GD4.md` trước.
+**Finding**:
+- Xong: GĐ1 rà soát (M3, trần video ClipAI 2, khóa trần tiền, hàng đợi Blender, W10 luật video, K1/K2, phụ đề tránh mặt YuNet…); GĐ2 gói bối cảnh (nền 3D pixel thật + ghép + thời tiết; Tháp Đồng Hồ #263 đã đăng ký); storyboard Deepix qua API (prompt_key 14, học từ Weave Canvas); GĐ3 khớp môi (Seedance reference_audio / sync.so / bỏ qua). Mọi cờ mới TẮT.
+- Việc tiếp: GĐ4 bộ kỹ năng 3 vai (nghiên cứu → viết → agent chấm độc lập → bảng tổng kết cho người dùng) + hồ sơ bỏ tuổi < 18 + lock_short/lock_medium.
+- Người dùng muốn: sau mỗi đợt code commit + push + git pull ở D:\AI-Video-Pipeline; không tự chạy tiếp GĐ sau.
+**Source**: phiên 2026-09-25 — commit 3f2b2f0 và bàn giao.
