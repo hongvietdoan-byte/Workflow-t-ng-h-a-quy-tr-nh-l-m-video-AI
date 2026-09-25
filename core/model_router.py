@@ -185,16 +185,23 @@ def plan(conn, project_id: int, pricing: Optional[Dict] = None, priority: Option
     for s in conn.execute("SELECT id, idx, data FROM scenes WHERE project_id=? ORDER BY idx", (project_id,)).fetchall():
         mp = conn.execute("SELECT * FROM motion_prompts WHERE scene_id=?", (s["id"],)).fetchone()
         data = json.loads(s["data"] or "{}")
-        if priority:
-            choice = {**recommend(data, priority, mp, bool(proj["video_audio"])), "source": "auto"}
-        else:
-            choice = scene_choice(conn, s["id"], proj, mp)
+        choice = scene_choice(conn, s["id"], proj, mp)
+        if priority and choice.get("source") != "override" and not _in_multishot(conn, s["id"], proj, data):
+            # M18: another priority ladder changes only the recommendation — a model the person picked for a shot and a Kling
+            # multi-shot group (always Kling, one request) stay as they are, as they would in the real run
+            choice = {**recommend(data, priority, mp, bool(proj["video_audio"]),
+                                  look=proj["look"] if "look" in proj.keys() else None), "source": "auto"}
         seconds = float(mp["duration_sec"]) if mp is not None else float(data.get("duration_s") or 5)
         billed = billed_seconds(choice["model"], math.ceil(seconds - 1e-6) if data.get("shot_no") else seconds)
         unit = price_per_sec(choice["model"], choice.get("resolution"), pricing)
         rows.append({"scene_id": s["id"], "idx": s["idx"], **choice, "seconds": seconds, "billed_seconds": billed,
                      "usd_per_sec": unit, "cost": None if unit is None else unit * billed})
     return rows
+
+
+def _in_multishot(conn, scene_id: int, proj, data: Dict) -> bool:
+    from . import shots
+    return shots.mode(proj) == "multishot" and bool(data.get("shot_no")) and len(shots.multishot_group_of(conn, scene_id) or []) > 1
 
 
 def billed_seconds(alias: str, seconds: float) -> float:

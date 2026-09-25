@@ -17,7 +17,7 @@ from dataclasses import asdict
 from datetime import datetime, timezone
 from typing import Callable, Dict, List, Optional
 
-from . import audio_lib, diag, ffmpeg_studio, final_cut, formats, lineage, music, subtitles, voice
+from . import audio_lib, diag, ffmpeg_studio, final_cut, formats, lineage, music, subtitles, text_placement, voice
 from .pipeline import Pipeline
 
 DEFAULT_CARD = {"enabled": False, "title": "", "subtitle": "", "seconds": 3.0, "bg": "#000000", "color": "#FFFFFF", "font": ""}
@@ -281,7 +281,7 @@ def subtitle_layer(p: Pipeline, project_id: int, data_dir: str, parent_id: Optio
         return None
     out = os.path.join(output_dir(data_dir, project_id), "FINAL_VIDEO_hud.mp4" if hud_only else f"FINAL_VIDEO_sub_{sub['lang']}.mp4")
     with ffmpeg_studio.atomic_output(out) as staged:
-        res = _burn(parent["path"], cues, staged, sub)
+        res = _burn(parent["path"], cues, staged, sub, text_placement.zones(p.conn, project_id))
     res.update(video=out, srt=os.path.splitext(out)[0] + ".srt")
     res["output_id"] = record(p, project_id, "subtitle", out, parent["id"],
                               {"settings": sub, "cues": len(cues), "cue_list": [asdict(c) for c in cues]})
@@ -303,11 +303,12 @@ def subtitle_cues(p: Pipeline, project_id: int, data_dir: str, final_row=None) -
     return subtitles.build_cues(p, data_dir, project_id, rs["transition"], rs["fade"])
 
 
-def _burn(src: str, cues: list, out: str, sub: Dict) -> Dict:
+def _burn(src: str, cues: list, out: str, sub: Dict, zones: Optional[Dict] = None) -> Dict:
     fonts = subtitles.discover()
     preferred = subtitles.font_by_family(fonts, sub["font"]) or subtitles.default_font(fonts)
     font, _ = subtitles.font_for_text(preferred, fonts, " ".join(c.text for c in cues))
-    return subtitles.burn(src, cues, out, font, sub["size"], sub["pos"], sub["color"], sub["speaker"], sub.get("speaker_colors", False))
+    return subtitles.burn(src, cues, out, font, sub["size"], sub["pos"], sub["color"], sub["speaker"], sub.get("speaker_colors", False),
+                          zones=zones)
 
 
 def _parent(p: Pipeline, project_id: int, parent_id: Optional[int], kinds) -> Optional[Dict]:
@@ -413,7 +414,8 @@ def _reframe(p: Pipeline, top: Dict, w: int, h: int, max_mb: Optional[float], ou
             man = json.loads(sub_row["manifest"] or "{}")
             cues = [subtitles.Cue(**c) for c in man.get("cue_list") or []]
             if cues and man.get("settings"):
-                cur = _burn(cur, cues, os.path.join(work, "sub.mp4"), {**subtitles.DEFAULTS, **man["settings"]})["video"]
+                cur = _burn(cur, cues, os.path.join(work, "sub.mp4"), {**subtitles.DEFAULTS, **man["settings"]},
+                            text_placement.zones(p.conn, top["project_id"]))["video"]
         end_row = by_kind.get("endcard")
         if end_row is not None:
             card = json.loads(end_row["manifest"] or "{}").get("card") or {}

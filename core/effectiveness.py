@@ -82,6 +82,31 @@ def _agreement(conn, project_id: int) -> Dict:
             "ai_too_strict": sum(1 for a, b in ai_pass if not a and b), "ai_too_lenient": sum(1 for a, b in ai_pass if a and not b)}
 
 
+TRUST_PAIRS = 50          # W8 (kế hoạch tổng): the storyboard checkpoint may be skipped only after >= 50 pictures ...
+TRUST_AGREEMENT = 0.90    # ... of the same look pack where the QC agent agreed with the person at least 90% of the time ...
+TRUST_LENIENT = 0.02      # ... and passed at most 2% of the pictures the person rejected (lenient mistakes cost video money)
+
+
+def look_trust(conn, look: Optional[str], image_model: Optional[str]) -> Dict:
+    """W8: agreement of the QC agent with the person on every picture of the same look + picture model (all projects).
+    {"pairs", "agreement", "lenient_rate", "trusted"}; `trusted` = the storyboard checkpoint can be skipped for a clean storyboard
+    (only when the feature `storyboard_auto_trust` is on — it waits for its real test)."""
+    rows = conn.execute(
+        "SELECT j.id, AVG(q.score) AS score, MAX(q.threshold_at_time) AS threshold,"
+        " (SELECT r.decision FROM review_log r WHERE r.job_id=j.id AND r.reviewer_type='user' ORDER BY r.id DESC LIMIT 1) AS person"
+        " FROM jobs j JOIN qc_results q ON q.job_id=j.id JOIN projects pr ON pr.id=j.project_id"
+        " WHERE j.type='image_gen' AND COALESCE(pr.look,'')=COALESCE(?,'') AND COALESCE(pr.image_model,'')=COALESCE(?,'')"
+        " GROUP BY j.id", (look, image_model)).fetchall()
+    both = [r for r in rows if r["person"]]
+    if not both:
+        return {"pairs": 0, "agreement": None, "lenient_rate": None, "trusted": False}
+    verdicts = [(r["score"] >= (r["threshold"] or 0), r["person"] == "approve") for r in both]
+    agreement = sum(1 for a, b in verdicts if a == b) / len(both)
+    lenient = sum(1 for a, b in verdicts if a and not b) / len(both)
+    return {"pairs": len(both), "agreement": agreement, "lenient_rate": lenient,
+            "trusted": len(both) >= TRUST_PAIRS and agreement >= TRUST_AGREEMENT and lenient <= TRUST_LENIENT}
+
+
 def report(conn, project_id: int, pricing: Dict) -> Dict:
     seconds = _finished_video_seconds(conn, project_id)
     times = _times(conn, project_id)

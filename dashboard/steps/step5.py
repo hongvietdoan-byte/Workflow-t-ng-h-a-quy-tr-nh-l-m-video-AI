@@ -72,7 +72,10 @@ def step5a(p: Pipeline, pid: int):
                 st.session_state[key] = brief
                 st.session_state[f"mprompt_{pid}"] = brief["prompt"]
                 st.session_state[f"mlen_{pid}"] = max(3, brief["length_ms"] // 1000)
-            brief = st.session_state.get(key) or music.default_brief(p, pid)
+            brief = st.session_state.get(key) or _timed_brief(p, pid) or music.default_brief(p, pid)
+            if brief.get("timed"):
+                st.caption(f"Theo nhịp dựng: {brief['bpm']} BPM, đổi đoạn ở "
+                           + (", ".join(f"{t:.1f}s" for t in brief["turns"]) or "—") + " — nên tạo 2 bản rồi chọn bản khớp hơn")
             if brief.get("brief"):
                 st.caption(f"{brief['brief'].get('genre', '')} · {brief['brief'].get('tempo_bpm', '')} BPM · {brief['brief'].get('structure', '')}")
             prompt = st.text_area("Prompt nhạc (≤ 2000 ký tự)", brief["prompt"], key=f"mprompt_{pid}", height=90)
@@ -568,3 +571,12 @@ def delivery_panel(p: Pipeline, pid: int, chosen, durations) -> None:
             a.markdown(f"{label}: `{os.path.basename(path)}` · {os.path.getsize(path) / 1e6:.1f} MB" + (f" · :orange[⚠ {stale}]" if stale else ""))
             with open(path, "rb") as f:
                 b.download_button("⬇ Tải", f, file_name=os.path.basename(path), mime="video/mp4", key=f"layer_dl_{pid}_{n}")
+
+
+def _timed_brief(p, pid):
+    """The score brief timed on the real cut (core/music_timing.py) for shot projects; None otherwise."""
+    from core import music_timing, shots
+    try:
+        return music_timing.timed_brief(p, pid) if shots.active(p, pid) else None
+    except Exception:  # noqa: BLE001 - the plain brief still works
+        return None

@@ -27,7 +27,7 @@ from .pipeline import Pipeline
 RUNNING, WAITING, STOPPED, ATTENTION, DONE, ERROR = "running", "waiting", "stopped", "needs_attention", "done", "error"
 QUEUED = "queued"   # approved, waiting for a free slot (see Manager.max_parallel)
 PHASE_LABELS = {"director": "Director (Character Bible + thông số cảnh)", "previz": "Dựng layout / storyboard", "images": "Gen ảnh + QC",
-                "setcheck": "QC đồng bộ cả bộ ảnh", "storyboard": "Duyệt storyboard trước khi gen video", "clips": "Xem clip còn lỗi", "motion": "Motion prompt", "voice": "Giọng thoại", "videos": "Gen video + QC video",
+                "setcheck": "QC đồng bộ cả bộ ảnh", "endframes": "Ảnh khung cuối (shot đổi trạng thái)", "storyboard": "Duyệt storyboard trước khi gen video", "clips": "Xem clip còn lỗi", "motion": "Motion prompt", "voice": "Giọng thoại", "videos": "Gen video + QC video",
                 "music": "Nhạc nền", "sfx": "Hiệu ứng âm thanh", "render": "Xuất bản", "done": "Hoàn tất"}
 MAX_SCENES = int(os.environ.get("AUTOPILOT_MAX_SCENES", "12"))
 LOG_KEEP = 60
@@ -261,10 +261,36 @@ def _director_phase(p: Pipeline, pid: int, ctx: Context) -> Optional[str]:
     if flags and not gates["bible_done"]:
         raise _Wait("bible", "Mô tả nhân vật mâu thuẫn với ảnh tài nguyên: " + "; ".join(f"{n}: {m[0]}" for n, m in flags.items())
                     + " — sửa ở Bước 1 (đề xuất sửa có sẵn) rồi bấm Tiếp tục")
+    gaps = bible_gaps(p, pid)
+    if gaps["no_lock"] and not gates["bible_done"]:           # O6: a character without a Lock drifts from shot to shot
+        raise _Wait("bible", "Nhân vật chưa có Character Lock (nét nhận diện phải giữ): " + ", ".join(gaps["no_lock"])
+                    + " — viết Lock ở Bước 1 (hoặc duyệt hồ sơ chuẩn ở ⚙ → Kho) rồi bấm Tiếp tục")
+    for name in gaps["no_picture"]:
+        _d(p, pid, "director", "warn", f"{name} chưa có ảnh tham chiếu ở Kho — model chỉ vẽ theo chữ, dễ lệch thiết kế", "no_reference")
     if gates["bible"] and not gates["bible_done"]:
         raise _Wait("bible", "Chờ bạn duyệt Character Bible (mô tả, Character Lock, giọng, ảnh mốc) ở Bước 1 rồi bấm Tiếp tục")
     llm_io.lock_character_bible(p, pid)
     return None
+
+
+def bible_gaps(p: Pipeline, pid: int) -> Dict[str, List[str]]:
+    """O6: characters the pictures would draw without their Lock (no lock rules and no approved standard profile), and characters
+    with no reference picture at all. Only characters that appear in a scene count."""
+    from . import assets
+    used = set()
+    for s in p.conn.execute("SELECT data FROM scenes WHERE project_id=?", (pid,)):
+        used |= {str(c).upper() for c in (json.loads(s["data"] or "{}").get("characters") or [])}
+    no_lock, no_picture = [], []
+    for c in p.conn.execute("SELECT * FROM characters WHERE project_id=? ORDER BY name", (pid,)).fetchall():
+        if used and c["name"].upper() not in used:
+            continue
+        has_lock = bool((c["lock_rules"] or "").strip()) if "lock_rules" in c.keys() else False
+        if not has_lock and not assets.standard_for(p.conn, pid, c["name"]):
+            no_lock.append(c["name"])
+        refs = (c["ref_asset_id"] if "ref_asset_id" in c.keys() else None) or (c["ref_image_ids"] if "ref_image_ids" in c.keys() else None)
+        if not refs and not assets.link_characters(p.conn, pid, [c["name"]]).get(c["name"]):
+            no_picture.append(c["name"])
+    return {"no_lock": no_lock, "no_picture": no_picture}
 
 
 def _previz_phase(p: Pipeline, pid: int, ctx: Context) -> Optional[str]:
@@ -379,8 +405,43 @@ def _storyboard_phase(p: Pipeline, pid: int, ctx: Context) -> Optional[str]:
     held = p.conn.execute("SELECT COUNT(*) FROM jobs WHERE project_id=? AND type='image_gen' AND state='pending_review'", (pid,)).fetchone()[0]
     if not held and (not gates["storyboard"] or gates.get("storyboard_ok") == storyboard_gate.fingerprint(p, pid)):
         return None                                         # pictures held below a floor stop here even with the checkpoint off
+    if not held and _qc_trusted(p, pid, ctx):
+        return None
     raise _Wait("storyboard", "Ảnh khung đầu đã đủ (" + storyboard_gate.summary(p, pid, ctx.data_dir if ctx else None) + (f", {held} ảnh dưới mức sàn chờ bạn xem" if held else "")
                               + ") — xem “🎞 Storyboard” ở Bước 2, sửa/gen lại shot sai, rồi bấm “Duyệt storyboard” để gen video")
+
+
+def _end_frame_phase(p: Pipeline, pid: int, ctx: Context) -> Optional[str]:
+    """K1: every start picture is approved — draw the end frame of each shot that changes state (feature `end_frames`), so the
+    storyboard shows both frames and the clip goes out as first + last frame."""
+    from . import end_frames
+    if not end_frames.enabled():
+        return None
+    queued = end_frames.queue(p, pid)
+    if queued:
+        _log(p, pid, f"Vẽ khung cuối cho {len(queued)} shot đổi trạng thái (K1)")
+    provider = getattr(ctx.image_runner, "provider", None)
+    if provider is None:
+        return None
+    end_frames.tick(p, pid, provider, ctx.data_dir)
+    left = end_frames.pending(p, pid)
+    return f"Khung cuối: còn {left} ảnh" if left else None
+
+
+def _qc_trusted(p: Pipeline, pid: int, ctx: Optional[Context]) -> bool:
+    """W8: the storyboard checkpoint is skipped when the QC agent has earned it on this look (effectiveness.look_trust) and the
+    storyboard raises no flag — only with the feature `storyboard_auto_trust` on. The skip is written in the log with its numbers."""
+    from . import effectiveness, features, image_models, storyboard_gate
+    if not features.on("storyboard_auto_trust"):
+        return False
+    proj = p.project(pid)
+    trust = effectiveness.look_trust(p.conn, proj["look"] if "look" in proj.keys() else None, image_models.of_project(proj))
+    if not trust["trusted"] or any(storyboard_gate.flags(p, pid, ctx.data_dir if ctx else None).values()):
+        return False
+    set_gates(p, pid, {"storyboard_ok": storyboard_gate.fingerprint(p, pid)})
+    _log(p, pid, f"Bỏ qua cổng storyboard: QC khớp người {trust['agreement']:.0%} trên {trust['pairs']} ảnh cùng look, "
+                 "storyboard không có cờ (W8)")
+    return True
 
 
 def _motion_phase(p: Pipeline, pid: int, ctx: Context) -> Optional[str]:
@@ -571,6 +632,9 @@ def _music_from_library(p: Pipeline, pid: int, data_dir: str, fallback: bool = F
     return True
 
 
+TIMED_DRAFTS = 2                       # music model changes sections late/softly in some drafts (2A): make two, keep the better one
+
+
 def _music_phase(p: Pipeline, pid: int, ctx: Context) -> Optional[str]:
     drafts_dir, selected_dir = music.project_dirs(ctx.data_dir, pid)
     if os.listdir(selected_dir):
@@ -583,7 +647,13 @@ def _music_phase(p: Pipeline, pid: int, ctx: Context) -> Optional[str]:
         _music_from_library(p, pid, ctx.data_dir, fallback=True)
         return None
     drafts = music.load_drafts(drafts_dir)
+    from . import music_timing, shots
+    timed = music_timing.timed_brief(p, pid) if shots.active(p, pid) else None
     if not drafts:
+        if timed:                    # the cut is known: a score timed on it (BPM on the section turns), 2 drafts to choose from
+            music.submit_drafts(ctx.audio, drafts_dir, timed["prompt"], timed["length_ms"], True, TIMED_DRAFTS, ledger=(p.conn, pid))
+            _log(p, pid, f"Đã gửi {TIMED_DRAFTS} bản nhạc nền theo nhịp dựng ({timed['bpm']} BPM, {len(timed['turns'])} điểm đổi đoạn)")
+            return "Nhạc nền: đang tạo"
         from . import claude_tasks
         brief = claude_tasks.music_brief(p, pid, ctx.llm)
         music.submit_drafts(ctx.audio, drafts_dir, brief["prompt"], brief["length_ms"], brief["instrumental"], 1, ledger=(p.conn, pid))
@@ -592,8 +662,17 @@ def _music_phase(p: Pipeline, pid: int, ctx: Context) -> Optional[str]:
     music.refresh_drafts(ctx.audio, drafts_dir)
     drafts = music.load_drafts(drafts_dir)
     ok = [i for i, d in enumerate(drafts) if d["state"] == "succeeded"]
+    if ok and timed and any(d["state"] == "running" for d in drafts):
+        return "Nhạc nền: đang tạo"           # wait for every timed draft, then keep the one whose changes land on the cut
     if ok:
-        music.select_draft(drafts_dir, selected_dir, ok[0])
+        chosen = ok[0]
+        if timed and len(ok) > 1:
+            best = music_timing.pick_best([os.path.join(drafts_dir, drafts[i].get("file") or "") for i in ok], timed["turns"],
+                                          timed["film_s"])
+            if best is not None:
+                chosen = ok[best]
+                _log(p, pid, f"Chọn bản nhạc {chosen + 1}/{len(drafts)}: đổi đoạn khớp nhịp dựng nhất")
+        music.select_draft(drafts_dir, selected_dir, chosen)
         return None
     if any(d["state"] == "running" for d in drafts):
         return "Nhạc nền: đang tạo"
@@ -644,7 +723,7 @@ def tick(p: Pipeline, project_id: int, ctx: Context) -> str:
         return RUNNING
     try:
         phases = [("director", _director_phase), ("previz", _previz_phase), ("images", _images_phase), ("setcheck", _setcheck_phase),
-                  ("storyboard", _storyboard_phase), ("motion", _motion_phase), ("voice", _voice_phase), ("videos", _videos_phase), ("music", _music_phase),
+                  ("endframes", _end_frame_phase), ("storyboard", _storyboard_phase), ("motion", _motion_phase), ("voice", _voice_phase), ("videos", _videos_phase), ("music", _music_phase),
                   ("sfx", _sfx_phase)]
         for name, fn in phases:
             progress_note = fn(p, project_id, ctx)

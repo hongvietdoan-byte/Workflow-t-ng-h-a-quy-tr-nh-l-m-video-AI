@@ -30,6 +30,16 @@ FEATURES: Dict[str, Dict] = {
         "verified": False,
         "why": "Chạy thử 2A (H5): một cặp shot tiết kiệm 33% nhưng mất khung nhấn riêng — cần thử thêm ở cảnh thoại dày trước khi bật",
     },
+    "end_frames": {
+        "label": "Ảnh khung cuối cho shot có end_state (vẽ thêm 1 ảnh, gửi clip khung đầu + cuối)",
+        "verified": False,
+        "why": "K1/K2 (kế hoạch tổng K-a): tốn thêm 1 ảnh mỗi shot đổi trạng thái; chưa thử thật Kling end_frame với khung vẽ từ ảnh đầu",
+    },
+    "storyboard_auto_trust": {
+        "label": "Tự bỏ qua cổng duyệt storyboard khi QC đã đủ tin cậy (≥ 90% khớp người trên ≥ 50 ảnh cùng look) và storyboard không có cờ",
+        "verified": False,
+        "why": "W8 (kế hoạch tổng): chưa có đủ ảnh người duyệt cùng look để đo — bật khi số đo đạt và người dùng đồng ý",
+    },
     "setcheck_autofix": {
         "label": "QC đồng bộ cả bộ ảnh tự gen lại ảnh lệch (autopilot)",
         "verified": False,

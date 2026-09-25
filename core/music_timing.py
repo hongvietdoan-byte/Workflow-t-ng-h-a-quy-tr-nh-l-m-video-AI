@@ -11,7 +11,7 @@ when mixing (ffmpeg_studio.build_extras_mix_cmd(duck=True)).
 """
 import json
 import re
-from typing import Dict, List, Sequence, Tuple
+from typing import Dict, List, Optional, Sequence, Tuple
 
 from .pipeline import Pipeline
 
@@ -124,3 +124,25 @@ def brief(p: Pipeline, pid: int) -> Dict:
               + f" End cleanly on a final hit at {_clock(total)}, no long tail. No vocals, no lyrics.")
     return {"prompt": prompt[:1500], "bpm": bpm, "error_s": err, "length_ms": int(round(total * 1000)) + TAIL_PAD_MS, "film_s": total,
             "sections": secs, "turns": turns}
+
+
+def timed_brief(p: Pipeline, pid: int) -> Optional[Dict]:
+    """The brief of `brief` in the shape music.submit_drafts / the Step 5 form use ({"prompt", "length_ms", "instrumental"} + bpm,
+    turns, film_s), or None when the project has no timeline yet (no shot has a length)."""
+    b = brief(p, pid)
+    if not b["film_s"]:
+        return None
+    return {**b, "instrumental": True, "timed": True}
+
+
+def pick_best(paths: Sequence[str], turns: Sequence[float], total: float) -> Optional[int]:
+    """Index of the draft whose changes land best on the section turns (score_draft); None when none can be measured (no ffmpeg)."""
+    best, best_score = None, None
+    for i, path in enumerate(paths):
+        try:
+            score = score_draft(path, turns, total)["score"]
+        except Exception:  # noqa: BLE001 - a draft that cannot be measured is skipped, never chosen blindly over one that can
+            continue
+        if best_score is None or score > best_score:
+            best, best_score = i, score
+    return best

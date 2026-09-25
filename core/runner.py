@@ -9,6 +9,7 @@ import json
 import math
 import os
 import re
+import threading
 import time
 from typing import Callable, Dict, Optional, Tuple
 
@@ -19,11 +20,26 @@ from .cost import record_usage
 from .pipeline import Pipeline
 from .preflight import record_failure
 from .providers import RISK_CONTROL, ProviderError
+from . import budget, throttle as throttle_store
 from .throttle import THROTTLE
 
 NOT_CREATED = "not_created"            # core.adapters.clipai.NOT_CREATED: task id returned, task never created
 NOT_CREATED_RESENDS = 3
 RESEND_NOTE = "gửi lại: nhà cung cấp không tạo task"
+
+_turns: Dict[Tuple[int, str], threading.RLock] = {}
+_turns_lock = threading.Lock()
+
+
+def _turn(project_id: int, job_type: str) -> threading.RLock:
+    """M3: one submitter/poller per project and job type in this process. The dashboard tab (every few seconds) and the autopilot
+    thread used to poll the same job at once - the clip was downloaded twice and a follower job could be made twice. The thread
+    that finds it busy skips this round (the other one does the work); re-entrant for nested calls in one thread."""
+    with _turns_lock:
+        lock = _turns.get((project_id, job_type))
+        if lock is None:
+            lock = _turns[(project_id, job_type)] = threading.RLock()
+        return lock
 
 
 class TaskMemory:
@@ -68,6 +84,10 @@ class _Runner:
         self.max_concurrent = max_concurrent
         if hasattr(provider, "attach_memory"):
             provider.attach_memory(TaskMemory(pipeline.conn))
+        throttle_store.load(pipeline.conn, THROTTLE)        # the limits learned before the last restart
+
+    def _throttle_changed(self) -> None:
+        throttle_store.save(self.p.conn, THROTTLE)
 
     def _diag(self, job, severity: str, code, message: str) -> None:
         diag.record(self.p.conn, "image" if self.job_type == "image_gen" else "video", severity, message, code,
@@ -119,6 +139,15 @@ class _Runner:
                                    (project_id, self.job_type, state)).fetchall()
 
     def submit_pending(self, project_id: int) -> int:
+        lock = _turn(project_id, self.job_type)
+        if not lock.acquire(blocking=False):
+            return 0                       # M3: another thread is sending this project's jobs right now
+        try:
+            return self._submit_pending(project_id)
+        finally:
+            lock.release()
+
+    def _submit_pending(self, project_id: int) -> int:
         if self.p.project(project_id)["paused"]:
             return 0
         slots = self.max_concurrent - len(self._jobs(project_id, "running"))
@@ -144,37 +173,51 @@ class _Runner:
                 continue
             running_all = self.p.conn.execute("SELECT COUNT(*) FROM jobs WHERE type=? AND state='running'",
                                               (self.job_type,)).fetchone()[0]
-            if not THROTTLE.allow(self.job_type, running_all):       # already includes the jobs this pass has started (they are 'running' now)
+            if not THROTTLE.allow(self.job_type, running_all, capped="mock" not in str(getattr(self.provider, "name", ""))):       # already includes the jobs this pass has started (they are 'running' now)
                 break  # learned limit for all projects together: wait for a slot
             kwargs = self._submit_kwargs(job) if getattr(self.provider, "supports_aspect", False) else {}
-            over = self._over_budget(job, args, kwargs)
-            if over:
-                self._diag(job, "warn", "budget", over)
-                break                        # v3 test spending limit: leave everything queued, say why
-            try:
-                task_id = self.provider.submit(*args, **kwargs)
-            except ProviderError as e:
-                if e.code == "rate_limited":
-                    THROTTLE.on_rate_limited(self.job_type)   # halve the learned limit; the job stays queued
-                if e.transient:
-                    self._diag(job, "warn", e.code, f"gửi job bị từ chối/tạm lỗi, sẽ thử lại: {e}")
-                    break  # network/server hiccup: leave the job queued, try again next heartbeat
-                self._diag(job, "warn" if e.code == RISK_CONTROL else "error", e.code, f"gửi job thất bại: {e}")
-                self.p.start(job["id"])
-                self._record_provider_failure(job, e.code, str(e))
-                self.p.fail(job["id"], f"{e.code or 'error'}: {e}")
-                continue
-            self.p.conn.execute("UPDATE jobs SET external_id=? WHERE id=?", (task_id, job["id"]))
-            for col, value in self._stamp(job, args).items():
-                self.p.conn.execute(f"UPDATE jobs SET {col}=? WHERE id=?", (value, job["id"]))
-            self.p.conn.commit()
-            self._record_usage(job, args, kwargs)
+            with budget.SPEND_LOCK:            # limit check + ledger entry as one step: two projects must not both pass the cap
+                over = self._over_budget(job, args, kwargs)
+                if over:
+                    self._diag(job, "warn", "budget", over)
+                    break                        # v3 test spending limit: leave everything queued, say why
+                try:
+                    task_id = self.provider.submit(*args, **kwargs)
+                except ProviderError as e:
+                    if e.code == "rate_limited" and THROTTLE.on_rate_limited(self.job_type):   # halve the learned limit
+                        self._throttle_changed()
+                    if e.transient:
+                        self._diag(job, "warn", e.code, f"gửi job bị từ chối/tạm lỗi, sẽ thử lại: {e}")
+                        break  # network/server hiccup: leave the job queued, try again next heartbeat
+                    self._diag(job, "warn" if e.code == RISK_CONTROL else "error", e.code, f"gửi job thất bại: {e}")
+                    self.p.start(job["id"])
+                    switched = self._record_provider_failure(job, e.code, str(e))
+                    self.p.fail(job["id"], f"{e.code or 'error'}: {e}")
+                    if switched:
+                        self._retry_switched(job)
+                    continue
+                self.p.conn.execute("UPDATE jobs SET external_id=? WHERE id=?", (task_id, job["id"]))
+                for col, value in self._stamp(job, args).items():
+                    self.p.conn.execute(f"UPDATE jobs SET {col}=? WHERE id=?", (value, job["id"]))
+                self.p.conn.commit()
+                self._record_usage(job, args, kwargs)
             self.p.start(job["id"])
             slots -= 1
             submitted += 1
         return submitted
 
     def poll_once(self, project_id: int) -> Dict[str, int]:
+        lock = _turn(project_id, self.job_type)
+        if not lock.acquire(blocking=False):
+            n = self.p.conn.execute("SELECT COUNT(*) FROM jobs WHERE project_id=? AND type=? AND state='running'",
+                                    (project_id, self.job_type)).fetchone()[0]
+            return {"succeeded": 0, "failed": 0, "retried": 0, "running": n}    # M3: another thread is polling it right now
+        try:
+            return self._poll_once(project_id)
+        finally:
+            lock.release()
+
+    def _poll_once(self, project_id: int) -> Dict[str, int]:
         counts = {"succeeded": 0, "failed": 0, "retried": 0, "running": 0}
         for job in self._jobs(project_id, "running"):
             try:
@@ -219,7 +262,8 @@ class _Runner:
                 self.p.conn.execute("UPDATE jobs SET result_path=? WHERE id=?", (dest, job["id"]))
                 self.p.conn.commit()
                 self.p.succeed(job["id"])
-                THROTTLE.on_success(self.job_type)
+                if THROTTLE.on_success(self.job_type):
+                    self._throttle_changed()
                 counts["succeeded"] += 1
             elif status.error_code in (NOT_CREATED, "not_found") and self._relink(job):
                 counts["running"] += 1                  # W12b: the provider made it under a new id — follow that one
@@ -237,10 +281,12 @@ class _Runner:
                            f"nhà cung cấp báo job thất bại: {status.error_message}")
                 if status.error_code == RISK_CONTROL:
                     record_failure(self.p.conn, job["id"], self.provider.name, status.error_message or "")
-                self._on_refused(job, status.error_code, status.error_message or "")
+                switched = self._on_refused(job, status.error_code, status.error_message or "")
                 self.p.fail(job["id"], message)
                 counts["failed"] += 1
                 if status.transient and self.p.retry(job["id"], message) is not None:
+                    counts["retried"] += 1
+                elif switched and self._retry_switched(job):
                     counts["retried"] += 1
         return counts
 
@@ -276,6 +322,7 @@ class _Runner:
         from .cost import cancel_usage
         cancel_usage(self.p.conn, job["id"])
         THROTTLE.on_rate_limited(self.job_type)
+        self._throttle_changed()
         self.p.fail(job["id"], f"{NOT_CREATED}: {message}")
         chain, parent = 0, job
         while parent is not None and (parent["retry_reason"] or "").startswith(RESEND_NOTE):
@@ -296,13 +343,25 @@ class _Runner:
         """A reason not to send (the test spending limit, core.budget), else None."""
         return None
 
-    def _record_provider_failure(self, job, code, message: str) -> None:
+    def _record_provider_failure(self, job, code, message: str) -> bool:
         if code == RISK_CONTROL:
             record_failure(self.p.conn, job["id"], self.provider.name, message)
-        self._on_refused(job, code, message)
+        return bool(self._on_refused(job, code, message))
 
-    def _on_refused(self, job, code, message: str) -> None:
-        """Hook: react to a job the provider refused (VideoRunner: Seedance "real person" -> Kling)."""
+    def _on_refused(self, job, code, message: str) -> bool:
+        """Hook: react to a job the provider refused (VideoRunner: Seedance "real person" -> Kling). True = the input was changed so
+        that a new try can pass."""
+        return False
+
+    def _retry_switched(self, job) -> bool:
+        """M14: the refusal already changed the input (the shot now goes to another model), but a risk-control refusal is not a
+        transient error, so nobody sent it again and the shot sat there failed. One new try is queued at once — it uses up a try
+        like any regeneration (max_retry_count still applies) and is not the same input as the one refused."""
+        new_id = self.p.retry(job["id"], "nhà cung cấp từ chối → đổi model rồi gửi lại")
+        if new_id is None:
+            return False
+        self._diag(job, "info", "switched_retry", f"đã đổi model sau khi bị từ chối → gửi lại (job {new_id})")
+        return True
 
     def cancel_job(self, job_id: int) -> None:
         job = self.p.job(job_id)
@@ -364,10 +423,13 @@ class VideoRunner(_Runner):
             if long:                     # W13: the cut is visible (the end of the prompt — often the ending action — is lost)
                 self._diag(job, "warn", "prompt_cut", f"prompt shot dài hơn {KLING_SHOT_PROMPT_LIMIT} ký tự, bị cắt khi gửi Kling: "
                            + ", ".join(long))
-        elif mode == "per_shot" and "seedance" in (choice.get("model") or ""):
+        elif mode == "per_shot":
             end = shots.last_frame_for(self.p.conn, self.data_dir, job["scene_id"])
-            if end:
-                out["last_frame"] = end
+            from . import end_frames
+            if end is None and end_frames.enabled():
+                end = end_frames.usable_path(self.p.conn, job["scene_id"])      # K1: the drawn end state
+            if end and ("seedance" in (choice.get("model") or "") or end_frames.enabled()):
+                out["last_frame"] = end                   # K2: Seedance last_frame; Kling Omni end_frame (only with K1 on)
         return out
 
     def _find_real(self, job) -> Optional[str]:
@@ -414,8 +476,12 @@ class VideoRunner(_Runner):
     def _wait(self, job) -> bool:
         """Kling multi-shot: the first shot of a group sends for the whole group once every shot of it has an approved motion
         prompt; the other shots wait for their part of that clip (unless the first shot already has its clip: then a remade
-        shot is sent on its own)."""
-        from . import shots
+        shot is sent on its own). K1: a shot whose end frame is still being drawn waits for it."""
+        from . import end_frames, shots
+        if end_frames.enabled():
+            row = end_frames.current(self.p.conn, job["scene_id"])
+            if row is not None and row["state"] in ("queued", "running"):
+                return True
         group = shots.group_of(self.p.conn, job["scene_id"]) or []
         if len(group) < 2:
             return False
@@ -433,7 +499,9 @@ class VideoRunner(_Runner):
         exact = shots.mode(self.p.project(job["project_id"])) != "multishot"   # H5 set-up: cut at the shots' own seconds
         sent = ([{"id": r["id"], "idx": r["idx"], "duration_s": self._cut_seconds(r), "exact": True} for r in group] if group and exact
                 else [{"id": r["id"], "idx": r["idx"], "duration_s": shots.billed_shot_seconds(r["data"])} for r in group] if group else None)
-        return {"input_hash": lineage.video_input_hash(mp, formats.project_aspect(self.p.project(job["project_id"]))) if mp else None,
+        proj = self.p.project(job["project_id"])
+        audio = bool(proj["video_audio"]) if "video_audio" in proj.keys() else False
+        return {"input_hash": lineage.video_input_hash(mp, formats.project_aspect(proj), args[4], audio) if mp else None,   # M16
                 "source_job_id": lineage.approved_image_id(self.p.conn, shots.image_scene(self.p.conn, job["scene_id"])),
                 "model": args[4],
                 "sent_group": json.dumps(sent) if sent else None}
@@ -534,6 +602,7 @@ class VideoRunner(_Runner):
             model_router.set_override(self.p.conn, sid, "kling")
         why = "ảnh giống người thật" if kind == REAL_PERSON else "video có thể dính bản quyền"
         self._diag(job, "warn", kind, f"Seedance từ chối ({why}) → {len(ids)} cảnh/shot chuyển sang Kling")
+        return True
 
     def _dest_path(self, job) -> str:
         idx = self.p.conn.execute("SELECT idx FROM scenes WHERE id=?", (job["scene_id"],)).fetchone()["idx"]

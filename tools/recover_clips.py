@@ -4,8 +4,11 @@
     py tools/recover_clips.py --download              (tải clip ClipAI đã làm xong về data/projects/<id>/recovered/)
     py tools/recover_clips.py --project 3 --pages 30  (một dự án; quét tối đa 30 trang × 50 task mỗi loại model)
     py tools/recover_clips.py --reconcile --project 3 (C11: đối chiếu MỌI clip đã gửi — sổ chi USD vs `cost` thật của ClipAI)
+    py tools/recover_clips.py --relink --project 3    (W12b: tìm task thật theo prompt đã gửi cho job bị đánh "không thấy / không
+                                                       được tạo" rồi NỐI LẠI vào dự án — ghi CSDL, không gửi job mới, không tốn tiền;
+                                                       Dashboard tải clip ở lần kiểm tra tới)
 
-KHÔNG gửi job mới (không tốn tiền), KHÔNG ghi vào CSDL (mở chỉ đọc). Chỉ đọc danh sách `video-list` của ClipAI và tải file
+KHÔNG gửi job mới (không tốn tiền), KHÔNG ghi vào CSDL (mở chỉ đọc) — trừ `--relink` (nối lại job vào task thật, xem trên). Chỉ đọc danh sách `video-list` của ClipAI và tải file
 video đã có. Clip tải về nằm ở thư mục `recovered/` riêng — không lẫn vào thư mục `videos/` mà bản ghép tự lấy; xem rồi tự chọn.
 Cần CLIPAI_TOKEN như khi chạy Dashboard. Báo cáo lưu vào data/khoi_phuc_clip.md (không có token, không có đường dẫn cá nhân).
 """
@@ -278,6 +281,29 @@ def reconcile(conn, provider, projects=None, max_pages: int = 20, pause: float =
     return {"rows": out, "models": by_model, "text": "\n".join(lines) + "\n"}
 
 
+def relink(db_path: str, provider, data_dir: str, projects=None, job_ids=None) -> dict:
+    """W12b for jobs already written off: the provider's real task is looked up by the prompt that was sent (VideoRunner.relink_failed,
+    the same code the automatic run uses) and the job is re-opened on it. Nothing is sent, nothing billed twice."""
+    from core.db import connect
+    from core.pipeline import Pipeline
+    from core.runner import VideoRunner
+    p = Pipeline(connect(db_path))
+    runner = VideoRunner(p, provider, data_dir)
+    lines = [f"# Nối lại task thật theo prompt — {datetime.now():%Y-%m-%d %H:%M}", "", "| Dự án | Job | Shot | Kết quả |", "|---|---|---|---|"]
+    rows = []
+    for r in targets(p.conn, projects, job_ids):
+        note = p.conn.execute("SELECT note FROM job_events WHERE job_id=? AND to_state='failed' ORDER BY id DESC LIMIT 1",
+                              (r["id"],)).fetchone()
+        if r["state"] != "failed" or not str((note["note"] if note else "") or "").startswith(("not_found", "not_created")):
+            continue
+        new_id = runner.relink_failed(r["id"])
+        rows.append({"job": r["id"], "new_job": new_id})
+        lines.append(f"| #{r['project_id']} | {r['id']} | {r['idx']} | " + (f"nối lại → job {new_id}" if new_id else "không thấy task khớp") + " |")
+    if not rows:
+        lines.append("| — | — | — | không có job nào bị đánh 'không thấy / không được tạo' |")
+    return {"rows": rows, "text": "\n".join(lines) + "\n"}
+
+
 def main():
     try:
         sys.stdout.reconfigure(encoding="utf-8")
@@ -292,6 +318,7 @@ def main():
     ap.add_argument("--download", action="store_true", help="tải clip ClipAI đã làm xong về thư mục recovered/")
     ap.add_argument("--out", default=None)
     ap.add_argument("--reconcile", action="store_true", help="đối chiếu mọi clip đã gửi: sổ chi vs `cost` thật ClipAI (C11)")
+    ap.add_argument("--relink", action="store_true", help="W12b: tìm task thật theo prompt và nối lại job (ghi CSDL, không gửi lại)")
     args = ap.parse_args()
     args.out = args.out or os.path.join("data", "doi_chieu_clipai.md" if args.reconcile else "khoi_phuc_clip.md")
     from core.adapters.check import load_dashboard_env
@@ -300,8 +327,11 @@ def main():
         provider = ClipAIVideoProvider.from_env()
     except ProviderError as e:
         sys.exit(f"Không kết nối được ClipAI: {e}")
-    res = (reconcile(open_ro(args.db), provider, args.project, args.pages) if args.reconcile
-           else recover(open_ro(args.db), provider, args.data, args.project, args.job, args.pages, args.download))
+    if args.relink:
+        res = relink(args.db, provider, args.data, args.project, args.job)
+    else:
+        res = (reconcile(open_ro(args.db), provider, args.project, args.pages) if args.reconcile
+               else recover(open_ro(args.db), provider, args.data, args.project, args.job, args.pages, args.download))
     with open(args.out, "w", encoding="utf-8") as f:
         f.write(res["text"])
     print(res["text"])

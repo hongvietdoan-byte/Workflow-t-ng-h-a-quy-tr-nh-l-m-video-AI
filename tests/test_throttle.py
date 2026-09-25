@@ -3,6 +3,7 @@ import tempfile
 import threading
 import time
 import unittest
+from unittest import mock
 
 from core import autopilot, perf
 from core.adapters.http import ApiClient, HttpResponse
@@ -50,9 +51,46 @@ class CappedVideo:
         return self.inner.cancel(*a, **k)
 
 
+class CapTests(unittest.TestCase):
+    """ClipAI runs 2 video tasks of one account at a time (a third gets a temporary queue id, W12b; 8 gave "1130 Too many
+    requests"), so video_gen is capped at 2 by default however high the learned value climbs."""
+    def test_known_cap_bounds_the_learned_limit(self):
+        t = Throttle(start=4, maximum=20, up_every=1)
+        self.assertEqual(t.cap("video_gen"), 2)
+        self.assertEqual(t.limit("video_gen"), 2)
+        for _ in range(10):
+            t.on_success("video_gen")
+        self.assertEqual(t.limit("video_gen"), 2)
+        self.assertEqual(t.info("video_gen")["learned"], 14)
+        self.assertEqual(t.limit("image_gen"), 4)                     # no known cap for Deepix yet
+        self.assertFalse(t.allow("video_gen", 2))
+
+    def test_cap_can_be_changed_from_the_environment(self):
+        with mock.patch.dict(os.environ, {"THROTTLE_CAP_VIDEO_GEN": "0", "THROTTLE_CAP_IMAGE_GEN": "3"}):
+            t = Throttle(start=4)
+        self.assertEqual(t.limit("video_gen"), 4)                     # 0 = no cap
+        self.assertEqual(t.limit("image_gen"), 3)
+
+    def test_learned_limits_survive_a_restart(self):
+        from core import throttle as store
+        conn = connect(":memory:")
+        t = Throttle(start=4, maximum=20, up_every=1, caps={})
+        t.on_success("image_gen")
+        t.on_rate_limited("video_gen")
+        store.save(conn, t)
+        fresh = Throttle(start=4, maximum=20, caps={})
+        store.load(conn, fresh)
+        self.assertEqual(fresh.limit("image_gen"), 5)
+        self.assertEqual(fresh.limit("video_gen"), 2)
+        self.assertEqual(fresh.info("video_gen")["hits"], 1)
+        fresh.on_success("image_gen")
+        store.load(conn, fresh)                                       # only once per process: does not undo what it learned since
+        self.assertTrue(fresh.restored)
+
+
 class ThrottleUnitTests(unittest.TestCase):
     def test_grows_after_clean_successes_and_halves_on_rate_limit(self):
-        t = Throttle(start=2, maximum=6, up_every=3)
+        t = Throttle(start=2, maximum=6, up_every=3, caps={})     # learning only (known provider caps: CapTests)
         for _ in range(3):
             t.on_success("video_gen")
         self.assertEqual(t.limit("video_gen"), 3)
@@ -108,9 +146,12 @@ class LearningTests(unittest.TestCase):
         THROTTLE.reset()
         self._saved = (THROTTLE.start, THROTTLE.maximum, THROTTLE.up_every)
         THROTTLE.start, THROTTLE.maximum, THROTTLE.up_every = 8, 20, 4   # start far above what the "service" allows
+        self._caps = THROTTLE.caps
+        THROTTLE.caps = {}          # no known ceiling: this test is about learning one (ClipAI's cap of 2 is set by default)
 
     def tearDown(self):
         THROTTLE.start, THROTTLE.maximum, THROTTLE.up_every = self._saved
+        THROTTLE.caps = self._caps
         THROTTLE.reset()
 
     def test_a_service_that_allows_three_is_learned_without_losing_a_job(self):

@@ -1,5 +1,5 @@
 {
-  "_note": "W10: luật từng model, kiểm TRƯỚC khi gửi (sai thì không gửi, không mất tiền). Nguồn: skill deepix-1.4.1 reference.md + ModelSelectorManager.js công khai của web Deepix (đọc 2026-09-24). Phần video (Kling/Seedance) bổ sung ở W10.",
+  "_note": "W10: luật từng model, kiểm TRƯỚC khi gửi (sai thì không gửi, không mất tiền). Nguồn: skill deepix-1.4.1 reference.md + ModelSelectorManager.js công khai của web Deepix (đọc 2026-09-24). Phần video (Kling/Seedance, `video_models`): skill clipai-1.3.1 SKILL.md mục Constraints + scripts/video.mjs (đọc 2026-09-25), kiểm ở core/video_rules.py.",
   "image_models": {
     "dola-seedream-5-0-pro-260628": {
       "label": "Seedream 5.0 Pro",
@@ -62,5 +62,114 @@
       "accepts_design_sheet": false
     }
   },
-  "_note_sheets": "accepts_design_sheet: model nhận bảng thiết kế nhiều góc làm ảnh tham chiếu mà không chép bố cục bảng. Chỉ bật khi đã thử thật (luật 5): GPT Image 2.5 Sunburst đạt 2026-09-24 (data/ab_test/multiangle). Flare / GPT Image 2 chưa thử; Seedream chép bố cục bảng (GĐ3–GĐ6)."
+  "_note_sheets": "accepts_design_sheet: model nhận bảng thiết kế nhiều góc làm ảnh tham chiếu mà không chép bố cục bảng. Chỉ bật khi đã thử thật (luật 5): GPT Image 2.5 Sunburst đạt 2026-09-24 (data/ab_test/multiangle). Flare / GPT Image 2 chưa thử; Seedream chép bố cục bảng (GĐ3–GĐ6).",
+  "video_models": {
+    "kling-v3-omni": {
+      "label": "Kling 3.0 Omni",
+      "family": "omni",
+      "prompt_limit": 2500,
+      "shot_prompt_limit": 512,
+      "duration": {
+        "min": 3,
+        "max": 15,
+        "max_with_reference_video": 10
+      },
+      "modes": [
+        "std",
+        "pro",
+        "4k"
+      ],
+      "mode_4k_with_reference_video": false,
+      "end_frame": true,
+      "max_refs": 7,
+      "max_refs_with_reference_video": 4,
+      "sound": true,
+      "sound_with_reference_video": false,
+      "multi_shot": true
+    },
+    "kling-video-o1": {
+      "label": "Kling O1",
+      "family": "omni",
+      "prompt_limit": 2500,
+      "shot_prompt_limit": 512,
+      "duration": {
+        "min": 3,
+        "max": 10,
+        "max_with_reference_video": 10
+      },
+      "modes": [
+        "std",
+        "pro"
+      ],
+      "end_frame": true,
+      "end_frame_durations": [
+        5,
+        10
+      ],
+      "max_refs": 7,
+      "max_refs_with_reference_video": 4,
+      "sound": false,
+      "multi_shot": true
+    },
+    "dreamina-seedance-2-0-260128": {
+      "label": "Seedance 2.0",
+      "family": "seedance",
+      "prompt_limit": 4000,
+      "duration": {
+        "min": 4,
+        "max": 15
+      },
+      "resolutions": [
+        "480p",
+        "720p",
+        "1080p",
+        "4k"
+      ],
+      "last_frame": true,
+      "refs_with_first_frame": false,
+      "max_images": 9,
+      "max_videos": 3,
+      "max_audios": 3
+    },
+    "dreamina-seedance-2-0-fast-260128": {
+      "label": "Seedance 2.0 Fast",
+      "family": "seedance",
+      "prompt_limit": 4000,
+      "duration": {
+        "min": 4,
+        "max": 15
+      },
+      "resolutions": [
+        "480p",
+        "720p"
+      ],
+      "last_frame": true,
+      "refs_with_first_frame": false,
+      "max_images": 9,
+      "max_videos": 3,
+      "max_audios": 3
+    },
+    "dreamina-seedance-2-5-260628": {
+      "label": "Seedance 2.5",
+      "family": "seedance",
+      "prompt_limit": 5000,
+      "duration": {
+        "min": 4,
+        "max": 30
+      },
+      "resolutions": [
+        "480p",
+        "720p"
+      ],
+      "last_frame": true,
+      "refs_with_first_frame": false,
+      "max_images": 30,
+      "max_videos": 10,
+      "max_audios": 10,
+      "max_media_total": 50,
+      "max_audio_seconds": 30,
+      "max_video_seconds": 30
+    }
+  },
+  "_note_video": "Seedance 1080p/4k chỉ có ở 2.0 (không Fast, không 2.5). Kling 3.0 Omni có video tham chiếu thì tối đa 10 s và không 4k, không sound. O1 khung đầu+cuối chỉ 5 hoặc 10 s. Seedance không trộn khung đầu/cuối với ảnh tham chiếu (chạy thật 2026-09-24)."
 }

@@ -174,6 +174,19 @@ CREATE TABLE IF NOT EXISTS asset_images (
     src_size INTEGER,
     src_mtime INTEGER
 );
+CREATE TABLE IF NOT EXISTS end_frames (
+    id INTEGER PRIMARY KEY,            -- K1: the picture a shot must END on (core/end_frames.py); not a job, so no query that reads
+    project_id INTEGER NOT NULL REFERENCES projects(id),   -- approved image_gen jobs as start pictures can pick it up by mistake
+    scene_id INTEGER NOT NULL REFERENCES scenes(id),
+    start_job_id INTEGER,              -- the approved start picture it was drawn from (a new start picture makes it outdated)
+    state TEXT NOT NULL,               -- queued / running / ready / rejected / failed
+    external_id TEXT,
+    path TEXT,
+    prompt TEXT,
+    note TEXT,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+);
 CREATE TABLE IF NOT EXISTS set_analyses (
     sha256 TEXT PRIMARY KEY,           -- of the background picture: a re-synced copy of the same picture reuses the reading
     data TEXT NOT NULL,                -- core.layout set analysis (camera, horizon, ground, landmarks...)

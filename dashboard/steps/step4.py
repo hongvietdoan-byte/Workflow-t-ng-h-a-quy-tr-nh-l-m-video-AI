@@ -224,6 +224,16 @@ def video_card(p: Pipeline, pid: int, j, runner, stale_reason) -> None:
             elif j["state"] == "failed" and not j["escalated"] and st.button("↻ Gen lại" + tag, key=f"vr_{j['id']}"):
                 act(lambda: p.retry(j["id"], "gen lại"))
                 st.rerun()
+            if j["state"] == "failed" and runner is not None and _written_off(p, j) and st.button(
+                    "🔎 Tìm task thật (không gửi lại)", key=f"vrl_{j['id']}",
+                    help="ClipAI đôi khi tạo task với mã khác mã đã trả về (W12b). Tìm theo prompt đã gửi; thấy thì nối lại và tải clip, "
+                         "không tốn thêm tiền."):
+                found = []
+                if act(lambda: found.append(runner.relink_failed(j["id"]))) and found[0]:
+                    st.toast(f"Đã nối lại task thật → job {found[0]}; clip sẽ tải ở lần kiểm tra tới")
+                    st.rerun()
+                elif found:
+                    st.toast("Không thấy task nào khớp prompt — có thể ClipAI thật sự chưa tạo; bấm Gen lại")
             if j["escalated"] and not blocked and st.button("↺ Làm lại từ đầu" + tag, key=f"vrs_{j['id']}",
                                                             help="Đã hết số lần thử: bắt đầu lại với một job video mới"):
                 if act(lambda: p.restart_job(j["id"]), "Đã xếp hàng video mới"):
@@ -291,3 +301,9 @@ def experiments_panel(p: Pipeline, pid: int, runner) -> None:
                         + (f" · {escape(e.get('message') or '')}" if e["state"] == "failed" else ""))
             if e.get("file") and os.path.exists(e["file"]):
                 show_video(e["file"])
+
+
+def _written_off(p, j) -> bool:
+    """A clip the dashboard gave up on because the task was 'not found' / 'not created' (it may exist under another id)."""
+    row = p.conn.execute("SELECT note FROM job_events WHERE job_id=? AND to_state='failed' ORDER BY id DESC LIMIT 1", (j["id"],)).fetchone()
+    return str((row["note"] if row else "") or "").startswith(("not_found", "not_created"))

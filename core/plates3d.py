@@ -9,6 +9,7 @@ docs/HUONG_DAN_3D.md). No AI and no credit: Blender renders on this computer.
   to_library()    the plates go into the library's review box as backgrounds of a place (role from the camera), and their exact
                   camera goes into set_analyses, so no Claude call is needed to read them
 """
+import contextlib
 import glob
 import json
 import os
@@ -16,7 +17,9 @@ import re
 import shutil
 import subprocess
 import sys
+import tempfile
 import time
+import uuid
 from typing import Callable, Dict, List, Optional
 
 from . import assets
@@ -98,7 +101,7 @@ def _run_in_store(blender: str, args: List[str], work: str, timeout: int):
     """Run Store Blender headless: a .cmd file (Blender + args, output to render.log, exit code to rc.txt) started inside the package
     context, then wait for rc.txt."""
     family, exe = blender[len(STORE):].split("|", 1)
-    stamp = time.strftime("%H%M%S")
+    stamp = time.strftime("%H%M%S") + "_" + uuid.uuid4().hex[:6]     # a retry within the same second must not read the old rc file
     log, rc, bat = (os.path.join(work, f"store_{stamp}.{x}") for x in ("log", "rc", "cmd"))
     quoted = " ".join(f'"{a}"' for a in args)
     with open(bat, "w", encoding="ascii", errors="replace") as f:
@@ -141,12 +144,76 @@ def plan(model: str, out_dir: str, sky: str = "A", sun_elevation: float = 35, su
 
 
 def out_dir(data_dir: str, place: str) -> str:
-    return os.path.join(data_dir, "_plates3d", slug(place), time.strftime("%Y%m%d_%H%M%S"))
+    """One folder per render; the short random tail keeps two renders of the same place in the same second apart (two projects)."""
+    return os.path.join(data_dir, "_plates3d", slug(place), time.strftime("%Y%m%d_%H%M%S") + "_" + uuid.uuid4().hex[:4])
+
+
+LOCK_STALE_SEC = 3600       # a lock older than this was left by a Blender that died; it is taken over
+LOCK_WAIT_SEC = 1800        # how long a render waits for its turn before giving up with a clear message
+
+
+def lock_path() -> str:
+    """One Blender at a time on this computer (it uses the whole graphics card), whatever data folder the caller uses — so the
+    lock lives in the system temp folder unless PLATES3D_LOCK names another file."""
+    return os.environ.get("PLATES3D_LOCK") or os.path.join(tempfile.gettempdir(), "ai_video_pipeline_blender.lock")
+
+
+def queue_length() -> int:
+    """Renders waiting for their turn right now (shown on the dashboard)."""
+    return len(glob.glob(lock_path() + ".wait.*"))
+
+
+@contextlib.contextmanager
+def blender_turn(wait: float = LOCK_WAIT_SEC, sleep: Callable[[float], None] = time.sleep):
+    """Wait for this computer's Blender turn (file lock, so it also holds across dashboard windows and tools), then hold it."""
+    path = lock_path()
+    ticket = f"{path}.wait.{os.getpid()}_{uuid.uuid4().hex[:6]}"
+    open(ticket, "w").close()
+    end = time.time() + wait
+    try:
+        while True:
+            try:
+                fd = os.open(path, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+                break
+            except FileExistsError:
+                try:
+                    age = time.time() - os.path.getmtime(path)
+                except OSError:
+                    continue                                  # freed meanwhile: try again at once
+                if age > LOCK_STALE_SEC:
+                    try:
+                        os.remove(path)
+                    except OSError:
+                        pass
+                    continue
+                if time.time() > end:
+                    raise Plates3DError(f"Blender đang bận với lượt render khác quá {int(wait // 60)} phút — thử lại sau. Nếu chắc chắn "
+                                        f"không còn Blender nào chạy, xóa file {path}.") from None
+                sleep(1.0)
+    finally:
+        try:
+            os.remove(ticket)
+        except OSError:
+            pass
+    os.write(fd, f"{os.getpid()} {time.strftime('%Y-%m-%d %H:%M:%S')}".encode("ascii"))
+    os.close(fd)
+    try:
+        yield
+    finally:
+        try:
+            os.remove(path)
+        except OSError:
+            pass
 
 
 def render(cfg: Dict, blender: Optional[str] = None, run: Callable = subprocess.run, timeout: int = 3600) -> Dict:
     """Run tools/render_plates.py in Blender (background) and return its manifest. The whole Blender output is kept in render.log
-    next to the plates (the local test reads the times there)."""
+    next to the plates (the local test reads the times there). Renders from several projects wait in line (`blender_turn`)."""
+    with blender_turn():
+        return _render(cfg, blender, run, timeout)
+
+
+def _render(cfg: Dict, blender: Optional[str], run: Callable, timeout: int) -> Dict:
     blender = blender or find_blender()
     if not blender:
         raise Plates3DError("không tìm thấy Blender — cài Blender 5.0 hoặc đặt BLENDER_PATH trong dashboard.env")
@@ -174,7 +241,7 @@ def render(cfg: Dict, blender: Optional[str] = None, run: Callable = subprocess.
     gpu_trouble = re.search(r"EGL|OpenGL|GPU|gpu backend|Vulkan", (proc.stderr or "") + (proc.stdout or ""), re.I)
     if proc.returncode != 0 and cfg.get("engine", "auto") == "auto" and gpu_trouble:
         # EEVEE needs a graphics card context; without one Blender aborts (no Python error to catch) — Cycles on the CPU works
-        return render(dict(cfg, engine="cycles"), blender, run, timeout)
+        return _render(dict(cfg, engine="cycles"), blender, run, timeout)     # still our turn: no second wait
     if proc.returncode != 0 or not os.path.exists(manifest_path):
         tail = "\n".join(((proc.stderr or "") + "\n" + (proc.stdout or "")).strip().splitlines()[-8:])
         raise Plates3DError(f"Blender dừng lỗi (mã {proc.returncode}). Cuối log:\n{tail}")

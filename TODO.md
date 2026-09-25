@@ -15,7 +15,7 @@
 | GĐ | Việc | Trạng thái |
 |---|---|---|
 | 0 | Lưu kế hoạch V4, sửa tài liệu lệch, `requirements.txt` (pillow/numpy/opencv-python), `.gitignore` (`data/_plates3d/`), gộp asset #77 vào Forest Red | ✅ 2026-09-25 |
-| 1 | Rà soát + hoàn thiện: Tầng A (chuyển sang GĐ5), Editor đặt chữ tránh mặt, W2, W8, W10 (luật video), O6, M3, M14, M16, M18, M19, T1 + `tools/draft_profiles.py`, K1/K2, nối `recover_clips` tìm theo prompt + `music_timing`; giới hạn riêng từng nhà cung cấp, khóa trần tiền, hàng đợi Blender | ⏳ chưa bắt đầu |
+| 1 | Rà soát + hoàn thiện (chi tiết ngay dưới bảng). Tầng A chuyển sang GĐ5 | ✅ code + test 2026-09-25 (chưa chạy thật) |
 | 2 | Gói bối cảnh: đăng ký 3D + chỗ đứng, máy ảo, render theo lô + bộ nhớ đệm, thời gian/thời tiết, lớp bóng/che, ghép, kiểm nền + ăn khớp, cờ `location_plates`; gắn nhãn góc ảnh Kho (~$1–1,5 Claude, báo trước) | ⏳ |
 | 3 | Khớp môi toàn video: nghiên cứu → bước "Khớp môi" + adapter (Seedance `reference_audio` + dịch vụ khớp môi sau) | ⏳ |
 | 4 | Bộ kỹ năng 3 vai → agent chấm độc lập → bảng tổng kết gửi người dùng; hồ sơ bỏ tuổi + rút gọn 3 mức, T1 mọi nhân vật | ⏳ |
@@ -24,6 +24,37 @@
 | 7 | Chạy toàn bộ test, rà lại | ⏳ |
 | 8 | Kiểm chứng nhỏ trong trần #7 (≤ ~$2, ≤ 5 ảnh) | ⏳ cần báo giá trước |
 | 9 | Báo "sẵn sàng" → người dùng chạy trọn #6 | ⏳ |
+
+**GĐ1 đã làm (2026-09-25; toàn bộ test qua, CHƯA chạy thật với API — tính năng mới có cờ đều TẮT):**
+- **M3** một người gửi/poll mỗi dự án × loại job trong tiến trình (`runner._turn`, luồng thứ hai bỏ lượt) — hết tải clip 2 lần / follower trùng.
+- **Giới hạn nhà cung cấp:** `throttle.caps` — video ClipAI tối đa **2** job chạy cùng lúc (mặc định, `THROTTLE_CAP_VIDEO_GEN`; 0 = bỏ);
+  ảnh chưa có trần (Deepix chưa đo); mức đã học lưu `app_settings.throttle`, khởi động lại không học lại. Giả lập (mock) không bị trần.
+- **Khóa trần tiền:** `budget.SPEND_LOCK` giữ từ lúc kiểm trần tới lúc ghi sổ (2 dự án không cùng lọt trần).
+- **Hàng đợi Blender:** `plates3d.blender_turn` (khóa file cả máy, `PLATES3D_LOCK`; khóa bỏ lại > 1 giờ tự lấy; chờ tối đa 30 phút rồi báo rõ;
+  `queue_length()` cho dashboard); thư mục ra + file tạm bản Store có đuôi ngẫu nhiên.
+- **M16** dấu vân tay video có model + âm thanh tự tạo (clip cũ trước M16 không báo nhầm). **M18** "So sánh tổng" giữ model người chọn +
+  nhóm multi-shot. **M19** multi-shot không bị chặn vì prompt trưởng nhóm (không gửi) dài; "Avoid" gắn vào từng shot khi còn chỗ.
+- **W10** `data/provider_rules.json` → `video_models` (Kling 3.0 Omni / O1, Seedance 2.0 / Fast / 2.5: thời lượng, có video tham chiếu, chế
+  độ/độ phân giải, khung cuối, số audio) + `core/video_rules.py` kiểm trong adapter TRƯỚC khi gửi (`rule_violation`, không tốn tiền).
+- **M14** Seedance từ chối → chuyển Kling **và gửi lại ngay** (tính 1 lần thử, `_retry_switched`) — trước đây nằm "thất bại" không ai gửi.
+- **W2** pilot chọn shot phủ nhiều nhân vật / bối cảnh / cỡ cảnh nhất (`pilot.pick`). **W8** `effectiveness.look_trust` (≥ 50 ảnh cùng look +
+  model ảnh, khớp người ≥ 90%, lỏng ≤ 2%) + cờ `storyboard_auto_trust` (TẮT) bỏ qua cổng storyboard khi đủ tin + không có cờ. **O6** cổng
+  Bible dừng khi nhân vật có trong shot mà chưa có Lock/hồ sơ chuẩn duyệt; thiếu ảnh tham chiếu → cảnh báo (`autopilot.bible_gaps`).
+- **K1/K2** `core/end_frames.py` + bảng `end_frames` + cờ `end_frames` (TẮT): shot đổi trạng thái (per_shot, không nối shot sau) được vẽ
+  ảnh khung cuối từ ảnh khung đầu (có sổ chi + trần ảnh, stage `end_frame`); clip chờ khung cuối rồi gửi khung đầu + cuối (Seedance
+  `last_frame`, Kling Omni `end_frame` — skill clipai-1.3.1). Pha autopilot `endframes` trước cổng storyboard.
+- **Editor đặt chữ tránh mặt:** `core/text_placement.py` — vùng mắt–miệng theo cỡ cảnh + góc máy trong bảng shot; câu phụ đề của shot cận
+  (dải dưới đè mặt) chuyển **cả câu** lên dải trên vùng an toàn; phụ đề các shot khác giữ một vị trí. Không có bộ dò mặt (OpenCV 5 không kèm
+  model; YuNet phải tải — **hỏi người dùng trước**).
+- **Nối phần đã có:** `music_timing` → autopilot (dự án theo shot: 2 bản nhạc theo nhịp dựng, giữ bản khớp nhất) + Bước 5 (brief mặc định theo
+  nhịp); `recover_clips --relink` + nút "🔎 Tìm task thật (không gửi lại)" ở Bước 4 cho job bị đánh "không thấy / không được tạo".
+- **T1** `tools/draft_profiles.py`: miễn phí — ảnh gần như trùng (average hash) → "chờ duyệt" (không xóa), đoán vai trò, mục là ngoại hình khác,
+  nhân vật chưa có hồ sơ; `--draft --limit N` chỉ in ước tính (~$0,02/nhân vật), `--yes` mới gọi Claude, lưu **nháp**, câu trả lời ghi tuổi < 18
+  bị trả lại. **Chưa chạy trên Kho thật** (chờ người dùng cho phép + báo giá).
+- Bảng kế thừa cho lớp mới **khung cuối (K1)**: ảnh tham chiếu nhân vật ✔ (`scene_references`) · Lock ✔ (`lock_note`) · khung cắt ✔
+  (`framing_sentence`) · luật model ✔ (W10; multi-shot không nhận) · cổng storyboard ⚠ vẽ trước cổng nhưng storyboard **chưa hiện cặp
+  đầu–cuối** (GĐ6) · gen lại ⚠ `end_frames.redo` chưa đếm trần 2 lần · sổ chi + trần ✔, ước tính trước ⚠ chưa có giá trên nút (GĐ6) ·
+  giữ phần sửa tay: không áp dụng · test `tests/test_end_frames.py`.
 
 **Sửa lệch tài liệu (GĐ0, 2026-09-25):**
 - **Số test thật là 865** (unittest discover, 80 file); các số 168/775/822/839 ở các tài liệu cũ đều đã cũ.
@@ -191,6 +222,15 @@ P3 tab hiệu suất đếm đúng; S4 cảnh báo 2 cửa sổ cùng dự án; 
 (`docs/HUONG_DAN_3D.md`) → 4 gói look đầu tiên → 5 hiệu chỉnh ngưỡng QC. Tính năng qua thử thật thì đặt `verified: True` + ngày ở `core/features.py`.
 
 ### 4. Hành vi mặc định ĐÃ ĐỔI (dễ gây bất ngờ khi dùng Dashboard)
+- (V4 GĐ1) **Video ClipAI tối đa 2 job chạy cùng lúc cho cả máy** (tài khoản ClipAI chỉ chạy 2; thừa thì bị mã chờ tạm — W12b). Đổi bằng
+  `THROTTLE_CAP_VIDEO_GEN` trong `dashboard.env`.
+- (V4 GĐ1) **Seedance từ chối (người thật / bản quyền) → tự chuyển Kling và gửi lại một lần** (tính vào số lần thử).
+- (V4 GĐ1) **Cổng Bible dừng khi nhân vật trong shot chưa có Character Lock** (hoặc hồ sơ chuẩn đã duyệt), kể cả khi tắt cổng.
+- (V4 GĐ1) **Luật model video kiểm trước khi gửi**: ví dụ Kling có video tham chiếu > 10 s, Seedance Fast/2.5 ở 1080p bị từ chối ngay (lý do
+  tiếng Việt), không còn bị ClipAI từ chối / tự cắt.
+- (V4 GĐ1) **Đổi model hoặc bật "model tự tạo âm thanh" → clip cũ báo "⚠ cũ"** (M16).
+- (V4 GĐ1) **Phụ đề shot cận nằm ở dải trên vùng an toàn** (không đè miệng); các shot khác giữ dải dưới.
+- (V4 GĐ1) **Nhạc nền tự động ở dự án theo shot: 2 bản theo nhịp dựng** (tính 2 lượt âm thanh), giữ bản đổi đoạn khớp nhất.
 - Ảnh vào Kho từ **đồng bộ thư mục / website FF / render 3D** nằm ở **📥 Ảnh chờ duyệt** — pipeline **không dùng** tới khi duyệt (⚙ → 📁 Kho). Ảnh cũ giữ "đã duyệt".
 - **Ảnh bối cảnh chỉ làm nền** khi có vai trò "nền ngang tầm mắt/góc thấp/góc cao", cùng góc với shot, và shot là toàn cảnh (WS/EWS). Ảnh cũ chưa có vai trò → bối cảnh chỉ vào prompt bằng chữ.
 - `core/features.py` (tắt tới khi thử thật đạt; bật thử bằng `FEATURE_<TÊN>=1`): gửi ảnh layout ghép cho model; tự nối ảnh shot trước (chế độ "luôn nối" người chọn vẫn chạy); QC đồng bộ tự gen lại (nay chỉ báo cờ ở storyboard).

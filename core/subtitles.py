@@ -306,7 +306,10 @@ def to_xlsx(cues: List[Cue]) -> bytes:
 
 
 def to_ass(cues: List[Cue], width: int, height: int, font: Font, size: str = "M", pos: str = "bottom", color: str = "white",
-           show_speaker: bool = False, by_speaker: bool = False, margin_pct: Optional[float] = None) -> str:
+           show_speaker: bool = False, by_speaker: bool = False, margin_pct: Optional[float] = None,
+           zones: Optional[Dict[int, Tuple[float, float]]] = None) -> str:
+    """zones: scene idx -> (top, bottom) of the face area a subtitle must not cover (core/text_placement.py); a bottom subtitle of
+    such a shot moves, whole line, to the top of the safe box."""
     short = min(width, height)
     fontsize = max(int(short * SIZES.get(size, SIZES["M"])[1]), 14)
     align = POSITIONS.get(pos, POSITIONS["bottom"])[1]
@@ -344,11 +347,22 @@ def to_ass(cues: List[Cue], width: int, height: int, font: Font, size: str = "M"
                      f"100,100,0,0,3,{max(int(hud_size * 0.25), 3)},0,8,{int(width * 0.06)},{int(width * 0.06)},{hud_margin},1")
         style_of[HUD] = "Hud"
     lines += ["", "[Events]", "Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text"]
+    moved = {}
+    if zones and align == 2 and height > width and margin_pct is None:
+        from . import text_placement
+        said = lambda c: f"{c.speaker.title()}: {c.text}" if show_speaker and c.speaker and c.speaker != HUD else c.text  # noqa: E731
+        spoken = [c for c in cues if c.speaker != HUD]
+        where = text_placement.placements(spoken, zones, height, fontsize, lambda c: wrap_text(said(c), max_chars).count("\n") + 1,
+                                          SAFE_BOTTOM, SAFE_TOP)
+        moved = {id(spoken[i]) for i in where}
     for c in cues:
         text = f"{c.speaker.title()}: {c.text}" if show_speaker and c.speaker and c.speaker != HUD else c.text
         text = wrap_text(text, max_chars).replace("{", "(").replace("}", ")").replace("\n", "\\N")
         style = style_of.get(c.speaker, "Default")
-        lines.append(f"Dialogue: 0,{_clock(c.start, '.')[:-1]},{_clock(c.end, '.')[:-1]},{style},,0,0,0,,{text}")
+        margin = 0
+        if id(c) in moved:                  # a face in the bottom band: this line goes to the top of the safe box
+            text, margin = "{\\an8}" + text, int(height * SAFE_TOP)
+        lines.append(f"Dialogue: 0,{_clock(c.start, '.')[:-1]},{_clock(c.end, '.')[:-1]},{style},,0,0,{margin},,{text}")
     return "\n".join(lines) + "\n"
 
 
@@ -517,7 +531,7 @@ def probe_size(path: str) -> Tuple[int, int]:
 
 
 def burn(video: str, cues: List[Cue], out_path: str, font: Font, size: str = "M", pos: str = "bottom", color: str = "white",
-         show_speaker: bool = False, by_speaker: bool = False) -> Dict:
+         show_speaker: bool = False, by_speaker: bool = False, zones: Optional[Dict[int, Tuple[float, float]]] = None) -> Dict:
     """Write <out>.srt and a copy of `video` with the subtitles drawn in. Returns {'video', 'srt', 'cues'}."""
     if not cues:
         raise SubtitleError("Chưa có dòng phụ đề nào (kịch bản cần có dòng thoại dạng “TÊN: lời”).")
@@ -535,7 +549,7 @@ def burn(video: str, cues: List[Cue], out_path: str, font: Font, size: str = "M"
     try:
         # ffmpeg runs inside this folder so the filter needs no drive-letter escaping on Windows
         with open(os.path.join(work, "sub.ass"), "w", encoding="utf-8") as f:
-            f.write(to_ass(cues, width, height, font, size, pos, color, show_speaker, by_speaker) + embed_font(font))
+            f.write(to_ass(cues, width, height, font, size, pos, color, show_speaker, by_speaker, zones=zones) + embed_font(font))
         cmd = [ffmpeg, "-y", "-i", os.path.abspath(video), "-vf", "ass=sub.ass", "-c:v", "libx264", "-crf", "18",
                "-preset", "medium", "-pix_fmt", "yuv420p", "-c:a", "copy", os.path.abspath(out_path)]
         proc = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8", errors="replace", cwd=work)

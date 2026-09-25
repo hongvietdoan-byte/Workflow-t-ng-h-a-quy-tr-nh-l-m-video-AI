@@ -16,12 +16,16 @@ the next Claude call is refused with a clear note (`check_llm`). `llm_since` res
 """
 import json
 import os
+import threading
 from datetime import datetime, timezone
 from typing import Dict, Optional
 
 from . import cost
 
 KEY = "budget"
+SPEND_LOCK = threading.RLock()
+"""Held from "check the limit" to "record the spend" (runner.submit_pending): without it two projects' threads could both see room
+for one more clip just under the cap and both send it (the check and the ledger write are separate steps)."""
 
 
 def _now() -> str:

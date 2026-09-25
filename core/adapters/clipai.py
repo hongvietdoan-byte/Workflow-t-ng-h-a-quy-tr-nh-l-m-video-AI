@@ -89,6 +89,13 @@ def resolve_model(model: Optional[str]) -> Tuple[str, str]:
                         code="unsupported_model")
 
 
+def _with_avoid(prompt: str, avoid: str) -> str:
+    """M19: a multi-shot request drops the single prompt (and the "Avoid: …" appended to it) — each shot carries it instead when it
+    still fits the 512 characters of a shot prompt (the shot's own words come first)."""
+    prompt = _shorten(prompt, KLING_SHOT_PROMPT_LIMIT)
+    return prompt + avoid if avoid and len(prompt) + len(avoid) <= KLING_SHOT_PROMPT_LIMIT else prompt
+
+
 def _upload_name(path: str, content: bytes) -> str:
     """Name the upload after its real format (Deepix returns JPEG even though we save it as .png)."""
     stem = os.path.splitext(os.path.basename(path))[0]
@@ -200,6 +207,14 @@ class ClipAIVideoProvider:
         if reference_video and with_audio and family == "omni":
             raise ProviderError("Kling rejects a reference video together with generated sound (sound=on); turn "
                                 "audio off or drop the reference video", code="unsupported_option")
+        from .. import video_rules                       # W10: the model's rules, before any file is read or anything is sent
+        broken = video_rules.problems(canonical, float(duration_sec),
+                                      resolution=(resolution or self.resolution) if family == "seedance" else None,
+                                      kling_mode=(kling_mode or self.kling_mode) if family == "omni" else None,
+                                      reference_video=bool(reference_video), with_audio=bool(with_audio),
+                                      last_frame=bool(last_frame))
+        if broken:
+            raise ProviderError("; ".join(broken), code="rule_violation")
         video_files: List[Tuple[str, bytes]] = []
         if reference_video:
             vpath = reference_video["path"]
@@ -213,7 +228,7 @@ class ClipAIVideoProvider:
             text += f"\nAvoid: {negative_prompt}"
         extra_files: List[Tuple[str, bytes]] = []
         content_refs: List[Dict] = []                     # [{"note_label", "note_role"}] in the order attached, for the @Image note
-        if last_frame and family == "seedance":           # first + last frame clip: the two frames carry the characters
+        if last_frame:                                    # first + last frame clip: the two frames carry the characters
             text += " The clip starts on the first image and must end exactly on the last image (same people, place and light)."
         elif family == "seedance" and SEEDANCE_REFS_WITH_FIRST_FRAME:
             cap = 29 if canonical == "dreamina-seedance-2-5-260628" else 8  # image cap minus the first-frame image
@@ -241,7 +256,7 @@ class ClipAIVideoProvider:
                 if len(people) > 1:
                     text += ". Each person keeps only the look of their own reference image."
         limit = PROMPT_LIMITS["kling" if family == "omni" else canonical]
-        if len(text) > limit:
+        if len(text) > limit and not (multi_prompt and family == "omni"):     # M19: multi-shot sends each shot's prompt, not this one
             raise ProviderError(f"prompt is {len(text)} characters; {canonical} allows at most {limit}",
                                 code="prompt_too_long")
         if not os.path.exists(image_path):
@@ -252,7 +267,9 @@ class ClipAIVideoProvider:
         if multi_prompt and family != "omni":
             raise ProviderError("multi-shot chỉ có ở Kling Omni", code="unsupported_option")
         end_image = None
-        if last_frame and family == "seedance":
+        if last_frame and family == "omni" and multi_prompt:
+            raise ProviderError("Kling multi-shot không nhận khung cuối", code="unsupported_option")
+        if last_frame:
             if not os.path.exists(last_frame):
                 raise ProviderError(f"last frame image not found: {last_frame}", code="missing_image")
             with open(last_frame, "rb") as f:
@@ -260,14 +277,16 @@ class ClipAIVideoProvider:
             end_image = (_upload_name(last_frame, end_bytes), end_bytes)
         if family == "omni":
             ctx = {"model_name": canonical, "multi_shot": 0, "prompt": text, "sound": "on" if with_audio else "off",
-                   "image_list": [{"image_url": "", "type": "first_frame"}], "mode": kling_mode or self.kling_mode,
+                   "image_list": [{"image_url": "", "type": "first_frame"}]
+                   + ([{"image_url": "", "type": "end_frame"}] if end_image else []), "mode": kling_mode or self.kling_mode,
                    "aspect_ratio": aspect_ratio or self.aspect_ratio, "duration": str(effective_duration(canonical, family, duration_sec)),
                    "video_num": 1}
             if reference_video:
                 ctx["video_list"] = [{"video_url": "", "refer_type": reference_video.get("refer_type", "feature"),
                                       "keep_original_sound": "no"}]
             if multi_prompt:                   # experiment: several shots in one generation (reference.md Text2VideoO1SubmitRequest)
-                shots = [{"index": i, "prompt": _shorten(str(sh["prompt"]), KLING_SHOT_PROMPT_LIMIT),
+                avoid = f" Avoid: {negative_prompt}" if self.negative == "append" and negative_prompt else ""
+                shots = [{"index": i, "prompt": _with_avoid(str(sh["prompt"]), avoid),
                           "duration": str(effective_duration(canonical, family, sh["duration"]))}
                          for i, sh in enumerate(multi_prompt, 1)]
                 ctx.update(multi_shot=1, shot_type="customize", multi_prompt=shots,

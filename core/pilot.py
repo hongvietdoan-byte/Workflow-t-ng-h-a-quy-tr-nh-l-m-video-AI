@@ -21,20 +21,51 @@ def save(p: Pipeline, project_id: int, state: Dict) -> None:
     p.set_project_field(project_id, "pilot", json.dumps(state, ensure_ascii=False))
 
 
+_SIZE_CLASS = {"ECU": "close", "CU": "close", "MCU": "close", "MS": "medium", "MLS": "medium", "WS": "wide", "EWS": "wide",
+               "GAME_TPS": "wide"}
+
+
+def _traits(data: Dict) -> Dict[str, set]:
+    """What a shot would test if it were in the pilot: its people, its place and its kind of framing."""
+    place = data.get("location_asset") or (data.get("location") or "").strip().lower()
+    size = _SIZE_CLASS.get(str(data.get("size") or data.get("shot_size") or "").upper(), "")
+    return {"people": {str(c).upper() for c in (data.get("characters") or [])}, "place": {str(place)} if place else set(),
+            "size": {size} if size else set()}
+
+
 def pick(p: Pipeline, project_id: int, size: int = SIZE) -> List[int]:
-    """Representative scenes: the 'hero' ones first, then the first shot of each sequence, then the first scenes."""
+    """W2: the few shots that test the most — every main character, every place and close / medium / wide framing at least once
+    (a problem with a character, a place or a framing repeats in every shot that has it). Greedy: each next shot is the one that
+    adds the most not yet covered (people count double, then places, then framing; a 'hero' shot wins a tie, then the earlier
+    shot); when nothing new is left, the first shots of each sequence, then the first shots."""
     rows = p.conn.execute("SELECT id, idx, data FROM scenes WHERE project_id=? ORDER BY idx", (project_id,)).fetchall()
+    info = [(r, json.loads(r["data"] or "{}")) for r in rows]
+    covered = {"people": set(), "place": set(), "size": set()}
     chosen: List[int] = []
-    for r in rows:
-        if json.loads(r["data"] or "{}").get("shot_role") == "hero" and len(chosen) < size:
-            chosen.append(r["id"])
+    while len(chosen) < size:
+        best, best_score = None, 0.0
+        for r, data in info:
+            if r["id"] in chosen:
+                continue
+            t = _traits(data)
+            score = (2 * len(t["people"] - covered["people"]) + 1.5 * len(t["place"] - covered["place"])
+                     + len(t["size"] - covered["size"]))
+            if score and data.get("shot_role") == "hero":
+                score += 0.5
+            if score > best_score:
+                best, best_score = (r, t), score
+        if best is None:
+            break
+        chosen.append(best[0]["id"])
+        for k in covered:
+            covered[k] |= best[1][k]
     seen = set()
-    for r in rows:
-        seq = json.loads(r["data"] or "{}").get("sequence")
+    for r, data in info:
+        seq = data.get("sequence")
         if seq and seq not in seen and r["id"] not in chosen and len(chosen) < size:
             seen.add(seq)
             chosen.append(r["id"])
-    for r in rows:
+    for r, _ in info:
         if r["id"] not in chosen and len(chosen) < size:
             chosen.append(r["id"])
     return chosen

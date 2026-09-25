@@ -39,9 +39,31 @@ def motion_spec_hash(scene_data: Dict) -> str:
     return _hash(spec)
 
 
-def video_input_hash(mp_row, aspect: Optional[str]) -> str:
+def video_input_hash(mp_row, aspect: Optional[str], model: Optional[str] = None, audio: Optional[bool] = None) -> str:
+    """M16: the model and "model makes its own sound" are part of what a clip is made from — changing either used to leave the old
+    clip looking up to date. Without them (model None) the hash is the one clips got before M16, so those raise no false alarm."""
     keys = ("motion_prompt", "negative_prompt", "duration_sec", "ref_video_path", "ref_video_type")
-    return _hash({"mp": {k: mp_row[k] for k in keys if k in mp_row.keys()}, "aspect": aspect or ""})
+    spec = {"mp": {k: mp_row[k] for k in keys if k in mp_row.keys()}, "aspect": aspect or ""}
+    if model is not None:
+        spec.update(model=model, audio=bool(audio))
+    return _hash(spec)
+
+
+def video_hash_ok(stored: Optional[str], mp_row, aspect: Optional[str], model: Optional[str], audio: Optional[bool]) -> bool:
+    """A clip's stamp still matches: the current inputs with the current model/sound, or (a clip made before M16) the old formula."""
+    return not stored or stored in (video_input_hash(mp_row, aspect, model, audio), video_input_hash(mp_row, aspect))
+
+
+def _video_model(conn, scene_id: int, proj, mp_row) -> Optional[str]:
+    try:
+        from .model_router import scene_choice
+        return scene_choice(conn, scene_id, proj, mp_row)["model"]
+    except Exception:  # noqa: BLE001 - no model choice (mock data): compare without it
+        return None
+
+
+def _audio(proj) -> bool:
+    return bool(proj["video_audio"]) if proj is not None and "video_audio" in proj.keys() else False
 
 
 def _aspect(conn, project_id: int) -> Optional[str]:
@@ -134,8 +156,9 @@ def scan(conn, project_id: int) -> Dict[int, Dict]:
                 video_stale = "làm từ ảnh cũ"
             elif mp is None:
                 video_stale = "motion prompt đã bị xóa"
-            elif vid["input_hash"] and vid["input_hash"] != video_input_hash(mp, aspect):
-                video_stale = "motion prompt / thời lượng đã đổi"
+            elif vid["input_hash"] and vid["input_hash"] != video_input_hash(mp, aspect) and not video_hash_ok(
+                    vid["input_hash"], mp, aspect, _video_model(conn, s["id"], proj, mp), _audio(proj)):
+                video_stale = "motion prompt / thời lượng / model / âm thanh đã đổi"
             elif motion_stale or image_stale:
                 video_stale = "ảnh hoặc motion prompt đang cũ"
         own = base.get(s["id"], s["id"]) == s["id"]
