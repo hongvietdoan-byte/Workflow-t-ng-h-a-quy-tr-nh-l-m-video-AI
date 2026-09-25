@@ -38,6 +38,7 @@ DEFAULT_FONT = os.environ.get("DEFAULT_SUBTITLE_FONT", "GFF Latin Bold")
 DEFAULTS = {"enabled": False, "lang": "src", "font": "", "size": "M", "pos": "bottom", "color": "white", "speaker": False,
             "speaker_colors": False}
 SPEAKER_PALETTE = ("FFFFFF", "FFE066", "7FDBFF", "FFB38A", "B8F28C", "E3B5FF", "FF8FA3", "9DF2E0")
+NAME_CARD_S = 1.8               # D10: how long a character's name card stays (game style, top of the safe box)
 MAX_CPS = 17.0                  # characters per second a viewer can comfortably read (auto-dialogue-generator skill)
 _VN_TEST = "ếệỗơưăằẳẵặđĐẤỨ"
 
@@ -210,8 +211,16 @@ def build_cues(pipeline: Pipeline, data_dir: str, project_id: int, transition: s
     cues: List[Cue] = []
     hud: List[Cue] = []
     t = 0.0
+    from . import features
+    named = set() if features.on("name_cards") else None     # D10 (editing.md E6): a name card the first time someone is seen
     for clip in timeline:
         length = float(clip["seconds"])
+        if named is not None and clip.get("idx") is not None:
+            for who in datas.get(clip["idx"], {}).get("characters") or []:
+                if who not in named and str(who).strip():
+                    named.add(who)
+                    hud.append(Cue(round(t + 0.2, 2), round(t + min(max(length - 0.1, 1.0), NAME_CARD_S), 2), str(who).strip().upper(),
+                                   HUD, clip["idx"]))
         for text in (datas.get(clip["idx"], {}).get("on_screen_text") or []) if clip.get("idx") is not None else []:
             if str(text).strip():                         # a game notice / system text is shown, never voiced (kịch bản "ANH CHỌN AI?")
                 hud.append(Cue(round(t + 0.1, 2), round(t + max(length - 0.1, 1.0), 2), str(text).strip(), HUD, clip["idx"]))

@@ -89,7 +89,9 @@ xúc, âm thanh làm thế giới game "thật", màu các shot liền nhau như
   tiết cho người và nền (`plate_env.grade`, 60%). ✅ **Khớp màu giữa các shot** (`core/color_match.py`, D7): shot cùng cảnh + cùng nơi +
   cùng nhóm cỡ (xa/trung — cận) so với shot đầu nhóm (neo) bằng **điểm đen/trắng** (5% / 95% độ sáng) và **ám màu của điểm ảnh xám** —
   không so màu trung bình (áo vàng cận mặt không phải "ánh sáng ấm hơn"); mọi lần dựng đều đo (manifest `color_match`, hiện 🎨 ở Bước 5); bản
-  sao đã chỉnh (tăng/giảm từng kênh ≤ 20%, 70% đường tới neo) chỉ dùng khi bật cờ `shot_color_match`. ❌ Khớp hạt người–nền — việc code D8.
+  sao đã chỉnh (tăng/giảm từng kênh ≤ 20%, 70% đường tới neo) chỉ dùng khi bật cờ `shot_color_match`. ✅ **Khớp hạt** người–nền khi ghép
+  (D8, `composite.match_grain`: thêm nhiễu cho người tới mức hạt của nền, không bao giờ bớt; hạt mới mỗi khung của clip — hạt đứng yên trông
+  như vết bẩn). Đo trên nền render thật Tháp #263: người "sạch" 0,002 → 0,014, nền 0,016.
 - **Kiểm.** Code: độ lệch mỗi shot so với neo (ngưỡng ám màu 0,035, điểm đen/trắng 0,08). Đo thật #7 (2026-09-25): 2/7 shot lệch điểm
   đen/trắng 0,14–0,15, ám màu đều dưới ngưỡng; sửa thử đưa về ~0,04 — một phần độ lệch do nội dung khung (người xem quyết có bật không).
   Người: xem liền các shot cùng cảnh.
@@ -102,8 +104,10 @@ xúc, âm thanh làm thế giới game "thật", màu các shot liền nhau như
   máy khi va chạm 3–8 khung, giảm dần, bắt đầu đúng khung va chạm; chuyển cảnh mặc định **cắt thẳng** — lia nhanh/zoom chỉ khi đổi cảnh hay
   nhảy thời gian, kèm âm vút [KN]. **Chữ động kiểu game FF**: thông báo hạ gục, bảng tên — trong vùng an toàn, đủ lâu để đọc.
 - **Trong pipeline.** ✅ Thời tiết rơi (mưa/tuyết/bụi) + chớp trên ảnh và clip (`plate_env.overlay_still/overlay_video`); ✅ thông báo game
-  kiểu riêng (vàng trên nền tối, dải trên — `subtitles` HUD); ✅ card cuối. ❌ Rung máy khi va chạm, hạt, lóa — việc code D9. ❌ Bảng tên
-  nhân vật động — việc code D10.
+  kiểu riêng (vàng trên nền tối, dải trên — `subtitles` HUD); ✅ card cuối. ✅ **Rung máy khi va chạm** (D9): khung rung 0,25 s, ≤ 10 px,
+  tắt dần, đúng giây của hiệu ứng có nhãn va chạm/nổ/súng/đấm trong bản trộn (`ffmpeg_studio.add_shake`, cỡ khung giữ nguyên; cờ
+  `impact_shake` TẮT). ✅ **Bảng tên nhân vật** lần đầu xuất hiện (D10, kiểu thông báo game, 1,8 s; cờ `name_cards` TẮT). ❌ Lóa ống kính, hạt
+  phim toàn khung — chưa làm (hiếm khi cần cho FF; ghi nhận).
 - **Kiểm.** Người: có hiệu ứng nào không cần? Code: chữ HUD trong vùng an toàn.
 - **Ví dụ FF.** ✔ #6 "HỆ THỐNG: Maxim đã bị hạ." thành thông báo game trên màn hình, không phải giọng đọc.
 

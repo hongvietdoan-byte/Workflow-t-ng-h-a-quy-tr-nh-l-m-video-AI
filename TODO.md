@@ -46,6 +46,8 @@
   lọt. Đã trả khóa về `render` + **test dựng thật bằng ffmpeg** (`tests/test_editor_cuts.py::RealRenderTests`, xác nhận báo lỗi trên bản cũ).
   D1 cắt J 0,25 s khi đổi người nói (cờ `j_cut`), D6 nhạc lặng 0,6 s trước TWIST / shot ⭐ (cờ `music_breath`), D13 bảng tự rà như người
   xem (`core/viewer_check.py`, nút 🧐 Bước 5 — chạy thật #7: không mặt nào dưới giao diện app).
+- [x] **Đợt 5 — D8 + D9 + D10:** khớp hạt người–nền khi ghép (hạt mới mỗi khung; đo trên nền Tháp #263), rung máy 0,25 s ở hiệu ứng
+  va chạm (cờ `impact_shake`, thử trên bản giao #7: giữ đúng 1080×1920 và độ dài), bảng tên nhân vật lần đầu xuất hiện (cờ `name_cards`).
 
 **GĐ4 đã làm (2026-09-25; toàn bộ 971 test qua; tính năng mới có cờ đều TẮT; CHƯA chạy thật với API):**
 - **Nghiên cứu** 3 agent (WebSearch/WebFetch) → `knowledge/sources.md` mục GĐ4: 30 nguồn Đạo diễn [Đn], 35 Quay phim [Qn], 35 Dựng [En]

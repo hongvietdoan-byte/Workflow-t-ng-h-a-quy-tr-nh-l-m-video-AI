@@ -115,6 +115,52 @@ class RealRenderTests(unittest.TestCase):
         self.assertEqual(len(man["color_match"]), 1)                              # shot 2 measured against shot 1
 
 
+class EffectsTests(unittest.TestCase):
+    def test_a_hit_shakes_the_frame_and_keeps_its_size(self):
+        ff = _ff()
+        d = tempfile.mkdtemp()
+        src, out = os.path.join(d, "v.mp4"), os.path.join(d, "s.mp4")
+        subprocess.run([ff, "-y", "-loglevel", "error", "-f", "lavfi", "-i", "testsrc=s=270x480:d=2", "-pix_fmt", "yuv420p", src], check=True)
+        ffmpeg_studio.add_shake(src, out, [0.5], ff)
+        self.assertEqual(ffmpeg_studio.probe_size(out), (270, 480))
+        self.assertEqual(ffmpeg_studio.shake_filter([]), "")
+
+    def test_only_hit_effects_give_a_shake(self):
+        from core import audio_lib, delivery
+        d = tempfile.mkdtemp()
+        audio_lib._save(d, [{"kind": "sound_effect", "label": "AI: impact punch", "start": 3.2, "use": True, "state": "succeeded"},
+                            {"kind": "sound_effect", "label": "AI: wind whoosh", "start": 1.0, "use": True, "state": "succeeded"},
+                            {"kind": "sound_effect", "label": "Nổ lớn", "start": 5.0, "use": False, "state": "succeeded"}])
+        self.assertEqual(delivery.impact_times(d), [3.2])
+
+    def test_grain_is_added_to_a_clean_character_up_to_the_plate(self):
+        from core import composite
+        rnd = np.random.RandomState(3)
+        plate = np.clip(0.5 + rnd.normal(0, 0.03, (80, 60, 3)), 0, 1).astype(np.float32)
+        clean = np.full((80, 60, 3), 0.5, np.float32)
+        alpha = np.ones((80, 60), np.float32)
+        out = composite.match_grain(clean, alpha, plate)
+        self.assertGreater(composite.grain(out, alpha), composite.grain(plate) * 0.6)
+        self.assertIs(composite.match_grain(plate, alpha, clean), plate)            # never removes grain
+
+    def test_name_cards_on_first_appearance_only_with_the_feature(self):
+        from core import subtitles
+        from core.db import connect
+        from core.pipeline import Pipeline
+        p = Pipeline(connect())
+        pid = p.create_project("names")
+        for idx, cast in ((1, ["KELLY"]), (2, ["KELLY", "KENTA"])):
+            sid = p.create_scene(pid, idx, f"s{idx}")
+            p.conn.execute("UPDATE scenes SET data=? WHERE id=?", (json.dumps({"shot_no": idx, "characters": cast}), sid))
+        p.conn.commit()
+        timeline = [{"idx": 1, "seconds": 3.0}, {"idx": 2, "seconds": 3.0}]
+        with mock.patch.dict(os.environ, {"FEATURE_NAME_CARDS": "1"}):
+            cues = subtitles.build_cues(p, tempfile.mkdtemp(), pid, timeline=timeline)
+        self.assertEqual([(c.text, c.start) for c in cues if c.speaker == subtitles.HUD], [("KELLY", 0.2), ("KENTA", 3.2)])
+        with mock.patch.dict(os.environ, {"FEATURE_NAME_CARDS": "0"}):
+            self.assertEqual(subtitles.build_cues(p, tempfile.mkdtemp(), pid, timeline=timeline), [])
+
+
 class ViewerCheckTests(unittest.TestCase):
     def test_faces_under_the_app_bands_are_named(self):
         self.assertEqual(viewer_check.hidden_faces([(0.02, 0.12)]), ["top"])

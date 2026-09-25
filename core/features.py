@@ -54,6 +54,16 @@ FEATURES: Dict[str, Dict] = {
         "verified": False,
         "why": "GĐ4 (editing.md E4, D6): chưa nghe thử; khoảng lặng dài/ngắn là gu dựng — bật khi người dùng nghe và đồng ý",
     },
+    "impact_shake": {
+        "label": "Rung khung hình 0,25 s ở những giây có hiệu ứng va chạm / nổ / súng trong bản trộn",
+        "verified": False,
+        "why": "GĐ4 (editing.md E6, D9): chưa xem thử trên bản dựng thật; rung sai chỗ làm người xem khó chịu",
+    },
+    "name_cards": {
+        "label": "Bảng tên nhân vật (kiểu thông báo game) ở lần đầu mỗi nhân vật xuất hiện",
+        "verified": False,
+        "why": "GĐ4 (editing.md E6, D10): dùng kiểu chữ thông báo game sẵn có; chưa xem thử — người dùng chọn có cần không",
+    },
     "profile_digest": {
         "label": "Hồ sơ nhân vật rút gọn: prompt ảnh dùng lock_medium (≤ 500 ký tự), prompt video dùng lock_short (≤ 200) thay cho bản đầy đủ",
         "verified": False,

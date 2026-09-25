@@ -140,6 +140,26 @@ def match_colour(char, alpha, background, strength: float = MATCH_STRENGTH):
     return np.clip((char - cm) / cs * target_s + target_m, 0, 1)
 
 
+def grain(img, alpha=None):
+    """Fine noise of a picture: the spread of what a small blur takes away (on the character only when alpha is given)."""
+    np = _np()
+    detail = (img - _blur(img, 1)).mean(axis=2)
+    sel = detail[alpha > 0.5] if alpha is not None else detail.reshape(-1)
+    return float(np.std(sel)) if sel.size > 50 else 0.0
+
+
+def match_grain(char, alpha, background, seed: int = 1):
+    """D8 (editing.md E5): a render / plate has its own fine noise, the green-screen character another (usually cleaner) — the eye reads
+    the clean one as "pasted". Noise is added to the character up to the plate's level (never removed)."""
+    np = _np()
+    missing = grain(background) ** 2 - grain(char, alpha) ** 2
+    if missing <= 1e-7:
+        return char
+    rnd = np.random.RandomState(seed)
+    noise = rnd.normal(0, missing ** 0.5, alpha.shape).astype(np.float32)[..., None]
+    return np.clip(char + noise * (alpha[..., None] > 0), 0, 1)
+
+
 def light_wrap(char, alpha, background, strength: float = WRAP):
     np = _np()
     edge = np.clip(_blur(1 - alpha, 6) * alpha * 2.2, 0, 1)[..., None]
@@ -156,7 +176,7 @@ def occluders(depth_path: Optional[str], depth_range, size: Tuple[int, int], dis
 
 
 def composite(green_path: str, plate: Dict, out_path: str, env: Optional[Dict] = None, mask_out: Optional[str] = None,
-              place: Optional[Dict] = None) -> Dict:
+              place: Optional[Dict] = None, seed: int = 1) -> Dict:
     """plate = an entry of location_pack.index (plate, shadow, depth, depth_range_m, subject_box, distance_m). Writes the composite
     (and the character mask) and returns {"path", "mask", "placement", "occluded_share"}."""
     np = _np()
@@ -180,6 +200,7 @@ def composite(green_path: str, plate: Dict, out_path: str, env: Optional[Dict] =
     char = char * (1 - GRADE_STRENGTH) + plate_env.grade(char, env) * GRADE_STRENGTH
     char = match_colour(char, alpha, background)
     char = light_wrap(char, alpha, background)
+    char = match_grain(char, alpha, background, seed)       # a new grain every frame of a clip (a fixed one reads as dirt)
     if plate_env.fog_amount(env) > 0:
         char = plate_env.apply_fog(char, np.full(alpha.shape, float(plate.get("distance_m") or 3.0)), env)
     a = alpha[..., None]
@@ -218,7 +239,7 @@ def composite_video(green_clip: str, plate: Dict, out_path: str, ffmpeg: str, en
                 break
             frame = os.path.join(work, "g.png")
             Image.fromarray(np.frombuffer(raw, dtype=np.uint8).reshape(gh, gw, 3)).save(frame)
-            res = composite(frame, plate, os.path.join(work, "c.png"), env, place=place)
+            res = composite(frame, plate, os.path.join(work, "c.png"), env, place=place, seed=n + 1)
             place = res["placement"]
             writer.stdin.write(np.asarray(Image.open(res["path"]).convert("RGB"), dtype=np.uint8).tobytes())
             n += 1

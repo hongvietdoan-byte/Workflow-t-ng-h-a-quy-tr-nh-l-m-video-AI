@@ -123,6 +123,25 @@ PEAK_LIMIT = "alimiter=limit=0.794:level=false"
 BREATH_S, BREATH_LEVEL = 0.6, 0.05     # D6 (editing.md E4): the music drops to ~-26 dB this long before a turn, so the hit lands
 
 
+SHAKE_S, SHAKE_PX = 0.25, 10          # D9 (editing.md E6): a hit shakes the frame ~6 frames, up to 10 px, dying away
+
+
+def shake_filter(times: Sequence[float]) -> str:
+    """Crop-based camera shake at each time (the frame is enlarged 2 % so the shake never shows a border), decaying to rest."""
+    if not times:
+        return ""
+    amp = "+".join(f"between(t,{x:.2f},{x + SHAKE_S:.2f})*(1-(t-{x:.2f})/{SHAKE_S})" for x in times)
+    return (f"scale=iw*1.02:ih*1.02,crop=w=iw/1.02:h=ih/1.02:"
+            f"x='(iw-iw/1.02)/2+{SHAKE_PX}*({amp})*sin(t*90)':y='(ih-ih/1.02)/2+{SHAKE_PX}*({amp})*cos(t*77)'")
+
+
+def add_shake(src: str, dst: str, times: Sequence[float], ffmpeg: Optional[str] = None) -> str:
+    ff = ffmpeg or find_ffmpeg()
+    w, h = probe_size(src) or (1080, 1920)
+    run([ff, "-y", "-i", src, "-vf", shake_filter(times) + f",scale={w}:{h}", *_ENCODE, "-c:a", "copy", dst])   # the exact frame back
+    return dst
+
+
 def breath_filter(times: Sequence[float]) -> str:
     """volume automation: near-silence in the BREATH_S before each time (the music comes back on the turn itself)."""
     if not times:

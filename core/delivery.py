@@ -222,6 +222,19 @@ def latest_layer(p: Pipeline, project_id: int):
 
 
 # ---- the layers ------------------------------------------------------------------------------------------------------------
+_IMPACT = None
+
+
+def impact_times(directory: str) -> List[float]:
+    """D9: the starts of the effects in the mix that are hits (impact, explosion, gunshot, punch…), from their labels."""
+    import re
+    global _IMPACT
+    _IMPACT = _IMPACT or re.compile(r"impact|explosion|explode|blast|gunshot|gun ?shot|punch|hit\b|slam|crash|va chạm|nổ|súng|đấm|đập", re.I)
+    return sorted(round(float(e.get("start") or 0), 2) for e in audio_lib.load(directory)
+                  if e.get("kind") == "sound_effect" and e.get("use") and e.get("state") == "succeeded"
+                  and _IMPACT.search(str(e.get("label") or "")))[:12]
+
+
 def twist_times(p: Pipeline, project_id: int, rows: List[Dict], durations: List[float], transition: str = "cut", fade: float = 1.0) -> List[float]:
     """D6: where the film turns — the start of the first shot of a script section called TWIST / CAO TRÀO / CLIMAX, else the first ⭐ hero
     shot — on the render's own timeline (the clips' cut lengths). At most two times."""
@@ -315,11 +328,18 @@ def render(p: Pipeline, project_id: int, data_dir: str, music_path: Optional[str
     breaths = twist_times(p, project_id, rows, durations, settings["transition"], settings["fade"]) if features.on("music_breath") and track else []
     ffmpeg_studio.render_final(paths, out, durations, settings["transition"], settings["fade"], track, settings["music_volume"],
                                extras, keep_audio, formats.spec(aspect)["render"] if aspect else None, breaths=breaths)
+    hits = impact_times(audio_lib.assets_dir(data_dir, project_id)) if features.on("impact_shake") else []
+    if hits:                              # D9: the frame shakes on the hits the sound design placed
+        staged = out + ".shake.mp4"
+        ffmpeg_studio.add_shake(out, staged, hits)
+        os.replace(staged, out)
     manifest = final_manifest(p, project_id, data_dir, paths, settings)
     manifest["loudness"] = _loudness(out)
     manifest["color_match"] = colour
     if breaths:
         manifest["music_breaths"] = breaths
+    if hits:
+        manifest["shakes"] = hits
     manifest["timeline"] =[{"idx": r.get("idx"), "scene_id": r.get("scene_id"), "seconds": float(d)} for r, d in zip(rows, durations)]
     manifest["transition"], manifest["fade"] = settings["transition"], settings["fade"]
     oid = record(p, project_id, "final", out, None, manifest)
