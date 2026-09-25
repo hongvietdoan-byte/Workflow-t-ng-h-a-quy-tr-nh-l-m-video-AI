@@ -462,7 +462,8 @@ def split_group_clip(path: str, group: List[Dict], dest_paths: List[str]) -> Lis
     except Exception:  # noqa: BLE001 - no ffmpeg: every shot keeps the whole clip
         ffmpeg = None
     for r, dest in zip(group, dest_paths):
-        sec = billed_shot_seconds(r["data"])
+        # a multi-shot generation gives each shot its billed length (>= 3 s); an H5 set-up clip is cut at the shots' own seconds
+        sec = float(r["data"]["duration_s"]) if r["data"].get("exact") else billed_shot_seconds(r["data"])
         ok = False
         if ffmpeg:
             proc = subprocess.run([ffmpeg, "-y", "-ss", f"{start:.2f}", "-i", whole, "-t", f"{sec:.2f}", "-c:v", "libx264",
@@ -476,17 +477,72 @@ def split_group_clip(path: str, group: List[Dict], dest_paths: List[str]) -> Lis
     return out
 
 
+SETUP_MAX = 15.0            # one camera-set-up clip (H5) is at most this long (Kling / Seedance limit)
+
+
+def setups_on(conn, project_id: int) -> bool:
+    """H5 "quay theo vị trí máy": per-shot projects with the camera_setups feature (off until its real test passes)."""
+    from . import features
+    row = conn.execute("SELECT shot_mode FROM projects WHERE id=?", (project_id,)).fetchone()
+    return row is not None and row["shot_mode"] == "per_shot" and features.on("camera_setups")
+
+
+def setup_groups(conn, project_id: int) -> List[List[Dict]]:
+    """H5: the shots of one script scene that share a camera set-up (`camera_setup` A, B…) — made as ONE continuous clip from the first
+    shot's picture and cut into the shots (trial 2A: shots 9+10 as one 4 s clip = 33% fewer paid seconds than two 3 s clips). The
+    shots need not be next to each other (A B A B); a set-up longer than SETUP_MAX is split. Only groups of 2+ shots."""
+    by_key: Dict = {}
+    for r in _rows(conn, project_id):
+        d = r["data"]
+        if d.get("shot_no") and d.get("camera_setup"):
+            by_key.setdefault((d.get("story_scene"), str(d["camera_setup"]).upper()), []).append(r)
+    out: List[List[Dict]] = []
+    for members in by_key.values():
+        cur, total = [], 0.0
+        for r in members:
+            sec = float(r["data"].get("duration_s") or 0)
+            if cur and total + sec > SETUP_MAX:
+                out.append(cur)
+                cur, total = [], 0.0
+            cur.append(r)
+            total += sec
+        if cur:
+            out.append(cur)
+    return sorted((g for g in out if len(g) > 1), key=lambda g: g[0]["idx"])
+
+
+def group_of(conn, scene_id: int) -> Optional[List[Dict]]:
+    """The group whose single generation makes this shot's clip: its Kling multi-shot group, or (H5) its camera-set-up group."""
+    row = conn.execute("SELECT s.project_id, p.shot_mode FROM scenes s JOIN projects p ON p.id=s.project_id WHERE s.id=?",
+                       (scene_id,)).fetchone()
+    if row is None:
+        return None
+    if row["shot_mode"] == "multishot":
+        return multishot_group_of(conn, scene_id)
+    if setups_on(conn, row["project_id"]):
+        return next((g for g in setup_groups(conn, row["project_id"]) if any(x["id"] == scene_id for x in g)), None)
+    return None
+
+
 def needs_own_image(conn, scene_id: int) -> bool:
-    """Kling multi-shot makes the later shots of a group from the group's first picture: only that first shot needs a picture."""
-    row = conn.execute("SELECT p.shot_mode FROM scenes s JOIN projects p ON p.id=s.project_id WHERE s.id=?", (scene_id,)).fetchone()
-    if row is None or row["shot_mode"] != "multishot":
-        return True
-    group = multishot_group_of(conn, scene_id) or []
+    """Kling multi-shot (and an H5 camera set-up) makes the later shots of a group from the group's first picture: only that first
+    shot needs a picture."""
+    group = group_of(conn, scene_id) or []
     return len(group) < 2 or group[0]["id"] == scene_id
 
 
 def image_scene(conn, scene_id: int) -> int:
-    """The shot whose picture this shot's video starts from (itself, or the first shot of its multi-shot group)."""
+    """The shot whose picture this shot's video starts from (itself, or the first shot of its group)."""
     if needs_own_image(conn, scene_id):
         return scene_id
-    return (multishot_group_of(conn, scene_id) or [{"id": scene_id}])[0]["id"]
+    return (group_of(conn, scene_id) or [{"id": scene_id}])[0]["id"]
+
+
+def setup_motion(prompts_and_seconds: List[tuple]) -> str:
+    """H5: one continuous-take prompt from the set-up's shots in film order — what happens in each stretch of the clip."""
+    t, parts = 0.0, []
+    for mp, sec in prompts_and_seconds:
+        parts.append(f"{t:.1f}–{t + sec:.1f}s: {str(mp).strip().rstrip('.')}.")
+        t += sec
+    return ("One continuous take from a single fixed camera set-up — the same framing and camera position all the way through, no cuts. "
+            + " ".join(parts))

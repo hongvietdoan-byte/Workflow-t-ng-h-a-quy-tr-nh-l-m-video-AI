@@ -353,7 +353,9 @@ class VideoRunner(_Runner):
             out["kling_mode"] = "std"
         mode = shots.mode(proj)
         group = self._sends_group(job)
-        if group:
+        if group and mode != "multishot":
+            pass                         # H5 camera set-up: one continuous prompt (in the motion argument), no multi_prompt
+        elif group:
             out["multi_prompt"] = [{"prompt": self._motion(r["id"])["motion_prompt"], "duration": shots.billed_shot_seconds(r["data"])}
                                    for r in group]
             from .adapters.clipai import KLING_SHOT_PROMPT_LIMIT
@@ -404,9 +406,7 @@ class VideoRunner(_Runner):
         """The multi-shot group this job generates in one go (Kling multi-shot, first shot of a group whose other shots have no
         clip yet), else None — a shot remade later is sent on its own."""
         from . import shots
-        if shots.mode(self.p.project(job["project_id"])) != "multishot":
-            return None
-        group = shots.multishot_group_of(self.p.conn, job["scene_id"]) or []
+        group = shots.group_of(self.p.conn, job["scene_id"]) or []     # Kling multi-shot group, or an H5 camera set-up
         if len(group) < 2 or group[0]["id"] != job["scene_id"] or any(self._has_clip(r["id"]) for r in group[1:]):
             return None
         return group
@@ -416,9 +416,7 @@ class VideoRunner(_Runner):
         prompt; the other shots wait for their part of that clip (unless the first shot already has its clip: then a remade
         shot is sent on its own)."""
         from . import shots
-        if shots.mode(self.p.project(job["project_id"])) != "multishot":
-            return False
-        group = shots.multishot_group_of(self.p.conn, job["scene_id"]) or []
+        group = shots.group_of(self.p.conn, job["scene_id"]) or []
         if len(group) < 2:
             return False
         if group[0]["id"] != job["scene_id"]:
@@ -432,11 +430,18 @@ class VideoRunner(_Runner):
         from . import shots
         mp = self.p.conn.execute("SELECT * FROM motion_prompts WHERE scene_id=?", (job["scene_id"],)).fetchone()
         group = self._sends_group(job)
+        exact = shots.mode(self.p.project(job["project_id"])) != "multishot"   # H5 set-up: cut at the shots' own seconds
+        sent = ([{"id": r["id"], "idx": r["idx"], "duration_s": self._cut_seconds(r), "exact": True} for r in group] if group and exact
+                else [{"id": r["id"], "idx": r["idx"], "duration_s": shots.billed_shot_seconds(r["data"])} for r in group] if group else None)
         return {"input_hash": lineage.video_input_hash(mp, formats.project_aspect(self.p.project(job["project_id"]))) if mp else None,
                 "source_job_id": lineage.approved_image_id(self.p.conn, shots.image_scene(self.p.conn, job["scene_id"])),
                 "model": args[4],
-                "sent_group": json.dumps([{"id": r["id"], "idx": r["idx"], "duration_s": shots.billed_shot_seconds(r["data"])}
-                                          for r in group]) if group else None}
+                "sent_group": json.dumps(sent) if sent else None}
+
+    def _cut_seconds(self, row) -> float:
+        """A shot's length in the film: its motion prompt's seconds (stretched to the real voice), else the Director's."""
+        mp = self._motion(row["id"])
+        return round(float((mp["duration_sec"] if mp is not None and mp["duration_sec"] else None) or row["data"].get("duration_s") or 0), 2)
 
     def _submit_args(self, job):
         conn = self.p.conn
@@ -451,14 +456,22 @@ class VideoRunner(_Runner):
         proj = self.p.project(job["project_id"])
         model = self._choice(job)["model"]            # per scene (ClipAI model guide) — see core.model_router
         duration = mp["duration_sec"]
+        setup, group, secs = False, None, []
         if json.loads(conn.execute("SELECT data FROM scenes WHERE id=?", (job["scene_id"],)).fetchone()["data"] or "{}").get("shot_no"):
             duration = math.ceil(float(duration or 0) - 1e-6)   # v3 shot: never shorter than planned (it is cut afterwards)
             from . import shots
             group = self._sends_group(job)
-            if group:                                             # the whole group's length, one Kling generation
+            setup = bool(group) and shots.mode(proj) != "multishot"
+            if setup:                                             # H5: one continuous take for the set-up's shots, cut afterwards
+                secs = [self._cut_seconds(r) for r in group]
+                duration = max(math.ceil(sum(secs) - 1e-6), 3)
+            elif group:                                           # the whole group's length, one Kling generation
                 duration = sum(shots.billed_shot_seconds(r["data"]) for r in group)
                 model = "kling"
         motion = no_minor_age(mp["motion_prompt"])
+        if setup:
+            motion = no_minor_age(shots.setup_motion([((self._motion(r["id"]) or {"motion_prompt": ""})["motion_prompt"], s)
+                                                      for r, s in zip(group, secs)]))
         if job["retry_reason"] and not job["retry_reason"].startswith(RESEND_NOTE):
             motion = f"{motion} Fix: {job['retry_reason']}"      # W3: a retry sends the QC's fix, never the very same input again
         args = (path, motion, mp["negative_prompt"], duration, model)
@@ -532,7 +545,8 @@ class VideoRunner(_Runner):
         clip is first split into one clip per shot of its group; the other shots' jobs are completed with their part."""
         from . import shots
         sent = json.loads(job["sent_group"]) if "sent_group" in job.keys() and job["sent_group"] else None
-        group = ([{"id": g["id"], "idx": g["idx"], "data": {"duration_s": g["duration_s"]}} for g in sent] if sent
+        group = ([{"id": g["id"], "idx": g["idx"], "data": {"duration_s": g["duration_s"], "exact": bool(g.get("exact"))}} for g in sent]
+                 if sent
                  else self._sends_group(job))       # M10: the group as it was sent (a later re-plan must not mis-cut a paid clip)
         if group:
             self._finish_group(job, path, group)

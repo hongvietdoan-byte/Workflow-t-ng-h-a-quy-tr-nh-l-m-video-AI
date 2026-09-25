@@ -106,7 +106,7 @@ def scan(conn, project_id: int) -> Dict[int, Dict]:
             image_stale_of[s["id"]] = "nội dung cảnh / nhân vật / tỉ lệ khung đã đổi"
     base = {}                                           # v3 multi-shot: later shots of a group start from the group's picture
     mode = conn.execute("SELECT shot_mode FROM projects WHERE id=?", (project_id,)).fetchone()
-    if mode is not None and mode["shot_mode"] == "multishot":
+    if mode is not None and mode["shot_mode"] in ("multishot", "per_shot"):   # per_shot: H5 camera set-ups share a picture too
         from .shots import image_scene
         base = {s["id"]: image_scene(conn, s["id"]) for s in scenes}
     out = {}
