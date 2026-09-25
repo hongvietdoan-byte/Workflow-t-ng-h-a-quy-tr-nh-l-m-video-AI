@@ -485,9 +485,15 @@ def loudness_line(p: Pipeline, pid: int) -> None:
     """GĐ4 (editing.md E8): the loudness of the newest render, measured when it was made (target −14 LUFS, true peak ≤ −1,5 dBTP)."""
     row = p.conn.execute("SELECT manifest FROM outputs WHERE project_id=? AND kind='final' ORDER BY id DESC LIMIT 1", (pid,)).fetchone()
     try:
-        m = (json.loads(row["manifest"] or "{}") if row else {}).get("loudness")
+        man = json.loads(row["manifest"] or "{}") if row else {}
     except (ValueError, TypeError):
-        m = None
+        man = {}
+    off = [c for c in man.get("color_match") or [] if c.get("off")]
+    if off:                                   # GĐ4 D7: shots of one place that drift from their anchor
+        st.caption("🎨 Màu: " + ", ".join(f"shot {c['idx']} lệch shot {c['anchor_idx']} (điểm đen/trắng {c['levels']:g}, ám màu {c['cast']:g})"
+                                          + (" — đã khớp" if c.get("fixed") else "") for c in off)
+                   + ("" if any(c.get("fixed") for c in off) else " · bật cờ khớp màu (FEATURE_SHOT_COLOR_MATCH=1) để tự sửa bản sao"))
+    m = man.get("loudness")
     if not m or m.get("lufs") is None:
         return
     text = (f"🔊 Độ to bản dựng mới nhất: {m['lufs']:g} LUFS · đỉnh thật {m.get('true_peak_dbfs')} dBTP · LRA {m.get('lra')} LU"

@@ -223,6 +223,21 @@ def latest_layer(p: Pipeline, project_id: int):
 
 # ---- the layers ------------------------------------------------------------------------------------------------------------
 @_locked
+def _colour_match(p: Pipeline, project_id: int, rows: List[Dict], paths: List[str], work_dir: str) -> Optional[List[Dict]]:
+    """editing.md E5 (việc code D7): shots of one place and size class are measured against their anchor (black / white points, cast of
+    grey things); with the feature `shot_color_match` on, the drifting ones go into the cut as corrected copies (originals untouched).
+    `paths` is changed in place. A meter that fails never loses the render."""
+    from . import color_match, features
+    usable = [r for r in rows if r.get("path")]
+    try:
+        res = color_match.check_and_fix(p.conn, project_id, usable, work_dir, fix=features.on("shot_color_match"))
+    except Exception:  # noqa: BLE001
+        return None
+    for i, new in res["paths"].items():
+        paths[paths.index(usable[i]["path"])] = new
+    return res["report"]
+
+
 def _loudness(path: str) -> Optional[Dict]:
     """editing.md E8 (việc code D11): the delivery's loudness is always measured (free, a few seconds of ffmpeg); with the feature
     `loudness_normalize` on and the measure off target, the sound is brought to -14 LUFS / -1,5 dBTP by a linear gain (video untouched)."""
@@ -272,10 +287,12 @@ def render(p: Pipeline, project_id: int, data_dir: str, music_path: Optional[str
     extras = audio_lib.mix_list(audio_lib.assets_dir(data_dir, project_id))
     aspect = formats.project_aspect(p.project(project_id))
     out = os.path.join(output_dir(data_dir, project_id), "FINAL_VIDEO.mp4")
+    colour = _colour_match(p, project_id, rows, paths, os.path.join(output_dir(data_dir, project_id), "_colour"))
     ffmpeg_studio.render_final(paths, out, durations, settings["transition"], settings["fade"], track, settings["music_volume"],
                                extras, keep_audio, formats.spec(aspect)["render"] if aspect else None)
     manifest = final_manifest(p, project_id, data_dir, paths, settings)
     manifest["loudness"] = _loudness(out)
+    manifest["color_match"] = colour
     manifest["timeline"] =[{"idx": r.get("idx"), "scene_id": r.get("scene_id"), "seconds": float(d)} for r, d in zip(rows, durations)]
     manifest["transition"], manifest["fade"] = settings["transition"], settings["fade"]
     oid = record(p, project_id, "final", out, None, manifest)

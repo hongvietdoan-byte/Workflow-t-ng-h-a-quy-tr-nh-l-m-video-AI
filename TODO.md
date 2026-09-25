@@ -34,6 +34,9 @@
   (`ffmpeg_studio.normalize_loudness`, tuyến tính) sau cờ `loudness_normalize` TẮT — thử trên bản sao #7: −14,7 → −14,3 LUFS, hình giữ
   nguyên. `_ENCODE` thêm `+faststart` + BT.709. **Đo mức hạ nhạc thật:** 14,5–22,8 dB dưới 3 câu giọng thật #7 (nguồn khuyên 6–10 dB) →
   **cần người dùng quyết** có nhẹ tay hơn không (gu nghe).
+- [x] **Đợt 2 — D7 khớp màu giữa các shot** (`core/color_match.py`): so shot cùng cảnh/nơi/nhóm cỡ với shot neo bằng điểm đen/trắng + ám
+  màu vật xám; luôn đo (manifest `color_match`, 🎨 Bước 5), sửa bản sao sau cờ `shot_color_match` TẮT. Đo thật #7: 2/7 shot lệch điểm đen/trắng
+  0,14–0,15 (ám màu dưới ngưỡng), sửa thử → ~0,04. Cách đo màu trung bình đã thử và bỏ (nội dung khung làm mọi shot "lệch").
 
 **GĐ4 đã làm (2026-09-25; toàn bộ 971 test qua; tính năng mới có cờ đều TẮT; CHƯA chạy thật với API):**
 - **Nghiên cứu** 3 agent (WebSearch/WebFetch) → `knowledge/sources.md` mục GĐ4: 30 nguồn Đạo diễn [Đn], 35 Quay phim [Qn], 35 Dựng [En]

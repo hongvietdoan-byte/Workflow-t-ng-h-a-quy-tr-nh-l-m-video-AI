@@ -62,7 +62,7 @@ người xem, nên đứng trước nhịp cắt. Hy sinh mục thấp hơn → 
 | D4 | Âm theo `weather` (mưa/gió/sấm đúng giây chớp `plate_env.flash_times`) | Dựng | Lượt âm thanh (hoặc thư viện) |
 | D5 | Nền không khí liên tục cả cảnh | Dựng | Lượt âm thanh (hoặc thư viện) |
 | D6 | Khoảng lặng nhạc 0,3–1 s trước cú ngoặt | Dựng | Không |
-| D7 | **Khớp màu giữa các shot** cùng `sequence`/nơi (đo vùng tối/sáng, chỉnh về shot neo) — cần nhất khi bật gói bối cảnh | Dựng | Không |
+| D7 | ✅ Khớp màu giữa các shot cùng nơi/cảnh/nhóm cỡ: luôn đo (🎨 Bước 5), sửa bản sao sau cờ `shot_color_match` (TẮT) — `core/color_match.py` | Dựng | — |
 | D8 | Khớp hạt người–nền khi ghép | Dựng | Không |
 | D9 | Rung máy khi va chạm, hạt, lóa | Dựng | Không |
 | D10 | Bảng tên nhân vật động kiểu game | Dựng | Không |

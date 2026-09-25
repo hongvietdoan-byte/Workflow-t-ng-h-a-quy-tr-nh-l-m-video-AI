@@ -84,9 +84,13 @@ xúc, âm thanh làm thế giới game "thật", màu các shot liền nhau như
   áp trước khi ghép — Nuke [E26]), **khớp hạt** (thêm nhiễu cùng mức nền) [KN]. **Màu da**: vạch màu da trên vectorscope chỉ để tham khảo,
   sửa cả shot trước [E27][E28]. Vignette nhẹ dẫn mắt, không làm tối vùng có chữ.
 - **Trong pipeline.** ✅ Ghép: `composite.match_colour` (màu người về phía ánh sáng quanh, 35%), `light_wrap` (0,28), cùng độ chỉnh màu giờ/thời
-  tiết cho người và nền (`plate_env.grade`, 60%). ❌ **Khớp màu giữa các shot** trong bản dựng (đo trung bình vùng tối/sáng mỗi shot, chỉnh
-  shot lệch về shot neo cùng `sequence`) — việc code D7 (quan trọng nhất khi bật gói bối cảnh). ❌ Khớp hạt người–nền — việc code D8.
-- **Kiểm.** Code (D7 khi có): độ lệch màu giữa shot cùng nơi. Người: xem liền các shot cùng cảnh.
+  tiết cho người và nền (`plate_env.grade`, 60%). ✅ **Khớp màu giữa các shot** (`core/color_match.py`, D7): shot cùng cảnh + cùng nơi +
+  cùng nhóm cỡ (xa/trung — cận) so với shot đầu nhóm (neo) bằng **điểm đen/trắng** (5% / 95% độ sáng) và **ám màu của điểm ảnh xám** —
+  không so màu trung bình (áo vàng cận mặt không phải "ánh sáng ấm hơn"); mọi lần dựng đều đo (manifest `color_match`, hiện 🎨 ở Bước 5); bản
+  sao đã chỉnh (tăng/giảm từng kênh ≤ 20%, 70% đường tới neo) chỉ dùng khi bật cờ `shot_color_match`. ❌ Khớp hạt người–nền — việc code D8.
+- **Kiểm.** Code: độ lệch mỗi shot so với neo (ngưỡng ám màu 0,035, điểm đen/trắng 0,08). Đo thật #7 (2026-09-25): 2/7 shot lệch điểm
+  đen/trắng 0,14–0,15, ám màu đều dưới ngưỡng; sửa thử đưa về ~0,04 — một phần độ lệch do nội dung khung (người xem quyết có bật không).
+  Người: xem liền các shot cùng cảnh.
 - **Ví dụ FF.** ✔ GĐ2: người sáng quá trên nền đêm → chỉnh màu người theo giờ. ✘ Job 165/197: màu áo Kenta trôi/nhấp nháy trong clip — lỗi hình
   (trả Quay phim gen lại), không sửa bằng màu.
 
