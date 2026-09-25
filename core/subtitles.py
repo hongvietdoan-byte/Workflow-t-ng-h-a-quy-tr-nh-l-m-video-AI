@@ -28,6 +28,7 @@ LANGS = {"src": "Giữ nguyên ngôn ngữ kịch bản", "vi": "Tiếng Việt"
          "ru": "Русский"}
 SIZES = {"S": ("Nhỏ", 0.050), "M": ("Vừa", 0.065), "L": ("Lớn", 0.085)}       # fraction of the shorter side of the picture
 POSITIONS = {"bottom": ("Dưới", 2), "middle": ("Giữa", 5), "top": ("Trên", 8)}
+HUD = "__HUD__"         # speaker of an on-screen notice cue (shots' on_screen_text): drawn as a game notice at the top, not a subtitle
 SAFE_BOTTOM, SAFE_TOP = 0.36, 0.15      # vertical frames: just inside Meta's official Reels safe zone (35 % bottom / 14 % top free)
 COLORS = {"white": ("Trắng", "FFFFFF"), "yellow": ("Vàng", "FFE066")}
 DEFAULT_FONT = os.environ.get("DEFAULT_SUBTITLE_FONT", "GFF Latin Bold")
@@ -204,9 +205,13 @@ def build_cues(pipeline: Pipeline, data_dir: str, project_id: int, transition: s
              pipeline.conn.execute("SELECT idx, data FROM scenes WHERE project_id=?", (project_id,))}
     overlap = fade if transition in ffmpeg_studio.OVERLAP_STYLES else 0.0
     cues: List[Cue] = []
+    hud: List[Cue] = []
     t = 0.0
     for clip in timeline:
         length = float(clip["seconds"])
+        for text in (datas.get(clip["idx"], {}).get("on_screen_text") or []) if clip.get("idx") is not None else []:
+            if str(text).strip():                         # a game notice / system text is shown, never voiced (kịch bản "ANH CHỌN AI?")
+                hud.append(Cue(round(t + 0.1, 2), round(t + max(length - 0.1, 1.0), 2), str(text).strip(), HUD, clip["idx"]))
         rows = dialogue.scene_lines(datas.get(clip["idx"], {})) if clip.get("idx") is not None else []
         if rows:
             lead, tail = min(0.3, length * 0.08), 0.25
@@ -224,8 +229,8 @@ def build_cues(pipeline: Pipeline, data_dir: str, project_id: int, transition: s
     spoken = voice.cues(pipeline.conn, project_id, data_dir)
     if spoken:
         voiced = {c.scene for c in spoken}
-        cues = sorted([c for c in cues if c.scene not in voiced] + spoken, key=lambda c: c.start)
-    return cues
+        cues = [c for c in cues if c.scene not in voiced] + spoken
+    return sorted(cues + hud, key=lambda c: c.start)
 
 
 def wrap_text(text: str, max_chars: int) -> str:
@@ -254,7 +259,7 @@ def _clock(seconds: float, sep: str) -> str:
 def to_srt(cues: List[Cue], show_speaker: bool = False) -> str:
     out = []
     for i, c in enumerate(cues, 1):
-        text = f"{c.speaker.title()}: {c.text}" if show_speaker and c.speaker else c.text
+        text = f"{c.speaker.title()}: {c.text}" if show_speaker and c.speaker and c.speaker != HUD else c.text
         out.append(f"{i}\n{_clock(c.start, ',')} --> {_clock(c.end, ',')}\n{text}\n")
     return "\n".join(out)
 
@@ -263,13 +268,14 @@ def speaker_colors(cues: List[Cue]) -> Dict[str, str]:
     """One colour per speaker, in order of first appearance (auto-dialogue-generator skill: each character keeps a colour)."""
     out: Dict[str, str] = {}
     for c in cues:
-        if c.speaker and c.speaker not in out:
+        if c.speaker and c.speaker != HUD and c.speaker not in out:
             out[c.speaker] = SPEAKER_PALETTE[len(out) % len(SPEAKER_PALETTE)]
     return out
 
 
 def density(cues: List[Cue]) -> List[Dict]:
-    """Lines too fast to read (more than MAX_CPS characters per second) or overlapping the next line."""
+    """Lines too fast to read (more than MAX_CPS characters per second) or overlapping the next line (game notices sit apart)."""
+    cues = [c for c in cues if c.speaker != HUD]
     out = []
     for i, c in enumerate(cues):
         span = max(c.end - c.start, 0.01)
@@ -329,9 +335,17 @@ def to_ass(cues: List[Cue], width: int, height: int, font: Font, size: str = "M"
         style_of[who] = f"S{n}"
         lines.append(f"Style: S{n},{font.ass_name or font.family},{fontsize},&H00{c_bgr},&H00{c_bgr},&H00000000,&H80000000,0,0,0,0,"
                      f"100,100,0,0,1,{outline},1,{align},{int(width * 0.06)},{int(width * 0.06)},{margin_v},1")
+    if any(c.speaker == HUD for c in cues):
+        # a game notice (knowledge/editor/safe_zones.md: game-notice style at the top of the safe zone, unlike a subtitle): smaller,
+        # yellow on a dark box, centred just inside the top safe margin
+        hud_size = max(int(fontsize * 0.8), 12)
+        hud_margin = int(height * SAFE_TOP) if height > width else int(height * 0.06)
+        lines.append(f"Style: Hud,{font.ass_name or font.family},{hud_size},&H0000D7FF,&H0000D7FF,&H00000000,&HA0000000,1,0,0,0,"
+                     f"100,100,0,0,3,{max(int(hud_size * 0.25), 3)},0,8,{int(width * 0.06)},{int(width * 0.06)},{hud_margin},1")
+        style_of[HUD] = "Hud"
     lines += ["", "[Events]", "Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text"]
     for c in cues:
-        text = f"{c.speaker.title()}: {c.text}" if show_speaker and c.speaker else c.text
+        text = f"{c.speaker.title()}: {c.text}" if show_speaker and c.speaker and c.speaker != HUD else c.text
         text = wrap_text(text, max_chars).replace("{", "(").replace("}", ")").replace("\n", "\\N")
         style = style_of.get(c.speaker, "Default")
         lines.append(f"Dialogue: 0,{_clock(c.start, '.')[:-1]},{_clock(c.end, '.')[:-1]},{style},,0,0,0,,{text}")

@@ -79,6 +79,32 @@ class DuckingTests(unittest.TestCase):
         self.assertTrue(os.path.getsize(o) > 0)
 
 
+class GameNoticeTests(unittest.TestCase):
+    """on_screen_text ("HỆ THỐNG: Maxim đã bị hạ.") was stored on the shot but never reached the video."""
+
+    def setUp(self):
+        import json
+        from core.db import connect
+        from core.pipeline import Pipeline
+        self.p = Pipeline(connect())
+        self.pid = self.p.create_project("t")
+        sid = self.p.create_scene(self.pid, 1, "twist")
+        self.p.conn.execute("UPDATE scenes SET data=? WHERE id=?", (json.dumps({"shot_no": 1, "story_scene": 5, "dialogue": [],
+                                                                               "on_screen_text": ["Maxim đã bị hạ."]}), sid))
+        self.p.conn.commit()
+
+    def test_the_notice_becomes_a_top_cue_not_a_subtitle(self):
+        from core import subtitles
+        cues = subtitles.build_cues(self.p, tempfile.mkdtemp(), self.pid, timeline=[{"idx": 1, "seconds": 1.5}])
+        self.assertEqual([(c.text, c.speaker) for c in cues], [("Maxim đã bị hạ.", subtitles.HUD)])
+        font = subtitles.Font("x.ttf", "GFF Latin Bold", "x", True)
+        ass = subtitles.to_ass(cues, 1080, 1920, font, show_speaker=True, by_speaker=True)
+        self.assertIn("Style: Hud,", ass)
+        self.assertIn(",Hud,,0,0,0,,Maxim đã bị hạ.", ass)          # no "__hud__:" prefix, own style
+        self.assertEqual(subtitles.density(cues), [])
+        self.assertNotIn("__HUD__", subtitles.to_srt(cues, show_speaker=True))
+
+
 class StoreBlenderTests(unittest.TestCase):
     def test_the_store_package_is_found_when_nothing_else_is(self):
         fake = mock.Mock(stdout="BlenderFoundation.Blender_abc|C:\\Program Files\\WindowsApps\\Blender_5\n")

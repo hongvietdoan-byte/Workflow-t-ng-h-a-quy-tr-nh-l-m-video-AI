@@ -263,18 +263,23 @@ def subtitle_layer(p: Pipeline, project_id: int, data_dir: str, parent_id: Optio
     """Burn the project's subtitle settings into a copy of the render. None when subtitles are off (unless forced) or there is
     no line. Cues are timed from the voice lines when they exist, else estimated with the SAVED transition (not a default)."""
     sub = subtitles.get_settings(p, project_id)
-    if not (sub["enabled"] or force):
-        return None
+    hud_only = not (sub["enabled"] or force)      # subtitles off: game notices (on_screen_text) are story, they are still drawn
     parent = _parent(p, project_id, parent_id, ("final",))
     if parent is None:
+        if hud_only:
+            return None
         raise ValueError("chưa có video cuối để in phụ đề")
     if cues is None:
         cues = subtitle_cues(p, project_id, data_dir, parent)
-        if cues:   # D8: saved translations + the person's fixes; Claude only for lines never translated
+        if hud_only:
+            cues = [c for c in cues if c.speaker == subtitles.HUD]
+        elif cues:   # D8: saved translations + the person's fixes; Claude only for lines never translated
             cues = subtitles.localize(llm, cues, sub["lang"], data_dir, project_id)
+    elif hud_only:
+        cues = [c for c in cues if c.speaker == subtitles.HUD]
     if not cues:
         return None
-    out = os.path.join(output_dir(data_dir, project_id), f"FINAL_VIDEO_sub_{sub['lang']}.mp4")
+    out = os.path.join(output_dir(data_dir, project_id), "FINAL_VIDEO_hud.mp4" if hud_only else f"FINAL_VIDEO_sub_{sub['lang']}.mp4")
     with ffmpeg_studio.atomic_output(out) as staged:
         res = _burn(parent["path"], cues, staged, sub)
     res.update(video=out, srt=os.path.splitext(out)[0] + ".srt")
