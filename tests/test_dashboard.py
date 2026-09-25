@@ -14,6 +14,8 @@ APP = os.path.join(os.path.dirname(__file__), "..", "dashboard", "app.py")
 
 class DashboardSmokeTests(unittest.TestCase):
     def setUp(self):
+        os.environ["DASHBOARD_EXPERT"] = "1"      # these tests use the advanced panels (kế hoạch V4 5.3)
+        self.addCleanup(os.environ.pop, "DASHBOARD_EXPERT", None)
         self.tmp = tempfile.mkdtemp()
         self.db = os.path.join(self.tmp, "m.sqlite")
         os.environ["PIPELINE_DB"] = self.db
@@ -60,6 +62,43 @@ class DashboardSmokeTests(unittest.TestCase):
         self.assertFalse(any(t.key == "price_currency" for t in at.text_input))          # Bảng giá closed
         self.assertTrue(any(s.label == "Cảnh" for s in at.selectbox))                    # Lịch sử's scene picker
 
+    def test_expert_switch_hides_the_advanced_panels_by_default(self):
+        """Kế hoạch V4 5.3: off by default, the steps show a normal run only; the ⚙ switch brings the advanced panels back."""
+        os.environ.pop("DASHBOARD_EXPERT", None)
+        self.seed()
+        at = AppTest.from_file(APP, default_timeout=30).run()
+        self.assertFalse(at.exception)
+        labels = lambda: [e.label for e in at.expander]  # noqa: E731
+        self.assertFalse(any("Nâng cao: prompt gửi Claude" in x for x in labels()))
+        self.assertFalse(any("World Bible" in x for x in labels()))
+        at.toggle(key="expert_mode").set_value(True).run()
+        self.assertFalse(at.exception)
+        self.assertTrue(any("World Bible" in x for x in labels()))
+
+    def test_the_four_cards_open_their_step(self):
+        """Kế hoạch V4 5.3 item 6: Kịch bản → Duyệt kế hoạch → Đang sản xuất → Video cuối, each opening its step."""
+        _, pid = self.seed()
+        at = AppTest.from_file(APP, default_timeout=30).run()
+        self.assertFalse(at.exception)
+        titles = " ".join(m.value for m in at.markdown)
+        for t in ("Kịch bản", "Duyệt kế hoạch", "Đang sản xuất", "Video cuối"):
+            self.assertIn(t, titles)
+        at.button(key=f"ov_2_{pid}").click().run()
+        self.assertFalse(at.exception)
+        self.assertTrue(at.radio(key="step").value.startswith("4"))
+        at.button(key=f"ov_3_{pid}").click().run()
+        self.assertTrue(at.radio(key="step").value.startswith("5"))
+
+    def test_the_limits_dialog_opens_with_its_numbers(self):
+        self.seed()
+        at = AppTest.from_file(APP, default_timeout=30).run()
+        at.button(key="settings_limits").click().run()
+        self.assertFalse(at.exception)
+        text = " ".join(m.value for m in at.markdown)
+        self.assertIn("Cấu hình", text)
+        self.assertIn("Hàng đợi bây giờ", text)
+        self.assertTrue(any("chưa đủ dữ liệu" in i.value for i in at.info))      # an empty history gives no guess
+
     def test_the_library_shows_the_review_box_and_the_3d_panel(self):
         from core import assets
         self.seed()
@@ -91,7 +130,7 @@ class DashboardSmokeTests(unittest.TestCase):
         # Kho tài nguyên / Bảng giá / Kho kiến thức / Lịch sử / Bài học / Phân quyền: moved to the settings
         # gear, each its own dialog -- must render without error too.
         for key in ("settings_assets", "settings_pricing", "settings_knowledge", "settings_history",
-                   "settings_lessons", "settings_users"):
+                   "settings_lessons", "settings_users", "settings_limits"):
             at.button(key=key).click().run()
             self.assertFalse(at.exception, key)
 

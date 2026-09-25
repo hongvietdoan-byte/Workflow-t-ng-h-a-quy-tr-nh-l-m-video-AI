@@ -113,8 +113,10 @@ def step2(p: Pipeline, pid: int):
     image_progress(p, pid, runner)
     if image_busy(p.conn, pid):
         auto_poll_images(pid)                           # results, the automatic check and automatic fixes all show up by themselves
-    qc_policy_panel(p, pid)
-    set_check_panel(p, pid)
+    if C.expert():
+        qc_policy_panel(p, pid)
+    if C.expert():
+        set_check_panel(p, pid)
     shot_storyboard_panel(p, pid)
 
     client = llm_client()
@@ -274,15 +276,16 @@ def image_detail(p: Pipeline, pid: int, j, proj):
             client = llm_client()
             if client is not None:
                 st.caption("🔍 Claude tự kiểm tra ảnh này ở nền (không cần bấm); xem tiến độ ở đầu Bước 2.")
-            with st.expander("Nâng cao: prompt QC + dán điểm tay"):
-                st.code(llm_runner.plain(prompts.build_qc_bundle(p, j["scene_id"], C.DATA)), language="markdown")
-                raw = st.text_area("JSON điểm QC từ Claude", key=f"qc_{jid}", height=100)
-                if st.button("Chấm điểm", key=f"score_{jid}", disabled=not raw.strip()):
-                    def score():
-                        obj = llm_io.validate_qc_result(raw, prompts.qc_criteria())
-                        st.toast(f"Quyết định: {p.apply_qc(jid, obj['criteria'])}")
-                    if act(score):
-                        st.rerun()
+            if C.expert():
+                with st.expander("Nâng cao: prompt QC + dán điểm tay"):
+                    st.code(llm_runner.plain(prompts.build_qc_bundle(p, j["scene_id"], C.DATA)), language="markdown")
+                    raw = st.text_area("JSON điểm QC từ Claude", key=f"qc_{jid}", height=100)
+                    if st.button("Chấm điểm", key=f"score_{jid}", disabled=not raw.strip()):
+                        def score():
+                            obj = llm_io.validate_qc_result(raw, prompts.qc_criteria())
+                            st.toast(f"Quyết định: {p.apply_qc(jid, obj['criteria'])}")
+                        if act(score):
+                            st.rerun()
         if state in ("succeeded", "pending_review"):
             note = st.text_input("Ghi chú lý do loại (đưa vào prompt gen lại)", key=f"note_{jid}")
             a, b = st.columns(2)

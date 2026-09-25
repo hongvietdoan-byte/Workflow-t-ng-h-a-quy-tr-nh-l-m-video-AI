@@ -24,7 +24,7 @@
 | 3 | Khớp môi toàn video (`docs/NGHIEN_CUU_KHOP_MOI.md`): chọn cách từng shot (tạo kèm giọng Seedance / khớp môi sau sync.so / bỏ qua), giọng từng shot đúng giây timeline, adapter ClipAI `reference_audio` + `core/adapters/syncso.py`, pha autopilot `lipsync`, dựng giữ giọng đúng giây, Đạo diễn được báo; sửa `shot_data` làm rơi trường mới (`lip_sync`, `weather`, `plate_spot`, `plate_mode`); cờ `lip_sync` TẮT | ✅ code + test 2026-09-25 · còn: thử thật (GĐ8) · **cần người dùng: có mở tài khoản sync.so (API từ $5/tháng) không** |
 | 4 | Bộ kỹ năng 3 vai → agent chấm độc lập → bảng tổng kết gửi người dùng; hồ sơ bỏ tuổi + rút gọn 3 mức, T1 mọi nhân vật | ✅ code + test + tài liệu 2026-09-25 (chi tiết dưới bảng; bảng điểm `docs/DANH_GIA_BO_NGUYEN_TAC_V4.md`) · **chờ người dùng duyệt → bật `film_crew`** · T1 mọi nhân vật: để dành (người dùng chốt) |
 | 5 | Tầng A Director | ⏳ |
-| 6 | Dashboard gọn + tab ⚙ "Giới hạn hệ thống" | ⏳ |
+| 6 | Dashboard gọn + tab ⚙ "Giới hạn hệ thống" | ✅ code + test 2026-09-25 (chi tiết "Đợt 8" dưới bảng) · còn: đo lại ước tính sau lần chạy trọn #6 (lệch > 20% thì chỉnh) |
 | 7 | Chạy toàn bộ test, rà lại | ⏳ |
 | 8 | Kiểm chứng nhỏ trong trần #7 (≤ ~$2, ≤ 5 ảnh) | ⏳ cần báo giá trước |
 | 9 | Báo "sẵn sàng" → người dùng chạy trọn #6 | ⏳ |
@@ -54,6 +54,23 @@
 - [x] **Đợt 7 — D2 + V4:** điểm cắt theo chuyển động (cờ `motion_trim`; #7 shot 3 dời 1,0 s đúng lúc giọt lệ lăn); sơ đồ máy nhìn từ trên
   (`py tools/location_pack.py topview --project N`, #7: shot 2 qua vai ở phía đối diện — cảnh báo để kiểm). D3 dọn thoại: **cố ý không làm**
   (chỉ có giọng TTS sạch).
+- [x] **Đợt 8 — GĐ6 dashboard gọn + ⚙ "📏 Giới hạn hệ thống":**
+  - `core/capacity.py`: cấu hình (số chính xác) + số đo từ `job_events` (chờ trong pipeline / chạy ở nhà cung cấp, trung vị + P90,
+    s chạy / s clip, tỉ lệ lỗi, chạy cùng lúc cao nhất và cao nhất không bị giới hạn tốc độ; bỏ shot đi theo nhóm multi-shot + task nối lại),
+    mỗi số kèm n + mức tin cậy; ước tính "video X s ≈ Y phút" (thiếu mẫu → "chưa đủ dữ liệu"). **Số thật hôm nay:** Kling chạy trung vị
+    171 s (n 15), Seedance Fast 168 s (n 23), GPT Image 46 s (n 19); video 60 s ≈ **43 phút** bước video (P90 ~293 phút — hàng đợi nhà
+    cung cấp có đuôi dài). Test với lịch sử giả khớp số tính tay.
+  - Công tắc **🧠 Chế độ chuyên gia** trong ⚙ (mặc định TẮT) ẩn: World Bible, storyboard layout 1g, dán JSON tay (Bước 1, 3), nối ảnh,
+    chính sách QC + QC nhóm + dán điểm tay (Bước 2), video tham chiếu (Bước 3), kế hoạch model + thử nghiệm (Bước 4), bảng SFX/TTS thêm và
+    nhập clip tay (Bước 5). **Lệch đặc tả có chủ ý:** 5.4 (phụ đề/card/kích thước) vẫn hiện — phụ đề mặc định tắt, ẩn thì "Xuất bản đầy
+    đủ" không bao giờ ra phụ đề.
+  - Thanh trên 1 dòng: tài khoản + ô tên vào ⚙; một nút Tạm dừng/Tiếp tục; **một dòng trạng thái** (chưa nhập tên · chi tiêu · tự động ·
+    vấn đề). Dọn thùng rác / quét lỗi chạy **tối đa 1 lần/60 s** thay vì mỗi lần trang chạy lại. Xóa code chết `resize_panel` (+ preset
+    1558×720). Thẻ Bước 2 vốn đã Duyệt / Loại / 🔍 Xem; gợi ý `claude_cli` vốn chỉ hiện khi chưa cấu hình.
+  - **Màn chính 4 thẻ** (Kịch bản → Duyệt kế hoạch → Đang sản xuất → Video cuối, `dashboard/overview.py`) trên thanh bước: số liệu + nút
+    mở bước; "Đang sản xuất" hiện ảnh/clip xong, hàng đợi, tự động, điểm giữ nền, số shot khớp môi. Thanh bước cũ giữ nguyên bên dưới.
+  - Test bắt được: hộp thoại mới chưa khai báo trong `DIALOG_FLAGS` → nút không mở (đã sửa). Xem thử thật trên bản sao CSDL (cổng 8521,
+    nhà cung cấp giả lập): thanh trên, dòng trạng thái, ⚙, hộp thoại giới hạn, 4 thẻ hiện đúng, không lỗi máy chủ.
 
 **GĐ4 đã làm (2026-09-25; toàn bộ 971 test qua; tính năng mới có cờ đều TẮT; CHƯA chạy thật với API):**
 - **Nghiên cứu** 3 agent (WebSearch/WebFetch) → `knowledge/sources.md` mục GĐ4: 30 nguồn Đạo diễn [Đn], 35 Quay phim [Qn], 35 Dựng [En]

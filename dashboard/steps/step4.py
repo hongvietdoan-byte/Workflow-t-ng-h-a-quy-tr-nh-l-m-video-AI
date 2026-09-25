@@ -10,7 +10,8 @@ def step4(p: Pipeline, pid: int):
     summ = lineage.summary(p.conn, pid)
     step_header("Bước 4 · Gen video + QC video", "mỗi cảnh một clip đúng nhân vật, đúng vật lý, khớp motion prompt",
                 f"{summ['videos'][0]}/{summ['total']} cảnh có clip dùng được", summ["videos"][1])
-    model_plan_panel(p, pid)
+    if C.expert():
+        model_plan_panel(p, pid)
     with st.container(border=True):
         m1, m2 = st.columns(2)
         audio_on = m1.checkbox("🔊 Model tự tạo âm thanh (tiếng động, không khí)", bool(proj["video_audio"]), key=f"vaudio_{pid}",
@@ -89,7 +90,8 @@ def step4(p: Pipeline, pid: int):
     if not latest:
         st.caption("Chưa có clip nào: duyệt motion prompt ở Bước 3 rồi bấm “▶ Gen video”.")
     clip_set_panel(p, pid)
-    experiments_panel(p, pid, runner)
+    if C.expert():
+        experiments_panel(p, pid, runner)
 
 
 def clip_set_panel(p: Pipeline, pid: int) -> None:

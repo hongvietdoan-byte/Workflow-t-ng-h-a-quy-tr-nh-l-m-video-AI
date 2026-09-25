@@ -39,12 +39,13 @@ def step3(p: Pipeline, pid: int):
             st.rerun()
         if client is None:
             st.caption(claude_hint())
-        with st.expander("✍ Nâng cao: prompt gửi Claude (copy) & dán kết quả"):
-            st.code(llm_runner.plain(prompts.build_motion_bundle(p, pid)), language="markdown")
-            raw = st.text_area("Dán JSON motion prompts từ Claude", key=f"motion_{pid}", height=140)
-            if st.button("▶ Lưu motion prompts", disabled=not raw.strip(), key=f"mot_paste_{pid}"):
-                if act(lambda: llm_io.store_motion_prompts(p, pid, raw), "Đã lưu"):
-                    st.rerun()
+        if C.expert():
+            with st.expander("✍ Nâng cao: prompt gửi Claude (copy) & dán kết quả"):
+                st.code(llm_runner.plain(prompts.build_motion_bundle(p, pid)), language="markdown")
+                raw = st.text_area("Dán JSON motion prompts từ Claude", key=f"motion_{pid}", height=140)
+                if st.button("▶ Lưu motion prompts", disabled=not raw.strip(), key=f"mot_paste_{pid}"):
+                    if act(lambda: llm_io.store_motion_prompts(p, pid, raw), "Đã lưu"):
+                        st.rerun()
     voice_panel(p, pid)
     animatic_panel(p, pid)
     with st.container(border=True):
@@ -96,23 +97,24 @@ def step3(p: Pipeline, pid: int):
                             if st.button("Dùng bản sửa", key=f"lint_apply_{r['sid']}"):
                                 act(lambda: claude_tasks.apply_lint(p, pid, r["sid"]), "Đã thay prompt (chờ duyệt lại)")
                                 st.rerun()
-            with st.expander("🎥 Video tham chiếu chuyển động" + (" — đã gắn" if r["ref_video_path"] else ""), expanded=False):
-                st.caption("Video chỉ cho model **chuyển động/nhịp/lực**; **diện mạo vẫn lấy từ ảnh khung đầu và ảnh tham chiếu**. "
-                           "Cảnh có video tham chiếu được đề xuất dùng Seedance (tham chiếu đa phương thức). Kling: 'feature' tạo clip mới theo "
-                           "chuyển động, 'base' sửa trực tiếp clip này; không dùng cùng lúc với âm thanh tự sinh của Kling.")
-                if r["ref_video_path"]:
-                    st.caption(f"Đang gắn: `{os.path.basename(r['ref_video_path'])}`")
-                    if st.button("✖ Bỏ video tham chiếu", key=f"mprv_clear_{r['sid']}"):
-                        act(lambda: p.set_motion_ref_video(r["sid"], None), "Đã bỏ")
+            if C.expert():
+                with st.expander("🎥 Video tham chiếu chuyển động" + (" — đã gắn" if r["ref_video_path"] else ""), expanded=False):
+                    st.caption("Video chỉ cho model **chuyển động/nhịp/lực**; **diện mạo vẫn lấy từ ảnh khung đầu và ảnh tham chiếu**. "
+                               "Cảnh có video tham chiếu được đề xuất dùng Seedance (tham chiếu đa phương thức). Kling: 'feature' tạo clip mới theo "
+                               "chuyển động, 'base' sửa trực tiếp clip này; không dùng cùng lúc với âm thanh tự sinh của Kling.")
+                    if r["ref_video_path"]:
+                        st.caption(f"Đang gắn: `{os.path.basename(r['ref_video_path'])}`")
+                        if st.button("✖ Bỏ video tham chiếu", key=f"mprv_clear_{r['sid']}"):
+                            act(lambda: p.set_motion_ref_video(r["sid"], None), "Đã bỏ")
+                            st.rerun()
+                    up = st.file_uploader("Tải video tham chiếu (MP4)", type=["mp4", "mov", "webm"], key=f"mprv_up_{r['sid']}")
+                    refer_type = st.radio("Kiểu tham chiếu (chỉ Kling)", ["feature", "base"], horizontal=True, key=f"mprv_type_{r['sid']}")
+                    if st.button("⬆ Lưu video tham chiếu", key=f"mprv_save_{r['sid']}", disabled=up is None):
+                        dest = os.path.join(project_dir(pid, "motion_ref"), f"scene_{r['idx']}_{up.name}")
+                        with open(dest, "wb") as f:
+                            f.write(up.getbuffer())
+                        act(lambda: p.set_motion_ref_video(r["sid"], dest, refer_type), "Đã gắn video tham chiếu")
                         st.rerun()
-                up = st.file_uploader("Tải video tham chiếu (MP4)", type=["mp4", "mov", "webm"], key=f"mprv_up_{r['sid']}")
-                refer_type = st.radio("Kiểu tham chiếu (chỉ Kling)", ["feature", "base"], horizontal=True, key=f"mprv_type_{r['sid']}")
-                if st.button("⬆ Lưu video tham chiếu", key=f"mprv_save_{r['sid']}", disabled=up is None):
-                    dest = os.path.join(project_dir(pid, "motion_ref"), f"scene_{r['idx']}_{up.name}")
-                    with open(dest, "wb") as f:
-                        f.write(up.getbuffer())
-                    act(lambda: p.set_motion_ref_video(r["sid"], dest, refer_type), "Đã gắn video tham chiếu")
-                    st.rerun()
             scene_expander(p, r["sid"])
             st.divider()
 

@@ -16,7 +16,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 from dashboard import common as C  # noqa: E402
 from dashboard.common import *  # noqa: E402,F401,F403
 from dashboard.admin import monitor  # noqa: E402
-from dashboard.header import account_bar, global_bar, require_login, user_bar  # noqa: E402
+from dashboard.header import global_bar, require_login, user_name  # noqa: E402
 from dashboard.steps.step1 import step1  # noqa: E402
 from dashboard.steps.step2 import step2  # noqa: E402
 from dashboard.steps.step3 import step3  # noqa: E402
@@ -79,13 +79,12 @@ def main():
     os.makedirs(os.path.dirname(DB) or ".", exist_ok=True)
     p = Pipeline(connect(DB))
     require_login(p.conn)
-    account_bar(p)
-    p.actor = me()["email"] if auth_on() else (user_bar() or None)
+    p.actor = me()["email"] if auth_on() else (user_name() or None)     # the account / name box is in ⚙ (one-line top bar)
     pid = global_bar(p)
     if pid is None:
         return
-    purge_trash(DATA)
-    trash.sweep_rejected(p, DATA, pid)
+    C.periodic("purge_trash", lambda: purge_trash(DATA))                # V4 5.3: housekeeping every 60 s, not on every click
+    C.periodic(f"sweep_{pid}", lambda: trash.sweep_rejected(p, DATA, pid))
     if "assets_synced" not in st.session_state:         # folders marked "auto": pick up new pictures, once per browser session
         st.session_state["assets_synced"] = True
         run_startup_sync(assets.auto_sync, "đồng bộ tài nguyên", "assets_sync")
@@ -107,10 +106,7 @@ def main():
     if "research_checked" not in st.session_state:      # monthly research, at most once per browser session
         st.session_state["research_checked"] = True
         research.maybe_run_in_background(DB)
-    problems = [f for f in diag.scan(p.conn, DATA, float(os.environ.get("AUTOPILOT_POLL_SEC", "15")))
-                if f["severity"] == "error" and f.get("project_id") in (None, pid)]
-    if problems:
-        st.caption(f"🔴 {len(problems)} vấn đề cần xem ở dự án này (ví dụ: {escape(diag.redact(problems[0]['title']))}) — tab “📊 Theo dõi”.")
+    # the problems of this project are in the one status line under the top bar (header.status_line, scanned every 60 s)
     deep = st.query_params.get("step")  # ?step=2 opens a step directly (1..5, monitor); 5a/5b and the
     deep = {"5a": "5", "5b": "5"}.get(deep, deep)  # history/lessons/users dialog deep links still work (settings_menu)
     keys = ["1", "2", "3", "4", "5", "monitor"]
@@ -124,6 +120,9 @@ def main():
         st.session_state["step"] = cur
     else:
         st.session_state.pop("step", None)
+    if all(x in visible for x in STEPS[:5]):             # kế hoạch V4 5.3: the four cards of the main screen, above the step bar
+        from dashboard import overview
+        overview.cards(p, pid, STEPS)
     step = st.radio("Bước", visible, horizontal=True, key="step", label_visibility="collapsed",
                     format_func=step_label(step_done(p, pid)))
     st.session_state["_step_keep"] = step

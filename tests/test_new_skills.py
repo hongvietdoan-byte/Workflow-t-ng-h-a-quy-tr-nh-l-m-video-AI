@@ -117,6 +117,10 @@ class OldDatabaseTests(Setup):
 
 
 class PanelTests(unittest.TestCase):
+    def setUp(self):
+        os.environ["DASHBOARD_EXPERT"] = "1"      # these tests use the advanced panels (kế hoạch V4 5.3)
+        self.addCleanup(os.environ.pop, "DASHBOARD_EXPERT", None)
+
     def test_style_panel_is_in_step_1(self):
         tmp = tempfile.mkdtemp()
         os.environ["PIPELINE_DB"] = os.path.join(tmp, "m.sqlite")

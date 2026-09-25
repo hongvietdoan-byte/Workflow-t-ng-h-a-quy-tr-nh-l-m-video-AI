@@ -331,7 +331,8 @@ def step1(p: Pipeline, pid: int):
     project_format_panel(p, pid)
     if scenes:
         assets_panel(p, pid)
-    world_bible_panel(p, pid)
+    if C.expert():
+        world_bible_panel(p, pid)
 
     if scenes:
         ui.html(ui.card_title("1c · Chọn cách chạy", "tự động hoàn toàn, hoặc lần lượt từng bước"))
@@ -346,7 +347,8 @@ def step1(p: Pipeline, pid: int):
     if chars:
         character_bible_panel(p, pid, chars, risky)
         dialogue_review_panel(p, pid)
-        storyboard_panel(p, pid)
+        if C.expert():
+            storyboard_panel(p, pid)
         with st.container(border=True):
             a, b = st.columns([2, 1], vertical_alignment="center")
             missing_anchor = [c["name"] for c in chars if not c["anchor_approved"]]
@@ -817,12 +819,13 @@ def director_panel(p: Pipeline, pid: int, chars) -> None:
                     st.rerun()
         else:
             st.caption(claude_hint() + " Hoặc dùng cách nhập tay bên dưới.")
-        with st.expander("✍ Nâng cao: prompt gửi Claude + dán JSON kết quả", expanded=client is None and not chars):
-            st.code(prompts.build_director_bundle(p, pid), language="markdown")
-            raw = st.text_area("Dán JSON kết quả từ Claude", key=f"analysis_{pid}", height=120)
-            if st.button("Lưu phân tích", disabled=not raw.strip(), key=f"dir_paste_{pid}"):
-                if act(lambda: llm_io.store_scene_analysis(p, pid, raw), "Đã lưu Character Bible + thông số cảnh"):
-                    st.rerun()
+        if C.expert():
+            with st.expander("✍ Nâng cao: prompt gửi Claude + dán JSON kết quả", expanded=client is None and not chars):
+                st.code(prompts.build_director_bundle(p, pid), language="markdown")
+                raw = st.text_area("Dán JSON kết quả từ Claude", key=f"analysis_{pid}", height=120)
+                if st.button("Lưu phân tích", disabled=not raw.strip(), key=f"dir_paste_{pid}"):
+                    if act(lambda: llm_io.store_scene_analysis(p, pid, raw), "Đã lưu Character Bible + thông số cảnh"):
+                        st.rerun()
 
 
 def _voices(pid: int):
@@ -1149,13 +1152,15 @@ def scene_list(p: Pipeline, pid: int, scenes, char_names) -> None:
                + ("" if with_bg == len(scenes) else f" — {unit} chưa có thì không dựng được layout; chọn trong từng {unit} hoặc gắn địa điểm ở 1b"))
     proj = p.project(pid)
     modes = {0: "Tự động: nối trong cùng nhóm cảnh", 1: "Luôn nối cảnh liền trước", 2: "Không nối"}
-    mode = st.radio("🔗 Nối ảnh cảnh trước (giữ liên tục ánh sáng/vị trí khi gen ảnh)", list(modes), horizontal=True,
-                    index=list(modes).index(proj["storyboard_mode"] if proj["storyboard_mode"] in modes else 0),
-                    format_func=modes.get, key=f"chain_{pid}",
-                    help="Ảnh đã duyệt của cảnh trước (cùng nhóm) được gửi kèm làm tham chiếu khi gen ảnh cảnh sau — cách thay cho Storyboard của Deepix.")
-    if mode != proj["storyboard_mode"]:
-        p.conn.execute("UPDATE projects SET storyboard_mode=? WHERE id=?", (mode, pid))
-        p.conn.commit()
+    if C.expert():
+        mode = st.radio("🔗 Nối ảnh cảnh trước (giữ liên tục ánh sáng/vị trí khi gen ảnh)", list(modes), horizontal=True,
+                        index=list(modes).index(proj["storyboard_mode"] if proj["storyboard_mode"] in modes else 0),
+                        format_func=modes.get, key=f"chain_{pid}",
+                        help="Ảnh đã duyệt của cảnh trước (cùng nhóm) được gửi kèm làm tham chiếu khi gen ảnh cảnh sau — cách thay cho Storyboard của Deepix.")
+    if C.expert():
+        if mode != proj["storyboard_mode"]:
+            p.conn.execute("UPDATE projects SET storyboard_mode=? WHERE id=?", (mode, pid))
+            p.conn.commit()
     from core import shots as _shots
     story = {x["idx"]: x for x in _shots.story_scenes(p, pid)}
     cuts = _shots.dialogue_cuts(p, pid) if any(json.loads(s["data"] or "{}").get("shot_no") for s in scenes) else []

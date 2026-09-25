@@ -46,7 +46,16 @@ STEP_PERMISSION = {"📊 Theo dõi": "monitor"}
 
 # Lịch sử / Bài học / Phân quyền moved off the step bar into the settings gear (see settings_menu()) --
 # each opens as its own closable st.dialog panel instead of living inline in the stepper.
-DIALOG_FLAGS = ("dlg_assets", "dlg_pricing", "dlg_knowledge", "dlg_history", "dlg_lessons", "dlg_users", "dlg_budget", "dlg_clone")
+DIALOG_FLAGS = ("dlg_assets", "dlg_pricing", "dlg_knowledge", "dlg_history", "dlg_lessons", "dlg_users", "dlg_budget", "dlg_clone", "dlg_limits")
+
+
+def expert() -> bool:
+    """Kế hoạch V4 5.3: "Chuyên gia" (off by default) shows the advanced / by-hand panels; off, each step shows what a normal run
+    needs. DASHBOARD_EXPERT=1 turns it on for every session (tests of the advanced panels, power users)."""
+    if os.environ.get("DASHBOARD_EXPERT", "").strip() == "1":
+        return True
+    return bool(st.session_state.get("expert_mode", False))
+
 
 def open_dialog(flag: str) -> None:
     """Only one st.dialog may be open per script run: opening one always closes any other."""
@@ -137,6 +146,40 @@ def show_estimate(est, runner) -> bool:
     if est["items"] >= cost.load_pricing()["confirm_batch_at"]:
         return st.checkbox(f"Tôi xác nhận batch {est['items']} mục này sẽ tốn credit", key=f"confirm_{est['kind']}")
     return True
+
+PERIODIC_SEC = 60        # kế hoạch V4 5.3: housekeeping (trash, rejected results, the problem scan) at most this often, not every rerun
+
+
+def periodic(key: str, fn, every: float = PERIODIC_SEC):
+    """Run fn() at most once per `every` seconds in this browser session; the last result is kept and returned in between."""
+    import time as _time
+    slot = st.session_state.get(f"_periodic_{key}")
+    if slot is None or _time.time() - slot[0] >= every:
+        slot = (_time.time(), fn())
+        st.session_state[f"_periodic_{key}"] = slot
+    return slot[1]
+
+
+def diag_problems(p: Pipeline) -> list:
+    """Errors found by the problem scan (every 60 s, not on each click)."""
+    return periodic("diag", lambda: [f for f in diag.scan(p.conn, DATA, float(os.environ.get("AUTOPILOT_POLL_SEC", "15")))
+                                     if f["severity"] == "error"])
+
+
+def spend_text(p: Pipeline, pid: int):
+    """The project's spending in a few words (None: nothing sent yet) — for the one status line under the top bar."""
+    spend = cost.spend_summary(p.conn, pid, cost.load_pricing())
+    if not (spend["images"] or spend["clips"] or spend["audios"]):
+        return None
+    if spend["mock"] and spend["mock"] == spend["events"]:
+        return f"giả lập: {spend['images']} ảnh · {spend['clips']} clip · {spend['audios']} âm thanh (không tốn credit)"
+    text = f"{spend['images']} ảnh · {spend['clips']} clip ({spend['seconds']:.0f} s) · {spend['audios']} âm thanh"
+    if spend["unknown_prices"]:
+        text += " · chưa có giá: " + ", ".join(spend["unknown_prices"])
+    else:
+        text += f" ≈ {spend['credits']:.1f} {spend['currency']}"
+    return text
+
 
 def spend_line(p: Pipeline, pid: int) -> None:
     spend = cost.spend_summary(p.conn, pid, cost.load_pricing())

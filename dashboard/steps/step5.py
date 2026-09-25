@@ -1,7 +1,6 @@
 """Step 5: sound (music, effects, voice) and final render / subtitles / export."""
 from dashboard.common import *  # noqa: F401,F403  (shared imports + helpers)
 from dashboard import common as C
-from dashboard.widgets import resize_panel
 
 
 # ---- step 5a -------------------------------------------------------------------------
@@ -387,13 +386,14 @@ def step5(p: Pipeline, pid: int):
     ui.html(ui.card_title("5.2 · 🔊 Âm thanh", "nhạc nền · hiệu ứng · giọng thoại (làm ở Bước 3)"))
     step5a(p, pid)
     sfx_assistant(p, pid)
-    with st.expander("🎧 Hiệu ứng & giọng đọc thêm (tùy chọn)"):
-        try:
-            provider = music.audio_provider()
-        except ProviderError as e:                 # U1: say why the audio buttons are missing instead of hiding it
-            provider = None
-            st.caption(f"⚠ Chưa dùng được dịch vụ âm thanh: {e}")
-        extras_section(p, pid, provider)
+    if C.expert():
+        with st.expander("🎧 Hiệu ứng & giọng đọc thêm (tùy chọn)"):
+            try:
+                provider = music.audio_provider()
+            except ProviderError as e:                 # U1: say why the audio buttons are missing instead of hiding it
+                provider = None
+                st.caption(f"⚠ Chưa dùng được dịch vụ âm thanh: {e}")
+            extras_section(p, pid, provider)
     render_panel(p, pid, chosen, durations)
     ui.html(ui.card_title("5.4 · ✨ Hậu kỳ", "phụ đề · card cuối · kích thước khác"))
     subtitle_panel(p, pid)
@@ -435,12 +435,13 @@ def clips_panel(p: Pipeline, pid: int):
                 durations.append(sec)
             if c.get("scene_id"):
                 scene_expander(p, c["scene_id"], with_motion=True)
-        with st.expander("Nhập clip thủ công (tên file theo thứ tự, vd 01.mp4)"):
-            up = st.file_uploader("Clip .mp4", type=["mp4"], accept_multiple_files=True, key=f"vid_{pid}")
-            if up and st.button("Lưu clip", key=f"vid_save_{pid}"):
-                for f in up:
-                    act(lambda: final_cut.save_manual_clip(C.DATA, pid, f.name, f.getvalue()))
-                st.rerun()
+        if C.expert():
+            with st.expander("Nhập clip thủ công (tên file theo thứ tự, vd 01.mp4)"):
+                up = st.file_uploader("Clip .mp4", type=["mp4"], accept_multiple_files=True, key=f"vid_{pid}")
+                if up and st.button("Lưu clip", key=f"vid_save_{pid}"):
+                    for f in up:
+                        act(lambda: final_cut.save_manual_clip(C.DATA, pid, f.name, f.getvalue()))
+                    st.rerun()
     return chosen, durations
 
 

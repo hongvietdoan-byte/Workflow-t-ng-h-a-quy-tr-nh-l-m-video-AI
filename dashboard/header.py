@@ -110,6 +110,7 @@ def settings_menu(p: Pipeline, pid) -> None:
         elif deep == "users" and allowed("users"):
             open_dialog("dlg_users")
     with st.popover("⚙", help="Cài đặt dự án và hệ thống"):
+        account_section(p)
         if pid is not None:
             proj = p.project(pid)
             st.markdown("**Dự án này**")
@@ -140,6 +141,9 @@ def settings_menu(p: Pipeline, pid) -> None:
                 open_dialog("dlg_clone")
             st.divider()
         st.markdown("**Hệ thống**")
+        st.toggle("🧠 Chế độ chuyên gia", key="expert_mode",
+                  help="Hiện mọi tùy chọn nâng cao: dán JSON tay, nối ảnh, World Bible, storyboard layout, chính sách QC, video tham chiếu, "
+                       "kế hoạch model, thử nghiệm, bảng làm tay ở Bước 5. Tắt: mỗi bước chỉ hiện việc của một lần chạy thường.")
         if allowed("assets") and st.button("📁 Kho tài nguyên", key="settings_assets", width="stretch"):
             open_dialog("dlg_assets")
         if allowed("settings") and st.button("💲 Bảng giá", key="settings_pricing", width="stretch"):
@@ -148,6 +152,9 @@ def settings_menu(p: Pipeline, pid) -> None:
             open_dialog("dlg_budget")
         if allowed("knowledge") and st.button("📚 Kho kiến thức", key="settings_knowledge", width="stretch"):
             open_dialog("dlg_knowledge")
+        if st.button("📏 Giới hạn hệ thống", key="settings_limits", width="stretch",
+                     help="Số cấu hình + số đo từ lịch sử job thật (kèm số mẫu), hàng đợi hiện tại, ước tính thời gian"):
+            open_dialog("dlg_limits")
         if pid is not None and allowed("lessons") and st.button("🎓 Bài học", key="settings_lessons", width="stretch"):
             open_dialog("dlg_lessons")
         if pid is not None and allowed("users") and st.button("👥 Phân quyền", key="settings_users", width="stretch"):
@@ -168,12 +175,59 @@ def settings_menu(p: Pipeline, pid) -> None:
         _dialog_clone(p, pid)
     if st.session_state.get("dlg_knowledge"):
         _dialog_knowledge()
+    if st.session_state.get("dlg_limits"):
+        _dialog_limits(p)
     if pid is not None and st.session_state.get("dlg_history"):
         _dialog_history(p, pid)
     if pid is not None and st.session_state.get("dlg_lessons"):
         _dialog_lessons(p, pid)
     if pid is not None and st.session_state.get("dlg_users"):
         _dialog_users(p, pid)
+
+
+@st.dialog("📏 Giới hạn hệ thống", width="large", on_dismiss=lambda: close_dialog("dlg_limits"))
+def _dialog_limits(p: Pipeline) -> None:
+    """Kế hoạch V4 6.3: the limits as configured, what the job history measured (with n and a confidence — never a guess), the queue
+    now, and how long the video step of a film should take."""
+    from core import capacity
+    p = _own(p)
+    cfg = capacity.config()
+    st.markdown("**Cấu hình** (số chính xác trong code / biến môi trường)")
+    st.markdown(f"- Dự án tự chạy song song: **{cfg['autopilot_parallel']}** (`AUTOPILOT_MAX_PARALLEL`) · tối đa "
+                f"**{cfg['autopilot_max_scenes']}** cảnh / dự án tự chạy\n"
+                f"- Job chạy cùng lúc mỗi dự án: **{cfg['per_project_running']}** ảnh + **{cfg['per_project_running']}** video\n"
+                f"- Toàn máy (tự học): bắt đầu {cfg['throttle_start']}, +1 sau {cfg['throttle_up_every']} lần thành công, tối đa "
+                f"{cfg['throttle_max']}, gặp giới hạn tốc độ thì giảm nửa — đang ở: ảnh **{cfg['learned']['image_gen']}**, video "
+                f"**{cfg['learned']['video_gen']}**\n"
+                f"- Trần nhà cung cấp: video ClipAI **{cfg['provider_caps']['video_gen'] or 'không'}** · ảnh Deepix "
+                f"**{cfg['provider_caps']['image_gen'] or 'chưa đo'}**\n"
+                f"- Job mỗi ngày: **{cfg['daily_jobs']}** (`AUTOPILOT_DAILY_JOBS`)")
+    m = capacity.measured(p.conn)
+    st.markdown("**Số đo từ lịch sử job** — *chờ* = trong pipeline (cổng duyệt, ảnh shot trước, hàng đợi); *chạy* = nhà cung cấp "
+                "xếp hàng + tạo (bỏ shot đi theo nhóm multi-shot và task nối lại)")
+    rows = []
+    for kind, label in capacity.KINDS.items():
+        for model, x in m[kind]["models"].items():
+            rows.append({"Loại": label, "Model": model, "n": x["n"], "Tin cậy": x["confidence"],
+                         "Chờ trung vị (s)": x["wait_s"]["median"], "Chạy trung vị (s)": x["run_s"]["median"],
+                         "Chạy P90 (s)": x["run_s"]["p90"], "Mẫu chạy": x["run_s"]["n"],
+                         "s chạy / s clip": x["run_per_clip_s"]["median"], "Tỉ lệ lỗi": x["fail_rate"],
+                         "Bị giới hạn tốc độ": x["rate_limited"], "Ngày gần nhất": x["last_day"]})
+    if rows:
+        st.dataframe(rows, hide_index=True, width="stretch")
+    else:
+        st.caption("Chưa có job nào xong — chưa đủ dữ liệu.")
+    st.caption(" · ".join(f"{label}: chạy cùng lúc cao nhất {m[k]['peak']}, cao nhất không bị giới hạn tốc độ {m[k]['peak_without_rate_limit']}"
+                          for k, label in capacity.KINDS.items()))
+    q = capacity.queue(p.conn)
+    st.markdown("**Hàng đợi bây giờ:** " + " · ".join(f"{capacity.KINDS[k]} {v['running']} đang chạy / {v['queued']} chờ" for k, v in q.items()))
+    secs = st.number_input("Ước tính cho video dài (giây)", 5, 600, 60, 5, key="limits_secs")
+    e = capacity.estimate(p.conn, secs, m=m)
+    if e["minutes"] is None:
+        st.info(e["note"])
+    else:
+        st.success(f"Video {secs} s ≈ **{e['minutes']:g} phút** cho bước video (chậm: ~{e['minutes_p90']:g} phút) — {e['note']} "
+                   f"· model {e['model']}, n = {e['n']} ({e['confidence']})")
 
 
 def _own(p: Pipeline) -> Pipeline:
@@ -288,13 +342,19 @@ def _dialog_users(p: Pipeline, pid: int) -> None:
 
 
 def account_bar(p: Pipeline) -> None:
-    """Who is signed in (one short line) + sign-out. Actions live in the project bar below."""
+    """Kept for old callers: the account now lives in ⚙ (account_section) — the top bar is one line (kế hoạch V4 5.3)."""
+    return None
+
+
+def account_section(p: Pipeline) -> None:
+    """Who is signed in + sign-out (or, with sign-in off, the name jobs are counted for) — at the top of ⚙."""
     who = me()
-    c1, c4 = st.columns([8, 1.1], vertical_alignment="center")
     role = "Owner" if who["role"] == "owner" else "Thành viên"
-    c1.caption(f"👤 {escape(who['name'])} · {escape(who['email'])} · {role}"
+    st.caption(f"👤 {escape(who['name'])} · {escape(who['email'])} · {role}"
                + ("" if auth_on() else " · đăng nhập đang tắt (DASHBOARD_AUTH=off)"))
-    if auth_on() and c4.button("Đăng xuất", key="logout_btn"):
+    if not auth_on():
+        user_bar()
+    if auth_on() and st.button("Đăng xuất", key="logout_btn"):
         auth.logout(p.conn, st.session_state.get("auth_token"))
         for key in ("auth_token", "identity", "login_tried"):
             st.session_state.pop(key, None)
@@ -307,15 +367,21 @@ def user_bar() -> str:
     bookmark remembers it; every job created from this browser is counted for this name."""
     if "user_name" not in st.session_state:
         st.session_state["user_name"] = clean_name(st.query_params.get("user", ""))
-    c1, c2 = st.columns([2, 5], vertical_alignment="center")
-    typed = clean_name(c1.text_input("👤 Tên của bạn", value=st.session_state["user_name"], placeholder="ví dụ: Viet",
+    typed = clean_name(st.text_input("👤 Tên của bạn", value=st.session_state["user_name"], placeholder="ví dụ: Viet",
                                      key="user_input", help="Để hệ thống ghi nhận ai đã gen video. Không cần mật khẩu."))
     if typed != st.session_state["user_name"]:
         st.session_state["user_name"] = typed
         st.query_params["user"] = typed
     if not typed:
-        c2.markdown(":orange[Nhập tên trước khi gen ảnh/video để lượt gen được ghi cho bạn (nếu để trống sẽ tính là “chưa nhập tên”).]")
+        st.markdown(":orange[Nhập tên trước khi gen ảnh/video để lượt gen được ghi cho bạn (nếu để trống sẽ tính là “chưa nhập tên”).]")
     return typed
+
+
+def user_name() -> str:
+    """The name typed in ⚙ (sign-in off), read without drawing the box — the address remembers it (?user=Ten)."""
+    if "user_name" not in st.session_state:
+        st.session_state["user_name"] = clean_name(st.query_params.get("user", ""))
+    return st.session_state["user_name"]
 
 
 
@@ -341,12 +407,13 @@ def global_bar(p: Pipeline):
         proj = p.project(pid)
         with c2:
             risk_popover(p, pid)
-        b1, b2, b3 = c3.columns(3)
-        if b1.button("⏸ Tạm dừng", disabled=bool(proj["paused"]), key="btn_pause"):
+        b1, b3 = c3.columns(2)              # kế hoạch V4 5.3: one pause / continue button
+        if proj["paused"]:
+            if b1.button("▶ Tiếp tục", key="btn_resume", type="primary"):
+                p.set_paused(pid, False)
+                st.rerun()
+        elif b1.button("⏸ Tạm dừng", key="btn_pause"):
             p.set_paused(pid, True)
-            st.rerun()
-        if b2.button("▶ Tiếp tục", disabled=not proj["paused"], key="btn_resume"):
-            p.set_paused(pid, False)
             st.rerun()
         if confirm_all("btn_cancel", [pid], "■ Hủy việc", "Hủy mọi ảnh/clip đang chờ hoặc đang gen của dự án này?", b3, "Có, hủy"):
             st.toast(f"Đã hủy {p.cancel_all_active(pid)} việc")
@@ -355,11 +422,24 @@ def global_bar(p: Pipeline):
             settings_menu(p, pid)
     if proj["paused"]:
         st.warning("Dự án đang TẠM DỪNG — không ảnh/clip nào được gửi đi. Bấm ▶ Tiếp tục ở thanh trên.")
-    spend_line(p, pid)
+    status_line(p, pid)
+    return pid
+
+
+def status_line(p: Pipeline, pid: int) -> None:
+    """Kế hoạch V4 5.3: spending, the automatic run and the problems of this project in ONE line under the bar."""
+    bits = [] if auth_on() or user_name() else ["👤 chưa nhập tên (⚙)"]   # the name box moved into ⚙: say when it is empty
+    spend = C.spend_text(p, pid)
+    if spend:
+        bits.append("💵 " + spend)
     ap = autopilot.status(p, pid)
     if ap["state"] in ("running", "queued", "waiting"):
-        st.caption(f"🚀 Chế độ tự động: {ap['note']} (xem chi tiết ở Bước 1)")
-    return pid
+        bits.append(f"🚀 Tự động: {ap['note']}")
+    problems = [f for f in C.diag_problems(p) if f.get("project_id") in (None, pid)]
+    if problems:
+        bits.append(f"🔴 {len(problems)} vấn đề (vd: {escape(diag.redact(problems[0]['title']))}) — tab “📊 Theo dõi”")
+    if bits:
+        st.caption("  ·  ".join(bits))
 
 
 

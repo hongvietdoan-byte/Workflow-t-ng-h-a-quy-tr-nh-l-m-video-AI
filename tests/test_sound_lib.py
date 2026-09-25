@@ -273,6 +273,8 @@ class DashboardTests(Base):
     APP = os.path.join(os.path.dirname(__file__), "..", "dashboard", "app.py")
 
     def setUp(self):
+        os.environ["DASHBOARD_EXPERT"] = "1"      # these tests use the advanced panels (kế hoạch V4 5.3)
+        self.addCleanup(os.environ.pop, "DASHBOARD_EXPERT", None)
         super().setUp()
         from tests.test_step1_flow import split_only
         self.tmp, self.db, self.data, self.p, self.pid = split_only()

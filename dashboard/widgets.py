@@ -3,7 +3,6 @@ from dashboard.common import *  # noqa: F401,F403  (shared imports + helpers)
 from dashboard import common as C
 
 
-
 def image_busy(conn, pid: int) -> bool:
     """Something the page should keep watching: a job at the provider, pictures being / waiting to be checked automatically, or an
     automatic fix (retry) that is queued."""
@@ -106,34 +105,3 @@ def dialogue_panel(p: Pipeline, pid: int, key: str) -> None:
             dialogue.extend(p, entries)
             st.rerun()
         st.caption("Ước lượng theo tốc độ nói ~3,5 âm tiết/giây (DIALOGUE_SYLLABLES_PER_SEC) cộng 0,5s chừa hơi; chỉ là ước lượng.")
-
-
-RESIZE_PRESETS = {"Dọc 1080×1920 (TikTok/Reels/Shorts)": (1080, 1920), "Ngang 1920×1080": (1920, 1080),
-                  "Ngang 1558×720": (1558, 720), "Vuông 1080×1080": (1080, 1080), "Tự nhập": None}
-
-
-def resize_panel(pid: int, src: str) -> None:
-    """Export a copy at a given size and file-size limit (2-pass encoding), e.g. for upload limits."""
-    with st.expander("📐 Xuất bản theo kích thước / dung lượng"):
-        st.caption("Tạo thêm một bản của video cuối theo kích thước và dung lượng tối đa bạn cần (tự tính bitrate, mã hóa 2 lượt, "
-                   "tự nén lại nếu vượt). Bản gốc không bị đổi.")
-        preset = st.selectbox("Kích thước", list(RESIZE_PRESETS), key=f"rs_preset_{pid}")
-        size = RESIZE_PRESETS[preset]
-        c1, c2, c3 = st.columns(3)
-        width = c1.number_input("Rộng", 64, 7680, size[0] if size else 1080, 2, key=f"rs_w_{pid}", disabled=size is not None)
-        height = c2.number_input("Cao", 64, 7680, size[1] if size else 1920, 2, key=f"rs_h_{pid}", disabled=size is not None)
-        limit = c3.number_input("Dung lượng tối đa (MB, 0 = không giới hạn)", 0.0, 2000.0, 15.0, 1.0, key=f"rs_mb_{pid}")
-        if st.button("Xuất bản", key=f"rs_go_{pid}"):
-            w, h = size if size else (int(width), int(height))
-            dst = os.path.join(project_dir(pid, "output"), f"FINAL_VIDEO_{w}x{h}.mp4")
-            try:
-                with st.spinner("Đang mã hóa…"):
-                    res = ffmpeg_studio.resize_to_size(src, dst, w, h, limit or None)
-            except ERRORS as e:
-                st.error(str(e))
-            else:
-                (st.success if res["fits"] else st.warning)(
-                    f"Xong: {res['size_mb']:.1f} MB" + ("" if res["fits"] else f" — vẫn vượt {limit:g} MB sau {res['attempts']} lần, thử kích thước nhỏ hơn"))
-                with open(dst, "rb") as f:
-                    st.download_button(f"⬇ Tải {os.path.basename(dst)}", f, file_name=os.path.basename(dst), mime="video/mp4",
-                                       key=f"rs_dl_{pid}")
