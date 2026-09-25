@@ -521,6 +521,9 @@ class VideoRunner(_Runner):
         if mp is None or img is None:
             return None
         path = os.path.join(self.data_dir, str(job["project_id"]), "images", f"job_{img['id']}.png")
+        green = self._green_source(job, img["id"])
+        if green:
+            path = green                              # V4 mode 2: the character acts on green, keyed onto the plate afterwards
         proj = self.p.project(job["project_id"])
         model = self._choice(job)["model"]            # per scene (ClipAI model guide) — see core.model_router
         duration = mp["duration_sec"]
@@ -623,7 +626,57 @@ class VideoRunner(_Runner):
             shots.trim_clip(self.p, job["scene_id"], path)
         except Exception as e:  # noqa: BLE001 - a clip that cannot be cut is still a usable (longer) clip
             self._diag(job, "warn", "trim_error", f"không cắt được clip theo độ dài shot ({type(e).__name__}: {e}); dùng nguyên clip")
+        if not group:
+            self._plate_video(job, path)
         return path
+
+    def _plate_mode(self, job) -> Optional[str]:
+        """'green' (mode 2) / 'first_frame' (mode 1) for a shot with a location-pack plate, else None."""
+        from . import features, location_pack
+        if not features.on("location_plates") or location_pack.plate_of(self.data_dir, job["project_id"], job["scene_id"]) is None:
+            return None
+        data = json.loads(self.p.conn.execute("SELECT data FROM scenes WHERE id=?", (job["scene_id"],)).fetchone()["data"] or "{}")
+        return "green" if data.get("plate_mode") == "green" else "first_frame"
+
+    def _green_source(self, job, image_job_id: int) -> Optional[str]:
+        from . import location_pack
+        if self._plate_mode(job) != "green":
+            return None
+        path = location_pack.green_path(self.data_dir, job["project_id"], image_job_id)
+        return path if os.path.exists(path) else None
+
+    def _plate_video(self, job, path: str) -> None:
+        """V4: mode 2 — key the green clip onto the plate frame by frame; both modes — falling weather + lightning; mode 1 — how much of
+        the plate the video model kept (plate_qc), recorded for the automatic run's fallback to mode 2."""
+        mode = self._plate_mode(job)
+        if mode is None:
+            return
+        from . import composite, ffmpeg_studio, location_pack, plate_env, plate_qc, shots
+        plate = location_pack.plate_of(self.data_dir, job["project_id"], job["scene_id"])
+        env = plate.get("env") or {"time": "day", "weather": "clear"}
+        ffmpeg = ffmpeg_studio.find_ffmpeg()
+        tmp = path + ".plate.mp4"
+        try:
+            if mode == "green":
+                composite.composite_video(path, plate, tmp, ffmpeg, env)
+                os.replace(tmp, path)
+            done = plate_env.overlay_video(path, tmp, env, ffmpeg, seed=job["id"])
+            if done == tmp:
+                os.replace(tmp, path)
+            if mode == "first_frame":
+                img = self.p.conn.execute("SELECT id FROM jobs WHERE scene_id=? AND type='image_gen' AND state='approved' ORDER BY id DESC"
+                                          " LIMIT 1", (shots.image_scene(self.p.conn, job["scene_id"]),)).fetchone()
+                mask = location_pack.mask_path(self.data_dir, job["project_id"], img["id"]) if img else None
+                res = plate_qc.background_score(path, plate.get("shadow") or plate["plate"], ffmpeg, mask)
+                location_pack.record_video_qc(self.data_dir, job["project_id"], job["scene_id"], job["id"], res, mode)
+                if not res["ok"]:
+                    self._diag(job, "warn", "plate_redrawn", f"video vẽ lại nền (điểm giống nền {res['score']}) — lần gen lại sẽ diễn trên phông "
+                                                              "xanh rồi ghép (cách 2)")
+        except Exception as e:  # noqa: BLE001 - the clip is still usable as it came
+            self._diag(job, "warn", "plate_video", f"không xử lý được nền 3D cho clip ({type(e).__name__}: {e}) — dùng nguyên clip")
+        finally:
+            if os.path.exists(tmp):
+                os.remove(tmp)
 
     def _finish_group(self, leader, path: str, group) -> None:
         from . import formats, lineage, shots
@@ -746,10 +799,23 @@ class ImageRunner(_Runner):
         from . import budget
         return budget.check_image(self.p.conn, self.provider.name)
 
+    def _plate(self, job, data=None):
+        """The location-pack plate of this shot (feature location_plates), else None."""
+        from . import features, location_pack
+        if not features.on("location_plates"):
+            return None
+        return location_pack.plate_of(self.data_dir, job["project_id"], job["scene_id"])
+
     def _wait(self, job) -> bool:
-        """v3: the picture of a shot that continues the previous one waits for that shot's approved picture (sent as reference)."""
+        """v3: the picture of a shot that continues the previous one waits for that shot's approved picture (sent as reference).
+        V4: a shot set at a 3D place waits for its plate (rendered by the automatic run's plates phase)."""
         from . import shots
         from . import features
+        if features.on("location_plates"):
+            from . import location_pack
+            data = json.loads(self.p.conn.execute("SELECT data FROM scenes WHERE id=?", (job["scene_id"],)).fetchone()["data"] or "{}")
+            if location_pack.needs_plate(self.p.conn, job["project_id"], data) and self._plate(job) is None:
+                return True
         proj = self.p.project(job["project_id"])
         chains = proj["storyboard_mode"] == 1 or (proj["storyboard_mode"] != 2 and features.on("chain_previous_auto"))
         return bool(shots.mode(proj)) and chains and shots.waits_for_previous_image(self.p.conn, job["scene_id"])
@@ -767,6 +833,9 @@ class ImageRunner(_Runner):
         prompt = data.get("image_prompt")
         if not prompt:
             return None
+        plate = self._plate(job)
+        if plate is not None:
+            return self._green_args(job, data, plate)
         prompt = framing_sentence(data) + prompt
         if (data.get("blocking") or "").strip():       # where each person stands/faces, so shots of one sequence agree
             prompt = f"{prompt}. Blocking: {data['blocking'].strip()}"
@@ -807,6 +876,54 @@ class ImageRunner(_Runner):
         if refs:                                       # the chosen resources' pictures go with the prompt (image-to-image)
             return (assets.reference_note(refs) + "Scene: " + prompt, [r["path"] for r in refs])
         return (prompt,)
+
+    def _green_args(self, job, data, plate):
+        """V4 location pack: the character alone on flat green, framed and lit as the plate's camera; only the characters'
+        references go (the place is the plate — no place picture, no place words, no previous frame dragging a background)."""
+        from . import location_pack, looks
+        conn = self.p.conn
+        shot = location_pack.without_place(data)
+        prompt = framing_sentence(shot) + data["image_prompt"]
+        if (data.get("blocking") or "").strip():
+            prompt = f"{prompt}. Blocking: {data['blocking'].strip()}"
+        prompt += lock_note(conn, job["project_id"], data.get("characters"))
+        prompt += looks.image_sentence(self.p.project(job["project_id"]))
+        place = assets.scene_location(conn, job["project_id"], data)
+        entry = location_pack.model3d(conn, place["id"]) if place else None
+        prompt += " " + location_pack.green_prompt(data, plate, (entry or {}).get("sun_azimuth", 250.0))
+        if job["retry_reason"]:
+            prompt = f"{prompt}. Fix: {job['retry_reason']}"
+        refs = assets.scene_references(conn, job["project_id"], shot, limit=assets.MAX_REFERENCES)
+        refs = [r for r in refs if r.get("role") != "location"]
+        self._sent = getattr(self, "_sent", {})
+        self._sent[job["id"]] = [{"label": r["label"], "role": r["role"], "file": os.path.basename(r["path"])} for r in refs] + \
+            [{"label": "plate", "role": "location_pack", "file": os.path.basename(plate["plate"])}]
+        prompt = no_minor_age(prompt)
+        if refs:
+            return (assets.reference_note(refs) + "Scene: " + prompt, [r["path"] for r in refs])
+        return (prompt,)
+
+    def _after_download(self, job, path: str) -> str:
+        """V4 location pack: the downloaded picture is the character on green — keep it (job_<id>_green.png, the video of mode 2
+        starts from it), composite it on the plate into the job's picture, add falling weather."""
+        plate = self._plate(job)
+        if plate is None:
+            return path
+        from . import composite, location_pack, plate_env
+        green = location_pack.green_path(self.data_dir, job["project_id"], job["id"])
+        try:
+            os.replace(path, green)
+            res = composite.composite(green, plate, path, plate.get("env"),
+                                      mask_out=location_pack.mask_path(self.data_dir, job["project_id"], job["id"]))
+            plate_env.overlay_still(path, path, plate.get("env") or {"time": "day", "weather": "clear"}, seed=job["id"])
+        except Exception as e:  # noqa: BLE001 - a picture that cannot be composited is shown as it came (and said)
+            if os.path.exists(green) and not os.path.exists(path):
+                os.replace(green, path)
+            self._diag(job, "error", "composite", f"không ghép được nhân vật lên nền 3D ({type(e).__name__}: {e}) — ảnh giữ nguyên phông xanh")
+            return path
+        if res.get("occluded_share", 0) > 0.3:
+            self._diag(job, "warn", "occluded", f"nhân vật bị vật phía trước che {res['occluded_share']:.0%} — xem lại chỗ đứng / góc máy")
+        return path
 
     def _record_usage(self, job, args, kwargs=None) -> None:
         info = getattr(self.provider, "usage_info", None)

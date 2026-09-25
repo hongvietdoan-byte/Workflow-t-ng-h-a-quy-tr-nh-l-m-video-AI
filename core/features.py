@@ -30,6 +30,11 @@ FEATURES: Dict[str, Dict] = {
         "verified": False,
         "why": "Chạy thử 2A (H5): một cặp shot tiết kiệm 33% nhưng mất khung nhấn riêng — cần thử thêm ở cảnh thoại dày trước khi bật",
     },
+    "location_plates": {
+        "label": "Gói bối cảnh: nền là ảnh render 3D của bối cảnh (đúng góc máy shot), AI chỉ vẽ nhân vật trên phông xanh rồi ghép",
+        "verified": False,
+        "why": "Kế hoạch V4 mục 1: đã render + ghép thật miễn phí (2026-09-25); chưa thử ảnh phông xanh Deepix thật và clip thật (GĐ8)",
+    },
     "end_frames": {
         "label": "Ảnh khung cuối cho shot có end_state (vẽ thêm 1 ảnh, gửi clip khung đầu + cuối)",
         "verified": False,

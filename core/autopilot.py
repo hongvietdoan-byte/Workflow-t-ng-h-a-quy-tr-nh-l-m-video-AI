@@ -27,7 +27,7 @@ from .pipeline import Pipeline
 RUNNING, WAITING, STOPPED, ATTENTION, DONE, ERROR = "running", "waiting", "stopped", "needs_attention", "done", "error"
 QUEUED = "queued"   # approved, waiting for a free slot (see Manager.max_parallel)
 PHASE_LABELS = {"director": "Director (Character Bible + thông số cảnh)", "previz": "Dựng layout / storyboard", "images": "Gen ảnh + QC",
-                "setcheck": "QC đồng bộ cả bộ ảnh", "endframes": "Ảnh khung cuối (shot đổi trạng thái)", "storyboard": "Duyệt storyboard trước khi gen video", "clips": "Xem clip còn lỗi", "motion": "Motion prompt", "voice": "Giọng thoại", "videos": "Gen video + QC video",
+                "plates": "Nền 3D của bối cảnh (render theo góc máy)", "platefix": "Kiểm nền 3D trong clip", "setcheck": "QC đồng bộ cả bộ ảnh", "endframes": "Ảnh khung cuối (shot đổi trạng thái)", "storyboard": "Duyệt storyboard trước khi gen video", "clips": "Xem clip còn lỗi", "motion": "Motion prompt", "voice": "Giọng thoại", "videos": "Gen video + QC video",
                 "music": "Nhạc nền", "sfx": "Hiệu ứng âm thanh", "render": "Xuất bản", "done": "Hoàn tất"}
 MAX_SCENES = int(os.environ.get("AUTOPILOT_MAX_SCENES", "12"))
 LOG_KEEP = 60
@@ -411,6 +411,60 @@ def _storyboard_phase(p: Pipeline, pid: int, ctx: Context) -> Optional[str]:
                               + ") — xem “🎞 Storyboard” ở Bước 2, sửa/gen lại shot sai, rồi bấm “Duyệt storyboard” để gen video")
 
 
+def _plates_phase(p: Pipeline, pid: int, ctx: Context) -> Optional[str]:
+    """V4 location pack (feature location_plates): every shot set at a place with a registered 3D model gets its plate before any
+    picture (one Blender run per place + time/weather, shared cache). A place with no 3D model is said once, not skipped silently."""
+    from . import features, formats, location_pack
+    if not features.on("location_plates"):
+        return None
+    size = formats.spec(formats.project_aspect(p.project(pid)) or "9:16")["deepix"]
+    w, h = (int(v) for v in str(size).lower().split("x"))
+    photos = location_pack.ensure_photo_plates(p.conn, pid, ctx.data_dir, (w, h))     # tier 2: in-game photo of the place
+    if photos:
+        _log(p, pid, f"Nền từ ảnh chụp trong game (cấp 2, chưa có mô hình 3D): {len(photos)} shot")
+    items = location_pack.plan(p.conn, pid)
+    if not items:
+        return None
+    for it in items:
+        if it["weather_problem"]:
+            _d(p, pid, "images", "warn", f"shot {it['idx']}: {it['weather_problem']}", "weather")
+    idx = location_pack.index(ctx.data_dir, pid)
+    if all(str(it["scene_id"]) in idx and idx[str(it["scene_id"])].get("key") == it["key"] for it in items):
+        return None
+    location_pack.ensure_plates(p.conn, pid, ctx.data_dir, os.path.dirname(os.path.abspath(ctx.data_dir)), (w, h),
+                                log=lambda m: _log(p, pid, m))
+    return None
+
+
+def _plate_fallback_phase(p: Pipeline, pid: int, ctx: Context) -> Optional[str]:
+    """V4: a mode-1 clip whose video model redrew the place (plate_qc below the threshold) is made again ONCE in mode 2 (the character
+    acts on green and is keyed onto the plate) — a changed input, counted as a regeneration."""
+    from . import features, location_pack, regen
+    if not features.on("location_plates"):
+        return None
+    store = location_pack.video_qc(ctx.data_dir, pid)
+    for sid, rec in store.items():
+        if rec.get("ok") or rec.get("mode") != "first_frame" or rec.get("fallback"):
+            continue
+        row = p.conn.execute("SELECT data FROM scenes WHERE id=?", (int(sid),)).fetchone()
+        job = p.conn.execute("SELECT * FROM jobs WHERE id=?", (rec["job_id"],)).fetchone()
+        if row is None or job is None or job["state"] not in ("succeeded", "approved"):
+            continue
+        data = json.loads(row["data"] or "{}")
+        data["plate_mode"] = "green"
+        p.conn.execute("UPDATE scenes SET data=? WHERE id=?", (json.dumps(data, ensure_ascii=False), int(sid)))
+        p.conn.commit()
+        location_pack.record_video_qc(ctx.data_dir, pid, int(sid), rec["job_id"], dict(rec, fallback=True), rec["mode"])
+        try:
+            new = regen.regenerate_video(p, ctx.data_dir, rec["job_id"], f"nền bị vẽ lại (điểm {rec.get('score')}) → diễn trên phông xanh")
+        except Exception as e:  # noqa: BLE001 - say it, never loop on it
+            _d(p, pid, "videos", "warn", f"shot {sid}: không gen lại được sang cách 2 ({e})", "plate_fallback")
+            continue
+        _log(p, pid, f"Shot {sid}: video vẽ lại nền 3D → gen lại cách 2 (phông xanh + ghép), job {new}")
+        return "Gen lại clip nền 3D (cách 2)"
+    return None
+
+
 def _end_frame_phase(p: Pipeline, pid: int, ctx: Context) -> Optional[str]:
     """K1: every start picture is approved — draw the end frame of each shot that changes state (feature `end_frames`), so the
     storyboard shows both frames and the clip goes out as first + last frame."""
@@ -722,9 +776,9 @@ def tick(p: Pipeline, project_id: int, ctx: Context) -> str:
         _set(p, project_id, note="Đang tạm dừng")
         return RUNNING
     try:
-        phases = [("director", _director_phase), ("previz", _previz_phase), ("images", _images_phase), ("setcheck", _setcheck_phase),
+        phases = [("director", _director_phase), ("previz", _previz_phase), ("plates", _plates_phase), ("images", _images_phase), ("setcheck", _setcheck_phase),
                   ("endframes", _end_frame_phase), ("storyboard", _storyboard_phase), ("motion", _motion_phase), ("voice", _voice_phase), ("videos", _videos_phase), ("music", _music_phase),
-                  ("sfx", _sfx_phase)]
+                  ("platefix", _plate_fallback_phase), ("sfx", _sfx_phase)]
         for name, fn in phases:
             progress_note = fn(p, project_id, ctx)
             if progress_note is not None:

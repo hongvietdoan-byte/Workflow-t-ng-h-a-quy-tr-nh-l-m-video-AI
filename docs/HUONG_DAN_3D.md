@@ -85,3 +85,42 @@ Kết quả trong `out_dir`: `plate_*.png`, `depth_*.png`, `manifest.json`. Lầ
 ## 8. Đã chạy thật trên cloud (2026-09-24, `bpy 5.0.1`, không GPU, Mesa phần mềm)
 Tháp khối hộp 34 m lưu theo cm: tự nhận ×0,01; 6 ảnh nền 320×180 + 6 ảnh độ sâu trong ~48 s (EEVEE phần mềm, 2–20 s/ảnh — **máy có GPU sẽ nhanh
 hơn nhiều**); camera ngang tầm mắt: pitch 0°, đường chân trời 0,5; trời C trong suốt đúng. Số liệu thật của file tháp: **chưa có** — cần phiên trên máy.
+
+## 9. Gói bối cảnh (kế hoạch V4, 2026-09-25) — nền đúng 100% cho cả video
+
+**Ý tưởng:** AI chỉ vẽ nhân vật (trên phông xanh), nền là **pixel thật** render từ mô hình 3D theo đúng máy ảo của từng shot, rồi ghép
+bằng code. Làm tay **một lần cho mỗi khu vực** (đăng ký mô hình + chỗ đứng); mọi shot, mọi dự án sau dùng lại (bộ nhớ đệm chung).
+
+**Luồng (cờ `location_plates`, TẮT tới khi thử thật — bật thử `FEATURE_LOCATION_PLATES=1`):**
+1. `tools/location_pack.py register --asset <id khu vực> --model <file 3D> --anchor x y z [--spot tên x y z hướng] [--min-level z]`
+   — gắn mô hình vào hồ sơ khu vực (`assets.profile.model3d`); không đưa `--spot` thì tự dò mặt phẳng đi được (Blender bắn tia xuống)
+   và đề xuất chỗ đứng quay lưng về công trình. Tháp Đồng Hồ (#263) đã đăng ký 2026-09-25: `plaza_front` (mặc định), `lower_yard`
+   + 5 chỗ tự đề xuất.
+2. Autopilot pha **plates** (trước ảnh): máy ảo từng shot (`core/plate_camera.py`: cỡ cảnh → khoảng cách + ống kính, góc máy → độ cao,
+   `start_frame` trái/phải, cùng `camera_setup` = cùng máy) → render theo lô, mỗi khu vực + thời gian/thời tiết một lần gọi Blender
+   (xếp hàng cả máy, bộ nhớ đệm `data/_plates3d/cache/`) → lớp nền, độ sâu, **bóng của hình nộm đúng chiều cao nhân vật**.
+3. Thời gian/thời tiết (`core/plate_env.py`): đêm/hoàng hôn/bình minh = trời trong suốt + vẽ trời (sao, trăng); tuyết phủ mặt hướng lên,
+   mặt đất ướt (trong Blender); **sương theo khoảng cách** (từ ảnh độ sâu — sương khối của EEVEE làm đen cả ảnh, đã thử); mưa/tuyết
+   rơi, chớp (2D, phủ cả nền lẫn người); chỉnh màu theo giờ.
+4. Bước ảnh gửi **chỉ ảnh nhân vật** + prompt phông xanh có máy, ánh sáng (hướng nắng/trăng tính từ render), thời tiết trên người.
+5. Ghép (`core/composite.py`): tách xanh + khử viền, đặt đúng ô máy ảo tính, nền có bóng thật, vật gần hơn người thì đứng trước
+   (ảnh độ sâu), chỉnh màu người theo giờ (60%) + theo nền, hòa sáng viền, sương theo khoảng cách người.
+6. Video: **cách 1** ảnh ghép làm khung đầu; `core/plate_qc.py` chấm độ giống nền (mỗi 0,5 s, ngưỡng 0,90) — trượt thì pha
+   **platefix** gen lại 1 lần bằng **cách 2** (video nhân vật trên phông xanh, ghép từng khung lên nền, `composite_video`).
+7. Khu vực chưa có 3D nhưng có ảnh chụp trong game đã gắn vai trò (ngang mắt/thấp/cao) → **nền cấp 2** (cắt khung theo cỡ cảnh, chỉnh
+   màu; không có bóng/độ sâu). Không có cả hai → cách cũ (AI vẽ + ảnh mốc), báo rõ.
+
+**Số đo thật (2026-09-25, Blender 5.0.1 Store, tháp 71.925 tam giác):** nạp mô hình ~1,4 s; mỗi góc máy 1,2–5,7 s + lớp bóng ~1,5 s;
+dò mặt phẳng (34.221 tia, bước 1,5 m) ra đúng quảng trường trên z ≈ 25,96 và sân dưới z ≈ 22,40. Dự án #7: 4 shot ở tháp → 1 lần render
+đêm, 4 góc máy.
+
+### Mẫu xin mô hình 3D chính thức từ team game
+- Định dạng **FBX hoặc GLB**, **texture nhúng sẵn** (hoặc gửi kèm thư mục texture), **đơn vị mét**, trục Z hướng lên.
+- **Chia theo khu vực** (mỗi file một khu như Tháp Đồng Hồ, Nhà Máy, Kho Quân Sự…) — cả map một file sẽ quá nặng; nếu chỉ có cả map thì
+  báo số tam giác để mình dùng `decimate`.
+- Nếu có: **bản mùa/thời tiết** (Snowfall, map đêm…), vị trí công trình nhận diện chính (tọa độ tâm), và **ảnh chụp trong game cùng góc**
+  vài vị trí để chỉnh màu render cho giống game.
+- Bỏ file vào `MODEL3D_DIR` (`D:\AI-Video-Pipeline\model 3D`), rồi chạy lệnh `register` ở trên (hoặc báo mình chạy).
+
+**Chưa làm (ghi ở TODO):** màn hình đăng ký/sửa chỗ đứng trong ⚙ → Kho (GĐ6); bước "hòa ánh sáng bằng AI rồi dán lại nền thật" và Claude
+chấm "ăn khớp" (tốn tiền — bật khi thử thật cho thấy cần); mô hình chiếu sáng lại người (IC-Light, cần GPU/torch — hỏi trước khi tải).

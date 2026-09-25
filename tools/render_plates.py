@@ -27,7 +27,17 @@ Plan (JSON):
   presets          ["eye_000", "eye_090", "eye_180", "eye_270", "low_000", "high_045"] (angle = degrees around the target)
   cameras          [{"name", "location": [x,y,z], "look_at": [x,y,z], "lens": 35, "model_coords": false}] extra cameras in metres;
                    model_coords true = the points are in the raw model's own coordinates (they get the scale and the lift to z = 0)
-  lens_mm          35; eye_height_m 1.6; depth true (also render a depth picture: near = white)
+  lens_mm          35; eye_height_m 1.6; depth true (also render a depth picture: near = white; its range is in the manifest)
+  weather          {"snow": 0..1, "wet": 0..1, "fog": 0..1} static weather on the geometry (kế hoạch V4 1.6 step 3): snow on the faces
+                   that look up, wet = darker + glossier everything; fog is only recorded (laid in 2D from the depth picture). Falling rain/snow/lightning are 2D layers
+                   added after (core/plate_env.py) so the character gets them too.
+  sky.sun_color    [r, g, b] of the sun / moon light (night = cold blue moonlight)
+  camera.subject   {"location": [x, y, z] feet, "height_m": 1.7} — a stand-in of the character's size is put there for one more
+                   picture, `shadow_<cam>.png`: the plate with the stand-in's shadow (the stand-in itself is invisible to the camera),
+                   so the composite can lay the real shadow of the character on the ground (core/composite.py)
+  probe            {"step": 2.0} — no render: rays straight down on a grid find the flat ground a character can stand on; the
+                   flat areas (clustered by height) go to probe.json with their size and centre, in the model's own coordinates
+                   (core/location_pack.propose_spots turns them into named spots)
 Every number the local test should record (import time, triangles, render time per plate) is written to manifest.json.
 """
 import json
@@ -216,12 +226,95 @@ def setup_world(sky, warnings):
             used = "A (plain colour)"
     sun_data = bpy.data.lights.new("PLATES_SUN", "SUN")               # sharp shadows in the same direction as the sky's sun
     sun_data.energy = float(sky.get("sun_strength", 2.5))
+    if sky.get("sun_color"):
+        sun_data.color = tuple(float(c) for c in sky["sun_color"][:3])
     sun = bpy.data.objects.new("PLATES_SUN", sun_data)
     scene.collection.objects.link(sun)
     sun.rotation_euler = (math.pi / 2 - elev, 0, azim + math.pi / 2)
     scene.render.film_transparent = mode == "C"
     scene.view_settings.exposure = float(sky.get("exposure", -0.5))
     return used + (" + transparent sky" if mode == "C" else "")
+
+
+# ---- weather on the geometry ----------------------------------------------------------------------------------------------
+def _principled(mat):
+    if not mat or not mat.use_nodes:
+        return None
+    return next((n for n in mat.node_tree.nodes if n.type == "BSDF_PRINCIPLED"), None)
+
+
+def _mix_into(nt, bsdf, socket_name, value, factor_socket):
+    """bsdf.<socket> = mix(current input, value, factor) — keeps a texture that is linked to it."""
+    sock = bsdf.inputs.get(socket_name)
+    if sock is None:
+        return
+    mix = nt.nodes.new("ShaderNodeMix")
+    mix.data_type = "RGBA" if socket_name == "Base Color" else "FLOAT"
+    a, b = (mix.inputs[6], mix.inputs[7]) if mix.data_type == "RGBA" else (mix.inputs[2], mix.inputs[3])
+    if sock.is_linked:
+        nt.links.new(sock.links[0].from_socket, a)
+    elif mix.data_type == "RGBA":
+        a.default_value = sock.default_value
+    else:
+        a.default_value = float(sock.default_value)
+    b.default_value = value
+    nt.links.new(factor_socket, mix.inputs[0])
+    out = mix.outputs[2] if mix.data_type == "RGBA" else mix.outputs[0]
+    nt.links.new(out, sock)
+
+
+def apply_weather(weather, warnings):
+    """Snow on up-facing faces, wet surfaces, fog in the air. Each material is changed on its own; one that cannot be changed is
+    left as it is and named in the warnings (never stop a render for the weather)."""
+    snow, wet, fog = (max(0.0, min(1.0, float(weather.get(k, 0) or 0))) for k in ("snow", "wet", "fog"))
+    done = set()
+    for mat in bpy.data.materials:
+        bsdf = _principled(mat)
+        if bsdf is None or mat.name in done:
+            continue
+        done.add(mat.name)
+        nt = mat.node_tree
+        try:
+            if snow > 0:
+                geo, sep, rng = nt.nodes.new("ShaderNodeNewGeometry"), nt.nodes.new("ShaderNodeSeparateXYZ"), nt.nodes.new("ShaderNodeMapRange")
+                nt.links.new(geo.outputs["Normal"], sep.inputs[0])
+                nt.links.new(sep.outputs[2], rng.inputs["Value"])
+                rng.inputs["From Min"].default_value, rng.inputs["From Max"].default_value = 0.55, 0.85
+                rng.inputs["To Min"].default_value, rng.inputs["To Max"].default_value = 0.0, snow
+                _mix_into(nt, bsdf, "Base Color", (0.92, 0.94, 0.97, 1.0), rng.outputs["Result"])
+                _mix_into(nt, bsdf, "Roughness", 0.55, rng.outputs["Result"])
+            if wet > 0:
+                val = nt.nodes.new("ShaderNodeValue")
+                val.outputs[0].default_value = wet
+                _mix_into(nt, bsdf, "Base Color", (0.02, 0.02, 0.025, 1.0), _scaled(nt, val.outputs[0], 0.35))
+                _mix_into(nt, bsdf, "Roughness", 0.08, val.outputs[0])
+        except Exception as e:  # noqa: BLE001
+            warnings.append(f"weather not applied to material {mat.name}: {e}")
+    # fog is NOT a Blender volume: EEVEE treats a world volume as endless (the whole plate came out black, 2026-09-25). It is laid in
+    # 2D from the depth picture instead (core/plate_env.finish_plate), which also keeps it the same on the character.
+    return {"snow": snow, "wet": wet, "fog": fog, "materials": len(done)}
+
+
+def _scaled(nt, socket, k):
+    m = nt.nodes.new("ShaderNodeMath")
+    m.operation = "MULTIPLY"
+    nt.links.new(socket, m.inputs[0])
+    m.inputs[1].default_value = k
+    return m.outputs[0]
+
+
+def stand_in(location, height):
+    """An invisible-to-camera body of the character's size that still casts a shadow (and shows in reflections)."""
+    r = max(height * 0.13, 0.08)
+    bpy.ops.mesh.primitive_cylinder_add(radius=r, depth=height * 0.8, location=(location[0], location[1], location[2] + height * 0.4))
+    body = bpy.context.active_object
+    bpy.ops.mesh.primitive_uv_sphere_add(radius=height * 0.07, location=(location[0], location[1], location[2] + height * 0.9))
+    head = bpy.context.active_object
+    for o in (body, head):
+        o.name = "PLATES_STANDIN"
+        if hasattr(o, "visible_camera"):
+            o.visible_camera = False
+    return [body, head]
 
 
 # ---- cameras --------------------------------------------------------------------------------------------------------------
@@ -319,6 +412,47 @@ def depth_material(far):
     return mat
 
 
+def probe(cfg, meshes, factor, lo, hi):
+    """Flat walkable areas: a down-ray every `step` metres; a hit whose normal points up (z > 0.9) is floor. Heights are grouped in
+    0.4 m bands and each band split into connected grid areas. Coordinates are given back in the raw model's own frame."""
+    step = float(cfg["probe"].get("step", 2.0))
+    depsgraph = bpy.context.evaluated_depsgraph_get()
+    scene = bpy.context.scene
+    hits = {}
+    nx, ny = int((hi.x - lo.x) / step) + 1, int((hi.y - lo.y) / step) + 1
+    for i in range(nx):
+        for j in range(ny):
+            x, y = lo.x + i * step, lo.y + j * step
+            ok, loc, normal, _, obj, _ = scene.ray_cast(depsgraph, Vector((x, y, hi.z + 5)), Vector((0, 0, -1)))
+            if ok and normal.z > 0.9 and obj is not None and obj.name != "PLATES_GROUND":
+                hits[(i, j)] = loc.z
+    areas, seen = [], set()
+    for cell, z in hits.items():
+        if cell in seen:
+            continue
+        stack, members = [cell], []
+        seen.add(cell)
+        while stack:
+            c = stack.pop()
+            members.append(c)
+            for d in ((1, 0), (-1, 0), (0, 1), (0, -1)):
+                n = (c[0] + d[0], c[1] + d[1])
+                if n in hits and n not in seen and abs(hits[n] - hits[c]) < 0.4:
+                    seen.add(n)
+                    stack.append(n)
+        if len(members) < 3:
+            continue
+        xs = [lo.x + m[0] * step for m in members]
+        ys = [lo.y + m[1] * step for m in members]
+        zs = [hits[m] for m in members]
+        back = lambda v, lift=0.0: round((v - lift) / factor, 3)  # noqa: E731 - scene metres -> raw model units
+        areas.append({"cells": len(members), "area_m2": round(len(members) * step * step, 1),
+                      "centre": [back(sum(xs) / len(xs)), back(sum(ys) / len(ys)), back(sum(zs) / len(zs), LIFT_Z)],
+                      "min": [back(min(xs)), back(min(ys))], "max": [back(max(xs)), back(max(ys))]})
+    areas.sort(key=lambda a: -a["cells"])
+    return {"step_m": step, "rays": nx * ny, "floor_hits": len(hits), "areas": areas[:40]}
+
+
 def main():
     cfg = args_config()
     out_dir = cfg["out_dir"]
@@ -333,11 +467,19 @@ def main():
     manifest["scale_factor"] = factor
     manifest["bbox_m"] = {"min": [round(v, 2) for v in lo], "max": [round(v, 2) for v in hi],
                           "size": [round(hi[i] - lo[i], 2) for i in range(3)]}
+    if cfg.get("probe"):
+        manifest["probe"] = probe(cfg, meshes, factor, lo, hi)
+        with open(os.path.join(out_dir, "manifest.json"), "w", encoding="utf-8") as f:
+            json.dump(manifest, f, ensure_ascii=False, indent=1)
+        log(f"probe: {len(manifest['probe']['areas'])} flat areas")
+        return
     decimate(meshes, float(cfg.get("decimate", 1.0)))
     if cfg.get("ground", True):
         add_ground(lo, hi)
     sky = cfg.get("sky") or {}
     manifest["sky"] = dict(sky, used=setup_world(sky, warnings))
+    if cfg.get("weather"):
+        manifest["weather"] = apply_weather(cfg["weather"], warnings)
     scene = bpy.context.scene
     res = cfg.get("resolution") or [1280, 720]
     scene.render.resolution_x, scene.render.resolution_y, scene.render.resolution_percentage = int(res[0]), int(res[1]), 100
@@ -349,10 +491,15 @@ def main():
     if engine == "CYCLES" and hasattr(scene, "cycles") and hasattr(scene.cycles, "use_denoising"):
         scene.cycles.use_denoising = False                               # plates are references: speed over the last bit of noise
     manifest["engine"] = engine
-    cams = preset_cameras(cfg.get("presets") or DEFAULT_PRESETS, lo, hi, cfg.get("target"), float(cfg.get("eye_height_m", 1.6)))
+    names = cfg.get("presets")
+    if names is None or (not names and not cfg.get("cameras")):
+        names = DEFAULT_PRESETS                                          # [] with shot cameras = those cameras only (location pack)
+    cams = preset_cameras(names, lo, hi, cfg.get("target"), float(cfg.get("eye_height_m", 1.6)))
     for c in cfg.get("cameras") or []:
         if c.get("model_coords"):                                        # given in the raw model's coordinates (probe / Blender UI)
             c = dict(c, location=to_scene(c["location"], factor), look_at=to_scene(c["look_at"], factor))
+            if c.get("subject"):
+                c["subject"] = dict(c["subject"], location=to_scene(c["subject"]["location"], factor))
         cams.append(dict(c, angle=c.get("angle") or "eye_level"))
     manifest["lift_z"] = round(LIFT_Z, 3)
     span = max(hi.x - lo.x, hi.y - lo.y, hi.z - lo.z)
@@ -390,7 +537,16 @@ def main():
             depth = os.path.join(out_dir, f"depth_{c['name']}.png")
             item["depth_file"] = os.path.basename(depth)
             item["depth_sec"] = round(render_to(depth, True), 2)
+            item["depth_range_m"] = [0.1, round(far, 2)]                  # white = 0.1 m, black = far: linear in between
             layer.material_override, scene.view_settings.view_transform, scene.render.film_transparent = keep
+        if c.get("subject"):                                             # the character's shadow on this plate
+            parts = stand_in(c["subject"]["location"], float(c["subject"].get("height_m") or 1.7))
+            shadow = os.path.join(out_dir, f"shadow_{c['name']}.png")
+            item["shadow_file"] = os.path.basename(shadow)
+            item["shadow_sec"] = round(render_to(shadow, scene.render.film_transparent), 2)
+            item["subject"] = {"location_m": [round(v, 3) for v in c["subject"]["location"]], "height_m": c["subject"].get("height_m")}
+            for o in parts:
+                bpy.data.objects.remove(o, do_unlink=True)
         manifest["plates"].append(item)
         log(f"{c['name']}: {item['render_sec']}s")
     with open(os.path.join(out_dir, "manifest.json"), "w", encoding="utf-8") as f:

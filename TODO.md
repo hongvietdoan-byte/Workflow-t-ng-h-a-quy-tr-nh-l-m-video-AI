@@ -16,7 +16,7 @@
 |---|---|---|
 | 0 | Lưu kế hoạch V4, sửa tài liệu lệch, `requirements.txt` (pillow/numpy/opencv-python), `.gitignore` (`data/_plates3d/`), gộp asset #77 vào Forest Red | ✅ 2026-09-25 |
 | 1 | Rà soát + hoàn thiện (chi tiết ngay dưới bảng). Tầng A chuyển sang GĐ5 | ✅ code + test 2026-09-25 (chưa chạy thật) |
-| 2 | Gói bối cảnh: đăng ký 3D + chỗ đứng, máy ảo, render theo lô + bộ nhớ đệm, thời gian/thời tiết, lớp bóng/che, ghép, kiểm nền + ăn khớp, cờ `location_plates`; gắn nhãn góc ảnh Kho (~$1–1,5 Claude, báo trước) | ⏳ |
+| 2 | Gói bối cảnh (chi tiết dưới bảng) | ✅ code + test + render/ghép thật miễn phí 2026-09-25 · còn: gắn nhãn ảnh Kho (Claude ~$1–1,5, chờ người dùng), bước hòa ánh sáng AI / Claude chấm ăn khớp (tốn tiền, sau GĐ8), màn đăng ký trong dashboard (GĐ6) |
 | 3 | Khớp môi toàn video: nghiên cứu → bước "Khớp môi" + adapter (Seedance `reference_audio` + dịch vụ khớp môi sau) | ⏳ |
 | 4 | Bộ kỹ năng 3 vai → agent chấm độc lập → bảng tổng kết gửi người dùng; hồ sơ bỏ tuổi + rút gọn 3 mức, T1 mọi nhân vật | ⏳ |
 | 5 | Tầng A Director | ⏳ |
@@ -24,6 +24,20 @@
 | 7 | Chạy toàn bộ test, rà lại | ⏳ |
 | 8 | Kiểm chứng nhỏ trong trần #7 (≤ ~$2, ≤ 5 ảnh) | ⏳ cần báo giá trước |
 | 9 | Báo "sẵn sàng" → người dùng chạy trọn #6 | ⏳ |
+
+**GĐ2 đã làm (2026-09-25; cờ `location_plates` TẮT; chi tiết + số đo ở `docs/HUONG_DAN_3D.md` mục 9):**
+- `core/plate_camera.py` máy ảo từ shot (cỡ cảnh/góc/trái-phải/`camera_setup`) + ô nhân vật trong khung · `core/location_pack.py` đăng
+  ký mô hình + chỗ đứng trong hồ sơ khu vực, kế hoạch góc máy, render theo lô + bộ nhớ đệm dùng chung (khóa không gồm tên shot → dự án
+  khác cùng góc máy không render lại), nền cấp 2 từ ảnh chụp trong game, prompt phông xanh (máy + hướng sáng + thời tiết trên người)
+  · `tools/render_plates.py` thêm tuyết/ướt, màu nắng, **lớp bóng hình nộm**, khoảng độ sâu, **dò mặt phẳng đi được**
+  · `core/plate_env.py` giờ + thời tiết (trời vẽ, sương theo độ sâu, mưa/tuyết/bụi rơi, chớp cho clip, chỉnh màu) · `core/composite.py`
+  ghép ảnh + ghép từng khung video (cách 2) · `core/plate_qc.py` độ giống nền + tỉ lệ bị che · runner: ảnh chờ nền → ảnh phông xanh →
+  ghép (giữ `job_<id>_green.png` + mask); video cách 2 dùng ảnh xanh + ghép; phủ thời tiết; chấm nền cách 1 · autopilot pha `plates`
+  (trước ảnh) + `platefix` (clip vẽ lại nền → gen lại 1 lần cách 2) · `tools/location_pack.py` (probe/register/plan/render).
+- **Chạy thật miễn phí:** Tháp Đồng Hồ #263 đã đăng ký (7 chỗ đứng); render ngày / đêm tuyết / sương / hoàng hôn; ghép Kelly (ảnh chuẩn
+  đổi nền xám → xanh để thử) lên nền ngày, đêm tuyết, sương; nền #7 (4 shot ở tháp, 1 lần render đêm). **Chưa thử:** ảnh phông xanh do
+  Deepix vẽ thật, clip thật cách 1/2 (GĐ8).
+- Sửa khi chạy thật: sương khối EEVEE làm đen cả ảnh → sương 2D theo độ sâu; nhân vật sáng quá trên nền đêm → chỉnh màu người theo giờ 60%.
 
 **GĐ1 đã làm (2026-09-25; toàn bộ test qua, CHƯA chạy thật với API — tính năng mới có cờ đều TẮT):**
 - **M3** một người gửi/poll mỗi dự án × loại job trong tiến trình (`runner._turn`, luồng thứ hai bỏ lượt) — hết tải clip 2 lần / follower trùng.

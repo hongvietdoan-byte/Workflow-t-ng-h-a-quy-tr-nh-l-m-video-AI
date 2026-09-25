@@ -129,7 +129,10 @@ def slug(name: str) -> str:
 def plan(model: str, out_dir: str, sky: str = "A", sun_elevation: float = 35, sun_azimuth: float = 140, hdri: Optional[str] = None,
          presets: Optional[List[str]] = None, real_height_m: Optional[float] = None, decimate: float = 1.0,
          resolution=(1280, 720), engine: str = "auto", samples: int = 16, cameras: Optional[List[Dict]] = None,
-         ground: bool = True) -> Dict:
+         ground: bool = True, weather: Optional[Dict] = None, sky_extra: Optional[Dict] = None, only_cameras: bool = False,
+         probe: Optional[Dict] = None) -> Dict:
+    """only_cameras: render just `cameras` (the shot cameras of a location pack), no preset views. weather: {"snow","wet","fog"}
+    0..1 on the geometry. sky_extra: more sky keys for tools/render_plates.py (sun_strength, sun_color, strength, exposure)."""
     if not os.path.exists(model):
         raise Plates3DError(f"không thấy file 3D: {model}")
     if sky not in SKIES:
@@ -138,9 +141,10 @@ def plan(model: str, out_dir: str, sky: str = "A", sun_elevation: float = 35, su
         raise Plates3DError("cách B cần file HDRI (.hdr/.exr) có thật")
     return {"model": os.path.abspath(model), "out_dir": os.path.abspath(out_dir), "resolution": list(resolution), "engine": engine,
             "samples": int(samples), "real_height_m": real_height_m, "decimate": float(decimate), "ground": bool(ground),
-            "presets": list(presets or PRESETS), "cameras": cameras or [], "depth": True,
+            "presets": [] if only_cameras else list(presets or PRESETS), "cameras": cameras or [], "depth": True,
+            "weather": dict(weather or {}), **({"probe": probe} if probe else {}),
             "sky": {"mode": sky, "sun_elevation": float(sun_elevation), "sun_azimuth": float(sun_azimuth),
-                    "hdri": os.path.abspath(hdri) if hdri else None}}
+                    "hdri": os.path.abspath(hdri) if hdri else None, **(sky_extra or {})}}
 
 
 def out_dir(data_dir: str, place: str) -> str:
