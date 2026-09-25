@@ -890,6 +890,27 @@ def _news_for(conn, items: List[Dict], limit: int = 3, around: int = 170) -> str
     return ("\n\n## Tin tức chính thức liên quan (tham khảo bối cảnh, không bắt buộc)\n" + "\n".join(lines) + "\n") if lines else ""
 
 
+CONTEXT_DESC_CHARS = 320
+
+
+def _brief(text: str, limit: int = CONTEXT_DESC_CHARS) -> str:
+    """A library description for the Director prompt: sentences in order, a repeated sentence once, cut at a sentence end near `limit`
+    (H3: the ff.garena.com backstories repeated a whole paragraph — 8,5k characters for 4 assets of "ANH CHỌN AI?"; the looks come
+    from the pictures and the approved profile, the skills from their own block)."""
+    seen, out, size = set(), [], 0
+    for s in re.split(r"(?<=[.!?…])\s+", re.sub(r"\s+", " ", text or "").strip()):
+        key = s.strip().lower()
+        if not key or key in seen:
+            continue
+        seen.add(key)
+        if size and size + len(s) > limit:
+            out.append("…")
+            break
+        out.append(s)
+        size += len(s) + 1
+    return " ".join(out)
+
+
 def context_text(conn, project_id: int) -> str:
     """Block for the Director prompt; empty when the project has no chosen assets."""
     items = project_assets(conn, project_id)
@@ -899,7 +920,7 @@ def context_text(conn, project_id: int) -> str:
     for a in items:
         also = f" (tên khác: {a['aliases']})" if a["aliases"].strip() else ""
         pics = f" — có {len(a['images'])} ảnh tham khảo" if a["images"] else ""
-        desc = f": {a['description']}" if a["description"] else ""
+        desc = f": {_brief(a['description'])}" if a["description"] else ""
         ident = f" (id {a['id']})" if a["kind"] == "location" and a["images"] else ""
         lines.append(f"- [{a['kind_label']}] **{a['name']}**{ident}{also}{desc}{pics}")
     news = _news_for(conn, items)

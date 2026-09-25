@@ -158,7 +158,9 @@ def duration_block(pipeline: Pipeline, project_id: int) -> str:
                                                                                    else ", không cắt câu thoại.") + trim)
 
 
-def build_director_bundle(pipeline: Pipeline, project_id: int) -> str:
+def build_director_bundle(pipeline: Pipeline, project_id: int, only_scene: Optional[int] = None, note: str = "") -> str:
+    """The Director's prompt. only_scene (1.4 "↻ Chia shot lại cảnh này"): the whole bundle stays the same (it is cached — every
+    re-planned scene reads it at 1/10 price) and a short task after the cache mark asks for that ONE scene's shots."""
     from . import shots
     proj = pipeline.project(project_id)
     if shots.mode(proj):         # v3: the Director reads the script's scenes (story_scenes) and splits each into shots
@@ -178,7 +180,7 @@ def build_director_bundle(pipeline: Pipeline, project_id: int) -> str:
     else:
         crew = []
     ff = "" if "knowledge/ff_character_skills_visual.md" in folded else knowledge.ff_skills_for(people_in_project(pipeline, project_id))
-    return _SEP.join(x for x in [
+    body = _SEP.join(x for x in [
         _read("prompts", "01_director_scene_analysis.md"),
         project_frame_block(pipeline, project_id),
         looks.director_note(proj),
@@ -203,6 +205,17 @@ def build_director_bundle(pipeline: Pipeline, project_id: int) -> str:
         script_preamble(proj),
         "# Kịch bản đã tách cảnh\n\n" + scenes,
     ] if x)
+    if only_scene is None:
+        return body
+    current = [{k: s["data"].get(k) for k in ("shot_no", "size", "angle", "duration_s", "characters", "action", "dialogue")}
+               for s in shots.shots_of(pipeline, project_id) if s["data"].get("story_scene") == only_scene]
+    task = (f"# Việc lần này: CHỈ chia shot lại **Cảnh {only_scene}**\n"
+            f"Các cảnh khác giữ nguyên (đã có kế hoạch). Trả về **một JSON duy nhất**: `{{\"characters\": [], \"scenes\": [{{...}}]}}` — "
+            f"`characters` để RỖNG (Character Bible giữ nguyên), `scenes` có đúng MỘT phần tử là Cảnh {only_scene} (`idx`: {only_scene}) "
+            "với đủ các trường của cảnh và danh sách `shots` mới theo mọi luật ở trên (thoại nguyên văn, thời lượng phần này, khớp môi…)."
+            + (f"\nLý do chia lại: {note}" if note else "")
+            + ("\nKế hoạch hiện tại của cảnh này (để biết đang có gì):\n" + json.dumps(current, ensure_ascii=False) if current else ""))
+    return body + CACHE_BREAK + task
 
 
 def script_preamble(proj) -> str:

@@ -448,6 +448,37 @@ def run_director(p: Pipeline, project_id: int, client) -> Dict:
             "output_tokens": tout, "ip_risk_notes": obj.get("ip_risk_notes") or []}
 
 
+@_diagnosed("director", lambda p, i: i)
+def run_director_scene(p: Pipeline, project_id: int, scene_idx: int, client, note: str = "") -> Dict:
+    """1.4 "↻ Chia shot lại cảnh này": one Claude call for ONE script scene (the shared prompt is cached), merged into the stored plan,
+    normalised and line-checked as a whole, then only that scene and the later ones are rewritten (earlier scenes keep their work).
+    ~1/6 of a whole Director answer: a few cents instead of ~$0,3."""
+    from . import shots
+    raw = json.loads(p.project(project_id)["director_raw"] or "{}")
+    if not raw.get("scenes") or raw.get("truncated"):
+        raise LlmError("chưa có kế hoạch Director đầy đủ để chia lại một cảnh — chạy Director cho cả kịch bản trước", code="config")
+    raw.pop("normalized", None)
+    merged_box: Dict = {}
+    check_all = llm_io.validate_for_project(p, project_id)
+
+    def check(part):
+        part = llm_io._load(part)
+        new = [s for s in part.get("scenes") or [] if isinstance(s, dict) and s.get("idx") == scene_idx]
+        if len(new) != 1:
+            raise llm_io.SchemaError(f"scenes: cần đúng một phần tử là cảnh {scene_idx}")
+        merged = dict(raw, scenes=[new[0] if s.get("idx") == scene_idx else s for s in raw["scenes"]])
+        merged_box["obj"] = check_all(merged)       # normaliser + every rule of a whole answer
+        return merged_box["obj"]
+
+    with tagged("director", project_id):
+        _, tin, tout = ask_json(client, prompts.build_director_bundle(p, project_id, only_scene=scene_idx, note=note), check,
+                                note=_retry_note(p, "director", project_id))
+    obj = merged_box["obj"]
+    n = shots.replace_from(p, project_id, obj["scenes"], scene_idx)
+    p.set_project_field(project_id, "director_raw", json.dumps(obj, ensure_ascii=False))
+    return {"scene": scene_idx, "rows": n, "input_tokens": tin, "output_tokens": tout, "normalized": obj.get("normalized") or []}
+
+
 def image_path(data_dir: str, project_id: int, job_id: int) -> str:
     return os.path.join(data_dir, str(project_id), "images", f"job_{job_id}.png")
 

@@ -189,6 +189,50 @@ def has_work(conn, project_id: int) -> bool:
     return bool(conn.execute("SELECT 1 FROM jobs WHERE project_id=? AND scene_id IS NOT NULL LIMIT 1", (project_id,)).fetchone())
 
 
+def replace_from(pipeline: Pipeline, project_id: int, scenes: List[Dict], from_scene: int) -> int:
+    """1.4 "↻ Chia shot lại cảnh này": replace the shot rows of script scene `from_scene` and every later scene with the plan in `scenes`
+    (the whole plan), keeping the rows of earlier scenes untouched — they may already have pictures and clips. Rows are appended in
+    film order (row numbers must keep the film order and are never reused), so the later scenes are rewritten too. Refused when any
+    of the replaced rows already has a picture or a clip. Returns the number of rows written."""
+    conn = pipeline.conn
+    rows = conn.execute("SELECT id, idx, data FROM scenes WHERE project_id=? ORDER BY idx", (project_id,)).fetchall()
+    gone = [r for r in rows if (json.loads(r["data"] or "{}").get("story_scene") or 0) >= from_scene]
+    if gone and conn.execute("SELECT 1 FROM jobs WHERE scene_id IN (" + ",".join("?" * len(gone)) + ") LIMIT 1",
+                             [r["id"] for r in gone]).fetchone():
+        raise ShotError(f"Cảnh {from_scene} (hoặc cảnh sau) đã có ảnh/video — không chia shot lại được; làm lại các cảnh đó trước.")
+    story = {s["idx"]: s for s in story_scenes(pipeline, project_id)}
+    for s in scenes:
+        if s["idx"] >= from_scene and s["idx"] in story:
+            extra = {k: s[k] for k in ("location", "time", "mood", "lighting", "location_asset", "sequence", "emotional_intent", "beat",
+                                       "characters", "camera_complexity") if k in s}
+            conn.execute("UPDATE story_scenes SET data=? WHERE project_id=? AND idx=?",
+                         (json.dumps({**story[s["idx"]]["data"], **extra}, ensure_ascii=False), project_id, s["idx"]))
+    kept = {}
+    for r in gone:
+        d = json.loads(r["data"] or "{}")
+        locked = [k for k in d.get("_user_locked") or [] if k in d]
+        if locked and d.get("shot_no"):
+            kept[(d.get("story_scene"), d["shot_no"])] = {"_user_locked": locked, **{k: d[k] for k in locked}}
+    if gone:
+        marks = ",".join("?" * len(gone))
+        conn.execute(f"DELETE FROM motion_prompts WHERE scene_id IN ({marks})", [r["id"] for r in gone])
+        conn.execute(f"DELETE FROM scenes WHERE id IN ({marks})", [r["id"] for r in gone])
+    n = conn.execute("SELECT COALESCE(MAX(idx), 0) FROM scenes WHERE project_id=?", (project_id,)).fetchone()[0]
+    written = 0
+    for s in sorted((x for x in scenes if x["idx"] >= from_scene), key=lambda x: x["idx"]):
+        heading = (story.get(s["idx"]) or {}).get("heading") or f"CẢNH {s['idx']}"
+        for k, shot in enumerate(s["shots"], 1):
+            n += 1
+            data = shot_data(s, shot, k)
+            if s["idx"] != from_scene:                   # only the re-planned scene may lose its hand edits (its shots changed)
+                data.update(kept.get((data.get("story_scene"), data.get("shot_no")), {}))
+            conn.execute("INSERT INTO scenes (project_id, idx, title, data) VALUES (?,?,?,?)",
+                         (project_id, n, f"{heading} · shot {k}", json.dumps(data, ensure_ascii=False)))
+            written += 1
+    conn.commit()
+    return written
+
+
 def store_plan(pipeline: Pipeline, project_id: int, scenes: List[Dict], force: bool = False) -> int:
     """Replace the project's rows with the Director's shots (every scene of `scenes` has a validated `shots` list). Refused when
     pictures or videos were already made from the current rows (they would lose their scene) unless `force` (tests / the person

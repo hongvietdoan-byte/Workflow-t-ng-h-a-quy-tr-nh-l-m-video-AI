@@ -123,7 +123,8 @@ def build_mux_music_cmd(video: str, music: str, output: str, video_duration: flo
     """Music under the video. has_audio: the video already carries sound (dialogue): the music is MIXED with it
     instead of replacing it."""
     fade_out_start = max(video_duration - fade, 0)
-    music_chain = (f"[1:a]atrim=0:{video_duration},afade=t=in:d={fade},"
+    fade_in = min(fade, MUSIC_FADE_IN)   # 2A: a 1,5 s fade-in left the hook's first second silent
+    music_chain = (f"[1:a]atrim=0:{video_duration},afade=t=in:d={fade_in},"
                    f"afade=t=out:st={fade_out_start}:d={fade},volume={volume},apad")  # apad: music shorter than video
     if has_audio:
         audio = f"{music_chain}[m];[0:a][m]amix=inputs=2:normalize=0:duration=first,{PEAK_LIMIT}[a]"
@@ -133,6 +134,7 @@ def build_mux_music_cmd(video: str, music: str, output: str, video_duration: flo
             "-map", "0:v", "-map", "[a]", "-c:v", "copy", "-c:a", "aac", "-shortest", output]
 
 
+MUSIC_FADE_IN = 0.3
 DUCK = "sidechaincompress=threshold=0.02:ratio=8:attack=20:release=400"   # music dips ~10 dB while someone speaks
 
 

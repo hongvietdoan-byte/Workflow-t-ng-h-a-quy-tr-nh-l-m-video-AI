@@ -163,6 +163,69 @@ class FlagTests(unittest.TestCase):
             shots.validate([dict(shot, camera_setup="over the shoulder")], "s", set())
 
 
+class ReplanOneSceneTests(unittest.TestCase):
+    """1.4 "↻ Chia shot lại cảnh này": one call for one script scene, merged, checked as a whole, only that scene and later ones rewritten."""
+
+    def setUp(self):
+        from core import llm_io, script_parser
+        from core.db import connect
+        from core.pipeline import Pipeline
+        self.p = Pipeline(connect())
+        self.pid = self.p.create_project("t")
+        self.p.set_project_field(self.pid, "shot_mode", "per_shot")
+        self.p.set_project_field(self.pid, "dialogue_trim", 1)
+        _, story = script_parser.split_end_card(script_parser.split_scenes([r for r in SCRIPT.splitlines() if r.strip()]))
+        script_parser.import_scenes(self.p, self.pid, story, full_text=SCRIPT)
+        self.p.conn.execute("UPDATE projects SET script_text=? WHERE id=?", (SCRIPT, self.pid))
+        stored = llm_io.store_scene_analysis(self.p, self.pid, copy.deepcopy(RUN4))
+        self.p.set_project_field(self.pid, "director_raw", json.dumps(stored, ensure_ascii=False))
+
+    def ids(self, pred):
+        return [r["id"] for r in self.p.conn.execute("SELECT id, data FROM scenes WHERE project_id=? ORDER BY idx", (self.pid,))
+                if pred(json.loads(r["data"])["story_scene"])]
+
+    def fake(self, scene):
+        class Reply:
+            def __init__(self, text):
+                self.text, self.input_tokens, self.output_tokens = text, 1000, 200
+
+        class Client:
+            prompts = []
+
+            def complete(self, prompt, images=()):
+                Client.prompts.append(prompt)
+                return Reply(json.dumps({"characters": [], "scenes": [scene]}, ensure_ascii=False))
+        return Client()
+
+    def test_one_scene_is_replanned_and_earlier_rows_are_untouched(self):
+        from core import llm_runner, prompts
+        before = self.ids(lambda s: s < 4)
+        scene4 = copy.deepcopy(next(s for s in RUN4["scenes"] if s["idx"] == 4))
+        scene4["shots"].insert(3, {"size": "MS", "angle": "ots", "role": "dialogue", "duration_s": 2.6, "action": "Kenta cố giải thích",
+                                   "image_prompt": "x", "characters": ["KENTA", "KELLY"],
+                                   "dialogue": [{"speaker": "KENTA", "text": "Kelly, nghe anh giải thích…"}]})
+        client = self.fake(scene4)
+        r = llm_runner.run_director_scene(self.p, self.pid, 4, client)
+        self.assertEqual(self.ids(lambda s: s < 4), before)                      # earlier scenes keep their rows (and any work)
+        texts = [d["text"] for r_ in self.p.conn.execute("SELECT data FROM scenes WHERE project_id=?", (self.pid,))
+                 for d in json.loads(r_["data"]).get("dialogue") or []]
+        self.assertIn("Kelly, nghe anh giải thích…", texts)
+        self.assertGreater(r["rows"], 0)
+        self.assertIn(prompts.CACHE_BREAK, client.prompts[0])                    # the shared part is cached
+        self.assertIn("CHỈ chia shot lại **Cảnh 4**", client.prompts[0].split(prompts.CACHE_BREAK)[-1])
+        order = [json.loads(r_["data"])["story_scene"] for r_ in
+                 self.p.conn.execute("SELECT data FROM scenes WHERE project_id=? ORDER BY idx", (self.pid,))]
+        self.assertEqual(order, sorted(order))                                    # still in film order
+
+    def test_a_scene_with_pictures_is_not_replanned(self):
+        from core import llm_runner, shots
+        sid = self.ids(lambda s: s == 5)[0]
+        self.p.create_job(sid, "image_gen")
+        scene4 = copy.deepcopy(next(s for s in RUN4["scenes"] if s["idx"] == 4))
+        with self.assertRaises(shots.ShotError):
+            llm_runner.run_director_scene(self.p, self.pid, 4, self.fake(scene4))
+
+
 class NoFeetInFrameTests(unittest.TestCase):
     def test_a_medium_shot_is_not_marked_down_or_redone_for_feet(self):
         """Trial 2A: QC asked for "feet visible touching the ground" on medium shots (cut above the knees by design)."""

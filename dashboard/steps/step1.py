@@ -1024,6 +1024,27 @@ def dialogue_review_panel(p: Pipeline, pid: int) -> None:
                 st.success("Claude không thấy lỗi thoại cần sửa.")
 
 
+def _replan_button(p: Pipeline, pid: int, scene_idx: int, col) -> None:
+    """1.4: re-plan the shots of one script scene (one cached Claude call, a few cents) — only while that scene and the later ones have
+    no picture or clip yet."""
+    later = [r["id"] for r in p.conn.execute("SELECT id, data FROM scenes WHERE project_id=?", (pid,))
+             if (json.loads(r["data"] or "{}").get("story_scene") or 0) >= scene_idx]
+    if later and p.conn.execute("SELECT 1 FROM jobs WHERE scene_id IN (" + ",".join("?" * len(later)) + ") LIMIT 1", later).fetchone():
+        return
+    client = llm_client()
+    if client is None:
+        return
+    if col.button("↻ Chia shot lại cảnh này", key=f"replan_{pid}_{scene_idx}",
+                  help="Một lượt Claude chỉ cho cảnh này (phần luật chung được cache) — vài cent thay vì ~$0,3 của cả kịch bản. "
+                       "Cảnh sau được ghi lại theo thứ tự phim, không đổi nội dung."):
+        with st.spinner(f"Claude đang chia shot lại cảnh {scene_idx}…"):
+            ok = act(lambda: st.session_state.__setitem__("replan_res", llm_runner.run_director_scene(p, pid, scene_idx, client)))
+        if ok:
+            r = st.session_state.pop("replan_res")
+            st.toast(f"Cảnh {scene_idx}: {r['rows']} shot ({tokens_text(r)})")
+            st.rerun()
+
+
 def _paid_line(p: Pipeline, pid: int):
     """H6: seconds of video that will be billed for this shot plan (Kling, the model's minimum clip), one line per way of making it —
     worked out by code from the stored Director answer, before any picture or clip is paid for."""
@@ -1086,8 +1107,10 @@ def scene_list(p: Pipeline, pid: int, scenes, char_names) -> None:
                 cur_story = d.get("story_scene")
                 group = [json.loads(x["data"] or "{}") for x in scenes if json.loads(x["data"] or "{}").get("story_scene") == cur_story]
                 total = sum(float(g.get("duration_s") or 0) for g in group)
-                st.markdown(f"**Cảnh {cur_story} — {escape((story.get(cur_story) or {}).get('heading') or '')}** · "
-                            f"{len(group)} shot · {total:.1f}s")
+                head_col, redo_col = st.columns([5, 2], vertical_alignment="center")
+                head_col.markdown(f"**Cảnh {cur_story} — {escape((story.get(cur_story) or {}).get('heading') or '')}** · "
+                                  f"{len(group)} shot · {total:.1f}s")
+                _replan_button(p, pid, cur_story, redo_col)
                 warn = _shots.pacing_warnings(group)
                 if warn:
                     st.caption("⚠ " + " · ".join(warn))
