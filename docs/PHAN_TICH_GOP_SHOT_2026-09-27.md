@@ -56,3 +56,31 @@
 | Video — gộp + nhịp phim dài 3–6 s/shot (P5) | ~4–5 | ~130 | ~260 USD |
 | Thời gian gen (2 clip song song) | ~1 giờ | ~23 giờ / gộp ~5 giờ | ~2 ngày / gộp ~10 giờ |
 Video dài còn cần Director chia **theo chương** (một lượt Đạo diễn cho 30 phút vượt giới hạn câu trả lời).
+
+## 5. Kết quả thử thật (2026-09-27, cảnh 2 của #8, 6 khung storyboard Seedream 720p)
+| Lần gen | Kết quả | Cắt / nội dung | Nhân vật | Lỗi hình | Giây dùng được | Tiền (ClipAI `cost`) |
+|---|---|---|---|---|---|---|
+| P1 Seedance đầu+cuối, nhóm 1 / 2 | ❌ **từ chối lúc tạo** "may contain real person" (ảnh khung cuối) | — | — | — | 0 | 0 |
+| P2 Seedance chỉ ảnh tham chiếu, nhóm 1 / 2 | ❌ **từ chối lúc tạo** (ảnh tham chiếu thứ 3) | — | — | — | 0 | 0 |
+| P3 Kling multi-shot, nhóm 1 (3+4+3 s) | ✅ | cắt **đúng** 2,96 / 6,92 s; shot 1 khớp storyboard; shot 2 **sai** (lưng Kelly thay vì Maxim qua vai Kenta); shot 3 lệch (cận Maxim thay vì Kenta) | đúng người | ít | ~3/10 | 60 đv ≈ $0,60 |
+| P3 nhóm 2 (3+3+3 s) | ✅ | **không cắt** — 9 s chỉ Maxim đi tới; shot 5 (Kelly), 6 (Kenta+Kelly) bị bỏ | đúng | không | ~3/9 | 53 đv ≈ $0,53 |
+| P4 Kling đầu+cuối, nhóm 1 | ✅ | đầu/cuối khớp ảnh; **giữa biến hình** — Maxim thành "bóng ma xanh phát sáng" rồi thành cảnh qua vai | ❌ | nặng | ~2/7 | 42 đv ≈ $0,42 |
+| P4 nhóm 2 | ✅ | đầu Maxim → máy lướt qua vai (nhòe) → cuối Kenta+Kelly khớp ảnh; bỏ shot 5 | đúng | nhẹ | ~6/6 nhưng là 1 cú máy liền | 36 đv ≈ $0,36 |
+**Tổng thật:** 6 ảnh ≈ 0,31 + 4 clip Kling **1,91 USD** (sổ chi dự án ghi 2,56 — Kling std thật ~6 đv/s ≈ **$0,06/s**, bảng giá đang $0,08).
+Nhóm 2 ClipAI trả **mã chờ tạm** (12 số) → công cụ đánh "không thấy task"; tìm lại theo thời điểm tạo + `multi_shot` trong `video-list`
+(`find_by_prompt` không dùng được cho multi-shot vì task multi-shot có `prompt` rỗng) — ghi cho tổng kết.
+
+**Kết luận từ bằng chứng:**
+1. **Kling đầu–cuối (P4) không thay được cắt shot:** hai góc khác nhau → biến hình (nhóm 1); chỉ dùng được khi có chuyển động máy hợp lý
+   nối hai khung (nhóm 2 — thành một cú máy liền, mất shot giữa).
+2. **Kling multi-shot (P3) cắt đúng nhịp nhưng shot sau bịa nội dung** (chỉ có ảnh khung đầu) — xác nhận lại R4.
+3. **Seedance (P1/P2) — phương án "mỗi shot có ảnh dẫn" — bị bộ lọc người thật chặn hoàn toàn** với ảnh look in-game FF. Chưa đo được chất lượng.
+4. Chưa phương án gộp nào đạt yêu cầu "đúng từng shot theo storyboard" mà không trả giá chất lượng.
+
+**Bước tiếp khả thi (chờ người dùng):**
+- **S1 — Seedance qua Kho chủ thể:** tải 6 khung storyboard lên Kho chủ thể Seedance (qua kiểm duyệt người thật + bản quyền FF — tài liệu API),
+  rồi chạy lại P2 bằng `asset://` (~1,5 USD). Nếu qua được thì đây là phương án có kiểm soát từng shot + gộp tiền.
+- **S2 — Không gộp, nhưng cắt ít hơn (P5) + Kling std giá thật:** mỗi shot 1 clip Kling (khung đầu = storyboard → shot đúng như P3 shot 1),
+  Director chia shot dài hơn (≥ 3 s, dùng chuyển động máy thay cắt) → ~70 s trả tiền / phút ≈ **4–5 USD / phút phim**.
+- **S3 — Lai:** P3 Kling multi-shot chỉ cho nhóm shot **cùng người, cùng hành động liền** (vd chạy qua dãy nhà); shot đổi người/đổi góc lớn
+  giữ riêng.

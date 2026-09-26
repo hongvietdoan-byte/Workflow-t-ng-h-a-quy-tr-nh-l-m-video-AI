@@ -313,5 +313,18 @@ class GraderRound2Tests(unittest.TestCase):
         self.assertIn("COLOR_TAGS", inspect.getsource(ffmpeg_studio.resize_to_size))
 
 
+class SpendLineTests(unittest.TestCase):
+    def test_claude_tokens_are_priced_not_taken_for_a_clip(self):
+        from core import cost
+        from core.cost import record_usage
+        conn = connect()
+        pid = Pipeline(conn).create_project("s")
+        record_usage(conn, None, "llm", "anthropic", "claude-sonnet-5", "input", 1_000_000, "token", project_id=pid)
+        s = cost.spend_summary(conn, pid, cost.load_pricing())
+        self.assertEqual(s["unknown_prices"], [])
+        self.assertAlmostEqual(s["credits"], 2.0)
+        self.assertEqual(s["clips"], 0)
+
+
 if __name__ == "__main__":
     unittest.main()

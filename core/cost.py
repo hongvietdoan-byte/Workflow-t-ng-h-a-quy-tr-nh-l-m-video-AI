@@ -447,6 +447,9 @@ def spend_summary(conn: sqlite3.Connection, project_id: int, pricing: Dict) -> D
         elif r["kind"] == "audio":
             price = _number(pricing.get("per_audio", {}).get(r["model"]))
             cost = None if price is None else price * r["quantity"]
+        elif r["kind"] == "llm":            # Claude tokens (trial 2026-09-27: priced as a clip → "chưa có giá: claude-sonnet-5")
+            from .budget import token_price
+            cost = token_price(pricing, r["model"], r["tier"], r["quantity"])
         else:
             cost = clip_price(pricing, r["model"], r["tier"], r["quantity"])
         if cost is None:
