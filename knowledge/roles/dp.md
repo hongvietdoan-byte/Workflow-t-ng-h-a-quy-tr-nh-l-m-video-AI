@@ -12,7 +12,8 @@
 
 > **Trường Quay phim viết từ ý đồ Đạo diễn** (nhất là Tầng B, khi Đạo diễn chỉ ghi mức cảnh): `performance` từng shot (từ `dp_notes`,
 > `peak` — director.md Đ4), `sound` từng shot (từ `sound` mức cảnh — Đ9), `role: "hook"` + `hook_mid` (Đ2), `motif` (Đ3), `hero` ⭐ (cao
-> trào — model tốt nhất) và `money_shot` (khoảnh khắc sản phẩm — ảnh bìa, Đ10), `speed`/`freeze_end_s` (Q11, Đ11). Đọc `knowledge_gap`
+> trào — model tốt nhất; **Đạo diễn chọn cảnh** — prompt 19 `shot_role: "hero"` mức cảnh — **Quay phim chọn shot** trong cảnh đó) và
+> `money_shot` (khoảnh khắc sản phẩm — ảnh bìa, Đ10), `speed`/`freeze_end_s` (Q11, Đ11). Đọc `knowledge_gap`
 > của cảnh: `behind` (người xem biết sau) → **phản ứng trước, nguyên nhân sau** (shot mặt sững lại trước, cái họ thấy ở shot kế ≤ 2 s);
 > `ahead` (biết trước — hồi hộp) → cho người xem thấy mối nguy trước (shot chèn mối nguy, rồi nhân vật chưa biết); `same` → cùng nhịp.
 
@@ -77,13 +78,15 @@ Làm cho người xem **thấy rõ** điều Đạo diễn muốn họ cảm —
   đường dẫn, khung trong khung, khoảng trống âm (người nhỏ giữa khoảng trống = cô độc) [Q1][Q5]. Khoảng trống phía nhìn/phía đi; khoảng
   trống trên đầu vừa đủ. **Khung dọc** mạnh ở chiều cao (toàn thân, mặt cận, công trình đứng), yếu ở hai người đứng ngang → xếp người theo
   **chiều sâu** (qua vai) thay vì cạnh nhau.
-  - **Vị trí mắt — MỘT luật (nguồn số duy nhất của cả tổ; README trỏ về đây).** Với cỡ **MLS → CU** mắt nằm trong dải **18–35% từ mép
-    trên**; **WS/EWS/GAME_TPS** người nhỏ, đỉnh đầu gần mép trên — mắt chỉ cần **dưới 15%** (máy ảo WS đo ~16,6%); **ECU** mắt/chi tiết lấp
-    khung — không áp luật (máy ảo ~57%, mắt ở giữa khung là đúng). Cận trên: không
-    lọt vào thanh giao diện app 15% (+3% đệm) — luật là **mắt**, đỉnh đầu được chạm thanh. Cận dưới: không thấp hơn đường một phần ba
-    (~33%) quá 2% — thấp hơn thì khoảng trống trên đầu thừa, người "tụt" xuống vùng phụ đề. Trong dải đó, **cỡ càng rộng mắt càng cao**
-    vì thân người cần chỗ bên dưới: máy ảo đặt ~20% (MLS), ~23% (MS), ~28% (MCU), ~33% (CU) (`plate_camera.HEADROOM`, đo bằng `camera_for`
-    + chiếu điểm; sửa ở GĐ4: trước đó mắt MS ở ~14%, lọt vào thanh). Mốc 30–35% của nguồn cộng đồng [Q29] là cho khung **cận** — khớp CU.
+  - **Vị trí mắt — MỘT luật (nguồn số duy nhất của cả tổ; README trỏ về đây).** Luật chung: mắt **không lọt vào thanh giao diện app
+    (15% trên)** — luật là **mắt**, đỉnh đầu được chạm thanh. Theo cỡ:
+    | Cỡ | Mắt từ mép trên | Vì sao | Máy ảo đo (`plate_camera.HEADROOM`, `camera_for` + chiếu điểm) |
+    |---|---|---|---|
+    | MLS · MS · MCU · CU | **18–35%** (15% thanh + 3% đệm; không thấp hơn đường một phần ba ~33% quá 2%) | mặt là chủ thể; thấp hơn thì khoảng trống trên đầu thừa, người tụt xuống vùng phụ đề | ~20 · 23 · 28 · 33% |
+    | WS | **≥ 15%** (không cần đệm 3% — người nhỏ, mặt không phải chủ thể) | toàn thân cần chỗ phía dưới | ~16,6% |
+    | EWS · GAME_TPS | không áp — người nhỏ ở giữa khung | nơi chốn là chủ thể | người ở ~40–43% khung |
+    | ECU | không áp — mắt/chi tiết lấp khung | chi tiết là chủ thể | ~57% (giữa khung) |
+    Mốc 30–35% của nguồn cộng đồng [Q29] là cho khung **cận** — khớp CU. Sửa ở GĐ4: trước đó mắt MS ở ~14%, lọt vào thanh.
 - **Trong pipeline.** `start_frame`: vị trí người (trái/giữa/phải, tiền/hậu cảnh, hướng mặt) — máy ảo đọc "frame-left/right" để đặt người;
   code lưu nó vào trường `blocking` của shot (`shots.shot_data`) — **một** trường: `start_frame` là tên Quay phim viết, `blocking` là tên
   lưu (prompt 01 một lượt gọi thẳng là `blocking` của cảnh). Ai đứng gần/xa ai vì lý do truyện là ý của Đạo diễn (`dp_notes`).

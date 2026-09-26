@@ -1135,7 +1135,8 @@ def _paid_line(p: Pipeline, pid: int):
         raw = json.loads(proj["director_raw"] or "{}")
         if not raw.get("scenes") or raw.get("truncated"):
             return None
-        r = director_report.report(raw, proj["script_text"] or "")
+        from core import shots as _shots
+        r = director_report.report(director_report.with_current_shots(raw, _shots.shots_of(p, pid)), proj["script_text"] or "")
     except Exception:  # noqa: BLE001 - an old or odd answer must not break Step 1
         return None
     s, u = r["paid_s"], r["paid_usd"]
@@ -1157,6 +1158,8 @@ def _crew_notes(p: Pipeline, pid: int) -> None:
             return
         from core import shots as _shots
         r = director_report.report(director_report.with_current_shots(raw, _shots.shots_of(p, pid)), proj["script_text"] or "")
+        # fields the code dropped when the answer was saved are gone from the rows — said from the answer itself
+        r["pacing"] = list(dict.fromkeys((r.get("pacing") or []) + director_report.retime_dropped(raw)))
     except Exception as e:  # noqa: BLE001 - an old or odd answer must not break Step 1, but the checks' absence is said
         st.caption(f"⚠ Không chạy được các kiểm của tổ làm phim trên bảng shot hiện tại: {escape(str(e)[:160])}")
         return

@@ -17,7 +17,7 @@ import os
 import subprocess
 from typing import Dict, Optional, Sequence, Tuple
 
-from . import plate_env
+from . import ffmpeg_studio, plate_env
 
 MATCH_STRENGTH = 0.35       # how far the character's colour moves toward the light around them
 GRADE_STRENGTH = 0.6        # share of the plate's time/weather grade put on the character too (the green picture was asked for the
@@ -228,8 +228,9 @@ def composite_video(green_clip: str, plate: Dict, out_path: str, ffmpeg: str, en
     reader = subprocess.Popen([ffmpeg, "-loglevel", "error", "-i", green_clip, "-r", str(fps), "-f", "rawvideo", "-pix_fmt", "rgb24", "-"],
                               stdout=subprocess.PIPE)
     writer = subprocess.Popen([ffmpeg, "-y", "-loglevel", "error", "-f", "rawvideo", "-pix_fmt", "rgb24", "-s", f"{size[0]}x{size[1]}",
-                               "-r", str(fps), "-i", "-", "-i", green_clip, "-map", "0:v", "-map", "1:a?", "-c:v", "libx264", "-crf", "18",
-                               "-pix_fmt", "yuv420p", "-c:a", "copy", "-shortest", out_path], stdin=subprocess.PIPE)
+                               "-r", str(fps), "-i", "-", "-i", green_clip, "-map", "0:v", "-map", "1:a?", "-vf", ffmpeg_studio.TO_YUV709,
+                               "-c:v", "libx264", "-crf", "18", "-pix_fmt", "yuv420p", *ffmpeg_studio.COLOR_TAGS, "-c:a", "copy",
+                               "-shortest", out_path], stdin=subprocess.PIPE)   # RGB frames: converted with the BT.709 matrix they are tagged with
     work = tempfile.mkdtemp()
     place, n = None, 0
     try:

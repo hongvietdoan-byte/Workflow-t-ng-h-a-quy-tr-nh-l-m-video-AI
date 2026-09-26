@@ -31,6 +31,7 @@ TO_YUV709 = "scale=out_color_matrix=bt709:out_range=tv,format=yuv420p"
 # editing.md E8: one quality for every step of the cut — video CRF 18 (x264 default was 23), AAC 256 kbps (default ~128). The cut is
 # encoded several times (join → music → extras → loudness), so each audio generation is kept well above YouTube's 128 kbps floor.
 AAC = ["-c:a", "aac", "-b:a", "256k"]
+COLOR_TAGS = ["-colorspace", "bt709", "-color_primaries", "bt709", "-color_trc", "bt709"]
 _ENCODE = ["-c:v", "libx264", "-crf", "18", "-pix_fmt", "yuv420p", "-r", "24", "-colorspace", "bt709", "-color_primaries", "bt709",
            "-color_trc", "bt709", "-movflags", "+faststart"]
 
@@ -278,14 +279,19 @@ def normalize_loudness(src: str, dst: str, ffmpeg: Optional[str] = None, target:
         raise FFmpegError("không đo được độ to để chuẩn hóa: " + (proc.stderr or "")[-400:])
     first = json.loads(m.group(0))
     second = (f"{spec}:measured_I={first['input_i']}:measured_TP={first['input_tp']}:measured_LRA={first['input_lra']}"
-              f":measured_thresh={first['input_thresh']}:offset={first['target_offset']}:linear=true,aresample=48000")
-    run([ff, "-y", "-i", src, "-map", "0:v?", "-map", "0:a:0", "-c:v", "copy", "-af", second, *AAC,
-         "-movflags", "+faststart", dst])
+              f":measured_thresh={first['input_thresh']}:offset={first['target_offset']}:linear=true:print_format=json,aresample=48000")
+    proc = subprocess.run([ff, "-y", "-i", src, "-map", "0:v?", "-map", "0:a:0", "-c:v", "copy", "-af", second, *AAC,
+                           "-movflags", "+faststart", dst], capture_output=True, text=True, encoding="utf-8", errors="replace")
+    if proc.returncode != 0:
+        raise FFmpegError((proc.stderr or "")[-600:])
     after = measure_loudness(dst, ff) or {}
-    # loudnorm stays linear only when the gain to the target keeps the true peak under the ceiling; otherwise ffmpeg silently
-    # switches to its dynamic mode (the mix is compressed) — said in the result, not hidden
-    gain = target - float(first["input_i"])
-    after["mode"] = "linear" if float(first["input_tp"]) + gain <= true_peak + 0.05 else "dynamic"
+    # loudnorm asked for LINEAR falls back to its dynamic mode (the mix is compressed) when the gain would push the true peak over
+    # the ceiling — ffmpeg says which one it used ("normalization_type"); kept in the result, not hidden
+    m2 = _LOUDNORM_JSON.search(proc.stderr or "")
+    try:
+        after["mode"] = json.loads(m2.group(0)).get("normalization_type") if m2 else None
+    except ValueError:
+        after["mode"] = None
     return after
 
 
@@ -346,9 +352,10 @@ def resize_to_size(src: str, dst: str, width: int, height: int, max_mb: Optional
         if kbps < 50:
             raise ValueError(f"giới hạn {max_mb:g} MB quá nhỏ cho video dài {seconds:.0f}s ở kích thước này")
         log = os.path.join(log_dir, "pass")
-        base = [ffmpeg, "-y", "-i", src, "-vf", vf, "-c:v", "libx264", "-b:v", f"{int(kbps)}k", "-pix_fmt", "yuv420p", "-passlogfile", log]
+        base = [ffmpeg, "-y", "-i", src, "-vf", vf, "-c:v", "libx264", "-b:v", f"{int(kbps)}k", "-pix_fmt", "yuv420p", *COLOR_TAGS,
+                "-passlogfile", log]
         run(base + ["-pass", "1", "-an", "-f", "null", null])
-        run(base + ["-pass", "2", *audio, dst])
+        run(base + ["-pass", "2", *audio, "-movflags", "+faststart", dst])
         size = os.path.getsize(dst)
         if size <= limit:
             return {"path": dst, "size_mb": size / 1e6, "video_kbps": int(kbps), "attempts": attempt, "fits": True}

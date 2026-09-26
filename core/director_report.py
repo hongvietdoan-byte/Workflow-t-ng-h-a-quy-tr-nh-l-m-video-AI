@@ -23,10 +23,15 @@ WIDE_MIN = 1.5            # a wide shot shorter than this cannot be read
 TRADEOFF_KEYS = ("chose", "gave_up", "why")   # director.md tầng 4: each sacrifice says what won, what lost and why
 VOID = re.compile(r"\bvoid\b|black background|abstract (emotional )?space|empty darkness", re.IGNORECASE)
 # director.md tầng 4: which tradeoff covers which sacrifice — a tradeoff about the music does not excuse a dropped line
-_GAVE_UP_WORDS = {"bỏ câu thoại": r"(?<!\w)câu(?!\w)|(?<!\w)thoại|\blines?\b|dialog",
-                  "lệch khung thời lượng": r"thời lượng|khung (giây|thời gian)|độ dài|\blength\b|duration",
-                  "shot thiếu thời gian nói": r"thời gian nói|đủ giây|\bspeech\b|speaking time",
+_GAVE_UP_WORDS = {"bỏ câu thoại": r"(?<!\w)câu(?!\w)|(?<!\w)thoại|(?<!\w)lời(?!\w)|\blines?\b|dialog",
+                  "lệch khung thời lượng": r"thời lượng|khung|độ dài|dài hơn|ngắn hơn|(?<!\w)giây(?!\w)|\d\s*s\b|\blength\b|duration|"
+                                           r"longer|shorter",
+                  "shot thiếu thời gian nói": r"thời gian (nói|đọc)|đọc (câu|hết)|nói (hết|kịp)|đủ giây|\bspeech\b|speaking time|"
+                                              r"time to (say|speak)",
                   "bỏ góc máy kịch bản ghi": r"góc máy|góc camera|\bangle\b|qua vai|sau vai|cận cảnh|toàn cảnh|\bots\b"}
+# prompts 17/19/20: tradeoffs[].kind — one of these names the sacrifice without guessing from words
+TRADEOFF_KINDS = {"dropped_line": "bỏ câu thoại", "length": "lệch khung thời lượng", "speech_time": "shot thiếu thời gian nói",
+                  "script_angle": "bỏ góc máy kịch bản ghi"}
 # prompt 17 "Kịch bản ghi rõ góc máy thì giữ đúng": the script's own camera words and the shot that honours them
 _SCRIPT_ANGLES = ((re.compile(r"(?:sau|qua)\s+vai\s+(?:của\s+)?([A-ZÀ-Ỹa-zà-ỹ]+)", re.I), "ots"),
                   (re.compile(r"\bcận\s+cảnh\b", re.I), "close"),
@@ -84,13 +89,14 @@ def script_angles(story, shots) -> List[Dict]:
 
 
 def _uncovered(gave_up: List[tuple], trade: List[Dict]) -> List[str]:
-    """The sacrifices no tradeoff speaks about: a tradeoff counts for a kind when what it GAVE UP names that kind (what it chose
-    does not — "chose: giữ đủ giây cho câu thoại, gave_up: nhạc nền" gave up the music, not a line) and its scene (when both say
-    one) is the same."""
+    """The sacrifices no tradeoff speaks about: a tradeoff counts for a kind when its `kind` is that kind (TRADEOFF_KINDS) — or,
+    with no kind, when what it GAVE UP names it (what it chose does not: "chose: giữ đủ giây cho câu thoại, gave_up: nhạc nền" gave up
+    the music, not a line) — and its scene (when both say one) is the same."""
     out = []
     for kind, scenes in gave_up:
         rx = re.compile(_GAVE_UP_WORDS[kind], re.I)
-        hits = [t for t in trade if rx.search(str(t.get("gave_up") or ""))]
+        hits = [t for t in trade if TRADEOFF_KINDS.get(str(t.get("kind") or "")) == kind
+                or (not t.get("kind") and rx.search(str(t.get("gave_up") or "")))]
         if scenes:
             hits = [t for t in hits if not str(t.get("scene") or "").strip() or _int(t.get("scene")) in scenes]
         if not hits:
@@ -185,7 +191,8 @@ def report(obj: Dict, script_text: str, model: str = "kling") -> Dict:
         "acting": performance.warnings([s for _, _, s in shots]),
         "sound": sound_intent.warnings([s for _, _, s in shots]),
         "pacing": mid_hook_gaps([s for _, _, s in shots])
-        + [f"cảnh {a['scene']}: kịch bản ghi \"{a['wanted']}\" mà không shot nào giữ" for a in angles] + retime_dropped(obj),
+        + [f"cảnh {a['scene']}: kịch bản ghi \"{a['wanted']}\" mà không shot nào giữ" for a in angles] + retime_dropped(obj)
+        + opening_and_product(obj),
         "payoff_unplanted": payoff_unplanted(obj),
         "continuity": continuity.axis_warnings(shots) + continuity.motif_warnings(shots)
         + continuity.lighting_warnings([sc for sc in obj.get("scenes") or [] if isinstance(sc, dict)]),
@@ -226,6 +233,7 @@ def with_current_shots(raw: Dict, rows: List[Dict]) -> Dict:
         d = dict(r["data"])
         if d.get("story_scene"):
             d.setdefault("start_frame", d.get("blocking") or "")
+            d.setdefault("hero", d.get("shot_role") == "hero")
             by_scene.setdefault(int(d["story_scene"]), []).append(d)
     if not by_scene:
         return raw
@@ -251,6 +259,28 @@ def retime_dropped(obj: Dict) -> List[str]:
                 out.append(f"shot {sc.get('idx')}·{k}: speed/freeze ở shot có thoại/khớp môi — bỏ (giọng chậm lại là sai)")
             elif speed is not None and not (isinstance(speed, (int, float)) and SPEED_MIN <= speed <= SPEED_MAX):
                 out.append(f"shot {sc.get('idx')}·{k}: speed {speed} ngoài {SPEED_MIN}–{SPEED_MAX} — bỏ")
+    return out
+
+
+def opening_and_product(obj: Dict) -> List[str]:
+    """director.md Đ2 / Đ10: no shot of role hook starting in the first OPEN_HOOK_S s; no `money_shot` (the cover then falls back to
+    the ⭐ climax); a money_shot that is not true/false (dropped)."""
+    out, t, hook, money = [], 0.0, False, False
+    for sc in obj.get("scenes") or []:
+        for k, s in enumerate(sc.get("shots") or [], 1):
+            if not isinstance(s, dict):
+                continue
+            if s.get("role") == "hook" and t < OPEN_HOOK_S:
+                hook = True
+            if s.get("money_shot") is True:
+                money = True
+            elif s.get("money_shot") not in (None, False):
+                out.append(f"shot {sc.get('idx')}·{k}: money_shot \"{s.get('money_shot')}\" không phải true/false — bỏ")
+            t += float(s.get("duration_s") or 0)
+    if t and not hook:
+        out.append(f"không shot nào `role: hook` bắt đầu trong {OPEN_HOOK_S:g} s đầu — người xem quyết ở lại hay lướt ở đây (Đ2)")
+    if t and not money:
+        out.append("chưa có `money_shot` — ảnh bìa sẽ lấy shot ⭐ cao trào (video quảng bá nên chỉ rõ khoảnh khắc sản phẩm, Đ10)")
     return out
 
 

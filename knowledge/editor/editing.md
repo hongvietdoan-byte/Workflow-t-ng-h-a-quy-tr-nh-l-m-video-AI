@@ -139,6 +139,8 @@ xúc, âm thanh làm thế giới game "thật", màu các shot liền nhau như
   dựng, `delivery.cut_times`) — cảnh báo ở Bước 5, không tự sửa (người sửa bảng giờ). ✅ Cỡ chữ mặc định "Vừa" 8% cạnh ngắn — **đo bằng
   render thật** (xem `safe_zones.md` mục 6). ✅ **Phụ đề động** (ô "Chữ sáng dần theo giọng" ở Bước 5, `subtitles.karaoke_text`, ASS `\kf`):
   thời gian mỗi chữ chia theo số chữ cái trên 90% thời gian câu — **không nghe giọng** (chưa căn theo âm thật; lệch được với câu có ngắt dài).
+  Câu phụ đề (tĩnh hay động) **kết thúc đúng lúc hết giọng** (`build_cues`); ở chế độ động chữ cuối sáng lên ở ~90% câu, 10% còn lại là
+  cả câu đã sáng — cùng một mốc kết thúc, chỉ khác cách hiện.
 - **Kiểm.** Code: test vùng an toàn; bảng dễ đọc (test 0,83 s / 2 khung / điểm cắt); test phụ đề động (render thật: chữ vàng 1.218 điểm ảnh
   lúc 0,2 s → 7.610 lúc 1,6 s). Người: bảng khung có chữ.
 
@@ -155,7 +157,8 @@ xúc, âm thanh làm thế giới game "thật", màu các shot liền nhau như
   vào `outputs.manifest.loudness`, hiện ở Bước 5 (🔊). ✅ **Chuẩn hóa** (`normalize_loudness`: `loudnorm` 2 lượt, I=−14, TP=−1,5, tăng/giảm
   **tuyến tính** — không nén lại bản trộn; mặc định ffmpeg là I=−24 [E22]) khi số đo lệch mục tiêu — sau cờ `loudness_normalize` (TẮT).
   Lưu ý: `loudnorm` tự **chuyển sang chế độ động** khi đạt −14 LUFS mà vượt trần đỉnh thật (bản trộn có đỉnh cao, độ to thấp) — khi đó bản
-  trộn bị nén. Code tính trước (đỉnh thật + mức tăng > trần → `mode: "dynamic"`) và báo ở 🔊 Bước 5 (`loudness_problems`).
+  trộn bị nén. Code đọc chế độ ffmpeg **tự in ra** ở lượt 2 (`normalization_type` → `mode`) và báo ở 🔊 Bước 5 (`loudness_problems`);
+  thử 2026-09-26: bản −10,8 LUFS đỉnh 0,1 → linear; bản −14,8 LUFS đỉnh −1,5 → dynamic (mức tăng đẩy đỉnh quá trần).
   ✅ Mọi bản mã hóa có `+faststart` + thẻ màu BT.709 (`_ENCODE`, D12) — gồm cả cắt clip shot (`shots.trim_clip`, cắt vị trí máy), in
   phụ đề (`subtitles.burn`) và bản xuất theo kích thước (`resize_to_size`, CRF 18 / AAC 256k; bản giới hạn dung lượng tính bitrate 2 lượt); vẫn 24 fps (mọi clip của pipeline là 24). ✅ **Ảnh tĩnh → video
   đổi màu bằng ma trận BT.709** (`ffmpeg_studio.TO_YUV709`, 2026-09-26): đo thật — card cuối và animatic trước đó ra số BT.601 dưới thẻ

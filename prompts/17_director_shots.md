@@ -82,7 +82,7 @@ Dự án này sản xuất **theo shot**, không theo cảnh: mỗi cảnh kịc
 - **`speed`** (0,25–0,9) / **`freeze_end_s`** (≤ 1,5 s): **chỉ shot không thoại** — quay chậm khoảnh khắc đỉnh của hành động (viên đạn
   rời nòng, cú nhảy kỹ năng, giọt nước mắt rơi) hoặc dừng hình ở cú chốt. `duration_s` là độ dài **trên phim**; clip chỉ cần
   (duration_s − freeze) × speed giây hành động. Tối đa 1–2 lần mỗi phim — dùng nhiều thì mất tác dụng. Shot có thoại / khớp môi: code bỏ.
-- **Gốc JSON thêm:** `"tradeoffs": [{"chose", "gave_up", "why", "scene"}]` mỗi khi hy sinh một ưu tiên thấp hơn (bỏ câu, lệch thời lượng,
+- **Gốc JSON thêm:** `"tradeoffs": [{"kind", "chose", "gave_up", "why", "scene"}]` (`kind`: `dropped_line` (bỏ câu) · `length` (lệch khung giây) · `speech_time` (shot thiếu thời gian nói) · `script_angle` (bỏ góc máy kịch bản ghi) · `other`) mỗi khi hy sinh một ưu tiên thấp hơn (bỏ câu, lệch thời lượng,
   đổi góc kịch bản ghi…) — code kiểm, thiếu là lỗi; `"script_notes": [{"scene", "kind", "note"}]` — ghi chú cho người viết kịch bản (câu
   thiếu lý do, hụt logic, twist chưa được gieo): **chỉ đề xuất** dạng "vị trí → người xem sẽ thấy gì → câu hỏi", không viết câu thoại mới.
 - `duration_s` từ 0,5 đến 15 giây. Shot ngắn hơn thời lượng tối thiểu của model video sẽ được gen dài hơn rồi cắt — cứ đặt đúng độ dài phim cần.

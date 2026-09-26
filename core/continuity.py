@@ -17,9 +17,19 @@ _LEFT = re.compile(r"\b(frame[- ]left|left of (the )?frame|on the left|left side
 _RIGHT = re.compile(r"\b(frame[- ]right|right of (the )?frame|on the right|right side|bên phải|phải khung)\b", re.I)
 _TO_RIGHT = re.compile(r"\b(left to right|toward(s)? (the )?(frame[- ])?right|to (the )?frame[- ]right|từ trái sang phải)\b", re.I)
 _TO_LEFT = re.compile(r"\b(right to left|toward(s)? (the )?(frame[- ])?left|to (the )?frame[- ]left|từ phải sang trái)\b", re.I)
-# a crossing written on purpose; "không / chưa / tránh / đừng / giữ … vượt trục" and "don't / avoid crossing" are the opposite
-_ON_PURPOSE = re.compile(r"(?<!không )(?<!chưa )(?<!tránh )(?<!đừng )(?<!chớ )(?:cố ý )?(?:vượt|qua|nhảy) trục|"
-                         r"(?<!not )(?<!n't )(?<!avoid )(?<!never )cross(es|ing)? the (line|axis)|(?<!not )jump(s|ing)? the line", re.I)
+# a crossing written on purpose; with a negation up to 3 words before it ("không để vượt trục", "tránh vượt trục", "don't cross the
+# line", "never crosses the axis") it says the opposite — keeping the line
+_CROSSING = re.compile(r"(?:vượt|qua|nhảy) trục|cross(?:es|ing)? the (?:line|axis)|jump(?:s|ing)? the line", re.I)
+_NEGATION = re.compile(r"(?:^|\s)(?:không|chưa|tránh|đừng|chớ|cấm|giữ|not|n't|don't|avoid|never|no)(?:\s+\S+){0,3}\s*$", re.I)
+
+
+class _OnPurpose:
+    @staticmethod
+    def search(text: str) -> bool:
+        return any(not _NEGATION.search(text[:m.start()]) for m in _CROSSING.finditer(text or ""))
+
+
+_ON_PURPOSE = _OnPurpose()
 _EXEMPT_ANGLES = ("pov", "overhead")
 
 

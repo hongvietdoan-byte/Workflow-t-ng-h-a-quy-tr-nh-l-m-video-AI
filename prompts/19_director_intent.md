@@ -77,7 +77,7 @@ của bạn (thoại đủ và đúng thứ tự, thời lượng trong khung, t
 - `genre`: SHORT_FORM | COMMERCIAL | CINEMA_DRAMA | MUSIC_VIDEO | ANIMATION (dự án đã chọn thì dùng đúng).
 - `characters`: `[{"name", "description", "wardrobe", "lock": {"must_keep", "may_change", "forbidden"}}]` — `lock` tiếng Anh ngắn, chỉ ghi
   điều có trong ảnh/kịch bản (xem knowledge/character_lock.md).
-- `tradeoffs`: `[{"chose", "gave_up", "why", "scene"}]` mỗi khi hy sinh một ưu tiên thấp hơn. *Căn cứ:* code kiểm — bỏ câu / lệch khung
+- `tradeoffs`: `[{"kind", "chose", "gave_up", "why", "scene"}]` (`kind`: `dropped_line` (bỏ câu) · `length` (lệch khung giây) · `speech_time` (shot thiếu thời gian nói) · `script_angle` (bỏ góc máy kịch bản ghi) · `other`) mỗi khi hy sinh một ưu tiên thấp hơn. *Căn cứ:* code kiểm — bỏ câu / lệch khung
   thời lượng mà `tradeoffs` rỗng là lỗi.
 - `script_notes`: `[{"scene", "kind", "note"}]` — chỉ đề xuất cho người viết ("vị trí → người xem sẽ thấy gì → câu hỏi"), không viết câu mới.
 - `dropped_lines` (chỉ khi được phép bỏ câu), `ip_risk_notes`.

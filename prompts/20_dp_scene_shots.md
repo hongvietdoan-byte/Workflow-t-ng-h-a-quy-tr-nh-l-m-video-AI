@@ -25,7 +25,7 @@ khung giây (`target_s`), nhân vật trọng tâm (`focus`), độ mạnh kho�
    → đặt vào đúng shot (nhạc `cut` ở shot mối đe dọa xuất hiện, `breath` ngay trước cú ngoặt…).
 5. Cộng `duration_s` các shot: phải nằm trong khung giây của cảnh (ghi ở "Việc lần này"). Thừa → gộp/rút shot im lặng, phản ứng, chèn;
    thiếu → giãn shot giữ cảm xúc — **không bao giờ** bằng cách bỏ câu.
-6. Hy sinh điều gì (góc máy kịch bản ghi, khung giây) thì ghi `tradeoffs` cho cảnh này (`chose`, `gave_up`, `why`, `scene`).
+6. Hy sinh điều gì (góc máy kịch bản ghi, khung giây) thì ghi `tradeoffs` cho cảnh này (`kind`, `chose`, `gave_up`, `why`, `scene`; `kind`: `dropped_line` (bỏ câu) · `length` (lệch khung giây) · `speech_time` (shot thiếu thời gian nói) · `script_angle` (bỏ góc máy kịch bản ghi) · `other`).
 
 ## Định dạng đầu ra (một cảnh)
 ```json

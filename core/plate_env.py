@@ -251,9 +251,11 @@ def overlay_video(video: str, out_path: str, env: Dict, ffmpeg: str, seed: int =
     flashes = flash_times(total, seed) if storm else []
     reader = subprocess.Popen([ffmpeg, "-loglevel", "error", "-i", video, "-r", str(fps), "-f", "rawvideo", "-pix_fmt", "rgb24", "-"],
                               stdout=subprocess.PIPE)
+    from . import ffmpeg_studio
     writer = subprocess.Popen([ffmpeg, "-y", "-loglevel", "error", "-f", "rawvideo", "-pix_fmt", "rgb24", "-s", f"{w}x{h}", "-r", str(fps),
-                               "-i", "-", "-i", video, "-map", "0:v", "-map", "1:a?", "-c:v", "libx264", "-crf", "18", "-pix_fmt",
-                               "yuv420p", "-c:a", "copy", "-shortest", out_path], stdin=subprocess.PIPE)
+                               "-i", "-", "-i", video, "-map", "0:v", "-map", "1:a?", "-vf", ffmpeg_studio.TO_YUV709, "-c:v", "libx264",
+                               "-crf", "18", "-pix_fmt", "yuv420p", *ffmpeg_studio.COLOR_TAGS, "-c:a", "copy", "-shortest", out_path],
+                              stdin=subprocess.PIPE)          # RGB frames: converted with the BT.709 matrix they are tagged with
     rnd_layers = [random.Random(seed + k) for k in range(6)]
     n = 0
     try:

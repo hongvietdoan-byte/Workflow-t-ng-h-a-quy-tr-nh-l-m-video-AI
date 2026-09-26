@@ -273,5 +273,45 @@ class GraderRound1Tests(unittest.TestCase):
                                                                                   "mode": "dynamic"})))
 
 
+# ---- người chấm lần 2 (2026-09-26) ------------------------------------------------------------------------------------------------
+class GraderRound2Tests(unittest.TestCase):
+    def test_natural_ways_to_write_a_sacrifice_and_the_fixed_kind(self):
+        gave_up = [("lệch khung thời lượng", set()), ("bỏ câu thoại", {1}), ("shot thiếu thời gian nói", {1})]
+        trade = [{"gave_up": "phim dài hơn kịch bản 4 s", "chose": "x", "why": "x"},
+                 {"gave_up": "cắt bớt lời Kelly", "chose": "x", "why": "x", "scene": 1},
+                 {"gave_up": "ngắn hơn thời gian đọc câu", "chose": "x", "why": "x", "scene": 1}]
+        self.assertEqual(director_report._uncovered(gave_up, trade), [])
+        self.assertEqual(director_report._uncovered([("bỏ câu thoại", {1})], [{"kind": "dropped_line", "gave_up": "nhịp", "scene": 1}]), [])
+        self.assertEqual(director_report._uncovered([("bỏ câu thoại", {1})], [{"kind": "length", "gave_up": "câu thoại", "scene": 1}]),
+                         ["bỏ câu thoại"])                                    # a kind that says something else wins over words
+
+    def test_every_negation_keeps_the_axis_check(self):
+        base = (1, 1, {"start_frame": "Kelly frame-left, Kenta frame-right", "characters": ["KELLY", "KENTA"], "angle": "eye"})
+        for why in ("không để vượt trục", "không được vượt trục", "don't cross the line", "never crosses the axis"):
+            other = (1, 2, {"start_frame": "Kenta frame-left, Kelly frame-right", "characters": ["KELLY", "KENTA"], "angle": "eye",
+                            "why": why})
+            self.assertEqual(len(continuity.axis_warnings([base, other])), 1, why)
+        other = (1, 2, {"start_frame": "Kenta frame-left, Kelly frame-right", "characters": ["KELLY", "KENTA"], "angle": "eye",
+                        "why": "máy cố ý vượt trục khi Kelly quay lưng"})
+        self.assertEqual(continuity.axis_warnings([base, other]), [])
+
+    def test_opening_hook_and_money_shot_are_checked(self):
+        obj = {"scenes": [{"idx": 1, "shots": [{"role": "setup", "duration_s": 4}, {"role": "hook", "duration_s": 2, "money_shot": "yes"}]}]}
+        w = director_report.opening_and_product(obj)
+        self.assertEqual(len(w), 3)
+        obj["scenes"][0]["shots"][0].update(role="hook", money_shot=True)
+        obj["scenes"][0]["shots"][1].pop("money_shot")
+        self.assertEqual(director_report.opening_and_product(obj), [])
+
+    def test_rgb_frames_are_converted_and_tagged_bt709_everywhere(self):
+        import inspect
+        from core import composite, plate_env
+        for fn in (composite.composite_video, plate_env.overlay_video):
+            src = inspect.getsource(fn)
+            self.assertIn("TO_YUV709", src)
+            self.assertIn("COLOR_TAGS", src)
+        self.assertIn("COLOR_TAGS", inspect.getsource(ffmpeg_studio.resize_to_size))
+
+
 if __name__ == "__main__":
     unittest.main()

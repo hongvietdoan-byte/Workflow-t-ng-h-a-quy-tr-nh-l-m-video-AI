@@ -289,10 +289,12 @@ Thang chung của cả tổ: `README.md`.
 4. **Thời lượng kịch bản**
 5. **Tiết kiệm tiền video**
 6. **Phong cách dựng / thẩm mỹ**
-Hy sinh một mục thấp hơn thì ghi ở gốc JSON: `"tradeoffs": [{"chose": "…", "gave_up": "…", "why": "…", "scene": số}]`. **Code kiểm
+Hy sinh một mục thấp hơn thì ghi ở gốc JSON: `"tradeoffs": [{"kind": "…", "chose": "…", "gave_up": "…", "why": "…", "scene": số}]` —
+`kind` ∈ `dropped_line` · `length` · `speech_time` · `script_angle` · `other` (`director_report.TRADEOFF_KINDS`). **Code kiểm
 theo từng loại** (`director_report._uncovered`): bỏ câu thoại / lệch khung thời lượng / shot thiếu thời gian nói / **bỏ góc máy kịch bản
-ghi** ("SAU VAI X", "CẬN CẢNH", "TOÀN CẢNH" mà không shot nào của cảnh giữ — `script_angles`) phải có một `tradeoff` mà `gave_up` nói đúng
-loại đó (và đúng cảnh khi có ghi cảnh); một `tradeoff` về chuyện khác không che được → ⚠ ở Bước 1 và tính là một lỗi của bàn đo.
+ghi** ("SAU VAI X", "CẬN CẢNH", "TOÀN CẢNH" mà không shot nào của cảnh giữ — `script_angles`) phải có một `tradeoff` cùng `kind` (thiếu
+`kind` thì code đọc chữ của `gave_up` — không đọc `chose`) và đúng cảnh khi có ghi cảnh; một `tradeoff` về chuyện khác không che được → ⚠
+ở Bước 1 và tính là một lỗi của bàn đo. Bàn đo cũng báo: không có shot `hook` trong 3 s đầu, thiếu `money_shot`, trường bị code bỏ.
 
 ## Tầng 5 — Tự rà trước khi trả lời (câu hỏi của đạo diễn)
 - Tắt tiếng đi, người xem còn hiểu ai muốn gì, ai đổi trạng thái không? 3 giây đầu có lý do để ở lại không?
