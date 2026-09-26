@@ -1,4 +1,4 @@
-# Vai Dựng (Editor hậu kỳ) — bộ kỹ năng nghề (V4 GĐ4, 2026-09-25 — chờ người dùng duyệt)
+# Vai Dựng (Editor hậu kỳ) — bộ kỹ năng nghề (V4 GĐ4, 2026-09-25; nâng theo người chấm 2026-09-26 — chờ người dùng duyệt)
 
 > Dựng nhận **clip đã duyệt + giọng + chữ trên màn hình + nhạc** và làm ra bản giao. Phần lớn là **code** (`core/delivery.py`,
 > `final_cut.py`, `ffmpeg_studio.py`, `subtitles.py`, `text_placement.py`, `audio_lib.py`, `voice.py`, `music.py`, `music_timing.py`,
@@ -15,9 +15,10 @@ xúc, âm thanh làm thế giới game "thật", màu các shot liền nhau như
 ## Tầng 2 — Cách nghĩ
 1. Dựng theo **timeline của Đạo diễn** (thứ tự shot, độ dài đã chuẩn hóa); clip dài hơn shot → lấy đoạn có hành động chính (E1).
 2. Đặt **giọng** (không chồng tiếng, đúng giây của shot) (E2), rồi **âm thanh** nhiều lớp (E3), rồi **nhạc** theo nhịp dựng (E4).
-3. **Màu**: sửa từng shot → khớp màu các shot liền nhau/cùng nơi → look (E5); hiệu ứng khi có lý do (E6).
-4. **Chữ** trong vùng an toàn chung, không đè mặt (E7); đo **độ to** và xuất theo nền tảng (E8).
-5. **Tự rà như người xem thật** (E9) trước khi giao Đạo diễn duyệt.
+3. **Màu**: sửa từng shot → khớp màu các shot liền nhau/cùng nơi → look (E5); hiệu ứng khi có lý do (E6); **tốc độ** — quay chậm/dừng
+   hình ở khoảnh khắc Đạo diễn chọn (E10).
+4. **Chữ** trong vùng an toàn chung, không đè mặt (E7); đo **độ to** từng lớp và bản giao, xuất theo nền tảng (E8).
+5. **Tự rà như người xem thật** (E9), lấy **ảnh bìa** (E11) trước khi giao Đạo diễn duyệt.
 
 ## Tầng 3 — Kỹ năng
 
@@ -87,7 +88,10 @@ xúc, âm thanh làm thế giới game "thật", màu các shot liền nhau như
   `core/sound_intent.py`, cờ `sound_intent` TẮT): nhạc tắt hẳn từ shot `cut` tới shot `in`, lặng 0,6 s trước shot `breath`, trên timeline
   thật của bản dựng (`delivery.sound_plan`); cờ tắt thì manifest ghi số ý đồ chưa áp. Âm `sfx` Đạo diễn yêu cầu đi vào `sfx_plan` (E3),
   âm không đặt được hiện ở Bước 5.
-- **Kiểm.** Code: `music_timing.score_draft` (độ to tại mốc ngoặt). Người: nghe.
+  **Hai khoảng lặng cùng lúc:** khi cả D6 và `sound.breath` của Đạo diễn bật, hai khoảng lặng cách nhau ≤ 1 s là **một** khoảnh khắc —
+  giữ cái Đạo diễn đặt, bỏ cái tự động (`delivery.merge_breaths`); lặng hai lần liền nghe như lỗi.
+- **Kiểm.** Code: `music_timing.score_draft` (độ to tại mốc ngoặt); **test giữ mức hạ nhạc** (`tests/test_crew_skills_0926.py`: giọng
+  −18 / −16 dBFS RMS trên nền nhạc (nhiễu cố định seed) → nhạc hạ 9,3 / 10,5 dB, test đòi 7,5–12,5 dB — ai đổi `DUCK` ra ngoài mức đã chốt thì test đỏ). Người: nghe.
 - **Ví dụ FF.** ✔ 2A: model nhạc luôn mờ 5 s cuối → xin dài thêm 4 s rồi cắt ở cuối phim (`TAIL_PAD_MS`).
 
 ### E5. Chỉnh màu và khớp màu giữa các shot
@@ -125,10 +129,18 @@ xúc, âm thanh làm thế giới game "thật", màu các shot liền nhau như
 ### E7. Chữ và vùng an toàn
 - **Làm gì · vì sao.** Xem `safe_zones.md` (số chính thức + nguồn). Chữ nằm trong **vùng an toàn chung** mọi nền tảng sẽ đăng; không đè mặt;
   phụ đề một vị trí cố định, chỉ dời khi đè mặt (dời cả câu); đủ lâu để đọc: tối đa **17 ký tự/giây** (mức Netflix cho trẻ em, chặt hơn mức
-  người lớn 20 [E23]), tối thiểu ~0,83 s, cách nhau ≥ 2 khung [E24]. Khung dọc hẹp: ~20–28 ký tự/dòng, 2 dòng [KN].
+  người lớn 20 [E23]), tối thiểu ~0,83 s, cách nhau ≥ 2 khung, **không vắt qua điểm cắt** (câu nằm giữa hai shot đọc như thuộc shot
+  sai) [E24]. Khung dọc hẹp: ~15–20 ký tự/dòng ở cỡ mặc định, 2 dòng [KN].
+  - **Phụ đề động kiểu video ngắn:** từng chữ sáng lên khi được nói (chữ chưa nói màu xám) — cách phụ đề của TikTok/Reels giữ mắt người xem
+    trên chữ; chỉ dùng cho thoại, không cho thông báo game [KN].
 - **Trong pipeline.** ✅ Lề trên 15% / dưới 36% (chính thức 35%, code thêm 1% đệm) / trái 6% / **phải 18%** khung dọc (`subtitles.SAFE_*`; phải sửa từ 6% lên 18% ở GĐ4 theo số
-  chính thức Google Ads); ✅ dò mặt YuNet trên khung thật, dời câu (`text_placement`); ✅ `MAX_CPS = 17` + bảng mật độ (`subtitles.density`).
-- **Kiểm.** Code: test vùng an toàn; mật độ chữ. Người: bảng khung có chữ.
+  chính thức Google Ads); ✅ dò mặt YuNet trên khung thật, dời câu (`text_placement`); ✅ bảng dễ đọc `subtitles.density`: `MAX_CPS = 17`,
+  hiện < `MIN_CUE_S` 0,83 s, cách dòng sau < 2 khung, chồng dòng sau, **vắt qua điểm cắt** > 0,5 s mỗi bên (điểm cắt lấy từ timeline bản
+  dựng, `delivery.cut_times`) — cảnh báo ở Bước 5, không tự sửa (người sửa bảng giờ). ✅ Cỡ chữ mặc định "Vừa" 8% cạnh ngắn — **đo bằng
+  render thật** (xem `safe_zones.md` mục 6). ✅ **Phụ đề động** (ô "Chữ sáng dần theo giọng" ở Bước 5, `subtitles.karaoke_text`, ASS `\kf`):
+  thời gian mỗi chữ chia theo số chữ cái trên 90% thời gian câu — **không nghe giọng** (chưa căn theo âm thật; lệch được với câu có ngắt dài).
+- **Kiểm.** Code: test vùng an toàn; bảng dễ đọc (test 0,83 s / 2 khung / điểm cắt); test phụ đề động (render thật: chữ vàng 1.218 điểm ảnh
+  lúc 0,2 s → 7.610 lúc 1,6 s). Người: bảng khung có chữ.
 
 ### E8. Độ to và xuất bản
 - **Làm gì · vì sao.** Nền tảng tự chuẩn hóa độ to — bản quá to bị hạ (mất lực), quá nhỏ nghe yếu so với video bên cạnh. **Số chính thức:**
@@ -142,7 +154,16 @@ xúc, âm thanh làm thế giới game "thật", màu các shot liền nhau như
   (`ffmpeg_studio.measure_loudness`, thước EBU R128 của ffmpeg; `loudness_problems` so với mục tiêu) — **mọi lần dựng bản giao đều đo**, lưu
   vào `outputs.manifest.loudness`, hiện ở Bước 5 (🔊). ✅ **Chuẩn hóa** (`normalize_loudness`: `loudnorm` 2 lượt, I=−14, TP=−1,5, tăng/giảm
   **tuyến tính** — không nén lại bản trộn; mặc định ffmpeg là I=−24 [E22]) khi số đo lệch mục tiêu — sau cờ `loudness_normalize` (TẮT).
-  ✅ Mọi bản mã hóa có `+faststart` + thẻ màu BT.709 (`_ENCODE`, D12); vẫn 24 fps (mọi clip của pipeline là 24).
+  ✅ Mọi bản mã hóa có `+faststart` + thẻ màu BT.709 (`_ENCODE`, D12); vẫn 24 fps (mọi clip của pipeline là 24). ✅ **Ảnh tĩnh → video
+  đổi màu bằng ma trận BT.709** (`ffmpeg_studio.TO_YUV709`, 2026-09-26): đo thật — card cuối và animatic trước đó ra số BT.601 dưới thẻ
+  BT.709 (đỏ thuần Y = 81 thay vì 63 → màu card lệch nhẹ khi phát); clip video không bị (ffmpeg dùng thẻ đầu ra, Y = 63), test giữ số này.
+  ✅ **Chất lượng mã hóa** (2026-09-26): video CRF 18 (trước là mặc định 23), âm AAC **256 kbps** ở mọi bước (trước ~128 kbps mặc định).
+  Bản dựng qua 3–4 lần mã hóa âm (ghép → nhạc → lớp phụ → chuẩn hóa) — mỗi lần 256 kbps để tổn thất cộng dồn nhỏ; YouTube khuyên 384 kbps
+  cho **file tải lên cuối**, pipeline chưa làm bước "mã hóa một lần duy nhất" (ghi nhận: cần giữ âm PCM giữa các bước — đổi lớn, chưa làm).
+- **Mức từng lớp** (khởi điểm [KN], đo được — số chính thức chỉ có cho bản trộn cuối): thoại ~−18 LUFS ngắn hạn khi đang nói (AES: thoại
+  ~−18 [E18]); nhạc **thấp hơn thoại 8–12 dB** khi có thoại (đã chốt, test giữ); nền không khí ~−18 dB so với mức đầy (`ambience`), luôn
+  dưới nhạc; SFX điểm nhấn đỉnh không vượt thoại quá ~3 dB (cú đập to hơn thì bộ giới hạn cuối ăn vào thoại). Đo: `measure_loudness` trên
+  từng lớp xuất riêng (chưa có nút — ghi nhận).
 - **Kiểm.** Code: số đo ở mỗi bản dựng (`loudness_problems`: −14 ± 2 LUFS, đỉnh thật ≤ −1,5 dBTP). Người: nghe cạnh một video FF chính
   thức trên điện thoại.
 - **Ví dụ FF.** ✔ 2A: đỉnh 0,0 → −1,3 dBFS sau khi thêm bộ giới hạn. ✔ Đo thật bản giao #7 (2026-09-25): **−14,7 LUFS, đỉnh thật −2,9 dBTP,
@@ -156,8 +177,33 @@ xúc, âm thanh làm thế giới game "thật", màu các shot liền nhau như
   lên từng khung — chữ/mặt không lọt vào vùng bị che; (4) thu nhỏ ~360×640 — chữ còn đọc được; (5) đo lại độ to sau mã hóa [KN].
 - **Trong pipeline.** ✅ Bảng khung có chữ, dò mặt; ✅ animatic (Bước 1, `delivery.animatic`). ✅ **Tự rà như người xem** (D13,
   `core/viewer_check.py`, nút 🧐 ở Bước 5): 8 khung của bản giao mới nhất, vùng giao diện app tô đỏ + bản cỡ điện thoại, báo mặt nằm dưới
-  vùng giao diện (YuNet). Chạy thật #7: 8/8 khung không mặt nào bị che.
-- **Kiểm.** Người xem cuối (người dùng) + Đạo diễn duyệt.
+  vùng giao diện (YuNet). Chạy thật #7: 8/8 khung không mặt nào bị che. ✅ **Kiểm chữ** (2026-09-26, `viewer_check.text_bands`): so khung
+  của bản có chữ với bản dựng gốc cùng giây — điểm ảnh khác nhau chính là chữ đã in (phụ đề, thông báo, bảng tên); chữ chạm vùng giao diện
+  → ⚠. Chạy thật #7 (bản phụ đề so bản gốc): phụ đề nằm ở 57–64% chiều cao, 0/8 khung chữ dưới giao diện. Card cuối (toàn khung, cố ý)
+  không tính.
+- **Kiểm.** Code: test chữ trong/ngoài vùng giao diện. Người xem cuối (người dùng) + Đạo diễn duyệt.
+
+### E10. Tốc độ — quay chậm, dừng hình — 2026-09-26
+- **Làm gì · vì sao.** Kỹ thuật dựng số một của video hành động/game ngắn: kéo giãn **một** khoảnh khắc (cú bắn, cú nhảy kỹ năng) để người
+  xem thấy và cảm nó, dừng hình ở cú chốt; tăng tốc/"speed ramp" nối đoạn chậm với đoạn thường. Chậm từ clip 24 fps mà chỉ nhân đôi khung
+  thì giật (12 khung/giây thật) → **nội suy khung** theo chuyển động; khoảnh khắc chậm phải là hành động rõ, ít vật mỏng chuyển động nhanh
+  (nội suy làm méo). Tiếng ở đoạn chậm: bỏ tiếng gốc của clip, để SFX/nhạc mang (tiếng kéo chậm nghe sai) [KN].
+- **Trong pipeline.** ✅ `shots.trim_clip` + `shots.retime_filter` (cờ `speed_ramp` TẮT): shot có `speed` < 1 lấy (độ dài − dừng) × speed
+  giây đầu clip, kéo giãn bằng `setpts` + `minterpolate` (30 fps, bù chuyển động), rồi giữ khung cuối `freeze_end_s` (`tpad`); âm của shot bị
+  bỏ. Chỉ shot không thoại/không khớp môi (`shots.clean_retime`). Motion prompt nhận `speed` (biết chỉ phần đầu clip được dùng). ❌ Speed
+  ramp mượt (tăng/giảm tốc dần trong một shot) — chưa; hiện đổi tốc theo shot.
+- **Kiểm.** Code: test ffmpeg (0,75 s hành động → shot đúng 2,0 s có 0,25 s dừng). Người: xem bản dựng (tay/vũ khí có méo khi nội suy không)
+  — lý do cờ còn TẮT.
+- **Ví dụ FF.** ✔ Cú bắn tỉa: `speed: 0.4` ở lúc đạn rời nòng + dừng 0,5 s khi mục tiêu ngã. ✘ Chậm cả pha đấu súng — mất nhịp.
+
+### E11. Ảnh bìa và biến thể mở đầu — 2026-09-26
+- **Làm gì · vì sao.** Người lướt thấy **ảnh bìa** trước khi video chạy (lưới hồ sơ, gợi ý): khung rõ mặt/khoảnh khắc sản phẩm, không chữ
+  nhỏ, không mờ chuyển cảnh [KN]. Khi đăng quảng cáo, 2–3 **mở đầu khác nhau** cho cùng thân video là cách đo móc nào giữ người xem (Đạo
+  diễn Đ10).
+- **Trong pipeline.** ✅ `delivery.cover_image` (nút 🖼 ở Bước 5, miễn phí): khung giữa shot ⭐ (`hero`), không có thì shot có diễn xuất
+  mạnh nhất, lưu `COVER.png` cạnh bản dựng. Thử #7: chọn shot 1 (1,3 s, diễn mạnh nhất — #7 không có ⭐). ❌ Dựng biến thể mở đầu — chưa có
+  code (làm tay: đổi thứ tự 1–2 shot đầu ở Bước 5, dựng lại — miễn phí).
+- **Kiểm.** Code: test chọn shot ⭐. Người: nhìn ảnh bìa cỡ nhỏ (~200 px) — còn nhận ra nhân vật/khoảnh khắc không.
 
 ## Tầng 4 — Ưu tiên khi xung đột
 Nghe rõ thoại > đọc được chữ (không bị che) > cảm xúc/nhịp cắt theo Đạo diễn > liền mạch (màu, hướng) > đẹp/hiệu ứng. Đây là thang chung
@@ -169,4 +215,5 @@ cảm xúc đó tới người xem. Không sửa được bằng dựng → tr�
 - Có chữ nào ngoài hộp an toàn, đè mặt, hiện quá nhanh? Có phân biệt được thoại với thông báo game không?
 - Hai shot cùng nơi có cùng tông màu không? Người ghép có "dính" nền không (viền, bóng, hạt)?
 - Có điểm cắt nào làm mất hành động chính, có chỗ nào im lặng hụt hơi, có hiệu ứng nào không cần?
-- Độ to bản giao bao nhiêu LUFS, đỉnh bao nhiêu?
+- Độ to bản giao bao nhiêu LUFS, đỉnh bao nhiêu? Nhạc có hạ đủ dưới thoại (8–12 dB) không?
+- Khoảnh khắc quay chậm có mượt không, có đúng một–hai lần không? Ảnh bìa có nhận ra nhân vật ở cỡ nhỏ không?

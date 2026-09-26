@@ -27,10 +27,15 @@ câu chuyện. Vì vậy chữ luôn đặt trong vùng an toàn **chung** của
 4. **Chữ hệ thống/thông báo game** (vd "Maxim đã bị hạ.") kiểu thông báo trong game (dải trên của vùng an toàn, giữa, vàng trên nền tối), khác
    kiểu phụ đề để người xem không nhầm là lời thoại.
 5. **Tốc độ đọc**: ≤ 17 ký tự/giây (Netflix: 20 cho người lớn, 17 cho trẻ em [E23]); hiển thị ≥ ~0,83 s (20 khung ở 24 fps), hai câu cách
-   ≥ 2 khung, chữ ở lại ~0,5 s sau khi hết tiếng nếu không vướng điểm cắt [E24]. TikTok khuyên chữ trên màn hình 5–10 từ/giây [E5] — nhanh hơn
-   chuẩn phụ đề, nên phụ đề thoại vẫn dùng mức Netflix.
-6. **Cỡ chữ**: chưa có số chính thức (trang BBC không tải được) — tạm: chiều cao chữ hoa ≥ ~3% chiều cao khung (~55–60 px ở 1920), có viền
-   hoặc nền mờ [KN]; code mặc định cỡ "Vừa" = 6,5% cạnh ngắn.
+   ≥ 2 khung, chữ ở lại ~0,5 s sau khi hết tiếng nếu không vướng điểm cắt, không vắt qua điểm cắt [E24]. TikTok khuyên chữ trên màn hình 5–10
+   từ/giây [E5] — nhanh hơn chuẩn phụ đề, nên phụ đề thoại vẫn dùng mức Netflix. **Code** (`subtitles.density`, ⚠ ở Bước 5): ký tự/giây,
+   < 0,83 s, < 2 khung với câu sau, chồng câu sau, vắt qua điểm cắt > 0,5 s mỗi bên. ❌ "Ở lại 0,5 s sau tiếng": chưa có — phụ đề kết thúc
+   đúng lúc hết giọng (`build_cues`).
+6. **Cỡ chữ**: chưa có số chính thức (trang BBC không tải được) — mục tiêu dự án: chiều cao chữ hoa **≥ ~2,5%** chiều cao khung (≥ 48 px ở
+   1920; ≈ 3,5 mm trên điện thoại 6,1") có viền hoặc nền mờ [KN]. **Đo bằng render thật** (2026-09-26, font GFF Latin Bold, libass, khung
+   1080×1920): chữ hoa ≈ 0,58 × cỡ chữ → "Vừa" cũ 6,5% cạnh ngắn = **40 px (2,1%) — dưới mục tiêu**; nay "Vừa" = 8% → 50 px (2,6%), "Lớn"
+   9,5% → ~60 px (3,1%), "Nhỏ" 6,5%. Bản trước ghi mục tiêu 3% chưa có căn cứ; 3% cần cỡ 9,2% (~15 ký tự/dòng trong hộp an toàn — câu
+   tiếng Việt 2 dòng không đủ chỗ) nên chọn 2,5% và kiểm bằng bản thu nhỏ ~360×640 của 🧐 (mục Tự rà).
 
 ## Tự rà
 - Chữ nào nằm ngoài hộp an toàn? Chữ nào đè mặt? Người xem có kịp đọc hết không? Có phân biệt được thoại với thông báo game không?

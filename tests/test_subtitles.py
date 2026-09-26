@@ -66,7 +66,7 @@ class CueTests(Setup):
         self.assertIn("Lyra: Có thứ gì đó.", subtitles.to_srt(cues, show_speaker=True))
         ass = subtitles.to_ass(cues, 1080, 1920, font("GFF Latin Bold", VN), "M", "bottom", "yellow")
         self.assertIn("PlayResX: 1080", ass)
-        self.assertIn("Style: Default,GFF Latin Bold,70", ass)                               # 6.5% of the shorter side (1080)
+        self.assertIn("Style: Default,GFF Latin Bold,86", ass)                               # 8% of the shorter side (1080), measured 2026-09-26
         self.assertIn("&H0066E0FF", ass)                                                     # yellow, BGR order
         self.assertIn("Dialogue: 0,00:00:00.50,00:00:02.25,Default", ass)
 

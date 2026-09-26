@@ -28,7 +28,8 @@ _WIDE = ("WS", "EWS")
 SIZE_SYN = {"CLOSE_UP": "CU", "CLOSEUP": "CU", "CLOSE-UP": "CU", "EXTREME_CLOSE_UP": "ECU", "MEDIUM_CLOSE_UP": "MCU",
             "MEDIUM": "MS", "MEDIUM_SHOT": "MS", "MID": "MS", "WIDE": "WS", "WIDE_SHOT": "WS", "LS": "WS", "LONG_SHOT": "WS",
             "FULL_SHOT": "WS", "EXTREME_WIDE": "EWS", "ELS": "EWS", "EXTREME_LONG_SHOT": "EWS", "TPS": "GAME_TPS",
-            "GAMEPLAY": "GAME_TPS", "GAME": "GAME_TPS"}
+            "GAMEPLAY": "GAME_TPS", "GAME": "GAME_TPS", "MEDIUM_LONG_SHOT": "MLS", "MEDIUM_WIDE": "MLS", "COWBOY": "MLS",
+            "AMERICAN_SHOT": "MLS"}
 ANGLE_SYN = {"eye_level": "eye", "eye-level": "eye", "eyelevel": "eye", "low_angle": "low", "high_angle": "high",
              "over_shoulder": "ots", "over-the-shoulder": "ots", "over_the_shoulder": "ots", "overshoulder": "ots",
              "birds_eye": "overhead", "bird_eye": "overhead", "top_down": "overhead", "top": "overhead", "dutch_angle": "dutch",
@@ -65,7 +66,7 @@ def _fix_enums(sc: Dict, changes: List[str]) -> None:
             if isinstance(v, str):
                 norm = v.strip().upper().replace(" ", "_") if key == "size" else v.strip().lower().replace(" ", "_")
                 new = table.get(norm, norm if key == "size" else None)
-                if key == "size" and new != v and new in {"ECU", "CU", "MCU", "MS", "WS", "EWS", "GAME_TPS"}:
+                if key == "size" and new != v and new in {"ECU", "CU", "MCU", "MS", "MLS", "WS", "EWS", "GAME_TPS"}:
                     s[key], _ = new, changes.append(f"{_label(sc, k)}: {key} “{v}” → “{new}”")
                 elif key != "size" and new and new != v:
                     s[key], _ = new, changes.append(f"{_label(sc, k)}: {key} “{v}” → “{new}”")

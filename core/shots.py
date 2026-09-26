@@ -13,15 +13,20 @@ from typing import Any, Dict, List, Optional
 from .pipeline import Pipeline
 
 MODES = {None: "Mỗi cảnh một clip (v2)", "per_shot": "Chia shot — gen từng shot", "multishot": "Chia shot — Kling multi-shot theo nhóm"}
-SIZES = ("ECU", "CU", "MCU", "MS", "WS", "EWS", "GAME_TPS")          # same vocabulary as the reference analysis (no GRAPHIC:
+SIZES = ("ECU", "CU", "MCU", "MS", "MLS", "WS", "EWS", "GAME_TPS")   # the reference analysis vocabulary + MLS (dp.md Q2; no GRAPHIC:
 ANGLES = ("eye", "low", "high", "overhead", "dutch", "ots", "pov")   # titles / cards are made in post, not by the video model)
 MOVES = ("static", "push_in", "pull_out", "pan", "tilt", "track", "orbit", "handheld", "crane", "whip", "zoom")
 ROLES = ("hook", "setup", "action", "reaction", "insert", "dialogue", "transition", "ending")
-SIZE_WORDS = {"ECU": "extreme close-up", "CU": "close-up", "MCU": "medium close-up", "MS": "medium shot", "WS": "wide shot",
+SIZE_WORDS = {"ECU": "extreme close-up", "CU": "close-up", "MCU": "medium close-up", "MS": "medium shot",
+              "MLS": "medium long shot", "WS": "wide shot",
               "EWS": "extreme wide shot", "GAME_TPS": "third-person game camera behind the character, slightly above the shoulder"}
 MIN_SHOT, MAX_SHOT = 0.5, 15.0
 # what a shot row keeps from its script scene (Director fields of the whole scene)
-SCENE_KEYS = ("location", "time", "mood", "lighting", "location_asset", "emotional_intent", "beat")
+SCENE_KEYS = ("location", "time", "mood", "lighting", "location_asset", "emotional_intent", "beat", "knowledge_gap")
+# director.md Đ3 "ai biết gì": the viewer knows more than the character (suspense), the same (tension) or less (surprise)
+KNOWLEDGE_GAPS = ("ahead", "same", "behind")
+# editing.md E10 / dp.md Q11: time on screen — slow motion (speed < 1) and a freeze at the end of a shot, done in the cut
+SPEED_MIN, FREEZE_MAX = 0.25, 1.5
 
 
 class ShotError(ValueError):
@@ -171,6 +176,8 @@ def shot_data(scene: Dict, s: Dict, k: int) -> Dict:
     """The data of one shot row: the script scene's setting + the shot's own camera, action and lines."""
     spoken, screen = _split_lines(s)
     data = {key: scene[key] for key in SCENE_KEYS if key in scene}
+    if data.get("knowledge_gap") not in KNOWLEDGE_GAPS:
+        data.pop("knowledge_gap", None)
     data.update({
         "story_scene": scene["idx"], "shot_no": k,
         "sequence": scene.get("sequence") or scene["idx"],
@@ -215,7 +222,28 @@ def shot_data(scene: Dict, s: Dict, k: int) -> Dict:
     lens = s.get("lens_mm")
     if isinstance(lens, (int, float)) and not isinstance(lens, bool) and 14 <= lens <= 200:
         data["lens_mm"] = int(round(lens))
+    if s.get("hook_mid") is True:
+        data["hook_mid"] = True                           # director.md Đ2: the open detail that carries the viewer to the next part
+    retime = clean_retime(s, spoken)
+    data.update(retime)
     return data
+
+
+def clean_retime(s: Dict, spoken=None) -> Dict:
+    """`speed` (SPEED_MIN–1, slow motion) and `freeze_end_s` (0–FREEZE_MAX) of a shot, kept only on a shot nobody speaks in and that
+    is not lip-synced (a slowed voice / mouth is wrong) — {} otherwise."""
+    if spoken is None:
+        spoken, _ = _split_lines(s)
+    if spoken or s.get("lip_sync"):
+        return {}
+    out = {}
+    speed = s.get("speed")
+    if isinstance(speed, (int, float)) and not isinstance(speed, bool) and SPEED_MIN <= speed < 1:
+        out["speed"] = round(float(speed), 2)
+    freeze = s.get("freeze_end_s")
+    if isinstance(freeze, (int, float)) and not isinstance(freeze, bool) and 0 < freeze <= FREEZE_MAX:
+        out["freeze_end_s"] = round(float(freeze), 2)
+    return out
 
 
 def has_work(conn, project_id: int) -> bool:
@@ -395,28 +423,51 @@ def motion_start(conn, scene_id: int, raw: str, want: float, have: float, fps: i
     return round(best / fps, 2) if best and score(best) > first * MOTION_GAIN + 1e-4 else 0.0
 
 
+def retime_filter(speed: float, freeze: float, fps: int = 30) -> Optional[str]:
+    """ffmpeg video filter of a retimed shot: slowed by `speed` (frames made in between by motion interpolation, so a 24 fps clip at
+    half speed does not stutter at 12 fps) and/or holding its last frame `freeze` seconds. None when nothing changes."""
+    parts = []
+    if speed < 1:
+        parts.append(f"setpts=PTS/{speed:g}")
+        parts.append(f"minterpolate=fps={fps}:mi_mode=mci:mc_mode=aobmc:vsbmc=1")
+    if freeze > 0:
+        parts.append(f"tpad=stop_mode=clone:stop_duration={freeze:g}")
+    return ",".join(parts) or None
+
+
 def trim_clip(pipeline: Pipeline, scene_id: int, path: str) -> bool:
     """Cut a downloaded clip of a SHOT row to the shot's planned length: the full clip is kept next to it as <name>_raw.mp4.
-    Nothing happens for v2 rows, clips already short enough, or files ffmpeg cannot read. Returns True when cut."""
+    Nothing happens for v2 rows, clips already short enough, or files ffmpeg cannot read. Returns True when cut.
+    Cờ `speed_ramp` (editing.md E10): a shot with `speed` < 1 takes (length − freeze) × speed seconds of the clip and plays them
+    slowed to fill the shot, then holds its last frame `freeze_end_s`; its sound is dropped (a slowed sound is wrong; the shot has no
+    line by construction — shots.clean_retime)."""
     import os
     import shutil
     import subprocess
+    from . import features
     from .ffmpeg_studio import find_ffmpeg, has_audio, probe_duration
     row = pipeline.conn.execute("SELECT data FROM scenes WHERE id=?", (scene_id,)).fetchone()
-    if row is None or not json.loads(row["data"] or "{}").get("shot_no"):
+    data = json.loads(row["data"] or "{}") if row else {}
+    if row is None or not data.get("shot_no"):
         return False
     want = planned_seconds(pipeline.conn, scene_id)
     have = probe_duration(path) if os.path.exists(path) else None
-    if not want or not have or have <= want + TRIM_SLACK:
+    speed = float(data.get("speed") or 1) if features.on("speed_ramp") else 1.0
+    freeze = min(float(data.get("freeze_end_s") or 0), max(want - 0.5, 0)) if features.on("speed_ramp") and want else 0.0
+    vf = retime_filter(speed, freeze)
+    source = round((want - freeze) * speed, 2) if want else 0
+    if not want or not have or (vf is None and have <= want + TRIM_SLACK):
         return False
     try:
-        start = motion_start(pipeline.conn, scene_id, path, want, have)   # decided on the clip where it is, before anything moves
+        start = motion_start(pipeline.conn, scene_id, path, source, have) if vf is None else 0.0
     except Exception:  # noqa: BLE001 - a clip whose motion cannot be read is cut from its start, as always
         start = 0.0
     raw = os.path.splitext(path)[0] + "_raw.mp4"
     shutil.move(path, raw)
-    audio = ["-c:a", "aac"] if has_audio(raw) else ["-an"]
-    proc = subprocess.run([find_ffmpeg(), "-y", *(["-ss", f"{start:.2f}"] if start else []), "-i", raw, "-t", f"{want:.2f}", "-c:v",
+    audio = ["-c:a", "aac", "-b:a", "256k"] if has_audio(raw) and vf is None else ["-an"]
+    source_cut = ["-t", f"{min(source, have):.2f}"] if vf else []           # slowed: read only the part that fills the shot
+    proc = subprocess.run([find_ffmpeg(), "-y", *(["-ss", f"{start:.2f}"] if start else []), *source_cut, "-i", raw,
+                           *(["-vf", vf] if vf else []), "-t", f"{want:.2f}", "-c:v",
                            "libx264", "-pix_fmt", "yuv420p", "-preset", "veryfast", *audio, path], capture_output=True, text=True,
                           encoding="utf-8", errors="replace")
     if proc.returncode != 0 or not os.path.exists(path):
@@ -540,7 +591,7 @@ def split_group_clip(path: str, group: List[Dict], dest_paths: List[str]) -> Lis
     start, out = 0.0, []
     try:
         ffmpeg = find_ffmpeg()
-        audio = ["-c:a", "aac"] if has_audio(whole) else ["-an"]
+        audio = ["-c:a", "aac", "-b:a", "256k"] if has_audio(whole) else ["-an"]
     except Exception:  # noqa: BLE001 - no ffmpeg: every shot keeps the whole clip
         ffmpeg = None
     for r, dest in zip(group, dest_paths):

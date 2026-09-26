@@ -7,7 +7,8 @@ What the TTS can take (official sources, knowledge/sources.md GĐ4 [Đ20]–[Đ2
   - Eleven v3 has only three stability modes: 0.0 Creative (most expressive, may drift), 0.5 Natural, 1.0 Robust (steady, ignores
     direction). Audio tags need Creative or Natural. The playground says speed does not apply to v3 — sent anyway (inside the allowed
     range it does no harm) and marked "chưa thử thật".
-  - v3 reads no SSML <break>: a pause is written as "…", a stressed word in CAPITALS, a tag like [whispers] before the words it colours.
+  - v3 reads no SSML <break>: a pause is written as "…" or as the v3 pause tags [short pause] / [long pause] (ElevenLabs v3 prompting
+    guide), a stressed word in CAPITALS, a tag like [whispers] before the words it colours.
 Subtitles keep the script's words: only the text sent to the TTS changes.
 """
 import re
@@ -17,6 +18,7 @@ PACES = {"slow": 0.9, "normal": None, "fast": 1.1}
 # Eleven v3 audio tags that colour a line without adding a sound effect (a whitelist: anything else could be read out loud)
 TAGS = ("whispers", "sighs", "shouts", "laughs", "crying", "sarcastic", "excited", "curious", "nervous", "angry", "sad", "calm",
         "gulps", "clears throat")
+PAUSES = {"short": "[short pause] ", "long": "[long pause] "}   # pause_before "short" / "long" (v3 tags); true = "… " (tried in 2A)
 SHORT_LINE_WORDS = 3                         # director.md Đ5: lines this short get no tag / stress
 CREATIVE, NATURAL = 0.0, 0.5                # v3 stability modes (Robust 1.0 ignores direction — never chosen for a directed line)
 
@@ -40,8 +42,11 @@ def clean(value) -> Tuple[Optional[Dict], List[str]]:
         out["pace"] = pace
     elif pace:
         problems.append(f"delivery.pace '{pace}' — chỉ nhận {', '.join(PACES)}")
-    if value.get("pause_before") is True:
-        out["pause_before"] = True
+    pause = value.get("pause_before")
+    if pause is True or pause in PAUSES:
+        out["pause_before"] = pause
+    elif pause not in (None, False):
+        problems.append(f"delivery.pause_before '{pause}' — chỉ nhận true, \"short\", \"long\"")
     if isinstance(value.get("stress"), str) and value["stress"].strip():
         out["stress"] = value["stress"].strip()
     tag = str(value.get("tag") or "").strip().strip("[]").lower()
@@ -75,7 +80,10 @@ def spoken_text(text: str, delivery: Optional[Dict], model: str = "eleven_v3") -
     word = None if short else delivery.get("stress")
     if word:
         out = re.sub(rf"(?<!\w){re.escape(word)}(?!\w)", lambda m: m.group(0).upper(), out, count=1, flags=re.IGNORECASE)
-    if delivery.get("pause_before"):
+    pause = delivery.get("pause_before")
+    if pause in PAUSES and model == "eleven_v3":
+        out = PAUSES[pause] + out
+    elif pause:
         out = "… " + out
     if delivery.get("tag") and model == "eleven_v3" and not short:
         out = f"[{delivery['tag']}] " + out

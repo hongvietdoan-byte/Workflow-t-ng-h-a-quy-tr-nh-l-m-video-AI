@@ -22,6 +22,15 @@ SILENT_MIN = 1.0          # a silent shot shorter than this is paid as a whole m
 WIDE_MIN = 1.5            # a wide shot shorter than this cannot be read
 TRADEOFF_KEYS = ("chose", "gave_up", "why")   # director.md tầng 4: each sacrifice says what won, what lost and why
 VOID = re.compile(r"\bvoid\b|black background|abstract (emotional )?space|empty darkness", re.IGNORECASE)
+# director.md tầng 4: which tradeoff covers which sacrifice — a tradeoff about the music does not excuse a dropped line
+_GAVE_UP_WORDS = {"bỏ câu thoại": r"thoại|câu|line|dialog",
+                  "lệch khung thời lượng": r"thời lượng|giây|khung|độ dài|length|duration|second",
+                  "shot thiếu thời gian nói": r"thời gian nói|thoại|nói|speech|line|dialog",
+                  "bỏ góc máy kịch bản ghi": r"góc|angle|qua vai|sau vai|cận|toàn cảnh|ots"}
+# prompt 17 "Kịch bản ghi rõ góc máy thì giữ đúng": the script's own camera words and the shot that honours them
+_SCRIPT_ANGLES = ((re.compile(r"(?:sau|qua)\s+vai\s+(?:của\s+)?([A-ZÀ-Ỹa-zà-ỹ]+)", re.I), "ots"),
+                  (re.compile(r"\bcận\s+cảnh\b", re.I), "close"),
+                  (re.compile(r"\btoàn\s+cảnh\b", re.I), "wide"))
 
 
 def model_limits(model: str = "kling") -> Dict[str, float]:
@@ -50,6 +59,49 @@ def _spoken(shot: Dict):
     return [(str(d.get("speaker") or "").strip().upper(), str(d.get("text") or "").strip()) for d in shot.get("dialogue") or []
             if isinstance(d, dict) and str(d.get("speaker") or "").strip().upper() not in dialogue.NOT_SPEAKERS
             and str(d.get("text") or "").strip()]
+
+
+def script_angles(story, shots) -> List[Dict]:
+    """Camera words the script wrote ("GÓC CAMERA SAU VAI KENTA", "CẬN CẢNH", "TOÀN CẢNH") that no shot of that scene honours:
+    [{"scene", "wanted"}]. Rank 3 of the Director's scale — giving it up is allowed, not silently."""
+    out = []
+    for sc_i, sc in enumerate(story, 1):
+        text = f"{sc.heading or ''}\n{sc.text or ''}"
+        mine = [s for idx, _, s in shots if idx == sc_i]
+        for rx, kind in _SCRIPT_ANGLES:
+            for m in rx.finditer(text):
+                if kind == "ots":
+                    who = m.group(1).upper()
+                    ok = any(s.get("angle") == "ots" and who in [str(c).upper() for c in s.get("characters") or []] for s in mine)
+                    wanted = f"qua vai {who}"
+                elif kind == "close":
+                    ok, wanted = any(s.get("size") in ("CU", "ECU", "MCU") for s in mine), "cận cảnh"
+                else:
+                    ok, wanted = any(s.get("size") in ("WS", "EWS") for s in mine), "toàn cảnh"
+                if not ok and {"scene": sc_i, "wanted": wanted} not in out:
+                    out.append({"scene": sc_i, "wanted": wanted})
+    return out
+
+
+def _uncovered(gave_up: List[tuple], trade: List[Dict]) -> List[str]:
+    """The sacrifices no tradeoff speaks about: a tradeoff counts for a kind when its gave_up/chose words name that kind and its
+    scene (when both say one) is the same."""
+    out = []
+    for kind, scenes in gave_up:
+        rx = re.compile(_GAVE_UP_WORDS[kind], re.I)
+        hits = [t for t in trade if rx.search(f"{t.get('gave_up') or ''} {t.get('chose') or ''}")]
+        if scenes:
+            hits = [t for t in hits if not str(t.get("scene") or "").strip() or _int(t.get("scene")) in scenes]
+        if not hits:
+            out.append(kind)
+    return out
+
+
+def _int(value) -> Optional[int]:
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return None
 
 
 def report(obj: Dict, script_text: str, model: str = "kling") -> Dict:
@@ -115,25 +167,54 @@ def report(obj: Dict, script_text: str, model: str = "kling") -> Dict:
                                                                                           for k in TRADEOFF_KEYS)]
     # director.md tầng 4: giving up something of lower rank is fine, keeping quiet about it is not (dropped lines, a length outside the
     # script's frame, a line squeezed into a shot too short to say it)
-    gave_up = [why for why, hit in (("bỏ câu thoại", bool(dropped)), ("lệch khung thời lượng", in_target is False),
-                                    ("shot thiếu thời gian nói", bool(short_speech))) if hit]
+    angles = script_angles(story, shots)
+    gave_up = [(kind, scenes) for kind, hit, scenes in (
+        ("bỏ câu thoại", bool(dropped), {d["scene"] for d in dropped}),
+        ("lệch khung thời lượng", in_target is False, set()),
+        ("shot thiếu thời gian nói", bool(short_speech), {int(x["shot"].split("·")[0]) for x in short_speech}),
+        ("bỏ góc máy kịch bản ghi", bool(angles), {a["scene"] for a in angles})) if hit]
     return {
         "shots": len(shots), "total_s": total, "target": target,
         "in_target": in_target,
         "sections": sections, "short_speech": short_speech, "silent_micro": silent_micro, "wide_short": wide_short,
         "lip_sync": lip, "void_background": void, "under_2s": under2, "dropped": dropped, "dropped_answered": sum(d["answered"] for d in dropped),
         "invented": invented, "tradeoffs": obj.get("tradeoffs") or [],
-        "tradeoffs_bad": len(bad_trade), "unrecorded": gave_up if gave_up and not trade else [],
+        "tradeoffs_bad": len(bad_trade), "unrecorded": _uncovered(gave_up, trade),
+        "script_angles": angles,
         "acting": performance.warnings([s for _, _, s in shots]),
         "sound": sound_intent.warnings([s for _, _, s in shots]),
+        "pacing": mid_hook_gaps([s for _, _, s in shots])
+        + [f"cảnh {a['scene']}: kịch bản ghi \"{a['wanted']}\" mà không shot nào giữ" for a in angles],
         "payoff_unplanted": payoff_unplanted(obj),
-        "continuity": continuity.axis_warnings(shots) + continuity.motif_warnings(shots),
+        "continuity": continuity.axis_warnings(shots) + continuity.motif_warnings(shots)
+        + continuity.lighting_warnings([sc for sc in obj.get("scenes") or [] if isinstance(sc, dict)]),
         "script_notes": [n for n in obj.get("script_notes") or [] if isinstance(n, dict) and str(n.get("note") or "").strip()],
         "paid_s": {"per_shot": per_shot, "per_scene": per_scene, "per_setup": per_setup, "setups": len(setups) or None},
         "paid_usd": {k: (round(v * usd, 2) if (v is not None and usd) else None)
                      for k, v in (("per_shot", per_shot), ("per_scene", per_scene), ("per_setup", per_setup))},
         "model": model,
     }
+
+
+OPEN_HOOK_S, MID_HOOK_GAP, LONG_FILM = 3.0, 15.0, 20.0   # director.md Đ2: after the opening hook, a new open question every ~15 s
+
+
+def mid_hook_gaps(shots: List[Dict]) -> List[str]:
+    """director.md Đ2 "móc nhỏ giữa video" (giả thuyết, đo dần): in a film longer than LONG_FILM s, stretches of more than MID_HOOK_GAP s
+    between the opening hook and the last 5 s with no shot marked `hook_mid` (or a hook / a peak of intensity 5 that itself pulls
+    the viewer on). Soft — the code cannot tell which detail is really left open, the Director marks it."""
+    total = sum(float(s.get("duration_s") or 0) for s in shots)
+    if total <= LONG_FILM:
+        return []
+    marks, t = [OPEN_HOOK_S], 0.0
+    for s in shots:
+        p = s.get("performance") if isinstance(s.get("performance"), dict) else {}
+        if s.get("hook_mid") is True or (t >= OPEN_HOOK_S and (s.get("role") == "hook" or p.get("intensity") == 5)):
+            marks.append(t)
+        t += float(s.get("duration_s") or 0)
+    marks = sorted(set(marks)) + [max(total - 5.0, OPEN_HOOK_S)]
+    return [f"{a:.0f}–{b:.0f} s: {b - a:.0f} s không có móc giữa video (`hook_mid`) — người xem có thể lướt đi; đặt một chi tiết dở dang"
+            for a, b in zip(marks, marks[1:]) if b - a > MID_HOOK_GAP]
 
 
 def payoff_unplanted(obj: Dict) -> List[int]:
@@ -187,6 +268,8 @@ def text(r: Dict) -> str:
         rows.append(f"  🎭 {w}")
     for w in r.get("sound") or []:
         rows.append(f"  🔊 {w}")
+    for w in r.get("pacing") or []:
+        rows.append(f"  ⏱ {w}")
     if r.get("script_notes"):
         rows.append(f"Ghi chú kịch bản cho người viết: {len(r['script_notes'])} (chỉ đề xuất — thoại không bị sửa)")
     rows.append(f"Tổng lỗi đo được: {problems(r)}")

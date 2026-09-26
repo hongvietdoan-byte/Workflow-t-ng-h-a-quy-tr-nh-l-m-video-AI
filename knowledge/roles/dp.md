@@ -1,4 +1,4 @@
-# Vai Quay phim (DP) — bộ kỹ năng nghề (V4 GĐ4, 2026-09-25 — chờ người dùng duyệt rồi bật `film_crew`)
+# Vai Quay phim (DP) — bộ kỹ năng nghề (V4 GĐ4, 2026-09-25; nâng theo người chấm 2026-09-26 — chờ người dùng duyệt rồi bật `film_crew`)
 
 > Quay phim nhận **ý đồ** của Đạo diễn (nhịp, `emotional_intent`, `performance`, thoại) và biến thành **shot**: cỡ cảnh, góc, ống kính,
 > chuyển động máy, bố cục, ánh sáng, vị trí máy, prompt khung đầu. Không đổi thoại, không đổi ý đồ. Mỗi shot ghi **`why`** để Đạo diễn duyệt.
@@ -30,8 +30,9 @@ Làm cho người xem **thấy rõ** điều Đạo diễn muốn họ cảm —
   - **Ý nghĩa góc không cố định:** góc thấp nhất của *Citizen Kane* rơi vào lúc Kane thất bại; góc cao của *North by Northwest* dành cho kẻ
     đang nắm quyền [Q2]. → Ghi lý do theo tình huống, không tra bảng "thấp = mạnh".
   - **Nhấn bằng tương phản:** chuỗi toàn rồi cận đột ngột tăng cường độ; giữ một cỡ thì cường độ giảm dần (Block [Q25]).
-- **Trong pipeline.** `size` ∈ ECU/CU/MCU/MS/WS/EWS/GAME_TPS; `angle` ∈ eye/low/high/overhead/dutch/ots/pov (giá trị lạ bị trả lại — mỗi
-  lần là một lần hỏi lại trả tiền). GAME_TPS luôn `angle: "high"`. Code dịch cỡ cảnh thành câu khung hình (`framing_sentence`).
+- **Trong pipeline.** `size` ∈ ECU/CU/MCU/MS/MLS/WS/EWS/GAME_TPS (MLS = từ gối trở lên, người + một phần nơi chốn — máy ảo và prompt ảnh
+  đều có; tên khác như "medium long shot", "cowboy" được chuẩn hóa về MLS); `angle` ∈ eye/low/high/overhead/dutch/ots/pov (giá trị lạ bị
+  trả lại — mỗi lần là một lần hỏi lại trả tiền). GAME_TPS luôn `angle: "high"`. Code dịch cỡ cảnh thành câu khung hình (`framing_sentence`).
 - **Kiểm.** Code: chuẩn hóa từ vựng; bốn shot liền cùng cỡ → ⚠ (`pacing_warnings`). Claude/người: storyboard.
 - **Ví dụ FF.** ✔ Cỡ cảnh FF đo được: toàn 34%, còn lại trung/cận; 79% video gameplay dùng góc GAME_TPS. ✔ #6 "GÓC CAMERA SAU VAI KENTA" →
   `ots`, Kenta mờ ở tiền cảnh. ✘ Lần chạy 2 bỏ góc qua vai kịch bản ghi.
@@ -47,6 +48,7 @@ Làm cho người xem **thấy rõ** điều Đạo diễn muốn họ cảm —
   |---|---|---|---|
   | EWS | 20 | 84° / 53° | lập bản đồ, quy mô |
   | WS / GAME_TPS | 24 | 74° / 46° | định vị, gameplay |
+  | MLS | 32 | 59° / 35° | người + nơi chốn, đi lại, hai người đứng |
   | MS | 35 | 54° / 32° | quan hệ, cử chỉ, hai người |
   | MCU | 50 | 40° / 23° | thoại, cảm xúc tự nhiên |
   | CU | 65 | 31° / 18° | cảm xúc |
@@ -56,6 +58,10 @@ Làm cho người xem **thấy rõ** điều Đạo diễn muốn họ cảm —
 - **Trong pipeline.** `lens_mm` (14–200) khi muốn khác mặc định: 24 mm đặt gần = anh hùng/ngợp; 85–135 mm = nén, cô lập, rình rập. Máy ảo giữ
   **cỡ người trong khung** và tự lùi/tiến máy theo tiêu cự → nền đổi độ nén đúng như máy thật. Không có nền 3D thì ghi ống kính bằng chữ trong
   `image_prompt` ("shot on a 24mm lens, close") — model ảnh chỉ nghe theo chữ.
+  - **Độ sâu trường ảnh bằng chữ** (shot không có nền 3D): nói **lớp nào nét, lớp nào nhòe** và vì sao — "Kelly in sharp focus, the tower
+    behind softly blurred" (cô lập, cảm xúc) · "deep focus, both Kelly in the foreground and the sniper on the roof sharp" (người xem phải
+    thấy mối đe dọa) · đổi nét trong shot (rack focus) chỉ viết ở motion prompt, không ở khung đầu. Đừng viết "bokeh" chung chung — model vẽ
+    đốm sáng trang trí. Nền 3D: độ nhòe do ghép + sương theo khoảng cách (`plate_env`), không cần chữ.
 - **Kiểm.** Code: `plate_camera.camera_for` (hộp nhân vật trong khung, khoảng cách máy); test hình học. Người: xem ảnh nền render.
 - **Ví dụ FF.** ✔ Tháp Đồng Hồ #263 shot 4 (MS, 35 mm): tháp chiếm nửa khung phía sau Kelly. ✘ Shot cận ở chân tháp với 65 mm chỉ thấy chân
   tháp — muốn thấy mốc thì hạ máy + ngửa (góc thấp) hoặc lùi ra trung (Q6).
@@ -64,10 +70,15 @@ Làm cho người xem **thấy rõ** điều Đạo diễn muốn họ cảm —
 - **Làm gì · vì sao.** Mỗi khung **một trung tâm chú ý**; 1/3; chiều sâu tiền–trung–hậu (không gian sâu = cường độ cao, phẳng = thấp [Q25]);
   đường dẫn, khung trong khung, khoảng trống âm (người nhỏ giữa khoảng trống = cô độc) [Q1][Q5]. Khoảng trống phía nhìn/phía đi; khoảng
   trống trên đầu vừa đủ. **Khung dọc** mạnh ở chiều cao (toàn thân, mặt cận, công trình đứng), yếu ở hai người đứng ngang → xếp người theo
-  **chiều sâu** (qua vai) thay vì cạnh nhau; mắt nhân vật ở khoảng 30–35% từ mép trên [Q29] (nguồn cộng đồng), và **không nằm trong 15% trên**
-  (thanh giao diện app) — luật là **mắt**, đỉnh đầu được phép chạm thanh. Máy ảo đặt mắt ở ~20% (MLS), ~23% (MS), ~28% (MCU), ~33% (CU)
-  (đo bằng `camera_for` + chiếu điểm, `plate_camera.HEADROOM`; sửa ở GĐ4: trước đó mắt MS ở ~14%, lọt vào thanh).
-- **Trong pipeline.** `start_frame`: vị trí người (trái/giữa/phải, tiền/hậu cảnh, hướng mặt) — máy ảo đọc "frame-left/right" để đặt người.
+  **chiều sâu** (qua vai) thay vì cạnh nhau.
+  - **Vị trí mắt — MỘT luật (nguồn số duy nhất của cả tổ; README trỏ về đây):** mắt nằm trong dải **18–35% từ mép trên**. Cận trên: không
+    lọt vào thanh giao diện app 15% (+3% đệm) — luật là **mắt**, đỉnh đầu được chạm thanh. Cận dưới: không thấp hơn đường một phần ba
+    (~33%) quá 2% — thấp hơn thì khoảng trống trên đầu thừa, người "tụt" xuống vùng phụ đề. Trong dải đó, **cỡ càng rộng mắt càng cao**
+    vì thân người cần chỗ bên dưới: máy ảo đặt ~20% (MLS), ~23% (MS), ~28% (MCU), ~33% (CU) (`plate_camera.HEADROOM`, đo bằng `camera_for`
+    + chiếu điểm; sửa ở GĐ4: trước đó mắt MS ở ~14%, lọt vào thanh). Mốc 30–35% của nguồn cộng đồng [Q29] là cho khung **cận** — khớp CU.
+- **Trong pipeline.** `start_frame`: vị trí người (trái/giữa/phải, tiền/hậu cảnh, hướng mặt) — máy ảo đọc "frame-left/right" để đặt người;
+  code lưu nó vào trường `blocking` của shot (`shots.shot_data`) — **một** trường: `start_frame` là tên Quay phim viết, `blocking` là tên
+  lưu (prompt 01 một lượt gọi thẳng là `blocking` của cảnh). Ai đứng gần/xa ai vì lý do truyện là ý của Đạo diễn (`dp_notes`).
   **Chừa chỗ cho chữ**: dải trên (thông báo game) hoặc dải dưới của vùng an toàn (phụ đề) — `knowledge/editor/safe_zones.md`; vùng giao diện
   app (trên 15%, dưới 35% — code dùng 36% để có đệm —, phải 18%) không đặt mặt/hành động chính.
 - **Kiểm.** Code: dò mặt YuNet trên khung thật để dời phụ đề (`text_placement`); hộp nhân vật của máy ảo. Người/Claude: storyboard.
@@ -144,7 +155,8 @@ Làm cho người xem **thấy rõ** điều Đạo diễn muốn họ cảm —
 - **Trong pipeline.** Cảnh `lighting`, `time`; shot `weather`. Nền 3D: `plate_env` đặt mặt trời/màu theo giờ + thời tiết và **cùng một độ chỉnh
   màu** cho nhân vật (`composite`); prompt phông xanh ghi hướng sáng theo máy (`location_pack.green_prompt`). Không có nền 3D: tả nguồn sáng
   bằng chữ trong `image_prompt` ("warm sodium street light from frame-left, cold moonlight rim").
-- **Kiểm.** Code: `composite.match_colour`/`light_wrap`. Người: ảnh ghép có "dính" nền không.
+- **Kiểm.** Code: `composite.match_colour`/`light_wrap`; **mẫu `lighting`** (`continuity.lighting_warnings`, bàn đo + Bước 1 🧭): cảnh thiếu
+  `lighting` hoặc thiếu ≥ 2 phần của mẫu (nguồn — phía — màu K — key:fill — tông) → ⚠ (mềm, không từ chối). Người: ảnh ghép có "dính" nền không.
 - **Ví dụ FF.** ✔ GĐ2: nhân vật sáng quá trên nền đêm → chỉnh màu người theo giờ 60%. ✘ Shot đêm mà mặt sáng đều như studio, không nguồn.
 
 ### Q9. Coverage và liền mạch
@@ -165,8 +177,10 @@ Làm cho người xem **thấy rõ** điều Đạo diễn muốn họ cảm —
   điểm cắt; cờ `end_frames` vẽ khung cuối cho shot đổi trạng thái.
 - **Kiểm.** Code: `same_framing` (chỉ nối ảnh shot trước khi cùng khung), `end_frames`; **trục 180° / hướng màn hình**
   (`continuity.axis_warnings`, bàn đo + Bước 1 🧭): hai người đổi bên trái/phải giữa hai shot cùng cảnh, hoặc một người đổi hướng chạy —
-  đọc từ chữ "frame-left/right", "left to right" trong `start_frame`; bỏ qua shot qua vai/POV/vòng quanh và shot có `why` ghi "vượt trục".
-  Viết `start_frame` mỗi người một vế ("Kelly frame-left, Kenta frame-right") để code đọc được. Người/Claude: storyboard liền nhau.
+  đọc từ chữ "frame-left/right", "left to right" trong `start_frame`. **Có kiểm shot qua vai** (cặp qua vai A/B là chỗ hay vượt trục nhất);
+  bỏ qua POV / nhìn từ trên / vòng quanh (`orbit`) và shot có `why` ghi "vượt trục / cross the line" — "giữ trục 180°" **không** tắt kiểm.
+  Shot có hai người mà `start_frame` không ghi ai bên trái/phải → "không kiểm được trục" (một lần mỗi cảnh; không im lặng). Viết
+  `start_frame` mỗi người một vế ("Kelly frame-left, Kenta frame-right") để code đọc được. Người/Claude: storyboard liền nhau.
 - **Ví dụ FF.** ✔ Chạy thử 2A (H5): hai shot cùng vị trí máy gen chung một clip → giảm 33% giây trả tiền. ✘ #6 từng shot: ~101 s trả tiền cho
   57 s phim (mỗi shot một clip tối thiểu).
 
@@ -174,6 +188,30 @@ Làm cho người xem **thấy rõ** điều Đạo diễn muốn họ cảm —
 - Ảnh tham chiếu chọn theo cỡ cảnh (cận → ảnh cận/chính diện; toàn → toàn thân); ảnh chuẩn chính diện là màu chuẩn. Prompt chỉ nhắc nét nhận
   diện **đúng như ảnh** (tóc, màu trang phục chính, phụ kiện) — không đoán chiều trái/phải, xuôi/ngược khi chưa nhìn ảnh (2A: đọc sai hướng mũ
   của Maxim). Khi cờ `profile_digest` bật, prompt dùng bản rút gọn hồ sơ (≤ 500 ký tự ảnh / ≤ 200 video, `core/profile_digest.py`).
+- **Đạo cụ, vũ khí, tay cầm liền mạch** — lỗi phổ biến của ảnh AI vẽ rời từng shot: súng đổi tay, kiếm đổi kiểu, vòng cổ biến mất. Mỗi
+  cảnh chốt một lần ở shot đầu có đạo cụ ("Kenta holds the katana in his RIGHT hand, black sheath on his left hip") rồi **chép nguyên câu**
+  sang mọi shot sau của cảnh (`image_prompt` + `end_state`); đạo cụ đổi tay/rơi xuống thì ghi ở `end_state` của shot đó. Ảnh tham chiếu
+  của đạo cụ trong Kho đi kèm khi có. Kiểm: QC ảnh (Claude) so với shot trước cùng nhóm (`setcheck`); người xem storyboard.
+- **Hiệu ứng kỹ năng in-game** (~38% shot FF có hiệu ứng kỹ năng — `ff_directing.md` mục 8): chừa **khoảng trống phía hiệu ứng bay tới**
+  (như khoảng trống phía nhìn), cỡ đủ rộng để thấy cả nguồn lẫn đích (MS/MLS/WS), máy tĩnh hoặc bám theo chậm — hiệu ứng lớn + máy rung làm
+  model vẽ nhòe. Hiệu ứng là chủ thể của shot → nói rõ màu/hình theo tư liệu gameplay (không bịa hiệu ứng khác).
+
+### Q11. Thời gian trong khung — quay chậm, dừng hình, nhòe chuyển động — 2026-09-26
+- **Làm gì · vì sao.** Máy thật quay chậm bằng cách quay **nhiều khung hơn** (48–120 fps) rồi chiếu 24 fps; màn trập ~1/2 thời gian khung
+  (180°) cho nhòe chuyển động tự nhiên — màn trập nhanh (hạt mưa đứng yên, pha chiến đấu giật cục) là lựa chọn phong cách [KN]. Model video
+  AI không có fps/màn trập: chỉ có **chữ** trong prompt và **xử lý khi dựng**. Hai cách:
+  1. Viết "slow motion" trong motion prompt — model tự vẽ chậm, nhưng không kiểm được tốc độ, có thể ra clip gần như đứng yên.
+  2. **Gen tốc độ thường, kéo giãn khi dựng** (`speed` của shot, cờ `speed_ramp`): Dựng lấy (độ dài shot − dừng) × `speed` giây hành động
+     rồi kéo dài bằng nội suy khung (`minterpolate`) — kiểm được, lặp lại được. **Ưu tiên cách 2**; hành động chính phải xảy ra **ngay
+     đầu** clip (Q5) vì chỉ phần đầu được dùng.
+  Dừng hình (`freeze_end_s`) ở khung cuối của shot — khung đó phải là tư thế đẹp nhất (ghi ở `end_state`).
+- **Trong pipeline.** Shot không thoại: `speed` 0,25–0,9, `freeze_end_s` ≤ 1,5 s (code bỏ ở shot có thoại/khớp môi — `shots.clean_retime`);
+  `duration_s` là độ dài **trên phim**. Chọn khoảnh khắc theo Đạo diễn Đ11 (1–2 lần mỗi phim). Nhòe chuyển động: tả bằng chữ khi cần
+  ("motion blur on the swinging blade"); tránh ở shot cần nhận diện mặt.
+- **Kiểm.** Code: test ffmpeg (0,75 s hành động → shot 2,0 s có 0,25 s dừng), Motion nhận `speed` để biết chỉ phần đầu clip được dùng.
+  Người: bản dựng (nội suy có thể méo tay/vũ khí khi chuyển động nhanh — lý do cờ còn TẮT).
+- **Ví dụ FF.** ✔ Cú bắn tỉa quyết định: MS qua vai, viên đạn rời nòng `speed: 0.4`, `freeze_end_s: 0.5` ở lúc mục tiêu ngã. ✘ Quay chậm
+  cả pha đấu súng 6 shot — mất nhịp, mọi khoảnh khắc đều "quan trọng" nên không cái nào quan trọng.
 
 ## Tầng 4 — Ưu tiên khi xung đột
 Giới hạn model là **luật cứng** (code kiểm, không thương lượng). Bên trong nó, cùng thang chung của cả tổ (`README.md`):
@@ -187,3 +225,5 @@ Hy sinh gì thì ghi `tradeoffs`.
 - Khung đầu có đúng MỘT khoảnh khắc không? Có chỗ cho chữ khi cần không, mặt có nằm trong vùng giao diện app không?
 - Shot nào đặt máy tay/đẩy vào lên nhân vật cần giữ nhận diện? Shot nào nhân vật di chuyển mà máy lại đẩy vào?
 - Ánh sáng của shot có nguồn không? Có shot thoại nào thấy rõ mặt người nói khi khớp môi đang tắt không?
+- Đạo cụ/vũ khí có cùng tay, cùng kiểu ở mọi shot của cảnh không? Hiệu ứng kỹ năng có chỗ bay tới trong khung không?
+- Shot nào quay chậm/dừng hình — có đúng khoảnh khắc Đạo diễn chọn, hành động có ở ngay đầu clip không?

@@ -673,7 +673,7 @@ def scene_editor(p: Pipeline, pid: int, scene, char_names) -> None:
                 next((x for x in old_lines if str(x.get("text") or "").strip() == said), {})
             how = dict(old.get("delivery") or {})         # emotion / stress / tag written by the Director stay (by the line's place)
             how.update(pace=str(r.get("Nhịp giọng") or "") or None, intensity=int(r.get("Cường độ giọng") or 0) or None,
-                       pause_before=bool(r.get("Ngắt trước")) or None)
+                       pause_before=(how.get("pause_before") or True) if r.get("Ngắt trước") else None)   # keeps "short"/"long"
             dlg.append({"speaker": str(r.get("Người nói") or "").strip(), "text": said,
                         "delivery": {x: v for x, v in how.items() if v is not None}})
         fields = {"location": location, "time": time_, "shot": shot, "mood": mood, "lighting": lighting,
@@ -1172,6 +1172,8 @@ def _crew_notes(p: Pipeline, pid: int) -> None:
         st.caption("🧭 Liền mạch: " + " · ".join(escape(w) for w in r["continuity"]))
     if r.get("acting"):
         st.caption("🎭 Diễn xuất: " + " · ".join(escape(w) for w in r["acting"]))
+    if r.get("pacing"):
+        st.caption("⏱ Nhịp / góc máy kịch bản: " + " · ".join(escape(w) for w in r["pacing"]))
     if r.get("sound"):
         st.caption("🔊 Âm thanh: " + " · ".join(escape(w) for w in r["sound"]))
     if r.get("script_notes"):

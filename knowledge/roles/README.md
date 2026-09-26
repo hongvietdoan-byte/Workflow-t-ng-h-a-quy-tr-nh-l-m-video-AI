@@ -2,7 +2,9 @@
 
 Ba vai, mỗi vai một bộ kỹ năng nghề: **Đạo diễn** (`director.md`), **Quay phim** (`dp.md`), **Dựng** (`knowledge/editor/editing.md` +
 `safe_zones.md`). Nguồn bên ngoài: `knowledge/sources.md` mục GĐ4. Khi cờ `film_crew` bật, Director (Claude) đọc `director.md` + `dp.md`
-(dự án chia shot) thay cho 3 tài liệu rải rác (`cinematography_basics`, `film_director_method`, `dialogue_craft` — vẫn còn cho luồng cũ).
+(dự án chia shot) thay cho 3 tài liệu rải rác (`cinematography_basics`, `film_director_method`, `dialogue_craft` — vẫn còn cho luồng cũ;
+nhãn cờ ở `core/features.py` ghi cùng 3 tên). Hai lượt: Tầng A đọc `director.md` bản đã cắt phần chỉ Quay phim viết (đánh dấu
+`<!-- shot -->` trong file, `prompts.role_text(..., intent_only=True)`).
 Vai Dựng phần lớn là code; tài liệu của nó dành cho người sửa code và cho Claude khi phải nhìn khung hình.
 
 ## Ai làm gì, bàn giao gì
@@ -45,7 +47,7 @@ người xem, nên đứng trước nhịp cắt. Hy sinh mục thấp hơn → 
 | Cận mặt người nói | Đạo diễn: cận = cảm xúc | N3: không cận mặt người nói khi khớp môi tắt | Khớp môi tắt: cận dành cho im lặng; bật: cận câu then chốt `lip_sync: true` |
 | Cường độ diễn ở cận | Đạo diễn Đ2: `intensity` là đường cảm xúc (5 = đỉnh) | Đạo diễn Đ4: cận phóng đại biểu cảm | Đạo diễn ghi độ mạnh của khoảnh khắc; code vẽ ở CU/ECU thấp hơn một bậc (`performance.shown_intensity`) — một số, hai việc tách nhau |
 | Chuyển động máy | Đạo diễn: cảm xúc cần đẩy vào | Dữ liệu thật: push_in + nhân vật bước tới → "đi tại chỗ" | Nhân vật di chuyển → máy bám theo; đẩy vào khi nhân vật đứng |
-| Chữ và bố cục | Quay phim: chừa chỗ cho chữ, mắt dưới thanh giao diện | Dựng: vùng an toàn trên 15% / dưới 35% (code 36%, đệm) / phải 18% | Máy ảo đặt mắt ~21–28% (`plate_camera.HEADROOM`); một bộ số (`safe_zones.md`), code dùng chung (`subtitles.SAFE_*`) |
+| Chữ và bố cục | Quay phim: chừa chỗ cho chữ, mắt dưới thanh giao diện | Dựng: vùng an toàn trên 15% / dưới 35% (code 36%, đệm) / phải 18% | Vị trí mắt: **một luật ở `dp.md` Q3** (dải 18–35%, máy ảo ~20/23/28/33% theo cỡ — `plate_camera.HEADROOM`); vùng chữ: một bộ số (`safe_zones.md`), code dùng chung (`subtitles.SAFE_*`) |
 | Thời tiết | Đạo diễn: mang cảm xúc (Đ3) | Quay phim: ánh sáng có nguồn (Q8); Dựng: âm + hiệu ứng thời tiết | Một trường `weather` → nền (`plate_env`), màu người (`composite`), lớp rơi, âm thời tiết (D4 ✅ `core/ambience.py`, cờ `ambience_bed`) |
 | Tiêu cự | Quay phim: bảng mm theo cảm xúc | Máy ảo: `FRAMING` theo cỡ | Mặc định theo `FRAMING`; `lens_mm` ghi đè, máy ảo giữ cỡ người và tự lùi/tiến |
 | Độ dài shot | Đạo diễn N2: thoại đủ thời gian nói | Dựng E1: cắt ngắn ở cao trào | Thoại thắng (ưu tiên 2); cao trào ngắn ở shot không thoại |
@@ -53,6 +55,10 @@ người xem, nên đứng trước nhịp cắt. Hy sinh mục thấp hơn → 
 | `beat` | Đạo diễn Đ1 (giá trị đổi, gieo–gặt) | prompt 01 (object) | Một dạng object: `want, obstacle, turn, value, plant, payoff`; code kiểm gặt có gieo |
 | Âm nền | Dựng E3 (nền không khí liên tục) | `sfx_plan` (chỉ điểm nhấn) | Hai lớp riêng: `sfx_plan` = điểm nhấn; nền không khí = D5 ✅ (`core/ambience.py`, không đè nhạc) |
 | Móc câu | Đạo diễn N5 / Đ2 | TikTok chính thức | Mốc dự án 1–3 s (giả thuyết); nguồn chính thức: ý chính ≤ 3 s, móc ≤ 6 s |
+| Vị trí người | Đạo diễn: ai gần/xa ai vì truyện (`dp_notes`) | Quay phim: `start_frame` (trái/phải, tiền/hậu) | Một trường: `start_frame` lưu thành `blocking` của shot (prompt 01 một lượt: `blocking` của cảnh); code trục 180° đọc cả hai tên |
+| Quay chậm | Đạo diễn Đ11 chọn khoảnh khắc | Quay phim Q11 `speed`/`freeze_end_s`; Dựng E10 làm khi cắt | Chỉ shot không thoại (code bỏ ở shot thoại/khớp môi); 1–2 lần mỗi phim; cờ `speed_ramp` |
+| Lặng nhạc | Dựng D6 (`music_breath`, trước TWIST) | Đạo diễn Đ9 (`sound.breath`) | Hai khoảng lặng cách nhau ≤ 1 s là một: giữ cái Đạo diễn đặt (`delivery.merge_breaths`) |
+| Ảnh bìa | Đạo diễn Đ10: khoảnh khắc sản phẩm = ⭐ | Dựng E11 xuất ảnh bìa | Code lấy khung giữa shot ⭐ (`delivery.cover_image`), không có thì shot diễn mạnh nhất |
 
 ## Việc code còn thiếu (kỹ năng có trong bộ nhưng pipeline chưa làm — không để im)
 Đã làm trong GĐ4: trường `performance` (ảnh + motion + QC + dấu vân tay + cảnh báo), `delivery` → tham số TTS (cờ `voice_direction`),
@@ -82,4 +88,8 @@ người xem, nên đứng trước nhịp cắt. Hy sinh mục thấp hơn → 
 | D12 | ✅ `_ENCODE` có `+faststart` + thẻ màu BT.709 | Dựng | — |
 | D14 | ✅ Đo: nhạc hạ 14,5–22,8 dB dưới giọng thật #7 (khuyên 6–10) → **người dùng quyết** có nhẹ tay hơn | Dựng | — |
 | D13 | ✅ Bảng tự rà: vùng giao diện app + bản cỡ điện thoại + mặt bị che (nút 🧐 Bước 5) | Dựng | — |
+| S1 | ✅ 2026-09-26 (người chấm lần 0): quay chậm / dừng hình (`speed`, `freeze_end_s`, cờ `speed_ramp` TẮT); phụ đề động; ảnh bìa; kiểm chữ dưới giao diện; phụ đề 0,83 s / 2 khung / điểm cắt; cỡ chữ đo thật; BT.709 cho ảnh tĩnh; CRF 18 + AAC 256k; test mức hạ nhạc; gộp hai khoảng lặng nhạc | Dựng | — |
+| S2 | ✅ 2026-09-26: kiểm trục cả shot qua vai + báo "không kiểm được"; mẫu `lighting`; MLS vào từ vựng; `why`/tiêu cự/thời tiết/chỗ đứng vào dấu vân tay | Quay phim | — |
+| S3 | ✅ 2026-09-26: `tradeoffs` đối chiếu theo từng loại + dò góc máy kịch bản ghi; `why` "cố ý dồn nhịp" được đọc; "liền nhau" đúng nghĩa; `knowledge_gap`; `hook_mid` + kiểm móc giữa; Tầng A không đọc lệnh shot; thẻ ngắt v3; đo tốc độ nói (`tools/measure_speech_rate.py`) | Đạo diễn | — |
+| S4 | Sơ đồ máy nhìn từ trên cho nơi **không** có mô hình 3D; dựng biến thể mở đầu; speed ramp mượt trong một shot; mã hóa âm một lần duy nhất | Quay phim / Dựng | — |
 | P1 | `lock_short`/`lock_medium` do Claude viết cho hồ sơ dài (KENTA: bản code 500 ký tự mất áo khoác xanh + găng tay trái) | Hồ sơ | ~$0,01/nhân vật |

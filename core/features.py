@@ -21,7 +21,7 @@ FEATURES: Dict[str, Dict] = {
         "why": "AU-f mới (2026-09-24): ngưỡng độ dài/im lặng và so chữ nghe được chưa đo trên giọng Việt thật — cờ sai thì trả tiền TTS vô ích",
     },
     "film_crew": {
-        "label": "Tổ làm phim: Director đọc bộ nguyên tắc Đạo diễn + Quay phim (knowledge/roles/) thay cho 4 tài liệu rải rác, ghi tradeoffs",
+        "label": "Tổ làm phim: Director đọc bộ nguyên tắc Đạo diễn + Quay phim (knowledge/roles/) thay cho 3 tài liệu rải rác (cinematography_basics, film_director_method, dialogue_craft), ghi tradeoffs",
         "verified": False,
         "why": "Kế hoạch V4 GĐ4: bộ kỹ năng nghề 3 vai (đã chấm độc lập, docs/DANH_GIA_BO_NGUYEN_TAC_V4.md) chờ người dùng duyệt; "
                "chưa có lần Director thật nào chạy với bộ mới",
@@ -82,6 +82,12 @@ FEATURES: Dict[str, Dict] = {
         "verified": False,
         "why": "GĐ4 (editing.md E3, D4/D5): thử #7 — cảnh ngày khu nhà trên đảo nhận 'Bird Ambience'; cảnh đêm không có âm đêm trong "
                "thư viện nên để trống (báo) — chưa nghe bản trộn",
+    },
+    "speed_ramp": {
+        "label": "Quay chậm / dừng hình khi cắt shot: shot không thoại có `speed` < 1 (nội suy khung) hoặc `freeze_end_s` (editing.md E10)",
+        "verified": False,
+        "why": "2026-09-26 (người chấm bộ 3 vai): đã thử bằng ffmpeg trên clip mẫu (test), chưa xem trên clip Kling/Seedance thật — nội "
+               "suy chuyển động có thể làm méo tay/vũ khí khi chuyển động nhanh; xem A/B trên clip có sẵn trước khi bật",
     },
     "motion_trim": {
         "label": "Cắt shot từ clip dài: dời điểm bắt đầu (≤ 1 s) khi hành động chính đến muộn (đo chuyển động trong clip)",

@@ -51,6 +51,8 @@ của bạn (thoại đủ và đúng thứ tự, thời lượng trong khung, t
 - `characters`: mọi người **có mặt** trong cảnh (tên trong Character Bible).
 - `emotional_intent` (tiếng Việt, 1–2 câu, **bắt buộc**): người xem phải cảm/hiểu gì ở cuối cảnh — gồm "ai biết gì" nếu có (người xem biết
   trước hay sau nhân vật). Không tóm tắt hành động.
+- `knowledge_gap` (tùy chọn): `"ahead"` người xem biết trước nhân vật (hồi hộp) · `"same"` biết cùng lúc (căng) · `"behind"` biết sau
+  (bất ngờ). Ghi khi cảnh cố ý chọn một trong ba — Quay phim đọc để quyết cho người xem thấy nguyên nhân trước hay phản ứng trước.
 - `beat` `{want, obstacle, turn, value, plant, payoff}`: muốn gì, cái gì cản, xoay chiều ở đâu, giá trị đổi ("tin → ngờ"), điều cảnh này
   gieo cho sau, điều cảnh này gặt lại từ trước. *Căn cứ:* gặt mà không cảnh nào trước đó gieo → code báo (twist không được chuẩn bị).
 - `target_s` (số giây, **bắt buộc**): độ dài cảnh trên phim. Cộng lại phải nằm trong tổng kịch bản yêu cầu; mỗi cảnh không ngắn hơn thời
@@ -99,7 +101,7 @@ bỏ gì, vì sao) — người dùng dùng dữ liệu này để chỉnh thang
   "characters": [{"name": "", "description": "", "wardrobe": "",
                   "lock": {"must_keep": "", "may_change": "", "forbidden": ""}}],
   "scenes": [{"idx": 1, "location": "", "location_asset": 12, "sequence": 1, "time": "", "weather": "clear", "characters": [""],
-              "mood": "", "lighting": "", "emotional_intent": "",
+              "mood": "", "lighting": "", "emotional_intent": "", "knowledge_gap": "ahead|same|behind",
               "beat": {"want": "", "obstacle": "", "turn": "", "value": "", "plant": "", "payoff": ""},
               "camera_complexity": "simple", "shot_role": "normal", "focus": "", "peak": 3, "target_s": 12,
               "dialogue": [{"speaker": "", "text": "", "delivery": {"emotion": "", "intensity": 3, "pace": "normal"}}],

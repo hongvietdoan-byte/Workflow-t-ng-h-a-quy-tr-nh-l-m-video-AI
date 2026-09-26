@@ -2,7 +2,7 @@
 
 ## 📌 TRẠNG THÁI 2026-09-26 — PHIÊN MỚI ĐỌC MỤC NÀY + BẢNG V4 NGAY DƯỚI
 > **Đã xong:** V4 GĐ0–GĐ7 (GĐ5 Director hai lượt 2026-09-26) + các đợt tự chạy 1–11 (Đợt 11: sửa 11 lỗi rà soát trước chạy trả tiền, web
-> **AI Development System** `devsys/`, hạ nhạc 8–12 dB). **1159 test qua (2 bỏ qua)**; bật cả 23 cờ: 1130 qua, 12 lệch đúng thiết kế (test
+> **AI Development System** `devsys/`, hạ nhạc 8–12 dB). **1182 test qua (2 bỏ qua)**; bật cả 23 cờ: 1130 qua, 12 lệch đúng thiết kế (test
 > khẳng định hành vi khi cờ tắt), không lỗi.
 > **Đợt thử mới (người dùng chốt 2026-09-26):** trần **$10 tổng** (Claude $1,5, đếm từ 26/09 10:47; 60 ảnh / 60 âm thanh); **chất lượng thấp**
 > (🧪 Thử rẻ tự bật cho dự án mới: ảnh cỡ nhỏ nhất, video 720p Kling std / Seedance Fast); **bật cả 23 cờ** trong `dashboard.env` (kể cả
@@ -12,7 +12,12 @@
 > `docs/DANH_GIA_DEVSYS_2026-09-26.md`); thấp nhất Khớp môi 69, Tài liệu 69, Gói bối cảnh 71; mất điểm chủ yếu ở "bằng chứng chạy thật" (0/23 cờ).
 > **6 lỗi người chấm tìm ra: ✅ đã sửa (2026-09-26 tối, 1159 test qua, 2 bỏ qua)** — chi tiết ở `docs/DANH_GIA_DEVSYS_2026-09-26.md`.
 > **Việc tiếp (người dùng chốt 2026-09-26):** nâng bộ kỹ năng 3 vai (Đạo diễn, Quay phim, Dựng) lên **≥ 45/50 mỗi vai** (người chấm độc
-> lập) — **chỉ khi đạt mới chạy thật**. Chấm lại lần 0 (agent độc lập): Đạo diễn 37 · Quay phim 38 · Dựng 37; đang sửa → chấm lại.
+> lập) — **chỉ khi đạt mới chạy thật**. Chấm lại lần 0 (agent độc lập): Đạo diễn 37 · Quay phim 38 · Dựng 37. **Đã sửa (2026-09-26 tối,
+> 1182 test qua):** Đạo diễn Đ10 mục tiêu/money shot/CTA, Đ11 quay chậm, bảng thể loại, `knowledge_gap`, `hook_mid` + kiểm móc giữa,
+> `tradeoffs` theo loại + góc máy kịch bản, số đo tốc độ nói thật (`tools/measure_speech_rate.py`: 2,86 âm tiết/s); Quay phim Q11, MLS,
+> một luật vị trí mắt, độ sâu trường ảnh, đạo cụ liền mạch, kiểm trục cả shot qua vai, mẫu `lighting`; Dựng E10 quay chậm (cờ `speed_ramp`),
+> E11 ảnh bìa, phụ đề động, cỡ chữ đo thật (8%), BT.709 cho ảnh tĩnh, CRF 18/AAC 256k, kiểm chữ dưới giao diện, test hạ nhạc 8–12 dB →
+> đang chấm lần 1 (agent độc lập mới).
 > Sau đó người dùng tạo **dự án thử mới** và tự chạy trên dashboard.
 > **Chờ người dùng:** duyệt bộ kỹ năng 3 vai (bảng `docs/DANH_GIA_BO_NGUYEN_TAC_V4.md` — `film_crew` đang bật cho đợt thử), gắn nhãn ảnh
 > Kho (~$1–1,5), mô hình 3D chính thức, âm đêm cho thư viện âm thanh; đối chiếu giá ảnh Deepix (tạm $0,052/ảnh) với số trên web Deepix.

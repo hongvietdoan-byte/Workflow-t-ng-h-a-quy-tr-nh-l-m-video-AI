@@ -20,7 +20,7 @@ _SCENE_KEYS = ("location", "time", "characters", "mood", "lighting", "shot", "bl
                "camera_complexity", "shot_role", "dialogue", "duration_s", "sequence")
 # v3 shot rows: what the shot contract adds (only present on shot rows, so v2 prompts do not change)
 _SHOT_KEYS = ("story_scene", "shot_no", "size", "angle", "camera_move", "role", "action", "end_state", "continuous_with_next",
-              "performance", "why")      # GĐ4: the acting the motion prompt must show over time + the DP's reason for the camera
+              "performance", "why", "speed", "freeze_end_s")   # GĐ4: acting over time, the DP reason; E10: slowed shots
 
 
 def _read(*parts: str) -> str:
@@ -291,7 +291,7 @@ def build_intent_bundle(pipeline: Pipeline, project_id: int) -> str:
     folded = knowledge.folded_builtin("director")
     keep = lambda rel: "" if f"knowledge/{rel}" in folded else _read("knowledge", rel)  # noqa: E731
     if features.on("film_crew"):                   # H3/H7: the Director's reasoned rule book instead of the scattered documents
-        method = [role_text("director.md"), keep("research_notes.md")]
+        method = [role_text("director.md", intent_only=True), keep("research_notes.md")]
     else:
         method = [keep("research_notes.md"), keep("film_director_method.md"), keep("dialogue_craft.md")]
     return _SEP.join(x for x in [
@@ -393,10 +393,21 @@ def _location_block(pipeline: Pipeline, project_id: int) -> str:
 MODEL_RULES_MARK = "<!-- model_rules -->"
 
 
-def role_text(name: str) -> str:
+_SHOT_ONLY = re.compile(r"<!-- shot -->.*?<!-- /shot -->\n?", re.S)
+_INTENT_ONLY = re.compile(r"<!-- intent: (.*?) -->", re.S)
+
+
+def role_text(name: str, intent_only: bool = False) -> str:
     """A role book of knowledge/roles/. The DP's model limits (dp.md Q4) are not copied by hand: the mark is replaced by the lines of
-    data/provider_rules.json (core/video_rules.summary_lines) — the same table the adapters check before sending."""
+    data/provider_rules.json (core/video_rules.summary_lines) — the same table the adapters check before sending.
+    intent_only (Tầng A of director_two_pass): the parts marked <!-- shot -->…<!-- /shot --> (fields the DP writes per shot) are cut
+    and the <!-- intent: … --> notes shown instead, so the Director does not read ~a page of shot orders it may not follow (grader
+    2026-09-26). Otherwise the intent notes are dropped and the marks removed."""
     text = _read("knowledge", "roles", name)
+    if intent_only:
+        text = _INTENT_ONLY.sub(lambda m: m.group(1), _SHOT_ONLY.sub("", text))
+    else:
+        text = _INTENT_ONLY.sub("", text).replace("<!-- shot -->", "").replace("<!-- /shot -->", "")
     if MODEL_RULES_MARK in text:
         from . import video_rules
         text = text.replace(MODEL_RULES_MARK, "\n".join(video_rules.summary_lines()))

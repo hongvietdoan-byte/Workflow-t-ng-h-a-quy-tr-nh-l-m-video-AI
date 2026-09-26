@@ -18,12 +18,26 @@ class AxisTests(unittest.TestCase):
         self.assertEqual(len(w), 1)
         self.assertIn("đổi bên so với shot 1·1", w[0])
 
-    def test_a_crossing_on_purpose_an_ots_an_orbit_or_another_scene_is_not(self):
+    def test_a_crossing_on_purpose_an_orbit_a_pov_or_another_scene_is_not(self):
         base = (1, 1, shot("Kelly frame-left, Kenta frame-right"))
         swapped = "Kenta frame-left, Kelly frame-right"
-        for other in ((1, 2, shot(swapped, why="máy vượt trục có chủ đích")), (1, 2, shot(swapped, angle="ots")),
+        for other in ((1, 2, shot(swapped, why="máy vượt trục có chủ đích")), (1, 2, shot(swapped, angle="pov")),
                       (1, 2, shot(swapped, camera_move="orbit")), (2, 1, shot(swapped))):
             self.assertEqual(continuity.axis_warnings([base, other]), [], other)
+
+    def test_an_ots_pair_is_checked_and_keeping_the_180_line_is_not_a_crossing(self):
+        # grader 2026-09-26: the A/B over-the-shoulder pair is where the line is crossed most; "giữ trục 180°" used to switch the check off
+        base = (1, 1, shot("Kelly frame-left, Kenta frame-right", angle="ots"))
+        swapped = "Kenta frame-left, Kelly frame-right"
+        for other in ((1, 2, shot(swapped, angle="ots")), (1, 2, shot(swapped, why="giữ trục 180° như shot 1"))):
+            self.assertEqual(len(continuity.axis_warnings([base, other])), 1, other)
+
+    def test_a_two_person_shot_without_sides_is_said_once_per_scene(self):
+        plan = [(1, 1, shot("Kelly and Kenta talk")), (1, 2, shot("both look at the tower")), (1, 3, shot("Kelly alone", chars=("KELLY",)))]
+        w = continuity.axis_warnings(plan)
+        self.assertEqual(len(w), 1)
+        self.assertIn("không kiểm được trục", w[0])
+        self.assertIn("1·1, 1·2", w[0])
 
     def test_running_direction_flips_are_flagged(self):
         plan = [(3, 1, shot("Kelly runs from left to right", chars=("KELLY",))),

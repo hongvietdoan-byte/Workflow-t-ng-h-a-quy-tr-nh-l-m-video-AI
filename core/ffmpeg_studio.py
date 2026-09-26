@@ -25,7 +25,13 @@ def find_ffmpeg() -> str:
 
 # D12 (editing.md E8, YouTube's official upload settings): BT.709 colour tags + the index at the front of the file (faststart: the
 # platform / a phone can start playing before the whole file is read). 24 fps stays: every clip of the pipeline is made at 24.
-_ENCODE = ["-c:v", "libx264", "-pix_fmt", "yuv420p", "-r", "24", "-colorspace", "bt709", "-color_primaries", "bt709",
+# a still picture (RGB) made into video: convert with the BT.709 matrix the files are tagged with — measured 2026-09-26, an end card
+# converted by the default scaler inside a filter graph got BT.601 numbers under a BT.709 tag (pure red Y 81 instead of 63)
+TO_YUV709 = "scale=out_color_matrix=bt709:out_range=tv,format=yuv420p"
+# editing.md E8: one quality for every step of the cut — video CRF 18 (x264 default was 23), AAC 256 kbps (default ~128). The cut is
+# encoded several times (join → music → extras → loudness), so each audio generation is kept well above YouTube's 128 kbps floor.
+AAC = ["-c:a", "aac", "-b:a", "256k"]
+_ENCODE = ["-c:v", "libx264", "-crf", "18", "-pix_fmt", "yuv420p", "-r", "24", "-colorspace", "bt709", "-color_primaries", "bt709",
            "-color_trc", "bt709", "-movflags", "+faststart"]
 
 
@@ -82,7 +88,7 @@ def build_concat_audio_cmd(clips: Sequence[str], output: str, ffmpeg: str = "ffm
         parts.append(f"[{i}:v]{_fit(size) if size else 'setsar=1'}[v{i}];[{i}:a]{_A_NORM}[a{i}]")
     joined = "".join(f"[v{i}][a{i}]" for i in range(len(clips)))
     parts.append(f"{joined}concat=n={len(clips)}:v=1:a=1[v][a]")
-    return cmd + ["-filter_complex", ";".join(parts), "-map", "[v]", "-map", "[a]", *_ENCODE, "-c:a", "aac", output]
+    return cmd + ["-filter_complex", ";".join(parts), "-map", "[v]", "-map", "[a]", *_ENCODE, *AAC, output]
 
 
 def build_crossfade_cmd(clips: Sequence[str], durations: Sequence[float], output: str,
@@ -112,7 +118,7 @@ def build_crossfade_cmd(clips: Sequence[str], durations: Sequence[float], output
     for i in range(1, len(clips)):
         parts.append(f"{prev_a}[n{i}]acrossfade=d={fade}[x{i}]")
         prev_a = f"[x{i}]"
-    return cmd + ["-filter_complex", ";".join(parts), "-map", prev, "-map", prev_a, *_ENCODE, "-c:a", "aac", output]
+    return cmd + ["-filter_complex", ";".join(parts), "-map", prev, "-map", prev_a, *_ENCODE, *AAC, output]
 
 
 # Trial 2A (2026-09-25): voices laid over the clips peaked at 0,0 dBFS (clipping on some phones) — every mix ends in a limiter at
@@ -172,7 +178,7 @@ def build_mux_music_cmd(video: str, music: str, output: str, video_duration: flo
     else:
         audio = music_chain + f",{PEAK_LIMIT}[a]"
     return [ffmpeg, "-y", "-i", video, "-i", music, "-filter_complex", audio,
-            "-map", "0:v", "-map", "[a]", "-c:v", "copy", "-c:a", "aac", "-shortest", output]
+            "-map", "0:v", "-map", "[a]", "-c:v", "copy", *AAC, "-shortest", output]
 
 
 MUSIC_FADE_IN = 0.3
@@ -208,7 +214,7 @@ def build_extras_mix_cmd(video: str, extras: Sequence[dict], output: str, has_au
     else:
         parts.append("".join(labels) + f"amix=inputs={len(labels)}:normalize=0:duration=longest,{PEAK_LIMIT},apad[a]")
     return cmd + ["-filter_complex", ";".join(parts), "-map", "0:v", "-map", "[a]", "-c:v", "copy",
-                  "-c:a", "aac", "-shortest", output]
+                  *AAC, "-shortest", output]
 
 
 def run(cmd: List[str]) -> None:
@@ -273,7 +279,7 @@ def normalize_loudness(src: str, dst: str, ffmpeg: Optional[str] = None, target:
     first = json.loads(m.group(0))
     second = (f"{spec}:measured_I={first['input_i']}:measured_TP={first['input_tp']}:measured_LRA={first['input_lra']}"
               f":measured_thresh={first['input_thresh']}:offset={first['target_offset']}:linear=true,aresample=48000")
-    run([ff, "-y", "-i", src, "-map", "0:v?", "-map", "0:a:0", "-c:v", "copy", "-af", second, "-c:a", "aac", "-b:a", "192k",
+    run([ff, "-y", "-i", src, "-map", "0:v?", "-map", "0:a:0", "-c:v", "copy", "-af", second, *AAC,
          "-movflags", "+faststart", dst])
     return measure_loudness(dst, ff) or {}
 
@@ -415,7 +421,7 @@ def _render_steps(clips, output, durations, transition, fade, music, music_volum
             if not has_audio(c):
                 tmp = output + f".pad{i}.mp4"
                 run([ffmpeg, "-y", "-i", c, "-f", "lavfi", "-i", "anullsrc=channel_layout=stereo:sample_rate=44100",
-                     "-shortest", "-c:v", "copy", "-c:a", "aac", tmp])
+                     "-shortest", "-c:v", "copy", *AAC, tmp])
                 clips[i] = tmp
                 padded.append(tmp)
     keep_audio = bool(keep_audio and clips and all(c in padded or has_audio(c) for c in clips))
@@ -485,7 +491,7 @@ def append_still(video: str, still_png: str, seconds: float, output: str) -> str
     else:
         cmd += ["-f", "lavfi", "-t", f"{max(total, 0.1):.2f}", "-i", "anullsrc=r=48000:cl=stereo"]
         a0 = f"[3:a]{_A_NORM}[a0]"
-    graph = ";".join([f"[0:v]{fit}[v0]", f"[1:v]{fit},format=yuv420p[v1]", a0, f"[2:a]{_A_NORM}[a1]",
+    graph = ";".join([f"[0:v]{fit}[v0]", f"[1:v]{fit},{TO_YUV709}[v1]", a0, f"[2:a]{_A_NORM}[a1]",
                       "[v0][a0][v1][a1]concat=n=2:v=1:a=1[v][a]"])
-    run(cmd + ["-filter_complex", graph, "-map", "[v]", "-map", "[a]", *_ENCODE, "-c:a", "aac", output])
+    run(cmd + ["-filter_complex", graph, "-map", "[v]", "-map", "[a]", *_ENCODE, *AAC, output])
     return output

@@ -18,7 +18,7 @@ import shutil
 import subprocess
 import tempfile
 from dataclasses import dataclass, field, replace
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Sequence, Tuple
 
 from . import dialogue, ffmpeg_studio, final_cut, llm_runner
 from .pipeline import Pipeline
@@ -26,7 +26,10 @@ from .pipeline import Pipeline
 LANGS = {"src": "Giữ nguyên ngôn ngữ kịch bản", "vi": "Tiếng Việt", "en": "English", "id": "Bahasa Indonesia", "th": "ไทย (Thái)",
          "pt": "Português (Brasil)", "es": "Español", "zh-tw": "中文 繁體", "zh-cn": "中文 简体", "ja": "日本語", "ko": "한국어",
          "ru": "Русский"}
-SIZES = {"S": ("Nhỏ", 0.050), "M": ("Vừa", 0.065), "L": ("Lớn", 0.085)}       # fraction of the shorter side of the picture
+# fraction of the shorter side of the picture. Measured 2026-09-26 (GFF Latin Bold, 1080×1920, ffmpeg/libass render): cap height ≈ 0,58 ×
+# the size — "Vừa" was 0,065 → 40 px = 2,1 % of the height, under safe_zones.md's floor; now 0,08 → 50 px = 2,6 % (≈ 3,7 mm on a 6,1"
+# phone). 3 % would need 0,092 (≈ 15 characters a line inside the safe box) — too big for two-line Vietnamese lines.
+SIZES = {"S": ("Nhỏ", 0.065), "M": ("Vừa", 0.080), "L": ("Lớn", 0.095)}
 POSITIONS = {"bottom": ("Dưới", 2), "middle": ("Giữa", 5), "top": ("Trên", 8)}
 HUD = "__HUD__"         # speaker of an on-screen notice cue (shots' on_screen_text): drawn as a game notice at the top, not a subtitle
 SAFE_BOTTOM, SAFE_TOP = 0.36, 0.15      # vertical frames: just inside Meta's official Reels safe zone (35 % bottom / 14 % top free)
@@ -36,10 +39,14 @@ SAFE_LEFT, SAFE_RIGHT = 0.06, 0.18
 COLORS = {"white": ("Trắng", "FFFFFF"), "yellow": ("Vàng", "FFE066")}
 DEFAULT_FONT = os.environ.get("DEFAULT_SUBTITLE_FONT", "GFF Latin Bold")
 DEFAULTS = {"enabled": False, "lang": "src", "font": "", "size": "M", "pos": "bottom", "color": "white", "speaker": False,
-            "speaker_colors": False}
+            "speaker_colors": False, "karaoke": False}
+KARAOKE_WAIT = "B4B4B4"         # editing.md E7 (short-video captions): words not yet said are grey, each turns to the line's colour when said
 SPEAKER_PALETTE = ("FFFFFF", "FFE066", "7FDBFF", "FFB38A", "B8F28C", "E3B5FF", "FF8FA3", "9DF2E0")
 NAME_CARD_S = 1.8               # D10: how long a character's name card stays (game style, top of the safe box)
-MAX_CPS = 17.0                  # characters per second a viewer can comfortably read (auto-dialogue-generator skill)
+MAX_CPS = 17.0                  # characters per second a viewer can comfortably read (Netflix Timed Text Style Guide: 17 for children's
+                                # programmes, 20 for adults — safe_zones.md [E23]; the same number as the auto-dialogue-generator skill)
+MIN_CUE_S = 0.83                # safe_zones.md [E24]: a line stays at least 20 frames at 24 fps
+MIN_GAP_S = 2 / 24              # ... and two lines are at least 2 frames apart, or the eye reads them as one flicker
 _VN_TEST = "ếệỗơưăằẳẵặđĐẤỨ"
 
 _SYSTEM_FALLBACK = ("arial.ttf", "arialbd.ttf", "tahoma.ttf", "tahomabd.ttf", "segoeui.ttf", "segoeuib.ttf", "leelawui.ttf",
@@ -285,16 +292,24 @@ def speaker_colors(cues: List[Cue]) -> Dict[str, str]:
     return out
 
 
-def density(cues: List[Cue]) -> List[Dict]:
-    """Lines too fast to read (more than MAX_CPS characters per second) or overlapping the next line (game notices sit apart)."""
+def density(cues: List[Cue], cuts: Sequence[float] = ()) -> List[Dict]:
+    """Lines a viewer cannot read (safe_zones.md rule 5): more than MAX_CPS characters per second, on screen less than MIN_CUE_S,
+    overlapping the next line or closer to it than MIN_GAP_S, or — given the render's cut times — running across a cut by more than
+    half a second on each side (the line then reads as belonging to the wrong shot; a J-cut's early start is under that). Game
+    notices sit apart and are not counted."""
     cues = [c for c in cues if c.speaker != HUD]
     out = []
     for i, c in enumerate(cues):
         span = max(c.end - c.start, 0.01)
         cps = len(c.text) / span
-        overlap = i + 1 < len(cues) and cues[i + 1].start < c.end - 1e-6
-        if cps > MAX_CPS or overlap:
-            out.append({"i": i, "scene": c.scene, "text": c.text, "cps": round(cps, 1), "overlap": overlap})
+        nxt = cues[i + 1] if i + 1 < len(cues) else None
+        overlap = bool(nxt and nxt.start < c.end - 1e-6)
+        close = bool(nxt and not overlap and nxt.start - c.end < MIN_GAP_S - 1e-6)
+        brief = span < MIN_CUE_S - 1e-6
+        across = next((t for t in cuts if c.start + 0.5 < t < c.end - 0.5), None)
+        if cps > MAX_CPS or overlap or close or brief or across is not None:
+            out.append({"i": i, "scene": c.scene, "text": c.text, "cps": round(cps, 1), "overlap": overlap, "close": close,
+                        "brief": brief, "across_cut": across})
     return out
 
 
@@ -317,9 +332,26 @@ def to_xlsx(cues: List[Cue]) -> bytes:
     return buf.getvalue()
 
 
+def karaoke_text(text: str, seconds: float) -> str:
+    """ASS karaoke of one line (already wrapped, \\N between rows): each word gets {\\kf N} centiseconds in proportion to its letters,
+    over 90 % of the line's time (the voice ends a little before the subtitle does)."""
+    parts = re.split(r"(\\N| )", text)
+    words = [p for p in parts if p not in ("\\N", " ", "")]
+    letters = sum(len(w) for w in words) or 1
+    budget = max(int(seconds * 90), len(words))
+    out = []
+    for p in parts:
+        if p in ("\\N", " ", ""):
+            out.append(p)
+        else:
+            out.append(f"{{\\kf{max(int(budget * len(p) / letters), 1)}}}{p}")
+    return "".join(out)
+
+
 def to_ass(cues: List[Cue], width: int, height: int, font: Font, size: str = "M", pos: str = "bottom", color: str = "white",
            show_speaker: bool = False, by_speaker: bool = False, margin_pct: Optional[float] = None,
-           zones: Optional[Dict[int, Tuple[float, float]]] = None, seen: Optional[Dict[int, Tuple[float, float]]] = None) -> str:
+           zones: Optional[Dict[int, Tuple[float, float]]] = None, seen: Optional[Dict[int, Tuple[float, float]]] = None,
+           karaoke: bool = False) -> str:
     """zones: scene idx -> (top, bottom) of the face area a subtitle must not cover (core/text_placement.py); a bottom subtitle of
     such a shot moves, whole line, to the top of the safe box."""
     short = min(width, height)
@@ -342,14 +374,16 @@ def to_ass(cues: List[Cue], width: int, height: int, font: Font, size: str = "M"
              "[V4+ Styles]",
              "Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, "
              "StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding",
-             f"Style: Default,{font.ass_name or font.family},{fontsize},&H00{bgr},&H00{bgr},&H00000000,&H80000000,0,0,0,0,100,100,0,0,1,{outline},1,"
+             f"Style: Default,{font.ass_name or font.family},{fontsize},&H00{bgr},&H00{_bgr(KARAOKE_WAIT) if karaoke else bgr},"
+             f"&H00000000,&H80000000,0,0,0,0,100,100,0,0,1,{outline},1,"
              f"{align},{ml},{mr},{margin_v},1"]
     palette = speaker_colors(cues) if by_speaker else {}
     style_of = {}
     for n, (who, hexrgb) in enumerate(palette.items(), 1):
         c_bgr = hexrgb[4:6] + hexrgb[2:4] + hexrgb[0:2]
         style_of[who] = f"S{n}"
-        lines.append(f"Style: S{n},{font.ass_name or font.family},{fontsize},&H00{c_bgr},&H00{c_bgr},&H00000000,&H80000000,0,0,0,0,"
+        lines.append(f"Style: S{n},{font.ass_name or font.family},{fontsize},&H00{c_bgr},&H00{_bgr(KARAOKE_WAIT) if karaoke else c_bgr},"
+                     "&H00000000,&H80000000,0,0,0,0,"
                      f"100,100,0,0,1,{outline},1,{align},{ml},{mr},{margin_v},1")
     if any(c.speaker == HUD for c in cues):
         # a game notice (knowledge/editor/safe_zones.md: game-notice style at the top of the safe zone, unlike a subtitle): smaller,
@@ -373,12 +407,18 @@ def to_ass(cues: List[Cue], width: int, height: int, font: Font, size: str = "M"
     for c in cues:
         text = f"{c.speaker.title()}: {c.text}" if show_speaker and c.speaker and c.speaker != HUD else c.text
         text = wrap_text(text, max_chars).replace("{", "(").replace("}", ")").replace("\n", "\\N")
+        if karaoke and c.speaker != HUD:
+            text = karaoke_text(text, c.end - c.start)
         style = style_of.get(c.speaker, "Default")
         margin = 0
         if id(c) in moved:                  # a face in the bottom band: this line goes to the top of the safe box
             text, margin = "{\\an8}" + text, int(height * SAFE_TOP)
         lines.append(f"Dialogue: 0,{_clock(c.start, '.')[:-1]},{_clock(c.end, '.')[:-1]},{style},,0,0,{margin},,{text}")
     return "\n".join(lines) + "\n"
+
+
+def _bgr(rgb: str) -> str:
+    return rgb[4:6] + rgb[2:4] + rgb[0:2]
 
 
 def _uuencode(data: bytes) -> str:
@@ -546,7 +586,8 @@ def probe_size(path: str) -> Tuple[int, int]:
 
 
 def burn(video: str, cues: List[Cue], out_path: str, font: Font, size: str = "M", pos: str = "bottom", color: str = "white",
-         show_speaker: bool = False, by_speaker: bool = False, zones: Optional[Dict[int, Tuple[float, float]]] = None) -> Dict:
+         show_speaker: bool = False, by_speaker: bool = False, zones: Optional[Dict[int, Tuple[float, float]]] = None,
+         karaoke: bool = False) -> Dict:
     """Write <out>.srt and a copy of `video` with the subtitles drawn in. Returns {'video', 'srt', 'cues'}."""
     if not cues:
         raise SubtitleError("Chưa có dòng phụ đề nào (kịch bản cần có dòng thoại dạng “TÊN: lời”).")
@@ -568,7 +609,8 @@ def burn(video: str, cues: List[Cue], out_path: str, font: Font, size: str = "M"
             if height > width and pos == "bottom":            # faces on the real frames of each line (YuNet, when installed)
                 from . import text_placement
                 seen = text_placement.video_spans(os.path.abspath(video), cues, ffmpeg)
-            f.write(to_ass(cues, width, height, font, size, pos, color, show_speaker, by_speaker, zones=zones, seen=seen)
+            f.write(to_ass(cues, width, height, font, size, pos, color, show_speaker, by_speaker, zones=zones, seen=seen,
+                           karaoke=karaoke)
                     + embed_font(font))
         cmd = [ffmpeg, "-y", "-i", os.path.abspath(video), "-vf", "ass=sub.ass", "-c:v", "libx264", "-crf", "18",
                "-preset", "medium", "-pix_fmt", "yuv420p", "-c:a", "copy", os.path.abspath(out_path)]

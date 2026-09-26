@@ -351,7 +351,7 @@ def render(p: Pipeline, project_id: int, data_dir: str, music_path: Optional[str
     plan = sound_plan(p, rows, durations, settings["transition"], settings["fade"])
     if plan["planned"]:                        # director.md Đ9: the Director's music silences (cut … in, breath before a shot)
         if features.on("sound_intent") and track:
-            breaths, music_off = sorted(set(breaths) | set(plan["breaths"])), plan["off"]
+            breaths, music_off = merge_breaths(breaths, plan["breaths"]), plan["off"]
             intent = {"applied": True, "off": plan["off"], "breaths": plan["breaths"]}
         else:                                  # CHUAN luật 1: planned and not applied is said, not dropped in silence
             intent = {"applied": False, "planned": plan["planned"],
@@ -436,12 +436,75 @@ def subtitle_cues(p: Pipeline, project_id: int, data_dir: str, final_row=None) -
     return subtitles.build_cues(p, data_dir, project_id, rs["transition"], rs["fade"])
 
 
+def cover_moment(p: Pipeline, project_id: int, final_row=None) -> Optional[Dict]:
+    """editing.md E11: the moment of the latest render that makes the cover (thumbnail) — the ⭐ hero shot, else the shot of the
+    strongest acting, else the middle of the video: {"t", "scene_id", "why"} on the render's timeline, None without a render."""
+    row = final_row if final_row is not None else lineage.latest_output(p.conn, project_id, "final")
+    if row is None:
+        return None
+    try:
+        man = json.loads(row["manifest"] or "{}")
+    except ValueError:
+        man = {}
+    overlap = float(man.get("fade") or 0) if man.get("transition") in ffmpeg_studio.OVERLAP_STYLES else 0.0
+    best, t = None, 0.0
+    for item in man.get("timeline") or []:
+        secs = float(item.get("seconds") or 0)
+        r = p.conn.execute("SELECT data FROM scenes WHERE id=?", (item.get("scene_id"),)).fetchone()
+        d = json.loads(r["data"] or "{}") if r else {}
+        perf = d.get("performance") if isinstance(d.get("performance"), dict) else {}
+        score = (2 if d.get("shot_role") == "hero" else 0) + (int(perf.get("intensity") or 0) / 10)
+        if d.get("characters") and (best is None or score > best[0]):
+            best = (score, t + secs / 2, item.get("scene_id"), "shot ⭐" if d.get("shot_role") == "hero" else "diễn mạnh nhất")
+        t += secs - overlap
+    if best:
+        return {"t": round(best[1], 2), "scene_id": best[2], "why": best[3]}
+    total = ffmpeg_studio.probe_duration(row["path"]) or 0
+    return {"t": round(total / 2, 2), "scene_id": None, "why": "giữa video"} if total else None
+
+
+def cover_image(p: Pipeline, project_id: int, data_dir: str) -> Dict:
+    """The cover picture (PNG, full frame) of the latest render at cover_moment, saved next to it as COVER.png."""
+    row = lineage.latest_output(p.conn, project_id, "final")
+    moment = cover_moment(p, project_id, row)
+    if row is None or moment is None or not os.path.exists(row["path"] or ""):
+        raise ValueError("chưa có bản dựng để lấy ảnh bìa")
+    out = os.path.join(os.path.dirname(row["path"]), "COVER.png")
+    ffmpeg_studio.run([ffmpeg_studio.find_ffmpeg(), "-y", "-ss", f"{moment['t']:.2f}", "-i", row["path"], "-frames:v", "1", out])
+    return dict(moment, path=out)
+
+
+BREATH_MERGE_S = 1.0     # editing.md E4: two music breaths closer than this are one moment — a double dip sounds like a fault
+
+
+def merge_breaths(auto: List[float], planned: List[float]) -> List[float]:
+    """The music breaths of a render when D6 (`music_breath`, before the TWIST) and the Director's `sound.breath` both place one:
+    the Director's win; an automatic one within BREATH_MERGE_S of a planned one is dropped (the same moment, not two silences)."""
+    kept = [t for t in auto if all(abs(t - q) > BREATH_MERGE_S for q in planned)]
+    return sorted(set(planned) | set(kept))
+
+
+def cut_times(p: Pipeline, project_id: int, final_row=None) -> list:
+    """Seconds of each cut of the latest render (from its manifest timeline; a crossfade overlaps by `fade`), [] when unknown."""
+    row = final_row if final_row is not None else lineage.latest_output(p.conn, project_id, "final")
+    try:
+        man = json.loads(row["manifest"] or "{}") if row is not None else {}
+    except ValueError:
+        return []
+    overlap = float(man.get("fade") or 0) if man.get("transition") in ffmpeg_studio.OVERLAP_STYLES else 0.0
+    out, t = [], 0.0
+    for item in (man.get("timeline") or [])[:-1]:
+        t += float(item.get("seconds") or 0) - overlap
+        out.append(round(t, 2))
+    return out
+
+
 def _burn(src: str, cues: list, out: str, sub: Dict, zones: Optional[Dict] = None) -> Dict:
     fonts = subtitles.discover()
     preferred = subtitles.font_by_family(fonts, sub["font"]) or subtitles.default_font(fonts)
     font, _ = subtitles.font_for_text(preferred, fonts, " ".join(c.text for c in cues))
     return subtitles.burn(src, cues, out, font, sub["size"], sub["pos"], sub["color"], sub["speaker"], sub.get("speaker_colors", False),
-                          zones=zones)
+                          zones=zones, karaoke=bool(sub.get("karaoke")))
 
 
 def _parent(p: Pipeline, project_id: int, parent_id: Optional[int], kinds) -> Optional[Dict]:
@@ -629,8 +692,8 @@ def animatic(p: Pipeline, project_id: int, data_dir: str, with_music: bool = Tru
         secs = float(r["duration_sec"] or json.loads(r["data"] or "{}").get("duration_s") or 5)
         img = os.path.join(data_dir, str(project_id), "images", f"job_{r['jid']}.png")
         clip = os.path.join(work, f"{r['idx']:02d}.mp4")
-        ffmpeg_studio.run([ffmpeg, "-y", "-loop", "1", "-t", f"{secs:.2f}", "-i", img, "-vf", ffmpeg_studio._fit(size),
-                           "-c:v", "libx264", "-pix_fmt", "yuv420p", "-r", "24", "-an", clip])
+        ffmpeg_studio.run([ffmpeg, "-y", "-loop", "1", "-t", f"{secs:.2f}", "-i", img,
+                           "-vf", ffmpeg_studio._fit(size) + "," + ffmpeg_studio.TO_YUV709, *ffmpeg_studio._ENCODE, "-an", clip])
         stills.append(clip)
         durations.append(secs)
     extras = voice.timeline_extras(p.conn, project_id, data_dir, [(r["id"], d) for r, d in zip(scenes, durations)])

@@ -247,9 +247,11 @@ def subtitle_panel(p: Pipeline, pid: int, out: str = None) -> None:
                              format_func=lambda k: subtitles.COLORS[k][0], key=f"sub_color_{pid}")
         speaker = d3.checkbox("Ghi tên người nói trước câu", settings["speaker"], key=f"sub_speaker_{pid}")
         by_speaker = d4.checkbox("Mỗi nhân vật một màu", settings.get("speaker_colors", False), key=f"sub_colors_{pid}")
+        karaoke = st.checkbox("Chữ sáng dần theo giọng (kiểu video ngắn)", settings.get("karaoke", False), key=f"sub_karaoke_{pid}",
+                              help="Từ chưa nói màu xám, sáng lên khi được nói — thời gian chia theo độ dài chữ (không nghe giọng).")
         auto = st.checkbox("Luôn thêm phụ đề khi xuất bản (cả chế độ tự động)", settings["enabled"], key=f"sub_auto_{pid}")
         new = {"enabled": auto, "lang": lang, "font": font_name or "", "size": size, "pos": pos, "color": color, "speaker": speaker,
-               "speaker_colors": by_speaker}
+               "speaker_colors": by_speaker, "karaoke": karaoke}
         if new != {k: settings.get(k) for k in new}:
             subtitles.save_settings(p, pid, new)
         up = st.file_uploader("Thêm font riêng (.ttf / .otf)", type=["ttf", "otf"], key=f"sub_fontup_{pid}")
@@ -293,10 +295,13 @@ def subtitle_panel(p: Pipeline, pid: int, out: str = None) -> None:
                                                  " ".join(c.text for c in cues))
             if note:
                 st.markdown(f":orange[{escape(note)}]")
-            fast = subtitles.density(cues)
+            fast = subtitles.density(cues, delivery.cut_times(p, pid))
             if fast:
-                st.warning(f"{len(fast)} dòng đọc không kịp (> {subtitles.MAX_CPS:g} ký tự/giây) hoặc chồng dòng sau: "
-                           + "; ".join(f"cảnh {d['scene']} “{d['text'][:30]}…” {d['cps']} ký tự/s" for d in fast[:4]))
+                why = lambda d: (f"{d['cps']} ký tự/s" if d["cps"] > subtitles.MAX_CPS else "chồng dòng sau" if d["overlap"]  # noqa: E731
+                                 else f"hiện < {subtitles.MIN_CUE_S:g} s" if d["brief"] else "sát dòng sau (< 2 khung)" if d["close"]
+                                 else f"vắt qua điểm cắt {d['across_cut']:g} s")
+                st.warning(f"{len(fast)} dòng khó đọc (> {subtitles.MAX_CPS:g} ký tự/giây, hiện quá ngắn, sát/chồng dòng sau hoặc vắt "
+                           "qua điểm cắt): " + "; ".join(f"cảnh {d['scene']} “{d['text'][:30]}…” {why(d)}" for d in fast[:4]))
             bad = [c for c in cues if c.end <= c.start]
             if bad:
                 st.error("Có dòng kết thúc trước khi bắt đầu: sửa lại cột thời gian.")
@@ -491,21 +496,24 @@ def render_panel(p: Pipeline, pid: int, chosen, durations) -> None:
                 st.rerun()
         loudness_line(p, pid)
         viewer_check_panel(p, pid)
+        cover_panel(p, pid)
 
 
 def viewer_check_panel(p: Pipeline, pid: int) -> None:
     """GĐ4 (editing.md E9, D13): the newest delivery (with subtitles / card when made) as a sheet of frames with the app's interface
     bands painted over and a phone-size copy — free, a few seconds of ffmpeg."""
-    row = p.conn.execute("SELECT path FROM outputs WHERE project_id=? ORDER BY id DESC LIMIT 1", (pid,)).fetchone()
+    row = p.conn.execute("SELECT path, kind FROM outputs WHERE project_id=? ORDER BY id DESC LIMIT 1", (pid,)).fetchone()
     if not row or not os.path.exists(row["path"] or ""):
         return
+    final = p.conn.execute("SELECT path FROM outputs WHERE project_id=? AND kind='final' ORDER BY id DESC LIMIT 1", (pid,)).fetchone()
+    plain = final["path"] if final and row["kind"] != "final" and os.path.exists(final["path"] or "") else None
     key = f"viewer_{pid}"
     if st.button("🧐 Tự rà như người xem (chồng vùng giao diện app + bản cỡ điện thoại)", key=f"{key}_go",
                  help="Miễn phí. Vùng đỏ = nút/chữ của app (trên 15 %, dưới 35 %, phải 18 %); báo mặt nằm dưới vùng đó."):
         from core import viewer_check
         out = os.path.join(os.path.dirname(row["path"]), "viewer_check.png")
         with st.spinner("Đang lấy khung…"):
-            ok = act(lambda: st.session_state.__setitem__(key, viewer_check.sheet(row["path"], out)))
+            ok = act(lambda: st.session_state.__setitem__(key, viewer_check.sheet(row["path"], out, plain=plain)))
         if not ok:
             return
     res = st.session_state.get(key)
@@ -513,7 +521,12 @@ def viewer_check_panel(p: Pipeline, pid: int) -> None:
         if res["hidden"]:
             st.warning("⚠ Mặt nằm dưới giao diện app ở: " + ", ".join(f"{f['t']:g}s ({'/'.join(f['faces_hidden'])})"
                                                                     for f in res["frames"] if f["faces_hidden"]))
-        elif res["frames"] and not res["frames"][0].get("faces_seen"):
+        if res.get("text_hidden"):
+            st.warning("⚠ Chữ nằm dưới giao diện app ở: " + ", ".join(f"{f['t']:g}s ({'/'.join(f['text_hidden'])})"
+                                                                    for f in res["frames"] if f.get("text_hidden")))
+        elif not res.get("text_checked"):
+            st.caption("Chữ: bản mới nhất là bản dựng gốc (chưa in chữ) — kiểm chữ sau khi in phụ đề / card.")
+        if not res["hidden"] and res["frames"] and not res["frames"][0].get("faces_seen"):
             st.caption("Không có model dò mặt (data/models/face_detection_yunet_2023mar.onnx) — chỉ xem bằng mắt.")
         st.image(res["path"], caption=f"{os.path.basename(row['path'])} — {len(res['frames'])} khung")
 
@@ -540,6 +553,16 @@ def loudness_line(p: Pipeline, pid: int) -> None:
     text = (f"🔊 Độ to bản dựng mới nhất: {m['lufs']:g} LUFS · đỉnh thật {m.get('true_peak_dbfs')} dBTP · LRA {m.get('lra')} LU"
             + (f" (đã chuẩn hóa từ {m['before']['lufs']:g} LUFS)" if m.get("normalized") else "") + " — mục tiêu −14 LUFS, đỉnh ≤ −1,5")
     (st.warning if m.get("problems") else st.caption)(text + ("".join(f" · ⚠ {x}" for x in m.get("problems") or [])))
+
+
+def cover_panel(p: Pipeline, pid: int) -> None:
+    """editing.md E11: the cover picture of the latest render (the ⭐ shot, else the strongest acting) — free, one ffmpeg frame."""
+    if st.button("🖼 Lấy ảnh bìa từ bản dựng mới nhất (miễn phí)", key=f"cover_go_{pid}",
+                 help="Khung giữa shot ⭐ (hoặc shot diễn mạnh nhất). Ảnh bìa là khung người lướt thấy trước khi video chạy."):
+        act(lambda: st.session_state.__setitem__(f"cover_{pid}", delivery.cover_image(p, pid, C.DATA)))
+    res = st.session_state.get(f"cover_{pid}")
+    if res and os.path.exists(res["path"]):
+        st.image(res["path"], width=220, caption=f"{res['t']:g}s — {res['why']}")
 
 
 def end_card_panel(p: Pipeline, pid: int) -> None:

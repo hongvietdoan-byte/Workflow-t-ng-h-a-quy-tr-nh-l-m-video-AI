@@ -8,19 +8,26 @@ face. A visible behaviour at a stated strength is what the models follow.
 
 The Director's answer is never refused for this field (a refused answer is a paid re-ask): bad parts are dropped and reported.
 """
+import re
 from typing import Dict, List, Optional, Tuple
 
 TEXT_FIELDS = ("face", "eyes", "body", "timing", "listener", "motive")
 # words for the picture / video model — a scale the model can act on (1 = almost nothing shows, 5 = the peak of the film)
-INTENSITY_WORDS = {1: "barely visible micro-expression", 2: "subtle, restrained", 3: "clear but natural",
+INTENSITY_WORDS = {1: "barely visible, almost nothing shows", 2: "subtle, restrained", 3: "clear but natural",
                    4: "strong, visibly emotional", 5: "peak emotion, full intensity"}
 CLOSE = ("ECU", "CU")                 # the face fills the frame: every change reads bigger — the prompt shows one step less (Đ4)
 PEAKS_PER_FILM = 2                    # intensity 5 more often than this flattens the climax
-FLAT_RUN = 6                          # this many acted shots in a row at one strength: a flat curve
+FLAT_RUN = 6                          # this many shots in a row on screen, all acted at one strength: a flat curve
 STRONG, HOLD_S = 4, 2.0               # a strong moment needs a shot this long in it or right after it (director.md Đ2)
 # a face written as one emotion word gives the model nothing to act (describe what the face DOES)
 _BARE_EMOTIONS = {"sad", "happy", "angry", "scared", "afraid", "surprised", "shocked", "worried", "nervous", "calm", "neutral",
                   "serious", "emotional", "upset", "crying", "smiling", "buồn", "vui", "giận", "sợ", "bất ngờ", "lo lắng", "bình tĩnh"}
+# director.md Đ2: "ngoại lệ có chủ đích: pha hành động dồn dập — ghi lý do trong `why`" — a shot whose why says so is not flagged
+ON_PURPOSE = re.compile(r"dồn nhịp|cố ý|có chủ đích|on purpose|deliberate|intentional", re.I)
+
+
+def _on_purpose(shot: Dict) -> bool:
+    return bool(ON_PURPOSE.search(str(shot.get("why") or "")))
 
 
 def clean(value) -> Tuple[Optional[Dict], List[str]]:
@@ -99,15 +106,17 @@ def warnings(shots: List[Dict]) -> List[str]:
         words = face.replace(",", " ").split()
         if face and len(words) <= 3 and (face in _BARE_EMOTIONS or any(w in _BARE_EMOTIONS for w in words)):
             out.append(f"shot {k}: face \"{p['face']}\" chỉ là tên cảm xúc — tả việc khuôn mặt làm (mắt, miệng, hàm, lông mày)")
+    # "liền nhau" on screen: consecutive shots of the film, each acted at the same strength (a shot without acting breaks the run)
+    levels = [(k, s["performance"].get("intensity") if isinstance(s.get("performance"), dict) else None, s)
+              for k, s in enumerate(shots, 1)]
     run, start = 1, 0
-    levels = [(k, s["performance"].get("intensity")) for k, s in acted]
     for i in range(1, len(levels) + 1):
         if i < len(levels) and levels[i][1] and levels[i][1] == levels[i - 1][1]:
             run += 1
             continue
-        if run >= FLAT_RUN:
+        if run >= FLAT_RUN and levels[i - 1][1] and not any(_on_purpose(s) for _, _, s in levels[start:i]):
             out.append(f"shot {levels[start][0]}–{levels[i - 1][0]}: {run} shot liền cùng cường độ {levels[i - 1][1]} — đường cảm xúc "
-                       "phẳng (cần lên xuống theo nhịp)")
+                       "phẳng (cần lên xuống theo nhịp; cố ý thì ghi `why`)")
         run, start = 1, i
     # director.md Đ2 "giữ cho người xem thấm" (Handbook ch. III anchor shot; lần chạy 4: a 0,5 s silent shot cut away too fast): a run
     # of strong moments (intensity ≥ 4) needs one shot of HOLD_S or more in it or right after it
@@ -125,7 +134,7 @@ def warnings(shots: List[Dict]) -> List[str]:
         while end + 1 < len(shots) and level(shots[end + 1]) >= STRONG:
             end += 1
         span = shots[k:end + 2]                    # the strong run + the shot after it
-        if not any(float(s.get("duration_s") or 0) >= HOLD_S for s in span):
+        if not any(float(s.get("duration_s") or 0) >= HOLD_S for s in span) and not any(_on_purpose(s) for s in span):
             where = f"shot {k + 1}" if end == k else f"shot {k + 1}–{end + 1}"
             out.append(f"{where}: khoảnh khắc cường độ ≥ {STRONG} mà không shot nào (kể cả shot ngay sau) dài ≥ {HOLD_S:g} s — người xem "
                        "chưa kịp thấm; giữ một shot mặt/phản ứng 2–4 s ngay tại hoặc sau khoảnh khắc (trừ khi cố ý dồn nhịp, ghi `why`)")

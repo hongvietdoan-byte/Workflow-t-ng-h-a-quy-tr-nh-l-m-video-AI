@@ -786,6 +786,7 @@ FRAMING = {"ECU": "extreme close-up — only the face or one detail fills the fr
            "CU": "close-up — head and shoulders fill the frame, no legs or full body",
            "MCU": "medium close-up — from mid-chest up, no legs",
            "MS": "medium shot — from the waist up",
+           "MLS": "medium long shot — from the knees up, the place visible around",
            "WS": "wide shot — whole bodies visible, with the place around them",
            "EWS": "extreme wide shot — people small inside a large place",
            "GAME_TPS": "third-person game camera behind the character, slightly above the shoulder"}
