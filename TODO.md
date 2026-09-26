@@ -18,7 +18,10 @@
 > một luật vị trí mắt, độ sâu trường ảnh, đạo cụ liền mạch, kiểm trục cả shot qua vai, mẫu `lighting`; Dựng E10 quay chậm (cờ `speed_ramp`),
 > E11 ảnh bìa, phụ đề động, cỡ chữ đo thật (8%), BT.709 cho ảnh tĩnh, CRF 18/AAC 256k, kiểm chữ dưới giao diện, test hạ nhạc 8–12 dB →
 > chấm lần 1–3 (agent độc lập, cùng thang): **Đạo diễn 42,5 · Quay phim 41,5 · Dựng 42,5** (`9c97886`, 1194 test qua). Người chấm: Quay phim
-> tối đa ~43 nếu không chạy thật trả tiền → **chờ người dùng quyết** (xem `docs/DANH_GIA_BO_NGUYEN_TAC_V4.md` mục 0).
+> tối đa ~43 nếu không chạy thật trả tiền. **Người dùng chốt 2026-09-27: chạy thật một lần trước, rồi tổng hợp sửa bộ kỹ năng một thể**
+> — 22 việc đã ghi ở `docs/TON_DONG_2026-09-27.md` mục A (không làm trước đợt thử).
+> **Tồn đọng toàn dự án đã rà một lượt: `docs/TON_DONG_2026-09-27.md`** (A sửa gộp sau đợt thử · B ghi số liệu trong đợt thử · C chờ người
+> dùng · D tốn tiền · E miễn phí không gấp · F 17 dòng TODO đề xuất đóng — chờ người dùng đồng ý rồi mới đóng).
 > Sau đó người dùng tạo **dự án thử mới** và tự chạy trên dashboard.
 > **Chờ người dùng:** duyệt bộ kỹ năng 3 vai (bảng `docs/DANH_GIA_BO_NGUYEN_TAC_V4.md` — `film_crew` đang bật cho đợt thử), gắn nhãn ảnh
 > Kho (~$1–1,5), mô hình 3D chính thức, âm đêm cho thư viện âm thanh; đối chiếu giá ảnh Deepix (tạm $0,052/ảnh) với số trên web Deepix.
