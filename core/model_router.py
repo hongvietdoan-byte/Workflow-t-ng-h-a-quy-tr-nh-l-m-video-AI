@@ -151,8 +151,9 @@ def _scene_choice(conn, scene_id: int, project_row=None, mp_row=None) -> Dict:
                           + (" (model bạn chọn riêng cho shot này không áp dụng trong nhóm)" if override else "")}
     if override:
         return {"model": override, "resolution": None, "reason": "bạn chọn cho cảnh này", "source": "override", "recommended": rec}
-    from . import lipsync
-    if lipsync.enabled() and data.get("shot_no") and lipsync.method_for(data) == "generate":
+    from . import lipsync, shots as _sh
+    if lipsync.enabled() and data.get("shot_no") and lipsync.method_for(data) == "generate" and _sh.mode(project_row) != "multishot":
+        # (a Kling multi-shot project stays on Kling: the runner says the shot gets no lip sync instead of silently skipping it)
         return {"model": "seedance", "resolution": "720p", "source": "auto", "recommended": rec,
                 "reason": "khớp môi khi tạo: Seedance nhận giọng thoại của shot (reference_audio)"}
     if project_row["video_model"]:
@@ -168,6 +169,10 @@ def _scene_choice(conn, scene_id: int, project_row=None, mp_row=None) -> Dict:
                 "reason": "Kling multi-shot: các shot liền nhau của nhóm được gen chung một lần"}
     if mode == "per_shot" and data.get("shot_no"):
         group = shots.sequence_rows(conn, scene_id)
+        if len(group) > 1 and lipsync.enabled() and any(lipsync.method_for(r["data"]) == "generate" for r in group):
+            # a lip-sync shot must be Seedance (it speaks the voice line) and a continuity group keeps ONE model: the whole group goes
+            return {"model": "seedance", "resolution": "720p", "source": "auto", "recommended": rec,
+                    "reason": "cả nhóm cảnh dùng Seedance vì có shot khớp môi khi tạo (cắt giữa hai model dễ lộ)"}
         if len(group) > 1:                  # one model for a continuity group: cutting between two models shows
             recs = []
             for r in group:

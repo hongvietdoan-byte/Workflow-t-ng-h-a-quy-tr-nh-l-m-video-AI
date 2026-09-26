@@ -357,6 +357,7 @@ def _images_phase(p: Pipeline, pid: int, ctx: Context) -> Optional[str]:
         p.conn.execute("UPDATE scenes SET state='ready' WHERE id=? AND state='needs_attention'", (scene["id"],))
         p.create_job(scene["id"], "image_gen")
     ctx.image_runner.submit_pending(pid)
+    _budget_stop(p, pid, "image_gen")
     ctx.image_runner.poll_once(pid)
     _retry_or_hold(p, pid, "image_gen")
     if _count(p, "SELECT COUNT(*) FROM jobs WHERE project_id=? AND type='image_gen' AND state='succeeded'", pid):
@@ -396,6 +397,19 @@ def _stop_if_claude_blocked(failed) -> None:
 
 
 BUDGET_NOTE = "Đã chạm trần số job (kể cả gen lại) — dừng để tránh tốn credit"
+
+
+def _budget_stop(p: Pipeline, pid: int, kind: str) -> None:
+    """The spending limit (core.budget) refused to send this project's queued jobs and nothing of that kind is running: STOP with the
+    reason (a model without a price, a broken price table, the cap reached) instead of ticking forever on 'Gen ảnh…'."""
+    if _count(p, "SELECT COUNT(*) FROM jobs WHERE project_id=? AND type=? AND state='running'", pid, kind) or \
+            not _count(p, "SELECT COUNT(*) FROM jobs WHERE project_id=? AND type=? AND state='queued'", pid, kind):
+        return
+    row = p.conn.execute("SELECT message FROM diag_events WHERE project_id=? AND stage=? AND code='budget'"
+                         " AND (julianday('now') - julianday(last_at)) * 1440 < 2 ORDER BY id DESC LIMIT 1",
+                         (pid, "image" if kind == "image_gen" else "video")).fetchone()
+    if row is not None:
+        raise _Stop("Dừng vì ngân sách: " + row["message"])
 DAILY_NOTE = "Đã chạm trần job trong ngày (AUTOPILOT_DAILY_JOBS) — dừng; bấm Tiếp tục ngày mai hoặc nâng trần"
 
 
@@ -684,6 +698,7 @@ def _videos_phase(p: Pipeline, pid: int, ctx: Context) -> Optional[str]:
                 continue
             regen.regenerate_video(p, ctx.data_dir, r["video_job_id"], f"làm lại vì {r['video_stale']}")
     ctx.video_runner.submit_pending(pid)
+    _budget_stop(p, pid, "video_gen")
     ctx.video_runner.poll_once(pid)
     _retry_or_hold(p, pid, "video_gen")
     if claude_tasks.unchecked_videos(p, pid):

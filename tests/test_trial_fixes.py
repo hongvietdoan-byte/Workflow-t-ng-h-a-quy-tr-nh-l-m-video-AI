@@ -221,6 +221,25 @@ class BudgetPriceTests(unittest.TestCase):
         self.assertIn("chưa có giá", budget.check_image(self.conn, "deepix", "unknown-model"))
         self.assertIn("SỐ LƯỢT", budget.check_audio(self.conn, "clipai-audio"))
 
+    def test_the_automatic_run_stops_with_the_reason_when_the_limit_refuses(self):
+        pid = self.p.create_project("run")
+        sid = self.p.create_scene(pid, 1, "s")
+        self.p.conn.execute("UPDATE scenes SET data=? WHERE id=?", (json.dumps({"image_prompt": "x"}), sid))
+        self.p.conn.commit()
+        budget.restart(self.conn, usd=10.0)
+        jid = self.p.create_job(sid)
+
+        class Unpriced(MockImageProvider):
+            name = "deepix"
+
+            def usage_info(self):
+                return "unknown-model", "image"
+        ImageRunner(self.p, Unpriced(), tempfile.mkdtemp()).submit_pending(pid)
+        self.assertEqual(self.p.state(jid).value, "queued")                          # not sent, nothing paid
+        with self.assertRaises(autopilot._Stop) as stop:
+            autopilot._budget_stop(self.p, pid, "image_gen")
+        self.assertIn("chưa có giá", str(stop.exception))
+
     def test_every_model_the_router_picks_in_cheap_mode_has_a_price(self):
         pricing = cost.load_pricing()
         for model, tier in (("dreamina-seedance-2-0-fast-260128", "720p"), ("kling-v3-omni", "std")):
@@ -312,6 +331,28 @@ class LipSyncPostTickTests(Base):
         self.assertEqual(len(notes), 1)
         self.assertIn("khớp môi sau cần sync.so — không dùng", notes[0])
         self.assertFalse(self.p.conn.execute("SELECT 1 FROM usage_events").fetchone())
+
+    @mock.patch.dict(os.environ, {"FEATURE_LIP_SYNC": "1", "SYNC_API_KEY": ""})
+    def test_a_lip_sync_shot_takes_its_whole_continuity_group_to_seedance(self):
+        from core import llm_runner, model_router, shots
+        from tests.test_v3 import kenta_project
+        p, pid = kenta_project()
+        llm_runner.run_director(p, pid, llm_runner.MockLlm())
+        group = next(g for g in (shots.sequence_rows(p.conn, r["id"]) for r in shots.shots_of(p, pid)) if len(g) > 1)
+        data = dict(group[0]["data"], size="CU", characters=["KELLY"], dialogue=[{"speaker": "KELLY", "text": "Em hiểu rồi."}])
+        p.conn.execute("UPDATE scenes SET data=? WHERE id=?", (json.dumps(data, ensure_ascii=False), group[0]["id"]))
+        p.conn.commit()
+        self.assertEqual({model_router.scene_choice(p.conn, r["id"])["model"] for r in group}, {"seedance"})   # one model per group
+
+    @mock.patch.dict(os.environ, {"FEATURE_LIP_SYNC": "1", "SYNC_API_KEY": ""})
+    def test_a_lip_sync_shot_sent_on_kling_is_said_not_silently_skipped(self):
+        self.set_data({"image_prompt": "x", "characters": ["KELLY"], "size": "CU", "shot_no": 1, "lip_sync": True,
+                       "dialogue": [{"speaker": "KELLY", "text": "Em hiểu rồi."}]})
+        from core import model_router
+        model_router.set_override(self.p.conn, self.sid, "kling")               # the person picked Kling for this shot
+        jid = self.p.create_job(self.sid, "video_gen")
+        VideoRunner(self.p, MockVideoProvider(), self.dir)._submit_kwargs(self.p.job(jid))
+        self.assertTrue(codes(self.p, "lipsync_not_applied"))
 
     @mock.patch.dict(os.environ, {"FEATURE_LIP_SYNC": "1", "SYNC_API_KEY": ""})
     def test_the_director_is_steered_to_the_seedance_with_voice_path(self):

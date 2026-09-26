@@ -437,6 +437,8 @@ class VideoRunner(_Runner):
             audio = self._lip_sync_audio(job)
             if audio:
                 out["reference_audio"] = [audio]              # V4 GĐ3: the clip speaks our voice line (lip sync at generation)
+        else:
+            self._no_lip_sync_note(job, choice.get("model"), group)
         if mode == "per_shot" and not group:
             end = shots.last_frame_for(self.p.conn, self.data_dir, job["scene_id"])
             from . import end_frames
@@ -445,6 +447,17 @@ class VideoRunner(_Runner):
             if end and ("seedance" in (choice.get("model") or "") or end_frames.enabled()):
                 out["last_frame"] = end                   # K2: Seedance last_frame; Kling Omni end_frame (only with K1 on)
         return out
+
+    def _no_lip_sync_note(self, job, model, group) -> None:
+        """Luật 1: a shot planned to be made WITH its voice (lip sync "generate") that goes out on another model / inside a group clip
+        gets no lip sync — said, not skipped silently."""
+        from . import lipsync
+        if not lipsync.enabled():
+            return
+        data = json.loads(self.p.conn.execute("SELECT data FROM scenes WHERE id=?", (job["scene_id"],)).fetchone()["data"] or "{}")
+        if lipsync.method_for(data) == "generate":
+            self._diag(job, "warn", "lipsync_not_applied", f"shot cần khớp môi (tạo kèm giọng) nhưng gửi bằng {model or '?'}"
+                       + (" trong clip chung của nhóm" if group else "") + " — clip giữ miệng của model, không khớp giọng")
 
     def _lip_sync_audio(self, job) -> Optional[str]:
         """The shot's voice line file for a "generate" lip-sync shot (feature lip_sync), else None. Missing voice: said, not guessed."""
