@@ -134,6 +134,11 @@ class Data:
         parent = self.jobs.get(j["parent_job_id"]) if j["parent_job_id"] else None
         if parent is not None:
             rv = self.last_review(parent["id"])
+            note = (rv["note"] if rv is not None else "") or ""   # 2026-09-26: the Vietnamese note stays in the review log only
+            if note.startswith("Đồng bộ cả bộ"):                   # (retry_reason carries just the English fix for the model)
+                return SETCHECK
+            if note.startswith(("Nội dung cảnh đã đổi", "làm lại vì")):
+                return STALE
             if self.failed_before(parent["id"]) and parent["state"] in ("cancelled", "retryable", "failed"):
                 return TECH
             if rv is not None and rv["decision"] == "reject":
@@ -438,7 +443,7 @@ def report_project(conn, pid: int, pricing: dict, floors: dict) -> tuple:
             w(f"| {kind} | {code} | {'có' if mod else ''} | {n} |")
     else:
         w("Không có job thất bại.")
-    auto_retry = sum(1 for j in d.jobs.values() if (j["retry_reason"] or "").startswith("autopilot: thử lại"))
+    auto_retry = sum(1 for j in d.jobs.values() if "autopilot: thử lại" in (j["retry_reason"] or ""))
     lost = [j for j in d.jobs.values() if j["type"] == "video_gen" and d.usage.get(j["id"]) and "not_found" in d.fail_note(j["id"])]
     lost_usd = sum(d.price(j, pricing)[0] for j in lost)
     w("")
@@ -456,7 +461,8 @@ def report_project(conn, pid: int, pricing: dict, floors: dict) -> tuple:
     w("")
 
     # 7. câu vá trong prompt ảnh gen lại
-    patched = [j for j in d.jobs.values() if j["type"] == "image_gen" and j["retry_reason"]]
+    from core.runner import model_fix                     # a plain resend's note never reaches the prompt (not a "câu sửa")
+    patched = [j for j in d.jobs.values() if j["type"] == "image_gen" and model_fix(j["retry_reason"])]
     noisy = [j for j in patched if "QC " in j["retry_reason"] or any(ch in j["retry_reason"] for ch in "ảắằẳẵặâấầẩẫậđêếềểễệôốồổỗộơớờởỡợưứừửữự")]
     w("### 7. Câu sửa đưa vào prompt ảnh gen lại")
     w(f"Ảnh gen lại có câu sửa: {len(patched)} · câu sửa chứa điểm số hoặc tiếng Việt (đi thẳng vào prompt Deepix): {len(noisy)}")

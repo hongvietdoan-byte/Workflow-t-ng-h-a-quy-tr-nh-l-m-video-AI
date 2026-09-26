@@ -81,11 +81,22 @@ def autopilot_panel(p: Pipeline, pid: int) -> None:
             st.markdown(f":red[✖ {msg}]")
         scenes = p.conn.execute("SELECT COUNT(*) c FROM scenes WHERE project_id=?", (pid,)).fetchone()["c"]
         per = p.project(pid)["max_retry_count"] + 2
+        run_est = None
+        try:
+            run_est = cost.estimate_run(p, pid)
+        except Exception as e:  # noqa: BLE001 - never hide the button because an estimate failed; say it
+            st.warning(f"Không ước tính được chi phí chạy tự động ({type(e).__name__}: {e}).")
         if not issues:
             st.success(f"Sẵn sàng: {scenes} cảnh. Trần an toàn: tối đa {scenes * per} job ảnh và {scenes * per} job video (kể cả gen lại).")
-        if confirm_all(f"ap_start_{pid}", ["go"], "✔ Duyệt phân cảnh & chạy tự động",
-                       "Bắt đầu chạy tự động? Sẽ gọi Deepix, Clip AI và Claude thật (tốn credit). Trong lúc chạy, dự án chuyển sang "
-                       "“QC tự duyệt theo ngưỡng”; dừng hoặc xong sẽ trả lại cách duyệt cũ.", st, "Có, chạy") and not issues:
+        if run_est is not None:
+            st.info("💵 Ước tính chạy tự động: " + cost.format_run_estimate(run_est).replace("$", "\\$")
+                    + ("  ·  🧪 chế độ Thử rẻ đang BẬT" if p.project(pid)["test_quality"] else ""))
+        tag = f" (≈ {run_est['total']:.2f} USD)" if run_est is not None else ""
+        if confirm_all(f"ap_start_{pid}", ["go"], "✔ Duyệt phân cảnh & chạy tự động" + tag,
+                       "Bắt đầu chạy tự động? Sẽ gọi Deepix, Clip AI và Claude thật (tốn credit"
+                       + (f", ước tính ≈ {run_est['total']:.2f} USD, tối đa ≈ {run_est['max']:.2f} USD" if run_est is not None else "")
+                       + "). Trong lúc chạy, dự án chuyển sang “QC tự duyệt theo ngưỡng”; dừng hoặc xong sẽ trả lại cách duyệt cũ.",
+                       st, "Có, chạy") and not issues:
             autopilot.start(p, pid, p.actor)
             autopilot_manager(C.DB, C.DATA).start(pid)
             st.rerun()
@@ -120,8 +131,9 @@ def world_bible_panel(p: Pipeline, pid: int) -> None:
         uploads = st.file_uploader("Ảnh tham khảo phong cách", type=["png", "jpg", "jpeg", "webp"], accept_multiple_files=True,
                                    key=f"wb_up_{pid}")
         llm = llm_client()
-        if st.button("🤖 Phân tích ảnh phong cách bằng Claude", key=f"wb_run_{pid}", disabled=not uploads or llm is None,
-                     help=None if llm else claude_hint()):
+        n_up = min(len(uploads or []), style.MAX_REFS)
+        if st.button("🤖 Phân tích ảnh phong cách bằng Claude" + cost.llm_tag(cost.llm_estimate(p.conn, "style", 1, images=n_up), 1),
+                     key=f"wb_run_{pid}", disabled=not uploads or llm is None, help=None if llm else claude_hint()):
             folder = project_dir(pid, "style_refs")
             paths = []
             for i, f in enumerate(uploads[:style.MAX_REFS], 1):

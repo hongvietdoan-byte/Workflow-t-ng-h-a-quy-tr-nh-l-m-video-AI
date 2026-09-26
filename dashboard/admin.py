@@ -441,7 +441,8 @@ def asset_library_panel(p: Pipeline) -> None:
             va_note = st.text_input("Ghi chú thêm cho Claude (tuỳ chọn)", key="va_note",
                                     placeholder="vd: chỉ nhìn skill chủ động, bỏ qua trang phục")
             va_count = st.slider("Số khung hình lấy mẫu", 4, video_analysis.MAX_FRAMES, 8, key="va_count")
-            if st.button("🎬 Phân tích video", key="va_go", disabled=not va_video, type="primary"):
+            if st.button("🎬 Phân tích video" + cost.llm_tag(cost.llm_estimate(p.conn, "video_analysis", 1, images=va_count), 1),
+                         key="va_go", disabled=not va_video, type="primary"):
                 client = llm_client()
                 if client is not None:
                     try:

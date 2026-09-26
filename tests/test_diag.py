@@ -49,8 +49,8 @@ class HookTests(Setup):
         p.create_job(scene, "image_gen")
         runner = ImageRunner(p, Flaky(), self.data)
         runner.submit_pending(self.pid)
-        found = events(p, "image")
-        self.assertEqual(len(found), 1)
+        found = [e for e in events(p, "image") if e["code"] != "missing_reference"]   # 2026-09-26: the shot's missing references
+        self.assertEqual(len(found), 1)                                                 # are noted too (info, luật 1)
         self.assertEqual((found[0]["severity"], found[0]["code"]), ("warn", "rate_limited"))
         self.assertEqual(p.conn.execute("SELECT state FROM jobs WHERE scene_id=?", (scene,)).fetchone()["state"], "queued")
 

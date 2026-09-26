@@ -47,11 +47,14 @@ class CostTests(unittest.TestCase):
         self.assertEqual((data["confirm_batch_at"], data["per_image"]), (10, {}))
 
     def test_shipped_template_has_no_invented_prices(self):
-        """per_image (Deepix) has zero public source, so it must stay unfilled. per_video_second may carry
-        approximate USD estimates (2026-09-22, explicit user request), but only values that trace back to the
-        documented public listing (listed_usd_per_video_second) -- never a number invented without a source."""
+        """per_image (Deepix) has no public source: it is unfilled, or the provisional average measured from the web total (2026-09-26,
+        documented in _note_per_image — the only allowed source). per_video_second may carry approximate USD estimates (2026-09-22,
+        explicit user request), but only values that trace back to the documented public listing (listed_usd_per_video_second) --
+        never a number invented without a source."""
         data = cost.load_pricing(cost.DEFAULT_PRICING_PATH)
-        self.assertTrue(all(v is None for v in data["per_image"].values()))
+        self.assertNotIn("_error", data)
+        filled = {v for v in data["per_image"].values() if v is not None}
+        self.assertTrue(not filled or ("_note_per_image" in data and all(str(v) in data["_note_per_image"] for v in filled)))
         listed = set(data.get("listed_usd_per_video_second", {}).values()) - {None}
         self.assertTrue(all(v is None or v in listed for v in data["per_video_second"].values()))
 

@@ -158,6 +158,10 @@ quyết định ở lại hay lướt trong vài giây đầu, nên cảm xúc p
 - **N3. Khớp môi.** Cờ `lip_sync` **TẮT** (mặc định): không đặt thoại ở cận mặt người đang nói — trung/toàn, qua vai, người nói quay nghiêng,
   hoặc câu lên shot người nghe; cận mặt dành cho im lặng (code `storyboard_gate.lip_sync_risk`). Cờ **BẬT**: được thấy mặt người nói; câu
   then chốt quay cận (CU/ECU/MCU, ngang mắt, mặt không che, ≤ 5 s) ghi `"lip_sync": true` (~20% câu quan trọng nhất — đắt hơn).
+  **Quyết định 2026-09-26 (người dùng): không mở tài khoản sync.so** — khớp môi CHỈ bằng cách tạo video kèm giọng (Seedance
+  `reference_audio`, "prompt trực tiếp"). Vì vậy khi cờ bật: câu cần thấy miệng khớp → shot cận thấy mặt người nói + `"lip_sync": true`;
+  các câu khác vẫn theo cách né của N3 (trung/toàn, qua vai, nghiêng, lên shot người nghe) — shot rộng giữ miệng của clip, không có bước
+  khớp môi sau. Code: `lipsync.method_for` không chọn `post` khi không có `SYNC_API_KEY` (cận → `generate`, rộng → `skip`).
 - **N4. Nhân vật đúng thiết kế.** Ảnh chuẩn Kho là chuẩn thật; hồ sơ chuẩn đã duyệt thắng mô tả của dự án; mắt người/ảnh chuẩn là trọng tài
   cuối. **Không ghi số tuổi dưới 18** — nhân vật trẻ tả "young, not yet 20" (2A: GPT Image từ chối "17-year-old"; code `no_minor_age` xoá tuổi).
 - **N5. Thể loại quyết định logic dựng.** SHORT_FORM: móc trong 1–3 s đầu (Đ2), mật độ cao, kết có chốt; kịch/phim: nhân quả, khoảng lặng.

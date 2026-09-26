@@ -336,7 +336,8 @@ def _row(conn, r, images_by_asset: Optional[Dict] = None) -> Dict:
     images = [i for i in images if i.get("status") != "pending"]            # G2: only pictures a person approved are used
     return {"id": r["id"], "game": r["game"], "kind": r["kind"], "kind_label": KINDS.get(r["kind"], r["kind"]), "name": r["name"],
             "aliases": r["aliases"] or "", "description": r["description"] or "", "project_id": r["project_id"],
-            "created_by": r["created_by"], "images": [i for i in images if os.path.exists(i["path"])], "pending": pending}
+            "created_by": r["created_by"], "images": [i for i in images if os.path.exists(i["path"])], "pending": pending,
+            "missing": [i["path"] for i in images if not os.path.exists(i["path"])]}   # approved pictures whose file is gone (said, luật 1)
 
 
 def get(conn, asset_id: int) -> Optional[Dict]:
@@ -748,6 +749,35 @@ def location_text(conn, place: Dict) -> str:
     if light and not light.startswith("3D render"):
         bits.append(f"Light: {light[:120]}")
     return ". ".join(bits) + "."
+
+
+def gap_severity(gap: str) -> str:
+    """A library picture whose file is gone is a fault (warn); a character that simply has no picture was already warned about at the
+    Bible gate (autopilot / the Gen ảnh button), so each job only notes it (info) instead of turning every stage yellow."""
+    return "warn" if "mất file" in gap else "info"
+
+
+def reference_gaps(conn, project_id: int, scene: Dict) -> List[str]:
+    """Luật 1 at generation time: what the picture of this shot will be drawn WITHOUT — a character with no reference picture (drawn from
+    words), library pictures whose file is gone. Vietnamese sentences for the job's diag; empty = nothing missing."""
+    names = [str(n) for n in scene.get("characters") or []]
+    if not names:
+        return []
+    from . import looks
+    proj = conn.execute("SELECT * FROM projects WHERE id=?", (project_id,)).fetchone()
+    scene = dict(scene, _look=looks.asset_look(proj)) if proj is not None else scene
+    linked = link_characters(conn, project_id, names, scene)
+    saved = _reference_rows(conn, project_id)
+    out = []
+    for name in dict.fromkeys(names):
+        a = linked.get(name)
+        if a is None and not outfit_images(conn, project_id, name):
+            why = " (bạn chọn không dùng ảnh)" if (saved.get(name) or {}).get("ref_asset_id") == 0 else ""
+            out.append(f"nhân vật {name} không có ảnh tham chiếu{why} — vẽ theo chữ, dễ lệch thiết kế")
+        elif a is not None and a.get("missing"):
+            out.append(f"ảnh tài nguyên của {name} mất file ({len(a['missing'])} ảnh: "
+                       + ", ".join(os.path.basename(x) for x in a["missing"][:3]) + ") — bỏ qua, chỉ gửi ảnh còn lại")
+    return out
 
 
 def scene_references(conn, project_id: int, scene: Dict, limit: int = MAX_REFERENCES, reserve: int = 0,

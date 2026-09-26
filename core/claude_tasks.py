@@ -331,12 +331,15 @@ def last_set_check(data_dir: str, project_id: int) -> Optional[Dict]:
 
 
 def redo_from_set_check(p: Pipeline, project_id: int, idx: int, fix: str) -> None:
-    """Regenerate the approved picture of scene idx with the fix sentence (the person pressed 'gen lại')."""
+    """Regenerate the approved picture of scene idx with the fix sentence (the person pressed 'gen lại'). The model gets only the
+    English fix (the QC's `fix`), never the Vietnamese note; without a fix it would be the same input again — refused (luật 6)."""
+    if not (fix or "").strip():
+        raise ValueError(f"cảnh {idx}: QC đồng bộ không nêu câu sửa — gen lại sẽ gửi y hệt đầu vào; sửa prompt ảnh ở Bước 1 trước")
     row = p.conn.execute("SELECT j.id FROM jobs j JOIN scenes s ON s.id=j.scene_id WHERE s.project_id=? AND s.idx=?"
                          " AND j.type='image_gen' AND j.state='approved' ORDER BY j.id DESC LIMIT 1", (project_id, idx)).fetchone()
     if row is None:
         raise ValueError(f"cảnh {idx} không có ảnh đã duyệt")
-    p.reopen_approved(row["id"], f"Đồng bộ cả bộ: {fix}")
+    p.reopen_approved(row["id"], f"Đồng bộ cả bộ: {fix}", fix=fix.strip())
 
 
 # ---- 5. Character Lock from pictures -----------------------------------------------------------------------------------------

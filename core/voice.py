@@ -210,13 +210,34 @@ def slow_end(text: str) -> str:
     return text if text.endswith(("…", "...")) else text.rstrip(".!?") + ("…" if not text.endswith(("!", "?")) else text[-1] + "…")
 
 
-def generate(conn, project_id: int, provider, data_dir: str, scene_ids=None, ledger=True, slow=None) -> Dict:
-    """Voice every line that has no voice yet (or whose text / voice changed). Returns {"sent", "skipped", "no_voice": [speakers]}.
-    slow: scene ids whose lines are sent with a trailing "…" (a redo of a line whose end was cut)."""
+MAX_RESENDS = 2          # luật 6: a failed line is sent again unchanged at most twice, and only after a provider / transient failure
+
+
+def resend_block(entry: Dict, by_person: bool = False) -> Optional[str]:
+    """Why a FAILED line must not be sent again unchanged now (Vietnamese), else None. A line refused by the spending cap was never
+    sent (free to try again); a provider / transient failure is resent at most MAX_RESENDS times (count kept on the item); any other
+    failure (e.g. the provider refused the request itself) needs a changed input. The person's own click may resend (counted)."""
+    if entry.get("refused"):
+        return None
+    if by_person:
+        return None
+    provider_side = entry.get("provider_failed") or entry.get("transient") or ("transient" not in entry and "error_code" not in entry)
+    if not provider_side:
+        return f"nhà cung cấp từ chối yêu cầu ({(entry.get('message') or '')[:80]}) — gửi lại y hệt sẽ lại lỗi; sửa câu/giọng rồi tạo lại"
+    if int(entry.get("resends") or 0) >= MAX_RESENDS:
+        return f"đã gửi lại {entry.get('resends')} lần vẫn lỗi (tối đa {MAX_RESENDS}) — {(entry.get('message') or '')[:80]}"
+    return None
+
+
+def generate(conn, project_id: int, provider, data_dir: str, scene_ids=None, ledger=True, slow=None, by_person: bool = False) -> Dict:
+    """Voice every line that has no voice yet (or whose text / voice changed). Returns {"sent", "skipped", "no_voice": [speakers],
+    "held": [why a failed line was not resent]}. slow: scene ids whose lines are sent with a trailing "…" (a redo of a line whose end
+    was cut). A failed line with unchanged text/voice is resent only as `resend_block` allows (the automatic run used to delete and
+    resend it on every tick, uncounted)."""
     from . import features, voice_direction
     directory = audio_lib.assets_dir(data_dir, project_id)
     have = {(e["scene_id"], e.get("line")): (i, e) for i, e in _line_items(directory)}
-    sent, skipped, no_voice = 0, 0, set()
+    sent, skipped, no_voice, held = 0, 0, set(), []
     for ln in planned_lines(conn, project_id):
         if scene_ids is not None and ln["scene_id"] not in scene_ids:
             continue
@@ -226,6 +247,7 @@ def generate(conn, project_id: int, provider, data_dir: str, scene_ids=None, led
         model = vi_model(ln["voice"].get("model"))
         how = ln.get("delivery") if features.on("voice_direction") else None   # GĐ4: the Director's direction of the line
         old = have.get((ln["scene_id"], ln["line"]))
+        resends = 0
         if old is not None:
             i, e = old
             same = (e.get("text") == ln["text"] and e.get("voice_id") == ln["voice"]["voice_id"]
@@ -233,10 +255,16 @@ def generate(conn, project_id: int, provider, data_dir: str, scene_ids=None, led
             if same and e["state"] in ("running", "succeeded"):
                 skipped += 1
                 continue
-            audio_lib.remove(directory, i)                  # the line or the voice changed: make it again
+            if same and e["state"] == "failed":
+                why = resend_block(e, by_person)
+                if why:
+                    held.append(f"S{ln['idx']:02d} {ln['speaker'] or ''}: {why}")
+                    continue
+                resends = int(e.get("resends") or 0) + (0 if e.get("refused") else 1)
+            audio_lib.remove(directory, i)                  # the line or the voice changed (or an allowed resend): make it again
             have = {(e2["scene_id"], e2.get("line")): (j, e2) for j, e2 in _line_items(directory)}
         extra = {"scene_id": ln["scene_id"], "scene_idx": ln["idx"], "line": ln["line"], "speaker": ln["speaker"],
-                 "text": ln["text"], "voice_id": ln["voice"]["voice_id"], "dialogue": True}
+                 "text": ln["text"], "voice_id": ln["voice"]["voice_id"], "dialogue": True, "resends": resends}
         said = speakable(ln["text"])
         if slow and ln["scene_id"] in slow:
             said = slow_end(said)
@@ -248,7 +276,7 @@ def generate(conn, project_id: int, provider, data_dir: str, scene_ids=None, led
                              model, None, ledger=(conn, project_id) if ledger else None,
                              extra=extra, params=voice_direction.params(how, model))
         sent += 1
-    return {"sent": sent, "skipped": skipped, "no_voice": sorted(no_voice)}
+    return {"sent": sent, "skipped": skipped, "no_voice": sorted(no_voice), "held": held}
 
 
 def scene_seconds(conn, project_id: int, data_dir: str) -> Dict[int, float]:

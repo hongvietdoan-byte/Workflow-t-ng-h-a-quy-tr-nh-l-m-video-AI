@@ -18,8 +18,10 @@ def step3(p: Pipeline, pid: int):
     with st.container(border=True):
         c1, c2, c3 = st.columns([2.6, 2, 2], vertical_alignment="center")
         todo = len(missing) + len(stale_idx)
-        if c1.button(f"🤖 Viết motion prompt ({len(missing)} chưa có · {len(stale_idx)} đã cũ)", type="primary", key=f"llm_mot_{pid}",
-                     disabled=client is None or not todo, help=None if client else claude_hint()):
+        calls = (1 if missing else 0) + (1 if stale_idx else 0)            # one Claude call per batch (all missing / all outdated)
+        mot_usd = cost.llm_estimate(p.conn, "motion", calls, images=min(todo, 12))
+        if c1.button(f"🤖 Viết motion prompt ({len(missing)} chưa có · {len(stale_idx)} đã cũ){cost.llm_tag(mot_usd, calls)}", type="primary",
+                     key=f"llm_mot_{pid}", disabled=client is None or not todo, help=None if client else claude_hint()):
             def go():
                 r1 = llm_runner.run_motion(p, pid, client, C.DATA) if missing else {"scenes": 0}
                 r2 = llm_runner.run_motion(p, pid, client, C.DATA, only_idx=stale_idx) if stale_idx else {"scenes": 0}
@@ -32,7 +34,8 @@ def step3(p: Pipeline, pid: int):
             for sid in waiting:
                 llm_io.approve_motion_prompt(p, sid)
             st.rerun()
-        if c3.button(f"🔍 Rà motion prompt ({len(rows)})", key=f"lint_{pid}", disabled=client is None or not rows,
+        if c3.button(f"🔍 Rà motion prompt ({len(rows)}){cost.llm_tag(cost.llm_estimate(p.conn, 'motion', 1 if rows else 0), 1 if rows else 0)}",
+                     key=f"lint_{pid}", disabled=client is None or not rows,
                      help="Checklist Seedance Final QC + 4 kiểm tra mơ hồ (tỉ lệ, vị trí, đường máy, thời điểm) cho cảnh phức tạp"):
             with st.spinner("Claude đang rà từng prompt…"):
                 act(lambda: claude_tasks.lint_motion(p, pid, client))
@@ -159,8 +162,10 @@ def voice_panel(p: Pipeline, pid: int) -> None:
         c1, c2, c3 = st.columns(3)
         todo = stat["missing"] + stat.get("failed", 0)
         if c1.button(f"🎙 Tạo giọng cho {todo} câu", key=f"tts_gen_{pid}", type="primary", disabled=provider is None or not todo,
-                     help="Mỗi câu một lần gọi TTS (tốn credit âm thanh). Câu đã có giọng và không đổi thì bỏ qua."):
-            r = voice.generate(p.conn, pid, provider, C.DATA)
+                     help="Mỗi câu một lần gọi TTS (tốn credit âm thanh; âm thanh chưa có giá nên trần đợt thử tính theo số lượt). "
+                          "Câu đã có giọng và không đổi thì bỏ qua. Câu LỖI được gửi lại y nguyên — chỉ có ích khi lỗi do nhà cung cấp; "
+                          "lỗi do câu/giọng thì sửa trước."):
+            r = voice.generate(p.conn, pid, provider, C.DATA, by_person=True)
             st.toast(f"Đã gửi {r['sent']} câu, bỏ qua {r['skipped']}" + (f" · thiếu giọng: {', '.join(r['no_voice'])}" if r["no_voice"] else ""))
             st.rerun()
         if c2.button("⟳ Kiểm tra + tải về", key=f"tts_refresh_{pid}", disabled=provider is None):

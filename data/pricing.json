@@ -19,10 +19,16 @@
     "dreamina-seedance-2-0-260128:720p": 0.15,
     "dreamina-seedance-2-0-260128:1080p": 0.15,
     "dreamina-seedance-2-0-fast-260128:720p": 0.12,
+    "dreamina-seedance-2-0-fast-260128:480p": null,
+    "dreamina-seedance-2-0-fast-260128:1080p": null,
     "dreamina-seedance-2-5-260628:720p": 0.23,
+    "dreamina-seedance-2-5-260628:480p": null,
+    "dreamina-seedance-2-5-260628:1080p": null,
+    "kling-video-o1:4k": null,
     "lipsync-2-pro:post": 0.084,
     "lipsync-2:post": null
   },
+  "_note_null_prices": "2026-09-26: các mức để null = chưa có giá → khi đợt thử ngân sách BẬT, job dùng mức đó bị TỪ CHỐI (không tính là $0). Bộ chọn model ở chế độ 🧪 Thử rẻ chỉ chọn seedance-2-0-fast:720p ($0,12/s) và kling-v3-omni:std ($0,08/s) — đều có giá. Mức null chỉ gặp khi CLIPAI_RESOLUTION khác 720p (Seedance 480p/1080p), model cũ kling-video-o1, hoặc lipsync-2 (không dùng).",
   "per_video_clip": {},
   "per_audio": {
     "music_v2": null,

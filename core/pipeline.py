@@ -30,18 +30,36 @@ def hard_failures(scores: Mapping[str, float], kind: str = "image") -> list:
 
 
 AUTO_RETRY_CAP = 2          # automatic (QC) retries per picture/clip — user decision 2026-09-24; people may retry more by hand
+PLAIN_RESEND = "gửi lại nguyên đầu vào"
+"""retry_reason prefix of a plain resend after a provider failure (same input, nothing to fix): a note for people, NEVER sent to a model
+(core.runner.model_fix). Only provider/transient failures are resent this way — a picture/clip that came out wrong needs a fix."""
 
 
 def _combine_fix(previous: Optional[str], new: str) -> str:
     """The fix sentences for the next try: this QC's issues plus the one before (a fix that worked must not be lost next time)."""
     from .runner import RESEND_NOTE
-    parts = [p for p in (previous or "", new or "") if p and not p.startswith(RESEND_NOTE) and not p.startswith("QC ")]
+    parts = [p for p in (previous or "", new or "") if p and not p.startswith(RESEND_NOTE) and not p.startswith("QC ")
+             and not p.startswith(PLAIN_RESEND)]
     seen, out = set(), []
     for p in parts:
         if p.strip() not in seen:
             seen.add(p.strip())
             out.append(p.strip().rstrip("."))
     return (". Also: ".join(out[-2:]) + ".")[:700] if out else new
+
+def cheap_while_testing(conn, project_id: int) -> bool:
+    """A project made while a budget test round is on (core.budget enabled) starts in the cheap test mode (test_quality = 1: low
+    picture resolution, 720p / Kling std / Seedance Fast clips) — the user: "chỉ cần test hiệu quả". Returns True when switched on."""
+    try:
+        from . import budget
+        if not budget.get(conn)["enabled"]:
+            return False
+        conn.execute("UPDATE projects SET test_quality=1 WHERE id=?", (project_id,))
+        conn.commit()
+        return True
+    except Exception:  # noqa: BLE001 - an old database without the column / settings table keeps the normal mode
+        return False
+
 
 class PipelinePaused(Exception):
     pass
@@ -71,6 +89,7 @@ class Pipeline:
         if game:
             self.conn.execute("UPDATE projects SET game=? WHERE id=?", (game, cur.lastrowid))
         self.conn.commit()
+        cheap_while_testing(self.conn, cur.lastrowid)
         return cur.lastrowid
 
     def set_project_field(self, project_id: int, field: str, value) -> None:
@@ -177,9 +196,10 @@ class Pipeline:
         self.conn.execute("DELETE FROM scenes WHERE id=?", (row["id"],))
         self.conn.commit()
 
-    def reopen_approved(self, job_id: int, note: Optional[str] = None, respawn: bool = True) -> str:
+    def reopen_approved(self, job_id: int, note: Optional[str] = None, respawn: bool = True, fix: Optional[str] = None) -> str:
         """The user changed their mind about an approved IMAGE: reject it and (by default) queue a new one.
-        Videos already made from it are not touched."""
+        Videos already made from it are not touched. `fix`: the words the model gets (English); None = the person's `note` itself,
+        "" = nothing (the input already changed — e.g. the scene was edited — so a Vietnamese system note must not reach the model)."""
         job = self.job(job_id)
         if job["type"] != "image_gen":
             raise ValueError("only approved images can be reopened")
@@ -189,7 +209,7 @@ class Pipeline:
         self.transition(job_id, JobState.REJECTED, actor="user", note=note or "bỏ duyệt")
         if respawn:  # a fresh job, not an automatic retry: a user asking for another take is not capped by max_retry_count
             self._insert_job(job["project_id"], job["scene_id"], "image_gen", parent_job_id=job_id,
-                             retry_count=0, retry_reason=note)
+                             retry_count=0, retry_reason=note if fix is None else (fix.strip() or None))
         return "rejected"
 
     def restart_job(self, job_id: int) -> int:
@@ -300,15 +320,20 @@ class Pipeline:
     def cancel(self, job_id: int, actor: str = "user") -> None:
         self.transition(job_id, JobState.CANCELLED, actor=actor)
 
-    def retry(self, job_id: int, reason: Optional[str] = None) -> Optional[int]:
-        """failed -> retryable -> new queued job (parent link). Returns None if escalated."""
+    def retry(self, job_id: int, reason: Optional[str] = None, fix: Optional[str] = None) -> Optional[int]:
+        """failed -> retryable -> new queued job (parent link). Returns None if escalated.
+        `reason` is for people (job history). Without `fix` this is a plain resend of the same input — honest only after a provider /
+        transient failure — and nothing extra reaches the model (retry_reason = PLAIN_RESEND…); `fix` (English, e.g. the person's
+        own sentence) is what the model gets on the next try."""
         if self.state(job_id) != JobState.FAILED:
             raise InvalidTransition(f"job {job_id} is {self.state(job_id).value}, only failed jobs can be retried")
         if self._retries_exhausted(self.job(job_id)):
             self._escalate(self.job(job_id))
             return None
         self.transition(job_id, JobState.RETRYABLE, note=reason)
-        return self._spawn_retry(job_id, reason, close_old=JobState.CANCELLED)
+        fix = (fix or "").strip()
+        carried = fix or (PLAIN_RESEND + (f" ({reason})" if reason else ""))
+        return self._spawn_retry(job_id, carried, close_old=JobState.CANCELLED)
 
     def resend(self, job_id: int, reason: str) -> int:
         """failed -> retryable -> cancelled, and the SAME attempt queued again (retry count unchanged): the provider never created the

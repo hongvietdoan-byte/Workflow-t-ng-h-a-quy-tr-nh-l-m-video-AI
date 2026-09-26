@@ -31,10 +31,22 @@ shot cận. Khi làm được thì luật "né cận mặt người nói" (N3) c
 - **Sửa lỗi phát hiện khi làm:** `shots.shot_data` chỉ giữ các trường có sẵn → `lip_sync`, `weather`, `plate_spot`, `plate_mode` do Đạo diễn ghi
   bị bỏ; nay được giữ.
 
+## 2b. Quyết định 2026-09-26 — không dùng sync.so
+Người dùng chốt **không mở tài khoản sync.so** ("prompt trực tiếp giúp lip sync được"): khớp môi chỉ đi đường **A** (Seedance tạo clip
+kèm giọng của shot, `reference_audio`). Code:
+- `lipsync.method_for`: không có `SYNC_API_KEY` → không bao giờ chọn `post`; shot lẽ ra `post` mà cận (CU/ECU/MCU) → `generate` (Seedance
+  kèm giọng), rộng hơn → `skip` (giữ miệng của clip). `lipsync.post_available()` = có khóa.
+- Pha autopilot `lipsync`: không có khóa → ghi diag `lipsync_no_post` cho TỪNG shot ("khớp môi sau cần sync.so — không dùng; shot này
+  tạo video kèm giọng / để nguyên"), một lần, không lỗi, không gọi trả tiền. Bước 4 hiện cùng ghi chú.
+- `post_tick` (khi có khóa sau này): tải kết quả về file tạm TRƯỚC rồi mới thay clip (tải lỗi không mất clip), lỗi mạng của sync.so
+  không đưa autopilot vào ERROR (ghi diag), kiểm trần nằm trong `budget.SPEND_LOCK`.
+- Đạo diễn (`prompts.duration_block`): khi không có khóa, dặn đặt câu then chốt ở shot cận + `"lip_sync": true`, các câu khác né theo N3.
+- **Cần thử thật:** đường A với tiếng Việt vẫn chưa thử (mục 3.1).
+
 ## 3. Cần thử thật (GĐ8) và cần người dùng
 1. **A:** 1 shot cận #7 (Kelly "Em hiểu rồi…"), Seedance 2.0, 4 s ≈ **$0,60**: miệng có khớp tiếng Việt không, có đổi nhịp không, nhân vật có
    giữ không.
-2. **B:** cần **tài khoản sync.so có API** (gói từ $5/tháng) + `SYNC_API_KEY` trong `dashboard.env` — người dùng quyết. Thử 1 clip trung ≈
+2. **B:** ~~cần tài khoản sync.so~~ — **người dùng quyết không dùng (2026-09-26)**, xem mục 2b. (Ghi lại để tham khảo:) Thử 1 clip trung ≈
    **$0,34** (4 s).
 3. Tự chấm độ khớp (SyncNet) cần torch — hỏi trước khi tải; tạm thời người xem.
 

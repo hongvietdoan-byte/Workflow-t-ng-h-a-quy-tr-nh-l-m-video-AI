@@ -15,6 +15,11 @@ from .pipeline import Pipeline
 
 SKIP_PROJECT = {"id", "name", "created_at", "created_by", "paused", "autopilot_state", "autopilot_note", "autopilot_beat",
                 "autopilot_log", "autopilot_user", "autopilot_saved_cfg", "pilot"}
+FRESH_BIBLE = {"description": "", "wardrobe": None, "locked": 0, "lock_rules": None, "bible_check": None, "user_edited": None,
+               "anchor_approved": 0}
+"""Character columns reset in a "chạy lại Director" clone: the Director writes a new Bible (an empty description = never written, see
+autopilot._director_phase); the person's choices — voice, reference pictures, outfit, Seedance subject — are kept. The old Lock is not
+copied: the approved library profile (T1, assets.standard_for) still applies by itself, a project Lock is written again."""
 CRITERIA = {"characters": "Nhân vật nhất quán", "setting": "Bối cảnh nhất quán", "rhythm": "Nhịp dựng",
             "ff_feel": "“Chất” Free Fire", "overall": "Tổng thể"}
 
@@ -28,17 +33,26 @@ def clone_project(p: Pipeline, project_id: int, name: str, shot_mode: Optional[s
     with_rows: copy the scene / shot rows (same Director plan) — False keeps only the script scenes (run the Director again)."""
     conn = p.conn
     src = p.project(project_id)
-    cols = [c for c in _cols(conn, "projects") if c not in SKIP_PROJECT]
+    skip = SKIP_PROJECT | ({"director_raw"} if not with_rows else set())    # the old plan must not seed "chia shot lại một cảnh"
+    cols = [c for c in _cols(conn, "projects") if c not in skip]
     values = [src[c] for c in cols]
     if shot_mode != "keep":
         values[cols.index("shot_mode")] = shot_mode
+    if "autopilot_gates" in cols:          # the person's checkpoint switches carry over; the run state (Bible approved…) does not
+        try:
+            gates = json.loads(src["autopilot_gates"] or "{}")
+        except ValueError:
+            gates = {}
+        values[cols.index("autopilot_gates")] = json.dumps({k: v for k, v in gates.items() if k in ("bible", "pilot", "storyboard")}) \
+            if gates else None
     cur = conn.execute(f"INSERT INTO projects (name, created_at, created_by, {', '.join(cols)}) VALUES (?, datetime('now'), ?, "
                        + ", ".join("?" for _ in cols) + ")", [name, p.actor] + values)
     new = cur.lastrowid
     ccols = [c for c in _cols(conn, "characters") if c not in ("id", "project_id")]
+    fresh = {} if with_rows else FRESH_BIBLE        # "chạy lại Director": a fresh Bible (T1 standard profiles still apply from the Kho)
     for r in conn.execute("SELECT * FROM characters WHERE project_id=?", (project_id,)).fetchall():
         conn.execute(f"INSERT INTO characters (project_id, {', '.join(ccols)}) VALUES (?, " + ", ".join("?" for _ in ccols) + ")",
-                     [new] + [r[c] for c in ccols])
+                     [new] + [fresh[c] if c in fresh else r[c] for c in ccols])
     conn.execute("INSERT INTO project_assets (project_id, asset_id) SELECT ?, asset_id FROM project_assets WHERE project_id=?",
                  (new, project_id))
     conn.execute("INSERT INTO story_scenes (project_id, idx, heading, text, data) SELECT ?, idx, heading, text, data"
@@ -53,6 +67,8 @@ def clone_project(p: Pipeline, project_id: int, name: str, shot_mode: Optional[s
                          (new, s["idx"], s["heading"], json.dumps({"text": s["text"], "characters": s["data"].get("characters") or []},
                                                                   ensure_ascii=False)))
     conn.commit()
+    from .pipeline import cheap_while_testing
+    cheap_while_testing(conn, new)          # a copy made during a budget test round is cheap too
     return new
 
 

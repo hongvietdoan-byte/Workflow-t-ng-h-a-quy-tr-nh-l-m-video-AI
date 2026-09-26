@@ -159,8 +159,10 @@ def settings_menu(p: Pipeline, pid) -> None:
                 st.rerun()
             if st.button("🗒 Lịch sử & thùng rác", key="settings_history", width="stretch"):
                 open_dialog("dlg_history")
-            cheap = st.checkbox("🧪 Thử rẻ (720p · Kling std · Seedance 2.0/2.5 → Fast)", bool(proj["test_quality"]), key=f"cheap_{pid}",
-                                help="Cho đợt thử nghiệm: không gen 1080p, dùng bản rẻ hơn của model. Tắt khi làm video thật.")
+            cheap = st.checkbox("🧪 Thử rẻ (ảnh cỡ nhỏ nhất · 720p · Kling std · Seedance 2.0/2.5 → Fast)", bool(proj["test_quality"]),
+                                key=f"cheap_{pid}",
+                                help="Cho đợt thử nghiệm: ảnh ở kích thước nhỏ nhất model Deepix nhận cho khung dự án, không gen 1080p, dùng "
+                                     "bản rẻ hơn của model video. Dự án tạo khi đợt thử ngân sách đang bật tự bật chế độ này. Tắt khi làm video thật.")
             if cheap != bool(proj["test_quality"]):
                 p.set_project_field(pid, "test_quality", 1 if cheap else 0)
                 st.rerun()
@@ -286,10 +288,11 @@ def _dialog_budget(p: Pipeline) -> None:
             st.caption("Chưa có giá cho: " + ", ".join(s["unknown"]) + " (không tính vào tổng).")
     else:
         st.markdown("**Đang tắt** — không giới hạn chi (dùng cho làm video thật).")
-    st.caption("Giá theo bảng giá (ước tính từ slide ClipAI, chưa đo thật). Nhà cung cấp giả lập không tính. Việc vượt trần được giữ "
-               "trong hàng đợi và báo lý do ở 📊 Theo dõi.")
+    st.caption("Giá theo bảng giá (ước tính từ slide ClipAI, chưa đo thật; ảnh Deepix giá tạm). Nhà cung cấp giả lập không tính. Việc "
+               "vượt trần được giữ trong hàng đợi và báo lý do ở 📊 Theo dõi. Khi đợt thử bật: model/mức chưa có giá bị TỪ CHỐI (không "
+               "tính là \\$0); âm thanh chưa có giá nên chỉ giới hạn theo số lượt; dự án mới tự bật 🧪 Thử rẻ.")
     usd = st.number_input("Trần (USD)", 1.0, 1000.0, float(s["usd"]), 5.0, key="budget_usd")
-    cap = st.number_input("Tối đa số ảnh Deepix (chưa có giá)", 0, 1000, int(s["image_cap"]), 10, key="budget_imgs")
+    cap = st.number_input("Tối đa số ảnh Deepix (ảnh có giá tạm — cũng tính vào trần USD)", 0, 1000, int(s["image_cap"]), 10, key="budget_imgs")
     acap = st.number_input("Tối đa số âm thanh — giọng/nhạc/SFX (chưa có giá)", 0, 5000, int(s["audio_cap"]), 50, key="budget_audio")
     c1, c2 = st.columns(2)
     if c1.button("▶ Bắt đầu đợt thử (tính từ bây giờ)", key="budget_start", type="primary"):
@@ -457,6 +460,12 @@ def status_line(p: Pipeline, pid: int) -> None:
     spend = C.spend_text(p, pid)
     if spend:
         bits.append("💵 " + spend)
+    proj = p.project(pid) if pid is not None else None
+    if proj is not None and "test_quality" in proj.keys() and proj["test_quality"]:
+        bits.append("🧪 Thử rẻ: ảnh cỡ nhỏ nhất · video 720p / Kling std / Seedance Fast")
+    broken = cost.load_pricing().get("_error")
+    if broken:                                          # luật 1: a broken price table stops every paid send — say it everywhere
+        bits.append(f"🔴 {escape(broken)} — mọi job trả tiền bị chặn")
     ap = autopilot.status(p, pid)
     if ap["state"] in ("running", "queued", "waiting"):
         bits.append(f"🚀 Tự động: {ap['note']}")

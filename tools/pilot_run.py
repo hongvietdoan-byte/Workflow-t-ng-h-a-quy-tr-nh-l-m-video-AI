@@ -141,7 +141,7 @@ def main(argv=None) -> int:
             return 1
         if job["type"] == "video_gen":
             from core import regen
-            new = regen.regenerate_video(p, data_dir, jid, fix)
+            new = regen.regenerate_video(p, data_dir, jid, "gen lại có chủ đích (phiên vận hành)", fix=fix)
         elif job["state"] == "failed":
             new = p.resend(jid, fix)                     # the provider refused: same attempt again with the changed input
         else:

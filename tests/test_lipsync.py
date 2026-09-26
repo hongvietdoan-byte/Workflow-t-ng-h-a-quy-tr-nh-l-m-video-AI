@@ -23,9 +23,12 @@ def shot(size="CU", speaker="KELLY", cast=("KELLY",), **extra):
 
 class MethodTests(unittest.TestCase):
     def test_which_shots_get_their_mouth_matched_and_how(self):
-        self.assertEqual(lipsync.method_for(shot()), "post")
+        self.assertEqual(lipsync.method_for(shot(), post_ok=True), "post")                        # with a sync.so key
         self.assertEqual(lipsync.method_for(shot(lip_sync=True)), "generate")                     # a marked close-up
-        self.assertEqual(lipsync.method_for(shot("MS", lip_sync=True)), "post")                   # marked but not close: post
+        self.assertEqual(lipsync.method_for(shot("MS", lip_sync=True), post_ok=True), "post")     # marked but not close: post
+        with mock.patch.dict(os.environ, {"SYNC_API_KEY": ""}):                                 # 2026-09-26: no sync.so account
+            self.assertEqual(lipsync.method_for(shot()), "generate")                              # close: made with the voice
+            self.assertEqual(lipsync.method_for(shot("MS", lip_sync=True)), "skip")               # wider: keeps its own mouth
         self.assertEqual(lipsync.method_for(shot(speaker="KENTA")), "skip")                       # the speaker is off screen
         self.assertEqual(lipsync.method_for(shot("EWS")), "skip")
         self.assertEqual(lipsync.method_for(shot(start_frame="Kelly with her back to camera")), "skip")
