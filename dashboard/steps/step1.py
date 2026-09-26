@@ -1138,6 +1138,8 @@ def _crew_notes(p: Pipeline, pid: int) -> None:
         st.caption("🧭 Liền mạch: " + " · ".join(escape(w) for w in r["continuity"]))
     if r.get("acting"):
         st.caption("🎭 Diễn xuất: " + " · ".join(escape(w) for w in r["acting"]))
+    if r.get("sound"):
+        st.caption("🔊 Âm thanh: " + " · ".join(escape(w) for w in r["sound"]))
     if r.get("script_notes"):
         with st.expander(f"📝 Ghi chú kịch bản của Đạo diễn cho người viết ({len(r['script_notes'])}) — chỉ đề xuất, thoại không bị sửa"):
             st.markdown("\n".join(f"- Cảnh {n.get('scene', '?')}"

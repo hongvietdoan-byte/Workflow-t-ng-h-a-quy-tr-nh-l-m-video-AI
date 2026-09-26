@@ -265,3 +265,12 @@ Phần lớn việc còn lại trong `TODO.md` (mục "Đang làm/kế tiếp", 
 - Bài học code: chèn hàm mới ngay trước `def X(` có thể nằm DƯỚI decorator của X (đã làm hỏng delivery.render, test không bắt vì không có test dựng thật) → luôn xem dòng trên `def`, và có test chạy thật đường chính.
 - Chờ người dùng: duyệt 3 bộ kỹ năng → film_crew; mức hạ nhạc DUCK đo 14,5–22,8 dB (khuyên 6–10); thư viện chưa có âm đêm/sương/tuyết.
 **Source**: phiên 2026-09-25, commit e0c82ad…61f98e6.
+
+## 2026-09-26 — 2 tài liệu tham khảo vào Đạo diễn (Đợt 9)
+**Context**: người dùng gửi PDF "Free Fire In-Game Visual Replication Plan v1.0" + Google Doc "AI Director's Master Handbook".
+**Finding**:
+- Người dùng chốt: PDF (và tư liệu gameplay sau này) **chỉ để AI hiểu gameplay FF trông thế nào** khi biên đạo/viết prompt — KHÔNG quay đủ video cho từng cảnh để ghép. → `knowledge/ff_gameplay_visual.md`, Director đọc mọi dự án; look FF_INGAME gỡ chữ tả thực khỏi prompt ảnh/video (`looks.clean_prompt`, báo 📊).
+- Handbook là bản trả lời chatbot (không nguồn; bảng "30 s" cộng lại 13 s) → chỉ lấy 4 ý: âm thanh quyết cùng cảm xúc (trường shot `sound`, director.md Đ9), phản ứng trước–nguyên nhân sau (Đ3), giữ shot 2–4 s sau khoảnh khắc mạnh + móc nhỏ giữa video (Đ2). Nhạc theo `sound` sau cờ `sound_intent` TẮT; đã dựng thật bằng ffmpeg xác nhận đoạn cut→in im lặng.
+- Bài học công cụ: dán script Python có tiếng Việt qua stdin/heredoc làm hỏng escape (`\b`, `\1`, `\n` thành ký tự điều khiển) → sửa code có regex/tiếng Việt bằng Edit hoặc file script, rồi grep ký tự điều khiển. Máy này không có pdftoppm: tách ảnh PDF bằng node (ASCII85 + DCTDecode).
+- Chưa thử thật: Director có viết `sound` hợp lý không; nghe bản dựng nhạc ngắt theo shot (→ quyết bật cờ); ảnh FF_INGAME sau khi gỡ chữ có bớt "PUBG" không.
+**Source**: phiên 2026-09-26.

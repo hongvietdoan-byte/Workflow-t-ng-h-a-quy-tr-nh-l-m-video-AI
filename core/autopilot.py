@@ -773,6 +773,9 @@ def _sfx_phase(p: Pipeline, pid: int, ctx: Context) -> Optional[str]:
         chosen = [{"id": c["id"], "at": c["at"], "volume": c["volume"]} for c in plan["cues"]]
         added = sfx_plan.apply(p, ctx.data_dir, pid, chosen) if chosen else 0
         _log(p, pid, (f"Hiệu ứng âm thanh: thêm {added} — " if added else "Hiệu ứng âm thanh: không thêm — ") + (plan["summary"] or "AI thấy không cần")[:160])
+        if plan.get("unmet"):                 # director.md Đ9: a sound the Director asked for that the library could not give
+            _d(p, pid, "music", "warn", ("Âm Đạo diễn yêu cầu mà chưa đặt được: " + "; ".join(
+                f"shot {u['idx']}: {', '.join(u['sfx'])}" for u in plan["unmet"]))[:400], "sfx_unmet")
     except sfx_plan.SfxPlanError as e:
         if e.not_ready:
             _log(p, pid, "Hiệu ứng âm thanh: bỏ qua (kho chưa được nghe/nhận dạng nên không tự chọn để tránh nhầm)")

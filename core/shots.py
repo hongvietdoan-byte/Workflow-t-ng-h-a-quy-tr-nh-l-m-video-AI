@@ -208,6 +208,10 @@ def shot_data(scene: Dict, s: Dict, k: int) -> Dict:
         data["why"] = s["why"].strip()
     if isinstance(s.get("motif"), str) and s["motif"].strip():
         data["motif"] = s["motif"].strip()[:60]           # director.md Đ3: a short tag the shots that rhyme share
+    from . import sound_intent
+    sound, _ = sound_intent.clean(s.get("sound"))
+    if sound:
+        data["sound"] = sound                             # director.md Đ9: music cut/in/breath + the sounds the moment needs
     lens = s.get("lens_mm")
     if isinstance(lens, (int, float)) and not isinstance(lens, bool) and 14 <= lens <= 200:
         data["lens_mm"] = int(round(lens))

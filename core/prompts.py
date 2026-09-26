@@ -191,6 +191,7 @@ def build_director_bundle(pipeline: Pipeline, project_id: int, only_scene: Optio
         _read("prompts", "01_director_scene_analysis.md"),
         project_frame_block(pipeline, project_id),
         looks.director_note(proj),
+        _read("knowledge", "ff_gameplay_visual.md"),   # what Free Fire gameplay really looks like (reference, not footage to cut in)
         keep("cinematography_basics.md"),
         keep("genre_guides.md"),
         knowledge.genre_text(proj["genre"] if "genre" in proj.keys() else None),
@@ -424,7 +425,7 @@ def build_motion_bundle(pipeline: Pipeline, project_id: int, only_missing: bool 
     complexity_known = any(s.get("camera_complexity") for s in scenes)
     any_complex = any(s.get("camera_complexity") == "complex" for s in scenes)
     uses_seedance = any("seedance" in (s.get("video_model") or "") for s in scenes) or video_family(pipeline, project_id) == "seedance"
-    parts = [_read("prompts", "03_video_motion.md")]
+    parts = [_read("prompts", "03_video_motion.md"), looks.motion_note(pipeline.project(project_id))]
     for rel in ("video_motion_vocab.md", "research_notes.md", "t2v_prompt_structure.md"):
         if f"knowledge/{rel}" not in folded:
             parts.append(_read("knowledge", rel))
@@ -450,5 +451,5 @@ def build_motion_bundle(pipeline: Pipeline, project_id: int, only_missing: bool 
     if wb:
         parts.append(wb)
     extra = knowledge.user_text("motion")
-    return _SEP.join(parts + ([extra] if extra else [])) + CACHE_BREAK + (       # rules repeat between batches (C2)
+    return _SEP.join([x for x in parts if x] + ([extra] if extra else [])) + CACHE_BREAK + (       # rules repeat between batches (C2)
         "# Cảnh đã có ảnh được duyệt\n```json\n" + json.dumps(payload, ensure_ascii=False, indent=2) + "\n```")

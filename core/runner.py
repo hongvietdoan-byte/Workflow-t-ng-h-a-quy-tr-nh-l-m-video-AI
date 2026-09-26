@@ -571,7 +571,12 @@ class VideoRunner(_Runner):
                                                       for r, s in zip(group, secs)]))
         if job["retry_reason"] and not job["retry_reason"].startswith(RESEND_NOTE):
             motion = f"{motion} Fix: {job['retry_reason']}"      # W3: a retry sends the QC's fix, never the very same input again
-        args = (path, motion, mp["negative_prompt"], duration, model)
+        from . import looks
+        motion, removed = looks.clean_prompt(proj, motion)       # ff_gameplay_visual.md: no realism words in an in-game project
+        if removed:
+            self._diag(job, "info", "look_words_removed",
+                       "look in-game Free Fire: đã gỡ chữ kéo về tả thực khỏi prompt video — " + ", ".join(removed))
+        args = (path, motion, looks.video_negative(proj, mp["negative_prompt"]), duration, model)
         subj_refs = []
         if proj["use_subjects"] and "seedance" in (model or ""):
             subj_refs = subject_links.usable_for_scene(self.p, job["scene_id"], subject_links.reference_cap(model))
@@ -875,6 +880,12 @@ class ImageRunner(_Runner):
         prompt = data.get("image_prompt")
         if not prompt:
             return None
+        from . import looks
+        cleaned, removed = looks.clean_prompt(self.p.project(job["project_id"]), prompt)
+        if removed:                                    # ff_gameplay_visual.md: these words pull the picture towards a realistic shooter
+            self._diag(job, "info", "look_words_removed",
+                       "look in-game Free Fire: đã gỡ chữ kéo về tả thực khỏi prompt ảnh — " + ", ".join(removed))
+            data["image_prompt"] = prompt = cleaned
         plate = self._plate(job)
         if plate is not None:
             return self._green_args(job, data, plate)

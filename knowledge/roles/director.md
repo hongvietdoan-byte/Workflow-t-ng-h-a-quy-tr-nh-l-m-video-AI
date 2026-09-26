@@ -15,7 +15,8 @@ quyết định ở lại hay lướt trong vài giây đầu, nên cảm xúc p
 1. **Đọc như người xem lần đầu, rồi đọc như đạo diễn** (Đ1): mỗi cảnh ai muốn gì, cái gì cản, giá trị đổi từ đâu sang đâu; câu nào gieo, câu nào gặt.
 2. **Vẽ đường cảm xúc cả video** (Đ2): móc câu, leo thang, chỗ thở, đỉnh, cú chốt — mỗi cảnh một nhịp rõ.
 3. **Chọn cách kể bằng hình** (Đ3): người xem biết nhiều hay ít hơn nhân vật; hình ảnh lặp lại; ánh sáng/thời tiết nào mang cảm xúc.
-4. **Chỉ đạo diễn xuất và giọng** (Đ4, Đ5): mỗi shot có người → `performance`; mỗi câu thoại → `delivery`.
+4. **Chỉ đạo diễn xuất, giọng và âm thanh** (Đ4, Đ5, Đ9): mỗi shot có người → `performance`; mỗi câu thoại → `delivery`; khoảnh khắc
+   mà âm thanh mang cảm xúc → `sound`.
 5. **Đặt vào ràng buộc sản xuất** (Đ7: N1–N5) và bối cảnh (Đ8), giao Quay phim chia shot (họ ghi `why` cho từng shot).
 6. **Tự rà** (tầng 5); ghi `tradeoffs` khi phải hy sinh; ghi `script_notes` khi thấy kịch bản còn yếu (chỉ đề xuất).
 
@@ -45,10 +46,18 @@ quyết định ở lại hay lướt trong vài giây đầu, nên cảm xúc p
   - **Video ngắn:** TikTok (số đo trên quảng cáo) khuyên đưa ý chính trong 3 s đầu, móc câu trong 6 s đầu, cấu trúc móc → thân → chốt, đổi
     cảnh nhanh hơn ở phần đầu [Đ16][Đ17]. YouTube Shorts đo "xem hay lướt qua" — thước đo trực tiếp của móc câu [Đ18]. **Vòng lặp (loop)
     chưa có nguồn chính thức** → chỉ là giả thuyết, không bắt buộc.
+  - **Giữ cho người xem thấm.** Cảm xúc cần thời gian để "rơi xuống": ngay tại hoặc ngay sau khoảnh khắc mạnh, một shot 2–4 s trên mặt /
+    phản ứng (Handbook gọi là *anchor shot* [Đ31]; Murch đặt cảm xúc lên đầu thứ tự của điểm cắt [Đ12]). Cắt đi ngay thì người xem mới
+    *biết* chứ chưa *cảm*. Ngoại lệ có chủ đích: pha hành động dồn dập — ghi lý do trong `why`.
+  - **Móc nhỏ giữa video.** Móc đầu giữ người xem 3 giây; giữa video họ vẫn có thể lướt đi. Với video > ~20 s, mỗi đoạn ~10–15 s kết bằng
+    một chi tiết **dở dang** (câu bị ngắt, tay chạm vào vật, ánh mắt nhìn ra ngoài khung) để câu hỏi mới mở ra trước khi câu cũ được trả lời
+    [Đ31]; đỉnh cuối có thể cắt ngay ở đỉnh. Mốc 10–15 s là của một tài liệu tham khảo, chưa đo trên video FF — giả thuyết, đo dần.
 - **Trong pipeline.** Shot `role: "hook"` trong **1–3 s đầu** (mốc nội bộ của dự án — giả thuyết, đo dần; số chính thức TikTok: ý chính ≤ 3 s,
   móc ≤ 6 s); `performance.intensity` của các shot là **đường cảm xúc** — độ mạnh của khoảnh khắc trong truyện (lên xuống, đỉnh 1–2 lần);
   `duration_s`: nhịp nhanh = shot ngắn ở cao trào, chỗ thở = shot dài hơn, ít thoại.
-- **Kiểm.** Code (`core/performance.py`): cường độ 5 quá 2 lần → "đỉnh mất giá"; ≥ 6 shot **liền nhau** cùng cường độ → "đường phẳng". Bàn đo
+- **Kiểm.** Code (`core/performance.py`): cường độ 5 quá 2 lần → "đỉnh mất giá"; ≥ 6 shot **liền nhau** cùng cường độ → "đường phẳng";
+  chuỗi shot cường độ ≥ 4 mà cả chuỗi lẫn shot ngay sau không có shot nào ≥ 2 s → "chưa kịp thấm". Móc nhỏ giữa video: chưa kiểm bằng code
+  (code không biết chi tiết nào là "dở dang") — người xem bản dựng thô. Bàn đo
   Director: thời lượng từng phần so với mốc giây kịch bản. Người xem: bản dựng thô (animatic) có "kéo" được không.
 - **Ví dụ FF.** ✔ #6 mở bằng cận mắt đỏ, nước mắt rơi, im lặng (0–3 s) — câu hỏi "vì sao cô khóc?" giữ người xem. 519 shot FF đo được:
   13/19 video mở bằng móc 1–3 s, 19/19 kết bằng shot chốt (`ff_directing.md`). ✘ Mở cảnh bằng shot thiết lập 0,5 s theo thói quen (lần chạy 4).
@@ -57,6 +66,10 @@ quyết định ở lại hay lướt trong vài giây đầu, nên cảm xúc p
 - **Làm gì · vì sao.** Cho thấy thay vì kể: nghĩa sinh ra khi **đặt hai hình cạnh nhau**, nên mỗi shot mang **một** thông tin rõ (Mamet [Đ4]).
   - **Ai biết gì:** người xem biết trước nhân vật → **hồi hộp** (quả bom dưới gầm bàn của Hitchcock [Đ7]); biết cùng lúc → căng; biết sau →
     **bất ngờ**. Chọn có chủ đích cho từng cảnh.
+  - **Phản ứng trước, nguyên nhân sau** — một cách làm cụ thể của "biết sau": cho thấy mặt nhân vật sững lại / hoảng lên trước, rồi mới
+    cắt sang cái họ thấy [Đ31]. Người xem thấy phản ứng mà chưa thấy lý do → tự đặt câu hỏi, và câu hỏi giữ họ lại; thấy lý do trước thì
+    họ chỉ xác nhận. Giới hạn: nguyên nhân phải lộ ngay shot kế (≤ 2 s) — để lâu thành rối. Thứ tự thường ngày (hành động → phản ứng) vẫn
+    đúng khi muốn người xem *đồng cảm* với phản ứng (đã biết chuyện, giờ xem nhân vật đón nhận).
   - **Motif:** một hình ảnh lặp lại và biến tấu (McKee gọi là hệ hình ảnh [Đ5]) — cảnh mở và cảnh kết "vần" với nhau.
   - **Thời tiết, ánh sáng:** mưa khi buồn là cách dễ đoán nhất nên dễ sáo (Ruskin gọi việc gán cảm xúc cho thiên nhiên là "pathetic
     fallacy" [Đ10]). Dùng khi có lý do trong truyện (thời tiết cản mục tiêu), khi đối lập (trời đẹp giữa mất mát), hoặc khi nó **đổi** ở một
@@ -150,6 +163,26 @@ quyết định ở lại hay lướt trong vài giây đầu, nên cảm xúc p
   cloudy, fog, rain, storm, snow, snowfall, ice, sandstorm), `time` của cảnh (dawn, day, dusk, night). Tên lạ bị đổi về mặc định **và báo lại**.
 - **Kiểm.** Code: `weather_problem`, `spot_problem` trong kế hoạch nền; điểm giống nền (`plate_qc`).
 
+### Đ9. Âm thanh cùng cảm xúc (`sound`) — 2026-09-26
+- **Làm gì · vì sao.** Âm thanh là một nửa của cảm xúc và là sợi chỉ nối các clip AI rời rạc, nên quyết **cùng lúc với hình**, không để
+  hậu kỳ đoán. Bảng phân cảnh mẫu của Handbook [Đ31] ghi âm thanh cạnh cảm xúc ở *từng* shot: nhạc tắt đột ngột khi khẩu súng xuất hiện,
+  bỏ nhạc lúc phe ác tưởng đã thắng, tắt hết tiếng ở đỉnh. Trước đây pipeline chỉ có Đạo diễn vẽ hình; người làm âm thanh (`sfx_plan`)
+  tự đoán điểm nhấn từ chữ kịch bản, còn khoảng lặng nhạc duy nhất (D6) chỉ đặt trước phần TWIST.
+  - **Im lặng là công cụ mạnh nhất:** tắt nhạc thì âm nhỏ nhất (bước chân, tiếng lên đạn, hơi thở) thành to — dùng khi mối đe dọa xuất
+    hiện, lúc bình yên giả tạo, ngay trước điều bị lộ. **Lặng ngắn trước cú ngoặt** để cú đánh rơi đúng (D6, editing.md E4). Nhạc **vào
+    lại** khi thế trận lật.
+  - **Âm của cơ thể và vật** (tiếng thở dồn, nuốt nước bọt, sột soạt vải, tiếng bíp) làm cảm xúc gai góc hơn nhạc — chỉ vài âm, đúng khoảnh khắc.
+  - Tự hỏi hai chiều: tắt tiếng đi hình còn kể được không (tầng 5) — **và bật tiếng lên, âm thanh có đẩy thêm được gì không**.
+- **Trong pipeline.** Shot (tùy chọn, chỉ nơi cần): `"sound": {"music": "keep|cut|in|breath", "sfx": ["…"], "why": "…"}` (`core/sound_intent.py`).
+  `cut` nhạc tắt từ đầu shot tới shot `in`; `breath` lặng 0,6 s ngay trước shot; `sfx` ≤ 3 âm. Người làm âm thanh (`sfx_plan`) nhận ý đồ
+  này, **phải** đặt các âm được yêu cầu hoặc nói kho thiếu âm nào (Bước 5 🔊 + autopilot ghi cảnh báo). Nhạc theo `cut/in/breath` vào
+  bản dựng khi cờ `sound_intent` BẬT (TẮT tới khi nghe thử); tắt thì manifest bản dựng ghi số ý đồ chưa áp. J-cut/L-cut của thoại vẫn là
+  việc của Dựng (cờ `j_cut`; L-cut = đặt câu lên shot người nghe, N3).
+- **Kiểm.** Code (`sound_intent.warnings`, Bước 1 🔊 + bàn đo): `in` khi nhạc đang có, `cut` khi nhạc đã tắt, `breath` ở shot đầu, nhạc tắt
+  quá nửa phim (quên `in`), đỉnh cảm xúc cường độ 5 mà âm thanh không có ý đồ. Người nghe: bản dựng có tiếng.
+- **Ví dụ FF** (minh họa, chưa chạy thật). ✔ #6 cảnh Kelly nghe lỏm "không được để cô ấy biết": shot mặt Kelly `{"music": "cut", "sfx": ["held breath"], "why": "im
+  lặng để câu nghe lỏm rơi nặng"}`, nhạc `in` lại ở cảnh Kelly bỏ đi. ✘ Rải `cut` ở nhiều shot liền → nhạc bật tắt liên tục, mất tác dụng.
+
 ## Tầng 4 — Thứ tự ưu tiên khi luật xung đột (người dùng chốt 2026-09-25; chỉnh dần theo dữ liệu)
 **Luật cứng, đứng ngoài thang** (code kiểm, không thương lượng): giới hạn model, trần tiền, không tuổi < 18 — chọn cách khác bên trong chúng.
 Thang chung của cả tổ: `README.md`.
@@ -167,4 +200,6 @@ câu thoại / lệch khung thời lượng / shot thiếu thời gian nói mà 
 - Mỗi cảnh giá trị đổi từ đâu sang đâu? Có cảnh nào đứng yên?
 - Mỗi câu thoại còn lý do để được nói, còn câu nào đáp lại nó không? Câu gieo nào sắp bị mất?
 - Shot có người nào thiếu `performance`? Có chỗ nào cả khung cùng một cảm xúc, hay đỉnh cảm xúc lặp lại quá 2 lần?
+- Sau khoảnh khắc mạnh, người xem có một shot để thấm không? Giữa video có chi tiết dở dang nào kéo người xem sang đoạn sau không?
+- Ở đỉnh và ở cú ngoặt, âm thanh làm gì (im lặng, nhạc ngắt, một âm nhỏ)? Có `cut` nào quên `in`?
 - Mình đã hy sinh gì, đã ghi `tradeoffs` chưa? Có điều gì về kịch bản nên ghi `script_notes`?

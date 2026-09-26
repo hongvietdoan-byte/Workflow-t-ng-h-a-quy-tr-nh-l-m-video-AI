@@ -108,7 +108,7 @@ def report(obj: Dict, script_text: str, model: str = "kling") -> Dict:
             setups.setdefault((idx, str(s["camera_setup"])), []).append(float(s.get("duration_s") or 0))
     per_setup = (sum(_paid(c, lim) for ds in setups.values() for c in _chunks(ds, lim["max"])) if setups else None)
     usd = lim["usd"]
-    from . import continuity, performance
+    from . import continuity, performance, sound_intent
     in_target = bool(target and target[0] - 0.05 <= total <= target[1] + 0.05) if target else None
     trade = [t for t in (obj.get("tradeoffs") or []) if isinstance(t, dict)]
     bad_trade = [t for t in (obj.get("tradeoffs") or []) if not isinstance(t, dict) or not all(str(t.get(k) or "").strip()
@@ -125,6 +125,7 @@ def report(obj: Dict, script_text: str, model: str = "kling") -> Dict:
         "invented": invented, "tradeoffs": obj.get("tradeoffs") or [],
         "tradeoffs_bad": len(bad_trade), "unrecorded": gave_up if gave_up and not trade else [],
         "acting": performance.warnings([s for _, _, s in shots]),
+        "sound": sound_intent.warnings([s for _, _, s in shots]),
         "payoff_unplanted": payoff_unplanted(obj),
         "continuity": continuity.axis_warnings(shots) + continuity.motif_warnings(shots),
         "script_notes": [n for n in obj.get("script_notes") or [] if isinstance(n, dict) and str(n.get("note") or "").strip()],
@@ -184,6 +185,8 @@ def text(r: Dict) -> str:
         rows.append(f"  🧭 {w}")
     for w in r.get("acting") or []:
         rows.append(f"  🎭 {w}")
+    for w in r.get("sound") or []:
+        rows.append(f"  🔊 {w}")
     if r.get("script_notes"):
         rows.append(f"Ghi chú kịch bản cho người viết: {len(r['script_notes'])} (chỉ đề xuất — thoại không bị sửa)")
     rows.append(f"Tổng lỗi đo được: {problems(r)}")

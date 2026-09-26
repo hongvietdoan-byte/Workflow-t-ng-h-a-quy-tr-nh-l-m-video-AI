@@ -19,7 +19,8 @@ from . import diag, lessons, llm_runner
 INTERVAL_DAYS = int(os.environ.get("RESEARCH_INTERVAL_DAYS", "30"))
 MAX_SEARCHES = int(os.environ.get("RESEARCH_MAX_SEARCHES", "3"))      # per topic
 DEFAULT_TOPICS = {
-    "director": ["cách viết prompt ảnh cinematic cho mô hình AI ảnh (Kling, Seedance, Midjourney): thực hành tốt nhất mới",
+    "director": ["cách viết prompt ảnh giữ đúng phong cách render của game 3D cách điệu (không trượt sang tả thực) cho mô hình AI ảnh "
+                 "(Kling, Seedance, Midjourney): thực hành tốt nhất mới",
                  "nhất quán nhân vật giữa các cảnh trong video AI: kỹ thuật mới"],
     "motion": ["cách viết motion prompt cho video AI (Kling, Seedance): hướng dẫn mới nhất, lỗi thường gặp"],
     "qc": ["lỗi thường gặp của ảnh và video do AI tạo và cách nhận biết"],

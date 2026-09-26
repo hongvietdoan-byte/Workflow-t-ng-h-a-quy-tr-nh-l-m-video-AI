@@ -17,6 +17,7 @@ INTENSITY_WORDS = {1: "barely visible micro-expression", 2: "subtle, restrained"
 CLOSE = ("ECU", "CU")                 # the face fills the frame: every change reads bigger — the prompt shows one step less (Đ4)
 PEAKS_PER_FILM = 2                    # intensity 5 more often than this flattens the climax
 FLAT_RUN = 6                          # this many acted shots in a row at one strength: a flat curve
+STRONG, HOLD_S = 4, 2.0               # a strong moment needs a shot this long in it or right after it (director.md Đ2)
 # a face written as one emotion word gives the model nothing to act (describe what the face DOES)
 _BARE_EMOTIONS = {"sad", "happy", "angry", "scared", "afraid", "surprised", "shocked", "worried", "nervous", "calm", "neutral",
                   "serious", "emotional", "upset", "crying", "smiling", "buồn", "vui", "giận", "sợ", "bất ngờ", "lo lắng", "bình tĩnh"}
@@ -108,6 +109,27 @@ def warnings(shots: List[Dict]) -> List[str]:
             out.append(f"shot {levels[start][0]}–{levels[i - 1][0]}: {run} shot liền cùng cường độ {levels[i - 1][1]} — đường cảm xúc "
                        "phẳng (cần lên xuống theo nhịp)")
         run, start = 1, i
+    # director.md Đ2 "giữ cho người xem thấm" (Handbook ch. III anchor shot; lần chạy 4: a 0,5 s silent shot cut away too fast): a run
+    # of strong moments (intensity ≥ 4) needs one shot of HOLD_S or more in it or right after it
+    def level(s: Dict) -> int:
+        p = s.get("performance")
+        value = p.get("intensity") if isinstance(p, dict) else None
+        return value if isinstance(value, int) and not isinstance(value, bool) else 0
+
+    k = 0
+    while k < len(shots):
+        if level(shots[k]) < STRONG:
+            k += 1
+            continue
+        end = k
+        while end + 1 < len(shots) and level(shots[end + 1]) >= STRONG:
+            end += 1
+        span = shots[k:end + 2]                    # the strong run + the shot after it
+        if not any(float(s.get("duration_s") or 0) >= HOLD_S for s in span):
+            where = f"shot {k + 1}" if end == k else f"shot {k + 1}–{end + 1}"
+            out.append(f"{where}: khoảnh khắc cường độ ≥ {STRONG} mà không shot nào (kể cả shot ngay sau) dài ≥ {HOLD_S:g} s — người xem "
+                       "chưa kịp thấm; giữ một shot mặt/phản ứng 2–4 s ngay tại hoặc sau khoảnh khắc (trừ khi cố ý dồn nhịp, ghi `why`)")
+        k = end + 1
     people = [k for k, s in enumerate(shots, 1) if s.get("characters") and s.get("role") in ("dialogue", "reaction", "hook", "ending")
               and not isinstance(s.get("performance"), dict)]
     if people:

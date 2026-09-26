@@ -54,6 +54,12 @@ FEATURES: Dict[str, Dict] = {
         "verified": False,
         "why": "GĐ4 (editing.md E4, D6): chưa nghe thử; khoảng lặng dài/ngắn là gu dựng — bật khi người dùng nghe và đồng ý",
     },
+    "sound_intent": {
+        "label": "Nhạc theo ý đồ âm thanh của Đạo diễn từng shot: tắt hẳn từ shot 'cut' tới shot 'in', lặng 0,6 s trước shot 'breath'",
+        "verified": False,
+        "why": "2026-09-26 (director.md Đ9, bài học Handbook ch. V): chưa nghe thử bản dựng có nhạc ngắt theo shot; tắt thì bản dựng "
+               "ghi lại số ý đồ chưa áp (manifest `sound_intent`)",
+    },
     "impact_shake": {
         "label": "Rung khung hình 0,25 s ở những giây có hiệu ứng va chạm / nổ / súng trong bản trộn",
         "verified": False,

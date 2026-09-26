@@ -5,7 +5,7 @@ import shutil
 import subprocess
 import tempfile
 import uuid
-from typing import List, Optional, Sequence
+from typing import List, Optional, Sequence, Tuple
 
 
 class FFmpegNotFound(Exception):
@@ -142,23 +142,31 @@ def add_shake(src: str, dst: str, times: Sequence[float], ffmpeg: Optional[str] 
     return dst
 
 
-def breath_filter(times: Sequence[float]) -> str:
-    """volume automation: near-silence in the BREATH_S before each time (the music comes back on the turn itself)."""
-    if not times:
+def breath_filter(times: Sequence[float], off: Sequence[Tuple[float, float]] = ()) -> str:
+    """volume automation: near-silence in the BREATH_S before each time (the music comes back on the turn itself); off: spans where
+    the music is out altogether (the Director's sound intent `cut` … `in`, core/sound_intent.py)."""
+    if not times and not off:
         return ""
-    cond = "+".join(f"between(t,{max(x - BREATH_S, 0):.2f},{x:.2f})" for x in times)
-    return f",volume='if({cond},{BREATH_LEVEL},1)':eval=frame"
+    level = "1"
+    if times:
+        cond = "+".join(f"between(t,{max(x - BREATH_S, 0):.2f},{x:.2f})" for x in times)
+        level = f"if({cond},{BREATH_LEVEL},1)"
+    if off:
+        gone = "+".join(f"between(t,{a:.2f},{b:.2f})" for a, b in off)
+        level = f"if({gone},0,{level})"
+    return f",volume='{level}':eval=frame"
 
 
 def build_mux_music_cmd(video: str, music: str, output: str, video_duration: float,
                         fade: float = 1.5, volume: float = 0.6, ffmpeg: str = "ffmpeg",
-                        has_audio: bool = False, breaths: Sequence[float] = ()) -> List[str]:
+                        has_audio: bool = False, breaths: Sequence[float] = (),
+                        music_off: Sequence[Tuple[float, float]] = ()) -> List[str]:
     """Music under the video. has_audio: the video already carries sound (dialogue): the music is MIXED with it
     instead of replacing it. breaths: turn times with a short silence before them (D6)."""
     fade_out_start = max(video_duration - fade, 0)
     fade_in = min(fade, MUSIC_FADE_IN)   # 2A: a 1,5 s fade-in left the hook's first second silent
     music_chain = (f"[1:a]atrim=0:{video_duration},afade=t=in:d={fade_in},"
-                   f"afade=t=out:st={fade_out_start}:d={fade},volume={volume}{breath_filter(breaths)},apad")  # apad: music shorter than video
+                   f"afade=t=out:st={fade_out_start}:d={fade},volume={volume}{breath_filter(breaths, music_off)},apad")  # apad: music shorter than video
     if has_audio:
         audio = f"{music_chain}[m];[0:a][m]amix=inputs=2:normalize=0:duration=first,{PEAK_LIMIT}[a]"
     else:
@@ -368,24 +376,26 @@ def atomic_output(output: str):
 def render_final(clips: Sequence[str], output: str, durations: Optional[Sequence[float]] = None,
                  transition: str = "cut", fade: float = 1.0, music: Optional[str] = None,
                  music_volume: float = 0.6, extras: Optional[Sequence[dict]] = None,
-                 keep_audio: bool = False, size=None, breaths: Sequence[float] = ()) -> str:
+                 keep_audio: bool = False, size=None, breaths: Sequence[float] = (),
+                 music_off: Sequence[Tuple[float, float]] = ()) -> str:
     """Concat clips (in scene order), optionally crossfade, mux music, then lay extra audio over it.
     keep_audio: keep the clips' own sound (needs an audio stream in EVERY clip; otherwise it is ignored and the
     result is silent before music/extras). size (W, H): the project frame — every clip is brought to it (clips from
     different models may differ in size). Written to a temp file first (atomic_output), so `output` is either the old
     file or the complete new one."""
     with atomic_output(output) as staged:
-        _render_final(clips, staged, durations, transition, fade, music, music_volume, extras, keep_audio, size, breaths)
+        _render_final(clips, staged, durations, transition, fade, music, music_volume, extras, keep_audio, size, breaths, music_off)
     return output
 
 
-def _render_final(clips, output, durations, transition, fade, music, music_volume, extras, keep_audio, size, breaths=()) -> None:
+def _render_final(clips, output, durations, transition, fade, music, music_volume, extras, keep_audio, size, breaths=(),
+                  music_off=()) -> None:
     ffmpeg = find_ffmpeg()
     extras = list(extras or [])
     padded = []
     try:
         _render_steps(clips, output, durations, transition, fade, music, music_volume, extras, keep_audio, size, ffmpeg, padded,
-                      breaths)
+                      breaths, music_off)
     finally:
         for tmp in padded:     # also when a later step failed (they used to stay behind)
             try:
@@ -395,7 +405,7 @@ def _render_final(clips, output, durations, transition, fade, music, music_volum
 
 
 def _render_steps(clips, output, durations, transition, fade, music, music_volume, extras, keep_audio, size, ffmpeg, padded,
-                  breaths=()) -> None:
+                  breaths=(), music_off=()) -> None:
     if keep_audio and clips:
         # D4: a clip made without sound used to silence EVERY clip; it gets a silent track so the others keep theirs
         clips = list(clips)
@@ -430,7 +440,7 @@ def _render_steps(clips, output, durations, transition, fade, music, music_volum
         target = output + ".music.mp4" if extras else output
         try:
             run(build_mux_music_cmd(current, music, target, total, volume=music_volume, ffmpeg=ffmpeg,
-                                    has_audio=keep_audio, breaths=breaths))
+                                    has_audio=keep_audio, breaths=breaths, music_off=music_off))
         finally:
             os.remove(current)
         current = target

@@ -6,6 +6,19 @@ Dự án này sản xuất **theo shot**, không theo cảnh: mỗi cảnh kịc
 - Đọc từng beat của cảnh (muốn gì – cản trở – bước ngoặt), mỗi thay đổi hành động, mỗi câu thoại, mỗi phản ứng quan trọng → một shot. Dùng ngữ pháp dựng Free Fire và phong cách của dự án ở phần kiến thức (số liệu là **khoảng tham khảo**, không phải con số cố định).
 - **Nhịp do kịch bản quyết định**: shot hành động/phản ứng/chèn ngắn; shot thoại dài bằng thời gian nói câu đó (~3,5 âm tiết/giây + 0,5 s); thiết lập, kết, money shot được dài hơn. Tổng thời lượng các shot nên khớp thời lượng kịch bản yêu cầu (nếu có ghi).
 - Mở video bằng **hook**; kết bằng **ending** (tạo dáng, nhìn máy quay, câu chốt). Sau câu thoại/hành động quan trọng nên có **reaction**. Đổi cỡ cảnh có lý do; tránh 4 shot liền cùng cỡ.
+- **Truyền cảm xúc cho rõ — ba cách, dùng khi đúng chỗ (không phải luật đếm):**
+  - **Phản ứng trước, nguyên nhân sau** khi muốn người xem *hỏi* "chuyện gì vậy?": shot mặt nhân vật sững lại / hoảng lên → rồi mới
+    cho thấy cái họ thấy. Câu hỏi giữ người xem ở lại; thấy nguyên nhân trước thì người xem chỉ *xác nhận*. Nguyên nhân phải lộ ngay
+    shot kế (≤ 2 s) — để lâu người xem rối chứ không tò mò. Đây là một cách làm "ai biết gì": người xem biết *sau* nhân vật.
+  - **Giữ lại sau cú đánh cảm xúc:** ngay tại hoặc ngay sau khoảnh khắc mạnh (`performance.intensity` ≥ 4), có **một shot 2–4 s** trên
+    mặt/phản ứng để người xem kịp thấm; cắt đi ngay thì cảm xúc trôi mất (lần chạy 4: shot im lặng 0,5 s bị cắt quá nhanh). Cố ý dồn nhịp
+    (pha hành động) thì ghi lý do trong `why` — code báo khi cả chuỗi khoảnh khắc mạnh không có shot nào ≥ 2 s.
+  - **Móc nhỏ giữa video:** video dài hơn ~20 s thì mỗi đoạn ~10–15 s kết bằng một chi tiết **dở dang** (câu nói bị ngắt, tay chạm vào
+    vật, ánh mắt nhìn ra ngoài khung) để người xem muốn xem tiếp; đỉnh cảm xúc cuối có thể cắt ngay ở đỉnh thay vì kể nốt.
+- **Âm thanh là một phần của cảm xúc, quyết cùng lúc với hình** (trường `sound`, chỉ ở shot cần): nhạc **ngắt** khi mối đe dọa xuất hiện
+  hay lúc bình yên giả tạo (im lặng làm âm nhỏ nhất thành to), **lặng ngắn** ngay trước cú ngoặt để cú đánh rơi đúng, nhạc **vào lại**
+  khi lật thế; và âm của **cơ thể/vật** mà khoảnh khắc cần (tiếng thở dồn, nuốt nước bọt, tiếng lên đạn, tiếng bíp). Tự hỏi: tắt tiếng đi
+  hình còn kể được không — và bật tiếng lên, âm thanh có đẩy thêm được gì không?
 - Thoại: **mỗi câu nằm trọn trong một shot**; không cắt ngang câu. Một shot có thể chứa 0, 1 hoặc vài câu ngắn liền nhau của cùng cảnh.
 - **Không có khớp môi (BẮT BUỘC khi khớp môi TẮT — nếu khối "Thời lượng bắt buộc" ghi "Khớp môi đang BẬT" thì theo khối đó)**: giọng tiếng Việt được lồng sau, miệng nhân vật trong video không nói đúng câu đó. Shot có `dialogue` **KHÔNG được** là `ECU`/`CU`/`MCU` mà người nói có trong `characters` và nhìn thấy mặt (angle `eye`/`low`/`high`/`dutch`). Thay bằng: `MS`/`WS`; góc `ots` (qua vai người nghe, người nói ở trung cảnh); người nói quay nghiêng/quay lưng/đang hành động; hoặc đặt câu thoại lên **shot phản ứng của người nghe** (người nói ngoài khung — vẫn ghi `speaker` là người nói nhưng không đưa họ vào `characters`). Cận mặt người nói chỉ dùng cho khoảnh khắc **im lặng** (nước mắt rơi, sững người) — tách thành shot riêng không thoại.
 - **Kịch bản ghi rõ góc máy thì giữ đúng**: "GÓC CAMERA SAU VAI X" / "qua vai X" → `angle: "ots"`, X có trong `characters` (vai/lưng mờ ở tiền cảnh); "CẬN CẢNH" → `CU` (không thoại, xem luật trên); "CHÍNH DIỆN" → nhân vật nhìn về máy; "TOÀN CẢNH" → `WS`. Chỉ đổi khi luật khớp môi buộc phải đổi — khi đó đổi cỡ cảnh, giữ tinh thần góc máy.
@@ -39,6 +52,7 @@ Dự án này sản xuất **theo shot**, không theo cảnh: mỗi cảnh kịc
  "on_screen_text": ["chữ hiện trên màn hình (thông báo hệ thống, chữ kết) — không đọc thành tiếng; bỏ khi không có"],
  "performance": {"intensity": 3, "face": "tiếng Anh: mặt làm gì", "eyes": "nhìn đâu, chớp thế nào", "body": "tư thế, tay",
                  "timing": "đổi thế nào theo thời gian", "listener": "người nghe phản ứng gì", "motive": "tiếng Việt: vì sao"},
+ "sound": {"music": "keep|cut|in|breath", "sfx": ["tiếng Anh ngắn: âm khoảnh khắc cần"], "why": "tiếng Việt: âm này đẩy cảm xúc gì"},
  "why": "tiếng Việt, 1 câu: vì sao cỡ/góc/chuyển động này", "motif": "nhãn ngắn khi shot vần với shot khác",
  "lens_mm": 35, "weather": "clear", "plate_spot": "tên chỗ đứng", "plate_mode": "green", "lip_sync": false,
  "continuous_with_next": false, "hero": false}
@@ -50,6 +64,10 @@ Dự án này sản xuất **theo shot**, không theo cảnh: mỗi cảnh kịc
 - **`delivery` (chỉ đạo giọng lồng, từng câu, khi câu cần sắc thái rõ):** cảm xúc, cường độ, nhịp; `pause_before` = ngắt trước câu;
   `stress` = một chữ có trong câu; `tag` chỉ một trong: whispers, sighs, shouts, laughs, crying, sarcastic, excited, curious, nervous,
   angry, sad, calm, gulps, clears throat. Không đổi chữ của câu.
+- **`sound`** (tùy chọn — chỉ shot mà âm thanh mang cảm xúc; bỏ hẳn ở shot bình thường): `music` — `cut` nhạc tắt hẳn từ đầu shot này
+  tới shot có `in`; `in` nhạc vào lại từ đầu shot; `breath` lặng ~0,6 s ngay trước shot rồi nhạc vào đúng shot; `keep` (mặc định) giữ
+  nguyên. `sfx` — tối đa 3 âm cụ thể người xem phải nghe rõ ở shot này (`"heavy breathing"`, `"gun cock click"`, `"swallow"`), không ghi
+  nhạc hay âm nền chung. Đỉnh cảm xúc (cường độ 5) mà âm thanh không có ý đồ nào → code nhắc. Nhớ `in` sau `cut` (quên thì nhạc tắt tới hết phim).
 - **`motif`** (tùy chọn): một nhãn ngắn (vd "qua vai Kenta", "vòng cổ đen") cho các shot "vần" với nhau — cùng nhãn ở ít nhất 2 shot
   (lần đầu gieo, lần sau biến tấu); code báo motif chỉ xuất hiện một lần.
 - **`why`:** một câu cho người duyệt: shot cho người xem biết/cảm gì → vì sao cỡ/góc/chuyển động này → nối với shot trước thế nào.

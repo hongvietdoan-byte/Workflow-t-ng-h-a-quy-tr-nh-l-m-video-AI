@@ -37,7 +37,8 @@ def timeline(p: Pipeline, data_dir: str, pid: int, transition: str = "cut", fade
         length = final_cut.clip_seconds(clip["path"], clip["requested_sec"])
         d = info.get(clip["idx"], {}) if clip["idx"] is not None else {}
         out.append({"idx": clip["idx"], "title": clip["title"], "start": round(t, 2), "length": round(length, 2),
-                    "text": (d.get("text") or "")[:400], "mood": d.get("mood") or "", "shot": d.get("shot") or ""})
+                    "text": (d.get("text") or "")[:400], "mood": d.get("mood") or "", "shot": d.get("shot") or "",
+                    **({"sound": d["sound"]} if isinstance(d.get("sound"), dict) else {})})   # director.md Đ9
         t += length - overlap
     return out
 
@@ -58,8 +59,9 @@ def catalog(conn, limit: int = MAX_CATALOG, per_kind: int = PER_KIND) -> List[Di
 
 
 def build_prompt(scenes: List[Dict], sounds: List[Dict], total: float, wish: str = "") -> str:
-    lines = [{"scene": s["idx"], "start": s["start"], "length": s["length"], "mood": s["mood"], "shot": s["shot"], "script": s["text"]}
-             for s in scenes]
+    lines = [{"scene": s["idx"], "start": s["start"], "length": s["length"], "mood": s["mood"], "shot": s["shot"], "script": s["text"],
+              **({"director_sound": s["sound"]} if s.get("sound") else {})} for s in scenes]
+    asked = sum(len((s.get("sound") or {}).get("sfx") or []) for s in scenes)
     library = [{"id": s["id"], "heard": s["heard_label"], "name": s["name"], "folder": s["category"], **({"tags": s["tags"]} if s.get("tags") else {}),
                 **({"sec": round(s["duration"], 1)} if s.get("duration") else {})} for s in sounds]
     return (f"{MARKER} cho video game ngắn. Đọc các cảnh và chọn hiệu ứng âm thanh từ kho có sẵn để thêm vào video.\n\n"
@@ -70,6 +72,14 @@ def build_prompt(scenes: List[Dict], sounds: List[Dict], total: float, wish: str
             "Mỗi hiệu ứng trong kho có `heard` = loại âm thanh mà mô hình nhận dạng âm thanh ĐÃ NGHE ra (đáng tin); tên file có thể sai nên chọn theo `heard`. "
             "Chỉ chọn khi loại âm thanh khớp đúng nhu cầu của khoảnh khắc đó; không có cái nào khớp thì KHÔNG thêm. `heard` cho biết LOẠI âm thanh chứ không cho biết sắc thái: tên file gợi ý dễ thương/hài (cute, meme, fun...) thì đừng dùng cho cảnh nghiêm túc hay hành động. "
             "Mỗi hiệu ứng có `reason` ngắn bằng tiếng Việt nói rõ vì sao chọn.\n"
+            # director.md Đ9: the Director decides sound together with the feeling; the sound designer carries it out
+            + ("\n# Ý đồ âm thanh của Đạo diễn (ưu tiên hơn nguyên tắc chung ở trên)\n"
+               "Cảnh có `director_sound` là chỗ Đạo diễn đã quyết âm thanh cùng cảm xúc: `sfx` = âm khoảnh khắc đó cần (tiếng thở, nuốt "
+               "nước bọt, sột soạt vải, tiếng lên đạn, tiếng bíp…) — đặt trong cảnh đó dù không phải điểm chuyển cảnh, tính thêm ngoài "
+               f"giới hạn trên ({asked} âm); kho không có âm khớp thì KHÔNG thay bằng âm khác loại, nói rõ âm nào thiếu trong summary. "
+               "`music: cut` = nhạc tắt từ cảnh đó tới cảnh `in`: trong khoảng lặng một âm nhỏ nghe rất rõ, đừng lấp bằng hiệu ứng to; "
+               "`breath` = lặng ngắn ngay trước cảnh, đừng đặt hiệu ứng vào khoảng lặng đó. `why` là lý do của Đạo diễn.\n"
+               if any(s.get("sound") for s in scenes) else "")
             + (f"\n# Yêu cầu thêm của người dùng (ưu tiên làm theo)\n{wish.strip()}\n" if wish.strip() else "")
             + f"\n# Các cảnh (tổng {total:.1f} giây)\n```json\n" + json.dumps(lines, ensure_ascii=False) + "\n```\n"
             "\n# Hiệu ứng có sẵn\n```json\n" + json.dumps(library, ensure_ascii=False) + "\n```\n\n"
@@ -111,7 +121,9 @@ def propose(client, p: Pipeline, data_dir: str, pid: int, transition: str = "cut
         cues.append({"at": round(at, 2), "scene": c.get("scene"), "id": s["id"], "name": s["name"], "folder": s["category"],
                      "volume": round(min(max(float(c.get("volume", 0.8)), 0.1), 1.5), 2), "reason": str(c.get("reason", "")).strip()})
     cues.sort(key=lambda c: c["at"])
-    return {"summary": str(obj.get("summary", "")).strip(), "cues": cues}
+    from . import sound_intent
+    # CHUAN luật 1: a sound the Director asked for and nobody placed is shown, never lost in silence
+    return {"summary": str(obj.get("summary", "")).strip(), "cues": cues, "unmet": sound_intent.unmet(scenes, cues)}
 
 
 def apply(p: Pipeline, data_dir: str, pid: int, chosen: List[Dict]) -> int:

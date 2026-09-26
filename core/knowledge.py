@@ -26,6 +26,8 @@ GROUPS: Dict[str, tuple] = {
     "director": ("Director — phân tích kịch bản (Bước 1)",
                  "Lập Character Bible và thông số từng cảnh (địa điểm, ánh sáng, cỡ cảnh, prompt ảnh).",
                  [("prompts/01_director_scene_analysis.md", "Prompt Director", "vai trò, cách suy nghĩ, định dạng JSON"),
+                  ("knowledge/ff_gameplay_visual.md", "Free Fire gameplay thật trông thế nào",
+                   "tư liệu tham khảo: máy gameplay, bối cảnh, HUD, chữ cấm khi look in-game (PDF Visual Replication Plan v1.0)"),
                   ("knowledge/cinematography_basics.md", "Cơ bản điện ảnh", "cỡ cảnh, góc máy, ánh sáng, chuyển động"),
                   ("knowledge/genre_guides.md", "Hướng dẫn 7 thể loại", "công thức viết prompt ảnh theo thể loại"),
                   ("knowledge/research_notes.md", "Nguyên tắc từ nguồn nghiên cứu", "16 nguyên tắc, 8 chiều điện ảnh"),

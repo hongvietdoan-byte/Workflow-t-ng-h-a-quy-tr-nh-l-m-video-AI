@@ -259,6 +259,16 @@ def twist_times(p: Pipeline, project_id: int, rows: List[Dict], durations: List[
     return (marked or ([hero] if hero is not None else []))[:2]
 
 
+def sound_plan(p: Pipeline, rows: List[Dict], durations: List[float], transition: str = "cut", fade: float = 1.0) -> Dict:
+    """director.md Đ9: the music silences the Director planned per shot (sound.music cut / in / breath) on the render's timeline."""
+    from . import sound_intent
+    datas = []
+    for r in [r for r in rows if r.get("path")]:
+        row = p.conn.execute("SELECT data FROM scenes WHERE id=?", (r.get("scene_id"),)).fetchone() if r.get("scene_id") else None
+        datas.append(json.loads(row["data"] or "{}") if row else {})
+    return sound_intent.music_plan(datas, durations, transition, fade, tuple(ffmpeg_studio.OVERLAP_STYLES))
+
+
 def _colour_match(p: Pipeline, project_id: int, rows: List[Dict], paths: List[str], work_dir: str) -> Optional[List[Dict]]:
     """editing.md E5 (việc code D7): shots of one place and size class are measured against their anchor (black / white points, cast of
     grey things); with the feature `shot_color_match` on, the drifting ones go into the cut as corrected copies (originals untouched).
@@ -337,8 +347,18 @@ def render(p: Pipeline, project_id: int, data_dir: str, music_path: Optional[str
         except Exception as e:  # noqa: BLE001 - no bed is better than no render; the reason is kept
             amb = {"extras": [], "missing": [], "error": str(e)[:200]}
     breaths = twist_times(p, project_id, rows, durations, settings["transition"], settings["fade"]) if features.on("music_breath") and track else []
+    music_off, intent = [], None
+    plan = sound_plan(p, rows, durations, settings["transition"], settings["fade"])
+    if plan["planned"]:                        # director.md Đ9: the Director's music silences (cut … in, breath before a shot)
+        if features.on("sound_intent") and track:
+            breaths, music_off = sorted(set(breaths) | set(plan["breaths"])), plan["off"]
+            intent = {"applied": True, "off": plan["off"], "breaths": plan["breaths"]}
+        else:                                  # CHUAN luật 1: planned and not applied is said, not dropped in silence
+            intent = {"applied": False, "planned": plan["planned"],
+                      "why": "cờ sound_intent đang TẮT" if track else "bản dựng không có nhạc nền"}
     ffmpeg_studio.render_final(paths, out, durations, settings["transition"], settings["fade"], track, settings["music_volume"],
-                               extras, keep_audio, formats.spec(aspect)["render"] if aspect else None, breaths=breaths)
+                               extras, keep_audio, formats.spec(aspect)["render"] if aspect else None, breaths=breaths,
+                               music_off=music_off)
     hits = impact_times(audio_lib.assets_dir(data_dir, project_id)) if features.on("impact_shake") else []
     shake_error = None
     if hits:                              # D9: the frame shakes on the hits the sound design placed
@@ -355,6 +375,8 @@ def render(p: Pipeline, project_id: int, data_dir: str, music_path: Optional[str
     manifest["color_match"] = colour
     if breaths:
         manifest["music_breaths"] = breaths
+    if intent is not None:
+        manifest["sound_intent"] = intent
     if hits:
         manifest["shakes"] = hits
     if shake_error:

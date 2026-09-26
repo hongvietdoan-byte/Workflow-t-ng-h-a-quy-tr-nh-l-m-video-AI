@@ -2,6 +2,7 @@
 in-game character art. A project property, separate from the editing style (style_profile = rhythm/shot sizes of a Free Fire video
 style). It reaches every step: the image prompt's render sentence, which library pictures are preferred (asset_images.look), the
 Director and QC, and the video model choice (W11)."""
+import re
 from typing import Dict, Optional
 
 LOOKS: Dict[str, Dict] = {
@@ -9,10 +10,17 @@ LOOKS: Dict[str, Dict] = {
         "label": "Giống y hệt in-game Free Fire",
         "asset_look": "ingame",
         "image": ("Render style: Garena Free Fire in-game 3D character art — match the reference images exactly (same proportions, "
-                  "materials, shading, colours and level of detail); not anime, not a realistic photo, not a different 3D style."),
+                  "materials, shading, colours and level of detail); not anime, not a realistic photo, not a different 3D style. "
+                  # knowledge/ff_gameplay_visual.md: words alone drift to a realistic shooter (PUBG / Call of Duty look)
+                  "Stylized mobile-game proportions, moderate texture detail, clear gameplay lighting, background in focus; "
+                  "not a cinematic movie still, no depth-of-field blur, no film colour grading, not a realistic military shooter."),
         "director": ("Look của dự án: GIỐNG Y HỆT ảnh in-game Free Fire. Ảnh tài nguyên là chuẩn tuyệt đối về ngoại hình và chất liệu; "
-                     "prompt ảnh không thêm phong cách vẽ khác (không anime, không ảnh thật)."),
-        "qc": "Look: in-game Free Fire — trừ điểm `character`/`consistency` nếu ảnh ra kiểu anime, ảnh thật hoặc 3D khác ảnh tài nguyên.",
+                     "prompt ảnh không thêm phong cách vẽ khác (không anime, không ảnh thật). Không viết chữ phong cách kéo về tả thực "
+                     "trong `image_prompt` (cinematic, photorealistic, bokeh, depth of field, film grain…) — xem mục \"Free Fire gameplay "
+                     "thật trông thế nào\"; tả vật thể cụ thể của game thay cho không khí chung chung."),
+        "qc": ("Look: in-game Free Fire — trừ điểm `character`/`consistency` nếu ảnh ra kiểu anime, ảnh thật hoặc 3D khác ảnh tài nguyên; "
+               "trừ điểm nếu ảnh trông như game bắn súng tả thực (PUBG / Call of Duty: da thật, đồ quân sự tả thực, vân bề mặt dày, "
+               "hậu cảnh mờ nhòe kiểu ống kính, chỉnh màu kiểu phim)."),
     },
     "ANIME": {
         "label": "Anime",
@@ -44,6 +52,15 @@ def director_note(project_row) -> str:
     return ("# Look hình của dự án\n" + LOOKS[look]["director"]) if look else ""
 
 
+def motion_note(project_row) -> str:
+    """The motion writer's words land in the video prompt: an in-game project keeps realism words out of them too."""
+    if of(project_row) != "FF_INGAME":
+        return ""
+    return ("# Look hình của dự án\nIn-game Free Fire (knowledge/ff_gameplay_visual.md): chuyển động và ánh sáng kiểu game; KHÔNG viết chữ "
+            "phong cách kéo về tả thực (cinematic, photorealistic, realistic skin, bokeh, depth of field, film grain, color grading) — "
+            "code gỡ các chữ này trước khi gửi và báo lại. Không bắt model vẽ giao diện game (HUD); tả hành động và vật thể cụ thể.")
+
+
 def qc_note(project_row) -> str:
     look = of(project_row)
     return ("# Look hình của dự án\n" + LOOKS[look]["qc"]) if look else ""
@@ -52,3 +69,43 @@ def qc_note(project_row) -> str:
 def asset_look(project_row) -> Optional[str]:
     look = of(project_row)
     return LOOKS[look]["asset_look"] if look else None
+
+
+# Words that pull an image / video model from the Free Fire render towards a realistic shooter (knowledge/ff_gameplay_visual.md §3,
+# Free Fire In-Game Visual Replication Plan v1.0 §6.3). Only for FF_INGAME: an anime or realistic-CGI project may want some of them.
+# A negated form ("not photorealistic") goes too: the look's own sentence already says it.
+_REALISM = re.compile(
+    r"\b(?:(?:not|no|non)[- ](?:an? )?)?(?:"
+    r"(?:ultra[- ]?|hyper[- ]?|photo[- ]?)?realistic(?: skin(?: texture)?)?|photoreal(?:ism)?|"
+    r"cinematic(?: (?:movie still|still|look|style|quality|lighting|colou?r grading|frame))?|(?:film|movie) still|bokeh|"
+    r"shallow (?:depth of field|focus)|depth[- ]of[- ]field(?: blur)?|anamorphic(?: lens)?|film grain|"
+    r"(?:filmic |film )?colou?r grading|8k|unreal engine(?: \d)?|AAA|gritty realism|hyper[- ]detailed)\b", re.IGNORECASE)
+VIDEO_NEGATIVE = ("photorealistic, realistic military shooter, PUBG style, Call of Duty style, realistic skin, cinematic depth of "
+                  "field, bokeh, film grain, film colour grading")
+
+
+def clean_prompt(project_row, text: str):
+    """(the prompt without realism words, the words removed) for an FF_INGAME project; any other project: unchanged. Only the
+    Director's own words go through it (the look's sentence names these words on purpose, as things to avoid); the runner reports what
+    it removed (CHUAN_XAY_DUNG luật 1: never change a prompt without saying so)."""
+    if of(project_row) != "FF_INGAME" or not text:
+        return text, []
+    removed = [m.group(0) for m in _REALISM.finditer(text)]
+    if not removed:
+        return text, []
+    out = _REALISM.sub("", text)
+    out = re.sub(r"\b(?:of|with)\s+(?=[,.;:]|$)", "", out)          # "... still of" / "with" left hanging
+    out = re.sub(r"^\s*(?:of|with)\b", "", out)
+    out = re.sub(r"\s+([,.;:])", r"\1", out)
+    out = re.sub(r"([,;:])(?:\s*[,;:])+", r"\1", out)
+    out = re.sub(r"[,;:]+\s*\.", ".", out)
+    out = re.sub(r"\s{2,}", " ", out).strip(" ,;:")
+    return out, removed
+
+
+def video_negative(project_row, negative: str = "") -> str:
+    """The motion prompt's negative with the anti-realism words of an FF_INGAME project added (once)."""
+    if of(project_row) != "FF_INGAME":
+        return negative or ""
+    base = (negative or "").strip().rstrip(",")
+    return f"{base}, {VIDEO_NEGATIVE}" if base and VIDEO_NEGATIVE not in base else (base or VIDEO_NEGATIVE)

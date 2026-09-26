@@ -70,6 +70,14 @@ bằng lời của dự án, không chép nguyên văn. Loại: **CT** chính th
 | Đ28 | No Film School — notes on a script | nofilmschool.com/how-to-give-notes-on-a-script | TC · tb |
 | Đ29 | Katz, *Film Directing Shot by Shot* (mô tả) | store.ascmag.com/products/film-directing-shot-by-shot | S (mô tả) · tb |
 | Đ30 | The Audio Cafe — ADR voice acting | theaudiocafe.co.uk/blog/film/adr-voice-acting/ | CĐ · thấp–tb |
+| Đ31 | "AI Director's Master Handbook (2026 Edition)" — Google Doc người dùng gửi 2026-09-26 (bản trả lời của một chatbot AI, không nguồn) | docs.google.com/document/d/1nqL7rcAFXNYgaDK8WTPavy8Y-3en2-3R4UUf9C7716Y | CĐ (máy sinh) · thấp |
+| Đ32 | "Free Fire In-Game Visual Replication Plan v1.0" (26/09/2026, nội bộ; 2 video gameplay, 1 nhân vật, 1 nhà kho) | `Get this Skill to Claude/Tài nguyên tham khảo…/` (ngoài git) | nội bộ · tb |
+
+[Đ31] chỉ lấy **ý có lý do tự đứng được** và khớp nguồn đã có: phản ứng trước nguyên nhân sau (cách làm của "biết sau", Hitchcock [Đ7]),
+shot giữ sau cú đánh cảm xúc (Murch [Đ12]), móc nhỏ giữa video, âm thanh quyết cùng cảm xúc (J/L-cut [E3]). **Không dùng**: các con số
+không nguồn ("nhịp hình sin", "âm thanh 50% cảm xúc", "phản ứng 80% cảm xúc"), bảng phân cảnh mẫu (ghi 30 s nhưng cộng lại 13 s), shot
+0,4–0,6 s (mỗi shot vẫn trả tiền một clip dài hơn nhiều). [Đ32] → `knowledge/ff_gameplay_visual.md` (tư liệu hiểu hình ảnh gameplay, không
+phải kho cảnh để ghép).
 
 Không có nguồn chính thức: vòng lặp (loop) và độ dài tối ưu cho video tự nhiên; mốc "móc 1–3 s" của Shorts; tài liệu Seedance/Kling về vi
 biểu cảm; ElevenLabs riêng cho tiếng Việt. ElevenLabs tự mâu thuẫn về `speed` với v3 ([Đ20] ↔ [Đ21]) → thử thật trước khi bật `voice_direction`.

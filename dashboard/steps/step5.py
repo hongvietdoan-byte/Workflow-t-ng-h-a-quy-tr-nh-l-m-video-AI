@@ -345,6 +345,10 @@ def sfx_assistant(p: Pipeline, pid: int) -> None:
             if plan is not None:
                 if plan["summary"]:
                     st.info(plan["summary"])
+                if plan.get("unmet"):
+                    st.warning("🔊 Âm Đạo diễn yêu cầu mà chưa có hiệu ứng nào đặt vào: " + " · ".join(
+                        f"shot {u['idx']}: {', '.join(u['sfx'])}" for u in plan["unmet"])
+                        + " — thêm tay ở mục Hiệu ứng, hoặc bổ sung âm đó vào kho âm thanh.")
                 if not plan["cues"]:
                     st.caption("AI không thấy chỗ nào cần thêm hiệu ứng.")
                 else:

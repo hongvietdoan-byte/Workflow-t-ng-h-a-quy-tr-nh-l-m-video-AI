@@ -61,7 +61,8 @@ xúc, âm thanh làm thế giới game "thật", màu các shot liền nhau như
 - **Trong pipeline.** ✅ Tạo SFX bằng ClipAI (`audio_lib.submit_sfx`, sổ chi lượt âm thanh); ✅ nghe clip để biết âm có sẵn (`sound_ai` YAMNet,
   chỉ dùng tự động khi tin ≥ 0,40); ✅ trộn lớp phụ (`ffmpeg_studio.build_extras_mix_cmd`); ✅ **Claude đặt hiệu ứng** theo cảnh + thư viện âm
   của người dùng (`core/sfx_plan.py`, nút ở Bước 5, autopilot tự đề xuất rồi áp dụng) — cố ý chỉ cho **điểm nhấn** (đập, vút, va chạm) và
-  chuyển cảnh, không làm nền liên tục. ✅ **Nền không khí + âm thời tiết** (D4/D5, `core/ambience.py`, cờ `ambience_bed` TẮT): mỗi
+  chuyển cảnh, không làm nền liên tục; **cộng thêm** các âm Đạo diễn ghi trong `sound.sfx` của shot (tiếng thở, lên đạn… — director.md Đ9),
+  âm không đặt được thì báo, không thay bằng âm khác loại. ✅ **Nền không khí + âm thời tiết** (D4/D5, `core/ambience.py`, cờ `ambience_bed` TẮT): mỗi
   cảnh kịch bản một âm nền từ **thư viện âm của bạn**, chọn theo thời tiết (mưa/bão → thunderstorm, bão cát → windy desert…) → giờ (đêm
   chỉ nhận âm đêm) → bối cảnh (phố → city/traffic, đảo/rừng → bird), khớp **nguyên từ**, lặp đủ dài, mờ vào/ra 0,6 s, ~−18 dB; là lớp
   **riêng** dưới lớp điểm nhấn của `sfx_plan`, và **không** tham gia điều khiển việc hạ nhạc (nếu không nhạc bị đè cả cảnh). Không có âm
@@ -82,7 +83,10 @@ xúc, âm thanh làm thế giới game "thật", màu các shot liền nhau như
   gần như tắt; nguồn thứ cấp khuyên 6–10 dB [E32] → **người dùng quyết** có nhẹ tay hơn không (vd ngưỡng 0,05, tỉ lệ 4 ≈ 8–12 dB), vì đây là
   gu nghe); ✅ nhạc mờ vào 0,3 s. ✅ **Khoảng lặng trước cú ngoặt** (D6): nhạc xuống ~−26 dB trong 0,6 s ngay trước
   đầu phần kịch bản TWIST / CAO TRÀO (hoặc shot ⭐ đầu tiên) trên timeline thật của bản dựng (`delivery.twist_times`,
-  `ffmpeg_studio.breath_filter`, cờ `music_breath` TẮT).
+  `ffmpeg_studio.breath_filter`, cờ `music_breath` TẮT). ✅ **Nhạc theo ý đồ âm thanh của Đạo diễn** (2026-09-26, director.md Đ9,
+  `core/sound_intent.py`, cờ `sound_intent` TẮT): nhạc tắt hẳn từ shot `cut` tới shot `in`, lặng 0,6 s trước shot `breath`, trên timeline
+  thật của bản dựng (`delivery.sound_plan`); cờ tắt thì manifest ghi số ý đồ chưa áp. Âm `sfx` Đạo diễn yêu cầu đi vào `sfx_plan` (E3),
+  âm không đặt được hiện ở Bước 5.
 - **Kiểm.** Code: `music_timing.score_draft` (độ to tại mốc ngoặt). Người: nghe.
 - **Ví dụ FF.** ✔ 2A: model nhạc luôn mờ 5 s cuối → xin dài thêm 4 s rồi cắt ở cuối phim (`TAIL_PAD_MS`).
 

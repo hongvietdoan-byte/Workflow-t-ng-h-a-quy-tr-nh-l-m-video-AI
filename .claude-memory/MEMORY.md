@@ -10,6 +10,7 @@ Memory repo dùng chung cho các phiên Claude Code trên mọi máy của hongv
 
 | Ngày | Tiêu đề | File |
 |---|---|---|
+| 2026-09-26 | PDF gameplay FF = tư liệu hiểu hình (không ghép cảnh) → ff_gameplay_visual.md + gỡ chữ tả thực; Handbook → trường shot `sound` (Đ9, cờ sound_intent), Đ2/Đ3 | projects/ai-video-pipeline.md |
 | 2026-09-25 | Sau GĐ4: D/V việc code + GĐ6 (giới hạn hệ thống, chế độ chuyên gia, 4 thẻ) + GĐ7 (12 lỗi rà độc lập); bài học decorator | projects/ai-video-pipeline.md |
 | 2026-09-25 | GĐ4 xong: bộ kỹ năng 3 vai chấm độc lập 37/39/36; performance/voice_direction/profile_digest; bỏ tuổi <18 KELLY/MAXIM | projects/ai-video-pipeline.md |
 | 2026-09-25 | V4 xong GĐ0–3 (gói bối cảnh, storyboard Deepix qua API, khớp môi); bàn giao GĐ4 ở docs/BAN_GIAO_2026-09-25_V4_GD4.md | projects/ai-video-pipeline.md |
