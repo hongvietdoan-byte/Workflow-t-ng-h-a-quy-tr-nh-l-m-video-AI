@@ -62,6 +62,7 @@ STAGE_SETTINGS: Dict[str, Dict[str, Any]] = {
     "qc": {"effort": "low", "max_tokens": 16000},              # scoring against a checklist: short JSON
     "video": {"effort": "low", "max_tokens": 16000},
     "music": {"effort": "low"}, "sfx": {"effort": "low"}, "subtitles": {"effort": "low"}, "lessons": {"effort": "low"},
+    "devsys": {"effort": "low", "max_tokens": 16000},        # AI Development System scorer: fixed rubric, JSON (no temperature on these models)
 }
 EFFORT_MODELS = ("claude-sonnet-5", "claude-opus-5", "claude-fable-5", "claude-opus-4-8", "claude-opus-4-7", "claude-opus-4-6",
                  "claude-sonnet-4-6")                       # models that take output_config.effort (Haiku 4.5 refuses it)

@@ -26,3 +26,8 @@ data/3d/
 *.hdr
 *.exr
 data/_plates3d/
+
+# AI Development System: dữ liệu sinh ra (điểm, lần chạy test, sự kiện) chỉ nằm trên máy
+devsys/data/*
+!devsys/data/.gitkeep
+!devsys/data/README.md
