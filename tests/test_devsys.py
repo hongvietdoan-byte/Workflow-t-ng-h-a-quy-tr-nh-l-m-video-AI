@@ -187,6 +187,15 @@ class GitTests(unittest.TestCase):
         self.assertEqual(work["dashboard/app.py"]["areas"], ["ui"])
         self.assertEqual(collect.head(root)["subject"], "Giọng: viết hoa")
 
+    def test_untracked_backups_and_media_are_not_work_in_progress(self):
+        """The real checkout showed "71 file đang sửa" from data/ backups and a 3D model folder with no code changed."""
+        root = _mini_repo()
+        cfg = collect.load_areas(os.path.join(root, "devsys", "areas.json"))
+        _write(root, "data/backup/manifest.sqlite", "x")
+        _write(root, "model 3D/tower.glb", "x")
+        _write(root, "core/brand_new.py", "x = 1\n")                                    # new code, not mapped yet: still shown
+        self.assertEqual({w["path"] for w in collect.working_changes(root, cfg)}, {"core/brand_new.py"})
+
     def test_porcelain_renames_and_log_records(self):
         entries = collect.parse_porcelain("R  moi.py\0cu.py\0?? thư mục/tệp.md\0 M core/x.py\0")
         self.assertEqual([(e["path"], e["status"], e["orig"]) for e in entries],

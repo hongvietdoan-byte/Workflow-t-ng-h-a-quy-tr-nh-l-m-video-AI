@@ -186,11 +186,18 @@ def parse_porcelain(text: str) -> List[Dict]:
     return out
 
 
+WORK_DIRS = ("core/", "dashboard/", "tests/", "tools/", "devsys/", "prompts/", "knowledge/", "docs/", "eval/", "mcp_servers/")
+
+
 def working_changes(root: str, cfg: Dict) -> List[Dict]:
     try:
         entries = parse_porcelain(git(root, "status", "--porcelain=v1", "-z", "-uall"))
     except GitError:
         return []
+    # an untracked file that belongs to no area is not work on the dashboard (backups, 3D models, trial media under data/): the real
+    # checkout had 71 such files and showed "71 file đang sửa" with no code changed. Tracked changes always count.
+    # A new file under the code / knowledge folders stays even before it is mapped (the unmapped warning must see it).
+    entries = [e for e in entries if e["code"] != "??" or e["path"].startswith(WORK_DIRS) or areas_of_path(cfg, e["path"])]
     counts: Dict[str, Tuple[int, int]] = {}
     try:
         for line in git(root, "diff", "--numstat", "HEAD").splitlines():
