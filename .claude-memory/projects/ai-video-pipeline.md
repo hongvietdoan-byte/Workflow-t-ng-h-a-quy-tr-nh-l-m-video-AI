@@ -274,3 +274,12 @@ Phần lớn việc còn lại trong `TODO.md` (mục "Đang làm/kế tiếp", 
 - Bài học công cụ: dán script Python có tiếng Việt qua stdin/heredoc làm hỏng escape (`\b`, `\1`, `\n` thành ký tự điều khiển) → sửa code có regex/tiếng Việt bằng Edit hoặc file script, rồi grep ký tự điều khiển. Máy này không có pdftoppm: tách ảnh PDF bằng node (ASCII85 + DCTDecode).
 - Chưa thử thật: Director có viết `sound` hợp lý không; nghe bản dựng nhạc ngắt theo shot (→ quyết bật cờ); ảnh FF_INGAME sau khi gỡ chữ có bớt "PUBG" không.
 **Source**: phiên 2026-09-26.
+
+## 2026-09-26 (tối) — Đợt 10–11: sẵn sàng đợt thử $10
+**Context**: rà soát toàn dashboard (agent tài liệu + agent code) → người dùng duyệt sửa hết.
+**Finding**:
+- Người dùng chốt: trần $10 (Claude $1,5), chất lượng thấp (🧪 Thử rẻ hạ cả ảnh), bật cả 23 cờ (kể cả 3 cờ từng lỗi GĐ6), cất #1–#7, KHÔNG sync.so (Seedance tạo kèm giọng), hạ nhạc 8–12 dB (đo 9,4–11,5 dB), GĐ5 làm ngay, hồ sơ rút gọn KENTA do Claude soạn tay.
+- Làm song song bằng 4 agent (worktree riêng) rồi gộp: devsys web, GĐ5 Director hai lượt, sửa 11 lỗi, tối ưu + Cất dự án + dọn tài liệu. Xung đột gộp chỉ ở autopilot._director_phase và cost.load_pricing.
+- Web AI Development System (`devsys/`, cổng 8502): AI chấm theo thang cố định, chỉ khoản trừ kèm bằng chứng; người chấm ngoài (phiên Claude Code) miễn phí qua --export/--import.
+- Giá ảnh Deepix tạm $0,052 (web Deepix có tổng chi phí; API không có) — cần đối chiếu.
+**Source**: phiên 2026-09-26.
