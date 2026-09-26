@@ -176,7 +176,9 @@ def build_mux_music_cmd(video: str, music: str, output: str, video_duration: flo
 
 
 MUSIC_FADE_IN = 0.3
-DUCK = "sidechaincompress=threshold=0.02:ratio=8:attack=20:release=400"   # music dips ~10 dB while someone speaks
+# The music dips 8–12 dB while someone speaks (the person chose 2026-09-26; editing.md E4). Measured on 3 real TTS lines of #7 under its
+# chosen music: threshold 0.05 / ratio 3 → 9.4–11.5 dB (0.02 / 8, the setting before, pressed it 18.6–22.3 dB — nearly silent).
+DUCK = "sidechaincompress=threshold=0.05:ratio=3:attack=20:release=400"
 
 
 def build_extras_mix_cmd(video: str, extras: Sequence[dict], output: str, has_audio: bool,

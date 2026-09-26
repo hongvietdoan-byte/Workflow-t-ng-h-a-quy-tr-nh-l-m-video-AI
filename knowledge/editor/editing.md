@@ -78,10 +78,10 @@ xúc, âm thanh làm thế giới game "thật", màu các shot liền nhau như
   = thong thả, mỗi 1–2 phách = căng [E31]; **điểm rơi** của nhạc trùng cú ngoặt (hạ gục, lộ mặt); **hạ nhạc khi có thoại** (sidechain); không
   nhả hạ nhạc giữa hai câu cách nhau < 0,5 s để tránh "bơm"; **khoảng lặng có chủ ý** 0,3–1 s ngay trước cú ngoặt tăng lực cú đập [KN].
 - **Trong pipeline.** ✅ `music_timing`: đoạn nhạc theo nhịp dựng, BPM 70–140 hợp mốc cắt, chấm bản nháp theo độ to ở mốc ngoặt, giữ bản khớp
-  nhất (autopilot + Bước 5); ✅ hạ nhạc khi có giọng (`ffmpeg_studio.DUCK`: ngưỡng 0,02 ≈ −34 dBFS, tỉ lệ 8, attack 20 ms, release 400 ms →
-  **đo thật** (D14, 2026-09-25: nhạc đã chọn của #7 dưới 3 câu giọng TTS thật −10,4 đến −13,8 LUFS) nhạc hạ **14,5–22,8 dB** khi đang nói —
-  gần như tắt; nguồn thứ cấp khuyên 6–10 dB [E32] → **người dùng quyết** có nhẹ tay hơn không (vd ngưỡng 0,05, tỉ lệ 4 ≈ 8–12 dB), vì đây là
-  gu nghe); ✅ nhạc mờ vào 0,3 s. ✅ **Khoảng lặng trước cú ngoặt** (D6): nhạc xuống ~−26 dB trong 0,6 s ngay trước
+  nhất (autopilot + Bước 5); ✅ hạ nhạc khi có giọng (`ffmpeg_studio.DUCK`): **người dùng chốt 8–12 dB** (2026-09-26) → ngưỡng 0,05,
+  tỉ lệ 3, attack 20 ms, release 400 ms — **đo thật** trên nhạc đã chọn của #7 dưới 3 câu giọng TTS thật: nhạc hạ **9,4–11,5 dB** khi đang nói
+  (cài đặt cũ ngưỡng 0,02 / tỉ lệ 8 đo lại 18,6–22,3 dB — gần như tắt; D14 2026-09-25 đo 14,5–22,8 dB; nguồn thứ cấp khuyên 6–10 dB [E32]);
+  ✅ nhạc mờ vào 0,3 s. ✅ **Khoảng lặng trước cú ngoặt** (D6): nhạc xuống ~−26 dB trong 0,6 s ngay trước
   đầu phần kịch bản TWIST / CAO TRÀO (hoặc shot ⭐ đầu tiên) trên timeline thật của bản dựng (`delivery.twist_times`,
   `ffmpeg_studio.breath_filter`, cờ `music_breath` TẮT). ✅ **Nhạc theo ý đồ âm thanh của Đạo diễn** (2026-09-26, director.md Đ9,
   `core/sound_intent.py`, cờ `sound_intent` TẮT): nhạc tắt hẳn từ shot `cut` tới shot `in`, lặng 0,6 s trước shot `breath`, trên timeline
