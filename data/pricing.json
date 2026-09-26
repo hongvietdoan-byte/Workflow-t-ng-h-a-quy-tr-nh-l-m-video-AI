@@ -4,10 +4,10 @@
   "currency": "usd",
   "confirm_batch_at": 10,
   "per_image": {
-    "dola-seedream-5-0-pro-260628": null,
-    "gpt-image-2.5-sunburst": null,
-    "gpt-image-2.5-flare": null,
-    "gpt-image-2": null
+    "dola-seedream-5-0-pro-260628": 0.052,
+    "gpt-image-2.5-sunburst": 0.052,
+    "gpt-image-2.5-flare": 0.052,
+    "gpt-image-2": 0.052
   },
   "per_video_second": {
     "kling-v3-omni:std": 0.08,
@@ -79,5 +79,6 @@
       "output": 5.0
     }
   },
-  "_note_lipsync": "lipsync-2-pro:post = khớp môi sau của sync.so, $0,084/giây làm tròn lên (giá niêm yết trên WaveSpeedAI / Segmind, tra 2026-09-25: wavespeed.ai/models/sync/lipsync-2-pro); giá trên gói sync.so có thể khác — đo lại ở lần chạy thật."
+  "_note_lipsync": "lipsync-2-pro:post = khớp môi sau của sync.so, $0,084/giây làm tròn lên (giá niêm yết trên WaveSpeedAI / Segmind, tra 2026-09-25: wavespeed.ai/models/sync/lipsync-2-pro); giá trên gói sync.so có thể khác — đo lại ở lần chạy thật.",
+  "_note_per_image": "2026-09-26: GIÁ TẠM. Web Deepix hiện 'Tổng chi phí tạo ảnh: $7.06' (ảnh chụp người dùng gửi) trong khi sổ chi ghi 136 ảnh Deepix (106 Seedream 5.0 Pro, 29 GPT Image 2.5 Sunburst, 1 Flare) → trung bình ≈ $0.052/ảnh, chưa tách theo model và chưa chắc tổng web chỉ gồm ảnh của pipeline. Đối chiếu lại bằng ô 'Chi phí Deepix trên web' ở ⚙ → Ngân sách thử khi có số mới."
 }
