@@ -189,7 +189,7 @@ class ClipAIVideoProvider:
               image_references: Optional[list] = None, reference_video: Optional[dict] = None,
               aspect_ratio: Optional[str] = None, resolution: Optional[str] = None,
               multi_prompt: Optional[list] = None, last_frame: Optional[str] = None, kling_mode: Optional[str] = None,
-              reference_audio: Optional[list] = None) -> str:
+              reference_audio: Optional[list] = None, reference_only: Optional[list] = None) -> str:
         """aspect_ratio / resolution override the provider defaults for this job (project frame format, per-scene tier).
         image_references: this project's own resource-library pictures (local files, [{"path","label","role"}], from
         `assets.scene_references`) — no separate Subject Library upload/approval needed. `subjects`: Subject Library entries
@@ -203,7 +203,11 @@ class ClipAIVideoProvider:
         still to be confirmed on the real API (plan v3, GĐ6).
         reference_audio: local audio files (the shot's own voice line, padded to the clip) the character must speak to — Seedance only
         (content role "reference_audio", files in multipart `audio_files`, like `image_files`; skill clipai-1.3.1 video.mjs; the web
-        Weave Canvas sends the same). Lip sync at generation time (kế hoạch V4 GĐ3)."""
+        Weave Canvas sends the same). Lip sync at generation time (kế hoạch V4 GĐ3).
+        reference_only: Seedance "reference to video" — local pictures sent ONLY as `reference_image` (no first frame; `image_path` is not
+        sent). Seedance refuses first/last frames mixed with reference pictures (real run 2026-09-24), so this is the way to give every
+        shot of a grouped generation its own storyboard picture (docs/PHAN_TICH_GOP_SHOT_2026-09-27.md, P2). The caller's prompt names
+        each picture ("Image 1 … Image N"). 2.0: ≤ 9 pictures; 2.5: ≤ 30."""
         canonical, family = resolve_model(model)
         if with_audio and canonical == "kling-video-o1":
             raise ProviderError("kling-video-o1 does not support generated sound (use kling-v3-omni or Seedance)",
@@ -271,6 +275,32 @@ class ClipAIVideoProvider:
         if len(text) > limit and not (multi_prompt and family == "omni"):     # M19: multi-shot sends each shot's prompt, not this one
             raise ProviderError(f"prompt is {len(text)} characters; {canonical} allows at most {limit}",
                                 code="prompt_too_long")
+        if reference_only is not None:
+            if family != "seedance":
+                raise ProviderError("chỉ ảnh tham chiếu (không khung đầu) chỉ có ở Seedance", code="unsupported_option")
+            if last_frame or multi_prompt:
+                raise ProviderError("chỉ ảnh tham chiếu không đi cùng khung cuối / multi-shot", code="unsupported_option")
+            cap = 30 if canonical == "dreamina-seedance-2-5-260628" else 9
+            if not reference_only or len(reference_only) > cap:
+                raise ProviderError(f"cần 1–{cap} ảnh tham chiếu, có {len(reference_only)}", code="rule_violation")
+            refs = []
+            for ref in reference_only:
+                if not os.path.exists(ref):
+                    raise ProviderError(f"reference image not found: {ref}", code="missing_image")
+                with open(ref, "rb") as f:
+                    data = f.read()
+                refs.append((_upload_name(ref, data), data))
+            ctx = {"model_name": canonical,
+                   "content": [{"type": "text", "text": text}]
+                   + [{"type": "image_url", "image_url": {"url": ""}, "role": "reference_image"} for _ in refs]
+                   + [{"type": "audio_url", "audio_url": {"url": ""}, "role": "reference_audio"} for _ in audio_files],
+                   "resolution": resolution or self.resolution, "ratio": aspect_ratio or self.aspect_ratio,
+                   "duration": effective_duration(canonical, family, duration_sec), "generate_audio": bool(with_audio),
+                   "camera_fixed": False, "seed": -1, "video_num": 1}
+            files = ([("image_files", name, data) for name, data in refs]
+                     + [("audio_files", name, data) for name, data in audio_files])
+            data = self.client.post_multipart(PATH_SEEDANCE, {"ctx": json.dumps(ctx, ensure_ascii=False)}, files)
+            return self._task_of(data, family)
         if not os.path.exists(image_path):
             raise ProviderError(f"reference image not found: {image_path}", code="missing_image")
         with open(image_path, "rb") as f:
@@ -323,6 +353,10 @@ class ClipAIVideoProvider:
                 + [("video_files", name, data) for name, data in video_files]
                 + [("audio_files", name, data) for name, data in audio_files])
         data = self.client.post_multipart(path, {"ctx": json.dumps(ctx, ensure_ascii=False)}, files)
+        return self._task_of(data, family)
+
+    @staticmethod
+    def _task_of(data, family: str) -> str:
         tasks = (data or {}).get("tasks") or []
         if not tasks:
             raise ProviderError("create returned no task", code="bad_response")

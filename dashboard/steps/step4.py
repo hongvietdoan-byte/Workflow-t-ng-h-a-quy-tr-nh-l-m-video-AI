@@ -301,10 +301,11 @@ def video_card(p: Pipeline, pid: int, j, runner, stale_reason) -> None:
 def experiments_panel(p: Pipeline, pid: int, runner) -> None:
     """Experiment (off the main path): Kling multi-shot for one sequence, to compare continuity with the per-scene clips."""
     from core import experiments, shots
-    if shots.active(p, pid):       # v3 shot projects have the real thing (shot_mode = multishot)
+    items = experiments.load(C.DATA, pid)
+    if shots.active(p, pid):       # v3 shot projects have the real multi-shot (shot_mode); only the grouped-generation tests are shown
+        group_tests_panel([e for e in items if e.get("kind") == "group_test"])
         return
     seqs = experiments.sequences(p, pid)
-    items = experiments.load(C.DATA, pid)
     if not seqs and not items:
         return
     with st.expander(f"🧪 Thử nghiệm: Kling multi-shot cho một nhóm cảnh ({len(items)})"):
@@ -328,6 +329,29 @@ def experiments_panel(p: Pipeline, pid: int, runner) -> None:
                         + (f" · {escape(e.get('message') or '')}" if e["state"] == "failed" else ""))
             if e.get("file") and os.path.exists(e["file"]):
                 show_video(e["file"])
+
+
+def group_tests_panel(items) -> None:
+    """docs/PHAN_TICH_GOP_SHOT_2026-09-27.md: the same scene made by several grouped-generation methods (P1 Seedance first+last frame,
+    P2 Seedance storyboard pictures as references, P3 Kling multi-shot), side by side for the person to judge (tools/experiments/group_test.py)."""
+    if not items:
+        return
+    names = {"P1": "Seedance · khung đầu + cuối", "P2": "Seedance · ảnh storyboard làm tham chiếu", "P3": "Kling · multi-shot"}
+    spent = sum(float(e.get("usd") or 0) for e in items)
+    with st.expander(f"🧪 Thử gộp shot vào một lần gen — {len(items)} lần gen · ≈ {spent:.2f} USD", expanded=True):
+        st.caption("Cùng một cảnh, cùng ảnh khung storyboard, mỗi cách một lần gen (không gen lại). So: đúng nhân vật từng shot, cắt đúng "
+                   "số shot/thứ tự, bố cục khớp storyboard, liền mạch nơi chốn/ánh sáng, lỗi hình.")
+        for m in sorted({e["method"] for e in items}):
+            st.markdown(f"**{m} — {names.get(m, m)}**")
+            cols = st.columns(max(len([e for e in items if e["method"] == m]), 1))
+            for col, e in zip(cols, sorted((e for e in items if e["method"] == m), key=lambda e: e["group"])):
+                col.caption(f"Nhóm {e['group']} · shot {', '.join(map(str, e['shots']))} · {e['seconds']} s trả tiền / {e['film_s']} s phim · "
+                            f"≈ {float(e.get('usd') or 0):.2f} USD · {ui.state_label(e['state'])}")
+                if e.get("file") and os.path.exists(e["file"]):
+                    with col:
+                        show_video(e["file"])
+                elif e["state"] == "failed":
+                    col.caption(f"❌ {escape(str(e.get('message') or ''))[:200]}")
 
 
 def _written_off(p, j) -> bool:

@@ -12,7 +12,7 @@
 | R2 | Seedance: nhiều shot trong **một** prompt ("Shot 1: … Shot 2: …"), **2–4 shot** mỗi lần gen, mỗi shot một thay đổi + một chuyển động máy; clip 4–15 s (2.5: tới 30 s); **không** có tối thiểu cho từng shot con | tài liệu chính thức kèm skill ClipAI (`knowledge/seedance_prompting.md` mục "Nhiều shot"); BytePlus / hướng dẫn cộng đồng: gắn nhãn "Image 1…N" cho ảnh tham chiếu |
 | R3 | Kling 3.0 Omni multi-shot: ≤ 6 shot, **mỗi shot ≥ 3 s**, tổng ≤ 15 s; một ảnh `first_frame` cho cả nhóm | API ClipAI `omni-video-submit` (`multi_shot`, `multi_prompt`); Magnific / Kling docs |
 | R4 | Kling multi-shot thật (GĐ6): chỉ ảnh đầu nhóm bám nhân vật — **6/12 shot sau sai nhân vật** | `docs/KE_HOACH_TONG_2026-09-24.md` (R4); dp.md Q4 |
-| R5 | Kling khung đầu + khung cuối: tài liệu API ClipAI chỉ ghi `first_frame` cho Kling 3.0 Omni; đầu–cuối có ở Kling O1 (5/10 s) — **chưa có giá** trong `data/pricing.json` (trần tiền sẽ chặn) | `clipai-1.3.1/reference.md`; `docs/CLIPAI_FEATURES.md` #7 |
+| R5 | Kling khung đầu + khung cuối: tài liệu API ClipAI chỉ ghi `first_frame`, nhưng code dự án đã gửi `end_frame` cho Kling 3.0 Omni (cờ `end_frames`, có test `tests/test_end_frames.py`) — **chưa xác nhận bằng chạy thật**; giá Kling std có trong bảng giá → thử được (sửa 2026-09-27 sau khi đọc lại code) | `clipai-1.3.1/reference.md`; `core/adapters/clipai.py` |
 | R6 | Nội suy đầu→cuối là **một đường máy liên tục** giữa hai hình: hai hình khác góc (shot–phản shot) sẽ ra biến hình/trượt, không ra vết cắt | bản chất kỹ thuật (first–last frame interpolation); cần thử để có số |
 | R7 | Pipeline đã vẽ được **khung từng shot kiểu storyboard Deepix** (cờ `storyboard_api`: shot rộng nhất làm neo, cùng nơi/ánh sáng) | `core/scene_storyboard.py`, thử #7 cảnh 1 |
 
@@ -23,7 +23,7 @@
 | **P1** | Seedance, **khung đầu (shot 1) + khung cuối (shot cuối)**, prompt "Shot 1…Shot N" — chia 2 lần gen × 3 shot | 2 ảnh / lần gen | ~13 s → **1,56** | khóa đầu–cuối bằng ảnh thật; ít ảnh | shot giữa chỉ có chữ → lệch nhân vật/bố cục; model có cắt đúng chỗ không |
 | **P2** | Seedance **chỉ ảnh tham chiếu**: khung storyboard của từng shot (Image 1 = Shot 1…) + ảnh nhân vật, không khung đầu — 2 lần gen × 3 shot | 3 khung + ≤ 3 ảnh nhân vật / lần | ~13 s → **1,56** | **mọi shot có ảnh hướng dẫn**; nhân vật có ảnh danh tính | khung đầu không trùng pixel với storyboard; model có theo đúng thứ tự Image↔Shot không |
 | **P3** | Kling multi-shot, khung đầu + multi_prompt (mỗi shot ≥ 3 s) — 2 lần gen × 3 shot | 1 ảnh / lần | 6 × 3 s = 18 s → **1,44** | rẻ/giây, cắt theo cấu trúc API | R3: shot < 3 s bị kéo dài 3 s (nhịp chậm lại); R4: shot sau sai nhân vật |
-| **P4** | Kling đầu–cuối liền một đường máy | 2 ảnh | 5–10 s | chuyển động máy liền mượt | R5 chưa có giá/API chưa xác nhận; R6 không làm được cắt góc → chỉ hợp **shot liền một vị trí máy**, không hợp cảnh thoại nhiều góc |
+| **P4** | Kling std khung đầu + khung cuối, một đường máy liền | 2 ảnh | ~13 s → **1,04** | rẻ; chuyển động máy liền mượt | R6: hai góc khác nhau → dự kiến biến hình, không ra cắt → **thử để có bằng chứng** (người dùng hỏi thẳng phương án này) |
 | **P5** | **Director gộp ở gốc**: ít vết cắt hơn — một shot dài 6–10 s có đổi cỡ bằng chuyển động máy (đẩy vào, lia theo người nói) thay cho 3–4 cắt | 1 ảnh | ~13 s → 1,56 (Seedance) / 1,04 (Kling) | rẻ nhất, model làm tốt shot liền; hợp video dài | đổi ngôn ngữ dựng (ít cắt hơn FF gốc ~2 s/shot) — cần người dùng chấp nhận |
 | **P6** | Lai theo loại shot: shot khớp môi / ⭐ / money shot giữ riêng (P0); phần còn lại gộp theo P1/P2/P3 thắng | — | tùy | giữ chất lượng chỗ quan trọng | phức tạp hơn một chút |
 
@@ -34,8 +34,9 @@
   còn trần: thêm cảnh 1 (cinematic 4 shot, cận cảm xúc).
 - **Chung cho mọi phương án:** cùng khung storyboard Deepix của cảnh (6 khung, ~0,31 USD, vẽ qua Bước 2 như bình thường), cùng motion ý đồ,
   Seedance **Fast 720p** / Kling **std 720p** (chế độ Thử rẻ), không âm thanh model (giọng lồng sau), 1 lần gen / phương án (không gen lại).
-- **Chạy:** P0 (6 clip), P1 (2 lần gen), P2 (2 lần gen), P3 (2 lần gen) → ~7,3 USD + ảnh 0,31 + QC Claude ~0,3 ≈ **8 USD**. Bỏ P0 nếu muốn
-  tiết kiệm (dùng clip #6/#7 cũ làm mốc) → ≈ **5 USD**. P4 không chạy (lý do R5/R6); P5 cần Director đổi cách chia — đo ở bước sau.
+- **Người dùng duyệt 2026-09-27:** chạy, **không tốn tiền Claude API** (trần Claude chỉ còn ~$3 cho chạy thật) → prompt gộp dựng bằng code từ trường
+  Director (không gọi Claude), khung storyboard vẽ không QC Claude, chấm bằng mắt (phiên Claude Code) + ffmpeg. Không chạy P0 (mốc = clip #6/#7 cũ).
+  Chạy P1, P2, P3, P4 (mỗi cách 2 lần gen × 3 shot) ≈ 5,7 USD + 6 khung ≈ 0,31 → **≈ 6 USD**. Công cụ: `tools/experiments/group_test.py`.
 - **Chấm (định trước khi xem kết quả):**
   1. Nhận diện 3 nhân vật đúng ở từng shot (QC video Claude + người) — trọng số cao nhất.
   2. Số vết cắt và thứ tự đúng kịch bản (ffmpeg dò cắt cảnh `scdet`) — có cắt được về đúng từng shot để dựng không.
