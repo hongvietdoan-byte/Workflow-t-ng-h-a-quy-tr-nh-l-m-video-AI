@@ -8,7 +8,10 @@
 > (🧪 Thử rẻ tự bật cho dự án mới: ảnh cỡ nhỏ nhất, video 720p Kling std / Seedance Fast); **bật cả 23 cờ** trong `dashboard.env` (kể cả
 > `layout_to_model`, `chain_previous_auto`, `setcheck_autofix` — người dùng cho test); dự án cũ **#1–#7 đã cất** (khôi phục ở ⚙ → "📦 Dự án
 > đã cất"; sao lưu CSDL `data/backup/manifest.before_archive_2026-09-26.sqlite`); **không mở sync.so** — khớp môi = Seedance tạo kèm giọng.
-> **Việc tiếp:** chấm điểm lần đầu trên web devsys (người chấm ngoài, miễn phí) → người dùng tạo **dự án thử mới** và tự chạy trên dashboard.
+> **Chấm điểm lần đầu xong (2026-09-26 19:31):** hoàn thiện tổng **79,8/100** (2 agent chấm độc lập, 16/16 khu vực — bảng + lỗi tìm ra ở
+> `docs/DANH_GIA_DEVSYS_2026-09-26.md`); thấp nhất Khớp môi 69, Tài liệu 69, Gói bối cảnh 71; mất điểm chủ yếu ở "bằng chứng chạy thật" (0/23 cờ).
+> **Việc tiếp:** (chờ người dùng quyết) sửa 6 lỗi người chấm tìm ra — nặng nhất `core/experiments.py:62` gửi video trả tiền ngoài trần →
+> người dùng tạo **dự án thử mới** và tự chạy trên dashboard.
 > **Chờ người dùng:** duyệt bộ kỹ năng 3 vai (bảng `docs/DANH_GIA_BO_NGUYEN_TAC_V4.md` — `film_crew` đang bật cho đợt thử), gắn nhãn ảnh
 > Kho (~$1–1,5), mô hình 3D chính thức, âm đêm cho thư viện âm thanh; đối chiếu giá ảnh Deepix (tạm $0,052/ảnh) với số trên web Deepix.
 > *(Bàn giao cũ 2026-09-25 khuya — "việc tiếp GĐ4, 943 test" — đã thay bởi mục này; file `docs/BAN_GIAO_2026-09-25_V4_GD4.md` là lịch sử.)*
