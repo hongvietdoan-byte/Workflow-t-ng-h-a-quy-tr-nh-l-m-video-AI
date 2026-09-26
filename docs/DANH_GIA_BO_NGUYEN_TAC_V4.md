@@ -6,6 +6,19 @@
 > Bộ kỹ năng: `knowledge/roles/director.md`, `knowledge/roles/dp.md`, `knowledge/editor/editing.md` + `safe_zones.md`, trang tổng
 > `knowledge/roles/README.md`. Nguồn: `knowledge/sources.md` mục GĐ4 (100 nguồn, có loại + mức tin cậy).
 
+## 0. Chấm lại 2026-09-26/27 — mục tiêu ≥ 45/50 mỗi vai trước khi chạy thật (người dùng chốt)
+Người chấm: agent độc lập (lần 0 một agent; lần 1–3 một agent khác, cùng thang, tự mở code, chạy test, tái hiện lỗi, kiểm file ra thật).
+| Vai | Lần 0 | Lần 1 | Lần 2 | Lần 3 (`9c97886`) | Tối đa khi chưa chạy thật (lần 3) |
+|---|---|---|---|---|---|
+| Đạo diễn | 37 | 38 | 41 | **42,5** | ~45 (sát nút) |
+| Quay phim | 38 | 37,5 | 40 | **41,5** | **~43 — không tới 45** |
+| Dựng | 37 | 39,5 | 41 | **42,5** | ~45,5 nếu người dùng nghe/xem A/B 9 cờ Dựng trên clip #7 có sẵn |
+Báo cáo chi tiết từng lần nằm ngoài repo (scratchpad phiên). Việc đã làm: commit `dde01f6`, `e307e79`, `9c97886` (tóm tắt trong TODO).
+**Còn lại — miễn phí:** R1 `kind` lạ + chữ dự phòng nhận nhầm; R2 phủ định vượt dấu phẩy; R3 "thiếu money_shot" với phim không quảng bá;
+R4 câu báo chuẩn hóa; sơ đồ máy cho nơi không 3D; vị trí người có cấu trúc; biến thể mở đầu; đo độ to từng lớp; mã hóa âm một lần; nguồn
+nghề thay [Đ31]. **Cần người dùng (miễn phí):** nghe/xem A/B 9 cờ Dựng + `voice_direction`. **Cần tiền:** Director thật với `film_crew` /
+hai lượt (~Claude), clip thật cho chuyển động máy / ghép nền / khớp môi / quay chậm (Quay phim chỉ lấy lại ~2 điểm cuối bằng cách này).
+
 ## 1. Điểm (mỗi tiêu chí /10; bản cũ = commit `533d230`)
 Tiêu chí: **1** đầy đủ so với chuẩn nghề bên ngoài và mục 4.2 · **2** độ đúng · **3** áp dụng được vào pipeline AI · **4** kiểm chứng được
 (bằng code/mắt — người chấm kiểm code có thật) · **5** nhất quán giữa các vai và với prompt/code.
