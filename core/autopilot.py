@@ -242,7 +242,11 @@ def _active(p: Pipeline, pid: int, kind: str) -> int:
 def _director_phase(p: Pipeline, pid: int, ctx: Context) -> Optional[str]:
     """Claude writes the Character Bible and the scene specs (once). Then, when the 'review the characters' checkpoint is on, the run
     waits for the person before any picture is paid for (a wrong description would repeat in every scene)."""
-    if not _count(p, "SELECT COUNT(*) FROM characters WHERE project_id=?", pid):
+    unwritten = _count(p, "SELECT COUNT(*) FROM characters WHERE project_id=? AND TRIM(COALESCE(description,''))!=''", pid) == 0
+    planned = any((json.loads(s["data"] or "{}").get("image_prompt") or "").strip()
+                  for s in p.conn.execute("SELECT data FROM scenes WHERE project_id=?", (pid,)))
+    if not _count(p, "SELECT COUNT(*) FROM characters WHERE project_id=?", pid) or (unwritten and not planned):
+        # no Bible yet, or a "chạy lại Director" clone whose Bible was reset (core.compare.FRESH_BIBLE) and whose scenes have no plan
         r = llm_runner.run_director(p, pid, ctx.llm)
         n_shots = _count(p, "SELECT COUNT(*) FROM scenes WHERE project_id=?", pid)
         _log(p, pid, f"Director: {r['characters']} nhân vật, {r['scenes']} cảnh" + (f", {n_shots} shot" if n_shots != r["scenes"] else ""))
@@ -258,6 +262,10 @@ def _director_phase(p: Pipeline, pid: int, ctx: Context) -> Optional[str]:
         flags = claude_tasks.bible_flags(p, pid)
     except (llm_runner.LlmError, ValueError) as e:
         _d(p, pid, "director", "warn", f"không kiểm được Bible với ảnh tài nguyên: {e}", "bible_check_skipped")
+        if not gates["bible_done"]:                         # luật 1: a gate that could not run STOPS (e.g. the Claude cap is reached)
+            raise _Wait("bible", f"Không kiểm được Character Bible với ảnh tài nguyên ({str(e)[:160]}) — dừng trước khi gen ảnh. Xử lý "
+                                 "lỗi (vd nạp thêm tiền Claude) rồi chạy lại để kiểm, hoặc bấm Tiếp tục nếu bạn đã tự so mô tả với ảnh "
+                                 "(chạy tiếp không kiểm)")
     if flags and not gates["bible_done"]:
         raise _Wait("bible", "Mô tả nhân vật mâu thuẫn với ảnh tài nguyên: " + "; ".join(f"{n}: {m[0]}" for n, m in flags.items())
                     + " — sửa ở Bước 1 (đề xuất sửa có sẵn) rồi bấm Tiếp tục")
@@ -337,7 +345,7 @@ def _images_phase(p: Pipeline, pid: int, ctx: Context) -> Optional[str]:
                 _d(p, pid, "image", "warn", f"S{scene['idx']:02d}: ảnh đã cũ nhưng shot đã gửi {SHOT_SENDS} lần — không tự làm lại",
                    "shot_cap")
                 continue
-            p.reopen_approved(stale[scene["id"]]["image_job_id"], f"Nội dung cảnh đã đổi: {stale[scene['id']]['image_stale']}")
+            p.reopen_approved(stale[scene["id"]]["image_job_id"], f"Nội dung cảnh đã đổi: {stale[scene['id']]['image_stale']}", fix="")
             continue
         if _has(p, scene["id"], "image_gen", "'approved','queued','running','succeeded','pending_review','retryable','failed'"):
             continue
@@ -444,15 +452,20 @@ def _lipsync_phase(p: Pipeline, pid: int, ctx: Context) -> Optional[str]:
     from . import ffmpeg_studio, features, lipsync
     if not features.on("lip_sync"):
         return None
-    if not any(r["method"] == "post" for r in lipsync.plan(p.conn, pid)):
-        return None
     from .adapters import syncso
-    provider = syncso.from_env_or_none()
+    provider = syncso.from_env_or_none() if lipsync.post_available() else None
     if provider is None:
+        # user decision 2026-09-26: no sync.so account — close shots are made WITH the voice (Seedance), the rest keep their mouths.
+        # Said once per shot (diag), never an error, never a paid call.
         marker = _marker(ctx, pid, ".lipsync_nokey")
         if not os.path.exists(marker):
-            _d(p, pid, "videos", "warn", "khớp môi sau: chưa có SYNC_API_KEY — các shot cần khớp môi giữ nguyên miệng của clip", "lipsync_key")
+            for s in p.conn.execute("SELECT id, idx, data FROM scenes WHERE project_id=? ORDER BY idx", (pid,)).fetchall():
+                note = lipsync.no_post_note(json.loads(s["data"] or "{}"))
+                if note:
+                    diag.record(p.conn, "videos", "info", f"S{s['idx']:02d}: {note}", "lipsync_no_post", pid, s["id"])
             open(marker, "w").close()
+        return None
+    if not any(r["method"] == "post" for r in lipsync.plan(p.conn, pid)):
         return None
     c = lipsync.post_tick(p, pid, ctx.data_dir, provider, ffmpeg_studio.find_ffmpeg(), log=lambda m: _log(p, pid, m))
     return f"Khớp môi: còn {c['running'] + c['sent']} clip" if c["running"] or c["sent"] else None
@@ -1039,11 +1052,17 @@ def _setcheck_phase(p: Pipeline, pid: int, ctx: Context) -> Optional[str]:
         redone = 0
         for it in issues:
             if _count(p, "SELECT COUNT(*) FROM jobs WHERE project_id=? AND type='image_gen'", pid) >= cap_images:
+                _d(p, pid, "qc", "warn", f"QC đồng bộ: không gen lại cảnh {it['idx']} — đã chạm trần job ảnh của dự án", "set_check_cap")
                 break
+            why = _setcheck_block(p, pid, it, str(getattr(getattr(ctx.image_runner, "provider", None), "name", "") or ""))
+            if why:
+                _d(p, pid, "qc", "warn", f"QC đồng bộ: không tự gen lại cảnh {it['idx']} — {why}", "set_check_not_redone")
+                continue
             try:
-                claude_tasks.redo_from_set_check(p, pid, it["idx"], it.get("fix") or it["problem"])
+                claude_tasks.redo_from_set_check(p, pid, it["idx"], it["fix"])
                 redone += 1
-            except (ValueError, Exception):  # noqa: BLE001 - one scene that cannot be redone must not stop the run
+            except Exception as e:  # noqa: BLE001 - one scene that cannot be redone must not stop the run, but it is said
+                _d(p, pid, "qc", "warn", f"QC đồng bộ: không gen lại được cảnh {it['idx']} ({type(e).__name__}: {e})", "set_check_redo_failed")
                 continue
         if redone or features.on("setcheck_autofix"):
             _log(p, pid, "QC đồng bộ cả bộ ảnh: " + (f"làm lại {redone} cảnh lệch" if redone else "ổn"))
@@ -1053,6 +1072,21 @@ def _setcheck_phase(p: Pipeline, pid: int, ctx: Context) -> Optional[str]:
         f.write("1")
     return None if not _count(p, "SELECT COUNT(*) FROM jobs WHERE project_id=? AND type='image_gen' AND state IN ('queued','running')", pid) \
         else "QC đồng bộ: đang gen lại cảnh lệch"
+
+
+def _setcheck_block(p: Pipeline, pid: int, issue: Dict, provider_name: str = "") -> Optional[str]:
+    """Why a set-check outlier must not be redrawn automatically (setcheck_autofix): no English fix sentence (the same input again),
+    the shot's picture already sent SHOT_SENDS times (luật 6: ≤ 2 regenerations), or the spending limit would refuse it."""
+    from . import budget, image_models
+    if not (issue.get("fix") or "").strip():
+        return "QC không nêu câu sửa — gen lại sẽ gửi y hệt đầu vào"
+    row = p.conn.execute("SELECT id FROM scenes WHERE project_id=? AND idx=?", (pid, issue.get("idx"))).fetchone()
+    if row is None:
+        return "không có cảnh này"
+    if _shot_sends(p, row["id"], "image_gen") >= SHOT_SENDS:
+        return f"ảnh của shot đã gửi {SHOT_SENDS} lần (tối đa 2 lần gen lại)"
+    over = budget.check_image(p.conn, provider_name or "deepix", image_models.of_project(p.project(pid)))
+    return f"ngân sách: {over}" if over else None
 
 
 def _check_voices(p: Pipeline, pid: int, ctx: Context) -> None:
@@ -1079,17 +1113,23 @@ def _voice_phase(p: Pipeline, pid: int, ctx: Context) -> Optional[str]:
     """Character voices for the dialogue (TTS), then clips sized to the real voice. Skipped (with a note) when there is no audio
     provider or a speaker has no voice: subtitles still carry the lines."""
     from . import voice
-    if ctx.audio is None:
-        return None
     stat = voice.status(p.conn, pid, ctx.data_dir)
     if not stat["total"]:
         return None
-    if stat["missing"]:
+    if ctx.audio is None:                                  # luật 1: said as a diag (📊 Theo dõi), not only a log line
+        _d(p, pid, "voice", "warn", f"không có nhà cung cấp âm thanh (AUDIO_PROVIDER) — {stat['total']} câu thoại không có giọng, "
+                                    "chỉ có phụ đề", "no_audio_provider")
+        return None
+    if stat["missing"] or stat.get("failed"):
         r = voice.generate(p.conn, pid, ctx.audio, ctx.data_dir)
         if r["sent"]:
             _log(p, pid, f"Gửi {r['sent']} câu thoại cho TTS")
         if r["no_voice"]:
             _log(p, pid, "Chưa có giọng cho: " + ", ".join(r["no_voice"]) + " (các câu này chỉ có phụ đề)")
+            _d(p, pid, "voice", "warn", "chưa có giọng cho: " + ", ".join(r["no_voice"]) + " — các câu của họ chỉ có phụ đề (chọn giọng ở "
+                                        "Bước 1 → 🎙 Giọng)", "no_voice")
+        for why in r.get("held") or []:
+            _d(p, pid, "voice", "warn", f"không tự gửi lại câu thoại lỗi: {why}", "voice_not_resent")
     if stat.get("running") or stat["missing"]:
         audio_lib.refresh(ctx.audio, audio_lib.assets_dir(ctx.data_dir, pid))
         stat = voice.status(p.conn, pid, ctx.data_dir)

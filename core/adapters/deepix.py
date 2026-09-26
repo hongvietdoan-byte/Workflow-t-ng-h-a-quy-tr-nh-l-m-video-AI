@@ -29,6 +29,45 @@ _DONE = {"completed", "succeed", "success"}
 _FAILED = {"failed", "error"}
 
 
+MAX_REFERENCE_BYTES = 10 * 1024 * 1024
+
+
+def reference_problem(path: str) -> Optional[str]:
+    """Why this reference picture cannot be sent (Vietnamese, for the diag), or None."""
+    try:
+        size = os.path.getsize(path)
+    except OSError:
+        return "không đọc được file"
+    if size <= 0:
+        return "file rỗng"
+    if size > MAX_REFERENCE_BYTES:
+        return f"{size / 1024 / 1024:.1f} MB > 10 MB"
+    return None
+
+
+def _read_references(references, model: str) -> list:
+    """The files for `file[]`, in order. W10 / luật 1: a picture that cannot go (unreadable, > 10 MB, over the model's limit) is REFUSED
+    here instead of dropped — the prompt numbers the pictures ("Image 2 is KELLY"), so sending fewer would shift every name."""
+    from .. import image_models
+    refs = list(references or [])
+    cap = image_models.max_refs(model, MAX_REFERENCES)
+    if len(refs) > cap:
+        raise ProviderError(f"{len(refs)} reference pictures, the model takes at most {cap}", code="bad_reference")
+    files = []
+    for i, path in enumerate(refs, 1):
+        problem = reference_problem(path)
+        if problem is None:
+            try:
+                with open(path, "rb") as f:
+                    content = f.read()
+            except OSError:
+                problem = "không đọc được file"
+        if problem:
+            raise ProviderError(f"reference picture {i} ({os.path.basename(path)}): {problem}", code="bad_reference")
+        files.append((path, content))
+    return files
+
+
 def validate_seedream_size(size: str) -> None:
     try:
         w, h = (int(x) for x in size.lower().split("x"))
@@ -111,15 +150,9 @@ class DeepixImageProvider:
         if not prompt.strip():
             raise ProviderError("empty prompt", code="bad_prompt")
         files = []
-        for path in list(references or [])[:image_models.max_refs(model, MAX_REFERENCES)]:
-            try:
-                with open(path, "rb") as f:
-                    content = f.read()
-            except OSError:
-                continue                                   # a missing picture must not stop the job: it just goes without
-            if content and len(content) <= 10 * 1024 * 1024:
-                content, name = flatten_transparency(content, os.path.basename(path))
-                files.append(("file[]", name, content))
+        for path, content in _read_references(references, model):   # refused (not dropped): the prompt numbers these pictures
+            content, name = flatten_transparency(content, os.path.basename(path))
+            files.append(("file[]", name, content))
         fields = {"prompt_key": "1" if files else "2", "message_type": "image-to-image" if files else "text-to-image",
                   "prompts": json.dumps([{"key": "positive_prompt", "text": prompt}], ensure_ascii=False),
                   "model": model, "quality": "high"}
@@ -143,9 +176,7 @@ class DeepixImageProvider:
         size = size or self.size
         self._check(model, size)
         files = []
-        for i, path in enumerate(list(references or [])[:image_models.max_refs(model, MAX_REFERENCES)]):
-            with open(path, "rb") as f:
-                content = f.read()
+        for i, (path, content) in enumerate(_read_references(references, model)):
             content, name = flatten_transparency(content, os.path.basename(path))
             files.append(("file[]", f"ref_{i + 1}_{name}", content))
         prompts = [{"key": "positive_prompt", "text": prompt}, {"key": "story_text", "text": story_text},

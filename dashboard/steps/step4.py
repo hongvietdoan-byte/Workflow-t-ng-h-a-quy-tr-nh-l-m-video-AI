@@ -59,11 +59,21 @@ def step4(p: Pipeline, pid: int):
                                 " AND NOT EXISTS (SELECT 1 FROM content_moderation_failures f WHERE f.job_id=j.id)", (pid,)).fetchall()
         prices = [cost.clip_estimate(p.conn, p.job(j["id"])["scene_id"]) for j in failed]
         total = None if any(x is None for x in prices) else sum(prices)
-        if c2.button(f"↻ Gen lại clip lỗi ({len(failed)}){cost.price_tag(total, len(failed))}", key="btn_bad_retry", disabled=not failed,
-                     help="Clip bị bộ lọc nội dung chặn không nằm trong nút này: sửa prompt trước."):
+        if c2.button(f"↻ Gửi lại clip lỗi ({len(failed)}){cost.price_tag(total, len(failed))}", key="btn_bad_retry", disabled=not failed,
+                     help="Gửi lại Y NGUYÊN đầu vào — chỉ dùng khi lỗi do nhà cung cấp (mạng, quá tải). Clip bị bộ lọc nội dung chặn "
+                          "không nằm trong nút này: sửa prompt trước."):
             for j in failed:
-                act(lambda: p.retry(j["id"], "gen lại clip lỗi"))
+                act(lambda: p.retry(j["id"], "gửi lại clip lỗi (lỗi nhà cung cấp)"))
             st.rerun()
+        from core import lipsync as _lipsync
+        if _lipsync.enabled() and not _lipsync.post_available():
+            notes = [(r["idx"], _lipsync.no_post_note(json.loads(r["data"] or "{}")))
+                     for r in p.conn.execute("SELECT idx, data FROM scenes WHERE project_id=? ORDER BY idx", (pid,))]
+            notes = [(i, n) for i, n in notes if n]
+            if notes:
+                with st.expander(f"👄 Khớp môi: {len(notes)} shot không có khớp môi sau (không dùng sync.so)"):
+                    for i, n in notes:
+                        st.caption(f"{C.unit_code(p, pid, i)}: {n}")
         waiting = [j["id"] for j in p.conn.execute(
             "SELECT id FROM jobs WHERE project_id=? AND type='video_gen' AND state='pending_review' ORDER BY id", (pid,)).fetchall()]
         if waiting and confirm_all(f"vid_ok_all_{pid}", waiting, f"✔ Duyệt tất cả ({len(waiting)} clip)",
@@ -113,7 +123,8 @@ def clip_set_panel(p: Pipeline, pid: int) -> None:
         st.caption("Claude xem khung giữa của mọi clip và các điểm nối giữa hai shot liền mạch: màu, ánh sáng, chất hình, nhân vật có "
                    "khớp nhau không (clip do các model khác nhau làm dễ lệch). Nên chạy trước khi dựng ở Bước 5.")
         client = llm_client()
-        if st.button(f"🤖 Kiểm tra {usable} clip", key=f"clipqc_{pid}", disabled=client is None, help=None if client else claude_hint()):
+        if st.button(f"🤖 Kiểm tra {usable} clip" + cost.llm_tag(cost.llm_estimate(p.conn, "clipcheck", 1, images=2, ledger_stage="qc"), 1),
+                     key=f"clipqc_{pid}", disabled=client is None, help=None if client else claude_hint()):
             with st.spinner("Claude đang so cả bộ clip…"):
                 act(lambda: claude_tasks.clip_set_consistency(p, pid, client, C.DATA))
             st.rerun()
@@ -131,9 +142,11 @@ def clip_set_panel(p: Pipeline, pid: int) -> None:
                 job = p.conn.execute("SELECT j.id FROM jobs j JOIN scenes s ON s.id=j.scene_id WHERE s.project_id=? AND s.idx=?"
                                      " AND j.type='video_gen' AND j.state IN ('succeeded','approved') ORDER BY j.id DESC LIMIT 1",
                                      (pid, it["idx"])).fetchone()
-                if job and c2.button("↻ Gen lại clip này" + cost.price_tag(cost.clip_estimate(p.conn, p.job(job["id"])["scene_id"])),
-                                     key=f"clipqc_redo_{pid}_{n}"):
-                    act(lambda: regen.regenerate_video(p, C.DATA, job["id"], f"Đồng bộ cả bộ clip: {it.get('fix') or it['problem']}"),
+                if job and not (it.get("fix") or "").strip():
+                    c2.caption("QC không nêu câu sửa — sửa motion prompt ở Bước 3")
+                elif job and c2.button("↻ Gen lại clip này" + cost.price_tag(cost.clip_estimate(p.conn, p.job(job["id"])["scene_id"])),
+                                       key=f"clipqc_redo_{pid}_{n}", help="Gen lại với câu sửa của QC (tiếng Anh) — đầu vào khác lần trước"):
+                    act(lambda: regen.regenerate_video(p, C.DATA, job["id"], f"Đồng bộ cả bộ clip: {it['problem']}", fix=it["fix"]),
                         "Đã xếp hàng gen lại")
                     st.rerun()
 
@@ -228,9 +241,12 @@ def video_card(p: Pipeline, pid: int, j, runner, stale_reason) -> None:
             if j["state"] == "failed" and blocked:
                 st.caption("Bị bộ lọc nội dung chặn: gen lại nguyên prompt sẽ lại bị chặn và tốn credit.")
                 st.button("✏ Sửa motion prompt rồi gen lại", key=f"vfix_{j['id']}", on_click=_go_step3)
-            elif j["state"] == "failed" and not j["escalated"] and st.button("↻ Gen lại" + tag, key=f"vr_{j['id']}"):
-                act(lambda: p.retry(j["id"], "gen lại"))
-                st.rerun()
+            elif j["state"] == "failed" and not j["escalated"]:
+                vfix = st.text_input("Câu sửa (tiếng Anh) — trống = gửi lại y nguyên, chỉ khi lỗi do nhà cung cấp", key=f"vfixtxt_{j['id']}")
+                if st.button(("↻ Gen lại với câu sửa" if vfix.strip() else "↻ Gửi lại (lỗi nhà cung cấp)") + tag, key=f"vr_{j['id']}"):
+                    act(lambda: p.retry(j["id"], "người dùng gen lại với câu sửa" if vfix.strip() else "gửi lại (lỗi nhà cung cấp)",
+                                        fix=vfix))
+                    st.rerun()
             if j["state"] == "failed" and runner is not None and _written_off(p, j) and st.button(
                     "🔎 Tìm task thật (không gửi lại)", key=f"vrl_{j['id']}",
                     help="ClipAI đôi khi tạo task với mã khác mã đã trả về (W12b). Tìm theo prompt đã gửi; thấy thì nối lại và tải clip, "
@@ -277,7 +293,7 @@ def video_card(p: Pipeline, pid: int, j, runner, stale_reason) -> None:
                     if act(lambda: p.keep_rejected(keep["id"]), "Đã giữ clip"):
                         st.rerun()
         if j["state"] == "pending_review":
-            st.text_input("Ghi chú lý do loại (đưa vào lần gen lại)", key=f"vnote_{j['id']}")
+            st.text_input("Câu sửa cho lần gen lại (đưa vào prompt — nên viết tiếng Anh)", key=f"vnote_{j['id']}")
         scene_expander(p, j["scene_id"], with_motion=True)
 
 

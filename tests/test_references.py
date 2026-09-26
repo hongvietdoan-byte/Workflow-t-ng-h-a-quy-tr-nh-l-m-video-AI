@@ -10,7 +10,7 @@ from core import assets
 from core.adapters.deepix import DeepixImageProvider
 from core.db import connect
 from core.pipeline import Pipeline
-from core.providers import MockImageProvider
+from core.providers import MockImageProvider, ProviderError
 from core.runner import ImageRunner
 from tests.test_adapters import FakeTransport, TOKEN, ok
 
@@ -89,11 +89,15 @@ class ReferenceTests(unittest.TestCase):
         t.on("POST", "/api/image-generator/conversation-create", ok({"id": 1, "msg_id": 55}))
         deepix = DeepixImageProvider(TOKEN, "https://deepix.example", t)
         a = assets.list_assets(self.conn, "FF", "character", None, shared_only=True)[0]
-        self.assertEqual(deepix.submit("a scene", [a["images"][0]["path"], os.path.join(self.dir, "missing.png")]), "55")
+        with self.assertRaises(ProviderError) as refused:        # 2026-09-26: refused, not silently dropped (the prompt numbers the
+            deepix.submit("a scene", [a["images"][0]["path"], os.path.join(self.dir, "missing.png")])   # pictures: "Image 2 is …")
+        self.assertEqual(refused.exception.code, "bad_reference")
+        self.assertEqual(t.calls, [])                                           # nothing sent, nothing paid
+        self.assertEqual(deepix.submit("a scene", [a["images"][0]["path"]]), "55")
         body = t.calls[0]["body"]
         self.assertIn(b'name="prompt_key"\r\n\r\n1', body)
         self.assertIn(b'name="message_type"\r\n\r\nimage-to-image', body)
-        self.assertEqual(body.count(b'name="file[]"'), 1)                      # the missing file is skipped, not fatal
+        self.assertEqual(body.count(b'name="file[]"'), 1)
         t2 = FakeTransport()
         t2.on("POST", "/api/image-generator/conversation-create", ok({"id": 1, "msg_id": 56}))
         DeepixImageProvider(TOKEN, "https://deepix.example", t2).submit("no refs")

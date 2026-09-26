@@ -85,13 +85,13 @@ def submit_tts(provider, directory: str, text: str, voice_actor_id: int, voice_n
     subtitled from its real timing. Do not pass language_code for Vietnamese: ElevenLabs answers HTTP 400 (auto-detect works)."""
     label = (f"[{voice_name}] " if voice_name else "") + text
     refused = audio_refusal(ledger, provider)
-    if refused:
-        return _add(directory, "tts", label, None, refused, extra)
+    if refused:                                  # never sent (spending cap / ledger): not a provider failure, nothing was paid
+        return _add(directory, "tts", label, None, refused, {**(extra or {}), "refused": True})
     try:
         asset_id = (provider.generate_tts(text, voice_actor_id, model, language_code, name="pipeline-tts", params=params) if params
                     else provider.generate_tts(text, voice_actor_id, model, language_code, name="pipeline-tts"))
     except ProviderError as e:
-        return _add(directory, "tts", label, None, str(e), extra)
+        return _add(directory, "tts", label, None, str(e), {**(extra or {}), "error_code": e.code, "transient": bool(e.transient)})
     record_audio_usage(ledger, provider, model)
     return _add(directory, "tts", label, asset_id, extra=extra)
 
@@ -115,10 +115,10 @@ def refresh(provider, directory: str) -> Dict[str, int]:
                     provider.download(st.url, dest)
                     e.update(state="succeeded", file=os.path.basename(dest), duration_ms=st.duration_ms)
                 elif st.state == "failed":
-                    e.update(state="failed", message=st.message)
+                    e.update(state="failed", message=st.message, provider_failed=True)   # made and failed at the provider
             except ProviderError as ex:
                 if not ex.transient:
-                    e.update(state="failed", message=str(ex))
+                    e.update(state="failed", message=str(ex), error_code=ex.code, transient=False)
         counts[e["state"]] = counts.get(e["state"], 0) + 1
     _save(directory, items)
     return counts

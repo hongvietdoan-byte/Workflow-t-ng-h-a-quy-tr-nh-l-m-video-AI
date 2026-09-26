@@ -2,6 +2,7 @@
 from dashboard.common import *  # noqa: F401,F403  (shared imports + helpers)
 from dashboard import common as C
 from dashboard.widgets import auto_poll_images, image_busy
+from core import image_models
 
 
 def image_progress(p: Pipeline, pid: int, runner) -> None:
@@ -81,11 +82,21 @@ def step2(p: Pipeline, pid: int):
     with st.container(border=True):
         c1, c2, c3, c4 = st.columns([2.4, 2, 2, 2.6], vertical_alignment="center")
         est_ok = True
+        est = image_estimate(p, pid)
         if runner is not None:
-            est_ok = show_estimate(image_estimate(p, pid), runner)
-        if c1.button("▶ Gen ảnh các cảnh chưa có / đã cũ", type="primary", key=f"gen_img_{pid}", disabled=not est_ok):
+            est_ok = show_estimate(est, runner)
+        gates = batch.image_gates(p, pid)                 # the automatic run's gates apply to this button too
+        for w in gates["warn"]:
+            st.caption(f"⚠ {w}")
+        forced = False
+        if gates["block"]:
+            st.warning("Chế độ tự động sẽ DỪNG ở đây trước khi gen ảnh: " + "; ".join(gates["block"]) + ". Sửa ở Bước 1 (Character Bible / Lock).")
+            forced = st.checkbox("Tôi đã xem, vẫn gen ảnh (ghi lại vào 📊 Theo dõi)", key=f"gen_img_force_{pid}")
+        img_price = None if est["unit_price"] is None else est["unit_price"] * est["items"]
+        if c1.button("▶ Gen ảnh các cảnh chưa có / đã cũ" + cost.price_tag(img_price, est["items"]), type="primary", key=f"gen_img_{pid}",
+                     disabled=not est_ok or (bool(gates["block"]) and not forced)):
             def go():
-                r = batch.queue_images(p, pid)
+                r = batch.queue_images(p, pid, confirmed=forced)
                 sent = runner.submit_pending(pid) if runner is not None else 0
                 st.toast(f"Xếp hàng {r['created']} ảnh mới, {r['redo']} ảnh làm lại" + (f" · đã gửi {sent}" if runner else "")
                          + (" · đang gen thử" if r["pilot"] else ""))
@@ -98,9 +109,13 @@ def step2(p: Pipeline, pid: int):
                 p.approve(jid, "user")
             st.rerun()
         failed = p.conn.execute("SELECT id FROM jobs WHERE project_id=? AND type='image_gen' AND state='failed' AND escalated=0", (pid,)).fetchall()
-        if c3.button(f"↻ Gen lại ảnh lỗi ({len(failed)})", key="reject_all", disabled=not failed):
+        unit = est["unit_price"]
+        if c3.button(f"↻ Gửi lại ảnh lỗi ({len(failed)}){cost.price_tag(None if unit is None else unit * len(failed), len(failed))}",
+                     key="reject_all", disabled=not failed,
+                     help="Gửi lại Y NGUYÊN đầu vào — chỉ dùng khi lỗi do nhà cung cấp (mạng, quá tải, không tạo task). Ảnh ra sai thì "
+                          "mở ảnh và ghi câu sửa (tiếng Anh) để lần gen có đầu vào khác."):
             for j in failed:
-                act(lambda: p.retry(j["id"], "gen lại ảnh lỗi"))
+                act(lambda: p.retry(j["id"], "gửi lại ảnh lỗi (lỗi nhà cung cấp)"))
             st.rerun()
         c4.markdown(ui.badge(ui.MODE_LABELS.get(proj["operating_mode"], proj["operating_mode"]), "b-pri")
                     + f' <span class="muted">{"Claude tự duyệt ảnh đạt" if proj["operating_mode"] == "auto" else "mọi ảnh chờ bạn duyệt"}</span>',
@@ -224,15 +239,15 @@ def image_card(p: Pipeline, pid: int, j, proj, read_only: bool = False, stale_re
                 st.rerun()
         elif state == "failed" and not j["escalated"]:
             a, b = st.columns(2)
-            if a.button("↻ Gen lại", key=f"retry_{jid}"):
-                act(lambda: p.retry(jid, "gen lại"))
+            if a.button("↻ Gửi lại", key=f"retry_{jid}", help="Gửi lại y nguyên — chỉ khi lỗi do nhà cung cấp. Muốn sửa thì 🔍 Xem → câu sửa."):
+                act(lambda: p.retry(jid, "gửi lại (lỗi nhà cung cấp)"))
                 st.rerun()
             if b.button("🔍 Xem", key=f"sel_btn_{jid}"):
                 st.session_state[f"sel_{pid}"] = jid
                 st.rerun()
         else:
             if stale_reason and state == "approved" and st.button("↻ Gen lại theo nội dung mới", key=f"stale_{jid}", type="primary"):
-                if act(lambda: p.reopen_approved(jid, f"Nội dung cảnh đã đổi: {stale_reason}"), "Đã xếp hàng gen lại"):
+                if act(lambda: p.reopen_approved(jid, f"Nội dung cảnh đã đổi: {stale_reason}", fix=""), "Đã xếp hàng gen lại"):
                     st.rerun()
             if j["escalated"] and st.button("↺ Làm lại từ đầu", key=f"rs_{jid}", help="Đã hết số lần thử: bắt đầu lại cảnh này"):
                 if act(lambda: p.restart_job(jid), "Đã xếp hàng ảnh mới cho cảnh"):
@@ -287,7 +302,8 @@ def image_detail(p: Pipeline, pid: int, j, proj):
                         if act(score):
                             st.rerun()
         if state in ("succeeded", "pending_review"):
-            note = st.text_input("Ghi chú lý do loại (đưa vào prompt gen lại)", key=f"note_{jid}")
+            note = st.text_input("Câu sửa cho lần gen lại (đưa vào prompt — nên viết tiếng Anh, vd “Kelly wears the yellow jacket”)",
+                                 key=f"note_{jid}")
             a, b = st.columns(2)
             if b.button("✖ Loại & gen lại", key=f"dr_{jid}"):
                 act(lambda: p.reject(jid, "user", note or None))
@@ -298,9 +314,12 @@ def image_detail(p: Pipeline, pid: int, j, proj):
             if st.button("🗑 Xóa (vào thùng rác, không gen lại)", key=f"dd_{jid}"):
                 act(lambda: p.reject(jid, "user", note or "đã xóa", respawn=False))
                 st.rerun()
-        if state == "failed" and not j["escalated"] and st.button("↻ Gen lại", key=f"dretry_{jid}"):
-            act(lambda: p.retry(jid, "retry"))
-            st.rerun()
+        if state == "failed" and not j["escalated"]:
+            fix = st.text_input("Câu sửa cho model (tiếng Anh) — để trống = gửi lại y nguyên (chỉ khi lỗi do nhà cung cấp)",
+                                key=f"dfix_{jid}")
+            if st.button("↻ Gen lại với câu sửa" if fix.strip() else "↻ Gửi lại (lỗi nhà cung cấp)", key=f"dretry_{jid}"):
+                act(lambda: p.retry(jid, "người dùng gen lại với câu sửa" if fix.strip() else "gửi lại (lỗi nhà cung cấp)", fix=fix))
+                st.rerun()
         if j["escalated"] and st.button("↺ Làm lại từ đầu", key=f"drs_{jid}", type="primary"):
             if act(lambda: p.restart_job(jid), "Đã xếp hàng job mới cho cảnh"):
                 st.rerun()
@@ -465,7 +484,9 @@ def set_check_panel(p: Pipeline, pid: int) -> None:
         st.caption("Claude xem MỘT tấm ghép mọi ảnh đã duyệt để tìm cảnh lệch phong cách/ánh sáng/màu/nhân vật so với cả bộ "
                    "(ảnh đẹp nhưng lạc tông vẫn là lỗi). Nên chạy trước khi sang Bước 3.")
         client = llm_client()
-        if st.button(f"🤖 Kiểm tra {approved} ảnh đã duyệt", key=f"setqc_{pid}", disabled=client is None, help=None if client else claude_hint()):
+        if st.button(f"🤖 Kiểm tra {approved} ảnh đã duyệt" + cost.llm_tag(cost.llm_estimate(p.conn, "setcheck", 1, images=1,
+                                                                                            ledger_stage="qc"), 1),
+                     key=f"setqc_{pid}", disabled=client is None, help=None if client else claude_hint()):
             with st.spinner("Claude đang so cả bộ ảnh…"):
                 act(lambda: claude_tasks.set_consistency(p, pid, client, C.DATA))
             st.rerun()
@@ -478,6 +499,10 @@ def set_check_panel(p: Pipeline, pid: int) -> None:
             for n, it in enumerate(last.get("issues") or []):
                 c1, c2 = st.columns([4, 1.3], vertical_alignment="center")
                 c1.markdown(f"**S{it['idx']:02d}**: {escape(it['problem'])}" + (f" → _{escape(it.get('fix') or '')}_" if it.get("fix") else ""))
-                if c2.button("↻ Gen lại cảnh này", key=f"setqc_redo_{pid}_{n}"):
-                    act(lambda: claude_tasks.redo_from_set_check(p, pid, it["idx"], it.get("fix") or it["problem"]), "Đã xếp hàng gen lại")
+                img_unit = cost._number(cost.load_pricing()["per_image"].get(image_models.of_project(p.project(pid))))
+                if not (it.get("fix") or "").strip():
+                    c2.caption("QC không nêu câu sửa — sửa prompt ảnh ở Bước 1")
+                elif c2.button("↻ Gen lại cảnh này" + cost.price_tag(img_unit), key=f"setqc_redo_{pid}_{n}",
+                               help="Gen lại với câu sửa của QC (tiếng Anh) — đầu vào khác lần trước"):
+                    act(lambda: claude_tasks.redo_from_set_check(p, pid, it["idx"], it["fix"]), "Đã xếp hàng gen lại")
                     st.rerun()

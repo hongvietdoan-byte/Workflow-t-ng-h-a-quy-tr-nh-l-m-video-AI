@@ -25,8 +25,33 @@ def enabled() -> bool:
     return features.on(FEATURE)
 
 
-def method_for(data: Dict) -> str:
-    """How this shot's mouth gets matched (see module doc)."""
+def post_available() -> bool:
+    """Post lip sync needs a sync.so key. The user decided (2026-09-26) not to open a sync.so account: lip sync goes through Seedance
+    "generate with the voice" (reference_audio) only, so without SYNC_API_KEY no shot is ever planned as "post"."""
+    return bool(os.environ.get("SYNC_API_KEY", "").strip())
+
+
+def method_for(data: Dict, post_ok: Optional[bool] = None) -> str:
+    """How this shot's mouth gets matched (see module doc). post_ok None = whether a sync.so key is set (post_available). Without
+    post lip sync, a close shot (CU/ECU/MCU) that sees the speaker's face is made WITH the voice (Seedance reference_audio); a wider
+    one keeps the clip's own mouth ("skip" — the mouth is small there)."""
+    post_ok = post_available() if post_ok is None else post_ok
+    method = _method(data)
+    if method == "post" and not post_ok:
+        return "generate" if str(data.get("size") or "MS").upper() in _CLOSE else "skip"
+    return method
+
+
+def no_post_note(data: Dict) -> Optional[str]:
+    """The Bước 4 / diag note of a shot that would have been post-synced (sync.so) but no key is set, else None."""
+    if post_available() or _method(data) != "post":
+        return None
+    how = method_for(data, post_ok=False)
+    return ("khớp môi sau cần sync.so — không dùng; shot này " + ("tạo video kèm giọng (Seedance reference_audio)" if how == "generate"
+                                                                 else "để nguyên miệng của clip (cỡ cảnh rộng, miệng nhỏ)"))
+
+
+def _method(data: Dict) -> str:
     lines = dialogue.scene_lines(data)
     if not lines:
         return "skip"
@@ -124,13 +149,18 @@ def post_tick(p, pid: int, data_dir: str, provider, ffmpeg: str, log=lambda m: N
     """Send every finished clip of a "post" shot (its voice is ready) to the lip-sync provider once, poll, and put the synced clip in
     place of the clip (the original kept as <idx>_prelipsync.mp4). Ledger kind video, provider name, seconds; the test spending limit
     is checked first (core.budget)."""
-    from . import budget
+    from . import budget, diag
     from .cost import record_usage
+    from .providers import ProviderError
     counts = {"sent": 0, "done": 0, "failed": 0, "running": 0}
     idx = index(data_dir, pid)
+
+    def say(severity: str, code: str, message: str, scene_id: int, job_id=None) -> None:
+        diag.record(p.conn, "videos", severity, message, code, pid, scene_id, job_id)
+
     for s in conn_rows(p, pid):
         data = json.loads(s["data"] or "{}")
-        if method_for(data) != "post":
+        if method_for(data, post_ok=True) != "post":
             continue
         rec = idx.get(str(s["id"])) or {}
         job = p.conn.execute("SELECT * FROM jobs WHERE scene_id=? AND type='video_gen' AND state IN ('succeeded','approved')"
@@ -140,17 +170,43 @@ def post_tick(p, pid: int, data_dir: str, provider, ffmpeg: str, log=lambda m: N
         if rec.get("state") == "done" and rec.get("job_id") == job["id"]:
             continue
         if rec.get("state") == "running" and rec.get("job_id") == job["id"]:
-            st = provider.status(rec["task"])
+            try:
+                st = provider.status(rec["task"])
+            except ProviderError as e:                            # one network error must not put the whole run in ERROR
+                say("warn" if e.transient else "error", e.code or "lipsync_status", f"khớp môi shot {s['idx']}: hỏi trạng thái lỗi ({e})"
+                    + (" — sẽ hỏi lại" if e.transient else ""), s["id"], job["id"])
+                if not e.transient:
+                    mark(data_dir, pid, s["id"], state="failed", error=str(e))
+                    counts["failed"] += 1
+                else:
+                    counts["running"] += 1
+                continue
             if st.state == "succeeded":
-                raw = os.path.splitext(job["result_path"])[0] + "_prelipsync.mp4"
+                target = job["result_path"]
+                raw = os.path.splitext(target)[0] + "_prelipsync.mp4"
+                tmp = os.path.splitext(target)[0] + "_lipsync_dl.mp4"
+                try:                                              # download FIRST: a failed download must never lose the clip
+                    got = provider.download(rec["task"], tmp) or tmp
+                except ProviderError as e:
+                    say("warn" if e.transient else "error", e.code or "lipsync_download", f"khớp môi shot {s['idx']}: tải kết quả lỗi "
+                        f"({e}) — clip gốc giữ nguyên" + (", sẽ tải lại" if e.transient else ""), s["id"], job["id"])
+                    if not e.transient:
+                        mark(data_dir, pid, s["id"], state="failed", error=str(e))
+                        counts["failed"] += 1
+                    else:
+                        counts["running"] += 1
+                    if os.path.exists(tmp):
+                        os.remove(tmp)
+                    continue
                 if not os.path.exists(raw):
-                    os.replace(job["result_path"], raw)
-                provider.download(rec["task"], job["result_path"])
+                    os.replace(target, raw)                        # the original is kept as <idx>_prelipsync.mp4
+                os.replace(got, target)
                 mark(data_dir, pid, s["id"], state="done", original=raw)
                 counts["done"] += 1
                 log(f"Khớp môi xong shot {s['idx']}")
             elif st.state == "failed":
                 mark(data_dir, pid, s["id"], state="failed", error=st.error_message)
+                say("warn", "lipsync_failed", f"khớp môi shot {s['idx']} thất bại ({st.error_message}) — giữ clip gốc", s["id"], job["id"])
                 counts["failed"] += 1
             else:
                 counts["running"] += 1
@@ -159,15 +215,30 @@ def post_tick(p, pid: int, data_dir: str, provider, ffmpeg: str, log=lambda m: N
             continue                                              # said once; a new clip (new job) is tried again
         from .final_cut import clip_seconds
         length = clip_seconds(job["result_path"], None) or 5.0
-        seg = shot_audio(data_dir, pid, s["id"], length, ffmpeg)
-        if seg is None:
+        try:
+            seg = shot_audio(data_dir, pid, s["id"], length, ffmpeg)
+        except Exception as e:  # noqa: BLE001 - ffmpeg could not cut the voice: said, the clip keeps its mouth
+            say("warn", "lipsync_audio", f"khớp môi shot {s['idx']}: không cắt được giọng ({e})", s["id"], job["id"])
             continue
-        over = budget.check_video(p.conn, provider.name, provider.model, "post", length)
-        if over:
-            log(f"Khớp môi dừng: {over}")
-            break
-        with budget.SPEND_LOCK:
-            task = provider.submit(job["result_path"], seg["path"])
+        if seg is None:
+            say("warn", "lipsync_audio", f"khớp môi shot {s['idx']}: câu thoại chưa có giọng — chưa gửi", s["id"], job["id"])
+            continue
+        with budget.SPEND_LOCK:                                   # limit check + submission + ledger entry as one step
+            over = budget.check_video(p.conn, provider.name, provider.model, "post", length)
+            if over:
+                log(f"Khớp môi dừng: {over}")
+                say("warn", "budget", f"khớp môi dừng: {over}", s["id"], job["id"])
+                break
+            try:
+                task = provider.submit(job["result_path"], seg["path"])
+            except ProviderError as e:
+                say("warn" if e.transient else "error", e.code or "lipsync_submit", f"khớp môi shot {s['idx']}: gửi lỗi ({e})"
+                    + (" — sẽ gửi lại lần sau" if e.transient else " — giữ clip gốc"), s["id"], job["id"])
+                if e.transient:
+                    break
+                mark(data_dir, pid, s["id"], state="failed", job_id=job["id"], error=str(e))
+                counts["failed"] += 1
+                continue
             record_usage(p.conn, job["id"], "video", provider.name, provider.model, "post", length, "second", stage="lipsync")
         mark(data_dir, pid, s["id"], state="running", task=task, job_id=job["id"], offsets=seg["offsets"], method="post")
         counts["sent"] += 1

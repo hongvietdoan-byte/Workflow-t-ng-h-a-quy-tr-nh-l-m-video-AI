@@ -451,6 +451,8 @@ V2_COLUMNS = {
                      ("stage", "TEXT")),                      # what a Claude call was for (director, qc, motion, asset_vision…)        # spend of a deleted project stays readable (its id is never reused)
     "motion_prompts": (("image_job_id", "INTEGER"), ("spec_hash", "TEXT"), ("video_model", "TEXT"), ("check_flags", "TEXT"),
                        ("lint", "TEXT")),
+    "end_frames": (("sent_refs", "TEXT"),   # which pictures went with the end frame request (like jobs.sent_refs)
+                   ("fix", "TEXT")),        # the person's English fix of a redo (luật 6: a redo changes the input)
 }
 
 
@@ -460,6 +462,8 @@ def _migrate_v2(conn: sqlite3.Connection) -> None:
     backfill = False
     for table, columns in V2_COLUMNS.items():
         have = {r["name"] for r in conn.execute(f"PRAGMA table_info({table})")}
+        if not have:
+            continue                     # the table is not in this database (a partial test schema)
         for col, ddl in columns:
             if col not in have:
                 conn.execute(f"ALTER TABLE {table} ADD COLUMN {col} {ddl}")

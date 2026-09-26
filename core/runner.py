@@ -27,6 +27,16 @@ NOT_CREATED = "not_created"            # core.adapters.clipai.NOT_CREATED: task 
 NOT_CREATED_RESENDS = 3
 RESEND_NOTE = "gửi lại: nhà cung cấp không tạo task"
 
+
+def model_fix(retry_reason: Optional[str]) -> Optional[str]:
+    """The fix sentence a retry sends to the picture/video model, or None. A resend of the same input after a provider failure
+    (RESEND_NOTE / pipeline.PLAIN_RESEND) carries a note for people only — it is never put into the model's prompt."""
+    from .pipeline import PLAIN_RESEND
+    text = (retry_reason or "").strip()
+    if not text or text.startswith(RESEND_NOTE) or text.startswith(PLAIN_RESEND):
+        return None
+    return text
+
 _turns: Dict[Tuple[int, str], threading.RLock] = {}
 _turns_lock = threading.Lock()
 
@@ -569,8 +579,9 @@ class VideoRunner(_Runner):
         if setup:
             motion = no_minor_age(shots.setup_motion([((self._motion(r["id"]) or {"motion_prompt": ""})["motion_prompt"], s)
                                                       for r, s in zip(group, secs)]))
-        if job["retry_reason"] and not job["retry_reason"].startswith(RESEND_NOTE):
-            motion = f"{motion} Fix: {job['retry_reason']}"      # W3: a retry sends the QC's fix, never the very same input again
+        fix = model_fix(job["retry_reason"])
+        if fix:
+            motion = f"{motion} Fix: {fix}"      # W3: a retry sends the QC's fix, never the very same input again
         from . import looks
         motion, removed = looks.clean_prompt(proj, motion)       # ff_gameplay_visual.md: no realism words in an in-game project
         if removed:
@@ -618,8 +629,13 @@ class VideoRunner(_Runner):
 
     def _over_budget(self, job, args, kwargs) -> Optional[str]:
         from . import budget
-        usage = self._usage(args, kwargs)
-        return budget.check_video(self.p.conn, self.provider.name, *usage) if usage else None
+        try:
+            usage = self._usage(args, kwargs)
+        except ProviderError as e:                       # e.g. a model the provider does not know: nothing to price, nothing sent
+            return f"không tính được giá clip ({e})"
+        if usage:
+            return budget.check_video(self.p.conn, self.provider.name, *usage)
+        return None if str(self.provider.name).startswith("mock") else budget.pricing_problem()
 
     def _on_refused(self, job, code, message: str) -> None:
         """Seedance's privacy filter refuses a start picture that looks like a real person (a realistic CGI frame too), and its
@@ -823,6 +839,48 @@ def lock_note(conn, project_id: int, cast) -> str:
     return (" Identity lock — " + " | ".join(parts) + ".") if parts else ""
 
 
+def build_image_prompt(conn, project_id: int, data: Dict, core: Optional[str] = None, fix: Optional[str] = None,
+                       blocking_label: str = "Blocking") -> Tuple[str, list]:
+    """THE picture prompt of a shot (start picture and K1 end frame share it, so a safeguard added here reaches both): the in-game look
+    cleaned of realism words, framing, the text (`core`, default the shot's image_prompt), blocking, the Director's acting, the Character
+    Lock, the look sentence, the fix of a retry, the place in words, and no age under 18. Returns (prompt, realism words removed)."""
+    from . import looks, performance
+    proj = conn.execute("SELECT * FROM projects WHERE id=?", (project_id,)).fetchone()
+    text = data.get("image_prompt") if core is None else core
+    text, removed = looks.clean_prompt(proj, text or "")   # ff_gameplay_visual.md: these words pull the picture towards a realistic shooter
+    prompt = framing_sentence(data) + text
+    if (data.get("blocking") or "").strip():       # where each person stands/faces, so shots of one sequence agree
+        prompt = f"{prompt.rstrip('.')}. {blocking_label}: {data['blocking'].strip()}"
+    prompt += performance.image_sentence(data)     # GĐ4: the Director's acting (director.md Đ4) at the start of the shot
+    prompt += lock_note(conn, project_id, data.get("characters"))
+    prompt += looks.image_sentence(proj)
+    if fix:
+        prompt = f"{prompt}. Fix: {fix}"
+    place = assets.scene_location(conn, project_id, data)
+    if place is not None:                          # B1: the place in words (+ real landmark heights), whatever pictures go
+        prompt += " " + assets.location_text(conn, place)
+    return no_minor_age(prompt), removed
+
+
+def sendable_references(refs, model: Optional[str], limit: Optional[int] = None) -> Tuple[list, list]:
+    """The reference pictures that will really reach Deepix (readable, ≤ 10 MB, within the model's picture limit), and why the others
+    are left out. The prompt's "Image 2 is KELLY" numbering must be built from the kept list, never from the list before the cut."""
+    from . import image_models
+    from .adapters.deepix import MAX_REFERENCES as DEEPIX_MAX, reference_problem
+    cap = image_models.max_refs(model, DEEPIX_MAX) if model else DEEPIX_MAX
+    cap = min(cap, limit) if limit else cap
+    kept, dropped = [], []
+    for r in refs:
+        problem = reference_problem(r["path"])
+        if problem:
+            dropped.append(f"{r['label']} ({problem})")
+        elif len(kept) >= cap:
+            dropped.append(f"{r['label']} (quá {cap} ảnh model nhận)")
+        else:
+            kept.append(r)
+    return kept, dropped
+
+
 class ImageRunner(_Runner):
     job_type = "image_gen"
 
@@ -830,7 +888,8 @@ class ImageRunner(_Runner):
         from . import formats, image_models
         proj = self.p.project(job["project_id"])
         aspect = formats.project_aspect(proj)
-        out = {"size": formats.spec(aspect)["deepix"]} if aspect else {}
+        size = image_models.size_for(proj, image_models.of_project(proj))   # 🧪 cheap test mode: the smallest size the model takes
+        out = {"size": size} if aspect or size != formats.spec(None)["deepix"] else {}
         if getattr(self.provider, "supports_model", False):
             out["model"] = image_models.of_project(proj)     # the project's picture model (Step 1)
         sb = getattr(self, "_storyboard", {}).pop(job["id"], None)
@@ -840,7 +899,14 @@ class ImageRunner(_Runner):
 
     def _over_budget(self, job, args, kwargs) -> Optional[str]:
         from . import budget
-        return budget.check_image(self.p.conn, self.provider.name)
+        model = (kwargs or {}).get("model")
+        info = getattr(self.provider, "usage_info", None)
+        if model is None and info is not None:
+            try:
+                model = info()[0]
+            except Exception:  # noqa: BLE001 - a provider without a model name: priced as unknown (refused while the limit is on)
+                model = None
+        return budget.check_image(self.p.conn, self.provider.name, model)
 
     def _plate(self, job, data=None):
         """The location-pack plate of this shot (feature location_plates), else None."""
@@ -886,19 +952,12 @@ class ImageRunner(_Runner):
             self._diag(job, "info", "look_words_removed",
                        "look in-game Free Fire: đã gỡ chữ kéo về tả thực khỏi prompt ảnh — " + ", ".join(removed))
             data["image_prompt"] = prompt = cleaned
+        for gap in assets.reference_gaps(conn, job["project_id"], data):     # luật 1: a missing reference is said at generation time
+            self._diag(job, assets.gap_severity(gap), "missing_reference", gap)
         plate = self._plate(job)
         if plate is not None:
             return self._green_args(job, data, plate)
-        prompt = framing_sentence(data) + prompt
-        if (data.get("blocking") or "").strip():       # where each person stands/faces, so shots of one sequence agree
-            prompt = f"{prompt}. Blocking: {data['blocking'].strip()}"
-        from . import performance
-        prompt += performance.image_sentence(data)     # GĐ4: the Director's acting (director.md Đ4) at the start of the shot
-        prompt += lock_note(conn, job["project_id"], data.get("characters"))
-        from . import looks
-        prompt += looks.image_sentence(self.p.project(job["project_id"]))
-        if job["retry_reason"]:
-            prompt = f"{prompt}. Fix: {job['retry_reason']}"
+        prompt, _ = build_image_prompt(conn, job["project_id"], data, fix=model_fix(job["retry_reason"]))
         proj = self.p.project(job["project_id"])
         chain = chain_previous(proj, data)
         from . import features
@@ -922,12 +981,6 @@ class ImageRunner(_Runner):
                 prev_path = os.path.join(self.data_dir, str(job["project_id"]), "images", f"job_{prev['id']}.png")
                 if os.path.exists(prev_path):
                     refs = refs + [{"path": prev_path, "label": "previous scene", "role": "previous_scene"}]
-        place = assets.scene_location(conn, job["project_id"], data)
-        if place is not None:                          # B1: the place in words (+ real landmark heights), whatever pictures go
-            prompt += " " + assets.location_text(conn, place)
-        self._sent = getattr(self, "_sent", {})
-        self._sent[job["id"]] = [{"label": r["label"], "role": r["role"], "file": os.path.basename(r["path"])} for r in refs]
-        prompt = no_minor_age(prompt)
         return self._finish_args(job, prompt, refs)
 
     def _green_args(self, job, data, plate):
@@ -946,25 +999,38 @@ class ImageRunner(_Runner):
         place = assets.scene_location(conn, job["project_id"], data)
         entry = location_pack.model3d(conn, place["id"]) if place else None
         prompt += " " + location_pack.green_prompt(data, plate, (entry or {}).get("sun_azimuth", 250.0))
-        if job["retry_reason"]:
-            prompt = f"{prompt}. Fix: {job['retry_reason']}"
+        fix = model_fix(job["retry_reason"])
+        if fix:
+            prompt = f"{prompt}. Fix: {fix}"
         refs = assets.scene_references(conn, job["project_id"], shot, limit=assets.MAX_REFERENCES)
         refs = [r for r in refs if r.get("role") != "location"]
-        self._sent = getattr(self, "_sent", {})
-        self._sent[job["id"]] = [{"label": r["label"], "role": r["role"], "file": os.path.basename(r["path"])} for r in refs] + \
-            [{"label": "plate", "role": "location_pack", "file": os.path.basename(plate["plate"])}]
         prompt = no_minor_age(prompt)
-        return self._finish_args(job, prompt, refs, without_place=True)
+        return self._finish_args(job, prompt, refs, without_place=True,
+                                 extra_sent=[{"label": "plate", "role": "location_pack", "file": os.path.basename(plate["plate"])}])
 
-    def _finish_args(self, job, prompt: str, refs, without_place: bool = False):
+    def _finish_args(self, job, prompt: str, refs, without_place: bool = False, extra_sent=None):
         """The picture job's (prompt, reference paths). Storyboard mode (feature storyboard_api, a provider that draws storyboard
         frames): the scene's shared references + the anchor frame replace the shot's own, and the storyboard fields go with the job
-        (core/scene_storyboard.py, the web Weave Canvas way)."""
+        (core/scene_storyboard.py, the web Weave Canvas way). Only the pictures that will really be sent are numbered in the note
+        (a dropped picture used to shift "Image 2 is KELLY" onto the wrong person) — every dropped one is reported."""
+        from . import image_models
+        proj = self.p.project(job["project_id"])
+        model = image_models.of_project(proj) if getattr(self.provider, "supports_model", False) else None
+        refs, dropped = sendable_references(refs, model)
+        if dropped:
+            self._diag(job, "warn", "missing_reference", "ảnh tham chiếu không gửi được (bỏ khỏi yêu cầu và khỏi câu đánh số ảnh): "
+                       + ", ".join(dropped))
+        self._sent = getattr(self, "_sent", {})
+        self._sent[job["id"]] = [{"label": r["label"], "role": r["role"], "file": os.path.basename(r["path"])} for r in refs] + \
+            list(extra_sent or [])
         from . import scene_storyboard
         if scene_storyboard.enabled() and getattr(self.provider, "supports_storyboard", False):
             g = scene_storyboard.group_of(self.p.conn, job["project_id"], job["scene_id"])
             if g is not None:
                 shared = scene_storyboard.shared_references(self.p.conn, job["project_id"], g["shots"], without_place=without_place)
+                shared, dropped = sendable_references(shared, model)     # before the mapping text is built from the list
+                if dropped:
+                    self._diag(job, "warn", "missing_reference", "ảnh tham chiếu storyboard không gửi được: " + ", ".join(dropped))
                 fields = scene_storyboard.job_fields(self.p.conn, self.data_dir, job["project_id"], job["scene_id"], shared, job["id"])
                 if fields is not None:
                     refs = fields["refs"]

@@ -74,14 +74,18 @@ def queue(p: Pipeline, project_id: int) -> List[int]:
     return out
 
 
-def prompt_for(p: Pipeline, project_id: int, scene_id: int) -> str:
-    from .runner import framing_sentence, lock_note, no_minor_age
+MAX_REDOS = 2              # luật 6 (người dùng chốt): an end frame is drawn again at most 2 times per start picture
+
+
+def prompt_for(p: Pipeline, project_id: int, scene_id: int, fix: Optional[str] = None) -> str:
+    """The end frame's prompt through THE picture prompt builder of the start picture (core.runner.build_image_prompt): the in-game
+    look and its cleaning, the acting, the Lock, the place in words and no age under 18 reach the end frame too."""
+    from .runner import build_image_prompt
     data = json.loads(p.conn.execute("SELECT data FROM scenes WHERE id=?", (scene_id,)).fetchone()["data"] or "{}")
-    text = (framing_sentence(data) + "The SAME shot as the first image — same camera, framing, place and light — a few seconds later, "
+    core = ("The SAME shot as the first image — same camera, framing, place and light — a few seconds later, "
             f"at the end of the action: {data.get('end_state', '').strip()}. One single frame, one moment only.")
-    if (data.get("blocking") or "").strip():
-        text += f" Blocking at the end: {data['blocking'].strip()}"
-    return no_minor_age(text + lock_note(p.conn, project_id, data.get("characters")))
+    prompt, _ = build_image_prompt(p.conn, project_id, data, core=core, fix=fix, blocking_label="Blocking at the end")
+    return prompt
 
 
 def _set(p: Pipeline, row_id: int, **fields) -> None:
@@ -90,9 +94,25 @@ def _set(p: Pipeline, row_id: int, **fields) -> None:
     p.conn.commit()
 
 
+def _usage_model(provider) -> Optional[str]:
+    info = getattr(provider, "usage_info", None)
+    try:
+        return info()[0] if info is not None else None
+    except Exception:  # noqa: BLE001 - a test double without a model
+        return None
+
+
+def _diag(p: Pipeline, row, severity: str, code: str, message: str) -> None:
+    from . import diag
+    diag.record(p.conn, "image", severity, message, code, row["project_id"], row["scene_id"])
+
+
 def tick(p: Pipeline, project_id: int, provider, data_dir: str) -> Dict[str, int]:
-    """Send queued end frames (the approved start picture + the characters' references go along), poll running ones, download."""
+    """Send queued end frames (the approved start picture + the characters' references go along), poll running ones, download.
+    The same safeguards as the start picture: one prompt builder, reference gaps said, only sendable pictures numbered, what was sent
+    kept (sent_refs), the spending limit and the ledger."""
     from . import assets, formats, image_models
+    from .runner import sendable_references
     counts = {"sent": 0, "ready": 0, "failed": 0, "running": 0}
     proj = p.project(project_id)
     for row in p.conn.execute("SELECT * FROM end_frames WHERE project_id=? AND state IN ('queued','running') ORDER BY id",
@@ -101,22 +121,37 @@ def tick(p: Pipeline, project_id: int, provider, data_dir: str) -> Dict[str, int
             start = os.path.join(data_dir, str(project_id), "images", f"job_{row['start_job_id']}.png")
             if not os.path.exists(start):
                 _set(p, row["id"], state="failed", note="thiếu file ảnh khung đầu")
+                _diag(p, row, "error", "missing_input", "ảnh khung cuối không vẽ được: thiếu file ảnh khung đầu "
+                      f"(job {row['start_job_id']}) — clip sẽ gửi không có khung cuối")
                 counts["failed"] += 1
                 continue
             data = json.loads(p.conn.execute("SELECT data FROM scenes WHERE id=?", (row["scene_id"],)).fetchone()["data"] or "{}")
+            for gap in assets.reference_gaps(p.conn, project_id, data):
+                _diag(p, row, assets.gap_severity(gap), "missing_reference", f"khung cuối: {gap}")
+            model = image_models.of_project(proj) if getattr(provider, "supports_model", False) else None
             refs = [{"path": start, "label": "start frame", "role": "previous_scene"}] + assets.scene_references(
                 p.conn, project_id, data, limit=assets.MAX_REFERENCES - 1)
-            prompt = prompt_for(p, project_id, row["scene_id"])
+            refs, dropped = sendable_references(refs, model)
+            if dropped:
+                _diag(p, row, "warn", "missing_reference", "khung cuối: ảnh tham chiếu không gửi được (bỏ khỏi câu đánh số ảnh): "
+                      + ", ".join(dropped))
+            if not refs or refs[0]["role"] != "previous_scene":
+                _set(p, row["id"], state="failed", note="ảnh khung đầu không gửi được")
+                _diag(p, row, "error", "missing_input", "ảnh khung cuối không vẽ được: ảnh khung đầu không gửi được")
+                counts["failed"] += 1
+                continue
+            prompt = prompt_for(p, project_id, row["scene_id"], fix=row["fix"] if "fix" in row.keys() else None)
             kwargs = {}
             aspect = formats.project_aspect(proj)
-            if aspect and getattr(provider, "supports_aspect", False):
-                kwargs["size"] = formats.spec(aspect)["deepix"]
-            if getattr(provider, "supports_model", False):
-                kwargs["model"] = image_models.of_project(proj)
+            if getattr(provider, "supports_aspect", False) and (aspect or proj["test_quality"]):
+                kwargs["size"] = image_models.size_for(proj, model or image_models.of_project(proj))
+            if model:
+                kwargs["model"] = model
             with budget.SPEND_LOCK:
-                over = budget.check_image(p.conn, provider.name)
+                over = budget.check_image(p.conn, provider.name, kwargs.get("model") or _usage_model(provider))
                 if over:
                     _set(p, row["id"], note=f"chờ: {over}")
+                    _diag(p, row, "warn", "budget", f"khung cuối chưa gửi: {over}")
                     break
                 try:
                     ext = provider.submit(assets.reference_note(refs) + "Scene: " + prompt, [r["path"] for r in refs], **kwargs)
@@ -128,9 +163,11 @@ def tick(p: Pipeline, project_id: int, provider, data_dir: str) -> Dict[str, int
                     continue
                 info = getattr(provider, "usage_info", None)
                 if info is not None:
-                    model, tier = info(kwargs["model"]) if kwargs.get("model") else info()
-                    record_usage(p.conn, None, "image", provider.name, model, tier, 1, "image", project_id=project_id, stage="end_frame")
-            _set(p, row["id"], state="running", external_id=ext, prompt=prompt)
+                    used, tier = info(kwargs["model"]) if kwargs.get("model") else info()
+                    record_usage(p.conn, None, "image", provider.name, used, tier, 1, "image", project_id=project_id, stage="end_frame")
+            _set(p, row["id"], state="running", external_id=ext, prompt=prompt,
+                 sent_refs=json.dumps([{"label": r["label"], "role": r["role"], "file": os.path.basename(r["path"])} for r in refs],
+                                      ensure_ascii=False))
             counts["sent"] += 1
             continue
         try:
@@ -167,14 +204,23 @@ def reject(p: Pipeline, row_id: int, note: Optional[str] = None) -> None:
     _set(p, row_id, state="rejected", note=note or "người dùng loại")
 
 
-def redo(p: Pipeline, scene_id: int) -> int:
+def redo(p: Pipeline, scene_id: int, fix: Optional[str] = None) -> int:
+    """Draw the end frame again (the person asked). `fix` (English) goes into the new prompt so the input changes; at most MAX_REDOS
+    redos per start picture (luật 6) — then the layer to fix is the shot's end_state / start picture, not another paid try."""
+    start = _start_job(p.conn, scene_id)
+    if start is None:
+        raise ValueError("shot chưa có ảnh khung đầu đã duyệt — không vẽ khung cuối được")
+    made = p.conn.execute("SELECT COUNT(*) FROM end_frames WHERE scene_id=? AND start_job_id=? AND external_id IS NOT NULL",
+                          (scene_id, start["id"])).fetchone()[0]
+    if made > MAX_REDOS:
+        raise ValueError(f"khung cuối của shot này đã vẽ {made} lần (tối đa {MAX_REDOS} lần vẽ lại) — sửa end_state / ảnh khung đầu thay vì "
+                         "vẽ lại")
     row = current(p.conn, scene_id)
     if row is not None and row["state"] not in ("rejected", "failed"):
         reject(p, row["id"], "làm lại")
-    start = _start_job(p.conn, scene_id)
     project_id = p.conn.execute("SELECT project_id FROM scenes WHERE id=?", (scene_id,)).fetchone()["project_id"]
-    cur = p.conn.execute("INSERT INTO end_frames (project_id, scene_id, start_job_id, state, created_at, updated_at)"
-                         f" VALUES (?,?,?,'queued',{_now_sql()},{_now_sql()})", (project_id, scene_id, start["id"] if start else None))
+    cur = p.conn.execute("INSERT INTO end_frames (project_id, scene_id, start_job_id, state, fix, created_at, updated_at)"
+                         f" VALUES (?,?,?,'queued',?,{_now_sql()},{_now_sql()})", (project_id, scene_id, start["id"], (fix or "").strip() or None))
     p.conn.commit()
     return cur.lastrowid
 

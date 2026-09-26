@@ -74,10 +74,15 @@ class DeepixModelTests(unittest.TestCase):
             open(path, "wb").write(b"\xff\xd8\xff" + bytes([i]) * 10)
             refs.append(path)
         count = lambda call: call["body"].count(b'name="file[]"')  # noqa: E731
-        self.p.submit("x", refs, model="gpt-image-2.5-sunburst")
+        self.p.submit("x", refs[:16], model="gpt-image-2.5-sunburst")
         self.assertEqual(count(self.t.calls[-1]), 16)
-        self.p.submit("x", refs)
+        self.p.submit("x", refs[:10])
         self.assertEqual(count(self.t.calls[-1]), 10)
+        sent = len(self.t.calls)
+        for model in ("gpt-image-2.5-sunburst", None):      # 2026-09-26: more than the model takes is refused, not cut (the prompt
+            with self.assertRaises(ProviderError):           # numbers the pictures — a cut list shifts every "Image N is …")
+                self.p.submit("x", refs, model=model)
+        self.assertEqual(len(self.t.calls), sent)
 
 
 class RunnerModelTests(unittest.TestCase):

@@ -34,6 +34,13 @@ class DashboardSmokeTests(unittest.TestCase):
         store_scene_analysis(p, pid, ANALYSIS)
         return p, pid
 
+    @staticmethod
+    def with_lock(p, pid):
+        """A Bible the automatic run would accept (every character has a Character Lock): since 2026-09-26 the manual Gen ảnh button
+        stops at the same gates (core.batch.image_gates)."""
+        p.conn.execute("UPDATE characters SET lock_rules='{\"must_keep\": \"face\"}' WHERE project_id=?", (pid,))
+        p.conn.commit()
+
     def test_empty_state_prompts_project_creation(self):
         at = AppTest.from_file(APP, default_timeout=30).run()
         self.assertFalse(at.exception)
@@ -137,6 +144,7 @@ class DashboardSmokeTests(unittest.TestCase):
     def test_create_image_jobs_and_mode_switch(self):
         p, pid = self.seed()
         from core.llm_io import lock_character_bible
+        self.with_lock(p, pid)
         lock_character_bible(p, pid)
         at = AppTest.from_file(APP, default_timeout=30).run()
         at.radio(key="step").set_value(at.radio(key="step").options[1]).run()
@@ -825,6 +833,7 @@ class DashboardSmokeTests(unittest.TestCase):
     def test_image_step_with_mock_provider_generates_files(self):
         from core.llm_io import lock_character_bible
         p, pid = self.seed()
+        self.with_lock(p, pid)
         lock_character_bible(p, pid)
         os.environ["IMAGE_PROVIDER"] = "mock"
         os.environ["HEARTBEAT_SEC"] = "0"
