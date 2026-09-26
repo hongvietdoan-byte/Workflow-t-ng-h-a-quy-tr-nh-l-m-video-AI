@@ -127,7 +127,11 @@ def report(conn, project_id: int, pricing: Dict) -> Dict:
     }
 
 
-def summary_lines(r: Dict, manual_min_per_sec: Optional[float] = None) -> List[str]:
+# người dùng chốt 2026-09-27: không đo từng dự án — so sánh với mức làm tay chung 30 phút cho 1 giây video
+MANUAL_MIN_PER_SEC = 30.0
+
+
+def summary_lines(r: Dict, manual_min_per_sec: Optional[float] = MANUAL_MIN_PER_SEC) -> List[str]:
     """Plain Vietnamese lines for a report / copy-paste."""
     pct = (lambda v: "chưa đủ dữ liệu" if v is None else f"{v:.0%}")
     num = (lambda v, unit: "chưa đủ dữ liệu" if v is None else f"{v:.1f} {unit}".strip())

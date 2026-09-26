@@ -649,8 +649,8 @@ def effectiveness_panel(p: Pipeline, pid: int) -> None:
               help=f"Trên {r['qc']['pairs']} ảnh có cả điểm QC lẫn quyết định của người; AI chặt quá {r['qc']['ai_too_strict']}, "
                    f"lỏng quá {r['qc']['ai_too_lenient']} lần. Dùng để chỉnh ngưỡng QC.")
     c5.metric("Thao tác tay / cảnh", num(r["touches_per_scene"]), help=f"Duyệt / loại / hủy do người bấm: {r['touches']} lần")
-    manual = st.number_input("Làm tay mất bao nhiêu phút cho 1 giây video (để so sánh, không lưu)", min_value=0.0, value=0.0, step=1.0,
-                             key=f"eff_manual_{pid}")
+    manual = st.number_input("Làm tay mất bao nhiêu phút cho 1 giây video (mặc định chung 30 phút — người dùng chốt; sửa để so thử, không lưu)",
+                             min_value=0.0, value=effectiveness.MANUAL_MIN_PER_SEC, step=1.0, key=f"eff_manual_{pid}")
     with st.expander("📋 Bản tóm tắt để gửi báo cáo"):
         st.code("\n".join(effectiveness.summary_lines(r, manual or None)), language="text")
 
