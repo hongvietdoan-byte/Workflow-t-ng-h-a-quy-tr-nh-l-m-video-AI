@@ -191,20 +191,25 @@ def cmd_submit(p, data_dir: str, pid: int, scene: int) -> None:
         image = kwargs.pop("image_path")
         tier = o["tier"]
         extra = {"kling_mode": tier} if o["model"] == "kling" else {"resolution": tier}
+        from core.providers import ProviderError
+        entry = {"kind": "group_test", "scene": scene, "method": o["method"], "group": o["group"], "shots": o["shots"],
+                 "seconds": o["seconds"], "film_s": o["film_s"], "model": o["canonical"], "tier": tier, "usd": o["usd"],
+                 "prompt": o["prompt"], "external_id": None, "state": "running", "file": None, "sequence": scene,
+                 "scenes": o["shots"], "at": datetime.now(timezone.utc).isoformat(timespec="seconds")}
         with budget.SPEND_LOCK:
             over = budget.check_video(p.conn, provider.name, o["canonical"], tier, o["seconds"])
             if over:
                 print("TRẦN CHẶN:", over)
                 return
-            task = provider.submit(image, o["prompt"] if o["method"] != "P3" else "", None, o["seconds"], o["model"],
-                                   aspect_ratio=aspect, **extra, **kwargs)
-            record_usage(p.conn, None, "video", provider.name, o["canonical"], tier, o["seconds"], "second", pid)
-        items.append({"kind": "group_test", "scene": scene, "method": o["method"], "group": o["group"], "shots": o["shots"],
-                      "seconds": o["seconds"], "film_s": o["film_s"], "model": o["canonical"], "tier": tier, "usd": o["usd"],
-                      "prompt": o["prompt"], "external_id": task, "state": "running", "file": None, "sequence": scene,
-                      "scenes": o["shots"], "at": datetime.now(timezone.utc).isoformat(timespec="seconds")})
+            try:
+                entry["external_id"] = provider.submit(image, o["prompt"] if o["method"] != "P3" else "", None, o["seconds"],
+                                                       o["model"], aspect_ratio=aspect, **extra, **kwargs)
+                record_usage(p.conn, None, "video", provider.name, o["canonical"], tier, o["seconds"], "second", pid)
+            except ProviderError as e:          # refused at creation: nothing billed; kept as a result of the test (not retried)
+                entry.update(state="failed", message=f"[{e.code}] {e}"[:400], usd=0.0)
+        items.append(entry)
         experiments._save(data_dir, pid, items)
-        print("đã gửi", o["method"], o["group"], task)
+        print(o["method"], o["group"], entry["state"], entry["external_id"] or entry.get("message", "")[:160])
 
 
 def cmd_poll(p, data_dir: str, pid: int) -> None:
