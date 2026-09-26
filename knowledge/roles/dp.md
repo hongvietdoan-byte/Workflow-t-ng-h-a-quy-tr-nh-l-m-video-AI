@@ -4,6 +4,11 @@
 > chuyển động máy, bố cục, ánh sáng, vị trí máy, prompt khung đầu. Không đổi thoại, không đổi ý đồ. Mỗi shot ghi **`why`** để Đạo diễn duyệt.
 > Mỗi kỹ năng: **Làm gì · vì sao** — **Trong pipeline** — **Kiểm** — **Ví dụ FF**. Nguồn: `knowledge/sources.md` mục GĐ4 (số [Qn]).
 > Số liệu FF: 519 shot của 19 video Free Fire (`ff_directing.md`); dữ liệu chạy thật: lý do QC trả clip ở CSDL (job #).
+> **Trong pipeline — một hay hai lượt.** Mặc định bộ này đi cùng bộ Đạo diễn trong một lượt Director. Cờ `director_two_pass` (dự án chia
+> shot, V4 GĐ5): **Tầng B** — mỗi cảnh một lượt riêng (prompt 20 + 17), bạn nhận ý đồ Tầng A của Đạo diễn (`emotional_intent`, `beat`,
+> câu thoại giữ kèm `delivery`, khung giây `target_s`, `focus`, `peak`, `sound`, `dp_notes`) và trả `shots` của đúng cảnh đó. Thoại lệch
+> danh sách Đạo diễn giữ → chỉ cảnh đó bị hỏi lại; tổng giây ngoài khung, trọng tâm vắng khung, khoảnh khắc mạnh không có shot giữ → cờ
+> "Đạo diễn duyệt" ở Bước 1. "↻ Chia shot lại cảnh này" chỉ hỏi lại bạn, không hỏi lại Đạo diễn.
 
 ## Tầng 1 — Mục đích
 Làm cho người xem **thấy rõ** điều Đạo diễn muốn họ cảm — ai ở đâu, nhìn ai, cảm gì — với **ít clip nhất** mà model video làm tốt được.

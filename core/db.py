@@ -433,6 +433,7 @@ V2_COLUMNS = {
                  # scenes into shots; style_profile = the Free Fire editing style the Director follows (knowledge/ff_styles)
                  ("shot_mode", "TEXT"), ("style_profile", "TEXT"), ("test_quality", "INTEGER NOT NULL DEFAULT 0"),
                  ("director_raw", "TEXT"),            # the last paid Director answer, kept even when saving it failed
+                 ("director_intent_raw", "TEXT"),     # GĐ5 two-pass Director: Tầng A answer + every Tầng B scene answer (paid, kept)
                  ("look", "TEXT"),                    # ANIME | FF_INGAME (core/looks.py): the picture look, apart from the editing style
                  ("image_model", "TEXT"),             # Deepix picture model of the project (core/image_models.py); NULL = default
                  ("dialogue_trim", "INTEGER NOT NULL DEFAULT 0")),   # 1 = the Director may drop lines (never add / reword)

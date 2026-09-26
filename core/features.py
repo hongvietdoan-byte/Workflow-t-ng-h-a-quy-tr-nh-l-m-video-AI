@@ -26,6 +26,13 @@ FEATURES: Dict[str, Dict] = {
         "why": "Kế hoạch V4 GĐ4: bộ kỹ năng nghề 3 vai (đã chấm độc lập, docs/DANH_GIA_BO_NGUYEN_TAC_V4.md) chờ người dùng duyệt; "
                "chưa có lần Director thật nào chạy với bộ mới",
     },
+    "director_two_pass": {
+        "label": "Director hai lượt (dự án chia shot): Tầng A Đạo diễn viết Bible + ý đồ từng cảnh, Tầng B Quay phim chia shot MỖI cảnh "
+                 "một lượt (phần chung cache), code Đạo diễn duyệt bảng shot so với ý đồ",
+        "verified": False,
+        "why": "Kế hoạch V4 GĐ5 (H2/H7, 2026-09-26): mới thử bằng Claude giả lập — chưa có lần Director thật nào chạy hai lượt để so chất "
+               "lượng và tiền với một lượt (core/director_two_pass.py)",
+    },
     "voice_direction": {
         "label": "Chỉ đạo giọng lồng: câu thoại có `delivery` (cảm xúc, cường độ, nhịp, ngắt, nhấn, thẻ v3) → tham số TTS + chữ gửi TTS",
         "verified": False,

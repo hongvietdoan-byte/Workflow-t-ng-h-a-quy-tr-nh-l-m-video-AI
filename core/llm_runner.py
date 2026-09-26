@@ -429,7 +429,13 @@ def _director_references(conn, project_id: int) -> List[Tuple[str, str]]:
 
 
 @_diagnosed("director", lambda p, i: i)
-def run_director(p: Pipeline, project_id: int, client) -> Dict:
+def run_director(p: Pipeline, project_id: int, client, resume: bool = False) -> Dict:
+    """The Director: one call for the whole script (Bible + scenes + shots), or — feature director_two_pass on a shot project — Tầng A
+    Đạo diễn + one Tầng B Quay phim call per scene + code review (core/director_two_pass.py; same stored shape). resume (two passes
+    only): reuse the paid Tầng A answer and the scenes that passed in a failed run."""
+    from . import director_two_pass
+    if director_two_pass.enabled(p.project(project_id)):
+        return director_two_pass.run(p, project_id, client, resume=resume)
     refs = _director_references(p.conn, project_id)
     diag.record(p.conn, "director", "info", f"Director xem {len(refs)} ảnh nhân vật/thú cưng: "
                 + (", ".join(label.split("—", 1)[-1].strip(" :") for label, _ in refs) or "không có (nhân vật không gắn tài nguyên)"),
@@ -444,6 +450,7 @@ def run_director(p: Pipeline, project_id: int, client) -> Dict:
         raise
     p.set_project_field(project_id, "director_raw", json.dumps(obj, ensure_ascii=False))   # paid for: kept even if saving fails
     llm_io.store_scene_analysis(p, project_id, obj)
+    director_two_pass.forget(p, project_id)       # a stored two-pass intent no longer matches this plan ("↻ Chia shot lại" must not use it)
     return {"characters": len(obj["characters"]), "scenes": len(obj["scenes"]), "input_tokens": tin,
             "output_tokens": tout, "ip_risk_notes": obj.get("ip_risk_notes") or []}
 
@@ -453,7 +460,9 @@ def run_director_scene(p: Pipeline, project_id: int, scene_idx: int, client, not
     """1.4 "↻ Chia shot lại cảnh này": one Claude call for ONE script scene (the shared prompt is cached), merged into the stored plan,
     normalised and line-checked as a whole, then only that scene and the later ones are rewritten (earlier scenes keep their work).
     ~1/6 of a whole Director answer: a few cents instead of ~$0,3."""
-    from . import shots
+    from . import director_two_pass, shots
+    if director_two_pass.enabled(p.project(project_id)) and director_two_pass.load_raw(p, project_id).get("done"):
+        return director_two_pass.replan_scene(p, project_id, scene_idx, client, note)   # GĐ5: the DP re-splits from the stored intent
     raw = json.loads(p.project(project_id)["director_raw"] or "{}")
     if not raw.get("scenes") or raw.get("truncated"):
         raise LlmError("chưa có kế hoạch Director đầy đủ để chia lại một cảnh — chạy Director cho cả kịch bản trước", code="config")
@@ -609,6 +618,10 @@ class MockLlm:
         v2 = self._v2(prompt)
         if v2 is not None:
             return LlmReply("```json\n" + json.dumps(v2, ensure_ascii=False) + "\n```", 90, 50)
+        if prompt.startswith("# Đạo diễn — Tầng A"):                    # GĐ5 two-pass Director (core/director_two_pass.py)
+            return LlmReply("```json\n" + json.dumps(_mock_intent(prompt), ensure_ascii=False) + "\n```", 100, 40)
+        if "# Việc lần này: Quay phim chia shot Cảnh" in prompt:
+            return LlmReply("```json\n" + json.dumps(_mock_dp_scene(prompt), ensure_ascii=False) + "\n```", 60, 30)
         if prompt.startswith("# Phân tích ảnh nền (previz 2D)"):
             out = {"camera": "eye", "horizon_y": 0.4, "camera_height_m": 1.7, "ground": [[0, 0.55], [1, 0.55], [1, 1], [0, 1]],
                    "landmarks": [], "light": "nắng trưa (giả lập)", "notes": "bối cảnh giả lập"}
@@ -719,6 +732,41 @@ def _mock_shots(scene: Dict, first: bool, last: bool) -> List[Dict]:
         out.append({"size": "MS", "angle": "low", "camera_move": "push_in", "role": "ending", "duration_s": 2.0, "hero": True,
                     "action": "tạo dáng kết (giả lập)", "image_prompt": "final pose, low angle (mock)", "characters": cast})
     return out
+
+
+def _mock_intent(prompt: str) -> Dict:
+    """Offline Tầng A (Đạo diễn): the Bible from the speakers, every line kept, a seconds frame that fits the mock DP's shots."""
+    from . import dialogue as _dlg
+    blocks = re.split(r"^### Cảnh (\d+)[^\n]*$", prompt.split("# Kịch bản đã tách cảnh", 1)[-1], flags=re.M)
+    texts = {int(blocks[i]): blocks[i + 1] for i in range(1, len(blocks) - 1, 2)}
+    idxs = sorted(texts) or [1]
+    lines = {i: _dlg.lines(texts.get(i, "")) for i in idxs}
+    names = sorted({who for rows in lines.values() for who, _ in rows}) or ["Nhân vật chính"]
+    scenes = []
+    for i in idxs:
+        cast = sorted({w for w, _ in lines[i]}) or names[:1]
+        proto = {"idx": i, "location": "Bối cảnh mẫu", "characters": cast, "dialogue": [{"speaker": w, "text": t} for w, t in lines[i]]}
+        target = round(sum(float(s["duration_s"]) for s in _mock_shots(proto, first=i == idxs[0], last=i == idxs[-1])), 1)
+        scenes.append({"idx": i, "location": "Bối cảnh mẫu", "time": "Ngày", "characters": cast, "mood": "trung tính",
+                       "lighting": "tự nhiên", "emotional_intent": "người xem tò mò (giả lập)",
+                       "beat": {"want": "đi tiếp", "obstacle": "trời tối", "turn": "quyết định lên đường"},
+                       "camera_complexity": "simple", "shot_role": "hero" if i == idxs[-1] else "normal",
+                       "focus": cast[0], "peak": 4 if i == idxs[-1] else 3, "target_s": max(1.0, target),
+                       "dialogue": proto["dialogue"], "dp_notes": "cho người xem thấy ai nói với ai (giả lập)",
+                       "editor_notes": ""})
+    return {"genre": "SHORT_FORM",
+            "characters": [{"name": n, "description": f"mô tả mẫu của {n} (giả lập)",
+                            "lock": {"must_keep": "same face, hair and outfit colours (mock)", "may_change": "pose, expression",
+                                     "forbidden": "outfit swapped with others (mock)"}} for n in names],
+            "scenes": scenes, "tradeoffs": [], "script_notes": [], "ip_risk_notes": []}
+
+
+def _mock_dp_scene(prompt: str) -> Dict:
+    """Offline Tầng B (Quay phim): the mock shot split of the one scene the task names, with exactly the kept lines."""
+    head = re.search(r"# Việc lần này: Quay phim chia shot Cảnh (\d+)([^\n]*)", prompt)
+    scene = json.loads(re.search(r"# Ý đồ cảnh này\s*```json\s*(.*?)```", prompt, re.S).group(1))
+    return {"idx": int(head.group(1)), "tradeoffs": [],
+            "shots": _mock_shots(scene, first="cảnh ĐẦU phim" in head.group(2), last="cảnh CUỐI phim" in head.group(2))}
 
 
 def _mock_v2(prompt: str):
