@@ -192,7 +192,9 @@ def assets_panel(p: Pipeline, pid: int) -> None:
     label = f"🧰 Tài nguyên đi kèm kịch bản — {len(chosen)} đã chọn" + (f" · {len(suggested)} gợi ý mới" if suggested else "")
     with st.expander(label, expanded=bool(suggested) or bool(chosen)):
         st.caption("Chọn nhân vật, vũ khí, thú cưng, bản đồ… có sẵn trong kho (hoặc tải ảnh riêng) để dùng cùng kịch bản. Director sẽ dùng đúng "
-                   "tên và thiết kế này thay vì tự nghĩ ra, và ảnh của chúng là ảnh tham khảo khi gen.")
+                   "tên và thiết kế này thay vì tự nghĩ ra, và ảnh của chúng là ảnh tham khảo khi gen. **Không bấm cũng được:** lúc chạy "
+                   "Director, tài nguyên kịch bản nhắc đúng tên (có dấu) được tự gắn; tên trùng nhiều tài nguyên thì để bạn chọn; cái bạn đã "
+                   "bỏ khỏi dự án không bị gắn lại.")
         if suggested:
             st.markdown("**Tìm thấy trong kịch bản** (gợi ý):")
             for a in suggested:

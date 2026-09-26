@@ -437,7 +437,13 @@ def run_director(p: Pipeline, project_id: int, client, resume: bool = False) -> 
     """The Director: one call for the whole script (Bible + scenes + shots), or — feature director_two_pass on a shot project — Tầng A
     Đạo diễn + one Tầng B Quay phim call per scene + code review (core/director_two_pass.py; same stored shape). resume (two passes
     only): reuse the paid Tầng A answer and the scenes that passed in a failed run."""
-    from . import director_two_pass
+    from . import assets, director_two_pass
+    auto = assets.auto_attach(p.conn, project_id)            # the library resources the script names — no click needed (2026-09-27)
+    if auto["attached"] or auto["ambiguous"]:
+        diag.record(p.conn, "director", "warn" if auto["ambiguous"] else "info",
+                    ("Tự gắn tài nguyên kịch bản nhắc tới: " + ", ".join(auto["attached"]) if auto["attached"] else "")
+                    + (" · Tên khớp nhiều tài nguyên, cần chọn tay ở Bước 1 🧰: " + ", ".join(auto["ambiguous"]) if auto["ambiguous"] else ""),
+                    "auto_attach", project_id)
     if director_two_pass.enabled(p.project(project_id)):
         return director_two_pass.run(p, project_id, client, resume=resume)
     refs = _director_references(p.conn, project_id)

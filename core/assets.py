@@ -390,8 +390,64 @@ def attach(conn, project_id: int, asset_id: int) -> None:
 
 
 def detach(conn, project_id: int, asset_id: int) -> None:
+    """The person removes a resource from the project: it is also remembered as declined, so auto_attach never puts it back."""
     conn.execute("DELETE FROM project_assets WHERE project_id=? AND asset_id=?", (project_id, asset_id))
+    conn.execute("INSERT OR IGNORE INTO project_assets_declined (project_id, asset_id) VALUES (?,?)", (project_id, asset_id))
     conn.commit()
+
+
+def _spoken_form(text: str) -> str:
+    """Lower case with the accents KEPT (NFC): "Nỏ" must not match "nó", nor "Đao" match "đạo" — auto_attach has no person to catch it."""
+    import unicodedata
+    return " " + re.sub(r"[^\w]+", " ", unicodedata.normalize("NFC", text or "").lower()) + " "
+
+
+def auto_attach(conn, project_id: int) -> Dict[str, List[str]]:
+    """Before the Director runs: attach the library resources the script names (as "➕ Dùng tất cả gợi ý" in Step 1), so the Director
+    sees the places / characters of the library without a person clicking (người dùng chốt 2026-09-27). Stricter than the Step 1
+    suggestions, because nobody confirms: the name must appear WITH its accents (whole words); skipped are resources the person removed
+    from this project (declined), a resource whose name is already carried by an attached one (a "kenta" prop next to the attached
+    character KENTA), and a name that fits several resources — left for a person to choose, and said.
+    {"attached": [names], "ambiguous": [names]}"""
+    row = conn.execute("SELECT game, script_text FROM projects WHERE id=?", (project_id,)).fetchone()
+    if row is None or not (row["script_text"] or "").strip():
+        return {"attached": [], "ambiguous": []}
+    have = _project_assets(conn, project_id)
+    have_ids = {a["id"] for a in have}
+    have_names = {fold(n) for a in have for n in names_of(a)}
+    declined = {r[0] for r in conn.execute("SELECT asset_id FROM project_assets_declined WHERE project_id=?", (project_id,))}
+    body = _spoken_form(row["script_text"])
+    hits: Dict[int, List[str]] = {}
+    for a in list_assets(conn, row["game"], None, project_id):
+        if a["id"] in have_ids or a["id"] in declined:
+            continue
+        said = [n for n in names_of(a) if len(fold(n)) >= 2 and _spoken_form(n) in body]
+        if said and not any(fold(n) in have_names for n in names_of(a)):
+            hits[a["id"]] = [fold(n) for n in said]
+    by_id = {a["id"]: a for a in list_assets(conn, row["game"], None, project_id)}
+    owners: Dict[str, set] = {}
+    for aid, names in hits.items():
+        for n in names:
+            owners.setdefault(n, set()).add(aid)
+    # a name shared with a prop / weapon goes to the one character / pet / place carrying it (KENTA the character, not a "kenta" prop)
+    main = ("character", "pet", "location")
+    for n, ids in owners.items():
+        mains = [i for i in ids if by_id[i]["kind"] in main]
+        if len(ids) > 1 and len(mains) == 1:
+            owners[n] = set(mains)
+            for i in ids - set(mains):
+                hits[i] = [x for x in hits[i] if x != n]
+    attached, ambiguous = [], []
+    for aid, names in hits.items():
+        if not names:
+            continue                                     # its only name belongs to a character / place — not this one
+        if any(len(owners[n]) == 1 for n in names):
+            conn.execute("INSERT OR IGNORE INTO project_assets (project_id, asset_id) VALUES (?,?)", (project_id, aid))
+            attached.append(by_id[aid]["name"])
+        else:
+            ambiguous.append(by_id[aid]["name"])
+    conn.commit()
+    return {"attached": sorted(attached), "ambiguous": sorted(set(ambiguous))}
 
 
 def project_assets(conn, project_id: int) -> List[Dict]:

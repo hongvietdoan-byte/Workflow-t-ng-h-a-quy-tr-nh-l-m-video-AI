@@ -2,7 +2,7 @@
 
 ## 📌 TRẠNG THÁI 2026-09-26 — PHIÊN MỚI ĐỌC MỤC NÀY + BẢNG V4 NGAY DƯỚI
 > **Đã xong:** V4 GĐ0–GĐ7 (GĐ5 Director hai lượt 2026-09-26) + các đợt tự chạy 1–11 (Đợt 11: sửa 11 lỗi rà soát trước chạy trả tiền, web
-> **AI Development System** `devsys/`, hạ nhạc 8–12 dB). **1194 test qua (2 bỏ qua)**; bật cả 23 cờ: 1130 qua, 12 lệch đúng thiết kế (test
+> **AI Development System** `devsys/`, hạ nhạc 8–12 dB). **1198 test qua (2 bỏ qua)**; bật cả 23 cờ: 1130 qua, 12 lệch đúng thiết kế (test
 > khẳng định hành vi khi cờ tắt), không lỗi.
 > **Đợt thử mới (người dùng chốt 2026-09-26):** trần **$10 tổng** (Claude $1,5, đếm từ 26/09 10:47; 60 ảnh / 60 âm thanh); **chất lượng thấp**
 > (🧪 Thử rẻ tự bật cho dự án mới: ảnh cỡ nhỏ nhất, video 720p Kling std / Seedance Fast); **bật cả 23 cờ** trong `dashboard.env` (kể cả

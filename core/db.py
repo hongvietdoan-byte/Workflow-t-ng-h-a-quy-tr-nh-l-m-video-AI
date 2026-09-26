@@ -238,6 +238,12 @@ CREATE TABLE IF NOT EXISTS project_assets (
     asset_id INTEGER NOT NULL,
     PRIMARY KEY (project_id, asset_id)
 );
+-- a resource the person removed from a project: never attached again automatically (assets.auto_attach)
+CREATE TABLE IF NOT EXISTS project_assets_declined (
+    project_id INTEGER NOT NULL,
+    asset_id INTEGER NOT NULL,
+    PRIMARY KEY (project_id, asset_id)
+);
 CREATE TABLE IF NOT EXISTS mistakes (
     id INTEGER PRIMARY KEY,
     source TEXT NOT NULL,
