@@ -1,5 +1,6 @@
 """Header: login, account bar, settings gear + dialogs, project bar (picker, risk, project settings, pause/cancel)."""
 from dashboard.common import *  # noqa: F401,F403  (shared imports + helpers)
+from core import archive
 from dashboard import common as C
 from dashboard.admin import asset_library_panel, history, knowledge_panel, lessons_tab, price_editor, users_tab
 
@@ -70,7 +71,7 @@ def require_login(conn) -> None:
 def current_pid(p: Pipeline):
     """The project selected in the header dropdown (global_bar), read from session_state so the header row
     (rendered above the dropdown) already knows it in the same script run -- selectbox key="global_pid"."""
-    ids = [r["id"] for r in p.conn.execute("SELECT id FROM projects ORDER BY id").fetchall()]
+    ids = [r["id"] for r in archive.active_projects(p.conn)]          # 📦 archived projects are not offered
     pid = st.session_state.get("global_pid")
     return pid if pid in ids else (ids[0] if ids else None)
 
@@ -95,6 +96,26 @@ def new_project_control(p: Pipeline) -> None:
                      format_func=lambda k: catalog[k][0])
         st.button("Tạo dự án", key="new_project_go", type="primary", disabled=not (st.session_state.get("new_name") or "").strip(),
                   on_click=_create_project, args=(p,))
+
+
+def _restore_project(project_id: int) -> None:
+    """Button callback (runs before the widgets, so it may still switch the picker to the restored project)."""
+    archive.restore(Pipeline(connect(C.DB)), project_id)     # a callback runs in another thread than the one that made `p`
+    st.session_state["global_pid"] = project_id
+    st.toast("Đã khôi phục dự án — dự án vẫn đang tạm dừng, bấm ▶ Tiếp tục khi muốn chạy tiếp")
+
+
+def archived_list(p: Pipeline) -> None:
+    """⚙ → 📦 Dự án đã cất: every put-away project with a restore button (nothing was deleted)."""
+    rows = archive.archived_projects(p.conn)
+    if not rows:
+        return
+    st.markdown(f"**📦 Dự án đã cất ({len(rows)})**")
+    st.caption("Ẩn khỏi danh sách, không chạy tự động; dữ liệu còn nguyên.")
+    for r in rows:
+        c1, c2 = st.columns([3, 1.4], vertical_alignment="center")
+        c1.caption(f"#{r['id']} {escape(r['name'])}")
+        c2.button("↩ Khôi phục", key=f"proj_restore_{r['id']}", on_click=_restore_project, args=(r["id"],))
 
 
 def settings_menu(p: Pipeline, pid) -> None:
@@ -130,6 +151,12 @@ def settings_menu(p: Pipeline, pid) -> None:
                 p.delete_project(pid, C.DATA)
                 st.toast(f"Đã xóa dự án “{proj['name']}”")
                 st.rerun()
+            if confirm_all(f"proj_archive_{pid}", [pid], "📦 Cất dự án này",
+                           f"Cất dự án “{proj['name']}”? Dự án ẩn khỏi danh sách, tạm dừng và không chạy tự động; KHÔNG xóa gì "
+                           "(ảnh, clip, chi tiêu giữ nguyên). Khôi phục bất cứ lúc nào ở ⚙ → “📦 Dự án đã cất”.", st, "Có, cất"):
+                archive.archive(p, pid)
+                st.toast(f"Đã cất dự án “{proj['name']}”")
+                st.rerun()
             if st.button("🗒 Lịch sử & thùng rác", key="settings_history", width="stretch"):
                 open_dialog("dlg_history")
             cheap = st.checkbox("🧪 Thử rẻ (720p · Kling std · Seedance 2.0/2.5 → Fast)", bool(proj["test_quality"]), key=f"cheap_{pid}",
@@ -159,6 +186,7 @@ def settings_menu(p: Pipeline, pid) -> None:
             open_dialog("dlg_lessons")
         if pid is not None and allowed("users") and st.button("👥 Phân quyền", key="settings_users", width="stretch"):
             open_dialog("dlg_users")
+        archived_list(p)
         if allowed("shutdown"):
             if confirm_all("shutdown", ["go"], "⏻ Tắt Dashboard", "Tắt Dashboard ngay bây giờ? (việc chạy nền dừng, tiến độ đã lưu)", st, "Có, tắt"):
                 stop = os.path.join(os.path.dirname(__file__), "..", "tools", "stop_dashboard.ps1")
@@ -341,11 +369,6 @@ def _dialog_users(p: Pipeline, pid: int) -> None:
     users_tab(p, pid)
 
 
-def account_bar(p: Pipeline) -> None:
-    """Kept for old callers: the account now lives in ⚙ (account_section) — the top bar is one line (kế hoạch V4 5.3)."""
-    return None
-
-
 def account_section(p: Pipeline) -> None:
     """Who is signed in + sign-out (or, with sign-in off, the name jobs are counted for) — at the top of ⚙."""
     who = me()
@@ -388,7 +411,7 @@ def user_name() -> str:
 
 def global_bar(p: Pipeline):
     """ONE bar: brand · project · state · risk · pause/continue/cancel · new project · ⚙."""
-    projects = p.conn.execute("SELECT id, name FROM projects ORDER BY id").fetchall()
+    projects = archive.active_projects(p.conn)          # 📦 archived projects are hidden (restore them in ⚙)
     with st.container(border=True):
         c0, c1, c2, c3, c4, c5 = st.columns([1.3, 2.4, 1.1, 2.6, 1.3, 0.5], vertical_alignment="center")
         c0.markdown('<div class="brand"><i></i>AI Video Pipeline</div>', unsafe_allow_html=True)
@@ -397,7 +420,9 @@ def global_bar(p: Pipeline):
         if not projects:
             with c5:
                 settings_menu(p, None)
-            st.info("Chưa có dự án. Bấm “➕ Dự án mới” để bắt đầu.")
+            put_away = len(archive.archived_projects(p.conn))
+            st.info("Chưa có dự án. Bấm “➕ Dự án mới” để bắt đầu."
+                    + (f" ({put_away} dự án đã cất — mở ⚙ → “📦 Dự án đã cất” để khôi phục.)" if put_away else ""))
             return None
         ids = [r["id"] for r in projects]
         default_pid = current_pid(p)

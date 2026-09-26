@@ -1,6 +1,11 @@
 # Bàn giao 2026-09-25 (tối) — Tháp đồng hồ giống FF 90–100% + khớp môi (lip-sync)
 
 > **⚠ Đã được thay bằng `docs/KE_HOACH_V4_2026-09-25.md` (người dùng chốt 2026-09-25 tối):** không làm lẻ cảnh đầu — làm "gói bối cảnh" cho cả video/mọi vị trí; khớp môi cho toàn bộ video; hồ sơ 3 nhân vật đã duyệt. Nội dung bên dưới giữ làm tài liệu kỹ thuật (tọa độ, API Seedance, kết quả thử 70%).
+>
+> **Cập nhật 2026-09-26 — đừng làm theo các bước trong file này:** bảng **C1–C7** (mục 2.3) **đã thay** bởi GĐ2 kế hoạch V4 (gói bối cảnh:
+> `core/plate_camera.py`, `location_pack.py`, `plate_env.py`, `composite.py`, `plate_qc.py`, cờ `location_plates`); khớp môi (mục 3) **đã thay**
+> bởi GĐ3 V4 (`core/lipsync.py`, `core/adapters/syncso.py`, Seedance `reference_audio`, cờ `lip_sync`). Ngân sách #7 ở mục 1 là số lúc bàn
+> giao: sau đó thử storyboard Deepix 4 khung → **ảnh 25/32** (xem `TODO.md`, mục "Storyboard Deepix qua API"). Tiến độ thật: 📌 đầu `TODO.md`.
 
 > **Phiên sau đọc file này trước**, rồi `TODO.md` (📌 BÀN GIAO + mục 0), `docs/KE_HOACH_2026-09-25.md` (mục 0 = bảng tiến độ) và
 > `docs/CHUAN_XAY_DUNG.md` (luật bắt buộc). Đọc xong file này là làm tiếp được, không cần đọc lại hội thoại cũ.
@@ -18,7 +23,7 @@ Người dùng **chưa** trả lời có chạy 2B (20–58 s của #6) hay khô
 |---|---|---|---|
 | Tiền có giá (video + âm thanh) | ~$4,02 | $8 | còn ~$3,98 |
 | Claude API | ~$0,26 | $1 | |
-| Ảnh Deepix | **21** | 32 | +1 ảnh thử nền cố định (stage `plate_test`) phiên này; Deepix không trả giá qua API |
+| Ảnh Deepix | **21** (sau đó **25**, +4 khung storyboard thử) | 32 | +1 ảnh thử nền cố định (stage `plate_test`) phiên này; Deepix không trả giá qua API |
 | Âm thanh | 15 | 25 | |
 Luật giữ nguyên: gen lại ≤ 2 lần/shot, ước tính trước mọi lời gọi tốn tiền, không tự nâng trần (phải hỏi người dùng).
 

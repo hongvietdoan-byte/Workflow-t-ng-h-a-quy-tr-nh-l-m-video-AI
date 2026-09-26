@@ -51,12 +51,6 @@ def default_render(p: Pipeline, project_id: int, data_dir: str, music_path: Opti
     return delivery.render(p, project_id, data_dir, music_path)["path"]
 
 
-def default_subtitle(p: Pipeline, pid: int, data_dir: str, video: str, llm) -> Optional[dict]:
-    """Subtitles with the project's settings, timed from the voices / the SAVED transition (only when 'auto subtitles' is on)."""
-    from . import delivery
-    return delivery.subtitle_layer(p, pid, data_dir, llm=llm)
-
-
 def default_context(p: Pipeline, data_dir: str) -> Context:
     """Providers from the environment (IMAGE_PROVIDER, VIDEO_PROVIDER, ANTHROPIC_API_KEY / LLM_PROVIDER, AUDIO_PROVIDER)."""
     from .adapters import factory
@@ -796,7 +790,11 @@ def tick(p: Pipeline, project_id: int, ctx: Context) -> str:
     st = status(p, project_id)["state"]
     if st != RUNNING:
         return st
-    p.actor = p.project(project_id)["autopilot_user"]
+    row = p.project(project_id)
+    if "archived" in row.keys() and row["archived"]:       # 📦 Cất dự án (core/archive.py): a put-away project is never run
+        _set(p, project_id, STOPPED, "Dự án đã cất (📦) — không chạy tự động")
+        return STOPPED
+    p.actor = row["autopilot_user"]
     if p.project(project_id)["paused"]:
         _set(p, project_id, note="Đang tạm dừng")
         return RUNNING

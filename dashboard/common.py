@@ -124,16 +124,6 @@ def image_estimate(p: Pipeline, pid: int):
     from core import image_models
     return cost.estimate_images(p, pid, cost.load_pricing(), image_models.of_project(p.project(pid)))   # the project's picture model
 
-def video_estimate(p: Pipeline, pid: int):
-    from core.adapters.clipai import effective_duration, resolve_model
-    try:
-        canonical, family = resolve_model(p.project(pid)["video_model"])
-    except ProviderError:
-        return None
-    tier = os.environ.get("CLIPAI_KLING_MODE", "pro") if family == "omni" else os.environ.get("CLIPAI_RESOLUTION", "720p")
-    return cost.estimate_videos(p, pid, cost.load_pricing(), canonical, tier,
-                                lambda seconds: effective_duration(canonical, family, seconds))
-
 def show_estimate(est, runner) -> bool:
     """Show the estimate; for real providers require a confirmation tick on large batches. Returns 'allowed'."""
     if est is None:
@@ -181,22 +171,6 @@ def spend_text(p: Pipeline, pid: int):
     return text
 
 
-def spend_line(p: Pipeline, pid: int) -> None:
-    spend = cost.spend_summary(p.conn, pid, cost.load_pricing())
-    if not (spend["images"] or spend["clips"] or spend["audios"]):
-        return
-    if spend["mock"] and spend["mock"] == spend["events"]:
-        st.caption(f"Nhà cung cấp giả lập: {spend['images']} ảnh · {spend['clips']} clip · {spend['audios']} âm thanh — không tốn credit.")
-        return
-    text = (f"Đã ghi nhận (gửi API thật): {spend['images']} ảnh · {spend['clips']} clip ({spend['seconds']:.0f} giây)"
-            f" · {spend['audios']} âm thanh")
-    if spend["unknown_prices"]:
-        text += " — chưa có giá cho: " + ", ".join(spend["unknown_prices"]) + " (điền data/pricing.json)"
-    else:
-        text += f" → khoảng {spend['credits']:.1f} {spend['currency']} theo giá khai báo"
-    if spend["mock"]:
-        text += f" (trong đó {spend['mock']} lượt giả lập, không tính tiền)"
-    st.caption(text)
 
 def project_dir(pid: int, *parts: str) -> str:
     path = os.path.join(DATA, str(pid), *parts)

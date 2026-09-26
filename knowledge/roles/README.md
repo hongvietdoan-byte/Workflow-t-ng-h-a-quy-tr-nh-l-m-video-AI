@@ -34,12 +34,12 @@ người xem, nên đứng trước nhịp cắt. Hy sinh mục thấp hơn → 
 | Cường độ diễn ở cận | Đạo diễn Đ2: `intensity` là đường cảm xúc (5 = đỉnh) | Đạo diễn Đ4: cận phóng đại biểu cảm | Đạo diễn ghi độ mạnh của khoảnh khắc; code vẽ ở CU/ECU thấp hơn một bậc (`performance.shown_intensity`) — một số, hai việc tách nhau |
 | Chuyển động máy | Đạo diễn: cảm xúc cần đẩy vào | Dữ liệu thật: push_in + nhân vật bước tới → "đi tại chỗ" | Nhân vật di chuyển → máy bám theo; đẩy vào khi nhân vật đứng |
 | Chữ và bố cục | Quay phim: chừa chỗ cho chữ, mắt dưới thanh giao diện | Dựng: vùng an toàn trên 15% / dưới 35% (code 36%, đệm) / phải 18% | Máy ảo đặt mắt ~21–28% (`plate_camera.HEADROOM`); một bộ số (`safe_zones.md`), code dùng chung (`subtitles.SAFE_*`) |
-| Thời tiết | Đạo diễn: mang cảm xúc (Đ3) | Quay phim: ánh sáng có nguồn (Q8); Dựng: âm + hiệu ứng thời tiết | Một trường `weather` → nền (`plate_env`), màu người (`composite`), lớp rơi, (âm: việc code D4) |
+| Thời tiết | Đạo diễn: mang cảm xúc (Đ3) | Quay phim: ánh sáng có nguồn (Q8); Dựng: âm + hiệu ứng thời tiết | Một trường `weather` → nền (`plate_env`), màu người (`composite`), lớp rơi, âm thời tiết (D4 ✅ `core/ambience.py`, cờ `ambience_bed`) |
 | Tiêu cự | Quay phim: bảng mm theo cảm xúc | Máy ảo: `FRAMING` theo cỡ | Mặc định theo `FRAMING`; `lens_mm` ghi đè, máy ảo giữ cỡ người và tự lùi/tiến |
 | Độ dài shot | Đạo diễn N2: thoại đủ thời gian nói | Dựng E1: cắt ngắn ở cao trào | Thoại thắng (ưu tiên 2); cao trào ngắn ở shot không thoại |
 | Thời gian nói | Đạo diễn N2, prompt 01 | prompt 17, code | Một số: âm tiết ÷ 3,5 + 0,5 s (`dialogue.BREATH`) — prompt 17 sửa từ 0,4 |
 | `beat` | Đạo diễn Đ1 (giá trị đổi, gieo–gặt) | prompt 01 (object) | Một dạng object: `want, obstacle, turn, value, plant, payoff`; code kiểm gặt có gieo |
-| Âm nền | Dựng E3 (nền không khí liên tục) | `sfx_plan` (chỉ điểm nhấn) | Hai lớp riêng: `sfx_plan` = điểm nhấn; nền không khí = việc code D5 |
+| Âm nền | Dựng E3 (nền không khí liên tục) | `sfx_plan` (chỉ điểm nhấn) | Hai lớp riêng: `sfx_plan` = điểm nhấn; nền không khí = D5 ✅ (`core/ambience.py`, không đè nhạc) |
 | Móc câu | Đạo diễn N5 / Đ2 | TikTok chính thức | Mốc dự án 1–3 s (giả thuyết); nguồn chính thức: ý chính ≤ 3 s, móc ≤ 6 s |
 
 ## Việc code còn thiếu (kỹ năng có trong bộ nhưng pipeline chưa làm — không để im)

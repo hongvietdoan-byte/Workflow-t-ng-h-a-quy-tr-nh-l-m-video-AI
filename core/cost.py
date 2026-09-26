@@ -10,6 +10,7 @@ import sqlite3
 from typing import Dict, List, Optional
 
 from .llm_io import ready_for_video
+from .memo import forget_json, read_json
 from .pipeline import Pipeline
 
 DEFAULT_PRICING_PATH = os.path.join(os.path.dirname(__file__), "..", "data", "pricing.json")
@@ -18,8 +19,7 @@ DEFAULT_PRICING_PATH = os.path.join(os.path.dirname(__file__), "..", "data", "pr
 def load_pricing(path: Optional[str] = None) -> Dict:
     path = path or os.environ.get("PIPELINE_PRICING") or DEFAULT_PRICING_PATH
     try:
-        with open(path, encoding="utf-8") as f:
-            data = json.load(f)
+        data = read_json(path)             # cached by file mtime (core.memo); a broken file raises as before, never cached
     except (OSError, ValueError):
         data = {}
     data.setdefault("currency", "credits")
@@ -203,6 +203,7 @@ def save_pricing(pricing: Dict, path: Optional[str] = None) -> None:
     with open(path, "w", encoding="utf-8") as f:
         json.dump(pricing, f, ensure_ascii=False, indent=2)
         f.write("\n")
+    forget_json(path)
 
 
 # ---- price table <-> editable rows (dashboard price editor) -------------------------

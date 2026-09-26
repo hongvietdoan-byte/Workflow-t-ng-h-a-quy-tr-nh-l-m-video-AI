@@ -13,6 +13,7 @@ import streamlit as st
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
+from core import memo  # noqa: E402
 from dashboard import common as C  # noqa: E402
 from dashboard.common import *  # noqa: E402,F401,F403
 from dashboard.admin import monitor  # noqa: E402
@@ -130,4 +131,5 @@ def main():
      STEPS[5]: monitor}[step](p, pid)
 
 
-main()
+with memo.per_rerun():      # lineage.scan / summary, assets.project_assets: computed once per click and database state
+    main()
