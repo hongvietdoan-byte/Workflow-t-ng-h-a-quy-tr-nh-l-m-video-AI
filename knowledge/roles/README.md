@@ -3,8 +3,8 @@
 Ba vai, mỗi vai một bộ kỹ năng nghề: **Đạo diễn** (`director.md`), **Quay phim** (`dp.md`), **Dựng** (`knowledge/editor/editing.md` +
 `safe_zones.md`). Nguồn bên ngoài: `knowledge/sources.md` mục GĐ4. Khi cờ `film_crew` bật, Director (Claude) đọc `director.md` + `dp.md`
 (dự án chia shot) thay cho 3 tài liệu rải rác (`cinematography_basics`, `film_director_method`, `dialogue_craft` — vẫn còn cho luồng cũ;
-nhãn cờ ở `core/features.py` ghi cùng 3 tên). Hai lượt: Tầng A đọc `director.md` bản đã cắt phần chỉ Quay phim viết (đánh dấu
-`<!-- shot -->` trong file, `prompts.role_text(..., intent_only=True)`).
+nhãn cờ ở `core/features.py` ghi cùng 3 tên). Hai lượt: Tầng A đọc `director.md` bản đã cắt các khối "Trong pipeline" mức shot
+(đánh dấu `<!-- shot -->`, `prompts.role_text(..., intent_only=True)`) — phần "vì sao" và "kiểm" vẫn giữ nên vẫn nhắc tên trường shot.
 Vai Dựng phần lớn là code; tài liệu của nó dành cho người sửa code và cho Claude khi phải nhìn khung hình.
 
 ## Ai làm gì, bàn giao gì
@@ -58,7 +58,7 @@ người xem, nên đứng trước nhịp cắt. Hy sinh mục thấp hơn → 
 | Vị trí người | Đạo diễn: ai gần/xa ai vì truyện (`dp_notes`) | Quay phim: `start_frame` (trái/phải, tiền/hậu) | Một trường: `start_frame` lưu thành `blocking` của shot (prompt 01 một lượt: `blocking` của cảnh); code trục 180° đọc cả hai tên |
 | Quay chậm | Đạo diễn Đ11 chọn khoảnh khắc | Quay phim Q11 `speed`/`freeze_end_s`; Dựng E10 làm khi cắt | Chỉ shot không thoại (code bỏ ở shot thoại/khớp môi); 1–2 lần mỗi phim; cờ `speed_ramp` |
 | Lặng nhạc | Dựng D6 (`music_breath`, trước TWIST) | Đạo diễn Đ9 (`sound.breath`) | Hai khoảng lặng cách nhau ≤ 1 s là một: giữ cái Đạo diễn đặt (`delivery.merge_breaths`) |
-| Ảnh bìa | Đạo diễn Đ10: khoảnh khắc sản phẩm = ⭐ | Dựng E11 xuất ảnh bìa | Code lấy khung giữa shot ⭐ (`delivery.cover_image`), không có thì shot diễn mạnh nhất |
+| Ảnh bìa / ⭐ | Đạo diễn Đ10: khoảnh khắc sản phẩm = `money_shot` | Prompt 01/17/19: `hero` ⭐ = cao trào, model video tốt nhất | Hai trường riêng: ảnh bìa lấy `money_shot` → ⭐ → diễn mạnh nhất (`delivery.cover_image`); D6 lặng nhạc vẫn theo ⭐ |
 
 ## Việc code còn thiếu (kỹ năng có trong bộ nhưng pipeline chưa làm — không để im)
 Đã làm trong GĐ4: trường `performance` (ảnh + motion + QC + dấu vân tay + cảnh báo), `delivery` → tham số TTS (cờ `voice_direction`),
@@ -72,7 +72,7 @@ người xem, nên đứng trước nhịp cắt. Hy sinh mục thấp hơn → 
 | V3 | Nghe thử `delivery` với giọng Việt (thẻ âm có bị đọc thành chữ không) rồi bật `voice_direction` | Đạo diễn | Vài lượt âm thanh |
 | V4 | ✅ Sơ đồ máy nhìn từ trên cho shot ở nơi có mô hình 3D (`location_pack.top_view`, lệnh `topview`); nơi không có 3D: chưa | Quay phim | — |
 | V5 | ✅ Kiểm trục 180° / hướng màn hình từ `start_frame` (`core/continuity.py`, bàn đo + Bước 1 🧭) | Quay phim | — |
-| V6 | ✅ Trường `motif` + báo motif chỉ xuất hiện một lần; ai-biết-gì vẫn ghi trong `emotional_intent` | Đạo diễn | — |
+| V6 | ✅ Trường `motif` + báo motif chỉ xuất hiện một lần; ai-biết-gì: trường cảnh `knowledge_gap` (2026-09-26), `emotional_intent` nói biết điều gì | Đạo diễn | — |
 | V7 | Kiểm giọng đúng `delivery` bằng máy (hiện chỉ có người nghe theo bảng kiểm) | Đạo diễn | Chưa rõ |
 | D1 | ✅ Cắt J 0,25 s khi đổi người nói (cờ `j_cut` TẮT) | Dựng | — |
 | D2 | ✅ Điểm cắt theo chuyển động, dời ≤ 1 s (cờ `motion_trim`) | Dựng | — |

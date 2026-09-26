@@ -437,8 +437,9 @@ def subtitle_cues(p: Pipeline, project_id: int, data_dir: str, final_row=None) -
 
 
 def cover_moment(p: Pipeline, project_id: int, final_row=None) -> Optional[Dict]:
-    """editing.md E11: the moment of the latest render that makes the cover (thumbnail) — the ⭐ hero shot, else the shot of the
-    strongest acting, else the middle of the video: {"t", "scene_id", "why"} on the render's timeline, None without a render."""
+    """editing.md E11: the moment of the latest render that makes the cover (thumbnail) — the Director's `money_shot` (director.md
+    Đ10; with or without people — a close-up of the skill's blade counts), else the ⭐ hero (climax) shot, else the shot with people of
+    the strongest acting, else the middle of the video: {"t", "scene_id", "why"} on the render's timeline, None without a render."""
     row = final_row if final_row is not None else lineage.latest_output(p.conn, project_id, "final")
     if row is None:
         return None
@@ -453,9 +454,11 @@ def cover_moment(p: Pipeline, project_id: int, final_row=None) -> Optional[Dict]
         r = p.conn.execute("SELECT data FROM scenes WHERE id=?", (item.get("scene_id"),)).fetchone()
         d = json.loads(r["data"] or "{}") if r else {}
         perf = d.get("performance") if isinstance(d.get("performance"), dict) else {}
-        score = (2 if d.get("shot_role") == "hero" else 0) + (int(perf.get("intensity") or 0) / 10)
-        if d.get("characters") and (best is None or score > best[0]):
-            best = (score, t + secs / 2, item.get("scene_id"), "shot ⭐" if d.get("shot_role") == "hero" else "diễn mạnh nhất")
+        kind = ("khoảnh khắc sản phẩm" if d.get("money_shot") else "shot ⭐" if d.get("shot_role") == "hero"
+                else "diễn mạnh nhất" if d.get("characters") else None)
+        score = (4 if d.get("money_shot") else 0) + (2 if d.get("shot_role") == "hero" else 0) + int(perf.get("intensity") or 0) / 10
+        if kind and (best is None or score > best[0]):
+            best = (score, t + secs / 2, item.get("scene_id"), kind)
         t += secs - overlap
     if best:
         return {"t": round(best[1], 2), "scene_id": best[2], "why": best[3]}

@@ -26,7 +26,7 @@ SCENE_KEYS = ("location", "time", "mood", "lighting", "location_asset", "emotion
 # director.md Đ3 "ai biết gì": the viewer knows more than the character (suspense), the same (tension) or less (surprise)
 KNOWLEDGE_GAPS = ("ahead", "same", "behind")
 # editing.md E10 / dp.md Q11: time on screen — slow motion (speed < 1) and a freeze at the end of a shot, done in the cut
-SPEED_MIN, FREEZE_MAX = 0.25, 1.5
+SPEED_MIN, SPEED_MAX, FREEZE_MAX = 0.25, 0.9, 1.5
 
 
 class ShotError(ValueError):
@@ -224,6 +224,8 @@ def shot_data(scene: Dict, s: Dict, k: int) -> Dict:
         data["lens_mm"] = int(round(lens))
     if s.get("hook_mid") is True:
         data["hook_mid"] = True                           # director.md Đ2: the open detail that carries the viewer to the next part
+    if s.get("money_shot") is True:
+        data["money_shot"] = True                         # director.md Đ10: what the video promotes, shown best (the cover frame)
     retime = clean_retime(s, spoken)
     data.update(retime)
     return data
@@ -238,7 +240,7 @@ def clean_retime(s: Dict, spoken=None) -> Dict:
         return {}
     out = {}
     speed = s.get("speed")
-    if isinstance(speed, (int, float)) and not isinstance(speed, bool) and SPEED_MIN <= speed < 1:
+    if isinstance(speed, (int, float)) and not isinstance(speed, bool) and SPEED_MIN <= speed <= SPEED_MAX:
         out["speed"] = round(float(speed), 2)
     freeze = s.get("freeze_end_s")
     if isinstance(freeze, (int, float)) and not isinstance(freeze, bool) and 0 < freeze <= FREEZE_MAX:
@@ -435,6 +437,11 @@ def retime_filter(speed: float, freeze: float, fps: int = 30) -> Optional[str]:
     return ",".join(parts) or None
 
 
+def _encode():
+    from .ffmpeg_studio import _ENCODE
+    return _ENCODE
+
+
 def trim_clip(pipeline: Pipeline, scene_id: int, path: str) -> bool:
     """Cut a downloaded clip of a SHOT row to the shot's planned length: the full clip is kept next to it as <name>_raw.mp4.
     Nothing happens for v2 rows, clips already short enough, or files ffmpeg cannot read. Returns True when cut.
@@ -467,9 +474,8 @@ def trim_clip(pipeline: Pipeline, scene_id: int, path: str) -> bool:
     audio = ["-c:a", "aac", "-b:a", "256k"] if has_audio(raw) and vf is None else ["-an"]
     source_cut = ["-t", f"{min(source, have):.2f}"] if vf else []           # slowed: read only the part that fills the shot
     proc = subprocess.run([find_ffmpeg(), "-y", *(["-ss", f"{start:.2f}"] if start else []), *source_cut, "-i", raw,
-                           *(["-vf", vf] if vf else []), "-t", f"{want:.2f}", "-c:v",
-                           "libx264", "-pix_fmt", "yuv420p", "-preset", "veryfast", *audio, path], capture_output=True, text=True,
-                          encoding="utf-8", errors="replace")
+                           *(["-vf", vf] if vf else []), "-t", f"{want:.2f}", *_encode(), *audio, path], capture_output=True,
+                          text=True, encoding="utf-8", errors="replace")
     if proc.returncode != 0 or not os.path.exists(path):
         shutil.move(raw, path)             # keep the uncut clip rather than losing it
         raise RuntimeError((proc.stderr or "")[-300:])
@@ -599,8 +605,7 @@ def split_group_clip(path: str, group: List[Dict], dest_paths: List[str]) -> Lis
         sec = float(r["data"]["duration_s"]) if r["data"].get("exact") else billed_shot_seconds(r["data"])
         ok = False
         if ffmpeg:
-            proc = subprocess.run([ffmpeg, "-y", "-ss", f"{start:.2f}", "-i", whole, "-t", f"{sec:.2f}", "-c:v", "libx264",
-                                   "-pix_fmt", "yuv420p", "-preset", "veryfast", *audio, dest],
+            proc = subprocess.run([ffmpeg, "-y", "-ss", f"{start:.2f}", "-i", whole, "-t", f"{sec:.2f}", *_encode(), *audio, dest],
                                   capture_output=True, text=True, encoding="utf-8", errors="replace")
             ok = proc.returncode == 0 and os.path.exists(dest)
         if not ok:

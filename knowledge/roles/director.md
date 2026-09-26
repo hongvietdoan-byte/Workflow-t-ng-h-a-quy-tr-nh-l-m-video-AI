@@ -11,8 +11,9 @@
 > theo ghi chú của bạn; code **duyệt thay bạn** phần đo được (thoại đủ, đúng thứ tự; giây trong khung; trọng tâm có trong khung; khoảnh
 > khắc mạnh có shot giữ) và báo cảnh lệch ở Bước 1. Vì vậy khi chạy hai lượt, các kỹ năng gắn với shot (`performance`, `sound` từng shot)
 > được Quay phim đặt **từ ý đồ bạn ghi**, còn `delivery` bạn ghi ở câu thoại đi theo câu vào shot — ý đồ càng cụ thể, shot càng đúng.
-> Ở Tầng A, code cắt khỏi bộ này các đoạn chỉ Quay phim viết (đánh dấu trong file; `prompts.role_text(..., intent_only=True)`) và thay
-> bằng ghi chú "ghi vào `dp_notes`" — bạn không đọc lệnh shot mà mình không được viết.
+> Ở Tầng A, code cắt khỏi bộ này các khối "Trong pipeline" mức shot (Đ2, Đ4, Đ9, Đ10, Đ11, tầng 5 — đánh dấu `<!-- shot -->` trong file,
+> `prompts.role_text(..., intent_only=True)`) và thay bằng một câu "ghi vào `dp_notes` / mức cảnh". Phần *Làm gì · vì sao* và *Kiểm* vẫn
+> giữ (bạn cần hiểu vì sao để ghi ý đồ đúng), nên vẫn còn nhắc tên trường shot — đó là thông tin, không phải việc của bạn ở Tầng A.
 
 ## Tầng 1 — Mục đích
 Đạo diễn phục vụ **câu chuyện và cảm xúc người xem**. Mỗi shot có lý do tồn tại: người xem hiểu thêm hoặc cảm thêm một điều. Tiền, giới
@@ -67,9 +68,17 @@ quyết định ở lại hay lướt trong vài giây đầu, nên cảm xúc p
     một chi tiết **dở dang** (câu bị ngắt, tay chạm vào vật, ánh mắt nhìn ra ngoài khung) để câu hỏi mới mở ra trước khi câu cũ được trả lời
     [Đ31]; đỉnh cuối có thể cắt ngay ở đỉnh. Mốc 10–15 s là của một tài liệu tham khảo, chưa đo trên video FF — giả thuyết, đo dần.
     Shot kết một đoạn như thế ghi `hook_mid: true`.
+<!-- shot -->
 - **Trong pipeline.** Shot `role: "hook"` trong **1–3 s đầu** (mốc nội bộ của dự án — giả thuyết, đo dần; số chính thức TikTok: ý chính ≤ 3 s,
   móc ≤ 6 s); `performance.intensity` của các shot là **đường cảm xúc** — độ mạnh của khoảnh khắc trong truyện (lên xuống, đỉnh 1–2 lần);
-  `duration_s`: nhịp nhanh = shot ngắn ở cao trào, chỗ thở = shot dài hơn, ít thoại.
+  `duration_s`: nhịp nhanh = shot ngắn ở cao trào, chỗ thở = shot dài hơn, ít thoại; `hook_mid: true` ở shot kết một đoạn dở dang.
+  **Đánh đổi tiền ↔ nhịp:** video FF gốc có trung vị ~2 s/shot (khoảng nửa số shot < 2 s), nhưng prompt 17 giữ shot < 2 s ở ~1/5 số shot —
+  mỗi shot ngắn vẫn trả tiền một clip tối thiểu 3–4 s (ưu tiên 5 "tiết kiệm tiền video"). Muốn nhịp dồn hơn: gộp vị trí máy (`camera_setup`,
+  một clip cắt nhiều shot) thay vì thêm clip ngắn; cần nhiều shot ngắn hơn mốc thì ghi `tradeoffs`.
+<!-- /shot -->
+<!-- intent: - **Trong pipeline (Tầng A).** Ghi `peak` (cường độ đỉnh của cảnh) và `target_s`; nhịp nhanh/chậm, móc mở đầu, chỗ dở dang giữa video
+  ghi vào `dp_notes` — Quay phim đặt `role: "hook"`, `hook_mid`, độ dài shot.
+ -->
 - **Kiểm.** Code (`core/performance.py`): cường độ 5 quá 2 lần → "đỉnh mất giá"; ≥ 6 shot **liền nhau trên phim** (shot không có diễn
   xuất cắt chuỗi) cùng cường độ → "đường phẳng"; chuỗi shot cường độ ≥ 4 mà cả chuỗi lẫn shot ngay sau không có shot nào ≥ 2 s → "chưa kịp
   thấm" — cả hai bỏ qua khi `why` của một shot trong chuỗi ghi "cố ý / dồn nhịp / có chủ đích". Móc giữa video
@@ -93,7 +102,7 @@ quyết định ở lại hay lướt trong vài giây đầu, nên cảm xúc p
     mốc biến chuyển.
   - **Nền là một nơi thật**, kể cả khi tối: "bóng tối" = đêm/thiếu sáng ở bối cảnh của dự án, không phải nền đen trơn.
 - **Trong pipeline.** Cảnh: `time`, `lighting`, `mood`, **`knowledge_gap`** (`ahead` người xem biết trước nhân vật · `same` · `behind`
-  biết sau — chỉ nhận ba giá trị, giá trị lạ bị bỏ); shot/cảnh: `weather` (danh sách cố định, Đ8); hình motif ghi lặp lại trong
+  biết sau — chỉ nhận ba giá trị, giá trị lạ bị bỏ và báo ở bàn đo); shot/cảnh: `weather` (danh sách cố định, Đ8); hình motif ghi lặp lại trong
   `image_prompt` của các shot cần "vần". `emotional_intent` vẫn nói người xem biết *điều gì* ("người xem biết trước Kelly: …").
 - **Kiểm.** Code: `void_background` (nền "void/black background") trong bàn đo; thời tiết lạ bị báo (`plate_env.weather_of`). Người xem: tắt
   tiếng còn hiểu không. Motif: trường shot `motif` (nhãn ngắn, cùng nhãn ở các shot "vần") — code báo motif chỉ xuất hiện một lần
@@ -222,12 +231,16 @@ quyết định ở lại hay lướt trong vài giây đầu, nên cảm xúc p
     lại** khi thế trận lật.
   - **Âm của cơ thể và vật** (tiếng thở dồn, nuốt nước bọt, sột soạt vải, tiếng bíp) làm cảm xúc gai góc hơn nhạc — chỉ vài âm, đúng khoảnh khắc.
   - Tự hỏi hai chiều: tắt tiếng đi hình còn kể được không (tầng 5) — **và bật tiếng lên, âm thanh có đẩy thêm được gì không**.
-- **Trong pipeline.** Shot (tùy chọn, chỉ nơi cần): `"sound": {"music": "keep|cut|in|breath", "sfx": ["…"], "why": "…"}` (`core/sound_intent.py`);
-  hai lượt: bạn ghi `sound` **mức cảnh** (prompt 19), Quay phim đặt vào shot.
+<!-- shot -->
+- **Trong pipeline.** Shot (tùy chọn, chỉ nơi cần): `"sound": {"music": "keep|cut|in|breath", "sfx": ["…"], "why": "…"}` (`core/sound_intent.py`).
   `cut` nhạc tắt từ đầu shot tới shot `in`; `breath` lặng 0,6 s ngay trước shot; `sfx` ≤ 3 âm. Người làm âm thanh (`sfx_plan`) nhận ý đồ
   này, **phải** đặt các âm được yêu cầu hoặc nói kho thiếu âm nào (Bước 5 🔊 + autopilot ghi cảnh báo). Nhạc theo `cut/in/breath` vào
   bản dựng khi cờ `sound_intent` BẬT (TẮT tới khi nghe thử); tắt thì manifest bản dựng ghi số ý đồ chưa áp. J-cut/L-cut của thoại vẫn là
   việc của Dựng (cờ `j_cut`; L-cut = đặt câu lên shot người nghe, N3).
+<!-- /shot -->
+<!-- intent: - **Trong pipeline (Tầng A).** Ghi `sound` **mức cảnh** (prompt 19: nhạc tắt/vào lại ở đâu, âm cơ thể nào cần nghe rõ, vì sao); Quay
+  phim đặt vào shot cụ thể.
+ -->
 - **Kiểm.** Code (`sound_intent.warnings`, Bước 1 🔊 + bàn đo): `in` khi nhạc đang có, `cut` khi nhạc đã tắt, `breath` ở shot đầu, nhạc tắt
   quá nửa phim (quên `in`), đỉnh cảm xúc cường độ 5 mà âm thanh không có ý đồ. Người nghe: bản dựng có tiếng.
 - **Ví dụ FF** (minh họa, chưa chạy thật). ✔ #6 cảnh Kelly nghe lỏm "không được để cô ấy biết": shot mặt Kelly `{"music": "cut", "sfx": ["held breath"], "why": "im
@@ -243,12 +256,18 @@ quyết định ở lại hay lướt trong vài giây đầu, nên cảm xúc p
     (không chữ nhỏ, không mờ). Khi đăng quảng cáo, 2–3 móc mở đầu khác nhau cho cùng thân video là cách đo móc nào giữ người xem (Đ2).
   - **Vòng phản hồi số liệu.** Mốc móc 1–3 s, móc giữa 10–15 s, giữ 2–4 s đều là giả thuyết cho tới khi có số thật: sau khi đăng, người dùng
     dán tỉ lệ xem 3 s / xem hết / điểm rơi người xem (TikTok/YouTube Studio) vào ghi chú dự án — lần sau Đạo diễn đọc để chỉnh mốc.
-- **Trong pipeline.** Shot khoảnh khắc sản phẩm: `hero: true` (⭐ — code chọn làm ảnh bìa: `delivery.cover_image`, Bước 5 🖼) và
-  `role: "ending"` cho cú chốt; chữ card cuối do người dùng nhập ở Bước 5 🪧 (Đạo diễn đề xuất nội dung trong `script_notes`, kind
-  "khác"); CTA không phải thoại — không thêm câu vào kịch bản (N1).
-- **Kiểm.** Code: ảnh bìa lấy shot ⭐, không có thì shot diễn mạnh nhất. Người: xem ảnh bìa + 3 s đầu, "video này quảng bá gì?" trả lời
-  được trong một câu không. Chưa có: đo tỉ lệ xem (cần video đã đăng).
-- **Ví dụ FF.** ✔ Video kỹ năng Kenta: money shot = cận thanh kiếm lúc kỹ năng bật (⭐), kết bằng tên kỹ năng + logo. ✘ #6: đỉnh cảm xúc là
+<!-- shot -->
+- **Trong pipeline.** Shot khoảnh khắc sản phẩm: **`money_shot: true`** (trường riêng — khác `hero` ⭐, vốn là cao trào/twist được dùng model
+  video tốt nhất; khoảnh khắc sản phẩm không nhất thiết đắt hơn) — code lấy làm ảnh bìa (`delivery.cover_image`, Bước 5 🖼), kể cả shot
+  không có người (cận thanh kiếm lúc kỹ năng bật); `role: "ending"` cho cú chốt. Chữ card cuối do người dùng nhập ở Bước 5 🪧 (Đạo diễn đề
+  xuất nội dung trong `script_notes`, kind "khác"); CTA không phải thoại — không thêm câu vào kịch bản (N1).
+<!-- /shot -->
+<!-- intent: - **Trong pipeline (Tầng A).** Ghi trong `dp_notes` của cảnh chứa khoảnh khắc sản phẩm: thứ gì phải hiện rõ, cỡ nào; Quay phim đặt
+  `money_shot: true`. Nội dung card cuối đề xuất trong `script_notes` (kind "khác"); CTA không phải thoại (N1).
+ -->
+- **Kiểm.** Code: ảnh bìa lấy shot `money_shot`, không có thì shot ⭐, rồi shot có người diễn mạnh nhất. Người: xem ảnh bìa + 3 s đầu,
+  "video này quảng bá gì?" trả lời được trong một câu không. Chưa có: đo tỉ lệ xem (cần video đã đăng).
+- **Ví dụ FF.** ✔ Video kỹ năng Kenta: money shot = cận thanh kiếm lúc kỹ năng bật (`money_shot: true`), kết bằng tên kỹ năng + logo. ✘ #6: đỉnh cảm xúc là
   twist, nhưng không shot nào cho thấy rõ thứ đang quảng bá — hợp phim ngắn, không hợp video quảng bá nhân vật.
 
 ### Đ11. Thời gian trên màn hình — quay chậm, dừng hình — 2026-09-26
@@ -256,7 +275,8 @@ quyết định ở lại hay lướt trong vài giây đầu, nên cảm xúc p
   thường bỏ lỡ và cảm nó nặng hơn; dừng hình ở cú chốt để khoảnh khắc "đóng dấu". Dùng nhiều thì mất tác dụng — 1–2 lần mỗi phim, ở đỉnh
   hoặc money shot. Không kéo giãn shot có thoại (giọng chậm lại là sai).
 - **Trong pipeline.** Đạo diễn chọn khoảnh khắc (ghi trong `dp_notes` / `why`); Quay phim ghi shot `speed` (0,25–0,9) và/hoặc
-  `freeze_end_s` (≤ 1,5 s) — dp.md Q11; Dựng làm khi cắt clip (editing.md E10, cờ `speed_ramp`). Code bỏ hai trường ở shot có thoại/khớp môi.
+  `freeze_end_s` (≤ 1,5 s) — dp.md Q11; Dựng làm khi cắt clip (editing.md E10, cờ `speed_ramp`). Code bỏ hai trường ở shot có thoại/khớp môi
+  hoặc ngoài khoảng, **và báo** ở bàn đo + Bước 1 ⏱ (`director_report.retime_dropped`).
 - **Kiểm.** Code: `shots.clean_retime` (chỉ shot không thoại), test ffmpeg độ dài đúng. Người: xem bản dựng — chậm có mượt không (nội suy
   khung có thể méo tay/vũ khí khi chuyển động nhanh).
 

@@ -1155,8 +1155,10 @@ def _crew_notes(p: Pipeline, pid: int) -> None:
         raw = json.loads(proj["director_raw"] or "{}")
         if not raw.get("scenes") or raw.get("truncated"):
             return
-        r = director_report.report(raw, proj["script_text"] or "")
-    except Exception:  # noqa: BLE001 - an old or odd answer must not break Step 1
+        from core import shots as _shots
+        r = director_report.report(director_report.with_current_shots(raw, _shots.shots_of(p, pid)), proj["script_text"] or "")
+    except Exception as e:  # noqa: BLE001 - an old or odd answer must not break Step 1, but the checks' absence is said
+        st.caption(f"⚠ Không chạy được các kiểm của tổ làm phim trên bảng shot hiện tại: {escape(str(e)[:160])}")
         return
     if r.get("unrecorded"):
         st.warning("⚠ Director đã hy sinh (" + ", ".join(r["unrecorded"]) + ") mà không ghi lý do (`tradeoffs`).")

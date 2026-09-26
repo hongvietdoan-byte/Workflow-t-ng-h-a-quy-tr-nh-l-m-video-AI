@@ -23,10 +23,10 @@ WIDE_MIN = 1.5            # a wide shot shorter than this cannot be read
 TRADEOFF_KEYS = ("chose", "gave_up", "why")   # director.md tầng 4: each sacrifice says what won, what lost and why
 VOID = re.compile(r"\bvoid\b|black background|abstract (emotional )?space|empty darkness", re.IGNORECASE)
 # director.md tầng 4: which tradeoff covers which sacrifice — a tradeoff about the music does not excuse a dropped line
-_GAVE_UP_WORDS = {"bỏ câu thoại": r"thoại|câu|line|dialog",
-                  "lệch khung thời lượng": r"thời lượng|giây|khung|độ dài|length|duration|second",
-                  "shot thiếu thời gian nói": r"thời gian nói|thoại|nói|speech|line|dialog",
-                  "bỏ góc máy kịch bản ghi": r"góc|angle|qua vai|sau vai|cận|toàn cảnh|ots"}
+_GAVE_UP_WORDS = {"bỏ câu thoại": r"(?<!\w)câu(?!\w)|(?<!\w)thoại|\blines?\b|dialog",
+                  "lệch khung thời lượng": r"thời lượng|khung (giây|thời gian)|độ dài|\blength\b|duration",
+                  "shot thiếu thời gian nói": r"thời gian nói|đủ giây|\bspeech\b|speaking time",
+                  "bỏ góc máy kịch bản ghi": r"góc máy|góc camera|\bangle\b|qua vai|sau vai|cận cảnh|toàn cảnh|\bots\b"}
 # prompt 17 "Kịch bản ghi rõ góc máy thì giữ đúng": the script's own camera words and the shot that honours them
 _SCRIPT_ANGLES = ((re.compile(r"(?:sau|qua)\s+vai\s+(?:của\s+)?([A-ZÀ-Ỹa-zà-ỹ]+)", re.I), "ots"),
                   (re.compile(r"\bcận\s+cảnh\b", re.I), "close"),
@@ -75,7 +75,7 @@ def script_angles(story, shots) -> List[Dict]:
                     ok = any(s.get("angle") == "ots" and who in [str(c).upper() for c in s.get("characters") or []] for s in mine)
                     wanted = f"qua vai {who}"
                 elif kind == "close":
-                    ok, wanted = any(s.get("size") in ("CU", "ECU", "MCU") for s in mine), "cận cảnh"
+                    ok, wanted = any(s.get("size") in ("CU", "ECU") for s in mine), "cận cảnh"   # prompt 17: "CẬN CẢNH" → CU
                 else:
                     ok, wanted = any(s.get("size") in ("WS", "EWS") for s in mine), "toàn cảnh"
                 if not ok and {"scene": sc_i, "wanted": wanted} not in out:
@@ -84,12 +84,13 @@ def script_angles(story, shots) -> List[Dict]:
 
 
 def _uncovered(gave_up: List[tuple], trade: List[Dict]) -> List[str]:
-    """The sacrifices no tradeoff speaks about: a tradeoff counts for a kind when its gave_up/chose words name that kind and its
-    scene (when both say one) is the same."""
+    """The sacrifices no tradeoff speaks about: a tradeoff counts for a kind when what it GAVE UP names that kind (what it chose
+    does not — "chose: giữ đủ giây cho câu thoại, gave_up: nhạc nền" gave up the music, not a line) and its scene (when both say
+    one) is the same."""
     out = []
     for kind, scenes in gave_up:
         rx = re.compile(_GAVE_UP_WORDS[kind], re.I)
-        hits = [t for t in trade if rx.search(f"{t.get('gave_up') or ''} {t.get('chose') or ''}")]
+        hits = [t for t in trade if rx.search(str(t.get("gave_up") or ""))]
         if scenes:
             hits = [t for t in hits if not str(t.get("scene") or "").strip() or _int(t.get("scene")) in scenes]
         if not hits:
@@ -184,7 +185,7 @@ def report(obj: Dict, script_text: str, model: str = "kling") -> Dict:
         "acting": performance.warnings([s for _, _, s in shots]),
         "sound": sound_intent.warnings([s for _, _, s in shots]),
         "pacing": mid_hook_gaps([s for _, _, s in shots])
-        + [f"cảnh {a['scene']}: kịch bản ghi \"{a['wanted']}\" mà không shot nào giữ" for a in angles],
+        + [f"cảnh {a['scene']}: kịch bản ghi \"{a['wanted']}\" mà không shot nào giữ" for a in angles] + retime_dropped(obj),
         "payoff_unplanted": payoff_unplanted(obj),
         "continuity": continuity.axis_warnings(shots) + continuity.motif_warnings(shots)
         + continuity.lighting_warnings([sc for sc in obj.get("scenes") or [] if isinstance(sc, dict)]),
@@ -215,6 +216,42 @@ def mid_hook_gaps(shots: List[Dict]) -> List[str]:
     marks = sorted(set(marks)) + [max(total - 5.0, OPEN_HOOK_S)]
     return [f"{a:.0f}–{b:.0f} s: {b - a:.0f} s không có móc giữa video (`hook_mid`) — người xem có thể lướt đi; đặt một chi tiết dở dang"
             for a, b in zip(marks, marks[1:]) if b - a > MID_HOOK_GAP]
+
+
+def with_current_shots(raw: Dict, rows: List[Dict]) -> Dict:
+    """The Director's answer with each scene's shots replaced by the shot rows as they are now (Step 1 hand edits included) — the
+    checks then judge what will be made, not the first answer. rows: [{"data": {...story_scene...}}] in film order."""
+    by_scene: Dict[int, List[Dict]] = {}
+    for r in rows:
+        d = dict(r["data"])
+        if d.get("story_scene"):
+            d.setdefault("start_frame", d.get("blocking") or "")
+            by_scene.setdefault(int(d["story_scene"]), []).append(d)
+    if not by_scene:
+        return raw
+    out = dict(raw)
+    out["scenes"] = [dict(sc, shots=by_scene.get(int(sc.get("idx") or 0), sc.get("shots") or [])) for sc in raw.get("scenes") or []]
+    return out
+
+
+def retime_dropped(obj: Dict) -> List[str]:
+    """Fields the code dropped from the answer instead of using them — said, not silent (CHUAN_XAY_DUNG luật 1)."""
+    from .shots import KNOWLEDGE_GAPS, SPEED_MAX, SPEED_MIN
+    out = []
+    for sc in obj.get("scenes") or []:
+        gap = sc.get("knowledge_gap")
+        if gap not in (None, "") and gap not in KNOWLEDGE_GAPS:
+            out.append(f"cảnh {sc.get('idx')}: knowledge_gap \"{gap}\" không phải ahead/same/behind — bỏ")
+        for k, s in enumerate(sc.get("shots") or [], 1):
+            if not isinstance(s, dict) or (s.get("speed") is None and s.get("freeze_end_s") is None):
+                continue
+            speaks = any(isinstance(d, dict) and str(d.get("text") or "").strip() for d in s.get("dialogue") or [])
+            speed = s.get("speed")
+            if speaks or s.get("lip_sync"):
+                out.append(f"shot {sc.get('idx')}·{k}: speed/freeze ở shot có thoại/khớp môi — bỏ (giọng chậm lại là sai)")
+            elif speed is not None and not (isinstance(speed, (int, float)) and SPEED_MIN <= speed <= SPEED_MAX):
+                out.append(f"shot {sc.get('idx')}·{k}: speed {speed} ngoài {SPEED_MIN}–{SPEED_MAX} — bỏ")
+    return out
 
 
 def payoff_unplanted(obj: Dict) -> List[int]:

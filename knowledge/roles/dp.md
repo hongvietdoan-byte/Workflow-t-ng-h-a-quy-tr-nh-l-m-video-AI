@@ -10,6 +10,12 @@
 > danh sách Đạo diễn giữ → chỉ cảnh đó bị hỏi lại; tổng giây ngoài khung, trọng tâm vắng khung, khoảnh khắc mạnh không có shot giữ → cờ
 > "Đạo diễn duyệt" ở Bước 1. "↻ Chia shot lại cảnh này" chỉ hỏi lại bạn, không hỏi lại Đạo diễn.
 
+> **Trường Quay phim viết từ ý đồ Đạo diễn** (nhất là Tầng B, khi Đạo diễn chỉ ghi mức cảnh): `performance` từng shot (từ `dp_notes`,
+> `peak` — director.md Đ4), `sound` từng shot (từ `sound` mức cảnh — Đ9), `role: "hook"` + `hook_mid` (Đ2), `motif` (Đ3), `hero` ⭐ (cao
+> trào — model tốt nhất) và `money_shot` (khoảnh khắc sản phẩm — ảnh bìa, Đ10), `speed`/`freeze_end_s` (Q11, Đ11). Đọc `knowledge_gap`
+> của cảnh: `behind` (người xem biết sau) → **phản ứng trước, nguyên nhân sau** (shot mặt sững lại trước, cái họ thấy ở shot kế ≤ 2 s);
+> `ahead` (biết trước — hồi hộp) → cho người xem thấy mối nguy trước (shot chèn mối nguy, rồi nhân vật chưa biết); `same` → cùng nhịp.
+
 ## Tầng 1 — Mục đích
 Làm cho người xem **thấy rõ** điều Đạo diễn muốn họ cảm — ai ở đâu, nhìn ai, cảm gì — với **ít clip nhất** mà model video làm tốt được.
 
@@ -71,7 +77,9 @@ Làm cho người xem **thấy rõ** điều Đạo diễn muốn họ cảm —
   đường dẫn, khung trong khung, khoảng trống âm (người nhỏ giữa khoảng trống = cô độc) [Q1][Q5]. Khoảng trống phía nhìn/phía đi; khoảng
   trống trên đầu vừa đủ. **Khung dọc** mạnh ở chiều cao (toàn thân, mặt cận, công trình đứng), yếu ở hai người đứng ngang → xếp người theo
   **chiều sâu** (qua vai) thay vì cạnh nhau.
-  - **Vị trí mắt — MỘT luật (nguồn số duy nhất của cả tổ; README trỏ về đây):** mắt nằm trong dải **18–35% từ mép trên**. Cận trên: không
+  - **Vị trí mắt — MỘT luật (nguồn số duy nhất của cả tổ; README trỏ về đây).** Với cỡ **MLS → CU** mắt nằm trong dải **18–35% từ mép
+    trên**; **WS/EWS/GAME_TPS** người nhỏ, đỉnh đầu gần mép trên — mắt chỉ cần **dưới 15%** (máy ảo WS đo ~16,6%); **ECU** mắt/chi tiết lấp
+    khung — không áp luật (máy ảo ~57%, mắt ở giữa khung là đúng). Cận trên: không
     lọt vào thanh giao diện app 15% (+3% đệm) — luật là **mắt**, đỉnh đầu được chạm thanh. Cận dưới: không thấp hơn đường một phần ba
     (~33%) quá 2% — thấp hơn thì khoảng trống trên đầu thừa, người "tụt" xuống vùng phụ đề. Trong dải đó, **cỡ càng rộng mắt càng cao**
     vì thân người cần chỗ bên dưới: máy ảo đặt ~20% (MLS), ~23% (MS), ~28% (MCU), ~33% (CU) (`plate_camera.HEADROOM`, đo bằng `camera_for`

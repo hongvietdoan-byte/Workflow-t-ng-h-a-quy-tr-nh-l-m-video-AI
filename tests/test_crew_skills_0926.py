@@ -216,5 +216,62 @@ class EditorTests(unittest.TestCase):
         self.assertEqual(delivery.cover_moment(p, pid), {"t": 3.0, "scene_id": ids[1], "why": "shot ⭐"})
 
 
+# ---- người chấm lần 1 (2026-09-26): lỗi tự tái hiện được ------------------------------------------------------------------------
+class GraderRound1Tests(unittest.TestCase):
+    def test_the_lighting_side_is_read(self):
+        text = "street lamp from the left, warm 2700K, key:fill 4:1, low-key"
+        self.assertEqual(continuity.lighting_warnings([{"idx": 1, "lighting": text}]), [])
+        self.assertNotIn("", open(continuity.__file__, encoding="utf-8").read())
+
+    def test_what_was_chosen_does_not_cover_what_was_given_up(self):
+        trade = [{"chose": "giữ đủ giây cho câu thoại", "gave_up": "nhạc nền đẹp", "why": "x", "scene": 2}]
+        gave_up = [("bỏ câu thoại", {2}), ("lệch khung thời lượng", set()), ("shot thiếu thời gian nói", {2})]
+        self.assertEqual(director_report._uncovered(gave_up, trade), [k for k, _ in gave_up])
+
+    def test_avoiding_the_line_is_not_crossing_it(self):
+        base = (1, 1, {"start_frame": "Kelly frame-left, Kenta frame-right", "characters": ["KELLY", "KENTA"], "angle": "eye"})
+        other = (1, 2, {"start_frame": "Kenta frame-left, Kelly frame-right", "characters": ["KELLY", "KENTA"], "angle": "eye",
+                        "why": "tránh vượt trục, giữ Kelly bên trái"})
+        self.assertEqual(len(continuity.axis_warnings([base, other])), 1)
+
+    def test_the_money_shot_is_the_cover_even_without_people(self):
+        p = Pipeline(connect())
+        pid = p.create_project("cover2")
+        ids = []
+        for i, data in enumerate(({"characters": ["KENTA"], "shot_role": "hero"}, {"characters": [], "money_shot": True}), 1):
+            sid = p.create_scene(pid, i, f"s{i}")
+            p.conn.execute("UPDATE scenes SET data=? WHERE id=?", (json.dumps(data), sid))
+            ids.append(sid)
+        man = {"timeline": [{"scene_id": s, "seconds": 2.0} for s in ids], "transition": "cut"}
+        p.conn.execute("INSERT INTO outputs (project_id, kind, path, manifest, created_at) VALUES (?,?,?,?,?)",
+                       (pid, "final", "x.mp4", json.dumps(man), "2026-09-26"))
+        self.assertEqual(delivery.cover_moment(p, pid)["scene_id"], ids[1])
+
+    def test_step1_checks_judge_the_shots_as_edited(self):
+        raw = {"scenes": [{"idx": 1, "shots": [{"size": "MS", "why": "cũ"}]}]}
+        rows = [{"data": {"story_scene": 1, "size": "CU", "blocking": "Kelly frame-left"}}]
+        now = director_report.with_current_shots(raw, rows)
+        self.assertEqual(now["scenes"][0]["shots"][0]["size"], "CU")
+        self.assertEqual(now["scenes"][0]["shots"][0]["start_frame"], "Kelly frame-left")
+        self.assertEqual(raw["scenes"][0]["shots"][0]["size"], "MS")                 # the stored answer is not changed
+
+    def test_dropped_fields_are_said(self):
+        obj = {"scenes": [{"idx": 1, "knowledge_gap": "maybe", "shots": [
+            {"speed": 0.5, "dialogue": [{"speaker": "KELLY", "text": "Đi thôi"}]}, {"speed": 0.95}]}]}
+        w = director_report.retime_dropped(obj)
+        self.assertEqual(len(w), 3)
+        self.assertEqual(shots.clean_retime({"speed": 0.95}), {})
+
+    def test_every_delivery_encode_uses_the_same_quality(self):
+        import inspect
+        self.assertIn("_ENCODE", inspect.getsource(subtitles.burn))
+        self.assertEqual(inspect.signature(ffmpeg_studio.resize_to_size).parameters["audio_kbps"].default, 256)
+        self.assertIn("_encode()", inspect.getsource(shots.trim_clip))
+
+    def test_a_dynamic_loudnorm_is_said(self):
+        self.assertTrue(any("NÉN" in x for x in ffmpeg_studio.loudness_problems({"lufs": -14.0, "true_peak_dbfs": -1.6,
+                                                                                  "mode": "dynamic"})))
+
+
 if __name__ == "__main__":
     unittest.main()

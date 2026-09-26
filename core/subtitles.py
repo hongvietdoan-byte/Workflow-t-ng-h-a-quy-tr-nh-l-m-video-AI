@@ -612,8 +612,8 @@ def burn(video: str, cues: List[Cue], out_path: str, font: Font, size: str = "M"
             f.write(to_ass(cues, width, height, font, size, pos, color, show_speaker, by_speaker, zones=zones, seen=seen,
                            karaoke=karaoke)
                     + embed_font(font))
-        cmd = [ffmpeg, "-y", "-i", os.path.abspath(video), "-vf", "ass=sub.ass", "-c:v", "libx264", "-crf", "18",
-               "-preset", "medium", "-pix_fmt", "yuv420p", "-c:a", "copy", os.path.abspath(out_path)]
+        cmd = [ffmpeg, "-y", "-i", os.path.abspath(video), "-vf", "ass=sub.ass", *ffmpeg_studio._ENCODE, "-c:a", "copy",
+               os.path.abspath(out_path)]
         proc = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8", errors="replace", cwd=work)
         if proc.returncode != 0:
             tail = (proc.stderr or "")[-600:]

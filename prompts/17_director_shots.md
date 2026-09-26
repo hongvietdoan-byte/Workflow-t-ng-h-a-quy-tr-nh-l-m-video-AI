@@ -55,7 +55,7 @@ Dự án này sản xuất **theo shot**, không theo cảnh: mỗi cảnh kịc
  "sound": {"music": "keep|cut|in|breath", "sfx": ["tiếng Anh ngắn: âm khoảnh khắc cần"], "why": "tiếng Việt: âm này đẩy cảm xúc gì"},
  "why": "tiếng Việt, 1 câu: vì sao cỡ/góc/chuyển động này", "motif": "nhãn ngắn khi shot vần với shot khác",
  "lens_mm": 35, "weather": "clear", "plate_spot": "tên chỗ đứng", "plate_mode": "green", "lip_sync": false,
- "hook_mid": false, "speed": 0.5, "freeze_end_s": 0.5,
+ "hook_mid": false, "money_shot": false, "speed": 0.5, "freeze_end_s": 0.5,
  "continuous_with_next": false, "hero": false}
 ```
 - **`performance` (diễn xuất — mọi shot có người, nhất là thoại/phản ứng/móc/kết):** tả **hành vi nhìn thấy được**, không chỉ tên cảm xúc
@@ -77,6 +77,8 @@ Dự án này sản xuất **theo shot**, không theo cảnh: mỗi cảnh kịc
   chỉ khi khớp môi đang BẬT (xem khối Thời lượng). Bỏ trường nào không dùng.
 - **`hook_mid: true`** (video > 20 s): shot kết một đoạn ~10–15 s bằng một chi tiết **dở dang** (câu bị ngắt, tay chạm vào vật, ánh
   mắt nhìn ra ngoài khung) để người xem ở lại sang đoạn sau; code báo đoạn > 15 s không có móc nào.
+- **`money_shot: true`** (một shot, video quảng bá): khoảnh khắc thứ đang quảng bá hiện rõ nhất (kỹ năng bật, trang phục toàn thân) —
+  làm ảnh bìa. Khác `hero` (cao trào/twist, model video tốt nhất).
 - **`speed`** (0,25–0,9) / **`freeze_end_s`** (≤ 1,5 s): **chỉ shot không thoại** — quay chậm khoảnh khắc đỉnh của hành động (viên đạn
   rời nòng, cú nhảy kỹ năng, giọt nước mắt rơi) hoặc dừng hình ở cú chốt. `duration_s` là độ dài **trên phim**; clip chỉ cần
   (duration_s − freeze) × speed giây hành động. Tối đa 1–2 lần mỗi phim — dùng nhiều thì mất tác dụng. Shot có thoại / khớp môi: code bỏ.

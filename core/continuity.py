@@ -17,8 +17,9 @@ _LEFT = re.compile(r"\b(frame[- ]left|left of (the )?frame|on the left|left side
 _RIGHT = re.compile(r"\b(frame[- ]right|right of (the )?frame|on the right|right side|bên phải|phải khung)\b", re.I)
 _TO_RIGHT = re.compile(r"\b(left to right|toward(s)? (the )?(frame[- ])?right|to (the )?frame[- ]right|từ trái sang phải)\b", re.I)
 _TO_LEFT = re.compile(r"\b(right to left|toward(s)? (the )?(frame[- ])?left|to (the )?frame[- ]left|từ phải sang trái)\b", re.I)
-_ON_PURPOSE = re.compile(r"(?<!không )(?<!chưa )(?:cố ý )?(?:vượt|qua|nhảy) trục|cross(es|ing)? the (line|axis)|jump(s|ing)? the line",
-                         re.I)
+# a crossing written on purpose; "không / chưa / tránh / đừng / giữ … vượt trục" and "don't / avoid crossing" are the opposite
+_ON_PURPOSE = re.compile(r"(?<!không )(?<!chưa )(?<!tránh )(?<!đừng )(?<!chớ )(?:cố ý )?(?:vượt|qua|nhảy) trục|"
+                         r"(?<!not )(?<!n't )(?<!avoid )(?<!never )cross(es|ing)? the (line|axis)|(?<!not )jump(s|ing)? the line", re.I)
 _EXEMPT_ANGLES = ("pov", "overhead")
 
 
@@ -96,7 +97,7 @@ def motif_warnings(shots: List[Tuple[int, int, Dict]]) -> List[str]:
 # dp.md Q8: the scene's `lighting` is one reference table for all its shots, written as source — side — colour (K) — key:fill — tone
 _LIGHT_PARTS = (("nguồn", re.compile(r"sun|moon|lamp|street ?light|daylight|fire|torch|neon|window|screen|candle|lantern|headlight|flash|sky|"
                                      r"mặt trời|trăng|đèn|lửa|cửa sổ|màn hình", re.I)),
-                ("phía", re.compile(r"(frame[- ])?(front[- ]|back[- ])?(left|right)|from (the )?(behind|above|below|front|back)|overhead|"
+                ("phía", re.compile(r"\b(frame[- ])?(front[- ]|back[- ])?(left|right)\b|from (the )?(behind|above|below|front|back)|overhead|"
                                     r"back ?light|rim|"
                                     r"top ?light|side ?light|bên (trái|phải)|phía (sau|trên|trước)|ngược sáng", re.I)),
                 ("màu K", re.compile(r"\d{4}\s*K\b|warm|cold|cool|ấm|lạnh", re.I)),

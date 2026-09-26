@@ -281,7 +281,12 @@ def normalize_loudness(src: str, dst: str, ffmpeg: Optional[str] = None, target:
               f":measured_thresh={first['input_thresh']}:offset={first['target_offset']}:linear=true,aresample=48000")
     run([ff, "-y", "-i", src, "-map", "0:v?", "-map", "0:a:0", "-c:v", "copy", "-af", second, *AAC,
          "-movflags", "+faststart", dst])
-    return measure_loudness(dst, ff) or {}
+    after = measure_loudness(dst, ff) or {}
+    # loudnorm stays linear only when the gain to the target keeps the true peak under the ceiling; otherwise ffmpeg silently
+    # switches to its dynamic mode (the mix is compressed) — said in the result, not hidden
+    gain = target - float(first["input_i"])
+    after["mode"] = "linear" if float(first["input_tp"]) + gain <= true_peak + 0.05 else "dynamic"
+    return after
 
 
 def loudness_problems(m: Optional[dict]) -> List[str]:
@@ -292,6 +297,8 @@ def loudness_problems(m: Optional[dict]) -> List[str]:
     if abs(m["lufs"] - LUFS_TARGET) > LUFS_TOLERANCE:
         out.append(f"độ to {m['lufs']:g} LUFS — mục tiêu {LUFS_TARGET:g} ± {LUFS_TOLERANCE:g} (nền tảng sẽ tự "
                    + ("hạ xuống" if m["lufs"] > LUFS_TARGET else "không nâng lên — nghe nhỏ hơn video bên cạnh") + ")")
+    if m.get("mode") == "dynamic":
+        out.append("chuẩn hóa phải NÉN bản trộn (đỉnh quá cao so với độ to) — hạ SFX/đỉnh rồi dựng lại nếu nghe bị bẹp")
     if m.get("true_peak_dbfs") is not None and m["true_peak_dbfs"] > TRUE_PEAK_MAX:
         out.append(f"đỉnh thật {m['true_peak_dbfs']:g} dBTP > {TRUE_PEAK_MAX:g} — dễ rè sau khi nền tảng mã hóa lại")
     return out
@@ -310,7 +317,7 @@ def probe_duration(path: str) -> Optional[float]:
     return int(m.group(1)) * 3600 + int(m.group(2)) * 60 + float(m.group(3)) if m else None
 
 
-def resize_to_size(src: str, dst: str, width: int, height: int, max_mb: Optional[float] = None, audio_kbps: int = 128,
+def resize_to_size(src: str, dst: str, width: int, height: int, max_mb: Optional[float] = None, audio_kbps: int = 256,
                    fit: str = "pad") -> dict:
     """Bring the video to width x height. fit='pad' keeps the whole picture (black bars if the shape differs); fit='crop'
     fills the frame by cutting the edges (a vertical cut of a horizontal video, no bars). With max_mb: 2-pass H.264
@@ -326,7 +333,7 @@ def resize_to_size(src: str, dst: str, width: int, height: int, max_mb: Optional
         vf = f"scale={width}:{height}:force_original_aspect_ratio=decrease,pad={width}:{height}:(ow-iw)/2:(oh-ih)/2,setsar=1"
     audio = ["-c:a", "aac", "-b:a", f"{audio_kbps}k"] if has_audio(src) else ["-an"]
     if not max_mb:
-        run([ffmpeg, "-y", "-i", src, "-vf", vf, "-c:v", "libx264", "-crf", "23", "-pix_fmt", "yuv420p", *audio, dst])
+        run([ffmpeg, "-y", "-i", src, "-vf", vf, *_ENCODE, *audio, dst])
         return {"path": dst, "size_mb": os.path.getsize(dst) / 1e6, "video_kbps": None, "attempts": 1, "fits": True}
     seconds = probe_duration(src)
     if not seconds or seconds <= 0:

@@ -154,7 +154,10 @@ xúc, âm thanh làm thế giới game "thật", màu các shot liền nhau như
   (`ffmpeg_studio.measure_loudness`, thước EBU R128 của ffmpeg; `loudness_problems` so với mục tiêu) — **mọi lần dựng bản giao đều đo**, lưu
   vào `outputs.manifest.loudness`, hiện ở Bước 5 (🔊). ✅ **Chuẩn hóa** (`normalize_loudness`: `loudnorm` 2 lượt, I=−14, TP=−1,5, tăng/giảm
   **tuyến tính** — không nén lại bản trộn; mặc định ffmpeg là I=−24 [E22]) khi số đo lệch mục tiêu — sau cờ `loudness_normalize` (TẮT).
-  ✅ Mọi bản mã hóa có `+faststart` + thẻ màu BT.709 (`_ENCODE`, D12); vẫn 24 fps (mọi clip của pipeline là 24). ✅ **Ảnh tĩnh → video
+  Lưu ý: `loudnorm` tự **chuyển sang chế độ động** khi đạt −14 LUFS mà vượt trần đỉnh thật (bản trộn có đỉnh cao, độ to thấp) — khi đó bản
+  trộn bị nén. Code tính trước (đỉnh thật + mức tăng > trần → `mode: "dynamic"`) và báo ở 🔊 Bước 5 (`loudness_problems`).
+  ✅ Mọi bản mã hóa có `+faststart` + thẻ màu BT.709 (`_ENCODE`, D12) — gồm cả cắt clip shot (`shots.trim_clip`, cắt vị trí máy), in
+  phụ đề (`subtitles.burn`) và bản xuất theo kích thước (`resize_to_size`, CRF 18 / AAC 256k; bản giới hạn dung lượng tính bitrate 2 lượt); vẫn 24 fps (mọi clip của pipeline là 24). ✅ **Ảnh tĩnh → video
   đổi màu bằng ma trận BT.709** (`ffmpeg_studio.TO_YUV709`, 2026-09-26): đo thật — card cuối và animatic trước đó ra số BT.601 dưới thẻ
   BT.709 (đỏ thuần Y = 81 thay vì 63 → màu card lệch nhẹ khi phát); clip video không bị (ffmpeg dùng thẻ đầu ra, Y = 63), test giữ số này.
   ✅ **Chất lượng mã hóa** (2026-09-26): video CRF 18 (trước là mặc định 23), âm AAC **256 kbps** ở mọi bước (trước ~128 kbps mặc định).
@@ -201,7 +204,7 @@ xúc, âm thanh làm thế giới game "thật", màu các shot liền nhau như
   nhỏ, không mờ chuyển cảnh [KN]. Khi đăng quảng cáo, 2–3 **mở đầu khác nhau** cho cùng thân video là cách đo móc nào giữ người xem (Đạo
   diễn Đ10).
 - **Trong pipeline.** ✅ `delivery.cover_image` (nút 🖼 ở Bước 5, miễn phí): khung giữa shot ⭐ (`hero`), không có thì shot có diễn xuất
-  mạnh nhất, lưu `COVER.png` cạnh bản dựng. Thử #7: chọn shot 1 (1,3 s, diễn mạnh nhất — #7 không có ⭐). ❌ Dựng biến thể mở đầu — chưa có
+  mạnh nhất, lưu `COVER.png` cạnh bản dựng — nay thứ tự là `money_shot` (khoảnh khắc sản phẩm, kể cả shot không người) → ⭐ → diễn mạnh nhất. Thử #7: chọn shot 1 (1,3 s, diễn mạnh nhất — #7 không có ⭐). ❌ Dựng biến thể mở đầu — chưa có
   code (làm tay: đổi thứ tự 1–2 shot đầu ở Bước 5, dựng lại — miễn phí).
 - **Kiểm.** Code: test chọn shot ⭐. Người: nhìn ảnh bìa cỡ nhỏ (~200 px) — còn nhận ra nhân vật/khoảnh khắc không.
 
