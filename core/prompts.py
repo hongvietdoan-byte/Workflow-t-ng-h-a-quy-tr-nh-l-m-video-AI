@@ -114,6 +114,10 @@ _TARGET = re.compile(r"(thời lượng|thoi luong|duration|độ dài|do dai)\s
 _SECTION_TIME = re.compile(r"[–—-]\s*(\d{1,3})\s*[–—-]\s*(\d{1,3})\s*(giây|giay|s|sec|secs|seconds)\b", re.IGNORECASE)
 
 
+DROPPED_LINES_FORMAT = ("Ghi mọi câu đã bỏ vào `dropped_lines` ở gốc JSON: "
+                        "[{\"scene\": số cảnh, \"speaker\": \"TÊN\", \"text\": \"câu nguyên văn\", \"why\": \"lý do ngắn\"}].")
+
+
 def target_seconds(script_text: str):
     """(low, high) seconds the script asks for ("THỜI LƯỢNG: 55–58 GIÂY" / "Duration: 60s"), or None."""
     m = _TARGET.search(script_text or "")
@@ -123,13 +127,18 @@ def target_seconds(script_text: str):
     return lo, int(m.group(3) or lo)
 
 
-def duration_block(pipeline: Pipeline, project_id: int) -> str:
-    """A hard frame for the shot plan: the Director of "ANH CHỌN AI?" made 65 s of shots for a 55–58 s script."""
+def duration_block(pipeline: Pipeline, project_id: int, for_dp: bool = False) -> str:
+    """A hard frame for the shot plan: the Director of "ANH CHỌN AI?" made 65 s of shots for a 55–58 s script.
+    for_dp (GĐ5 two-pass, Tầng B): the camera rules only — the Director already split the total into a frame per scene and chose the
+    lines (the DP never drops one), so the whole-film total, the per-section lines and the trim permission are left out."""
     from . import shots
     proj = pipeline.project(project_id)
-    target = target_seconds(proj["script_text"] if "script_text" in proj.keys() else "")
+    target = None if for_dp else target_seconds(proj["script_text"] if "script_text" in proj.keys() else "")
     parts, speech = [], 0.0
     for s in shots.story_scenes(pipeline, project_id) if shots.mode(proj) else []:
+        if for_dp:
+            speech += sum(dialogue.needed_seconds([r]) for r in dialogue.lines(s["text"]))
+            continue
         rows = dialogue.lines(s["text"])
         need = round(sum(dialogue.needed_seconds([r]) for r in rows), 1)   # each line said in its own shot, with its own breath
         speech += need
@@ -154,9 +163,14 @@ def duration_block(pipeline: Pipeline, project_id: int) -> str:
         parts.append(f"- Shot có thoại: `duration_s` ≥ (số âm tiết ÷ {dialogue.RATE:g}) + {dialogue.BREATH:g} giây cho câu của nó "
                      "— không nén câu vào shot ngắn hơn.")
     trim = ("\n**Được phép bỏ bớt câu thoại** (người dùng cho phép): bỏ những câu không cần cho cốt truyện để hầu hết shot dài 2–4 giây — sau khi đã gộp shot im lặng ngắn; không bỏ câu mà câu sau đáp lại. "
-            "KHÔNG thêm câu mới, KHÔNG sửa chữ câu giữ lại (giữ nguyên văn). Ghi mọi câu đã bỏ vào `dropped_lines` ở gốc JSON: "
-            "[{\"scene\": số cảnh, \"speaker\": \"TÊN\", \"text\": \"câu nguyên văn\", \"why\": \"lý do ngắn\"}]."
-            if "dialogue_trim" in proj.keys() and proj["dialogue_trim"] else "")
+            "KHÔNG thêm câu mới, KHÔNG sửa chữ câu giữ lại (giữ nguyên văn). " + DROPPED_LINES_FORMAT
+            if "dialogue_trim" in proj.keys() and proj["dialogue_trim"] and not for_dp else "")
+    if for_dp:
+        if not parts:
+            return ""
+        return ("# Luật máy quay theo thời lượng và thoại (Đạo diễn đã chốt khung giây + câu thoại của từng cảnh)\n" + "\n".join(parts)
+                + "\nTổng các shot của cảnh nằm trong khung giây Đạo diễn ghi cho cảnh đó; thừa thì gộp shot phản ứng/chèn ngắn, "
+                  "KHÔNG bỏ câu thoại (quyết định thoại là của Đạo diễn).")
     if not target and not parts and not trim:
         return ""
     head = f"Tổng `duration_s` của MỌI shot phải nằm trong {target[0]}–{target[1]} giây (kịch bản yêu cầu)." if target else ""
@@ -227,6 +241,144 @@ def build_director_bundle(pipeline: Pipeline, project_id: int, only_scene: Optio
     return body + CACHE_BREAK + task
 
 
+# ---- GĐ5: the Director in two passes (feature director_two_pass, core/director_two_pass.py) --------------------------------------
+def _story_text(pipeline: Pipeline, project_id: int) -> str:
+    from . import shots
+    return "\n\n".join(f"### Cảnh {s['idx']} — {s['heading']}\n{s['text']}" for s in shots.story_scenes(pipeline, project_id))
+
+
+def intent_frame_block(pipeline: Pipeline, project_id: int) -> str:
+    """Tầng A: the length the Director splits between the scenes (`target_s`), what each scene's lines need to be said, and the
+    dialogue decision (every line, or the ✂ permission with its rules) — the same numbers the single-call duration block gives."""
+    from . import shots
+    proj = pipeline.project(project_id)
+    target = target_seconds(proj["script_text"] if "script_text" in proj.keys() else "")
+    rows = []
+    for s in shots.story_scenes(pipeline, project_id):
+        said = dialogue.lines(s["text"])
+        need = round(sum(dialogue.needed_seconds([r]) for r in said), 1)
+        bits = []
+        m = _SECTION_TIME.search(s["heading"] or "")
+        if m:
+            bits.append(f"kịch bản ghi ≈ {int(m.group(2)) - int(m.group(1))} giây")
+        if said:
+            bits.append(f"thoại {len(said)} câu cần ~{need:g} giây nói (mỗi câu một hơi, ≈ số âm tiết ÷ {dialogue.RATE:g} + {dialogue.BREATH:g} s)")
+        rows.append(f"- Cảnh {s['idx']}: " + ("; ".join(bits) or "không ghi giây, không có thoại"))
+    head = (f"Tổng `target_s` của mọi cảnh phải nằm trong {target[0]}–{target[1]} giây (kịch bản yêu cầu)." if target
+            else "Kịch bản không ghi tổng thời lượng: đặt `target_s` theo nhịp thể loại và thời gian nói.")
+    if "dialogue_trim" in proj.keys() and proj["dialogue_trim"]:
+        talk = ("**Được phép bỏ bớt câu thoại** (người dùng bật ✂): chỉ câu hình ảnh đã nói thay và không ai đáp lại; không bỏ câu gieo "
+                "cho twist/kết. KHÔNG thêm câu mới, KHÔNG sửa chữ câu giữ lại (giữ nguyên văn). " + DROPPED_LINES_FORMAT)
+    else:
+        talk = ("**Không được bỏ câu thoại**: `dialogue` của mỗi cảnh là MỌI câu của cảnh đó, nguyên văn, đúng người nói, đúng thứ tự "
+                "(thời lượng không đủ thì thoại thắng — ghi `tradeoffs`).")
+    return "# Khung thời lượng và quyết định thoại (Tầng A)\n" + head + "\n" + "\n".join(rows) + "\n" + talk
+
+
+def build_intent_bundle(pipeline: Pipeline, project_id: int) -> str:
+    """Tầng A — Đạo diễn: Character Bible + the intent of every scene (no shots). Reads the Director's knowledge only — story, emotion,
+    genre, look, the Free Fire gameplay reference, the library — never the DP's camera knowledge (cinematography_basics, dp.md, prompt
+    17): each role reads its own book (kế hoạch H7). Keeps every block of the single call that protects the Bible and the lines:
+    standard profiles (T1), the stored Bible (exact names, locked / hand-edited entries), locked fields, World Bible, the preamble."""
+    from . import features
+    proj = pipeline.project(project_id)
+    folded = knowledge.folded_builtin("director")
+    keep = lambda rel: "" if f"knowledge/{rel}" in folded else _read("knowledge", rel)  # noqa: E731
+    if features.on("film_crew"):                   # H3/H7: the Director's reasoned rule book instead of the scattered documents
+        method = [role_text("director.md"), keep("research_notes.md")]
+    else:
+        method = [keep("research_notes.md"), keep("film_director_method.md"), keep("dialogue_craft.md")]
+    return _SEP.join(x for x in [
+        _read("prompts", "19_director_intent.md"),
+        project_frame_block(pipeline, project_id),
+        looks.director_note(proj),
+        _read("knowledge", "ff_gameplay_visual.md"),
+        keep("genre_guides.md"),
+        knowledge.genre_text(proj["genre"] if "genre" in proj.keys() else None),
+        intent_frame_block(pipeline, project_id),
+        *method,
+        _location_block(pipeline, project_id),     # weather / time names of a location pack (the spots are the DP's)
+        keep("character_lock.md"),
+        assets.context_text(pipeline.conn, project_id),
+        standard_block(pipeline, project_id),
+        bible_block(pipeline, project_id),
+        world_bible_text(pipeline, project_id),
+        knowledge.user_text("director"),
+        locked_block(pipeline, project_id),
+        script_preamble(proj),
+        "# Kịch bản đã tách cảnh\n\n" + _story_text(pipeline, project_id),
+    ] if x)
+
+
+def dp_common(pipeline: Pipeline, project_id: int, intent: dict) -> str:
+    """Tầng B, the part every scene's call shares (before the cache mark — written once, then read at ~1/10 price): the shot rules
+    (prompt 17 + FF editing grammar + the project's style), the DP's book (dp.md with film_crew, else cinematography_basics), the camera
+    side of the duration block (lip sync, camera set-ups, speaking time), the location pack, FF skill visuals, the library, standard
+    profiles, the Bible Tầng A wrote, World Bible, locked fields, the script and the Director's intent for every scene."""
+    from . import features
+    proj = pipeline.project(project_id)
+    folded = knowledge.folded_builtin("director")
+    keep = lambda rel: "" if f"knowledge/{rel}" in folded else _read("knowledge", rel)  # noqa: E731
+    book = role_text("dp.md") if features.on("film_crew") else keep("cinematography_basics.md")
+    chars = [c for c in intent.get("characters") or [] if isinstance(c, dict)]
+    names = [str(c.get("name")) for c in chars]
+    bible = "\n".join(f"- **{c.get('name')}**: {c.get('description') or ''}"
+                      + (f" | trang phục: {c['wardrobe']}" if c.get("wardrobe") else "")
+                      + (f" | Lock: {json.dumps(c['lock'], ensure_ascii=False)}" if c.get("lock") else "") for c in chars)
+    plan = {"genre": intent.get("genre"), "scenes": intent.get("scenes") or []}
+    ff = "" if "knowledge/ff_character_skills_visual.md" in folded else knowledge.ff_skills_for(names or people_in_project(pipeline, project_id))
+    return _SEP.join(x for x in [
+        _read("prompts", "20_dp_scene_shots.md"),
+        shot_style_block(proj),
+        book,
+        project_frame_block(pipeline, project_id),
+        looks.director_note(proj),
+        _read("knowledge", "ff_gameplay_visual.md"),
+        duration_block(pipeline, project_id, for_dp=True),
+        _location_block(pipeline, project_id),
+        ff,
+        assets.context_text(pipeline.conn, project_id),
+        standard_block(pipeline, project_id, names=names),
+        ("# Character Bible (Đạo diễn vừa chốt ở Tầng A — dùng ĐÚNG các tên này trong `characters` và `speaker`)\n" + bible) if bible else "",
+        world_bible_text(pipeline, project_id),
+        knowledge.user_text("director"),
+        locked_block(pipeline, project_id),
+        script_preamble(proj),
+        "# Kịch bản đã tách cảnh\n\n" + _story_text(pipeline, project_id),
+        "# Ý đồ của Đạo diễn cho mọi cảnh (Tầng A)\n```json\n" + json.dumps(plan, ensure_ascii=False, indent=1) + "\n```",
+    ] if x)
+
+
+def dp_scene_task(pipeline: Pipeline, project_id: int, intent: dict, scene_idx: int, note: str = "", current=None) -> str:
+    """Tầng B, the part of ONE scene (after the cache mark): which scene, its intent, the lines to place, the seconds frame."""
+    from .director_two_pass import frame_of, kept_lines
+    scenes = [s for s in intent.get("scenes") or [] if isinstance(s, dict)]
+    sc = next(s for s in scenes if s.get("idx") == scene_idx)
+    idxs = [s.get("idx") for s in scenes]
+    where = " và ".join((["cảnh ĐẦU phim — mở bằng `hook`"] if scene_idx == idxs[0] else [])
+                        + (["cảnh CUỐI phim — kết bằng `ending`"] if scene_idx == idxs[-1] else []))
+    lo, hi = frame_of(sc)
+    lines = kept_lines(sc)
+    said = ("\n".join(f"{k}. {who}: {text}" for k, (who, text) in enumerate(lines, 1)) if lines
+            else "(cảnh này không có câu thoại nào được giữ — không đặt thoại vào shot)")
+    return (f"# Việc lần này: Quay phim chia shot Cảnh {scene_idx}" + (f" ({where})" if where else "") + "\n"
+            f"Khung giây của cảnh: tổng `duration_s` các shot trong **{lo:g}–{hi:g} giây** (Đạo diễn đặt `target_s` = {sc.get('target_s')}).\n"
+            f"Trọng tâm: {sc.get('focus') or '(không ghi)'} · độ mạnh khoảnh khắc: {sc.get('peak') or '(không ghi)'}.\n"
+            "Câu thoại được giữ — mỗi câu đúng một lần, nguyên văn, đúng người nói, đúng thứ tự này (câu lệch là bị trả lại):\n" + said + "\n"
+            + "# Ý đồ cảnh này\n```json\n" + json.dumps(sc, ensure_ascii=False, indent=1) + "\n```\n"
+            + f"Trả về **một JSON duy nhất**: `{{\"idx\": {scene_idx}, \"shots\": [...], \"tradeoffs\": []}}` theo mọi luật ở trên."
+            + (f"\nLý do chia lại: {note}" if note else "")
+            + ("\nKế hoạch hiện tại của cảnh này (để biết đang có gì):\n" + json.dumps(current, ensure_ascii=False) if current else ""))
+
+
+def build_dp_bundle(pipeline: Pipeline, project_id: int, intent: dict, scene_idx: int, note: str = "", current=None,
+                    common: Optional[str] = None) -> str:
+    """Tầng B prompt of one scene: the shared part (pass `common` to reuse the exact same text — the cache only hits on identical
+    bytes) + cache mark + the scene's task."""
+    return (common if common is not None else dp_common(pipeline, project_id, intent)) + CACHE_BREAK + dp_scene_task(
+        pipeline, project_id, intent, scene_idx, note, current)
+
+
 def _location_block(pipeline: Pipeline, project_id: int) -> str:
     from . import location_pack
     return location_pack.director_block(pipeline.conn, project_id)
@@ -259,13 +411,16 @@ def script_preamble(proj) -> str:
     return ("# Thông tin chung của kịch bản (trước cảnh đầu tiên — áp dụng cho mọi cảnh)\n" + "\n".join(head)) if head else ""
 
 
-def standard_block(pipeline: Pipeline, project_id: int) -> str:
-    """T1: characters whose look is fixed in the library. The Director writes the story around them, never a new appearance."""
+def standard_block(pipeline: Pipeline, project_id: int, names=None) -> str:
+    """T1: characters whose look is fixed in the library. The Director writes the story around them, never a new appearance.
+    names: these characters instead of the stored Bible (GĐ5 Tầng B: the Bible Tầng A just wrote is not stored yet)."""
     rows = []
-    for r in pipeline.conn.execute("SELECT name FROM characters WHERE project_id=?", (project_id,)):
-        prof = assets.standard_for(pipeline.conn, project_id, r["name"])
+    if names is None:
+        names = [r["name"] for r in pipeline.conn.execute("SELECT name FROM characters WHERE project_id=?", (project_id,))]
+    for name in names:
+        prof = assets.standard_for(pipeline.conn, project_id, name)
         if prof:
-            rows.append(f"- **{r['name']}** ({prof['asset']}): {prof.get('identity') or ''} — giữ: {prof.get('must_keep') or ''}"
+            rows.append(f"- **{name}** ({prof['asset']}): {prof.get('identity') or ''} — giữ: {prof.get('must_keep') or ''}"
                         + (f"; cao ~{prof['height_m']:g} m" if prof.get("height_m") else ""))
     return ("# Hồ sơ chuẩn nhân vật (Kho — đã duyệt, KHÔNG viết lại ngoại hình; chỉ ghi biến thể của video này như trang phục/bị thương)\n"
             + "\n".join(rows)) if rows else ""

@@ -243,9 +243,15 @@ def _director_phase(p: Pipeline, pid: int, ctx: Context) -> Optional[str]:
     """Claude writes the Character Bible and the scene specs (once). Then, when the 'review the characters' checkpoint is on, the run
     waits for the person before any picture is paid for (a wrong description would repeat in every scene)."""
     if not _count(p, "SELECT COUNT(*) FROM characters WHERE project_id=?", pid):
-        r = llm_runner.run_director(p, pid, ctx.llm)
+        # GĐ5: with FEATURE_DIRECTOR_TWO_PASS=1 on a shot project this is Tầng A + one Tầng B call per scene; resume = "Tiếp tục" after a
+        # failed run asks only the scenes that failed (the paid Tầng A answer and the passed scenes are reused)
+        r = llm_runner.run_director(p, pid, ctx.llm, resume=True)
         n_shots = _count(p, "SELECT COUNT(*) FROM scenes WHERE project_id=?", pid)
-        _log(p, pid, f"Director: {r['characters']} nhân vật, {r['scenes']} cảnh" + (f", {n_shots} shot" if n_shots != r["scenes"] else ""))
+        _log(p, pid, f"Director: {r['characters']} nhân vật, {r['scenes']} cảnh" + (f", {n_shots} shot" if n_shots != r["scenes"] else "")
+             + (f" — hai lượt ({r['calls']} lượt Claude, chưa thử thật)" if r.get("two_pass") else ""))
+        if r.get("flagged"):                               # Đạo diễn duyệt: the person sees it at Bước 1 (the Bible gate still waits)
+            _d(p, pid, "director", "warn", "Đạo diễn duyệt: cảnh " + ", ".join(map(str, r["flagged"])) + " lệch ý đồ — xem Bước 1",
+               "director_review")
     missing = [f"S{s['idx']:02d}" for s in p.conn.execute("SELECT idx, data FROM scenes WHERE project_id=? ORDER BY idx", (pid,))
                if not (json.loads(s["data"] or "{}").get("image_prompt") or "").strip()]
     if missing:

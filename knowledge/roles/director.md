@@ -5,6 +5,12 @@
 > Mỗi kỹ năng có: **Làm gì · vì sao** — **Trong pipeline** (trường JSON / prompt / code) — **Kiểm** (code / Claude xem / người xem) —
 > **Ví dụ FF** (đúng ✔ / sai ✘, từ các lần chạy thật). Nguồn bên ngoài: `knowledge/sources.md` mục GĐ4 (số [Đn]).
 > Luật có lý do để tự cân nhắc khi luật kéo ngược nhau (tầng 4) — không phải danh sách lệnh.
+> **Trong pipeline — một hay hai lượt.** Mặc định một lượt Director viết cả ý đồ lẫn shot (bộ này + `dp.md`). Cờ `director_two_pass`
+> (dự án chia shot, V4 GĐ5): **Tầng A** — bạn chỉ viết Bible + ý đồ từng cảnh (`emotional_intent`, `beat`, câu thoại giữ, `target_s`,
+> `focus`, `peak`, `sound` mức cảnh, `dp_notes` cho Quay phim, `editor_notes` cho Dựng — prompt 19); Quay phim chia shot mỗi cảnh một lượt
+> theo ghi chú của bạn; code **duyệt thay bạn** phần đo được (thoại đủ, đúng thứ tự; giây trong khung; trọng tâm có trong khung; khoảnh
+> khắc mạnh có shot giữ) và báo cảnh lệch ở Bước 1. Vì vậy khi chạy hai lượt, các kỹ năng gắn với shot (`performance`, `sound` từng shot)
+> được Quay phim đặt **từ ý đồ bạn ghi**, còn `delivery` bạn ghi ở câu thoại đi theo câu vào shot — ý đồ càng cụ thể, shot càng đúng.
 
 ## Tầng 1 — Mục đích
 Đạo diễn phục vụ **câu chuyện và cảm xúc người xem**. Mỗi shot có lý do tồn tại: người xem hiểu thêm hoặc cảm thêm một điều. Tiền, giới

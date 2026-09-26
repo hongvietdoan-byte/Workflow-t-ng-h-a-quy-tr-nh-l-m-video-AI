@@ -8,10 +8,22 @@ Vai Dựng phần lớn là code; tài liệu của nó dành cho người sửa
 ## Ai làm gì, bàn giao gì
 | Vai | Nhận | Làm | Giao cho | Trường / sản phẩm |
 |---|---|---|---|---|
-| **Đạo diễn** | Kịch bản, hồ sơ nhân vật (Kho), thể loại, khung hình | Phân tích kịch bản, đường cảm xúc, cách kể bằng hình, diễn xuất, giọng, ghi chú kịch bản; duyệt chốt | Quay phim (cùng một lần gọi Director); người dùng (ghi chú) | cảnh: `beat`, `emotional_intent`, `time`, `mood`, `lighting`, `weather`; shot: `performance`, `role`, `hero`; câu: `delivery`; gốc: `tradeoffs`, `script_notes` |
+| **Đạo diễn** | Kịch bản, hồ sơ nhân vật (Kho), thể loại, khung hình | Phân tích kịch bản, đường cảm xúc, cách kể bằng hình, diễn xuất, giọng, ghi chú kịch bản; duyệt chốt | Quay phim (cùng một lần gọi Director; cờ `director_two_pass`: lượt riêng — xem mục "Hai lượt"); người dùng (ghi chú) | cảnh: `beat`, `emotional_intent`, `time`, `mood`, `lighting`, `weather`; shot: `performance`, `role`, `hero`; câu: `delivery`; gốc: `tradeoffs`, `script_notes` |
 | **Quay phim** | Ý đồ + diễn xuất của Đạo diễn | Vị trí máy, cỡ/góc/ống kính, chuyển động, bố cục, ánh sáng, gói bối cảnh, khớp môi; lý do | Motion (prompt video), ảnh (prompt khung đầu), máy ảo Blender | shot: `size`, `angle`, `camera_move`, `lens_mm`, `start_frame`, `end_state`, `image_prompt`, `camera_setup`, `plate_spot`, `plate_mode`, `lip_sync`, `why` |
 | **Dựng** | Clip đã duyệt, giọng, chữ, nhạc, SFX | Cắt, giọng, âm nhiều lớp, nhạc, màu + khớp màu, hiệu ứng, chữ + vùng an toàn, độ to, tự rà | Người dùng (bản giao) | bản dựng, phụ đề, bản xuất theo nền tảng |
 Trả ngược: lỗi hình → Quay phim (gen lại có đổi đầu vào, ≤ 2 lần); lỗi diễn/giọng → Đạo diễn; kịch bản yếu → người viết (chỉ đề xuất).
+
+## Hai lượt: Đạo diễn → Quay phim → Đạo diễn duyệt (cờ `director_two_pass`, V4 GĐ5 — TẮT tới khi thử thật)
+Vì sao: một lượt Director viết cả Bible, cảnh và mọi shot (~30k ký tự) — luật máy quay làm loãng phần nghĩ về câu chuyện, và lỗi ở một cảnh
+phải trả tiền hỏi lại cả kịch bản. Chỉ áp dụng cho dự án chia shot (dự án mỗi cảnh một clip vẫn một lượt). Code: `core/director_two_pass.py`.
+| Lượt | Ai | Đọc | Viết | Lỗi thì |
+|---|---|---|---|---|
+| **Tầng A** (1 lượt, prompt 19) | Đạo diễn | `director.md` (cờ `film_crew`) hoặc 3 tài liệu cũ trừ `cinematography_basics`; thể loại, look, `ff_gameplay_visual`, Kho, hồ sơ chuẩn, Bible hiện có, trường đã khóa | Bible + mỗi cảnh: `emotional_intent`, `beat`, câu thoại giữ (nguyên văn, đúng thứ tự; bỏ chỉ khi ✂), `target_s`, `focus`, `peak`, `sound` mức cảnh, `dp_notes`, `editor_notes`; `tradeoffs`, `script_notes` | hỏi lại một lần kèm lỗi (câu bịa/sai thứ tự/sai người nói/thiếu câu, thiếu cảnh, `target_s`) |
+| **Tầng B** (mỗi cảnh 1 lượt, prompt 20 + 17) | Quay phim | `dp.md` (cờ `film_crew`) hoặc `cinematography_basics`; luật chia shot, dựng FF, phong cách, khớp môi / vị trí máy, gói bối cảnh, Bible Tầng A, ý đồ mọi cảnh | `shots` của MỘT cảnh (+ `tradeoffs` của cảnh) | chỉ hỏi lại cảnh đó; cảnh đã đạt được giữ, lần sau chỉ hỏi cảnh lỗi |
+| **Đạo diễn duyệt** (code, không gọi Claude) | — | ý đồ + bảng shot | cờ từng cảnh: thoại lệch, tổng giây ngoài khung ±max(1 s, 15%), trọng tâm không có trong khung, `peak` ≥ 4 mà không shot ≥ 2 s; kèm cảnh báo diễn xuất/âm thanh | hiện ở Bước 1 (🎬) — người xem quyết, không tự hỏi lại |
+Phần chung của Tầng B đặt trước dấu cache: cảnh đầu chạy một mình (ghi cache), các cảnh sau chạy song song (đọc cache ~1/10 giá). Kết quả ghép
+lại đúng dạng một lượt rồi qua cùng bộ chuẩn hóa + kiểm thoại + lưu (giữ trường người sửa tay, Bible đã khóa). "↻ Chia shot lại cảnh này" dùng
+ý đồ đã lưu, chỉ hỏi Quay phim. Ước tính tiền hai cách hiện trên nút Director. Chưa làm: lượt Claude nhỏ để Đạo diễn đọc bản tóm tắt cảnh bị cờ.
 
 ## Bảng ưu tiên chung (một thang cho cả tổ — người dùng chốt 2026-09-25)
 **Luật cứng, đứng ngoài thang:** giới hạn model (`provider_rules.json`, code kiểm trước khi gửi), sổ chi/trần tiền, không tuổi < 18. Vi phạm

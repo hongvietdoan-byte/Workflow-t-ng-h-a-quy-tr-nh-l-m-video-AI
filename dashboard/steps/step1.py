@@ -807,17 +807,33 @@ def director_panel(p: Pipeline, pid: int, chars) -> None:
             st.caption(f"🔒 {sum(len(r['fields']) for r in kept)} trường bạn đã sửa tay ở {len(kept)} cảnh được giữ nguyên khi chạy lại.")
         client = llm_client()
         if client is not None:
-            label = f"🤖 Chạy Director bằng {llm_label(client)}"
+            from core import director_two_pass
+            two = director_two_pass.enabled(p.project(pid))
+            label = f"🤖 Chạy Director{' hai lượt' if two else ''} bằng {llm_label(client)}"
+            if two:
+                st.caption("🧪 Director hai lượt (cờ `director_two_pass`, chưa thử thật): Tầng A Đạo diễn viết Bible + ý đồ từng cảnh → "
+                           "Tầng B Quay phim chia shot mỗi cảnh một lượt (phần chung cache) → code Đạo diễn duyệt bảng shot so với ý đồ.")
+            try:                                   # luật chi phí: the estimate before the click (both ways, so the choice is informed)
+                st.caption("💵 " + director_two_pass.estimate_text(director_two_pass.estimate(p, pid, client)))
+            except Exception as e:  # noqa: BLE001 - an estimate that cannot be made is said, never hidden
+                st.caption(f"💵 Chưa ước tính được chi phí Director ({type(e).__name__}: {e})")
             go = (confirm_all(f"llm_dir_{pid}", ["again"], label + " (chạy lại)",
                               "Character Bible đã khóa: chạy lại chỉ cập nhật thông số cảnh (trường bạn đã sửa tay được giữ), nhân vật đã khóa "
                               "không đổi. Chạy?", st, "Có, chạy lại") if locked
                   else st.button(label, type="primary", key=f"llm_dir_{pid}"))
-            if go:
+            pending = director_two_pass.pending_scenes(p, pid) if two else []
+            resume = bool(pending) and st.button(
+                f"↻ Chỉ hỏi lại {len(pending)} cảnh lỗi (cảnh {', '.join(map(str, pending))})", key=f"llm_dir_resume_{pid}",
+                help="Lần chạy trước dừng vì Quay phim chưa chia được các cảnh này. Dùng lại ý đồ Tầng A và các cảnh đã chia (đã trả tiền) "
+                     "khi kịch bản/luật không đổi — chỉ trả tiền cho các cảnh lỗi.")
+            if go or resume:
                 with st.spinner("Claude đang phân tích kịch bản…"):
-                    ok = act(lambda: st.session_state.__setitem__("llm_res", llm_runner.run_director(p, pid, client)))
+                    ok = act(lambda: st.session_state.__setitem__("llm_res", llm_runner.run_director(p, pid, client, resume=resume)))
                 if ok:
                     r = st.session_state.pop("llm_res")
-                    st.toast(f"Đã lưu {r['characters']} nhân vật, {r['scenes']} cảnh ({tokens_text(r)})")
+                    st.toast(f"Đã lưu {r['characters']} nhân vật, {r['scenes']} cảnh ({tokens_text(r)})"
+                             + (f" · {r['calls']} lượt Claude" if r.get("two_pass") else "")
+                             + (f" · Đạo diễn duyệt: cảnh {', '.join(map(str, r['flagged']))} cần xem" if r.get("flagged") else ""))
                     st.rerun()
         else:
             st.caption(claude_hint() + " Hoặc dùng cách nhập tay bên dưới.")
@@ -826,7 +842,12 @@ def director_panel(p: Pipeline, pid: int, chars) -> None:
                 st.code(prompts.build_director_bundle(p, pid), language="markdown")
                 raw = st.text_area("Dán JSON kết quả từ Claude", key=f"analysis_{pid}", height=120)
                 if st.button("Lưu phân tích", disabled=not raw.strip(), key=f"dir_paste_{pid}"):
-                    if act(lambda: llm_io.store_scene_analysis(p, pid, raw), "Đã lưu Character Bible + thông số cảnh"):
+                    from core import director_two_pass
+
+                    def _paste():
+                        llm_io.store_scene_analysis(p, pid, raw)
+                        director_two_pass.forget(p, pid)      # the pasted plan replaces any two-pass intent
+                    if act(_paste, "Đã lưu Character Bible + thông số cảnh"):
                         st.rerun()
 
 
@@ -1083,7 +1104,8 @@ def _replan_button(p: Pipeline, pid: int, scene_idx: int, col) -> None:
         return
     if col.button("↻ Chia shot lại cảnh này", key=f"replan_{pid}_{scene_idx}",
                   help="Một lượt Claude chỉ cho cảnh này (phần luật chung được cache) — vài cent thay vì ~$0,3 của cả kịch bản. "
-                       "Cảnh sau được ghi lại theo thứ tự phim, không đổi nội dung."):
+                       "Cảnh sau được ghi lại theo thứ tự phim, không đổi nội dung. Director hai lượt: Quay phim chia lại theo ý đồ "
+                       "Tầng A đã lưu (không hỏi lại Đạo diễn)."):
         with st.spinner(f"Claude đang chia shot lại cảnh {scene_idx}…"):
             ok = act(lambda: st.session_state.__setitem__("replan_res", llm_runner.run_director_scene(p, pid, scene_idx, client)))
         if ok:
@@ -1147,6 +1169,27 @@ def _crew_notes(p: Pipeline, pid: int) -> None:
                                   for n in r["script_notes"]))
 
 
+def _director_review(p: Pipeline, pid: int) -> None:
+    """GĐ5 "Đạo diễn duyệt" (two-pass Director): code compared each scene's shots with the Director's intent — lines, seconds frame,
+    focus character in frame, a hold shot after a strong moment. Flags need the person's eye; nothing is re-asked on its own."""
+    from core import director_two_pass
+    try:
+        rv = json.loads(p.project(pid)["director_raw"] or "{}").get("review")
+    except (ValueError, KeyError, AttributeError):
+        rv = None
+    if not isinstance(rv, dict) or not rv.get("scenes"):
+        return
+    rows = director_two_pass.review_text(rv)
+    if rv.get("flagged"):
+        st.warning("🎬 Đạo diễn duyệt bảng shot của Quay phim: cảnh " + ", ".join(map(str, rv["flagged"])) + " lệch ý đồ — xem lại "
+                   "(sửa shot bằng ô sửa, hoặc “↻ Chia shot lại cảnh này” kèm lý do).")
+    with st.expander(f"🎬 Đạo diễn duyệt ({len(rv['scenes']) - len(rv.get('flagged') or [])}/{len(rv['scenes'])} cảnh đạt ý đồ)"):
+        st.markdown("\n".join(f"- {escape(r)}" for r in rows))
+        notes = [f"Cảnh {r['idx']}: {n}" for r in rv["scenes"] for n in r.get("notes") or []]
+        if notes:
+            st.caption("Ghi chú diễn xuất / âm thanh theo từng cảnh: " + " · ".join(escape(n) for n in notes[:12]))
+
+
 def scene_list(p: Pipeline, pid: int, scenes, char_names) -> None:
     status = lineage.scan(p.conn, pid)
     by_idx = {r["idx"]: r for r in status.values()}
@@ -1183,6 +1226,7 @@ def scene_list(p: Pipeline, pid: int, scenes, char_names) -> None:
     if paid:
         st.caption(paid)
     _crew_notes(p, pid)
+    _director_review(p, pid)
     cur_story = None
     for s in scenes:
         d = json.loads(s["data"] or "{}")
