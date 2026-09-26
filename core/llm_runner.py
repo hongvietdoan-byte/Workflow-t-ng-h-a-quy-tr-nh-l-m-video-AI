@@ -88,6 +88,7 @@ class LlmReply:
     stop_reason: str = ""
     cache_write_tokens: int = 0
     cache_read_tokens: int = 0
+    web_searches: int = 0          # server-side web search requests (billed per search, not per token)
 
 
 # ---- what each paid call is for (C1/C7): stage + project go into the cost ledger ----------------------------------------------
@@ -276,10 +277,11 @@ class AnthropicClient:
                 conn = self._ledger_conn()
                 try:
                     for tier, n in (("input", reply.input_tokens), ("output", reply.output_tokens),
-                                    ("cache_write", reply.cache_write_tokens), ("cache_read", reply.cache_read_tokens)):
+                                    ("cache_write", reply.cache_write_tokens), ("cache_read", reply.cache_read_tokens),
+                                    ("web_search", reply.web_searches)):
                         if n:
-                            record_usage(conn, None, "llm", self.name, self.model, tier, n, "token", project_id=project_id,
-                                         stage=stage)
+                            record_usage(conn, None, "llm", self.name, self.model, tier, n,
+                                         "search" if tier == "web_search" else "token", project_id=project_id, stage=stage)
                 finally:
                     conn.close()
                 return
@@ -317,7 +319,8 @@ class AnthropicClient:
         usage = payload.get("usage") or {}
         return LlmReply(text, int(usage.get("input_tokens", 0) or 0), int(usage.get("output_tokens", 0) or 0),
                         str(payload.get("stop_reason") or ""), int(usage.get("cache_creation_input_tokens", 0) or 0),
-                        int(usage.get("cache_read_input_tokens", 0) or 0))
+                        int(usage.get("cache_read_input_tokens", 0) or 0),
+                        int((usage.get("server_tool_use") or {}).get("web_search_requests", 0) or 0))
 
 
 # ---- JSON extraction + validated call ------------------------------------------------

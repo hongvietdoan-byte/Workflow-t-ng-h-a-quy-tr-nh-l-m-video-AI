@@ -11,6 +11,7 @@ Three parts:
 import os
 import re
 import sqlite3
+import sys
 import time
 from datetime import datetime, timedelta, timezone
 from typing import Dict, List, Optional
@@ -44,24 +45,70 @@ def _now() -> str:
     return datetime.now(timezone.utc).isoformat(timespec="seconds")
 
 
+LOST = {"count": 0}                 # diagnostics that could not be written to the database (shown in the ⚙ diagnostics panel)
+
+
+def lost() -> int:
+    return LOST["count"]
+
+
+def _db_file(conn) -> Optional[str]:
+    try:
+        row = conn.execute("PRAGMA database_list").fetchone()
+        return row[2] or None
+    except Exception:  # noqa: BLE001 - a closed / odd connection: no file to write next to
+        return None
+
+
+def _keep_lost(conn, line: str, error: Exception) -> None:
+    """A diagnostic the database refused is not dropped silently: it goes to stderr and to <db>.diag_lost.log, and is counted."""
+    LOST["count"] += 1
+    text = f"{_now()} {line} [sqlite: {type(error).__name__}: {error}]"
+    print(f"[diag] could not write to the database: {text}", file=sys.stderr)
+    path = _db_file(conn)
+    if path:
+        try:
+            with open(path + ".diag_lost.log", "a", encoding="utf-8") as f:
+                f.write(text + "\n")
+        except OSError:
+            pass
+
+
 def record(conn, stage: str, severity: str, message: str, code: Optional[str] = None, project_id: Optional[int] = None,
            scene_id: Optional[int] = None, job_id: Optional[int] = None) -> None:
-    """Note a problem. Same stage/severity/code/message/project within 10 minutes = one row with a growing counter."""
-    try:
-        msg = redact(message)[:400]
-        row = conn.execute(
-            "SELECT id FROM diag_events WHERE stage=? AND severity=? AND COALESCE(code,'')=? AND message=?"
-            " AND COALESCE(project_id,0)=? AND (julianday('now') - julianday(last_at)) * 1440 < 10 ORDER BY id DESC LIMIT 1",
-            (stage, severity, code or "", msg, project_id or 0)).fetchone()
-        now = _now()
-        if row:
-            conn.execute("UPDATE diag_events SET count=count+1, last_at=? WHERE id=?", (now, row["id"]))
-        else:
-            conn.execute("INSERT INTO diag_events (at, last_at, stage, severity, code, message, project_id, scene_id, job_id)"
-                         " VALUES (?,?,?,?,?,?,?,?,?)", (now, now, stage, severity, code, msg, project_id, scene_id, job_id))
-        conn.commit()
-    except sqlite3.Error:
-        pass
+    """Note a problem. Same stage/severity/code/message/project within 10 minutes = one row with a growing counter.
+    Never raises; a busy database is retried, and a diagnostic that still cannot be written is kept by _keep_lost (not swallowed)."""
+    msg = redact(message)[:400]
+    last: Optional[Exception] = None
+    for attempt in range(3):
+        try:
+            _write(conn, stage, severity, msg, code, project_id, scene_id, job_id)
+            return
+        except sqlite3.OperationalError as e:            # "database is locked": another thread is writing — wait a little
+            last = e
+            try:
+                conn.rollback()
+            except sqlite3.Error:
+                pass
+            time.sleep(0.2 * (attempt + 1))
+        except sqlite3.Error as e:
+            last = e
+            break
+    _keep_lost(conn, f"{stage}/{severity}/{code or '-'} p{project_id or '-'}: {msg}", last)
+
+
+def _write(conn, stage, severity, msg, code, project_id, scene_id, job_id) -> None:
+    row = conn.execute(
+        "SELECT id FROM diag_events WHERE stage=? AND severity=? AND COALESCE(code,'')=? AND message=?"
+        " AND COALESCE(project_id,0)=? AND (julianday('now') - julianday(last_at)) * 1440 < 10 ORDER BY id DESC LIMIT 1",
+        (stage, severity, code or "", msg, project_id or 0)).fetchone()
+    now = _now()
+    if row:
+        conn.execute("UPDATE diag_events SET count=count+1, last_at=? WHERE id=?", (now, row["id"]))
+    else:
+        conn.execute("INSERT INTO diag_events (at, last_at, stage, severity, code, message, project_id, scene_id, job_id)"
+                     " VALUES (?,?,?,?,?,?,?,?,?)", (now, now, stage, severity, code, msg, project_id, scene_id, job_id))
+    conn.commit()
 
 
 def recent(conn, hours: float = 24, limit: int = 40) -> List[Dict]:

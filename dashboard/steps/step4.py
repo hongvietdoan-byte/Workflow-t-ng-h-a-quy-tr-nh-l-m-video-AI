@@ -313,7 +313,11 @@ def experiments_panel(p: Pipeline, pid: int, runner) -> None:
         if seqs and runner is not None:
             seq = st.selectbox("Nhóm cảnh", list(seqs), key=f"ms_seq_{pid}",
                                format_func=lambda k: f"Nhóm {k}: cảnh " + ", ".join(str(s["idx"]) for s in seqs[k]))
-            if confirm_all(f"ms_go_{pid}", [seq], "🧪 Gen thử multi-shot", "Gen thử multi-shot cho nhóm này? (tốn credit)", st, "Có, gen thử"):
+            est = experiments.estimate(p, pid, seq)
+            price = f"≈ ${est['usd']:.2f}" if est["usd"] is not None else "chưa có giá — trần ngân sách sẽ từ chối"
+            if confirm_all(f"ms_go_{pid}", [seq], f"🧪 Gen thử multi-shot ({est['seconds']} s, {price})",
+                           f"Gen thử multi-shot {est['seconds']} s cho nhóm này? Tốn {price}, tính vào trần ngân sách thử", st,
+                           "Có, gen thử"):
                 act(lambda: experiments.kling_multishot(p, pid, seq, runner.provider, C.DATA), "Đã gửi thử nghiệm")
                 st.rerun()
         if any(e["state"] == "running" for e in items) and runner is not None and st.button("⟳ Kiểm tra thử nghiệm", key=f"ms_refresh_{pid}"):

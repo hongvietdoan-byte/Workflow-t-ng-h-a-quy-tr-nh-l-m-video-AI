@@ -1,5 +1,7 @@
 # Rà soát mô hình hoạt động: giới hạn và lỗi khi làm lần lượt từng bước (2026-09-20)
 
+> **Tài liệu lịch sử (2026-09-20, dashboard v1).** Nhiều giới hạn ở mục B đã được giải quyết (autopilot chạy nền, chia shot + multi-shot + khung cuối, đăng nhập/phân quyền, token Claude vào sổ chi, chạy thật Claude API/Clip AI audio). Luồng hiện tại: `docs/RUNBOOK.md` mục "Chế độ tự động hoàn toàn"; tiến độ: `TODO.md`.
+
 Cách kiểm tra: chạy thử toàn bộ chuỗi bằng nhà cung cấp giả lập (`tests/test_workflow.py`: kịch bản mẫu → Director → khóa → ảnh → QC → duyệt → motion prompt → video → gen lại → ghép) và thử các chuỗi thao tác "lệch" (bấm hai lần, hết lượt thử, đổi ý sau khi duyệt). Phần ghép âm thanh đã chạy với ffmpeg thật.
 
 ## A. Lỗi tìm thấy và ĐÃ SỬA

@@ -30,7 +30,15 @@
 **Vì sao chưa cao hơn:** tiêu chí **"Bằng chứng chạy thật"** bị trừ nhiều nhất ở mọi khu vực — cả 23 cờ `verified: False`, chưa có lần chạy
 trả tiền nào với code mới. Chỉ tăng khi chạy dự án thử. Tiêu chí **Test** gần trọn điểm nhờ lần chạy 1144 test, 0 lỗi.
 
-## Lỗi người chấm tìm ra (chưa sửa — chờ người dùng)
+## Lỗi người chấm tìm ra — ✅ đã sửa cả 6 (2026-09-26 tối, test hồi quy `tests/test_grader_fixes_0926.py`, 1159 test qua)
+> 1 → `experiments.kling_multishot` kiểm `budget.check_video` trong `SPEND_LOCK`, nút hiện giây + giá. 2 → nút "Đọc mô tả ngoại hình",
+> "Rút bài học", "Nghiên cứu", brief nhạc, phụ đề dịch, AI đề xuất SFX hiện giá Claude; nút nhạc/SFX/giọng hiện số lượt âm thanh + trần
+> đợt thử; lượt tìm web ghi sổ (`tier web_search`, 0,01 USD/lượt, `pricing.json per_web_search`). 3 → góc máy Blender không trả về: ghi
+> `failed.json` + diag `plate_missing`, không render lại mỗi lượt, shot vẽ ảnh thường thay vì chờ mãi, `forget_failures` để thử lại.
+> 4 → `diag.record` thử lại khi CSDL bận, không ghi được thì in stderr + `<db>.diag_lost.log` + đếm (hiện ở 🩺). 5 → bộ đo devsys đọc cờ
+> trong `dashboard.env`, nhận test của `devsys/`, `tools/` và các màn dashboard chạy qua AppTest, đọc TODO theo mục (dòng ngắt + ô con dưới
+> mục "đã thay"), cảnh báo khi kết quả test cũ hơn code. 6 → ô cũ trong TODO đóng, nhãn cờ `lip_sync`, RUNBOOK mục chạy tự động viết lại
+> theo V4, V0_SETUP/WORKFLOW_REVIEW ghi "tài liệu lịch sử".
 1. **`core/experiments.py:62` gửi job video trả tiền không qua trần ngân sách**, hộp xác nhận không có giá, không có test — nặng nhất.
 2. Nút gọi Claude chưa báo giá: "🤖 Đọc mô tả ngoại hình" (Kho), một số nút Bước 5, "Nghiên cứu tài liệu mới ngay" (phí tìm kiếm web ngoài sổ chi).
 3. `core/location_pack.py:220/241` bỏ qua im lặng góc máy Blender không trả về → render lại mỗi lượt autopilot.

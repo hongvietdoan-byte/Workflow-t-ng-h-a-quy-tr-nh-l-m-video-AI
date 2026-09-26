@@ -1,5 +1,7 @@
 # Hướng dẫn chạy V0 (Claude Desktop + MCP)
 
+> **Tài liệu lịch sử (V0, 2026-09-19): chạy qua Claude Desktop + MCP.** Luồng chính hiện nay là Dashboard (`Start-Dashboard.bat`, `docs/RUNBOOK.md`); V0 chỉ còn để thử MCP.
+
 ## 1. Cài đặt
 ```
 py -m pip install -r requirements.txt

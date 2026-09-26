@@ -45,10 +45,15 @@ def sequences(p: Pipeline, project_id: int) -> Dict[int, List[Dict]]:
     return {k: v for k, v in out.items() if len(v) >= 2}
 
 
-def kling_multishot(p: Pipeline, project_id: int, sequence: int, provider, data_dir: str) -> Dict:
-    """Send one Kling multi-shot generation for the sequence (costs credit like one clip of the summed length, max 15 s)."""
-    from . import formats
-    from .cost import record_usage
+MODEL = "kling-v3-omni"
+
+
+def _tier() -> str:
+    return os.environ.get("CLIPAI_KLING_MODE", "pro")
+
+
+def _plan(p: Pipeline, project_id: int, sequence: int):
+    """The scenes, the per-scene shots (3-15 s each, 15 s in all) and the summed length one multi-shot try would send."""
     scenes = sequences(p, project_id).get(sequence)
     if not scenes:
         raise ValueError(f"nhóm cảnh {sequence} chưa đủ 2 cảnh có ảnh + motion prompt đã duyệt")
@@ -59,14 +64,33 @@ def kling_multishot(p: Pipeline, project_id: int, sequence: int, provider, data_
             break
         shots.append({"prompt": s["motion_prompt"], "duration": d})
         total += d
+    return scenes, shots, total
+
+
+def estimate(p: Pipeline, project_id: int, sequence: int) -> Dict:
+    """Seconds and USD of one multi-shot try (usd None when the model has no price), for the confirm box."""
+    from .cost import clip_price, load_pricing
+    _, _, total = _plan(p, project_id, sequence)
+    return {"seconds": total, "usd": clip_price(load_pricing(), MODEL, _tier(), total)}
+
+
+def kling_multishot(p: Pipeline, project_id: int, sequence: int, provider, data_dir: str) -> Dict:
+    """Send one Kling multi-shot generation for the sequence (costs credit like one clip of the summed length, max 15 s).
+    Goes through the same money cap as every clip: refused (ValueError, nothing sent) when budget.check_video says no."""
+    from . import budget, formats
+    from .cost import record_usage
+    scenes, shots, total = _plan(p, project_id, sequence)
     first = os.path.join(data_dir, str(project_id), "images", f"job_{scenes[0]['jid']}.png")
     aspect = formats.project_aspect(p.project(project_id))
     kwargs = {"multi_prompt": shots}
     if aspect:
         kwargs["aspect_ratio"] = formats.spec(aspect)["clip"]
-    task = provider.submit(first, shots[0]["prompt"], None, total, "kling", **kwargs)
-    record_usage(p.conn, None, "video", provider.name, "kling-v3-omni", os.environ.get("CLIPAI_KLING_MODE", "pro"), total, "second",
-                 project_id)
+    with budget.SPEND_LOCK:                              # limit check + submission + ledger entry as one step
+        over = budget.check_video(p.conn, provider.name, MODEL, _tier(), total)
+        if over:
+            raise ValueError(f"Không gửi thử nghiệm multi-shot: {over}")
+        task = provider.submit(first, shots[0]["prompt"], None, total, "kling", **kwargs)
+        record_usage(p.conn, None, "video", provider.name, MODEL, _tier(), total, "second", project_id)
     items = load(data_dir, project_id)
     entry = {"kind": "kling_multishot", "sequence": sequence, "scenes": [s["idx"] for s in scenes[:len(shots)]], "seconds": total,
              "external_id": task, "state": "running", "file": None, "at": datetime.now(timezone.utc).isoformat(timespec="seconds")}

@@ -422,7 +422,8 @@ def asset_library_panel(p: Pipeline) -> None:
             if st.button("↻ Thử lại", key="asset_vision_retry"):
                 asset_vision.clear_error(game)
                 st.rerun()
-        if st.button("🤖 Đọc mô tả ngoại hình", key="asset_vision_go", disabled=not n_pending or asset_vision.active(game), type="primary"):
+        vision_usd = cost.llm_estimate(p.conn, "asset_vision", n_pending, images=asset_vision.MAX_IMAGES)
+        if st.button("🤖 Đọc mô tả ngoại hình" + cost.llm_tag(vision_usd, n_pending), key="asset_vision_go", disabled=not n_pending or asset_vision.active(game), type="primary"):
             if asset_vision.start(C.DB, game):
                 st.toast("Đang đọc ở nền; bấm tải lại trang để xem tiến độ")
             st.rerun()
@@ -777,6 +778,9 @@ def monitor(p: Pipeline, pid: int) -> None:
         color = "red" if f["severity"] == "error" else "orange"
         st.markdown(f":{color}[● {diag.STAGE_LABEL.get(f['stage'], f['stage'])}] {escape(diag.redact(f['title']))}"
                     + (f" — {escape(diag.redact(f['detail']))}" if f["detail"] else ""))
+    if diag.lost():
+        st.warning(f"⚠ {diag.lost()} sự kiện chẩn đoán không ghi được vào CSDL (bận/lỗi) từ lúc mở Dashboard — xem file "
+                   "`data/manifest.sqlite.diag_lost.log`")
     events = diag.recent(p.conn, 24, 40)
     with st.expander(f"Sự kiện lỗi/cảnh báo gần đây ({len(events)})"):
         st.dataframe([{"Giờ": e["last_at"][11:19], "Mức": e["severity"], "Khâu": e["stage"], "Mã": e["code"] or "",
@@ -800,14 +804,18 @@ def lessons_tab(p: Pipeline, pid: int) -> None:
                "Duyệt, đề xuất mới vào Kho kiến thức của Director/QC/Motion. Sau đó nhớ chắt lọc lại cẩm nang ở Cài đặt.")
     llm = llm_runner.client_from_env(ledger=C.DB)
     c1, c2 = st.columns(2)
-    if c1.button("🔎 Rút bài học từ các lỗi đã gặp", key="ls_mine", use_container_width=True):
+    n_rules = lessons.ready_count(conn) if llm is not None else 0
+    if c1.button("🔎 Rút bài học từ các lỗi đã gặp" + cost.llm_tag(cost.llm_estimate(conn, "lessons", n_rules), n_rules),
+                 key="ls_mine", use_container_width=True):
         try:
             made = lessons.propose(conn, llm)
             st.success(f"Có {made} đề xuất mới." if made else "Chưa có loại lỗi nào lặp đủ nhiều để đề xuất.")
         except ERRORS as e:
             st.error(str(e))
-    if c2.button("🌐 Nghiên cứu tài liệu mới ngay", key="ls_research", use_container_width=True, disabled=llm is None,
-                 help="Cần ANTHROPIC_API_KEY. Có tính phí tìm kiếm web (tối đa vài lượt tìm cho mỗi chủ đề)."):
+    if c2.button("🌐 Nghiên cứu tài liệu mới ngay" + cost.llm_tag(research.estimate(conn)), key="ls_research", use_container_width=True,
+                 disabled=llm is None,
+                 help=f"Cần ANTHROPIC_API_KEY. Giá trên nút là mức tối đa: token Claude + tối đa {research.MAX_SEARCHES} lượt tìm web "
+                      "mỗi chủ đề (0,01 USD/lượt, ghi vào sổ chi)."):
         try:
             r = research.run(conn, llm)
             st.success(f"Nghiên cứu xong: {r['proposed']} đề xuất mới." + (f" Có lỗi: {r['errors'][0]}" if r["errors"] else ""))

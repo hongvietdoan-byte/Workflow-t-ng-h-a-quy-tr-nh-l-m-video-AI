@@ -263,8 +263,11 @@ def line_count(path: str) -> int:
 
 
 # ---- test → khu vực ---------------------------------------------------------------------------------------------------
-_IMPORT = re.compile(r"^[ \t]*(?:from[ \t]+((?:core|dashboard)(?:\.\w+)*)[ \t]+import[ \t]+(\([^)]*\)|[^\n#]+)"
-                     r"|import[ \t]+((?:core|dashboard)(?:\.\w+)*))", re.M)
+_PKGS = "core|dashboard|devsys|tools"
+_IMPORT = re.compile(r"^[ \t]*(?:from[ \t]+((?:" + _PKGS + r")(?:\.\w+)*)[ \t]+import[ \t]+(\([^)]*\)|[^\n#]+)"
+                     r"|import[ \t]+((?:" + _PKGS + r")(?:\.\w+)*))", re.M)
+# a file named by its path in a test: "dashboard/app.py", or os.path.join(..., "dashboard", "app.py")
+_PATH_REF = re.compile(r"""["']((?:""" + _PKGS + r""")/[\w/]+\.py)["']|["'](""" + _PKGS + r""")["']\s*,\s*["'](\w+\.py)["']""")
 
 
 def _module_file(root: str, dotted: str) -> Optional[str]:
@@ -276,9 +279,34 @@ def _module_file(root: str, dotted: str) -> Optional[str]:
     return None
 
 
-def imported_modules(root: str, source: str) -> List[str]:
-    """core/dashboard module files a Python source imports (`from core import a, b`, `from core.x import y`, `import core.x`)."""
+def _app_screens(root: str, app: str) -> List[str]:
+    """The dashboard files an AppTest of `app` runs: what the app imports from dashboard/, followed through dashboard/ files."""
+    seen, todo = set(), [app]
+    while todo:
+        f = todo.pop()
+        if f in seen:
+            continue
+        seen.add(f)
+        try:
+            with open(os.path.join(root, f), encoding="utf-8", errors="replace") as fh:
+                src = fh.read()
+        except OSError:
+            continue
+        todo += [m for m in imported_modules(root, src, follow_paths=False) if m.startswith("dashboard/")]
+    return sorted(seen)
+
+
+def imported_modules(root: str, source: str, follow_paths: bool = True) -> List[str]:
+    """core/dashboard/devsys/tools module files a Python source imports (`from core import a, b`, `from core.x import y`,
+    `import core.x`), plus files it names by path (an AppTest of dashboard/app.py also runs the dashboard screens app.py imports)."""
     found = set()
+    if follow_paths:
+        for m in _PATH_REF.finditer(source):
+            rel = m.group(1) or f"{m.group(2)}/{m.group(3)}"
+            if os.path.isfile(os.path.join(root, rel)):
+                found.add(rel)
+                if rel == "dashboard/app.py" and "AppTest" in source:
+                    found.update(_app_screens(root, rel))
     for m in _IMPORT.finditer(source):
         base = m.group(1) or m.group(3)
         names = m.group(2) or ""
@@ -473,18 +501,47 @@ TODO_MARKERS = (("[ ]", re.compile(r"\[ \]")), ("chưa làm", re.compile(r"chưa
 WAITING_USER = re.compile(r"(cần|chờ) người dùng|chờ feedback|người dùng (quyết|duyệt|chốt)", re.I)
 
 
-def parse_todo(text: str) -> List[Dict]:
-    """Open items of TODO.md: lines with "[ ]", "chưa làm", "chưa thử/chạy thật", "⏳" or "còn:". Each keeps its line number, the
-    heading it sits under, the markers found and the full source line. kind: open · recurring (the fixed 'MỖI LẦN' checklist) ·
-    paused ('Tạm gác'). `waiting_user`: the line says a person must decide/provide something."""
-    items, section, kind = [], "", "open"
+_ITEM_START = re.compile(r"^\s*(?:>\s*)?(?:[-*+]\s|\d+[.)]\s|\||#|\*\*|$)")
+_CLOSED_PARENT = re.compile(r"đã thay|\[x\]|^\s*[-*]\s*~~", re.I)
+
+
+def _logical_lines(text: str):
+    """(first line number, joined text, indent) of each TODO entry: a wrapped line (not a new bullet / table row / heading / bold
+    lead / blank) is joined to the entry above it, so an item broken over two lines keeps its area words and its markers."""
+    out = []
     for no, raw in enumerate(nfc(text).splitlines(), 1):
         line = raw.rstrip()
+        body = re.sub(r"^\s*>\s?", "", line)
+        if out and line.strip() and not _ITEM_START.match(line) and not re.match(r"^\s*(?:[-*+]\s|\d+[.)]\s|\||\*\*)", body) \
+                and not out[-1][1].lstrip().startswith(("#", "|")):
+            out[-1][1] += " " + body.strip()
+            continue
+        out.append([no, line, len(line) - len(line.lstrip())])
+    return out
+
+
+def parse_todo(text: str) -> List[Dict]:
+    """Open items of TODO.md: entries with "[ ]", "chưa làm", "chưa thử/chạy thật", "⏳" or "còn:" (a wrapped entry is read whole).
+    Each keeps its first line number, the heading it sits under, the markers found and the full text. kind: open · recurring (the
+    fixed 'MỖI LẦN' checklist) · paused ('Tạm gác'). `waiting_user`: the entry says a person must decide/provide something.
+    Sub-items (indented deeper) under a done / struck / "đã thay" parent are not open."""
+    items, section, kind = [], "", "open"
+    closed_at: Optional[int] = None                      # indent of the closed parent whose sub-items are skipped
+    for no, line, indent in _logical_lines(text):
         h = re.match(r"^(#{1,6})\s+(.*)$", line)
         if h:
             section = h.group(2).strip()
             kind = "recurring" if "MỖI LẦN" in section.upper() else "paused" if "tạm gác" in section.lower() else "open"
+            closed_at = None
             continue
+        if not line.strip():
+            continue
+        if closed_at is not None:
+            if indent > closed_at:
+                continue
+            closed_at = None
+        if re.match(r"^\s*[-*]\s", line) and _CLOSED_PARENT.search(line):
+            closed_at = indent
         if re.match(r"^\s*[-*]\s*\[x\]", line, re.I) and not re.search(r"chưa (?:thử|chạy) thật|còn\s*:", line, re.I):
             continue
         found = [name for name, rx in TODO_MARKERS if rx.search(line)]
@@ -556,8 +613,23 @@ def read_features(root: str = ROOT) -> Dict[str, Dict]:
     return {}
 
 
+def env_file_flags(root: str = ROOT, path: Optional[str] = None) -> Dict[str, str]:
+    """FEATURE_<NAME>=value lines of dashboard.env (only those — the file also holds keys, never read into the snapshot)."""
+    out = {}
+    try:
+        with open(path or os.path.join(root, "dashboard.env"), encoding="utf-8-sig") as f:
+            for line in f:
+                m = re.match(r"^\s*(?:export\s+|set\s+)?FEATURE_([A-Z0-9_]+)\s*=\s*[\"']?([^\"'#\s]*)", line)
+                if m:
+                    out[m.group(1).lower()] = m.group(2).strip().lower()
+    except OSError:
+        pass
+    return out
+
+
 def flags_state(root: str, cfg: Dict, files: Optional[Sequence[str]] = None) -> List[Dict]:
     feats = read_features(root)
+    from_file = env_file_flags(root)
     files = files if files is not None else repo_files(root)
     sites: Dict[str, List[str]] = {k: [] for k in feats}
     rx = re.compile(r"""features\.on\(\s*["']([a-z0-9_]+)["']|feature_on\(\s*["']([a-z0-9_]+)["']""")
@@ -576,9 +648,12 @@ def flags_state(root: str, cfg: Dict, files: Optional[Sequence[str]] = None) -> 
     out = []
     for name, meta in feats.items():
         env = os.environ.get("FEATURE_" + name.upper(), "").strip().lower()
+        source = "môi trường" if env else None
+        if not env and from_file.get(name):
+            env, source = from_file[name], "dashboard.env"
         on = True if env in ("1", "true", "on", "yes") else False if env in ("0", "false", "off", "no") else bool(meta.get("verified"))
         out.append({"name": name, "label": meta.get("label", ""), "why": meta.get("why", ""), "verified": bool(meta.get("verified")),
-                    "env": env or None, "on": on, "sites": sites.get(name, []),
+                    "env": env or None, "env_source": source, "on": on, "sites": sites.get(name, []),
                     "areas": [a["id"] for a in cfg["areas"] if name in a.get("flags", [])]})
     return out
 
@@ -651,8 +726,28 @@ def collect(root: str = ROOT, cfg: Optional[Dict] = None, db_path: Optional[str]
                             key=lambda x: -x[1]),
         "tests_by_area": tests_by_area(latest, tmap, cfg), "files": files,
     }
+    snap["tests_stale"] = tests_stale(root, latest, snap["working"])
     snap["collect_s"] = round(time.time() - t0, 2)
     return snap
+
+
+CODE_DIRS = ("core/", "dashboard/", "devsys/", "tools/", "tests/", "prompts/")
+
+
+def tests_stale(root: str, run: Optional[Dict], working: Sequence[Dict]) -> Optional[Dict]:
+    """Code changed after the saved test run (commits since its commit + uncommitted edits), else None — the run's numbers then say
+    nothing about that code. {"files": [...], "commits": n}."""
+    if not run or not run.get("commit"):
+        return None
+    changed = set()
+    try:
+        diff = git(root, "diff", "--name-only", f"{run['commit']}..HEAD")
+        commits = int((git(root, "rev-list", "--count", f"{run['commit']}..HEAD") or "0").strip() or 0)
+    except Exception:  # noqa: BLE001 - an unknown commit (another clone): say we cannot tell
+        return {"files": [], "commits": None, "note": "không so được commit của lần chạy test với HEAD"}
+    changed |= {f for f in (diff or "").splitlines() if f.startswith(CODE_DIRS)}
+    changed |= {w["path"] for w in working if str(w.get("path", "")).startswith(CODE_DIRS)}
+    return {"files": sorted(changed), "commits": commits} if changed else None
 
 
 def area_health(snap: Dict, cfg: Dict) -> Dict[str, Dict]:

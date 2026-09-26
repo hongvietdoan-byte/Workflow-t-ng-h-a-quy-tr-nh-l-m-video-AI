@@ -66,6 +66,8 @@
       "dreamina-seedance-2-5-260628"
     ]
   },
+  "per_web_search": 0.01,
+  "_note_web_search": "Công cụ tìm kiếm web của Claude API: 10 USD / 1000 lượt tìm (tài liệu Anthropic 'Web search tool', tra 2026-09-26), cộng token đọc kết quả tính như token vào. Dùng cho nút 🌐 Nghiên cứu tài liệu mới.",
   "per_million_tokens": {
     "_note": "Claude API (Anthropic) — giá niêm yết USD cho 1 triệu token vào / ra (tài liệu Claude API, tra 2026-09-24). Ảnh gửi kèm tính vào token vào.",
     "claude-sonnet-5": {

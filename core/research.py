@@ -41,6 +41,17 @@ def _validate(obj) -> None:
         raise ValueError("thiếu danh sách findings")
 
 
+def estimate(conn, topics: Optional[Dict[str, List[str]]] = None) -> Optional[float]:
+    """Worst-case USD of one research round: one Claude call per topic (tokens) + MAX_SEARCHES web searches each (priced per search).
+    None when either price is missing."""
+    from . import cost
+    pricing = cost.load_pricing()
+    n = sum(len(v) for v in (topics or DEFAULT_TOPICS).values())
+    calls = cost.llm_estimate(conn, "research", n, pricing)
+    per_search = cost._number(pricing.get("per_web_search"))
+    return None if calls is None or per_search is None else calls + n * MAX_SEARCHES * per_search
+
+
 def run(conn, client, topics: Optional[Dict[str, List[str]]] = None) -> Dict:
     """One research round. Returns {'proposed': n, 'topics': n, 'errors': [...]}."""
     search = getattr(client, "complete_with_search", None)

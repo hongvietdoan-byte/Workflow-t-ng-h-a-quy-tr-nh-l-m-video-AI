@@ -71,7 +71,9 @@ def main():
                                                              for x, y in res["opposite"])))
         return
     idx = location_pack.ensure_plates(conn, a.project, DATA, os.path.dirname(os.path.abspath(DATA)), log=print)
-    print(f"{len(idx)} shot có nền 3D → {os.path.join(DATA, str(a.project), 'plates', 'index.json')}")
+    failed = [k for k, v in idx.items() if v.get("failed")]
+    print(f"{len(idx) - len(failed)} shot có nền 3D → {os.path.join(DATA, str(a.project), 'plates', 'index.json')}"
+          + (f" · ⚠ {len(failed)} shot Blender không trả về góc máy (vẽ ảnh thường)" if failed else ""))
 
 
 if __name__ == "__main__":

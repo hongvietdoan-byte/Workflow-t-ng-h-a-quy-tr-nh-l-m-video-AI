@@ -156,6 +156,31 @@ def plate_of(data_dir: str, pid: int, scene_id: int) -> Optional[Dict]:
     return rec if rec and os.path.exists(rec.get("plate", "")) else None
 
 
+def plate_failed(data_dir: str, pid: int, scene_id: int) -> Optional[str]:
+    """Why Blender gave no plate for this shot's camera (the shot then draws a normal picture instead of waiting), else None."""
+    rec = index(data_dir, pid).get(str(scene_id))
+    return (rec or {}).get("failed")
+
+
+def _failed(root: str, key: str) -> Optional[str]:
+    try:
+        with open(os.path.join(root, key, "failed.json"), encoding="utf-8") as f:
+            return json.load(f).get("reason") or "Blender không trả về góc máy này"
+    except (OSError, ValueError):
+        return None
+
+
+def forget_failures(data_root: str) -> int:
+    """Let every camera Blender failed on be rendered again at the next run (after the model or Blender was fixed)."""
+    root, n = cache_root(data_root), 0
+    for key in (os.listdir(root) if os.path.isdir(root) else []):
+        path = os.path.join(root, key, "failed.json")
+        if os.path.exists(path):
+            os.remove(path)
+            n += 1
+    return n
+
+
 def plan(conn, pid: int, resolution=(1152, 2048)) -> List[Dict]:
     """One item per shot at a 3D place: its camera (model coordinates), the character box, the time/weather and the cache key."""
     shots = shots_at_3d_places(conn, pid)
@@ -191,12 +216,15 @@ def _cached(root: str, key: str) -> Optional[Dict]:
 def ensure_plates(conn, pid: int, data_dir: str, data_root: str, resolution=(1152, 2048), blender: Optional[str] = None,
                   render: Callable = plates3d.render, log: Callable[[str], None] = lambda m: None) -> Dict[str, Dict]:
     """Every shot at a 3D place gets its plate (from the cache, else rendered — one Blender run per model + time/weather, cameras
-    together), finished (sky, fog, grade) and written to the project's index. Returns the index."""
+    together), finished (sky, fog, grade) and written to the project's index. Returns the index.
+    A camera Blender does not return is marked failed (failed.json + diag + log) and NOT rendered again at every autopilot tick; the
+    index says so, and the shot draws a normal picture instead of waiting for a plate that will not come (forget_failures = retry)."""
+    from . import diag
     items = plan(conn, pid, resolution)
     root = cache_root(data_root)
     missing: Dict[tuple, List[Dict]] = {}
     for it in items:
-        if _cached(root, it["key"]) is None:
+        if _cached(root, it["key"]) is None and _failed(root, it["key"]) is None:
             missing.setdefault((it["entry"]["sha256"], plate_env.key(it["env"])), []).append(it)
     for group in missing.values():
         first = group[0]
@@ -217,10 +245,16 @@ def ensure_plates(conn, pid: int, data_dir: str, data_root: str, resolution=(115
         by_name = {p["name"]: p for p in manifest.get("plates", [])}
         for it in group:
             p = by_name.get(f"k{it['key']}")
-            if p is None:
-                continue
             dest = os.path.join(root, it["key"])
             os.makedirs(dest, exist_ok=True)
+            if p is None:
+                why = (f"Blender không trả về góc máy của shot {it['idx']} ({first['place']}, {plate_env.key(first['env'])}) — shot này vẽ "
+                       "ảnh thường (không ghép nền 3D); sửa mô hình/Blender rồi chạy lại với forget_failures")
+                with open(os.path.join(dest, "failed.json"), "w", encoding="utf-8") as f:
+                    json.dump({"reason": why, "manifest_error": manifest.get("error")}, f, ensure_ascii=False)
+                diag.record(conn, "image", "warn", why, "plate_missing", project_id=pid, scene_id=it["scene_id"])
+                log(why)
+                continue
             rec = {"camera": p.get("camera"), "depth_range_m": p.get("depth_range_m"), "subject": p.get("subject")}
             for kind in ("file", "depth_file", "shadow_file"):
                 if p.get(kind):
@@ -239,6 +273,9 @@ def ensure_plates(conn, pid: int, data_dir: str, data_root: str, resolution=(115
     for it in items:
         rec = _cached(root, it["key"])
         if rec is None:
+            why = _failed(root, it["key"])
+            if why:
+                idx[str(it["scene_id"])] = {"key": it["key"], "failed": why, "place": it["place"]}
             continue
         idx[str(it["scene_id"])] = dict(rec, key=it["key"], env=it["env"], subject_box=it["subject_box"], distance_m=it["distance_m"],
                                         spot=it["spot"], place=it["place"], camera_plan=it["camera"])

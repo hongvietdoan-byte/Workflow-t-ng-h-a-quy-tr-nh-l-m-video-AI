@@ -194,6 +194,10 @@ with st.sidebar:
         t = run["totals"]
         bad = t["failed"] + t["errors"]
         (st.success if not bad else st.error)(f"{t['passed']}/{t['tests']} qua · {bad} lỗi · {fmt_date(run['date'])} · `{run.get('short')}`")
+        stale = snap.get("tests_stale")
+        if stale:
+            st.warning(f"⚠ Kết quả test cũ hơn code: {len(stale['files'])} file code đổi sau lần chạy"
+                       + (f" ({stale['commits']} commit)" if stale.get("commits") else "") + " — bấm ▶ Chạy test")
     else:
         st.warning("Chưa có lần chạy test nào được lưu.")
     if st.button("▶ Chạy test (~4 phút, miễn phí)", disabled=bool(running)):

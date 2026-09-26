@@ -940,8 +940,9 @@ class ImageRunner(_Runner):
         if features.on("location_plates"):
             from . import location_pack
             data = json.loads(self.p.conn.execute("SELECT data FROM scenes WHERE id=?", (job["scene_id"],)).fetchone()["data"] or "{}")
-            if location_pack.needs_plate(self.p.conn, job["project_id"], data) and self._plate(job) is None:
-                return True
+            if location_pack.needs_plate(self.p.conn, job["project_id"], data) and self._plate(job) is None and \
+                    not location_pack.plate_failed(self.data_dir, job["project_id"], job["scene_id"]):
+                return True                                  # a failed render is not waited for: the shot draws a normal picture
         proj = self.p.project(job["project_id"])
         chains = proj["storyboard_mode"] == 1 or (proj["storyboard_mode"] != 2 and features.on("chain_previous_auto"))
         return bool(shots.mode(proj)) and chains and shots.waits_for_previous_image(self.p.conn, job["scene_id"])

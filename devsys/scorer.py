@@ -165,6 +165,10 @@ def build_bundle(root: str, cfg: Dict, area: Dict, snap: Dict, health: Dict, las
         if t.get("failed_names"):
             test_txt += "\nTest lỗi:\n" + "\n".join(f"- test:{n['file']}::{n['name'].split('::')[-1]} — {n.get('message', '')}"
                                                    for n in t["failed_names"][:25])
+        stale = snap.get("tests_stale")
+        if stale:
+            test_txt += (f"\n⚠ LẦN CHẠY TEST NÀY CŨ HƠN CODE: {len(stale['files'])} file đổi sau đó — "
+                         + ", ".join(stale["files"][:15]) + " (số test trên không nói gì về phần đổi).")
     else:
         test_txt = f"CHƯA CÓ LẦN CHẠY TEST NÀO ĐƯỢC LƯU. File test nhắm vào khu vực: {len(t.get('test_files', []))}."
     test_txt += "\nFile test nhắm vào khu vực (tự dò theo import): " + (", ".join(t.get("test_files", [])) or "KHÔNG CÓ")

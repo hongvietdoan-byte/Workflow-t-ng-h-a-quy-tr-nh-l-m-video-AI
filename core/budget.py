@@ -68,7 +68,11 @@ def stop(conn) -> Dict:
 
 
 def token_price(pricing: Dict, model: str, tier: str, tokens: float) -> Optional[float]:
-    """USD of `tokens` Claude API tokens (tier 'input' or 'output'), None when the model has no price."""
+    """USD of `tokens` Claude API tokens (tier 'input' or 'output'), None when the model has no price. Tier 'web_search': `tokens`
+    is a number of searches, priced by pricing["per_web_search"] (the same for every model)."""
+    if tier == "web_search":
+        unit = cost._number(pricing.get("per_web_search"))
+        return None if unit is None else unit * float(tokens or 0)
     prices = pricing.get("per_million_tokens") or {}
     table = prices.get(model)
     if table is None:           # a dated/suffixed id (claude-sonnet-5-20260101) takes the price of its longest known prefix
@@ -197,6 +201,18 @@ def check_audio(conn, provider_name: str) -> Optional[str]:
         return (f"đã tạo {n} âm thanh trong đợt thử (trần {b['audio_cap']} lượt — âm thanh chưa có giá nên trần tính theo SỐ LƯỢT, "
                 "không vào tổng USD) — nâng trần trong ⚙ → Ngân sách thử")
     return None
+
+
+def audio_tag(conn, count: int = 1) -> str:
+    """Text for an audio button (music / SFX / voice): audio has no USD price, so the button says how many sends it costs and where
+    the trial's count cap stands (luật chi phí: shown before the click)."""
+    if count <= 0:
+        return ""
+    b = get(conn)
+    if not b["enabled"]:
+        return f" · {count} lượt âm thanh (chưa có giá USD)"
+    used = spent(conn, since=b["since"])["audios"]
+    return f" · {count} lượt âm thanh (chưa có giá USD; đợt thử {used}/{b['audio_cap']} lượt)"
 
 
 def check_image(conn, provider_name: str, model: Optional[str] = None) -> Optional[str]:

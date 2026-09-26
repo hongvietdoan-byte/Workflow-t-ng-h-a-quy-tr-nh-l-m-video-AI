@@ -109,10 +109,19 @@ Lưu ý chung: nút **↺ Làm lại từ đầu** xuất hiện ở job đã h�
 - Repo GitHub đã private. Ảnh nhân vật gửi Claude API (QC) là dữ liệu của dự án — kiểm tra chính sách dữ liệu công ty trước khi dùng cho nội dung nhạy cảm.
 
 ## Chế độ tự động hoàn toàn (clip ngắn)
-- Bước 1 → khung "🚀": sau khi Director xong và bạn xem phân cảnh + Character Bible, bấm **Duyệt phân cảnh & chạy tự động** và xác nhận Có. Hệ thống tự chạy đến `FINAL_VIDEO.mp4`.
-- Yêu cầu: `IMAGE_PROVIDER`, `VIDEO_PROVIDER`, `ANTHROPIC_API_KEY`, ffmpeg, tối đa 12 cảnh (`AUTOPILOT_MAX_SCENES`). Thiếu gì sẽ báo đỏ.
-- Gặp cảnh cần người (hết lượt thử, bị chặn risk control, chạm trần job) → dừng, báo lý do; xử lý xong bấm **Tiếp tục**. Khởi động lại máy chủ cũng cần bấm Tiếp tục.
-- Lưu ý: tự duyệt ảnh/video nghĩa là không có người xem từng ảnh; hãy xem lại bản cuối và gen lại cảnh chưa ưng.
+> Cập nhật 2026-09-26 cho luồng V4 (code: `core/autopilot.py`, thứ tự pha ở `tick`). Phần dưới thay mô tả cũ "duyệt phân cảnh rồi tự
+> chạy thẳng tới bản cuối" — nay có **cổng** và **trần tiền**.
+- Bước 1 → khung "🚀": nút chạy tự động hiện **ước tính tiền** (ảnh + clip + Claude, mức thường và mức tối đa khi gen lại) trước khi bấm.
+- **Thứ tự pha:** Director (một lượt, hoặc hai lượt Đạo diễn → Quay phim khi cờ `director_two_pass`) → previz → nền 3D (cờ `location_plates`)
+  → ảnh → kiểm đồng bộ bộ ảnh → khung cuối → **cổng storyboard** → motion prompt → giọng → video → nhạc → sửa nền ghép → khớp môi → SFX → dựng.
+- **Cổng** (Bước 1, mặc định): *Bible* (dừng khi mô tả nhân vật lệch ảnh Kho), *storyboard* (dừng trước tiền video khi ảnh có cờ ⚑ — bạn
+  duyệt ở Bước 2 "🎞 Storyboard"), *pilot* (tắt mặc định). Dừng ở cổng = chờ bạn, không phải lỗi.
+- **Trần tiền đợt thử** (⚙ → 💵): mỗi ảnh/clip/lượt Claude kiểm trần trước khi gửi; bị từ chối → autopilot **dừng kèm lý do** (không gửi
+  thiếu). Âm thanh chưa có giá USD nên tính theo số lượt.
+- **Gen lại:** chỉ khi QC nêu được lỗi cụ thể, tối đa 2 lần, mỗi lần đổi đầu vào; lỗi lặp lại sau khi sửa → dừng shot, giữ cho bạn xem.
+- Yêu cầu: `IMAGE_PROVIDER`, `VIDEO_PROVIDER`, Claude (`LLM_PROVIDER` + khóa), ffmpeg, tối đa 12 cảnh (`AUTOPILOT_MAX_SCENES`). Thiếu gì báo đỏ.
+- Gặp việc cần người (hết lượt thử, risk control, trần) → dừng, báo lý do ở 📊; xử lý xong bấm **Tiếp tục**. Khởi động lại máy chủ cũng cần bấm Tiếp tục.
+- Lưu ý: ảnh/clip qua QC được tự duyệt; hãy xem lại bản cuối và gen lại shot chưa ưng.
 - **Nhiều kịch bản cùng lúc:** mỗi kịch bản là một dự án; duyệt và bấm chạy từng dự án. Hệ thống chỉ chạy `AUTOPILOT_MAX_PARALLEL` (mặc định 2) dự án song song, số còn lại hiện "xếp hàng" và tự chạy khi có chỗ. `AUTOPILOT_DAILY_JOBS` (mặc định 300) là trần số job ảnh+video mỗi ngày (giờ UTC) cho tất cả dự án.
 - **Tab "📊 Theo dõi hiệu suất":** xem tải hệ thống. Nếu có cảnh báo tỉ lệ lỗi cao hoặc chậm dần thì giảm `AUTOPILOT_MAX_PARALLEL`. Bắt đầu với 2, tăng dần khi số liệu ổn.
 - **Khi chạy thử thật:** mở tab "📊 Theo dõi hiệu suất" → "🩺 Giám sát từng khâu" (hoặc chạy `py tools/diagnose.py`). Đèn 🔴/🟡 cho biết khâu nào lỗi; mục "Vấn đề phát hiện" gồm lỗi âm thầm. Cuối một buổi thử, copy khối **Báo cáo chẩn đoán** dán vào chat để sửa. Báo cáo đã che khóa/token, nhưng vẫn nên đọc lướt trước khi gửi.

@@ -453,7 +453,7 @@ def _plates_phase(p: Pipeline, pid: int, ctx: Context) -> Optional[str]:
         if it.get("spot_problem"):
             _d(p, pid, "images", "warn", f"shot {it['idx']}: {it['spot_problem']}", "plate_spot")
     idx = location_pack.index(ctx.data_dir, pid)
-    if all(str(it["scene_id"]) in idx and idx[str(it["scene_id"])].get("key") == it["key"] for it in items):
+    if all(str(it["scene_id"]) in idx and idx[str(it["scene_id"])].get("key") == it["key"] for it in items):   # failed ones included
         return None
     location_pack.ensure_plates(p.conn, pid, ctx.data_dir, os.path.dirname(os.path.abspath(ctx.data_dir)), (w, h),
                                 log=lambda m: _log(p, pid, m))

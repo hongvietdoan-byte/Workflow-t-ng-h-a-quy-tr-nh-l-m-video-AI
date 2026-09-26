@@ -5,6 +5,7 @@ __pycache__/
 data/manifest.sqlite
 data/manifest.sqlite-shm
 data/manifest.sqlite-wal
+data/*.diag_lost.log
 Get this Skill to Claude/
 data/trial/
 data/demo/

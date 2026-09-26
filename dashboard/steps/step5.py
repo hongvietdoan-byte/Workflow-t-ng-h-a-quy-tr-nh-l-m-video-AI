@@ -65,7 +65,7 @@ def step5a(p: Pipeline, pid: int):
                 provider.name + (" · giả lập" if provider.name == "mock-audio" else " · music_v2 · tốn credit"), "b-info"))
             key = f"mbrief_{pid}"
             client = llm_client()
-            if st.button("🤖 Claude viết brief nhạc", key=f"mbrief_ai_{pid}", disabled=client is None, help=None if client else claude_hint()):
+            if st.button("🤖 Claude viết brief nhạc" + cost.llm_tag(cost.llm_estimate(p.conn, "music_brief", 1)), key=f"mbrief_ai_{pid}", disabled=client is None, help=None if client else claude_hint()):
                 with st.spinner("Claude đang viết brief…"):
                     brief = claude_tasks.music_brief(p, pid, client)
                 st.session_state[key] = brief
@@ -83,7 +83,7 @@ def step5a(p: Pipeline, pid: int):
             instrumental = c2.checkbox("Không lời (instrumental)", brief["instrumental"], key=f"minst_{pid}")
             count = c3.number_input("Số bản nháp", 1, 5, 3, key=f"mcount_{pid}")
             b1, b2 = st.columns(2)
-            if b1.button(f"✨ Tạo {int(count)} bản nháp", type="primary", disabled=not prompt.strip(), key=f"mdraft_{pid}"):
+            if b1.button(f"✨ Tạo {int(count)} bản nháp" + budget.audio_tag(p.conn, int(count)), type="primary", disabled=not prompt.strip(), key=f"mdraft_{pid}"):
                 n = music.submit_drafts(provider, drafts_dir, prompt, int(seconds) * 1000, instrumental, int(count), ledger=(p.conn, pid))
                 st.toast(f"Đã gửi {n} bản")
                 st.rerun()
@@ -134,7 +134,7 @@ def extras_section(p: Pipeline, pid: int, provider):
                 c1, c2, c3 = st.columns([2, 1, 2])
                 s_sec = c1.number_input("Độ dài (giây, 0.5–30)", 0.5, 30.0, 3.0, 0.5, key=f"sfx_d_{pid}")
                 s_loop = c2.checkbox("Loop", False, key=f"sfx_l_{pid}")
-                if c3.button("✨ Tạo SFX", disabled=not s_prompt.strip(), key=f"sfx_go_{pid}"):
+                if c3.button("✨ Tạo SFX" + budget.audio_tag(p.conn), disabled=not s_prompt.strip(), key=f"sfx_go_{pid}"):
                     entry = audio_lib.submit_sfx(provider, directory, s_prompt, s_sec, s_loop, ledger=(p.conn, pid))
                     st.toast("Đã gửi SFX" if entry["asset_id"] else f"Lỗi: {entry['message']}")
                     st.rerun()
@@ -157,7 +157,7 @@ def extras_section(p: Pipeline, pid: int, provider):
                     t_model = d1.selectbox("Model", ["eleven_v3", "eleven_turbo_v2_5", "eleven_multilingual_v2"],
                                            key=f"tts_m_{pid}")
                     t_lang = d2.text_input("Mã ngôn ngữ (tùy chọn, vd vi, en)", key=f"tts_l_{pid}")
-                    if st.button("✨ Tạo giọng đọc", disabled=not t_text.strip(), key=f"tts_go_{pid}"):
+                    if st.button("✨ Tạo giọng đọc" + budget.audio_tag(p.conn), disabled=not t_text.strip(), key=f"tts_go_{pid}"):
                         entry = audio_lib.submit_tts(provider, directory, t_text, int(v["id"]), str(v.get("name", "")),
                                                      t_model, t_lang.strip() or None, ledger=(p.conn, pid))
                         st.toast("Đã gửi giọng đọc" if entry["asset_id"] else f"Lỗi: {entry['message']}")
@@ -263,7 +263,7 @@ def subtitle_panel(p: Pipeline, pid: int, out: str = None) -> None:
         if lang != "src" and llm is None:
             st.markdown(f":orange[Dịch sang ngôn ngữ khác cần Claude ({claude_hint()}).]")
         key = f"sub_cues_{pid}"
-        if st.button("📝 Tạo danh sách phụ đề", key=f"sub_make_{pid}", type="primary", disabled=lang != "src" and llm is None):
+        if st.button("📝 Tạo danh sách phụ đề" + (cost.llm_tag(cost.llm_estimate(p.conn, "subtitles", 1)) if lang != "src" else ""), key=f"sub_make_{pid}", type="primary", disabled=lang != "src" and llm is None):
             try:
                 cues = delivery.subtitle_cues(p, pid, C.DATA)   # D2: timed on the latest render (its clips, seconds, transition)
                 if not cues:
@@ -334,7 +334,7 @@ def sfx_assistant(p: Pipeline, pid: int) -> None:
                                  placeholder="vd: ít thôi, chỉ ở chuyển cảnh · thêm tiếng va chạm ở cảnh 3")
             transition = st.session_state.get(f"tr_{pid}", "cut")
             fade = float(st.session_state.get(f"fade_{pid}", 1.0))
-            if st.button("🤖 AI tự đề xuất hiệu ứng", key=f"sfx_ai_go_{pid}", type="primary"):
+            if st.button("🤖 AI tự đề xuất hiệu ứng" + cost.llm_tag(cost.llm_estimate(p.conn, "sfx", 1)), key=f"sfx_ai_go_{pid}", type="primary"):
                 client = llm_client()
                 try:
                     with st.spinner("AI đang đọc các cảnh và chọn hiệu ứng…"):

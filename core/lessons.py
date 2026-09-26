@@ -123,6 +123,11 @@ def _write_rule(client, cluster: Dict) -> str:
         return client.complete(prompt).text.strip()[:600]
 
 
+def ready_count(conn) -> int:
+    """How many rules propose() would ask Claude to write now (ready clusters without a lesson) — for the price on its button."""
+    return sum(1 for c in clusters(conn) if c["ready"] and not _known(conn, c["group"], f"mistake:{c['tag']}"))
+
+
 def propose(conn, client=None) -> int:
     """Turn ready clusters into proposed lessons (skips kinds that already have a lesson, whatever its state)."""
     harvest(conn)
