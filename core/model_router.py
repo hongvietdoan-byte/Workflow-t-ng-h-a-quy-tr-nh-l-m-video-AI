@@ -11,6 +11,7 @@ import os
 from typing import Dict, List, Optional
 
 from . import dialogue
+from .memo import read_json
 
 PROFILES_PATH = os.path.join(os.path.dirname(__file__), "..", "data", "video_models.json")
 PRIORITIES = ("quality", "balanced", "value")
@@ -19,8 +20,7 @@ DEFAULT_PRIORITY = "balanced"
 
 def load_profiles(path: Optional[str] = None) -> Dict:
     try:
-        with open(path or PROFILES_PATH, encoding="utf-8") as f:
-            data = json.load(f)
+        data = read_json(path or PROFILES_PATH)      # cached by file mtime (core.memo); a broken file is never cached
     except (OSError, ValueError):
         data = {}
     data.setdefault("models", {})

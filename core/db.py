@@ -1,3 +1,4 @@
+import os
 import sqlite3
 
 SCHEMA = """
@@ -351,6 +352,46 @@ def connect(path: str = ":memory:") -> sqlite3.Connection:
     if path != ":memory:":
         conn.execute("PRAGMA journal_mode = WAL")   # readers (the dashboard) no longer block writers and vice versa
         conn.execute("PRAGMA synchronous = NORMAL")
+    # The schema + column checks below ran on every dashboard click. Now once per process and database file: skipped only when
+    # the file carries the stamp of THIS code (`PRAGMA user_version`; any change to the schema/migration code changes it) AND its
+    # schema has not changed since this process migrated it (`PRAGMA schema_version`, bumped by every CREATE/ALTER/DROP). A fresh,
+    # older, recreated or hand-altered database is migrated as before.
+    stamp = schema_stamp()
+    key = None if path == ":memory:" else os.path.normcase(os.path.abspath(path))
+    if stamp and key is not None and key in _MIGRATED:
+        user_version, schema_version = (conn.execute("PRAGMA user_version").fetchone()[0],
+                                        conn.execute("PRAGMA schema_version").fetchone()[0])
+        if user_version == stamp and schema_version == _MIGRATED[key]:
+            return conn
+    _migrate(conn)
+    if stamp:
+        conn.execute(f"PRAGMA user_version = {int(stamp)}")
+        conn.commit()
+        if key is not None:
+            _MIGRATED[key] = conn.execute("PRAGMA schema_version").fetchone()[0]
+    return conn
+
+
+_STAMP = []
+_MIGRATED = {}          # database file -> its schema_version right after this process migrated it
+
+
+def schema_stamp() -> int:
+    """A number (1..2^31-1) that changes whenever SCHEMA, V2_COLUMNS or a migration function changes; 0 = cannot tell (then
+    every connect migrates, the old behaviour)."""
+    if not _STAMP:
+        import hashlib
+        import inspect
+        try:
+            src = SCHEMA + repr(V2_COLUMNS) + "".join(inspect.getsource(f) for f in (_migrate, _migrate_v2, _migrate_usage_events))
+            _STAMP.append(int(hashlib.sha1(src.encode("utf-8")).hexdigest()[:7], 16) or 1)
+        except (OSError, TypeError):
+            _STAMP.append(0)
+    return _STAMP[0]
+
+
+def _migrate(conn: sqlite3.Connection) -> None:
+    """Create missing tables and add missing columns (idempotent)."""
     conn.executescript(SCHEMA)
     cols = {r["name"] for r in conn.execute("PRAGMA table_info(projects)")}
     if "paused" not in cols:
@@ -408,6 +449,8 @@ def connect(path: str = ":memory:") -> sqlite3.Connection:
         conn.execute("ALTER TABLE projects ADD COLUMN autopilot_user TEXT")
     if "created_by" not in cols:
         conn.execute("ALTER TABLE projects ADD COLUMN created_by TEXT")
+    if "archived" not in cols:          # 📦 Cất dự án (2026-09-26): hidden from the picker and the autopilot, data kept
+        conn.execute("ALTER TABLE projects ADD COLUMN archived INTEGER NOT NULL DEFAULT 0")
     sound_cols = {r["name"] for r in conn.execute("PRAGMA table_info(sounds)")}
     for column, ddl in (("tags", "TEXT"), ("heard", "TEXT"), ("heard_label", "TEXT"), ("heard_score", "REAL"), ("voice", "INTEGER NOT NULL DEFAULT 0")):
         if column not in sound_cols:
@@ -420,7 +463,6 @@ def connect(path: str = ":memory:") -> sqlite3.Connection:
     if "ref_video_type" not in mp_cols:
         conn.execute("ALTER TABLE motion_prompts ADD COLUMN ref_video_type TEXT NOT NULL DEFAULT 'feature'")
     _migrate_v2(conn)
-    return conn
 
 
 V2_COLUMNS = {

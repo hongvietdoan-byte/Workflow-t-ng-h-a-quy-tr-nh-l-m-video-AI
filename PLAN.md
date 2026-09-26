@@ -305,9 +305,10 @@ Tổng hợp từ: báo cáo rà soát `docs/DASHBOARD_REVIEW_2026-09-23.md`, k�
 
 **Đã chốt (2026-09-22, sau khi đối chiếu slide chính thức ClipAI/Deepix với API thật):**
 - **"Bàn đạo diễn" (ClipAI 3D director's desk) — tạm gác** *(cập nhật 2026-09-23: chuyển thành hướng 2 — dò lại ở lần dùng API tiếp theo, xem bên dưới)*. Không phải sản phẩm giả — có thật trên web ClipAI — nhưng không dò được endpoint qua các đường dẫn đoán mù; không đầu tư thêm thời gian trừ khi có URL/payload thật từ tab Network.
+- *(Cập nhật 2026-09-26: kế hoạch tổng 2026-09-24 mở lại việc này dưới dạng **thử trước** — K5 thử Kho chủ thể cho 1 nhân vật FF, nếu có hiệu quả mới làm T7 "chủ thể theo Kho, dùng lại mọi dự án"; **K5 chưa thử**, nên mặc định vẫn là quyết định dưới đây. Lưu ý K3/M7: khi clip có khung đầu, API Seedance bỏ ảnh chủ thể/ảnh tham chiếu từng người — ô "Gắn ảnh chủ thể" bị khóa kèm lý do.)*
 - **Không dùng Kho chủ thể Seedance (upload nhân vật riêng lên Subject Library của Clip AI).** Chưa thấy hiệu quả rõ rệt so với công sức. Ưu tiên: ảnh tham chiếu lấy thẳng từ **tài nguyên đã gắn cho cảnh trong Kho tài nguyên dự án** (`assets.scene_references`) — cơ chế này đã dùng cho Deepix (Bước 2) và từ 2026-09-22 cũng dùng cho Clip AI Seedance (Bước 4), không cần bước upload/chờ `active` riêng của Kho chủ thể. Panel "🧩 Kho chủ thể" ở Bước 1 và tuỳ chọn "🧩 Gắn ảnh chủ thể" ở Bước 4 vẫn giữ trong code (không xoá) nhưng không còn là hướng ưu tiên.
 - **Video tham chiếu chuyển động (`reference_video`) — chưa ưu tiên thử nghiệm.** Ưu tiên hoàn thiện dictionary "kỹ năng nhân vật → hình ảnh" (`knowledge/ff_character_skills_visual.md`) làm nguồn chính mô tả chuyển động skill bằng chữ trong prompt, thay vì cần video mẫu thật. Code đã hỗ trợ gửi ĐỒNG THỜI ảnh tham chiếu nhân vật + video tham chiếu chuyển động trong cùng một lần gen (`core/adapters/clipai.py::submit()` nhận cả `image_references` và `reference_video`, không loại trừ nhau trừ khi bật audio sinh trên Kling) — khi nào thật sự cần độ chính xác chuyển động cao hơn chữ mô tả thì kết hợp cả hai, không phải chọn một trong hai.
-- **Đồng bộ môi (Lip Sync) trên ClipAI — không ưu tiên vì còn Beta** (yêu cầu tải video có sẵn + chọn giọng lồng tiếng riêng, quy trình 2 bước cồng kềnh). Tập trung vào việc gen video có thoại ngay từ prompt (tuỳ chọn "🔊 Model tự tạo âm thanh/lời thoại" ở Bước 4 dùng Kling `sound`/Seedance `generate_audio`) — không cần hỏi team Clip AI về lip-sync/voice design nữa.
+- ~~**Đồng bộ môi (Lip Sync) trên ClipAI — không ưu tiên vì còn Beta**~~ *(**đã thay** 2026-09-25 bởi kế hoạch V4: khớp môi cho toàn bộ video — Seedance `reference_audio` + sync.so sau khi có clip, cờ `lip_sync`; xem mục "Đã chốt (2026-09-25 tối)" bên dưới. Đoạn cũ giữ làm lịch sử:)* (yêu cầu tải video có sẵn + chọn giọng lồng tiếng riêng, quy trình 2 bước cồng kềnh). Tập trung vào việc gen video có thoại ngay từ prompt (tuỳ chọn "🔊 Model tự tạo âm thanh/lời thoại" ở Bước 4 dùng Kling `sound`/Seedance `generate_audio`) — không cần hỏi team Clip AI về lip-sync/voice design nữa.
 - **Blocklist IP — thu hẹp phạm vi:** hiện tại hầu như chỉ dùng nhân vật Free Fire (đã có thoả thuận bản quyền), chưa dùng nhân vật IP khác. Không cần xây blocklist rộng ngay; danh sách nhân vật FF đã có sẵn (từ `ff.garena.com`, xem Kho tài nguyên) là đủ cho giai đoạn này.
 - **Giá + gợi ý chọn model** theo slide chính thức ClipAI ("Hôm nay tôi chọn mô hình video như thế nào") đã điền vào `data/pricing.json` (`listed_usd_per_video_second`, `model_choice_guide`).
 - ~~**`video_model` mặc định = `kling-v3-omni`.**~~ **Thay bằng quyết định 2026-09-23 (Dashboard v2): chọn model THEO TỪNG CẢNH dựa trên slide "Hôm nay tôi chọn mô hình video như thế nào" — xem 3.8.** Lý do cũ (giữ để tham khảo): theo gợi ý chính thức của slide, Kling 3.0 Omni ghi rõ thế mạnh "tái sử dụng nhân vật, đối thoại nhiều nhân vật" — đúng nhu cầu dự án (nhân vật FF lặp lại nhiều cảnh, nhiều nhân vật đối thoại) và cũng rẻ nhất trong 2 model thật đang dùng (`$0.08/giây` so với Seedance `$0.15–0.23/giây`). Không cần sửa code — `resolve_model(None)` đã mặc định về `kling-v3-omni` từ trước. `seedance`/`seedance-2.5` vẫn chọn thủ công được cho cảnh cần chất lượng điện ảnh cao hơn.
@@ -335,17 +336,26 @@ Tổng hợp từ: báo cáo rà soát `docs/DASHBOARD_REVIEW_2026-09-23.md`, k�
 | Quyết định | Ghi chú |
 |---|---|
 | ~~API Clip AI có cho dùng Bàn đạo diễn không~~ | **Đã kiểm (2026-09-23): không** — Director Workspace chỉ có trên web (token bị `LoginErr`) → bỏ qua theo 3.9; hỏi team Clip AI mở API |
-| Deepix có bám ảnh layout từ 3D không | Hướng 3 (nghiên cứu) — cổng quyết định trước khi đầu tư previz 3D |
-| Nguồn map 3D / model 3D nhân vật FF | Hướng 3 — map fan chỉ để thử nội bộ; bản phát hành cần asset chính thức |
+| ~~Deepix có bám ảnh layout từ 3D không~~ | **Đã thay (2026-09-25):** thử "ảnh render 3D làm tham chiếu" chỉ giống ~70% (model vẽ lại nền) → kế hoạch V4 chọn **gói bối cảnh**: nền là pixel thật (render 3D / ảnh trong game), AI chỉ vẽ nhân vật trên phông xanh rồi ghép bằng code (GĐ2 xong, cờ `location_plates` TẮT tới khi thử thật) |
+| Nguồn map 3D / model 3D nhân vật FF | Vẫn mở: **mô hình 3D chính thức** do người dùng xin team game, bỏ dần vào `MODEL3D_DIR` (mẫu ở `docs/KE_HOACH_V4_2026-09-25.md` mục 1.5); hiện có Tháp Đồng Hồ (Kho #263) render được bằng Blender 5.0.1 |
 
-**Còn mở, KHÔNG chặn V0 (chốt trước V1):**
+**~~Còn mở, KHÔNG chặn V0 (chốt trước V1)~~ — đã giải hết (cập nhật 2026-09-26; bảng giữ làm lịch sử):**
+- Nguồn truy cập Claude → **Claude API bằng khóa riêng của người dùng từ 2026-09-24** (`LLM_PROVIDER=anthropic`, mọi lời gọi qua sổ chi + trần Claude — mục "Claude chạy qua Claude API" ở trên).
+- `music_provider` → **Clip AI audio** (music_v2/ElevenLabs, chốt 2026-09-20; Suno không có API).
+- Framework Dashboard → **Streamlit** (kế hoạch V4 làm gọn trên Streamlit; app web phát triển riêng ở `devsys/` đang làm).
+
 | Quyết định | Ghi chú |
 |---|---|
 | Nguồn truy cập Claude cho V1 | Gói Claude (seat Enterprise/Pro/Max) và Anthropic API (Console, API key, tính tiền theo token) là 2 sản phẩm/billing tách biệt; seat không tự sinh API key. Dashboard tự gọi Claude bằng code nên V1 cần API key từ Console org công ty (không nên dùng đăng nhập seat cho ứng dụng tự động — cần xác nhận với admin/điều khoản Anthropic). Việc cần làm: hỏi admin Enterprise (a) có Console org không, (b) hạn mức token, (c) chính sách data cho ảnh nhân vật. |
 | `music_provider` | Suno không có API chính thức. Ưu tiên dùng audio của Clip AI (ElevenLabs/Seed Audio tích hợp) nếu API cho phép; xác nhận license thương mại. Xem 3.5 |
 | Framework Dashboard | Streamlit (mặc định) hay web frontend riêng nếu cần UI sát mockup Figma — *thực tế đang dùng Streamlit; kế hoạch V4 (2026-09-25) làm gọn trên Streamlit* |
 
-**Còn mở — cần chốt trước khi code V0 (chặn Tuần 1-2):**
+**~~Còn mở — cần chốt trước khi code V0 (chặn Tuần 1-2)~~ — đã giải (cập nhật 2026-09-26; bảng giữ làm lịch sử):**
+- `operating_mode` mặc định → **`human_qc`** (chốt 2026-09-19, mục "Đã chốt cho V0"); chạy tự động dùng chế độ tự QC riêng của autopilot, có cổng Bible/storyboard.
+- Deepix / Clip AI → **có REST API thật** (adapter `core/adapters/deepix.py`, `clipai.py`; dùng polling), không cần Playwright.
+- Ngưỡng QC → **chính sách QC 3 mức + mức sàn bố cục/tỉ lệ** (Bước 2); hiệu chỉnh bằng dữ liệu thật vẫn là việc của GĐ-I bậc 5 (chưa làm).
+- Ngân sách thử → **trần đợt thử trong ⚙ → 💵 Ngân sách thử** (tiền có giá, ảnh, lượt âm thanh, Claude riêng), đặt mỗi đợt; đợt thử tới: $10.
+
 | Quyết định | Vì sao cần | Ai chốt |
 |---|---|---|
 | `operating_mode` mặc định (`auto` hay `human_qc`) cho từng loại nội dung/dự án | Quyết định luồng review có block hay không — ảnh hưởng thiết kế Dashboard & MCP QC Agent | Bạn + team sản xuất nội dung |
@@ -382,7 +392,13 @@ Tổng hợp từ: báo cáo rà soát `docs/DASHBOARD_REVIEW_2026-09-23.md`, k�
 - [ ] Nguồn tri thức nền: sách/giáo trình biên kịch-đạo diễn-quay phim, kịch bản + storyboard các dự án cũ (Mục 3.6)
 - [ ] Người giữ quan hệ với team dev nội bộ cấp API Deepix/Clip AI
 
-## 7. Lộ trình triển khai: V0 → V1
+## 7. Lộ trình triển khai (V0 → V1 bên dưới là lịch sử — lộ trình hiện tại: kế hoạch V4 + `TODO.md`)
+
+> **Trạng thái 2026-09-26 (đọc trước):** lộ trình đang theo là **kế hoạch V4** `docs/KE_HOACH_V4_2026-09-25.md`; tiến độ ghi **duy nhất** ở
+> 📌 đầu `TODO.md`. Đã xong: GĐ0–GĐ4, GĐ6, GĐ7 và các đợt tự chạy 1–9 (D/V của bộ kỹ năng 3 vai, âm thanh cùng cảm xúc, tư liệu gameplay
+> FF). Đang làm: sửa lỗi do rà soát tìm ra, GĐ5 (Tầng A Director), app web `devsys/`. Sau đó: **một dự án thử mới, rẻ** (trần $10, mọi
+> tính năng bật trừ `layout_to_model`, `chain_previous_auto`, `setcheck_autofix`); các dự án cũ #1–#7 **cất đi** (📦 ⚙ → "Dự án đã cất",
+> không xóa dữ liệu). Các mục "Cập nhật" dưới đây và Giai đoạn V0/V1 được giữ làm lịch sử (**đã thay bởi** các kế hoạch sau, mới nhất V4).
 
 > **Cập nhật 2026-09-25 (tối) — Kế hoạch V4 (bản mới nhất, thay thứ tự việc của các kế hoạch trước):** `docs/KE_HOACH_V4_2026-09-25.md`. Thứ tự: **GĐ0** dọn tài liệu → **GĐ1 rà soát + hoàn thiện** các việc còn dở (Tầng A Director, Editor đặt chữ tránh mặt, W2/W8/W10/O6/M3/M14/M16/M18/M19, T1 hồ sơ mọi nhân vật, K1/K2 khung cuối, nối `recover_clips` + `music_timing`) và độ bền/giới hạn (giới hạn riêng từng nhà cung cấp, khóa trần tiền, hàng đợi Blender) → **GĐ2** gói bối cảnh (nền 3D/ảnh trong game + ghép + thời tiết + kiểm độ giống nền) → **GĐ3** khớp môi toàn video → **GĐ4** bộ kỹ năng 3 vai + chấm điểm độc lập, hồ sơ rút gọn → **GĐ5** Tầng A → **GĐ6** dashboard gọn + tab "Giới hạn hệ thống" → **GĐ7** test toàn bộ → **GĐ8** kiểm chứng nhỏ trong trần #7 → **GĐ9** báo "sẵn sàng", người dùng chạy trọn #6 trên dashboard. Lộ trình V0/V1 bên dưới là lịch sử (V0/MCP đã tạm gác từ 2026-09-19). **Tiến độ thật: `TODO.md` (nơi duy nhất ghi tiến độ).**
 
@@ -390,7 +406,7 @@ Tổng hợp từ: báo cáo rà soát `docs/DASHBOARD_REVIEW_2026-09-23.md`, k�
 
 > **Cập nhật 2026-09-24 — Kế hoạch tổng (bản mới nhất, thay thế thứ tự việc cũ):** `docs/KE_HOACH_TONG_2026-09-24.md` — tổng kết đã làm, đánh giá từng phân đoạn (P0–P8), danh mục lỗi đầy đủ (~130 mã), cách dùng ClipAI (khung đầu/cuối, tham chiếu), kho tài nguyên & bối cảnh (bỏ ghép ảnh map), bản đồ 3D (Blender 5.0.1), giọng tiếng Việt, tối giản giao diện; lộ trình GĐ-A (khẩn) → GĐ-B → C → D → E0 → E → F → G → H (không tốn credit) → GĐ-I kiểm thật theo bậc (xin phép từng bậc).
 
-### Giai đoạn V0 — Thử nghiệm (Claude Desktop + MCP, ≈ 3–4 tuần)
+### Giai đoạn V0 — Thử nghiệm (Claude Desktop + MCP, ≈ 3–4 tuần) — *lịch sử: V0/MCP tạm gác từ 2026-09-19, đã thay bởi Dashboard v2 → v3 → V4*
 Mục tiêu: chứng minh pipeline end-to-end chạy được, đo chất lượng QC, hiệu chỉnh threshold, chốt Knowledge Base/prompt. Các bước cần Claude (Director Bước 1/3, QC Bước 2, Music Brief) chạy qua chat Claude Desktop với prompt template chuẩn; các thao tác còn lại gọi qua MCP tool. Dashboard V0 tối giản (xem trạng thái + duyệt ảnh) hoặc bỏ qua.
 
 **Tuần 1 — Hạ tầng & chốt quyết định mở**
@@ -411,7 +427,7 @@ Mục tiêu: chứng minh pipeline end-to-end chạy được, đo chất lượ
 - Lặp cải thiện prompt theo eval set; build blocklist IP v1 (case Wonder Woman + danh sách nhân vật dự kiến).
 - **Cổng chuyển V1:** ≥1 video hoàn chỉnh end-to-end, threshold đã hiệu chỉnh bằng dữ liệu, prompt/checklist khóa version.
 
-### Giai đoạn V1 — Hợp nhất trên 1 Dashboard (≈ +3–4 tuần, cần API key Anthropic)
+### Giai đoạn V1 — Hợp nhất trên 1 Dashboard (≈ +3–4 tuần, cần API key Anthropic) — *lịch sử: code xong, khóa Claude API có từ 2026-09-24; việc tiếp theo kế hoạch V4*
 - **Song song đầu V1:** Figma mockup chi tiết (Mục 3.4) → user duyệt trước khi build.
 - Build Dashboard theo Mục 3.4 (stepper 5 bước, control bar toàn cục, nút điều khiển từng khâu, Kanban, tab Lịch sử, cảnh báo IP, tiến độ heartbeat) gọi lớp core.
 - Thay LLM runner từ chat thủ công sang Anthropic API (cùng prompt template + schema).
@@ -419,7 +435,7 @@ Mục tiêu: chứng minh pipeline end-to-end chạy được, đo chất lượ
 - Đóng gói 1-Click Startup, runbook (xử lý job `failed` bị escalate, chỉnh threshold an toàn), Prompt Templates bàn giao.
 - **Deliverable:** hệ thống bàn giao vận hành được từ 1 giao diện duy nhất, có tài liệu.
 
-### Ước tính nỗ lực (giả định đã có đủ API key/docs/môi trường/kịch bản mẫu; dev Python có Claude Code hỗ trợ)
+### Ước tính nỗ lực (giả định đã có đủ API key/docs/môi trường/kịch bản mẫu; dev Python có Claude Code hỗ trợ) — *lịch sử (ước tính ban đầu 2026-09-19)*
 | Hạng mục | Ngày công |
 |---|---|
 | Schema + state machine + project-db | 3–4 |
@@ -447,7 +463,7 @@ Mục tiêu: chứng minh pipeline end-to-end chạy được, đo chất lượ
 
 ## 9. Trạng thái triển khai (cập nhật 2026-09-23, khuya)
 
-> **Ghi chú 2026-09-25:** mục này là ảnh chụp ngày 2026-09-23 (số test, "stepper 7 tab"… đã cũ). Trạng thái mới nhất ở `TODO.md` (📌 BÀN GIAO đầu file); hiện có **865 test** (80 file `tests/test_*.py`) (`py -m unittest discover -s tests -t .`). Kế hoạch mới nhất: `docs/KE_HOACH_V4_2026-09-25.md`.
+> **Ghi chú 2026-09-25:** mục này là ảnh chụp ngày 2026-09-23 (số test, "stepper 7 tab"… đã cũ). Trạng thái mới nhất ở `TODO.md` (📌 BÀN GIAO đầu file); ~~hiện có **865 test**~~ (số 2026-09-25) — **2026-09-26: 1056 test (1054 qua, 2 bỏ qua)**, chạy `py -m pytest -q -p no:cacheprovider` (~4–7 phút). Kế hoạch mới nhất: `docs/KE_HOACH_V4_2026-09-25.md`; trạng thái: 📌 đầu `TODO.md` và mục 7.
 
 **Adapter thật đã viết (`core/adapters/`):** Deepix (gen ảnh Seedream 5.0 Pro) và Clip AI (video Kling Omni + Seedance) theo hợp đồng API của skill chính thức; kiểm thử bằng giao thức giả (chưa gọi API thật vì token phải do bạn đặt trong biến môi trường). Kiểm tra kết nối chỉ đọc: `py -m core.adapters.check`. Chạy thử thật: `py -m core.adapters.trial --yes`. Chi phí: ước tính trước khi chạy + sổ mức dùng trong Dashboard theo bảng giá `data/pricing.json` (xem `docs/api_notes.md`).
 

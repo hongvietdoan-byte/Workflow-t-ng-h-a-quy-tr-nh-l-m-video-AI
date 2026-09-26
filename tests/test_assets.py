@@ -136,26 +136,26 @@ class ImportTests(unittest.TestCase):
         self.put("Sói.png")                                                        # loose file: the default kind
         self.put("Nhân vật", "notes.txt", data=b"not a picture")
         self.put("Nhân vật", "huge.png", data=b"0" * (assets.MAX_IMAGE_BYTES + 1))
-        res = assets.import_folder(self.conn, os.path.join(self.dir, "src"), "FF", "pet")
+        res = assets.sync_folder(self.conn, os.path.join(self.dir, "src"), "FF", "pet")
         rows = {(a["kind"], a["name"]): len(a["images"]) + len(a["pending"]) for a in assets.list_assets(self.conn, "FF")}
         self.assertEqual(rows[("character", "Lyra")], 2)
         self.assertEqual(rows[("character", "Kael")], 1)
         self.assertEqual(rows[("weapon", "Cung băng")], 2)
         self.assertEqual(rows[("location", "Rừng Elder")], 1)
         self.assertEqual(rows[("pet", "Sói")], 1)
-        self.assertEqual(res["images_skipped"], 1)                                  # the >10 MB picture
+        self.assertEqual(len(res["skipped"]), 1)                                    # the >10 MB picture
         self.assertNotIn(("character", "notes"), rows)
 
     def test_importing_again_adds_to_existing_assets_instead_of_duplicating(self):
         self.put("Lyra_front.png")
-        assets.import_folder(self.conn, os.path.join(self.dir, "src"), "FF", "character")
+        assets.sync_folder(self.conn, os.path.join(self.dir, "src"), "FF", "character")
         self.put("Lyra_side.png", data=PNG + b"side")
-        assets.import_folder(self.conn, os.path.join(self.dir, "src"), "FF", "character")
+        assets.sync_folder(self.conn, os.path.join(self.dir, "src"), "FF", "character")
         found = assets.list_assets(self.conn, "FF")
         self.assertEqual(len(found), 1)
         self.assertEqual(found[0]["name"], "Lyra")
         with self.assertRaises(AssetError):
-            assets.import_folder(self.conn, os.path.join(self.dir, "missing"), "FF")
+            assets.sync_folder(self.conn, os.path.join(self.dir, "missing"), "FF")
 
 
 class DashboardTests(unittest.TestCase):

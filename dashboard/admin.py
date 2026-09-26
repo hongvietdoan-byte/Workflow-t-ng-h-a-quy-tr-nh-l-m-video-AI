@@ -186,15 +186,6 @@ def users_tab(p: Pipeline, pid: int) -> None:
                       for r in auth.recent_audit(conn)], hide_index=True, use_container_width=True)
 
 
-def asset_thumbs(items, width: int = 80) -> None:
-    """A row of the first picture of each asset."""
-    with_pics = [a for a in items if a["images"]]
-    if with_pics:
-        cols = st.columns(min(len(with_pics), 8))
-        for col, a in zip(cols, with_pics[:8]):
-            col.image(a["images"][0]["path"], caption=a["name"], width=width)
-
-
 def _role_options(kind: str) -> dict:
     return {"": "— chưa rõ —", **assets.ROLES.get(kind, {})}
 

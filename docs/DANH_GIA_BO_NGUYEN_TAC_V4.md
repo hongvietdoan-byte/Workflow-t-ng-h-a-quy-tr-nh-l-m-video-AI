@@ -52,6 +52,11 @@ hiệu ứng khi có lý do; vùng an toàn **số chính thức** (Meta 14/35/6
   một mục tiêu −1,5 dBTP ở code và tài liệu. Toàn bộ **972 test qua**.
 
 ## 4. Còn thiếu và vì sao
+> **Cập nhật 2026-09-26 (điểm ở mục 1 là điểm lịch sử, không chấm lại):** sau GĐ4, các đợt tự chạy 1–7 đã **code xong** V2, V4, V5, V6
+> và D1, D2, D4–D14 (trừ D3 cố ý không làm) — xem bảng "Việc code còn thiếu" ở `knowledge/roles/README.md` (dòng có ✅) và mục "Việc tự
+> chạy sau GĐ4" trong `TODO.md`. Các tính năng có cờ vẫn TẮT tới khi thử thật. Còn mở thật sự: V3 (nghe thử `delivery`), V7, P1, và hai dòng
+> cuối bảng (nguồn, mẫu nhỏ). Các dòng "Chưa code" trong bảng dưới **đã thay** bởi ghi chú này.
+
 | Còn thiếu | Vì sao chưa | Việc |
 |---|---|---|
 | Kiểm gieo–gặt chỉ biết *có* gieo, không biết gieo *đúng điều* | Cần hiểu nghĩa — để Claude/người đọc | ghi nhận |

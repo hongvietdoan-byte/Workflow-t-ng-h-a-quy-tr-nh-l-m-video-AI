@@ -194,7 +194,8 @@ class AutopilotSubtitleTests(Setup):
         ctx = clips_with_dialogue(self)
         self.assertTrue(subtitles.get_settings(self.p, self.pid)["enabled"])        # a script with dialogue: on by default (v2)
         subtitles.save_settings(self.p, self.pid, {**subtitles.get_settings(self.p, self.pid), "enabled": False})
-        self.assertIsNone(autopilot.default_subtitle(self.p, self.pid, self.data, "whatever.mp4", None))
+        from core import delivery
+        self.assertIsNone(delivery.subtitle_layer(self.p, self.pid, self.data, llm=None))     # subtitles off: no layer
         autopilot.start(self.p, self.pid)
         self.assertEqual(autopilot.run_until_done(self.p, self.pid, ctx), autopilot.DONE)
         self.assertNotIn("phụ đề", autopilot.status(self.p, self.pid)["note"])

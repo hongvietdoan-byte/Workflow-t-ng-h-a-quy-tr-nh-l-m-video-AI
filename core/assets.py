@@ -394,6 +394,12 @@ def detach(conn, project_id: int, asset_id: int) -> None:
 
 
 def project_assets(conn, project_id: int) -> List[Dict]:
+    # inside a dashboard rerun (core.memo.per_rerun) computed once per database state: Bước 1/2 asked 120+ times per click
+    from .memo import cached
+    return cached(conn, ("assets.project_assets", project_id), lambda: _project_assets(conn, project_id))
+
+
+def _project_assets(conn, project_id: int) -> List[Dict]:
     rows = conn.execute("SELECT a.* FROM assets a JOIN project_assets pa ON pa.asset_id=a.id WHERE pa.project_id=?"
                         " ORDER BY a.kind, lower(a.name)", (project_id,)).fetchall()
     return [_row(conn, r) for r in rows]
@@ -432,13 +438,24 @@ def _reference_rows(conn, project_id: int) -> Dict[str, Dict]:
         "SELECT name, ref_asset_id, ref_image_id, ref_image_ids FROM characters WHERE project_id=?", (project_id,))}
 
 
+_SHAPES: Dict[tuple, tuple] = {}         # (path, mtime_ns, size) -> (w, h): Bước 2 read ~1000 picture headers per click
+
+
 def _shape(path: str):
     try:
+        st = os.stat(path)
+        key = (path, st.st_mtime_ns, st.st_size)             # a replaced file has a new time/size and is read again
+        if key in _SHAPES:
+            return _SHAPES[key]
         from PIL import Image
         with Image.open(path) as im:                         # only the header is read
-            return im.size
-    except Exception:  # noqa: BLE001
+            size = im.size
+    except Exception:  # noqa: BLE001 - unreadable: not cached, asked again next time
         return None
+    if len(_SHAPES) > 20000:
+        _SHAPES.clear()
+    _SHAPES[key] = size
+    return size
 
 
 def _is_composite_sheet(shape) -> bool:
@@ -1144,12 +1161,6 @@ def summary(rep: Dict) -> str:
             (rep["unchanged"], "không đổi"), (rep["ignored"], "bỏ qua theo từ khóa"), (rep["skipped"], "lỗi/không nhận"),
             (rep["missing"], "không còn trong thư mục"), (rep["removed"], "đã xóa")]
     return ", ".join(f"{len(v) if isinstance(v, list) else v} {label}" for v, label in bits if (len(v) if isinstance(v, list) else v))
-
-
-def import_folder(conn, folder: str, game: str, kind: str = "character", created_by: Optional[str] = None) -> Dict[str, int]:
-    """One-off import (same as a sync without remembering the folder). Kept for callers that want the short result."""
-    rep = sync_folder(conn, folder, game, kind, created_by)
-    return {"assets_created": len(rep["created"]), "images_added": rep["added"] + rep["updated"], "images_skipped": len(rep["skipped"])}
 
 
 def add_files(conn, game: str, kind: str, files: List[tuple], created_by: Optional[str] = None) -> Dict:

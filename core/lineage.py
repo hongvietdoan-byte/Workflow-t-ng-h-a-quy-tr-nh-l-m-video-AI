@@ -108,7 +108,13 @@ def stamp_motion(conn, scene_id: int) -> None:
 # ---- per-scene scan ---------------------------------------------------------------------------------------------------
 def scan(conn, project_id: int) -> Dict[int, Dict]:
     """scene_id -> {idx, image_job_id, image_stale, motion_stale, video_job_id, video_stale}; a *_stale value is None (fresh or
-    nothing to judge) or a short Vietnamese reason."""
+    nothing to judge) or a short Vietnamese reason. Inside a dashboard rerun (core.memo.per_rerun) it is computed once per
+    database state — the step bar, the step and the final-video status used to scan the whole project 3–6 times per click."""
+    from .memo import cached
+    return cached(conn, ("lineage.scan", project_id), lambda: _scan(conn, project_id))
+
+
+def _scan(conn, project_id: int) -> Dict[int, Dict]:
     aspect = _aspect(conn, project_id)
     cast_rows = conn.execute("SELECT * FROM characters WHERE project_id=?", (project_id,)).fetchall()
     scenes = conn.execute("SELECT id, idx, data FROM scenes WHERE project_id=? ORDER BY idx", (project_id,)).fetchall()
@@ -173,6 +179,11 @@ def scan(conn, project_id: int) -> Dict[int, Dict]:
 
 def summary(conn, project_id: int) -> Dict:
     """Counts per stage over scenes: done (fresh), stale, total — for the step bar and progress lines."""
+    from .memo import cached
+    return cached(conn, ("lineage.summary", project_id), lambda: _summary(conn, project_id))
+
+
+def _summary(conn, project_id: int) -> Dict:
     from .shots import needs_own_image
     scanned = scan(conn, project_id)
     rows = scanned.values()
