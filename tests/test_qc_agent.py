@@ -1,5 +1,6 @@
 """The QC agent (flag qc_agent, 2026-09-27): a multi-turn tool-use loop — it looks at frames, crops, lays details of several frames side by
 side, must record every frame before it may finish, and its verdicts wait for a person until the QC is trusted."""
+import copy
 import json
 import os
 import tempfile
@@ -18,7 +19,7 @@ class Scripted:
         self.turns, self.seen = list(turns), []
 
     def converse(self, messages, tools, system="", max_tokens=None):
-        self.seen.append(messages[-1])
+        self.seen.append(copy.deepcopy(messages[-1]))    # prune() later rewrites old turns in place
         calls = self.turns.pop(0) if self.turns else []
         blocks = [{"type": "tool_use", "id": f"t{len(self.seen)}_{i}", "name": n, "input": inp} for i, (n, inp) in enumerate(calls)]
         return llm_runner.LlmReply("", 100, 20, "tool_use", blocks=blocks or [{"type": "text", "text": "…"}])

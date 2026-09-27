@@ -266,7 +266,7 @@ class QcAgent:
                                      cols=min(6, len(self.frames)), cell=(256, 455))
         messages = [{"role": "user", "content": [{"type": "text", "text": self._brief()}, {"type": "text", "text": "Tấm tổng quan các khung:"},
                                                  self._img(overview)]}]
-        messages[0]["content"][0]["cache_control"] = {"type": "ephemeral"}   # the brief (playbook, lock, table) is read every turn
+        messages[0]["content"][-1]["cache_control"] = {"type": "ephemeral"}   # brief + overview are resent every turn: cache them
         with tagged("qc_agent", self.pid):
             while self.summary is None and self.steps < MAX_STEPS:
                 prune(messages)
