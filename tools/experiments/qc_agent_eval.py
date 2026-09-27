@@ -72,10 +72,11 @@ def main():
     out = {}
     path = os.path.join(data_dir, str(a.project), "qc_scene", "agent_eval.json")
     os.makedirs(os.path.dirname(path), exist_ok=True)
-    print(f"trần cứng cả lần chạy: ${a.max_usd:.2f} · mỗi cảnh: ${qc_agent.SCENE_CAP_USD:.2f}", flush=True)
+    print(f"trần cứng cả lần chạy: ${a.max_usd:.2f} · mỗi cảnh: " + ", ".join(
+        f"cảnh {s} ${qc_agent.scene_cap(len(by_scene[s])):.2f}" for s in scenes), flush=True)
     with llm_runner.spend_cap(a.max_usd, "nghiệm thu agent QC") as total:
         for s in scenes:
-            if total["spent"] + total["last"] > a.max_usd:
+            if total["spent"] + qc_agent.scene_cap(len(by_scene[s])) > a.max_usd:   # a whole scene must fit, not the last turn
                 print(f"dừng trước cảnh {s}: chạm trần cả lần chạy (${total['spent']:.3f})", flush=True)
                 break
             res = qc_agent.QcAgent(p, a.project, data_dir, client, by_scene[s], s,
@@ -95,6 +96,10 @@ def main():
 
 def _score(s, frames, res, caught, missed, false_block):
     for f, r in zip(frames, res["records"]):
+        unseen = any((i.get("type") == "chưa soi") for i in r.get("issues") or [])
+        if unseen:                                     # stopped by a lock before looking: neither caught nor missed (review 28/09)
+            missed.append(f"cảnh {s} shot {f['data'].get('shot_no')} (nhãn {f['label_verdict']}) → CHƯA SOI (dừng: {res.get('stopped')})")
+            continue
         flagged = r["verdict"] in ("block", "doubt")
         tag = f"cảnh {s} shot {f['data'].get('shot_no')} (nhãn {f['label_verdict']}) → {r['verdict']}"
         if f["label_verdict"] == "chặn":

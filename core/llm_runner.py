@@ -113,21 +113,30 @@ def current_tag() -> Tuple[str, Optional[int]]:
 
 
 # ---- hard spending locks (trial #8 2026-09-28: the QC agent spent ~2 USD on 1.5 scenes — estimate was 0.3-0.8 — and emptied the
-# Claude cap; nothing capped one task). Three locks, checked BEFORE each paid call, none of them can be raised by the model:
-#   1. one call   : its worst case (all input uncached + the full max_tokens answer) over MAX_CALL_USD -> refused
-#   2. one task   : spend_cap(usd, what) around a task (a QC agent scene, an evaluation run) -> the next call is refused when the money
-#                   spent in the block + the next call (the last call's cost; the worst case for the first) would pass the cap
-#   3. the project: the Claude cap of core.budget, also with the next call's worst case added (the cap is never crossed, not just hit)
-MAX_CALL_USD = 1.0
-IMAGE_TOKENS_MAX = 1600       # an image block costs at most ~1600 input tokens (<= 1.15 MP after fitting)
+# Claude cap; nothing capped one task). Checked BEFORE each paid call; none of them can be raised by the model:
+#   1. one call   : its worst case (every input token paid as a cache write, the whole max_tokens answer) over MAX_CALL_USD -> refused
+#   2. one task   : spend_cap(usd, what) -> refused when spent + the next call's expected cost x TASK_MARGIN would pass the cap. The
+#                   expected cost counts the prefix already sent as a cache read and the new part as a cache write, plus the whole
+#                   max_tokens answer, never less than the last call. A cache miss can make one call dearer than expected: the cap can
+#                   be passed by at most that one call's difference (the next estimate then starts from that dearer call).
+#   3. the project: the Claude cap of core.budget with the WORST case of this call AND of every call in flight in this process
+#                   (threads) added — the project cap is never crossed. Other processes (dashboard + a tool at once) are not seen.
+# A network error / timeout (the provider may have billed a call we never saw) counts the call's worst case on locks 2 (review
+# 2026-09-28: before, a timeout went round every lock and the agent lost its records).
+MAX_CALL_USD = float(os.environ.get("CLAUDE_MAX_CALL_USD") or 1.0)
+TASK_MARGIN = 1.25
+CHARS_PER_TOKEN = 1.5         # measured on the agent brief 28/09: Vietnamese ~1.9 characters a token — 1.5 stays above it
+TOOL_USE_TOKENS = 400         # the tool-use system part the API adds when tools are sent
 _CAPS = threading.local()
+_INFLIGHT = {"usd": 0.0}
+_INFLIGHT_LOCK = threading.Lock()
 
 
 @contextlib.contextmanager
 def spend_cap(usd: float, what: str):
     """Lock 2: Claude calls inside this block (this thread) may not spend more than `usd` in total."""
     stack = list(getattr(_CAPS, "stack", None) or [])
-    entry = {"cap": float(usd), "spent": 0.0, "last": 0.0, "calls": 0, "what": what}
+    entry = {"cap": float(usd), "spent": 0.0, "last": 0.0, "calls": 0, "what": what, "prev_tokens": 0}
     _CAPS.stack = stack + [entry]
     try:
         yield entry
@@ -146,46 +155,82 @@ def reply_usd(model: str, reply: "LlmReply") -> float:
                                                 ("web_search", reply.web_searches)) if n)
 
 
-def worst_usd(model: str, payload: Dict) -> float:
-    """Upper bound of one call: every input token uncached (text ~2.5 characters a token, images at their maximum) + the whole answer."""
-    count = {"chars": 0, "images": 0}
+def _image_tokens(block: Dict) -> int:
+    try:
+        from PIL import Image
+        w, h = Image.open(io.BytesIO(base64.b64decode(block["source"]["data"]))).size
+        return max(100, int(w * h / 750) + 1)
+    except Exception:  # noqa: BLE001 - unreadable here: count the largest picture the API takes
+        return 1600
 
-    def walk(x):
+
+def input_tokens(payload: Dict) -> int:
+    """Upper count of the input tokens of a request: the whole JSON of system / messages / tools (keys included, picture data left
+    out) at CHARS_PER_TOKEN, the pictures from their size, the tool-use part."""
+    images = []
+
+    def strip(x):
         if isinstance(x, dict):
             if x.get("type") == "image":
-                count["images"] += 1
-                return
-            for k, v in x.items():
-                if k != "cache_control":
-                    walk(v)
-        elif isinstance(x, list):
-            for v in x:
-                walk(v)
-        elif isinstance(x, str):
-            count["chars"] += len(x)
-    walk({k: v for k, v in payload.items() if k in ("system", "messages", "tools")})
-    return (_price(model, "input", count["chars"] / 2.5 + count["images"] * IMAGE_TOKENS_MAX)
-            + _price(model, "output", int(payload.get("max_tokens") or 0)))
+                images.append(x)
+                return {"type": "image"}
+            return {k: strip(v) for k, v in x.items() if k != "cache_control"}
+        if isinstance(x, list):
+            return [strip(v) for v in x]
+        return x
+    text = json.dumps(strip({k: v for k, v in payload.items() if k in ("system", "messages", "tools")}), ensure_ascii=False)
+    return int(len(text) / CHARS_PER_TOKEN) + sum(_image_tokens(b) for b in images) + (TOOL_USE_TOKENS if payload.get("tools") else 0)
+
+
+def worst_usd(model: str, payload: Dict) -> float:
+    """Upper bound of one call: every input token paid as a cache write (dearer than plain input) + the whole max_tokens answer."""
+    n = input_tokens(payload)
+    inp = max(_price(model, "cache_write", n), _price(model, "input", n) * 1.25)
+    return inp + _price(model, "output", int(payload.get("max_tokens") or 0))
+
+
+def expected_usd(model: str, payload: Dict, prev_tokens: int) -> float:
+    """The next call of a conversation that grows (the agent): the part sent before read from the cache, the new part written."""
+    n = input_tokens(payload)
+    out = _price(model, "output", int(payload.get("max_tokens") or 0))
+    if not prev_tokens or n < prev_tokens:           # first call, or the conversation was pruned: nothing cached
+        return worst_usd(model, payload)
+    cached, new = prev_tokens, n - prev_tokens
+    return (_price(model, "cache_read", cached) + max(_price(model, "cache_write", new), _price(model, "input", new) * 1.25) + out)
 
 
 def _check_caps(model: str, payload: Dict) -> Optional[str]:
     worst = worst_usd(model, payload)
     if worst > MAX_CALL_USD:
-        return f"một lời gọi Claude có thể tốn tới ≈ ${worst:.2f} > khóa ${MAX_CALL_USD:.2f}/lời gọi — không gửi"
+        return (f"một lời gọi Claude có thể tốn tới ≈ ${worst:.2f} > khóa ${MAX_CALL_USD:.2f}/lời gọi — không gửi (hạ max_tokens của "
+                "khâu này, hoặc người dùng nâng CLAUDE_MAX_CALL_USD)")
+    n = input_tokens(payload)
     for e in getattr(_CAPS, "stack", None) or []:
-        nxt = e["last"] if e["calls"] else worst
+        nxt = max(e["last"], expected_usd(model, payload, e["prev_tokens"])) * TASK_MARGIN
         if e["spent"] + nxt > e["cap"] + 1e-9:
             return (f"chạm trần '{e['what']}': đã dùng ≈ ${e['spent']:.3f}, lượt kế ≈ ${nxt:.3f}, trần ${e['cap']:.2f} — dừng "
                     "(khóa cứng, không tự nâng)")
+        e["_next_tokens"] = n
     return None
 
 
-def _count_caps(model: str, reply: "LlmReply") -> None:
-    usd = reply_usd(model, reply)
+def _count_caps(usd: float) -> None:
     for e in getattr(_CAPS, "stack", None) or []:
         e["spent"] += usd
-        e["last"] = usd
+        e["last"] = max(usd, e["last"] * 0.5)
         e["calls"] += 1
+        e["prev_tokens"] = e.pop("_next_tokens", e["prev_tokens"])
+
+
+def _reserve(usd: float) -> float:
+    with _INFLIGHT_LOCK:
+        _INFLIGHT["usd"] += usd
+    return usd
+
+
+def _release(usd: float) -> None:
+    with _INFLIGHT_LOCK:
+        _INFLIGHT["usd"] = max(0.0, _INFLIGHT["usd"] - usd)
 
 
 def _media_type(content: bytes) -> str:
@@ -295,21 +340,11 @@ class AnthropicClient:
         body = json.dumps(payload).encode("utf-8")
         headers = {"x-api-key": self._key, "anthropic-version": API_VERSION, "content-type": "application/json",
                    "User-Agent": "AIVideoPipeline-LLM/0.1"}
-        self._check_budget(payload)
-        last: Optional[LlmError] = None
-        for attempt in range(self.retries + 1):
-            try:
-                reply = self._parse(self.transport("POST", self.base + "/v1/messages", headers, body, REQUEST_TIMEOUT))
-                self._record(reply)
-                if reply.stop_reason == "max_tokens":
-                    raise LlmError("câu trả lời bị cắt (max_tokens) giữa lượt agent", code="truncated")
-                return reply
-            except LlmError as e:
-                last = e
-                if not e.transient or attempt == self.retries:
-                    raise
-                self._sleep(2 ** attempt * 2)
-        raise last  # pragma: no cover
+        held = self._check_budget(payload)
+        try:
+            return self._send(headers, body, payload, check=lambda r: None)   # a cut answer comes back: the agent says "fewer tools"
+        finally:
+            _release(held)
 
     @staticmethod
     def image_block(path: str, edge: Optional[int] = None) -> Dict:
@@ -339,18 +374,37 @@ class AnthropicClient:
         body = json.dumps(payload).encode("utf-8")
         headers = {"x-api-key": self._key, "anthropic-version": API_VERSION, "content-type": "application/json",
                    "User-Agent": "AIVideoPipeline-LLM/0.1"}
-        self._check_budget(payload)
+        held = self._check_budget(payload)
+        try:
+            return self._send(headers, body, payload, check=self._check_stop)
+        finally:
+            _release(held)
+
+    def _send(self, headers, body, payload, check) -> LlmReply:
+        """POST with retries. A network error / timeout is a transient LlmError (it was a ProviderError that went round the retries,
+        the locks and the agent's error handling — review 2026-09-28) and counts the call's worst case on the task locks: the provider
+        may have billed it."""
+        from .adapters.http import ProviderError
         last: Optional[LlmError] = None
         for attempt in range(self.retries + 1):
             try:
-                reply = self._parse(self.transport("POST", self.base + "/v1/messages", headers, body, REQUEST_TIMEOUT))
+                try:
+                    resp = self.transport("POST", self.base + "/v1/messages", headers, body, REQUEST_TIMEOUT)
+                except ProviderError as e:
+                    _count_caps(worst_usd(self.model, payload))
+                    raise LlmError(f"lỗi mạng khi gọi Claude: {e}", code="network", transient=True) from None
+                reply = self._parse(resp)
                 self._record(reply)
-                self._check_stop(reply)
+                check(reply)
                 return reply
             except LlmError as e:
                 last = e
                 if not e.transient or attempt == self.retries:
                     raise
+                if attempt < self.retries and payload is not None:
+                    reason = _check_caps(self.model, payload)         # a retry is a new paid call: the locks again
+                    if reason:
+                        raise LlmError(reason, code="budget") from None
                 self._sleep(2 ** attempt * 2)
         raise last  # pragma: no cover
 
@@ -360,14 +414,14 @@ class AnthropicClient:
         conn.row_factory = sqlite3.Row
         return conn
 
-    def _check_budget(self, payload: Optional[Dict] = None) -> None:
-        """Refuse before paying: locks 1-2 (one call, one task — see spend_cap), then lock 3, the Claude cap of core.budget with this
-        call's worst case added (core.budget.check_llm)."""
+    def _check_budget(self, payload: Optional[Dict] = None) -> float:
+        """Refuse before paying: locks 1-2 (one call, one task — see spend_cap), then lock 3, the Claude cap of core.budget with the
+        worst case of this call and of the calls in flight (core.budget.check_llm). Returns the money held for this call (release it)."""
         reason = _check_caps(self.model, payload) if payload is not None else None
         if reason:
             raise LlmError(reason, code="budget")
         if not self.ledger:
-            return
+            return 0.0
         from . import budget, cost
         if self.unrecorded:
             raise LlmError(f"{self.unrecorded} lời gọi Claude đã trả tiền nhưng không ghi được vào sổ chi — kiểm tra CSDL rồi mở lại "
@@ -375,20 +429,26 @@ class AnthropicClient:
         if budget.token_price(cost.load_pricing(), self.model, "input", 1) is None:
             raise LlmError(f"model Claude '{self.model}' chưa có giá trong data/pricing.json (per_million_tokens) — thêm giá trước "
                            "khi dùng, nếu không sổ chi tính $0 và trần không chặn", code="budget")
+        mine = 0.0
         try:
             conn = self._ledger_conn()
             try:
-                reason = budget.check_llm(conn, worst_usd(self.model, payload) if payload is not None else 0.0)
+                with _INFLIGHT_LOCK:                     # check and hold in one step: parallel calls cannot all pass
+                    mine = worst_usd(self.model, payload) if payload is not None else 0.0
+                    reason = budget.check_llm(conn, mine + _INFLIGHT["usd"])
+                    if not reason:
+                        _INFLIGHT["usd"] += mine
             finally:
                 conn.close()
         except Exception as e:  # noqa: BLE001 - unknown spend means no call (a cap that cannot be read does not protect)
             reason = f"không đọc được sổ chi để kiểm trần Claude ({type(e).__name__}: {e})"
         if reason:
             raise LlmError(reason, code="budget")
+        return mine
 
     def _record(self, reply: LlmReply) -> None:
         """Tokens of one call into usage_events (kind 'llm', tier input/output) — priced by core.budget; counted on the task locks."""
-        _count_caps(self.model, reply)
+        _count_caps(reply_usd(self.model, reply))
         if not self.ledger:
             return
         from .cost import record_usage

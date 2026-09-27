@@ -96,7 +96,7 @@ class AgentTests(unittest.TestCase):
         msgs += [{"role": "assistant", "content": [{"type": "text", "text": "c"}]}, {"role": "user", "content": [{"type": "text", "text": "d"}]}]
         qc_agent.mark_cache(msgs)
         marked = [i for i, m in enumerate(msgs) for b in m["content"] if "cache_control" in b]
-        self.assertEqual(marked, [0, 4])                                       # the brief + the newest message (≤ 4 breakpoints)
+        self.assertEqual(marked, [0, 2, 4])                                    # the brief + the two newest user messages (≤ 4 with system)
 
     def test_at_the_scene_lock_it_stops_and_keeps_what_it_recorded(self):
         """28/09: the lock raised inside the loop lost everything the agent had recorded for scene 2."""
@@ -117,7 +117,7 @@ class AgentTests(unittest.TestCase):
     def test_the_brief_carries_the_limits_and_the_real_place(self):
         agent = qc_agent.QcAgent(self.p, self.pid, self.data, None, self.frames)
         brief = agent._brief()
-        self.assertIn(f"${qc_agent.SCENE_CAP_USD:.2f}", brief)
+        self.assertIn(f"${qc_agent.scene_cap(len(self.frames)):.2f}", brief)
         self.assertIn("BÊN THÂN NGƯỜI", brief)                               # the playbook's body-side rule (A1, 28/09)
         self.assertIn("G1", brief)
 
@@ -135,6 +135,80 @@ class AgentTests(unittest.TestCase):
         with mock.patch("core.assets.standard_for", return_value=prof):
             plan = qc_agent.inspection_plan(self.p.conn, self.pid, frames)
         self.assertTrue(any("KENTA" in x and "[1, 2]" in x for x in plan))
+
+    def test_the_plan_never_hands_the_agent_a_cut_left_right_sentence(self):
+        """Review 28/09: a regex cut dropped "Seen from behind" and gave a rule wrong for the facing frames."""
+        from unittest import mock
+        prof = {"approved": True, "view_notes": {"facing_camera": "Facing the camera, the red tab on his LEFT sleeve is on the frame-right "
+                                                                  "side of HIS OWN BODY", "from_behind": "Seen from behind, the red tab on "
+                                                                  "his LEFT sleeve is on the frame-left side of HIS OWN BODY"}}
+        frames = [{"k": 1, "data": {"characters": ["MAXIM"]}}, {"k": 2, "data": {"characters": ["MAXIM"]}}]
+        with mock.patch("core.assets.standard_for", return_value=prof):
+            plan = " ".join(qc_agent.inspection_plan(self.p.conn, self.pid, frames))
+        self.assertNotIn("red tab", plan)                                     # the rule stays whole in the view notes section
+        self.assertIn("BÊN THÂN", plan)
+
+    def test_a_network_error_keeps_what_was_recorded(self):
+        """Review 28/09: a timeout was a ProviderError, not an LlmError — it went round the agent's handling and lost the records."""
+        from core.adapters.http import ProviderError
+
+        class Flaky(Scripted):
+            def converse(inner, messages, tools, system="", max_tokens=None):
+                if len(inner.seen) >= 1:
+                    raise ProviderError("network error: timed out", code="network", transient=True)
+                return super().converse(messages, tools, system, max_tokens)
+        c = Flaky([[self.record(1)]])
+        res = qc_agent.QcAgent(self.p, self.pid, self.data, c, self.frames).run()
+        self.assertEqual(res["records"][0]["verdict"], "pass")
+        self.assertIn("dừng", res["stopped"])
+        self.assertFalse(res["blocked"])
+
+    def test_a_cut_answer_asks_for_fewer_tools_and_goes_on(self):
+        class Cut(Scripted):
+            def converse(inner, messages, tools, system="", max_tokens=None):
+                r = super().converse(messages, tools, system, max_tokens)
+                if len(inner.seen) == 1:
+                    r.stop_reason = "max_tokens"
+                return r
+        turns = [[("view_frame", {"k": 1})]] + [[self.record(k) for k in range(1, self.n + 1)]] + [[("finish", {"summary": "xong"})]]
+        c = Cut(turns)
+        res = qc_agent.QcAgent(self.p, self.pid, self.data, c, self.frames).run()
+        self.assertEqual(res["summary"]["summary"], "xong")
+        self.assertIn("ÍT công cụ", json.dumps(c.seen[1], ensure_ascii=False))
+        self.assertEqual(res["stopped"], "")
+
+    def test_with_a_focus_only_the_new_frames_must_be_recorded_but_all_are_seen(self):
+        focus = [self.frames[-1]["job_id"]]
+        k_last = len(self.frames)
+        c = Scripted([[self.record(1)], [self.record(k_last)], [("finish", {"summary": "xong"})]])
+        agent = qc_agent.QcAgent(self.p, self.pid, self.data, c, self.frames, focus=focus)
+        res = agent.run()
+        self.assertEqual([r["job"] for r in res["records"]], focus)             # K1 (reference) was refused, the new frame recorded
+        self.assertIn("tham khảo", agent._brief())
+
+    def test_a_block_needs_a_cause_and_an_english_fix(self):
+        agent = qc_agent.QcAgent(self.p, self.pid, self.data, None, self.frames)
+        issue = [{"type": "a", "description": "b", "evidence": "c", "severity": "block"}]
+        out = agent.tool("record", {"k": 1, "verdict": "block", "issues": issue, "root_cause": "none", "fix_en": "Draw five fingers."})
+        self.assertIn("root_cause", out[0]["text"])
+        out = agent.tool("record", {"k": 1, "verdict": "block", "issues": issue, "root_cause": "model", "fix_en": "Vẽ lại bàn tay năm ngón."})
+        self.assertIn("tiếng Anh", out[0]["text"])
+        self.assertNotIn(1, agent.records)
+
+    def test_an_approved_frame_the_agent_blocks_is_said(self):
+        j = self.frames[0]["job_id"]
+        self.p.conn.execute("UPDATE jobs SET state='approved' WHERE id=?", (j,))
+        self.p.conn.commit()
+        c = Scripted([[self.record(1, "block", "The left hand has exactly five fingers.")] + [self.record(k) for k in range(2, self.n + 1)],
+                      [("finish", {"summary": "xong"})]])
+        qc_agent.review_scene(self.p, self.pid, self.scene, c, self.data, self.frames)
+        self.assertTrue(self.p.conn.execute("SELECT 1 FROM diag_events WHERE code='qc_agent_approved_flag'").fetchone())
+        self.assertEqual(self.p.job(j)["state"], "approved")                    # not changed by an untrusted QC — said instead
+
+    def test_a_client_without_tool_use_is_refused_clearly(self):
+        with self.assertRaises(llm_runner.LlmError) as e:
+            qc_agent.QcAgent(self.p, self.pid, self.data, llm_runner.MockLlm(), self.frames).run()
+        self.assertEqual(e.exception.code, "config")
 
 
 if __name__ == "__main__":

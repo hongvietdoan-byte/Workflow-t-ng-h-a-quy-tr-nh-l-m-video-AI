@@ -314,6 +314,53 @@ class SpendLockTests(unittest.TestCase):
         self.assertIsNone(budget.check_llm(conn, 0.01))
 
 
+class SpendLockReviewTests(unittest.TestCase):
+    """Independent review 2026-09-28 of the locks: a network error went round them, the next turn was guessed from the last one, the
+    worst case under-counted Vietnamese text, parallel calls could all pass the project cap."""
+
+    def test_a_network_error_is_retried_as_transient_and_counted_on_the_task_lock(self):
+        from core.adapters.http import ProviderError
+        calls = []
+
+        def send(method, url, headers, body, timeout):
+            calls.append(1)
+            if len(calls) == 1:
+                raise ProviderError("network error: timed out", code="network", transient=True)
+            return HttpResponse(200, json.dumps({"content": [{"type": "text", "text": "ok"}], "stop_reason": "end_turn",
+                                                 "usage": {"input_tokens": 100, "output_tokens": 10}}).encode())
+        c = llm_runner.AnthropicClient("sk-test", "claude-sonnet-5", transport=send, sleep=lambda s: None)
+        with llm_runner.spend_cap(1.0, "thử") as cap:
+            c.converse([{"role": "user", "content": [{"type": "text", "text": "x"}]}], [], max_tokens=1000)
+        self.assertEqual(len(calls), 2)                                  # retried, not a crash
+        self.assertGreater(cap["spent"], 0.01)                           # the lost call counted at its worst case (1000 out = 0.01)
+
+    def test_vietnamese_text_is_not_under_counted(self):
+        text = "Sổ tay kiểm tra: xét theo bên thân người, không theo mép khung. " * 200
+        payload = {"max_tokens": 0, "messages": [{"role": "user", "content": [{"type": "text", "text": text}]}]}
+        self.assertGreaterEqual(llm_runner.input_tokens(payload), len(text) / 1.9)    # measured 28/09: ~1.9 characters a token
+
+    def test_a_growing_conversation_is_expected_cheaper_than_its_worst_case_but_a_pruned_one_is_not(self):
+        big = {"max_tokens": 4000, "messages": [{"role": "user", "content": [{"type": "text", "text": "x" * 60000}]}]}
+        prev = llm_runner.input_tokens({"messages": [{"role": "user", "content": [{"type": "text", "text": "x" * 55000}]}]})
+        self.assertLess(llm_runner.expected_usd("claude-sonnet-5", big, prev), llm_runner.worst_usd("claude-sonnet-5", big))
+        self.assertEqual(llm_runner.expected_usd("claude-sonnet-5", big, prev * 10), llm_runner.worst_usd("claude-sonnet-5", big))
+
+    def test_calls_in_flight_count_on_the_project_cap(self):
+        from core import budget
+        db = os.path.join(tempfile.mkdtemp(), "m.sqlite")
+        conn = connect(db)
+        budget.save(conn, enabled=True, llm_usd=0.10)
+        c = llm_runner.AnthropicClient("sk-test", "claude-sonnet-5", transport=lambda *a: None, sleep=lambda s: None, ledger=db)
+        payload = {"max_tokens": 6000, "messages": [{"role": "user", "content": [{"type": "text", "text": "x"}]}]}   # worst ≈ 0.06
+        held = c._check_budget(payload)                                  # a first call in flight holds its worst case
+        try:
+            with self.assertRaises(llm_runner.LlmError):                # 0.06 held + 0.06 > 0.10: the second waits for money
+                c._check_budget(payload)
+        finally:
+            llm_runner._release(held)
+        llm_runner._release(c._check_budget(payload))                   # released: it passes again
+
+
 class SourcesTests(unittest.TestCase):
     """Rà soát 2026-09-27: which skill files a Claude call really carried is written with its tokens (llm_calls.sources)."""
 

@@ -9,9 +9,10 @@ chuyển thành bộ đo code (lớp 0).
 - Dấu hiệu: trang bị / hình xăm / huy hiệu / vết thương của một bên (vd. găng giáp + huy hiệu vai TRÁI của Kenta) hiện ở bên sai khi nhân
   vật quay lưng hoặc quay nghiêng.
 - Cách soi: từ hồ sơ nhân vật lấy các chi tiết có chữ LEFT/RIGHT; ghép DẢI cùng vùng (vai, tay) của mọi khung có nhân vật đó, TÁCH khung
-  quay trước và quay sau. **Xét theo BÊN THÂN NGƯỜI, không theo mép khung:** quay mặt vào máy → tay trái của nhân vật là tay nằm phía
-  PHẢI của chính thân người đó (trên ảnh); quay lưng → tay trái là tay nằm phía TRÁI của chính thân người đó — dù người đứng ở nửa nào
-  của khung (#8 28/09: nhãn lượt 1 chặn oan S1·2, S1·3 vì xét "tay ở mép phải khung", thật ra Kenta đứng nửa phải, quay lưng, tay mang
+  quay trước và quay sau. **Xét theo BÊN THÂN NGƯỜI, không theo mép khung** (trái/phải dưới đây là theo NGƯỜI XEM ẢNH, so với đường
+  giữa thân nhân vật): quay mặt vào máy → tay trái của nhân vật nằm ở nửa ảnh bên PHẢI của đường giữa thân; quay lưng → nằm ở nửa ảnh
+  bên TRÁI của đường giữa thân — dù người đứng ở nửa nào của khung. Quay nghiêng / 3/4 / qua vai: nhân vật nhìn về phía trái-khung thì
+  bên TRÁI thân (của nhân vật) quay về phía máy, nhìn về phải-khung thì bên PHẢI thân quay về phía máy (#8 28/09: nhãn lượt 1 chặn oan S1·2, S1·3 vì xét "tay ở mép phải khung", thật ra Kenta đứng nửa phải, quay lưng, tay mang
   găng nằm phía trái thân = tay trái = ĐÚNG). Trước khi kết luận: xác định (1) quay trước hay sau (thấy mặt / thấy gáy), (2) ranh giới
   thân người, (3) cánh tay nằm phía nào của thân.
 - Sửa gốc: `view_notes` trong hồ sơ chuẩn (câu cho từng hướng nhìn). **Liệt kê MỌI chi tiết một bên**, không chỉ trang bị lớn

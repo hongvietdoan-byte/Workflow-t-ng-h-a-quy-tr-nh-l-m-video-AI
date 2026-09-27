@@ -20,11 +20,20 @@ from . import features
 
 FEATURE = "qc_agent"
 MAX_STEPS = 24            # tool turns per scene (#8 2026-09-28: 19 turns for a 4-frame scene)
-SCENE_CAP_USD = 0.25      # HARD lock per scene (llm_runner.spend_cap): #8 2026-09-28 one scene + half cost ~2 USD with no lock —
-                          # at the cap the agent stops, the frames it has not recorded wait for a person as "doubt"
+SCENE_CAP_BASE_USD = 0.10  # HARD lock per scene (llm_runner.spend_cap) = base + per frame to record, at most SCENE_CAP_MAX_USD:
+SCENE_CAP_PER_FRAME_USD = 0.04   # #8 2026-09-28 one scene + half cost ~2 USD with no lock. At the cap the agent stops; the frames it
+SCENE_CAP_MAX_USD = 0.50         # has not recorded wait for a person as "doubt" (a trade-off: fewer looks, never more money)
+SCENE_CAP_USD = SCENE_CAP_BASE_USD + 4 * SCENE_CAP_PER_FRAME_USD     # a 4-frame scene (shown in docs / the estimate)
+ANSWER_TOKENS = 6000      # one turn's answer (a real turn wrote 3,209 tokens); a cut answer → "fewer tools per turn", not a stop
+MAX_CUT_TURNS = 2
+
+
+def scene_cap(n_frames: int) -> float:
+    return min(SCENE_CAP_MAX_USD, SCENE_CAP_BASE_USD + SCENE_CAP_PER_FRAME_USD * max(1, n_frames))
 VIEW_EDGE = 1024
 ZOOM_EDGE = 1024
 VERDICTS = ("pass", "minor", "block", "doubt")
+_VI = re.compile(r"[ăâđêôơưàáạảãằắặẳẵầấậẩẫèéẹẻẽềếệểễìíịỉĩòóọỏõồốộổỗờớợởỡùúụủũừứựửữỳýỵỷỹ]", re.I)
 CAUSES = ("prompt", "reference", "model", "plan", "none")
 
 TOOLS = [
@@ -119,15 +128,19 @@ def inspection_plan(conn, pid: int, frames: List[Dict]) -> List[str]:
     for n in names:
         rules = assets.standard_for(conn, pid, n) or {}
         text = f"{rules.get('must_keep') or ''} {json.dumps(rules.get('view_notes') or {}, ensure_ascii=False)}"
-        sided = re.findall(r"[^,;.]*\b(LEFT|RIGHT|left|right)\b[^,;.]*", text)
         ks = [f["k"] for f in frames if n in (f["data"].get("characters") or [])]
-        if len(ks) < 2:
+        if not ks:
             continue
-        if rules.get("view_notes") or re.search(r"\b(LEFT|RIGHT)\b", text):
-            plan.append(f"{n}: ghép dải các chi tiết một bên / phụ thuộc hướng nhìn qua các khung {ks}, tách khung quay trước và quay sau "
-                        f"(hồ sơ: {'; '.join(s.strip() for s in re.findall(r'[^,;.]*(?:LEFT|RIGHT)[^,;.]*', text))[:300] or 'xem view_notes'})")
+        if rules.get("view_notes") or re.search(r"\b(left|right)\b", text, re.I):
+            # review 2026-09-28: a regex cut of the view notes dropped "Seen from behind" and handed the agent a sentence that is
+            # wrong for the facing frames — the plan only says HOW to look; the rule itself stays whole in "Ghi chú theo hướng nhìn"
+            plan.append(f"{n}: với MỖI khung {ks} — xác định quay mặt vào máy hay quay lưng (thấy mặt / thấy gáy), vạch đường giữa thân "
+                        f"người, rồi áp NGUYÊN VĂN view_notes.facing_camera hoặc .from_behind (mục 'Ghi chú theo hướng nhìn') theo BÊN THÂN "
+                        f"NGƯỜI, không theo mép khung; ghép dải cùng vùng (vai, tay) qua các khung để so")
         if re.search(r"backwards|ngược", text, re.I):
             plan.append(f"{n}: ghép dải vùng đầu qua các khung {ks} — phụ kiện đội ngược phải giữ chiều ở mọi hướng máy")
+        if len(ks) < 2:
+            plan = [x for x in plan if not x.startswith(f"{n}: ghép dải vùng đầu")]
     return plan
 
 
@@ -169,17 +182,21 @@ def prune(messages: List[Dict]) -> bool:
 
 
 def mark_cache(messages: List[Dict]) -> None:
-    """A rolling cache breakpoint on the newest message: next turn the whole conversation so far is read from the cache (0.1x the price)
-    instead of paid again as fresh input. The first message keeps its own breakpoint (brief + overview); the system prompt has one."""
+    """Rolling cache breakpoints on the two newest user messages: next turn the conversation so far is read from the cache (0.1x the
+    price) instead of paid again as fresh input. Two, not one: the provider looks back only ~20 content blocks from a breakpoint, and a
+    turn with many tool calls has more (review 2026-09-28). With the system prompt and the first message: 4, the API's maximum."""
     for m in messages[1:]:
         for b in m["content"] if isinstance(m["content"], list) else []:
             b.pop("cache_control", None)
-    last = messages[-1]
-    if len(messages) > 1 and isinstance(last["content"], list) and last["content"]:
-        last["content"][-1]["cache_control"] = {"type": "ephemeral"}
+    users = [m for m in messages[1:] if m["role"] == "user" and isinstance(m["content"], list) and m["content"]]
+    for m in users[-2:]:
+        m["content"][-1]["cache_control"] = {"type": "ephemeral"}
 
 class QcAgent:
-    def __init__(self, p, pid: int, data_dir: str, client, frames: List[Dict], story_scene=None, work_dir: Optional[str] = None):
+    def __init__(self, p, pid: int, data_dir: str, client, frames: List[Dict], story_scene=None, work_dir: Optional[str] = None,
+                 focus: Optional[List[int]] = None):
+        """frames: the whole scene (context: overview, shot table, strips); focus: the job ids that must be recorded (after a redraw, the
+        new frames and their neighbours) — None = every frame (review 2026-09-28: a subset alone lost the context and the K numbers)."""
         from . import qc_scene
         self.p, self.pid, self.data_dir, self.client = p, pid, data_dir, client
         self.frames = [dict(f, k=k, label=f.get("label") or f"S{f['data'].get('story_scene')}·{f['data'].get('shot_no')} {f['data'].get('size') or ''}")
@@ -188,10 +205,17 @@ class QcAgent:
         self.story = story_scene if story_scene is not None else frames[0]["data"].get("story_scene")
         self.work = work_dir or os.path.join(qc_scene._store(data_dir, pid), f"agent_scene_{self.story}")
         os.makedirs(self.work, exist_ok=True)
+        self.focus = set(focus) if focus else set()
         self.records: Dict[int, Dict] = {}
         self.summary = None
         self.steps = 0
         self._n = 0
+
+    def _must(self) -> List[Dict]:
+        return [f for f in self.frames if not self.focus or f["job_id"] in self.focus]
+
+    def _left(self) -> List[int]:
+        return [f["k"] for f in self._must() if f["k"] not in self.records]
 
     # ---- tools ------------------------------------------------------------------------------------------------------------
     def _img(self, path: str):
@@ -245,13 +269,17 @@ class QcAgent:
             issues = args.get("issues") or []
             if args["verdict"] in ("block", "minor", "doubt") and not issues:
                 return [{"type": "text", "text": "verdict khác pass phải có ít nhất một issue kèm evidence"}]
-            if args["verdict"] == "block" and args["root_cause"] != "plan" and len(str(args.get("fix_en") or "")) < 15:
-                return [{"type": "text", "text": "block cần fix_en (một câu tiếng Anh)"}]
+            if args["verdict"] == "block" and args["root_cause"] == "none":
+                return [{"type": "text", "text": "block cần root_cause (prompt / reference / model / plan)"}]
+            fix = str(args.get("fix_en") or "")
+            if args["verdict"] == "block" and args["root_cause"] != "plan" and (len(fix) < 15 or _VI.search(fix)):
+                return [{"type": "text", "text": "block cần fix_en là MỘT câu tiếng Anh (không dấu tiếng Việt)"}]
+            if self.focus and self.by_k[k]["job_id"] not in self.focus:
+                return [{"type": "text", "text": f"K{k} là khung tham khảo (đã xét trước) — chỉ ghi các khung mới: {self._left()}"}]
             self.records[k] = dict(args, shot=self.by_k[k]["label"], job=self.by_k[k]["job_id"])
-            left = [f["k"] for f in self.frames if f["k"] not in self.records]
-            return [{"type": "text", "text": f"đã ghi K{k}. Còn chưa ghi: {left}"}]
+            return [{"type": "text", "text": f"đã ghi K{k}. Còn chưa ghi: {self._left()}"}]
         if name == "finish":
-            left = [f["k"] for f in self.frames if f["k"] not in self.records]
+            left = self._left()
             if left:
                 return [{"type": "text", "text": f"chưa được kết thúc: còn khung chưa ghi {left}"}]
             self.summary = args
@@ -267,7 +295,8 @@ class QcAgent:
             for n in f["data"].get("characters") or []:
                 if str(n) not in names:
                     names.append(str(n))
-        table = [{"K": f["k"], "shot": f["label"], "size": f["data"].get("size"), "angle": f["data"].get("angle"), "time": f["data"].get("time"),
+        table = [{"K": f["k"], "ghi": "PHẢI ghi" if (not self.focus or f["job_id"] in self.focus) else "tham khảo (đã xét)",
+                  "shot": f["label"], "size": f["data"].get("size"), "angle": f["data"].get("angle"), "time": f["data"].get("time"),
                   "characters": f["data"].get("characters"), "action": (f["data"].get("action") or "")[:160],
                   "blocking": (f["data"].get("blocking") or "")[:220]} for f in self.frames]
         views = {}
@@ -283,7 +312,8 @@ class QcAgent:
             place = assets.location_text(self.p.conn, loc) if loc is not None else ""
         except Exception:  # noqa: BLE001 - the brief goes without it
             place = ""
-        limits = (f"# Giới hạn (khóa cứng, không nâng được)\nTối đa {MAX_STEPS} lượt và ${SCENE_CAP_USD:.2f} cho cảnh này. Mỗi lượt gọi NHIỀU "
+        limits = (f"# Giới hạn (khóa cứng, không nâng được)\nTối đa {MAX_STEPS} lượt và ${scene_cap(len(self._must())):.2f} cho cảnh này. "
+                  f"Phải ghi (record) các khung: {[f['k'] for f in self._must()]}. Mỗi lượt gọi NHIỀU "
                   "công cụ cùng lúc; dùng strip để soi một chi tiết của nhiều khung trong một ảnh; record ngay khi đủ bằng chứng. Hết giới "
                   "hạn thì khung chưa record thành 'doubt' cho người xem.")
         return "\n\n".join(x for x in [
@@ -305,23 +335,36 @@ class QcAgent:
                                                  self._img(overview)]}]
         messages[0]["content"][-1]["cache_control"] = {"type": "ephemeral"}   # brief + overview are resent every turn: cache them
         from .llm_runner import spend_cap
-        stopped = ""
-        with tagged("qc_agent", self.pid), spend_cap(SCENE_CAP_USD, f"agent QC cảnh {self.story}") as cap:
+        stopped, cuts = "", 0
+        self.blocked = False
+        if not hasattr(self.client, "converse"):
+            raise LlmError(f"trình gọi Claude '{getattr(self.client, 'name', '?')}' không hỗ trợ agent (cần Claude API: LLM_PROVIDER=anthropic)",
+                           code="config")
+        cap_usd = scene_cap(len(self._must()))
+        with tagged("qc_agent", self.pid), spend_cap(cap_usd, f"agent QC cảnh {self.story}") as cap:
             while self.summary is None and self.steps < MAX_STEPS:
                 prune(messages)
                 mark_cache(messages)
                 try:
-                    reply = self.client.converse(messages, TOOLS, SYSTEM, max_tokens=4000)
-                except LlmError as e:          # a lock or a provider error: stop here, keep what was recorded (#8: a crash lost scene 2)
+                    reply = self.client.converse(messages, TOOLS, SYSTEM, max_tokens=ANSWER_TOKENS)
+                except Exception as e:  # noqa: BLE001 - a lock, the network, the provider: stop here and KEEP what was recorded
                     stopped = f"dừng: {e}"
+                    self.blocked = not self.records and getattr(e, "code", None) in ("budget", "auth", "config")
                     break
                 self.steps += 1
-                blocks = reply.blocks or []
+                blocks = [b for b in (reply.blocks or []) if b.get("type") != "tool_use" or isinstance(b.get("input"), dict)]
+                if reply.stop_reason == "max_tokens" or not blocks:
+                    cuts += 1                  # a cut or empty answer is not sent back (an empty assistant turn is a 400)
+                    if cuts > MAX_CUT_TURNS:
+                        stopped = "dừng: câu trả lời bị cắt nhiều lần"
+                        break
+                    messages[-1]["content"].append({"type": "text", "text": "(Lượt trước bị cắt / rỗng — gọi ÍT công cụ hơn mỗi lượt, "
+                                                                            f"ghi ngắn. Còn chưa ghi: {self._left()})"})
+                    continue
                 messages.append({"role": "assistant", "content": blocks})
                 uses = [b for b in blocks if b.get("type") == "tool_use"]
                 if not uses:
-                    left = [f["k"] for f in self.frames if f["k"] not in self.records]
-                    messages.append({"role": "user", "content": [{"type": "text", "text": f"Tiếp tục bằng công cụ. Còn chưa ghi: {left}"}]})
+                    messages.append({"role": "user", "content": [{"type": "text", "text": f"Tiếp tục bằng công cụ. Còn chưa ghi: {self._left()}"}]})
                     continue
                 results = []
                 for u in uses:
@@ -332,38 +375,50 @@ class QcAgent:
                     results.append({"type": "tool_result", "tool_use_id": u["id"], "content": content})
                 messages.append({"role": "user", "content": results})
         if self.summary is None:
-            left = [f["k"] for f in self.frames if f["k"] not in self.records]
+            left = self._left()
             why = stopped or f"hết {MAX_STEPS} lượt"
             for k in left:                                     # out of steps / money: the unchecked frames wait for a person, said
                 self.records[k] = {"k": k, "verdict": "doubt", "issues": [{"type": "chưa soi", "description": f"agent {why} trước khi soi khung",
                                    "evidence": "-", "severity": "minor"}], "root_cause": "none", "shot": self.by_k[k]["label"],
                                    "job": self.by_k[k]["job_id"]}
             self.summary = {"summary": f"{why} — {len(left)} khung chưa soi", "new_fault_types": []}
-        out = {"scene": self.story, "steps": self.steps, "usd": round(cap["spent"], 4), "stopped": stopped,
-               "records": [self.records[f["k"]] for f in self.frames], "summary": self.summary}
+        out = {"scene": self.story, "steps": self.steps, "usd": round(cap["spent"], 4), "cap_usd": cap_usd, "stopped": stopped,
+               "blocked": self.blocked, "records": [self.records[f["k"]] for f in self._must()], "summary": self.summary}
         with open(os.path.join(self.work, "result.json"), "w", encoding="utf-8") as fh:
             json.dump(out, fh, ensure_ascii=False, indent=1)
         return out
 
 
-def review_scene(p, pid: int, story_scene, client, data_dir: str, frames: Optional[List[Dict]] = None) -> Dict:
-    """Run the agent on one scene and apply its verdicts the qc_scene way (not trusted yet → every frame held with the verdict as note)."""
-    from . import qc_scene
+def review_scene(p, pid: int, story_scene, client, data_dir: str, frames: Optional[List[Dict]] = None,
+                 focus: Optional[List[int]] = None) -> Dict:
+    """Run the agent on one scene (all its frames as context, `focus` = the job ids to record) and apply its verdicts the qc_scene way
+    (not trusted yet → every frame held with the verdict as note). A frame already APPROVED that the agent blocks or doubts is said
+    (diag warn) — the playbook F1 asks to look at them again (review 2026-09-28: it went only to reviews.json)."""
+    from . import diag, qc_scene
     frames = frames or qc_scene.scene_frames(p, pid, story_scene, data_dir)
     if not frames:
         raise ValueError(f"cảnh {story_scene} chưa đủ khung")
     for f in frames:
         d = f["data"]
         f["label"] = f"S{d.get('story_scene')}·{d.get('shot_no')} {d.get('size') or ''}"
-    res = QcAgent(p, pid, data_dir, client, frames, story_scene).run()
+    agent = QcAgent(p, pid, data_dir, client, frames, story_scene, focus=focus)
+    res = agent.run()
+    frames = agent._must()
+    for r in res["records"]:
+        if r["verdict"] in ("block", "doubt") and p.job(r["job"])["state"] == "approved":
+            diag.record(p.conn, "image_gen", "warn", f"Agent QC: khung đã duyệt {r['shot']} (job {r['job']}) bị {r['verdict']} — "
+                        + "; ".join(i.get("description", "") for i in r.get("issues") or [])[:300], code="qc_agent_approved_flag",
+                        project_id=pid)
     mapped = {"frames": [], "scene": {"ok": True, "notes": res["summary"].get("summary", "")}}
     for r in res["records"]:
+        r = dict(r, k=len(mapped["frames"]) + 1)
         verdict = {"block": "fix", "minor": "pass", "pass": "pass", "doubt": "doubt"}[r["verdict"]]
         checks = {c: {"ok": True, "evidence": "agent QC"} for c in qc_scene.CHECKS}
         problem = "; ".join(f"{i['type']}: {i['description']} ({i['evidence']})" for i in r.get("issues") or [])
         if verdict != "pass":
             checks["artifacts"] = {"ok": False, "evidence": problem or "agent QC"}
         mapped["frames"].append({"k": r["k"], "shot": r["shot"], "seen": "", "checks": checks, "verdict": verdict,
-                                 "root_cause": r.get("root_cause") or "none", "problem": problem, "fix": r.get("fix_en") or ""})
+                                 "root_cause": r.get("root_cause") or "none", "problem": problem, "fix": r.get("fix_en") or "",
+                                 "note": f"lỗi nhỏ: {problem}" if r["verdict"] == "minor" and problem else ""})
     applied = qc_scene.apply(p, pid, frames, mapped, data_dir)
     return {**res, "applied": applied}

@@ -303,7 +303,8 @@ def apply(p, pid: int, frames: List[Dict], obj: Dict, data_dir: str) -> Dict[str
                 continue
             bad = "; ".join(f"{c}: {f['checks'][c]['evidence']}" for c in CHECKS if not f["checks"][c]["ok"])
             note = (f"QC cảnh (tham khảo, chưa nghiệm thu) {f['verdict']}"
-                    + (f" [{f['root_cause']}]: {f.get('problem') or bad}" if f["verdict"] != "pass" else "") + (f" — sửa gợi ý: {f['fix']}" if f.get("fix") else ""))
+                    + (f" [{f['root_cause']}]: {f.get('problem') or bad}" if f["verdict"] != "pass" else "")
+                    + (f" — {f['note']}" if f.get("note") else "") + (f" — sửa gợi ý: {f['fix']}" if f.get("fix") else ""))
             _hold(p, r["job_id"], note[:600])
             out[f"K{k}"] = f"giữ cho người ({f['verdict']})"
         return out
@@ -388,12 +389,17 @@ def run_ready_scenes(p, pid: int, client, data_dir: str) -> Dict:
         subset = to_review(frames, judged)
         try:
             from . import qc_agent
-            if qc_agent.enabled():                     # the investigating agent (tools, several turns) instead of one look
-                res = qc_agent.review_scene(p, pid, s, client, data_dir, subset)
-                rec = _load(data_dir, pid, "reviews.json")
-                rec.setdefault(str(s), []).append({"jobs": key, "looked_at": [r["job_id"] for r in subset],
-                                                   "agent": {k: v for k, v in res.items() if k != "applied"}, "applied": res["applied"]})
-                _save(data_dir, pid, "reviews.json", rec)
+            if qc_agent.enabled():                     # the investigating agent: the whole scene as context, records the subset
+                res = qc_agent.review_scene(p, pid, s, client, data_dir, frames, focus=[r["job_id"] for r in subset])
+                if res.get("stopped"):                 # a lock / Claude blocked / cut short: said, and NOT marked as judged, so the
+                    summary["failed"].append((s, res["stopped"]))    # frames are looked at again once the cause is fixed (review 28/09)
+                    if res.get("blocked"):
+                        continue
+                else:
+                    rec = _load(data_dir, pid, "reviews.json")
+                    rec.setdefault(str(s), []).append({"jobs": key, "looked_at": [r["job_id"] for r in subset],
+                                                       "agent": {k: v for k, v in res.items() if k != "applied"}, "applied": res["applied"]})
+                    _save(data_dir, pid, "reviews.json", rec)
             else:
                 res = review_scene(p, pid, s, client, data_dir, subset)
                 if len(subset) < len(frames):          # the scene's full set counts as judged (only the changed strip was looked at)
