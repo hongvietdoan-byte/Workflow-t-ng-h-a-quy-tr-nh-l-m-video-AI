@@ -23,6 +23,7 @@ import math
 import os
 import sys
 import time
+from typing import Optional
 from datetime import datetime, timezone
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".."))
@@ -92,9 +93,10 @@ def shot_text(d: dict, i: int) -> str:
             + (f"Acting — {acting}. " if acting else "") + talk).strip()
 
 
-def mark_reference(path: str) -> str:
-    """A copy of the picture marked as reference material: a white banner "CHARACTER SHEET REFERENCE" on top and a thick red plus sign
-    over one eye of the first face found (YuNet; else the upper middle). Only for reference-only sends."""
+def mark_reference(path: str, out_dir: Optional[str] = None) -> str:
+    """A copy of the picture (in out_dir, default beside it) marked as reference material: a white banner "CHARACTER SHEET REFERENCE"
+    on top and a thick red plus sign over one eye of every face found (YuNet; none found: the upper middle). Only for reference-only
+    sends."""
     from PIL import Image, ImageDraw, ImageFont
     from core import text_placement
     im = Image.open(path).convert("RGB")
@@ -107,16 +109,15 @@ def mark_reference(path: str) -> str:
     except OSError:
         font = ImageFont.load_default()
     d.text((w * 0.04, band * 0.25), "CHARACTER SHEET REFERENCE", fill=(0, 0, 0), font=font)
-    boxes = text_placement.face_boxes(path) or []
-    if boxes:
-        l, t, r, b = boxes[0]
-        cx, cy, size = (l + (r - l) * 0.33) * w, (t + (b - t) * 0.4) * h, max((r - l) * w * 0.35, w * 0.05)
-    else:
-        cx, cy, size = w * 0.5, h * 0.3, w * 0.08
-    stroke = max(int(w / 40), 6)
-    d.line([cx - size, cy, cx + size, cy], fill=(220, 0, 0), width=stroke)
-    d.line([cx, cy - size, cx, cy + size], fill=(220, 0, 0), width=stroke)
-    out = os.path.splitext(path)[0] + "_marked.png"
+    marks = [((l + (r - l) * 0.33) * w, (t + (b - t) * 0.4) * h, max((r - l) * w * 0.35, w * 0.03))
+             for l, t, r, b in (text_placement.face_boxes(path) or [])] or [(w * 0.5, h * 0.3, w * 0.08)]
+    stroke = max(int(w / 60), 5)
+    for cx, cy, size in marks:
+        d.line([cx - size, cy, cx + size, cy], fill=(220, 0, 0), width=stroke)
+        d.line([cx, cy - size, cx, cy + size], fill=(220, 0, 0), width=stroke)
+    out_dir = out_dir or os.path.dirname(path)
+    os.makedirs(out_dir, exist_ok=True)
+    out = os.path.join(out_dir, os.path.splitext(os.path.basename(path))[0] + "_marked.png")
     im.save(out)
     return out
 
@@ -173,7 +174,8 @@ def build(p, data_dir: str, pid: int, group, method: str, look: str):
     ids = [(n, ref["path"]) for n, ref in ids if ref and os.path.exists(ref.get("path", ""))][: 9 - len(frames)]
     refs = frames + [path for _, path in ids]
     if method == "P2m":
-        refs = [mark_reference(x) for x in refs]
+        marked = os.path.join(data_dir, str(pid), "experiments", "marked")
+        refs = [mark_reference(x, marked) for x in refs]
     mapping = " ".join(f"Image {i} is the storyboard frame of Shot {i}: Shot {i} starts with exactly this composition, framing and "
                        f"these character positions." for i in range(1, len(frames) + 1))
     mapping += " " + " ".join(f"Image {len(frames) + k} is {n}: identity only (face, hair, outfit) — not the framing."
