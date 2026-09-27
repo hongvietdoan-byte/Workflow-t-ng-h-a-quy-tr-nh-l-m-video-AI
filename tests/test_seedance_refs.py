@@ -116,6 +116,79 @@ class SeedanceRefTests(unittest.TestCase):
         self.assertFalse(seedance_refs.uses_refs(self.p.conn, self.ids[0]))
 
 
+class ReviewFixTests(unittest.TestCase):
+    """Independent review 2026-09-27 of the code-built motion prompts (group prompts past 4,000 characters, Vietnamese in 28/33 shots,
+    marks ending before the clip, 'no sound' with a voice, pictures not matching the table)."""
+    SHOT = {"size": "MS", "angle": "eye", "camera_move": "static", "characters": ["KELLY"], "duration_s": 2.0,
+            "image_prompt": "Free Fire in-game 3D render, stylized proportions, KELLY in her yellow tracksuit …",
+            "action": "Kelly quay người bước đi", "performance": {"face": "hurt", "body": "turns away"},
+            "dialogue": [{"speaker": "KELLY", "text": "Em hiểu rồi"}]}
+
+    def test_the_motion_says_what_happens_in_english_not_the_picture(self):
+        d = dict(self.SHOT, motion_en={"action": "Kelly turns and walks away", "end_state": "her back to the camera"})
+        text = seedance_refs.shot_motion(d)
+        self.assertIn("Kelly turns and walks away", text)
+        self.assertIn("It ends with her back to the camera", text)
+        self.assertNotIn("in-game 3D render", text)                     # the frame carries the picture, the look is said once
+        self.assertFalse(seedance_refs.has_vietnamese(text))
+        self.assertTrue(seedance_refs.has_vietnamese(seedance_refs.shot_motion(self.SHOT)))   # untranslated: caught by the lint
+        self.assertNotIn("no sound", seedance_refs.shot_motion(d, voice=True))
+
+    def test_the_marks_are_stretched_to_the_clip_really_made(self):
+        text = seedance_refs.prompt([("a", 1.0), ("b", 1.0)], [], clip_seconds=4)
+        self.assertIn("Shot 2 (2.0–4.0 s)", text)
+
+    def test_what_can_be_seen_wrong_before_paying(self):
+        long = "x" * 4100
+        self.assertTrue(any("4000" in p for p in seedance_refs.lint_group(long, 2, 3, 3, [2, 2], False)))
+        self.assertTrue(any("tiếng Việt" in p for p in seedance_refs.lint_group("Kelly quay người", 1, 2, 2, [2], False)))
+        self.assertTrue(any("ảnh" in p for p in seedance_refs.lint_group("ok", 3, 4, 5, [2, 2, 2], False)))
+        self.assertTrue(any("no sound" in p for p in seedance_refs.lint_group("KELLY speaks (mouth moving, no sound).", 1, 2, 2, [3], True)))
+        self.assertEqual(seedance_refs.lint_group("fine", 2, 3, 3, [2, 2], False), [])
+        self.assertEqual(seedance_refs.short_shots([0.5, 2.0]), [1])
+
+    def test_a_group_is_closed_before_its_prompt_is_too_long(self):
+        os.environ["FEATURE_SEEDANCE_REF_GROUPS"] = "1"
+        self.addCleanup(os.environ.pop, "FEATURE_SEEDANCE_REF_GROUPS", None)
+        p, pid = kenta_project(shot_mode="per_shot")
+        llm_runner.run_director(p, pid, llm_runner.MockLlm())
+        rows = shots.shots_of(p, pid)
+        first = rows[0]["data"]["story_scene"]
+        for r in rows:
+            if r["data"]["story_scene"] == first:
+                d = dict(r["data"], sequence=1, duration_s=2.0, performance={"face": "y" * 900})
+                d.pop("plate_mode", None)
+                p.conn.execute("UPDATE scenes SET data=? WHERE id=?", (json.dumps(d, ensure_ascii=False), r["id"]))
+        p.conn.commit()
+        for g in seedance_refs.groups(p.conn, pid):
+            self.assertLessEqual(seedance_refs._estimated_len(g), seedance_refs.GROUP_PROMPT_BUDGET)
+
+    def test_one_call_translates_only_the_vietnamese_fields(self):
+        from core import claude_tasks
+        p, pid = kenta_project(shot_mode="per_shot")
+        llm_runner.run_director(p, pid, llm_runner.MockLlm())
+        sid = shots.shots_of(p, pid)[0]["id"]
+        idx = p.conn.execute("SELECT idx FROM scenes WHERE id=?", (sid,)).fetchone()["idx"]
+        p.conn.execute("UPDATE scenes SET data=? WHERE id=?", (json.dumps(dict(self.SHOT, story_scene=1, shot_no=1), ensure_ascii=False), sid))
+        p.conn.commit()
+        for other in p.conn.execute("SELECT id, data FROM scenes WHERE project_id=? AND id!=?", (pid, sid)).fetchall():
+            d = json.loads(other["data"] or "{}")
+            d.pop("action", None)
+            p.conn.execute("UPDATE scenes SET data=? WHERE id=?", (json.dumps(d, ensure_ascii=False), other["id"]))
+        p.conn.commit()
+        answers = [{str(idx): {"action": "Kelly quay đi"}}, {str(idx): {"action": "Kelly turns and walks away"}}]
+
+        class C:
+            name = "fake"
+
+            def complete(self, prompt, images=()):
+                return llm_runner.LlmReply(json.dumps(answers.pop(0)), 10, 5)
+        self.assertEqual(claude_tasks.translate_motion_fields(p, pid, C()), 1)   # the Vietnamese answer is asked again
+        d = json.loads(p.conn.execute("SELECT data FROM scenes WHERE id=?", (sid,)).fetchone()["data"])
+        self.assertEqual(d["motion_en"]["action"], "Kelly turns and walks away")
+        self.assertEqual(d["action"], "Kelly quay người bước đi")                 # the Director's own field is kept
+
+
 class SplitTests(unittest.TestCase):
     def test_cut_at_the_cuts_the_model_made(self):
         from core import ffmpeg_studio

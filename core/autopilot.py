@@ -562,7 +562,16 @@ def _motion_phase(p: Pipeline, pid: int, ctx: Context) -> Optional[str]:
     """Motion prompts for scenes without one or with an outdated one; then (once) the prompt check, whose revised prompts are used."""
     from . import claude_tasks, lineage, seedance_refs
     rows = _scene_rows(p, pid)
-    by_code = seedance_refs.code_motion(p, pid)            # Seedance reference shots: written from the Director's fields, no Claude
+    if seedance_refs.enabled(p.conn, pid):
+        try:                                               # ONE call: the Director's Vietnamese fields → English (review 2026-09-27)
+            n = claude_tasks.translate_motion_fields(p, pid, ctx.llm)
+            if n:
+                _log(p, pid, f"Dịch trường hành động/diễn xuất sang tiếng Anh cho {n} shot (1 lượt Claude)")
+        except (llm_runner.LlmError, ValueError) as e:
+            _d(p, pid, "motion", "warn", f"không dịch được trường tiếng Việt ({e}) — prompt nhóm sẽ bị chặn khi gửi nếu còn tiếng Việt",
+               "translate_skipped")
+    stale_ids = [sid for sid, r in lineage.scan(p.conn, pid).items() if r["motion_stale"] and seedance_refs.uses_refs(p.conn, sid)]
+    by_code = seedance_refs.code_motion(p, pid, redo_ids=stale_ids)   # Seedance reference shots: from the Director's fields, no Claude
     if by_code:
         _log(p, pid, f"Motion prompt viết bằng code (nhóm Seedance): {by_code} shot — không gọi Claude")
     missing = [s for s in rows if not _count(p, "SELECT COUNT(*) FROM motion_prompts WHERE scene_id=?", s["id"])]

@@ -426,7 +426,36 @@ class VideoRunner(_Runner):
         row = lineage.scan(self.p.conn, job["project_id"]).get(job["scene_id"]) or {}
         if row.get("motion_stale"):
             return f"motion prompt đang cũ ({row['motion_stale']}) — viết lại / duyệt lại ở Bước 3"
+        if self._refs(job):
+            return self._ref_lint(job)
         return None
+
+    def _ref_lint(self, job) -> Optional[str]:
+        """Review 2026-09-27: what can be seen wrong in a reference-only request before paying — too long, Vietnamese left, pictures
+        not matching the Image↔Shot table, 'no sound' with a voice. Shots under 1 s are said (not blocked)."""
+        from . import seedance_refs
+        args = self._submit_args(job)
+        if not args:
+            return None                                   # the base check says what is missing
+        group = self._sends_group(job) or []
+        rows = self._ref_rows(job, group)
+        from . import shots as _sh
+        frames = [_sh.approved_image_path(self.p.conn, self.data_dir, job["project_id"], r["id"]) for r in rows]
+        ids = seedance_refs.identity_pictures(self.p.conn, job["project_id"], rows, seedance_refs.MAX_PICTURES - len(rows))
+        secs = [self._cut_seconds(r) for r in group] if group else [float(args[3])]
+        audio = not group and bool(self._lip_sync_audio_planned(job))
+        problems = seedance_refs.lint_group(args[1], len(rows), len([f for f in frames if f]) + len(ids), len(rows) + len(ids), secs, audio)
+        short = seedance_refs.short_shots(secs)
+        if short:
+            self._diag(job, "warn", "short_shot", "shot dưới 1 s trong clip nhóm (model dễ bỏ qua): " + ", ".join(f"shot {i}" for i in short))
+        return "; ".join(problems) or None
+
+    def _lip_sync_audio_planned(self, job) -> bool:
+        from . import lipsync
+        if not lipsync.enabled():
+            return False
+        data = json.loads(self.p.conn.execute("SELECT data FROM scenes WHERE id=?", (job["scene_id"],)).fetchone()["data"] or "{}")
+        return lipsync.method_for(data) == "generate"
 
     def _submit_kwargs(self, job) -> Dict:
         from . import formats, shots
@@ -654,13 +683,15 @@ class VideoRunner(_Runner):
             rows = self._ref_rows(job, group)
             parts = [((self._motion(r["id"]) or {"motion_prompt": ""})["motion_prompt"], s) for r, s in zip(rows, secs)]
             ids = seedance_refs.identity_pictures(conn, job["project_id"], rows, seedance_refs.MAX_PICTURES - len(rows))
-            motion = no_minor_age(seedance_refs.prompt(parts, ids))
+            motion = no_minor_age(seedance_refs.prompt(parts, ids, clip_seconds=duration))
         if setup:
             motion = no_minor_age(shots.setup_motion([((self._motion(r["id"]) or {"motion_prompt": ""})["motion_prompt"], s)
                                                       for r, s in zip(group, secs)]))
         fix = model_fix(job["retry_reason"])
         if fix:
             motion = f"{motion} Fix: {fix}"      # W3: a retry sends the QC's fix, never the very same input again
+            if secs and not setup and self._refs(job) and (group or []):
+                motion = motion.replace(" Fix: ", " Fix (for the whole clip): ", 1)
         from . import looks
         motion, removed = looks.clean_prompt(proj, motion)       # ff_gameplay_visual.md: no realism words in an in-game project
         if removed:

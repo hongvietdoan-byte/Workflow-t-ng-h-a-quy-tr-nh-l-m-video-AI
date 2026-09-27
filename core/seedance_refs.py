@@ -71,11 +71,21 @@ def groups(conn, project_id: int) -> List[List[Dict]]:
             continue
         sec = float(d.get("duration_s") or 0)
         if cur and (_group_key(cur[-1]["data"]) != _group_key(d) or len(cur) >= GROUP_MAX_SHOTS
-                    or sum(float(x["data"].get("duration_s") or 0) for x in cur) + sec > GROUP_MAX_SECONDS):
+                    or sum(float(x["data"].get("duration_s") or 0) for x in cur) + sec > GROUP_MAX_SECONDS
+                    or _estimated_len(cur + [r]) > GROUP_PROMPT_BUDGET):
             close()
         cur.append(r)
     close()
     return out
+
+
+def _estimated_len(rows: List[Dict]) -> int:
+    names: List[str] = []
+    for r in rows:
+        for n in r["data"].get("characters") or []:
+            if str(n) not in names:
+                names.append(str(n))
+    return len(prompt([(shot_motion(r["data"]), float(r["data"].get("duration_s") or 2)) for r in rows], [(n, "") for n in names]))
 
 
 def group_of(conn, scene_id: int) -> Optional[List[Dict]]:
@@ -137,10 +147,14 @@ def identity_pictures(conn, project_id: int, rows: List[Dict], room: int) -> Lis
     return out[:max(room, 0)]
 
 
-def prompt(parts: List[tuple], identities: List[tuple], look: str = "") -> str:
+def prompt(parts: List[tuple], identities: List[tuple], look: str = "", clip_seconds: Optional[float] = None) -> str:
     """parts: [(motion prompt, seconds)] in film order. The wording of the tested P2m prompt: the cut rule, which picture is which
-    shot / whose identity, then the shots."""
+    shot / whose identity, then the shots. clip_seconds: the length really asked for (Seedance makes ≥ 4 s) — the shots' marks are
+    stretched to it, so the last shot does not end before the clip does (review 2026-09-27)."""
     n = len(parts)
+    total = sum(float(s) for _, s in parts) or 1.0
+    if clip_seconds and clip_seconds > total:
+        parts = [(m, float(s) * clip_seconds / total) for m, s in parts]
     head = (f"One clip with {n} shots cut in this order, hard cuts between shots, same place, same light, same characters and outfits "
             f"throughout. " if n > 1 else "One single shot, no cuts. ") + (look.strip() + " " if look.strip() else "")
     head += "The white banner and red marks on the reference pictures are annotations, never part of the video."
@@ -234,19 +248,63 @@ def split(path: str, group: List[Dict], dest_paths: List[str], ffmpeg: Optional[
     return {"paths": out, "cuts": cuts, "by": by}
 
 
-def shot_motion(data: Dict) -> str:
-    """A shot's motion text from the Director's own fields (no Claude) — the wording of the tested P2m groups (2026-09-27: 3 shots cut
-    in the storyboard's order from these words + the marked pictures)."""
+VI = re.compile(r"[ăâđêôơưạảấầẩẫậắằẳẵặẹẻẽếềểễệỉịọỏốồổỗộớờởỡợụủứừửữựỳỵỷỹ]", re.I)
+PROMPT_MAX = 4000          # Seedance 2.0 (clipai.PROMPT_LIMITS)
+GROUP_PROMPT_BUDGET = 3500  # a group is closed before its prompt passes this — room left for a retry's "Fix:" sentence
+SHORT_SHOT = 1.0            # a shot under 1 s inside a group is probably skipped by the model (said, not hidden)
+
+
+def has_vietnamese(text: str) -> bool:
+    return bool(VI.search(text or ""))
+
+
+def _en(data: Dict, key: str):
+    """The English form of a Director field: `motion_en` (translated once, claude_tasks.translate_motion_fields) or the field itself."""
+    en = data.get("motion_en") if isinstance(data.get("motion_en"), dict) else {}
+    return en.get(key) if en.get(key) else data.get(key)
+
+
+def shot_motion(data: Dict, voice: bool = False) -> str:
+    """A shot's motion text from the Director's fields (no Claude): size / angle / camera, then WHAT HAPPENS (the action, the end
+    state), the acting, who speaks. No picture words: the shot's storyboard frame carries the composition, the identity pictures the
+    looks (review 2026-09-27: image_prompt repeated looks and the style line in every shot → group prompts past 4,000 characters).
+    voice: the shot goes with its own voice line (lip sync) — "no sound" would contradict the attached audio."""
     from .shots import SIZE_WORDS
-    perf = data.get("performance") if isinstance(data.get("performance"), dict) else {}
+    perf = _en(data, "performance")
+    perf = perf if isinstance(perf, dict) else {}
     acting = "; ".join(f"{k}: {perf[k]}" for k in ("face", "eyes", "body", "timing") if perf.get(k))
-    talk = " ".join(f"{x.get('speaker')} speaks (mouth moving, no sound)." for x in data.get("dialogue") or [] if isinstance(x, dict))
+    speakers = [str(x.get("speaker")) for x in data.get("dialogue") or [] if isinstance(x, dict) and x.get("speaker")]
+    if voice:
+        talk = " ".join(f"{s} says the line of the attached voice, lips in sync." for s in speakers)
+    else:
+        talk = " ".join(f"{s} speaks (mouth moving, no sound)." for s in speakers)
     move = str(data.get("camera_move") or "static").replace("_", " ")
+    action = str(_en(data, "action") or "").strip().rstrip(".")
+    end = str(_en(data, "end_state") or "").strip().rstrip(".")
     return (f"{SIZE_WORDS.get(data.get('size'), data.get('size') or 'shot')}, {data.get('angle') or 'eye'} angle, camera {move}: "
-            f"{str(data.get('image_prompt') or '').strip().rstrip('.')}. " + (f"Acting — {acting}. " if acting else "") + talk).strip()
+            + (f"{action}. " if action else "") + (f"It ends with {end}. " if end else "")
+            + (f"Acting — {acting}. " if acting else "") + talk).strip()
 
 
-def code_motion(p, pid: int) -> int:
+def lint_group(text: str, n_frames: int, n_pictures: int, n_expected_pictures: int, secs: List[float], audio: bool) -> List[str]:
+    """Faults of a reference-only request that can be seen before paying (review 2026-09-27). Hard faults block the send."""
+    out = []
+    if len(text) > PROMPT_MAX:
+        out.append(f"prompt dài {len(text)} ký tự > {PROMPT_MAX} (Seedance sẽ từ chối)")
+    if has_vietnamese(text):
+        out.append("prompt còn chữ tiếng Việt (chưa dịch trường Director)")
+    if n_pictures != n_expected_pictures:
+        out.append(f"gửi {n_pictures} ảnh nhưng bảng Image↔Shot ghi {n_expected_pictures} (thiếu khung / ảnh nhận diện)")
+    if audio and "no sound" in text:
+        out.append("có gửi giọng nhưng prompt ghi 'no sound'")
+    return out
+
+
+def short_shots(secs: List[float]) -> List[int]:
+    return [i for i, s in enumerate(secs, 1) if len(secs) > 1 and s < SHORT_SHOT]
+
+
+def code_motion(p, pid: int, redo_ids=()) -> int:
     """Motion prompts written by code for the shots made by reference pictures that have an approved picture and no prompt yet — the
     group prompt is built from them (docs/THIET_KE_LAI_QC_VA_KET_NOI_2026-09-27.md mục 1: no Claude motion call for Seedance groups).
     Returns how many were written (approved at once: nothing here was guessed by a model)."""
@@ -257,12 +315,18 @@ def code_motion(p, pid: int) -> int:
     todo = []
     for s in p.conn.execute("SELECT id, idx, data FROM scenes WHERE project_id=? ORDER BY idx", (pid,)).fetchall():
         d = json.loads(s["data"] or "{}")
-        if not eligible(d) or p.conn.execute("SELECT 1 FROM motion_prompts WHERE scene_id=?", (s["id"],)).fetchone():
+        if not eligible(d):
+            continue
+        if s["id"] in redo_ids:                       # outdated: written again from the Director's fields, never by Claude (review)
+            p.conn.execute("DELETE FROM motion_prompts WHERE scene_id=?", (s["id"],))
+        elif p.conn.execute("SELECT 1 FROM motion_prompts WHERE scene_id=?", (s["id"],)).fetchone():
             continue
         if not p.conn.execute("SELECT 1 FROM jobs WHERE scene_id=? AND type='image_gen' AND state='approved'",
                               (image_scene(p.conn, s["id"]),)).fetchone():
             continue
-        todo.append({"id": s["id"], "idx": s["idx"], "motion_prompt": shot_motion(d),
+        from . import lipsync
+        voice = lipsync.enabled() and lipsync.method_for(d) == "generate"
+        todo.append({"id": s["id"], "idx": s["idx"], "motion_prompt": shot_motion(d, voice=voice),
                      "duration_sec": min(max(float(d.get("duration_s") or 2), 1), 30)})
     if not todo:
         return 0

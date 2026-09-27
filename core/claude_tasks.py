@@ -516,3 +516,55 @@ def music_brief(p: Pipeline, project_id: int, client) -> Dict:
     seconds = max(float(obj.get("duration_sec") or 0), fallback["length_ms"] / 1000)   # the music must cover the whole film
     return {"prompt": obj["prompt"][:2000], "length_ms": int(min(max(float(seconds) * 1000, music.MIN_MS), music.MAX_MS)),
             "instrumental": bool(obj.get("instrumental", True)), "brief": obj}
+
+
+# ---- 9. English of the Director's motion fields (Seedance reference prompts are built by code) -------------------------------
+TRANSLATE_KEYS = ("action", "end_state")
+TRANSLATE_PERF = ("face", "eyes", "body", "timing")
+
+
+def _vi(text) -> bool:
+    from .seedance_refs import has_vietnamese
+    return has_vietnamese(json.dumps(text, ensure_ascii=False))
+
+
+def translate_motion_fields(p: Pipeline, project_id: int, client) -> int:
+    """Review 2026-09-27: 28/33 motion prompts of #8 carried Vietnamese (the Director's `action` and some `performance`), and how far
+    Seedance follows Vietnamese is not measured. ONE call translates only the Vietnamese fields of every shot into short English for a
+    video prompt (no rewriting, names kept) → scenes.data.motion_en. Returns how many shots got a translation."""
+    todo = {}
+    for r in p.conn.execute("SELECT id, idx, data FROM scenes WHERE project_id=? ORDER BY idx", (project_id,)).fetchall():
+        d = json.loads(r["data"] or "{}")
+        item = {k: d[k] for k in TRANSLATE_KEYS if d.get(k) and _vi(d[k])}
+        perf = d.get("performance") if isinstance(d.get("performance"), dict) else {}
+        pv = {k: perf[k] for k in TRANSLATE_PERF if perf.get(k) and _vi(perf[k])}
+        if pv:
+            item["performance"] = pv
+        if item:
+            todo[str(r["idx"])] = item
+    if not todo:
+        return 0
+
+    def check(obj):
+        if not isinstance(obj, dict) or set(obj) != set(todo):
+            raise llm_io.SchemaError("trả về đúng các khóa shot đã gửi: " + ", ".join(sorted(todo)))
+        if _vi(obj):
+            raise llm_io.SchemaError("còn chữ tiếng Việt — dịch hết sang tiếng Anh")
+    prompt = ("Translate every Vietnamese value below into short, concrete English for an AI video prompt: what the people DO and how "
+              "they act. Keep names (KELLY, KENTA, MAXIM…) as they are. Do not add, explain or rewrite meaning. Return ONLY one JSON "
+              "object with the same keys and the same structure.\n\n" + _block("Fields", todo))
+    obj = _run(p, project_id, "translate", prompt, check, client)
+    n = 0
+    for idx, fields in obj.items():
+        row = p.conn.execute("SELECT id, data FROM scenes WHERE project_id=? AND idx=?", (project_id, int(idx))).fetchone()
+        d = json.loads(row["data"] or "{}")
+        en = dict(d.get("motion_en") or {})
+        en.update({k: v for k, v in fields.items() if k != "performance"})
+        if isinstance(fields.get("performance"), dict):
+            base = d.get("performance") if isinstance(d.get("performance"), dict) else {}
+            en["performance"] = {**{k: base.get(k) for k in TRANSLATE_PERF if base.get(k)}, **fields["performance"]}
+        d["motion_en"] = en
+        p.conn.execute("UPDATE scenes SET data=? WHERE id=?", (json.dumps(d, ensure_ascii=False), row["id"]))
+        n += 1
+    p.conn.commit()
+    return n
