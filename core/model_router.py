@@ -151,6 +151,16 @@ def _scene_choice(conn, scene_id: int, project_row=None, mp_row=None) -> Dict:
                           + (" (model bạn chọn riêng cho shot này không áp dụng trong nhóm)" if override else "")}
     if override:
         return {"model": override, "resolution": None, "reason": "bạn chọn cho cảnh này", "source": "override", "recommended": rec}
+    from . import seedance_refs
+    if data.get("shot_no") and seedance_refs.enabled(conn, scene["project_id"]):
+        if seedance_refs.eligible(data):
+            grouped = len(shots.group_of(conn, scene_id) or []) > 1
+            return {"model": "seedance", "resolution": "720p", "source": "auto", "recommended": rec,
+                    "reason": ("Seedance chỉ ảnh tham chiếu, gộp với các shot liền (mỗi shot có ảnh storyboard riêng)" if grouped
+                               else "Seedance chỉ ảnh tham chiếu, một shot") + " — người dùng chốt ưu tiên Seedance (2026-09-27)"}
+        if seedance_refs.route(data) == "kling":
+            return {"model": "kling", "resolution": None, "source": "auto", "recommended": rec,
+                    "reason": "Seedance đã từ chối shot này (cả gộp lẫn một shot) → Kling từ khung đầu"}
     from . import lipsync, shots as _sh
     if lipsync.enabled() and data.get("shot_no") and lipsync.method_for(data) == "generate" and _sh.mode(project_row) != "multishot":
         # (a Kling multi-shot project stays on Kling: the runner says the shot gets no lip sync instead of silently skipping it)
@@ -190,6 +200,12 @@ def plan(conn, project_id: int, pricing: Optional[Dict] = None, priority: Option
     """One row per scene with a motion prompt or an approved image: choice, reason, seconds, price. `priority` forces another
     ladder (for the "compare with the other priorities" line) and ignores overrides."""
     proj = conn.execute("SELECT * FROM projects WHERE id=?", (project_id,)).fetchone()
+    from . import seedance_refs
+    ref_groups = {}                       # scene id -> its Seedance reference group: ONE clip, priced on the group's first shot
+    if seedance_refs.enabled(conn, project_id):
+        for g in seedance_refs.groups(conn, project_id):
+            for r in g:
+                ref_groups[r["id"]] = g
     rows = []
     for s in conn.execute("SELECT id, idx, data FROM scenes WHERE project_id=? ORDER BY idx", (project_id,)).fetchall():
         mp = conn.execute("SELECT * FROM motion_prompts WHERE scene_id=?", (s["id"],)).fetchone()
@@ -202,6 +218,17 @@ def plan(conn, project_id: int, pricing: Optional[Dict] = None, priority: Option
                                   look=proj["look"] if "look" in proj.keys() else None), "source": "auto"}
         seconds = float(mp["duration_sec"]) if mp is not None else float(data.get("duration_s") or 5)
         billed = billed_seconds(choice["model"], math.ceil(seconds - 1e-6) if data.get("shot_no") else seconds)
+        group = ref_groups.get(s["id"])
+        if group and choice.get("source") != "override":
+            if group[0]["id"] == s["id"]:
+                secs = []
+                for r in group:
+                    m = conn.execute("SELECT duration_sec FROM motion_prompts WHERE scene_id=?", (r["id"],)).fetchone()
+                    secs.append(float((m["duration_sec"] if m is not None and m["duration_sec"] else None) or r["data"].get("duration_s") or 0))
+                billed = float(seedance_refs.seconds(secs))
+            else:
+                billed = 0.0                   # made inside the group clip of its first shot
+                choice = {**choice, "reason": choice["reason"] + f" (trong clip nhóm của shot {group[0]['idx']})"}
         unit = price_per_sec(choice["model"], choice.get("resolution"), pricing)
         rows.append({"scene_id": s["id"], "idx": s["idx"], **choice, "seconds": seconds, "billed_seconds": billed,
                      "usd_per_sec": unit, "cost": None if unit is None else unit * billed})

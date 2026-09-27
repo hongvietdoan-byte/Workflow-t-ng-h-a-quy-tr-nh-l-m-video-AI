@@ -422,6 +422,15 @@ class VideoRunner(_Runner):
             out["kling_mode"] = "std"
         mode = shots.mode(proj)
         group = self._sends_group(job)
+        if self._refs(job):                  # Seedance reference only (P2m): every picture marked, no start / last frame
+            out["reference_only"] = self._reference_pictures(job, group or [])
+            if not group:
+                audio = self._lip_sync_audio(job)
+                if audio:
+                    out["reference_audio"] = [audio]
+            else:
+                self._no_lip_sync_note(job, "seedance", group)
+            return out
         if group and mode != "multishot":
             pass                         # H5 camera set-up: one continuous prompt (in the motion argument), no multi_prompt
         elif group:
@@ -459,6 +468,26 @@ class VideoRunner(_Runner):
             self._diag(job, "warn", "lipsync_not_applied", f"shot cần khớp môi (tạo kèm giọng) nhưng gửi bằng {model or '?'}"
                        + (" trong clip chung của nhóm" if group else "") + " — clip giữ miệng của model, không khớp giọng")
 
+    def _refs(self, job) -> bool:
+        from . import seedance_refs
+        return seedance_refs.uses_refs(self.p.conn, job["scene_id"])
+
+    def _ref_rows(self, job, group) -> list:
+        return group or [{"id": job["scene_id"], "data": json.loads(self.p.conn.execute(
+            "SELECT data FROM scenes WHERE id=?", (job["scene_id"],)).fetchone()["data"] or "{}")}]
+
+    def _reference_pictures(self, job, group) -> list:
+        """The marked pictures of a reference-only send: each shot's approved storyboard picture in film order, then one identity
+        picture per character (at most 9 in all)."""
+        from . import seedance_refs, shots
+        conn = self.p.conn
+        rows = self._ref_rows(job, group)
+        frames = [shots.approved_image_path(conn, self.data_dir, job["project_id"], r["id"]) for r in rows]
+        frames = [f for f in frames if f]
+        ids = seedance_refs.identity_pictures(conn, job["project_id"], rows, seedance_refs.MAX_PICTURES - len(frames))
+        out_dir = os.path.join(self.data_dir, str(job["project_id"]), "refs_marked")
+        return [seedance_refs.mark(p, out_dir) for p in frames + [path for _, path in ids]]
+
     def _lip_sync_audio(self, job) -> Optional[str]:
         """The shot's voice line file for a "generate" lip-sync shot (feature lip_sync), else None. Missing voice: said, not guessed."""
         from . import ffmpeg_studio, lipsync
@@ -485,7 +514,7 @@ class VideoRunner(_Runner):
         """W12b: the provider's real task for this job, recognised by the prompt that was sent (multi-shot groups send no single
         prompt — left to the old rule)."""
         finder = getattr(self.provider, "find_by_prompt", None)
-        if finder is None or not job["external_id"] or self._sends_group(job):
+        if finder is None or not job["external_id"] or (self._sends_group(job) and not self._refs(job)):
             return None
         args = self._submit_args(job)
         if not args:
@@ -538,6 +567,9 @@ class VideoRunner(_Runner):
             return not self._has_clip(group[0]["id"])
         if self._sends_group(job) is None:
             return False
+        if self._refs(job) and any(shots.approved_image_path(self.p.conn, self.data_dir, job["project_id"], r["id"]) is None
+                                   for r in group):
+            return True                   # a reference group sends every shot's own picture: wait until all are approved
         return any((self._motion(r["id"]) or {"state": None})["state"] != "approved" for r in group)
 
     def _stamp(self, job, args) -> Dict:
@@ -546,7 +578,9 @@ class VideoRunner(_Runner):
         mp = self.p.conn.execute("SELECT * FROM motion_prompts WHERE scene_id=?", (job["scene_id"],)).fetchone()
         group = self._sends_group(job)
         exact = shots.mode(self.p.project(job["project_id"])) != "multishot"   # H5 set-up: cut at the shots' own seconds
-        sent = ([{"id": r["id"], "idx": r["idx"], "duration_s": self._cut_seconds(r), "exact": True} for r in group] if group and exact
+        refs = self._refs(job)
+        sent = ([{"id": r["id"], "idx": r["idx"], "duration_s": self._cut_seconds(r), "exact": True, "refs": refs} for r in group]
+                if group and exact
                 else [{"id": r["id"], "idx": r["idx"], "duration_s": shots.billed_shot_seconds(r["data"])} for r in group] if group else None)
         proj = self.p.project(job["project_id"])
         audio = bool(proj["video_audio"]) if "video_audio" in proj.keys() else False
@@ -581,14 +615,25 @@ class VideoRunner(_Runner):
             duration = math.ceil(float(duration or 0) - 1e-6)   # v3 shot: never shorter than planned (it is cut afterwards)
             from . import shots
             group = self._sends_group(job)
-            setup = bool(group) and shots.mode(proj) != "multishot"
-            if setup:                                             # H5: one continuous take for the set-up's shots, cut afterwards
+            refs = self._refs(job)
+            setup = bool(group) and shots.mode(proj) != "multishot" and not refs
+            if refs:                                              # Seedance reference only: the group's (or shot's) seconds, >= 4 s
+                from . import seedance_refs
+                secs = [self._cut_seconds(r) for r in group] if group else [float(duration or 0)]
+                duration = seedance_refs.seconds(secs)
+            elif setup:                                             # H5: one continuous take for the set-up's shots, cut afterwards
                 secs = [self._cut_seconds(r) for r in group]
                 duration = max(math.ceil(sum(secs) - 1e-6), 3)
             elif group:                                           # the whole group's length, one Kling generation
                 duration = sum(shots.billed_shot_seconds(r["data"]) for r in group)
                 model = "kling"
         motion = no_minor_age(mp["motion_prompt"])
+        if secs and not setup and self._refs(job):
+            from . import seedance_refs
+            rows = self._ref_rows(job, group)
+            parts = [((self._motion(r["id"]) or {"motion_prompt": ""})["motion_prompt"], s) for r, s in zip(rows, secs)]
+            ids = seedance_refs.identity_pictures(conn, job["project_id"], rows, seedance_refs.MAX_PICTURES - len(rows))
+            motion = no_minor_age(seedance_refs.prompt(parts, ids))
         if setup:
             motion = no_minor_age(shots.setup_motion([((self._motion(r["id"]) or {"motion_prompt": ""})["motion_prompt"], s)
                                                       for r, s in zip(group, secs)]))
@@ -659,6 +704,17 @@ class VideoRunner(_Runner):
         seedance = str(job["model"] or "").startswith("seedance")
         if not (kind == REAL_PERSON or (kind == RISK_CONTROL and seedance and "copyright" in (message or "").lower())):
             return
+        if self._refs(job):                  # P2m group -> Seedance per shot -> Kling (the person's order, 2026-09-27)
+            from . import seedance_refs
+            group = self._sends_group(job)
+            data = json.loads(self.p.conn.execute("SELECT data FROM scenes WHERE id=?", (job["scene_id"],)).fetchone()["data"] or "{}")
+            step = seedance_refs.next_route(data, bool(group))
+            ids = [r["id"] for r in group] if group else [job["scene_id"]]
+            seedance_refs.set_route(self.p.conn, ids, step)
+            why = "ảnh giống người thật" if kind == REAL_PERSON else "video có thể dính bản quyền"
+            self._diag(job, "warn", kind, f"Seedance từ chối ({why}, dù ảnh đã đánh dấu) → {len(ids)} shot chuyển sang "
+                       + ("Seedance từng shot" if step == "single" else "Kling từ khung đầu"))
+            return True
         from . import model_router, shots
         ids = [r["id"] for r in shots.sequence_rows(self.p.conn, job["scene_id"])] or [job["scene_id"]]
         for sid in ids:
@@ -677,7 +733,8 @@ class VideoRunner(_Runner):
         clip is first split into one clip per shot of its group; the other shots' jobs are completed with their part."""
         from . import shots
         sent = json.loads(job["sent_group"]) if "sent_group" in job.keys() and job["sent_group"] else None
-        group = ([{"id": g["id"], "idx": g["idx"], "data": {"duration_s": g["duration_s"], "exact": bool(g.get("exact"))}} for g in sent]
+        group = ([{"id": g["id"], "idx": g["idx"], "refs": bool(g.get("refs")),
+                   "data": {"duration_s": g["duration_s"], "exact": bool(g.get("exact"))}} for g in sent]
                  if sent
                  else self._sends_group(job))       # M10: the group as it was sent (a later re-plan must not mis-cut a paid clip)
         if group:
@@ -746,15 +803,23 @@ class VideoRunner(_Runner):
         from . import formats, lineage, shots
         conn = self.p.conn
         dests = [path] + [os.path.join(self._dir(leader["project_id"], "videos"), f"{r['idx']:02d}.mp4") for r in group[1:]]
-        shots.split_group_clip(path, group, dests)
+        if group[0].get("refs"):
+            from . import seedance_refs
+            res = seedance_refs.split(path, group, dests)
+            if res["by"] != "detected":       # said, not hidden: the parts may straddle a cut
+                self._diag(leader, "warn", "group_cut_by_plan", f"clip nhóm {len(group)} shot không dò đủ {len(group) - 1} điểm cắt — "
+                           f"cắt theo số giây dự kiến ({res['cuts']}); xem lại chỗ cắt ở Bước 4")
+        else:
+            shots.split_group_clip(path, group, dests)
         aspect = formats.project_aspect(self.p.project(leader["project_id"]))
         for r, dest in zip(group[1:], dests[1:]):
             follower = conn.execute("SELECT * FROM jobs WHERE scene_id=? AND type='video_gen' AND state='queued' ORDER BY id DESC LIMIT 1",
                                     (r["id"],)).fetchone()
             jid = follower["id"] if follower else self.p.create_job(r["id"], "video_gen")
             mp = self._motion(r["id"])
-            conn.execute("UPDATE jobs SET group_leader=?, external_id=?, model='kling', input_hash=?, source_job_id=? WHERE id=?",
-                         (leader["id"], leader["external_id"], lineage.video_input_hash(mp, aspect) if mp else None,
+            conn.execute("UPDATE jobs SET group_leader=?, external_id=?, model=?, input_hash=?, source_job_id=? WHERE id=?",
+                         (leader["id"], leader["external_id"], leader["model"] or "kling",
+                          lineage.video_input_hash(mp, aspect) if mp else None,
                           lineage.approved_image_id(conn, shots.image_scene(conn, r["id"])), jid))
             conn.commit()
             self.p.start(jid)

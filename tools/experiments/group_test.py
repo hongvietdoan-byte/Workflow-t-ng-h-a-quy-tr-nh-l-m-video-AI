@@ -96,30 +96,9 @@ def shot_text(d: dict, i: int) -> str:
 def mark_reference(path: str, out_dir: Optional[str] = None) -> str:
     """A copy of the picture (in out_dir, default beside it) marked as reference material: a white banner "CHARACTER SHEET REFERENCE"
     on top and a thick red plus sign over one eye of every face found (YuNet; none found: the upper middle). Only for reference-only
-    sends."""
-    from PIL import Image, ImageDraw, ImageFont
-    from core import text_placement
-    im = Image.open(path).convert("RGB")
-    w, h = im.size
-    d = ImageDraw.Draw(im)
-    band = int(h * 0.07)
-    d.rectangle([0, 0, w, band], fill=(255, 255, 255))
-    try:
-        font = ImageFont.truetype("arialbd.ttf", int(band * 0.45))
-    except OSError:
-        font = ImageFont.load_default()
-    d.text((w * 0.04, band * 0.25), "CHARACTER SHEET REFERENCE", fill=(0, 0, 0), font=font)
-    marks = [((l + (r - l) * 0.33) * w, (t + (b - t) * 0.4) * h, max((r - l) * w * 0.35, w * 0.03))
-             for l, t, r, b in (text_placement.face_boxes(path) or [])] or [(w * 0.5, h * 0.3, w * 0.08)]
-    stroke = max(int(w / 60), 5)
-    for cx, cy, size in marks:
-        d.line([cx - size, cy, cx + size, cy], fill=(220, 0, 0), width=stroke)
-        d.line([cx, cy - size, cx, cy + size], fill=(220, 0, 0), width=stroke)
-    out_dir = out_dir or os.path.dirname(path)
-    os.makedirs(out_dir, exist_ok=True)
-    out = os.path.join(out_dir, os.path.splitext(os.path.basename(path))[0] + "_marked.png")
-    im.save(out)
-    return out
+    sends. The pipeline's own marking (core.seedance_refs.mark) — one implementation for the test and the real run."""
+    from core import seedance_refs
+    return seedance_refs.mark(path, out_dir or os.path.dirname(path))
 
 
 def s3_groups(rows):

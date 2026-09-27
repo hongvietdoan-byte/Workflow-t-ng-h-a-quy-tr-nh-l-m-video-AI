@@ -31,6 +31,9 @@ def needed(data: Dict, shot_mode: Optional[str]) -> bool:
     into the next one — that one already ends on the next start picture)."""
     if shot_mode != "per_shot" or data.get("continuous_with_next"):
         return False
+    from . import features, seedance_refs
+    if features.on("seedance_ref_groups") and seedance_refs.eligible(data):
+        return False                  # a reference-only Seedance clip takes no last frame — drawing one would be paid for nothing
     return bool((data.get("end_state") or "").strip())
 
 

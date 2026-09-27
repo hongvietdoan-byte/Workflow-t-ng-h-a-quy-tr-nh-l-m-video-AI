@@ -246,7 +246,7 @@ class ClipAIVideoProvider:
         content_refs: List[Dict] = []                     # [{"note_label", "note_role"}] in the order attached, for the @Image note
         if last_frame:                                    # first + last frame clip: the two frames carry the characters
             text += " The clip starts on the first image and must end exactly on the last image (same people, place and light)."
-        elif family == "seedance" and SEEDANCE_REFS_WITH_FIRST_FRAME:
+        elif family == "seedance" and SEEDANCE_REFS_WITH_FIRST_FRAME and reference_only is None:   # reference-only names its own pictures
             cap = 29 if canonical == "dreamina-seedance-2-5-260628" else 8  # image cap minus the first-frame image
             for ref in (image_references or [])[:cap]:
                 try:

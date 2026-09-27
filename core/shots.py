@@ -657,6 +657,9 @@ def group_of(conn, scene_id: int) -> Optional[List[Dict]]:
         return None
     if row["shot_mode"] == "multishot":
         return multishot_group_of(conn, scene_id)
+    from . import seedance_refs
+    if seedance_refs.enabled(conn, row["project_id"]):   # Seedance reference-only groups replace H5 set-ups (2026-09-27)
+        return seedance_refs.group_of(conn, scene_id)
     if setups_on(conn, row["project_id"]):
         return next((g for g in setup_groups(conn, row["project_id"]) if any(x["id"] == scene_id for x in g)), None)
     return None
@@ -665,6 +668,9 @@ def group_of(conn, scene_id: int) -> Optional[List[Dict]]:
 def needs_own_image(conn, scene_id: int) -> bool:
     """Kling multi-shot (and an H5 camera set-up) makes the later shots of a group from the group's first picture: only that first
     shot needs a picture."""
+    from . import seedance_refs
+    if seedance_refs.uses_refs(conn, scene_id):
+        return True                                   # a Seedance reference group sends EVERY shot's own storyboard picture
     group = group_of(conn, scene_id) or []
     return len(group) < 2 or group[0]["id"] == scene_id
 

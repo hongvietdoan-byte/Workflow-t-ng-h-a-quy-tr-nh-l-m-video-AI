@@ -29,7 +29,10 @@
 > thật**, cắt 3 shot đúng storyboard, dấu không lọt vào video; S2 Kling từng shot dùng được nhưng ghép cứng + thừa ~35 %; S3/P3/P4 Kling
 > gộp hỏng. **Đã sửa:** `clipai.find_by_prompt` nối nhầm clip khi prompt chung câu mở đầu > 200 ký tự (so toàn bộ prompt, khớp ≥ 2 thì
 > không đoán) — 1207 test qua. Tháp đồng hồ: gắn asset 263, 9 shot cảnh 1+6 có nền 3D đêm.
-> **Chờ người dùng chốt:** đưa P2m (rơi về S2 khi bị từ chối) vào luồng chính (cờ + test) → rồi nâng trần Claude lên 3 và chạy tiếp #8.
+> **Người dùng chốt (2026-09-27): ưu tiên Seedance — P2m gộp → Seedance từng shot → Kling; toàn bộ bối cảnh quanh tháp đồng hồ.**
+> ✅ Đã làm: cờ `seedance_ref_groups` (`core/seedance_refs.py`, 1215 test qua, bật trong `dashboard.env`); 33 shot #8 ở tháp (asset 263) có
+> nền 3D; chữ nơi chốn 16 shot sửa theo tháp; 6 ảnh thử cảnh 2 (sai nơi) đã từ chối. **Tiếp:** khởi động lại dashboard → nâng trần Claude 3
+> → chạy tiếp #8 trên dashboard (Bước 2 ảnh → Bước 3 → Bước 4 video Seedance nhóm).
 > **Chờ người dùng:** duyệt bộ kỹ năng 3 vai (bảng `docs/DANH_GIA_BO_NGUYEN_TAC_V4.md` — `film_crew` đang bật cho đợt thử), gắn nhãn ảnh
 > Kho (~$1–1,5), mô hình 3D chính thức, âm đêm cho thư viện âm thanh; đối chiếu giá ảnh Deepix (tạm $0,052/ảnh) với số trên web Deepix.
 > *(Bàn giao cũ 2026-09-25 khuya — "việc tiếp GĐ4, 943 test" — đã thay bởi mục này; file `docs/BAN_GIAO_2026-09-25_V4_GD4.md` là lịch sử.)*
