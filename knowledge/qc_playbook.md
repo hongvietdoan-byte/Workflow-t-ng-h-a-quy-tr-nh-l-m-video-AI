@@ -75,5 +75,8 @@ chuyển thành bộ đo code (lớp 0).
 - Nguyên nhân đã biết: ảnh toàn cảnh (nhìn cao) ĐÚNG; khung ngang tầm mắt tự đoán phần sau → nghi ảnh tham chiếu render 3D chụp sát chân
   tháp (bậc lớn, tường cao) + prompt thiếu câu tả bố cục thật. Sửa gốc: câu bố cục trong mô tả địa điểm Kho (vào mọi prompt ảnh); câu sửa
   khi vẽ lại: "flat open stone plaza, the tower stands directly on it, only low retaining walls, no stacked terraces".
+- Thử A/B 28/09 (S4·1, S4·3; `docs/qc_agent_2026-09-27/relabel/tower_ab.jpg`): thêm câu bố cục (giữ render) → nền phẳng hẳn, chỉ còn tường thấp;
+  bỏ thêm render sát chân tháp → phẳng nhất nhưng tháp bị vẽ thêm MẶT ĐỒNG HỒ (sai dáng tháp game). Nguyên nhân chính = thiếu câu bố
+  cục. Soi thêm: dáng tháp (không mặt đồng hồ, chóp nhọn, cửa sổ vòm) so với ảnh chuẩn Kho.
 
 ## E. Bảng shot tự mâu thuẫn — không vẽ lại, để người sửa (#8: xin MLS nhưng đòi thấy toàn thân; góc qua vai mà chỉ 1 người)

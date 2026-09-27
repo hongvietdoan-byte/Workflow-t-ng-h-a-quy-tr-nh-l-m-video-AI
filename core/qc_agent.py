@@ -74,7 +74,9 @@ tiền. QC tốt là ĐIỀU TRA, không phải một lần phán: xem đầy đ
 KHUNG để thấy lỗi lặp có hệ thống, so với ảnh chuẩn và ảnh toàn cảnh. Bộ đo code chỉ là gợi ý. Tự nghĩ thêm loại lỗi mới ngoài sổ tay.
 Mức: block (phải vẽ lại — lỗi nhìn thấy hoặc làm sai ý đồ shot), minor (ghi chú), pass, doubt. KHÔNG bắt bẻ vụn (sắc thái diễn nhỏ).
 Mỗi lỗi block: nguyên nhân gốc (prompt / reference / model / plan = bảng shot tự sai) và MỘT câu sửa tiếng Anh. Ghi (record) mọi khung rồi mới
-finish. Trả lời bằng tiếng Việt, câu sửa bằng tiếng Anh."""
+finish. Trả lời bằng tiếng Việt, câu sửa bằng tiếng Anh.
+VIẾT NGẮN: mỗi lượt tối đa 3 dòng văn bản ngoài công cụ; mỗi issue: description 1 câu, evidence 1 cụm (vùng cắt / dải nào). Phân tích
+nằm trong issue, không viết đoạn văn dài (câu trả lời quá dài bị cắt và tốn tiền)."""
 
 
 def enabled() -> bool:
@@ -358,14 +360,21 @@ class QcAgent:
                     break
                 self.steps += 1
                 blocks = [b for b in (reply.blocks or []) if b.get("type") != "tool_use" or isinstance(b.get("input"), dict)]
-                if reply.stop_reason == "max_tokens" or not blocks:
-                    cuts += 1                  # a cut or empty answer is not sent back (an empty assistant turn is a 400)
+                cut = reply.stop_reason == "max_tokens"
+                if cut:                                # 28/09: a cut answer was thrown away WITH the records already complete in it —
+                    cuts += 1                          # keep its whole tool calls (a half-written one is refused by its own checks)
+                    blocks = [b for b in blocks if b.get("type") == "tool_use"]
+                if not blocks:                         # an empty assistant turn is a 400: nothing is sent back
+                    cuts += 0 if cut else 1
                     if cuts > MAX_CUT_TURNS:
-                        stopped = "dừng: câu trả lời bị cắt nhiều lần"
+                        stopped = "dừng: câu trả lời bị cắt / rỗng nhiều lần"
                         break
-                    messages[-1]["content"].append({"type": "text", "text": "(Lượt trước bị cắt / rỗng — gọi ÍT công cụ hơn mỗi lượt, "
-                                                                            f"ghi ngắn. Còn chưa ghi: {self._left()})"})
+                    messages[-1]["content"].append({"type": "text", "text": "(Lượt trước bị cắt / rỗng — KHÔNG viết phân tích dài, gọi "
+                                                                            f"công cụ ngay. Còn chưa ghi: {self._left()})"})
                     continue
+                if cut and cuts > MAX_CUT_TURNS + 2:
+                    stopped = "dừng: câu trả lời bị cắt nhiều lần"
+                    break
                 messages.append({"role": "assistant", "content": blocks})
                 uses = [b for b in blocks if b.get("type") == "tool_use"]
                 if not uses:

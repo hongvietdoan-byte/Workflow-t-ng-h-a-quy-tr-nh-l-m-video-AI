@@ -163,19 +163,34 @@ class AgentTests(unittest.TestCase):
         self.assertIn("dừng", res["stopped"])
         self.assertFalse(res["blocked"])
 
-    def test_a_cut_answer_asks_for_fewer_tools_and_goes_on(self):
+    def test_a_cut_answer_keeps_its_complete_records_and_goes_on(self):
+        """28/09 scene 6: three cut answers were thrown away with the records already complete in them — nothing was recorded."""
         class Cut(Scripted):
             def converse(inner, messages, tools, system="", max_tokens=None):
                 r = super().converse(messages, tools, system, max_tokens)
-                if len(inner.seen) == 1:
+                if len(inner.seen) <= 2:
                     r.stop_reason = "max_tokens"
+                    r.blocks = [{"type": "text", "text": "phân tích dài…"}] + list(r.blocks) + [
+                        {"type": "tool_use", "id": f"cut{len(inner.seen)}", "name": "record", "input": {"k": 2}}]   # half-written
                 return r
-        turns = [[("view_frame", {"k": 1})]] + [[self.record(k) for k in range(1, self.n + 1)]] + [[("finish", {"summary": "xong"})]]
+        turns = [[self.record(1)], [self.record(k) for k in range(2, self.n + 1)], [("finish", {"summary": "xong"})]]
         c = Cut(turns)
         res = qc_agent.QcAgent(self.p, self.pid, self.data, c, self.frames).run()
         self.assertEqual(res["summary"]["summary"], "xong")
-        self.assertIn("ÍT công cụ", json.dumps(c.seen[1], ensure_ascii=False))
+        self.assertEqual({r["verdict"] for r in res["records"]}, {"pass"})     # the complete records of the cut turns were kept
         self.assertEqual(res["stopped"], "")
+
+    def test_an_empty_answer_asks_to_call_tools(self):
+        class Empty(Scripted):
+            def converse(inner, messages, tools, system="", max_tokens=None):
+                r = super().converse(messages, tools, system, max_tokens)
+                if len(inner.seen) == 1:
+                    r.blocks, r.stop_reason = [], "end_turn"
+                return r
+        c = Empty([[], [self.record(k) for k in range(1, self.n + 1)], [("finish", {"summary": "xong"})]])
+        res = qc_agent.QcAgent(self.p, self.pid, self.data, c, self.frames).run()
+        self.assertIn("gọi công cụ ngay", json.dumps(c.seen[1], ensure_ascii=False))
+        self.assertEqual(res["summary"]["summary"], "xong")
 
     def test_with_a_focus_only_the_new_frames_must_be_recorded_but_all_are_seen(self):
         focus = [self.frames[-1]["job_id"]]
