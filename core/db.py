@@ -92,6 +92,18 @@ CREATE TABLE IF NOT EXISTS usage_events (
     unit TEXT NOT NULL,
     at TEXT NOT NULL
 );
+CREATE TABLE IF NOT EXISTS llm_calls (
+    id INTEGER PRIMARY KEY,
+    at TEXT NOT NULL,
+    project_id INTEGER,
+    stage TEXT,
+    model TEXT,
+    sources TEXT,
+    input_tokens INTEGER,
+    output_tokens INTEGER,
+    cache_read_tokens INTEGER,
+    cache_write_tokens INTEGER
+);
 CREATE TABLE IF NOT EXISTS job_events (
     id INTEGER PRIMARY KEY,
     job_id INTEGER NOT NULL REFERENCES jobs(id),

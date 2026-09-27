@@ -234,5 +234,24 @@ class AudioCapAndClipPriceTests(unittest.TestCase):
         self.assertEqual(cost.price_tag(None), " · chưa có giá")
 
 
+class SourcesTests(unittest.TestCase):
+    """Rà soát 2026-09-27: which skill files a Claude call really carried is written with its tokens (llm_calls.sources)."""
+
+    def test_the_files_read_to_build_a_request_go_with_its_tokens(self):
+        from core import prompts
+        db = os.path.join(tempfile.mkdtemp(), "m.sqlite")
+        conn = connect(db)
+        calls = []
+        c = llm_runner.AnthropicClient("sk-test", "claude-sonnet-5", transport=_transport(calls), sleep=lambda s: None, ledger=db)
+        text = prompts._read("prompts", "21_scene_qc.md") + prompts._read("knowledge", "ai_image_failure_modes.md")
+        with llm_runner.tagged("qc"):
+            c.complete(text)
+        c.complete("không đọc tệp nào")
+        rows = conn.execute("SELECT stage, sources, input_tokens FROM llm_calls ORDER BY id").fetchall()
+        self.assertEqual(set(json.loads(rows[0]["sources"])), {"prompts/21_scene_qc.md", "knowledge/ai_image_failure_modes.md"})
+        self.assertEqual(rows[0]["stage"], "qc")
+        self.assertEqual(json.loads(rows[1]["sources"]), [])              # forgotten after each call
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -211,6 +211,7 @@ class AnthropicClient:
         return self._request(prompt, (), [{"type": "web_search_20250305", "name": "web_search", "max_uses": max_uses}])
 
     def _request(self, prompt: str, images: Sequence[Tuple[str, str]], tools) -> LlmReply:
+        self._last_prompt = prompt                      # llm_calls.sources: the skill files found in the text really sent
         settings = stage_settings(current_tag()[0])
         max_tokens = int(settings.get("max_tokens") or self.max_tokens)
         payload = {"model": self.model, "max_tokens": max_tokens,
@@ -282,6 +283,16 @@ class AnthropicClient:
                         if n:
                             record_usage(conn, None, "llm", self.name, self.model, tier, n,
                                          "search" if tier == "web_search" else "token", project_id=project_id, stage=stage)
+                    from .llm_sources import in_text
+                    try:                             # which skill files this call carried (rà soát 2026-09-27)
+                        conn.execute("INSERT INTO llm_calls (at, project_id, stage, model, sources, input_tokens, output_tokens,"
+                                     " cache_read_tokens, cache_write_tokens) VALUES (datetime('now'),?,?,?,?,?,?,?,?)",
+                                     (project_id, stage, self.model, json.dumps(in_text(getattr(self, "_last_prompt", "")),
+                                                                                ensure_ascii=False), reply.input_tokens,
+                                      reply.output_tokens, reply.cache_read_tokens, reply.cache_write_tokens))
+                        conn.commit()
+                    except Exception:  # noqa: BLE001 - an older ledger without the table: the tokens are recorded already
+                        pass
                 finally:
                     conn.close()
                 return
