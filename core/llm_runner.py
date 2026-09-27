@@ -119,8 +119,9 @@ def current_tag() -> Tuple[str, Optional[int]]:
 #                   expected cost counts the prefix already sent as a cache read and the new part as a cache write, plus the whole
 #                   max_tokens answer, never less than the last call. A cache miss can make one call dearer than expected: the cap can
 #                   be passed by at most that one call's difference (the next estimate then starts from that dearer call).
-#   3. the project: the Claude cap of core.budget with the WORST case of this call AND of every call in flight in this process
-#                   (threads) added — the project cap is never crossed. Other processes (dashboard + a tool at once) are not seen.
+#   3. the project: the Claude cap of core.budget and the project's approved budget for the stage (core.project_budget), with
+#                   the WORST case of this call AND of every call in flight in ANY process (holds in the database) added —
+#                   the caps are never crossed.
 # A network error / timeout (the provider may have billed a call we never saw) counts the call's worst case on locks 2 (review
 # 2026-09-28: before, a timeout went round every lock and the agent lost its records).
 MAX_CALL_USD = float(os.environ.get("CLAUDE_MAX_CALL_USD") or 1.0)
@@ -128,8 +129,6 @@ TASK_MARGIN = 1.25
 CHARS_PER_TOKEN = 1.5         # measured on the agent brief 28/09: Vietnamese ~1.9 characters a token — 1.5 stays above it
 TOOL_USE_TOKENS = 400         # the tool-use system part the API adds when tools are sent
 _CAPS = threading.local()
-_INFLIGHT = {"usd": 0.0}
-_INFLIGHT_LOCK = threading.Lock()
 
 
 @contextlib.contextmanager
@@ -220,17 +219,6 @@ def _count_caps(usd: float) -> None:
         e["last"] = max(usd, e["last"] * 0.5)
         e["calls"] += 1
         e["prev_tokens"] = e.pop("_next_tokens", e["prev_tokens"])
-
-
-def _reserve(usd: float) -> float:
-    with _INFLIGHT_LOCK:
-        _INFLIGHT["usd"] += usd
-    return usd
-
-
-def _release(usd: float) -> None:
-    with _INFLIGHT_LOCK:
-        _INFLIGHT["usd"] = max(0.0, _INFLIGHT["usd"] - usd)
 
 
 def _media_type(content: bytes) -> str:
@@ -344,7 +332,7 @@ class AnthropicClient:
         try:
             return self._send(headers, body, payload, check=lambda r: None)   # a cut answer comes back: the agent says "fewer tools"
         finally:
-            _release(held)
+            self._release(held)
 
     @staticmethod
     def image_block(path: str, edge: Optional[int] = None) -> Dict:
@@ -378,7 +366,7 @@ class AnthropicClient:
         try:
             return self._send(headers, body, payload, check=self._check_stop)
         finally:
-            _release(held)
+            self._release(held)
 
     def _send(self, headers, body, payload, check) -> LlmReply:
         """POST with retries. A network error / timeout is a transient LlmError (it was a ProviderError that went round the retries,
@@ -414,14 +402,28 @@ class AnthropicClient:
         conn.row_factory = sqlite3.Row
         return conn
 
-    def _check_budget(self, payload: Optional[Dict] = None) -> float:
-        """Refuse before paying: locks 1-2 (one call, one task — see spend_cap), then lock 3, the Claude cap of core.budget with the
-        worst case of this call and of the calls in flight (core.budget.check_llm). Returns the money held for this call (release it)."""
+    def _release(self, hold_id) -> None:
+        if not hold_id or not self.ledger:
+            return
+        try:
+            from . import budget
+            conn = self._ledger_conn()
+            try:
+                budget.release_hold(conn, hold_id)
+            finally:
+                conn.close()
+        except Exception:  # noqa: BLE001 - a hold not released expires after budget.HOLD_MINUTES
+            pass
+
+    def _check_budget(self, payload: Optional[Dict] = None):
+        """Refuse before paying: locks 1-2 (one call, one task — see spend_cap), then lock 3 — the Claude cap (core.budget) and the
+        project's approved budget for this stage (core.project_budget) — with the worst case of this call and of every call in flight
+        in any process (holds in the database). Returns the hold id (release it after the call)."""
         reason = _check_caps(self.model, payload) if payload is not None else None
         if reason:
             raise LlmError(reason, code="budget")
         if not self.ledger:
-            return 0.0
+            return None
         from . import budget, cost
         if self.unrecorded:
             raise LlmError(f"{self.unrecorded} lời gọi Claude đã trả tiền nhưng không ghi được vào sổ chi — kiểm tra CSDL rồi mở lại "
@@ -429,22 +431,23 @@ class AnthropicClient:
         if budget.token_price(cost.load_pricing(), self.model, "input", 1) is None:
             raise LlmError(f"model Claude '{self.model}' chưa có giá trong data/pricing.json (per_million_tokens) — thêm giá trước "
                            "khi dùng, nếu không sổ chi tính $0 và trần không chặn", code="budget")
-        mine = 0.0
+        hid = None
         try:
+            from . import project_budget
+            stage, project_id = current_tag()
+            part = project_budget.claude_stage(stage)
+            mine = worst_usd(self.model, payload) if payload is not None else 0.0
             conn = self._ledger_conn()
             try:
-                with _INFLIGHT_LOCK:                     # check and hold in one step: parallel calls cannot all pass
-                    mine = worst_usd(self.model, payload) if payload is not None else 0.0
-                    reason = budget.check_llm(conn, mine + _INFLIGHT["usd"])
-                    if not reason:
-                        _INFLIGHT["usd"] += mine
+                reason, hid = budget.hold_llm(conn, mine, project_id, part,
+                                              extra_check=(lambda c: project_budget.check(c, project_id, part, mine)) if project_id else None)
             finally:
                 conn.close()
         except Exception as e:  # noqa: BLE001 - unknown spend means no call (a cap that cannot be read does not protect)
             reason = f"không đọc được sổ chi để kiểm trần Claude ({type(e).__name__}: {e})"
         if reason:
             raise LlmError(reason, code="budget")
-        return mine
+        return hid
 
     def _record(self, reply: LlmReply) -> None:
         """Tokens of one call into usage_events (kind 'llm', tier input/output) — priced by core.budget; counted on the task locks."""

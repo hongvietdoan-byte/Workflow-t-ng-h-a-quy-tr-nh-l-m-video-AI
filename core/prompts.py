@@ -185,6 +185,15 @@ def duration_block(pipeline: Pipeline, project_id: int, for_dp: bool = False) ->
                                                                                    else ", không cắt câu thoại.") + trim)
 
 
+def _budget_note(pipeline: Pipeline, project_id: int) -> str:
+    """The person's budget target as an input of the Director (core.project_budget), or ''."""
+    from . import project_budget
+    try:
+        return project_budget.director_note(pipeline.conn, project_id).strip()
+    except Exception:  # noqa: BLE001 - the Director goes without it
+        return ""
+
+
 def build_director_bundle(pipeline: Pipeline, project_id: int, only_scene: Optional[int] = None, note: str = "") -> str:
     """The Director's prompt. only_scene (1.4 "↻ Chia shot lại cảnh này"): the whole bundle stays the same (it is cached — every
     re-planned scene reads it at 1/10 price) and a short task after the cache mark asks for that ONE scene's shots."""
@@ -211,6 +220,7 @@ def build_director_bundle(pipeline: Pipeline, project_id: int, only_scene: Optio
         _read("prompts", "01_director_scene_analysis.md"),
         project_frame_block(pipeline, project_id),
         looks.director_note(proj),
+        _budget_note(pipeline, project_id),
         _read("knowledge", "ff_gameplay_visual.md"),   # what Free Fire gameplay really looks like (reference, not footage to cut in)
         keep("cinematography_basics.md"),
         keep("genre_guides.md"),
@@ -298,6 +308,7 @@ def build_intent_bundle(pipeline: Pipeline, project_id: int) -> str:
         _read("prompts", "19_director_intent.md"),
         project_frame_block(pipeline, project_id),
         looks.director_note(proj),
+        _budget_note(pipeline, project_id),
         _read("knowledge", "ff_gameplay_visual.md"),
         keep("genre_guides.md"),
         knowledge.genre_text(proj["genre"] if "genre" in proj.keys() else None),
@@ -339,6 +350,7 @@ def dp_common(pipeline: Pipeline, project_id: int, intent: dict) -> str:
         book,
         project_frame_block(pipeline, project_id),
         looks.director_note(proj),
+        _budget_note(pipeline, project_id),
         _read("knowledge", "ff_gameplay_visual.md"),
         duration_block(pipeline, project_id, for_dp=True),
         _location_block(pipeline, project_id),

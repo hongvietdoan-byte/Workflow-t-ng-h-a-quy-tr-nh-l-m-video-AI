@@ -1,0 +1,75 @@
+{
+ "_note": "Nhãn sửa 28/09 — ghi đè verdicts.json khi nghiệm thu (tools/experiments/qc_agent_eval.py)",
+ "overrides": {
+  "319": {
+   "shot": "S1·2",
+   "old": "chặn",
+   "verdict": "đạt",
+   "issues": [],
+   "why": "Nhãn lượt 1 xét trái/phải theo MÉP KHUNG; xét theo BÊN THÂN NGƯỜI (sổ tay A1 28/09): Kenta quay lưng ở nửa phải khung, tay mang găng + sao nằm phía trái thân = tay trái = đúng. Claude Code tự xem lại ảnh 28/09 (docs/qc_agent_2026-09-27/relabel/lr_labels.jpg)."
+  },
+  "320": {
+   "shot": "S1·3",
+   "old": "chặn",
+   "verdict": "đạt",
+   "issues": [],
+   "why": "Nhãn lượt 1 xét trái/phải theo MÉP KHUNG; xét theo BÊN THÂN NGƯỜI (sổ tay A1 28/09): Kenta quay lưng ở nửa phải khung, tay mang găng + sao nằm phía trái thân = tay trái = đúng. Claude Code tự xem lại ảnh 28/09 (docs/qc_agent_2026-09-27/relabel/lr_labels.jpg)."
+  },
+  "329": {
+   "shot": "S3·2",
+   "old": "chặn",
+   "verdict": "nhỏ",
+   "issues": [
+    {
+     "loai": "cỡ cảnh",
+     "mo_ta": "Maxim khoảng MLS (tới đùi)",
+     "bang_chung": "bộ đo 0.10",
+     "muc": "nhỏ"
+    }
+   ],
+   "why": "Nhãn lượt 1 xét trái/phải theo MÉP KHUNG; xét theo BÊN THÂN NGƯỜI (sổ tay A1 28/09): Kenta quay lưng ở nửa phải khung, tay mang găng + sao nằm phía trái thân = tay trái = đúng. Claude Code tự xem lại ảnh 28/09 (docs/qc_agent_2026-09-27/relabel/lr_labels.jpg)."
+  },
+  "338": {
+   "shot": "S4·2",
+   "old": "chặn",
+   "verdict": "nhỏ",
+   "issues": [
+    {
+     "loai": "cỡ cảnh",
+     "mo_ta": "Ra MS (tới rốn) thay vì MCU",
+     "bang_chung": "bộ đo 0.16",
+     "muc": "nhỏ"
+    }
+   ],
+   "why": "Nhãn lượt 1 xét trái/phải theo MÉP KHUNG; xét theo BÊN THÂN NGƯỜI (sổ tay A1 28/09): Kenta quay lưng ở nửa phải khung, tay mang găng + sao nằm phía trái thân = tay trái = đúng. Claude Code tự xem lại ảnh 28/09 (docs/qc_agent_2026-09-27/relabel/lr_labels.jpg)."
+  },
+  "347": {
+   "shot": "S6·2",
+   "old": "nhỏ",
+   "verdict": "chặn",
+   "issues": [
+    {
+     "loai": "khóa nhân vật",
+     "mo_ta": "Kenta nhìn từ sau: vai trái mép trái có emblem + băng tay đúng, nhưng cẳng tay trái lại quấn băng trắng-xám (của tay phải) trên găng giáp",
+     "bang_chung": "cắt 300-800,1700-2048",
+     "muc": "nhỏ"
+    }
+   ],
+   "why": "Kenta quay lưng ở nửa TRÁI khung, tay mang sao + găng nằm phía PHẢI thân = tay phải = SAI (lượt 1 chấm nhỏ; agent lượt 3 + Claude Code xác nhận 28/09)"
+  },
+  "350": {
+   "shot": "S6·5",
+   "old": "nhỏ",
+   "verdict": "chặn",
+   "issues": [
+    {
+     "loai": "khóa nhân vật",
+     "mo_ta": "Emblem sao nằm ở vai PHẢI Kenta (mép trái khung, nhìn trước) và hình khác mẫu; bàn tay trái (tay giáp) đeo găng hở ngón thay vì găng kín",
+     "bang_chung": "cắt vai 0-300,620-1000 và tay 700-1060,900-1300",
+     "muc": "nhỏ"
+    }
+   ],
+   "why": "Kenta quay mặt vào máy, huy hiệu sao ở phía trái-ảnh của thân = vai PHẢI = SAI (F1 lượt 3, Claude Code xác nhận)"
+  }
+ }
+}

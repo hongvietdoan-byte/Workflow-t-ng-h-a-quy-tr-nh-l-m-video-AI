@@ -19,7 +19,7 @@ import json
 import os
 import threading
 from datetime import datetime, timezone
-from typing import Dict, Optional
+from typing import Tuple, Dict, Optional
 
 from . import cost
 
@@ -84,6 +84,71 @@ def token_price(pricing: Dict, model: str, tier: str, tokens: float) -> Optional
         base = cost._number(table.get("input"))
         unit = None if base is None else base * {"cache_write": 1.25, "cache_read": 0.1}[tier]
     return None if unit is None else unit * float(tokens or 0) / 1_000_000
+
+
+def row_usd(pricing: Dict, r) -> Optional[float]:
+    """USD of one usage_events row (None = no price for it)."""
+    if r["kind"] == "llm":
+        return token_price(pricing, r["model"], r["tier"], r["quantity"])
+    if r["kind"] == "image":
+        p = cost._number(pricing.get("per_image", {}).get(r["model"]))
+        return None if p is None else p * (r["quantity"] or 1)
+    if r["kind"] == "audio":
+        p = cost._number(pricing.get("per_audio", {}).get(r["model"]))
+        return None if p is None else p * (r["quantity"] or 1)
+    return cost.clip_price(pricing, r["model"], r["tier"], r["quantity"])
+
+
+# ---- money held by Claude calls in flight (review 2026-09-28: the dashboard and a command-line tool are two processes; a hold kept in
+# memory was not seen by the other, both could pass the cap at the same moment). Holds live in the database; a hold older than
+# HOLD_MINUTES is a call whose process died — ignored.
+HOLD_MINUTES = 30
+
+
+def _holds_table(conn) -> None:
+    conn.execute("CREATE TABLE IF NOT EXISTS llm_holds (id INTEGER PRIMARY KEY, at TEXT NOT NULL, project_id INTEGER, stage TEXT,"
+                 " usd REAL NOT NULL)")
+
+
+def held(conn, project_id: Optional[int] = None, stage: Optional[str] = None) -> float:
+    _holds_table(conn)
+    q = "SELECT COALESCE(SUM(usd), 0) FROM llm_holds WHERE at >= datetime('now', ?)"
+    args = [f"-{HOLD_MINUTES} minutes"]
+    if project_id is not None:
+        q += " AND project_id=?"
+        args.append(project_id)
+    if stage is not None:
+        q += " AND stage=?"
+        args.append(stage)
+    return float(conn.execute(q, args).fetchone()[0] or 0)
+
+
+def hold_llm(conn, usd: float, project_id: Optional[int] = None, stage: Optional[str] = None,
+             extra_check=None) -> Tuple[Optional[str], Optional[int]]:
+    """Check the Claude cap with this call's worst case + every call in flight (all processes) and hold the money in ONE write
+    transaction. `extra_check(conn)` → a reason (the project budget) is checked inside the same transaction. (reason, hold id)."""
+    _holds_table(conn)
+    conn.execute("BEGIN IMMEDIATE")
+    try:
+        reason = check_llm(conn, usd + held(conn))
+        if not reason and extra_check is not None:
+            reason = extra_check(conn)
+        hid = None
+        if not reason:
+            hid = conn.execute("INSERT INTO llm_holds (at, project_id, stage, usd) VALUES (datetime('now'),?,?,?)",
+                               (project_id, stage, float(usd))).lastrowid
+        conn.execute("COMMIT")
+        return reason, hid
+    except Exception:
+        conn.execute("ROLLBACK")
+        raise
+
+
+def release_hold(conn, hold_id: Optional[int]) -> None:
+    if hold_id:
+        _holds_table(conn)
+        conn.execute("DELETE FROM llm_holds WHERE id=?", (hold_id,))
+        conn.commit()
 
 
 def spent(conn, pricing: Optional[Dict] = None, since: Optional[str] = None) -> Dict:

@@ -88,5 +88,9 @@
     }
   },
   "_note_lipsync": "lipsync-2-pro:post = khớp môi sau của sync.so, $0,084/giây làm tròn lên (giá niêm yết trên WaveSpeedAI / Segmind, tra 2026-09-25: wavespeed.ai/models/sync/lipsync-2-pro); giá trên gói sync.so có thể khác — đo lại ở lần chạy thật.",
-  "_note_per_image": "2026-09-26: GIÁ TẠM. Web Deepix hiện 'Tổng chi phí tạo ảnh: $7.06' (ảnh chụp người dùng gửi) trong khi sổ chi ghi 136 ảnh Deepix (106 Seedream 5.0 Pro, 29 GPT Image 2.5 Sunburst, 1 Flare) → trung bình ≈ $0.052/ảnh, chưa tách theo model và chưa chắc tổng web chỉ gồm ảnh của pipeline. Đối chiếu lại bằng ô 'Chi phí Deepix trên web' ở ⚙ → Ngân sách thử khi có số mới."
+  "_note_per_image": "2026-09-26: GIÁ TẠM. Web Deepix hiện 'Tổng chi phí tạo ảnh: $7.06' (ảnh chụp người dùng gửi) trong khi sổ chi ghi 136 ảnh Deepix (106 Seedream 5.0 Pro, 29 GPT Image 2.5 Sunburst, 1 Flare) → trung bình ≈ $0.052/ảnh, chưa tách theo model và chưa chắc tổng web chỉ gồm ảnh của pipeline. Đối chiếu lại bằng ô 'Chi phí Deepix trên web' ở ⚙ → Ngân sách thử khi có số mới.",
+  "_unverified_models": [
+    "dreamina-seedance-*"
+  ],
+  "_note_unverified_models": "2026-09-28: giá Seedance trên ClipAI KHÔNG có nguồn chính xác (API video-list trả cost = 0 cho task Seedance, phát hiện 17 — giá trong bảng là ước tính). Sổ chi vẫn ghi theo giá ước tính; ngân sách dự án (core/project_budget.py) nhân UNVERIFIED_MARGIN 1,25 cho các model này. Có nguồn giá thật (hóa đơn / số dư ClipAI trước–sau) thì sửa giá + bỏ khỏi danh sách."
 }

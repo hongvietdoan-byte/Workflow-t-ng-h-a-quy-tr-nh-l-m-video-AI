@@ -167,6 +167,8 @@ def resume(p: Pipeline, project_id: int, user: Optional[str] = None) -> None:
         _approve_held(p, project_id, "image_gen", "duyệt ở storyboard")
         set_gates(p, project_id, {"storyboard_ok": storyboard_gate.fingerprint(p, project_id), "waiting_for": None})
         _log(p, project_id, "Bạn đã duyệt storyboard → viết motion prompt và gen video")
+    elif gates.get("waiting_for") == "budget":           # approved in Bước 1 → the images phase checks it again
+        set_gates(p, project_id, {"waiting_for": None})
     elif gates.get("waiting_for") == "clips":
         n = _approve_held(p, project_id, "video_gen", "giữ sau khi xem")
         set_gates(p, project_id, {"waiting_for": None})
@@ -328,7 +330,10 @@ def _previz_phase(p: Pipeline, pid: int, ctx: Context) -> Optional[str]:
 def _images_phase(p: Pipeline, pid: int, ctx: Context) -> Optional[str]:
     """Returns None when every scene has an up-to-date approved image, else a progress message. With the pilot checkpoint on, a few
     representative scenes are made first and the run waits for the person."""
-    from . import lineage, pilot
+    from . import lineage, pilot, project_budget
+    why = project_budget.gate_reason(p, pid)
+    if why:                                               # the budget is locked before the first paid picture (user 2026-09-28)
+        raise _Wait("budget", why)
     gates = get_gates(p, pid)
     if gates["pilot"] and not gates["pilot_done"] and not pilot.active(p, pid):
         pilot.start(p, pid)

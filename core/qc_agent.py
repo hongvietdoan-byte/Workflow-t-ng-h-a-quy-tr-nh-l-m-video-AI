@@ -24,14 +24,17 @@ SCENE_CAP_BASE_USD = 0.10  # HARD lock per scene (llm_runner.spend_cap) = base +
 SCENE_CAP_PER_FRAME_USD = 0.04   # #8 2026-09-28 one scene + half cost ~2 USD with no lock. At the cap the agent stops; the frames it
 SCENE_CAP_MAX_USD = 0.50         # has not recorded wait for a person as "doubt" (a trade-off: fewer looks, never more money)
 SCENE_CAP_USD = SCENE_CAP_BASE_USD + 4 * SCENE_CAP_PER_FRAME_USD     # a 4-frame scene (shown in docs / the estimate)
-ANSWER_TOKENS = 6000      # one turn's answer (a real turn wrote 3,209 tokens); a cut answer → "fewer tools per turn", not a stop
+ANSWER_TOKENS = 3500      # one turn's answer (real turns: 200-3,000 tokens); the lock keeps room for the WHOLE answer, so a big
+                          # ceiling stops the agent early (28/09: 6000 → ~0.06 USD kept back each turn). A cut answer → "fewer tools"
+LOOKS_PER_TURN = 4        # pictures a turn may open (28/09: 46 pictures in 8 turns, nothing recorded)
+RECORD_ONLY_AT = 0.5      # share of the scene's cap after which only record / finish are answered
 MAX_CUT_TURNS = 2
 
 
 def scene_cap(n_frames: int) -> float:
     return min(SCENE_CAP_MAX_USD, SCENE_CAP_BASE_USD + SCENE_CAP_PER_FRAME_USD * max(1, n_frames))
-VIEW_EDGE = 1024
-ZOOM_EDGE = 1024
+VIEW_EDGE = 768           # a full frame at 768 px is enough to see (half the tokens of 1024); crops zoom in for detail
+ZOOM_EDGE = 768
 VERDICTS = ("pass", "minor", "block", "doubt")
 _VI = re.compile(r"[ăâđêôơưàáạảãằắặẳẵầấậẩẫèéẹẻẽềếệểễìíịỉĩòóọỏõồốộổỗờớợởỡùúụủũừứựửữỳýỵỷỹ]", re.I)
 CAUSES = ("prompt", "reference", "model", "plan", "none")
@@ -312,10 +315,12 @@ class QcAgent:
             place = assets.location_text(self.p.conn, loc) if loc is not None else ""
         except Exception:  # noqa: BLE001 - the brief goes without it
             place = ""
-        limits = (f"# Giới hạn (khóa cứng, không nâng được)\nTối đa {MAX_STEPS} lượt và ${scene_cap(len(self._must())):.2f} cho cảnh này. "
-                  f"Phải ghi (record) các khung: {[f['k'] for f in self._must()]}. Mỗi lượt gọi NHIỀU "
-                  "công cụ cùng lúc; dùng strip để soi một chi tiết của nhiều khung trong một ảnh; record ngay khi đủ bằng chứng. Hết giới "
-                  "hạn thì khung chưa record thành 'doubt' cho người xem.")
+        limits = (f"# Giới hạn (khóa cứng, không nâng được)\nTối đa {MAX_STEPS} lượt và ${scene_cap(len(self._must())):.2f} cho cảnh này; "
+                  f"tối đa {LOOKS_PER_TURN} ảnh mỗi lượt; quá {int(RECORD_ONLY_AT * 100)} % ngân sách thì CHỈ còn được ghi. "
+                  f"Phải ghi (record) các khung: {[f['k'] for f in self._must()]}.\n"
+                  "Cách làm: lượt 1 — tấm tổng quan + các dải bắt buộc của kế hoạch soi (strip gom nhiều khung vào MỘT ảnh); từ lượt 2 — "
+                  "mỗi lượt soi 1–2 khung rồi GHI NGAY các khung đã đủ bằng chứng (record cùng lượt với lần soi cuối). Đừng để dành ghi "
+                  "cuối cùng: hết ngân sách thì khung chưa ghi thành 'doubt' cho người xem.")
         return "\n\n".join(x for x in [
             limits,
             ("# Bối cảnh — mô tả bản đồ thật (so nền của MỌI khung với mô tả này và ảnh 'establishing'; sổ tay mục G)\n" + place) if place else "",
@@ -366,13 +371,27 @@ class QcAgent:
                 if not uses:
                     messages.append({"role": "user", "content": [{"type": "text", "text": f"Tiếp tục bằng công cụ. Còn chưa ghi: {self._left()}"}]})
                     continue
-                results = []
+                results, looks = [], 0
+                record_only = cap["spent"] >= RECORD_ONLY_AT * cap_usd
                 for u in uses:
+                    looking = u["name"] in ("view_frame", "strip", "reference")
                     try:
-                        content = self.tool(u["name"], u.get("input") or {})
+                        if looking and record_only:
+                            content = [{"type": "text", "text": "HẾT phần điều tra (đã dùng quá nửa ngân sách cảnh) — GHI NGAY kết luận "
+                                                                "mọi khung còn lại theo những gì đã thấy; khung chưa đủ bằng chứng → doubt."}]
+                        elif looking and looks >= LOOKS_PER_TURN:
+                            content = [{"type": "text", "text": f"tối đa {LOOKS_PER_TURN} ảnh mỗi lượt — ghi kết luận các khung đã đủ bằng chứng trước"}]
+                        else:
+                            looks += looking
+                            content = self.tool(u["name"], u.get("input") or {})
                     except Exception as e:  # noqa: BLE001 - a bad tool call is answered, the loop goes on
                         content = [{"type": "text", "text": f"lỗi công cụ: {type(e).__name__}: {e}"}]
                     results.append({"type": "tool_result", "tool_use_id": u["id"], "content": content})
+                left = self._left()                    # where it stands, every turn (28/09: 8 turns spent looking, nothing recorded)
+                results[-1]["content"] = list(results[-1]["content"]) + [{"type": "text", "text": (
+                    f"[Trạng thái] đã dùng ${cap['spent']:.3f} / ${cap_usd:.2f}, lượt {self.steps}/{MAX_STEPS}; chưa ghi: {left}"
+                    + (" — CHỈ còn được ghi (record) / kết thúc." if cap["spent"] >= RECORD_ONLY_AT * cap_usd else
+                       " — ghi (record) khung nào đã đủ bằng chứng NGAY lượt này."))}]
                 messages.append({"role": "user", "content": results})
         if self.summary is None:
             left = self._left()

@@ -205,6 +205,21 @@ class AgentTests(unittest.TestCase):
         self.assertTrue(self.p.conn.execute("SELECT 1 FROM diag_events WHERE code='qc_agent_approved_flag'").fetchone())
         self.assertEqual(self.p.job(j)["state"], "approved")                    # not changed by an untrusted QC — said instead
 
+    def test_past_half_the_scene_money_it_may_only_record_and_it_always_sees_where_it_stands(self):
+        """28/09: 8 turns and 46 pictures spent looking, nothing recorded, then the lock stopped it — all frames 'doubt'."""
+        class Paid(Scripted):
+            def converse(inner, messages, tools, system="", max_tokens=None):
+                llm_runner._count_caps(qc_agent.scene_cap(len(self.frames)) * 0.3)      # each turn costs 30 % of the cap
+                return super().converse(messages, tools, system, max_tokens)
+        many = [("view_frame", {"k": 1})] * (qc_agent.LOOKS_PER_TURN + 2)
+        c = Paid([many, [("view_frame", {"k": 2})], [self.record(k) for k in range(1, self.n + 1)], [("finish", {"summary": "xong"})]])
+        res = qc_agent.QcAgent(self.p, self.pid, self.data, c, self.frames).run()
+        first = json.dumps(c.seen[1], ensure_ascii=False)
+        self.assertEqual(first.count('"type": "image"'), qc_agent.LOOKS_PER_TURN)     # extra looks refused
+        self.assertIn("[Trạng thái]", first)
+        self.assertIn("HẾT phần điều tra", json.dumps(c.seen[2], ensure_ascii=False))  # 60 % spent: looking refused
+        self.assertEqual(res["summary"]["summary"], "xong")
+
     def test_a_client_without_tool_use_is_refused_clearly(self):
         with self.assertRaises(llm_runner.LlmError) as e:
             qc_agent.QcAgent(self.p, self.pid, self.data, llm_runner.MockLlm(), self.frames).run()

@@ -45,6 +45,10 @@ def main():
     a = ap.parse_args()
     labels = json.load(open(LABELS, encoding="utf-8"))
     labels = labels if isinstance(labels, list) else labels.get("frames") or labels.get("verdicts")
+    fix = os.path.join(os.path.dirname(LABELS), "labels_v2.json")       # 28/09: left/right labels judged by the frame edge, corrected
+    if os.path.exists(fix):
+        over = json.load(open(fix, encoding="utf-8")).get("overrides") or {}
+        labels = [dict(lab, verdict=over[str(lab["job"])]["verdict"]) if str(lab["job"]) in over else lab for lab in labels]
     from core.db import connect
     from core.pipeline import Pipeline
     p = Pipeline(connect(a.db))

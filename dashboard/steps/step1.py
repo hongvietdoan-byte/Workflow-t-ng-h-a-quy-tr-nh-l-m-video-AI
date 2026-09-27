@@ -45,6 +45,57 @@ def autopilot_progress(pid: int) -> None:
             show_video(out)
 
 
+def project_budget_panel(p: Pipeline, pid: int) -> None:
+    """💵 The project's budget by stage (core.project_budget): computed by code from the shot table, approved and LOCKED by a person;
+    after that only a person raises a stage's cap, with a reason."""
+    from core import project_budget
+    if not project_budget.enabled():
+        return
+    data = project_budget.get(p.conn, pid) or {}
+    locked = bool(data.get("locked"))
+    with st.expander("💵 Ngân sách dự án" + (" — ĐÃ KHÓA" if locked else " — chưa duyệt (chạy tự động sẽ chờ trước khi gen ảnh)"),
+                     expanded=not locked):
+        try:
+            prop = project_budget.propose(p, pid)
+        except Exception as e:  # noqa: BLE001 - say it, never hide the panel
+            st.warning(f"Không tính được ngân sách ({type(e).__name__}: {e})")
+            return
+        spent = project_budget.spent_by_stage(p.conn, pid)
+        caps = data.get("caps") or {}
+        rows = [{"Khâu": label, "Đã chi": f"{spent[k]:.2f}", "Còn cần (ước)": f"{prop['stages'][k]['left_estimate']:.2f}",
+                 "Đề xuất trần": f"{prop['stages'][k]['cap']:.2f}", "Trần đã khóa": (f"{caps[k]:.2f}" if k in caps else "—")}
+                for k, label in project_budget.STAGES.items()]
+        st.dataframe(rows, hide_index=True, use_container_width=True)
+        st.caption(f"Tổng đề xuất ≈ {prop['total']:.2f} USD" + (f" · tổng đã khóa {data['total']:.2f} USD" if locked else "")
+                   + f" · đã chi {sum(spent.values()):.2f} USD. Đề xuất = đã chi + phần còn lại do CODE tính từ bảng shot + bảng giá, cộng "
+                   f"{int(project_budget.IMAGE_REDO * 100)} % vẽ lại ảnh, {int(project_budget.VIDEO_REDO * 100)} % làm lại video, Claude ×"
+                   f"{project_budget.LLM_MARGIN}; giá chưa xác minh (Seedance) ×{project_budget.UNVERIFIED_MARGIN}. Âm thanh chưa có giá: "
+                   "vẫn giới hạn theo số lượt.")
+        target = st.number_input("Ngân sách mục tiêu (USD, để Director chia shot trong mức này; 0 = không đặt)", min_value=0.0,
+                                 value=float(data.get("target") or 0.0), step=1.0, key=f"pb_target_{pid}")
+        if (target or None) != (data.get("target") or None):
+            project_budget.set_target(p.conn, pid, target or None)
+        if data.get("target") and prop["total"] > float(data["target"]):
+            st.warning(f"Đề xuất ≈ {prop['total']:.2f} USD VƯỢT mục tiêu {float(data['target']):.2f} USD — bớt shot khớp môi / giây "
+                       "video / số shot (chia shot lại) trước khi duyệt.")
+        if not locked:
+            if confirm_all(f"pb_ok_{pid}", ["go"], f"✔ Duyệt & KHÓA ngân sách ≈ {prop['total']:.2f} USD",
+                           f"Khóa ngân sách dự án ≈ {prop['total']:.2f} USD (trần từng khâu như bảng)? Sau khi khóa, mọi lời gọi trả tiền "
+                           "vượt trần khâu hoặc tổng sẽ bị DỪNG; chỉ người được nâng trần, kèm lý do.", st, "Có, khóa"):
+                project_budget.approve(p, pid, p.actor, prop)
+                st.rerun()
+            return
+        c1, c2, c3 = st.columns([1.2, 1, 2])
+        stage = c1.selectbox("Nâng trần khâu", list(project_budget.STAGES), format_func=project_budget.STAGES.get, key=f"pb_stage_{pid}")
+        add = c2.number_input("Thêm (USD)", min_value=0.0, value=0.0, step=0.5, key=f"pb_add_{pid}")
+        why = c3.text_input("Lý do (bắt buộc)", key=f"pb_why_{pid}")
+        if st.button("Nâng trần", key=f"pb_raise_{pid}", disabled=not (add > 0 and why.strip())):
+            project_budget.raise_cap(p.conn, pid, stage, add, p.actor, why)
+            st.rerun()
+        for r in (data.get("raises") or [])[-5:]:
+            st.caption(f"{r['at']} · {r['who']}: +{r['add_usd']:.2f} USD cho {project_budget.STAGES.get(r['stage'], r['stage'])} — {r['why']}")
+
+
 def autopilot_panel(p: Pipeline, pid: int) -> None:
     """Fully automatic mode: approve the scene breakdown (and, by default, the Character Bible), the rest runs by itself."""
     if not allowed("autopilot"):
@@ -54,6 +105,7 @@ def autopilot_panel(p: Pipeline, pid: int) -> None:
         ui.html(ui.card_title("🚀 Tự động hoàn toàn", "bạn duyệt phân cảnh (và nhân vật), phần còn lại tự chạy"))
         if info["state"] in ("queued", "running", "done", "needs_attention", "stopped", "error", "waiting"):
             autopilot_progress(pid)
+            project_budget_panel(p, pid)
             if info["state"] not in ("running", "queued"):
                 with st.expander("Chạy lại từ đầu cho dự án này"):
                     st.caption("Đặt lại trạng thái tự động (ảnh/video đã làm được giữ nguyên).")
@@ -91,6 +143,7 @@ def autopilot_panel(p: Pipeline, pid: int) -> None:
         if run_est is not None:
             st.info("💵 Ước tính chạy tự động: " + cost.format_run_estimate(run_est).replace("$", "\\$")
                     + ("  ·  🧪 chế độ Thử rẻ đang BẬT" if p.project(pid)["test_quality"] else ""))
+        project_budget_panel(p, pid)
         tag = f" (≈ {run_est['total']:.2f} USD)" if run_est is not None else ""
         if confirm_all(f"ap_start_{pid}", ["go"], "✔ Duyệt phân cảnh & chạy tự động" + tag,
                        "Bắt đầu chạy tự động? Sẽ gọi Deepix, Clip AI và Claude thật (tốn credit"

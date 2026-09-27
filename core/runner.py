@@ -738,13 +738,17 @@ class VideoRunner(_Runner):
             record_usage(self.p.conn, job["id"], "video", self.provider.name, model, tier, seconds, "second")
 
     def _over_budget(self, job, args, kwargs) -> Optional[str]:
-        from . import budget
+        from . import budget, cost, project_budget
         try:
             usage = self._usage(args, kwargs)
         except ProviderError as e:                       # e.g. a model the provider does not know: nothing to price, nothing sent
             return f"không tính được giá clip ({e})"
         if usage:
-            return budget.check_video(self.p.conn, self.provider.name, *usage)
+            reason = budget.check_video(self.p.conn, self.provider.name, *usage)
+            if reason or str(self.provider.name).startswith("mock"):
+                return reason
+            price = cost.clip_price(cost.load_pricing(), *usage) or 0.0
+            return project_budget.check(self.p.conn, job["project_id"], "videos", price)
         return None if str(self.provider.name).startswith("mock") else budget.pricing_problem()
 
     def _on_refused(self, job, code, message: str) -> None:
@@ -1082,7 +1086,12 @@ class ImageRunner(_Runner):
                 model = info()[0]
             except Exception:  # noqa: BLE001 - a provider without a model name: priced as unknown (refused while the limit is on)
                 model = None
-        return budget.check_image(self.p.conn, self.provider.name, model)
+        reason = budget.check_image(self.p.conn, self.provider.name, model)
+        if reason or str(self.provider.name).startswith("mock"):
+            return reason
+        from . import cost, project_budget
+        price = cost._number(cost.load_pricing().get("per_image", {}).get(model)) if model else None
+        return project_budget.check(self.p.conn, job["project_id"], "images", price or 0.0)
 
     def _plate(self, job, data=None):
         """The location-pack plate of this shot (feature location_plates), else None."""

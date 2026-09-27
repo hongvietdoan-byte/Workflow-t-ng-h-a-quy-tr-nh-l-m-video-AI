@@ -351,14 +351,16 @@ class SpendLockReviewTests(unittest.TestCase):
         conn = connect(db)
         budget.save(conn, enabled=True, llm_usd=0.10)
         c = llm_runner.AnthropicClient("sk-test", "claude-sonnet-5", transport=lambda *a: None, sleep=lambda s: None, ledger=db)
+        other = llm_runner.AnthropicClient("sk-test", "claude-sonnet-5", transport=lambda *a: None, sleep=lambda s: None, ledger=db)
         payload = {"max_tokens": 6000, "messages": [{"role": "user", "content": [{"type": "text", "text": "x"}]}]}   # worst ≈ 0.06
-        held = c._check_budget(payload)                                  # a first call in flight holds its worst case
+        held = c._check_budget(payload)                                  # a first call in flight holds its worst case IN THE DATABASE
         try:
-            with self.assertRaises(llm_runner.LlmError):                # 0.06 held + 0.06 > 0.10: the second waits for money
-                c._check_budget(payload)
+            with self.assertRaises(llm_runner.LlmError):                # another client (= another process) sees it: 0.06 + 0.06 > 0.10
+                other._check_budget(payload)
         finally:
-            llm_runner._release(held)
-        llm_runner._release(c._check_budget(payload))                   # released: it passes again
+            c._release(held)
+        other._release(other._check_budget(payload))                    # released: it passes again
+        self.assertEqual(budget.held(conn), 0.0)
 
 
 class SourcesTests(unittest.TestCase):
