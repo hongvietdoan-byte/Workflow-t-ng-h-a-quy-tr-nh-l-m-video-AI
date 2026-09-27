@@ -115,11 +115,13 @@ def pending_end_frames(pipeline: Pipeline, project_id: int) -> int:
 def estimate_images(pipeline: Pipeline, project_id: int, pricing: Dict, model: str) -> Dict:
     """Pictures a run would pay for: the shots' start pictures plus the K1 end frames (feature end_frames)."""
     ends = pending_end_frames(pipeline, project_id)
-    n = pending_image_units(pipeline, project_id) + ends
+    from . import scene_establish
+    wide = scene_establish.pending(pipeline.conn, project_id, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "data", "projects"))
+    n = pending_image_units(pipeline, project_id) + ends + wide
     price = _number(pricing["per_image"].get(model))
     max_retry = pipeline.project(project_id)["max_retry_count"]
     result = {"kind": "image", "items": n, "seconds": 0, "unit_price": price, "known": price is not None,
-              "currency": pricing["currency"], "max_retry": max_retry, "end_frames": ends}
+              "currency": pricing["currency"], "max_retry": max_retry, "end_frames": ends, "establishing": wide}
     result.update(_range(None if price is None else price * n, max_retry))
     return result
 

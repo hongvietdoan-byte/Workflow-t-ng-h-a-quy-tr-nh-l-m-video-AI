@@ -1021,6 +1021,17 @@ class ImageRunner(_Runner):
         from . import shots
         from . import features
         from . import scene_storyboard
+        from . import scene_establish
+        if scene_establish.enabled():
+            data = json.loads(self.p.conn.execute("SELECT data FROM scenes WHERE id=?", (job["scene_id"],)).fetchone()["data"] or "{}")
+            model = None
+            if getattr(self.provider, "supports_model", False):
+                from . import image_models
+                model = image_models.of_project(self.p.project(job["project_id"]))
+            state = scene_establish.step(self.p.conn, job["project_id"], data.get("story_scene"), self.provider, self.data_dir, model,
+                                         lambda sev, code, msg: self._diag(job, sev, code, msg))
+            if state == "waiting":
+                return True                                  # the scene's wide establishing picture is drawn first
         if scene_storyboard.enabled() and getattr(self.provider, "supports_storyboard", False) and \
                 scene_storyboard.waits(self.p.conn, self.data_dir, job["project_id"], job["scene_id"]):
             return True                                      # storyboard mode: the scene's anchor frame is drawn first
@@ -1059,6 +1070,10 @@ class ImageRunner(_Runner):
         if plate is not None:
             return self._green_args(job, data, plate)
         prompt, _ = build_image_prompt(conn, job["project_id"], data, fix=model_fix(job["retry_reason"]))
+        from . import scene_establish
+        light = scene_establish.light_sentence(data)
+        if light:
+            prompt = f"{prompt} {light}"
         proj = self.p.project(job["project_id"])
         chain = chain_previous(proj, data)
         from . import features
@@ -1071,6 +1086,11 @@ class ImageRunner(_Runner):
                                        limit=limit, reserve=(1 if chain else 0) + (1 if plan else 0), sheets=sheets)
         if plan:
             refs = [plan] + refs
+        from . import scene_establish
+        est = scene_establish.reference(self.data_dir, job["project_id"], data.get("story_scene"))
+        if est:                                        # the scene's wide establishing picture: the shared reference for the place
+            refs = ([r for r in refs if r.get("role") != "location"][:max(limit - 2, 1)]
+                    + [r for r in refs if r.get("role") == "location"][:1] + [est])
         if chain and len(refs) < limit:
             # Deepix has no scriptable Storyboard (web UI only, see docs/CLIPAI_FEATURES.md) — this chains the
             # previous scene's approved picture in as an extra image-to-image reference instead, so style/lighting
@@ -1130,6 +1150,11 @@ class ImageRunner(_Runner):
             g = scene_storyboard.group_of(self.p.conn, job["project_id"], job["scene_id"])
             if g is not None:
                 shared = scene_storyboard.shared_references(self.p.conn, job["project_id"], g["shots"], without_place=without_place)
+                from . import scene_establish
+                est = None if without_place else scene_establish.reference(self.data_dir, job["project_id"], g["story_scene"])
+                if est:                                # the scene's wide establishing picture: the shared reference for the place
+                    shared = ([r for r in shared if r.get("role") != "location"][:6]
+                              + [r for r in shared if r.get("role") == "location"][:1] + [est])
                 shared, dropped = sendable_references(shared, model)     # before the mapping text is built from the list
                 if dropped:
                     self._diag(job, "warn", "missing_reference", "ảnh tham chiếu storyboard không gửi được: " + ", ".join(dropped))

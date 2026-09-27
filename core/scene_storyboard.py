@@ -102,6 +102,11 @@ def story_text(conn, pid: int, g: Dict, green: bool = False) -> str:
                      for i, s in enumerate(g["shots"]))
     frame = ("The same people and outfits in every frame, each drawn alone on a flat chroma-key green backdrop — no place, no floor, "
              "no sky (the place is added afterwards)." if green else "One continuous scene — same place, same light, same people in every frame.")
+    if not green:
+        from . import scene_establish
+        light = scene_establish.light_sentence(g["shots"][0]["data"] if g.get("shots") else {})
+        if light:
+            frame += " " + light
     return no_minor_age(f"{head}{frame} {beats}")[:3000]
 
 
