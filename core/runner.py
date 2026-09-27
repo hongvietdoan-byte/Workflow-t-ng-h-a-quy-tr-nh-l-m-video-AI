@@ -991,12 +991,16 @@ def view_notes(conn, project_id: int, data: Dict) -> str:
     KENTA's gauntlet on the wrong side (4 frames) and turned MAXIM's cap forward (5 frames) — it does not work out how left/right and a
     reversed cap look from the other side. Each profile's `view_notes` ({"facing_camera", "from_behind"}) says it for the shot's view."""
     parts = []
-    for name in data.get("characters") or []:
+    cast = [str(n) for n in data.get("characters") or []]
+    views = {n: seen_from_behind(data, n) for n in cast}
+    if any(v is True for v in views.values()):       # over X's shoulder: the others face the camera
+        views = {n: (False if v is None else v) for n, v in views.items()}
+    for name in cast:
         rules = assets.standard_for(conn, project_id, str(name)) or {}
         notes = rules.get("view_notes") if isinstance(rules.get("view_notes"), dict) else {}
         if not notes:
             continue
-        behind = seen_from_behind(data, str(name))
+        behind = views[name]
         if behind is True and notes.get("from_behind"):
             parts.append(notes["from_behind"])
         elif behind is False and notes.get("facing_camera"):
