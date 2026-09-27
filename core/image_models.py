@@ -80,8 +80,19 @@ def size_for(proj, model: str) -> str:
     from . import formats
     aspect = formats.project_aspect(proj) if proj is not None else None
     normal = formats.spec(aspect)["deepix"]
-    cheap = proj is not None and "test_quality" in proj.keys() and bool(proj["test_quality"])
+    cheap = proj is not None and "test_quality" in proj.keys() and bool(proj["test_quality"]) and _priced_by_size(model)
     return (cheapest_size(model, aspect or "16:9") or normal) if cheap else normal
+
+
+def _priced_by_size(model: str) -> bool:
+    """A smaller picture is cheaper only if the price list says so (`per_image_by_size` for the model). Trial #8 (2026-09-27): the
+    cheap mode drew GPT Image 2.5 at 608×1088 for the same flat 0.052 USD a picture — a worse picture that saved nothing, and the
+    picture is also the reference of the video."""
+    try:
+        from .cost import load_pricing
+        return bool((load_pricing().get("per_image_by_size") or {}).get(model))
+    except Exception:  # noqa: BLE001 - no price list: keep the normal size
+        return False
 
 
 def size_problem(model: str, size: Optional[str]) -> Optional[str]:

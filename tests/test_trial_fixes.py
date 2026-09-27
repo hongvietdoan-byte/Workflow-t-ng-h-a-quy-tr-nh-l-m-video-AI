@@ -542,7 +542,13 @@ class CheapModeTests(Base):
         runner = ImageRunner(self.p, MockImageProvider(), self.dir)
         self.assertEqual(runner._submit_kwargs(self.p.job(jid))["size"], "1152x2048")
         self.p.set_project_field(self.pid, "test_quality", 1)
-        self.assertEqual(runner._submit_kwargs(self.p.job(jid))["size"], "608x1088")
+        # #8 (2026-09-27): a flat price a picture → a smaller picture saves nothing, the size stays
+        self.assertEqual(runner._submit_kwargs(self.p.job(jid))["size"], "1152x2048")
+        from unittest import mock
+        from core import cost
+        priced = dict(cost.load_pricing(), per_image_by_size={"gpt-image-2.5-sunburst": {"608x1088": 0.02}})
+        with mock.patch.object(cost, "load_pricing", return_value=priced):
+            self.assertEqual(runner._submit_kwargs(self.p.job(jid))["size"], "608x1088")
         self.assertEqual(self.p.project(self.p.create_project("normal"))["test_quality"], 0)
         budget.restart(self.p.conn, usd=10)
         self.assertEqual(self.p.project(self.p.create_project("during the trial"))["test_quality"], 1)
