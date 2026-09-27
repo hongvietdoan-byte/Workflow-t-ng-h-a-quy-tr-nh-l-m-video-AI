@@ -32,7 +32,7 @@ MAX_CUT_TURNS = 2
 
 
 def scene_cap(n_frames: int) -> float:
-    return min(SCENE_CAP_MAX_USD, SCENE_CAP_BASE_USD + SCENE_CAP_PER_FRAME_USD * max(1, n_frames))
+    return round(min(SCENE_CAP_MAX_USD, SCENE_CAP_BASE_USD + SCENE_CAP_PER_FRAME_USD * max(1, n_frames)), 4)
 VIEW_EDGE = 768           # a full frame at 768 px is enough to see (half the tokens of 1024); crops zoom in for detail
 ZOOM_EDGE = 768
 VERDICTS = ("pass", "minor", "block", "doubt")

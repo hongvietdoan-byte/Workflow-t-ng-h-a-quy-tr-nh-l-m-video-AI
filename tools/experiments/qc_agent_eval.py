@@ -80,7 +80,7 @@ def main():
         f"cảnh {s} ${qc_agent.scene_cap(len(by_scene[s])):.2f}" for s in scenes), flush=True)
     with llm_runner.spend_cap(a.max_usd, "nghiệm thu agent QC") as total:
         for s in scenes:
-            if total["spent"] + qc_agent.scene_cap(len(by_scene[s])) > a.max_usd:   # a whole scene must fit, not the last turn
+            if total["spent"] + qc_agent.scene_cap(len(by_scene[s])) > a.max_usd + 1e-9:   # a whole scene must fit, not the last turn
                 print(f"dừng trước cảnh {s}: chạm trần cả lần chạy (${total['spent']:.3f})", flush=True)
                 break
             res = qc_agent.QcAgent(p, a.project, data_dir, client, by_scene[s], s,
