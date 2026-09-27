@@ -281,11 +281,32 @@ def _hold(p, job_id: int, note: str) -> None:
     p.conn.commit()
 
 
+def trusted() -> bool:
+    """Layer 1 may approve / redraw on its own only once it has passed its acceptance test (FEATURE_SCENE_QC_TRUSTED=1 is set by
+    hand after that). Regression 2026-09-27 on the labelled composites of #8: it caught 6/12 obvious faults but never for the right
+    reason (passed 6 pasted rectangles + a Big-Ben tower) and flagged 12/21 good frames for trivia — so until then its verdicts are
+    notes for the person: every frame waits at the storyboard gate."""
+    return features.on("scene_qc_trusted")
+
+
 def apply(p, pid: int, frames: List[Dict], obj: Dict, data_dir: str) -> Dict[str, str]:
-    """pass → approved (unless a layer-0 flag is left); fix → drawn again with the fix (plan → held); doubt → held with the evidence."""
+    """pass → approved (unless a layer-0 flag is left); fix → drawn again with the fix (plan → held); doubt → held with the evidence.
+    Not trusted yet (see trusted()): every frame is held with the verdict as a note."""
     from .states import JobState
     by_k = {f["k"]: f for f in obj["frames"]}
     out: Dict[str, str] = {}
+    if not trusted():
+        for k, r in enumerate(frames, 1):
+            f = by_k[k]
+            if p.job(r["job_id"])["state"] not in ("succeeded", "pending_review"):
+                out[f"K{k}"] = f"giữ nguyên ({p.job(r['job_id'])['state']})"
+                continue
+            bad = "; ".join(f"{c}: {f['checks'][c]['evidence']}" for c in CHECKS if not f["checks"][c]["ok"])
+            note = (f"QC cảnh (tham khảo, chưa nghiệm thu) {f['verdict']}"
+                    + (f" [{f['root_cause']}]: {f.get('problem') or bad}" if f["verdict"] != "pass" else "") + (f" — sửa gợi ý: {f['fix']}" if f.get("fix") else ""))
+            _hold(p, r["job_id"], note[:600])
+            out[f"K{k}"] = f"giữ cho người ({f['verdict']})"
+        return out
     for k, r in enumerate(frames, 1):
         f = by_k[k]
         job = p.job(r["job_id"])

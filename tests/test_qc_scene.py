@@ -125,7 +125,19 @@ class ReviewTests(unittest.TestCase):
                 return llm_runner.LlmReply(json.dumps({"frames": frames, "scene": {"ok": False, "notes": ""}}), 100, 50)
         return C()
 
+    def test_until_it_passes_its_acceptance_every_frame_waits_for_a_person(self):
+        os.environ.pop("FEATURE_SCENE_QC_TRUSTED", None)
+        frames = [frame(1)] + [frame(k, "fix", "model", ("artifacts",), "Kelly's left hand has exactly five fingers.")
+                               for k in range(2, len(self.rows) + 1)]
+        res = qc_scene.review_scene(self.p, self.pid, self.scene, self.client(frames), self.data)
+        self.assertTrue(all(v.startswith("giữ cho người") for v in res["applied"].values()))
+        states = {self.p.conn.execute("SELECT state FROM jobs WHERE scene_id=? AND type='image_gen' ORDER BY id DESC LIMIT 1",
+                                      (r["id"],)).fetchone()["state"] for r in self.rows}
+        self.assertEqual(states, {"pending_review"})                          # nothing approved, nothing redrawn by an untrusted QC
+
     def test_one_call_per_scene_and_each_verdict_does_the_right_thing(self):
+        os.environ["FEATURE_SCENE_QC_TRUSTED"] = "1"
+        self.addCleanup(os.environ.pop, "FEATURE_SCENE_QC_TRUSTED", None)
         n = len(self.rows)
         frames = [frame(1), frame(2, "fix", "model", ("artifacts",), "Kelly's left hand has exactly five fingers."),
                   frame(3, "fix", "plan", ("action",))] + [frame(k, "doubt", "none", ("identity",)) for k in range(4, n + 1)]
