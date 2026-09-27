@@ -110,10 +110,25 @@ def story_text(conn, pid: int, g: Dict, green: bool = False) -> str:
     return no_minor_age(f"{head}{frame} {beats}")[:3000]
 
 
-def storyboard_id(pid: int, g: Dict, anchor_job_id: int) -> str:
+def storyboard_id(pid: int, g: Dict, anchor_job_id: int, fresh_for: int = 0) -> str:
     """One id per scene and anchor picture: the anchor job and every frame drawn from its picture share it (a new anchor picture
-    starts a new storyboard)."""
-    return "sb_" + hashlib.sha1(f"{pid}:{g['story_scene']}:{anchor_job_id}".encode()).hexdigest()[:12]
+    starts a new storyboard). fresh_for = a redraw job that gets a session of its own (see fresh_session)."""
+    key = f"{pid}:{g['story_scene']}:{anchor_job_id}" + (f":redo{fresh_for}" if fresh_for else "")
+    return "sb_" + hashlib.sha1(key.encode()).hexdigest()[:12]
+
+
+def fresh_session(conn, job_id: int) -> bool:
+    """A redraw WITH a fix goes out in a new storyboard session (the scene anchor picture is still sent as a reference).
+    #8 2026-09-27: S4·2 redrawn twice in the same session (same storyboard_id + frame_index) came back as a sunset both times although
+    the fix said "no sunset" and the failed picture was NOT among the references — the provider's session is the input that did not
+    change. A resend after the provider created nothing (RESEND_NOTE) keeps the session: that is the same attempt again."""
+    if not job_id:
+        return False
+    row = conn.execute("SELECT parent_job_id, retry_reason FROM jobs WHERE id=?", (job_id,)).fetchone()
+    if row is None or not row["parent_job_id"]:
+        return False
+    from .runner import RESEND_NOTE
+    return not (row["retry_reason"] or "").startswith(RESEND_NOTE)
 
 
 def job_fields(conn, data_dir: str, pid: int, scene_id: int, refs: List[Dict], job_id: int = 0, green: bool = False) -> Optional[Dict]:
@@ -127,7 +142,7 @@ def job_fields(conn, data_dir: str, pid: int, scene_id: int, refs: List[Dict], j
     send = list(refs) + ([{"path": anchor_pic, "label": "frame 1 (scene anchor)", "role": "previous_scene"}] if anchor_pic else [])
     mode = "global" if refs else "sequential"
     anchor_job = job_id if is_anchor else int(os.path.basename(anchor_pic)[4:].split(".")[0].split("_")[0]) if anchor_pic else 0
-    return {"storyboard": {"story_text": story_text(conn, pid, g, green), "storyboard_id": storyboard_id(pid, g, anchor_job),
+    return {"storyboard": {"story_text": story_text(conn, pid, g, green), "storyboard_id": storyboard_id(pid, g, anchor_job, 0 if is_anchor or not fresh_session(conn, job_id) else job_id),
                            "frame_index": g["index"], "group_size": len(g["shots"]), "ref_mode": mode,
                            "image_mapping": mapping_text(send, len(refs)) if send else ""},
             "refs": send, "anchor": is_anchor}

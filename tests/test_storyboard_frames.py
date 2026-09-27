@@ -136,6 +136,19 @@ class SceneModeTests(unittest.TestCase):
         self.assertEqual(len(first_round), len({s["story_scene"] for s in
                                                 (json.loads(r["data"]) for r in p.conn.execute("SELECT data FROM scenes WHERE project_id=?",
                                                                                                (pid,)))} ))   # one anchor per scene
+        # a redraw WITH a fix goes out in a new session (#8 S4·2: the same session gave a sunset twice); a resend keeps the session
+        from core.runner import RESEND_NOTE
+        frame = next(r for r in p.conn.execute("SELECT id, external_id FROM jobs WHERE project_id=? AND type='image_gen'", (pid,))
+                     if r["external_id"] in later)                      # a frame that is not its scene's anchor
+        redo = p._insert_job(pid, p.job(frame["id"])["scene_id"], "image_gen", parent_job_id=frame["id"], retry_count=1,
+                             retry_reason="Keep the midday light.")
+        resend = p._insert_job(pid, p.job(frame["id"])["scene_id"], "image_gen", parent_job_id=frame["id"], retry_count=1,
+                               retry_reason=RESEND_NOTE + " (1/3)")
+        with mock.patch.dict(os.environ, {"FEATURE_STORYBOARD_API": "1"}):
+            sid = {j: scene_storyboard.job_fields(p.conn, data, pid, p.job(j)["scene_id"], [], j)["storyboard"]["storyboard_id"]
+                   for j in (frame["id"], redo, resend)}
+        self.assertNotEqual(sid[redo], sid[frame["id"]])
+        self.assertEqual(sid[resend], sid[frame["id"]])
 
     def test_off_by_default_or_without_a_storyboard_provider(self):
         from core import scene_storyboard
