@@ -144,6 +144,9 @@ def start(p: Pipeline, project_id: int, user: Optional[str] = None) -> None:
     set_gates(p, project_id, {"bible_done": False, "pilot_done": False, "storyboard_ok": None, "waiting_for": None})
     _set(p, project_id, RUNNING, "Đã duyệt phân cảnh, đang chạy tự động")
     _log(p, project_id, "Bạn đã duyệt phân cảnh → bắt đầu chạy tự động")
+    from . import known_issues
+    for line in known_issues.warning_lines(p.conn, project_id):   # a paused stage switched back on shows its open faults first
+        _d(p, project_id, "autopilot", "warn", "Khâu có lỗi đã biết chưa sửa: " + line, "known_issues")
 
 
 def resume(p: Pipeline, project_id: int, user: Optional[str] = None) -> None:

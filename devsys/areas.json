@@ -27,7 +27,7 @@
       "assets": ["prompts/02_*", "prompts/07_*", "prompts/08_*", "prompts/09_*", "prompts/13_*", "prompts/14_*", "data/qc_checklist.json", "knowledge/ai_image_failure_modes.md", "knowledge/character_lock.md", "knowledge/set_consistency_qa.md", "tools/experiments/storyboard_test.py"],
       "docs": ["docs/PHAN_TICH_LOI_GD6_2026-09-24.md"],
       "tests": [],
-      "flags": ["layout_to_model", "chain_previous_auto", "storyboard_api", "scene_establishing", "end_frames", "storyboard_auto_trust", "setcheck_autofix", "profile_digest"],
+      "flags": ["layout_to_model", "chain_previous_auto", "storyboard_api", "scene_establishing", "scene_qc", "end_frames", "storyboard_auto_trust", "setcheck_autofix", "profile_digest"],
       "diag_stages": ["previz", "image", "qc"],
       "keywords": ["ảnh", "QC", "storyboard", "Deepix", "layout", "previz", "khung cuối", "end_frame", "autoqc"]
     },
@@ -49,7 +49,7 @@
       "name": "Bước 4 · Video + QC",
       "weight": 1.2,
       "description": "Chọn model video theo cảnh, luật model, gửi/nhận clip ClipAI (Kling/Seedance), QC clip, gen lại, so sánh biến thể, thí nghiệm, màn Bước 4.",
-      "code": ["core/model_router.py", "core/video_rules.py", "core/adapters/clipai.py", "core/adapters/clipai_subjects.py", "core/subjects.py", "core/regen.py", "core/compare.py", "core/experiments.py", "core/runner.py", "core/seedance_refs.py", "core/scene_establish.py", "core/claude_tasks.py", "dashboard/steps/step4.py"],
+      "code": ["core/model_router.py", "core/video_rules.py", "core/adapters/clipai.py", "core/adapters/clipai_subjects.py", "core/subjects.py", "core/regen.py", "core/compare.py", "core/experiments.py", "core/runner.py", "core/seedance_refs.py", "core/scene_establish.py", "core/known_issues.py", "core/claude_tasks.py", "dashboard/steps/step4.py"],
       "assets": ["prompts/12_*", "data/video_models.json", "data/provider_rules.json", "knowledge/seedance_prompting.md", "knowledge/seedance_director_workflow.md", "tools/recover_clips.py", "tools/reference_video.py", "mcp_servers/clipai.py"],
       "docs": ["docs/CLIPAI_FEATURES.md", "docs/api_notes.md"],
       "tests": [],

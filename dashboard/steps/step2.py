@@ -79,6 +79,14 @@ def step2(p: Pipeline, pid: int):
     step_header("Bước 2 · Ảnh + QC", "mỗi cảnh một ảnh đúng nhân vật, đúng bối cảnh, đã duyệt",
                 f"{summ['images'][0]}/{summ['total']} cảnh có ảnh duyệt", summ["images"][1])
     pilot_panel(p, pid)
+    from core import known_issues
+    for st_ in known_issues.active(p.conn, pid):         # paused / replaced stages still in use: their open faults, before any spend
+        with st.expander(f"⚠ Khâu có lỗi đã biết: {st_['label']} — {len(st_['open'])} lỗi chưa sửa"):
+            st.caption(st_["status"])
+            for bug, fix in st_["open"]:
+                st.markdown(f"- **Lỗi:** {bug}  \n  **Hướng sửa:** {fix}")
+            if st_["fixed"]:
+                st.caption("Đã sửa: " + "; ".join(st_["fixed"]))
     with st.container(border=True):
         c1, c2, c3, c4 = st.columns([2.4, 2, 2, 2.6], vertical_alignment="center")
         est_ok = True
