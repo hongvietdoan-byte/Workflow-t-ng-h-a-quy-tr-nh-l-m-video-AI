@@ -97,6 +97,19 @@ class SeedanceRefTests(unittest.TestCase):
             self.assertEqual(rows[sid]["billed_seconds"], 0.0)
             self.assertIn("trong clip nhóm", rows[sid]["reason"])
 
+    def test_motion_prompts_of_reference_shots_are_written_by_code(self):
+        from core.providers import MockImageProvider  # noqa: F401 - the images are approved by _ready
+        self._ready()
+        self.p.conn.execute("DELETE FROM motion_prompts WHERE scene_id IN (%s)" % ",".join(map(str, self.ids)))
+        self.p.conn.commit()
+        n = seedance_refs.code_motion(self.p, self.pid)
+        self.assertGreaterEqual(n, len(self.ids))
+        for sid in self.ids:
+            mp = self.p.conn.execute("SELECT motion_prompt, state FROM motion_prompts WHERE scene_id=?", (sid,)).fetchone()
+            self.assertEqual(mp["state"], "approved")
+            self.assertIn("angle, camera", mp["motion_prompt"])
+        self.assertEqual(seedance_refs.code_motion(self.p, self.pid), 0)            # once
+
     def test_off_by_default(self):
         os.environ.pop("FEATURE_SEEDANCE_REF_GROUPS", None)
         self.assertIsNone(shots.group_of(self.p.conn, self.ids[1]))

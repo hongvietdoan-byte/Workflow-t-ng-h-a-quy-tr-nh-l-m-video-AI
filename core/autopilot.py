@@ -560,8 +560,11 @@ def _qc_trusted(p: Pipeline, pid: int, ctx: Optional[Context]) -> bool:
 
 def _motion_phase(p: Pipeline, pid: int, ctx: Context) -> Optional[str]:
     """Motion prompts for scenes without one or with an outdated one; then (once) the prompt check, whose revised prompts are used."""
-    from . import claude_tasks, lineage
+    from . import claude_tasks, lineage, seedance_refs
     rows = _scene_rows(p, pid)
+    by_code = seedance_refs.code_motion(p, pid)            # Seedance reference shots: written from the Director's fields, no Claude
+    if by_code:
+        _log(p, pid, f"Motion prompt viết bằng code (nhóm Seedance): {by_code} shot — không gọi Claude")
     missing = [s for s in rows if not _count(p, "SELECT COUNT(*) FROM motion_prompts WHERE scene_id=?", s["id"])]
     if missing:
         r = llm_runner.run_motion(p, pid, ctx.llm, ctx.data_dir)
@@ -571,6 +574,9 @@ def _motion_phase(p: Pipeline, pid: int, ctx: Context) -> Optional[str]:
         llm_runner.run_motion(p, pid, ctx.llm, ctx.data_dir, only_idx=stale)
         _log(p, pid, f"Viết lại motion prompt cảnh {', '.join(map(str, stale))} (ảnh/cảnh đã đổi)")
     marker = _marker(ctx, pid, ".lint_done")
+    if not os.path.exists(marker) and not stale and rows and all(seedance_refs.uses_refs(p.conn, s["id"]) for s in rows):
+        with open(marker, "w") as f:                       # every prompt came from the Director's fields: no Claude lint to pay for
+            f.write("code")
     if not os.path.exists(marker):
         try:
             res = claude_tasks.lint_motion(p, pid, ctx.llm)

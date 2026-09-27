@@ -232,3 +232,41 @@ def split(path: str, group: List[Dict], dest_paths: List[str], ffmpeg: Optional[
             shutil.copyfile(whole, dest)
         out.append(dest)
     return {"paths": out, "cuts": cuts, "by": by}
+
+
+def shot_motion(data: Dict) -> str:
+    """A shot's motion text from the Director's own fields (no Claude) — the wording of the tested P2m groups (2026-09-27: 3 shots cut
+    in the storyboard's order from these words + the marked pictures)."""
+    from .shots import SIZE_WORDS
+    perf = data.get("performance") if isinstance(data.get("performance"), dict) else {}
+    acting = "; ".join(f"{k}: {perf[k]}" for k in ("face", "eyes", "body", "timing") if perf.get(k))
+    talk = " ".join(f"{x.get('speaker')} speaks (mouth moving, no sound)." for x in data.get("dialogue") or [] if isinstance(x, dict))
+    move = str(data.get("camera_move") or "static").replace("_", " ")
+    return (f"{SIZE_WORDS.get(data.get('size'), data.get('size') or 'shot')}, {data.get('angle') or 'eye'} angle, camera {move}: "
+            f"{str(data.get('image_prompt') or '').strip().rstrip('.')}. " + (f"Acting — {acting}. " if acting else "") + talk).strip()
+
+
+def code_motion(p, pid: int) -> int:
+    """Motion prompts written by code for the shots made by reference pictures that have an approved picture and no prompt yet — the
+    group prompt is built from them (docs/THIET_KE_LAI_QC_VA_KET_NOI_2026-09-27.md mục 1: no Claude motion call for Seedance groups).
+    Returns how many were written (approved at once: nothing here was guessed by a model)."""
+    from . import llm_io
+    from .shots import image_scene
+    if not enabled(p.conn, pid):
+        return 0
+    todo = []
+    for s in p.conn.execute("SELECT id, idx, data FROM scenes WHERE project_id=? ORDER BY idx", (pid,)).fetchall():
+        d = json.loads(s["data"] or "{}")
+        if not eligible(d) or p.conn.execute("SELECT 1 FROM motion_prompts WHERE scene_id=?", (s["id"],)).fetchone():
+            continue
+        if not p.conn.execute("SELECT 1 FROM jobs WHERE scene_id=? AND type='image_gen' AND state='approved'",
+                              (image_scene(p.conn, s["id"]),)).fetchone():
+            continue
+        todo.append({"id": s["id"], "idx": s["idx"], "motion_prompt": shot_motion(d),
+                     "duration_sec": min(max(float(d.get("duration_s") or 2), 1), 30)})
+    if not todo:
+        return 0
+    llm_io.store_motion_prompts(p, pid, {"scenes": [{k: t[k] for k in ("idx", "motion_prompt", "duration_sec")} for t in todo]})
+    for t in todo:
+        llm_io.approve_motion_prompt(p, t["id"])
+    return len(todo)
