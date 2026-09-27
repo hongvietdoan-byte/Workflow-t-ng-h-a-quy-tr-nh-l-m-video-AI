@@ -234,6 +234,28 @@ class AudioCapAndClipPriceTests(unittest.TestCase):
         self.assertEqual(cost.price_tag(None), " · chưa có giá")
 
 
+class ConverseTests(unittest.TestCase):
+    """The QC agent's multi-turn tool use goes through the same budget check and ledger as every other Claude call."""
+
+    def test_tools_and_system_are_sent_and_the_blocks_come_back(self):
+        db = os.path.join(tempfile.mkdtemp(), "m.sqlite")
+        conn = connect(db)
+        sent = []
+
+        def send(method, url, headers, body, timeout):
+            sent.append(json.loads(body))
+            return HttpResponse(200, json.dumps({"content": [{"type": "tool_use", "id": "a", "name": "view_frame", "input": {"k": 1}}],
+                                                 "stop_reason": "tool_use", "usage": {"input_tokens": 500, "output_tokens": 40}}).encode())
+        c = llm_runner.AnthropicClient("sk-test", "claude-sonnet-5", transport=send, sleep=lambda s: None, ledger=db)
+        with llm_runner.tagged("qc_agent", None):
+            reply = c.converse([{"role": "user", "content": [{"type": "text", "text": "soi"}]}], [{"name": "view_frame", "input_schema": {}}],
+                               "hệ thống")
+        self.assertEqual(reply.blocks[0]["name"], "view_frame")
+        self.assertEqual(sent[0]["tools"][0]["name"], "view_frame")
+        self.assertEqual(sent[0]["system"][0]["text"], "hệ thống")
+        self.assertEqual(conn.execute("SELECT stage FROM usage_events WHERE kind='llm' LIMIT 1").fetchone()[0], "qc_agent")
+
+
 class SourcesTests(unittest.TestCase):
     """Rà soát 2026-09-27: which skill files a Claude call really carried is written with its tokens (llm_calls.sources)."""
 

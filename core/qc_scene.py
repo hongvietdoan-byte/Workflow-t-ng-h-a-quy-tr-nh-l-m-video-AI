@@ -353,7 +353,15 @@ def run_ready_scenes(p, pid: int, client, data_dir: str) -> Dict:
         if any(prev.get("jobs") == key for prev in done.get(str(s), [])):
             continue                                   # these very pictures were judged already
         try:
-            res = review_scene(p, pid, s, client, data_dir, frames)
+            from . import qc_agent
+            if qc_agent.enabled():                     # the investigating agent (tools, several turns) instead of one look
+                res = qc_agent.review_scene(p, pid, s, client, data_dir, frames)
+                rec = _load(data_dir, pid, "reviews.json")
+                rec.setdefault(str(s), []).append({"jobs": key, "agent": {k: v for k, v in res.items() if k != "applied"},
+                                                   "applied": res["applied"]})
+                _save(data_dir, pid, "reviews.json", rec)
+            else:
+                res = review_scene(p, pid, s, client, data_dir, frames)
             summary["reviewed"].append((s, res["applied"]))
         except Exception as e:  # noqa: BLE001 - one scene's failure is said, the others go on
             summary["failed"].append((s, f"{type(e).__name__}: {e}"))

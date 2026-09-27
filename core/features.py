@@ -119,6 +119,13 @@ FEATURES: Dict[str, Dict] = {
         "why": "Rà soát 2026-09-27 (docs/RA_SOAT_CLAUDE_KY_NANG_2026-09-27.md): QC từng ảnh không phân biệt ảnh lỗi (0,67) với ảnh tốt (0,69) "
                "trên 54 ảnh #8 — QC mới chưa đo trên bộ nhãn",
     },
+    "qc_agent": {
+        "label": "Agent QC điều tra nhiều bước (Claude có công cụ: xem khung / cắt sát / ghép dải nhiều khung / ảnh chuẩn / bộ đo / ghi "
+                 "kết luận) theo sổ tay kiểm tra — thay lớp 1 của QC theo cảnh",
+        "verified": False,
+        "why": "Thử 2026-09-27 bằng agent trong phiên làm việc (không qua API): 11 lỗi chặn đúng trên #8, người dùng xác nhận; bản trong "
+               "app (core/qc_agent.py) chưa đo trên bộ nhãn",
+    },
     "scene_qc_trusted": {
         "label": "Cho QC theo cảnh (lớp 1, Claude) TỰ duyệt / tự vẽ lại — chỉ bật khi đã qua nghiệm thu (bắt đủ lỗi nhìn thấy rõ, báo nhầm ≤ 10 %)",
         "verified": False,

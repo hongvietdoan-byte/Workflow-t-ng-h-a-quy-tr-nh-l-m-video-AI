@@ -89,6 +89,7 @@ class LlmReply:
     cache_write_tokens: int = 0
     cache_read_tokens: int = 0
     web_searches: int = 0          # server-side web search requests (billed per search, not per token)
+    blocks: Optional[list] = None  # the raw content blocks (tool use: core/qc_agent.py)
 
 
 # ---- what each paid call is for (C1/C7): stage + project go into the cost ledger ----------------------------------------------
@@ -205,6 +206,44 @@ class AnthropicClient:
 
     def complete(self, prompt: str, images: Sequence[Tuple[str, str]] = ()) -> LlmReply:
         return self._request(prompt, images, None)
+
+    def converse(self, messages: List[Dict], tools: List[Dict], system: str = "", max_tokens: Optional[int] = None) -> LlmReply:
+        """One turn of a multi-turn tool-use conversation (the QC agent, core/qc_agent.py): the caller keeps `messages` and answers every
+        tool_use with a tool_result. Same budget check, ledger and retries as `complete`; `reply.blocks` holds the content blocks."""
+        self._last_prompt = system + "\n".join(b.get("text", "") for m in messages[:1] for b in (m["content"] if isinstance(m["content"], list)
+                                                                                                  else [{"text": m["content"]}]))
+        payload = {"model": self.model, "max_tokens": int(max_tokens or self.max_tokens), "messages": messages, "tools": tools}
+        if system:
+            payload["system"] = [{"type": "text", "text": system, "cache_control": {"type": "ephemeral"}}]
+        self._last_max_tokens = payload["max_tokens"]
+        body = json.dumps(payload).encode("utf-8")
+        headers = {"x-api-key": self._key, "anthropic-version": API_VERSION, "content-type": "application/json",
+                   "User-Agent": "AIVideoPipeline-LLM/0.1"}
+        self._check_budget()
+        last: Optional[LlmError] = None
+        for attempt in range(self.retries + 1):
+            try:
+                reply = self._parse(self.transport("POST", self.base + "/v1/messages", headers, body, REQUEST_TIMEOUT))
+                self._record(reply)
+                if reply.stop_reason == "max_tokens":
+                    raise LlmError("câu trả lời bị cắt (max_tokens) giữa lượt agent", code="truncated")
+                return reply
+            except LlmError as e:
+                last = e
+                if not e.transient or attempt == self.retries:
+                    raise
+                self._sleep(2 ** attempt * 2)
+        raise last  # pragma: no cover
+
+    @staticmethod
+    def image_block(path: str, edge: Optional[int] = None) -> Dict:
+        """A picture as a content block (fitted to `edge`, default IMAGE_EDGE; ≤ 5 MB)."""
+        with open(path, "rb") as f:
+            data = f.read()
+        data = _fit(data, edge or IMAGE_EDGE)
+        if len(data) > MAX_IMAGE_BYTES:
+            data = _shrink(data) or data
+        return {"type": "image", "source": {"type": "base64", "media_type": _media_type(data), "data": base64.b64encode(data).decode("ascii")}}
 
     def complete_with_search(self, prompt: str, max_uses: int = 3) -> LlmReply:
         """Like complete, with the Anthropic web search tool (a few searches, costs extra). Not verified against the live API."""
@@ -331,7 +370,8 @@ class AnthropicClient:
         return LlmReply(text, int(usage.get("input_tokens", 0) or 0), int(usage.get("output_tokens", 0) or 0),
                         str(payload.get("stop_reason") or ""), int(usage.get("cache_creation_input_tokens", 0) or 0),
                         int(usage.get("cache_read_input_tokens", 0) or 0),
-                        int((usage.get("server_tool_use") or {}).get("web_search_requests", 0) or 0))
+                        int((usage.get("server_tool_use") or {}).get("web_search_requests", 0) or 0),
+                        payload.get("content") or [])
 
 
 # ---- JSON extraction + validated call ------------------------------------------------
