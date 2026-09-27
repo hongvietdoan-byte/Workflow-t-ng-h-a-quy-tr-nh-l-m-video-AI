@@ -1214,6 +1214,14 @@ class ImageRunner(_Runner):
                 flags = qc_scene.check_frame(path, data)
                 qc_scene.record_flags(self.data_dir, job["project_id"], job["id"], flags)
                 sure = [f for f in flags if f["severity"] == "redraw"]
+                tried = str(job["retry_reason"] or "")
+                again = [f for f in sure if f["fix"] in tried]
+                if again:                              # luật 6: the same fault after its own fix → stop, a person decides (#8: CU
+                    for f in again:                    # shots came out MCU 3 times running — 2 paid redraws for nothing)
+                        f["severity"] = "flag"
+                        f["problem"] += " (vẫn lỗi sau khi đã vẽ lại có câu sửa — để người xem)"
+                    qc_scene.record_flags(self.data_dir, job["project_id"], job["id"], flags)
+                    sure = [f for f in sure if f not in again]
                 if sure:
                     raise RedrawWithFix("QC lớp 0: " + "; ".join(f["problem"] for f in sure), " ".join(f["fix"] for f in sure))
             return path

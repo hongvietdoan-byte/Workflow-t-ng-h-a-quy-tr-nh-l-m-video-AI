@@ -190,8 +190,16 @@ class RunnerLayerZeroTests(unittest.TestCase):
                 if p.job(jid)["state"] != "running" and p.job(jid)["state"] != "queued":
                     break
         self.assertEqual(p.job(jid)["state"], "cancelled")                   # failed → retried (the old one closed)
-        new = p.conn.execute("SELECT retry_reason FROM jobs WHERE parent_job_id=?", (jid,)).fetchone()
+        new = p.conn.execute("SELECT id, retry_reason FROM jobs WHERE parent_job_id=?", (jid,)).fetchone()
         self.assertIn("close-up", new["retry_reason"])
+        with mock.patch("core.qc_scene.check_frame", return_value=[dict(sure[0])]):   # the same fault after its fix: no 2nd redraw
+            for _ in range(4):
+                r.submit_pending(pid)
+                r.poll_once(pid)
+                if p.job(new["id"])["state"] not in ("running", "queued"):
+                    break
+        self.assertEqual(p.job(new["id"])["state"], "succeeded")
+        self.assertIsNone(p.conn.execute("SELECT 1 FROM jobs WHERE parent_job_id=?", (new["id"],)).fetchone())
 
 
 if __name__ == "__main__":
