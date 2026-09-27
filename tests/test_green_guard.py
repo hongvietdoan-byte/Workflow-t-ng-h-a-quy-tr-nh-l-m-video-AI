@@ -33,6 +33,15 @@ class GreenGuardTests(unittest.TestCase):
                      "bright daylight"):
             self.assertIn(kept, out)
 
+    def test_a_waist_up_character_keeps_its_cut_edge_on_the_frame_bottom(self):
+        """#8 S2·4: the head was drawn lower than the camera box said — lining the head up lifted the picture and the torso floated."""
+        import numpy as np
+        alpha = np.zeros((160, 90))
+        alpha[60:, 20:70] = 1.0                                     # head low, body cut by the bottom of the picture
+        place = composite.placement(alpha, (0.3, 0.05, 0.7, 1.2), (90, 160))
+        self.assertTrue(place["cut"])
+        self.assertGreaterEqual(place["dy"] + 160 * place["scale"], 160 - 0.5)
+
     def test_the_storyboard_anchor_is_the_green_picture_in_green_mode(self):
         import json
         from core import scene_storyboard

@@ -110,6 +110,8 @@ def placement(alpha, target_box: Sequence[float], size: Tuple[int, int]) -> Dict
     if cut or ty1 > 1.0:
         scale = base
         dy = ty0 * h - y0 * scale
+        if cut:                   # the cut edge stays on the frame's bottom: lifting it showed a torso floating over the floor (#8 S2·4)
+            dy = max(dy, h - alpha.shape[0] * scale)
     else:
         scale = max(base * 0.6, min(base * 1.6, (ty1 - ty0) * h / max(y1 - y0, 1)))
         dy = ty1 * h - y1 * scale
