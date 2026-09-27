@@ -404,11 +404,14 @@ class ClipAIVideoProvider:
         """W12b (trial 2A, 2026-09-25): past its concurrency limit ClipAI answers a create with a short QUEUE id (12 digits); when a slot
         frees it creates the real task under a NEW id — the queue id never appears in the list. 8 of 10 paid clips were written off as
         "not found" that way (and the "not created" branch would even have resent them = paid twice). The real task is recognised by
-        the very prompt that was sent, created after the job was sent, and not already tied to another job. Returns its external id."""
+        the very prompt that was sent, created after the job was sent, and not already tied to another job. Returns its external id.
+        The WHOLE sent prompt must open the task's prompt (trial 2026-09-27: every shot prompt opened with the same 200+ character look sentence, so a
+        200-character prefix tied 6 clips to the wrong shots); two or more matching tasks = ambiguous → None, never a guess."""
         family, _, old = external_id.partition(":")
-        want = " ".join((prompt or "").split())[:200]
+        want = " ".join((prompt or "").split())
         if family not in TASK_TYPE or not want or sent_at is None:
             return None
+        hits = []
         for page in range(1, pages + 1):
             rows = self._page(family, page)
             for t in rows:
@@ -418,11 +421,11 @@ class ClipAIVideoProvider:
                     continue
                 if str(t.get("created_at") or "").isdigit() and int(t["created_at"]) + 5 < sent_at:
                     continue
-                if " ".join(str(t.get("prompt") or "").split())[:200] == want:
-                    return ext
+                if " ".join(str(t.get("prompt") or "").split()).startswith(want):     # submit() may append (Avoid:, frame notes)
+                    hits.append(ext)
             if len(rows) < 50:
                 break
-        return None
+        return hits[0] if len(hits) == 1 else None
 
     def _find(self, external_id: str) -> Tuple[Optional[dict], str]:
         task, _ = self._find_ex(external_id)

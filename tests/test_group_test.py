@@ -46,6 +46,27 @@ class ReferenceOnlyTests(unittest.TestCase):
             provider.submit("", "x", None, 5, "seedance-fast", reference_only=pngs(10))       # 2.0: at most 9
 
 
+class FindByPromptTests(unittest.TestCase):
+    """Trial 2026-09-27: 6 shot prompts opened with the same 200+ character look sentence; the 200-character prefix match tied the
+    six clips to the wrong shots (shot 1 got shot 5's clip …)."""
+    LOOK = "Match the look of the reference in-game photo, not a different 3D style. " * 4
+
+    def provider(self, rows):
+        p = ClipAIVideoProvider(TOKEN, "https://clipai.example", FakeTransport())
+        p._page = lambda family, page: rows
+        return p
+
+    def test_whole_prompt_decides_even_with_a_long_shared_opening(self):
+        rows = [{"task_id": f"9{k}", "created_at": "2000", "prompt": self.LOOK + f"Shot {k} runs. Avoid: blur"} for k in (5, 1, 3)]
+        p = self.provider(rows)
+        for k in (1, 3, 5):
+            self.assertEqual(p.find_by_prompt("omni:123456789012", self.LOOK + f"Shot {k} runs.", 1990), f"omni:9{k}")
+
+    def test_two_matching_tasks_is_no_answer(self):
+        rows = [{"task_id": t, "created_at": "2000", "prompt": self.LOOK + "Shot 1 runs."} for t in ("91", "92")]
+        self.assertIsNone(self.provider(rows).find_by_prompt("omni:123456789012", self.LOOK + "Shot 1 runs.", 1990))
+
+
 class ToolTests(unittest.TestCase):
     def setUp(self):
         self.p = Pipeline(connect())

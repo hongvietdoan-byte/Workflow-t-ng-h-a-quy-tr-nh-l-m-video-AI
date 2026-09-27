@@ -23,6 +23,13 @@
 > **Tồn đọng toàn dự án đã rà một lượt: `docs/TON_DONG_2026-09-27.md`** (A sửa gộp sau đợt thử · B ghi số liệu trong đợt thử · C chờ người
 > dùng · D tốn tiền · E miễn phí không gấp · F 17 dòng TODO đề xuất đóng — chờ người dùng đồng ý rồi mới đóng).
 > Sau đó người dùng tạo **dự án thử mới** và tự chạy trên dashboard.
+> **Đang chạy thử (2026-09-27): dự án #8 "THỬ 27/09 · ANH CHỌN AI?"** — nhật ký `docs/CHAY_THU_2026-09-27_NHAT_KY.md` (17 phát hiện),
+> thử gộp shot `docs/PHAN_TICH_GOP_SHOT_2026-09-27.md` (mục 5–6). Trần tổng $25 (người dùng nâng), Claude để 1,5 (còn 0,23) tới lúc chạy chính.
+> **Kết quả thử gộp:** **P2m** (Seedance chỉ ảnh tham chiếu, đánh dấu "CHARACTER SHEET REFERENCE" + dấu cộng đỏ trên mắt) **qua bộ lọc người
+> thật**, cắt 3 shot đúng storyboard, dấu không lọt vào video; S2 Kling từng shot dùng được nhưng ghép cứng + thừa ~35 %; S3/P3/P4 Kling
+> gộp hỏng. **Đã sửa:** `clipai.find_by_prompt` nối nhầm clip khi prompt chung câu mở đầu > 200 ký tự (so toàn bộ prompt, khớp ≥ 2 thì
+> không đoán) — 1207 test qua. Tháp đồng hồ: gắn asset 263, 9 shot cảnh 1+6 có nền 3D đêm.
+> **Chờ người dùng chốt:** đưa P2m (rơi về S2 khi bị từ chối) vào luồng chính (cờ + test) → rồi nâng trần Claude lên 3 và chạy tiếp #8.
 > **Chờ người dùng:** duyệt bộ kỹ năng 3 vai (bảng `docs/DANH_GIA_BO_NGUYEN_TAC_V4.md` — `film_crew` đang bật cho đợt thử), gắn nhãn ảnh
 > Kho (~$1–1,5), mô hình 3D chính thức, âm đêm cho thư viện âm thanh; đối chiếu giá ảnh Deepix (tạm $0,052/ảnh) với số trên web Deepix.
 > *(Bàn giao cũ 2026-09-25 khuya — "việc tiếp GĐ4, 943 test" — đã thay bởi mục này; file `docs/BAN_GIAO_2026-09-25_V4_GD4.md` là lịch sử.)*

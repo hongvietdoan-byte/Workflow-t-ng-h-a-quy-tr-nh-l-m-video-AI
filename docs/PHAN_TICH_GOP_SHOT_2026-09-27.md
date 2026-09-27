@@ -84,3 +84,40 @@ Nhóm 2 ClipAI trả **mã chờ tạm** (12 số) → công cụ đánh "không
   Director chia shot dài hơn (≥ 3 s, dùng chuyển động máy thay cắt) → ~70 s trả tiền / phút ≈ **4–5 USD / phút phim**.
 - **S3 — Lai:** P3 Kling multi-shot chỉ cho nhóm shot **cùng người, cùng hành động liền** (vd chạy qua dãy nhà); shot đổi người/đổi góc lớn
   giữ riêng.
+
+## 6. Đợt thử 2 — S1 (lách bộ lọc Seedance), S2, S3 (2026-09-27, cùng cảnh 2, cùng 6 khung storyboard)
+Người dùng: "thử mọi cách lách Seedance, hết cách mới báo; cho thử cả S2 và S3". Cách lách thử trước là cách **miễn phí tiền xử lý**:
+đánh dấu mọi ảnh tham chiếu là "tờ thiết kế nhân vật" — dải trắng **"CHARACTER SHEET REFERENCE"** trên đầu ảnh + **dấu cộng đỏ trên một
+mắt của mọi khuôn mặt** (YuNet dò mặt). Nguồn: cộng đồng người dùng Seedance (viraltwin.app) — bộ lọc người thật bỏ qua ảnh bị đánh dấu
+rõ là tài liệu tham chiếu. Chỉ hợp **chế độ chỉ ảnh tham chiếu** (P2) — dấu không được lọt vào khung đầu. Kho chủ thể (`asset://`) và
+Seedance 2.5 **không cần thử** vì cách này đã qua.
+
+| Lần gen | Kết quả | Cắt / nội dung | Nhân vật | Dấu lọt vào video | Giây trả tiền / phim | Tiền |
+|---|---|---|---|---|---|---|
+| **P2m** nhóm 1 (shot 1–3), Seedance 2.0 Fast 720p, 3 khung storyboard + ảnh nhân vật (tất cả đánh dấu) | ✅ **Seedance nhận** (cùng ảnh chưa đánh dấu bị từ chối) | **2 điểm cắt** 3,04 / 5,42 s → **3 shot đúng thứ tự và bố cục storyboard** (rộng 3 người chạy → qua vai Kenta nhìn Maxim → Kenta + Maxim) | đúng thiết kế | **không** | 7 / 6,6 | ≈ 0,84 (bảng giá; `cost` Seedance trong `video-list` = 0) |
+| **P2m** nhóm 2 (shot 4–6) | ✅ nhận | **2 điểm cắt** 2,04 / 3,92 s → Maxim chạy → cận Kelly → Kenta + Kelly, **đúng storyboard** | đúng | không | 6 / 5,9 | ≈ 0,72 |
+| **S2** 6 clip Kling std, mỗi shot 1 clip, khung đầu = storyboard | ✅ | mỗi clip đúng khung của nó (khung đầu), chuyển động hợp lý; **phải cắt bớt** 1–1,6 s mỗi clip (Kling tối thiểu 3 s) | đúng | — | 19 / 12,5 | 114 đv ≈ **1,14** |
+| **S3** Kling multi-shot shot 2+3 (cùng bộ 3 người) | ✅ | ❌ **không cắt** — 7 s một góc qua vai, mất shot 3 (như P3 nhóm 2) | đúng | — | 7 / 5,1 | 42 đv ≈ 0,42 |
+
+Tổng đợt 2: P2m ≈ 1,56 (bảng giá) + Kling 1,56 thật. Không gọi Claude.
+
+**Hai lỗi phát hiện trong lúc thử (đã sửa + test):**
+- ❌ **`clipai.find_by_prompt` nối nhầm clip** (lỗi của luồng chạy chính, không riêng công cụ thử): so 200 ký tự đầu prompt, mà mọi prompt shot
+  đều mở bằng cùng câu look dài > 200 ký tự → 6 clip S2 bị gắn **ngược thứ tự** (shot 1 nhận clip shot 6 …). Phát hiện nhờ xem ảnh (clip 4 s
+  nằm ở "shot 5" dù chỉ shot 2 xin 4 s). Sửa: prompt ClipAI lưu phải **mở đầu bằng toàn bộ** prompt đã gửi (adapter có nối thêm "Avoid:",
+  câu khung cuối); **≥ 2 task khớp → không trả** (không đoán). Test `FindByPromptTests`.
+- ⚠ Công cụ thử chưa nối mã chờ tạm → thêm `group_test.relink` (dùng `find_by_prompt`). Task multi-shot (prompt rỗng) vẫn phải nối tay
+  theo thời điểm tạo + `multi_shot=1`.
+
+**Kết luận đợt 2 (so trên cùng 12,5 s phim):**
+
+| Cách | Đúng storyboard từng shot | Liền mạch giữa shot | Tiền / 1 s phim | Số lần gen / 6 shot | Rủi ro |
+|---|---|---|---|---|---|
+| **P2m Seedance chỉ tham chiếu + đánh dấu** | ✅ 6/6 | ✅ cắt tự nhiên trong một lần gen, ánh sáng/nhân vật đồng nhất | ~0,125 (bảng giá) | **2** | dựa vào cách lách bộ lọc (có thể bị vá); độ dài từng shot lệch ±1 s so với kế hoạch → dựng cắt theo điểm cắt dò bằng `scdet` |
+| **S2 Kling từng shot** | ✅ 6/6 (khung đầu) | ⚠ ghép cứng, mỗi clip độc lập | ~0,09 (thật) | 6 | phí thừa ~35 % vì tối thiểu 3 s; nhiều lần gen (chậm hơn, đông việc → mã chờ tạm) |
+| P3/S3 Kling multi-shot | ❌ bịa hoặc bỏ shot | — | ~0,08 | 1–2 | không dùng |
+| P4 Kling đầu–cuối | ❌ biến hình | — | ~0,06 | 2 | chỉ cho cú máy liền |
+
+**Đề xuất:** mặc định **P2m** cho nhóm 2–4 shot liền của một cảnh (≤ 15 s, ≤ 9 ảnh: khung storyboard + ảnh nhân vật), **tự rơi về S2**
+(Kling từng shot) khi Seedance từ chối lúc tạo (không mất tiền). Bỏ P3/P4/S3 khỏi luồng gộp. Video 1 phút ước tính ≈ 63,7 s × 0,125 ≈
+**8 USD** (thấp hơn 15,84 cách cũ), không bịa shot. Chờ người dùng chốt trước khi đưa vào luồng chính (cờ + test).

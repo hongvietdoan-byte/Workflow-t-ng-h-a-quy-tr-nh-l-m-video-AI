@@ -44,3 +44,7 @@ Ký hiệu: ✅ đúng như mong đợi · ⚠ bất thường / cần xem · �
 | | Code (miễn phí) | `group_test.py`: **P2m** (P2 + đánh dấu mọi khuôn mặt YuNet, ảnh đánh dấu ở `experiments/marked/`), **S2** (mỗi shot một clip Kling std, khung đầu = ảnh storyboard), **S3** (Kling multi-shot chỉ cho shot liền cùng bộ nhân vật) | ✅ 5 test, commit `fe790c9` + tiếp |
 | 09:38 | 💵 P2m | 2 lần gen Seedance Fast (≈ 0,84 + 0,72) với 8 ảnh tham chiếu đã đánh dấu | ✅ **Seedance NHẬN cả 2** lúc tạo (lần trước cùng ảnh chưa đánh dấu bị từ chối) — đang chạy |
 | 09:39 | 💵 S2 + S3 | 6 clip Kling std từng shot (≈ 1,52) + 1 multi-shot S3 shot 2–3 (≈ 0,56) | mã chờ tạm 12 số — đang chạy |
+| 09:4x–10:3x | Kết quả đợt thử 2 | P2m 2/2 xong, **3 shot mỗi clip đúng storyboard, dấu không lọt vào video**; S2 6 clip xong (nối lại mã chờ tạm); S3 xong nhưng **không cắt** | Chi tiết + bảng so sánh: `docs/PHAN_TICH_GOP_SHOT_2026-09-27.md` mục 6. Đề xuất P2m mặc định, rơi về S2 khi bị từ chối |
+| | ❌ Phát hiện 15 | Khi xem ảnh S2 thấy 6 clip bị gắn **ngược thứ tự shot**: `clipai.find_by_prompt` (luồng chính cũng dùng) so 200 ký tự đầu prompt, mà câu look chung dài hơn 200 ký tự | ✅ Sửa: so toàn bộ prompt đã gửi + nhiều task khớp thì không đoán; 1207 test qua; nối lại đúng 6 clip (clip 4 s về đúng shot 2) |
+| | ⚠ Phát hiện 16 | Người dùng nhắc: tôi lỡ báo tiến độ bằng tiếng Anh sau khi ngữ cảnh bị nén | Ghi bộ nhớ: mọi tin nhắn đều tiếng Việt |
+| | ⚠ Phát hiện 17 | `video-list` trả `cost` = 0 cho task Seedance → không đối chiếu được tiền thật Seedance (Kling có) | Ghi cho tổng kết |
