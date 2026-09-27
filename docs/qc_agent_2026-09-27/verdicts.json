@@ -1,0 +1,550 @@
+[
+ {
+  "k": 1,
+  "shot": "S1·1",
+  "job": 353,
+  "verdict": "nhỏ",
+  "issues": [
+   {
+    "loai": "cỡ cảnh",
+    "mo_ta": "Khung ra MCU (đầu + ngực trên), shot xin CU; mặt cao ~0.24 khung",
+    "bang_chung": "xem đầy đủ + bộ đo mặt 0.24",
+    "muc": "nhỏ"
+   },
+   {
+    "loai": "ánh sáng",
+    "mo_ta": "Blocking xin 'dark alley barely visible, weak cold blue rim' nhưng nền sáng đèn vàng, tháp rõ — khớp ảnh toàn cảnh cảnh 1 nên chấp nhận",
+    "bang_chung": "so est scene_1",
+    "muc": "nhỏ"
+   }
+  ],
+  "nguyen_nhan": "",
+  "fix_en": ""
+ },
+ {
+  "k": 2,
+  "shot": "S1·2",
+  "job": 319,
+  "verdict": "chặn",
+  "issues": [
+   {
+    "loai": "khóa nhân vật",
+    "mo_ta": "KENTA nhìn từ sau lưng: vai/tay gần máy ở mép PHẢI khung mang emblem tím + băng tay da + vết thương đỏ + găng giáp — đó là bộ của tay TRÁI, nhưng nhìn từ sau thì tay trái phải ở mép TRÁI khung → trang bị bị lật gương sang tay phải (cấm lệch: swap gauntlet/bandage)",
+    "bang_chung": "cắt vai mép phải (480-1152,600-2048): emblem + băng tay + vết đỏ + găng giáp ở vai mép phải trong khi thấy gáy/tai Kenta",
+    "muc": "chặn"
+   }
+  ],
+  "nguyen_nhan": "model ngẫu nhiên + prompt không nói rõ tay nào ở phía nào khi quay từ sau lưng",
+  "fix_en": "Seen from behind, KENTA's LEFT shoulder (glowing star emblem, leather armband, red wound marks, black armored gauntlet) is on the frame-LEFT side of his body; the shoulder nearest frame-right is his RIGHT arm: plain blue sleeve over a black sleeve with a white-grey bandaged forearm and fingerless glove."
+ },
+ {
+  "k": 3,
+  "shot": "S1·3",
+  "job": 320,
+  "verdict": "chặn",
+  "issues": [
+   {
+    "loai": "khóa nhân vật",
+    "mo_ta": "KENTA nhìn từ sau lưng: vai/tay gần máy ở mép PHẢI khung mang emblem tím + băng tay da + vết thương đỏ + găng giáp — đó là bộ của tay TRÁI, nhưng nhìn từ sau thì tay trái phải ở mép TRÁI khung → trang bị bị lật gương sang tay phải (cấm lệch: swap gauntlet/bandage) (giống k2)",
+    "bang_chung": "cùng bố cục k2, cắt vai phải: y hệt lỗi",
+    "muc": "chặn"
+   }
+  ],
+  "nguyen_nhan": "khung trước (k2) bị lật được giữ nguyên bố cục",
+  "fix_en": "Seen from behind, KENTA's LEFT shoulder (glowing star emblem, leather armband, red wound marks, black armored gauntlet) is on the frame-LEFT side of his body; the shoulder nearest frame-right is his RIGHT arm: plain blue sleeve over a black sleeve with a white-grey bandaged forearm and fingerless glove."
+ },
+ {
+  "k": 4,
+  "shot": "S1·4",
+  "job": 321,
+  "verdict": "đạt",
+  "issues": [
+   {
+    "loai": "hành động",
+    "mo_ta": "Kelly bước đi, mắt nhìn hơi xuống, không hẳn 'nhìn thẳng máy' — chấp nhận làm khung đầu",
+    "bang_chung": "cắt mặt 250-650,500-780",
+    "muc": "nhỏ"
+   }
+  ],
+  "nguyen_nhan": "",
+  "fix_en": ""
+ },
+ {
+  "k": 5,
+  "shot": "S2·1",
+  "job": 322,
+  "verdict": "đạt",
+  "issues": [
+   {
+    "loai": "khóa nhân vật",
+    "mo_ta": "Tay trái Kenta (tay giáp) đeo găng hở ngón thay vì găng kín — lặp ở k5,k7,k10",
+    "bang_chung": "xem đầy đủ",
+    "muc": "nhỏ"
+   }
+  ],
+  "nguyen_nhan": "",
+  "fix_en": ""
+ },
+ {
+  "k": 6,
+  "shot": "S2·2",
+  "job": 323,
+  "verdict": "nhỏ",
+  "issues": [
+   {
+    "loai": "hướng chạy",
+    "mo_ta": "Kenta quay lưng về máy, thân hướng vào sâu/phải, Maxim chạy về trái-máy → hai người như chạy vào nhau chứ không 'chạy cạnh nhau'; video có thể diễn thành đối đầu",
+    "bang_chung": "xem đầy đủ; so k5 (cả 3 chạy về máy)",
+    "muc": "nhỏ"
+   }
+  ],
+  "nguyen_nhan": "",
+  "fix_en": ""
+ },
+ {
+  "k": 7,
+  "shot": "S2·3",
+  "job": 324,
+  "verdict": "chặn",
+  "issues": [
+   {
+    "loai": "khóa nhân vật",
+    "mo_ta": "MAXIM nhìn từ sau: thấy dây + khóa cài mũ ở GÁY, không thấy lưỡi trai → mũ đang đội XUÔI (cấm lệch: turning it forward); các khung nhìn trước (k12,k14,k24) khóa ở trán = đúng → mũ đổi chiều khi cắt shot/reverse",
+    "bang_chung": "cắt mũ Maxim tiền cảnh (780-1152,100-900): khóa kim loại ở gáy, không có lưỡi trai",
+    "muc": "chặn"
+   },
+   {
+    "loai": "hướng chạy",
+    "mo_ta": "Kenta chạy về phía Maxim (phải khung) – cùng vấn đề k6",
+    "bang_chung": "xem đầy đủ",
+    "muc": "nhỏ"
+   }
+  ],
+  "nguyen_nhan": "model mặc định mũ nhìn từ sau có khóa ở gáy; prompt 'worn backwards' không đủ khi quay góc sau lưng",
+  "fix_en": "MAXIM wears his black cap BACKWARDS: seen from behind, the cap's brim sticks out over the back of his neck toward the camera, and the strap and buckle are on his forehead, hidden from view."
+ },
+ {
+  "k": 8,
+  "shot": "S2·4",
+  "job": 325,
+  "verdict": "chặn",
+  "issues": [
+   {
+    "loai": "hướng nhìn",
+    "mo_ta": "Maxim liếc sang PHẢI khung (về phía Kelly), blocking xin nhìn Kenta ngoài khung TRÁI; câu thoại nói với Kenta → sai trục nhìn, người xem hiểu Maxim nói với Kelly",
+    "bang_chung": "cắt mặt 280-620,580-900: đồng tử lệch hẳn sang phải",
+    "muc": "chặn"
+   },
+   {
+    "loai": "bảng shot",
+    "mo_ta": "Bảng xin Kelly ở nền phải trong khi k5 Kelly ở giữa Kenta–Maxim; bảng tự mâu thuẫn",
+    "bang_chung": "so k5",
+    "muc": "nhỏ"
+   }
+  ],
+  "nguyen_nhan": "bảng shot đặt Kelly nền phải kéo ánh mắt về phải + model ngẫu nhiên",
+  "fix_en": "MAXIM turns his head and eyes to frame-LEFT, looking at KENTA who runs just off-frame left; he does not look toward frame-right."
+ },
+ {
+  "k": 9,
+  "shot": "S2·5",
+  "job": 326,
+  "verdict": "nhỏ",
+  "issues": [
+   {
+    "loai": "người thừa",
+    "mo_ta": "Kenta lộ nửa người mép trái (bảng chỉ có KELLY) — hợp lý vì chạy cạnh, trang bị đúng tay",
+    "bang_chung": "xem đầy đủ",
+    "muc": "nhỏ"
+   },
+   {
+    "loai": "hướng chạy",
+    "mo_ta": "Kelly chạy về phải-máy, k8 Maxim/Kelly chạy về trái-máy → hướng chạy đảo giữa các cú cắt cảnh 2",
+    "bang_chung": "so k8,k10",
+    "muc": "nhỏ"
+   }
+  ],
+  "nguyen_nhan": "",
+  "fix_en": ""
+ },
+ {
+  "k": 10,
+  "shot": "S2·6",
+  "job": 327,
+  "verdict": "đạt",
+  "issues": [
+   {
+    "loai": "khóa nhân vật",
+    "mo_ta": "Găng tay trái (tay giáp) là găng hở ngón thay vì găng kín",
+    "bang_chung": "cắt 260-720,1150-1350",
+    "muc": "nhỏ"
+   }
+  ],
+  "nguyen_nhan": "",
+  "fix_en": ""
+ },
+ {
+  "k": 11,
+  "shot": "S3·1",
+  "job": 328,
+  "verdict": "đạt",
+  "issues": [],
+  "nguyen_nhan": "",
+  "fix_en": ""
+ },
+ {
+  "k": 12,
+  "shot": "S3·2",
+  "job": 329,
+  "verdict": "chặn",
+  "issues": [
+   {
+    "loai": "khóa nhân vật",
+    "mo_ta": "KENTA nhìn từ sau lưng: vai/tay gần máy ở mép PHẢI khung mang emblem tím + băng tay da + vết thương đỏ + găng giáp — đó là bộ của tay TRÁI, nhưng nhìn từ sau thì tay trái phải ở mép TRÁI khung → trang bị bị lật gương sang tay phải (cấm lệch: swap gauntlet/bandage)",
+    "bang_chung": "cắt vai mép phải (480-1152,900-2048): emblem + băng tay + vết đỏ + găng giáp; ngay sau k11 (Kenta nhìn trước, găng đúng tay trái) → nhảy tay khi cắt",
+    "muc": "chặn"
+   },
+   {
+    "loai": "cỡ cảnh",
+    "mo_ta": "Maxim khoảng MLS (tới đùi)",
+    "bang_chung": "bộ đo 0.10",
+    "muc": "nhỏ"
+   }
+  ],
+  "nguyen_nhan": "model ngẫu nhiên: đưa chi tiết đặc trưng về phía máy",
+  "fix_en": "Seen from behind, KENTA's LEFT shoulder (glowing star emblem, leather armband, red wound marks, black armored gauntlet) is on the frame-LEFT side of his body; the shoulder nearest frame-right is his RIGHT arm: plain blue sleeve over a black sleeve with a white-grey bandaged forearm and fingerless glove."
+ },
+ {
+  "k": 13,
+  "shot": "S3·3",
+  "job": 330,
+  "verdict": "chặn",
+  "issues": [
+   {
+    "loai": "khóa nhân vật",
+    "mo_ta": "MAXIM nhìn từ sau: thấy dây + khóa cài mũ ở GÁY, không thấy lưỡi trai → mũ đang đội XUÔI (cấm lệch: turning it forward); các khung nhìn trước (k12,k14,k24) khóa ở trán = đúng → mũ đổi chiều khi cắt shot/reverse",
+    "bang_chung": "cắt mũ Maxim tiền cảnh (0-450,150-900): khóa ở gáy, không lưỡi trai",
+    "muc": "chặn"
+   }
+  ],
+  "nguyen_nhan": "như k7",
+  "fix_en": "MAXIM wears his black cap BACKWARDS: seen from behind, the cap's brim sticks out over the back of his neck toward the camera, and the strap and buckle are on his forehead, hidden from view."
+ },
+ {
+  "k": 14,
+  "shot": "S3·4",
+  "job": 331,
+  "verdict": "nhỏ",
+  "issues": [
+   {
+    "loai": "cỡ cảnh",
+    "mo_ta": "Toàn thân (gần WS) thay vì MLS; nhưng blocking xin 'both fully visible' — bảng shot tự mâu thuẫn",
+    "bang_chung": "xem đầy đủ + bộ đo 0.06",
+    "muc": "nhỏ"
+   }
+  ],
+  "nguyen_nhan": "",
+  "fix_en": ""
+ },
+ {
+  "k": 15,
+  "shot": "S3·5",
+  "job": 332,
+  "verdict": "chặn",
+  "issues": [
+   {
+    "loai": "khóa nhân vật",
+    "mo_ta": "MAXIM nhìn từ sau: thấy dây + khóa cài mũ ở GÁY, không thấy lưỡi trai → mũ đang đội XUÔI (cấm lệch: turning it forward); các khung nhìn trước (k12,k14,k24) khóa ở trán = đúng → mũ đổi chiều khi cắt shot/reverse",
+    "bang_chung": "cắt mũ (0-420,220-900): khóa ở gáy",
+    "muc": "chặn"
+   }
+  ],
+  "nguyen_nhan": "như k7",
+  "fix_en": "MAXIM wears his black cap BACKWARDS: seen from behind, the cap's brim sticks out over the back of his neck toward the camera, and the strap and buckle are on his forehead, hidden from view."
+ },
+ {
+  "k": 16,
+  "shot": "S3·6",
+  "job": 333,
+  "verdict": "chặn",
+  "issues": [
+   {
+    "loai": "khóa nhân vật",
+    "mo_ta": "MAXIM nhìn từ sau: thấy dây + khóa cài mũ ở GÁY, không thấy lưỡi trai → mũ đang đội XUÔI (cấm lệch: turning it forward); các khung nhìn trước (k12,k14,k24) khóa ở trán = đúng → mũ đổi chiều khi cắt shot/reverse",
+    "bang_chung": "cắt mũ (0-430,380-1000): khóa ở gáy",
+    "muc": "chặn"
+   }
+  ],
+  "nguyen_nhan": "như k7",
+  "fix_en": "MAXIM wears his black cap BACKWARDS: seen from behind, the cap's brim sticks out over the back of his neck toward the camera, and the strap and buckle are on his forehead, hidden from view."
+ },
+ {
+  "k": 17,
+  "shot": "S3·7",
+  "job": 334,
+  "verdict": "đạt",
+  "issues": [
+   {
+    "loai": "cỡ cảnh",
+    "mo_ta": "ECU quai hàm – đúng ý chèn; bộ đo 'không thấy mặt' là báo nhầm",
+    "bang_chung": "xem đầy đủ",
+    "muc": "nhỏ"
+   }
+  ],
+  "nguyen_nhan": "",
+  "fix_en": ""
+ },
+ {
+  "k": 18,
+  "shot": "S3·8",
+  "job": 352,
+  "verdict": "chặn",
+  "issues": [
+   {
+    "loai": "hướng nhìn",
+    "mo_ta": "Kelly liếc sang PHẢI khung (về phía cánh cửa), blocking xin nhìn ra ngoài khung TRÁI về Maxim–Kenta (k11 cô đứng bên phải họ) → cú cắt phản ứng mất nghĩa",
+    "bang_chung": "cắt mắt 380-900,560-860: đồng tử lệch phải; bộ đo báo 'mặt thừa' ở vùng 0.47-0.71/0.70-0.89 là bàn tay (báo nhầm)",
+    "muc": "chặn"
+   }
+  ],
+  "nguyen_nhan": "model ngẫu nhiên: cánh cửa ở mép phải kéo ánh mắt; prompt chưa khóa hướng mắt",
+  "fix_en": "KELLY's eyes and face turn to frame-LEFT, staring past the left edge of the frame toward MAXIM and KENTA; the doorway edge stays at frame-right behind her shoulder."
+ },
+ {
+  "k": 19,
+  "shot": "S3·9",
+  "job": 336,
+  "verdict": "đạt",
+  "issues": [],
+  "nguyen_nhan": "",
+  "fix_en": ""
+ },
+ {
+  "k": 20,
+  "shot": "S4·1",
+  "job": 337,
+  "verdict": "đạt",
+  "issues": [],
+  "nguyen_nhan": "",
+  "fix_en": ""
+ },
+ {
+  "k": 21,
+  "shot": "S4·2",
+  "job": 338,
+  "verdict": "chặn",
+  "issues": [
+   {
+    "loai": "khóa nhân vật",
+    "mo_ta": "KENTA nhìn từ sau lưng: vai/tay gần máy ở mép PHẢI khung mang emblem tím + băng tay da + vết thương đỏ + găng giáp — đó là bộ của tay TRÁI, nhưng nhìn từ sau thì tay trái phải ở mép TRÁI khung → trang bị bị lật gương sang tay phải (cấm lệch: swap gauntlet/bandage)",
+    "bang_chung": "cắt vai Kenta mép phải (580-1152,900-2048): emblem + băng tay + vết đỏ ở vai mép phải khi nhìn từ sau",
+    "muc": "chặn"
+   },
+   {
+    "loai": "cỡ cảnh",
+    "mo_ta": "Ra MS (tới rốn) thay vì MCU",
+    "bang_chung": "bộ đo 0.16",
+    "muc": "nhỏ"
+   }
+  ],
+  "nguyen_nhan": "như k2",
+  "fix_en": "Seen from behind, KENTA's LEFT shoulder (glowing star emblem, leather armband, red wound marks, black armored gauntlet) is on the frame-LEFT side of his body; the shoulder nearest frame-right is his RIGHT arm: plain blue sleeve over a black sleeve with a white-grey bandaged forearm and fingerless glove. Frame as a medium close-up: Kelly's head and chest only."
+ },
+ {
+  "k": 22,
+  "shot": "S4·3",
+  "job": 339,
+  "verdict": "đạt",
+  "issues": [],
+  "nguyen_nhan": "",
+  "fix_en": ""
+ },
+ {
+  "k": 23,
+  "shot": "S4·4",
+  "job": 340,
+  "verdict": "nhỏ",
+  "issues": [
+   {
+    "loai": "bố cục",
+    "mo_ta": "Kelly lệch trái khung thay vì giữa — chấp nhận vì cô đang bước đi",
+    "bang_chung": "xem đầy đủ",
+    "muc": "nhỏ"
+   }
+  ],
+  "nguyen_nhan": "",
+  "fix_en": ""
+ },
+ {
+  "k": 24,
+  "shot": "S4·5",
+  "job": 341,
+  "verdict": "nhỏ",
+  "issues": [
+   {
+    "loai": "hướng nhìn",
+    "mo_ta": "Maxim liếc sang phải (về Kenta) chứ không nhìn theo hướng Kelly bỏ đi (k23 Kelly đi về trái) — dùng được cho vế 'trách Kenta'",
+    "bang_chung": "cắt mặt 120-360,520-760",
+    "muc": "nhỏ"
+   }
+  ],
+  "nguyen_nhan": "",
+  "fix_en": ""
+ },
+ {
+  "k": 25,
+  "shot": "S4·6",
+  "job": 342,
+  "verdict": "nhỏ",
+  "issues": [
+   {
+    "loai": "cỡ cảnh",
+    "mo_ta": "Ra MS (tới hông) thay vì MCU; Maxim lộ nửa mặt mép trái (bảng xin chỉ vai) — chấp nhận; bộ đo 'mặt thừa' góc phải dưới là bàn tay găng (báo nhầm)",
+    "bang_chung": "xem đầy đủ",
+    "muc": "nhỏ"
+   }
+  ],
+  "nguyen_nhan": "",
+  "fix_en": ""
+ },
+ {
+  "k": 26,
+  "shot": "S5·1",
+  "job": 343,
+  "verdict": "nhỏ",
+  "issues": [
+   {
+    "loai": "góc máy",
+    "mo_ta": "Xin high angle, khung gần ngang mắt",
+    "bang_chung": "xem đầy đủ",
+    "muc": "nhỏ"
+   },
+   {
+    "loai": "liên tục",
+    "mo_ta": "Vết đạn ở hông trái; k27 máu ở ngực — lệch vị trí vết thương",
+    "bang_chung": "so k26/k27",
+    "muc": "nhỏ"
+   }
+  ],
+  "nguyen_nhan": "",
+  "fix_en": ""
+ },
+ {
+  "k": 27,
+  "shot": "S5·2",
+  "job": 344,
+  "verdict": "nhỏ",
+  "issues": [
+   {
+    "loai": "hành động",
+    "mo_ta": "Kenta đã quỳ lấy vật phẩm (vế cuối action) thay vì đang chạy tới như blocking; Maxim ở tiền cảnh chứ không trung cảnh — dùng được làm khung đầu cho vế 'quỳ cứu'",
+    "bang_chung": "xem đầy đủ + cắt tay 560-960,960-1180 (tay đúng bên)",
+    "muc": "nhỏ"
+   }
+  ],
+  "nguyen_nhan": "",
+  "fix_en": ""
+ },
+ {
+  "k": 28,
+  "shot": "S5·3",
+  "job": 356,
+  "verdict": "chặn",
+  "issues": [
+   {
+    "loai": "ý đồ shot",
+    "mo_ta": "Flashback xin ánh hổ phách ấm ở bãi tập để phân biệt thời gian, nhưng khung là nắng trưa trắng y như hiện tại, cùng quảng trường/bậc thang/thùng hàng như k27 → người xem không nhận ra hồi tưởng",
+    "bang_chung": "so k27: cùng nền, cùng màu",
+    "muc": "chặn"
+   },
+   {
+    "loai": "khóa nhân vật",
+    "mo_ta": "MAXIM nhìn từ sau: thấy dây + khóa cài mũ ở GÁY, không thấy lưỡi trai → mũ đang đội XUÔI (cấm lệch: turning it forward); các khung nhìn trước (k12,k14,k24) khóa ở trán = đúng → mũ đổi chiều khi cắt shot/reverse",
+    "bang_chung": "cắt mũ (0-380,120-950): khóa ở gáy",
+    "muc": "chặn"
+   }
+  ],
+  "nguyen_nhan": "prompt ánh sáng flashback bị ảnh toàn cảnh cảnh 5 (nắng trưa) lấn át; mũ như k7",
+  "fix_en": "Golden-hour flashback: warm amber low sunlight from frame-left, long soft shadows and hazy glow on a training ground, clearly warmer than the present-day scenes. MAXIM wears his black cap BACKWARDS: seen from behind, the cap's brim sticks out over the back of his neck toward the camera, and the strap and buckle are on his forehead, hidden from view."
+ },
+ {
+  "k": 29,
+  "shot": "S6·1",
+  "job": 346,
+  "verdict": "đạt",
+  "issues": [
+   {
+    "loai": "bảng shot",
+    "mo_ta": "angle ghi 'ots' nhưng chỉ có 1 người — lỗi bảng, ảnh hợp lý",
+    "bang_chung": "",
+    "muc": "nhỏ"
+   }
+  ],
+  "nguyen_nhan": "",
+  "fix_en": ""
+ },
+ {
+  "k": 30,
+  "shot": "S6·2",
+  "job": 347,
+  "verdict": "nhỏ",
+  "issues": [
+   {
+    "loai": "khóa nhân vật",
+    "mo_ta": "Kenta nhìn từ sau: vai trái mép trái có emblem + băng tay đúng, nhưng cẳng tay trái lại quấn băng trắng-xám (của tay phải) trên găng giáp",
+    "bang_chung": "cắt 300-800,1700-2048",
+    "muc": "nhỏ"
+   }
+  ],
+  "nguyen_nhan": "",
+  "fix_en": ""
+ },
+ {
+  "k": 31,
+  "shot": "S6·3",
+  "job": 348,
+  "verdict": "nhỏ",
+  "issues": [
+   {
+    "loai": "cỡ cảnh",
+    "mo_ta": "Ra MS (tới thắt lưng) thay vì MCU",
+    "bang_chung": "bộ đo 0.17",
+    "muc": "nhỏ"
+   }
+  ],
+  "nguyen_nhan": "",
+  "fix_en": ""
+ },
+ {
+  "k": 32,
+  "shot": "S6·4",
+  "job": 357,
+  "verdict": "nhỏ",
+  "issues": [
+   {
+    "loai": "cỡ cảnh",
+    "mo_ta": "Ra MCU (tới ngực) thay vì CU; biểu cảm đạt — bộ đo đòi vẽ lại là quá tay",
+    "bang_chung": "bộ đo 0.23",
+    "muc": "nhỏ"
+   }
+  ],
+  "nguyen_nhan": "",
+  "fix_en": ""
+ },
+ {
+  "k": 33,
+  "shot": "S6·5",
+  "job": 350,
+  "verdict": "nhỏ",
+  "issues": [
+   {
+    "loai": "khóa nhân vật",
+    "mo_ta": "Emblem sao nằm ở vai PHẢI Kenta (mép trái khung, nhìn trước) và hình khác mẫu; bàn tay trái (tay giáp) đeo găng hở ngón thay vì găng kín",
+    "bang_chung": "cắt vai 0-300,620-1000 và tay 700-1060,900-1300",
+    "muc": "nhỏ"
+   }
+  ],
+  "nguyen_nhan": "",
+  "fix_en": ""
+ }
+]
