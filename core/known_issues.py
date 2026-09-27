@@ -83,7 +83,9 @@ STAGES: Dict[str, Dict] = {
         "status": "đang dùng",
         "used_when": lambda conn, pid: True,
         "open": [("Báo sai chi tiết nhỏ: mũ MAXIM đội ngược đọc thành đội xuôi (ảnh thu 1024 px, tờ thiết kế nhiều ô nhỏ)",
-                  "cờ chi tiết nhỏ phải kèm ảnh cắt sát vùng đó cho người xem; không đề xuất sửa Bible chỉ bằng lời Claude")],
+                  "cờ chi tiết nhỏ phải kèm ảnh cắt sát vùng đó cho người xem; không đề xuất sửa Bible chỉ bằng lời Claude"),
+                 ("Cờ báo sai vẫn lưu sau khi người xác nhận (bấm tiếp tục) → Bước 2 vẫn khóa nút gen ảnh, phải tick 'vẫn gen ảnh'",
+                  "nút 'cờ này sai — bỏ' lưu quyết định của người; cờ đã bỏ không chặn lại")],
         "fixed": [],
     },
     "kling_multishot": {
