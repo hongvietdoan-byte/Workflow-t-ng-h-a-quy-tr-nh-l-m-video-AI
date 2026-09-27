@@ -271,12 +271,38 @@ def cmd_submit(p, data_dir: str, pid: int, scene: int, methods=METHODS) -> None:
         print(o["method"], o["group"], entry["state"], entry["external_id"] or entry.get("message", "")[:160])
 
 
+def relink(provider, data_dir: str, pid: int) -> int:
+    """Past ClipAI's concurrency limit a create answers with a 12-digit QUEUE id and the real task later gets a new id (W12b): find
+    it by the prompt that was sent, created after sending, not tied to another entry. Returns how many were relinked."""
+    from core import experiments
+    items = experiments.load(data_dir, pid)
+    taken = {e.get("external_id") for e in items}
+    n = 0
+    for e in items:
+        ext = e.get("external_id") or ""
+        if e.get("kind") != "group_test" or e["state"] not in ("running", "failed") or len(ext.partition(":")[2]) != 12:
+            continue
+        if e["state"] == "failed" and "không thấy task" not in (e.get("message") or ""):
+            continue
+        sent = datetime.fromisoformat(e["at"]).timestamp() if e.get("at") else None
+        found = getattr(provider, "find_by_prompt", lambda *a, **k: None)(ext, e.get("prompt") or "", sent, taken)
+        if found:
+            e.update(queue_id=ext, external_id=found, state="running", message=None)
+            taken.add(found)
+            n += 1
+    if n:
+        experiments._save(data_dir, pid, items)
+    return n
+
+
 def cmd_poll(p, data_dir: str, pid: int) -> None:
     from core import experiments
     from core.adapters import factory
     provider = factory.video_provider()
     t0 = time.time()
     while time.time() - t0 < 2400:
+        if relink(provider, data_dir, pid):
+            print("nối lại mã chờ tạm → task thật", flush=True)
         experiments.refresh(provider, data_dir, pid)
         items = [e for e in experiments.load(data_dir, pid) if e.get("kind") == "group_test"]
         print(time.strftime("%H:%M:%S"), [(e["method"], e["group"], e["state"]) for e in items], flush=True)

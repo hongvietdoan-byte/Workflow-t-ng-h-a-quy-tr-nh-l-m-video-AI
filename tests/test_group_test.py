@@ -89,6 +89,22 @@ class ToolTests(unittest.TestCase):
             r["data"]["characters"] = cast
         self.assertEqual([len(g) for g in group_test.s3_groups(rows)], [2, 3, 1])
 
+    def test_queue_id_relinked_by_prompt(self):
+        from core import experiments
+
+        class P:
+            def find_by_prompt(self, ext, prompt, sent, taken):
+                return "omni:900000000000000001" if prompt == "shot 1" and "omni:900000000000000001" not in taken else None
+        experiments._save(self.data, self.pid, [
+            {"kind": "group_test", "method": "S2", "group": 1, "state": "failed", "external_id": "omni:123456789012",
+             "prompt": "shot 1", "at": "2026-09-27T01:38:39+00:00", "message": "không thấy task trong danh sách ClipAI"},
+            {"kind": "group_test", "method": "S2", "group": 2, "state": "failed", "external_id": "omni:123456789013",
+             "prompt": "shot 2", "at": "2026-09-27T01:38:40+00:00", "message": "[content] bị chặn"}])
+        self.assertEqual(group_test.relink(P(), self.data, self.pid), 1)
+        e1, e2 = experiments.load(self.data, self.pid)
+        self.assertEqual((e1["state"], e1["external_id"], e1["queue_id"]), ("running", "omni:900000000000000001", "omni:123456789012"))
+        self.assertEqual(e2["state"], "failed")                              # a real refusal is left alone
+
     def test_marked_reference_keeps_size(self):
         from PIL import Image
         src = os.path.join(tempfile.mkdtemp(), "f.png")
