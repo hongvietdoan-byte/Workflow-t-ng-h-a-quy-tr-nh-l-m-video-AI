@@ -41,6 +41,19 @@ _turns: Dict[Tuple[int, str], threading.RLock] = {}
 _turns_lock = threading.Lock()
 
 
+class RedrawWithFix(Exception):
+    """A downloaded result that must not be used (e.g. a location-pack picture drawn without the green backdrop): the job fails and a
+    new try goes with `fix` (English, for the model)."""
+
+    def __init__(self, message: str, fix: str):
+        super().__init__(message)
+        self.fix = fix
+
+
+GREEN_FIX = ("Draw ONLY the characters on a perfectly flat, uniform pure chroma-key green (#00FF00) backdrop filling the whole frame "
+             "behind them — no building, no tower, no sky, no floor, no ground, no scenery at all.")
+
+
 def _turn(project_id: int, job_type: str) -> threading.RLock:
     """M3: one submitter/poller per project and job type in this process. The dashboard tab (every few seconds) and the autopilot
     thread used to poll the same job at once - the clip was downloaded twice and a follower job could be made twice. The thread
@@ -268,7 +281,15 @@ class _Runner:
                     self._diag(job, "warn", "download_error", f"tải kết quả gặp lỗi không lường trước ({type(e).__name__}: {e}); sẽ thử lại")
                     counts["running"] += 1
                     continue
-                dest = self._after_download(job, dest)
+                try:
+                    dest = self._after_download(job, dest)
+                except RedrawWithFix as e:            # the result is unusable for a stated reason: a new try WITH the fix (luật 6)
+                    self._diag(job, "error", "redraw", str(e))
+                    self.p.fail(job["id"], f"redraw: {e}")
+                    counts["failed"] += 1
+                    if self.p.retry(job["id"], str(e), fix=e.fix) is not None:
+                        counts["retried"] += 1
+                    continue
                 self.p.conn.execute("UPDATE jobs SET result_path=? WHERE id=?", (dest, job["id"]))
                 self.p.conn.commit()
                 self.p.succeed(job["id"])
@@ -1069,9 +1090,10 @@ class ImageRunner(_Runner):
         from . import location_pack, looks
         conn = self.p.conn
         shot = location_pack.without_place(data)
-        prompt = framing_sentence(shot) + data["image_prompt"]
-        if (data.get("blocking") or "").strip():
-            prompt = f"{prompt}. Blocking: {data['blocking'].strip()}"
+        prompt = framing_sentence(shot) + location_pack.place_free(data["image_prompt"])
+        blocking = location_pack.place_free(data.get("blocking") or "")
+        if blocking:
+            prompt = f"{prompt}. Blocking: {blocking}"
         from . import performance
         prompt += performance.image_sentence(data)
         prompt += lock_note(conn, job["project_id"], data.get("characters"))
@@ -1111,7 +1133,8 @@ class ImageRunner(_Runner):
                 shared, dropped = sendable_references(shared, model)     # before the mapping text is built from the list
                 if dropped:
                     self._diag(job, "warn", "missing_reference", "ảnh tham chiếu storyboard không gửi được: " + ", ".join(dropped))
-                fields = scene_storyboard.job_fields(self.p.conn, self.data_dir, job["project_id"], job["scene_id"], shared, job["id"])
+                fields = scene_storyboard.job_fields(self.p.conn, self.data_dir, job["project_id"], job["scene_id"], shared, job["id"],
+                                                     green=without_place)
                 if fields is not None:
                     refs = fields["refs"]
                     self._storyboard = getattr(self, "_storyboard", {})
@@ -1132,6 +1155,12 @@ class ImageRunner(_Runner):
             return path
         from . import composite, location_pack, plate_env
         green = location_pack.green_path(self.data_dir, job["project_id"], job["id"])
+        from . import composite as _composite
+        share = _composite.green_share(path)
+        if share is not None and share < _composite.MIN_GREEN_BORDER:
+            os.replace(path, green)
+            raise RedrawWithFix(f"model không vẽ phông xanh (viền ảnh chỉ {share:.0%} là xanh) — không ghép (sẽ thành khung chữ nhật dán lên "
+                                "nền 3D); vẽ lại", GREEN_FIX)
         try:
             os.replace(path, green)
             res = composite.composite(green, plate, path, plate.get("env"),

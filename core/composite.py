@@ -56,6 +56,22 @@ def _blur(arr, radius: int):
     return np.asarray(im, dtype=np.float32) / 255.0
 
 
+MIN_GREEN_BORDER = 0.5       # share of the picture's outer band that must key as green before a composite is made
+
+
+def green_share(path: str, band: float = 0.04) -> Optional[float]:
+    """Share of the picture's TOP band (4 %) that keys as backdrop. Measured on trial #8 (17 pictures): every real character-on-green
+    had 0.79–1.00 there (close-ups and over-the-shoulder shots too — the bottom and the sides are often covered by a body), every
+    picture where the model drew a whole place instead had 0.00. None = unreadable."""
+    try:
+        rgb = _load(path)
+    except Exception:  # noqa: BLE001
+        return None
+    alpha, _ = key_green(rgb)
+    top = alpha[:max(int(alpha.shape[0] * band), 1)]
+    return float((top < 0.5).mean())
+
+
 def key_green(rgb, low: float = 0.06, high: float = 0.22):
     """alpha (1 = character) and the despilled colour. Greenness = green minus the larger of red and blue."""
     np = _np()

@@ -13,6 +13,7 @@ same camera render once.
 import hashlib
 import json
 import os
+import re
 import shutil
 from typing import Callable, Dict, List, Optional
 
@@ -336,6 +337,35 @@ def needs_plate(conn, pid: int, data: Dict) -> bool:
     """The shot's place gives a plate: a registered 3D model (tier 1) or a tagged in-game photo (tier 2)."""
     place = assets.scene_location(conn, pid, data)
     return bool(place and (model3d(conn, place["id"]) or photo_for(place, data)))
+
+
+_PLACE_CLAUSE = re.compile(r"\b(behind (him|her|them|it)|behind\s*$|in (the )?background|background|backdrop|skyline|horizon|"
+                           r"tower|plaza|parapet|building|barrack|warehouse|island|street|road|dirt path|alley|courtyard|yard|"
+                           r"battlefield|ruins|house|housing|wall|sky)\b", re.I)
+
+
+_PREPOSITION = re.compile(r"\b(across|through|down|along|near|beside|in front of|at|below|under|between|on|against|by|inside|"
+                          r"outside|behind|around|toward|towards|past|over|from|into|onto)\b", re.I)
+
+
+def place_free(text: str) -> str:
+    """The Director's picture words without the clauses that describe the place (split at , ; .): with a plate the place is drawn by
+    the 3D render, and a clause like "the stone clock tower behind" made the image model draw a whole background instead of green
+    (trial #8). A clause that is only place words is dropped; the character / action clauses stay."""
+    parts = re.split(r"(?<=[,;.])\s+", (text or "").strip())
+    keep = []
+    for p in parts:
+        hit = _PLACE_CLAUSE.search(p)
+        if not p or hit is None:
+            keep.append(p)
+            continue
+        # "three characters running side by side across the stone plaza ..." keeps "three characters running side by side"
+        preps = [m for m in _PREPOSITION.finditer(p[:hit.start()])]
+        head = p[:preps[-1].start()].strip(" ,;") if preps else ""
+        if len(head.split()) >= 3:
+            keep.append(head + p[-1] if p[-1] in ",;." else head)
+    out = " ".join(keep).strip().rstrip(",;")
+    return re.sub(r"\s+([,;.])", r"\1", out)
 
 
 def without_place(data: Dict) -> Dict:
