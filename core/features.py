@@ -119,6 +119,13 @@ FEATURES: Dict[str, Dict] = {
         "why": "Rà soát 2026-09-27 (docs/RA_SOAT_CLAUDE_KY_NANG_2026-09-27.md): QC từng ảnh không phân biệt ảnh lỗi (0,67) với ảnh tốt (0,69) "
                "trên 54 ảnh #8 — QC mới chưa đo trên bộ nhãn",
     },
+    "scene_qc_claude": {
+        "label": "QC theo cảnh lớp 1: Claude MỘT lượt mỗi cảnh tự chạy khi đủ khung (tắt: khung mới đi thẳng tới người duyệt, lớp 0 "
+                 "bằng code vẫn chạy; bật agent QC thì agent thay lớp này)",
+        "verified": False,
+        "why": "Nghiệm thu 2026-09-27 trên 33 khung có nhãn của #8 không đạt (bỏ lọt 6 khung dán, báo nhầm 12/21 khung tốt); chấm lại cả "
+               "cảnh sau mỗi lần vẽ lại tốn ~0,5 USD Claude chỉ để ghi chú (docs/CHAY_THU_2026-09-27_NHAT_KY.md phát hiện 44)",
+    },
     "qc_agent": {
         "label": "Agent QC điều tra nhiều bước (Claude có công cụ: xem khung / cắt sát / ghép dải nhiều khung / ảnh chuẩn / bộ đo / ghi "
                  "kết luận) theo sổ tay kiểm tra — thay lớp 1 của QC theo cảnh",

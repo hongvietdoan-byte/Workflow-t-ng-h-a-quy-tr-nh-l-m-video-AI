@@ -161,13 +161,54 @@ class ReviewTests(unittest.TestCase):
             "SELECT id FROM jobs WHERE scene_id=? AND type='image_gen' ORDER BY id DESC LIMIT 1", (self.rows[2]["id"],)).fetchone()["id"]))
         self.assertIn("QC cảnh giữ cho người xem", held)
 
+    def layer_one_on(self):
+        os.environ["FEATURE_SCENE_QC_CLAUDE"] = "1"
+        self.addCleanup(os.environ.pop, "FEATURE_SCENE_QC_CLAUDE", None)
+
     def test_the_same_pictures_are_judged_once(self):
+        self.layer_one_on()
         frames = [frame(k) for k in range(1, len(self.rows) + 1)]
         c = self.client(frames)
         qc_scene.run_ready_scenes(self.p, self.pid, c, self.data)
         before = len(c.asked)
+        self.assertGreaterEqual(before, 1)
         qc_scene.run_ready_scenes(self.p, self.pid, c, self.data)
         self.assertEqual(len(c.asked), before)
+
+    def test_layer_one_off_no_claude_call_and_the_frames_wait_for_a_person(self):
+        """#8 2026-09-27: layer 1 failed its acceptance and re-judging whole scenes cost ~0.5 USD for notes — off by default."""
+        c = self.client([frame(k) for k in range(1, len(self.rows) + 1)])
+        r = qc_scene.run_ready_scenes(self.p, self.pid, c, self.data)
+        self.assertEqual(c.asked, [])
+        self.assertIn(self.scene, r["waiting"])
+        states = {self.p.conn.execute("SELECT state FROM jobs WHERE scene_id=? AND type='image_gen' ORDER BY id DESC LIMIT 1",
+                                      (x["id"],)).fetchone()["state"] for x in self.rows}
+        self.assertEqual(states, {"pending_review"})
+
+    def test_after_a_redraw_only_the_changed_frame_and_its_neighbours_are_looked_at(self):
+        self.layer_one_on()
+        n = len(self.rows)
+        qc_scene.run_ready_scenes(self.p, self.pid, self.client([frame(k) for k in range(1, n + 1)]), self.data)
+        last = self.rows[-1]                                                   # a new picture for the scene's last shot
+        new = self.p.create_job(last["id"], "image_gen")
+        self.p.conn.execute("UPDATE jobs SET state='pending_review' WHERE id=?", (new,))
+        self.p.conn.commit()
+        picture(os.path.join(self.data, str(self.pid), "images", f"job_{new}.png"))
+        c = self.client([frame(1), frame(2)])
+        qc_scene.run_ready_scenes(self.p, self.pid, c, self.data)
+        self.assertEqual(len(c.asked), 1)
+        self.assertIn(f"S{self.scene}·{last['data']['shot_no']}", c.asked[0][0])
+        self.assertLess(c.asked[0][0].count(f"S{self.scene}·"), n)           # not the whole scene again
+        again = len(c.asked)
+        qc_scene.run_ready_scenes(self.p, self.pid, c, self.data)
+        self.assertEqual(len(c.asked), again)                                  # the scene's new set counts as judged
+
+    def test_to_review_keeps_the_changed_frames_and_their_neighbours(self):
+        frames = [{"job_id": j} for j in (1, 2, 3, 4, 5)]
+        self.assertEqual([f["job_id"] for f in qc_scene.to_review(frames, [1, 2, 3, 4, 5, 9])], [1, 2, 3, 4, 5])
+        self.assertEqual([f["job_id"] for f in qc_scene.to_review(frames, [])], [1, 2, 3, 4, 5])
+        frames[2] = {"job_id": 7}
+        self.assertEqual([f["job_id"] for f in qc_scene.to_review(frames, [1, 2, 3, 4, 5])], [2, 7, 4])
 
 
 class RunnerLayerZeroTests(unittest.TestCase):

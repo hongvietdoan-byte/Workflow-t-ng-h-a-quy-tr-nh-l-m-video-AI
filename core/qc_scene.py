@@ -336,15 +336,37 @@ def apply(p, pid: int, frames: List[Dict], obj: Dict, data_dir: str) -> Dict[str
     return out
 
 
+CLAUDE_FLAG = "scene_qc_claude"
+
+
+def claude_on() -> bool:
+    """Layer 1 (one Claude look per scene) runs by itself only when switched on, or when the QC agent replaces it. Trial #8
+    2026-09-27: it failed its acceptance test, its verdicts were notes only, and re-reading a whole scene after each redraw cost
+    ~0.5 USD of the Claude cap for nothing — layer 0 (code, free) keeps running in the image runner."""
+    from . import qc_agent
+    return features.on(CLAUDE_FLAG) or qc_agent.enabled()
+
+
+def to_review(frames: List[Dict], judged: List[int]) -> List[Dict]:
+    """The frames a new look needs: after a redraw, the changed frames and their neighbours in the scene (the continuity strip),
+    not the whole scene again. No earlier look → every frame."""
+    if not judged:
+        return frames
+    changed = [i for i, r in enumerate(frames) if r["job_id"] not in judged]
+    keep = sorted({j for i in changed for j in (i - 1, i, i + 1) if 0 <= j < len(frames)})
+    return [frames[i] for i in keep] or frames
+
+
 def run_ready_scenes(p, pid: int, client, data_dir: str) -> Dict:
-    """Review every script scene whose frames are all made and some still wait for a decision; each set of pictures once."""
+    """Review every script scene whose frames are all made and some still wait for a decision; each set of pictures once.
+    Layer 1 off (claude_on): the new frames go to the person without a Claude call."""
     done = _load(data_dir, pid, "reviews.json")
     scenes = []
     for (raw,) in p.conn.execute("SELECT data FROM scenes WHERE project_id=? ORDER BY idx", (pid,)):
         s = json.loads(raw or "{}").get("story_scene")
         if s is not None and s not in scenes:
             scenes.append(s)
-    summary = {"reviewed": [], "failed": []}
+    summary = {"reviewed": [], "failed": [], "waiting": []}
     for s in scenes:
         frames = scene_frames(p, pid, s, data_dir)
         if not frames or not any(r["state"] in ("succeeded", "pending_review") for r in frames):
@@ -352,16 +374,32 @@ def run_ready_scenes(p, pid: int, client, data_dir: str) -> Dict:
         key = [r["job_id"] for r in frames]
         if any(prev.get("jobs") == key for prev in done.get(str(s), [])):
             continue                                   # these very pictures were judged already
+        if not claude_on():
+            from .states import JobState
+            for r in frames:
+                if p.job(r["job_id"])["state"] == "succeeded":
+                    p.transition(r["job_id"], JobState.PENDING_REVIEW, actor="system", note="QC Claude theo cảnh đang tắt — chờ người duyệt")
+            rec = _load(data_dir, pid, "reviews.json")
+            rec.setdefault(str(s), []).append({"jobs": key, "skipped": "QC Claude tắt (lớp 0 bằng code vẫn chạy)"})
+            _save(data_dir, pid, "reviews.json", rec)
+            summary["waiting"].append(s)
+            continue
+        judged = [j for prev in done.get(str(s), []) if not prev.get("skipped") for j in prev.get("jobs") or []]
+        subset = to_review(frames, judged)
         try:
             from . import qc_agent
             if qc_agent.enabled():                     # the investigating agent (tools, several turns) instead of one look
-                res = qc_agent.review_scene(p, pid, s, client, data_dir, frames)
+                res = qc_agent.review_scene(p, pid, s, client, data_dir, subset)
                 rec = _load(data_dir, pid, "reviews.json")
-                rec.setdefault(str(s), []).append({"jobs": key, "agent": {k: v for k, v in res.items() if k != "applied"},
-                                                   "applied": res["applied"]})
+                rec.setdefault(str(s), []).append({"jobs": key, "looked_at": [r["job_id"] for r in subset],
+                                                   "agent": {k: v for k, v in res.items() if k != "applied"}, "applied": res["applied"]})
                 _save(data_dir, pid, "reviews.json", rec)
             else:
-                res = review_scene(p, pid, s, client, data_dir, frames)
+                res = review_scene(p, pid, s, client, data_dir, subset)
+                if len(subset) < len(frames):          # the scene's full set counts as judged (only the changed strip was looked at)
+                    rec = _load(data_dir, pid, "reviews.json")
+                    rec.setdefault(str(s), []).append({"jobs": key, "looked_at": [r["job_id"] for r in subset]})
+                    _save(data_dir, pid, "reviews.json", rec)
             summary["reviewed"].append((s, res["applied"]))
         except Exception as e:  # noqa: BLE001 - one scene's failure is said, the others go on
             summary["failed"].append((s, f"{type(e).__name__}: {e}"))

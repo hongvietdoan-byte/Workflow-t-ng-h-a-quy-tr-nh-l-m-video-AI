@@ -276,6 +276,29 @@ def llm_tag(usd: Optional[float], calls: int = 1) -> str:
     return f" · Claude ≈ {usd:.2f} USD" if usd is not None else " · Claude: chưa có giá"
 
 
+LLM_MARGIN = 1.3          # trial #8 2026-09-27: one call per stage was estimated (1.37 USD) — redraws re-judged, retries and tests
+REDRAW_SHARE = 0.5        # were not; share of scenes looked at again after a redraw (#8: 11 of 33 frames redrawn, in 5 of 6 scenes)
+AGENT_SCENE_USD = 0.3     # QC agent, one scene (tool turns; images of old turns dropped) — to be replaced by the measured average
+
+
+def _scenes_to_draw(conn, project_id: int) -> int:
+    return len({json.loads(r["data"] or "{}").get("story_scene") for r in conn.execute(
+        "SELECT data FROM scenes WHERE project_id=?", (project_id,))} - {None}) or 1
+
+
+def _picture_qc_calls(conn, project_id: int, pictures: int) -> float:
+    """Claude calls to judge the pictures still to draw: per picture (old QC), per scene + re-looks after redraws (scene QC with
+    layer 1 on), none when scene QC runs without Claude (layer 0 only) or the agent is counted apart."""
+    from . import qc_agent, qc_scene
+    if not pictures:
+        return 0
+    if not qc_scene.enabled():
+        return pictures
+    if qc_agent.enabled() or not qc_scene.claude_on():
+        return 0
+    return _scenes_to_draw(conn, project_id) * (1 + REDRAW_SHARE)
+
+
 def estimate_run(pipeline: Pipeline, project_id: int, pricing: Optional[Dict] = None) -> Dict:
     """What the automatic run will pay for, before the start button: pictures (+ end frames), clips (each shot's model, lip-sync
     shots on Seedance included), Claude (Director, QC, motion) — base and worst case with the retries. Unknown prices are listed,
@@ -316,7 +339,7 @@ def estimate_run(pipeline: Pipeline, project_id: int, pricing: Optional[Dict] = 
                     vid_usd += price
     llm_calls = {"director": 0 if conn.execute("SELECT 1 FROM characters WHERE project_id=? AND TRIM(description)!=''",
                                                (project_id,)).fetchone() else 1,
-                 "qc": img["items"] + len(todo), "motion": 1 if todo else 0}
+                 "qc": _picture_qc_calls(conn, project_id, img["items"]) + len(todo), "motion": 1 if todo else 0}
     llm_usd = 0.0
     for stage, calls in llm_calls.items():
         one = llm_estimate(conn, stage, calls, pricing, images=2 if stage == "qc" else 0)
@@ -324,12 +347,19 @@ def estimate_run(pipeline: Pipeline, project_id: int, pricing: Optional[Dict] = 
             unknown.append(f"Claude {llm_model()}")
         else:
             llm_usd += one
+    from . import qc_agent
+    if img["items"] and qc_agent.enabled():            # the agent: several turns per scene (not measured yet — a fixed figure)
+        llm_usd += AGENT_SCENE_USD * _scenes_to_draw(conn, project_id)
+    llm_usd *= LLM_MARGIN
     retry = int(proj["max_retry_count"] or 0)
     auto_cap = min(retry, 2)                           # automatic retries per picture/clip (pipeline.AUTO_RETRY_CAP)
     base = (img_usd or 0.0) + vid_usd + llm_usd
     worst = (img_usd or 0.0) * (1 + auto_cap) + vid_usd * (1 + auto_cap) + llm_usd * (1 + auto_cap)
+    from . import budget
+    b = budget.status(conn) if budget.get(conn).get("enabled") else None
+    llm_left = b["llm_left"] if b and b["llm_usd"] > 0 else None
     return {"images": img_usd, "videos": round(vid_usd, 2), "llm": round(llm_usd, 2), "total": round(base, 2), "max": round(worst, 2),
-            "unknown": sorted(set(unknown)), "counts": {"images": img["items"], "end_frames": img.get("end_frames", 0),
+            "llm_left": llm_left, "unknown": sorted(set(unknown)), "counts": {"images": img["items"], "end_frames": img.get("end_frames", 0),
                                                         "clips": len(todo), "seconds": sum(r["billed_seconds"] for r in todo)}}
 
 
@@ -337,7 +367,11 @@ def format_run_estimate(est: Dict) -> str:
     c = est["counts"]
     text = (f"≈ {est['total']:.2f} USD (tối đa ≈ {est['max']:.2f} nếu mọi ảnh/clip phải tự gen lại 2 lần): {c['images']} ảnh"
             + (f" (gồm {c['end_frames']} khung cuối)" if c.get("end_frames") else "")
-            + f" ≈ {(est['images'] or 0):.2f} · {c['clips']} clip / {c['seconds']:.0f} giây ≈ {est['videos']:.2f} · Claude ≈ {est['llm']:.2f}")
+            + f" ≈ {(est['images'] or 0):.2f} · {c['clips']} clip / {c['seconds']:.0f} giây ≈ {est['videos']:.2f} · Claude ≈ {est['llm']:.2f}"
+            + " (đã cộng 30 % dự phòng)")
+    if est.get("llm_left") is not None:
+        text += f" · trần Claude còn ≈ {est['llm_left']:.2f}" + (" ⚠ KHÔNG ĐỦ — nâng trần Claude trước khi chạy"
+                                                                 if est["llm"] > est["llm_left"] else "")
     if est["unknown"]:
         text += " — CHƯA có giá (không tính, sẽ bị trần từ chối khi đợt thử bật): " + ", ".join(est["unknown"])
     return text

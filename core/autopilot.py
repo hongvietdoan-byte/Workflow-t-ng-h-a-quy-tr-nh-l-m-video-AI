@@ -368,6 +368,8 @@ def _images_phase(p: Pipeline, pid: int, ctx: Context) -> Optional[str]:
         r = qc_scene.run_ready_scenes(p, pid, ctx.llm, ctx.data_dir)
         for s, applied in r["reviewed"]:
             _log(p, pid, f"QC cảnh {s}: " + ", ".join(f"{k} {v}" for k, v in applied.items()))
+        if r.get("waiting"):
+            _log(p, pid, "QC Claude theo cảnh đang tắt — khung mới của cảnh " + ", ".join(map(str, r["waiting"])) + " chờ người duyệt")
         if r["failed"]:
             _log(p, pid, f"QC cảnh lỗi ở cảnh {r['failed'][0][0]}: {r['failed'][0][1]}")
             _stop_if_claude_blocked([(s, m) for s, m in r["failed"]])

@@ -524,6 +524,25 @@ class EstimateTests(Base):
         self.assertGreater(run["total"], 0)
         self.assertIn("USD", cost.format_run_estimate(run))
 
+    def test_picture_qc_calls_follow_the_qc_that_will_really_run(self):
+        """#8 2026-09-27: the estimate counted one call per stage (1.37 USD) and the Claude cap ran out — re-looks after redraws,
+        the margin and what is left of the cap are now in it; scene QC without Claude costs no call."""
+        self.p.set_project_field(self.pid, "shot_mode", "per_shot")
+        self.set_data({"image_prompt": "x", "shot_no": 1, "story_scene": 1})
+        self.assertEqual(cost._picture_qc_calls(self.p.conn, self.pid, 4), 4)                    # old QC: one per picture
+        with mock.patch.dict(os.environ, {"FEATURE_SCENE_QC": "1"}):
+            self.assertEqual(cost._picture_qc_calls(self.p.conn, self.pid, 4), 0)                # layer 1 off: code only
+            with mock.patch.dict(os.environ, {"FEATURE_SCENE_QC_CLAUDE": "1"}):
+                self.assertEqual(cost._picture_qc_calls(self.p.conn, self.pid, 4), 1 + cost.REDRAW_SHARE)   # one scene + re-looks
+        from core import budget
+        budget.save(self.p.conn, enabled=True, llm_usd=0.01)
+        run = cost.estimate_run(self.p, self.pid)
+        self.assertIsNotNone(run["llm_left"])
+        text = cost.format_run_estimate(run)
+        self.assertIn("trần Claude còn", text)
+        if run["llm"] > run["llm_left"]:
+            self.assertIn("KHÔNG ĐỦ", text)
+
 
 # ---- 11 --------------------------------------------------------------------------------------------------------------------
 class CheapModeTests(Base):
