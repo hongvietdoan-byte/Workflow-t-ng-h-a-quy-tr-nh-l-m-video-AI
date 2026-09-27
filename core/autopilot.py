@@ -363,7 +363,15 @@ def _images_phase(p: Pipeline, pid: int, ctx: Context) -> Optional[str]:
     _budget_stop(p, pid, "image_gen")
     ctx.image_runner.poll_once(pid)
     _retry_or_hold(p, pid, "image_gen")
-    if _count(p, "SELECT COUNT(*) FROM jobs WHERE project_id=? AND type='image_gen' AND state='succeeded'", pid):
+    from . import qc_scene
+    if qc_scene.enabled():                                  # QC per script scene: one Claude call once all its frames exist
+        r = qc_scene.run_ready_scenes(p, pid, ctx.llm, ctx.data_dir)
+        for s, applied in r["reviewed"]:
+            _log(p, pid, f"QC cảnh {s}: " + ", ".join(f"{k} {v}" for k, v in applied.items()))
+        if r["failed"]:
+            _log(p, pid, f"QC cảnh lỗi ở cảnh {r['failed'][0][0]}: {r['failed'][0][1]}")
+            _stop_if_claude_blocked([(s, m) for s, m in r["failed"]])
+    elif _count(p, "SELECT COUNT(*) FROM jobs WHERE project_id=? AND type='image_gen' AND state='succeeded'", pid):
         r = llm_runner.run_qc_batch(p, pid, ctx.llm, ctx.data_dir)
         if r["failed"]:
             _log(p, pid, f"QC lỗi ở {len(r['failed'])} ảnh: {r['failed'][0][1]}")
@@ -652,6 +660,8 @@ def _flag_reasons(p: Pipeline, job) -> List[str]:
     from .pipeline import hard_failures
     scores = {r["criterion"]: r["score"] for r in p.conn.execute("SELECT criterion, score FROM qc_results WHERE job_id=?", (job["id"],))}
     out = hard_failures(scores, "video" if job["type"] == "video_gen" else "image")
+    if "scene_qc_hold" in scores:                          # QC per scene kept it for a person (doubt / shot table / code flag)
+        out.append("QC cảnh giữ cho người xem")
     if job["escalated"]:
         out.append("hết lượt tự sửa")
     return out
@@ -1056,6 +1066,9 @@ def _marker(ctx: Context, pid: int, *parts: str) -> str:
 
 def _setcheck_phase(p: Pipeline, pid: int, ctx: Context) -> Optional[str]:
     """One whole-set consistency look (once): outliers are redone with the fix sentence, within the job cap."""
+    from . import qc_scene
+    if qc_scene.enabled():
+        return None                                         # the per-scene QC already looked at every scene's frames together
     from . import claude_tasks
     marker = _marker(ctx, pid, "qc_set", ".autopilot_done")
     if os.path.exists(marker) or len(_scene_rows(p, pid)) < 2:

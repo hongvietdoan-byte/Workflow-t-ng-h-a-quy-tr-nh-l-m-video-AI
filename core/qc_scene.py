@@ -1,0 +1,320 @@
+"""QC per script scene (flag scene_qc; docs/THIET_KE_LAI_QC_VA_KET_NOI_2026-09-27.md).
+
+Why: on the 54 labelled pictures of #8 the per-picture Claude QC scored faulty pictures (0.67) like good ones (0.69), approved 6 of 16 obvious
+faults and rejected none of them; it never saw two frames side by side, had no reference for the place, and one of its criteria was
+overwritten by code. The person asked for a QC that is stricter, reasons about each fault and names the right fix.
+
+Layer 0 — code, free, every picture as it arrives (`check_frame`): the shot size measured from the face height (thresholds measured on
+the #7/#8 frames of known size), eyes under the app's top bar, a night face too dark, faces missing / extra. A sure fault is redrawn at once
+with a precise fix sentence (runner.RedrawWithFix); an unsure one becomes a flag for layer 1.
+Layer 1 — Claude, ONE call per script scene once all its frames exist (`review_scene`): a contact sheet of the scene's frames, the scene's
+establishing picture (the standard of the place and light), one standard picture per character + Lock, the shot table and the layer-0
+flags; for every frame yes/no checks WITH visible evidence, a verdict (pass / fix / doubt) and the root cause (prompt / reference / model /
+plan) so the right input is changed. pass → approved; fix → drawn again with the fix (not for `plan`: the shot table is wrong, a person
+decides); doubt → held for the person with the evidence.
+"""
+import json
+import os
+import re
+from typing import Dict, List, Optional, Tuple
+
+from . import features
+
+FEATURE = "scene_qc"
+SIZES = ["WS", "MLS", "MS", "MCU", "CU", "ECU"]
+# face height / frame height where each size starts (vertical frames; measured 2026-09-27: WS 0.04–0.07, MS 0.14–0.18, MCU ~0.22,
+# CU 0.26–0.30, ECU 0.67)
+SIZE_FROM = [("ECU", 0.50), ("CU", 0.25), ("MCU", 0.20), ("MS", 0.12), ("MLS", 0.08), ("WS", 0.0)]
+TOP_BAR = 0.15            # the app's top bar covers ~15 % of a vertical frame (editor/safe_zones.md)
+DARK_REDRAW, DARK_FLAG = 0.15, 0.20      # mean face brightness 0–1 (night frames liked by the person: 0.19–0.26)
+CHECKS = ("identity", "place", "action", "framing", "continuity", "artifacts")
+VERDICTS = ("pass", "fix", "doubt")
+CAUSES = ("prompt", "reference", "model", "plan", "none")
+SHEET_MAX = 6
+EQUIV = {"EWS": "WS", "GAME_TPS": "WS", "LS": "WS"}
+
+
+def enabled() -> bool:
+    return features.on(FEATURE)
+
+
+def measured_size(face_h: float) -> str:
+    return next(name for name, start in SIZE_FROM if face_h >= start)
+
+
+def _behind(data: Dict) -> bool:
+    words = f"{data.get('angle') or ''} {data.get('shot') or ''} {data.get('blocking') or ''} {data.get('start_frame') or ''}".lower()
+    return "ots" in words or "over the shoulder" in words or "over-the-shoulder" in words or "from behind" in words or "back to camera" in words
+
+
+# ---- layer 0 -------------------------------------------------------------------------------------------------------------
+def check_frame(path: str, data: Dict) -> List[Dict]:
+    """Code checks of one frame. [{code, severity: "redraw" | "flag", problem (vi), fix (en)}]; [] when fine or when the face detector is
+    not available (said by the caller)."""
+    from . import text_placement
+    boxes = text_placement.face_boxes(path)
+    if boxes is None:
+        return []
+    out: List[Dict] = []
+    size = EQUIV.get(str(data.get("size") or "").upper(), str(data.get("size") or "").upper())
+    cast = [str(c) for c in data.get("characters") or []]
+    night = str(data.get("time") or "").lower() == "night"
+    if not boxes:
+        if size in ("ECU", "CU", "MCU") and not _behind(data):
+            out.append({"code": "no_face", "severity": "flag", "problem": f"không thấy khuôn mặt nào dù shot {size}",
+                        "fix": "The character's face is clearly visible, turned towards the camera."})
+        return out
+    big = max(boxes, key=lambda b: b[3] - b[1])
+    h = big[3] - big[1]
+    got = measured_size(h)
+    if size in SIZES:
+        steps = SIZES.index(got) - SIZES.index(size)
+        severe = abs(steps) >= 2 or (size in ("CU", "ECU") and steps < 0)
+        if steps:
+            want = {"ECU": "an extreme close-up: only the face fills the frame", "CU": "a close-up: head and top of the shoulders, the face "
+                    "fills about a third of the frame height", "MCU": "a medium close-up: head and chest", "MS": "a medium shot: from the "
+                    "waist up", "MLS": "a medium long shot: from the knees up", "WS": "a wide shot: whole bodies with the place around them"}[size]
+            out.append({"code": "shot_size", "severity": "redraw" if severe else "flag",
+                        "problem": f"cỡ cảnh đo được {got} (mặt cao {h:.2f} khung) — shot xin {size}", "fix": f"Frame as {want}."})
+    eye = big[1] + 0.4 * h
+    if eye < TOP_BAR and size in ("ECU", "CU", "MCU", "MS") and size != "ECU":
+        out.append({"code": "top_bar", "severity": "redraw" if size in ("CU", "MCU") else "flag",
+                    "problem": f"mắt ở {eye:.0%} từ trên — nằm dưới thanh giao diện ứng dụng",
+                    "fix": "Leave headroom: the eyes sit about one third from the top of the frame."})
+    if night:
+        light = _face_light(path, big)
+        if light is not None and light < DARK_FLAG:
+            out.append({"code": "dark_face", "severity": "redraw" if light < DARK_REDRAW else "flag",
+                        "problem": f"mặt quá tối ({light:.2f})",
+                        "fix": "Night, but the faces are clearly lit: warm street-lamp key light on the faces, cool moonlight rim light."})
+    if len(boxes) > len(cast) + (0 if size in ("ECU", "CU", "MCU") else 1):
+        out.append({"code": "extra_faces", "severity": "flag", "problem": f"{len(boxes)} khuôn mặt, bảng shot có {len(cast)} người",
+                    "fix": "Only " + (", ".join(cast) or "the listed characters") + " in the frame — no other people."})
+    return out
+
+
+def _face_light(path: str, box) -> Optional[float]:
+    try:
+        import numpy as np
+        from PIL import Image
+        im = np.asarray(Image.open(path).convert("L"), dtype=float) / 255.0
+    except Exception:  # noqa: BLE001
+        return None
+    H, W = im.shape
+    l, t, r, b = box
+    crop = im[int(t * H):max(int(b * H), int(t * H) + 1), int(l * W):max(int(r * W), int(l * W) + 1)]
+    return float(crop.mean()) if crop.size else None
+
+
+def _store(data_dir: str, pid: int) -> str:
+    return os.path.join(data_dir, str(pid), "qc_scene")
+
+
+def _load(data_dir: str, pid: int, name: str) -> Dict:
+    try:
+        with open(os.path.join(_store(data_dir, pid), name), encoding="utf-8") as f:
+            return json.load(f)
+    except (OSError, ValueError):
+        return {}
+
+
+def _save(data_dir: str, pid: int, name: str, obj: Dict) -> None:
+    os.makedirs(_store(data_dir, pid), exist_ok=True)
+    with open(os.path.join(_store(data_dir, pid), name), "w", encoding="utf-8") as f:
+        json.dump(obj, f, ensure_ascii=False, indent=1)
+
+
+def record_flags(data_dir: str, pid: int, job_id: int, flags: List[Dict]) -> None:
+    idx = _load(data_dir, pid, "layer0.json")
+    idx[str(job_id)] = flags
+    _save(data_dir, pid, "layer0.json", idx)
+
+
+def flags_of(data_dir: str, pid: int, job_id: int) -> List[Dict]:
+    return _load(data_dir, pid, "layer0.json").get(str(job_id)) or []
+
+
+# ---- layer 1 -------------------------------------------------------------------------------------------------------------
+def validate(obj, expected: List[Tuple[int, str]]) -> Dict:
+    """Strict: every frame once, every check with visible evidence, a failed check → fix / doubt, a fix → English sentence + cause."""
+    from .llm_io import SchemaError
+    if not isinstance(obj, dict) or not isinstance(obj.get("frames"), list):
+        raise SchemaError("root: {frames: [...], scene: {...}}")
+    seen = {}
+    for f in obj["frames"]:
+        if not isinstance(f, dict) or not isinstance(f.get("k"), int):
+            raise SchemaError("frames[]: cần k (số) cho mọi khung")
+        if f["k"] in seen:
+            raise SchemaError(f"khung K{f['k']} xuất hiện 2 lần")
+        seen[f["k"]] = f
+        checks = f.get("checks") or {}
+        for c in CHECKS:
+            ck = checks.get(c)
+            if not isinstance(ck, dict) or not isinstance(ck.get("ok"), bool) or len(str(ck.get("evidence") or "").strip()) < 8:
+                raise SchemaError(f"K{f['k']}.{c}: cần ok (true/false) + evidence là điều nhìn thấy cụ thể")
+            if re.fullmatch(r"\W*(ổn|tốt|ok|không (thấy )?lỗi|good|fine|none)\W*", str(ck["evidence"]).strip(), re.I):
+                raise SchemaError(f"K{f['k']}.{c}: evidence phải là điều nhìn thấy, không phải lời kết luận")
+        if f.get("verdict") not in VERDICTS or f.get("root_cause") not in CAUSES:
+            raise SchemaError(f"K{f['k']}: verdict ∈ {VERDICTS}, root_cause ∈ {CAUSES}")
+        failed = [c for c in CHECKS if not checks[c]["ok"]]
+        if failed and f["verdict"] == "pass":
+            raise SchemaError(f"K{f['k']}: {failed} không đạt mà verdict = pass")
+        if f["verdict"] == "fix":
+            if f["root_cause"] == "none" or not str(f.get("problem") or "").strip():
+                raise SchemaError(f"K{f['k']}: fix cần problem + root_cause")
+            fix = str(f.get("fix") or "")
+            if f["root_cause"] != "plan" and (len(fix) < 15 or re.search(r"[ăâđêôơưạảấầẩẫậắằẳẵặẹẻẽếềểễệỉịọỏốồổỗộớờởỡợụủứừửữựỳỵỷỹ]", fix, re.I)):
+                raise SchemaError(f"K{f['k']}: fix phải là một câu mệnh lệnh tiếng Anh")
+    missing = [k for k, _ in expected if k not in seen]
+    if missing:
+        raise SchemaError(f"thiếu khung {missing}")
+    return obj
+
+
+def scene_frames(p, pid: int, story_scene, data_dir: str) -> Optional[List[Dict]]:
+    """The scene's shots with their current picture, or None while a picture of the scene is still queued / being made."""
+    rows = []
+    for s in p.conn.execute("SELECT id, idx, data FROM scenes WHERE project_id=? ORDER BY idx", (pid,)).fetchall():
+        d = json.loads(s["data"] or "{}")
+        if d.get("story_scene") != story_scene or not d.get("shot_no"):
+            continue
+        if p.conn.execute("SELECT 1 FROM jobs WHERE scene_id=? AND type='image_gen' AND state IN ('queued','running','retryable')",
+                          (s["id"],)).fetchone():
+            return None
+        j = p.conn.execute("SELECT id, state FROM jobs WHERE scene_id=? AND type='image_gen' AND state IN "
+                           "('succeeded','pending_review','approved') ORDER BY id DESC LIMIT 1", (s["id"],)).fetchone()
+        if j is None:
+            return None
+        path = os.path.join(data_dir, str(pid), "images", f"job_{j['id']}.png")
+        if not os.path.exists(path):
+            return None
+        rows.append({"scene_id": s["id"], "idx": s["idx"], "data": d, "job_id": j["id"], "state": j["state"], "path": path})
+    return rows or None
+
+
+def _shot_line(k: int, r: Dict) -> Dict:
+    d = r["data"]
+    words = f"{d.get('blocking') or ''} {d.get('start_frame') or ''}"
+    return {"K": k, "shot": f"S{d.get('story_scene')}·{d.get('shot_no')}", "size": d.get("size"), "angle": d.get("angle"),
+            "characters": d.get("characters"), "time": d.get("time"), "action": (d.get("action") or "")[:160],
+            "left_right": re.findall(r"[A-Z]{3,}[^,;.]{0,40}frame-(?:left|right)", words)[:3]}
+
+
+def build_request(p, pid: int, frames: List[Dict], data_dir: str) -> Tuple[str, List[Tuple[str, str]], List[Tuple[int, str]]]:
+    from . import assets, layout, prompts, scene_establish
+    from .claude_tasks import _read
+    story = frames[0]["data"].get("story_scene")
+    out_dir = os.path.join(_store(data_dir, pid), f"scene_{story}")
+    os.makedirs(out_dir, exist_ok=True)
+    labels = [(k, f"K{k} · S{r['data'].get('story_scene')}·{r['data'].get('shot_no')} · {r['data'].get('size') or ''}")
+              for k, r in enumerate(frames, 1)]
+    images: List[Tuple[str, str]] = []
+    for n in range(0, len(frames), SHEET_MAX):
+        chunk = list(zip(frames[n:n + SHEET_MAX], labels[n:n + SHEET_MAX]))
+        sheet = layout.storyboard([(r["path"], lab) for r, (_, lab) in chunk], os.path.join(out_dir, f"sheet_{n // SHEET_MAX + 1}.png"),
+                                  cols=3, cell=(384, 683))
+        images.append((f"Tấm ghép khung {chunk[0][1][0]}–{chunk[-1][1][0]} của cảnh:", sheet))
+    est = scene_establish.picture(data_dir, pid, story)
+    if est:
+        images.append(("Ảnh toàn cảnh của cảnh — CHUẨN NƠI CHỐN + ÁNH SÁNG:", assets.thumbnail(est, 1024)))
+    names: List[str] = []
+    for r in frames:
+        for n in r["data"].get("characters") or []:
+            if str(n) not in names:
+                names.append(str(n))
+    links = assets.link_characters(p.conn, pid, names)
+    for n in names:
+        ref = (links.get(n) or {}).get("ref")
+        if ref and os.path.exists(ref.get("path", "")):
+            images.append((f"Ảnh chuẩn — {n}:", assets.thumbnail(ref["path"], 900)))
+    table = [_shot_line(k, r) for k, r in enumerate(frames, 1)]
+    flags = {f"K{k}": flags_of(data_dir, pid, r["job_id"]) for k, r in enumerate(frames, 1) if flags_of(data_dir, pid, r["job_id"])}
+    prompt = "\n\n---\n\n".join(x for x in [
+        _read("prompts", "21_scene_qc.md"), _read("knowledge", "ai_image_failure_modes.md"),
+        prompts.lock_text(p.conn, pid, names),
+        "# Bảng shot của cảnh\n```json\n" + json.dumps(table, ensure_ascii=False, indent=1) + "\n```",
+        ("# Cờ đo bằng code (lớp 0) — xác minh bằng mắt\n```json\n" + json.dumps(flags, ensure_ascii=False, indent=1) + "\n```") if flags else "",
+        "" if est else "(Cảnh này KHÔNG có ảnh toàn cảnh — điểm place so với mô tả nơi chốn trong bảng shot.)"] if x)
+    return prompt, images, labels
+
+
+def review_scene(p, pid: int, story_scene, client, data_dir: str, frames: Optional[List[Dict]] = None) -> Dict:
+    """Layer 1 for one scene; applies the verdicts to the frames that wait for a decision. Returns the answer (+ "applied")."""
+    from .claude_tasks import _run
+    frames = frames or scene_frames(p, pid, story_scene, data_dir)
+    if not frames:
+        raise ValueError(f"cảnh {story_scene} chưa đủ khung")
+    prompt, images, labels = build_request(p, pid, frames, data_dir)
+    obj = _run(p, pid, "qc", prompt, lambda o: validate(o, labels), client, images)
+    applied = apply(p, pid, frames, obj, data_dir)
+    rec = _load(data_dir, pid, "reviews.json")
+    rec.setdefault(str(story_scene), []).append({"jobs": [r["job_id"] for r in frames], "answer": obj, "applied": applied})
+    _save(data_dir, pid, "reviews.json", rec)
+    return {**obj, "applied": applied}
+
+
+def _hold(p, job_id: int, note: str) -> None:
+    from .states import JobState
+    if p.job(job_id)["state"] == "succeeded":
+        p.transition(job_id, JobState.PENDING_REVIEW, actor="ai_agent", note=note)
+    p.conn.execute("INSERT INTO qc_results (job_id, criterion, score, threshold_at_time, auto_decision) VALUES (?,?,?,?,?)",
+                   (job_id, "scene_qc_hold", 0.0, 1.0, "hold"))
+    p.conn.commit()
+
+
+def apply(p, pid: int, frames: List[Dict], obj: Dict, data_dir: str) -> Dict[str, str]:
+    """pass → approved (unless a layer-0 flag is left); fix → drawn again with the fix (plan → held); doubt → held with the evidence."""
+    from .states import JobState
+    by_k = {f["k"]: f for f in obj["frames"]}
+    out: Dict[str, str] = {}
+    for k, r in enumerate(frames, 1):
+        f = by_k[k]
+        job = p.job(r["job_id"])
+        if job["state"] not in ("succeeded", "pending_review"):
+            out[f"K{k}"] = f"giữ nguyên ({job['state']})"
+            continue
+        evidence = "; ".join(f"{c}: {f['checks'][c]['evidence']}" for c in CHECKS if not f["checks"][c]["ok"])
+        if f["verdict"] == "pass":
+            left = [x for x in flags_of(data_dir, pid, r["job_id"]) if x.get("severity") == "flag"]
+            if left:
+                _hold(p, r["job_id"], "QC cảnh: đạt nhưng còn cờ đo bằng code — " + "; ".join(x["problem"] for x in left))
+                out[f"K{k}"] = "giữ cho người (cờ lớp 0)"
+            else:
+                if job["state"] == "succeeded":
+                    p.transition(r["job_id"], JobState.PENDING_REVIEW, actor="ai_agent", note="QC cảnh: đạt")
+                p.approve(r["job_id"], "ai_agent", "QC cảnh: đạt — " + f["seen"][:120] if f.get("seen") else "QC cảnh: đạt")
+                out[f"K{k}"] = "duyệt"
+        elif f["verdict"] == "fix" and f["root_cause"] != "plan":
+            if job["state"] == "succeeded":
+                p.transition(r["job_id"], JobState.PENDING_REVIEW, actor="ai_agent", note="QC cảnh")
+            res = p.reject(r["job_id"], "ai_agent", f"QC cảnh [{f['root_cause']}]: {f['problem']} — {evidence}"[:600], fix=f["fix"])
+            out[f"K{k}"] = f"vẽ lại ({f['root_cause']}) → {res}"
+        else:
+            why = "bảng shot cần người sửa" if f["verdict"] == "fix" else "chưa đủ rõ"
+            _hold(p, r["job_id"], f"QC cảnh: {why} — {f.get('problem') or evidence}"[:600])
+            out[f"K{k}"] = f"giữ cho người ({why})"
+    return out
+
+
+def run_ready_scenes(p, pid: int, client, data_dir: str) -> Dict:
+    """Review every script scene whose frames are all made and some still wait for a decision; each set of pictures once."""
+    done = _load(data_dir, pid, "reviews.json")
+    scenes = []
+    for (raw,) in p.conn.execute("SELECT data FROM scenes WHERE project_id=? ORDER BY idx", (pid,)):
+        s = json.loads(raw or "{}").get("story_scene")
+        if s is not None and s not in scenes:
+            scenes.append(s)
+    summary = {"reviewed": [], "failed": []}
+    for s in scenes:
+        frames = scene_frames(p, pid, s, data_dir)
+        if not frames or not any(r["state"] in ("succeeded", "pending_review") for r in frames):
+            continue
+        key = [r["job_id"] for r in frames]
+        if any(prev.get("jobs") == key for prev in done.get(str(s), [])):
+            continue                                   # these very pictures were judged already
+        try:
+            res = review_scene(p, pid, s, client, data_dir, frames)
+            summary["reviewed"].append((s, res["applied"]))
+        except Exception as e:  # noqa: BLE001 - one scene's failure is said, the others go on
+            summary["failed"].append((s, f"{type(e).__name__}: {e}"))
+    return summary

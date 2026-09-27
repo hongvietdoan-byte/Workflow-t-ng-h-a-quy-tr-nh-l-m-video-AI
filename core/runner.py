@@ -1177,6 +1177,14 @@ class ImageRunner(_Runner):
         starts from it), composite it on the plate into the job's picture, add falling weather."""
         plate = self._plate(job)
         if plate is None:
+            from . import qc_scene
+            if qc_scene.enabled():                     # QC layer 0: code checks as the picture arrives (free)
+                data = json.loads(self.p.conn.execute("SELECT data FROM scenes WHERE id=?", (job["scene_id"],)).fetchone()["data"] or "{}")
+                flags = qc_scene.check_frame(path, data)
+                qc_scene.record_flags(self.data_dir, job["project_id"], job["id"], flags)
+                sure = [f for f in flags if f["severity"] == "redraw"]
+                if sure:
+                    raise RedrawWithFix("QC lớp 0: " + "; ".join(f["problem"] for f in sure), " ".join(f["fix"] for f in sure))
             return path
         from . import composite, location_pack, plate_env
         green = location_pack.green_path(self.data_dir, job["project_id"], job["id"])

@@ -77,6 +77,12 @@ def _work(db_path: str, data_dir: str, project_id: int, client_factory: Callable
         if client is None:
             _fail(conn, project_id, "chưa có Claude (ANTHROPIC_API_KEY hoặc LLM_PROVIDER=claude_cli)")
             return
+        from . import qc_scene
+        if qc_scene.enabled():                             # QC per script scene (one call per scene once all its frames exist)
+            r = qc_scene.run_ready_scenes(p, project_id, client, data_dir)
+            if r["failed"]:
+                _fail(conn, project_id, f"QC cảnh {r['failed'][0][0]}: {r['failed'][0][1]}")
+            return
         for _ in range(300):
             row = conn.execute("SELECT id FROM jobs WHERE project_id=? AND type='image_gen' AND state='succeeded' ORDER BY id LIMIT 1",
                                (project_id,)).fetchone()
