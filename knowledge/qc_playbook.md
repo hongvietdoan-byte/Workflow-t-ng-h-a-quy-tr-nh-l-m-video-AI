@@ -10,7 +10,8 @@ chuyển thành bộ đo code (lớp 0).
   vật quay lưng hoặc quay nghiêng.
 - Cách soi: từ hồ sơ nhân vật lấy các chi tiết có chữ LEFT/RIGHT; ghép DẢI cùng vùng (vai, tay) của mọi khung có nhân vật đó, TÁCH khung
   quay trước và quay sau. Quay trước: bên trái của nhân vật ở BÊN PHẢI khung; quay sau: ở BÊN TRÁI khung. So từng khung với luật đó.
-- Sửa gốc: `view_notes` trong hồ sơ chuẩn (câu cho từng hướng nhìn).
+- Sửa gốc: `view_notes` trong hồ sơ chuẩn (câu cho từng hướng nhìn). **Liệt kê MỌI chi tiết một bên**, không chỉ trang bị lớn
+  (#8 lượt 2: sau khi có câu cho găng Kenta / mũ Maxim — đúng 4/4 và 5/5 — tab đỏ tay áo trái của Maxim chưa có câu nên vẫn lật 2/5 khung).
 ### A2. Phụ kiện đổi chiều khi quay sau lưng — `chặn` (#8: 5 khung — mũ MAXIM)
 - Dấu hiệu: mũ đội ngược (khóa cài ở trán) thành đội xuôi (khóa cài ở gáy) ở các khung quay sau.
 - Cách soi: dải vùng đầu qua mọi khung có nhân vật; khung quay sau phải thấy lưỡi trai che gáy.
@@ -34,8 +35,15 @@ chuyển thành bộ đo code (lớp 0).
 - Cách soi: đặt các khung liền nhau cạnh nhau; cùng bố cục + cùng tư thế = trùng.
 ### C2. Vết thương / đạo cụ lệch vị trí giữa các khung liền — `nhỏ` (#8: vết đạn hông ↔ ngực)
 ### C3. Hồi tưởng không khác hiện tại — `chặn` (#8 S5·3)
-- Cách soi: so ánh sáng / màu với khung hiện tại cùng nơi; hồi tưởng phải khác rõ (ấm, mờ, …).
-- Sửa gốc: `scene_establish.FLASHBACK`.
+- Cách soi: so ánh sáng / màu với khung hiện tại cùng nơi; hồi tưởng phải khác ít nhất 2 tầng (màu + bối cảnh hoặc hạt / mờ); soi cả
+  các khung HIỆN TẠI có vô tình cùng tông với hồi tưởng không.
+- Sửa gốc: `scene_establish.FLASHBACK` (màu có hiệu quả — lượt 2 đạt; bối cảnh vẫn là quảng trường hiện tại → nhỏ).
+### C4. Ánh sáng / giờ nhảy trong cùng một cảnh sau khi vẽ lại — `chặn` (#8 lượt 2: S4·2 thành hoàng hôn giữa trưa)
+- Cách soi: dải toàn khung của cảnh cạnh ảnh toàn cảnh; so màu trời, hướng nắng, độ dài bóng.
+- Sửa gốc: câu sửa khi vẽ lại luôn kèm câu khóa ánh sáng của cảnh; ứng viên bộ đo code (sắc độ trung bình vùng trời).
+## F. Quy trình
+### F1. Sau mỗi lượt vẽ lại, soi lại các khung ĐÃ DUYỆT cùng dải chi tiết bị sửa (#8 lượt 2: đặt cạnh khung đã sửa mới lộ S6·2 mang găng
+  ở tay phải — lượt 1 chỉ chấm nhỏ). Luật đã rõ ở một khung là thước đo cho các khung còn lại.
 
 ## D. Kỹ thuật hình
 ### D1. Khung trống / đen / một màu — `chặn` (lớp 0 bắt bằng code)

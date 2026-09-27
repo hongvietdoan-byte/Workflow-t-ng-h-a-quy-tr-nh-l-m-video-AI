@@ -1,0 +1,229 @@
+[
+ {
+  "k": 2,
+  "shot": "S1·2",
+  "job": 358,
+  "verdict": "đạt",
+  "fixed_old_issue": true,
+  "issues": [
+   {
+    "loai": "liền mạch (C1)",
+    "mo_ta": "Bố cục gần trùng k3 (cùng góc, cùng vị trí) — khác biệt chỉ ở biểu cảm/đầu Kelly; bảng shot chủ ý 'same composition' nên chấp nhận",
+    "bang_chung": "dup_pairs.jpg (2 khung đầu)",
+    "muc": "nhỏ"
+   },
+   {
+    "loai": "cỡ cảnh",
+    "mo_ta": "Đo MLS (mặt 0.11) thay vì MS",
+    "bang_chung": "qc_scene.check_frame",
+    "muc": "nhỏ"
+   }
+  ],
+  "nguyen_nhan": "",
+  "fix_en": "",
+  "ghi_chu": ""
+ },
+ {
+  "k": 3,
+  "shot": "S1·3",
+  "job": 359,
+  "verdict": "đạt",
+  "fixed_old_issue": true,
+  "issues": [
+   {
+    "loai": "liền mạch (C1)",
+    "mo_ta": "Gần trùng k2; phân biệt được nhờ Kelly cúi đầu + Kenta quay mặt nghiêng (quai hàm) — dùng được làm nhịp phản ứng",
+    "bang_chung": "dup_pairs.jpg",
+    "muc": "nhỏ"
+   }
+  ],
+  "nguyen_nhan": "",
+  "fix_en": "",
+  "ghi_chu": ""
+ },
+ {
+  "k": 7,
+  "shot": "S2·3",
+  "job": 371,
+  "verdict": "đạt",
+  "fixed_old_issue": true,
+  "issues": [
+   {
+    "loai": "cỡ cảnh",
+    "mo_ta": "Đo MLS thay vì MS",
+    "bang_chung": "qc_scene.check_frame",
+    "muc": "nhỏ"
+   }
+  ],
+  "nguyen_nhan": "",
+  "fix_en": "",
+  "ghi_chu": "Mũ Maxim nhìn sau: lưỡi trai che gáy (caps_behind.jpg ô 1); tab đỏ tay áo ở tay TRÁI (mép trái lưng) đúng (maxim_back_sleeve_strip.jpg ô 1); Kenta nhìn trước: găng + sao ở mép phải khung đúng."
+ },
+ {
+  "k": 8,
+  "shot": "S2·4",
+  "job": 361,
+  "verdict": "đạt",
+  "fixed_old_issue": true,
+  "issues": [
+   {
+    "loai": "cỡ cảnh",
+    "mo_ta": "Đo MLS thay vì MS",
+    "bang_chung": "qc_scene.check_frame",
+    "muc": "nhỏ"
+   }
+  ],
+  "nguyen_nhan": "",
+  "fix_en": "",
+  "ghi_chu": "Cả hai đồng tử lệch sang TRÁI khung, mặt xoay trái (eyes_k8_k18.jpg, k8_eyes.jpg); mũ ngược, khóa trên trán."
+ },
+ {
+  "k": 12,
+  "shot": "S3·2",
+  "job": 362,
+  "verdict": "đạt",
+  "fixed_old_issue": true,
+  "issues": [
+   {
+    "loai": "cỡ cảnh",
+    "mo_ta": "Đo MLS (mặt 0.08) thay vì MS",
+    "bang_chung": "qc_scene.check_frame",
+    "muc": "nhỏ"
+   }
+  ],
+  "nguyen_nhan": "",
+  "fix_en": "",
+  "ghi_chu": "Kenta nhìn sau: sao + băng da + vết đỏ + găng giáp ở phía TRÁI khung của thân (kenta_back_strip.jpg ô 4)."
+ },
+ {
+  "k": 13,
+  "shot": "S3·3",
+  "job": 363,
+  "verdict": "đạt",
+  "fixed_old_issue": true,
+  "issues": [
+   {
+    "loai": "cỡ cảnh",
+    "mo_ta": "Đo MLS thay vì MS",
+    "bang_chung": "qc_scene.check_frame",
+    "muc": "nhỏ"
+   }
+  ],
+  "nguyen_nhan": "",
+  "fix_en": "",
+  "ghi_chu": "Mũ: lưỡi trai che gáy (caps_behind.jpg ô 2); tay phải (mép phải lưng) không có tab đỏ = đúng."
+ },
+ {
+  "k": 15,
+  "shot": "S3·5",
+  "job": 364,
+  "verdict": "đạt",
+  "fixed_old_issue": true,
+  "issues": [
+   {
+    "loai": "liền mạch (C1)",
+    "mo_ta": "Gần trùng k16 và k13 (cùng reverse OTS); bảng shot chủ ý 'same reverse OTS', k16 khác cử chỉ tay",
+    "bang_chung": "dup_pairs.jpg",
+    "muc": "nhỏ"
+   },
+   {
+    "loai": "cỡ cảnh",
+    "mo_ta": "Đo MLS thay vì MS",
+    "bang_chung": "qc_scene.check_frame",
+    "muc": "nhỏ"
+   }
+  ],
+  "nguyen_nhan": "",
+  "fix_en": "",
+  "ghi_chu": ""
+ },
+ {
+  "k": 16,
+  "shot": "S3·6",
+  "job": 365,
+  "verdict": "nhỏ",
+  "fixed_old_issue": true,
+  "issues": [
+   {
+    "loai": "khóa nhân vật (A1 – lật gương)",
+    "mo_ta": "Maxim nhìn sau: tab khóa kéo ĐỎ nằm trên tay áo ở mép PHẢI lưng = tay PHẢI; ảnh chuẩn + Lock: 'red detail on the LEFT sleeve' (nhìn sau phải ở mép trái lưng, như k7). Chi tiết nhỏ, không thuộc 'cấm lệch'",
+    "bang_chung": "maxim_back_sleeve_strip.jpg ô 4 so ô 1 (k7) và ref_maxim.jpg",
+    "muc": "nhỏ"
+   },
+   {
+    "loai": "cỡ cảnh",
+    "mo_ta": "Đo MLS thay vì MS",
+    "bang_chung": "qc_scene.check_frame",
+    "muc": "nhỏ"
+   }
+  ],
+  "nguyen_nhan": "view_notes của MAXIM chỉ nói về mũ; không có câu bên trái/phải cho tab đỏ tay áo trái → model lật gương như lỗi Kenta cũ",
+  "fix_en": "Seen from behind, MAXIM's LEFT sleeve (with the small red zip tab) is on the frame-LEFT side of his back; his RIGHT sleeve, nearest frame-right, is plain silver-grey leather with no red detail.",
+  "ghi_chu": ""
+ },
+ {
+  "k": 18,
+  "shot": "S3·8",
+  "job": 366,
+  "verdict": "đạt",
+  "fixed_old_issue": true,
+  "issues": [],
+  "nguyen_nhan": "",
+  "fix_en": "",
+  "ghi_chu": "Hai đồng tử dồn góc TRÁI mắt, đầu hơi xoay trái — đúng hướng về Maxim/Kenta (eyes_k8_k18.jpg). Khớp k19 (cũng nhìn trái)."
+ },
+ {
+  "k": 21,
+  "shot": "S4·2",
+  "job": 367,
+  "verdict": "chặn",
+  "fixed_old_issue": true,
+  "issues": [
+   {
+    "loai": "ánh sáng / liền mạch (LỖI MỚI)",
+    "mo_ta": "Trời hoàng hôn cam, nắng ấm ngược sáng — trong khi k20, k22, k23 (cùng cảnh 4, liền trước/sau) là trưa nắng trời xanh, ảnh toàn cảnh scene_4 cũng trời xanh; blocking ghi 'clear daylight'. Nhảy giờ trong một cảnh, và trùng tông hổ phách với hồi tưởng S5·3 → làm loãng tín hiệu hồi tưởng",
+    "bang_chung": "light_strip_s4_s5.jpg (ô 1–3 và ô 6), est45.jpg",
+    "muc": "chặn"
+   },
+   {
+    "loai": "cỡ cảnh",
+    "mo_ta": "Đo MS (mặt 0.16) thay vì MCU",
+    "bang_chung": "qc_scene.check_frame",
+    "muc": "nhỏ"
+   }
+  ],
+  "nguyen_nhan": "Câu sửa lần vẽ lại chỉ nói về vai trái Kenta + cỡ cảnh, không nhắc lại ánh sáng; model trôi sang hoàng hôn (có thể do 'wet reddened eyes' cảm xúc) và bỏ qua khung neo k20",
+  "fix_en": "Keep the SAME clear midday daylight as frame 1 of this scene: bright blue sky, neutral white sunlight, short shadows; no sunset, no orange or amber tint. Seen from behind, KENTA's LEFT shoulder (star emblem, leather armband, gauntlet) stays on the frame-LEFT side of his body.",
+  "ghi_chu": ""
+ },
+ {
+  "k": 28,
+  "shot": "S5·3",
+  "job": 368,
+  "verdict": "nhỏ",
+  "fixed_old_issue": true,
+  "issues": [
+   {
+    "loai": "khóa nhân vật (A1 – lật gương)",
+    "mo_ta": "Maxim nhìn sau: tab đỏ tay áo ở mép PHẢI lưng = tay phải (phải ở tay trái)",
+    "bang_chung": "maxim_back_sleeve_strip.jpg ô 5",
+    "muc": "nhỏ"
+   },
+   {
+    "loai": "hồi tưởng (C3)",
+    "mo_ta": "Đã ấm hổ phách, khác hẳn k27 — nhưng vẫn đúng quảng trường/tháp như hiện tại, không có dấu hiệu 'bãi tập' hay mờ/hạt; và k21 (hiện tại) giờ cũng tông hoàng hôn → phân biệt dựa hoàn toàn vào màu, dễ nhầm thành 'chiều tối'",
+    "bang_chung": "light_strip_s4_s5.jpg ô 5–6 và ô 2",
+    "muc": "nhỏ"
+   },
+   {
+    "loai": "cỡ cảnh",
+    "mo_ta": "Đo MS thay vì MCU",
+    "bang_chung": "qc_scene.check_frame",
+    "muc": "nhỏ"
+   }
+  ],
+  "nguyen_nhan": "Sửa gốc FLASHBACK chỉ đổi ánh sáng; ảnh vị trí gửi kèm vẫn là scene_5 (quảng trường hiện tại) nên bối cảnh không đổi; view_notes Maxim chưa có câu tay áo",
+  "fix_en": "Flashback look: soft hazy glow with slight bloom and faded film grain at the frame edges, set on a dusty training yard with target dummies, not the present-day plaza. Seen from behind, MAXIM's LEFT sleeve with the red zip tab is on the frame-LEFT side of his back.",
+  "ghi_chu": ""
+ }
+]
