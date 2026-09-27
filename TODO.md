@@ -31,8 +31,12 @@
 > không đoán) — 1207 test qua. Tháp đồng hồ: gắn asset 263, 9 shot cảnh 1+6 có nền 3D đêm.
 > **Người dùng chốt (2026-09-27): ưu tiên Seedance — P2m gộp → Seedance từng shot → Kling; toàn bộ bối cảnh quanh tháp đồng hồ.**
 > ✅ Đã làm: cờ `seedance_ref_groups` (`core/seedance_refs.py`, 1215 test qua, bật trong `dashboard.env`); 33 shot #8 ở tháp (asset 263) có
-> nền 3D; chữ nơi chốn 16 shot sửa theo tháp; 6 ảnh thử cảnh 2 (sai nơi) đã từ chối. **Tiếp:** khởi động lại dashboard → nâng trần Claude 3
-> → chạy tiếp #8 trên dashboard (Bước 2 ảnh → Bước 3 → Bước 4 video Seedance nhóm).
+> nền 3D; chữ nơi chốn 16 shot sửa theo tháp; 6 ảnh thử cảnh 2 (sai nơi) đã từ chối.
+> **Sau đó (2026-09-27):** đổi quy trình ảnh sang **ảnh toàn cảnh mỗi cảnh + storyboard tự vẽ cảnh** (`scene_establishing`, tắt ghép phông xanh);
+> **QC theo cảnh** (`scene_qc`, lớp 0 code + lớp 1 Claude/cảnh); sổ lỗi khâu tạm ngưng (`known_issues`); `llm_calls` ghi tệp kỹ năng mỗi lời gọi;
+> motion nhóm Seedance bằng code. Tài liệu: `docs/BAI_HOC_GIAI_DOAN_ANH_2026-09-27.md`, `docs/RA_SOAT_CLAUDE_KY_NANG_2026-09-27.md`,
+> `docs/THIET_KE_LAI_QC_VA_KET_NOI_2026-09-27.md`. **Tiếp (chờ người dùng):** vẽ 38 ảnh #8 (trần ảnh ~110) → gắn nhãn → đo QC lớp 0/1 →
+> cổng storyboard → code kiểm clip + QC video theo nhóm → video.
 > **Chờ người dùng:** duyệt bộ kỹ năng 3 vai (bảng `docs/DANH_GIA_BO_NGUYEN_TAC_V4.md` — `film_crew` đang bật cho đợt thử), gắn nhãn ảnh
 > Kho (~$1–1,5), mô hình 3D chính thức, âm đêm cho thư viện âm thanh; đối chiếu giá ảnh Deepix (tạm $0,052/ảnh) với số trên web Deepix.
 > *(Bàn giao cũ 2026-09-25 khuya — "việc tiếp GĐ4, 943 test" — đã thay bởi mục này; file `docs/BAN_GIAO_2026-09-25_V4_GD4.md` là lịch sử.)*
