@@ -256,6 +256,64 @@ class ConverseTests(unittest.TestCase):
         self.assertEqual(conn.execute("SELECT stage FROM usage_events WHERE kind='llm' LIMIT 1").fetchone()[0], "qc_agent")
 
 
+class SpendLockTests(unittest.TestCase):
+    """28/09: the QC agent spent ~2 USD on 1.5 scenes with nothing capping one task, and crossed the Claude cap (5.54 / 5.50)."""
+
+    def client(self, calls, usage=(20000, 2000), db=None):
+        def send(method, url, headers, body, timeout):
+            calls.append(1)
+            return HttpResponse(200, json.dumps({"content": [{"type": "text", "text": "ok"}], "stop_reason": "end_turn",
+                                                 "usage": {"input_tokens": usage[0], "output_tokens": usage[1]}}).encode())
+        return llm_runner.AnthropicClient("sk-test", "claude-sonnet-5", transport=send, sleep=lambda s: None, ledger=db)
+
+    def test_a_task_lock_stops_the_next_call_before_it_is_paid(self):
+        calls = []
+        c = self.client(calls)                       # each call: 20k in × $2/M + 2k out × $10/M = 0.06
+        msgs = [{"role": "user", "content": [{"type": "text", "text": "x"}]}]
+        with llm_runner.spend_cap(0.15, "thử") as cap:
+            c.converse(msgs, [], max_tokens=4000)
+            c.converse(msgs, [], max_tokens=4000)
+            with self.assertRaises(llm_runner.LlmError) as e:     # 0.12 spent + the next ≈ 0.06 > 0.15 → refused, not sent
+                c.converse(msgs, [], max_tokens=4000)
+        self.assertEqual(len(calls), 2)
+        self.assertEqual(e.exception.code, "budget")
+        self.assertIn("chạm trần 'thử'", str(e.exception))
+        self.assertAlmostEqual(cap["spent"], 0.12, places=3)
+        c.converse(msgs, [], max_tokens=4000)        # outside the block the task lock is gone
+        self.assertEqual(len(calls), 3)
+
+    def test_nested_locks_all_count_and_the_tightest_one_stops(self):
+        calls = []
+        c = self.client(calls)
+        msgs = [{"role": "user", "content": [{"type": "text", "text": "x"}]}]
+        with llm_runner.spend_cap(1.0, "cả lần chạy") as total:
+            with llm_runner.spend_cap(0.07, "một cảnh"):
+                c.converse(msgs, [], max_tokens=4000)
+                with self.assertRaises(llm_runner.LlmError):
+                    c.converse(msgs, [], max_tokens=4000)
+        self.assertAlmostEqual(total["spent"], 0.06, places=3)
+
+    def test_one_call_whose_worst_case_is_over_the_per_call_lock_is_refused(self):
+        calls = []
+        c = self.client(calls)
+        with self.assertRaises(llm_runner.LlmError):
+            c.converse([{"role": "user", "content": [{"type": "text", "text": "x"}]}], [], max_tokens=200000)   # 200k × $10/M = 2 USD
+        self.assertEqual(calls, [])
+
+    def test_the_project_cap_is_never_crossed_by_the_next_call(self):
+        from core import budget
+        db = os.path.join(tempfile.mkdtemp(), "m.sqlite")
+        conn = connect(db)
+        budget.save(conn, enabled=True, llm_usd=0.05)
+        calls = []
+        c = self.client(calls, db=db)
+        with self.assertRaises(llm_runner.LlmError) as e:      # worst case of this call (4000 out = 0.04 + input) with 0 spent: ok?
+            c.converse([{"role": "user", "content": [{"type": "text", "text": "x" * 40000}]}], [], max_tokens=4000)
+        self.assertIn("có thể tốn tới", str(e.exception))      # 16k in ($0.032) + 4k out ($0.04) = 0.072 > 0.05 → refused
+        self.assertEqual(calls, [])
+        self.assertIsNone(budget.check_llm(conn, 0.01))
+
+
 class SourcesTests(unittest.TestCase):
     """Rà soát 2026-09-27: which skill files a Claude call really carried is written with its tokens (llm_calls.sources)."""
 

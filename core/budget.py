@@ -138,15 +138,17 @@ def restart_llm(conn, usd: float) -> Dict:
     return save(conn, llm_usd=float(usd), llm_since=_now())
 
 
-def check_llm(conn) -> Optional[str]:
-    """A reason not to call the Claude API now (its money is used up), else None. llm_usd <= 0 switches the cap off."""
+def check_llm(conn, next_usd: float = 0.0) -> Optional[str]:
+    """A reason not to call the Claude API now, else None: its money is used up, or this call (`next_usd`, its worst case) would cross
+    the cap — the cap is never crossed, not just reached (trial #8 2026-09-28: 5.54 / 5.50). llm_usd <= 0 switches the cap off."""
     b = get(conn)
     if b["llm_usd"] <= 0:
         return None
     used = llm_spent(conn)
-    if used >= b["llm_usd"] - 1e-9:
-        return (f"Hết ngân sách Claude API: đã dùng ≈ ${used:.2f} / ${b['llm_usd']:.2f} — nạp thêm tiền trên Anthropic Console rồi "
-                "cập nhật trong ⚙ → 💵 Ngân sách thử")
+    if used >= b["llm_usd"] - 1e-9 or used + next_usd > b["llm_usd"] + 1e-9:
+        return (f"Hết ngân sách Claude API: đã dùng ≈ ${used:.2f} / ${b['llm_usd']:.2f}"
+                + (f" (lời gọi này có thể tốn tới ≈ ${next_usd:.2f})" if next_usd else "")
+                + " — nạp thêm tiền trên Anthropic Console rồi cập nhật trong ⚙ → 💵 Ngân sách thử")
     return None
 
 

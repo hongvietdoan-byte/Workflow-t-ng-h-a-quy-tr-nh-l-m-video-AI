@@ -72,13 +72,54 @@ class AgentTests(unittest.TestCase):
     def test_old_pictures_leave_the_conversation(self):
         img = {"type": "image", "source": {"type": "base64", "media_type": "image/png", "data": "x"}}
         msgs = [{"role": "user", "content": [{"type": "text", "text": "brief"}, img]}]
-        for i in range(5):
-            msgs.append({"role": "assistant", "content": [{"type": "tool_use", "id": str(i), "name": "view_frame", "input": {}}]})
-            msgs.append({"role": "user", "content": [{"type": "tool_result", "tool_use_id": str(i), "content": [{"type": "text", "text": "K"}, img]}]})
-        qc_agent.prune(msgs)
-        with_img = [m for m in msgs[1:] if m["role"] == "user" and any(b.get("type") == "image" for b in m["content"][0]["content"])]
-        self.assertEqual(len(with_img), qc_agent.KEEP_IMAGE_TURNS)
+        def turns(n):
+            for i in range(n):
+                msgs.append({"role": "assistant", "content": [{"type": "tool_use", "id": str(i), "name": "view_frame", "input": {}}]})
+                msgs.append({"role": "user", "content": [{"type": "tool_result", "tool_use_id": str(i),
+                                                          "content": [{"type": "text", "text": "K"}, dict(img)]}]})
+
+        def with_img():
+            return [m for m in msgs[1:] if m["role"] == "user" and any(b.get("type") == "image" for b in m["content"][0]["content"])]
+        turns(qc_agent.MAX_HISTORY_IMAGES)
+        self.assertFalse(qc_agent.prune(msgs))                                 # in a batch only: the cache survives until then
+        self.assertEqual(len(with_img()), qc_agent.MAX_HISTORY_IMAGES)
+        turns(1)
+        self.assertTrue(qc_agent.prune(msgs))
+        self.assertEqual(len(with_img()), qc_agent.KEEP_IMAGE_TURNS)
         self.assertTrue(any(b.get("type") == "image" for b in msgs[0]["content"]))     # the overview stays
+
+    def test_a_rolling_cache_mark_on_the_newest_message_only(self):
+        msgs = [{"role": "user", "content": [{"type": "text", "text": "brief", "cache_control": {"type": "ephemeral"}}]},
+                {"role": "assistant", "content": [{"type": "text", "text": "a"}]},
+                {"role": "user", "content": [{"type": "text", "text": "b"}]}]
+        qc_agent.mark_cache(msgs)
+        msgs += [{"role": "assistant", "content": [{"type": "text", "text": "c"}]}, {"role": "user", "content": [{"type": "text", "text": "d"}]}]
+        qc_agent.mark_cache(msgs)
+        marked = [i for i, m in enumerate(msgs) for b in m["content"] if "cache_control" in b]
+        self.assertEqual(marked, [0, 4])                                       # the brief + the newest message (≤ 4 breakpoints)
+
+    def test_at_the_scene_lock_it_stops_and_keeps_what_it_recorded(self):
+        """28/09: the lock raised inside the loop lost everything the agent had recorded for scene 2."""
+        class Capped(Scripted):
+            def converse(inner, messages, tools, system="", max_tokens=None):
+                if len(inner.seen) >= 2:
+                    raise llm_runner.LlmError("chạm trần 'agent QC cảnh 1'", code="budget")
+                return super().converse(messages, tools, system, max_tokens)
+        c = Capped([[self.record(1, "block", "The left hand has exactly five fingers.")], [self.record(2)]])
+        res = qc_agent.QcAgent(self.p, self.pid, self.data, c, self.frames).run()
+        self.assertEqual(res["records"][0]["verdict"], "block")
+        self.assertEqual(res["records"][1]["verdict"], "pass")
+        self.assertTrue(all(r["verdict"] == "doubt" for r in res["records"][2:]))
+        self.assertIn("chạm trần", res["stopped"])
+        self.assertTrue(os.path.exists(os.path.join(self.data, str(self.pid), "qc_scene", f"agent_scene_{self.scene}", "result.json"))
+                        or res["summary"])
+
+    def test_the_brief_carries_the_limits_and_the_real_place(self):
+        agent = qc_agent.QcAgent(self.p, self.pid, self.data, None, self.frames)
+        brief = agent._brief()
+        self.assertIn(f"${qc_agent.SCENE_CAP_USD:.2f}", brief)
+        self.assertIn("BÊN THÂN NGƯỜI", brief)                               # the playbook's body-side rule (A1, 28/09)
+        self.assertIn("G1", brief)
 
     def test_a_block_without_a_fix_sentence_is_refused(self):
         agent = qc_agent.QcAgent(self.p, self.pid, self.data, None, self.frames)

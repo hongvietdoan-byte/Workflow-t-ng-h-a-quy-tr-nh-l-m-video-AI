@@ -9,7 +9,11 @@ chuyển thành bộ đo code (lớp 0).
 - Dấu hiệu: trang bị / hình xăm / huy hiệu / vết thương của một bên (vd. găng giáp + huy hiệu vai TRÁI của Kenta) hiện ở bên sai khi nhân
   vật quay lưng hoặc quay nghiêng.
 - Cách soi: từ hồ sơ nhân vật lấy các chi tiết có chữ LEFT/RIGHT; ghép DẢI cùng vùng (vai, tay) của mọi khung có nhân vật đó, TÁCH khung
-  quay trước và quay sau. Quay trước: bên trái của nhân vật ở BÊN PHẢI khung; quay sau: ở BÊN TRÁI khung. So từng khung với luật đó.
+  quay trước và quay sau. **Xét theo BÊN THÂN NGƯỜI, không theo mép khung:** quay mặt vào máy → tay trái của nhân vật là tay nằm phía
+  PHẢI của chính thân người đó (trên ảnh); quay lưng → tay trái là tay nằm phía TRÁI của chính thân người đó — dù người đứng ở nửa nào
+  của khung (#8 28/09: nhãn lượt 1 chặn oan S1·2, S1·3 vì xét "tay ở mép phải khung", thật ra Kenta đứng nửa phải, quay lưng, tay mang
+  găng nằm phía trái thân = tay trái = ĐÚNG). Trước khi kết luận: xác định (1) quay trước hay sau (thấy mặt / thấy gáy), (2) ranh giới
+  thân người, (3) cánh tay nằm phía nào của thân.
 - Sửa gốc: `view_notes` trong hồ sơ chuẩn (câu cho từng hướng nhìn). **Liệt kê MỌI chi tiết một bên**, không chỉ trang bị lớn
   (#8 lượt 2: sau khi có câu cho găng Kenta / mũ Maxim — đúng 4/4 và 5/5 — tab đỏ tay áo trái của Maxim chưa có câu nên vẫn lật 2/5 khung).
 - Câu sửa trái/phải đã thua **2 lần ở cùng một bố cục** (#8 S6·2: qua vai từ sau, tay gần giữa khung luôn mang găng) → không lặp câu:
@@ -58,5 +62,17 @@ chuyển thành bộ đo code (lớp 0).
 ### D3. Ghép lộ: mảng chữ nhật dán, đường nối thẳng, nhân vật lơ lửng / cụt mép, ánh sáng người ≠ nền — `chặn` (#8 cách ghép phông xanh)
 - Cách soi: cắt sát mép người–nền và chân–sàn; tìm cạnh thẳng dài bất thường và mảng khác màu nền.
 ### D4. Người thừa / người thiếu so với bảng shot — `chặn` (bộ đếm mặt dễ nhầm tay thành mặt → luôn xác minh bằng mắt)
+
+## G. Bối cảnh sai bản đồ thật
+### G1. Kiến trúc tự "xây thêm": nhiều tầng tường chắn / bậc thang chồng lên nhau, tháp đứng trên một khối thành cao — `chặn` nếu rõ
+  (#8 người dùng 28/09: nền Tháp Đồng Hồ bị xây nhiều lớp cao tầng, không đúng map)
+- Sự thật (Kho, ảnh chụp trên cao + bản đồ): tháp đứng NGAY trên quảng trường đá rộng, phẳng; quảng trường tối đa 2 mặt thấp nối bằng vài
+  bậc ngắn, tường chắn chỉ cao ngang ngực–đầu người; quanh là nhà 1–2 tầng mái đỏ, cỏ, dừa, biển. KHÔNG có chuỗi bậc thang lên cao, không
+  thành lũy.
+- Cách soi: gọi `reference("establishing")` rồi xem nền từng khung: đếm số tầng tường / bậc sau lưng nhân vật, so chiều cao tường với
+  người (1,7 m), tháp đứng trên quảng trường hay trên đỉnh khối bậc. Ghép dải vùng nền quanh chân tháp qua các khung.
+- Nguyên nhân đã biết: ảnh toàn cảnh (nhìn cao) ĐÚNG; khung ngang tầm mắt tự đoán phần sau → nghi ảnh tham chiếu render 3D chụp sát chân
+  tháp (bậc lớn, tường cao) + prompt thiếu câu tả bố cục thật. Sửa gốc: câu bố cục trong mô tả địa điểm Kho (vào mọi prompt ảnh); câu sửa
+  khi vẽ lại: "flat open stone plaza, the tower stands directly on it, only low retaining walls, no stacked terraces".
 
 ## E. Bảng shot tự mâu thuẫn — không vẽ lại, để người sửa (#8: xin MLS nhưng đòi thấy toàn thân; góc qua vai mà chỉ 1 người)

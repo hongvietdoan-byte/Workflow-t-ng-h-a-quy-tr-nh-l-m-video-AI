@@ -473,7 +473,7 @@ class LedgerTests(unittest.TestCase):
         client = llm_runner.AnthropicClient("sk-test", "claude-sonnet-5", transport=send, sleep=lambda s: None, ledger=db)
         checks = []
         real = client._check_budget
-        with mock.patch.dict(os.environ, ON), mock.patch.object(client, "_check_budget", lambda: (checks.append(1), real())[1]):
+        with mock.patch.dict(os.environ, ON), mock.patch.object(client, "_check_budget", lambda payload=None: (checks.append(1), real(payload))[1]):
             llm_runner.run_director(p, pid, client)
         self.assertEqual((len(bodies), len(checks)), (4, 4))
         rows = p.conn.execute("SELECT DISTINCT stage, project_id FROM usage_events WHERE kind='llm'").fetchall()

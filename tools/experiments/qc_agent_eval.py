@@ -7,7 +7,9 @@ khung `đạt`/`nhỏ` thành block. Chuẩn cổng tin cậy: bắt 100 % khung
 
     py tools/experiments/qc_agent_eval.py --project 8 --scenes 1             kế hoạch
     py tools/experiments/qc_agent_eval.py --project 8 --scenes 1 --yes       chạy (tốn Claude API)
-Kết quả: data/projects/<id>/qc_scene/agent_eval.json
+Khóa cứng: --max-usd (mặc định 0,6) cho CẢ lần chạy + trần mỗi cảnh của agent (qc_agent.SCENE_CAP_USD); chạm trần thì dừng, kết quả
+các cảnh đã xong vẫn được ghi (28/09: lần chạy không khóa tốn ~2 USD và mất kết quả cảnh 2).
+Kết quả: data/projects/<id>/qc_scene/agent_eval.json (ghi sau MỖI cảnh)
 """
 import argparse
 import glob
@@ -39,6 +41,7 @@ def main():
     ap.add_argument("--scenes", type=int, nargs="*")
     ap.add_argument("--db", default=os.path.join("data", "manifest.sqlite"))
     ap.add_argument("--yes", action="store_true")
+    ap.add_argument("--max-usd", type=float, default=0.6, help="trần cứng Claude cho cả lần chạy")
     a = ap.parse_args()
     labels = json.load(open(LABELS, encoding="utf-8"))
     labels = labels if isinstance(labels, list) else labels.get("frames") or labels.get("verdicts")
@@ -67,25 +70,37 @@ def main():
     client = llm_runner.client_from_env(ledger=a.db)
     caught, missed, false_block, ok = [], [], [], 0
     out = {}
-    for s in scenes:
-        res = qc_agent.QcAgent(p, a.project, data_dir, client, by_scene[s], s,
-                               work_dir=os.path.join(data_dir, str(a.project), "qc_scene", f"agent_eval_scene_{s}")).run()
-        out[str(s)] = res
-        for f, r in zip(by_scene[s], res["records"]):
-            flagged = r["verdict"] in ("block", "doubt")
-            tag = f"cảnh {s} shot {f['data'].get('shot_no')} (nhãn {f['label_verdict']}) → {r['verdict']}"
-            if f["label_verdict"] == "chặn":
-                (caught if flagged else missed).append(tag + ": " + "; ".join(i["description"] for i in r.get("issues") or [])[:160])
-            else:
-                ok += 1
-                if r["verdict"] == "block":
-                    false_block.append(tag)
-        print(f"cảnh {s}: {res['steps']} lượt", flush=True)
-    summary = {"block_total": len(caught) + len(missed), "caught": caught, "missed": missed, "ok_total": ok, "false_block": false_block}
-    os.makedirs(os.path.join(data_dir, str(a.project), "qc_scene"), exist_ok=True)
-    with open(os.path.join(data_dir, str(a.project), "qc_scene", "agent_eval.json"), "w", encoding="utf-8") as fh:
-        json.dump({"summary": summary, "results": out}, fh, ensure_ascii=False, indent=1)
-    print(json.dumps(summary, ensure_ascii=False, indent=1))
+    path = os.path.join(data_dir, str(a.project), "qc_scene", "agent_eval.json")
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    print(f"trần cứng cả lần chạy: ${a.max_usd:.2f} · mỗi cảnh: ${qc_agent.SCENE_CAP_USD:.2f}", flush=True)
+    with llm_runner.spend_cap(a.max_usd, "nghiệm thu agent QC") as total:
+        for s in scenes:
+            if total["spent"] + total["last"] > a.max_usd:
+                print(f"dừng trước cảnh {s}: chạm trần cả lần chạy (${total['spent']:.3f})", flush=True)
+                break
+            res = qc_agent.QcAgent(p, a.project, data_dir, client, by_scene[s], s,
+                                   work_dir=os.path.join(data_dir, str(a.project), "qc_scene", f"agent_eval_scene_{s}")).run()
+            out[str(s)] = res
+            _score(s, by_scene[s], res, caught, missed, false_block)
+            ok = sum(1 for sc in out for f in by_scene[int(sc)] if f["label_verdict"] != "chặn")
+            summary = {"block_total": len(caught) + len(missed), "caught": caught, "missed": missed, "ok_total": ok,
+                       "false_block": false_block, "usd": round(total["spent"], 4)}
+            with open(path, "w", encoding="utf-8") as fh:
+                json.dump({"summary": summary, "results": out}, fh, ensure_ascii=False, indent=1)
+            print(f"cảnh {s}: {res['steps']} lượt · ${res.get('usd', 0):.3f}" + (f" · {res['stopped']}" if res.get("stopped") else ""),
+                  flush=True)
+    print(json.dumps({"caught": caught, "missed": missed, "false_block": false_block, "usd": round(total["spent"], 4)},
+                     ensure_ascii=False, indent=1))
+
+
+def _score(s, frames, res, caught, missed, false_block):
+    for f, r in zip(frames, res["records"]):
+        flagged = r["verdict"] in ("block", "doubt")
+        tag = f"cảnh {s} shot {f['data'].get('shot_no')} (nhãn {f['label_verdict']}) → {r['verdict']}"
+        if f["label_verdict"] == "chặn":
+            (caught if flagged else missed).append(tag + ": " + "; ".join(i["description"] for i in r.get("issues") or [])[:160])
+        elif r["verdict"] == "block":
+            false_block.append(tag)
 
 
 if __name__ == "__main__":

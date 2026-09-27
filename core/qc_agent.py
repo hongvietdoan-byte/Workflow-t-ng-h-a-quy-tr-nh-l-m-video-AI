@@ -19,7 +19,9 @@ from typing import Dict, List, Optional, Tuple
 from . import features
 
 FEATURE = "qc_agent"
-MAX_STEPS = 40            # tool turns per scene — a cost ceiling (~41 image looks did 33 frames by hand)
+MAX_STEPS = 24            # tool turns per scene (#8 2026-09-28: 19 turns for a 4-frame scene)
+SCENE_CAP_USD = 0.25      # HARD lock per scene (llm_runner.spend_cap): #8 2026-09-28 one scene + half cost ~2 USD with no lock —
+                          # at the cap the agent stops, the frames it has not recorded wait for a person as "doubt"
 VIEW_EDGE = 1024
 ZOOM_EDGE = 1024
 VERDICTS = ("pass", "minor", "block", "doubt")
@@ -129,13 +131,26 @@ def inspection_plan(conn, pid: int, frames: List[Dict]) -> List[str]:
     return plan
 
 
-KEEP_IMAGE_TURNS = 2      # tool results whose pictures stay in the conversation; older ones become a line of text
+KEEP_IMAGE_TURNS = 2      # tool results whose pictures stay in the conversation after a pruning
+MAX_HISTORY_IMAGES = 10   # pruning happens only once the conversation carries more pictures than this
 
 
-def prune(messages: List[Dict]) -> None:
-    """Every turn resends the whole conversation: pictures of old tool results would make the cost grow with the square of the turns
-    (~20 pictures × 40 turns). Pictures older than the last KEEP_IMAGE_TURNS tool results are replaced by a note — what was SEEN stays
-    in the agent's own words (its text / record calls), and it can call the tool again to look again."""
+def _images_in(messages: List[Dict]) -> int:
+    n = 0
+    for m in messages[1:]:
+        for b in m["content"] if isinstance(m["content"], list) else []:
+            if b.get("type") == "tool_result" and isinstance(b.get("content"), list):
+                n += sum(1 for x in b["content"] if x.get("type") == "image")
+    return n
+
+
+def prune(messages: List[Dict]) -> bool:
+    """Every turn resends the whole conversation, so old pictures are dropped — but IN A BATCH, once more than MAX_HISTORY_IMAGES are
+    carried: every pruning changes the start of the conversation and the provider's prompt cache is lost for that turn (#8 2026-09-28:
+    pruning at every turn made 736k input tokens uncached, ~2 USD). What was SEEN stays in the agent's own words (text, record calls);
+    it can call the tool again to look again. Returns True when it pruned."""
+    if _images_in(messages) <= MAX_HISTORY_IMAGES:
+        return False
     seen = 0
     for m in reversed(messages[1:]):
         if m["role"] != "user" or not isinstance(m["content"], list):
@@ -150,7 +165,18 @@ def prune(messages: List[Dict]) -> None:
             if isinstance(r.get("content"), list) and any(b.get("type") == "image" for b in r["content"]):
                 r["content"] = [b for b in r["content"] if b.get("type") != "image"] + [
                     {"type": "text", "text": "(ảnh đã xem ở lượt trước — gọi lại công cụ nếu cần xem lại)"}]
+    return True
 
+
+def mark_cache(messages: List[Dict]) -> None:
+    """A rolling cache breakpoint on the newest message: next turn the whole conversation so far is read from the cache (0.1x the price)
+    instead of paid again as fresh input. The first message keeps its own breakpoint (brief + overview); the system prompt has one."""
+    for m in messages[1:]:
+        for b in m["content"] if isinstance(m["content"], list) else []:
+            b.pop("cache_control", None)
+    last = messages[-1]
+    if len(messages) > 1 and isinstance(last["content"], list) and last["content"]:
+        last["content"][-1]["cache_control"] = {"type": "ephemeral"}
 
 class QcAgent:
     def __init__(self, p, pid: int, data_dir: str, client, frames: List[Dict], story_scene=None, work_dir: Optional[str] = None):
@@ -251,7 +277,18 @@ class QcAgent:
             if v:
                 views[n] = v
         plan = inspection_plan(self.p.conn, self.pid, self.frames)
+        place = ""
+        try:
+            loc = assets.scene_location(self.p.conn, self.pid, self.frames[0]["data"])
+            place = assets.location_text(self.p.conn, loc) if loc is not None else ""
+        except Exception:  # noqa: BLE001 - the brief goes without it
+            place = ""
+        limits = (f"# Giới hạn (khóa cứng, không nâng được)\nTối đa {MAX_STEPS} lượt và ${SCENE_CAP_USD:.2f} cho cảnh này. Mỗi lượt gọi NHIỀU "
+                  "công cụ cùng lúc; dùng strip để soi một chi tiết của nhiều khung trong một ảnh; record ngay khi đủ bằng chứng. Hết giới "
+                  "hạn thì khung chưa record thành 'doubt' cho người xem.")
         return "\n\n".join(x for x in [
+            limits,
+            ("# Bối cảnh — mô tả bản đồ thật (so nền của MỌI khung với mô tả này và ảnh 'establishing'; sổ tay mục G)\n" + place) if place else "",
             "# Sổ tay kiểm tra (lỗi đã được người xác nhận — làm đủ các thao tác 'Cách soi' áp dụng được)\n" + _read("knowledge", "qc_playbook.md"),
             prompts.lock_text(self.p.conn, self.pid, names),
             ("# Ghi chú theo hướng nhìn\n```json\n" + json.dumps(views, ensure_ascii=False, indent=1) + "\n```") if views else "",
@@ -267,10 +304,17 @@ class QcAgent:
         messages = [{"role": "user", "content": [{"type": "text", "text": self._brief()}, {"type": "text", "text": "Tấm tổng quan các khung:"},
                                                  self._img(overview)]}]
         messages[0]["content"][-1]["cache_control"] = {"type": "ephemeral"}   # brief + overview are resent every turn: cache them
-        with tagged("qc_agent", self.pid):
+        from .llm_runner import spend_cap
+        stopped = ""
+        with tagged("qc_agent", self.pid), spend_cap(SCENE_CAP_USD, f"agent QC cảnh {self.story}") as cap:
             while self.summary is None and self.steps < MAX_STEPS:
                 prune(messages)
-                reply = self.client.converse(messages, TOOLS, SYSTEM, max_tokens=4000)
+                mark_cache(messages)
+                try:
+                    reply = self.client.converse(messages, TOOLS, SYSTEM, max_tokens=4000)
+                except LlmError as e:          # a lock or a provider error: stop here, keep what was recorded (#8: a crash lost scene 2)
+                    stopped = f"dừng: {e}"
+                    break
                 self.steps += 1
                 blocks = reply.blocks or []
                 messages.append({"role": "assistant", "content": blocks})
@@ -289,12 +333,14 @@ class QcAgent:
                 messages.append({"role": "user", "content": results})
         if self.summary is None:
             left = [f["k"] for f in self.frames if f["k"] not in self.records]
-            for k in left:                                     # out of steps: the unchecked frames wait for a person, said
-                self.records[k] = {"k": k, "verdict": "doubt", "issues": [{"type": "chưa soi", "description": "agent hết lượt trước khi soi khung",
+            why = stopped or f"hết {MAX_STEPS} lượt"
+            for k in left:                                     # out of steps / money: the unchecked frames wait for a person, said
+                self.records[k] = {"k": k, "verdict": "doubt", "issues": [{"type": "chưa soi", "description": f"agent {why} trước khi soi khung",
                                    "evidence": "-", "severity": "minor"}], "root_cause": "none", "shot": self.by_k[k]["label"],
                                    "job": self.by_k[k]["job_id"]}
-            self.summary = {"summary": f"hết {MAX_STEPS} lượt — {len(left)} khung chưa soi", "new_fault_types": []}
-        out = {"scene": self.story, "steps": self.steps, "records": [self.records[f["k"]] for f in self.frames], "summary": self.summary}
+            self.summary = {"summary": f"{why} — {len(left)} khung chưa soi", "new_fault_types": []}
+        out = {"scene": self.story, "steps": self.steps, "usd": round(cap["spent"], 4), "stopped": stopped,
+               "records": [self.records[f["k"]] for f in self.frames], "summary": self.summary}
         with open(os.path.join(self.work, "result.json"), "w", encoding="utf-8") as fh:
             json.dump(out, fh, ensure_ascii=False, indent=1)
         return out

@@ -112,6 +112,82 @@ def current_tag() -> Tuple[str, Optional[int]]:
     return getattr(_TAG, "value", None) or ("other", None)
 
 
+# ---- hard spending locks (trial #8 2026-09-28: the QC agent spent ~2 USD on 1.5 scenes — estimate was 0.3-0.8 — and emptied the
+# Claude cap; nothing capped one task). Three locks, checked BEFORE each paid call, none of them can be raised by the model:
+#   1. one call   : its worst case (all input uncached + the full max_tokens answer) over MAX_CALL_USD -> refused
+#   2. one task   : spend_cap(usd, what) around a task (a QC agent scene, an evaluation run) -> the next call is refused when the money
+#                   spent in the block + the next call (the last call's cost; the worst case for the first) would pass the cap
+#   3. the project: the Claude cap of core.budget, also with the next call's worst case added (the cap is never crossed, not just hit)
+MAX_CALL_USD = 1.0
+IMAGE_TOKENS_MAX = 1600       # an image block costs at most ~1600 input tokens (<= 1.15 MP after fitting)
+_CAPS = threading.local()
+
+
+@contextlib.contextmanager
+def spend_cap(usd: float, what: str):
+    """Lock 2: Claude calls inside this block (this thread) may not spend more than `usd` in total."""
+    stack = list(getattr(_CAPS, "stack", None) or [])
+    entry = {"cap": float(usd), "spent": 0.0, "last": 0.0, "calls": 0, "what": what}
+    _CAPS.stack = stack + [entry]
+    try:
+        yield entry
+    finally:
+        _CAPS.stack = stack
+
+
+def _price(model: str, tier: str, n: float) -> float:
+    from . import budget, cost
+    return budget.token_price(cost.load_pricing(), model, tier, n) or 0.0
+
+
+def reply_usd(model: str, reply: "LlmReply") -> float:
+    return sum(_price(model, t, n) for t, n in (("input", reply.input_tokens), ("output", reply.output_tokens),
+                                                ("cache_write", reply.cache_write_tokens), ("cache_read", reply.cache_read_tokens),
+                                                ("web_search", reply.web_searches)) if n)
+
+
+def worst_usd(model: str, payload: Dict) -> float:
+    """Upper bound of one call: every input token uncached (text ~2.5 characters a token, images at their maximum) + the whole answer."""
+    count = {"chars": 0, "images": 0}
+
+    def walk(x):
+        if isinstance(x, dict):
+            if x.get("type") == "image":
+                count["images"] += 1
+                return
+            for k, v in x.items():
+                if k != "cache_control":
+                    walk(v)
+        elif isinstance(x, list):
+            for v in x:
+                walk(v)
+        elif isinstance(x, str):
+            count["chars"] += len(x)
+    walk({k: v for k, v in payload.items() if k in ("system", "messages", "tools")})
+    return (_price(model, "input", count["chars"] / 2.5 + count["images"] * IMAGE_TOKENS_MAX)
+            + _price(model, "output", int(payload.get("max_tokens") or 0)))
+
+
+def _check_caps(model: str, payload: Dict) -> Optional[str]:
+    worst = worst_usd(model, payload)
+    if worst > MAX_CALL_USD:
+        return f"một lời gọi Claude có thể tốn tới ≈ ${worst:.2f} > khóa ${MAX_CALL_USD:.2f}/lời gọi — không gửi"
+    for e in getattr(_CAPS, "stack", None) or []:
+        nxt = e["last"] if e["calls"] else worst
+        if e["spent"] + nxt > e["cap"] + 1e-9:
+            return (f"chạm trần '{e['what']}': đã dùng ≈ ${e['spent']:.3f}, lượt kế ≈ ${nxt:.3f}, trần ${e['cap']:.2f} — dừng "
+                    "(khóa cứng, không tự nâng)")
+    return None
+
+
+def _count_caps(model: str, reply: "LlmReply") -> None:
+    usd = reply_usd(model, reply)
+    for e in getattr(_CAPS, "stack", None) or []:
+        e["spent"] += usd
+        e["last"] = usd
+        e["calls"] += 1
+
+
 def _media_type(content: bytes) -> str:
     if content[:3] == bytes([0xFF, 0xD8, 0xFF]):
         return "image/jpeg"
@@ -219,7 +295,7 @@ class AnthropicClient:
         body = json.dumps(payload).encode("utf-8")
         headers = {"x-api-key": self._key, "anthropic-version": API_VERSION, "content-type": "application/json",
                    "User-Agent": "AIVideoPipeline-LLM/0.1"}
-        self._check_budget()
+        self._check_budget(payload)
         last: Optional[LlmError] = None
         for attempt in range(self.retries + 1):
             try:
@@ -263,7 +339,7 @@ class AnthropicClient:
         body = json.dumps(payload).encode("utf-8")
         headers = {"x-api-key": self._key, "anthropic-version": API_VERSION, "content-type": "application/json",
                    "User-Agent": "AIVideoPipeline-LLM/0.1"}
-        self._check_budget()
+        self._check_budget(payload)
         last: Optional[LlmError] = None
         for attempt in range(self.retries + 1):
             try:
@@ -284,8 +360,12 @@ class AnthropicClient:
         conn.row_factory = sqlite3.Row
         return conn
 
-    def _check_budget(self) -> None:
-        """Refuse before paying when the Claude API money is used up (core.budget.check_llm)."""
+    def _check_budget(self, payload: Optional[Dict] = None) -> None:
+        """Refuse before paying: locks 1-2 (one call, one task — see spend_cap), then lock 3, the Claude cap of core.budget with this
+        call's worst case added (core.budget.check_llm)."""
+        reason = _check_caps(self.model, payload) if payload is not None else None
+        if reason:
+            raise LlmError(reason, code="budget")
         if not self.ledger:
             return
         from . import budget, cost
@@ -298,7 +378,7 @@ class AnthropicClient:
         try:
             conn = self._ledger_conn()
             try:
-                reason = budget.check_llm(conn)
+                reason = budget.check_llm(conn, worst_usd(self.model, payload) if payload is not None else 0.0)
             finally:
                 conn.close()
         except Exception as e:  # noqa: BLE001 - unknown spend means no call (a cap that cannot be read does not protect)
@@ -307,7 +387,8 @@ class AnthropicClient:
             raise LlmError(reason, code="budget")
 
     def _record(self, reply: LlmReply) -> None:
-        """Tokens of one call into usage_events (kind 'llm', tier input/output) — priced by core.budget."""
+        """Tokens of one call into usage_events (kind 'llm', tier input/output) — priced by core.budget; counted on the task locks."""
+        _count_caps(self.model, reply)
         if not self.ledger:
             return
         from .cost import record_usage
