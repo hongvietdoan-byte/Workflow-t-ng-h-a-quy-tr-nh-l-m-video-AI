@@ -129,6 +129,29 @@ def inspection_plan(conn, pid: int, frames: List[Dict]) -> List[str]:
     return plan
 
 
+KEEP_IMAGE_TURNS = 2      # tool results whose pictures stay in the conversation; older ones become a line of text
+
+
+def prune(messages: List[Dict]) -> None:
+    """Every turn resends the whole conversation: pictures of old tool results would make the cost grow with the square of the turns
+    (~20 pictures × 40 turns). Pictures older than the last KEEP_IMAGE_TURNS tool results are replaced by a note — what was SEEN stays
+    in the agent's own words (its text / record calls), and it can call the tool again to look again."""
+    seen = 0
+    for m in reversed(messages[1:]):
+        if m["role"] != "user" or not isinstance(m["content"], list):
+            continue
+        results = [b for b in m["content"] if b.get("type") == "tool_result"]
+        if not results:
+            continue
+        seen += 1
+        if seen <= KEEP_IMAGE_TURNS:
+            continue
+        for r in results:
+            if isinstance(r.get("content"), list) and any(b.get("type") == "image" for b in r["content"]):
+                r["content"] = [b for b in r["content"] if b.get("type") != "image"] + [
+                    {"type": "text", "text": "(ảnh đã xem ở lượt trước — gọi lại công cụ nếu cần xem lại)"}]
+
+
 class QcAgent:
     def __init__(self, p, pid: int, data_dir: str, client, frames: List[Dict], story_scene=None, work_dir: Optional[str] = None):
         from . import qc_scene
@@ -243,8 +266,10 @@ class QcAgent:
                                      cols=min(6, len(self.frames)), cell=(256, 455))
         messages = [{"role": "user", "content": [{"type": "text", "text": self._brief()}, {"type": "text", "text": "Tấm tổng quan các khung:"},
                                                  self._img(overview)]}]
+        messages[0]["content"][0]["cache_control"] = {"type": "ephemeral"}   # the brief (playbook, lock, table) is read every turn
         with tagged("qc_agent", self.pid):
             while self.summary is None and self.steps < MAX_STEPS:
+                prune(messages)
                 reply = self.client.converse(messages, TOOLS, SYSTEM, max_tokens=4000)
                 self.steps += 1
                 blocks = reply.blocks or []

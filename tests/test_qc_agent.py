@@ -68,6 +68,17 @@ class AgentTests(unittest.TestCase):
         self.assertEqual({r["verdict"] for r in res["records"]}, {"doubt"})
         self.assertEqual(res["steps"], qc_agent.MAX_STEPS)
 
+    def test_old_pictures_leave_the_conversation(self):
+        img = {"type": "image", "source": {"type": "base64", "media_type": "image/png", "data": "x"}}
+        msgs = [{"role": "user", "content": [{"type": "text", "text": "brief"}, img]}]
+        for i in range(5):
+            msgs.append({"role": "assistant", "content": [{"type": "tool_use", "id": str(i), "name": "view_frame", "input": {}}]})
+            msgs.append({"role": "user", "content": [{"type": "tool_result", "tool_use_id": str(i), "content": [{"type": "text", "text": "K"}, img]}]})
+        qc_agent.prune(msgs)
+        with_img = [m for m in msgs[1:] if m["role"] == "user" and any(b.get("type") == "image" for b in m["content"][0]["content"])]
+        self.assertEqual(len(with_img), qc_agent.KEEP_IMAGE_TURNS)
+        self.assertTrue(any(b.get("type") == "image" for b in msgs[0]["content"]))     # the overview stays
+
     def test_a_block_without_a_fix_sentence_is_refused(self):
         agent = qc_agent.QcAgent(self.p, self.pid, self.data, None, self.frames)
         out = agent.tool("record", {"k": 1, "verdict": "block", "issues": [{"type": "a", "description": "b", "evidence": "c",
