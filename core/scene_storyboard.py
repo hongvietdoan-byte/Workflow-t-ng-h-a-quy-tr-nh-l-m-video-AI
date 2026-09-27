@@ -104,7 +104,11 @@ def story_text(conn, pid: int, g: Dict, green: bool = False) -> str:
              "no sky (the place is added afterwards)." if green else "One continuous scene — same place, same light, same people in every frame.")
     if not green:
         from . import scene_establish
-        light = scene_establish.light_sentence(g["shots"][0]["data"] if g.get("shots") else {})
+        datas = [s["data"] for s in g.get("shots") or []]
+        # the scene's light: a flashback sentence only when EVERY frame is one (a flashback shot gets its own sentence in its prompt)
+        if datas and not all(scene_establish.is_flashback(d) for d in datas):
+            datas = [d for d in datas if not scene_establish.is_flashback(d)]
+        light = scene_establish.light_sentence(datas[0] if datas else {})
         if light:
             frame += " " + light
     return no_minor_age(f"{head}{frame} {beats}")[:3000]

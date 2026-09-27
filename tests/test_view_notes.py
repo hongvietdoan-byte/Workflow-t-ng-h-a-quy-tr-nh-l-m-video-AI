@@ -34,6 +34,29 @@ class ViewNotesTests(unittest.TestCase):
                          scene_establish.FLASHBACK)
         self.assertNotEqual(scene_establish.light_sentence({"time": "day", "action": "Kenta chạy"}), scene_establish.FLASHBACK)
 
+    def test_scene_notes_that_mention_a_flashback_elsewhere_do_not_make_the_shot_one(self):
+        """#8: scene 4's beat 'plant for the flashback promise in scene 5' turned every redraw of S4·2 into a sunset."""
+        os.environ["FEATURE_SCENE_ESTABLISHING"] = "1"
+        self.addCleanup(os.environ.pop, "FEATURE_SCENE_ESTABLISHING", None)
+        shot = {"time": "day", "action": "Kelly nói lời trách móc", "image_prompt": "medium close-up, Kelly facing camera",
+                "beat": {"setup": "plant trực tiếp cho lời hứa flashback ở Cảnh 5"},
+                "lighting": "tông trung tính; flashback dùng ánh sáng ấm hơn"}
+        self.assertFalse(scene_establish.is_flashback(shot))
+        self.assertEqual(scene_establish.light_sentence(shot), scene_establish.LIGHT["day"])
+        self.assertTrue(scene_establish.is_flashback({"flashback": True}))
+
+    def test_a_storyboard_is_lit_as_a_flashback_only_when_every_frame_is_one(self):
+        from core import scene_storyboard
+        os.environ["FEATURE_SCENE_ESTABLISHING"] = "1"
+        self.addCleanup(os.environ.pop, "FEATURE_SCENE_ESTABLISHING", None)
+        conn = mock.MagicMock()
+        conn.execute.return_value.fetchone.return_value = None
+        g = {"story_scene": 5, "shots": [{"data": {"time": "day", "action": "Kenta cõng Maxim"}},
+                                          {"data": {"time": "day", "action": "Flashback: lời hứa"}}]}
+        text = scene_storyboard.story_text(conn, 1, g)
+        self.assertNotIn("FLASHBACK", text)
+        self.assertIn(scene_establish.LIGHT["day"], text)
+
     def test_the_gaze_follows_the_blocking(self):
         self.assertTrue(runner._GAZE.search("MAXIM looking toward frame-left where KENTA runs"))
         self.assertFalse(runner._GAZE.search("three people run side by side"))

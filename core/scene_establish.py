@@ -37,7 +37,12 @@ _FLASHBACK = re.compile(r"flash\s*back|hồi tưởng|ký ức|memory|in the pas
 
 
 def is_flashback(data: Dict) -> bool:
-    return bool(_FLASHBACK.search(" ".join(str(data.get(k) or "") for k in ("action", "lighting", "image_prompt", "beat", "mood"))))
+    """THIS shot is a flashback: its own words (action, picture prompt) or an explicit flag. Not the scene-level notes: #8 2026-09-27
+    the story `beat` of scene 4 said "plant for the flashback promise in scene 5" and scene 5's `lighting` said "the flashback uses
+    warmer light" — reading those made all of scene 4 and S5·1/S5·2 "flashbacks", and every redraw of S4·2 came back as a sunset."""
+    if data.get("flashback"):
+        return True
+    return bool(_FLASHBACK.search(" ".join(str(data.get(k) or "") for k in ("action", "image_prompt"))))
 
 
 def light_sentence(data: Dict) -> str:
