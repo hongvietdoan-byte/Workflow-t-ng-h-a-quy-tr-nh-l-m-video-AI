@@ -12,6 +12,9 @@ chuyển thành bộ đo code (lớp 0).
   quay trước và quay sau. Quay trước: bên trái của nhân vật ở BÊN PHẢI khung; quay sau: ở BÊN TRÁI khung. So từng khung với luật đó.
 - Sửa gốc: `view_notes` trong hồ sơ chuẩn (câu cho từng hướng nhìn). **Liệt kê MỌI chi tiết một bên**, không chỉ trang bị lớn
   (#8 lượt 2: sau khi có câu cho găng Kenta / mũ Maxim — đúng 4/4 và 5/5 — tab đỏ tay áo trái của Maxim chưa có câu nên vẫn lật 2/5 khung).
+- Câu sửa trái/phải đã thua **2 lần ở cùng một bố cục** (#8 S6·2: qua vai từ sau, tay gần giữa khung luôn mang găng) → không lặp câu:
+  **đổi bố cục** để chi tiết bất đối xứng ra khỏi khung (qua vai chặt chỉ đầu + khăn), hoặc đổi hướng máy.
+- Soi cả khung quay MẶT vào máy — huy hiệu vai dễ lật riêng dù găng đúng bên (#8 S6·5: găng đúng, sao ở vai phải; lượt 1 chỉ chấm nhỏ).
 ### A2. Phụ kiện đổi chiều khi quay sau lưng — `chặn` (#8: 5 khung — mũ MAXIM)
 - Dấu hiệu: mũ đội ngược (khóa cài ở trán) thành đội xuôi (khóa cài ở gáy) ở các khung quay sau.
 - Cách soi: dải vùng đầu qua mọi khung có nhân vật; khung quay sau phải thấy lưỡi trai che gáy.
@@ -41,6 +44,10 @@ chuyển thành bộ đo code (lớp 0).
 ### C4. Ánh sáng / giờ nhảy trong cùng một cảnh sau khi vẽ lại — `chặn` (#8 lượt 2: S4·2 thành hoàng hôn giữa trưa)
 - Cách soi: dải toàn khung của cảnh cạnh ảnh toàn cảnh; so màu trời, hướng nắng, độ dài bóng.
 - Sửa gốc: câu sửa khi vẽ lại luôn kèm câu khóa ánh sáng của cảnh; ứng viên bộ đo code (sắc độ trung bình vùng trời).
+- #8 lượt 3: câu "no sunset" rõ ràng vẫn thua — vẽ lại S4·2 hai lần đều hoàng hôn (vùng trời B−R = −29, các khung khác +110…+128).
+  Ảnh cha KHÔNG nằm trong tham chiếu (đã kiểm `sent_refs`); cùng một `storyboard_id` + `frame_index` được dùng lại cho mọi lượt vẽ lại
+  → nghi phiên storyboard phía nhà cung cấp nhớ các lượt trước. Hướng đổi đầu vào: vẽ lại lỗi ánh sáng trong phiên storyboard MỚI
+  (neo khung 1 làm tham chiếu), không lặp câu. Ứng viên lớp 0: vùng trời lệch B−R > 60 so với khung neo cùng cảnh → chặn.
 ## F. Quy trình
 ### F1. Sau mỗi lượt vẽ lại, soi lại các khung ĐÃ DUYỆT cùng dải chi tiết bị sửa (#8 lượt 2: đặt cạnh khung đã sửa mới lộ S6·2 mang găng
   ở tay phải — lượt 1 chỉ chấm nhỏ). Luật đã rõ ở một khung là thước đo cho các khung còn lại.

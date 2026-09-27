@@ -39,6 +39,7 @@
 > cổng storyboard → code kiểm clip + QC video theo nhóm → video.
 > **Chờ người dùng:** duyệt bộ kỹ năng 3 vai (bảng `docs/DANH_GIA_BO_NGUYEN_TAC_V4.md` — `film_crew` đang bật cho đợt thử), gắn nhãn ảnh
 > Kho (~$1–1,5), mô hình 3D chính thức, âm đêm cho thư viện âm thanh; đối chiếu giá ảnh Deepix (tạm $0,052/ảnh) với số trên web Deepix.
+> **Cập nhật 2026-09-27 tối (agent QC):** agent QC trong app `core/qc_agent.py` (cờ `qc_agent`, chưa bật) + sổ tay `knowledge/qc_playbook.md` + bộ nhãn `data/qc_memory/cases.jsonl` (36 ca); chi phí agent không tăng theo bình phương số lượt (bỏ ảnh cũ, cache brief). Trần: tổng 26,59 (còn ~10,5), Claude 3,5 (còn ~0,10 — **không đủ** chạy `tools/experiments/qc_agent_eval.py`; mỗi cảnh ước ~0,15–0,4). Khung #8: QC lượt 3 chặn S4·2 (hoàng hôn, đã vẽ lại 2 lần → **chờ người dùng quyết** cách đổi đầu vào), S6·2 (đổi bố cục, vẽ lại job 374), S6·5 (huy hiệu vai lật, vẽ lại job 375). **Tiếp:** QC 374/375 → cổng storyboard (người dùng) → motion → thử 1 nhóm Seedance → video.
 > *(Bàn giao cũ 2026-09-25 khuya — "việc tiếp GĐ4, 943 test" — đã thay bởi mục này; file `docs/BAN_GIAO_2026-09-25_V4_GD4.md` là lịch sử.)*
 
 ## 📌 KẾ HOẠCH V4 (2026-09-25 tối) — PHIÊN MỚI ĐỌC `docs/KE_HOACH_V4_2026-09-25.md` TRƯỚC TIÊN

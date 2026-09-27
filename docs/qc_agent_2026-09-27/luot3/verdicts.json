@@ -1,0 +1,60 @@
+{
+ "verdicts": [
+  {
+   "k": 21,
+   "shot": "S4·2",
+   "job": 372,
+   "verdict": "chặn",
+   "fixed_old_issue": false,
+   "issues": [
+    {
+     "loai": "C4 ánh sáng/giờ nhảy",
+     "mo_ta": "VẪN hoàng hôn cam dù câu sửa có 'clear midday daylight… no sunset'. Trung bình 300 px trời: job 372 RGB(193,174,164), B−R=−29; k20/k22/k23/k24/k25 B−R 110–128; scene_4.png RGB(130,190,249)",
+     "bang_chung": "s4_light.jpg, s4_rest.jpg + đo sắc độ trời",
+     "muc": "chặn"
+    }
+   ],
+   "ghi_chu": "Vai trái Kenta (sao+băng da+găng) ở phía trái lưng — ĐÚNG (lỗi A1 cũ vẫn hết).",
+   "nguyen_nhan": "Câu ánh sáng chỉ nối đuôi ('Also: …') sau câu sửa cũ; job 372 có parent_job_id=367 (khung hoàng hôn) — nghi vẽ lại kế thừa/biến đổi từ ảnh cha nên màu cha lấn câu chữ. Cần xác minh cách pipeline dùng parent.",
+   "fix_en": "Redraw from scratch (not from the previous attempt), anchored on frame 1 of this scene: bright midday daylight, clear blue sky with white clouds, neutral white sunlight from high above, short shadows — the exact same light as frame 1; no sunset, no golden hour, no orange or amber sky."
+  },
+  {
+   "k": 30,
+   "shot": "S6·2",
+   "job": 373,
+   "verdict": "chặn",
+   "fixed_old_issue": false,
+   "issues": [
+    {
+     "loai": "A1 lật gương",
+     "mo_ta": "Kenta ở trái khung, quay lưng, mặt nghiêng về Kelly bên phải → cánh tay lớn giữa khung là tay PHẢI, nhưng mang sao + băng da + vết đỏ + găng giáp (bộ tay TRÁI), dưới găng còn lộ băng trắng. Đúng là ảnh gương của k2 (k2: Kenta phải khung, bộ tay trái ở mép trái lưng = đúng). Lần này lật trọn bộ, rõ hơn lượt trước",
+     "bang_chung": "k30_arm.jpg (373 cạnh k2/358), s6_arm.jpg",
+     "muc": "chặn"
+    }
+   ],
+   "ghi_chu": "Đêm + đèn đường: đạt, khớp k29/k31/k33.",
+   "nguyen_nhan": "Câu sửa đúng ('RIGHT arm nearest the middle… no gauntlet') nhưng model gắn bộ trang bị nổi bật vào cánh tay gần máy/giữa khung. Với bố cục này (Kenta trái khung) câu chữ không thắng được — lặp 2 lần.",
+   "fix_en": "Tight over-the-shoulder: only the back of KENTA's head, ponytail and blue scarf/hood in the frame-left foreground; crop out both of his arms entirely (no sleeve, no armband, no gauntlet visible). KELLY frame-right/center facing him."
+  }
+ ],
+ "F1_khung_da_duyet_can_chan_them": [
+  {
+   "k": 33,
+   "shot": "S6·5",
+   "job": 350,
+   "muc": "chặn",
+   "ly_do": "Nhìn trước: huy hiệu sao nằm vai mép TRÁI khung = vai PHẢI (sai theo A1, cùng dải với k30); găng tay trái hở ngón. Lượt 1 chỉ chấm nhỏ",
+   "bang_chung": "k33_k31_shoulder.jpg (k31 đúng làm mốc)",
+   "fix_en": "KENTA faces the camera: the glowing star emblem is on his LEFT shoulder, which is on the frame-RIGHT side; his frame-left shoulder (right arm) is a plain blue sleeve with no emblem."
+  }
+ ],
+ "F1_khung_da_duyet_dat": [
+  "k20,k22,k23,k24,k25: trời xanh trưa, B−R 110–128, khớp scene_4",
+  "k31: sao + găng mép phải khung (nhìn trước) đúng",
+  "k29: không có Kenta"
+ ],
+ "de_xuat_so_tay": [
+  "A1: khi câu sửa bên trái/phải thất bại 2 lần ở cùng bố cục → đổi bố cục (cắt khỏi khung chi tiết bất đối xứng), không lặp câu (theo CHUAN: gen lại ≤ 2, đổi đầu vào)",
+  "C4: sửa ánh sáng phải vẽ lại từ khung neo, không từ ảnh lỗi; có thể chặn bằng code: B−R trời lệch > 60 so với khung neo cùng cảnh"
+ ]
+}
