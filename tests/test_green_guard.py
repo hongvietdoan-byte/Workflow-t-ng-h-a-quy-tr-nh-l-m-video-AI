@@ -42,6 +42,18 @@ class GreenGuardTests(unittest.TestCase):
         self.assertTrue(place["cut"])
         self.assertGreaterEqual(place["dy"] + 160 * place["scale"], 160 - 0.5)
 
+    def test_a_body_cut_by_a_side_keeps_that_cut_on_the_frame_edge(self):
+        """#8 over-the-shoulder shots: the foreground shoulder touched the picture's right edge; shifted left it ended in a hard line."""
+        import numpy as np
+        alpha = np.zeros((160, 90))
+        alpha[40:, 60:] = 1.0                                        # shoulder cut by the right edge and the bottom
+        place = composite.placement(alpha, (0.1, 0.2, 0.4, 1.2), (90, 160))   # the camera box asks for the left of the frame
+        self.assertGreaterEqual(place["dx"] + 90 * place["scale"], 90 - 0.5)
+        alpha = np.zeros((160, 90))
+        alpha[40:, :30] = 1.0                                        # cut by the left edge
+        place = composite.placement(alpha, (0.6, 0.2, 0.9, 1.2), (90, 160))
+        self.assertLessEqual(place["dx"], 0.5)
+
     def test_the_storyboard_anchor_is_the_green_picture_in_green_mode(self):
         import json
         from core import scene_storyboard

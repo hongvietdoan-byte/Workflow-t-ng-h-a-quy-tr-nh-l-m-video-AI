@@ -116,6 +116,18 @@ def placement(alpha, target_box: Sequence[float], size: Tuple[int, int]) -> Dict
         scale = max(base * 0.6, min(base * 1.6, (ty1 - ty0) * h / max(y1 - y0, 1)))
         dy = ty1 * h - y1 * scale
     dx = (tx0 + tx1) / 2 * w - (x0 + x1) / 2 * scale
+    # a body cut by the picture's left / right / top edge (a foreground shoulder, a close-up) keeps that cut ON the frame's edge —
+    # shifted inside the frame it showed as a straight hard cut through the character (#8: over-the-shoulder shots)
+    gw, gh = alpha.shape[1] * scale, alpha.shape[0] * scale
+    left, right = x0 <= 2, x1 >= alpha.shape[1] - 2
+    if left and right:
+        dx = (w - gw) / 2
+    elif left:
+        dx = min(dx, 0.0)
+    elif right:
+        dx = max(dx, w - gw)
+    if y0 <= 2:
+        dy = min(dy, 0.0)
     return {"scale": round(scale, 4), "dx": round(dx, 1), "dy": round(dy, 1), "cut": bool(cut), "char_box": box}
 
 
@@ -210,6 +222,12 @@ def composite(green_path: str, plate: Dict, out_path: str, env: Optional[Dict] =
     alpha = _transform(alpha, place, size)
     char = _transform(char, place, size)
     occ = occluders(plate.get("depth"), plate.get("depth_range_m"), size, float(plate.get("distance_m") or 3.0))
+    feet = (plate.get("subject_box") or [0, 0, 1, 1.0])[3]
+    if occ is not None and feet <= 1.0:
+        # the floor between the camera and the feet is nearer than the character but lies BELOW the feet line in the frame (camera
+        # above the ground): it must never hide the body. #8: an 8-bit depth over 0.1–208 m (~0.8 m a step) marked it as a wall and
+        # erased the legs — the characters looked like floating
+        occ[int(feet * size[1]):] = 0.0
     occluded = 0.0
     if occ is not None:
         before = float(alpha.sum()) or 1.0
