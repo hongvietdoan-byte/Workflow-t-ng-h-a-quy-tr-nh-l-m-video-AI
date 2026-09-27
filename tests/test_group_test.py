@@ -80,6 +80,24 @@ class ToolTests(unittest.TestCase):
         self.assertEqual(s4, 6)
         self.assertLessEqual(len(prompt4), group_test.KLING_PROMPT)
 
+    def test_s2_one_clip_a_shot_and_s3_groups_by_cast(self):
+        rows = group_test.shots_of_scene(self.p, self.pid, 2)
+        kw, secs, prompt = group_test.build(self.p, self.data, self.pid, [rows[0]], "S2", "")
+        self.assertEqual(secs, 3)                                            # 1,5 s → Kling floor 3 s
+        self.assertNotIn("multi_prompt", kw)
+        for r, cast in zip(rows, (["A"], ["A"], ["B"], ["B"], ["B"], ["B"])):
+            r["data"]["characters"] = cast
+        self.assertEqual([len(g) for g in group_test.s3_groups(rows)], [2, 3, 1])
+
+    def test_marked_reference_keeps_size(self):
+        from PIL import Image
+        src = os.path.join(tempfile.mkdtemp(), "f.png")
+        Image.new("RGB", (360, 640), (40, 90, 40)).save(src)
+        out = group_test.mark_reference(src)
+        im = Image.open(out)
+        self.assertEqual(im.size, (360, 640))
+        self.assertEqual(im.getpixel((5, 5)), (255, 255, 255))               # the banner
+
 
 if __name__ == "__main__":
     unittest.main()

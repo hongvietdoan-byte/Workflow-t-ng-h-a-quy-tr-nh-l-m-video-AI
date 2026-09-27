@@ -11,6 +11,11 @@ Kết quả ghi vào <data>/<pid>/experiments/experiments.json (kind "group_test
   P2  Seedance Fast: CHỈ ảnh tham chiếu — ảnh từng shot (Image 1..N) + ảnh danh tính nhân vật, không khung đầu
   P3  Kling std multi-shot: khung đầu nhóm + multi_prompt (mỗi shot ≥ 3 s — luật Kling)
   P4  Kling std khung đầu + khung cuối (một đường máy liền) — để có bằng chứng: nội suy hai góc khác nhau ra cắt hay ra biến hình
+  P2m như P2 nhưng ảnh tham chiếu được đánh dấu "CHARACTER SHEET REFERENCE" + dấu cộng đỏ trên một mắt (cách qua bộ lọc người thật
+      của Seedance — viraltwin.app; ByteDance: ảnh tham chiếu nhân vật hư cấu) — chỉ hợp chế độ tham chiếu (dấu không được lọt vào khung đầu)
+  S2  không gộp: mỗi shot một clip Kling std, khung đầu = ảnh storyboard của shot (mốc so sánh chất lượng + tiền)
+  S3  lai: Kling multi-shot chỉ cho các shot liền nhau có CÙNG bộ nhân vật; còn lại dùng clip S2
+Chọn phương án: --methods P2m,S2,S3 (mặc định P1,P2,P3,P4).
 """
 import argparse
 import json
@@ -24,7 +29,8 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".."))
 
 GROUP_SHOTS = 3          # tài liệu Seedance: 2–4 shot mỗi lần gen
 METHODS = ("P1", "P2", "P3", "P4")
-MODELS = {"P1": ("seedance-fast", "720p"), "P2": ("seedance-fast", "720p"), "P3": ("kling", "std"), "P4": ("kling", "std")}
+MODELS = {"P1": ("seedance-fast", "720p"), "P2": ("seedance-fast", "720p"), "P3": ("kling", "std"), "P4": ("kling", "std"),
+          "P2m": ("seedance-fast", "720p"), "S2": ("kling", "std"), "S3": ("kling", "std")}
 KLING_PROMPT = 500           # Kling single-shot prompt budget used by the adapter
 
 
@@ -86,6 +92,49 @@ def shot_text(d: dict, i: int) -> str:
             + (f"Acting — {acting}. " if acting else "") + talk).strip()
 
 
+def mark_reference(path: str) -> str:
+    """A copy of the picture marked as reference material: a white banner "CHARACTER SHEET REFERENCE" on top and a thick red plus sign
+    over one eye of the first face found (YuNet; else the upper middle). Only for reference-only sends."""
+    from PIL import Image, ImageDraw, ImageFont
+    from core import text_placement
+    im = Image.open(path).convert("RGB")
+    w, h = im.size
+    d = ImageDraw.Draw(im)
+    band = int(h * 0.07)
+    d.rectangle([0, 0, w, band], fill=(255, 255, 255))
+    try:
+        font = ImageFont.truetype("arialbd.ttf", int(band * 0.45))
+    except OSError:
+        font = ImageFont.load_default()
+    d.text((w * 0.04, band * 0.25), "CHARACTER SHEET REFERENCE", fill=(0, 0, 0), font=font)
+    boxes = text_placement.face_boxes(path) or []
+    if boxes:
+        l, t, r, b = boxes[0]
+        cx, cy, size = (l + (r - l) * 0.33) * w, (t + (b - t) * 0.4) * h, max((r - l) * w * 0.35, w * 0.05)
+    else:
+        cx, cy, size = w * 0.5, h * 0.3, w * 0.08
+    stroke = max(int(w / 40), 6)
+    d.line([cx - size, cy, cx + size, cy], fill=(220, 0, 0), width=stroke)
+    d.line([cx, cy - size, cx, cy + size], fill=(220, 0, 0), width=stroke)
+    out = os.path.splitext(path)[0] + "_marked.png"
+    im.save(out)
+    return out
+
+
+def s3_groups(rows):
+    """S3: consecutive shots with the same set of characters go together (≤ 3), the rest alone."""
+    out, cur = [], []
+    for r in rows:
+        key = tuple(sorted(r["data"].get("characters") or []))
+        if cur and key == tuple(sorted(cur[-1]["data"].get("characters") or [])) and len(cur) < GROUP_SHOTS:
+            cur.append(r)
+            continue
+        if cur:
+            out.append(cur)
+        cur = [r]
+    return out + ([cur] if cur else [])
+
+
 def build(p, data_dir: str, pid: int, group, method: str, look: str):
     """(kwargs for provider.submit, seconds, prompt) of one grouped generation."""
     from core import assets
@@ -96,7 +145,11 @@ def build(p, data_dir: str, pid: int, group, method: str, look: str):
     shots = [shot_text(r["data"], i) for i, r in enumerate(group, 1)]
     cut = (f"One clip with {len(group)} shots cut in this order, hard cuts between shots, same place, same light, same "
            f"characters and outfits throughout. {look}")
-    if method == "P3":
+    if method == "S2":                         # one shot, one Kling clip from its own storyboard frame
+        d = group[0]["data"]
+        return ({"image_path": frames[0]}, max(3, math.ceil(float(d.get("duration_s") or 3) - 1e-6)),
+                (look + " " + shot_text(d, 1).replace("Shot 1 ", "", 1))[:KLING_PROMPT])
+    if method in ("P3", "S3"):
         per = [max(3, math.ceil(float(r["data"].get("duration_s") or 3) - 1e-6)) for r in group]
         multi = [{"prompt": (look + " " + s)[:500], "duration": d} for s, d in zip(shots, per)]
         return {"image_path": frames[0], "multi_prompt": multi}, sum(per), "\n".join(m["prompt"] for m in multi)
@@ -119,6 +172,8 @@ def build(p, data_dir: str, pid: int, group, method: str, look: str):
     ids = [(n, (links.get(n) or {}).get("ref")) for n in names]
     ids = [(n, ref["path"]) for n, ref in ids if ref and os.path.exists(ref.get("path", ""))][: 9 - len(frames)]
     refs = frames + [path for _, path in ids]
+    if method == "P2m":
+        refs = [mark_reference(x) for x in refs]
     mapping = " ".join(f"Image {i} is the storyboard frame of Shot {i}: Shot {i} starts with exactly this composition, framing and "
                        f"these character positions." for i in range(1, len(frames) + 1))
     mapping += " " + " ".join(f"Image {len(frames) + k} is {n}: identity only (face, hair, outfit) — not the framing."
@@ -156,12 +211,14 @@ def cmd_frames(p, data_dir: str, pid: int, scene: int) -> None:
         print(r["data"].get("shot_no"), frame_path(p, data_dir, pid, r["id"]))
 
 
-def cmd_plan(p, data_dir: str, pid: int, scene: int, provider=None) -> list:
+def cmd_plan(p, data_dir: str, pid: int, scene: int, provider=None, methods=METHODS) -> list:
     from core import budget, cost, looks
     look = looks.image_sentence(p.project(pid)).strip()
     out = []
-    for gi, group in enumerate(groups(shots_of_scene(p, pid, scene)), 1):
-        for m in METHODS:
+    rows = shots_of_scene(p, pid, scene)
+    plan_groups = {"S2": [[r] for r in rows], "S3": [g for g in s3_groups(rows) if len(g) > 1]}
+    for m in methods:
+        for gi, group in enumerate(plan_groups.get(m) or groups(rows), 1):
             kwargs, seconds, prompt = build(p, data_dir, pid, group, m, look)
             model, tier = MODELS[m]
             canonical = {"seedance-fast": "dreamina-seedance-2-0-fast-260128", "kling": "kling-v3-omni"}[model]
@@ -175,7 +232,7 @@ def cmd_plan(p, data_dir: str, pid: int, scene: int, provider=None) -> list:
     return out
 
 
-def cmd_submit(p, data_dir: str, pid: int, scene: int) -> None:
+def cmd_submit(p, data_dir: str, pid: int, scene: int, methods=METHODS) -> None:
     from core import budget, experiments, formats
     from core.adapters import factory
     from core.cost import record_usage
@@ -183,7 +240,7 @@ def cmd_submit(p, data_dir: str, pid: int, scene: int) -> None:
     aspect = formats.spec(formats.project_aspect(p.project(pid)) or "9:16")["clip"]
     items = experiments.load(data_dir, pid)
     done = {(e.get("method"), e.get("group")) for e in items if e.get("kind") == "group_test" and e.get("scene") == scene}
-    for o in cmd_plan(p, data_dir, pid, scene):
+    for o in cmd_plan(p, data_dir, pid, scene, methods=methods):
         if (o["method"], o["group"]) in done:
             print("đã gửi trước đó:", o["method"], o["group"])
             continue
@@ -202,7 +259,7 @@ def cmd_submit(p, data_dir: str, pid: int, scene: int) -> None:
                 print("TRẦN CHẶN:", over)
                 return
             try:
-                entry["external_id"] = provider.submit(image, o["prompt"] if o["method"] != "P3" else "", None, o["seconds"],
+                entry["external_id"] = provider.submit(image, o["prompt"] if o["method"] not in ("P3", "S3") else "", None, o["seconds"],
                                                        o["model"], aspect_ratio=aspect, **extra, **kwargs)
                 record_usage(p.conn, None, "video", provider.name, o["canonical"], tier, o["seconds"], "second", pid)
             except ProviderError as e:          # refused at creation: nothing billed; kept as a result of the test (not retried)
@@ -234,6 +291,7 @@ def main() -> None:
     ap.add_argument("--project", type=int, required=True)
     ap.add_argument("--scene", type=int, default=2)
     ap.add_argument("step", choices=("frames", "plan", "submit", "poll"))
+    ap.add_argument("--methods", default=",".join(METHODS))
     a = ap.parse_args()
     root = os.getcwd()
     load_env(root)
@@ -241,8 +299,11 @@ def main() -> None:
     from core.pipeline import Pipeline
     data_dir = os.environ.get("PIPELINE_DATA") or os.path.join("data", "projects")
     p = Pipeline(connect(os.environ.get("PIPELINE_DB") or os.path.join("data", "manifest.sqlite")))
-    {"frames": lambda: cmd_frames(p, data_dir, a.project, a.scene), "plan": lambda: cmd_plan(p, data_dir, a.project, a.scene),
-     "submit": lambda: cmd_submit(p, data_dir, a.project, a.scene), "poll": lambda: cmd_poll(p, data_dir, a.project)}[a.step]()
+    methods = tuple(x.strip() for x in a.methods.split(",") if x.strip())
+    {"frames": lambda: cmd_frames(p, data_dir, a.project, a.scene),
+     "plan": lambda: cmd_plan(p, data_dir, a.project, a.scene, methods=methods),
+     "submit": lambda: cmd_submit(p, data_dir, a.project, a.scene, methods=methods),
+     "poll": lambda: cmd_poll(p, data_dir, a.project)}[a.step]()
 
 
 if __name__ == "__main__":
