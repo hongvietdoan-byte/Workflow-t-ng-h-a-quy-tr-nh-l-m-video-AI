@@ -12,6 +12,7 @@ State per project: data/projects/<id>/establish/index.json {story_scene: {"key",
 import hashlib
 import json
 import os
+import re
 from typing import Callable, Dict, List, Optional
 
 from . import features
@@ -30,10 +31,24 @@ def enabled() -> bool:
     return features.on(FEATURE)
 
 
+FLASHBACK = ("This is a FLASHBACK: warm amber, soft, slightly hazy light with a gentle glow — it must look clearly different from the "
+             "present-day shots of the same place (not the same hard midday light).")
+_FLASHBACK = re.compile(r"flash\s*back|hồi tưởng|ký ức|memory|in the past", re.I)
+
+
+def is_flashback(data: Dict) -> bool:
+    return bool(_FLASHBACK.search(" ".join(str(data.get(k) or "") for k in ("action", "lighting", "image_prompt", "beat", "mood"))))
+
+
 def light_sentence(data: Dict) -> str:
     """Trial #8: the Director asked for "most of the frame sunk in deep shadow" and the night frames came out muddy — dark scenes still
-    light the faces."""
-    return LIGHT.get(str(data.get("time") or "day").lower(), LIGHT["day"]) if enabled() else ""
+    light the faces. A flashback gets its own light: agent QC #8 found S5·3 (flashback) identical to the present day, the scene's
+    establishing picture's hard noon light won."""
+    if not enabled():
+        return ""
+    if is_flashback(data):
+        return FLASHBACK
+    return LIGHT.get(str(data.get("time") or "day").lower(), LIGHT["day"])
 
 
 def _dir(data_dir: str, pid: int) -> str:

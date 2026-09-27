@@ -970,6 +970,44 @@ def lock_note(conn, project_id: int, cast) -> str:
     return (" Identity lock — " + " | ".join(parts) + ".") if parts else ""
 
 
+_GAZE = re.compile(r"\b(look|looks|looking|gaze|glanc|eyes|facing|stares?|nhìn)\w*", re.I)
+
+
+def seen_from_behind(data: Dict, name: str) -> Optional[bool]:
+    """True when the shot shows this character from behind (over their shoulder / their back), False when it plainly faces them, None
+    when the words do not say."""
+    words = " ".join(str(data.get(k) or "") for k in ("image_prompt", "blocking", "start_frame", "shot", "action"))
+    n = re.escape(name)
+    if re.search(rf"over\s+{n}'?s?\s+shoulder|{n}'?s?\s+(back|shoulder)\b|{n}\b[^.,;]{{0,40}}(back to (the )?camera|from behind|seen from behind)"
+                 rf"|qua vai\s+{n}|lưng\s+{n}", words, re.I):
+        return True
+    if str(data.get("angle") or "").lower() == "ots":
+        return None
+    return False
+
+
+def view_notes(conn, project_id: int, data: Dict) -> str:
+    """Agent QC 2026-09-27 (#8): the profiles already said "LEFT arm gauntlet" and "cap worn backwards", yet from behind the model put
+    KENTA's gauntlet on the wrong side (4 frames) and turned MAXIM's cap forward (5 frames) — it does not work out how left/right and a
+    reversed cap look from the other side. Each profile's `view_notes` ({"facing_camera", "from_behind"}) says it for the shot's view."""
+    parts = []
+    for name in data.get("characters") or []:
+        rules = assets.standard_for(conn, project_id, str(name)) or {}
+        notes = rules.get("view_notes") if isinstance(rules.get("view_notes"), dict) else {}
+        if not notes:
+            continue
+        behind = seen_from_behind(data, str(name))
+        if behind is True and notes.get("from_behind"):
+            parts.append(notes["from_behind"])
+        elif behind is False and notes.get("facing_camera"):
+            parts.append(notes["facing_camera"])
+        elif behind is None:
+            parts += [f"If {name} is seen from behind: {notes['from_behind']}" if notes.get("from_behind") else "",
+                      f"If {name} faces the camera: {notes['facing_camera']}" if notes.get("facing_camera") else ""]
+    parts = [p for p in parts if p]
+    return (" " + " ".join(p.rstrip(".") + "." for p in parts)) if parts else ""
+
+
 def build_image_prompt(conn, project_id: int, data: Dict, core: Optional[str] = None, fix: Optional[str] = None,
                        blocking_label: str = "Blocking") -> Tuple[str, list]:
     """THE picture prompt of a shot (start picture and K1 end frame share it, so a safeguard added here reaches both): the in-game look
@@ -982,8 +1020,11 @@ def build_image_prompt(conn, project_id: int, data: Dict, core: Optional[str] = 
     prompt = framing_sentence(data) + text
     if (data.get("blocking") or "").strip():       # where each person stands/faces, so shots of one sequence agree
         prompt = f"{prompt.rstrip('.')}. {blocking_label}: {data['blocking'].strip()}"
+        if _GAZE.search(data["blocking"]):          # agent QC #8: eyes turned the wrong way (S2·4, S3·8) — the gaze is part of the shot
+            prompt += " The gaze follows the blocking exactly: who looks at whom, toward frame-left or frame-right."
     prompt += performance.image_sentence(data)     # GĐ4: the Director's acting (director.md Đ4) at the start of the shot
     prompt += lock_note(conn, project_id, data.get("characters"))
+    prompt += view_notes(conn, project_id, data)
     prompt += looks.image_sentence(proj)
     if fix:
         prompt = f"{prompt}. Fix: {fix}"
