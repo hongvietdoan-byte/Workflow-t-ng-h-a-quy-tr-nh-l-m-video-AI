@@ -11,9 +11,15 @@ from tests.test_v3 import _approve_all_images, kenta_project
 
 
 def picture(path, light=0.6):
-    from PIL import Image
+    """A picture of the given mean light with some content (a flat one is caught as blank); light 0 = black."""
+    from PIL import Image, ImageDraw
     v = int(255 * light)
-    Image.new("RGB", (180, 320), (v, v, v)).save(path)
+    im = Image.new("RGB", (180, 320), (v, v, v))
+    if light > 0:
+        d = ImageDraw.Draw(im)
+        for y in range(0, 320, 8):
+            d.line([(0, y), (180, y)], fill=(min(v + 40, 255),) * 3 if (y // 8) % 2 else (max(v - 40, 0),) * 3, width=4)
+    im.save(path)
     return path
 
 
@@ -45,6 +51,13 @@ class LayerZeroTests(unittest.TestCase):
             flags = {f["code"]: f for f in qc_scene.check_frame(dark, {"size": "MCU", "time": "night", "characters": ["KELLY"]})}
         self.assertEqual(flags["dark_face"]["severity"], "redraw")
         self.assertEqual(flags["top_bar"]["severity"], "redraw")
+
+    def test_a_black_or_flat_picture_is_redrawn_without_asking_claude(self):
+        black = picture(os.path.join(tempfile.mkdtemp(), "b.png"), light=0.0)
+        flags = qc_scene.check_frame(black, {"size": "MS"})
+        self.assertEqual([(f["code"], f["severity"]) for f in flags], [("blank", "redraw")])
+        missing = qc_scene.check_frame(os.path.join(tempfile.mkdtemp(), "none.png"), {"size": "MS"})
+        self.assertEqual(missing[0]["code"], "blank")
 
     def test_no_detector_no_guess(self):
         with mock.patch("core.text_placement.face_boxes", return_value=None):
@@ -86,12 +99,12 @@ class ValidateTests(unittest.TestCase):
 
 class ReviewTests(unittest.TestCase):
     def setUp(self):
-        os.environ["FEATURE_SCENE_QC"] = "1"
-        self.addCleanup(os.environ.pop, "FEATURE_SCENE_QC", None)
         self.p, self.pid = kenta_project(shot_mode="per_shot")
         self.data = tempfile.mkdtemp()
         llm_runner.run_director(self.p, self.pid, llm_runner.MockLlm())
-        _approve_all_images(self.p, self.pid, self.data)
+        _approve_all_images(self.p, self.pid, self.data)   # the mock pictures are flat: made before layer 0 is on
+        os.environ["FEATURE_SCENE_QC"] = "1"
+        self.addCleanup(os.environ.pop, "FEATURE_SCENE_QC", None)
         rows = shots.shots_of(self.p, self.pid)
         self.scene = rows[0]["data"]["story_scene"]
         self.rows = [r for r in rows if r["data"]["story_scene"] == self.scene]

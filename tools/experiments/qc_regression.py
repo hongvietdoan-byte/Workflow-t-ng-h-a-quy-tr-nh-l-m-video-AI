@@ -22,6 +22,18 @@ BAD = {268: "nền là sàn nhìn từ trên", 289: "nền là sàn nhìn từ t
 LAST_COMPOSITE_JOB = 317
 
 
+def picture_path(data_dir, pid, job_id):
+    """The job's picture — in images/, or in the project's trash when the picture was rejected (trash.move_to_trash). None = gone.
+    (First run 2026-09-27 took the images/ path of rejected pictures without checking: the sheet drew black cells and the QC judged
+    black squares, not the faults.)"""
+    import glob
+    path = os.path.join(data_dir, str(pid), "images", f"job_{job_id}.png")
+    if os.path.exists(path):
+        return path
+    hits = sorted(glob.glob(os.path.join(data_dir, str(pid), "trash", "images", f"job_{job_id}__*.png")))
+    return hits[-1] if hits else None
+
+
 def frames_of(p, pid, data_dir):
     """story scene -> frames (the composited pictures of the trial, the labelled faulty one where a shot had one)."""
     out = {}
@@ -29,13 +41,16 @@ def frames_of(p, pid, data_dir):
         d = json.loads(s["data"] or "{}")
         jobs = [r["id"] for r in p.conn.execute("SELECT id FROM jobs WHERE scene_id=? AND type='image_gen' AND id<=? ORDER BY id",
                                                 (s["id"], LAST_COMPOSITE_JOB))]
-        bad = [j for j in jobs if j in BAD]
-        pick = bad[-1] if bad else next((j for j in reversed(jobs) if os.path.exists(os.path.join(data_dir, str(pid), "images", f"job_{j}.png"))),
-                                        None)
+        bad = [j for j in jobs if j in BAD and picture_path(data_dir, pid, j)]
+        pick = bad[-1] if bad else next((j for j in reversed(jobs) if picture_path(data_dir, pid, j)), None)
         if pick is None:
             continue
         out.setdefault(d.get("story_scene"), []).append({"scene_id": s["id"], "idx": s["idx"], "data": d, "job_id": pick,
-                                                         "state": "pending_review", "path": os.path.join(data_dir, str(pid), "images", f"job_{pick}.png")})
+                                                         "state": "pending_review", "path": picture_path(data_dir, pid, pick)})
+    for fr in out.values():
+        for r in fr:
+            if not (r["path"] and os.path.exists(r["path"])):
+                raise SystemExit(f"thiếu tệp ảnh job {r['job_id']} — dừng (không chấm ô trống)")
     return out
 
 

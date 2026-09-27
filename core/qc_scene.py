@@ -52,6 +52,10 @@ def check_frame(path: str, data: Dict) -> List[Dict]:
     """Code checks of one frame. [{code, severity: "redraw" | "flag", problem (vi), fix (en)}]; [] when fine or when the face detector is
     not available (said by the caller)."""
     from . import text_placement
+    blank = _blank(path)
+    if blank:                                     # an empty / black / one-colour picture never reaches Claude (regression 2026-09-27:
+        return [{"code": "blank", "severity": "redraw", "problem": blank,    # the scene QC passed a black cell)
+                 "fix": "Draw the full scene of the shot: the characters in the place, lit, in focus."}]
     boxes = text_placement.face_boxes(path)
     if boxes is None:
         return []
@@ -91,6 +95,21 @@ def check_frame(path: str, data: Dict) -> List[Dict]:
         out.append({"code": "extra_faces", "severity": "flag", "problem": f"{len(boxes)} khuôn mặt, bảng shot có {len(cast)} người",
                     "fix": "Only " + (", ".join(cast) or "the listed characters") + " in the frame — no other people."})
     return out
+
+
+def _blank(path: str) -> Optional[str]:
+    """Why the picture is not a picture (missing, unreadable, black, one flat colour), else None."""
+    try:
+        import numpy as np
+        from PIL import Image
+        im = np.asarray(Image.open(path).convert("L").resize((96, 170)), dtype=float) / 255.0
+    except Exception as e:  # noqa: BLE001
+        return f"không đọc được ảnh ({type(e).__name__})"
+    if im.mean() < 0.03:
+        return "ảnh đen hoàn toàn"
+    if im.std() < 0.02:
+        return "ảnh một màu, không có nội dung"
+    return None
 
 
 def _face_light(path: str, box) -> Optional[float]:
