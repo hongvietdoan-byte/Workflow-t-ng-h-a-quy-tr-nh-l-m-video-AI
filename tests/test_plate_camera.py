@@ -51,6 +51,15 @@ class FramingTests(unittest.TestCase):
         self.assertEqual(cams[1]["camera"], cams[2]["camera"])
         self.assertNotEqual(cams[1]["camera"]["location"], cams[3]["camera"]["location"])
 
+    def test_a_high_angle_tilts_about_30_degrees_even_close(self):
+        """Trial #8 (2026-09-27): WS / MS 'high' 1–2 m away came out 56–62° down — the plate was the floor seen from above."""
+        import math
+        for size in ("WS", "MS", "CU"):
+            c = pc.camera_for({"size": size, "angle": "high"}, SPOT, 0.0, 1.75)["camera"]
+            d = [a - b for a, b in zip(c["look_at"], c["location"])]
+            tilt = math.degrees(math.atan2(-d[2], math.hypot(d[0], d[1])))
+            self.assertAlmostEqual(tilt, pc.HIGH_TILT_DEG, delta=3, msg=size)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -22,6 +22,7 @@ DEFAULT_SIZE = "MS"
 # MS used to put the eyes at ~14 % (inside that bar); measured now (grader GĐ4, camera_for + project): eyes ~20 % (MLS), ~23 % (MS),
 # ~28 % (MCU), ~33 % (CU) — the EYES leave the bar; the top of the head may still touch it
 HEADROOM = {"EWS": 0.40, "WS": 0.14, "GAME_TPS": 0.30, "MLS": 0.14, "MS": 0.13, "MCU": 0.11, "CU": 0.05, "ECU": 0.02}
+HIGH_TILT_DEG, OVERHEAD_TILT_DEG = 30.0, 60.0             # how far a high / overhead camera looks down at the frame's middle
 SIDE_X = {"left": 0.36, "center": 0.5, "right": 0.64}      # where the character stands across the frame (rule of thirds, softened)
 
 
@@ -80,7 +81,10 @@ def camera_for(data: Dict, spot: Sequence[float], facing_deg: float, height_m: f
     top_of_frame = head + frame_h * HEADROOM[size]
     centre_z = top_of_frame - frame_h / 2                     # height of the frame's middle at the character's distance
     eye = height_m * 0.93
-    cam_z = {"low": 0.45, "high": head + 1.6 + 0.15 * dist, "overhead": head + 3.0 + 0.3 * dist}.get(angle, min(eye, centre_z + 0.2))
+    # high / overhead: a set tilt down onto the frame's middle (dp.md: high ≈ 30°, overhead ≈ 60°). Trial #8 (2026-09-27): a fixed
+    # "head + 1.6 m" put a 2 m-away WS camera 56–62° down — the plate was the floor seen from above and the characters looked pasted on it
+    cam_z = {"low": 0.45, "high": centre_z + dist * math.tan(math.radians(HIGH_TILT_DEG)),
+             "overhead": centre_z + dist * math.tan(math.radians(OVERHEAD_TILT_DEG))}.get(angle, min(eye, centre_z + 0.2))
     if size in ("EWS", "GAME_TPS") and angle not in ("low",):
         cam_z = max(cam_z, head + 2.5)                        # game third-person / establishing: above the head
     yaw = math.radians(facing_deg + (180 if behind else 0))
