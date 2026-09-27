@@ -44,6 +44,7 @@ def main():
     ap.add_argument("--shots", type=int, nargs="+", required=True)
     ap.add_argument("--db", default=os.environ.get("PIPELINE_DB", os.path.join("data", "manifest.sqlite")))
     ap.add_argument("--yes", action="store_true")
+    ap.add_argument("--model", help="model ảnh (mặc định: model của dự án); 4 frame #7 dùng gpt-image-2.5-sunburst")
     a = ap.parse_args()
     import storyboard_test
     p = Pipeline(connect(a.db))
@@ -58,7 +59,7 @@ def main():
         f"reference pictures (the same tower: spire, windows, stairs).")
     prompts = [f"{t} {light}" for t in prompts]
     story = story.replace("One continuous scene at night", "One continuous scene" + (" at night" if time == "night" else "")) + " " + light
-    model = image_models.of_project(proj)
+    model = a.model or image_models.of_project(proj)
     b = budget.get(p.conn)
     used = budget.spent(p.conn, since=b["since"])["images"] if b["enabled"] else None
     need = 1 + len(prompts)
