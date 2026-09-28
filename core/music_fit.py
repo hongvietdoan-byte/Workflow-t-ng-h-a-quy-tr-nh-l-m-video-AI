@@ -11,9 +11,10 @@ saved with the drafts, so a track from the library (no brief) is left as it is �
 """
 import hashlib
 import json
-import math
 import os
 import re
+import shutil
+import tempfile
 from typing import Dict, List, Optional, Sequence, Tuple
 
 from . import ffmpeg_studio
@@ -78,41 +79,51 @@ def segments(old_turns: Sequence[float], old_end: float, new_turns: Sequence[flo
     return out
 
 
-def build_cmd(src: str, out: str, segs: Sequence[Dict], tail: Tuple[float, float], ffmpeg: str = "ffmpeg") -> List[str]:
-    """One ffmpeg call: every section cut from the score, fitted, and joined with JOIN-second crossfades; `tail` = (start, end) of the
-    ending kept after the last section."""
-    parts, labels = [], []
-    n = len(segs) + 1
-    parts.append(f"[0:a]asplit={n}" + "".join(f"[s{i}]" for i in range(n)))
+def _cut(src: str, out: str, a: float, b: float, tempo: float = 1.0, length: Optional[float] = None) -> str:
+    chain = f"atrim={a:.3f}:{b:.3f},asetpts=PTS-STARTPTS" + (f",atempo={tempo}" if abs(tempo - 1.0) > 1e-4 else "")
+    if length is not None:
+        chain += f",atrim=0:{length:.3f}"
+    ffmpeg_studio.run([ffmpeg_studio.find_ffmpeg(), "-y", "-i", src, "-af", chain, "-ac", "2", "-ar", "44100", "-c:a", "pcm_s16le", out])
+    return out
+
+
+def _join(a: str, b: str, out: str) -> str:
+    """b after a, JOIN-second equal-power crossfade (no dip at the join)."""
+    ffmpeg_studio.run([ffmpeg_studio.find_ffmpeg(), "-y", "-i", a, "-i", b, "-filter_complex",
+                       f"[0:a][1:a]acrossfade=d={JOIN}:c1=qsin:c2=qsin", "-c:a", "pcm_s16le", out])
+    return out
+
+
+def render(src: str, out: str, segs: Sequence[Dict], tail: Tuple[float, float], work: str) -> str:
+    """Every section cut from the score, fitted, and joined with JOIN-second crossfades; `tail` = (start, end) of the ending kept after
+    the last section. One small ffmpeg call per piece: the single-graph version (asplit of one input into many crossfades) came out 3 s
+    short on the #8 score and faded out from 80 s."""
+    pieces = []
     for i, g in enumerate(segs):
         target = g["length"] + JOIN                    # each join eats JOIN seconds: the sections keep their scene starts
-        chain = f"[s{i}]atrim={g['a']:.3f}:{g['b']:.3f},asetpts=PTS-STARTPTS,atempo={g['tempo']}"
         if g["mode"] == "loop":
-            # the section plays once, then its SECOND HALF repeats (crossfaded) until the scene ends — repeating from its start would
-            # bring back a soft intro in the middle of the scene (#8: 9–10 s at −35 dB)
+            # the section plays once up to the end of its fullest window, then that window repeats (crossfaded) until the scene ends:
+            # repeating from its start would bring back a soft intro mid-scene (#8: 9–10 s at −35 dB), and its own fade-out is not played
             have = g["b"] - g["a"]
             rep = max(min(have, LOOP_MIN), have / 2)
             ra = g.get("ra", g["b"] - rep)
-            first_end = min(g["b"], ra + rep)          # up to the end of the repeated window: a fade-out after it is not played mid-scene
-            extra = max(1, int(math.ceil((target - (first_end - g["a"])) / max(rep - JOIN, 0.5))))
-            parts.append(f"[s{i}]asplit=2[f{i}][r{i}]")
-            parts.append(f"[f{i}]atrim={g['a']:.3f}:{first_end:.3f},asetpts=PTS-STARTPTS[l{i}_0]")
-            parts.append(f"[r{i}]atrim={ra:.3f}:{ra + rep:.3f},asetpts=PTS-STARTPTS,asplit={extra}" + "".join(f"[l{i}_{k}]" for k in range(1, extra + 1)))
-            joined = f"[l{i}_0]"
-            for k in range(1, extra + 1):
-                parts.append(f"{joined}[l{i}_{k}]acrossfade=d={JOIN}:c1=qsin:c2=qsin[j{i}_{k}]")
-                joined = f"[j{i}_{k}]"
-            parts.append(f"{joined}atrim=0:{target:.3f}[g{i}]")
+            first_end = min(g["b"], ra + rep)
+            cur = _cut(src, os.path.join(work, f"s{i}_0.wav"), g["a"], first_end)
+            window = _cut(src, os.path.join(work, f"s{i}_w.wav"), ra, ra + rep)
+            k, length = 0, first_end - g["a"]
+            while length < target and k < 40:
+                k += 1
+                cur = _join(cur, window, os.path.join(work, f"s{i}_{k}.wav"))
+                length += rep - JOIN
+            pieces.append(_cut(cur, os.path.join(work, f"s{i}.wav"), 0.0, target + 1.0, 1.0, target))
         else:                                          # the join's crossfade is the only fade (a fade on top of it dug a −40 dB hole)
-            parts.append(chain + f",atrim=0:{target:.3f}[g{i}]")
-        labels.append(f"[g{i}]")
-    parts.append(f"[s{n - 1}]atrim={tail[0]:.3f}:{tail[1]:.3f},asetpts=PTS-STARTPTS[tail]")
-    labels.append("[tail]")
-    joined = labels[0]
-    for k, lab in enumerate(labels[1:], 1):
-        parts.append(f"{joined}{lab}acrossfade=d={JOIN}:c1=qsin:c2=qsin[x{k}]")          # equal power: no dip at the join
-        joined = f"[x{k}]"
-    return [ffmpeg, "-y", "-i", src, "-filter_complex", ";".join(parts), "-map", joined, "-c:a", "pcm_s16le", out]
+            pieces.append(_cut(src, os.path.join(work, f"s{i}.wav"), g["a"], g["b"] + 5.0 * g["tempo"], g["tempo"], target))
+    pieces.append(_cut(src, os.path.join(work, "tail.wav"), tail[0], tail[1]))
+    cur = pieces[0]
+    for k, piece in enumerate(pieces[1:], 1):
+        cur = _join(cur, piece, os.path.join(work, f"j{k}.wav"))
+    shutil.copyfile(cur, out)
+    return out
 
 
 def prompt_of(drafts: Sequence[Dict], drafts_dir: str, track: str) -> str:
@@ -170,6 +181,10 @@ def fit(track: str, prompt: str, datas: Sequence[Dict], seconds: Sequence[float]
     os.makedirs(work_dir, exist_ok=True)
     out = os.path.join(work_dir, f"music_fit_{key}.wav")
     if not os.path.exists(out):
-        ffmpeg_studio.run(build_cmd(track, out, segs, (plan["end"], tail_end), ffmpeg_studio.find_ffmpeg()))
+        work = tempfile.mkdtemp(prefix="music_fit_")
+        try:
+            render(track, out, segs, (plan["end"], tail_end), work)
+        finally:
+            shutil.rmtree(work, ignore_errors=True)
     return {"path": out, "fitted": True, "why": "", "turns": new_turns, "old_turns": plan["turns"],
             "modes": [g["mode"] for g in segs]}

@@ -111,16 +111,11 @@ def check_short_shots(timeline: Sequence[Dict]) -> List[Dict]:
 
 
 def silent_spans(video: str, window: float = 0.5, ffmpeg: Optional[str] = None) -> List[Tuple[float, float]]:
-    """Spans where the whole mix stays under SILENT_DB for SILENT_S or more (the last 1,5 s — the fade out — left out)."""
-    ff = ffmpeg or ffmpeg_studio.find_ffmpeg()
-    rate = 48000
-    proc = subprocess.run([ff, "-hide_banner", "-nostats", "-i", video, "-vn", "-ac", "1", "-ar", str(rate), "-af",
-                           f"asetnsamples={int(rate * window)},astats=metadata=1:reset=1,ametadata=print:key=lavfi.astats.Overall.RMS_level",
-                           "-f", "null", "-"], capture_output=True, text=True, encoding="utf-8", errors="replace")
-    levels = []
-    for m in re.finditer(r"RMS_level=(-?[\d.]+|-inf)", proc.stderr or ""):
-        v = m.group(1)
-        levels.append(-200.0 if v == "-inf" else float(v))
+    """Spans where the whole mix stays under SILENT_DB for SILENT_S or more (the last 1,5 s — the fade out — left out). The sound is
+    decoded and measured here (music_timing.loudness): ffmpeg's astats metadata printout decayed to -inf seconds before the end on
+    the #8 v4 render and reported a silence where the mix measured -31 dB."""
+    from . import music_timing
+    levels = music_timing.loudness(video, window)
     total = len(levels) * window
     out, start = [], None
     for i, db in enumerate(levels + [0.0]):
