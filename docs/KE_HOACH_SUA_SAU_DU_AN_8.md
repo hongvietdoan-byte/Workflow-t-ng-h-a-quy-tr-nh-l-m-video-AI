@@ -17,8 +17,8 @@
 |---|---|---|---|---|---|---|
 | P0 Theo dõi tiến độ | 2 | 2 | 0 | 0 | 0 | 100 % |
 | S1 Dựng & âm thanh | 14 | 13 | 0 | 1 | 0 | 92,3 % |
-| S0 Học từ phim drama tham khảo | 8 | 1 | 3 | 0 | 0 | 30,8 % |
-| S9 Dashboard gọn, dễ nhìn | 6 | 2 | 0 | 1 | 0 | 18,2 % |
+| S0 Học từ phim drama tham khảo | 8 | 4 | 1 | 0 | 0 | 57,7 % |
+| S9 Dashboard gọn, dễ nhìn | 6 | 5 | 0 | 0 | 0 | 81,8 % |
 | S2 Timeline theo âm thanh + animatic | 5 | 0 | 0 | 0 | 0 | 0 % |
 | S3 Director kể chuyện + Quay phim | 8 | 0 | 0 | 0 | 0 | 0 % |
 | S4 Video chất lượng | 6 | 0 | 0 | 0 | 0 | 0 % |
@@ -27,7 +27,7 @@
 | S7 Agent QC | 2 | 0 | 0 | 0 | 0 | 0 % |
 | K Chạy kiểm kịch bản hài 20–30 s | 3 | 0 | 0 | 0 | 0 | 0 % |
 | S8 Chấm lại bằng AI Development System (cuối cùng) | 5 | 0 | 0 | 0 | 0 | 0 % |
-| **Tổng** | **70** | **18** | **3** | **2** | **0** | **27,7 %** |
+| **Tổng** | **70** | **24** | **1** | **1** | **0** | **36,6 %** |
 
 Đợt hiện tại: **S1** · việc kế: **S0.5** Báo cáo nghiên cứu + so với #8 + luật
 <!-- /tien-do -->
@@ -56,21 +56,21 @@
 
 ### S0 — Học từ phim drama tham khảo
 - [x] S0.1 · Chọn 5 đoạn mẫu trong phim đã gửi + phong cách DRAMA_DOC · nặng:1 · ✅ · DRAMA_DOC trong core/reference_analysis.py; 1 phim (Q0); đoạn 1 = 0:00–3:00, đoạn 2 = thoại trong 20–30 phút (agent chọn)
-- [ ] S0.2 · Máy đo trong trình duyệt cho 5 đoạn (agent) · nặng:2 · 🔄 · 2/5 đoạn xong (mở đầu 93 shot, thoại 92 shot; trung vị 1,93 s); soát 10 nhãn: 7 đúng, 2 sai → agent sửa + làm 3 đoạn còn lại
-- [ ] S0.3 · Gắn nhãn tờ ảnh + thống kê (agent) · nặng:2 · 🔄 · 2/5 đoạn xong (mở đầu 93 shot, thoại 92 shot; trung vị 1,93 s); soát 10 nhãn: 7 đúng, 2 sai → agent sửa + làm 3 đoạn còn lại
-- [ ] S0.4 · Xem – nghe trọn đoạn, phiếu 10 mặt (agent) · nặng:2 · 🔄 · 2/5 đoạn xong (mở đầu 93 shot, thoại 92 shot; trung vị 1,93 s); soát 10 nhãn: 7 đúng, 2 sai → agent sửa + làm 3 đoạn còn lại
+- [x] S0.2 · Máy đo trong trình duyệt cho 5 đoạn (agent) · nặng:2 · ✅ · 5 đoạn đo trong trình duyệt (397 shot, 720 s); âm thanh không đo được (YouTube chặn)
+- [x] S0.3 · Gắn nhãn tờ ảnh + thống kê (agent) · nặng:2 · ✅ · nhãn 397 shot; soát 10 nhãn lượt 1: 7 đúng → agent sửa 13 nhãn lệch 1 vị trí (lỗi chép tay); lượt 2 bị quảng cáo cản, agent tự xác nhận theo phụ đề
+- [x] S0.4 · Xem – nghe trọn đoạn, phiếu 10 mặt (agent) · nặng:2 · ✅ · phiếu 10 mặt + dấu hiệu hồi tưởng + bảng tên + cỡ cảnh theo loại đoạn: research/ff_styles/DRAMA_DOC/PHIEU_bzsP_ArSIUA.md
 - [ ] S0.5 · Báo cáo nghiên cứu + so với #8 + luật · nặng:2 · ⬜
-- [ ] S0.6 · Luật được duyệt vào bộ kỹ năng · nặng:1 · ⬜
+- [ ] S0.6 · Luật được duyệt vào bộ kỹ năng · nặng:1 · 🔄 · knowledge/ff_styles/DRAMA_DOC.md (số đo + cách dựng) đã có; luật vào bộ kỹ năng Director/Dựng chờ báo cáo S0.5 được duyệt
 - [ ] S0.7 · Chỉ số mục tiêu data/drama_targets.json + test · nặng:2 · ⬜
 - [ ] S0.8 · Phiếu so sánh bản dựng vs phim tham khảo · nặng:1 · ⬜
 
 ### S9 — Dashboard gọn, dễ nhìn
 - [x] S9.1 · Nút thu gọn phần Kịch bản · nặng:1 · ✅ · xong: 1a Kịch bản thu thành 1 dòng tóm tắt + nút ▸ Mở / ▾ Thu gọn (test_dashboard)
 - [x] S9.2 · Thành phần chung ui.fold · nặng:1 · ✅ · xong: ui.fold (dashboard/ui.py)
-- [ ] S9.3 · Kiểm kê khung → 3 tầng hiển thị (người dùng duyệt) · nặng:2 · ⏸ · bảng kiểm kê 3 tầng ở docs/UI_AUDIT.md mục E (mã E0.1–E5.8) — chờ người dùng duyệt
-- [ ] S9.4 · Áp kiểm kê cho 5 bước + thanh đầu, dải "Việc tiếp theo" · nặng:3 · ⬜
-- [ ] S9.5 · Tách step1.py thành phần nhỏ · nặng:2 · ⬜
-- [ ] S9.6 · Gộp timeline tổng + sửa giao diện S6.4 · nặng:2 · ⬜
+- [x] S9.3 · Kiểm kê khung → 3 tầng hiển thị (người dùng duyệt) · nặng:2 · ✅ · người dùng duyệt hết bảng E (2026-09-28)
+- [x] S9.4 · Áp kiểm kê cho 5 bước + thanh đầu, dải "Việc tiếp theo" · nặng:3 · ✅ · 1c3ce9d · dải Việc tiếp theo 5 bước + các khung theo bảng; đo #8: Bước 1 mặc định 3.347 px so với 11.924 px mở hết (−72 %, mục tiêu −40 %)
+- [x] S9.5 · Tách step1.py thành phần nhỏ · nặng:2 · ✅ · step1.py 1.397 dòng → step1 / _run / _prep / _characters / _director (≤ 378 dòng mỗi file); 1337 test qua
+- [ ] S9.6 · Gộp timeline tổng + sửa giao diện S6.4 · nặng:2 · ⬜ · làm cùng đợt S6 (timeline tổng + sửa giao diện S6.4) để không sửa giao diện hai lần
 
 ### S2 — Timeline theo âm thanh + animatic
 - [ ] S2.1 · Chọn giọng ở Bước 1 · nặng:1 · ⬜
