@@ -19,6 +19,8 @@ from typing import Callable, Dict, List, Optional, Tuple
 
 FACE_MODEL = os.path.join(os.path.dirname(__file__), "..", "data", "models", "face_detection_yunet_2023mar.onnx")
 MIN_FACE = 0.03              # faces smaller than 3 % of the frame height (far people in a wide shot) do not move a subtitle
+MIN_SCORE = 0.8              # trial #8 (2026-09-28, 41,5 s): Kelly's hand was found as a face at 0,69 and the line moved onto her forehead;
+                             # real Free Fire faces score 0,87-0,95 (2A frames, #8 frames)
 
 # eyes-to-mouth span (top, bottom) of the main face by shot size, 9:16 frame
 KEEP_CLEAR = {"ECU": (0.20, 0.80), "CU": (0.30, 0.66), "MCU": (0.22, 0.46), "MS": (0.15, 0.32), "MLS": (0.14, 0.26)}
@@ -57,12 +59,17 @@ def _overlap(a: Tuple[float, float], b: Tuple[float, float]) -> float:
     return max(0.0, min(a[1], b[1]) - max(a[0], b[0]))
 
 
+LOW_MARGIN = 0.12            # the "low" position: under the face of a close-up, above the phone's bottom edge (inside the app's caption
+                             # area — worse than the safe box, better than over a face; trial #8, 2026-09-28)
+
+
 def bands(height: int, fontsize: int, lines: int, bottom_margin: float, top_margin: float) -> Dict[str, Tuple[float, float]]:
-    """Where a subtitle of `lines` lines sits (fractions of the height) in the bottom and the top position."""
+    """Where a subtitle of `lines` lines sits (fractions of the height) in the bottom, the top and the low position."""
     h = lines * fontsize * 1.25 / height
     bottom = (1.0 - bottom_margin - h, 1.0 - bottom_margin)
     top = (top_margin, top_margin + h)
-    return {"bottom": bottom, "top": top}
+    low = (1.0 - LOW_MARGIN - h, 1.0 - LOW_MARGIN)
+    return {"bottom": bottom, "top": top, "low": low}
 
 
 def model_path() -> Optional[str]:
@@ -87,7 +94,7 @@ def face_boxes(image_path: str, model: Optional[str] = None) -> Optional[List[Tu
         if img is None:
             return None
         h, w = img.shape[:2]
-        det = cv2.FaceDetectorYN.create(model, "", (w, h), 0.6, 0.3, 50)
+        det = cv2.FaceDetectorYN.create(model, "", (w, h), MIN_SCORE, 0.3, 50)
         _, faces = det.detect(img)
     except Exception:  # noqa: BLE001 - a broken model / frame: fall back to the shot table
         return None
@@ -126,7 +133,9 @@ def video_spans(video: str, cues: List, ffmpeg: str, model: Optional[str] = None
 
 def placements(cues: List, zone_of: Dict[int, Tuple[float, float]], height: int, fontsize: int, lines_of, bottom_margin: float,
                top_margin: float, seen: Optional[Dict[int, Tuple[float, float]]] = None) -> Dict[int, str]:
-    """Cue index -> "top" for the lines that would cover a face at the bottom and are clear (or clearer) at the top.
+    """Cue index -> "top" or "low" for the lines that would cover a face in the bottom position. A line moves only to a position that
+    covers NO face: the top of the safe box first, else the low position under the face; when both cover a face the line stays at the
+    bottom (trial #8, 2026-09-28: "clearer at the top" moved a line onto Kelly's forehead at 41–44 s — covering less was still covering).
     seen: cue index -> faces found on the real frames (wins over the shot-table guess for that line)."""
     out = {}
     for i, c in enumerate(cues):
@@ -134,7 +143,10 @@ def placements(cues: List, zone_of: Dict[int, Tuple[float, float]], height: int,
         if span is None:
             continue
         b = bands(height, fontsize, lines_of(c), bottom_margin, top_margin)
-        low, high = _overlap(b["bottom"], span), _overlap(b["top"], span)
-        if low > 0 and high < low:
+        if _overlap(b["bottom"], span) <= 0:
+            continue
+        if _overlap(b["top"], span) <= 0:
             out[i] = "top"
+        elif _overlap(b["low"], span) <= 0:
+            out[i] = "low"
     return out

@@ -79,6 +79,19 @@ class MusicPlanTests(unittest.TestCase):
         plan = sound_intent.music_plan(datas, [3.0, 3.0, 3.0], "crossfade", 1.0, ("crossfade",))
         self.assertEqual(plan["off"], [(2.0, 7.0)])            # starts 3 − 1; total 9 − 2 overlaps
 
+    def test_a_silence_never_runs_longer_than_the_cap_and_a_repeated_cut_opens_a_new_one(self):
+        """Trial #8 (2026-09-28): cut at shot 16, cut again at 21/23/25/26/27, in at 28 → 27 s without music."""
+        m = lambda v: {"sound": {"music": v}}                                                  # noqa: E731
+        datas = [{}, m("cut"), {}, {}, {}, {}, m("cut"), {}, m("cut"), m("in"), {}]
+        plan = sound_intent.music_plan(datas, [2.0] * 11)
+        self.assertEqual(plan["off"], [(2.0, 10.0), (12.0, 18.0)])      # back at 10 s (8 s cap); the cut at 12 s opens a new silence
+        self.assertEqual(plan["auto_in"], [10.0])
+        tail = sound_intent.music_plan([{}, m("cut"), {}, {}, {}, {}, {}], [2.0] * 7)
+        self.assertEqual((tail["off"], tail["auto_in"]), ([(2.0, 10.0)], [10.0]))           # no "in" at all: still back after 8 s
+        self.assertEqual(sound_intent.music_plan(datas, [2.0] * 11, max_off=0)["off"], [(2.0, 18.0)])   # cap off = the old rule
+        shots = [dict(d, duration_s=2.0) for d in datas]
+        self.assertTrue(any("tự cho nhạc vào lại" in w for w in sound_intent.warnings(shots)))
+
     def test_the_music_filter_goes_silent_in_the_spans_and_dips_before_breaths(self):
         cmd = ffmpeg_studio.build_mux_music_cmd("v.mp4", "m.mp3", "o.mp4", 10, breaths=[8.0], music_off=[(2.0, 5.0)])
         chain = cmd[cmd.index("-filter_complex") + 1]

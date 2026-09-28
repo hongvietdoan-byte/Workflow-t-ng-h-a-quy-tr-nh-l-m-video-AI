@@ -38,6 +38,18 @@ class AssPlacementTests(unittest.TestCase):
         hud = next(e for e in ev if "Maxim" in e)
         self.assertNotIn("\\an8", hud)                                           # the game notice keeps its own style
 
+    def test_a_line_never_moves_onto_a_face_at_the_top(self):
+        """Trial #8 (2026-09-28, 41–44 s): faces seen over the line covered the bottom AND the top band; the line was moved to the top
+        because it covered less there — it sat on Kelly's forehead. Now it goes under the face (low) and never to a covered top."""
+        ev = self.events(self._ass({1: (0.15, 0.66)}))
+        line = next(e for e in ev if "Em hiểu" in e)
+        self.assertNotIn("\\an8", line)
+        self.assertIn(f",0,0,{int(1920 * text_placement.LOW_MARGIN)},,", line)
+        ev = self.events(self._ass({1: (0.10, 0.95)}))                              # a face everywhere: stays at the bottom
+        self.assertIn(",0,0,0,,", next(e for e in ev if "Em hiểu" in e))
+        self.assertEqual(text_placement.placements([Cue(0, 1, "x", "K", 1)], {1: (0.15, 0.66)}, 1920, 60, lambda c: 1, 0.36, 0.15),
+                         {0: "low"})
+
     def test_a_medium_close_up_keeps_the_bottom_position(self):
         ev = self.events(self._ass({1: text_placement.keep_clear({"size": "MCU"})}))   # face in the upper half
         self.assertNotIn("\\an8", next(e for e in ev if "Em hiểu" in e))

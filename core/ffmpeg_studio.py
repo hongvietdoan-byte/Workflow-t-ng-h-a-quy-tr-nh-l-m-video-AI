@@ -1,4 +1,5 @@
 import contextlib
+import math
 import os
 import re
 import shutil
@@ -31,6 +32,8 @@ TO_YUV709 = "scale=out_color_matrix=bt709:out_range=tv,format=yuv420p"
 # editing.md E8: one quality for every step of the cut — video CRF 18 (x264 default was 23), AAC 256 kbps (default ~128). The cut is
 # encoded several times (join → music → extras → loudness), so each audio generation is kept well above YouTube's 128 kbps floor.
 AAC = ["-c:a", "aac", "-b:a", "256k"]
+PCM = ["-c:a", "pcm_s16le"]      # between two mixing steps (TON_DONG A18): the sound is encoded to AAC once, at the last step
+LOOP_XFADE = 1.5                 # music shorter than the film: it plays again from the start, crossfaded over this many seconds
 COLOR_TAGS = ["-colorspace", "bt709", "-color_primaries", "bt709", "-color_trc", "bt709"]
 _ENCODE = ["-c:v", "libx264", "-crf", "18", "-pix_fmt", "yuv420p", "-r", "24", "-colorspace", "bt709", "-color_primaries", "bt709",
            "-color_trc", "bt709", "-movflags", "+faststart"]
@@ -149,6 +152,34 @@ def add_shake(src: str, dst: str, times: Sequence[float], ffmpeg: Optional[str] 
     return dst
 
 
+FLASHBACK_FLASH = 0.25          # white flash in and out of a flashback shot (seconds)
+FLASHBACK_LOOK = "eq=saturation=0.55:gamma=1.05,colorbalance=rs=0.08:gs=0.03:bs=-0.08:rm=0.06:bm=-0.06,vignette=angle=PI/4.5"
+
+
+def flashback_filter(seconds: float) -> str:
+    """The memory look of a flashback shot (trial #8, 2026-09-28): warm, washed-out colour, darker edges, a white flash in and out."""
+    out_at = max(seconds - FLASHBACK_FLASH, 0.0)
+    return (f"{FLASHBACK_LOOK},fade=t=in:st=0:d={FLASHBACK_FLASH}:color=white,"
+            f"fade=t=out:st={out_at:.2f}:d={FLASHBACK_FLASH}:color=white")
+
+
+def add_flashback(src: str, dst: str, seconds: Optional[float] = None, ffmpeg: Optional[str] = None) -> str:
+    ff = ffmpeg or find_ffmpeg()
+    seconds = seconds or probe_duration(src) or 3.0
+    run([ff, "-y", "-i", src, "-vf", flashback_filter(seconds), *_ENCODE, "-c:a", "copy", dst])
+    return dst
+
+
+def hold_last_frame(src: str, dst: str, extra: float, ffmpeg: Optional[str] = None) -> str:
+    """The clip followed by its own last frame for `extra` seconds (sound padded with silence)."""
+    ff = ffmpeg or find_ffmpeg()
+    cmd = [ff, "-y", "-i", src, "-vf", f"tpad=stop_mode=clone:stop_duration={extra:.2f}", *_ENCODE]
+    if has_audio(src):
+        cmd += ["-af", f"apad=pad_dur={extra:.2f}", *AAC]
+    run(cmd + [dst])
+    return dst
+
+
 def breath_filter(times: Sequence[float], off: Sequence[Tuple[float, float]] = ()) -> str:
     """volume automation: near-silence in the BREATH_S before each time (the music comes back on the turn itself); off: spans where
     the music is out altogether (the Director's sound intent `cut` … `in`, core/sound_intent.py)."""
@@ -164,22 +195,43 @@ def breath_filter(times: Sequence[float], off: Sequence[Tuple[float, float]] = (
     return f",volume='{level}':eval=frame"
 
 
+def music_loops(music_len: Optional[float], video_duration: float) -> int:
+    """How many extra plays of the track fill the film (0 = the track is long enough, or its length is unknown)."""
+    if not music_len or music_len <= LOOP_XFADE * 2 or music_len >= video_duration - 0.5:
+        return 0
+    return int(math.ceil((video_duration - music_len) / (music_len - LOOP_XFADE)))
+
+
 def build_mux_music_cmd(video: str, music: str, output: str, video_duration: float,
                         fade: float = 1.5, volume: float = 0.6, ffmpeg: str = "ffmpeg",
                         has_audio: bool = False, breaths: Sequence[float] = (),
-                        music_off: Sequence[Tuple[float, float]] = ()) -> List[str]:
+                        music_off: Sequence[Tuple[float, float]] = (), music_len: Optional[float] = None,
+                        audio_codec: Sequence[str] = AAC) -> List[str]:
     """Music under the video. has_audio: the video already carries sound (dialogue): the music is MIXED with it
-    instead of replacing it. breaths: turn times with a short silence before them (D6)."""
+    instead of replacing it. breaths: turn times with a short silence before them (D6). music_len: the track's length — a track
+    shorter than the film plays again from the start, crossfaded (trial #8, 2026-09-28: 68 s of music under 83 s of film = the last
+    15 s silent). audio_codec: PCM when another mixing step follows (one AAC encode only)."""
     fade_out_start = max(video_duration - fade, 0)
     fade_in = min(fade, MUSIC_FADE_IN)   # 2A: a 1,5 s fade-in left the hook's first second silent
-    music_chain = (f"[1:a]atrim=0:{video_duration},afade=t=in:d={fade_in},"
+    loops = music_loops(music_len, video_duration)
+    src = "[1:a]"
+    pre = ""
+    if loops:
+        copies = "".join(f"[mc{i}]" for i in range(loops + 1))
+        pre = f"[1:a]asplit={loops + 1}{copies};"
+        joined = "[mc0]"
+        for i in range(1, loops + 1):
+            pre += f"{joined}[mc{i}]acrossfade=d={LOOP_XFADE}[ml{i}];"
+            joined = f"[ml{i}]"
+        src = joined
+    music_chain = (f"{pre}{src}atrim=0:{video_duration},afade=t=in:d={fade_in},"
                    f"afade=t=out:st={fade_out_start}:d={fade},volume={volume}{breath_filter(breaths, music_off)},apad")  # apad: music shorter than video
     if has_audio:
         audio = f"{music_chain}[m];[0:a][m]amix=inputs=2:normalize=0:duration=first,{PEAK_LIMIT}[a]"
     else:
         audio = music_chain + f",{PEAK_LIMIT}[a]"
     return [ffmpeg, "-y", "-i", video, "-i", music, "-filter_complex", audio,
-            "-map", "0:v", "-map", "[a]", "-c:v", "copy", *AAC, "-shortest", output]
+            "-map", "0:v", "-map", "[a]", "-c:v", "copy", *audio_codec, "-shortest", output]
 
 
 MUSIC_FADE_IN = 0.3
@@ -459,10 +511,11 @@ def _render_steps(clips, output, durations, transition, fade, music, music_volum
         if durations is None:
             raise ValueError("durations required to fit music")
         total = sum(durations) - (fade * (len(clips) - 1) if transition in OVERLAP_STYLES else 0)
-        target = output + ".music.mp4" if extras else output
+        target = output + ".music.mkv" if extras else output          # mkv holds PCM: the mix below encodes AAC once
         try:
             run(build_mux_music_cmd(current, music, target, total, volume=music_volume, ffmpeg=ffmpeg,
-                                    has_audio=keep_audio, breaths=breaths, music_off=music_off))
+                                    has_audio=keep_audio, breaths=breaths, music_off=music_off, music_len=probe_duration(music),
+                                    audio_codec=PCM if extras else AAC))
         finally:
             os.remove(current)
         current = target

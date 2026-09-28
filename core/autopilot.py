@@ -895,6 +895,15 @@ def tick(p: Pipeline, project_id: int, ctx: Context) -> str:
             _log(p, project_id, f"Xuất bản: {w[:120]}")
         if any(kind == "subtitle" for kind, _ in res["layers"]):
             _log(p, project_id, "Đã thêm phụ đề")
+        qc = res.get("qc") or {}
+        if qc.get("blocks"):                     # S1.9 (trial #8): a cut with a blocking fault is not "done" — the person looks first
+            from . import final_qc
+            note = f"Bản dựng có {qc['blocks']} lỗi chặn — xem Bước 5 · Kiểm bản dựng: " + "; ".join(
+                i["msg"] for i in qc["issues"] if i["level"] == "block")[:300]
+            _set(p, project_id, ATTENTION, note)
+            _log(p, project_id, final_qc.summary(qc)[:600])
+            _restore_cfg(p, project_id)
+            return ATTENTION
         _set(p, project_id, DONE, f"Xong: {out}{extra}")
         _log(p, project_id, "Đã ghép video cuối")
         _restore_cfg(p, project_id)

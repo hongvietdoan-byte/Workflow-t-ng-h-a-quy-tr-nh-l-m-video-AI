@@ -42,7 +42,6 @@ DEFAULTS = {"enabled": False, "lang": "src", "font": "", "size": "M", "pos": "bo
             "speaker_colors": False, "karaoke": False}
 KARAOKE_WAIT = "B4B4B4"         # editing.md E7 (short-video captions): words not yet said are grey, each turns to the line's colour when said
 SPEAKER_PALETTE = ("FFFFFF", "FFE066", "7FDBFF", "FFB38A", "B8F28C", "E3B5FF", "FF8FA3", "9DF2E0")
-NAME_CARD_S = 1.8               # D10: how long a character's name card stays (game style, top of the safe box)
 MAX_CPS = 17.0                  # characters per second a viewer can comfortably read (Netflix Timed Text Style Guide: 17 for children's
                                 # programmes, 20 for adults — safe_zones.md [E23]; the same number as the auto-dialogue-generator skill)
 MIN_CUE_S = 0.83                # safe_zones.md [E24]: a line stays at least 20 frames at 24 fps
@@ -218,16 +217,10 @@ def build_cues(pipeline: Pipeline, data_dir: str, project_id: int, transition: s
     cues: List[Cue] = []
     hud: List[Cue] = []
     t = 0.0
-    from . import features
-    named = set() if features.on("name_cards") else None     # D10 (editing.md E6): a name card the first time someone is seen
+    # Character name cards (D10) were removed after trial #8 (2026-09-28, người dùng): they showed as lines of their own in the .srt and
+    # over a face. If they come back: once per character in the whole video, placed next to that character (knowledge/editor/editing.md).
     for clip in timeline:
         length = float(clip["seconds"])
-        if named is not None and clip.get("idx") is not None:
-            for who in datas.get(clip["idx"], {}).get("characters") or []:
-                if who not in named and str(who).strip():
-                    named.add(who)
-                    hud.append(Cue(round(t + 0.2, 2), round(t + min(max(length - 0.1, 1.0), NAME_CARD_S), 2), str(who).strip().upper(),
-                                   HUD, clip["idx"]))
         for text in (datas.get(clip["idx"], {}).get("on_screen_text") or []) if clip.get("idx") is not None else []:
             if str(text).strip():                         # a game notice / system text is shown, never voiced (kịch bản "ANH CHỌN AI?")
                 hud.append(Cue(round(t + 0.1, 2), round(t + max(length - 0.1, 1.0), 2), str(text).strip(), HUD, clip["idx"]))
@@ -276,8 +269,10 @@ def _clock(seconds: float, sep: str) -> str:
 
 
 def to_srt(cues: List[Cue], show_speaker: bool = False) -> str:
+    """The .srt holds spoken lines only: a game notice (HUD) is burnt into the picture, never a subtitle line of its own (trial #8:
+    name cards "KELLY" / "KENTA" read as dialogue lines)."""
     out = []
-    for i, c in enumerate(cues, 1):
+    for i, c in enumerate([c for c in cues if c.speaker != HUD], 1):
         text = f"{c.speaker.title()}: {c.text}" if show_speaker and c.speaker and c.speaker != HUD else c.text
         out.append(f"{i}\n{_clock(c.start, ',')} --> {_clock(c.end, ',')}\n{text}\n")
     return "\n".join(out)
@@ -403,7 +398,7 @@ def to_ass(cues: List[Cue], width: int, height: int, font: Font, size: str = "M"
         seen_spoken = {j: seen[index[id(c)]] for j, c in enumerate(spoken) if seen and index[id(c)] in seen}
         where = text_placement.placements(spoken, zones or {}, height, fontsize, lambda c: wrap_text(said(c), max_chars).count("\n") + 1,
                                           SAFE_BOTTOM, SAFE_TOP, seen=seen_spoken)
-        moved = {id(spoken[i]) for i in where}
+        moved = {id(spoken[i]): where[i] for i in where}
     for c in cues:
         text = f"{c.speaker.title()}: {c.text}" if show_speaker and c.speaker and c.speaker != HUD else c.text
         text = wrap_text(text, max_chars).replace("{", "(").replace("}", ")").replace("\n", "\\N")
@@ -411,8 +406,10 @@ def to_ass(cues: List[Cue], width: int, height: int, font: Font, size: str = "M"
             text = karaoke_text(text, c.end - c.start)
         style = style_of.get(c.speaker, "Default")
         margin = 0
-        if id(c) in moved:                  # a face in the bottom band: this line goes to the top of the safe box
+        if moved.get(id(c)) == "top":       # a face in the bottom band, the top clear: this line goes to the top of the safe box
             text, margin = "{\\an8}" + text, int(height * SAFE_TOP)
+        elif moved.get(id(c)) == "low":     # a face at the bottom AND at the top: under the face (text_placement.LOW_MARGIN)
+            margin = int(height * text_placement.LOW_MARGIN)
         lines.append(f"Dialogue: 0,{_clock(c.start, '.')[:-1]},{_clock(c.end, '.')[:-1]},{style},,0,0,{margin},,{text}")
     return "\n".join(lines) + "\n"
 

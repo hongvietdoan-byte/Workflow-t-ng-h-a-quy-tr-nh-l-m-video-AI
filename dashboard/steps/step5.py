@@ -642,6 +642,8 @@ def delivery_panel(p: Pipeline, pid: int, chosen, durations) -> None:
                 res = st.session_state.pop(f"deliver_res_{pid}")
                 for w in res["warnings"]:
                     st.warning(w)
+                if res.get("qc") is not None:
+                    st.session_state[f"final_qc_{pid}"] = res["qc"]
                 st.toast(f"Đã xuất bản: {len(res['layers']) + 1} file")
                 st.rerun()
         best = stat["best"]
@@ -656,6 +658,24 @@ def delivery_panel(p: Pipeline, pid: int, chosen, durations) -> None:
             a.markdown(f"{label}: `{os.path.basename(path)}` · {os.path.getsize(path) / 1e6:.1f} MB" + (f" · :orange[⚠ {stale}]" if stale else ""))
             with open(path, "rb") as f:
                 b.download_button("⬇ Tải", f, file_name=os.path.basename(path), mime="video/mp4", key=f"layer_dl_{pid}_{n}")
+        _final_qc(p, pid, bool(fin.get("path")))
+
+
+def _final_qc(p, pid, has_render: bool):
+    """S1.9 (after trial #8): the finished cut measured by code — length, music holes, effects off their shot, peaks, subtitle lines
+    that are not dialogue, subtitles on faces, very short shots. Runs after every delivery; the button measures again (free)."""
+    from core import final_qc
+    key = f"final_qc_{pid}"
+    if has_render and st.button("🔎 Kiểm bản dựng (miễn phí, ~30 s)", key=f"final_qc_btn_{pid}"):
+        with st.spinner("Đang đo bản dựng…"):
+            act(lambda: st.session_state.__setitem__(key, final_qc.run(p, pid, C.DATA)))
+    res = st.session_state.get(key)
+    if not res:
+        return
+    text = final_qc.summary(res)
+    (st.success if res["ok"] and not res["warns"] else st.error if res["blocks"] else st.warning)(text.splitlines()[0])
+    for i in res["issues"]:
+        st.caption(f"{'❌' if i['level'] == 'block' else '⚠'} {i['msg']}")
 
 
 def _timed_brief(p, pid):

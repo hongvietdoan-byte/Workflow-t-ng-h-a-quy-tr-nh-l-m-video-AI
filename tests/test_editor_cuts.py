@@ -143,7 +143,8 @@ class EffectsTests(unittest.TestCase):
         self.assertGreater(composite.grain(out, alpha), composite.grain(plate) * 0.6)
         self.assertIs(composite.match_grain(plate, alpha, clean), plate)            # never removes grain
 
-    def test_name_cards_on_first_appearance_only_with_the_feature(self):
+    def test_no_name_cards_and_no_hud_line_in_the_srt(self):
+        """Trial #8 (2026-09-28, người dùng): character name cards removed; the .srt holds spoken lines only."""
         from core import subtitles
         from core.db import connect
         from core.pipeline import Pipeline
@@ -154,11 +155,12 @@ class EffectsTests(unittest.TestCase):
             p.conn.execute("UPDATE scenes SET data=? WHERE id=?", (json.dumps({"shot_no": idx, "characters": cast}), sid))
         p.conn.commit()
         timeline = [{"idx": 1, "seconds": 3.0}, {"idx": 2, "seconds": 3.0}]
-        with mock.patch.dict(os.environ, {"FEATURE_NAME_CARDS": "1"}):
-            cues = subtitles.build_cues(p, tempfile.mkdtemp(), pid, timeline=timeline)
-        self.assertEqual([(c.text, c.start) for c in cues if c.speaker == subtitles.HUD], [("KELLY", 0.2), ("KENTA", 3.2)])
-        with mock.patch.dict(os.environ, {"FEATURE_NAME_CARDS": "0"}):
+        with mock.patch.dict(os.environ, {"FEATURE_NAME_CARDS": "1"}):          # an old dashboard.env line changes nothing
             self.assertEqual(subtitles.build_cues(p, tempfile.mkdtemp(), pid, timeline=timeline), [])
+        self.assertNotIn("name_cards", __import__("core.features", fromlist=["FEATURES"]).FEATURES)
+        srt = subtitles.to_srt([subtitles.Cue(0.2, 1.0, "KELLY", subtitles.HUD, 1), subtitles.Cue(1.3, 3.0, "Anh thật sự…", "KELLY", 1)])
+        self.assertNotIn("KELLY\n", srt)
+        self.assertTrue(srt.startswith("1\n00:00:01,300"))
 
 
 class AmbienceTests(unittest.TestCase):

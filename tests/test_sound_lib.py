@@ -461,6 +461,28 @@ class SfxPlanTests(Base):
         self.assertEqual(len(labels), 2)
         self.assertIn("my own", labels)
 
+    def test_an_ai_effect_follows_its_shot_when_clip_lengths_change(self):
+        """Trial #8 (2026-09-28): the gunshot of shot 26 was saved at 43,28 s; clips were remade longer and it played over another line."""
+        from core import sfx_plan
+        directory = audio_lib.assets_dir(self.data, self.pid)
+        sid = self.conn.execute("SELECT id FROM sounds LIMIT 1").fetchone()[0]
+        scenes = [{"idx": 1, "start": 0.0, "length": 4.0}, {"idx": 2, "start": 4.0, "length": 3.0}, {"idx": 3, "start": 7.0, "length": 3.0}]
+        self.assertEqual(sfx_plan.apply(self.p, self.data, self.pid, [{"id": sid, "at": 4.5, "volume": 1.0}], scenes), 1)
+        audio_lib.add_local(directory, os.path.join(self.src, "popup", "Pop.wav"), "my own", 2.0)
+        e = audio_lib.load(directory)[0]
+        self.assertEqual((e["anchor_idx"], e["offset"], e["start"]), (2, 0.5, 4.5))
+        rows = [{"idx": 1}, {"idx": 2}, {"idx": 3}]
+        res = sfx_plan.place_on_timeline(self.data, self.pid, rows, [9.0, 3.0, 3.0])                # shot 1 remade 5 s longer
+        items = audio_lib.load(directory)
+        self.assertEqual((res["moved"], items[0]["start"], items[0]["use"]), (1, 9.5, True))
+        self.assertEqual(items[1]["start"], 2.0)                                                     # an effect set by hand stays
+        sfx_plan.place_on_timeline(self.data, self.pid, [{"idx": 1}, {"idx": 3}], [9.0, 3.0])       # shot 2 left out of this render
+        self.assertFalse(audio_lib.load(directory)[0]["use"])
+        self.assertEqual(sfx_plan.anchor(scenes, 0.0), {"anchor_idx": 1, "offset": 0.0})
+        self.assertEqual(sfx_plan.place_on_timeline(self.data, self.pid, rows, [1.0, 0.3, 3.0], "crossfade", 0.0)["off"], 0)
+        self.assertEqual(audio_lib.load(directory)[0]["start"], 1.25)                                # offset kept inside a shorter shot
+        self.assertTrue(audio_lib.load(directory)[0]["use"])                                        # back with its shot
+
     def test_nothing_to_plan_without_a_model_or_effects(self):
         from core import llm_runner, sfx_plan
         with self.assertRaises(sfx_plan.SfxPlanError):

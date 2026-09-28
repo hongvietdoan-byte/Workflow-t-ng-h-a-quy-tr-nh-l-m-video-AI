@@ -16,7 +16,7 @@
 | Đợt | Việc | Xong | Đang làm | Chờ người dùng | Bỏ | Tiến độ |
 |---|---|---|---|---|---|---|
 | P0 Theo dõi tiến độ | 2 | 2 | 0 | 0 | 0 | 100 % |
-| S1 Dựng & âm thanh | 10 | 0 | 0 | 0 | 0 | 0 % |
+| S1 Dựng & âm thanh | 10 | 0 | 10 | 0 | 0 | 50 % |
 | S0 Học từ phim drama tham khảo | 8 | 0 | 0 | 0 | 0 | 0 % |
 | S9 Dashboard gọn, dễ nhìn | 6 | 0 | 0 | 0 | 0 | 0 % |
 | S2 Timeline theo âm thanh + animatic | 5 | 0 | 0 | 0 | 0 | 0 % |
@@ -27,9 +27,9 @@
 | S7 Agent QC | 2 | 0 | 0 | 0 | 0 | 0 % |
 | K Chạy kiểm kịch bản hài 20–30 s | 3 | 0 | 0 | 0 | 0 | 0 % |
 | S8 Chấm lại bằng AI Development System (cuối cùng) | 5 | 0 | 0 | 0 | 0 | 0 % |
-| **Tổng** | **66** | **2** | **0** | **0** | **0** | **2,7 %** |
+| **Tổng** | **66** | **2** | **10** | **0** | **0** | **10,8 %** |
 
-Đợt hiện tại: **S1** · việc kế: **S1.1** Bỏ hẳn bảng tên nhân vật; HUD không vào .srt; ghi luật dùng lại sau này
+Đợt hiện tại: **S1** · việc kế: —
 <!-- /tien-do -->
 
 ## Danh sách việc (thứ tự người dùng đã duyệt)
@@ -39,16 +39,16 @@
 - [x] P0.2 · Trang "📋 Kế hoạch đang chạy" trong AI Development System + test · nặng:2 · ✅ · trang đầu của devsys; AppTest mọi trang qua
 
 ### S1 — Dựng & âm thanh
-- [ ] S1.1 · Bỏ hẳn bảng tên nhân vật; HUD không vào .srt; ghi luật dùng lại sau này · nặng:1 · ⬜
-- [ ] S1.2 · Hiệu ứng âm thanh neo theo shot, tính lại giây mỗi lần dựng · nặng:2 · ⬜
-- [ ] S1.3 · Ý đồ nhạc tự sửa (cut lặp) + chặn nhạc lặng > 8 s · nặng:2 · ⬜
-- [ ] S1.4 · Nhạc khớp độ dài phim thật · nặng:2 · ⬜
-- [ ] S1.5 · Phụ đề không đè mặt (chỉ lên trên khi dải trên trống) · nặng:2 · ⬜
-- [ ] S1.6 · Limiter −1 dBTP + mã hóa âm một lần · nặng:2 · ⬜
-- [ ] S1.7 · Ngữ pháp hồi tưởng ở khâu Dựng (cờ flashback_fx) · nặng:2 · ⬜
-- [ ] S1.8 · Shot kết giữ hình ≥ 2,5 s · nặng:1 · ⬜
-- [ ] S1.9 · QC bản dựng cuối bằng máy (core/final_qc.py) · nặng:3 · ⬜
-- [ ] S1.10 · Dựng lại #8 từ clip sẵn có (v2) · nặng:1 · ⬜
+- [ ] S1.1 · Bỏ hẳn bảng tên nhân vật; HUD không vào .srt; ghi luật dùng lại sau này · nặng:1 · 🔄 · code + test xong, chờ dựng lại #8 để xác nhận: name_cards gỡ khỏi features/subtitles; .srt chỉ lời thoại (test_editor_cuts)
+- [ ] S1.2 · Hiệu ứng âm thanh neo theo shot, tính lại giây mỗi lần dựng · nặng:2 · 🔄 · code + test xong, chờ dựng lại #8 để xác nhận: sfx_plan.anchor + place_on_timeline, gọi trong delivery.render (test_sound_lib)
+- [ ] S1.3 · Ý đồ nhạc tự sửa (cut lặp) + chặn nhạc lặng > 8 s · nặng:2 · 🔄 · code + test xong, chờ dựng lại #8 để xác nhận: sound_intent.MAX_OFF_S = 8 s, auto_in + cảnh báo (test_sound_intent)
+- [ ] S1.4 · Nhạc khớp độ dài phim thật · nặng:2 · 🔄 · code + test xong, chờ dựng lại #8 để xác nhận: ffmpeg_studio.music_loops: nhạc ngắn lặp lại có crossfade 1,5 s (test_audio_lib)
+- [ ] S1.5 · Phụ đề không đè mặt (chỉ lên trên khi dải trên trống) · nặng:2 · 🔄 · code + test xong, chờ dựng lại #8 để xác nhận: text_placement: chỉ đổi sang vị trí không che mặt + ngưỡng mặt 0,8 (bàn tay Kelly bị nhận là mặt 0,69) (test_text_placement)
+- [ ] S1.6 · Limiter −1 dBTP + mã hóa âm một lần · nặng:2 · 🔄 · code + test xong, chờ dựng lại #8 để xác nhận: PCM giữa 2 bước trộn (AAC 1 lần) + hiệu ứng đè thoại hạ 6 dB (test_audio_lib)
+- [ ] S1.7 · Ngữ pháp hồi tưởng ở khâu Dựng (cờ flashback_fx) · nặng:2 · 🔄 · code + test xong, chờ dựng lại #8 để xác nhận: cờ flashback_fx: flash trắng + màu ký ức (test_final_qc)
+- [ ] S1.8 · Shot kết giữ hình ≥ 2,5 s · nặng:1 · 🔄 · code + test xong, chờ dựng lại #8 để xác nhận: cờ end_hold: giữ khung cuối ≥ 2,5 s (test_final_qc)
+- [ ] S1.9 · QC bản dựng cuối bằng máy (core/final_qc.py) · nặng:3 · 🔄 · code + test xong, chờ dựng lại #8 để xác nhận: core/final_qc.py + Bước 5 + deliver/autopilot; chạy trên bản giao #8 cũ bắt 9 lỗi chặn (độ dài +30 %, nhạc tắt 31 s, 4 hiệu ứng lệch shot, 3 dòng tên) + 6 cần xem
+- [ ] S1.10 · Dựng lại #8 từ clip sẵn có (v2) · nặng:1 · 🔄
 
 ### S0 — Học từ phim drama tham khảo
 - [ ] S0.1 · Chọn 5 đoạn mẫu trong phim đã gửi + phong cách DRAMA_DOC · nặng:1 · ⬜

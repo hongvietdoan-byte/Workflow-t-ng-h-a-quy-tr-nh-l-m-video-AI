@@ -126,9 +126,57 @@ def propose(client, p: Pipeline, data_dir: str, pid: int, transition: str = "cut
     return {"summary": str(obj.get("summary", "")).strip(), "cues": cues, "unmet": sound_intent.unmet(scenes, cues)}
 
 
-def apply(p: Pipeline, data_dir: str, pid: int, chosen: List[Dict]) -> int:
-    """Replace the effects an earlier AI proposal added with `chosen` (rows: id, at, volume, name). Other effects stay. Returns the count."""
+def anchor(scenes: List[Dict], at: float) -> Optional[Dict]:
+    """The shot a second of the timeline falls in: {"anchor_idx", "offset"} (offset = seconds after that shot starts)."""
+    hit = None
+    for s in scenes:
+        if s.get("idx") is not None and float(s["start"]) <= at + 1e-6:
+            hit = s
+    if hit is None:
+        return None
+    return {"anchor_idx": hit["idx"], "offset": round(max(at - float(hit["start"]), 0.0), 2)}
+
+
+def place_on_timeline(data_dir: str, pid: int, rows: List[Dict], durations: List[float], transition: str = "cut",
+                      fade: float = 1.0) -> Dict:
+    """Trial #8 (2026-09-28): an effect was saved at an absolute second, then 19 clips were remade longer and the gunshot of shot 26
+    played 20 s early, over another line. An AI-placed effect keeps the shot it belongs to (anchor_idx + offset): its second is worked
+    out again on the render's own timeline; an effect whose shot is not in this render is switched off (never played at an old time).
+    Effects without an anchor (added by hand) keep the second the person set. Returns {"moved", "off"}."""
     directory = audio_lib.assets_dir(data_dir, pid)
+    items = audio_lib.load(directory)
+    overlap = fade if transition in ffmpeg_studio.OVERLAP_STYLES else 0.0
+    starts, t = {}, 0.0
+    for r, d in zip(rows, durations):
+        if r.get("idx") is not None:
+            starts[r["idx"]] = (t, float(d))
+        t += float(d) - overlap
+    moved = off = 0
+    for e in items:
+        if e.get("kind") != "sound_effect" or e.get("anchor_idx") is None:
+            continue
+        where = starts.get(e["anchor_idx"])
+        if where is None:
+            if e.get("use"):
+                e["use"], e["anchor_off"], off = False, True, off + 1
+            continue
+        if e.pop("anchor_off", False):           # switched off only because its shot was left out: back in with the shot
+            e["use"] = True
+        start = round(where[0] + min(float(e.get("offset") or 0.0), max(where[1] - 0.05, 0.0)), 2)
+        if abs(float(e.get("start") or 0.0) - start) > 1e-6:
+            moved += 1
+        e["start"] = start
+    audio_lib._save(directory, items)
+    return {"moved": moved, "off": off}
+
+
+def apply(p: Pipeline, data_dir: str, pid: int, chosen: List[Dict], scenes: Optional[List[Dict]] = None) -> int:
+    """Replace the effects an earlier AI proposal added with `chosen` (rows: id, at, volume, name). Other effects stay. Returns the count.
+    Each effect is anchored to the shot its second falls in on `scenes` (the timeline the proposal was made on; read again when not
+    given), so a later render with other clip lengths moves it with its shot (place_on_timeline)."""
+    directory = audio_lib.assets_dir(data_dir, pid)
+    if scenes is None:
+        scenes = timeline(p, data_dir, pid)
     for i in reversed([i for i, e in enumerate(audio_lib.load(directory)) if str(e.get("label", "")).startswith(LABEL_PREFIX)]):
         audio_lib.remove(directory, i)
     n = 0
@@ -138,6 +186,6 @@ def apply(p: Pipeline, data_dir: str, pid: int, chosen: List[Dict]) -> int:
             continue
         seconds = sound_lib.ensure_duration(p.conn, row["id"])
         audio_lib.add_local(directory, row["path"], LABEL_PREFIX + row["name"], float(c["at"]), float(c["volume"]),
-                            int(seconds * 1000) if seconds else None)
+                            int(seconds * 1000) if seconds else None, anchor(scenes, float(c["at"])))
         n += 1
     return n

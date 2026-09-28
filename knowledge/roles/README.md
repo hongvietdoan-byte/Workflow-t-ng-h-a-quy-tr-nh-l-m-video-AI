@@ -83,7 +83,7 @@ người xem, nên đứng trước nhịp cắt. Hy sinh mục thấp hơn → 
 | D7 | ✅ Khớp màu giữa các shot cùng nơi/cảnh/nhóm cỡ: luôn đo (🎨 Bước 5), sửa bản sao sau cờ `shot_color_match` (TẮT) — `core/color_match.py` | Dựng | — |
 | D8 | ✅ Khớp hạt người–nền khi ghép (hạt mới mỗi khung) | Dựng | — |
 | D9 | ✅ Rung máy 0,25 s ở hiệu ứng va chạm (cờ `impact_shake`); lóa / hạt toàn khung: chưa (ít cần) | Dựng | — |
-| D10 | ✅ Bảng tên nhân vật lần đầu xuất hiện (cờ `name_cards`) | Dựng | — |
+| D10 | ❌ Bảng tên nhân vật — đã bỏ 2026-09-28 (người dùng, sau #8); luật nếu dùng lại ở `knowledge/editor/editing.md` | Dựng | — |
 | D11 | ✅ Đo độ to mọi bản dựng (manifest + Bước 5); chuẩn hóa −14 LUFS / −1,5 dBTP sau cờ `loudness_normalize` (TẮT) | Dựng | — |
 | D12 | ✅ `_ENCODE` có `+faststart` + thẻ màu BT.709 | Dựng | — |
 | D14 | ✅ Đo: nhạc hạ 14,5–22,8 dB dưới giọng thật #7 (khuyên 6–10) → **người dùng quyết** có nhẹ tay hơn | Dựng | — |

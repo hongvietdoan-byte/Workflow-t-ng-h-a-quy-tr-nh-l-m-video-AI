@@ -24,6 +24,9 @@ MUSIC = ("keep", "cut", "in", "breath")
 MAX_SFX = 3
 SFX_WINDOW = 0.6          # a requested sound counts as placed when a cue starts this close before the shot, or inside it
 MOSTLY_SILENT = 0.5       # music held out for more than this share of the film: probably a forgotten "in"
+MAX_OFF_S = 8.0           # trial #8 (2026-09-28): "cut" at shot 16, "cut" again at 21, 23, 25, 26, 27 and "in" only at 28 = 27 s without
+                          # music (người dùng: "mất nhạc nền"). The Director meant a few silent moments, not one long hole: a silence
+                          # ends at the first shot that starts MAX_OFF_S after it began, and a later "cut" opens a new one.
 
 
 def clean(value) -> Tuple[Optional[Dict], List[str]]:
@@ -66,7 +69,7 @@ def warnings(shots: List[Dict]) -> List[str]:
     intents = [(k, clean(s.get("sound"))) for k, s in enumerate(shots, 1)]
     for k, (_, problems) in intents:
         out += [f"shot {k}: {p}" for p in problems]
-    music_on, off_from, off_s, total = True, None, 0.0, 0.0
+    music_on, off_from, off_s, total, run, longest = True, None, 0.0, 0.0, 0.0, 0.0
     for k, (sound, _) in intents:
         dur = float(shots[k - 1].get("duration_s") or 0)
         m = (sound or {}).get("music")
@@ -83,9 +86,16 @@ def warnings(shots: List[Dict]) -> List[str]:
             music_on = True
         if not music_on:
             off_s += dur
+            run += dur
+            longest = max(longest, run)
+        else:
+            run = 0.0
         total += dur
     if total and off_s / total > MOSTLY_SILENT:
         out.append(f"nhạc tắt từ shot {off_from} ({off_s:.0f}/{total:.0f} s) — quá nửa phim không nhạc: thiếu shot 'in'?")
+    if longest > MAX_OFF_S:
+        out.append(f"nhạc tắt liền {longest:.0f} s — khoảng lặng dài hơn {MAX_OFF_S:g} s liền sẽ được bản dựng tự cho nhạc vào lại "
+                   "(đặt 'in' sau khoảnh khắc cần lặng; muốn lặng lâu hơn thì chia thành nhiều khoảng 'cut' … 'in')")
     for k, s in enumerate(shots, 1):
         acting = s.get("performance") if isinstance(s.get("performance"), dict) else {}
         if acting.get("intensity") == 5 and not intents[k - 1][1][0]:
@@ -95,16 +105,22 @@ def warnings(shots: List[Dict]) -> List[str]:
 
 
 def music_plan(datas: Sequence[Dict], durations: Sequence[float], transition: str = "cut", fade: float = 1.0,
-               overlap_styles: Sequence[str] = ()) -> Dict:
-    """The music's silences on the render's timeline: {"off": [(start, end)], "breaths": [time], "planned": n}. `datas` and
-    `durations` are the rendered shots in order (the clips' cut lengths); an overlapping transition shortens the timeline."""
+               overlap_styles: Sequence[str] = (), max_off: float = MAX_OFF_S) -> Dict:
+    """The music's silences on the render's timeline: {"off": [(start, end)], "breaths": [time], "planned": n, "auto_in": [time]}.
+    `datas` and `durations` are the rendered shots in order (the clips' cut lengths); an overlapping transition shortens the timeline.
+    A silence never runs longer than `max_off` (+ the rest of the shot it reaches): the music comes back at the next shot start and that
+    time is listed in "auto_in" (the render's manifest and Step 5 say so — CHUAN luật 1)."""
     overlap = fade if transition in overlap_styles else 0.0
-    t, off, breaths, planned, off_start = 0.0, [], [], 0, None
+    t, off, breaths, planned, off_start, auto_in = 0.0, [], [], 0, None, []
     total = sum(float(d) for d in durations) - overlap * max(len(durations) - 1, 0)
     for data, d in zip(datas, durations):
         m = of(data).get("music")
         if m in ("cut", "in", "breath"):
             planned += 1
+        if off_start is not None and m != "in" and max_off and t - off_start >= max_off - 1e-6:
+            off.append((off_start, round(t, 2)))          # too long a hole: the music is back at this shot
+            auto_in.append(round(t, 2))
+            off_start = None
         if m == "cut" and off_start is None:
             off_start = round(t, 2)
         elif m == "in" and off_start is not None:
@@ -115,8 +131,12 @@ def music_plan(datas: Sequence[Dict], durations: Sequence[float], transition: st
             breaths.append(round(t, 2))
         t += float(d) - overlap
     if off_start is not None and total > off_start:
-        off.append((off_start, round(total, 2)))
-    return {"off": off, "breaths": breaths, "planned": planned}
+        end = round(total, 2)
+        if max_off and end - off_start > max_off + 1e-6 and not (off and off[-1][1] == off_start):
+            auto_in.append(round(off_start + max_off, 2))
+            end = round(off_start + max_off, 2)
+        off.append((off_start, end))
+    return {"off": off, "breaths": breaths, "planned": planned, "auto_in": auto_in}
 
 
 def unmet(scenes: Sequence[Dict], cues: Sequence[Dict]) -> List[Dict]:

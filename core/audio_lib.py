@@ -48,8 +48,10 @@ def _add(directory: str, kind: str, label: str, asset_id: Optional[str], message
     return entry
 
 
-def add_local(directory: str, src_path: str, label: str, start: float = 0.0, volume: float = 1.0, duration_ms: Optional[int] = None) -> Dict:
-    """Put a file of the person's own sound library into the mix (copied into the project, ready to use)."""
+def add_local(directory: str, src_path: str, label: str, start: float = 0.0, volume: float = 1.0, duration_ms: Optional[int] = None,
+              extra: Optional[Dict] = None) -> Dict:
+    """Put a file of the person's own sound library into the mix (copied into the project, ready to use). `extra`: more fields of the
+    entry (e.g. the shot an AI-placed effect belongs to: anchor_idx + offset)."""
     import shutil
     ext = os.path.splitext(src_path)[1].lower()
     items = load(directory)
@@ -59,7 +61,7 @@ def add_local(directory: str, src_path: str, label: str, start: float = 0.0, vol
     name = f"local_{n}{ext}"
     shutil.copyfile(src_path, os.path.join(directory, name))
     entry = {"kind": "sound_effect", "label": label, "asset_id": "local", "file": name, "duration_ms": duration_ms, "state": "succeeded",
-             "message": None, "use": True, "start": max(float(start), 0.0), "volume": max(min(float(volume), 2.0), 0.0)}
+             "message": None, "use": True, "start": max(float(start), 0.0), "volume": max(min(float(volume), 2.0), 0.0), **(extra or {})}
     items.append(entry)
     _save(directory, items)
     return entry
@@ -143,11 +145,25 @@ def remove(directory: str, index: int) -> None:
     _save(directory, items)
 
 
+SFX_UNDER_SPEECH = 0.5     # trial #8 (2026-09-28): gunshot + impact + beep (peaks -6 / -0.4 / -4 dBFS) summed over a voice line at -0.3 dBFS,
+                           # then squeezed by the peak limiter = the "tiếng rè" at 43 s. An effect that plays over a spoken line is halved.
+
+
 def mix_list(directory: str) -> List[Dict]:
-    """Extras for the final render: finished assets switched on, in the order they were created."""
-    return [{"path": os.path.join(directory, e["file"]), "start": e["start"], "volume": e["volume"]}
-            for e in load(directory) if e["use"] and e["state"] == "succeeded" and e.get("file")
-            and os.path.exists(os.path.join(directory, e["file"]))]
+    """Extras for the final render: finished assets switched on, in the order they were created. A sound effect that overlaps a
+    voice line switched on for the mix plays at SFX_UNDER_SPEECH of its volume (the words stay clear, the limiter is not driven hard)."""
+    items = [e for e in load(directory) if e["use"] and e["state"] == "succeeded" and e.get("file")
+             and os.path.exists(os.path.join(directory, e["file"]))]
+    speech = [(e["start"], e["start"] + _duration(e)) for e in items if e["kind"] == "tts" and _duration(e) > 0]
+    out = []
+    for e in items:
+        volume = e["volume"]
+        if e["kind"] == "sound_effect":
+            a, b = e["start"], e["start"] + (_duration(e) or 0.5)
+            if any(a < y and x < b for x, y in speech):
+                volume = round(volume * SFX_UNDER_SPEECH, 3)
+        out.append({"path": os.path.join(directory, e["file"]), "start": e["start"], "volume": volume})
+    return out
 
 
 def _duration(e: Dict) -> float:

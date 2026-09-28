@@ -121,9 +121,14 @@ xúc, âm thanh làm thế giới game "thật", màu các shot liền nhau như
 - **Trong pipeline.** ✅ Thời tiết rơi (mưa/tuyết/bụi) + chớp trên ảnh và clip (`plate_env.overlay_still/overlay_video`); ✅ thông báo game
   kiểu riêng (vàng trên nền tối, dải trên — `subtitles` HUD); ✅ card cuối. ✅ **Rung máy khi va chạm** (D9): khung rung 0,25 s, ≤ 10 px,
   tắt dần, đúng giây của hiệu ứng có nhãn va chạm/nổ/súng/đấm trong bản trộn (`ffmpeg_studio.add_shake`, cỡ khung giữ nguyên; cờ
-  `impact_shake` TẮT). ✅ **Bảng tên nhân vật** lần đầu xuất hiện (D10, kiểu thông báo game, 1,8 s; cờ `name_cards` TẮT). ❌ Lóa ống kính, hạt
+  `impact_shake` TẮT). ❌ **Bảng tên nhân vật** (D10) — **đã bỏ** 2026-09-28 sau #8 (người dùng: dòng tên lẫn vào phụ đề, đè trán nhân vật). Nếu dùng lại: hiện **một lần duy nhất** khi nhân vật xuất hiện lần đầu trong **cả video** (như giới thiệu nhân vật), đặt **cạnh chính nhân vật đó** theo vị trí dò được (không ở dải chữ chung, không đè mặt), không ghi vào `.srt`. ❌ Lóa ống kính, hạt
   phim toàn khung — chưa làm (hiếm khi cần cho FF; ghi nhận).
-- **Kiểm.** Người: có hiệu ứng nào không cần? Code: chữ HUD trong vùng an toàn.
+- **Sau #8 (2026-09-28, kế hoạch sửa S1):** hồi tưởng có ngữ pháp riêng ở khâu Dựng — flash trắng 0,25 s vào/ra, màu ấm nhạt + viền tối (cờ
+  `flashback_fx`); shot cuối giữ hình ≥ 2,5 s (cờ `end_hold`); nhạc không tắt liền quá 8 s (`sound_intent.MAX_OFF_S` — `cut` lặp không kéo
+  dài khoảng lặng); hiệu ứng AI gắn theo shot (đổi độ dài clip thì đi theo shot); hiệu ứng đè câu thoại tự hạ 6 dB; nhạc ngắn hơn phim thì
+  lặp lại có crossfade; phụ đề chỉ đổi chỗ sang vị trí **không** che mặt; `core/final_qc.py` đo bản dựng trước khi giao.
+- **Kiểm.** Người: có hiệu ứng nào không cần? Code: chữ HUD trong vùng an toàn; `final_qc` (độ dài, lỗ nhạc, hiệu ứng lệch shot, đỉnh âm,
+  dòng phụ đề không phải thoại, phụ đề đè mặt, shot < 1 s, cả bản trộn lặng).
 - **Ví dụ FF.** ✔ #6 "HỆ THỐNG: Maxim đã bị hạ." thành thông báo game trên màn hình, không phải giọng đọc.
 
 ### E7. Chữ và vùng an toàn

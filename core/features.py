@@ -67,15 +67,21 @@ FEATURES: Dict[str, Dict] = {
         "why": "2026-09-26 (director.md Đ9, bài học Handbook ch. V): chưa nghe thử bản dựng có nhạc ngắt theo shot; tắt thì bản dựng "
                "ghi lại số ý đồ chưa áp (manifest `sound_intent`)",
     },
+    "flashback_fx": {
+        "label": "Hồi tưởng ở khâu Dựng: shot hồi tưởng có flash trắng vào/ra, màu ấm nhạt + viền tối (người xem biết là ký ức)",
+        "verified": False,
+        "why": "2026-09-28 (sau #8, người dùng: hồi tưởng không có hiệu ứng nên không ai biết là hồi tưởng): mới thử bằng ffmpeg trên clip "
+               "#8, chờ người dùng xem bản dựng lại",
+    },
+    "end_hold": {
+        "label": "Giữ hình shot cuối ít nhất 2,5 s (kéo dài khung cuối) để cái kết không lướt qua",
+        "verified": False,
+        "why": "2026-09-28 (sau #8: hai shot kết mỗi shot 1 s, người dùng thấy kết cụt): chờ người dùng xem bản dựng lại",
+    },
     "impact_shake": {
         "label": "Rung khung hình 0,25 s ở những giây có hiệu ứng va chạm / nổ / súng trong bản trộn",
         "verified": False,
         "why": "GĐ4 (editing.md E6, D9): chưa xem thử trên bản dựng thật; rung sai chỗ làm người xem khó chịu",
-    },
-    "name_cards": {
-        "label": "Bảng tên nhân vật (kiểu thông báo game) ở lần đầu mỗi nhân vật xuất hiện",
-        "verified": False,
-        "why": "GĐ4 (editing.md E6, D10): dùng kiểu chữ thông báo game sẵn có; chưa xem thử — người dùng chọn có cần không",
     },
     "ambience_bed": {
         "label": "Âm nền mỗi cảnh từ thư viện âm thanh của bạn (theo thời tiết → giờ → bối cảnh), nhỏ dưới thoại, lặp đủ dài",

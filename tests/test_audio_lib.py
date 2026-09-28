@@ -31,6 +31,15 @@ class AudioLibTests(unittest.TestCase):
         self.assertTrue(all(os.path.exists(m["path"]) for m in mix))
         self.assertIn("Mock voice", audio_lib.load(self.dir)[1]["label"])
 
+    def test_an_effect_over_a_spoken_line_is_halved_in_the_mix(self):
+        """Trial #8 (2026-09-28): gunshot + impact + beep summed over a voice line, then limited = "tiếng rè"."""
+        for i, (kind, start, ms) in enumerate((("tts", 1.0, 2000), ("sound_effect", 2.5, 500), ("sound_effect", 4.0, 500))):
+            path = os.path.join(self.dir, f"x{i}.wav")
+            open(path, "wb").close()
+            audio_lib.add_local(self.dir, path, f"e{i}", start, 1.0, ms, {"kind": kind} if kind == "tts" else None)
+        vols = [m["volume"] for m in audio_lib.mix_list(self.dir)]
+        self.assertEqual(vols, [1.0, audio_lib.SFX_UNDER_SPEECH, 1.0])       # 2,5 s is inside the line (1–3 s); 4 s is after it
+
     def test_cannot_use_unfinished_asset_and_remove_deletes_file(self):
         audio_lib.submit_sfx(self.provider, self.dir, "wind")
         with self.assertRaises(ValueError):
@@ -127,9 +136,23 @@ class MixCommandTests(unittest.TestCase):
         self.assertEqual(len(calls), 3)
         staged = calls[2][-1]                     # D6: the last step writes a temp file next to o.mp4, moved onto it when done
         self.assertRegex(staged, r"^o\.part-[0-9a-f]{8}\.mp4$")
-        self.assertEqual(calls[1][-1], staged + ".music.mp4")
+        self.assertEqual(calls[1][-1], staged + ".music.mkv")
+        self.assertIn("pcm_s16le", calls[1])                  # A18: PCM between the two mixing steps, AAC once at the end
+        self.assertIn("aac", calls[2])
         self.assertIn("amix=inputs=2", " ".join(calls[2]))
-        self.assertEqual([r for r in removed if r.startswith("o.")], [staged + ".silent.mp4", staged + ".music.mp4"])
+        self.assertEqual([r for r in removed if r.startswith("o.")], [staged + ".silent.mp4", staged + ".music.mkv"])
+
+    def test_a_music_track_shorter_than_the_film_plays_again_crossfaded(self):
+        """Trial #8 (2026-09-28): 68 s of music under 83 s of film — the last 15 s had no music."""
+        self.assertEqual(f.music_loops(67.8, 83.0), 1)
+        self.assertEqual(f.music_loops(20.0, 83.0), 4)          # 20 + 4 × 18,5 = 94 ≥ 83
+        self.assertEqual(f.music_loops(90.0, 83.0), 0)
+        self.assertEqual(f.music_loops(None, 83.0), 0)
+        cmd = f.build_mux_music_cmd("v.mp4", "m.mp3", "o.mp4", 83.0, music_len=67.8)
+        graph = cmd[cmd.index("-filter_complex") + 1]
+        self.assertIn("[1:a]asplit=2[mc0][mc1];[mc0][mc1]acrossfade=d=1.5[ml1];[ml1]atrim=0:83.0", graph)
+        plain = f.build_mux_music_cmd("v.mp4", "m.mp3", "o.mp4", 60.0, music_len=67.8)
+        self.assertTrue(plain[plain.index("-filter_complex") + 1].startswith("[1:a]atrim=0:60.0"))
 
     def test_render_final_extras_without_music(self):
         calls = []

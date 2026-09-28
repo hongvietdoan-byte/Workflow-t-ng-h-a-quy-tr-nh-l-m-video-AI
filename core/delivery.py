@@ -269,6 +269,52 @@ def sound_plan(p: Pipeline, rows: List[Dict], durations: List[float], transition
     return sound_intent.music_plan(datas, durations, transition, fade, tuple(ffmpeg_studio.OVERLAP_STYLES))
 
 
+END_HOLD_S = 2.5
+
+
+def _hold_end(paths: List[str], durations: List[float], work_dir: str) -> Optional[Dict]:
+    """Trial #8 (2026-09-28): the two closing shots were 1 s each, the ending flew by. With `end_hold` on, a last shot shorter than
+    END_HOLD_S goes into the cut with its last frame held (copy; the original clip untouched). `paths` / `durations` change in place."""
+    from . import features
+    if not features.on("end_hold") or not paths or durations[-1] >= END_HOLD_S - 1e-6:
+        return None
+    extra = round(END_HOLD_S - float(durations[-1]), 2)
+    os.makedirs(work_dir, exist_ok=True)
+    dst = os.path.join(work_dir, "end_hold.mp4")
+    try:
+        ffmpeg_studio.hold_last_frame(paths[-1], dst, extra)
+    except Exception as e:  # noqa: BLE001 - the plain ending stays; the reason goes into the manifest
+        return {"error": str(e)[:200]}
+    paths[-1] = dst
+    durations[-1] = END_HOLD_S
+    return {"held_s": extra}
+
+
+def _flashbacks(p: Pipeline, rows: List[Dict], paths: List[str], durations: List[float], work_dir: str) -> List[Dict]:
+    """Trial #8 (2026-09-28, người dùng): the flashback had only warmer light in its picture — nobody could tell it was a memory. With
+    the feature `flashback_fx` on, a flashback shot (scene_establish.is_flashback: its own words or `flashback: true`) goes into the cut
+    as a copy with the memory look (ffmpeg_studio.flashback_filter); the original clip is untouched. `paths` is changed in place.
+    Returns [{"idx", "path"} | {"idx", "error"}] for the manifest."""
+    from . import features, scene_establish
+    if not features.on("flashback_fx"):
+        return []
+    out = []
+    usable = [r for r in rows if r.get("path")]
+    for r, d in zip(usable, durations):
+        row = p.conn.execute("SELECT data FROM scenes WHERE id=?", (r.get("scene_id"),)).fetchone() if r.get("scene_id") else None
+        if not row or not scene_establish.is_flashback(json.loads(row["data"] or "{}")):
+            continue
+        os.makedirs(work_dir, exist_ok=True)
+        dst = os.path.join(work_dir, f"flashback_{r.get('idx')}.mp4")
+        try:
+            ffmpeg_studio.add_flashback(r["path"], dst, float(d))
+            paths[paths.index(r["path"])] = dst
+            out.append({"idx": r.get("idx"), "path": dst})
+        except Exception as e:  # noqa: BLE001 - the plain clip stays in the cut; the reason goes into the manifest
+            out.append({"idx": r.get("idx"), "error": str(e)[:200]})
+    return out
+
+
 def _colour_match(p: Pipeline, project_id: int, rows: List[Dict], paths: List[str], work_dir: str) -> Optional[List[Dict]]:
     """editing.md E5 (việc code D7): shots of one place and size class are measured against their anchor (black / white points, cast of
     grey things); with the feature `shot_color_match` on, the drifting ones go into the cut as corrected copies (originals untouched).
@@ -324,6 +370,8 @@ def render(p: Pipeline, project_id: int, data_dir: str, music_path: Optional[str
     if problems:
         raise ValueError("; ".join(problems))
     placed = voice.place_on_timeline(p.conn, project_id, data_dir, settings["transition"], settings["fade"], paths, durations)
+    from . import sfx_plan               # AI effects follow their shot (trial #8: a gunshot 20 s early after clips were remade)
+    sfx_moved = sfx_plan.place_on_timeline(data_dir, project_id, rows, durations, settings["transition"], settings["fade"])
     keep_audio = settings["keep_audio"]
     if placed and keep_audio:        # AU-e: the video model's own speech under the Vietnamese TTS lines = two voices at once
         keep_audio = False
@@ -336,6 +384,9 @@ def render(p: Pipeline, project_id: int, data_dir: str, music_path: Optional[str
     out = os.path.join(output_dir(data_dir, project_id), "FINAL_VIDEO.mp4")
     originals = list(paths)                   # lineage follows the shots' own clips, never the colour-matched copies
     colour = _colour_match(p, project_id, rows, paths, os.path.join(output_dir(data_dir, project_id), "_colour"))
+    flashbacks = _flashbacks(p, rows, paths, durations, os.path.join(output_dir(data_dir, project_id), "_flashback"))
+    durations = list(durations)
+    held = _hold_end(paths, durations, os.path.join(output_dir(data_dir, project_id), "_flashback"))   # after the voices are placed
     from . import features
     amb = None
     if features.on("ambience_bed"):            # D4/D5: a quiet bed per scene from the person's sound library, under everything
@@ -352,7 +403,8 @@ def render(p: Pipeline, project_id: int, data_dir: str, music_path: Optional[str
     if plan["planned"]:                        # director.md Đ9: the Director's music silences (cut … in, breath before a shot)
         if features.on("sound_intent") and track:
             breaths, music_off = merge_breaths(breaths, plan["breaths"]), plan["off"]
-            intent = {"applied": True, "off": plan["off"], "breaths": plan["breaths"]}
+            intent = {"applied": True, "off": plan["off"], "breaths": plan["breaths"],
+                      **({"auto_in": plan["auto_in"]} if plan.get("auto_in") else {})}
         else:                                  # CHUAN luật 1: planned and not applied is said, not dropped in silence
             intent = {"applied": False, "planned": plan["planned"],
                       "why": "cờ sound_intent đang TẮT" if track else "bản dựng không có nhạc nền"}
@@ -373,6 +425,12 @@ def render(p: Pipeline, project_id: int, data_dir: str, music_path: Optional[str
     manifest = final_manifest(p, project_id, data_dir, originals, settings)
     manifest["loudness"] = _loudness(out)
     manifest["color_match"] = colour
+    if flashbacks:
+        manifest["flashback_fx"] = flashbacks
+    if held:
+        manifest["end_hold"] = held
+    if sfx_moved["moved"] or sfx_moved["off"]:
+        manifest["sfx_placed"] = sfx_moved
     if breaths:
         manifest["music_breaths"] = breaths
     if intent is not None:
@@ -671,7 +729,14 @@ def deliver(p: Pipeline, project_id: int, data_dir: str, llm=None, music_path: O
         except Exception as e:  # noqa: BLE001
             warnings.append(f"xuất {spec.get('w')}x{spec.get('h')}: {e}")
             diag.record(p.conn, "render", "warn", f"xuất bản {spec} thất bại: {e}", "export", project_id)
-    return {"final": final_path, "layers": layers, "warnings": warnings}
+    from . import final_qc                       # S1.9: measured before anyone is told "done" (trial #8)
+    try:
+        qc = final_qc.run(p, project_id, data_dir)
+    except Exception as e:  # noqa: BLE001 - a broken meter is said, the video stays
+        qc = {"ok": False, "blocks": 0, "warns": 1, "issues": [{"code": "qc_error", "level": "warn", "msg": f"không kiểm được: {e}", "at": None}]}
+    if qc["blocks"]:
+        diag.record(p.conn, "render", "warn", final_qc.summary(qc)[:400], "final_qc", project_id)
+    return {"final": final_path, "layers": layers, "warnings": warnings, "qc": qc}
 
 
 # ---- animatic: the film's rhythm before any video credit ------------------------------------------------------------------
