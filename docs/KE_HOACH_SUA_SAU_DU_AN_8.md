@@ -16,7 +16,7 @@
 | Đợt | Việc | Xong | Đang làm | Chờ người dùng | Bỏ | Tiến độ |
 |---|---|---|---|---|---|---|
 | P0 Theo dõi tiến độ | 2 | 2 | 0 | 0 | 0 | 100 % |
-| S1 Dựng & âm thanh | 10 | 9 | 0 | 1 | 0 | 94,4 % |
+| S1 Dựng & âm thanh | 13 | 12 | 0 | 1 | 0 | 95,8 % |
 | S0 Học từ phim drama tham khảo | 8 | 0 | 0 | 0 | 0 | 0 % |
 | S9 Dashboard gọn, dễ nhìn | 6 | 0 | 0 | 0 | 0 | 0 % |
 | S2 Timeline theo âm thanh + animatic | 5 | 0 | 0 | 0 | 0 | 0 % |
@@ -27,7 +27,7 @@
 | S7 Agent QC | 2 | 0 | 0 | 0 | 0 | 0 % |
 | K Chạy kiểm kịch bản hài 20–30 s | 3 | 0 | 0 | 0 | 0 | 0 % |
 | S8 Chấm lại bằng AI Development System (cuối cùng) | 5 | 0 | 0 | 0 | 0 | 0 % |
-| **Tổng** | **66** | **11** | **0** | **1** | **0** | **18 %** |
+| **Tổng** | **69** | **14** | **0** | **1** | **0** | **22,2 %** |
 
 Đợt hiện tại: **S1** · việc kế: **S0.1** Chọn 5 đoạn mẫu trong phim đã gửi + phong cách DRAMA_DOC
 <!-- /tien-do -->
@@ -48,7 +48,10 @@
 - [x] S1.7 · Ngữ pháp hồi tưởng ở khâu Dựng (cờ flashback_fx) · nặng:2 · ✅ · 5a5e381 · dựng lại #8: shot 28 có flash trắng + màu ký ức (ảnh v2_s1_kiem_tra.jpg)
 - [x] S1.8 · Shot kết giữ hình ≥ 2,5 s · nặng:1 · ✅ · 5a5e381 · dựng lại #8: shot 33 giữ 2,5 s
 - [x] S1.9 · QC bản dựng cuối bằng máy (core/final_qc.py) · nặng:3 · ✅ · 5a5e381 · bản cũ: 9 lỗi chặn; bản dựng lại: 1 lỗi chặn (độ dài +33 % → S2) + 4 cần xem
-- [ ] S1.10 · Dựng lại #8 từ clip sẵn có (v2) · nặng:1 · ⏸ · bản v2 ở D:/AI-Video-Output/2026-09-28_du-an-8/v2 — chờ người dùng xem/nghe
+- [x] S1.10 · Dựng lại #8 từ clip sẵn có (v2) · nặng:1 · ✅ · df6d2c7 · v2 ở D:/AI-Video-Output/2026-09-28_du-an-8/v2; người dùng xem, góp ý 2 điểm → S1.11, S1.12
+- [x] S1.11 · Phụ đề theo vùng an toàn TikTok (góp ý người dùng về v2) · nặng:2 · ✅ · a4858b9 · mặc định TikTok: trên 8 %, dưới 27 %, hai bên 13,5 %; bỏ vị trí "thấp"; ảnh docs/video_check_2026-09-28/v3_phu_de_vung_tiktok.jpg
+- [x] S1.12 · Nhạc mềm + đi theo cảnh (góp ý người dùng về v2) · nặng:3 · ✅ · 82ce1b2 · dốc tắt/vào, lặng dài thì nhạc trở lại nhỏ; cờ music_fit dời từng đoạn nhạc về đầu cảnh thật (10,1 · 24,3 · 45,7 · 62,9 · 72,0 s); v3 đo liền mạch
+- [ ] S1.13 · Người dùng xem/nghe bản v3 · nặng:1 · ⏸ · D:/AI-Video-Output/2026-09-28_du-an-8/v3
 
 ### S0 — Học từ phim drama tham khảo
 - [ ] S0.1 · Chọn 5 đoạn mẫu trong phim đã gửi + phong cách DRAMA_DOC · nặng:1 · ⬜
