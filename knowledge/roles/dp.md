@@ -62,7 +62,7 @@ Làm cho người xem **thấy rõ** điều Đạo diễn muốn họ cảm —
   | ECU | 85 | 24° / 14° | mắt, chi tiết |
 
   Khung dọc hẹp theo chiều ngang: muốn rộng ngang như "35 mm" của khung 16:9 cần ~18–20 mm.
-- **Trong pipeline.** `lens_mm` (14–200) khi muốn khác mặc định: 24 mm đặt gần = anh hùng/ngợp; 85–135 mm = nén, cô lập, rình rập. Máy ảo giữ
+- **Trong pipeline.** `lens_mm` (14–200) khi muốn khác mặc định. Hiệu ứng thị giác (dùng cho ý đồ nào là tùy cảnh): 24 mm đặt gần phóng to tiền cảnh, kéo dãn không gian (có thể gợi ngợp, hùng, méo, hài…); 85–135 mm nén hậu cảnh, tách chủ thể (có thể gợi cô lập, rình rập, thân mật…). Máy ảo giữ
   **cỡ người trong khung** và tự lùi/tiến máy theo tiêu cự → nền đổi độ nén đúng như máy thật. Không có nền 3D thì ghi ống kính bằng chữ trong
   `image_prompt` ("shot on a 24mm lens, close") — model ảnh chỉ nghe theo chữ.
   - **Độ sâu trường ảnh bằng chữ** (shot không có nền 3D): nói **lớp nào nét, lớp nào nhòe** và vì sao — "Kelly in sharp focus, the tower
@@ -74,8 +74,8 @@ Làm cho người xem **thấy rõ** điều Đạo diễn muốn họ cảm —
   tháp — muốn thấy mốc thì hạ máy + ngửa (góc thấp) hoặc lùi ra trung (Q6).
 
 ### Q3. Bố cục (khung dọc 9:16)
-- **Làm gì · vì sao.** Mỗi khung **một trung tâm chú ý**; 1/3; chiều sâu tiền–trung–hậu (không gian sâu = cường độ cao, phẳng = thấp [Q25]);
-  đường dẫn, khung trong khung, khoảng trống âm (người nhỏ giữa khoảng trống = cô độc) [Q1][Q5]. Khoảng trống phía nhìn/phía đi; khoảng
+- **Làm gì · vì sao.** Mỗi khung **một trung tâm chú ý**; 1/3; chiều sâu tiền–trung–hậu (Block [Q25]: không gian sâu thường tăng cường độ thị giác, phẳng giảm — là công cụ, ý đồ do cảnh);
+  đường dẫn, khung trong khung, khoảng trống âm (người nhỏ giữa khoảng trống có thể gợi cô độc, tự do, bị đe dọa… tùy cảnh) [Q1][Q5]. Khoảng trống phía nhìn/phía đi; khoảng
   trống trên đầu vừa đủ. **Khung dọc** mạnh ở chiều cao (toàn thân, mặt cận, công trình đứng), yếu ở hai người đứng ngang → xếp người theo
   **chiều sâu** (qua vai) thay vì cạnh nhau.
   - **Vị trí mắt — MỘT luật (nguồn số duy nhất của cả tổ; README trỏ về đây).** Luật chung: mắt **không lọt vào thanh giao diện app
@@ -102,9 +102,11 @@ Làm cho người xem **thấy rõ** điều Đạo diễn muốn họ cảm —
 - GPT Image 2.5 Sunburst nhận bảng thiết kế nhiều góc; không ghi tuổi dưới 18 (bị từ chối — code lọc).
 
 ### Q5. Chuyển động máy
-- **Làm gì · vì sao.** Máy chỉ chuyển động khi có **động cơ trong truyện**: đi theo hành động, hé lộ thông tin, hay đẩy cảm xúc [Q35]. Đẩy vào
-  chậm = lại gần cảm xúc; lùi ra = tiết lộ/buông; cầm tay = tức thời, căng; steadicam/gimbal = trôi theo người đi-nói; cần cẩu = đổi độ cao,
-  mở bối cảnh; vòng cung = khoe/nhấn; lia nhanh = chuyển cảnh; dolly zoom = choáng, chợt nhận ra (ASC [Q20], Veo [Q3]). Ghi **điểm đầu →
+- **Làm gì · vì sao.** Máy chỉ chuyển động khi có **động cơ trong truyện**: đi theo hành động, hé lộ thông tin, hay đẩy cảm xúc [Q35]. **Ý nghĩa
+  chuyển động không cố định** (như góc, Q1) — cách hay gặp, không phải bảng tra: đẩy vào chậm thường kéo người xem lại gần; lùi ra thường
+  tiết lộ hoặc buông; cầm tay thường tạo cảm giác tức thời; steadicam/gimbal đi theo người đi-nói; cần cẩu đổi độ cao, mở bối cảnh; vòng
+  cung khoe/nhấn; lia nhanh có thể nối cảnh; dolly zoom hay dùng cho khoảnh khắc chợt nhận ra (ASC [Q20], Veo [Q3]). Cùng một chuyển động
+  có thể phục vụ ý đồ ngược nhau — ghi lý do theo cảnh. Ghi **điểm đầu →
   chuyển động → biên độ → điểm cuối** (công thức của Seedance 1.5 [Q11]).
   - **Một chuyển động chính mỗi shot** — tài liệu chính thức Seedance 2.0: trộn đẩy/kéo/lia cùng lúc làm hình mất ổn định; ưu tiên chuyển
     động chậm, nhẹ [Q8]; Kling (blog) cũng vậy [Q17]. Runway viết khẳng định ("locked camera", không viết "no movement") và khi bị cắt ngoài
@@ -157,7 +159,7 @@ Làm cho người xem **thấy rõ** điều Đạo diễn muốn họ cảm —
 
 ### Q8. Ánh sáng
 - **Làm gì · vì sao.** Đèn chính (key), đèn phụ (fill), đèn viền (back) [Q27]; **ánh sáng có nguồn**: hướng, màu, cường độ khớp một nguồn thật
-  trong cảnh (mặt trời của nền 3D, đèn đường, lửa). Tỉ lệ key:fill ~1:1–2:1 = tông cao, tươi; 4:1 = có khối; ≥ 8:1 = tông thấp, bí ẩn
+  trong cảnh (mặt trời của nền 3D, đèn đường, lửa). Tỉ lệ key:fill ~1:1–2:1 = tông cao (high-key); 4:1 = có khối; ≥ 8:1 = tông thấp (low-key) — cảm giác (tươi, bí ẩn…) do cảnh quyết định, không do tỉ lệ
   (nguồn thứ cấp [Q27], các nguồn lệch nhau ở mốc tông cao). Nhiệt độ màu: ngày 5600 K, u ám 6500–7500 K, đèn sợi đốt ~2700 K, đèn natri ~1700–2100 K [Q28]; đêm trăng trên
   phim được **đẩy xanh lạnh theo quy ước** (trăng thật ấm hơn) — là lựa chọn phong cách.
 - **Bảng tham chiếu ánh sáng cho Đạo diễn** (mục 4.2 B7): trường cảnh `lighting` viết theo mẫu cố định *nguồn — phía — màu K — tỉ lệ —

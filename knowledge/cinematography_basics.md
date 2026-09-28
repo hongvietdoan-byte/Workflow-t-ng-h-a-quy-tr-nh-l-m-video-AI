@@ -17,16 +17,18 @@ Ghi cố định, dùng lại nguyên văn trong mọi image prompt của nhân 
 ## 3. Bối cảnh & ánh sáng
 - Bối cảnh: địa điểm, thời tiết, thời gian, vật thể nổi bật, chiều sâu (tiền cảnh/trung cảnh/hậu cảnh).
 - Ánh sáng: nguồn (mặt trời, trăng, lửa, đèn), hướng (trước/bên/ngược sáng), chất (cứng/mềm), nhiệt độ màu (ấm/lạnh), độ tương phản (high-key/low-key).
-- Mood → palette: u ám = xanh lạnh/tương phản thấp; hùng tráng = vàng cam/tương phản cao; căng thẳng = tương phản cao, bóng đổ dài.
+- Mood → palette — cách phổ biến, không bắt buộc: u ám hay dùng xanh lạnh/tương phản thấp; hùng tráng hay dùng vàng cam/tương phản cao; căng thẳng hay dùng tương phản cao, bóng đổ dài. Phim có thể cố ý làm ngược (cảnh bi kịch dưới nắng ấm) — chọn theo ý đồ cảnh.
 
 ## 4. Cỡ cảnh & góc máy
-| Cỡ cảnh | Dùng để |
+> Chọn theo ý đồ cảnh, không phải quy tắc (người dùng 2026-09-29: kỹ thuật không có nghĩa mặc định — chọn theo ý đồ cảnh). Bảng dưới là cách **hay dùng**.
+
+| Cỡ cảnh | Hay dùng cho (không cố định) |
 |---|---|
 | Extreme wide / Wide | Thiết lập bối cảnh, quy mô |
 | Medium | Đối thoại, hành động thân trên |
 | Close-up | Cảm xúc, chi tiết quan trọng |
 | Extreme close-up | Nhấn mạnh tuyệt đối (mắt, vật) |
-| Góc | Low angle = quyền lực/hùng vĩ; High angle = yếu thế; Eye level = trung tính; Dutch = bất ổn |
+| Góc | Ý nghĩa góc **không cố định** — xem `roles/dp.md` Q1 (góc thấp nhất của *Citizen Kane* rơi vào lúc Kane thất bại). Ghi lý do góc theo tình huống của cảnh |
 
 ## 5. Tính liên tục (continuity)
 - Hướng nhìn và hướng di chuyển giữ nhất quán giữa các cảnh liền nhau (quy tắc 180°).

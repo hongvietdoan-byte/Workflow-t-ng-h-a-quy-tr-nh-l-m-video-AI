@@ -121,7 +121,7 @@ quyết định ở lại hay lướt trong vài giây đầu, nên cảm xúc p
   - **Vi biểu cảm** (Ekman [Đ13]): thoáng qua cả khuôn mặt trong ≤ 0,5 s khi người ta đang che giấu; loại chỉ lộ ở **một vùng** mặt (mắt, hoặc
     khóe miệng) là biểu cảm "tinh tế". Cảnh "cố giấu" thì tả mặt đang giữ bình thường rồi một vùng lộ ra — model video vẽ được điều đó hơn
     là một cái chớp cả mặt 0,5 s.
-  - **Ánh mắt:** nhìn vào một mắt người kia, không đảo; chớp ít = mạnh, chớp nhiều = bất an [Đ14]. **Hơi thở, khoảng lặng** trước câu
+  - **Ánh mắt:** nhìn vào một mắt người kia, không đảo; nhịp chớp mắt là một công cụ (chớp ít thường đọc là tập trung / mạnh, chớp nhiều thường đọc là bất an [Đ14]) — chọn theo động cơ nhân vật lúc đó. **Hơi thở, khoảng lặng** trước câu
     quan trọng. **Hành động có động cơ** ("tay siết lại *vì* cố không khóc").
   - **Người nghe cũng diễn:** lắng nghe là diễn; shot phản ứng thường mạnh hơn shot người nói [Đ15].
 <!-- shot -->
@@ -203,7 +203,7 @@ quyết định ở lại hay lướt trong vài giây đầu, nên cảm xúc p
   đường lui (câu lên shot người nghe) và thử 1 shot cận (~$0,60) trước khi đặt nhiều `lip_sync: true`.
 - **N4. Nhân vật đúng thiết kế.** Ảnh chuẩn Kho là chuẩn thật; hồ sơ chuẩn đã duyệt thắng mô tả của dự án; mắt người/ảnh chuẩn là trọng tài
   cuối. **Không ghi số tuổi dưới 18** — nhân vật trẻ tả "young, not yet 20" (2A: GPT Image từ chối "17-year-old"; code `no_minor_age` xoá tuổi).
-- **N5. Thể loại quyết định logic dựng** (số đo FF: `ff_directing.md`, 519 shot / 19 video; phần còn lại là cách nghề — [KN]):
+- **N5. Khởi điểm tham khảo theo thể loại FF** (số đo của các video FF cụ thể: `ff_directing.md`, 519 shot / 19 video; phần còn lại là cách nghề — [KN]). Không phải luật thể loại — tùy kịch bản, làm khác thì ghi `tradeoffs`:
 
   | Thể loại FF | Nhịp (độ dài shot) | Diễn xuất | Âm thanh | Kết |
   |---|---|---|---|---|

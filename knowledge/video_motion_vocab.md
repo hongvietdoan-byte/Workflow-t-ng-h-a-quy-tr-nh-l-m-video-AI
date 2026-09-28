@@ -32,7 +32,7 @@ Ví dụ: "Slow push-in, Lyra turns her head toward the sound, mist drifts left 
 ## Negative prompt mặc định
 `deformed hands, extra fingers, distorted face, flickering, text, watermark, sudden cuts, extra people, outfit change`
 
-## Theo thể loại (mở rộng dần)
+## Theo thể loại (tham khảo, không mặc định — chọn theo ý đồ cảnh; mở rộng dần)
 - **Hành động:** camera tracking nhanh, handheld, cắt nhịp gấp; hành động lớn của chủ thể.
 - **Kinh dị/u ám:** static hoặc slow push-in, ánh sáng nhấp nháy, sương, chủ thể ít cử động.
 - **Drama/đối thoại:** medium/close-up, rack focus nhẹ, chuyển động rất nhỏ.

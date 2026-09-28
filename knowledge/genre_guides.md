@@ -1,5 +1,7 @@
 # Knowledge pack — Hướng dẫn theo thể loại (v0.2, bản khởi đầu, cần chuyên gia/người duyệt xác nhận)
 
+> Các gợi ý dưới là **khởi điểm, không phải mặc định** (người dùng 2026-09-29: kỹ thuật không có nghĩa mặc định — chọn theo ý đồ cảnh); góc máy không có nghĩa cố định (`roles/dp.md` Q1).
+
 Mỗi thể loại gồm: **cảm giác cần có**, **bảng ánh sáng/màu**, **cỡ cảnh & góc máy hay dùng**, **từ khóa tiếng Anh cho image prompt**, **lỗi hay gặp**. Image prompt luôn viết tiếng Anh, cụ thể, không dùng tên IP/nhân vật nổi tiếng.
 
 ## 1. Hành động / rượt đuổi (action)

@@ -11,7 +11,7 @@ Nguồn: bộ kỹ năng "AI Film Direction & Prompt Workflow Kit" 1.0.0 (film-d
    - **A. Khán giả so với thông tin:** biết nhiều hơn nhân vật = hồi hộp (cảnh rộng, chậm, đứng ngoài); biết ít hơn = bí ẩn (góc hạn chế, giấu thông tin); bằng nhau = đồng hành (bám sát). Trục này quyết định cỡ cảnh và cách tiết lộ, ưu tiên hơn thẩm mỹ.
    - **B. Khán giả so với nhân vật (khoảng cách đạo đức):** muốn khán giả "bước vào" → góc chủ quan, qua vai, ngang mắt, gần; muốn "đánh giá" → khách quan, cảnh rộng, xa. Nhân vật làm điều xấu mà vẫn cần giữ thiện cảm → đừng làm đẹp bằng góc máy, hãy cho thấy cái giá/sự do dự của họ.
    - **C. Nhân vật so với nhân vật (quyền lực):** thể hiện bằng tỉ lệ chiếm khung, ai quay lưng, ai nằm ở tiêu điểm, ai động ai tĩnh, không chỉ góc hất/nhìn xuống. Quyền lực phải **chảy**: đầu cảnh ai chủ động → chuyển tay ở điểm ngoặt → cuối cảnh về tay ai. Đứng yên = không có kịch.
-4. **Dàn dựng (blocking) — phân biệt đạo diễn với người quay:** quyết định người đứng/di chuyển thế nào trước, máy chỉ ghi lại. Vị trí mở đầu (quay lưng, đứng cạnh, cách bàn) đã nói lên quan hệ trước cả lời thoại. Khoảnh khắc cảm xúc quan trọng nhất nên là một thay đổi vị trí cơ thể. Khoảng cách vật lý = khoảng cách tâm lý (hòa giải → gần lại; đổ vỡ → tách ra). Quay lưng/quay mặt đi = từ chối/che giấu/dễ tổn thương, chọn đúng thời điểm.
+4. **Dàn dựng (blocking) — phân biệt đạo diễn với người quay:** quyết định người đứng/di chuyển thế nào trước, máy chỉ ghi lại. Vị trí mở đầu (quay lưng, đứng cạnh, cách bàn) đã nói lên quan hệ trước cả lời thoại. Khoảnh khắc cảm xúc quan trọng nhất nên là một thay đổi vị trí cơ thể. Khoảng cách vật lý **có thể** dùng để gợi khoảng cách tâm lý (vd hòa giải → gần lại), tùy dàn dựng. Quay lưng / quay mặt đi mang nghĩa gì (từ chối, che giấu, tổn thương, bình thản…) là do **động cơ nhân vật lúc đó** — đạo diễn chỉ rõ vì sao trong cảnh này.
 5. **Suy ra cỡ cảnh (không tra bảng):** ý định cảm xúc → lúc này kéo khán giả lại gần hay đẩy ra xa → vào hay đánh giá → quyền lực ở ai → kéo dài hay đánh gãy cảm xúc → ra cỡ cảnh.
    - Cỡ cảnh là cổng thông tin: cảnh xa cho hoàn cảnh (rút cảm xúc), cận cho cảm xúc (rút bối cảnh). Lạm dụng cận cảnh = cái gì cũng nhấn = không cái gì được nhấn.
    - **Cao trào không nhất thiết là cận cảnh:** cảnh rộng/trung ép người xem tự bổ sung cảm xúc, mạnh hơn nhét vào cho họ.
@@ -26,7 +26,7 @@ Nguồn: bộ kỹ năng "AI Film Direction & Prompt Workflow Kit" 1.0.0 (film-d
 - **Giữ trục 180°:** trong cảnh phủ, A cố định một bên khung, B bên kia, máy không vượt trục.
 - Nhịp phim không đều: cần xen cảnh dài và ngắn cho người xem thở.
 
-## Thể loại quyết định "nghe ai khi cắt" (chọn một)
+## Khởi điểm tham khảo theo thể loại: "nghe ai khi cắt" (không mặc định — cân nhắc theo kịch bản)
 | Thể loại | Dấu hiệu | Logic dựng |
 |---|---|---|
 | Kịch/phim (CINEMA_DRAMA) | truyện có cung, cảm xúc | nhân quả, phủ cảnh, chừa khoảng lặng; dàn dựng nặng nhất |
