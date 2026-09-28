@@ -56,6 +56,27 @@ Seedance không dùng multi-shot có cấu trúc như Kling. Nếu cần: viết
 ## Âm thanh (pipeline mặc định tắt âm thanh video; nhạc/SFX làm ở Bước 5a)
 Nếu sau này bật `generate_audio`: nhạc `(…)`, hiệu ứng `<…>`, lời thoại `{…}`, phụ đề `【…】`; nêu rõ ngôn ngữ thoại, gắn mỗi câu với người nói, người khác im lặng lắng nghe; cảnh không thoại: nói rõ miệng khép, không lời dẫn. Nếu dùng `<>` cho SFX thì đừng dùng `<>` cho tên nhân vật.
 
+## Bổ sung từ tài liệu chính thức Seedance 2.5 (火山引擎 提示词指南, đọc 2026-09-29 — `research/craft/trung_quoc/PROMPT.md`)
+- **Mốc thời gian theo model:** Seedance 2.0 / Fast chỉ theo **số shot** (`Shot 1:`), không theo mốc giây — #8 ghi "0–1.5 s" cho 2.0 và
+  hành động bị trôi (lỗi 1.5). Seedance 2.5 theo mốc giây **nguyên**, liên tục, không nhảy cóc ("0–3 s… 3–7 s…"); không dùng mốc giây để
+  ép số lần lặp động tác. Code clip nhóm: `seedance_refs.prompt(..., model=)` tự chọn.
+- **Khung 4 phần khi có nhiều tư liệu:** (1) vai trò từng ảnh / video / âm thanh, đánh số **theo thứ tự nhân vật xuất hiện lần đầu** (lệch
+  thứ tự dễ gán nhầm nhân vật); (2) một câu tóm tắt: ai, ở đâu, chuyện gì, phong cách; (3) diễn biến chia đoạn (số shot hoặc mốc giây như
+  trên); (4) điều giữ suốt clip (máy, không khí, âm nền). Tác vụ 1 chủ thể, 1 hành động: chỉ cần phần 2–3.
+- **Hành động khái quát, chi tiết 1–2 điểm nhấn;** không liệt kê từng động tác nhỏ trong shot ngắn (code gợi ý ⚠ khi 1 shot có ≥ 3 hành
+  động lớn — `seedance_refs.busy_shots`).
+- **Biểu cảm bằng câu mô tả**, không thành ngữ / nhãn trừu tượng. Từ cảm xúc quá mạnh ("cuồng nhiệt", "cực sốc", "furious", "ecstatic")
+  dễ làm **mắt phát sáng bất thường** → dùng từ thường hơn; cảnh cảm xúc mạnh thêm "natural human eyes, no glowing eyes" (code tự làm ở clip
+  nhóm khi cường độ ≥ 4).
+- **Phủ định chỉ hỗ trợ cho phụ đề và âm thanh** — khác nguyên tắc 9 ở trên, nhưng chỉ khi cần: video **có sinh âm thanh** hoặc prompt có
+  **câu thoại** (dễ tự sinh phụ đề). Khi đó: tách thoại theo khuôn `NHÂN VẬT (cảm xúc): "câu"`; cấm nhạc thì liệt kê hết từ đồng nghĩa
+  (music, background music, BGM, score, melody, instruments…) và nhắc ở **đầu và cuối** prompt. Pipeline mặc định tắt âm thanh video → không
+  thêm.
+- **Việc phức tạp tách thành nhiều lần sinh đơn giản** rồi ghép ở dựng, không gộp nhiều loại tham chiếu + sửa + hiệu ứng vào một lần.
+- **Ảnh tham chiếu không nét hơn đầu ra** (≈ 720p → cạnh dài ≤ 1280 px) để bớt vân nhiễu ở cỏ / lá / chi tiết dày (code: `REF_MAX_SIDE`).
+- **Phân cảnh lưới (2.5):** chỉ tham khảo đại ý — nét đơn giản, < 15 ô, ít chữ; cần khớp chặt thì dùng "ảnh X đến Y là khung hình chính"
+  ở câu đầu prompt.
+
 ## Checklist trước khi trả prompt
 - [ ] Đúng một nhiệm vụ (từ khung hình đầu); không lẫn nối dài/sửa video
 - [ ] Số nhân vật, đạo cụ, thứ tự sự kiện, kết quả không đổi so với cảnh gốc
@@ -64,3 +85,4 @@ Nếu sau này bật `generate_audio`: nhạc `(…)`, hiệu ứng `<…>`, l�
 - [ ] Không mô tả lại ngoại hình đã có trong ảnh; không gói ràng buộc chất lượng
 - [ ] Không có tham số API (độ dài, tỉ lệ, độ phân giải) trong prompt
 - [ ] Dưới giới hạn ký tự của model; không lặp ý
+- [ ] Mốc thời gian đúng model (2.0 / Fast: số shot · 2.5: giây nguyên liên tục); hành động khái quát, 1–2 điểm nhấn

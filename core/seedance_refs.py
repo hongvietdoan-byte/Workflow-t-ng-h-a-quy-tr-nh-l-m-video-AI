@@ -22,6 +22,7 @@ GROUP_MAX_SECONDS = 15.0      # Seedance 2.0: one clip is at most 15 s
 SEEDANCE_MIN = 4              # Seedance bills at least 4 s
 MAX_PICTURES = 9              # Seedance 2.0: at most 9 reference pictures
 BANNER = "CHARACTER SHEET REFERENCE"
+REF_MAX_SIDE = 1280           # reference pictures at or under the 720p output (Volcengine Seedance 2.5 提示词指南, 2026-09-29)
 ROUTES = (None, "single", "kling")
 
 
@@ -113,6 +114,9 @@ def mark(path: str, out_dir: str) -> str:
     if os.path.exists(out) and os.path.getmtime(out) >= os.path.getmtime(path):
         return out
     im = Image.open(path).convert("RGB")
+    if max(im.size) > REF_MAX_SIDE:        # Seedance 2.5 guide: a reference sharper than the output makes moiré on grass / fine texture
+        k = REF_MAX_SIDE / max(im.size)
+        im = im.resize((round(im.size[0] * k), round(im.size[1] * k)), Image.LANCZOS)
     w, h = im.size
     d = ImageDraw.Draw(im)
     band = int(h * 0.07)
@@ -149,10 +153,32 @@ def identity_pictures(conn, project_id: int, rows: List[Dict], room: int) -> Lis
     return out[:max(room, 0)]
 
 
-def prompt(parts: List[tuple], identities: List[tuple], look: str = "", clip_seconds: Optional[float] = None) -> str:
+def reads_seconds(model: Optional[str]) -> bool:
+    """Seedance 2.5 follows whole-second time marks; 2.0 / 2.0 Fast follow only shot numbers ("2.0 does not respond to timestamps" —
+    ClipAI Seedance Model Selection; Volcengine Seedance 2.5 提示词指南, research/craft/trung_quoc/PROMPT.md mục 2). #8's group prompts
+    carried 0.0–1.5 s marks to 2.0 and the actions drifted (lỗi 1.5). Unknown model: shot numbers only (works for both)."""
+    m = str(model or "").lower()
+    return "2.5" in m or "2-5" in m
+
+
+def whole_marks(secs: List[float]) -> List[tuple]:
+    """(start, end) whole seconds per shot, back to back from 0 (2.5 guide: continuous ranges, no gaps, integer seconds); every shot
+    keeps at least 1 s."""
+    out, t, acc = [], 0, 0.0
+    for i, sec in enumerate(secs):
+        acc += float(sec)
+        end = max(int(round(acc)), t + 1)
+        out.append((t, end))
+        t = end
+    return out
+
+
+def prompt(parts: List[tuple], identities: List[tuple], look: str = "", clip_seconds: Optional[float] = None,
+           model: Optional[str] = None) -> str:
     """parts: [(motion prompt, seconds)] in film order. The wording of the tested P2m prompt: the cut rule, which picture is which
     shot / whose identity, then the shots. clip_seconds: the length really asked for (Seedance makes ≥ 4 s) — the shots' marks are
-    stretched to it, so the last shot does not end before the clip does (review 2026-09-27)."""
+    stretched to it, so the last shot does not end before the clip does (review 2026-09-27). model: time marks only for a model that
+    reads them (`reads_seconds`); the others get "Shot N:" alone (S4.8, 2026-09-29)."""
     n = len(parts)
     total = sum(float(s) for _, s in parts) or 1.0
     if clip_seconds and clip_seconds > total:
@@ -165,10 +191,9 @@ def prompt(parts: List[tuple], identities: List[tuple], look: str = "", clip_sec
                        f"these character positions." for i in range(1, n + 1))
     mapping += " " + " ".join(f"Image {n + k} is {name}: identity only (face, hair, outfit) — not the framing."
                               for k, (name, _) in enumerate(identities, 1))
-    t, shots = 0.0, []
-    for i, (motion, sec) in enumerate(parts, 1):
-        shots.append(f"Shot {i} ({t:.1f}–{t + sec:.1f} s): {str(motion).strip().rstrip('.')}.")
-        t += sec
+    marks = whole_marks([float(sec) for _, sec in parts]) if reads_seconds(model) else [None] * n
+    shots = [f"Shot {i}" + (f" ({mk[0]}–{mk[1]} s)" if mk else "") + f": {str(motion).strip().rstrip('.')}."
+             for i, ((motion, _), mk) in enumerate(zip(parts, marks), 1)]
     return head + "\n" + mapping.strip() + "\n" + "\n".join(shots)
 
 
@@ -296,13 +321,40 @@ def shot_motion(data: Dict, voice: bool = False) -> str:
         talk = " ".join(f"{s} says the line of the attached voice, lips in sync." for s in speakers)
     else:
         talk = " ".join(f"{s} speaks (mouth moving, no sound)." for s in speakers)
+    if perf.get("intensity", 0) >= 4 or data.get("size") in ("CU", "ECU"):
+        acting = soften(acting)            # Seedance 2.5 guide: over-strong emotion words make eyes glow — milder word, plain eyes
+    eyes_guard = (" Natural human eyes, no glowing eyes." if acting and (perf.get("intensity", 0) >= 4) else "")
     move = str(data.get("camera_move") or "static").replace("_", " ")
     framing = _framing(data)
     action = str(_en(data, "action") or "").strip().rstrip(".")
     end = str(_en(data, "end_state") or "").strip().rstrip(".")
     return (f"{SIZE_WORDS.get(data.get('size'), data.get('size') or 'shot')}, {data.get('angle') or 'eye'} angle, camera {move}: "
             + (f"framing {framing}. " if framing else "") + (f"{action}. " if action else "") + (f"It ends with {end}. " if end else "")
-            + (f"Acting — {acting}. " if acting else "") + talk).strip()
+            + (f"Acting — {acting}.{eyes_guard} " if acting else "") + talk).strip()
+
+
+_STRONG = ((r"\b(extremely|insanely|wildly|utterly|incredibly|hysterically)\s+", ""), (r"\becstatic\b", "delighted"),
+           (r"\bhysterical\b", "distraught"), (r"\bterrified\b", "frightened"), (r"\benraged\b", "angry"),
+           (r"\bfurious\b", "angry"), (r"\bmaniac(al)?\b", "intense"), (r"\bin shock\b", "stunned"))
+
+
+def soften(text: str) -> str:
+    """Over-strong emotion words → plainer ones (Volcengine Seedance 2.5 提示词指南: 狂热 / 极度震惊 → 惊讶, fewer glowing-eye faults).
+    The acting stays a visible behaviour; only the loudest adjectives go."""
+    for pat, new in _STRONG:
+        text = re.sub(pat, new, text, flags=re.I)
+    return text
+
+
+def busy_shots(rows: List[Dict]) -> List[int]:
+    """Shots whose action lists 3+ body actions (Seedance 2.5 guide: describe an action in general terms, detail only 1–2 highlights;
+    #8 put 3–4 actions in ≤ 15 s and the model skipped some). A hint for the person, not a block."""
+    out = []
+    for i, r in enumerate(rows, 1):
+        text = str(_en(r["data"], "action") or "")
+        if len(_BIG_ACTION.findall(text)) + text.lower().count(" then ") >= 3:
+            out.append(i)
+    return out
 
 
 FRAMING_MAX = 140

@@ -445,6 +445,10 @@ class VideoRunner(_Runner):
         secs = [self._cut_seconds(r) for r in group] if group else [float(args[3])]
         audio = not group and bool(self._lip_sync_audio_planned(job))
         problems = seedance_refs.lint_group(args[1], len(rows), len([f for f in frames if f]) + len(ids), len(rows) + len(ids), secs, audio)
+        busy = seedance_refs.busy_shots(rows)
+        if busy:
+            self._diag(job, "warn", "busy_shot", "shot dồn ≥ 3 hành động (tài liệu Seedance 2.5: tả khái quát, chi tiết 1–2 điểm nhấn): "
+                       + ", ".join(f"shot {i}" for i in busy))
         short = seedance_refs.short_shots(secs)
         if short:
             self._diag(job, "warn", "short_shot", "shot dưới 1 s trong clip nhóm (model dễ bỏ qua): " + ", ".join(f"shot {i}" for i in short))
@@ -739,7 +743,7 @@ class VideoRunner(_Runner):
             rows = self._ref_rows(job, group)
             parts = [((self._motion(r["id"]) or {"motion_prompt": ""})["motion_prompt"], s) for r, s in zip(rows, secs)]
             ids = seedance_refs.identity_pictures(conn, job["project_id"], rows, seedance_refs.MAX_PICTURES - len(rows))
-            motion = no_minor_age(seedance_refs.prompt(parts, ids, clip_seconds=duration))
+            motion = no_minor_age(seedance_refs.prompt(parts, ids, clip_seconds=duration, model=model))
         if setup:
             motion = no_minor_age(shots.setup_motion([((self._motion(r["id"]) or {"motion_prompt": ""})["motion_prompt"], s)
                                                       for r, s in zip(group, secs)]))

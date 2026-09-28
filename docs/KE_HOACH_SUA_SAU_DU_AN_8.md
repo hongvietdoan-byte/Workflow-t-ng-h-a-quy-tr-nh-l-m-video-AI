@@ -21,13 +21,13 @@
 | S9 Dashboard gọn, dễ nhìn | 6 | 5 | 0 | 0 | 0 | 81,8 % |
 | S2 Timeline theo âm thanh + animatic | 6 | 0 | 0 | 1 | 0 | 0 % |
 | S3 Director kể chuyện + Quay phim | 8 | 0 | 0 | 0 | 0 | 0 % |
-| S4 Video chất lượng | 12 | 0 | 0 | 6 | 0 | 0 % |
+| S4 Video chất lượng | 12 | 2 | 0 | 4 | 0 | 10 % |
 | S5 Bối cảnh theo file 3D Tháp Đồng Hồ | 6 | 0 | 0 | 1 | 0 | 0 % |
 | S6 Ước tính, ngân sách, dashboard | 6 | 0 | 0 | 0 | 0 | 0 % |
 | S7 Agent QC | 2 | 0 | 0 | 0 | 0 | 0 % |
 | K Chạy kiểm kịch bản hài 20–30 s | 3 | 0 | 0 | 0 | 0 | 0 % |
 | S8 Chấm lại bằng AI Development System (cuối cùng) | 5 | 0 | 0 | 0 | 0 | 0 % |
-| **Tổng** | **86** | **31** | **4** | **10** | **0** | **39,4 %** |
+| **Tổng** | **86** | **33** | **4** | **8** | **0** | **40,8 %** |
 
 Đợt hiện tại: **S1** · việc kế: **S9.6** Gộp timeline tổng + sửa giao diện S6.4
 <!-- /tien-do -->
@@ -67,7 +67,7 @@
 - [x] S0.9 · Tư liệu kỹ thuật từ clip mẫu ClipAI (`MV_NARRATIVE`, Đ12 / Q12 / E12) — sửa 2026-09-29 theo góp ý người dùng: tư liệu + ý đồ ở đúng chỗ, không công thức · nặng:1 · ✅ · docs/PHAN_TICH_CLIP_MAU_CLIPAI_2026-09-28.md mục 6
 - [x] S0.10 · Phương pháp phân tích chính xác: quan sát (mốc giây) → ý đồ trong ngữ cảnh (giả thuyết + độ tin) → đối chiếu nhiều mẫu + tài liệu → mới thành kiến thức; kiểm mâu thuẫn với kiến thức sẵn có · nặng:1 · ✅ · knowledge/craft/PHUONG_PHAP_PHAN_TICH.md (duyệt 2026-09-29; thứ tự học: phim ngắn → short drama → hành động → MV → CGI kỹ xảo)
 - [ ] S0.11 · Kho kỹ thuật chuyên môn `knowledge/craft/` (máy quay, góc, chuyển động máy, chuyển cảnh, dựng, âm thanh): mỗi kỹ thuật = cách làm + nhiều ý đồ có thể phục vụ + điều kiện + ví dụ ≥ 2 mẫu + nguồn tài liệu (tóm lời mình) · nặng:3 · 🔄 · lượt 1 xong: research/craft/NGUON.md (30 nguồn) + draft 5 nhóm (25 mục) — kiểm duyệt: nhiều mục mới dẫn trang chủ / tóm tắt tìm kiếm, cần lượt 2 đọc bài gốc + ví dụ mốc giây (S0.12) rồi mới vào knowledge/craft/
-- [ ] S0.12 · Xem nhiều mẫu đa thể loại (drama dọc, MV, quảng cáo game, phim ngắn, hoạt hình FF…) gắn nhãn theo kho kỹ thuật S0.11 · nặng:3 · 🔄 · short drama = drama dọc 9:16 kiểu ReelShort làm bằng AI (ưu tiên hàng Trung Quốc); danh sách 25 video đã xác minh (research/craft/MAU_S0_12.md) — chờ người dùng duyệt rồi xem đoạn + gắn nhãn
+- [ ] S0.12 · Xem nhiều mẫu đa thể loại (drama dọc, MV, quảng cáo game, phim ngắn, hoạt hình FF…) gắn nhãn theo kho kỹ thuật S0.11 · nặng:3 · 🔄 · short drama = drama dọc 9:16 kiểu ReelShort làm bằng AI (ưu tiên hàng Trung Quốc); danh sách 25 video (research/craft/MAU_S0_12.md), người dùng duyệt 2026-09-29; agent đang xem 2 video đầu (điểm dừng kiểm); bổ sung sau: quảng cáo phim AI của app DramaBox (người dùng gợi ý)
 - [ ] S0.13 · Rà kiến thức đang dùng (director / dp / editing / ff_styles) tìm chỗ gán nghĩa cố định hoặc khái quát từ 1 mẫu → sửa thành tư liệu có điều kiện · nặng:1 · ✅ · agent rà 16 chỗ (cinematography_basics 3, dp.md Q2/Q3/Q5/Q8 4, director.md Đ4/N5 2, film_director_method 3, video_motion_vocab 1, genre_guides 3) → đã sửa hết; 1340 test qua
 - [ ] S0.14 · Nghiên cứu nguồn tiếng Trung về phim AI (AI短剧 9:16, workflow, nội dung, prompt ngắn đủ ý, cảnh xịn; Seedance/即梦/可灵 tài liệu chính thức, WaytoAGI, bài ngành) → research/craft/trung_quoc/ · nặng:3 · 🔄 · lượt 1 xong: 18 nguồn (Seedance 2.5 提示词指南 chính thức đọc trọn, 第一财经, 澎湃, Zhihu), quy trình 9 bước, nội dung, prompt, nhạc nền, 15 bài học có mức bằng chứng — chờ người dùng xem; thiếu: tài liệu Kling, phỏng vấn biên kịch / đạo diễn có tên
 - [ ] S0.15 · Nghề nhạc phim: spotting, nhạc dẫn cảm xúc / dẫn dắt / tạo nhịp, khác nhau theo thể loại (short drama dọc, phim ngắn, hành động, hài, MV, CGI…), cách brief nhạc → prompt model nhạc; đối chiếu music_timing / sound_intent hiện có · nặng:2 · 🔄 · lượt 1 xong: research/craft/draft/nhac_nen.md (15 kỹ thuật), nhac_theo_the_loai.md (8 thể loại), nhac_bai_hoc_pipeline.md (10 bài học đối chiếu music_timing), 20 nguồn (#31–50) + trung_quoc/NHAC_NEN.md — chờ người dùng xem
@@ -106,8 +106,8 @@
 - [ ] S4.5 · QC clip so storyboard + luồng quang + khớp môi · nặng:3 · ⬜
 - [ ] S4.6 · A/B trả tiền: cận · hành động 3 model · khớp môi (a)/(b) · nặng:2 · ⬜
 - [ ] S4.7 · Kho chủ thể cho mọi ảnh nhân vật gửi Seedance, bỏ mẹo dấu đỏ trên mắt · nặng:2 · ⏸ · chờ người dùng duyệt (tài liệu ClipAI chính thức)
-- [ ] S4.8 · Prompt Seedance 2.0/Fast theo 'Shot 1 / Shot 2' thay vì mốc giây · nặng:1 · ⏸ · chờ người dùng duyệt (2.0 không theo mốc giây)
-- [ ] S4.9 · Prompt theo cấu trúc game ClipAI (vai trò @Image, giai đoạn hành động, phải giữ) · nặng:1 · ⏸ · chờ người dùng duyệt
+- [x] S4.8 · Prompt Seedance 2.0/Fast theo 'Shot 1 / Shot 2' thay vì mốc giây · nặng:1 · ✅ · 2026-09-29: seedance_refs.prompt(model=) — 2.0/Fast chỉ số shot, 2.5 giây nguyên liên tục; test
+- [x] S4.9 · Prompt theo tài liệu chính thức (vai trò ảnh theo thứ tự xuất hiện, hành động khái quát, biểu cảm dịu + chặn mắt phát sáng, ảnh tham chiếu ≤ 1280 px) · nặng:1 · ✅ · 2026-09-29: seedance_refs (soften, busy_shots ⚠, REF_MAX_SIDE), knowledge/seedance_prompting.md; 1345 test qua; chưa chạy thật (cần lần sinh video kế)
 - [ ] S4.10 · A/B Seedance 2.5 (720P) vs Fast: cận, chạy, thoại có tham chiếu âm thanh tiếng Việt · nặng:2 · ⏸ · chờ người dùng duyệt (~3–4 USD)
 - [ ] S4.11 · Chế độ bản mẫu (Sample Mode): xác minh API, bản mẫu → duyệt → bản cuối 1080P · nặng:2 · ⏸ · PDF đã có: mẫu chỉ 480p (Seedance 2.5), bản cuối chỉ 1080p, mẫu hết hạn ~7 ngày; còn thử API
 - [ ] S4.12 · Advanced Edit: sửa clip lỗi (cận Kelly #8) thay vì sinh lại — kiểm API, thử 1 clip · nặng:1 · ⏸ · chờ người dùng duyệt (docs/PHAN_TICH_CLIP_MAU_CLIPAI_2026-09-28.md, ~0,5 USD)

@@ -65,7 +65,7 @@ class SeedanceRefTests(unittest.TestCase):
         args = vr._submit_args(leader)
         self.assertIn("seedance", args[4])
         self.assertIn("Image 1 is the storyboard frame of Shot 1", args[1])
-        self.assertIn(f"Shot {len(self.ids)} (", args[1])
+        self.assertIn(f"Shot {len(self.ids)}: ", args[1])
         self.assertGreaterEqual(args[3], seedance_refs.SEEDANCE_MIN)
         kw = vr._submit_kwargs(leader)
         self.assertNotIn("last_frame", kw)
@@ -92,7 +92,7 @@ class SeedanceRefTests(unittest.TestCase):
         self.assertFalse(vr._wait(jobs[0]))
         self.assertTrue(all(vr._wait(j) for j in jobs[1:]))          # the others wait for their part
         args = vr._submit_args(jobs[0])
-        self.assertIn(f"Shot {len(self.ids) - 1} (", args[1])
+        self.assertIn(f"Shot {len(self.ids) - 1}: ", args[1])          # Seedance 2.0: shot numbers, no time marks (S4.8)
         stamp = vr._stamp(jobs[0], args)
         self.p.conn.execute("UPDATE jobs SET state='running', sent_group=? WHERE id=?", (stamp["sent_group"], jobs[0]["id"]))
         self.p.conn.commit()
@@ -176,8 +176,8 @@ class ReviewFixTests(unittest.TestCase):
         self.assertNotIn("no sound", seedance_refs.shot_motion(d, voice=True))
 
     def test_the_marks_are_stretched_to_the_clip_really_made(self):
-        text = seedance_refs.prompt([("a", 1.0), ("b", 1.0)], [], clip_seconds=4)
-        self.assertIn("Shot 2 (2.0–4.0 s)", text)
+        text = seedance_refs.prompt([("a", 1.0), ("b", 1.0)], [], clip_seconds=4, model="seedance-2.5")
+        self.assertIn("Shot 2 (2–4 s)", text)
 
     def test_what_can_be_seen_wrong_before_paying(self):
         long = "x" * 4100
@@ -259,12 +259,8 @@ class SplitTests(unittest.TestCase):
         text = seedance_refs.prompt([("Kenta chạy", 2.0), ("Kelly quay lại", 1.5)], [("KENTA", "k.png")])
         self.assertIn("Image 2 is the storyboard frame of Shot 2", text)
         self.assertIn("Image 3 is KENTA: identity only", text)
-        self.assertIn("Shot 2 (2.0–3.5 s)", text)
+        self.assertIn("Shot 2: Kelly quay lại.", text)                    # no time marks: the model is not known to read them
         self.assertIn("annotations, never part of the video", text)
-
-
-if __name__ == "__main__":
-    unittest.main()
 
 
 class ShotFloorTests(unittest.TestCase):
@@ -275,8 +271,8 @@ class ShotFloorTests(unittest.TestCase):
         self.assertEqual(sr.floored({"action": "Kelly nhìn Kenta"}, 0.46), sr.MIN_GROUP_SHOT)
         self.assertEqual(sr.floored({"motion_en": {"action": "Kelly turns and walks away"}}, 1.1), sr.MIN_ACTION_SHOT)
         self.assertEqual(sr.floored({"action": "x"}, 3.2), 3.2)                             # a long shot keeps its length
-        text = sr.prompt([("a", sr.floored({}, 0.4)), ("b", 2.0)], [])
-        self.assertIn("Shot 1 (0.0–1.5 s)", text)
+        text = sr.prompt([("a", sr.floored({}, 0.4)), ("b", 2.0)], [], model="seedance-2.5")
+        self.assertIn("Shot 1 (0–2 s)", text)
 
     def test_the_shot_text_carries_the_framing_in_english_only(self):
         from core import seedance_refs as sr
@@ -305,3 +301,54 @@ class MarkTests(unittest.TestCase):
         a, b = sr.mark(paths[0], out), sr.mark(paths[1], out)
         self.assertNotEqual(a, b)
         self.assertNotEqual(Image.open(a).getpixel((32, 50)), Image.open(b).getpixel((32, 50)))
+
+
+class PromptLessonsTests(unittest.TestCase):
+    """S4.8 / S4.9 (2026-09-29): lessons of the Volcengine Seedance 2.5 提示词指南 and the ClipAI model guide
+    (research/craft/trung_quoc/PROMPT.md)."""
+
+    def test_time_marks_only_for_a_model_that_reads_them(self):
+        from core import seedance_refs as sr
+        parts = [("a", 1.4), ("b", 2.2), ("c", 3.1)]
+        for model in ("seedance", "seedance-2.0", "seedance-fast", "dreamina-seedance-2-0-fast-260128", None):
+            text = sr.prompt(parts, [], model=model)
+            self.assertIn("Shot 2: b.", text)
+            self.assertNotIn(" s):", text)                                   # 2.0 / Fast answer shot numbers, not seconds
+        text = sr.prompt(parts, [], model="dreamina-seedance-2-5-260628")
+        for want in ("Shot 1 (0–1 s)", "Shot 2 (1–4 s)", "Shot 3 (4–7 s)"):   # whole seconds, back to back
+            self.assertIn(want, text)
+        self.assertEqual(sr.whole_marks([0.4, 0.4, 3]), [(0, 1), (1, 2), (2, 4)])   # every shot keeps a second
+
+    def test_identity_pictures_follow_the_order_characters_first_appear(self):
+        from core import seedance_refs as sr
+        text = sr.prompt([("a", 2), ("b", 2)], [("KENTA", "k.png"), ("KELLY", "l.png")])
+        self.assertLess(text.index("Image 3 is KENTA"), text.index("Image 4 is KELLY"))
+
+    def test_strong_emotion_is_softened_and_the_eyes_guarded(self):
+        from core import seedance_refs as sr
+        d = {"size": "CU", "performance": {"intensity": 5, "face": "extremely furious snarl", "eyes": "wide, ecstatic"}, "action": "x"}
+        t = sr.shot_motion(d)
+        self.assertIn("angry snarl", t)
+        self.assertNotIn("extremely", t)
+        self.assertIn("no glowing eyes", t)
+        calm = {"size": "MS", "performance": {"intensity": 2, "face": "a small smile"}, "action": "x"}
+        self.assertNotIn("glowing", sr.shot_motion(calm))                  # guard only where strong emotion invites the fault
+
+    def test_a_shot_with_three_body_actions_is_flagged_not_blocked(self):
+        from core import seedance_refs as sr
+        rows = [{"data": {"action": "Kelly turns, walks to the door then falls"}}, {"data": {"action": "Kenta looks up"}}]
+        self.assertEqual(sr.busy_shots(rows), [1])
+
+    def test_reference_pictures_are_not_sharper_than_the_output(self):
+        import tempfile
+        from PIL import Image
+        from core import seedance_refs as sr
+        with tempfile.TemporaryDirectory() as d:
+            src = os.path.join(d, "big.png")
+            Image.new("RGB", (2400, 1600), (90, 90, 90)).save(src)
+            out = sr.mark(src, os.path.join(d, "m"))
+            self.assertLessEqual(max(Image.open(out).size), sr.REF_MAX_SIDE)
+
+
+if __name__ == "__main__":
+    unittest.main()
