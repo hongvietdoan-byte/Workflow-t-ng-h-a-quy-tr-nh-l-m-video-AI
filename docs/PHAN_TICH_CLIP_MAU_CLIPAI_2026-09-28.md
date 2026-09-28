@@ -116,7 +116,41 @@ cảnh chính (sảnh sòng bạc tím–vàng) + 3 biến thể (sân khấu ne
 âm thanh (Seed Audio / TTS); shot khó (ngã, chạy) đứng riêng hoặc thay bằng phản ứng / hậu quả; số shot cần khớp môi đếm trước và tính
 tiền trước.
 
-## 6. Giới hạn của phân tích này
+## 6. Chọn lọc điểm hay để áp dụng (người dùng 2026-09-28: "mỗi điểm đều có cái hay… cần chọn lọc lấy điểm tốt để áp dụng")
+✔ áp dụng · ~ áp dụng có điều chỉnh (drama thoại dọc 9:16 khác MV) · ✖ không học. Đã đưa vào bộ kỹ năng dạng **gợi ý**: Đạo diễn
+`knowledge/roles/director.md` **Đ12**, Quay phim `dp.md` **Q12**, Dựng `knowledge/editor/editing.md` **E12**, phong cách chọn được ở
+Bước 1 `MV_NARRATIVE` (`knowledge/ff_styles/MV_NARRATIVE.md`).
+
+| Mặt | Điểm hay | Chọn | Áp dụng ở đâu |
+|---|---|---|---|
+| 3.1 Nhân vật | Nhân vật chính ≥ 3 dấu hiệu nhận diện nhìn được ở toàn cảnh; màu nhân vật hòa bảng màu bối cảnh | ✔ | Đ12, look; hồ sơ Kelly / Kenta / Maxim |
+| | Nhân vật phụ / đám đông dễ giữ (đồng phục, quay lưng, mặt che, ở xa) | ✔ | Đ12 |
+| | Câu không then chốt nghe **ngoài hình** (đè lên phản ứng / cận vật) → ít shot khớp môi | ~ | Đ12 (drama mặc định cận người nói; dùng khi ngân sách chặt, ghi `tradeoffs`) |
+| | Biến nhân vật chính thành không mặt | ✖ | nhân vật FF cố định |
+| 3.2 Bối cảnh | 1 nơi chính nhìn nhiều góc; đổi nơi = ý mới | ✔ | Đ12; lần chạy kiểm K |
+| | Ẩn dụ bằng không gian phóng đại (người tí hon giữa phỉnh) | ✔ | Đ12 (1 lần, chỗ nội tâm / gây cười) |
+| | Đổi ánh sáng theo truyện (đêm mưa → sáng sau mưa) | ✔ | Đ12, dp Q8 |
+| 3.3 Âm thanh | Khóa âm thanh trước; 1 câu ≈ 1 shot; cắt ở ranh câu, không theo phách | ✔ | Đ12, E12; S2 |
+| | Hình minh họa **đúng nghĩa câu** | ✔ | Đ12; agent người xem S3.2 |
+| | Nhạc liên tục, năng lượng tăng theo truyện, 1 lặng có chủ ý | ✔ | E12 (đã có `music_fit` / `sound_intent`) |
+| | Đỉnh +0,7 dBFS | ✖ | giữ −1 dBTP |
+| 3.4 Chuyển động | Shot **bắt đầu giữa chuyển động**; mỗi shot 1 hành động; nhân vật động nhiều hơn | ✔ | Q12; S4.4 |
+| | Không ép dáng bằng ảnh chi tiết (dàn cảnh đơn giản) | ✔ | Q12; A/B S4.6 |
+| | Video tham chiếu cho động tác khó / nhảy nhóm | ✔ | Q12; G-MV8 trong S4.6 |
+| | Chuyển cảnh sinh trong clip (máy xuyên vật nối 2 shot) | ✔ | Q12; S3.4 / S4.8 |
+| | **Chèn cận vật che chỗ nối** (quân Át 1:16, tay 0:49, chân 3:02) | ✔ | Q12 (đặt `role: insert` sẵn mỗi cảnh) + E12 (Dựng chèn khi hai shot người lệch) |
+| | Vật lý vải / tóc (trang phục rộng, váy) | ✔ | Q12 motion prompt tả chuyển động phụ |
+| 3.5 Kể chuyện | Mục tiêu rõ ở đầu; mô-típ lặp ≥ 3 lần; kết trả lời mở đầu | ✔ | Đ12; S3.1 bảng nhịp truyện |
+| | Ẩn dụ hình thay câu giải thích | ✔ | Đ12 |
+| 3.6 Quay phim | Góc máy mang nghĩa (thấp = áp đảo, cao = bị vây, sau lưng = rời đi) | ✔ | Q12 (bổ sung Q1) |
+| | Cỡ cảnh xoay vòng toàn → trung → cận vật → toàn | ~ | Q12 (drama vẫn nhiều cận người nói) |
+| | 1 bảng màu cả phim | ✔ | Q12, look |
+| | Khung 16:9, máy trôi rộng | ✖ | ta làm 9:16 |
+
+Việc còn lại để các điểm trên **chạy bằng code** (không chỉ nằm trong kiến thức): linter gợi ý 💡 thiếu shot chèn / shot > 1 hành động
+(S3.5), Dựng tự chèn cận vật ở chỗ nối lệch (thêm vào S3.6), prompt nối chuyển cảnh trong clip (S3.4 / S4.8), video tham chiếu (S4.6).
+
+## 7. Giới hạn của phân tích này
 - Không biết prompt, model, số lần sinh lại, chi phí thật của clip mẫu → mọi điều về "cách làm" là **[suy luận]** từ hình.
 - Nhãn [xem] dựa trên 1 khung/giây + 6 dải 10 khung/giây quanh điểm cắt, không xem từng khung cả clip.
 - Tempo ước bằng tự tương quan phổ (không có librosa) — đủ để kết luận "cắt không bám phách", không đủ để đo nhịp chính xác.

@@ -224,6 +224,25 @@ Làm cho người xem **thấy rõ** điều Đạo diễn muốn họ cảm —
 - **Ví dụ FF.** ✔ Cú bắn tỉa quyết định: MS qua vai, viên đạn rời nòng `speed: 0.4`, `freeze_end_s: 0.5` ở lúc mục tiêu ngã. ✘ Quay chậm
   cả pha đấu súng 6 shot — mất nhịp, mọi khoảnh khắc đều "quan trọng" nên không cái nào quan trọng.
 
+### Q12. Kỹ thuật học từ clip mẫu ClipAI — GỢI Ý chọn lọc, không bắt buộc — 2026-09-28
+Nguồn: clip mẫu làm bằng ClipAI người dùng gửi 2026-09-28 (MV kể chuyện 201 s, 62 shot; phân tích + mốc giây: `docs/PHAN_TICH_CLIP_MAU_CLIPAI_2026-09-28.md`).
+- **Shot bắt đầu giữa chuyển động.** Khung đầu đã đang bước / đang xoay / đang nói — không khởi động từ tư thế đứng yên. Motion prompt tả
+  động tác **đang diễn ra** từ giây 0. Clip mẫu động gấp ~2,4 lần #8 mà vẫn mượt: nhân vật đứng yên nhìn "cứng" hơn nhân vật động đẹp.
+- **Không ép dáng bằng ảnh chi tiết.** Director Workspace của ClipAI khuyên dàn cảnh bằng **nhân vật hình học** (trụ + cầu) vì ảnh / video
+  dáng chi tiết làm Seedance bắt chước cứng tay chân. Shot chuyển động: tham chiếu vị trí / hướng / cỡ cảnh đơn giản + ảnh nhân vật, để
+  model tự diễn; ảnh storyboard dáng đứng chỉ làm khung đầu khi cần giữ bố cục chính xác (thử A/B ở S4.6).
+- **Video tham chiếu cho động tác khó.** Nhảy nhóm đồng bộ, nhào lộn, chạy, ngã: gắn một video tham chiếu chuyển động (@Video, vai "tham
+  chiếu chuyển động", không lấy ngoại hình từ video) — đây rất có thể là cách clip mẫu có vũ đạo đồng bộ 6 người (suy luận).
+- **Chuyển cảnh ngay trong clip.** Hai shot liền của cùng đoạn: viết cả hai + đường máy nối trong **một** lần sinh ("camera cranes up
+  through the chandelier, then descends onto the table top") — liền hơn nối cứng ở khâu dựng. Seedance 2.0 / Fast: đánh số "Shot 1 /
+  Shot 2", không dùng mốc giây.
+- **Shot chèn cận vật (insert).** Đặt sẵn 1–2 shot cận vật / tay / chân không mặt mỗi cảnh (quân bài, tay đếm phỉnh, chân bước lên phỉnh):
+  rẻ, không khớp môi, không trôi nhân vật, và là **chỗ nối** cho Dựng khi hai shot người không khớp hướng / dáng (editing.md E12).
+- **Góc máy mang nghĩa, cỡ cảnh xoay vòng.** Máy thấp = nhân vật bị áp đảo; cao nhìn xuống = bị vây; sau lưng = quyết định / rời đi.
+  Xoay vòng toàn → trung → cận vật → toàn để mỗi cảnh có không gian + chi tiết. Một bảng màu cho cả phim (nhân vật hòa màu bối cảnh).
+- **Trong pipeline.** `role: insert` cho shot chèn; `camera_move` + motion prompt cho đường máy nối; ghi cần video tham chiếu ở `why`.
+- **Kiểm.** Code: linter bảng shot (S3.5) có thể gợi ý 💡 khi cảnh không có insert / shot có > 1 hành động. Người: animatic + bản dựng.
+
 ## Tầng 4 — Ưu tiên khi xung đột
 Giới hạn model là **luật cứng** (code kiểm, không thương lượng). Bên trong nó, cùng thang chung của cả tổ (`README.md`):
 1. ý đồ và diễn xuất của Đạo diễn, gồm rõ không gian (ai ở đâu, trục, hướng) · 2. thoại nguyên văn — shot đủ dài để nói, không thấy mặt người

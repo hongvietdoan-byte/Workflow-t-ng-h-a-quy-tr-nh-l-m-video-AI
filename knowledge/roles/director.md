@@ -280,6 +280,28 @@ quyết định ở lại hay lướt trong vài giây đầu, nên cảm xúc p
 - **Kiểm.** Code: `shots.clean_retime` (chỉ shot không thoại), test ffmpeg độ dài đúng. Người: xem bản dựng — chậm có mượt không (nội suy
   khung có thể méo tay/vũ khí khi chuyển động nhanh).
 
+### Đ12. Kỹ thuật học từ clip mẫu ClipAI — GỢI Ý chọn lọc, không bắt buộc — 2026-09-28
+Nguồn: clip mẫu làm bằng ClipAI người dùng gửi 2026-09-28 (MV kể chuyện 201 s, 62 shot; phân tích + mốc giây: `docs/PHAN_TICH_CLIP_MAU_CLIPAI_2026-09-28.md`). Người dùng: mỗi điểm có cái hay, **chọn điều hợp kịch bản** mà dùng; không phải khung cho mọi phim.
+- **Mỗi câu có hình nói cùng một điều.** Shot của một câu thoại / lời kể cho thấy đúng điều câu đó nói (câu "tôi có con 9" → giơ một
+  ngón tay; "túi sạch hơn mặt" → lộn túi quần rỗng) hoặc phản ứng trực tiếp với nó. Lời và hình cùng nghĩa → người xem hiểu ngay, kể cả
+  khi tắt tiếng một nửa. Nhịp cơ bản: **1 câu ≈ 1 shot**.
+- **Một mục tiêu nói rõ ở đầu, một mô-típ lặp, kết trả lời mở đầu.** Nhân vật muốn gì nói ra trong vài giây đầu; một hình / vật / câu
+  lặp ≥ 3 lần mang nghĩa đổi dần (con số 9, cánh cửa, cơn mưa); shot kết đáp lại shot mở (mở ở cổng sắt đêm mưa → kết ở cửa mở ra
+  mưa sáng). Truyện 20–60 s cũng cần vòng khép này — đây là thứ #8 thiếu (truyện cụt, 1.9).
+- **Ẩn dụ hình thay câu giải thích.** Một hình ảnh phóng đại nói hộ trạng thái (người tí hon kẹt giữa chồng phỉnh khổng lồ = bị cờ bạc
+  nuốt). Dùng 1 lần, ở chỗ nội tâm — với hài có thể dùng phóng đại để gây cười.
+- **Một bối cảnh chính, đổi nơi có lý do.** Video ≤ 60 s: 1 nơi chính nhìn từ nhiều góc; mỗi lần đổi nơi (hay đổi ánh sáng: đêm mưa →
+  sáng sau mưa) = một ý mới của truyện. Rẻ hơn, AI giữ nhất quán tốt hơn, người xem hiểu không gian ngay.
+- **Nhân vật phụ / đám đông dễ giữ.** Người phụ mặc đồng phục, quay lưng, mặt che hoặc ở xa → không cần khớp môi, không trôi mặt. Nhân vật
+  chính giữ ≥ 3 dấu hiệu nhận diện nhìn được ở toàn cảnh (tóc, trang phục, màu, phụ kiện). Câu không then chốt có thể nghe **ngoài hình**
+  (giọng đè lên shot phản ứng / cận vật) — chỉ câu then chốt mới cần cận người nói + khớp môi (gộp với `DRAMA_DOC`: cận người nói là mặc
+  định ở drama; đây là cách giảm số shot khớp môi khi ngân sách chặt — ghi `tradeoffs`).
+- **Chọn hành động AI diễn đẹp.** Ưu tiên động tác toàn thân rõ, một hành động mỗi shot, có vải / tóc chuyển động theo; hành động khó
+  (chạy, ngã, đánh, nhào lộn) tách riêng một shot và nói với Quay phim cần video tham chiếu chuyển động (dp.md Q12).
+- **Trong pipeline.** Ý đồ ghi ở `beat` / `emotional_intent` / `dp_notes` (mô-típ, ẩn dụ, nơi chính, câu nào nghe ngoài hình); Quay phim
+  đặt shot (dp.md Q12), Dựng nối (editing.md E12).
+- **Kiểm.** Agent người xem (kế hoạch S3.2) tóm truyện chỉ từ hình + câu: có nói được mục tiêu, mô-típ, cái kết không. Người: xem animatic.
+
 ## Tầng 4 — Thứ tự ưu tiên khi luật xung đột (người dùng chốt 2026-09-25; chỉnh dần theo dữ liệu)
 **Luật cứng, đứng ngoài thang** (code kiểm, không thương lượng): giới hạn model, trần tiền, không tuổi < 18 — chọn cách khác bên trong chúng.
 Thang chung của cả tổ: `README.md`.

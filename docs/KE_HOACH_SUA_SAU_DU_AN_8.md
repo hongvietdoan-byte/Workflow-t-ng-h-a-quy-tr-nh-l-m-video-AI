@@ -17,7 +17,7 @@
 |---|---|---|---|---|---|---|
 | P0 Theo dõi tiến độ | 2 | 2 | 0 | 0 | 0 | 100 % |
 | S1 Dựng & âm thanh | 15 | 13 | 0 | 2 | 0 | 88,9 % |
-| S0 Học từ phim drama tham khảo | 9 | 8 | 0 | 1 | 0 | 92,9 % |
+| S0 Học từ phim drama tham khảo | 9 | 9 | 0 | 0 | 0 | 100 % |
 | S9 Dashboard gọn, dễ nhìn | 6 | 5 | 0 | 0 | 0 | 81,8 % |
 | S2 Timeline theo âm thanh + animatic | 6 | 0 | 0 | 1 | 0 | 0 % |
 | S3 Director kể chuyện + Quay phim | 8 | 0 | 0 | 0 | 0 | 0 % |
@@ -27,7 +27,7 @@
 | S7 Agent QC | 2 | 0 | 0 | 0 | 0 | 0 % |
 | K Chạy kiểm kịch bản hài 20–30 s | 3 | 0 | 0 | 0 | 0 | 0 % |
 | S8 Chấm lại bằng AI Development System (cuối cùng) | 5 | 0 | 0 | 0 | 0 | 0 % |
-| **Tổng** | **80** | **28** | **0** | **11** | **0** | **36,8 %** |
+| **Tổng** | **80** | **29** | **0** | **10** | **0** | **37,6 %** |
 
 Đợt hiện tại: **S1** · việc kế: **S9.6** Gộp timeline tổng + sửa giao diện S6.4
 <!-- /tien-do -->
@@ -64,7 +64,7 @@
 - [x] S0.6 · Luật được duyệt vào bộ kỹ năng · nặng:1 · ✅ · knowledge/ff_styles/DRAMA_DOC.md ghi rõ GỢI Ý; dự án chọn NHIỀU phong cách tham khảo; Director đọc dạng gợi ý được trộn / làm khác
 - [x] S0.7 · Chỉ số mục tiêu data/drama_targets.json + test · nặng:2 · ✅ · data/style_hints.json: số đo chỉ hiện 💡 ở Kiểm bản dựng khi dự án chọn phong cách đó, không chặn, không tính 'cần xem'
 - [x] S0.8 · Phiếu so sánh bản dựng vs phim tham khảo · nặng:1 · ✅ · phiếu 10 mặt trong báo cáo S0.5 mục 4; đã chấm #8 cũ và v4
-- [ ] S0.9 · Phong cách gợi ý mới `MV_NARRATIVE` từ clip mẫu ClipAI (G-MV1–G-MV8: nhân vật né điểm yếu AI, 1 bối cảnh chính, 1 shot ≈ 1 câu, 1 hành động / shot bắt đầu giữa chuyển động, chuyển cảnh trong model, dàn cảnh đơn giản, mô-típ lặp, video tham chiếu chuyển động) · nặng:1 · ⏸ · chờ người dùng duyệt (docs/PHAN_TICH_CLIP_MAU_CLIPAI_2026-09-28.md)
+- [x] S0.9 · Phong cách gợi ý `MV_NARRATIVE` + chọn lọc điểm hay của clip mẫu ClipAI (người dùng 2026-09-28) · nặng:1 · ✅ · director.md Đ12, dp.md Q12, editing.md E12, knowledge/ff_styles/MV_NARRATIVE.md (chọn được ở Bước 1); bảng chọn lọc: docs/PHAN_TICH_CLIP_MAU_CLIPAI_2026-09-28.md mục 6
 
 ### S9 — Dashboard gọn, dễ nhìn
 - [x] S9.1 · Nút thu gọn phần Kịch bản · nặng:1 · ✅ · xong: 1a Kịch bản thu thành 1 dòng tóm tắt + nút ▸ Mở / ▾ Thu gọn (test_dashboard)
