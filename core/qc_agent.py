@@ -19,7 +19,9 @@ from typing import Dict, List, Optional, Tuple
 from . import features
 
 FEATURE = "qc_agent"
-MAX_STEPS = 24            # tool turns per scene (#8 2026-09-28: 19 turns for a 4-frame scene)
+MAX_STEPS = 12            # tool turns per scene (#8 2026-09-28: 19 turns for a 4-frame scene, ~1 frame a minute; the agent in the
+                          # working session did 33 frames in ~8 minutes, ~4 a minute). Target: a scene in ≤ 6 turns.
+TEXT_LIMITS = {"description": 160, "evidence": 90, "fix_en": 260}   # a verdict is read by a person at the gate: short and exact
 SCENE_CAP_BASE_USD = 0.10  # HARD lock per scene (llm_runner.spend_cap) = base + per frame to record, at most SCENE_CAP_MAX_USD:
 SCENE_CAP_PER_FRAME_USD = 0.04   # #8 2026-09-28 one scene + half cost ~2 USD with no lock. At the cap the agent stops; the frames it
 SCENE_CAP_MAX_USD = 0.50         # has not recorded wait for a person as "doubt" (a trade-off: fewer looks, never more money)
@@ -29,6 +31,19 @@ ANSWER_TOKENS = 3500      # one turn's answer (real turns: 200-3,000 tokens); th
 LOOKS_PER_TURN = 4        # pictures a turn may open (28/09: 46 pictures in 8 turns, nothing recorded)
 RECORD_ONLY_AT = 0.5      # share of the scene's cap after which only record / finish are answered
 MAX_CUT_TURNS = 2
+
+
+def _short(args: Dict) -> Dict:
+    """Verdict texts cut to TEXT_LIMITS (a long answer is paid and read by nobody; 28/09 answers were cut at the token ceiling)."""
+    def cut(s, n):
+        s = " ".join(str(s or "").split())
+        return s if len(s) <= n else s[: n - 1].rstrip() + "…"
+    out = dict(args)
+    out["issues"] = [dict(i, description=cut(i.get("description"), TEXT_LIMITS["description"]),
+                          evidence=cut(i.get("evidence"), TEXT_LIMITS["evidence"])) for i in (args.get("issues") or []) if isinstance(i, dict)]
+    if out.get("fix_en"):
+        out["fix_en"] = cut(out["fix_en"], TEXT_LIMITS["fix_en"])
+    return out
 
 
 def scene_cap(n_frames: int) -> float:
@@ -64,6 +79,10 @@ TOOLS = [
                     "required": ["type", "description", "evidence", "severity"]}},
          "root_cause": {"type": "string", "enum": list(CAUSES)}, "fix_en": {"type": "string"}},
          "required": ["k", "verdict", "issues", "root_cause"]}},
+    {"name": "record_batch", "description": "Record the verdicts of SEVERAL frames at once (same fields as record, one item per frame) "
+                                            "— the fast way once the looking is done.",
+     "input_schema": {"type": "object", "properties": {"items": {"type": "array", "minItems": 1, "items": {"type": "object"}}},
+                      "required": ["items"]}},
     {"name": "finish", "description": "End the inspection of this scene (only after every frame is recorded).",
      "input_schema": {"type": "object", "properties": {"summary": {"type": "string"}, "new_fault_types": {"type": "array",
                       "items": {"type": "string"}}}, "required": ["summary"]}},
@@ -265,7 +284,13 @@ class QcAgent:
             f = self.by_k.get(int(args["k"]))
             flags = qc_scene.check_frame(f["path"], f["data"]) if f else []
             return [{"type": "text", "text": json.dumps(flags, ensure_ascii=False) or "[]"}]
+        if name == "record_batch":
+            out = []
+            for item in args.get("items") or []:
+                out += self.tool("record", item if isinstance(item, dict) else {})
+            return [{"type": "text", "text": " · ".join(b["text"] for b in out)}] if out else [{"type": "text", "text": "không có mục nào"}]
         if name == "record":
+            args = _short(args)
             k = int(args["k"])
             if k not in self.by_k:
                 return [{"type": "text", "text": f"không có khung K{k}"}]
@@ -320,9 +345,11 @@ class QcAgent:
         limits = (f"# Giới hạn (khóa cứng, không nâng được)\nTối đa {MAX_STEPS} lượt và ${scene_cap(len(self._must())):.2f} cho cảnh này; "
                   f"tối đa {LOOKS_PER_TURN} ảnh mỗi lượt; quá {int(RECORD_ONLY_AT * 100)} % ngân sách thì CHỈ còn được ghi. "
                   f"Phải ghi (record) các khung: {[f['k'] for f in self._must()]}.\n"
-                  "Cách làm: lượt 1 — tấm tổng quan + các dải bắt buộc của kế hoạch soi (strip gom nhiều khung vào MỘT ảnh); từ lượt 2 — "
-                  "mỗi lượt soi 1–2 khung rồi GHI NGAY các khung đã đủ bằng chứng (record cùng lượt với lần soi cuối). Đừng để dành ghi "
-                  "cuối cùng: hết ngân sách thì khung chưa ghi thành 'doubt' cho người xem.")
+                  "Cách làm (mục tiêu ≤ 6 lượt): lượt 1 — từ tấm tổng quan chọn khung nghi ngờ + làm các dải bắt buộc của kế hoạch soi "
+                  "(strip gom nhiều khung vào MỘT ảnh); lượt 2–3 — cắt sát chỗ nghi; lượt 3–4 — record_batch MỌI khung (khung không nghi "
+                  "ngờ ghi pass ngay từ tấm tổng quan), rồi finish. Hết ngân sách thì khung chưa ghi thành 'doubt' cho người xem.\n"
+                  "Kết luận NGẮN, CHUẨN: description 1 câu (ai, chi tiết gì, sai thế nào so với luật nào), evidence = công cụ + vùng đã "
+                  "xem, fix_en 1 câu mệnh lệnh tiếng Anh nói điều PHẢI đúng (không nói điều cấm).")
         return "\n\n".join(x for x in [
             limits,
             ("# Bối cảnh — mô tả bản đồ thật (so nền của MỌI khung với mô tả này và ảnh 'establishing'; sổ tay mục G)\n" + place) if place else "",
@@ -334,8 +361,10 @@ class QcAgent:
             "Bắt đầu: xem tấm tổng quan, rồi điều tra từng khung bằng công cụ; record mọi khung; finish."] if x)
 
     def run(self) -> Dict:
+        import time
         from . import layout
         from .llm_runner import LlmError, tagged
+        t0 = time.time()
         overview = layout.storyboard([(f["path"], f"K{f['k']}") for f in self.frames], os.path.join(self.work, "overview.png"),
                                      cols=min(6, len(self.frames)), cell=(256, 455))
         messages = [{"role": "user", "content": [{"type": "text", "text": self._brief()}, {"type": "text", "text": "Tấm tổng quan các khung:"},
@@ -410,8 +439,13 @@ class QcAgent:
                                    "evidence": "-", "severity": "minor"}], "root_cause": "none", "shot": self.by_k[k]["label"],
                                    "job": self.by_k[k]["job_id"]}
             self.summary = {"summary": f"{why} — {len(left)} khung chưa soi", "new_fault_types": []}
+        seen = sum(1 for r in self.records.values() if not any(i.get("type") == "chưa soi" for i in r.get("issues") or []))
+        minutes = max((time.time() - t0) / 60, 1e-6)
         out = {"scene": self.story, "steps": self.steps, "usd": round(cap["spent"], 4), "cap_usd": cap_usd, "stopped": stopped,
-               "blocked": self.blocked, "records": [self.records[f["k"]] for f in self._must()], "summary": self.summary}
+               "blocked": self.blocked, "speed": {"minutes": round(minutes, 2), "frames_judged": seen,
+                                                   "frames_per_minute": round(seen / minutes, 2),
+                                                   "usd_per_frame": round(cap["spent"] / seen, 4) if seen else None},
+               "records": [self.records[f["k"]] for f in self._must()], "summary": self.summary}
         with open(os.path.join(self.work, "result.json"), "w", encoding="utf-8") as fh:
             json.dump(out, fh, ensure_ascii=False, indent=1)
         return out

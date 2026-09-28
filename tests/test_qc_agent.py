@@ -235,6 +235,20 @@ class AgentTests(unittest.TestCase):
         self.assertIn("HẾT phần điều tra", json.dumps(c.seen[2], ensure_ascii=False))  # 60 % spent: looking refused
         self.assertEqual(res["summary"]["summary"], "xong")
 
+    def test_one_batch_records_every_frame_short_and_the_speed_is_measured(self):
+        long = "x" * 500
+        items = [{"k": 1, "verdict": "block", "issues": [{"type": "tay", "description": long, "evidence": long, "severity": "block"}],
+                  "root_cause": "model", "fix_en": "Draw the left hand with exactly five fingers. " * 10}]
+        items += [{"k": k, "verdict": "pass", "issues": [], "root_cause": "none"} for k in range(2, self.n + 1)]
+        c = Scripted([[("record_batch", {"items": items})], [("finish", {"summary": "xong"})]])
+        res = qc_agent.QcAgent(self.p, self.pid, self.data, c, self.frames).run()
+        self.assertEqual(res["steps"], 2)
+        r1 = res["records"][0]
+        self.assertLessEqual(len(r1["issues"][0]["description"]), qc_agent.TEXT_LIMITS["description"])
+        self.assertLessEqual(len(r1["fix_en"]), qc_agent.TEXT_LIMITS["fix_en"])
+        self.assertEqual(res["speed"]["frames_judged"], self.n)
+        self.assertGreater(res["speed"]["frames_per_minute"], 0)
+
     def test_a_client_without_tool_use_is_refused_clearly(self):
         with self.assertRaises(llm_runner.LlmError) as e:
             qc_agent.QcAgent(self.p, self.pid, self.data, llm_runner.MockLlm(), self.frames).run()
