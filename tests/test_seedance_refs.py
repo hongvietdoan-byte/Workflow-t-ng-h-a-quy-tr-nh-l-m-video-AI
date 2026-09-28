@@ -104,6 +104,18 @@ class SeedanceRefTests(unittest.TestCase):
         self.assertGreater(rows[self.ids[1]]["cost"], 0)             # the run is ONE clip, priced on its first shot…
         self.assertTrue(all(rows[sid]["cost"] == 0 for sid in self.ids[2:]))   # …not one clip per shot
 
+    def test_a_lone_reference_shot_keeps_its_whole_clip(self):
+        """28/09 S5·1: the prompt spread the fall over the 4 s clip, the cut to its 2 s plan lost the fall."""
+        from unittest import mock
+        vr = self._ready()
+        job = self.p.job(self.p.create_job(self.ids[-1], "video_gen"))
+        with mock.patch.object(vr, "_sends_group", return_value=None), mock.patch.object(vr, "_refs", return_value=True),                 mock.patch("core.shots.trim_clip") as trim, mock.patch.object(vr, "_plate_video"):
+            try:
+                vr._after_download(job, os.path.join(self.data, "x.mp4"))
+            except Exception:  # noqa: BLE001 - only whether it cut matters here
+                pass
+        trim.assert_not_called()
+
     def test_refusal_steps_group_then_single_then_kling(self):
         from core.adapters.clipai import REAL_PERSON
         vr = self._ready()
