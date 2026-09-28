@@ -141,7 +141,8 @@ def _check_choice(value: Any, allowed, where: str) -> None:
         raise SchemaError(f"{where}: must be one of {', '.join(allowed)} or null")
 
 
-BEAT_KEYS = ("want", "obstacle", "turn", "value", "plant", "payoff")   # GĐ4 director.md Đ1: value shift + set-up / pay-off
+BEAT_KEYS = ("want", "obstacle", "turn", "value", "plant", "payoff", "cause")   # GĐ4 director.md Đ1: value shift + set-up / pay-off;
+                                                                                 # S3.1: what makes the turn and where it is seen
 
 
 def _clean_beat(value: Any) -> Optional[Dict]:

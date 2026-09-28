@@ -78,6 +78,13 @@ FEATURES: Dict[str, Dict] = {
         "verified": False,
         "why": "2026-09-28 (sau #8: hai shot kết mỗi shot 1 s, người dùng thấy kết cụt): chờ người dùng xem bản dựng lại",
     },
+    "story_check": {
+        "label": "Người xem lần đầu: 1 lượt Claude chỉ đọc cái sẽ hiện trên màn hình (hành động, thoại, chữ — không đọc ý đồ Director) rồi "
+                 "kể lại truyện và chỉ chỗ khó hiểu, trước khi làm ảnh",
+        "verified": False,
+        "why": "2026-09-29 (kế hoạch S3.2, sau #8: truyện cụt, Maxim trúng đạn không thấy ai bắn): mới thử bằng Claude giả lập — chưa biết "
+               "người xem Claude có bắt đúng chỗ người xem thật thấy khó hiểu không (lần chạy kiểm K)",
+    },
     "audio_first": {
         "label": "Timeline theo âm thanh: tạo giọng ngay sau Director, kéo độ dài từng shot theo giọng thật, kiểm tổng so với mục tiêu "
                  "kịch bản (±10 %) và khóa timeline TRƯỚC khi làm ảnh / video",

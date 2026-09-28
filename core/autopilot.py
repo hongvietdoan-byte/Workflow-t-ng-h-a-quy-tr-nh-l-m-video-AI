@@ -27,7 +27,7 @@ from .pipeline import Pipeline
 RUNNING, WAITING, STOPPED, ATTENTION, DONE, ERROR = "running", "waiting", "stopped", "needs_attention", "done", "error"
 QUEUED = "queued"   # approved, waiting for a free slot (see Manager.max_parallel)
 PHASE_LABELS = {"director": "Director (Character Bible + thông số cảnh)", "previz": "Dựng layout / storyboard", "images": "Gen ảnh + QC",
-                "plates": "Nền 3D của bối cảnh (render theo góc máy)", "platefix": "Kiểm nền 3D trong clip", "lipsync": "Khớp môi (sau khi có clip)", "setcheck": "QC đồng bộ cả bộ ảnh", "endframes": "Ảnh khung cuối (shot đổi trạng thái)", "storyboard": "Duyệt storyboard trước khi gen video", "clips": "Xem clip còn lỗi", "motion": "Motion prompt", "voice": "Giọng thoại", "voicefirst": "Giọng trước hình (khóa timeline)", "videos": "Gen video + QC video",
+                "plates": "Nền 3D của bối cảnh (render theo góc máy)", "platefix": "Kiểm nền 3D trong clip", "lipsync": "Khớp môi (sau khi có clip)", "setcheck": "QC đồng bộ cả bộ ảnh", "endframes": "Ảnh khung cuối (shot đổi trạng thái)", "storyboard": "Duyệt storyboard trước khi gen video", "clips": "Xem clip còn lỗi", "motion": "Motion prompt", "voice": "Giọng thoại", "voicefirst": "Giọng trước hình (khóa timeline)", "storycheck": "Người xem lần đầu đọc bảng shot", "videos": "Gen video + QC video",
                 "music": "Nhạc nền", "sfx": "Hiệu ứng âm thanh", "render": "Xuất bản", "done": "Hoàn tất"}
 MAX_SCENES = int(os.environ.get("AUTOPILOT_MAX_SCENES", "12"))
 LOG_KEEP = 60
@@ -874,7 +874,7 @@ def tick(p: Pipeline, project_id: int, ctx: Context) -> str:
         _set(p, project_id, note="Đang tạm dừng")
         return RUNNING
     try:
-        phases = [("director", _director_phase), ("voicefirst", _voice_first_phase), ("previz", _previz_phase), ("plates", _plates_phase), ("images", _images_phase), ("setcheck", _setcheck_phase),
+        phases = [("director", _director_phase), ("storycheck", _story_check_phase), ("voicefirst", _voice_first_phase), ("previz", _previz_phase), ("plates", _plates_phase), ("images", _images_phase), ("setcheck", _setcheck_phase),
                   ("endframes", _end_frame_phase), ("storyboard", _storyboard_phase), ("motion", _motion_phase), ("voice", _voice_phase), ("videos", _videos_phase), ("music", _music_phase),
                   ("platefix", _plate_fallback_phase), ("lipsync", _lipsync_phase), ("sfx", _sfx_phase)]
         for name, fn in phases:
@@ -1179,6 +1179,28 @@ def _check_voices(p: Pipeline, pid: int, ctx: Context) -> None:
         open(marker, "w").close()
         r = voice_check.redo(p.conn, pid, ctx.audio, ctx.data_dir)
         _log(p, pid, f"Tạo lại {r['sent']} câu thoại bị cờ lỗi (1 lần)")
+
+
+def _story_check_phase(p: Pipeline, pid: int, ctx: Context) -> Optional[str]:
+    """S3.2 (feature story_check): the first-time viewer reads the shot plan once (cached by what is on screen) — its reading goes to
+    the log and, when it is lost somewhere, to 📊 Theo dõi and Bước 1. It never stops the run: the person reads it at the plan."""
+    from . import features, story_check
+    if not features.on("story_check") or ctx.llm is None:
+        return None
+    before = story_check.load(ctx.data_dir, pid)
+    try:
+        res = story_check.run(p, pid, ctx.llm, ctx.data_dir)
+    except llm_runner.LlmError as e:
+        _d(p, pid, "director", "warn", f"người xem lần đầu chưa đọc được bảng shot: {e}", "story_check_failed")
+        return None
+    if res and (not before or before.get("fingerprint") != res.get("fingerprint")):
+        for line in story_check.lines(res)[:6]:
+            _log(p, pid, line[:200])
+        lost = [c for c in res.get("confusing") or [] if isinstance(c, dict)]
+        if lost or (res.get("understood") or 5) <= 3:
+            _d(p, pid, "director", "warn", f"người xem lần đầu hiểu {res.get('understood')}/5, {len(lost)} chỗ khó hiểu — xem Bước 1",
+               "story_unclear")
+    return None
 
 
 def _voice_first_phase(p: Pipeline, pid: int, ctx: Context) -> Optional[str]:

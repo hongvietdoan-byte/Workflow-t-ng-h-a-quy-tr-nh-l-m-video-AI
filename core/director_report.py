@@ -194,6 +194,7 @@ def report(obj: Dict, script_text: str, model: str = "kling") -> Dict:
         + [f"cảnh {a['scene']}: kịch bản ghi \"{a['wanted']}\" mà không shot nào giữ" for a in angles] + retime_dropped(obj)
         + opening_and_product(obj),
         "payoff_unplanted": payoff_unplanted(obj),
+        "turns_without_cause": turns_without_cause(obj),
         "continuity": continuity.axis_warnings(shots) + continuity.motif_warnings(shots)
         + continuity.lighting_warnings([sc for sc in obj.get("scenes") or [] if isinstance(sc, dict)]),
         "script_notes": [n for n in obj.get("script_notes") or [] if isinstance(n, dict) and str(n.get("note") or "").strip()],
@@ -295,6 +296,18 @@ def payoff_unplanted(obj: Dict) -> List[int]:
     return out
 
 
+def turns_without_cause(obj: Dict) -> List[str]:
+    """S3.1 (kế hoạch sau #8 — Maxim hit, no shooter shown): scenes whose `beat.turn` says what turns but not `beat.cause` (what makes
+    it turn and where the viewer sees it, or "giấu tới …" when hidden on purpose). Soft: there is more than one way to tell a story;
+    the code only asks the Director to say which (knowledge/craft — no fixed structure)."""
+    out = []
+    for sc in obj.get("scenes") or []:
+        beat = sc.get("beat") if isinstance(sc.get("beat"), dict) else {}
+        if str(beat.get("turn") or "").strip() and not str(beat.get("cause") or "").strip():
+            out.append(f"cảnh {sc.get('idx')}: có cú xoay (\"{str(beat['turn'])[:50]}\") mà chưa ghi `cause` — người xem thấy nguyên nhân ở đâu?")
+    return out
+
+
 def problems(r: Dict) -> int:
     """How many measured faults (0 = the answer passes every check the code can make)."""
     return (len(r["short_speech"]) + len(r["silent_micro"]) + len(r["wide_short"]) + len(r["lip_sync"]) + r["dropped_answered"]
@@ -329,6 +342,8 @@ def text(r: Dict) -> str:
         rows.append("⚠ Director đã hy sinh (" + ", ".join(r["unrecorded"]) + ") mà không ghi `tradeoffs`")
     if r.get("payoff_unplanted"):
         rows.append("⚠ Cảnh gặt lại điều chưa được gieo ở cảnh nào trước: " + ", ".join(map(str, r["payoff_unplanted"])))
+    for w in r.get("turns_without_cause") or []:
+        rows.append(f"  💡 {w}")
     for w in r.get("continuity") or []:
         rows.append(f"  🧭 {w}")
     for w in r.get("acting") or []:

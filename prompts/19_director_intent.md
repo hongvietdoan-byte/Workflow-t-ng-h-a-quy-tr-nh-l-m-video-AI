@@ -53,8 +53,10 @@ của bạn (thoại đủ và đúng thứ tự, thời lượng trong khung, t
   trước hay sau nhân vật). Không tóm tắt hành động.
 - `knowledge_gap` (tùy chọn): `"ahead"` người xem biết trước nhân vật (hồi hộp) · `"same"` biết cùng lúc (căng) · `"behind"` biết sau
   (bất ngờ). Ghi khi cảnh cố ý chọn một trong ba — Quay phim đọc để quyết cho người xem thấy nguyên nhân trước hay phản ứng trước.
-- `beat` `{want, obstacle, turn, value, plant, payoff}`: muốn gì, cái gì cản, xoay chiều ở đâu, giá trị đổi ("tin → ngờ"), điều cảnh này
-  gieo cho sau, điều cảnh này gặt lại từ trước. *Căn cứ:* gặt mà không cảnh nào trước đó gieo → code báo (twist không được chuẩn bị).
+- `beat` `{want, obstacle, turn, value, plant, payoff, cause}`: muốn gì, cái gì cản, xoay chiều ở đâu, giá trị đổi ("tin → ngờ"), điều cảnh này
+  gieo cho sau, điều cảnh này gặt lại từ trước; `cause` = cái gì / ai gây ra cú xoay và người xem thấy nó ở đâu (hoặc "giấu tới …" khi
+  cố ý hé lộ sau). *Căn cứ:* gặt mà không cảnh nào trước đó gieo → code báo (twist không được chuẩn bị); cú xoay không cho thấy nguyên
+  nhân → người xem lần đầu không hiểu (#8: Maxim trúng đạn, không thấy người bắn) — code nhắc khi có `turn` mà thiếu `cause`.
 - `target_s` (số giây, **bắt buộc**): độ dài cảnh trên phim. Cộng lại phải nằm trong tổng kịch bản yêu cầu; mỗi cảnh không ngắn hơn thời
   gian nói các câu được giữ (khối thời lượng ghi sẵn số giây cần). Kịch bản ghi giây cho từng phần → theo đó, trừ khi thoại cần hơn (ghi
   `tradeoffs`). *Vì sao:* Quay phim chia shot trong khung này; code so tổng shot với khung (lệch nhiều → gắn cờ cho bạn duyệt).
@@ -102,7 +104,7 @@ bỏ gì, vì sao) — người dùng dùng dữ liệu này để chỉnh thang
                   "lock": {"must_keep": "", "may_change": "", "forbidden": ""}}],
   "scenes": [{"idx": 1, "location": "", "location_asset": 12, "sequence": 1, "time": "", "weather": "clear", "characters": [""],
               "mood": "", "lighting": "", "emotional_intent": "", "knowledge_gap": "ahead|same|behind",
-              "beat": {"want": "", "obstacle": "", "turn": "", "value": "", "plant": "", "payoff": ""},
+              "beat": {"want": "", "obstacle": "", "turn": "", "value": "", "plant": "", "payoff": "", "cause": ""},
               "camera_complexity": "simple", "shot_role": "normal", "focus": "", "peak": 3, "target_s": 12,
               "dialogue": [{"speaker": "", "text": "", "delivery": {"emotion": "", "intensity": 3, "pace": "normal"}}],
               "sound": {"music": "keep", "sfx": [], "why": ""},

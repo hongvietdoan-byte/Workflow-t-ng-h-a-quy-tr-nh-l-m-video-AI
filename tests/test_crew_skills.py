@@ -181,6 +181,19 @@ class DirectorReportTests(unittest.TestCase):
         self.assertEqual(ok["unrecorded"], [])
         self.assertEqual(director_report.problems(r) - director_report.problems(ok), 1)
 
+    def test_a_turn_without_its_cause_is_a_hint(self):
+        """S3.1 (#8: Maxim hit, no shooter shown) — soft: the Director says where the viewer sees the cause, or that it is hidden."""
+        scenes = [{"idx": 1, "beat": {"turn": "Maxim trúng đạn ngã xuống"}, "shots": [_shot()]},
+                  {"idx": 2, "beat": {"turn": "Kelly quay lưng", "cause": "thấy Kenta ôm người khác — shot 2·1"}, "shots": [_shot()]},
+                  {"idx": 3, "beat": {"turn": "", "cause": ""}, "shots": [_shot()]}]
+        out = director_report.turns_without_cause({"scenes": scenes})
+        self.assertEqual(len(out), 1)
+        self.assertIn("cảnh 1", out[0])
+        from core import llm_io
+        llm_io._check_beat({"turn": "x", "cause": "giấu tới cảnh 3"}, "beat")
+        r = director_report.report(self._answer([("KELLY", "Anh nói đi.")]), self.SCRIPT)
+        self.assertIn("turns_without_cause", r)
+
     def test_a_payoff_without_a_setup_is_reported(self):
         scenes = [{"idx": 1, "beat": {"want": "x", "plant": ""}, "shots": [_shot()]},
                   {"idx": 2, "beat": {"payoff": "Kenta cứu Maxim"}, "shots": [_shot()]}]

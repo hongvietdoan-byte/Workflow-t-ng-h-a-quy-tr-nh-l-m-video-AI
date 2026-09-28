@@ -14,9 +14,11 @@ Dùng knowledge pack đính kèm (biên kịch/quay phim, phương pháp đạo 
 - `blocking`: tiếng Anh, 1–2 câu, vị trí của từng nhân vật trong khung hình theo góc máy của cảnh: bên trái/giữa/phải khung (frame-left/center/right), tiền/trung/hậu cảnh (foreground/midground/background), hướng nhìn/hướng mặt, khoảng cách tương đối và tỉ lệ so với vật mốc của bối cảnh nếu có (ví dụ "full body, feet on the ground, about as tall as the door"). Trong cùng `sequence`, giữ trục 180°. Cảnh không có người thì để chuỗi rỗng.
 - `emotional_intent`: tiếng Việt, 1 câu — người xem phải CẢM THẤY gì ở cảnh này (không phải tóm tắt hành động).
 - `knowledge_gap` (tùy chọn): `"ahead"` người xem biết trước nhân vật (hồi hộp) · `"same"` cùng lúc · `"behind"` biết sau (bất ngờ).
-- `beat`: `{"want": "", "obstacle": "", "turn": "", "value": "", "plant": "", "payoff": ""}` — nhân vật muốn gì, điều gì cản, cảnh xoay
+- `beat`: `{"want": "", "obstacle": "", "turn": "", "value": "", "plant": "", "payoff": "", "cause": ""}` — nhân vật muốn gì, điều gì cản, cảnh xoay
   chiều ở đâu; `value` = giá trị đổi từ đâu sang đâu ("tin → ngờ"); `plant` = điều cảnh này gieo cho sau, `payoff` = điều cảnh này gặt lại
-  từ trước (bỏ trống nếu không có) — tiếng Việt, ngắn. Cảnh gặt mà không cảnh nào trước đó gieo sẽ bị code báo.
+  từ trước (bỏ trống nếu không có) — tiếng Việt, ngắn. Cảnh gặt mà không cảnh nào trước đó gieo sẽ bị code báo. `cause` (khi có `turn`):
+  cái gì / ai gây ra cú xoay và người xem **thấy** nó ở đâu (vd "kẻ bắn nấp sau thùng — shot 3·2"); người xem lần đầu không đoán được
+  nguyên nhân thì cú xoay thành khó hiểu (#8: Maxim trúng đạn mà không thấy ai bắn). Cố ý giấu nguyên nhân để hé lộ sau thì ghi "giấu tới …".
 - `camera_complexity`: `"complex"` khi cảnh có đánh nhau/đuổi bắt/va chạm/nhiều người chuyển động cùng lúc/máy di chuyển phức tạp (cần luật cảnh phức tạp và nên dựng layout trước); còn lại `"simple"`.
 - `shot_role`: `"hero"` (khoảnh khắc then chốt/cao trào/cú chốt — dùng model video tốt nhất), `"transition"` (cảnh chuyển tiếp đơn giản), còn lại `"normal"`.
 - `dialogue`: danh sách lời thoại của cảnh theo thứ tự nói, `[{"speaker": "TÊN NHÂN VẬT", "text": "lời thoại"}]`, lấy từ kịch bản, giữ nguyên lời (không tự viết thêm thoại). Cảnh không có thoại thì `[]`. `speaker` là tên trong Character Bible (thuyết minh thì ghi "NARRATOR").
@@ -40,7 +42,7 @@ Dùng knowledge pack đính kèm (biên kịch/quay phim, phương pháp đạo 
                   "lock": {"must_keep": "", "may_change": "", "forbidden": ""}}],
   "scenes": [{"idx": 1, "location": "", "location_asset": 12, "sequence": 1, "time": "", "characters": [""], "mood": "",
               "lighting": "", "shot": "", "blocking": "", "image_prompt": "",
-              "emotional_intent": "", "knowledge_gap": "", "beat": {"want": "", "obstacle": "", "turn": "", "value": "", "plant": "", "payoff": ""},
+              "emotional_intent": "", "knowledge_gap": "", "beat": {"want": "", "obstacle": "", "turn": "", "value": "", "plant": "", "payoff": "", "cause": ""},
               "camera_complexity": "simple", "shot_role": "normal",
               "dialogue": [{"speaker": "", "text": ""}], "duration_s": 5}],
   "ip_risk_notes": [""]

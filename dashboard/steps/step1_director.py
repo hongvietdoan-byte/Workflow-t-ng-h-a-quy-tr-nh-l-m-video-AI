@@ -176,6 +176,18 @@ def _crew_notes(p: Pipeline, pid: int) -> None:
     if r.get("payoff_unplanted"):
         st.warning("⚠ Cảnh gặt lại điều chưa được gieo ở cảnh nào trước (`beat.payoff` không có `plant` trước đó): "
                    + ", ".join(map(str, r["payoff_unplanted"])))
+    if r.get("turns_without_cause"):
+        st.caption("💡 Nguyên nhân cú xoay: " + " · ".join(escape(w) for w in r["turns_without_cause"]))
+    from core import story_check
+    seen = story_check.load(C.DATA, pid)
+    if seen:
+        lost = [c for c in seen.get("confusing") or [] if isinstance(c, dict)]
+        with st.expander(f"👀 Người xem lần đầu hiểu {seen.get('understood', '?')}/5" + (f" · ❓ {len(lost)} chỗ khó hiểu" if lost else "")
+                         + (" · (bảng shot đã đổi sau lần đọc)" if seen.get("fingerprint") != story_check.fingerprint(story_check.digest(p, pid))
+                            else "")):
+            st.markdown("\n".join(f"- {escape(line)}" for line in story_check.lines(seen)))
+            st.caption("Claude chỉ đọc cái sẽ hiện trên màn hình (hành động, thoại, chữ), không đọc ý đồ Director — để thấy chỗ người xem thật "
+                       "có thể không hiểu. Chỉ là gợi ý: kết mở / giấu nguyên nhân có chủ ý vẫn được.")
     if r.get("continuity"):
         st.caption("🧭 Liền mạch: " + " · ".join(escape(w) for w in r["continuity"]))
     if r.get("acting"):

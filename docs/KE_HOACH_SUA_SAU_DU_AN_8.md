@@ -20,14 +20,14 @@
 | S0 Học từ phim drama tham khảo | 15 | 11 | 4 | 0 | 0 | 79,6 % |
 | S9 Dashboard gọn, dễ nhìn | 6 | 5 | 0 | 0 | 0 | 81,8 % |
 | S2 Timeline theo âm thanh + animatic | 6 | 5 | 0 | 1 | 0 | 81,8 % |
-| S3 Director kể chuyện + Quay phim | 8 | 0 | 0 | 0 | 0 | 0 % |
+| S3 Director kể chuyện + Quay phim | 8 | 2 | 0 | 0 | 0 | 26,7 % |
 | S4 Video chất lượng | 12 | 2 | 0 | 4 | 0 | 10 % |
 | S5 Bối cảnh theo file 3D Tháp Đồng Hồ | 6 | 0 | 0 | 1 | 0 | 0 % |
 | S6 Ước tính, ngân sách, dashboard | 6 | 0 | 0 | 0 | 0 | 0 % |
 | S7 Agent QC | 2 | 0 | 0 | 0 | 0 | 0 % |
 | K Chạy kiểm kịch bản hài 20–30 s | 3 | 0 | 0 | 0 | 0 | 0 % |
 | S8 Chấm lại bằng AI Development System (cuối cùng) | 5 | 0 | 0 | 0 | 0 | 0 % |
-| **Tổng** | **86** | **38** | **4** | **8** | **0** | **46,9 %** |
+| **Tổng** | **86** | **40** | **4** | **8** | **0** | **49,7 %** |
 
 Đợt hiện tại: **S1** · việc kế: **S9.6** Gộp timeline tổng + sửa giao diện S6.4
 <!-- /tien-do -->
@@ -89,8 +89,8 @@
 - [ ] S2.6 · Thử Seed Audio 1.0 làm track thoại cả cảnh (3 giọng mẫu, mốc 100 ms, mốc phụ đề) · nặng:2 · ⏸ · chờ người dùng duyệt (cập nhật ClipAI)
 
 ### S3 — Director kể chuyện + Quay phim
-- [ ] S3.1 · Bảng nhịp truyện bắt buộc · nặng:2 · ⬜
-- [ ] S3.2 · Agent "người xem lần đầu" · nặng:2 · ⬜
+- [x] S3.1 · Bảng nhịp truyện bắt buộc · nặng:2 · ✅ · 2026-09-29 (điều chỉnh theo góp ý 'không khuôn cố định'): beat.cause — cú xoay nêu nguyên nhân và chỗ người xem thấy (hoặc 'giấu tới …'); thiếu → 💡 ở Bước 1 (director_report.turns_without_cause); prompt 01/19 + director.md; test
+- [x] S3.2 · Agent "người xem lần đầu" · nặng:2 · ✅ · 2026-09-29: core/story_check.py + prompt 22 (chỉ đọc cái hiện trên màn hình), pha storycheck (cờ story_check), hiện ở Bước 1; mock + 3 test; chưa chạy Claude thật
 - [ ] S3.3 · action_peak → storyboard vẽ tư thế hành động · nặng:1 · ⬜
 - [ ] S3.4 · Đoạn diễn liên tục theo góc máy, cắt xen · nặng:3 · ⬜
 - [ ] S3.5 · Cổng Quay phim (cỡ cảnh, chuyển động máy) · nặng:2 · ⬜

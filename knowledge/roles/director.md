@@ -43,10 +43,11 @@ quyết định ở lại hay lướt trong vài giây đầu, nên cảm xúc p
   - **Ẩn ý:** câu thoại là manh mối của điều nhân vật thật sự muốn; ghi cả hai tầng "nói A — muốn B".
   - **Gieo – gặt:** thứ được nhấn ở cuối phải được gieo từ trước (khẩu súng Chekhov [Đ11]); không để câu gieo bị cắt.
   - **Cung nhân vật:** nhân vật lộ bản chất qua lựa chọn dưới áp lực; ghi họ đổi từ trạng thái nào sang trạng thái nào.
-- **Trong pipeline.** Trường cảnh `beat` (object, cùng dạng với prompt 01): `{"want", "obstacle", "turn", "value", "plant", "payoff"}` —
+- **Trong pipeline.** Trường cảnh `beat` (object, cùng dạng với prompt 01): `{"want", "obstacle", "turn", "value", "plant", "payoff", "cause"}` —
   `turn` ghi động từ của nhịp xoay ("Kenta giấu"), `value` giá trị đầu → cuối ("tin → ngờ"), `plant` điều cảnh gieo cho sau, `payoff` điều
-  cảnh gặt lại. `emotional_intent` ghi "người xem cảm ＿ dù trên hình là ＿".
-- **Kiểm.** Code: cảnh có `payoff` mà không cảnh nào trước đó có `plant` → ⚠ ở bàn đo (`director_report.payoff_unplanted`); câu thoại bị bỏ
+  cảnh gặt lại, `cause` cái gì gây ra cú xoay và người xem thấy nó ở đâu (hoặc "giấu tới …" khi cố ý để hé lộ sau — kể
+  chuyện có nhiều cách, cái cần là người xem hiểu được khi tới lúc). `emotional_intent` ghi "người xem cảm ＿ dù trên hình là ＿".
+- **Kiểm.** Code: cảnh có `payoff` mà không cảnh nào trước đó có `plant` → ⚠ ở bàn đo (`director_report.payoff_unplanted`); cảnh có `turn` mà thiếu `cause` → 💡 (`director_report.turns_without_cause`); câu thoại bị bỏ
   có câu sau đáp lại → ⚠ (`shots.dialogue_cuts`). Claude/người: đọc bảng cảnh ở Bước 1 (code chỉ biết có gieo, không biết gieo *đúng điều*).
 - **Ví dụ FF ("ANH CHỌN AI?", #6).** ✔ "Không liên quan đến ông." = nói *đẩy Maxim ra* — muốn *giữ bí mật để bảo vệ Kelly*; "Chỉ cần cô ấy
   còn sống… là được" là câu **gieo** cho cú twist và cảnh kết — không được cắt. Giá trị cả phim: yêu → nghi bị phản bội (−) → biết sự thật (+).

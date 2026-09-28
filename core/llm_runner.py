@@ -990,6 +990,12 @@ def _mock_v2(prompt: str):
     if prompt.startswith("# Character Lock từ ảnh"):
         return {"must_keep": "same face, hair colour and outfit colour blocks (mock)", "may_change": "pose, expression, camera",
                 "forbidden": "hair colour change, missing accessories (mock)"}
+    if prompt.startswith("# Người xem lần đầu"):
+        film = json.loads(re.search(r"# Phim \(theo thứ tự trên màn hình\)\s*```json\s*(.*?)```", prompt, re.S).group(1))
+        return {"summary": f"{len(film)} shot (giả lập)", "who_wants_what": "giả lập",
+                "turns": [{"at": film[-1]["shot"], "what": "giả lập", "understood": True, "why": "giả lập"}] if film else [],
+                "confusing": [{"at": film[0]["shot"], "question": "ai đây? (giả lập)"}] if film else [], "ending": "giả lập",
+                "understood": 4}
     if prompt.startswith("# Chọn giọng cho nhân vật"):
         chars = json.loads(re.search(r"# Nhân vật\s*```json\s*(.*?)```", prompt, re.S).group(1))
         voices = json.loads(re.search(r"# Giọng có sẵn\s*```json\s*(.*?)```", prompt, re.S).group(1))
