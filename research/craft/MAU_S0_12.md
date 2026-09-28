@@ -28,6 +28,23 @@
 **Ghi chú quan trọng:** mục 4 và 6/7 không đọc được toàn bộ mô tả gốc bằng tiếng Trung phồn/giản thể lẫn lộn — tên phim có thể có dị bản phồn/giản
 khác nhau giữa các nền tảng; đã ghi URL cụ thể nên không ảnh hưởng việc xác minh.
 
+## 1b. DramaBox — 3 mục (bổ sung 2026-09-29, theo gợi ý người dùng: app DramaBox chạy quảng cáo nhiều phim AI ở VN)
+
+> Kênh chính chủ `@dramaboxapp` (15,9 triệu sub) chủ yếu đăng trailer/tập ngắn 16:9 diễn viên thật (không rõ AI). Nội dung AI-generated
+> của hệ sinh thái DramaBox nằm ở các **kênh đối tác/quảng bá thứ ba** re-upload phim AI kèm mã tập để tìm trong app DramaBox (giống mô
+> hình kênh AI心動劇場 ở mục 1) — đã mở trực tiếp từng trang video xác nhận tỉ lệ khung + độ dài qua `video.videoWidth/videoHeight`.
+> **CHƯA phân tích tầng 1–4** (theo đúng yêu cầu — chỉ liệt kê đã xác minh, phân tích để đợt sau).
+
+| # | Tên | Kênh (đăng) | URL | Độ dài | Khung hình | Lượt xem | Ghi chú |
+|---|---|---|---|---|---|---|---|
+| 1 | Your Dumped Housewife Is Your Boss #ai #sadstory #dramabox | DramaTales (10,7K sub) | https://www.youtube.com/watch?v=LMaaTmhvLuQ | 2:16:11 (8170.7s) | **9:16** (360×640, xác nhận qua `videoWidth/videoHeight`) | 45K, đăng 7 ngày trước | Mô tả "Search the title 'vjc54' on Dramabox app" — đúng mô hình quảng bá app; tag #ai |
+| 2 | Doting Snake Lord #drama #aidrama #dragon #dramabox | Drama Flicks (410K sub) | https://www.youtube.com/watch?v=X5EJ9etPr2M | 20:37 (1237.3s) | **9:16** (480×854) | 75K, đăng 2 tháng trước | Đề tài huyền huyễn/rồng rắn — khác thể loại tổng tài hiện đại của 2 mục còn lại; tag #aidrama |
+| 3 | My Dirty Secret With The Wrong Stepbrother #dramabox #aimovie | Brilliant Drama (32,8K sub) | https://www.youtube.com/watch?v=fmvJdZkrB2k | 2:46:37 | 9:16 (chưa đo pixel trực tiếp — chỉ xem mô tả/tiêu đề, suy ra từ định dạng cùng nhóm; **cần xác nhận lại ở S0.12** nếu chọn phân tích) | 140K, đăng 2 tháng trước | Mô tả "Search title 'kcw23' on Dramabox app"; tag #aimovie |
+
+**Tồn đọng**: chưa xác nhận công cụ AI cụ thể (Seedance/Kling/khác) cho cả 3 mục — không thấy tên model trong phần mô tả rút gọn đã đọc.
+Kênh chính chủ `@dramaboxapp` không dùng để phân tích AI vì không rõ tỉ lệ nội dung AI-generated trong catalog chính (nhiều khả năng vẫn là
+diễn viên thật quay theo kịch bản ngắn, khác nhánh AI-generated của các kênh đối tác trên).
+
 ## 2. Short film (live-action, festival/curated) — 4 mục
 
 | # | Tên | Kênh | URL | Độ dài | Khung hình | Chính chủ? | Lượt xem | Đáng học | Nhạc nền đáng học |
