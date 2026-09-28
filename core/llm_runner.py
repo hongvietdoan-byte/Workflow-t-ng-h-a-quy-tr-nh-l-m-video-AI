@@ -59,6 +59,8 @@ class LlmError(Exception):
 STAGE_SETTINGS: Dict[str, Dict[str, Any]] = {
     "director": {"effort": "medium", "max_tokens": 64000},     # shot plan of a whole script: long answer
     "motion": {"effort": "medium", "max_tokens": 48000},
+    "translate": {"effort": "low", "max_tokens": 8000},        # the Director's Vietnamese fields → short English (28/09: the default
+                                                              # ceiling made the call's worst case 0.33 USD and the motion cap refused it)
     "qc": {"effort": "low", "max_tokens": 16000},              # scoring against a checklist: short JSON
     "video": {"effort": "low", "max_tokens": 16000},
     "music": {"effort": "low"}, "sfx": {"effort": "low"}, "subtitles": {"effort": "low"}, "lessons": {"effort": "low"},

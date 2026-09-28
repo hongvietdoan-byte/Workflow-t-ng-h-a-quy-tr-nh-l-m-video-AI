@@ -108,8 +108,31 @@ def remaining(p, pid: int) -> Dict[str, float]:
             "videos": round(vid * (1 + VIDEO_REDO), 2),
             "claude_director": 0.0 if director_done else round((cost.llm_estimate(conn, "director", 1, pricing) or 0.0) * LLM_MARGIN, 2),
             "claude_qc": round(qc * LLM_MARGIN, 2),
-            "claude_motion": round((cost.llm_estimate(conn, "motion", 1 if est["counts"]["clips"] else 0, pricing) or 0.0) * LLM_MARGIN, 2),
+            "claude_motion": round(((cost.llm_estimate(conn, "motion", 1 if est["counts"]["clips"] else 0, pricing) or 0.0)
+                                    + (_translate_worst(conn, pid) if est["counts"]["clips"] else 0.0)) * LLM_MARGIN, 2),
             "claude_other": OTHER_CLAUDE_USD}
+
+
+def _translate_worst(conn, pid: int) -> float:
+    """The one translation call of the motion stage (claude_tasks.translate_motion_fields) at its WORST case — the lock checks the
+    worst case, so a cap below it refuses the call (#8 2026-09-28: cap 0.10, the call's worst case 0.33, clips then refused for
+    Vietnamese text)."""
+    from . import claude_tasks, llm_runner
+    todo = 0
+    for (raw,) in conn.execute("SELECT data FROM scenes WHERE project_id=?", (pid,)):
+        d = json.loads(raw or "{}")
+        if any(d.get(k) and claude_tasks._vi(d[k]) for k in claude_tasks.TRANSLATE_KEYS):
+            todo += 1
+    if not todo:
+        return 0.0
+    model = cost_model()
+    out = int(llm_runner.stage_settings("translate").get("max_tokens") or 8000)
+    return round(llm_runner._price(model, "input", todo * 400) * 1.25 + llm_runner._price(model, "output", out), 3)
+
+
+def cost_model() -> str:
+    from . import cost
+    return cost.llm_model()
 
 
 def _frames_per_scene(conn, pid: int) -> List[int]:
