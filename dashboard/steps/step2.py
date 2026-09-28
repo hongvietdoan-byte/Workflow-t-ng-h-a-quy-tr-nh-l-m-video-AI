@@ -447,7 +447,8 @@ def animatic_box(p: Pipeline, pid: int) -> None:
         note = st.session_state.get(f"animatic_note_{pid}")
         if note:
             st.caption(note)
-        st.video(done)
+        player, _ = st.columns([1, 2])            # a 9:16 player at full width is taller than the screen
+        player.video(done)
 
 
 def shot_storyboard_panel(p: Pipeline, pid: int) -> None:
