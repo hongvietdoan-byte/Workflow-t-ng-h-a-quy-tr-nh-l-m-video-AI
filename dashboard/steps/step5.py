@@ -96,7 +96,8 @@ def step5a(p: Pipeline, pid: int):
                     st.toast(f"Đang chạy {counts['running']} · xong {counts['succeeded']} · lỗi {counts['failed']}")
                     st.rerun()
     drafts = music.load_drafts(drafts_dir)
-    for start in range(0, len(drafts), 3):
+    show_drafts = brief_open or any(d["state"] == "running" for d in drafts)   # S9 E5.3: the drafts fold with the brief
+    for start in (range(0, len(drafts), 3) if show_drafts else []):
         cols = st.columns(3)
         for col, (i, d) in zip(cols, list(enumerate(drafts))[start:start + 3]):
             with col, st.container(border=True):
@@ -117,7 +118,7 @@ def step5a(p: Pipeline, pid: int):
                             st.rerun()
                 else:
                     ui.html('<div class="wave"></div><span class="muted">đang tạo… bấm “Kiểm tra + tải nhạc về”</span>')
-    if drafts and confirm_all(f"mclear_{pid}", [d.get("file") or str(i) for i, d in enumerate(drafts)], "Xóa danh sách bản nháp",
+    if show_drafts and drafts and confirm_all(f"mclear_{pid}", [d.get("file") or str(i) for i, d in enumerate(drafts)], "Xóa danh sách bản nháp",
                               "Xóa mọi bản nháp nhạc? Các bản đã tạo (đã trả tiền) sẽ mất.", st, "Có, xóa"):
         shutil.rmtree(drafts_dir, ignore_errors=True)
         st.rerun()
