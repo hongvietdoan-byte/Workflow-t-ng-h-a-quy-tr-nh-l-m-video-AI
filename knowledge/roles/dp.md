@@ -233,8 +233,12 @@ Nguồn: clip mẫu ClipAI người dùng gửi 2026-09-28 (MV 201 s; `docs/PHAN
 - **Đầu vào không ép dáng.** Director Workspace của ClipAI khuyên dàn cảnh bằng nhân vật hình học (trụ + cầu) vì ảnh / video dáng chi tiết
   làm Seedance bắt chước cứng tay chân (tài liệu chính thức, 15/09/2026). Ảnh storyboard dáng đứng làm khung đầu chỉ khi bố cục chính xác
   quan trọng hơn chuyển động (thử A/B ở S4.6).
-- **Video tham chiếu chuyển động** cho động tác khó (nhảy nhóm đồng bộ, nhào lộn, chạy, ngã) — suy luận từ vũ đạo 6 người đồng bộ ở
-  1:00–1:02; chưa có bằng chứng về cách làm thật.
+- **Động tác khó đến từ chỉ đạo, không mặc định từ mẫu** (người dùng 2026-09-29). Phim dài không có sẵn mẫu hành động cho mọi cảnh —
+  diễn viên hiểu cảnh rồi tự diễn cho khớp kịch bản (ngoài đời còn tập và quay thử trước). Với model video cũng vậy: trước hết là **cách
+  truyền đạt** — nhân vật đang ở tình huống gì, muốn gì, vì sao hành động (động cơ, Đ4); chuỗi hành động theo nhịp (bắt đầu → giữa → kết
+  thúc ở tư thế nào); chi tiết cơ thể (trọng tâm, chân chạm đất, tay, hướng nhìn); nhịp độ; và **quay thử rẻ trước** (bản mẫu 480p /
+  Sample Mode, `motion_complex_shots.md`) rồi mới làm bản thật. Video tham chiếu chuyển động chỉ là **một công cụ phụ** khi động tác rất
+  đặc thù (vũ đạo đồng bộ nhiều người — clip mẫu 1:00–1:02 có thể đã dùng, chưa có bằng chứng) và có sẵn / tự quay được.
 - **Chuyển cảnh bằng chuyển động máy trong cùng clip** (2:20,6–2:21: máy bay lên xuyên đèn chùm rồi hạ xuống mặt bàn) — dùng ở clip cho
   lần đổi sang thế giới siêu thực.
 - **Chuyển cảnh che máy có chủ ý** (người dùng giải thích 2026-09-29 — cách làm nghề, không phải "đặt sẵn shot cận vật"): chỗ nối được
@@ -244,8 +248,8 @@ Nguồn: clip mẫu ClipAI người dùng gửi 2026-09-28 (MV 201 s; `docs/PHAN
   của nhân vật nữ.
 - **Góc máy:** clip dùng máy thấp trong đoạn người tí hon giữa chồng phỉnh (2:31–2:47), nhìn xuống bàn (0:30–0:32), sau lưng khi đẩy cửa
   (3:07–3:12). Ý nghĩa của các góc này **ở đúng chỗ đó** do ngữ cảnh tạo ra — xem Q1 ("ý nghĩa góc không cố định").
-- **Trong pipeline.** Chuyển cảnh che máy: ghi ở `transition_in` (S3.6) + tả trong motion prompt của hai shot; động tác khó: ghi cần video
-  tham chiếu ở `why`.
+- **Trong pipeline.** Chuyển cảnh che máy: ghi ở `transition_in` (S3.6) + tả trong motion prompt của hai shot; động tác khó: ghi rõ động cơ + chuỗi
+  hành động trong `performance` / motion prompt, cần quay thử hay video tham chiếu thì ghi ở `why`.
 - **Kiểm.** Người: animatic / bản dựng — chỗ nối có liền không, có lý do trong cảnh không.
 
 ## Tầng 4 — Ưu tiên khi xung đột

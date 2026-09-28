@@ -17,5 +17,6 @@ Ví dụ: clip mẫu người dùng gửi 2026-09-28 — MV 201 s, 16:9, 62 shot
 Một bảng màu (tím–vàng, sàn bóng phản chiếu); đổi ánh sáng khi truyện đổi (đêm mưa → sáng sau mưa).
 
 ## Khi dùng cho AI video
-- Động tác khó: cân nhắc video tham chiếu chuyển động (suy luận) và đầu vào không ép dáng (Director Workspace ClipAI khuyên).
+- Động tác khó: trước hết do chỉ đạo — động cơ, chuỗi hành động, chi tiết cơ thể, quay thử rẻ (bản mẫu) trước bản thật; đầu vào không ép
+  dáng (Director Workspace ClipAI khuyên); video tham chiếu chỉ là công cụ phụ.
 - Shot trung vị 2,5 s; nhạc −14,6 LUFS liên tục — số của một clip, không phải mục tiêu.

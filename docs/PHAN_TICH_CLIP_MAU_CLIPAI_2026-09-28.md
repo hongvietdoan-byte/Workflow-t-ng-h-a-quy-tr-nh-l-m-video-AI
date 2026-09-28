@@ -139,7 +139,7 @@ dùng; bỏ "1 câu ≈ 1 shot" khỏi gợi ý chung, bỏ "đặt sẵn shot c
 |---|---|---|
 | Motion prompt tả động tác đang diễn ra từ khung đầu | đo: clip mẫu động gấp ~2,4 lần #8; lỗi 1.5 của #8 | Q12, S4.4 |
 | Đầu vào không ép dáng cho shot chuyển động | tài liệu chính thức ClipAI (Director Workspace 15/09) | Q12, A/B S4.6 |
-| Video tham chiếu chuyển động cho động tác khó | suy luận + ClipAI hỗ trợ @Video | Q12, S4.6 |
+| Động tác khó = **chỉ đạo bằng mô tả** (động cơ, chuỗi hành động, chi tiết cơ thể) + quay thử rẻ trước; video tham chiếu chỉ là công cụ phụ | người dùng 2026-09-29 (như đạo diễn hướng dẫn diễn viên); Đ4 | Q12, S4.4, S4.6 |
 | Chuyển cảnh che máy **thiết kế trong chuyển động** | người dùng (cách làm nghề) | Q12, E12, S3.6 `transition_in` |
 | Nhân vật phụ dễ giữ nhất quán | lựa chọn sản xuất, giảm trôi mặt / khớp môi | Đ12 |
 
