@@ -424,6 +424,32 @@ def pilot_panel(p: Pipeline, pid: int) -> None:
             st.rerun()
 
 
+def animatic_box(p: Pipeline, pid: int) -> None:
+    """S2.4 (kế hoạch sau #8): the film as it will be cut — storyboard pictures for their locked seconds with a slow move, the voice
+    lines, the music and the subtitles — before any video is paid for (0 USD, ffmpeg)."""
+    from core import animatic, delivery
+    out_dir = delivery.output_dir(C.DATA, pid)
+    done = next((os.path.join(out_dir, f) for f in ("ANIMATIC_sub.mp4", "ANIMATIC.mp4") if os.path.exists(os.path.join(out_dir, f))), None)
+    c1, c2 = st.columns([3, 1.4], vertical_alignment="center")
+    c1.caption("🎬 **Animatic** — xem cả phim bằng ảnh storyboard + giọng + nhạc + phụ đề theo đúng độ dài từng shot, TRƯỚC khi trả tiền "
+               "video (0 USD). Ảnh tĩnh có đẩy / lia nhẹ theo chuyển động máy: để xem nhịp, thứ tự, độ dài — không phải diễn xuất.")
+    if c2.button("🎬 Dựng animatic" if not done else "🔄 Dựng lại animatic", key=f"animatic_{pid}"):
+        with st.spinner("Đang dựng animatic (khoảng 1 phút)…"):
+            try:
+                r = animatic.build(p, pid, C.DATA)
+                st.session_state[f"animatic_note_{pid}"] = (
+                    f"{r['shots']} shot · {r['seconds']:g} s · {r['voices']} câu thoại · " + ("có nhạc" if r["music"] else "chưa có nhạc")
+                    + (" · có phụ đề" if r["subtitles"] else "") + (f" · ⚠ {len(r['missing'])} shot chưa có ảnh (thẻ tối)" if r["missing"] else ""))
+                done = r["path"]
+            except Exception as e:  # noqa: BLE001 - said on the page, the storyboard stays usable
+                st.error(f"Không dựng được animatic: {e}")
+    if done:
+        note = st.session_state.get(f"animatic_note_{pid}")
+        if note:
+            st.caption(note)
+        st.video(done)
+
+
 def shot_storyboard_panel(p: Pipeline, pid: int) -> None:
     """Every start picture in film order with size, role, length and lines — and, before any video is paid for, the storyboard
     checkpoint (W1): flagged shots first, the characters' reference pictures next to each picture, one button to go on to video."""
@@ -451,6 +477,7 @@ def shot_storyboard_panel(p: Pipeline, pid: int) -> None:
         if off:                                    # rule 5: a feature switched off until its real test is never a mystery
             st.caption("🧪 Đang tắt tới khi thử thật đạt: " + "; ".join(v["label"] for v in off.values())
                        + " (bật thử bằng FEATURE_<TÊN>=1, xem core/features.py).")
+        animatic_box(p, pid)
         if waiting:
             c1, c2 = st.columns([3, 1.4], vertical_alignment="center")
             c1.warning(f"Chế độ tự động đang dừng ở đây: {storyboard_gate.summary(p, pid, C.DATA)}. Loại/gen lại shot sai ở danh sách ảnh bên trên, "

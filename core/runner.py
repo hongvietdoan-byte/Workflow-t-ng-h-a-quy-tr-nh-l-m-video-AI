@@ -858,6 +858,8 @@ class VideoRunner(_Runner):
         try:
             if group or not self._refs(job):   # 28/09: a lone Seedance shot's prompt spreads the action over the whole clip (>= 4 s) —
                 shots.trim_clip(self.p, job["scene_id"], path)   # cut to its 1-2 s plan, S5·1 lost the fall: kept whole instead
+            else:                              # S2.5 (cờ motion_trim): cut at its busiest window, never under the action's floor
+                shots.trim_clip(self.p, job["scene_id"], path, lone_ref=True)
         except Exception as e:  # noqa: BLE001 - a clip that cannot be cut is still a usable (longer) clip
             self._diag(job, "warn", "trim_error", f"không cắt được clip theo độ dài shot ({type(e).__name__}: {e}); dùng nguyên clip")
         if not group:

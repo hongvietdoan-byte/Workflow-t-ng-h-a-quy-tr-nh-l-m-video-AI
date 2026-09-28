@@ -114,7 +114,8 @@ class SeedanceRefTests(unittest.TestCase):
                 vr._after_download(job, os.path.join(self.data, "x.mp4"))
             except Exception:  # noqa: BLE001 - only whether it cut matters here
                 pass
-        trim.assert_not_called()
+        trim.assert_called_once()                      # S2.5: only the lone-reference cut (floor + busiest window, cờ motion_trim;
+        self.assertTrue(trim.call_args.kwargs.get("lone_ref"))   # off = kept whole — tests/test_lone_trim.py), never the bare plan
 
     def test_refusal_steps_group_then_single_then_kling(self):
         from core.adapters.clipai import REAL_PERSON

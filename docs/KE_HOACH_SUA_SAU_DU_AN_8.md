@@ -19,7 +19,7 @@
 | S1 Dựng & âm thanh | 15 | 13 | 0 | 2 | 0 | 88,9 % |
 | S0 Học từ phim drama tham khảo | 15 | 11 | 4 | 0 | 0 | 79,6 % |
 | S9 Dashboard gọn, dễ nhìn | 6 | 5 | 0 | 0 | 0 | 81,8 % |
-| S2 Timeline theo âm thanh + animatic | 6 | 3 | 0 | 1 | 0 | 45,5 % |
+| S2 Timeline theo âm thanh + animatic | 6 | 5 | 0 | 1 | 0 | 81,8 % |
 | S3 Director kể chuyện + Quay phim | 8 | 0 | 0 | 0 | 0 | 0 % |
 | S4 Video chất lượng | 12 | 2 | 0 | 4 | 0 | 10 % |
 | S5 Bối cảnh theo file 3D Tháp Đồng Hồ | 6 | 0 | 0 | 1 | 0 | 0 % |
@@ -27,7 +27,7 @@
 | S7 Agent QC | 2 | 0 | 0 | 0 | 0 | 0 % |
 | K Chạy kiểm kịch bản hài 20–30 s | 3 | 0 | 0 | 0 | 0 | 0 % |
 | S8 Chấm lại bằng AI Development System (cuối cùng) | 5 | 0 | 0 | 0 | 0 | 0 % |
-| **Tổng** | **86** | **36** | **4** | **8** | **0** | **44,2 %** |
+| **Tổng** | **86** | **38** | **4** | **8** | **0** | **46,9 %** |
 
 Đợt hiện tại: **S1** · việc kế: **S9.6** Gộp timeline tổng + sửa giao diện S6.4
 <!-- /tien-do -->
@@ -84,8 +84,8 @@
 - [x] S2.1 · Chọn giọng ở Bước 1 · nặng:1 · ✅ · 2026-09-29: chạy tự động chọn giọng (Claude cast_voices) ngay sau Director; thiếu giọng → dừng hỏi trước khi làm ảnh (cờ audio_first)
 - [x] S2.2 · TTS nháp sau Director → chỉnh thời lượng → khóa timeline · nặng:3 · ✅ · 2026-09-29: core/audio_first.py + pha voicefirst (cờ audio_first, tắt mặc định); test; chưa chạy thật (TTS tốn tiền — lần chạy kiểm K)
 - [x] S2.3 · Cổng độ dài ±10 % · nặng:1 · ✅ · 2026-09-29: audio_first.length_check / gate_message, cổng 'length' (Tiếp tục = chấp nhận); test
-- [ ] S2.4 · Animatic ở cổng storyboard · nặng:3 · ⬜
-- [ ] S2.5 · Clip đơn cắt theo chuyển động · nặng:1 · ⬜
+- [x] S2.4 · Animatic ở cổng storyboard · nặng:3 · ✅ · 2026-09-29: core/animatic.py + nút Bước 2 (khung Storyboard); chạy thật trên #8: 33 shot, 63,7 s, 23 câu thoại, nhạc, phụ đề, ~40 s, 0 USD (data/projects/8/output/ANIMATIC_sub.mp4)
+- [x] S2.5 · Clip đơn cắt theo chuyển động · nặng:1 · ✅ · 2026-09-29: clip Seedance đơn lẻ cắt ở đoạn động nhất, không dưới mức sàn hành động (cờ motion_trim); test
 - [ ] S2.6 · Thử Seed Audio 1.0 làm track thoại cả cảnh (3 giọng mẫu, mốc 100 ms, mốc phụ đề) · nặng:2 · ⏸ · chờ người dùng duyệt (cập nhật ClipAI)
 
 ### S3 — Director kể chuyện + Quay phim

@@ -408,7 +408,7 @@ def motion_profile(path: str, fps: int = 8) -> List[float]:
     return [float(x) for x in np.abs(np.diff(frames, axis=0)).mean(axis=(1, 2))]
 
 
-def motion_start(conn, scene_id: int, raw: str, want: float, have: float, fps: int = 8) -> float:
+def motion_start(conn, scene_id: int, raw: str, want: float, have: float, fps: int = 8, max_shift: float = MOTION_MAX_SHIFT) -> float:
     """D2 (knowledge/editor/editing.md E1, cờ `motion_trim`): where the cut of a long clip starts — 0 (the start, as the DP planned:
     "the main action happens early") unless the feature is on, the shot does not continue another one, and a window up to
     MOTION_MAX_SHIFT later moves MOTION_GAIN times more than the start window (the model made the action late)."""
@@ -426,7 +426,7 @@ def motion_start(conn, scene_id: int, raw: str, want: float, have: float, fps: i
     win = max(int(want * fps), 1)
     if len(prof) < win + 1:
         return 0.0
-    most = min(int(min(MOTION_MAX_SHIFT, have - want) * fps), len(prof) - win)
+    most = min(int(min(max_shift, have - want) * fps), len(prof) - win)
     score = lambda k: sum(prof[k:k + win]) / win  # noqa: E731
     first = score(0)
     best = max(range(most + 1), key=score)
@@ -450,12 +450,15 @@ def _encode():
     return _ENCODE
 
 
-def trim_clip(pipeline: Pipeline, scene_id: int, path: str) -> bool:
+def trim_clip(pipeline: Pipeline, scene_id: int, path: str, lone_ref: bool = False) -> bool:
     """Cut a downloaded clip of a SHOT row to the shot's planned length: the full clip is kept next to it as <name>_raw.mp4.
     Nothing happens for v2 rows, clips already short enough, or files ffmpeg cannot read. Returns True when cut.
     Cờ `speed_ramp` (editing.md E10): a shot with `speed` < 1 takes (length − freeze) × speed seconds of the clip and plays them
     slowed to fill the shot, then holds its last frame `freeze_end_s`; its sound is dropped (a slowed sound is wrong; the shot has no
-    line by construction — shots.clean_retime)."""
+    line by construction — shots.clean_retime).
+    lone_ref (S2.5, cờ `motion_trim`): a lone Seedance reference-only clip (≥ 4 s, the prompt spreads the action over the whole clip)
+    is cut to at least the group floor of its action (seedance_refs.floored — never the bare 1–2 s plan that lost S5·1's fall) at the
+    window where it moves most, anywhere in the clip; a spoken / lip-synced shot keeps its start (motion_start)."""
     import os
     import shutil
     import subprocess
@@ -466,6 +469,13 @@ def trim_clip(pipeline: Pipeline, scene_id: int, path: str) -> bool:
     if row is None or not data.get("shot_no"):
         return False
     want = planned_seconds(pipeline.conn, scene_id)
+    shift = MOTION_MAX_SHIFT
+    if lone_ref:
+        from . import seedance_refs
+        if not features.on("motion_trim"):
+            return False                   # without the feature a lone reference clip is kept whole, as before
+        want = seedance_refs.floored(data, want) if want else 0.0
+        shift = 30.0                       # the action may sit anywhere in a clip whose prompt spread it over the whole length
     have = probe_duration(path) if os.path.exists(path) else None
     speed = float(data.get("speed") or 1) if features.on("speed_ramp") else 1.0
     freeze = min(float(data.get("freeze_end_s") or 0), max(want - 0.5, 0)) if features.on("speed_ramp") and want else 0.0
@@ -474,7 +484,7 @@ def trim_clip(pipeline: Pipeline, scene_id: int, path: str) -> bool:
     if not want or not have or (vf is None and have <= want + TRIM_SLACK):
         return False
     try:
-        start = motion_start(pipeline.conn, scene_id, path, source, have) if vf is None else 0.0
+        start = motion_start(pipeline.conn, scene_id, path, source, have, max_shift=shift) if vf is None else 0.0
     except Exception:  # noqa: BLE001 - a clip whose motion cannot be read is cut from its start, as always
         start = 0.0
     raw = os.path.splitext(path)[0] + "_raw.mp4"
