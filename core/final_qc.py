@@ -110,6 +110,35 @@ def check_short_shots(timeline: Sequence[Dict]) -> List[Dict]:
     return out
 
 
+def style_hints(styles, timeline) -> List[Dict]:
+    """💡 How the cut compares with the reference styles the project picked (data/style_hints.json). Người dùng 2026-09-28: suggestions,
+    not rules — level "hint", never a block, not counted as "cần xem"."""
+    path = os.path.join(os.path.dirname(__file__), "..", "data", "style_hints.json")
+    try:
+        with open(path, encoding="utf-8") as f:
+            table = json.load(f)
+    except (OSError, ValueError):
+        return []
+    secs = sorted(float(r.get("seconds") or 0) for r in timeline if r.get("seconds"))
+    if not secs:
+        return []
+    median = secs[len(secs) // 2] if len(secs) % 2 else (secs[len(secs) // 2 - 1] + secs[len(secs) // 2]) / 2
+    out = []
+    for st_name in styles or []:
+        h = table.get(st_name)
+        if not isinstance(h, dict):
+            continue
+        lo, hi = h.get("shot_median_s") or (0, 1e9)
+        if not lo <= median <= hi:
+            out.append(_issue("style_hint", "hint", f"💡 {st_name}: shot trung vị {median:.1f} s (phim tham khảo {lo:g}–{hi:g} s) — gợi ý, "
+                                                     "không bắt buộc"))
+        long_share = sum(s > float(h.get("long_s", 4.0)) for s in secs) / len(secs)
+        if long_share > float(h.get("long_share_max", 1.0)):
+            out.append(_issue("style_hint", "hint", f"💡 {st_name}: {long_share:.0%} shot dài hơn {h.get('long_s', 4.0):g} s (phim tham khảo "
+                                                     f"≤ {float(h['long_share_max']):.0%}) — gợi ý, không bắt buộc"))
+    return out
+
+
 def silent_spans(video: str, window: float = 0.5, ffmpeg: Optional[str] = None) -> List[Tuple[float, float]]:
     """Spans where the whole mix stays under SILENT_DB for SILENT_S or more (the last 1,5 s — the fade out — left out). The sound is
     decoded and measured here (music_timing.loudness): ffmpeg's astats metadata printout decayed to -inf seconds before the end on
@@ -196,12 +225,19 @@ def run(p: Pipeline, project_id: int, data_dir: str, frames: bool = True) -> Dic
             if cue_list and size[1] > size[0]:
                 issues += check_subtitle_faces(fin["path"], cue_list, size[1], max(int(min(size) * 0.055), 14),
                                                (sub_man.get("settings") or {}).get("platform") or "tiktok")
+    from . import shots
+    issues += style_hints(shots.styles(p.project(project_id)), timeline)
     blocks = sum(i["level"] == "block" for i in issues)
-    return {"ok": blocks == 0, "blocks": blocks, "warns": len(issues) - blocks, "issues": issues}
+    warns = sum(i["level"] == "warn" for i in issues)
+    return {"ok": blocks == 0, "blocks": blocks, "warns": warns, "issues": issues}
+
+
+_MARK = {"block": "❌", "warn": "⚠", "hint": ""}       # a hint carries its own 💡
 
 
 def summary(res: Dict) -> str:
+    hints = [i for i in res["issues"] if i["level"] == "hint"]
     if res["ok"] and not res["warns"]:
-        return "✅ Kiểm bản dựng: không có lỗi"
+        return "✅ Kiểm bản dựng: không có lỗi" + "".join(f"\n- {i['msg']}" for i in hints)
     head = f"{'❌' if res['blocks'] else '⚠'} Kiểm bản dựng: {res['blocks']} lỗi chặn, {res['warns']} cần xem"
-    return head + "\n" + "\n".join(f"- {'❌' if i['level'] == 'block' else '⚠'} {i['msg']}" for i in res["issues"])
+    return head + "\n" + "\n".join(f"- {_MARK.get(i['level'], '⚠')} {i['msg']}" for i in res["issues"])

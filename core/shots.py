@@ -42,9 +42,17 @@ def active(pipeline: Pipeline, project_id: int) -> bool:
     return mode(pipeline.project(project_id)) is not None
 
 
-def style(proj) -> Optional[str]:
+def styles(proj) -> List[str]:
+    """The reference styles picked for the project, in order (stored comma-separated in `style_profile`). Người dùng 2026-09-28: a
+    style is a set of SUGGESTIONS the Director may mix with others or depart from — never one fixed frame for every script."""
     value = proj["style_profile"] if proj is not None and "style_profile" in proj.keys() else None
-    return value or None
+    return [s.strip() for s in str(value or "").split(",") if s.strip()]
+
+
+def style(proj) -> Optional[str]:
+    """The first reference style (older callers that know one style only)."""
+    picked = styles(proj)
+    return picked[0] if picked else None
 
 
 def label(data: Dict, idx: int) -> str:

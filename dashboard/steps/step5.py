@@ -704,7 +704,7 @@ def _final_qc(p, pid, has_render: bool):
     text = final_qc.summary(res)
     (st.success if res["ok"] and not res["warns"] else st.error if res["blocks"] else st.warning)(text.splitlines()[0])
     for i in res["issues"]:
-        st.caption(f"{'❌' if i['level'] == 'block' else '⚠'} {i['msg']}")
+        st.caption(f"{final_qc._MARK.get(i['level'], '⚠')} {i['msg']}")
 
 
 def _timed_brief(p, pid):

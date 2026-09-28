@@ -101,11 +101,17 @@ def shot_style_block(proj) -> str:
     """v3: how Free Fire videos are cut (knowledge/ff_directing.md) + the project's editing style (knowledge/ff_styles/<STYLE>.md)."""
     from . import shots
     parts = [_read("prompts", "17_director_shots.md"), _read("knowledge", "ff_directing.md")]
-    st_name = shots.style(proj)
-    if st_name:
-        path = os.path.join(_ROOT, "knowledge", "ff_styles", f"{st_name}.md")
-        if os.path.exists(path):
-            parts.append("# Phong cách dựng của dự án (" + st_name + ")\n\n" + _read("knowledge", f"ff_styles/{st_name}.md"))
+    picked = [s for s in shots.styles(proj) if os.path.exists(os.path.join(_ROOT, "knowledge", "ff_styles", f"{s}.md"))]
+    if picked:
+        # người dùng 2026-09-28: reference styles are suggestions to mix, not one frame every film must follow
+        parts.append("# Phong cách tham khảo của dự án — GỢI Ý, KHÔNG BẮT BUỘC\n"
+                     f"Người dùng chọn {len(picked)} phong cách tham khảo: {', '.join(picked)}. Đây là cách những video thật đã làm (số đo + "
+                     "thói quen dựng), để bạn CHỌN LỌC: lấy điều hợp với kịch bản này, "
+                     + ("trộn các phong cách với nhau (vd nhịp của phong cách này, cách dựng thoại của phong cách kia), " if len(picked) > 1 else "")
+                     + "và làm khác khi kịch bản cần. Không có con số nào ở đây là ngưỡng phải đạt. Khi cố ý làm khác một gợi ý quan trọng, "
+                     "ghi một dòng vào `tradeoffs` (chọn gì, bỏ gì, vì sao).")
+        for st_name in picked:
+            parts.append(f"## Phong cách tham khảo: {st_name}\n\n" + _read("knowledge", f"ff_styles/{st_name}.md"))
     return _SEP.join(p for p in parts if p)
 
 

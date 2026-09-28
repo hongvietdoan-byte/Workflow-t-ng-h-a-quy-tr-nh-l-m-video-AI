@@ -111,7 +111,7 @@ class ShotLayerTests(unittest.TestCase):
         p, pid = kenta_project()
         bundle = prompts.build_director_bundle(p, pid)
         self.assertIn("# Phân shot (dự án chia shot", bundle)
-        self.assertIn("Phong cách dựng của dự án (SHORT_FILM)", bundle)
+        self.assertIn("## Phong cách tham khảo: SHORT_FILM", bundle)
         p2, pid2 = kenta_project(shot_mode=None, style=None)
         self.assertNotIn("# Phân shot", prompts.build_director_bundle(p2, pid2))
 

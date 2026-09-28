@@ -17,7 +17,7 @@
 |---|---|---|---|---|---|---|
 | P0 Theo dõi tiến độ | 2 | 2 | 0 | 0 | 0 | 100 % |
 | S1 Dựng & âm thanh | 14 | 13 | 0 | 1 | 0 | 92,3 % |
-| S0 Học từ phim drama tham khảo | 8 | 5 | 1 | 1 | 0 | 65,4 % |
+| S0 Học từ phim drama tham khảo | 8 | 8 | 0 | 0 | 0 | 100 % |
 | S9 Dashboard gọn, dễ nhìn | 6 | 5 | 0 | 0 | 0 | 81,8 % |
 | S2 Timeline theo âm thanh + animatic | 5 | 0 | 0 | 0 | 0 | 0 % |
 | S3 Director kể chuyện + Quay phim | 8 | 0 | 0 | 0 | 0 | 0 % |
@@ -27,9 +27,9 @@
 | S7 Agent QC | 2 | 0 | 0 | 0 | 0 | 0 % |
 | K Chạy kiểm kịch bản hài 20–30 s | 3 | 0 | 0 | 0 | 0 | 0 % |
 | S8 Chấm lại bằng AI Development System (cuối cùng) | 5 | 0 | 0 | 0 | 0 | 0 % |
-| **Tổng** | **70** | **25** | **1** | **2** | **0** | **37,4 %** |
+| **Tổng** | **70** | **28** | **0** | **1** | **0** | **41,2 %** |
 
-Đợt hiện tại: **S1** · việc kế: **S0.7** Chỉ số mục tiêu data/drama_targets.json + test
+Đợt hiện tại: **S1** · việc kế: **S9.6** Gộp timeline tổng + sửa giao diện S6.4
 <!-- /tien-do -->
 
 ## Danh sách việc (thứ tự người dùng đã duyệt)
@@ -52,16 +52,16 @@
 - [x] S1.11 · Phụ đề theo vùng an toàn TikTok (góp ý người dùng về v2) · nặng:2 · ✅ · a4858b9 · mặc định TikTok: trên 8 %, dưới 27 %, hai bên 13,5 %; bỏ vị trí "thấp"; ảnh docs/video_check_2026-09-28/v3_phu_de_vung_tiktok.jpg
 - [x] S1.12 · Nhạc mềm + đi theo cảnh (góp ý người dùng về v2) · nặng:3 · ✅ · 82ce1b2 · dốc tắt/vào, lặng dài thì nhạc trở lại nhỏ; cờ music_fit dời từng đoạn nhạc về đầu cảnh thật (10,1 · 24,3 · 45,7 · 62,9 · 72,0 s); v3 đo liền mạch
 - [x] S1.13 · Người dùng xem/nghe bản v3 · nặng:1 · ✅ · người dùng: "ok rồi" (2026-09-28)
-- [ ] S1.14 · Soạn nhạc mới theo nhịp truyện cho #8 (người dùng cho phép, sáng tạo theo diễn biến) · nặng:2 · ⏸ · c575a59 · 2 bản nháp, chọn 1681 (khớp đầu cảnh 20,5 vs 7,4); bản v4 ở D:/AI-Video-Output/2026-09-28_du-an-8/v4_nhac_moi — chờ người dùng nghe
+- [ ] S1.14 · Soạn nhạc mới theo nhịp truyện cho #8 (người dùng cho phép, sáng tạo theo diễn biến) · nặng:2 · ⏸ · người dùng: xem sau (bản v4 ở D:/AI-Video-Output/2026-09-28_du-an-8/v4_nhac_moi)
 
 ### S0 — Học từ phim drama tham khảo
 - [x] S0.1 · Chọn 5 đoạn mẫu trong phim đã gửi + phong cách DRAMA_DOC · nặng:1 · ✅ · DRAMA_DOC trong core/reference_analysis.py; 1 phim (Q0); đoạn 1 = 0:00–3:00, đoạn 2 = thoại trong 20–30 phút (agent chọn)
 - [x] S0.2 · Máy đo trong trình duyệt cho 5 đoạn (agent) · nặng:2 · ✅ · 5 đoạn đo trong trình duyệt (397 shot, 720 s); âm thanh không đo được (YouTube chặn)
 - [x] S0.3 · Gắn nhãn tờ ảnh + thống kê (agent) · nặng:2 · ✅ · nhãn 397 shot; soát 10 nhãn lượt 1: 7 đúng → agent sửa 13 nhãn lệch 1 vị trí (lỗi chép tay); lượt 2 bị quảng cáo cản, agent tự xác nhận theo phụ đề
 - [x] S0.4 · Xem – nghe trọn đoạn, phiếu 10 mặt (agent) · nặng:2 · ✅ · phiếu 10 mặt + dấu hiệu hồi tưởng + bảng tên + cỡ cảnh theo loại đoạn: research/ff_styles/DRAMA_DOC/PHIEU_bzsP_ArSIUA.md
-- [ ] S0.5 · Báo cáo nghiên cứu + so với #8 + luật · nặng:2 · ⏸ · docs/NGHIEN_CUU_DRAMA_THAM_KHAO_2026-09-28.md — 13 luật (L1–L13) + chỉ số + phiếu chấm; chờ người dùng duyệt
-- [ ] S0.6 · Luật được duyệt vào bộ kỹ năng · nặng:1 · 🔄 · knowledge/ff_styles/DRAMA_DOC.md (số đo + cách dựng) đã có; luật vào bộ kỹ năng Director/Dựng chờ báo cáo S0.5 được duyệt
-- [ ] S0.7 · Chỉ số mục tiêu data/drama_targets.json + test · nặng:2 · ⬜
+- [x] S0.5 · Báo cáo nghiên cứu + so với #8 + luật · nặng:2 · ✅ · người dùng: gợi ý tham khảo, không luật bắt buộc; dùng hỗn hợp nhiều phong cách (2026-09-28)
+- [x] S0.6 · Luật được duyệt vào bộ kỹ năng · nặng:1 · ✅ · knowledge/ff_styles/DRAMA_DOC.md ghi rõ GỢI Ý; dự án chọn NHIỀU phong cách tham khảo; Director đọc dạng gợi ý được trộn / làm khác
+- [x] S0.7 · Chỉ số mục tiêu data/drama_targets.json + test · nặng:2 · ✅ · data/style_hints.json: số đo chỉ hiện 💡 ở Kiểm bản dựng khi dự án chọn phong cách đó, không chặn, không tính 'cần xem'
 - [x] S0.8 · Phiếu so sánh bản dựng vs phim tham khảo · nặng:1 · ✅ · phiếu 10 mặt trong báo cáo S0.5 mục 4; đã chấm #8 cũ và v4
 
 ### S9 — Dashboard gọn, dễ nhìn

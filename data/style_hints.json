@@ -1,0 +1,12 @@
+{
+ "_note": "Gợi ý so sánh với phong cách tham khảo (người dùng 2026-09-28: không phải luật bắt buộc; kịch bản khác thì khác). Chỉ hiện dạng 💡 ở Kiểm bản dựng khi dự án chọn phong cách đó; không chặn, không tính vào 'cần xem'. Nguồn: docs/NGHIEN_CUU_DRAMA_THAM_KHAO_2026-09-28.md.",
+ "DRAMA_DOC": {
+  "shot_median_s": [
+   1.5,
+   2.6
+  ],
+  "long_share_max": 0.12,
+  "long_s": 4.0,
+  "source": "ReelShort 'Từ Hôn Năm Người Bạn Đời Định Mệnh', 397 shot: trung vị 1,86 s, shot > 4 s ≈ 1 %"
+ }
+}

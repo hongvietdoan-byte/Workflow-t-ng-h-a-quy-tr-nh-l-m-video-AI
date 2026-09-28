@@ -242,11 +242,13 @@ def shot_format_controls(p: Pipeline, pid: int, proj) -> None:
                             key=f"fmt_shot_{pid}",
                             help="Chia shot: Director chia mỗi cảnh kịch bản thành nhiều shot ngắn (nhịp theo kịch bản), mỗi shot một ảnh + "
                                  "một clip. Kling multi-shot: các shot liền nhau của một nhóm cảnh gen chung một lần.")
-    styles = [None] + list(reference_analysis.STYLES)
-    cur_style = shots.style(proj)
-    new_style = d2.selectbox("Phong cách dựng Free Fire", styles, index=styles.index(cur_style) if cur_style in styles else 0,
-                             format_func=lambda s: "Chưa chọn" if s is None else reference_analysis.STYLES[s], key=f"fmt_style_{pid}",
-                             help="Director học nhịp, cỡ cảnh, cách mở/kết từ video Free Fire thật của phong cách này (knowledge/ff_styles).")
+    cur_styles = [s for s in shots.styles(proj) if s in reference_analysis.STYLES]
+    picked = d2.multiselect("Phong cách tham khảo (chọn một hoặc nhiều — trộn được)", list(reference_analysis.STYLES), default=cur_styles,
+                            format_func=lambda s: reference_analysis.STYLES[s], key=f"fmt_style_{pid}",
+                            help="GỢI Ý cho Director, không bắt buộc: nhịp, cỡ cảnh, cách mở/kết, cách dựng thoại… đo từ video thật "
+                                 "(knowledge/ff_styles). Director chọn lọc theo kịch bản, trộn nhiều phong cách, được làm khác khi cần.")
+    new_style = ",".join(picked) or None
+    cur_style = ",".join(cur_styles) or None
     if new_mode != cur_mode:
         if shots.has_work(p.conn, pid):
             st.warning("Dự án đã có ảnh/video: đổi cách chia cảnh chỉ áp dụng khi chạy lại Director sau khi “↺ Làm lại”.")

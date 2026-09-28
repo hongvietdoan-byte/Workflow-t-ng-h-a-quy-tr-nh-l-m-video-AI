@@ -104,6 +104,9 @@ Hợp với kịch bản có nhiều nhân vật và hành động nối tiếp 
 """,
 "DRAMA_DOC": """# Phong cách: Drama ngắn dọc (kiểu ReelShort, lồng tiếng Việt)
 
+> **GỢI Ý THAM KHẢO, KHÔNG BẮT BUỘC** (người dùng 2026-09-28): đây là cách MỘT phim thật đã dựng. Chọn điều hợp với kịch bản, trộn với
+> phong cách khác, làm khác khi kịch bản cần — không phải khung chung cho mọi phim.
+
 Ví dụ: "(Lồng tiếng) Từ Hôn Năm Người Bạn Đời Định Mệnh" (ReelShort) — 5 đoạn × 2–3 phút đo trong trình duyệt ngày 2026-09-28 (kế hoạch
 sau #8, S0; phiếu đầy đủ: research/ff_styles/DRAMA_DOC/PHIEU_bzsP_ArSIUA.md). Không phải video Free Fire: dùng để học **ngữ pháp dựng
 drama dọc** cho phim truyện có thoại.

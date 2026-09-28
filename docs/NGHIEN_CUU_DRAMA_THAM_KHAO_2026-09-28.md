@@ -1,4 +1,9 @@
-# Nghiên cứu phim drama tham khảo → so với #8 → luật đề xuất (S0.5, 2026-09-28) — CHỜ NGƯỜI DÙNG DUYỆT
+# Nghiên cứu phim drama tham khảo → so với #8 → gợi ý (S0.5, 2026-09-28)
+
+> **Người dùng quyết (2026-09-28):** KHÔNG áp dụng thành luật bắt buộc — chỉ là **gợi ý tham khảo** của phong cách `DRAMA_DOC`. Không phải
+> kịch bản nào cũng theo cùng khung; sau này sẽ có thêm nhiều phong cách / bộ gợi ý để dùng hỗn hợp. Đã làm: dự án chọn được **nhiều phong
+> cách tham khảo** cùng lúc (Bước 1 · Định dạng), Director đọc chúng như gợi ý được trộn / làm khác (ghi `tradeoffs` khi làm khác điều
+> quan trọng); số đo chỉ hiện dạng 💡 ở Kiểm bản dựng (`data/style_hints.json`), không chặn. Các "L1–L13" dưới đây đọc là **G1–G13 (gợi ý)**.
 
 > Phim: "(Lồng tiếng) Từ Hôn Năm Người Bạn Đời Định Mệnh" (ReelShort, dọc 9:16) — https://www.youtube.com/watch?v=bzsP_ArSIUA.
 > Người dùng chốt (Q0): chỉ 1 phim. Đo 5 đoạn (mở đầu 0:00–3:00, thoại 21:00–24:00, xung đột 40:00–42:00, hồi tưởng 70:00–72:00, gần cuối
