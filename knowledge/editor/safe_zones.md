@@ -18,6 +18,12 @@ câu chuyện. Vì vậy chữ luôn đặt trong vùng an toàn **chung** của
 → hộp chữ ≈ x 65–886, y 288–1248 trên khung 1080×1920 (code đặt lề dưới 36% — thêm 1% đệm so với 35% chính thức). Khung khác tỉ lệ thì quy đổi theo phần trăm. Code: `core/subtitles.py`
 `SAFE_TOP 0,15 · SAFE_BOTTOM 0,36 · SAFE_LEFT 0,06 · SAFE_RIGHT 0,18` (phải sửa từ 6% lên 18% ở GĐ4).
 
+**Hộp theo nền tảng (2026-09-28, sau #8 — người dùng: "sub hình như chưa chuẩn safezone của TikTok"):** hộp chung đặt phụ đề ở 60–64 %
+chiều cao (ngang ngực nhân vật) và lệch trái vì lề phải 18 %. Nay mặc định **TikTok** (`subtitles.PLATFORMS["tiktok"]`, chọn ở Bước 5 · Phụ
+đề): trên 8 % (154 px > 130), dưới **27 %** (518 px > 484 — chú thích + nút), hai bên **13,5 %** (146 px > 140 — cột nút; hai bên bằng nhau
+để câu nằm giữa). Phụ đề TikTok nằm ở ~73–77 % chiều cao — dưới mặt của cả shot cận (CU 30–66 %). "Chung" giữ hộp cũ khi đăng nhiều nền tảng.
+Phụ đề **không bao giờ** xuống dưới hộp an toàn (bỏ vị trí "thấp" thử ngày 28/09 vì nằm trong vùng chú thích của app).
+
 ## Nguyên tắc đặt chữ theo từng khung hình
 1. **Trong vùng an toàn chung** (trên) — luật cứng, code đặt lề.
 2. **Không đè mặt và hành động chính**: dò mặt trên khung thật (YuNet, `text_placement`) ở đầu/giữa/cuối mỗi câu; không có model dò mặt thì suy

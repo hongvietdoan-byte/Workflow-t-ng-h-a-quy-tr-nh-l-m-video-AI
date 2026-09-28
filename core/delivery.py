@@ -378,7 +378,6 @@ def render(p: Pipeline, project_id: int, data_dir: str, music_path: Optional[str
         from . import diag
         diag.record(p.conn, "delivery", "info", "đã có giọng thoại TTS: tắt tiếng gốc của clip trong bản ghép (tránh 2 giọng chồng nhau)",
                     "clip_audio_muted", project_id)
-    track = selected_music(data_dir, project_id) if music_path == "auto" else music_path
     extras = audio_lib.mix_list(audio_lib.assets_dir(data_dir, project_id))
     aspect = formats.project_aspect(p.project(project_id))
     out = os.path.join(output_dir(data_dir, project_id), "FINAL_VIDEO.mp4")
@@ -387,6 +386,20 @@ def render(p: Pipeline, project_id: int, data_dir: str, music_path: Optional[str
     flashbacks = _flashbacks(p, rows, paths, durations, os.path.join(output_dir(data_dir, project_id), "_flashback"))
     durations = list(durations)
     held = _hold_end(paths, durations, os.path.join(output_dir(data_dir, project_id), "_flashback"))   # after the voices are placed
+    track = selected_music(data_dir, project_id) if music_path == "auto" else music_path
+    fitted = None
+    from . import features
+    if track and features.on("music_fit"):     # the score's sections moved onto the scenes as really cut (trial #8)
+        from . import music_fit
+        try:
+            drafts_dir, _ = music.project_dirs(data_dir, project_id)
+            datas = [json.loads((p.conn.execute("SELECT data FROM scenes WHERE id=?", (r.get("scene_id"),)).fetchone() or {"data": "{}"})["data"] or "{}")
+                     if r.get("scene_id") else {} for r in rows if r.get("path")]
+            fitted = music_fit.fit(track, music_fit.prompt_of(music.load_drafts(drafts_dir), drafts_dir, track), datas, durations,
+                                   os.path.join(output_dir(data_dir, project_id), "_music"))
+            track = fitted["path"]
+        except Exception as e:  # noqa: BLE001 - the score as it is beats no render; the reason goes into the manifest
+            fitted = {"fitted": False, "why": f"lỗi: {str(e)[:200]}"}
     from . import features
     amb = None
     if features.on("ambience_bed"):            # D4/D5: a quiet bed per scene from the person's sound library, under everything
@@ -429,6 +442,8 @@ def render(p: Pipeline, project_id: int, data_dir: str, music_path: Optional[str
         manifest["flashback_fx"] = flashbacks
     if held:
         manifest["end_hold"] = held
+    if fitted is not None:
+        manifest["music_fit"] = {k: v for k, v in fitted.items() if k != "path"}
     if sfx_moved["moved"] or sfx_moved["off"]:
         manifest["sfx_placed"] = sfx_moved
     if breaths:
@@ -565,7 +580,7 @@ def _burn(src: str, cues: list, out: str, sub: Dict, zones: Optional[Dict] = Non
     preferred = subtitles.font_by_family(fonts, sub["font"]) or subtitles.default_font(fonts)
     font, _ = subtitles.font_for_text(preferred, fonts, " ".join(c.text for c in cues))
     return subtitles.burn(src, cues, out, font, sub["size"], sub["pos"], sub["color"], sub["speaker"], sub.get("speaker_colors", False),
-                          zones=zones, karaoke=bool(sub.get("karaoke")))
+                          zones=zones, karaoke=bool(sub.get("karaoke")), platform=sub.get("platform") or "tiktok")
 
 
 def _parent(p: Pipeline, project_id: int, parent_id: Optional[int], kinds) -> Optional[Dict]:

@@ -152,6 +152,53 @@ class MediaTests(unittest.TestCase):
         mean = float(proc.stderr.split("mean_volume:")[1].split("dB")[0])
         self.assertGreater(mean, -40.0)
 
+    def _tone_at(self, path, t):
+        """Dominant frequency (Hz) around second t (FFT peak of a mono decode)."""
+        import numpy as np
+        raw = subprocess.run([FFMPEG, "-loglevel", "error", "-ss", str(t), "-t", "0.3", "-i", path, "-ac", "1", "-ar", "16000", "-f", "s16le", "-"],
+                             capture_output=True, check=True).stdout
+        x = np.frombuffer(raw, np.int16).astype(np.float32)
+        spec = np.abs(np.fft.rfft(x * np.hanning(len(x))))
+        return float(np.fft.rfftfreq(len(x), 1 / 16000)[int(np.argmax(spec))])
+
+    def test_the_score_sections_move_onto_the_scenes_as_really_cut(self):
+        """#8 (2026-09-28): the score turned at 8,0 / 20,5 … s of the planned cut; the film's scenes started at 10,1 / 24,3 … s."""
+        from core import music_fit
+        score = os.path.join(self.tmp, "score.wav")
+        subprocess.run([FFMPEG, "-y", "-loglevel", "error", "-f", "lavfi", "-i", "sine=frequency=300:duration=4", "-f", "lavfi", "-i",
+                        "sine=frequency=700:duration=4", "-f", "lavfi", "-i", "sine=frequency=1200:duration=2", "-filter_complex",
+                        "[0:a][1:a][2:a]concat=n=3:v=0:a=1", score], check=True)
+        prompt = "Instrumental score for a 8-second … exactly at its time (0:04.0) — no slow crossfades. End cleanly on a final hit at 0:08.0"
+        self.assertEqual(music_fit.planned(prompt), {"turns": [4.0], "end": 8.0})
+        datas = [{"story_scene": 1}, {"story_scene": 1}, {"story_scene": 2}]
+        res = music_fit.fit(score, prompt, datas, [3.0, 3.0, 5.0], self.tmp)            # scene 2 starts at 6 s, the film is 11 s
+        self.assertTrue(res["fitted"])
+        self.assertEqual(res["turns"], [6.0])
+        self.assertAlmostEqual(self._tone_at(res["path"], 2.0), 300, delta=40)            # scene 1: section 1, looped to 6 s
+        self.assertAlmostEqual(self._tone_at(res["path"], 5.0), 300, delta=40)
+        self.assertAlmostEqual(self._tone_at(res["path"], 7.0), 700, delta=60)            # scene 2 starts with section 2
+        self.assertAlmostEqual(self._tone_at(res["path"], 10.3), 1200, delta=100)         # the ending hit just before the film ends
+        self.assertFalse(music_fit.fit(score, "no timed brief", datas, [3.0, 3.0, 5.0], self.tmp)["fitted"])
+        self.assertFalse(music_fit.fit(score, prompt, [{"story_scene": 1}] * 3, [3.0, 3.0, 5.0], self.tmp)["fitted"])  # 1 scene vs 2
+
+    def test_the_music_ramps_out_and_back_in(self):
+        import numpy as np
+        src, out = os.path.join(self.tmp, "m.wav"), os.path.join(self.tmp, "o.wav")
+        subprocess.run([FFMPEG, "-y", "-loglevel", "error", "-f", "lavfi", "-i", "sine=frequency=330:duration=16", src], check=True)
+        subprocess.run([FFMPEG, "-y", "-loglevel", "error", "-i", src, "-af", "volume=1" + ffmpeg_studio.breath_filter([], [(2.0, 12.0)]),
+                        out], check=True)
+        import wave
+        with wave.open(out) as w:
+            sr = w.getframerate()
+            x = np.frombuffer(w.readframes(w.getnframes()), np.int16).astype(np.float32)
+        rms = lambda a, b: float(np.sqrt(np.mean(x[int(a * sr):int(b * sr)] ** 2)))    # noqa: E731
+        full = rms(0.2, 1.0)
+        self.assertLess(rms(2.2, 5.8), full * 0.02)                                         # silent after the cut
+        self.assertAlmostEqual(rms(8.5, 11.5) / full, ffmpeg_studio.OFF_LOW, delta=0.03)    # back quietly before the silence ends
+        self.assertGreater(rms(12.2, 12.8), rms(8.5, 11.5))                                 # rising, not a jump
+        self.assertLess(rms(12.2, 12.8), full * 0.9)
+        self.assertGreater(rms(14.0, 15.0), full * 0.95)                                    # full again
+
     def test_a_hole_in_the_mix_is_found(self):
         loud = self._clip("a.mp4", 2.0)
         quiet = self._clip("b.mp4", 4.0, audio="anullsrc=r=48000:cl=mono")

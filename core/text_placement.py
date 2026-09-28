@@ -59,17 +59,12 @@ def _overlap(a: Tuple[float, float], b: Tuple[float, float]) -> float:
     return max(0.0, min(a[1], b[1]) - max(a[0], b[0]))
 
 
-LOW_MARGIN = 0.12            # the "low" position: under the face of a close-up, above the phone's bottom edge (inside the app's caption
-                             # area — worse than the safe box, better than over a face; trial #8, 2026-09-28)
-
-
 def bands(height: int, fontsize: int, lines: int, bottom_margin: float, top_margin: float) -> Dict[str, Tuple[float, float]]:
-    """Where a subtitle of `lines` lines sits (fractions of the height) in the bottom, the top and the low position."""
+    """Where a subtitle of `lines` lines sits (fractions of the height) in the bottom and the top position."""
     h = lines * fontsize * 1.25 / height
     bottom = (1.0 - bottom_margin - h, 1.0 - bottom_margin)
     top = (top_margin, top_margin + h)
-    low = (1.0 - LOW_MARGIN - h, 1.0 - LOW_MARGIN)
-    return {"bottom": bottom, "top": top, "low": low}
+    return {"bottom": bottom, "top": top}
 
 
 def model_path() -> Optional[str]:
@@ -133,9 +128,9 @@ def video_spans(video: str, cues: List, ffmpeg: str, model: Optional[str] = None
 
 def placements(cues: List, zone_of: Dict[int, Tuple[float, float]], height: int, fontsize: int, lines_of, bottom_margin: float,
                top_margin: float, seen: Optional[Dict[int, Tuple[float, float]]] = None) -> Dict[int, str]:
-    """Cue index -> "top" or "low" for the lines that would cover a face in the bottom position. A line moves only to a position that
-    covers NO face: the top of the safe box first, else the low position under the face; when both cover a face the line stays at the
-    bottom (trial #8, 2026-09-28: "clearer at the top" moved a line onto Kelly's forehead at 41–44 s — covering less was still covering).
+    """Cue index -> "top" for the lines that would cover a face in the bottom position and cover NO face at the top; when both cover a
+    face the line stays at the bottom (trial #8, 2026-09-28: "clearer at the top" moved a line onto Kelly's forehead at 41–44 s — covering
+    less was still covering). Never below the safe box: that is under the app's caption and buttons (người dùng: TikTok safe zone).
     seen: cue index -> faces found on the real frames (wins over the shot-table guess for that line)."""
     out = {}
     for i, c in enumerate(cues):
@@ -147,6 +142,4 @@ def placements(cues: List, zone_of: Dict[int, Tuple[float, float]], height: int,
             continue
         if _overlap(b["top"], span) <= 0:
             out[i] = "top"
-        elif _overlap(b["low"], span) <= 0:
-            out[i] = "low"
     return out

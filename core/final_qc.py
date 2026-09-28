@@ -141,7 +141,7 @@ def check_silence(video: str) -> List[Dict]:
     return [_issue("silence", "warn", f"cả bản trộn lặng hẳn {b - a:.1f} s ({a:.1f}–{b:.1f} s) — không nhạc, không tiếng", a) for a, b in spans]
 
 
-def check_subtitle_faces(video: str, cues: Sequence, height: int = 1920, fontsize: int = 60) -> List[Dict]:
+def check_subtitle_faces(video: str, cues: Sequence, height: int = 1920, fontsize: int = 60, platform: str = "tiktok") -> List[Dict]:
     """Spoken lines whose final position (text_placement rules) still covers a face seen on the real frames. Needs the face model."""
     if not text_placement.model_path():
         return []
@@ -150,10 +150,11 @@ def check_subtitle_faces(video: str, cues: Sequence, height: int = 1920, fontsiz
         seen = text_placement.video_spans(video, spoken, ffmpeg_studio.find_ffmpeg())
     except (OSError, ffmpeg_studio.FFmpegNotFound):
         return []
-    where = text_placement.placements(spoken, {}, height, fontsize, lambda c: 1, subtitles.SAFE_BOTTOM, subtitles.SAFE_TOP, seen=seen)
+    box = subtitles.safe_box(platform)
+    where = text_placement.placements(spoken, {}, height, fontsize, lambda c: 1, box["bottom"], box["top"], seen=seen)
     out = []
     for i, span in seen.items():
-        b = text_placement.bands(height, fontsize, 1, subtitles.SAFE_BOTTOM, subtitles.SAFE_TOP)[where.get(i, "bottom")]
+        b = text_placement.bands(height, fontsize, 1, box["bottom"], box["top"])[where.get(i, "bottom")]
         if text_placement._overlap(b, span) > 0:
             out.append(_issue("subtitle_face", "block", f"phụ đề “{spoken[i].text[:40]}” ở {spoken[i].start:.1f} s đè mặt ở mọi vị trí — "
                                                         "rút gọn câu hoặc tách câu", spoken[i].start))
@@ -191,12 +192,14 @@ def run(p: Pipeline, project_id: int, data_dir: str, frames: bool = True) -> Dic
         issues += check_silence(fin["path"])
         if sub is not None:
             try:
-                cue_list = [subtitles.Cue(**c) for c in (json.loads(sub["manifest"] or "{}").get("cue_list") or [])]
+                sub_man = json.loads(sub["manifest"] or "{}")
+                cue_list = [subtitles.Cue(**c) for c in (sub_man.get("cue_list") or [])]
             except (TypeError, ValueError):
-                cue_list = []
+                sub_man, cue_list = {}, []
             size = ffmpeg_studio.probe_size(fin["path"]) or (1080, 1920)
             if cue_list and size[1] > size[0]:
-                issues += check_subtitle_faces(fin["path"], cue_list, size[1], max(int(min(size) * 0.055), 14))
+                issues += check_subtitle_faces(fin["path"], cue_list, size[1], max(int(min(size) * 0.055), 14),
+                                               (sub_man.get("settings") or {}).get("platform") or "tiktok")
     blocks = sum(i["level"] == "block" for i in issues)
     return {"ok": blocks == 0, "blocks": blocks, "warns": len(issues) - blocks, "issues": issues}
 

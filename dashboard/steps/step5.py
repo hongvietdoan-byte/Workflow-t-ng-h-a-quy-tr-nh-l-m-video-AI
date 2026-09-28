@@ -247,11 +247,16 @@ def subtitle_panel(p: Pipeline, pid: int, out: str = None) -> None:
                              format_func=lambda k: subtitles.COLORS[k][0], key=f"sub_color_{pid}")
         speaker = d3.checkbox("Ghi tên người nói trước câu", settings["speaker"], key=f"sub_speaker_{pid}")
         by_speaker = d4.checkbox("Mỗi nhân vật một màu", settings.get("speaker_colors", False), key=f"sub_colors_{pid}")
+        plats = list(subtitles.PLATFORMS)
+        platform = st.selectbox("Vùng an toàn theo nền tảng đăng", plats, index=plats.index(settings.get("platform") or "tiktok"),
+                                format_func=lambda k: subtitles.PLATFORMS[k]["label"], key=f"sub_platform_{pid}",
+                                help="TikTok: chừa ~130 px trên, ~484 px dưới (chú thích + nút), ~140 px phải (cột nút) của khung 1080×1920. "
+                                     "Chung: vùng chung của TikTok + Reels + Shorts (chữ cao hơn, ở khoảng giữa khung).")
         karaoke = st.checkbox("Chữ sáng dần theo giọng (kiểu video ngắn)", settings.get("karaoke", False), key=f"sub_karaoke_{pid}",
                               help="Từ chưa nói màu xám, sáng lên khi được nói — thời gian chia theo độ dài chữ (không nghe giọng).")
         auto = st.checkbox("Luôn thêm phụ đề khi xuất bản (cả chế độ tự động)", settings["enabled"], key=f"sub_auto_{pid}")
         new = {"enabled": auto, "lang": lang, "font": font_name or "", "size": size, "pos": pos, "color": color, "speaker": speaker,
-               "speaker_colors": by_speaker, "karaoke": karaoke}
+               "speaker_colors": by_speaker, "karaoke": karaoke, "platform": platform}
         if new != {k: settings.get(k) for k in new}:
             subtitles.save_settings(p, pid, new)
         up = st.file_uploader("Thêm font riêng (.ttf / .otf)", type=["ttf", "otf"], key=f"sub_fontup_{pid}")

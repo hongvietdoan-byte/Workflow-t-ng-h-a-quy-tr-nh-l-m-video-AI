@@ -180,19 +180,59 @@ def hold_last_frame(src: str, dst: str, extra: float, ffmpeg: Optional[str] = No
     return dst
 
 
+# Music automation (trial #8 re-render, người dùng 2026-09-28: "nhạc vào không hợp lý, không có độ mềm mại"): the music used to switch
+# off and on at full level in one audio frame. Now every change is a ramp, and a long Director "cut" becomes a silence that the music
+# creeps back into softly: out in OFF_FADE s, silent for OFF_HOLD s (the line lands in silence), back at OFF_LOW (≈ −15 dB) over OFF_RISE s,
+# and to full level over IN_FADE s once the silence ends.
+OFF_FADE, OFF_HOLD, OFF_RISE, OFF_LOW, IN_FADE = 0.6, 4.0, 2.0, 0.18, 1.5
+BREATH_FADE = 0.2
+
+
+def _envelope_parts(times: Sequence[float], off: Sequence[Tuple[float, float]]) -> List[List[Tuple[float, float]]]:
+    """Each silence / breath as its own piecewise-linear gain curve [(t, gain)], 1 outside its points."""
+    parts = []
+    for a, b in off:
+        a, b = float(a), float(b)
+        pts = [(max(a - OFF_FADE, 0.0), 1.0), (a, 0.0)]
+        if b - a > OFF_HOLD + OFF_RISE:
+            pts += [(a + OFF_HOLD, 0.0), (a + OFF_HOLD + OFF_RISE, OFF_LOW), (b, OFF_LOW)]
+        else:
+            pts += [(b, 0.0)]
+        pts += [(pts[-1][0] + IN_FADE, 1.0)]
+        parts.append(pts)
+    for x in times:
+        x = float(x)
+        start = max(x - BREATH_S, 0.0)
+        parts.append([(max(start - BREATH_FADE, 0.0), 1.0), (start, BREATH_LEVEL), (x, BREATH_LEVEL), (x + 0.05, 1.0)])
+    return parts
+
+
+def _gain_at(pts: List[Tuple[float, float]], t: float) -> float:
+    if t <= pts[0][0] or t >= pts[-1][0]:          # every curve starts and ends at full level
+        return 1.0
+    for (t0, g0), (t1, g1) in zip(pts, pts[1:]):
+        if t0 <= t <= t1:
+            return g0 if t1 == t0 else g0 + (g1 - g0) * (t - t0) / (t1 - t0)
+    return 1.0
+
+
+def music_envelope(times: Sequence[float], off: Sequence[Tuple[float, float]] = ()) -> List[Tuple[float, float]]:
+    """The music's gain over time as key points [(t, gain)] (the lowest of every silence / breath curve at each point)."""
+    parts = _envelope_parts(times, off)
+    keys = sorted({round(t, 3) for pts in parts for t, _ in pts})
+    return [(t, round(min(_gain_at(pts, t) for pts in parts), 4)) for t in keys]
+
+
 def breath_filter(times: Sequence[float], off: Sequence[Tuple[float, float]] = ()) -> str:
-    """volume automation: near-silence in the BREATH_S before each time (the music comes back on the turn itself); off: spans where
-    the music is out altogether (the Director's sound intent `cut` … `in`, core/sound_intent.py)."""
-    if not times and not off:
+    """volume automation from music_envelope: breaths (near-silence in the BREATH_S before a turn, the music back on the turn itself) and
+    the Director's silences (`cut` … `in`, core/sound_intent.py) — every change a ramp, never a click."""
+    env = music_envelope(times, off)
+    if not env:
         return ""
-    level = "1"
-    if times:
-        cond = "+".join(f"between(t,{max(x - BREATH_S, 0):.2f},{x:.2f})" for x in times)
-        level = f"if({cond},{BREATH_LEVEL},1)"
-    if off:
-        gone = "+".join(f"between(t,{a:.2f},{b:.2f})" for a, b in off)
-        level = f"if({gone},0,{level})"
-    return f",volume='{level}':eval=frame"
+    terms = [f"between(t,{t0:.3f},{t1:.3f})*({g0:g}+({g1 - g0:g})*(t-{t0:.3f})/{max(t1 - t0, 1e-3):.3f})"
+             for (t0, g0), (t1, g1) in zip(env, env[1:])]
+    outside = f"(lt(t,{env[0][0]:.3f})+gt(t,{env[-1][0]:.3f}))*1"
+    return f",volume='min(1,{outside}+{'+'.join(terms)})':eval=frame"
 
 
 def music_loops(music_len: Optional[float], video_duration: float) -> int:

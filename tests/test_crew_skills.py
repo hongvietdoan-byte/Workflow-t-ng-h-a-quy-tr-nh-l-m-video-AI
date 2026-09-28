@@ -287,10 +287,10 @@ class LoudnessTests(unittest.TestCase):
 class SafeZoneTests(unittest.TestCase):
     def test_vertical_subtitles_keep_clear_of_the_right_button_column(self):
         font = Font(path="x.ttf", family="Test Sans", label="Test", vietnamese=True)
-        ass = subtitles.to_ass([Cue(0.0, 2.0, "Em hiểu rồi.", "KELLY", 1)], 1080, 1920, font)
+        ass = subtitles.to_ass([Cue(0.0, 2.0, "Em hiểu rồi.", "KELLY", 1)], 1080, 1920, font, platform="chung")
         style = next(ln for ln in ass.splitlines() if ln.startswith("Style: Default"))
         ml, mr = style.split(",")[19:21]
-        self.assertEqual((int(ml), int(mr)), (int(1080 * 0.06), int(1080 * 0.18)))   # Google Ads: 192 px free on the right
+        self.assertEqual((int(ml), int(mr)), (int(1080 * 0.06), int(1080 * 0.18)))   # Google Ads: 192 px free on the right (common box)
         wide = subtitles.to_ass([Cue(0.0, 2.0, "Hi.", "A", 1)], 1920, 1080, font)
         wstyle = next(ln for ln in wide.splitlines() if ln.startswith("Style: Default"))
         self.assertEqual(wstyle.split(",")[19:21], [str(int(1920 * 0.06))] * 2)

@@ -97,9 +97,22 @@ class MusicPlanTests(unittest.TestCase):
     def test_the_music_filter_goes_silent_in_the_spans_and_dips_before_breaths(self):
         cmd = ffmpeg_studio.build_mux_music_cmd("v.mp4", "m.mp3", "o.mp4", 10, breaths=[8.0], music_off=[(2.0, 5.0)])
         chain = cmd[cmd.index("-filter_complex") + 1]
-        self.assertIn("if(between(t,2.00,5.00),0,if(between(t,7.40,8.00)", chain)
+        self.assertIn("volume='min(1,", chain)
+        env = dict(ffmpeg_studio.music_envelope([8.0], [(2.0, 5.0)]))
+        self.assertEqual((env[2.0], env[5.0], env[6.5]), (0.0, 0.0, 1.0))     # silent 2–5 s, back to full over 1,5 s
+        self.assertEqual((env[7.4], env[8.0], env[8.05]), (0.05, 0.05, 1.0))  # breath before the turn at 8 s
         plain = ffmpeg_studio.build_mux_music_cmd("v.mp4", "m.mp3", "o.mp4", 10)
         self.assertNotIn("volume='", plain[plain.index("-filter_complex") + 1])
+
+    def test_a_long_silence_ramps_out_holds_then_creeps_back_softly(self):
+        """#8 re-render (người dùng 2026-09-28): the music went off and on with no softness."""
+        f = ffmpeg_studio
+        env = f.music_envelope([], [(10.0, 18.0)])
+        g = lambda t: next(v for k, v in env if k == t)                          # noqa: E731
+        self.assertEqual((g(10.0 - f.OFF_FADE), g(10.0), g(10.0 + f.OFF_HOLD)), (1.0, 0.0, 0.0))
+        self.assertEqual(g(10.0 + f.OFF_HOLD + f.OFF_RISE), f.OFF_LOW)          # back quietly before the silence ends
+        self.assertEqual((g(18.0), g(18.0 + f.IN_FADE)), (f.OFF_LOW, 1.0))
+        self.assertTrue(all(0.0 <= v <= 1.0 for _, v in env))
 
     def test_the_render_reads_the_plan_from_the_shot_rows(self):
         from core import delivery

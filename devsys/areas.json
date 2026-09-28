@@ -62,11 +62,11 @@
       "name": "Bước 5 · Âm thanh & xuất bản",
       "weight": 1.2,
       "description": "Nhạc nền, hiệu ứng, âm nền, thư viện âm thanh, dựng + render (ffmpeg), phụ đề, vị trí chữ, khớp màu, độ to, bản giao, xem như người xem, màn Bước 5.",
-      "code": ["core/music.py", "core/music_timing.py", "core/audio_lib.py", "core/sound_lib.py", "core/sound_ai.py", "core/sfx_plan.py", "core/sound_intent.py", "core/ambience.py", "core/waveform.py", "core/delivery.py", "core/ffmpeg_studio.py", "core/final_cut.py", "core/subtitles.py", "core/text_placement.py", "core/color_match.py", "core/viewer_check.py", "core/final_qc.py", "core/adapters/clipai_audio.py", "dashboard/steps/step5.py"],
+      "code": ["core/music.py", "core/music_timing.py", "core/audio_lib.py", "core/sound_lib.py", "core/sound_ai.py", "core/sfx_plan.py", "core/sound_intent.py", "core/ambience.py", "core/waveform.py", "core/delivery.py", "core/ffmpeg_studio.py", "core/final_cut.py", "core/subtitles.py", "core/text_placement.py", "core/color_match.py", "core/viewer_check.py", "core/final_qc.py", "core/music_fit.py", "core/adapters/clipai_audio.py", "dashboard/steps/step5.py"],
       "assets": ["prompts/04_*", "knowledge/editor/*", "mcp_servers/ffmpeg_studio.py", "assets/*"],
       "docs": [],
       "tests": [],
-      "flags": ["loudness_normalize", "shot_color_match", "j_cut", "music_breath", "sound_intent", "impact_shake", "ambience_bed", "motion_trim", "speed_ramp", "flashback_fx", "end_hold"],
+      "flags": ["loudness_normalize", "shot_color_match", "j_cut", "music_breath", "sound_intent", "impact_shake", "ambience_bed", "motion_trim", "speed_ramp", "flashback_fx", "end_hold", "music_fit"],
       "diag_stages": ["music", "render", "delivery"],
       "keywords": ["nhạc", "âm thanh", "hiệu ứng", "phụ đề", "render", "dựng", "LUFS", "độ to", "khớp màu", "bản giao", "delivery", "subtitle", "sfx"]
     },

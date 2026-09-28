@@ -21,7 +21,9 @@ class AssPlacementTests(unittest.TestCase):
     def _ass(self, zones):
         cues = [Cue(0.0, 2.0, "Em hiểu rồi.", "KELLY", 1), Cue(2.0, 4.0, "Đi thôi.", "KENTA", 2),
                 Cue(0.1, 3.9, "Maxim đã bị hạ.", subtitles.HUD, 1)]
-        return subtitles.to_ass(cues, 1080, 1920, FONT, zones=zones)
+        return subtitles.to_ass(cues, 1080, 1920, FONT, zones=zones, platform=self.platform)
+
+    platform = "chung"
 
     def events(self, text):
         return [ln for ln in text.splitlines() if ln.startswith("Dialogue:")]
@@ -40,15 +42,18 @@ class AssPlacementTests(unittest.TestCase):
 
     def test_a_line_never_moves_onto_a_face_at_the_top(self):
         """Trial #8 (2026-09-28, 41–44 s): faces seen over the line covered the bottom AND the top band; the line was moved to the top
-        because it covered less there — it sat on Kelly's forehead. Now it goes under the face (low) and never to a covered top."""
+        because it covered less there — it sat on Kelly's forehead. It now stays at the bottom and never goes below the safe box (under
+        the app's caption area — người dùng: TikTok safe zone)."""
         ev = self.events(self._ass({1: (0.15, 0.66)}))
         line = next(e for e in ev if "Em hiểu" in e)
         self.assertNotIn("\\an8", line)
-        self.assertIn(f",0,0,{int(1920 * text_placement.LOW_MARGIN)},,", line)
-        ev = self.events(self._ass({1: (0.10, 0.95)}))                              # a face everywhere: stays at the bottom
-        self.assertIn(",0,0,0,,", next(e for e in ev if "Em hiểu" in e))
-        self.assertEqual(text_placement.placements([Cue(0, 1, "x", "K", 1)], {1: (0.15, 0.66)}, 1920, 60, lambda c: 1, 0.36, 0.15),
-                         {0: "low"})
+        self.assertIn(",0,0,0,,", line)
+        self.assertEqual(text_placement.placements([Cue(0, 1, "x", "K", 1)], {1: (0.15, 0.66)}, 1920, 60, lambda c: 1, 0.36, 0.15), {})
+
+    def test_on_tiktok_a_close_up_line_stays_low_under_the_face(self):
+        self.platform = "tiktok"
+        ev = self.events(self._ass({1: text_placement.keep_clear({"size": "CU"})}))
+        self.assertIn(",0,0,0,,", next(e for e in ev if "Em hiểu" in e))       # the TikTok bottom band (73–77 %) is under a CU face
 
     def test_a_medium_close_up_keeps_the_bottom_position(self):
         ev = self.events(self._ass({1: text_placement.keep_clear({"size": "MCU"})}))   # face in the upper half

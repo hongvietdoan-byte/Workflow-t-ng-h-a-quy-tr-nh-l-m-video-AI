@@ -36,10 +36,23 @@ SAFE_BOTTOM, SAFE_TOP = 0.36, 0.15      # vertical frames: just inside Meta's of
 # sides of a vertical frame (knowledge/editor/safe_zones.md, GĐ4): Meta keeps 6 % each side free; Google Ads' official vertical-video safe
 # zone keeps 192 px of 1080 (17,8 %) free on the RIGHT — the like / comment / share column — the old 6 % put line ends under it
 SAFE_LEFT, SAFE_RIGHT = 0.06, 0.18
+# Safe box per platform the video is made for (knowledge/editor/safe_zones.md). #8 re-render (người dùng 2026-09-28: "sub hình như chưa chuẩn
+# safezone của TikTok"): the common box (Meta 35 % bottom) put every line at 60–64 % of the height, over the characters' chests, and 18 % on
+# the right only pushed lines off-centre. TikTok keeps ~130 px top, ~484 px bottom (caption + buttons), ~140 px right (action rail) of
+# 1080×1920 free (TikTok's own help: the box changes with the caption length; px from its downloadable templates, via [E34]); the TikTok box
+# keeps a little more than each, the same margin both sides so a line stays centred.
+PLATFORMS = {
+    "tiktok": {"label": "TikTok", "top": 0.08, "bottom": 0.27, "left": 0.135, "right": 0.135},
+    "chung": {"label": "Chung (TikTok + Reels + Shorts)", "top": SAFE_TOP, "bottom": SAFE_BOTTOM, "left": SAFE_LEFT, "right": SAFE_RIGHT},
+}
+
+
+def safe_box(platform: Optional[str]) -> Dict:
+    return PLATFORMS.get(platform or "tiktok", PLATFORMS["tiktok"])
 COLORS = {"white": ("Trắng", "FFFFFF"), "yellow": ("Vàng", "FFE066")}
 DEFAULT_FONT = os.environ.get("DEFAULT_SUBTITLE_FONT", "GFF Latin Bold")
 DEFAULTS = {"enabled": False, "lang": "src", "font": "", "size": "M", "pos": "bottom", "color": "white", "speaker": False,
-            "speaker_colors": False, "karaoke": False}
+            "speaker_colors": False, "karaoke": False, "platform": "tiktok"}
 KARAOKE_WAIT = "B4B4B4"         # editing.md E7 (short-video captions): words not yet said are grey, each turns to the line's colour when said
 SPEAKER_PALETTE = ("FFFFFF", "FFE066", "7FDBFF", "FFB38A", "B8F28C", "E3B5FF", "FF8FA3", "9DF2E0")
 MAX_CPS = 17.0                  # characters per second a viewer can comfortably read (Netflix Timed Text Style Guide: 17 for children's
@@ -346,9 +359,10 @@ def karaoke_text(text: str, seconds: float) -> str:
 def to_ass(cues: List[Cue], width: int, height: int, font: Font, size: str = "M", pos: str = "bottom", color: str = "white",
            show_speaker: bool = False, by_speaker: bool = False, margin_pct: Optional[float] = None,
            zones: Optional[Dict[int, Tuple[float, float]]] = None, seen: Optional[Dict[int, Tuple[float, float]]] = None,
-           karaoke: bool = False) -> str:
+           karaoke: bool = False, platform: str = "tiktok") -> str:
     """zones: scene idx -> (top, bottom) of the face area a subtitle must not cover (core/text_placement.py); a bottom subtitle of
-    such a shot moves, whole line, to the top of the safe box."""
+    such a shot moves, whole line, to the top of the safe box. platform: whose safe box (PLATFORMS)."""
+    box = safe_box(platform)
     short = min(width, height)
     fontsize = max(int(short * SIZES.get(size, SIZES["M"])[1]), 14)
     align = POSITIONS.get(pos, POSITIONS["bottom"])[1]
@@ -357,13 +371,13 @@ def to_ass(cues: List[Cue], width: int, height: int, font: Font, size: str = "M"
     elif height > width:
         # vertical video is watched inside an app: Meta's Reels guide keeps the bottom 35 % and top 14 % free of text (captions, buttons,
         # tabs cover them; knowledge/editor/safe_zones.md) — the old 12 % put every subtitle under the app's caption bar
-        margin_v = int(height * (SAFE_BOTTOM if align == 2 else SAFE_TOP))
+        margin_v = int(height * (box["bottom"] if align == 2 else box["top"]))
     else:
         margin_v = int(height * 0.08) if align == 2 else int(height * 0.06)
     rgb = COLORS.get(color, COLORS["white"])[1]
     bgr = rgb[4:6] + rgb[2:4] + rgb[0:2]
     outline = max(int(fontsize * 0.07), 2)
-    ml, mr = (int(width * SAFE_LEFT), int(width * SAFE_RIGHT)) if height > width else (int(width * 0.06), int(width * 0.06))
+    ml, mr = (int(width * box["left"]), int(width * box["right"])) if height > width else (int(width * 0.06), int(width * 0.06))
     max_chars = max(int((width - ml - mr) / (fontsize * 0.55)), 12)
     lines = ["[Script Info]", "ScriptType: v4.00+", f"PlayResX: {width}", f"PlayResY: {height}", "WrapStyle: 0", "",
              "[V4+ Styles]",
@@ -384,7 +398,7 @@ def to_ass(cues: List[Cue], width: int, height: int, font: Font, size: str = "M"
         # a game notice (knowledge/editor/safe_zones.md: game-notice style at the top of the safe zone, unlike a subtitle): smaller,
         # yellow on a dark box, centred just inside the top safe margin
         hud_size = max(int(fontsize * 0.8), 12)
-        hud_margin = int(height * SAFE_TOP) if height > width else int(height * 0.06)
+        hud_margin = int(height * box["top"]) if height > width else int(height * 0.06)
         lines.append(f"Style: Hud,{font.ass_name or font.family},{hud_size},&H0000D7FF,&H0000D7FF,&H00000000,&HA0000000,1,0,0,0,"
                      f"100,100,0,0,3,{max(int(hud_size * 0.25), 3)},0,8,{ml},{mr},{hud_margin},1")
         style_of[HUD] = "Hud"
@@ -397,7 +411,7 @@ def to_ass(cues: List[Cue], width: int, height: int, font: Font, size: str = "M"
         index = {id(c): i for i, c in enumerate(cues)}
         seen_spoken = {j: seen[index[id(c)]] for j, c in enumerate(spoken) if seen and index[id(c)] in seen}
         where = text_placement.placements(spoken, zones or {}, height, fontsize, lambda c: wrap_text(said(c), max_chars).count("\n") + 1,
-                                          SAFE_BOTTOM, SAFE_TOP, seen=seen_spoken)
+                                          box["bottom"], box["top"], seen=seen_spoken)
         moved = {id(spoken[i]): where[i] for i in where}
     for c in cues:
         text = f"{c.speaker.title()}: {c.text}" if show_speaker and c.speaker and c.speaker != HUD else c.text
@@ -407,9 +421,7 @@ def to_ass(cues: List[Cue], width: int, height: int, font: Font, size: str = "M"
         style = style_of.get(c.speaker, "Default")
         margin = 0
         if moved.get(id(c)) == "top":       # a face in the bottom band, the top clear: this line goes to the top of the safe box
-            text, margin = "{\\an8}" + text, int(height * SAFE_TOP)
-        elif moved.get(id(c)) == "low":     # a face at the bottom AND at the top: under the face (text_placement.LOW_MARGIN)
-            margin = int(height * text_placement.LOW_MARGIN)
+            text, margin = "{\\an8}" + text, int(height * box["top"])
         lines.append(f"Dialogue: 0,{_clock(c.start, '.')[:-1]},{_clock(c.end, '.')[:-1]},{style},,0,0,{margin},,{text}")
     return "\n".join(lines) + "\n"
 
@@ -584,7 +596,7 @@ def probe_size(path: str) -> Tuple[int, int]:
 
 def burn(video: str, cues: List[Cue], out_path: str, font: Font, size: str = "M", pos: str = "bottom", color: str = "white",
          show_speaker: bool = False, by_speaker: bool = False, zones: Optional[Dict[int, Tuple[float, float]]] = None,
-         karaoke: bool = False) -> Dict:
+         karaoke: bool = False, platform: str = "tiktok") -> Dict:
     """Write <out>.srt and a copy of `video` with the subtitles drawn in. Returns {'video', 'srt', 'cues'}."""
     if not cues:
         raise SubtitleError("Chưa có dòng phụ đề nào (kịch bản cần có dòng thoại dạng “TÊN: lời”).")
@@ -607,7 +619,7 @@ def burn(video: str, cues: List[Cue], out_path: str, font: Font, size: str = "M"
                 from . import text_placement
                 seen = text_placement.video_spans(os.path.abspath(video), cues, ffmpeg)
             f.write(to_ass(cues, width, height, font, size, pos, color, show_speaker, by_speaker, zones=zones, seen=seen,
-                           karaoke=karaoke)
+                           karaoke=karaoke, platform=platform)
                     + embed_font(font))
         cmd = [ffmpeg, "-y", "-i", os.path.abspath(video), "-vf", "ass=sub.ass", *ffmpeg_studio._ENCODE, "-c:a", "copy",
                os.path.abspath(out_path)]

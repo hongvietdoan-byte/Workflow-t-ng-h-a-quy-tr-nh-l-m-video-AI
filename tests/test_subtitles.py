@@ -78,9 +78,25 @@ class CueTests(Setup):
             return int(style.split(",")[-2])
         cues = [Cue(0, 1, "Anh nói đi.", "KELLY", 1)]
         f = font("GFF Latin Bold", VN)
-        self.assertGreaterEqual(margin(subtitles.to_ass(cues, 1080, 1920, f, "M", "bottom")), int(1920 * 0.35))
-        self.assertGreaterEqual(margin(subtitles.to_ass(cues, 1080, 1920, f, "M", "top")), int(1920 * 0.14))
-        self.assertEqual(margin(subtitles.to_ass(cues, 1920, 1080, f, "M", "bottom")), int(1080 * 0.08))   # landscape unchanged
+        self.assertGreaterEqual(margin(subtitles.to_ass(cues, 1080, 1920, f, "M", "bottom", platform="chung")), int(1920 * 0.35))
+        self.assertGreaterEqual(margin(subtitles.to_ass(cues, 1080, 1920, f, "M", "top", platform="chung")), int(1920 * 0.14))
+
+    def test_the_tiktok_box_clears_its_caption_buttons_and_rail_and_keeps_lines_centred(self):
+        """#8 re-render (người dùng 2026-09-28: "sub hình như chưa chuẩn safezone của TikTok"): TikTok keeps ~130 px top, ~484 px bottom,
+        ~140 px right of 1080×1920 free (safe_zones.md)."""
+        cues = [Cue(0, 1, "Anh nói đi.", "KELLY", 1)]
+        f = font("GFF Latin Bold", VN)
+        style = next(l for l in subtitles.to_ass(cues, 1080, 1920, f, "M", "bottom").splitlines() if l.startswith("Style: Default"))
+        ml, mr, mv = (int(x) for x in style.split(",")[-4:-1])
+        self.assertGreaterEqual(mv, 484)
+        self.assertLess(mv, int(1920 * 0.35))                                  # lower than the common box: under the characters' chests
+        self.assertGreaterEqual(mr, 140)
+        self.assertEqual(ml, mr)                                               # centred
+        top = next(l for l in subtitles.to_ass(cues, 1080, 1920, f, "M", "top").splitlines() if l.startswith("Style: Default"))
+        self.assertGreaterEqual(int(top.split(",")[-2]), 130)
+        self.assertEqual(subtitles.DEFAULTS["platform"], "tiktok")
+        landscape = next(l for l in subtitles.to_ass(cues, 1920, 1080, f, "M", "bottom").splitlines() if l.startswith("Style: Default"))
+        self.assertEqual(int(landscape.split(",")[-2]), int(1080 * 0.08))   # landscape unchanged
 
     def test_long_lines_are_wrapped_in_balanced_pieces(self):
         text = "Có thứ gì đó đang theo chúng ta hãy ở yên sau lưng ta đừng chạy"

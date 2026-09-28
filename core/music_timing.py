@@ -119,8 +119,10 @@ def brief(p: Pipeline, pid: int) -> Dict:
                      + (" (dialogue over it: keep the mid frequencies clear, no melody lead)" if s["spoken"] > 0.4 * (s["end"] - s["start"]) else ""))
     prompt = (f"Instrumental score for a {total:.0f}-second vertical Free Fire short drama, {bpm} BPM throughout so every change lands "
               f"on a bar line. " + " ".join(parts)
-              + (" Each change of section is a clear, immediate musical turn exactly at its time (" + ", ".join(_clock(t) for t in turns)
-                 + ") — no slow crossfades." if turns else "")
+              # #8 (người dùng 2026-09-28): "nhạc vào không hợp lý, không có độ mềm mại" — a turn flows in over about a bar, the new
+              # mood arriving on its time (music_fit reads these times back to move the sections onto the scenes as really cut)
+              + (" Each section flows into the next over about one bar, the new mood arriving exactly at its time (" + ", ".join(_clock(t) for t in turns)
+                 + ") — follow the story's emotion, no abrupt stops or jarring jumps." if turns else "")
               + f" End cleanly on a final hit at {_clock(total)}, no long tail. No vocals, no lyrics.")
     return {"prompt": prompt[:1500], "bpm": bpm, "error_s": err, "length_ms": int(round(total * 1000)) + TAIL_PAD_MS, "film_s": total,
             "sections": secs, "turns": turns}
