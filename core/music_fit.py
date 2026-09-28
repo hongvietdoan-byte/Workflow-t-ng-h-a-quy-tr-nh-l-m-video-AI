@@ -22,6 +22,7 @@ TURNS = re.compile(r"exactly at its time \(([^)]*)\)")
 END_HIT = re.compile(r"final hit at (\d+):(\d+(?:\.\d+)?)")
 FILM_S = re.compile(r"for a (\d+(?:\.\d+)?)-second")
 END_LEAD = 1.0             # the score's final hit lands this long before the film ends
+LOOP_MIN = 4.0             # the repeated tail of a looped section is at least this long (or the whole section)
 JOIN = 0.5                 # crossfade between two re-fitted sections (s)
 TEMPO_MIN, TEMPO_MAX = 0.87, 1.15  # atempo range that still sounds like the same music (±13 %); beyond it the tempo is kept (the brief
                                    # asked one BPM for the whole score) and the section is looped or cut instead
@@ -87,23 +88,29 @@ def build_cmd(src: str, out: str, segs: Sequence[Dict], tail: Tuple[float, float
         target = g["length"] + JOIN                    # each join eats JOIN seconds: the sections keep their scene starts
         chain = f"[s{i}]atrim={g['a']:.3f}:{g['b']:.3f},asetpts=PTS-STARTPTS,atempo={g['tempo']}"
         if g["mode"] == "loop":
-            have = (g["b"] - g["a"]) / g["tempo"]
-            copies = max(2, int(math.ceil((target - have) / max(have - JOIN, 0.5))) + 1)
-            chain += f",asplit={copies}" + "".join(f"[l{i}_{k}]" for k in range(copies))
-            parts.append(chain)
+            # the section plays once, then its SECOND HALF repeats (crossfaded) until the scene ends — repeating from its start would
+            # bring back a soft intro in the middle of the scene (#8: 9–10 s at −35 dB)
+            have = g["b"] - g["a"]
+            rep = max(min(have, LOOP_MIN), have / 2)
+            ra = g.get("ra", g["b"] - rep)
+            first_end = min(g["b"], ra + rep)          # up to the end of the repeated window: a fade-out after it is not played mid-scene
+            extra = max(1, int(math.ceil((target - (first_end - g["a"])) / max(rep - JOIN, 0.5))))
+            parts.append(f"[s{i}]asplit=2[f{i}][r{i}]")
+            parts.append(f"[f{i}]atrim={g['a']:.3f}:{first_end:.3f},asetpts=PTS-STARTPTS[l{i}_0]")
+            parts.append(f"[r{i}]atrim={ra:.3f}:{ra + rep:.3f},asetpts=PTS-STARTPTS,asplit={extra}" + "".join(f"[l{i}_{k}]" for k in range(1, extra + 1)))
             joined = f"[l{i}_0]"
-            for k in range(1, copies):
-                parts.append(f"{joined}[l{i}_{k}]acrossfade=d={JOIN}[j{i}_{k}]")
+            for k in range(1, extra + 1):
+                parts.append(f"{joined}[l{i}_{k}]acrossfade=d={JOIN}:c1=qsin:c2=qsin[j{i}_{k}]")
                 joined = f"[j{i}_{k}]"
-            parts.append(f"{joined}atrim=0:{target:.3f},afade=t=out:st={max(target - JOIN, 0):.3f}:d={JOIN}[g{i}]")
-        else:
-            parts.append(chain + f",atrim=0:{target:.3f},afade=t=out:st={max(target - JOIN, 0):.3f}:d={JOIN}[g{i}]")
+            parts.append(f"{joined}atrim=0:{target:.3f}[g{i}]")
+        else:                                          # the join's crossfade is the only fade (a fade on top of it dug a −40 dB hole)
+            parts.append(chain + f",atrim=0:{target:.3f}[g{i}]")
         labels.append(f"[g{i}]")
     parts.append(f"[s{n - 1}]atrim={tail[0]:.3f}:{tail[1]:.3f},asetpts=PTS-STARTPTS[tail]")
     labels.append("[tail]")
     joined = labels[0]
     for k, lab in enumerate(labels[1:], 1):
-        parts.append(f"{joined}{lab}acrossfade=d={JOIN}:c1=tri:c2=tri[x{k}]")
+        parts.append(f"{joined}{lab}acrossfade=d={JOIN}:c1=qsin:c2=qsin[x{k}]")          # equal power: no dip at the join
         joined = f"[x{k}]"
     return [ffmpeg, "-y", "-i", src, "-filter_complex", ";".join(parts), "-map", joined, "-c:a", "pcm_s16le", out]
 
@@ -125,6 +132,21 @@ def prompt_of(drafts: Sequence[Dict], drafts_dir: str, track: str) -> str:
     return ""
 
 
+def fullest(levels: Sequence[float], step: float, a: float, b: float, length: float) -> float:
+    """Start of the loudest `length`-second window inside [a, b] (#8: the last section's second half was the score's own fade-out —
+    looping it made the last 8 s of the film quiet)."""
+    best, best_at = None, max(b - length, a)
+    t = a
+    while t + length <= b + 1e-6:
+        window = levels[int(t / step):int((t + length) / step)]
+        if window:
+            mean = sum(window) / len(window)
+            if best is None or mean > best:
+                best, best_at = mean, t
+        t += step
+    return round(best_at, 3)
+
+
 def fit(track: str, prompt: str, datas: Sequence[Dict], seconds: Sequence[float], work_dir: str) -> Dict:
     """{"path" (the fitted score, or the track unchanged), "fitted": bool, "why", "turns": [...]}."""
     plan = planned(prompt)
@@ -138,6 +160,12 @@ def fit(track: str, prompt: str, datas: Sequence[Dict], seconds: Sequence[float]
     tail_end = max(length, plan["end"] + 0.1)
     film_end = max(total - END_LEAD, (new_turns[-1] if new_turns else 0.0) + 1.0)   # the final hit just before the last frame
     segs = segments(plan["turns"], plan["end"], new_turns, film_end)
+    if any(g["mode"] == "loop" for g in segs):
+        from . import music_timing
+        levels = music_timing.loudness(track, 0.5)
+        for g in segs:
+            if g["mode"] == "loop":
+                g["ra"] = fullest(levels, 0.5, g["a"], g["b"], max(min(g["b"] - g["a"], LOOP_MIN), (g["b"] - g["a"]) / 2))
     key = hashlib.sha1(json.dumps([track, os.path.getmtime(track) if os.path.exists(track) else 0, segs], sort_keys=True).encode()).hexdigest()[:10]
     os.makedirs(work_dir, exist_ok=True)
     out = os.path.join(work_dir, f"music_fit_{key}.wav")

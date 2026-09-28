@@ -45,7 +45,8 @@ def check_music(manifest: Dict) -> List[Dict]:
         if b - a > sound_intent.MAX_OFF_S + 0.05:
             out.append(_issue("music_hole", "block", f"nhạc tắt liền {b - a:.0f} s ({a:.0f}–{b:.0f} s) — quá {sound_intent.MAX_OFF_S:g} s", a))
     for t in intent.get("auto_in") or []:
-        out.append(_issue("music_auto_in", "warn", f"nhạc được tự cho vào lại ở {t:.1f} s (khoảng lặng của Đạo diễn dài quá) — nghe thử", t))
+        out.append(_issue("music_auto_in", "warn", f"khoảng lặng nhạc của Đạo diễn dài quá 8 s: nhạc lên lại hẳn ở {t:.1f} s (đã trở lại nhỏ từ "
+                                                   "trước đó) — nghe thử; lâu dài: Đạo diễn đặt 'in' đúng chỗ (đợt S3)", t))
     return out
 
 
