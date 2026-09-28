@@ -78,6 +78,7 @@ class BudgetTests(unittest.TestCase):
         self.assertEqual(project_budget.claude_stage("director"), "claude_director")
         self.assertEqual(project_budget.claude_stage("qc_agent"), "claude_qc")
         self.assertEqual(project_budget.claude_stage("video_analysis"), "claude_qc")
+        self.assertEqual(project_budget.claude_stage("video"), "claude_qc")          # the clip QC (llm_runner stage "video")
         self.assertEqual(project_budget.claude_stage("motion"), "claude_motion")
         self.assertEqual(project_budget.claude_stage("style"), "claude_other")
         self.assertTrue(project_budget.unverified(cost.load_pricing(), "dreamina-seedance-2-0-fast-260128"))
