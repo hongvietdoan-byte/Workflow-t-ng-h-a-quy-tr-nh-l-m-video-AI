@@ -193,6 +193,9 @@ class DirectorReportTests(unittest.TestCase):
         llm_io._check_beat({"turn": "x", "cause": "giấu tới cảnh 3"}, "beat")
         r = director_report.report(self._answer([("KELLY", "Anh nói đi.")]), self.SCRIPT)
         self.assertIn("turns_without_cause", r)
+        moving = {"scenes": [{"idx": 1, "shots": [dict(_shot(), camera_move="push_in", why=""), dict(_shot(), camera_move="static"),
+                                                 dict(_shot(), camera_move="pan", why="theo Kelly chạy tới cửa")]}]}
+        self.assertEqual(len(director_report.moves_without_reason(moving)), 1)      # S3.5: a still camera needs no reason
 
     def test_a_payoff_without_a_setup_is_reported(self):
         scenes = [{"idx": 1, "beat": {"want": "x", "plant": ""}, "shots": [_shot()]},

@@ -44,6 +44,7 @@ Dự án này sản xuất **theo shot**, không theo cảnh: mỗi cảnh kịc
  "action": "tiếng Việt, 1 hành động chính của shot",
  "start_frame": "tiếng Anh: ai ở đâu trong khung lúc bắt đầu shot (trái/giữa/phải, tiền/hậu cảnh, hướng mặt, tư thế)",
  "end_state": "tiếng Anh, chỉ khi shot đổi trạng thái rõ (vị trí/tư thế cuối shot); không thì bỏ",
+ "action_peak": "tiếng Anh, shot hành động: tư thế ĐANG giữa động tác ở khung đầu (vd 'mid-stride, weight on the left foot, arms swinging'); shot tĩnh thì bỏ",
  "image_prompt": "tiếng Anh: KHUNG ĐẦU của shot — cỡ cảnh, góc, nhân vật, bối cảnh, ánh sáng, theo khung hình dự án",
  "characters": ["TÊN trong Character Bible có mặt trong khung"],
  "dialogue": [{"speaker": "TÊN", "text": "câu thoại nguyên văn tiếng Việt",
@@ -56,7 +57,8 @@ Dự án này sản xuất **theo shot**, không theo cảnh: mỗi cảnh kịc
  "why": "tiếng Việt, 1 câu: vì sao cỡ/góc/chuyển động này", "motif": "nhãn ngắn khi shot vần với shot khác",
  "lens_mm": 35, "weather": "clear", "plate_spot": "tên chỗ đứng", "plate_mode": "green", "lip_sync": false,
  "hook_mid": false, "money_shot": false, "speed": 0.5, "freeze_end_s": 0.5,
- "continuous_with_next": false, "hero": false}
+ "continuous_with_next": false, "hero": false,
+ "transition_in": "cut|match|occlusion|flash|dip|whip|zoom_through|j_cut|l_cut"}
 ```
 - **`performance` (diễn xuất — mọi shot có người, nhất là thoại/phản ứng/móc/kết):** tả **hành vi nhìn thấy được**, không chỉ tên cảm xúc
   ("sad" → "lips pressed into a trembling smile, eyes wet, blinking fast"). `intensity` 1 gần như không thấy · 2 kìm nén · 3 rõ nhưng tự nhiên ·
@@ -71,6 +73,15 @@ Dự án này sản xuất **theo shot**, không theo cảnh: mỗi cảnh kịc
   nhạc hay âm nền chung. Đỉnh cảm xúc (cường độ 5) mà âm thanh không có ý đồ nào → code nhắc. Nhớ `in` sau `cut` (quên thì nhạc tắt tới hết phim).
 - **`motif`** (tùy chọn): một nhãn ngắn (vd "qua vai Kenta", "vòng cổ đen") cho các shot "vần" với nhau — cùng nhãn ở ít nhất 2 shot
   (lần đầu gieo, lần sau biến tấu); code báo motif chỉ xuất hiện một lần.
+- **`action_peak`** (shot có hành động cơ thể — chạy, ngã, đánh, xoay người, nhảy): khung đầu vẽ nhân vật **đang ở giữa động tác**, clip
+  bắt đầu khi chuyển động đã chạy (dp.md Q12). Ảnh khung đầu dáng đứng thẳng làm model video "khởi động" từ tư thế đứng — #8: chạy giả,
+  khựng ở mỗi điểm cắt. Không dùng cho shot mà sự đứng yên chính là ý đồ.
+- **`transition_in`** (tùy chọn, mặc định `cut`): cách vào shot này từ shot trước — chọn theo ý đồ chỗ nối, không có nghĩa cố định:
+  `match` (hình / động tác vần nhau qua điểm cắt), `occlusion` (chuyển cảnh che máy **thiết kế trong chuyển động** của hai shot: vật / người
+  đi ngang ống kính, máy lia theo vật, máy tiến vào vật che kín khung — tả trong `action` / `start_frame` của cả hai shot), `flash` (chớp
+  trắng — nhảy thời gian, ký ức, cú sốc…), `dip` (tối đi rồi sáng lại — thời gian trôi, kết một chương…), `whip` (lia nhanh nhòe — dồn nhịp,
+  đổi nơi cùng lúc…), `zoom_through` (lao vào khung — bước sang thế giới / trạng thái khác…), `j_cut` / `l_cut` (âm của shot sau vào trước
+  / âm shot trước kéo sang). Phần lớn chỗ nối là `cut`; chuyển cảnh đặc biệt dùng nhiều thì mất tác dụng.
 - **`why`:** một câu cho người duyệt: shot cho người xem biết/cảm gì → vì sao cỡ/góc/chuyển động này → nối với shot trước thế nào.
 - **`lens_mm`** (chỉ khi cần khác mặc định theo cỡ cảnh): 24 đặt gần = anh hùng/ngợp; 85–135 = nén, cô lập. **`weather`**, **`plate_spot`**,
   **`plate_mode`**: chỉ khi có khối "Gói bối cảnh" (danh sách tên hợp lệ ở đó); `weather` có thể ghi ở cảnh cho cả cảnh. **`lip_sync`**:

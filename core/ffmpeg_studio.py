@@ -163,6 +163,50 @@ def flashback_filter(seconds: float) -> str:
             f"fade=t=out:st={out_at:.2f}:d={FLASHBACK_FLASH}:color=white")
 
 
+# S3.6 (kế hoạch sau #8): a transition of its own at each cut, drawn INSIDE the two clips so the film's length never changes (voices,
+# subtitles and effects stay where they were placed). cut / match / occlusion / j_cut / l_cut stay plain cuts here — an occlusion is
+# designed in the shots' movement (dp.md Q12), a J/L cut is the sound's (flag j_cut).
+EDGE_TRANSITIONS = ("flash", "dip", "whip", "zoom_through")
+EDGE_S = {"flash": (0.10, 0.20), "dip": (0.25, 0.25), "whip": (0.15, 0.15), "zoom_through": (0.20, 0.20)}   # (tail of A, head of B)
+
+
+def edge_filter(seconds: float, head: Optional[str] = None, tail: Optional[str] = None, size=None) -> Optional[str]:
+    """Video filter for one clip: its own transition at its head and the next shot's at its tail. None when nothing changes.
+    zoom_through needs the clip's `size` (W, H): zoompan redraws each frame (crop's width is set once, it cannot grow — tried)."""
+    parts, zoom, d = [], [], max(float(seconds), 0.3)
+    if tail in EDGE_TRANSITIONS:
+        t = min(EDGE_S[tail][0], d / 3)
+        st = round(d - t, 3)
+        if tail in ("flash", "dip"):
+            parts.append(f"fade=t=out:st={st}:d={t}:color={'white' if tail == 'flash' else 'black'}")
+        elif tail == "whip":
+            parts.append(f"boxblur=luma_radius=24:luma_power=2:chroma_radius=12:enable='gte(t,{st})'")
+        else:
+            zoom.append(f"if(gte(it,{st}),1+0.6*(it-{st})/{t},1)")
+    if head in EDGE_TRANSITIONS:
+        t = min(EDGE_S[head][1], d / 3)
+        if head in ("flash", "dip"):
+            parts.append(f"fade=t=in:st=0:d={t}:color={'white' if head == 'flash' else 'black'}")
+        elif head == "whip":
+            parts.append(f"boxblur=luma_radius=24:luma_power=2:chroma_radius=12:enable='lt(t,{t})'")
+        else:
+            zoom.append(f"if(lt(it,{t}),1.6-0.6*it/{t},1)")
+    if zoom and size:
+        w, h = int(size[0]) // 2 * 2, int(size[1]) // 2 * 2
+        z = "*".join(f"({x})" for x in zoom)
+        parts.insert(0, f"zoompan=z='{z}':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':d=1:s={w}x{h}:fps=24")
+    return ",".join(parts) or None
+
+
+def add_edges(src: str, dst: str, seconds: float, head: Optional[str], tail: Optional[str], ffmpeg: Optional[str] = None) -> Optional[str]:
+    vf = edge_filter(seconds, head, tail, probe_size(src))
+    if vf is None:
+        return None
+    ff = ffmpeg or find_ffmpeg()
+    run([ff, "-y", "-i", src, "-vf", vf, *_ENCODE, "-c:a", "copy", dst])
+    return dst
+
+
 def add_flashback(src: str, dst: str, seconds: Optional[float] = None, ffmpeg: Optional[str] = None) -> str:
     ff = ffmpeg or find_ffmpeg()
     seconds = seconds or probe_duration(src) or 3.0

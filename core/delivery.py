@@ -300,17 +300,50 @@ def _flashbacks(p: Pipeline, rows: List[Dict], paths: List[str], durations: List
         return []
     out = []
     usable = [r for r in rows if r.get("path")]
-    for r, d in zip(usable, durations):
+    for i, (r, d) in enumerate(zip(usable, durations)):
         row = p.conn.execute("SELECT data FROM scenes WHERE id=?", (r.get("scene_id"),)).fetchone() if r.get("scene_id") else None
         if not row or not scene_establish.is_flashback(json.loads(row["data"] or "{}")):
             continue
         os.makedirs(work_dir, exist_ok=True)
         dst = os.path.join(work_dir, f"flashback_{r.get('idx')}.mp4")
-        try:
-            ffmpeg_studio.add_flashback(r["path"], dst, float(d))
-            paths[paths.index(r["path"])] = dst
+        try:                                  # paths[i] may already be a colour-matched copy (the original path is then not in paths)
+            ffmpeg_studio.add_flashback(paths[i], dst, float(d))
+            paths[i] = dst
             out.append({"idx": r.get("idx"), "path": dst})
         except Exception as e:  # noqa: BLE001 - the plain clip stays in the cut; the reason goes into the manifest
+            out.append({"idx": r.get("idx"), "error": str(e)[:200]})
+    return out
+
+
+TRANSITIONS_IN = ("cut", "match", "occlusion", "flash", "dip", "whip", "zoom_through", "j_cut", "l_cut")
+
+
+def _edge_transitions(p: Pipeline, rows: List[Dict], paths: List[str], durations: List[float], work_dir: str) -> List[Dict]:
+    """S3.6 (feature shot_transitions): each shot's `transition_in` drawn at its cut — the end of the shot before and the start of this
+    one, inside the clips (ffmpeg_studio.add_edges), so no second of the film moves. `paths` is changed in place. Returns
+    [{"idx", "head", "tail", "path"} | {"idx", "error"}] for the manifest."""
+    from . import features
+    if not features.on("shot_transitions"):
+        return []
+    usable = [r for r in rows if r.get("path")]
+    kinds = []
+    for r in usable:
+        row = p.conn.execute("SELECT data FROM scenes WHERE id=?", (r.get("scene_id"),)).fetchone() if r.get("scene_id") else None
+        kinds.append(str(json.loads(row["data"] or "{}").get("transition_in") or "cut") if row else "cut")
+    out = []
+    for i, (r, d) in enumerate(zip(usable, durations)):
+        head = kinds[i] if i > 0 else None
+        tail = kinds[i + 1] if i + 1 < len(kinds) else None
+        if head not in ffmpeg_studio.EDGE_TRANSITIONS and tail not in ffmpeg_studio.EDGE_TRANSITIONS:
+            continue
+        os.makedirs(work_dir, exist_ok=True)
+        src = paths[i]                       # paths[i] is this row's clip, maybe already a colour / flashback copy
+        dst = os.path.join(work_dir, f"edge_{r.get('idx')}.mp4")
+        try:
+            if ffmpeg_studio.add_edges(src, dst, float(d), head, tail):
+                paths[i] = dst
+                out.append({"idx": r.get("idx"), "head": head, "tail": tail, "path": dst})
+        except Exception as e:  # noqa: BLE001 - the plain cut stays; the reason goes into the manifest
             out.append({"idx": r.get("idx"), "error": str(e)[:200]})
     return out
 
@@ -384,6 +417,7 @@ def render(p: Pipeline, project_id: int, data_dir: str, music_path: Optional[str
     originals = list(paths)                   # lineage follows the shots' own clips, never the colour-matched copies
     colour = _colour_match(p, project_id, rows, paths, os.path.join(output_dir(data_dir, project_id), "_colour"))
     flashbacks = _flashbacks(p, rows, paths, durations, os.path.join(output_dir(data_dir, project_id), "_flashback"))
+    edges = _edge_transitions(p, rows, paths, durations, os.path.join(output_dir(data_dir, project_id), "_edges"))
     durations = list(durations)
     held = _hold_end(paths, durations, os.path.join(output_dir(data_dir, project_id), "_flashback"))   # after the voices are placed
     track = selected_music(data_dir, project_id) if music_path == "auto" else music_path
@@ -440,6 +474,8 @@ def render(p: Pipeline, project_id: int, data_dir: str, music_path: Optional[str
     manifest["color_match"] = colour
     if flashbacks:
         manifest["flashback_fx"] = flashbacks
+    if edges:
+        manifest["shot_transitions"] = edges
     if held:
         manifest["end_hold"] = held
     if fitted is not None:

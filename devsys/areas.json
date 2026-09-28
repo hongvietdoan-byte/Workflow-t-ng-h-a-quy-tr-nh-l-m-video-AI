@@ -66,7 +66,7 @@
       "assets": ["prompts/04_*", "knowledge/editor/*", "mcp_servers/ffmpeg_studio.py", "assets/*"],
       "docs": [],
       "tests": [],
-      "flags": ["loudness_normalize", "shot_color_match", "j_cut", "music_breath", "sound_intent", "impact_shake", "ambience_bed", "motion_trim", "speed_ramp", "flashback_fx", "end_hold", "music_fit"],
+      "flags": ["loudness_normalize", "shot_color_match", "j_cut", "music_breath", "sound_intent", "impact_shake", "ambience_bed", "motion_trim", "speed_ramp", "flashback_fx", "end_hold", "music_fit", "shot_transitions"],
       "diag_stages": ["music", "render", "delivery"],
       "keywords": ["nhạc", "âm thanh", "hiệu ứng", "phụ đề", "render", "dựng", "LUFS", "độ to", "khớp màu", "bản giao", "delivery", "subtitle", "sfx"]
     },

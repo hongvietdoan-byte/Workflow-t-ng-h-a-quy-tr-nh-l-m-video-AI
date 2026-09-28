@@ -74,6 +74,20 @@ class BlockingSequenceTests(unittest.TestCase):
         runner.submit_pending(self.pid)
         self.assertEqual(provider.prompts["img-1"], "shot 1. Blocking: Kelly frame-left, full body, feet on the ground")
 
+    def test_an_action_shot_starts_mid_movement(self):
+        """S3.3 (#8: fake running — a standing start frame makes the model 'start up' at every cut)."""
+        from core.runner import build_image_prompt
+        self.scenes([{"idx": 1}])
+        text, _ = build_image_prompt(self.conn, self.pid, {"image_prompt": "Kelly runs across the square",
+                                                             "action_peak": "mid-stride, weight on the left foot"})
+        self.assertIn("already under way: mid-stride, weight on the left foot", text)
+        text, _ = build_image_prompt(self.conn, self.pid, {"image_prompt": "Kelly stands still"})
+        self.assertNotIn("under way", text)
+        from core import shots
+        data = shots.shot_data({"idx": 1, "characters": []}, {"size": "MS", "role": "action", "duration_s": 2, "image_prompt": "x",
+                                                                "action": "chạy", "action_peak": " mid-stride "}, 1)
+        self.assertEqual(data["action_peak"], "mid-stride")
+
     def test_a_storyboard_frame_follows_the_same_sequence_not_just_the_scene_before(self):
         self.scenes([{"idx": 1, "sequence": 1}, {"idx": 2, "sequence": 2}, {"idx": 3, "sequence": 1}, {"idx": 4, "sequence": 3}])
         first = self.approve(1)

@@ -19,7 +19,7 @@ def _cached(*groups: List[str]) -> str:
 _SCENE_KEYS = ("location", "time", "characters", "mood", "lighting", "shot", "blocking", "image_prompt", "emotional_intent", "beat",
                "camera_complexity", "shot_role", "dialogue", "duration_s", "sequence")
 # v3 shot rows: what the shot contract adds (only present on shot rows, so v2 prompts do not change)
-_SHOT_KEYS = ("story_scene", "shot_no", "size", "angle", "camera_move", "role", "action", "end_state", "continuous_with_next",
+_SHOT_KEYS = ("story_scene", "shot_no", "size", "angle", "camera_move", "role", "action", "end_state", "action_peak", "continuous_with_next",
               "performance", "why", "speed", "freeze_end_s")   # GĐ4: acting over time, the DP reason; E10: slowed shots
 
 

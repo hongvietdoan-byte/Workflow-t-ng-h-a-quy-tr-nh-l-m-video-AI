@@ -78,6 +78,13 @@ FEATURES: Dict[str, Dict] = {
         "verified": False,
         "why": "2026-09-28 (sau #8: hai shot kết mỗi shot 1 s, người dùng thấy kết cụt): chờ người dùng xem bản dựng lại",
     },
+    "shot_transitions": {
+        "label": "Chuyển cảnh từng chỗ nối theo `transition_in` của shot (chớp trắng, tối đi, lia nhòe, lao vào khung) — vẽ trong hai clip "
+                 "kề nhau nên độ dài phim không đổi",
+        "verified": False,
+        "why": "2026-09-29 (kế hoạch S3.6): mới thử bằng test ffmpeg — chưa xem trên bản dựng thật (lia nhòe / lao vào khung có thể lộ "
+               "giả trên clip AI)",
+    },
     "story_check": {
         "label": "Người xem lần đầu: 1 lượt Claude chỉ đọc cái sẽ hiện trên màn hình (hành động, thoại, chữ — không đọc ý đồ Director) rồi "
                  "kể lại truyện và chỉ chỗ khó hiểu, trước khi làm ảnh",

@@ -1094,6 +1094,9 @@ def build_image_prompt(conn, project_id: int, data: Dict, core: Optional[str] = 
         if _GAZE.search(data["blocking"]):          # agent QC #8: eyes turned the wrong way (S2·4, S3·8) — the gaze is part of the shot
             prompt += " The gaze follows the blocking exactly: who looks at whom, toward frame-left or frame-right."
     prompt += performance.image_sentence(data)     # GĐ4: the Director's acting (director.md Đ4) at the start of the shot
+    peak = str(data.get("action_peak") or "").strip().rstrip(".")
+    if peak:                                        # S3.3: an action shot starts mid-movement, not from a standing pose (#8: fake running)
+        prompt += f" The first frame catches the action already under way: {peak}; mid-motion, not a standing pose."
     prompt += lock_note(conn, project_id, data.get("characters"))
     prompt += view_notes(conn, project_id, data)
     prompt += looks.image_sentence(proj)

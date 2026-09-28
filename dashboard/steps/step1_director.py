@@ -177,7 +177,7 @@ def _crew_notes(p: Pipeline, pid: int) -> None:
         st.warning("⚠ Cảnh gặt lại điều chưa được gieo ở cảnh nào trước (`beat.payoff` không có `plant` trước đó): "
                    + ", ".join(map(str, r["payoff_unplanted"])))
     if r.get("turns_without_cause"):
-        st.caption("💡 Nguyên nhân cú xoay: " + " · ".join(escape(w) for w in r["turns_without_cause"]))
+        st.caption("💡 Gợi ý (nguyên nhân cú xoay · lý do máy chuyển động): " + " · ".join(escape(w) for w in r["turns_without_cause"]))
     from core import story_check
     seen = story_check.load(C.DATA, pid)
     if seen:

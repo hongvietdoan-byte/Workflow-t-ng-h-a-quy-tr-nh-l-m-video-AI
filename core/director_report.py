@@ -194,7 +194,7 @@ def report(obj: Dict, script_text: str, model: str = "kling") -> Dict:
         + [f"cảnh {a['scene']}: kịch bản ghi \"{a['wanted']}\" mà không shot nào giữ" for a in angles] + retime_dropped(obj)
         + opening_and_product(obj),
         "payoff_unplanted": payoff_unplanted(obj),
-        "turns_without_cause": turns_without_cause(obj),
+        "turns_without_cause": turns_without_cause(obj) + moves_without_reason(obj),
         "continuity": continuity.axis_warnings(shots) + continuity.motif_warnings(shots)
         + continuity.lighting_warnings([sc for sc in obj.get("scenes") or [] if isinstance(sc, dict)]),
         "script_notes": [n for n in obj.get("script_notes") or [] if isinstance(n, dict) and str(n.get("note") or "").strip()],
@@ -293,6 +293,18 @@ def payoff_unplanted(obj: Dict) -> List[int]:
         if str(beat.get("payoff") or "").strip() and not planted:
             out.append(sc.get("idx"))
         planted = planted or bool(str(beat.get("plant") or "").strip())
+    return out
+
+
+def moves_without_reason(obj: Dict) -> List[str]:
+    """S3.5, adjusted by the research (2026-09-29): the reference drama keeps the camera still 98 % of the time and cuts close-ups back to
+    back, so the plan's "≤ 2 same size in a row / a move in every scene" would be a fixed rule the films do not follow. What stays: a
+    camera that MOVES says why (dp.md Q5 — a move needs a motive in the story; the meaning is the situation's, not the move's)."""
+    out = []
+    for sc in obj.get("scenes") or []:
+        for k, s in enumerate(sc.get("shots") or [], 1):
+            if isinstance(s, dict) and str(s.get("camera_move") or "static") != "static" and not str(s.get("why") or "").strip():
+                out.append(f"shot {sc.get('idx')}·{k}: máy {s.get('camera_move')} mà chưa ghi `why` — chuyển động này phục vụ gì ở đây?")
     return out
 
 

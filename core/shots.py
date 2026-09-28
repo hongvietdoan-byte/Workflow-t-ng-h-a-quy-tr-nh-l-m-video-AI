@@ -116,7 +116,7 @@ def validate(shots: Any, where: str, names) -> None:
         for key in ("image_prompt", "action"):
             if not isinstance(s.get(key), str) or not s[key].strip():
                 raise ShotError(f"{w}.{key}: expected non-empty text")
-        for key in ("start_frame", "end_state"):
+        for key in ("start_frame", "end_state", "action_peak"):
             if s.get(key) is not None and not isinstance(s[key], str):
                 raise ShotError(f"{w}.{key}: expected text")
         for key in ("continuous_with_next", "hero"):
@@ -196,6 +196,7 @@ def shot_data(scene: Dict, s: Dict, k: int) -> Dict:
         "shot": f"{SIZE_WORDS[s['size']]}, {s.get('angle', 'eye')} angle, {s.get('camera_move', 'static').replace('_', ' ')}",
         "size": s["size"], "angle": s.get("angle", "eye"), "camera_move": s.get("camera_move", "static"), "role": s["role"],
         "action": s["action"].strip(), "end_state": (s.get("end_state") or "").strip() or None,
+        "action_peak": (s.get("action_peak") or "").strip()[:200] or None if isinstance(s.get("action_peak"), (str, type(None))) else None,
         "continuous_with_next": bool(s.get("continuous_with_next")),
         "camera_setup": (str(s["camera_setup"]).strip().upper() if s.get("camera_setup") else None),   # H5: one clip per set-up
         "dialogue": spoken,
@@ -230,6 +231,9 @@ def shot_data(scene: Dict, s: Dict, k: int) -> Dict:
     lens = s.get("lens_mm")
     if isinstance(lens, (int, float)) and not isinstance(lens, bool) and 14 <= lens <= 200:
         data["lens_mm"] = int(round(lens))
+    from .delivery import TRANSITIONS_IN
+    if s.get("transition_in") in TRANSITIONS_IN and s.get("transition_in") != "cut":
+        data["transition_in"] = s["transition_in"]       # S3.6: the cut into this shot (the editor draws flash / dip / whip / zoom)
     if s.get("hook_mid") is True:
         data["hook_mid"] = True                           # director.md Đ2: the open detail that carries the viewer to the next part
     if s.get("money_shot") is True:
