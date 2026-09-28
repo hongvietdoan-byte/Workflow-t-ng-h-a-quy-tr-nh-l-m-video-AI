@@ -32,6 +32,6 @@
 | **S5.6** | Render tháp GLB thành video "white-model" (máy chạy quanh quảng trường) làm tham chiếu chuyển động / bố cục cho Seedance 2.5 | 💻 (Blender) + 💵 thử | bổ sung S5.1 |
 
 ## 3. Cần bạn
-1. Mở / xuất giúp tài liệu chi tiết bản cập nhật (Google Docs EN) — tôi cần phần **Sample Mode** (có API không, tham số, giá bản mẫu vs bản cuối) và tên model **Eleven Music v2.5**.
+1. ~~Xuất tài liệu Google Docs EN~~ — **đã có** (người dùng gửi PDF qua Drive 2026-09-28): chi tiết Sample Mode, Eleven Music v2.5, Advanced Edit, Director Workspace ở `docs/PHAN_TICH_CLIP_MAU_CLIPAI_2026-09-28.md` mục 4. Sample Mode có trong API hay không vẫn phải thử 1 lần gọi.
 2. Đồng ý đưa S4.7–S4.11, S2.6, S1.15, S5.6 vào kế hoạch (các việc 💵 vẫn hỏi trước từng lần, có ước tính).
 3. Kho chủ thể trước đây bị hoãn (quyết định 2026-09-22) — nay tài liệu chính thức khuyên dùng: đồng ý dùng lại cho nhân vật Free Fire?

@@ -17,17 +17,17 @@
 |---|---|---|---|---|---|---|
 | P0 Theo dõi tiến độ | 2 | 2 | 0 | 0 | 0 | 100 % |
 | S1 Dựng & âm thanh | 15 | 13 | 0 | 2 | 0 | 88,9 % |
-| S0 Học từ phim drama tham khảo | 8 | 8 | 0 | 0 | 0 | 100 % |
+| S0 Học từ phim drama tham khảo | 9 | 8 | 0 | 1 | 0 | 92,9 % |
 | S9 Dashboard gọn, dễ nhìn | 6 | 5 | 0 | 0 | 0 | 81,8 % |
 | S2 Timeline theo âm thanh + animatic | 6 | 0 | 0 | 1 | 0 | 0 % |
 | S3 Director kể chuyện + Quay phim | 8 | 0 | 0 | 0 | 0 | 0 % |
-| S4 Video chất lượng | 11 | 0 | 0 | 5 | 0 | 0 % |
+| S4 Video chất lượng | 12 | 0 | 0 | 6 | 0 | 0 % |
 | S5 Bối cảnh theo file 3D Tháp Đồng Hồ | 6 | 0 | 0 | 1 | 0 | 0 % |
 | S6 Ước tính, ngân sách, dashboard | 6 | 0 | 0 | 0 | 0 | 0 % |
 | S7 Agent QC | 2 | 0 | 0 | 0 | 0 | 0 % |
 | K Chạy kiểm kịch bản hài 20–30 s | 3 | 0 | 0 | 0 | 0 | 0 % |
 | S8 Chấm lại bằng AI Development System (cuối cùng) | 5 | 0 | 0 | 0 | 0 | 0 % |
-| **Tổng** | **78** | **28** | **0** | **9** | **0** | **37,4 %** |
+| **Tổng** | **80** | **28** | **0** | **11** | **0** | **36,8 %** |
 
 Đợt hiện tại: **S1** · việc kế: **S9.6** Gộp timeline tổng + sửa giao diện S6.4
 <!-- /tien-do -->
@@ -64,6 +64,7 @@
 - [x] S0.6 · Luật được duyệt vào bộ kỹ năng · nặng:1 · ✅ · knowledge/ff_styles/DRAMA_DOC.md ghi rõ GỢI Ý; dự án chọn NHIỀU phong cách tham khảo; Director đọc dạng gợi ý được trộn / làm khác
 - [x] S0.7 · Chỉ số mục tiêu data/drama_targets.json + test · nặng:2 · ✅ · data/style_hints.json: số đo chỉ hiện 💡 ở Kiểm bản dựng khi dự án chọn phong cách đó, không chặn, không tính 'cần xem'
 - [x] S0.8 · Phiếu so sánh bản dựng vs phim tham khảo · nặng:1 · ✅ · phiếu 10 mặt trong báo cáo S0.5 mục 4; đã chấm #8 cũ và v4
+- [ ] S0.9 · Phong cách gợi ý mới `MV_NARRATIVE` từ clip mẫu ClipAI (G-MV1–G-MV7: nhân vật né điểm yếu AI, 1 bối cảnh chính, 1 shot ≈ 1 câu, 1 hành động / shot, chuyển cảnh trong model, dàn cảnh đơn giản, mô-típ lặp) · nặng:1 · ⏸ · chờ người dùng duyệt (docs/PHAN_TICH_CLIP_MAU_CLIPAI_2026-09-28.md)
 
 ### S9 — Dashboard gọn, dễ nhìn
 - [x] S9.1 · Nút thu gọn phần Kịch bản · nặng:1 · ✅ · xong: 1a Kịch bản thu thành 1 dòng tóm tắt + nút ▸ Mở / ▾ Thu gọn (test_dashboard)
@@ -102,7 +103,8 @@
 - [ ] S4.8 · Prompt Seedance 2.0/Fast theo 'Shot 1 / Shot 2' thay vì mốc giây · nặng:1 · ⏸ · chờ người dùng duyệt (2.0 không theo mốc giây)
 - [ ] S4.9 · Prompt theo cấu trúc game ClipAI (vai trò @Image, giai đoạn hành động, phải giữ) · nặng:1 · ⏸ · chờ người dùng duyệt
 - [ ] S4.10 · A/B Seedance 2.5 (720P) vs Fast: cận, chạy, thoại có tham chiếu âm thanh tiếng Việt · nặng:2 · ⏸ · chờ người dùng duyệt (~3–4 USD)
-- [ ] S4.11 · Chế độ bản mẫu (Sample Mode): xác minh API, bản mẫu → duyệt → bản cuối 1080P · nặng:2 · ⏸ · cần tài liệu Google Docs (401)
+- [ ] S4.11 · Chế độ bản mẫu (Sample Mode): xác minh API, bản mẫu → duyệt → bản cuối 1080P · nặng:2 · ⏸ · PDF đã có: mẫu chỉ 480p (Seedance 2.5), bản cuối chỉ 1080p, mẫu hết hạn ~7 ngày; còn thử API
+- [ ] S4.12 · Advanced Edit: sửa clip lỗi (cận Kelly #8) thay vì sinh lại — kiểm API, thử 1 clip · nặng:1 · ⏸ · chờ người dùng duyệt (docs/PHAN_TICH_CLIP_MAU_CLIPAI_2026-09-28.md, ~0,5 USD)
 
 ### S5 — Bối cảnh theo file 3D Tháp Đồng Hồ
 - [ ] S5.1 · Render bộ ảnh chuẩn từ GLB ở tầm mắt + câu bố cục · nặng:2 · ⬜
