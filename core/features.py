@@ -78,6 +78,12 @@ FEATURES: Dict[str, Dict] = {
         "verified": False,
         "why": "2026-09-28 (sau #8: hai shot kết mỗi shot 1 s, người dùng thấy kết cụt): chờ người dùng xem bản dựng lại",
     },
+    "audio_first": {
+        "label": "Timeline theo âm thanh: tạo giọng ngay sau Director, kéo độ dài từng shot theo giọng thật, kiểm tổng so với mục tiêu "
+                 "kịch bản (±10 %) và khóa timeline TRƯỚC khi làm ảnh / video",
+        "verified": False,
+        "why": "2026-09-29 (kế hoạch S2, sau #8: dự kiến 58 s ra 83 s vì giọng làm sau clip): mới thử bằng test, chưa chạy trên dự án thật",
+    },
     "music_fit": {
         "label": "Nhạc nền đi theo cảnh thật: dời / co giãn từng đoạn của bản nhạc đã soạn cho khớp đầu mỗi cảnh trên bản dựng (miễn phí)",
         "verified": False,

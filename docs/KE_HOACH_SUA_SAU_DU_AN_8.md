@@ -19,7 +19,7 @@
 | S1 Dựng & âm thanh | 15 | 13 | 0 | 2 | 0 | 88,9 % |
 | S0 Học từ phim drama tham khảo | 15 | 11 | 4 | 0 | 0 | 79,6 % |
 | S9 Dashboard gọn, dễ nhìn | 6 | 5 | 0 | 0 | 0 | 81,8 % |
-| S2 Timeline theo âm thanh + animatic | 6 | 0 | 0 | 1 | 0 | 0 % |
+| S2 Timeline theo âm thanh + animatic | 6 | 3 | 0 | 1 | 0 | 45,5 % |
 | S3 Director kể chuyện + Quay phim | 8 | 0 | 0 | 0 | 0 | 0 % |
 | S4 Video chất lượng | 12 | 2 | 0 | 4 | 0 | 10 % |
 | S5 Bối cảnh theo file 3D Tháp Đồng Hồ | 6 | 0 | 0 | 1 | 0 | 0 % |
@@ -27,7 +27,7 @@
 | S7 Agent QC | 2 | 0 | 0 | 0 | 0 | 0 % |
 | K Chạy kiểm kịch bản hài 20–30 s | 3 | 0 | 0 | 0 | 0 | 0 % |
 | S8 Chấm lại bằng AI Development System (cuối cùng) | 5 | 0 | 0 | 0 | 0 | 0 % |
-| **Tổng** | **86** | **33** | **4** | **8** | **0** | **40,8 %** |
+| **Tổng** | **86** | **36** | **4** | **8** | **0** | **44,2 %** |
 
 Đợt hiện tại: **S1** · việc kế: **S9.6** Gộp timeline tổng + sửa giao diện S6.4
 <!-- /tien-do -->
@@ -67,7 +67,7 @@
 - [x] S0.9 · Tư liệu kỹ thuật từ clip mẫu ClipAI (`MV_NARRATIVE`, Đ12 / Q12 / E12) — sửa 2026-09-29 theo góp ý người dùng: tư liệu + ý đồ ở đúng chỗ, không công thức · nặng:1 · ✅ · docs/PHAN_TICH_CLIP_MAU_CLIPAI_2026-09-28.md mục 6
 - [x] S0.10 · Phương pháp phân tích chính xác: quan sát (mốc giây) → ý đồ trong ngữ cảnh (giả thuyết + độ tin) → đối chiếu nhiều mẫu + tài liệu → mới thành kiến thức; kiểm mâu thuẫn với kiến thức sẵn có · nặng:1 · ✅ · knowledge/craft/PHUONG_PHAP_PHAN_TICH.md (duyệt 2026-09-29; thứ tự học: phim ngắn → short drama → hành động → MV → CGI kỹ xảo)
 - [ ] S0.11 · Kho kỹ thuật chuyên môn `knowledge/craft/` (máy quay, góc, chuyển động máy, chuyển cảnh, dựng, âm thanh): mỗi kỹ thuật = cách làm + nhiều ý đồ có thể phục vụ + điều kiện + ví dụ ≥ 2 mẫu + nguồn tài liệu (tóm lời mình) · nặng:3 · 🔄 · lượt 1 xong: research/craft/NGUON.md (30 nguồn) + draft 5 nhóm (25 mục) — kiểm duyệt: nhiều mục mới dẫn trang chủ / tóm tắt tìm kiếm, cần lượt 2 đọc bài gốc + ví dụ mốc giây (S0.12) rồi mới vào knowledge/craft/
-- [ ] S0.12 · Xem nhiều mẫu đa thể loại (drama dọc, MV, quảng cáo game, phim ngắn, hoạt hình FF…) gắn nhãn theo kho kỹ thuật S0.11 · nặng:3 · 🔄 · short drama = drama dọc 9:16 kiểu ReelShort làm bằng AI (ưu tiên hàng Trung Quốc); danh sách 25 video (research/craft/MAU_S0_12.md), người dùng duyệt 2026-09-29; agent đang xem 2 video đầu (điểm dừng kiểm); bổ sung sau: quảng cáo phim AI của app DramaBox (người dùng gợi ý)
+- [ ] S0.12 · Xem nhiều mẫu đa thể loại (drama dọc, MV, quảng cáo game, phim ngắn, hoạt hình FF…) gắn nhãn theo kho kỹ thuật S0.11 · nặng:3 · 🔄 · short drama = drama dọc 9:16 kiểu ReelShort làm bằng AI (ưu tiên hàng Trung Quốc); 7/25 video đã phân tích (tải đoạn + ffmpeg + OpenCV + tools/audio_listen.py), TONG_HOP 7 mẫu hình; tồn: Fortnight, 《大师兄》, 2 DramaBox, đo lại nhạc 01/04
 - [ ] S0.13 · Rà kiến thức đang dùng (director / dp / editing / ff_styles) tìm chỗ gán nghĩa cố định hoặc khái quát từ 1 mẫu → sửa thành tư liệu có điều kiện · nặng:1 · ✅ · agent rà 16 chỗ (cinematography_basics 3, dp.md Q2/Q3/Q5/Q8 4, director.md Đ4/N5 2, film_director_method 3, video_motion_vocab 1, genre_guides 3) → đã sửa hết; 1340 test qua
 - [ ] S0.14 · Nghiên cứu nguồn tiếng Trung về phim AI (AI短剧 9:16, workflow, nội dung, prompt ngắn đủ ý, cảnh xịn; Seedance/即梦/可灵 tài liệu chính thức, WaytoAGI, bài ngành) → research/craft/trung_quoc/ · nặng:3 · 🔄 · lượt 1 xong: 18 nguồn (Seedance 2.5 提示词指南 chính thức đọc trọn, 第一财经, 澎湃, Zhihu), quy trình 9 bước, nội dung, prompt, nhạc nền, 15 bài học có mức bằng chứng — chờ người dùng xem; thiếu: tài liệu Kling, phỏng vấn biên kịch / đạo diễn có tên
 - [ ] S0.15 · Nghề nhạc phim: spotting, nhạc dẫn cảm xúc / dẫn dắt / tạo nhịp, khác nhau theo thể loại (short drama dọc, phim ngắn, hành động, hài, MV, CGI…), cách brief nhạc → prompt model nhạc; đối chiếu music_timing / sound_intent hiện có · nặng:2 · 🔄 · lượt 1 xong: research/craft/draft/nhac_nen.md (15 kỹ thuật), nhac_theo_the_loai.md (8 thể loại), nhac_bai_hoc_pipeline.md (10 bài học đối chiếu music_timing), 20 nguồn (#31–50) + trung_quoc/NHAC_NEN.md — chờ người dùng xem
@@ -81,9 +81,9 @@
 - [ ] S9.6 · Gộp timeline tổng + sửa giao diện S6.4 · nặng:2 · ⬜ · làm cùng đợt S6 (timeline tổng + sửa giao diện S6.4) để không sửa giao diện hai lần
 
 ### S2 — Timeline theo âm thanh + animatic
-- [ ] S2.1 · Chọn giọng ở Bước 1 · nặng:1 · ⬜
-- [ ] S2.2 · TTS nháp sau Director → chỉnh thời lượng → khóa timeline · nặng:3 · ⬜
-- [ ] S2.3 · Cổng độ dài ±10 % · nặng:1 · ⬜
+- [x] S2.1 · Chọn giọng ở Bước 1 · nặng:1 · ✅ · 2026-09-29: chạy tự động chọn giọng (Claude cast_voices) ngay sau Director; thiếu giọng → dừng hỏi trước khi làm ảnh (cờ audio_first)
+- [x] S2.2 · TTS nháp sau Director → chỉnh thời lượng → khóa timeline · nặng:3 · ✅ · 2026-09-29: core/audio_first.py + pha voicefirst (cờ audio_first, tắt mặc định); test; chưa chạy thật (TTS tốn tiền — lần chạy kiểm K)
+- [x] S2.3 · Cổng độ dài ±10 % · nặng:1 · ✅ · 2026-09-29: audio_first.length_check / gate_message, cổng 'length' (Tiếp tục = chấp nhận); test
 - [ ] S2.4 · Animatic ở cổng storyboard · nặng:3 · ⬜
 - [ ] S2.5 · Clip đơn cắt theo chuyển động · nặng:1 · ⬜
 - [ ] S2.6 · Thử Seed Audio 1.0 làm track thoại cả cảnh (3 giọng mẫu, mốc 100 ms, mốc phụ đề) · nặng:2 · ⏸ · chờ người dùng duyệt (cập nhật ClipAI)

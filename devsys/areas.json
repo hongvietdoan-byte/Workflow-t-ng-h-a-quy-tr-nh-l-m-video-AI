@@ -36,11 +36,11 @@
       "name": "Bước 3 · Motion & giọng",
       "weight": 1.0,
       "description": "Motion prompt (Claude), rà motion, giọng lồng tiếng Việt (TTS), kiểm giọng, chỉ đạo giọng, màn Bước 3.",
-      "code": ["core/voice.py", "core/voice_check.py", "core/voice_direction.py", "core/claude_tasks.py", "core/llm_runner.py", "dashboard/steps/step3.py"],
+      "code": ["core/voice.py", "core/voice_check.py", "core/voice_direction.py", "core/audio_first.py", "core/claude_tasks.py", "core/llm_runner.py", "dashboard/steps/step3.py"],
       "assets": ["prompts/03_*", "prompts/11_*", "prompts/15_*", "knowledge/motion_prompt_lint.md", "knowledge/video_motion_vocab.md", "knowledge/motion_complex_shots.md", "knowledge/t2v_prompt_structure.md", "data/motion_vocab.json", "data/voices_vi.json", "data/pronunciation_vi.json", "tools/voice_trial.py"],
       "docs": [],
       "tests": [],
-      "flags": ["voice_direction", "voice_check_redo", "j_cut"],
+      "flags": ["voice_direction", "voice_check_redo", "j_cut", "audio_first"],
       "diag_stages": ["motion"],
       "keywords": ["motion", "giọng", "TTS", "voice", "lồng tiếng", "ElevenLabs", "delivery"]
     },
@@ -79,7 +79,7 @@
       "assets": ["tools/pilot_run.py", "tools/pilot_setup.py"],
       "docs": ["docs/RUNBOOK.md"],
       "tests": [],
-      "flags": ["voice_check_redo", "storyboard_auto_trust", "setcheck_autofix", "lip_sync", "location_plates"],
+      "flags": ["voice_check_redo", "storyboard_auto_trust", "setcheck_autofix", "lip_sync", "location_plates", "audio_first"],
       "diag_stages": ["autopilot"],
       "keywords": ["autopilot", "tự động", "tự chạy", "pilot", "chạy thử"]
     },

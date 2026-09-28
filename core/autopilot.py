@@ -27,7 +27,7 @@ from .pipeline import Pipeline
 RUNNING, WAITING, STOPPED, ATTENTION, DONE, ERROR = "running", "waiting", "stopped", "needs_attention", "done", "error"
 QUEUED = "queued"   # approved, waiting for a free slot (see Manager.max_parallel)
 PHASE_LABELS = {"director": "Director (Character Bible + thông số cảnh)", "previz": "Dựng layout / storyboard", "images": "Gen ảnh + QC",
-                "plates": "Nền 3D của bối cảnh (render theo góc máy)", "platefix": "Kiểm nền 3D trong clip", "lipsync": "Khớp môi (sau khi có clip)", "setcheck": "QC đồng bộ cả bộ ảnh", "endframes": "Ảnh khung cuối (shot đổi trạng thái)", "storyboard": "Duyệt storyboard trước khi gen video", "clips": "Xem clip còn lỗi", "motion": "Motion prompt", "voice": "Giọng thoại", "videos": "Gen video + QC video",
+                "plates": "Nền 3D của bối cảnh (render theo góc máy)", "platefix": "Kiểm nền 3D trong clip", "lipsync": "Khớp môi (sau khi có clip)", "setcheck": "QC đồng bộ cả bộ ảnh", "endframes": "Ảnh khung cuối (shot đổi trạng thái)", "storyboard": "Duyệt storyboard trước khi gen video", "clips": "Xem clip còn lỗi", "motion": "Motion prompt", "voice": "Giọng thoại", "voicefirst": "Giọng trước hình (khóa timeline)", "videos": "Gen video + QC video",
                 "music": "Nhạc nền", "sfx": "Hiệu ứng âm thanh", "render": "Xuất bản", "done": "Hoàn tất"}
 MAX_SCENES = int(os.environ.get("AUTOPILOT_MAX_SCENES", "12"))
 LOG_KEEP = 60
@@ -169,6 +169,9 @@ def resume(p: Pipeline, project_id: int, user: Optional[str] = None) -> None:
         _log(p, project_id, "Bạn đã duyệt storyboard → viết motion prompt và gen video")
     elif gates.get("waiting_for") == "voice_fit":        # "Tiếp tục" = keep the clips (remaking them is its own button)
         set_gates(p, project_id, {"waiting_for": None, "voice_fit_decided": "keep"})
+    elif gates.get("waiting_for") == "length":           # S2.3: "Tiếp tục" = the voiced length is accepted (or the plan was edited:
+        set_gates(p, project_id, {"waiting_for": None, "length_decided": True})   # the phase measures again and locks)
+        _log(p, project_id, "Bạn đã xem độ dài theo giọng thật → khóa timeline và tiếp tục")
     elif gates.get("waiting_for") == "budget":           # approved in Bước 1 → the images phase checks it again
         set_gates(p, project_id, {"waiting_for": None})
     elif gates.get("waiting_for") == "clips":
@@ -251,6 +254,7 @@ def _director_phase(p: Pipeline, pid: int, ctx: Context) -> Optional[str]:
         # GĐ5: with FEATURE_DIRECTOR_TWO_PASS=1 on a shot project this is Tầng A + one Tầng B call per scene; resume = "Tiếp tục" after a
         # failed run asks only the scenes that failed (the paid Tầng A answer and the passed scenes are reused)
         r = llm_runner.run_director(p, pid, ctx.llm, resume=True)
+        set_gates(p, pid, {"timeline_locked": None, "length_decided": None})   # S2: a new shot plan is measured again
         n_shots = _count(p, "SELECT COUNT(*) FROM scenes WHERE project_id=?", pid)
         _log(p, pid, f"Director: {r['characters']} nhân vật, {r['scenes']} cảnh" + (f", {n_shots} shot" if n_shots != r["scenes"] else "")
              + (f" — hai lượt ({r['calls']} lượt Claude, chưa thử thật)" if r.get("two_pass") else ""))
@@ -870,7 +874,7 @@ def tick(p: Pipeline, project_id: int, ctx: Context) -> str:
         _set(p, project_id, note="Đang tạm dừng")
         return RUNNING
     try:
-        phases = [("director", _director_phase), ("previz", _previz_phase), ("plates", _plates_phase), ("images", _images_phase), ("setcheck", _setcheck_phase),
+        phases = [("director", _director_phase), ("voicefirst", _voice_first_phase), ("previz", _previz_phase), ("plates", _plates_phase), ("images", _images_phase), ("setcheck", _setcheck_phase),
                   ("endframes", _end_frame_phase), ("storyboard", _storyboard_phase), ("motion", _motion_phase), ("voice", _voice_phase), ("videos", _videos_phase), ("music", _music_phase),
                   ("platefix", _plate_fallback_phase), ("lipsync", _lipsync_phase), ("sfx", _sfx_phase)]
         for name, fn in phases:
@@ -1175,6 +1179,55 @@ def _check_voices(p: Pipeline, pid: int, ctx: Context) -> None:
         open(marker, "w").close()
         r = voice_check.redo(p.conn, pid, ctx.audio, ctx.data_dir)
         _log(p, pid, f"Tạo lại {r['sent']} câu thoại bị cờ lỗi (1 lần)")
+
+
+def _voice_first_phase(p: Pipeline, pid: int, ctx: Context) -> Optional[str]:
+    """S2 (feature audio_first): voice every line right after the Director, size the shots to the real voices, check the total
+    against the script's target and lock the timeline — before a picture is paid for. Once locked, never again (a new Director
+    run clears the gate)."""
+    from . import audio_first, claude_tasks, features, voice
+    if not features.on("audio_first") or get_gates(p, pid).get("timeline_locked"):
+        return None
+    stat = voice.status(p.conn, pid, ctx.data_dir)
+    if not stat["total"]:
+        return None
+    if ctx.audio is None:
+        _d(p, pid, "voice", "warn", "timeline theo âm thanh bật nhưng không có nhà cung cấp âm thanh — khóa timeline theo bảng shot "
+                                    "của Director (chưa có giọng thật)", "no_audio_provider")
+        set_gates(p, pid, {"timeline_locked": {"total": audio_first.planned_total(p.conn, pid), "by": "director"}})
+        return None
+    missing = audio_first.speakers_without_voice(p.conn, pid)
+    if missing and ctx.llm is not None:                    # S2.1: a voice for every speaker before the first picture
+        try:
+            r = claude_tasks.cast_voices(p, pid, ctx.llm, voice.library(ctx.audio))
+            if r.get("cast"):
+                _log(p, pid, "Chọn giọng: " + ", ".join(str(c.get("name")) for c in r["cast"]))
+        except llm_runner.LlmError as e:
+            _d(p, pid, "voice", "warn", f"chưa chọn được giọng tự động: {e}", "no_voice")
+        missing = audio_first.speakers_without_voice(p.conn, pid)
+    if missing:
+        raise _Wait("voices", "Chưa có giọng cho: " + ", ".join(missing) + " — chọn giọng ở Bước 1 → 🎙 Giọng rồi bấm chạy tiếp "
+                              "(timeline được đo bằng giọng thật trước khi làm ảnh)")
+    if stat["missing"] or stat.get("failed"):
+        r = voice.generate(p.conn, pid, ctx.audio, ctx.data_dir)
+        if r["sent"]:
+            _log(p, pid, f"Gửi {r['sent']} câu thoại cho TTS (đo độ dài trước khi làm ảnh)")
+    audio_lib.refresh(ctx.audio, audio_lib.assets_dir(ctx.data_dir, pid))
+    stat = voice.status(p.conn, pid, ctx.data_dir)
+    if stat.get("running") or stat["missing"]:
+        return f"Giọng thoại (đo độ dài): {stat.get('succeeded', 0)}/{stat['total']}"
+    changes = audio_first.fit_shots(p.conn, pid, ctx.data_dir)
+    if changes:
+        _log(p, pid, f"Kéo {len(changes)} shot cho vừa giọng thật: " + ", ".join(f"S{c['idx']:02d} {c['from']:g}→{c['to']:g} s"
+                                                                           for c in changes[:8]))
+    check = audio_first.length_check(p.conn, pid)
+    ask = audio_first.gate_message(check)
+    if ask and not get_gates(p, pid).get("length_decided"):
+        _d(p, pid, "voice", "warn", ask, "length_off_target")
+        raise _Wait("length", ask)
+    set_gates(p, pid, {"timeline_locked": {"total": check["total"], "by": "voice"}})
+    _log(p, pid, audio_first.lock_note(check))
+    return None
 
 
 def _voice_phase(p: Pipeline, pid: int, ctx: Context) -> Optional[str]:
