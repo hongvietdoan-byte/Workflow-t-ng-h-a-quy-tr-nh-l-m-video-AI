@@ -98,9 +98,12 @@ def summary(plan: Dict) -> Dict:
     unfinished = [r for r in rows if r["pct"] is not None and r["pct"] < 100]
     current = next((r["id"] for r in unfinished if r["done"] or r["doing"] or r["waiting"]), unfinished[0]["id"] if unfinished else None)
     nxt = None
-    if current:
-        wave = next(w for w in plan["waves"] if w["id"] == current)
-        nxt = next((t for t in wave["tasks"] if t["status"] == "⬜"), None)
+    if current:                  # the first task not started: in the current wave, else in the waves after it (current waits for the person)
+        ids = [w["id"] for w in plan["waves"]]
+        for w in plan["waves"][ids.index(current):]:
+            nxt = next((t for t in w["tasks"] if t["status"] == "⬜"), None)
+            if nxt:
+                break
     return {"total": percent(all_tasks), "waves": rows, "current": current,
             "doing": [t for t in all_tasks if t["status"] == "🔄"], "waiting": [t for t in all_tasks if t["status"] == "⏸"], "next": nxt}
 

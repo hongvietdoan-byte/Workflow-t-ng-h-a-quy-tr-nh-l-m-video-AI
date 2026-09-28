@@ -484,7 +484,7 @@ class PlanProgressTests(unittest.TestCase):
         self.assertEqual(s["waves"][1]["pct"], 0.0)                                      # ✖ not counted, ⏸ counts 0
         self.assertEqual(s["total"], round(100 * 2 / 7, 1))
         self.assertEqual(s["current"], "P0")
-        self.assertIsNone(s["next"])                                                     # P0 has nothing left not started
+        self.assertEqual(s["next"]["id"], "S1.1")                                       # P0 has nothing left not started: next wave
         self.assertEqual([t["id"] for t in s["waiting"]], ["S1.2"])
 
     def test_a_task_line_that_does_not_parse_or_repeats_is_reported_not_skipped(self):
