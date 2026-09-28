@@ -32,12 +32,12 @@ def next_action(p: Pipeline, pid: int, step: int, data_dir: str = "") -> Optiona
         from core import project_budget
         if project_budget.enabled() and not (project_budget.get(conn, pid) or {}).get("locked"):
             return "Duyệt & KHÓA ngân sách dự án (💵 ở 1c) — chạy tự động chờ bước này trước khi gen ảnh", "todo"
+        if any(c["locked"] for c in chars):         # locked = approved (a locked Bible may use the Kho pictures, no anchor)
+            return "Bước 1 xong — sang Bước 2", "done"
         waiting_anchor = sum(1 for c in chars if not c["anchor_approved"])
         if waiting_anchor:
             return f"Duyệt ảnh mốc của {waiting_anchor} nhân vật ở 1e", "todo"
-        if not any(c["locked"] for c in chars):
-            return "Bấm ✔ Duyệt & khóa → Bước 2 (cuối trang)", "todo"
-        return "Bước 1 xong — sang Bước 2", "done"
+        return "Bấm ✔ Duyệt & khóa → Bước 2 (cuối trang)", "todo"
     if not scenes:
         return "Chưa có kịch bản — bắt đầu ở Bước 1", "todo"
     summ = lineage.summary(conn, pid)
