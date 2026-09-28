@@ -528,6 +528,11 @@ def _vi(text) -> bool:
     return has_vietnamese(json.dumps(text, ensure_ascii=False))
 
 
+def _src_key(item) -> str:
+    import hashlib
+    return hashlib.sha1(json.dumps(item, ensure_ascii=False, sort_keys=True).encode("utf-8")).hexdigest()[:12]
+
+
 def translate_motion_fields(p: Pipeline, project_id: int, client) -> int:
     """Review 2026-09-27: 28/33 motion prompts of #8 carried Vietnamese (the Director's `action` and some `performance`), and how far
     Seedance follows Vietnamese is not measured. ONE call translates only the Vietnamese fields of every shot into short English for a
@@ -540,7 +545,7 @@ def translate_motion_fields(p: Pipeline, project_id: int, client) -> int:
         pv = {k: perf[k] for k in TRANSLATE_PERF if perf.get(k) and _vi(perf[k])}
         if pv:
             item["performance"] = pv
-        if item:
+        if item and d.get("motion_en_src") != _src_key(item):   # 28/09: every resume paid the same translation again
             todo[str(r["idx"])] = item
     if not todo:
         return 0
@@ -564,6 +569,7 @@ def translate_motion_fields(p: Pipeline, project_id: int, client) -> int:
             base = d.get("performance") if isinstance(d.get("performance"), dict) else {}
             en["performance"] = {**{k: base.get(k) for k in TRANSLATE_PERF if base.get(k)}, **fields["performance"]}
         d["motion_en"] = en
+        d["motion_en_src"] = _src_key(todo[idx])               # the Vietnamese this translation came from (changed → again)
         p.conn.execute("UPDATE scenes SET data=? WHERE id=?", (json.dumps(d, ensure_ascii=False), row["id"]))
         n += 1
     p.conn.commit()

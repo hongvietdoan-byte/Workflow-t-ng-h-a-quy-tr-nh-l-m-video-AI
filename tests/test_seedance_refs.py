@@ -187,6 +187,11 @@ class ReviewFixTests(unittest.TestCase):
         d = json.loads(p.conn.execute("SELECT data FROM scenes WHERE id=?", (sid,)).fetchone()["data"])
         self.assertEqual(d["motion_en"]["action"], "Kelly turns and walks away")
         self.assertEqual(d["action"], "Kelly quay người bước đi")                 # the Director's own field is kept
+        self.assertEqual(claude_tasks.translate_motion_fields(p, pid, C()), 0)   # 28/09: a resume does not pay the same translation again
+        d["action"] = "Kelly quay lại nhìn Kenta"                                   # the Vietnamese changed → translated again
+        p.conn.execute("UPDATE scenes SET data=? WHERE id=?", (json.dumps(d, ensure_ascii=False), sid))
+        answers.append({str(p.conn.execute("SELECT idx FROM scenes WHERE id=?", (sid,)).fetchone()[0]): {"action": "Kelly turns back to Kenta"}})
+        self.assertEqual(claude_tasks.translate_motion_fields(p, pid, C()), 1)
 
 
 class SplitTests(unittest.TestCase):
