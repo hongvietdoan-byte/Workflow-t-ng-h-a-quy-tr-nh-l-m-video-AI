@@ -60,7 +60,8 @@ def claude_stage(tag: Optional[str]) -> str:
     t = str(tag or "")
     if t.startswith("director"):
         return "claude_director"
-    if t in ("qc", "qc_agent", "video_qc", "storyboard_review", "check", "scene_qc") or t.startswith("qc"):
+    if t in ("qc", "qc_agent", "video_qc", "video_analysis", "storyboard_review", "check", "scene_qc") or t.startswith("qc"):
+        # 28/09: video_analysis (the clip QC) fell into claude_other (cap 0.20) and the lock refused every clip QC
         return "claude_qc"
     if t.startswith("motion") or t == "translate":
         return "claude_motion"
