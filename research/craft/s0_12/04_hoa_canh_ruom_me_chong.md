@@ -22,9 +22,20 @@ Giống video 01–03 (cắt/tờ ảnh/LUFS-LRA-quãng lặng, bỏ báo cáo �
 - Âm thanh: LUFS đoạn 1 **−13.4**, đoạn 2 **−13.5** (LRA 5.3 và 8.7 LU). Quãng lặng: 3 và 2 lần — ít hơn hẳn video 01 (46+33 trong cùng độ dài) dù cùng là AI short drama thoại nhiều — **[có thể]**: khác biệt giữa 2 kênh khác nhau, không phải quy luật chung của thể loại (mâu thuẫn với giả thuyết trước — cần ghi rõ trong `TONG_HOP.md`).
 - **Camera gần như hoàn toàn tĩnh (76–83%)** — khớp hướng của video 01 (thoại nhiều → máy tĩnh chiếm đa số), nhưng **tỉ lệ tĩnh ở video 04 thấp hơn** (76–83% so với ước lượng ~98% của DRAMA_DOC tham khảo) — có thể do đo bằng OpenCV nhạy hơn với rung nhẹ/zoom rất chậm mà mắt thường không nhận ra, không hẳn là khác biệt phong cách thật.
 
-### Đọc phổ âm thanh
-- Cả 2 đoạn: kết cấu **chủ yếu vạch dọc dày đặc, không thấy vệt ngang bền vững nhiều tầng rõ rệt** như video 05 (RISE) — khác biệt rõ so với RISE (nơi thấy hoà âm rõ). **Kết luận [có thể]**: video này hoặc không có nhạc nền rõ, hoặc nhạc rất nhỏ/bị thoại che gần hết phổ — **không đủ bằng chứng thị giác để khẳng định có nhạc**, khác hẳn RISE. Độ tin: có thể (kết cấu phổ nhất quán qua cả 5 khúc 60s đã xem của video 01 và 04 — 2/2 video AI short drama thoại-nhiều đều cho kết quả tương tự, đủ điều kiện ghi vào `TONG_HOP.md`).
-- Một chi tiết nhỏ đáng chú ý: đoạn "lật ngược" (mở hộp thư, máy cát-xét) — dù nội dung hình cho thấy một máy cát-xét đang phát, **phổ âm ở đúng đoạn đó (giây ~97–110 của đoạn 2) không cho thấy dấu hiệu nhạc/giọng nói khác biệt rõ so với phần còn lại** — có thể giọng ghi âm phát ra từ cát-xét chỉ là một giọng nói (không phải nhạc), khớp với việc phổ vẫn là "vạch dọc dày đặc" kiểu thoại.
+### Nghe bằng số — đo lại 2026-09-29 (thay kết luận đọc phổ bằng mắt)
+> **Sửa kết luận cũ.** Lượt 3 đọc phổ bằng mắt và kết luận "không đủ bằng chứng có nhạc". Đo lại bằng `tools/audio_listen.py` (demucs tách nhạc / giọng,
+> mức nhạc từng giây, nhãn AudioSet) trên khúc tải lại 0:00–1:30 (`v04_re.webm`, 360×640, hình và âm cùng bắt đầu ở giây 0 — mốc khớp bảng shot đoạn 1):
+> **video này có nhạc 98% thời gian** — một lớp nền nhỏ −36…−42 dBFS nằm dưới thoại (thoại −12…−20 dBFS), phổ bị thoại che nên mắt không thấy.
+- Nhạc cụ đoán (AST, điểm thấp 0.03–0.21 → chỉ "có thể"): dây gảy / mandolin 2–8s và 26s, **violin** 18s (0.21) và 32–44s (0.05–0.15), cello / double bass 68s và 76s.
+  Tempo 103.4 BPM, giọng điệu đoán D trưởng (độ khớp 0.84).
+- **Nhạc trồi lên (swell) 5 lần, 4/5 lần trong ±0.6s một điểm cắt**:
+  - 8–9s (−22.7 / −18.3 dB) ↔ cắt 9.2 — chuyển từ cận sổ tay sang sân làng;
+  - 30–31s (−22.9 / −19.8 dB) ↔ cắt 32.2 (lệch 1.2s) — nữ chính giơ tờ giấy đọc to;
+  - 50s (−17.3 dB), đúng lúc thoại ngừng 50–51s (giọng −43 / −37 dB) ↔ cắt 50.6 — giữa cảnh cầm gậy đe doạ;
+  - 66–68s (−29…−24.6 dB) ↔ cắt 66.1 / 67.4 — nhóm người bỏ chạy;
+  - 73–74s (−23.2 / −18.0 dB, nhãn Whoosh 0.26 ở 74s) ↔ cắt 73.0 / 74.2 — chuyển bối cảnh sang quán ăn.
+- Không có lần tắt nhạc nào trong 90s đã đo (khớp 3 quãng lặng trong cả 180s của lượt trước).
+- Đoạn 2 (43:30–45:40, cát-xét) **chưa đo lại** — câu hỏi "cát-xét phát nhạc hay giọng" vẫn mở.
 
 ## Bảng shot — đoạn 1 (0:00–3:00, 76 shot, đủ mốc/cỡ cảnh/máy riêng từng shot)
 | # | Vào–ra | Cỡ cảnh chủ đạo | Máy (OpenCV) | Nội dung |
@@ -61,12 +72,15 @@ Giống video 01–03 (cắt/tờ ảnh/LUFS-LRA-quãng lặng, bỏ báo cáo �
 1. **Tìm đoạn lật ngược bằng tờ ảnh thưa 1 khung/20s** — nhanh (1 lượt tải 480p + 1 lệnh ffmpeg) và chính xác hơn hẳn đoán theo tỉ lệ % — nên dùng cách này cho mọi video gộp dài còn lại (đã áp dụng lại ở video 06, 07 bên dưới).
 2. **Camera tĩnh áp đảo (76–83%) xuyên suốt cả đoạn xung đột lẫn đoạn xúc động** — khác video 02/03/05 (đổi nhịp cắt VÀ chuyển động máy theo kịch tính) — video AI short drama (01, 04) dùng thoại/nội dung để tạo cảm xúc, gần như không dùng chuyển động máy làm công cụ kể chuyện. Đây là **quan sát trùng giữa video 01 và 04** (2/2 video cùng nhóm thể loại) — đủ điều kiện ghi mẫu hình vào `TONG_HOP.md`.
 3. **Vật thể vật lý (hộp thư, cát-xét) làm phương tiện lộ thông tin** thay vì hồi tưởng bằng hình ảnh (khác kỹ thuật "grayscale hồi tưởng" đã thấy ở DRAMA_DOC tham khảo trước) — một cách khác để kể lại quá khứ mà không cần dựng lại cảnh cũ, có thể rẻ hơn cho sản xuất AI. Độ tin: đoán, 1 mẫu.
-4. **Phổ âm không cho thấy dấu hiệu nhạc rõ ở cả 2 đoạn** (giống video 01) — khác hẳn RISE — củng cố giả thuyết "AI short drama thoại nhiều có xu hướng ít/không có nhạc nền rõ, ưu tiên lời thoại" — nay có bằng chứng thị giác từ 2 video cùng nhóm.
+4. ~~Phổ âm không cho thấy dấu hiệu nhạc rõ~~ — **sai, đã đo lại 2026-09-29**: nhạc nền nhỏ dưới thoại 98% thời gian (0:00–1:30), **trồi lên 5–20 dB ở điểm cắt
+   chuyển bối cảnh hoặc chỗ thoại ngừng** (9.2, 50.6, 73–74s). Ý đồ **[có thể]**: nhạc làm "dấu chấm câu" cho chuyển cảnh và khoảng ngừng, còn lại lùi hẳn
+   sau thoại. Độ tin: có thể (nhãn / mức đo được, chưa nghe tai).
 
 ## Giới hạn / câu hỏi mở
 - Chỉ đo 310s/7357s (~4.2%) — vẫn rất ít so với toàn phim.
-- Không xác nhận được máy cát-xét phát nhạc hay chỉ phát giọng nói ghi âm (phổ không phân biệt rõ) — cần nghe thật.
+- Không xác nhận được máy cát-xét phát nhạc hay chỉ phát giọng nói ghi âm — đoạn 2 chưa đo lại bằng audio_listen.
+- Lớp "nhạc" của demucs có lẫn hiệu ứng (whoosh, tiếng gõ); đo lại chỉ phủ 0:00–1:30.
 - Tỉ lệ "tĩnh" đo bằng OpenCV (76–83%) thấp hơn ước lượng bằng mắt trước đây (gần 100%) — có thể do ngưỡng đo còn nhạy với rung nhẹ/nén video, cần đối chiếu thêm.
 
 ## Xoá dữ liệu
-Đã xoá `v04_seg1_9gFRf8dFWbI.webm`, `v04_seg2_9gFRf8dFWbI.webm`, khúc quét 480p, các thư mục `v04_seg*_frames/`, `v04_seg*_sheet_*.jpg`, `v04_seg*_spec_*.png` khỏi `scratchpad/s012` sau khi viết xong file này.
+Đã xoá `v04_seg1_9gFRf8dFWbI.webm`, `v04_seg2_9gFRf8dFWbI.webm`, khúc quét 480p, các thư mục `v04_seg*_frames/`, `v04_seg*_sheet_*.jpg`, `v04_seg*_spec_*.png` khỏi `scratchpad/s012` sau khi viết xong file này. Lượt đo lại nhạc 2026-09-29: đã xoá `v04_re.webm` và thư mục `v04_re_listen/` (wav, stem, lời chép); chỉ giữ `v04_re_listen_numbers.json` (không lời chép).

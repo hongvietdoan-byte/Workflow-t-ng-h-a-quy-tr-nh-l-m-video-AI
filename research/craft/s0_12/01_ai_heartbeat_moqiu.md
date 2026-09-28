@@ -29,7 +29,7 @@ Nhịp cắt ~30–36 shot/phút — khớp số đo lần trước (đo trong t
 | Giữa phim | −14.6 LUFS | 8.7 LU | −0.9 dBFS | 33 | 19/33 = 58% |
 
 - **~60% các quãng lặng ngắn (thường 0.3–1.5s, giữa các câu thoại) trùng thời điểm với một điểm cắt shot (±0.4s)** — số đo khách quan xác nhận quan sát "cắt theo nhịp câu thoại" đã ghi ở đợt trước, nay có % cụ thể thay vì chỉ quan sát bằng mắt.
-- **RMS (độ to) tụt rất sâu (< −40dB, có lúc tới −80/−95dB) ở nhiều mốc trong cả hai đoạn** (ví dụ 8–10s, 55–76s ở đoạn mở đầu; 0–5s, 24–39s ở đoạn giữa phim) — **[có thể]**: nhạc nền của video này không chạy liên tục xuyên suốt như MV tham khảo ClipAI đã phân tích trước (`docs/PHAN_TICH_CLIP_MAU_CLIPAI_2026-09-28.md`, nhạc không bao giờ tắt) mà **tắt hẳn giữa các câu thoại**, chỉ còn tiếng thoại (khi có) — **độ tin: có thể, dựa trên số đo RMS, chưa nghe được bằng tai để xác nhận có đúng là nhạc tắt hay chỉ là thoại nhỏ**. Cần người dùng nghe lại đoạn 8–10s và 55–76s để xác nhận.
+- ~~(Nhận định cũ, nay đã đo lại — xem mục "Nhạc nền")~~ **RMS (độ to) tụt rất sâu (< −40dB, có lúc tới −80/−95dB) ở nhiều mốc trong cả hai đoạn** (ví dụ 8–10s, 55–76s ở đoạn mở đầu; 0–5s, 24–39s ở đoạn giữa phim) — **[có thể]**: nhạc nền của video này không chạy liên tục xuyên suốt như MV tham khảo ClipAI đã phân tích trước (`docs/PHAN_TICH_CLIP_MAU_CLIPAI_2026-09-28.md`, nhạc không bao giờ tắt) mà **tắt hẳn giữa các câu thoại**, chỉ còn tiếng thoại (khi có) — **độ tin: có thể, dựa trên số đo RMS, chưa nghe được bằng tai để xác nhận có đúng là nhạc tắt hay chỉ là thoại nhỏ**. Cần người dùng nghe lại đoạn 8–10s và 55–76s để xác nhận.
 - Đỉnh thật chạm 0.0 dBFS ở đoạn mở đầu — **có thể bị vỡ nhẹ trên loa điện thoại**, giống nhận xét đã ghi cho clip MV ClipAI (+0.7 dBFS).
 
 ## Bảng shot — đoạn 1 (0:00–3:00, 107 shot)
@@ -78,15 +78,25 @@ Nhịp cắt ~30–36 shot/phút — khớp số đo lần trước (đo trong t
 
 ## Kỹ thuật đáng học
 1. **Cắt gần như toàn cận/trung cận theo câu thoại (~60% quãng lặng trùng điểm cắt, đo được), nhịp rất nhanh (median 1.4–2.0s)** — xác nhận lại bằng số đo chính xác (không còn chỉ là quan sát bằng mắt qua trình duyệt). Ý đồ **[có thể]**: giữ người xem không rời mắt trong định dạng xem lướt trên điện thoại. Độ tin: **có thể → gần chắc** (đã có số đo lặp lại 2 đoạn khác nhau trong cùng video, cùng chiều với DRAMA_DOC).
-2. **Nhạc nền có thể không chạy liên tục** (RMS tụt sâu < −40dB nhiều đoạn) — khác hẳn MV tham khảo ClipAI (nhạc không bao giờ tắt). Độ tin: **có thể**, dựa trên số đo RMS, **chưa nghe được bằng tai để xác nhận** — đây là phát hiện mới quan trọng cần người dùng nghe lại.
+2. **Nhạc nền rất ít — đã xác nhận bằng số 2026-09-29** (xem mục "Nhạc nền"): nhạc chỉ có ở 20% thời gian 0:00–1:30 và gần như toàn mức nhỏ; âm thanh là
+   thoại + tiếng môi trường (chim, côn trùng, tiếng vải). Hai quãng gần như im hẳn 7.8–11.3s và ~55–67s trùng **chèn vật / chuyển bối cảnh không thoại**.
+   Ý đồ **[đoán]**: để thoại dồn dập tự giữ nhịp; hoặc đơn giản kênh này không làm lớp nhạc. Độ tin quan sát: khá (đo được); ý đồ: đoán.
 3. **Đỉnh âm chạm 0.0 dBFS** (đoạn mở đầu) — dấu hiệu kỹ thuật hậu kỳ chưa chặt limiter, có thể vỡ nhẹ trên loa nhỏ — giống nhận xét đã có ở clip MV ClipAI (+0.7 dBFS), cho thấy đây **có thể là vấn đề chung của khâu master âm thanh ở nhiều kênh AI drama, không riêng một kênh** — nhưng mới thấy ở 2 nguồn, cần thêm mẫu.
 4. **Twist thả liên tục qua đối thoại ngắn** (bị bắt cóc → mẹ ruột lộ diện → âm mưu cô dâu thế thân, tất cả trong 180s đầu) — mỗi twist là 1 cụm shot CU đối thoại, không có cảnh minh hoạ riêng cho hành động (không quay cảnh bắt cóc thật). Độ tin: có thể — giảm chi phí sản xuất AI, giữ nhịp truyện dồn dập.
 5. **Shot #1 của đoạn 2 dài bất thường (9.7s, gần 5× trung vị)** ngay đầu một cảnh mới (bữa tối) — có thể là shot "thiết lập" (thấy toàn cảnh bàn ăn + phản ứng đầu tiên) trước khi chuyển sang nhịp cắt nhanh — **[đoán]**, cần xem thêm ví dụ khác để xác nhận đây là quy luật "shot mở cảnh dài hơn" hay ngẫu nhiên.
 
-## Nhạc nền — mục G (âm thanh) cập nhật
-- **Không nghe được bằng tai** trong phiên này (môi trường agent không có audio output) — nhưng nay có **số đo LUFS/LRA/peak/RMS/silence khách quan** thay cho "không có gì".
-- Diễn biến RMS gợi ý nhạc **gián đoạn theo câu thoại** thay vì liên tục — **cần người dùng nghe trực tiếp file gốc** (không còn trên máy vì đã xoá) hoặc mở lại link để xác nhận đây có đúng là nhạc tắt/bật hay chỉ là biến động của track thoại+nhạc trộn chung.
-- Không đo được đường cong loudness dạng liên tục mượt (LUFS momentary M: không xuất ra được ở bản ffmpeg 9.0.1 cài trên máy — dùng RMS 1 mẫu/giây qua `astats` thay thế, đã ghi trong mục Phương pháp).
+## Nhạc nền — mục G (âm thanh) — đo lại 2026-09-29 bằng `tools/audio_listen.py`
+Tải lại 0:00–1:30 (`v01_re.webm`, 360×640, hình và âm cùng bắt đầu ở giây 0 — mốc khớp bảng shot đoạn 1), demucs tách nhạc / giọng, mức nhạc từng giây
+(> −38 dBFS rõ, −50…−38 nhỏ dưới thoại, < −50 không nhạc), nhãn AudioSet trên lớp nhạc, whisper chỉ để lấy mốc câu.
+- **Kết luận cũ ("nhạc gián đoạn, không liên tục") đứng vững — nay có số đo**: nhạc chỉ **20%** thời gian (06: 92–100%, 07: 84–98%, 04 đo lại: 98%). Lớp nhạc
+  phần lớn < −50 dBFS; chỉ 2 giây vượt −38 (3s: −38.1; 67s: −34.2). Nhãn trên lớp "nhạc" chủ yếu là **tiếng môi trường**: chim hót 0–6s (Chirp 0.29),
+  ruồi / côn trùng 32s (0.36), tiếng vải / khoá kéo 36–46s (Zipper 0.27–0.72), thở dài 50s, hít hơi (Gasp 0.5) 76s. Tempo / giọng điệu đo được độ khớp 0.35 → không tin.
+- Thoại gần như liên tục (40 câu whisper trong 90s, giọng −11…−20 dBFS).
+- **Hai quãng gần im hẳn** (cả giọng lẫn nhạc < −55 dBFS): **7.8–11.3s** (giọng −91, nhạc −85) dưới chèn áo dạ hội đỏ / hộp quà (shot 4–6, cắt 7.2 / 8.9 / 9.7 / 10.0);
+  **~55–67s** (giọng −48…−88, nhạc −57…−102) dưới chuỗi nữ chính một mình ngoài sân → chèn xe Bentley 59.1s → nhân vật mới (shot 31–36). [có thể] im lặng
+  được dùng như "khoảng thở" khi đổi vật / đổi bối cảnh, không phải tắt nhạc (vì trước đó vốn không có nhạc).
+- Điểm nhạc duy nhất rõ hơn nền: 67s (−34.2 dB), trùng cắt 67.2 trong cụm người mẹ tự nhận (63.5–75.8s) — 1 giây, [đoán] là một nốt nhấn.
+- Chưa đo lại đoạn 2 (74:08–75:08).
 
 ## Giới hạn / câu hỏi mở
 - Vẫn chỉ đo 248s / 7413.7s (~3.3%) — không đủ để kết luận cấu trúc toàn phim.
@@ -97,3 +107,5 @@ Nhịp cắt ~30–36 shot/phút — khớp số đo lần trước (đo trong t
 
 ## Xoá dữ liệu
 Đã xoá `test_wPwzzQNtgr0.webm`, `v01_seg2_wPwzzQNtgr0.webm`, các thư mục `v01_seg1_frames/`, `v01_seg2_frames/`, và các file `.jpg` tờ ảnh (`v01_seg*_sheet_*.jpg`) khỏi `scratchpad/s012` ngay sau khi ghi xong file phân tích này — chỉ giữ lại số đo (JSON) trong scratchpad để tham khảo nội bộ (không đưa vào repo).
+
+Lượt đo lại nhạc 2026-09-29: đã xoá `v01_re.webm` và thư mục `v01_re_listen/` (wav, stem, lời chép); chỉ giữ `v01_re_listen_numbers.json` (không lời chép).
