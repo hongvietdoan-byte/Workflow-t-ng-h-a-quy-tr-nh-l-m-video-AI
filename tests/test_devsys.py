@@ -445,6 +445,97 @@ class HookTests(unittest.TestCase):
         self.assertTrue(os.path.exists(os.path.join(root, "devsys", "data", "hook_errors.log")))
 
 
+PLAN_TEXT = """# Kế hoạch
+> Trần đợt: 50 USD · Claude 3 USD · từ 2026-09-28T08:00:00+00:00
+## Tiến độ
+<!-- tien-do -->
+cũ
+<!-- /tien-do -->
+### P0 — Theo dõi
+- [x] P0.1 · File kế hoạch · nặng:1 · ✅ · 1a2b3c4 · 12 test qua
+- [ ] P0.2 · Trang web · nặng:2 · 🔄
+### S1 — Dựng
+- [ ] S1.1 · Bỏ bảng tên · nặng:1 · ⬜
+- [ ] S1.2 · Hiệu ứng neo shot · nặng:3 · ⏸ · chờ nghe thử
+- [ ] S1.3 · Việc bỏ · nặng:2 · ✖ · trùng S1.2
+| S1.9 | dòng bảng chi tiết không phải việc | x |
+"""
+
+
+class PlanProgressTests(unittest.TestCase):
+    """Kế hoạch sau #8 (2026-09-28): người dùng xem % tiến độ — code tính từ danh sách việc, không ai tự khai."""
+
+    def test_parse_reads_tasks_waves_commit_note_and_cap(self):
+        from devsys import plan_progress
+        plan = plan_progress.parse(PLAN_TEXT)
+        self.assertEqual(plan["bad"], [])
+        self.assertEqual([w["id"] for w in plan["waves"]], ["P0", "S1"])
+        self.assertEqual(plan["waves"][0]["name"], "Theo dõi")
+        t = plan["waves"][0]["tasks"][0]
+        self.assertEqual((t["id"], t["weight"], t["status"], t["commit"], t["note"]), ("P0.1", 1, "✅", "1a2b3c4", "12 test qua"))
+        self.assertEqual(plan["waves"][1]["tasks"][1]["note"], "chờ nghe thử")
+        self.assertEqual(plan["cap"], {"usd": 50.0, "llm_usd": 3.0, "since": "2026-09-28T08:00:00+00:00"})
+
+    def test_percent_is_weighted_done_full_doing_half_dropped_left_out(self):
+        from devsys import plan_progress
+        plan = plan_progress.parse(PLAN_TEXT)
+        s = plan_progress.summary(plan)
+        self.assertEqual(s["waves"][0]["pct"], round(100 * (1 + 0.5 * 2) / 3, 1))     # 66,7
+        self.assertEqual(s["waves"][1]["pct"], 0.0)                                      # ✖ not counted, ⏸ counts 0
+        self.assertEqual(s["total"], round(100 * 2 / 7, 1))
+        self.assertEqual(s["current"], "P0")
+        self.assertIsNone(s["next"])                                                     # P0 has nothing left not started
+        self.assertEqual([t["id"] for t in s["waiting"]], ["S1.2"])
+
+    def test_a_task_line_that_does_not_parse_or_repeats_is_reported_not_skipped(self):
+        from devsys import plan_progress
+        plan = plan_progress.parse(PLAN_TEXT + "- [ ] S1.4 · thiếu trọng số · ⬜\n- [ ] S1.1 · trùng · nặng:1 · ⬜\n")
+        self.assertEqual(len(plan["bad"]), 2)
+        self.assertIn("trùng", plan["bad"][1])
+
+    def test_write_table_rewrites_only_between_the_markers(self):
+        from devsys import plan_progress
+        d = tempfile.mkdtemp()
+        path = os.path.join(d, "plan.md")
+        _write(d, "plan.md", PLAN_TEXT)
+        self.assertTrue(plan_progress.write_table(path))
+        text = open(path, encoding="utf-8").read()
+        self.assertNotIn("\ncũ\n", text)
+        self.assertIn("| **Tổng** | **5** |", text)
+        self.assertIn("28,6 %", text)
+        self.assertFalse(plan_progress.write_table(path))                               # second run: nothing to change
+        _write(d, "plan.md", PLAN_TEXT.replace("<!-- /tien-do -->", ""))
+        with self.assertRaises(plan_progress.PlanError):
+            plan_progress.write_table(path)
+
+    def test_spend_reads_the_ledger_since_the_round_started(self):
+        from devsys import plan_progress
+        d = tempfile.mkdtemp()
+        db = os.path.join(d, "m.sqlite")
+        conn = connect(db)
+        conn.execute("INSERT INTO usage_events (job_id, project_id, kind, provider, model, tier, quantity, unit, at, stage) VALUES "
+                     "(NULL, NULL, 'llm', 'anthropic', 'claude-sonnet-5', 'web_search', 3, 'search', '2026-09-28T09:00:00+00:00', 'director')")
+        conn.execute("INSERT INTO usage_events (job_id, project_id, kind, provider, model, tier, quantity, unit, at, stage) VALUES "
+                     "(NULL, NULL, 'llm', 'anthropic', 'claude-sonnet-5', 'web_search', 500, 'search', '2026-09-27T09:00:00+00:00', 'director')")
+        conn.commit()
+        conn.close()
+        cap = {"usd": 50.0, "llm_usd": 3.0, "since": "2026-09-28T08:00:00+00:00"}
+        m = plan_progress.spend(cap, db)
+        self.assertEqual((m["cap_usd"], m["cap_llm"]), (50.0, 3.0))
+        from core import cost
+        unit = cost._number(cost.load_pricing().get("per_web_search")) or 0
+        self.assertAlmostEqual(m["llm_usd"], round(3 * unit, 4))                          # the 27/09 searches are before the round
+        self.assertIsNone(plan_progress.spend(None, db))
+
+    def test_the_real_plan_file_parses(self):
+        from devsys import plan_progress
+        plan = plan_progress.load()
+        if plan is None:
+            self.skipTest("chưa có file kế hoạch")
+        self.assertEqual(plan["bad"], [])
+        self.assertGreater(sum(len(w["tasks"]) for w in plan["waves"]), 50)
+
+
 class AppTests(unittest.TestCase):
     def test_every_page_renders_without_an_exception(self):
         try:

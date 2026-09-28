@@ -21,7 +21,7 @@ os.chdir(ROOT)
 import pandas as pd  # noqa: E402
 import streamlit as st  # noqa: E402
 
-from devsys import collect, scorer, scores  # noqa: E402
+from devsys import collect, plan_progress, scorer, scores  # noqa: E402
 
 st.set_page_config(page_title="AI Development System", page_icon="🧭", layout="wide")
 
@@ -182,7 +182,7 @@ with st.sidebar:
     if st.button("🔄 Làm mới", help="Đọc lại repo (bình thường tự làm mới khi có commit / file đổi)"):
         st.cache_data.clear()
         st.rerun()
-    page = st.radio("Trang", ["Tổng quan", "Bản đồ hệ thống", "Dòng thời gian", "Sức khỏe (đo bằng code)", "Chấm điểm AI",
+    page = st.radio("Trang", ["📋 Kế hoạch đang chạy", "Tổng quan", "Bản đồ hệ thống", "Dòng thời gian", "Sức khỏe (đo bằng code)", "Chấm điểm AI",
                               "Bộ kỹ năng 3 vai"], label_visibility="collapsed")
     st.divider()
     st.markdown("**Test**")
@@ -672,6 +672,61 @@ def page_skills():
         st.error("Không thấy docs/DANH_GIA_BO_NGUYEN_TAC_V4.md")
 
 
-PAGES = {"Tổng quan": page_overview, "Bản đồ hệ thống": page_map, "Dòng thời gian": page_timeline, "Sức khỏe (đo bằng code)": page_health,
+STATUS_BAND = {"✅": "ok", "🔄": "warn", "⏸": "bad", "⬜": "grey", "✖": "grey"}
+
+
+def page_plan():
+    st.title("📋 Kế hoạch đang chạy")
+    path = plan_progress.PLAN_FILE
+    plan = plan_progress.load(path)
+    if plan is None:
+        st.info(f"Chưa có file kế hoạch `{os.path.relpath(path, ROOT)}`.")
+        return
+    st.caption(f"Nguồn: `{os.path.relpath(path, ROOT)}` — % do code tính từ danh sách việc (✅ đủ, 🔄 nửa, ✖ không tính; trọng số nặng 1/2/3).")
+    if plan["bad"]:
+        st.error("Dòng việc không đọc được (sửa trong file kế hoạch):\n\n" + "\n".join(f"- {b}" for b in plan["bad"]))
+    s = plan_progress.summary(plan)
+    total = s["total"] or 0.0
+    n = sum(r["n"] for r in s["waves"])
+    done = sum(r["done"] for r in s["waves"])
+    money = None
+    try:
+        money = plan_progress.spend(plan["cap"], collect.default_db(ROOT))
+    except Exception as e:  # noqa: BLE001 - the page still shows progress; the reason is shown
+        st.warning(f"Không đọc được sổ chi: {e}")
+    tiles = [kpi("Tiến độ tổng", f"{total:g} %".replace(".", ","), f"{done}/{n} việc xong", "ok" if total >= 80 else "warn" if total >= 30 else "none"),
+             kpi("Đợt hiện tại", s["current"] or "—", next((r["name"] for r in s["waves"] if r["id"] == s["current"]), "")),
+             kpi("Việc kế", s["next"]["id"] if s["next"] else "—", s["next"]["title"] if s["next"] else ""),
+             kpi("Chờ người dùng", str(len(s["waiting"])), ", ".join(t["id"] for t in s["waiting"]) or "không", "bad" if s["waiting"] else "none")]
+    if money:
+        tiles.append(kpi("Tiền đợt này", f"{money['usd']:.2f} / {money['cap_usd']:g} USD",
+                         f"Claude {money['llm_usd']:.2f} / {money['cap_llm']:g} USD", "bad" if money["usd"] > money["cap_usd"] else "none"))
+    st.markdown('<div class="kpis">' + "".join(tiles) + "</div>", unsafe_allow_html=True)
+    st.progress(min(1.0, total / 100.0))
+    if s["doing"] or s["waiting"]:
+        with st.container(border=True):
+            st.markdown("**Đang làm / chờ người dùng**")
+            for t in s["doing"] + s["waiting"]:
+                st.markdown(f"{t['status']} **{escape(t['id'])}** {escape(t['title'])}" + (f" — <span class='muted'>{escape(t['note'])}</span>" if t["note"] else ""),
+                            unsafe_allow_html=True)
+    show = st.radio("Lọc", ["Tất cả", "Chưa xong", "Đã xong"], horizontal=True, label_visibility="collapsed")
+    for w, r in zip(plan["waves"], s["waves"]):
+        pct = r["pct"]
+        with st.container(border=True):
+            c1, c2 = st.columns([3, 1])
+            c1.markdown(f"**{escape(w['id'])} — {escape(w['name'])}**  <span class='muted'>{r['done']}/{r['n']} xong</span>", unsafe_allow_html=True)
+            c2.markdown(f"<div style='text-align:right;font-weight:700'>{'—' if pct is None else f'{pct:g} %'.replace('.', ',')}</div>",
+                        unsafe_allow_html=True)
+            st.progress(min(1.0, (pct or 0.0) / 100.0))
+            rows = [t for t in w["tasks"] if show == "Tất cả" or (show == "Đã xong") == (t["status"] in ("✅", "✖"))]
+            if rows:
+                st.markdown("".join(
+                    f"<div class='row'><span class='chip {STATUS_BAND[t['status']]}'>{t['status']} {plan_progress.STATUS[t['status']]}</span> "
+                    f"<b>{escape(t['id'])}</b> {escape(t['title'])} <span class='muted'>· nặng {t['weight']}</span>"
+                    + (f" <code>{escape(t['commit'])}</code>" if t["commit"] else "")
+                    + (f" <span class='muted'>— {escape(t['note'])}</span>" if t["note"] else "") + "</div>" for t in rows), unsafe_allow_html=True)
+
+
+PAGES = {"📋 Kế hoạch đang chạy": page_plan, "Tổng quan": page_overview, "Bản đồ hệ thống": page_map, "Dòng thời gian": page_timeline, "Sức khỏe (đo bằng code)": page_health,
          "Chấm điểm AI": page_scores, "Bộ kỹ năng 3 vai": page_skills}
 PAGES[page]()
