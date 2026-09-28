@@ -196,6 +196,29 @@ def _scene_choice(conn, scene_id: int, project_row=None, mp_row=None) -> Dict:
     return {**rec, "source": "auto", "recommended": rec}
 
 
+def _remake_runs(conn, group):
+    """A Seedance reference group as it will really be sent: whole when none of its shots has a clip; else the consecutive runs of
+    shots still WITHOUT a clip (each run one group clip, a lone shot a clip of its own, >= 4 s billed) — #8 2026-09-28 the estimate
+    priced 19 remade shots as group clips (6.48 USD) while they went one by one (~0.48 USD each)."""
+    def has(sid):
+        return bool(conn.execute("SELECT 1 FROM jobs WHERE scene_id=? AND type='video_gen' AND state IN "
+                                 "('succeeded','approved','pending_review','running')", (sid,)).fetchone())
+    made = [has(r["id"]) for r in group]
+    if not any(made):
+        return [group]
+    runs, cur = [], []
+    for r, m in zip(group, made):
+        if m:
+            if cur:
+                runs.append(cur)
+            cur = []
+        else:
+            cur.append(r)
+    if cur:
+        runs.append(cur)
+    return runs
+
+
 def plan(conn, project_id: int, pricing: Optional[Dict] = None, priority: Optional[str] = None) -> List[Dict]:
     """One row per scene with a motion prompt or an approved image: choice, reason, seconds, price. `priority` forces another
     ladder (for the "compare with the other priorities" line) and ignores overrides."""
@@ -204,8 +227,10 @@ def plan(conn, project_id: int, pricing: Optional[Dict] = None, priority: Option
     ref_groups = {}                       # scene id -> its Seedance reference group: ONE clip, priced on the group's first shot
     if seedance_refs.enabled(conn, project_id):
         for g in seedance_refs.groups(conn, project_id):
-            for r in g:
-                ref_groups[r["id"]] = g
+            for part in _remake_runs(conn, g):             # 28/09: a group partly made already is remade in runs (runner._redo_run)
+                if len(part) > 1:
+                    for r in part:
+                        ref_groups[r["id"]] = part
     rows = []
     for s in conn.execute("SELECT id, idx, data FROM scenes WHERE project_id=? ORDER BY idx", (project_id,)).fetchall():
         mp = conn.execute("SELECT * FROM motion_prompts WHERE scene_id=?", (s["id"],)).fetchone()

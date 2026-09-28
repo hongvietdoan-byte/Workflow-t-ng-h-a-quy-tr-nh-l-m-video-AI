@@ -75,6 +75,35 @@ class SeedanceRefTests(unittest.TestCase):
         stamp = json.loads(vr._stamp(leader, args)["sent_group"])
         self.assertTrue(all(g["refs"] for g in stamp))
 
+    def test_consecutive_shots_remade_later_go_as_one_group_clip_not_one_by_one(self):
+        """#8 2026-09-28: 19 shots remade for their voices went out one by one (>= 4 s billed each) and two lost the identity."""
+        if len(self.ids) < 3:
+            self.skipTest("needs a group of 3")
+        vr = self._ready()
+        done = self.p.create_job(self.ids[0], "video_gen")         # the first shot keeps its clip
+        self.p.conn.execute("UPDATE jobs SET state='approved' WHERE id=?", (done,))
+        for sid in self.ids[1:]:                                   # the others had clips, now stale → remade
+            old = self.p.create_job(sid, "video_gen")
+            self.p.conn.execute("UPDATE jobs SET state='rejected' WHERE id=?", (old,))
+        self.p.conn.commit()
+        jobs = [self.p.job(self.p.create_job(sid, "video_gen")) for sid in self.ids[1:]]
+        run = vr._sends_group(jobs[0])
+        self.assertEqual([r["id"] for r in run], self.ids[1:])       # the second shot sends for the rest of the group
+        self.assertFalse(vr._wait(jobs[0]))
+        self.assertTrue(all(vr._wait(j) for j in jobs[1:]))          # the others wait for their part
+        args = vr._submit_args(jobs[0])
+        self.assertIn(f"Shot {len(self.ids) - 1} (", args[1])
+        stamp = vr._stamp(jobs[0], args)
+        self.p.conn.execute("UPDATE jobs SET state='running', sent_group=? WHERE id=?", (stamp["sent_group"], jobs[0]["id"]))
+        self.p.conn.commit()
+        self.assertTrue(vr._wait(self.p.job(jobs[1]["id"])))        # carried by the group clip in flight, not sent alone
+        rows = {r["scene_id"]: r for r in model_router.plan(self.p.conn, self.pid)}
+        self.p.conn.execute("UPDATE jobs SET state='queued', sent_group=NULL WHERE id=?", (jobs[0]["id"],))
+        self.p.conn.commit()
+        rows = {r["scene_id"]: r for r in model_router.plan(self.p.conn, self.pid)}
+        self.assertGreater(rows[self.ids[1]]["cost"], 0)             # the run is ONE clip, priced on its first shot…
+        self.assertTrue(all(rows[sid]["cost"] == 0 for sid in self.ids[2:]))   # …not one clip per shot
+
     def test_refusal_steps_group_then_single_then_kling(self):
         from core.adapters.clipai import REAL_PERSON
         vr = self._ready()

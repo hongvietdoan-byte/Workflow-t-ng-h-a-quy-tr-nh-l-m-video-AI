@@ -594,12 +594,60 @@ class VideoRunner(_Runner):
 
     def _sends_group(self, job):
         """The multi-shot group this job generates in one go (Kling multi-shot, first shot of a group whose other shots have no
-        clip yet), else None — a shot remade later is sent on its own."""
+        clip yet), else None — a shot remade later is sent on its own. Seedance reference groups: several CONSECUTIVE shots of the
+        group all waiting for a new clip are remade together (_redo_run) — #8 2026-09-28: 19 shots remade for their voices went
+        out one by one (≥ 4 s billed each, ~0.48 USD) and two lost the characters' identity."""
         from . import shots
         group = shots.group_of(self.p.conn, job["scene_id"]) or []     # Kling multi-shot group, or an H5 camera set-up
-        if len(group) < 2 or group[0]["id"] != job["scene_id"] or any(self._has_clip(r["id"]) for r in group[1:]):
+        if len(group) < 2:
             return None
-        return group
+        if group[0]["id"] == job["scene_id"] and not any(self._has_clip(r["id"]) for r in group[1:]):
+            return group
+        run = self._redo_run(job, group)
+        return run if run and run[0]["id"] == job["scene_id"] else None
+
+    def _pending_clip(self, scene_id: int) -> bool:
+        """The shot waits for a new clip: its newest video job has not been sent yet."""
+        row = self.p.conn.execute("SELECT state FROM jobs WHERE scene_id=? AND type='video_gen' ORDER BY id DESC LIMIT 1",
+                                  (scene_id,)).fetchone()
+        return row is not None and row["state"] in ("queued", "retryable")
+
+    def _covered(self, scene_id: int, group) -> bool:
+        """A group clip already sent (or being made) carries this shot's part."""
+        ids = [r["id"] for r in group if r["id"] != scene_id]
+        if not ids:
+            return False
+        rows = self.p.conn.execute("SELECT sent_group FROM jobs WHERE type='video_gen' AND state IN ('queued','running') AND sent_group"
+                                   " IS NOT NULL AND scene_id IN (%s)" % ",".join("?" * len(ids)), ids).fetchall()
+        for r in rows:
+            try:
+                if any(int(g.get("id")) == scene_id for g in json.loads(r["sent_group"]) or []):
+                    return True
+            except (ValueError, TypeError, AttributeError):
+                continue
+        return False
+
+    def _redo_run(self, job, group=None):
+        """Seedance reference group: the run of consecutive shots of the group (containing this job's shot) that all wait for a new
+        clip and are not already carried by a group clip in flight — made again as ONE group clip. None when fewer than 2."""
+        if not self._refs(job):
+            return None
+        from . import shots
+        group = group or shots.group_of(self.p.conn, job["scene_id"]) or []
+        runs, cur = [], []
+        for r in group:
+            if self._pending_clip(r["id"]) and not self._covered(r["id"], group):
+                cur.append(r)
+            else:
+                if cur:
+                    runs.append(cur)
+                cur = []
+        if cur:
+            runs.append(cur)
+        for run in runs:
+            if any(r["id"] == job["scene_id"] for r in run):
+                return run if len(run) >= 2 else None
+        return None
 
     def _wait(self, job) -> bool:
         """Kling multi-shot: the first shot of a group sends for the whole group once every shot of it has an approved motion
@@ -613,7 +661,12 @@ class VideoRunner(_Runner):
         group = shots.group_of(self.p.conn, job["scene_id"]) or []
         if len(group) < 2:
             return False
-        if group[0]["id"] != job["scene_id"]:
+        if self._refs(job) and self._covered(job["scene_id"], group):
+            return True                   # its part comes with a group clip already sent
+        run = self._redo_run(job, group)
+        if run and run[0]["id"] != job["scene_id"]:
+            return True                   # the run's first shot sends the group clip for it
+        if group[0]["id"] != job["scene_id"] and not run:
             return not self._has_clip(group[0]["id"])
         if self._sends_group(job) is None:
             return False
