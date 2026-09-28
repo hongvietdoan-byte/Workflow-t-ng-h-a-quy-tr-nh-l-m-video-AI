@@ -16,7 +16,7 @@
 | Đợt | Việc | Xong | Đang làm | Chờ người dùng | Bỏ | Tiến độ |
 |---|---|---|---|---|---|---|
 | P0 Theo dõi tiến độ | 2 | 2 | 0 | 0 | 0 | 100 % |
-| S1 Dựng & âm thanh | 14 | 13 | 1 | 0 | 0 | 96,2 % |
+| S1 Dựng & âm thanh | 14 | 13 | 0 | 1 | 0 | 92,3 % |
 | S0 Học từ phim drama tham khảo | 8 | 1 | 3 | 0 | 0 | 30,8 % |
 | S9 Dashboard gọn, dễ nhìn | 6 | 0 | 0 | 0 | 0 | 0 % |
 | S2 Timeline theo âm thanh + animatic | 5 | 0 | 0 | 0 | 0 | 0 % |
@@ -27,7 +27,7 @@
 | S7 Agent QC | 2 | 0 | 0 | 0 | 0 | 0 % |
 | K Chạy kiểm kịch bản hài 20–30 s | 3 | 0 | 0 | 0 | 0 | 0 % |
 | S8 Chấm lại bằng AI Development System (cuối cùng) | 5 | 0 | 0 | 0 | 0 | 0 % |
-| **Tổng** | **70** | **16** | **4** | **0** | **0** | **26,9 %** |
+| **Tổng** | **70** | **16** | **3** | **1** | **0** | **26,1 %** |
 
 Đợt hiện tại: **S1** · việc kế: **S0.5** Báo cáo nghiên cứu + so với #8 + luật
 <!-- /tien-do -->
@@ -52,7 +52,7 @@
 - [x] S1.11 · Phụ đề theo vùng an toàn TikTok (góp ý người dùng về v2) · nặng:2 · ✅ · a4858b9 · mặc định TikTok: trên 8 %, dưới 27 %, hai bên 13,5 %; bỏ vị trí "thấp"; ảnh docs/video_check_2026-09-28/v3_phu_de_vung_tiktok.jpg
 - [x] S1.12 · Nhạc mềm + đi theo cảnh (góp ý người dùng về v2) · nặng:3 · ✅ · 82ce1b2 · dốc tắt/vào, lặng dài thì nhạc trở lại nhỏ; cờ music_fit dời từng đoạn nhạc về đầu cảnh thật (10,1 · 24,3 · 45,7 · 62,9 · 72,0 s); v3 đo liền mạch
 - [x] S1.13 · Người dùng xem/nghe bản v3 · nặng:1 · ✅ · người dùng: "ok rồi" (2026-09-28)
-- [ ] S1.14 · Soạn nhạc mới theo nhịp truyện cho #8 (người dùng cho phép, sáng tạo theo diễn biến) · nặng:2 · 🔄 · 9ecdbba: brief theo timeline bản dựng + tâm trạng từng cảnh + motif + nhịp truyện; 2 bản nháp ClipAI (1681, 1682) đang tạo
+- [ ] S1.14 · Soạn nhạc mới theo nhịp truyện cho #8 (người dùng cho phép, sáng tạo theo diễn biến) · nặng:2 · ⏸ · c575a59 · 2 bản nháp, chọn 1681 (khớp đầu cảnh 20,5 vs 7,4); bản v4 ở D:/AI-Video-Output/2026-09-28_du-an-8/v4_nhac_moi — chờ người dùng nghe
 
 ### S0 — Học từ phim drama tham khảo
 - [x] S0.1 · Chọn 5 đoạn mẫu trong phim đã gửi + phong cách DRAMA_DOC · nặng:1 · ✅ · DRAMA_DOC trong core/reference_analysis.py; 1 phim (Q0); đoạn 1 = 0:00–3:00, đoạn 2 = thoại trong 20–30 phút (agent chọn)
