@@ -17,7 +17,7 @@
 |---|---|---|---|---|---|---|
 | P0 Theo dõi tiến độ | 2 | 2 | 0 | 0 | 0 | 100 % |
 | S1 Dựng & âm thanh | 15 | 13 | 0 | 2 | 0 | 88,9 % |
-| S0 Học từ phim drama tham khảo | 13 | 11 | 1 | 0 | 0 | 79,5 % |
+| S0 Học từ phim drama tham khảo | 14 | 11 | 3 | 0 | 0 | 82 % |
 | S9 Dashboard gọn, dễ nhìn | 6 | 5 | 0 | 0 | 0 | 81,8 % |
 | S2 Timeline theo âm thanh + animatic | 6 | 0 | 0 | 1 | 0 | 0 % |
 | S3 Director kể chuyện + Quay phim | 8 | 0 | 0 | 0 | 0 | 0 % |
@@ -27,9 +27,9 @@
 | S7 Agent QC | 2 | 0 | 0 | 0 | 0 | 0 % |
 | K Chạy kiểm kịch bản hài 20–30 s | 3 | 0 | 0 | 0 | 0 | 0 % |
 | S8 Chấm lại bằng AI Development System (cuối cùng) | 5 | 0 | 0 | 0 | 0 | 0 % |
-| **Tổng** | **84** | **31** | **1** | **10** | **0** | **37,9 %** |
+| **Tổng** | **85** | **31** | **3** | **10** | **0** | **39,2 %** |
 
-Đợt hiện tại: **S1** · việc kế: **S0.12** Xem nhiều mẫu đa thể loại (drama dọc, MV, quảng cáo game, phim ngắn, hoạt hình FF…) gắn nhãn theo kho kỹ thuật S0.11
+Đợt hiện tại: **S1** · việc kế: **S9.6** Gộp timeline tổng + sửa giao diện S6.4
 <!-- /tien-do -->
 
 ## Danh sách việc (thứ tự người dùng đã duyệt)
@@ -67,8 +67,9 @@
 - [x] S0.9 · Tư liệu kỹ thuật từ clip mẫu ClipAI (`MV_NARRATIVE`, Đ12 / Q12 / E12) — sửa 2026-09-29 theo góp ý người dùng: tư liệu + ý đồ ở đúng chỗ, không công thức · nặng:1 · ✅ · docs/PHAN_TICH_CLIP_MAU_CLIPAI_2026-09-28.md mục 6
 - [x] S0.10 · Phương pháp phân tích chính xác: quan sát (mốc giây) → ý đồ trong ngữ cảnh (giả thuyết + độ tin) → đối chiếu nhiều mẫu + tài liệu → mới thành kiến thức; kiểm mâu thuẫn với kiến thức sẵn có · nặng:1 · ✅ · knowledge/craft/PHUONG_PHAP_PHAN_TICH.md (duyệt 2026-09-29; thứ tự học: phim ngắn → short drama → hành động → MV → CGI kỹ xảo)
 - [ ] S0.11 · Kho kỹ thuật chuyên môn `knowledge/craft/` (máy quay, góc, chuyển động máy, chuyển cảnh, dựng, âm thanh): mỗi kỹ thuật = cách làm + nhiều ý đồ có thể phục vụ + điều kiện + ví dụ ≥ 2 mẫu + nguồn tài liệu (tóm lời mình) · nặng:3 · 🔄 · lượt 1 xong: research/craft/NGUON.md (30 nguồn) + draft 5 nhóm (25 mục) — kiểm duyệt: nhiều mục mới dẫn trang chủ / tóm tắt tìm kiếm, cần lượt 2 đọc bài gốc + ví dụ mốc giây (S0.12) rồi mới vào knowledge/craft/
-- [ ] S0.12 · Xem nhiều mẫu đa thể loại (drama dọc, MV, quảng cáo game, phim ngắn, hoạt hình FF…) gắn nhãn theo kho kỹ thuật S0.11 · nặng:3 · ⬜ · duyệt 2026-09-29: phim ngắn → short drama → hành động → MV → CGI kỹ xảo; danh sách mẫu gợi ý từ S0.11
+- [ ] S0.12 · Xem nhiều mẫu đa thể loại (drama dọc, MV, quảng cáo game, phim ngắn, hoạt hình FF…) gắn nhãn theo kho kỹ thuật S0.11 · nặng:3 · 🔄 · short drama = drama dọc 9:16 kiểu ReelShort làm bằng AI (ưu tiên hàng Trung Quốc); agent đang lập danh sách video cụ thể đã xác minh (research/craft/MAU_S0_12.md)
 - [ ] S0.13 · Rà kiến thức đang dùng (director / dp / editing / ff_styles) tìm chỗ gán nghĩa cố định hoặc khái quát từ 1 mẫu → sửa thành tư liệu có điều kiện · nặng:1 · ✅ · agent rà 16 chỗ (cinematography_basics 3, dp.md Q2/Q3/Q5/Q8 4, director.md Đ4/N5 2, film_director_method 3, video_motion_vocab 1, genre_guides 3) → đã sửa hết; 1340 test qua
+- [ ] S0.14 · Nghiên cứu nguồn tiếng Trung về phim AI (AI短剧 9:16, workflow, nội dung, prompt ngắn đủ ý, cảnh xịn; Seedance/即梦/可灵 tài liệu chính thức, WaytoAGI, bài ngành) → research/craft/trung_quoc/ · nặng:3 · 🔄 · người dùng 2026-09-29: Trung Quốc dẫn đầu phim AI; agent đang chạy
 
 ### S9 — Dashboard gọn, dễ nhìn
 - [x] S9.1 · Nút thu gọn phần Kịch bản · nặng:1 · ✅ · xong: 1a Kịch bản thu thành 1 dòng tóm tắt + nút ▸ Mở / ▾ Thu gọn (test_dashboard)
