@@ -32,7 +32,7 @@ khác nhau giữa các nền tảng; đã ghi URL cụ thể nên không ảnh h
 
 | # | Tên | Kênh | URL | Độ dài | Khung hình | Chính chủ? | Lượt xem | Đáng học | Nhạc nền đáng học |
 |---|---|---|---|---|---|---|---|---|---|
-| 1 | TOMORROW | Omeleto | https://www.youtube.com/watch?v=bVZl51CqUXk | 16:46 | 16:9 | Chính chủ kênh Omeleto (3,98 triệu sub) | 11M, đăng 1 năm trước | Bối cảnh Iran thập niên 1970, cậu bé đường phố kết bạn với chó — mẫu Omeleto điển hình để học cấu trúc kể chuyện ngắn gọn súc tích | cần nghe ở S0.12 |
+| 1 | TOMORROW (**CGI 3D**, không phải live-action — sửa 2026-09-29) | Omeleto | https://www.youtube.com/watch?v=bVZl51CqUXk | 16:46 | 16:9 | Chính chủ kênh Omeleto (3,98 triệu sub) | 11M, đăng 1 năm trước | Bối cảnh Iran thập niên 1970, cậu bé đường phố kết bạn với chó — mẫu Omeleto điển hình để học cấu trúc kể chuyện ngắn gọn súc tích | cần nghe ở S0.12 |
 | 2 | FEELING THROUGH | Omeleto | https://www.youtube.com/watch?v=h1CqzntEZZ8 | 18:25 | 16:9 | Chính chủ Omeleto | 7.1M, đăng 5 năm trước | Phim đầu tiên có diễn viên chính là người điếc-mù thật (DeafBlind) — đáng học chỉ đạo diễn xuất phi ngôn ngữ, giao tiếp qua xúc giác/ánh mắt | cần nghe ở S0.12 |
 | 3 | STALLED | Omeleto | https://www.youtube.com/watch?v=7mSH86O2qzA | 19:55 | 16:9 | Chính chủ Omeleto | 7.1M, đăng 3 năm trước | Hài kịch khoa học viễn tưởng vòng lặp thời gian trong nhà vệ sinh công ty — đáng học dựng phim nhịp nhanh, twist liên tục trong không gian hẹp | cần nghe ở S0.12 |
 | 4 | Night of the Foxes | Short of the Week | https://www.youtube.com/watch?v=dKKZf7fHSAY | 14:34 | 16:9 | Chính chủ kênh Short of the Week (2,29 triệu sub) | 503K, đăng 1 tháng trước | Mùa hè Kent (Anh), nông dân vật lộn với nợ nần và rượu — mô tả nhấn mạnh "teenage lust & English summers", đáng học quay phong cảnh/ánh sáng tự nhiên buồn | cần nghe ở S0.12 |
@@ -78,7 +78,7 @@ KHÔNG phải kênh chính chủ Kendrick Lamar. Đã thay bằng URL chính ch�
 
 1. **《夫人又在掉馬甲了》** (AI心動劇場, mục 1.1) — vì đây là mẫu AI短劇 9:16 rõ nhất (watermark AI-gen), khởi động bằng đúng trọng tâm ưu tiên của
    người dùng.
-2. **TOMORROW** (Omeleto, mục 2.1) — phim ngắn chuẩn, ngắn gọn (16:46), để có mốc so sánh "kể chuyện người quay thật" ngay sau AI drama.
+2. **TOMORROW** (Omeleto, mục 2.1) — phim ngắn 16:46. **Sửa 2026-09-29:** xem trực tiếp thì đây là phim **hoạt hình / CGI 3D**, không phải người thật quay (`s0_12/02_tomorrow_omeleto.md`).
 3. **WARLIKE** (BIGFILMS, mục 3.1) — chỉ 4 phút, vào nhanh thể loại hành động, quy mô sản xuất gần với pipeline AI.
 4. **《我的婆婆是軟柿子》** (畫境故事, mục 1.2) — AI short drama thứ hai, bối cảnh thời đại khác để so sánh cách AI dựng phục trang/bối cảnh.
 5. **RISE — Worlds 2018** (League of Legends, mục 5.3) — chỉ 3:30, cinematic CGI đỉnh cao về đồng bộ nhạc/hành động, dễ xem trọn trong một lượt.
