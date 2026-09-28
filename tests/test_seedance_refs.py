@@ -275,3 +275,21 @@ class ShotFloorTests(unittest.TestCase):
         self.assertNotIn("Same over-the-shoulder", t)
         self.assertEqual(sr._framing({"blocking": "Kelly đứng giữa khung"}), "")
         self.assertIn("keep exactly the shape", sr.prompt([("a", 2.0), ("b", 2.0)], []))
+
+
+class MarkTests(unittest.TestCase):
+    def test_two_pictures_with_the_same_file_name_get_two_marked_copies(self):
+        """#8 2026-09-28: KENTA's and MAXIM's sheets are both 7.png — one marked copy served both, MAXIM's clip showed KENTA."""
+        from PIL import Image
+        from core import seedance_refs as sr
+        root = tempfile.mkdtemp()
+        paths = []
+        for folder, colour in (("24", (200, 0, 0)), ("33", (0, 0, 200))):
+            os.makedirs(os.path.join(root, folder))
+            p = os.path.join(root, folder, "7.png")
+            Image.new("RGB", (64, 64), colour).save(p)
+            paths.append(p)
+        out = os.path.join(root, "marked")
+        a, b = sr.mark(paths[0], out), sr.mark(paths[1], out)
+        self.assertNotEqual(a, b)
+        self.assertNotEqual(Image.open(a).getpixel((32, 50)), Image.open(b).getpixel((32, 50)))

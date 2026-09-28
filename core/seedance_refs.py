@@ -107,7 +107,9 @@ def mark(path: str, out_dir: str) -> str:
     from PIL import Image, ImageDraw, ImageFont
     from . import text_placement
     os.makedirs(out_dir, exist_ok=True)
-    out = os.path.join(out_dir, os.path.splitext(os.path.basename(path))[0] + "_marked.png")
+    import hashlib                        # 28/09: KENTA's and MAXIM's sheets are both '7.png' (assets/24, assets/33) — named by the
+    key = hashlib.sha1(os.path.abspath(path).lower().encode("utf-8")).hexdigest()[:10]   # file name alone, one overwrote the other
+    out = os.path.join(out_dir, f"{os.path.splitext(os.path.basename(path))[0]}_{key}_marked.png")   # and MAXIM's clip showed KENTA
     if os.path.exists(out) and os.path.getmtime(out) >= os.path.getmtime(path):
         return out
     im = Image.open(path).convert("RGB")
@@ -361,7 +363,8 @@ def code_motion(p, pid: int, redo_ids=()) -> int:
         from . import lipsync
         voice = lipsync.enabled() and lipsync.method_for(d) == "generate"
         todo.append({"id": s["id"], "idx": s["idx"], "motion_prompt": shot_motion(d, voice=voice),
-                     "duration_sec": min(max(float(d.get("duration_s") or 2), 1), 30)})
+                     "duration_sec": min(floored(d, float(d.get("duration_s") or 2)), 30)})   # 28/09: a 1 s single was
+                                                                                          # cut to 1 s — the collapse was cut off
     if not todo:
         return 0
     llm_io.store_motion_prompts(p, pid, {"scenes": [{k: t[k] for k in ("idx", "motion_prompt", "duration_sec")} for t in todo]})
