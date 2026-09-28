@@ -84,8 +84,10 @@ class MusicPlanTests(unittest.TestCase):
         m = lambda v: {"sound": {"music": v}}                                                  # noqa: E731
         datas = [{}, m("cut"), {}, {}, {}, {}, m("cut"), {}, m("cut"), m("in"), {}]
         plan = sound_intent.music_plan(datas, [2.0] * 11)
-        self.assertEqual(plan["off"], [(2.0, 10.0), (12.0, 18.0)])      # back at 10 s (8 s cap); the cut at 12 s opens a new silence
-        self.assertEqual(plan["auto_in"], [10.0])
+        self.assertEqual(plan["off"], [(2.0, 10.0), (16.0, 18.0)])      # back at 10 s (8 s cap); the cut at 12 s is too soon: ignored
+        self.assertEqual((plan["auto_in"], plan["ignored_cuts"]), ([10.0], [12.0]))
+        odd = sound_intent.music_plan([{}, m("cut"), {}, {}], [2.0, 5.0, 5.0, 2.0])
+        self.assertEqual(odd["off"], [(2.0, 10.0)])                      # back exactly 8 s after it stopped, not at the next cut
         tail = sound_intent.music_plan([{}, m("cut"), {}, {}, {}, {}, {}], [2.0] * 7)
         self.assertEqual((tail["off"], tail["auto_in"]), ([(2.0, 10.0)], [10.0]))           # no "in" at all: still back after 8 s
         self.assertEqual(sound_intent.music_plan(datas, [2.0] * 11, max_off=0)["off"], [(2.0, 18.0)])   # cap off = the old rule

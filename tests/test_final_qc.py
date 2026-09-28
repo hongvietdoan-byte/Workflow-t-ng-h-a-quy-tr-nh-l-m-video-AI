@@ -139,6 +139,19 @@ class MediaTests(unittest.TestCase):
             self.assertNotEqual(paths[0], src)
             self.assertIsNone(delivery._hold_end([src], [3.0], self.tmp))
 
+    def test_the_music_goes_on_after_the_last_ducked_line(self):
+        """Trial #8 (2026-09-28): the ducked music stopped with the last voice line (79,6 s → end silent)."""
+        bed = self._clip("bed.mp4", 6.0, audio="sine=frequency=220")
+        voice = os.path.join(self.tmp, "v.wav")
+        subprocess.run([FFMPEG, "-y", "-loglevel", "error", "-f", "lavfi", "-i", "sine=frequency=880:duration=1", voice], check=True)
+        out = os.path.join(self.tmp, "mix.mp4")
+        ffmpeg_studio.run(ffmpeg_studio.build_extras_mix_cmd(bed, [{"path": voice, "start": 1.0, "volume": 1.0}], out, has_audio=True,
+                                                             ffmpeg=FFMPEG, duck=True))
+        proc = subprocess.run([FFMPEG, "-hide_banner", "-nostats", "-ss", "4.5", "-t", "1", "-i", out, "-af", "volumedetect", "-f", "null", "-"],
+                              capture_output=True, text=True)
+        mean = float(proc.stderr.split("mean_volume:")[1].split("dB")[0])
+        self.assertGreater(mean, -40.0)
+
     def test_a_hole_in_the_mix_is_found(self):
         loud = self._clip("a.mp4", 2.0)
         quiet = self._clip("b.mp4", 4.0, audio="anullsrc=r=48000:cl=mono")

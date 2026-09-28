@@ -261,7 +261,9 @@ def build_extras_mix_cmd(video: str, extras: Sequence[dict], output: str, has_au
         others = [i for i in range(len(extras)) if i not in keys]
         voices = "".join(f"[e{i}]" for i in keys)
         parts.append(f"{voices}amix=inputs={len(keys)}:normalize=0:duration=longest,asplit=2[vk][vm]")
-        parts.append(f"[0:a][vk]{DUCK}[bed]")
+        # the key is padded with silence: sidechaincompress stops at the end of its SHORTER input, so the music ended with the last
+        # line (trial #8, 2026-09-28: 79,6 s → end silent — the old delivery too, 80–83 s)
+        parts.append(f"[vk]apad[vkp];[0:a][vkp]{DUCK}[bed]")
         rest = "".join(f"[e{i}]" for i in others)
         parts.append(f"[bed][vm]{rest}amix=inputs={2 + len(others)}:normalize=0:duration=longest,{PEAK_LIMIT},apad[a]")
     else:

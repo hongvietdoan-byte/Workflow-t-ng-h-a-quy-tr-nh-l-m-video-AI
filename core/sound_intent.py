@@ -26,7 +26,9 @@ SFX_WINDOW = 0.6          # a requested sound counts as placed when a cue starts
 MOSTLY_SILENT = 0.5       # music held out for more than this share of the film: probably a forgotten "in"
 MAX_OFF_S = 8.0           # trial #8 (2026-09-28): "cut" at shot 16, "cut" again at 21, 23, 25, 26, 27 and "in" only at 28 = 27 s without
                           # music (người dùng: "mất nhạc nền"). The Director meant a few silent moments, not one long hole: a silence
-                          # ends at the first shot that starts MAX_OFF_S after it began, and a later "cut" opens a new one.
+                          # ends MAX_OFF_S after it began, and a later "cut" opens a new one.
+MIN_ON_S = 4.0            # after the music came back by itself, a "cut" this soon is the tail of the same long silence: ignored
+                          # (#8 re-render: 3 silences of 8–9 s with 2 s of music between them still read as "no music")
 
 
 def clean(value) -> Tuple[Optional[Dict], List[str]]:
@@ -111,17 +113,20 @@ def music_plan(datas: Sequence[Dict], durations: Sequence[float], transition: st
     A silence never runs longer than `max_off` (+ the rest of the shot it reaches): the music comes back at the next shot start and that
     time is listed in "auto_in" (the render's manifest and Step 5 say so — CHUAN luật 1)."""
     overlap = fade if transition in overlap_styles else 0.0
-    t, off, breaths, planned, off_start, auto_in = 0.0, [], [], 0, None, []
+    t, off, breaths, planned, off_start, auto_in, ignored = 0.0, [], [], 0, None, [], []
     total = sum(float(d) for d in durations) - overlap * max(len(durations) - 1, 0)
     for data, d in zip(datas, durations):
         m = of(data).get("music")
         if m in ("cut", "in", "breath"):
             planned += 1
         if off_start is not None and m != "in" and max_off and t - off_start >= max_off - 1e-6:
-            off.append((off_start, round(t, 2)))          # too long a hole: the music is back at this shot
-            auto_in.append(round(t, 2))
+            back = round(off_start + max_off, 2)          # too long a hole: the music is back MAX_OFF_S after it stopped
+            off.append((off_start, back))
+            auto_in.append(back)
             off_start = None
-        if m == "cut" and off_start is None:
+        if m == "cut" and off_start is None and auto_in and t - auto_in[-1] < MIN_ON_S - 1e-6:
+            ignored.append(round(t, 2))
+        elif m == "cut" and off_start is None:
             off_start = round(t, 2)
         elif m == "in" and off_start is not None:
             if t > off_start:
@@ -136,7 +141,7 @@ def music_plan(datas: Sequence[Dict], durations: Sequence[float], transition: st
             auto_in.append(round(off_start + max_off, 2))
             end = round(off_start + max_off, 2)
         off.append((off_start, end))
-    return {"off": off, "breaths": breaths, "planned": planned, "auto_in": auto_in}
+    return {"off": off, "breaths": breaths, "planned": planned, "auto_in": auto_in, "ignored_cuts": ignored}
 
 
 def unmet(scenes: Sequence[Dict], cues: Sequence[Dict]) -> List[Dict]:
