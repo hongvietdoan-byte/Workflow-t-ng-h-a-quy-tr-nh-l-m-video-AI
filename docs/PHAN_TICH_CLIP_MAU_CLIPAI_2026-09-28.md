@@ -22,6 +22,8 @@ cảnh chính (sảnh sòng bạc tím–vàng) + 3 biến thể (sân khấu ne
 | Phụ đề | 1 dòng, giữa đáy, chữ trắng nhỏ viền tối, suốt clip [xem] | 1–2 dòng | lời hát = lời kể truyện |
 
 ## 3. Vì sao clip này chỉn chu, liền mạch, dễ hiểu — nhận xét từng mặt
+> Người dùng sửa 2026-09-29: các mục dưới là **cách clip này làm và ý đồ ở đúng chỗ đó**. Máy quay, góc, dựng, âm thanh không có
+> nghĩa mặc định; cách kể trong một MV không áp được cho mọi phim. Không suy ra quy tắc từ một mẫu (xem mục 6).
 
 ### 3.1 Thiết kế nhân vật **né điểm yếu của AI** [xem] — bài học lớn nhất
 - **Nhân vật đám đông không có mặt**: áo liền quần trắng + mũ trùm đen có 2 mắt tròn. Không mặt → **không cần khớp môi, không trôi
@@ -63,7 +65,9 @@ cảnh chính (sảnh sòng bạc tím–vàng) + 3 biến thể (sân khấu ne
 - **Chuyển cảnh được tạo ngay trong model**, không phải ở khâu dựng: 2:20.6–2:21 máy bay lên xuyên đèn chùm rồi hạ xuống mặt bàn phóng
   to (dải 10 khung/giây: liên tục, không có điểm cắt); 2:21 vệt mờ zoom; 3:14 hòa hình → mỗi lần sinh video có lẽ chứa **nhiều shot +
   chuyển cảnh** **[suy luận]**.
-- Cắt chèn **cận vật** để nối (quân Át 1:16, tay đếm phỉnh 0:49, chân bước lên phỉnh 3:02).
+- Nối bằng cử chỉ có chủ ý: 1:16,3 tay lật quân Át lóe sáng giữa hai shot của nhân vật nữ. (Bản đầu gọi là "chèn cận vật che chỗ nối" —
+  người dùng sửa: chuyển cảnh che máy trong nghề được **thiết kế trong chuyển động** — vật / người cầm vật đi ngang ống kính, máy lia
+  theo vật, máy tiến vào vật che kín khung — không phải đặt sẵn shot cận vật để chèn bù.)
 - Vì sao làm được **[suy luận, xếp theo khả năng]**: (1) model mạnh về chuyển động (Seedance 2.x) + **video tham chiếu vũ đạo**;
   (2) **đầu vào không ép dáng**: ảnh tham chiếu nhân vật + chữ, không dùng ảnh storyboard dáng đứng làm khung đầu — đúng điều Director
   Workspace khuyên (mục 4: nhân vật hình học để Seedance "tự do tạo chuyển động mượt thay vì bắt chước cứng"); (3) **chọn lọc**: sinh
@@ -100,6 +104,8 @@ cảnh chính (sảnh sòng bạc tím–vàng) + 3 biến thể (sân khấu ne
 | 15/09 | **Director Workspace**: phông xanh + nhân vật hình học | chỉnh màu nền / ánh sáng để tách nền; nhân vật **Geometric (trụ + cầu)** hoặc **Humanoid** có tư thế; **khuyên dùng Geometric**: "nhân vật đơn giản cho Seedance tự do tạo chuyển động mượt, tự nhiên thay vì bắt chước cứng tay chân thô của ảnh / video tham chiếu"; thêm khối hộp / cầu / trụ để dàn cảnh | **Giải thích trực tiếp lỗi 1.5 (khựng)**: ta đưa ảnh storyboard dáng cứng làm khung đầu → Seedance bám dáng cứng. Dàn cảnh bằng khối đơn giản (vị trí, hướng máy) thay vì ảnh dáng chi tiết |
 
 ## 5. Bài học → việc đề xuất cho dashboard (chờ người dùng duyệt; theo quyết định 2026-09-28: là **gợi ý / phong cách tham khảo**, không thành luật bắt buộc)
+> **Đã thay bằng mục 6 (2026-09-29).** G-MV1/2/3/7 bị người dùng chỉ ra là khái quát hóa từ một MV (1 câu ≈ 1 shot, mô-típ + kết trả
+> lời, 1 bối cảnh chính không phải lúc nào cũng đúng); giữ bảng dưới để tra lại.
 | Mã | Bài học | Việc | Loại |
 |---|---|---|---|
 | **G-MV1** | Nhân vật né điểm yếu AI (không mặt / chữ ký rõ / màu trùng bối cảnh) | Director được gợi ý: đám đông / nhân vật phụ dùng hình dễ giữ (mặt che, đồ đồng phục); nhân vật chính có ≥ 3 dấu hiệu nhận diện ghi trong hồ sơ; **đếm số shot cần khớp môi** và báo chi phí | 💻 gợi ý phong cách mới `MV_NARRATIVE` (trộn được với `DRAMA_DOC`) |
@@ -116,39 +122,28 @@ cảnh chính (sảnh sòng bạc tím–vàng) + 3 biến thể (sân khấu ne
 âm thanh (Seed Audio / TTS); shot khó (ngã, chạy) đứng riêng hoặc thay bằng phản ứng / hậu quả; số shot cần khớp môi đếm trước và tính
 tiền trước.
 
-## 6. Chọn lọc điểm hay để áp dụng (người dùng 2026-09-28: "mỗi điểm đều có cái hay… cần chọn lọc lấy điểm tốt để áp dụng")
-✔ áp dụng · ~ áp dụng có điều chỉnh (drama thoại dọc 9:16 khác MV) · ✖ không học. Đã đưa vào bộ kỹ năng dạng **gợi ý**: Đạo diễn
-`knowledge/roles/director.md` **Đ12**, Quay phim `dp.md` **Q12**, Dựng `knowledge/editor/editing.md` **E12**, phong cách chọn được ở
-Bước 1 `MV_NARRATIVE` (`knowledge/ff_styles/MV_NARRATIVE.md`).
+## 6. Chọn lọc để áp dụng — bản sửa theo góp ý người dùng 2026-09-29
+**Góp ý:** (1) "1 câu ≈ 1 shot" chỉ là quy ước MV, phim thì tùy tình huống; (2) "đặt sẵn 1–2 shot cận vật" là sai — chuyển cảnh che máy
+có chủ ý: vật / người cầm vật di chuyển qua ống kính, máy lia theo, hoặc chuyển động tiến vào vật che máy; (3) cách kể (mô-típ, kết trả
+lời mở đầu) không áp dụng cho mọi trường hợp; (4) máy quay, góc, âm thanh rất đa dạng, mỗi lần dùng có ý đồ riêng, **không có nghĩa mặc
+định** → cần chuyên môn sâu, nền tảng rộng: xem nhiều mẫu, đọc nhiều tài liệu chuyên môn, học cách phân tích chính xác.
 
-| Mặt | Điểm hay | Chọn | Áp dụng ở đâu |
-|---|---|---|---|
-| 3.1 Nhân vật | Nhân vật chính ≥ 3 dấu hiệu nhận diện nhìn được ở toàn cảnh; màu nhân vật hòa bảng màu bối cảnh | ✔ | Đ12, look; hồ sơ Kelly / Kenta / Maxim |
-| | Nhân vật phụ / đám đông dễ giữ (đồng phục, quay lưng, mặt che, ở xa) | ✔ | Đ12 |
-| | Câu không then chốt nghe **ngoài hình** (đè lên phản ứng / cận vật) → ít shot khớp môi | ~ | Đ12 (drama mặc định cận người nói; dùng khi ngân sách chặt, ghi `tradeoffs`) |
-| | Biến nhân vật chính thành không mặt | ✖ | nhân vật FF cố định |
-| 3.2 Bối cảnh | 1 nơi chính nhìn nhiều góc; đổi nơi = ý mới | ✔ | Đ12; lần chạy kiểm K |
-| | Ẩn dụ bằng không gian phóng đại (người tí hon giữa phỉnh) | ✔ | Đ12 (1 lần, chỗ nội tâm / gây cười) |
-| | Đổi ánh sáng theo truyện (đêm mưa → sáng sau mưa) | ✔ | Đ12, dp Q8 |
-| 3.3 Âm thanh | Khóa âm thanh trước; 1 câu ≈ 1 shot; cắt ở ranh câu, không theo phách | ✔ | Đ12, E12; S2 |
-| | Hình minh họa **đúng nghĩa câu** | ✔ | Đ12; agent người xem S3.2 |
-| | Nhạc liên tục, năng lượng tăng theo truyện, 1 lặng có chủ ý | ✔ | E12 (đã có `music_fit` / `sound_intent`) |
-| | Đỉnh +0,7 dBFS | ✖ | giữ −1 dBTP |
-| 3.4 Chuyển động | Shot **bắt đầu giữa chuyển động**; mỗi shot 1 hành động; nhân vật động nhiều hơn | ✔ | Q12; S4.4 |
-| | Không ép dáng bằng ảnh chi tiết (dàn cảnh đơn giản) | ✔ | Q12; A/B S4.6 |
-| | Video tham chiếu cho động tác khó / nhảy nhóm | ✔ | Q12; G-MV8 trong S4.6 |
-| | Chuyển cảnh sinh trong clip (máy xuyên vật nối 2 shot) | ✔ | Q12; S3.4 / S4.8 |
-| | **Chèn cận vật che chỗ nối** (quân Át 1:16, tay 0:49, chân 3:02) | ✔ | Q12 (đặt `role: insert` sẵn mỗi cảnh) + E12 (Dựng chèn khi hai shot người lệch) |
-| | Vật lý vải / tóc (trang phục rộng, váy) | ✔ | Q12 motion prompt tả chuyển động phụ |
-| 3.5 Kể chuyện | Mục tiêu rõ ở đầu; mô-típ lặp ≥ 3 lần; kết trả lời mở đầu | ✔ | Đ12; S3.1 bảng nhịp truyện |
-| | Ẩn dụ hình thay câu giải thích | ✔ | Đ12 |
-| 3.6 Quay phim | Góc máy mang nghĩa (thấp = áp đảo, cao = bị vây, sau lưng = rời đi) | ✔ | Q12 (bổ sung Q1) |
-| | Cỡ cảnh xoay vòng toàn → trung → cận vật → toàn | ~ | Q12 (drama vẫn nhiều cận người nói) |
-| | 1 bảng màu cả phim | ✔ | Q12, look |
-| | Khung 16:9, máy trôi rộng | ✖ | ta làm 9:16 |
+**Sai của bản trước (tự rà):** biến quan sát trên **một** clip thành gợi ý chung; gắn nghĩa cố định cho góc máy (mâu thuẫn chính
+`dp.md` Q1: "ý nghĩa góc không cố định"); gọi một cử chỉ có chủ ý là "chèn che lỗi"; không đối chiếu với kiến thức đã có trước khi thêm.
 
-Việc còn lại để các điểm trên **chạy bằng code** (không chỉ nằm trong kiến thức): linter gợi ý 💡 thiếu shot chèn / shot > 1 hành động
-(S3.5), Dựng tự chèn cận vật ở chỗ nối lệch (thêm vào S3.6), prompt nối chuyển cảnh trong clip (S3.4 / S4.8), video tham chiếu (S4.6).
+**Đã sửa:** Đ12 / Q12 / E12 và `MV_NARRATIVE` viết lại thành **tư liệu**: kỹ thuật đã thấy + cách làm + ý đồ ở đúng chỗ đó + điều kiện
+dùng; bỏ "1 câu ≈ 1 shot" khỏi gợi ý chung, bỏ "đặt sẵn shot cận vật", bỏ nghĩa cố định của góc, ghi cấu trúc truyện là **một** cách.
+
+**Giữ được (có căn cứ ngoài một clip):**
+| Điểm | Căn cứ | Ở đâu |
+|---|---|---|
+| Motion prompt tả động tác đang diễn ra từ khung đầu | đo: clip mẫu động gấp ~2,4 lần #8; lỗi 1.5 của #8 | Q12, S4.4 |
+| Đầu vào không ép dáng cho shot chuyển động | tài liệu chính thức ClipAI (Director Workspace 15/09) | Q12, A/B S4.6 |
+| Video tham chiếu chuyển động cho động tác khó | suy luận + ClipAI hỗ trợ @Video | Q12, S4.6 |
+| Chuyển cảnh che máy **thiết kế trong chuyển động** | người dùng (cách làm nghề) | Q12, E12, S3.6 `transition_in` |
+| Nhân vật phụ dễ giữ nhất quán | lựa chọn sản xuất, giảm trôi mặt / khớp môi | Đ12 |
+
+**Việc tiếp theo đề xuất — đợt mới "Kho kiến thức chuyên môn" (chờ người dùng duyệt):** xem mục kế hoạch S0.10–S0.13.
 
 ## 7. Giới hạn của phân tích này
 - Không biết prompt, model, số lần sinh lại, chi phí thật của clip mẫu → mọi điều về "cách làm" là **[suy luận]** từ hình.

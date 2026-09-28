@@ -224,24 +224,29 @@ Làm cho người xem **thấy rõ** điều Đạo diễn muốn họ cảm —
 - **Ví dụ FF.** ✔ Cú bắn tỉa quyết định: MS qua vai, viên đạn rời nòng `speed: 0.4`, `freeze_end_s: 0.5` ở lúc mục tiêu ngã. ✘ Quay chậm
   cả pha đấu súng 6 shot — mất nhịp, mọi khoảnh khắc đều "quan trọng" nên không cái nào quan trọng.
 
-### Q12. Kỹ thuật học từ clip mẫu ClipAI — GỢI Ý chọn lọc, không bắt buộc — 2026-09-28
-Nguồn: clip mẫu làm bằng ClipAI người dùng gửi 2026-09-28 (MV kể chuyện 201 s, 62 shot; phân tích + mốc giây: `docs/PHAN_TICH_CLIP_MAU_CLIPAI_2026-09-28.md`).
-- **Shot bắt đầu giữa chuyển động.** Khung đầu đã đang bước / đang xoay / đang nói — không khởi động từ tư thế đứng yên. Motion prompt tả
-  động tác **đang diễn ra** từ giây 0. Clip mẫu động gấp ~2,4 lần #8 mà vẫn mượt: nhân vật đứng yên nhìn "cứng" hơn nhân vật động đẹp.
-- **Không ép dáng bằng ảnh chi tiết.** Director Workspace của ClipAI khuyên dàn cảnh bằng **nhân vật hình học** (trụ + cầu) vì ảnh / video
-  dáng chi tiết làm Seedance bắt chước cứng tay chân. Shot chuyển động: tham chiếu vị trí / hướng / cỡ cảnh đơn giản + ảnh nhân vật, để
-  model tự diễn; ảnh storyboard dáng đứng chỉ làm khung đầu khi cần giữ bố cục chính xác (thử A/B ở S4.6).
-- **Video tham chiếu cho động tác khó.** Nhảy nhóm đồng bộ, nhào lộn, chạy, ngã: gắn một video tham chiếu chuyển động (@Video, vai "tham
-  chiếu chuyển động", không lấy ngoại hình từ video) — đây rất có thể là cách clip mẫu có vũ đạo đồng bộ 6 người (suy luận).
-- **Chuyển cảnh ngay trong clip.** Hai shot liền của cùng đoạn: viết cả hai + đường máy nối trong **một** lần sinh ("camera cranes up
-  through the chandelier, then descends onto the table top") — liền hơn nối cứng ở khâu dựng. Seedance 2.0 / Fast: đánh số "Shot 1 /
-  Shot 2", không dùng mốc giây.
-- **Shot chèn cận vật (insert).** Đặt sẵn 1–2 shot cận vật / tay / chân không mặt mỗi cảnh (quân bài, tay đếm phỉnh, chân bước lên phỉnh):
-  rẻ, không khớp môi, không trôi nhân vật, và là **chỗ nối** cho Dựng khi hai shot người không khớp hướng / dáng (editing.md E12).
-- **Góc máy mang nghĩa, cỡ cảnh xoay vòng.** Máy thấp = nhân vật bị áp đảo; cao nhìn xuống = bị vây; sau lưng = quyết định / rời đi.
-  Xoay vòng toàn → trung → cận vật → toàn để mỗi cảnh có không gian + chi tiết. Một bảng màu cho cả phim (nhân vật hòa màu bối cảnh).
-- **Trong pipeline.** `role: insert` cho shot chèn; `camera_move` + motion prompt cho đường máy nối; ghi cần video tham chiếu ở `why`.
-- **Kiểm.** Code: linter bảng shot (S3.5) có thể gợi ý 💡 khi cảnh không có insert / shot có > 1 hành động. Người: animatic + bản dựng.
+### Q12. Kỹ thuật thấy trong clip mẫu ClipAI — tư liệu, không phải công thức — 2026-09-28 (sửa 2026-09-29)
+Nguồn: clip mẫu ClipAI người dùng gửi 2026-09-28 (MV 201 s; `docs/PHAN_TICH_CLIP_MAU_CLIPAI_2026-09-28.md`).
+> Người dùng sửa 2026-09-29: máy quay, góc, dựng, âm thanh **không có nghĩa mặc định** — cùng một kỹ thuật phục vụ nhiều ý đồ khác nhau tùy tình huống. Mục này ghi **kỹ thuật đã thấy + cách làm + ý đồ ở đúng chỗ đó**, không phải công thức. Chọn khi ý đồ của cảnh cần; ghi lý do theo tình huống (như Q1: "ý nghĩa góc không cố định").
+- **Chuyển động bắt đầu từ giây 0.** Các shot của clip đều bắt đầu khi nhân vật đã đang chuyển động (đang nhảy, đang bước); nhân vật
+  động gấp ~2,4 lần #8 mà vẫn mượt. Với model video: motion prompt tả động tác đang diễn ra từ khung đầu, tránh khởi động từ tư thế đứng
+  yên — trừ khi sự đứng yên chính là ý đồ.
+- **Đầu vào không ép dáng.** Director Workspace của ClipAI khuyên dàn cảnh bằng nhân vật hình học (trụ + cầu) vì ảnh / video dáng chi tiết
+  làm Seedance bắt chước cứng tay chân (tài liệu chính thức, 15/09/2026). Ảnh storyboard dáng đứng làm khung đầu chỉ khi bố cục chính xác
+  quan trọng hơn chuyển động (thử A/B ở S4.6).
+- **Video tham chiếu chuyển động** cho động tác khó (nhảy nhóm đồng bộ, nhào lộn, chạy, ngã) — suy luận từ vũ đạo 6 người đồng bộ ở
+  1:00–1:02; chưa có bằng chứng về cách làm thật.
+- **Chuyển cảnh bằng chuyển động máy trong cùng clip** (2:20,6–2:21: máy bay lên xuyên đèn chùm rồi hạ xuống mặt bàn) — dùng ở clip cho
+  lần đổi sang thế giới siêu thực.
+- **Chuyển cảnh che máy có chủ ý** (người dùng giải thích 2026-09-29 — cách làm nghề, không phải "đặt sẵn shot cận vật"): chỗ nối được
+  **tạo ra trong chuyển động của cảnh**: một vật hoặc người cầm vật đi ngang sát ống kính; máy lia theo vật; hay máy tiến vào một vật đến khi
+  vật che kín khung — shot sau mở ra từ vật che / từ hướng lia tiếp theo. Cần thiết kế từ lúc chia shot (hành động + đường máy + khung
+  cuối của shot trước khớp khung đầu shot sau), không chèn bù ở khâu dựng. Ví dụ ở clip: 1:16,3 tay lật quân Át lóe sáng giữa hai shot
+  của nhân vật nữ.
+- **Góc máy:** clip dùng máy thấp trong đoạn người tí hon giữa chồng phỉnh (2:31–2:47), nhìn xuống bàn (0:30–0:32), sau lưng khi đẩy cửa
+  (3:07–3:12). Ý nghĩa của các góc này **ở đúng chỗ đó** do ngữ cảnh tạo ra — xem Q1 ("ý nghĩa góc không cố định").
+- **Trong pipeline.** Chuyển cảnh che máy: ghi ở `transition_in` (S3.6) + tả trong motion prompt của hai shot; động tác khó: ghi cần video
+  tham chiếu ở `why`.
+- **Kiểm.** Người: animatic / bản dựng — chỗ nối có liền không, có lý do trong cảnh không.
 
 ## Tầng 4 — Ưu tiên khi xung đột
 Giới hạn model là **luật cứng** (code kiểm, không thương lượng). Bên trong nó, cùng thang chung của cả tổ (`README.md`):

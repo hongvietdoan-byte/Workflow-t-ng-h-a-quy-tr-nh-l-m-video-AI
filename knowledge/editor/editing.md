@@ -216,20 +216,16 @@ xúc, âm thanh làm thế giới game "thật", màu các shot liền nhau như
   code (làm tay: đổi thứ tự 1–2 shot đầu ở Bước 5, dựng lại — miễn phí).
 - **Kiểm.** Code: test chọn shot ⭐. Người: nhìn ảnh bìa cỡ nhỏ (~200 px) — còn nhận ra nhân vật/khoảnh khắc không.
 
-### E12. Kỹ thuật học từ clip mẫu ClipAI — GỢI Ý chọn lọc, không bắt buộc — 2026-09-28
-Nguồn: clip mẫu làm bằng ClipAI người dùng gửi 2026-09-28 (MV kể chuyện 201 s, 62 shot; phân tích + mốc giây: `docs/PHAN_TICH_CLIP_MAU_CLIPAI_2026-09-28.md`).
-- **Chèn cận vật che chỗ nối.** Hai shot người không khớp (hướng nhìn, dáng tay, vị trí) → chèn 0,5–1,5 s cận vật / tay / chân giữa hai
-  shot (clip mẫu: quân Át 1:16 nối cảnh đứng sang cảnh bước; tay đếm phỉnh 0:49; chân bước lên phỉnh 3:02). Mắt người xem đổi chỗ nhìn nên
-  không thấy chỗ lệch. Shot chèn lấy từ shot `role: insert` Quay phim đặt sẵn; không có thì cắt khung cận từ clip khác của cùng cảnh
-  (phóng to + đẩy nhẹ, 0 USD) nếu ảnh không vỡ.
-- **Cắt theo câu, không theo phách.** Clip mẫu đổi shot ở ranh câu (lời) — điểm cắt không bám phách nhạc (28 % ≈ ngẫu nhiên). Với phim
-  thoại: cắt ở cuối câu hoặc ngay trước câu kế, nhạc chạy bên dưới.
-- **Nhạc liên tục, năng lượng tăng theo truyện, một khoảng lặng có chủ ý.** Clip mẫu: nhạc không tắt, RMS từ −25 dB lên −10 dB ở cao trào
-  cuối, một nhịp lặng sau câu mở. Khớp cách `music_fit` / `sound_intent` đang làm. **Không học** đỉnh +0,7 dBFS của clip mẫu (giữ −1 dBTP).
-- **Chuyển cảnh đặc biệt để dành cho đổi thế giới.** Hòa hình / zoom xuyên chỉ khi sang nơi hoặc trạng thái mới (vào thế giới siêu thực,
-  kết); còn lại cắt thẳng.
-- **Phụ đề 1 dòng, gọn.** Một câu một dòng, chữ trắng viền tối, giữa đáy (trong vùng an toàn TikTok ở khung dọc — E7).
-- **Kiểm.** Người: xem chỗ nối có chèn — còn thấy nhảy dáng không. Code: `final_qc` đã đo nhạc lặng, đỉnh, phụ đề.
+### E12. Kỹ thuật thấy trong clip mẫu ClipAI — tư liệu, không phải công thức — 2026-09-28 (sửa 2026-09-29)
+Nguồn: clip mẫu ClipAI người dùng gửi 2026-09-28 (MV 201 s; `docs/PHAN_TICH_CLIP_MAU_CLIPAI_2026-09-28.md`).
+> Người dùng sửa 2026-09-29: máy quay, góc, dựng, âm thanh **không có nghĩa mặc định** — cùng một kỹ thuật phục vụ nhiều ý đồ khác nhau tùy tình huống. Mục này ghi **kỹ thuật đã thấy + cách làm + ý đồ ở đúng chỗ đó**, không phải công thức. Chọn khi ý đồ của cảnh cần; ghi lý do theo tình huống (như Q1: "ý nghĩa góc không cố định").
+- **Chuyển cảnh che máy** (vật / người đi ngang ống kính, lia theo vật, tiến vào vật che kín khung) là việc **thiết kế từ Quay phim**
+  (dp.md Q12); Dựng chỉ cắt đúng khung vật che kín. Không chèn một shot cận vật rời rạc để "che lỗi".
+- **Clip mẫu cắt ở ranh câu hát, không bám phách** (28 % điểm cắt trùng phách ≈ ngẫu nhiên). Đó là lựa chọn của MV này; phim khác có thể
+  cắt theo phách, theo hành động, theo ánh nhìn, hay cố ý lệch — tùy ý đồ.
+- **Nhạc liên tục, năng lượng tăng dần, một khoảng lặng sau câu mở** — một đường cong âm thanh hợp MV kể chuyện; phim thoại có thể dùng
+  lặng dài, cắt nhạc đột ngột, hay chỉ âm nền. Không học đỉnh +0,7 dBFS (giữ −1 dBTP).
+- **Kiểm.** Người: xem bản dựng — cách nối / âm thanh có phục vụ ý đồ cảnh không.
 
 ## Tầng 4 — Ưu tiên khi xung đột
 Nghe rõ thoại > đọc được chữ (không bị che) > cảm xúc/nhịp cắt theo Đạo diễn > liền mạch (màu, hướng) > đẹp/hiệu ứng. Đây là thang chung

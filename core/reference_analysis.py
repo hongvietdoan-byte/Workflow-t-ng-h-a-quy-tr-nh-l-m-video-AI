@@ -33,7 +33,7 @@ STYLES = {
     "SHORT_FILM": "Phim ngắn",
     "FAN_3D": "Video 3D fan làm (viral)",
     "DRAMA_DOC": "Drama ngắn dọc (phim truyện ngắn 9:16 kiểu ReelShort, lồng tiếng)",   # kế hoạch sau #8, S0 (2026-09-28)
-    "MV_NARRATIVE": "MV kể chuyện (clip mẫu ClipAI — âm thanh trước, 1 câu ≈ 1 shot, chuyển động mượt)",   # S0.9 (2026-09-28)
+    "MV_NARRATIVE": "MV kể chuyện (clip mẫu ClipAI)",   # S0.9 (2026-09-28)
 }
 SIZES = ("ECU", "CU", "MCU", "MS", "WS", "EWS", "GAME_TPS", "GRAPHIC")
 ANGLES = ("eye", "low", "high", "overhead", "dutch", "ots", "pov")

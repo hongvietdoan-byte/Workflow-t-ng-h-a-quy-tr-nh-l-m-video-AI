@@ -17,7 +17,7 @@
 |---|---|---|---|---|---|---|
 | P0 Theo dõi tiến độ | 2 | 2 | 0 | 0 | 0 | 100 % |
 | S1 Dựng & âm thanh | 15 | 13 | 0 | 2 | 0 | 88,9 % |
-| S0 Học từ phim drama tham khảo | 9 | 9 | 0 | 0 | 0 | 100 % |
+| S0 Học từ phim drama tham khảo | 13 | 9 | 0 | 4 | 0 | 63,6 % |
 | S9 Dashboard gọn, dễ nhìn | 6 | 5 | 0 | 0 | 0 | 81,8 % |
 | S2 Timeline theo âm thanh + animatic | 6 | 0 | 0 | 1 | 0 | 0 % |
 | S3 Director kể chuyện + Quay phim | 8 | 0 | 0 | 0 | 0 | 0 % |
@@ -27,7 +27,7 @@
 | S7 Agent QC | 2 | 0 | 0 | 0 | 0 | 0 % |
 | K Chạy kiểm kịch bản hài 20–30 s | 3 | 0 | 0 | 0 | 0 | 0 % |
 | S8 Chấm lại bằng AI Development System (cuối cùng) | 5 | 0 | 0 | 0 | 0 | 0 % |
-| **Tổng** | **80** | **29** | **0** | **10** | **0** | **37,6 %** |
+| **Tổng** | **84** | **29** | **0** | **14** | **0** | **35,5 %** |
 
 Đợt hiện tại: **S1** · việc kế: **S9.6** Gộp timeline tổng + sửa giao diện S6.4
 <!-- /tien-do -->
@@ -64,7 +64,11 @@
 - [x] S0.6 · Luật được duyệt vào bộ kỹ năng · nặng:1 · ✅ · knowledge/ff_styles/DRAMA_DOC.md ghi rõ GỢI Ý; dự án chọn NHIỀU phong cách tham khảo; Director đọc dạng gợi ý được trộn / làm khác
 - [x] S0.7 · Chỉ số mục tiêu data/drama_targets.json + test · nặng:2 · ✅ · data/style_hints.json: số đo chỉ hiện 💡 ở Kiểm bản dựng khi dự án chọn phong cách đó, không chặn, không tính 'cần xem'
 - [x] S0.8 · Phiếu so sánh bản dựng vs phim tham khảo · nặng:1 · ✅ · phiếu 10 mặt trong báo cáo S0.5 mục 4; đã chấm #8 cũ và v4
-- [x] S0.9 · Phong cách gợi ý `MV_NARRATIVE` + chọn lọc điểm hay của clip mẫu ClipAI (người dùng 2026-09-28) · nặng:1 · ✅ · director.md Đ12, dp.md Q12, editing.md E12, knowledge/ff_styles/MV_NARRATIVE.md (chọn được ở Bước 1); bảng chọn lọc: docs/PHAN_TICH_CLIP_MAU_CLIPAI_2026-09-28.md mục 6
+- [x] S0.9 · Tư liệu kỹ thuật từ clip mẫu ClipAI (`MV_NARRATIVE`, Đ12 / Q12 / E12) — sửa 2026-09-29 theo góp ý người dùng: tư liệu + ý đồ ở đúng chỗ, không công thức · nặng:1 · ✅ · docs/PHAN_TICH_CLIP_MAU_CLIPAI_2026-09-28.md mục 6
+- [ ] S0.10 · Phương pháp phân tích chính xác: quan sát (mốc giây) → ý đồ trong ngữ cảnh (giả thuyết + độ tin) → đối chiếu nhiều mẫu + tài liệu → mới thành kiến thức; kiểm mâu thuẫn với kiến thức sẵn có · nặng:1 · ⏸ · chờ người dùng duyệt (góp ý 2026-09-29)
+- [ ] S0.11 · Kho kỹ thuật chuyên môn `knowledge/craft/` (máy quay, góc, chuyển động máy, chuyển cảnh, dựng, âm thanh): mỗi kỹ thuật = cách làm + nhiều ý đồ có thể phục vụ + điều kiện + ví dụ ≥ 2 mẫu + nguồn tài liệu (tóm lời mình) · nặng:3 · ⏸ · chờ người dùng duyệt danh sách tài liệu
+- [ ] S0.12 · Xem nhiều mẫu đa thể loại (drama dọc, MV, quảng cáo game, phim ngắn, hoạt hình FF…) gắn nhãn theo kho kỹ thuật S0.11 · nặng:3 · ⏸ · chờ người dùng chốt số mẫu / nguồn mẫu
+- [ ] S0.13 · Rà kiến thức đang dùng (director / dp / editing / ff_styles) tìm chỗ gán nghĩa cố định hoặc khái quát từ 1 mẫu → sửa thành tư liệu có điều kiện · nặng:1 · ⏸ · chờ người dùng duyệt
 
 ### S9 — Dashboard gọn, dễ nhìn
 - [x] S9.1 · Nút thu gọn phần Kịch bản · nặng:1 · ✅ · xong: 1a Kịch bản thu thành 1 dòng tóm tắt + nút ▸ Mở / ▾ Thu gọn (test_dashboard)
