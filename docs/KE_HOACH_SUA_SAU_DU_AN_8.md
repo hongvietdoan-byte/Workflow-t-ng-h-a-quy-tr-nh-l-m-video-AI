@@ -16,18 +16,18 @@
 | Đợt | Việc | Xong | Đang làm | Chờ người dùng | Bỏ | Tiến độ |
 |---|---|---|---|---|---|---|
 | P0 Theo dõi tiến độ | 2 | 2 | 0 | 0 | 0 | 100 % |
-| S1 Dựng & âm thanh | 14 | 13 | 0 | 1 | 0 | 92,3 % |
+| S1 Dựng & âm thanh | 15 | 13 | 0 | 2 | 0 | 88,9 % |
 | S0 Học từ phim drama tham khảo | 8 | 8 | 0 | 0 | 0 | 100 % |
 | S9 Dashboard gọn, dễ nhìn | 6 | 5 | 0 | 0 | 0 | 81,8 % |
-| S2 Timeline theo âm thanh + animatic | 5 | 0 | 0 | 0 | 0 | 0 % |
+| S2 Timeline theo âm thanh + animatic | 6 | 0 | 0 | 1 | 0 | 0 % |
 | S3 Director kể chuyện + Quay phim | 8 | 0 | 0 | 0 | 0 | 0 % |
-| S4 Video chất lượng | 6 | 0 | 0 | 0 | 0 | 0 % |
-| S5 Bối cảnh theo file 3D Tháp Đồng Hồ | 5 | 0 | 0 | 0 | 0 | 0 % |
+| S4 Video chất lượng | 11 | 0 | 0 | 5 | 0 | 0 % |
+| S5 Bối cảnh theo file 3D Tháp Đồng Hồ | 6 | 0 | 0 | 1 | 0 | 0 % |
 | S6 Ước tính, ngân sách, dashboard | 6 | 0 | 0 | 0 | 0 | 0 % |
 | S7 Agent QC | 2 | 0 | 0 | 0 | 0 | 0 % |
 | K Chạy kiểm kịch bản hài 20–30 s | 3 | 0 | 0 | 0 | 0 | 0 % |
 | S8 Chấm lại bằng AI Development System (cuối cùng) | 5 | 0 | 0 | 0 | 0 | 0 % |
-| **Tổng** | **70** | **28** | **0** | **1** | **0** | **41,2 %** |
+| **Tổng** | **78** | **28** | **0** | **9** | **0** | **37,4 %** |
 
 Đợt hiện tại: **S1** · việc kế: **S9.6** Gộp timeline tổng + sửa giao diện S6.4
 <!-- /tien-do -->
@@ -53,6 +53,7 @@
 - [x] S1.12 · Nhạc mềm + đi theo cảnh (góp ý người dùng về v2) · nặng:3 · ✅ · 82ce1b2 · dốc tắt/vào, lặng dài thì nhạc trở lại nhỏ; cờ music_fit dời từng đoạn nhạc về đầu cảnh thật (10,1 · 24,3 · 45,7 · 62,9 · 72,0 s); v3 đo liền mạch
 - [x] S1.13 · Người dùng xem/nghe bản v3 · nặng:1 · ✅ · người dùng: "ok rồi" (2026-09-28)
 - [ ] S1.14 · Soạn nhạc mới theo nhịp truyện cho #8 (người dùng cho phép, sáng tạo theo diễn biến) · nặng:2 · ⏸ · người dùng: xem sau (bản v4 ở D:/AI-Video-Output/2026-09-28_du-an-8/v4_nhac_moi)
+- [ ] S1.15 · Tùy chọn model nhạc Eleven Music v2.5 (cập nhật ClipAI) · nặng:1 · ⏸ · chờ người dùng duyệt đề xuất docs/CAP_NHAT_CLIPAI_2026-09-28.md
 
 ### S0 — Học từ phim drama tham khảo
 - [x] S0.1 · Chọn 5 đoạn mẫu trong phim đã gửi + phong cách DRAMA_DOC · nặng:1 · ✅ · DRAMA_DOC trong core/reference_analysis.py; 1 phim (Q0); đoạn 1 = 0:00–3:00, đoạn 2 = thoại trong 20–30 phút (agent chọn)
@@ -78,6 +79,7 @@
 - [ ] S2.3 · Cổng độ dài ±10 % · nặng:1 · ⬜
 - [ ] S2.4 · Animatic ở cổng storyboard · nặng:3 · ⬜
 - [ ] S2.5 · Clip đơn cắt theo chuyển động · nặng:1 · ⬜
+- [ ] S2.6 · Thử Seed Audio 1.0 làm track thoại cả cảnh (3 giọng mẫu, mốc 100 ms, mốc phụ đề) · nặng:2 · ⏸ · chờ người dùng duyệt (cập nhật ClipAI)
 
 ### S3 — Director kể chuyện + Quay phim
 - [ ] S3.1 · Bảng nhịp truyện bắt buộc · nặng:2 · ⬜
@@ -96,6 +98,11 @@
 - [ ] S4.4 · Mẫu motion prompt theo loại hành động · nặng:1 · ⬜
 - [ ] S4.5 · QC clip so storyboard + luồng quang + khớp môi · nặng:3 · ⬜
 - [ ] S4.6 · A/B trả tiền: cận · hành động 3 model · khớp môi (a)/(b) · nặng:2 · ⬜
+- [ ] S4.7 · Kho chủ thể cho mọi ảnh nhân vật gửi Seedance, bỏ mẹo dấu đỏ trên mắt · nặng:2 · ⏸ · chờ người dùng duyệt (tài liệu ClipAI chính thức)
+- [ ] S4.8 · Prompt Seedance 2.0/Fast theo 'Shot 1 / Shot 2' thay vì mốc giây · nặng:1 · ⏸ · chờ người dùng duyệt (2.0 không theo mốc giây)
+- [ ] S4.9 · Prompt theo cấu trúc game ClipAI (vai trò @Image, giai đoạn hành động, phải giữ) · nặng:1 · ⏸ · chờ người dùng duyệt
+- [ ] S4.10 · A/B Seedance 2.5 (720P) vs Fast: cận, chạy, thoại có tham chiếu âm thanh tiếng Việt · nặng:2 · ⏸ · chờ người dùng duyệt (~3–4 USD)
+- [ ] S4.11 · Chế độ bản mẫu (Sample Mode): xác minh API, bản mẫu → duyệt → bản cuối 1080P · nặng:2 · ⏸ · cần tài liệu Google Docs (401)
 
 ### S5 — Bối cảnh theo file 3D Tháp Đồng Hồ
 - [ ] S5.1 · Render bộ ảnh chuẩn từ GLB ở tầm mắt + câu bố cục · nặng:2 · ⬜
@@ -103,6 +110,7 @@
 - [ ] S5.3 · Địa điểm đổi → khung thành "cũ" · nặng:1 · ⬜
 - [ ] S5.4 · Lớp 0 đo "tầng tường" · nặng:2 · ⬜
 - [ ] S5.5 · Vẽ thử lại khung nền tháp · nặng:1 · ⬜
+- [ ] S5.6 · Render tháp GLB thành video white-model làm tham chiếu cho Seedance 2.5 · nặng:1 · ⏸ · chờ người dùng duyệt (cập nhật ClipAI)
 
 ### S6 — Ước tính, ngân sách, dashboard
 - [ ] S6.1 · Dự tính tổng dự án ngay khi Director trả bảng shot · nặng:2 · ⬜
