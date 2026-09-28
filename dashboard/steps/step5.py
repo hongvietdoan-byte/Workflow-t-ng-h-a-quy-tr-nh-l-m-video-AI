@@ -57,40 +57,44 @@ def step5a(p: Pipeline, pid: int):
         with st.container(border=True):
             ui.html(ui.card_title("Xem thử: clip + nhạc", shown[1]))
             show_video(shown[0])
-    with st.container(border=True):
-        if provider is None:
-            st.info("Chưa cấu hình tạo nhạc (AUDIO_PROVIDER=clipai hoặc VIDEO_PROVIDER=clipai + CLIPAI_TOKEN); vẫn tải được nhạc có sẵn ở trên.")
-        else:
-            ui.html(ui.card_title("Brief nhạc", "Claude viết theo thể loại, ý đồ và nhịp từng cảnh — bạn sửa được") + ui.badge(
-                provider.name + (" · giả lập" if provider.name == "mock-audio" else " · music_v2 · tốn credit"), "b-info"))
-            key = f"mbrief_{pid}"
-            client = llm_client()
-            if st.button("🤖 Claude viết brief nhạc" + cost.llm_tag(cost.llm_estimate(p.conn, "music_brief", 1)), key=f"mbrief_ai_{pid}", disabled=client is None, help=None if client else claude_hint()):
-                with st.spinner("Claude đang viết brief…"):
-                    brief = claude_tasks.music_brief(p, pid, client)
-                st.session_state[key] = brief
-                st.session_state[f"mprompt_{pid}"] = brief["prompt"]
-                st.session_state[f"mlen_{pid}"] = max(3, brief["length_ms"] // 1000)
-            brief = st.session_state.get(key) or _timed_brief(p, pid) or music.default_brief(p, pid)
-            if brief.get("timed"):
-                st.caption(f"Theo nhịp dựng: {brief['bpm']} BPM, đổi đoạn ở "
-                           + (", ".join(f"{t:.1f}s" for t in brief["turns"]) or "—") + " — nên tạo 2 bản rồi chọn bản khớp hơn")
-            if brief.get("brief"):
-                st.caption(f"{brief['brief'].get('genre', '')} · {brief['brief'].get('tempo_bpm', '')} BPM · {brief['brief'].get('structure', '')}")
-            prompt = st.text_area("Prompt nhạc (≤ 2000 ký tự)", brief["prompt"], key=f"mprompt_{pid}", height=90)
-            c1, c2, c3 = st.columns(3)
-            seconds = c1.number_input("Độ dài (giây)", 3, 600, max(3, brief["length_ms"] // 1000), key=f"mlen_{pid}")
-            instrumental = c2.checkbox("Không lời (instrumental)", brief["instrumental"], key=f"minst_{pid}")
-            count = c3.number_input("Số bản nháp", 1, 5, 3, key=f"mcount_{pid}")
-            b1, b2 = st.columns(2)
-            if b1.button(f"✨ Tạo {int(count)} bản nháp" + budget.audio_tag(p.conn, int(count)), type="primary", disabled=not prompt.strip(), key=f"mdraft_{pid}"):
-                n = music.submit_drafts(provider, drafts_dir, prompt, int(seconds) * 1000, instrumental, int(count), ledger=(p.conn, pid))
-                st.toast(f"Đã gửi {n} bản")
-                st.rerun()
-            if b2.button("⟳ Kiểm tra + tải nhạc về", key=f"mrefresh_{pid}"):
-                counts = music.refresh_drafts(provider, drafts_dir)
-                st.toast(f"Đang chạy {counts['running']} · xong {counts['succeeded']} · lỗi {counts['failed']}")
-                st.rerun()
+    drafts_now = music.load_drafts(drafts_dir)
+    with ui.fold("Brief nhạc & bản nháp", f"🎼 {sum(1 for d in drafts_now if d['state'] == 'succeeded')} bản nháp xong"
+                 + (f" · đang chọn {files[0]}" if files else " · chưa chọn") + " · mở để viết brief / soạn thêm",
+                 f"mbrief_fold_{pid}", default_open=not files) as brief_open:  # S9 E5.3
+        if brief_open:
+            if provider is None:
+                st.info("Chưa cấu hình tạo nhạc (AUDIO_PROVIDER=clipai hoặc VIDEO_PROVIDER=clipai + CLIPAI_TOKEN); vẫn tải được nhạc có sẵn ở trên.")
+            else:
+                ui.html(ui.card_title("Brief nhạc", "Claude viết theo thể loại, ý đồ và nhịp từng cảnh — bạn sửa được") + ui.badge(
+                    provider.name + (" · giả lập" if provider.name == "mock-audio" else " · music_v2 · tốn credit"), "b-info"))
+                key = f"mbrief_{pid}"
+                client = llm_client()
+                if st.button("🤖 Claude viết brief nhạc" + cost.llm_tag(cost.llm_estimate(p.conn, "music_brief", 1)), key=f"mbrief_ai_{pid}", disabled=client is None, help=None if client else claude_hint()):
+                    with st.spinner("Claude đang viết brief…"):
+                        brief = claude_tasks.music_brief(p, pid, client)
+                    st.session_state[key] = brief
+                    st.session_state[f"mprompt_{pid}"] = brief["prompt"]
+                    st.session_state[f"mlen_{pid}"] = max(3, brief["length_ms"] // 1000)
+                brief = st.session_state.get(key) or _timed_brief(p, pid) or music.default_brief(p, pid)
+                if brief.get("timed"):
+                    st.caption(f"Theo nhịp dựng: {brief['bpm']} BPM, đổi đoạn ở "
+                               + (", ".join(f"{t:.1f}s" for t in brief["turns"]) or "—") + " — nên tạo 2 bản rồi chọn bản khớp hơn")
+                if brief.get("brief"):
+                    st.caption(f"{brief['brief'].get('genre', '')} · {brief['brief'].get('tempo_bpm', '')} BPM · {brief['brief'].get('structure', '')}")
+                prompt = st.text_area("Prompt nhạc (≤ 2000 ký tự)", brief["prompt"], key=f"mprompt_{pid}", height=90)
+                c1, c2, c3 = st.columns(3)
+                seconds = c1.number_input("Độ dài (giây)", 3, 600, max(3, brief["length_ms"] // 1000), key=f"mlen_{pid}")
+                instrumental = c2.checkbox("Không lời (instrumental)", brief["instrumental"], key=f"minst_{pid}")
+                count = c3.number_input("Số bản nháp", 1, 5, 3, key=f"mcount_{pid}")
+                b1, b2 = st.columns(2)
+                if b1.button(f"✨ Tạo {int(count)} bản nháp" + budget.audio_tag(p.conn, int(count)), type="primary", disabled=not prompt.strip(), key=f"mdraft_{pid}"):
+                    n = music.submit_drafts(provider, drafts_dir, prompt, int(seconds) * 1000, instrumental, int(count), ledger=(p.conn, pid))
+                    st.toast(f"Đã gửi {n} bản")
+                    st.rerun()
+                if b2.button("⟳ Kiểm tra + tải nhạc về", key=f"mrefresh_{pid}"):
+                    counts = music.refresh_drafts(provider, drafts_dir)
+                    st.toast(f"Đang chạy {counts['running']} · xong {counts['succeeded']} · lỗi {counts['failed']}")
+                    st.rerun()
     drafts = music.load_drafts(drafts_dir)
     for start in range(0, len(drafts), 3):
         cols = st.columns(3)
@@ -335,59 +339,62 @@ def sfx_assistant(p: Pipeline, pid: int) -> None:
     if not n:
         return
     key = f"sfxplan_{pid}"
-    with st.container(border=True):
-        ui.html(ui.card_title("🎧 Hiệu ứng âm thanh", "AI đọc kịch bản + kho của bạn, đề xuất chỗ cần điểm nhấn / chuyển cảnh"))
-        if not n.get("sfx"):
-            st.caption("Kho âm thanh chưa có hiệu ứng nào.")
-        else:
-            wish = st.text_input("Yêu cầu thêm (không bắt buộc)", key=f"sfx_wish_{pid}",
-                                 placeholder="vd: ít thôi, chỉ ở chuyển cảnh · thêm tiếng va chạm ở cảnh 3")
-            transition = st.session_state.get(f"tr_{pid}", "cut")
-            fade = float(st.session_state.get(f"fade_{pid}", 1.0))
-            if st.button("🤖 AI tự đề xuất hiệu ứng" + cost.llm_tag(cost.llm_estimate(p.conn, "sfx", 1)), key=f"sfx_ai_go_{pid}", type="primary"):
-                client = llm_client()
-                try:
-                    with st.spinner("AI đang đọc các cảnh và chọn hiệu ứng…"):
-                        st.session_state[key] = sfx_plan.propose(client, p, C.DATA, pid, transition, fade, wish)
-                except (sfx_plan.SfxPlanError, llm_runner.LlmError) as e:
-                    st.error(str(e))
-            plan = st.session_state.get(key)
-            if plan is not None:
-                if plan["summary"]:
-                    st.info(plan["summary"])
-                if plan.get("unmet"):
-                    st.warning("🔊 Âm Đạo diễn yêu cầu mà chưa có hiệu ứng nào đặt vào: " + " · ".join(
-                        f"shot {u['idx']}: {', '.join(u['sfx'])}" for u in plan["unmet"])
-                        + " — thêm tay ở mục Hiệu ứng, hoặc bổ sung âm đó vào kho âm thanh.")
-                if not plan["cues"]:
-                    st.caption("AI không thấy chỗ nào cần thêm hiệu ứng.")
-                else:
-                    import pandas as pd
-                    frame = pd.DataFrame([{"Dùng": True, "Giây": c["at"], "Cảnh": c["scene"], "Hiệu ứng": c["name"], "Thư mục": c["folder"],
-                                           "Âm lượng": c["volume"], "Vì sao": c["reason"]} for c in plan["cues"]])
-                    edited = st.data_editor(frame, key=f"sfx_table_{pid}", hide_index=True, width="stretch",
-                                            disabled=["Cảnh", "Hiệu ứng", "Thư mục", "Vì sao"],
-                                            column_config={"Giây": st.column_config.NumberColumn(min_value=0.0, step=0.1),
-                                                           "Âm lượng": st.column_config.NumberColumn(min_value=0.0, max_value=1.5, step=0.05)})
-                    b1, b2 = st.columns([2, 1])
-                    if b1.button("✅ Thêm các hiệu ứng đã chọn vào video", key=f"sfx_apply_{pid}", type="primary"):
-                        chosen = [{"id": plan["cues"][i]["id"], "at": float(row["Giây"]), "volume": float(row["Âm lượng"])}
-                                  for i, row in edited.iterrows() if row["Dùng"]]
-                        added = sfx_plan.apply(p, C.DATA, pid, chosen)
-                        st.session_state.pop(key, None)
-                        st.toast(f"Đã thêm {added} hiệu ứng (chỉnh tiếp ở mục Hiệu ứng & giọng đọc thêm)")
-                        st.rerun()
-                    if b2.button("Bỏ đề xuất", key=f"sfx_drop_{pid}"):
-                        st.session_state.pop(key, None)
-                        st.rerun()
-        if n.get("music"):
-            mode = p.project(pid)["music_mode"] == "library"
-            auto = st.checkbox("Nhạc nền: ưu tiên lấy từ kho của tôi thay vì để AI tạo (tiết kiệm credit; AI tạo nhạc vẫn là mặc định)", mode,
-                               key=f"music_mode_{pid}", disabled=music.is_off(p, pid),
-                               help="Đang chọn 'Không dùng nhạc'" if music.is_off(p, pid) else None)
-            if auto != mode:
-                p.conn.execute("UPDATE projects SET music_mode=? WHERE id=?", ("library" if auto else None, pid))
-                p.conn.commit()
+    n_ai = sum(1 for e in audio_lib.load(audio_lib.assets_dir(C.DATA, pid)) if e.get("kind") == "sound_effect" and e.get("use"))
+    with ui.fold("🎧 Hiệu ứng âm thanh", f"🎧 {n_ai} hiệu ứng trong bản trộn (gắn theo shot) · mở để AI đề xuất lại / chỉnh",
+                 f"sfx_{pid}", default_open=False,
+                 sub="AI đọc kịch bản + kho của bạn, đề xuất chỗ cần điểm nhấn / chuyển cảnh") as sfx_open:  # S9 E5.4
+        if sfx_open:
+            if not n.get("sfx"):
+                st.caption("Kho âm thanh chưa có hiệu ứng nào.")
+            else:
+                wish = st.text_input("Yêu cầu thêm (không bắt buộc)", key=f"sfx_wish_{pid}",
+                                     placeholder="vd: ít thôi, chỉ ở chuyển cảnh · thêm tiếng va chạm ở cảnh 3")
+                transition = st.session_state.get(f"tr_{pid}", "cut")
+                fade = float(st.session_state.get(f"fade_{pid}", 1.0))
+                if st.button("🤖 AI tự đề xuất hiệu ứng" + cost.llm_tag(cost.llm_estimate(p.conn, "sfx", 1)), key=f"sfx_ai_go_{pid}", type="primary"):
+                    client = llm_client()
+                    try:
+                        with st.spinner("AI đang đọc các cảnh và chọn hiệu ứng…"):
+                            st.session_state[key] = sfx_plan.propose(client, p, C.DATA, pid, transition, fade, wish)
+                    except (sfx_plan.SfxPlanError, llm_runner.LlmError) as e:
+                        st.error(str(e))
+                plan = st.session_state.get(key)
+                if plan is not None:
+                    if plan["summary"]:
+                        st.info(plan["summary"])
+                    if plan.get("unmet"):
+                        st.warning("🔊 Âm Đạo diễn yêu cầu mà chưa có hiệu ứng nào đặt vào: " + " · ".join(
+                            f"shot {u['idx']}: {', '.join(u['sfx'])}" for u in plan["unmet"])
+                            + " — thêm tay ở mục Hiệu ứng, hoặc bổ sung âm đó vào kho âm thanh.")
+                    if not plan["cues"]:
+                        st.caption("AI không thấy chỗ nào cần thêm hiệu ứng.")
+                    else:
+                        import pandas as pd
+                        frame = pd.DataFrame([{"Dùng": True, "Giây": c["at"], "Cảnh": c["scene"], "Hiệu ứng": c["name"], "Thư mục": c["folder"],
+                                               "Âm lượng": c["volume"], "Vì sao": c["reason"]} for c in plan["cues"]])
+                        edited = st.data_editor(frame, key=f"sfx_table_{pid}", hide_index=True, width="stretch",
+                                                disabled=["Cảnh", "Hiệu ứng", "Thư mục", "Vì sao"],
+                                                column_config={"Giây": st.column_config.NumberColumn(min_value=0.0, step=0.1),
+                                                               "Âm lượng": st.column_config.NumberColumn(min_value=0.0, max_value=1.5, step=0.05)})
+                        b1, b2 = st.columns([2, 1])
+                        if b1.button("✅ Thêm các hiệu ứng đã chọn vào video", key=f"sfx_apply_{pid}", type="primary"):
+                            chosen = [{"id": plan["cues"][i]["id"], "at": float(row["Giây"]), "volume": float(row["Âm lượng"])}
+                                      for i, row in edited.iterrows() if row["Dùng"]]
+                            added = sfx_plan.apply(p, C.DATA, pid, chosen)
+                            st.session_state.pop(key, None)
+                            st.toast(f"Đã thêm {added} hiệu ứng (chỉnh tiếp ở mục Hiệu ứng & giọng đọc thêm)")
+                            st.rerun()
+                        if b2.button("Bỏ đề xuất", key=f"sfx_drop_{pid}"):
+                            st.session_state.pop(key, None)
+                            st.rerun()
+            if n.get("music"):
+                mode = p.project(pid)["music_mode"] == "library"
+                auto = st.checkbox("Nhạc nền: ưu tiên lấy từ kho của tôi thay vì để AI tạo (tiết kiệm credit; AI tạo nhạc vẫn là mặc định)", mode,
+                                   key=f"music_mode_{pid}", disabled=music.is_off(p, pid),
+                                   help="Đang chọn 'Không dùng nhạc'" if music.is_off(p, pid) else None)
+                if auto != mode:
+                    p.conn.execute("UPDATE projects SET music_mode=? WHERE id=?", ("library" if auto else None, pid))
+                    p.conn.commit()
 
 
 def step5(p: Pipeline, pid: int):
@@ -396,6 +403,8 @@ def step5(p: Pipeline, pid: int):
     state = "stale" if stat["final"]["state"] == "fresh" and stat.get("best_stale") else stat["final"]["state"]
     step_header("Bước 5 · Âm thanh & xuất bản", "clip → âm thanh → dựng → phụ đề/card/kích thước → một bản giao",
                 {"missing": "chưa dựng", "fresh": "bản giao mới nhất", "stale": "bản giao cũ"}[state], 1 if state == "stale" else 0)
+    from dashboard import next_step                                     # S9 E0.1: the next thing to do, one line
+    ui.html(next_step.band(p, pid, 5, C.DATA))
     chosen, durations = clips_panel(p, pid)
     ui.html(ui.card_title("5.2 · 🔊 Âm thanh", "nhạc nền · hiệu ứng · giọng thoại (làm ở Bước 3)"))
     step5a(p, pid)
@@ -431,37 +440,45 @@ def clips_panel(p: Pipeline, pid: int):
     missing = [c for c in clips if not c["path"]]
     status = lineage.scan(p.conn, pid)
     chosen, durations = [], []
-    with st.container(border=True):
-        ui.html(ui.card_title("5.1 · 🎬 Clip theo thứ tự cảnh", f"{len(present)} có sẵn / {len(clips)} · lấy tự động từ Bước 4"))
-        if not present:
-            st.info("Chưa có clip nào. Chạy Bước 4" + (" hoặc nhập clip thủ công bên dưới." if C.expert()
-                                                          else " (nhập clip thủ công: bật ⚙ → Chế độ chuyên gia)."))
-        names = ", ".join(f"cảnh {c['idx']}" + (f" ({ui.state_label(c['state'], 'video_gen')})" if c["state"] else "") for c in missing if c["idx"])
-        if names:
-            st.warning(f"Thiếu clip: {names} — bản ghép sẽ bỏ qua các cảnh này.")
-        for c in present:
-            label = f"{C.unit_label(p, pid, c['idx'])} — {c['title']}" if c["idx"] else c["title"]
-            base = os.path.basename(c["path"])
-            real = _probe(c["path"], os.path.getmtime(c["path"]), c["requested_sec"])
-            srow = status.get(c.get("scene_id")) or {}
-            a, b, d = st.columns([3, 1.4, 1], vertical_alignment="center")
-            note = "" if c["usable"] else f" · {ui.state_label(c['state'], 'video_gen')}"
-            use = a.checkbox(label + note + (" · ⚠ cũ" if srow.get("video_stale") else ""), c["usable"], key=f"use_{pid}_{base}")
-            sec = d.number_input("Giây", 0.5, 60.0, float(round(real, 2)), 0.1, key=f"sec_{pid}_{base}", label_visibility="collapsed")
-            if b.checkbox("Xem", False, key=f"see_{pid}_{base}"):
-                show_video(c["path"])
-            if use:
-                chosen.append(c["path"])
-                durations.append(sec)
-            if c.get("scene_id"):
-                scene_expander(p, c["scene_id"], with_motion=True)
-        if C.expert():
-            with st.expander("Nhập clip thủ công (tên file theo thứ tự, vd 01.mp4)"):
-                up = st.file_uploader("Clip .mp4", type=["mp4"], accept_multiple_files=True, key=f"vid_{pid}")
-                if up and st.button("Lưu clip", key=f"vid_save_{pid}"):
-                    for f in up:
-                        act(lambda: final_cut.save_manual_clip(C.DATA, pid, f.name, f.getvalue()))
-                    st.rerun()
+    total_s = sum(_probe(c["path"], os.path.getmtime(c["path"]), c["requested_sec"]) for c in present if c["usable"])
+    with ui.fold("5.1 · 🎬 Clip theo thứ tự cảnh", f"🎬 {sum(1 for c in present if c['usable'])}/{len(clips)} clip dùng được · "
+                 f"{total_s:.1f} s · mở để bỏ / chỉnh độ dài từng clip", f"clips_{pid}", default_open=bool(missing) or not present,
+                 sub=f"{len(present)} có sẵn / {len(clips)} · lấy tự động từ Bước 4") as clips_open:  # S9 E5.1
+        if not clips_open:                 # folded: every usable clip at its real length (as the automatic run does)
+            for c in present:
+                if c["usable"]:
+                    chosen.append(c["path"])
+                    durations.append(float(_probe(c["path"], os.path.getmtime(c["path"]), c["requested_sec"])))
+        if clips_open:
+            if not present:
+                st.info("Chưa có clip nào. Chạy Bước 4" + (" hoặc nhập clip thủ công bên dưới." if C.expert()
+                                                              else " (nhập clip thủ công: bật ⚙ → Chế độ chuyên gia)."))
+            names = ", ".join(f"cảnh {c['idx']}" + (f" ({ui.state_label(c['state'], 'video_gen')})" if c["state"] else "") for c in missing if c["idx"])
+            if names:
+                st.warning(f"Thiếu clip: {names} — bản ghép sẽ bỏ qua các cảnh này.")
+            for c in present:
+                label = f"{C.unit_label(p, pid, c['idx'])} — {c['title']}" if c["idx"] else c["title"]
+                base = os.path.basename(c["path"])
+                real = _probe(c["path"], os.path.getmtime(c["path"]), c["requested_sec"])
+                srow = status.get(c.get("scene_id")) or {}
+                a, b, d = st.columns([3, 1.4, 1], vertical_alignment="center")
+                note = "" if c["usable"] else f" · {ui.state_label(c['state'], 'video_gen')}"
+                use = a.checkbox(label + note + (" · ⚠ cũ" if srow.get("video_stale") else ""), c["usable"], key=f"use_{pid}_{base}")
+                sec = d.number_input("Giây", 0.5, 60.0, float(round(real, 2)), 0.1, key=f"sec_{pid}_{base}", label_visibility="collapsed")
+                if b.checkbox("Xem", False, key=f"see_{pid}_{base}"):
+                    show_video(c["path"])
+                if use:
+                    chosen.append(c["path"])
+                    durations.append(sec)
+                if c.get("scene_id"):
+                    scene_expander(p, c["scene_id"], with_motion=True)
+            if C.expert():
+                with st.expander("Nhập clip thủ công (tên file theo thứ tự, vd 01.mp4)"):
+                    up = st.file_uploader("Clip .mp4", type=["mp4"], accept_multiple_files=True, key=f"vid_{pid}")
+                    if up and st.button("Lưu clip", key=f"vid_save_{pid}"):
+                        for f in up:
+                            act(lambda: final_cut.save_manual_clip(C.DATA, pid, f.name, f.getvalue()))
+                        st.rerun()
     return chosen, durations
 
 
@@ -471,14 +488,20 @@ def render_panel(p: Pipeline, pid: int, chosen, durations) -> None:
     with st.container(border=True):
         ui.html(ui.card_title("5.3 · 🎞 Dựng video cuối", "thiết lập lưu theo dự án — chế độ tự động dùng chung"))
         opts = ["cut", "crossfade", "dip_to_black"]
-        transition = st.radio("Chuyển cảnh", opts, index=opts.index(s["transition"]), horizontal=True, key=f"tr_{pid}",
-                              format_func=lambda t: {"cut": "Cắt", "crossfade": "Hòa tan", "dip_to_black": "Tối dần"}[t])
-        fade = st.slider("Thời gian chuyển cảnh (giây)", 0.3, 2.0, float(s["fade"]), 0.1, key=f"fade_{pid}", disabled=transition == "cut")
+        tr_names = {"cut": "Cắt", "crossfade": "Hòa tan", "dip_to_black": "Tối dần"}
         track = delivery.selected_music(C.DATA, pid)
-        volume = st.slider("Âm lượng nhạc nền", 0.0, 1.0, float(s["music_volume"]), 0.05, key=f"vol_{pid}", disabled=not track)
-        st.caption(f"Nhạc nền: {os.path.basename(track)}" if track else "Không có nhạc nền (chọn ở 5.2).")
-        keep = st.checkbox("🔊 Giữ âm thanh gốc của clip (tiếng động do model tạo)", bool(s["keep_audio"]), key=f"keepaud_{pid}",
-                           help="Nhạc và giọng thoại được trộn lên trên. Cần MỌI clip đã chọn có âm thanh.")
+        transition, fade, volume, keep = s["transition"], float(s["fade"]), float(s["music_volume"]), bool(s["keep_audio"])
+        with ui.fold("⚙ Thiết lập dựng", f"{tr_names[s['transition']]} · nhạc {float(s['music_volume']):g} · "
+                     + ("giữ âm clip" if s["keep_audio"] else "không giữ âm clip") + (f" · {os.path.basename(track)}" if track else " · không nhạc"),
+                     f"render_set_{pid}", default_open=False) as set_open:          # S9 E5.6: saved in the project; folded = those
+            if set_open:
+                transition = st.radio("Chuyển cảnh", opts, index=opts.index(s["transition"]), horizontal=True, key=f"tr_{pid}",
+                                      format_func=lambda t: tr_names[t])
+                fade = st.slider("Thời gian chuyển cảnh (giây)", 0.3, 2.0, float(s["fade"]), 0.1, key=f"fade_{pid}", disabled=transition == "cut")
+                volume = st.slider("Âm lượng nhạc nền", 0.0, 1.0, float(s["music_volume"]), 0.05, key=f"vol_{pid}", disabled=not track)
+                st.caption(f"Nhạc nền: {os.path.basename(track)}" if track else "Không có nhạc nền (chọn ở 5.2).")
+                keep = st.checkbox("🔊 Giữ âm thanh gốc của clip (tiếng động do model tạo)", bool(s["keep_audio"]), key=f"keepaud_{pid}",
+                                   help="Nhạc và giọng thoại được trộn lên trên. Cần MỌI clip đã chọn có âm thanh.")
         new = dict(s, transition=transition, fade=fade, music_volume=volume, keep_audio=keep)
         if (transition, fade, volume, keep) != (s["transition"], s["fade"], s["music_volume"], s["keep_audio"]):
             delivery.save_settings(p, pid, new)

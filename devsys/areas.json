@@ -140,7 +140,7 @@
       "name": "Dashboard chung / giao diện",
       "weight": 1.0,
       "description": "Khung dashboard, đăng nhập, thanh trên, màn chính 4 thẻ, widget dùng chung, giao diện, trình khởi động.",
-      "code": ["dashboard/__init__.py", "dashboard/steps/__init__.py", "dashboard/app.py", "dashboard/common.py", "dashboard/header.py", "dashboard/overview.py", "dashboard/ui.py", "dashboard/widgets.py", "core/auth.py", "core/memo.py", "core/archive.py"],
+      "code": ["dashboard/__init__.py", "dashboard/steps/__init__.py", "dashboard/app.py", "dashboard/common.py", "dashboard/header.py", "dashboard/overview.py", "dashboard/ui.py", "dashboard/widgets.py", "dashboard/next_step.py", "core/auth.py", "core/memo.py", "core/archive.py"],
       "assets": ["mockup/*", "tools/launch_dashboard.ps1", "tools/stop_dashboard.ps1", "Start-Dashboard.bat", "Stop-Dashboard.bat", ".streamlit/*", "tools/make_icon.py", "tools/seed_demo.py", "tools/run_demo.ps1"],
       "docs": ["docs/UI_AUDIT.md", "docs/DASHBOARD_REVIEW_2026-09-23.md", "docs/PHAN_TICH_VONG_DASHBOARD_2026-09-24.md"],
       "tests": [],

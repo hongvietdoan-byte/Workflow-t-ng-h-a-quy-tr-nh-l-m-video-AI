@@ -45,6 +45,17 @@ def autopilot_progress(pid: int) -> None:
             show_video(out)
 
 
+def _budget_summary(p: Pipeline, pid: int, data) -> str:
+    from core import project_budget
+    try:
+        spent = sum(project_budget.spent_by_stage(p.conn, pid).values())
+    except Exception:  # noqa: BLE001 - a summary line only
+        return ""
+    if data.get("locked"):
+        return f"🔒 Đã khóa {float(data.get('total') or 0):.2f} USD · đã chi {spent:.2f} USD"
+    return f"chưa duyệt · đã chi {spent:.2f} USD"
+
+
 def project_budget_panel(p: Pipeline, pid: int) -> None:
     """💵 The project's budget by stage (core.project_budget): computed by code from the shot table, approved and LOCKED by a person;
     after that only a person raises a stage's cap, with a reason."""
@@ -53,47 +64,48 @@ def project_budget_panel(p: Pipeline, pid: int) -> None:
         return
     data = project_budget.get(p.conn, pid) or {}
     locked = bool(data.get("locked"))
-    with st.expander("💵 Ngân sách dự án" + (" — ĐÃ KHÓA" if locked else " — chưa duyệt (chạy tự động sẽ chờ trước khi gen ảnh)"),
-                     expanded=not locked):
-        try:
-            prop = project_budget.propose(p, pid)
-        except Exception as e:  # noqa: BLE001 - say it, never hide the panel
-            st.warning(f"Không tính được ngân sách ({type(e).__name__}: {e})")
-            return
-        spent = project_budget.spent_by_stage(p.conn, pid)
-        caps = data.get("caps") or {}
-        rows = [{"Khâu": label, "Đã chi": f"{spent[k]:.2f}", "Còn cần (ước)": f"{prop['stages'][k]['left_estimate']:.2f}",
-                 "Đề xuất trần": f"{prop['stages'][k]['cap']:.2f}", "Trần đã khóa": (f"{caps[k]:.2f}" if k in caps else "—")}
-                for k, label in project_budget.STAGES.items()]
-        st.dataframe(rows, hide_index=True, use_container_width=True)
-        st.caption(f"Tổng đề xuất ≈ {prop['total']:.2f} USD" + (f" · tổng đã khóa {data['total']:.2f} USD" if locked else "")
-                   + f" · đã chi {sum(spent.values()):.2f} USD. Đề xuất = đã chi + phần còn lại do CODE tính từ bảng shot + bảng giá, cộng "
-                   f"{int(project_budget.IMAGE_REDO * 100)} % vẽ lại ảnh, {int(project_budget.VIDEO_REDO * 100)} % làm lại video, Claude ×"
-                   f"{project_budget.LLM_MARGIN}; giá chưa xác minh (Seedance) ×{project_budget.UNVERIFIED_MARGIN}. Âm thanh chưa có giá: "
-                   "vẫn giới hạn theo số lượt.")
-        target = st.number_input("Ngân sách mục tiêu (USD, để Director chia shot trong mức này; 0 = không đặt)", min_value=0.0,
-                                 value=float(data.get("target") or 0.0), step=1.0, key=f"pb_target_{pid}")
-        if (target or None) != (data.get("target") or None):
-            project_budget.set_target(p.conn, pid, target or None)
-        if data.get("target") and prop["total"] > float(data["target"]):
-            st.warning(f"Đề xuất ≈ {prop['total']:.2f} USD VƯỢT mục tiêu {float(data['target']):.2f} USD — bớt shot khớp môi / giây "
-                       "video / số shot (chia shot lại) trước khi duyệt.")
-        if not locked:
-            if confirm_all(f"pb_ok_{pid}", ["go"], f"✔ Duyệt & KHÓA ngân sách ≈ {prop['total']:.2f} USD",
-                           f"Khóa ngân sách dự án ≈ {prop['total']:.2f} USD (trần từng khâu như bảng)? Sau khi khóa, mọi lời gọi trả tiền "
-                           "vượt trần khâu hoặc tổng sẽ bị DỪNG; chỉ người được nâng trần, kèm lý do.", st, "Có, khóa"):
-                project_budget.approve(p, pid, p.actor, prop)
+    with ui.fold("💵 Ngân sách dự án" + (" — 🔒 ĐÃ KHÓA" if locked else " — chưa duyệt (chạy tự động sẽ chờ trước khi gen ảnh)"),
+                 _budget_summary(p, pid, data), f"budget_{pid}", default_open=not locked) as budget_open:  # E1.3
+        if budget_open:
+            try:
+                prop = project_budget.propose(p, pid)
+            except Exception as e:  # noqa: BLE001 - say it, never hide the panel
+                st.warning(f"Không tính được ngân sách ({type(e).__name__}: {e})")
+                return
+            spent = project_budget.spent_by_stage(p.conn, pid)
+            caps = data.get("caps") or {}
+            rows = [{"Khâu": label, "Đã chi": f"{spent[k]:.2f}", "Còn cần (ước)": f"{prop['stages'][k]['left_estimate']:.2f}",
+                     "Đề xuất trần": f"{prop['stages'][k]['cap']:.2f}", "Trần đã khóa": (f"{caps[k]:.2f}" if k in caps else "—")}
+                    for k, label in project_budget.STAGES.items()]
+            st.dataframe(rows, hide_index=True, use_container_width=True)
+            st.caption(f"Tổng đề xuất ≈ {prop['total']:.2f} USD" + (f" · tổng đã khóa {data['total']:.2f} USD" if locked else "")
+                       + f" · đã chi {sum(spent.values()):.2f} USD. Đề xuất = đã chi + phần còn lại do CODE tính từ bảng shot + bảng giá, cộng "
+                       f"{int(project_budget.IMAGE_REDO * 100)} % vẽ lại ảnh, {int(project_budget.VIDEO_REDO * 100)} % làm lại video, Claude ×"
+                       f"{project_budget.LLM_MARGIN}; giá chưa xác minh (Seedance) ×{project_budget.UNVERIFIED_MARGIN}. Âm thanh chưa có giá: "
+                       "vẫn giới hạn theo số lượt.")
+            target = st.number_input("Ngân sách mục tiêu (USD, để Director chia shot trong mức này; 0 = không đặt)", min_value=0.0,
+                                     value=float(data.get("target") or 0.0), step=1.0, key=f"pb_target_{pid}")
+            if (target or None) != (data.get("target") or None):
+                project_budget.set_target(p.conn, pid, target or None)
+            if data.get("target") and prop["total"] > float(data["target"]):
+                st.warning(f"Đề xuất ≈ {prop['total']:.2f} USD VƯỢT mục tiêu {float(data['target']):.2f} USD — bớt shot khớp môi / giây "
+                           "video / số shot (chia shot lại) trước khi duyệt.")
+            if not locked:
+                if confirm_all(f"pb_ok_{pid}", ["go"], f"✔ Duyệt & KHÓA ngân sách ≈ {prop['total']:.2f} USD",
+                               f"Khóa ngân sách dự án ≈ {prop['total']:.2f} USD (trần từng khâu như bảng)? Sau khi khóa, mọi lời gọi trả tiền "
+                               "vượt trần khâu hoặc tổng sẽ bị DỪNG; chỉ người được nâng trần, kèm lý do.", st, "Có, khóa"):
+                    project_budget.approve(p, pid, p.actor, prop)
+                    st.rerun()
+                return
+            c1, c2, c3 = st.columns([1.2, 1, 2])
+            stage = c1.selectbox("Nâng trần khâu", list(project_budget.STAGES), format_func=project_budget.STAGES.get, key=f"pb_stage_{pid}")
+            add = c2.number_input("Thêm (USD)", min_value=0.0, value=0.0, step=0.5, key=f"pb_add_{pid}")
+            why = c3.text_input("Lý do (bắt buộc)", key=f"pb_why_{pid}")
+            if st.button("Nâng trần", key=f"pb_raise_{pid}", disabled=not (add > 0 and why.strip())):
+                project_budget.raise_cap(p.conn, pid, stage, add, p.actor, why)
                 st.rerun()
-            return
-        c1, c2, c3 = st.columns([1.2, 1, 2])
-        stage = c1.selectbox("Nâng trần khâu", list(project_budget.STAGES), format_func=project_budget.STAGES.get, key=f"pb_stage_{pid}")
-        add = c2.number_input("Thêm (USD)", min_value=0.0, value=0.0, step=0.5, key=f"pb_add_{pid}")
-        why = c3.text_input("Lý do (bắt buộc)", key=f"pb_why_{pid}")
-        if st.button("Nâng trần", key=f"pb_raise_{pid}", disabled=not (add > 0 and why.strip())):
-            project_budget.raise_cap(p.conn, pid, stage, add, p.actor, why)
-            st.rerun()
-        for r in (data.get("raises") or [])[-5:]:
-            st.caption(f"{r['at']} · {r['who']}: +{r['add_usd']:.2f} USD cho {project_budget.STAGES.get(r['stage'], r['stage'])} — {r['why']}")
+            for r in (data.get("raises") or [])[-5:]:
+                st.caption(f"{r['at']} · {r['who']}: +{r['add_usd']:.2f} USD cho {project_budget.STAGES.get(r['stage'], r['stage'])} — {r['why']}")
 
 
 def autopilot_panel(p: Pipeline, pid: int) -> None:
@@ -106,7 +118,7 @@ def autopilot_panel(p: Pipeline, pid: int) -> None:
         if info["state"] in ("queued", "running", "done", "needs_attention", "stopped", "error", "waiting"):
             autopilot_progress(pid)
             project_budget_panel(p, pid)
-            if info["state"] not in ("running", "queued"):
+            if info["state"] not in ("running", "queued") and C.expert():      # E1.11: destructive, rarely used
                 with st.expander("Chạy lại từ đầu cho dự án này"):
                     st.caption("Đặt lại trạng thái tự động (ảnh/video đã làm được giữ nguyên).")
                     if st.button("↺ Đặt lại chế độ tự động", key=f"ap_reset_{pid}"):
@@ -343,6 +355,8 @@ def step1(p: Pipeline, pid: int):
     stale = len(lineage.stale_scene_ids(p.conn, pid)) if scenes else 0
     step_header("Bước 1 · Kịch bản & đạo diễn", "tách cảnh → chuẩn bị → Director → nhân vật → thoại → khóa",
                 _count_label(p, pid, scenes) + f" · {len(chars)} nhân vật" + (" · đã khóa" if locked else ""), stale)
+    from dashboard import next_step                                     # S9 E0.1: the next thing to do, one line
+    ui.html(next_step.band(p, pid, 1, C.DATA))
 
     # S9.1 (người dùng, sau #8): once the script is split the card folds to one line; open again with "▸ Mở"
     with ui.fold("1a · 📜 Kịch bản", _script_summary(p, pid, scenes), f"script_{pid}",
@@ -415,13 +429,9 @@ def step1(p: Pipeline, pid: int):
 
     if scenes:
         ui.html(ui.card_title("1c · Chọn cách chạy", "tự động hoàn toàn, hoặc lần lượt từng bước"))
-        auto_col, manual_col = st.columns(2, gap="large")
-        with auto_col:
-            autopilot_panel(p, pid)
-        with manual_col, st.container(border=True):
-            ui.html(ui.card_title("🧭 Lần lượt từng bước", "bạn kiểm soát và duyệt ở mỗi bước"))
-            st.caption("1d Director → 1e Character Bible (Lock, giọng, ảnh mốc) → 1f Rà thoại → 1g Storyboard (tùy chọn) → khóa & sang Bước 2 "
-                       "→ Bước 3 motion + giọng thoại → Bước 4 video → Bước 5 âm thanh & xuất bản. Hợp với dự án dài hoặc cần chỉnh kỹ.")
+        autopilot_panel(p, pid)
+        st.caption("🧭 Hoặc lần lượt từng bước: 1d Director → 1e Character Bible → 1f Rà thoại → khóa & sang Bước 2 → Bước 3 motion + "
+                   "giọng → Bước 4 video → Bước 5 âm thanh & xuất bản.")                     # E1.10: no card for text only
         director_panel(p, pid, chars)
     if chars:
         character_bible_panel(p, pid, chars, risky)
@@ -877,57 +887,66 @@ def shot_format_controls(p: Pipeline, pid: int, proj) -> None:
         st.caption("Chạy Director (1d) để chia các cảnh thành shot.")
 
 
+def _director_summary(p: Pipeline, pid: int, chars) -> str:
+    if not chars:
+        return "chưa chạy"
+    n = p.conn.execute("SELECT COUNT(*) FROM scenes WHERE project_id=?", (pid,)).fetchone()[0]
+    paid = _paid_line(p, pid)
+    return f"✅ đã chạy · {n} shot · {len(chars)} nhân vật" + (f" · {paid}" if paid else "")
+
+
 def director_panel(p: Pipeline, pid: int, chars) -> None:
     locked = any(c["locked"] for c in chars)
     kept = llm_io.locked_fields(p.conn, pid)
-    with st.container(border=True):
-        ui.html(ui.card_title("1d · 🎬 Director", "Character Bible + thông số, ý đồ, thoại từng cảnh"))
-        if kept:
-            st.caption(f"🔒 {sum(len(r['fields']) for r in kept)} trường bạn đã sửa tay ở {len(kept)} cảnh được giữ nguyên khi chạy lại.")
-        client = llm_client()
-        if client is not None:
-            from core import director_two_pass
-            two = director_two_pass.enabled(p.project(pid))
-            label = f"🤖 Chạy Director{' hai lượt' if two else ''} bằng {llm_label(client)}"
-            if two:
-                st.caption("🧪 Director hai lượt (cờ `director_two_pass`, chưa thử thật): Tầng A Đạo diễn viết Bible + ý đồ từng cảnh → "
-                           "Tầng B Quay phim chia shot mỗi cảnh một lượt (phần chung cache) → code Đạo diễn duyệt bảng shot so với ý đồ.")
-            try:                                   # luật chi phí: the estimate before the click (both ways, so the choice is informed)
-                st.caption("💵 " + director_two_pass.estimate_text(director_two_pass.estimate(p, pid, client)))
-            except Exception as e:  # noqa: BLE001 - an estimate that cannot be made is said, never hidden
-                st.caption(f"💵 Chưa ước tính được chi phí Director ({type(e).__name__}: {e})")
-            go = (confirm_all(f"llm_dir_{pid}", ["again"], label + " (chạy lại)",
-                              "Character Bible đã khóa: chạy lại chỉ cập nhật thông số cảnh (trường bạn đã sửa tay được giữ), nhân vật đã khóa "
-                              "không đổi. Chạy?", st, "Có, chạy lại") if locked
-                  else st.button(label, type="primary", key=f"llm_dir_{pid}"))
-            pending = director_two_pass.pending_scenes(p, pid) if two else []
-            resume = bool(pending) and st.button(
-                f"↻ Chỉ hỏi lại {len(pending)} cảnh lỗi (cảnh {', '.join(map(str, pending))})", key=f"llm_dir_resume_{pid}",
-                help="Lần chạy trước dừng vì Quay phim chưa chia được các cảnh này. Dùng lại ý đồ Tầng A và các cảnh đã chia (đã trả tiền) "
-                     "khi kịch bản/luật không đổi — chỉ trả tiền cho các cảnh lỗi.")
-            if go or resume:
-                with st.spinner("Claude đang phân tích kịch bản…"):
-                    ok = act(lambda: st.session_state.__setitem__("llm_res", llm_runner.run_director(p, pid, client, resume=resume)))
-                if ok:
-                    r = st.session_state.pop("llm_res")
-                    st.toast(f"Đã lưu {r['characters']} nhân vật, {r['scenes']} cảnh ({tokens_text(r)})"
-                             + (f" · {r['calls']} lượt Claude" if r.get("two_pass") else "")
-                             + (f" · Đạo diễn duyệt: cảnh {', '.join(map(str, r['flagged']))} cần xem" if r.get("flagged") else ""))
-                    st.rerun()
-        else:
-            st.caption(claude_hint() + " Hoặc dùng cách nhập tay bên dưới.")
-        if C.expert():
-            with st.expander("✍ Nâng cao: prompt gửi Claude + dán JSON kết quả", expanded=client is None and not chars):
-                st.code(prompts.build_director_bundle(p, pid), language="markdown")
-                raw = st.text_area("Dán JSON kết quả từ Claude", key=f"analysis_{pid}", height=120)
-                if st.button("Lưu phân tích", disabled=not raw.strip(), key=f"dir_paste_{pid}"):
-                    from core import director_two_pass
-
-                    def _paste():
-                        llm_io.store_scene_analysis(p, pid, raw)
-                        director_two_pass.forget(p, pid)      # the pasted plan replaces any two-pass intent
-                    if act(_paste, "Đã lưu Character Bible + thông số cảnh"):
+    with ui.fold("1d · 🎬 Director", _director_summary(p, pid, chars), f"director_{pid}", default_open=not chars,
+                 sub="Character Bible + thông số, ý đồ, thoại từng cảnh") as director_open:  # E1.12
+        if director_open:
+            if kept:
+                st.caption(f"🔒 {sum(len(r['fields']) for r in kept)} trường bạn đã sửa tay ở {len(kept)} cảnh được giữ nguyên khi chạy lại.")
+            client = llm_client()
+            if client is not None:
+                from core import director_two_pass
+                two = director_two_pass.enabled(p.project(pid))
+                label = f"🤖 Chạy Director{' hai lượt' if two else ''} bằng {llm_label(client)}"
+                if two:
+                    st.caption("🧪 Director hai lượt (cờ `director_two_pass`, chưa thử thật): Tầng A Đạo diễn viết Bible + ý đồ từng cảnh → "
+                               "Tầng B Quay phim chia shot mỗi cảnh một lượt (phần chung cache) → code Đạo diễn duyệt bảng shot so với ý đồ.")
+                try:                                   # luật chi phí: the estimate before the click (both ways, so the choice is informed)
+                    st.caption("💵 " + director_two_pass.estimate_text(director_two_pass.estimate(p, pid, client)))
+                except Exception as e:  # noqa: BLE001 - an estimate that cannot be made is said, never hidden
+                    st.caption(f"💵 Chưa ước tính được chi phí Director ({type(e).__name__}: {e})")
+                go = (confirm_all(f"llm_dir_{pid}", ["again"], label + " (chạy lại)",
+                                  "Character Bible đã khóa: chạy lại chỉ cập nhật thông số cảnh (trường bạn đã sửa tay được giữ), nhân vật đã khóa "
+                                  "không đổi. Chạy?", st, "Có, chạy lại") if locked
+                      else st.button(label, type="primary", key=f"llm_dir_{pid}"))
+                pending = director_two_pass.pending_scenes(p, pid) if two else []
+                resume = bool(pending) and st.button(
+                    f"↻ Chỉ hỏi lại {len(pending)} cảnh lỗi (cảnh {', '.join(map(str, pending))})", key=f"llm_dir_resume_{pid}",
+                    help="Lần chạy trước dừng vì Quay phim chưa chia được các cảnh này. Dùng lại ý đồ Tầng A và các cảnh đã chia (đã trả tiền) "
+                         "khi kịch bản/luật không đổi — chỉ trả tiền cho các cảnh lỗi.")
+                if go or resume:
+                    with st.spinner("Claude đang phân tích kịch bản…"):
+                        ok = act(lambda: st.session_state.__setitem__("llm_res", llm_runner.run_director(p, pid, client, resume=resume)))
+                    if ok:
+                        r = st.session_state.pop("llm_res")
+                        st.toast(f"Đã lưu {r['characters']} nhân vật, {r['scenes']} cảnh ({tokens_text(r)})"
+                                 + (f" · {r['calls']} lượt Claude" if r.get("two_pass") else "")
+                                 + (f" · Đạo diễn duyệt: cảnh {', '.join(map(str, r['flagged']))} cần xem" if r.get("flagged") else ""))
                         st.rerun()
+            else:
+                st.caption(claude_hint() + " Hoặc dùng cách nhập tay bên dưới.")
+            if C.expert():
+                with st.expander("✍ Nâng cao: prompt gửi Claude + dán JSON kết quả", expanded=client is None and not chars):
+                    st.code(prompts.build_director_bundle(p, pid), language="markdown")
+                    raw = st.text_area("Dán JSON kết quả từ Claude", key=f"analysis_{pid}", height=120)
+                    if st.button("Lưu phân tích", disabled=not raw.strip(), key=f"dir_paste_{pid}"):
+                        from core import director_two_pass
+
+                        def _paste():
+                            llm_io.store_scene_analysis(p, pid, raw)
+                            director_two_pass.forget(p, pid)      # the pasted plan replaces any two-pass intent
+                        if act(_paste, "Đã lưu Character Bible + thông số cảnh"):
+                            st.rerun()
 
 
 def _voices(pid: int):
@@ -1058,75 +1077,84 @@ def bible_check_box(p: Pipeline, pid: int, rows, client, locked: bool) -> None:
         st.rerun()
 
 
+def _bible_summary(rows, locked: bool) -> str:
+    n = len(rows)
+    anchors = sum(1 for r in rows if r["anchor_approved"])
+    voiced = sum(1 for r in rows if voice.get_profile(r).get("voice_id"))
+    return f"👥 {n} mục" + (" · 🔒 đã khóa" if locked else " · chưa khóa") + f" · ảnh mốc {anchors}/{n} · giọng {voiced}/{n}"
+
+
 def character_bible_panel(p: Pipeline, pid: int, chars, risky) -> None:
     char_names = [c["name"] for c in chars]
     locked = any(c["locked"] for c in chars)
     rows = p.conn.execute("SELECT * FROM characters WHERE project_id=?", (pid,)).fetchall()
-    with st.container(border=True):
-        head, status = st.columns([3, 2], vertical_alignment="center")
-        head.markdown(ui.card_title("1e · 👥 Character Bible", f"{len(chars)} mục" + (" · 🔒 đã khóa" if locked else "")), unsafe_allow_html=True)
-        if risky:
-            status.caption(f"⚠ {len(risky)} mục có thể vướng IP (xem “⚠ Rủi ro” ở góc trên)")
-        linked = assets.link_characters(p.conn, pid, char_names)
-        st.dataframe([{"Nhân vật / đối tượng": r["name"],
-                       "Mô tả": r["description"] + (f" · {r['wardrobe']}" if r["wardrobe"] else ""),
-                       "Ảnh tham chiếu": (f"✔ {linked[r['name']]['name']} · {len(linked[r['name']]['refs'])} ảnh" if linked.get(r["name"]) else "— vẽ theo mô tả"),
-                       "Lock": "✔" if r["lock_rules"] else "—",
-                       "Giọng": voice.get_profile(r).get("voice_name") or ("—" if not voice.get_profile(r).get("voice_id") else "✔"),
-                       "Ảnh mốc": "✔" if r["anchor_approved"] else "—",
-                       "IP": "⚠" if r["name"] in risky else "",
-                       } for r in rows], width="stretch", hide_index=True, height=min(38 * (len(rows) + 1) + 3, 260))
-        client = llm_client()
-        bible_check_box(p, pid, rows, client, locked)
-        character_reference_panel(p, pid, chars)
-        voices = _voices(pid)
-        st.markdown("**🔒 Lock · 🎙 Giọng · 🖼 Ảnh mốc của từng nhân vật**")
-        speakers = {ln["speaker"].upper() for ln in voice.planned_lines(p.conn, pid) if ln["speaker"]}
-        no_voice = [r["name"] for r in rows if r["name"].upper() in speakers and not voice.get_profile(r).get("voice_id")]
-        vi_pool = [v for v in voice.vietnamese_first(voices) if voice.speaks_vi(v)] if voices else []
-        if voices:
-            n_f = sum(1 for v in vi_pool if voice.voice_gender(v) == "female")
-            n_pref = sum(1 for v in vi_pool if voice.preferred(v))
-            st.caption(f"🇻🇳 {len(vi_pool)} giọng tiếng Việt ({n_f} nữ)"
-                       + (f", ưu tiên ⭐ {n_pref} giọng clone Việt của team (hậu tố VN, `data/voices_vi.json`)" if n_pref else
-                          " — chưa thấy giọng clone Việt của team (⭐): kiểm tra nhóm FF ở AI Audio → Voice Actors")
-                       + ". Nên nghe thử câu mẫu. Từ tiếng Anh/tên riêng được đọc theo `data/pronunciation_vi.json`."
-                       + (f" ⚠ {len(speakers)} nhân vật có thoại nhưng chỉ {len(vi_pool)} giọng tiếng Việt: sẽ phải dùng chung giọng." if 0 < len(vi_pool) < len(speakers) else ""))
-        if no_voice and voices and client is not None:
-            if st.button(f"🤖 Claude chọn giọng cho {len(no_voice)} nhân vật có thoại", key=f"cast_{pid}"):
-                with st.spinner("Claude đang chọn giọng…"):
-                    act(lambda: claude_tasks.cast_voices(p, pid, client, voices), "Đã chọn giọng")
-                for r in rows:                     # the voice pickers must show the new choice, not their old widget value
-                    st.session_state.pop(f"voice_{pid}_{r['name']}", None)
-                    st.session_state.pop(f"persona_{pid}_{r['name']}", None)
-                st.rerun()
-        for r in rows:
-            character_detail_panel(p, pid, r, voices, client, locked, has_ref=bool(linked.get(r["name"])))
-        if subjects_visible(p, pid):
-            subject_panel(p, pid, chars)
-        with st.expander("✏ Sửa / thêm nhân vật, đối tượng · khóa"):
-            if locked:
-                st.caption("Character Bible đang khóa. Muốn sửa phải mở khóa (ảnh đã gen sẽ báo ⚠ cũ nếu mô tả đổi).")
-                if st.button("🔓 Mở khóa để sửa", key="btn_bad_unlock"):
-                    act(lambda: llm_io.unlock_character_bible(p, pid), "Đã mở khóa Character Bible")
+    with ui.fold("1e · 👥 Character Bible", _bible_summary(rows, locked), f"bible_{pid}",
+                 default_open=not locked or any(not r["anchor_approved"] for r in rows)) as bible_open:  # E1.15
+        if bible_open:
+            head, status = st.columns([3, 2], vertical_alignment="center")
+            head.markdown(ui.card_title("1e · 👥 Character Bible", f"{len(chars)} mục" + (" · 🔒 đã khóa" if locked else "")), unsafe_allow_html=True)
+            if risky:
+                status.caption(f"⚠ {len(risky)} mục có thể vướng IP (xem “⚠ Rủi ro” ở góc trên)")
+            linked = assets.link_characters(p.conn, pid, char_names)
+            st.dataframe([{"Nhân vật / đối tượng": r["name"],
+                           "Mô tả": r["description"] + (f" · {r['wardrobe']}" if r["wardrobe"] else ""),
+                           "Ảnh tham chiếu": (f"✔ {linked[r['name']]['name']} · {len(linked[r['name']]['refs'])} ảnh" if linked.get(r["name"]) else "— vẽ theo mô tả"),
+                           "Lock": "✔" if r["lock_rules"] else "—",
+                           "Giọng": voice.get_profile(r).get("voice_name") or ("—" if not voice.get_profile(r).get("voice_id") else "✔"),
+                           "Ảnh mốc": "✔" if r["anchor_approved"] else "—",
+                           "IP": "⚠" if r["name"] in risky else "",
+                           } for r in rows], width="stretch", hide_index=True, height=min(38 * (len(rows) + 1) + 3, 260))
+            client = llm_client()
+            bible_check_box(p, pid, rows, client, locked)
+            character_reference_panel(p, pid, chars)
+            voices = _voices(pid)
+            st.markdown("**🔒 Lock · 🎙 Giọng · 🖼 Ảnh mốc của từng nhân vật**")
+            speakers = {ln["speaker"].upper() for ln in voice.planned_lines(p.conn, pid) if ln["speaker"]}
+            no_voice = [r["name"] for r in rows if r["name"].upper() in speakers and not voice.get_profile(r).get("voice_id")]
+            vi_pool = [v for v in voice.vietnamese_first(voices) if voice.speaks_vi(v)] if voices else []
+            if voices:
+                n_f = sum(1 for v in vi_pool if voice.voice_gender(v) == "female")
+                n_pref = sum(1 for v in vi_pool if voice.preferred(v))
+                st.caption(f"🇻🇳 {len(vi_pool)} giọng tiếng Việt ({n_f} nữ)"
+                           + (f", ưu tiên ⭐ {n_pref} giọng clone Việt của team (hậu tố VN, `data/voices_vi.json`)" if n_pref else
+                              " — chưa thấy giọng clone Việt của team (⭐): kiểm tra nhóm FF ở AI Audio → Voice Actors")
+                           + ". Nên nghe thử câu mẫu. Từ tiếng Anh/tên riêng được đọc theo `data/pronunciation_vi.json`."
+                           + (f" ⚠ {len(speakers)} nhân vật có thoại nhưng chỉ {len(vi_pool)} giọng tiếng Việt: sẽ phải dùng chung giọng." if 0 < len(vi_pool) < len(speakers) else ""))
+            if no_voice and voices and client is not None:
+                if st.button(f"🤖 Claude chọn giọng cho {len(no_voice)} nhân vật có thoại", key=f"cast_{pid}"):
+                    with st.spinner("Claude đang chọn giọng…"):
+                        act(lambda: claude_tasks.cast_voices(p, pid, client, voices), "Đã chọn giọng")
+                    for r in rows:                     # the voice pickers must show the new choice, not their old widget value
+                        st.session_state.pop(f"voice_{pid}_{r['name']}", None)
+                        st.session_state.pop(f"persona_{pid}_{r['name']}", None)
                     st.rerun()
-            else:
-                who = st.selectbox("Chọn mục cần sửa", char_names, key=f"csel_{pid}")
-                c = next(c for c in chars if c["name"] == who)
-                n_name = st.text_input("Tên", c["name"], key=f"cn_{pid}_{c['name']}")
-                n_desc = st.text_area("Mô tả", c["description"], key=f"cd_{pid}_{c['name']}", height=80)
-                n_ward = st.text_input("Trang phục / dấu hiệu", c["wardrobe"] or "", key=f"cw_{pid}_{c['name']}")
-                if st.button("Lưu", key=f"cs_{pid}_{c['name']}"):
-                    if act(lambda: llm_io.update_character(p, pid, c["name"], n_desc, n_ward, n_name), f"Đã lưu {n_name}"):
+            for r in rows:
+                character_detail_panel(p, pid, r, voices, client, locked, has_ref=bool(linked.get(r["name"])))
+            if subjects_visible(p, pid):
+                subject_panel(p, pid, chars)
+            with st.expander("✏ Sửa / thêm nhân vật, đối tượng · khóa"):
+                if locked:
+                    st.caption("Character Bible đang khóa. Muốn sửa phải mở khóa (ảnh đã gen sẽ báo ⚠ cũ nếu mô tả đổi).")
+                    if st.button("🔓 Mở khóa để sửa", key="btn_bad_unlock"):
+                        act(lambda: llm_io.unlock_character_bible(p, pid), "Đã mở khóa Character Bible")
                         st.rerun()
-            st.markdown("**➕ Thêm nhân vật / đối tượng**")
-            st.caption("Không chỉ người: cũng có thể là sinh vật, linh vật, đạo cụ… bất cứ thứ gì cần giống nhau ở mọi cảnh.")
-            a_name = st.text_input("Tên", key=f"cadd_name_{pid}")
-            a_desc = st.text_area("Mô tả ngoại hình", key=f"cadd_desc_{pid}", height=70)
-            a_ward = st.text_input("Trang phục / dấu hiệu (tùy chọn)", key=f"cadd_ward_{pid}")
-            if st.button("Thêm vào Character Bible", key=f"cadd_{pid}", disabled=not (a_name.strip() and a_desc.strip())):
-                if act(lambda: llm_io.add_character(p, pid, a_name, a_desc, a_ward), f"Đã thêm {a_name}"):
-                    st.rerun()
+                else:
+                    who = st.selectbox("Chọn mục cần sửa", char_names, key=f"csel_{pid}")
+                    c = next(c for c in chars if c["name"] == who)
+                    n_name = st.text_input("Tên", c["name"], key=f"cn_{pid}_{c['name']}")
+                    n_desc = st.text_area("Mô tả", c["description"], key=f"cd_{pid}_{c['name']}", height=80)
+                    n_ward = st.text_input("Trang phục / dấu hiệu", c["wardrobe"] or "", key=f"cw_{pid}_{c['name']}")
+                    if st.button("Lưu", key=f"cs_{pid}_{c['name']}"):
+                        if act(lambda: llm_io.update_character(p, pid, c["name"], n_desc, n_ward, n_name), f"Đã lưu {n_name}"):
+                            st.rerun()
+                st.markdown("**➕ Thêm nhân vật / đối tượng**")
+                st.caption("Không chỉ người: cũng có thể là sinh vật, linh vật, đạo cụ… bất cứ thứ gì cần giống nhau ở mọi cảnh.")
+                a_name = st.text_input("Tên", key=f"cadd_name_{pid}")
+                a_desc = st.text_area("Mô tả ngoại hình", key=f"cadd_desc_{pid}", height=70)
+                a_ward = st.text_input("Trang phục / dấu hiệu (tùy chọn)", key=f"cadd_ward_{pid}")
+                if st.button("Thêm vào Character Bible", key=f"cadd_{pid}", disabled=not (a_name.strip() and a_desc.strip())):
+                    if act(lambda: llm_io.add_character(p, pid, a_name, a_desc, a_ward), f"Đã thêm {a_name}"):
+                        st.rerun()
 
 
 def dialogue_review_panel(p: Pipeline, pid: int) -> None:
@@ -1305,14 +1333,18 @@ def scene_list(p: Pipeline, pid: int, scenes, char_names) -> None:
         fixed = (json.loads(p.project(pid)["director_raw"] or "{}").get("normalized") or []) if cuts or scenes else []
     except (ValueError, KeyError, IndexError, AttributeError):
         fixed = []
-    if fixed:
-        with st.expander(f"🔧 Code đã chuẩn hóa {len(fixed)} chỗ trong câu trả lời Director (thay vì hỏi lại Claude)"):
-            st.markdown("\n".join(f"- {escape(str(c))}" for c in fixed))
-    paid = _paid_line(p, pid)
-    if paid:
-        st.caption(paid)
-    _crew_notes(p, pid)
-    _director_review(p, pid)
+    if p.project(pid)["director_raw"]:
+        with ui.fold("📋 Báo cáo Director & tổ làm phim", "đánh đổi · ghi chú kịch bản · Đạo diễn duyệt · kiểm tổ làm phim · code chuẩn hóa",
+                     f"dirreport_{pid}", default_open=False) as report_open:     # E1.13: five cards → one
+            if report_open:
+                if fixed:
+                    with st.expander(f"🔧 Code đã chuẩn hóa {len(fixed)} chỗ trong câu trả lời Director (thay vì hỏi lại Claude)"):
+                        st.markdown("\n".join(f"- {escape(str(c))}" for c in fixed))
+                paid = _paid_line(p, pid)
+                if paid:
+                    st.caption(paid)
+                _crew_notes(p, pid)
+                _director_review(p, pid)
     cur_story = None
     for s in scenes:
         d = json.loads(s["data"] or "{}")

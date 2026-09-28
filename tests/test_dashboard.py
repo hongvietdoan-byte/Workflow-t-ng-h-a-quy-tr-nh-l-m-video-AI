@@ -182,7 +182,10 @@ class DashboardSmokeTests(unittest.TestCase):
         videos = os.path.join(self.tmp, "projects", "1", "videos")
         os.makedirs(videos)
         open(os.path.join(videos, "01.mp4"), "wb").write(b"not a real video")
-        at = AppTest.from_file(APP, default_timeout=30).run()
+        at = AppTest.from_file(APP, default_timeout=30)
+        at.session_state["fold_clips_1"] = True                 # S9 E5.1 / E5.6: the clip list and the render settings fold
+        at.session_state["fold_render_set_1"] = True
+        at.run()
         at.radio(key="step").set_value(at.radio(key="step").options[4]).run()
         self.assertFalse(at.exception)
         self.assertTrue(any("CẢNH 1" in c.label for c in at.checkbox))
@@ -328,7 +331,10 @@ class DashboardSmokeTests(unittest.TestCase):
         def labels(at):
             return [e.label for e in at.expander]
 
-        at = AppTest.from_file(APP, default_timeout=30).run()
+        at = AppTest.from_file(APP, default_timeout=30)
+        at.session_state[f"fold_motion_{pid}"] = True           # S9 E3.1 / E5.1: folded once everything there is approved
+        at.session_state[f"fold_clips_{pid}"] = True
+        at.run()
         for index in (1, 2, 3, 4):                             # steps 2-5; Lịch sử (below) is its own panel now
             at.radio(key="step").set_value(at.radio(key="step").options[index]).run()
             self.assertFalse(at.exception, index)

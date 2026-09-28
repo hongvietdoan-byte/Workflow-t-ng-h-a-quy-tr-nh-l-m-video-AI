@@ -10,6 +10,8 @@ def step3(p: Pipeline, pid: int):
     approved_imgs = [r for r in status.values() if r["image_job_id"]]
     step_header("Bước 3 · Motion, giọng thoại & animatic", "viết cách chuyển động cho từng cảnh, làm giọng, xem nhịp — trước khi tốn credit video",
                 f"{summ['motion'][0]}/{summ['total']} prompt đã duyệt", summ["motion"][1])
+    from dashboard import next_step                                     # S9 E0.1
+    ui.html(next_step.band(p, pid, 3, C.DATA))
     rows = p.conn.execute("SELECT s.id sid, s.idx, s.data, m.* FROM motion_prompts m JOIN scenes s ON s.id=m.scene_id"
                           " WHERE s.project_id=? ORDER BY s.idx", (pid,)).fetchall()
     stale_idx = sorted(r["idx"] for r in status.values() if r["motion_stale"] and r["image_job_id"])
@@ -51,75 +53,77 @@ def step3(p: Pipeline, pid: int):
                         st.rerun()
     voice_panel(p, pid)
     animatic_panel(p, pid)
-    with st.container(border=True):
-        ui.html(ui.card_title("Motion prompt từng cảnh", f"{len(rows)} cảnh"))
-        if not rows:
-            st.caption("Chưa có motion prompt: duyệt ảnh ở Bước 2 rồi bấm “🤖 Viết motion prompt”.")
-        for r in rows:
-            data = json.loads(r["data"] or "{}")
-            srow = status.get(r["sid"]) or {}
-            img_id = srow.get("image_job_id")
-            choice = model_router.scene_choice(p.conn, r["sid"])
-            c0, c1, c2, c3 = st.columns([1.2, 5, 1.4, 1.6], vertical_alignment="top")
-            with c0:
-                ui.html(f'<b>{C.unit_label(p, pid, r["idx"])}</b>' + (" ⭐" if data.get("shot_role") == "hero" else "")
-                        + (" 🌀" if data.get("camera_complexity") == "complex" else ""))
-                path = job_image(pid, img_id) if img_id else None
-                if path:
-                    show_image(path, width=96)
-            new = c1.text_area("Motion prompt", r["motion_prompt"], key=f"mp_{r['sid']}", height=90, label_visibility="collapsed")
-            badge = ui.stale_badge(srow["motion_stale"]) if srow.get("motion_stale") else ui.state_badge(r["state"])
-            c2.markdown(badge, unsafe_allow_html=True)
-            c2.caption(f"{r['duration_sec']:g}s · {choice['model']}")
-            if c3.button("Lưu chỉnh sửa", key=f"mps_{r['sid']}"):
-                act(lambda: llm_io.store_motion_prompts(p, pid, {"scenes": [{"idx": r["idx"], "motion_prompt": new, "camera": r["camera"],
-                                                                             "duration_sec": r["duration_sec"],
-                                                                             "negative_prompt": r["negative_prompt"]}]}))
-                st.rerun()
-            if c3.button("✔ Duyệt", key=f"mpa_{r['sid']}", disabled=r["state"] == "approved" and not srow.get("motion_stale")
-                         and new == r["motion_prompt"], type="primary"):
-                if new != r["motion_prompt"]:          # M6: approving keeps what was just typed (it used to be thrown away)
+    motion_ok = sum(1 for r in rows if r["state"] == "approved") if rows and "state" in rows[0].keys() else 0
+    with ui.fold("Motion prompt từng cảnh", f"🎬 {motion_ok}/{len(rows)} cảnh đã duyệt motion · mở để xem / sửa", f"motion_{pid}",
+                 default_open=not rows or motion_ok < len(rows), sub=f"{len(rows)} cảnh") as motion_open:  # S9 E3.1
+        if motion_open:
+            if not rows:
+                st.caption("Chưa có motion prompt: duyệt ảnh ở Bước 2 rồi bấm “🤖 Viết motion prompt”.")
+            for r in rows:
+                data = json.loads(r["data"] or "{}")
+                srow = status.get(r["sid"]) or {}
+                img_id = srow.get("image_job_id")
+                choice = model_router.scene_choice(p.conn, r["sid"])
+                c0, c1, c2, c3 = st.columns([1.2, 5, 1.4, 1.6], vertical_alignment="top")
+                with c0:
+                    ui.html(f'<b>{C.unit_label(p, pid, r["idx"])}</b>' + (" ⭐" if data.get("shot_role") == "hero" else "")
+                            + (" 🌀" if data.get("camera_complexity") == "complex" else ""))
+                    path = job_image(pid, img_id) if img_id else None
+                    if path:
+                        show_image(path, width=96)
+                new = c1.text_area("Motion prompt", r["motion_prompt"], key=f"mp_{r['sid']}", height=90, label_visibility="collapsed")
+                badge = ui.stale_badge(srow["motion_stale"]) if srow.get("motion_stale") else ui.state_badge(r["state"])
+                c2.markdown(badge, unsafe_allow_html=True)
+                c2.caption(f"{r['duration_sec']:g}s · {choice['model']}")
+                if c3.button("Lưu chỉnh sửa", key=f"mps_{r['sid']}"):
                     act(lambda: llm_io.store_motion_prompts(p, pid, {"scenes": [{"idx": r["idx"], "motion_prompt": new, "camera": r["camera"],
                                                                                  "duration_sec": r["duration_sec"],
                                                                                  "negative_prompt": r["negative_prompt"]}]}))
-                act(lambda: llm_io.approve_motion_prompt(p, r["sid"]))
-                st.rerun()
-            flags = json.loads(r["check_flags"] or "[]") if r["check_flags"] else []
-            for f in flags:
-                st.caption(f"⚑ {f}")
-            lint = json.loads(r["lint"] or "{}") if r["lint"] else {}
-            if lint:
-                if lint.get("ok") and not lint.get("issues"):
-                    st.caption("🔍 Rà prompt: ổn")
-                else:
-                    with st.container(border=True):
-                        for issue in lint.get("issues") or []:
-                            st.markdown(f":orange[🔍 {escape(str(issue))}]")
-                        if lint.get("revised_prompt"):
-                            st.caption("Bản sửa đề xuất: " + lint["revised_prompt"])
-                            if st.button("Dùng bản sửa", key=f"lint_apply_{r['sid']}"):
-                                act(lambda: claude_tasks.apply_lint(p, pid, r["sid"]), "Đã thay prompt (chờ duyệt lại)")
+                    st.rerun()
+                if c3.button("✔ Duyệt", key=f"mpa_{r['sid']}", disabled=r["state"] == "approved" and not srow.get("motion_stale")
+                             and new == r["motion_prompt"], type="primary"):
+                    if new != r["motion_prompt"]:          # M6: approving keeps what was just typed (it used to be thrown away)
+                        act(lambda: llm_io.store_motion_prompts(p, pid, {"scenes": [{"idx": r["idx"], "motion_prompt": new, "camera": r["camera"],
+                                                                                     "duration_sec": r["duration_sec"],
+                                                                                     "negative_prompt": r["negative_prompt"]}]}))
+                    act(lambda: llm_io.approve_motion_prompt(p, r["sid"]))
+                    st.rerun()
+                flags = json.loads(r["check_flags"] or "[]") if r["check_flags"] else []
+                for f in flags:
+                    st.caption(f"⚑ {f}")
+                lint = json.loads(r["lint"] or "{}") if r["lint"] else {}
+                if lint:
+                    if lint.get("ok") and not lint.get("issues"):
+                        st.caption("🔍 Rà prompt: ổn")
+                    else:
+                        with st.container(border=True):
+                            for issue in lint.get("issues") or []:
+                                st.markdown(f":orange[🔍 {escape(str(issue))}]")
+                            if lint.get("revised_prompt"):
+                                st.caption("Bản sửa đề xuất: " + lint["revised_prompt"])
+                                if st.button("Dùng bản sửa", key=f"lint_apply_{r['sid']}"):
+                                    act(lambda: claude_tasks.apply_lint(p, pid, r["sid"]), "Đã thay prompt (chờ duyệt lại)")
+                                    st.rerun()
+                if C.expert():
+                    with st.expander("🎥 Video tham chiếu chuyển động" + (" — đã gắn" if r["ref_video_path"] else ""), expanded=False):
+                        st.caption("Video chỉ cho model **chuyển động/nhịp/lực**; **diện mạo vẫn lấy từ ảnh khung đầu và ảnh tham chiếu**. "
+                                   "Cảnh có video tham chiếu được đề xuất dùng Seedance (tham chiếu đa phương thức). Kling: 'feature' tạo clip mới theo "
+                                   "chuyển động, 'base' sửa trực tiếp clip này; không dùng cùng lúc với âm thanh tự sinh của Kling.")
+                        if r["ref_video_path"]:
+                            st.caption(f"Đang gắn: `{os.path.basename(r['ref_video_path'])}`")
+                            if st.button("✖ Bỏ video tham chiếu", key=f"mprv_clear_{r['sid']}"):
+                                act(lambda: p.set_motion_ref_video(r["sid"], None), "Đã bỏ")
                                 st.rerun()
-            if C.expert():
-                with st.expander("🎥 Video tham chiếu chuyển động" + (" — đã gắn" if r["ref_video_path"] else ""), expanded=False):
-                    st.caption("Video chỉ cho model **chuyển động/nhịp/lực**; **diện mạo vẫn lấy từ ảnh khung đầu và ảnh tham chiếu**. "
-                               "Cảnh có video tham chiếu được đề xuất dùng Seedance (tham chiếu đa phương thức). Kling: 'feature' tạo clip mới theo "
-                               "chuyển động, 'base' sửa trực tiếp clip này; không dùng cùng lúc với âm thanh tự sinh của Kling.")
-                    if r["ref_video_path"]:
-                        st.caption(f"Đang gắn: `{os.path.basename(r['ref_video_path'])}`")
-                        if st.button("✖ Bỏ video tham chiếu", key=f"mprv_clear_{r['sid']}"):
-                            act(lambda: p.set_motion_ref_video(r["sid"], None), "Đã bỏ")
+                        up = st.file_uploader("Tải video tham chiếu (MP4)", type=["mp4", "mov", "webm"], key=f"mprv_up_{r['sid']}")
+                        refer_type = st.radio("Kiểu tham chiếu (chỉ Kling)", ["feature", "base"], horizontal=True, key=f"mprv_type_{r['sid']}")
+                        if st.button("⬆ Lưu video tham chiếu", key=f"mprv_save_{r['sid']}", disabled=up is None):
+                            dest = os.path.join(project_dir(pid, "motion_ref"), f"scene_{r['idx']}_{up.name}")
+                            with open(dest, "wb") as f:
+                                f.write(up.getbuffer())
+                            act(lambda: p.set_motion_ref_video(r["sid"], dest, refer_type), "Đã gắn video tham chiếu")
                             st.rerun()
-                    up = st.file_uploader("Tải video tham chiếu (MP4)", type=["mp4", "mov", "webm"], key=f"mprv_up_{r['sid']}")
-                    refer_type = st.radio("Kiểu tham chiếu (chỉ Kling)", ["feature", "base"], horizontal=True, key=f"mprv_type_{r['sid']}")
-                    if st.button("⬆ Lưu video tham chiếu", key=f"mprv_save_{r['sid']}", disabled=up is None):
-                        dest = os.path.join(project_dir(pid, "motion_ref"), f"scene_{r['idx']}_{up.name}")
-                        with open(dest, "wb") as f:
-                            f.write(up.getbuffer())
-                        act(lambda: p.set_motion_ref_video(r["sid"], dest, refer_type), "Đã gắn video tham chiếu")
-                        st.rerun()
-            scene_expander(p, r["sid"])
-            st.divider()
+                scene_expander(p, r["sid"])
+                st.divider()
 
 
 

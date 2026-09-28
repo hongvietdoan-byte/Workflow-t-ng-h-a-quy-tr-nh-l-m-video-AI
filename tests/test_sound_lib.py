@@ -289,6 +289,8 @@ class DashboardTests(Base):
     def app(self, step="5"):
         at = AppTest.from_file(self.APP, default_timeout=40)
         at.query_params["step"] = step
+        for fold in ("sfx", "mbrief_fold", "clips", "render_set"):     # S9: Step 5 cards fold to one line; these tests work inside them
+            at.session_state[f"fold_{fold}_{self.pid}"] = True
         return at.run()
 
     def clips(self):

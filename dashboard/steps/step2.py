@@ -78,9 +78,15 @@ def step2(p: Pipeline, pid: int):
     summ = lineage.summary(p.conn, pid)
     step_header("Bước 2 · Ảnh + QC", "mỗi cảnh một ảnh đúng nhân vật, đúng bối cảnh, đã duyệt",
                 f"{summ['images'][0]}/{summ['total']} cảnh có ảnh duyệt", summ["images"][1])
+    from dashboard import next_step                                     # S9 E0.1: the next thing to do, one line
+    ui.html(next_step.band(p, pid, 2, C.DATA))
     pilot_panel(p, pid)
     from core import known_issues
-    for st_ in known_issues.active(p.conn, pid):         # paused / replaced stages still in use: their open faults, before any spend
+    active_issues = known_issues.active(p.conn, pid)
+    if active_issues:                                    # S9 E2.1: one red line always; the details fold
+        st.error(f"⚠ {len(active_issues)} khâu đang dùng có lỗi đã biết ("
+                 + ", ".join(f"{x['label']}: {len(x['open'])} lỗi" for x in active_issues) + ") — mở ▸ bên dưới để xem hướng sửa")
+    for st_ in active_issues:         # paused / replaced stages still in use: their open faults, before any spend
         with st.expander(f"⚠ Khâu có lỗi đã biết: {st_['label']} — {len(st_['open'])} lỗi chưa sửa"):
             st.caption(st_["status"])
             for bug, fix in st_["open"]:
@@ -354,7 +360,9 @@ def qc_policy_panel(p: Pipeline, pid: int) -> None:
             st.rerun()
         c2.caption((qc_policy.PRESETS[pick]["note"] + " ") if pick in qc_policy.PRESETS else "" + "")
         c2.caption("→ " + qc_policy.describe(proj))
-        if pick == qc_policy.CUSTOM:
+        if pick == qc_policy.CUSTOM and not C.expert():  # S9 E2.3: technical settings only in expert mode
+            st.caption("Chỉnh ngưỡng / số lần gen lại / tự sửa: bật ⚙ → 🧠 Chế độ chuyên gia.")
+        if pick == qc_policy.CUSTOM and C.expert():
             with st.expander("Tùy chỉnh chi tiết", expanded=True):
                 th = st.slider("Ngưỡng đạt", 0.5, 1.0, float(proj["qc_auto_pass_threshold"]), 0.01, key=f"th_{pid}")
                 if abs(th - proj["qc_auto_pass_threshold"]) > 1e-9:

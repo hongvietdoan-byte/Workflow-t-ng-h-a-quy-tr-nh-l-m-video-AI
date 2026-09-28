@@ -523,7 +523,10 @@ class DashboardTests(unittest.TestCase):
         q = Pipeline(connect(self.db))
         self.assertTrue(json.loads(q.project(pid)["director_intent_raw"])["done"])
         self.assertGreater(len(shots.shots_of(q, pid)), 12)
-        at = AppTest.from_file(app, default_timeout=60).run()
+        at = AppTest.from_file(app, default_timeout=60)
+        at.session_state[f"fold_script_{pid}"] = True             # S9: script card and the Director's reports fold once done
+        at.session_state[f"fold_dirreport_{pid}"] = True
+        at.run()
         self.assertFalse(at.exception)
         self.assertTrue(any("Đạo diễn duyệt" in e.label for e in at.expander))
 

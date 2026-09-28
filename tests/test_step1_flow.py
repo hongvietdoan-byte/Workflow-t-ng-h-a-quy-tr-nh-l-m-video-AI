@@ -86,9 +86,11 @@ class Step1LayoutTests(unittest.TestCase):
             script, prep, choice = index("1a · 📜 Kịch bản"), index("1b · 🧰 Chuẩn bị"), index("1c · Chọn cách chạy")
             self.assertLess(script, prep)                                       # v2: style/format are set before the Director
             self.assertLess(prep, choice)
-            self.assertLess(choice, index("Tự động hoàn toàn"))
-            self.assertLess(index("Tự động hoàn toàn"), index("Lần lượt từng bước"))
-            self.assertLess(index("Lần lượt từng bước"), index("1d · 🎬 Director"))
+            self.assertLess(choice, index('cardtitle">🚀 Tự động hoàn toàn'))     # (the "next thing" band may name it earlier, in plain words)
+            self.assertLess(index('cardtitle">🚀 Tự động hoàn toàn'), index("1d · 🎬 Director"))
+            # S9 E1.10 (người dùng sau #8): the step-by-step path is one caption line, no card of its own
+            self.assertTrue(any("Hoặc lần lượt từng bước" in c.value for c in at.caption))
+            self.assertFalse(any("Lần lượt từng bước" in t and "cardtitle" in t for t in texts))
         finally:
             os.environ.pop("PIPELINE_DB", None)
             os.environ.pop("PIPELINE_DATA", None)

@@ -102,6 +102,33 @@ CGI 3D tạo hình nhân vật Free Fire (hoặc machinima trong map thật), á
 ## Khi dùng cho AI video
 Hợp với kịch bản có nhiều nhân vật và hành động nối tiếp (như "Kenta cướp kill"): mỗi hồi một nhóm cảnh (`sequence`), mở bằng toàn cảnh, cao trào cắt nhanh, phản ứng xen giữa.
 """,
+"DRAMA_DOC": """# Phong cách: Drama ngắn dọc (kiểu ReelShort, lồng tiếng Việt)
+
+Ví dụ: "(Lồng tiếng) Từ Hôn Năm Người Bạn Đời Định Mệnh" (ReelShort) — 5 đoạn × 2–3 phút đo trong trình duyệt ngày 2026-09-28 (kế hoạch
+sau #8, S0; phiếu đầy đủ: research/ff_styles/DRAMA_DOC/PHIEU_bzsP_ArSIUA.md). Không phải video Free Fire: dùng để học **ngữ pháp dựng
+drama dọc** cho phim truyện có thoại.
+
+## Cách dựng
+- **Mở** thẳng vào mâu thuẫn: 1 toàn cảnh bối cảnh rồi ngay cận mặt người nói — không logo, không dạo đầu.
+- **Thoại**: mỗi lượt nói = 1 shot cận / trung cận của **người đang nói**; cắt sang người nghe bằng shot phản ứng xen giữa; khi hai bên ngắt
+  lời nhau shot rút xuống 0,3–0,7 s. **Không dùng qua vai** (0/397 shot). Hiếm khi giữ hai người cùng khung trừ shot thiết lập.
+- **Máy gần như luôn tĩnh** (98 %); đẩy máy vào (push-in) chỉ ở khoảnh khắc lặng / xúc động, và shot đó dài gấp ~2 lần shot quanh nó.
+- **Xung đột / bạo lực qua hậu quả** (cận đặc tả máu, dao, vết thương), gần như không quay va chạm trực tiếp; shot "hành động" rất ngắn.
+- **Hồi tưởng** có dấu hiệu rõ: cả đoạn chuyển **đen trắng** (vào bằng hòa hình, ra bằng 1 khung lóa trắng ~0,4 s), hoặc giữ màu nhưng
+  hòa hình vào + lóa trắng ra.
+- **Tên nhân vật**: chữ nhỏ trên khung chỉ ở LẦN GIỚI THIỆU ĐẦU TIÊN (hiện suốt shot đó), không lặp lại.
+- **Kết** đoạn / tập bằng cao trào có câu hỏi treo (cliffhanger).
+
+## Look
+Tả thực kiểu phim cổ trang / lâu đài; nhiều cảnh tối tương phản cao xen cảnh sáng; phụ đề chữ trắng nền mờ gần đáy trong vùng an toàn.
+
+## Khi dùng cho AI video
+- Nhịp cắt ~1,9 s/shot là bình thường cho drama dọc — **không** kéo dài shot để "bớt giật"; cái làm giật ở #8 là mỗi shot gen riêng nên
+  chuyển động bắt đầu lại từ đầu (S3.4: gen đoạn diễn liên tục rồi cắt xen).
+- Thoại dựng bằng cận người nói → **khớp môi quan trọng hơn** mọi thứ khác ở shot thoại (S4.2).
+- Ít cỡ cảnh (cận / trung cận ~79 %) nhưng đổi người trong khung liên tục — đa dạng đến từ người, không từ cỡ cảnh.
+- Hồi tưởng phải có dấu hiệu hình (đen trắng hoặc lóa trắng) — cờ `flashback_fx` (S1.7) làm đúng việc này.
+""",
 "FAN_3D": """# Phong cách: Hoạt hình 3D do fan làm (viral)
 
 **Chưa có dữ liệu** — video fan 3D chưa được phân tích (xem "Việc để sau — phân tích video" trong kế hoạch v3). Tạm thời:

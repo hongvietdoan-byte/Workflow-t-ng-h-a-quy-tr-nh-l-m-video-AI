@@ -61,6 +61,8 @@ div[data-testid="stVerticalBlockBorderWrapper"]{background:var(--surface);border
 .stephead{display:flex;flex-wrap:wrap;align-items:center;gap:8px;padding:10px 14px;margin:2px 0 10px;background:var(--surface);
 border:1px solid var(--border);border-left:4px solid var(--primary);border-radius:10px;font-size:14px}
 .stephead b{font-size:16px}
+.nextband{margin:-4px 0 10px;padding:7px 14px;border-radius:8px;font-size:13px;font-weight:600;background:var(--primary-soft);color:var(--primary)}
+.nextband.wait{background:var(--warn-soft);color:#93370D;border:1px solid var(--warn)}.nextband.done{background:var(--ok-soft);color:var(--ok)}
 .sub-num{display:inline-block;min-width:26px;padding:1px 7px;margin-right:6px;border-radius:6px;background:var(--primary-soft);
 color:var(--primary);font-weight:700;font-size:12px;text-align:center}
 </style>

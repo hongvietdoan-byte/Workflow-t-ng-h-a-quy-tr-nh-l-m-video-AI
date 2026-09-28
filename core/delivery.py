@@ -751,6 +751,15 @@ def deliver(p: Pipeline, project_id: int, data_dir: str, llm=None, music_path: O
         qc = {"ok": False, "blocks": 0, "warns": 1, "issues": [{"code": "qc_error", "level": "warn", "msg": f"không kiểm được: {e}", "at": None}]}
     if qc["blocks"]:
         diag.record(p.conn, "render", "warn", final_qc.summary(qc)[:400], "final_qc", project_id)
+    fin = lineage.latest_output(p.conn, project_id, "final")
+    if fin is not None:                              # S9: the "next thing" band of Step 5 reads it
+        try:
+            man = json.loads(fin["manifest"] or "{}")
+            man["final_qc"] = {"blocks": qc["blocks"], "warns": qc["warns"], "issues": qc["issues"][:20]}
+            p.conn.execute("UPDATE outputs SET manifest=? WHERE id=?", (json.dumps(man, ensure_ascii=False), fin["id"]))
+            p.conn.commit()
+        except ValueError:
+            pass
     return {"final": final_path, "layers": layers, "warnings": warnings, "qc": qc}
 
 

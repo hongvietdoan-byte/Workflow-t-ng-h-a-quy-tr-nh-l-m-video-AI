@@ -10,6 +10,8 @@ def step4(p: Pipeline, pid: int):
     summ = lineage.summary(p.conn, pid)
     step_header("Bước 4 · Gen video + QC video", "mỗi cảnh một clip đúng nhân vật, đúng vật lý, khớp motion prompt",
                 f"{summ['videos'][0]}/{summ['total']} cảnh có clip dùng được", summ["videos"][1])
+    from dashboard import next_step                                     # S9 E0.1
+    ui.html(next_step.band(p, pid, 4, C.DATA))
     if C.expert():
         model_plan_panel(p, pid)
     else:                                   # never silent: the old-style model settings are said in normal mode too
@@ -70,7 +72,8 @@ def step4(p: Pipeline, pid: int):
             notes = [(r["idx"], _lipsync.no_post_note(json.loads(r["data"] or "{}")))
                      for r in p.conn.execute("SELECT idx, data FROM scenes WHERE project_id=? ORDER BY idx", (pid,))]
             notes = [(i, n) for i, n in notes if n]
-            if notes:
+            if notes:                                   # S9 E4.3: no lip sync is a fault the person named — one line always
+                st.warning(f"👄 {len(notes)} shot có thoại chưa khớp môi (không dùng sync.so) — mở ▸ để xem từng shot")
                 with st.expander(f"👄 Khớp môi: {len(notes)} shot không có khớp môi sau (không dùng sync.so)"):
                     for i, n in notes:
                         st.caption(f"{C.unit_code(p, pid, i)}: {n}")
