@@ -47,16 +47,29 @@ cảnh chính (sảnh sòng bạc tím–vàng) + 3 biến thể (sân khấu ne
 - Nhạc không bao giờ tắt; năng lượng tăng dần (RMS −25 dB ở đầu → −10 dB ở điệp khúc cuối) = đường cong cảm xúc của truyện.
 - Đúng hướng S2 (timeline theo âm thanh) của ta; clip này là bằng chứng mạnh cho **khóa âm thanh trước, rồi mới chia shot**.
 
-### 3.4 Chuyển động mượt vì **chọn loại chuyển động AI làm tốt** [xem]
-- Phần lớn là **nhảy / tạo dáng toàn thân, máy tĩnh hoặc máy trôi chậm**: dáng sai một chút vẫn thành "vũ đạo", không ai thấy lỗi.
-  Mỗi shot **một hành động** (giơ tay chữ V, lộn túi, đẩy cửa, đập muỗi).
-- Hành động khó (lộn nhào / trồng cây chuối 2:48–2:52, bay lơ lửng 2:18–2:20) được **cho riêng một shot** và ở thế giới siêu thực —
-  vật lý sai cũng hợp lý.
+### 3.4 Chuyển động uyển chuyển **thật** — không phải "che lỗi" [xem kỹ 5 khung/giây + đo] (sửa sau góp ý người dùng 2026-09-28)
+> Bản đầu ghi "dáng sai một chút vẫn thành vũ đạo" là **sai**: người dùng chỉ ra, soi lại 4 đoạn ở 5 khung/giây thì chuyển động sạch,
+> không thấy lỗi tay chân / trượt chân / khựng trong các khung đã soi.
+- **Chất lượng chuyển động cao, có trọng lượng:** 2:48,5–2:50,7 chuỗi breakdance sát sàn (chống tay → xoay hông → đá chân) liền mạch,
+  trọng tâm đúng, tay chống đúng điểm tì; 1:17,9–1:19,5 váy nhung xoay có **vật lý vải** (bay ra, rủ xuống theo quán tính); 2:03–2:05
+  nhảy toàn thân đổi thế liên tục.
+- **Nhảy nhóm đồng bộ:** 1:00,5–1:02,7 nhân vật nữ + 5 người trùm đầu làm **cùng một chuỗi động tác cùng nhịp** — rất khó ra từ
+  prompt chữ thuần → khả năng cao dùng **video tham chiếu chuyển động** (@Video1: vũ đạo người thật / video mẫu) để model chuyển
+  động theo **[suy luận]**. Tài liệu ClipAI cho phép tối đa 10 video tham chiếu, vai "@Video1 tham chiếu chuyển động" (Game Video Production).
+- **Nhiều chuyển động hơn #8 mà vẫn mượt [đo]:** độ đổi hình trung bình mỗi khung (khung xám 64×36, 24 khung/giây, gồm cả chuyển động
+  máy): clip mẫu **1,39** / #8 **0,57** → clip mẫu **chuyển động gấp ~2,4 lần**. Lỗi "cứng" của #8 (1.5) trước hết là **nhân vật
+  động quá ít** (đứng, cử chỉ nhỏ), không chỉ là giật.
+- Mỗi shot **bắt đầu giữa chuyển động** (đã đang nhảy / đang bước), không khởi động từ tư thế đứng yên; máy đi theo nhịp động tác.
 - **Chuyển cảnh được tạo ngay trong model**, không phải ở khâu dựng: 2:20.6–2:21 máy bay lên xuyên đèn chùm rồi hạ xuống mặt bàn phóng
-  to (dải 10 khung/giây: liên tục, không có điểm cắt); 2:21 vệt mờ zoom (whip/zoom-through); 3:14 hòa hình. → mỗi lần sinh video có lẽ
-  chứa **nhiều shot + chuyển cảnh** (Seedance nhiều shot trong 1 clip) **[suy luận]**.
-- Cắt chèn **cận vật** để nối (quân Át 1:16, tay đếm phỉnh 0:49, chân bước lên phỉnh 3:02): che chỗ nối, giữ nhịp.
-- So với #8: nhiều shot chạy / ngã / bắn — đúng loại chuyển động AI làm kém (1.5), mỗi shot sinh riêng rồi nối cứng (1.6).
+  to (dải 10 khung/giây: liên tục, không có điểm cắt); 2:21 vệt mờ zoom; 3:14 hòa hình → mỗi lần sinh video có lẽ chứa **nhiều shot +
+  chuyển cảnh** **[suy luận]**.
+- Cắt chèn **cận vật** để nối (quân Át 1:16, tay đếm phỉnh 0:49, chân bước lên phỉnh 3:02).
+- Vì sao làm được **[suy luận, xếp theo khả năng]**: (1) model mạnh về chuyển động (Seedance 2.x) + **video tham chiếu vũ đạo**;
+  (2) **đầu vào không ép dáng**: ảnh tham chiếu nhân vật + chữ, không dùng ảnh storyboard dáng đứng làm khung đầu — đúng điều Director
+  Workspace khuyên (mục 4: nhân vật hình học để Seedance "tự do tạo chuyển động mượt thay vì bắt chước cứng"); (3) **chọn lọc**: sinh
+  nhiều bản, giữ bản đẹp (không biết số lần sinh lại).
+- So với #8: khung đầu = ảnh storyboard dáng cứng → Seedance giữ dáng cứng; không có video tham chiếu chuyển động; hành động khó (chạy,
+  ngã, bắn) không có tham chiếu.
 
 ### 3.5 Kể chuyện rõ nhờ **mô-típ lặp và kết có trả lời** [xem]
 - Một nhân vật, một mục tiêu ("thắng đủ tiền rồi đi"), lặp mô-típ **con số 9 → cửa → mưa**; mở ở cổng sắt trong mưa đêm (0:00),
@@ -71,7 +84,7 @@ cảnh chính (sảnh sòng bạc tím–vàng) + 3 biến thể (sân khấu ne
 
 ### 3.7 Điểm chưa tốt (để không thần thánh hóa)
 - Đỉnh âm +0,7 dBFS (có thể vỡ trên loa điện thoại).
-- Mặt nhân vật nữ vẫn trôi nhẹ giữa các shot (cận 0:56 khác cận 1:12 về mắt / môi) [xem]; tay đôi lúc mềm, biến dạng khi xoay nhanh.
+- Mặt nhân vật nữ trôi nhẹ giữa các shot cận (0:56 so với 1:12: mắt / môi hơi khác) [xem]. Chuyển động: không thấy lỗi trong các khung đã soi.
 - Clip 16:9, dạng MV — **không phải drama thoại dọc 9:16** như dự án của ta: né được khớp môi vì là MV. Bài học chuyển sang drama chỉ
   dùng được một phần (xem mục 5).
 
@@ -92,7 +105,8 @@ cảnh chính (sảnh sòng bạc tím–vàng) + 3 biến thể (sân khấu ne
 | **G-MV1** | Nhân vật né điểm yếu AI (không mặt / chữ ký rõ / màu trùng bối cảnh) | Director được gợi ý: đám đông / nhân vật phụ dùng hình dễ giữ (mặt che, đồ đồng phục); nhân vật chính có ≥ 3 dấu hiệu nhận diện ghi trong hồ sơ; **đếm số shot cần khớp môi** và báo chi phí | 💻 gợi ý phong cách mới `MV_NARRATIVE` (trộn được với `DRAMA_DOC`) |
 | **G-MV2** | Một bối cảnh chính + biến thể có lý do | Director gợi ý "1 nơi chính / ≤ 2 biến thể" cho video ≤ 60 s; mỗi lần đổi nơi ghi lý do kể chuyện | 💻 gợi ý |
 | **G-MV3** | Âm thanh trước; 1 shot ≈ 1 câu (lời / thoại); hình minh họa đúng nghĩa câu | đưa vào S2: shot chia theo câu của track âm thanh đã khóa; kiểm "câu này hình nói gì" ở agent người xem (S3.2) | 💻 S2 / S3.2 |
-| **G-MV4** | Chọn chuyển động AI làm tốt; mỗi shot 1 hành động; hành động khó đứng riêng | linter bảng shot gợi ý (💡) khi 1 shot có > 1 động từ hành động hoặc loại khó (chạy, ngã, đánh) không đứng riêng | 💻 S3.5 |
+| **G-MV4** | Mỗi shot 1 hành động rõ, bắt đầu giữa chuyển động; nhân vật động nhiều hơn (#8 chỉ bằng ~40 % clip mẫu) | linter bảng shot gợi ý (💡) khi 1 shot có > 1 hành động hoặc shot thoại nhân vật đứng yên; prompt chuyển động mô tả động tác đang diễn ra từ khung đầu | 💻 S3.5 / S4.4 |
+| **G-MV8** | **Video tham chiếu chuyển động** cho nhảy / hành động khó (chạy, ngã, đánh) | kho video tham chiếu động tác (quay tay / render Blender / clip mẫu có quyền dùng) gắn @Video vào prompt Seedance; A/B có / không tham chiếu trên shot chạy của #8 | 💻 + 💵 (trong trần S4.6) |
 | **G-MV5** | Chuyển cảnh sinh trong model, nhiều shot / 1 lần sinh | S3.4 + S4.8: gom shot liền của cùng đoạn vào 1 lần sinh Seedance, mô tả chuyển cảnh trong prompt ("camera cranes up through the chandelier, then descends to…") | 💻 S3.4 / S4.8 |
 | **G-MV6** | Đầu vào dáng đơn giản cho chuyển động mượt (Director Workspace khuyên) | khung đầu / tham chiếu tư thế: dùng ảnh dàn cảnh **đơn giản** (vị trí, hướng, cỡ cảnh) thay ảnh storyboard dáng cứng cho shot chuyển động; A/B trong S4.6 | 💻 + 💵 (trong trần S4) |
 | **G-MV7** | Mô-típ lặp + kết trả lời mở đầu | Director gợi ý: 1 mô-típ hình lặp ≥ 3 lần; shot kết "trả lời" shot mở | 💻 gợi ý |

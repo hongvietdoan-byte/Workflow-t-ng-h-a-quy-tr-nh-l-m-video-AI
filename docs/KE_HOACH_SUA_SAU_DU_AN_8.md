@@ -64,7 +64,7 @@
 - [x] S0.6 · Luật được duyệt vào bộ kỹ năng · nặng:1 · ✅ · knowledge/ff_styles/DRAMA_DOC.md ghi rõ GỢI Ý; dự án chọn NHIỀU phong cách tham khảo; Director đọc dạng gợi ý được trộn / làm khác
 - [x] S0.7 · Chỉ số mục tiêu data/drama_targets.json + test · nặng:2 · ✅ · data/style_hints.json: số đo chỉ hiện 💡 ở Kiểm bản dựng khi dự án chọn phong cách đó, không chặn, không tính 'cần xem'
 - [x] S0.8 · Phiếu so sánh bản dựng vs phim tham khảo · nặng:1 · ✅ · phiếu 10 mặt trong báo cáo S0.5 mục 4; đã chấm #8 cũ và v4
-- [ ] S0.9 · Phong cách gợi ý mới `MV_NARRATIVE` từ clip mẫu ClipAI (G-MV1–G-MV7: nhân vật né điểm yếu AI, 1 bối cảnh chính, 1 shot ≈ 1 câu, 1 hành động / shot, chuyển cảnh trong model, dàn cảnh đơn giản, mô-típ lặp) · nặng:1 · ⏸ · chờ người dùng duyệt (docs/PHAN_TICH_CLIP_MAU_CLIPAI_2026-09-28.md)
+- [ ] S0.9 · Phong cách gợi ý mới `MV_NARRATIVE` từ clip mẫu ClipAI (G-MV1–G-MV8: nhân vật né điểm yếu AI, 1 bối cảnh chính, 1 shot ≈ 1 câu, 1 hành động / shot bắt đầu giữa chuyển động, chuyển cảnh trong model, dàn cảnh đơn giản, mô-típ lặp, video tham chiếu chuyển động) · nặng:1 · ⏸ · chờ người dùng duyệt (docs/PHAN_TICH_CLIP_MAU_CLIPAI_2026-09-28.md)
 
 ### S9 — Dashboard gọn, dễ nhìn
 - [x] S9.1 · Nút thu gọn phần Kịch bản · nặng:1 · ✅ · xong: 1a Kịch bản thu thành 1 dòng tóm tắt + nút ▸ Mở / ▾ Thu gọn (test_dashboard)
