@@ -17,7 +17,7 @@
 |---|---|---|---|---|---|---|
 | P0 Theo dõi tiến độ | 2 | 2 | 0 | 0 | 0 | 100 % |
 | S1 Dựng & âm thanh | 15 | 13 | 0 | 2 | 0 | 88,9 % |
-| S0 Học từ phim drama tham khảo | 14 | 11 | 3 | 0 | 0 | 82 % |
+| S0 Học từ phim drama tham khảo | 15 | 11 | 4 | 0 | 0 | 79,6 % |
 | S9 Dashboard gọn, dễ nhìn | 6 | 5 | 0 | 0 | 0 | 81,8 % |
 | S2 Timeline theo âm thanh + animatic | 6 | 0 | 0 | 1 | 0 | 0 % |
 | S3 Director kể chuyện + Quay phim | 8 | 0 | 0 | 0 | 0 | 0 % |
@@ -27,7 +27,7 @@
 | S7 Agent QC | 2 | 0 | 0 | 0 | 0 | 0 % |
 | K Chạy kiểm kịch bản hài 20–30 s | 3 | 0 | 0 | 0 | 0 | 0 % |
 | S8 Chấm lại bằng AI Development System (cuối cùng) | 5 | 0 | 0 | 0 | 0 | 0 % |
-| **Tổng** | **85** | **31** | **3** | **10** | **0** | **39,2 %** |
+| **Tổng** | **86** | **31** | **4** | **10** | **0** | **39,4 %** |
 
 Đợt hiện tại: **S1** · việc kế: **S9.6** Gộp timeline tổng + sửa giao diện S6.4
 <!-- /tien-do -->
@@ -70,6 +70,7 @@
 - [ ] S0.12 · Xem nhiều mẫu đa thể loại (drama dọc, MV, quảng cáo game, phim ngắn, hoạt hình FF…) gắn nhãn theo kho kỹ thuật S0.11 · nặng:3 · 🔄 · short drama = drama dọc 9:16 kiểu ReelShort làm bằng AI (ưu tiên hàng Trung Quốc); agent đang lập danh sách video cụ thể đã xác minh (research/craft/MAU_S0_12.md)
 - [ ] S0.13 · Rà kiến thức đang dùng (director / dp / editing / ff_styles) tìm chỗ gán nghĩa cố định hoặc khái quát từ 1 mẫu → sửa thành tư liệu có điều kiện · nặng:1 · ✅ · agent rà 16 chỗ (cinematography_basics 3, dp.md Q2/Q3/Q5/Q8 4, director.md Đ4/N5 2, film_director_method 3, video_motion_vocab 1, genre_guides 3) → đã sửa hết; 1340 test qua
 - [ ] S0.14 · Nghiên cứu nguồn tiếng Trung về phim AI (AI短剧 9:16, workflow, nội dung, prompt ngắn đủ ý, cảnh xịn; Seedance/即梦/可灵 tài liệu chính thức, WaytoAGI, bài ngành) → research/craft/trung_quoc/ · nặng:3 · 🔄 · người dùng 2026-09-29: Trung Quốc dẫn đầu phim AI; agent đang chạy
+- [ ] S0.15 · Nghề nhạc phim: spotting, nhạc dẫn cảm xúc / dẫn dắt / tạo nhịp, khác nhau theo thể loại (short drama dọc, phim ngắn, hành động, hài, MV, CGI…), cách brief nhạc → prompt model nhạc; đối chiếu music_timing / sound_intent hiện có · nặng:2 · 🔄 · người dùng 2026-09-29: nhạc nền không lắp cho có; agent đang chạy (+ phần 配乐 trong S0.14)
 
 ### S9 — Dashboard gọn, dễ nhìn
 - [x] S9.1 · Nút thu gọn phần Kịch bản · nặng:1 · ✅ · xong: 1a Kịch bản thu thành 1 dòng tóm tắt + nút ▸ Mở / ▾ Thu gọn (test_dashboard)
