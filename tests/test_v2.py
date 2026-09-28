@@ -205,6 +205,26 @@ class VoiceTests(Base):
         changes = voice.fit_durations(self.p.conn, self.pid, self.data)
         self.assertTrue(changes)
 
+    def test_a_scene_that_already_has_a_clip_is_not_remade_for_a_voice_without_a_person(self):
+        """#8 2026-09-28: voices chosen after the 33 clips existed → 19 clips queued again (~5.8 USD) without anyone asking."""
+        for name in ("KENTA", "KELLY", "MAXIM"):
+            voice.set_profile(self.p.conn, self.pid, name, {"voice_id": 1, "voice_name": "Mock"})
+        audio = MockAudioProvider()
+        voice.generate(self.p.conn, self.pid, audio, self.data)
+        from core import audio_lib
+        audio_lib.refresh(audio, audio_lib.assets_dir(self.data, self.pid))
+        self.approve_images()
+        llm_runner.run_motion(self.p, self.pid, llm_runner.MockLlm(), self.data)
+        self.p.conn.execute("UPDATE motion_prompts SET duration_sec=1")
+        for sid in voice.scene_seconds(self.p.conn, self.pid, self.data):
+            jid = self.p.create_job(sid, "video_gen")
+            self.p.conn.execute("UPDATE jobs SET state='approved' WHERE id=?", (jid,))
+        self.p.conn.commit()
+        self.assertEqual(voice.fit_durations(self.p.conn, self.pid, self.data), [])        # the clips stay as they are…
+        late = voice.pending_fits(self.p.conn, self.pid, self.data)
+        self.assertTrue(late)                                                              # …and the person is asked
+        self.assertTrue(voice.fit_durations(self.p.conn, self.pid, self.data, with_clips=True))   # the person's button remakes
+
 
 class KnowledgeTests(Base):
     def test_only_the_skill_notes_of_characters_in_the_project_are_sent(self):

@@ -629,7 +629,9 @@ class VideoRunner(_Runner):
         group = self._sends_group(job)
         exact = shots.mode(self.p.project(job["project_id"])) != "multishot"   # H5 set-up: cut at the shots' own seconds
         refs = self._refs(job)
-        sent = ([{"id": r["id"], "idx": r["idx"], "duration_s": self._cut_seconds(r), "exact": True, "refs": refs} for r in group]
+        from . import seedance_refs
+        sent = ([{"id": r["id"], "idx": r["idx"], "exact": True, "refs": refs,
+                  "duration_s": seedance_refs.floored(r["data"], self._cut_seconds(r)) if refs else self._cut_seconds(r)} for r in group]
                 if group and exact
                 else [{"id": r["id"], "idx": r["idx"], "duration_s": shots.billed_shot_seconds(r["data"])} for r in group] if group else None)
         proj = self.p.project(job["project_id"])
@@ -669,7 +671,8 @@ class VideoRunner(_Runner):
             setup = bool(group) and shots.mode(proj) != "multishot" and not refs
             if refs:                                              # Seedance reference only: the group's (or shot's) seconds, >= 4 s
                 from . import seedance_refs
-                secs = [self._cut_seconds(r) for r in group] if group else [float(duration or 0)]
+                secs = ([seedance_refs.floored(r["data"], self._cut_seconds(r)) for r in group] if group
+                        else [float(duration or 0)])            # 28/09: a shot under ~1.5 s in a group was skipped by the model
                 duration = seedance_refs.seconds(secs)
             elif setup:                                             # H5: one continuous take for the set-up's shots, cut afterwards
                 secs = [self._cut_seconds(r) for r in group]

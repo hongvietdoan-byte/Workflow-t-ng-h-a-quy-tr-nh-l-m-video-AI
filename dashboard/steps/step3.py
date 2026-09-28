@@ -173,8 +173,13 @@ def voice_panel(p: Pipeline, pid: int) -> None:
             ch = voice.fit_durations(p.conn, pid, C.DATA)
             st.toast(f"Đã cập nhật; {len(ch)} clip được kéo dài cho vừa giọng" if ch else "Đã cập nhật")
             st.rerun()
-        if c3.button("⏱ Đặt thời lượng clip theo giọng thật", key=f"tts_fit_{pid}"):
-            ch = voice.fit_durations(p.conn, pid, C.DATA)
+        late = voice.pending_fits(p.conn, pid, C.DATA)
+        if late:
+            st.warning(f"{len(late)} cảnh ĐÃ CÓ video ngắn hơn giọng thật — giữ clip (bản dựng giữ hình dưới câu dài) hoặc bấm nút bên "
+                       "phải để làm lại các clip đó cho vừa giọng (tốn tiền video, clip nhóm làm lại cả nhóm).")
+        if c3.button("⏱ Đặt thời lượng clip theo giọng thật" + (f" (làm lại {len(late)} clip đã có)" if late else ""), key=f"tts_fit_{pid}",
+                     help="Cảnh đã có video: thời lượng mới làm video cũ bị coi là cũ → chạy tự động làm lại (tốn tiền)."):
+            ch = voice.fit_durations(p.conn, pid, C.DATA, with_clips=True)
             short = [c for c in ch if c["short"]]
             st.toast(f"{len(ch)} clip được kéo dài" + (f"; {len(short)} cảnh thoại dài hơn clip tối đa của model — nên rút thoại" if short else ""))
             st.rerun()

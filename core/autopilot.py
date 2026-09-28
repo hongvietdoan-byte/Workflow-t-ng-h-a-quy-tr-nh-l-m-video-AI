@@ -167,6 +167,8 @@ def resume(p: Pipeline, project_id: int, user: Optional[str] = None) -> None:
         _approve_held(p, project_id, "image_gen", "duyệt ở storyboard")
         set_gates(p, project_id, {"storyboard_ok": storyboard_gate.fingerprint(p, project_id), "waiting_for": None})
         _log(p, project_id, "Bạn đã duyệt storyboard → viết motion prompt và gen video")
+    elif gates.get("waiting_for") == "voice_fit":        # "Tiếp tục" = keep the clips (remaking them is its own button)
+        set_gates(p, project_id, {"waiting_for": None, "voice_fit_decided": "keep"})
     elif gates.get("waiting_for") == "budget":           # approved in Bước 1 → the images phase checks it again
         set_gates(p, project_id, {"waiting_for": None})
     elif gates.get("waiting_for") == "clips":
@@ -1193,7 +1195,13 @@ def _voice_phase(p: Pipeline, pid: int, ctx: Context) -> Optional[str]:
         if stat.get("running"):
             return f"Giọng thoại: {stat.get('succeeded', 0)}/{stat['total']}"
     _check_voices(p, pid, ctx)
-    changes = voice.fit_durations(p.conn, pid, ctx.data_dir)
+    changes = voice.fit_durations(p.conn, pid, ctx.data_dir)       # scenes without a clip yet only
     if changes:
         _log(p, pid, f"Kéo dài {len(changes)} clip cho vừa giọng thật")
+    late = voice.pending_fits(p.conn, pid, ctx.data_dir)
+    if late and not get_gates(p, pid).get("voice_fit_decided"):
+        _d(p, pid, "voice", "warn", f"{len(late)} clip đã có ngắn hơn giọng thật — chờ người quyết: làm lại các clip đó (tốn tiền video) "
+                                    "hay giữ clip, bản dựng giữ hình dưới câu thoại dài", "voice_longer_than_clip")
+        raise _Wait("voice_fit", f"{len(late)} clip đã làm ngắn hơn giọng thoại thật (giọng chọn sau khi có video). Chọn ở Bước 4: làm lại "
+                                 "các clip đó cho vừa giọng (tốn tiền video) hoặc giữ clip — bản dựng giữ hình dưới câu dài")
     return None

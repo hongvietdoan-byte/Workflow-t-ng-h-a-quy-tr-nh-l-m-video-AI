@@ -224,7 +224,8 @@ def plan(conn, project_id: int, pricing: Optional[Dict] = None, priority: Option
                 secs = []
                 for r in group:
                     m = conn.execute("SELECT duration_sec FROM motion_prompts WHERE scene_id=?", (r["id"],)).fetchone()
-                    secs.append(float((m["duration_sec"] if m is not None and m["duration_sec"] else None) or r["data"].get("duration_s") or 0))
+                    secs.append(seedance_refs.floored(r["data"], float((m["duration_sec"] if m is not None and m["duration_sec"] else None)
+                                                                        or r["data"].get("duration_s") or 0)))
                 billed = float(seedance_refs.seconds(secs))
             else:
                 billed = 0.0                   # made inside the group clip of its first shot

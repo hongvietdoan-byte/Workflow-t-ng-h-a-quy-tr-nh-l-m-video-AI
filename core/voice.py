@@ -292,9 +292,17 @@ def scene_seconds(conn, project_id: int, data_dir: str) -> Dict[int, float]:
     return {sid: round(sum(d) + GAP * (len(d) - 1), 2) for sid, d in done.items() if len(d) >= expected.get(sid, 0)}
 
 
-def fit_durations(conn, project_id: int, data_dir: str) -> List[Dict]:
+def has_clip(conn, scene_id: int) -> bool:
+    return bool(conn.execute("SELECT 1 FROM jobs WHERE scene_id=? AND type='video_gen' AND state IN ('approved','succeeded',"
+                             "'pending_review')", (scene_id,)).fetchone())
+
+
+def fit_durations(conn, project_id: int, data_dir: str, with_clips: bool = False) -> List[Dict]:
     """Size each voiced scene's clip to its real voice (lead + lines + tail), within what the scene's model can make.
-    Only lengthens (a longer clip than the voice is fine). Returns the changes."""
+    Only lengthens (a longer clip than the voice is fine). Returns the changes.
+    A scene that ALREADY HAS a clip is left alone unless `with_clips` (a person chose to remake those clips): lengthening its motion
+    makes the clip stale and the automatic run made it again — #8 2026-09-28: voices chosen after the 33 clips existed, 19 clips (and
+    their groups) queued again, ~5.8 USD, without anyone asking (see pending_fits)."""
     from .dialogue import max_clip_seconds
     from .pipeline import Pipeline
     changes = []
@@ -303,6 +311,8 @@ def fit_durations(conn, project_id: int, data_dir: str) -> List[Dict]:
         row = conn.execute("SELECT duration_sec FROM motion_prompts WHERE scene_id=?", (sid,)).fetchone()
         if row is None:
             continue
+        if not with_clips and has_clip(conn, sid):
+            continue
         need = math.ceil(LEAD + secs + TAIL)
         target = min(need, max_clip_seconds(p, project_id, sid))
         if target > float(row["duration_sec"] or 0):
@@ -310,6 +320,20 @@ def fit_durations(conn, project_id: int, data_dir: str) -> List[Dict]:
             changes.append({"scene_id": sid, "from": row["duration_sec"], "to": target, "short": need > target})
     conn.commit()
     return changes
+
+
+def pending_fits(conn, project_id: int, data_dir: str) -> List[Dict]:
+    """Scenes that already have a clip SHORTER than their real voice needs — the person decides: remake those clips (cost) or keep them
+    and let the edit hold the picture under the longer line."""
+    out = []
+    for sid, secs in scene_seconds(conn, project_id, data_dir).items():
+        row = conn.execute("SELECT duration_sec FROM motion_prompts WHERE scene_id=?", (sid,)).fetchone()
+        if row is None or not has_clip(conn, sid):
+            continue
+        need = math.ceil(LEAD + secs + TAIL)
+        if need > float(row["duration_sec"] or 0):
+            out.append({"scene_id": sid, "have": float(row["duration_sec"] or 0), "need": need})
+    return out
 
 
 def place_on_timeline(conn, project_id: int, data_dir: str, transition: str = "cut", fade: float = 1.0,

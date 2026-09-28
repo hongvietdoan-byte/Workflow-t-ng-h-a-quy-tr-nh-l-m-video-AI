@@ -160,7 +160,10 @@ def inspection_plan(conn, pid: int, frames: List[Dict]) -> List[str]:
             # wrong for the facing frames — the plan only says HOW to look; the rule itself stays whole in "Ghi chú theo hướng nhìn"
             plan.append(f"{n}: với MỖI khung {ks} — xác định quay mặt vào máy hay quay lưng (thấy mặt / thấy gáy), vạch đường giữa thân "
                         f"người, rồi áp NGUYÊN VĂN view_notes.facing_camera hoặc .from_behind (mục 'Ghi chú theo hướng nhìn') theo BÊN THÂN "
-                        f"NGƯỜI, không theo mép khung; ghép dải cùng vùng (vai, tay) qua các khung để so")
+                        f"NGƯỜI, không theo mép khung; ghép dải cùng vùng (vai, tay) qua các khung để so. XÁC NHẬN TỪNG CHI TIẾT MỘT "
+                        f"(găng, băng tay, huy hiệu vai, tab…) riêng ở từng khung — một chi tiết đúng bên không nói gì về chi tiết kia "
+                        f"(#8 28/09: S6·5 găng đúng bên nhưng huy hiệu vai lật, agent cho qua); khung ôm / bị che: ghi rõ chi tiết nào "
+                        f"không thấy → doubt, không pass")
         if re.search(r"backwards|ngược", text, re.I):
             plan.append(f"{n}: ghép dải vùng đầu qua các khung {ks} — phụ kiện đội ngược phải giữ chiều ở mọi hướng máy")
         if len(ks) < 2:

@@ -69,9 +69,9 @@ def groups(conn, project_id: int) -> List[List[Dict]]:
         if not d.get("shot_no") or not _groupable(d):
             close()
             continue
-        sec = float(d.get("duration_s") or 0)
+        sec = floored(d, d.get("duration_s") or 0)
         if cur and (_group_key(cur[-1]["data"]) != _group_key(d) or len(cur) >= GROUP_MAX_SHOTS
-                    or sum(float(x["data"].get("duration_s") or 0) for x in cur) + sec > GROUP_MAX_SECONDS
+                    or sum(floored(x["data"], x["data"].get("duration_s") or 0) for x in cur) + sec > GROUP_MAX_SECONDS
                     or _estimated_len(cur + [r]) > GROUP_PROMPT_BUDGET):
             close()
         cur.append(r)
@@ -157,7 +157,8 @@ def prompt(parts: List[tuple], identities: List[tuple], look: str = "", clip_sec
         parts = [(m, float(s) * clip_seconds / total) for m, s in parts]
     head = (f"One clip with {n} shots cut in this order, hard cuts between shots, same place, same light, same characters and outfits "
             f"throughout. " if n > 1 else "One single shot, no cuts. ") + (look.strip() + " " if look.strip() else "")
-    head += "The white banner and red marks on the reference pictures are annotations, never part of the video."
+    head += ("The white banner and red marks on the reference pictures are annotations, never part of the video. The buildings and "
+             "the landmark behind the people keep exactly the shape they have in the storyboard frames.")   # 28/09: a spire became a dome
     mapping = " ".join(f"Image {i} is the storyboard frame of Shot {i}: Shot {i} starts with exactly this composition, framing and "
                        f"these character positions." for i in range(1, n + 1))
     mapping += " " + " ".join(f"Image {n + k} is {name}: identity only (face, hair, outfit) — not the framing."
@@ -230,7 +231,7 @@ def split(path: str, group: List[Dict], dest_paths: List[str], ffmpeg: Optional[
     by = "detected"
     if cuts is None:
         by = "plan"
-        planned = [float(r["data"].get("duration_s") or 1) for r in group]
+        planned = [floored(r["data"], r.get("duration_s") or r["data"].get("duration_s") or 1) for r in group]
         scale = (length or sum(planned)) / sum(planned)
         cuts, t = [], 0.0
         for sec in planned[:-1]:
@@ -252,6 +253,21 @@ VI = re.compile(r"[ăâđêôơưạảấầẩẫậắằẳẵặẹẻẽ�
 PROMPT_MAX = 4000          # Seedance 2.0 (clipai.PROMPT_LIMITS)
 GROUP_PROMPT_BUDGET = 3500  # a group is closed before its prompt passes this — room left for a retry's "Fix:" sentence
 SHORT_SHOT = 1.0            # a shot under 1 s inside a group is probably skipped by the model (said, not hidden)
+MIN_GROUP_SHOT = 1.5        # #8 2026-09-28: shots of 0.46-1.4 s in group clips — the model skipped or froze the action (QC rejected
+MIN_ACTION_SHOT = 2.0       # S1·4, S4·4 "never turns away", S5·1 "does not collapse"). A shot in a group gets at least this long;
+_BIG_ACTION = re.compile(r"\b(turns?|turning|walks?|walking|runs?|running|falls?|falling|collapses?|collaps|jumps?|steps? (away|back|forward)"
+                         r"|pivots?|spins?|kneels?|stands? up|sits? down|hugs?|embrac)\w*", re.I)   # a big body action even longer
+
+
+def shot_floor(data: Dict) -> float:
+    """The least time a shot needs inside a group clip."""
+    text = " ".join(str(x or "") for x in ((data.get("motion_en") or {}).get("action"), data.get("action"), data.get("end_state"),
+                                              (data.get("motion_en") or {}).get("end_state")))
+    return MIN_ACTION_SHOT if _BIG_ACTION.search(text) else MIN_GROUP_SHOT
+
+
+def floored(data: Dict, sec: float) -> float:
+    return round(max(float(sec or 0), shot_floor(data)), 2)
 
 
 def has_vietnamese(text: str) -> bool:
@@ -279,11 +295,29 @@ def shot_motion(data: Dict, voice: bool = False) -> str:
     else:
         talk = " ".join(f"{s} speaks (mouth moving, no sound)." for s in speakers)
     move = str(data.get("camera_move") or "static").replace("_", " ")
+    framing = _framing(data)
     action = str(_en(data, "action") or "").strip().rstrip(".")
     end = str(_en(data, "end_state") or "").strip().rstrip(".")
     return (f"{SIZE_WORDS.get(data.get('size'), data.get('size') or 'shot')}, {data.get('angle') or 'eye'} angle, camera {move}: "
-            + (f"{action}. " if action else "") + (f"It ends with {end}. " if end else "")
+            + (f"framing {framing}. " if framing else "") + (f"{action}. " if action else "") + (f"It ends with {end}. " if end else "")
             + (f"Acting — {acting}. " if acting else "") + talk).strip()
+
+
+FRAMING_MAX = 140
+
+
+def _framing(data: Dict) -> str:
+    """The composition in a few words (who is where, over whose shoulder) from the Director's blocking — #8 2026-09-28: with the
+    storyboard frame alone, S1·3 (over Kenta's shoulder) came out with Kenta facing the camera. English only (a Vietnamese blocking
+    stays out: the group prompt must be English); cut at a clause so it stays short."""
+    text = " ".join(str(data.get("blocking") or "").split())
+    if not text or has_vietnamese(text):
+        return ""
+    text = re.sub(r"(?i)^same (over-the-shoulder )?composition as (the )?previous shot:?\s*", "", text)
+    if len(text) > FRAMING_MAX:
+        cut = max(text.rfind(",", 0, FRAMING_MAX), text.rfind(";", 0, FRAMING_MAX))
+        text = text[: cut if cut > 40 else FRAMING_MAX]
+    return text.strip(" ,;.")
 
 
 def lint_group(text: str, n_frames: int, n_pictures: int, n_expected_pictures: int, secs: List[float], audio: bool) -> List[str]:

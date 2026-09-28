@@ -224,3 +224,25 @@ class SplitTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class ShotFloorTests(unittest.TestCase):
+    """#8 2026-09-28: 0.46-1.4 s shots in group clips — the action was skipped (QC: 'Kelly never turns away', 'Maxim does not collapse')."""
+
+    def test_a_short_shot_gets_the_group_floor_and_a_big_action_more(self):
+        from core import seedance_refs as sr
+        self.assertEqual(sr.floored({"action": "Kelly nhìn Kenta"}, 0.46), sr.MIN_GROUP_SHOT)
+        self.assertEqual(sr.floored({"motion_en": {"action": "Kelly turns and walks away"}}, 1.1), sr.MIN_ACTION_SHOT)
+        self.assertEqual(sr.floored({"action": "x"}, 3.2), 3.2)                             # a long shot keeps its length
+        text = sr.prompt([("a", sr.floored({}, 0.4)), ("b", 2.0)], [])
+        self.assertIn("Shot 1 (0.0–1.5 s)", text)
+
+    def test_the_shot_text_carries_the_framing_in_english_only(self):
+        from core import seedance_refs as sr
+        d = {"size": "MS", "angle": "ots", "blocking": "Same over-the-shoulder composition as previous shot: KENTA's shoulder blurred in right "
+             "foreground, KELLY center-left, cold blue shadow lighting unchanged", "action": "x"}
+        t = sr.shot_motion(d)
+        self.assertIn("framing KENTA's shoulder blurred in right foreground", t)
+        self.assertNotIn("Same over-the-shoulder", t)
+        self.assertEqual(sr._framing({"blocking": "Kelly đứng giữa khung"}), "")
+        self.assertIn("keep exactly the shape", sr.prompt([("a", 2.0), ("b", 2.0)], []))
