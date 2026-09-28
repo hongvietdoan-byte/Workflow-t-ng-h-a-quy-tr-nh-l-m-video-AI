@@ -323,6 +323,15 @@ def _count_label(p: Pipeline, pid: int, scenes) -> str:
     return f"{len(scenes)} cảnh"
 
 
+def _script_summary(p: Pipeline, pid: int, scenes) -> str:
+    """One line for the folded script card: scenes / shots / dialogue lines / length of the script."""
+    if not scenes:
+        return "chưa có kịch bản"
+    lines = sum(len(json.loads(s["data"] or "{}").get("dialogue") or []) for s in scenes)
+    text = p.project(pid)["script_text"] or ""
+    return f"📜 {_count_label(p, pid, scenes)} · {lines} câu thoại" + (f" · {len(text):,} ký tự".replace(",", ".") if text else "")
+
+
 def step1(p: Pipeline, pid: int):
     proj = p.project(pid)
     scenes = p.conn.execute("SELECT idx, title, state, data FROM scenes WHERE project_id=? ORDER BY idx", (pid,)).fetchall()
@@ -335,65 +344,68 @@ def step1(p: Pipeline, pid: int):
     step_header("Bước 1 · Kịch bản & đạo diễn", "tách cảnh → chuẩn bị → Director → nhân vật → thoại → khóa",
                 _count_label(p, pid, scenes) + f" · {len(chars)} nhân vật" + (" · đã khóa" if locked else ""), stale)
 
-    with st.container(border=True):
-        ui.html(ui.card_title("1a · 📜 Kịch bản", "toàn văn (trái) · chia theo cảnh (phải)"))
-        if st.session_state.get("parse_warn") and scenes:
-            st.warning(st.session_state["parse_warn"])
-        t_file, t_text = st.tabs(["📎 Tải file", "✍ Gõ / dán văn bản"])
-        with t_file:
-            up = st.file_uploader("Kịch bản", type=list(script_reader.SUPPORTED), key=f"up_{pid}", label_visibility="collapsed",
-                                  help="Word (.docx, kể cả kịch bản viết trong bảng), Excel (.xlsx), CSV/TSV, .txt, .md")
-            st.caption("Đọc được: Word (.docx, cả bảng), Excel (.xlsx), CSV/TSV, .txt, .md. Kịch bản dạng bảng cần dòng tiêu đề cột như "
-                       "Cảnh, Mô tả, Nhân vật, Lời thoại, Bối cảnh, Thời gian, Góc máy.")
-        with t_text:
-            pasted = st.text_area("Gõ hoặc dán kịch bản", key=f"paste_{pid}", height=170, label_visibility="collapsed",
-                                  placeholder="CẢNH 1 - ĐÊM, RỪNG ELDER\nSương mù phủ kín khu rừng…\nLYRA: Có thứ gì đó đang theo chúng ta.\n\n"
-                                              "Dán cả bảng copy từ Excel / Google Sheets cũng được.")
-        u2, u3, u4 = st.columns([2.4, 1.2, 4], vertical_alignment="center")
-        has_input = up is not None or bool(pasted.strip())
-        if u2.button("▶ Phân tích (tách cảnh)", disabled=not has_input, type="primary", key=f"btn_analyse_{pid}"):
-            def analyse():
-                res = script_reader.read_script(up.name, up.getvalue()) if up is not None else script_reader.from_text(pasted)
-                parsed = script_parser.split_scenes(res.paragraphs)
-                script_parser.import_scenes(p, pid, parsed, full_text="\n\n".join(res.paragraphs))
-                st.session_state["parse_info"] = res.info
-                if len(parsed) == 1 and parsed[0].heading == "Mở đầu":
-                    st.session_state["parse_warn"] = ("Không thấy tiêu đề cảnh (vd “Cảnh 1”, “Scene 2”, “INT./EXT.”): "
-                                                      "cả kịch bản thành 1 cảnh. Hãy thêm/sửa cảnh thủ công.")
-                st.toast(f"Đã tách {len(parsed)} cảnh")
-            if act(analyse):
-                st.rerun()
-        u4.caption("Nếu có cả file lẫn văn bản, hệ thống dùng file." if has_input else "Chọn file hoặc dán văn bản, rồi bấm Phân tích.")
-        if st.session_state.get("parse_info") and scenes:
-            with st.expander("Hệ thống đã đọc kịch bản thế nào (kiểm tra lại)"):
-                for line in st.session_state["parse_info"]:
-                    st.caption("• " + line)
-        with u3:
-            if confirm_all(f"btn_bad_reset_{pid}", ["reset"], "↺ Làm lại",
-                           "Xóa các cảnh CHƯA có ảnh/video và các nhân vật CHƯA khóa để tách lại kịch bản? Cảnh đã có ảnh được giữ.",
-                           st, "Có, xóa"):
-                p.conn.execute("DELETE FROM characters WHERE project_id=? AND locked=0", (pid,))
-                p.conn.execute("DELETE FROM motion_prompts WHERE scene_id IN (SELECT id FROM scenes WHERE project_id=? AND id NOT IN (SELECT scene_id FROM jobs))", (pid,))
-                p.conn.execute("DELETE FROM scenes WHERE project_id=? AND id NOT IN (SELECT scene_id FROM jobs)", (pid,))
-                p.conn.commit()
-                if not p.conn.execute("SELECT 1 FROM scenes WHERE project_id=?", (pid,)).fetchone():
-                    p.set_script_text(pid, None)
-                    p.conn.execute("DELETE FROM story_scenes WHERE project_id=?", (pid,))
+    # S9.1 (người dùng, sau #8): once the script is split the card folds to one line; open again with "▸ Mở"
+    with ui.fold("1a · 📜 Kịch bản", _script_summary(p, pid, scenes), f"script_{pid}",
+                 default_open=not scenes or bool(st.session_state.get("parse_warn")),
+                 sub="toàn văn (trái) · chia theo cảnh (phải)") as script_open:
+        if script_open:
+            if st.session_state.get("parse_warn") and scenes:
+                st.warning(st.session_state["parse_warn"])
+            t_file, t_text = st.tabs(["📎 Tải file", "✍ Gõ / dán văn bản"])
+            with t_file:
+                up = st.file_uploader("Kịch bản", type=list(script_reader.SUPPORTED), key=f"up_{pid}", label_visibility="collapsed",
+                                      help="Word (.docx, kể cả kịch bản viết trong bảng), Excel (.xlsx), CSV/TSV, .txt, .md")
+                st.caption("Đọc được: Word (.docx, cả bảng), Excel (.xlsx), CSV/TSV, .txt, .md. Kịch bản dạng bảng cần dòng tiêu đề cột như "
+                           "Cảnh, Mô tả, Nhân vật, Lời thoại, Bối cảnh, Thời gian, Góc máy.")
+            with t_text:
+                pasted = st.text_area("Gõ hoặc dán kịch bản", key=f"paste_{pid}", height=170, label_visibility="collapsed",
+                                      placeholder="CẢNH 1 - ĐÊM, RỪNG ELDER\nSương mù phủ kín khu rừng…\nLYRA: Có thứ gì đó đang theo chúng ta.\n\n"
+                                                  "Dán cả bảng copy từ Excel / Google Sheets cũng được.")
+            u2, u3, u4 = st.columns([2.4, 1.2, 4], vertical_alignment="center")
+            has_input = up is not None or bool(pasted.strip())
+            if u2.button("▶ Phân tích (tách cảnh)", disabled=not has_input, type="primary", key=f"btn_analyse_{pid}"):
+                def analyse():
+                    res = script_reader.read_script(up.name, up.getvalue()) if up is not None else script_reader.from_text(pasted)
+                    parsed = script_parser.split_scenes(res.paragraphs)
+                    script_parser.import_scenes(p, pid, parsed, full_text="\n\n".join(res.paragraphs))
+                    st.session_state["parse_info"] = res.info
+                    if len(parsed) == 1 and parsed[0].heading == "Mở đầu":
+                        st.session_state["parse_warn"] = ("Không thấy tiêu đề cảnh (vd “Cảnh 1”, “Scene 2”, “INT./EXT.”): "
+                                                          "cả kịch bản thành 1 cảnh. Hãy thêm/sửa cảnh thủ công.")
+                    st.toast(f"Đã tách {len(parsed)} cảnh")
+                if act(analyse):
+                    st.rerun()
+            u4.caption("Nếu có cả file lẫn văn bản, hệ thống dùng file." if has_input else "Chọn file hoặc dán văn bản, rồi bấm Phân tích.")
+            if st.session_state.get("parse_info") and scenes:
+                with st.expander("Hệ thống đã đọc kịch bản thế nào (kiểm tra lại)"):
+                    for line in st.session_state["parse_info"]:
+                        st.caption("• " + line)
+            with u3:
+                if confirm_all(f"btn_bad_reset_{pid}", ["reset"], "↺ Làm lại",
+                               "Xóa các cảnh CHƯA có ảnh/video và các nhân vật CHƯA khóa để tách lại kịch bản? Cảnh đã có ảnh được giữ.",
+                               st, "Có, xóa"):
+                    p.conn.execute("DELETE FROM characters WHERE project_id=? AND locked=0", (pid,))
+                    p.conn.execute("DELETE FROM motion_prompts WHERE scene_id IN (SELECT id FROM scenes WHERE project_id=? AND id NOT IN (SELECT scene_id FROM jobs))", (pid,))
+                    p.conn.execute("DELETE FROM scenes WHERE project_id=? AND id NOT IN (SELECT scene_id FROM jobs)", (pid,))
                     p.conn.commit()
-                st.session_state.pop("parse_info", None)
-                st.rerun()
-        left, right = st.columns(2, gap="large")
-        with left:
-            st.markdown("**Kịch bản đầy đủ**")
-            full = proj["script_text"] or "\n\n".join((json.loads(s["data"] or "{}").get("text") or s["title"] or "") for s in scenes)
-            if full.strip():
-                ui.html(script_html(full))
-            else:
-                st.caption("Chưa có kịch bản: tải file hoặc gõ/dán văn bản rồi bấm Phân tích.")
-        with right:
-            st.markdown("**Chia theo cảnh** · bấm vào từng cảnh để xem và sửa")
-            if scenes:
-                scene_list(p, pid, scenes, char_names)
+                    if not p.conn.execute("SELECT 1 FROM scenes WHERE project_id=?", (pid,)).fetchone():
+                        p.set_script_text(pid, None)
+                        p.conn.execute("DELETE FROM story_scenes WHERE project_id=?", (pid,))
+                        p.conn.commit()
+                    st.session_state.pop("parse_info", None)
+                    st.rerun()
+            left, right = st.columns(2, gap="large")
+            with left:
+                st.markdown("**Kịch bản đầy đủ**")
+                full = proj["script_text"] or "\n\n".join((json.loads(s["data"] or "{}").get("text") or s["title"] or "") for s in scenes)
+                if full.strip():
+                    ui.html(script_html(full))
+                else:
+                    st.caption("Chưa có kịch bản: tải file hoặc gõ/dán văn bản rồi bấm Phân tích.")
+            with right:
+                st.markdown("**Chia theo cảnh** · bấm vào từng cảnh để xem và sửa")
+                if scenes:
+                    scene_list(p, pid, scenes, char_names)
     ui.html(ui.card_title("1b · 🧰 Chuẩn bị", "làm TRƯỚC Director: định dạng, tài nguyên, phong cách"))
     project_format_panel(p, pid)
     if scenes:

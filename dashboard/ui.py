@@ -2,6 +2,7 @@
 
 Pure presentation: CSS injected once per run plus small HTML helpers. No pipeline logic here.
 """
+from contextlib import contextmanager
 from html import escape
 
 import streamlit as st
@@ -121,6 +122,28 @@ def progress(done: int, total: int, extra: str = "") -> str:
 
 def card_title(title: str, sub: str = "") -> str:
     return f'<div class="cardtitle">{escape(title)}' + (f"<span>{escape(sub)}</span>" if sub else "") + "</div>"
+
+
+@contextmanager
+def fold(title: str, summary: str, key: str, default_open: bool = True, sub: str = ""):
+    """A card that can be folded to one line (kế hoạch sau #8, S9.2 — người dùng: "thêm nút thu gọn … những phần người dùng không phải
+    tương tác thì sắp xếp gọn hoặc ẩn đi, kèm nút show ra"). Folded, the card shows its title + a one-line summary and a "▸ Mở" button;
+    open, the body is drawn. The choice is kept per `key` for the session. Use:  with ui.fold(...) as is_open:  if is_open: …"""
+    k = f"fold_{key}"
+    if k not in st.session_state:
+        st.session_state[k] = bool(default_open)
+
+    def flip():
+        st.session_state[k] = not st.session_state[k]
+
+    with st.container(border=True):
+        a, b = st.columns([6, 1], vertical_alignment="center")
+        opened = bool(st.session_state[k])
+        a.markdown(card_title(title, sub) + ("" if opened or not summary else f'<div class="muted">{escape(summary)}</div>'),
+                   unsafe_allow_html=True)
+        b.button("▾ Thu gọn" if opened else "▸ Mở", key=f"{k}_btn", on_click=flip, width="stretch",
+                 help="Thu gọn phần này" if opened else "Hiện chi tiết")
+        yield opened
 
 
 def waveform_svg(peaks, height: int = 46) -> str:

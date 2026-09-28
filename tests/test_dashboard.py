@@ -453,7 +453,7 @@ class DashboardSmokeTests(unittest.TestCase):
 
     def test_every_scene_is_listed_and_editable_in_place(self):
         p, pid = self.seed()
-        at = AppTest.from_file(APP, default_timeout=30).run()
+        at = self.script_open(pid)
         self.assertTrue(any(e.label.startswith("S01") for e in at.expander))  # the scene row itself, no picker
         self.assertFalse(any(sb.key == f"scene_pick_{pid}" for sb in at.selectbox))
         at.text_area(key=f"sd_{pid}_1_prompt").set_value("dark forest, low fog").run()
@@ -478,7 +478,7 @@ class DashboardSmokeTests(unittest.TestCase):
         loc = assets.create(p.conn, "FF", "location", "Đảo Quân Sự", "", "", None, "x")
         assets.add_image(p.conn, loc, "wide.png", buf.getvalue())
         assets.attach(p.conn, pid, loc)
-        at = AppTest.from_file(APP, default_timeout=30).run()
+        at = self.script_open(pid)
         box = at.selectbox(key=f"sd_{pid}_1_bg")
         self.assertIsNone(box.value)                                                  # automatic by default
         box.set_value(loc).run()
@@ -539,14 +539,14 @@ class DashboardSmokeTests(unittest.TestCase):
     def test_blocking_and_sequence_are_edited_in_the_scene_and_shown_in_its_row(self):
         import json
         p, pid = self.seed()
-        at = AppTest.from_file(APP, default_timeout=30).run()
+        at = self.script_open(pid)
         at.text_input(key=f"sd_{pid}_1_blocking").set_value("Kelly frame-left facing right").run()
         at.number_input(key=f"sd_{pid}_1_seq").set_value(2).run()
         next(b for b in at.button if b.key == f"sds_{pid}_1").click().run()
         self.assertFalse(at.exception)
         data = json.loads(Pipeline(connect(self.db)).conn.execute("SELECT data FROM scenes").fetchone()["data"])
         self.assertEqual((data["blocking"], data["sequence"]), ("Kelly frame-left facing right", 2))
-        at = AppTest.from_file(APP, default_timeout=30).run()
+        at = self.script_open(pid)
         self.assertTrue(any(e.label.startswith("S01 · nhóm 2") for e in at.expander))
 
     def test_subject_library_panel_defaults_to_free_fire_and_links_a_character(self):
@@ -597,10 +597,31 @@ class DashboardSmokeTests(unittest.TestCase):
         self.assertTrue(box.disabled)
         self.assertEqual(Pipeline(connect(self.db)).project(pid)["use_subjects"], 0)
 
-    def test_step1_shows_the_full_script_next_to_the_scene_list(self):
+    def script_open(self, pid):
+        """Step 1 with the script card unfolded (S9.1: it folds to one line once the script is split)."""
+        at = AppTest.from_file(APP, default_timeout=30)
+        at.session_state[f"fold_script_{pid}"] = True
+        return at.run()
+
+    def test_the_script_card_folds_to_one_line_and_opens_again(self):
+        """S9.1 (người dùng sau #8): "thêm nút thu gọn cho phần kịch bản"."""
         p, pid = self.seed()
         p.set_script_text(pid, "TÊN KỊCH BẢN" + chr(10) + "CẢNH 1. ĐÊM" + chr(10) + "Lyra: Đi thôi.")
         at = AppTest.from_file(APP, default_timeout=30).run()
+        self.assertFalse(at.exception)
+        markup = " ".join(m.value for m in at.markdown)
+        self.assertNotIn('class="scriptfull"', markup)            # folded: the script is not drawn
+        self.assertIn("📜 1 cảnh", markup)                          # ...its one-line summary is
+        btn = next(b for b in at.button if b.key == f"fold_script_{pid}_btn")
+        self.assertEqual(btn.label, "▸ Mở")
+        btn.click().run()
+        self.assertIn('class="scriptfull"', " ".join(m.value for m in at.markdown))
+        self.assertEqual(next(b for b in at.button if b.key == f"fold_script_{pid}_btn").label, "▾ Thu gọn")
+
+    def test_step1_shows_the_full_script_next_to_the_scene_list(self):
+        p, pid = self.seed()
+        p.set_script_text(pid, "TÊN KỊCH BẢN" + chr(10) + "CẢNH 1. ĐÊM" + chr(10) + "Lyra: Đi thôi.")
+        at = self.script_open(pid)
         self.assertFalse(at.exception)
         markup = " ".join(m.value for m in at.markdown)
         self.assertIn("scriptfull", markup)
@@ -610,7 +631,7 @@ class DashboardSmokeTests(unittest.TestCase):
 
     def test_add_and_delete_a_scene_from_the_scene_list(self):
         p, pid = self.seed()
-        at = AppTest.from_file(APP, default_timeout=30).run()
+        at = self.script_open(pid)
         next(b for b in at.button if b.key == f"scene_add_{pid}").click().run()
         self.assertFalse(at.exception)
         self.assertEqual(Pipeline(connect(self.db)).conn.execute("SELECT COUNT(*) c FROM scenes").fetchone()["c"], 2)
