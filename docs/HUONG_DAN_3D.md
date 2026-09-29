@@ -134,8 +134,10 @@ Không vào git.
 **Bốn chỗ bản xuất sai — code tự sửa khi render (`tools/render_plates.py`):**
 - **Mặt đất** (`fix_terrain`): vật liệu dán một texture đá kéo theo UV của cả đảo (ra loang xanh xám). Trong game mặt đất là *splat*:
   `AllTerrainMask.png` (cả đảo, cùng UV) — **G = cỏ** `Terrain_Ground_01`, **B = đất** `_02`, **R = đá** `_03`, đen = lòng sông. Code đọc mask
-  theo UV rồi trộn 3 lớp lặp mỗi 6 m (đổi được trong plan: `"terrain": {...}`, `false` = để nguyên).
-- **Nước** (`fix_water`): hồ bơi Cổng Trời dùng vật liệu thiếu texture (Blender tô tím) → nước xanh trong, bóng.
+  theo UV rồi trộn 3 lớp lặp mỗi 6 m (đổi được trong plan: `"terrain": {...}`, `false` = để nguyên). Lớp cỏ `Terrain_Ground_01_D_nastc.png`
+  (ảnh giải nén ASTC) có ngọn cỏ khô màu tím (3 % điểm ảnh) → kênh xanh dương kẹp ≤ kênh xanh lá (ngọn khô về vàng nâu, cỏ xanh giữ nguyên).
+- **Nước** (`fix_water`): màu nước hồ bơi Cổng Trời là ảnh normal map gợn sóng (`norm_T_Water_Ripple…`, xanh tím) → nước xanh trong, bóng
+  (áp cả khi thiếu texture).
 - **Cỏ** (`fix_foliage`): tấm cỏ `plant_grass_B_New_D_A.png` là ảnh RGB, hình ngọn cỏ nằm ở mặt nạ riêng `…_M.png` mà FBX không nối →
   ở tầm mắt mọi tấm cỏ ra ô vuông đặc. Code nối mặt nạ làm độ trong suốt (xám → trong, trắng → đặc).
 - **Ánh sáng** (hồ sơ khu vực `model3d.light.day`): chế độ màu mặc định AgX làm bạc màu → `view_transform: Standard` + `Medium High

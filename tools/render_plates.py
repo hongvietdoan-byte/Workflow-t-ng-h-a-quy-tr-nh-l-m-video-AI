@@ -317,7 +317,10 @@ def fix_terrain(conf, warnings):
                     mix.inputs[6].default_value = (*conf["bare"], 1.0)
                 else:
                     nt.links.new(colour, mix.inputs[6])
-                nt.links.new(tex.outputs["Color"], mix.inputs[7])
+                layer = tex.outputs["Color"]
+                if "nastc" in os.path.basename(layers[ch]).lower():
+                    layer = _clamp_blue(nt, layer)
+                nt.links.new(layer, mix.inputs[7])
                 nt.links.new(sep.outputs[sock], mix.inputs[0])
                 colour = mix.outputs[2]
             nt.links.new(colour, bsdf.inputs["Base Color"])
@@ -325,6 +328,21 @@ def fix_terrain(conf, warnings):
         except Exception as e:  # noqa: BLE001
             warnings.append(f"terrain {mat.name} not rebuilt: {e}")
     return {"materials": fixed, **{k: conf[k] for k in ("b", "r", "g", "tile_m")}}
+
+
+def _clamp_blue(nt, colour_socket):
+    """blue = min(blue, green). 2026-09-29: the grass layer Terrain_Ground_01_D_nastc.png (a decoded ASTC picture) has its dry blades
+    in magenta (3 % of the pixels; tan in the game) — in green grass blue is already below green, so only those blades change (to
+    tan)."""
+    sep, cmb, low = nt.nodes.new("ShaderNodeSeparateColor"), nt.nodes.new("ShaderNodeCombineColor"), nt.nodes.new("ShaderNodeMath")
+    low.operation = "MINIMUM"
+    nt.links.new(colour_socket, sep.inputs[0])
+    nt.links.new(sep.outputs[2], low.inputs[0])
+    nt.links.new(sep.outputs[1], low.inputs[1])
+    nt.links.new(sep.outputs[0], cmb.inputs[0])
+    nt.links.new(sep.outputs[1], cmb.inputs[1])
+    nt.links.new(low.outputs[0], cmb.inputs[2])
+    return cmb.outputs[0]
 
 
 def fix_foliage(warnings):
@@ -370,9 +388,9 @@ WATER_WORDS = ("water", "river", "ocean", "wave", "pool")
 
 
 def fix_water(warnings, colour=(0.05, 0.42, 0.58)):
-    """2026-09-29, official FF export (Peak's pools): the water material comes without its picture — Blender shows the missing-
-    texture magenta. A water material (name has water / river / ocean / wave / pool) whose colour picture is missing or not linked
-    becomes clear blue, glossy water. Returns the names changed."""
+    """2026-09-29, official FF export (Peak's pools): the water's colour is a ripple NORMAL map (norm_T_Water_Ripple…, blue-violet) or
+    missing (Blender's magenta) — the pools rendered purple. A water material (name has water / river / ocean / wave / pool) whose
+    colour picture is missing, not linked or a normal map becomes clear blue, glossy water. Returns the names changed."""
     fixed = []
     for mat in bpy.data.materials:
         if not any(w in mat.name.lower() for w in WATER_WORDS):
@@ -382,7 +400,9 @@ def fix_water(warnings, colour=(0.05, 0.42, 0.58)):
             continue
         sock = bsdf.inputs["Base Color"]
         img = sock.links[0].from_node.image if sock.is_linked and getattr(sock.links[0].from_node, "image", None) else None
-        if img is not None and img.has_data:
+        stem = os.path.splitext(os.path.basename(bpy.path.abspath(img.filepath) if img else ""))[0].lower()
+        normal_map = stem.startswith("norm_") or stem.endswith("_n") or "normal" in stem
+        if img is not None and img.has_data and not normal_map:
             continue
         try:
             if sock.is_linked:
