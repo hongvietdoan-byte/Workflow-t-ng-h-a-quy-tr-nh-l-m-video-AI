@@ -962,6 +962,12 @@ def reference_note(refs: List[Dict]) -> str:
         elif g["role"] == "location":
             bits.append(f"{tag} is the EMPTY background of {g['label']}: copy its architecture, materials and colours only — it does not "
                         "set the people, their size or their position (those come from the scene text)")
+        elif g["role"] == "place_render":
+            bits.append(f"{tag} is the EXACT background of this shot: a 3D render of the real {g['label']} from the game map, taken from this "
+                        "shot's own camera (same position, height, lens and direction), with nobody in it. Keep its architecture and layout "
+                        "exactly — the same buildings in the same places, the same number of floors, roofs, windows, stairs, walls, trees, "
+                        "the same horizon line and perspective — and draw the people INTO it at the size and place the scene text gives; "
+                        "improve only light, texture detail and atmosphere in the game's style; never move, add or remove a building")
         elif g["role"] == "landmark":
             bits.append(f"{tag} shows the real LANDMARK of {g['label']} (from the game): wherever it appears in the background, draw it with "
                         "exactly this shape, proportions, materials and colours — but NOT this picture's camera angle, framing, time of "

@@ -218,6 +218,13 @@ FEATURES: Dict[str, Dict] = {
         "verified": False,
         "why": "Thử #7 cảnh 1 (2026-09-25): 4 khung giữ tháp/ánh sáng liền mạch hơn ảnh vẽ riêng; mới 1 cảnh, chưa thử cảnh đông người / hành động",
     },
+    "place_render_refs": {
+        "label": "Ảnh render 3D đúng góc máy từng shot (và góc rộng nhất của cảnh) làm ẢNH THAM CHIẾU cho model vẽ cả cảnh — không ghép; "
+                 "prompt thêm số đo thật (ống kính, độ cao máy, vị trí đầu–chân nhân vật, đường chân trời, hướng nắng); đo độ khớp nền sau khi vẽ",
+        "verified": False,
+        "why": "Người dùng 2026-09-29: 6 ảnh Kho không đủ mọi góc; ghép phông xanh đã bỏ (#8). #7: ảnh render tháp làm tham chiếu cho kết "
+               "quả tốt nhất. Chưa chạy thật trả tiền (Blender 0 USD; ảnh model vẫn tính tiền như thường)",
+    },
     "location_plates": {
         "label": "Gói bối cảnh: nền là ảnh render 3D của bối cảnh (đúng góc máy shot), AI chỉ vẽ nhân vật trên phông xanh rồi ghép",
         "verified": False,

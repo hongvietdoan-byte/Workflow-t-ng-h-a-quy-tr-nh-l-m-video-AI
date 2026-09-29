@@ -490,14 +490,15 @@ def _storyboard_phase(p: Pipeline, pid: int, ctx: Context) -> Optional[str]:
 def _plates_phase(p: Pipeline, pid: int, ctx: Context) -> Optional[str]:
     """V4 location pack (feature location_plates): every shot set at a place with a registered 3D model gets its plate before any
     picture (one Blender run per place + time/weather, shared cache). A place with no 3D model is said once, not skipped silently."""
-    from . import features, formats, location_pack
-    if not features.on("location_plates"):
-        return None
+    from . import features, formats, location_pack, place_refs
+    if not features.on("location_plates") and not place_refs.enabled():
+        return None                                  # place_render_refs: the same renders, sent as reference pictures (no composite)
     size = formats.spec(formats.project_aspect(p.project(pid)) or "9:16")["deepix"]
     w, h = (int(v) for v in str(size).lower().split("x"))
-    photos = location_pack.ensure_photo_plates(p.conn, pid, ctx.data_dir, (w, h))     # tier 2: in-game photo of the place
-    if photos:
-        _log(p, pid, f"Nền từ ảnh chụp trong game (cấp 2, chưa có mô hình 3D): {len(photos)} shot")
+    if features.on("location_plates"):
+        photos = location_pack.ensure_photo_plates(p.conn, pid, ctx.data_dir, (w, h))     # tier 2: in-game photo of the place
+        if photos:
+            _log(p, pid, f"Nền từ ảnh chụp trong game (cấp 2, chưa có mô hình 3D): {len(photos)} shot")
     items = location_pack.plan(p.conn, pid)
     if not items:
         return None

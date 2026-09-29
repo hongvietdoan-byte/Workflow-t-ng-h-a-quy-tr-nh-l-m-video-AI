@@ -1268,6 +1268,11 @@ def sendable_references(refs, model: Optional[str], limit: Optional[int] = None)
     return kept, dropped
 
 
+def location_pack_entry(conn, place) -> Optional[Dict]:
+    from . import location_pack
+    return location_pack.model3d(conn, place["id"]) if place else None
+
+
 class ImageRunner(_Runner):
     job_type = "image_gen"
 
@@ -1322,6 +1327,14 @@ class ImageRunner(_Runner):
         from . import features
         from . import scene_storyboard
         from . import scene_establish
+        from . import place_refs
+        if place_refs.enabled():                             # place_render_refs: the 3D renders of the shot's scene come first (0 USD)
+            data = json.loads(self.p.conn.execute("SELECT data FROM scenes WHERE id=?", (job["scene_id"],)).fetchone()["data"] or "{}")
+            rows = scene_establish.scene_rows(self.p.conn, job["project_id"], data.get("story_scene")) if data.get("story_scene") is not None                 else [{"id": job["scene_id"], "data": data}]
+            if any(place_refs.missing(self.p.conn, self.data_dir, job["project_id"], r["id"], r["data"]) for r in rows):
+                place_refs.ensure_async(self.p.conn, job["project_id"], self.data_dir, place_refs.resolution_of(self.p.project(job["project_id"])),
+                                        log=lambda m: self._diag(job, "info", "place_render", m))
+                return True
         if scene_establish.enabled():
             data = json.loads(self.p.conn.execute("SELECT data FROM scenes WHERE id=?", (job["scene_id"],)).fetchone()["data"] or "{}")
             model = None
@@ -1391,6 +1404,16 @@ class ImageRunner(_Runner):
         if est:                                        # the scene's wide establishing picture: the shared reference for the place
             refs = ([r for r in refs if r.get("role") != "location"][:max(limit - 2, 1)]
                     + [r for r in refs if r.get("role") == "location"][:1] + [est])
+        from . import place_refs
+        if place_refs.enabled():                       # the shot's own 3D render replaces the library's place picture + real numbers
+            ref = place_refs.shot_ref(self.data_dir, job["project_id"], job["scene_id"])
+            if ref is not None:
+                refs = place_refs.swap_in(refs, ref, limit)
+                place = assets.scene_location(conn, job["project_id"], data)
+                entry = location_pack_entry(conn, place)
+                geo = place_refs.geometry_sentence(ref["_rec"], data, (entry or {}).get("sun_azimuth", 250.0))
+                if geo:
+                    prompt = f"{prompt} {geo}"
         if chain and len(refs) < limit:
             # Deepix has no scriptable Storyboard (web UI only, see docs/CLIPAI_FEATURES.md) — this chains the
             # previous scene's approved picture in as an extra image-to-image reference instead, so style/lighting
@@ -1455,6 +1478,9 @@ class ImageRunner(_Runner):
                 if est:                                # the scene's wide establishing picture: the shared reference for the place
                     shared = ([r for r in shared if r.get("role") != "location"][:6]
                               + [r for r in shared if r.get("role") == "location"][:1] + [est])
+                from . import place_refs
+                if place_refs.enabled() and not without_place:        # this frame's own 3D render replaces the library's place picture
+                    shared = place_refs.swap_in(shared, place_refs.shot_ref(self.data_dir, job["project_id"], job["scene_id"]), 8)
                 shared, dropped = sendable_references(shared, model)     # before the mapping text is built from the list
                 if dropped:
                     self._diag(job, "warn", "missing_reference", "ảnh tham chiếu storyboard không gửi được: " + ", ".join(dropped))
@@ -1478,6 +1504,13 @@ class ImageRunner(_Runner):
         starts from it), composite it on the plate into the job's picture, add falling weather."""
         plate = self._plate(job)
         if plate is None:
+            from . import place_refs
+            if place_refs.enabled():                   # place_render_refs: did the model keep the place of the 3D render? (measured, said)
+                ref = place_refs.shot_ref(self.data_dir, job["project_id"], job["scene_id"])
+                if ref is not None:
+                    score = place_refs.background_match(path, ref["path"], ref["_rec"].get("subject_box"))
+                    sev, words = place_refs.match_note(score)
+                    self._diag(job, sev, "place_match", words)
             from . import qc_scene
             if qc_scene.enabled():                     # QC layer 0: code checks as the picture arrives (free)
                 data = json.loads(self.p.conn.execute("SELECT data FROM scenes WHERE id=?", (job["scene_id"],)).fetchone()["data"] or "{}")

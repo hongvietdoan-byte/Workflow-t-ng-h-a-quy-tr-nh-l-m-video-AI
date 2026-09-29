@@ -89,7 +89,24 @@ def place_pictures(conn, asset_id) -> List[str]:
     return [r["path"] for r in rows if r["path"] and os.path.exists(r["path"])][:MAX_PLACE_PICTURES]
 
 
-def prompt_for(conn, pid: int, rows: List[Dict]) -> str:
+RENDER_NOTE = (" The FIRST reference picture is the exact 3D model of the real game map seen from this scene's main camera: keep the "
+               "same buildings in the same places, the same number of floors, roof shapes, windows, stairs, walls and trees, the same "
+               "horizon line, camera height and perspective — only add light, atmosphere and texture detail.")
+
+
+def scene_pictures(conn, pid: int, rows: List[Dict], data_dir: Optional[str]) -> List[str]:
+    """The place pictures of a scene's establishing picture: with `place_render_refs`, the render of the scene's widest shot first
+    (the exact place), then the library's approved pictures."""
+    pictures = place_pictures(conn, rows[0]["data"].get("location_asset")) if rows else []
+    from . import place_refs
+    if data_dir and rows and place_refs.enabled():
+        render = place_refs.scene_render(data_dir, pid, rows)
+        if render:
+            pictures = [render] + [p for p in pictures if p != render][:MAX_PLACE_PICTURES - 1]
+    return pictures
+
+
+def prompt_for(conn, pid: int, rows: List[Dict], with_render: bool = False) -> str:
     from . import looks
     from .runner import no_minor_age
     d = rows[0]["data"] if rows else {}
@@ -100,7 +117,8 @@ def prompt_for(conn, pid: int, rows: List[Dict]) -> str:
     return no_minor_age(
         f"Wide establishing shot of {place}: the whole place with its main landmark fully in frame (from its base to its top), "
         f"{time}, {weather} weather. {LIGHT.get(time, LIGHT['day'])} No people, no characters. Keep exactly the architecture of the "
-        f"reference pictures (the same buildings, shapes, windows, stairs, vegetation)." + looks.image_sentence(proj))
+        f"reference pictures (the same buildings, shapes, windows, stairs, vegetation)." + (RENDER_NOTE if with_render else "")
+        + looks.image_sentence(proj))
 
 
 def key_of(rows: List[Dict], pictures: List[str]) -> str:
@@ -128,7 +146,11 @@ def step(conn, pid: int, story_scene, provider, data_dir: str, model: Optional[s
     rows = scene_rows(conn, pid, story_scene)
     if not rows:
         return "skipped"
-    pictures = place_pictures(conn, rows[0]["data"].get("location_asset"))
+    from . import place_refs
+    if place_refs.enabled() and any(place_refs.missing(conn, data_dir, pid, r["id"], r["data"]) for r in rows):
+        return "waiting"                                   # the 3D renders of the scene come first (ImageRunner._wait starts them)
+    pictures = scene_pictures(conn, pid, rows, data_dir)
+    with_render = bool(pictures) and place_refs.enabled() and pictures[0] == place_refs.scene_render(data_dir, pid, rows)
     key = key_of(rows, pictures)
     idx = _load(data_dir, pid)
     rec = idx.get(str(story_scene)) or {}
@@ -160,7 +182,7 @@ def step(conn, pid: int, story_scene, provider, data_dir: str, model: Optional[s
         if over:
             say("warn", "budget", f"ảnh toàn cảnh cảnh {story_scene} không gửi: {over}")
             return "skipped"
-        prompt = prompt_for(conn, pid, rows)
+        prompt = prompt_for(conn, pid, rows, with_render)
         try:
             try:
                 mid = provider.submit(prompt, pictures or None, size=SIZE, model=model)
