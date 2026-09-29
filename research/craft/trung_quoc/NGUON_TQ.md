@@ -71,3 +71,22 @@ văn (qua trình duyệt) hay chỉ tóm tắt/snippet WebSearch.
 **Tổng: 18 dòng nguồn mới** (nhóm A–G) + 1 dòng dẫn lại từ nguồn ClipAI đã có trước. Chưa đạt mốc 20–30 đầy đủ như đề bài mong muốn —
 lý do: nhiều trang chặn WebFetch (Zhihu 403, Kling docs không tải nội dung), phải chuyển sang trình duyệt tốn thêm lượt; đã ưu
 tiên đọc trọn văn các nguồn chính thức (#1, #5, #6, #7, #14, #16, #17) hơn là thêm nhiều dòng snippet-only cho đủ số.
+
+## H. Lượt 2 (2026-09-29) — Kling chính thức, người làm có tên, luật mới
+
+| # | Nguồn | Tác giả/tổ chức | Chủ đề | URL | Độ tin | Đọc |
+|---|---|---|---|---|---|---|
+| 19 | Kling VIDEO 3.0 Model Guide | Kling AI (快手) — chính thức | Multi-Shot tự động / tự viết, 3–15 s, Element Binding (ảnh/video + giọng), thoại 5 ngôn ngữ (không có tiếng Việt), gắn thoại theo nhân vật, khung đầu–cuối | https://kling.ai/quickstart/klingai-video-3-model-user-guide | cao | trọn trang (WebFetch) |
+| 20 | 「可灵 AI」驯服指南 V2.0 | 可灵 (bản chia sẻ trên 轻雀文档) | Công thức 主体+运动+场景+(镜头语言+光影+氛围) | https://docs.qingque.cn/d/home/eZQDp092-vzqbhb02KUdurkwP | vừa–cao | trang tải được một phần |
+| 21 | 搜狐 — 可灵 3.0 提示词指南 | trang tổng hợp, dẫn lại acceptprompt.com | Công thức 3.0 thêm 声音; viết như lời đạo diễn; mô tả giọng = tuổi+chất giọng+tốc độ+cảm xúc+ngôn ngữ | https://www.sohu.com/a/1036042907_121123989 | vừa | tóm tắt WebFetch |
+| 22 | 量子位 — 可灵3.0 … 分镜逻辑封神 | Jay, 2026-02-07 | Thử thật Multi-Shot; điểm yếu chia thoại giữa nhân vật | https://www.qbitai.com/2026/02/377608.html | vừa | tóm tắt WebFetch |
+| 23 | 品玩 — 他用仨AI，10天"肝"出全网刷屏AI短剧 | 黄小艺, 2024-07-16 | 陈坤 (闲人一坤): quy trình trailer 《山海奇镜》, truyện là trụ chính | https://www.pingwest.com/a/296655 | cao (phỏng vấn) | tóm tắt WebFetch |
+| 24 | 百度 TA说 — 《山海奇镜》导演陈坤 | phỏng vấn | Đội 10 người, 2 tháng, chọn truyện đơn giản vì giới hạn kỹ thuật | https://wapbaike.baidu.com/tashuo/browse/content?id=ea61c9a4208a0aff39ef48fb | vừa | snippet WebSearch |
+| 25 | 澎湃 — 《山海奇镜之劈波斩浪》：AI制作的跨越与技术局限 | 金云水, 王帅帅 (同济大学), 2025-02-24 | Phê bình: khớp môi, vi biểu cảm, tương tác | https://m.thepaper.cn/newsDetail_forward_30225424 | cao | tóm tắt WebFetch |
+| 26 | 腾讯新闻/潮新闻 — AI短剧"Action"｜"抽"出来的爆款 | 潮新闻, 2026-09-05 | Phỏng vấn nhiều người (陈妍, 王昊, 雷迪克…), số lần gen, chi phí, DataEye 98,7% | https://news.qq.com/rain/a/20260905A03MPK00 | cao | tóm tắt WebFetch |
+| 27 | 腾讯新闻/潮新闻 — 不拍戏、不搭景，我在电脑前"抽"出一部短剧 | 潮新闻, 2026-09-02 | Quy trình 抽卡师 6 bước, nhóm 15 s, 4–15 lần/clip | https://news.qq.com/rain/a/20260902A08U3500 | cao | tóm tắt WebFetch |
+| 28 | 虎嗅 — 横店消亡，短剧新生：2026，AI抽卡师接管片场 | 岳涌, 2026-04-29 | 张强 (tên giả): "tách xác suất", ~500 clip cho 1 cảnh | https://www.huxiu.com/article/4854701.html | vừa | tóm tắt WebFetch |
+| 29 | WaytoAGI — Chat with Wiki: 分镜提示词 / 视频脚本和分镜 | WaytoAGI (cộng đồng) | Cấu trúc prompt phân cảnh, cột nhạc/âm hiệu trong bảng | https://www.waytoagi.com/zh/question/65668 ; https://www.waytoagi.com/question/57530 | vừa–thấp | snippet WebSearch |
+| 30 | 新华网 — 《微短剧发展管理办法》9月1日起施行 | 新华社, 2026-07-31 | AI tác phẩm phải có nhãn nhắc mỗi tập | https://www.news.cn/20260731/9d0579e4587648fb83580e0fec008e12/c.html | cao | tóm tắt WebFetch |
+
+Không đọc được: Zhihu p/2020810861183254701 (曲多多, nhắc 梁雨箫 — 403); phát biểu của 梁雨箫 chỉ biết qua snippet tìm kiếm → không dùng làm căn cứ.
