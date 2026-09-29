@@ -1,4 +1,4 @@
-# S0.12 — Tổng hợp quan sát nhiều phim (cập nhật sau 17 video, đã tải + đo bằng ffmpeg / OpenCV / audio_listen)
+# S0.12 — Tổng hợp quan sát nhiều phim (cập nhật sau 20 video viết file — 18, 19, 23, 25 mới; 7 video đang đo dở, xem "Bàn giao")
 
 > 17 video đã phân tích: 01 AI心動劇場 (AI drama 9:16), 02 TOMORROW / Omeleto (phim ngắn CGI 3D), 03 WARLIKE / BIGFILMS (hành động),
 > 04 《我的婆婆是軟柿子》 (AI drama 9:16), 05 RISE Worlds 2018 (cinematic game CGI), 06 《逃不出大哥手掌心》 (AI drama BL 16:9),
@@ -43,6 +43,12 @@
 | 15 | AI drama 9:16 (DramaBox, tiếng Anh) | **1.79** / 1.85s | 57% / 74% | −14.0 / −13.9 | **57 / 68** | 69% / 57% |
 | 16 | phim ngắn quay thật (đêm) | 5.03 / 2.91s (ngưỡng 0.10) | 62% / 55% | **−24.9 / −22.5** | 6 / 31 | 96% / 94% (nền −44…−48) |
 | 17 | phim ngắn quay thật (hài sci-fi) | 2.96s (1 cảnh 87.7s) / **0.75s** | 62% / **17%** | −23.3 / −20.9 | 48 / **1** | 69% / 100% |
+| 18 | phim ngắn quay thật (đêm vườn táo) | 2.52s / 4.74↔1.12s (dải ngưỡng) | 49% / 23% | −24.0 / −23.1 | 47 / 22 | 86% / nhạc lên đều |
+| 19 | hành động võ thuật quay thật | 4.87 / **2.52s** | 41% / 20% (**tịnh tiến 43%**) | −19.4 / −21.5 | 25 / 13 | 100% / 99% |
+| 23 | MV kể chuyện quay thật | 3.40 / 5.42s | 57% / 35% | −10.7 / −10.6 | 0 / 1 | nền −38 → bài hát từ 52s |
+| 25 | phim ngắn CGI không lời | 3.96s (trọn phim) | 61% | **−27.9** | 46 | 94% / 53% (nhỏ) |
+
+> Số 19, 23, 25 do phiên 29/09 tối đo (ngưỡng cắt **0.15**); đang dở: 20–22, 24, 26–28 (xem "Bàn giao").
 
 ## Mẫu hình bước đầu (≥ 2 video)
 
@@ -144,22 +150,62 @@
 ## Giới hạn chung
 - Chưa nghe bằng tai; audio_listen là "nghe bằng số": lớp "nhạc" lẫn hiệu ứng, nhãn AST điểm thấp → chỉ ở mức "có thể".
 - Video gộp dài chỉ đo 3–10% thời lượng; 10 và 15 **lặp nội dung** nên "đoạn giữa phim" có thể là bản lặp.
-- Mốc gốc của đoạn 2 (11–17) chỉ ước tính ±10–30s (keyframe).
+- Mốc gốc của đoạn 2 (11–19) chỉ ước tính ±10–30s (keyframe). Cách đo chính xác (mới): tải trọn bản 360p rồi tương quan chéo tiếng (`cong_cu/fix_audio.py`)
+  — 22 đoạn 2 bắt đầu 2:54.9, 27 đoạn 2 bắt đầu 4:13.8.
 - OpenCV không đo được shot < 0.4s, cảnh tối; ngưỡng cắt phải chỉnh theo độ tương phản (16, 17).
-- Chỉ 1 MV (08) — mọi nhận xét về MV đều ở mức 1 mẫu.
+- MV mới có 08, 23 viết file (22 và 24 đang đo).
+- **Lỗi đo mới (29/09 tối) — tải theo đoạn bị cụt tiếng**: `yt-dlp --download-sections` cho ra file có **tiếng ngắn hơn hình** ở 3/18 đoạn: 22 đoạn 2 (97s/184s),
+  24 (107s/164s), 27 đoạn 2 (156s/160s). LUFS / quãng lặng / nhạc của các đoạn này sai ở phần cuối. Đã sửa bằng cách tải trọn bản 360p (client `android`,
+  định dạng 18) và ghép tiếng đủ vào hình 720p (`*_segNf.mkv`). **Từ nay phải kiểm độ dài tiếng = độ dài hình trước khi đo.** Các đoạn 11–18 đã xoá media nên
+  không kiểm lại được — mọi "quãng lặng kéo tới hết đoạn" ở đó cần coi chừng (chưa thấy kết luận nào dựa vào chỗ đó).
+- **Phép đo mới — điểm cắt so với phách** (`cong_cu/beat_align.py`, librosa): 22 (Not Like Us) đoạn bài hát 44–180s: trúng phách 27% = đúng mức ngẫu nhiên 27%;
+  23 đoạn 1: 39% so với 31% ngẫu nhiên. **Hai MV kể chuyện đều cắt không bám phách** [khá, 2 video] — ngược dự đoán "MV cắt theo beat" trong MAU_S0_12.
+  Điều kiện: librosa có thể dò lệch pha; cần nghe tai một đoạn để chắc.
+- Crunch (26): YouTube báo "not available" với client mặc định; tải được bằng `--extractor-args youtube:player_client=android -f 18` (360p).
 
-## Tồn đọng
-- **Chưa phân tích (11 mẫu)**: 18 Night of the Foxes (đã tải + đo đoạn 1: 63 shot, trung vị 2.52s, tĩnh 49%, LUFS −24.0, nhạc 86% — nhạc vào ở 18s dưới chữ
-  tên phim; **đoạn 2 11:20–13:50 đang xử lý, chưa viết file**), Kings of Triad, NIGHT SHIFT, Kodama (đã tải đoạn 1 + tờ quét, chưa đo), Not Like Us (đã tải
-  0:00–5:55, chưa đo), we can't be friends, New Born — LUNA, Leaf of Faith, Crunch, The Last Bastion, RESET.
-- **Dọn dữ liệu chưa xong** cho 16, 17, 18, 19–22 (media / khung / wav trong `scratchpad/s012`) — phiên bị chặn lệnh shell giữa chừng; phải chạy `clean.sh vNN`.
+## Ghi chú thêm cho các mẫu hình (từ 19, 23, 25 — chưa gộp vào bảng mẫu hình phía trên)
+- **Mẫu hình 1 (nhịp cắt)**: 19 hành động võ thuật chỉ đổi ×1.9 (4.87 → 2.52s), đánh nhau bằng cỡ rộng + máy đi theo (tịnh tiến 43%) để khoe vũ đạo thật —
+  khác 17 (×3.9, cắt vụn). → "hành động = cắt vụn" không đúng mọi phim; tuỳ động tác thật có đáng xem trọn không.
+- **Mẫu hình 2 (cụm shot ngắn)**: 23 — ký ức hiện thành cụm 0.6–1.1s, màu khác hẳn, giữa các shot dài 12–25s (thêm 1 video, biến thể "ký ức").
+- **Mẫu hình 5 (tắt nhạc dưới khoảnh khắc then chốt)**: thêm 19 (nghỉ giữa trận: nhạc tụt + gong + lặng 17s trên CU ↔ CU) và 23 (nhạc −60 dB đúng shot ký ức bị
+  xoá, về **dần** 12s, không đúng điểm cắt) → 8 video.
+- **Mẫu hình 7 (nhạc trồi ở shot mở không gian)**: **phản ví dụ 25** — nhạc lên đỉnh ngay TRƯỚC khi thoát ra rồi tụt gần câm (−67 dB) khi khu vườn mở ra.
+  Cùng loại khoảnh khắc, cách làm ngược → giữ là "một cách làm", không phải quy luật.
+- **Mẫu hình 9 (shot mở dài)**: thêm 19 (xe máy + chữ tên 55s), 25 (24.2s tĩnh ≈ 6× trung vị).
+- **Đoạn thiết lập không nhạc / nhạc nhỏ rồi mới vào bài** (18: 16s, 23: 52s, 09): đủ 3 video → ứng viên mẫu hình mới.
+- **Kể không lời**: 25 (1 câu / 183s), 09, 18 (montage) — thêm vào nhóm kể bằng hình.
+
+## Bàn giao (phiên 29/09 tối tạm dừng theo yêu cầu người dùng — phiên khác làm tiếp)
+- **Đã viết file**: 18 (cả 2 đoạn — dòng Tồn đọng cũ ghi "chưa viết" là sai), **19, 23, 25**.
+- **Nơi làm việc + media** (chưa xoá, ~0,4 GB):
+  `C:\Users\hongviet.doan\AppData\Local\Temp\claude\D--AI-Video-Pipeline--claude-worktrees-nice-bhabha-e53229\3c4c4228-e947-4768-809f-dd34138821d5\scratchpad\s012\`.
+  Bộ công cụ đã chép vào repo `research/craft/s0_12/cong_cu/` (`pipe.py` dùng biến môi trường `REPO`, mặc định `D:/AI-Video-Pipeline`). Hàng đợi đo
+  (`q.sh qA.txt / qB.txt / qC.txt`, `THR=0.15`) có thể vẫn chạy nền sau khi phiên dừng — kết quả: `vNN_*_proc.log` (chỉ ghi khi xong mỗi đoạn), `*_result.json`,
+  `*_L*_numbers.json`.
+- **Trạng thái từng video**:
+  - 20 NIGHT SHIFT (đoạn 2 = 3:30–6:00), 21 Kodama (đoạn 2 = 9:50–12:20), 27 The Last Bastion (đoạn 2 = 4:13.8–6:53.8, dùng `v27_seg2f`), 28 RESET (đoạn 2 =
+    8:10–10:40): đang / đã đo trong hàng đợi — **chưa viết file**. 28 đoạn 1 đã đo (64 shot, trung vị 2.56s, tĩnh 80%, LUFS −16.8; `so_do/v28_seg1_*`).
+  - 22 Not Like Us: đoạn 1 đo xong (93 shot, trung vị 1.46s, 31 shot/phút, LUFS −10.9, nhạc 79%, bài hát vào ~44s; cắt không bám phách) — đoạn 2 đo lại bằng
+    `v22_seg2f` (tiếng đủ). **Chưa viết file.**
+  - 24 New Born — LUNA (MV làm bằng Kling AI): 111 shot / 164s, trung vị **1.28s**, 40.6 shot/phút, OpenCV thiếu dữ liệu 19% — số âm thanh cũ **sai** (tiếng cụt
+    107s); đo lại `v24_seg1f` (0–90 trong qC) + còn phải `py pipe.py listen v24_seg1f en 90 164 song`. **Chưa viết file.**
+  - 26 Crunch (CGI, 360p): đoạn 1 đo xong (64 shot, trung vị 2.29s, tĩnh 72%, LUFS −24.9; mở bằng **giấc mơ du hành vũ trụ 0–89.7s rồi tỉnh dậy** vào chuỗi ngày
+    lặp lại — cùng họ mẫu hình 11, biến thể "mở bằng giấc mơ" như 11); đang nghe 90–180s (`v26_L90.log`); đoạn 2 = 4:40–7:10 (cắt từ `v26_full.mp4`).
+    **Chưa viết file.**
+- **Việc còn lại sau khi viết đủ 20–22, 24, 26–28**: cập nhật bảng số + gộp mục "Ghi chú thêm" vào các mẫu hình; `bash clean.sh vNN` cho 19–28 (và xoá
+  `v2x_full.*`, `*_segNf.mkv`); nhờ người dùng xoá tay media cũ ở scratchpad phiên trước
+  (`...worktrees-danh-gia-devsys-2026-491348\819f89c0-...\scratchpad\s012\` — ~0,25 GB webm 19–28; lệnh xoá tự động bị chặn).
+
+## Tồn đọng (ngoài bàn giao)
 - 15: tìm đoạn cao trào thật (video gộp lặp / không theo thứ tự).
 - 17: xem ≥ 5 khung/giây shot 8.6–96.3s để chắc là một cảnh; nghe tai lớp tích tắc.
 - 10: tìm đoạn giữa phim không lặp và phần kết.
 - Đo lại nhạc đoạn 2 của 01 và 04; các phần chưa "nghe bằng số" của 06, 07, 08, 09, 10.
 - Người dùng nghe trực tiếp để xác nhận: 06 (84–90s), 07 (73–78s), 10 (14.2–23.2s; 42–57s đoạn 3), 09 (0–30s), 01 (0–90s), **11 (28.4s tỉnh mộng; 90–93s
-  đoạn 2)**, **12 (79–86s đoạn 2)**, **17 (tiếng tích tắc 0–90s)**.
+  đoạn 2)**, **12 (79–86s đoạn 2)**, **17 (tiếng tích tắc 0–90s)**, **23 (đoạn 2 giây 28–46: nhạc tụt khi ký ức bị xoá; cắt có bám phách không)**,
+  **25 (116–131s: nhạc tắt khi ra tới vườn)**.
 
 ## Đã xoá dữ liệu tải về
-01–15: media, khung hình, tờ ảnh, phổ, wav và thư mục tách âm đã xoá sau khi viết file — chỉ giữ JSON số đo (`*_result.json`, `*_numbers.json` không lời chép),
-bảng và script. 16–22: **chưa xoá** (xem Tồn đọng).
+01–15: media, khung hình, tờ ảnh, phổ, wav và thư mục tách âm đã xoá sau khi viết file. 16–28: **chưa xoá** (xem Bàn giao).
+Số đo JSON (không lời chép, đã bỏ đường dẫn tờ ảnh) của 19, 22 (đoạn 1), 23, 24 (hình), 25, 26 (đoạn 1), 28 (đoạn 1) nằm ở `so_do/`; của 01–18 chỉ còn trong
+scratchpad phiên trước.

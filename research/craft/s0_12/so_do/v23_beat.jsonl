@@ -1,0 +1,2 @@
+{"video": "v23_seg1.webm", "window": [52.0, 180.0], "tempo_bpm": 117.5, "n_cuts": 23, "tol_s": 0.08, "hit_beat": 0.39, "chance_beat": 0.31, "hit_half_beat": 0.61, "chance_half_beat": 0.63, "mean_offset_over_period": 0.248}
+{"video": "v23_seg2.webm", "window": [0.0, 108.0], "tempo_bpm": 117.5, "n_cuts": 15, "tol_s": 0.08, "hit_beat": 0.27, "chance_beat": 0.31, "hit_half_beat": 0.4, "chance_half_beat": 0.63, "mean_offset_over_period": 18.125}
