@@ -238,6 +238,13 @@ FEATURES: Dict[str, Dict] = {
         "verified": False,
         "why": "GĐ6 (R3/I4): chuẩn theo số đông của bộ ảnh, sửa sai người (Kenta→Maxim) rồi tự trả tiền gen lại",
     },
+    "ai_label": {
+        "label": "Nhãn \"nội dung có dùng AI\" góc trên bản dựng (và các bản xuất khổ khác) — cho thị trường bắt buộc nhãn; "
+                 "chữ nhãn: AI_LABEL_TEXT",
+        "verified": False,
+        "why": "S0.14 T6 (người dùng duyệt 2026-09-29): 《微短剧发展管理办法》 (TQ, hiệu lực 2026-09-01) bắt nhãn AI ở vị trí rõ trong mỗi tập; "
+               "phát ở VN không bắt buộc — bật khi phát ở nơi cần",
+    },
     "speaker_tags": {
         "label": "Prompt Kling có thoại mà chưa nêu tên người nói → code thêm \"X speaks (mouth moving, no sound).\" + người còn lại "
                  "trong khung \"listens, mouth closed\" (tắt: chỉ báo trong chẩn đoán)",

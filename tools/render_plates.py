@@ -28,6 +28,8 @@ Plan (JSON):
   cameras          [{"name", "location": [x,y,z], "look_at": [x,y,z], "lens": 35, "model_coords": false}] extra cameras in metres;
                    model_coords true = the points are in the raw model's own coordinates (they get the scale and the lift to z = 0)
   lens_mm          35; eye_height_m 1.6; depth true (also render a depth picture: near = white; its range is in the manifest)
+  terrain          {"b": "Terrain_Ground_01", "r": …, "g": …, "tile_m": 6} how an in-game ground splat is rebuilt (fix_terrain; the
+                   official FF map exports); false = leave the exported ground material as it is
   weather          {"snow": 0..1, "wet": 0..1, "fog": 0..1} static weather on the geometry (kế hoạch V4 1.6 step 3): snow on the faces
                    that look up, wet = darker + glossier everything; fog is only recorded (laid in 2D from the depth picture). Falling rain/snow/lightning are 2D layers
                    added after (core/plate_env.py) so the character gets them too.
@@ -234,6 +236,80 @@ def setup_world(sky, warnings):
     scene.render.film_transparent = mode == "C"
     scene.view_settings.exposure = float(sky.get("exposure", -0.5))
     return used + (" + transparent sky" if mode == "C" else "")
+
+
+# ---- in-game terrain (splat map) ------------------------------------------------------------------------------------------
+TERRAIN_DEFAULT = {"g": "Terrain_Ground_01", "b": "Terrain_Ground_02", "r": "Terrain_Ground_03", "tile_m": 6.0,
+                   "bare": [0.30, 0.28, 0.22]}
+
+
+def _ground_texture(folder, prefix):
+    """The colour picture of one ground layer: <prefix>_D*.png / .tga / .jpg in the model's folder, or None."""
+    for f in sorted(os.listdir(folder)):
+        low = f.lower()
+        if low.startswith(prefix.lower() + "_d") and low.endswith((".png", ".tga", ".jpg", ".tif")):
+            return os.path.join(folder, f)
+    return None
+
+
+def fix_terrain(conf, warnings):
+    """2026-09-29, official Free Fire map export (ClockTower / Peak): the ground mesh's material holds ONE ground picture
+    (Terrain_Ground_03 — rock) stretched over UVs that span the whole island (u 0.49–0.68), so the render showed a grey-blue smear.
+    In the game the ground is a splat: AllTerrainMask.png (whole island, same UVs) says per channel which ground layer shows
+    (checked on the clock tower's crop of the mask — the river and the road line up: G = grass, most of the land → Terrain_Ground_01;
+    B = bare ground round the town → _02; R = rocky patches → _03; black = river bed). Rebuilt here: the mask read with the mesh UVs,
+    each ground layer tiled every `tile_m` metres in world space, mixed bare → B → R → G. Layer per channel and tile size
+    can be changed in the plan ("terrain"); the mapping is a best reading of the export, checked against showcase_0.jpg by eye."""
+    conf = dict(TERRAIN_DEFAULT, **(conf or {}))
+    fixed = []
+    for mat in bpy.data.materials:
+        bsdf = _principled(mat)
+        if bsdf is None or not bsdf.inputs["Base Color"].is_linked:
+            continue
+        node = bsdf.inputs["Base Color"].links[0].from_node
+        if node.type != "TEX_IMAGE" or not node.image:
+            continue
+        path = bpy.path.abspath(node.image.filepath)
+        folder = os.path.dirname(path)
+        if not os.path.basename(path).lower().startswith("terrain_ground") or not os.path.isdir(folder):
+            continue
+        mask = next((os.path.join(folder, f) for f in os.listdir(folder) if "terrainmask" in f.lower()), None)
+        layers = {ch: _ground_texture(folder, conf[ch]) for ch in ("b", "r", "g")}
+        if not mask or not all(layers.values()):
+            warnings.append(f"terrain {mat.name}: no splat mask / ground layers next to {os.path.basename(path)} — left as exported")
+            continue
+        try:
+            nt = mat.node_tree
+            m = nt.nodes.new("ShaderNodeTexImage")
+            m.image = bpy.data.images.load(mask, check_existing=True)
+            m.image.colorspace_settings.name = "Non-Color"
+            if node.inputs["Vector"].is_linked:                      # same UVs as the exported picture
+                nt.links.new(node.inputs["Vector"].links[0].from_socket, m.inputs["Vector"])
+            sep = nt.nodes.new("ShaderNodeSeparateColor")
+            nt.links.new(m.outputs["Color"], sep.inputs[0])
+            geo, mapping = nt.nodes.new("ShaderNodeNewGeometry"), nt.nodes.new("ShaderNodeMapping")
+            nt.links.new(geo.outputs["Position"], mapping.inputs["Vector"])
+            k = 1.0 / max(float(conf["tile_m"]), 0.1)
+            mapping.inputs["Scale"].default_value = (k, k, k)
+            colour = None
+            for ch, sock in (("b", 2), ("r", 0), ("g", 1)):
+                tex = nt.nodes.new("ShaderNodeTexImage")
+                tex.image = bpy.data.images.load(layers[ch], check_existing=True)
+                nt.links.new(mapping.outputs["Vector"], tex.inputs["Vector"])
+                mix = nt.nodes.new("ShaderNodeMix")
+                mix.data_type = "RGBA"
+                if colour is None:
+                    mix.inputs[6].default_value = (*conf["bare"], 1.0)
+                else:
+                    nt.links.new(colour, mix.inputs[6])
+                nt.links.new(tex.outputs["Color"], mix.inputs[7])
+                nt.links.new(sep.outputs[sock], mix.inputs[0])
+                colour = mix.outputs[2]
+            nt.links.new(colour, bsdf.inputs["Base Color"])
+            fixed.append(mat.name)
+        except Exception as e:  # noqa: BLE001
+            warnings.append(f"terrain {mat.name} not rebuilt: {e}")
+    return {"materials": fixed, **{k: conf[k] for k in ("b", "r", "g", "tile_m")}}
 
 
 # ---- weather on the geometry ----------------------------------------------------------------------------------------------
@@ -478,6 +554,8 @@ def main():
         add_ground(lo, hi)
     sky = cfg.get("sky") or {}
     manifest["sky"] = dict(sky, used=setup_world(sky, warnings))
+    if cfg.get("terrain", {}) is not False:                              # before the weather: snow / wet mix into the rebuilt colour
+        manifest["terrain"] = fix_terrain(cfg.get("terrain"), warnings)
     if cfg.get("weather"):
         manifest["weather"] = apply_weather(cfg["weather"], warnings)
     scene = bpy.context.scene

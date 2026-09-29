@@ -703,7 +703,7 @@ def delivery_panel(p: Pipeline, pid: int, chosen, durations) -> None:
             with open(best, "rb") as f:
                 st.download_button(f"⬇ Tải {os.path.basename(best)}", f, file_name=os.path.basename(best), mime="video/mp4", key=f"best_dl_{pid}")
         files = ([("Video cuối", fin["path"], None)] if fin.get("path") and os.path.exists(fin["path"]) else []) + \
-            [({"subtitle": "Phụ đề", "endcard": "Card cuối", "export": "Bản xuất"}[x["kind"]], x["path"], x["stale"]) for x in stat["layers"]]
+            [({"subtitle": "Phụ đề", "endcard": "Card cuối", "ailabel": "Nhãn AI", "export": "Bản xuất"}.get(x["kind"], x["kind"]), x["path"], x["stale"]) for x in stat["layers"]]
         for n, (label, path, stale) in enumerate(files):
             a, b = st.columns([4, 1.3], vertical_alignment="center")
             a.markdown(f"{label}: `{os.path.basename(path)}` · {os.path.getsize(path) / 1e6:.1f} MB" + (f" · :orange[⚠ {stale}]" if stale else ""))

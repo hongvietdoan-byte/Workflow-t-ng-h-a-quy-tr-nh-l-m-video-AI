@@ -59,7 +59,7 @@ def spots_of(asset_id: int, db: str):
 
 
 def cameras(m3d):
-    ax, ay, _ = m3d["anchor"]
+    ax, ay, az = m3d["anchor"]
     out = []
     for name, s in m3d["spots"].items():
         if name in COVERED:
@@ -67,9 +67,12 @@ def cameras(m3d):
         x, y, z = s["at"]
         eye = z + EYE
         dist = math.hypot(x - ax, y - ay)
-        out.append({"name": f"eye_{name}_thap", "location": [x, y, eye], "look_at": [ax, ay, max(eye + 2.0, 30.0)], "lens": 28 if dist < 20 else 35,
+        out.append({"name": f"eye_{name}_thap", "location": [x, y, eye], "look_at": [ax, ay, max(eye + 2.0, az - 3.5)], "lens": 28 if dist < 20 else 35,
                     "model_coords": True, "angle": "eye_level"})
-    for name in ("plaza_front", "level_26_0", "level_21_7"):             # reverse views: the plaza / houses / sea behind the camera line
+    # reverse views: the plaza / houses / sea behind the camera line — from the default spot and the next two spots (29/09: the names
+    # used to be the FFXN model's own; the official export has other spots)
+    others = [n for n in m3d["spots"] if n != m3d.get("default_spot") and n not in COVERED][:2]
+    for name in [m3d.get("default_spot", "plaza_front")] + others:
         if name in m3d["spots"]:
             x, y, z = m3d["spots"][name]["at"]
             dx, dy = x - ax, y - ay
@@ -80,12 +83,12 @@ def cameras(m3d):
 
 
 def animations(m3d, white: bool):
-    ax, ay, _ = m3d["anchor"]
+    ax, ay, az = m3d["anchor"]
     sp = m3d["spots"]
-    fx, fy, fz = sp["plaza_front"]["at"]
-    lx, ly, lz = sp["lower_yard"]["at"]
-    ux, uy, uz = sp.get("level_26_0", sp["plaza_front"])["at"]
-    tower_mid = [ax, ay, 32.0]
+    front = sp.get(m3d.get("default_spot")) or sp.get("plaza_front") or next(iter(sp.values()))
+    fx, fy, fz = front["at"]
+    ux, uy, uz = sp.get("level_26_0", front)["at"]
+    tower_mid = [ax, ay, az - 1.5]                    # heights from the anchor (FFXN: anchor 33,5 → 32 / 34 / 36 as before)
     r = math.hypot(fx - ax, fy - ay) + 1.0
     base = math.atan2(fy - ay, fx - ax)
     orbit = [{"t": i / 4, "location": [ax + r * math.cos(base + math.radians(-60 + 30 * i)), ay + r * math.sin(base + math.radians(-60 + 30 * i)),
@@ -99,11 +102,11 @@ def animations(m3d, white: bool):
     return [
         {"name": "di_bo_vao" + tag, "seconds": 6, "fps": 24, "model_coords": True, "white": white, "lens": 28,
          "keys": [{"t": 0, "location": start, "look_at": tower_mid}, {"t": 0.5, "location": [ux, uy, uz + EYE], "look_at": tower_mid},
-                  {"t": 1, "location": [fx, fy, fz + EYE], "look_at": [ax, ay, 34.0]}]},
+                  {"t": 1, "location": [fx, fy, fz + EYE], "look_at": [ax, ay, az + 0.5]}]},
         {"name": "vong_quanh_thap" + tag, "seconds": 6, "fps": 24, "model_coords": True, "white": white, "lens": 28, "keys": orbit},
         {"name": "can_cau_len" + tag, "seconds": 5, "fps": 24, "model_coords": True, "white": white, "lens": 28,
          "keys": [{"t": 0, "location": [fx, fy, fz + EYE], "look_at": tower_mid}, {"t": 1, "location": [fx, fy + 4, fz + 12.0],
-                                                                                    "look_at": [ax, ay, 36.0]}]},
+                                                                                    "look_at": [ax, ay, az + 2.5]}]},
     ]
 
 

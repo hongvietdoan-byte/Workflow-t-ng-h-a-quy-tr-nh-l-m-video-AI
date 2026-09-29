@@ -630,6 +630,13 @@ def probe_size(path: str):
     return None
 
 
+def overlay_still(video: str, png: str, output: str) -> str:
+    """A transparent picture (same size as the video) laid over the whole video; sound copied as it is."""
+    run([find_ffmpeg(), "-y", "-i", video, "-i", png, "-filter_complex", f"[0:v][1:v]overlay=0:0,{TO_YUV709}[v]",
+         "-map", "[v]", "-map", "0:a?", *_ENCODE, "-c:a", "copy", output])
+    return output
+
+
 def append_still(video: str, still_png: str, seconds: float, output: str) -> str:
     """The video followed by a still picture (an end card) for `seconds`, with silence under the card. The picture is made with
     PIL beforehand (no drawtext: works without libfreetype and with any Vietnamese text)."""

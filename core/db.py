@@ -300,7 +300,7 @@ CREATE INDEX IF NOT EXISTS idx_diag_last ON diag_events(last_at);
 CREATE TABLE IF NOT EXISTS outputs (
     id INTEGER PRIMARY KEY,
     project_id INTEGER NOT NULL,
-    kind TEXT NOT NULL CHECK (kind IN ('final','subtitle','endcard','export')),
+    kind TEXT NOT NULL CHECK (kind IN ('final','subtitle','endcard','ailabel','export')),
     path TEXT NOT NULL,
     parent_id INTEGER REFERENCES outputs(id),
     manifest TEXT NOT NULL,            -- what it was made from (clip job ids + file times, settings hash, ...) -> '⚠ cũ' check
@@ -363,6 +363,36 @@ def _migrate_usage_events(conn: sqlite3.Connection) -> None:
     conn.commit()
 
 
+def _migrate_outputs(conn: sqlite3.Connection) -> None:
+    """S0.14 T6 (2026-09-29): outputs.kind gains 'ailabel' (the "nội dung có dùng AI" layer). SQLite cannot change a CHECK, so the
+    table is rebuilt once (rows and ids kept; foreign keys off while the self-referencing parent_id rows move)."""
+    sql = (conn.execute("SELECT sql FROM sqlite_master WHERE type='table' AND name='outputs'").fetchone() or [""])[0] or ""
+    if not sql or "'ailabel'" in sql:
+        return
+    conn.commit()
+    conn.execute("PRAGMA foreign_keys = OFF")
+    try:
+        conn.executescript("""
+            ALTER TABLE outputs RENAME TO outputs_old;
+            CREATE TABLE outputs (
+                id INTEGER PRIMARY KEY,
+                project_id INTEGER NOT NULL,
+                kind TEXT NOT NULL CHECK (kind IN ('final','subtitle','endcard','ailabel','export')),
+                path TEXT NOT NULL,
+                parent_id INTEGER REFERENCES outputs(id),
+                manifest TEXT NOT NULL,
+                created_at TEXT NOT NULL,
+                created_by TEXT);
+            INSERT INTO outputs (id, project_id, kind, path, parent_id, manifest, created_at, created_by)
+                SELECT id, project_id, kind, path, parent_id, manifest, created_at, created_by FROM outputs_old;
+            DROP TABLE outputs_old;
+            CREATE INDEX IF NOT EXISTS idx_outputs_project ON outputs(project_id, kind, id);
+        """)
+        conn.commit()
+    finally:
+        conn.execute("PRAGMA foreign_keys = ON")
+
+
 def connect(path: str = ":memory:") -> sqlite3.Connection:
     conn = sqlite3.connect(path, timeout=60)     # many background threads write: wait for the lock instead of failing
     conn.row_factory = sqlite3.Row
@@ -401,7 +431,8 @@ def schema_stamp() -> int:
         import hashlib
         import inspect
         try:
-            src = SCHEMA + repr(V2_COLUMNS) + "".join(inspect.getsource(f) for f in (_migrate, _migrate_v2, _migrate_usage_events))
+            src = SCHEMA + repr(V2_COLUMNS) + "".join(inspect.getsource(f) for f in (_migrate, _migrate_v2, _migrate_usage_events,
+                                                                                       _migrate_outputs))
             _STAMP.append(int(hashlib.sha1(src.encode("utf-8")).hexdigest()[:7], 16) or 1)
         except (OSError, TypeError):
             _STAMP.append(0)
@@ -446,6 +477,7 @@ def _migrate(conn: sqlite3.Connection) -> None:
     if "qc_reject_floor" not in cols:
         conn.execute("ALTER TABLE projects ADD COLUMN qc_reject_floor REAL DEFAULT 0.5")
     _migrate_usage_events(conn)
+    _migrate_outputs(conn)
     job_cols = {r["name"] for r in conn.execute("PRAGMA table_info(jobs)")}
     for col in ("external_id", "result_path", "created_by"):
         if col not in job_cols:

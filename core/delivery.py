@@ -150,7 +150,7 @@ def status(p: Pipeline, project_id: int, data_dir: str) -> Dict:
     fin = lineage.final_status(p.conn, data_dir, project_id, render_hash(settings), audio_hash(data_dir, project_id))
     current = {"subtitle": subtitles.get_settings(p, project_id), "end_card": settings["end_card"]}
     layers, seen = [], set()
-    for kind in ("subtitle", "endcard", "export"):
+    for kind in ("subtitle", "endcard", "ailabel", "export"):
         for row in p.conn.execute("SELECT * FROM outputs WHERE project_id=? AND kind=? ORDER BY id DESC", (project_id, kind)).fetchall():
             if not os.path.exists(row["path"]) or os.path.normcase(os.path.abspath(row["path"])) in seen:
                 continue                                  # the same file name was written again later: only its newest record counts
@@ -171,7 +171,7 @@ def _same(a: Dict, b: Dict) -> bool:
 
 
 def _layer_change(p: Pipeline, row, current: Dict, depth: int = 0) -> Optional[str]:
-    """D7: what changed since this subtitle / end card / export was made — its own settings (read from its manifest), or, for an
+    """D7: what changed since this subtitle / end card / AI label / export was made — its own settings (read from its manifest), or, for an
     export, the subtitle / card version it was made from. None when it still matches (or it has nothing to compare with)."""
     try:
         man = json.loads(row["manifest"] or "{}")
@@ -190,24 +190,33 @@ def _layer_change(p: Pipeline, row, current: Dict, depth: int = 0) -> Optional[s
             return "card cuối đã tắt"
         if not _same({**DEFAULT_CARD, **(man["card"] or {})}, {**DEFAULT_CARD, **now}):
             return "card cuối đã đổi"
+    if kind == "ailabel" and "text" in man:
+        from . import features
+        if not features.on("ai_label"):
+            return "nhãn AI đã tắt"
+        if man["text"] != ai_label_text():
+            return "chữ nhãn AI đã đổi"
     if row["parent_id"] is not None and depth < 5:
         parent = p.conn.execute("SELECT * FROM outputs WHERE id=?", (row["parent_id"],)).fetchone()
-        if parent is not None and parent["kind"] in ("subtitle", "endcard"):
+        if parent is not None and parent["kind"] in ("subtitle", "endcard", "ailabel"):
             newest = lineage.latest_output(p.conn, row["project_id"], parent["kind"])
             if newest is not None and newest["id"] != parent["id"]:
-                return {"subtitle": "đã có phụ đề mới hơn", "endcard": "đã có card cuối mới hơn"}[parent["kind"]]
+                return {"subtitle": "đã có phụ đề mới hơn", "endcard": "đã có card cuối mới hơn",
+                        "ailabel": "đã có bản nhãn AI mới hơn"}[parent["kind"]]
             if _layer_change(p, parent, current, depth + 1):
-                return {"subtitle": "phụ đề của bản gốc đã cũ", "endcard": "card cuối của bản gốc đã cũ"}[parent["kind"]]
+                return {"subtitle": "phụ đề của bản gốc đã cũ", "endcard": "card cuối của bản gốc đã cũ",
+                        "ailabel": "bản nhãn AI của bản gốc đã cũ"}[parent["kind"]]
     return None
 
 
 def latest_layer(p: Pipeline, project_id: int):
-    """The most finished version of the latest render: end card > subtitles > final (a layer made from an older render is skipped)."""
+    """The most finished version of the latest render: AI label > end card > subtitles > final (a layer made from an older render is
+    skipped)."""
     fin = lineage.latest_output(p.conn, project_id, "final")
     if fin is None:
         return None
     best = fin
-    for kind in ("subtitle", "endcard"):
+    for kind in ("subtitle", "endcard", "ailabel"):
         row = p.conn.execute("SELECT * FROM outputs WHERE project_id=? AND kind=? ORDER BY id DESC LIMIT 1", (project_id, kind)).fetchone()
         if row is None or not os.path.exists(row["path"]):
             continue
@@ -684,10 +693,58 @@ def end_card_layer(p: Pipeline, project_id: int, data_dir: str, parent_id: Optio
     return {"video": out, "output_id": record(p, project_id, "endcard", out, parent["id"], {"card": card})}
 
 
+AI_LABEL_DEFAULT = "Nội dung có sử dụng AI"
+
+
+def ai_label_text() -> str:
+    return (os.environ.get("AI_LABEL_TEXT") or "").strip() or AI_LABEL_DEFAULT
+
+
+def ai_label_picture(width: int, height: int, text: str, out_png: str) -> str:
+    """S0.14 T6: a small label in the top-left corner (dark rounded box, white text, ~3 % of the short side), the rest transparent —
+    kept clear of the bottom band where subtitles and game notices go. Drawn with PIL (any Vietnamese letter, no drawtext)."""
+    from PIL import Image, ImageDraw, ImageFont
+    img = Image.new("RGBA", (width, height), (0, 0, 0, 0))
+    draw = ImageDraw.Draw(img)
+    fonts = subtitles.discover()
+    font, _ = subtitles.font_for_text(subtitles.default_font(fonts), fonts, text)
+    size = max(int(min(width, height) * 0.03), 12)
+    try:
+        f = ImageFont.truetype(font.path, size) if font else ImageFont.load_default()
+    except OSError:
+        f = ImageFont.load_default()
+    margin, pad = int(min(width, height) * 0.035), int(size * 0.45)
+    w = draw.textlength(text, font=f)
+    draw.rounded_rectangle([margin, margin, margin + w + 2 * pad, margin + size + 2 * pad], radius=pad, fill=(0, 0, 0, 150))
+    draw.text((margin + pad, margin + pad * 0.8), text, font=f, fill=(255, 255, 255, 235))
+    os.makedirs(os.path.dirname(out_png) or ".", exist_ok=True)
+    img.save(out_png)
+    return out_png
+
+
+def ai_label_layer(p: Pipeline, project_id: int, data_dir: str, parent_id: Optional[int] = None,
+                   force: bool = False) -> Optional[Dict]:
+    """The most finished version with the AI label over it (feature `ai_label`, off: None). Exports made after it carry the label."""
+    from . import features
+    if not (force or features.on("ai_label")):
+        return None
+    parent = _parent(p, project_id, parent_id, ("final", "subtitle", "endcard"))
+    if parent is None:
+        raise ValueError("chưa có video cuối để gắn nhãn AI")
+    size = ffmpeg_studio.probe_size(parent["path"]) or formats.spec(formats.project_aspect(p.project(project_id)))["render"]
+    folder = output_dir(data_dir, project_id)
+    text = ai_label_text()
+    png = ai_label_picture(size[0], size[1], text, os.path.join(folder, "ai_label.png"))
+    out = os.path.join(folder, "FINAL_VIDEO_ai.mp4")
+    with ffmpeg_studio.atomic_output(out) as staged:
+        ffmpeg_studio.overlay_still(parent["path"], png, staged)
+    return {"video": out, "output_id": record(p, project_id, "ailabel", out, parent["id"], {"text": text})}
+
+
 @_locked
 def export_layer(p: Pipeline, project_id: int, data_dir: str, spec: Dict, parent_id: Optional[int] = None) -> Dict:
     """Another size / file-size limit of the most finished version (with subtitles and card when they exist)."""
-    parent = _parent(p, project_id, parent_id, ("final", "subtitle", "endcard"))
+    parent = _parent(p, project_id, parent_id, ("final", "subtitle", "endcard", "ailabel"))
     if parent is None:
         raise ValueError("chưa có video cuối để xuất")
     w, h = int(spec["w"]), int(spec["h"])
@@ -730,6 +787,11 @@ def _reframe(p: Pipeline, top: Dict, w: int, h: int, max_mb: Optional[float], ou
             png = card_picture(w, h, {**DEFAULT_CARD, **card}, os.path.join(work, "card.png"))
             ffmpeg_studio.append_still(cur, png, float(card.get("seconds") or 3.0), os.path.join(work, "end.mp4"))
             cur = os.path.join(work, "end.mp4")
+        lab_row = by_kind.get("ailabel")
+        if lab_row is not None:                    # the label is redrawn for the new frame (a crop would cut it off)
+            text = json.loads(lab_row["manifest"] or "{}").get("text") or ai_label_text()
+            png = ai_label_picture(w, h, text, os.path.join(work, "ai_label.png"))
+            cur = ffmpeg_studio.overlay_still(cur, png, os.path.join(work, "ai.mp4"))
         return ffmpeg_studio.resize_to_size(cur, out, w, h, max_mb, fit="pad")
     finally:
         shutil.rmtree(work, ignore_errors=True)
@@ -774,6 +836,13 @@ def deliver(p: Pipeline, project_id: int, data_dir: str, llm=None, music_path: O
     except Exception as e:  # noqa: BLE001
         warnings.append(f"card cuối: {e}")
         diag.record(p.conn, "render", "warn", f"card cuối thất bại: {e}", "end_card", project_id)
+    try:
+        lab = ai_label_layer(p, project_id, data_dir)
+        if lab:
+            layers.append(("ailabel", lab["video"]))
+    except Exception as e:  # noqa: BLE001
+        warnings.append(f"nhãn AI: {e}")
+        diag.record(p.conn, "render", "warn", f"nhãn AI thất bại (bản giao KHÔNG có nhãn): {e}", "ai_label", project_id)
     for spec in get_settings(p, project_id)["exports"]:
         try:
             layers.append(("export", export_layer(p, project_id, data_dir, spec)["path"]))

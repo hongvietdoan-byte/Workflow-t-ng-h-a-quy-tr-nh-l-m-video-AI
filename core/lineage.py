@@ -288,7 +288,7 @@ def layer_status(conn, output_row, final_state: Dict) -> Optional[str]:
     if output_row is None:
         return None
     parent = output_row["parent_id"]
-    if output_row["kind"] in ("subtitle", "endcard", "export") and parent is not None:
+    if output_row["kind"] in ("subtitle", "endcard", "ailabel", "export") and parent is not None:
         chain = [parent]
         while chain[-1] is not None:
             r = conn.execute("SELECT parent_id FROM outputs WHERE id=?", (chain[-1],)).fetchone()

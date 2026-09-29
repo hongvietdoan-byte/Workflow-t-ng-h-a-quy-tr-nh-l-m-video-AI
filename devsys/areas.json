@@ -66,7 +66,7 @@
       "assets": ["prompts/04_*", "knowledge/editor/*", "mcp_servers/ffmpeg_studio.py", "assets/*"],
       "docs": [],
       "tests": [],
-      "flags": ["loudness_normalize", "shot_color_match", "j_cut", "music_breath", "sound_intent", "impact_shake", "ambience_bed", "motion_trim", "speed_ramp", "flashback_fx", "end_hold", "music_fit", "shot_transitions"],
+      "flags": ["loudness_normalize", "shot_color_match", "j_cut", "music_breath", "sound_intent", "impact_shake", "ambience_bed", "motion_trim", "speed_ramp", "flashback_fx", "end_hold", "music_fit", "shot_transitions", "ai_label"],
       "diag_stages": ["music", "render", "delivery"],
       "keywords": ["nhạc", "âm thanh", "hiệu ứng", "phụ đề", "render", "dựng", "LUFS", "độ to", "khớp màu", "bản giao", "delivery", "subtitle", "sfx"]
     },
@@ -117,7 +117,7 @@
       "code": ["core/location_pack.py", "core/plates3d.py", "core/plate_camera.py", "core/plate_env.py", "core/plate_qc.py", "core/composite.py"],
       "assets": ["tools/location_pack.py", "tools/render_plates.py", "tools/experiments/tower_plate.py"],
       "docs": ["docs/HUONG_DAN_3D.md", "docs/RESEARCH_3D_PREVIZ.md", "docs/BAN_GIAO_2026-09-25_THAP_VA_KHOP_MOI.md"],
-      "tests": [],
+      "tests": ["tests/test_tower_pack.py"],
       "flags": ["location_plates"],
       "diag_stages": [],
       "keywords": ["3D", "bối cảnh", "plate", "Blender", "phông xanh", "location", "thời tiết"]

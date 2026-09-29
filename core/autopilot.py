@@ -923,7 +923,7 @@ def tick(p: Pipeline, project_id: int, ctx: Context) -> str:
                 return RUNNING
         res = delivery.deliver(p, project_id, ctx.data_dir, ctx.llm, render_fn=ctx.render or default_render, subtitle_fn=ctx.subtitle)
         out = res["final"]
-        names = {"subtitle": "phụ đề", "endcard": "card cuối", "export": "bản xuất"}
+        names = {"subtitle": "phụ đề", "endcard": "card cuối", "ailabel": "nhãn AI", "export": "bản xuất"}
         extra = "".join(f" + {names.get(kind, kind)}: {path}" for kind, path in res["layers"])
         for w in res["warnings"]:
             _log(p, project_id, f"Xuất bản: {w[:120]}")
