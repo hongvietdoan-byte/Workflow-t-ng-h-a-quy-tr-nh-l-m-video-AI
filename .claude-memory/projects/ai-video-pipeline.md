@@ -283,3 +283,10 @@ Phần lớn việc còn lại trong `TODO.md` (mục "Đang làm/kế tiếp", 
 - Web AI Development System (`devsys/`, cổng 8502): AI chấm theo thang cố định, chỉ khoản trừ kèm bằng chứng; người chấm ngoài (phiên Claude Code) miễn phí qua --export/--import.
 - Giá ảnh Deepix tạm $0,052 (web Deepix có tổng chi phí; API không có) — cần đối chiếu.
 **Source**: phiên 2026-09-26.
+
+## S4.6 A/B hành động + khớp môi (dự án thử #10) - 2026-09-29
+**Context**: chọn cách làm video cho shot hành động / kỹ năng / thoại trước lần chạy K; rút kinh nghiệm cho dự án khác.
+**Finding**: chạy lớn → Kling khung đầu (0,32/4 s) tốt nhất; hiệu ứng kỹ năng không model nào tự vẽ — vẽ vào khung đầu + cuối thì Kling giữ được;
+Seedance Fast chỉ qua bộ lọc khi dấu đỏ nằm trên mặt và có lúc vẽ dấu vào clip (QC `ref_mark` bắt); khớp môi (c) `core/dialogue_take.py` cho đúng
+người nói đúng lượt với 3 người trong khung; storyboard phải ghi ai có trong từng khung (`cast_note`).
+**Source**: chạy thật, 14 clip, 8,88 USD — docs/AB_HANH_DONG_S4_6_2026-09-29.md
