@@ -25,7 +25,10 @@ def sign_in(conn, email: str, passcode: str = None) -> bool:
         st.session_state["login_error"] = str(e)
         return False
     st.session_state.pop("login_error", None)
-    st.query_params["login"] = auth.normalize_email(email)
+    # S6.4 (kế hoạch sau #8): the address keeps the session's random token for reloads — never the e-mail (a shared link or a
+    # screenshot used to show who was signed in)
+    st.query_params.pop("login", None)
+    st.query_params["s"] = st.session_state["auth_token"]
     return True
 
 
@@ -52,10 +55,18 @@ def require_login(conn) -> None:
         return
     auth.ensure_owner(conn)
     ident = auth.identity(conn, st.session_state.get("auth_token"))
+    if ident is None and st.query_params.get("s"):         # S6.4: a reload keeps the session by its token (?s=…), not by an e-mail
+        by_link = auth.identity(conn, st.query_params.get("s"))
+        if by_link is not None and not (by_link.role == "owner" and not request_source()[1]):   # an Owner link never works elsewhere
+            st.session_state["auth_token"] = st.query_params.get("s")
+            ident = by_link
+        else:
+            st.query_params.pop("s", None)
     if ident is None:
         st.session_state.pop("identity", None)
         st.session_state.pop("auth_token", None)
-        remembered = st.query_params.get("login")          # a reload or a bookmark: ?login=ten@garena.vn (never the owner: see auth)
+        remembered = st.query_params.get("login")          # an old bookmark ?login=ten@garena.vn — signed in once, then the address
+        # carries the token instead (never the owner: see auth)
         if remembered and remembered.strip().lower() == auth.OWNER_EMAIL and not request_source()[1]:
             remembered = None                              # a link must not sign anyone in as Owner from another machine
         if remembered and not st.session_state.get("login_tried") and sign_in(conn, remembered):
@@ -385,6 +396,7 @@ def account_section(p: Pipeline) -> None:
         for key in ("auth_token", "identity", "login_tried"):
             st.session_state.pop(key, None)
         st.query_params.pop("login", None)
+        st.query_params.pop("s", None)
         st.rerun()
 
 
@@ -472,8 +484,54 @@ def status_line(p: Pipeline, pid: int) -> None:
     problems = [f for f in C.diag_problems(p) if f.get("project_id") in (None, pid)]
     if problems:
         bits.append(f"🔴 {len(problems)} vấn đề (vd: {escape(diag.redact(problems[0]['title']))}) — tab “📊 Theo dõi”")
+    budget = _budget_bit(p, pid)
+    if budget:
+        bits.append(budget)
     if bits:
         st.caption("  ·  ".join(bits))
+    stale = code_changed_since_start()
+    if stale:                                           # S6.4: #8 ran for hours on code older than the fixes on disk
+        st.warning(f"⚠ Code đã đổi sau khi Dashboard khởi động ({stale}) — tắt / mở lại Dashboard để dùng bản mới "
+                   "(các việc đang chạy vẫn dùng code cũ tới lúc đó).")
+
+
+_STARTED = __import__("time").time()
+
+
+def code_changed_since_start() -> str:
+    """S6.4: the newest core/ or dashboard/ file changed after this process started ('' when none) — Streamlit keeps the modules it
+    imported, so a fix pulled from git does nothing until a restart."""
+    import glob
+    import os
+    root = os.path.join(os.path.dirname(__file__), "..")
+    newest, name = 0.0, ""
+    for pattern in ("core/*.py", "core/adapters/*.py", "dashboard/*.py", "dashboard/steps/*.py"):
+        for f in glob.glob(os.path.join(root, pattern)):
+            try:
+                t = os.path.getmtime(f)
+            except OSError:
+                continue
+            if t > newest:
+                newest, name = t, os.path.relpath(f, root).replace("\\", "/")
+    return name if newest > _STARTED + 5 else ""
+
+
+def _budget_bit(p: Pipeline, pid) -> str:
+    """S6.4: the project's locked budget as used / cap / left, in the status line (it was only inside Bước 1)."""
+    if pid is None:
+        return ""
+    try:
+        from core import project_budget
+        if not project_budget.enabled():
+            return ""
+        data = project_budget.get(p.conn, pid) or {}
+        if not data.get("locked"):
+            return ""
+        spent = sum(project_budget.spent_by_stage(p.conn, pid).values())
+        cap = float(data.get("total") or 0)
+        return f"🔒 Ngân sách: đã dùng {spent:.2f} / trần {cap:.2f} USD (còn {max(cap - spent, 0):.2f})"
+    except Exception:  # noqa: BLE001 - a status bit only
+        return ""
 
 
 

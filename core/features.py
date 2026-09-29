@@ -236,6 +236,12 @@ def on(name: str) -> bool:
     return bool(FEATURES[name]["verified"])
 
 
+def on_unverified() -> Dict[str, Dict]:
+    """S6.3 (kế hoạch sau #8): features switched ON by the person (FEATURE_<NAME>=1) that have not passed a real test yet — what a cut
+    made now is really trying out (#8 used 23 of them; nobody could tell which part of the film came from which)."""
+    return {k: v for k, v in FEATURES.items() if on(k) and not v["verified"]}
+
+
 def pending() -> Dict[str, Dict]:
     """Features still waiting for their real test (shown to the person so an off feature is never a mystery)."""
     return {k: v for k, v in FEATURES.items() if not on(k)}

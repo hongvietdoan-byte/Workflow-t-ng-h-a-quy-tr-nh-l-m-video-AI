@@ -22,12 +22,12 @@
 | S2 Timeline theo âm thanh + animatic | 6 | 5 | 0 | 1 | 0 | 81,8 % |
 | S3 Director kể chuyện + Quay phim | 8 | 7 | 0 | 0 | 1 | 100 % |
 | S4 Video chất lượng | 12 | 2 | 0 | 4 | 0 | 10 % |
-| S5 Bối cảnh theo file 3D Tháp Đồng Hồ | 6 | 2 | 0 | 0 | 0 | 37,5 % |
-| S6 Ước tính, ngân sách, dashboard | 6 | 0 | 0 | 0 | 0 | 0 % |
+| S5 Bối cảnh theo file 3D Tháp Đồng Hồ | 6 | 5 | 0 | 0 | 0 | 87,5 % |
+| S6 Ước tính, ngân sách, dashboard | 6 | 3 | 1 | 1 | 1 | 71,4 % |
 | S7 Agent QC | 2 | 0 | 0 | 0 | 0 | 0 % |
 | K Chạy kiểm kịch bản hài 20–30 s | 3 | 0 | 0 | 0 | 0 | 0 % |
 | S8 Chấm lại bằng AI Development System (cuối cùng) | 5 | 0 | 0 | 0 | 0 | 0 % |
-| **Tổng** | **86** | **47** | **4** | **7** | **1** | **59 %** |
+| **Tổng** | **86** | **53** | **5** | **8** | **2** | **66,1 %** |
 
 Đợt hiện tại: **S1** · việc kế: **S9.6** Gộp timeline tổng + sửa giao diện S6.4
 <!-- /tien-do -->
@@ -114,19 +114,19 @@
 
 ### S5 — Bối cảnh theo file 3D Tháp Đồng Hồ
 - [x] S5.1 · Render bộ ảnh chuẩn từ GLB ở tầm mắt + câu bố cục · nặng:2 · ✅ · 2026-09-29: tools/tower_pack.py — 16 ảnh tầm mắt ngày/đêm trên mặt sàn đo được, loại 2 chỗ đứng nằm dưới mái che; D:/AI-Video-Output/2026-09-29_bo-boi-canh-thap-dong-ho (chờ người dùng chọn đưa vào Kho)
-- [ ] S5.2 · Chặn prompt thiếu câu bố cục · nặng:1 · ⬜
-- [ ] S5.3 · Địa điểm đổi → khung thành "cũ" · nặng:1 · ⬜
-- [ ] S5.4 · Lớp 0 đo "tầng tường" · nặng:2 · ⬜
+- [x] S5.2 · Chặn prompt thiếu câu bố cục · nặng:1 · ✅ · 2026-09-29: job ảnh bị giữ (miễn phí) khi cảnh ghi nơi Kho có mô tả bố cục mà dự án chưa gắn; câu bố cục không còn bị cắt ở 300 ký tự; test
+- [x] S5.3 · Địa điểm đổi → khung thành "cũ" · nặng:1 · ✅ · 2026-09-29: dấu vân tay bối cảnh (mô tả + ảnh) trong mã đầu vào ảnh; ảnh làm trước 29/09 không báo nhầm; test
+- [x] S5.4 · Lớp 0 đo "tầng tường" · nặng:2 · ✅ · 2026-09-29: đếm đường ngang dài ở nền (hiệu chỉnh trên dữ liệu thật: render tháp 0–3, khung nhiều tầng #8 5–10) → cờ stacked_tiers khi bối cảnh Kho tả là phẳng; test
 - [ ] S5.5 · Vẽ thử lại khung nền tháp · nặng:1 · ⬜
 - [x] S5.6 · Render tháp GLB thành video white-model làm tham chiếu cho Seedance 2.5 · nặng:1 · ✅ · 2026-09-29 (người dùng: 'tự làm kèm video'): 3 đường máy (đi bộ vào, vòng quanh, cần cẩu) × bản chất liệu + white-model; đã sửa đường đi bộ xuyên tường
 
 ### S6 — Ước tính, ngân sách, dashboard
-- [ ] S6.1 · Dự tính tổng dự án ngay khi Director trả bảng shot · nặng:2 · ⬜
-- [ ] S6.2 · Màn timeline tổng · nặng:2 · ⬜
-- [ ] S6.3 · Hiện cờ chưa kiểm ảnh hưởng bản dựng · nặng:1 · ⬜
-- [ ] S6.4 · E-mail khỏi URL, job ảnh khi chờ cổng, trần rõ, cảnh báo khởi động lại · nặng:2 · ⬜
-- [ ] S6.5 · Ghi verified cho cờ đã chứng minh · nặng:1 · ⬜
-- [ ] S6.6 · Áp tài liệu prompt caching vào ước tính · nặng:1 · ⬜
+- [x] S6.1 · Dự tính tổng dự án ngay khi Director trả bảng shot · nặng:2 · ✅ · 2026-09-29: Bước 1 hiện 💵 dự tính chia khâu (project_budget.propose) ngay dưới kết quả Director + dòng tóm tắt lượt chạy; nghiệm thu lệch ≤ 20 % chờ lần chạy kiểm
+- [ ] S6.2 · Màn timeline tổng · nặng:2 · ✖ · gộp vào S9.6 (không sửa giao diện hai lần)
+- [x] S6.3 · Hiện cờ chưa kiểm ảnh hưởng bản dựng · nặng:1 · ✅ · 2026-09-29: features.on_unverified() + khung 🧪 ở Bước 5 liệt kê cờ đang bật chưa kiểm; test
+- [ ] S6.4 · E-mail khỏi URL, job ảnh khi chờ cổng, trần rõ, cảnh báo khởi động lại · nặng:2 · 🔄 · 2026-09-29: xong mã phiên `?s=` thay e-mail (Owner chỉ nhận từ máy), thanh đầu 'đã dùng / trần / còn', cảnh báo code đổi cần khởi động lại; còn: job ảnh tự gửi khi autopilot chờ cổng
+- [ ] S6.5 · Ghi verified cho cờ đã chứng minh · nặng:1 · ⏸ · chờ người dùng chọn cờ nào coi là đã chứng minh qua #8 (ghi trong báo cáo)
+- [x] S6.6 · Áp tài liệu prompt caching vào ước tính · nặng:1 · ✅ · 2026-09-29: kiểm lại tài liệu (4 breakpoint, lookback 20, Sonnet 5 tối thiểu 1024 token, ghi ×1,25/×2, đọc ×0,1, ảnh cache được); cost.cache_stats đo tỉ lệ đọc cache từng khâu từ usage thật, hiện ở bảng ngân sách; đo #8: khâu qc 0 %
 
 ### S7 — Agent QC
 - [ ] S7.0 · Agent QC giữ cache (không cắt ảnh giữa hội thoại) · nặng:2 · ⬜

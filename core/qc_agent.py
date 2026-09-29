@@ -285,7 +285,7 @@ class QcAgent:
             return [{"type": "text", "text": f"Ảnh chuẩn: {what}"}, self._img(out)]
         if name == "measure":
             f = self.by_k.get(int(args["k"]))
-            flags = qc_scene.check_frame(f["path"], f["data"]) if f else []
+            flags = qc_scene.check_frame(f["path"], f["data"], bool(f.get("flat_place"))) if f else []
             return [{"type": "text", "text": json.dumps(flags, ensure_ascii=False) or "[]"}]
         if name == "record_batch":
             out = []

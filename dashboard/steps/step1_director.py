@@ -166,6 +166,14 @@ def _crew_notes(p: Pipeline, pid: int) -> None:
     except Exception as e:  # noqa: BLE001 - an old or odd answer must not break Step 1, but the checks' absence is said
         st.caption(f"⚠ Không chạy được các kiểm của tổ làm phim trên bảng shot hiện tại: {escape(str(e)[:160])}")
         return
+    try:                                             # S6.1 (Q7): the whole project's estimate the moment the shot plan exists
+        from core import project_budget
+        prop = project_budget.propose(p, pid)
+        st.caption(f"💵 Dự tính tổng dự án theo bảng shot này ≈ **{prop['total']:.2f} USD** — "
+                   + " · ".join(f"{label} {prop['stages'][k]['cap']:.2f}" for k, label in project_budget.STAGES.items()
+                                if prop["stages"][k]["cap"]) + " (đã gồm vẽ lại / làm lại dự phòng; duyệt và khóa ở 💵 Ngân sách dự án)")
+    except Exception:  # noqa: BLE001 - an estimate line only; the budget panel says why when opened
+        pass
     from core import project_defaults
     for c in project_defaults.changed_places(p.conn, pid):      # S3.8: the plan was made with an older version of this place
         st.warning(f"🗺 Bối cảnh **{escape(c['name'])}** {c['what']} sau khi Director chia shot"

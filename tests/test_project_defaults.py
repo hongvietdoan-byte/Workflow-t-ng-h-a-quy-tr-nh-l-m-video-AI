@@ -52,5 +52,21 @@ class ProjectDefaultsTests(unittest.TestCase):
         self.assertEqual(project_defaults.inherit(self.conn, self.p.create_project("first", created_by="c@x.vn"), "c@x.vn"), [])
 
 
+class CacheStatsTests(unittest.TestCase):
+    """S6.6: the share of each Claude stage's prompt read from the cache, from the real usage rows."""
+
+    def test_read_share_per_stage(self):
+        from core import cost
+        p = Pipeline(connect())
+        pid = p.create_project("c")
+        p.conn.execute("INSERT INTO llm_calls (at, project_id, stage, model, input_tokens, output_tokens, cache_read_tokens, "
+                       "cache_write_tokens) VALUES (datetime('now'), ?, 'qc_agent', 'm', 100, 10, 800, 100)", (pid,))
+        p.conn.execute("INSERT INTO llm_calls (at, project_id, stage, model, input_tokens, output_tokens, cache_read_tokens, "
+                       "cache_write_tokens) VALUES (datetime('now'), ?, 'qc', 'm', 500, 10, 0, 0)", (pid,))
+        p.conn.commit()
+        got = {c["stage"]: c["read_share"] for c in cost.cache_stats(p.conn, pid)}
+        self.assertEqual(got, {"qc": 0.0, "qc_agent": 0.8})
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -693,7 +693,13 @@ def delivery_panel(p: Pipeline, pid: int, chosen, durations) -> None:
 def _final_qc(p, pid, has_render: bool):
     """S1.9 (after trial #8): the finished cut measured by code — length, music holes, effects off their shot, peaks, subtitle lines
     that are not dialogue, subtitles on faces, very short shots. Runs after every delivery; the button measures again (free)."""
-    from core import final_qc
+    from core import features, final_qc
+    trying = features.on_unverified()
+    if trying:                                       # S6.3: which parts of this cut are still being tried out
+        with st.expander(f"🧪 Bản dựng đang dùng {len(trying)} tính năng chưa kiểm thật"):
+            st.markdown("\n".join(f"- `{k}` — {escape(v['label'])}" for k, v in sorted(trying.items())))
+            st.caption("Bật bằng FEATURE_<TÊN>=1 trong dashboard.env. Sau khi một lần chạy thật chứng minh tính năng đúng, ghi `verified` "
+                       "trong core/features.py (kèm ngày, dự án, số đo) — bản giao chính nên chỉ dùng tính năng đã kiểm.")
     key = f"final_qc_{pid}"
     if has_render and st.button("🔎 Kiểm bản dựng (miễn phí, ~30 s)", key=f"final_qc_btn_{pid}"):
         with st.spinner("Đang đo bản dựng…"):

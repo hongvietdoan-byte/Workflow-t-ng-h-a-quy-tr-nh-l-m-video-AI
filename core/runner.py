@@ -1164,6 +1164,14 @@ class ImageRunner(_Runner):
             out["storyboard"] = sb                           # storyboard mode: prompt_key 14 + the group fields
         return out
 
+    def _blocked(self, job) -> Optional[str]:
+        """S5.2: a picture of a place the library describes, but the project does not resolve it — held before paying (the layout
+        sentence would be missing: #8's tower came out as stacked terraces)."""
+        row = self.p.conn.execute("SELECT data FROM scenes WHERE id=?", (job["scene_id"],)).fetchone()
+        if row is None:
+            return None
+        return assets.missing_layout(self.p.conn, job["project_id"], json.loads(row["data"] or "{}"))
+
     def _over_budget(self, job, args, kwargs) -> Optional[str]:
         from . import budget
         model = (kwargs or {}).get("model")
@@ -1352,7 +1360,7 @@ class ImageRunner(_Runner):
             from . import qc_scene
             if qc_scene.enabled():                     # QC layer 0: code checks as the picture arrives (free)
                 data = json.loads(self.p.conn.execute("SELECT data FROM scenes WHERE id=?", (job["scene_id"],)).fetchone()["data"] or "{}")
-                flags = qc_scene.check_frame(path, data)
+                flags = qc_scene.check_frame(path, data, assets.flat_place(self.p.conn, job["project_id"], data))
                 qc_scene.record_flags(self.data_dir, job["project_id"], job["id"], flags)
                 sure = [f for f in flags if f["severity"] == "redraw"]
                 tried = str(job["retry_reason"] or "")

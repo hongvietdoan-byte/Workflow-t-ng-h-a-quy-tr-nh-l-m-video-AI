@@ -75,23 +75,36 @@ def _aspect(conn, project_id: int) -> Optional[str]:
     return row["aspect"] if row else None
 
 
-def _image_hash(data: Dict, cast_rows, aspect: Optional[str], proj) -> str:
+def _image_hash(data: Dict, cast_rows, aspect: Optional[str], proj, place: Optional[str] = None) -> str:
     """The one fingerprint of a picture's inputs — used both when a job is sent (runner stamp) and when it is judged (scan).
     Trial 2A (2026-09-25): the stamp added the look but the scan did not, so in every project with a look each picture was
-    "outdated" the moment it was made (motion stale → clips blocked; the autopilot would redo pictures up to the shot cap)."""
+    "outdated" the moment it was made (motion stale → clips blocked; the autopilot would redo pictures up to the shot cap).
+    place (S5.3): the fingerprint of the scene's resolved place (text + pictures) — a changed place makes its frames outdated."""
     base = image_spec_hash(data, cast_rows, aspect)
     look = proj["look"] if proj is not None and "look" in proj.keys() else None
-    if not look:
-        return base
-    # I8: a changed look or World Bible changes every picture (projects without a look keep the hash they had)
-    return _hash({"base": base, "look": look, "world_bible": proj["world_bible"] if "world_bible" in proj.keys() else None})
+    if look:
+        # I8: a changed look or World Bible changes every picture (projects without a look keep the hash they had)
+        base = _hash({"base": base, "look": look, "world_bible": proj["world_bible"] if "world_bible" in proj.keys() else None})
+    return _hash({"base": base, "place": place}) if place else base
+
+
+def place_key(conn, project_id: int, data: Dict) -> Optional[str]:
+    """S5.3 (kế hoạch sau #8): the place the picture prompt describes — its description and picture files; None when none resolves."""
+    from . import assets
+    try:
+        a = assets.scene_location(conn, project_id, data)
+    except Exception:  # noqa: BLE001 - no library tables (old test data): no place in the fingerprint
+        return None
+    if a is None:
+        return None
+    return _hash({"id": a["id"], "description": a.get("description"), "images": [i.get("path") for i in a.get("images") or []]})
 
 
 def current_image_hash(conn, project_id: int, scene_id: int) -> str:
     data = json.loads(conn.execute("SELECT data FROM scenes WHERE id=?", (scene_id,)).fetchone()["data"] or "{}")
     cast_rows = conn.execute("SELECT * FROM characters WHERE project_id=?", (project_id,)).fetchall()
     proj = conn.execute("SELECT * FROM projects WHERE id=?", (project_id,)).fetchone()
-    return _image_hash(data, cast_rows, _aspect(conn, project_id), proj)
+    return _image_hash(data, cast_rows, _aspect(conn, project_id), proj, place_key(conn, project_id, data))
 
 
 def approved_image_id(conn, scene_id: int) -> Optional[int]:
@@ -134,8 +147,11 @@ def _scan(conn, project_id: int) -> Dict[int, Dict]:
     proj = conn.execute("SELECT * FROM projects WHERE id=?", (project_id,)).fetchone()
     for s in scenes:
         img = images.get(s["id"])
-        if img is not None and img["input_hash"] and img["input_hash"] != _image_hash(json.loads(s["data"] or "{}"), cast_rows, aspect, proj):
-            image_stale_of[s["id"]] = "nội dung cảnh / nhân vật / tỉ lệ khung đã đổi"
+        if img is not None and img["input_hash"]:
+            d = json.loads(s["data"] or "{}")
+            legacy = _image_hash(d, cast_rows, aspect, proj)              # a picture made before S5.3 carries no place in its stamp
+            if img["input_hash"] not in (legacy, _image_hash(d, cast_rows, aspect, proj, place_key(conn, project_id, d))):
+                image_stale_of[s["id"]] = "nội dung cảnh / nhân vật / tỉ lệ khung / bối cảnh (mô tả, ảnh) đã đổi"
     base = {}                                           # v3 multi-shot: later shots of a group start from the group's picture
     mode = conn.execute("SELECT shot_mode FROM projects WHERE id=?", (project_id,)).fetchone()
     if mode is not None and mode["shot_mode"] in ("multishot", "per_shot"):   # per_shot: H5 camera set-ups share a picture too

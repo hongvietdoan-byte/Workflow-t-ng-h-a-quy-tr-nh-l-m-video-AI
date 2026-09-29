@@ -191,7 +191,9 @@ class DashboardGateTests(unittest.TestCase):
         button_keys = [b.key for b in at.button]
         self.assertIn("settings_users", button_keys)                                  # Phân quyền: in the settings gear now
         self.assertTrue(any("Tắt Dashboard" in b.label for b in at.button))          # v2: in the ⚙ menu
-        self.assertIn("login", at.query_params)                                       # remembered for reloads
+        self.assertIn("s", at.query_params)                                           # remembered for reloads by the session token…
+        self.assertNotIn("login", at.query_params)                                    # …never by the e-mail (S6.4)
+        self.assertNotIn("@", str(dict(at.query_params)))
 
     def test_company_e_mail_only_gets_the_video_steps(self):
         at = self.sign_in("new.person@garena.vn")

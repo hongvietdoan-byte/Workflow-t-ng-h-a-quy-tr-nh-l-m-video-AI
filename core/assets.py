@@ -697,6 +697,39 @@ def outfit_images(conn, project_id: int, name: str) -> List[Dict]:
     return out
 
 
+_FLAT = re.compile(r"no stacked|flat|phẳng|không có (bậc|tầng)", re.I)
+
+
+def flat_place(conn, project_id: int, scene: Dict) -> bool:
+    """S5.4: the scene's place is described as flat ground (the library's layout sentence) — its frames are counted for stacked
+    terraces by the free layer-0 check."""
+    try:
+        place = scene_location(conn, project_id, scene)
+    except Exception:  # noqa: BLE001 - no library tables (old data): nothing to compare with
+        return False
+    return bool(place and _FLAT.search(place.get("description") or ""))
+
+
+def missing_layout(conn, project_id: int, scene: Dict) -> Optional[str]:
+    """S5.2 (kế hoạch sau #8, lỗi 1.4 — the tower drawn as stacked terraces): the scene names a place the library describes (layout in
+    words), but the project does not resolve it (not attached, or no picture) — its picture prompt would go WITHOUT the layout sentence.
+    A reason to hold the picture job (free), else None."""
+    if scene_location(conn, project_id, scene) is not None:
+        return None
+    text = fold(str(scene.get("location") or ""))
+    if not text:
+        return None
+    row = conn.execute("SELECT game FROM projects WHERE id=?", (project_id,)).fetchone()
+    game = row["game"] if row is not None and "game" in row.keys() else None
+    for a in conn.execute("SELECT id, name, description, game FROM assets WHERE kind='location' AND project_id IS NULL").fetchall():
+        if game and a["game"] and a["game"] != game:
+            continue
+        if fold(a["name"]) and fold(a["name"]) in text and (a["description"] or "").strip():
+            return (f"cảnh ghi nơi \"{scene.get('location')}\" — Kho có bối cảnh \"{a['name']}\" (có mô tả bố cục) nhưng dự án chưa gắn / "
+                    "chưa có ảnh, prompt ảnh sẽ thiếu câu bố cục: gắn bối cảnh ở Bước 1 rồi gen lại")
+    return None
+
+
 def scene_location(conn, project_id: int, scene: Dict) -> Optional[Dict]:
     """The place a scene is set in: the resource the scene names by id (`location_asset`, chosen by the Director or by hand), else a
     chosen place whose name appears in the scene's `location` text. None when neither has a picture."""
@@ -797,7 +830,8 @@ def location_text(conn, place: Dict) -> str:
             name, h = str(lm.get("name") or "").strip(), lm.get("height_m")
             if name and isinstance(h, (int, float)) and name not in [m[0] for m in marks]:
                 marks.append((name, float(h)))
-    desc = re.sub(r"\s+", " ", (place.get("description") or "").split("[AI đọc ảnh]")[0]).strip()[:300]
+    desc = re.sub(r"\s+", " ", (place.get("description") or "").split("[AI đọc ảnh]")[0]).strip()[:600]   # S5.2: 300 cut the
+    # tower's "No stacked terraces, no fortress." off its layout sentence
     bits = [f"Setting: {place['name']}" + (f" — {desc}" if desc else "")]
     if marks:
         bits.append("Real sizes: " + ", ".join(f"{n} about {h:g} m tall" for n, h in marks[:6])

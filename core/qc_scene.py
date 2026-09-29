@@ -48,19 +48,46 @@ def _behind(data: Dict) -> bool:
 
 
 # ---- layer 0 -------------------------------------------------------------------------------------------------------------
-def check_frame(path: str, data: Dict) -> List[Dict]:
+TIER_FLAG = 5              # S5.4: long horizontal edge lines behind the people (wall tops, step edges) — calibrated 29/09: the 16
+                           # eye-level renders of the real tower model count 0–3, #8's "stacked terraces" frames 5–10 (S5, S8, S20, S24)
+TIER_SIZES = ("WS", "EWS", "MLS", "MS", "GAME_TPS")
+
+
+def tier_lines(path: str) -> int:
+    """How many long horizontal edges cross the lower 70 % of the frame (a row ≥ 35 % edge pixels; rows within 6 px are one line)."""
+    import numpy as np
+    from PIL import Image
+    im = np.asarray(Image.open(path).convert("L").resize((360, 640)), dtype=np.float32) / 255
+    rows = (np.abs(im[2:, :] - im[:-2, :]) > 0.08).mean(axis=1)
+    lines, last = 0, -10
+    for i in range(int(len(rows) * 0.30), len(rows)):
+        if rows[i] >= 0.35:
+            if i - last > 6:
+                lines += 1
+            last = i
+    return lines
+
+
+def check_frame(path: str, data: Dict, flat_place: bool = False) -> List[Dict]:
     """Code checks of one frame. [{code, severity: "redraw" | "flag", problem (vi), fix (en)}]; [] when fine or when the face detector is
-    not available (said by the caller)."""
+    not available (said by the caller). flat_place: the scene's place is described as flat (library layout sentence) — the frame's
+    background is counted for stacked terraces (S5.4, playbook G1)."""
     from . import text_placement
     blank = _blank(path)
     if blank:                                     # an empty / black / one-colour picture never reaches Claude (regression 2026-09-27:
         return [{"code": "blank", "severity": "redraw", "problem": blank,    # the scene QC passed a black cell)
                  "fix": "Draw the full scene of the shot: the characters in the place, lit, in focus."}]
-    boxes = text_placement.face_boxes(path)
-    if boxes is None:
-        return []
     out: List[Dict] = []
     size = EQUIV.get(str(data.get("size") or "").upper(), str(data.get("size") or "").upper())
+    if flat_place and size in TIER_SIZES:
+        n = tier_lines(path)
+        if n >= TIER_FLAG:                        # a flag for eyes (qc playbook G1), never a redraw by itself: people / props also draw lines
+            out.append({"code": "stacked_tiers", "severity": "flag",
+                        "problem": f"nền có {n} đường ngang dài (mép tường / bậc chồng lớp) — bối cảnh trong Kho được tả là mặt bằng phẳng",
+                        "fix": "Keep the place's real layout: flat open ground, only low retaining walls, no stacked terraces."})
+    boxes = text_placement.face_boxes(path)
+    if boxes is None:
+        return out
     cast = [str(c) for c in data.get("characters") or []]
     night = str(data.get("time") or "").lower() == "night"
     if not boxes:

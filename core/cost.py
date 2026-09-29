@@ -299,6 +299,23 @@ def _picture_qc_calls(conn, project_id: int, pictures: int) -> float:
     return _scenes_to_draw(conn, project_id) * (1 + REDRAW_SHARE)
 
 
+def cache_stats(conn, project_id: Optional[int] = None) -> List[Dict]:
+    """S6.6 (kế hoạch sau #8): how much of each Claude stage's prompt came from the cache, from the real `usage` of every call (table
+    llm_calls). Facts checked on the official docs 29/09 (claude-api skill, shared/prompt-caching.md): ≤ 4 breakpoints per request,
+    each looks back ≤ 20 positions; Sonnet 5 caches a prefix of ≥ 1024 tokens; write ×1,25 (5-min TTL) / ×2 (1 h), read ×0,1; an
+    image block is cacheable, and changing or removing an earlier one invalidates everything after it (prefix match — PH 45).
+    [{stage, calls, input, cache_read, cache_write, read_share}] — read_share = read / (read + input + write)."""
+    where, args = ("WHERE project_id=?", (project_id,)) if project_id is not None else ("", ())
+    out = []
+    for r in conn.execute(f"SELECT stage, COUNT(*) n, SUM(input_tokens) i, SUM(cache_read_tokens) cr, SUM(cache_write_tokens) cw "
+                          f"FROM llm_calls {where} GROUP BY stage ORDER BY stage", args).fetchall():
+        i, cr, cw = int(r["i"] or 0), int(r["cr"] or 0), int(r["cw"] or 0)
+        total = i + cr + cw
+        out.append({"stage": r["stage"], "calls": int(r["n"]), "input": i, "cache_read": cr, "cache_write": cw,
+                    "read_share": round(cr / total, 3) if total else 0.0})
+    return out
+
+
 def estimate_run(pipeline: Pipeline, project_id: int, pricing: Optional[Dict] = None) -> Dict:
     """What the automatic run will pay for, before the start button: pictures (+ end frames), clips (each shot's model, lip-sync
     shots on Seedance included), Claude (Director, QC, motion) — base and worst case with the retries. Unknown prices are listed,

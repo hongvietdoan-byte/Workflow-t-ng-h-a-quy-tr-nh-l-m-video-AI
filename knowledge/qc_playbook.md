@@ -70,6 +70,8 @@ chuyển thành bộ đo code (lớp 0).
 - Sự thật (Kho, ảnh chụp trên cao + bản đồ): tháp đứng NGAY trên quảng trường đá rộng, phẳng; quảng trường tối đa 2 mặt thấp nối bằng vài
   bậc ngắn, tường chắn chỉ cao ngang ngực–đầu người; quanh là nhà 1–2 tầng mái đỏ, cỏ, dừa, biển. KHÔNG có chuỗi bậc thang lên cao, không
   thành lũy.
+- Đo bằng code (lớp 0, S5.4, 29/09): `measure` trả cờ `stacked_tiers` khi nền có ≥ 5 đường ngang dài ở bối cảnh Kho tả là phẳng
+  (hiệu chỉnh: 16 ảnh render tháp thật 0–3 đường, khung nhiều tầng #8 5–10). Chỉ là cờ để soi — người / đạo cụ cũng tạo đường ngang.
 - Cách soi: gọi `reference("establishing")` rồi xem nền từng khung: đếm số tầng tường / bậc sau lưng nhân vật, so chiều cao tường với
   người (1,7 m), tháp đứng trên quảng trường hay trên đỉnh khối bậc. Ghép dải vùng nền quanh chân tháp qua các khung.
 - Nguyên nhân đã biết: ảnh toàn cảnh (nhìn cao) ĐÚNG; khung ngang tầm mắt tự đoán phần sau → nghi ảnh tham chiếu render 3D chụp sát chân

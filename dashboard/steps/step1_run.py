@@ -52,7 +52,11 @@ def _budget_summary(p: Pipeline, pid: int, data) -> str:
         return ""
     if data.get("locked"):
         return f"🔒 Đã khóa {float(data.get('total') or 0):.2f} USD · đã chi {spent:.2f} USD"
-    return f"chưa duyệt · đã chi {spent:.2f} USD"
+    try:                                             # S6.1 (Q7): the project's estimated total, visible without opening the panel
+        est = f"dự tính ≈ {project_budget.propose(p, pid)['total']:.2f} USD · "
+    except Exception:  # noqa: BLE001 - a summary line only
+        est = ""
+    return f"chưa duyệt · {est}đã chi {spent:.2f} USD"
 
 
 def project_budget_panel(p: Pipeline, pid: int) -> None:
@@ -82,6 +86,12 @@ def project_budget_panel(p: Pipeline, pid: int) -> None:
                        f"{int(project_budget.IMAGE_REDO * 100)} % vẽ lại ảnh, {int(project_budget.VIDEO_REDO * 100)} % làm lại video, Claude ×"
                        f"{project_budget.LLM_MARGIN}; giá chưa xác minh (Seedance) ×{project_budget.UNVERIFIED_MARGIN}. Âm thanh chưa có giá: "
                        "vẫn giới hạn theo số lượt.")
+            from core import cost as _cost                  # S6.6: how much Claude really read from the cache, per stage
+            cached = [c for c in _cost.cache_stats(p.conn, pid) if c["input"] + c["cache_read"] + c["cache_write"]]
+            if cached:
+                st.caption("🧠 Claude đọc lại từ cache (rẻ ×0,1): " + " · ".join(
+                    f"{c['stage']} {c['read_share'] * 100:.0f} % ({c['calls']} lượt)" for c in cached)
+                    + " — khâu 0 % là chỗ nên xem lại cách gửi (prompt dưới 1024 token không cache; đổi ảnh phía trước làm mất cache sau).")
             target = st.number_input("Ngân sách mục tiêu (USD, để Director chia shot trong mức này; 0 = không đặt)", min_value=0.0,
                                      value=float(data.get("target") or 0.0), step=1.0, key=f"pb_target_{pid}")
             if (target or None) != (data.get("target") or None):
