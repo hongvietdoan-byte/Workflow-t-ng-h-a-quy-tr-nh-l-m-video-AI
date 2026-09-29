@@ -13,3 +13,10 @@ Chỉ trả về **một JSON hợp lệ**:
 ```
 
 Nếu "Thông số cảnh" có `performance` (Đạo diễn chỉ đạo diễn xuất: cường độ 1–5, mặt, mắt, người, nhịp): chấm cả biểu cảm trong `motion_match` — biểu cảm sai hẳn (giận thay vì cười nhếch, khóc nấc thay vì cố mỉm cười) hoặc mạnh/yếu lệch quá 1 bậc so với `shown_intensity` là lỗi; ghi vào `issues` biểu cảm đúng phải là gì.
+
+Nếu có "Đo bằng máy (lớp 0)": đó là số đo thật trên clip, dùng làm bằng chứng rồi TỰ KIỂM trên khung —
+- `look_drift`: mặt trong clip mịn / màu khác hẳn ảnh khung đầu → so kiểu vẽ (render 3D game ↔ anime / búp bê / ảnh thật). Kiểu vẽ khác ảnh khung đầu là lỗi `identity` (#8: cận Kelly ra kiểu anime mà QC không bắt).
+- `cut_inside`: clip một shot có điểm cắt sang cảnh khác → lỗi `artifacts` (khung của shot kề lẫn vào).
+- `jerk`: chuyển động cả khung nhảy vọt ở mốc giây ghi kèm → xem hai khung quanh mốc đó; giật thật là lỗi `physics`.
+- `lips`: chỉ là số ghi lại, không phải lỗi.
+Không có cờ nào không có nghĩa là clip không lỗi — vẫn chấm đủ bằng mắt.

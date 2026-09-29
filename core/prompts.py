@@ -598,6 +598,10 @@ def build_motion_bundle(pipeline: Pipeline, project_id: int, only_missing: bool 
             if len(group) > 1:                 # M9: the real limits of a Kling multi-shot request, not the single-clip ones
                 out.update(multishot_group=[g["idx"] for g in group], prompt_max_chars=512, group_max_sec=shots.MULTISHOT_MAX,
                            video_model="kling")
+        from . import motion_physics
+        body = motion_physics.sentence(str(data.get("action") or ""))
+        if body:                               # S4.4: the physics of this kind of action, for the writer to keep (not a formula)
+            out["physics_hint"] = body
         prev = all_scenes.get(r["idx"] - 1) or {}
         if data.get("sequence") and prev.get("sequence") == data.get("sequence") and prev.get("spatial_state"):
             out["previous_spatial_state"] = prev["spatial_state"]

@@ -52,6 +52,22 @@ class SeedanceRefTests(unittest.TestCase):
         choice = model_router.scene_choice(self.p.conn, self.ids[0])
         self.assertIn("seedance", choice["model"])
 
+    def test_a_face_close_up_keeps_its_start_frame_when_the_flag_is_on(self):
+        """S4.1 (#8: a close-up of Kelly redrawn from references came out as anime)."""
+        d = dict(self.scene[0]["data"], size="CU")
+        self.p.conn.execute("UPDATE scenes SET data=? WHERE id=?", (json.dumps(d, ensure_ascii=False), self.ids[0]))
+        self.p.conn.commit()
+        self.assertTrue(seedance_refs.eligible(d))                       # off by default: nothing changes
+        os.environ["FEATURE_CLOSEUP_START_FRAME"] = "1"
+        self.addCleanup(os.environ.pop, "FEATURE_CLOSEUP_START_FRAME", None)
+        self.assertFalse(seedance_refs.eligible(d))
+        self.assertTrue(seedance_refs.eligible(dict(d, size="MS")))
+        self.assertTrue(seedance_refs.eligible(dict(d, characters=[])))   # a close-up of an object stays on the group route
+        choice = model_router.scene_choice(self.p.conn, self.ids[0])
+        self.assertEqual(choice["model"], "kling")
+        self.assertIn("S4.1", choice["reason"])
+        self.assertNotIn(self.ids[0], [r["id"] for r in shots.group_of(self.p.conn, self.ids[1]) or []])
+
     def test_no_end_frame_is_drawn_for_a_reference_shot(self):
         data = dict(self.scene[0]["data"], end_state="cầm súng lên")
         self.assertFalse(end_frames.needed(data, "per_shot"))

@@ -778,6 +778,9 @@ class VideoRunner(_Runner):
         if removed:
             self._diag(job, "info", "look_words_removed",
                        "look in-game Free Fire: đã gỡ chữ kéo về tả thực khỏi prompt video — " + ", ".join(removed))
+        lock = looks.video_sentence(proj)                       # S4.3: the look in every video prompt (#8: an anime close-up)
+        if lock and lock not in motion:
+            motion = f"{lock} {motion}"
         args = (path, motion, looks.video_negative(proj, mp["negative_prompt"]), duration, model)
         subj_refs = []
         if proj["use_subjects"] and "seedance" in (model or ""):
@@ -876,6 +879,7 @@ class VideoRunner(_Runner):
                  else self._sends_group(job))       # M10: the group as it was sent (a later re-plan must not mis-cut a paid clip)
         if group:
             self._finish_group(job, path, group)
+            self._clean_edges(job, path)
         try:
             if group or not self._refs(job):   # 28/09: a lone Seedance shot's prompt spreads the action over the whole clip (>= 4 s) —
                 shots.trim_clip(self.p, job["scene_id"], path)   # cut to its 1-2 s plan, S5·1 lost the fall: kept whole instead
@@ -890,6 +894,14 @@ class VideoRunner(_Runner):
             if rec.get("state") == "generate_sent" and rec.get("job_id") == job["id"]:
                 lipsync.mark(self.data_dir, job["project_id"], job["scene_id"], state="done")
         return path
+
+    def _clean_edges(self, job, path: str) -> None:
+        """S4.5: a shot cut from a group clip loses the neighbouring shot's frames left at its edges — said, never silent."""
+        from . import shots
+        done = shots.clean_edges(path)
+        if done:
+            self._diag(job, "info", "stray_edges", f"bỏ khung của shot kề lẫn ở mép clip: đầu {done['head']} s, cuối {done['tail']} s "
+                                                   "(điểm cắt clip nhóm lệch) — bản chưa bỏ lưu ở _edges.mp4")
 
     def _plate_mode(self, job) -> Optional[str]:
         """'green' (mode 2) / 'first_frame' (mode 1) for a shot with a location-pack plate, else None."""
@@ -963,6 +975,7 @@ class VideoRunner(_Runner):
                           lineage.approved_image_id(conn, shots.image_scene(conn, r["id"])), jid))
             conn.commit()
             self.p.start(jid)
+            self._clean_edges(self.p.job(jid), dest)
             try:
                 shots.trim_clip(self.p, r["id"], dest)
             except Exception as e:  # noqa: BLE001

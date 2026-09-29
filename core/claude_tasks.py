@@ -166,19 +166,37 @@ def qc_video(p: Pipeline, job_id: int, client, data_dir: str, autofix: Optional[
     if first and os.path.exists(first):
         images.append(("Ảnh khung đầu đã duyệt:", first))
     images += [(f"Ảnh tham chiếu — {r['label']}:", assets.thumbnail(r["path"], 700)) for r in refs]
+    measured = _measure_clip(p, job, path, data, first, data_dir)
     criteria = video_criteria()
     prompt = _read("prompts", "12_video_qc.md") + "\n\n---\n\n" + _read("knowledge", "character_lock.md") + prompts.CACHE_BREAK \
         + "\n\n---\n\n".join(x for x in [
         prompts.lock_text(p.conn, job["project_id"], data.get("characters")),
         "# Motion prompt của clip\n" + (mp["motion_prompt"] if mp else ""),
         _block("Thông số cảnh", dict({k: data.get(k) for k in ("characters", "blocking", "shot", "camera_complexity")},
-                                     **({"performance": performance.for_prompt(data)} if data.get("performance") else {})))] if x)
+                                     **({"performance": performance.for_prompt(data)} if data.get("performance") else {}))),
+        _block("Đo bằng máy (lớp 0)", measured) if measured else ""] if x)
     obj = _run(p, job["project_id"], "video", prompt, lambda o: llm_io.validate_qc_result(o, criteria), client, images)
     proj = p.project(job["project_id"])
     fix = bool(proj["qc_autofix"]) if autofix is None else autofix
     issues = str(obj.get("issues") or "").strip() or None
     decision = p.apply_qc(job_id, obj["criteria"], issues=issues, autofix=fix)
     return {"decision": decision, "issues": issues}
+
+
+def _measure_clip(p: Pipeline, job, path: str, data: Dict, first, data_dir: str) -> Optional[Dict]:
+    """S4.5: the clip's layer-0 numbers (core/clip_measure) against its storyboard picture — evidence for the QC, recorded in the diag
+    log; None when nothing could be measured (OpenCV missing): the QC goes on by eye, as before."""
+    from . import clip_measure, diag, shots
+    picture = first if first and os.path.exists(first) else shots.approved_image_path(p.conn, data_dir, job["project_id"], job["scene_id"])
+    try:
+        out = clip_measure.measure(path, picture, speaking=bool(data.get("dialogue")))
+    except Exception:  # noqa: BLE001 - a measuring problem never stops the QC
+        return None
+    if out.get("flags"):
+        diag.record(p.conn, "video", "warn", "đo clip: " + "; ".join(str(v.get("why")) for v in out.values()
+                                                                   if isinstance(v, dict) and v.get("why")),
+                    "clip_measure", job["project_id"], job_id=job["id"])
+    return out
 
 
 def unchecked_videos(p: Pipeline, project_id: int) -> List[int]:

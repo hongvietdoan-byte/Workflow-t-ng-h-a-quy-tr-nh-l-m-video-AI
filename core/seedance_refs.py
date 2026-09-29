@@ -37,10 +37,22 @@ def route(data: Dict) -> Optional[str]:
     return value if value in ROUTES else None
 
 
+FACE_SIZES = ("ECU", "CU", "MCU")
+
+
+def face_closeup(data: Dict) -> bool:
+    """S4.1 (flag closeup_start_frame): a close shot with a character in it — its face must stay the approved storyboard picture, so it
+    starts from that picture (Kling) instead of being redrawn from reference pictures (#8: a close-up of Kelly came out as anime)."""
+    from . import features
+    return (features.on("closeup_start_frame") and str(data.get("size") or "").upper() in FACE_SIZES
+            and bool(data.get("characters")))
+
+
 def eligible(data: Dict) -> bool:
     """A shot that goes by reference pictures: a v3 shot, not sent to Kling after refusals, not a green-screen plate shot (the green
-    picture must be the start frame so it can be keyed)."""
-    return bool(data.get("shot_no")) and route(data) != "kling" and data.get("plate_mode") != "green"
+    picture must be the start frame so it can be keyed), not a face close-up that keeps its start frame (S4.1)."""
+    return (bool(data.get("shot_no")) and route(data) != "kling" and data.get("plate_mode") != "green"
+            and not face_closeup(data))
 
 
 def _lip_sync(data: Dict) -> bool:
@@ -328,8 +340,11 @@ def shot_motion(data: Dict, voice: bool = False) -> str:
     framing = _framing(data)
     action = str(_en(data, "action") or "").strip().rstrip(".")
     end = str(_en(data, "end_state") or "").strip().rstrip(".")
+    from . import motion_physics
+    body = motion_physics.sentence(action)          # S4.4: one body-physics sentence for the kind of action (weight, contact)
     return (f"{SIZE_WORDS.get(data.get('size'), data.get('size') or 'shot')}, {data.get('angle') or 'eye'} angle, camera {move}: "
-            + (f"framing {framing}. " if framing else "") + (f"{action}. " if action else "") + (f"It ends with {end}. " if end else "")
+            + (f"framing {framing}. " if framing else "") + (f"{action}. " if action else "") + (f"{body} " if body else "")
+            + (f"It ends with {end}. " if end else "")
             + (f"Acting — {acting}.{eyes_guard} " if acting else "") + talk).strip()
 
 

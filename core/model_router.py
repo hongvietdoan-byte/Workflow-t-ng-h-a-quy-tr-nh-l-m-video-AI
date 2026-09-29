@@ -158,6 +158,9 @@ def _scene_choice(conn, scene_id: int, project_row=None, mp_row=None) -> Dict:
             return {"model": "seedance", "resolution": "720p", "source": "auto", "recommended": rec,
                     "reason": ("Seedance chỉ ảnh tham chiếu, gộp với các shot liền (mỗi shot có ảnh storyboard riêng)" if grouped
                                else "Seedance chỉ ảnh tham chiếu, một shot") + " — người dùng chốt ưu tiên Seedance (2026-09-27)"}
+        if seedance_refs.face_closeup(data) and seedance_refs.route(data) != "kling":
+            return {"model": "kling", "resolution": None, "source": "auto", "recommended": rec,
+                    "reason": "shot cận thấy mặt: Kling từ khung đầu = ảnh storyboard đã duyệt, giữ đúng mặt (cờ closeup_start_frame, S4.1)"}
         if seedance_refs.route(data) == "kling":
             return {"model": "kling", "resolution": None, "source": "auto", "recommended": rec,
                     "reason": "Seedance đã từ chối shot này (cả gộp lẫn một shot) → Kling từ khung đầu"}

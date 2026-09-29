@@ -13,6 +13,7 @@ Dùng knowledge pack video motion (và luật cảnh phức tạp khi cảnh là
 - Viết theo đúng `video_model` của từng cảnh (Seedance: gọi ảnh tham chiếu bằng @Image và nói rõ vai trò — ảnh = diện mạo, video tham chiếu = chỉ chuyển động; Kling: câu ngắn, rõ chủ ngữ).
 - Cảnh có `camera_complexity: "complex"`: bắt buộc ghi rõ **tỉ lệ** (so với vật mốc), **vị trí** (khoảng cách, hướng, ai che ai), **đường máy** (điểm đầu → điểm cuối, tốc độ, độ cao), **mốc thời gian** (giây bắt đầu, kéo dài, tư thế kết) — xem knowledge/motion_prompt_lint.md.
 - Cảnh cùng `sequence` với cảnh trước: đọc `previous_spatial_state` (vị trí/hướng mọi người ở cuối cảnh trước) và bắt đầu từ đó; ghi `spatial_state` là vị trí/hướng ở CUỐI cảnh này (tiếng Anh, 1 câu) để cảnh sau nối tiếp.
+- Cảnh có `physics_hint`: đó là vật lý cơ thể của loại hành động trong cảnh (trọng tâm, chỗ chạm đất, phần chuyển động trễ theo) — lỗi #8 là chân trượt, thân khựng. Giữ ý đó trong prompt bằng MỘT câu ngắn (được viết lại cho khớp hành động cụ thể); không kê thêm bộ phận cơ thể khác.
 - `check_flags`: danh sách ngắn (tiếng Việt) những điểm bạn lo prompt có thể hỏng (ví dụ "hai người cùng chạm vũ khí — dễ trộn tay"); không có thì `[]`.
 
 ## Định dạng đầu ra

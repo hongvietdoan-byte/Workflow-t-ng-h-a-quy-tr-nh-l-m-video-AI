@@ -67,6 +67,21 @@ class MultishotTests(unittest.TestCase):
         self.p.conn.commit()
         self.assertIn("Fix: Keep Kenta on the left.", vr._submit_args(self.p.job(jid))[1])    # W3: never the very same input again
 
+    def test_every_video_prompt_carries_the_projects_look(self):
+        """S4.3 (#8: a close-up of Kelly came out as anime): the look reaches the video model, not only the picture model."""
+        from core import looks
+        from core.providers import MockVideoProvider
+        from core.runner import VideoRunner
+        _approve_all_images(self.p, self.pid, self.data)
+        _approve_all_motion(self.p, self.pid, self.data)
+        self.p.conn.execute("UPDATE projects SET look='FF_INGAME' WHERE id=?", (self.pid,))
+        self.p.conn.commit()
+        sid = shots.multishot_groups(self.p.conn, self.pid)[0][0]["id"]
+        vr = VideoRunner(self.p, MockVideoProvider(polls_to_finish=1), self.data)
+        motion = vr._submit_args(self.p.job(self.p.create_job(sid, "video_gen")))[1]
+        self.assertTrue(motion.startswith(looks.VIDEO_SENTENCE["FF_INGAME"]))
+        self.assertEqual(looks.clean_prompt(self.p.project(self.pid), looks.VIDEO_SENTENCE["FF_INGAME"])[1], [])   # nothing it removes
+
     def test_the_group_is_stored_when_sent(self):
         from core.providers import MockVideoProvider
         from core.runner import VideoRunner

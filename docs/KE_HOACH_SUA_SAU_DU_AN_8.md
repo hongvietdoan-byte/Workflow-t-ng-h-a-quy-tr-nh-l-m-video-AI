@@ -18,18 +18,18 @@
 | P0 Theo dõi tiến độ | 2 | 2 | 0 | 0 | 0 | 100 % |
 | S1 Dựng & âm thanh | 15 | 13 | 0 | 2 | 0 | 88,9 % |
 | S0 Học từ phim drama tham khảo | 15 | 11 | 4 | 0 | 0 | 79,6 % |
-| S9 Dashboard gọn, dễ nhìn | 6 | 5 | 0 | 0 | 0 | 81,8 % |
+| S9 Dashboard gọn, dễ nhìn | 6 | 5 | 1 | 0 | 0 | 90,9 % |
 | S2 Timeline theo âm thanh + animatic | 6 | 5 | 0 | 1 | 0 | 81,8 % |
 | S3 Director kể chuyện + Quay phim | 8 | 7 | 0 | 0 | 1 | 100 % |
-| S4 Video chất lượng | 12 | 2 | 0 | 4 | 0 | 10 % |
+| S4 Video chất lượng | 12 | 5 | 1 | 4 | 0 | 37,5 % |
 | S5 Bối cảnh theo file 3D Tháp Đồng Hồ | 6 | 5 | 0 | 0 | 0 | 87,5 % |
 | S6 Ước tính, ngân sách, dashboard | 6 | 3 | 1 | 1 | 1 | 71,4 % |
 | S7 Agent QC | 2 | 1 | 0 | 0 | 0 | 66,7 % |
 | K Chạy kiểm kịch bản hài 20–30 s | 3 | 0 | 0 | 0 | 0 | 0 % |
 | S8 Chấm lại bằng AI Development System (cuối cùng) | 5 | 0 | 0 | 0 | 0 | 0 % |
-| **Tổng** | **86** | **54** | **5** | **8** | **2** | **67,5 %** |
+| **Tổng** | **86** | **57** | **7** | **8** | **2** | **72 %** |
 
-Đợt hiện tại: **S1** · việc kế: **S9.6** Gộp timeline tổng + sửa giao diện S6.4
+Đợt hiện tại: **S1** · việc kế: **S4.2** Khớp môi mọi shot người nói thấy mặt (theo A/B)
 <!-- /tien-do -->
 
 ## Danh sách việc (thứ tự người dùng đã duyệt)
@@ -78,7 +78,7 @@
 - [x] S9.3 · Kiểm kê khung → 3 tầng hiển thị (người dùng duyệt) · nặng:2 · ✅ · người dùng duyệt hết bảng E (2026-09-28)
 - [x] S9.4 · Áp kiểm kê cho 5 bước + thanh đầu, dải "Việc tiếp theo" · nặng:3 · ✅ · 1c3ce9d · dải Việc tiếp theo 5 bước + các khung theo bảng; đo #8: Bước 1 mặc định 3.347 px so với 11.924 px mở hết (−72 %, mục tiêu −40 %)
 - [x] S9.5 · Tách step1.py thành phần nhỏ · nặng:2 · ✅ · step1.py 1.397 dòng → step1 / _run / _prep / _characters / _director (≤ 378 dòng mỗi file); 1337 test qua
-- [ ] S9.6 · Gộp timeline tổng + sửa giao diện S6.4 · nặng:2 · ⬜ · làm cùng đợt S6 (timeline tổng + sửa giao diện S6.4) để không sửa giao diện hai lần
+- [ ] S9.6 · Gộp timeline tổng + sửa giao diện S6.4 · nặng:2 · 🔄 · 2026-09-29: xong màn 🗺 Timeline tổng ở Bước 5 (core/timeline_view.py: shot · thoại · nhạc bật/tắt · hiệu ứng · phụ đề trên một dải, thu gọn mặc định; đo trên #8: 83 s, 33 shot, 23 câu, 4 hiệu ứng, nhạc tắt 3 đoạn); còn: job ảnh tự gửi khi autopilot chờ cổng (S6.4)
 
 ### S2 — Timeline theo âm thanh + animatic
 - [x] S2.1 · Chọn giọng ở Bước 1 · nặng:1 · ✅ · 2026-09-29: chạy tự động chọn giọng (Claude cast_voices) ngay sau Director; thiếu giọng → dừng hỏi trước khi làm ảnh (cờ audio_first)
@@ -99,11 +99,11 @@
 - [x] S3.8 · Đổi bối cảnh → chạy lại Director; dự án mới kế thừa cách làm · nặng:2 · ✅ · 2026-09-29: dấu vân tay bối cảnh lúc Director chia shot (places_at_plan) → Bước 1 báo cảnh dùng bản cũ + nút chia shot lại; dự án mới kế thừa shot_mode / look / phong cách / model ảnh / cài đặt dựng; 3 test
 
 ### S4 — Video chất lượng
-- [ ] S4.1 · Shot cận có mặt → khung đầu thay vì ref-only · nặng:2 · ⬜
+- [x] S4.1 · Shot cận có mặt → khung đầu thay vì ref-only · nặng:2 · ✅ · 2026-09-29: cờ mới `closeup_start_frame` (TẮT, chờ A/B S4.6): ECU/CU/MCU có nhân vật ra khỏi nhóm tham chiếu, đi Kling từ ảnh storyboard đã duyệt; test
 - [ ] S4.2 · Khớp môi mọi shot người nói thấy mặt (theo A/B) · nặng:2 · ⬜
-- [ ] S4.3 · Câu khóa phong cách "không anime" · nặng:1 · ⬜
-- [ ] S4.4 · Mẫu motion prompt theo loại hành động · nặng:1 · ⬜
-- [ ] S4.5 · QC clip so storyboard + luồng quang + khớp môi · nặng:3 · ⬜
+- [x] S4.3 · Câu khóa phong cách "không anime" · nặng:1 · ✅ · 2026-09-29: looks.video_sentence — mọi prompt video của dự án in-game mở đầu bằng "Style lock: Garena Free Fire in-game 3D character render… not anime, not 2D, not cel-shaded, not live action" (không chứa chữ bị gỡ); test
+- [x] S4.4 · Mẫu motion prompt theo loại hành động · nặng:1 · ✅ · 2026-09-29: core/motion_physics.py — 10 loại hành động (đánh, ngã, nhảy, múa, chạy, ném, ngồi/đứng, đi, quay người, cầm nắm) → MỘT câu vật lý (trọng tâm, chỗ chạm, phần chuyển động trễ); vào prompt shot tham chiếu + `physics_hint` cho Claude viết motion; test
+- [ ] S4.5 · QC clip so storyboard + luồng quang + khớp môi · nặng:3 · 🔄 · 2026-09-29: core/clip_measure.py hiệu chỉnh trên 33 clip #8: `look_drift` (độ chi tiết mặt so ảnh storyboard: clip 01 anime 0,30 vs 11 clip đúng 0,49–0,87 → ngưỡng 0,40), `cut_inside` / `jerk` (luồng quang + tương quan màu) tìm đúng 4/33 clip lẫn khung shot kề (01, 03, 11, 24 — kiểm bằng mắt, 0 báo nhầm) → **sửa gốc**: shots.clean_edges bỏ khung lẫn ở mép khi cắt clip nhóm; số đo vào prompt QC clip. Còn: khớp môi — đo điểm ảnh vùng miệng KHÔNG phân biệt được giọng đúng/sai (0,79–1,26 vs 0,70–1,03) → chỉ ghi số, cần mô hình mốc môi
 - [ ] S4.6 · A/B trả tiền: cận · hành động 3 model · khớp môi (a)/(b) · nặng:2 · ⬜
 - [ ] S4.7 · Kho chủ thể cho mọi ảnh nhân vật gửi Seedance, bỏ mẹo dấu đỏ trên mắt · nặng:2 · ⏸ · chờ người dùng duyệt (tài liệu ClipAI chính thức)
 - [x] S4.8 · Prompt Seedance 2.0/Fast theo 'Shot 1 / Shot 2' thay vì mốc giây · nặng:1 · ✅ · 2026-09-29: seedance_refs.prompt(model=) — 2.0/Fast chỉ số shot, 2.5 giây nguyên liên tục; test

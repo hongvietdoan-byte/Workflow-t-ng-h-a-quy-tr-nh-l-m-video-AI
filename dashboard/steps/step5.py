@@ -423,6 +423,7 @@ def step5(p: Pipeline, pid: int):
                 provider = None
                 st.caption(f"⚠ Chưa dùng được dịch vụ âm thanh: {e}")
             extras_section(p, pid, provider)
+    timeline_panel(p, pid)
     render_panel(p, pid, chosen, durations)
     ui.html(ui.card_title("5.4 · ✨ Hậu kỳ", "phụ đề · card cuối · kích thước khác"))
     subtitle_panel(p, pid)
@@ -432,6 +433,27 @@ def step5(p: Pipeline, pid: int):
 
 
 
+
+
+def timeline_panel(p: Pipeline, pid: int) -> None:
+    """S9.6: the whole film on one timeline before rendering — shots, lines, music on/off, effects, subtitles (tier 2: folded)."""
+    from core import timeline_view
+    try:
+        data = timeline_view.tracks(p, C.DATA, pid)
+    except Exception as e:  # noqa: BLE001 - the page goes on; said
+        st.caption(f"⚠ Không dựng được timeline tổng: {type(e).__name__}: {e}")
+        return
+    if not data["shots"]:
+        return
+    off = sum(b["end"] - b["start"] for b in data.get("music_off") or [])
+    summary = (f"{data['total']:.1f} s · {len(data['shots'])} shot · {len(data['voice'])} câu thoại · {len(data['sfx'])} hiệu ứng · "
+               f"{len(data['subs'])} dòng phụ đề" + (f" · nhạc tắt {off:.1f} s" if off else ""))
+    with ui.fold("🗺 Timeline tổng", summary, f"timeline_{pid}", default_open=False,
+                 sub="xem mọi thứ nằm ở đâu trước khi dựng — rê chuột lên khối để xem chữ") as is_open:
+        if is_open:
+            ui.html(timeline_view.html(data))
+            for n in data["notes"]:
+                st.caption("⚠ " + n)
 
 
 def clips_panel(p: Pipeline, pid: int):

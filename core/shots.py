@@ -504,6 +504,32 @@ def trim_clip(pipeline: Pipeline, scene_id: int, path: str, lone_ref: bool = Fal
     return True
 
 
+def clean_edges(path: str) -> Optional[Dict]:
+    """S4.5: drop the neighbouring shot's frames left at the start / end of a shot clip cut from a group clip (clip_measure.stray_edges).
+    The uncleaned clip is kept as <name>_edges.mp4. Returns {"head", "tail"} seconds dropped, or None (nothing to drop / unreadable)."""
+    import os
+    import shutil
+    import subprocess
+    from . import clip_measure
+    from .ffmpeg_studio import find_ffmpeg, has_audio, probe_duration
+    try:
+        head, tail = clip_measure.stray_edges(path)
+    except Exception:  # noqa: BLE001 - OpenCV missing / unreadable clip: kept as it is
+        return None
+    have = probe_duration(path) or 0.0
+    if (head <= 0 and tail <= 0) or have - head - tail < 0.5:
+        return None
+    keep = os.path.splitext(path)[0] + "_edges.mp4"
+    shutil.move(path, keep)
+    audio = ["-c:a", "aac", "-b:a", "256k"] if has_audio(keep) else ["-an"]
+    proc = subprocess.run([find_ffmpeg(), "-y", "-ss", f"{head:.3f}", "-i", keep, "-t", f"{have - head - tail:.3f}", *_encode(), *audio,
+                           path], capture_output=True, text=True, encoding="utf-8", errors="replace")
+    if proc.returncode != 0 or not os.path.exists(path):
+        shutil.move(keep, path)
+        return None
+    return {"head": head, "tail": tail}
+
+
 # ---- continuity groups (GĐ3) -------------------------------------------------------------------------------------------------
 MULTISHOT_MAX = 15          # Kling Omni: one multi-shot generation is at most 15 s, each shot at least 3 s
 MULTISHOT_MIN_SHOT = 3

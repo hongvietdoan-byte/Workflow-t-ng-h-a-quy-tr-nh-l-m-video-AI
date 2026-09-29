@@ -47,6 +47,19 @@ def image_sentence(project_row) -> str:
     return (" " + LOOKS[look]["image"]) if look else ""
 
 
+# S4.3 (after #8: a close-up of Kelly came out as anime): the video model is told the look in EVERY video prompt, not only the picture
+# model. Short — it goes into prompts with a hard length limit — and without the realism words clean_prompt removes.
+VIDEO_SENTENCE = {
+    "FF_INGAME": ("Style lock: Garena Free Fire in-game 3D character render, exactly like the reference pictures — not anime, not 2D, "
+                  "not cel-shaded, not live action."),
+    "ANIME": "Style lock: 2D anime illustration, the same drawing style in every frame — not 3D, not live action.",
+}
+
+
+def video_sentence(project_row) -> str:
+    return VIDEO_SENTENCE.get(of(project_row) or "", "")
+
+
 def director_note(project_row) -> str:
     look = of(project_row)
     return ("# Look hình của dự án\n" + LOOKS[look]["director"]) if look else ""

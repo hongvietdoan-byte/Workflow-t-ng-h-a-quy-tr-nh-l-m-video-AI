@@ -85,6 +85,13 @@ FEATURES: Dict[str, Dict] = {
         "why": "2026-09-29 (kế hoạch S3.4, sau #8: mỗi shot gen riêng, chuyển động bắt đầu lại ở mỗi điểm cắt): mới thử bằng test ffmpeg — "
                "chưa biết model video có diễn trọn đoạn 8–15 s đúng thứ tự không, và trả tiền nhiều giây hơn cho mỗi góc",
     },
+    "closeup_start_frame": {
+        "label": "Shot cận thấy mặt (ECU / CU / MCU có nhân vật) không đi nhóm Seedance chỉ-tham-chiếu mà đi Kling từ khung đầu = ảnh "
+                 "storyboard đã duyệt — mặt giữ đúng ảnh duyệt",
+        "verified": False,
+        "why": "2026-09-29 (kế hoạch S4.1, sau #8: cận Kelly đi nhóm tham chiếu ra kiểu anime): chưa chạy thật — A/B S4.6 (cận ref-only vs "
+               "khung đầu) quyết có giữ không; Kling tốn tiền theo giây như shot đơn, mất gộp nhóm",
+    },
     "shot_transitions": {
         "label": "Chuyển cảnh từng chỗ nối theo `transition_in` của shot (chớp trắng, tối đi, lia nhòe, lao vào khung) — vẽ trong hai clip "
                  "kề nhau nên độ dài phim không đổi",
