@@ -1,0 +1,1 @@
+{"video": "v24_seg1f.mkv", "window": [0.0, 164.0], "tempo_bpm": 136.0, "n_cuts": 110, "tol_s": 0.08, "hit_beat": 0.33, "chance_beat": 0.36, "hit_half_beat": 0.65, "chance_half_beat": 0.73, "mean_offset_over_period": 0.739, "note": "tiếng đủ (fix_audio); dòng cũ trên v24_seg1.webm cụt tiếng 107s đã bỏ"}
