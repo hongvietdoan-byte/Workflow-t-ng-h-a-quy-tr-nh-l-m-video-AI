@@ -21,13 +21,13 @@
 | S9 Dashboard gọn, dễ nhìn | 6 | 6 | 0 | 0 | 0 | 100 % |
 | S2 Timeline theo âm thanh + animatic | 6 | 5 | 0 | 1 | 0 | 81,8 % |
 | S3 Director kể chuyện + Quay phim | 8 | 7 | 0 | 0 | 1 | 100 % |
-| S4 Video chất lượng | 12 | 5 | 1 | 4 | 0 | 37,5 % |
+| S4 Video chất lượng | 12 | 5 | 2 | 4 | 0 | 42,5 % |
 | S5 Bối cảnh theo file 3D Tháp Đồng Hồ | 6 | 5 | 0 | 0 | 0 | 87,5 % |
 | S6 Ước tính, ngân sách, dashboard | 6 | 5 | 0 | 0 | 1 | 100 % |
 | S7 Agent QC | 2 | 1 | 0 | 0 | 0 | 66,7 % |
 | K Chạy kiểm kịch bản hài 20–30 s | 3 | 0 | 0 | 1 | 0 | 0 % |
-| S8 Chấm lại bằng AI Development System (cuối cùng) | 5 | 1 | 0 | 0 | 0 | 14,3 % |
-| **Tổng** | **86** | **61** | **5** | **8** | **2** | **74,8 %** |
+| S8 Chấm lại bằng AI Development System (cuối cùng) | 5 | 2 | 0 | 0 | 0 | 42,9 % |
+| **Tổng** | **86** | **62** | **6** | **8** | **2** | **76,9 %** |
 
 Đợt hiện tại: **S1** · việc kế: **S4.2** Khớp môi mọi shot người nói thấy mặt (theo A/B)
 <!-- /tien-do -->
@@ -141,7 +141,7 @@
 - [ ] S8.0 · Chấm 16 khu vực (2 agent độc lập, 0 USD) · nặng:2 · ⬜
 - [x] S8.1 · Trường feedback chi tiết cho từng khoản trừ · nặng:1 · ✅ · 2026-09-29: `feedback` tùy chọn mỗi khoản trừ (vì sao · sửa · file · nghiệm thu · 💻/💵/👤 · ưu tiên), định dạng ở devsys/feedback_format.md NGOÀI rubric.md (điểm cũ không thành "thang cũ"), gửi kèm người chấm, hiện dưới từng khoản trừ trên web; test
 - [ ] S8.2 · Báo cáo đánh giá + danh sách việc theo điểm lấy lại · nặng:1 · ⬜
-- [ ] S8.3 · So sánh với phần mềm dựng phim AI bên ngoài · nặng:2 · ⬜
+- [x] S8.3 · So sánh với phần mềm dựng phim AI bên ngoài · nặng:2 · ✅ · 2026-09-29 (0 USD, chỉ đọc web công khai): docs/SO_SANH_PHAN_MEM_NGOAI_2026-09-29.md — 13 sản phẩm (ClipAI web, LTX, Runway, Higgsfield, Kling 3.0, 即梦/Dreamina, Google Flow, MiniMax, Katalist, OpenArt, Hedra, Pika, ElevenLabs) × 10 khâu; mình hơn ở Director/QC/chi phí/âm thanh, kém ở sinh nhiều khung-shot một lần, nối hành động qua cắt, sửa clip, lựa chọn khớp môi; 10 đề xuất X1–X10 chờ người dùng chọn (S8.4)
 - [ ] S8.4 · Rút việc nên học vào TODO · nặng:1 · ⬜
 
 ---
@@ -342,7 +342,7 @@ Dùng đúng quy trình lần chấm 2026-09-26 (`docs/DANH_GIA_DEVSYS_2026-09-2
 |---|---|---|
 | S8.1 | Mỗi khoản trừ thêm trường **`feedback`**: vì sao trừ (ảnh hưởng tới người dùng / chất lượng phim), **cách sửa cụ thể** (file, hàm, việc), cách nghiệm thu, ước công (💻/💵), mức ưu tiên. Trường tùy chọn → điểm cũ vẫn đọc được; giữ nguyên bảng tiêu chí để điểm so được với lần 1 (nếu `rubric_hash` tính cả phần định dạng thì tách phần định dạng ra file riêng) | `devsys/scorer.py` (kiểm + lưu), `devsys/scores.py`, `devsys/app.py` (hiện feedback dưới từng khoản trừ), `tools/devsys_score.py --import` |
 | S8.2 | Báo cáo tổng: mỗi khu vực = điểm + danh sách khoản trừ kèm feedback + 3 việc nên làm trước; cuối báo cáo gom **danh sách việc sửa xếp theo điểm lấy lại được / công** | `docs/DANH_GIA_DEVSYS_<ngày>.md` |
-| S8.3 | **So sánh với phần mềm dựng phim AI bên ngoài** (giao 1 agent `general-purpose` model sonnet, chỉ đọc web, 0 USD API, trần ~80 lượt công cụ): 6–8 sản phẩm đang dùng thực tế (ví dụ LTX Studio, Runway, Kling / ClipAI web, Higgsfield, Google Flow, Pika, OpenArt/Hedra, CapCut AI…) — so trên các mặt: kịch bản → shot tự động, giữ nhân vật nhất quán, storyboard / animatic, khớp môi, giọng tiếng Việt, dựng + âm thanh tự động, QC, kiểm soát chi phí, cộng tác. Mỗi ô ghi nguồn (trang tính năng / tài liệu, ngày đọc); không đoán — không có nguồn thì ghi "không rõ" | `docs/SO_SANH_PHAN_MEM_AI_<ngày>.md` |
+| S8.3 | **So sánh với phần mềm dựng phim AI bên ngoài** (giao 1 agent `general-purpose` model sonnet, chỉ đọc web, 0 USD API, trần ~80 lượt công cụ): 6–8 sản phẩm đang dùng thực tế (ví dụ LTX Studio, Runway, Kling / ClipAI web, Higgsfield, Google Flow, Pika, OpenArt/Hedra, CapCut AI…) — so trên các mặt: kịch bản → shot tự động, giữ nhân vật nhất quán, storyboard / animatic, khớp môi, giọng tiếng Việt, dựng + âm thanh tự động, QC, kiểm soát chi phí, cộng tác. Mỗi ô ghi nguồn (trang tính năng / tài liệu, ngày đọc); không đoán — không có nguồn thì ghi "không rõ" | `docs/SO_SANH_PHAN_MEM_NGOAI_2026-09-29.md` (xong 2026-09-29; làm trong phiên chính, không giao agent) |
 | S8.4 | Từ bảng so sánh rút ra: dashboard **hơn** ở đâu (giữ), **kém** ở đâu (đưa vào TODO kèm mức ưu tiên), tính năng nên học | mục cuối của báo cáo S8.2 |
 
 ## Chi tiết · Kiểm tra đầu–cuối (sau S1–S4)
