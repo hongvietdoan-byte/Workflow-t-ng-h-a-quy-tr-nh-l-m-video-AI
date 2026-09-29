@@ -75,7 +75,7 @@ chung) **không** dùng làm căn cứ ở kho này — mục nào chỉ dựa v
 ## Đối chiếu với kiến thức đang dùng (mâu thuẫn đã thấy — chưa sửa file nạp prompt, chờ người duyệt)
 - `knowledge/editor/editing.md` E4: "cắt mỗi ô nhịp = thong thả, mỗi 1–2 phách = căng" — là **một cách** dựng theo nhạc; hai MV kể chuyện đo
   được (22 đoạn 1, 23 đoạn 1) cắt **không bám phách** (trúng phách 27% / 39% so với ngẫu nhiên 27% / 31%). → Ghi ở `dung.md` mục "Cắt theo câu
-  vs theo phách"; đề nghị E4 thêm "hoặc theo câu / cảnh — MV kể chuyện 22, 23 không bám phách".
+  vs theo phách"; **đã sửa E4 (người dùng duyệt 2026-09-29)**: điểm cắt bám câu / cảnh hoặc phách là lựa chọn theo ngữ cảnh.
 - `knowledge/roles/dp.md` Q1 câu mở "thấp = áp đảo, anh hùng; cao = nhỏ lại…" đã có dòng "ý nghĩa góc không cố định" (S0.13) — kho này thêm
   ví dụ mốc giây (17, 25, CM) cho thấy góc thấp phục vụ cả "đe doạ trực diện" lẫn "tầm mắt nhân vật nhỏ".
 - `research/craft/MAU_S0_12.md` dự đoán "MV cắt theo beat" — bị bác như trên.

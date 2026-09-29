@@ -75,8 +75,11 @@ xúc, âm thanh làm thế giới game "thật", màu các shot liền nhau như
   (không nền không khí) nghe như chưa làm xong.
 
 ### E4. Nhạc nền
-- **Làm gì · vì sao.** Nhạc chọn theo **cảm xúc từng đoạn** (ưu tiên 51% của Murch [E1]); dựng theo phách: 1 phách = 60/BPM giây; cắt mỗi ô nhịp
-  = thong thả, mỗi 1–2 phách = căng [E31]; **điểm rơi** của nhạc trùng cú ngoặt (hạ gục, lộ mặt); **hạ nhạc khi có thoại** (sidechain); không
+- **Làm gì · vì sao.** Nhạc chọn theo **cảm xúc từng đoạn** (ưu tiên 51% của Murch [E1]). **Điểm cắt bám gì là lựa chọn theo ngữ cảnh,
+  không mặc định:** bám **câu thoại / câu hát / đổi cảnh** khi hình kể theo lời (hai MV kể chuyện đo được — S0.12 mẫu 22, 23 — cắt **không**
+  bám phách: trúng phách 27 % / 39 % so với ngẫu nhiên 27 % / 31 %, `knowledge/craft/dung.md` "Cắt theo câu / cảnh hay theo phách"); bám
+  **phách** khi cần đồng bộ, "đóng đinh" (vũ đạo, đoạn cao trào, montage): 1 phách = 60/BPM giây, cắt mỗi ô nhịp = thong thả, mỗi 1–2 phách
+  = căng [E31]; trộn được trong cùng một phim, ghi lý do chọn. **Điểm rơi** của nhạc trùng cú ngoặt (hạ gục, lộ mặt); **hạ nhạc khi có thoại** (sidechain); không
   nhả hạ nhạc giữa hai câu cách nhau < 0,5 s để tránh "bơm"; **khoảng lặng có chủ ý** 0,3–1 s ngay trước cú ngoặt tăng lực cú đập [KN].
 - **Trong pipeline.** ✅ `music_timing`: đoạn nhạc theo nhịp dựng, BPM 70–140 hợp mốc cắt, chấm bản nháp theo độ to ở mốc ngoặt, giữ bản khớp
   nhất (autopilot + Bước 5); ✅ hạ nhạc khi có giọng (`ffmpeg_studio.DUCK`): **người dùng chốt 8–12 dB** (2026-09-26) → ngưỡng 0,05,

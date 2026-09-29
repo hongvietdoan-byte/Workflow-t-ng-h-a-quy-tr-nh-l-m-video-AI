@@ -61,8 +61,8 @@
   đoạn lời. Là lựa chọn phong cách, trộn được.
 - **Ví dụ:** [22 đ1 44–180s] trúng phách 27% = đúng mức ngẫu nhiên 27% · [23 đ1] 39% so với ngẫu nhiên 31% · [08 6–29.9s] một shot trọn 3 câu đầu;
   [08 47.3–67.3s] một CU 20 s trọn điệp khúc 1; [08] cắt trễ đầu câu hát 1,4–1,6 s.
-- **Với video AI:** lập bảng câu hát / phách trước khi sinh để mỗi clip đúng độ dài (`music_timing`). **Mâu thuẫn cần duyệt:** editing.md E4
-  mô tả cắt theo ô nhịp / phách như cách chính — nên ghi thêm "hoặc theo câu / cảnh".
+- **Với video AI:** lập bảng câu hát / phách trước khi sinh để mỗi clip đúng độ dài (`music_timing`). **Đã sửa (người dùng duyệt 2026-09-29):** editing.md E4
+  nay ghi bám câu / cảnh hoặc bám phách là lựa chọn theo ngữ cảnh (trước: phách là cách chính).
 - **Nguồn:** `cong_cu/beat_align.py` (librosa — có thể lệch pha, cần nghe tai); [E31] (thấp–tb). **Độ tin:** khá (2 MV đo, cùng chiều).
 
 ### Mở bằng cảnh tương lai / giấc mơ rồi quay về
