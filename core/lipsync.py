@@ -5,6 +5,10 @@ Every shot where a line is spoken and the speaker's face can be seen gets its mo
               `lip_sync: true` (the most visible mouths; Seedance 2.0 720p $0.15/s)
   "post"      the finished clip's mouth is redrawn to the line by a lip-sync service (sync.so lipsync-2-pro ~ $0.084/s) — works on
               any model's clip, any language (driven by the sound), 3D / AI video; the rest of the frame is kept (location packs stay)
+  "take"      (feature dialogue_take, S4.2 — option (c) of the S4.6 A/B) the shot goes in its Seedance 2.5 reference GROUP clip with ONE
+              voice track of every voiced line of the group at its second of the clip, the lines + speakers + seconds written in the
+              prompt (core/dialogue_take.group_block); a shot alone gets its own line the same way. Any shot where a speaker's face
+              is seen — medium and two-person shots too, which had no lip sync without sync.so
   "skip"      nobody speaks, the speaker has their back to the camera / is off screen, or a wide shot
 Both need the shot's own audio: `shot_audio` cuts it from the voiced lines, placed at the same seconds the final timeline uses
 (voice.LEAD / GAP), padded with silence to the clip's length; `voice.place_on_timeline` keeps those exact seconds for a lip-synced shot.
@@ -37,9 +41,20 @@ def method_for(data: Dict, post_ok: Optional[bool] = None) -> str:
     one keeps the clip's own mouth ("skip" — the mouth is small there)."""
     post_ok = post_available() if post_ok is None else post_ok
     method = _method(data)
+    if method in ("post", "generate") and take_on():
+        return "take"
     if method == "post" and not post_ok:
         return "generate" if str(data.get("size") or "MS").upper() in _CLOSE else "skip"
     return method
+
+
+def take_on() -> bool:
+    return features.on("dialogue_take")
+
+
+def voiced(method: str) -> bool:
+    """The clip is made WITH the voice (Seedance reference_audio): "generate" (one shot) or "take" (the group's dialogue track)."""
+    return method in ("generate", "take")
 
 
 def no_post_note(data: Dict) -> Optional[str]:

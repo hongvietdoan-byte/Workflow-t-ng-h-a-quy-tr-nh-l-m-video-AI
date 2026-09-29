@@ -443,8 +443,9 @@ class VideoRunner(_Runner):
         frames = [_sh.approved_image_path(self.p.conn, self.data_dir, job["project_id"], r["id"]) for r in rows]
         ids = seedance_refs.identity_pictures(self.p.conn, job["project_id"], rows, seedance_refs.MAX_PICTURES - len(rows))
         secs = [self._cut_seconds(r) for r in group] if group else [float(args[3])]
-        audio = not group and bool(self._lip_sync_audio_planned(job))
-        problems = seedance_refs.lint_group(args[1], len(rows), len([f for f in frames if f]) + len(ids), len(rows) + len(ids), secs, audio)
+        audio = bool(self._take_segments(job, rows)) if group else bool(self._lip_sync_audio_planned(job))
+        problems = seedance_refs.lint_group(args[1], len(rows), len([f for f in frames if f]) + len(ids), len(rows) + len(ids), secs, audio,
+                                            model=args[4])
         busy = seedance_refs.busy_shots(rows)
         if busy:
             self._diag(job, "warn", "busy_shot", "shot dồn ≥ 3 hành động (tài liệu Seedance 2.5: tả khái quát, chi tiết 1–2 điểm nhấn): "
@@ -459,7 +460,69 @@ class VideoRunner(_Runner):
         if not lipsync.enabled():
             return False
         data = json.loads(self.p.conn.execute("SELECT data FROM scenes WHERE id=?", (job["scene_id"],)).fetchone()["data"] or "{}")
-        return lipsync.method_for(data) == "generate"
+        return lipsync.voiced(lipsync.method_for(data))
+
+    def _group_secs(self, rows) -> list:
+        """The seconds each shot of a reference send asks for (a group's floored cut seconds; a lone shot its motion seconds)."""
+        from . import seedance_refs
+        if len(rows) == 1:
+            mp = self._motion(rows[0]["id"])
+            sec = (mp["duration_sec"] if mp is not None else None) or rows[0]["data"].get("duration_s") or 0
+            return [float(math.ceil(float(sec) - 1e-6))]
+        return [seedance_refs.floored(r["data"], self._cut_seconds(r)) for r in rows]
+
+    def _take_segments(self, job, rows) -> list:
+        """S4.2 (feature dialogue_take, option (c) of the S4.6 A/B): the voiced lines of the "take" shots of this reference send, at
+        their seconds of the WHOLE clip — shot start (the same whole-second marks / stretch as seedance_refs.prompt) + the line's
+        offset inside the shot (lipsync.line_offsets, as voice.place_on_timeline lays it). [{speaker, text, file, start, end,
+        scene_id, shot_start, offsets}]; [] when the feature is off or no line of a take shot is voiced yet."""
+        from . import lipsync, seedance_refs
+        if not lipsync.enabled() or not lipsync.take_on():
+            return []
+        secs = self._group_secs(rows)
+        model = self._choice(job).get("model")
+        total = sum(secs) or 1.0
+        clip = seedance_refs.seconds(secs)
+        stretched = [x * clip / total for x in secs] if clip > total else list(secs)
+        if seedance_refs.reads_seconds(model):
+            starts = [float(a) for a, _ in seedance_refs.whole_marks(stretched)]
+        else:
+            starts, t = [], 0.0
+            for x in stretched:
+                starts.append(round(t, 3))
+                t += x
+        out = []
+        for r, st in zip(rows, starts):
+            if lipsync.method_for(r["data"]) != "take":
+                continue
+            lines = lipsync.shot_lines(self.data_dir, job["project_id"], r["id"])
+            offs = lipsync.line_offsets(lines)
+            for e, o in zip(lines, offs):
+                a = round(st + o, 3)
+                out.append({"speaker": e.get("speaker") or "", "text": e.get("text") or "", "file": e["file"], "start": a,
+                            "end": round(a + (e.get("duration_ms") or 0) / 1000.0, 3), "scene_id": r["id"], "shot_start": st,
+                            "offsets": offs})
+        return out
+
+    def _take_audio(self, job, rows) -> Optional[str]:
+        """The group's dialogue track (Audio1): every take line at its second of the clip, silence around, the clip's length. Each
+        take shot is marked sent (lipsync index: its planned start in the clip — the cut may move it, see _take_done)."""
+        from . import audio_lib, dialogue_take, ffmpeg_studio, lipsync, seedance_refs
+        segs = self._take_segments(job, rows)
+        if not segs:
+            return None
+        out = os.path.join(lipsync._dir(self.data_dir, job["project_id"]), f"take_{job['id']}.wav")
+        try:
+            dialogue_take.mix(segs, audio_lib.assets_dir(self.data_dir, job["project_id"]), out, ffmpeg_studio.find_ffmpeg(),
+                              seconds=seedance_refs.seconds(self._group_secs(rows)))
+        except Exception as e:  # noqa: BLE001
+            self._diag(job, "warn", "lipsync_audio", f"không ghép được track thoại của nhóm ({e}) — clip gửi không kèm giọng")
+            return None
+        for sid in dict.fromkeys(x["scene_id"] for x in segs):
+            first = next(x for x in segs if x["scene_id"] == sid)
+            lipsync.mark(self.data_dir, job["project_id"], sid, state="generate_sent", job_id=job["id"], method="take",
+                         planned_start=first["shot_start"], offsets=first["offsets"])
+        return out
 
     def _submit_kwargs(self, job) -> Dict:
         from . import formats, shots
@@ -483,7 +546,11 @@ class VideoRunner(_Runner):
                 if audio:
                     out["reference_audio"] = [audio]
             else:
-                self._no_lip_sync_note(job, "seedance", group)
+                track = self._take_audio(job, group)             # S4.2: the group's dialogue track (feature dialogue_take)
+                if track:
+                    out["reference_audio"] = [track]
+                else:
+                    self._no_lip_sync_note(job, "seedance", group)
             return out
         if group and mode != "multishot":
             pass                         # H5 camera set-up: one continuous prompt (in the motion argument), no multi_prompt
@@ -518,7 +585,7 @@ class VideoRunner(_Runner):
         if not lipsync.enabled():
             return
         data = json.loads(self.p.conn.execute("SELECT data FROM scenes WHERE id=?", (job["scene_id"],)).fetchone()["data"] or "{}")
-        if lipsync.method_for(data) == "generate":
+        if lipsync.voiced(lipsync.method_for(data)):
             self._diag(job, "warn", "lipsync_not_applied", f"shot cần khớp môi (tạo kèm giọng) nhưng gửi bằng {model or '?'}"
                        + (" trong clip chung của nhóm" if group else "") + " — clip giữ miệng của model, không khớp giọng")
 
@@ -548,7 +615,7 @@ class VideoRunner(_Runner):
         if not lipsync.enabled():
             return None
         data = json.loads(self.p.conn.execute("SELECT data FROM scenes WHERE id=?", (job["scene_id"],)).fetchone()["data"] or "{}")
-        if lipsync.method_for(data) != "generate":
+        if not lipsync.voiced(lipsync.method_for(data)):
             return None
         mp = self._motion(job["scene_id"])
         length = float((mp["duration_sec"] if mp is not None and mp["duration_sec"] else None) or data.get("duration_s") or 4)
@@ -762,6 +829,10 @@ class VideoRunner(_Runner):
             parts = [((self._motion(r["id"]) or {"motion_prompt": ""})["motion_prompt"], s) for r, s in zip(rows, secs)]
             ids = seedance_refs.identity_pictures(conn, job["project_id"], rows, seedance_refs.MAX_PICTURES - len(rows))
             motion = no_minor_age(seedance_refs.prompt(parts, ids, clip_seconds=duration, model=model))
+            segs = self._take_segments(job, rows)
+            if segs:                                   # S4.2: who says which line at which second (the lines stay in Vietnamese)
+                from . import dialogue_take
+                motion += "\n" + dialogue_take.group_block(segs, [n for n, _ in ids])
         stretch = self._stretch(group) if setup else None
         if stretch:
             motion = no_minor_age(shots.stretch_motion(stretch, [r["id"] for r in group], str(group[0]["data"].get("shot") or "")))
@@ -951,6 +1022,17 @@ class VideoRunner(_Runner):
             if os.path.exists(tmp):
                 os.remove(tmp)
 
+    def _take_done(self, leader, group, starts) -> None:
+        """S4.2: each take shot of this group clip is lip-synced; `shift` = where its part really starts in the clip minus where the
+        dialogue track put it — voice.place_on_timeline moves its lines by that much so the voice stays on the mouth."""
+        from . import lipsync
+        idx = lipsync.index(self.data_dir, leader["project_id"])
+        for r, st in zip(group, starts):
+            rec = idx.get(str(r["id"])) or {}
+            if rec.get("method") == "take" and rec.get("state") == "generate_sent" and rec.get("job_id") == leader["id"]:
+                lipsync.mark(self.data_dir, leader["project_id"], r["id"], state="done",
+                             shift=round(float(st) - float(rec.get("planned_start") or 0), 3))
+
     def _finish_group(self, leader, path: str, group) -> None:
         from . import formats, lineage, shots
         conn = self.p.conn
@@ -958,6 +1040,7 @@ class VideoRunner(_Runner):
         if group[0].get("refs"):
             from . import seedance_refs
             res = seedance_refs.split(path, group, dests)
+            self._take_done(leader, group, [0.0] + list(res["cuts"]))
             if res["by"] != "detected":       # said, not hidden: the parts may straddle a cut
                 self._diag(leader, "warn", "group_cut_by_plan", f"clip nhóm {len(group)} shot không dò đủ {len(group) - 1} điểm cắt — "
                            f"cắt theo số giây dự kiến ({res['cuts']}); xem lại chỗ cắt ở Bước 4")

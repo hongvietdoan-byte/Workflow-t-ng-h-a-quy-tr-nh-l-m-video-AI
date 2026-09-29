@@ -353,6 +353,7 @@ def place_on_timeline(conn, project_id: int, data_dir: str, transition: str = "c
     overlap = fade if transition in ffmpeg_studio.OVERLAP_STYLES else 0.0
     from . import lipsync
     synced = lipsync.synced_scene_ids(data_dir, project_id)
+    shifts = {int(k): float(v.get("shift") or 0) for k, v in lipsync.index(data_dir, project_id).items() if v.get("state") == "done"}
     from . import features
     j_cut = features.on("j_cut")
     t, placed, prev_end, prev_speaker = 0.0, 0, -1.0, None
@@ -361,7 +362,8 @@ def place_on_timeline(conn, project_id: int, data_dir: str, transition: str = "c
         lines = sorted([e for e in items if e["kind"] == "tts" and e.get("scene_id") == clip.get("scene_id")
                         and e["state"] == "succeeded" and e.get("file")], key=lambda e: e.get("line") or 0)
         # a lip-synced clip speaks its lines at fixed seconds (lipsync.shot_audio): they are laid there, never pushed later
-        cursor = t + LEAD if clip.get("scene_id") in synced else max(t + LEAD, prev_end + GAP)
+        cursor = (t + LEAD - shifts.get(clip.get("scene_id"), 0.0) if clip.get("scene_id") in synced   # S4.2: a group take's part
+                  else max(t + LEAD, prev_end + GAP))                          # may start later / earlier in the clip than planned
         if (j_cut and lines and t > 0 and clip.get("scene_id") not in synced and prev_speaker
                 and (lines[0].get("speaker") or "") != prev_speaker):
             cursor = max(t - J_LEAD, prev_end + GAP)          # never over the previous line's real audio

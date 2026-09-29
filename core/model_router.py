@@ -155,6 +155,12 @@ def _scene_choice(conn, scene_id: int, project_row=None, mp_row=None) -> Dict:
     if data.get("shot_no") and seedance_refs.enabled(conn, scene["project_id"]):
         if seedance_refs.eligible(data):
             grouped = len(shots.group_of(conn, scene_id) or []) > 1
+            from . import lipsync
+            takes = [r["data"] for r in (shots.group_of(conn, scene_id) or [{"data": data}])]
+            if lipsync.enabled() and any(lipsync.method_for(d) == "take" for d in takes):
+                return {"model": "seedance-2.5", "resolution": "720p", "source": "auto", "recommended": rec,
+                        "reason": "khớp môi (c) — S4.2: clip " + ("nhóm" if grouped else "một shot") + " có thoại thấy mặt → Seedance 2.5 "
+                                  "kèm track giọng + câu thoại & mốc giây trong prompt (người dùng chọn 29/09, A/B S4.6)"}
             return {"model": "seedance", "resolution": "720p", "source": "auto", "recommended": rec,
                     "reason": ("Seedance chỉ ảnh tham chiếu, gộp với các shot liền (mỗi shot có ảnh storyboard riêng)" if grouped
                                else "Seedance chỉ ảnh tham chiếu, một shot") + " — người dùng chốt ưu tiên Seedance (2026-09-27)"}
@@ -165,7 +171,7 @@ def _scene_choice(conn, scene_id: int, project_row=None, mp_row=None) -> Dict:
             return {"model": "kling", "resolution": None, "source": "auto", "recommended": rec,
                     "reason": "Seedance đã từ chối shot này (cả gộp lẫn một shot) → Kling từ khung đầu"}
     from . import lipsync, shots as _sh
-    if lipsync.enabled() and data.get("shot_no") and lipsync.method_for(data) == "generate" and _sh.mode(project_row) != "multishot":
+    if lipsync.enabled() and data.get("shot_no") and lipsync.voiced(lipsync.method_for(data)) and _sh.mode(project_row) != "multishot":
         # (a Kling multi-shot project stays on Kling: the runner says the shot gets no lip sync instead of silently skipping it)
         return {"model": "seedance", "resolution": "720p", "source": "auto", "recommended": rec,
                 "reason": "khớp môi khi tạo: Seedance nhận giọng thoại của shot (reference_audio)"}
@@ -182,7 +188,7 @@ def _scene_choice(conn, scene_id: int, project_row=None, mp_row=None) -> Dict:
                 "reason": "Kling multi-shot: các shot liền nhau của nhóm được gen chung một lần"}
     if mode == "per_shot" and data.get("shot_no"):
         group = shots.sequence_rows(conn, scene_id)
-        if len(group) > 1 and lipsync.enabled() and any(lipsync.method_for(r["data"]) == "generate" for r in group):
+        if len(group) > 1 and lipsync.enabled() and any(lipsync.voiced(lipsync.method_for(r["data"])) for r in group):
             # a lip-sync shot must be Seedance (it speaks the voice line) and a continuity group keeps ONE model: the whole group goes
             return {"model": "seedance", "resolution": "720p", "source": "auto", "recommended": rec,
                     "reason": "cả nhóm cảnh dùng Seedance vì có shot khớp môi khi tạo (cắt giữa hai model dễ lộ)"}

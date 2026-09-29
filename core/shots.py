@@ -420,7 +420,7 @@ def motion_start(conn, scene_id: int, raw: str, want: float, have: float, fps: i
     if not features.on("motion_trim"):
         return 0.0
     data = json.loads(conn.execute("SELECT data FROM scenes WHERE id=?", (scene_id,)).fetchone()["data"] or "{}")
-    if data.get("continuous_with_next") or data.get("role") in ("dialogue",) or data.get("lip_sync"):
+    if data.get("continuous_with_next") or data.get("role") in ("dialogue",) or data.get("lip_sync") or data.get("dialogue"):
         return 0.0                         # a continuing / spoken / lip-synced shot keeps its first frame and its seconds
     prev = conn.execute("SELECT data FROM scenes WHERE project_id=(SELECT project_id FROM scenes WHERE id=?) AND idx<"
                         "(SELECT idx FROM scenes WHERE id=?) ORDER BY idx DESC LIMIT 1", (scene_id, scene_id)).fetchone()

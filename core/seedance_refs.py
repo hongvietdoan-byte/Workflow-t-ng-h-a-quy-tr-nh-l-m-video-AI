@@ -406,12 +406,15 @@ def _framing(data: Dict) -> str:
     return text.strip(" ,;.")
 
 
-def lint_group(text: str, n_frames: int, n_pictures: int, n_expected_pictures: int, secs: List[float], audio: bool) -> List[str]:
-    """Faults of a reference-only request that can be seen before paying (review 2026-09-27). Hard faults block the send."""
+def lint_group(text: str, n_frames: int, n_pictures: int, n_expected_pictures: int, secs: List[float], audio: bool,
+               model: Optional[str] = None) -> List[str]:
+    """Faults of a reference-only request that can be seen before paying (review 2026-09-27). Hard faults block the send.
+    model: Seedance 2.5 takes 5 000 characters (clipai.PROMPT_LIMITS) — a group with its dialogue block (S4.2) needs the room."""
     out = []
-    if len(text) > PROMPT_MAX:
-        out.append(f"prompt dài {len(text)} ký tự > {PROMPT_MAX} (Seedance sẽ từ chối)")
-    if has_vietnamese(text):
+    limit = 5000 if reads_seconds(model) else PROMPT_MAX
+    if len(text) > limit:
+        out.append(f"prompt dài {len(text)} ký tự > {limit} (Seedance sẽ từ chối)")
+    if has_vietnamese(re.sub(r'Dialogue \([^)]*\): "[^"]*"', "", text)):   # S4.2: the spoken lines stay Vietnamese on purpose
         out.append("prompt còn chữ tiếng Việt (chưa dịch trường Director)")
     if n_pictures != n_expected_pictures:
         out.append(f"gửi {n_pictures} ảnh nhưng bảng Image↔Shot ghi {n_expected_pictures} (thiếu khung / ảnh nhận diện)")
@@ -445,7 +448,7 @@ def code_motion(p, pid: int, redo_ids=()) -> int:
                               (image_scene(p.conn, s["id"]),)).fetchone():
             continue
         from . import lipsync
-        voice = lipsync.enabled() and lipsync.method_for(d) == "generate"
+        voice = lipsync.enabled() and lipsync.voiced(lipsync.method_for(d))
         todo.append({"id": s["id"], "idx": s["idx"], "motion_prompt": shot_motion(d, voice=voice),
                      "duration_sec": min(floored(d, float(d.get("duration_s") or 2)), 30)})   # 28/09: a 1 s single was
                                                                                           # cut to 1 s — the collapse was cut off

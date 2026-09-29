@@ -205,6 +205,14 @@ FEATURES: Dict[str, Dict] = {
         "verified": False,
         "why": "Kế hoạch V4 GĐ3: chưa thử thật; Seedance không công bố hỗ trợ tiếng Việt — thử 1 shot cận giọng Việt (~$0,60) trước khi tin",
     },
+    "dialogue_take": {
+        "label": "Khớp môi (c) — S4.2: shot thoại thấy mặt người nói (cả shot trung / nhiều người) đi trong clip nhóm Seedance 2.5 kèm MỘT "
+                 "track giọng của cả nhóm + câu thoại, tên người nói và mốc giây trong prompt (thay 'không khớp môi' khi không có sync.so)",
+        "verified": False,
+        "why": "A/B S4.6 vòng 2 (29/09, dự án thử #10): một clip 3 câu / 3 người nói cho đúng người mở miệng đúng lượt (in-game giữ bố cục "
+               "tốt hơn tả thực) — bằng công cụ thử, CHƯA chạy qua luồng chính (cắt clip nhóm + đặt giọng lên timeline); người dùng chọn "
+               "dùng (c) in-game cho S4.2",
+    },
     "storyboard_api": {
         "label": "Vẽ ảnh các shot của một cảnh bằng MỘT storyboard Deepix (shot rộng nhất làm neo, cùng ảnh tham chiếu) — cách Weave Canvas",
         "verified": False,

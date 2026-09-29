@@ -79,6 +79,36 @@ def _stamp(a: float, b: float) -> str:
     return f"[00:{lo:02d} - 00:{hi:02d}]"
 
 
+def lip_directive(segs: List[Dict], label: Dict[str, str]) -> str:
+    """The lip-sync block: who speaks Audio1, visemes of their own lines only, everyone else's mouth still, closed in silence."""
+    speakers = sorted({s["speaker"].upper() for s in segs}, key=lambda n: label.get(n, n))
+    return ("AUDIO & LIP-SYNC: " + " and ".join(f"{label.get(n, '')} {n}".strip() for n in speakers)
+            + " speak Audio1 in Vietnamese. Sync the mouth, jaw, teeth and tongue to every syllable, vowel and consonant of their own "
+              "lines only, with the emotion of the voice. Only the person named in the timeline moves their lips; everyone else keeps "
+              "the mouth closed or still. The mouth closes in every silence.")
+
+
+def dialogue_lines(segs: List[Dict], label: Dict[str, str], beats: Optional[Dict] = None) -> List[str]:
+    """One timeline line per spoken line: its whole-second window, the speaker (C-label), the words in Vietnamese."""
+    beats = beats or {}
+    out = []
+    for i, s in enumerate(segs):
+        who = f"{s['speaker']} / {label.get(s['speaker'].upper(), '')} lipsync @Audio1".replace(" /  lipsync", " / lipsync")
+        extra = f" {beats[i].rstrip('.')}." if beats.get(i) else ""
+        out.append(f"{_stamp(s['start'], s['end'])} Dialogue ({who}): \"{s['text']}\"{extra}")
+    return out
+
+
+def group_block(segs: List[Dict], names: List[str]) -> str:
+    """S4.2: the dialogue part added to a Seedance reference GROUP prompt (seedance_refs.prompt already maps the storyboard frames and
+    the identity pictures, in `names` order) — Audio1's role, the lip-sync directive, the lines at their seconds of the clip, avoid."""
+    label = {str(n).upper(): f"C{i}" for i, n in enumerate(names, 1)}
+    who = " ".join(f"{label[str(n).upper()]} = {n}." for n in names)
+    return "\n".join(["Audio1 = the Vietnamese dialogue of this clip at its real seconds: timing, pauses, emotion and the phonemes each "
+                      "mouth shape follows. " + who, lip_directive(segs, label), "DIALOGUE TIMELINE (seconds of the whole clip):",
+                      *dialogue_lines(segs, label), f"Avoid: {AVOID_COMMON}."])
+
+
 def prompt(cast: List[Dict], segs: List[Dict], style: str = "ingame", place: str = "", composition: bool = True,
            beats: Optional[Dict] = None, aspect: str = "9:16") -> str:
     """The 7-block prompt. cast: [{name, where, pose, identity?, acting?}] in the order of their identity pictures; composition: Image 1
@@ -103,16 +133,8 @@ def prompt(cast: List[Dict], segs: List[Dict], style: str = "ingame", place: str
     chars = ["CHARACTERS & BLOCKING:"] + [
         f"{label[c['name'].upper()]} ({c['name']}): {c.get('where', '')}; {c.get('pose', '')}. Matches Image{first + i}.".replace(" ; ", " ")
         for i, c in enumerate(cast)]
-    speakers = sorted({s["speaker"].upper() for s in segs}, key=lambda n: label.get(n, n))
-    lip = ("AUDIO & LIP-SYNC: " + " and ".join(f"{label.get(n, n)} {n}" for n in speakers)
-           + " speak Audio1 in Vietnamese. Sync the mouth, jaw, teeth and tongue to every syllable, vowel and consonant of their own "
-             "lines only, with the emotion of the voice. Only the person named in the timeline moves their lips; everyone else keeps "
-             "the mouth closed or still. The mouth closes in every silence.")
-    tl = ["TIMELINE:"]
-    for i, s in enumerate(segs):
-        who = f"{s['speaker']} / {label.get(s['speaker'].upper(), '')} lipsync @Audio1"
-        extra = f" {beats[i].rstrip('.')}." if beats.get(i) else ""
-        tl.append(f"{_stamp(s['start'], s['end'])} Dialogue ({who}): \"{s['text']}\"{extra}")
+    lip = lip_directive(segs, label)
+    tl = ["TIMELINE:"] + dialogue_lines(segs, label, beats)
     if total - segs[-1]["end"] > 0.3:
         tl.append(f"{_stamp(segs[-1]['end'], total)} No one speaks; mouths closed; a small reaction.{(' ' + beats['end']) if beats.get('end') else ''}")
     tail = (f"CONTINUITY & AVOID: every character matches their identity picture for the whole take. Avoid: {AVOID[style]}, "
