@@ -214,6 +214,14 @@ def shot_data(scene: Dict, s: Dict, k: int) -> Dict:
         value = s.get(key) or scene.get(key)
         if isinstance(value, str) and value.strip():
             data[key] = value.strip()
+    # S5.7 (người dùng 29/09): the camera direction on a 3D place and the extra lights of a night shot are the DP's choice per shot
+    # (lights may be written once on the scene); kept as written — core/plate_choice checks them and reports what is missing
+    view = s.get("plate_view") if s.get("plate_view") not in (None, "") else scene.get("plate_view")
+    if isinstance(view, (dict, str)) or (isinstance(view, (int, float)) and not isinstance(view, bool)):
+        data["plate_view"] = view
+    lights = s.get("practical_lights") if isinstance(s.get("practical_lights"), list) else scene.get("practical_lights")
+    if isinstance(lights, list):
+        data["practical_lights"] = lights
     # GĐ4 (the crew's skill books): the acting of the shot (director.md Đ4 → image + motion prompts), the DP's reason for the camera
     # (dp.md Q7 — the Director approves the shot by it), the lens of the virtual camera on a 3D place (dp.md Q2 → plate_camera)
     from . import performance

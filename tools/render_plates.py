@@ -44,6 +44,9 @@ Plan (JSON):
                    (a ceiling above, walls all round; farthest from walls, looking the deepest way)
   camera.indoor    {"exposure": +1.5, "fill_w": 400, "fill_color": [r, g, b], "fill_up_m": 0.9} a room: brighter view + a fill lamp for
                    this camera only (removed after)
+  camera.lights    S5.7 — the shot's extra light sources chosen from the script (core/plate_choice.light_rigs):
+                   [{"type": "POINT"|"AREA"|"SPOT", "location", "look_at", "color": [r,g,b], "energy": W, "size": m, "spot_deg": °}]
+                   (model coordinates when the camera's are); they exist only while that camera renders
   probe            {"step": 2.0} — no render: rays straight down on a grid find the flat ground a character can stand on; the
                    flat areas (clustered by height) go to probe.json with their size and centre, in the model's own coordinates
                    (core/location_pack.propose_spots turns them into named spots)
@@ -531,6 +534,41 @@ def stand_in(location, height):
     return [body, head]
 
 
+def add_lights(specs):
+    """S5.7: the shot's practical lights (lamp, fire, screen…), created for one camera and removed after it."""
+    made = []
+    for i, lt in enumerate(specs or []):
+        kind = str(lt.get("type") or "POINT").upper()
+        data = bpy.data.lights.new(f"PLATES_PRACTICAL_{i}", kind if kind in ("POINT", "AREA", "SPOT") else "POINT")
+        data.energy = float(lt.get("energy") or 300.0)
+        data.color = tuple(float(c) for c in (lt.get("color") or [1.0, 0.8, 0.5])[:3])
+        if data.type == "SPOT":
+            data.spot_size = math.radians(float(lt.get("spot_deg") or 35.0))
+            data.spot_blend = 0.4
+        elif data.type == "AREA":
+            data.size = float(lt.get("size") or 0.5)
+        elif hasattr(data, "shadow_soft_size"):
+            data.shadow_soft_size = float(lt.get("size") or 0.1)
+        obj = bpy.data.objects.new(f"PLATES_PRACTICAL_{i}", data)
+        bpy.context.scene.collection.objects.link(obj)
+        obj.location = Vector(lt["location"])
+        if lt.get("look_at"):
+            # first render (29/09, covered yard): a lamp 2.8 m up sat INSIDE the ceiling slab and lit nothing. Walk the line from the
+            # character's chest to the lamp; a wall / ceiling on the way stops the lamp 0.3 m in front of it
+            origin = Vector(lt["look_at"])
+            path = obj.location - origin
+            dist = path.length
+            if dist > 0.05:
+                hit, where, *_ = bpy.context.scene.ray_cast(bpy.context.evaluated_depsgraph_get(), origin, path.normalized(),
+                                                            distance=dist + 0.3)
+                if hit:
+                    obj.location = origin + path.normalized() * max((where - origin).length - 0.3, 0.3)
+        if lt.get("look_at"):
+            look_at(obj, lt["look_at"])
+        made.append(obj)
+    return made
+
+
 # ---- cameras --------------------------------------------------------------------------------------------------------------
 def look_at(obj, target):
     direction = Vector(target) - obj.location
@@ -816,6 +854,9 @@ def main():
             c = dict(c, location=to_scene(c["location"], factor), look_at=to_scene(c["look_at"], factor))
             if c.get("subject"):
                 c["subject"] = dict(c["subject"], location=to_scene(c["subject"]["location"], factor))
+            if c.get("lights"):
+                c["lights"] = [dict(lt, location=to_scene(lt["location"], factor),
+                                    **({"look_at": to_scene(lt["look_at"], factor)} if lt.get("look_at") else {})) for lt in c["lights"]]
         cams.append(dict(c, angle=c.get("angle") or "eye_level"))
     manifest["lift_z"] = round(LIFT_Z, 3)
     span = max(hi.x - lo.x, hi.y - lo.y, hi.z - lo.z)
@@ -828,6 +869,7 @@ def main():
         cam.location = Vector(c["location"])
         look_at(cam, c["look_at"])
         scene.camera = cam
+        practical = add_lights(c.get("lights"))
         info = camera_info(cam, c["look_at"], res)
         plate = os.path.join(out_dir, f"plate_{c['name']}.png")
         indoor = c.get("indoor") or None                                 # 29/09: rooms lit only through windows came out black
@@ -881,6 +923,11 @@ def main():
             item["indoor"] = indoor
             if fill is not None:
                 bpy.data.objects.remove(fill, do_unlink=True)
+        if practical:
+            item["lights"] = [{"type": o.data.type, "energy": o.data.energy, "location_m": [round(v, 3) for v in o.location]}
+                              for o in practical]
+            for o in practical:
+                bpy.data.objects.remove(o, do_unlink=True)
         manifest["plates"].append(item)
         log(f"{c['name']}: {item['render_sec']}s")
     for a in cfg.get("animations") or []:                                # S5.1 / S5.6: camera moves through the place (frames)

@@ -25,6 +25,8 @@ RES = (720, 1280)                         # 9:16, the projects' frame
 # spots checked by eye on the first render (29/09): these two lie UNDER the upper plaza (a covered yard) — looking up at the tower the
 # camera saw a concrete ceiling. Người dùng 29/09: keep them — the character stands on the ground below, the camera at eye level, level
 # (never tilted up into the ceiling), and a few directions give different uses (looking out towards the tower side, into the yard, across).
+# S5.7 (người dùng 29/09, later): the direction there is NOT fixed — each shot's `plate_view` chooses it from the script
+# (core/plate_choice.py; spots marked "direction": "script"); the three 'ra / vào / ngang' renders below are reference pictures only.
 COVERED = {"lower_yard", "level_22_4"}
 COVER_CAM_M = 4.0                         # camera this far from the character's spot
 FIGURE_M = 1.7                            # height of the person drawn on the check copy

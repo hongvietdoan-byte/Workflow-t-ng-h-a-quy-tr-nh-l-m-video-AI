@@ -109,6 +109,19 @@ thấp (nhưng dễ vẽ lại tháp → phải so lại với render).
 - Dự án #6 đang dừng ở Bước 1: 31 shot, 63,7 s; cảnh cinematic 1 & 6 ở Kho #263 ban đêm. Nếu (A) đạt → áp cho các shot cinematic đó
   trước khi chạy 2B (đỡ phải gen lại).
 
+## 4b. Cập nhật 2026-09-29 — hướng máy + đèn đêm theo kịch bản (S5.7)
+- Người dùng 29/09: hướng máy ở góc dưới mái che (`lower_yard` ≡ `level_22_4`) **không cố định sẵn** mà tùy kịch bản; cảnh đêm có dùng thêm
+  đèn hay không cũng tùy kịch bản. → `core/plate_choice.py`: shot ghi `plate_view` {background, why} + `practical_lights`; chỗ đứng đánh dấu
+  `"direction": "script"` thiếu hướng → không render nền, ảnh shot chờ, autopilot báo lỗi `plate_view`; chỗ đứng thường thiếu hướng → dùng
+  `facing` đã đăng ký **và báo** (khóa cache giữ nguyên như trước → nền cũ vẫn dùng được). Đêm thiếu quyết đèn → báo, render chỉ ánh trăng.
+- Đèn: đặt thật trong Blender quanh nhân vật theo `where` (nhìn từ máy), tự lùi khỏi tường/trần (lần render đầu đèn nằm trong tấm trần);
+  nền đêm có đèn dùng bảng màu đêm dịu hơn (bảng cũ biến đèn ấm thành xám xanh) — nhân vật ghép nhận cùng bảng.
+- Ảnh 3 hướng `--only-covered` (ra / vào / ngang) nay **chỉ là tư liệu tham khảo**. Render thử theo kịch bản (miễn phí):
+  `D:\AI-Video-Output\2026-09-29_bo-boi-canh-thap-dong-ho\theo_kich_ban\lower_yard_away_night_den.png` (quay lưng về tháp, đèn tường ấm sau-trái) và `lower_yard_landmark_night_khong_den.png`
+  (nhìn về phía tháp — từ dưới mái che chỉ thấy tường chắn, tháp bị che: đúng lý do người dùng không cho cố định hướng).
+- **Còn phải làm (người dùng / phiên sau):** 30/09 Kho 263 chuyển sang FBX chính thức, chỗ đứng mới (`plaza_front`, `level_9_4`, …) — `lower_yard`/`level_22_4` (GLB) không còn: chỉ ra chỗ đứng dưới mái che tương ứng rồi chạy
+  `py tools/location_pack.py script-view --asset 263 --spot-name <tên> --landmark "the clock tower"` (ghi hồ sơ Kho); thử thật 1 shot đêm có đèn. Luồng `place_render_refs` (render tham chiếu từng shot) đi qua cùng `location_pack.plan` nên nhận hướng + đèn đã chọn.
+
 ## 5. Lưu ý kỹ thuật cho phiên sau
 - Chạy script Python có chuỗi đường dẫn Windows: **không** sinh code bằng chuỗi Python thường lồng nhau (`\a`, `\1` bị hiểu thành ký tự
   điều khiển — script `gen_green` cũ đã hỏng đường dẫn vì vậy). Viết file trực tiếp bằng Write/Edit, dùng `r"..."`.

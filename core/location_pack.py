@@ -5,7 +5,10 @@ Registry: the place's `assets.profile` JSON keeps `model3d` =
     {"path", "sha256", "real_height_m" (None = the model's own metres), "anchor": [x, y, z] of the landmark (model coordinates),
      "spots": {"plaza_front": {"at": [x, y, z], "facing": 0, "label": "..."}, ...}, "default_spot": "plaza_front",
      "sun_azimuth": 250, "notes": ""}
-Shot fields the DP writes: `plate_spot` (a spot name; else the default), `weather`, scene `time`.
+Shot fields the DP writes: `plate_spot` (a spot name; else the default), `weather`, scene `time`, and (S5.7, người dùng 29/09 — decided
+per shot from the script, never a constant of the place) `plate_view` (the camera direction: what is behind the character) and
+`practical_lights` (extra lights of a night shot) — core/plate_choice.py. A spot may be marked `"direction": "script"` (the covered yard of the
+clock tower): it has no fixed direction, a shot there without `plate_view` gets no plate until the DP writes one.
 Per-project index: <data>/<pid>/plates/index.json  (scene id -> the plate files of its camera + where the character goes).
 Cache: <data root>/_plates3d/cache/<key>/ — key = model sha + camera + time/weather + size + script version: two projects with the
 same camera render once.
@@ -68,13 +71,40 @@ def set_model3d(conn, asset_id: int, path: str, spots: Dict[str, Dict], default_
                                      **({"group": str(sp["group"])} if sp.get("group") else {}),
                                      # inside a house (29/09): lighting for its camera + a second view out through a door / window
                                      **({"indoor": dict(sp["indoor"])} if sp.get("indoor") else {}),
-                                     **({"view_out": [float(v) for v in sp["view_out"]]} if sp.get("view_out") else {})}
+                                     **({"view_out": [float(v) for v in sp["view_out"]]} if sp.get("view_out") else {}),
+                                     # S5.7 (người dùng 29/09): no fixed camera direction here — each shot's `plate_view` decides
+                                     **({"direction": "script"} if sp.get("direction") == "script" else {})}
                            for k, sp in spots.items()},
                        "default_spot": default_spot if default_spot in spots else next(iter(spots)), "sun_azimuth": float(sun_azimuth),
                        "notes": notes, **({"light": light} if light else {})}
+    old = (json.loads(row["profile"]) if row["profile"] else {}).get("model3d") or {}
+    if old.get("landmark"):
+        prof["model3d"]["landmark"] = old["landmark"]
     conn.execute("UPDATE assets SET profile=? WHERE id=?", (json.dumps(prof, ensure_ascii=False), asset_id))
     conn.commit()
     return prof["model3d"]
+
+
+def set_script_view(conn, asset_id: int, spot_names: List[str], on: bool = True, landmark: Optional[str] = None) -> Dict:
+    """S5.7: mark spots whose camera direction is chosen per shot from the script (`"direction": "script"` — a shot there without
+    `plate_view` gets no plate and is reported), and optionally name the landmark in English for prompts ("the clock tower")."""
+    row = conn.execute("SELECT profile FROM assets WHERE id=?", (asset_id,)).fetchone()
+    prof = json.loads(row["profile"]) if row is not None and row["profile"] else {}
+    entry = prof.get("model3d")
+    if not isinstance(entry, dict):
+        raise LocationPackError("bối cảnh này chưa gắn mô hình 3D")
+    for name in spot_names:
+        if name not in (entry.get("spots") or {}):
+            raise LocationPackError(f"không có chỗ đứng '{name}' ({', '.join(entry.get('spots') or {})})")
+        if on:
+            entry["spots"][name]["direction"] = "script"
+        else:
+            entry["spots"][name].pop("direction", None)
+    if landmark is not None:
+        entry["landmark"] = landmark.strip() or None
+    conn.execute("UPDATE assets SET profile=? WHERE id=?", (json.dumps(prof, ensure_ascii=False), asset_id))
+    conn.commit()
+    return entry
 
 
 _STOP = {"khu", "vuc", "cho", "tai", "o", "va", "cua", "the", "a", "of", "and", "at", "in", "on", "dao", "quan", "su", "thap", "dong", "ho",
@@ -129,6 +159,21 @@ def spot_problem(entry: Dict, data: Dict) -> Optional[str]:
     return None
 
 
+SCRIPT_CHOICES = (
+    "- `plate_view` (mọi shot ở nơi có mô hình 3D — hướng máy KHÔNG cố định theo chỗ đứng, chọn theo kịch bản): "
+    "`{\"background\": \"landmark|away|left|right|scenery|spot:<tên chỗ đứng>|<số độ>\", \"why\": \"tiếng Việt\"}` = cái gì ở NỀN "
+    "sau nhân vật: `landmark` máy nhìn về mốc (mốc ở nền), `away` quay lưng về mốc (không thấy mốc), `left`/`right` nhìn ngang, "
+    "`scenery` hướng cảnh quan đã đăng ký của chỗ đứng (trong nhà: nhìn ra cửa). "
+    "Suy từ kịch bản: trục diễn (giữ cùng phía trục với shot trước, trừ khi cố ý vượt trục), ai đứng đâu, người xem cần thấy gì "
+    "ở nền (mốc để nhận ra nơi; bỏ mốc khi cần nền gọn cho cảm xúc). Chỗ đứng ghi \"bắt buộc\" mà thiếu `plate_view` → nền "
+    "không render, ảnh shot phải chờ.\n"
+    "- `practical_lights` (cảnh `night` — BẮT BUỘC quyết; ghi ở shot hoặc ở cảnh): `[]` = chỉ ánh trăng; hoặc tối đa 3 "
+    "`{\"kind\": \"lamp|fire|screen|neon|torch|headlight|window\", \"where\": \"behind|behind_left|behind_right|left|right|"
+    "front|front_left|front_right|above|background\", \"color\": \"warm|orange|cool|blue|white|red|green|purple|pink|#rrggbb\", "
+    "\"why\": \"tiếng Việt\"}` — chỉ đèn mà kịch bản có lý do (đèn đường, lửa trại, màn hình điện thoại, đèn pin…); "
+    "`where` nhìn từ máy.")
+
+
 def director_block(conn, pid: int) -> str:
     """V4 GĐ4 (dp.md Q6): what the Director / DP must know to write `plate_spot`, `weather`, `plate_mode` for a project whose places
     have a registered 3D model — the spots by name, the fixed weather / time names, the two ways of making the clip. Empty when the
@@ -142,7 +187,8 @@ def director_block(conn, pid: int) -> str:
         entry = model3d(conn, a["id"]) if a.get("kind") == "location" else None
         if not entry:
             continue
-        spots = "; ".join(f"`{k}` ({v.get('label') or k}{', trong nhà' if v.get('indoor') else ''})"
+        spots = "; ".join(f"`{k}` ({v.get('label') or k}{', trong nhà' if v.get('indoor') else ''}"
+                          + (", **hướng máy tùy kịch bản — bắt buộc `plate_view`**" if v.get("direction") == "script" else "") + ")"
                           for k, v in (entry.get("spots") or {}).items())
         rows.append(f"- **{a['name']}**: chỗ đứng {spots} — mặc định `{entry.get('default_spot')}`")
     if not rows:
@@ -151,7 +197,8 @@ def director_block(conn, pid: int) -> str:
         return ("# Bối cảnh có mô hình 3D (ảnh render đúng góc máy từng shot đi kèm làm tham chiếu cho model vẽ)\n" + "\n".join(rows) + "\n"
                 "- `plate_spot`: chỗ đứng hợp với nơi của shot (quảng trường, khu nhà, trong nhà…) — không ghi thì code tự chọn theo chữ "
                 "mô tả nơi của shot, không khớp thì dùng mặc định. Các shot của một đoạn nối tiếp nên đứng cùng chỗ.\n"
-                f"- `weather` (shot hoặc cảnh): chỉ một trong {', '.join(plate_env.WEATHERS)}; `time` của cảnh: {', '.join(plate_env.TIMES)}.\n")
+                f"- `weather` (shot hoặc cảnh): chỉ một trong {', '.join(plate_env.WEATHERS)}; `time` của cảnh: {', '.join(plate_env.TIMES)}.\n"
+                + SCRIPT_CHOICES)
     return ("# Gói bối cảnh (nền là render 3D thật của nơi này — AI chỉ vẽ nhân vật)\n" + "\n".join(rows) + "\n"
             f"- `plate_spot`: tên một chỗ đứng ở trên (không ghi = mặc định; tên lạ bị đổi về mặc định và báo lại).\n"
             f"- `weather` (shot hoặc cảnh): chỉ một trong {', '.join(plate_env.WEATHERS)}; `time` của cảnh: {', '.join(plate_env.TIMES)}.\n"
@@ -159,7 +206,7 @@ def director_block(conn, pid: int) -> str:
             "nền; code chấm và tự chuyển cách 2 một lần); `\"green\"` = cách 2 (nhân vật diễn trên phông xanh, ghép từng khung lên nền — "
             "dùng cho shot mà nền PHẢI giữ nguyên: mốc nổi tiếng chiếm lớn trong khung, máy đứng yên).\n"
             "- Shot cận ở chân một công trình cao chỉ thấy chân công trình: muốn thấy mốc thì hạ máy (`angle: \"low\"`, ngửa lên) hoặc "
-            "dùng trung/toàn.")
+            "dùng trung/toàn.\n" + SCRIPT_CHOICES)
 
 
 
@@ -226,6 +273,11 @@ def plate_of(data_dir: str, pid: int, scene_id: int) -> Optional[Dict]:
     return rec if rec and os.path.exists(rec.get("plate", "")) else None
 
 
+def plate_needs(data_dir: str, pid: int, scene_id: int) -> Optional[str]:
+    """S5.7: what the shot's plate is waiting for from the script (a camera direction at a script-view spot), else None."""
+    return (index(data_dir, pid).get(str(scene_id)) or {}).get("needs")
+
+
 def plate_failed(data_dir: str, pid: int, scene_id: int) -> Optional[str]:
     """Why Blender gave no plate for this shot's camera (the shot then draws a normal picture instead of waiting), else None."""
     rec = index(data_dir, pid).get(str(scene_id))
@@ -252,11 +304,16 @@ def forget_failures(data_root: str) -> int:
 
 
 def plan(conn, pid: int, resolution=(1152, 2048)) -> List[Dict]:
-    """One item per shot at a 3D place: its camera (model coordinates), the character box, the time/weather and the cache key."""
+    """One item per shot at a 3D place: its camera (model coordinates), the character box, the time/weather and the cache key.
+    S5.7: the camera direction comes from the shot's `plate_view` and the extra lights from `practical_lights` (core/plate_choice) —
+    both are part of the camera, so of the cache key: a changed direction or light is a new plate. `needs` = the plate must not be
+    rendered yet (a script-view spot without a direction); `view_problem` / `light_problem` = reported, rendered anyway."""
+    from . import plate_choice
     shots = shots_at_3d_places(conn, pid)
     aspect = resolution[0] / resolution[1]
+    views = {s["id"]: plate_choice.view_of(s["entry"], spot_for(s["entry"], s["data"]), s["data"]) for s in shots}
     cams = plate_camera.plan_cameras(
-        shots, lambda s: ((spot_for(s["entry"], s["data"])["at"]), spot_for(s["entry"], s["data"])["facing"]),
+        shots, lambda s: ((spot_for(s["entry"], s["data"])["at"]), views[s["id"]]["facing_deg"]),
         lambda s: _height(conn, pid, s["data"]), aspect)
     out = []
     for s in shots:
@@ -265,12 +322,34 @@ def plan(conn, pid: int, resolution=(1152, 2048)) -> List[Dict]:
             continue
         env = plate_env.env_of(s["data"])
         sp = spot_for(s["entry"], s["data"])
-        camera = dict(cam["camera"], model_coords=True, subject={"location": sp["at"], "height_m": _height(conn, pid, s["data"])})
+        height = _height(conn, pid, s["data"])
+        view = views[s["id"]]
+        if cam.get("shared_with"):                      # one camera set-up = one position: a different direction is not taken silently
+            first = next((views[o["id"]] for o in shots if f"shot_{o['id']}" == cam["shared_with"]), None)
+            if first is not None and first["background_deg"] != view["background_deg"]:
+                view = dict(first, problem=(f"shot cùng camera_setup với {cam['shared_with']} nên dùng hướng máy của shot đó "
+                                            f"({first['background_deg']:g}°), không phải hướng shot này ghi ({view['background_deg']:g}°)"),
+                            needs=first["needs"])
+        lit = plate_choice.lights_of(s["data"], env)
+        camera = dict(cam["camera"], model_coords=True, subject={"location": sp["at"], "height_m": height})
+        if lit["lights"]:
+            camera["lights"] = plate_choice.light_rigs(lit["lights"], sp["at"], camera["location"], height)
+            env = dict(env, practical=True)             # plate_env.grade: a lit night keeps its lamps (the character gets the same)
         out.append({"scene_id": s["id"], "idx": s["idx"], "place": s["place"]["name"], "entry": s["entry"], "camera": camera, "env": env,
                     "subject_box": cam["subject_box"], "distance_m": cam["distance_m"], "spot": sp["name"],
                     "key": cache_key(s["entry"], camera, env, resolution), "weather_problem": plate_env.weather_of(s["data"])[1],
-                    "spot_problem": spot_problem(s["entry"], s["data"])})
+                    "spot_problem": spot_problem(s["entry"], s["data"]), "view": view, "view_problem": view["problem"],
+                    "needs": view["needs"], "lights": lit["lights"], "lights_decided": lit["decided"],
+                    "light_problem": lit["problem"]})
     return out
+
+
+def layout_words(it: Dict) -> str:
+    """S5.7: the chosen direction + light of a planned shot in Vietnamese, for the person (plan command, diag, index)."""
+    from . import plate_choice
+    v = it["view"]
+    return (f"{it['spot']} · {v['words_vi']} (nền {v['background_deg']:g}°)" + (f" — lý do: {v['why']}" if v.get("why") else "")
+            + f" · {it['env']['time']}/{it['env']['weather']} · " + plate_choice.light_words_vi(it["lights"], it["lights_decided"]))
 
 
 def _cached(root: str, key: str) -> Optional[Dict]:
@@ -294,6 +373,9 @@ def ensure_plates(conn, pid: int, data_dir: str, data_root: str, resolution=(115
     root = cache_root(data_root)
     missing: Dict[tuple, List[Dict]] = {}
     for it in items:
+        if it.get("needs"):
+            log(f"Shot {it['idx']}: {it['needs']}")
+            continue                                      # S5.7: no direction for a script-view spot — never a default plate
         if _cached(root, it["key"]) is None and _failed(root, it["key"]) is None:
             missing.setdefault((it["entry"]["sha256"], plate_env.key(it["env"])), []).append(it)
     for group in missing.values():
@@ -341,6 +423,9 @@ def ensure_plates(conn, pid: int, data_dir: str, data_root: str, resolution=(115
                 json.dump(rec, f, ensure_ascii=False, indent=1)
     idx = {}
     for it in items:
+        if it.get("needs"):
+            idx[str(it["scene_id"])] = {"key": it["key"], "needs": it["needs"], "place": it["place"], "spot": it["spot"]}
+            continue
         rec = _cached(root, it["key"])
         if rec is None:
             why = _failed(root, it["key"])
@@ -348,7 +433,8 @@ def ensure_plates(conn, pid: int, data_dir: str, data_root: str, resolution=(115
                 idx[str(it["scene_id"])] = {"key": it["key"], "failed": why, "place": it["place"]}
             continue
         idx[str(it["scene_id"])] = dict(rec, key=it["key"], env=it["env"], subject_box=it["subject_box"], distance_m=it["distance_m"],
-                                        spot=it["spot"], place=it["place"], camera_plan=it["camera"])
+                                        spot=it["spot"], place=it["place"], camera_plan=it["camera"], view=it["view"],
+                                        lights=it["lights"], lights_decided=it["lights_decided"], layout_vi=layout_words(it))
     path = _index_path(data_dir, pid)
     os.makedirs(os.path.dirname(path), exist_ok=True)
     with open(path, "w", encoding="utf-8") as f:
@@ -394,12 +480,40 @@ def green_prompt(data: Dict, rec: Dict, sun_azimuth: float = 250.0) -> str:
              + f", body centred at {((x0 + x1) / 2) * 100:.0f}% from the left")
     parts = [f"Camera: {cam.get('lens', 35):g} mm lens, {height:.1f} m above the ground, the character {rec.get('distance_m', 3):.1f} m away; "
              f"{where}.", f"Light: {_TIME_LIGHT.get(env['time'], '')}. {light_words(rec, sun_azimuth)}".strip()]
+    from . import plate_choice
+    practical = plate_choice.light_sentence(rec.get("lights") or [], bool(rec.get("lights_decided")), env["time"])
+    if practical:
+        parts.append(practical)                          # S5.7: the extra lights the plate was rendered with, chosen for this shot
     if env["weather"] in _WEATHER_ON_BODY:
         parts.append(f"Weather on the character: {_WEATHER_ON_BODY[env['weather']]}.")
     parts.append("BACKGROUND: a perfectly flat, uniform pure chroma-key green (#00FF00) studio backdrop filling everything behind the "
                  "character — no floor, no shadow on the backdrop, no gradient, no objects, no green light on the character. Crisp clean "
                  "hair edges. The place is NOT drawn: it is added afterwards.")
     return " ".join(p for p in parts if p)
+
+
+def script_sentence(conn, pid: int, data: Dict) -> str:
+    """S5.7: for a picture drawn WITHOUT a plate at a place that has a 3D model (feature off, or the render failed): the camera
+    direction and the extra lights the DP chose for this shot, in words — so the layout sentence of the place is read from the right
+    side (is the landmark in the frame or behind the camera?). A default direction is not presented as a choice (nothing is said)."""
+    from . import plate_choice
+    try:
+        place = assets.scene_location(conn, pid, data)
+    except Exception:  # noqa: BLE001 - no library tables (old test data)
+        return ""
+    entry = model3d(conn, place["id"]) if place else None
+    if not entry or not entry.get("spots"):
+        return ""
+    bits = []
+    view = plate_choice.view_of(entry, spot_for(entry, data), data)
+    if view["source"] == "script" and view["words_en"]:
+        bits.append(f"Camera direction chosen for this shot: {view['words_en']}.")
+    env = plate_env.env_of(data)
+    lit = plate_choice.lights_of(data, env)
+    light = plate_choice.light_sentence(lit["lights"], lit["decided"], env["time"])
+    if light:
+        bits.append(light)
+    return " ".join(bits)
 
 
 def needs_plate(conn, pid: int, data: Dict) -> bool:

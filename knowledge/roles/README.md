@@ -11,7 +11,7 @@ Vai Dựng phần lớn là code; tài liệu của nó dành cho người sửa
 | Vai | Nhận | Làm | Giao cho | Trường / sản phẩm |
 |---|---|---|---|---|
 | **Đạo diễn** | Kịch bản, hồ sơ nhân vật (Kho), thể loại, khung hình | Phân tích kịch bản, đường cảm xúc, cách kể bằng hình, diễn xuất, giọng, ghi chú kịch bản; duyệt chốt | Quay phim (cùng một lần gọi Director; cờ `director_two_pass`: lượt riêng — xem mục "Hai lượt"); người dùng (ghi chú) | cảnh: `beat`, `emotional_intent`, `time`, `mood`, `lighting`, `weather`; shot: `performance`, `role`, `hero`; câu: `delivery`; gốc: `tradeoffs`, `script_notes` |
-| **Quay phim** | Ý đồ + diễn xuất của Đạo diễn | Vị trí máy, cỡ/góc/ống kính, chuyển động, bố cục, ánh sáng, gói bối cảnh, khớp môi; lý do | Motion (prompt video), ảnh (prompt khung đầu), máy ảo Blender | shot: `size`, `angle`, `camera_move`, `lens_mm`, `start_frame`, `end_state`, `image_prompt`, `camera_setup`, `plate_spot`, `plate_mode`, `lip_sync`, `why` |
+| **Quay phim** | Ý đồ + diễn xuất của Đạo diễn | Vị trí máy, cỡ/góc/ống kính, chuyển động, bố cục, ánh sáng, gói bối cảnh, khớp môi; lý do | Motion (prompt video), ảnh (prompt khung đầu), máy ảo Blender | shot: `size`, `angle`, `camera_move`, `lens_mm`, `start_frame`, `end_state`, `image_prompt`, `camera_setup`, `plate_spot`, `plate_mode`, `plate_view`, `practical_lights`, `lip_sync`, `why` |
 | **Dựng** | Clip đã duyệt, giọng, chữ, nhạc, SFX | Cắt, giọng, âm nhiều lớp, nhạc, màu + khớp màu, hiệu ứng, chữ + vùng an toàn, độ to, tự rà | Người dùng (bản giao) | bản dựng, phụ đề, bản xuất theo nền tảng |
 Trả ngược: lỗi hình → Quay phim (gen lại có đổi đầu vào, ≤ 2 lần); lỗi diễn/giọng → Đạo diễn; kịch bản yếu → người viết (chỉ đề xuất).
 

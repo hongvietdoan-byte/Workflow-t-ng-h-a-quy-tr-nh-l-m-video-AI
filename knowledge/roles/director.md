@@ -226,6 +226,8 @@ quyết định ở lại hay lướt trong vài giây đầu, nên cảm xúc p
   thế nào** vì lý do truyện (Đ3); Quay phim đặt máy (dp.md Q6).
 - **Trong pipeline.** `plate_spot` (tên chỗ đứng — danh sách hiện trong khối "Gói bối cảnh" của prompt), `weather` (chỉ các tên: clear,
   cloudy, fog, rain, storm, snow, snowfall, ice, sandstorm), `time` của cảnh (dawn, day, dusk, night). Tên lạ bị đổi về mặc định **và báo lại**.
+  Hướng máy (`plate_view` + lý do) và đèn cảnh đêm (`practical_lights`) quyết **theo kịch bản từng shot**, không theo chỗ đứng (S5.7,
+  người dùng 29/09 — xem dp.md Q6).
 - **Kiểm.** Code: `weather_problem`, `spot_problem` trong kế hoạch nền; điểm giống nền (`plate_qc`).
 
 ### Đ9. Âm thanh cùng cảm xúc (`sound`) — 2026-09-26

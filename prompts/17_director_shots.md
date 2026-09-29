@@ -56,6 +56,8 @@ Dự án này sản xuất **theo shot**, không theo cảnh: mỗi cảnh kịc
  "sound": {"music": "keep|cut|in|breath", "sfx": ["tiếng Anh ngắn: âm khoảnh khắc cần"], "why": "tiếng Việt: âm này đẩy cảm xúc gì"},
  "why": "tiếng Việt, 1 câu: vì sao cỡ/góc/chuyển động này", "motif": "nhãn ngắn khi shot vần với shot khác",
  "lens_mm": 35, "weather": "clear", "plate_spot": "tên chỗ đứng", "plate_mode": "green", "lip_sync": false,
+ "plate_view": {"background": "landmark|away|left|right|spot:<tên>|<độ>", "why": "tiếng Việt"},
+ "practical_lights": [{"kind": "lamp|fire|screen|neon|torch|headlight|window", "where": "behind_left…", "color": "warm", "why": "…"}],
  "hook_mid": false, "money_shot": false, "speed": 0.5, "freeze_end_s": 0.5,
  "continuous_with_next": false, "hero": false,
  "transition_in": "cut|match|occlusion|flash|dip|whip|zoom_through|j_cut|l_cut"}
@@ -86,7 +88,8 @@ Dự án này sản xuất **theo shot**, không theo cảnh: mỗi cảnh kịc
   / âm shot trước kéo sang). Phần lớn chỗ nối là `cut`; chuyển cảnh đặc biệt dùng nhiều thì mất tác dụng.
 - **`why`:** một câu cho người duyệt: shot cho người xem biết/cảm gì → vì sao cỡ/góc/chuyển động này → nối với shot trước thế nào.
 - **`lens_mm`** (chỉ khi cần khác mặc định theo cỡ cảnh): 24 đặt gần = anh hùng/ngợp; 85–135 = nén, cô lập. **`weather`**, **`plate_spot`**,
-  **`plate_mode`**: chỉ khi có khối "Gói bối cảnh" (danh sách tên hợp lệ ở đó); `weather` có thể ghi ở cảnh cho cả cảnh. **`lip_sync`**:
+  **`plate_mode`**, **`plate_view`** (hướng máy = cái gì ở nền, kèm lý do — theo kịch bản, không theo chỗ đứng), **`practical_lights`**
+  (cảnh đêm: `[]` = chỉ trăng, hoặc đèn có lý do): chỉ khi có khối "Gói bối cảnh" (tên + luật ở đó); `weather` có thể ghi ở cảnh cho cả cảnh. **`lip_sync`**:
   chỉ khi khớp môi đang BẬT (xem khối Thời lượng). Bỏ trường nào không dùng.
 - **`hook_mid: true`** (video > 20 s): shot kết một đoạn ~10–15 s bằng một chi tiết **dở dang** (câu bị ngắt, tay chạm vào vật, ánh
   mắt nhìn ra ngoài khung) để người xem ở lại sang đoạn sau; code báo đoạn > 15 s không có móc nào.

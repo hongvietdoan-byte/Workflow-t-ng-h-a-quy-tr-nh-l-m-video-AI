@@ -22,13 +22,13 @@
 | S2 Timeline theo âm thanh + animatic | 6 | 5 | 0 | 0 | 0 | 81,8 % |
 | S3 Director kể chuyện + Quay phim | 8 | 7 | 0 | 0 | 1 | 100 % |
 | S4 Video chất lượng | 12 | 6 | 2 | 0 | 0 | 55 % |
-| S5 Bối cảnh theo file 3D Tháp Đồng Hồ | 6 | 5 | 1 | 0 | 0 | 93,8 % |
+| S5 Bối cảnh theo file 3D Tháp Đồng Hồ | 7 | 6 | 1 | 0 | 0 | 95 % |
 | S6 Ước tính, ngân sách, dashboard | 6 | 5 | 0 | 0 | 1 | 100 % |
 | S7 Agent QC | 2 | 1 | 0 | 0 | 0 | 66,7 % |
 | S10 Kỹ năng nhân vật & tham chiếu | 12 | 12 | 0 | 0 | 0 | 100 % |
 | K Chạy kiểm kịch bản hài 20–30 s — ⏸ KHÔNG ƯU TIÊN (người dùng 30/09: các việc test kịch bản không làm trước nữa) | 3 | 0 | 0 | 3 | 0 | 0 % |
 | S8 Chấm lại bằng AI Development System (cuối cùng) | 5 | 2 | 0 | 0 | 0 | 42,9 % |
-| **Tổng** | **98** | **79** | **3** | **3** | **3** | **86,3 %** |
+| **Tổng** | **99** | **80** | **3** | **3** | **3** | **86,4 %** |
 
 Đợt hiện tại: **S1** · việc kế: **S1.15** Tùy chọn model nhạc Eleven Music v2.5 (cập nhật ClipAI)
 <!-- /tien-do -->
@@ -120,6 +120,7 @@
 - [x] S5.4 · Lớp 0 đo "tầng tường" · nặng:2 · ✅ · 2026-09-29: đếm đường ngang dài ở nền (hiệu chỉnh trên dữ liệu thật: render tháp 0–3, khung nhiều tầng #8 5–10) → cờ stacked_tiers khi bối cảnh Kho tả là phẳng; test
 - [ ] S5.5 · 💵 Thử 1 cảnh `place_render_refs` (3–5 shot ở Tháp, render 3D đúng góc làm ảnh tham chiếu) — thay việc vẽ lại khung FFXN cũ; so độ khớp nền với mốc 0,073 · nặng:1 · 🔄 · 30/09 chiều: thử trả tiền #13 (0,312 USD): ảnh toàn cảnh khớp render, 5/5 khung shot theo chữ cũ "stone plaza + tower" thay vì render → sửa `auto_spot` (cả cảnh một chỗ) + câu "render quyết định nơi chốn" (`place_refs.PRECEDENCE`); số background_match không phân biệt được (0,202 vs 0,208) — chờ người dùng cho vẽ lại 5 khung ≈ 0,26 USD (docs/THU_PLACE_RENDER_REFS_2026-09-30.md mục 7); chạy khô #8 xong 30/09 (33/33 shot có render + câu số đo); ≈ 0,5 USD, hỏi trước
 - [x] S5.6 · Render tháp GLB thành video white-model làm tham chiếu cho Seedance 2.5 · nặng:1 · ✅ · 2026-09-29 (người dùng: 'tự làm kèm video'): 3 đường máy (đi bộ vào, vòng quanh, cần cẩu) × bản chất liệu + white-model; đã sửa đường đi bộ xuyên tường
+- [x] S5.7 · Hướng máy + đèn đêm ở bối cảnh 3D theo kịch bản (người dùng 29/09) · nặng:2 · ✅ · 2026-09-29: core/plate_choice.py — shot ghi plate_view (nền: landmark/away/left/right/spot:/độ + lý do) + practical_lights (đêm: [] hoặc ≤ 3 đèn); chỗ đứng 'tùy kịch bản' thiếu hướng → không render, shot chờ; đèn đặt thật trong Blender, vào khóa cache + dấu vân tay ảnh + câu ánh sáng prompt; render thử 2 nền lower_yard đêm ở D:/AI-Video-Output/2026-09-29_bo-boi-canh-thap-dong-ho/theo_kich_ban; 3 hướng cố định cũ chỉ còn là tư liệu; 30/09 gắn vào luồng place_render_refs (render tham chiếu theo shot) + hướng 'scenery'; còn: chỉ chỗ đứng dưới mái che trong FBX mới rồi script-view + thử thật 1 shot
 
 ### S6 — Ước tính, ngân sách, dashboard
 - [x] S6.1 · Dự tính tổng dự án ngay khi Director trả bảng shot · nặng:2 · ✅ · 2026-09-29: Bước 1 hiện 💵 dự tính chia khâu (project_budget.propose) ngay dưới kết quả Director + dòng tóm tắt lượt chạy; nghiệm thu lệch ≤ 20 % chờ lần chạy kiểm
@@ -301,6 +302,7 @@ Sửa góp ý 1.4.
 | S5.3 | Mô tả / ảnh địa điểm đổi → mọi khung ở địa điểm đó thành "cũ" | cơ chế ảnh cũ hiện có (`input_hash`) |
 | S5.4 | Lớp 0 đo "tầng tường" (so khung với ảnh toàn cảnh) | `core/qc_scene.py`, sổ tay G1 `knowledge/qc_playbook.md` |
 | S5.5 | 💵 Vẽ lại khung #8 bị nhiều tầng | — |
+| S5.7 | Hướng máy (`plate_view` + lý do) và đèn cảnh đêm (`practical_lights`) quyết theo kịch bản từng shot, không cố định theo chỗ đứng; chỗ đứng "tùy kịch bản" (dưới mái che) thiếu hướng → dừng + báo; render nền nhận hướng + đèn, khóa cache theo (chỗ đứng, hướng, giờ, thời tiết, đèn) | `core/plate_choice.py`, `core/location_pack.py`, `tools/render_plates.py`, `tools/location_pack.py` (`script-view`, `preview`) |
 
 ## Chi tiết · S6 — Ước tính, ngân sách, dashboard (0 USD)
 | Mã | Việc | File chính |

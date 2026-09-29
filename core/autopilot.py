@@ -507,6 +507,12 @@ def _plates_phase(p: Pipeline, pid: int, ctx: Context) -> Optional[str]:
             _d(p, pid, "images", "warn", f"shot {it['idx']}: {it['weather_problem']}", "weather")
         if it.get("spot_problem"):
             _d(p, pid, "images", "warn", f"shot {it['idx']}: {it['spot_problem']}", "plate_spot")
+        if it.get("needs"):                               # S5.7: the shot's picture waits — said, with what to write
+            _d(p, pid, "images", "error", f"shot {it['idx']}: {it['needs']}", "plate_view")
+        elif it.get("view_problem"):
+            _d(p, pid, "images", "warn", f"shot {it['idx']}: {it['view_problem']}", "plate_view")
+        if it.get("light_problem"):
+            _d(p, pid, "images", "warn", f"shot {it['idx']}: {it['light_problem']}", "practical_lights")
     idx = location_pack.index(ctx.data_dir, pid)
     if all(str(it["scene_id"]) in idx and idx[str(it["scene_id"])].get("key") == it["key"] for it in items):   # failed ones included
         return None

@@ -120,7 +120,14 @@ def missing(conn, data_dir: str, pid: int, scene_id: int, data: Dict) -> bool:
     """The shot needs a render that is neither there nor failed (then it waits for `ensure_async`)."""
     from . import location_pack
     return (wants_render(conn, pid, data) and location_pack.plate_of(data_dir, pid, scene_id) is None
-            and not location_pack.plate_failed(data_dir, pid, scene_id))
+            and not location_pack.plate_failed(data_dir, pid, scene_id) and not location_pack.plate_needs(data_dir, pid, scene_id))
+
+
+def needs(data_dir: str, pid: int, scene_id: int) -> Optional[str]:
+    """S5.7: the shot's render is held until the script decides something (a camera direction at a spot marked
+    `"direction": "script"`) — the picture waits and the reason is said, never a render from a guessed direction."""
+    from . import location_pack
+    return location_pack.plate_needs(data_dir, pid, scene_id)
 
 
 def _db_path(conn) -> Optional[str]:

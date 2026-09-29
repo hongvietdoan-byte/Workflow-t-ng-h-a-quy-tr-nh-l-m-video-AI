@@ -71,8 +71,8 @@ def camera_for(data: Dict, spot: Sequence[float], facing_deg: float, height_m: f
     body_share, fill, lens = FRAMING[size]
     lens = lens_of(data, lens)
     angle = str(data.get("angle") or "eye").lower()
-    words = f"{data.get('start_frame') or ''} {data.get('angle') or ''}".lower()
-    behind = angle == "ots" or "from behind" in words or "back to camera" in words or "quay lưng" in words
+    from .plate_choice import is_behind
+    behind = is_behind(data)                                  # one test, shared with the script's camera direction (S5.7)
     fov = vfov(lens, aspect)
     visible = height_m * body_share                          # metres of the body inside the frame (top of the head down)
     frame_h = visible / fill                                  # metres the frame spans at the character's distance

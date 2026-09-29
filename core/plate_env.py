@@ -29,7 +29,10 @@ _GEOMETRY = {"fog": {"fog": 0.6}, "rain": {"wet": 0.8, "fog": 0.15}, "storm": {"
 # 2D grade: RGB multipliers + lift (added) per time, then per weather
 _GRADE_TIME = {"dawn": ((1.02, 0.95, 0.92), (0.02, 0.01, 0.02)), "day": ((1.0, 1.0, 1.0), (0, 0, 0)),
                "dusk": ((1.05, 0.88, 0.80), (0.03, 0.01, 0.0)), "night": ((0.42, 0.47, 0.60), (0.0, 0.005, 0.02))}
-_FOG_COLOUR = {"dawn": (0.78, 0.72, 0.70), "day": (0.80, 0.82, 0.85), "dusk": (0.72, 0.58, 0.52), "night": (0.10, 0.12, 0.17)}
+# S5.7 (29/09, covered yard of the tower): with the night grade a 1600 W warm lamp came out as grey-blue mud (raw R 96 → ~40) — a night
+# plate lit by practical lights keeps more of its light and its warmth; the moonlit parts are already blue from the render's moon
+_GRADE_NIGHT_PRACTICAL = ((0.72, 0.70, 0.80), (0.0, 0.0, 0.015))
+_FOG_COLOUR ={"dawn": (0.78, 0.72, 0.70), "day": (0.80, 0.82, 0.85), "dusk": (0.72, 0.58, 0.52), "night": (0.10, 0.12, 0.17)}
 _FOG_DENSITY = 0.045      # per metre at fog 1: ~50 % hidden at 15 m, a tower 40 m away is a silhouette
 _GRADE_WEATHER = {"cloudy": ((0.92, 0.94, 0.97), (0.02, 0.02, 0.03)), "rain": ((0.85, 0.88, 0.95), (0.01, 0.02, 0.04)),
                   "storm": ((0.75, 0.80, 0.92), (0.0, 0.01, 0.04)), "fog": ((0.90, 0.92, 0.95), (0.06, 0.06, 0.07)),
@@ -119,6 +122,8 @@ def paint_sky(width: int, height: int, env: Dict, seed: int = 1):
 def grade(rgb, env: Dict):
     np = _np()
     mul, lift = _GRADE_TIME[env["time"]]
+    if env.get("practical") and env["time"] == "night":
+        mul, lift = _GRADE_NIGHT_PRACTICAL          # S5.7: the plate has the shot's own lamps — the cold grade must not drown them
     out = rgb * np.array(mul) + np.array(lift)
     if env["weather"] in _GRADE_WEATHER:
         mul, lift = _GRADE_WEATHER[env["weather"]]

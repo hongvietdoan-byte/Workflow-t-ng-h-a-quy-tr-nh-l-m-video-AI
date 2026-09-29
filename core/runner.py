@@ -1411,6 +1411,10 @@ class ImageRunner(_Runner):
                 place_refs.ensure_async(self.p.conn, job["project_id"], self.data_dir, place_refs.resolution_of(self.p.project(job["project_id"])),
                                         log=lambda m: self._diag(job, "info", "place_render", m))
                 return True
+            held = place_refs.needs(self.data_dir, job["project_id"], job["scene_id"])
+            if held:                                         # S5.7: no direction for a script-direction spot — wait, and say what to add
+                self._diag(job, "error", "plate_view", held)
+                return True
         if scene_establish.enabled():
             data = json.loads(self.p.conn.execute("SELECT data FROM scenes WHERE id=?", (job["scene_id"],)).fetchone()["data"] or "{}")
             model = None
@@ -1463,6 +1467,10 @@ class ImageRunner(_Runner):
         light = scene_establish.light_sentence(data)
         if light:
             prompt = f"{prompt} {light}"
+        from . import location_pack
+        chosen = location_pack.script_sentence(conn, job["project_id"], data)   # S5.7: direction + extra lights of this shot
+        if chosen:
+            prompt = f"{prompt} {chosen}"
         proj = self.p.project(job["project_id"])
         chain = chain_previous(proj, data)
         from . import features

@@ -149,9 +149,17 @@ Làm cho người xem **thấy rõ** điều Đạo diễn muốn họ cảm —
   cho shot mốc lớn trong khung, máy đứng yên). Shot cận ở chân công trình cao chỉ thấy chân → hạ máy ngửa lên, hoặc trung/toàn.
 - **Shot khớp môi** (cờ `lip_sync` bật): mặt người nói rõ, ngang mắt, không che miệng, ≤ 5 s, máy tĩnh hoặc đẩy rất chậm — khớp môi hỏng khi mặt
   quay nghiêng mạnh hoặc chuyển động nhanh (`docs/NGHIEN_CUU_KHOP_MOI.md`).
-- **Trong pipeline.** `plate_spot`, `plate_mode`, `weather`; `lip_sync: true` chỉ ở câu then chốt cận (Đạo diễn N3). Máy ảo:
-  `plate_camera.camera_for` từ `size/angle/start_frame/lens_mm/camera_setup`.
-- **Kiểm.** Code: `plate_qc` (độ giống nền, tỉ lệ bị che), `spot_problem`/`weather_problem`. Người: ảnh ghép (viền, bóng, màu).
+- **Hướng máy và đèn đêm theo kịch bản (S5.7, người dùng 29/09).** Chỗ đứng KHÔNG quyết hướng máy: cùng một chỗ, kịch bản khác cần nền
+  khác. Mỗi shot ở nơi có mô hình 3D ghi `plate_view` = cái gì ở **nền sau nhân vật** (`landmark` / `away` / `left` / `right` /
+  `spot:<tên>` / số độ) **kèm `why`** — suy từ trục diễn (giữ phía trục với shot trước), ai đứng đâu, người xem cần thấy gì (mốc để nhận
+  ra nơi; bỏ mốc khi cần nền gọn). Chỗ đứng đánh dấu "tùy kịch bản" (góc dưới mái che Tháp Đồng Hồ `lower_yard` ≡ `level_22_4`) mà thiếu
+  `plate_view` → nền không render, shot chờ. Cảnh `night`: quyết `practical_lights` — `[]` = chỉ trăng, hoặc ≤ 3 đèn có lý do trong
+  truyện (đèn tường, lửa, màn hình, đèn pin…; `where` nhìn từ máy, `color`). Đèn được đặt thật trong Blender, câu ánh sáng của prompt ảnh
+  nhắc đúng đèn đó (nhân vật sáng khớp nền).
+- **Trong pipeline.** `plate_spot`, `plate_mode`, `weather`, `plate_view`, `practical_lights`; `lip_sync: true` chỉ ở câu then chốt cận
+  (Đạo diễn N3). Máy ảo: `plate_camera.camera_for` từ `size/angle/start_frame/lens_mm/camera_setup` + hướng `plate_choice.view_of`.
+- **Kiểm.** Code: `plate_qc` (độ giống nền, tỉ lệ bị che), `spot_problem`/`weather_problem`/`view_problem`/`light_problem`, `needs`
+  (thiếu hướng ở chỗ "tùy kịch bản"); `py tools/location_pack.py plan --project N` in hướng + đèn đã chọn từng shot. Người: ảnh ghép (viền, bóng, màu).
 - **Ví dụ FF.** ✔ Tháp Đồng Hồ #263 (7 chỗ đứng): Kelly ghép lên nền ngày, đêm tuyết, sương. ✘ Thử "ảnh render làm tham chiếu" chỉ ~70% giống
   — model vẽ lại nền (lý do có cách ghép).
 
