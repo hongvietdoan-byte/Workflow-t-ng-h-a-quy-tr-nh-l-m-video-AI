@@ -211,6 +211,10 @@ def build_bundle(root: str, cfg: Dict, area: Dict, snap: Dict, health: Dict, las
 
     facts = facts_of(health, snap)
     rubric = open(os.path.join(root, "devsys", "rubric.md"), encoding="utf-8").read()
+    try:                                   # S8.1: the feedback format lives outside the rubric (its hash, old scores unchanged)
+        rubric += "\n\n" + open(os.path.join(root, "devsys", "feedback_format.md"), encoding="utf-8").read()
+    except OSError:
+        pass
     fixed = ("# Người chấm độc lập — AI Development System\n"
              "Bạn chấm mức hoàn thiện THẬT của một khu vực trong repo pipeline làm video AI, theo thang cố định bên dưới. Nguyên tắc:\n"
              "- Chỉ dựa vào DỮ LIỆU gửi kèm (trích code thật có số dòng, kết quả test thật, dòng TODO, cờ, diag, diff). Không suy đoán phần không thấy; "

@@ -401,6 +401,36 @@ def _images_phase(p: Pipeline, pid: int, ctx: Context) -> Optional[str]:
     return None if fresh == total else f"Ảnh: {fresh}/{total} đã duyệt"
 
 
+SERVE_ROUNDS = 400                      # at most this many polls per wake-up (~1,7 h at 15 s): never a thread left spinning
+SERVE_GATES = ("storyboard", "pilot")   # gates reached AFTER the budget was approved: a redraw the person asks for there is sent
+
+
+def serve_waiting(p: Pipeline, pid: int, ctx: Context) -> bool:
+    """S6.4 (PH 25, trial #8): the run waits at the storyboard / pilot gate and the person sends a picture back to be redrawn — the new
+    job used to sit queued until someone pressed Bước 2's button. While waiting at such a gate the pictures already asked for are sent
+    and collected (the same caps and budget locks as the images phase; nothing new is created, nothing approved — the person decides).
+    True while picture jobs are still queued / running."""
+    from . import project_budget
+    if status(p, pid)["state"] != WAITING or get_gates(p, pid).get("waiting_for") not in SERVE_GATES:
+        return False
+    if project_budget.gate_reason(p, pid):
+        return False
+    if not (_count(p, "SELECT COUNT(*) FROM jobs WHERE project_id=? AND type='image_gen' AND state IN ('queued','running')", pid)):
+        return False
+    try:
+        _daily_cap(p)
+        sent = ctx.image_runner.submit_pending(pid)
+        _budget_stop(p, pid, "image_gen")
+        ctx.image_runner.poll_once(pid)
+        _retry_or_hold(p, pid, "image_gen")
+    except _Stop as e:                    # a lock reached: said, and the gate keeps waiting
+        _log(p, pid, f"Đang chờ ở cổng — không gửi ảnh vẽ lại: {e}")
+        return False
+    if sent:
+        _log(p, pid, f"Đang chờ ở cổng — đã gửi {sent} ảnh vẽ lại bạn yêu cầu")
+    return bool(_active(p, pid, "image_gen"))
+
+
 class _Stop(Exception):
     pass
 
@@ -985,6 +1015,19 @@ class Manager:
             self._launch(project_id)
             return True
 
+    def wake(self, project_id: int) -> bool:
+        """S6.4: the person asked for a redraw while the run waits at a storyboard / pilot gate — a thread sends and collects it
+        (Manager._run → serve_waiting). False when nothing to do (not waiting there, already alive, no queued picture)."""
+        from .db import connect
+        p = Pipeline(connect(self.db_path))
+        if (self.alive(project_id) or status(p, project_id)["state"] != WAITING
+                or get_gates(p, project_id).get("waiting_for") not in SERVE_GATES
+                or not _count(p, "SELECT COUNT(*) FROM jobs WHERE project_id=? AND type='image_gen' AND state='queued'", project_id)):
+            return False
+        with self._lock:
+            self._launch(project_id)
+        return True
+
     def _launch(self, project_id: int) -> None:
         t = threading.Thread(target=self._loop, args=(project_id,), daemon=True, name=f"autopilot-{project_id}")
         self._threads[project_id] = t
@@ -1034,6 +1077,15 @@ class Manager:
                 _set(p, project_id, ERROR, f"Lỗi không lường trước: {e}")
                 _d(p, project_id, "autopilot", "error", f"lỗi không lường trước {type(e).__name__}: {e}", "unexpected")
                 _log(p, project_id, f"Lỗi không lường trước: {str(e)[:200]}")
+                return
+            if state == WAITING:              # S6.4: at a storyboard / pilot gate, redraws the person asked for are still made
+                try:
+                    for _ in range(SERVE_ROUNDS):
+                        if not serve_waiting(p, project_id, ctx):
+                            break
+                        time.sleep(self.poll_sec)
+                except Exception as e:  # noqa: BLE001 - said; the gate keeps waiting
+                    _d(p, project_id, "autopilot", "warn", f"gửi ảnh vẽ lại khi chờ cổng lỗi {type(e).__name__}: {e}", "serve_waiting")
                 return
             if state != RUNNING:
                 return

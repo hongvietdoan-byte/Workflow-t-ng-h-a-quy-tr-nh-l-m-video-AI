@@ -241,6 +241,28 @@ class ScoreTests(unittest.TestCase):
         self.assertEqual(s["score"], 25 + 8 + 15 + 15 + 10 + 10)
         self.assertEqual(s["unverified_evidence"], [])
 
+    def test_a_deduction_keeps_its_feedback_in_the_known_shape(self):
+        """S8.1: why it costs points and how to fix it — optional, trimmed to its shape, never a reason to refuse a score."""
+        fb = {"why": "người dùng không thấy lỗi", "fix": "thêm cảnh báo ở Bước 5", "files": ["core/voice.py"], "verify": "test mới",
+              "effort": "💻", "priority": 1, "junk": "x"}
+        raw = _answer("voice", chuc_nang={"deductions": [{"points": 5, "reason": "chưa có TTS", "evidence": ["core/voice.py:6"],
+                                                          "feedback": fb},
+                                                         {"points": 1, "reason": "nhỏ", "evidence": ["core/voice.py:6"],
+                                                          "feedback": {"priority": 9, "effort": "?"}}]})
+        s = scores.normalize(raw, self.root, self.ids, {"test_files": 1, "has_run": True, "failed": 0})
+        first, second = s["criteria"]["chuc_nang"]["deductions"]
+        self.assertEqual(first["feedback"], {k: v for k, v in fb.items() if k != "junk"})
+        self.assertNotIn("feedback", second)                              # nothing valid left: dropped, the score still counts
+        self.assertEqual(s["criteria"]["chuc_nang"]["score"], 24)
+
+    def test_the_feedback_format_is_not_part_of_the_rubric_hash(self):
+        import os
+        before = scores.rubric_hash(self.root)
+        os.makedirs(os.path.join(self.root, "devsys"), exist_ok=True)
+        with open(os.path.join(self.root, "devsys", "feedback_format.md"), "w", encoding="utf-8") as fh:
+            fh.write("khác")
+        self.assertEqual(scores.rubric_hash(self.root), before)
+
     def test_a_deduction_without_evidence_is_refused(self):
         with self.assertRaises(scores.ScoreError):
             scores.normalize(_answer("voice", test={"deductions": [{"points": 3, "reason": "ít test", "evidence": []}]}), self.root, self.ids)

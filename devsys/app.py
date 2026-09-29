@@ -518,6 +518,13 @@ def page_scores():
                 for d in c["deductions"]:
                     ev = ", ".join(f"`{e}`" + (" ⚠" if e in d.get("unverified", []) else "") for e in d["evidence"])
                     st.markdown(md(f"- −{d['points']:g}: {d['reason']} — {ev}"))
+                    fb = d.get("feedback")
+                    if fb:                     # S8.1: why it costs points and how to win them back
+                        bits = [f"**Vì sao:** {fb['why']}" if fb.get("why") else "", f"**Sửa:** {fb['fix']}" if fb.get("fix") else "",
+                                ("**File:** " + ", ".join(f"`{f}`" for f in fb["files"])) if fb.get("files") else "",
+                                f"**Nghiệm thu:** {fb['verify']}" if fb.get("verify") else "",
+                                " ".join(x for x in [fb.get("effort", ""), f"ưu tiên {fb['priority']}" if fb.get("priority") else ""] if x)]
+                        st.caption(md("  \n".join(b for b in bits if b)))
                 for cap in c.get("code_caps", []):
                     st.markdown(md(f"- 🔒 {cap}"))
                 if c.get("evidence_for"):

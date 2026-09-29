@@ -18,16 +18,16 @@
 | P0 Theo dõi tiến độ | 2 | 2 | 0 | 0 | 0 | 100 % |
 | S1 Dựng & âm thanh | 15 | 13 | 0 | 2 | 0 | 88,9 % |
 | S0 Học từ phim drama tham khảo | 15 | 11 | 4 | 0 | 0 | 79,6 % |
-| S9 Dashboard gọn, dễ nhìn | 6 | 5 | 1 | 0 | 0 | 90,9 % |
+| S9 Dashboard gọn, dễ nhìn | 6 | 6 | 0 | 0 | 0 | 100 % |
 | S2 Timeline theo âm thanh + animatic | 6 | 5 | 0 | 1 | 0 | 81,8 % |
 | S3 Director kể chuyện + Quay phim | 8 | 7 | 0 | 0 | 1 | 100 % |
 | S4 Video chất lượng | 12 | 5 | 1 | 4 | 0 | 37,5 % |
 | S5 Bối cảnh theo file 3D Tháp Đồng Hồ | 6 | 5 | 0 | 0 | 0 | 87,5 % |
-| S6 Ước tính, ngân sách, dashboard | 6 | 3 | 1 | 1 | 1 | 71,4 % |
+| S6 Ước tính, ngân sách, dashboard | 6 | 4 | 0 | 1 | 1 | 85,7 % |
 | S7 Agent QC | 2 | 1 | 0 | 0 | 0 | 66,7 % |
-| K Chạy kiểm kịch bản hài 20–30 s | 3 | 0 | 0 | 0 | 0 | 0 % |
-| S8 Chấm lại bằng AI Development System (cuối cùng) | 5 | 0 | 0 | 0 | 0 | 0 % |
-| **Tổng** | **86** | **57** | **7** | **8** | **2** | **72 %** |
+| K Chạy kiểm kịch bản hài 20–30 s | 3 | 0 | 0 | 1 | 0 | 0 % |
+| S8 Chấm lại bằng AI Development System (cuối cùng) | 5 | 1 | 0 | 0 | 0 | 14,3 % |
+| **Tổng** | **86** | **60** | **5** | **9** | **2** | **74,1 %** |
 
 Đợt hiện tại: **S1** · việc kế: **S4.2** Khớp môi mọi shot người nói thấy mặt (theo A/B)
 <!-- /tien-do -->
@@ -78,7 +78,7 @@
 - [x] S9.3 · Kiểm kê khung → 3 tầng hiển thị (người dùng duyệt) · nặng:2 · ✅ · người dùng duyệt hết bảng E (2026-09-28)
 - [x] S9.4 · Áp kiểm kê cho 5 bước + thanh đầu, dải "Việc tiếp theo" · nặng:3 · ✅ · 1c3ce9d · dải Việc tiếp theo 5 bước + các khung theo bảng; đo #8: Bước 1 mặc định 3.347 px so với 11.924 px mở hết (−72 %, mục tiêu −40 %)
 - [x] S9.5 · Tách step1.py thành phần nhỏ · nặng:2 · ✅ · step1.py 1.397 dòng → step1 / _run / _prep / _characters / _director (≤ 378 dòng mỗi file); 1337 test qua
-- [ ] S9.6 · Gộp timeline tổng + sửa giao diện S6.4 · nặng:2 · 🔄 · 2026-09-29: xong màn 🗺 Timeline tổng ở Bước 5 (core/timeline_view.py: shot · thoại · nhạc bật/tắt · hiệu ứng · phụ đề trên một dải, thu gọn mặc định; đo trên #8: 83 s, 33 shot, 23 câu, 4 hiệu ứng, nhạc tắt 3 đoạn); còn: job ảnh tự gửi khi autopilot chờ cổng (S6.4)
+- [x] S9.6 · Gộp timeline tổng + sửa giao diện S6.4 · nặng:2 · ✅ · 2026-09-29: màn 🗺 Timeline tổng ở Bước 5 (core/timeline_view.py: shot · thoại · nhạc bật/tắt · hiệu ứng · phụ đề, thu gọn mặc định; #8: 83 s, 33 shot, 23 câu, 4 hiệu ứng, nhạc tắt 3 đoạn) + S6.4 xong
 
 ### S2 — Timeline theo âm thanh + animatic
 - [x] S2.1 · Chọn giọng ở Bước 1 · nặng:1 · ✅ · 2026-09-29: chạy tự động chọn giọng (Claude cast_voices) ngay sau Director; thiếu giọng → dừng hỏi trước khi làm ảnh (cờ audio_first)
@@ -124,7 +124,7 @@
 - [x] S6.1 · Dự tính tổng dự án ngay khi Director trả bảng shot · nặng:2 · ✅ · 2026-09-29: Bước 1 hiện 💵 dự tính chia khâu (project_budget.propose) ngay dưới kết quả Director + dòng tóm tắt lượt chạy; nghiệm thu lệch ≤ 20 % chờ lần chạy kiểm
 - [ ] S6.2 · Màn timeline tổng · nặng:2 · ✖ · gộp vào S9.6 (không sửa giao diện hai lần)
 - [x] S6.3 · Hiện cờ chưa kiểm ảnh hưởng bản dựng · nặng:1 · ✅ · 2026-09-29: features.on_unverified() + khung 🧪 ở Bước 5 liệt kê cờ đang bật chưa kiểm; test
-- [ ] S6.4 · E-mail khỏi URL, job ảnh khi chờ cổng, trần rõ, cảnh báo khởi động lại · nặng:2 · 🔄 · 2026-09-29: xong mã phiên `?s=` thay e-mail (Owner chỉ nhận từ máy), thanh đầu 'đã dùng / trần / còn', cảnh báo code đổi cần khởi động lại; còn: job ảnh tự gửi khi autopilot chờ cổng
+- [x] S6.4 · E-mail khỏi URL, job ảnh khi chờ cổng, trần rõ, cảnh báo khởi động lại · nặng:2 · ✅ · 2026-09-29: mã phiên `?s=` thay e-mail (Owner chỉ nhận từ máy), thanh đầu 'đã dùng / trần / còn', cảnh báo code đổi; chờ ở cổng storyboard / gen thử thì ảnh vẽ lại bạn yêu cầu tự gửi + nhận (autopilot.serve_waiting + Manager.wake, cùng trần / khóa; không tạo mới, không tự duyệt); test
 - [ ] S6.5 · Ghi verified cho cờ đã chứng minh · nặng:1 · ⏸ · chờ người dùng chọn cờ nào coi là đã chứng minh qua #8 (ghi trong báo cáo)
 - [x] S6.6 · Áp tài liệu prompt caching vào ước tính · nặng:1 · ✅ · 2026-09-29: kiểm lại tài liệu (4 breakpoint, lookback 20, Sonnet 5 tối thiểu 1024 token, ghi ×1,25/×2, đọc ×0,1, ảnh cache được); cost.cache_stats đo tỉ lệ đọc cache từng khâu từ usage thật, hiện ở bảng ngân sách; đo #8: khâu qc 0 %
 
@@ -133,13 +133,13 @@
 - [ ] S7.1 · Nghiệm thu lại agent QC · nặng:1 · ⬜
 
 ### K — Chạy kiểm kịch bản hài 20–30 s
-- [ ] K.1 · Soạn kịch bản hài Kelly · Maxim · Kenta · nặng:1 · ⬜
+- [ ] K.1 · Soạn kịch bản hài Kelly · Maxim · Kenta · nặng:1 · ⏸ · 2026-09-29: 3 bản nháp ở docs/KICH_BAN_KIEM_K1_2026-09-29.md (gợi ý bản A "Miếng cuối cùng") — chờ người dùng chọn / sửa
 - [ ] K.2 · Chạy trọn trên dashboard, chất lượng cao, trần duyệt một lần · nặng:3 · ⬜
 - [ ] K.3 · Đo lại bảng mục 0 + phiếu so sánh phim tham khảo · nặng:1 · ⬜
 
 ### S8 — Chấm lại bằng AI Development System (cuối cùng)
 - [ ] S8.0 · Chấm 16 khu vực (2 agent độc lập, 0 USD) · nặng:2 · ⬜
-- [ ] S8.1 · Trường feedback chi tiết cho từng khoản trừ · nặng:1 · ⬜
+- [x] S8.1 · Trường feedback chi tiết cho từng khoản trừ · nặng:1 · ✅ · 2026-09-29: `feedback` tùy chọn mỗi khoản trừ (vì sao · sửa · file · nghiệm thu · 💻/💵/👤 · ưu tiên), định dạng ở devsys/feedback_format.md NGOÀI rubric.md (điểm cũ không thành "thang cũ"), gửi kèm người chấm, hiện dưới từng khoản trừ trên web; test
 - [ ] S8.2 · Báo cáo đánh giá + danh sách việc theo điểm lấy lại · nặng:1 · ⬜
 - [ ] S8.3 · So sánh với phần mềm dựng phim AI bên ngoài · nặng:2 · ⬜
 - [ ] S8.4 · Rút việc nên học vào TODO · nặng:1 · ⬜

@@ -80,6 +80,8 @@ def step2(p: Pipeline, pid: int):
                 f"{summ['images'][0]}/{summ['total']} cảnh có ảnh duyệt", summ["images"][1])
     from dashboard import next_step                                     # S9 E0.1: the next thing to do, one line
     ui.html(next_step.band(p, pid, 2, C.DATA))
+    if autopilot_manager(C.DB, C.DATA).wake(pid):      # S6.4: a redraw asked for while the run waits at the storyboard is sent
+        st.caption("⏳ Chạy tự động đang chờ bạn ở cổng — ảnh vẽ lại bạn vừa yêu cầu đang được gửi (trong trần đã duyệt).")
     pilot_panel(p, pid)
     from core import known_issues
     active_issues = known_issues.active(p.conn, pid)

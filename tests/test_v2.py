@@ -411,6 +411,27 @@ class AutopilotV2Tests(Base):
         self.assertEqual(autopilot.run_until_done(self.p, self.pid, ctx, max_ticks=400), autopilot.DONE)
         self.assertEqual(self.p.project(self.pid)["operating_mode"], "human_qc")
 
+    def test_a_redraw_asked_at_the_storyboard_gate_is_sent_while_waiting(self):
+        """S6.4 (PH 25, trial #8): the new picture job used to stay queued until Bước 2's button was pressed."""
+        ctx = self.ctx()
+        autopilot.start(self.p, self.pid)
+        autopilot.run_until_done(self.p, self.pid, ctx)
+        autopilot.resume(self.p, self.pid)
+        self.assertEqual(autopilot.run_until_done(self.p, self.pid, ctx, max_ticks=400), autopilot.WAITING)
+        jid = self.p.conn.execute("SELECT id FROM jobs WHERE type='image_gen' AND state='approved' LIMIT 1").fetchone()["id"]
+        self.p.reopen_approved(jid, "vẽ lại: sai tay")
+        for _ in range(5):
+            if not autopilot.serve_waiting(self.p, self.pid, ctx):
+                break
+        left = self.p.conn.execute("SELECT COUNT(*) FROM jobs WHERE type='image_gen' AND state IN ('queued','running')").fetchone()[0]
+        self.assertEqual(left, 0)                                                     # sent and collected
+        self.assertEqual(autopilot.status(self.p, self.pid)["state"], autopilot.WAITING)    # still the person's gate
+        self.assertEqual(self.p.conn.execute("SELECT COUNT(*) FROM jobs WHERE type='video_gen'").fetchone()[0], 0)
+        autopilot.set_gates(self.p, self.pid, {"waiting_for": "bible"})               # a gate before the budget: nothing sent
+        self.p.reopen_approved(self.p.conn.execute("SELECT id FROM jobs WHERE type='image_gen' AND state='approved' LIMIT 1")
+                               .fetchone()["id"], "vẽ lại")
+        self.assertFalse(autopilot.serve_waiting(self.p, self.pid, ctx))
+
     def test_without_the_checkpoint_it_runs_straight_through(self):
         autopilot.set_gates(self.p, self.pid, {"bible": False, "storyboard": False})
         autopilot.start(self.p, self.pid)

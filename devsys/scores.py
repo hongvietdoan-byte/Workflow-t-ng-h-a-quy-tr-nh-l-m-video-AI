@@ -78,6 +78,30 @@ def _is_real_run_ref(item: str) -> bool:
     return any(path == p or path.startswith(p) for p in REAL_RUN_PLACES)
 
 
+FEEDBACK_TEXT = ("why", "fix", "verify")
+EFFORTS = ("💻", "💵", "👤")
+
+
+def feedback_of(fb) -> Optional[Dict]:
+    """S8.1: the optional `feedback` of a deduction (devsys/feedback_format.md), kept only in its known shape — never refuses a score
+    (an old / partial feedback is trimmed, not an error)."""
+    if not isinstance(fb, dict):
+        return None
+    out: Dict = {k: str(fb[k]).strip()[:600] for k in FEEDBACK_TEXT if str(fb.get(k) or "").strip()}
+    files = fb.get("files")
+    if isinstance(files, list):
+        out["files"] = [str(f) for f in files if str(f).strip()][:10]
+    if fb.get("effort") in EFFORTS:
+        out["effort"] = fb["effort"]
+    try:
+        pr = int(fb.get("priority"))
+        if 1 <= pr <= 3:
+            out["priority"] = pr
+    except (TypeError, ValueError):
+        pass
+    return out or None
+
+
 def normalize(raw: Dict, root: str = collect.ROOT, area_ids: Optional[Sequence[str]] = None, facts: Optional[Dict] = None) -> Dict:
     """Validate a scorer answer / score file and compute the score. Raises ScoreError on a structural problem.
 
@@ -123,8 +147,12 @@ def normalize(raw: Dict, root: str = collect.ROOT, area_ids: Optional[Sequence[s
             for e, why in bad:
                 if why:
                     unverified.append({"criterion": key, "evidence": e, "why": why})
-            clean.append({"points": round(pts, 1), "reason": reason, "evidence": [str(e) for e in ev],
-                          "unverified": [e for e, why in bad if why]})
+            item = {"points": round(pts, 1), "reason": reason, "evidence": [str(e) for e in ev],
+                    "unverified": [e for e, why in bad if why]}
+            fb = feedback_of(d.get("feedback"))
+            if fb:
+                item["feedback"] = fb
+            clean.append(item)
         ev_for = c.get("evidence_for") or []
         if isinstance(ev_for, str):
             ev_for = [ev_for]
