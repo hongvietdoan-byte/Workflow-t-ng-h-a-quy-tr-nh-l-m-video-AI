@@ -17,6 +17,7 @@ Plan (JSON):
   samples          render samples (EEVEE / Cycles), default 16
   sky              {"mode": "A" | "B" | "C", "sun_elevation": 35, "sun_azimuth": 140, "strength": 0.35, "sun_strength": 2.5,
                     "exposure": -0.5, "view_transform": "Standard" | "AgX" (unset = Blender default), "look": e.g. "Medium High Contrast",
+                    "white_balance": 7500 (K, above 6500 = warmer frame), "white_balance_tint": 0,
                     "hdri": path (mode B, or lighting of mode C), "hdri_rotation": 0}
                    A = Blender's physical sky (no download), B = HDRI picture, C = light from A/B but the sky left transparent
                    (the Dashboard puts an in-game sky picture behind it).
@@ -232,6 +233,31 @@ def setup_world(sky, warnings):
             bg.inputs["Color"].default_value = (0.55, 0.72, 0.95, 1)
             warnings.append(f"physical sky unavailable ({e}); plain sky colour used")
             used = "A (plain colour)"
+    if sky.get("camera_strength") is not None or sky.get("ambient_tint"):
+        # 30/09 (người dùng: tông ấm, trời nắng): the sky the CAMERA sees stays a bright blue (camera_strength) while the light the sky
+        # throws on the place is dimmer and warmer (strength × ambient_tint) — a white balance warmed the whole frame, sky included
+        try:
+            lp, mix = nt.nodes.new("ShaderNodeLightPath"), nt.nodes.new("ShaderNodeMixShader")
+            cam_bg = nt.nodes.new("ShaderNodeBackground")
+            src = bg.inputs["Color"].links[0].from_socket if bg.inputs["Color"].is_linked else None
+            if src is not None:
+                nt.links.new(src, cam_bg.inputs["Color"])
+                if sky.get("ambient_tint"):
+                    tint = nt.nodes.new("ShaderNodeMix")
+                    tint.data_type, tint.blend_type = "RGBA", "MULTIPLY"
+                    tint.inputs[0].default_value = 1.0
+                    nt.links.new(src, tint.inputs[6])
+                    tint.inputs[7].default_value = (*[float(c) for c in sky["ambient_tint"][:3]], 1.0)
+                    nt.links.new(tint.outputs[2], bg.inputs["Color"])
+            else:
+                cam_bg.inputs["Color"].default_value = bg.inputs["Color"].default_value
+            cam_bg.inputs["Strength"].default_value = float(sky.get("camera_strength", sky.get("strength", 0.35)))
+            nt.links.new(bg.outputs["Background"], mix.inputs[1])
+            nt.links.new(cam_bg.outputs["Background"], mix.inputs[2])
+            nt.links.new(lp.outputs["Is Camera Ray"], mix.inputs[0])
+            nt.links.new(mix.outputs[0], out.inputs["Surface"])
+        except Exception as e:  # noqa: BLE001
+            warnings.append(f"camera sky / ambient tint not applied: {e}")
     sun_data = bpy.data.lights.new("PLATES_SUN", "SUN")               # sharp shadows in the same direction as the sky's sun
     sun_data.energy = float(sky.get("sun_strength", 2.5))
     if sky.get("sun_color"):
@@ -250,6 +276,15 @@ def setup_world(sky, warnings):
                 scene.view_settings.look = sky["look"]
         except (TypeError, ValueError) as e:
             warnings.append(f"view transform {sky.get('view_transform')} / look {sky.get('look')} not available: {e}")
+    if sky.get("white_balance"):                      # 30/09 (người dùng: tông ấm): above 6500 K the whole frame warms, shade included
+        vs = scene.view_settings
+        if hasattr(vs, "white_balance_temperature"):
+            vs.use_white_balance = True
+            vs.white_balance_temperature = float(sky["white_balance"])
+            if sky.get("white_balance_tint") is not None:
+                vs.white_balance_tint = float(sky["white_balance_tint"])
+        else:
+            warnings.append("white balance not available in this Blender — frame left as rendered")
     return used + (" + transparent sky" if mode == "C" else "")
 
 

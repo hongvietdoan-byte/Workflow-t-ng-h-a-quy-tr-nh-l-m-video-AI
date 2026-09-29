@@ -69,7 +69,9 @@ def geometry_sentence(rec: Dict, data: Dict, sun_azimuth: float = 250.0) -> str:
     cam = rec.get("camera_plan") or {}
     info = rec.get("camera") or {}
     bits = []
-    lens, height = cam.get("lens"), info.get("height_m")
+    # both heights in the model's own frame: the render's info["height_m"] is AFTER the model was lifted to stand on z = 0 (30/09 dry
+    # run on #8: a close-up said "camera 4.9 m above the ground" — 3.3 m of lift too many)
+    lens, height = cam.get("lens"), (cam.get("location") or [None, None, None])[2]
     subject_z = ((cam.get("subject") or {}).get("location") or [0, 0, None])[2]
     if lens and height is not None and subject_z is not None:
         bits.append(f"{float(lens):g} mm lens, camera {float(height) - float(subject_z):.1f} m above the ground")

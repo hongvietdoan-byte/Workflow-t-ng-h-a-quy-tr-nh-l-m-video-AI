@@ -77,18 +77,49 @@ def set_model3d(conn, asset_id: int, path: str, spots: Dict[str, Dict], default_
     return prof["model3d"]
 
 
-def spot_for(entry: Dict, data: Dict) -> Dict:
-    name = data.get("plate_spot") or entry.get("default_spot")
+_STOP = {"khu", "vuc", "cho", "tai", "o", "va", "cua", "the", "a", "of", "and", "at", "in", "on", "dao", "quan", "su", "thap", "dong", "ho",
+         "phia", "nhin", "canh", "tren", "duoi", "chan", "trong", "sau", "truoc", "ben", "voi", "mot", "cac"}
+
+
+def _words(text: str) -> set:
+    return {w for w in re.findall(r"[a-z0-9]+", assets.fold(text or "")) if len(w) >= 2 and w not in _STOP}
+
+
+def auto_spot(entry: Dict, data: Dict) -> Optional[str]:
+    """30/09 dry run on #8: every one of 33 shots stood on the default spot although the scenes said "khu nhà ở dưới chân tháp",
+    "góc khuất gần khu nhà", "chiến trường…" (`plate_spot` is only written when the Director sees the spot list). A shot without
+    `plate_spot`: the spot whose label shares the most words with the shot's place / text (≥ 1 meaningful word), else None.
+    Indoor spots only when the shot says it is inside (trong nhà / inside / indoor / room / phòng)."""
     spots = entry.get("spots") or {}
+    blob = " ".join(str(data.get(k) or "") for k in ("location", "set", "text", "image_prompt", "blocking"))
+    words = _words(blob)
+    inside = bool(re.search(r"\b(trong nha|inside|indoor|interior|room|phong|living room|bedroom|kitchen)\b", assets.fold(blob)))
+    best, score = None, 0
+    for name, sp in spots.items():
+        if bool(sp.get("indoor")) != inside:
+            continue
+        s = len(words & _words(f"{sp.get('label') or ''} {name.replace('_', ' ')}"))
+        if s > score:
+            best, score = name, s
+    return best
+
+
+def spot_for(entry: Dict, data: Dict) -> Dict:
+    spots = entry.get("spots") or {}
+    name = data.get("plate_spot") if data.get("plate_spot") in spots else None
+    name = name or auto_spot(entry, data) or entry.get("default_spot")
     sp = spots.get(name) or spots.get(entry.get("default_spot")) or next(iter(spots.values()))
     return dict(sp, name=name if name in spots else entry.get("default_spot"))
 
 
 def spot_problem(entry: Dict, data: Dict) -> Optional[str]:
-    """A `plate_spot` the place does not have falls back to the default spot — said, never silent (CHUAN_XAY_DUNG rule 1)."""
+    """A `plate_spot` the place does not have falls back to a spot matched from the shot's words, else the default — said, never
+    silent (CHUAN_XAY_DUNG rule 1)."""
     name = data.get("plate_spot")
     if name and name not in (entry.get("spots") or {}):
-        return f"chỗ đứng '{name}' không có ở bối cảnh này ({', '.join(entry.get('spots') or {})}) — dùng '{entry.get('default_spot')}'"
+        guess = auto_spot(entry, data)
+        return (f"chỗ đứng '{name}' không có ở bối cảnh này ({', '.join(entry.get('spots') or {})}) — dùng "
+                + (f"'{guess}' (khớp chữ mô tả shot)" if guess else f"'{entry.get('default_spot')}'"))
     return None
 
 
@@ -96,18 +127,25 @@ def director_block(conn, pid: int) -> str:
     """V4 GĐ4 (dp.md Q6): what the Director / DP must know to write `plate_spot`, `weather`, `plate_mode` for a project whose places
     have a registered 3D model — the spots by name, the fixed weather / time names, the two ways of making the clip. Empty when the
     feature is off or no place of the project has a model."""
-    from . import features
-    if not features.on("location_plates"):
+    from . import features, place_refs
+    refs_only = place_refs.enabled()
+    if not features.on("location_plates") and not refs_only:
         return ""
     rows = []
     for a in assets.project_assets(conn, pid):
         entry = model3d(conn, a["id"]) if a.get("kind") == "location" else None
         if not entry:
             continue
-        spots = "; ".join(f"`{k}` ({v.get('label') or k})" for k, v in (entry.get("spots") or {}).items())
+        spots = "; ".join(f"`{k}` ({v.get('label') or k}{', trong nhà' if v.get('indoor') else ''})"
+                          for k, v in (entry.get("spots") or {}).items())
         rows.append(f"- **{a['name']}**: chỗ đứng {spots} — mặc định `{entry.get('default_spot')}`")
     if not rows:
         return ""
+    if refs_only:                                    # 30/09: the renders are reference pictures — spot + time/weather matter, no plate_mode
+        return ("# Bối cảnh có mô hình 3D (ảnh render đúng góc máy từng shot đi kèm làm tham chiếu cho model vẽ)\n" + "\n".join(rows) + "\n"
+                "- `plate_spot`: chỗ đứng hợp với nơi của shot (quảng trường, khu nhà, trong nhà…) — không ghi thì code tự chọn theo chữ "
+                "mô tả nơi của shot, không khớp thì dùng mặc định. Các shot của một đoạn nối tiếp nên đứng cùng chỗ.\n"
+                f"- `weather` (shot hoặc cảnh): chỉ một trong {', '.join(plate_env.WEATHERS)}; `time` của cảnh: {', '.join(plate_env.TIMES)}.\n")
     return ("# Gói bối cảnh (nền là render 3D thật của nơi này — AI chỉ vẽ nhân vật)\n" + "\n".join(rows) + "\n"
             f"- `plate_spot`: tên một chỗ đứng ở trên (không ghi = mặc định; tên lạ bị đổi về mặc định và báo lại).\n"
             f"- `weather` (shot hoặc cảnh): chỉ một trong {', '.join(plate_env.WEATHERS)}; `time` của cảnh: {', '.join(plate_env.TIMES)}.\n"

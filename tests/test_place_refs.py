@@ -15,7 +15,7 @@ from core import assets, place_refs, scene_establish
 
 ON = {"FEATURE_PLACE_RENDER_REFS": "1", "FEATURE_LOCATION_PLATES": "0"}
 REC = {"plate": "", "place": "Tháp Đồng Hồ", "subject_box": [0.40, 0.20, 0.60, 0.80], "distance_m": 6.5,
-       "camera": {"height_m": 11.0, "horizon_y": 0.55},
+       "camera": {"height_m": 14.3, "horizon_y": 0.55},        # the render's height is after the model's lift — not used for the sentence
        "camera_plan": {"lens": 35, "location": [-217.0, 116.0, 11.0], "look_at": [-217.0, 132.0, 20.0],
                        "subject": {"location": [-217.0, 122.0, 9.4]}}}
 
@@ -118,6 +118,22 @@ class PlaceRefsTests(unittest.TestCase):
         with mock.patch.dict(os.environ, {"FEATURE_PLACE_RENDER_REFS": "0"}):
             self.assertEqual(scene_establish.scene_pictures(None, pid, rows, data_dir), [])
         self.assertIn("exact 3D model of the real game map", scene_establish.RENDER_NOTE)
+
+    def test_spot_follows_the_shot_words_when_no_plate_spot(self):
+        from core import location_pack
+        entry = {"default_spot": "plaza_front", "spots": {
+            "plaza_front": {"at": [0, 0, 0], "label": "quảng trường trước tháp (cách 16 m)"},
+            "nha_do_nam": {"at": [1, 0, 0], "label": "dãy nhà mái đỏ phía nam", "group": "canh_quan"},
+            "rang_dua": {"at": [2, 0, 0], "label": "rặng dừa phía đông", "group": "canh_quan"},
+            "trong_nha_nam_t2": {"at": [3, 0, 0], "label": "trong nhà phía nam — tầng 2 (phòng ngủ giường 4 cột)", "indoor": {"exposure": 1.5}}}}
+        houses = {"location": "Quanh Tháp Đồng Hồ (Đảo Quân Sự) — khu nhà ở dưới chân tháp"}
+        self.assertEqual(location_pack.spot_for(entry, houses)["name"], "nha_do_nam")
+        self.assertEqual(location_pack.spot_for(entry, {"location": "Tháp Đồng Hồ (Đảo Quân Sự)"})["name"], "plaza_front")
+        self.assertEqual(location_pack.spot_for(entry, {"location": "trong nhà, phòng ngủ tầng 2"})["name"], "trong_nha_nam_t2")
+        self.assertEqual(location_pack.spot_for(entry, dict(houses, plate_spot="rang_dua"))["name"], "rang_dua")
+        old = dict(houses, plate_spot="level_26_0")                        # an FFXN spot name: the words decide, and it is said
+        self.assertEqual(location_pack.spot_for(entry, old)["name"], "nha_do_nam")
+        self.assertIn("'nha_do_nam' (khớp chữ mô tả shot)", location_pack.spot_problem(entry, old))
 
     def test_background_render_runs_once_per_project(self):
         gate, calls = threading.Event(), []
