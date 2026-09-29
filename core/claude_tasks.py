@@ -188,15 +188,40 @@ def _measure_clip(p: Pipeline, job, path: str, data: Dict, first, data_dir: str)
     log; None when nothing could be measured (OpenCV missing): the QC goes on by eye, as before."""
     from . import clip_measure, diag, shots
     picture = first if first and os.path.exists(first) else shots.approved_image_path(p.conn, data_dir, job["project_id"], job["scene_id"])
+    speaking = bool(data.get("dialogue"))
+    audio, turns, note = _shot_voice(data_dir, job["project_id"], job["scene_id"], path) if speaking else (None, None, None)
     try:
-        out = clip_measure.measure(path, picture, speaking=bool(data.get("dialogue")))
+        out = clip_measure.measure(path, picture, audio=audio, speaking=speaking, turns=turns)
     except Exception:  # noqa: BLE001 - a measuring problem never stops the QC
         return None
+    if note and isinstance(out.get("lips"), dict):
+        out["lips"]["voice_note"] = note
     if out.get("flags"):
         diag.record(p.conn, "video", "warn", "đo clip: " + "; ".join(str(v.get("why")) for v in out.values()
                                                                    if isinstance(v, dict) and v.get("why")),
                     "clip_measure", job["project_id"], job_id=job["id"])
     return out
+
+
+def _shot_voice(data_dir: str, pid: int, scene_id: int, clip: str):
+    """(voice file on the clip's timeline, lines [{speaker, start, end}], note) for the lip check: the shot's voice made for lip sync
+    (lipsync.shot_audio — each line at lipsync.line_offsets). A clip whose length is not the voice's (cut after generation) is not
+    compared line by line — said in the note."""
+    from . import lipsync
+    from .ffmpeg_studio import probe_duration
+    wav = os.path.join(data_dir, str(pid), "lipsync", f"shot_{scene_id}.wav")
+    if not os.path.exists(wav):
+        return None, None, "chưa có file giọng của shot (lipsync/shot_<id>.wav) — so với tiếng của chính clip"
+    try:
+        lines = lipsync.shot_lines(data_dir, pid, scene_id)
+        clip_s, wav_s = probe_duration(clip), probe_duration(wav)
+    except Exception:  # noqa: BLE001 - unreadable: compare with the clip's own sound
+        return None, None, "không đọc được giọng / độ dài clip"
+    if clip_s and wav_s and abs(clip_s - wav_s) > 0.2:
+        return None, None, f"clip dài {clip_s:.2f} s ≠ giọng {wav_s:.2f} s (đã cắt sau khi sinh) — không so từng câu"
+    turns = [{"speaker": e.get("speaker"), "start": o, "end": o + (e.get("duration_ms") or 0) / 1000.0}
+             for e, o in zip(lines, lipsync.line_offsets(lines))]
+    return wav, [t for t in turns if t["end"] > t["start"]] or None, None
 
 
 def unchecked_videos(p: Pipeline, project_id: int) -> List[int]:

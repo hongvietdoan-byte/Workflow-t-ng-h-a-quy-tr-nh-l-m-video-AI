@@ -6,3 +6,4 @@ onnxruntime>=1.18
 pillow>=10.0
 numpy>=1.26
 opencv-python>=4.9
+mediapipe>=1.0

@@ -6,9 +6,18 @@
   jerks          optical flow between consecutive frames: a sudden spike of the whole picture's motion (a jump inside a shot) and a
                  freeze followed by a jump (TONG_KET 1.5: "khựng, giật"). Foot sliding is NOT measured (needs pose tracking) — said.
   lip_activity   how much the mouth region moves while the voice is loud vs quiet (TONG_KET 1.7: 19 dialogue shots not in sync).
-                 NOT A CHECK YET: on #8's 4 lip-synced shots the right voice gave 0.79–1.26 and a wrong voice 0.70–1.03 — pixel change
-                 around the mouth does not tell them apart (head motion, a 720p mouth of ~20 px). Its numbers are recorded, it flags
-                 nothing; a real check needs mouth landmarks (a face-mesh model) — TODO.
+                 NOT A CHECK: on #8's 4 lip-synced shots the right voice gave 0.79–1.26 and a wrong voice 0.70–1.03 — pixel change
+                 around the mouth does not tell them apart (head motion, a 720p mouth of ~20 px). Kept as the fallback without the
+                 landmark model; its numbers are recorded, it flags nothing.
+  lip_sync       mouth landmarks (MediaPipe Face Landmarker, `data/models/face_landmarker.task`, on each YuNet face cropped and scaled
+                 up — the landmarker's own detector misses the small faces of a 3-person wide shot): inner-lip gap / face height per
+                 frame, per face, correlated with the voice envelope inside each spoken line's window (± 4 frames of lag). Calibrated
+                 29/09 on the #10 dialogue take (S4.6 (c), 2 clips, 3 speakers; by eye Maxim and Kenta open their mouth on their turn):
+                 those 4 turns score 0.72–0.96, the same voice moved ≥ 0.75 s off its time ≤ 0.58, #8's 4 lip-synced shots (mouth
+                 moving ~1 s away from the voice — seen on the plotted series) 0.04–0.18. What it checks is TIMING: the mouth opens
+                 while the line is heard and rests around it. It does not prove syllables: another voice put at the same seconds
+                 still reached 0.50–0.64 (median), up to 0.87. Kelly's turns scored 0.31 / 0.12 and are flagged: in-game her lips stay
+                 parted through the others' lines (cropped frames), in the "real 3D" clip she stands up and the best face is another.
   ref_mark       the red plus sign that marks a reference picture (seedance_refs.mark) drawn INTO the clip. A/B S4.6 (#10, 29/09):
                  Seedance 2.0 Fast kept the plus on Kelly's face for the whole clip (17/17 sampled frames, a 44×44 px square);
                  0 on the 8 other clips of the A/B and on #8's clips (Maxim's red hood gave 36×48 blobs — not square, rejected).
@@ -27,6 +36,14 @@ SPIKE_CUT_CORR = 0.85      # a motion jump with correlation below this is a cut 
 FREEZE = 0.15              # motion < FREEZE × the neighbours' right before a spike → freeze-then-jump
 MARK_SHARE = 0.3            # the red plus in ≥ this share of the sampled frames → the reference mark is in the clip (#10: 1.0; others 0)
 LIP_RATIO_MIN = 1.15       # mouth motion while speaking / while silent below this → 'lips_still' (informational only, see doc)
+LANDMARK_MODEL = os.path.join(os.path.dirname(__file__), "..", "data", "models", "face_landmarker.task")
+LIP_SYNC_MIN = 0.65        # a line's best mouth ↔ voice correlation below this → 'lips_off_voice'. #10 synced turns 0.72–0.96; the voice
+                           # moved off its time ≤ 0.58; #8's unsynced shots 0.04–0.18
+LIP_MARGIN = 0.10          # …or less than this above the same voice moved ≥ LIP_SHIFT s (#10 synced turns: +0.15 … +0.42)
+LIP_SHIFT = 0.75           # seconds — the smallest move of the voice for the "wrong time" comparison
+LIP_LAG = 4                # frames of lag searched each way (≈ 0.17 s at 24 fps)
+LIP_PAD = 0.15             # seconds around a line that belong to it (the mouth opens a little before the sound)
+LIP_SEEN = 0.6             # a face must be measured on this share of a line's frames to count for it
 
 
 def _cv():
@@ -235,6 +252,169 @@ def lip_activity(clip: str, audio: Optional[str] = None) -> Dict:
             **({"why": f"miệng lúc nói không động hơn lúc lặng (× {ratio:.2f}) — chưa khớp môi"} if flag else {})}
 
 
+def landmark_model_path() -> Optional[str]:
+    path = os.environ.get("LIP_MODEL") or LANDMARK_MODEL
+    return path if os.path.exists(path) else None
+
+
+_landmarker = None
+
+
+def _mouth_open(crop) -> Optional[float]:
+    """Inner-lip gap (landmarks 13 / 14) over face height (10 / 152) on a face crop (BGR); None when no face mesh is found."""
+    global _landmarker
+    import numpy as np
+    import mediapipe as mp
+    from mediapipe.tasks.python import BaseOptions, vision
+    if _landmarker is None:
+        _landmarker = vision.FaceLandmarker.create_from_options(vision.FaceLandmarkerOptions(
+            base_options=BaseOptions(model_asset_path=landmark_model_path()), running_mode=vision.RunningMode.IMAGE, num_faces=1,
+            min_face_detection_confidence=0.3))
+    rgb = np.ascontiguousarray(_cv().cvtColor(crop, _cv().COLOR_BGR2RGB))
+    found = _landmarker.detect(mp.Image(image_format=mp.ImageFormat.SRGB, data=rgb)).face_landmarks
+    if not found:
+        return None
+    pts = found[0]
+    gap = ((pts[13].x - pts[14].x) ** 2 + (pts[13].y - pts[14].y) ** 2) ** 0.5
+    height = ((pts[10].x - pts[152].x) ** 2 + (pts[10].y - pts[152].y) ** 2) ** 0.5
+    return gap / height if height > 1e-6 else None
+
+
+def mouth_tracks(clip: str) -> Tuple[List[Dict], float, int]:
+    """([{"x": face centre x, "open": [per frame, None when not measured]}], fps, frames): every YuNet face tracked by its nearest centre,
+    cropped with a margin and scaled to 384 px for the landmarker (the small faces of a wide shot)."""
+    cv2 = _cv()
+    fs, fps = frames(clip)
+    tracks: List[Dict] = []
+    for i, f in enumerate(fs):
+        H, W = f.shape[:2]
+        used = set()
+        for x, y, w, h, _ in _faces(f):
+            if w < 20:
+                continue
+            c = (x + w / 2, y + h / 2)
+            near = [(((c[0] - t["c"][0]) ** 2 + (c[1] - t["c"][1]) ** 2) ** 0.5, k) for k, t in enumerate(tracks) if k not in used]
+            near = [(d, k) for d, k in near if d < max(w, tracks[k]["w"]) * 0.8]
+            if near:
+                k = min(near)[1]
+            else:
+                tracks.append({"c": c, "w": w, "open": [None] * i})
+                k = len(tracks) - 1
+            used.add(k)
+            t = tracks[k]
+            t["c"], t["w"] = c, w
+            m = int(w * 0.6)
+            x0, y0, x1, y1 = max(0, x - m), max(0, y - m), min(W, x + w + m), min(H, y + h + m)
+            scale = 384 / max(1, x1 - x0)
+            if len(t["open"]) == i:
+                t["open"].append(_mouth_open(cv2.resize(f[y0:y1, x0:x1], None, fx=scale, fy=scale)))
+        for t in tracks:
+            t["open"] += [None] * (i + 1 - len(t["open"]))
+    return [{"x": round(t["c"][0]), "open": t["open"]} for t in tracks], fps, len(fs)
+
+
+def _lag_corr(a, b, lag: int = LIP_LAG) -> Optional[float]:
+    """The best Pearson correlation of two series (NaN = not measured) over ± lag frames; None when nothing overlaps."""
+    import numpy as np
+    best = None
+    for L in range(-lag, lag + 1):
+        x, y = (a[L:], b[:len(b) - L]) if L >= 0 else (a[:L], b[-L:])
+        ok = ~np.isnan(x) & ~np.isnan(y)
+        if ok.sum() < 10 or np.std(x[ok]) < 1e-9 or np.std(y[ok]) < 1e-9:
+            continue
+        r = float(np.corrcoef(x[ok], y[ok])[0, 1])
+        best = r if best is None else max(best, r)
+    return best
+
+
+def _line_env(env, fps: float, start: float, end: float, shift: float = 0.0):
+    """The voice envelope inside one line's window (± LIP_PAD), zero elsewhere, moved by `shift` seconds."""
+    import numpy as np
+    t = np.arange(len(env)) / fps
+    return np.roll(np.where((t >= start - LIP_PAD) & (t <= end + LIP_PAD), env, 0.0), int(round(shift * fps)))
+
+
+def sync_turns(tracks: List[Dict], env: List[float], fps: float, turns: List[Dict]) -> List[Dict]:
+    """Per spoken line {speaker, start, end}: the face whose mouth follows the voice best ("score", "face_x") and the best any face
+    does with the same voice moved ≥ LIP_SHIFT s off its time ("wrong_time", None when the clip has no room), or "note"."""
+    import numpy as np
+    env = np.asarray(env, dtype=float)
+    series = [np.array([np.nan if v is None else v for v in t["open"]], dtype=float) for t in tracks]
+    n, dur = len(env), len(env) / fps
+    out = []
+    for turn in turns:
+        a, b = float(turn["start"]), float(turn["end"])
+        row = {"speaker": turn.get("speaker"), "start": round(a, 2), "end": round(b, 2)}
+        t = np.arange(n) / fps
+        win = (t >= a - LIP_PAD) & (t <= b + LIP_PAD)
+        seen = [k for k, s in enumerate(series) if win.any() and (~np.isnan(s[win])).mean() >= LIP_SEEN]
+        if not seen:
+            out.append(dict(row, note="không thấy mặt nào đủ lâu trong câu này để đo môi"))
+            continue
+        scores = {k: _lag_corr(series[k], _line_env(env, fps, a, b)) for k in seen}
+        scores = {k: v for k, v in scores.items() if v is not None}
+        if not scores:
+            out.append(dict(row, note="miệng / giọng không đổi trong câu này — không đo được"))
+            continue
+        best = max(scores, key=scores.get)
+        wrong = []
+        for s in np.arange(-dur, dur, 0.25):
+            if abs(s) >= LIP_SHIFT and a + s >= 0 and b + s <= dur:
+                vals = [_lag_corr(series[k], _line_env(env, fps, a, b, s)) for k in seen]
+                vals = [v for v in vals if v is not None]
+                if vals:
+                    wrong.append(max(vals))
+        out.append(dict(row, score=round(scores[best], 3), face_x=tracks[best]["x"],
+                        wrong_time=round(max(wrong), 3) if wrong else None))
+    return out
+
+
+def voiced_span(env: List[float], fps: float) -> Optional[Tuple[float, float]]:
+    """(first, last) second the voice is above 10 % of its peak — the one 'line' of a shot whose lines are not known."""
+    peak = max(env) if env else 0.0
+    on = [i for i, e in enumerate(env) if e > peak * 0.1]
+    return (on[0] / fps, (on[-1] + 1) / fps) if peak >= 0.01 and on else None
+
+
+def lip_sync(clip: str, audio: Optional[str] = None, turns: Optional[List[Dict]] = None,
+             tracks: Optional[Tuple[List[Dict], float, int]] = None) -> Dict:
+    """Does a mouth open while each line is heard (module doc)? audio: the shot's voice on the clip's timeline (default: the clip's own
+    track); turns: [{speaker, start, end}] seconds in the clip (default: the whole voiced span as one line). {"turns", "flag", "why"}
+    or {"flag": None, "note"} when it cannot measure — never a silent pass."""
+    if not landmark_model_path():
+        return {"flag": None, "note": "thiếu data/models/face_landmarker.task — chưa đo được mốc môi"}
+    try:
+        import mediapipe  # noqa: F401
+    except ImportError:
+        return {"flag": None, "note": "chưa cài mediapipe (pip install mediapipe) — chưa đo được mốc môi"}
+    trk, fps, n = tracks or mouth_tracks(clip)
+    if n < 10:
+        return {"flag": None, "note": "clip quá ngắn để đo"}
+    if not trk:
+        return {"flag": None, "note": "không thấy mặt để đo miệng"}
+    env = _voice_envelope(audio or clip, fps, n)
+    if not env or max(env) < 0.01:
+        return {"flag": None, "note": "không có giọng để so (clip không có tiếng và chưa có file giọng của shot)"}
+    if not turns:
+        span = voiced_span(env, fps)
+        turns = [{"speaker": None, "start": span[0], "end": span[1]}] if span else []
+    rows = sync_turns(trk, env, fps, turns)
+    bad = [r for r in rows if "score" in r and (r["score"] < LIP_SYNC_MIN or
+                                                (r["wrong_time"] is not None and r["score"] - r["wrong_time"] < LIP_MARGIN))]
+    out: Dict = {"turns": rows, "faces": len(trk), "flag": "lips_off_voice" if bad else None}
+    faces = {}
+    for r in rows:
+        if "score" in r and r["score"] >= LIP_SYNC_MIN and r.get("speaker"):
+            faces.setdefault(r["face_x"], set()).add(r["speaker"])
+    if any(len(v) > 1 for v in faces.values()):
+        out["note"] = "hai người nói khác nhau nhưng cùng một khuôn mặt mấp máy — xem lại ai nói"
+    if bad:
+        out["why"] = "miệng không theo giọng ở " + "; ".join(
+            f"{r.get('speaker') or 'câu thoại'} {r['start']}–{r['end']} s (tương quan {r['score']:.2f}"
+            + (f", giọng dời giờ {r['wrong_time']:.2f}" if r["wrong_time"] is not None else "") + ")" for r in bad)
+    return out
+
+
 def _plus_signs(img) -> List[Tuple[int, int, int, int]]:
     """Saturated red plus signs (x, y, w, h): a near-square red blob with a full-length horizontal and vertical bar through its middle,
     thin arms and empty corners — the shape seedance_refs.mark draws (pure (220, 0, 0), stroke ≈ size / 4)."""
@@ -272,17 +452,19 @@ def ref_mark(clip: str, every: int = 6) -> Dict:
     return out
 
 
-def measure(clip: str, picture: Optional[str] = None, audio: Optional[str] = None, speaking: bool = False) -> Dict:
-    """All the checks that apply; {"flags": [...], each check's numbers}."""
+def measure(clip: str, picture: Optional[str] = None, audio: Optional[str] = None, speaking: bool = False,
+            turns: Optional[List[Dict]] = None) -> Dict:
+    """All the checks that apply; {"flags": [...], each check's numbers}. turns: the shot's lines [{speaker, start, end}] on the clip."""
     out: Dict = {}
     if picture and os.path.exists(picture):
         out["look"] = look_drift(clip, picture)
     out["motion"] = jerks(clip)
     out["ref_mark"] = ref_mark(clip)
     if speaking:
-        lips = lip_activity(clip, audio)
-        if lips.get("flag"):                 # recorded, not flagged: not able to tell a synced mouth yet (module doc)
-            lips = dict(lips, flag=None, note="chỉ ghi số — cách đo này chưa phân biệt được khớp / không khớp (#8)")
+        lips = lip_sync(clip, audio, turns)
+        if "turns" not in lips:              # no landmark model / no face / no voice: say why, keep the old numbers (not a check)
+            old = lip_activity(clip, audio)
+            lips = dict(lips, pixel_ratio=old.get("ratio"))
         out["lips"] = lips
     out["flags"] = [v["flag"] for v in out.values() if isinstance(v, dict) and v.get("flag")]
     return out
