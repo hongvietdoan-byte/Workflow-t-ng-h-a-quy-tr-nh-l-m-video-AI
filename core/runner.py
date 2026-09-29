@@ -1355,6 +1355,7 @@ class ImageRunner(_Runner):
                                                      green=without_place)
                 if fields is not None:
                     refs = fields["refs"]
+                    prompt = prompt.rstrip() + fields.get("cast_note", "")
                     self._storyboard = getattr(self, "_storyboard", {})
                     self._storyboard[job["id"]] = fields["storyboard"]
                     self._sent = getattr(self, "_sent", {})

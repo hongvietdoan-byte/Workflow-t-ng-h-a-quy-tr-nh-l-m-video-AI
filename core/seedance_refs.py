@@ -114,15 +114,23 @@ def uses_refs(conn, scene_id: int) -> bool:
     return row is not None and enabled(conn, row["project_id"]) and eligible(json.loads(row["data"] or "{}"))
 
 
-def mark(path: str, out_dir: str) -> str:
+MARK_STYLES = ("eye_plus", "banner", "corner_plus", "none")
+
+
+def mark(path: str, out_dir: str, style: str = "eye_plus") -> str:
     """A copy of the picture in out_dir marked as design material: a white BANNER on top and a thick red plus sign over one eye of
-    every face found (YuNet; none found: the upper middle). The mark is what let Seedance take in-game pictures (test 2026-09-27)."""
+    every face found (YuNet; none found: the upper middle). The mark is what let Seedance take in-game pictures (test 2026-09-27).
+    style (S4.6 round 2 — the eye plus was drawn INTO a Seedance 2.0 Fast clip, #10 29/09): "eye_plus" as above, "banner" the banner
+    only, "corner_plus" the banner + the plus in the picture's bottom-right corner (off every face), "none" an unmarked copy."""
+    if style not in MARK_STYLES:
+        raise ValueError(f"unknown mark style {style!r}")
     from PIL import Image, ImageDraw, ImageFont
     from . import text_placement
     os.makedirs(out_dir, exist_ok=True)
     import hashlib                        # 28/09: KENTA's and MAXIM's sheets are both '7.png' (assets/24, assets/33) — named by the
     key = hashlib.sha1(os.path.abspath(path).lower().encode("utf-8")).hexdigest()[:10]   # file name alone, one overwrote the other
-    out = os.path.join(out_dir, f"{os.path.splitext(os.path.basename(path))[0]}_{key}_marked.png")   # and MAXIM's clip showed KENTA
+    tag = "" if style == "eye_plus" else f"_{style}"
+    out = os.path.join(out_dir, f"{os.path.splitext(os.path.basename(path))[0]}_{key}_marked{tag}.png")   # and MAXIM's clip showed KENTA
     if os.path.exists(out) and os.path.getmtime(out) >= os.path.getmtime(path):
         return out
     im = Image.open(path).convert("RGB")
@@ -130,6 +138,9 @@ def mark(path: str, out_dir: str) -> str:
         k = REF_MAX_SIDE / max(im.size)
         im = im.resize((round(im.size[0] * k), round(im.size[1] * k)), Image.LANCZOS)
     w, h = im.size
+    if style == "none":
+        im.save(out)
+        return out
     d = ImageDraw.Draw(im)
     band = int(h * 0.07)
     d.rectangle([0, 0, w, band], fill=(255, 255, 255))
@@ -138,8 +149,14 @@ def mark(path: str, out_dir: str) -> str:
     except OSError:
         font = ImageFont.load_default()
     d.text((w * 0.04, band * 0.25), BANNER, fill=(0, 0, 0), font=font)
-    marks = [((l + (r - l) * 0.33) * w, (t + (b - t) * 0.4) * h, max((r - l) * w * 0.35, w * 0.03))
-             for l, t, r, b in (text_placement.face_boxes(path) or [])] or [(w * 0.5, h * 0.3, w * 0.08)]
+    if style == "banner":
+        im.save(out)
+        return out
+    if style == "corner_plus":
+        marks = [(w * 0.9, h * 0.93, w * 0.05)]
+    else:
+        marks = [((l + (r - l) * 0.33) * w, (t + (b - t) * 0.4) * h, max((r - l) * w * 0.35, w * 0.03))
+                 for l, t, r, b in (text_placement.face_boxes(path) or [])] or [(w * 0.5, h * 0.3, w * 0.08)]
     stroke = max(int(w / 60), 5)
     for cx, cy, size in marks:
         d.line([cx - size, cy, cx + size, cy], fill=(220, 0, 0), width=stroke)

@@ -96,12 +96,12 @@ def shot_text(d: dict, i: int) -> str:
             + (f"Acting — {acting}. " if acting else "") + talk).strip()
 
 
-def mark_reference(path: str, out_dir: Optional[str] = None) -> str:
+def mark_reference(path: str, out_dir: Optional[str] = None, style: str = "eye_plus") -> str:
     """A copy of the picture (in out_dir, default beside it) marked as reference material: a white banner "CHARACTER SHEET REFERENCE"
     on top and a thick red plus sign over one eye of every face found (YuNet; none found: the upper middle). Only for reference-only
     sends. The pipeline's own marking (core.seedance_refs.mark) — one implementation for the test and the real run."""
     from core import seedance_refs
-    return seedance_refs.mark(path, out_dir or os.path.dirname(path))
+    return seedance_refs.mark(path, out_dir or os.path.dirname(path), style)
 
 
 def s3_groups(rows):

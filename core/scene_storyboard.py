@@ -98,10 +98,12 @@ def story_text(conn, pid: int, g: Dict, green: bool = False) -> str:
     from .runner import no_minor_age
     row = conn.execute("SELECT heading, text FROM story_scenes WHERE project_id=? AND idx=?", (pid, g["story_scene"])).fetchone()
     head = f"{row['heading']}: " if row and row["heading"] else ""
-    beats = " ".join(f"Frame {i + 1}: {(s['data'].get('action') or s['data'].get('image_prompt') or '')[:140]}"
+    beats = " ".join(f"Frame {i + 1}{_in_frame(s['data'])}: {(s['data'].get('action') or s['data'].get('image_prompt') or '')[:140]}"
                      for i, s in enumerate(g["shots"]))
-    frame = ("The same people and outfits in every frame, each drawn alone on a flat chroma-key green backdrop — no place, no floor, "
-             "no sky (the place is added afterwards)." if green else "One continuous scene — same place, same light, same people in every frame.")
+    frame = ("The same people and outfits wherever they appear, each drawn alone on a flat chroma-key green backdrop — no place, no floor, "
+             "no sky (the place is added afterwards)." if green else
+             "One continuous scene — same place, same light, the same people and outfits wherever they appear; each frame shows only "
+             "the people it names.")
     if not green:
         from . import scene_establish
         datas = [s["data"] for s in g.get("shots") or []]
@@ -112,6 +114,30 @@ def story_text(conn, pid: int, g: Dict, green: bool = False) -> str:
         if light:
             frame += " " + light
     return no_minor_age(f"{head}{frame} {beats}")[:3000]
+
+
+def _in_frame(data: Dict) -> str:
+    cast = [str(n) for n in data.get("characters") or []]
+    return f" (in frame: {', '.join(cast)})" if cast else " (no person in frame)"
+
+
+def cast_note(g: Dict, scene_id: int) -> str:
+    """S4.6 (#10, 2026-09-29): the scene's shared references carry every person of the scene, and frames 1-2 of a one-person shot came
+    back with all three people (Kelly-only and Kenta-only shots drew Kenta, Kelly and Maxim). The shot says who is NOT in it."""
+    shot = next((s for s in g["shots"] if s["id"] == scene_id), None)
+    if shot is None:
+        return ""
+    cast = [str(n) for n in shot["data"].get("characters") or []]
+    others = []
+    for s in g["shots"]:
+        for n in s["data"].get("characters") or []:
+            if str(n) not in cast and str(n) not in others:
+                others.append(str(n))
+    if not others:
+        return ""
+    who = f"Only {', '.join(cast)} {'is' if len(cast) == 1 else 'are'} in this frame" if cast else "No person is in this frame"
+    return (f" {who}; {', '.join(others)} {'is' if len(others) == 1 else 'are'} NOT in this frame (their pictures are references "
+            "for other frames of the scene) — do not draw them, not even in the background.")
 
 
 def storyboard_id(pid: int, g: Dict, anchor_job_id: int, fresh_for: int = 0) -> str:
@@ -149,4 +175,4 @@ def job_fields(conn, data_dir: str, pid: int, scene_id: int, refs: List[Dict], j
     return {"storyboard": {"story_text": story_text(conn, pid, g, green), "storyboard_id": storyboard_id(pid, g, anchor_job, 0 if is_anchor or not fresh_session(conn, job_id) else job_id),
                            "frame_index": g["index"], "group_size": len(g["shots"]), "ref_mode": mode,
                            "image_mapping": mapping_text(send, len(refs)) if send else ""},
-            "refs": send, "anchor": is_anchor}
+            "refs": send, "anchor": is_anchor, "cast_note": cast_note(g, scene_id)}

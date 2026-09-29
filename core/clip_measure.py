@@ -9,6 +9,9 @@
                  NOT A CHECK YET: on #8's 4 lip-synced shots the right voice gave 0.79–1.26 and a wrong voice 0.70–1.03 — pixel change
                  around the mouth does not tell them apart (head motion, a 720p mouth of ~20 px). Its numbers are recorded, it flags
                  nothing; a real check needs mouth landmarks (a face-mesh model) — TODO.
+  ref_mark       the red plus sign that marks a reference picture (seedance_refs.mark) drawn INTO the clip. A/B S4.6 (#10, 29/09):
+                 Seedance 2.0 Fast kept the plus on Kelly's face for the whole clip (17/17 sampled frames, a 44×44 px square);
+                 0 on the 8 other clips of the A/B and on #8's clips (Maxim's red hood gave 36×48 blobs — not square, rejected).
 
 Thresholds were set on #8's own clips (tools/clip_measure_calibrate.py, numbers in the constants' comments); every check returns its
 numbers so a person can see why. Nothing here blocks on its own: the flags go to the clip QC as evidence."""
@@ -22,6 +25,7 @@ SPIKE = 4.0                # a frame's motion > SPIKE × its neighbours' (and cl
 CUT_CORR = 0.5             # colour-histogram correlation of two consecutive frames below this → a hard cut (#8 clips 01: 0.28, 11: 0.49)
 SPIKE_CUT_CORR = 0.85      # a motion jump with correlation below this is a cut too (#8 clips 03: 0.69, 24: 0.68 — checked by eye)
 FREEZE = 0.15              # motion < FREEZE × the neighbours' right before a spike → freeze-then-jump
+MARK_SHARE = 0.3            # the red plus in ≥ this share of the sampled frames → the reference mark is in the clip (#10: 1.0; others 0)
 LIP_RATIO_MIN = 1.15       # mouth motion while speaking / while silent below this → 'lips_still' (informational only, see doc)
 
 
@@ -231,12 +235,50 @@ def lip_activity(clip: str, audio: Optional[str] = None) -> Dict:
             **({"why": f"miệng lúc nói không động hơn lúc lặng (× {ratio:.2f}) — chưa khớp môi"} if flag else {})}
 
 
+def _plus_signs(img) -> List[Tuple[int, int, int, int]]:
+    """Saturated red plus signs (x, y, w, h): a near-square red blob with a full-length horizontal and vertical bar through its middle,
+    thin arms and empty corners — the shape seedance_refs.mark draws (pure (220, 0, 0), stroke ≈ size / 4)."""
+    cv2 = _cv()
+    import numpy as np
+    hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
+    red = (((hsv[..., 0] <= 6) | (hsv[..., 0] >= 174)) & (hsv[..., 1] >= 190) & (hsv[..., 2] >= 150)).astype(np.uint8)
+    n, lab, st, _ = cv2.connectedComponentsWithStats(red, 8)
+    width = red.shape[1]
+    out = []
+    for i in range(1, n):
+        x, y, w, h, _ = (int(v) for v in st[i])
+        if w < width * 0.02 or h < width * 0.02 or not 0.8 <= w / h <= 1.25:
+            continue
+        box = lab[y:y + h, x:x + w] == i
+        cy, cx, q = h // 2, w // 2, max(1, min(w, h) // 4)
+        row = box[max(cy - 2, 0):cy + 3].any(axis=0).mean()
+        col = box[:, max(cx - 2, 0):cx + 3].any(axis=1).mean()
+        corners = float(np.mean([box[:q, :q].mean(), box[:q, -q:].mean(), box[-q:, :q].mean(), box[-q:, -q:].mean()]))
+        arm = box[:, q].mean()                   # a quarter across: only the horizontal bar's thickness is red
+        if 0.15 <= box.mean() <= 0.6 and row >= 0.7 and col >= 0.7 and corners <= 0.1 and arm <= 0.45:
+            out.append((x, y, w, h))
+    return out
+
+
+def ref_mark(clip: str, every: int = 6) -> Dict:
+    """The reference picture's red plus sign drawn into the clip (see module doc)."""
+    pics, _ = frames(clip, every=every)
+    hits = [i * every for i, f in enumerate(pics) if _plus_signs(f)]
+    share = len(hits) / len(pics) if pics else 0.0
+    out = {"frames": len(pics), "hits": len(hits), "share": round(share, 2), "first_hit_frame": hits[0] if hits else None}
+    if pics and share >= MARK_SHARE:
+        out["flag"] = (f"dấu chữ thập đỏ của ảnh tham chiếu hiện trong clip ({len(hits)}/{len(pics)} khung lấy mẫu) — gen lại với "
+                       "ảnh tham chiếu không có dấu trên mặt hoặc model khác")
+    return out
+
+
 def measure(clip: str, picture: Optional[str] = None, audio: Optional[str] = None, speaking: bool = False) -> Dict:
     """All the checks that apply; {"flags": [...], each check's numbers}."""
     out: Dict = {}
     if picture and os.path.exists(picture):
         out["look"] = look_drift(clip, picture)
     out["motion"] = jerks(clip)
+    out["ref_mark"] = ref_mark(clip)
     if speaking:
         lips = lip_activity(clip, audio)
         if lips.get("flag"):                 # recorded, not flagged: not able to tell a synced mouth yet (module doc)

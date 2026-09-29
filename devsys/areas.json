@@ -127,7 +127,7 @@
       "name": "Khớp môi",
       "weight": 0.7,
       "description": "Khớp môi toàn video: Seedance nhận giọng khi tạo hoặc khớp môi sau bằng sync.so.",
-      "code": ["core/lipsync.py", "core/adapters/syncso.py"],
+      "code": ["core/lipsync.py", "core/dialogue_take.py", "core/adapters/syncso.py"],
       "assets": [],
       "docs": ["docs/NGHIEN_CUU_KHOP_MOI.md", "docs/BAN_GIAO_2026-09-25_THAP_VA_KHOP_MOI.md"],
       "tests": [],
