@@ -192,6 +192,11 @@ def build_case(p, data_dir, case, look):
     elif case in ("E_kling_fx_end", "E_kling_slash"):
         pair = [s2[1], s2[2]] if case == "E_kling_fx_end" else [s2[3], s2[4]]
         kw, secs, prompt = gt.build(p, data_dir, PID, pair, "P4", look.split(" Render style:")[0])
+        if case == "E_kling_slash":           # 29/09: the end frame came back mirrored (wall right, Maxim left) — flipped to match
+            from PIL import Image, ImageOps
+            flipped = os.path.join(data_dir, str(PID), "experiments", "slash_end_flipped.png")
+            ImageOps.mirror(Image.open(kw["last_frame"]).convert("RGB")).save(flipped)
+            kw["last_frame"] = flipped
         out.append((case, kw, 4, prompt, "kling", "std"))
     elif case == "E_25_timed":
         kw, secs, prompt = gt.build(p, data_dir, PID, [s2[1]], "P2m25", look)
