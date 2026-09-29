@@ -27,6 +27,23 @@ class TowerPackTests(unittest.TestCase):
         self.assertEqual([m["name"] for m in moves], ["di_bo_vao", "vong_quanh_thap", "can_cau_len"])
         self.assertAlmostEqual(moves[2]["keys"][1]["look_at"][2], 32.5)
 
+    def test_surroundings_spot_gets_its_own_view(self):
+        m = dict(OFFICIAL, spots=dict(OFFICIAL["spots"], doi_tay={"at": [-360.0, 150.0, 17.0], "view": [-217.07, 132.04, 20.0]}))
+        cam = next(c for c in tower_pack.cameras(m) if c["name"] == "eye_doi_tay_canh")
+        self.assertEqual(cam["look_at"], [-217.07, 132.04, 20.0])
+        self.assertAlmostEqual(cam["location"][2], 18.6)
+
+    def test_room_spot_gets_inside_and_out_views_only(self):
+        room = {"at": [-224.75, 103.95, 9.9], "view": [-216.5, 100.6, 11.1], "view_out": [-216.3, 112.4, 11.3], "indoor": {"exposure": 1.5, "fill_w": 300}}
+        m = dict(OFFICIAL, spots=dict(OFFICIAL["spots"], nha_qt_t1=room))
+        names = [c["name"] for c in tower_pack.cameras(m)]
+        self.assertIn("eye_nha_qt_t1_trong", names)
+        self.assertIn("eye_nha_qt_t1_ra", names)
+        self.assertNotIn("eye_nha_qt_t1_thap", names)
+        ra = next(c for c in tower_pack.indoor_cameras(m) if c["name"].endswith("_ra"))
+        self.assertEqual(ra["indoor"]["exposure"], 1.0)
+        self.assertEqual(ra["lens"], 22)
+
     def test_ffxn_heights_unchanged(self):
         moves = tower_pack.animations(FFXN, False)
         self.assertEqual(moves[1]["keys"][0]["look_at"][2], 32.0)

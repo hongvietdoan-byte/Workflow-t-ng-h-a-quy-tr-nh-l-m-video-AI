@@ -94,8 +94,9 @@ bằng code. Làm tay **một lần cho mỗi khu vực** (đăng ký mô hình 
 **Luồng (cờ `location_plates`, TẮT tới khi thử thật — bật thử `FEATURE_LOCATION_PLATES=1`):**
 1. `tools/location_pack.py register --asset <id khu vực> --model <file 3D> --anchor x y z [--spot tên x y z hướng] [--min-level z]`
    — gắn mô hình vào hồ sơ khu vực (`assets.profile.model3d`); không đưa `--spot` thì tự dò mặt phẳng đi được (Blender bắn tia xuống)
-   và đề xuất chỗ đứng quay lưng về công trình. Tháp Đồng Hồ (#263) đã đăng ký 2026-09-25: `plaza_front` (mặc định), `lower_yard`
-   + 5 chỗ tự đề xuất.
+   và đề xuất chỗ đứng quay lưng về công trình. **Từ 2026-09-29 dùng file 3D chính thức của game** (mục 10): Tháp Đồng Hồ (#263)
+   và Cổng Trời (#265). Bản fan FFXN (`free_fire_clocktower_3d_model_by_ffxn.glb`, đăng ký 2026-09-25) **không còn dùng** — tọa độ / tên
+   chỗ đứng cũ (`lower_yard`, `level_26_0`…) không khớp bản mới; shot cũ gọi tên cũ rơi về chỗ mặc định có báo.
 2. Autopilot pha **plates** (trước ảnh): máy ảo từng shot (`core/plate_camera.py`: cỡ cảnh → khoảng cách + ống kính, góc máy → độ cao,
    `start_frame` trái/phải, cùng `camera_setup` = cùng máy) → render theo lô, mỗi khu vực + thời gian/thời tiết một lần gọi Blender
    (xếp hàng cả máy, bộ nhớ đệm `data/_plates3d/cache/`) → lớp nền, độ sâu, **bóng của hình nộm đúng chiều cao nhân vật**.
@@ -124,3 +125,40 @@ dò mặt phẳng (34.221 tia, bước 1,5 m) ra đúng quảng trường trên 
 
 **Chưa làm (ghi ở TODO):** màn hình đăng ký/sửa chỗ đứng trong ⚙ → Kho (GĐ6); bước "hòa ánh sáng bằng AI rồi dán lại nền thật" và Claude
 chấm "ăn khớp" (tốn tiền — bật khi thử thật cho thấy cần); mô hình chiếu sáng lại người (IC-Light, cần GPU/torch — hỏi trước khi tải).
+
+## 10. File 3D chính thức của game (2026-09-29) — Tháp Đồng Hồ + Cổng Trời, map Đảo Quân Sự
+
+**File:** `D:\AI-Video-Pipeline\model 3D\Ingame_map_building\Ingame_map_building\<ClockTower|Peak>\T_30_XH_PCMAP_P16|P20\asset.fbx` (+ texture cùng thư mục, `showcase_0.jpg` = ảnh chụp trong game để so). Đơn vị mét, không cần `real_height_m`.
+Không vào git.
+
+**Bốn chỗ bản xuất sai — code tự sửa khi render (`tools/render_plates.py`):**
+- **Mặt đất** (`fix_terrain`): vật liệu dán một texture đá kéo theo UV của cả đảo (ra loang xanh xám). Trong game mặt đất là *splat*:
+  `AllTerrainMask.png` (cả đảo, cùng UV) — **G = cỏ** `Terrain_Ground_01`, **B = đất** `_02`, **R = đá** `_03`, đen = lòng sông. Code đọc mask
+  theo UV rồi trộn 3 lớp lặp mỗi 6 m (đổi được trong plan: `"terrain": {...}`, `false` = để nguyên).
+- **Nước** (`fix_water`): hồ bơi Cổng Trời dùng vật liệu thiếu texture (Blender tô tím) → nước xanh trong, bóng.
+- **Cỏ** (`fix_foliage`): tấm cỏ `plant_grass_B_New_D_A.png` là ảnh RGB, hình ngọn cỏ nằm ở mặt nạ riêng `…_M.png` mà FBX không nối →
+  ở tầm mắt mọi tấm cỏ ra ô vuông đặc. Code nối mặt nạ làm độ trong suốt (xám → trong, trắng → đặc).
+- **Ánh sáng** (hồ sơ khu vực `model3d.light.day`): chế độ màu mặc định AgX làm bạc màu → `view_transform: Standard` + `Medium High
+  Contrast`, nắng ấm 4,5, trời 0,15, phơi sáng −0,5, mặt trời 50° (A/B 5 phương án, chọn v4). Chỉ áp cho nền ban ngày trời quang; đêm /
+  thời tiết xấu giữ `plate_env`. Có trong khoá bộ nhớ đệm nền.
+
+**Chỗ đứng:** ngoài mặt phẳng dò tự động (hay rơi sát tường / trên mái — **luôn xem ảnh kiểm**), đo độ cao mặt đất ở điểm tự chọn bằng
+`plates3d.ground_heights(model, [[x, y], …])` (bắn tia xuống, bỏ qua cây / cỏ). Mỗi chỗ đứng có thể có `view` = điểm máy nhìn tới (cảnh
+quan xung quanh, không phải công trình chính) và `group` (`chinh` / `canh_quan` / `trong_nha`).
+
+**Trong nhà** (người dùng 29/09: "bổ sung cả những góc cảnh trong nhà"): đặt máy theo toạ độ đồ đạc hay rơi ra ngoài tường / dí sát
+tường — dùng `plates3d.room_cameras(model, [{name, lo, hi, floor_z}])` (render_plates `rooms`): lưới điểm trong khung nhà ở tầm mắt, giữ
+điểm có trần phía trên và tường gần kín xung quanh, chọn điểm xa tường nhất; `look_at` = hướng sâu nhất còn trong nhà, `look_out` =
+hướng nhìn qua cửa ra ngoài. Độ cao sàn lấy theo đáy đồ đạc của tầng đó (bắn tia từ dưới trần hay trúng cầu thang / giường).
+Chỗ đứng trong nhà mang `indoor` (sáng thêm +1,5 + đèn phụ 300 W giữa máy và điểm nhìn, chỉ cho máy đó) và `view_out`.
+Kết quả thử: 29/31 góc đạt; 1 góc hỏng đã bỏ (tầng 2 biệt thự — máy dưới mái hiên).
+
+| Khu vực | Tâm (anchor) | Chỗ đứng chính | Cảnh quan xung quanh |
+|---|---|---|---|
+| Tháp Đồng Hồ #263 | tháp `CLK_OUT_Tower001` (−217,07; 132,04), cao 9,5 → 47,9 m | `plaza_front` (mặc định), `level_9_4`, `level_2_3`, `level_2_3_a` | đồi tây + trạm gác (nhìn xuống cả thị trấn), đường cao tốc đồi tây + biển quảng cáo, đồng cỏ bắc, đồng cỏ tây nam, rặng dừa đông, nhà lớn đông, bãi xe van, dãy nhà mái đỏ nam · **trong nhà (11):** nhà 3 tầng quảng trường (3 tầng), nhà lớn đông (2), nhà nam (2), nhà vừa, nhà lớn tây (2), nhà gỗ nhỏ đông |
+| Cổng Trời #265 | biệt thự `PKK_OUT_Building001` (−676,5; −74,5), nền ~68 m | `san_truoc` (cổng tây, mặc định), `san_dong`, 2 hồ bơi, mê cung | bãi xe có mái, biển quảng cáo, nhà kính, sườn dốc cột điện cao thế, đường đất đổ dốc tây, nhà thấp dưới dốc, rặng cây / đá · **trong nhà (5):** sảnh biệt thự, 2 nhà gỗ dưới dốc tây, nhà kính, nhà gỗ nhỏ bắc |
+
+**Bộ ảnh + video chuẩn:** `py tools/tower_pack.py --asset 263|265 --out <thư mục>` — mọi chỗ đứng nhìn công trình (`_thap`), góc ngược
+(`_nguoc`), góc cảnh quan (`_canh`), trong nhà (`_trong`, `_ra`), ngày + đêm, 3 video máy (đi bộ vào, vòng quanh, cần cẩu) bản texture +
+bản khối trắng. `--only-indoor` = chỉ phần trong nhà. 0 USD. Kết quả 29/09: `D:\AI-Video-Output\2026-09-29_bo-boi-canh-thap-chinh-thuc\`,
+`D:\AI-Video-Output\2026-09-29_bo-boi-canh-cong-troi\`.

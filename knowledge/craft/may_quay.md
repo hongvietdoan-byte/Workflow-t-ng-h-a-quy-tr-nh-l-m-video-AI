@@ -27,6 +27,7 @@
   73–77,5 s rồi tiếng gầm. (e) [03 143.5–165.4s] 21,9 s đánh liền giữa chuỗi shot ~1,8 s.
 - **Với video AI:** clip dài dễ trôi nhân vật / tự chèn cảnh (dp.md Q5 job 196, 204, 205) → shot giữ lâu nên là máy tĩnh + ít động tác, hoặc
   ghép nhiều lần sinh cùng khung; ảnh tĩnh + zoom hậu kỳ là phương án rẻ cho shot "nhìn / chờ" (13).
+- **Ví dụ thêm (S0.12 mẫu 20–28, 2026-09-29):** [20 3.8–78.9s] ~40× trung vị đoạn đánh nhau · [22 đ2 +134.8s] 15,1 s rồi 20,2 s sau khi bài hát hết (thở ra).
 - **Nguồn:** số đo S0.12 (mẫu hình 9 trong `TONG_HOP.md`, 10 video). **Độ tin:** khá.
 
 ### Ống kính rộng / dài (tiêu cự) và khoảng cách máy
@@ -59,6 +60,7 @@
   nâu · [17 đ2 +79–99.7s ↔ +99.7s trở đi] khúc lam ↔ khúc lục tách vòng lặp · [08 109–113s] màu duy nhất (khói cam + xanh) trong MV đen trắng.
 - **Với video AI:** tả nguồn sáng cụ thể (mẫu `lighting` của dp.md Q8); tách tông màu toàn đoạn làm ở hậu kỳ (E5) chắc hơn prompt từng shot;
   giữ màu một vùng (08) làm ở hậu kỳ.
+- **Ví dụ thêm (S0.12 mẫu 20–28, 2026-09-29):** [27 đ2] hồi ức đỏ cam ↔ hiện tại trời xanh · [21 tờ quét 3:00–3:40] ánh xanh nhìn đêm = "chế độ nhiệm vụ".
 - **Nguồn:** dp.md Q8 [Q27][Q28]; số đo / tờ ảnh S0.12. **Độ tin:** khá (tách tông màu: 11, 17, 23; nguồn sáng một nguồn: 1 mẫu — có thể).
 
 ### Mức "động" của máy — lựa chọn của kênh, đổi theo nhịp kịch

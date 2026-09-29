@@ -16,7 +16,7 @@ Plan (JSON):
   engine           "auto" (EEVEE, else Cycles on CPU) | "eevee" | "cycles" | "workbench"
   samples          render samples (EEVEE / Cycles), default 16
   sky              {"mode": "A" | "B" | "C", "sun_elevation": 35, "sun_azimuth": 140, "strength": 0.35, "sun_strength": 2.5,
-                    "exposure": -0.5,
+                    "exposure": -0.5, "view_transform": "Standard" | "AgX" (unset = Blender default), "look": e.g. "Medium High Contrast",
                     "hdri": path (mode B, or lighting of mode C), "hdri_rotation": 0}
                    A = Blender's physical sky (no download), B = HDRI picture, C = light from A/B but the sky left transparent
                    (the Dashboard puts an in-game sky picture behind it).
@@ -37,6 +37,12 @@ Plan (JSON):
   camera.subject   {"location": [x, y, z] feet, "height_m": 1.7} — a stand-in of the character's size is put there for one more
                    picture, `shadow_<cam>.png`: the plate with the stand-in's shadow (the stand-in itself is invisible to the camera),
                    so the composite can lay the real shadow of the character on the ground (core/composite.py)
+  heights          [[x, y] or [x, y, z_from], …] — no render: the ground height under each point (raw model frame), plants skipped;
+                   z_from = start the ray there (a floor inside a house)
+  rooms            [{"name", "lo": [x, y], "hi": [x, y], "floor_z"}] — no render: the best camera spot + view inside each house box
+                   (a ceiling above, walls all round; farthest from walls, looking the deepest way)
+  camera.indoor    {"exposure": +1.5, "fill_w": 400, "fill_color": [r, g, b], "fill_up_m": 0.9} a room: brighter view + a fill lamp for
+                   this camera only (removed after)
   probe            {"step": 2.0} — no render: rays straight down on a grid find the flat ground a character can stand on; the
                    flat areas (clustered by height) go to probe.json with their size and centre, in the model's own coordinates
                    (core/location_pack.propose_spots turns them into named spots)
@@ -235,6 +241,15 @@ def setup_world(sky, warnings):
     sun.rotation_euler = (math.pi / 2 - elev, 0, azim + math.pi / 2)
     scene.render.film_transparent = mode == "C"
     scene.view_settings.exposure = float(sky.get("exposure", -0.5))
+    # 2026-09-29: the default AgX view washes colours out next to the in-game look (official FF map export) — a plan can ask for
+    # "Standard" (+ a contrast look); unset = Blender's default, as before
+    if sky.get("view_transform"):
+        try:
+            scene.view_settings.view_transform = sky["view_transform"]
+            if sky.get("look"):
+                scene.view_settings.look = sky["look"]
+        except (TypeError, ValueError) as e:
+            warnings.append(f"view transform {sky.get('view_transform')} / look {sky.get('look')} not available: {e}")
     return used + (" + transparent sky" if mode == "C" else "")
 
 
@@ -310,6 +325,74 @@ def fix_terrain(conf, warnings):
         except Exception as e:  # noqa: BLE001
             warnings.append(f"terrain {mat.name} not rebuilt: {e}")
     return {"materials": fixed, **{k: conf[k] for k in ("b", "r", "g", "tile_m")}}
+
+
+def fix_foliage(warnings):
+    """2026-09-29, official FF export: grass cards (plant_grass_B_New_D_A.png, RGB) get their shape from a separate mask
+    (<name>_M.png: white blades on mid grey) that the FBX never links — at eye level every grass card rendered as an opaque square.
+    A material with no Alpha link whose colour picture has a sibling "<stem without _D/_D_A>_M" picture: the mask becomes the Alpha
+    (grey → clear, white → solid). Returns the names changed."""
+    fixed = []
+    for mat in bpy.data.materials:
+        bsdf = _principled(mat)
+        if bsdf is None or bsdf.inputs["Alpha"].is_linked or not bsdf.inputs["Base Color"].is_linked:
+            continue
+        node = bsdf.inputs["Base Color"].links[0].from_node
+        img = getattr(node, "image", None)
+        if img is None:
+            continue
+        path = bpy.path.abspath(img.filepath)
+        stem, ext = os.path.splitext(os.path.basename(path))
+        base = stem[:-4] if stem.lower().endswith("_d_a") else (stem[:-2] if stem.lower().endswith("_d") else None)
+        mask = os.path.join(os.path.dirname(path), f"{base}_M{ext}") if base else None
+        if not mask or not os.path.exists(mask):
+            continue
+        try:
+            nt = mat.node_tree
+            m = nt.nodes.new("ShaderNodeTexImage")
+            m.image = bpy.data.images.load(mask, check_existing=True)
+            m.image.colorspace_settings.name = "Non-Color"
+            if node.inputs["Vector"].is_linked:
+                nt.links.new(node.inputs["Vector"].links[0].from_socket, m.inputs["Vector"])
+            rng = nt.nodes.new("ShaderNodeMapRange")
+            rng.inputs["From Min"].default_value, rng.inputs["From Max"].default_value = 0.45, 0.7
+            nt.links.new(m.outputs["Color"], rng.inputs["Value"])
+            nt.links.new(rng.outputs["Result"], bsdf.inputs["Alpha"])
+            if hasattr(mat, "surface_render_method"):
+                mat.surface_render_method = "DITHERED"
+            fixed.append(mat.name)
+        except Exception as e:  # noqa: BLE001
+            warnings.append(f"foliage {mat.name} not fixed: {e}")
+    return fixed
+
+
+WATER_WORDS = ("water", "river", "ocean", "wave", "pool")
+
+
+def fix_water(warnings, colour=(0.05, 0.42, 0.58)):
+    """2026-09-29, official FF export (Peak's pools): the water material comes without its picture — Blender shows the missing-
+    texture magenta. A water material (name has water / river / ocean / wave / pool) whose colour picture is missing or not linked
+    becomes clear blue, glossy water. Returns the names changed."""
+    fixed = []
+    for mat in bpy.data.materials:
+        if not any(w in mat.name.lower() for w in WATER_WORDS):
+            continue
+        bsdf = _principled(mat)
+        if bsdf is None:
+            continue
+        sock = bsdf.inputs["Base Color"]
+        img = sock.links[0].from_node.image if sock.is_linked and getattr(sock.links[0].from_node, "image", None) else None
+        if img is not None and img.has_data:
+            continue
+        try:
+            if sock.is_linked:
+                mat.node_tree.links.remove(sock.links[0])
+            sock.default_value = (*colour, 1.0)
+            bsdf.inputs["Roughness"].default_value = 0.05
+            fixed.append(mat.name)
+        except Exception as e:  # noqa: BLE001
+            warnings.append(f"water {mat.name} not fixed: {e}")
+    return fixed
 
 
 # ---- weather on the geometry ----------------------------------------------------------------------------------------------
@@ -529,6 +612,92 @@ def probe(cfg, meshes, factor, lo, hi):
     return {"step_m": step, "rays": nx * ny, "floor_hits": len(hits), "areas": areas[:40]}
 
 
+PLANT_NAMES = ("tree", "greentree", "plant", "bush", "grass", "shrub", "coco", "leaf", "palm")
+
+
+def heights(cfg, factor, hi):
+    """Ground height under each [x, y] of cfg["heights"] (raw model frame): the first down-ray hit that is not a plant (trees, grass
+    cards). 2026-09-29: to stand a character on the ground around a place (views of the surroundings), not only on probed flat
+    areas. Each result: {"at": [x, y, z], "on": object hit, "flat": normal z ≥ 0.9} or {"at": [x, y], "miss": true}."""
+    depsgraph = bpy.context.evaluated_depsgraph_get()
+    scene = bpy.context.scene
+    out = []
+    for pt in cfg["heights"]:
+        x0, y0 = pt[0], pt[1]
+        sx, sy, sz = to_scene((x0, y0, pt[2] if len(pt) > 2 else 0), factor)
+        # a third number = start the ray there (just under a ceiling: the floor INSIDE a house, not its roof)
+        origin, found = Vector((sx, sy, sz if len(pt) > 2 else hi.z + 5)), None
+        for _ in range(12):                                        # step through plants
+            ok, loc, normal, _, obj, _ = scene.ray_cast(depsgraph, origin, Vector((0, 0, -1)))
+            if not ok or obj is None or obj.name == "PLATES_GROUND":
+                break
+            if any(k in obj.name.lower() for k in PLANT_NAMES):
+                origin = loc - Vector((0, 0, 0.05))
+                continue
+            found = (loc, normal, obj.name)
+            break
+        if found is None:
+            out.append({"at": [x0, y0], "miss": True})
+        else:
+            loc, normal, name = found
+            out.append({"at": [x0, y0, round((loc.z - LIFT_Z) / factor, 3)], "on": name, "flat": normal.z >= 0.9,
+                        "from_z": pt[2] if len(pt) > 2 else None})
+    return out
+
+
+def rooms(cfg, factor):
+    """Camera spots INSIDE houses (2026-09-29 — guessed from furniture positions they landed outside walls / against them): for each
+    {"name", "lo": [x, y], "hi": [x, y], "floor_z"} (raw model frame) a grid of points at eye height is tested — a ceiling within
+    ceiling_m above (so it is indoors), rays in 16 directions for room size. The point farthest from its nearest wall wins; it looks
+    along its longest free ray (the deepest view of the room). Result per room: {"name", "location", "look_at", "clear_m", "depth_m"}
+    or {"name", "miss": reason}."""
+    depsgraph = bpy.context.evaluated_depsgraph_get()
+    scene = bpy.context.scene
+    out = []
+    eye = float(cfg.get("eye_height_m", 1.6))
+    for r in cfg["rooms"]:
+        step, ceiling = float(r.get("step", 0.75)), float(r.get("ceiling_m", 5.0))
+        diag = math.hypot(r["hi"][0] - r["lo"][0], r["hi"][1] - r["lo"][1]) * factor * 1.1     # a ray longer than this left the house
+        best = None
+        x = r["lo"][0]
+        while x <= r["hi"][0]:
+            y = r["lo"][1]
+            while y <= r["hi"][1]:
+                p = Vector(to_scene((x, y, float(r["floor_z"]) + eye), factor))
+                up = scene.ray_cast(depsgraph, p, Vector((0, 0, 1)))
+                down = scene.ray_cast(depsgraph, p, Vector((0, 0, -1)))
+                if up[0] and (up[1].z - p.z) < ceiling and down[0] and (p.z - down[1].z) < eye + 0.4:
+                    dists = []
+                    for k in range(16):
+                        a = 2 * math.pi * k / 16
+                        d = Vector((math.cos(a), math.sin(a), 0))
+                        hit = scene.ray_cast(depsgraph, p, d, distance=60.0)
+                        dists.append((hit[1] - p).length if hit[0] else 60.0)
+                    inside = [d for d in dists if d <= diag]
+                    clear = min(dists)
+                    if len(inside) >= 12 and (best is None or clear > best[0]):   # walls nearly all round = a room (doors allowed)
+                        k_in = dists.index(max(inside))
+                        k_out = dists.index(max(dists)) if max(dists) > diag else None
+                        best = (clear, max(inside), (x, y), 2 * math.pi * k_in / 16,
+                                None if k_out is None else (2 * math.pi * k_out / 16, dists[k_out]))
+                y += step
+            x += step
+        if best is None:
+            out.append({"name": r["name"], "miss": "no closed room with a ceiling found in that box"})
+            continue
+        clear, deep, (x, y), a, door = best
+        z = float(r["floor_z"]) + eye
+        far = min(deep / factor - 0.3, 12.0)                              # raw model units, like x / y
+        item = {"name": r["name"], "location": [round(x, 3), round(y, 3), round(z, 3)],
+                "look_at": [round(x + math.cos(a) * far, 3), round(y + math.sin(a) * far, 3), round(z - 0.4, 3)],
+                "clear_m": round(clear / factor, 2), "depth_m": round(deep / factor, 2)}
+        if door:                                                        # a view out through a door / window from inside
+            ao = door[0]
+            item["look_out"] = [round(x + math.cos(ao) * 12.0, 3), round(y + math.sin(ao) * 12.0, 3), round(z - 0.2, 3)]
+        out.append(item)
+    return out
+
+
 def main():
     cfg = args_config()
     out_dir = cfg["out_dir"]
@@ -543,6 +712,18 @@ def main():
     manifest["scale_factor"] = factor
     manifest["bbox_m"] = {"min": [round(v, 2) for v in lo], "max": [round(v, 2) for v in hi],
                           "size": [round(hi[i] - lo[i], 2) for i in range(3)]}
+    if cfg.get("rooms"):
+        manifest["rooms"] = rooms(cfg, factor)
+        with open(os.path.join(out_dir, "manifest.json"), "w", encoding="utf-8") as f:
+            json.dump(manifest, f, ensure_ascii=False, indent=1)
+        log(f"rooms: {len(manifest['rooms'])}")
+        return
+    if cfg.get("heights"):
+        manifest["heights"] = heights(cfg, factor, hi)
+        with open(os.path.join(out_dir, "manifest.json"), "w", encoding="utf-8") as f:
+            json.dump(manifest, f, ensure_ascii=False, indent=1)
+        log(f"heights: {len(manifest['heights'])} points")
+        return
     if cfg.get("probe"):
         manifest["probe"] = probe(cfg, meshes, factor, lo, hi)
         with open(os.path.join(out_dir, "manifest.json"), "w", encoding="utf-8") as f:
@@ -556,6 +737,8 @@ def main():
     manifest["sky"] = dict(sky, used=setup_world(sky, warnings))
     if cfg.get("terrain", {}) is not False:                              # before the weather: snow / wet mix into the rebuilt colour
         manifest["terrain"] = fix_terrain(cfg.get("terrain"), warnings)
+    manifest["water_fixed"] = fix_water(warnings)
+    manifest["foliage_fixed"] = fix_foliage(warnings)
     if cfg.get("weather"):
         manifest["weather"] = apply_weather(cfg["weather"], warnings)
     scene = bpy.context.scene
@@ -592,6 +775,19 @@ def main():
         scene.camera = cam
         info = camera_info(cam, c["look_at"], res)
         plate = os.path.join(out_dir, f"plate_{c['name']}.png")
+        indoor = c.get("indoor") or None                                 # 29/09: rooms lit only through windows came out black
+        base_exposure, fill = scene.view_settings.exposure, None
+        if indoor:
+            scene.view_settings.exposure = base_exposure + float(indoor.get("exposure", 1.5))
+            if float(indoor.get("fill_w", 0) or 0) > 0:
+                lamp = bpy.data.lights.new(f"fill_{c['name']}", "POINT")
+                lamp.energy = float(indoor["fill_w"])
+                lamp.color = tuple(indoor.get("fill_color") or (1.0, 0.92, 0.8))
+                lamp.shadow_soft_size = 1.0
+                fill = bpy.data.objects.new(f"fill_{c['name']}", lamp)
+                scene.collection.objects.link(fill)
+                mid = (Vector(c["location"]) + Vector(c["look_at"])) / 2       # between the camera and what it looks at, near the ceiling
+                fill.location = (mid.x, mid.y, Vector(c["location"]).z + float(indoor.get("fill_up_m", 0.9)))
         try:
             sec = render_to(plate, scene.render.film_transparent)
         except RuntimeError as e:
@@ -625,6 +821,11 @@ def main():
             item["subject"] = {"location_m": [round(v, 3) for v in c["subject"]["location"]], "height_m": c["subject"].get("height_m")}
             for o in parts:
                 bpy.data.objects.remove(o, do_unlink=True)
+        if indoor:
+            scene.view_settings.exposure = base_exposure
+            item["indoor"] = indoor
+            if fill is not None:
+                bpy.data.objects.remove(fill, do_unlink=True)
         manifest["plates"].append(item)
         log(f"{c['name']}: {item['render_sec']}s")
     for a in cfg.get("animations") or []:                                # S5.1 / S5.6: camera moves through the place (frames)

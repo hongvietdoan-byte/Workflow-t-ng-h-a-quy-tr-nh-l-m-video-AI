@@ -27,6 +27,7 @@
   84 s · [15 36–42s, 47–53s] dưới câu nội tâm; [15 đ3 +60–70s] dưới "It was a mistake" · [16 đ2 +60.8–67.5s] → nhạc −16 dB khi xe buýt tới · [19 đ2
   +94–118s] nhạc tụt + gong + lặng ~17 s trên CU ↔ CU · [23 đ2 +34.4s] −60 dB, về dần 12 s.
 - **Với video AI:** Đ9 `sound.cut` / `sound.in` + `core/sound_intent.py` (cờ `sound_intent`); editing.md E4 "khoảng lặng trước cú ngoặt" (D6).
+- **Ví dụ thêm (S0.12 mẫu 20–28, 2026-09-29):** [20 đ2 +96–118s] nghỉ giữa trận: nhạc −63 dB, lặng ~20 s, CU hai phía rồi CU đối thủ 5–7 s — **cùng cấu trúc với 19** · [27 đ2 +114.7–120.5s] lặng sau loạt bắn, chim quay lại.
 - **Nguồn:** mẫu hình 5 `TONG_HOP.md` (10 video). **Độ tin:** chắc về hình thức (số đo khớp cắt 0,1–0,5 s ở 06, 10, 11, 12); ý đồ: có thể.
 
 ### Im lặng có chủ đích — chuyển thời gian, nín thở, chờ
@@ -37,6 +38,7 @@
   [07 đ2 +73.0–77.5s] lặng tuyệt đối dưới ECU mắt rồng 15,8 s → tiếng gầm ~76–78 s · (c) [14 đ2 +146.5–154.5s] lặng 8 s dưới cảnh chờ tin nhắn.
 - **Khi hợp / khi không:** ở video gộp, lặng sau thẻ "còn tiếp" có thể chỉ là chỗ nối tập (07) — không phải ý đồ.
 - **Với video AI:** tắt tiếng clip + tắt nhạc ở khâu trộn; im lặng hoàn toàn quá lâu nghe như lỗi (E3 ví dụ ✘) → cân nhắc giữ nền không khí.
+- **Ví dụ thêm (S0.12 mẫu 20–28, 2026-09-29):** [28 80–84s] tắt nhạc + timpani ở chỗ chuyển chiến trường → cung điện · [21 18s] nhạc −60 dB ở khung đen trước đoạn chữ.
 - **Nguồn:** mẫu hình 8 `TONG_HOP.md`; Thom [C2]. **Độ tin:** khá (a: 3 mẫu, đo khớp 0,1–0,2 s; b, c: mỗi ý 1 mẫu — có thể).
 
 ### Âm nhấn (đập / nổ / vút) trùng điểm cắt
@@ -46,6 +48,7 @@
   joke?" · [11 đ2 +66.6s] Explosion ở cắt (đầu lâu, mở tập) · [12 đ2 +80.2s] Clang / Whoosh · [14 37.9s] Slap ở cắt, Explosion 0,59 ở cắt 28,2 ·
   [15 2s] Explosion 0,81 cảnh mở.
 - **Với video AI:** `core/sfx_plan.py` đặt điểm nhấn + âm Đạo diễn ghi ở `sound.sfx` (E3).
+- **Ví dụ thêm (S0.12 mẫu 20–28, 2026-09-29):** [21 đ2] Clang 0,60 (48 s), 0,53 (60 s) — tiếng kim loại làm nhịp trận kiếm (khác tiếng đòn thân người ở 20).
 - **Nguồn:** mẫu hình 6 `TONG_HOP.md` (8 video). **Độ tin:** khá (nhãn AST điểm thấp 0,1–0,4, khớp ±1 s).
 
 ### Tiếng tim đập dưới câu lật bài / thú nhận
@@ -65,6 +68,7 @@
   trong cuộc gọi bắt cóc) · [15] 57–69%, 57–68 quãng lặng / 3 phút · đổi theo cảnh: [17] đoạn mở 48 quãng lặng ↔ cao trào 100%, 1 quãng lặng ·
   [10] bi kịch ↔ tiệc.
 - **Với video AI:** kiểu A dễ làm (một bài dài + hạ nhạc 8–12 dB dưới giọng, E4); kiểu B cần kế hoạch `sound` từng shot.
+- **Ví dụ thêm (S0.12 mẫu 20–28, 2026-09-29):** [28 đ2] nhạc liền, 0 quãng lặng dưới lời kể cao trào (lời kể là điểm nhấn) · [21 đ2] trận 160 s 0 quãng lặng · [22] MV rap LRA 3,0.
 - **Nguồn:** mẫu hình 4 `TONG_HOP.md` (14 video, tách lớp demucs). **Độ tin:** khá.
 
 ### Màu nhạc theo nhịp kịch — hoặc giữ một màu để giữ tông
@@ -83,6 +87,7 @@
   lên · [09 đ2 +71.5s] nhạc lên ở cắt sang đám mây khổng lồ · phản ví dụ [25 116–124s] nhạc −19 dB → −67 dB khi khu vườn mái mở ra (121,2 s).
 - **Khi hợp / khi không:** ở drama thường đi **sau một nhịp lặng** (12, 16). Cùng loại khoảnh khắc, hai cách ngược nhau → là "một cách làm",
   không phải quy luật.
+- **Ví dụ thêm (S0.12 mẫu 20–28, 2026-09-29):** [20 54–88s] nhạc −50 → −21 dB đúng lúc tài xế dắt xe ra khỏi hẻm, ra phố.
 - **Nguồn:** mẫu hình 7 `TONG_HOP.md` + 25. **Độ tin:** khá cho hình thức; ý đồ: có thể.
 
 ### Đoạn thiết lập không nhạc / nhạc nhỏ, nhạc vào ở chữ tên phim hoặc khi truyện bắt đầu
@@ -90,6 +95,7 @@
 - **Có thể phục vụ:** dựng luật chơi trước để phần nhạc / lời sau được hiểu theo truyện · đánh dấu cấu trúc (hết mở màn → vào truyện) thay lời.
 - **Ví dụ:** [23 0–52s] ký giấy, phòng chờ, nền −38 dB, nhịp tim → bài hát từ 52 s · [18 0–18s] 6 khung báo trước không nhạc → nhạc vào ở chữ tên
   phim · [09 58s] nhạc lên ở tên phim (0–29 s nhạc −38…−46 dB dưới tiếng gió) · [16 4–42s] nhạc lên rất chậm −49 → −20 dB dưới shot đi bộ.
+- **Ví dụ thêm (S0.12 mẫu 20–28, 2026-09-29):** [22 0–40s] hành lang tối + gõ cửa + huýt sáo, bài vào ~44 s · [24 0–36s] tiếng tàu + sóng, hát vào ~36 s · [27 0–23s] chỉ tiếng rừng · [20 0–50s] nhạc −50 dB dưới cú máy mở.
 - **Nguồn:** `TONG_HOP.md` (ứng viên mẫu hình mới, 3–4 video). **Độ tin:** khá.
 
 ### Âm ngoài khung / cầu âm giữa hai shot (J / L)

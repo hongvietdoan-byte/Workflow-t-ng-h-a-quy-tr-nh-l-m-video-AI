@@ -1,5 +1,8 @@
 """Thử nghiệm "tháp đồng hồ giống FF 90–100%" (2026-09-25) — KHÔNG phải một bước của pipeline, chỉ để đo.
 
+⚠ 2026-09-29: dùng mô hình fan FFXN và tọa độ của nó — đã thay bằng file 3D chính thức (docs/HUONG_DAN_3D.md mục 10). Giữ để đọc lại
+kết quả cũ; chạy lại thì đổi MODEL / TOWER / CAMERAS sang bản chính thức (tháp (−217,07; 132,04), quảng trường z ≈ 9,4).
+
 Ba lệnh:
   render   Blender render mô hình 3D tháp đúng góc máy của một shot (9:16). --sky C = trời trong suốt (để tự vẽ trời đêm).
   plate    1 ảnh Deepix: ảnh render làm NỀN + ảnh chuẩn nhân vật; prompt bảo giữ nguyên kiến trúc, chỉ đổi sang đêm.

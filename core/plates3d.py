@@ -137,7 +137,7 @@ def plan(model: str, out_dir: str, sky: str = "A", sun_elevation: float = 35, su
          presets: Optional[List[str]] = None, real_height_m: Optional[float] = None, decimate: float = 1.0,
          resolution=(1280, 720), engine: str = "auto", samples: int = 16, cameras: Optional[List[Dict]] = None,
          ground: bool = True, weather: Optional[Dict] = None, sky_extra: Optional[Dict] = None, only_cameras: bool = False,
-         probe: Optional[Dict] = None) -> Dict:
+         probe: Optional[Dict] = None, heights: Optional[List] = None, rooms: Optional[List] = None) -> Dict:
     """only_cameras: render just `cameras` (the shot cameras of a location pack), no preset views. weather: {"snow","wet","fog"}
     0..1 on the geometry. sky_extra: more sky keys for tools/render_plates.py (sun_strength, sun_color, strength, exposure)."""
     if not os.path.exists(model):
@@ -149,7 +149,7 @@ def plan(model: str, out_dir: str, sky: str = "A", sun_elevation: float = 35, su
     return {"model": os.path.abspath(model), "out_dir": os.path.abspath(out_dir), "resolution": list(resolution), "engine": engine,
             "samples": int(samples), "real_height_m": real_height_m, "decimate": float(decimate), "ground": bool(ground),
             "presets": [] if only_cameras else list(presets or PRESETS), "cameras": cameras or [], "depth": True,
-            "weather": dict(weather or {}), **({"probe": probe} if probe else {}),
+            "weather": dict(weather or {}), **({"probe": probe} if probe else {}), **({"heights": heights} if heights else {}), **({"rooms": rooms} if rooms else {}),
             "sky": {"mode": sky, "sun_elevation": float(sun_elevation), "sun_azimuth": float(sun_azimuth),
                     "hdri": os.path.abspath(hdri) if hdri else None, **(sky_extra or {})}}
 
@@ -316,3 +316,17 @@ def summary(manifest: Dict) -> str:
     return (f"{m.get('size_mb', '?')} MB · {m.get('triangles', 0):,} tam giác · nhập {m.get('import_sec', '?')} s · "
             f"{len(times)} ảnh nền, render {min(times, default=0):.1f}–{max(times, default=0):.1f} s/ảnh · engine "
             f"{manifest.get('engine')} · tổng {manifest.get('total_sec', '?')} s · tỉ lệ ×{manifest.get('scale_factor')}")
+
+
+def ground_heights(model: str, points: List, out: str, real_height_m: Optional[float] = None, blender: Optional[str] = None) -> List[Dict]:
+    """Ground height (raw model frame) under each [x, y], plants skipped — Blender, no render (tools/render_plates.py `heights`)."""
+    cfg = plan(model, out, only_cameras=True, real_height_m=real_height_m, heights=[list(p[:3]) for p in points])
+    return render(cfg, blender, timeout=1800)["heights"]
+
+
+def room_cameras(model: str, boxes: List[Dict], out: str, real_height_m: Optional[float] = None, blender: Optional[str] = None) -> List[Dict]:
+    """Camera spot + view inside each house box ({"name", "lo", "hi", "floor_z"}, raw model frame) — Blender, no render
+    (tools/render_plates.py `rooms`)."""
+    cfg = plan(model, out, only_cameras=True, real_height_m=real_height_m, rooms=list(boxes))
+    return render(cfg, blender, timeout=1800)["rooms"]
+

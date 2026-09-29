@@ -8,3 +8,8 @@ os.environ.setdefault("DASHBOARD_SYNC_BACKGROUND", "0")      # folder auto-sync 
 # with the one-pass Director — each feature's own tests switch it on explicitly (tests/test_project_budget.py, test_director_two_pass.py)
 os.environ.setdefault("FEATURE_PROJECT_BUDGET", "0")
 os.environ.setdefault("FEATURE_DIRECTOR_TWO_PASS", "0")
+# 2026-09-29: tests that call plates3d.render took this computer's real Blender lock and hung for as long as a real render ran
+# (tower pack) — tests get their own lock file (test_concurrency_v4 still sets its own per test)
+import tempfile as _tempfile  # noqa: E402
+
+os.environ.setdefault("PLATES3D_LOCK", os.path.join(_tempfile.mkdtemp(prefix="plates3d_test_"), "blender.lock"))

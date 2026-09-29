@@ -22,6 +22,7 @@
 - **Với video AI:** hai cách: (1) một lần sinh nhiều shot có đường máy nối (Seedance, xem mục sau) · (2) hai shot riêng: shot A kết ở khung che
   kín bởi vật cụ thể, shot B mở từ cùng trạng thái — ghi ở `transition_in` + motion prompt của cả hai; ảnh khung cuối / khung đầu (cờ
   `end_frames`) giúp khớp.
+- **Ví dụ thêm (S0.12 mẫu 20–28, 2026-09-29):** [24 ~16–30s] biển quảng cáo sóng biển → nước tràn ra sân ga → dưới nước: chuyển thế giới qua **một vật trong khung** (MV Kling AI).
 - **Nguồn:** người dùng (cách làm nghề, 2026-09-29); dp.md Q12; Dmytryk "cắt giữa chuyển động để chuyển động che vết cắt" [E2]. **Độ tin:**
   cách làm: chắc (nghề + nguồn); ví dụ: có thể (1 mẫu CM) — cần thêm mẫu.
 
@@ -40,6 +41,7 @@
 - **Ví dụ:** (a) [08 109–120s] khói màu → **chớp trắng 114 s** → top-down → sa mạc 119,8 s, trùng đầu điệp khúc 2 (±1 s) · (b) [10] insert chớp
   trời 0,3–0,4 s giữa các CU khóc · (c) [18 đ2 +71–98s] chớp trắng cháy khung (#36–37) trong đêm đèn pin.
 - **Với video AI:** chớp trắng / chớp trời là tài sản dựng (ffmpeg), không tốn lượt sinh; chớp làm phép đo cắt bắt nhầm (08, 09, 17).
+- **Ví dụ thêm (S0.12 mẫu 20–28, 2026-09-29):** [24 ~72–77s] pha lê tím nổ → khung trắng → đời thường · [28 đ2 +128–147s] zoom vào trắng → vườn địa đàng ("reset").
 - **Nguồn:** mẫu 08, 10, 18. **Độ tin:** khá (3 mẫu, 3 ý đồ khác nhau).
 
 ### Shot nối bối cảnh (insert vật / toàn cảnh rỗng giữa hai cảnh)
@@ -59,6 +61,7 @@
   điểm cắt · [14 108.4–131s] bóng tối → tỉnh dậy + insert lịch + "tôi quay lại rồi", lặng xen giữa · [15 đ3 +77.6–80.5s] insert hồi ức nụ hôn
   (tông hồng / xanh neon) kèm Ding + Whoosh · [23 đ1] ký ức = cụm 0,6–1,1 s màu neon / tuyết giữa shot dài vàng nâu.
 - **Với video AI:** màu làm ở hậu kỳ (E5) + lặng / dấu âm ở khâu trộn — không cần thẻ "X năm trước".
+- **Ví dụ thêm (S0.12 mẫu 20–28, 2026-09-29):** [27 đ2 +60–89s] hồi ức: khung đỏ cam + nhạc vọt 14 dB; về hiện tại bằng CU mắt robot đổi xanh → đỏ · [26 89.7s] 1 s đen + tiếng mưa (tỉnh mơ).
 - **Nguồn:** mẫu 10, 11, 14, 15, 23 (mẫu hình 8, 11 `TONG_HOP.md`). **Độ tin:** khá → chắc (5 mẫu, đo khớp tới 0,1–0,2 s ở 10, 11).
 
 ### Cắt khớp (match cut)

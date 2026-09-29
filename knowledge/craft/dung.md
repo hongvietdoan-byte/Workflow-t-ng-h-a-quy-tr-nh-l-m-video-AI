@@ -33,6 +33,7 @@
   1,9 s · (c) [11 141.9–152.6s] 10 insert 0,3–0,9 s lọ sao giấy → chữ trên sao · (d) [23 đ1] ký ức 0,6–1,1 s giữa shot 12–25 s · (e) [09 27.8–48.4s]
   ~12 shot ~1,5 s dưới giọng kể.
 - **Với video AI:** shot rất ngắn giấu lỗi động tác; nhưng mỗi shot vẫn là một lần sinh (clip tối thiểu) → gom nhiều shot một lần sinh (Q9 H5).
+- **Ví dụ thêm (S0.12 mẫu 20–28, 2026-09-29):** [24 65.8–68.2s] cắt vụn **cùng một take** 7 × 0,3 s (nhấn nhịp không cần sinh thêm clip) · [26 đ2 +74–82s] 8 shot cùng khung, tư thế đổi dần + dấu "EXILE" — nén thời gian, hài.
 - **Nguồn:** mẫu hình 2 `TONG_HOP.md` (7 video). **Độ tin:** khá.
 
 ### Tiết chế cắt trong pha hành động — hoặc cắt vụn có chủ đích
@@ -44,6 +45,7 @@
 - **Ví dụ:** [19 đ2 +45.3–94.3s] cỡ rộng, shot 2–7 s, máy đi theo (trung vị 2,52 s, đổi ×1,9) · [03 143.5–165.4s] 21,9 s đánh liền giữa shot ~1,8 s ·
   ngược lại [17 đ2] 0,75 s cắt vụn.
 - **Với video AI:** động tác AI dễ lỗi → [suy luận] thường phải ngắn hơn phim thật; muốn giữ lâu thì quay thử rẻ trước (dp.md Q12).
+- **Ví dụ thêm (S0.12 mẫu 20–28, 2026-09-29):** [20 đ2] 1,87 s máy cầm tay trong hẻm (19 cùng thể loại: cỡ rộng 2,52 s) · [21 đ2] đấu kiếm đêm 2,45 s (ngưỡng 0,10).
 - **Nguồn:** Schiff [C3] (đọc trọn); mẫu 03, 17, 19. **Độ tin:** khá.
 
 ### Cắt xen (cross-cutting) — nghe lén, người xem biết trước
@@ -63,6 +65,7 @@
   [08 47.3–67.3s] một CU 20 s trọn điệp khúc 1; [08] cắt trễ đầu câu hát 1,4–1,6 s.
 - **Với video AI:** lập bảng câu hát / phách trước khi sinh để mỗi clip đúng độ dài (`music_timing`). **Đã sửa (người dùng duyệt 2026-09-29):** editing.md E4
   nay ghi bám câu / cảnh hoặc bám phách là lựa chọn theo ngữ cảnh (trước: phách là cách chính).
+- **Ví dụ thêm (S0.12 mẫu 20–28, 2026-09-29):** [24] MV làm bằng Kling AI, 40,6 shot/phút, trúng phách 33% so với ngẫu nhiên 36% · [22 đ2] 22% / 27% → 3 MV đo được đều không bám phách.
 - **Nguồn:** `cong_cu/beat_align.py` (librosa — có thể lệch pha, cần nghe tai); [E31] (thấp–tb). **Độ tin:** khá (2 MV đo, cùng chiều).
 
 ### Mở bằng cảnh tương lai / giấc mơ rồi quay về
@@ -70,6 +73,7 @@
 - **Có thể phục vụ:** móc người xem trong 15–30 s đầu · người xem biết điều nhân vật chưa biết · đặt kỳ vọng rồi lật (lãng mạn → hài).
 - **Ví dụ:** [10 0–14.2s] đối đầu → cắt vào im lặng · [15 0–18s] nụ hôn crush + bạn thân (Explosion, tim đập) → quay về; phát lại 99.6–155.2 s ·
   [11 0–27s] giấc mơ cầu hôn → tỉnh dậy 28,4 s · biến thể rời rạc không lời: [18 0–13.4s] 6 khung "báo trước" rồi mới vào tên phim.
+- **Ví dụ thêm (S0.12 mẫu 20–28, 2026-09-29):** [26 0–89.7s] giấc mơ phi hành gia → 1 s đen + tiếng mưa → buổi sáng **lặp lại đúng các shot đầu** (đồng hồ, đánh răng, bữa sáng).
 - **Nguồn:** mẫu hình 11 `TONG_HOP.md`. **Độ tin:** khá (4 mẫu; 3 là AI drama kênh quảng bá).
 
 ### Lớp chữ / giao diện / thẻ tên trong hình mang truyện
@@ -82,6 +86,7 @@
   đ2 +113.9s] HUD "1/3 → 2/3" · đạo cụ [14 56.5s] xét nghiệm ADN, [17 đ2 ~161s] giấy "Don't PANIC" · [16 đ2 +129.6–147.3s] "YOU'LL BE OK" hiện theo tay ·
   [08 99.3–101.4s] trang đánh máy trùng lời.
 - **Với video AI:** làm ở hậu kỳ / ghép (model vẽ chữ kém) — không tốn lượt sinh video.
+- **Ví dụ thêm (S0.12 mẫu 20–28, 2026-09-29):** [21 23–64s] chữ giới thiệu thế giới chạy trên tranh nền ~40 s, sau đoạn mở nhanh 15 s.
 - **Nguồn:** mẫu hình 12, 14 `TONG_HOP.md`. **Độ tin:** chắc (≥ 8 video).
 
 ### Ranh giới tập trong video gộp
@@ -98,4 +103,5 @@
 - **Ví dụ:** [09 0–158s] 2:38 đầu không thoại (leo vách, túp lều, vết khắc đếm ngày) · [18 18–93s] montage vườn táo trên nhạc phẳng · [25] 1 câu
   thoại trong 183 s.
 - **Với video AI:** tránh bài toán khớp môi; đòi hỏi hình kể được — động cơ + chuỗi hành động rõ trong motion prompt (dp.md Q12).
+- **Ví dụ thêm (S0.12 mẫu 20–28, 2026-09-29):** [27] 0 câu thoại trong 340 s đo (CGI game) · [26] chỉ tiếng động + nhạc.
 - **Nguồn:** mẫu 09, 18, 25. **Độ tin:** khá (3 mẫu).

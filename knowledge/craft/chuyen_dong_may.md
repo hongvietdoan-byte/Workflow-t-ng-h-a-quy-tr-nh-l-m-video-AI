@@ -14,6 +14,7 @@
   ở đoá hoa · [04, 06, 10, 12] tĩnh 76–83% dưới thoại.
 - **Với video AI:** an toàn nhất cho nhận diện (dp.md Q5: 19 clip duyệt); viết khẳng định "locked camera, static shot" [S1]; clip tĩnh vẫn có
   thể tự chèn cảnh lạ đầu / cuối. "Khung trống rồi nhân vật vào" — [suy luận] prompt được, chưa thử.
+- **Ví dụ thêm (S0.12 mẫu 20–28, 2026-09-29):** [27 đ1] CGI game tĩnh 88% suốt 3 phút rừng yên — kể bằng chuyển động của chim / robot, không bằng máy · [28] phim AI tĩnh 75–80%, shot ≤ 6,6 s · [26] CGI sinh viên 72%.
 - **Nguồn:** [C1], [S1]; số đo S0.12. **Độ tin:** khá.
 
 ### Đẩy vào chậm (push-in / dolly in / zoom in chậm)
@@ -27,6 +28,7 @@
 - **Khi hợp / khi không:** cần một điểm đến rõ (mắt, vật); đẩy vào cùng lúc nhân vật bước tới → lỗi "đi tại chỗ" (dp.md Q5 job 206).
 - **Với video AI:** "slow push-in" (Seedance), "dolly forward" (Kling); muốn không đổi phối cảnh thì tả "camera stays in place, lens zooms";
   với ảnh tĩnh làm zoom hậu kỳ (13) là rẻ nhất.
+- **Ví dụ thêm (S0.12 mẫu 20–28, 2026-09-29):** [27 đ2 +70–85s] zoom in 14,8 s trên hồi ức chiến tranh · [28 đ2 +128–147s] zoom in 19 s vào khung trắng trước cảnh vườn địa đàng.
 - **Nguồn:** [C1], [S1][S3]; mẫu 05, 07, 11, 13, 23. **Độ tin:** khá (5 mẫu, 4 ý đồ khác nhau).
 
 ### Lùi ra (pull-out / dolly out) để lộ không gian
@@ -54,6 +56,7 @@
   · [17 đ2 +99.7–143.1s] cao trào tĩnh 17%, roll 21%.
 - **Với video AI:** rủi ro nhận diện cao nhất đã đo (job 198, nhận diện 0,20) → dành cho shot không cần mặt rõ; hoặc thêm rung ở hậu kỳ
   [suy luận, chưa thử].
+- **Ví dụ thêm (S0.12 mẫu 20–28, 2026-09-29):** [20 đ2] đánh trong hẻm hẹp: 71% shot có chuyển động, roll 14%, trung vị 1,87 s — không gian hẹp không cho cỡ rộng như 19.
 - **Nguồn:** [C1], dp.md Q5; mẫu 17, 18. **Độ tin:** có thể → khá (2 phim quay thật; dấu hiệu gián tiếp qua OpenCV).
 
 ### Xoay trục ống kính (roll) trong shot
@@ -81,6 +84,7 @@
   0,10 vẫn không có cắt; **chưa xác minh** bằng 5 khung/giây) · [08 6–29.9s] một shot trọn 3 câu hát.
 - **Với video AI:** clip sinh ngắn (vài giây tới ~15 s tùy model) → "cú máy dài" phải ghép nhiều lần sinh + nối bằng che máy (`chuyen_canh.md`);
   Holben [C1]: steadicam cho "walk-and-talk" và vũ đạo phức tạp.
+- **Ví dụ thêm (S0.12 mẫu 20–28, 2026-09-29):** [20 3.8–78.9s] ~75 s máy đứng ở đầu hẻm, người đi vào / ra khung (ngủ trên xe → khách tới → trả giá → dắt xe đi) — nhịp đời thường trước trận đánh; đã xem tờ ảnh 0–80 s (chắc).
 - **Nguồn:** [C1]; mẫu 03, 08, 17. **Độ tin:** có thể.
 
 ### Vòng cung / quay quanh (arc / orbit)

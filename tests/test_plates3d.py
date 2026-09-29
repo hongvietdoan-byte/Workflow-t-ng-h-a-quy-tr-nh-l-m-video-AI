@@ -131,3 +131,25 @@ class RealBlenderTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class GroundHeightsTests(unittest.TestCase):
+    """2026-09-29: ground height under chosen points (surroundings spots) — a Blender run without a render."""
+    def test_plan_carries_the_points_and_the_result_comes_back(self):
+        d = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, d, True)
+        model = os.path.join(d, "m.fbx")
+        open(model, "wb").write(b"FBX")
+        seen = {}
+
+        def fake_render(cfg, blender=None, timeout=0):
+            seen.update(cfg)
+            return {"heights": [{"at": [p[0], p[1], 1.5], "on": "ground", "flat": True} for p in cfg["heights"]]}
+
+        from unittest import mock
+        with mock.patch.object(plates3d, "render", fake_render):
+            out = plates3d.ground_heights(model, [(1, 2), [3, 4, 99]], os.path.join(d, "out"))
+        self.assertEqual(seen["heights"], [[1, 2], [3, 4, 99]])
+        self.assertEqual(seen["presets"], [])
+        self.assertEqual([o["at"] for o in out], [[1, 2, 1.5], [3, 4, 1.5]])
+        self.assertNotIn("heights", plates3d.plan(model, os.path.join(d, "o2")))

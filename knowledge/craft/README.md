@@ -53,10 +53,17 @@ Số đo: điểm cắt `ffmpeg scene`, chuyển động máy OpenCV, âm `ebur1
 | 19 | Kings of Triad (Kevin Le) | hành động võ thuật |
 | 23 | "we can't be friends" (Ariana Grande) | MV kể chuyện |
 | 25 | Leaf of Faith (CGMeetup) | phim ngắn CGI không lời |
+| 20 | NIGHT SHIFT (Lorenz Ruwwe) | hành động quay thật, hẻm Sài Gòn, tiếng Việt |
+| 21 | Kodama (Short of the Week) | hành động samurai + VFX, rất tối |
+| 22 | "Not Like Us" (Kendrick Lamar) | MV rap kể chuyện |
+| 24 | New Born — LUNA (Kling AI) | **MV làm bằng AI** |
+| 26 | Crunch (CGMeetup) | phim ngắn CGI 3D |
+| 27 | The Last Bastion (Blizzard) | phim ngắn CGI game, không thoại |
+| 28 | RESET (Max Barskih) | **phim ngắn AI** sử thi |
 | CM | Clip mẫu ClipAI (MV 201 s) | `docs/PHAN_TICH_CLIP_MAU_CLIPAI_2026-09-28.md` |
 
-Video 20–22, 24, 26–28 của S0.12 đang đo dở (nhánh khác) — **chưa dùng làm ví dụ**; trừ phép đo "cắt so với phách" của 22 đoạn 1 đã ghi
-trong `TONG_HOP.md` (dùng ở `dung.md`).
+Video 20–28 viết file 2026-09-29 tối; ví dụ của chúng ghi ở dòng "**Ví dụ thêm (S0.12 mẫu 20–28)**" trong từng mục. Phim tối (20, 21):
+số shot phụ thuộc ngưỡng cắt — xem file từng video.
 
 ## Nguồn
 Mã `[Qn]` / `[En]` là của `knowledge/sources.md`; mã `[Sn]` và `#n` là của `research/craft/NGUON.md`. **Đọc trọn ở lượt 2 (2026-09-29, WebFetch):**
@@ -83,6 +90,6 @@ chung) **không** dùng làm căn cứ ở kho này — mục nào chỉ dựa v
 
 ## Còn mở (việc sau, không chặn)
 - Nghe bằng tai các chỗ ghi "nghe bằng số" (danh sách ở `TONG_HOP.md` mục Tồn đọng).
-- Viết ví dụ từ 20–22, 24, 26–28 khi nhánh S0.12 xong; thêm mẫu cho các mục còn *giả thuyết* (ống kính tele / rộng, dutch, orbit, dolly zoom,
+- ~~Viết ví dụ từ 20–22, 24, 26–28~~ (xong 2026-09-29 tối, 21 dòng ví dụ ở 5 nhóm). Thêm mẫu cho các mục còn *giả thuyết* (ống kính tele / rộng, dutch, orbit, dolly zoom,
   whip pan) — chưa đo được bằng OpenCV hiện có.
 - Nguồn còn chặn tải: ClipAI docs (403), Volcengine Ark (cần đăng nhập) — phần "với video AI" dựa vào `dp.md` Q5 và `research/craft/trung_quoc/PROMPT.md`.

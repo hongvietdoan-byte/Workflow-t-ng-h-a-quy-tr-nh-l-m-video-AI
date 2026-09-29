@@ -254,3 +254,23 @@ class PhotoPlateTests(PackTests):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class DayLightTests(unittest.TestCase):
+    """2026-09-29: a place's own daylight (official FF export) for clear-day plates only, and in the cache key only when set."""
+    def test_day_light_only_for_clear_day(self):
+        entry = {"light": {"day": {"sun_elevation": 50, "view_transform": "Standard", "sun_strength": 4.5}}}
+        day = {"sky": "A", "sun_elevation": 35, "sky_extra": {"sun_strength": 2.5, "exposure": -0.5}}
+        out = location_pack.day_light(day, entry)
+        self.assertEqual(out["sun_elevation"], 50)
+        self.assertEqual(out["sky_extra"], {"sun_strength": 4.5, "exposure": -0.5, "view_transform": "Standard"})
+        night = {"sky": "C", "sun_elevation": 20, "sky_extra": {"sun_strength": 0.5}}
+        self.assertEqual(location_pack.day_light(night, entry), night)
+        self.assertEqual(location_pack.day_light(day, {}), day)
+
+    def test_cache_key_changes_with_light_only_when_set(self):
+        cam, env = {"location": [0, 0, 0]}, {"time": "day", "weather": "clear"}
+        base = {"sha256": "x"}
+        k0 = location_pack.cache_key(base, cam, env, (10, 10))
+        self.assertEqual(k0, location_pack.cache_key(dict(base, light=None), cam, env, (10, 10)))
+        self.assertNotEqual(k0, location_pack.cache_key(dict(base, light={"day": {"exposure": 0}}), cam, env, (10, 10)))

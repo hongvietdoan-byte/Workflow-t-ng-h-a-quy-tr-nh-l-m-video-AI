@@ -43,8 +43,10 @@ def _file_sha(path: str) -> str:
 
 def set_model3d(conn, asset_id: int, path: str, spots: Dict[str, Dict], default_spot: Optional[str] = None,
                 anchor: Optional[List[float]] = None, real_height_m: Optional[float] = None, sun_azimuth: float = 250.0,
-                notes: str = "") -> Dict:
-    """Register (or update) the 3D model of a place. The other profile keys are kept."""
+                notes: str = "", light: Optional[Dict] = None) -> Dict:
+    """Register (or update) the 3D model of a place. The other profile keys are kept. `light`: {"day": {sun_elevation, and sky keys
+    such as view_transform / look / exposure / strength / sun_strength / sun_color}} — how this model looks like the game in daylight
+    (2026-09-29, official FF export: Blender's default view washed it out); None keeps what the place had."""
     if not os.path.exists(path):
         raise LocationPackError(f"không thấy file 3D: {path}")
     if not spots:
@@ -56,11 +58,20 @@ def set_model3d(conn, asset_id: int, path: str, spots: Dict[str, Dict], default_
     if row is None or row["kind"] != "location":
         raise LocationPackError("chỉ gắn mô hình 3D cho mục loại bối cảnh")
     prof = json.loads(row["profile"]) if row["profile"] else {}
+    if light is None:
+        light = (prof.get("model3d") or {}).get("light")
     prof["model3d"] = {"path": os.path.abspath(path), "sha256": _file_sha(path), "real_height_m": real_height_m, "anchor": anchor,
                        "spots": {k: {"at": [float(v) for v in sp["at"]], "facing": float(sp.get("facing", 0)),
-                                     "label": sp.get("label", k)} for k, sp in spots.items()},
+                                     "label": sp.get("label", k),
+                                     # 2026-09-29 surroundings: what the camera looks at from here (not the landmark) + a group name
+                                     **({"view": [float(v) for v in sp["view"]]} if sp.get("view") else {}),
+                                     **({"group": str(sp["group"])} if sp.get("group") else {}),
+                                     # inside a house (29/09): lighting for its camera + a second view out through a door / window
+                                     **({"indoor": dict(sp["indoor"])} if sp.get("indoor") else {}),
+                                     **({"view_out": [float(v) for v in sp["view_out"]]} if sp.get("view_out") else {})}
+                           for k, sp in spots.items()},
                        "default_spot": default_spot if default_spot in spots else next(iter(spots)), "sun_azimuth": float(sun_azimuth),
-                       "notes": notes}
+                       "notes": notes, **({"light": light} if light else {})}
     conn.execute("UPDATE assets SET profile=? WHERE id=?", (json.dumps(prof, ensure_ascii=False), asset_id))
     conn.commit()
     return prof["model3d"]
@@ -129,14 +140,28 @@ def shots_at_3d_places(conn, pid: int) -> List[Dict]:
     return out
 
 
+def day_light(benv: Dict, entry: Dict) -> Dict:
+    """A clear-day render (sky A) of a place with its own `light.day` takes that light (sun height, view, exposure …) over the generic
+    day values; night / dusk / bad weather (sky C, painted after) keep plate_env's light."""
+    day = (entry.get("light") or {}).get("day")
+    if not day or benv.get("sky") != "A":
+        return benv
+    out = dict(benv, sky_extra=dict(benv.get("sky_extra") or {}, **{k: v for k, v in day.items() if k != "sun_elevation"}))
+    if "sun_elevation" in day:
+        out["sun_elevation"] = day["sun_elevation"]
+    return out
+
+
 def cache_root(data_root: str) -> str:
     return os.path.join(data_root, "_plates3d", "cache")
 
 
 def cache_key(entry: Dict, camera: Dict, env: Dict, resolution) -> str:
     cam = {k: v for k, v in camera.items() if k != "name"}          # the camera, not which shot of which project asked for it
-    blob = json.dumps({"model": entry["sha256"], "h": entry.get("real_height_m"), "cam": cam, "env": env, "res": list(resolution),
-                       "v": SCRIPT_VERSION}, sort_keys=True)
+    parts = {"model": entry["sha256"], "h": entry.get("real_height_m"), "cam": cam, "env": env, "res": list(resolution), "v": SCRIPT_VERSION}
+    if entry.get("light"):                                          # only when set: the keys of places without it stay the same
+        parts["light"] = entry["light"]
+    blob = json.dumps(parts, sort_keys=True)
     return hashlib.sha1(blob.encode("utf-8")).hexdigest()[:20]
 
 
@@ -229,7 +254,7 @@ def ensure_plates(conn, pid: int, data_dir: str, data_root: str, resolution=(115
             missing.setdefault((it["entry"]["sha256"], plate_env.key(it["env"])), []).append(it)
     for group in missing.values():
         first = group[0]
-        benv = plate_env.blender_env(first["env"], first["entry"].get("sun_azimuth", 250.0))
+        benv = day_light(plate_env.blender_env(first["env"], first["entry"].get("sun_azimuth", 250.0)), first["entry"])
         cams = []
         seen = set()
         for it in group:

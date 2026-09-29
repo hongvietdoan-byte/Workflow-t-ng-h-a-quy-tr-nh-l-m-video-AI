@@ -1,7 +1,7 @@
 r"""Gói bối cảnh (kế hoạch V4 mục 1): gắn mô hình 3D cho một khu vực trong Kho, dò chỗ đứng, xem / render nền theo góc máy các shot.
 
     py tools/location_pack.py probe  --model "D:\...\x.glb"                       dò mặt phẳng đi được (Blender, miễn phí)
-    py tools/location_pack.py register --asset 263 --model "D:\...\x.glb" --anchor 12.68 -31.13 33.5 [--spot tên x y z hướng]
+    py tools/location_pack.py register --asset 263 --model "D:\...\asset.fbx" --anchor -217.07 132.04 30 [--spot tên x y z hướng]
                                                                                    gắn mô hình + chỗ đứng (tự đề xuất từ dò nếu không đưa)
     py tools/location_pack.py plan   --project 6                                     góc máy + ô nhân vật của từng shot (không render)
     py tools/location_pack.py render --project 6                                     render nền còn thiếu (Blender, bộ nhớ đệm dùng chung)

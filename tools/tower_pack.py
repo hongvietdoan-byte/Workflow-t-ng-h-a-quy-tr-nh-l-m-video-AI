@@ -62,7 +62,7 @@ def cameras(m3d):
     ax, ay, az = m3d["anchor"]
     out = []
     for name, s in m3d["spots"].items():
-        if name in COVERED:
+        if name in COVERED or s.get("indoor"):                          # a room does not see the landmark
             continue
         x, y, z = s["at"]
         eye = z + EYE
@@ -71,7 +71,7 @@ def cameras(m3d):
                     "model_coords": True, "angle": "eye_level"})
     # reverse views: the plaza / houses / sea behind the camera line — from the default spot and the next two spots (29/09: the names
     # used to be the FFXN model's own; the official export has other spots)
-    others = [n for n in m3d["spots"] if n != m3d.get("default_spot") and n not in COVERED][:2]
+    others = [n for n in m3d["spots"] if n != m3d.get("default_spot") and n not in COVERED and not m3d["spots"][n].get("indoor")][:2]
     for name in [m3d.get("default_spot", "plaza_front")] + others:
         if name in m3d["spots"]:
             x, y, z = m3d["spots"][name]["at"]
@@ -79,7 +79,29 @@ def cameras(m3d):
             k = 20.0 / max(math.hypot(dx, dy), 1e-6)
             out.append({"name": f"eye_{name}_nguoc", "location": [x, y, z + EYE], "look_at": [x + dx * k, y + dy * k, z + EYE - 0.5],
                         "lens": 28, "model_coords": True, "angle": "eye_level"})
+    out += indoor_cameras(m3d)
+    for name, s in m3d["spots"].items():                             # surroundings (29/09): the view this spot was chosen for
+        if s.get("view") and not s.get("indoor"):
+            x, y, z = s["at"]
+            out.append({"name": f"eye_{name}_canh", "location": [x, y, z + EYE], "look_at": list(s["view"]), "lens": 28,
+                        "model_coords": True, "angle": "eye_level"})
     return out + covered_cameras(m3d)
+
+
+def indoor_cameras(m3d):
+    """Rooms (29/09, user: "bổ sung cả những góc cảnh trong nhà"): `_trong` looks into the room, `_ra` out through its door / window;
+    wide lens, the spot's own brighter view + fill lamp (render_plates camera.indoor)."""
+    out = []
+    for name, s in m3d["spots"].items():
+        if not s.get("indoor"):
+            continue
+        x, y, z = s["at"]
+        for tag, target, lens, light in (("trong", s.get("view"), 18, s["indoor"]),
+                                         ("ra", s.get("view_out"), 22, dict(s["indoor"], exposure=max(float(s["indoor"].get("exposure", 1.5)) - 0.5, 0)))):
+            if target:
+                out.append({"name": f"eye_{name}_{tag}", "location": [x, y, z + EYE], "look_at": list(target), "lens": lens,
+                            "model_coords": True, "angle": "eye_level", "indoor": light})
+    return out
 
 
 def animations(m3d, white: bool):
@@ -126,20 +148,23 @@ def main():
     ap.add_argument("--no-video", action="store_true")
     ap.add_argument("--only-video", default="", help="render just these videos (comma list of names, e.g. di_bo_vao), no stills")
     ap.add_argument("--only-covered", action="store_true", help="just the covered spots' views (day + night), no video")
+    ap.add_argument("--only-indoor", action="store_true", help="just the rooms' views (day + night), no video")
     a = ap.parse_args()
     if a.only_video:
         a.no_night = True
-    if a.only_covered:
+    if a.only_covered or a.only_indoor:
         a.no_video = True
     m3d = spots_of(a.asset, a.db)
     os.makedirs(a.out, exist_ok=True)
-    passes = [("ngay", {"sun_elevation": 35, "sun_azimuth": m3d.get("sun_azimuth", 250.0)}, None)]
+    day = dict((m3d.get("light") or {}).get("day") or {})           # the place's own daylight look (official FF export 29/09)
+    passes = [("ngay", {"sun_elevation": day.pop("sun_elevation", 35), "sun_azimuth": m3d.get("sun_azimuth", 250.0)}, day or None)]
     if not a.no_night and not a.test:
         passes.append(("dem", {"sun_elevation": 20, "sun_azimuth": 60.0},
                        {"strength": 0.04, "sun_strength": 0.5, "sun_color": [0.55, 0.65, 1.0], "exposure": -0.3}))
     report = {"asset": a.asset, "passes": []}
     for tag, sun, extra in passes:
-        cams = cameras(m3d)[:1] if a.test or a.only_video else (covered_cameras(m3d) if a.only_covered else cameras(m3d))
+        cams = cameras(m3d)[:1] if a.test or a.only_video else (covered_cameras(m3d) if a.only_covered else
+                                                              indoor_cameras(m3d) if a.only_indoor else cameras(m3d))
         cfg = plates3d.plan(m3d["path"], os.path.join(a.out, "_render_" + tag), sky="A", sun_elevation=sun["sun_elevation"],
                             sun_azimuth=sun["sun_azimuth"], resolution=RES, cameras=cams, only_cameras=True, sky_extra=extra,
                             real_height_m=m3d.get("real_height_m"), samples=16)
@@ -164,7 +189,8 @@ def main():
                                  "videos": vids, "warnings": man.get("warnings")})
     if a.only_covered:
         report["covered_spots"] = {c["name"]: {"spot": c["spot"], "camera": c["location"]} for c in covered_cameras(m3d)}
-    with open(os.path.join(a.out, "report_video.json" if a.only_video else ("report_covered.json" if a.only_covered else "report.json")),
+    with open(os.path.join(a.out, "report_video.json" if a.only_video else ("report_covered.json" if a.only_covered else
+                                                                           "report_indoor.json" if a.only_indoor else "report.json")),
               "w", encoding="utf-8") as f:
         json.dump(report, f, ensure_ascii=False, indent=1)
     print(json.dumps(report, ensure_ascii=False)[:1500])
