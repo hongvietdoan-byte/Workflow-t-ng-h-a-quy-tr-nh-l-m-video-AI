@@ -85,7 +85,14 @@
       "max_refs_with_reference_video": 4,
       "sound": true,
       "sound_with_reference_video": false,
-      "multi_shot": true
+      "multi_shot": true,
+      "speech_languages": [
+        "zh",
+        "en",
+        "ja",
+        "ko",
+        "es"
+      ]
     },
     "kling-video-o1": {
       "label": "Kling O1",
@@ -171,5 +178,5 @@
       "max_video_seconds": 30
     }
   },
-  "_note_video": "Seedance 1080p/4k chỉ có ở 2.0 (không Fast, không 2.5). Kling 3.0 Omni có video tham chiếu thì tối đa 10 s và không 4k, không sound. O1 khung đầu+cuối chỉ 5 hoặc 10 s. Seedance không trộn khung đầu/cuối với ảnh tham chiếu (chạy thật 2026-09-24)."
+  "_note_video": "Seedance 1080p/4k chỉ có ở 2.0 (không Fast, không 2.5). Kling 3.0 Omni có video tham chiếu thì tối đa 10 s và không 4k, không sound. O1 khung đầu+cuối chỉ 5 hoặc 10 s. speech_languages (Kling 3.0): ngôn ngữ thoại gốc theo Kling VIDEO 3.0 Model Guide chính thức (đọc 2026-09-29, S0.14 T1) — không có tiếng Việt, thoại Việt luôn là TTS ghép sau. Seedance không trộn khung đầu/cuối với ảnh tham chiếu (chạy thật 2026-09-24)."
 }

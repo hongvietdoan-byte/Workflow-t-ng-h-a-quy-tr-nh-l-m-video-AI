@@ -82,6 +82,10 @@ def summary_lines() -> List[str]:
                 bits.append(f"có video tham chiếu ≤ {span['max_with_reference_video']} s")
             if r.get("multi_shot"):
                 bits.append(f"multi-shot, mỗi shot ≤ {r.get('shot_prompt_limit', 512)} ký tự")
+            langs = r.get("speech_languages")
+            if langs:                                  # S0.14 T1: the official Kling 3.0 guide — no Vietnamese
+                bits.append("thoại gốc chỉ " + "/".join(langs) + (" (không tiếng Việt → giọng Việt là TTS ghép sau)"
+                                                                   if "vi" not in langs else ""))
         else:
             bits.append("độ phân giải " + "/".join(r.get("resolutions") or []))
             if r.get("refs_with_first_frame") is False:

@@ -558,6 +558,12 @@ class VideoRunner(_Runner):
             out["multi_prompt"] = [{"prompt": self._motion(r["id"])["motion_prompt"], "duration": shots.billed_shot_seconds(r["data"])}
                                    for r in group]
             from .adapters.clipai import KLING_SHOT_PROMPT_LIMIT
+            from . import speaker_lint                 # S0.14 T2: each shot of the group names who speaks in it
+            for r, m in zip(group, out["multi_prompt"]):
+                res = speaker_lint.apply(m["prompt"], [r["data"]], KLING_SHOT_PROMPT_LIMIT)
+                if res["missing"]:
+                    m["prompt"] = res["prompt"]
+                    self._diag(job, "warn", "speaker_unnamed", speaker_lint.message(f"S{r['idx']:02d}", res))
             long = [f"S{r['idx']:02d} ({len(m['prompt'])} ký tự)" for r, m in zip(group, out["multi_prompt"])
                     if len(m["prompt"]) > KLING_SHOT_PROMPT_LIMIT]
             if long:                     # W13: the cut is visible (the end of the prompt — often the ending action — is lost)
@@ -852,6 +858,7 @@ class VideoRunner(_Runner):
         lock = looks.video_sentence(proj)                       # S4.3: the look in every video prompt (#8: an anime close-up)
         if lock and lock not in motion:
             motion = f"{lock} {motion}"
+        motion = self._speakers_named(job, model, motion, group, setup)
         args = (path, motion, looks.video_negative(proj, mp["negative_prompt"]), duration, model)
         subj_refs = []
         if proj["use_subjects"] and "seedance" in (model or ""):
@@ -875,6 +882,23 @@ class VideoRunner(_Runner):
         if proj["video_audio"] or subj_refs or image_refs or ref_video:  # extra args only when used: older providers keep working
             args += (bool(proj["video_audio"]), subj_refs or None, image_refs or None, ref_video)
         return args
+
+    def _speakers_named(self, job, model, motion: str, group, setup: bool) -> str:
+        """S0.14 T2: a Kling clip whose prompt does not name who speaks → said in diag; with `speaker_tags` on, the sentence is added.
+        A Kling multi-shot group is checked shot by shot in _submit_kwargs (its shots go in multi_prompt)."""
+        from . import speaker_lint
+        if not speaker_lint.is_kling(model) or (group and not setup):
+            return motion
+        if setup and group:
+            rows = [r["data"] for r in group]
+        else:
+            row = self.p.conn.execute("SELECT data FROM scenes WHERE id=?", (job["scene_id"],)).fetchone()
+            rows = [json.loads((row["data"] if row else None) or "{}")]
+        from .adapters.clipai import PROMPT_LIMITS
+        res = speaker_lint.apply(motion, rows, PROMPT_LIMITS["kling"])
+        if res["missing"]:
+            self._diag(job, "warn", "speaker_unnamed", speaker_lint.message("clip", res))
+        return res["prompt"]
 
     def _usage(self, args, kwargs):
         info = getattr(self.provider, "usage_info", None)

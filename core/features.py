@@ -238,6 +238,13 @@ FEATURES: Dict[str, Dict] = {
         "verified": False,
         "why": "GĐ6 (R3/I4): chuẩn theo số đông của bộ ảnh, sửa sai người (Kenta→Maxim) rồi tự trả tiền gen lại",
     },
+    "speaker_tags": {
+        "label": "Prompt Kling có thoại mà chưa nêu tên người nói → code thêm \"X speaks (mouth moving, no sound).\" + người còn lại "
+                 "trong khung \"listens, mouth closed\" (tắt: chỉ báo trong chẩn đoán)",
+        "verified": False,
+        "why": "S0.14 T2 (2026-09-29): tài liệu chính thức Kling 3.0 gắn thoại theo tên nhân vật; người thử thấy Kling chia thoại giữa "
+               "nhân vật chưa chuẩn — chưa thử thật câu thêm có làm đúng người mở miệng hơn không (core/speaker_lint.py)",
+    },
 }
 
 

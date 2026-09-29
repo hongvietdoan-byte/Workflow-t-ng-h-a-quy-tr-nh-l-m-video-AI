@@ -53,6 +53,18 @@ class Plates3DTests(unittest.TestCase):
         self.assertEqual([m["name"] for m in plates3d.models(os.path.join(self.dir, "model 3D"))], ["thap dong ho.glb"])
         self.assertEqual(plates3d.models(os.path.join(self.dir, "none")), [])
 
+    def test_official_export_four_folders_down_is_listed(self):
+        """2026-09-29: Ingame_map_building/Ingame_map_building/ClockTower/T_30_XH_PCMAP_P16/asset.fbx was missed by the 3-level glob."""
+        deep = os.path.join(self.dir, "model 3D", "Ingame_map_building", "Ingame_map_building", "ClockTower", "T_30_XH_PCMAP_P16")
+        os.makedirs(deep)
+        open(os.path.join(deep, "asset.fbx"), "wb").write(b"FBX")
+        names = [m["name"] for m in plates3d.models(os.path.join(self.dir, "model 3D"))]
+        self.assertIn(os.path.join("Ingame_map_building", "Ingame_map_building", "ClockTower", "T_30_XH_PCMAP_P16", "asset.fbx"), names)
+        too_deep = os.path.join(self.dir, "model 3D", *["d"] * (plates3d.MODEL_DEPTH + 1))
+        os.makedirs(too_deep)
+        open(os.path.join(too_deep, "x.glb"), "wb").write(b"glTF")
+        self.assertEqual(len(plates3d.models(os.path.join(self.dir, "model 3D"))), 2)
+
     def test_render_runs_blender_in_the_background_and_the_plates_wait_for_review_with_their_camera(self):
         run = fake_blender()
         cfg = plates3d.plan(self.model, os.path.join(self.dir, "out"), sky="C", real_height_m=32)

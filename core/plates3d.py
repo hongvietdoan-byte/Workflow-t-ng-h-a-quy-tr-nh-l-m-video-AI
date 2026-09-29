@@ -25,6 +25,7 @@ from typing import Callable, Dict, List, Optional
 from . import assets
 
 MODEL_EXT = (".glb", ".gltf", ".fbx", ".obj", ".blend", ".usd", ".usda", ".usdc", ".usdz", ".stl")
+MODEL_DEPTH = 6   # folders below MODEL3D_DIR still searched (a zip unpacked into a folder of its own name adds two)
 SCRIPT = os.path.join(os.path.dirname(__file__), "..", "tools", "render_plates.py")
 PRESETS = {"eye_000": "ngang tầm mắt · hướng 0°", "eye_090": "ngang tầm mắt · hướng 90°", "eye_180": "ngang tầm mắt · hướng 180°",
            "eye_270": "ngang tầm mắt · hướng 270°", "low_000": "góc thấp (ngước lên)", "high_045": "góc cao (nhìn xuống)"}
@@ -43,14 +44,20 @@ def model_dir() -> str:
 
 
 def models(folder: Optional[str] = None) -> List[Dict]:
-    """[{path, name, size_mb}] of the 3D files under the folder (two levels deep), biggest last."""
+    """[{path, name, size_mb}] of the 3D files under the folder (up to MODEL_DEPTH folders deep), biggest last.
+    2026-09-29: the official in-game export sits at <zip name>/<zip name>/ClockTower/T_30_XH_PCMAP_P16/asset.fbx — 4 folders down;
+    the old 3-level glob never listed it."""
     folder = folder or model_dir()
     if not os.path.isdir(folder):
         return []
     found = []
-    for pattern in ("*", os.path.join("*", "*"), os.path.join("*", "*", "*")):
-        for path in glob.glob(os.path.join(folder, pattern)):
-            if os.path.isfile(path) and path.lower().endswith(MODEL_EXT):
+    base = os.path.normpath(folder).count(os.sep)
+    for root, dirs, files in os.walk(folder):
+        if os.path.normpath(root).count(os.sep) - base >= MODEL_DEPTH:
+            dirs[:] = []
+        for f in files:
+            if f.lower().endswith(MODEL_EXT):
+                path = os.path.join(root, f)
                 found.append({"path": path, "name": os.path.relpath(path, folder), "size_mb": round(os.path.getsize(path) / 1e6, 1)})
     return sorted(found, key=lambda m: (m["size_mb"], m["name"]))
 

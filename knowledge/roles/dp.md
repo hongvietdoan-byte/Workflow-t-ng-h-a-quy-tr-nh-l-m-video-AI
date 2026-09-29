@@ -99,6 +99,16 @@ Làm cho người xem **thấy rõ** điều Đạo diễn muốn họ cảm —
 ### Q4. Giới hạn model (sinh từ `data/provider_rules.json` — code kiểm trước khi gửi)
 <!-- model_rules -->
 - Kling multi-shot: chỉ ảnh đầu nhóm bám nhân vật (shot sau trong nhóm dễ lệch — GĐ6 R4). Seedance chặn "giống người thật/bản quyền".
+  Đã đối chiếu tài liệu chính thức Kling 3.0 (2026-09-29, `video_motion_vocab.md` mục "Kling 3.0"): model ClipAI mở chính là **Kling 3.0
+  Omni**, và nhận xét R4 **được đo lại trên đúng bản này** (thử 27/09 P3/S3: shot sau bịa hoặc bỏ nội dung) — không phải lỗi của bản cũ.
+  Kling không nói tiếng Việt (thoại luôn là TTS ghép sau) → shot Kling có thoại phải **nêu tên người đang nói** trong prompt (code
+  `speaker_lint` báo khi thiếu).
+- **Khối gen ~15 s (tư liệu, không phải luật).** Người làm AI短剧 ở Trung Quốc chia truyện thành các nhóm ~15 s trước khi viết prompt
+  (抽卡师 phỏng vấn — `research/craft/trung_quoc/LUOT_2.md` mục 2, một người kể) — trùng trần 15 s của Kling 3.0 / Seedance. Pipeline đã
+  có dạng này: nhóm Seedance chỉ-tham-chiếu 2–4 shot liền ≤ 15 s (cờ `seedance_ref_groups`; thử 27/09: 6/6 shot đúng storyboard) và vị trí
+  máy (`camera_setup`). Kling multi-shot **không** dùng để gộp các góc khác nhau (dòng trên). Khi chia shot, nhìn các shot liền nhau cùng
+  nơi, cùng người như một khối gen được thì model giữ nhân vật/ánh sáng đồng nhất hơn — nhưng shot cần khung riêng (cận thấy mặt, hiệu
+  ứng kỹ năng) vẫn tách ra.
 - GPT Image 2.5 Sunburst nhận bảng thiết kế nhiều góc; không ghi tuổi dưới 18 (bị từ chối — code lọc).
 
 ### Q5. Chuyển động máy
