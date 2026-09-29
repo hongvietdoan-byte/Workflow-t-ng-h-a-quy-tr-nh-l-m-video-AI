@@ -775,6 +775,27 @@ _Cập nhật 2026-09-22 (dùng thật tính năng phân tích video kỹ năng 
 - [x] **Blocklist IP — thu hẹp phạm vi** (2026-09-22, quyết định người dùng): hiện tại hầu như chỉ dùng nhân vật Free Fire (đã có thoả thuận bản quyền), chưa dùng nhân vật IP khác. Không cần xây blocklist rộng ngay; danh sách FF đã có sẵn trong Kho tài nguyên (từ `ff.garena.com`, 65+ nhân vật) là đủ cho giai đoạn này. Việc này sẽ mở lại khi thật sự cần thêm IP khác.
 
 ## 🐞 Tồn đọng / cần sửa lại
+- [ ] **Rà theo 2 PDF "Claude AI Video Automation Data Pack" v1.0 + Technical v2.0 (người dùng gửi 2026-09-29)** — đối chiếu với code: phần lớn
+  đã có (máy trạng thái + `job_events`, sổ chi/trần/cache, throttle 429 + `relink_failed`, `lineage.py`, `STAGE_SETTINGS`, `eval/`). Không áp
+  dụng: Tool Search, Programmatic Tool Calling, Context Editing, Managed Agents, router nhiều nhà cung cấp (pipeline gọi Claude theo công đoạn,
+  không chạy vòng tool dài; chỉ đi qua ClipAI). 6 việc còn thiếu, xếp theo ưu tiên (chưa làm; theo `docs/CHUAN_XAY_DUNG.md` khi làm):
+  - [ ] **P1 — Đo thời gian gọi Claude + lưu `request_id`**: bảng `llm_calls` chưa có cột `latency_ms`, `request_id` (header `request-id` của
+    API); Giám sát đang ghi "Chưa đo thời gian gọi Claude (QC/motion)" (`dashboard/admin.py:763`) → thêm cột (migration trong `core/db.py`),
+    ghi ở `core/llm_runner.py`, hiện thời gian trung bình/chậm nhất theo khâu. Không tốn tiền.
+  - [ ] **P2 — Phiên bản prompt/luật/model trong nguồn gốc sản phẩm**: `lineage.py` chỉ băm đầu vào cảnh, không băm bản mẫu `prompts/*.md` /
+    bộ luật → sửa prompt không làm kết quả cũ hiện "⚠ cũ", và từ `FINAL_VIDEO.mp4` không biết bộ luật nào tạo ra. Ghi hash prompt + model
+    vào `llm_calls`/`jobs`/`outputs.manifest`; thêm màn "Truy nguồn video cuối" (mọi clip/ảnh/prompt/model đã tạo ra video). Cân nhắc: có nên
+    để sửa prompt đánh "⚠ cũ" hàng loạt không (có thể chỉ hiện thông tin, không cảnh báo) — hỏi người dùng.
+  - [ ] **P3 — Structured Outputs (JSON theo schema) thay "hỏi lại khi JSON hỏng"**: 6 chỗ ghi `bad_json_retry` (`llm_runner`, `claude_tasks`,
+    `director_two_pass`, `previz`, `step1_prep`), mỗi lần hỏi lại tốn token. **Trước tiên đếm `diag_events` code `bad_json_retry` trên CSDL thật**;
+    nhiều mới chuyển, và kiểm tài liệu chính thức model đang dùng có hỗ trợ + giới hạn schema. Giữ validator hiện có làm lớp kiểm thứ hai.
+  - [ ] **P4 — Chỉ số "chi phí / video đạt" và "tiền lãng phí"**: tiền đã chi cho ảnh/clip bị loại, gen lại, bỏ dở — chia theo khâu (dữ liệu có
+    sẵn ở `usage_events` + `jobs.state`/`parent_job_id`); đặt ở Giám sát cạnh "Phút / giây video".
+  - [ ] **P5 — Lỗi hết tiền (402 / hết credit) dừng hẳn + cảnh báo**: `llm_runner.py:507` xử lý 401/403; chưa kiểm ClipAI/Claude hết credit
+    có dừng autopilot và báo rõ không (không thử lại, không coi là lỗi tạm). Rà `core/adapters/clipai.py` + autopilot, thêm test.
+  - [ ] **P6 — Test "chèn lệnh qua kết quả trả về"**: không thấy biện pháp/test coi nội dung web (`core/research.py`, `ff_site.py`) và phản hồi
+    ClipAI là dữ liệu không tin cậy. Thêm test hồi quy: văn bản kiểu "ignore previous instructions…" trong kết quả nghiên cứu không đổi
+    hành vi/luật; cân nhắc bọc nội dung ngoài trong khối đánh dấu "dữ liệu" trong prompt.
 - [x] *(bỏ 2026-09-27: Figma hết hạn mức, mockup HTML đủ)* Figma: component **Stepper đang chồng lên Screen 1** trên canvas — dời vị trí (Figma MCP đang hết hạn mức Starter; sửa tay hoặc chờ reset)
 - [x] *(bỏ 2026-09-27)* Figma: frame import từ html.to.design là layer tự động — tách từng màn, đặt tên, componentize nếu dùng làm design system
 - [x] **Nhạc nền = nhánh phụ của Ghép & render; AI là chính, kho chỉ hỗ trợ; tối ưu tải trang** (2026-09-21): Bước 5 chỉ còn khối Ghép & render, nhạc nền nằm dưới phụ đề (`music_branch`: AI tạo trước, kho nhạc là mục hỗ trợ); tự động: dùng AI, khi AI lỗi/chưa cấu hình mới lấy nhạc từ kho (tùy chọn dự án "ưu tiên kho" vẫn còn). Kiểm tra Clip AI: **có** tạo nhạc (`music_v2` qua `/api/sound/generate`, provider elevenlabs) → không thêm adapter ElevenLabs riêng (gói Free phi thương mại). Tải trang: đồng bộ thư mục kho ảnh/âm thanh đầu phiên chạy nền (đo: đăng nhập→dashboard 2,7s, lần sau 0,4s; lần mở đầu ~4s là nạp thư viện của máy chủ)
