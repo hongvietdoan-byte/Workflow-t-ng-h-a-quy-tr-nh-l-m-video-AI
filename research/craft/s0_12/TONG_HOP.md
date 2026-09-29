@@ -223,7 +223,7 @@
 - Phiên check-current-task-progress (29/09 tối) viết đủ **20, 21, 22, 24, 26, 27, 28** từ số đo hàng đợi (xong 19:35) + tờ ảnh: 20, 21 đo lại điểm cắt ở ngưỡng
   0.10; 24 đo lại độ to + phách trên `v24_seg1f` (tiếng đủ); 22 thêm phách đoạn 2. Số đo chép vào `so_do/` (bỏ lời chép, bỏ đường dẫn tờ ảnh); bảng số + mẫu hình
   đã gộp (mẫu hình mới 16–19).
-- **Còn lại — chờ người dùng xoá file** (số đo cần giữ đã ở repo):
+- **Media ĐÃ XOÁ (người dùng xoá 2026-09-29 tối, đã kiểm hai thư mục không còn)** — trước đó ở:
   - media ~2.3 GB ở `C:\Users\hongviet.doan\AppData\Local\Temp\claude\D--AI-Video-Pipeline--claude-worktrees-nice-bhabha-e53229\3c4c4228-e947-4768-809f-dd34138821d5\scratchpad\s012\`
     (`bash clean.sh vNN` cho 16–28 + xoá `v2x_full.*`, `*_segNf.mkv`; hoặc xoá cả thư mục `s012`);
   - scratchpad phiên trước `...worktrees-danh-gia-devsys-2026-491348\819f89c0-...\scratchpad\s012\` (~0.25 GB webm 19–28).
@@ -241,6 +241,6 @@
   **27 (đoạn 2 giây 58–90: hồi ức; 114–121 lặng)**.
 
 ## Đã xoá dữ liệu tải về
-01–15: media, khung hình, tờ ảnh, phổ, wav và thư mục tách âm đã xoá sau khi viết file. 16–28: **chưa xoá** — chờ người dùng xoá (xem Bàn giao).
+01–15: media, khung hình, tờ ảnh, phổ, wav và thư mục tách âm đã xoá sau khi viết file. 16–28: **đã xoá** (người dùng xoá 2026-09-29 tối; số đo ở `so_do/`).
 Số đo JSON (không lời chép, đã bỏ đường dẫn tờ ảnh) của **19–28** nằm ở `so_do/` (20, 21 thêm điểm cắt ngưỡng 0.10 `*_t010.txt`); của 01–18 chỉ còn trong
 scratchpad phiên trước.
