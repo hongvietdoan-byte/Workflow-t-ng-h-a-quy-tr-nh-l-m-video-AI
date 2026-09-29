@@ -1,64 +1,51 @@
-# K.1 — Bản nháp kịch bản lần chạy kiểm (hài, 20–30 s, Kelly · Maxim · Kenta) — 2026-09-29
+# K.1 — Kịch bản lần chạy kiểm (hài, ngắn ~10–15 s, Kelly · Maxim · Kenta) — 2026-09-29, bản 2
 
-Mục đích lần chạy K (kế hoạch sau #8, Q5–Q7): đo xem **tổng thể đã tốt hơn #8 chưa** — độ dài lệch ≤ 10 %, chi phí lệch ước tính ≤ 20 %,
-0 lỗi chặn ở QC bản dựng, agent "người xem lần đầu" kể đúng truyện. Kịch bản vì vậy cố ý chứa đủ thứ #8 làm hỏng: **1 hành động
-nhanh** (chạy / vung kiếm — S4.4), **1 cận mặt** (S4.1/S4.3 kiểu vẽ), **thoại 2–3 câu** (khớp môi, độ dài theo giọng thật — S2),
-**1 chuyển cảnh có chủ ý** (S3.6), **1 cú ngoặt có nguyên nhân** (S3.1). Nét nhân vật lấy từ kỹ năng thật trong game
-(`knowledge/ff_character_skills_visual.md`): Kelly = chạy nước rút, Kenta = kiếm lốc xoáy (OB55), Maxim = "Ham Ăn".
+Người dùng 29/09: **tập trung thử kịch bản mới, ngắn hơn** (không dựng lại dự án cũ); nếu dùng bản A phải **đúng tác dụng và hình dáng kỹ
+năng của Kenta** theo clip chính thức (xem lại từng khung 0:15–0:30 — ghi ở `knowledge/ff_character_skills_visual.md`, mục KENTA).
 
-Bối cảnh cả 3 bản: **Tháp Đồng Hồ** (có bộ ảnh / video chuẩn từ GLB — S5.1), ban ngày. Bạn chọn 1 bản (hoặc sửa); Claude Code không
-chạy gì tốn tiền trước khi bạn duyệt trần ở Bước 1.
+Mục đích lần chạy K: đo xem tổng thể đã tốt hơn #8 chưa (độ dài lệch ≤ 10 %, chi phí lệch ước tính ≤ 20 %, 0 lỗi chặn ở QC bản dựng, agent
+"người xem lần đầu" kể đúng truyện). Kịch bản cố ý có: 1 hành động nhanh, 1 cận mặt, thoại 1–3 câu, 1 cú ngoặt có nguyên nhân.
 
----
-
-## Bản A — "Miếng cuối cùng" (≈ 24 s, 7 shot)
-Một chiếc bánh bao cuối cùng trên bậc thềm tháp. Ba người cùng thấy.
-
-| # | Hình | Thoại / âm |
-|---|---|---|
-| 1 | Toàn cảnh quảng trường, chiếc bánh bao bốc khói trên bậc đá; ba người đứng ba phía, cùng khựng lại | tiếng chuông tháp điểm một tiếng |
-| 2 | Cận mắt Maxim nheo lại | MAXIM: "Của anh." |
-| 3 | Kelly đã bứt tốc — chân đạp đất, tóc bay ngược — lao qua khung | tiếng gió rít |
-| 4 | Kenta rút kiếm, vung một nhát: lốc xoáy lăn trên mặt đất cắt ngang đường chạy của Kelly, Kelly phanh gấp | KENTA: "Đứng lại." |
-| 5 | Lốc xoáy cuốn luôn chiếc bánh bao bay lên trời (**ngoặt — nguyên nhân: chính nhát kiếm của Kenta**) | cả ba ngẩng lên theo |
-| 6 | Bánh bao rơi thẳng vào tay Maxim đang đứng yên | MAXIM (cắn một miếng): "Cảm ơn nhé." |
-| 7 | Hai người kia nhìn nhau, Kenta lặng lẽ tra kiếm vào vỏ | KELLY: "…Lần sau anh chém trượt đi." |
-
-Thử được: hành động nhanh (3, 4), vật bay có quỹ đạo (5–6), cận mặt (2), 3 câu thoại + 1 câu kết, nhịp đứng yên ↔ bùng nổ.
-
-## Bản B — "Chụp ảnh nhóm" (≈ 22 s, 6 shot)
-Kelly dựng điện thoại hẹn giờ 10 giây để chụp ba người trước tháp.
-
-| # | Hình | Thoại / âm |
-|---|---|---|
-| 1 | Kelly đặt điện thoại lên bậc đá, bấm hẹn giờ | KELLY: "Mười giây! Đứng yên nhé!" · tiếng bíp đếm |
-| 2 | Kelly chạy nước rút về chỗ đứng — quá đà, chạy vượt qua luôn hai người | tiếng bíp nhanh dần |
-| 3 | Maxim đang nhai dở, vội giấu đồ ăn sau lưng | MAXIM (miệng đầy): "Chờ tí!" |
-| 4 | Kenta đứng nghiêm, mặt lạnh, không nhúc nhích (đối lập) | — |
-| 5 | Kelly quay lại, trượt chân chen vào giữa; đúng lúc đó đèn flash — **khung hình đứng lại** (freeze) thành tấm ảnh lệch | tiếng chụp "tách" |
-| 6 | Cận tấm ảnh trên màn hình: Kelly nhòe, Maxim má phồng, Kenta hoàn hảo | KENTA (nhìn ảnh): "Chụp lại." |
-
-Thử được: đếm ngược tạo nhịp, freeze frame (cờ speed_ramp / S3.6), chạy + trượt chân (vật lý S4.4), cú đối lập tĩnh–động.
-
-## Bản C — "Người gác tháp" (≈ 28 s, 8 shot)
-Kenta tập kiếm một mình dưới tháp; Kelly và Maxim cá xem ai làm anh cười được.
-
-| # | Hình | Thoại / âm |
-|---|---|---|
-| 1 | Kenta vung kiếm chậm, dứt khoát; nền tháp phía sau | tiếng gió kiếm |
-| 2 | Kelly và Maxim nấp sau cột, thì thầm | KELLY: "Cá không? Anh ấy chưa bao giờ cười." |
-| 3 | Maxim bước ra, diễn trò ăn bánh thật nhanh (Ham Ăn) | tiếng nhai |
-| 4 | Cận Kenta: không cảm xúc | — |
-| 5 | Kelly chạy vòng quanh Kenta ba vòng thật nhanh, tóc bay | tiếng vút |
-| 6 | Kenta vẫn đứng yên — nhưng lốc xoáy từ nhát kiếm lúc nãy quay lại cuốn tung tóc cả hai người (**ngoặt — nguyên nhân: lốc từ shot 1**) | tiếng gió lớn |
-| 7 | Hai người tóc dựng ngược, ngơ ngác | MAXIM: "…Ai thua?" |
-| 8 | Cận Kenta: khóe miệng nhếch lên rất khẽ | — (nhạc dứt) |
-
-Thử được: setup → payoff (lốc xoáy gieo ở shot 1, trả ở shot 6 — agent người xem lần đầu phải nhận ra), 2 cận mặt tĩnh, 1 hành động
-vòng tròn quanh nhân vật (khó với model video), diễn xuất nhỏ ở shot kết.
+## Kenta — kỹ năng thật (tóm từ clip, dùng cho mọi bản)
+- Katana **nằm yên trong vỏ**; tay phải vung một **lưỡi năng lượng trong suốt xanh ngọc**.
+- Quanh chân lan **vòng gió trong suốt** trên mặt đất, rồi **vệt gió mảnh bay thẳng ngang về phía trước** (không cột lốc đặc, không nhấc đồ lên cao).
+- Gió **xuyên qua Bom Keo**: tường keo đứng nguyên, trên mặt tường hiện **một vệt chém đỏ dài chéo**; thứ phía sau tường vẫn trúng.
+- Khi di chuyển: **vòng gió xanh xoắn quanh thân**. Hồ sơ: thợ rèn, thích làm đồ gỗ, kendo, **nấu ăn**.
 
 ---
 
-**Gợi ý của Claude:** **Bản A** — ngắn gọn, nguyên nhân cú ngoặt nằm ngay trong hình (nhát kiếm → bánh bay), đủ các loại shot cần đo, ít
-động tác khó nhất (không có vòng tròn quanh nhân vật như C, không phụ thuộc freeze frame như B). Bản C hay nhất về truyện nhưng rủi ro
-chuyển động cao nhất.
+## Bản A — "Chia đôi" (≈ 12 s, 5 shot) — *đã sửa theo kỹ năng thật*
+Maxim giấu chiếc bánh bao cuối cùng sau một bức tường Bom Keo.
+
+| # | Giây | Hình | Thoại / âm |
+|---|---|---|---|
+| 1 | 0–3 | Toàn cảnh quảng trường Tháp Đồng Hồ: Maxim ngồi xổm sau bức tường keo trắng sần, ôm chiếc bánh bao bốc khói, cười đắc thắng | MAXIM: "Của anh, không ai lấy được!" |
+| 2 | 3–5 | Kelly bứt tốc chạy nước rút về phía bức tường, tóc bay ngược — rồi phanh gấp vì tường chắn | tiếng gió rít, tiếng giày phanh |
+| 3 | 5–7,5 | Từ sau lưng Kenta (tầm vai): tay phải vung lưỡi năng lượng trong suốt xanh ngọc (katana vẫn trong vỏ), vòng gió trong suốt lan quanh chân, vệt gió bay thẳng về phía bức tường | tiếng vút |
+| 4 | 7,5–9 | Cận mặt tường keo: vệt gió xuyên qua, một vệt chém đỏ dài chéo hiện trên mặt tường — tường đứng nguyên | tiếng chém khẽ |
+| 5 | 9–12 | Sau tường: chiếc bánh bao trong tay Maxim **đã bị cắt đôi gọn gàng** (ngoặt — nguyên nhân: gió xuyên tường của shot 3–4). Kenta bước tới nhặt một nửa | KENTA: "Chia đôi." · MAXIM nhìn nửa còn lại, Kelly chống gối thở dốc: "…Còn em?" |
+
+Đo được: chạy nhanh (2), hiệu ứng kỹ năng đúng game (3–4), cận vật (4), vật bị cắt (5 — model video khó: nên để khung đầu shot 5 vẽ sẵn bánh đã cắt), 3 câu thoại ngắn (khớp môi thử cả hai phong cách theo S4.6).
+
+## Bản B — "Chụp ảnh nhóm" (≈ 12 s, 4 shot) — rút gọn
+| # | Giây | Hình | Thoại / âm |
+|---|---|---|---|
+| 1 | 0–3 | Kelly đặt điện thoại hẹn giờ trên bậc đá trước tháp | KELLY: "Năm giây! Đứng yên!" · bíp đếm |
+| 2 | 3–6 | Kelly chạy nước rút về chỗ — chạy quá đà vượt qua hai người | bíp nhanh dần |
+| 3 | 6–8 | Maxim nhai dở giấu bánh sau lưng; Kenta đứng nghiêm | MAXIM (miệng đầy): "Chờ tí!" |
+| 4 | 8–12 | Flash — khung hình đứng lại thành tấm ảnh: Kelly nhòe, Maxim má phồng, Kenta hoàn hảo | tiếng chụp · KENTA: "Chụp lại." |
+
+## Bản C — "Người gác tháp" (≈ 14 s, 5 shot) — rút gọn
+| # | Giây | Hình | Thoại / âm |
+|---|---|---|---|
+| 1 | 0–3 | Kenta tập kendo một mình dưới tháp, mặt lạnh | tiếng gió |
+| 2 | 3–5 | Kelly và Maxim nấp sau cột, thì thầm | KELLY: "Cá không? Anh ấy chưa bao giờ cười." |
+| 3 | 5–8 | Kelly chạy vòng quanh Kenta thật nhanh, Maxim múa may; Kenta vẫn đứng yên — quanh thân anh hiện vòng gió xanh xoắn | tiếng vút |
+| 4 | 8–11 | Vòng gió thổi tung tóc cả hai người (ngoặt — nguyên nhân: họ chạy sát Kenta đang di chuyển) | tiếng gió lớn · MAXIM: "…Ai thua?" |
+| 5 | 11–14 | Cận Kenta: khóe miệng nhếch lên rất khẽ | nhạc dứt |
+
+---
+
+**Gợi ý:** **Bản A "Chia đôi"** — cú ngoặt đúng cơ chế kỹ năng (gió xuyên Bom Keo, tường đứng nguyên, vật phía sau trúng), nguyên nhân nằm
+ngay trong hình, ngắn 12 s. Rủi ro: model video vẽ hiệu ứng kỹ năng (vòng gió trong suốt + vệt chém đỏ) — nên thử shot 3–4 ở A/B hành
+động S4.6 trước.

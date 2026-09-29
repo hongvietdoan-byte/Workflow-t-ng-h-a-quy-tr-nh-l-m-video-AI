@@ -65,10 +65,11 @@ class FlagOffTests(unittest.TestCase):
         self.assertIsNone(p.project(pid)["director_intent_raw"])
         self.assertNotIn("review", json.loads(p.project(pid)["director_raw"]))
 
-    def test_the_flag_is_off_by_default_and_says_why(self):
+    def test_the_flag_is_verified_since_the_real_run_of_project_8(self):
+        """S6.5 (2026-09-29, người dùng duyệt): #8 ran the two passes for real — the flag is on by default; its note keeps the history."""
         from core import features
-        self.assertFalse(features.FEATURES["director_two_pass"]["verified"])
-        self.assertIn("chưa", features.FEATURES["director_two_pass"]["why"])
+        self.assertTrue(features.FEATURES["director_two_pass"]["verified"])
+        self.assertTrue(features.FEATURES["director_two_pass"]["why"])
 
     def test_a_v2_project_keeps_the_single_call_even_with_the_flag(self):
         with mock.patch.dict(os.environ, ON):

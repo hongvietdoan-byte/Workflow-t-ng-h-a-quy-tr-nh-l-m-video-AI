@@ -29,19 +29,19 @@ FEATURES: Dict[str, Dict] = {
     "director_two_pass": {
         "label": "Director hai lượt (dự án chia shot): Tầng A Đạo diễn viết Bible + ý đồ từng cảnh, Tầng B Quay phim chia shot MỖI cảnh "
                  "một lượt (phần chung cache), code Đạo diễn duyệt bảng shot so với ý đồ",
-        "verified": False,
+        "verified": True,       # 2026-09-29 người dùng duyệt (S6.5): #8 chạy thật hai lượt, Đạo diễn duyệt 6/6 cảnh (TONG_KET_DU_AN_8 mục 3)
         "why": "Kế hoạch V4 GĐ5 (H2/H7, 2026-09-26): mới thử bằng Claude giả lập — chưa có lần Director thật nào chạy hai lượt để so chất "
                "lượng và tiền với một lượt (core/director_two_pass.py)",
     },
     "voice_direction": {
         "label": "Chỉ đạo giọng lồng: câu thoại có `delivery` (cảm xúc, cường độ, nhịp, ngắt, nhấn, thẻ v3) → tham số TTS + chữ gửi TTS",
-        "verified": False,
+        "verified": True,       # 2026-09-29 người dùng duyệt (S6.5): #8 — 23 câu thoại đúng giọng, đúng người (4 giọng VN)
         "why": "GĐ4 (director.md Đ5): tài liệu ElevenLabs tự mâu thuẫn về tham số áp dụng cho eleven_v3 (speed); thẻ [whispers] với giọng Việt "
                "chưa nghe thử — cần tạo thử vài câu (tốn lượt âm thanh) trước khi bật",
     },
     "loudness_normalize": {
         "label": "Chuẩn hóa độ to bản giao về −14 LUFS / đỉnh thật −1,5 dBTP (loudnorm 2 lượt, tăng/giảm tuyến tính) khi số đo lệch mục tiêu",
-        "verified": False,
+        "verified": True,       # 2026-09-29 người dùng duyệt (S6.5): bản giao #8 đo −14 LUFS
         "why": "GĐ4 (editing.md E8, D11): không nền tảng nào công bố LUFS; bản giao #7 đo −14,7 LUFS (đã đạt) — chưa nghe thử một bản "
                "được chuẩn hóa trên điện thoại",
     },
@@ -168,7 +168,7 @@ FEATURES: Dict[str, Dict] = {
     "project_budget": {
         "label": "Ngân sách dự án chia theo khâu (ảnh, video, Claude từng khâu), code tính ngay sau bảng shot, người duyệt thì KHÓA: mọi "
                  "lời gọi trả tiền kiểm trần khâu + tổng trước khi gửi; chạy tự động chờ duyệt ngân sách trước khi gen ảnh",
-        "verified": False,
+        "verified": True,       # 2026-09-29 người dùng duyệt (S6.5): #8 — khóa cứng chặn đúng ở trần (TONG_KET_DU_AN_8 mục 3, Chi phí)
         "why": "Người dùng 2026-09-28: đặt trần rõ ràng, khóa lại; #8 ước 12,45 USD, chưa làm video đã chi 16,38 — chưa chạy thật lần nào",
     },
     "scene_qc_claude": {

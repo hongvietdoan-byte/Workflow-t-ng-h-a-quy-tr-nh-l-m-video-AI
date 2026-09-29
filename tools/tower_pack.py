@@ -22,9 +22,32 @@ from core.ffmpeg_studio import find_ffmpeg  # noqa: E402
 
 EYE = 1.6
 RES = (720, 1280)                         # 9:16, the projects' frame
-# spots checked by eye on the first render (29/09): these two lie UNDER the upper plaza (a covered yard) — the camera sees a concrete
-# ceiling, not the tower; left out of the standard set (they are still spots of the Kho's location pack — said in the report)
+# spots checked by eye on the first render (29/09): these two lie UNDER the upper plaza (a covered yard) — looking up at the tower the
+# camera saw a concrete ceiling. Người dùng 29/09: keep them — the character stands on the ground below, the camera at eye level, level
+# (never tilted up into the ceiling), and a few directions give different uses (looking out towards the tower side, into the yard, across).
 COVERED = {"lower_yard", "level_22_4"}
+COVER_CAM_M = 4.0                         # camera this far from the character's spot
+FIGURE_M = 1.7                            # height of the person drawn on the check copy
+
+
+def covered_cameras(m3d):
+    """The covered spots: the character on the ground of the spot, the camera COVER_CAM_M away at eye height, looking level at the
+    character's chest. Directions: 'ra' (camera behind the character, background = the side towards the tower), 'vao' (the reverse),
+    'ngang' (across). Each keeps where the character stands (`spot`) so a check copy can draw a 1.7 m figure there."""
+    ax, ay, _ = m3d["anchor"]
+    out = []
+    for name in sorted(COVERED):
+        if name not in m3d["spots"]:
+            continue
+        x, y, z = m3d["spots"][name]["at"]
+        dx, dy = ax - x, ay - y
+        n = max(math.hypot(dx, dy), 1e-6)
+        ux, uy = dx / n, dy / n                                    # towards the tower, on the ground plane
+        for tag, (cx, cy) in (("ra", (-ux, -uy)), ("vao", (ux, uy)), ("ngang", (-uy, ux))):
+            out.append({"name": f"eye_{name}_{tag}", "location": [x + cx * COVER_CAM_M, y + cy * COVER_CAM_M, z + EYE],
+                        "look_at": [x, y, z + 1.3], "lens": 35, "model_coords": True, "angle": "eye_level",
+                        "spot": [x, y, z]})
+    return out
 
 
 def spots_of(asset_id: int, db: str):
@@ -53,7 +76,7 @@ def cameras(m3d):
             k = 20.0 / max(math.hypot(dx, dy), 1e-6)
             out.append({"name": f"eye_{name}_nguoc", "location": [x, y, z + EYE], "look_at": [x + dx * k, y + dy * k, z + EYE - 0.5],
                         "lens": 28, "model_coords": True, "angle": "eye_level"})
-    return out
+    return out + covered_cameras(m3d)
 
 
 def animations(m3d, white: bool):
@@ -99,9 +122,12 @@ def main():
     ap.add_argument("--no-night", action="store_true")
     ap.add_argument("--no-video", action="store_true")
     ap.add_argument("--only-video", default="", help="render just these videos (comma list of names, e.g. di_bo_vao), no stills")
+    ap.add_argument("--only-covered", action="store_true", help="just the covered spots' views (day + night), no video")
     a = ap.parse_args()
     if a.only_video:
         a.no_night = True
+    if a.only_covered:
+        a.no_video = True
     m3d = spots_of(a.asset, a.db)
     os.makedirs(a.out, exist_ok=True)
     passes = [("ngay", {"sun_elevation": 35, "sun_azimuth": m3d.get("sun_azimuth", 250.0)}, None)]
@@ -110,7 +136,7 @@ def main():
                        {"strength": 0.04, "sun_strength": 0.5, "sun_color": [0.55, 0.65, 1.0], "exposure": -0.3}))
     report = {"asset": a.asset, "passes": []}
     for tag, sun, extra in passes:
-        cams = cameras(m3d)[:1] if a.test or a.only_video else cameras(m3d)
+        cams = cameras(m3d)[:1] if a.test or a.only_video else (covered_cameras(m3d) if a.only_covered else cameras(m3d))
         cfg = plates3d.plan(m3d["path"], os.path.join(a.out, "_render_" + tag), sky="A", sun_elevation=sun["sun_elevation"],
                             sun_azimuth=sun["sun_azimuth"], resolution=RES, cameras=cams, only_cameras=True, sky_extra=extra,
                             real_height_m=m3d.get("real_height_m"), samples=16)
@@ -133,7 +159,10 @@ def main():
         report["passes"].append({"pass": tag, "engine": man.get("engine"), "total_sec": man.get("total_sec"),
                                  "plates": [{"file": f"{tag}_{p['name']}.png", "render_sec": p["render_sec"]} for p in man["plates"]],
                                  "videos": vids, "warnings": man.get("warnings")})
-    with open(os.path.join(a.out, "report_video.json" if a.only_video else "report.json"), "w", encoding="utf-8") as f:
+    if a.only_covered:
+        report["covered_spots"] = {c["name"]: {"spot": c["spot"], "camera": c["location"]} for c in covered_cameras(m3d)}
+    with open(os.path.join(a.out, "report_video.json" if a.only_video else ("report_covered.json" if a.only_covered else "report.json")),
+              "w", encoding="utf-8") as f:
         json.dump(report, f, ensure_ascii=False, indent=1)
     print(json.dumps(report, ensure_ascii=False)[:1500])
 

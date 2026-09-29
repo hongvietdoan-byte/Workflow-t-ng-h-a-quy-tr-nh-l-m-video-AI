@@ -23,11 +23,11 @@
 | S3 Director kể chuyện + Quay phim | 8 | 7 | 0 | 0 | 1 | 100 % |
 | S4 Video chất lượng | 12 | 5 | 1 | 4 | 0 | 37,5 % |
 | S5 Bối cảnh theo file 3D Tháp Đồng Hồ | 6 | 5 | 0 | 0 | 0 | 87,5 % |
-| S6 Ước tính, ngân sách, dashboard | 6 | 4 | 0 | 1 | 1 | 85,7 % |
+| S6 Ước tính, ngân sách, dashboard | 6 | 5 | 0 | 0 | 1 | 100 % |
 | S7 Agent QC | 2 | 1 | 0 | 0 | 0 | 66,7 % |
 | K Chạy kiểm kịch bản hài 20–30 s | 3 | 0 | 0 | 1 | 0 | 0 % |
 | S8 Chấm lại bằng AI Development System (cuối cùng) | 5 | 1 | 0 | 0 | 0 | 14,3 % |
-| **Tổng** | **86** | **60** | **5** | **9** | **2** | **74,1 %** |
+| **Tổng** | **86** | **61** | **5** | **8** | **2** | **74,8 %** |
 
 Đợt hiện tại: **S1** · việc kế: **S4.2** Khớp môi mọi shot người nói thấy mặt (theo A/B)
 <!-- /tien-do -->
@@ -125,7 +125,7 @@
 - [ ] S6.2 · Màn timeline tổng · nặng:2 · ✖ · gộp vào S9.6 (không sửa giao diện hai lần)
 - [x] S6.3 · Hiện cờ chưa kiểm ảnh hưởng bản dựng · nặng:1 · ✅ · 2026-09-29: features.on_unverified() + khung 🧪 ở Bước 5 liệt kê cờ đang bật chưa kiểm; test
 - [x] S6.4 · E-mail khỏi URL, job ảnh khi chờ cổng, trần rõ, cảnh báo khởi động lại · nặng:2 · ✅ · 2026-09-29: mã phiên `?s=` thay e-mail (Owner chỉ nhận từ máy), thanh đầu 'đã dùng / trần / còn', cảnh báo code đổi; chờ ở cổng storyboard / gen thử thì ảnh vẽ lại bạn yêu cầu tự gửi + nhận (autopilot.serve_waiting + Manager.wake, cùng trần / khóa; không tạo mới, không tự duyệt); test
-- [ ] S6.5 · Ghi verified cho cờ đã chứng minh · nặng:1 · ⏸ · chờ người dùng chọn cờ nào coi là đã chứng minh qua #8 (ghi trong báo cáo)
+- [x] S6.5 · Ghi verified cho cờ đã chứng minh · nặng:1 · ✅ · 2026-09-29 người dùng duyệt: director_two_pass (Đạo diễn duyệt 6/6), voice_direction (23 câu đúng giọng), loudness_normalize (−14 LUFS), project_budget (khóa cứng chặn đúng) — đã kiểm → mặc định bật; test end-to-end cũ đặt 2 cờ tắt, test riêng bật tường minh
 - [x] S6.6 · Áp tài liệu prompt caching vào ước tính · nặng:1 · ✅ · 2026-09-29: kiểm lại tài liệu (4 breakpoint, lookback 20, Sonnet 5 tối thiểu 1024 token, ghi ×1,25/×2, đọc ×0,1, ảnh cache được); cost.cache_stats đo tỉ lệ đọc cache từng khâu từ usage thật, hiện ở bảng ngân sách; đo #8: khâu qc 0 %
 
 ### S7 — Agent QC
@@ -133,7 +133,7 @@
 - [ ] S7.1 · Nghiệm thu lại agent QC · nặng:1 · ⬜
 
 ### K — Chạy kiểm kịch bản hài 20–30 s
-- [ ] K.1 · Soạn kịch bản hài Kelly · Maxim · Kenta · nặng:1 · ⏸ · 2026-09-29: 3 bản nháp ở docs/KICH_BAN_KIEM_K1_2026-09-29.md (gợi ý bản A "Miếng cuối cùng") — chờ người dùng chọn / sửa
+- [ ] K.1 · Soạn kịch bản hài Kelly · Maxim · Kenta · nặng:1 · ⏸ · 2026-09-29 bản 2: rút ngắn 12–14 s (người dùng: thử kịch bản mới, ngắn hơn); bản A "Chia đôi" sửa đúng kỹ năng Kenta theo clip chính thức (xem từng khung 0:15–0:30: katana trong vỏ, lưỡi năng lượng trong suốt, vòng gió trên đất, vệt gió bay thẳng, xuyên Bom Keo để lại vệt chém đỏ, tường đứng nguyên) — chờ người dùng chọn
 - [ ] K.2 · Chạy trọn trên dashboard, chất lượng cao, trần duyệt một lần · nặng:3 · ⬜
 - [ ] K.3 · Đo lại bảng mục 0 + phiếu so sánh phim tham khảo · nặng:1 · ⬜
 

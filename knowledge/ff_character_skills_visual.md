@@ -145,8 +145,12 @@ Hình ảnh: Kelly bứt tốc chạy nước rút, tóc và vệt mờ tốc đ
 
 ## KENTA — ⚠ ĐÃ ĐỔI KỸ NĂNG Ở OB55 (7 ngày trước tính đến 22/9/2026): "Đột Kích Lốc Xoáy" thay cho "Khiên Thịnh Nộ" [CHỦ ĐỘNG — xác nhận `isActive:true` + video chính thức]
 **Mô tả cũ trong kho (`Khiên Thịnh Nộ`) đã lỗi thời — đây là bản vá kỹ năng gốc, áp dụng từ OB55 trở đi, không phải sự kiện tạm thời của riêng bản OB đó.** Cơ chế mới: vung kiếm giải phóng một cơn lốc xoáy bay về phía trước, gây sát thương xuyên qua cả Bom Keo.
-Hình ảnh (đã xem trực tiếp video showcase): Kenta rút kiếm vung một nhát dứt khoát, một cơn lốc xoáy trắng-xanh dương cuộn tròn dày đặc hạt bụi/mảnh vụn bắn ra ngay trước mũi kiếm và lăn thẳng về phía trước theo mặt đất; khi lốc xuyên trúng Bom Keo, để lại một vệt chém đỏ dài cắt ngang bề mặt tường như vừa bị lưỡi kiếm khổng lồ chém qua, tường không vỡ vụn mà mang vết cắt rõ nét.
-Nguồn: [Kenta Rework OB55 - Swordsman's Wrath Skill, kênh chính thức Garena Free Fire VN](https://www.youtube.com/watch?v=BjsCv0MRRrs) — đã xem trực tiếp khung hình 0:16–0:20, không suy luận.
+Hình ảnh — **xem lại từng khung 2026-09-29 (0:15–0:30, 4–6 khung/giây; sửa mô tả cũ "rút kiếm, lốc dày hạt bụi lăn trên đất" là sai)**:
+- **Tung lốc (0:24–0:27):** thanh katana (chuôi đỏ) **vẫn nằm trong vỏ bên hông**; ở tay phải hiện một **lưỡi năng lượng trong suốt màu xanh ngọc** (tấm sáng dẹt như lưỡi kiếm kính) vung một nhát. Ngay sau đó quanh chân Kenta lan ra **các vòng gió xanh-trắng trong suốt trên mặt đất** và những **vệt gió cong** quanh người, rồi **các vệt gió mảnh bay thẳng ngang về phía trước** (không phải cột lốc đặc, không cuốn đồ vật lên cao). Cả hiệu ứng mờ, trong suốt, kéo dài ~1–1,5 s.
+- **Xuyên Bom Keo (0:27):** vệt gió đi xuyên bức tường keo (trắng xám, sần như đá/băng); **trên mặt tường hiện một vệt chém đỏ dài chéo**; tường **đứng nguyên, không vỡ**; người núp sau tường (trong clip là Kelly áo vàng ngồi xổm) vẫn mất máu (HP 200 → 175).
+- **Hiệu ứng phụ (0:28–0:30) "kích hoạt khi di chuyển và nhận hiệu ứng giảm sát thương":** khi Kenta di chuyển, **vòng gió xanh xoắn ốc bao quanh thân** (từ chân lên ngực), kèm vệt sáng quanh tay.
+- Hồ sơ trong clip (0:15–0:22): nghề **thợ rèn**; sở thích **làm đồ gỗ, kendo, nấu ăn**.
+Nguồn: [Kenta Rework OB55 - Swordsman's Wrath Skill, kênh chính thức Garena Free Fire VN](https://www.youtube.com/watch?v=BjsCv0MRRrs) — xem trực tiếp khung hình 0:15–0:30 (29/09), không suy luận.
 
 ## KLA — Muay Thái
 Cơ chế: tăng sát thương nắm đấm.

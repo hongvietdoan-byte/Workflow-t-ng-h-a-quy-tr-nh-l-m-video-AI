@@ -31,7 +31,10 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".."))
 GROUP_SHOTS = 3          # tài liệu Seedance: 2–4 shot mỗi lần gen
 METHODS = ("P1", "P2", "P3", "P4")
 MODELS = {"P1": ("seedance-fast", "720p"), "P2": ("seedance-fast", "720p"), "P3": ("kling", "std"), "P4": ("kling", "std"),
-          "P2m": ("seedance-fast", "720p"), "S2": ("kling", "std"), "S3": ("kling", "std")}
+          "P2m": ("seedance-fast", "720p"), "S2": ("kling", "std"), "S3": ("kling", "std"),
+          "P2m25": ("seedance-2.5", "720p")}      # S4.6 (29/09): the same marked reference-only send on Seedance 2.5
+CANONICAL = {"seedance-fast": "dreamina-seedance-2-0-fast-260128", "seedance-2.5": "dreamina-seedance-2-5-260628", "kling": "kling-v3-omni"}
+SINGLE = False                               # --single: every method one clip per shot (the action A/B of S4.6)
 KLING_PROMPT = 500           # Kling single-shot prompt budget used by the adapter
 
 
@@ -127,6 +130,7 @@ def build(p, data_dir: str, pid: int, group, method: str, look: str):
            f"characters and outfits throughout. {look}")
     if method == "S2":                         # one shot, one Kling clip from its own storyboard frame
         d = group[0]["data"]
+        look = look.split(" Render style:")[0]  # Kling's 500 characters: the short style lock only, the action must fit
         return ({"image_path": frames[0]}, max(3, math.ceil(float(d.get("duration_s") or 3) - 1e-6)),
                 (look + " " + shot_text(d, 1).replace("Shot 1 ", "", 1))[:KLING_PROMPT])
     if method in ("P3", "S3"):
@@ -152,7 +156,7 @@ def build(p, data_dir: str, pid: int, group, method: str, look: str):
     ids = [(n, (links.get(n) or {}).get("ref")) for n in names]
     ids = [(n, ref["path"]) for n, ref in ids if ref and os.path.exists(ref.get("path", ""))][: 9 - len(frames)]
     refs = frames + [path for _, path in ids]
-    if method == "P2m":
+    if method in ("P2m", "P2m25"):
         marked = os.path.join(data_dir, str(pid), "experiments", "marked")
         refs = [mark_reference(x, marked) for x in refs]
     mapping = " ".join(f"Image {i} is the storyboard frame of Shot {i}: Shot {i} starts with exactly this composition, framing and "
@@ -194,15 +198,17 @@ def cmd_frames(p, data_dir: str, pid: int, scene: int) -> None:
 
 def cmd_plan(p, data_dir: str, pid: int, scene: int, provider=None, methods=METHODS) -> list:
     from core import budget, cost, looks
-    look = looks.image_sentence(p.project(pid)).strip()
+    look = (looks.video_sentence(p.project(pid)) + " " + looks.image_sentence(p.project(pid))).strip()   # S4.3 style lock first
     out = []
     rows = shots_of_scene(p, pid, scene)
     plan_groups = {"S2": [[r] for r in rows], "S3": [g for g in s3_groups(rows) if len(g) > 1]}
+    if SINGLE:
+        plan_groups = {m: [[r] for r in rows] for m in methods}
     for m in methods:
         for gi, group in enumerate(plan_groups.get(m) or groups(rows), 1):
             kwargs, seconds, prompt = build(p, data_dir, pid, group, m, look)
             model, tier = MODELS[m]
-            canonical = {"seedance-fast": "dreamina-seedance-2-0-fast-260128", "kling": "kling-v3-omni"}[model]
+            canonical = CANONICAL[model]
             usd = cost.clip_price(cost.load_pricing(), canonical, tier, seconds)
             out.append({"method": m, "group": gi, "shots": [r["data"].get("shot_no") for r in group], "model": model, "tier": tier,
                         "canonical": canonical, "seconds": seconds, "usd": usd, "prompt": prompt, "kwargs": kwargs,
@@ -299,7 +305,10 @@ def main() -> None:
     ap.add_argument("--scene", type=int, default=2)
     ap.add_argument("step", choices=("frames", "plan", "submit", "poll"))
     ap.add_argument("--methods", default=",".join(METHODS))
+    ap.add_argument("--single", action="store_true", help="one clip per shot for every method (S4.6 action A/B)")
     a = ap.parse_args()
+    global SINGLE
+    SINGLE = a.single
     root = os.getcwd()
     load_env(root)
     from core.db import connect
