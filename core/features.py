@@ -78,6 +78,13 @@ FEATURES: Dict[str, Dict] = {
         "verified": False,
         "why": "2026-09-28 (sau #8: hai shot kết mỗi shot 1 s, người dùng thấy kết cụt): chờ người dùng xem bản dựng lại",
     },
+    "continuous_takes": {
+        "label": "Đoạn diễn liên tục theo góc máy: mỗi vị trí máy (camera_setup) quay TRỌN đoạn diễn liên tục của cảnh, rồi mỗi shot được "
+                 "cắt đúng chỗ của nó trong đoạn — cắt xen các góc mà động tác vẫn liền (cần bật cùng camera_setups)",
+        "verified": False,
+        "why": "2026-09-29 (kế hoạch S3.4, sau #8: mỗi shot gen riêng, chuyển động bắt đầu lại ở mỗi điểm cắt): mới thử bằng test ffmpeg — "
+               "chưa biết model video có diễn trọn đoạn 8–15 s đúng thứ tự không, và trả tiền nhiều giây hơn cho mỗi góc",
+    },
     "shot_transitions": {
         "label": "Chuyển cảnh từng chỗ nối theo `transition_in` của shot (chớp trắng, tối đi, lia nhòe, lao vào khung) — vẽ trong hai clip "
                  "kề nhau nên độ dài phim không đổi",

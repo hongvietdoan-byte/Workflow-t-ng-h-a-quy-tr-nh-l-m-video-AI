@@ -691,12 +691,27 @@ class VideoRunner(_Runner):
                   "duration_s": seedance_refs.floored(r["data"], self._cut_seconds(r)) if refs else self._cut_seconds(r)} for r in group]
                 if group and exact
                 else [{"id": r["id"], "idx": r["idx"], "duration_s": shots.billed_shot_seconds(r["data"])} for r in group] if group else None)
+        stretch = self._stretch(group) if group and exact and not refs else None
+        if stretch and sent:                   # S3.4: where each shot sits in the whole-stretch take (the cut is made there)
+            for g in sent:
+                g["offset"] = stretch["offsets"].get(g["id"])
         proj = self.p.project(job["project_id"])
         audio = bool(proj["video_audio"]) if "video_audio" in proj.keys() else False
         return {"input_hash": lineage.video_input_hash(mp, formats.project_aspect(proj), args[4], audio) if mp else None,   # M16
                 "source_job_id": lineage.approved_image_id(self.p.conn, shots.image_scene(self.p.conn, job["scene_id"])),
                 "model": args[4],
                 "sent_group": json.dumps(sent) if sent else None}
+
+    def _stretch(self, group) -> Optional[Dict]:
+        """S3.4 (feature continuous_takes): the whole stretch a camera set-up films, or None (feature off / too long / not a set-up)."""
+        from . import features, shots
+        if not group or not features.on("continuous_takes") or self._refs_group(group):
+            return None
+        return shots.stretch_of(self.p.conn, group, self._cut_seconds)
+
+    def _refs_group(self, group) -> bool:
+        from . import seedance_refs
+        return any(seedance_refs.uses_refs(self.p.conn, r["id"]) for r in group)
 
     def _cut_seconds(self, row) -> float:
         """A shot's length in the film: its motion prompt's seconds (stretched to the real voice), else the Director's."""
@@ -734,6 +749,9 @@ class VideoRunner(_Runner):
             elif setup:                                             # H5: one continuous take for the set-up's shots, cut afterwards
                 secs = [self._cut_seconds(r) for r in group]
                 duration = max(math.ceil(sum(secs) - 1e-6), 3)
+                stretch = self._stretch(group)
+                if stretch:                                         # S3.4: this camera films the whole stretch of acting
+                    duration = max(math.ceil(sum(stretch["seconds"]) - 1e-6), 3)
             elif group:                                           # the whole group's length, one Kling generation
                 duration = sum(shots.billed_shot_seconds(r["data"]) for r in group)
                 model = "kling"
@@ -744,7 +762,10 @@ class VideoRunner(_Runner):
             parts = [((self._motion(r["id"]) or {"motion_prompt": ""})["motion_prompt"], s) for r, s in zip(rows, secs)]
             ids = seedance_refs.identity_pictures(conn, job["project_id"], rows, seedance_refs.MAX_PICTURES - len(rows))
             motion = no_minor_age(seedance_refs.prompt(parts, ids, clip_seconds=duration, model=model))
-        if setup:
+        stretch = self._stretch(group) if setup else None
+        if stretch:
+            motion = no_minor_age(shots.stretch_motion(stretch, [r["id"] for r in group], str(group[0]["data"].get("shot") or "")))
+        elif setup:
             motion = no_minor_age(shots.setup_motion([((self._motion(r["id"]) or {"motion_prompt": ""})["motion_prompt"], s)
                                                       for r, s in zip(group, secs)]))
         fix = model_fix(job["retry_reason"])
@@ -850,7 +871,7 @@ class VideoRunner(_Runner):
         from . import shots
         sent = json.loads(job["sent_group"]) if "sent_group" in job.keys() and job["sent_group"] else None
         group = ([{"id": g["id"], "idx": g["idx"], "refs": bool(g.get("refs")),
-                   "data": {"duration_s": g["duration_s"], "exact": bool(g.get("exact"))}} for g in sent]
+                   "data": {"duration_s": g["duration_s"], "exact": bool(g.get("exact")), "offset": g.get("offset")}} for g in sent]
                  if sent
                  else self._sends_group(job))       # M10: the group as it was sent (a later re-plan must not mis-cut a paid clip)
         if group:

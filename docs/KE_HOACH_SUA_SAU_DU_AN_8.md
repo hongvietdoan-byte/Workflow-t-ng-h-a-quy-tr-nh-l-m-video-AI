@@ -20,14 +20,14 @@
 | S0 Học từ phim drama tham khảo | 15 | 11 | 4 | 0 | 0 | 79,6 % |
 | S9 Dashboard gọn, dễ nhìn | 6 | 5 | 0 | 0 | 0 | 81,8 % |
 | S2 Timeline theo âm thanh + animatic | 6 | 5 | 0 | 1 | 0 | 81,8 % |
-| S3 Director kể chuyện + Quay phim | 8 | 5 | 0 | 0 | 0 | 60 % |
+| S3 Director kể chuyện + Quay phim | 8 | 6 | 0 | 0 | 0 | 80 % |
 | S4 Video chất lượng | 12 | 2 | 0 | 4 | 0 | 10 % |
 | S5 Bối cảnh theo file 3D Tháp Đồng Hồ | 6 | 0 | 0 | 1 | 0 | 0 % |
 | S6 Ước tính, ngân sách, dashboard | 6 | 0 | 0 | 0 | 0 | 0 % |
 | S7 Agent QC | 2 | 0 | 0 | 0 | 0 | 0 % |
 | K Chạy kiểm kịch bản hài 20–30 s | 3 | 0 | 0 | 0 | 0 | 0 % |
 | S8 Chấm lại bằng AI Development System (cuối cùng) | 5 | 0 | 0 | 0 | 0 | 0 % |
-| **Tổng** | **86** | **43** | **4** | **8** | **0** | **53,1 %** |
+| **Tổng** | **86** | **44** | **4** | **8** | **0** | **55,1 %** |
 
 Đợt hiện tại: **S1** · việc kế: **S9.6** Gộp timeline tổng + sửa giao diện S6.4
 <!-- /tien-do -->
@@ -92,7 +92,7 @@
 - [x] S3.1 · Bảng nhịp truyện bắt buộc · nặng:2 · ✅ · 2026-09-29 (điều chỉnh theo góp ý 'không khuôn cố định'): beat.cause — cú xoay nêu nguyên nhân và chỗ người xem thấy (hoặc 'giấu tới …'); thiếu → 💡 ở Bước 1 (director_report.turns_without_cause); prompt 01/19 + director.md; test
 - [x] S3.2 · Agent "người xem lần đầu" · nặng:2 · ✅ · 2026-09-29: core/story_check.py + prompt 22 (chỉ đọc cái hiện trên màn hình), pha storycheck (cờ story_check), hiện ở Bước 1; mock + 3 test; chưa chạy Claude thật
 - [x] S3.3 · action_peak → storyboard vẽ tư thế hành động · nặng:1 · ✅ · 2026-09-29: trường action_peak (prompt 17/20) → câu 'đang giữa động tác' trong prompt ảnh khung đầu; test
-- [ ] S3.4 · Đoạn diễn liên tục theo góc máy, cắt xen · nặng:3 · ⬜
+- [x] S3.4 · Đoạn diễn liên tục theo góc máy, cắt xen · nặng:3 · ✅ · 2026-09-29: mỗi vị trí máy quay trọn đoạn diễn (từ shot đầu tới shot cuối của góc đó), mỗi shot cắt đúng chỗ trong đoạn (cờ continuous_takes + camera_setups); 3 test; chưa chạy thật (tốn giây video hơn — cần A/B)
 - [x] S3.5 · Cổng Quay phim (cỡ cảnh, chuyển động máy) · nặng:2 · ✅ · 2026-09-29, điều chỉnh theo nghiên cứu (drama máy tĩnh 98 %, cận liền nhau): không ép ≤ 2 cùng cỡ / mỗi cảnh phải chuyển động; 💡 khi máy chuyển động mà thiếu why; chuyển động máy đã vào prompt video
 - [x] S3.6 · transition_in từng shot + khâu Dựng thực hiện · nặng:2 · ✅ · 2026-09-29: flash / dip / whip / zoom_through vẽ trong 2 clip kề (độ dài không đổi), cut / match / occlusion / J / L giữ cắt thẳng (cờ shot_transitions); sửa lỗi cũ _flashbacks tìm clip theo đường dẫn gốc; 4 test
 - [ ] S3.7 · hook_mid / money_shot / ý đồ nhạc: vi phạm → Director sửa · nặng:1 · ⬜

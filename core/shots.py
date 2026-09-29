@@ -625,6 +625,8 @@ def split_group_clip(path: str, group: List[Dict], dest_paths: List[str]) -> Lis
     for r, dest in zip(group, dest_paths):
         # a multi-shot generation gives each shot its billed length (>= 3 s); an H5 set-up clip is cut at the shots' own seconds
         sec = float(r["data"]["duration_s"]) if r["data"].get("exact") else billed_shot_seconds(r["data"])
+        if r["data"].get("offset") is not None:        # S3.4: a whole-stretch take — each shot at its own place in the stretch
+            start = float(r["data"]["offset"])
         ok = False
         if ffmpeg:
             proc = subprocess.run([ffmpeg, "-y", "-ss", f"{start:.2f}", "-i", whole, "-t", f"{sec:.2f}", *_encode(), *audio, dest],
@@ -702,6 +704,49 @@ def image_scene(conn, scene_id: int) -> int:
     if needs_own_image(conn, scene_id):
         return scene_id
     return (group_of(conn, scene_id) or [{"id": scene_id}])[0]["id"]
+
+
+def stretch_of(conn, group: List[Dict], seconds_of=None) -> Optional[Dict]:
+    """S3.4 (kế hoạch sau #8, feature `continuous_takes`): the continuous stretch a camera set-up belongs to — every shot of its script
+    scene and sequence from the set-up's first shot to its last, whatever set-up those between were drawn from — so this camera films
+    the WHOLE performance and the cut to it lands mid-action (#8: each shot made alone, the movement restarted at every cut; the
+    reference drama films one run of acting from several angles and cuts between them). {"rows", "seconds", "offsets": {id: s}}; None
+    when the stretch is longer than one clip can be (SETUP_MAX) or the group is not one stretch."""
+    if not group:
+        return None
+    first = group[0]["data"]
+    key = (first.get("story_scene"), first.get("sequence"))
+    rows = [r for r in _rows(conn, group[0].get("project_id") or conn.execute(
+        "SELECT project_id FROM scenes WHERE id=?", (group[0]["id"],)).fetchone()["project_id"])
+            if (r["data"].get("story_scene"), r["data"].get("sequence")) == key]
+    ids = [r["id"] for r in rows]
+    if any(g["id"] not in ids for g in group):
+        return None
+    a, b = ids.index(group[0]["id"]), max(ids.index(g["id"]) for g in group)
+    rows = rows[a:b + 1]
+    secs = [float(seconds_of(r) if seconds_of else r["data"].get("duration_s") or 0) for r in rows]
+    if sum(secs) > SETUP_MAX:
+        return None
+    offsets, t = {}, 0.0
+    for r, s in zip(rows, secs):
+        offsets[r["id"]] = round(t, 2)
+        t += s
+    return {"rows": rows, "seconds": secs, "offsets": offsets}
+
+
+def stretch_motion(stretch: Dict, members: List[int], framing: str) -> str:
+    """One take of the whole stretch from one camera: what happens in each stretch of time (the actions, English), the camera fixed."""
+    from .seedance_refs import _en
+    t, parts = 0.0, []
+    for r, sec in zip(stretch["rows"], stretch["seconds"]):
+        d = r["data"]
+        action = str(_en(d, "action") or "").strip().rstrip(".")
+        talk = " ".join(f"{x.get('speaker')} speaks." for x in d.get("dialogue") or [] if isinstance(x, dict) and x.get("speaker"))
+        parts.append(f"{t:.1f}–{t + sec:.1f}s: {action}{'. ' + talk if talk else '.'}")
+        t += sec
+    return ("One continuous take: the actors perform the whole stretch below without stopping, filmed from ONE fixed camera set-up "
+            f"({framing.strip().rstrip('.') or 'the framing of the first picture'}) — the same framing and camera position all the way "
+            "through, no cuts; movements flow from one moment into the next. " + " ".join(parts))
 
 
 def setup_motion(prompts_and_seconds: List[tuple]) -> str:
