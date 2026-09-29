@@ -655,6 +655,8 @@ def run_director(p: Pipeline, project_id: int, client, resume: bool = False) -> 
             p.set_project_field(project_id, "director_raw", json.dumps({"truncated": True, "error": str(e), "text": e.partial},
                                                                        ensure_ascii=False))
         raise
+    from . import project_defaults                 # S3.8: which places (text + pictures) the plan was made with
+    obj["places_at_plan"] = project_defaults.places_fingerprint(p.conn, project_id)
     p.set_project_field(project_id, "director_raw", json.dumps(obj, ensure_ascii=False))   # paid for: kept even if saving fails
     llm_io.store_scene_analysis(p, project_id, obj)
     director_two_pass.forget(p, project_id)       # a stored two-pass intent no longer matches this plan ("↻ Chia shot lại" must not use it)

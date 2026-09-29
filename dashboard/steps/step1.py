@@ -47,6 +47,9 @@ def step1(p: Pipeline, pid: int):
     stale = len(lineage.stale_scene_ids(p.conn, pid)) if scenes else 0
     step_header("Bước 1 · Kịch bản & đạo diễn", "tách cảnh → chuẩn bị → Director → nhân vật → thoại → khóa",
                 _count_label(p, pid, scenes) + f" · {len(chars)} nhân vật" + (" · đã khóa" if locked else ""), stale)
+    note = st.session_state.pop("inherited_note", None)                 # S3.8: said once, right after the project was made
+    if note:
+        st.info("↪ " + note + " — đổi ở Bước 1 · Định dạng nếu dự án này khác.")
     from dashboard import next_step                                     # S9 E0.1: the next thing to do, one line
     ui.html(next_step.band(p, pid, 1, C.DATA))
 

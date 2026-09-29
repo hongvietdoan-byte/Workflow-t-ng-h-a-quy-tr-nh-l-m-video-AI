@@ -20,14 +20,14 @@
 | S0 Học từ phim drama tham khảo | 15 | 11 | 4 | 0 | 0 | 79,6 % |
 | S9 Dashboard gọn, dễ nhìn | 6 | 5 | 0 | 0 | 0 | 81,8 % |
 | S2 Timeline theo âm thanh + animatic | 6 | 5 | 0 | 1 | 0 | 81,8 % |
-| S3 Director kể chuyện + Quay phim | 8 | 6 | 0 | 0 | 0 | 80 % |
+| S3 Director kể chuyện + Quay phim | 8 | 7 | 0 | 0 | 1 | 100 % |
 | S4 Video chất lượng | 12 | 2 | 0 | 4 | 0 | 10 % |
-| S5 Bối cảnh theo file 3D Tháp Đồng Hồ | 6 | 0 | 0 | 1 | 0 | 0 % |
+| S5 Bối cảnh theo file 3D Tháp Đồng Hồ | 6 | 2 | 0 | 0 | 0 | 37,5 % |
 | S6 Ước tính, ngân sách, dashboard | 6 | 0 | 0 | 0 | 0 | 0 % |
 | S7 Agent QC | 2 | 0 | 0 | 0 | 0 | 0 % |
 | K Chạy kiểm kịch bản hài 20–30 s | 3 | 0 | 0 | 0 | 0 | 0 % |
 | S8 Chấm lại bằng AI Development System (cuối cùng) | 5 | 0 | 0 | 0 | 0 | 0 % |
-| **Tổng** | **86** | **44** | **4** | **8** | **0** | **55,1 %** |
+| **Tổng** | **86** | **47** | **4** | **7** | **1** | **59 %** |
 
 Đợt hiện tại: **S1** · việc kế: **S9.6** Gộp timeline tổng + sửa giao diện S6.4
 <!-- /tien-do -->
@@ -95,8 +95,8 @@
 - [x] S3.4 · Đoạn diễn liên tục theo góc máy, cắt xen · nặng:3 · ✅ · 2026-09-29: mỗi vị trí máy quay trọn đoạn diễn (từ shot đầu tới shot cuối của góc đó), mỗi shot cắt đúng chỗ trong đoạn (cờ continuous_takes + camera_setups); 3 test; chưa chạy thật (tốn giây video hơn — cần A/B)
 - [x] S3.5 · Cổng Quay phim (cỡ cảnh, chuyển động máy) · nặng:2 · ✅ · 2026-09-29, điều chỉnh theo nghiên cứu (drama máy tĩnh 98 %, cận liền nhau): không ép ≤ 2 cùng cỡ / mỗi cảnh phải chuyển động; 💡 khi máy chuyển động mà thiếu why; chuyển động máy đã vào prompt video
 - [x] S3.6 · transition_in từng shot + khâu Dựng thực hiện · nặng:2 · ✅ · 2026-09-29: flash / dip / whip / zoom_through vẽ trong 2 clip kề (độ dài không đổi), cut / match / occlusion / J / L giữ cắt thẳng (cờ shot_transitions); sửa lỗi cũ _flashbacks tìm clip theo đường dẫn gốc; 4 test
-- [ ] S3.7 · hook_mid / money_shot / ý đồ nhạc: vi phạm → Director sửa · nặng:1 · ⬜
-- [ ] S3.8 · Đổi bối cảnh → chạy lại Director; dự án mới kế thừa cách làm · nặng:2 · ⬜
+- [ ] S3.7 · hook_mid / money_shot / ý đồ nhạc: vi phạm → Director sửa · nặng:1 · ✖ · 2026-09-29: bỏ theo nguyên tắc 'gợi ý, không ép' — móc / money shot là gợi ý (💡 ở Bước 1), nhạc tắt quên vào lại đã tự sửa bằng code (S1.3); bắt Director làm lại tốn lượt Claude
+- [x] S3.8 · Đổi bối cảnh → chạy lại Director; dự án mới kế thừa cách làm · nặng:2 · ✅ · 2026-09-29: dấu vân tay bối cảnh lúc Director chia shot (places_at_plan) → Bước 1 báo cảnh dùng bản cũ + nút chia shot lại; dự án mới kế thừa shot_mode / look / phong cách / model ảnh / cài đặt dựng; 3 test
 
 ### S4 — Video chất lượng
 - [ ] S4.1 · Shot cận có mặt → khung đầu thay vì ref-only · nặng:2 · ⬜
@@ -113,12 +113,12 @@
 - [ ] S4.12 · Advanced Edit: sửa clip lỗi (cận Kelly #8) thay vì sinh lại — kiểm API, thử 1 clip · nặng:1 · ⏸ · chờ người dùng duyệt (docs/PHAN_TICH_CLIP_MAU_CLIPAI_2026-09-28.md, ~0,5 USD)
 
 ### S5 — Bối cảnh theo file 3D Tháp Đồng Hồ
-- [ ] S5.1 · Render bộ ảnh chuẩn từ GLB ở tầm mắt + câu bố cục · nặng:2 · ⬜
+- [x] S5.1 · Render bộ ảnh chuẩn từ GLB ở tầm mắt + câu bố cục · nặng:2 · ✅ · 2026-09-29: tools/tower_pack.py — 16 ảnh tầm mắt ngày/đêm trên mặt sàn đo được, loại 2 chỗ đứng nằm dưới mái che; D:/AI-Video-Output/2026-09-29_bo-boi-canh-thap-dong-ho (chờ người dùng chọn đưa vào Kho)
 - [ ] S5.2 · Chặn prompt thiếu câu bố cục · nặng:1 · ⬜
 - [ ] S5.3 · Địa điểm đổi → khung thành "cũ" · nặng:1 · ⬜
 - [ ] S5.4 · Lớp 0 đo "tầng tường" · nặng:2 · ⬜
 - [ ] S5.5 · Vẽ thử lại khung nền tháp · nặng:1 · ⬜
-- [ ] S5.6 · Render tháp GLB thành video white-model làm tham chiếu cho Seedance 2.5 · nặng:1 · ⏸ · chờ người dùng duyệt (cập nhật ClipAI)
+- [x] S5.6 · Render tháp GLB thành video white-model làm tham chiếu cho Seedance 2.5 · nặng:1 · ✅ · 2026-09-29 (người dùng: 'tự làm kèm video'): 3 đường máy (đi bộ vào, vòng quanh, cần cẩu) × bản chất liệu + white-model; đã sửa đường đi bộ xuyên tường
 
 ### S6 — Ước tính, ngân sách, dashboard
 - [ ] S6.1 · Dự tính tổng dự án ngay khi Director trả bảng shot · nặng:2 · ⬜

@@ -531,6 +531,8 @@ def run(p: Pipeline, project_id: int, client, resume: bool = False) -> Dict:
     obj["review"] = review(obj)
     calls = int(a_called) + len(todo)
     obj["two_pass"] = {"calls": calls, "reused_intent": not a_called, "reused_scenes": reused}
+    from . import project_defaults                 # S3.8: which places (text + pictures) the plan was made with
+    obj["places_at_plan"] = project_defaults.places_fingerprint(p.conn, project_id)
     p.set_project_field(project_id, "director_raw", json.dumps(obj, ensure_ascii=False))     # paid for: kept even if saving fails
     llm_io.store_scene_analysis(p, project_id, obj)
     raw["done"] = True

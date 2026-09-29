@@ -487,5 +487,9 @@ def _create_project(p: Pipeline) -> None:
                            genre=st.session_state.get("new_genre"), model_priority=st.session_state.get("new_prio"),
                            game=st.session_state.get("new_game"))
     qc_policy.apply(p, pid, "balanced")
+    from core import project_defaults             # S3.8: start from the way of working settled in the latest project
+    copied = project_defaults.inherit(p.conn, pid, me()["email"])
+    if copied:
+        st.session_state["inherited_note"] = "Dự án mới kế thừa từ dự án gần nhất của bạn: " + ", ".join(copied)
     st.session_state["global_pid"] = pid
     st.session_state["new_name"] = ""

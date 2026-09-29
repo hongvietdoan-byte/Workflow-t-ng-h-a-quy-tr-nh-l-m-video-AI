@@ -549,9 +549,68 @@ def main():
                 bpy.data.objects.remove(o, do_unlink=True)
         manifest["plates"].append(item)
         log(f"{c['name']}: {item['render_sec']}s")
+    for a in cfg.get("animations") or []:                                # S5.1 / S5.6: camera moves through the place (frames)
+        manifest.setdefault("animations", []).append(render_animation(a, cfg, factor, span, res, out_dir))
     with open(os.path.join(out_dir, "manifest.json"), "w", encoding="utf-8") as f:
         json.dump(manifest, f, ensure_ascii=False, indent=1)
     log(f"done: {len(manifest['plates'])} plates -> {out_dir}")
+
+
+def _ease(u):
+    return u * u * (3 - 2 * u)                                           # smooth start and stop, like a dolly / crane operator
+
+
+def _lerp(a, b, u):
+    return [a[i] + (b[i] - a[i]) * u for i in range(3)]
+
+
+def clay_material():
+    """White model (Seedance 2.5 'white-model' reference, ClipAI Blender add-on): one matte light-grey material on everything, so the
+    video model reads space and movement without copying the textures."""
+    mat = bpy.data.materials.new("clay")
+    mat.use_nodes = True
+    bsdf = _principled(mat)
+    if bsdf is not None:
+        bsdf.inputs["Base Color"].default_value = (0.78, 0.78, 0.76, 1.0)
+        bsdf.inputs["Roughness"].default_value = 0.95
+    return mat
+
+
+def render_animation(a, cfg, factor, span, res, out_dir):
+    """{"name", "fps", "seconds", "keys": [{"t": 0..1, "location", "look_at"}], "model_coords", "white", "lens"} → frames in
+    anim_<name>/f_0001.png … (the Dashboard side joins them into an mp4 with ffmpeg). Keys are eased between (smooth moves)."""
+    scene = bpy.context.scene
+    keys = sorted(a["keys"], key=lambda k: k["t"])
+    if a.get("model_coords"):
+        keys = [dict(k, location=list(to_scene(k["location"], factor)), look_at=list(to_scene(k["look_at"], factor))) for k in keys]
+    fps, seconds = int(a.get("fps", 24)), float(a.get("seconds", 5))
+    n = max(int(round(fps * seconds)), 2)
+    data = bpy.data.cameras.new("anim_" + a["name"])
+    data.lens = float(a.get("lens") or cfg.get("lens_mm", 35))
+    data.clip_end = max(1000.0, span * 20)
+    cam = bpy.data.objects.new("anim_" + a["name"], data)
+    scene.collection.objects.link(cam)
+    scene.camera = cam
+    folder = os.path.join(out_dir, "anim_" + a["name"])
+    os.makedirs(folder, exist_ok=True)
+    layer = bpy.context.view_layer
+    keep = layer.material_override
+    if a.get("white"):
+        layer.material_override = clay_material()
+    t0 = time.time()
+    for f in range(n):
+        u = f / (n - 1)
+        k = next((i for i in range(len(keys) - 1) if keys[i]["t"] <= u <= keys[i + 1]["t"]), len(keys) - 2)
+        span_u = max(keys[k + 1]["t"] - keys[k]["t"], 1e-6)
+        w = _ease((u - keys[k]["t"]) / span_u)
+        cam.location = Vector(_lerp(keys[k]["location"], keys[k + 1]["location"], w))
+        look_at(cam, _lerp(keys[k]["look_at"], keys[k + 1]["look_at"], w))
+        render_to(os.path.join(folder, f"f_{f + 1:04d}.png"), scene.render.film_transparent)
+    layer.material_override = keep
+    sec = round(time.time() - t0, 1)
+    log(f"animation {a['name']}: {n} frames in {sec}s")
+    return {"name": a["name"], "folder": os.path.basename(folder), "frames": n, "fps": fps, "white": bool(a.get("white")),
+            "render_sec": sec}
 
 
 if __name__ == "__main__":

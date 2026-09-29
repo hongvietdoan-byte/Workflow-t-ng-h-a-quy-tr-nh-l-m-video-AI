@@ -166,6 +166,11 @@ def _crew_notes(p: Pipeline, pid: int) -> None:
     except Exception as e:  # noqa: BLE001 - an old or odd answer must not break Step 1, but the checks' absence is said
         st.caption(f"⚠ Không chạy được các kiểm của tổ làm phim trên bảng shot hiện tại: {escape(str(e)[:160])}")
         return
+    from core import project_defaults
+    for c in project_defaults.changed_places(p.conn, pid):      # S3.8: the plan was made with an older version of this place
+        st.warning(f"🗺 Bối cảnh **{escape(c['name'])}** {c['what']} sau khi Director chia shot"
+                   + (f" — cảnh {', '.join(map(str, c['scenes']))} dùng bản cũ" if c["scenes"] else "")
+                   + ": bấm “↻ Chia shot lại cảnh này” ở cảnh đó (tốn một lượt Claude) hoặc giữ nguyên nếu thay đổi không ảnh hưởng.")
     if r.get("unrecorded"):
         st.warning("⚠ Director đã hy sinh (" + ", ".join(r["unrecorded"]) + ") mà không ghi lý do (`tradeoffs`).")
     trade = [t for t in r["tradeoffs"] if isinstance(t, dict)]
