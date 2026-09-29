@@ -119,7 +119,7 @@ def setup():
     p, _ = _pipeline()
     have = {json.loads(r["data"] or "{}").get("story_scene") for r in p.conn.execute("SELECT data FROM scenes WHERE project_id=?", (PID,))}
     idx = p.conn.execute("SELECT COALESCE(MAX(idx), 0) m FROM scenes WHERE project_id=?", (PID,)).fetchone()["m"]
-    for story, shots, title in ((2, S2, "R2 hành động"), (3, S3, "R2 thoại")):
+    for story, shots, title in ((2, S2, "R2 hành động"), (4, S3[:3], "R2 câu thoại"), (3, S3[3:], "R2 thoại")):
         if story in have:
             print("đã có cảnh", story)
             continue
@@ -144,7 +144,7 @@ def cmd_voice():
     from core import audio_lib, voice
     from core.adapters.clipai_audio import ClipAIAudioProvider
     p, data_dir = _pipeline()
-    ids = [r["id"] for r in rows(p, 3) if r["data"].get("dialogue")]
+    ids = [r["id"] for r in rows(p, 4) if r["data"].get("dialogue")]
     prov = ClipAIAudioProvider.from_env()
     print(voice.generate(p.conn, PID, prov, data_dir, scene_ids=ids))
     d = audio_lib.assets_dir(data_dir, PID)
@@ -163,7 +163,7 @@ def _lines(p, data_dir):
     from core import audio_lib
     items = audio_lib.load(audio_lib.assets_dir(data_dir, PID))
     out = []
-    for r in rows(p, 3):
+    for r in rows(p, 4):
         for e in items:
             if e.get("kind") == "tts" and e.get("scene_id") == r["id"] and e.get("state") == "succeeded":
                 out.append({"speaker": e["speaker"], "text": e["text"], "file": e["file"], "duration_ms": e["duration_ms"], "scene_id": r["id"]})
@@ -178,7 +178,7 @@ def _marked(paths, data_dir, style):
 def build_case(p, data_dir, case, look):
     """[(label, kwargs, seconds, prompt, model key, tier)] — one or more sends of the case."""
     from core import dialogue_take, ffmpeg_studio, lipsync
-    s2, s3 = rows(p, 2), rows(p, 3)
+    s2, s3 = rows(p, 2), rows(p, 4) + rows(p, 3)   # cảnh 4 = 3 câu thoại (nguồn giọng, không vẽ khung); cảnh 3 = khung cả đoạn
     fr = lambda r: gt.frame_path(p, data_dir, PID, r["id"])  # noqa: E731
     out = []
     if case.startswith("M_"):
