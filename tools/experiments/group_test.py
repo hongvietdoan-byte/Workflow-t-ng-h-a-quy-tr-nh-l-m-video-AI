@@ -186,10 +186,15 @@ def cmd_frames(p, data_dir: str, pid: int, scene: int) -> None:
     while time.time() - t0 < 1800:
         runner.submit_pending(pid)
         runner.poll_once(pid)
-        states = {r["id"]: r["state"] for r in p.conn.execute("SELECT scene_id id, state FROM jobs WHERE project_id=? AND type='image_gen'",
-                                                              (pid,)) if r["id"] in ids}
+        states = {r["id"]: r["state"] for r in p.conn.execute("SELECT scene_id id, state FROM jobs WHERE project_id=? AND type='image_gen'"
+                                                              " ORDER BY id", (pid,)) if r["id"] in ids}     # the latest job per shot
         print(time.strftime("%H:%M:%S"), states, flush=True)
         if states and all(s in ("succeeded", "approved", "pending_review", "failed", "escalated") for s in states.values()):
+            break
+        from core import budget, image_models
+        capped = budget.check_image(p.conn, runner.provider.name, image_models.of_project(p.project(pid)))
+        if capped and "queued" in states.values():   # #10 29/09: a QC redraw past the image cap waited 10 min in silence
+            print("TRẦN CHẶN — ảnh đang chờ không gửi được:", capped, "·", [sid for sid, st in states.items() if st == "queued"])
             break
         time.sleep(15)
     for r in rows:
