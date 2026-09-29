@@ -1,5 +1,15 @@
 # Bàn giao phiên 29/09 chiều — để phiên / tài khoản Claude khác làm tiếp trên cùng máy
 
+> **CẬP NHẬT 29/09 tối — mục "Đang chờ người dùng" 1–2 dưới đây ĐÃ XONG, đọc bản mới trước:**
+> - Trần đợt thử nâng 2 lần (người dùng duyệt): 49,10 → **53,10 USD**, ảnh **147**; đã chi 51,73 (còn 1,37, **0 ảnh**).
+> - A/B hành động + khớp môi S4.6 chạy 2 vòng (#10, 8,88 USD) — kết quả `docs/AB_HANH_DONG_S4_6_2026-09-29.md`; clip ở
+>   `D:\AI-Video-Output6-09-29_ab-hanh-dong-s4-6\`.
+> - Người dùng chọn khớp môi **(c) in-game** → **S4.2 code xong** (`36b1223`, cờ `dialogue_take` BẬT ở dashboard.env, chưa chạy thật qua
+>   dashboard — việc kế, tốn tiền, hỏi trước). Cần khởi động lại dashboard.
+> - Đã sửa: storyboard ghi ai có trong từng khung; QC clip bắt dấu đỏ lọt clip (`clip_measure.ref_mark`); S4.5 đo khớp môi bằng mốc môi
+>   (agent khác, `4362b6d`). Góc dưới mái che: người dùng để sau. Kịch bản K: đang dùng bản A cho các phép thử (chưa chốt chính thức).
+> - Trạng thái mới nhất luôn ở `TODO.md` (các mục "Cập nhật 2026-09-29 (10)" trở đi) và `docs/KE_HOACH_SUA_SAU_DU_AN_8.md`.
+
 Đọc trước: `CLAUDE.md` (quy ước), `docs/KE_HOACH_SUA_SAU_DU_AN_8.md` (kế hoạch + trạng thái từng việc; % bằng `py tools/plan_progress.py`),
 `TODO.md` (các mục "Cập nhật 2026-09-29 (5)–(9)"), `docs/BAO_CAO_SANG_2026-09-29.md`. Trả lời người dùng bằng tiếng Việt.
 
