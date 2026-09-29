@@ -39,6 +39,18 @@ A/B trên 2 góc mỗi khu (đo màu trung bình nửa dưới = nhà + nền, n
 | Cân bằng trắng 8500–9500 K | +13 … +19 | **xám nhạt** | ấm nhưng mất trời nắng |
 | **E: ánh trời hắt vào cảnh nhuộm ấm + dịu, trời máy nhìn thấy giữ xanh (0,18), nắng vàng 6, WB 7000 K** | **+22 … +23** | **xanh đậm** | **chọn** |
 
+**Góp ý tiếp của người dùng (30/09): E ấm nhưng tối, như xế chiều — ảnh làm tham chiếu cần đủ sáng để model đọc rõ chi tiết.** A/B lần 2
+(đo trên nửa dưới ảnh = nhà + nền; "vùng tối" = phân vị 10 % độ sáng; trời = B−R của dải trên cùng):
+
+| Phương án | Sáng TB (Tháp / Cổng Trời) | Vùng tối p10 | Ấm R−B | Trời xanh đậm | Nhận xét |
+|---|---|---|---|---|---|
+| E (ấm chiều) | 103 / 75 | 32 / 45 | −1 / +20 | — | tối, bóng chìm chi tiết |
+| G (trưa sáng) | 138 / 121 | 64 / 81 | −4 / −1 | 78 | sáng nhưng mất ấm, trời nhạt |
+| **J (trưa nắng ấm) — CHỌN** | **129 / 117** | **60 / 75** | **0 / +16** | **97 / 102** | sáng rõ, ấm nhẹ, trời xanh đậm |
+
+J: mặt trời 58°, phơi sáng +0,1, ánh trời 0,2 nhuộm [1, 0,83, 0,64], trời nhìn thấy 0,14, nắng 5,6 màu [1, 0,87, 0,68], cân bằng trắng
+7600 K. Lưu `light.day` của #263 / #265 (thay E). Còn: nước hồ bơi hơi trắng do phản chiếu trời sáng — chỉnh sau nếu cần.
+
 Cơ chế mới trong `render_plates.setup_world`: `camera_strength` (trời máy nhìn thấy) tách khỏi `strength` × `ambient_tint` (ánh trời chiếu
 vào cảnh) bằng nút Light Path "Is Camera Ray"; thêm `white_balance`. Lưu vào `model3d.light.day` của #263 và #265 (có trong khoá đệm nền —
 render lại tự động). Ghi chú: chiều cân bằng trắng của Blender — số K cao hơn = ảnh ấm hơn (4500 K xanh nhất).
