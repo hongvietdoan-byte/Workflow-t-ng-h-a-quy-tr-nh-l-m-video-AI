@@ -17,19 +17,19 @@
 |---|---|---|---|---|---|---|
 | P0 Theo dõi tiến độ | 2 | 2 | 0 | 0 | 0 | 100 % |
 | S1 Dựng & âm thanh | 15 | 13 | 0 | 2 | 0 | 88,9 % |
-| S0 Học từ phim drama tham khảo | 15 | 11 | 4 | 0 | 0 | 79,6 % |
+| S0 Học từ phim drama tham khảo | 15 | 12 | 3 | 0 | 0 | 85,2 % |
 | S9 Dashboard gọn, dễ nhìn | 6 | 6 | 0 | 0 | 0 | 100 % |
 | S2 Timeline theo âm thanh + animatic | 6 | 5 | 0 | 1 | 0 | 81,8 % |
 | S3 Director kể chuyện + Quay phim | 8 | 7 | 0 | 0 | 1 | 100 % |
-| S4 Video chất lượng | 12 | 5 | 2 | 4 | 0 | 42,5 % |
+| S4 Video chất lượng | 12 | 6 | 2 | 4 | 0 | 55 % |
 | S5 Bối cảnh theo file 3D Tháp Đồng Hồ | 6 | 5 | 0 | 0 | 0 | 87,5 % |
 | S6 Ước tính, ngân sách, dashboard | 6 | 5 | 0 | 0 | 1 | 100 % |
 | S7 Agent QC | 2 | 1 | 0 | 0 | 0 | 66,7 % |
 | K Chạy kiểm kịch bản hài 20–30 s | 3 | 0 | 0 | 1 | 0 | 0 % |
 | S8 Chấm lại bằng AI Development System (cuối cùng) | 5 | 2 | 0 | 0 | 0 | 42,9 % |
-| **Tổng** | **86** | **62** | **6** | **8** | **2** | **76,9 %** |
+| **Tổng** | **86** | **64** | **5** | **8** | **2** | **79,7 %** |
 
-Đợt hiện tại: **S1** · việc kế: **S4.2** Khớp môi mọi shot người nói thấy mặt (theo A/B)
+Đợt hiện tại: **S1** · việc kế: **S5.5** Vẽ thử lại khung nền tháp
 <!-- /tien-do -->
 
 ## Danh sách việc (thứ tự người dùng đã duyệt)
@@ -66,7 +66,7 @@
 - [x] S0.8 · Phiếu so sánh bản dựng vs phim tham khảo · nặng:1 · ✅ · phiếu 10 mặt trong báo cáo S0.5 mục 4; đã chấm #8 cũ và v4
 - [x] S0.9 · Tư liệu kỹ thuật từ clip mẫu ClipAI (`MV_NARRATIVE`, Đ12 / Q12 / E12) — sửa 2026-09-29 theo góp ý người dùng: tư liệu + ý đồ ở đúng chỗ, không công thức · nặng:1 · ✅ · docs/PHAN_TICH_CLIP_MAU_CLIPAI_2026-09-28.md mục 6
 - [x] S0.10 · Phương pháp phân tích chính xác: quan sát (mốc giây) → ý đồ trong ngữ cảnh (giả thuyết + độ tin) → đối chiếu nhiều mẫu + tài liệu → mới thành kiến thức; kiểm mâu thuẫn với kiến thức sẵn có · nặng:1 · ✅ · knowledge/craft/PHUONG_PHAP_PHAN_TICH.md (duyệt 2026-09-29; thứ tự học: phim ngắn → short drama → hành động → MV → CGI kỹ xảo)
-- [ ] S0.11 · Kho kỹ thuật chuyên môn `knowledge/craft/` (máy quay, góc, chuyển động máy, chuyển cảnh, dựng, âm thanh): mỗi kỹ thuật = cách làm + nhiều ý đồ có thể phục vụ + điều kiện + ví dụ ≥ 2 mẫu + nguồn tài liệu (tóm lời mình) · nặng:3 · 🔄 · lượt 1 xong: research/craft/NGUON.md (30 nguồn) + draft 5 nhóm (25 mục) — kiểm duyệt: nhiều mục mới dẫn trang chủ / tóm tắt tìm kiếm, cần lượt 2 đọc bài gốc + ví dụ mốc giây (S0.12) rồi mới vào knowledge/craft/
+- [x] S0.11 · Kho kỹ thuật chuyên môn `knowledge/craft/` (máy quay, góc, chuyển động máy, chuyển cảnh, dựng, âm thanh): mỗi kỹ thuật = cách làm + nhiều ý đồ có thể phục vụ + điều kiện + ví dụ ≥ 2 mẫu + nguồn tài liệu (tóm lời mình) · nặng:3 · ✅ · lượt 1: research/craft/NGUON.md + draft 5 nhóm; lượt 2 (2026-09-29, nhánh C2): knowledge/craft/README.md + 6 nhóm, 53 kỹ thuật có ví dụ mốc giây từ 21 mẫu S0.12 + clip mẫu ClipAI, đọc trọn 4 bài gốc (Holben ASC, Randy Thom, Evan Schiff, Murch); mục chưa có mẫu ghi "giả thuyết"; mâu thuẫn E4 (cắt theo phách) ghi chờ duyệt; bổ sung ví dụ 20–28 khi S0.12 xong
 - [ ] S0.12 · Xem nhiều mẫu đa thể loại (drama dọc, MV, quảng cáo game, phim ngắn, hoạt hình FF…) gắn nhãn theo kho kỹ thuật S0.11 · nặng:3 · 🔄 · short drama = drama dọc 9:16 kiểu ReelShort làm bằng AI (ưu tiên hàng Trung Quốc); 21/28 video đã viết file (01–19, 23, 25; tải đoạn + ffmpeg + OpenCV + tools/audio_listen.py + phép đo cắt-so-phách mới); TẠM DỪNG 29/09 tối theo yêu cầu người dùng — 20, 21, 22, 24, 26, 27, 28 đo dở, bàn giao ở research/craft/s0_12/TONG_HOP.md mục Bàn giao (lỗi tải cụt tiếng đã tìm ra + sửa)
 - [ ] S0.13 · Rà kiến thức đang dùng (director / dp / editing / ff_styles) tìm chỗ gán nghĩa cố định hoặc khái quát từ 1 mẫu → sửa thành tư liệu có điều kiện · nặng:1 · ✅ · agent rà 16 chỗ (cinematography_basics 3, dp.md Q2/Q3/Q5/Q8 4, director.md Đ4/N5 2, film_director_method 3, video_motion_vocab 1, genre_guides 3) → đã sửa hết; 1340 test qua
 - [ ] S0.14 · Nghiên cứu nguồn tiếng Trung về phim AI (AI短剧 9:16, workflow, nội dung, prompt ngắn đủ ý, cảnh xịn; Seedance/即梦/可灵 tài liệu chính thức, WaytoAGI, bài ngành) → research/craft/trung_quoc/ · nặng:3 · 🔄 · lượt 1: 18 nguồn (Seedance 2.5 提示词指南 đọc trọn…), quy trình 9 bước, 15 bài học; lượt 2 (2026-09-29): +12 nguồn (#19–30) — Kling 3.0 hướng dẫn chính thức (Multi-Shot, Element Binding, thoại 5 ngôn ngữ, không tiếng Việt), đạo diễn 陈坤 《山海奇镜》, 抽卡师 潮新闻 (2–3 lần gen thường, 10+ cảnh khó, nhóm 15 s), WaytoAGI, luật 微短剧 9/2026; 6 gợi ý kiểm được T1–T6 (research/craft/trung_quoc/LUOT_2.md) — chờ người dùng xem; thiếu: biên kịch có tên thật
