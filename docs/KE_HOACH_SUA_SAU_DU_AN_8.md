@@ -24,10 +24,10 @@
 | S4 Video chất lượng | 12 | 2 | 0 | 4 | 0 | 10 % |
 | S5 Bối cảnh theo file 3D Tháp Đồng Hồ | 6 | 5 | 0 | 0 | 0 | 87,5 % |
 | S6 Ước tính, ngân sách, dashboard | 6 | 3 | 1 | 1 | 1 | 71,4 % |
-| S7 Agent QC | 2 | 0 | 0 | 0 | 0 | 0 % |
+| S7 Agent QC | 2 | 1 | 0 | 0 | 0 | 66,7 % |
 | K Chạy kiểm kịch bản hài 20–30 s | 3 | 0 | 0 | 0 | 0 | 0 % |
 | S8 Chấm lại bằng AI Development System (cuối cùng) | 5 | 0 | 0 | 0 | 0 | 0 % |
-| **Tổng** | **86** | **53** | **5** | **8** | **2** | **66,1 %** |
+| **Tổng** | **86** | **54** | **5** | **8** | **2** | **67,5 %** |
 
 Đợt hiện tại: **S1** · việc kế: **S9.6** Gộp timeline tổng + sửa giao diện S6.4
 <!-- /tien-do -->
@@ -129,7 +129,7 @@
 - [x] S6.6 · Áp tài liệu prompt caching vào ước tính · nặng:1 · ✅ · 2026-09-29: kiểm lại tài liệu (4 breakpoint, lookback 20, Sonnet 5 tối thiểu 1024 token, ghi ×1,25/×2, đọc ×0,1, ảnh cache được); cost.cache_stats đo tỉ lệ đọc cache từng khâu từ usage thật, hiện ở bảng ngân sách; đo #8: khâu qc 0 %
 
 ### S7 — Agent QC
-- [ ] S7.0 · Agent QC giữ cache (không cắt ảnh giữa hội thoại) · nặng:2 · ⬜
+- [x] S7.0 · Agent QC giữ cache (không cắt ảnh giữa hội thoại) · nặng:2 · ✅ · 2026-09-29: bỏ cắt ảnh cũ (prune); hội thoại chỉ dài thêm, quá 16 ảnh thì mở phiên mới từ brief (vẫn đọc cache) + bản tóm ghi chú / kết luận + kết quả công cụ vừa gọi; test. Sổ chi thật trước khi sửa: qc_agent đọc cache 46,9 %, qc 0 %, video 17,7 %; Director hai lượt chưa có dòng usage trong sổ để kiểm → đo ở lần chạy K; mục tiêu ≥ 70 % đo ở S7.1 (tốn tiền)
 - [ ] S7.1 · Nghiệm thu lại agent QC · nặng:1 · ⬜
 
 ### K — Chạy kiểm kịch bản hài 20–30 s

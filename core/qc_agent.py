@@ -171,8 +171,7 @@ def inspection_plan(conn, pid: int, frames: List[Dict]) -> List[str]:
     return plan
 
 
-KEEP_IMAGE_TURNS = 2      # tool results whose pictures stay in the conversation after a pruning
-MAX_HISTORY_IMAGES = 10   # pruning happens only once the conversation carries more pictures than this
+MAX_SESSION_IMAGES = 16   # past this many pictures the conversation is restarted from the brief + a recap (S7.0)
 
 
 def _images_in(messages: List[Dict]) -> int:
@@ -184,28 +183,28 @@ def _images_in(messages: List[Dict]) -> int:
     return n
 
 
-def prune(messages: List[Dict]) -> bool:
-    """Every turn resends the whole conversation, so old pictures are dropped — but IN A BATCH, once more than MAX_HISTORY_IMAGES are
-    carried: every pruning changes the start of the conversation and the provider's prompt cache is lost for that turn (#8 2026-09-28:
-    pruning at every turn made 736k input tokens uncached, ~2 USD). What was SEEN stays in the agent's own words (text, record calls);
-    it can call the tool again to look again. Returns True when it pruned."""
-    if _images_in(messages) <= MAX_HISTORY_IMAGES:
-        return False
-    seen = 0
-    for m in reversed(messages[1:]):
-        if m["role"] != "user" or not isinstance(m["content"], list):
-            continue
-        results = [b for b in m["content"] if b.get("type") == "tool_result"]
-        if not results:
-            continue
-        seen += 1
-        if seen <= KEEP_IMAGE_TURNS:
-            continue
-        for r in results:
-            if isinstance(r.get("content"), list) and any(b.get("type") == "image" for b in r["content"]):
-                r["content"] = [b for b in r["content"] if b.get("type") != "image"] + [
-                    {"type": "text", "text": "(ảnh đã xem ở lượt trước — gọi lại công cụ nếu cần xem lại)"}]
-    return True
+def too_long(messages: List[Dict]) -> bool:
+    """S7.0 (caching docs, checked 2026-09-29): changing or removing an EARLIER picture invalidates the cache of everything after it, so
+    old pictures are never cut mid-conversation (the old batch pruning did exactly that — PH 45). The conversation only grows: new
+    pictures always come after the last cache point and the rest is read at 0.1x. Once it carries more than MAX_SESSION_IMAGES the
+    session ends and a new one starts from the (cached) brief + a recap: one new cache write instead of a rewrite every few turns."""
+    return _images_in(messages) > MAX_SESSION_IMAGES
+
+
+def restart(messages: List[Dict], recap: str) -> List[Dict]:
+    """A new session: the first message (brief + overview, its cache mark kept, so that prefix is still read from the cache) followed by
+    the recap of what the agent saw and recorded, then what the tools answered last (not yet seen by the agent — it asked for it)."""
+    last = messages[-1] if len(messages) > 1 and messages[-1]["role"] == "user" else {"content": []}
+    latest = []
+    for b in last["content"] if isinstance(last["content"], list) else []:
+        if b.get("type") == "tool_result":
+            latest += [dict(x) for x in b.get("content") or [] if isinstance(x, dict)]
+        elif b.get("type") in ("text", "image"):
+            latest.append(dict(b))
+    for x in latest:
+        x.pop("cache_control", None)
+    return [{"role": "user", "content": list(messages[0]["content"]) + [{"type": "text", "text": recap}] + (
+        [{"type": "text", "text": "Kết quả công cụ bạn vừa gọi:"}] + latest if latest else [])}]
 
 
 def mark_cache(messages: List[Dict]) -> None:
@@ -236,6 +235,7 @@ class QcAgent:
         self.records: Dict[int, Dict] = {}
         self.summary = None
         self.steps = 0
+        self.sessions = 1
         self._n = 0
 
     def _must(self) -> List[Dict]:
@@ -320,6 +320,19 @@ class QcAgent:
         return [{"type": "text", "text": f"không có công cụ {name}"}]
 
     # ---- the loop ---------------------------------------------------------------------------------------------------------
+    def _recap(self, messages: List[Dict]) -> str:
+        """What a new session needs from the old one: the agent's own notes (what it SAW, in its words), what it recorded, what is left.
+        The pictures are not carried over — it can call the tool again to look again."""
+        notes = [b["text"].strip() for m in messages[1:] if m["role"] == "assistant"
+                 for b in m["content"] if b.get("type") == "text" and b.get("text", "").strip()]
+        done = [f"K{k}: {r['verdict']}" + (" — " + "; ".join(str(i.get("description") or i.get("type")) for i in r.get("issues") or [])
+                                            if r.get("issues") else "") for k, r in sorted(self.records.items())]
+        text = "\n".join(notes)[-3000:]
+        return ("# Phiên mới (hội thoại cũ quá dài nên được thay bằng bản tóm này; ảnh đã xem không còn — gọi lại công cụ nếu cần xem lại)\n"
+                + ("## Ghi chú của chính bạn ở phiên trước\n" + text + "\n" if text else "")
+                + ("## Đã ghi\n" + "\n".join(done) + "\n" if done else "")
+                + f"## Còn phải ghi\n{self._left()}\nTiếp tục: điều tra khung còn lại, record_batch, rồi finish.")
+
     def _brief(self) -> str:
         from . import prompts
         from .claude_tasks import _read
@@ -382,7 +395,9 @@ class QcAgent:
         cap_usd = scene_cap(len(self._must()))
         with tagged("qc_agent", self.pid), spend_cap(cap_usd, f"agent QC cảnh {self.story}") as cap:
             while self.summary is None and self.steps < MAX_STEPS:
-                prune(messages)
+                if too_long(messages):
+                    messages = restart(messages, self._recap(messages))
+                    self.sessions += 1
                 mark_cache(messages)
                 try:
                     reply = self.client.converse(messages, TOOLS, SYSTEM, max_tokens=ANSWER_TOKENS)
@@ -445,6 +460,7 @@ class QcAgent:
         seen = sum(1 for r in self.records.values() if not any(i.get("type") == "chưa soi" for i in r.get("issues") or []))
         minutes = max((time.time() - t0) / 60, 1e-6)
         out = {"scene": self.story, "steps": self.steps, "usd": round(cap["spent"], 4), "cap_usd": cap_usd, "stopped": stopped,
+               "sessions": self.sessions,
                "blocked": self.blocked, "speed": {"minutes": round(minutes, 2), "frames_judged": seen,
                                                    "frames_per_minute": round(seen / minutes, 2),
                                                    "usd_per_frame": round(cap["spent"] / seen, 4) if seen else None},

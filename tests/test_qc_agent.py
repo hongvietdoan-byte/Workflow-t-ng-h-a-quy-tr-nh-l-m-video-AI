@@ -19,7 +19,7 @@ class Scripted:
         self.turns, self.seen = list(turns), []
 
     def converse(self, messages, tools, system="", max_tokens=None):
-        self.seen.append(copy.deepcopy(messages[-1]))    # prune() later rewrites old turns in place
+        self.seen.append(copy.deepcopy(messages[-1]))    # a restart replaces the conversation
         calls = self.turns.pop(0) if self.turns else []
         blocks = [{"type": "tool_use", "id": f"t{len(self.seen)}_{i}", "name": n, "input": inp} for i, (n, inp) in enumerate(calls)]
         return llm_runner.LlmReply("", 100, 20, "tool_use", blocks=blocks or [{"type": "text", "text": "…"}])
@@ -69,24 +69,41 @@ class AgentTests(unittest.TestCase):
         self.assertEqual({r["verdict"] for r in res["records"]}, {"doubt"})
         self.assertEqual(res["steps"], qc_agent.MAX_STEPS)
 
-    def test_old_pictures_leave_the_conversation(self):
+    def test_old_pictures_are_never_cut_the_session_restarts_from_a_recap(self):
+        """S7.0: changing an earlier picture invalidates the cache after it — pictures stay; past the limit a new session starts from the
+        cached brief + a recap + the tool answers the agent has not seen yet."""
         img = {"type": "image", "source": {"type": "base64", "media_type": "image/png", "data": "x"}}
-        msgs = [{"role": "user", "content": [{"type": "text", "text": "brief"}, img]}]
+        first = [{"type": "text", "text": "brief"}, dict(img, cache_control={"type": "ephemeral"})]
+        msgs = [{"role": "user", "content": first}]
         def turns(n):
             for i in range(n):
-                msgs.append({"role": "assistant", "content": [{"type": "tool_use", "id": str(i), "name": "view_frame", "input": {}}]})
+                msgs.append({"role": "assistant", "content": [{"type": "text", "text": f"K{i} nền có hai tầng"},
+                                                               {"type": "tool_use", "id": str(i), "name": "view_frame", "input": {}}]})
                 msgs.append({"role": "user", "content": [{"type": "tool_result", "tool_use_id": str(i),
-                                                          "content": [{"type": "text", "text": "K"}, dict(img)]}]})
-
-        def with_img():
-            return [m for m in msgs[1:] if m["role"] == "user" and any(b.get("type") == "image" for b in m["content"][0]["content"])]
-        turns(qc_agent.MAX_HISTORY_IMAGES)
-        self.assertFalse(qc_agent.prune(msgs))                                 # in a batch only: the cache survives until then
-        self.assertEqual(len(with_img()), qc_agent.MAX_HISTORY_IMAGES)
+                                                          "content": [{"type": "text", "text": f"K{i}"}, dict(img)]}]})
+        turns(qc_agent.MAX_SESSION_IMAGES)
+        before = copy.deepcopy(msgs)
+        self.assertFalse(qc_agent.too_long(msgs))
+        self.assertEqual(msgs, before)                                         # nothing rewritten: the cache survives
         turns(1)
-        self.assertTrue(qc_agent.prune(msgs))
-        self.assertEqual(len(with_img()), qc_agent.KEEP_IMAGE_TURNS)
-        self.assertTrue(any(b.get("type") == "image" for b in msgs[0]["content"]))     # the overview stays
+        self.assertTrue(qc_agent.too_long(msgs))
+        agent = qc_agent.QcAgent(self.p, self.pid, self.data, None, self.frames)
+        agent.records[1] = {"k": 1, "verdict": "block", "issues": [{"description": "sáu ngón"}]}
+        new = qc_agent.restart(msgs, agent._recap(msgs))
+        self.assertEqual(len(new), 1)
+        self.assertEqual(new[0]["content"][:2], first)                         # the cached prefix is byte-identical
+        recap = new[0]["content"][2]["text"]
+        self.assertIn("hai tầng", recap)                                       # its own notes
+        self.assertIn("K1: block — sáu ngón", recap)
+        self.assertEqual(new[0]["content"][-1]["type"], "image")               # the last answer it asked for is still shown
+        self.assertEqual(sum(1 for b in new[0]["content"] if b.get("cache_control")), 1)
+
+    def test_a_long_run_restarts_instead_of_pruning(self):
+        looks = [[("view_frame", {"k": 1}), ("view_frame", {"k": 2})]] * (qc_agent.MAX_SESSION_IMAGES // 2 + 1)
+        c = Scripted(looks + [[self.record(k) for k in range(1, self.n + 1)], [("finish", {"summary": "xong"})]])
+        res = qc_agent.QcAgent(self.p, self.pid, self.data, c, self.frames).run()
+        self.assertEqual(res["summary"]["summary"], "xong")
+        self.assertEqual(res["sessions"], 2)
 
     def test_a_rolling_cache_mark_on_the_newest_message_only(self):
         msgs = [{"role": "user", "content": [{"type": "text", "text": "brief", "cache_control": {"type": "ephemeral"}}]},
