@@ -286,13 +286,16 @@ class PreferredVietnameseVoiceTests(unittest.TestCase):
     TEAM = [{"id": 64, "name": "ClipAI_KELLY", "languages": [], "labels": {}},
             {"id": 70, "name": "ClipAI_Voice Kelly VN", "languages": [], "labels": {}},
             {"id": 69, "name": "ClipAI_voice Hip VN", "languages": [], "labels": {}},
+            {"id": 30168, "name": "ClipAI_Voice Hip VN 2", "languages": [], "labels": {}},
             {"id": 71, "name": "ClipAI_Voice girl ingame VN", "languages": [], "labels": {}},
             {"id": 72, "name": "ClipAI_voice boy ingame VN", "languages": [], "labels": {}}]
 
     def test_the_four_vn_voices_lead_with_their_gender_then_other_vietnamese_voices(self):
         from core import voice
         pool = voice.casting_pool(self.OFFICIAL + self.TEAM)
-        self.assertEqual([v["id"] for v in pool], [72, 69, 71, 70, 30002])        # KELLY (no 'VN', no language) is not offered
+        self.assertEqual([v["id"] for v in pool], [72, 30168, 71, 70, 30002])     # KELLY (no 'VN', no language) is not offered;
+        self.assertNotIn(69, [v["id"] for v in voice.library(type("P", (), {                # voice Hip VN retired 2026-09-29 (hum)
+            "voice_actors": lambda s, owner=None, game_code=None, **_: list(self.TEAM)})())])
         self.assertEqual([voice.voice_gender(v) for v in pool[:4]], ["male", "male", "female", "female"])
         self.assertEqual(voice.display_name(pool[3]), "Voice Kelly VN")
 

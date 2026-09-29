@@ -213,7 +213,7 @@ Phần lớn việc còn lại trong `TODO.md` (mục "Đang làm/kế tiếp", 
 
 ## 2026-09-25 — Phản hồi người dùng sau khi xem video 2A + cách sửa
 **Finding**:
-- **eleven_v3 thỉnh thoảng cắt cụt câu ngắn** (giọng "voice Hip VN" id 69: 0,64 s cho 5 âm tiết, 80 ms cuối −1,1 dB). Đo đuôi file bắt được, tạo lại kèm "…" cuối câu → tự nhiên (1,04 s, đuôi −18/−35 dB).
+- **eleven_v3 thỉnh thoảng cắt cụt câu ngắn** (giọng "voice Hip VN" id 69 — đã BỎ 2026-09-29 vì tiếng ù nền, thay bằng "Voice Hip VN 2" id 30168: 0,64 s cho 5 âm tiết, 80 ms cuối −1,1 dB). Đo đuôi file bắt được, tạo lại kèm "…" cuối câu → tự nhiên (1,04 s, đuôi −18/−35 dB).
 - Director hiểu "đứng trong bóng tối" thành nền đen trơn (void) → luật: cảnh đêm ở bối cảnh thật.
 - Chỉ tả mốc bằng chữ → model vẽ tháp đồng hồ châu Âu chung chung. Cần **ảnh mốc thật ngang tầm mắt**: render mô hình 3D FF bằng **Blender 5.0.1 bản Microsoft Store** (thư mục WindowsApps ẩn, exe bị chặn, chạy nền qua `Invoke-CommandInDesktopPackage`) → Kho #263 ảnh vai trò "detail".
 - Model nhạc (ElevenLabs qua ClipAI) luôn tắt dần ~5 s cuối và không phải bản nào cũng đổi phần đúng mốc → xin dài +4 s, đo độ to để chọn bản (bản chọn: +27,6 dB đúng 8,6 s).

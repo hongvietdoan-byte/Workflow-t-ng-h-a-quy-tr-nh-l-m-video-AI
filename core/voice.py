@@ -116,6 +116,14 @@ def preferred(v: Dict) -> Optional[Dict]:
     return None
 
 
+def retired(v: Dict) -> bool:
+    """A voice the user stopped using ("retired" in data/voices_vi.json, by id or name) — never offered again, even while it is still
+    listed on Clip AI (voice Hip VN, id 69: a low hum under every line, 2026-09-29)."""
+    name = _clean_name(v.get("name"))
+    return any((e.get("id") is not None and e.get("id") == v.get("id")) or (e.get("name") and _clean_name(e["name"]) == name)
+               for e in voice_config().get("retired") or [])
+
+
 def display_name(v: Dict) -> str:
     return str(v.get("name") or "").replace("ClipAI_", "", 1).strip()
 
@@ -140,7 +148,7 @@ def vietnamese_first(voices: List[Dict]) -> List[Dict]:
     seen, pref, vi, other = set(), [], [], []
     for v in voices:
         key = _clean_name(v.get("name"))
-        if key in seen:
+        if key in seen or retired(v):
             continue
         seen.add(key)
         (pref if preferred(v) else vi if speaks_vi(v) else other).append(v)
