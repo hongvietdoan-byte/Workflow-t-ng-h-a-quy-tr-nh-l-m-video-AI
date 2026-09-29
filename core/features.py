@@ -259,6 +259,13 @@ FEATURES: Dict[str, Dict] = {
         "why": "S0.14 T2 (2026-09-29): tài liệu chính thức Kling 3.0 gắn thoại theo tên nhân vật; người thử thấy Kling chia thoại giữa "
                "nhân vật chưa chuẩn — chưa thử thật câu thêm có làm đúng người mở miệng hơn không (core/speaker_lint.py)",
     },
+    "skill_dossier": {
+        "label": "Hồ sơ kỹ năng nhân vật (data/skills/<TÊN>): Director đọc các giai đoạn + luật kịch bản; shot có kỹ năng gửi kèm khung "
+                 "hình thật của giai đoạn đó làm ảnh tham chiếu + câu tả chuẩn cho ảnh và video + danh sách không được vẽ; báo chữ trái hồ sơ",
+        "verified": False,
+        "why": "Người dùng 2026-09-30: #8 tả kỹ năng Kenta sai (rút katana, lốc phá tường) vì chỉ có vài dòng chữ. Hồ sơ Kenta xem 30 "
+               "khung/giây video chính thức; chưa thử thật — thử trước 1 cảnh ngắn Kenta dùng kỹ năng",
+    },
 }
 
 

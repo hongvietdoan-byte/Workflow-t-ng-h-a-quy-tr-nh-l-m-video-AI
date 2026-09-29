@@ -32,3 +32,4 @@ data/_plates3d/
 devsys/data/*
 !devsys/data/.gitkeep
 !devsys/data/README.md
+data/skills/*/frames_png/

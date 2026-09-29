@@ -859,7 +859,15 @@ class VideoRunner(_Runner):
         if lock and lock not in motion:
             motion = f"{lock} {motion}"
         motion = self._speakers_named(job, model, motion, group, setup)
-        args = (path, motion, looks.video_negative(proj, mp["negative_prompt"]), duration, model)
+        negative = mp["negative_prompt"]
+        from . import skill_dossier
+        if skill_dossier.enabled():                   # 30/09: the skill phase in the clip's words + what is never drawn
+            hit = skill_dossier.shot_skill(json.loads(conn.execute("SELECT data FROM scenes WHERE id=?", (job["scene_id"],))
+                                                      .fetchone()["data"] or "{}"))
+            if hit and hit["phase"]["video_en"] not in motion:
+                motion = motion.rstrip() + skill_dossier.video_sentence(hit)
+            negative = skill_dossier.video_negative(hit, negative)
+        args = (path, motion, looks.video_negative(proj, negative), duration, model)
         subj_refs = []
         if proj["use_subjects"] and "seedance" in (model or ""):
             subj_refs = subject_links.usable_for_scene(self.p, job["scene_id"], subject_links.reference_cap(model))
@@ -1241,6 +1249,9 @@ def build_image_prompt(conn, project_id: int, data: Dict, core: Optional[str] = 
     prompt += lock_note(conn, project_id, data.get("characters"))
     prompt += view_notes(conn, project_id, data)
     prompt += looks.image_sentence(proj)
+    from . import skill_dossier
+    if skill_dossier.enabled():                   # 30/09: the skill phase as the official video shows it + what is never drawn
+        prompt += skill_dossier.image_sentence(skill_dossier.shot_skill(data))
     if fix:
         prompt = f"{prompt}. Fix: {fix}"
     place = assets.scene_location(conn, project_id, data)
@@ -1414,6 +1425,11 @@ class ImageRunner(_Runner):
                 geo = place_refs.geometry_sentence(ref["_rec"], data, (entry or {}).get("sun_azimuth", 250.0))
                 if geo:
                     prompt = f"{prompt} {geo}"
+        from . import skill_dossier
+        if skill_dossier.enabled():                    # 30/09: the phase's real frame from the skill video (the dossier)
+            for problem in skill_dossier.shot_problems(data):
+                self._diag(job, "warn", "skill_contradiction", problem)
+            refs = skill_dossier.add_reference(refs, skill_dossier.reference(skill_dossier.shot_skill(data)), limit)
         if chain and len(refs) < limit:
             # Deepix has no scriptable Storyboard (web UI only, see docs/CLIPAI_FEATURES.md) — this chains the
             # previous scene's approved picture in as an extra image-to-image reference instead, so style/lighting
@@ -1481,6 +1497,11 @@ class ImageRunner(_Runner):
                 from . import place_refs
                 if place_refs.enabled() and not without_place:        # this frame's own 3D render replaces the library's place picture
                     shared = place_refs.swap_in(shared, place_refs.shot_ref(self.data_dir, job["project_id"], job["scene_id"]), 8)
+                from . import skill_dossier
+                if skill_dossier.enabled():            # the skill frame of THIS shot rides with the shared references
+                    row = self.p.conn.execute("SELECT data FROM scenes WHERE id=?", (job["scene_id"],)).fetchone()
+                    hit = skill_dossier.shot_skill(json.loads(row["data"] or "{}")) if row else None
+                    shared = skill_dossier.add_reference(shared, skill_dossier.reference(hit), 8)
                 shared, dropped = sendable_references(shared, model)     # before the mapping text is built from the list
                 if dropped:
                     self._diag(job, "warn", "missing_reference", "ảnh tham chiếu storyboard không gửi được: " + ", ".join(dropped))

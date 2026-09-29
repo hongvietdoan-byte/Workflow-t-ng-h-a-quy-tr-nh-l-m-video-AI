@@ -968,6 +968,9 @@ def reference_note(refs: List[Dict]) -> str:
                         "exactly — the same buildings in the same places, the same number of floors, roofs, windows, stairs, walls, trees, "
                         "the same horizon line and perspective — and draw the people INTO it at the size and place the scene text gives; "
                         "improve only light, texture detail and atmosphere in the game's style; never move, add or remove a building")
+        elif g["role"] == "skill_phase":
+            from . import skill_dossier
+            bits.append(skill_dossier.reference_note(tag, g["label"]))
         elif g["role"] == "landmark":
             bits.append(f"{tag} shows the real LANDMARK of {g['label']} (from the game): wherever it appears in the background, draw it with "
                         "exactly this shape, proportions, materials and colours — but NOT this picture's camera angle, framing, time of "

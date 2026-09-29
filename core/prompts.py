@@ -52,6 +52,12 @@ def world_bible_text(pipeline: Pipeline, project_id: int) -> str:
             "\nMọi prompt ảnh/video của dự án dùng lại cách diễn đạt này để các cảnh nhất quán (không cần chép nguyên văn ở mỗi cảnh).")
 
 
+def _skill_block(names) -> str:
+    """Feature skill_dossier: the characters' skill dossiers (data/skills) — they win over the few lines of the skills notes."""
+    from . import skill_dossier
+    return skill_dossier.director_block(names) if skill_dossier.enabled() else ""
+
+
 def people_in_project(pipeline: Pipeline, project_id: int) -> List[str]:
     """Names the FF skill notes are filtered by: Character Bible, the project's character resources, capitalised speakers."""
     conn = pipeline.conn
@@ -222,6 +228,7 @@ def build_director_bundle(pipeline: Pipeline, project_id: int, only_scene: Optio
     else:
         crew = []
     ff = "" if "knowledge/ff_character_skills_visual.md" in folded else knowledge.ff_skills_for(people_in_project(pipeline, project_id))
+    ff = _SEP.join(x for x in [ff, _skill_block(people_in_project(pipeline, project_id))] if x)
     body = _SEP.join(x for x in [
         _read("prompts", "01_director_scene_analysis.md"),
         project_frame_block(pipeline, project_id),
@@ -350,6 +357,7 @@ def dp_common(pipeline: Pipeline, project_id: int, intent: dict) -> str:
                       + (f" | Lock: {json.dumps(c['lock'], ensure_ascii=False)}" if c.get("lock") else "") for c in chars)
     plan = {"genre": intent.get("genre"), "scenes": intent.get("scenes") or []}
     ff = "" if "knowledge/ff_character_skills_visual.md" in folded else knowledge.ff_skills_for(names or people_in_project(pipeline, project_id))
+    ff = _SEP.join(x for x in [ff, _skill_block(names or people_in_project(pipeline, project_id))] if x)
     return _SEP.join(x for x in [
         _read("prompts", "20_dp_scene_shots.md"),
         shot_style_block(proj),
@@ -631,6 +639,9 @@ def build_motion_bundle(pipeline: Pipeline, project_id: int, only_missing: bool 
         ff = knowledge.ff_skills_for(people_in_project(pipeline, project_id))
         if ff:
             parts.append(ff)
+    skill = _skill_block(people_in_project(pipeline, project_id))
+    if skill:
+        parts.append(skill)
     lock = lock_text(conn, project_id)
     if lock:
         parts.append(lock)
