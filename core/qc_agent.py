@@ -309,6 +309,16 @@ class QcAgent:
         self._n += 1
         return os.path.join(self.work, f"{self._n:03d}_{name}.jpg")
 
+    def _log(self, use: Dict, content: List[Dict]) -> None:
+        """Every tool call and its short answer, one line each (S7.1 01/10: two paid runs recorded nothing and left no trace of why)."""
+        try:
+            text = " ".join(b.get("text", "") for b in content if b.get("type") == "text")[:300]
+            with open(os.path.join(self.work, "tool_log.jsonl"), "a", encoding="utf-8") as fh:
+                fh.write(json.dumps({"step": self.steps, "tool": use.get("name"), "input": json.dumps(use.get("input") or {},
+                                     ensure_ascii=False)[:400], "answer": text}, ensure_ascii=False) + "\n")
+        except OSError:
+            pass
+
     def tool(self, name: str, args: Dict) -> List[Dict]:
         """The tool's result as content blocks (text / image)."""
         from . import assets, qc_scene, scene_establish
@@ -358,8 +368,8 @@ class QcAgent:
             issues = args.get("issues") or []
             if args["verdict"] in ("block", "minor", "doubt") and not issues:
                 return [{"type": "text", "text": "verdict khác pass phải có ít nhất một issue kèm evidence"}]
-            for issue in issues:
-                if isinstance(issue, dict) and lateral_issue(issue):
+            for issue in issues if args["verdict"] in ("block", "minor") else []:     # a doubt is always recordable (S7.1 01/10:
+                if isinstance(issue, dict) and lateral_issue(issue):                    # refusing it looped cảnh 2 to the end)
                     why = lateral_problem(issue)
                     if why:
                         return [{"type": "text", "text": f"K{k} chưa ghi: {why}"}]
@@ -507,6 +517,7 @@ class QcAgent:
                     except Exception as e:  # noqa: BLE001 - a bad tool call is answered, the loop goes on
                         content = [{"type": "text", "text": f"lỗi công cụ: {type(e).__name__}: {e}"}]
                     results.append({"type": "tool_result", "tool_use_id": u["id"], "content": content})
+                    self._log(u, content)
                 left = self._left()                    # where it stands, every turn (28/09: 8 turns spent looking, nothing recorded)
                 results[-1]["content"] = list(results[-1]["content"]) + [{"type": "text", "text": (
                     f"[Trạng thái] đã dùng ${cap['spent']:.3f} / ${cap_usd:.2f}, lượt {self.steps}/{steps_max}; chưa ghi: {left}"

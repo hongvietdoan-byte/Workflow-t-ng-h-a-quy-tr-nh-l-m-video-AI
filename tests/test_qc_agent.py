@@ -67,7 +67,10 @@ class AgentTests(unittest.TestCase):
     def test_the_last_turns_offer_only_the_record_tools(self):
         """S7.1 01/10: cảnh 2 #8 spent every turn looking (text "record now" answers ignored) — the closing turns cannot look at all."""
         c = Scripted([[("view_frame", {"k": 1})]] * (qc_agent.MAX_STEPS + 2))
-        qc_agent.QcAgent(self.p, self.pid, self.data, c, self.frames).run()
+        agent = qc_agent.QcAgent(self.p, self.pid, self.data, c, self.frames)
+        agent.run()
+        with open(os.path.join(agent.work, "tool_log.jsonl"), encoding="utf-8") as fh:     # every call leaves a trace
+            self.assertIn('"tool": "view_frame"', fh.readline())
         steps = qc_agent.max_steps(len(self.frames))
         self.assertIn("view_frame", c.tool_sets[0])
         for names in c.tool_sets[steps - qc_agent.CLOSING_TURNS:]:
@@ -177,6 +180,8 @@ class AgentTests(unittest.TestCase):
         self.assertEqual(qc_agent.arm_from_side({"view": "camera", "body_center_x": 0.5, "detail_x": 0.7}), "LEFT")
         self.assertIsNone(qc_agent.arm_from_side({"view": "behind", "body_center_x": 0.5, "detail_x": 0.51}))
         self.assertFalse(qc_agent.lateral_issue({"type": "shot_size", "description": "MCU thay vì CU"}))
+        doubt = agent.tool("record", {"k": 2, "verdict": "doubt", "issues": [dict(flip, severity="minor")], "root_cause": "none"})
+        self.assertIn("đã ghi K2", doubt[0]["text"])                           # a doubt never loops on the measurements
 
     def test_the_inspection_plan_comes_from_the_profiles(self):
         from unittest import mock
