@@ -94,6 +94,31 @@ VIDEO_RULES = {
 }
 
 
+# S4.12: the source clip of a Seedance 2.5 video edit (web app limits, bundle 3634, 2026-10-01: 2.5 edit needs ≥ 4 s; ≤ 30 s;
+# 409 600 – 2 086 876 pixels per frame; aspect 0.4 – 2.5).
+VIDEO_EDIT_RULES = {"seconds": (4.0, 30.0), "pixels": (409_600, 2_086_876), "ratio": (0.4, 2.5)}
+
+
+def video_edit_problems(info: Dict) -> List[str]:
+    """Why ClipAI would refuse this clip as the master of a video edit ([] = fine). A clip ffprobe cannot read is a problem (luật 1)."""
+    out = []
+    r = VIDEO_EDIT_RULES
+    d = info.get("duration")
+    if d is None:
+        out.append("không đo được độ dài clip (ffprobe)")
+    elif not r["seconds"][0] <= d <= r["seconds"][1]:
+        out.append(f"clip dài {d:.2f} s, cần {r['seconds'][0]:.0f}–{r['seconds'][1]:.0f} s")
+    w, h = info.get("width"), info.get("height")
+    if not w or not h:
+        out.append("không đo được cỡ khung (ffprobe)")
+    else:
+        if not r["pixels"][0] <= w * h <= r["pixels"][1]:
+            out.append(f"khung {w}×{h} = {w * h} điểm ảnh, cần {r['pixels'][0]}–{r['pixels'][1]}")
+        if not r["ratio"][0] <= w / h <= r["ratio"][1]:
+            out.append(f"tỉ lệ khung {w}×{h} ngoài {r['ratio'][0]}–{r['ratio'][1]}")
+    return out
+
+
 IMAGE_RULES = {"omni": {"side": (300, 100_000), "ratio": (0.4, 2.5)}, "seedance": {"side": (300, 6000), "ratio": (0.4, 2.5)}}
 
 
@@ -291,7 +316,7 @@ class ClipAIVideoProvider:
               aspect_ratio: Optional[str] = None, resolution: Optional[str] = None,
               multi_prompt: Optional[list] = None, last_frame: Optional[str] = None, kling_mode: Optional[str] = None,
               kling_image_refs: bool = False,
-              reference_audio: Optional[list] = None, reference_only: Optional[list] = None) -> str:
+              reference_audio: Optional[list] = None, reference_only: Optional[list] = None, draft: bool = False) -> str:
         """aspect_ratio / resolution override the provider defaults for this job (project frame format, per-scene tier).
         image_references: this project's own resource-library pictures (local files, [{"path","label","role"}], from
         `assets.scene_references`) — no separate Subject Library upload/approval needed. `subjects`: Subject Library entries
@@ -309,8 +334,13 @@ class ClipAIVideoProvider:
         reference_only: Seedance "reference to video" — local pictures sent ONLY as `reference_image` (no first frame; `image_path` is not
         sent). Seedance refuses first/last frames mixed with reference pictures (real run 2026-09-24), so this is the way to give every
         shot of a grouped generation its own storyboard picture (docs/PHAN_TICH_GOP_SHOT_2026-09-27.md, P2). The caller's prompt names
-        each picture ("Image 1 … Image N"). 2.0: ≤ 9 pictures; 2.5: ≤ 30."""
+        each picture ("Image 1 … Image N"). 2.0: ≤ 9 pictures; 2.5: ≤ 30.
+        draft: S4.11 Sample Mode (feature `seedance_sample_mode`) — a 480p sample of a Seedance 2.5 clip that `submit_final_from_sample`
+        turns into the 1080p final within 7 days (web app: body + `draft: true`, resolution forced to 480p)."""
         canonical, family = resolve_model(model)
+        if draft:
+            self._check_sample_mode(canonical)
+            resolution = "480p"
         videos = reference_video if isinstance(reference_video, list) else ([reference_video] if reference_video else [])
         reference_video = videos[0] if videos else None      # the Kling fields read the first; Seedance sends every one
         if with_audio and canonical == "kling-video-o1":
@@ -429,6 +459,8 @@ class ClipAIVideoProvider:
             files = ([("image_files", name, data) for name, data in refs]
                      + [("video_files", name, data) for name, data in video_files]
                      + [("audio_files", name, data) for name, data in audio_files])
+            if draft:
+                ctx["draft"] = True
             data = self.client.post_multipart(PATH_SEEDANCE, {"ctx": json.dumps(ctx, ensure_ascii=False)}, files)
             return self._task_of(data, family)
         if not os.path.exists(image_path):
@@ -488,13 +520,112 @@ class ClipAIVideoProvider:
                    "resolution": resolution or self.resolution, "ratio": aspect_ratio or self.aspect_ratio,
                    "duration": effective_duration(canonical, family, duration_sec), "generate_audio": bool(with_audio),
                    "camera_fixed": False, "seed": -1, "video_num": 1}
+            if canonical == "dreamina-seedance-2-5-260628":
+                # Seedance 2.5 refuses a set ratio with a first frame: "[InvalidParameter.TaskTypeConstraint] … For first-frame or
+                # first-last-frame generation, the output ratio follows the first-frame image" (real run S4.11, 2026-10-01; the web
+                # app sends "adaptive" there too). The first frame is drawn in the project format, so the clip keeps it.
+                ctx["ratio"] = "adaptive"
             path = PATH_SEEDANCE
         files = ([("image_files", image[0], image[1])] + ([("image_files", end_image[0], end_image[1])] if end_image else [])
                  + [("image_files", name, data) for name, data in extra_files]
                 + [("video_files", name, data) for name, data in video_files]
                 + [("audio_files", name, data) for name, data in audio_files])
+        if draft:
+            ctx["draft"] = True
         data = self.client.post_multipart(path, {"ctx": json.dumps(ctx, ensure_ascii=False)}, files)
         return self._task_of(data, family)
+
+    # ---- S4.11 Sample Mode / S4.12 video edit (Seedance 2.5) -----------------------------------------------------------------------
+    # Read from the ClipAI web app (2026-10-01, bundle 3634): the sample is the normal Seedance body + `draft: true` at 480p; the final
+    # is a body whose only content is {"type": "draft_task", "draft_task": {"id": <sample task_id>}} at 1080p (Seedance 2.5 only, the
+    # sample keeps 7 days — `draft_expired_at`); "Retry Final" posts /kling/seedance-draft-retry {id}. A video edit is a Seedance 2.5
+    # body with ONE source video (role reference_video), `omni_reference_task_type: "edit"`, duration -1 and ratio adaptive — the web
+    # "Advanced Edit" frame notes only help write that prompt (+ marked frames as reference pictures).
+    SAMPLE_MODEL = "dreamina-seedance-2-5-260628"
+
+    def _check_sample_mode(self, canonical: str) -> None:
+        from .. import features
+        if not features.on("seedance_sample_mode"):
+            raise ProviderError("Chế độ bản mẫu đang tắt (FEATURE_SEEDANCE_SAMPLE_MODE)", code="feature_off")
+        if canonical != self.SAMPLE_MODEL:
+            raise ProviderError("Chế độ bản mẫu chỉ có ở Seedance 2.5", code="unsupported_option")
+
+    def submit_final_from_sample(self, sample_external_id: str) -> str:
+        """The 1080p final of a finished sample (S4.11). The final keeps the sample's composition and motion; it is priced as a full
+        1080p Seedance 2.5 clip of the sample's length (cost.seedance_estimate(..., "1080p", ...))."""
+        self._check_sample_mode(self.SAMPLE_MODEL)
+        family, _, task_id = sample_external_id.partition(":")
+        if family != "seedance" or not task_id:
+            raise ProviderError(f"không phải mã bản mẫu Seedance: {sample_external_id}", code="bad_id")
+        ctx = {"model_name": self.SAMPLE_MODEL, "content": [{"type": "draft_task", "draft_task": {"id": task_id}}],
+               "resolution": "1080p", "video_num": 1}
+        data = self.client.post_multipart(PATH_SEEDANCE, {"ctx": json.dumps(ctx, ensure_ascii=False)}, [])
+        return self._task_of(data, "seedance")
+
+    def submit_video_edit(self, video_path: str, prompt: str, resolution: str = "480p",
+                          reference_images: Optional[List[str]] = None) -> str:
+        """Edit one existing clip instead of generating it again (S4.12): the clip is the only editing master, the prompt names the one
+        thing to change ("Edit @Video 1 …"). Output length follows the source (duration -1), ratio adaptive. Billed on source + output
+        seconds at the video-input rate (cost.seedance_estimate(..., input_video_s=source seconds))."""
+        from .. import features
+        if not features.on("seedance_video_edit"):
+            raise ProviderError("Sửa clip (video edit) đang tắt (FEATURE_SEEDANCE_VIDEO_EDIT)", code="feature_off")
+        if resolution not in ("480p", "720p"):
+            raise ProviderError("Seedance 2.5 sửa clip chỉ 480p / 720p", code="rule_violation")
+        if not os.path.exists(video_path):
+            raise ProviderError(f"clip nguồn không có: {video_path}", code="missing_video")
+        info = _probe_video(video_path)
+        problems = video_edit_problems(info)
+        if problems:
+            raise ProviderError("clip nguồn không đạt luật sửa clip: " + "; ".join(problems), code="rule_violation")
+        refs = list(reference_images or [])
+        if len(refs) > 30:
+            raise ProviderError("tối đa 30 ảnh tham chiếu", code="rule_violation")
+        text = (prompt or "").strip()
+        if not text:
+            raise ProviderError("sửa clip cần câu nói rõ sửa gì", code="rule_violation")
+        if len(text) > PROMPT_LIMITS[self.SAMPLE_MODEL]:
+            raise ProviderError(f"prompt dài {len(text)} ký tự; tối đa {PROMPT_LIMITS[self.SAMPLE_MODEL]}", code="prompt_too_long")
+        files = []
+        for ref in refs:
+            if not os.path.exists(ref):
+                raise ProviderError(f"reference image not found: {ref}", code="missing_image")
+            with open(ref, "rb") as f:
+                data = f.read()
+            files.append(("image_files", _upload_name(ref, data), data))
+        with open(video_path, "rb") as f:
+            vdata = f.read()
+        files.append(("video_files", _upload_name(video_path, vdata), vdata))
+        ctx = {"model_name": self.SAMPLE_MODEL,
+               "content": [{"type": "text", "text": text}]
+               + [{"type": "image_url", "image_url": {"url": ""}, "role": "reference_image"} for _ in refs]
+               + [{"type": "video_url", "video_url": {"url": ""}, "role": "reference_video"}],
+               "resolution": resolution, "ratio": "adaptive", "duration": -1, "omni_reference_task_type": "edit",
+               "generate_audio": False, "video_num": 1}
+        data = self.client.post_multipart(PATH_SEEDANCE, {"ctx": json.dumps(ctx, ensure_ascii=False)}, files)
+        return self._task_of(data, "seedance")
+
+    def task_usage(self, external_id: str) -> Optional[Dict]:
+        """What ClipAI billed for one task, from its list row: tokens (extra_data.usage.total_tokens), whether it carried a video, the
+        USD this makes, and the sample / final links. None when the task is not in the list (yet)."""
+        from .. import cost
+        task, _ = self._find_ex(external_id, pages=DEEP_PAGES)
+        if task is None:
+            return None
+        extra = task.get("extra_data")
+        if isinstance(extra, str):
+            try:
+                extra = json.loads(extra)
+            except ValueError:
+                extra = {}
+        extra = extra or {}
+        tokens = ((extra.get("usage") or {}).get("total_tokens"))
+        video_in = bool(extra.get("has_video_input"))
+        usd = cost.seedance_token_usd(task.get("model_name") or "", tokens, video_in) if tokens is not None else None
+        return {"tokens": tokens, "has_video_input": video_in, "usd": usd, "resolution": extra.get("resolution") or task.get("resolution"),
+                "duration": task.get("duration"), "is_draft": bool(task.get("is_draft")), "draft_expired_at": task.get("draft_expired_at"),
+                "draft_video_id": task.get("draft_video_id"), "final_video_id": task.get("final_video_id"), "row_id": task.get("id"),
+                "status": task.get("task_status"), "message": task.get("task_status_msg") or ""}
 
     @staticmethod
     def _task_of(data, family: str) -> str:
