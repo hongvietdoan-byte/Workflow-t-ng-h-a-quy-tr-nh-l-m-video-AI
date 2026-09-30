@@ -69,3 +69,26 @@ không mất. Từ nay sao lưu bằng API backup của SQLite (`sqlite3.Connect
 ## 6. Đề xuất bước tiếp (cần người dùng duyệt — tốn tiền)
 Bật `place_render_refs` cho **1 cảnh** (3–5 shot ở Tháp, ban ngày), vẽ ảnh toàn cảnh + ảnh shot bằng model đang dùng; so độ khớp nền với số
 gốc 0,073 và xem bằng mắt. Ước tính: 1 ảnh toàn cảnh + 3–5 ảnh shot (giá theo `data/pricing` của model ảnh dự án).
+
+## 7. S5.5' — thử trả tiền 1 cảnh (30/09 chiều, người dùng duyệt; dự án thử #13, **0,312 USD**, trần riêng 1 USD)
+Cảnh "khu nhà dưới chân tháp" của #8 (shot 20–24, ban ngày) chép sang #13 (#8 không đổi); `tools/experiments/place_refs_trial.py`
+(setup → plates → plan → frames → measure). Ảnh so sánh: `D:/AI-Video-Output/2026-09-30_thu-place-refs/`.
+
+**Trước khi trả tiền — chạy khô tìm 1 lỗi, đã sửa + test:** `auto_spot` chọn chỗ đứng theo chữ riêng từng shot → cùng một cuộc nói
+chuyện, shot 20/21/23 đứng ở chân tháp còn 22/24 ở đồng cỏ tây nam cách ~150 m. Sửa: chữ nơi của cảnh (`location` / `set`, giống nhau mọi
+shot) quyết trước, chữ riêng shot chỉ khi nơi không khớp chỗ nào; chữ ở tên chính của chỗ (trước "—") nặng gấp đôi phần mô tả phụ. Sau sửa:
+5/5 shot cùng chỗ `nha_lon_dong`, render rõ nhà mái đỏ / tường / bãi xe (góc ngược).
+
+**Kết quả (1 ảnh toàn cảnh + 5 khung, gpt-image-2.5-sunburst):**
+| | Kết quả |
+|---|---|
+| Ảnh toàn cảnh cảnh 4 (không có chữ tả nơi khác) | **khớp render** bằng mắt: nhà mái đỏ, tường chắn, bậc thang, bãi cỏ, xe hỏng |
+| 5 khung shot | **0/5 theo render** — cả 5 vẽ quảng trường lát đá + tháp nhọn như khung #8 cũ; model theo CHỮ: prompt Director cũ của #8 ("stone plaza, the clock tower in background") + câu Setting chung ("tower stands on a wide flat stone plaza") mâu thuẫn ảnh render |
+| Độ khớp nền (`background_match`) | mới 0,202 · khung #8 cũ cùng shot 0,208 — **số đo không phân biệt được** (cạnh mặt đất / cỏ trùng ngẫu nhiên); đọc bằng mắt, không dùng số này làm kết luận |
+
+**Bài học → đã sửa (0 USD):** khi gửi render, prompt nói trước phần chữ rằng **render quyết định nơi chốn**, chữ về nền / nhà / tháp / tường
+trái với render thì bỏ, chỉ lấy người, hành động, biểu cảm, ánh sáng từ chữ (`place_refs.PRECEDENCE`; chạy khô #13: 5/5 prompt có câu này).
+Ở luồng thật, Director chạy lại với danh sách chỗ đứng sẽ viết chữ đúng nơi — lần thử này dùng prompt cũ của #8 nên mâu thuẫn nặng nhất.
+Số `background_match` cần sửa trước khi làm thước đo (bỏ vùng cỏ / mặt đất, chỉ so đường nét kiến trúc) — ghi việc tồn.
+
+**Chờ người dùng:** vẽ lại 5 khung #13 với câu mới (≈ 0,26 USD; tổng S5.5' ≈ 0,57 USD) — đổi đầu vào đúng luật, lần vẽ lại 1/2.

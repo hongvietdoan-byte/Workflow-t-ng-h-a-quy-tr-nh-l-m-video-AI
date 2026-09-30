@@ -32,6 +32,16 @@ _RUNNING: Dict[int, threading.Thread] = {}
 _LOCK = threading.Lock()
 
 
+# S5.5' (30/09, project #13, 0,31 USD): with the render attached AND scene words describing another place ("stone plaza, the clock tower
+# in background", the generic "Setting: … tower stands on a wide flat stone plaza"), gpt-image-2.5 drew the words: 5/5 shots a paved plaza
+# + tower, 0/5 the house and grass of the render (the establishing picture, with no such words, matched the render). The render must win
+# over words, said before the scene text.
+PRECEDENCE = ("The place is decided by the 3D render image of this shot, not by words: wherever the scene or setting text below describes "
+              "the ground, buildings, tower, walls or layout differently from that render (for example a paved plaza where the render shows "
+              "grass, or a tower the render does not show), draw what the render shows and ignore those words. Take from the text only the "
+              "people, their actions, expressions and the light.")
+
+
 def enabled() -> bool:
     return features.on(FEATURE) and not features.on("location_plates")
 

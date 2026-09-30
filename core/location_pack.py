@@ -89,19 +89,25 @@ def auto_spot(entry: Dict, data: Dict) -> Optional[str]:
     """30/09 dry run on #8: every one of 33 shots stood on the default spot although the scenes said "khu nhà ở dưới chân tháp",
     "góc khuất gần khu nhà", "chiến trường…" (`plate_spot` is only written when the Director sees the spot list). A shot without
     `plate_spot`: the spot whose label shares the most words with the shot's place / text (≥ 1 meaningful word), else None.
-    Indoor spots only when the shot says it is inside (trong nhà / inside / indoor / room / phòng)."""
+    Indoor spots only when the shot says it is inside (trong nhà / inside / indoor / room / phòng).
+    The scene's place words (`location` / `set`, the same on every shot of a script scene) are matched first, the shot's own words only
+    when they match nothing — S5.5' 30/09: matching each shot's prompt put shots 20/21/23 of one conversation at the tower's foot and
+    22/24 on the south-west meadow 150 m away."""
     spots = entry.get("spots") or {}
     blob = " ".join(str(data.get(k) or "") for k in ("location", "set", "text", "image_prompt", "blocking"))
-    words = _words(blob)
     inside = bool(re.search(r"\b(trong nha|inside|indoor|interior|room|phong|living room|bedroom|kitchen)\b", assets.fold(blob)))
-    best, score = None, 0
-    for name, sp in spots.items():
-        if bool(sp.get("indoor")) != inside:
-            continue
-        s = len(words & _words(f"{sp.get('label') or ''} {name.replace('_', ' ')}"))
-        if s > score:
-            best, score = name, s
-    return best
+
+    def best_for(words):
+        best, score = None, 0
+        for name, sp in spots.items():
+            if bool(sp.get("indoor")) != inside:
+                continue
+            head, _, rest = str(sp.get("label") or "").partition(" — ")    # "đồng cỏ tây nam — bậc thang, dãy nhà…": the head
+            s = 2 * len(words & _words(f"{head} {name.replace('_', ' ')}")) + len(words & (_words(rest) - _words(head)))   # names it
+            if s > score:
+                best, score = name, s
+        return best
+    return best_for(_words(" ".join(str(data.get(k) or "") for k in ("location", "set")))) or best_for(_words(blob))
 
 
 def spot_for(entry: Dict, data: Dict) -> Dict:

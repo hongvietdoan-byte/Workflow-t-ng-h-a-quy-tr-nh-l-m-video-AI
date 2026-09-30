@@ -1490,6 +1490,7 @@ class ImageRunner(_Runner):
                 geo = place_refs.geometry_sentence(ref["_rec"], data, (entry or {}).get("sun_azimuth", 250.0))
                 if geo:
                     prompt = f"{prompt} {geo}"
+                prompt = f"{place_refs.PRECEDENCE} {prompt}"   # S5.5' 30/09: words about the place lost to the render otherwise
         from . import skill_dossier
         if skill_dossier.enabled():                    # 30/09: the phase's real frame from the skill video (the dossier)
             for problem in skill_dossier.shot_problems(data):

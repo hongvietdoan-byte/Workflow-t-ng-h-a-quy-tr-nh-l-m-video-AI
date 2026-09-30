@@ -197,10 +197,20 @@ def clean_sheet(d, info, out, height=768):
 
 
 def storyboard(d, info, out):
-    """Panels = the phases (crop + seconds + Vietnamese caption) and a 'KHÔNG ĐƯỢC VẼ' panel from never_vi."""
+    """Panels = the phases (crop + seconds + Vietnamese caption) and a 'KHÔNG ĐƯỢC VẼ' panel from never_vi. A hand-built dossier
+    (no source video in `build`, e.g. KENTA) uses each phase's own cut image `frame` instead of re-cutting the video."""
     from PIL import Image, ImageDraw
     b = d["build"]
-    phases = [p for p in d["phases"] if p["id"] in b.get("crops", {})]
+    folder = b.get("_folder") or "."
+
+    def panel(p):
+        if p["id"] in b.get("crops", {}):
+            t, box = b["crops"][p["id"]]
+            return t, _box(Image.open(frame_at(b, t, info)).convert("RGB"), box)
+        return float(p["t"][0]), Image.open(os.path.join(folder, p["frame"])).convert("RGB")
+
+    phases = [p for p in d["phases"] if p["id"] in b.get("crops", {})
+              or (p.get("frame") and os.path.exists(os.path.join(folder, p["frame"])))]
     W, H, CAP, cols = 600, 640, 190, 4
     n = len(phases) + 1
     rows = (n + cols - 1) // cols
@@ -220,9 +230,8 @@ def storyboard(d, info, out):
         return lines + [cur]
 
     for k, p in enumerate(phases):
-        t, box = b["crops"][p["id"]]
+        t, im = panel(p)
         x, y = (k % cols) * W, 70 + (k // cols) * (H + CAP)
-        im = _box(Image.open(frame_at(b, t, info)).convert("RGB"), box)
         im.thumbnail((W - 8, H - 8))
         sb.paste(im, (x + (W - im.width) // 2, y + (H - im.height) // 2))
         dr.rectangle([x + 4, y + 4, x + 118, y + 40], fill=(0, 0, 0))
@@ -290,7 +299,7 @@ def cmd_build(folder):
 
 def main(argv=None):
     ap = argparse.ArgumentParser()
-    ap.add_argument("step", choices=("sparse", "dense", "build"))
+    ap.add_argument("step", choices=("sparse", "dense", "build", "storyboard"))
     ap.add_argument("paths", nargs="+")
     ap.add_argument("--from", dest="t0", type=float)
     ap.add_argument("--to", dest="t1", type=float)
@@ -299,6 +308,10 @@ def main(argv=None):
         cmd_sparse(*a.paths[:2])
     elif a.step == "dense":
         cmd_dense(a.paths[0], a.paths[1], a.t0, a.t1)
+    elif a.step == "storyboard":            # only the storyboard again, from the cut images already in the folder
+        d = json.load(open(os.path.join(a.paths[0], "skill.json"), encoding="utf-8"))
+        d["build"]["_folder"] = a.paths[0]
+        print("xong:", storyboard(d, None, os.path.join(a.paths[0], d.get("storyboard") or "storyboard_ky_nang.jpg")))
     else:
         cmd_build(a.paths[0])
 

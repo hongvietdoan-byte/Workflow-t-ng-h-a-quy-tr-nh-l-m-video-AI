@@ -61,6 +61,14 @@ class PlaceRefsTests(unittest.TestCase):
         self.assertEqual(place_refs.swap_in(refs, None, 6), refs)
         self.assertEqual(len(place_refs.swap_in(refs, ref, 2)), 2)
 
+    def test_the_render_wins_over_place_words(self):
+        """S5.5' 30/09: 5/5 shots drew the "stone plaza + tower" words instead of the attached render — the prompt now says the render
+        decides the place, before the scene text."""
+        import inspect
+        from core import runner
+        self.assertIn("draw what the render shows and ignore those words", place_refs.PRECEDENCE)
+        self.assertIn("place_refs.PRECEDENCE", inspect.getsource(runner.ImageRunner._submit_args))
+
     def test_geometry_sentence_has_the_real_numbers(self):
         s = place_refs.geometry_sentence(REC, {"characters": ["KELLY"]}, 250.0)
         self.assertIn("35 mm lens, camera 1.6 m above the ground", s)
@@ -134,6 +142,22 @@ class PlaceRefsTests(unittest.TestCase):
         old = dict(houses, plate_spot="level_26_0")                        # an FFXN spot name: the words decide, and it is said
         self.assertEqual(location_pack.spot_for(entry, old)["name"], "nha_do_nam")
         self.assertIn("'nha_do_nam' (khớp chữ mô tả shot)", location_pack.spot_problem(entry, old))
+
+    def test_every_shot_of_a_scene_stands_at_the_same_spot(self):
+        """S5.5' 30/09: the scene's place words decide before each shot's prompt words; a spot NAMED by the words beats one that only
+        mentions them in its side description."""
+        from core import location_pack
+        entry = {"default_spot": "plaza_front", "spots": {
+            "plaza_front": {"at": [0, 0, 0], "label": "quảng trường trước tháp (cách 16 m)"},
+            "dong_co_tay_nam": {"at": [1, 0, 0], "label": "đồng cỏ tây nam — bậc thang, dãy nhà, tháp phía sau"},
+            "nha_do_nam": {"at": [2, 0, 0], "label": "dãy nhà mái đỏ phía nam"}}}
+        place = "Quanh Tháp Đồng Hồ (Đảo Quân Sự) — khu nhà dưới chân tháp"
+        shots = [{"location": place, "image_prompt": "wide shot, stone plaza, the clock tower in background"},
+                 {"location": place, "image_prompt": "over the shoulder, daytime yard, grass"},
+                 {"location": place, "blocking": "quảng trường trước tháp, Kelly chạy"}]
+        self.assertEqual({location_pack.spot_for(entry, d)["name"] for d in shots}, {"nha_do_nam"})
+        self.assertEqual(location_pack.auto_spot(entry, {"location": "Tháp Đồng Hồ", "image_prompt": "rặng dừa"}), None)
+        self.assertEqual(location_pack.auto_spot(entry, {"location": "Tháp Đồng Hồ", "blocking": "đồng cỏ"}), "dong_co_tay_nam")
 
     def test_background_render_runs_once_per_project(self):
         gate, calls = threading.Event(), []
