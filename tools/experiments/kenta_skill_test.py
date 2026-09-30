@@ -206,7 +206,10 @@ def cmd_submit(p, pid: int, shots=None, refvideo: bool = False) -> None:
         if n in done:
             print("đã gửi trước đó: shot", n)
             continue
-        if not (o["start"] and o["end"]):
+        if refvideo:                               # 30/09: the reference video carries the effect; no drifting end frame to morph into
+            o["end"] = None
+            o["prompt"] = o["prompt"].replace(" Starts on the first image and ends on the last image.", " Starts on the first image, same camera and place throughout.")
+        if not (o["start"] and (o["end"] or refvideo)):
             print("bỏ qua shot", n, "— thiếu khung đầu / cuối")
             continue
         if len(o["prompt"]) > 2500:              # core/adapters/clipai.py PROMPT_LIMITS["kling"] (500 = one shot of a multi-shot)
