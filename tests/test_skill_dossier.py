@@ -106,7 +106,7 @@ class OrionAndBuildToolTests(unittest.TestCase):
         self.assertIsNotNone(d)
         self.assertEqual(d["skill_vi"], "Huyết Cầu Bảo Hộ")
         ids = [p["id"] for p in d["phases"]]
-        self.assertEqual(ids, ["activate", "flash", "drain", "pulse", "end"])
+        self.assertEqual(ids, ["activate", "flash", "drain", "final_burst", "end"])
         for p in d["phases"]:
             self.assertTrue(os.path.exists(os.path.join(d["_dir"], p["frame"])), p["frame"])
         self.assertIn("3 s", d["mechanism_vi"])

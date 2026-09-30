@@ -231,8 +231,9 @@ Hình ảnh: bàn tay Olivia chạm nhẹ lên vết thương phát ra một qu�
 phát sáng bọc người, đạn nảy ra, mỗi cú đấm kéo vệt máu") là SAI.**
 Cơ chế (chính thức): EP thay bằng 300 Năng lượng đỏ; kích hoạt tốn 200 → miễn nhiễm 3 s: không nhận sát thương, KHÔNG tấn công được, hút 10 HP
 (bỏ qua lá chắn) của kẻ thù trong 5 m; tự giảm 5% tốc độ di chuyển; hồi chiêu 3 s.
-Hình ảnh: Orion biến mất vào một quả cầu đỏ đục ~1,3 m vân đỏ–đen xoáy, lơ lửng ngang ngực; chớp đỏ cam ~0,1 s; một dải đỏ xoắn nối từ cầu tới
-ngực kẻ thù gần đó; ~2,1 s sau có một nhịp bùng gai đỏ dài tỏa mọi hướng (~0,45 s); đúng 3 s cầu biến mất trong 1 khung, Orion hiện lại tại chỗ.
+Hình ảnh: Orion biến mất vào một quả cầu đỏ đục ~1,3 m vân đỏ–đen xoáy, lơ lửng ngang ngực; chớp đỏ cam ~0,1 s; CHỈ KHI CÓ ĐỊCH trong 5 m
+mới có dây đỏ xoắn nối từ cầu tới ngực kẻ địch (gây sát thương + hút máu); MỘT lần duy nhất ngay trước khi hết thời gian, nhiều dây đỏ bùng
+ra mọi hướng rồi hút vào (~0,45 s); đúng 3 s cầu biến mất trong 1 khung, Orion hiện lại tại chỗ (người dùng xác nhận 30/09).
 Ngoại hình: cởi trần, tóc đen xoăn, mắt phải đỏ có sẹo, giáp đen–đỏ ở vai + cả tay TRÁI, băng quấn tay phải, jean đen rách, bốt.
 
 ## OSCAR — Tiến Công [CHỦ ĐỘNG — xác nhận `isActive:true` + video showcase chính thức đối chiếu, xem "Kenta vs Tatsuya vs Oscar" bên dưới]

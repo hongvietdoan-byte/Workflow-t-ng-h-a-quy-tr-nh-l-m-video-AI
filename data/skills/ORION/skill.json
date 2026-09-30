@@ -47,21 +47,21 @@
     19.44
    ],
    "frame": "crops/drain_22.20.jpg",
-   "vi": "Suốt 3 s: quả cầu đỏ sẫm vân xoáy (gần như đứng yên trong video; game: vẫn di chuyển được, chậm 5%); một DẢI ĐỎ xoắn mảnh nối từ cầu tới NGỰC kẻ thù trong vòng 5 m (hút HP — HP Orion tăng dần); dải đỏ cuộn quanh chân cầu. Kẻ thù bắn vào cầu không có tác dụng. Orion không lộ ra.",
-   "image_en": "The dark-red swirling sphere hovers where Orion stood; a thin twisting red ribbon of energy stretches from the sphere to the chest of the nearby enemy, draining him; red ribbons curl around the sphere's base; the enemy keeps shooting at the sphere with no effect. Orion stays hidden inside.",
-   "video_en": "The dark-red swirling sphere hovers in place while a thin twisting red ribbon links it to the chest of the nearby enemy, pulsing as it drains him; the enemy's shots hit the sphere with no effect.",
+   "vi": "Suốt 3 s: quả cầu đỏ sẫm vân xoáy (gần như đứng yên trong video; game: vẫn di chuyển được, chậm 5%). CHỈ KHI CÓ ĐỊCH trong vòng 5 m: một DÂY ĐỎ xoắn mảnh nối từ cầu tới ngực từng kẻ địch — dây gây sát thương + hút máu (HP Orion tăng dần). Không có địch → không có dây, chỉ có dải đỏ cuộn quanh chân cầu. Kẻ địch bắn vào cầu không có tác dụng. Orion không lộ ra.",
+   "image_en": "The dark-red swirling sphere hovers where Orion stood, red ribbons curling around its base. Only if an enemy is within about five metres: a thin twisting red cord stretches from the sphere to that enemy's chest, hurting him and draining his health; with no enemy near, there is no cord. Orion stays hidden inside.",
+   "video_en": "The dark-red swirling sphere hovers in place; only toward an enemy within five metres a thin twisting red cord links it to his chest, pulsing as it drains him; the enemy's shots hit the sphere with no effect.",
    "frame_full": "frames/22.20.jpg"
   },
   {
-   "id": "pulse",
+   "id": "final_burst",
    "t": [
     18.52,
     19.0
    ],
-   "frame": "crops/pulse_18.72.jpg",
-   "vi": "Nhịp BÙNG cố định ~2,1 s sau khi kích hoạt, dài ~0,45 s (18,52–19,00 · 23,56–24,00): cầu sáng rực, nhiều GAI ĐỎ dài mảnh tỏa ra mọi hướng (như chân nhện) rồi thu lại.",
-   "image_en": "The sphere pulses: it glows bright red and many long thin red spikes of energy shoot out from it in every direction like spider legs.",
-   "video_en": "About two seconds after it forms, the sphere pulses once: it glows bright red and long thin red spikes shoot out in every direction for half a second, then pull back in.",
+   "frame": "crops/final_burst_18.72.jpg",
+   "vi": "MỘT LẦN DUY NHẤT, ngay trước khi hết thời gian kỹ năng (~0,9 → 0,5 s trước khi cầu biến mất: 18,52–19,00 → hết 19,44; 23,56–24,00 → hết 24,52): cầu sáng rực, NHIỀU DÂY ĐỎ dài bùng ra mọi hướng (như chân nhện) rồi HÚT VÀO lại cầu, ~0,45 s.",
+   "image_en": "Just before the skill ends, the sphere glows bright red and many long thin red cords burst out from it in every direction like spider legs.",
+   "video_en": "Once, just before the skill ends, the sphere glows bright red, many long thin red cords burst out in every direction and are sucked back into it within half a second.",
    "frame_full": "frames/18.72.jpg"
   },
   {
@@ -87,8 +87,7 @@
    "activate",
    "flash",
    "drain",
-   "pulse",
-   "drain",
+   "final_burst",
    "end"
   ]
  },
@@ -121,15 +120,11 @@
   "drain": [
    "hút máu",
    "hút hp",
+   "dây đỏ",
    "dải đỏ",
    "drain",
+   "cord",
    "ribbon"
-  ],
-  "pulse": [
-   "gai",
-   "bùng",
-   "spikes",
-   "pulse"
   ],
   "end": [
    "hiện lại",
@@ -138,6 +133,13 @@
    "hủy",
    "reappears",
    "ends"
+  ],
+  "final_burst": [
+   "bùng dây",
+   "bùng gai",
+   "sắp hết",
+   "burst",
+   "spider"
   ]
  },
  "interactions": [
@@ -148,7 +150,7 @@
   },
   {
    "with": "kẻ thù trong vòng 5 m",
-   "vi": "Dải đỏ nối từ cầu tới ngực kẻ thù; kẻ thù mất máu, HP Orion tăng (57→90 lần 1; 111→150 lần 2). Chính thức: hút 10 HP, bỏ qua lá chắn của kẻ thù.",
+   "vi": "CHỈ khi có kẻ địch trong vòng 5 m: dây đỏ nối từ cầu tới ngực kẻ địch, gây sát thương + hút máu; HP Orion tăng (57→90 lần 1; 111→150 lần 2). Chính thức: hút 10 HP, bỏ qua lá chắn của kẻ thù. Không có địch → không có dây.",
    "seen": "16,6–19,4 s; 21,6–24,5 s"
   }
  ],
@@ -159,7 +161,9 @@
   "quả cầu nổ tung khi kết thúc",
   "số sát thương vàng, thanh máu / năng lượng, nút CANCEL (giao diện game)",
   "giáp ở tay phải (giáp ở VAI + TAY TRÁI)",
-  "quả cầu kéo dài quá 3 s trong một lần kỹ năng"
+  "quả cầu kéo dài quá 3 s trong một lần kỹ năng",
+  "dây đỏ nối khi không có kẻ địch gần",
+  "bùng dây nhiều lần trong một lần kỹ năng"
  ],
  "never_en": "Orion punching, kicking or shooting while inside the sphere, glowing armour covering his body, bullets bouncing off him, a transparent sphere showing Orion inside, the sphere exploding, yellow damage numbers, health or energy bars, on-screen buttons or text, armour on his right arm",
  "script_contradictions": [
@@ -179,8 +183,8 @@
  ],
  "script_rules_vi": [
   "Trong 3 s là quả cầu, Orion KHÔNG tấn công và không nhận sát thương — kịch bản chỉ cho cầu hút máu, chịu đạn, (có thể) di chuyển chậm.",
-  "Một lần kỹ năng = đúng 3 s: kích hoạt → chớp → hút máu → bùng gai (~2,1 s) → hút máu → biến mất, Orion hiện lại tại chỗ. Hồi chiêu 3 s mới dùng lại.",
-  "Hút máu chỉ khi có kẻ thù trong vòng 5 m; không có thì không có dải đỏ.",
+  "Một lần kỹ năng = đúng 3 s: kích hoạt → chớp → hút máu → MỘT lần bùng dây ngay trước khi hết → biến mất, Orion hiện lại tại chỗ. Hồi chiêu 3 s mới dùng lại.",
+  "Dây đỏ (sát thương + hút máu) CHỈ xuất hiện khi có kẻ địch trong vòng 5 m — không có địch thì không vẽ dây.",
   "Chưa thấy trong video: cầu gặp kỹ năng khác (vd lốc Kenta), 'bỏ qua lá chắn' trông thế nào — KHÔNG vẽ các cảnh đó (chưa có trong `interactions`)."
  ],
  "video_method_vi": "Như Kenta (thử T1 30/09): Seedance 2.5 chế độ tham chiếu — khung đầu + ảnh chính diện Orion + `video_ref` làm @Video chỉ cho hiệu ứng (hình dạng, màu, độ đục, nhịp); không lấy người, cảnh, máy quay, chữ giao diện; không tả lại chi tiết hiệu ứng. Luật: knowledge/reference_assets_prompting.md.",
@@ -238,7 +242,7 @@
      0.89
     ]
    ],
-   "pulse": [
+   "final_burst": [
     18.72,
     [
      0.1,
@@ -289,5 +293,5 @@
   "Biến hình",
   "Bất tử"
  ],
- "timing_vi": "Một lần kỹ năng = 3,0 s: kích hoạt (tức thì) → chớp ~0,1 s → hút máu → bùng gai ở ~2,1 s (~0,45 s) → hút máu → biến mất ở 3,0 s."
+ "timing_vi": "Một lần kỹ năng = 3,0 s: kích hoạt (tức thì) → chớp ~0,1 s → hút máu (dây chỉ khi có địch trong 5 m) → MỘT lần bùng dây ngay trước khi hết (~0,9–0,5 s trước) → cầu biến mất ở 3,0 s."
 }
