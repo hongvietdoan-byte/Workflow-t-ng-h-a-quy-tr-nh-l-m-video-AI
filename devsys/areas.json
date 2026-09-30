@@ -114,10 +114,10 @@
       "name": "Gói bối cảnh 3D",
       "weight": 0.8,
       "description": "Mô hình 3D → ảnh nền (Blender), máy ảo theo shot, giờ/thời tiết, ghép phông xanh, kiểm nền.",
-      "code": ["core/location_pack.py", "core/plates3d.py", "core/plate_camera.py", "core/plate_env.py", "core/plate_qc.py", "core/composite.py"],
+      "code": ["core/whitebox.py", "core/location_pack.py", "core/plates3d.py", "core/plate_camera.py", "core/plate_env.py", "core/plate_qc.py", "core/composite.py"],
       "assets": ["tools/location_pack.py", "tools/render_plates.py", "tools/experiments/tower_plate.py"],
       "docs": ["docs/HUONG_DAN_3D.md", "docs/RESEARCH_3D_PREVIZ.md", "docs/BAN_GIAO_2026-09-25_THAP_VA_KHOP_MOI.md"],
-      "tests": ["tests/test_tower_pack.py"],
+      "tests": ["tests/test_whitebox.py", "tests/test_tower_pack.py"],
       "flags": ["location_plates"],
       "diag_stages": [],
       "keywords": ["3D", "bối cảnh", "plate", "Blender", "phông xanh", "location", "thời tiết"]

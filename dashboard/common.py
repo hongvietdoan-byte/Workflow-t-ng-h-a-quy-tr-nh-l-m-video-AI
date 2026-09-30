@@ -182,7 +182,8 @@ def act(fn, success: str = ""):
     try:
         fn()
     except ERRORS as e:
-        st.error(f"{type(e).__name__}: {e}")
+        st.error(str(e) or "Có lỗi, không rõ nguyên nhân")        # TON_DONG E1: the person reads the message, not the English class name
+        st.caption(f"Mã lỗi kỹ thuật: {type(e).__name__}")
         return False
     if success:
         st.toast(success)

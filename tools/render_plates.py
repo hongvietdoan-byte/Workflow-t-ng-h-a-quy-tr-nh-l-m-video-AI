@@ -910,6 +910,56 @@ def clay_material():
     return mat
 
 
+def _flat_material(name, rgb):
+    """A plain, clearly coloured matte material (an actor block of the white model: one colour per person)."""
+    mat = bpy.data.materials.new(name)
+    mat.use_nodes = True
+    bsdf = _principled(mat)
+    if bsdf is not None:
+        bsdf.inputs["Base Color"].default_value = (float(rgb[0]), float(rgb[1]), float(rgb[2]), 1.0)
+        bsdf.inputs["Roughness"].default_value = 0.8
+    return mat
+
+
+def add_actor(actor, factor):
+    """S10.6: one person of a coarse white model — a coloured upright block (cylinder, the person's height) with a small cone at chest
+    height pointing where the person faces. Seedance 2.5 official (sd25-pe 粗粒度白模): every block is mapped to one person in the prompt."""
+    h = float(actor.get("height", 1.8)) * factor
+    r = float(actor.get("radius", 0.3)) * factor
+    mat = _flat_material("actor_" + actor["name"], actor.get("color", (0.9, 0.1, 0.1)))
+    bpy.ops.mesh.primitive_cylinder_add(radius=r, depth=h, location=(0, 0, 0))
+    body = bpy.context.active_object
+    body.name = "ACTOR_" + actor["name"]
+    body.data.materials.append(mat)
+    bpy.ops.mesh.primitive_cone_add(radius1=r * 0.55, depth=r * 1.6, location=(0, r * 1.1, h * 0.25), rotation=(-1.5708, 0, 0))
+    nose = bpy.context.active_object
+    nose.name = "ACTOR_NOSE_" + actor["name"]
+    nose.data.materials.append(mat)
+    nose.parent = body
+    return body, h
+
+
+def _place_actor(body, h, key_a, key_b, w):
+    """Stand the block on its keyed ground point (eased) and turn its nose toward the keyed facing point."""
+    loc = _lerp(key_a["location"], key_b["location"], w)
+    body.location = Vector((loc[0], loc[1], loc[2] + h / 2))
+    face_a, face_b = key_a.get("face"), key_b.get("face")
+    if face_a and face_b:
+        f = _lerp(face_a, face_b, w)
+        d = Vector((f[0] - loc[0], f[1] - loc[1], 0))
+        if d.length > 1e-6:
+            import math
+            body.rotation_euler = (0, 0, math.atan2(d.y, d.x) - math.pi / 2)
+
+
+def _key_at(keys, u):
+    k = next((i for i in range(len(keys) - 1) if keys[i]["t"] <= u <= keys[i + 1]["t"]), max(len(keys) - 2, 0))
+    if len(keys) == 1:
+        return keys[0], keys[0], 0.0
+    span_u = max(keys[k + 1]["t"] - keys[k]["t"], 1e-6)
+    return keys[k], keys[k + 1], _ease(min(max((u - keys[k]["t"]) / span_u, 0.0), 1.0))
+
+
 def render_animation(a, cfg, factor, span, res, out_dir):
     """{"name", "fps", "seconds", "keys": [{"t": 0..1, "location", "look_at"}], "model_coords", "white", "lens"} → frames in
     anim_<name>/f_0001.png … (the Dashboard side joins them into an mp4 with ffmpeg). Keys are eased between (smooth moves)."""
@@ -929,22 +979,44 @@ def render_animation(a, cfg, factor, span, res, out_dir):
     os.makedirs(folder, exist_ok=True)
     layer = bpy.context.view_layer
     keep = layer.material_override
-    if a.get("white"):
+    actors = a.get("actors") or []
+    swapped = []
+    if a.get("white") and actors:        # coloured person blocks in a clay world: per-object clay (the view-layer override paints ALL)
+        clay = clay_material()
+        for ob in list(scene.objects):
+            if ob.type == "MESH" and not ob.name.startswith("ACTOR"):
+                for slot in ob.material_slots:
+                    swapped.append((slot, slot.material))
+                    slot.material = clay
+                if not ob.material_slots:
+                    ob.data.materials.append(clay)
+    elif a.get("white"):
         layer.material_override = clay_material()
+    placed = []
+    for act in actors:
+        akeys = sorted(act["keys"], key=lambda k: k["t"])
+        if a.get("model_coords"):
+            akeys = [dict(k, location=list(to_scene(k["location"], factor)),
+                          **({"face": list(to_scene(k["face"], factor))} if k.get("face") else {})) for k in akeys]
+        body, h = add_actor(act, factor)
+        placed.append((body, h, akeys))
     t0 = time.time()
     for f in range(n):
         u = f / (n - 1)
-        k = next((i for i in range(len(keys) - 1) if keys[i]["t"] <= u <= keys[i + 1]["t"]), len(keys) - 2)
-        span_u = max(keys[k + 1]["t"] - keys[k]["t"], 1e-6)
-        w = _ease((u - keys[k]["t"]) / span_u)
-        cam.location = Vector(_lerp(keys[k]["location"], keys[k + 1]["location"], w))
-        look_at(cam, _lerp(keys[k]["look_at"], keys[k + 1]["look_at"], w))
+        ka, kb, w = _key_at(keys, u)
+        cam.location = Vector(_lerp(ka["location"], kb["location"], w))
+        look_at(cam, _lerp(ka["look_at"], kb["look_at"], w))
+        for body, h, akeys in placed:
+            pa, pb, pw = _key_at(akeys, u)
+            _place_actor(body, h, pa, pb, pw)
         render_to(os.path.join(folder, f"f_{f + 1:04d}.png"), scene.render.film_transparent)
     layer.material_override = keep
+    for slot, mat in swapped:
+        slot.material = mat
     sec = round(time.time() - t0, 1)
     log(f"animation {a['name']}: {n} frames in {sec}s")
     return {"name": a["name"], "folder": os.path.basename(folder), "frames": n, "fps": fps, "white": bool(a.get("white")),
-            "render_sec": sec}
+            "actors": [x["name"] for x in actors], "render_sec": sec}
 
 
 if __name__ == "__main__":
