@@ -17,6 +17,6 @@
 ## Thêm 01/10 (sau 4 nhánh song song) — chờ người dùng duyệt từng dòng
 | # | Việc | Lệnh | Ước tính | Điều kiện |
 |---|---|---|---|---|
-| 7 | S4.11 bản cuối 1080p từ bản mẫu `cgt-20260930185359-bkbcr` | `py tools/experiments/s411_s412_test.py --project 16 final` (nâng `CAP_USD` trong script lên ≈ 3,1) | ≈ 2,1 USD | bản mẫu hết hạn ~07/10 |
+| 7 | ✖ bỏ (người dùng 01/10) — S4.11 bản cuối 1080p từ bản mẫu `cgt-20260930185359-bkbcr` | `py tools/experiments/s411_s412_test.py --project 16 final` (nâng `CAP_USD` trong script lên ≈ 3,1) | ≈ 2,1 USD | bản mẫu hết hạn ~07/10 |
 | 8 | S4.7 thử `seedance_subjects` trên 1 nhóm 3 người (Kelly/Kenta/Maxim đủ ảnh) | _chờ soạn_ (mở rộng `tools/experiments/s47_s410_test.py`) | ≈ 1 USD | sau khi người dùng xem 3 clip `D:/AI-Video-Output/2026-10-01_s4-7_s4-10/*_co-giong.mp4` |
-| 9 | S2.6 Seed Audio chạy lại (1 lượt còn trong trần) | `py tools/experiments/audio_s26_s115.py seed --variant 1 --why ...` rồi `check` | vài xu | sau khi người dùng tạo 1 lần trên web để đối chiếu |
+| 9 | ✖ bỏ (người dùng 01/10) — S2.6 Seed Audio chạy lại (1 lượt còn trong trần) | `py tools/experiments/audio_s26_s115.py seed --variant 1 --why ...` rồi `check` | vài xu | sau khi người dùng tạo 1 lần trên web để đối chiếu |
