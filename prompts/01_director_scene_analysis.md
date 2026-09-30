@@ -24,6 +24,7 @@ Dùng knowledge pack đính kèm (biên kịch/quay phim, phương pháp đạo 
 - `dialogue`: danh sách lời thoại của cảnh theo thứ tự nói, `[{"speaker": "TÊN NHÂN VẬT", "text": "lời thoại"}]`, lấy từ kịch bản, giữ nguyên lời (không tự viết thêm thoại). Cảnh không có thoại thì `[]`. `speaker` là tên trong Character Bible (thuyết minh thì ghi "NARRATOR").
 - `duration_s`: số giây đề xuất cho clip (3–15), đủ để nói hết thoại (~3,5 âm tiết/giây + 0,5s) và đúng nhịp thể loại.
 - `genre` (một lần cho cả dự án, gốc JSON): SHORT_FORM | COMMERCIAL | CINEMA_DRAMA | MUSIC_VIDEO | ANIMATION — nếu dự án đã chọn thể loại thì dùng đúng thể loại đó.
+- `music` (tùy chọn, gốc JSON — S0.15): `{"tone": "drama|comedy|action|music_video|commercial", "motif": "tên motif tiếng Anh ngắn hoặc bỏ", "ending": "resolve|open|cliffhanger|button|hit|close"}` — nhạc nền đọc giọng điệu, motif, kiểu kết của **phim này** (không ghi thì code đoán từ mood; hài ≠ chính kịch ≠ hành động). *Vì sao:* brief nhạc cũ lấy khung phim tình cảm #8 cho mọi phim.
 - Các trường người dùng đã tự đặt (liệt kê ở phần "Giá trị người dùng đã khóa") được GIỮ NGUYÊN: lên kế hoạch xung quanh chúng, không thay đổi.
 - Nếu tên/mô tả có thể trùng IP bản quyền, mô tả lại theo hướng nguyên bản và thêm vào `ip_risk_notes`.
 

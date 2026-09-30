@@ -240,7 +240,9 @@ quyết định ở lại hay lướt trong vài giây đầu, nên cảm xúc p
   - Tự hỏi hai chiều: tắt tiếng đi hình còn kể được không (tầng 5) — **và bật tiếng lên, âm thanh có đẩy thêm được gì không**.
 <!-- shot -->
 - **Trong pipeline.** Shot (tùy chọn, chỉ nơi cần): `"sound": {"music": "keep|cut|in|breath", "sfx": ["…"], "why": "…"}` (`core/sound_intent.py`).
-  `cut` nhạc tắt từ đầu shot tới shot `in`; `breath` lặng 0,6 s ngay trước shot; `sfx` ≤ 3 âm. Người làm âm thanh (`sfx_plan`) nhận ý đồ
+  `cut` nhạc tắt từ đầu shot tới shot `in`; `breath` lặng 0,6 s ngay trước shot; `sfx` ≤ 3 âm. Tùy chọn (S0.15): `music_fn` nhạc ở
+  đây để làm gì (tension/hide/release/reveal/time/place/comic/memory), `enter` soft/sudden, `bed` sparse (cảnh cố ý thưa nhạc, lặng
+  được quá 8 s) / continuous; gốc JSON `music` {tone, motif, ending} — brief nhạc đọc giọng điệu **của phim này** (`core/music_intent.py`). Người làm âm thanh (`sfx_plan`) nhận ý đồ
   này, **phải** đặt các âm được yêu cầu hoặc nói kho thiếu âm nào (Bước 5 🔊 + autopilot ghi cảnh báo). Nhạc theo `cut/in/breath` vào
   bản dựng khi cờ `sound_intent` BẬT (TẮT tới khi nghe thử); tắt thì manifest bản dựng ghi số ý đồ chưa áp. J-cut/L-cut của thoại vẫn là
   việc của Dựng (cờ `j_cut`; L-cut = đặt câu lên shot người nghe, N3).

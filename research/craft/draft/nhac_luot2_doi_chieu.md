@@ -105,3 +105,37 @@ positive/negative styles), chunk "không nhạc" → không gửi, để trống
   chỉ thấy qua snippet, bài gốc Zhihu chặn 403. Bằng chứng cho short drama dọc hiện dựa vào số đo S0.12 của chính dự án.
 - Stinger trong game: vẫn chưa có composer game có tên nói trực tiếp (lượt 1 bài 8).
 - Số đo S0.12 là "nghe bằng số" (demucs + AudioSet) — chưa nghe bằng tai; dùng làm giả thuyết có điều kiện.
+
+## 8. Kết quả làm M1–M8 (2026-09-29, nhánh B7b — người dùng duyệt "làm nốt hoàn thiện")
+
+Module mới `core/music_intent.py` (đọc giọng điệu / motif / kiểu kết của **dự án này**, không gọi model); `core/music_timing.brief()` dùng nó.
+Test: `tests/test_music_intent.py` (22 test, theo từng M) + `tests/test_music_story.py` (fixture #8 thêm ý đồ "tình yêu" — motif tình yêu
+giờ chỉ có khi truyện nói về tình yêu).
+
+| M | Làm gì · ở đâu | Test |
+|---|---|---|
+| M1 | `music_intent.read_tone`: `music.tone` của Đạo diễn > thể loại là giọng điệu (MV, quảng cáo) > chữ trong mood / ý đồ các cảnh (hài · chính kịch · hành động; hòa thì hài thắng); không đọc được → **brief trung tính + ghi chú** (luật 1). Dòng đầu brief: dọc / Free Fire chỉ khi dự án 9:16 / game FF; danh từ phim theo giọng điệu. Motif: Đạo diễn đặt `music.motif`, hoặc chính kịch có chuyện tình → "love motif"; còn lại không nhắc. `MOOD_STYLES` không còn "the love motif" cứng (`{theme}`), mood hài đứng trước "urgent", "playful" của phim hài = "playful lightness" (không "uneasy") | `ToneTests` (6) |
+| M2 | `music_intent.ending`: `music.ending` (resolve/open/cliffhanger/button/hit/close) > chính kịch: cảnh cuối ấm/hóa giải → resolve, không → open > mặc định theo giọng điệu (hài: button). Hồi tưởng: có motif → motif, "dreamy and warm" chỉ khi phim kết ấm, không thì "distant and fragile"; không motif → "a thinner, distant colour". Mọi câu kết giữ cụm "final hit at" để `music_fit` đọc được mốc kết. Chọn trường gốc `music` thay cho `ending_tone` / `sound.music_why` ở gợi ý gốc (một chỗ cho cả tone / motif / ending) | `EndingTests` (2) + `test_the_directors_music_block_wins` |
+| M3 | `score_draft(..., dirs)` / `pick_best(..., dirs)`: mỗi điểm đổi đoạn chấm theo hướng brief yêu cầu — `down` thưởng mức **giảm** (trung bình 1 s sau), `up` thưởng tăng (như cũ), `change` thưởng thay đổi rõ bất kỳ chiều. `brief()["turn_dirs"]`: cảnh mở bằng `sound.music=cut` → down, còn lại so mức năng lượng của màu nhạc. Autopilot + `tools/pilot_run.py music` truyền `dirs` | `DraftScoreTests` (4) — sóng giả (vá `loudness`), không cần ffmpeg |
+| M4 | Trần BPM theo giọng điệu (`TONES[...]["bpm_max"]`: chính kịch 110 = `DRAMA_BPM_MAX` cũ, hài 132, hành động / MV / quảng cáo 140, chưa rõ 120) | `TempoTests` — đoạn dài đúng 1 ô nhịp ở 128 BPM: hài chọn 128, chính kịch ≤ 110 |
+| M5 | Trường tùy chọn trên `sound` của shot: `music_fn` (danh sách đóng tension/hide/release/reveal/time/place/comic/memory → câu tiếng Anh trong "Story moments"), `enter` soft/sudden (sudden → "Except at …: the change comes at once"); `sound_intent.clean` giữ / báo giá trị sai; prompt 17, 19 + director.md Đ9 thêm dòng mô tả | `FunctionAndEntryTests` (2); `music_fit.planned` vẫn đọc đúng các mốc; prompt ≤ 1990 |
+| M6 | `sound.bed` sparse/continuous (theo thứ tự shot như cut/in): khoảng lặng bắt đầu trong đoạn "sparse" không bị cắt ở `MAX_OFF_S` (không `auto_in`), `music_plan` trả `sparse_off`, `final_qc.check_music` không chặn các khoảng đó, `warnings` không nhắc; brief ghi "very sparse, mostly resting". Nhạc vào bản dựng vẫn qua cờ `sound_intent` (TẮT) — **chưa nghe thử** (luật 5) | `SparseBedTests` (3) |
+| M7 | `prompts/04_music_brief.md` viết lại: mặc định có điều kiện ("khi có thoại…", "kết gọn trừ khi kết lửng", motif / hồi tưởng / BPM theo phim) + khung spotting (cần nhạc không · chức năng · vào/ra) + `tone`, `cues[]` tùy chọn. `claude_tasks.music_brief` gửi thêm dòng "# Giọng điệu" (có lý do) và `sound` từng cảnh; `clean_cues` giữ cue hợp lệ, bỏ + ghi chú cue sai, thiếu `cues` = như cũ. Chưa gọi Claude thật (có phí nhỏ khi bấm nút) | `ClaudeBriefTests` (2, client giả) |
+| M8 | `music_timing.spotting()` / `write_spotting()` → `SPOTTING.md` cạnh bản nháp (autopilot ghi khi gửi bản nháp theo nhịp dựng; `pilot_run music` cũng ghi): đầu phiếu = bản dựng nào (#id · ngày · tệp, hoặc "theo bảng shot"), giọng điệu + lý do, motif, kết, BPM; bảng cue 1M1… vào/ra/kiểu vào/hướng đổi/chức năng/bên trong; chỗ cố ý lặng. Bước 5: caption giọng điệu, cảnh báo ghi chú, ô mở "📋 Phiếu spotting" | `SpottingTests` (2) |
+
+Không có gợi ý nào bị bỏ. Không cờ mới: M5/M6 là trường tùy chọn của Đạo diễn; phần nhạc vào bản dựng vẫn đi qua cờ `sound_intent` (TẮT như cũ).
+
+### Bằng chứng: dựng lại brief từ CSDL thật (mở `?mode=ro`, không tạo nhạc)
+Ghi chú: dự án **#10** ("A/B hành động S4.6 · Chia đôi") là một gag hài nhưng trong CSDL **không có** genre, mood, ý đồ cảm xúc hay
+đầu cảnh — code không có chữ nào để đọc ra "hài". Vì vậy bằng chứng dùng thêm **#3** (kịch bản hài "Kenta xuyên tường cướp kill?!", mood
+"tense but comedic", "comedic twist, cheeky") và thử #10 với khối `music` của Đạo diễn trên **bản sao trong bộ nhớ**.
+
+| Dự án | Trước (code cũ) | Sau |
+|---|---|---|
+| #8 drama (theo bản dựng 84,5 s) | "vertical Free Fire short drama", love motif, 100 BPM, kết "resolution … warm and hopeful" | **giữ nguyên** (tone drama 5/6 cảnh; motif tình yêu vì ý đồ cảnh 6 nói "tình yêu"; kết resolve vì cảnh cuối "ấm áp"); khác duy nhất: "the motif on a lone cello" → "the love motif …"; `turn_dirs` = up, down, up, down, change |
+| #3 hài (74 s) | "short drama", love motif, 108 BPM, "urgent … rising dread" cho cảnh "tense but comedic", "uneasy lightness", kết "love motif … hopeful" | "short comedy", **124 BPM**, không motif, câu "Comic timing: … stop dead right before a punchline", "comic: light pizzicato…", "playful lightness…", "quick comic stops and restarts…", kết "a short comic button" |
+| #10 (không mood) | "short drama", love motif, kết "love motif … hopeful" (cho một gag chia bánh bao) | "short film", không motif, "the music closes simply" + **ghi chú "giọng điệu chưa rõ"** (Bước 5 hiện cảnh báo, autopilot ghi log) |
+| #10 + `music: {tone: comedy, ending: button}` + shot "Chia đôi." `sound: {music: breath, music_fn: comic}` (bản sao) | — | "short comedy", trần 132, "0:28.0 comic timing: straight-faced, stops before the punchline", kết "comic button"; phiếu spotting 1M1–1M4 |
+| #8 + `music: {ending: open}` (bản sao) | — | "left unresolved at the end", hồi tưởng "distant and fragile", "Stop on an unresolved final hit at 1:24.5" |
+
+Chưa thử thật: chưa tạo bản nháp nhạc nào theo brief mới (tốn credit) và chưa nghe; `score_draft` hướng "down" mới kiểm bằng sóng giả.

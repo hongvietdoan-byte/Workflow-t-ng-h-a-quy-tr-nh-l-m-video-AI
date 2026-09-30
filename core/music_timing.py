@@ -7,7 +7,12 @@ when mixing (ffmpeg_studio.build_extras_mix_cmd(duck=True)).
 
     sections(p, pid)            [{scene, heading, start, end, mood, intent, spoken}]
     choose_bpm(times)           (bpm, worst error in seconds) — the turns on bar lines (4 beats)
-    brief(p, pid)               {"prompt", "bpm", "length_ms", "sections", "turns", "error_s"}
+    brief(p, pid)               {"prompt", "bpm", "length_ms", "sections", "turns", "error_s", "turn_dirs", "intent", "notes", …}
+    score_draft / pick_best     a draft's changes at the turns, each the way the brief asked (up / down / change — S0.15 M3)
+    spotting / write_spotting   the brief as a readable cue sheet (SPOTTING.md next to the drafts — M8)
+
+S0.15 (2026-09-29): the film's tone, motif, ending, tempo ceiling and turn manner come from core/music_intent.py (this project's
+Director / genre / moods), no longer from #8's love drama.
 """
 import json
 import re
@@ -78,12 +83,15 @@ ACTION = re.compile(r"action|fight|chase|run|gameplay|battle|shoot|đánh|đuổ
 # the English-only words sent 4 scenes of 6 to the same "tense, driving hybrid score". The MOOD of the section decides (not its intent
 # text, which tells the whole story); first match wins.
 MOOD_STYLES = (
+    # S0.15 M1: a comic mood first — "tense but comedic, urgent squad banter" is a joke with urgency, not panic (project #3)
+    (re.compile(r"comed|comic|hài hước|hài kịch|gây hài|buồn cười|cheeky|funny|trò khăm|chơi khăm|\bgag\b", re.I),
+     "comic: light pizzicato, plucks and a bouncy bass, played straight-faced, room for the jokes"),
     (re.compile(r"ấm áp|hạnh phúc|hóa giải|ôm|reunion|embrace", re.I),
-     "warm resolution: the love motif on strings and piano, swelling and hopeful"),
+     "warm resolution: {theme} on strings and piano, swelling and hopeful"),
     (re.compile(r"hoảng loạn|khẩn cấp|panic|urgent", re.I),
      "urgent: a fast low ostinato and heartbeat drums, rising dread"),
     (re.compile(r"vỡ òa|đau đớn|tan vỡ|heartbreak", re.I),
-     "heartbreak: the motif on a lone cello over aching strings, swelling then falling away"),
+     "heartbreak: {theme} on a lone cello over aching strings, swelling then falling away"),
     (re.compile(r"bí mật|nghẹt thở|hồi hộp|secret|suspense|whisper", re.I),
      "hushed suspense: low sustained strings, a soft ticking pulse, holding its breath"),
     (re.compile(r"đùa|trêu|playful|banter", re.I),
@@ -91,12 +99,18 @@ MOOD_STYLES = (
     (re.compile(r"đau|kìm nén|buồn|khóc|nước mắt|lonely|grief", re.I),
      "fragile: sparse solo piano with cold string pads, restrained, lots of space"),
 )
+# #8 wrote "the love motif" into two of these for every film; the theme is now the film's own (music_intent.motif) or "the main theme"
+# (M1), and "playful" is "uneasy" only when the film is not a comedy (#8: joking over a hidden tension; #3: the joke IS the film)
+PLAYFUL_COMEDY = "playful lightness: bouncy pizzicato and light percussion, cheeky and bright"
+COMIC_DEFAULT = "light comic underscore: pizzicato, plucks and a bouncy bass, leaving room for the jokes"
 
 
-def _style(sec: Dict, bpm: int = 100) -> str:
+def _style(sec: Dict, bpm: int = 100, theme: str = "the main theme", tone: Optional[str] = None) -> str:
     for rx, style in MOOD_STYLES:
         if rx.search(sec.get("mood") or ""):
-            return style
+            if style.startswith("uneasy lightness") and tone == "comedy":
+                return PLAYFUL_COMEDY
+            return style.format(theme=theme)
     text = " ".join((sec["mood"], sec["intent"], sec["heading"], sec["lighting"]))
     half = " (half-time feel)" if bpm > 90 else ""
     if WARM.search(text) and not ACTION.search(text):
@@ -105,6 +119,8 @@ def _style(sec: Dict, bpm: int = 100) -> str:
         return "sparse, emotional solo piano with soft cold string pads, slow and restrained, lots of space" + half
     if TENSE.search(text) or "gameplay" in text.lower() or "game_tps" in text.lower():
         return "tense, driving hybrid score: pulsing low synth bass, tight electronic percussion and light orchestral hits"
+    if tone == "comedy":
+        return COMIC_DEFAULT
     return "understated cinematic underscore, soft pads and light percussion"
 
 
@@ -124,23 +140,28 @@ def loudness(path: str, step: float = 0.5) -> List[float]:
     return [20 * math.log10(max(1e-9, math.sqrt(sum(x * x for x in a[i:i + n]) / n) / 32768)) for i in range(0, len(a) - n + 1, n)]
 
 
-def score_draft(path: str, turns: Sequence[float], total: float, step: float = 0.5) -> Dict:
-    """How well a finished draft follows the cut: the level should RISE (or change clearly) at each section turn, and the music must
-    still be playing near the film's end (not already faded). Trial 2A: of two drafts, one had no turn at 8,6 s at all."""
+def score_draft(path: str, turns: Sequence[float], total: float, step: float = 0.5, dirs: Optional[Sequence[str]] = None) -> Dict:
+    """How well a finished draft follows the cut: at each section turn the level must change THE WAY THE BRIEF ASKED — "up" (the
+    loudest second after it rises over the 2 s before), "down" (the second after it drops: a turn into near-silence, S0.12 mục 2, 4),
+    "change" (either way, clearly) — and the music must still be playing near the film's end (not already faded). Trial 2A: of two
+    drafts, one had no turn at 8,6 s at all. `dirs` = brief()["turn_dirs"]; without it every turn is "up" (the #8 behaviour; S0.15 M3)."""
     db = loudness(path, step)
     if not db:
         return {"score": -99.0, "turn_jumps": [], "end_drop": 99.0}
     at = lambda t: max(0, min(len(db) - 1, int(t / step)))  # noqa: E731
-    jumps = []
-    for t in turns:
+    want = [(dirs[i] if dirs and i < len(dirs) and dirs[i] in ("up", "down", "change") else "up") for i in range(len(turns))]
+    jumps, points = [], []
+    for t, d in zip(turns, want):
         before = sum(db[at(t - 2.0):at(t)]) / max(1, len(db[at(t - 2.0):at(t)]))
-        after = max(db[at(t):at(t + 1.0) + 1])
-        jumps.append(round(after - before, 1))
+        win = db[at(t):at(t + 1.0) + 1]
+        rise, fall = max(win) - before, before - sum(win) / len(win)
+        jumps.append(round(-fall if d == "down" or (d == "change" and fall > rise) else rise, 1))
+        points.append(min(fall if d == "down" else rise if d == "up" else max(rise, fall), 8.0))
     mid = sorted(db[: at(total)])[len(db[: at(total)]) // 2] if at(total) > 0 else db[0]
     end = sum(db[at(total - 1.5):at(total)]) / max(1, len(db[at(total - 1.5):at(total)]))
     drop = round(mid - end, 1)
-    score = sum(min(j, 8.0) for j in jumps) - max(0.0, drop - 3.0)
-    return {"score": round(score, 1), "turn_jumps": jumps, "end_drop": drop}
+    score = sum(points) - max(0.0, drop - 3.0)
+    return {"score": round(score, 1), "turn_jumps": jumps, "end_drop": drop, "dirs": want}
 
 
 def _clock(t: float) -> str:
@@ -152,13 +173,36 @@ FLASHBACK = re.compile(r"flashback|hồi tưởng|ký ức", re.I)
 MAX_BEATS = 10
 DRAMA_BPM_MAX = 110          # #8: 137 BPM was chosen only to put the turns on bar lines — too fast for a drama
 PROMPT_MAX = 1990            # Clip AI text limit 2000 (core/adapters/clipai_audio.py)
-MOTIF = "the love motif on a music-box / soft piano, dreamy and warm"
+MOTIF = "the love motif on a music-box / soft piano, dreamy and warm"     # #8's flashback line (kept for a love drama ending warm)
 
 
-def beats(secs: List[Dict]) -> List[Tuple[float, int, str]]:
+def _flashback_line(intent: Optional[Dict]) -> str:
+    """What a flashback sounds like (M2): the film's motif, warm only when the film resolves warm (the memory is what the ending pays
+    off — #8); a film without a motif gets a change of colour, no meaning assumed (a flashback can be a trauma, S0.12)."""
+    if intent is None:
+        return MOTIF
+    theme = (intent.get("motif") or {}).get("text")
+    warm = (intent.get("ending") or {}).get("kind") == "resolve"
+    if theme:
+        return f"the {theme} on a music-box / soft piano, " + ("dreamy and warm" if warm else "distant and fragile")
+    return "a thinner, distant colour marks another time"
+
+
+def _last_line(intent: Optional[Dict]) -> str:
+    from . import music_intent
+    if intent is None:
+        return "resolution: the love motif in full, warm and hopeful"
+    kind = (intent.get("ending") or {}).get("kind") or "close"
+    theme = (intent.get("motif") or {}).get("text")
+    return music_intent.ENDINGS[kind][0].format(theme=f"the {theme}" if theme else "the main theme")
+
+
+def beats(secs: List[Dict], intent: Optional[Dict] = None) -> List[Tuple[float, int, str]]:
     """Story moments inside the sections the score should play with: (time, priority, English line). From the shot table, no model call:
-    the Director's sound intent (music thins / back / a breath), a knock-down notice, a flashback span, emotional peaks, the last shot.
+    the Director's sound intent (music thins / back / a breath, what the music is for — `music_fn`), a knock-down notice, a flashback
+    span, emotional peaks, the last shot. `intent` = music_intent.plan (motif / ending of THIS film; None = the #8 lines).
     Priority 1 is kept first when there are more than MAX_BEATS."""
+    from . import music_intent
     out: List[Tuple[float, int, str]] = []
     shots = [sh for sec in secs for sh in sec["shots"]]
     starts = {sec["start"] for sec in secs}
@@ -167,7 +211,11 @@ def beats(secs: List[Dict]) -> List[Tuple[float, int, str]]:
     sec_of = {sh["start"]: sec["start"] for sec in secs for sh in sec["shots"]}
     for sh in shots:
         d, t = sh["data"], sh["start"]
-        m = ((d.get("sound") or {}) if isinstance(d.get("sound"), dict) else {}).get("music")
+        snd = d.get("sound") if isinstance(d.get("sound"), dict) else {}
+        m = snd.get("music")
+        fn = music_intent.FUNCTIONS.get(str(snd.get("music_fn") or ""))
+        if fn:
+            out.append((t, 2, f"{_clock(t)} {fn}"))
         text = " ".join(str(d.get(x) or "") for x in ("action", "image_prompt"))
         notice = " ".join(str(x) for x in (d.get("on_screen_text") or []))
         if m == "cut":
@@ -182,19 +230,19 @@ def beats(secs: List[Dict]) -> List[Tuple[float, int, str]]:
         if is_fb and fb_start is None:
             fb_start = t
         if fb_start is not None and not is_fb:
-            out.append((fb_start, 1, f"{_clock(fb_start)}-{_clock(t)} flashback: {MOTIF}"))
+            out.append((fb_start, 1, f"{_clock(fb_start)}-{_clock(t)} flashback: {_flashback_line(intent)}"))
             fb_start = None
         acting = d.get("performance") if isinstance(d.get("performance"), dict) else {}
         if acting.get("intensity") == 5:
             out.append((t, 2, f"{_clock(t)} emotional peak: the fullest, most open moment so far"))
     if fb_start is not None:
-        out.append((fb_start, 1, f"{_clock(fb_start)} flashback to the end: {MOTIF}"))
+        out.append((fb_start, 1, f"{_clock(fb_start)} flashback to the end: {_flashback_line(intent)}"))
     for times in thin.values():
         a, b = min(times), max(times)
         out.append((a, 2, f"{_clock(a)}" + (f"-{_clock(b)}" if b > a else "") + " almost silent under the key lines"))
     if shots:
         t = shots[-1]["start"]
-        out.append((t, 1, f"{_clock(t)} resolution: the love motif in full, warm and hopeful"))
+        out.append((t, 1, f"{_clock(t)} {_last_line(intent)}"))
     busy = {}                                    # a softer line at the same second as a stronger one says the same thing twice
     for t, pr, text in out:
         if "comes back in softly" not in text and "almost silent" not in text:
@@ -210,24 +258,48 @@ def beats(secs: List[Dict]) -> List[Tuple[float, int, str]]:
 
 def brief(p: Pipeline, pid: int, seconds: Optional[Dict[int, float]] = None) -> Dict:
     """The score's brief, timed on the cut. Given `seconds` (the render's own lengths, render_timeline) it follows the render. Since #8
-    (người dùng 2026-09-28: music is cheap next to video — the score may be creative as long as it follows the story): one love motif
-    carries the film, the tempo may breathe, and the story beats inside the sections (beats) are written in."""
+    (người dùng 2026-09-28: music is cheap next to video — the score may be creative as long as it follows the story) the story beats
+    inside the sections (beats) are written in. S0.15 (M1–M5): what kind of film it is, its motif, its ending, its tempo ceiling and how
+    each turn arrives are read from THIS project (core/music_intent.py) — #8's love-drama answers apply only where they fit."""
+    from . import music_intent
     secs = sections(p, pid, seconds)
     total = secs[-1]["end"] if secs else 0.0
     turns = [s["start"] for s in secs[1:]]
-    bpm, err = choose_bpm(turns, hi=DRAMA_BPM_MAX)
-    parts = [f"{_clock(s['start'])}-{_clock(s['end'])}: {_style(s, bpm)}." for s in secs]
+    mi = music_intent.plan(p, pid, secs)
+    tone, prof = mi["tone"]["tone"], mi["profile"]
+    theme = (mi["motif"]["text"] and f"the {mi['motif']['text']}") or "the main theme"
+    bpm, err = choose_bpm(turns, hi=prof["bpm_max"])
+    styles = []
+    for s in secs:
+        style = _style(s, bpm, theme, tone)
+        if str(music_intent._first_sound(s).get("bed") or "") == "sparse":       # M6: the Director keeps this stretch mostly silent
+            style = "very sparse, mostly resting (only the spotted cues are heard): " + style
+        styles.append(style)
+    parts = [f"{_clock(s['start'])}-{_clock(s['end'])}: {st}." for s, st in zip(secs, styles)]
     talky = sum(s["spoken"] for s in secs) > 0.4 * total if total else False
-    moments = beats(secs)
-    head = (f"Instrumental score for a {total:.0f}-second vertical Free Fire short drama, around {bpm} BPM (free to breathe slower in the "
-            "tender parts). One simple, memorable love motif carries the whole film: introduced softly, strained in the conflict, bare in "
-            "the memory, full at the end."
+    moments = beats(secs, mi)
+    arc = []
+    if theme != "the main theme":           # M1: a motif is named only when this film has one, and its arc follows this story
+        arc.append("introduced softly")
+        if any(energy_style in st for st in styles for energy_style in ("heartbreak", "urgent", "tense, driving", "hushed")):
+            arc.append("strained in the conflict")
+        if any("flashback" in b[2] for b in moments):
+            arc.append("bare in the memory")
+        arc.append("full at the end" if mi["ending"]["kind"] == "resolve" else "left unresolved at the end")
+    head = (f"Instrumental score for a {total:.0f}-second {mi['format']}, around {bpm} BPM"
+            + (" (free to breathe slower in the tender parts)" if prof["breathe"] else "") + "."
+            + (f" One simple, memorable {mi['motif']['text']} carries the whole film: " + ", ".join(arc) + "." if arc else "")
+            + (" " + prof["colour"] if prof["colour"] else "")
             + (" Dialogue sits over most of it: keep the mid frequencies clear, no busy melody under speech." if talky else "") + " ")
     # #8 (người dùng 2026-09-28): "nhạc vào không hợp lý, không có độ mềm mại" — a turn flows in over about a bar, the new mood arriving
-    # on its time (music_fit reads these times back to move the sections onto the scenes as really cut)
+    # on its time (music_fit reads these times back to move the sections onto the scenes as really cut). M5: a turn the Director marks
+    # `sound.enter = sudden` arrives at once instead (an entrance draws attention; a gradual one works underneath — Fenoughty [51]).
+    sudden = [s["start"] for s in secs[1:] if music_intent.enter_kind(s) == "sudden"]
     turn_line = (" Each section flows into the next over about one bar, the new mood arriving exactly at its time ("
-                 + ", ".join(_clock(t) for t in turns) + ") - follow the story's emotion, no abrupt stops or jarring jumps." if turns else "")
-    tail = f" End cleanly on a final hit at {_clock(total)}, no long tail. No vocals, no lyrics."
+                 + ", ".join(_clock(t) for t in turns) + ") - " + prof["manner"] + "."
+                 + (" Except at " + ", ".join(_clock(t) for t in sudden) + ": there the change comes at once, no build." if sudden else "")
+                 if turns else "")
+    tail = " " + music_intent.ENDINGS[mi["ending"]["kind"]][1].format(end=_clock(total)) + " No vocals, no lyrics."
     keep = sorted(moments, key=lambda b: (b[1], b[0]))
     while True:                                   # the fewest-priority story moments go first when the prompt is too long
         shown = sorted(keep)
@@ -237,7 +309,8 @@ def brief(p: Pipeline, pid: int, seconds: Optional[Dict[int, float]] = None) -> 
             break
         keep = keep[:-1]
     return {"prompt": prompt[:PROMPT_MAX], "bpm": bpm, "beats": [b[2] for b in sorted(keep)], "error_s": err, "length_ms": int(round(total * 1000)) + TAIL_PAD_MS, "film_s": total,
-            "sections": secs, "turns": turns}
+            "sections": secs, "turns": turns, "styles": styles, "turn_dirs": music_intent.turn_dirs(secs, styles),
+            "beat_times": [(b[0], b[2]) for b in sorted(keep)], "intent": mi, "notes": mi["notes"]}
 
 
 def timed_brief(p: Pipeline, pid: int) -> Optional[Dict]:
@@ -249,12 +322,40 @@ def timed_brief(p: Pipeline, pid: int) -> Optional[Dict]:
     return {**b, "instrumental": True, "timed": True}
 
 
-def pick_best(paths: Sequence[str], turns: Sequence[float], total: float) -> Optional[int]:
-    """Index of the draft whose changes land best on the section turns (score_draft); None when none can be measured (no ffmpeg)."""
+def build_label(p: Pipeline, pid: int) -> Optional[str]:
+    """Which cut a brief follows: the latest final render ("bản dựng #id · ngày · tệp"), or None when it follows the shot table."""
+    import os
+    row = p.conn.execute("SELECT id, path, created_at FROM outputs WHERE project_id=? AND kind='final' ORDER BY id DESC LIMIT 1",
+                         (pid,)).fetchone()
+    return f"bản dựng #{row['id']} · {str(row['created_at'])[:16]} · {os.path.basename(row['path'] or '')}" if row else None
+
+
+def spotting(p: Pipeline, pid: int, b: Optional[Dict] = None) -> str:
+    """S0.15 M8: the brief as a cue sheet to read before paying for drafts (core/music_intent.spotting_sheet)."""
+    from . import music_intent
+    b = b or brief(p, pid, render_timeline(p, pid))
+    return music_intent.spotting_sheet(p, pid, b, build=build_label(p, pid) if render_timeline(p, pid) else None)
+
+
+def write_spotting(p: Pipeline, pid: int, drafts_dir: str, b: Optional[Dict] = None) -> Optional[str]:
+    """SPOTTING.md next to the drafts (the sheet they were asked from). Never stops the music step: a failure is returned as None."""
+    import os
+    try:
+        path = os.path.join(drafts_dir, "SPOTTING.md")
+        with open(path, "w", encoding="utf-8") as f:
+            f.write(spotting(p, pid, b))
+        return path
+    except (OSError, KeyError, ValueError):
+        return None
+
+
+def pick_best(paths: Sequence[str], turns: Sequence[float], total: float, dirs: Optional[Sequence[str]] = None) -> Optional[int]:
+    """Index of the draft whose changes land best on the section turns, each the way the brief asked (score_draft, `dirs` =
+    brief()["turn_dirs"]); None when none can be measured (no ffmpeg)."""
     best, best_score = None, None
     for i, path in enumerate(paths):
         try:
-            score = score_draft(path, turns, total)["score"]
+            score = score_draft(path, turns, total, dirs=dirs)["score"]
         except Exception:  # noqa: BLE001 - a draft that cannot be measured is skipped, never chosen blindly over one that can
             continue
         if best_score is None or score > best_score:

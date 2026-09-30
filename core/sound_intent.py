@@ -11,6 +11,10 @@ The field on a shot (optional — only where the moment needs sound to carry it)
   before a reveal: silence makes the smallest sound loud).
 - in: the music comes back at the start of the shot.
 - breath: ~0.6 s of near-silence right before the shot, the music back on the shot itself (the hit lands) — same as D6.
+- music_fn (S0.15 M5, optional): what the music is for from this shot — tension | hide | release | reveal | time | place | comic |
+  memory (core/music_intent.FUNCTIONS); written into the score's brief. enter: soft (default) | sudden — how the music arrives at a
+  scene turn. bed (M6): continuous (default) | sparse — from this shot on, a silence between "cut" and "in" may last longer than
+  MAX_OFF_S (a film that plays its music sparsely, only on spotted cues — S0.12 mục 1); "continuous" ends a sparse stretch.
 - sfx: at most 3 sounds the moment needs (body sounds: breathing, a swallow, cloth, a grip; the one object sound: a click, a beep).
   The sound designer must place them, or say the library has none (never dropped in silence, CHUAN_XAY_DUNG luật 1).
 
@@ -55,6 +59,16 @@ def clean(value) -> Tuple[Optional[Dict], List[str]]:
             out["sfx"] = items[:MAX_SFX]
     elif sfx is not None:
         problems.append("sound.sfx phải là danh sách chữ — bỏ")
+    # S0.15 (M5, M6): what the music is for, how it enters, which kind of bed this stretch has — closed lists the code can translate
+    from .music_intent import BEDS, ENTERS, FUNCTIONS
+    for key, allowed in (("music_fn", tuple(FUNCTIONS)), ("enter", ENTERS), ("bed", BEDS)):
+        v = value.get(key)
+        if v is None or v == "":
+            continue
+        if isinstance(v, str) and v.strip().lower() in allowed:
+            out[key] = v.strip().lower()
+        else:
+            problems.append(f"sound.{key} '{v}' không thuộc {'/'.join(allowed)} — bỏ")
     if out and isinstance(value.get("why"), str) and value["why"].strip():
         out["why"] = value["why"].strip()[:200]
     return (out or None), problems
@@ -71,10 +85,12 @@ def warnings(shots: List[Dict]) -> List[str]:
     intents = [(k, clean(s.get("sound"))) for k, s in enumerate(shots, 1)]
     for k, (_, problems) in intents:
         out += [f"shot {k}: {p}" for p in problems]
-    music_on, off_from, off_s, total, run, longest = True, None, 0.0, 0.0, 0.0, 0.0
+    music_on, off_from, off_s, total, run, longest, sparse = True, None, 0.0, 0.0, 0.0, 0.0, False
     for k, (sound, _) in intents:
         dur = float(shots[k - 1].get("duration_s") or 0)
         m = (sound or {}).get("music")
+        if (sound or {}).get("bed"):
+            sparse = sound["bed"] == "sparse"
         if m == "breath" and k == 1:
             out.append("shot 1: music 'breath' ở shot đầu — không có gì trước đó để lặng")
         if m == "in" and music_on:
@@ -88,12 +104,12 @@ def warnings(shots: List[Dict]) -> List[str]:
             music_on = True
         if not music_on:
             off_s += dur
-            run += dur
+            run += 0.0 if sparse else dur          # M6: a stretch the Director made sparse may stay silent longer
             longest = max(longest, run)
         else:
             run = 0.0
         total += dur
-    if total and off_s / total > MOSTLY_SILENT:
+    if total and off_s / total > MOSTLY_SILENT and not any((s or {}).get("bed") == "sparse" for _, (s, _p) in intents):
         out.append(f"nhạc tắt từ shot {off_from} ({off_s:.0f}/{total:.0f} s) — quá nửa phim không nhạc: thiếu shot 'in'?")
     if longest > MAX_OFF_S:
         out.append(f"nhạc tắt liền {longest:.0f} s — khoảng lặng dài hơn {MAX_OFF_S:g} s liền sẽ được bản dựng tự cho nhạc vào lại "
@@ -114,12 +130,15 @@ def music_plan(datas: Sequence[Dict], durations: Sequence[float], transition: st
     time is listed in "auto_in" (the render's manifest and Step 5 say so — CHUAN luật 1)."""
     overlap = fade if transition in overlap_styles else 0.0
     t, off, breaths, planned, off_start, auto_in, ignored = 0.0, [], [], 0, None, [], []
+    sparse, off_sparse, long_ok = False, False, []
     total = sum(float(d) for d in durations) - overlap * max(len(durations) - 1, 0)
     for data, d in zip(datas, durations):
         m = of(data).get("music")
+        if of(data).get("bed") in ("continuous", "sparse"):
+            sparse = of(data)["bed"] == "sparse"
         if m in ("cut", "in", "breath"):
             planned += 1
-        if off_start is not None and m != "in" and max_off and t - off_start >= max_off - 1e-6:
+        if off_start is not None and m != "in" and max_off and not off_sparse and t - off_start >= max_off - 1e-6:
             back = round(off_start + max_off, 2)          # too long a hole: the music is back MAX_OFF_S after it stopped
             off.append((off_start, back))
             auto_in.append(back)
@@ -127,21 +146,26 @@ def music_plan(datas: Sequence[Dict], durations: Sequence[float], transition: st
         if m == "cut" and off_start is None and auto_in and t - auto_in[-1] < MIN_ON_S - 1e-6:
             ignored.append(round(t, 2))
         elif m == "cut" and off_start is None:
-            off_start = round(t, 2)
+            off_start, off_sparse = round(t, 2), sparse
         elif m == "in" and off_start is not None:
             if t > off_start:
                 off.append((off_start, round(t, 2)))
+                if off_sparse:
+                    long_ok.append(off[-1])
             off_start = None
         elif m == "breath" and t > 0.1 and off_start is None:
             breaths.append(round(t, 2))
         t += float(d) - overlap
     if off_start is not None and total > off_start:
         end = round(total, 2)
-        if max_off and end - off_start > max_off + 1e-6 and not (off and off[-1][1] == off_start):
+        if max_off and not off_sparse and end - off_start > max_off + 1e-6 and not (off and off[-1][1] == off_start):
             auto_in.append(round(off_start + max_off, 2))
             end = round(off_start + max_off, 2)
         off.append((off_start, end))
-    return {"off": off, "breaths": breaths, "planned": planned, "auto_in": auto_in, "ignored_cuts": ignored}
+        if off_sparse:
+            long_ok.append(off[-1])
+    return {"off": off, "breaths": breaths, "planned": planned, "auto_in": auto_in, "ignored_cuts": ignored,
+            "sparse_off": [list(x) for x in long_ok]}
 
 
 def unmet(scenes: Sequence[Dict], cues: Sequence[Dict]) -> List[Dict]:

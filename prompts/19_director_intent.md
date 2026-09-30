@@ -68,7 +68,9 @@ của bạn (thoại đủ và đúng thứ tự, thời lượng trong khung, t
   (khoảnh khắc then chốt — dùng model video tốt nhất), `"transition"`, còn lại `"normal"`.
 - `sound` (tùy chọn, chỉ khi âm thanh mang cảm xúc của cảnh): `{"music": "keep|cut|in|breath", "sfx": ["âm cụ thể"], "why": "…"}` —
   ý đồ ở mức cảnh; Quay phim đặt nó vào đúng shot. *Vì sao:* im lặng làm âm nhỏ nhất thành to; nhạc ngắt khi mối đe dọa xuất hiện, lặng
-  ngắn trước cú ngoặt, vào lại khi lật thế (director.md Đ9).
+  ngắn trước cú ngoặt, vào lại khi lật thế (director.md Đ9). Thêm được (tùy chọn): `music_fn` (nhạc ở đây để làm gì: tension | hide |
+  release | reveal | time | place | comic | memory), `enter` (soft | sudden — nhạc vào cảnh dần hay đột ngột), `bed` (continuous |
+  sparse — cảnh cố ý thưa nhạc, lặng được lâu hơn 8 s).
 - `dp_notes` (tiếng Việt, **ghi chú cho Quay phim**): người xem phải **thấy** gì để cảm đúng ý đồ — chi tiết then chốt, ai phản ứng với ai,
   người xem biết trước/sau nhân vật, góc máy kịch bản ghi rõ ("GÓC CAMERA SAU VAI X"), nhịp (dồn hay giãn), motif lặp lại. Không chọn
   tiêu cự/cỡ cảnh thay họ — nói **điều cần đạt**, họ chọn cách.
@@ -77,6 +79,7 @@ của bạn (thoại đủ và đúng thứ tự, thời lượng trong khung, t
 
 ## Gốc JSON
 - `genre`: SHORT_FORM | COMMERCIAL | CINEMA_DRAMA | MUSIC_VIDEO | ANIMATION (dự án đã chọn thì dùng đúng).
+- `music` (tùy chọn, gốc JSON — S0.15): `{"tone": "drama|comedy|action|music_video|commercial", "motif": "tên motif tiếng Anh ngắn hoặc bỏ", "ending": "resolve|open|cliffhanger|button|hit|close"}` — nhạc nền đọc giọng điệu, motif, kiểu kết của **phim này** (không ghi thì code đoán từ mood; hài ≠ chính kịch ≠ hành động). *Vì sao:* brief nhạc cũ lấy khung phim tình cảm #8 cho mọi phim.
 - `characters`: `[{"name", "description", "wardrobe", "lock": {"must_keep", "may_change", "forbidden"}}]` — `lock` tiếng Anh ngắn, chỉ ghi
   điều có trong ảnh/kịch bản (xem knowledge/character_lock.md).
 - `tradeoffs`: `[{"kind", "chose", "gave_up", "why", "scene"}]` (`kind`: `dropped_line` (bỏ câu) · `length` (lệch khung giây) · `speech_time` (shot thiếu thời gian nói) · `script_angle` (bỏ góc máy kịch bản ghi) · `other`) mỗi khi hy sinh một ưu tiên thấp hơn. *Căn cứ:* code kiểm — bỏ câu / lệch khung

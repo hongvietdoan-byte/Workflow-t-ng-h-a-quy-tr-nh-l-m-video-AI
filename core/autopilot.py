@@ -827,6 +827,9 @@ def _music_phase(p: Pipeline, pid: int, ctx: Context) -> Optional[str]:
     timed = music_timing.timed_brief(p, pid) if shots.active(p, pid) else None
     if not drafts:
         if timed:                    # the cut is known: a score timed on it (BPM on the section turns), 2 drafts to choose from
+            music_timing.write_spotting(p, pid, drafts_dir, timed)       # S0.15 M8: the cue sheet the drafts were asked from
+            for note in timed.get("notes") or []:
+                _log(p, pid, "Nhạc nền: " + note)
             music.submit_drafts(ctx.audio, drafts_dir, timed["prompt"], timed["length_ms"], True, TIMED_DRAFTS, ledger=(p.conn, pid))
             _log(p, pid, f"Đã gửi {TIMED_DRAFTS} bản nhạc nền theo nhịp dựng ({timed['bpm']} BPM, {len(timed['turns'])} điểm đổi đoạn)")
             return "Nhạc nền: đang tạo"
@@ -844,7 +847,7 @@ def _music_phase(p: Pipeline, pid: int, ctx: Context) -> Optional[str]:
         chosen = ok[0]
         if timed and len(ok) > 1:
             best = music_timing.pick_best([os.path.join(drafts_dir, drafts[i].get("file") or "") for i in ok], timed["turns"],
-                                          timed["film_s"])
+                                          timed["film_s"], dirs=timed.get("turn_dirs"))
             if best is not None:
                 chosen = ok[best]
                 _log(p, pid, f"Chọn bản nhạc {chosen + 1}/{len(drafts)}: đổi đoạn khớp nhịp dựng nhất")

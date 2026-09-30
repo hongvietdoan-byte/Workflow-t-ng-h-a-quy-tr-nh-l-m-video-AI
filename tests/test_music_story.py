@@ -14,7 +14,8 @@ SHOTS = [  # (story_scene, mood, seconds planned, extra)
     (3, "bí mật, nghẹt thở", 3.0, {"sound": {"music": "cut"}}),
     (4, "hoảng loạn, khẩn cấp rồi vỡ lẽ", 2.0, {"on_screen_text": ["Maxim đã bị hạ"], "action": "Maxim trúng đạn ngã gục"}),
     (4, "hoảng loạn, khẩn cấp rồi vỡ lẽ", 3.0, {"action": "Flashback: Kenta nói với Maxim về lời hứa"}),
-    (5, "vỡ òa, ấm áp sau đau thương", 2.0, {"performance": {"intensity": 5}}),
+    # S0.15 M1: the love motif is asked only when the story is about love (#8's last scene says so) — no longer for every film
+    (5, "vỡ òa, ấm áp sau đau thương", 2.0, {"performance": {"intensity": 5}, "emotional_intent": "tình yêu được hóa giải"}),
     (5, "vỡ òa, ấm áp sau đau thương", 2.0, {}),
 ]
 

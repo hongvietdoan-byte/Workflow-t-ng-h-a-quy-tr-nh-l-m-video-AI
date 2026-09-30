@@ -11,6 +11,7 @@
 > Các mục "📌" và "Cập nhật" bên dưới là lịch sử theo ngày (mới nhất ở trên).
 
 ## 📌 (Lịch sử) TRẠNG THÁI 2026-09-26 + BẢNG V4
+> **Cập nhật 2026-09-29 (nhánh B7b — S0.15 nhạc M1–M8):** brief nhạc hết gán nghĩa cố định từ #8: `core/music_intent.py` đọc giọng điệu (khối `music` của Đạo diễn > thể loại MV/quảng cáo > chữ trong mood/ý đồ; không đọc được → brief trung tính + cảnh báo), motif chỉ khi Đạo diễn đặt hoặc chính kịch có chuyện tình, kiểu kết (resolve/open/cliffhanger/button/hit), trần BPM theo giọng điệu (M1, M2, M4); `score_draft`/`pick_best` chấm theo hướng lên/xuống ở mỗi điểm đổi đoạn (M3); `sound` thêm `music_fn`/`enter`/`bed` (sparse cho lặng > 8 s, final_qc không chặn) (M5, M6); prompt 04 mặc định có điều kiện + `cues[]` (M7); phiếu `SPOTTING.md` + ô Bước 5 (M8). Dựng lại từ CSDL chỉ đọc: #8 giữ nguyên love motif, #3 hài → short comedy 124 BPM không love motif, #10 (không mood) → trung tính + ghi chú. Không cờ mới; **chưa tạo/nghe nhạc thật**. Chi tiết: `research/craft/draft/nhac_luot2_doi_chieu.md` mục 8.
 > **Đã xong:** V4 GĐ0–GĐ7 (GĐ5 Director hai lượt 2026-09-26) + các đợt tự chạy 1–11 (Đợt 11: sửa 11 lỗi rà soát trước chạy trả tiền, web
 > **AI Development System** `devsys/`, hạ nhạc 8–12 dB). **1198 test qua (2 bỏ qua)**; bật cả 23 cờ: 1130 qua, 12 lệch đúng thiết kế (test
 > khẳng định hành vi khi cờ tắt), không lỗi.

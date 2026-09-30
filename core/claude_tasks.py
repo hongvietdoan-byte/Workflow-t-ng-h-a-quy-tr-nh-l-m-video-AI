@@ -548,17 +548,52 @@ def music_brief(p: Pipeline, project_id: int, client) -> Dict:
                             " WHERE s.project_id=? ORDER BY s.idx", (project_id,)):
         d = json.loads(r["data"] or "{}")
         scenes.append({"idx": r["idx"], "seconds": r["duration_sec"] or d.get("duration_s") or 5, "mood": d.get("mood"),
-                       "emotional_intent": d.get("emotional_intent"), "shot_role": d.get("shot_role")})
+                       "emotional_intent": d.get("emotional_intent"), "shot_role": d.get("shot_role"),
+                       **({"sound": d["sound"]} if isinstance(d.get("sound"), dict) else {})})
     proj = p.project(project_id)
+    from . import music_intent, music_timing          # S0.15 M1/M7: the tone of THIS film, said with where it was read
+    tone = music_intent.read_tone(p, project_id, music_timing.sections(p, project_id))
     prompt = "\n\n---\n\n".join([_read("prompts", "04_music_brief.md"), f"# Thể loại: {proj['genre'] or 'chưa rõ'}",
+                                 f"# Giọng điệu: {music_intent.TONE_VI.get(tone['tone'], tone['tone'])} — {tone['why']}",
                                  _block("Các cảnh", scenes)])
     try:
         obj = _run(p, project_id, "music", prompt, _check_brief, client)
     except LlmError:
         return fallback
+    cues, dropped = clean_cues(obj.get("cues"))
     seconds = max(float(obj.get("duration_sec") or 0), fallback["length_ms"] / 1000)   # the music must cover the whole film
     return {"prompt": obj["prompt"][:2000], "length_ms": int(min(max(float(seconds) * 1000, music.MIN_MS), music.MAX_MS)),
-            "instrumental": bool(obj.get("instrumental", True)), "brief": obj}
+            "instrumental": bool(obj.get("instrumental", True)), "brief": obj, "cues": cues,
+            "notes": [f"cue bị bỏ: {x}" for x in dropped]}
+
+
+def clean_cues(value) -> tuple:
+    """The Director's cue list of the music brief (prompt 04, S0.15 M7): ([usable cues], [why others were dropped]). Optional — no cues
+    is the old brief; a bad cue is dropped and said, never a reason to pay for the answer again."""
+    if value is None:
+        return [], []
+    if not isinstance(value, list):
+        return [], ["cues phải là danh sách"]
+    out, dropped = [], []
+    for i, c in enumerate(value, 1):
+        try:
+            a, b = float(c["start"]), float(c["end"])
+        except (TypeError, KeyError, ValueError):
+            dropped.append(f"cue {i}: thiếu start/end là số")
+            continue
+        if b <= a:
+            dropped.append(f"cue {i}: end ≤ start")
+            continue
+        cue = {"id": str(c.get("id") or f"1M{i}")[:12], "start": a, "end": b, "needed": c.get("needed", True) is not False}
+        for k in ("function", "inside", "why"):
+            if isinstance(c.get(k), str) and c[k].strip():
+                cue[k] = c[k].strip()[:200]
+        if c.get("enter") in ("soft", "sudden", "after_silence"):
+            cue["enter"] = c["enter"]
+        if c.get("exit") in ("cut", "fade", "duck"):
+            cue["exit"] = c["exit"]
+        out.append(cue)
+    return out, dropped
 
 
 # ---- 9. English of the Director's motion fields (Seedance reference prompts are built by code) -------------------------------

@@ -41,8 +41,9 @@ def check_length(planned_s: float, final_s: float) -> List[Dict]:
 def check_music(manifest: Dict) -> List[Dict]:
     out = []
     intent = manifest.get("sound_intent") or {}
+    sparse = [tuple(x) for x in intent.get("sparse_off") or []]       # S0.15 M6: a silence the Director made long on purpose (bed sparse)
     for a, b in intent.get("off") or []:
-        if b - a > sound_intent.MAX_OFF_S + 0.05:
+        if b - a > sound_intent.MAX_OFF_S + 0.05 and (a, b) not in sparse:
             out.append(_issue("music_hole", "block", f"nhạc tắt liền {b - a:.0f} s ({a:.0f}–{b:.0f} s) — quá {sound_intent.MAX_OFF_S:g} s", a))
     for t in intent.get("auto_in") or []:
         out.append(_issue("music_auto_in", "warn", f"khoảng lặng nhạc của Đạo diễn dài quá 8 s: nhạc lên lại hẳn ở {t:.1f} s (đã trở lại nhỏ từ "

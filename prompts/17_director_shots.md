@@ -71,6 +71,8 @@ Dự án này sản xuất **theo shot**, không theo cảnh: mỗi cảnh kịc
   tới shot có `in`; `in` nhạc vào lại từ đầu shot; `breath` lặng ~0,6 s ngay trước shot rồi nhạc vào đúng shot; `keep` (mặc định) giữ
   nguyên. `sfx` — tối đa 3 âm cụ thể người xem phải nghe rõ ở shot này (`"heavy breathing"`, `"gun cock click"`, `"swallow"`), không ghi
   nhạc hay âm nền chung. Đỉnh cảm xúc (cường độ 5) mà âm thanh không có ý đồ nào → code nhắc. Nhớ `in` sau `cut` (quên thì nhạc tắt tới hết phim).
+  Tùy chọn: `music_fn` (tension | hide | release | reveal | time | place | comic | memory — nhạc ở đây để làm gì), `enter` (soft |
+  sudden, ở shot đầu cảnh), `bed` (sparse = từ shot này nhạc cố ý thưa, lặng được lâu hơn 8 s; continuous = hết đoạn thưa).
 - **`motif`** (tùy chọn): một nhãn ngắn (vd "qua vai Kenta", "vòng cổ đen") cho các shot "vần" với nhau — cùng nhãn ở ít nhất 2 shot
   (lần đầu gieo, lần sau biến tấu); code báo motif chỉ xuất hiện một lần.
 - **`action_peak`** (shot có hành động cơ thể — chạy, ngã, đánh, xoay người, nhảy): khung đầu vẽ nhân vật **đang ở giữa động tác**, clip

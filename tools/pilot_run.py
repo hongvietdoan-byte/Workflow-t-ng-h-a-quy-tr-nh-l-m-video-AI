@@ -173,6 +173,9 @@ def main(argv=None) -> int:
         b = music_timing.brief(p, pid)
         print(f"{b['bpm']} BPM (lệch {b['error_s']}s) · {b['length_ms'] / 1000:.1f}s\n{b['prompt']}")
         drafts_dir, selected_dir = music.project_dirs(data_dir, pid)
+        print("phiếu spotting:", music_timing.write_spotting(p, pid, drafts_dir, b))
+        for note in b.get("notes") or []:
+            print("⚠", note)
         n0 = len(music.load_drafts(drafts_dir))
         print("gửi", music.submit_drafts(prov, drafts_dir, b["prompt"], b["length_ms"], True, count=int(a.args[0]) if a.args else 2,
                                          ledger=(p.conn, pid)))
@@ -183,7 +186,7 @@ def main(argv=None) -> int:
         scored = []
         for i, d in enumerate(drafts):                 # every finished draft of the project competes (earlier ones too)
             if d["state"] == "succeeded" and d.get("file"):
-                s = music_timing.score_draft(os.path.join(drafts_dir, d["file"]), b["turns"], b["film_s"])
+                s = music_timing.score_draft(os.path.join(drafts_dir, d["file"]), b["turns"], b["film_s"], dirs=b.get("turn_dirs"))
                 scored.append((s["score"], i))
                 print(i, d.get("duration_ms"), d["file"], s)
         if scored:

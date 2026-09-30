@@ -17,7 +17,7 @@
 |---|---|---|---|---|---|---|
 | P0 Theo dõi tiến độ | 2 | 2 | 0 | 0 | 0 | 100 % |
 | S1 Dựng & âm thanh | 15 | 13 | 0 | 0 | 1 | 96 % |
-| S0 Học từ phim drama tham khảo | 15 | 13 | 2 | 0 | 0 | 90,7 % |
+| S0 Học từ phim drama tham khảo | 15 | 14 | 1 | 0 | 0 | 94,4 % |
 | S9 Dashboard gọn, dễ nhìn | 6 | 6 | 0 | 0 | 0 | 100 % |
 | S2 Timeline theo âm thanh + animatic | 6 | 5 | 0 | 0 | 0 | 81,8 % |
 | S3 Director kể chuyện + Quay phim | 8 | 7 | 0 | 0 | 1 | 100 % |
@@ -28,7 +28,7 @@
 | S10 Kỹ năng nhân vật & tham chiếu | 12 | 12 | 0 | 0 | 0 | 100 % |
 | K Chạy kiểm kịch bản hài 20–30 s — ⏸ KHÔNG ƯU TIÊN (người dùng 30/09: các việc test kịch bản không làm trước nữa) | 3 | 0 | 0 | 3 | 0 | 0 % |
 | S8 Chấm lại bằng AI Development System (cuối cùng) | 5 | 2 | 0 | 0 | 0 | 42,9 % |
-| **Tổng** | **98** | **77** | **5** | **3** | **3** | **84,8 %** |
+| **Tổng** | **98** | **78** | **4** | **3** | **3** | **85,4 %** |
 
 Đợt hiện tại: **S1** · việc kế: **S1.15** Tùy chọn model nhạc Eleven Music v2.5 (cập nhật ClipAI)
 <!-- /tien-do -->
@@ -71,7 +71,7 @@
 - [x] S0.12 · Xem nhiều mẫu đa thể loại (drama dọc, MV, quảng cáo game, phim ngắn, hoạt hình FF…) gắn nhãn theo kho kỹ thuật S0.11 · nặng:3 · ✅ · 2026-09-29 tối: đủ **27 video** (01–28, bỏ 1 video không tải được), số đo ở research/craft/s0_12/so_do/, 19 mẫu hình ở TONG_HOP.md; bàn giao đã xong (TODO 29/09 (20)). Việc nghe tai các mốc (người dùng) + đo khớp môi 24 + đo 28 đoạn 3:00–8:00 là việc phụ ở TONG_HOP "Tồn đọng" — không chặn
 - [x] S0.13 · Rà kiến thức đang dùng (director / dp / editing / ff_styles) tìm chỗ gán nghĩa cố định hoặc khái quát từ 1 mẫu → sửa thành tư liệu có điều kiện · nặng:1 · ✅ · agent rà 16 chỗ (cinematography_basics 3, dp.md Q2/Q3/Q5/Q8 4, director.md Đ4/N5 2, film_director_method 3, video_motion_vocab 1, genre_guides 3) → đã sửa hết; 1340 test qua
 - [ ] S0.14 · Nghiên cứu nguồn tiếng Trung về phim AI (AI短剧 9:16, workflow, nội dung, prompt ngắn đủ ý, cảnh xịn; Seedance/即梦/可灵 tài liệu chính thức, WaytoAGI, bài ngành) → research/craft/trung_quoc/ · nặng:3 · 🔄 · lượt 1: 18 nguồn (Seedance 2.5 提示词指南 đọc trọn…), quy trình 9 bước, 15 bài học; lượt 2 (2026-09-29): +12 nguồn (#19–30) — Kling 3.0 hướng dẫn chính thức (Multi-Shot, Element Binding, thoại 5 ngôn ngữ, không tiếng Việt), đạo diễn 陈坤 《山海奇镜》, 抽卡师 潮新闻 (2–3 lần gen thường, 10+ cảnh khó, nhóm 15 s), WaytoAGI, luật 微短剧 9/2026; 6 gợi ý kiểm được T1–T6 (research/craft/trung_quoc/LUOT_2.md) — chờ người dùng xem; thiếu: biên kịch có tên thật
-- [ ] S0.15 · Nghề nhạc phim: spotting, nhạc dẫn cảm xúc / dẫn dắt / tạo nhịp, khác nhau theo thể loại (short drama dọc, phim ngắn, hành động, hài, MV, CGI…), cách brief nhạc → prompt model nhạc; đối chiếu music_timing / sound_intent hiện có · nặng:2 · 🔄 · lượt 1: 15 kỹ thuật, 8 thể loại, 10 bài học, nguồn #31–50; lượt 2 (2026-09-29): khung spotting người làm nghề (#51–52) + số đo 14 video S0.12, đọc từng dòng music_timing / music / music_fit / 04_music_brief → 7 chỗ gán nghĩa cố định từ #8 (C1 "love motif" + "Free Fire short drama" cứng, không đọc genre; C3 score_draft chỉ thưởng tăng độ to…), 8 gợi ý kiểm được M1–M8 (research/craft/draft/nhac_luot2_doi_chieu.md) — chờ người dùng chọn; thiếu: composer vertical drama có tên
+- [x] S0.15 · Nghề nhạc phim: spotting, nhạc dẫn cảm xúc / dẫn dắt / tạo nhịp, khác nhau theo thể loại (short drama dọc, phim ngắn, hành động, hài, MV, CGI…), cách brief nhạc → prompt model nhạc; đối chiếu music_timing / sound_intent hiện có · nặng:2 · ✅ · lượt 1: 15 kỹ thuật, 8 thể loại, 10 bài học, nguồn #31–50; lượt 2 (2026-09-29): khung spotting người làm nghề (#51–52) + số đo 14 video S0.12, đọc từng dòng music_timing / music / music_fit / 04_music_brief → 7 chỗ gán nghĩa cố định từ #8 (C1 "love motif" + "Free Fire short drama" cứng, không đọc genre; C3 score_draft chỉ thưởng tăng độ to…), 8 gợi ý kiểm được M1–M8 (research/craft/draft/nhac_luot2_doi_chieu.md) — người dùng duyệt làm hết 29/09 → **M1–M8 đã làm** (nhánh B7b): `core/music_intent.py` đọc giọng điệu / motif / kiểu kết của dự án (hài ≠ chính kịch ≠ hành động ≠ MV), trần BPM theo giọng điệu, `score_draft` chấm theo hướng (lên/xuống), `sound` thêm music_fn/enter/bed (thưa nhạc), prompt 04 có điều kiện + cues, phiếu SPOTTING.md; dựng lại brief #8 (giữ nguyên), #3 hài (short comedy 124 BPM, không love motif), #10 (không mood → trung tính + ghi chú) — nhac_luot2_doi_chieu.md mục 8; chưa tạo/nghe nhạc thật; thiếu: composer vertical drama có tên
 
 ### S9 — Dashboard gọn, dễ nhìn
 - [x] S9.1 · Nút thu gọn phần Kịch bản · nặng:1 · ✅ · xong: 1a Kịch bản thu thành 1 dòng tóm tắt + nút ▸ Mở / ▾ Thu gọn (test_dashboard)

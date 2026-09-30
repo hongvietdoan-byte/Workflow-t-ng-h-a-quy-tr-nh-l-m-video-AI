@@ -79,6 +79,15 @@ def step5a(p: Pipeline, pid: int):
                 if brief.get("timed"):
                     st.caption(f"Theo nhịp dựng: {brief['bpm']} BPM, đổi đoạn ở "
                                + (", ".join(f"{t:.1f}s" for t in brief["turns"]) or "—") + " — nên tạo 2 bản rồi chọn bản khớp hơn")
+                    tone = ((brief.get("intent") or {}).get("tone") or {})
+                    if tone:
+                        from core import music_intent
+                        st.caption(f"Giọng điệu nhạc: **{music_intent.TONE_VI.get(tone.get('tone'), tone.get('tone'))}** — {tone.get('why', '')}")
+                    for note in brief.get("notes") or []:
+                        st.warning(note)
+                    with st.expander("📋 Phiếu spotting (đọc / góp ý trước khi tạo nhạc)"):   # S0.15 M8
+                        from core import music_timing
+                        st.markdown(music_timing.spotting(p, pid, brief))
                 if brief.get("brief"):
                     st.caption(f"{brief['brief'].get('genre', '')} · {brief['brief'].get('tempo_bpm', '')} BPM · {brief['brief'].get('structure', '')}")
                 prompt = st.text_area("Prompt nhạc (≤ 2000 ký tự)", brief["prompt"], key=f"mprompt_{pid}", height=90)
