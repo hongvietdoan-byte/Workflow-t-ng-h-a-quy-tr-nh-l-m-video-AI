@@ -13,60 +13,209 @@
  "storyboard": "storyboard_ky_nang.jpg",
  "default_phase": "wind_fly",
  "phases": [
-  {"id": "prepare", "t": [16.3, 17.0], "frame": "frames/16.70.jpg",
-   "vi": "Tay phải hiện lưỡi năng lượng trong suốt xanh ngọc, dẹt như tấm kính, chúc xuống cạnh hông phải; katana chuôi đỏ nằm trong vỏ ở hông trái; đứng yên ~0,7 s.",
-   "image_en": "Kenta holds a flat, translucent turquoise energy blade — like a pane of glowing glass, not a metal sword — in his right hand, pointing down beside his right hip; his red-hilted katana stays sheathed at his left hip; he stands still, facing the target.",
-   "video_en": "Kenta stands still with a flat translucent turquoise energy blade in his right hand pointing down; the red-hilted katana stays sheathed at his left hip the whole time."},
-  {"id": "swing_vortex", "t": [17.0, 17.2], "frame": "frames/17.13.jpg",
-   "vi": "Vung rất nhanh (~2 khung); một cột lốc TRONG SUỐT xanh trắng bao cả người, chỉ ~0,15 s.",
-   "image_en": "He sweeps the energy blade in one very fast stroke; for an instant a transparent blue-white whirlwind column wraps his whole body.",
-   "video_en": "In one very fast stroke he sweeps the energy blade; for a split second a transparent blue-white whirlwind column wraps his whole body."},
-  {"id": "ground_rings", "t": [17.2, 17.4], "frame": "frames/17.27.jpg",
-   "vi": "Cột lốc co xuống thành các vòng gió đồng tâm trên mặt đất quanh chân; chân không nhúc nhích.",
-   "image_en": "Concentric transparent blue-white wind rings spread on the ground around his feet; his feet stay planted.",
-   "video_en": "The column collapses into concentric transparent blue-white wind rings spreading on the ground around his planted feet."},
-  {"id": "wind_fly", "t": [17.4, 18.5], "frame": "frames/17.60.jpg",
-   "vi": "Các vệt gió cong mảnh, trong suốt bay ngang, thẳng về phía trước tới mục tiêu rồi mờ dần; không cuốn đồ vật, không bụi.",
-   "image_en": "Thin curved transparent wind streaks fly straight forward, low and level, toward the target and fade; nothing is lifted, no dust.",
-   "video_en": "Thin curved transparent wind streaks fly straight forward, low and level, reach the target and fade; no dust, no debris."},
-  {"id": "through_gloo", "t": [19.3, 19.8], "frame": "frames/19.50.jpg",
+  {
+   "id": "prepare",
+   "t": [
+    16.3,
+    17.0
+   ],
+   "frame": "crops/prepare_16.70.jpg",
+   "vi": "Tay phải cầm một LƯỠI HOLOGRAM xanh ngọc trong suốt, có SỌC NGANG mảnh như vạch quét, mép sáng xanh; rộng cỡ bàn tay, dài từ thắt lưng tới đầu gối, cầm dọc, mũi chúc xuống cạnh chân phải (không phải pha lê, không đặc). katana nằm TRONG VỎ, đeo NGANG sau thắt lưng: vỏ đen chìa ra bên trái, chuôi đỏ có vòng chắn đỏ ở hông phải. Đứng yên ~0,7 s.",
+   "image_en": "Kenta holds a translucent turquoise hologram blade made of light, with thin horizontal stripes across it like scan lines and bright cyan edges, as wide as a hand and reaching from his waist to his knee, held upright in his right hand with the tip pointing down beside his right leg — see-through, flat, not a crystal, not a solid gem, not a metal sword; his katana stays in its scabbard, worn horizontally across the back of his waist: the black scabbard sticks out past his left side, the red hilt with a red ring guard sits at his right hip; he stands still, facing the target.",
+   "video_en": "Kenta stands still holding a translucent turquoise hologram blade made of light, with thin horizontal stripes across it like scan lines and bright cyan edges, as wide as a hand and reaching from his waist to his knee, held upright in his right hand with the tip pointing down beside his right leg — see-through, flat, not a crystal, not a solid gem, not a metal sword; his katana stays in its scabbard, worn horizontally across the back of his waist: the black scabbard sticks out past his left side, the red hilt with a red ring guard sits at his right hip the whole time.",
+   "frame_full": "frames/16.70.jpg"
+  },
+  {
+   "id": "swing_vortex",
+   "t": [
+    17.0,
+    17.2
+   ],
+   "frame": "crops/swing_vortex_17.13.jpg",
+   "vi": "Vung rất nhanh (~2 khung) — lưỡi hologram tan thành một TẤM MÀNG gió rất mờ, xanh nhạt, cao gấp đôi người, rộng gấp ba thân, cuộn vòng quanh người như tấm kính cong; nhìn xuyên thấy cảnh phía sau; chỉ ~0,15 s.",
+   "image_en": "The hologram blade has just been swept and dissolved: a huge, very faint, pale-blue curved sheet of wind — about twice his height and three times his width, see-through like thin tinted glass, the background clearly visible through it — curls around his whole body.",
+   "video_en": "He flicks the hologram blade in one horizontal sweep at hip height, two frames fast; it dissolves into a huge, very faint, pale-blue see-through curved sheet of wind, twice his height, that curls around his whole body for a split second.",
+   "frame_full": "frames/17.13.jpg"
+  },
+  {
+   "id": "ground_rings",
+   "t": [
+    17.2,
+    17.4
+   ],
+   "frame": "crops/ground_rings_17.27.jpg",
+   "vi": "Tấm màng gió co xuống thành 2–3 VÒNG TRÒN mảnh, xanh nhạt, trong suốt trên mặt đất quanh chân (như gợn nước), cùng một vệt gió cong hình lưỡi liềm bắt đầu tách ra ngang tầm vai; chân không nhúc nhích.",
+   "image_en": "Two or three thin, pale cyan, see-through circles lie flat on the ground around his planted feet like ripples on water, and a faint crescent-shaped arc of wind is leaving at shoulder height toward the target.",
+   "video_en": "The faint sheet of wind sinks into two or three thin pale-cyan circles spreading on the ground around his planted feet, like ripples, while a crescent-shaped arc of wind leaves at shoulder height.",
+   "frame_full": "frames/17.27.jpg"
+  },
+  {
+   "id": "wind_fly",
+   "t": [
+    17.4,
+    18.5
+   ],
+   "frame": "crops/wind_fly_17.60.jpg",
+   "vi": "Các vệt gió HÌNH LƯỠI LIỀM (như sóng kiếm), trong suốt xanh nhạt, bay NGANG TẦM VAI thẳng về phía mục tiêu rồi mờ dần; không cuốn đồ vật, không bụi.",
+   "image_en": "Crescent-shaped see-through arcs of pale-blue wind, like sword-slash waves, fly at shoulder height straight toward the target and fade; nothing is lifted, no dust.",
+   "video_en": "Crescent-shaped see-through arcs of pale-blue wind, like sword-slash waves, fly at shoulder height straight to the target and fade; no dust, no debris.",
+   "frame_full": "frames/17.60.jpg"
+  },
+  {
+   "id": "through_gloo",
+   "t": [
+    19.3,
+    19.8
+   ],
+   "frame": "crops/through_gloo_19.50.jpg",
    "vi": "Gió ôm quanh chân tường keo và quét xuyên qua; tường đứng nguyên; người núp sau tường mất máu. (Vệt đỏ hình lưỡi liềm thấy trong video là chỉ báo HƯỚNG SÁT THƯƠNG trên giao diện của người chơi áo vàng — chỉ về phía nguồn gây sát thương — KHÔNG phải hiệu ứng kỹ năng, không vẽ.)",
    "image_en": "The wind wraps around the base of the white bumpy gloo wall and sweeps through it; the wall stays whole and standing; the person crouching behind it flinches, hurt.",
-   "video_en": "The transparent wind sweeps through the white gloo wall; the wall stays whole; the person crouching behind it flinches."},
-  {"id": "move_vortex", "t": [22.5, 24.6], "frame": "frames/24.40.jpg",
+   "video_en": "The transparent wind sweeps through the white gloo wall; the wall stays whole; the person crouching behind it flinches.",
+   "frame_full": "frames/19.50.jpg"
+  },
+  {
+   "id": "move_vortex",
+   "t": [
+    22.5,
+    24.6
+   ],
+   "frame": "crops/move_vortex_24.40.jpg",
    "vi": "Bấm lại khi di chuyển: cột lốc xoắn trong suốt (cao ~2–3 m, nhiều vòng) bao quanh Kenta trong lúc lướt, vòng gió đồng tâm dưới chân.",
    "image_en": "Dashing, Kenta is surrounded by a transparent spiralling wind column two to three metres tall, with concentric wind rings under his feet.",
-   "video_en": "Kenta dashes inside a transparent spiralling wind column two to three metres tall, concentric wind rings sliding under his feet."},
-  {"id": "after_dash", "t": [25.1, 26.5], "frame": "frames/25.80.jpg",
+   "video_en": "Kenta dashes inside a transparent spiralling wind column two to three metres tall, concentric wind rings sliding under his feet.",
+   "frame_full": "frames/24.40.jpg"
+  },
+  {
+   "id": "after_dash",
+   "t": [
+    25.1,
+    26.5
+   ],
+   "frame": "crops/after_dash_25.80.jpg",
    "vi": "Gió thu lại thành các vòng cung xanh sáng xoáy quanh hông và tay (giảm sát thương); hiệu ứng vẫn chạy khi Kenta cầm súng.",
    "image_en": "Bright blue curved wind arcs keep swirling around his waist and hands (damage reduction), even while he holds a rifle.",
-   "video_en": "Bright blue curved wind arcs keep circling his waist and hands while he moves, even with a rifle in his hands."}
+   "video_en": "Bright blue curved wind arcs keep circling his waist and hands while he moves, even with a rifle in his hands.",
+   "frame_full": "frames/25.80.jpg"
+  }
  ],
  "sequences": {
-  "release": ["prepare", "swing_vortex", "ground_rings", "wind_fly"],
-  "hit_gloo": ["wind_fly", "through_gloo"],
-  "move": ["move_vortex", "after_dash"]
+  "release": [
+   "prepare",
+   "swing_vortex",
+   "ground_rings",
+   "wind_fly"
+  ],
+  "hit_gloo": [
+   "wind_fly",
+   "through_gloo"
+  ],
+  "move": [
+   "move_vortex",
+   "after_dash"
+  ]
  },
- "keywords": ["đột kích lốc xoáy", "lốc xoáy", "cơn lốc", "kỹ năng", "kĩ năng", "skill", "tornado", "whirlwind", "energy blade", "lưỡi năng lượng", "vòng gió", "wind ring"],
+ "keywords": [
+  "đột kích lốc xoáy",
+  "lốc xoáy",
+  "cơn lốc",
+  "kỹ năng",
+  "kĩ năng",
+  "skill",
+  "tornado",
+  "whirlwind",
+  "energy blade",
+  "lưỡi năng lượng",
+  "vòng gió",
+  "wind ring"
+ ],
  "phase_hints": {
-  "through_gloo": ["bom keo", "tường keo", "gloo", "xuyên", "through the wall"],
-  "move_vortex": ["lướt", "di chuyển", "dash", "running", "moving"],
-  "after_dash": ["giảm sát thương", "damage reduction"],
-  "prepare": ["chuẩn bị", "hiện lưỡi", "vào thế", "raise", "ready", "about to"],
-  "swing_vortex": ["vung", "swing", "sweep"],
-  "ground_rings": ["vòng gió", "wind ring"],
-  "wind_fly": ["bay tới", "bay về", "phóng", "fly", "flies", "streak"]
+  "through_gloo": [
+   "bom keo",
+   "tường keo",
+   "gloo",
+   "xuyên",
+   "through the wall"
+  ],
+  "move_vortex": [
+   "lướt",
+   "di chuyển",
+   "dash",
+   "running",
+   "moving"
+  ],
+  "after_dash": [
+   "giảm sát thương",
+   "damage reduction"
+  ],
+  "prepare": [
+   "chuẩn bị",
+   "hiện lưỡi",
+   "vào thế",
+   "raise",
+   "ready",
+   "about to"
+  ],
+  "swing_vortex": [
+   "vung",
+   "swing",
+   "sweep"
+  ],
+  "ground_rings": [
+   "vòng gió",
+   "wind ring"
+  ],
+  "wind_fly": [
+   "bay tới",
+   "bay về",
+   "phóng",
+   "fly",
+   "flies",
+   "streak"
+  ]
  },
- "never_vi": ["rút katana ra khỏi vỏ / chém bằng katana", "khiên, lá chắn (kỹ năng cũ trước OB55)", "cột lốc đặc, tối màu, kéo dài",
-              "lốc cuốn đồ vật, bụi đất, lá bay", "tường keo vỡ, nứt khi bị gió xuyên", "lửa, sấm sét, gió màu tím/đỏ", "vệt đỏ lưỡi liềm trên tường / quanh người trúng đòn (đó là chỉ báo hướng sát thương của giao diện game)", "Kenta nhấc chân, bước đi khi tung lốc"],
- "never_en": "drawn or unsheathed katana, slashing with the katana, metal sword in the hand, shield, barrier, dark solid tornado, debris, dust or leaves swept up, cracked or shattered gloo wall, fire, lightning, purple or red wind, red crescent mark or red slash on the wall, damage-direction indicator or any HUD element",
- "script_contradictions": ["rút kiếm", "rút katana", "tuốt kiếm", "chém bằng katana", "unsheath", "draws his katana", "draws the katana", "khiên", "lá chắn", "shield", "barrier", "tường vỡ", "tường keo vỡ", "phá tường", "shatter", "cuốn bay", "cuốn theo", "debris"],
+ "never_vi": [
+  "rút katana ra khỏi vỏ / chém bằng katana",
+  "khiên, lá chắn (kỹ năng cũ trước OB55)",
+  "cột lốc đặc, tối màu, kéo dài",
+  "lốc cuốn đồ vật, bụi đất, lá bay",
+  "tường keo vỡ, nứt khi bị gió xuyên",
+  "lửa, sấm sét, gió màu tím/đỏ",
+  "vệt đỏ lưỡi liềm trên tường / quanh người trúng đòn (đó là chỉ báo hướng sát thương của giao diện game)",
+  "Kenta nhấc chân, bước đi khi tung lốc",
+  "lưỡi năng lượng dạng pha lê / đá quý đặc; luồng năng lượng phụt thẳng lên trời (lỗi thử #11)"
+ ],
+ "never_en": "drawn or unsheathed katana, slashing with the katana, metal sword in the hand, solid crystal or gem blade, katana worn vertically at the hip, shield, barrier, dark or opaque tornado, dense white swirl, a jet of energy shooting upward, debris, dust or leaves swept up, cracked or shattered gloo wall, fire, lightning, purple or red wind, red crescent mark or red slash on the wall, damage-direction indicator or any HUD element",
+ "script_contradictions": [
+  "rút kiếm",
+  "rút katana",
+  "tuốt kiếm",
+  "chém bằng katana",
+  "unsheath",
+  "draws his katana",
+  "draws the katana",
+  "khiên",
+  "lá chắn",
+  "shield",
+  "barrier",
+  "tường vỡ",
+  "tường keo vỡ",
+  "phá tường",
+  "shatter",
+  "cuốn bay",
+  "cuốn theo",
+  "debris"
+ ],
  "script_rules_vi": [
   "Chỉ mô tả kỹ năng bằng các giai đoạn có trong hồ sơ, đúng thứ tự: chuẩn bị → vung (cột lốc chớp qua) → vòng gió trên đất → gió bay tới → (nếu trúng Bom Keo) gió xuyên qua, tường đứng nguyên, người sau tường mất máu. Vệt đỏ lưỡi liềm trong video gốc là chỉ báo hướng sát thương của giao diện, không phải kỹ năng.",
   "Katana luôn nằm trong vỏ khi dùng kỹ năng; thứ Kenta vung là lưỡi năng lượng trong suốt xanh ngọc.",
   "Kỹ năng diễn ra rất nhanh (tung lốc ~1,5 s; xuyên keo ~0,5 s) — chia shot theo giai đoạn, mỗi shot một giai đoạn chính.",
   "Muốn Kenta lướt có lốc bao quanh: ghi rõ 'bấm lại khi di chuyển' (giai đoạn move_vortex), không trộn với cảnh tung lốc."
  ],
- "video_method_vi": "Hiệu ứng vẽ sẵn vào khung đầu + khung cuối (Kling) — thử 29/09 cho kết quả tốt hơn chỉ tả bằng chữ; hai khung cùng cỡ cảnh, cùng chiều; câu 'katana stays sheathed' trong mọi prompt video của Kenta khi dùng kỹ năng.",
- "unconfirmed_vi": "27,9–28,7 s: khi Kenta áp sát trúng người sau tường keo có chớp lửa đỏ, bóng đỏ trên tường rồi tường vỡ — chưa rõ là của kỹ năng, hiệu ứng hạ gục hay chỉ báo giao diện (vệt đỏ lưỡi liềm ở 19,3–19,8 s đã được người dùng xác nhận 30/09 là chỉ báo hướng sát thương); không đưa vào luật."
+ "video_method_vi": "Hiệu ứng vẽ sẵn vào khung đầu + khung cuối (Kling) — thử 29/09 cho kết quả tốt hơn chỉ tả bằng chữ; hai khung cùng cỡ cảnh, cùng chiều; câu katana nằm trong vỏ đeo ngang sau thắt lưng trong mọi prompt video của Kenta khi dùng kỹ năng.",
+ "unconfirmed_vi": "27,9–28,7 s: khi Kenta áp sát trúng người sau tường keo có chớp lửa đỏ, bóng đỏ trên tường rồi tường vỡ — chưa rõ là của kỹ năng, hiệu ứng hạ gục hay chỉ báo giao diện (vệt đỏ lưỡi liềm ở 19,3–19,8 s đã được người dùng xác nhận 30/09 là chỉ báo hướng sát thương); không đưa vào luật.",
+ "reviewed_zoom": "2026-09-30 chiều: phóng to khung 1080p quanh Kenta — sửa mô tả lưỡi (hologram sọc ngang), katana (ngang sau thắt lưng), lốc (màng mờ rất lớn), gió (lưỡi liềm ngang vai) sau thử #11",
+ "reference_clips_local": {
+  "release": "clips_local/release_16.2-18.4.mp4 (dọc 560×920 quanh Kenta: lưỡi hologram → màng lốc → vòng đất → gió lưỡi liềm)",
+  "through_gloo": "clips_local/through_gloo_19.1-20.0.mp4"
+ }
 }

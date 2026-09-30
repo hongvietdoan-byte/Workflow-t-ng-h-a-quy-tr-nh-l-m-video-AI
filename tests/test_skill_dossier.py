@@ -43,23 +43,24 @@ class KentaDossierTests(unittest.TestCase):
     def test_words_frame_and_negative(self):
         hit = skill_dossier.shot_skill({"characters": ["KENTA"], "skill_phase": "prepare"})
         s = skill_dossier.image_sentence(hit)
-        self.assertIn("sheathed at his left hip", s)
+        self.assertIn("horizontal stripes", s)
+        self.assertIn("scabbard, worn horizontally across the back of his waist", s)
         self.assertIn("Never draw: drawn or unsheathed katana", s)
-        self.assertIn("sheathed", skill_dossier.video_sentence(hit))
+        self.assertIn("stays in its scabbard", skill_dossier.video_sentence(hit))
         self.assertTrue(skill_dossier.video_negative(hit, "blurry").startswith("blurry, drawn or unsheathed katana"))
         self.assertEqual(skill_dossier.video_negative(None, "blurry"), "blurry")
         ref = skill_dossier.reference(hit)
         self.assertEqual((ref["role"], ref["label"]), (skill_dossier.ROLE, "KENTA"))
-        self.assertTrue(ref["path"].endswith("16.70.jpg"))
+        self.assertTrue(ref["path"].endswith("prepare_16.70.jpg"))
 
     def test_end_phase_for_the_end_frame_and_the_clip(self):
         data = {"characters": ["KENTA"], "skill_phase": "KENTA:prepare", "skill_phase_end": "KENTA:swing_vortex"}
         hit = skill_dossier.shot_skill(data)
         self.assertEqual(hit["end"]["id"], "swing_vortex")
-        self.assertIn(" Then: In one very fast stroke", skill_dossier.video_sentence(hit))
+        self.assertIn(" Then: He flicks the hologram blade in one horizontal sweep", skill_dossier.video_sentence(hit))
         end = skill_dossier.shot_skill(skill_dossier.at_end(data))
         self.assertEqual(end["phase"]["id"], "swing_vortex")
-        self.assertTrue(skill_dossier.reference(end)["path"].endswith("17.13.jpg"))
+        self.assertTrue(skill_dossier.reference(end)["path"].endswith("swing_vortex_17.13.jpg"))
         self.assertIs(skill_dossier.at_end({"skill_phase": "prepare"})["skill_phase"], "prepare")
 
     def test_the_frame_replaces_the_skill_icon_and_sits_after_the_people(self):
