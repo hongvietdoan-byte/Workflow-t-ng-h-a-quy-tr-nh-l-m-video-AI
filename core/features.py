@@ -205,6 +205,14 @@ FEATURES: Dict[str, Dict] = {
         "verified": False,
         "why": "Kế hoạch V4 GĐ3: chưa thử thật; Seedance không công bố hỗ trợ tiếng Việt — thử 1 shot cận giọng Việt (~$0,60) trước khi tin",
     },
+    "seedance_subjects": {
+        "label": "S4.7: ảnh gửi Seedance (chế độ chỉ ảnh tham chiếu: khung storyboard + ảnh định danh, shot kỹ năng) đi qua Kho chủ thể "
+                 "ClipAI — ảnh KHÔNG đánh dấu, tải một lần theo sha256, gửi asset://; kho từ chối / chưa duyệt xong → gửi ảnh đánh dấu "
+                 "như cũ (P2m) và báo",
+        "verified": False,
+        "why": "Thử 01/10 (dự án thử #15, docs/KET_QUA_S4_7_S4_10_2026-10-01.md): 2 ảnh FF in-game (khung + Kelly) active sau ~5 s, "
+               "Seedance nhận lúc tạo — mới 1 shot / 1 nhân vật chính; chưa qua luồng chính (nhóm nhiều shot, 3 người)",
+    },
     "dialogue_take": {
         "label": "Khớp môi (c) — S4.2: shot thoại thấy mặt người nói (cả shot trung / nhiều người) đi trong clip nhóm Seedance 2.5 kèm MỘT "
                  "track giọng của cả nhóm + câu thoại, tên người nói và mốc giây trong prompt (thay 'không khớp môi' khi không có sync.so)",

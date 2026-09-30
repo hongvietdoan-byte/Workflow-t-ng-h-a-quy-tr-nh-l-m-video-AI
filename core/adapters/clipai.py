@@ -280,6 +280,7 @@ def _state(task_status) -> str:
 class ClipAIVideoProvider:
     name = "clipai"
     supports_aspect = True        # accepts aspect_ratio= / resolution= per job (project frame format, per-scene model tier)
+    supports_subjects = True      # S4.7: reference_only entries may be Subject Library assets {"uri": "asset://…"}
 
     def __init__(self, token: str, base_url: str = DEFAULT_BASE, transport: Transport = urllib_transport,
                  aspect_ratio: str = "16:9", kling_mode: str = "pro", resolution: str = "720p",
@@ -430,8 +431,16 @@ class ClipAIVideoProvider:
             cap = 30 if canonical == "dreamina-seedance-2-5-260628" else 9
             if not reference_only or len(reference_only) > cap:
                 raise ProviderError(f"cần 1–{cap} ảnh tham chiếu, có {len(reference_only)}", code="rule_violation")
+            # S4.7: an entry is a local picture (path) or a Subject Library asset {"uri": "asset://…"} (already reviewed, sent by uri —
+            # skill clipai 1.3.1 video.mjs). Order is kept: the server fills the empty urls from `image_files` in order, so @Image N is
+            # the N-th entry whatever its kind.
+            hosted = [r for r in reference_only if isinstance(r, dict)]
+            for r in hosted:
+                if not str(r.get("uri") or "").startswith("asset://"):
+                    raise ProviderError(f"ảnh kho chủ thể phải là asset://…, có {r.get('uri')!r}", code="bad_input")
+            local = [r for r in reference_only if not isinstance(r, dict)]
             sizes = []
-            for ref in reference_only:
+            for ref in local:
                 try:
                     from PIL import Image as _Im
                     with _Im.open(ref) as _i:
@@ -442,7 +451,7 @@ class ClipAIVideoProvider:
             if bad:
                 raise ProviderError("ảnh tham chiếu không đạt luật ClipAI: " + "; ".join(bad), code="rule_violation")
             refs = []
-            for ref in reference_only:
+            for ref in local:
                 if not os.path.exists(ref):
                     raise ProviderError(f"reference image not found: {ref}", code="missing_image")
                 with open(ref, "rb") as f:
@@ -450,7 +459,8 @@ class ClipAIVideoProvider:
                 refs.append((_upload_name(ref, data), data))
             ctx = {"model_name": canonical,
                    "content": [{"type": "text", "text": text}]
-                   + [{"type": "image_url", "image_url": {"url": ""}, "role": "reference_image"} for _ in refs]
+                   + [{"type": "image_url", "image_url": {"url": r["uri"] if isinstance(r, dict) else ""}, "role": "reference_image"}
+                      for r in reference_only]
                    + [{"type": "video_url", "video_url": {"url": ""}, "role": "reference_video"} for _ in video_files]
                    + [{"type": "audio_url", "audio_url": {"url": ""}, "role": "reference_audio"} for _ in audio_files],
                    "resolution": resolution or self.resolution, "ratio": aspect_ratio or self.aspect_ratio,

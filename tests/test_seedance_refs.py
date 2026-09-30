@@ -91,6 +91,37 @@ class SeedanceRefTests(unittest.TestCase):
         stamp = json.loads(vr._stamp(leader, args)["sent_group"])
         self.assertTrue(all(g["refs"] for g in stamp))
 
+    def test_subject_library_flag_sends_unmarked_pictures_by_asset_uri_uploaded_once(self):
+        """S4.7 (flag seedance_subjects, thử 01/10 #15): every picture through the Subject Library, the same picture never twice."""
+        from tests.test_subjects import CountingLibrary
+        vr = self._ready()
+        vr.provider.supports_subjects = True
+        vr.subject_library = lib = CountingLibrary()
+        leader = self.p.job(self.p.create_job(self.ids[0], "video_gen"))
+        self.assertTrue(all(isinstance(p, str) for p in vr._submit_kwargs(leader)["reference_only"]))   # flag off: marked as before
+        os.environ["FEATURE_SEEDANCE_SUBJECTS"] = "1"
+        self.addCleanup(os.environ.pop, "FEATURE_SEEDANCE_SUBJECTS", None)
+        refs = vr._submit_kwargs(leader)["reference_only"]
+        self.assertTrue(refs and all(isinstance(r, dict) and r["uri"].startswith("asset://") for r in refs))
+        uploads = len(lib.uploads)
+        self.assertEqual(vr._submit_kwargs(leader)["reference_only"], refs)
+        self.assertEqual(len(lib.uploads), uploads)                    # second send: nothing uploaded again
+        self.assertIn("Any white banner or red mark", vr._submit_args(leader)[1])
+
+    def test_subject_library_refusal_falls_back_to_marked_pictures_and_says_so(self):
+        from core import diag  # noqa: F401
+        from tests.test_subjects import CountingLibrary
+        os.environ["FEATURE_SEEDANCE_SUBJECTS"] = "1"
+        self.addCleanup(os.environ.pop, "FEATURE_SEEDANCE_SUBJECTS", None)
+        vr = self._ready()
+        vr.provider.supports_subjects = True
+        vr.subject_library = CountingLibrary("failed")
+        leader = self.p.job(self.p.create_job(self.ids[0], "video_gen"))
+        refs = vr._submit_kwargs(leader)["reference_only"]
+        self.assertTrue(all(isinstance(p, str) and p.endswith("_marked.png") for p in refs))
+        said = [r[0] for r in self.p.conn.execute("SELECT message FROM diag_events WHERE code='subjects'")]
+        self.assertTrue(any("asset_failed" in m for m in said))
+
     def test_consecutive_shots_remade_later_go_as_one_group_clip_not_one_by_one(self):
         """#8 2026-09-28: 19 shots remade for their voices went out one by one (>= 4 s billed each) and two lost the identity."""
         if len(self.ids) < 3:
