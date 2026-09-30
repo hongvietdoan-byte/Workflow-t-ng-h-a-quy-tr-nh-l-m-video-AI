@@ -18,9 +18,10 @@ _RIGHT = re.compile(r"\b(frame[- ]right|right of (the )?frame|on the right|right
 _TO_RIGHT = re.compile(r"\b(left to right|toward(s)? (the )?(frame[- ])?right|to (the )?frame[- ]right|từ trái sang phải)\b", re.I)
 _TO_LEFT = re.compile(r"\b(right to left|toward(s)? (the )?(frame[- ])?left|to (the )?frame[- ]left|từ phải sang trái)\b", re.I)
 # a crossing written on purpose; with a negation up to 3 words before it ("không để vượt trục", "tránh vượt trục", "don't cross the
-# line", "never crosses the axis") it says the opposite — keeping the line
+# line", "never crosses the axis") it says the opposite — keeping the line; the window stops at a comma / full stop (TON_DONG A14 / R2:
+# "không đẹp, máy vượt trục" is a crossing on purpose)
 _CROSSING = re.compile(r"(?:vượt|qua|nhảy) trục|cross(?:es|ing)? the (?:line|axis)|jump(?:s|ing)? the line", re.I)
-_NEGATION = re.compile(r"(?:^|\s)(?:không|chưa|tránh|đừng|chớ|cấm|giữ|not|n't|don't|avoid|never|no)(?:\s+\S+){0,3}\s*$", re.I)
+_NEGATION = re.compile(r"(?:^|\s)(?:không|chưa|tránh|đừng|chớ|cấm|giữ|not|n't|don't|avoid|never|no)(?:\s+[^\s,;.!?:—]+){0,3}\s*$", re.I)
 
 
 class _OnPurpose:

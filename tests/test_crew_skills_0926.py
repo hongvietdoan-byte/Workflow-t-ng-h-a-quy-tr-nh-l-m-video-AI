@@ -296,7 +296,8 @@ class GraderRound2Tests(unittest.TestCase):
         self.assertEqual(continuity.axis_warnings([base, other]), [])
 
     def test_opening_hook_and_money_shot_are_checked(self):
-        obj = {"scenes": [{"idx": 1, "shots": [{"role": "setup", "duration_s": 4}, {"role": "hook", "duration_s": 2, "money_shot": "yes"}]}]}
+        obj = {"genre": "COMMERCIAL",
+               "scenes": [{"idx": 1, "shots": [{"role": "setup", "duration_s": 4}, {"role": "hook", "duration_s": 2, "money_shot": "yes"}]}]}
         w = director_report.opening_and_product(obj)
         self.assertEqual(len(w), 3)
         obj["scenes"][0]["shots"][0].update(role="hook", money_shot=True)

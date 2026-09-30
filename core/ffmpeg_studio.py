@@ -430,7 +430,31 @@ def normalize_loudness(src: str, dst: str, ffmpeg: Optional[str] = None, target:
         after["mode"] = json.loads(m2.group(0)).get("normalization_type") if m2 else None
     except ValueError:
         after["mode"] = None
+    after["before"] = {"lufs": _num(first.get("input_i")), "lra": _num(first.get("input_lra")),
+                       "true_peak_dbfs": _num(first.get("input_tp"))}   # the first pass: why a dynamic fallback happened (A21 / R4)
     return after
+
+
+def _num(value) -> Optional[float]:
+    try:
+        v = float(value)
+    except (TypeError, ValueError):
+        return None
+    return v if math.isfinite(v) else None
+
+
+def _dynamic_reason(m: dict, target: float = LUFS_TARGET, lra_max: float = 11.0) -> str:
+    """Why loudnorm had to compress instead of a linear gain — read from the first-pass measurement, not assumed (TON_DONG A21 / R4:
+    the message used to blame the peaks even when ffmpeg could not measure the LRA at all)."""
+    b = m.get("before") or {}
+    if b.get("lra") is None or b.get("lufs") is None or (b.get("lra") == 0 and (b.get("lufs") or 0) < -60):
+        return "ffmpeg không đo được dải động (LRA) của bản trộn — bản quá ngắn hoặc gần như im lặng — nên không tăng giảm tuyến tính được"
+    if b["lra"] > lra_max:
+        return f"dải động bản trộn LRA {b['lra']:g} LU rộng hơn {lra_max:g} LU — chênh giữa đoạn nhỏ và đoạn to quá lớn"
+    if b.get("true_peak_dbfs") is not None and b["true_peak_dbfs"] + (target - b["lufs"]) > TRUE_PEAK_MAX:
+        return (f"đỉnh quá cao so với độ to (đỉnh {b['true_peak_dbfs']:g} dBTP, cần tăng {target - b['lufs']:+.1f} dB) — hạ SFX/đỉnh rồi"
+                " dựng lại")
+    return "ffmpeg tự chuyển chế độ động (số đo lượt đầu không cho thấy lý do)"
 
 
 def loudness_problems(m: Optional[dict]) -> List[str]:
@@ -442,7 +466,7 @@ def loudness_problems(m: Optional[dict]) -> List[str]:
         out.append(f"độ to {m['lufs']:g} LUFS — mục tiêu {LUFS_TARGET:g} ± {LUFS_TOLERANCE:g} (nền tảng sẽ tự "
                    + ("hạ xuống" if m["lufs"] > LUFS_TARGET else "không nâng lên — nghe nhỏ hơn video bên cạnh") + ")")
     if m.get("mode") == "dynamic":
-        out.append("chuẩn hóa phải NÉN bản trộn (đỉnh quá cao so với độ to) — hạ SFX/đỉnh rồi dựng lại nếu nghe bị bẹp")
+        out.append("chuẩn hóa phải NÉN bản trộn: " + _dynamic_reason(m) + " — nghe lại xem có bị bẹp không")
     if m.get("true_peak_dbfs") is not None and m["true_peak_dbfs"] > TRUE_PEAK_MAX:
         out.append(f"đỉnh thật {m['true_peak_dbfs']:g} dBTP > {TRUE_PEAK_MAX:g} — dễ rè sau khi nền tảng mã hóa lại")
     return out

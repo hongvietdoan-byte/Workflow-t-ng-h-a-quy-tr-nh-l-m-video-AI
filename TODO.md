@@ -5,7 +5,7 @@
 > **Tiến độ duy nhất:** `docs/KE_HOACH_SUA_SAU_DU_AN_8.md` (98 việc, 13 đợt; thêm đợt **S10 Kỹ năng nhân vật & tham chiếu** 30/09) — xem bằng
 > `py tools/plan_progress.py` hoặc web AI Development System. Kế hoạch làm nốt (người dùng duyệt 30/09): Bước 1 sổ sách → Bước 2 code miễn phí
 > S10.1–S10.7, S10.11 → Bước 3 thử trả tiền (trần 15 USD, hỏi từng bài) → Bước 4 kịch bản K có **Kenta + Orion cùng dùng kỹ năng** (K.2 ≤ 25 USD)
-> → Bước 5 chấm lại S8. Luật dùng ảnh / video tham chiếu: `knowledge/reference_assets_prompting.md`. Test: **1456 qua (2 bỏ qua)**.
+> → Bước 5 chấm lại S8. Luật dùng ảnh / video tham chiếu: `knowledge/reference_assets_prompting.md`. Test: **1493 qua (2 bỏ qua)**. **S10.11 xong 30/09 chiều** (A4/A5/A14/A21, T5; P3 đo xong → không chuyển Structured Outputs, lý do ở kế hoạch).
 > Các mục "📌" và "Cập nhật" bên dưới là lịch sử theo ngày (mới nhất ở trên).
 
 ## 📌 (Lịch sử) TRẠNG THÁI 2026-09-26 + BẢNG V4
@@ -822,7 +822,7 @@ _Cập nhật 2026-09-22 (dùng thật tính năng phân tích video kỹ năng 
     bộ luật → sửa prompt không làm kết quả cũ hiện "⚠ cũ", và từ `FINAL_VIDEO.mp4` không biết bộ luật nào tạo ra. Ghi hash prompt + model
     vào `llm_calls`/`jobs`/`outputs.manifest`; thêm màn "Truy nguồn video cuối" (mọi clip/ảnh/prompt/model đã tạo ra video). Cân nhắc: có nên
     để sửa prompt đánh "⚠ cũ" hàng loạt không (có thể chỉ hiện thông tin, không cảnh báo) — hỏi người dùng.
-  - [ ] **P3 — Structured Outputs (JSON theo schema) thay "hỏi lại khi JSON hỏng"**: 6 chỗ ghi `bad_json_retry` (`llm_runner`, `claude_tasks`,
+  - [x] *(đóng 30/09: CSDL thật 7 lần hỏi lại / 179 lời gọi, 0 lần JSON hỏng — đều là lỗi ý nghĩa; Structured Outputs không hỗ trợ minimum/maximum/minLength → chỉ 1/7 chặn được; giữ validator)* **P3 — Structured Outputs (JSON theo schema) thay "hỏi lại khi JSON hỏng"**: 6 chỗ ghi `bad_json_retry` (`llm_runner`, `claude_tasks`,
     `director_two_pass`, `previz`, `step1_prep`), mỗi lần hỏi lại tốn token. **Trước tiên đếm `diag_events` code `bad_json_retry` trên CSDL thật**;
     nhiều mới chuyển, và kiểm tài liệu chính thức model đang dùng có hỗ trợ + giới hạn schema. Giữ validator hiện có làm lớp kiểm thứ hai.
   - [ ] **P4 — Chỉ số "chi phí / video đạt" và "tiền lãng phí"**: tiền đã chi cho ảnh/clip bị loại, gen lại, bỏ dở — chia theo khâu (dữ liệu có

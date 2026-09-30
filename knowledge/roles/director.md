@@ -102,6 +102,12 @@ quyết định ở lại hay lướt trong vài giây đầu, nên cảm xúc p
     fallacy" [Đ10]). Dùng khi có lý do trong truyện (thời tiết cản mục tiêu), khi đối lập (trời đẹp giữa mất mát), hoặc khi nó **đổi** ở một
     mốc biến chuyển.
   - **Nền là một nơi thật**, kể cả khi tối: "bóng tối" = đêm/thiếu sáng ở bối cảnh của dự án, không phải nền đen trơn.
+  - **Điểm yếu chung của model video — điều kiện cân nhắc, không phải luật cấm (S0.14 T5, 2026-09-30).** Cận mặt diễn tinh tế (vi biểu
+    cảm: môi run, mắt ngấn, nụ cười gượng) và khớp môi là chỗ model hay hỏng nhất — ≥ 3 nguồn làm phim AI độc lập nói vậy
+    (`research/craft/trung_quoc/LUOT_2.md` #22 #23 #25 #27) và số đo của ta cũng thấy (#8: đo mốc môi, 4 clip thoại không khớp môi). Vì vậy khi chọn cách kể một đoạn đòi vi biểu cảm, **cân nhắc** kể bằng hành động / không gian / vật (tay siết lại,
+    quay lưng bước đi, khoảng trống giữa hai người) hoặc phản ứng của người nghe; và **dồn** cận mặt + khớp môi vào 1–2 câu then chốt thay
+    vì rải đều. Khi đoạn đó thật sự cần cận mặt (câu thú nhận, cú twist lộ trên mặt) thì vẫn chọn cận — ghi vào `tradeoffs` vì sao chấp
+    nhận rủi ro gen lại. Lý do: cùng một cảm xúc có nhiều cách kể; chọn cách model làm được thì người xem thấy cảm xúc thay vì thấy lỗi.
 - **Trong pipeline.** Cảnh: `time`, `lighting`, `mood`, **`knowledge_gap`** (`ahead` người xem biết trước nhân vật · `same` · `behind`
   biết sau — chỉ nhận ba giá trị, giá trị lạ bị bỏ và báo ở bàn đo); shot/cảnh: `weather` (danh sách cố định, Đ8); hình motif ghi lặp lại trong
   `image_prompt` của các shot cần "vần". `emotional_intent` vẫn nói người xem biết *điều gì* ("người xem biết trước Kelly: …").

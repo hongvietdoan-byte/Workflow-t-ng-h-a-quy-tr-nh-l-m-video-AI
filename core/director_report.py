@@ -23,8 +23,9 @@ WIDE_MIN = 1.5            # a wide shot shorter than this cannot be read
 TRADEOFF_KEYS = ("chose", "gave_up", "why")   # director.md tầng 4: each sacrifice says what won, what lost and why
 VOID = re.compile(r"\bvoid\b|black background|abstract (emotional )?space|empty darkness", re.IGNORECASE)
 # director.md tầng 4: which tradeoff covers which sacrifice — a tradeoff about the music does not excuse a dropped line
-_GAVE_UP_WORDS = {"bỏ câu thoại": r"(?<!\w)câu(?!\w)|(?<!\w)thoại|(?<!\w)lời(?!\w)|\blines?\b|dialog",
-                  "lệch khung thời lượng": r"thời lượng|khung|độ dài|dài hơn|ngắn hơn|(?<!\w)giây(?!\w)|\d\s*s\b|\blength\b|duration|"
+# (TON_DONG A4 / R1: "đọc câu" is speaking time, not a dropped line; "khung hình" is the frame, not the length frame)
+_GAVE_UP_WORDS = {"bỏ câu thoại": r"(?<!đọc )(?<!\w)câu(?!\w)|(?<!\w)thoại|(?<!\w)lời(?!\w)|\blines?\b|dialog",
+                  "lệch khung thời lượng": r"thời lượng|khung(?!\s*(?:hình|cảnh|ảnh))|độ dài|dài hơn|ngắn hơn|(?<!\w)giây(?!\w)|\d\s*s\b|\blength\b|duration|"
                                            r"longer|shorter",
                   "shot thiếu thời gian nói": r"thời gian (nói|đọc)|đọc (câu|hết)|nói (hết|kịp)|đủ giây|\bspeech\b|speaking time|"
                                               r"time to (say|speak)",
@@ -96,12 +97,19 @@ def _uncovered(gave_up: List[tuple], trade: List[Dict]) -> List[str]:
     for kind, scenes in gave_up:
         rx = re.compile(_GAVE_UP_WORDS[kind], re.I)
         hits = [t for t in trade if TRADEOFF_KINDS.get(str(t.get("kind") or "")) == kind
-                or (not t.get("kind") and rx.search(str(t.get("gave_up") or "")))]
+                or (str(t.get("kind") or "") not in TRADEOFF_KINDS and rx.search(str(t.get("gave_up") or "")))]
         if scenes:
             hits = [t for t in hits if not str(t.get("scene") or "").strip() or _int(t.get("scene")) in scenes]
         if not hits:
             out.append(kind)
     return out
+
+
+def unknown_kinds(trade: List[Dict]) -> List[str]:
+    """TON_DONG A4 / R1: a `kind` outside TRADEOFF_KINDS ("lines", "music"…) is not taken silently — it is reported, and the tradeoff
+    is read by its words like one with no kind."""
+    return sorted({str(t.get("kind")).strip() for t in trade if str(t.get("kind") or "").strip()
+                   and str(t.get("kind")).strip() not in TRADEOFF_KINDS})
 
 
 def _int(value) -> Optional[int]:
@@ -186,7 +194,7 @@ def report(obj: Dict, script_text: str, model: str = "kling") -> Dict:
         "sections": sections, "short_speech": short_speech, "silent_micro": silent_micro, "wide_short": wide_short,
         "lip_sync": lip, "void_background": void, "under_2s": under2, "dropped": dropped, "dropped_answered": sum(d["answered"] for d in dropped),
         "invented": invented, "tradeoffs": obj.get("tradeoffs") or [],
-        "tradeoffs_bad": len(bad_trade), "unrecorded": _uncovered(gave_up, trade),
+        "tradeoffs_bad": len(bad_trade), "unrecorded": _uncovered(gave_up, trade), "tradeoffs_unknown_kind": unknown_kinds(trade),
         "script_angles": angles,
         "acting": performance.warnings([s for _, _, s in shots]),
         "sound": sound_intent.warnings([s for _, _, s in shots]),
@@ -264,8 +272,9 @@ def retime_dropped(obj: Dict) -> List[str]:
 
 
 def opening_and_product(obj: Dict) -> List[str]:
-    """director.md Đ2 / Đ10: no shot of role hook starting in the first OPEN_HOOK_S s; no `money_shot` (the cover then falls back to
-    the ⭐ climax); a money_shot that is not true/false (dropped)."""
+    """director.md Đ2 / Đ10: no shot of role hook starting in the first OPEN_HOOK_S s; no `money_shot` in a promotional video (genre
+    COMMERCIAL — TON_DONG A5 / R3: a drama has no product moment to show; the cover then falls back to the ⭐ climax); a money_shot that
+    is not true/false (dropped)."""
     out, t, hook, money = [], 0.0, False, False
     for sc in obj.get("scenes") or []:
         for k, s in enumerate(sc.get("shots") or [], 1):
@@ -280,7 +289,7 @@ def opening_and_product(obj: Dict) -> List[str]:
             t += float(s.get("duration_s") or 0)
     if t and not hook:
         out.append(f"không shot nào `role: hook` bắt đầu trong {OPEN_HOOK_S:g} s đầu — người xem quyết ở lại hay lướt ở đây (Đ2)")
-    if t and not money:
+    if t and not money and str(obj.get("genre") or "").strip().upper() == "COMMERCIAL":
         out.append("chưa có `money_shot` — ảnh bìa sẽ lấy shot ⭐ cao trào (video quảng bá nên chỉ rõ khoảnh khắc sản phẩm, Đ10)")
     return out
 
@@ -350,6 +359,9 @@ def text(r: Dict) -> str:
     if r["tradeoffs"]:
         rows.append("Đánh đổi Director ghi lại: " + "; ".join(str(x.get("chose") if isinstance(x, dict) else x)[:80] for x in r["tradeoffs"][:5])
                     + (f" ({r['tradeoffs_bad']} mục thiếu chose/gave_up/why)" if r.get("tradeoffs_bad") else ""))
+    if r.get("tradeoffs_unknown_kind"):
+        rows.append("⚠ `tradeoffs.kind` không thuộc danh sách (" + ", ".join(r["tradeoffs_unknown_kind"]) + ") — đọc theo chữ ở gave_up; "
+                    "loại hợp lệ: " + ", ".join(TRADEOFF_KINDS))
     if r.get("unrecorded"):
         rows.append("⚠ Director đã hy sinh (" + ", ".join(r["unrecorded"]) + ") mà không ghi `tradeoffs`")
     if r.get("payoff_unplanted"):
