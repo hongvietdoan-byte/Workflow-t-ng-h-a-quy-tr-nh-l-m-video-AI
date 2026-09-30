@@ -89,5 +89,22 @@ class SkillRouteTests(unittest.TestCase):
         self.assertIn("Bom Keo", block)
 
 
+    def test_sheets_get_their_own_roles(self):
+        """30/09 (người dùng): a turnaround sheet per person and a clean skill sheet per skill, each with its own role line."""
+        hits = skill_dossier.shot_skills({"characters": ["KENTA", "ORION"], "skill_phase": "KENTA:prepare>wind_fly; ORION:activate>drain"})
+        self.assertEqual([h["phase"]["id"] for h in hits], ["prepare", "activate"])
+        self.assertEqual([h["end"]["id"] for h in hits], ["wind_fly", "drain"])
+        for h in hits:
+            self.assertTrue(skill_dossier.skill_sheet(h))
+        pics = [{"kind": "front", "who": "KENTA"}, {"kind": "front", "who": "ORION"}, {"kind": "sheet", "who": "ORION"},
+                {"kind": "skill_sheet", "who": "KENTA"}, {"kind": "skill_sheet", "who": "ORION"}]
+        block = skill_dossier.reference_block(hits, pics)
+        self.assertIn("@Image 4 is ORION's turnaround sheet", block)
+        self.assertIn("together they define ONE person", block)
+        self.assertIn("@Image 6 shows the phases of ORION's skill in order", block)
+        self.assertIn("KENTA's skill in this shot: prepare, then swing vortex, then ground rings, then wind fly.", block)
+        self.assertIn("ORION's skill in this shot: activate, then flash, then drain.", block)
+
+
 if __name__ == "__main__":
     unittest.main()

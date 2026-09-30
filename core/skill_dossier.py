@@ -117,7 +117,10 @@ def shot_skills(data: Dict, skills_dir: Optional[str] = None) -> List[Dict]:
     wanted = _wanted(data)
     out, seen = [], set()
     for w in wanted:
-        hit = shot_skill(dict(data, skill_phase=w), skills_dir)
+        start, _, end = w.partition(">")          # "KENTA:prepare>wind_fly": this person's own start and end phase
+        who = start.rpartition(":")[0]
+        extra = {"skill_phase_end": f"{who}:{end.strip()}" if who else end.strip()} if end.strip() else {}
+        hit = shot_skill(dict(data, skill_phase=start.strip(), **extra), skills_dir)
         if hit and hit["dossier"]["character"] not in seen:
             seen.add(hit["dossier"]["character"])
             out.append(hit)
@@ -169,19 +172,40 @@ def _label(p: Dict) -> str:
     return p.get("label_en") or p["id"].replace("_", " ")
 
 
-def reference_block(hits: List[Dict], people: List[str], first_frame: bool = True) -> str:
+def skill_sheet(hit: Optional[Dict]) -> Optional[str]:
+    """The dossier's clean skill sheet (phases in order, no captions, no game interface — 30/09), else None."""
+    if not hit or not hit["dossier"].get("skill_sheet"):
+        return None
+    path = os.path.join(hit["dossier"]["_dir"], hit["dossier"]["skill_sheet"])
+    return path if os.path.exists(path) else None
+
+
+def reference_block(hits: List[Dict], people, first_frame: bool = True) -> str:
     """The asset roles of a skill shot, written to the official Seedance 2.5 template (sd25-pe): one line per asset, what is taken and
-    what is NOT, one line per person, one line per skill video; the effect is NOT described again (the video carries it — "重复改写可能与
-    素材本身冲突"), only the order of its phases. Image numbers: the first frame, then one picture per person in `people` order; videos in
-    `hits` order."""
+    what is NOT; several pictures of one person "together define one person"; one line per skill sheet and per skill video; the effect
+    is NOT described again (the video carries it — "重复改写可能与素材本身冲突"), only the order of its phases.
+    `people`: names (one front picture each) or the pictures after the first frame in the order they are sent —
+    [{"kind": "front" | "sheet" | "skill_sheet", "who": name}]. Videos in `hits` order."""
+    pics = [p if isinstance(p, dict) else {"kind": "front", "who": p} for p in people]
     lines = ["[Asset roles]"]
     n = 1
     if first_frame:
         lines.append("@Image 1 is the first frame. It sets the place, where each person stands and faces, their poses, and the camera.")
         n = 2
-    for k, who in enumerate(people):
-        lines.append(f"@Image {n + k} is {who}: use only {who}'s face, hair and clothes; not its background.")
-    if len(people) > 1:
+    names = []
+    for k, pic in enumerate(pics):
+        num, who = n + k, pic["who"]
+        if pic["kind"] == "front":
+            names.append(who)
+            lines.append(f"@Image {num} is {who}: use only {who}'s face, hair and clothes; not its background.")
+        elif pic["kind"] == "sheet":
+            lines.append(f"@Image {num} is {who}'s turnaround sheet (front, three-quarter, side, back): the same person as {who}'s front "
+                         f"picture — together they define ONE person; use it only for how {who} looks from every side; do not copy its "
+                         "layout or draw several copies of him.")
+        elif pic["kind"] == "skill_sheet":
+            lines.append(f"@Image {num} shows the phases of {who}'s skill in order, left to right (numbered panels): use only the skill "
+                         "effect's shape, colour and transparency; not the panels, the numbers, the people, the place or the camera.")
+    if len(names) > 1:
         lines.append("The people never swap faces, hair, clothes, places or actions.")
     for j, h in enumerate(hits, 1):
         d = h["dossier"]

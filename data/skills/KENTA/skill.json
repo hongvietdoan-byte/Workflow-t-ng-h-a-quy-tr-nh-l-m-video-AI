@@ -242,5 +242,86 @@
    "seen": "19,4–19,8 s"
   }
  ],
- "timing_vi": "Tung lốc ~1,5 s: chuẩn bị ~0,7 s → vung ~2 khung → cột lốc ~0,15 s → vòng gió ~0,2 s → gió bay tới ~1 s."
+ "timing_vi": "Tung lốc ~1,5 s: chuẩn bị ~0,7 s → vung ~2 khung → cột lốc ~0,15 s → vòng gió ~0,2 s → gió bay tới ~1 s.",
+ "build": {
+  "dense_dir": "(xóa — dùng frames_png)",
+  "dense_from": 0.0,
+  "hud": [
+   [
+    0.25,
+    0.0,
+    0.75,
+    0.15
+   ],
+   [
+    0.63,
+    0.43,
+    0.76,
+    0.65
+   ],
+   [
+    0.0,
+    0.955,
+    1.0,
+    1.0
+   ],
+   [
+    0.0,
+    0.0,
+    1.0,
+    0.012
+   ]
+  ],
+  "yellow_digits": false,
+  "clean_sheet": [
+   [
+    "prepare",
+    16.7,
+    [
+     0.3,
+     0.3,
+     0.56,
+     0.96
+    ]
+   ],
+   [
+    "swing_vortex",
+    17.13,
+    [
+     0.22,
+     0.14,
+     0.64,
+     0.96
+    ]
+   ],
+   [
+    "ground_rings",
+    17.27,
+    [
+     0.22,
+     0.3,
+     0.64,
+     0.96
+    ]
+   ],
+   [
+    "wind_fly",
+    17.6,
+    [
+     0.26,
+     0.2,
+     0.64,
+     0.9
+    ]
+   ]
+  ],
+  "note": "hồ sơ Kenta dựng tay 30/09; chỉ tờ sạch dựng bằng tools/skill_dossier_build.clean_sheet từ frames_png"
+ },
+ "skill_sheet": "skill_sheet_clean.jpg",
+ "skill_sheet_phases": [
+  "prepare",
+  "swing_vortex",
+  "ground_rings",
+  "wind_fly"
+ ]
 }

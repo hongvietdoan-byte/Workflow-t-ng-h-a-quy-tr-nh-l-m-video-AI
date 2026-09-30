@@ -94,7 +94,10 @@ def cmd_dense(video, out, t0, t1):
 
 
 def frame_at(build, t, info):
-    """The dense frame of source time t."""
+    """The dense frame of source time t (or the kept 1080p key frame frames_png/<t>.png when the dense frames are gone)."""
+    kept = os.path.join(build.get("_folder", ""), "frames_png", f"{t:05.2f}.png")
+    if build.get("_folder") and os.path.exists(kept) and not os.path.isdir(build.get("dense_dir") or ""):
+        return kept
     files = sorted(glob.glob(os.path.join(build["dense_dir"], "*.png")))
     k = int(round((t - float(build["dense_from"])) * info["fps"]))
     if not files or k < 0 or k >= len(files):
@@ -128,6 +131,56 @@ def cut_ref(video, t0, t1, box, out, info):
         "-pix_fmt", "yuv420p", out)
     got = probe(out)
     assert got["duration"] >= MIN_REF_S - 0.05 and min(got["width"], got["height"]) >= 700 and got["width"] * got["height"] >= 407_696, got
+    return out
+
+
+def clean_frame(im, hud_boxes, yellow_digits=True):
+    """The frame without the game interface (người dùng 30/09: tối ưu ảnh gửi model): fixed HUD boxes (fractions [x0, y0, x1, y1] —
+    health / energy bars, buttons, captions) and — optionally — the yellow damage numbers are painted over from their surroundings
+    (OpenCV inpaint). The skill effect outside those boxes is left as it is."""
+    import cv2
+    import numpy as np
+    from PIL import Image
+    arr = cv2.cvtColor(np.asarray(im.convert("RGB")), cv2.COLOR_RGB2BGR)
+    h, w = arr.shape[:2]
+    mask = np.zeros((h, w), np.uint8)
+    for x0, y0, x1, y1 in hud_boxes:
+        mask[int(y0 * h):int(y1 * h), int(x0 * w):int(x1 * w)] = 255
+    if yellow_digits:                       # damage numbers: small saturated yellow marks (the effect itself is red / blue)
+        hsv = cv2.cvtColor(arr, cv2.COLOR_BGR2HSV)
+        yel = cv2.inRange(hsv, (20, 120, 170), (38, 255, 255))
+        n, lab, stats, _ = cv2.connectedComponentsWithStats(yel)
+        for k in range(1, n):
+            x, y, bw, bh, area = stats[k]
+            if area < 0.0015 * w * h and bh < 0.06 * h:
+                mask[lab == k] = 255
+    mask = cv2.dilate(mask, np.ones((7, 7), np.uint8))
+    out = cv2.inpaint(arr, mask, 5, cv2.INPAINT_TELEA)
+    return Image.fromarray(cv2.cvtColor(out, cv2.COLOR_BGR2RGB))
+
+
+def clean_sheet(d, info, out, height=768):
+    """One picture of the skill's phases in order, clean: HUD removed, each phase cropped close, side by side, only a small number in
+    each corner — for the image / video model (the storyboard with Vietnamese captions stays for people and the Director)."""
+    from PIL import Image, ImageDraw
+    b = d["build"]
+    panels = []
+    for pid, t, box in b["clean_sheet"]:
+        im = clean_frame(Image.open(frame_at(b, t, info)).convert("RGB"), b.get("hud") or [], b.get("yellow_digits", True))
+        im = _box(im, box)
+        panels.append(im.resize((int(im.width * height / im.height), height), Image.LANCZOS))
+    gap = 12
+    sheet = Image.new("RGB", (sum(p.width for p in panels) + gap * (len(panels) - 1), height), (40, 40, 40))
+    x = 0
+    dr = ImageDraw.Draw(sheet)
+    for k, p in enumerate(panels, 1):
+        sheet.paste(p, (x, 0))
+        dr.ellipse([x + 10, 10, x + 58, 58], fill=(20, 20, 20))
+        dr.text((x + 25, 13), str(k), fill=(255, 255, 255), font=_font(34, True))
+        x += p.width + gap
+    if sheet.width > 6000:                  # Seedance 2.5: picture sides 300–6000 px
+        sheet = sheet.resize((6000, int(sheet.height * 6000 / sheet.width)), Image.LANCZOS)
+    sheet.save(out, quality=92)
     return out
 
 
@@ -184,6 +237,7 @@ def cmd_build(folder):
     path = os.path.join(folder, "skill.json")
     d = json.load(open(path, encoding="utf-8"))
     b = d["build"]
+    b["_folder"] = folder
     video = b["source_video"]
     info = probe(video)
     for sub in ("frames", "crops", "frames_png", "clips_local"):
@@ -211,8 +265,13 @@ def cmd_build(folder):
         refs[name] = os.path.relpath(out, folder).replace("\\", "/")
     if refs:
         d["video_ref"] = dict(refs, note="chỉ trên máy (không git): tạo lại bằng `py tools/skill_dossier_build.py build " + folder.replace("\\", "/") + "`")
+    if b.get("clean_sheet"):
+        clean_sheet(d, info, os.path.join(folder, "skill_sheet_clean.jpg"))
+        d["skill_sheet"] = "skill_sheet_clean.jpg"
+        d["skill_sheet_phases"] = [x[0] for x in b["clean_sheet"]]
     d["storyboard"] = "storyboard_ky_nang.jpg"
     storyboard(d, info, os.path.join(folder, "storyboard_ky_nang.jpg"))
+    b.pop("_folder", None)
     json.dump(d, open(path, "w", encoding="utf-8"), ensure_ascii=False, indent=1)
     print("xong:", folder, "·", len(b.get("keyframes") or []), "khung ·", len(b.get("crops") or {}), "ảnh cắt ·", len(refs), "đoạn video")
 

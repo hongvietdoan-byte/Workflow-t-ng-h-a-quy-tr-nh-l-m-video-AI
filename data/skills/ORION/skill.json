@@ -282,7 +282,85 @@
      0.89
     ]
    ]
-  }
+  },
+  "hud": [
+   [
+    0.355,
+    0.795,
+    0.62,
+    0.855
+   ],
+   [
+    0.575,
+    0.6,
+    0.65,
+    0.73
+   ],
+   [
+    0.25,
+    0.885,
+    0.75,
+    1.0
+   ],
+   [
+    0.0,
+    0.0,
+    1.0,
+    0.025
+   ]
+  ],
+  "clean_sheet": [
+   [
+    "activate",
+    16.48,
+    [
+     0.24,
+     0.3,
+     0.56,
+     0.8
+    ]
+   ],
+   [
+    "flash",
+    16.56,
+    [
+     0.22,
+     0.12,
+     0.58,
+     0.8
+    ]
+   ],
+   [
+    "drain",
+    22.2,
+    [
+     0.28,
+     0.28,
+     0.62,
+     0.8
+    ]
+   ],
+   [
+    "final_burst",
+    18.72,
+    [
+     0.1,
+     0.12,
+     0.72,
+     0.8
+    ]
+   ],
+   [
+    "end",
+    19.48,
+    [
+     0.28,
+     0.28,
+     0.56,
+     0.8
+    ]
+   ]
+  ]
  },
  "video_ref": {
   "full_cycle": "clips_local/full_cycle_16.2-19.6.mp4",
@@ -304,5 +382,13 @@
   ],
   "full_cycle_running": []
  },
- "skill_vi_note": "tên tiếng Việt trong game: Huyết Cầu Bảo Hộ"
+ "skill_vi_note": "tên tiếng Việt trong game: Huyết Cầu Bảo Hộ",
+ "skill_sheet": "skill_sheet_clean.jpg",
+ "skill_sheet_phases": [
+  "activate",
+  "flash",
+  "drain",
+  "final_burst",
+  "end"
+ ]
 }

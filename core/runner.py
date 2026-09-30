@@ -546,7 +546,7 @@ class VideoRunner(_Runner):
         mode = shots.mode(proj)
         skill = self._skill_assets(job)
         if skill:                            # S10.4: first frame (by role sentence) + one picture per person + the skill video(s)
-            out["reference_only"] = [skill["first_frame"]] + [path for _, path in skill["people"]]
+            out["reference_only"] = [skill["first_frame"]] + [p["path"] for p in skill["pictures"]]
             out["reference_video"] = [{"path": v, "refer_type": "feature"} for v in skill["videos"]]
             return out
         group = self._sends_group(job)
@@ -630,12 +630,28 @@ class VideoRunner(_Runner):
                                                           .fetchone()["data"] or "{}")}]
         people = seedance_refs.identity_pictures(conn, job["project_id"], rows, 8)
         have = {skill_dossier._key(n) for n, _ in people}
+        from . import assets
+        links = assets.link_characters(conn, job["project_id"], [n for n, _ in people])
+        pictures = []                                  # 30/09: front + turnaround sheet per person, clean skill sheet per skill
+        for n, path in people:
+            a = links.get(n)
+            std = dict((role, img) for img, role in (assets.standard_set(a, True) if a else []))
+            front = (std.get("character") or {}).get("path") or path
+            pictures.append({"kind": "front", "who": n, "path": front})
+            sheet = (std.get("sheet") or {}).get("path")
+            if sheet and os.path.exists(sheet):
+                pictures.append({"kind": "sheet", "who": n, "path": sheet})
+        for h in hits:
+            ss = skill_dossier.skill_sheet(h)
+            if ss:
+                pictures.append({"kind": "skill_sheet", "who": h["dossier"]["character"], "path": ss})
         for h in hits:                                # luật 1: a skill user without an identity picture is said, not skipped
             who = h["dossier"]["character"]
             if skill_dossier._key(who) not in have and who in [str(c) for c in rows[0]["data"].get("characters") or []]:
                 self._diag(job, "warn", "missing_reference", f"shot kỹ năng: {who} chưa có ảnh định danh trong dự án (gắn tài nguyên ở Bước 1) — "
                            "clip chỉ giữ người này nhờ khung đầu")
-        return {"first_frame": first, "people": people, "videos": [skill_dossier.video_ref(h) for h in hits], "hits": hits}
+        return {"first_frame": first, "people": people, "pictures": pictures, "videos": [skill_dossier.video_ref(h) for h in hits],
+                "hits": hits}
 
     def _refs(self, job) -> bool:
         if self._skill_hits(job):                     # a skill shot goes its own way (S10.4), never in a reference group
@@ -907,7 +923,7 @@ class VideoRunner(_Runner):
         from . import skill_dossier
         skill = self._skill_assets(job)
         if skill:                                     # S10.4: the official template — roles first, the effect NOT described again
-            motion = skill_dossier.reference_block(skill["hits"], [n for n, _ in skill["people"]]) + "\n[Event] " + motion
+            motion = skill_dossier.reference_block(skill["hits"], skill["pictures"]) + "\n[Event] " + motion
         elif skill_dossier.enabled():                 # 30/09: the skill phase in the clip's words + what is never drawn
             hit = skill_dossier.shot_skill(json.loads(conn.execute("SELECT data FROM scenes WHERE id=?", (job["scene_id"],))
                                                       .fetchone()["data"] or "{}"))
