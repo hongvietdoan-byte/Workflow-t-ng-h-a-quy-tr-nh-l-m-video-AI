@@ -32,6 +32,8 @@
   "per_video_clip": {},
   "per_audio": {
     "music_v2": null,
+    "music_v2_5": null,
+    "seed-audio-1.0": null,
     "eleven_text_to_sound_v2": null,
     "eleven_v3": null,
     "eleven_multilingual_v2": null,

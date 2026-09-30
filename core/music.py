@@ -33,7 +33,7 @@ class MockAudioProvider:
         self._assets[f"{category}:{asset_id}"] = {"ms": ms}
         return asset_id
 
-    def generate_music(self, prompt, length_ms=None, instrumental=True, name="music"):
+    def generate_music(self, prompt, length_ms=None, instrumental=True, name="music", model=None):
         return self._create("music", min(int(length_ms or 4000), 4000))
 
     def generate_sfx(self, prompt, duration_seconds=None, loop=False, name="sfx"):

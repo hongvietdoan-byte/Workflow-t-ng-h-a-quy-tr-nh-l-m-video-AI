@@ -27,6 +27,18 @@ MUSIC_MS = (3000, 600000)
 DEFAULT_MODELS = {"music": "music_v2", "sound_effect": "eleven_text_to_sound_v2", "tts": "eleven_v3"}
 TTS_MODELS = ("eleven_v3", "eleven_turbo_v2_5", "eleven_flash_v2_5", "eleven_multilingual_v2")   # v2: no Vietnamese
 TTS_PARAM_RANGES = {"speed": (0.7, 1.2), "stability": (0.0, 1.0), "similarity_boost": (0.0, 1.0), "style": (0.0, 1.0)}
+# S1.15 (2026-10-01): the web "Text to Music" list offers music_v2_5 = Eleven Music v2.5 next to music_v2 (read from the web bundle;
+# the public skill 1.3.1 still lists only music_v2). Whether the API takes it is proven by a real call — docs/KET_QUA_S2_6_S1_15_2026-10-01.md.
+MUSIC_MODELS = ("music_v2", "music_v2_5")
+# S2.6: Seed Audio 1.0 ("All-in-one Voice" on the web) — one request = a whole track (several voices + SFX + music), Vietnamese,
+# [1.0s:2.5s] time marks, optional sentence/word time stamps. Body shape copied from the web client (2026-10-01): provider
+# 'seedance', type 'tts', the settings at the top level (not in input_params); references = 1 image OR up to 3 audio clips
+# (each ≤ 30 s / 10 MB); text ≤ 3000 characters; no SSML.
+SEED_AUDIO_MODEL = "seed-audio-1.0"
+SEED_TEXT_LIMIT = 3000
+SEED_MAX_AUDIO_REFS = 3
+SEED_SAMPLE_RATES = (8000, 16000, 24000, 32000, 44100, 48000)
+SEED_FORMATS = ("mp3", "wav", "pcm", "ogg_opus")
 _PAGES = 5
 
 
@@ -75,12 +87,73 @@ class ClipAIAudioProvider:
         return text
 
     def generate_music(self, prompt: str, length_ms: Optional[int] = None, instrumental: bool = True,
-                       name: str = "music") -> str:
+                       name: str = "music", model: Optional[str] = None) -> str:
+        """model: None = DEFAULT_MODELS['music'] (music_v2); 'music_v2_5' = Eleven Music v2.5 (S1.15). Unknown names are refused
+        here, before anything is paid."""
+        model = model or DEFAULT_MODELS["music"]
+        if model not in MUSIC_MODELS:
+            raise ProviderError(f"unknown music model '{model}'. Allowed: {list(MUSIC_MODELS)}", code="unsupported_model")
         prompt = self._check_text("music prompt", prompt)
         params: Dict = {"force_instrumental": bool(instrumental)}
         if length_ms is not None:
             params["music_length_ms"] = int(min(max(length_ms, MUSIC_MS[0]), MUSIC_MS[1]))
-        return self._generate("music", name, DEFAULT_MODELS["music"], {"prompt": prompt}, params)
+        return self._generate("music", name, model, {"prompt": prompt}, params)
+
+    @staticmethod
+    def seed_audio_body(text: str, reference_audio_urls=(), reference_image_url: Optional[str] = None, name: str = "seed-audio",
+                        subtitles: bool = True, sample_rate: int = 44100, output_format: str = "mp3") -> Dict:
+        """The request for one Seed Audio 1.0 track, checked before anything is paid (S2.6)."""
+        text = (text or "").strip()
+        if not text:
+            raise ProviderError("Seed Audio text is empty", code="bad_input")
+        if len(text) > SEED_TEXT_LIMIT:
+            raise ProviderError(f"Seed Audio text is {len(text)} characters; Clip AI allows at most {SEED_TEXT_LIMIT}",
+                                code="prompt_too_long")
+        audios = [u for u in (reference_audio_urls or []) if u]
+        if reference_image_url and audios:
+            raise ProviderError("Seed Audio takes a reference image OR reference audio, not both", code="bad_input")
+        if len(audios) > SEED_MAX_AUDIO_REFS:
+            raise ProviderError(f"Seed Audio takes at most {SEED_MAX_AUDIO_REFS} reference audio clips ({len(audios)} given)",
+                                code="bad_input")
+        for url in audios + ([reference_image_url] if reference_image_url else []):
+            if not str(url).startswith(("http://", "https://")):
+                raise ProviderError(f"Seed Audio reference must be an http(s) URL: {url!r}", code="bad_input")
+        if int(sample_rate) not in SEED_SAMPLE_RATES:
+            raise ProviderError(f"sample_rate {sample_rate} not in {list(SEED_SAMPLE_RATES)}", code="bad_input")
+        if output_format not in SEED_FORMATS:
+            raise ProviderError(f"output_format {output_format!r} not in {list(SEED_FORMATS)}", code="bad_input")
+        refs = [{"image_url": reference_image_url}] if reference_image_url else [{"audio_url": u} for u in audios]
+        # speech_rate / loudness_rate / pitch_rate: the web always sends them (0 = unchanged), so do we. NOT the cause of the
+        # provider's "Seed Audio error: 400": assets 1727 (without them) and 30780 (with them) failed the same way (2026-10-01).
+        # Unproven so far: the reference URLs (web uploads local files through /kling/upload) or sample_rate 44100 (guide lists
+        # 48K/24K/16K/8K). Until one real track succeeds this path is experimental only (not wired into the pipeline).
+        return {"provider": "seedance", "type": "tts", "model": SEED_AUDIO_MODEL, "text": text, "name": (name or "seed-audio")[:100],
+                "output_format": output_format, "sample_rate": int(sample_rate), "speech_rate": 0, "loudness_rate": 0, "pitch_rate": 0,
+                "enable_subtitle": bool(subtitles), "aigc_watermark": False, "references": refs}
+
+    def generate_seed_audio(self, text: str, reference_audio_urls=(), reference_image_url: Optional[str] = None,
+                            name: str = "seed-audio", subtitles: bool = True, sample_rate: int = 44100,
+                            output_format: str = "mp3") -> str:
+        """Submit one Seed Audio 1.0 track; returns the asset id (poll with status('tts', id))."""
+        body = self.seed_audio_body(text, reference_audio_urls, reference_image_url, name, subtitles, sample_rate, output_format)
+        data = self.client.post_json(PATH_GENERATE, body) or {}
+        asset_id = data.get("asset_id")
+        if asset_id is None:
+            raise ProviderError("Seed Audio create returned no asset_id", code="bad_response")
+        if data.get("status") == "failed":
+            raise ProviderError(data.get("provider_error") or "Seed Audio creation failed", code="task_failed")
+        return str(asset_id)
+
+    def asset(self, category: str, asset_id: str) -> Optional[dict]:
+        """The whole audio-list item (for fields status() does not keep, e.g. Seed Audio subtitle time stamps)."""
+        for page in range(1, _PAGES + 1):
+            data = self.client.get(PATH_LIST, {"category": category, "page": page, "page_size": 50}) or {}
+            for item in data.get("items") or []:
+                if str(item.get("id")) == str(asset_id):
+                    return item
+            if len(data.get("items") or []) < 50:
+                break
+        return None
 
     def generate_sfx(self, prompt: str, duration_seconds: Optional[float] = None, loop: bool = False,
                      name: str = "sfx") -> str:
