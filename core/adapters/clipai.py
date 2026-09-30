@@ -44,6 +44,19 @@ MODEL_ALIASES = {
 KLING_MODELS = {"kling-v3-omni", "kling-video-o1"}
 SEEDANCE_MODELS = {"dreamina-seedance-2-5-260628", "dreamina-seedance-2-0-260128", "dreamina-seedance-2-0-fast-260128"}
 MIN_REFERENCE_VIDEO_S = 3.0      # ClipAI refused a 2.2 s reference video (thử #11, 2026-09-30): "Video duration can not less than 3s"
+REFERENCE_VIDEO_WIDTH = (700, 4553)   # "The video width should not be less than 700px and larger than 4553px" (thử #11, 30/09)
+
+
+def _video_width(path: str) -> Optional[int]:
+    import subprocess
+    try:
+        out = subprocess.run(["ffprobe", "-v", "error", "-select_streams", "v:0", "-show_entries", "stream=width", "-of", "csv=p=0", path],
+                             capture_output=True, text=True, timeout=30).stdout.strip()
+        return int(out.split()[0]) if out else None
+    except (OSError, ValueError, subprocess.SubprocessError):
+        return None
+
+
 PROMPT_LIMITS = {"kling": 2500, "dreamina-seedance-2-0-260128": 4000, "dreamina-seedance-2-0-fast-260128": 4000,
                  "dreamina-seedance-2-5-260628": 5000}
 _RISK_HINTS = ("risk control", "risk-control", "风控", "content policy", "moderation", "copyright", "版权", "审核")
@@ -236,6 +249,10 @@ class ClipAIVideoProvider:
             if vlen is not None and vlen < MIN_REFERENCE_VIDEO_S - 0.05:   # real answer 30/09: "Video duration can not less than 3s"
                 raise ProviderError(f"video tham chiếu dài {vlen:.1f} s < {MIN_REFERENCE_VIDEO_S:.0f} s (ClipAI từ chối) — cắt dài hơn",
                                     code="rule_violation")
+            width = _video_width(vpath)
+            if width is not None and not REFERENCE_VIDEO_WIDTH[0] <= width <= REFERENCE_VIDEO_WIDTH[1]:   # real answer 30/09
+                raise ProviderError(f"video tham chiếu rộng {width} px — ClipAI chỉ nhận {REFERENCE_VIDEO_WIDTH[0]}–"
+                                    f"{REFERENCE_VIDEO_WIDTH[1]} px", code="rule_violation")
             with open(vpath, "rb") as f:
                 vcontent = f.read()
             video_files.append((_upload_name(vpath, vcontent), vcontent))
