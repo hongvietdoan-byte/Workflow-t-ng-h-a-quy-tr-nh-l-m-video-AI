@@ -9,7 +9,7 @@
   "copy": "bản 1080p dài 30,4 s — mốc giây trong hồ sơ theo bản này",
   "reviewed": "2026-09-30, toàn bộ khung gốc 30 khung/giây đoạn 15,8–29,2 s"
  },
- "mechanism_vi": "Vung lưỡi năng lượng giải phóng một cơn lốc bay về phía trước gây sát thương, xuyên qua Bom Keo. Bấm lại khi di chuyển: lốc bao quanh người khi lướt và nhận hiệu ứng giảm sát thương.",
+ "mechanism_vi": "Vung tay giải phóng một cơn lốc bay về phía trước gây sát thương, xuyên qua Bom Keo. Bấm lại khi di chuyển: lốc bao quanh người khi lướt và nhận hiệu ứng giảm sát thương.",
  "storyboard": "storyboard_ky_nang.jpg",
  "default_phase": "wind_fly",
  "phases": [
@@ -20,10 +20,11 @@
     17.0
    ],
    "frame": "crops/prepare_16.70.jpg",
-   "vi": "Tay phải cầm một LƯỠI HOLOGRAM xanh ngọc trong suốt, có SỌC NGANG mảnh như vạch quét, mép sáng xanh; rộng cỡ bàn tay, dài từ thắt lưng tới đầu gối, cầm dọc, mũi chúc xuống cạnh chân phải (không phải pha lê, không đặc). katana nằm TRONG VỎ, đeo NGANG sau thắt lưng: vỏ đen chìa ra bên trái, chuôi đỏ có vòng chắn đỏ ở hông phải. Đứng yên ~0,7 s.",
-   "image_en": "Kenta holds a translucent turquoise hologram blade made of light, with thin horizontal stripes across it like scan lines and bright cyan edges, as wide as a hand and reaching from his waist to his knee, held upright in his right hand with the tip pointing down beside his right leg — see-through, flat, not a crystal, not a solid gem, not a metal sword; his katana stays in its scabbard, worn horizontally across the back of his waist: the black scabbard sticks out past his left side, the red hilt with a red ring guard sits at his right hip; he stands still, facing the target.",
-   "video_en": "Kenta stands still holding a translucent turquoise hologram blade made of light, with thin horizontal stripes across it like scan lines and bright cyan edges, as wide as a hand and reaching from his waist to his knee, held upright in his right hand with the tip pointing down beside his right leg — see-through, flat, not a crystal, not a solid gem, not a metal sword; his katana stays in its scabbard, worn horizontally across the back of his waist: the black scabbard sticks out past his left side, the red hilt with a red ring guard sits at his right hip the whole time.",
-   "frame_full": "frames/16.70.jpg"
+   "vi": "Kenta đứng yên ~0,7 s, mặt hướng về mục tiêu, tay không cầm gì; katana nằm TRONG VỎ đeo ngang sau thắt lưng (vỏ đen chìa trái, chuôi đỏ hông phải). Tấm sọc ngang trong suốt xanh ngọc cạnh chân phải trong video là THANH ĐỊNH HƯỚNG KỸ NĂNG của giao diện game (chỉ hướng sẽ tung lốc), KHÔNG phải vũ khí Kenta cầm — không vẽ (người dùng xác nhận 30/09).",
+   "image_en": "Kenta stands still, ready, facing the target, his hands empty; his katana stays in its scabbard, worn horizontally across the back of his waist: the black scabbard sticks out past his left side, the red hilt sits at his right hip.",
+   "video_en": "Kenta stands still, ready, facing the target, hands empty; his katana stays in its scabbard across the back of his waist the whole time.",
+   "frame_full": "frames/16.70.jpg",
+   "label_en": "stand ready"
   },
   {
    "id": "swing_vortex",
@@ -32,10 +33,11 @@
     17.2
    ],
    "frame": "crops/swing_vortex_17.13.jpg",
-   "vi": "Vung rất nhanh (~2 khung) — lưỡi hologram tan thành một TẤM MÀNG gió rất mờ, xanh nhạt, cao gấp đôi người, rộng gấp ba thân, cuộn vòng quanh người như tấm kính cong; nhìn xuyên thấy cảnh phía sau; chỉ ~0,15 s.",
-   "image_en": "The hologram blade has just been swept and dissolved: a huge, very faint, pale-blue curved sheet of wind — about twice his height and three times his width, see-through like thin tinted glass, the background clearly visible through it — curls around his whole body.",
-   "video_en": "He flicks the hologram blade in one horizontal sweep at hip height, two frames fast; it dissolves into a huge, very faint, pale-blue see-through curved sheet of wind, twice his height, that curls around his whole body for a split second.",
-   "frame_full": "frames/17.13.jpg"
+   "vi": "Vung tay phải rất nhanh (~2 khung, tay không) — một TẤM MÀNG gió rất mờ, xanh nhạt, cao gấp đôi người, cuộn vòng quanh người như tấm kính cong; nhìn xuyên thấy cảnh phía sau; ~0,15 s.",
+   "image_en": "He has just swept his empty right hand in one fast horizontal stroke: a huge, very faint, pale-blue curved sheet of wind — twice his height, see-through like thin tinted glass — curls around his whole body.",
+   "video_en": "He sweeps his empty right hand in one fast horizontal stroke; a huge, very faint, pale-blue see-through curved sheet of wind, twice his height, curls around his whole body for a split second.",
+   "frame_full": "frames/17.13.jpg",
+   "label_en": "hand sweep and whirlwind"
   },
   {
    "id": "ground_rings",
@@ -123,8 +125,6 @@
   "skill",
   "tornado",
   "whirlwind",
-  "energy blade",
-  "lưỡi năng lượng",
   "vòng gió",
   "wind ring"
  ],
@@ -149,7 +149,6 @@
   ],
   "prepare": [
    "chuẩn bị",
-   "hiện lưỡi",
    "vào thế",
    "raise",
    "ready",
@@ -182,32 +181,38 @@
   "lửa, sấm sét, gió màu tím/đỏ",
   "vệt đỏ lưỡi liềm trên tường / quanh người trúng đòn (đó là chỉ báo hướng sát thương của giao diện game)",
   "Kenta nhấc chân, bước đi khi tung lốc",
-  "lưỡi năng lượng dạng pha lê / đá quý đặc; luồng năng lượng phụt thẳng lên trời (lỗi thử #11)"
+  "Kenta CẦM thanh / tấm sọc xanh trong suốt như cầm kiếm — đó là thanh định hướng kỹ năng của giao diện (lỗi model thử #11 T1/T6 và #12 T4)",
+  "lưỡi năng lượng, kiếm kính, kiếm pha lê trong tay; luồng năng lượng phụt thẳng lên trời (lỗi thử #11)"
  ],
- "never_en": "drawn or unsheathed katana, slashing with the katana, metal sword in the hand, solid crystal or gem blade, katana worn vertically at the hip, shield, barrier, dark or opaque tornado, dense white swirl, a jet of energy shooting upward, debris, dust or leaves swept up, cracked or shattered gloo wall, fire, lightning, purple or red wind, red crescent mark or red slash on the wall, damage-direction indicator or any HUD element",
+ "never_en": "drawn or unsheathed katana, slashing with the katana, any sword or blade in his hand, a striped translucent turquoise bar or panel held like a sword (it is the game's skill aiming indicator), glass or crystal blade, katana worn vertically at the hip, shield, barrier, dark or opaque tornado, dense white swirl, a jet of energy shooting upward, debris, dust or leaves swept up, cracked or shattered gloo wall, fire, lightning, purple or red wind, red crescent mark or red slash on the wall, damage-direction indicator or any HUD element",
  "script_contradictions": [
-  "rút kiếm",
-  "rút katana",
-  "tuốt kiếm",
-  "chém bằng katana",
-  "unsheath",
-  "draws his katana",
-  "draws the katana",
-  "khiên",
-  "lá chắn",
-  "shield",
   "barrier",
-  "tường vỡ",
-  "tường keo vỡ",
-  "phá tường",
-  "shatter",
+  "chém bằng katana",
   "cuốn bay",
   "cuốn theo",
-  "debris"
+  "cầm lưỡi",
+  "debris",
+  "draws his katana",
+  "draws the katana",
+  "energy blade",
+  "hologram blade",
+  "khiên",
+  "kiếm năng lượng",
+  "lá chắn",
+  "lưỡi năng lượng",
+  "phá tường",
+  "rút katana",
+  "rút kiếm",
+  "shatter",
+  "shield",
+  "tuốt kiếm",
+  "tường keo vỡ",
+  "tường vỡ",
+  "unsheath"
  ],
  "script_rules_vi": [
   "Chỉ mô tả kỹ năng bằng các giai đoạn có trong hồ sơ, đúng thứ tự: chuẩn bị → vung (cột lốc chớp qua) → vòng gió trên đất → gió bay tới → (nếu trúng Bom Keo) gió xuyên qua, tường đứng nguyên, người sau tường mất máu. Vệt đỏ lưỡi liềm trong video gốc là chỉ báo hướng sát thương của giao diện, không phải kỹ năng.",
-  "Katana luôn nằm trong vỏ khi dùng kỹ năng; thứ Kenta vung là lưỡi năng lượng trong suốt xanh ngọc.",
+  "Katana luôn nằm trong vỏ khi dùng kỹ năng; Kenta vung TAY KHÔNG — không có lưỡi / kiếm năng lượng nào. Tấm sọc xanh trong video gốc là thanh định hướng kỹ năng (giao diện), không vẽ.",
   "Kỹ năng diễn ra rất nhanh (tung lốc ~1,5 s; xuyên keo ~0,5 s) — chia shot theo giai đoạn, mỗi shot một giai đoạn chính.",
   "Muốn Kenta lướt có lốc bao quanh: ghi rõ 'bấm lại khi di chuyển' (giai đoạn move_vortex), không trộn với cảnh tung lốc."
  ],
@@ -275,16 +280,6 @@
   "yellow_digits": false,
   "clean_sheet": [
    [
-    "prepare",
-    16.7,
-    [
-     0.3,
-     0.3,
-     0.56,
-     0.96
-    ]
-   ],
-   [
     "swing_vortex",
     17.13,
     [
@@ -319,9 +314,11 @@
  },
  "skill_sheet": "skill_sheet_clean.jpg",
  "skill_sheet_phases": [
-  "prepare",
   "swing_vortex",
   "ground_rings",
   "wind_fly"
+ ],
+ "model_errors_vi": [
+  "30/09 thử #11 T1/T6 + #12 T4: model vẽ THANH ĐỊNH HƯỚNG KỸ NĂNG (tấm sọc ngang trong suốt xanh ngọc của giao diện) đi theo tay Kenta như cầm kiếm — do hồ sơ cũ tả nhầm là 'lưỡi hologram cầm tay' và ảnh tham chiếu khung 16,70 có thanh này. Sửa: hồ sơ tả tay không, thanh này vào danh sách không vẽ, tờ kỹ năng sạch bỏ khung chuẩn bị, lời dặn ảnh / video tham chiếu nói rõ không lấy chỉ báo nhắm / định hướng."
  ]
 }

@@ -105,7 +105,7 @@ class SkillRouteTests(unittest.TestCase):
         self.assertIn("@Image 4 is ORION's turnaround sheet", block)
         self.assertIn("together they define ONE person", block)
         self.assertIn("@Image 6 shows the phases of ORION's skill in order", block)
-        self.assertIn("KENTA's skill in this shot: prepare, then swing vortex, then ground rings, then wind fly.", block)
+        self.assertIn("KENTA's skill in this shot: stand ready, then hand sweep and whirlwind, then ground rings, then wind fly.", block)
         self.assertIn("ORION's skill in this shot: activate, then flash, then drain.", block)
 
 

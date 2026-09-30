@@ -204,13 +204,15 @@ def reference_block(hits: List[Dict], people, first_frame: bool = True) -> str:
                          "layout or draw several copies of him.")
         elif pic["kind"] == "skill_sheet":
             lines.append(f"@Image {num} shows the phases of {who}'s skill in order, left to right (numbered panels): use only the skill "
-                         "effect's shape, colour and transparency; not the panels, the numbers, the people, the place or the camera.")
+                         "effect's shape, colour and transparency; not the panels, the numbers, the people, the place, the camera or any "
+                         "aiming / direction indicator of the game interface.")
     if len(names) > 1:
         lines.append("The people never swap faces, hair, clothes, places or actions.")
     for j, h in enumerate(hits, 1):
         d = h["dossier"]
         lines.append(f"@Video {j} is used only for {d['character']}'s skill effect ({d.get('skill_en') or d.get('skill_vi')}): its shape, "
-                     f"colour, transparency, order and rhythm. Do not take the person, clothes, place, camera or on-screen text of @Video {j}.")
+                     f"colour, transparency, order and rhythm. Do not take the person, clothes, place, camera, on-screen text or the game's "
+                     f"aiming / direction indicator of @Video {j}.")
     for h in hits:
         d = h["dossier"]
         seq = next((v for v in (d.get("sequences") or {}).values() if h["phase"]["id"] in v), None) or [h["phase"]["id"]]
@@ -283,7 +285,7 @@ def add_reference(refs: List[Dict], ref: Optional[Dict], limit: int) -> List[Dic
 def reference_note(tag: str, label: str) -> str:
     return (f"{tag} is a frame of the official game video of {label}'s skill at this very moment: copy the skill EFFECT only — its "
             f"shape, colour, transparency, size against the body, where it sits and what {label} holds — never its camera, place, "
-            "people, health bars, buttons, red damage-direction marks (a red crescent shows where the hit came from — it is the game's "
+            "people, health bars, buttons, skill aiming / direction indicators, red damage-direction marks (a red crescent shows where the hit came from — it is the game's "
             "interface, not the skill) or any on-screen text")
 
 

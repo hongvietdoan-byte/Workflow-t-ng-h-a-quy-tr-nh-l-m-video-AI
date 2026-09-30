@@ -32,7 +32,7 @@ class KentaDossierTests(unittest.TestCase):
         self.assertIsNone(find({"characters": ["KELLY"], "image_prompt": "a tornado skill"}))      # not the one with the dossier
         hit = find({"characters": ["KENTA"], "image_prompt": "Kenta tung Đột Kích Lốc Xoáy, gió xuyên qua tường Bom Keo"})
         self.assertEqual(hit["phase"]["id"], "through_gloo")
-        hit = find({"characters": ["KENTA"], "action_peak": "vào thế chuẩn bị, lưỡi năng lượng hiện trong tay phải"})
+        hit = find({"characters": ["KENTA"], "action_peak": "Kenta vào thế chuẩn bị tung kỹ năng lốc xoáy"})
         self.assertEqual(hit["phase"]["id"], "prepare")
         self.assertEqual(find({"characters": ["KENTA"], "image_prompt": "Kenta uses his skill"})["phase"]["id"], "wind_fly")
         hit = find({"characters": ["KENTA", "KELLY"], "skill_phase": "KENTA:move_vortex", "image_prompt": "Kenta chạy"})
@@ -43,7 +43,8 @@ class KentaDossierTests(unittest.TestCase):
     def test_words_frame_and_negative(self):
         hit = skill_dossier.shot_skill({"characters": ["KENTA"], "skill_phase": "prepare"})
         s = skill_dossier.image_sentence(hit)
-        self.assertIn("horizontal stripes", s)
+        self.assertIn("his hands empty", s)
+        self.assertIn("skill aiming indicator", s)                   # 30/09: the model drew the aiming bar held like a sword
         self.assertIn("scabbard, worn horizontally across the back of his waist", s)
         self.assertIn("Never draw: drawn or unsheathed katana", s)
         self.assertIn("stays in its scabbard", skill_dossier.video_sentence(hit))
@@ -57,7 +58,7 @@ class KentaDossierTests(unittest.TestCase):
         data = {"characters": ["KENTA"], "skill_phase": "KENTA:prepare", "skill_phase_end": "KENTA:swing_vortex"}
         hit = skill_dossier.shot_skill(data)
         self.assertEqual(hit["end"]["id"], "swing_vortex")
-        self.assertIn(" Then: He flicks the hologram blade in one horizontal sweep", skill_dossier.video_sentence(hit))
+        self.assertIn(" Then: He sweeps his empty right hand", skill_dossier.video_sentence(hit))
         end = skill_dossier.shot_skill(skill_dossier.at_end(data))
         self.assertEqual(end["phase"]["id"], "swing_vortex")
         self.assertTrue(skill_dossier.reference(end)["path"].endswith("swing_vortex_17.13.jpg"))

@@ -77,6 +77,12 @@ Thứ tự ưu tiên khi nghĩ (trên thắng dưới):
 
 ## Kết quả thử thật (cập nhật sau mỗi lần thử)
 
+- **LỖI MODEL ĐÃ GHI (người dùng 30/09): thanh định hướng kỹ năng đi theo tay nhân vật như cầm kiếm.** Video kỹ năng chính thức có THANH ĐỊNH
+  HƯỚNG (chỉ báo nhắm của giao diện: tấm sọc ngang trong suốt xanh ngọc cạnh Kenta, chỉ hướng tung lốc). Hồ sơ cũ tả nhầm là "lưỡi hologram cầm
+  tay" + khung tham chiếu 16,70 có thanh này → T1, T4, T6 đều vẽ Kenta CẦM nó như kiếm. Bài học chung (mọi nhân vật): khi đọc video kỹ năng,
+  tách **chỉ báo nhắm / định hướng / phạm vi** (thanh, mũi tên, vòng tròn phạm vi, vạch chỉ hướng) khỏi hiệu ứng giống vệt đỏ hướng sát thương —
+  đều là giao diện, không vẽ, không cho vào khung / tờ tham chiếu, và ghi vào `never`. Đã sửa hồ sơ Kenta (tay không), lời dặn ảnh / video tham chiếu.
+
 - **2026-09-30 T4 — 2 kỹ năng một clip (Kenta + Orion), QUA PIPELINE THẬT** (model_router → Seedance 2.5; khung đầu vẽ đủ 2 người; mỗi người
   ảnh chính diện + Orion thêm bảng nhiều góc vẽ lại bằng Deepix; tờ kỹ năng sạch mỗi kỹ năng; 2 video kỹ năng, mỗi cái một dòng vai trò):
   **hai hiệu ứng KHÔNG lẫn nhau** — lốc xanh của Kenta chỉ quanh Kenta và bay tới tường keo, tường nguyên; Orion hóa quả cầu đỏ đúng chỗ, có
