@@ -91,4 +91,20 @@ trái với render thì bỏ, chỉ lấy người, hành động, biểu cảm,
 Ở luồng thật, Director chạy lại với danh sách chỗ đứng sẽ viết chữ đúng nơi — lần thử này dùng prompt cũ của #8 nên mâu thuẫn nặng nhất.
 Số `background_match` cần sửa trước khi làm thước đo (bỏ vùng cỏ / mặt đất, chỉ so đường nét kiến trúc) — ghi việc tồn.
 
-**Chờ người dùng:** vẽ lại 5 khung #13 với câu mới (≈ 0,26 USD; tổng S5.5' ≈ 0,57 USD) — đổi đầu vào đúng luật, lần vẽ lại 1/2.
+**Vẽ lại 1/2 (người dùng chạy 30/09 tối, 17:28; tổng S5.5' 0,572 USD):** đầu vào đổi = câu `place_refs.PRECEDENCE` + câu sửa.
+Ảnh so sánh 3 cột (render · lần 1 · vẽ lại): `D:/AI-Video-Output/2026-09-30_thu-place-refs/so_sanh_ve_lai.jpg`.
+
+| Shot | Độ khớp nền lần 1 → vẽ lại (#8 cũ) | Xem bằng mắt |
+|---|---|---|
+| 20 WS | 0,278 → **0,366** (0,28) | nền cỏ + đất thay quảng trường lát đá; nhà đá mái đỏ đúng kiểu render, xe hỏng như ảnh toàn cảnh |
+| 21 MCU | 0,088 → 0,115 (0,084) | nhà đá mái đỏ + bãi cỏ phía sau thay tháp nhọn |
+| 22 OTS | 0,269 → 0,266 (0,31) | nền cỏ, nhà mái đỏ — **không** theo góc ngược của render (nhà kho + xe van) |
+| 23 MS | 0,201 → 0,242 (0,195) | nền cỏ, nhà mái đỏ |
+| 24 MS | 0,173 → 0,221 (0,171) | nền cỏ, nhà mái đỏ |
+| **TB** | **0,202 → 0,242** (#8 cũ 0,208) | **5/5 đổi đúng loại nơi** (cỏ + nhà đá mái đỏ thay quảng trường lát đá) |
+
+**Kết luận:** câu "render quyết định nơi chốn" có tác dụng — model đổi đúng **loại nơi, vật liệu, nhà**; nhưng **không** giữ đúng bố cục /
+phối cảnh của render (nhà nhỏ ở hậu cảnh thay vì to gần máy; góc ngược shot 22 không theo) — bố cục người theo chữ thắng bố cục nền.
+Tòa nhà có chóp nhọn ở hậu cảnh đến từ ảnh toàn cảnh (có thật trong ảnh đó), không phải bịa. Số `background_match` tăng ít (0,04) dù
+nhìn thấy đổi rõ → càng xác nhận cần sửa cách đo (chỉ so đường nét kiến trúc) trước khi dùng làm thước. Không vẽ lại lần 2 (đổi đầu vào
+tiếp theo phải là thứ khác — vd bỏ câu Setting chung khi có render, hoặc Director viết chữ nơi đúng chỗ đứng ở luồng thật).

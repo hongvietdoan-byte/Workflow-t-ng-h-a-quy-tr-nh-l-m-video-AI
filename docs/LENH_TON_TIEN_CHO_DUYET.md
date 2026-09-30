@@ -7,7 +7,7 @@
 
 | # | Việc | Lệnh | Ước tính | Điều kiện |
 |---|---|---|---|---|
-| 1 | S5.5' vẽ lại 5 khung #13 theo render 3D (lần vẽ lại 1/2) | `py tools/experiments/place_refs_trial.py --project 13 redraw` rồi `... --project 13 measure` (0 USD) | ≈ 0,26 USD (trần riêng 1 USD, đã chi 0,31) | sẵn sàng |
+| 1 | S5.5' vẽ lại 5 khung #13 theo render 3D (lần vẽ lại 1/2) | `py tools/experiments/place_refs_trial.py --project 13 redraw` rồi `... --project 13 measure` (0 USD) | ≈ 0,26 USD (trần riêng 1 USD, đã chi 0,31) | ✅ 30/09 17:28 — chi thật 0,26 (tổng 0,572); kết quả ở docs/THU_PLACE_RENDER_REFS_2026-09-30.md mục 7 |
 | 2 | S7.1 nghiệm thu agent QC (cảnh 1–2 #8) | `py tools/experiments/qc_agent_eval.py --project 8 --scenes 1 2 --yes --max-usd 0.45` | ≈ 0,45 USD Claude (khóa cứng) | sau 07:00 01/10 (khóa API Anthropic mở lại) |
 | 3 | S4.2 chạy thật 1 cảnh thoại khớp môi (c) | _chờ soạn_ | ≈ 2,5 USD | sau khi nhánh C3 (khung đầu chỉ gửi ảnh người có trong shot) lên main |
 | 4 | S4.6 A/B cận (`closeup_start_frame`) | _chờ soạn_ (cần viết công cụ thử, miễn phí) | ≈ 1–2 USD | — |
