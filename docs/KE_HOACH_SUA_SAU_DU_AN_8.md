@@ -154,7 +154,7 @@
 - [ ] K.3 · Đo lại bảng mục 0 + phiếu so sánh phim tham khảo · nặng:1 · ⏸ · tạm gác — không ưu tiên (người dùng 30/09); làm sau cùng khi người dùng gọi
 
 ### S8 — Chấm lại bằng AI Development System (cuối cùng)
-- [ ] S8.0 · Chấm 16 khu vực (2 agent độc lập, 0 USD) · nặng:2 · ⬜ · 30/09: không chờ K nữa (K tạm gác)
+- [ ] S8.0 · Chấm 16 khu vực (2 agent độc lập, 0 USD) · nặng:2 · ⬜ · 30/09: không chờ K nữa (K tạm gác) · người dùng 30/09 tối: chấm SAU khi người dùng chạy xong các lệnh tốn tiền (docs/LENH_TON_TIEN_CHO_DUYET.md) — để có bằng chứng chạy thật
 - [x] S8.1 · Trường feedback chi tiết cho từng khoản trừ · nặng:1 · ✅ · 2026-09-29: `feedback` tùy chọn mỗi khoản trừ (vì sao · sửa · file · nghiệm thu · 💻/💵/👤 · ưu tiên), định dạng ở devsys/feedback_format.md NGOÀI rubric.md (điểm cũ không thành "thang cũ"), gửi kèm người chấm, hiện dưới từng khoản trừ trên web; test
 - [ ] S8.2 · Báo cáo đánh giá + danh sách việc theo điểm lấy lại · nặng:1 · ⬜
 - [x] S8.3 · So sánh với phần mềm dựng phim AI bên ngoài · nặng:2 · ✅ · 2026-09-29 (0 USD, chỉ đọc web công khai): docs/SO_SANH_PHAN_MEM_NGOAI_2026-09-29.md — 13 sản phẩm (ClipAI web, LTX, Runway, Higgsfield, Kling 3.0, 即梦/Dreamina, Google Flow, MiniMax, Katalist, OpenArt, Hedra, Pika, ElevenLabs) × 10 khâu; mình hơn ở Director/QC/chi phí/âm thanh, kém ở sinh nhiều khung-shot một lần, nối hành động qua cắt, sửa clip, lựa chọn khớp môi; 10 đề xuất X1–X10 chờ người dùng chọn (S8.4)
