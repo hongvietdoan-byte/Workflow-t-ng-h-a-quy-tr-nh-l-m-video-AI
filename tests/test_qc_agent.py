@@ -20,6 +20,7 @@ class Scripted:
 
     def converse(self, messages, tools, system="", max_tokens=None):
         self.seen.append(copy.deepcopy(messages[-1]))    # a restart replaces the conversation
+        self.tool_sets = getattr(self, "tool_sets", []) + [[t["name"] for t in tools]]
         calls = self.turns.pop(0) if self.turns else []
         blocks = [{"type": "tool_use", "id": f"t{len(self.seen)}_{i}", "name": n, "input": inp} for i, (n, inp) in enumerate(calls)]
         return llm_runner.LlmReply("", 100, 20, "tool_use", blocks=blocks or [{"type": "text", "text": "…"}])
@@ -63,11 +64,22 @@ class AgentTests(unittest.TestCase):
         states = {self.p.job(f["job_id"])["state"] for f in self.frames}
         self.assertEqual(states, {"pending_review"})                    # not trusted yet: a person decides
 
+    def test_the_last_turns_offer_only_the_record_tools(self):
+        """S7.1 01/10: cảnh 2 #8 spent every turn looking (text "record now" answers ignored) — the closing turns cannot look at all."""
+        c = Scripted([[("view_frame", {"k": 1})]] * (qc_agent.MAX_STEPS + 2))
+        qc_agent.QcAgent(self.p, self.pid, self.data, c, self.frames).run()
+        steps = qc_agent.max_steps(len(self.frames))
+        self.assertIn("view_frame", c.tool_sets[0])
+        for names in c.tool_sets[steps - qc_agent.CLOSING_TURNS:]:
+            self.assertEqual(sorted(names), sorted(qc_agent.RECORD_TOOLS))
+        self.assertEqual(qc_agent.max_steps(6), 16)
+        self.assertEqual(qc_agent.max_steps(2), qc_agent.MAX_STEPS)
+
     def test_out_of_steps_the_unchecked_frames_are_doubts_not_passes(self):
         c = Scripted([[("view_frame", {"k": 1})]] * (qc_agent.MAX_STEPS + 2))
         res = qc_agent.QcAgent(self.p, self.pid, self.data, c, self.frames).run()
         self.assertEqual({r["verdict"] for r in res["records"]}, {"doubt"})
-        self.assertEqual(res["steps"], qc_agent.MAX_STEPS)
+        self.assertEqual(res["steps"], qc_agent.max_steps(len(self.frames)))
 
     def test_old_pictures_are_never_cut_the_session_restarts_from_a_recap(self):
         """S7.0: changing an earlier picture invalidates the cache after it — pictures stay; past the limit a new session starts from the

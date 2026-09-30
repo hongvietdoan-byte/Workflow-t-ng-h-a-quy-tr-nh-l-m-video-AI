@@ -30,6 +30,14 @@ ANSWER_TOKENS = 3500      # one turn's answer (real turns: 200-3,000 tokens); th
                           # ceiling stops the agent early (28/09: 6000 → ~0.06 USD kept back each turn). A cut answer → "fewer tools"
 LOOKS_PER_TURN = 4        # pictures a turn may open (28/09: 46 pictures in 8 turns, nothing recorded)
 RECORD_ONLY_AT = 0.5      # share of the scene's cap after which only record / finish are answered
+CLOSING_TURNS = 3         # the last turns of a scene offer ONLY record / record_batch / finish (S7.1 01/10: cảnh 2 #8 twice spent all its
+                          # turns looking — the "record now" text answers were ignored — and recorded nothing: 0,43 USD for 6 doubts)
+RECORD_TOOLS = ("record", "record_batch", "finish")
+
+
+def max_steps(n_frames: int) -> int:
+    """Turns for a scene: 2 per frame + 4, at least MAX_STEPS (a 6-frame, 3-person scene needs more than a 4-frame one)."""
+    return max(MAX_STEPS, 2 * int(n_frames) + 4)
 MAX_CUT_TURNS = 2
 
 
@@ -411,7 +419,7 @@ class QcAgent:
             place = assets.location_text(self.p.conn, loc) if loc is not None else ""
         except Exception:  # noqa: BLE001 - the brief goes without it
             place = ""
-        limits = (f"# Giới hạn (khóa cứng, không nâng được)\nTối đa {MAX_STEPS} lượt và ${scene_cap(len(self._must())):.2f} cho cảnh này; "
+        limits = (f"# Giới hạn (khóa cứng, không nâng được)\nTối đa {max_steps(len(self._must()))} lượt và ${scene_cap(len(self._must())):.2f} cho cảnh này; "
                   f"tối đa {LOOKS_PER_TURN} ảnh mỗi lượt; quá {int(RECORD_ONLY_AT * 100)} % ngân sách thì CHỈ còn được ghi. "
                   f"Phải ghi (record) các khung: {[f['k'] for f in self._must()]}.\n"
                   "Cách làm (mục tiêu ≤ 6 lượt): lượt 1 — từ tấm tổng quan chọn khung nghi ngờ + làm các dải bắt buộc của kế hoạch soi "
@@ -446,14 +454,17 @@ class QcAgent:
             raise LlmError(f"trình gọi Claude '{getattr(self.client, 'name', '?')}' không hỗ trợ agent (cần Claude API: LLM_PROVIDER=anthropic)",
                            code="config")
         cap_usd = scene_cap(len(self._must()))
+        steps_max = max_steps(len(self._must()))
         with tagged("qc_agent", self.pid), spend_cap(cap_usd, f"agent QC cảnh {self.story}") as cap:
-            while self.summary is None and self.steps < MAX_STEPS:
+            while self.summary is None and self.steps < steps_max:
                 if too_long(messages):
                     messages = restart(messages, self._recap(messages))
                     self.sessions += 1
                 mark_cache(messages)
+                closing = self.steps >= steps_max - CLOSING_TURNS or cap["spent"] >= RECORD_ONLY_AT * cap_usd
+                tools = [t for t in TOOLS if t["name"] in RECORD_TOOLS] if closing else TOOLS
                 try:
-                    reply = self.client.converse(messages, TOOLS, SYSTEM, max_tokens=ANSWER_TOKENS)
+                    reply = self.client.converse(messages, tools, SYSTEM, max_tokens=ANSWER_TOKENS)
                 except Exception as e:  # noqa: BLE001 - a lock, the network, the provider: stop here and KEEP what was recorded
                     stopped = f"dừng: {e}"
                     self.blocked = not self.records and getattr(e, "code", None) in ("budget", "auth", "config")
@@ -481,7 +492,7 @@ class QcAgent:
                     messages.append({"role": "user", "content": [{"type": "text", "text": f"Tiếp tục bằng công cụ. Còn chưa ghi: {self._left()}"}]})
                     continue
                 results, looks = [], 0
-                record_only = cap["spent"] >= RECORD_ONLY_AT * cap_usd
+                record_only = closing or cap["spent"] >= RECORD_ONLY_AT * cap_usd
                 for u in uses:
                     looking = u["name"] in ("view_frame", "strip", "reference")
                     try:
@@ -498,13 +509,14 @@ class QcAgent:
                     results.append({"type": "tool_result", "tool_use_id": u["id"], "content": content})
                 left = self._left()                    # where it stands, every turn (28/09: 8 turns spent looking, nothing recorded)
                 results[-1]["content"] = list(results[-1]["content"]) + [{"type": "text", "text": (
-                    f"[Trạng thái] đã dùng ${cap['spent']:.3f} / ${cap_usd:.2f}, lượt {self.steps}/{MAX_STEPS}; chưa ghi: {left}"
-                    + (" — CHỈ còn được ghi (record) / kết thúc." if cap["spent"] >= RECORD_ONLY_AT * cap_usd else
+                    f"[Trạng thái] đã dùng ${cap['spent']:.3f} / ${cap_usd:.2f}, lượt {self.steps}/{steps_max}; chưa ghi: {left}"
+                    + (" — CHỈ còn được ghi (record_batch) / kết thúc." if (self.steps >= steps_max - CLOSING_TURNS
+                                                                          or cap["spent"] >= RECORD_ONLY_AT * cap_usd) else
                        " — ghi (record) khung nào đã đủ bằng chứng NGAY lượt này."))}]
                 messages.append({"role": "user", "content": results})
         if self.summary is None:
             left = self._left()
-            why = stopped or f"hết {MAX_STEPS} lượt"
+            why = stopped or f"hết {steps_max} lượt"
             for k in left:                                     # out of steps / money: the unchecked frames wait for a person, said
                 self.records[k] = {"k": k, "verdict": "doubt", "issues": [{"type": "chưa soi", "description": f"agent {why} trước khi soi khung",
                                    "evidence": "-", "severity": "minor"}], "root_cause": "none", "shot": self.by_k[k]["label"],
