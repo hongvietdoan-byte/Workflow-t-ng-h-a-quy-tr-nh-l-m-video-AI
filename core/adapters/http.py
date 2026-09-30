@@ -17,6 +17,17 @@ from typing import Callable, Dict, List, Optional, Tuple
 from ..providers import ProviderError
 
 
+# Data Pack P5: how the services say "no money left" (HTTP 402 aside). Kept narrow — a false stop halts every paid send.
+_OUT_OF_CREDIT = ("insufficient balance", "insufficient credit", "insufficient funds", "credit balance is too low", "not enough credit",
+                  "not enough balance", "balance is not enough", "out of credit", "余额不足", "积分不足",
+                  "额度不足", "欠费")
+
+
+def out_of_credit(message: str) -> bool:
+    m = (message or "").lower()
+    return any(h in m for h in _OUT_OF_CREDIT)
+
+
 @dataclass
 class HttpResponse:
     status: int
@@ -92,6 +103,8 @@ def parse_envelope(payload) -> object:
     status_ok = "status" not in payload or payload["status"] in ("success", "ok")
     if not (code_ok and status_ok):
         message = payload.get("msg") or payload.get("message") or "unknown error"
+        if out_of_credit(message):
+            raise ProviderError(f"hết tiền / hết credit ở nhà cung cấp: {message}", code="out_of_credit")
         signal = f"code={payload['code']}" if "code" in payload else f"status={payload.get('status')}"
         transient = any(h in message.lower() for h in _RATE_LIMIT_HINTS)
         raise ProviderError(f"API error ({signal}): {message}", code="api_error", transient=transient)
@@ -122,6 +135,8 @@ class ApiClient:
         resp = self.transport(method, url, self._headers(content_type), body, self.timeout)
         if resp.status == 401:
             raise ProviderError("invalid or missing token (HTTP 401)", code="auth")
+        if resp.status == 402:   # Data Pack P5: payment required = the account is out of money — stop every send, say it
+            raise ProviderError("hết tiền / hết credit (HTTP 402): " + resp.body[:200].decode("utf-8", "replace"), code="out_of_credit")
         if resp.status == 413:
             raise ProviderError("payload too large (HTTP 413): reference image over the size limit", code="too_large")
         if resp.status == 429:   # rate limited: rejected before generating (no cost) - wait and try again, never a failure
@@ -133,6 +148,8 @@ class ApiClient:
             hint = (" (a header was rejected: the token probably contains a hidden character; the checker above "
                     "reports token problems, then copy the token again and paste it once)"
                     if "invalid header" in text.lower() else "")
+            if out_of_credit(text):
+                raise ProviderError(f"hết tiền / hết credit (HTTP {resp.status}): {text}", code="out_of_credit")
             raise ProviderError(f"HTTP {resp.status}: {text}{hint}", code="http_error")
         try:
             payload = json.loads(resp.body.decode("utf-8"))

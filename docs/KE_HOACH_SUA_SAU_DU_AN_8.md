@@ -145,7 +145,7 @@
 - [ ] S10.8 · 💵 T4: 1 clip Kenta + Orion cùng tung kỹ năng (2 video) — hai hiệu ứng có lẫn nhau không · nặng:2 · ⬜
 - [ ] S10.9 · 💵 T5: 3 người, khung đầu đủ người + white-model — người thứ ba giữ chỗ và mặt · nặng:2 · ⬜
 - [ ] S10.10 · 💵 T6: nhiều khung then chốt theo thứ tự giai đoạn · nặng:1 · ⬜
-- [ ] S10.11 · Việc miễn phí tồn: Data Pack P5 (402 dừng cứng) + P3 (Structured Outputs), E1, E2, A4 / A5 / A14 / A21, S0.14 T5 · nặng:2 · 🔄 · 30/09: E1 (lỗi chỉ hiện lời, mã lỗi ở chú thích) ✅, E2 (chốt 8 ảnh tham chiếu) ✅
+- [ ] S10.11 · Việc miễn phí tồn: Data Pack P5 (402 dừng cứng) + P3 (Structured Outputs), E1, E2, A4 / A5 / A14 / A21, S0.14 T5 · nặng:2 · 🔄 · 30/09: E1 (lỗi chỉ hiện lời, mã lỗi ở chú thích) ✅, E2 (chốt 8 ảnh tham chiếu) ✅, P5 (hết tiền → khóa dịch vụ, nút mở lại) ✅
 
 ### K — Chạy kiểm kịch bản hài 20–30 s
 - [ ] K.1 · Soạn kịch bản hài 20–30 s có **Kenta + Orion cùng dùng kỹ năng** (người dùng 30/09) · nặng:1 · ⬜ · viết lại bản A (docs/KICH_BAN_KIEM_K1_2026-09-29.md) theo hồ sơ kỹ năng Kenta + Orion (đợt S10) và luật chia nhịp kỹ năng; người dùng duyệt

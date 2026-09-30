@@ -291,6 +291,11 @@ def _dialog_budget(p: Pipeline) -> None:
     p = _own(p)
     from core import budget
     s = budget.status(p.conn)
+    for service, h in (s.get("out_of_credit") or {}).items():        # Data Pack P5: a service said it is out of money
+        st.error(f"**{service}** báo HẾT TIỀN lúc {h.get('at')} — mọi lượt gửi tới dịch vụ này đang dừng. ({str(h.get('message'))[:160]})")
+        if st.button(f"Đã nạp tiền — mở lại {service}", key=f"reopen_{service}"):
+            budget.reopen(p.conn, service)
+            st.rerun()
     if s["enabled"]:
         st.markdown(f"**Đang bật** — tính từ {s['since']} (UTC): đã chi ≈ **\\${s['spent']:.2f} / \\${s['usd']:.0f}**, "
                     f"{s['images']}/{s['image_cap']} ảnh, {s['audios']}/{s['audio_cap']} âm thanh.")

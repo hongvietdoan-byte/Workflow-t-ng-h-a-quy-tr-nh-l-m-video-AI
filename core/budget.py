@@ -38,7 +38,8 @@ def defaults() -> Dict:
     return {"usd": float(os.environ.get("BUDGET_USD", "50")), "since": None,
             "image_cap": int(os.environ.get("BUDGET_IMAGE_CAP", "80")), "enabled": False,
             "audio_cap": int(os.environ.get("BUDGET_AUDIO_CAP", "300")),        # C12: audio has no price yet -> capped by count
-            "llm_usd": float(os.environ.get("CLAUDE_BUDGET_USD", "5")), "llm_since": None}
+            "llm_usd": float(os.environ.get("CLAUDE_BUDGET_USD", "5")), "llm_since": None,
+            "out_of_credit": {}}                       # Data Pack P5: {service: {"at", "message"}} — halted until reopened
 
 
 def get(conn) -> Dict:
@@ -203,9 +204,42 @@ def restart_llm(conn, usd: float) -> Dict:
     return save(conn, llm_usd=float(usd), llm_since=_now())
 
 
+HALT_KEY = "out_of_credit"
+
+
+def service_of(provider_name: str) -> str:
+    n = str(provider_name or "").lower()
+    return "clipai" if "clipai" in n else "deepix" if "deepix" in n else "anthropic" if n in ("anthropic", "claude", "llm") else n
+
+
+def halt(conn, provider_name: str, message: str) -> None:
+    """Data Pack P5: a service said it is out of money — every later send to it is refused (with this reason) until a person reopens it
+    (nạp tiền → ⚙ Ngân sách → mở lại). Money already spent stays spent; nothing is retried in a loop."""
+    halts = dict(get(conn).get(HALT_KEY) or {})
+    halts[service_of(provider_name)] = {"at": _now(), "message": str(message)[:300]}
+    save(conn, **{HALT_KEY: halts})
+
+
+def reopen(conn, provider_name: str) -> None:
+    halts = dict(get(conn).get(HALT_KEY) or {})
+    halts.pop(service_of(provider_name), None)
+    save(conn, **{HALT_KEY: halts})
+
+
+def halted(conn, provider_name: str) -> Optional[str]:
+    h = (get(conn).get(HALT_KEY) or {}).get(service_of(provider_name))
+    if not h:
+        return None
+    return (f"{service_of(provider_name)} báo HẾT TIỀN lúc {h['at']} ({h['message'][:120]}) — đã dừng mọi lượt gửi tới dịch vụ này; "
+            "nạp tiền rồi mở lại trong ⚙ → 💵 Ngân sách")
+
+
 def check_llm(conn, next_usd: float = 0.0) -> Optional[str]:
     """A reason not to call the Claude API now, else None: its money is used up, or this call (`next_usd`, its worst case) would cross
     the cap — the cap is never crossed, not just reached (trial #8 2026-09-28: 5.54 / 5.50). llm_usd <= 0 switches the cap off."""
+    stop = halted(conn, "anthropic")
+    if stop:
+        return stop
     b = get(conn)
     if b["llm_usd"] <= 0:
         return None
@@ -235,6 +269,9 @@ def check_video(conn, provider_name: str, model: str, tier: str, seconds: float)
     is broken), else None. A clip without a price used to count as $0 and pass the cap."""
     if provider_name.startswith("mock"):
         return None
+    stop = halted(conn, provider_name)          # Data Pack P5: the service said it is out of money
+    if stop:
+        return stop
     pricing = cost.load_pricing()
     broken = pricing_problem(pricing)
     if broken:
@@ -257,6 +294,9 @@ def check_audio(conn, provider_name: str) -> Optional[str]:
     (and the reason says so). A broken price table refuses them too."""
     if provider_name.startswith("mock"):
         return None
+    stop = halted(conn, provider_name)          # Data Pack P5: the service said it is out of money
+    if stop:
+        return stop
     broken = pricing_problem()
     if broken:
         return broken
@@ -287,6 +327,9 @@ def check_image(conn, provider_name: str, model: Optional[str] = None) -> Option
     USD cap too; a picture model without a price is refused while the limit is on (it would count as $0)."""
     if provider_name.startswith("mock"):
         return None
+    stop = halted(conn, provider_name)          # Data Pack P5: the service said it is out of money
+    if stop:
+        return stop
     pricing = cost.load_pricing()
     broken = pricing_problem(pricing)
     if broken:

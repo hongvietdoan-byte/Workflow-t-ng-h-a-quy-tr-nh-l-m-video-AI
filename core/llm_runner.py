@@ -389,6 +389,16 @@ class AnthropicClient:
                 return reply
             except LlmError as e:
                 last = e
+                if e.code == "out_of_credit" and self.ledger:     # Data Pack P5: every later Claude call is refused until reopened
+                    try:
+                        conn = self._ledger_conn()
+                        try:
+                            from . import budget as _budget
+                            _budget.halt(conn, "anthropic", str(e))
+                        finally:
+                            conn.close()
+                    except Exception:  # noqa: BLE001 - the error itself still reaches the person
+                        pass
                 if not e.transient or attempt == self.retries:
                     raise
                 if attempt < self.retries and payload is not None:
@@ -506,6 +516,9 @@ class AnthropicClient:
         message = ((payload.get("error") or {}).get("message") if isinstance(payload, dict) else None) or ""
         if resp.status == 401 or resp.status == 403:
             raise LlmError("Anthropic rejected the API key (HTTP %d)" % resp.status, code="auth")
+        from .adapters.http import out_of_credit
+        if resp.status == 402 or (resp.status >= 400 and out_of_credit(message)):     # Data Pack P5
+            raise LlmError(f"Hết tiền trên tài khoản Anthropic (HTTP {resp.status}): {message[:200]}", code="out_of_credit")
         if resp.status == 429 or resp.status >= 500:
             raise LlmError(f"Anthropic temporarily unavailable (HTTP {resp.status}) {message}".strip(),
                            code="rate_limit" if resp.status == 429 else "server_error", transient=True)

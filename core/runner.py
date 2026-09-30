@@ -212,6 +212,12 @@ class _Runner:
                     if e.transient:
                         self._diag(job, "warn", e.code, f"gửi job bị từ chối/tạm lỗi, sẽ thử lại: {e}")
                         break  # network/server hiccup: leave the job queued, try again next heartbeat
+                    if e.code == "out_of_credit":           # Data Pack P5: halt every later send to this service, say it once
+                        from . import budget as _budget
+                        _budget.halt(self.p.conn, self.provider.name, str(e))
+                        self._diag(job, "error", e.code, f"HẾT TIỀN ở {self.provider.name} — đã dừng mọi lượt gửi; job giữ trong hàng "
+                                   "đợi, nạp tiền rồi mở lại ở ⚙ → 💵 Ngân sách")
+                        break
                     self._diag(job, "warn" if e.code == RISK_CONTROL else "error", e.code, f"gửi job thất bại: {e}")
                     self.p.start(job["id"])
                     switched = self._record_provider_failure(job, e.code, str(e))

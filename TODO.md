@@ -826,7 +826,7 @@ _Cập nhật 2026-09-22 (dùng thật tính năng phân tích video kỹ năng 
     nhiều mới chuyển, và kiểm tài liệu chính thức model đang dùng có hỗ trợ + giới hạn schema. Giữ validator hiện có làm lớp kiểm thứ hai.
   - [ ] **P4 — Chỉ số "chi phí / video đạt" và "tiền lãng phí"**: tiền đã chi cho ảnh/clip bị loại, gen lại, bỏ dở — chia theo khâu (dữ liệu có
     sẵn ở `usage_events` + `jobs.state`/`parent_job_id`); đặt ở Giám sát cạnh "Phút / giây video".
-  - [ ] **P5 — Lỗi hết tiền (402 / hết credit) dừng hẳn + cảnh báo**: `llm_runner.py:507` xử lý 401/403; chưa kiểm ClipAI/Claude hết credit
+  - [x] **P5 — Lỗi hết tiền (402 / hết credit) dừng hẳn + cảnh báo** *(xong 30/09: `budget.halt/reopen`, HTTP 402 + lời "余额不足 / insufficient balance / credit balance is too low" → khóa dịch vụ đó, nút mở lại ở 💵 Ngân sách thử; test_out_of_credit)*: `llm_runner.py:507` xử lý 401/403; chưa kiểm ClipAI/Claude hết credit
     có dừng autopilot và báo rõ không (không thử lại, không coi là lỗi tạm). Rà `core/adapters/clipai.py` + autopilot, thêm test.
   - [ ] **P6 — Test "chèn lệnh qua kết quả trả về"**: không thấy biện pháp/test coi nội dung web (`core/research.py`, `ff_site.py`) và phản hồi
     ClipAI là dữ liệu không tin cậy. Thêm test hồi quy: văn bản kiểu "ignore previous instructions…" trong kết quả nghiên cứu không đổi
