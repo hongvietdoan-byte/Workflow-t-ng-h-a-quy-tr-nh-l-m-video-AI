@@ -44,8 +44,11 @@ def face_closeup(data: Dict) -> bool:
     """S4.1 (flag closeup_start_frame): a close shot with a character in it — its face must stay the approved storyboard picture, so it
     starts from that picture (Kling) instead of being redrawn from reference pictures (#8: a close-up of Kelly came out as anime)."""
     from . import features
-    return (features.on("closeup_start_frame") and str(data.get("size") or "").upper() in FACE_SIZES
-            and bool(data.get("characters")))
+    if not (features.on("closeup_start_frame") and str(data.get("size") or "").upper() in FACE_SIZES and bool(data.get("characters"))):
+        return False
+    from . import lipsync          # 01/10 (S4.2 × S4.1): a close shot whose speaker talks on screen stays in its dialogue take — Kling
+    return not (lipsync.enabled() and lipsync.method_for(data) == "take")   # from a start frame takes no voice: the most visible
+                                                                            # mouth would lose its lip sync, silently
 
 
 def eligible(data: Dict) -> bool:
