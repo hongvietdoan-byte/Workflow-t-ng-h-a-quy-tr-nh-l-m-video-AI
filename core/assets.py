@@ -38,7 +38,8 @@ ROLES = {
                   "full_body": "toàn thân", "half_body": "nửa người", "close_up": "cận mặt", "back": "sau lưng", "side": "nghiêng",
                   "skill_pose": "tư thế kỹ năng"},
     "location": {"eye_level": "nền ngang tầm mắt", "low_angle": "nền góc thấp", "high_angle": "nền góc cao",
-                 "top_down": "toàn cảnh từ trên (chỉ thông tin)", "detail": "chi tiết / mốc"},
+                 "top_down": "toàn cảnh từ trên (chỉ thông tin)", "detail": "chi tiết / mốc",
+                 "interior": "trong nhà (không làm ảnh mốc / nền ngoài trời)"},
 }
 ROLES["pet"] = ROLES["character"]
 LOOKS = {"ingame": "in-game FF", "anime": "anime"}
@@ -810,7 +811,11 @@ def location_landmark(conn, place: Dict, scene: Optional[Dict]) -> Optional[Dict
     shape, materials and colours only — never the picture's camera, framing, time of day or light (R7)."""
     if shot_size(scene) in _WIDE or shot_size(scene) == "ECU":
         return None                                  # a wide shot gets the eye-level plate (location_plate) or words; an ECU has no background
-    return next((i for i in place["images"] if i.get("role") == "detail"), None)
+    # 30/09 (thử #11): the 3D Kho of #263 had its indoor room as "detail" and it went out as the Clock Tower's landmark — the end frame
+    # moved the shot indoors. Indoor pictures have their own role; without a detail picture the low-angle one (the landmark seen
+    # from below) stands in.
+    return (next((i for i in place["images"] if i.get("role") == "detail"), None)
+            or next((i for i in place["images"] if i.get("role") == "low_angle"), None))
 
 
 def location_text(conn, place: Dict) -> str:

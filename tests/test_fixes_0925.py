@@ -51,6 +51,12 @@ class LandmarkTests(unittest.TestCase):
         self.assertIsNone(assets.location_landmark(None, place, {"size": "WS"}))      # a wide shot gets the eye-level plate instead
         self.assertIsNone(assets.location_landmark(None, place, {"size": "ECU"}))     # no background to speak of
 
+    def test_an_indoor_picture_is_never_the_landmark(self):
+        """30/09 thử #11: the indoor room of the 3D Kho went out as the Clock Tower's landmark and the shot moved indoors."""
+        place = {"images": [{"role": "interior", "path": "room"}, {"role": "low_angle", "path": "tower_up"}, {"role": "eye_level", "path": "p"}]}
+        self.assertEqual(assets.location_landmark(None, place, {"size": "MS"})["path"], "tower_up")
+        self.assertIsNone(assets.location_landmark(None, {"images": [{"role": "interior", "path": "room"}]}, {"size": "MS"}))
+
     def test_the_note_forbids_copying_the_landmark_picture_s_camera(self):
         note = assets.reference_note([{"path": "x", "label": "Tháp Đồng Hồ", "role": "landmark"}])
         self.assertIn("LANDMARK", note)

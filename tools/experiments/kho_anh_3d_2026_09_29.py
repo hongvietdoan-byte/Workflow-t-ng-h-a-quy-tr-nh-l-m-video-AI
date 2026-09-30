@@ -21,13 +21,13 @@ NEW = {
               ("ngay_eye_doi_tay_tram_gac_thap.png", "high_angle", "từ đồi tây nhìn xuống thị trấn và tháp"),
               ("ngay_eye_rang_dua_canh.png", "eye_level", "rặng dừa phía đông"),
               ("ngay_eye_nha_do_nam_canh.png", "eye_level", "dãy nhà mái đỏ phía nam"),
-              ("ngay_eye_trong_nha_qt_t2_ra.png", "detail", "trong nhà 3 tầng trên quảng trường, cửa sổ nhìn ra rặng dừa")]),
+              ("ngay_eye_trong_nha_qt_t2_ra.png", "interior", "trong nhà 3 tầng trên quảng trường, cửa sổ nhìn ra rặng dừa")]),
     265: (C, [("ngay_eye_san_truoc_thap.png", "eye_level", "sân trước biệt thự (cổng tây)"),
               ("ngay_eye_ho_boi_nam_canh.png", "eye_level", "sân hồ bơi phía nam, biệt thự phía sau"),
               ("ngay_eye_me_cung_canh.png", "eye_level", "lối vào mê cung, biệt thự phía sau"),
               ("ngay_eye_duong_doc_tay_canh.png", "low_angle", "đồi thông phía tây, biệt thự trên cao"),
               ("ngay_eye_bien_qc_canh.png", "detail", "biển quảng cáo lớn"),
-              ("ngay_eye_trong_bt_t1_trong.png", "detail", "trong biệt thự — sảnh tầng 1")]),
+              ("ngay_eye_trong_bt_t1_trong.png", "interior", "trong biệt thự — sảnh tầng 1")]),
 }
 c = connect(DB)
 for aid, (folder, items) in NEW.items():
