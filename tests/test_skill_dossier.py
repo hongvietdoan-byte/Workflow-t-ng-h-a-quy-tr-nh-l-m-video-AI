@@ -97,5 +97,36 @@ class KentaDossierTests(unittest.TestCase):
             self.assertTrue(skill_dossier.enabled())
 
 
+
+class OrionAndBuildToolTests(unittest.TestCase):
+    """S10.1 / S10.2 (30/09): the build tool and the Orion dossier made with it."""
+
+    def test_orion_dossier_is_whole_and_follows_the_official_text(self):
+        d = skill_dossier.load("Orion")
+        self.assertIsNotNone(d)
+        self.assertEqual(d["skill_vi"], "Huyết Cầu Bảo Hộ")
+        ids = [p["id"] for p in d["phases"]]
+        self.assertEqual(ids, ["activate", "flash", "drain", "pulse", "end"])
+        for p in d["phases"]:
+            self.assertTrue(os.path.exists(os.path.join(d["_dir"], p["frame"])), p["frame"])
+        self.assertIn("3 s", d["mechanism_vi"])
+        self.assertIn("5 m", d["mechanism_vi"])
+        self.assertTrue(any("tấn công" in x for x in d["never_vi"]))
+        self.assertTrue(d["interactions"])
+        hit = skill_dossier.shot_skill({"characters": ["ORION"], "image_prompt": "Orion hóa thành quả cầu đỏ hút máu kẻ địch"})
+        self.assertEqual(hit["dossier"]["character"], "ORION")
+        self.assertEqual(skill_dossier.shot_problems({"characters": ["ORION"], "image_prompt": "Orion trong quả cầu đỏ rồi orion đấm kẻ địch"})[0][:16],
+                         "shot kỹ năng ORI")
+
+    def test_reference_cut_size_meets_both_services(self):
+        from tools.skill_dossier_build import ref_width
+        for cw, ch in ((1150, 830), (560, 920), (1920, 1080), (300, 900)):
+            w = ref_width(cw, ch)
+            h = round(w * ch / cw / 2) * 2
+            self.assertGreaterEqual(w, 700)            # Kling: 700–4553 px wide
+            self.assertGreaterEqual(w * h, 407_696)    # Seedance 2.5: ≥ 407 696 pixels
+            self.assertEqual(w % 2, 0)
+
+
 if __name__ == "__main__":
     unittest.main()

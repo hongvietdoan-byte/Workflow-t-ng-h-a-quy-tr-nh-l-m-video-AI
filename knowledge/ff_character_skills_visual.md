@@ -226,9 +226,14 @@ Hình ảnh: khi Notora cầm lái, một quầng sáng cam ấm tỏa nhẹ t�
 Cơ chế: tăng lượng hồi máu và lan tỏa hiệu ứng hồi máu.
 Hình ảnh: bàn tay Olivia chạm nhẹ lên vết thương phát ra một quầng sáng vàng ấm mềm mại lan rộng hơn bình thường, quầng sáng đó tràn thêm sang đồng đội đứng sát cạnh như sóng lan trên mặt nước.
 
-## ORION — Bất Tử [CHỦ ĐỘNG — xác nhận `isActive:true`]
-Cơ chế: miễn nhiễm sát thương + hút máu địch khi kích hoạt.
-Hình ảnh: cơ thể Orion bọc trong một lớp giáp đỏ sẫm phát sáng rực khi kích hoạt, đạn bắn tới nảy bật ra không để lại dấu vết; mỗi cú đấm trúng địch kéo theo một vệt máu-năng lượng đỏ mỏng bay ngược về phía Orion.
+## ORION — Huyết Cầu Bảo Hộ (Crimson Crush) [CHỦ ĐỘNG — mô tả chính thức trong game + video, xem từng khung 2026-09-30]
+**Hồ sơ chuẩn: `data/skills/ORION/` (storyboard 5 giai đoạn, skill.json, video_ref) — hồ sơ thắng mô tả ở đây khi khác. Mô tả cũ ("giáp đỏ sẫm
+phát sáng bọc người, đạn nảy ra, mỗi cú đấm kéo vệt máu") là SAI.**
+Cơ chế (chính thức): EP thay bằng 300 Năng lượng đỏ; kích hoạt tốn 200 → miễn nhiễm 3 s: không nhận sát thương, KHÔNG tấn công được, hút 10 HP
+(bỏ qua lá chắn) của kẻ thù trong 5 m; tự giảm 5% tốc độ di chuyển; hồi chiêu 3 s.
+Hình ảnh: Orion biến mất vào một quả cầu đỏ đục ~1,3 m vân đỏ–đen xoáy, lơ lửng ngang ngực; chớp đỏ cam ~0,1 s; một dải đỏ xoắn nối từ cầu tới
+ngực kẻ thù gần đó; ~2,1 s sau có một nhịp bùng gai đỏ dài tỏa mọi hướng (~0,45 s); đúng 3 s cầu biến mất trong 1 khung, Orion hiện lại tại chỗ.
+Ngoại hình: cởi trần, tóc đen xoăn, mắt phải đỏ có sẹo, giáp đen–đỏ ở vai + cả tay TRÁI, băng quấn tay phải, jean đen rách, bốt.
 
 ## OSCAR — Tiến Công [CHỦ ĐỘNG — xác nhận `isActive:true` + video showcase chính thức đối chiếu, xem "Kenta vs Tatsuya vs Oscar" bên dưới]
 Cơ chế: lướt về phía trước, phá Bom Keo trên đường đi, gây sát thương/đẩy lùi khi va chạm.

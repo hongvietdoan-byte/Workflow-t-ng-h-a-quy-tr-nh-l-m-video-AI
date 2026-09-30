@@ -1,0 +1,293 @@
+{
+ "character": "ORION",
+ "skill_vi": "Huyết Cầu Bảo Hộ",
+ "skill_en": "Crimson Crush (in-game VN: Huyết Cầu Bảo Hộ)",
+ "version": "video giới thiệu nhân vật (người dùng cung cấp 30/09); ra mắt 13/08",
+ "active": true,
+ "source": {
+  "file": "KHO TÀI NGUYÊN/Nhân vật/Orion/kĩ năng nhân vật Orion.mp4",
+  "copy": "1920×1080, 25 khung/giây, 29,35 s — mốc giây trong hồ sơ theo bản này",
+  "reviewed": "2026-09-30: mô tả chính thức trong game + xem thưa 1 khung/giây cả video + xem TỪNG khung 16,0–25,0 s phóng to quanh Orion (2 lần kích hoạt: 16,48 và 21,52)",
+  "official_text": "KHO TÀI NGUYÊN/Nhân vật/Orion/ORION_ingame_ky_nang.jpg (ảnh trong game, người dùng gửi 30/09)"
+ },
+ "mechanism_vi": "Chính thức (trong game): EP được thay bằng 300 Năng lượng đỏ. Kích hoạt dùng 200 Năng lượng đỏ để MIỄN NHIỄM: không nhận sát thương và KHÔNG THỂ TẤN CÔNG, đồng thời hút 10 HP (bỏ qua lá chắn của kẻ thù) của kẻ thù trong vòng 5 m. Kéo dài 3 s, giảm tốc độ di chuyển của bản thân 5% trong lúc kích hoạt (vẫn di chuyển được). Hồi chiêu 3 s. Video: 2 lần kích hoạt đều kéo dài đúng 3,0 s.",
+ "profile_vi": "Lính đánh thuê (Mercenary); sở thích: không rõ, có thể không có; 'chiến binh mạnh mẽ', 'luôn dùng đến bạo lực một cách vô cớ'.",
+ "look_vi": "Cởi trần, tóc đen xoăn dài ngang vai, mắt phải đỏ phát sáng có sẹo, giáp đen–đỏ dạng đốt ở VAI + CẢ TAY TRÁI với vệt đỏ hình móng vuốt lan xuống ngực trái, găng cụt ngón + băng quấn tay phải, quần jean đen rách nhiều dây đai, bốt đen.",
+ "storyboard": "storyboard_ky_nang.jpg",
+ "default_phase": "drain",
+ "phases": [
+  {
+   "id": "activate",
+   "t": [
+    16.44,
+    16.52
+   ],
+   "frame": "crops/activate_16.48.jpg",
+   "vi": "Tức thì (1 khung): Orion BIẾN MẤT, thay bằng một QUẢ CẦU đỏ đục đường kính ~1,3 m lơ lửng ngang ngực, bề mặt vân đỏ–đen xoáy; vòng cung đỏ mảnh quanh cầu, dải đỏ cuộn xuống đất. Kích hoạt được cả khi đang chạy (lần 2, 21,52 s).",
+   "image_en": "Orion has vanished into an opaque dark-red energy sphere about 1.3 m wide, floating at chest height where he stood; its surface swirls with red and black marbled streaks; a few thin dark-red arcs orbit it and red ribbons curl from its underside down to the ground. Orion's body is not visible.",
+   "video_en": "In one instant Orion vanishes into an opaque dark-red energy sphere about 1.3 m wide floating at chest height, its surface swirling red and black, thin red arcs orbiting it and red ribbons curling down to the ground.",
+   "frame_full": "frames/16.48.jpg"
+  },
+  {
+   "id": "flash",
+   "t": [
+    16.52,
+    16.64
+   ],
+   "frame": "crops/flash_16.56.jpg",
+   "vi": "Ngay sau khi hiện (16,52–16,64 · 21,60–21,68): quả cầu sáng rực đỏ cam, tia lửa cam tóe quanh, lần 1 có cột lửa đỏ cam ngắn bốc thẳng lên — ~0,1 s rồi về đỏ sẫm.",
+   "image_en": "The red sphere flares bright red-orange for an instant, a short plume of red-orange flame shooting straight up from it and a red glow spreading around it.",
+   "video_en": "The sphere flares bright red-orange for a tenth of a second with a short plume of flame shooting straight up, then settles back to dark red.",
+   "frame_full": "frames/16.56.jpg"
+  },
+  {
+   "id": "drain",
+   "t": [
+    16.64,
+    19.44
+   ],
+   "frame": "crops/drain_22.20.jpg",
+   "vi": "Suốt 3 s: quả cầu đỏ sẫm vân xoáy (gần như đứng yên trong video; game: vẫn di chuyển được, chậm 5%); một DẢI ĐỎ xoắn mảnh nối từ cầu tới NGỰC kẻ thù trong vòng 5 m (hút HP — HP Orion tăng dần); dải đỏ cuộn quanh chân cầu. Kẻ thù bắn vào cầu không có tác dụng. Orion không lộ ra.",
+   "image_en": "The dark-red swirling sphere hovers where Orion stood; a thin twisting red ribbon of energy stretches from the sphere to the chest of the nearby enemy, draining him; red ribbons curl around the sphere's base; the enemy keeps shooting at the sphere with no effect. Orion stays hidden inside.",
+   "video_en": "The dark-red swirling sphere hovers in place while a thin twisting red ribbon links it to the chest of the nearby enemy, pulsing as it drains him; the enemy's shots hit the sphere with no effect.",
+   "frame_full": "frames/22.20.jpg"
+  },
+  {
+   "id": "pulse",
+   "t": [
+    18.52,
+    19.0
+   ],
+   "frame": "crops/pulse_18.72.jpg",
+   "vi": "Nhịp BÙNG cố định ~2,1 s sau khi kích hoạt, dài ~0,45 s (18,52–19,00 · 23,56–24,00): cầu sáng rực, nhiều GAI ĐỎ dài mảnh tỏa ra mọi hướng (như chân nhện) rồi thu lại.",
+   "image_en": "The sphere pulses: it glows bright red and many long thin red spikes of energy shoot out from it in every direction like spider legs.",
+   "video_en": "About two seconds after it forms, the sphere pulses once: it glows bright red and long thin red spikes shoot out in every direction for half a second, then pull back in.",
+   "frame_full": "frames/18.72.jpg"
+  },
+  {
+   "id": "end",
+   "t": [
+    19.44,
+    19.48
+   ],
+   "frame": "crops/end_19.48.jpg",
+   "vi": "Đúng 3 s sau khi kích hoạt (19,44 · 24,52): quả cầu biến mất trong 1 khung, Orion hiện lại đúng chỗ, đứng / chạy tiếp bình thường; không nổ, không khói.",
+   "image_en": "The sphere is gone; Orion stands again exactly where it was, shirtless with his black-and-red left arm armour, unharmed; no explosion, no smoke.",
+   "video_en": "The sphere disappears in a single frame and Orion is standing in the same spot again, moving normally; no explosion, no smoke.",
+   "frame_full": "frames/19.48.jpg"
+  }
+ ],
+ "sequences": {
+  "cast": [
+   "activate",
+   "flash",
+   "drain"
+  ],
+  "full": [
+   "activate",
+   "flash",
+   "drain",
+   "pulse",
+   "drain",
+   "end"
+  ]
+ },
+ "keywords": [
+  "crimson crush",
+  "bất tử",
+  "quả cầu đỏ",
+  "cầu đỏ",
+  "kỹ năng",
+  "kĩ năng",
+  "skill",
+  "red sphere",
+  "hút máu",
+  "hút hp",
+  "drain"
+ ],
+ "phase_hints": {
+  "activate": [
+   "kích hoạt",
+   "hóa thành",
+   "biến thành",
+   "activate",
+   "turns into"
+  ],
+  "flash": [
+   "lóe",
+   "bùng lửa",
+   "flare"
+  ],
+  "drain": [
+   "hút máu",
+   "hút hp",
+   "dải đỏ",
+   "drain",
+   "ribbon"
+  ],
+  "pulse": [
+   "gai",
+   "bùng",
+   "spikes",
+   "pulse"
+  ],
+  "end": [
+   "hiện lại",
+   "thoát",
+   "hết năng lượng",
+   "hủy",
+   "reappears",
+   "ends"
+  ]
+ },
+ "interactions": [
+  {
+   "with": "đạn của kẻ thù",
+   "vi": "Đạn bắn trúng quả cầu không gây gì (không nảy, không tóe); Orion không mất máu (chính thức: không nhận sát thương).",
+   "seen": "16,6–19,4 s; 21,6–24,5 s"
+  },
+  {
+   "with": "kẻ thù trong vòng 5 m",
+   "vi": "Dải đỏ nối từ cầu tới ngực kẻ thù; kẻ thù mất máu, HP Orion tăng (57→90 lần 1; 111→150 lần 2). Chính thức: hút 10 HP, bỏ qua lá chắn của kẻ thù.",
+   "seen": "16,6–19,4 s; 21,6–24,5 s"
+  }
+ ],
+ "never_vi": [
+  "Orion đấm / đá / bắn khi đang ở trong quả cầu (kỹ năng không cho tấn công)",
+  "giáp đỏ phát sáng bọc người, đạn nảy ra (mô tả cũ — sai)",
+  "quả cầu trong suốt nhìn thấy Orion bên trong",
+  "quả cầu nổ tung khi kết thúc",
+  "số sát thương vàng, thanh máu / năng lượng, nút CANCEL (giao diện game)",
+  "giáp ở tay phải (giáp ở VAI + TAY TRÁI)",
+  "quả cầu kéo dài quá 3 s trong một lần kỹ năng"
+ ],
+ "never_en": "Orion punching, kicking or shooting while inside the sphere, glowing armour covering his body, bullets bouncing off him, a transparent sphere showing Orion inside, the sphere exploding, yellow damage numbers, health or energy bars, on-screen buttons or text, armour on his right arm",
+ "script_contradictions": [
+  "bullets bounce",
+  "giáp đỏ phát sáng",
+  "glowing armor",
+  "glowing armour",
+  "orion bắn",
+  "orion chém",
+  "orion tấn công",
+  "orion đá",
+  "orion đánh",
+  "orion đấm",
+  "quả cầu nổ",
+  "sphere explodes",
+  "đạn nảy"
+ ],
+ "script_rules_vi": [
+  "Trong 3 s là quả cầu, Orion KHÔNG tấn công và không nhận sát thương — kịch bản chỉ cho cầu hút máu, chịu đạn, (có thể) di chuyển chậm.",
+  "Một lần kỹ năng = đúng 3 s: kích hoạt → chớp → hút máu → bùng gai (~2,1 s) → hút máu → biến mất, Orion hiện lại tại chỗ. Hồi chiêu 3 s mới dùng lại.",
+  "Hút máu chỉ khi có kẻ thù trong vòng 5 m; không có thì không có dải đỏ.",
+  "Chưa thấy trong video: cầu gặp kỹ năng khác (vd lốc Kenta), 'bỏ qua lá chắn' trông thế nào — KHÔNG vẽ các cảnh đó (chưa có trong `interactions`)."
+ ],
+ "video_method_vi": "Như Kenta (thử T1 30/09): Seedance 2.5 chế độ tham chiếu — khung đầu + ảnh chính diện Orion + `video_ref` làm @Video chỉ cho hiệu ứng (hình dạng, màu, độ đục, nhịp); không lấy người, cảnh, máy quay, chữ giao diện; không tả lại chi tiết hiệu ứng. Luật: knowledge/reference_assets_prompting.md.",
+ "unconfirmed_vi": "11,8–15,0 s cả khung tối dần lúc Orion đứng yên — do dựng video để nhấn chữ, không có trong mô tả chính thức; quả cầu di chuyển trông thế nào — video không cho thấy rõ; 'bỏ qua lá chắn' — chưa thấy hình.",
+ "build": {
+  "source_video": "D:/AI-Video-Pipeline/KHO TÀI NGUYÊN/Nhân vật/Orion/kĩ năng nhân vật Orion.mp4",
+  "dense_dir": "C:/Users/HONGVI~1.DOA/AppData/Local/Temp/orion/dense",
+  "dense_from": 11.0,
+  "title": "ORION · HUYẾT CẦU BẢO HỘ (Crimson Crush) — storyboard từ video giới thiệu (25 khung/giây) + mô tả chính thức trong game",
+  "keyframes": [
+   16.44,
+   16.48,
+   16.56,
+   16.68,
+   17.6,
+   18.2,
+   18.52,
+   18.72,
+   18.8,
+   19.4,
+   19.48,
+   21.48,
+   21.52,
+   21.64,
+   22.2,
+   23.64,
+   24.48,
+   24.52
+  ],
+  "crops": {
+   "activate": [
+    16.48,
+    [
+     0.22,
+     0.25,
+     0.62,
+     0.89
+    ]
+   ],
+   "flash": [
+    16.56,
+    [
+     0.22,
+     0.15,
+     0.62,
+     0.89
+    ]
+   ],
+   "drain": [
+    22.2,
+    [
+     0.22,
+     0.2,
+     0.7,
+     0.89
+    ]
+   ],
+   "pulse": [
+    18.72,
+    [
+     0.1,
+     0.12,
+     0.74,
+     0.89
+    ]
+   ],
+   "end": [
+    19.48,
+    [
+     0.25,
+     0.25,
+     0.62,
+     0.89
+    ]
+   ]
+  },
+  "video_ref": {
+   "full_cycle": [
+    16.2,
+    19.6,
+    [
+     0.12,
+     0.12,
+     0.76,
+     0.89
+    ]
+   ],
+   "full_cycle_running": [
+    21.3,
+    24.7,
+    [
+     0.12,
+     0.12,
+     0.76,
+     0.89
+    ]
+   ]
+  }
+ },
+ "video_ref": {
+  "full_cycle": "clips_local/full_cycle_16.2-19.6.mp4",
+  "full_cycle_running": "clips_local/full_cycle_running_21.3-24.7.mp4",
+  "note": "chỉ trên máy (không git): tạo lại bằng `py tools/skill_dossier_build.py build data/skills/ORION`"
+ },
+ "tags_vi": [
+  "Biến hình",
+  "Bất tử"
+ ],
+ "timing_vi": "Một lần kỹ năng = 3,0 s: kích hoạt (tức thì) → chớp ~0,1 s → hút máu → bùng gai ở ~2,1 s (~0,45 s) → hút máu → biến mất ở 3,0 s."
+}

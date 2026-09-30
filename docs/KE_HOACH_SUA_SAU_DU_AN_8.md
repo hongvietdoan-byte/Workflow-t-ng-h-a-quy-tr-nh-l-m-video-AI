@@ -25,10 +25,10 @@
 | S5 Bối cảnh theo file 3D Tháp Đồng Hồ | 6 | 5 | 0 | 0 | 0 | 87,5 % |
 | S6 Ước tính, ngân sách, dashboard | 6 | 5 | 0 | 0 | 1 | 100 % |
 | S7 Agent QC | 2 | 1 | 0 | 0 | 0 | 66,7 % |
-| S10 Kỹ năng nhân vật & tham chiếu | 12 | 1 | 0 | 0 | 0 | 13 % |
+| S10 Kỹ năng nhân vật & tham chiếu | 12 | 2 | 0 | 2 | 0 | 21,7 % |
 | K Chạy kiểm kịch bản hài 20–30 s | 3 | 0 | 0 | 0 | 0 | 0 % |
 | S8 Chấm lại bằng AI Development System (cuối cùng) | 5 | 2 | 0 | 0 | 0 | 42,9 % |
-| **Tổng** | **98** | **66** | **4** | **7** | **2** | **71,4 %** |
+| **Tổng** | **98** | **67** | **4** | **9** | **2** | **72,6 %** |
 
 Đợt hiện tại: **S1** · việc kế: **S5.5** 💵 Thử 1 cảnh `place_render_refs` (3–5 shot ở Tháp, render 3D đúng góc làm ảnh tham chiếu) — thay việc vẽ lại khung FFXN cũ; so độ khớp nền với mốc 0,073
 <!-- /tien-do -->
@@ -135,9 +135,9 @@
 
 ### S10 — Kỹ năng nhân vật & tham chiếu
 - [x] S10.0 · Hồ sơ kỹ năng Kenta + cờ `skill_dossier` + nghiên cứu cách gửi ảnh / video tham chiếu + thử #11 (T1–T3) · nặng:3 · ✅ · 2026-09-30: data/skills/KENTA (20 khung 30 khung/giây, storyboard, skill.json, video_ref); core/skill_dossier.py; docs/NGHIEN_CUU_PROMPT_THAM_CHIEU_2026-09-30.md (tài liệu chính thức Kling / Seedance 2.5); knowledge/reference_assets_prompting.md (Director / DP / motion đọc); adapter Kling ảnh tham chiếu không type + 3 luật video; T1 Seedance 2.5 + video kỹ năng = hiệu ứng gần game nhất (dự án thử #11, 5,91 USD)
-- [ ] S10.1 · Công cụ dựng hồ sơ kỹ năng `tools/skill_dossier_build.py` (video chính thức → khung dày, cắt cận, storyboard, video_ref đúng luật, nháp skill.json; tách HUD) · nặng:2 · ⬜
-- [ ] S10.2 · Hồ sơ kỹ năng Orion (video người dùng ở KHO TÀI NGUYÊN/Nhân vật/Orion) — người dùng duyệt · nặng:2 · ⬜
-- [ ] S10.3 · Bộ ảnh chuẩn Orion vào Kho #43 (cắt từ bảng thiết kế ORION.png) — người dùng duyệt · nặng:1 · ⬜
+- [x] S10.1 · Công cụ dựng hồ sơ kỹ năng `tools/skill_dossier_build.py` (video chính thức → khung dày, cắt cận, storyboard, video_ref đúng luật, nháp skill.json; tách HUD) · nặng:2 · ✅ · 30/09: lệnh sparse / dense / build, thông số ghi ở skill.json `build`; cắt video tham chiếu tự đạt ≥ 3 s, rộng ≥ 700, ≥ 407 696 điểm ảnh, SAR 1:1; test
+- [ ] S10.2 · Hồ sơ kỹ năng Orion — người dùng duyệt · nặng:2 · ⏸ · 30/09: data/skills/ORION theo mô tả chính thức trong game (Huyết Cầu Bảo Hộ: 3 s, 5 m, không tấn công, chậm 5%) + xem từng khung 16–25 s (2 lần kích hoạt đều 3,0 s; nhịp bùng gai ở ~2,1 s); sửa mô tả cũ sai trong knowledge; chờ người dùng xem storyboard
+- [ ] S10.3 · Bộ ảnh chuẩn Orion vào Kho #43 — người dùng duyệt · nặng:1 · ⏸ · 30/09: Kho #43 đã đủ 6 ảnh (chưa gán vai) — gán design_sheet #46, half_body #753, close_up #756; #754 trùng hệt #106, #755 trùng hệt #753 → chờ người dùng xóa 2 ảnh trùng để thêm ảnh in-game `KHO TÀI NGUYÊN/Nhân vật/Orion/ORION_front_ingame_cat.png` (front_standard) + khung kỹ năng (related)
 - [ ] S10.4 · Bộ chọn model + gửi tài sản tự động: shot có kỹ năng → Seedance 2.5, khung đầu + ảnh từng người + video_ref từng kỹ năng, câu vai trò theo mẫu chính thức; adapter nhận nhiều video · nặng:3 · ⬜
 - [ ] S10.5 · Luật Seedance trước khi gửi (video 2–30 s, tổng ≤ 30 s, điểm ảnh, fps, ≤ 30 ảnh, ≤ 10 video) · nặng:1 · ⬜
 - [ ] S10.6 · White-model thô: Blender khối trụ màu mỗi người + đường máy trên bản đồ 3D thật → video xếp chỗ đứng · nặng:2 · ⬜
