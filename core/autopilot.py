@@ -723,7 +723,21 @@ def _flag_reasons(p: Pipeline, job) -> List[str]:
         out.append("QC cảnh giữ cho người xem")
     if job["escalated"]:
         out.append("hết lượt tự sửa")
+    if job["type"] == "video_gen":
+        from . import hero_takes
+        t4 = hero_takes.hold_reason(p.conn, job)
+        if t4:
+            out.append(t4)
     return out
+
+
+def _hero_block(p: Pipeline, pid: int, scene_id: int, cap_videos: int) -> Optional[str]:
+    """S0.14 T4: why the ⭐ shot may not get its second take (None = it may) — the shot's send cap and the project's job cap hold."""
+    if _shot_sends(p, scene_id, "video_gen") >= SHOT_SENDS:
+        return f"shot đã gửi {SHOT_SENDS} lần"
+    if _video_sends(p, pid) >= cap_videos:
+        return "đã chạm trần số job video của dự án"
+    return None
 
 
 def _approve_unflagged(p: Pipeline, pid: int, kind: str) -> List[str]:
@@ -778,6 +792,9 @@ def _videos_phase(p: Pipeline, pid: int, ctx: Context) -> Optional[str]:
         if r["failed"]:
             _log(p, pid, f"QC video lỗi ở {len(r['failed'])} clip: {r['failed'][0][1][:120]}")
             _stop_if_claude_blocked(r["failed"])
+    from . import hero_takes                                # S0.14 T4: a ⭐ shot gets a second take to choose from (flag hero_takes)
+    for line in hero_takes.step(p, pid, ctx.data_dir, lambda sid: _hero_block(p, pid, sid, cap_videos)):
+        _log(p, pid, line)
     held = _approve_unflagged(p, pid, "video_gen")         # W15: a clip still faulty after its fixes is never approved blindly
     if held and not _active(p, pid, "video_gen"):
         raise _Wait("clips", f"{len(held)} clip QC còn lỗi (" + "; ".join(held[:3]) + ") — xem ở Bước 4: giữ, sửa hoặc gen lại, "

@@ -12,6 +12,11 @@ from tests.test_seedance_refs import real_png
 from tests.test_v3 import _approve_all_images, _approve_all_motion, kenta_project
 
 ON = {"FEATURE_SKILL_DOSSIER": "1", "FEATURE_SEEDANCE_REF_GROUPS": "1"}
+CLIPS = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data", "skills", "KENTA", "clips_local")
+
+
+NEED_CLIPS = unittest.skipUnless(os.path.isdir(CLIPS) and os.listdir(CLIPS), "cần đoạn video kỹ năng Kenta "
+                                  "data/skills/KENTA/clips_local (chỉ có trên máy, không nằm trong git — worktree / máy mới)")
 
 
 class SkillRouteTests(unittest.TestCase):
@@ -30,6 +35,7 @@ class SkillRouteTests(unittest.TestCase):
         self.p.conn.execute("UPDATE scenes SET data=? WHERE id=?", (json.dumps(d, ensure_ascii=False), self.sid))
         self.p.conn.commit()
 
+    @NEED_CLIPS
     def test_a_skill_shot_goes_to_seedance_2_5_even_in_cheap_test_mode(self):
         choice = model_router.scene_choice(self.p.conn, self.sid)
         self.assertEqual((choice["model"], choice.get("skill")), ("seedance-2.5", True))
@@ -43,6 +49,7 @@ class SkillRouteTests(unittest.TestCase):
         d = json.loads(self.p.conn.execute("SELECT data FROM scenes WHERE id=?", (self.sid,)).fetchone()["data"])
         self.assertIsNone(skill_dossier.route_reason(dict(d, skill_phase="KENTA:move_vortex")))   # the dash has no cut: words carry it
 
+    @NEED_CLIPS
     def test_the_send_has_the_first_frame_the_people_and_the_video_with_roles(self):
         from core.providers import MockVideoProvider
         from core.runner import VideoRunner

@@ -8,6 +8,7 @@ sổ chi); rồi đo độ khớp nền (`place_refs.background_match`) so với
     py tools/experiments/place_refs_trial.py --project N plates     render 3D các shot (Blender, 0 USD)
     py tools/experiments/place_refs_trial.py --project N plan       in ảnh tham chiếu + prompt sẽ gửi (0 USD, provider giả)
     py tools/experiments/place_refs_trial.py --project N frames     vẽ ảnh toàn cảnh + khung các shot (trả tiền, trần CAP_USD)
+    py tools/experiments/place_refs_trial.py --project N redraw     vẽ lại khung các shot với câu sửa REDRAW_FIX (lần 1/2, trả tiền, trần CAP_USD)
     py tools/experiments/place_refs_trial.py --project N measure    độ khớp nền từng shot, so với khung #8 cùng shot
 
 Chạy từ D:\\AI-Video-Pipeline."""
@@ -114,6 +115,25 @@ def frames(p, pid):
     print("đã chi:", spent(p, pid))
 
 
+REDRAW_FIX = ("Draw the place exactly as the 3D render reference shows (the red-roof house, the low wall, the steps, the grass and the "
+              "wrecked car) — not a stone plaza with a tower.")
+
+
+def redraw(p, pid):
+    """S5.5' lần vẽ lại 1/2 (người dùng duyệt 30/09): đầu vào đổi = câu `place_refs.PRECEDENCE` (đã có trong prompt) + câu sửa trên."""
+    rows = rows_of(p, pid)
+    jobs = [j for r in rows for j in [p.conn.execute("SELECT id, state FROM jobs WHERE scene_id=? AND type='image_gen' ORDER BY id DESC "
+                                                      "LIMIT 1", (r["id"],)).fetchone()] if j and j["state"] in ("succeeded", "pending_review")]
+    usd = 0.052 * len(jobs)
+    s = spent(p, pid)
+    if s + usd > CAP_USD + 1e-9:
+        raise SystemExit(f"TRẦN CHẶN: đã chi ${s:.2f} + ≈ ${usd:.2f} > trần ${CAP_USD:.2f}")
+    print(f"vẽ lại {len(jobs)} khung ≈ ${usd:.2f} (đã chi ${s:.2f}, trần ${CAP_USD:.2f})")
+    for j in jobs:
+        p.reject(j["id"], "user", note=REDRAW_FIX)
+    frames(p, pid)
+
+
 def _latest_image(p, pid, scene_id):
     j = p.conn.execute("SELECT id FROM jobs WHERE scene_id=? AND type='image_gen' AND state IN ('succeeded','approved','pending_review') "
                        "ORDER BY id DESC LIMIT 1", (scene_id,)).fetchone()
@@ -146,7 +166,7 @@ def measure(p, pid):
 
 def main(argv=None):
     ap = argparse.ArgumentParser()
-    ap.add_argument("step", choices=("setup", "plates", "plan", "frames", "measure"))
+    ap.add_argument("step", choices=("setup", "plates", "plan", "frames", "redraw", "measure"))
     ap.add_argument("--project", type=int)
     a = ap.parse_args(argv)
     p = _p()
@@ -154,7 +174,7 @@ def main(argv=None):
         return setup(p)
     if not a.project:
         raise SystemExit("cần --project N")
-    {"plates": plates, "plan": plan, "frames": frames, "measure": measure}[a.step](p, a.project)
+    {"plates": plates, "plan": plan, "frames": frames, "redraw": redraw, "measure": measure}[a.step](p, a.project)
 
 
 if __name__ == "__main__":

@@ -170,6 +170,8 @@ def estimate_videos_by_scene(pipeline: Pipeline, project_id: int, pricing: Dict)
     kling_tier = os.environ.get("CLIPAI_KLING_MODE", "pro")
     profiles = model_router.load_profiles()["models"]
     items, seconds, base, models = 0, 0.0, 0.0, {}
+    from . import hero_takes
+    hero = set(hero_takes.extra_clips(conn, project_id, [r["scene_id"] for r in ready_for_video(pipeline, project_id)]))
     for row in ready_for_video(pipeline, project_id):
         if not (row["scene_id"] in queued or row["scene_id"] not in live):
             continue
@@ -182,14 +184,15 @@ def estimate_videos_by_scene(pipeline: Pipeline, project_id: int, pricing: Dict)
         tier = kling_tier if family == "omni" else (choice.get("resolution") or (profiles.get(choice["model"]) or {}).get("tier") or "720p")
         sec = effective_duration(canonical, family, row["duration_sec"])
         price = clip_price(pricing, canonical, tier, sec)
-        items += 1
-        seconds += sec
-        models[choice["model"]] = models.get(choice["model"], 0) + 1
-        base = None if base is None or price is None else base + price
+        n = 2 if row["scene_id"] in hero else 1              # S0.14 T4: a ⭐ shot is sent twice to choose from
+        items += n
+        seconds += sec * n
+        models[choice["model"]] = models.get(choice["model"], 0) + n
+        base = None if base is None or price is None else base + price * n
     max_retry = pipeline.project(project_id)["max_retry_count"]
     result = {"kind": "video", "items": items, "seconds": seconds, "model": ", ".join(f"{m}×{n}" for m, n in models.items()) or "-",
               "tier": "theo cảnh", "unit_price": None, "known": base is not None or items == 0, "currency": pricing["currency"],
-              "max_retry": max_retry}
+              "max_retry": max_retry, "hero_takes": len(hero)}
     result.update(_range(base if base is not None else (0.0 if items == 0 else None), max_retry))
     return result
 
