@@ -252,10 +252,79 @@ def t5(p, pid):
     print("đã chi:", spent(p, pid))
 
 
+T6_KEYS = [os.path.join("data", "projects", "11", "images", "job_470.png"),
+           r"D:\AI-Video-Output\2026-09-30_tai_san_toi_uu\t6_ground_rings_2.png",
+           r"D:\AI-Video-Output\2026-09-30_tai_san_toi_uu\t6_wind_fly_1.png"]
+
+
+def t6(p, pid):
+    """T6: the phases in order as keyframes (official Seedance 2.5 多关键帧顺序控制: "以@图片1至@图片N的顺序作为关键帧") — T1 swapped two
+    phases; drawn keyframes fix the order, the skill video still carries the motion."""
+    from core import budget, cost, formats, looks, skill_dossier
+    from core.adapters import factory
+    from core.cost import record_usage
+    from core.providers import ProviderError
+    d = skill_dossier.load("KENTA")
+    front = os.path.join("data", "assets", "24", "7.png")
+    sheet = os.path.join(d["_dir"], d["skill_sheet"])
+    video_path = os.path.join(d["_dir"], d["video_ref"]["release"])
+    for f in T6_KEYS + [front, sheet, video_path]:
+        if not os.path.exists(f):
+            raise SystemExit("thiếu: " + f)
+    look = looks.video_sentence(p.project(pid))
+    prompt = "\n".join([
+        "Use @Image 1 to @Image 3 in this order as keyframes.",
+        "@Image 1 is the first frame. It sets the dirt path, the wooden houses, the clock tower, the white gloo wall, Kenta standing with his "
+        "back to the camera, his pose, and the fixed camera.",
+        "@Image 2 is the second keyframe: the blade has been swept, thin see-through circles lie on the ground around his planted feet and the "
+        "first crescent arc of wind is leaving at shoulder height.",
+        "@Image 3 is the third keyframe: crescent arcs of wind are halfway to the gloo wall at shoulder height.",
+        "@Image 4 is KENTA: use only his face, hair and clothes; not its background.",
+        "@Image 5 shows the phases of KENTA's skill in order, left to right (numbered panels): use only the skill effect's shape, colour and "
+        "transparency; not the panels, the numbers, the people, the place or the camera.",
+        "@Video 1 is used only for KENTA's skill effect: its shape, colour, transparency, order and rhythm. Do not take the person, clothes, "
+        "place, camera or on-screen text of @Video 1.",
+        "The picture goes through the states of @Image 1, @Image 2 and @Image 3 in this order, with continuous motion between them; the "
+        "keyframes are states to reach, not still pauses.",
+        "[Event] " + (look + " " if look else "") + "Kenta sweeps the translucent hologram blade once; a faint see-through whirlwind wraps his "
+        "body for an instant, sinks into rings on the ground, and crescent arcs of wind fly straight to the gloo wall, which stays whole. His "
+        "feet do not move; his katana stays in its scabbard across the back of his waist. The camera stays still."])
+    print(prompt)
+    usd = cost.clip_price(cost.load_pricing(), "dreamina-seedance-2-5-260628", "720p", 5) * 1.25
+    guard(p, pid, usd, "T6")
+    provider = factory.video_provider()
+    aspect = formats.spec(formats.project_aspect(p.project(pid)) or "9:16")["clip"]
+    with budget.SPEND_LOCK:
+        over = budget.check_video(p.conn, provider.name, "dreamina-seedance-2-5-260628", "720p", 5)
+        if over:
+            raise SystemExit("TRẦN CHUNG CHẶN: " + over)
+        try:
+            ext = provider.submit(T6_KEYS[0], prompt, None, 5, "seedance-2.5", aspect_ratio=aspect, resolution="720p",
+                                  reference_only=T6_KEYS + [front, sheet], reference_video=[{"path": video_path, "refer_type": "feature"}])
+        except ProviderError as e:
+            raise SystemExit(f"ClipAI từ chối: [{e.code}] {e}")
+        record_usage(p.conn, None, "video", provider.name, "dreamina-seedance-2-5-260628", "720p", 5, "second", pid)
+    print("đã gửi:", ext)
+    dest = os.path.join(DATA, str(pid), "videos", "t6.mp4")
+    t0 = time.time()
+    while time.time() - t0 < 2400:
+        st = provider.status(ext)
+        print(time.strftime("%H:%M:%S"), st.state, flush=True)
+        if st.state == "succeeded":
+            provider.download(ext, dest)
+            print("tải về:", dest)
+            break
+        if st.state == "failed":
+            print("thất bại:", getattr(st, "message", ""))
+            break
+        time.sleep(30)
+    print("đã chi:", spent(p, pid))
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--project", type=int)
-    ap.add_argument("step", choices=("setup", "frames", "approve", "plan", "video", "t5"))
+    ap.add_argument("step", choices=("setup", "frames", "approve", "plan", "video", "t5", "t6"))
     ap.add_argument("shots", nargs="?", default="1")
     a = ap.parse_args()
     p = _p()
@@ -266,6 +335,8 @@ def main():
         frames(p, a.project, shots)
     elif a.step == "approve":
         approve(p, a.project, shots)
+    elif a.step == "t6":
+        t6(p, a.project)
     elif a.step == "t5":
         t5(p, a.project)
     elif a.step == "plan":
