@@ -264,6 +264,32 @@ T2_PROMPT = (
     "person, place, camera or on-screen text. The camera stays fixed; Kenta's feet do not move.")
 
 
+T3_ASSETS = [os.path.join("data", "assets", "263", "5.png"), os.path.join("data", "assets", "23", "10.png"), KENTA_FRONT,
+             os.path.join("data", "assets", "33", "7.png")]
+T3_PROMPT = (
+    "[Goal] Three Free Fire in-game characters in one continuous shot on a street of red-roof houses below the clock tower: Kenta releases "
+    "his skill toward a white gloo wall, Kelly crouches behind the wall and flinches when the wind reaches her, Maxim watches from a house "
+    "doorway.\n"
+    "[Asset roles]\n"
+    "@Image 1 is the place: use only the street, the red-roof houses, the clock tower and the midday light; not its camera.\n"
+    "@Image 2 is Kelly: use only her face, hair and yellow tracksuit; not the grey background.\n"
+    "@Image 3 is Kenta: use only his face, hair, blue hooded cloak and the red-hilted katana worn horizontally across the back of his waist; "
+    "not the grey background.\n"
+    "@Image 4 is Maxim: use only his face, hair and clothes; not the grey background.\n"
+    "The three people never swap faces, hair, clothes, places or actions.\n"
+    "@Video 1 is used only for Kenta's skill effect: its shape, colour, transparency, order and rhythm. Do not take the person, clothes, "
+    "place, camera or on-screen text of @Video 1.\n"
+    "[People and places] A white bumpy gloo wall stands in the middle of the street. Kelly crouches behind the wall, on the side away from "
+    "Kenta. Kenta stands on the street about eight metres from the wall, facing it. Maxim stands in the doorway of the red-roof house next "
+    "to the wall.\n"
+    "[Event] At the start Kenta holds a translucent turquoise hologram blade in his right hand. He releases the skill with the timing of "
+    "@Video 1; the crescent wind arcs pass through the gloo wall, which stays whole; Kelly flinches but keeps crouching; Maxim steps back "
+    "inside the doorway. At the end all three are still in their own places.\n"
+    "[Camera] Fixed wide shot from the side at eye level; all three people stay visible.\n"
+    "[Keep] The three identities and clothes, the katana in its scabbard across Kenta's back, the gloo wall standing whole, the Free Fire "
+    "in-game 3D render style. Nobody speaks; mouths closed. No subtitles, no on-screen text.")
+
+
 def cmd_research_test(p, pid: int, which: str) -> None:
     """T1: Seedance 2.5 reference mode (first frame by role sentence + Kenta + skill video). T2: Kling with the assets named."""
     from core import budget, cost, end_frames, experiments, formats
@@ -278,7 +304,14 @@ def cmd_research_test(p, pid: int, which: str) -> None:
             raise SystemExit("thiếu tài sản: " + f)
     provider = factory.video_provider()
     aspect = formats.spec(formats.project_aspect(p.project(pid)) or "9:16")["clip"]
-    if which == "t1":
+    if which == "t3":                                          # 3 people, no first frame: the place picture + one picture per person
+        for f in T3_ASSETS:
+            if not os.path.exists(f):
+                raise SystemExit("thiếu tài sản: " + f)
+        model, canonical, tier, secs, prompt = "seedance-2.5", "dreamina-seedance-2-5-260628", "720p", 5, T3_PROMPT
+        usd = cost.clip_price(cost.load_pricing(), canonical, tier, secs) * 1.25
+        kwargs = {"reference_only": T3_ASSETS, "resolution": tier}
+    elif which == "t1":
         model, canonical, tier, secs, prompt = "seedance-2.5", "dreamina-seedance-2-5-260628", "720p", 5, T1_PROMPT
         usd = cost.clip_price(cost.load_pricing(), canonical, tier, secs) * 1.25          # no exact price source (× UNVERIFIED_MARGIN)
         kwargs = {"reference_only": [start, KENTA_FRONT], "resolution": tier}
@@ -316,7 +349,7 @@ DATA_DIR = os.path.join("data", "projects")
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--project", type=int)
-    ap.add_argument("step", choices=("setup", "frames", "approve", "redraw", "ends", "plan", "submit", "poll", "t1", "t2"))
+    ap.add_argument("step", choices=("setup", "frames", "approve", "redraw", "ends", "plan", "submit", "poll", "t1", "t2", "t3"))
     ap.add_argument("shots", nargs="?", default="")
     ap.add_argument("--refvideo", action="store_true", help="gửi kèm đoạn video kỹ năng thật làm tham chiếu chuyển động (Kling video_list)")
     a = ap.parse_args()
@@ -339,6 +372,7 @@ def main() -> None:
      "submit": lambda: cmd_submit(p, a.project, {int(x) for x in a.shots.split(",") if x} or None, a.refvideo),
      "t1": lambda: cmd_research_test(p, a.project, "t1"),
      "t2": lambda: cmd_research_test(p, a.project, "t2"),
+     "t3": lambda: cmd_research_test(p, a.project, "t3"),
      "poll": lambda: cmd_poll(p, DATA_DIR, a.project)}[a.step]()
 
 
