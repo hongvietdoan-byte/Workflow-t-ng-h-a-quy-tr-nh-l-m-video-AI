@@ -26,7 +26,7 @@ CAP_USD = 3.0
 IMAGE_USD = 0.052
 ASSETS = (24, 23, 263)          # KENTA, KELLY, Tháp Đồng Hồ (khu nhà dưới chân tháp — giống làng trong video kỹ năng)
 PLACE = "Quanh Tháp Đồng Hồ (Đảo Quân Sự) — khu nhà ở dưới chân tháp, ban ngày nắng"
-ENV = {"FEATURE_SKILL_DOSSIER": "1", "FEATURE_END_FRAMES": "1",
+ENV = {"FEATURE_SKILL_DOSSIER": "1", "FEATURE_END_FRAMES": "1", "FEATURE_SEEDANCE_REF_GROUPS": "0",
        "FEATURE_STORYBOARD_API": "0", "FEATURE_SCENE_ESTABLISHING": "0", "FEATURE_PLACE_RENDER_REFS": "0", "FEATURE_LOCATION_PLATES": "0"}
 SHOTS = [
     {"shot_no": 1, "size": "MS", "angle": "eye", "camera_move": "static", "duration_s": 3.0, "characters": ["KENTA"],
@@ -37,8 +37,8 @@ SHOTS = [
      "end_state": "the stroke has just ended; a transparent blue-white whirlwind column wraps his whole body"},
     {"shot_no": 2, "size": "WS", "angle": "eye", "camera_move": "static", "duration_s": 3.0, "characters": ["KENTA"],
      "skill_phase": "KENTA:ground_rings", "skill_phase_end": "KENTA:wind_fly",
-     "image_prompt": "Wide shot from behind and slightly to the right of Kenta on the dirt path between wooden houses, the white gloo "
-                     "wall ahead of him",
+     "image_prompt": "Kenta seen from behind and slightly to his right, whole body small in the frame, on the dirt path between "
+                     "wooden houses, the white gloo wall about eight metres ahead of him",
      "action": "the wind rings spread on the ground around his planted feet, then the wind streaks fly straight to the gloo wall",
      "end_state": "thin curved transparent wind streaks are halfway to the gloo wall, low and level; Kenta has not moved"},
     {"shot_no": 3, "size": "MS", "angle": "eye", "camera_move": "static", "duration_s": 3.0, "characters": ["KELLY"],
@@ -107,7 +107,7 @@ def cmd_frames(p, data_dir: str, pid: int) -> None:
         if states and all(s in ("succeeded", "approved", "pending_review", "failed", "escalated") for s in states.values()):
             break
         time.sleep(15)
-    for r in p.conn.execute("SELECT j.id, j.scene_id, j.state, j.prompt FROM jobs j WHERE j.project_id=? AND j.type='image_gen' ORDER BY j.id",
+    for r in p.conn.execute("SELECT j.id, j.scene_id, j.state FROM jobs j WHERE j.project_id=? AND j.type='image_gen' ORDER BY j.id",
                             (pid,)):
         print(r["scene_id"], r["id"], r["state"], os.path.join(data_dir, str(pid), "images", f"job_{r['id']}.png"))
     print("đã chi:", spent(p, pid))
@@ -188,8 +188,8 @@ def cmd_submit(p, pid: int) -> None:
         if not (o["start"] and o["end"]):
             print("bỏ qua shot", n, "— thiếu khung đầu / cuối")
             continue
-        if len(o["prompt"]) > 500:
-            raise SystemExit(f"prompt shot {n} dài {len(o['prompt'])} > 500 ký tự Kling — rút gọn trước khi gửi")
+        if len(o["prompt"]) > 2500:              # core/adapters/clipai.py PROMPT_LIMITS["kling"] (500 = one shot of a multi-shot)
+            raise SystemExit(f"prompt shot {n} dài {len(o['prompt'])} > 2500 ký tự Kling — rút gọn trước khi gửi")
         guard(p, pid, o["usd"], f"clip shot {n}")
         entry = {"kind": "group_test", "scene": 1, "method": "SKILL", "group": n, "shots": [n], "seconds": o["seconds"],
                  "film_s": o["seconds"], "model": "kling-v3-omni", "tier": "std", "usd": o["usd"], "prompt": o["prompt"],
