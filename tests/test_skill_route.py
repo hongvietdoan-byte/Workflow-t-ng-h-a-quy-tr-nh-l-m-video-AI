@@ -76,5 +76,18 @@ class SkillRouteTests(unittest.TestCase):
         self.assertIn("ORION's skill in this shot: drain.", block)
 
 
+    def test_two_skills_touching_is_said_unless_a_dossier_has_seen_it(self):
+        clash = {"characters": ["KENTA", "ORION"], "skill_phase": "KENTA:wind_fly; ORION:drain",
+                 "image_prompt": "Cơn lốc của Kenta va chạm quả cầu đỏ của Orion"}
+        self.assertTrue(any("chưa có cảnh này" in x for x in skill_dossier.shot_problems(clash)))
+        apart = dict(clash, image_prompt="Kenta tung lốc về phía tường keo, Orion là quả cầu đỏ ở phía xa")
+        self.assertEqual(skill_dossier.shot_problems(apart), [])
+        gloo = {"characters": ["KENTA"], "skill_phase": "KENTA:through_gloo", "image_prompt": "gió xuyên qua tường Bom Keo"}
+        self.assertEqual(skill_dossier.shot_problems(gloo), [])        # one skill + an object: not a two-skill contact
+        block = skill_dossier.director_block(["KENTA"])
+        self.assertIn("Tương tác ĐÃ THẤY", block)
+        self.assertIn("Bom Keo", block)
+
+
 if __name__ == "__main__":
     unittest.main()

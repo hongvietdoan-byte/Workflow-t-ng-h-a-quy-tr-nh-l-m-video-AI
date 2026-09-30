@@ -268,17 +268,41 @@ def contradictions(text: str, dossier: Dict) -> List[str]:
     return [w for w in dossier.get("script_contradictions") or [] if _has(blob, w)]
 
 
+CONTACT_WORDS = ("va chạm", "chạm nhau", "đụng nhau", "đỡ được", "chặn được", "chặn lại", "triệt tiêu", "xuyên qua", "đánh bật", "phá vỡ",
+                 "hits", "blocks", "collide", "clash", "cancels", "breaks through")
+
+
+def _mentions(dossier: Dict, other: Dict) -> bool:
+    """Does `dossier` record an interaction with `other` (its character or its skill name)?"""
+    names = {_fold(other["character"]), _fold(other.get("skill_vi") or ""), _fold(other.get("skill_en") or "")} - {""}
+    for it in dossier.get("interactions") or []:
+        blob = _fold(" ".join(str(it.get(k) or "") for k in ("with", "vi")))
+        if any(n and n in blob for n in names):
+            return True
+    return False
+
+
 def shot_problems(data: Dict, skills_dir: Optional[str] = None) -> List[str]:
-    """Words of a skill shot that contradict the dossier (Vietnamese, for the diagnosis)."""
-    hit = shot_skill(data, skills_dir)
-    if not hit:
-        return []
-    bad = contradictions(_shot_text(data), hit["dossier"])
-    if not bad:
-        return []
-    d = hit["dossier"]
-    return [f"shot kỹ năng {d['character']} ({d['skill_vi']}) có chữ trái hồ sơ: " + ", ".join(bad)
-            + f" — hồ sơ data/skills/{os.path.basename(d['_dir'])}: " + "; ".join(d.get("never_vi") or [])]
+    """What a skill shot says that the dossiers do not allow (Vietnamese, for the diagnosis): words contradicting a dossier, and (S10.7)
+    two skills touching each other when neither dossier has seen it in the official video (`interactions`) — not guessed."""
+    out = []
+    hits = shot_skills(data, skills_dir)
+    text = _shot_text(data)
+    for hit in hits:
+        bad = contradictions(text, hit["dossier"])
+        if bad:
+            d = hit["dossier"]
+            out.append(f"shot kỹ năng {d['character']} ({d['skill_vi']}) có chữ trái hồ sơ: " + ", ".join(bad)
+                       + f" — hồ sơ data/skills/{os.path.basename(d['_dir'])}: " + "; ".join(d.get("never_vi") or []))
+    if len(hits) > 1 and any(_has(text, w) for w in CONTACT_WORDS):
+        for a in range(len(hits)):
+            for b in range(a + 1, len(hits)):
+                da, db = hits[a]["dossier"], hits[b]["dossier"]
+                if not (_mentions(da, db) or _mentions(db, da)):
+                    out.append(f"shot tả kỹ năng {da['character']} và {db['character']} chạm / va chạm nhau, nhưng hồ sơ chưa có cảnh này trong "
+                               "video chính thức (`interactions`) — không đoán: chia nhịp A tung → B đáp → kết quả, cắt sang phản ứng thay "
+                               "vì vẽ lúc chạm (knowledge/reference_assets_prompting.md)")
+    return out
 
 
 def director_block(people, skills_dir: Optional[str] = None) -> str:
@@ -295,7 +319,11 @@ def director_block(people, skills_dir: Optional[str] = None) -> str:
             f"Chuỗi hợp lệ: {seqs}\n"
             "KHÔNG ĐƯỢC viết / vẽ: " + "; ".join(d.get("never_vi") or []) + "\n"
             "Luật kịch bản:\n" + "\n".join(f"- {r}" for r in d.get("script_rules_vi") or []) + "\n"
-            f"Shot có kỹ năng: ghi `skill_phase` = \"{d['character']}:<mã giai đoạn>\" (một giai đoạn chính mỗi shot) — code gửi kèm khung "
+            + (f"Thời lượng: {d['timing_vi']}\n" if d.get("timing_vi") else "")
+            + "Tương tác ĐÃ THẤY trong video chính thức (chỉ được vẽ những cái này): "
+            + ("; ".join(f"{it.get('with')}: {it.get('vi')}" for it in d.get("interactions") or []) or "chưa có") + "\n"
+            f"Shot có kỹ năng: ghi `skill_phase` = \"{d['character']}:<mã giai đoạn>\" (một giai đoạn chính mỗi shot; hai người cùng dùng kỹ "
+            f"năng trong một shot: \"{d['character']}:<mã>; <TÊN KHÁC>:<mã>\") — code gửi kèm khung "
             f"hình thật của giai đoạn đó làm ảnh tham chiếu và câu tả chuẩn cho model ảnh + video.\n"
             f"Video: {d.get('video_method_vi', '')}")
     return "\n\n".join(out)

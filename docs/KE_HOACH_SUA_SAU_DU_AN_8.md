@@ -25,10 +25,10 @@
 | S5 Bối cảnh theo file 3D Tháp Đồng Hồ | 6 | 5 | 0 | 0 | 0 | 87,5 % |
 | S6 Ước tính, ngân sách, dashboard | 6 | 5 | 0 | 0 | 1 | 100 % |
 | S7 Agent QC | 2 | 1 | 0 | 0 | 0 | 66,7 % |
-| S10 Kỹ năng nhân vật & tham chiếu | 12 | 5 | 0 | 1 | 0 | 47,8 % |
+| S10 Kỹ năng nhân vật & tham chiếu | 12 | 6 | 0 | 1 | 0 | 56,5 % |
 | K Chạy kiểm kịch bản hài 20–30 s | 3 | 0 | 0 | 0 | 0 | 0 % |
 | S8 Chấm lại bằng AI Development System (cuối cùng) | 5 | 2 | 0 | 0 | 0 | 42,9 % |
-| **Tổng** | **98** | **70** | **4** | **8** | **2** | **76,2 %** |
+| **Tổng** | **98** | **71** | **4** | **8** | **2** | **77,4 %** |
 
 Đợt hiện tại: **S1** · việc kế: **S5.5** 💵 Thử 1 cảnh `place_render_refs` (3–5 shot ở Tháp, render 3D đúng góc làm ảnh tham chiếu) — thay việc vẽ lại khung FFXN cũ; so độ khớp nền với mốc 0,073
 <!-- /tien-do -->
@@ -141,7 +141,7 @@
 - [x] S10.4 · Bộ chọn model + gửi tài sản tự động: shot có kỹ năng → Seedance 2.5, khung đầu + ảnh từng người + video_ref từng kỹ năng, câu vai trò theo mẫu chính thức; adapter nhận nhiều video · nặng:3 · ✅ · 30/09: model_router (kể cả chế độ thử rẻ vẫn 2.5), VideoRunner đường kỹ năng (không gộp nhóm, báo thiếu ảnh định danh), skill_dossier.shot_skills / video_ref / reference_block; 2 kỹ năng trong 1 shot = 2 @Video theo thứ tự; tests/test_skill_route.py
 - [x] S10.5 · Luật Seedance trước khi gửi (video 2–30 s, tổng ≤ 30 s, điểm ảnh, fps, ≤ 30 ảnh, ≤ 10 video) · nặng:1 · ✅ · 30/09: `clipai.reference_video_problems` theo từng nhà cung cấp (Kling: 1 video 3–15,5 s, CẢ rộng và cao 700–4553 px; Seedance: 2–30 s, tổng ≤ 30 s, 407 696–8 295 044 điểm ảnh, 2.0 ≤ 3 / 2.5 ≤ 10 video; cả hai 24–60 fps, SAR 1:1) — bắt được lỗi thật: video Orion 764×552 Kling sẽ từ chối → công cụ cắt cạnh ngắn ≥ 704 px
 - [ ] S10.6 · White-model thô: Blender khối trụ màu mỗi người + đường máy trên bản đồ 3D thật → video xếp chỗ đứng · nặng:2 · ⬜
-- [ ] S10.7 · Luật Director: 2 người có kỹ năng, trường `interactions`, chia nhịp A tung → B đáp → kết quả; bảng kiểm va chạm chưa có trong hồ sơ · nặng:2 · ⬜
+- [x] S10.7 · Luật Director: 2 người có kỹ năng, trường `interactions`, chia nhịp A tung → B đáp → kết quả; bảng kiểm va chạm chưa có trong hồ sơ · nặng:2 · ✅ · 30/09: knowledge/reference_assets_prompting.md mục "Hai nhân vật cùng có kỹ năng chủ động" (5 luật có lý do); director_block in thời lượng + tương tác đã thấy; shot_problems báo va chạm 2 kỹ năng chưa có trong `interactions` (chẩn đoán skill_contradiction); interactions Kenta + Orion; test
 - [ ] S10.8 · 💵 T4: 1 clip Kenta + Orion cùng tung kỹ năng (2 video) — hai hiệu ứng có lẫn nhau không · nặng:2 · ⬜
 - [ ] S10.9 · 💵 T5: 3 người, khung đầu đủ người + white-model — người thứ ba giữ chỗ và mặt · nặng:2 · ⬜
 - [ ] S10.10 · 💵 T6: nhiều khung then chốt theo thứ tự giai đoạn · nặng:1 · ⬜

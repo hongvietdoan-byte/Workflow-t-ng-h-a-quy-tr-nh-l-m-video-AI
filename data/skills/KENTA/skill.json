@@ -229,5 +229,18 @@
   "through_gloo": [
    "through_gloo"
   ]
- }
+ },
+ "interactions": [
+  {
+   "with": "Bom Keo (tường keo)",
+   "vi": "Gió ôm quanh chân tường và quét xuyên qua; tường ĐỨNG NGUYÊN; người núp sau tường mất máu (200→175).",
+   "seen": "19,3–19,8 s"
+  },
+  {
+   "with": "người trúng gió",
+   "vi": "Mất máu, không bị hất bay, không bị cuốn lên.",
+   "seen": "19,4–19,8 s"
+  }
+ ],
+ "timing_vi": "Tung lốc ~1,5 s: chuẩn bị ~0,7 s → vung ~2 khung → cột lốc ~0,15 s → vòng gió ~0,2 s → gió bay tới ~1 s."
 }

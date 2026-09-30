@@ -43,6 +43,22 @@ Kết quả thử thật ghi ở mục cuối — **mục đó thắng phần su
     trong toàn cảnh → Maxim chỉ còn đầu tí hon sau tường, còn mọc thêm người lạ. Với ≥ 3 người: (a) vẽ **khung đầu có đủ 3 người** trước (model
     ảnh xếp chỗ tốt hơn model video) rồi mới làm clip, hoặc (b) chia shot (hiệu ứng / phản ứng). Không để người thứ ba ở hậu cảnh xa.
 
+## Hai nhân vật cùng có kỹ năng chủ động (người dùng 30/09 — Kenta + Orion)
+
+Thứ tự ưu tiên khi nghĩ (trên thắng dưới):
+1. **Chỉ vẽ tương tác đã thấy trong video chính thức.** Mỗi hồ sơ có `interactions` (vd Orion: đạn bắn vào cầu không tác dụng; Kenta: gió xuyên
+   Bom Keo, tường nguyên). Hai kỹ năng chạm nhau mà KHÔNG hồ sơ nào ghi → không đoán kết quả (lốc Kenta gặp cầu Orion ra sao: chưa ai thấy).
+   Vì sao: đoán sai là lỗi người chơi nhận ra ngay (bài học #8: rút katana, tường vỡ). Code báo `skill_contradiction` khi shot tả va chạm chưa có.
+2. **Chia nhịp, mỗi shot một nhịp kỹ năng chính:** A tung (shot) → B đáp / phản ứng (shot) → kết quả (shot). Kết quả chỉ vẽ phần đã chắc (vd
+   HP ai giảm, ai đứng vững), phần "lúc chạm" để ngoài khung hoặc cắt sang mặt người xem. Vì sao: mỗi clip chỉ nên một hành động chính (tài liệu
+   Seedance: không nhồi); và hai video hiệu ứng trong một clip **chưa kiểm** có lẫn nhau không (bài thử S10.8).
+3. **Thời lượng theo hồ sơ:** Orion một lần kỹ năng đúng 3 s (bùng dây một lần ngay trước khi hết); Kenta tung lốc ~1,5 s. Shot / clip không kéo
+   dài hay rút ngắn kỹ năng trái hồ sơ.
+4. **Khi thật sự cần cả hai trong một khung** (vd Kenta tung lốc trong lúc Orion đã là quả cầu ở hậu cảnh): ghi `skill_phase` = "KENTA:<mã>;
+   ORION:<mã>" — code gửi 2 video, mỗi video một dòng vai trò; nhưng tới khi S10.8 đạt, coi đây là cách có rủi ro và báo trong `tradeoffs`.
+5. **Chỗ đứng:** ≥ 3 người hoặc hai người dùng kỹ năng ở hai phía → khung đầu phải vẽ đủ người đúng chỗ (luật 12), sau này có white-model thô
+   (S10.6) để khóa chỗ đứng.
+
 ## Giới hạn cứng (tài liệu — code kiểm trước khi gửi)
 
 | | Kling 3.0 Omni (qua ClipAI) | Seedance 2.5 |
