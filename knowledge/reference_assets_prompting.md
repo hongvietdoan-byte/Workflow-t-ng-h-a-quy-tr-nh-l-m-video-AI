@@ -77,6 +77,21 @@ Thứ tự ưu tiên khi nghĩ (trên thắng dưới):
 
 ## Kết quả thử thật (cập nhật sau mỗi lần thử)
 
+- **2026-09-30 T4 — 2 kỹ năng một clip (Kenta + Orion), QUA PIPELINE THẬT** (model_router → Seedance 2.5; khung đầu vẽ đủ 2 người; mỗi người
+  ảnh chính diện + Orion thêm bảng nhiều góc vẽ lại bằng Deepix; tờ kỹ năng sạch mỗi kỹ năng; 2 video kỹ năng, mỗi cái một dòng vai trò):
+  **hai hiệu ứng KHÔNG lẫn nhau** — lốc xanh của Kenta chỉ quanh Kenta và bay tới tường keo, tường nguyên; Orion hóa quả cầu đỏ đúng chỗ, có
+  chớp lửa, không dây đỏ (không có địch — đúng hồ sơ). Chưa đạt: hai kỹ năng diễn nối nhau (Kenta 0–3,2 s, Orion 3,5–5 s) thay vì cùng lúc.
+  → Hai kỹ năng trong một clip dùng được khi chúng không chạm nhau (luật "Hai nhân vật cùng có kỹ năng" giữ nguyên).
+  Lỗi tìm ra khi chạy thật (đã sửa + test): tờ kỹ năng 1 hàng tỉ lệ 3,74 bị Seedance từ chối (cần 0,4–2,5) → xếp lưới + chặn trước khi gửi;
+  đường kỹ năng truyền reference_video 2 lần → lỗi trước khi gửi.
+- **T5 — 3 người (Kelly, Kenta, Maxim): khung đầu vẽ đủ 3 người + white-model thô (khối đỏ / xanh / vàng = từng người):** cả 3 giữ mặt, đồ
+  và chỗ đứng suốt 5 s; Kelly bước tới đúng như khối vàng; không thêm người lạ (T3 mất Maxim, thêm người lạ). → **Cách chuẩn cho ≥ 3 người**
+  (luật 12). Chưa tách được phần công của white-model với phần công của khung đầu — cả hai cùng gửi.
+- **T6 — khung then chốt theo thứ tự** (khung đầu + 2 khung vẽ bằng Deepix từ khung đầu: vòng đất, gió bay; + tờ kỹ năng + video): **thứ tự
+  giai đoạn đúng** (lưỡi hologram → vệt quét → vòng đất → vệt lưỡi liềm bay tới tường; T1 đảo thứ tự), máy giữ yên, katana trong vỏ, tường
+  nguyên. Chưa đạt: lưỡi hologram biến mất sớm (0,6 s); màng lốc bao người chỉ thoáng. Khung then chốt vẽ riêng phải có khung đầu làm ảnh
+  tham chiếu, không thì lệch góc máy (lần vẽ đầu đổi góc — vẽ lại 1 lần đạt).
+
 - **2026-09-30 T1 — Seedance 2.5, 5 s, chế độ tham chiếu: khung đầu (câu "@Image 1 is the first frame") + ảnh Kenta + video kỹ năng 3,2 s
   (@Video 1 chỉ cho hiệu ứng), prompt không tả lại chi tiết:** qua bộ lọc người thật (ảnh Kenta in-game không đánh dấu); cảnh + katana + lưỡi
   hologram giữ đúng; **hiệu ứng gần game nhất tới giờ** — vòng gió rõ trên đất, màng lốc mờ rất lớn, vệt gió xoáy bay tới tường keo. Thứ tự hơi

@@ -25,10 +25,10 @@
 | S5 Bối cảnh theo file 3D Tháp Đồng Hồ | 6 | 5 | 0 | 0 | 0 | 87,5 % |
 | S6 Ước tính, ngân sách, dashboard | 6 | 5 | 0 | 0 | 1 | 100 % |
 | S7 Agent QC | 2 | 1 | 0 | 0 | 0 | 66,7 % |
-| S10 Kỹ năng nhân vật & tham chiếu | 12 | 7 | 1 | 1 | 0 | 69,6 % |
+| S10 Kỹ năng nhân vật & tham chiếu | 12 | 10 | 1 | 1 | 0 | 91,3 % |
 | K Chạy kiểm kịch bản hài 20–30 s | 3 | 0 | 0 | 0 | 0 | 0 % |
 | S8 Chấm lại bằng AI Development System (cuối cùng) | 5 | 2 | 0 | 0 | 0 | 42,9 % |
-| **Tổng** | **98** | **72** | **5** | **8** | **2** | **79,2 %** |
+| **Tổng** | **98** | **75** | **5** | **8** | **2** | **82,2 %** |
 
 Đợt hiện tại: **S1** · việc kế: **S5.5** 💵 Thử 1 cảnh `place_render_refs` (3–5 shot ở Tháp, render 3D đúng góc làm ảnh tham chiếu) — thay việc vẽ lại khung FFXN cũ; so độ khớp nền với mốc 0,073
 <!-- /tien-do -->
@@ -142,9 +142,9 @@
 - [x] S10.5 · Luật Seedance trước khi gửi (video 2–30 s, tổng ≤ 30 s, điểm ảnh, fps, ≤ 30 ảnh, ≤ 10 video) · nặng:1 · ✅ · 30/09: `clipai.reference_video_problems` theo từng nhà cung cấp (Kling: 1 video 3–15,5 s, CẢ rộng và cao 700–4553 px; Seedance: 2–30 s, tổng ≤ 30 s, 407 696–8 295 044 điểm ảnh, 2.0 ≤ 3 / 2.5 ≤ 10 video; cả hai 24–60 fps, SAR 1:1) — bắt được lỗi thật: video Orion 764×552 Kling sẽ từ chối → công cụ cắt cạnh ngắn ≥ 704 px
 - [x] S10.6 · White-model thô: Blender khối trụ màu mỗi người + đường máy trên bản đồ 3D thật → video xếp chỗ đứng · nặng:2 · ✅ · 30/09: core/whitebox.py (người đặt theo mét trước / phải so với máy của một chỗ đứng trong gói 3D, `to` = di chuyển, `face` = nhìn máy / nhìn người khác; máy mặc định nhắm giữa nhóm) + render_plates khối trụ màu có mũi chỉ hướng; câu vai trò "khối đỏ = KENTA…" theo mẫu chính thức; chạy thật Tháp plaza_front 3 người: 54 s Blender, 720×1280, 3,4 s, SAR 1:1 — D:/AI-Video-Output/2026-09-30_thu-ky-nang-kenta/whitebox/; test
 - [x] S10.7 · Luật Director: 2 người có kỹ năng, trường `interactions`, chia nhịp A tung → B đáp → kết quả; bảng kiểm va chạm chưa có trong hồ sơ · nặng:2 · ✅ · 30/09: knowledge/reference_assets_prompting.md mục "Hai nhân vật cùng có kỹ năng chủ động" (5 luật có lý do); director_block in thời lượng + tương tác đã thấy; shot_problems báo va chạm 2 kỹ năng chưa có trong `interactions` (chẩn đoán skill_contradiction); interactions Kenta + Orion; test
-- [ ] S10.8 · 💵 T4: 1 clip Kenta + Orion cùng tung kỹ năng (2 video) — hai hiệu ứng có lẫn nhau không · nặng:2 · ⬜
-- [ ] S10.9 · 💵 T5: 3 người, khung đầu đủ người + white-model — người thứ ba giữ chỗ và mặt · nặng:2 · ⬜
-- [ ] S10.10 · 💵 T6: nhiều khung then chốt theo thứ tự giai đoạn · nặng:1 · ⬜
+- [x] S10.8 · 💵 T4: 1 clip Kenta + Orion cùng tung kỹ năng (2 video) — hai hiệu ứng có lẫn nhau không · nặng:2 · ✅ · 30/09 dự án #12, qua pipeline thật: KHÔNG lẫn; hai kỹ năng diễn nối nhau thay vì cùng lúc; tìm + sửa 2 lỗi (tỉ lệ ảnh, truyền video 2 lần)
+- [x] S10.9 · 💵 T5: 3 người, khung đầu đủ người + white-model — người thứ ba giữ chỗ và mặt · nặng:2 · ✅ · 30/09: 3/3 người giữ mặt, đồ, chỗ đứng 5 s, không thêm người lạ
+- [x] S10.10 · 💵 T6: nhiều khung then chốt theo thứ tự giai đoạn · nặng:1 · ✅ · 30/09: thứ tự giai đoạn đúng (T1 đảo); lưỡi hologram biến sớm, màng lốc thoáng qua
 - [ ] S10.11 · Việc miễn phí tồn: Data Pack P5 (402 dừng cứng) + P3 (Structured Outputs), E1, E2, A4 / A5 / A14 / A21, S0.14 T5 · nặng:2 · 🔄 · 30/09: E1 (lỗi chỉ hiện lời, mã lỗi ở chú thích) ✅, E2 (chốt 8 ảnh tham chiếu) ✅, P5 (hết tiền → khóa dịch vụ, nút mở lại) ✅
 
 ### K — Chạy kiểm kịch bản hài 20–30 s
