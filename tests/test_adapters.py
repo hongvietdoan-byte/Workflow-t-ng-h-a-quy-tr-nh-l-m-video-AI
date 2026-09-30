@@ -150,6 +150,11 @@ class ClipAITests(unittest.TestCase):
                 self.p.submit(self.image, "p", None, 3, reference_video={"path": clip, "refer_type": "feature"})
         self.assertIn("700", str(cm.exception))
         self.assertEqual(self.t.calls, [])
+        with mock.patch("core.ffmpeg_studio.probe_duration", return_value=3.2),                 mock.patch("core.adapters.clipai._probe", return_value=(720, "1183:1182")):
+            with self.assertRaises(ProviderError) as cm:
+                self.p.submit(self.image, "p", None, 3, reference_video={"path": clip, "refer_type": "feature"})
+        self.assertIn("setsar=1", str(cm.exception))
+        self.assertEqual(self.t.calls, [])
 
     def test_upload_is_named_after_real_image_format(self):
         jpeg = os.path.join(self.dir, "job_1.png")

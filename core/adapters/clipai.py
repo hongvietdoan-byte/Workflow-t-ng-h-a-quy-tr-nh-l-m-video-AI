@@ -48,13 +48,18 @@ REFERENCE_VIDEO_WIDTH = (700, 4553)   # "The video width should not be less than
 
 
 def _video_width(path: str) -> Optional[int]:
+    return _probe(path)[0]
+
+
+def _probe(path: str) -> Tuple[Optional[int], Optional[str]]:
+    """(width, sample aspect ratio "1:1" …) of a video's first stream; (None, None) when ffprobe cannot tell."""
     import subprocess
     try:
-        out = subprocess.run(["ffprobe", "-v", "error", "-select_streams", "v:0", "-show_entries", "stream=width", "-of", "csv=p=0", path],
-                             capture_output=True, text=True, timeout=30).stdout.strip()
-        return int(out.split()[0]) if out else None
+        out = subprocess.run(["ffprobe", "-v", "error", "-select_streams", "v:0", "-show_entries", "stream=width,sample_aspect_ratio",
+                              "-of", "csv=p=0", path], capture_output=True, text=True, timeout=30).stdout.strip().split(",")
+        return (int(out[0]) if out and out[0].isdigit() else None), (out[1].strip() if len(out) > 1 and out[1].strip() else None)
     except (OSError, ValueError, subprocess.SubprocessError):
-        return None
+        return None, None
 
 
 PROMPT_LIMITS = {"kling": 2500, "dreamina-seedance-2-0-260128": 4000, "dreamina-seedance-2-0-fast-260128": 4000,
@@ -248,6 +253,10 @@ class ClipAIVideoProvider:
             vlen = probe_duration(vpath)
             if vlen is not None and vlen < MIN_REFERENCE_VIDEO_S - 0.05:   # real answer 30/09: "Video duration can not less than 3s"
                 raise ProviderError(f"video tham chiếu dài {vlen:.1f} s < {MIN_REFERENCE_VIDEO_S:.0f} s (ClipAI từ chối) — cắt dài hơn",
+                                    code="rule_violation")
+            sar = _probe(vpath)[1]
+            if sar not in (None, "1:1", "0:1", "N/A"):             # "non-square pixels detected. PAR should be 1:1" (thử #11, 30/09)
+                raise ProviderError(f"video tham chiếu có điểm ảnh không vuông (SAR {sar}) — ClipAI chỉ nhận 1:1; xuất lại với setsar=1",
                                     code="rule_violation")
             width = _video_width(vpath)
             if width is not None and not REFERENCE_VIDEO_WIDTH[0] <= width <= REFERENCE_VIDEO_WIDTH[1]:   # real answer 30/09
