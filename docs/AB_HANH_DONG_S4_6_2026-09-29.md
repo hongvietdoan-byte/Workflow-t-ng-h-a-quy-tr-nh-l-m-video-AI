@@ -98,3 +98,62 @@ Chưa so trực tiếp với (a) trong vòng này (mốc so = 4 shot khớp môi
 ## Việc tiếp theo đề xuất (chờ người dùng)
 - S4.2: dùng (c) cho đoạn thoại có ≥ 2 người trong khung (in-game) — sau khi người dùng xem file `_co-giong` xác nhận khớp.
 - Hiệu ứng kỹ năng trong K: vẽ khung đầu + cuối có hiệu ứng, Kling; thêm câu "katana stays sheathed" vào prompt video của Kenta.
+
+---
+
+# Sửa gốc lỗi khung đầu thừa nhân vật (nhánh C3, 29/09 tối — miễn phí)
+
+## Nguyên nhân gốc
+Chế độ storyboard (cờ `storyboard_api`, Deepix prompt_key 14) **thay** ảnh tham chiếu riêng của shot bằng "ảnh chung của cả cảnh":
+`core/runner.py::_finish_args` → `core/scene_storyboard.shared_references(g["shots"])` gom ảnh nhân vật của **mọi** shot trong cảnh rồi gửi
+cho **từng** khung. Cảnh 1 của #10 có 3 shot 1 người (KELLY / KENTA / MAXIM) → mỗi khung nhận cả 3 ảnh người, câu ghi chú ảnh còn đánh
+số "Image 1 is KELLY … Image 2 is Kenta … Image 4 is MAXIM" nên model vẽ đủ 3 người. Vòng 2 chỉ thêm câu chữ `cast_note` ("Only KELLY is in
+this frame…") — ảnh vẫn gửi đủ 3 người (khung đúng 5/5 ở vòng 2 là nhờ chữ, lực kéo của ảnh vẫn còn). Khung 1 (anchor) gửi kèm các khung sau
+cũng mang người của shot anchor mà câu ghi chú ảnh lại bảo "inherit … character appearance".
+
+Công cụ thử `tools/experiments/group_test.py` bước `frames` dùng đúng `ImageRunner` của luồng chính → cùng lỗi, cùng được sửa.
+Bước gửi video (`build()` P2/P2m/P2m25) chỉ lấy ảnh nhân vật của các shot trong nhóm — với `--single` (A/B S4.6) là đúng người của shot, không lỗi.
+
+## Sửa
+- `scene_storyboard.shared_references(..., cast_of=<data của shot đang vẽ>)`: ảnh người (vai trò `character` / `outfit` / bộ chuẩn) chỉ giữ
+  người có trong shot đó (so theo nhãn tài sản mà `assets.scene_references` trả cho chính shot — "KENTA" → "Kenta ở OB55"); ảnh bối cảnh /
+  mốc / đạo cụ vẫn chung cả cảnh. Runner truyền `cast_of` cho mọi khung storyboard (cả lượt phông xanh).
+- `scene_storyboard.anchor_note`: khi khung 1 có người không thuộc shot này, câu ánh xạ ảnh thêm "Image N is frame 1 of the scene: take its
+  place, light and style only — KELLY is in frame 1 but NOT in this frame."
+- `cast_note` bỏ câu "(their pictures are references for other frames)" (không còn đúng).
+- Test tái hiện: `tests/test_storyboard_cast_refs.py` (6 test — dữ liệu cảnh 1 #10: 3 shot 1 người, nhãn "Kenta ở OB55").
+
+## Bằng chứng miễn phí — dựng lại yêu cầu ảnh cảnh 1 #10 (không gửi)
+Bản sao CSDL (sao lưu SQLite từ `manifest.sqlite?mode=ro`) + bản sao `data/projects/10`, `ImageRunner._submit_args` với nhà cung cấp giả có
+`supports_storyboard`, cờ theo `dashboard.env`. "Trước" = code `origin/main` (trùng khớp `jobs.sent_refs` đã lưu của lượt vẽ thật 453/456/455).
+
+| Job · shot (người trong shot) | Trước — ảnh gửi | Sau — ảnh gửi |
+|---|---|---|
+| 453 · shot 1 (KELLY, anchor) | KELLY, **Kenta ở OB55**, Tháp (mốc), **MAXIM**, Tháp (nền), toàn cảnh scene_1 | KELLY, Tháp (mốc), Tháp (nền), toàn cảnh scene_1 |
+| 456 · shot 2 (KENTA) | **KELLY**, Kenta ở OB55, Tháp (mốc), **MAXIM**, Tháp (nền), toàn cảnh, khung 1 | Kenta ở OB55, Tháp (mốc), Tháp (nền), toàn cảnh, khung 1 + câu "KELLY is in frame 1 but NOT in this frame" |
+| 455 · shot 3 (MAXIM) | **KELLY**, **Kenta ở OB55**, Tháp (mốc), MAXIM, Tháp (nền), toàn cảnh, khung 1 | Tháp (mốc), MAXIM, Tháp (nền), toàn cảnh, khung 1 + câu như trên |
+
+Bằng chứng chạy thật bằng **ảnh** sẽ có ở lượt vẽ trả tiền kế tiếp (nhánh chính lo) — chưa gọi Deepix ở nhánh này.
+
+## Shot 3 — Maxim ngồi trước tường thay vì nấp sau: KHÔNG phải lỗi chọn ảnh
+Prompt ảnh của shot 3 (`image_prompt`): "A white bumpy gloo wall in the foreground; Maxim crouching behind it on the side…", cỡ MCU, không có
+`blocking` / sơ đồ `layout`. "behind it on the side" nhập nhằng (sau tường theo hướng máy, hay đứng bên cạnh), và MCU (đầu + ngực) khó thấy cả
+tường che phía trước. Chưa sửa ở nhánh này: hướng đề xuất là Director ghi vị trí theo máy ("the wall is between the camera and Maxim; only his
+head and shoulders show above its top edge") hoặc có `layout` cho shot nấp — cần lượt vẽ trả tiền để kiểm.
+
+# Kết luận S4.6 (29/09 — sau 2 vòng, 13 clip, 8,88 USD)
+Là bằng chứng từ 3 + 5 shot của một kịch bản, dùng như **gợi ý chọn model theo loại shot**, không phải luật cứng.
+
+| Loại shot | Chọn | Căn cứ |
+|---|---|---|
+| Chạy / di chuyển lớn | **Kling 3.0 Omni std, khung đầu** (0,32 USD / 4 s) | Vòng 1: chuyển động 9,73 vs 3,89 / 3,49; chạy thật, chân chạm đất, rẻ nhất |
+| Hiệu ứng kỹ năng (vòng gió, vệt chém) | **Vẽ hiệu ứng vào khung đầu + khung cuối, Kling nội suy**; prompt ghi "katana stays sheathed" | Vòng 1: không model nào tạo từ chữ; vòng 2: Kling giữ được vòng gió, vệt chém hiện ~2 s. Còn thiếu: vệt gió mờ, katana thừa, máy tự đẩy — **nhánh B5 lo riêng** (ở đây chỉ tham chiếu) |
+| Khớp môi, ≥ 2 người trong khung | **(c) in-game: một clip Seedance 2.5 cả đoạn thoại + track giọng + câu & mốc giây** (người dùng chọn 29/09 → S4.2, cờ `dialogue_take`) | Vòng 2: đúng người mở miệng đúng lượt; in-game giữ bố cục tốt hơn tả thực; S4.5 đo khớp 0,72–0,96 |
+| Động tác nhỏ (chém, co người, phản ứng) | Kling khung đầu hoặc Seedance 2.5, **prompt ghi động tác theo nhịp giây** | Vòng 1: cả 3 cách gần đứng yên khi prompt chỉ tả chung |
+| Shot có mặt nhân vật in-game gửi Seedance | Ưu tiên **Seedance 2.5 / Kling**; Seedance 2.0 Fast chỉ khi chấp nhận QC lớp 0 bắt dấu | Fast chỉ qua bộ lọc khi dấu đỏ nằm trên mặt (băng chữ / dấu góc bị từ chối), và từng vẽ dấu vào clip |
+
+- **Dấu đỏ lọt vào mặt**: đã có kiểm bằng code `clip_measure.ref_mark` (QC lớp 0): clip lỗi vòng 1 17/17 khung, 0 báo nhầm trên 158 clip
+  #8/#10, 0/21 ở 2 clip Seedance 2.5 vòng 2. Hướng lâu dài bỏ mẹo dấu: S4.7 kho chủ thể (chờ người dùng).
+- **Khung đầu thừa nhân vật**: sửa gốc ở trên (chỉ gửi ảnh người có trong shot); ảnh thật chờ lượt vẽ kế.
+- **Chưa làm trong S4.6**: A/B shot cận (ref-only vs khung đầu — cờ `closeup_start_frame` S4.1 vẫn TẮT, kiểm ở lượt chạy K); khớp môi (b)
+  sync.so không mở (người dùng không dùng sync.so).

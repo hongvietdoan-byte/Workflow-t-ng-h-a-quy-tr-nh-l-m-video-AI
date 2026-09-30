@@ -1554,7 +1554,9 @@ class ImageRunner(_Runner):
         if scene_storyboard.enabled() and getattr(self.provider, "supports_storyboard", False):
             g = scene_storyboard.group_of(self.p.conn, job["project_id"], job["scene_id"])
             if g is not None:
-                shared = scene_storyboard.shared_references(self.p.conn, job["project_id"], g["shots"], without_place=without_place)
+                shared = scene_storyboard.shared_references(      # only this shot's people (S4.6 #10)
+                    self.p.conn, job["project_id"], g["shots"], without_place=without_place,
+                    cast_of=next(s["data"] for s in g["shots"] if s["id"] == job["scene_id"]))
                 from . import scene_establish
                 est = None if without_place else scene_establish.reference(self.data_dir, job["project_id"], g["story_scene"])
                 if est:                                # the scene's wide establishing picture: the shared reference for the place

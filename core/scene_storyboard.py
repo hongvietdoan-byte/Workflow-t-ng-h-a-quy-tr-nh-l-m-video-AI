@@ -76,8 +76,22 @@ def waits(conn, data_dir: str, pid: int, scene_id: int) -> bool:
     return bool(g) and g["anchor"]["id"] != scene_id and anchor_picture(conn, data_dir, pid, g["anchor"]["id"]) is None
 
 
-def shared_references(conn, pid: int, shots: List[Dict], limit: int = 8, without_place: bool = False) -> List[Dict]:
-    """The pictures every frame of the scene shares: each character once (the scene's cast), the place once."""
+PERSON_ROLES = ("character", "outfit") + assets.STANDARD_ROLES
+
+
+def shared_references(conn, pid: int, shots: List[Dict], limit: int = 8, without_place: bool = False,
+                      cast_of: Optional[Dict] = None) -> List[Dict]:
+    """The pictures every frame of the scene shares: each character once (the scene's cast), the place once.
+    cast_of = the data of the shot being drawn: only ITS people's pictures go (the place and props stay shared). S4.6 (#10,
+    2026-09-29): a KELLY-only and a KENTA-only frame were sent the pictures of Kelly, Kenta and Maxim (jobs 453-456 sent_refs) and came
+    back with all three people; the sentence "only KELLY is in this frame" (vòng 2) helped but the pictures were still the pull."""
+    keep = None
+    if cast_of is not None:
+        own = dict(cast_of)
+        if without_place:
+            for k in ("location", "location_asset", "layout"):
+                own.pop(k, None)
+        keep = {r["label"] for r in assets.scene_references(conn, pid, own, limit=99) if r.get("role") in PERSON_ROLES}
     out, seen = [], set()
     for s in shots:
         data = dict(s["data"])
@@ -89,9 +103,26 @@ def shared_references(conn, pid: int, shots: List[Dict], limit: int = 8, without
                 continue
             if without_place and r.get("role") == "location":
                 continue
+            if keep is not None and r.get("role") in PERSON_ROLES and r["label"] not in keep:
+                continue                               # a person of another frame of the scene: not sent with this frame
             seen.add(r["path"])
             out.append(r)
     return out
+
+
+def anchor_note(g: Dict, scene_id: int, image_no: int) -> str:
+    """The anchor frame (frame 1) sent with a later frame shows the anchor shot's people; when this shot's people differ, say that the
+    anchor gives the place and light, not its people (the mapping line alone says "inherit ... character appearance")."""
+    shot = next((s for s in g["shots"] if s["id"] == scene_id), None)
+    anchor = g.get("anchor")
+    if shot is None or not anchor or anchor["id"] == scene_id:
+        return ""
+    cast = [str(n) for n in shot["data"].get("characters") or []]
+    theirs = [str(n) for n in anchor["data"].get("characters") or [] if str(n) not in cast]
+    if not theirs:
+        return ""
+    return (f"\nImage {image_no} is frame 1 of the scene: take its place, light and style only — {', '.join(theirs)} "
+            f"{'is' if len(theirs) == 1 else 'are'} in frame 1 but NOT in this frame.")
 
 
 def story_text(conn, pid: int, g: Dict, green: bool = False) -> str:
@@ -122,8 +153,9 @@ def _in_frame(data: Dict) -> str:
 
 
 def cast_note(g: Dict, scene_id: int) -> str:
-    """S4.6 (#10, 2026-09-29): the scene's shared references carry every person of the scene, and frames 1-2 of a one-person shot came
-    back with all three people (Kelly-only and Kenta-only shots drew Kenta, Kelly and Maxim). The shot says who is NOT in it."""
+    """S4.6 (#10, 2026-09-29): frames 1-2 of a one-person shot came back with all three people (Kelly-only and Kenta-only shots drew
+    Kenta, Kelly and Maxim). The shot says who is NOT in it; since then only its own people's pictures are sent (shared_references
+    cast_of) — the sentence stays for the anchor frame and the scene text, which still name the others."""
     shot = next((s for s in g["shots"] if s["id"] == scene_id), None)
     if shot is None:
         return ""
@@ -136,8 +168,8 @@ def cast_note(g: Dict, scene_id: int) -> str:
     if not others:
         return ""
     who = f"Only {', '.join(cast)} {'is' if len(cast) == 1 else 'are'} in this frame" if cast else "No person is in this frame"
-    return (f" {who}; {', '.join(others)} {'is' if len(others) == 1 else 'are'} NOT in this frame (their pictures are references "
-            "for other frames of the scene) — do not draw them, not even in the background.")
+    return (f" {who}; {', '.join(others)} {'is' if len(others) == 1 else 'are'} NOT in this frame (they appear in other frames "
+            "of the scene) — do not draw them, not even in the background.")
 
 
 def storyboard_id(pid: int, g: Dict, anchor_job_id: int, fresh_for: int = 0) -> str:
@@ -174,5 +206,6 @@ def job_fields(conn, data_dir: str, pid: int, scene_id: int, refs: List[Dict], j
     anchor_job = job_id if is_anchor else int(os.path.basename(anchor_pic)[4:].split(".")[0].split("_")[0]) if anchor_pic else 0
     return {"storyboard": {"story_text": story_text(conn, pid, g, green), "storyboard_id": storyboard_id(pid, g, anchor_job, 0 if is_anchor or not fresh_session(conn, job_id) else job_id),
                            "frame_index": g["index"], "group_size": len(g["shots"]), "ref_mode": mode,
-                           "image_mapping": mapping_text(send, len(refs)) if send else ""},
+                           "image_mapping": (mapping_text(send, len(refs)) + (anchor_note(g, scene_id, len(send)) if anchor_pic else ""))
+                            if send else ""},
             "refs": send, "anchor": is_anchor, "cast_note": cast_note(g, scene_id)}
