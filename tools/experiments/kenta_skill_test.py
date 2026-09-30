@@ -22,7 +22,7 @@ from datetime import datetime, timezone
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".."))
 
 NAME = "Thử hồ sơ kỹ năng Kenta (30/09)"
-CAP_USD = 3.0
+CAP_USD = 3.6          # người dùng duyệt $3 (30/09), rồi thêm ≈ $0,54 cho 2 clip có video tham chiếu ("Thử tiếp")
 IMAGE_USD = 0.052
 ASSETS = (24, 23, 263)          # KENTA, KELLY, Tháp Đồng Hồ (khu nhà dưới chân tháp — giống làng trong video kỹ năng)
 PLACE = "Quanh Tháp Đồng Hồ (Đảo Quân Sự) — khu nhà ở dưới chân tháp, ban ngày nắng"
