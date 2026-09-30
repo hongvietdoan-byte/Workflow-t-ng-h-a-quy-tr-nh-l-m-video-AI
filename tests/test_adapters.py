@@ -165,6 +165,13 @@ class ClipAITests(unittest.TestCase):
         self.assertTrue(rules("seedance", "dreamina-seedance-2-0-260128", [ok] * 4))
         self.assertEqual(rules("seedance", "dreamina-seedance-2-5-260628", [ok] * 4), [])
 
+    def test_reference_pictures_outside_0_4_to_2_5_are_refused_before_sending(self):
+        """T4 30/09: Seedance refused a 3831×1024 skill sheet ("aspect ratio between 0.39 and 2.50")."""
+        from core.adapters.clipai import reference_image_problems as rules
+        self.assertTrue(rules("seedance", [(3831, 1024)]))
+        self.assertTrue(rules("seedance", [(200, 400)]))
+        self.assertEqual(rules("seedance", [(2048, 1152), (1024, 1536), (1920, 1080)]), [])
+
     def test_seedance_takes_several_reference_videos(self):
         self.t.on("POST", "/api/kling/seedance-video-submit",
                   ok({"tasks": [{"task_id": "S8", "task_status": "submitted", "task_status_msg": ""}]}))

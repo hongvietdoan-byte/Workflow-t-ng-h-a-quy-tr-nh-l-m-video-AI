@@ -94,6 +94,24 @@ VIDEO_RULES = {
 }
 
 
+IMAGE_RULES = {"omni": {"side": (300, 100_000), "ratio": (0.4, 2.5)}, "seedance": {"side": (300, 6000), "ratio": (0.4, 2.5)}}
+
+
+def reference_image_problems(family: str, sizes: List[Tuple[int, int]]) -> List[str]:
+    """What ClipAI would refuse in reference pictures: width / height 0.4–2.5 (Kling 1:2.5–2.5:1; Seedance 2.5 — refused a 3.74-wide
+    skill sheet in test T4 30/09), sides ≥ 300 px (Seedance ≤ 6000)."""
+    r = IMAGE_RULES["omni" if family == "omni" else "seedance"]
+    out = []
+    for k, (w, h) in enumerate(sizes, 1):
+        if not (w and h):
+            continue
+        if not r["ratio"][0] - 1e-3 <= w / h <= r["ratio"][1] + 1e-3:
+            out.append(f"ảnh {k} ({w}×{h}) tỉ lệ {w / h:.2f} — cần {r['ratio'][0]}–{r['ratio'][1]}")
+        if min(w, h) < r["side"][0] or max(w, h) > r["side"][1]:
+            out.append(f"ảnh {k} ({w}×{h}) — cạnh cần {r['side'][0]}–{r['side'][1]} px")
+    return out
+
+
 def reference_video_problems(family: str, canonical: str, infos: List[Dict]) -> List[str]:
     """What ClipAI would refuse in these reference videos ({width, height, sar, fps, duration} each; missing keys are not judged)."""
     r = VIDEO_RULES["omni" if family == "omni" else "seedance"]
@@ -382,6 +400,17 @@ class ClipAIVideoProvider:
             cap = 30 if canonical == "dreamina-seedance-2-5-260628" else 9
             if not reference_only or len(reference_only) > cap:
                 raise ProviderError(f"cần 1–{cap} ảnh tham chiếu, có {len(reference_only)}", code="rule_violation")
+            sizes = []
+            for ref in reference_only:
+                try:
+                    from PIL import Image as _Im
+                    with _Im.open(ref) as _i:
+                        sizes.append(_i.size)
+                except Exception:  # noqa: BLE001 - unreadable here: the file check below says it
+                    sizes.append((0, 0))
+            bad = reference_image_problems(family, sizes)
+            if bad:
+                raise ProviderError("ảnh tham chiếu không đạt luật ClipAI: " + "; ".join(bad), code="rule_violation")
             refs = []
             for ref in reference_only:
                 if not os.path.exists(ref):

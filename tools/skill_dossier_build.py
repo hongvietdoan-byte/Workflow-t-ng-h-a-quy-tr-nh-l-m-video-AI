@@ -170,16 +170,28 @@ def clean_sheet(d, info, out, height=768):
         im = _box(im, box)
         panels.append(im.resize((int(im.width * height / im.height), height), Image.LANCZOS))
     gap = 12
-    sheet = Image.new("RGB", (sum(p.width for p in panels) + gap * (len(panels) - 1), height), (40, 40, 40))
-    x = 0
+    import math
+    cols = len(panels)                       # Seedance: a picture's width / height must be 0.4–2.5 → rows of panels, ≤ 2.4 wide
+    while cols > 1:
+        rows = math.ceil(len(panels) / cols)
+        width = max(sum(p.width for p in panels[r * cols:(r + 1) * cols]) + gap * (cols - 1) for r in range(rows))
+        if width / (rows * height + gap * (rows - 1)) <= 2.4:
+            break
+        cols -= 1
+    rows = math.ceil(len(panels) / cols)
+    width = max(sum(p.width for p in panels[r * cols:(r + 1) * cols]) + gap * (cols - 1) for r in range(rows))
+    sheet = Image.new("RGB", (width, rows * height + gap * (rows - 1)), (40, 40, 40))
     dr = ImageDraw.Draw(sheet)
     for k, p in enumerate(panels, 1):
-        sheet.paste(p, (x, 0))
-        dr.ellipse([x + 10, 10, x + 58, 58], fill=(20, 20, 20))
-        dr.text((x + 25, 13), str(k), fill=(255, 255, 255), font=_font(34, True))
-        x += p.width + gap
-    if sheet.width > 6000:                  # Seedance 2.5: picture sides 300–6000 px
-        sheet = sheet.resize((6000, int(sheet.height * 6000 / sheet.width)), Image.LANCZOS)
+        r, c = divmod(k - 1, cols)
+        x = sum(q.width for q in panels[r * cols:r * cols + c]) + gap * c
+        y = r * (height + gap)
+        sheet.paste(p, (x, y))
+        dr.ellipse([x + 10, y + 10, x + 58, y + 58], fill=(20, 20, 20))
+        dr.text((x + 25, y + 13), str(k), fill=(255, 255, 255), font=_font(34, True))
+    if max(sheet.size) > 6000:              # Seedance 2.5: picture sides 300–6000 px
+        k = 6000 / max(sheet.size)
+        sheet = sheet.resize((int(sheet.width * k), int(sheet.height * k)), Image.LANCZOS)
     sheet.save(out, quality=92)
     return out
 
