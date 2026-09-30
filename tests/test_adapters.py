@@ -134,6 +134,18 @@ class ClipAITests(unittest.TestCase):
         self.assertIn(b"\x89PNG-fake", call["body"])
         self.assertIn('name="image_files"', call["body"].decode("utf-8", "replace"))
 
+    def test_a_reference_video_under_3_s_is_refused_before_sending(self):
+        """Thử #11 (30/09): ClipAI refused a 2.2 s reference video after it was sent."""
+        clip = os.path.join(self.dir, "ref.mp4")
+        with open(clip, "wb") as f:
+            f.write(b"fake")
+        from unittest import mock
+        with mock.patch("core.ffmpeg_studio.probe_duration", return_value=2.2):
+            with self.assertRaises(ProviderError) as cm:
+                self.p.submit(self.image, "p", None, 3, reference_video={"path": clip, "refer_type": "feature"})
+        self.assertEqual(cm.exception.code, "rule_violation")
+        self.assertEqual(self.t.calls, [])
+
     def test_upload_is_named_after_real_image_format(self):
         jpeg = os.path.join(self.dir, "job_1.png")
         with open(jpeg, "wb") as f:

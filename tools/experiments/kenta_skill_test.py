@@ -182,7 +182,7 @@ def cmd_plan(p, pid: int):
     return out
 
 
-REF_CLIP = os.path.join("data", "skills", "KENTA", "clips_local", "release_16.2-18.4.mp4")
+REF_CLIP = os.path.join("data", "skills", "KENTA", "clips_local", "release_16.0-19.2.mp4")
 REF_NOTE = ("The reference video is the real game footage of this skill: copy ONLY the skill effect's shapes, colours, transparency, "
             "timing and motion from it — not its camera, place, person or on-screen text. ")
 

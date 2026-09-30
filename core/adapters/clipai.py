@@ -43,6 +43,7 @@ MODEL_ALIASES = {
 }
 KLING_MODELS = {"kling-v3-omni", "kling-video-o1"}
 SEEDANCE_MODELS = {"dreamina-seedance-2-5-260628", "dreamina-seedance-2-0-260128", "dreamina-seedance-2-0-fast-260128"}
+MIN_REFERENCE_VIDEO_S = 3.0      # ClipAI refused a 2.2 s reference video (thử #11, 2026-09-30): "Video duration can not less than 3s"
 PROMPT_LIMITS = {"kling": 2500, "dreamina-seedance-2-0-260128": 4000, "dreamina-seedance-2-0-fast-260128": 4000,
                  "dreamina-seedance-2-5-260628": 5000}
 _RISK_HINTS = ("risk control", "risk-control", "风控", "content policy", "moderation", "copyright", "版权", "审核")
@@ -230,6 +231,11 @@ class ClipAIVideoProvider:
             vpath = reference_video["path"]
             if not os.path.exists(vpath):
                 raise ProviderError(f"reference video not found: {vpath}", code="missing_video")
+            from ..ffmpeg_studio import probe_duration
+            vlen = probe_duration(vpath)
+            if vlen is not None and vlen < MIN_REFERENCE_VIDEO_S - 0.05:   # real answer 30/09: "Video duration can not less than 3s"
+                raise ProviderError(f"video tham chiếu dài {vlen:.1f} s < {MIN_REFERENCE_VIDEO_S:.0f} s (ClipAI từ chối) — cắt dài hơn",
+                                    code="rule_violation")
             with open(vpath, "rb") as f:
                 vcontent = f.read()
             video_files.append((_upload_name(vpath, vcontent), vcontent))
