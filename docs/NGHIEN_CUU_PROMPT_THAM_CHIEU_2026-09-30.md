@@ -153,7 +153,7 @@ tác / máy quay** → 3 người + video kỹ năng + khung đầu là **vượ
 **Thay thế khi quá tải:** chia shot — shot hiệu ứng (Kenta + video kỹ năng) riêng, shot phản ứng 3 người riêng (G: "không nhồi nhiều hành
 động / đổi máy vào thời lượng ngắn").
 
-## 4. Việc sửa code đề xuất (chưa làm — chờ duyệt)
+## 4. Việc sửa code đề xuất (cập nhật 30/09: 1 phần — adapter Kling ảnh tham chiếu, Seedance chỉ-tham-chiếu + video; 3 luật video Kling — ĐÃ LÀM; 2 (câu vai trò tự động), 3, 4, 5 → đợt S10.4 / S10.5 trong KH8)
 
 1. **Adapter Kling:** gửi ảnh nhân vật / nơi chốn làm ảnh tham chiếu (`image_list` không `type`) trong giới hạn 7 / 4; prompt tự thêm câu
    vai trò có `<<<image_N>>>`, `<<<video_1>>>` theo mẫu chính thức (động tác / máy quay).

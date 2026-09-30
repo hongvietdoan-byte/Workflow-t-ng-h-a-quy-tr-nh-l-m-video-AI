@@ -1,6 +1,13 @@
 # TODO — Theo dõi tiến độ dự án Auto Pipeline Video AI
 
-## 📌 TRẠNG THÁI 2026-09-26 — PHIÊN MỚI ĐỌC MỤC NÀY + BẢNG V4 NGAY DƯỚI
+## 📌 TRẠNG THÁI 2026-09-30 — PHIÊN MỚI ĐỌC MỤC NÀY TRƯỚC
+> **Tiến độ duy nhất:** `docs/KE_HOACH_SUA_SAU_DU_AN_8.md` (98 việc, 13 đợt; thêm đợt **S10 Kỹ năng nhân vật & tham chiếu** 30/09) — xem bằng
+> `py tools/plan_progress.py` hoặc web AI Development System. Kế hoạch làm nốt (người dùng duyệt 30/09): Bước 1 sổ sách → Bước 2 code miễn phí
+> S10.1–S10.7, S10.11 → Bước 3 thử trả tiền (trần 15 USD, hỏi từng bài) → Bước 4 kịch bản K có **Kenta + Orion cùng dùng kỹ năng** (K.2 ≤ 25 USD)
+> → Bước 5 chấm lại S8. Luật dùng ảnh / video tham chiếu: `knowledge/reference_assets_prompting.md`. Test: **1456 qua (2 bỏ qua)**.
+> Các mục "📌" và "Cập nhật" bên dưới là lịch sử theo ngày (mới nhất ở trên).
+
+## 📌 (Lịch sử) TRẠNG THÁI 2026-09-26 + BẢNG V4
 > **Đã xong:** V4 GĐ0–GĐ7 (GĐ5 Director hai lượt 2026-09-26) + các đợt tự chạy 1–11 (Đợt 11: sửa 11 lỗi rà soát trước chạy trả tiền, web
 > **AI Development System** `devsys/`, hạ nhạc 8–12 dB). **1198 test qua (2 bỏ qua)**; bật cả 23 cờ: 1130 qua, 12 lệch đúng thiết kế (test
 > khẳng định hành vi khi cờ tắt), không lỗi.

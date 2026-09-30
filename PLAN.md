@@ -306,9 +306,9 @@ Tổng hợp từ: báo cáo rà soát `docs/DASHBOARD_REVIEW_2026-09-23.md`, k�
 **Đã chốt (2026-09-22, sau khi đối chiếu slide chính thức ClipAI/Deepix với API thật):**
 - **"Bàn đạo diễn" (ClipAI 3D director's desk) — tạm gác** *(cập nhật 2026-09-23: chuyển thành hướng 2 — dò lại ở lần dùng API tiếp theo, xem bên dưới)*. Không phải sản phẩm giả — có thật trên web ClipAI — nhưng không dò được endpoint qua các đường dẫn đoán mù; không đầu tư thêm thời gian trừ khi có URL/payload thật từ tab Network.
 - *(Cập nhật 2026-09-26: kế hoạch tổng 2026-09-24 mở lại việc này dưới dạng **thử trước** — K5 thử Kho chủ thể cho 1 nhân vật FF, nếu có hiệu quả mới làm T7 "chủ thể theo Kho, dùng lại mọi dự án"; **K5 chưa thử**, nên mặc định vẫn là quyết định dưới đây. Lưu ý K3/M7: khi clip có khung đầu, API Seedance bỏ ảnh chủ thể/ảnh tham chiếu từng người — ô "Gắn ảnh chủ thể" bị khóa kèm lý do.)*
-- **Không dùng Kho chủ thể Seedance (upload nhân vật riêng lên Subject Library của Clip AI).** Chưa thấy hiệu quả rõ rệt so với công sức. Ưu tiên: ảnh tham chiếu lấy thẳng từ **tài nguyên đã gắn cho cảnh trong Kho tài nguyên dự án** (`assets.scene_references`) — cơ chế này đã dùng cho Deepix (Bước 2) và từ 2026-09-22 cũng dùng cho Clip AI Seedance (Bước 4), không cần bước upload/chờ `active` riêng của Kho chủ thể. Panel "🧩 Kho chủ thể" ở Bước 1 và tuỳ chọn "🧩 Gắn ảnh chủ thể" ở Bước 4 vẫn giữ trong code (không xoá) nhưng không còn là hướng ưu tiên.
-- **Video tham chiếu chuyển động (`reference_video`) — chưa ưu tiên thử nghiệm.** Ưu tiên hoàn thiện dictionary "kỹ năng nhân vật → hình ảnh" (`knowledge/ff_character_skills_visual.md`) làm nguồn chính mô tả chuyển động skill bằng chữ trong prompt, thay vì cần video mẫu thật. Code đã hỗ trợ gửi ĐỒNG THỜI ảnh tham chiếu nhân vật + video tham chiếu chuyển động trong cùng một lần gen (`core/adapters/clipai.py::submit()` nhận cả `image_references` và `reference_video`, không loại trừ nhau trừ khi bật audio sinh trên Kling) — khi nào thật sự cần độ chính xác chuyển động cao hơn chữ mô tả thì kết hợp cả hai, không phải chọn một trong hai.
-- ~~**Đồng bộ môi (Lip Sync) trên ClipAI — không ưu tiên vì còn Beta**~~ *(**đã thay** 2026-09-25 bởi kế hoạch V4: khớp môi cho toàn bộ video — Seedance `reference_audio` + sync.so sau khi có clip, cờ `lip_sync`; xem mục "Đã chốt (2026-09-25 tối)" bên dưới. Đoạn cũ giữ làm lịch sử:)* (yêu cầu tải video có sẵn + chọn giọng lồng tiếng riêng, quy trình 2 bước cồng kềnh). Tập trung vào việc gen video có thoại ngay từ prompt (tuỳ chọn "🔊 Model tự tạo âm thanh/lời thoại" ở Bước 4 dùng Kling `sound`/Seedance `generate_audio`) — không cần hỏi team Clip AI về lip-sync/voice design nữa.
+- *(Cập nhật 2026-09-30: xem "Đã chốt 2026-09-30" bên dưới — Seedance 2.5 qua được bộ lọc người thật với ảnh nhân vật in-game không đánh dấu (thử T1); Kho chủ thể chỉ dùng khi bị chặn.)* - **Không dùng Kho chủ thể Seedance (upload nhân vật riêng lên Subject Library của Clip AI).** Chưa thấy hiệu quả rõ rệt so với công sức. Ưu tiên: ảnh tham chiếu lấy thẳng từ **tài nguyên đã gắn cho cảnh trong Kho tài nguyên dự án** (`assets.scene_references`) — cơ chế này đã dùng cho Deepix (Bước 2) và từ 2026-09-22 cũng dùng cho Clip AI Seedance (Bước 4), không cần bước upload/chờ `active` riêng của Kho chủ thể. Panel "🧩 Kho chủ thể" ở Bước 1 và tuỳ chọn "🧩 Gắn ảnh chủ thể" ở Bước 4 vẫn giữ trong code (không xoá) nhưng không còn là hướng ưu tiên.
+- ~~**Video tham chiếu chuyển động (`reference_video`) — chưa ưu tiên thử nghiệm.**~~ *(**đã thay** 2026-09-30: video kỹ năng thật làm tham chiếu là **cách chuẩn** cho shot kỹ năng — xem "Đã chốt 2026-09-30". Đoạn cũ giữ làm lịch sử:)* Ưu tiên hoàn thiện dictionary "kỹ năng nhân vật → hình ảnh" (`knowledge/ff_character_skills_visual.md`) làm nguồn chính mô tả chuyển động skill bằng chữ trong prompt, thay vì cần video mẫu thật. Code đã hỗ trợ gửi ĐỒNG THỜI ảnh tham chiếu nhân vật + video tham chiếu chuyển động trong cùng một lần gen (`core/adapters/clipai.py::submit()` nhận cả `image_references` và `reference_video`, không loại trừ nhau trừ khi bật audio sinh trên Kling) — khi nào thật sự cần độ chính xác chuyển động cao hơn chữ mô tả thì kết hợp cả hai, không phải chọn một trong hai.
+- ~~**Đồng bộ môi (Lip Sync) trên ClipAI — không ưu tiên vì còn Beta**~~ *(**đã thay** 2026-09-25 bởi kế hoạch V4: khớp môi cho toàn bộ video — Seedance `reference_audio` + sync.so sau khi có clip, cờ `lip_sync` — *2026-09-29: người dùng chọn cách (c) một clip cả đoạn thoại, cờ `dialogue_take`; sync.so bỏ*; xem mục "Đã chốt (2026-09-25 tối)" bên dưới. Đoạn cũ giữ làm lịch sử:)* (yêu cầu tải video có sẵn + chọn giọng lồng tiếng riêng, quy trình 2 bước cồng kềnh). Tập trung vào việc gen video có thoại ngay từ prompt (tuỳ chọn "🔊 Model tự tạo âm thanh/lời thoại" ở Bước 4 dùng Kling `sound`/Seedance `generate_audio`) — không cần hỏi team Clip AI về lip-sync/voice design nữa.
 - **Blocklist IP — thu hẹp phạm vi:** hiện tại hầu như chỉ dùng nhân vật Free Fire (đã có thoả thuận bản quyền), chưa dùng nhân vật IP khác. Không cần xây blocklist rộng ngay; danh sách nhân vật FF đã có sẵn (từ `ff.garena.com`, xem Kho tài nguyên) là đủ cho giai đoạn này.
 - **Giá + gợi ý chọn model** theo slide chính thức ClipAI ("Hôm nay tôi chọn mô hình video như thế nào") đã điền vào `data/pricing.json` (`listed_usd_per_video_second`, `model_choice_guide`).
 - ~~**`video_model` mặc định = `kling-v3-omni`.**~~ **Thay bằng quyết định 2026-09-23 (Dashboard v2): chọn model THEO TỪNG CẢNH dựa trên slide "Hôm nay tôi chọn mô hình video như thế nào" — xem 3.8.** Lý do cũ (giữ để tham khảo): theo gợi ý chính thức của slide, Kling 3.0 Omni ghi rõ thế mạnh "tái sử dụng nhân vật, đối thoại nhiều nhân vật" — đúng nhu cầu dự án (nhân vật FF lặp lại nhiều cảnh, nhiều nhân vật đối thoại) và cũng rẻ nhất trong 2 model thật đang dùng (`$0.08/giây` so với Seedance `$0.15–0.23/giây`). Không cần sửa code — `resolve_model(None)` đã mặc định về `kling-v3-omni` từ trước. `seedance`/`seedance-2.5` vẫn chọn thủ công được cho cảnh cần chất lượng điện ảnh cao hơn.
@@ -331,13 +331,25 @@ Tổng hợp từ: báo cáo rà soát `docs/DASHBOARD_REVIEW_2026-09-23.md`, k�
 - **Hồ sơ chuẩn KELLY / KENTA / MAXIM: người dùng đã duyệt** (sửa sau nếu gặp lỗi khi dựng). Không ghi số tuổi dưới 18 (tả "trẻ tuổi, chưa đến 20"); hồ sơ được tự rút gọn 3 mức cho prompt.
 - **Dashboard** tiếp tục trên Streamlit, làm gọn (công tắc "Chuyên gia", bỏ trùng, màn chính 4 thẻ) + tab ⚙ "Giới hạn hệ thống" tính từ số đo thật.
 
+**Đã chốt (2026-09-30 — kỹ năng nhân vật & tài sản tham chiếu; `docs/NGHIEN_CUU_PROMPT_THAM_CHIEU_2026-09-30.md`):**
+- **Hồ sơ kỹ năng** cho mỗi nhân vật có kỹ năng chủ động: `data/skills/<TÊN>/` (khung trích 30 khung/giây từ video chính thức, storyboard,
+  `skill.json`, `video_ref`), cờ `skill_dossier`. Kenta xong; Orion kế tiếp (người dùng cung cấp video + bảng thiết kế).
+- **Shot kỹ năng = Seedance 2.5 + khung đầu + ảnh nhân vật + video kỹ năng thật (chỉ lấy hiệu ứng)** — thử T1 cho hiệu ứng gần game nhất; prompt
+  theo mẫu chính thức (mỗi tài sản một vai, ghi rõ không lấy gì, không tả lại chi tiết khi đã có video). Kling chỉ để chép động tác / máy quay,
+  prompt gọi tên `<<<image_N>>>` / `<<<video_1>>>`.
+- **Nhiều nhân vật:** mỗi người một dòng ánh xạ; ≥ 3 người → khung đầu vẽ đủ người hoặc white-model thô xếp chỗ đứng; 2 người có kỹ năng → chia
+  nhịp A tung → B đáp → kết quả, chỉ vẽ va chạm đã thấy trong video chính thức (trường `interactions`). Luật cho Director:
+  `knowledge/reference_assets_prompting.md`.
+- **Trần tiền mới (người dùng):** 15 USD cho các bài thử (hỏi từng bài) + 25 USD cho lượt chạy trọn K.2; kịch bản K có Kenta + Orion cùng dùng kỹ năng.
+- **Bàn đạo diễn ClipAI:** vẫn chỉ có trên web; phần "video white-model làm `reference_video`" nay làm bằng Blender của dự án (đợt S10.6).
+
 **Còn mở (2026-09-23):**
 
 | Quyết định | Ghi chú |
 |---|---|
 | ~~API Clip AI có cho dùng Bàn đạo diễn không~~ | **Đã kiểm (2026-09-23): không** — Director Workspace chỉ có trên web (token bị `LoginErr`) → bỏ qua theo 3.9; hỏi team Clip AI mở API |
 | ~~Deepix có bám ảnh layout từ 3D không~~ | **Đã thay (2026-09-25):** thử "ảnh render 3D làm tham chiếu" chỉ giống ~70% (model vẽ lại nền) → kế hoạch V4 chọn **gói bối cảnh**: nền là pixel thật (render 3D / ảnh trong game), AI chỉ vẽ nhân vật trên phông xanh rồi ghép bằng code (GĐ2 xong, cờ `location_plates` TẮT tới khi thử thật) |
-| Nguồn map 3D / model 3D nhân vật FF | Vẫn mở: **mô hình 3D chính thức** do người dùng xin team game, bỏ dần vào `MODEL3D_DIR` (mẫu ở `docs/KE_HOACH_V4_2026-09-25.md` mục 1.5); hiện có Tháp Đồng Hồ (Kho #263) render được bằng Blender 5.0.1 |
+| Nguồn map 3D / model 3D nhân vật FF | *2026-09-29: đã có **file 3D chính thức** ClockTower + Cổng Trời (Đảo Quân Sự) — thay bản FFXN; các nơi khác + model nhân vật vẫn mở.* Vẫn mở: **mô hình 3D chính thức** do người dùng xin team game, bỏ dần vào `MODEL3D_DIR` (mẫu ở `docs/KE_HOACH_V4_2026-09-25.md` mục 1.5); hiện có Tháp Đồng Hồ (Kho #263) render được bằng Blender 5.0.1 |
 
 **~~Còn mở, KHÔNG chặn V0 (chốt trước V1)~~ — đã giải hết (cập nhật 2026-09-26; bảng giữ làm lịch sử):**
 - Nguồn truy cập Claude → **Claude API bằng khóa riêng của người dùng từ 2026-09-24** (`LLM_PROVIDER=anthropic`, mọi lời gọi qua sổ chi + trần Claude — mục "Claude chạy qua Claude API" ở trên).
@@ -394,7 +406,9 @@ Tổng hợp từ: báo cáo rà soát `docs/DASHBOARD_REVIEW_2026-09-23.md`, k�
 
 ## 7. Lộ trình triển khai (V0 → V1 bên dưới là lịch sử — lộ trình hiện tại: kế hoạch V4 + `TODO.md`)
 
-> **Trạng thái 2026-09-26 (đọc trước):** lộ trình đang theo là **kế hoạch V4** `docs/KE_HOACH_V4_2026-09-25.md`; tiến độ ghi **duy nhất** ở
+> **Trạng thái 2026-09-30 (đọc trước):** tiến độ duy nhất ở `docs/KE_HOACH_SUA_SAU_DU_AN_8.md` (đợt S0–S10, K, S8); 📌 đầu `TODO.md` tóm tắt kế hoạch làm nốt. Đoạn dưới là trạng thái 2026-09-26 (lịch sử).
+>
+> **Trạng thái 2026-09-26:** lộ trình đang theo là **kế hoạch V4** `docs/KE_HOACH_V4_2026-09-25.md`; tiến độ ghi **duy nhất** ở
 > 📌 đầu `TODO.md`. Đã xong: GĐ0–GĐ4, GĐ6, GĐ7 và các đợt tự chạy 1–9 (D/V của bộ kỹ năng 3 vai, âm thanh cùng cảm xúc, tư liệu gameplay
 > FF). Đang làm: sửa lỗi do rà soát tìm ra, GĐ5 (Tầng A Director), app web `devsys/`. Sau đó: **một dự án thử mới, rẻ** (trần $10, mọi
 > tính năng bật trừ `layout_to_model`, `chain_previous_auto`, `setcheck_autofix`); các dự án cũ #1–#7 **cất đi** (📦 ⚙ → "Dự án đã cất",
@@ -463,7 +477,7 @@ Mục tiêu: chứng minh pipeline end-to-end chạy được, đo chất lượ
 
 ## 9. Trạng thái triển khai (cập nhật 2026-09-23, khuya)
 
-> **Ghi chú 2026-09-25:** mục này là ảnh chụp ngày 2026-09-23 (số test, "stepper 7 tab"… đã cũ). Trạng thái mới nhất ở `TODO.md` (📌 BÀN GIAO đầu file); ~~hiện có **865 test**~~ (số 2026-09-25) — **2026-09-26: 1056 test (1054 qua, 2 bỏ qua)**, chạy `py -m pytest -q -p no:cacheprovider` (~4–7 phút). Kế hoạch mới nhất: `docs/KE_HOACH_V4_2026-09-25.md`; trạng thái: 📌 đầu `TODO.md` và mục 7.
+> **Ghi chú 2026-09-25:** mục này là ảnh chụp ngày 2026-09-23 (số test, "stepper 7 tab"… đã cũ). Trạng thái mới nhất ở `TODO.md` (📌 BÀN GIAO đầu file); ~~hiện có **865 test**~~ (số 2026-09-25) — 2026-09-26: 1056 test; **2026-09-30: 1456 test (1454 qua, 2 bỏ qua)**, chạy `py -m pytest -q -p no:cacheprovider` (~4–7 phút). Kế hoạch mới nhất: `docs/KE_HOACH_V4_2026-09-25.md`; trạng thái: 📌 đầu `TODO.md` và mục 7.
 
 **Adapter thật đã viết (`core/adapters/`):** Deepix (gen ảnh Seedream 5.0 Pro) và Clip AI (video Kling Omni + Seedance) theo hợp đồng API của skill chính thức; kiểm thử bằng giao thức giả (chưa gọi API thật vì token phải do bạn đặt trong biến môi trường). Kiểm tra kết nối chỉ đọc: `py -m core.adapters.check`. Chạy thử thật: `py -m core.adapters.trial --yes`. Chi phí: ước tính trước khi chạy + sổ mức dùng trong Dashboard theo bảng giá `data/pricing.json` (xem `docs/api_notes.md`).
 

@@ -1,7 +1,7 @@
 # Kế hoạch sửa sau dự án #8 (2026-09-28) — NGUỒN DUY NHẤT VỀ TIẾN ĐỘ ĐỢT NÀY
 
 > Người dùng duyệt 2026-09-28. Phân tích gốc: `docs/TONG_KET_DU_AN_8_2026-09-28.md`.
-> Trần đợt: 50 USD · Claude 3 USD · từ 2026-09-28T08:00:00+00:00
+> Trần đợt: 50 USD · Claude 3 USD · từ 2026-09-28T08:00:00+00:00 · **30/09 người dùng duyệt thêm: 15 USD cho các bài thử (hỏi từng bài) + 25 USD cho K.2**
 > Xem tiến độ: web **AI Development System** (`Start-DevSystem.bat`, cổng 8502) → trang **📋 Kế hoạch đang chạy**, hoặc `py tools/plan_progress.py`.
 > **% do code tính** từ danh sách việc dưới đây (✅ tính đủ, 🔄 tính nửa, ✖ không tính; trọng số nặng:1/2/3). Xong một việc → đổi trạng thái
 > trong cùng commit với code, ghi mã commit + bằng chứng, rồi `py tools/plan_progress.py --write`.
@@ -17,7 +17,7 @@
 |---|---|---|---|---|---|---|
 | P0 Theo dõi tiến độ | 2 | 2 | 0 | 0 | 0 | 100 % |
 | S1 Dựng & âm thanh | 15 | 13 | 0 | 2 | 0 | 88,9 % |
-| S0 Học từ phim drama tham khảo | 15 | 12 | 3 | 0 | 0 | 85,2 % |
+| S0 Học từ phim drama tham khảo | 15 | 13 | 2 | 0 | 0 | 90,7 % |
 | S9 Dashboard gọn, dễ nhìn | 6 | 6 | 0 | 0 | 0 | 100 % |
 | S2 Timeline theo âm thanh + animatic | 6 | 5 | 0 | 1 | 0 | 81,8 % |
 | S3 Director kể chuyện + Quay phim | 8 | 7 | 0 | 0 | 1 | 100 % |
@@ -25,11 +25,12 @@
 | S5 Bối cảnh theo file 3D Tháp Đồng Hồ | 6 | 5 | 0 | 0 | 0 | 87,5 % |
 | S6 Ước tính, ngân sách, dashboard | 6 | 5 | 0 | 0 | 1 | 100 % |
 | S7 Agent QC | 2 | 1 | 0 | 0 | 0 | 66,7 % |
-| K Chạy kiểm kịch bản hài 20–30 s | 3 | 0 | 0 | 1 | 0 | 0 % |
+| S10 Kỹ năng nhân vật & tham chiếu | 12 | 1 | 0 | 0 | 0 | 13 % |
+| K Chạy kiểm kịch bản hài 20–30 s | 3 | 0 | 0 | 0 | 0 | 0 % |
 | S8 Chấm lại bằng AI Development System (cuối cùng) | 5 | 2 | 0 | 0 | 0 | 42,9 % |
-| **Tổng** | **86** | **64** | **5** | **8** | **2** | **79,7 %** |
+| **Tổng** | **98** | **66** | **4** | **7** | **2** | **71,4 %** |
 
-Đợt hiện tại: **S1** · việc kế: **S5.5** Vẽ thử lại khung nền tháp
+Đợt hiện tại: **S1** · việc kế: **S5.5** 💵 Thử 1 cảnh `place_render_refs` (3–5 shot ở Tháp, render 3D đúng góc làm ảnh tham chiếu) — thay việc vẽ lại khung FFXN cũ; so độ khớp nền với mốc 0,073
 <!-- /tien-do -->
 
 ## Danh sách việc (thứ tự người dùng đã duyệt)
@@ -66,9 +67,9 @@
 - [x] S0.8 · Phiếu so sánh bản dựng vs phim tham khảo · nặng:1 · ✅ · phiếu 10 mặt trong báo cáo S0.5 mục 4; đã chấm #8 cũ và v4
 - [x] S0.9 · Tư liệu kỹ thuật từ clip mẫu ClipAI (`MV_NARRATIVE`, Đ12 / Q12 / E12) — sửa 2026-09-29 theo góp ý người dùng: tư liệu + ý đồ ở đúng chỗ, không công thức · nặng:1 · ✅ · docs/PHAN_TICH_CLIP_MAU_CLIPAI_2026-09-28.md mục 6
 - [x] S0.10 · Phương pháp phân tích chính xác: quan sát (mốc giây) → ý đồ trong ngữ cảnh (giả thuyết + độ tin) → đối chiếu nhiều mẫu + tài liệu → mới thành kiến thức; kiểm mâu thuẫn với kiến thức sẵn có · nặng:1 · ✅ · knowledge/craft/PHUONG_PHAP_PHAN_TICH.md (duyệt 2026-09-29; thứ tự học: phim ngắn → short drama → hành động → MV → CGI kỹ xảo)
-- [x] S0.11 · Kho kỹ thuật chuyên môn `knowledge/craft/` (máy quay, góc, chuyển động máy, chuyển cảnh, dựng, âm thanh): mỗi kỹ thuật = cách làm + nhiều ý đồ có thể phục vụ + điều kiện + ví dụ ≥ 2 mẫu + nguồn tài liệu (tóm lời mình) · nặng:3 · ✅ · lượt 1: research/craft/NGUON.md + draft 5 nhóm; lượt 2 (2026-09-29, nhánh C2): knowledge/craft/README.md + 6 nhóm, 53 kỹ thuật có ví dụ mốc giây từ 21 mẫu S0.12 + clip mẫu ClipAI, đọc trọn 4 bài gốc (Holben ASC, Randy Thom, Evan Schiff, Murch); mục chưa có mẫu ghi "giả thuyết"; mâu thuẫn E4 (cắt theo phách) ghi chờ duyệt; bổ sung ví dụ 20–28 khi S0.12 xong
-- [ ] S0.12 · Xem nhiều mẫu đa thể loại (drama dọc, MV, quảng cáo game, phim ngắn, hoạt hình FF…) gắn nhãn theo kho kỹ thuật S0.11 · nặng:3 · 🔄 · short drama = drama dọc 9:16 kiểu ReelShort làm bằng AI (ưu tiên hàng Trung Quốc); 21/28 video đã viết file (01–19, 23, 25; tải đoạn + ffmpeg + OpenCV + tools/audio_listen.py + phép đo cắt-so-phách mới); TẠM DỪNG 29/09 tối theo yêu cầu người dùng — 20, 21, 22, 24, 26, 27, 28 đo dở, bàn giao ở research/craft/s0_12/TONG_HOP.md mục Bàn giao (lỗi tải cụt tiếng đã tìm ra + sửa)
-- [ ] S0.13 · Rà kiến thức đang dùng (director / dp / editing / ff_styles) tìm chỗ gán nghĩa cố định hoặc khái quát từ 1 mẫu → sửa thành tư liệu có điều kiện · nặng:1 · ✅ · agent rà 16 chỗ (cinematography_basics 3, dp.md Q2/Q3/Q5/Q8 4, director.md Đ4/N5 2, film_director_method 3, video_motion_vocab 1, genre_guides 3) → đã sửa hết; 1340 test qua
+- [x] S0.11 · Kho kỹ thuật chuyên môn `knowledge/craft/` (máy quay, góc, chuyển động máy, chuyển cảnh, dựng, âm thanh): mỗi kỹ thuật = cách làm + nhiều ý đồ có thể phục vụ + điều kiện + ví dụ ≥ 2 mẫu + nguồn tài liệu (tóm lời mình) · nặng:3 · ✅ · lượt 1: research/craft/NGUON.md + draft 5 nhóm; lượt 2 (2026-09-29, nhánh C2): knowledge/craft/README.md + 6 nhóm, 53 kỹ thuật có ví dụ mốc giây từ 21 mẫu S0.12 + clip mẫu ClipAI, đọc trọn 4 bài gốc (Holben ASC, Randy Thom, Evan Schiff, Murch); mục chưa có mẫu ghi "giả thuyết"; E4 (cắt theo phách) đã sửa (TODO 29/09 (17)); ví dụ 20–28 đã thêm (TODO 29/09 (22f))
+- [x] S0.12 · Xem nhiều mẫu đa thể loại (drama dọc, MV, quảng cáo game, phim ngắn, hoạt hình FF…) gắn nhãn theo kho kỹ thuật S0.11 · nặng:3 · ✅ · 2026-09-29 tối: đủ **27 video** (01–28, bỏ 1 video không tải được), số đo ở research/craft/s0_12/so_do/, 19 mẫu hình ở TONG_HOP.md; bàn giao đã xong (TODO 29/09 (20)). Việc nghe tai các mốc (người dùng) + đo khớp môi 24 + đo 28 đoạn 3:00–8:00 là việc phụ ở TONG_HOP "Tồn đọng" — không chặn
+- [x] S0.13 · Rà kiến thức đang dùng (director / dp / editing / ff_styles) tìm chỗ gán nghĩa cố định hoặc khái quát từ 1 mẫu → sửa thành tư liệu có điều kiện · nặng:1 · ✅ · agent rà 16 chỗ (cinematography_basics 3, dp.md Q2/Q3/Q5/Q8 4, director.md Đ4/N5 2, film_director_method 3, video_motion_vocab 1, genre_guides 3) → đã sửa hết; 1340 test qua
 - [ ] S0.14 · Nghiên cứu nguồn tiếng Trung về phim AI (AI短剧 9:16, workflow, nội dung, prompt ngắn đủ ý, cảnh xịn; Seedance/即梦/可灵 tài liệu chính thức, WaytoAGI, bài ngành) → research/craft/trung_quoc/ · nặng:3 · 🔄 · lượt 1: 18 nguồn (Seedance 2.5 提示词指南 đọc trọn…), quy trình 9 bước, 15 bài học; lượt 2 (2026-09-29): +12 nguồn (#19–30) — Kling 3.0 hướng dẫn chính thức (Multi-Shot, Element Binding, thoại 5 ngôn ngữ, không tiếng Việt), đạo diễn 陈坤 《山海奇镜》, 抽卡师 潮新闻 (2–3 lần gen thường, 10+ cảnh khó, nhóm 15 s), WaytoAGI, luật 微短剧 9/2026; 6 gợi ý kiểm được T1–T6 (research/craft/trung_quoc/LUOT_2.md) — chờ người dùng xem; thiếu: biên kịch có tên thật
 - [ ] S0.15 · Nghề nhạc phim: spotting, nhạc dẫn cảm xúc / dẫn dắt / tạo nhịp, khác nhau theo thể loại (short drama dọc, phim ngắn, hành động, hài, MV, CGI…), cách brief nhạc → prompt model nhạc; đối chiếu music_timing / sound_intent hiện có · nặng:2 · 🔄 · lượt 1: 15 kỹ thuật, 8 thể loại, 10 bài học, nguồn #31–50; lượt 2 (2026-09-29): khung spotting người làm nghề (#51–52) + số đo 14 video S0.12, đọc từng dòng music_timing / music / music_fit / 04_music_brief → 7 chỗ gán nghĩa cố định từ #8 (C1 "love motif" + "Free Fire short drama" cứng, không đọc genre; C3 score_draft chỉ thưởng tăng độ to…), 8 gợi ý kiểm được M1–M8 (research/craft/draft/nhac_luot2_doi_chieu.md) — chờ người dùng chọn; thiếu: composer vertical drama có tên
 
@@ -104,7 +105,7 @@
 - [x] S4.3 · Câu khóa phong cách "không anime" · nặng:1 · ✅ · 2026-09-29: looks.video_sentence — mọi prompt video của dự án in-game mở đầu bằng "Style lock: Garena Free Fire in-game 3D character render… not anime, not 2D, not cel-shaded, not live action" (không chứa chữ bị gỡ); test
 - [x] S4.4 · Mẫu motion prompt theo loại hành động · nặng:1 · ✅ · 2026-09-29: core/motion_physics.py — 10 loại hành động (đánh, ngã, nhảy, múa, chạy, ném, ngồi/đứng, đi, quay người, cầm nắm) → MỘT câu vật lý (trọng tâm, chỗ chạm, phần chuyển động trễ); vào prompt shot tham chiếu + `physics_hint` cho Claude viết motion; test
 - [x] S4.5 · QC clip so storyboard + luồng quang + khớp môi · nặng:3 · ✅ · 2026-09-29: core/clip_measure.py hiệu chỉnh trên 33 clip #8: `look_drift` (độ chi tiết mặt so ảnh storyboard: clip 01 anime 0,30 vs 11 clip đúng 0,49–0,87 → ngưỡng 0,40), `cut_inside` / `jerk` (luồng quang + tương quan màu) tìm đúng 4/33 clip lẫn khung shot kề (01, 03, 11, 24 — kiểm bằng mắt, 0 báo nhầm) → **sửa gốc**: shots.clean_edges bỏ khung lẫn ở mép khi cắt clip nhóm; số đo vào prompt QC clip. **Khớp môi (29/09 tối)**: `clip_measure.lip_sync` — mốc môi MediaPipe Face Landmarker (wheel `mediapipe` 1.0.1 chạy Python 3.14 + mô hình `data/models/face_landmarker.task` 3,6 MB) trên từng mặt YuNet cắt + phóng to, độ mở môi trong / chiều cao mặt tương quan với giọng trong từng câu thoại: #10 lượt thoại (c) Maxim + Kenta khớp 0,72–0,96, cùng giọng dời giờ ≤ 0,58, 4 shot #8 (miệng lệch giọng ~1 s) 0,04–0,18 → cờ `lips_off_voice` (< 0,65); đo **đúng thời điểm**, chưa chứng minh âm tiết (giọng khác đặt đúng giờ tới 0,87); lượt Kelly 0,30 / 0,12 bị cờ (môi hé suốt lúc người khác nói / đứng dậy mất mặt); `tools/lip_sync_calibrate.py`; chưa chạy trong lượt QC video thật (tốn lượt Claude)
-- [ ] S4.6 · A/B trả tiền: cận · hành động 3 model · khớp môi (a)/(b) · nặng:2 · 🔄 · 2026-09-29: **phần hành động xong** (#10, 9 clip, 5,42 USD; `docs/AB_HANH_DONG_S4_6_2026-09-29.md`): chạy lớn → Kling khung đầu tốt + rẻ nhất; kỹ năng Kenta không model nào tạo; Seedance Fast vẽ dấu đỏ đánh dấu lên mặt Kelly. **Vòng 2** (3,46 USD): Fast cần dấu trên mặt mới qua bộ lọc (băng chữ / dấu góc bị từ chối); hiệu ứng kỹ năng vẽ sẵn vào khung đầu + cuối → Kling giữ được (vòng gió, vệt chém); khớp môi (c) một clip cả đoạn thoại cho đúng người nói đúng lượt (in-game giữ bố cục tốt hơn tả thực). Còn: người dùng xem clip có giọng; cận; (b) sync.so không mở
+- [ ] S4.6 · A/B trả tiền: cận · hành động 3 model · khớp môi (a)/(b) · nặng:2 · 🔄 · 2026-09-29: **phần hành động xong** (#10, 9 clip, 5,42 USD; `docs/AB_HANH_DONG_S4_6_2026-09-29.md`): chạy lớn → Kling khung đầu tốt + rẻ nhất; kỹ năng Kenta không model nào tạo; Seedance Fast vẽ dấu đỏ đánh dấu lên mặt Kelly. **Vòng 2** (3,46 USD): Fast cần dấu trên mặt mới qua bộ lọc (băng chữ / dấu góc bị từ chối); hiệu ứng kỹ năng vẽ sẵn vào khung đầu + cuối → Kling giữ được (vòng gió, vệt chém); khớp môi (c) một clip cả đoạn thoại cho đúng người nói đúng lượt (in-game giữ bố cục tốt hơn tả thực). Người dùng đã chọn (c) (bàn giao 29/09 chiều); (b) sync.so bỏ (người dùng 26/09). Còn: A/B cận (ref-only vs khung đầu, quyết cờ `closeup_start_frame`). 30/09: A/B kỹ năng bằng video tham chiếu chuyển sang đợt S10
 - [ ] S4.7 · Kho chủ thể cho mọi ảnh nhân vật gửi Seedance, bỏ mẹo dấu đỏ trên mắt · nặng:2 · ⏸ · chờ người dùng duyệt (tài liệu ClipAI chính thức)
 - [x] S4.8 · Prompt Seedance 2.0/Fast theo 'Shot 1 / Shot 2' thay vì mốc giây · nặng:1 · ✅ · 2026-09-29: seedance_refs.prompt(model=) — 2.0/Fast chỉ số shot, 2.5 giây nguyên liên tục; test
 - [x] S4.9 · Prompt theo tài liệu chính thức (vai trò ảnh theo thứ tự xuất hiện, hành động khái quát, biểu cảm dịu + chặn mắt phát sáng, ảnh tham chiếu ≤ 1280 px) · nặng:1 · ✅ · 2026-09-29: seedance_refs (soften, busy_shots ⚠, REF_MAX_SIDE), knowledge/seedance_prompting.md; 1345 test qua; chưa chạy thật (cần lần sinh video kế)
@@ -113,11 +114,11 @@
 - [ ] S4.12 · Advanced Edit: sửa clip lỗi (cận Kelly #8) thay vì sinh lại — kiểm API, thử 1 clip · nặng:1 · ⏸ · chờ người dùng duyệt (docs/PHAN_TICH_CLIP_MAU_CLIPAI_2026-09-28.md, ~0,5 USD)
 
 ### S5 — Bối cảnh theo file 3D Tháp Đồng Hồ
-- [x] S5.1 · Render bộ ảnh chuẩn từ GLB ở tầm mắt + câu bố cục · nặng:2 · ✅ · 2026-09-29: tools/tower_pack.py — 16 ảnh tầm mắt ngày/đêm trên mặt sàn đo được, loại 2 chỗ đứng nằm dưới mái che; D:/AI-Video-Output/2026-09-29_bo-boi-canh-thap-dong-ho (chờ người dùng chọn đưa vào Kho)
+- [x] S5.1 · Render bộ ảnh chuẩn từ GLB ở tầm mắt + câu bố cục · nặng:2 · ✅ · 2026-09-29: tools/tower_pack.py — 16 ảnh tầm mắt ngày/đêm trên mặt sàn đo được, loại 2 chỗ đứng nằm dưới mái che; D:/AI-Video-Output/2026-09-29_bo-boi-canh-thap-dong-ho. 29–30/09: làm lại trên **file 3D chính thức** (ClockTower + Cổng Trời, thay bản FFXN), ánh sáng trưa nắng ấm J; Kho #263/#265 = 12 ảnh render (docs/THU_PLACE_RENDER_REFS_2026-09-30.md)
 - [x] S5.2 · Chặn prompt thiếu câu bố cục · nặng:1 · ✅ · 2026-09-29: job ảnh bị giữ (miễn phí) khi cảnh ghi nơi Kho có mô tả bố cục mà dự án chưa gắn; câu bố cục không còn bị cắt ở 300 ký tự; test
 - [x] S5.3 · Địa điểm đổi → khung thành "cũ" · nặng:1 · ✅ · 2026-09-29: dấu vân tay bối cảnh (mô tả + ảnh) trong mã đầu vào ảnh; ảnh làm trước 29/09 không báo nhầm; test
 - [x] S5.4 · Lớp 0 đo "tầng tường" · nặng:2 · ✅ · 2026-09-29: đếm đường ngang dài ở nền (hiệu chỉnh trên dữ liệu thật: render tháp 0–3, khung nhiều tầng #8 5–10) → cờ stacked_tiers khi bối cảnh Kho tả là phẳng; test
-- [ ] S5.5 · Vẽ thử lại khung nền tháp · nặng:1 · ⬜
+- [ ] S5.5 · 💵 Thử 1 cảnh `place_render_refs` (3–5 shot ở Tháp, render 3D đúng góc làm ảnh tham chiếu) — thay việc vẽ lại khung FFXN cũ; so độ khớp nền với mốc 0,073 · nặng:1 · ⬜ · chạy khô #8 xong 30/09 (33/33 shot có render + câu số đo); ≈ 0,5 USD, hỏi trước
 - [x] S5.6 · Render tháp GLB thành video white-model làm tham chiếu cho Seedance 2.5 · nặng:1 · ✅ · 2026-09-29 (người dùng: 'tự làm kèm video'): 3 đường máy (đi bộ vào, vòng quanh, cần cẩu) × bản chất liệu + white-model; đã sửa đường đi bộ xuyên tường
 
 ### S6 — Ước tính, ngân sách, dashboard
@@ -132,9 +133,23 @@
 - [x] S7.0 · Agent QC giữ cache (không cắt ảnh giữa hội thoại) · nặng:2 · ✅ · 2026-09-29: bỏ cắt ảnh cũ (prune); hội thoại chỉ dài thêm, quá 16 ảnh thì mở phiên mới từ brief (vẫn đọc cache) + bản tóm ghi chú / kết luận + kết quả công cụ vừa gọi; test. Sổ chi thật trước khi sửa: qc_agent đọc cache 46,9 %, qc 0 %, video 17,7 %; Director hai lượt chưa có dòng usage trong sổ để kiểm → đo ở lần chạy K; mục tiêu ≥ 70 % đo ở S7.1 (tốn tiền)
 - [ ] S7.1 · Nghiệm thu lại agent QC · nặng:1 · ⬜
 
+### S10 — Kỹ năng nhân vật & tham chiếu
+- [x] S10.0 · Hồ sơ kỹ năng Kenta + cờ `skill_dossier` + nghiên cứu cách gửi ảnh / video tham chiếu + thử #11 (T1–T3) · nặng:3 · ✅ · 2026-09-30: data/skills/KENTA (20 khung 30 khung/giây, storyboard, skill.json, video_ref); core/skill_dossier.py; docs/NGHIEN_CUU_PROMPT_THAM_CHIEU_2026-09-30.md (tài liệu chính thức Kling / Seedance 2.5); knowledge/reference_assets_prompting.md (Director / DP / motion đọc); adapter Kling ảnh tham chiếu không type + 3 luật video; T1 Seedance 2.5 + video kỹ năng = hiệu ứng gần game nhất (dự án thử #11, 5,91 USD)
+- [ ] S10.1 · Công cụ dựng hồ sơ kỹ năng `tools/skill_dossier_build.py` (video chính thức → khung dày, cắt cận, storyboard, video_ref đúng luật, nháp skill.json; tách HUD) · nặng:2 · ⬜
+- [ ] S10.2 · Hồ sơ kỹ năng Orion (video người dùng ở KHO TÀI NGUYÊN/Nhân vật/Orion) — người dùng duyệt · nặng:2 · ⬜
+- [ ] S10.3 · Bộ ảnh chuẩn Orion vào Kho #43 (cắt từ bảng thiết kế ORION.png) — người dùng duyệt · nặng:1 · ⬜
+- [ ] S10.4 · Bộ chọn model + gửi tài sản tự động: shot có kỹ năng → Seedance 2.5, khung đầu + ảnh từng người + video_ref từng kỹ năng, câu vai trò theo mẫu chính thức; adapter nhận nhiều video · nặng:3 · ⬜
+- [ ] S10.5 · Luật Seedance trước khi gửi (video 2–30 s, tổng ≤ 30 s, điểm ảnh, fps, ≤ 30 ảnh, ≤ 10 video) · nặng:1 · ⬜
+- [ ] S10.6 · White-model thô: Blender khối trụ màu mỗi người + đường máy trên bản đồ 3D thật → video xếp chỗ đứng · nặng:2 · ⬜
+- [ ] S10.7 · Luật Director: 2 người có kỹ năng, trường `interactions`, chia nhịp A tung → B đáp → kết quả; bảng kiểm va chạm chưa có trong hồ sơ · nặng:2 · ⬜
+- [ ] S10.8 · 💵 T4: 1 clip Kenta + Orion cùng tung kỹ năng (2 video) — hai hiệu ứng có lẫn nhau không · nặng:2 · ⬜
+- [ ] S10.9 · 💵 T5: 3 người, khung đầu đủ người + white-model — người thứ ba giữ chỗ và mặt · nặng:2 · ⬜
+- [ ] S10.10 · 💵 T6: nhiều khung then chốt theo thứ tự giai đoạn · nặng:1 · ⬜
+- [ ] S10.11 · Việc miễn phí tồn: Data Pack P5 (402 dừng cứng) + P3 (Structured Outputs), E1, E2, A4 / A5 / A14 / A21, S0.14 T5 · nặng:2 · ⬜
+
 ### K — Chạy kiểm kịch bản hài 20–30 s
-- [ ] K.1 · Soạn kịch bản hài Kelly · Maxim · Kenta · nặng:1 · ⏸ · 2026-09-29 bản 2: rút ngắn 12–14 s (người dùng: thử kịch bản mới, ngắn hơn); bản A "Chia đôi" sửa đúng kỹ năng Kenta theo clip chính thức (xem từng khung 0:15–0:30: katana trong vỏ, lưỡi năng lượng trong suốt, vòng gió trên đất, vệt gió bay thẳng, xuyên Bom Keo để lại vệt chém đỏ, tường đứng nguyên) — chờ người dùng chọn
-- [ ] K.2 · Chạy trọn trên dashboard, chất lượng cao, trần duyệt một lần · nặng:3 · ⬜
+- [ ] K.1 · Soạn kịch bản hài 20–30 s có **Kenta + Orion cùng dùng kỹ năng** (người dùng 30/09) · nặng:1 · ⬜ · viết lại bản A (docs/KICH_BAN_KIEM_K1_2026-09-29.md) theo hồ sơ kỹ năng Kenta + Orion (đợt S10) và luật chia nhịp kỹ năng; người dùng duyệt
+- [ ] K.2 · Chạy trọn trên dashboard, chất lượng cao, trần duyệt một lần · nặng:3 · ⬜ · trần người dùng duyệt 30/09: ≤ 25 USD (khóa ngân sách dự án trước)
 - [ ] K.3 · Đo lại bảng mục 0 + phiếu so sánh phim tham khảo · nặng:1 · ⬜
 
 ### S8 — Chấm lại bằng AI Development System (cuối cùng)

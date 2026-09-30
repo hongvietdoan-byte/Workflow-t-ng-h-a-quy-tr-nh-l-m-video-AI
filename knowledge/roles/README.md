@@ -69,7 +69,7 @@ người xem, nên đứng trước nhịp cắt. Hy sinh mục thấp hơn → 
 |---|---|---|---|
 | V1 | ✅ Đã làm: cảnh có `beat.payoff` mà không cảnh trước nào có `beat.plant` → ⚠ | Đạo diễn | — |
 | V2 | ✅ Ô sửa diễn xuất (`performance`), `why`, chỉ đạo giọng (nhịp/cường độ/ngắt) ở ô sửa shot Bước 1; lưu tay giữ `delivery` của Director | Đạo diễn/Quay phim | — |
-| V3 | Nghe thử `delivery` với giọng Việt (thẻ âm có bị đọc thành chữ không) rồi bật `voice_direction` | Đạo diễn | Vài lượt âm thanh |
+| V3 | ✅ (S6.5: `voice_direction` đã kiểm chứng, verified) Nghe thử `delivery` với giọng Việt (thẻ âm có bị đọc thành chữ không) rồi bật `voice_direction` | Đạo diễn | Vài lượt âm thanh |
 | V4 | ✅ Sơ đồ máy nhìn từ trên cho shot ở nơi có mô hình 3D (`location_pack.top_view`, lệnh `topview`); nơi không có 3D: chưa | Quay phim | — |
 | V5 | ✅ Kiểm trục 180° / hướng màn hình từ `start_frame` (`core/continuity.py`, bàn đo + Bước 1 🧭) | Quay phim | — |
 | V6 | ✅ Trường `motif` + báo motif chỉ xuất hiện một lần; ai-biết-gì: trường cảnh `knowledge_gap` (2026-09-26), `emotional_intent` nói biết điều gì | Đạo diễn | — |
@@ -86,7 +86,7 @@ người xem, nên đứng trước nhịp cắt. Hy sinh mục thấp hơn → 
 | D10 | ❌ Bảng tên nhân vật — đã bỏ 2026-09-28 (người dùng, sau #8); luật nếu dùng lại ở `knowledge/editor/editing.md` | Dựng | — |
 | D11 | ✅ Đo độ to mọi bản dựng (manifest + Bước 5); chuẩn hóa −14 LUFS / −1,5 dBTP sau cờ `loudness_normalize` (TẮT) | Dựng | — |
 | D12 | ✅ `_ENCODE` có `+faststart` + thẻ màu BT.709 | Dựng | — |
-| D14 | ✅ Đo: nhạc hạ 14,5–22,8 dB dưới giọng thật #7 (khuyên 6–10) → **người dùng quyết** có nhẹ tay hơn | Dựng | — |
+| D14 | ✅ Đo: nhạc hạ 14,5–22,8 dB dưới giọng thật #7 (khuyên 6–10) → người dùng đã quyết: hạ 8–12 dB (Đợt 11) | Dựng | — |
 | D13 | ✅ Bảng tự rà: vùng giao diện app + bản cỡ điện thoại + mặt bị che (nút 🧐 Bước 5) | Dựng | — |
 | S1 | ✅ 2026-09-26 (người chấm lần 0): quay chậm / dừng hình (`speed`, `freeze_end_s`, cờ `speed_ramp` TẮT); phụ đề động; ảnh bìa; kiểm chữ dưới giao diện; phụ đề 0,83 s / 2 khung / điểm cắt; cỡ chữ đo thật; BT.709 cho ảnh tĩnh; CRF 18 + AAC 256k; test mức hạ nhạc; gộp hai khoảng lặng nhạc | Dựng | — |
 | S2 | ✅ 2026-09-26: kiểm trục cả shot qua vai + báo "không kiểm được"; mẫu `lighting`; MLS vào từ vựng; `why`/tiêu cự/thời tiết/chỗ đứng vào dấu vân tay | Quay phim | — |
