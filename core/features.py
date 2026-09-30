@@ -273,6 +273,19 @@ FEATURES: Dict[str, Dict] = {
         "why": "Người dùng 2026-09-30: #8 tả kỹ năng Kenta sai (rút katana, lốc phá tường) vì chỉ có vài dòng chữ. Hồ sơ Kenta xem 30 "
                "khung/giây video chính thức; chưa thử thật — thử trước 1 cảnh ngắn Kenta dùng kỹ năng",
     },
+    "seedance_sample_mode": {
+        "label": "Chế độ bản mẫu Seedance 2.5 (S4.11): bản mẫu 480p (`draft: true`) → người duyệt → bản cuối 1080p từ bản mẫu "
+                 "(content `draft_task`, trong 7 ngày) — adapter ClipAI `submit(draft=True)` + `submit_final_from_sample`",
+        "verified": False,
+        "why": "S4.11 (2026-10-01, docs/KET_QUA_S4_11_S4_12_2026-10-01.md): tham số đọc từ mã web ClipAI; bản cuối tính giá đủ một clip "
+               "1080p (4 s ≈ 2,08 USD) — chưa chạy bản cuối thật, chưa đo bản cuối giữ đúng bản mẫu",
+    },
+    "seedance_video_edit": {
+        "label": "Sửa clip bằng Seedance 2.5 (S4.12, Advanced Edit): gửi clip lỗi làm bản gốc duy nhất + câu sửa một chỗ "
+                 "(`omni_reference_task_type: edit`) thay vì sinh lại — adapter ClipAI `submit_video_edit`",
+        "verified": False,
+        "why": "S4.12 (2026-10-01, docs/KET_QUA_S4_11_S4_12_2026-10-01.md): thử 1 clip #8; tính tiền cả giây clip nguồn + giây ra",
+    },
 }
 
 

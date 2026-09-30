@@ -68,6 +68,45 @@ def clip_price(pricing: Dict, model: str, tier: str, seconds: float) -> Optional
     return None
 
 
+# S4.11 / S4.12 (2026-10-01): how ClipAI itself prices a Seedance clip — read from the ClipAI web app (bundle 3634, function `mx`):
+# tokens = ceil(width × height × 24 × (output s + input video s) / 1024 × clips), USD = tokens / 1000 × rate; the rate is lower when
+# the request carries a video. The task row in /api/kling/video-list then shows the billed tokens (extra_data.usage.total_tokens) and
+# `has_video_input` — `seedance_token_usd` turns that into the real price of one task.
+SEEDANCE_USD_PER_1K_TOKENS = {
+    "dreamina-seedance-2-0-260128": {"video_in": 0.0043, "no_video": 0.007},
+    "dreamina-seedance-2-0-fast-260128": {"video_in": 0.0033, "no_video": 0.0056},
+    "dreamina-seedance-2-0-mini-260615": {"video_in": 0.0021, "no_video": 0.0035},
+    "dreamina-seedance-2-5-260628": {"video_in": 0.0064, "no_video": 0.0107},
+}
+SEEDANCE_FRAME = {
+    "480p": {"16:9": (854, 480), "4:3": (752, 560), "1:1": (640, 640), "3:4": (560, 752), "9:16": (480, 854), "21:9": (992, 432)},
+    "720p": {"16:9": (1280, 720), "4:3": (1112, 834), "1:1": (960, 960), "3:4": (834, 1112), "9:16": (720, 1280), "21:9": (1470, 630)},
+    "1080p": {"16:9": (1920, 1080), "4:3": (1664, 1248), "1:1": (1440, 1440), "3:4": (1248, 1664), "9:16": (1080, 1920),
+              "21:9": (2206, 946)},
+}
+
+
+def seedance_tokens(resolution: str, ratio: str, output_s: float, input_video_s: float = 0.0, clips: int = 1) -> int:
+    """Tokens ClipAI bills for a Seedance clip (web formula; output shorter than 4 s is billed as 4 s)."""
+    import math
+    frame = SEEDANCE_FRAME.get(resolution) or SEEDANCE_FRAME["720p"]
+    w, h = frame.get(ratio) or frame["16:9"]
+    seconds = max(4.0, float(output_s)) + max(0.0, float(input_video_s or 0))
+    return math.ceil(w * h * 24 * seconds / 1024 * max(1, min(int(clips), 4)))
+
+
+def seedance_token_usd(model: str, tokens: float, has_video_input: bool) -> Optional[float]:
+    rates = SEEDANCE_USD_PER_1K_TOKENS.get(model)
+    if rates is None:
+        return None
+    return max(0.0, float(tokens)) / 1000 * rates["video_in" if has_video_input else "no_video"]
+
+
+def seedance_estimate(model: str, resolution: str, ratio: str, output_s: float, input_video_s: float = 0.0) -> Optional[float]:
+    """USD of one Seedance clip as ClipAI prices it before sending (a request carrying a video pays the lower rate on more tokens)."""
+    return seedance_token_usd(model, seedance_tokens(resolution, ratio, output_s, input_video_s), input_video_s > 0)
+
+
 def _cost(units: float, clips: int, price: Dict) -> Optional[float]:
     if price["per_clip"] is not None:
         return price["per_clip"] * clips

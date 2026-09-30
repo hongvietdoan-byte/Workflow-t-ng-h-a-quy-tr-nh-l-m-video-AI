@@ -53,7 +53,7 @@
       "assets": ["prompts/12_*", "data/video_models.json", "data/provider_rules.json", "knowledge/seedance_prompting.md", "knowledge/seedance_director_workflow.md", "tools/recover_clips.py", "tools/reference_video.py", "mcp_servers/clipai.py"],
       "docs": ["docs/CLIPAI_FEATURES.md", "docs/api_notes.md"],
       "tests": ["tests/test_skill_route.py"],
-      "flags": ["camera_setups", "seedance_ref_groups", "continuous_takes", "closeup_start_frame", "speaker_tags", "hero_takes"],
+      "flags": ["camera_setups", "seedance_ref_groups", "continuous_takes", "closeup_start_frame", "speaker_tags", "hero_takes", "seedance_sample_mode", "seedance_video_edit"],
       "diag_stages": ["video"],
       "keywords": ["video", "clip", "Kling", "Seedance", "ClipAI", "Clip AI", "model_router", "multi-shot"]
     },
