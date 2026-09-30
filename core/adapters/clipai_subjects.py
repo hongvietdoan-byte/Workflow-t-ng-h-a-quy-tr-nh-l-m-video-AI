@@ -48,10 +48,19 @@ class ClipAISubjectLibrary:
         return cls(token, os.environ.get("CLIPAI_API_BASE", DEFAULT_BASE).strip() or DEFAULT_BASE, transport)
 
     # ---- read ----------------------------------------------------------
-    def list_assets(self, asset_type: Optional[str] = None, page_size: int = 100) -> List[Dict]:
-        data = self.client.get(PATH_LIST, {"asset_type": asset_type, "page": 1,
-                                           "page_size": min(max(page_size, 1), 100)}) or {}
-        return list(data.get("assets") or [])
+    def list_assets(self, asset_type: Optional[str] = None, page_size: int = 100, max_pages: int = 20) -> List[Dict]:
+        """Every asset of this token's library (all pages — S4.7: one upload per storyboard frame fills page 1 fast, and an asset past
+        it was "not found", so a cached id looked gone and the upload lookup could miss the new asset)."""
+        size = min(max(page_size, 1), 100)
+        out: List[Dict] = []
+        for page in range(1, max(max_pages, 1) + 1):
+            data = self.client.get(PATH_LIST, {"asset_type": asset_type, "page": page, "page_size": size}) or {}
+            rows = list(data.get("assets") or [])
+            out += rows
+            count = data.get("count")
+            if len(rows) < size or (isinstance(count, int) and len(out) >= count):
+                break
+        return out
 
     def get(self, asset_id: str) -> Optional[Dict]:
         return next((a for a in self.list_assets() if a.get("asset_id") == asset_id), None)

@@ -214,8 +214,11 @@ def prompt(parts: List[tuple], identities: List[tuple], look: str = "", clip_sec
         parts = [(m, float(s) * clip_seconds / total) for m, s in parts]
     head = (f"One clip with {n} shots cut in this order, hard cuts between shots, same place, same light, same characters and outfits "
             f"throughout. " if n > 1 else "One single shot, no cuts. ") + (look.strip() + " " if look.strip() else "")
-    head += ("The white banner and red marks on the reference pictures are annotations, never part of the video. The buildings and "
-             "the landmark behind the people keep exactly the shape they have in the storyboard frames.")   # 28/09: a spire became a dome
+    from . import features               # S4.7: with the Subject Library the pictures may go unmarked — a sentence true either way
+    head += ("Any white banner or red mark on a reference picture is an annotation, never part of the video. "
+             if features.on("seedance_subjects") else
+             "The white banner and red marks on the reference pictures are annotations, never part of the video. ")
+    head += "The buildings and the landmark behind the people keep exactly the shape they have in the storyboard frames."   # 28/09: a spire became a dome
     mapping = " ".join(f"Image {i} is the storyboard frame of Shot {i}: Shot {i} starts with exactly this composition, framing and "
                        f"these character positions." for i in range(1, n + 1))
     mapping += " " + " ".join(f"Image {n + k} is {name}: identity only (face, hair, outfit) — not the framing."

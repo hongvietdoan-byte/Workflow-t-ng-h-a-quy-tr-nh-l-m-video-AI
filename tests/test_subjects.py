@@ -84,6 +84,125 @@ class LibraryAdapterTests(unittest.TestCase):
         self.assertIn("page_size=100", query)
 
 
+class LibraryPagingTests(unittest.TestCase):
+    def test_list_reads_every_page_so_an_old_asset_is_still_found(self):
+        t = FakeTransport()
+        page1 = [{**ACTIVE, "asset_id": f"asset-{i}", "name": f"n{i}"} for i in range(100)]
+        page2 = [{**ACTIVE, "asset_id": "asset-OLD", "asset_uri": "asset://asset-OLD", "name": "old"}]
+        t.on("GET", "/api/kling/seedance-user-asset-list",
+             lambda call: ok({"count": 101, "assets": page2 if "page=2" in call["url"] else page1}))
+        lib = ClipAISubjectLibrary(TOKEN, "https://clipai.example", t, sleep=lambda s: None)
+        self.assertEqual(len(lib.list_assets()), 101)
+        self.assertEqual(lib.get("asset-OLD")["name"], "old")
+
+
+class CountingLibrary(MockSubjectLibrary):
+    """Mock library that remembers its assets (list/get see them) and can refuse or keep an upload 'processing'."""
+
+    def __init__(self, answer="active"):
+        self.uploads, self.assets, self.answer = [], {}, answer
+
+    def list_assets(self, asset_type=None, page_size=100):
+        return list(self.assets.values())
+
+    def get(self, asset_id):
+        return self.assets.get(asset_id)
+
+    def upload(self, path, name, wait=True):
+        self.uploads.append(name)
+        a = dict(super().upload(path, name), provider_status=self.answer)
+        if self.answer == "failed":
+            a["provider_status_msg"] = "real person detected"
+        self.assets[a["asset_id"]] = a
+        if self.answer == "failed":
+            raise ProviderError("real person detected", code="asset_failed")
+        if self.answer != "active":
+            raise ProviderError("still processing", code="timeout", transient=True)
+        return a
+
+
+class PictureCacheTests(unittest.TestCase):
+    """S4.7: each picture is uploaded once (by its bytes), a refused picture is never uploaded again, all-or-nothing refs."""
+
+    def setUp(self):
+        self.conn = connect()
+
+    def test_same_bytes_upload_once_and_reuse_the_active_asset(self):
+        lib = CountingLibrary()
+        a, b = image("a.png"), image("b.png")          # same bytes, two files
+        first = subjects.ensure_picture(self.conn, lib, a, "FF_KELLY")
+        again = subjects.ensure_picture(self.conn, lib, b, "FF_KELLY")
+        self.assertTrue(first["uploaded"])
+        self.assertFalse(again["uploaded"])
+        self.assertEqual(first["asset_uri"], again["asset_uri"])
+        self.assertEqual(len(lib.uploads), 1)
+        self.assertTrue(re.fullmatch(r"FF_KELLY_[0-9a-f]{12}", lib.uploads[0]))
+
+    def test_a_refused_picture_is_remembered_and_not_uploaded_again(self):
+        lib = CountingLibrary("failed")
+        path = image()
+        for _ in range(2):
+            with self.assertRaises(ProviderError) as e:
+                subjects.ensure_picture(self.conn, lib, path, "FF_KELLY")
+            self.assertEqual(e.exception.code, "asset_failed")
+        self.assertEqual(len(lib.uploads), 1)
+        self.assertEqual(subjects.picture_row(self.conn, subjects.picture_sha(path))["status"], "failed")
+
+    def test_a_timed_out_upload_is_looked_up_by_name_not_uploaded_twice(self):
+        lib = CountingLibrary("processing")
+        path = image()
+        with self.assertRaises(ProviderError):
+            subjects.ensure_picture(self.conn, lib, path, "FF_KELLY")
+        with self.assertRaises(ProviderError) as e:            # still processing in the library
+            subjects.ensure_picture(self.conn, lib, path, "FF_KELLY")
+        self.assertEqual(e.exception.code, "timeout")
+        for a in lib.assets.values():                          # the library finishes its review
+            a["provider_status"] = "active"
+        got = subjects.ensure_picture(self.conn, lib, path, "FF_KELLY")
+        self.assertEqual((got["uploaded"], len(lib.uploads)), (False, 1))
+
+    def test_an_asset_deleted_on_the_web_is_uploaded_again(self):
+        lib = CountingLibrary()
+        path = image()
+        subjects.ensure_picture(self.conn, lib, path, "FF_KELLY")
+        lib.assets.clear()
+        self.assertTrue(subjects.ensure_picture(self.conn, lib, path, "FF_KELLY")["uploaded"])
+        self.assertEqual(len(lib.uploads), 2)
+
+    def test_refs_are_all_or_nothing(self):
+        good = CountingLibrary()
+        res = subjects.picture_refs(self.conn, good, [("frame", image("f.png")), ("KELLY", image("k.jpg"))])
+        self.assertEqual([r["label"] for r in res["refs"]], ["frame", "KELLY"])
+        bad = subjects.picture_refs(connect(), CountingLibrary("failed"), [("frame", image())])
+        self.assertIsNone(bad["refs"])
+        self.assertIn("asset_failed", bad["problems"][0])
+
+
+class ReferenceOnlySubjectTests(unittest.TestCase):
+    """S4.7: reference-only Seedance sends library assets by uri, local pictures as files, in the given order (@Image N = N-th)."""
+
+    def setUp(self):
+        self.t = FakeTransport()
+        self.t.on("POST", "*", ok({"tasks": [{"task_id": "S", "task_status": "submitted"}]}))
+        self.p = ClipAIVideoProvider(TOKEN, "https://clipai.example", self.t)
+
+    def test_hosted_and_local_pictures_keep_their_order(self):
+        from PIL import Image
+        local = os.path.join(tempfile.mkdtemp(), "frame.png")
+        Image.new("RGB", (720, 1280)).save(local)
+        self.p.submit("", "x", None, 4, "seedance-2.5", reference_only=[{"uri": "asset://asset-A"}, local, {"uri": "asset://asset-B"}])
+        call = self.t.calls[0]
+        urls = [c["image_url"]["url"] for c in ctx_of(call)["content"] if c["type"] == "image_url"]
+        self.assertEqual(urls, ["asset://asset-A", "", "asset://asset-B"])
+        body = call["body"].decode("utf-8", "replace")
+        self.assertEqual(body.count('name="image_files"'), 1)
+
+    def test_only_asset_uris_are_accepted_as_hosted(self):
+        with self.assertRaises(ProviderError):
+            self.p.submit("", "x", None, 4, "seedance-2.5", reference_only=[{"uri": "https://evil.example/x.png"}])
+        self.assertEqual(self.t.calls, [])
+
+
 class SeedanceSubmitTests(unittest.TestCase):
     def setUp(self):
         from unittest import mock

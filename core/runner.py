@@ -547,6 +547,11 @@ class VideoRunner(_Runner):
         skill = self._skill_assets(job)
         if skill:                            # S10.4: first frame (by role sentence) + one picture per person + the skill video(s)
             out["reference_only"] = [skill["first_frame"]] + [p["path"] for p in skill["pictures"]]
+            hosted = self._hosted_pictures(job, [(f"P{job['project_id']}_S{job['scene_id']}_first", skill["first_frame"])]
+                                           + [(f"P{job['project_id']}_{p['who']}_{p['kind']}", p["path"]) for p in skill["pictures"]],
+                                           clean=True)
+            if hosted:
+                out["reference_only"] = hosted
             out["reference_video"] = [{"path": v, "refer_type": "feature"} for v in skill["videos"]]
             return out
         group = self._sends_group(job)
@@ -670,10 +675,47 @@ class VideoRunner(_Runner):
         conn = self.p.conn
         rows = self._ref_rows(job, group)
         frames = [shots.approved_image_path(conn, self.data_dir, job["project_id"], r["id"]) for r in rows]
+        labels = [f"P{job['project_id']}_S{r['id']}_frame" for r, f in zip(rows, frames) if f]
         frames = [f for f in frames if f]
         ids = seedance_refs.identity_pictures(conn, job["project_id"], rows, seedance_refs.MAX_PICTURES - len(frames))
+        hosted = self._hosted_pictures(job, list(zip(labels, frames))
+                                       + [(f"P{job['project_id']}_{n}", path) for n, path in ids], clean=True)
+        if hosted:
+            return hosted
         out_dir = os.path.join(self.data_dir, str(job["project_id"]), "refs_marked")
         return [seedance_refs.mark(p, out_dir) for p in frames + [path for _, path in ids]]
+
+    subject_library = None          # S4.7: the Seedance Subject Library (tests set a double; else core.adapters.factory's)
+
+    def _hosted_pictures(self, job, pictures, clean: bool = False) -> Optional[list]:
+        """S4.7 (flag seedance_subjects): [(label, local picture)] → [{"uri": "asset://…"}] in the same order — each picture uploaded to
+        the ClipAI Subject Library once (by its bytes, core.subjects.ensure_picture) and sent reviewed, so no red mark is needed. None
+        when the flag is off, the provider is not ClipAI, or ANY picture has no active asset (said; the caller sends as before).
+        clean: send an unmarked copy at most 1280 px (seedance_refs.mark style "none") — what the marked way would have resized too."""
+        from . import features, seedance_refs
+        if not features.on("seedance_subjects") or not pictures or not getattr(self.provider, "supports_subjects", False):
+            return None
+        lib = self.subject_library
+        if lib is None:
+            from .adapters import factory
+            try:
+                lib = factory.subject_library()
+            except ProviderError as e:
+                self._diag(job, "warn", "subjects", f"không mở được Kho chủ thể ({e}) — gửi ảnh như cũ")
+                return None
+        if lib is None:
+            self._diag(job, "warn", "subjects", "cờ seedance_subjects bật nhưng chưa có Kho chủ thể (SUBJECT_PROVIDER) — gửi ảnh như cũ")
+            return None
+        if clean:
+            out_dir = os.path.join(self.data_dir, str(job["project_id"]), "refs_clean")
+            pictures = [(label, seedance_refs.mark(path, out_dir, style="none")) for label, path in pictures]
+        res = subject_links.picture_refs(self.p.conn, lib, pictures)
+        if not res["refs"]:
+            self._diag(job, "warn", "subjects", "Kho chủ thể chưa nhận đủ ảnh — gửi ảnh như cũ (đánh dấu): " + "; ".join(res["problems"]))
+            return None
+        new = sum(1 for r in res["refs"] if r["uploaded"])
+        self._diag(job, "info", "subjects", f"gửi {len(res['refs'])} ảnh qua Kho chủ thể (tải mới {new}, dùng lại {len(res['refs']) - new})")
+        return [{"uri": r["uri"]} for r in res["refs"]]
 
     def _lip_sync_audio(self, job) -> Optional[str]:
         """The shot's voice line file for a "generate" lip-sync shot (feature lip_sync), else None. Missing voice: said, not guessed."""

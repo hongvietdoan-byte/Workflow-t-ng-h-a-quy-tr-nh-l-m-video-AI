@@ -104,3 +104,111 @@ def usable_for_scene(pipeline: Pipeline, scene_id: int, limit: int) -> List[Dict
         if row:
             out.append({"name": row["name"], "uri": row["subject_asset_uri"]})
     return out[:limit]
+
+
+# ---- S4.7: every picture sent to Seedance goes through the library, remembered by its bytes ---------------------------------------
+# Official ClipAI guide (docs/CAP_NHAT_CLIPAI_2026-09-28.md): each character picture sent to Seedance is uploaded to the Subject Library
+# and chosen from there, one picture at a time; an ACTIVE asset has passed the real-person review (FF: the copyright review too). This
+# replaces the red plus on the eye (P2m) that Seedance 2.0 Fast once drew into a clip. A picture is uploaded ONCE: its sha256 → asset,
+# kept in `seedance_subject_pictures` (made on first use, no schema migration). A picture the library refused is never uploaded again
+# (the same input would get the same answer — luật 6); the caller falls back and says so.
+
+def _pictures_table(conn) -> None:
+    conn.execute("CREATE TABLE IF NOT EXISTS seedance_subject_pictures (sha TEXT PRIMARY KEY, name TEXT NOT NULL, asset_id TEXT, "
+                 "asset_uri TEXT, status TEXT NOT NULL, message TEXT, path TEXT, created_at TEXT DEFAULT CURRENT_TIMESTAMP, "
+                 "updated_at TEXT DEFAULT CURRENT_TIMESTAMP)")
+
+
+def picture_sha(path: str) -> str:
+    import hashlib
+    h = hashlib.sha256()
+    with open(path, "rb") as f:
+        for chunk in iter(lambda: f.read(1 << 20), b""):
+            h.update(chunk)
+    return h.hexdigest()
+
+
+def picture_row(conn, sha: str) -> Optional[Dict]:
+    _pictures_table(conn)
+    cur = conn.execute("SELECT * FROM seedance_subject_pictures WHERE sha=?", (sha,))
+    row = cur.fetchone()
+    return None if row is None else dict(zip([d[0] for d in cur.description], tuple(row)))
+
+
+def _save_picture(conn, sha: str, name: str, status: str, asset: Optional[Dict] = None, message: Optional[str] = None,
+                  path: Optional[str] = None) -> None:
+    _pictures_table(conn)
+    asset = asset or {}
+    conn.execute("INSERT INTO seedance_subject_pictures (sha, name, asset_id, asset_uri, status, message, path) VALUES (?,?,?,?,?,?,?) "
+                 "ON CONFLICT(sha) DO UPDATE SET name=excluded.name, asset_id=excluded.asset_id, asset_uri=excluded.asset_uri, "
+                 "status=excluded.status, message=excluded.message, path=excluded.path, updated_at=CURRENT_TIMESTAMP",
+                 (sha, name, asset.get("asset_id"), asset.get("asset_uri"), status, message, path))
+    conn.commit()
+
+
+def picture_name(label: str, sha: str) -> str:
+    """Library name of a picture: its label + the start of its sha, so the new asset is found by an exact, unique name."""
+    clean = "".join(ch if ch.isalnum() or ch in "-_" else "_" for ch in (label or "pic").strip())[:80].strip("_") or "pic"
+    return f"{clean}_{sha[:12]}"
+
+
+def _active(conn, sha: str, name: str, asset: Dict, path: str, uploaded: bool) -> Dict:
+    _save_picture(conn, sha, name, "active", asset, None, path)
+    return {"asset_id": asset["asset_id"], "asset_uri": asset["asset_uri"], "name": name, "sha": sha, "uploaded": uploaded}
+
+
+def _refused(conn, sha: str, name: str, asset: Dict, path: str):
+    from .providers import ProviderError
+    _save_picture(conn, sha, name, "failed", asset, asset.get("provider_status_msg"), path)
+    return ProviderError(asset.get("provider_status_msg") or "the library rejected this file", code="asset_failed")
+
+
+def ensure_picture(conn, library, path: str, label: str) -> Dict:
+    """The ACTIVE library asset of this picture ({"asset_id", "asset_uri", "name", "sha", "uploaded"}), uploading it only when it was
+    never uploaded. Raises ProviderError: code "asset_failed" (the library refused it, now or before — not uploaded again), "timeout"
+    (still being reviewed; the next call looks it up by its unique name — no second upload)."""
+    from .providers import ProviderError
+    from .adapters.clipai_subjects import is_active
+    sha = picture_sha(path)
+    row = picture_row(conn, sha)
+    if row and row["status"] == "failed":
+        raise ProviderError(f"kho chủ thể đã từ chối ảnh này trước đây: {row.get('message') or '?'}", code="asset_failed")
+    if row and row["status"] in ("active", "processing"):
+        found = library.get(row["asset_id"]) if row.get("asset_id") else \
+            next((a for a in library.list_assets() if a.get("name") == row["name"]), None)
+        if found is not None and is_active(found):
+            return _active(conn, sha, row["name"], found, path, False)
+        if found is not None and found.get("provider_status") == "failed":
+            raise _refused(conn, sha, row["name"], found, path)
+        if found is not None:
+            raise ProviderError("kho chủ thể vẫn đang duyệt ảnh này — thử lại sau ít phút", code="timeout", transient=True)
+        # not in the library any more (deleted on the web): upload again below
+    name = picture_name(label, sha)
+    _save_picture(conn, sha, name, "processing", None, None, path)       # before the upload: a crash mid-way is never uploaded twice
+    try:
+        asset = library.upload(path, name)
+    except ProviderError as e:
+        if e.code == "asset_failed":
+            _save_picture(conn, sha, name, "failed", None, str(e), path)
+        elif e.code != "timeout":                 # nothing reached the library (bad input / network): a later call may upload
+            conn.execute("DELETE FROM seedance_subject_pictures WHERE sha=? AND status='processing'", (sha,))
+            conn.commit()
+        raise
+    return _active(conn, sha, name, asset, path, True)
+
+
+def picture_refs(conn, library, pictures: List[tuple]) -> Dict:
+    """pictures: [(label, local path)] in the order they will be named (@Image 1…). All or nothing: {"refs": [{"uri", "label", …}]}
+    when EVERY picture has an active asset, else {"refs": None, "problems": [...]} — the caller then sends the marked pictures and says
+    why (mixing would leave one face unmarked AND unreviewed)."""
+    from .providers import ProviderError
+    refs, problems = [], []
+    for label, path in pictures:
+        try:
+            a = ensure_picture(conn, library, path, label)
+            refs.append({"uri": a["asset_uri"], "label": label, "asset_id": a["asset_id"], "uploaded": a["uploaded"]})
+        except ProviderError as e:
+            problems.append(f"{label}: [{e.code}] {e}")
+        except OSError as e:
+            problems.append(f"{label}: không đọc được ảnh ({e})")
+    return {"refs": refs, "problems": []} if not problems else {"refs": None, "problems": problems}
