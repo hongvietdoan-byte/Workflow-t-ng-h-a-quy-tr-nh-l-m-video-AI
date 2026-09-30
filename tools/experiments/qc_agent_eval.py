@@ -83,10 +83,16 @@ def main():
             if total["spent"] + qc_agent.scene_cap(len(by_scene[s])) > a.max_usd + 1e-9:   # a whole scene must fit, not the last turn
                 print(f"dừng trước cảnh {s}: chạm trần cả lần chạy (${total['spent']:.3f})", flush=True)
                 break
+            from core import project_budget                   # S7.1 01/10: the project's QC-stage cap stopped a scene midway (0,224 USD
+            over = project_budget.check(p.conn, a.project, "claude_qc", qc_agent.scene_cap(len(by_scene[s])))   # for nothing): ask first
+            if over:
+                print(f"dừng trước cảnh {s}: {over}", flush=True)
+                break
             res = qc_agent.QcAgent(p, a.project, data_dir, client, by_scene[s], s,
                                    work_dir=os.path.join(data_dir, str(a.project), "qc_scene", f"agent_eval_scene_{s}")).run()
             out[str(s)] = res
             _score(s, by_scene[s], res, caught, missed, false_block)
+            _learn(p, a.project, data_dir, by_scene[s], res)
             ok = sum(1 for sc in out for f in by_scene[int(sc)] if f["label_verdict"] != "chặn")
             summary = {"block_total": len(caught) + len(missed), "caught": caught, "missed": missed, "ok_total": ok,
                        "false_block": false_block, "usd": round(total["spent"], 4)}
@@ -110,6 +116,28 @@ def _score(s, frames, res, caught, missed, false_block):
             (caught if flagged else missed).append(tag + ": " + "; ".join(i["description"] for i in r.get("issues") or [])[:160])
         elif r["verdict"] == "block":
             false_block.append(tag)
+
+
+def _learn(p, pid, data_dir, frames, res):
+    """Sổ kinh nghiệm (core/experience): every frame where the agent and the human label disagree becomes a confirmed case the next
+    run is shown — a false alarm (agent block, person pass/minor) or a miss (person block, agent pass/minor)."""
+    from core import experience
+    for f, r in zip(frames, res["records"]):
+        if any(i.get("type") == "chưa soi" for i in r.get("issues") or []):
+            continue
+        said = "; ".join(f"{i.get('type')}: {i.get('description')}" for i in r.get("issues") or [])[:300]
+        if r["verdict"] == "block" and f["label_verdict"] != "chặn":
+            outcome = "false_alarm"
+        elif f["label_verdict"] == "chặn" and r["verdict"] in ("pass", "minor"):
+            outcome = "missed"
+        else:
+            continue
+        ctx = experience.job_context(p.conn, f["job_id"])
+        experience.record(p.conn, key=f"qc_eval:{f['job_id']}:{r['verdict']}", stage="qc_image", outcome=outcome, source="qc_agent_eval",
+                          note=f"Agent chấm '{r['verdict']}' ({said or 'không lỗi'}) — nhãn người '{f['label_verdict']}'",
+                          project_id=pid, job_id=f["job_id"], shot=ctx["shot"], subjects=ctx["subjects"], view=ctx["view"],
+                          kind=next((i.get("type") for i in r.get("issues") or []), None),
+                          evidence=experience.job_picture(data_dir, pid, f["job_id"]), confirmed_by="nhãn người")
 
 
 if __name__ == "__main__":

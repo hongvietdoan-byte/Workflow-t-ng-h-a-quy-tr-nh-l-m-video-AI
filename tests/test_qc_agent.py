@@ -64,6 +64,27 @@ class AgentTests(unittest.TestCase):
         states = {self.p.job(f["job_id"])["state"] for f in self.frames}
         self.assertEqual(states, {"pending_review"})                    # not trusted yet: a person decides
 
+    def test_confirmed_cases_of_the_same_people_are_shown_first(self):
+        """Sổ kinh nghiệm (01/10): a false alarm on the same character, with its picture, goes into the first message."""
+        from core import experience
+        names = sorted({n for f in self.frames for n in f["data"].get("characters") or []})
+        pic = os.path.join(self.data, "case.png")
+        picture(pic)
+        experience.record(self.p.conn, key="t:1", stage="qc_image", outcome="false_alarm", source="test", subjects=names[:1],
+                          view="behind", note="Kenta quay lưng, sao ở trái thân = ĐÚNG", evidence=pic, confirmed_by="nhãn người")
+        experience.record(self.p.conn, key="t:2", stage="qc_image", outcome="failure", source="test", subjects=names[:1],
+                          note="chưa ai xác nhận", confirmed_by=None)
+        c = Scripted([[("view_frame", {"k": 1})]])
+        agent = qc_agent.QcAgent(self.p, self.pid, self.data, c, self.frames)
+        agent.run()
+        first = c.seen[0]["content"]
+        texts = " ".join(b.get("text", "") for b in first if b.get("type") == "text")
+        self.assertIn("BÁO NHẦM", texts)
+        self.assertIn("sao ở trái thân", texts)
+        self.assertNotIn("chưa ai xác nhận", texts)                            # unconfirmed cases are never shown
+        self.assertEqual(agent.cases, ["t:1"])
+        self.assertGreaterEqual(sum(1 for b in first if b.get("type") == "image"), 2)   # overview + the case picture
+
     def test_the_last_turns_offer_only_the_record_tools(self):
         """S7.1 01/10: cảnh 2 #8 spent every turn looking (text "record now" answers ignored) — the closing turns cannot look at all."""
         c = Scripted([[("view_frame", {"k": 1})]] * (qc_agent.MAX_STEPS + 2))

@@ -33,6 +33,8 @@ RECORD_ONLY_AT = 0.5      # share of the scene's cap after which only record / f
 CLOSING_TURNS = 3         # the last turns of a scene offer ONLY record / record_batch / finish (S7.1 01/10: cảnh 2 #8 twice spent all its
                           # turns looking — the "record now" text answers were ignored — and recorded nothing: 0,43 USD for 6 doubts)
 RECORD_TOOLS = ("record", "record_batch", "finish")
+CASES_SHOWN = 4           # confirmed cases from the notebook (core/experience) shown before looking
+CASE_EDGE = 512           # their pictures, small: a reminder, not a frame to judge
 
 
 def max_steps(n_frames: int) -> int:
@@ -293,6 +295,7 @@ class QcAgent:
         self.steps = 0
         self.sessions = 1
         self._n = 0
+        self.cases: List[str] = []           # notebook cases shown (keys) — kept in the result so a run says what it learnt from
 
     def _must(self) -> List[Dict]:
         return [f for f in self.frames if not self.focus or f["job_id"] in self.focus]
@@ -308,6 +311,29 @@ class QcAgent:
     def _out(self, name: str) -> str:
         self._n += 1
         return os.path.join(self.work, f"{self._n:03d}_{name}.jpg")
+
+    def _case_blocks(self) -> List[Dict]:
+        """Sổ kinh nghiệm (core/experience): the confirmed cases of the same characters / view — false alarms and misses first — with
+        their pictures, before the agent looks (S7.1 01/10: the relabelled Kenta-from-behind frames were in the repo, never shown)."""
+        from . import experience
+        from .runner import seen_from_behind
+        try:
+            experience.refresh(self.p.conn, self.data_dir)
+            names = sorted({str(n).upper() for f in self.frames for n in f["data"].get("characters") or []})
+            views = {"behind" if seen_from_behind(f["data"], n) else "camera" for f in self.frames for n in f["data"].get("characters") or []}
+            cases = experience.relevant(self.p.conn, ("qc_image",), names, views, limit=CASES_SHOWN,
+                                        exclude_jobs=[f.get("job_id") for f in self.frames])
+        except Exception as e:  # noqa: BLE001 - the notebook helps; a broken one never stops the check (said in the brief)
+            return [{"type": "text", "text": f"(Sổ kinh nghiệm không đọc được: {type(e).__name__}: {e})"}]
+        if not cases:
+            return []
+        out = [{"type": "text", "text": "# Ca đã phán (người xác nhận) — cùng nhân vật / hướng máy. Đặc biệt các ca BÁO NHẦM: đừng lặp."}]
+        for n, c in enumerate(cases, 1):
+            out.append({"type": "text", "text": f"Ca {n}: {experience.text_line(c)}"})
+            if c.get("evidence") and os.path.exists(c["evidence"]):
+                out.append(self._img(_crop(c["evidence"], None, self._out(f"case{n}"), CASE_EDGE)))
+        self.cases = [c["key"] for c in cases]
+        return out
 
     def _log(self, use: Dict, content: List[Dict]) -> None:
         """Every tool call and its short answer, one line each (S7.1 01/10: two paid runs recorded nothing and left no trace of why)."""
@@ -455,7 +481,7 @@ class QcAgent:
         overview = layout.storyboard([(f["path"], f"K{f['k']}") for f in self.frames], os.path.join(self.work, "overview.png"),
                                      cols=min(6, len(self.frames)), cell=(256, 455))
         messages = [{"role": "user", "content": [{"type": "text", "text": self._brief()}, {"type": "text", "text": "Tấm tổng quan các khung:"},
-                                                 self._img(overview)]}]
+                                                 self._img(overview)] + self._case_blocks()}]
         messages[0]["content"][-1]["cache_control"] = {"type": "ephemeral"}   # brief + overview are resent every turn: cache them
         from .llm_runner import spend_cap
         stopped, cuts = "", 0
@@ -536,7 +562,7 @@ class QcAgent:
         seen = sum(1 for r in self.records.values() if not any(i.get("type") == "chưa soi" for i in r.get("issues") or []))
         minutes = max((time.time() - t0) / 60, 1e-6)
         out = {"scene": self.story, "steps": self.steps, "usd": round(cap["spent"], 4), "cap_usd": cap_usd, "stopped": stopped,
-               "sessions": self.sessions,
+               "sessions": self.sessions, "cases_shown": self.cases,
                "blocked": self.blocked, "speed": {"minutes": round(minutes, 2), "frames_judged": seen,
                                                    "frames_per_minute": round(seen / minutes, 2),
                                                    "usd_per_frame": round(cap["spent"] / seen, 4) if seen else None},
