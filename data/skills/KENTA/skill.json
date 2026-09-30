@@ -211,11 +211,12 @@
   "Kỹ năng diễn ra rất nhanh (tung lốc ~1,5 s; xuyên keo ~0,5 s) — chia shot theo giai đoạn, mỗi shot một giai đoạn chính.",
   "Muốn Kenta lướt có lốc bao quanh: ghi rõ 'bấm lại khi di chuyển' (giai đoạn move_vortex), không trộn với cảnh tung lốc."
  ],
- "video_method_vi": "Hiệu ứng vẽ sẵn vào khung đầu + khung cuối (Kling) — thử 29/09 cho kết quả tốt hơn chỉ tả bằng chữ; hai khung cùng cỡ cảnh, cùng chiều; câu katana nằm trong vỏ đeo ngang sau thắt lưng trong mọi prompt video của Kenta khi dùng kỹ năng.",
+ "video_method_vi": "Cách chuẩn (thử T1 30/09): Seedance 2.5 chế độ tham chiếu — khung đầu đã duyệt (câu vai trò 'first frame') + ảnh chính diện Kenta + đoạn video kỹ năng `video_ref` làm @Video 1 CHỈ cho hiệu ứng (hình dạng, màu, độ trong, thứ tự, nhịp; không lấy người, cảnh, máy quay, chữ giao diện); prompt chỉ ghi thứ tự giai đoạn + trạng thái đầu/cuối, không tả lại chi tiết hiệu ứng. Kling chỉ khi cần rẻ: gọi tên <<<image_1>>> / <<<video_1>>> theo mẫu 'same motion as in <<<video_1>>>' (hiệu ứng rõ nhưng to hơn game). Không dùng khung cuối vẽ riêng (nền trôi — thử #11). Luật video: knowledge/reference_assets_prompting.md.",
  "unconfirmed_vi": "27,9–28,7 s: khi Kenta áp sát trúng người sau tường keo có chớp lửa đỏ, bóng đỏ trên tường rồi tường vỡ — chưa rõ là của kỹ năng, hiệu ứng hạ gục hay chỉ báo giao diện (vệt đỏ lưỡi liềm ở 19,3–19,8 s đã được người dùng xác nhận 30/09 là chỉ báo hướng sát thương); không đưa vào luật.",
  "reviewed_zoom": "2026-09-30 chiều: phóng to khung 1080p quanh Kenta — sửa mô tả lưỡi (hologram sọc ngang), katana (ngang sau thắt lưng), lốc (màng mờ rất lớn), gió (lưỡi liềm ngang vai) sau thử #11",
- "reference_clips_local": {
-  "release": "clips_local/release_16.0-19.2.mp4 (dọc 560×920 quanh Kenta: lưỡi hologram → màng lốc → vòng đất → gió lưỡi liềm)",
-  "through_gloo": "clips_local/through_gloo_19.0-22.1.mp4"
+ "video_ref": {
+  "release": "clips_local/release_16.0-19.2.mp4",
+  "through_gloo": "clips_local/through_gloo_19.0-22.1.mp4",
+  "note": "chỉ trên máy (không git): cắt từ video chính thức, 720 px, SAR 1:1, ≥ 3 s — tạo lại bằng ffmpeg từ source.url nếu mất"
  }
 }

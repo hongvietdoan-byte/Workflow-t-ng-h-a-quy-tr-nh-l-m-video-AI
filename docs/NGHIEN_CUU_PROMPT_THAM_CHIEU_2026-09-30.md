@@ -173,3 +173,15 @@ tác / máy quay** → 3 người + video kỹ năng + khung đầu là **vượ
 | T3 | Cảnh 3 người, Seedance 2.5, mẫu 3.4, không hiệu ứng, 5 s | giữ 3 mặt / không đổi người | ≈ $1,15 |
 
 T1 + T2 ≈ $1,4; T3 làm sau nếu T1 đạt.
+
+## 6. Kết quả thử T1–T3 (30/09, người dùng duyệt "thử")
+
+| # | Cách gửi | Kết quả | Chi |
+|---|---|---|---|
+| T1 | Seedance 2.5, 5 s: khung đầu (câu vai trò) + ảnh Kenta + video kỹ năng (chỉ hiệu ứng), không tả lại chi tiết | qua bộ lọc; cảnh / katana / lưỡi đúng; **hiệu ứng gần game nhất** (vòng đất, màng lốc mờ lớn, gió xoáy tới tường) | ≈ $1,15 (ghi sổ $1,44 dự phòng) |
+| T2 | Kling std 3 s: khung đầu + ảnh Kenta (không type) + video, gọi tên `<<<…>>>` | hiệu ứng rõ hơn hẳn lần không gọi tên, nhưng to / đậm hơn game | ≈ $0,27 |
+| T3 | Seedance 2.5, 5 s: nơi chốn + 3 người (mỗi người một dòng) + video, không khung đầu | Kenta + hiệu ứng + Kelly đúng; **Maxim hỏng** (tí hon, thêm người lạ); nơi chốn / máy bị video kéo | ≈ $1,15 |
+
+Kết luận đưa vào Director (`knowledge/reference_assets_prompting.md` luật 11–12 + mục kết quả): shot kỹ năng → Seedance 2.5 + video
+tham chiếu + khung đầu; ≥ 3 người → khung đầu vẽ đủ người trước hoặc chia shot. Bản xem:
+`D:\AI-Video-Output6-09-30_thu-ky-nang-kenta\so_sanh_goc_T1_T2_T3.mp4`.

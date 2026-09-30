@@ -35,6 +35,13 @@ Kết quả thử thật ghi ở mục cuối — **mục đó thắng phần su
    nguyên văn "@Image 1 làm khung đầu (作为首帧)" — không làm yếu thành "tham khảo bố cục". Khung cuối vẽ riêng hay trôi nền (thử #11) → chỉ dùng
    khi chắc cùng khung hình.
 10. **Khi vượt giới hạn: chia shot, không nhồi.** Shot hiệu ứng (người dùng kỹ năng + video kỹ năng) tách khỏi shot phản ứng nhiều người.
+11. **Video tham chiếu kéo theo cả phong cách, góc máy và nơi chốn của nó** dù đã ghi "không lấy" (thử T3 30/09: nơi chốn pha giữa ảnh Kho
+    và ngôi làng trong video; máy đứng sau lưng như video thay vì "ngang từ bên"). Vì vậy: nơi chốn quan trọng → luôn có **khung đầu** (ảnh
+    đã duyệt đúng nơi, đúng góc) — khung đầu giữ nơi chốn và máy tốt hơn chữ (T1 giữ đúng cảnh nhờ khung đầu). Phong cách in-game của video game
+    lại là điều ta muốn.
+12. **Nhiều người trong khung dọc 9:16: mỗi người phải có cỡ và chỗ rõ trong khung**, không chỉ chỗ trong cảnh. Vì sao: T3 để Maxim "ở cửa nhà"
+    trong toàn cảnh → Maxim chỉ còn đầu tí hon sau tường, còn mọc thêm người lạ. Với ≥ 3 người: (a) vẽ **khung đầu có đủ 3 người** trước (model
+    ảnh xếp chỗ tốt hơn model video) rồi mới làm clip, hoặc (b) chia shot (hiệu ứng / phản ứng). Không để người thứ ba ở hậu cảnh xa.
 
 ## Giới hạn cứng (tài liệu — code kiểm trước khi gửi)
 
@@ -53,6 +60,17 @@ Kết quả thử thật ghi ở mục cuối — **mục đó thắng phần su
 - Kling + khung đầu + 3 người + video kỹ năng = **vượt giới hạn** (≤ 4) → chia shot.
 
 ## Kết quả thử thật (cập nhật sau mỗi lần thử)
+
+- **2026-09-30 T1 — Seedance 2.5, 5 s, chế độ tham chiếu: khung đầu (câu "@Image 1 is the first frame") + ảnh Kenta + video kỹ năng 3,2 s
+  (@Video 1 chỉ cho hiệu ứng), prompt không tả lại chi tiết:** qua bộ lọc người thật (ảnh Kenta in-game không đánh dấu); cảnh + katana + lưỡi
+  hologram giữ đúng; **hiệu ứng gần game nhất tới giờ** — vòng gió rõ trên đất, màng lốc mờ rất lớn, vệt gió xoáy bay tới tường keo. Thứ tự hơi
+  khác (vòng đất trước màng lốc); lưỡi biến mất sớm. → **Cách chuẩn cho shot kỹ năng.**
+- **T2 — Kling std 3 s, khung đầu + ảnh Kenta (không type) + video, prompt gọi tên `<<<image_1>>>`, `<<<image_2>>>`, `<<<video_1>>>` theo mẫu
+  "Animate … with the same motion … as in <<<video_1>>>":** hiệu ứng **rõ hơn hẳn** lần không gọi tên (vòng cung xanh ngọc sáng quét quanh
+  người, gió bay tới tường) nhưng to / đậm hơn game, gió đi sát đất. Gọi tên tài sản có tác dụng thật; Kling vẫn kém Seedance ở việc chép hiệu ứng.
+- **T3 — Seedance 2.5, 5 s, 3 người (ảnh nơi chốn + Kelly + Kenta + Maxim, mỗi người một dòng) + video hiệu ứng, không khung đầu:** Kenta +
+  hiệu ứng + tường keo đúng, Kelly đúng đồ và chỗ (núp sau tường); **Maxim hỏng** (đầu tí hon sau tường, thêm người lạ); nơi chốn và máy bị
+  video kéo (luật 11, 12).
 
 - 2026-09-30 thử #11 vòng 1–3 (Kling std 3 s): khung đầu + khung cuối → hiệu ứng tả bằng chữ sai (luồng phụt lên, lốc đặc), nền trôi khi khung
   cuối vẽ lại; + video kỹ năng (feature, prompt KHÔNG gọi `<<<video_1>>>`) → cảnh giữ, katana / lưỡi đúng, hướng gió đúng, **lốc mờ, ngắn**;
