@@ -16,21 +16,21 @@
 | Đợt | Việc | Xong | Đang làm | Chờ người dùng | Bỏ | Tiến độ |
 |---|---|---|---|---|---|---|
 | P0 Theo dõi tiến độ | 2 | 2 | 0 | 0 | 0 | 100 % |
-| S1 Dựng & âm thanh | 15 | 13 | 0 | 2 | 0 | 88,9 % |
+| S1 Dựng & âm thanh | 15 | 13 | 0 | 0 | 1 | 96 % |
 | S0 Học từ phim drama tham khảo | 15 | 13 | 2 | 0 | 0 | 90,7 % |
 | S9 Dashboard gọn, dễ nhìn | 6 | 6 | 0 | 0 | 0 | 100 % |
-| S2 Timeline theo âm thanh + animatic | 6 | 5 | 0 | 1 | 0 | 81,8 % |
+| S2 Timeline theo âm thanh + animatic | 6 | 5 | 0 | 0 | 0 | 81,8 % |
 | S3 Director kể chuyện + Quay phim | 8 | 7 | 0 | 0 | 1 | 100 % |
-| S4 Video chất lượng | 12 | 6 | 2 | 4 | 0 | 55 % |
-| S5 Bối cảnh theo file 3D Tháp Đồng Hồ | 6 | 5 | 0 | 0 | 0 | 87,5 % |
+| S4 Video chất lượng | 12 | 6 | 2 | 0 | 0 | 55 % |
+| S5 Bối cảnh theo file 3D Tháp Đồng Hồ | 6 | 5 | 1 | 0 | 0 | 93,8 % |
 | S6 Ước tính, ngân sách, dashboard | 6 | 5 | 0 | 0 | 1 | 100 % |
 | S7 Agent QC | 2 | 1 | 0 | 0 | 0 | 66,7 % |
-| S10 Kỹ năng nhân vật & tham chiếu | 12 | 10 | 1 | 1 | 0 | 91,3 % |
+| S10 Kỹ năng nhân vật & tham chiếu | 12 | 12 | 0 | 0 | 0 | 100 % |
 | K Chạy kiểm kịch bản hài 20–30 s — ⏸ KHÔNG ƯU TIÊN (người dùng 30/09: các việc test kịch bản không làm trước nữa) | 3 | 0 | 0 | 3 | 0 | 0 % |
 | S8 Chấm lại bằng AI Development System (cuối cùng) | 5 | 2 | 0 | 0 | 0 | 42,9 % |
-| **Tổng** | **98** | **75** | **5** | **11** | **2** | **82,2 %** |
+| **Tổng** | **98** | **77** | **5** | **3** | **3** | **84,8 %** |
 
-Đợt hiện tại: **S1** · việc kế: **S5.5** 💵 Thử 1 cảnh `place_render_refs` (3–5 shot ở Tháp, render 3D đúng góc làm ảnh tham chiếu) — thay việc vẽ lại khung FFXN cũ; so độ khớp nền với mốc 0,073
+Đợt hiện tại: **S1** · việc kế: **S1.15** Tùy chọn model nhạc Eleven Music v2.5 (cập nhật ClipAI)
 <!-- /tien-do -->
 
 ## Danh sách việc (thứ tự người dùng đã duyệt)
@@ -53,8 +53,8 @@
 - [x] S1.11 · Phụ đề theo vùng an toàn TikTok (góp ý người dùng về v2) · nặng:2 · ✅ · a4858b9 · mặc định TikTok: trên 8 %, dưới 27 %, hai bên 13,5 %; bỏ vị trí "thấp"; ảnh docs/video_check_2026-09-28/v3_phu_de_vung_tiktok.jpg
 - [x] S1.12 · Nhạc mềm + đi theo cảnh (góp ý người dùng về v2) · nặng:3 · ✅ · 82ce1b2 · dốc tắt/vào, lặng dài thì nhạc trở lại nhỏ; cờ music_fit dời từng đoạn nhạc về đầu cảnh thật (10,1 · 24,3 · 45,7 · 62,9 · 72,0 s); v3 đo liền mạch
 - [x] S1.13 · Người dùng xem/nghe bản v3 · nặng:1 · ✅ · người dùng: "ok rồi" (2026-09-28)
-- [ ] S1.14 · Soạn nhạc mới theo nhịp truyện cho #8 (người dùng cho phép, sáng tạo theo diễn biến) · nặng:2 · ⏸ · người dùng: xem sau (bản v4 ở D:/AI-Video-Output/2026-09-28_du-an-8/v4_nhac_moi)
-- [ ] S1.15 · Tùy chọn model nhạc Eleven Music v2.5 (cập nhật ClipAI) · nặng:1 · ⏸ · chờ người dùng duyệt đề xuất docs/CAP_NHAT_CLIPAI_2026-09-28.md
+- [ ] S1.14 · Soạn nhạc mới theo nhịp truyện cho #8 (người dùng cho phép, sáng tạo theo diễn biến) · nặng:2 · ✖ · người dùng 30/09: bỏ, không làm tiếp (bản v4 giữ ở D:/AI-Video-Output/2026-09-28_du-an-8/v4_nhac_moi)
+- [ ] S1.15 · Tùy chọn model nhạc Eleven Music v2.5 (cập nhật ClipAI) · nặng:1 · ⬜ · người dùng 30/09 duyệt làm (tốn tiền: ước tính + trần riêng trước khi gửi) · chờ người dùng duyệt đề xuất docs/CAP_NHAT_CLIPAI_2026-09-28.md
 
 ### S0 — Học từ phim drama tham khảo
 - [x] S0.1 · Chọn 5 đoạn mẫu trong phim đã gửi + phong cách DRAMA_DOC · nặng:1 · ✅ · DRAMA_DOC trong core/reference_analysis.py; 1 phim (Q0); đoạn 1 = 0:00–3:00, đoạn 2 = thoại trong 20–30 phút (agent chọn)
@@ -87,7 +87,7 @@
 - [x] S2.3 · Cổng độ dài ±10 % · nặng:1 · ✅ · 2026-09-29: audio_first.length_check / gate_message, cổng 'length' (Tiếp tục = chấp nhận); test
 - [x] S2.4 · Animatic ở cổng storyboard · nặng:3 · ✅ · 2026-09-29: core/animatic.py + nút Bước 2 (khung Storyboard); chạy thật trên #8: 33 shot, 63,7 s, 23 câu thoại, nhạc, phụ đề, ~40 s, 0 USD (data/projects/8/output/ANIMATIC_sub.mp4)
 - [x] S2.5 · Clip đơn cắt theo chuyển động · nặng:1 · ✅ · 2026-09-29: clip Seedance đơn lẻ cắt ở đoạn động nhất, không dưới mức sàn hành động (cờ motion_trim); test
-- [ ] S2.6 · Thử Seed Audio 1.0 làm track thoại cả cảnh (3 giọng mẫu, mốc 100 ms, mốc phụ đề) · nặng:2 · ⏸ · chờ người dùng duyệt (cập nhật ClipAI)
+- [ ] S2.6 · Thử Seed Audio 1.0 làm track thoại cả cảnh (3 giọng mẫu, mốc 100 ms, mốc phụ đề) · nặng:2 · ⬜ · người dùng 30/09 duyệt làm (tốn tiền: ước tính + trần riêng trước khi gửi) · chờ người dùng duyệt (cập nhật ClipAI)
 
 ### S3 — Director kể chuyện + Quay phim
 - [x] S3.1 · Bảng nhịp truyện bắt buộc · nặng:2 · ✅ · 2026-09-29 (điều chỉnh theo góp ý 'không khuôn cố định'): beat.cause — cú xoay nêu nguyên nhân và chỗ người xem thấy (hoặc 'giấu tới …'); thiếu → 💡 ở Bước 1 (director_report.turns_without_cause); prompt 01/19 + director.md; test
@@ -106,12 +106,12 @@
 - [x] S4.4 · Mẫu motion prompt theo loại hành động · nặng:1 · ✅ · 2026-09-29: core/motion_physics.py — 10 loại hành động (đánh, ngã, nhảy, múa, chạy, ném, ngồi/đứng, đi, quay người, cầm nắm) → MỘT câu vật lý (trọng tâm, chỗ chạm, phần chuyển động trễ); vào prompt shot tham chiếu + `physics_hint` cho Claude viết motion; test
 - [x] S4.5 · QC clip so storyboard + luồng quang + khớp môi · nặng:3 · ✅ · 2026-09-29: core/clip_measure.py hiệu chỉnh trên 33 clip #8: `look_drift` (độ chi tiết mặt so ảnh storyboard: clip 01 anime 0,30 vs 11 clip đúng 0,49–0,87 → ngưỡng 0,40), `cut_inside` / `jerk` (luồng quang + tương quan màu) tìm đúng 4/33 clip lẫn khung shot kề (01, 03, 11, 24 — kiểm bằng mắt, 0 báo nhầm) → **sửa gốc**: shots.clean_edges bỏ khung lẫn ở mép khi cắt clip nhóm; số đo vào prompt QC clip. **Khớp môi (29/09 tối)**: `clip_measure.lip_sync` — mốc môi MediaPipe Face Landmarker (wheel `mediapipe` 1.0.1 chạy Python 3.14 + mô hình `data/models/face_landmarker.task` 3,6 MB) trên từng mặt YuNet cắt + phóng to, độ mở môi trong / chiều cao mặt tương quan với giọng trong từng câu thoại: #10 lượt thoại (c) Maxim + Kenta khớp 0,72–0,96, cùng giọng dời giờ ≤ 0,58, 4 shot #8 (miệng lệch giọng ~1 s) 0,04–0,18 → cờ `lips_off_voice` (< 0,65); đo **đúng thời điểm**, chưa chứng minh âm tiết (giọng khác đặt đúng giờ tới 0,87); lượt Kelly 0,30 / 0,12 bị cờ (môi hé suốt lúc người khác nói / đứng dậy mất mặt); `tools/lip_sync_calibrate.py`; chưa chạy trong lượt QC video thật (tốn lượt Claude)
 - [ ] S4.6 · A/B trả tiền: cận · hành động 3 model · khớp môi (a)/(b) · nặng:2 · 🔄 · 2026-09-29: **phần hành động xong** (#10, 9 clip, 5,42 USD; `docs/AB_HANH_DONG_S4_6_2026-09-29.md`): chạy lớn → Kling khung đầu tốt + rẻ nhất; kỹ năng Kenta không model nào tạo; Seedance Fast vẽ dấu đỏ đánh dấu lên mặt Kelly. **Vòng 2** (3,46 USD): Fast cần dấu trên mặt mới qua bộ lọc (băng chữ / dấu góc bị từ chối); hiệu ứng kỹ năng vẽ sẵn vào khung đầu + cuối → Kling giữ được (vòng gió, vệt chém); khớp môi (c) một clip cả đoạn thoại cho đúng người nói đúng lượt (in-game giữ bố cục tốt hơn tả thực). Người dùng đã chọn (c) (bàn giao 29/09 chiều); (b) sync.so bỏ (người dùng 26/09). Còn: A/B cận (ref-only vs khung đầu, quyết cờ `closeup_start_frame`). 30/09: A/B kỹ năng bằng video tham chiếu chuyển sang đợt S10
-- [ ] S4.7 · Kho chủ thể cho mọi ảnh nhân vật gửi Seedance, bỏ mẹo dấu đỏ trên mắt · nặng:2 · ⏸ · chờ người dùng duyệt (tài liệu ClipAI chính thức)
+- [ ] S4.7 · Kho chủ thể cho mọi ảnh nhân vật gửi Seedance, bỏ mẹo dấu đỏ trên mắt · nặng:2 · ⬜ · người dùng 30/09 duyệt làm (tốn tiền: ước tính + trần riêng trước khi gửi) · chờ người dùng duyệt (tài liệu ClipAI chính thức)
 - [x] S4.8 · Prompt Seedance 2.0/Fast theo 'Shot 1 / Shot 2' thay vì mốc giây · nặng:1 · ✅ · 2026-09-29: seedance_refs.prompt(model=) — 2.0/Fast chỉ số shot, 2.5 giây nguyên liên tục; test
 - [x] S4.9 · Prompt theo tài liệu chính thức (vai trò ảnh theo thứ tự xuất hiện, hành động khái quát, biểu cảm dịu + chặn mắt phát sáng, ảnh tham chiếu ≤ 1280 px) · nặng:1 · ✅ · 2026-09-29: seedance_refs (soften, busy_shots ⚠, REF_MAX_SIDE), knowledge/seedance_prompting.md; 1345 test qua; chưa chạy thật (cần lần sinh video kế)
-- [ ] S4.10 · A/B Seedance 2.5 (720P) vs Fast: cận, chạy, thoại có tham chiếu âm thanh tiếng Việt · nặng:2 · ⏸ · chờ người dùng duyệt (~3–4 USD)
-- [ ] S4.11 · Chế độ bản mẫu (Sample Mode): xác minh API, bản mẫu → duyệt → bản cuối 1080P · nặng:2 · ⏸ · PDF đã có: mẫu chỉ 480p (Seedance 2.5), bản cuối chỉ 1080p, mẫu hết hạn ~7 ngày; còn thử API
-- [ ] S4.12 · Advanced Edit: sửa clip lỗi (cận Kelly #8) thay vì sinh lại — kiểm API, thử 1 clip · nặng:1 · ⏸ · chờ người dùng duyệt (docs/PHAN_TICH_CLIP_MAU_CLIPAI_2026-09-28.md, ~0,5 USD)
+- [ ] S4.10 · A/B Seedance 2.5 (720P) vs Fast: cận, chạy, thoại có tham chiếu âm thanh tiếng Việt · nặng:2 · ⬜ · người dùng 30/09 duyệt làm (tốn tiền: ước tính + trần riêng trước khi gửi) · chờ người dùng duyệt (~3–4 USD)
+- [ ] S4.11 · Chế độ bản mẫu (Sample Mode): xác minh API, bản mẫu → duyệt → bản cuối 1080P · nặng:2 · ⬜ · người dùng 30/09 duyệt làm (tốn tiền: ước tính + trần riêng trước khi gửi) · PDF đã có: mẫu chỉ 480p (Seedance 2.5), bản cuối chỉ 1080p, mẫu hết hạn ~7 ngày; còn thử API
+- [ ] S4.12 · Advanced Edit: sửa clip lỗi (cận Kelly #8) thay vì sinh lại — kiểm API, thử 1 clip · nặng:1 · ⬜ · người dùng 30/09 duyệt làm (tốn tiền: ước tính + trần riêng trước khi gửi) · chờ người dùng duyệt (docs/PHAN_TICH_CLIP_MAU_CLIPAI_2026-09-28.md, ~0,5 USD)
 
 ### S5 — Bối cảnh theo file 3D Tháp Đồng Hồ
 - [x] S5.1 · Render bộ ảnh chuẩn từ GLB ở tầm mắt + câu bố cục · nặng:2 · ✅ · 2026-09-29: tools/tower_pack.py — 16 ảnh tầm mắt ngày/đêm trên mặt sàn đo được, loại 2 chỗ đứng nằm dưới mái che; D:/AI-Video-Output/2026-09-29_bo-boi-canh-thap-dong-ho. 29–30/09: làm lại trên **file 3D chính thức** (ClockTower + Cổng Trời, thay bản FFXN), ánh sáng trưa nắng ấm J; Kho #263/#265 = 12 ảnh render (docs/THU_PLACE_RENDER_REFS_2026-09-30.md)
