@@ -124,6 +124,16 @@ def cmd_approve(p, pid: int, shots) -> None:
                 print("duyệt shot", r["data"]["shot_no"], "job", j["id"])
 
 
+def cmd_redraw(p, pid: int, shots) -> None:
+    """Luật 6: vẽ lại chỉ khi đầu vào đã đổi (hồ sơ 30/09 chiều: mô tả + ảnh cắt cận) — khung đầu đang duyệt bị gỡ, bước frames vẽ mới."""
+    for r in rows_of(p, pid):
+        if r["data"].get("shot_no") in shots:
+            for j in p.conn.execute("SELECT id FROM jobs WHERE scene_id=? AND type='image_gen' AND state IN ('approved','succeeded',"
+                                    "'pending_review')", (r["id"],)).fetchall():
+                p.reject(j["id"], "user", "vẽ lại sau khi sửa hồ sơ kỹ năng (lưỡi hologram, katana ngang, lốc màng mờ, gió lưỡi liềm)")
+                print("gỡ khung đầu shot", r["data"]["shot_no"], "job", j["id"])
+
+
 def cmd_ends(p, data_dir: str, pid: int) -> None:
     from core import end_frames
     from core.adapters import factory
@@ -171,7 +181,12 @@ def cmd_plan(p, pid: int):
     return out
 
 
-def cmd_submit(p, pid: int) -> None:
+REF_CLIP = os.path.join("data", "skills", "KENTA", "clips_local", "release_16.2-18.4.mp4")
+REF_NOTE = ("The reference video is the real game footage of this skill: copy ONLY the skill effect's shapes, colours, transparency, "
+            "timing and motion from it — not its camera, place, person or on-screen text. ")
+
+
+def cmd_submit(p, pid: int, shots=None, refvideo: bool = False) -> None:
     from core import budget, experiments, formats
     from core.adapters import factory
     from core.cost import record_usage
@@ -179,9 +194,14 @@ def cmd_submit(p, pid: int) -> None:
     provider = factory.video_provider()
     aspect = formats.spec(formats.project_aspect(p.project(pid)) or "9:16")["clip"]
     items = experiments.load(DATA_DIR, pid)
-    done = {e.get("group") for e in items if e.get("kind") == "group_test" and e.get("method") == "SKILL" and e.get("state") != "failed"}
+    method = "SKILLV" if refvideo else "SKILL2" if shots else "SKILL"
+    done = {e.get("group") for e in items if e.get("kind") == "group_test" and e.get("method") == method and e.get("state") != "failed"}
     for o in cmd_plan(p, pid):
         n = o["row"]["data"]["shot_no"]
+        if shots and n not in shots:
+            continue
+        if refvideo:
+            o["prompt"] = REF_NOTE + o["prompt"]
         if n in done:
             print("đã gửi trước đó: shot", n)
             continue
@@ -191,7 +211,7 @@ def cmd_submit(p, pid: int) -> None:
         if len(o["prompt"]) > 2500:              # core/adapters/clipai.py PROMPT_LIMITS["kling"] (500 = one shot of a multi-shot)
             raise SystemExit(f"prompt shot {n} dài {len(o['prompt'])} > 2500 ký tự Kling — rút gọn trước khi gửi")
         guard(p, pid, o["usd"], f"clip shot {n}")
-        entry = {"kind": "group_test", "scene": 1, "method": "SKILL", "group": n, "shots": [n], "seconds": o["seconds"],
+        entry = {"kind": "group_test", "scene": 1, "method": method, "group": n, "shots": [n], "seconds": o["seconds"],
                  "film_s": o["seconds"], "model": "kling-v3-omni", "tier": "std", "usd": o["usd"], "prompt": o["prompt"],
                  "external_id": None, "state": "running", "file": None, "sequence": 1, "scenes": [n],
                  "at": datetime.now(timezone.utc).isoformat(timespec="seconds")}
@@ -201,7 +221,9 @@ def cmd_submit(p, pid: int) -> None:
                 raise SystemExit("TRẦN CHUNG CHẶN: " + over)
             try:
                 entry["external_id"] = provider.submit(o["start"], o["prompt"], o["negative"], o["seconds"], "kling",
-                                                       aspect_ratio=aspect, kling_mode="std", last_frame=o["end"])
+                                                       aspect_ratio=aspect, kling_mode="std", last_frame=o["end"],
+                                                       **({"reference_video": {"path": REF_CLIP, "refer_type": "feature"}}
+                                                          if refvideo else {}))
                 record_usage(p.conn, None, "video", provider.name, "kling-v3-omni", "std", o["seconds"], "second", pid)
             except ProviderError as e:
                 entry.update(state="failed", message=f"[{e.code}] {e}"[:400], usd=0.0)
@@ -217,8 +239,9 @@ DATA_DIR = os.path.join("data", "projects")
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--project", type=int)
-    ap.add_argument("step", choices=("setup", "frames", "approve", "ends", "plan", "submit", "poll"))
+    ap.add_argument("step", choices=("setup", "frames", "approve", "redraw", "ends", "plan", "submit", "poll"))
     ap.add_argument("shots", nargs="?", default="")
+    ap.add_argument("--refvideo", action="store_true", help="gửi kèm đoạn video kỹ năng thật làm tham chiếu chuyển động (Kling video_list)")
     a = ap.parse_args()
     from tools.experiments.group_test import cmd_poll, load_env
     load_env(os.getcwd())
@@ -235,7 +258,8 @@ def main() -> None:
      "approve": lambda: cmd_approve(p, a.project, {int(x) for x in a.shots.split(",") if x}),
      "ends": lambda: cmd_ends(p, DATA_DIR, a.project),
      "plan": lambda: cmd_plan(p, a.project),
-     "submit": lambda: cmd_submit(p, a.project),
+     "redraw": lambda: cmd_redraw(p, a.project, {int(x) for x in a.shots.split(",") if x}),
+     "submit": lambda: cmd_submit(p, a.project, {int(x) for x in a.shots.split(",") if x} or None, a.refvideo),
      "poll": lambda: cmd_poll(p, DATA_DIR, a.project)}[a.step]()
 
 
