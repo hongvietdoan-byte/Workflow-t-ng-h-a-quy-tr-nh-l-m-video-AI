@@ -128,9 +128,10 @@ def cmd_redraw(p, pid: int, shots) -> None:
     """Luật 6: vẽ lại chỉ khi đầu vào đã đổi (hồ sơ 30/09 chiều: mô tả + ảnh cắt cận) — khung đầu đang duyệt bị gỡ, bước frames vẽ mới."""
     for r in rows_of(p, pid):
         if r["data"].get("shot_no") in shots:
-            for j in p.conn.execute("SELECT id FROM jobs WHERE scene_id=? AND type='image_gen' AND state IN ('approved','succeeded',"
-                                    "'pending_review')", (r["id"],)).fetchall():
-                p.reject(j["id"], "user", "vẽ lại sau khi sửa hồ sơ kỹ năng (lưỡi hologram, katana ngang, lốc màng mờ, gió lưỡi liềm)")
+            for j in p.conn.execute("SELECT id FROM jobs WHERE scene_id=? AND type='image_gen' AND state='approved'",
+                                    (r["id"],)).fetchall():   # the input changed (the dossier): no fix words, the frames step draws anew
+                p.reopen_approved(j["id"], "vẽ lại sau khi sửa hồ sơ kỹ năng (lưỡi hologram, katana ngang, lốc màng mờ, gió lưỡi liềm)",
+                                  respawn=False, fix="")
                 print("gỡ khung đầu shot", r["data"]["shot_no"], "job", j["id"])
 
 
