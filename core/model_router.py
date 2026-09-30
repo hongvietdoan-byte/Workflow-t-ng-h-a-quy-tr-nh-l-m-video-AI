@@ -129,6 +129,8 @@ def scene_choice(conn, scene_id: int, project_row=None, mp_row=None) -> Dict:
         choice = {**choice, "resolution": None}
         if choice.get("skill"):             # the skill-video way was proven on 2.5 only (T1) — Fast is not the same test
             choice["reason"] += " (chế độ thử rẻ: vẫn Seedance 2.5 vì cách video kỹ năng mới kiểm trên 2.5)"
+        elif choice.get("take"):            # S4.2 (01/10): the dialogue take needs the 2.5 time marks — 2.0 / Fast do not read seconds
+            choice["reason"] += " (chế độ thử rẻ: vẫn Seedance 2.5 — khớp môi (c) cần mốc giây, bản Fast không đọc mốc giây)"
         elif choice["model"] in ("seedance", "seedance-2.5"):
             choice.update(model="seedance-fast", reason=choice["reason"] + " (chế độ thử rẻ: dùng bản Fast 720p)")
     return choice
@@ -164,7 +166,7 @@ def _scene_choice(conn, scene_id: int, project_row=None, mp_row=None) -> Dict:
             from . import lipsync
             takes = [r["data"] for r in (shots.group_of(conn, scene_id) or [{"data": data}])]
             if lipsync.enabled() and any(lipsync.method_for(d) == "take" for d in takes):
-                return {"model": "seedance-2.5", "resolution": "720p", "source": "auto", "recommended": rec,
+                return {"model": "seedance-2.5", "resolution": "720p", "source": "auto", "recommended": rec, "take": True,
                         "reason": "khớp môi (c) — S4.2: clip " + ("nhóm" if grouped else "một shot") + " có thoại thấy mặt → Seedance 2.5 "
                                   "kèm track giọng + câu thoại & mốc giây trong prompt (người dùng chọn 29/09, A/B S4.6)"}
             return {"model": "seedance", "resolution": "720p", "source": "auto", "recommended": rec,

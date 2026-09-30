@@ -1070,6 +1070,18 @@ class VideoRunner(_Runner):
         if done:
             self._diag(job, "info", "stray_edges", f"bỏ khung của shot kề lẫn ở mép clip: đầu {done['head']} s, cuối {done['tail']} s "
                                                    "(điểm cắt clip nhóm lệch) — bản chưa bỏ lưu ở _edges.mp4")
+            if done["head"] > 0:
+                self._take_edge_shift(job, float(done["head"]))
+
+    def _take_edge_shift(self, job, head: float) -> None:
+        """S4.2 (01/10): dropping `head` seconds at the start of a take shot's clip moves its mouths `head` seconds earlier — the shift
+        that voice.place_on_timeline uses grows by as much, or the voice lands late on the mouth."""
+        from . import lipsync
+        leader = job["group_leader"] if "group_leader" in job.keys() and job["group_leader"] else job["id"]
+        rec = lipsync.index(self.data_dir, job["project_id"]).get(str(job["scene_id"])) or {}
+        if rec.get("method") == "take" and rec.get("state") == "done" and rec.get("job_id") == leader:
+            lipsync.mark(self.data_dir, job["project_id"], job["scene_id"], shift=round(float(rec.get("shift") or 0) + head, 3),
+                         edge_head=round(head, 3))
 
     def _plate_mode(self, job) -> Optional[str]:
         """'green' (mode 2) / 'first_frame' (mode 1) for a shot with a location-pack plate, else None."""
