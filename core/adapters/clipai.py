@@ -208,6 +208,7 @@ class ClipAIVideoProvider:
               image_references: Optional[list] = None, reference_video: Optional[dict] = None,
               aspect_ratio: Optional[str] = None, resolution: Optional[str] = None,
               multi_prompt: Optional[list] = None, last_frame: Optional[str] = None, kling_mode: Optional[str] = None,
+              kling_image_refs: bool = False,
               reference_audio: Optional[list] = None, reference_only: Optional[list] = None) -> str:
         """aspect_ratio / resolution override the provider defaults for this job (project frame format, per-scene tier).
         image_references: this project's own resource-library pictures (local files, [{"path","label","role"}], from
@@ -325,11 +326,13 @@ class ClipAIVideoProvider:
             ctx = {"model_name": canonical,
                    "content": [{"type": "text", "text": text}]
                    + [{"type": "image_url", "image_url": {"url": ""}, "role": "reference_image"} for _ in refs]
+                   + ([{"type": "video_url", "video_url": {"url": ""}, "role": "reference_video"}] if video_files else [])
                    + [{"type": "audio_url", "audio_url": {"url": ""}, "role": "reference_audio"} for _ in audio_files],
                    "resolution": resolution or self.resolution, "ratio": aspect_ratio or self.aspect_ratio,
                    "duration": effective_duration(canonical, family, duration_sec), "generate_audio": bool(with_audio),
                    "camera_fixed": False, "seed": -1, "video_num": 1}
             files = ([("image_files", name, data) for name, data in refs]
+                     + [("video_files", name, data) for name, data in video_files]
                      + [("audio_files", name, data) for name, data in audio_files])
             data = self.client.post_multipart(PATH_SEEDANCE, {"ctx": json.dumps(ctx, ensure_ascii=False)}, files)
             return self._task_of(data, family)
@@ -350,9 +353,20 @@ class ClipAIVideoProvider:
                 end_bytes = f.read()
             end_image = (_upload_name(last_frame, end_bytes), end_bytes)
         if family == "omni":
+            # Kling legacy Omni (the API ClipAI forwards): an image with no `type` is a reference picture, named <<<image_N>>> in the
+            # prompt in list order (first frame = image_1). Limits: pictures (+ multi-image elements) ≤ 7, ≤ 4 with a reference video.
+            kling_refs = [r for r in (image_references or []) if r.get("path") and os.path.exists(r["path"])] if kling_image_refs else []
+            cap = (4 if reference_video else 7) - 1 - (1 if end_image else 0)
+            if len(kling_refs) > cap:
+                raise ProviderError(f"Kling nhận tối đa {cap} ảnh tham chiếu thêm ở lần gửi này (có {len(kling_refs)})", code="rule_violation")
+            for r in kling_refs:
+                with open(r["path"], "rb") as f:
+                    data = f.read()
+                extra_files.append((_upload_name(r["path"], data), data))
             ctx = {"model_name": canonical, "multi_shot": 0, "prompt": text, "sound": "on" if with_audio else "off",
                    "image_list": [{"image_url": "", "type": "first_frame"}]
-                   + ([{"image_url": "", "type": "end_frame"}] if end_image else []), "mode": kling_mode or self.kling_mode,
+                   + ([{"image_url": "", "type": "end_frame"}] if end_image else [])
+                   + [{"image_url": ""} for _ in kling_refs], "mode": kling_mode or self.kling_mode,
                    "aspect_ratio": aspect_ratio or self.aspect_ratio, "duration": str(effective_duration(canonical, family, duration_sec)),
                    "video_num": 1}
             if reference_video:

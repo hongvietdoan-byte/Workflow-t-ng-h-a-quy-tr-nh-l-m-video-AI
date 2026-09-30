@@ -3,7 +3,7 @@
 Nguồn: tài liệu chính thức đi kèm skill Clip AI 1.3.1 (`seedance-2.0-prompt-optimizer.md`, `seedance-2.5-prompt-optimizer.md`, bản 2.5 là `sd25-pe` v0.1.0), chắt lọc cho pipeline này. Áp dụng khi `video_model` là seedance (2.0, 2.0-fast, 2.5). **Không** dùng cho Kling.
 
 ## Bối cảnh của pipeline
-- Mỗi cảnh = 1 ảnh đã duyệt làm **khung hình đầu** (`first_frame`) + 1 motion prompt. Không có ảnh tham chiếu thứ hai, không video/audio tham chiếu.
+- Mặc định mỗi cảnh = 1 ảnh đã duyệt làm **khung hình đầu** (`first_frame`) + 1 motion prompt. Khi shot có thêm ảnh nhân vật, video (hiệu ứng kỹ năng, động tác) hoặc giọng mẫu: theo `knowledge/reference_assets_prompting.md` (mỗi tài sản một vai trò, gọi tên @Image / @Video / @Audio, khung đầu bằng câu vai trò — 30/09).
 - Chọn **một nhiệm vụ duy nhất**: sinh video từ khung hình đầu. Không trộn với sửa/nối dài video.
 - Độ dài (`duration_sec`) là tham số API, **không viết "tạo video N giây" vào prompt**. Không tạo mốc "0-5 giây" trừ khi thật sự cần điều khiển nhịp.
 

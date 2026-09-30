@@ -246,6 +246,7 @@ def build_director_bundle(pipeline: Pipeline, project_id: int, only_scene: Optio
         keep("film_director_method.md"),
         keep("character_lock.md"),
         keep("dialogue_craft.md"),
+        keep("reference_assets_prompting.md"),     # 30/09: which model / how many pictures / when to split a shot (official docs)
         ff,
         assets.context_text(pipeline.conn, project_id),
         standard_block(pipeline, project_id),
@@ -368,6 +369,7 @@ def dp_common(pipeline: Pipeline, project_id: int, intent: dict) -> str:
         _read("knowledge", "ff_gameplay_visual.md"),
         duration_block(pipeline, project_id, for_dp=True),
         _location_block(pipeline, project_id),
+        _read("knowledge", "reference_assets_prompting.md"),   # 30/09: model per reference job, limits, 3 people in one shot
         ff,
         assets.context_text(pipeline.conn, project_id),
         standard_block(pipeline, project_id, names=names),
@@ -628,7 +630,7 @@ def build_motion_bundle(pipeline: Pipeline, project_id: int, only_missing: bool 
     any_complex = any(s.get("camera_complexity") == "complex" for s in scenes)
     uses_seedance = any("seedance" in (s.get("video_model") or "") for s in scenes) or video_family(pipeline, project_id) == "seedance"
     parts = [_read("prompts", "03_video_motion.md"), looks.motion_note(pipeline.project(project_id))]
-    for rel in ("video_motion_vocab.md", "research_notes.md", "t2v_prompt_structure.md"):
+    for rel in ("video_motion_vocab.md", "research_notes.md", "t2v_prompt_structure.md", "reference_assets_prompting.md"):
         if f"knowledge/{rel}" not in folded:
             parts.append(_read("knowledge", rel))
     if (any_complex or not complexity_known) and "knowledge/motion_complex_shots.md" not in folded:

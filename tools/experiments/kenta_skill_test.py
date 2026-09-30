@@ -22,7 +22,7 @@ from datetime import datetime, timezone
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".."))
 
 NAME = "Thử hồ sơ kỹ năng Kenta (30/09)"
-CAP_USD = 3.6          # người dùng duyệt $3 (30/09), rồi thêm ≈ $0,54 cho 2 clip có video tham chiếu ("Thử tiếp")
+CAP_USD = 6.6          # người dùng duyệt $3, + $0,6 ("Thử tiếp"), + T1–T3 ≈ $3 ("thử" sau nghiên cứu 30/09 — docs/NGHIEN_CUU_PROMPT_THAM_CHIEU_2026-09-30.md)
 IMAGE_USD = 0.052
 ASSETS = (24, 23, 263)          # KENTA, KELLY, Tháp Đồng Hồ (khu nhà dưới chân tháp — giống làng trong video kỹ năng)
 PLACE = "Quanh Tháp Đồng Hồ (Đảo Quân Sự) — khu nhà ở dưới chân tháp, ban ngày nắng"
@@ -237,13 +237,86 @@ def cmd_submit(p, pid: int, shots=None, refvideo: bool = False) -> None:
     print("đã chi:", spent(p, pid))
 
 
+# Nghiên cứu 30/09 (docs/NGHIEN_CUU_PROMPT_THAM_CHIEU_2026-09-30.md): prompts written to the official templates — every asset named, one
+# job each, what NOT to take said; the video carries the effect so the effect is not described again in detail.
+KENTA_FRONT = os.path.join("data", "assets", "24", "7.png")
+T1_PROMPT = (
+    "[Goal] Kenta, a Free Fire in-game 3D character, releases his skill on a dirt path between wooden houses: a translucent hologram blade "
+    "in his right hand is swept, a faint see-through whirlwind wraps his whole body, sinks into wind rings on the ground, and crescent wind "
+    "arcs fly toward the white gloo wall ahead.\n"
+    "[Asset roles]\n"
+    "@Image 1 is the first frame. It sets the dirt path, the wooden houses, the clock tower, where the gloo wall stands, Kenta standing with "
+    "his back to the camera, his pose, and the fixed medium-shot camera.\n"
+    "@Image 2 is Kenta: use only his face, hair, blue hooded cloak, and the red-hilted katana worn horizontally across the back of his waist; "
+    "not the grey background.\n"
+    "@Video 1 is used only for the skill effect: its shape, colour, transparency, size against the body, order and rhythm (hologram blade "
+    "swept, then a see-through whirlwind wrapping the whole body, then wind rings on the ground, then crescent wind arcs flying forward at "
+    "shoulder height). Do not take the person, clothes, place, camera or on-screen text of @Video 1.\n"
+    "[Event] At the start Kenta stands still holding the hologram blade, as in @Image 1. He releases the skill with the timing of @Video 1. "
+    "At the end the crescent wind arcs reach the gloo wall; Kenta's feet have not moved.\n"
+    "[Keep] Kenta's identity and clothes, the katana in its scabbard across his back, the fixed camera, the gloo wall standing whole, the "
+    "Free Fire in-game 3D render style. No subtitles, no on-screen text.")
+T2_PROMPT = (
+    "Take <<<image_1>>> as the start frame. <<<image_2>>> is Kenta: keep his face, hair, blue hooded cloak and the red-hilted katana worn "
+    "across the back of his waist. Animate Kenta in <<<image_1>>> releasing his skill with the same motion and the same skill effect as in "
+    "<<<video_1>>>: the hologram blade is swept, a faint see-through whirlwind wraps his whole body, sinks into wind rings on the ground, and "
+    "crescent wind arcs fly at shoulder height toward the white gloo wall. Take only the motion and the effect from <<<video_1>>>, not its "
+    "person, place, camera or on-screen text. The camera stays fixed; Kenta's feet do not move.")
+
+
+def cmd_research_test(p, pid: int, which: str) -> None:
+    """T1: Seedance 2.5 reference mode (first frame by role sentence + Kenta + skill video). T2: Kling with the assets named."""
+    from core import budget, cost, end_frames, experiments, formats
+    from core.adapters import factory
+    from core.cost import record_usage
+    from core.providers import ProviderError
+    row = rows_of(p, pid)[0]                                   # shot 1: prepare → release
+    start = end_frames._start_job(p.conn, row["id"])
+    start = os.path.join(DATA_DIR, str(pid), "images", f"job_{start['id']}.png")
+    for f in (start, KENTA_FRONT, REF_CLIP):
+        if not os.path.exists(f):
+            raise SystemExit("thiếu tài sản: " + f)
+    provider = factory.video_provider()
+    aspect = formats.spec(formats.project_aspect(p.project(pid)) or "9:16")["clip"]
+    if which == "t1":
+        model, canonical, tier, secs, prompt = "seedance-2.5", "dreamina-seedance-2-5-260628", "720p", 5, T1_PROMPT
+        usd = cost.clip_price(cost.load_pricing(), canonical, tier, secs) * 1.25          # no exact price source (× UNVERIFIED_MARGIN)
+        kwargs = {"reference_only": [start, KENTA_FRONT], "resolution": tier}
+    else:
+        model, canonical, tier, secs, prompt = "kling", "kling-v3-omni", "std", 3, T2_PROMPT
+        usd = cost.clip_price(cost.load_pricing(), canonical, tier, secs) * 1.5 / 1.33    # measured: cost 27 with a video (≈ $0,27)
+        kwargs = {"kling_mode": tier, "image_references": [{"path": KENTA_FRONT, "label": "KENTA"}], "kling_image_refs": True}
+    items = experiments.load(DATA_DIR, pid)
+    if any(e.get("method") == which.upper() and e.get("state") != "failed" for e in items):
+        print("đã gửi trước đó:", which)
+        return
+    print(prompt, len(prompt), "ký tự")
+    guard(p, pid, usd, which)
+    entry = {"kind": "group_test", "scene": 1, "method": which.upper(), "group": 1, "shots": [1], "seconds": secs, "film_s": secs,
+             "model": canonical, "tier": tier, "usd": round(usd, 3), "prompt": prompt, "external_id": None, "state": "running",
+             "file": None, "sequence": 1, "scenes": [1], "at": datetime.now(timezone.utc).isoformat(timespec="seconds")}
+    with budget.SPEND_LOCK:
+        over = budget.check_video(p.conn, provider.name, canonical, tier, secs)
+        if over:
+            raise SystemExit("TRẦN CHUNG CHẶN: " + over)
+        try:
+            entry["external_id"] = provider.submit(start, prompt, None, secs, model, aspect_ratio=aspect,
+                                                   reference_video={"path": REF_CLIP, "refer_type": "feature"}, **kwargs)
+            record_usage(p.conn, None, "video", provider.name, canonical, tier, secs, "second", pid)
+        except ProviderError as e:
+            entry.update(state="failed", message=f"[{e.code}] {e}"[:400], usd=0.0)
+    items.append(entry)
+    experiments._save(DATA_DIR, pid, items)
+    print(which, entry["state"], entry["external_id"] or entry.get("message"), "· đã chi:", spent(p, pid))
+
+
 DATA_DIR = os.path.join("data", "projects")
 
 
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--project", type=int)
-    ap.add_argument("step", choices=("setup", "frames", "approve", "redraw", "ends", "plan", "submit", "poll"))
+    ap.add_argument("step", choices=("setup", "frames", "approve", "redraw", "ends", "plan", "submit", "poll", "t1", "t2"))
     ap.add_argument("shots", nargs="?", default="")
     ap.add_argument("--refvideo", action="store_true", help="gửi kèm đoạn video kỹ năng thật làm tham chiếu chuyển động (Kling video_list)")
     a = ap.parse_args()
@@ -264,6 +337,8 @@ def main() -> None:
      "plan": lambda: cmd_plan(p, a.project),
      "redraw": lambda: cmd_redraw(p, a.project, {int(x) for x in a.shots.split(",") if x}),
      "submit": lambda: cmd_submit(p, a.project, {int(x) for x in a.shots.split(",") if x} or None, a.refvideo),
+     "t1": lambda: cmd_research_test(p, a.project, "t1"),
+     "t2": lambda: cmd_research_test(p, a.project, "t2"),
      "poll": lambda: cmd_poll(p, DATA_DIR, a.project)}[a.step]()
 
 

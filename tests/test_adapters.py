@@ -156,6 +156,39 @@ class ClipAITests(unittest.TestCase):
         self.assertIn("setsar=1", str(cm.exception))
         self.assertEqual(self.t.calls, [])
 
+    def test_kling_reference_pictures_go_without_type_and_within_the_limit(self):
+        """Kling Omni legacy (the API ClipAI forwards): "If the image is not the start & end frame, do not configure the type";
+        pictures ≤ 4 with a reference video (research 30/09)."""
+        self.t.on("POST", "/api/kling/omni-video-submit",
+                  ok({"tasks": [{"task_id": "T9", "task_status": "submitted", "task_status_msg": ""}]}))
+        ref = os.path.join(self.dir, "kenta.png")
+        with open(ref, "wb") as f:
+            f.write(b"PNG-kenta")
+        self.p.submit(self.image, "Take <<<image_1>>> as the start frame.", None, 3, model="kling",
+                      image_references=[{"path": ref, "label": "KENTA"}], kling_image_refs=True)
+        ctx = ctx_of(self.t.calls[-1])
+        self.assertEqual(ctx["image_list"], [{"image_url": "", "type": "first_frame"}, {"image_url": ""}])
+        self.assertIn(b"PNG-kenta", self.t.calls[-1]["body"])
+        self.p.submit(self.image, "p", None, 3, model="kling", image_references=[{"path": ref, "label": "KENTA"}])
+        self.assertEqual(len(ctx_of(self.t.calls[-1])["image_list"]), 1)        # off by default: the old sends are unchanged
+        with self.assertRaises(ProviderError):
+            self.p.submit(self.image, "p", None, 3, model="kling", kling_image_refs=True,
+                          image_references=[{"path": ref, "label": str(i)} for i in range(7)])
+
+    def test_seedance_reference_only_takes_a_reference_video(self):
+        self.t.on("POST", "/api/kling/seedance-video-submit",
+                  ok({"tasks": [{"task_id": "S9", "task_status": "submitted", "task_status_msg": ""}]}))
+        clip = os.path.join(self.dir, "skill.mp4")
+        with open(clip, "wb") as f:
+            f.write(b"fake-mp4")
+        from unittest import mock
+        with mock.patch("core.ffmpeg_studio.probe_duration", return_value=3.2),                 mock.patch("core.adapters.clipai._probe", return_value=(720, "1:1")):
+            self.p.submit(None, "@Image 1 ... @Video 1 ...", None, 5, model="seedance-2.5", reference_only=[self.image],
+                          reference_video={"path": clip, "refer_type": "feature"})
+        ctx = ctx_of(self.t.calls[-1])
+        self.assertEqual([c.get("role") for c in ctx["content"]], [None, "reference_image", "reference_video"])
+        self.assertIn('name="video_files"', self.t.calls[-1]["body"].decode("utf-8", "replace"))
+
     def test_upload_is_named_after_real_image_format(self):
         jpeg = os.path.join(self.dir, "job_1.png")
         with open(jpeg, "wb") as f:
