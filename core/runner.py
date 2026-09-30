@@ -538,6 +538,11 @@ class VideoRunner(_Runner):
             out.pop("resolution", None)
             out["kling_mode"] = "std"
         mode = shots.mode(proj)
+        skill = self._skill_assets(job)
+        if skill:                            # S10.4: first frame (by role sentence) + one picture per person + the skill video(s)
+            out["reference_only"] = [skill["first_frame"]] + [path for _, path in skill["people"]]
+            out["reference_video"] = [{"path": v, "refer_type": "feature"} for v in skill["videos"]]
+            return out
         group = self._sends_group(job)
         if self._refs(job):                  # Seedance reference only (P2m): every picture marked, no start / last frame
             out["reference_only"] = self._reference_pictures(job, group or [])
@@ -595,7 +600,40 @@ class VideoRunner(_Runner):
             self._diag(job, "warn", "lipsync_not_applied", f"shot cần khớp môi (tạo kèm giọng) nhưng gửi bằng {model or '?'}"
                        + (" trong clip chung của nhóm" if group else "") + " — clip giữ miệng của model, không khớp giọng")
 
+    def _skill_hits(self, job) -> list:
+        """S10.4: the skills of a shot routed to the skill-video way (model_router gave `skill`), else []."""
+        if not self._choice(job).get("skill"):
+            return []
+        from . import skill_dossier
+        data = json.loads(self.p.conn.execute("SELECT data FROM scenes WHERE id=?", (job["scene_id"],)).fetchone()["data"] or "{}")
+        return skill_dossier.shot_skills(data)
+
+    def _skill_assets(self, job) -> Optional[Dict]:
+        """{first_frame, people: [(name, path)], videos: [path]} of a skill shot: the approved picture of the shot as the first frame, one
+        identity picture per person, one cut of the official skill video per skill — None when the first frame is missing (said)."""
+        from . import seedance_refs, shots, skill_dossier
+        hits = self._skill_hits(job)
+        if not hits:
+            return None
+        conn = self.p.conn
+        first = shots.approved_image_path(conn, self.data_dir, job["project_id"], job["scene_id"])
+        if not first:
+            self._diag(job, "error", "missing_input", "shot kỹ năng chưa có ảnh khung đầu đã duyệt — không gửi")
+            return None
+        rows = [{"id": job["scene_id"], "data": json.loads(conn.execute("SELECT data FROM scenes WHERE id=?", (job["scene_id"],))
+                                                          .fetchone()["data"] or "{}")}]
+        people = seedance_refs.identity_pictures(conn, job["project_id"], rows, 8)
+        have = {skill_dossier._key(n) for n, _ in people}
+        for h in hits:                                # luật 1: a skill user without an identity picture is said, not skipped
+            who = h["dossier"]["character"]
+            if skill_dossier._key(who) not in have and who in [str(c) for c in rows[0]["data"].get("characters") or []]:
+                self._diag(job, "warn", "missing_reference", f"shot kỹ năng: {who} chưa có ảnh định danh trong dự án (gắn tài nguyên ở Bước 1) — "
+                           "clip chỉ giữ người này nhờ khung đầu")
+        return {"first_frame": first, "people": people, "videos": [skill_dossier.video_ref(h) for h in hits], "hits": hits}
+
     def _refs(self, job) -> bool:
+        if self._skill_hits(job):                     # a skill shot goes its own way (S10.4), never in a reference group
+            return False
         from . import seedance_refs
         return seedance_refs.uses_refs(self.p.conn, job["scene_id"])
 
@@ -676,7 +714,7 @@ class VideoRunner(_Runner):
         out one by one (≥ 4 s billed each, ~0.48 USD) and two lost the characters' identity."""
         from . import shots
         group = shots.group_of(self.p.conn, job["scene_id"]) or []     # Kling multi-shot group, or an H5 camera set-up
-        if len(group) < 2:
+        if len(group) < 2 or self._skill_hits(job):                    # S10.4: a skill shot is sent on its own
             return None
         if group[0]["id"] == job["scene_id"] and not any(self._has_clip(r["id"]) for r in group[1:]):
             return group
@@ -861,7 +899,10 @@ class VideoRunner(_Runner):
         motion = self._speakers_named(job, model, motion, group, setup)
         negative = mp["negative_prompt"]
         from . import skill_dossier
-        if skill_dossier.enabled():                   # 30/09: the skill phase in the clip's words + what is never drawn
+        skill = self._skill_assets(job)
+        if skill:                                     # S10.4: the official template — roles first, the effect NOT described again
+            motion = skill_dossier.reference_block(skill["hits"], [n for n, _ in skill["people"]]) + "\n[Event] " + motion
+        elif skill_dossier.enabled():                 # 30/09: the skill phase in the clip's words + what is never drawn
             hit = skill_dossier.shot_skill(json.loads(conn.execute("SELECT data FROM scenes WHERE id=?", (job["scene_id"],))
                                                       .fetchone()["data"] or "{}"))
             if hit and hit["phase"]["video_en"] not in motion:

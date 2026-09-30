@@ -53,13 +53,77 @@ def _video_width(path: str) -> Optional[int]:
 
 def _probe(path: str) -> Tuple[Optional[int], Optional[str]]:
     """(width, sample aspect ratio "1:1" …) of a video's first stream; (None, None) when ffprobe cannot tell."""
+    info = _probe_video(path)
+    return info.get("width"), info.get("sar")
+
+
+def _probe_video(path: str) -> Dict:
+    """{width, height, sar, fps, duration} of a video's first stream (keys missing when ffprobe cannot tell)."""
     import subprocess
     try:
-        out = subprocess.run(["ffprobe", "-v", "error", "-select_streams", "v:0", "-show_entries", "stream=width,sample_aspect_ratio",
-                              "-of", "csv=p=0", path], capture_output=True, text=True, timeout=30).stdout.strip().split(",")
-        return (int(out[0]) if out and out[0].isdigit() else None), (out[1].strip() if len(out) > 1 and out[1].strip() else None)
+        out = subprocess.run(["ffprobe", "-v", "error", "-select_streams", "v:0", "-show_entries",
+                              "stream=width,height,sample_aspect_ratio,r_frame_rate:format=duration", "-of", "json", path],
+                             capture_output=True, text=True, timeout=30).stdout
+        data = json.loads(out or "{}")
     except (OSError, ValueError, subprocess.SubprocessError):
-        return None, None
+        return {}
+    st = (data.get("streams") or [{}])[0]
+    info = {}
+    if st.get("width"):
+        info["width"], info["height"] = int(st["width"]), int(st.get("height") or 0)
+    if st.get("sample_aspect_ratio"):
+        info["sar"] = st["sample_aspect_ratio"]
+    num, _, den = str(st.get("r_frame_rate") or "").partition("/")
+    try:
+        info["fps"] = float(num) / float(den or 1)
+    except ValueError:
+        pass
+    try:
+        info["duration"] = float((data.get("format") or {}).get("duration"))
+    except (TypeError, ValueError):
+        pass
+    return info
+
+
+# Reference-video rules per service (official docs read 2026-09-30 — docs/NGHIEN_CUU_PROMPT_THAM_CHIEU_2026-09-30.md — plus ClipAI's own
+# answers in test #11: < 3 s, < 700 px and non-square pixels were refused).
+VIDEO_RULES = {
+    "omni": {"count": 1, "seconds": (3.0, 15.5), "side": (700, 4553), "pixels": (0, 8_294_400), "fps": (24, 60)},
+    "seedance": {"count": 3, "count_2_5": 10, "seconds": (2.0, 30.0), "total": 30.0, "side": (300, 6000),
+                 "pixels": (407_696, 8_295_044), "fps": (24, 60)},
+}
+
+
+def reference_video_problems(family: str, canonical: str, infos: List[Dict]) -> List[str]:
+    """What ClipAI would refuse in these reference videos ({width, height, sar, fps, duration} each; missing keys are not judged)."""
+    r = VIDEO_RULES["omni" if family == "omni" else "seedance"]
+    out = []
+    cap = r.get("count_2_5", r["count"]) if canonical == "dreamina-seedance-2-5-260628" else r["count"]
+    if len(infos) > cap:
+        out.append(f"{len(infos)} video tham chiếu — {canonical} nhận tối đa {cap}")
+    total = 0.0
+    for k, v in enumerate(infos, 1):
+        tag = f"video {k}"
+        d = v.get("duration")
+        if d is not None:
+            total += d
+            if not r["seconds"][0] - 0.05 <= d <= r["seconds"][1] + 0.05:
+                out.append(f"{tag} dài {d:.1f} s — cần {r['seconds'][0]:g}–{r['seconds'][1]:g} s")
+        w, h = v.get("width"), v.get("height")
+        if w and not r["side"][0] <= w <= r["side"][1]:
+            out.append(f"{tag} rộng {w} px — cần {r['side'][0]}–{r['side'][1]} px")
+        if h and not r["side"][0] <= h <= r["side"][1]:
+            out.append(f"{tag} cao {h} px — cần {r['side'][0]}–{r['side'][1]} px")
+        if w and h and not r["pixels"][0] <= w * h <= r["pixels"][1]:
+            out.append(f"{tag} {w}×{h} = {w * h} điểm ảnh — cần {r['pixels'][0]}–{r['pixels'][1]}")
+        f = v.get("fps")
+        if f and not r["fps"][0] - 0.5 <= f <= r["fps"][1] + 0.5:
+            out.append(f"{tag} {f:g} khung/giây — cần {r['fps'][0]}–{r['fps'][1]}")
+        if v.get("sar") not in (None, "1:1", "0:1", "N/A"):
+            out.append(f"{tag} điểm ảnh không vuông (SAR {v['sar']}) — xuất lại với setsar=1")
+    if r.get("total") and total > r["total"] + 0.05:
+        out.append(f"tổng video tham chiếu {total:.1f} s — tối đa {r['total']:g} s")
+    return out
 
 
 PROMPT_LIMITS = {"kling": 2500, "dreamina-seedance-2-0-260128": 4000, "dreamina-seedance-2-0-fast-260128": 4000,
@@ -205,7 +269,7 @@ class ClipAIVideoProvider:
     # ---- submit ---------------------------------------------------------
     def submit(self, image_path: str, prompt: str, negative_prompt: Optional[str], duration_sec: float,
                model: Optional[str] = None, with_audio: bool = False, subjects: Optional[list] = None,
-              image_references: Optional[list] = None, reference_video: Optional[dict] = None,
+              image_references: Optional[list] = None, reference_video=None,
               aspect_ratio: Optional[str] = None, resolution: Optional[str] = None,
               multi_prompt: Optional[list] = None, last_frame: Optional[str] = None, kling_mode: Optional[str] = None,
               kling_image_refs: bool = False,
@@ -229,6 +293,8 @@ class ClipAIVideoProvider:
         shot of a grouped generation its own storyboard picture (docs/PHAN_TICH_GOP_SHOT_2026-09-27.md, P2). The caller's prompt names
         each picture ("Image 1 … Image N"). 2.0: ≤ 9 pictures; 2.5: ≤ 30."""
         canonical, family = resolve_model(model)
+        videos = reference_video if isinstance(reference_video, list) else ([reference_video] if reference_video else [])
+        reference_video = videos[0] if videos else None      # the Kling fields read the first; Seedance sends every one
         if with_audio and canonical == "kling-video-o1":
             raise ProviderError("kling-video-o1 does not support generated sound (use kling-v3-omni or Seedance)",
                                 code="unsupported_option")
@@ -247,25 +313,25 @@ class ClipAIVideoProvider:
             raise ProviderError("; ".join(broken), code="rule_violation")
         video_files: List[Tuple[str, bytes]] = []
         if reference_video:
-            vpath = reference_video["path"]
-            if not os.path.exists(vpath):
-                raise ProviderError(f"reference video not found: {vpath}", code="missing_video")
-            from ..ffmpeg_studio import probe_duration
-            vlen = probe_duration(vpath)
-            if vlen is not None and vlen < MIN_REFERENCE_VIDEO_S - 0.05:   # real answer 30/09: "Video duration can not less than 3s"
-                raise ProviderError(f"video tham chiếu dài {vlen:.1f} s < {MIN_REFERENCE_VIDEO_S:.0f} s (ClipAI từ chối) — cắt dài hơn",
-                                    code="rule_violation")
-            sar = _probe(vpath)[1]
-            if sar not in (None, "1:1", "0:1", "N/A"):             # "non-square pixels detected. PAR should be 1:1" (thử #11, 30/09)
-                raise ProviderError(f"video tham chiếu có điểm ảnh không vuông (SAR {sar}) — ClipAI chỉ nhận 1:1; xuất lại với setsar=1",
-                                    code="rule_violation")
-            width = _video_width(vpath)
-            if width is not None and not REFERENCE_VIDEO_WIDTH[0] <= width <= REFERENCE_VIDEO_WIDTH[1]:   # real answer 30/09
-                raise ProviderError(f"video tham chiếu rộng {width} px — ClipAI chỉ nhận {REFERENCE_VIDEO_WIDTH[0]}–"
-                                    f"{REFERENCE_VIDEO_WIDTH[1]} px", code="rule_violation")
-            with open(vpath, "rb") as f:
-                vcontent = f.read()
-            video_files.append((_upload_name(vpath, vcontent), vcontent))
+            for rv in videos:
+                if not os.path.exists(rv["path"]):
+                    raise ProviderError(f"reference video not found: {rv['path']}", code="missing_video")
+            infos = []
+            for rv in videos:
+                info = _probe_video(rv["path"])
+                if "duration" not in info:           # ffprobe missing / file odd: the old length check still runs
+                    from ..ffmpeg_studio import probe_duration
+                    got = probe_duration(rv["path"])
+                    if got is not None:
+                        info["duration"] = got
+                infos.append(info)
+            problems = reference_video_problems(family, canonical, infos)
+            if problems:
+                raise ProviderError("video tham chiếu không đạt luật ClipAI: " + "; ".join(problems), code="rule_violation")
+            for rv in videos:
+                with open(rv["path"], "rb") as f:
+                    vcontent = f.read()
+                video_files.append((_upload_name(rv["path"], vcontent), vcontent))
         audio_files: List[Tuple[str, bytes]] = []
         for apath in reference_audio or []:
             if not os.path.exists(apath):
@@ -326,7 +392,7 @@ class ClipAIVideoProvider:
             ctx = {"model_name": canonical,
                    "content": [{"type": "text", "text": text}]
                    + [{"type": "image_url", "image_url": {"url": ""}, "role": "reference_image"} for _ in refs]
-                   + ([{"type": "video_url", "video_url": {"url": ""}, "role": "reference_video"}] if video_files else [])
+                   + [{"type": "video_url", "video_url": {"url": ""}, "role": "reference_video"} for _ in video_files]
                    + [{"type": "audio_url", "audio_url": {"url": ""}, "role": "reference_audio"} for _ in audio_files],
                    "resolution": resolution or self.resolution, "ratio": aspect_ratio or self.aspect_ratio,
                    "duration": effective_duration(canonical, family, duration_sec), "generate_audio": bool(with_audio),
@@ -388,7 +454,7 @@ class ClipAIVideoProvider:
                    + ([{"type": "image_url", "image_url": {"url": ""}, "role": "last_frame"}] if end_image else [])
                    + [{"type": "image_url", "image_url": {"url": "" if r["kind"] == "local" else r["uri"]}, "role": "reference_image"}
                       for r in content_refs]
-                   + ([{"type": "video_url", "video_url": {"url": ""}, "role": "reference_video"}] if reference_video else [])
+                   + [{"type": "video_url", "video_url": {"url": ""}, "role": "reference_video"} for _ in video_files]
                    + [{"type": "audio_url", "audio_url": {"url": ""}, "role": "reference_audio"} for _ in audio_files],
                    "resolution": resolution or self.resolution, "ratio": aspect_ratio or self.aspect_ratio,
                    "duration": effective_duration(canonical, family, duration_sec), "generate_audio": bool(with_audio),

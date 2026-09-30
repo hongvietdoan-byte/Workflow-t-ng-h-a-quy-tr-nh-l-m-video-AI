@@ -123,7 +123,7 @@ class OrionAndBuildToolTests(unittest.TestCase):
         for cw, ch in ((1150, 830), (560, 920), (1920, 1080), (300, 900)):
             w = ref_width(cw, ch)
             h = round(w * ch / cw / 2) * 2
-            self.assertGreaterEqual(w, 700)            # Kling: 700–4553 px wide
+            self.assertGreaterEqual(min(w, h), 700)    # Kling: width AND height 700–4553 px
             self.assertGreaterEqual(w * h, 407_696)    # Seedance 2.5: ≥ 407 696 pixels
             self.assertEqual(w % 2, 0)
 

@@ -127,7 +127,9 @@ def scene_choice(conn, scene_id: int, project_row=None, mp_row=None) -> Dict:
     choice = _scene_choice(conn, scene_id, project_row, mp_row)
     if "test_quality" in project_row.keys() and project_row["test_quality"]:
         choice = {**choice, "resolution": None}
-        if choice["model"] in ("seedance", "seedance-2.5"):
+        if choice.get("skill"):             # the skill-video way was proven on 2.5 only (T1) — Fast is not the same test
+            choice["reason"] += " (chế độ thử rẻ: vẫn Seedance 2.5 vì cách video kỹ năng mới kiểm trên 2.5)"
+        elif choice["model"] in ("seedance", "seedance-2.5"):
             choice.update(model="seedance-fast", reason=choice["reason"] + " (chế độ thử rẻ: dùng bản Fast 720p)")
     return choice
 
@@ -151,6 +153,10 @@ def _scene_choice(conn, scene_id: int, project_row=None, mp_row=None) -> Dict:
                           + (" (model bạn chọn riêng cho shot này không áp dụng trong nhóm)" if override else "")}
     if override:
         return {"model": override, "resolution": None, "reason": "bạn chọn cho cảnh này", "source": "override", "recommended": rec}
+    from . import skill_dossier
+    why = skill_dossier.route_reason(data)
+    if why:                 # S10.4: a skill shot with the skill's video cut → Seedance 2.5 reference mode (test T1 2026-09-30)
+        return {"model": "seedance-2.5", "resolution": "720p", "source": "auto", "recommended": rec, "reason": why, "skill": True}
     from . import seedance_refs
     if data.get("shot_no") and seedance_refs.enabled(conn, scene["project_id"]):
         if seedance_refs.eligible(data):

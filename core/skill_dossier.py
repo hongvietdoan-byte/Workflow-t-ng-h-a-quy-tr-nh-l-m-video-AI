@@ -104,6 +104,99 @@ def shot_skill(data: Dict, skills_dir: Optional[str] = None) -> Optional[Dict]:
     return None
 
 
+def _wanted(data: Dict) -> List[str]:
+    """`skill_phase` as a list: "KENTA:wind_fly", "KENTA:wind_fly; ORION:drain" or a list of those."""
+    raw = data.get("skill_phase")
+    items = raw if isinstance(raw, list) else re.split(r"[;,|]", str(raw or ""))
+    return [str(x).strip() for x in items if str(x).strip()]
+
+
+def shot_skills(data: Dict, skills_dir: Optional[str] = None) -> List[Dict]:
+    """Every character's skill shown in this shot (S10.4 — two characters with active skills in one shot): one hit per dossier, from
+    each `skill_phase` entry, else from the words for the characters in the shot. [] when none."""
+    wanted = _wanted(data)
+    out, seen = [], set()
+    for w in wanted:
+        hit = shot_skill(dict(data, skill_phase=w), skills_dir)
+        if hit and hit["dossier"]["character"] not in seen:
+            seen.add(hit["dossier"]["character"])
+            out.append(hit)
+    people = [str(c) for c in data.get("characters") or []]
+    for d in for_names(people, skills_dir):
+        if d["character"] in seen:
+            continue
+        hit = shot_skill(dict(data, characters=[d["character"]], skill_phase=""), skills_dir)
+        if hit and hit["dossier"]["character"] == d["character"]:
+            seen.add(d["character"])
+            out.append(hit)
+    return out
+
+
+def video_ref(hit: Optional[Dict]) -> Optional[str]:
+    """The local cut of the official skill video that covers this phase (dossier `video_ref`, rules already met by the build tool),
+    else None. `video_ref_phases` maps a cut to its phases; without it the first cut is used."""
+    if not hit:
+        return None
+    d = hit["dossier"]
+    refs = {k: v for k, v in (d.get("video_ref") or {}).items() if k != "note" and isinstance(v, str)}
+    if not refs:
+        return None
+    phases = d.get("video_ref_phases") or {}
+    pid = hit["phase"]["id"]
+    if phases:                                    # a phase no cut covers (Kenta's dash) has no video — the words carry it
+        name = next((k for k in refs if pid in (phases.get(k) or [])), None)
+        if name is None:
+            return None
+    else:
+        name = next(iter(refs))
+    path = os.path.join(d["_dir"], refs[name])
+    return path if os.path.exists(path) else None
+
+
+def route_reason(data: Dict, skills_dir: Optional[str] = None) -> Optional[str]:
+    """Why this shot goes to Seedance 2.5 with the skill video(s) (feature on, every skill in it has a video cut), else None."""
+    if not enabled():
+        return None
+    hits = shot_skills(data, skills_dir)
+    if not hits or not all(video_ref(h) for h in hits):
+        return None
+    names = " + ".join(h["dossier"]["character"] for h in hits)
+    return (f"shot kỹ năng {names}: Seedance 2.5 + khung đầu + ảnh từng người + video kỹ năng thật (chỉ lấy hiệu ứng) — cách chuẩn theo thử "
+            "T1 30/09 (knowledge/reference_assets_prompting.md)")
+
+
+def _label(p: Dict) -> str:
+    return p.get("label_en") or p["id"].replace("_", " ")
+
+
+def reference_block(hits: List[Dict], people: List[str], first_frame: bool = True) -> str:
+    """The asset roles of a skill shot, written to the official Seedance 2.5 template (sd25-pe): one line per asset, what is taken and
+    what is NOT, one line per person, one line per skill video; the effect is NOT described again (the video carries it — "重复改写可能与
+    素材本身冲突"), only the order of its phases. Image numbers: the first frame, then one picture per person in `people` order; videos in
+    `hits` order."""
+    lines = ["[Asset roles]"]
+    n = 1
+    if first_frame:
+        lines.append("@Image 1 is the first frame. It sets the place, where each person stands and faces, their poses, and the camera.")
+        n = 2
+    for k, who in enumerate(people):
+        lines.append(f"@Image {n + k} is {who}: use only {who}'s face, hair and clothes; not its background.")
+    if len(people) > 1:
+        lines.append("The people never swap faces, hair, clothes, places or actions.")
+    for j, h in enumerate(hits, 1):
+        d = h["dossier"]
+        lines.append(f"@Video {j} is used only for {d['character']}'s skill effect ({d.get('skill_en') or d.get('skill_vi')}): its shape, "
+                     f"colour, transparency, order and rhythm. Do not take the person, clothes, place, camera or on-screen text of @Video {j}.")
+    for h in hits:
+        d = h["dossier"]
+        seq = next((v for v in (d.get("sequences") or {}).values() if h["phase"]["id"] in v), None) or [h["phase"]["id"]]
+        start = seq.index(h["phase"]["id"]) if h["phase"]["id"] in seq else 0
+        end = h.get("end")
+        stop = seq.index(end["id"]) + 1 if end and end["id"] in seq else start + 1     # no end phase: only this shot's phase
+        lines.append(f"{d['character']}'s skill in this shot: " + ", then ".join(_label(phase(d, x) or {"id": x}) for x in seq[start:stop]) + ".")
+    return "\n".join(lines)
+
+
 def image_sentence(hit: Optional[Dict]) -> str:
     if not hit:
         return ""

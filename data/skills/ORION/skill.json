@@ -1,7 +1,7 @@
 {
  "character": "ORION",
  "skill_vi": "Huyết Cầu Bảo Hộ",
- "skill_en": "Crimson Crush (in-game VN: Huyết Cầu Bảo Hộ)",
+ "skill_en": "Crimson Crush",
  "version": "video giới thiệu nhân vật (người dùng cung cấp 30/09); ra mắt 13/08",
  "active": true,
  "source": {
@@ -293,5 +293,16 @@
   "Biến hình",
   "Bất tử"
  ],
- "timing_vi": "Một lần kỹ năng = 3,0 s: kích hoạt (tức thì) → chớp ~0,1 s → hút máu (dây chỉ khi có địch trong 5 m) → MỘT lần bùng dây ngay trước khi hết (~0,9–0,5 s trước) → cầu biến mất ở 3,0 s."
+ "timing_vi": "Một lần kỹ năng = 3,0 s: kích hoạt (tức thì) → chớp ~0,1 s → hút máu (dây chỉ khi có địch trong 5 m) → MỘT lần bùng dây ngay trước khi hết (~0,9–0,5 s trước) → cầu biến mất ở 3,0 s.",
+ "video_ref_phases": {
+  "full_cycle": [
+   "activate",
+   "flash",
+   "drain",
+   "final_burst",
+   "end"
+  ],
+  "full_cycle_running": []
+ },
+ "skill_vi_note": "tên tiếng Việt trong game: Huyết Cầu Bảo Hộ"
 }

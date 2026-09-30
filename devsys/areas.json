@@ -52,7 +52,7 @@
       "code": ["core/model_router.py", "core/video_rules.py", "core/adapters/clipai.py", "core/adapters/clipai_subjects.py", "core/subjects.py", "core/regen.py", "core/compare.py", "core/experiments.py", "core/runner.py", "core/seedance_refs.py", "core/motion_physics.py", "core/clip_measure.py", "core/scene_establish.py", "core/known_issues.py", "core/claude_tasks.py", "core/speaker_lint.py", "dashboard/steps/step4.py"],
       "assets": ["prompts/12_*", "data/video_models.json", "data/provider_rules.json", "knowledge/seedance_prompting.md", "knowledge/seedance_director_workflow.md", "tools/recover_clips.py", "tools/reference_video.py", "mcp_servers/clipai.py"],
       "docs": ["docs/CLIPAI_FEATURES.md", "docs/api_notes.md"],
-      "tests": [],
+      "tests": ["tests/test_skill_route.py"],
       "flags": ["camera_setups", "seedance_ref_groups", "continuous_takes", "closeup_start_frame", "speaker_tags"],
       "diag_stages": ["video"],
       "keywords": ["video", "clip", "Kling", "Seedance", "ClipAI", "Clip AI", "model_router", "multi-shot"]

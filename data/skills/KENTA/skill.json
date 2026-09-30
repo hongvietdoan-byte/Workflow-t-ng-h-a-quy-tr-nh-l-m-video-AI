@@ -218,5 +218,16 @@
   "release": "clips_local/release_16.0-19.2.mp4",
   "through_gloo": "clips_local/through_gloo_19.0-22.1.mp4",
   "note": "chỉ trên máy (không git): cắt từ video chính thức, 720 px, SAR 1:1, ≥ 3 s — tạo lại bằng ffmpeg từ source.url nếu mất"
+ },
+ "video_ref_phases": {
+  "release": [
+   "prepare",
+   "swing_vortex",
+   "ground_rings",
+   "wind_fly"
+  ],
+  "through_gloo": [
+   "through_gloo"
+  ]
  }
 }

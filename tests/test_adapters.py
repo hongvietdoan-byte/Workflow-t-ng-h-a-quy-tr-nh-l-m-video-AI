@@ -135,26 +135,51 @@ class ClipAITests(unittest.TestCase):
         self.assertIn('name="image_files"', call["body"].decode("utf-8", "replace"))
 
     def test_a_reference_video_under_3_s_is_refused_before_sending(self):
-        """Thử #11 (30/09): ClipAI refused a 2.2 s reference video after it was sent."""
+        """Thử #11 (30/09): ClipAI refused a 2.2 s, a 560 px and a non-square-pixel reference video after they were sent."""
         clip = os.path.join(self.dir, "ref.mp4")
         with open(clip, "wb") as f:
             f.write(b"fake")
         from unittest import mock
-        with mock.patch("core.ffmpeg_studio.probe_duration", return_value=2.2):
-            with self.assertRaises(ProviderError) as cm:
-                self.p.submit(self.image, "p", None, 3, reference_video={"path": clip, "refer_type": "feature"})
-        self.assertEqual(cm.exception.code, "rule_violation")
+        good = {"width": 720, "height": 1182, "sar": "1:1", "fps": 30.0, "duration": 3.2}
+        for bad, word in ((dict(good, duration=2.2), "2.2 s"), (dict(good, width=560), "560 px"), (dict(good, sar="1183:1182"), "setsar=1")):
+            with mock.patch("core.adapters.clipai._probe_video", return_value=bad):
+                with self.assertRaises(ProviderError) as cm:
+                    self.p.submit(self.image, "p", None, 3, reference_video={"path": clip, "refer_type": "feature"})
+            self.assertEqual(cm.exception.code, "rule_violation")
+            self.assertIn(word, str(cm.exception))
         self.assertEqual(self.t.calls, [])
-        with mock.patch("core.ffmpeg_studio.probe_duration", return_value=3.2),                 mock.patch("core.adapters.clipai._video_width", return_value=560):
-            with self.assertRaises(ProviderError) as cm:
-                self.p.submit(self.image, "p", None, 3, reference_video={"path": clip, "refer_type": "feature"})
-        self.assertIn("700", str(cm.exception))
-        self.assertEqual(self.t.calls, [])
-        with mock.patch("core.ffmpeg_studio.probe_duration", return_value=3.2),                 mock.patch("core.adapters.clipai._probe", return_value=(720, "1183:1182")):
-            with self.assertRaises(ProviderError) as cm:
-                self.p.submit(self.image, "p", None, 3, reference_video={"path": clip, "refer_type": "feature"})
-        self.assertIn("setsar=1", str(cm.exception))
-        self.assertEqual(self.t.calls, [])
+
+    def test_reference_video_rules_per_service(self):
+        """Official limits (docs read 30/09): Kling 1 video 3–15.5 s, 700–4553 px; Seedance 2–30 s each, ≤ 30 s in all, ≥ 407 696 px,
+        2.0 ≤ 3 videos, 2.5 ≤ 10."""
+        from core.adapters.clipai import reference_video_problems as rules
+        ok = {"width": 976, "height": 704, "sar": "1:1", "fps": 25.0, "duration": 3.3}
+        self.assertEqual(rules("omni", "kling-v3-omni", [ok]), [])
+        self.assertTrue(rules("omni", "kling-v3-omni", [ok, ok]))                              # Kling: one video
+        self.assertEqual(rules("seedance", "dreamina-seedance-2-5-260628", [ok, ok]), [])
+        self.assertTrue(rules("seedance", "dreamina-seedance-2-5-260628", [dict(ok, width=720, height=520)]))   # 374 400 px < 407 696
+        self.assertTrue(rules("omni", "kling-v3-omni", [dict(ok, width=764, height=552)]))     # Kling: HEIGHT ≥ 700 too
+        self.assertEqual(rules("seedance", "dreamina-seedance-2-5-260628", [dict(ok, duration=2.4)]), [])      # 2 s is fine on Seedance
+        self.assertTrue(rules("omni", "kling-v3-omni", [dict(ok, duration=2.4)]))
+        self.assertTrue(rules("seedance", "dreamina-seedance-2-5-260628", [dict(ok, duration=16.0)] * 2))       # 32 s in all
+        self.assertTrue(rules("seedance", "dreamina-seedance-2-0-260128", [ok] * 4))
+        self.assertEqual(rules("seedance", "dreamina-seedance-2-5-260628", [ok] * 4), [])
+
+    def test_seedance_takes_several_reference_videos(self):
+        self.t.on("POST", "/api/kling/seedance-video-submit",
+                  ok({"tasks": [{"task_id": "S8", "task_status": "submitted", "task_status_msg": ""}]}))
+        clips = []
+        for n in range(2):
+            c = os.path.join(self.dir, f"skill{n}.mp4")
+            with open(c, "wb") as f:
+                f.write(b"fake-mp4-%d" % n)
+            clips.append({"path": c, "refer_type": "feature"})
+        from unittest import mock
+        with mock.patch("core.adapters.clipai._probe_video", return_value={"width": 764, "height": 552, "sar": "1:1", "fps": 25.0,
+                                                                          "duration": 3.3}):
+            self.p.submit(None, "p", None, 5, model="seedance-2.5", reference_only=[self.image], reference_video=clips)
+        roles = [c.get("role") for c in ctx_of(self.t.calls[-1])["content"]]
+        self.assertEqual(roles, [None, "reference_image", "reference_video", "reference_video"])
 
     def test_kling_reference_pictures_go_without_type_and_within_the_limit(self):
         """Kling Omni legacy (the API ClipAI forwards): "If the image is not the start & end frame, do not configure the type";
@@ -182,7 +207,8 @@ class ClipAITests(unittest.TestCase):
         with open(clip, "wb") as f:
             f.write(b"fake-mp4")
         from unittest import mock
-        with mock.patch("core.ffmpeg_studio.probe_duration", return_value=3.2),                 mock.patch("core.adapters.clipai._probe", return_value=(720, "1:1")):
+        with mock.patch("core.adapters.clipai._probe_video", return_value={"width": 720, "height": 1182, "sar": "1:1", "fps": 30.0,
+                                                                          "duration": 3.2}):
             self.p.submit(None, "@Image 1 ... @Video 1 ...", None, 5, model="seedance-2.5", reference_only=[self.image],
                           reference_video={"path": clip, "refer_type": "feature"})
         ctx = ctx_of(self.t.calls[-1])

@@ -108,10 +108,11 @@ def _box(im, box):
 
 
 def ref_width(cw, ch):
-    """Output width of a reference cut: ≥ 720 px (Kling: 700–4553) and enough pixels for Seedance (≥ 407 696), even."""
+    """Output width of a reference cut: both sides ≥ 704 px (Kling: width AND height 700–4553) and enough pixels for Seedance
+    (≥ 407 696), even."""
     import math
-    need = math.sqrt(MIN_PIXELS * cw / ch)
-    return int(max(REF_WIDTH, math.ceil(need))) // 2 * 2 + 2
+    need = max(REF_WIDTH, math.sqrt(MIN_PIXELS * cw / ch), 704 * cw / ch)
+    return int(math.ceil(need)) // 2 * 2 + 2
 
 
 def cut_ref(video, t0, t1, box, out, info):
@@ -126,7 +127,7 @@ def cut_ref(video, t0, t1, box, out, info):
         f"crop={x1 - x0}:{y1 - y0}:{x0}:{y0},scale={width}:-2:flags=lanczos,setsar=1", "-an", "-c:v", "libx264", "-crf", "18",
         "-pix_fmt", "yuv420p", out)
     got = probe(out)
-    assert got["duration"] >= MIN_REF_S - 0.05 and got["width"] >= 700 and got["width"] * got["height"] >= 407_696, got
+    assert got["duration"] >= MIN_REF_S - 0.05 and min(got["width"], got["height"]) >= 700 and got["width"] * got["height"] >= 407_696, got
     return out
 
 
