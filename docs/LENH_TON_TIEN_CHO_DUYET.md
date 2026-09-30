@@ -13,3 +13,4 @@
 | 4 | S4.6 A/B cận (`closeup_start_frame`) | _chờ soạn_ (cần viết công cụ thử, miễn phí) | ≈ 1–2 USD | — |
 | 5 | S4.7 / S4.10 / S4.11 / S4.12 / S2.6 / S1.15 | _chờ soạn từng việc_ (phần miễn phí làm trước: kiểm API, công cụ thử) | S4.10 ≈ 3–4, S4.12 ≈ 0,5, còn lại ước tính khi soạn | — |
 | 6 | S0.14 T4 cờ `hero_takes` | bật `FEATURE_HERO_TAKES=1` trong `dashboard.env` cho lần chạy kế (không có lệnh riêng) | thêm ≈ 1 USD mỗi shot ⭐ Seedance 2.5 4–5 s | người dùng quyết khi bật |
+| 7 | S5.7 đánh dấu chỗ đứng dưới mái che "hướng máy theo kịch bản" (0 USD, ghi CSDL) | `py tools/location_pack.py script-view --asset 263 --spot-name <tên chỗ đứng>` | 0 USD | người dùng chỉ tên chỗ đứng dưới mái che của Kho 263 bản FBX (tên cũ `lower_yard` / `level_22_4` không còn); sau đó thử 1 shot đêm có đèn |
