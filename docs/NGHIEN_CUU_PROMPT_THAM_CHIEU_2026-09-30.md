@@ -184,4 +184,4 @@ T1 + T2 ≈ $1,4; T3 làm sau nếu T1 đạt.
 
 Kết luận đưa vào Director (`knowledge/reference_assets_prompting.md` luật 11–12 + mục kết quả): shot kỹ năng → Seedance 2.5 + video
 tham chiếu + khung đầu; ≥ 3 người → khung đầu vẽ đủ người trước hoặc chia shot. Bản xem:
-`D:\AI-Video-Output6-09-30_thu-ky-nang-kenta\so_sanh_goc_T1_T2_T3.mp4`.
+`D:\AI-Video-Output\2026-09-30_thu-ky-nang-kenta\so_sanh_goc_T1_T2_T3.mp4`.
