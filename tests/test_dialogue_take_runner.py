@@ -124,3 +124,51 @@ class DialogueTakeRunnerTests(unittest.TestCase):
         long = "x" * 4500
         self.assertTrue(seedance_refs.lint_group(long, 1, 1, 1, [4], False, model="seedance-fast"))
         self.assertFalse(seedance_refs.lint_group(long, 1, 1, 1, [4], False, model="seedance-2.5"))
+
+    # ---- 01/10 (nhánh A1, chạy thật S4.2): lỗi tìm ra khi dựng lượt chạy thật -----------------------------------------------------
+    def test_cheap_test_mode_keeps_the_take_on_seedance_2_5(self):
+        """A project made during a budget test round is in the cheap mode (test_quality = 1): Seedance 2.0 / 2.5 became Fast — the take
+        went out on Fast, which does not read the seconds its dialogue timeline is written in."""
+        self.p.conn.execute("UPDATE projects SET test_quality=1 WHERE id=?", (self.pid,))
+        self.p.conn.commit()
+        choice = model_router.scene_choice(self.p.conn, self.ids[0])
+        self.assertEqual(choice["model"], "seedance-2.5")
+        self.assertIn("mốc giây", choice["reason"])
+        with mock.patch.dict(os.environ, {"FEATURE_DIALOGUE_TAKE": "0", "FEATURE_LIP_SYNC": "0"}):
+            self.assertEqual(model_router.scene_choice(self.p.conn, self.ids[0])["model"], "seedance-fast")   # others: still cheap
+
+    def test_a_speaking_close_up_stays_in_its_take_with_closeup_start_frame_on(self):
+        """S4.1 × S4.2: with closeup_start_frame on, a speaking MCU left its group for Kling from its start frame — Kling takes no voice,
+        so the most visible mouth lost its lip sync without a word. A close-up nobody speaks in still goes to Kling."""
+        for sid in self.ids:
+            d = json.loads(self.p.conn.execute("SELECT data FROM scenes WHERE id=?", (sid,)).fetchone()["data"])
+            self.p.conn.execute("UPDATE scenes SET data=? WHERE id=?", (json.dumps(dict(d, size="MCU"), ensure_ascii=False), sid))
+        self.p.conn.commit()
+        with mock.patch.dict(os.environ, {"FEATURE_CLOSEUP_START_FRAME": "1"}):
+            d = json.loads(self.p.conn.execute("SELECT data FROM scenes WHERE id=?", (self.ids[0],)).fetchone()["data"])
+            self.assertFalse(seedance_refs.face_closeup(d))
+            self.assertEqual([r["id"] for r in shots.group_of(self.p.conn, self.ids[0])], self.ids)
+            self.assertEqual(model_router.scene_choice(self.p.conn, self.ids[0])["model"], "seedance-2.5")
+            self.assertTrue(seedance_refs.face_closeup(dict(d, dialogue=[])))   # nobody speaks: Kling from the start frame
+            with mock.patch.dict(os.environ, {"FEATURE_DIALOGUE_TAKE": "0"}):
+                self.assertTrue(seedance_refs.face_closeup(d))                # without the take: the S4.1 rule as before
+
+    def test_frames_dropped_at_the_start_of_a_take_shot_move_its_voice_too(self):
+        """S4.5 drops the neighbouring shot's frames at a cut clip's start: the mouths come `head` seconds earlier, so the shift grows."""
+        vr = self._ready()
+        leader = self.p.job(self.p.create_job(self.ids[0], "video_gen"))
+        group = shots.group_of(self.p.conn, self.ids[0])
+        vr._take_audio(leader, group)
+        planned = lipsync.index(self.data, self.pid)[str(self.ids[1])]["planned_start"]
+        vr._take_done(leader, group, [0.0, planned + 0.4])
+        fid = self.p.create_job(self.ids[1], "video_gen")
+        self.p.conn.execute("UPDATE jobs SET group_leader=? WHERE id=?", (leader["id"], fid))
+        self.p.conn.commit()
+        with mock.patch("core.shots.clean_edges", return_value={"head": 0.25, "tail": 0.0}):
+            vr._clean_edges(self.p.job(fid), "x.mp4")
+        rec = lipsync.index(self.data, self.pid)[str(self.ids[1])]
+        self.assertAlmostEqual(rec["shift"], 0.65)
+        self.assertAlmostEqual(rec["edge_head"], 0.25)
+        with mock.patch("core.shots.clean_edges", return_value={"head": 0.0, "tail": 0.3}):
+            vr._clean_edges(self.p.job(fid), "x.mp4")                     # a tail cut does not move the mouths
+        self.assertAlmostEqual(lipsync.index(self.data, self.pid)[str(self.ids[1])]["shift"], 0.65)
