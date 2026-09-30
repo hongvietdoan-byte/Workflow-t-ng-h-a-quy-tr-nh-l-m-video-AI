@@ -950,6 +950,8 @@ class VideoRunner(_Runner):
         elif mp["ref_video_path"]:
             self._diag(job, "warn", "missing_reference",
                       f"video tham chiếu chuyển động không đọc được (bỏ qua, video vẫn gen): {mp['ref_video_path']}")
+        if skill:            # S10.4: the skill way sends its pictures / videos as keyword arguments (_submit_kwargs) — not twice
+            subj_refs, image_refs, ref_video = [], [], None
         if proj["video_audio"] or subj_refs or image_refs or ref_video:  # extra args only when used: older providers keep working
             args += (bool(proj["video_audio"]), subj_refs or None, image_refs or None, ref_video)
         return args

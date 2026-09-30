@@ -63,6 +63,9 @@ class SkillRouteTests(unittest.TestCase):
         self.assertIn("[Event] ", prompt)
         self.assertNotIn("Skill effect exactly as in the game", prompt)          # the video carries it — not described again
         self.assertIsNone(vr._sends_group(job))
+        import inspect                               # 30/09 T4: reference_video went both by position and by name → TypeError
+        from core.adapters.clipai import ClipAIVideoProvider
+        inspect.signature(ClipAIVideoProvider.submit).bind(None, *args, **kw)
 
     def test_two_skills_in_one_shot_give_two_videos_in_order(self):
         data = {"characters": ["KENTA", "ORION"], "skill_phase": "KENTA:wind_fly; ORION:drain"}
