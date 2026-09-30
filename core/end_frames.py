@@ -87,6 +87,9 @@ def prompt_for(p: Pipeline, project_id: int, scene_id: int, fix: Optional[str] =
     data = json.loads(p.conn.execute("SELECT data FROM scenes WHERE id=?", (scene_id,)).fetchone()["data"] or "{}")
     core = ("The SAME shot as the first image — same camera, framing, place and light — a few seconds later, "
             f"at the end of the action: {data.get('end_state', '').strip()}. One single frame, one moment only.")
+    from . import skill_dossier
+    if skill_dossier.enabled():                   # the end frame shows the skill's END phase (skill_phase_end)
+        data = skill_dossier.at_end(data)
     prompt, _ = build_image_prompt(p.conn, project_id, data, core=core, fix=fix, blocking_label="Blocking at the end")
     return prompt
 
@@ -134,6 +137,10 @@ def tick(p: Pipeline, project_id: int, provider, data_dir: str) -> Dict[str, int
             model = image_models.of_project(proj) if getattr(provider, "supports_model", False) else None
             refs = [{"path": start, "label": "start frame", "role": "previous_scene"}] + assets.scene_references(
                 p.conn, project_id, data, limit=assets.MAX_REFERENCES - 1)
+            from . import skill_dossier
+            if skill_dossier.enabled():               # the real frame of the skill's end phase
+                end = skill_dossier.at_end(data)
+                refs = skill_dossier.add_reference(refs, skill_dossier.reference(skill_dossier.shot_skill(end)), assets.MAX_REFERENCES)
             refs, dropped = sendable_references(refs, model)
             if dropped:
                 _diag(p, row, "warn", "missing_reference", "khung cuối: ảnh tham chiếu không gửi được (bỏ khỏi câu đánh số ảnh): "

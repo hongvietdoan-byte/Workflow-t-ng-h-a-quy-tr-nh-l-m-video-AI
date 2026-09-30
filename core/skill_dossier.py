@@ -79,16 +79,19 @@ def shot_skill(data: Dict, skills_dir: Optional[str] = None) -> Optional[Dict]:
     """{dossier, phase} when this shot shows a character's skill: the Director's `skill_phase` ("KENTA:wind_fly" or a phase id when
     one dossier fits), else a skill keyword in the shot's words for a character in the shot — the phase then comes from the words
     (phase_hints; the most hits wins, ties go to the dossier's order) or the dossier's `default_phase`."""
+    wanted = str(data.get("skill_phase") or "").strip()
     people = [str(c) for c in data.get("characters") or []]
+    if ":" in wanted:                             # "KENTA:wind_fly" — his skill may be seen without him (the wind reaching the wall)
+        people.append(wanted.partition(":")[0])
     dossiers = for_names(people, skills_dir)
     if not dossiers:
         return None
-    wanted = str(data.get("skill_phase") or "").strip()
     if wanted:
         who, _, pid = wanted.rpartition(":")
         for d in dossiers:
             if (not who or _key(who) == _key(d["character"])) and phase(d, pid):
-                return {"dossier": d, "phase": phase(d, pid), "how": "skill_phase"}
+                end = str(data.get("skill_phase_end") or "").rpartition(":")[2]
+                return {"dossier": d, "phase": phase(d, pid), "how": "skill_phase", "end": phase(d, end)}
     blob = _shot_text(data)
     for d in dossiers:
         if not any(_has(blob, k) for k in d.get("keywords") or []):
@@ -110,9 +113,18 @@ def image_sentence(hit: Optional[Dict]) -> str:
 
 
 def video_sentence(hit: Optional[Dict]) -> str:
+    """The clip's skill words: the start phase, and the end phase when the shot runs into one (`skill_phase_end`, first + last frame)."""
     if not hit:
         return ""
+    end = hit.get("end")
+    if end and end["id"] != hit["phase"]["id"]:
+        return f" Skill effect exactly as in the game: {hit['phase']['video_en']} Then: {end['video_en']}"
     return f" Skill effect exactly as in the game: {hit['phase']['video_en']}"
+
+
+def at_end(data: Dict) -> Dict:
+    """The shot's data for its END frame: the end phase (`skill_phase_end`) stands in for the start phase."""
+    return dict(data, skill_phase=data["skill_phase_end"]) if data.get("skill_phase_end") else data
 
 
 def video_negative(hit: Optional[Dict], negative: Optional[str]) -> Optional[str]:
