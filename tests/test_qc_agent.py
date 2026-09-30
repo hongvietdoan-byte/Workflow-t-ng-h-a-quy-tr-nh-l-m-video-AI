@@ -145,6 +145,27 @@ class AgentTests(unittest.TestCase):
         self.assertIn("fix_en", out[0]["text"])
         self.assertNotIn(1, agent.records)
 
+    def test_left_right_is_decided_by_code_from_measurements(self):
+        """S7.1 01/10: the agent blocked #8 S1·2 / S1·3 (Kenta from behind, star shoulder frame-left of his body = LEFT arm = right)."""
+        agent = qc_agent.QcAgent(self.p, self.pid, self.data, None, self.frames)
+        flip = {"type": "A1 lateral-flip", "description": "tay gần máy (khung-phải) mang găng giáp", "evidence": "strip K1",
+                "severity": "block"}
+        rec = {"k": 1, "verdict": "block", "root_cause": "model", "fix_en": "Keep his left arm on the frame-left side of his body."}
+        out = agent.tool("record", dict(rec, issues=[flip]))                      # no measurements: refused
+        self.assertIn("side", out[0]["text"])
+        self.assertNotIn(1, agent.records)
+        right = dict(flip, side={"who": "KENTA", "view": "behind", "body_center_x": 0.62, "detail_x": 0.35, "detail": "gauntlet",
+                                 "expected_arm": "LEFT"})
+        out = agent.tool("record", dict(rec, issues=[right]))                     # the measurements say LEFT arm = where it belongs
+        self.assertIn("không phải lỗi lật", out[0]["text"])
+        self.assertNotIn(1, agent.records)
+        wrong = dict(flip, side=dict(right["side"], detail_x=0.85))               # frame-right of the body seen from behind = RIGHT
+        out = agent.tool("record", dict(rec, issues=[wrong]))
+        self.assertIn("đã ghi K1", out[0]["text"])
+        self.assertEqual(qc_agent.arm_from_side({"view": "camera", "body_center_x": 0.5, "detail_x": 0.7}), "LEFT")
+        self.assertIsNone(qc_agent.arm_from_side({"view": "behind", "body_center_x": 0.5, "detail_x": 0.51}))
+        self.assertFalse(qc_agent.lateral_issue({"type": "shot_size", "description": "MCU thay vì CU"}))
+
     def test_the_inspection_plan_comes_from_the_profiles(self):
         from unittest import mock
         prof = {"approved": True, "must_keep": "gauntlet on the LEFT arm", "view_notes": {"from_behind": "…"}}

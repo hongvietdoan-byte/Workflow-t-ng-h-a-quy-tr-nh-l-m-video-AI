@@ -75,7 +75,14 @@ TOOLS = [
      "input_schema": {"type": "object", "properties": {
          "k": {"type": "integer"}, "verdict": {"type": "string", "enum": list(VERDICTS)},
          "issues": {"type": "array", "items": {"type": "object", "properties": {"type": {"type": "string"}, "description": {"type": "string"},
-                    "evidence": {"type": "string"}, "severity": {"type": "string", "enum": ["block", "minor"]}},
+                    "evidence": {"type": "string"}, "severity": {"type": "string", "enum": ["block", "minor"]},
+                    "side": {"type": "object", "description": "REQUIRED for a left/right (lateral-flip) issue: measurements, the code "
+                             "decides the side — who, view (camera = face seen / behind = back of head seen), body_center_x and "
+                             "detail_x (0..1 across the frame), detail (e.g. gauntlet), expected_arm (LEFT/RIGHT: the arm the profile "
+                             "gives that detail)", "properties": {
+                        "who": {"type": "string"}, "view": {"type": "string", "enum": ["camera", "behind"]},
+                        "body_center_x": {"type": "number"}, "detail_x": {"type": "number"}, "detail": {"type": "string"},
+                        "expected_arm": {"type": "string", "enum": ["LEFT", "RIGHT"]}}}},
                     "required": ["type", "description", "evidence", "severity"]}},
          "root_cause": {"type": "string", "enum": list(CAUSES)}, "fix_en": {"type": "string"}},
          "required": ["k", "verdict", "issues", "root_cause"]}},
@@ -139,6 +146,46 @@ def _strip(paths: List[Tuple[str, str]], out: str, height: int = 512) -> str:
     return out
 
 
+_LATERAL = re.compile(r"lateral|flip|lật|trái.{0,12}phải|phải.{0,12}trái|left.{0,12}right|right.{0,12}left|sai bên|wrong side|mirror", re.I)
+
+
+def lateral_issue(issue: Dict) -> bool:
+    return bool(_LATERAL.search(f"{issue.get('type') or ''} {issue.get('description') or ''}"))
+
+
+def arm_from_side(side: Dict) -> Optional[str]:
+    """The character's own arm a detail is on, from where it sits against the body's centre line: seen from behind the body's left is
+    on the frame-left of its centre, facing the camera it is on the frame-right. S7.1 01/10: the agent twice judged by the frame edge
+    ("the near arm, frame-right") and blocked #8 S1·2 / S1·3 whose star shoulder sat frame-left of Kenta's body seen from behind =
+    his LEFT arm = correct — so code, not the agent, turns positions into LEFT / RIGHT."""
+    try:
+        c, x = float(side["body_center_x"]), float(side["detail_x"])
+    except (KeyError, TypeError, ValueError):
+        return None
+    if side.get("view") not in ("camera", "behind") or abs(x - c) < 0.02:
+        return None                                   # on the centre line: no side can be read
+    left_of_centre = x < c
+    return ("LEFT" if left_of_centre else "RIGHT") if side["view"] == "behind" else ("RIGHT" if left_of_centre else "LEFT")
+
+
+def lateral_problem(issue: Dict) -> Optional[str]:
+    """Why a left/right issue cannot be recorded as stated (None = it stands): no measurements, or measurements that show the detail
+    on the arm the profile gives it."""
+    side = issue.get("side") if isinstance(issue.get("side"), dict) else None
+    if side is None or arm_from_side(side) is None or side.get("expected_arm") not in ("LEFT", "RIGHT"):
+        return ("lỗi trái/phải phải kèm `side` đo được: view (camera = thấy mặt / behind = thấy gáy), body_center_x và detail_x (0..1 "
+                "theo bề ngang khung, cách nhau rõ), detail, expected_arm (tay mà hồ sơ gán chi tiết đó) — code tự suy ra tay nào; "
+                "không đo được thì ghi doubt")
+    arm = arm_from_side(side)
+    if arm == side["expected_arm"]:
+        where = "trái" if float(side["detail_x"]) < float(side["body_center_x"]) else "phải"
+        seen = "nhìn từ sau" if side["view"] == "behind" else "quay mặt vào máy"
+        return (f"theo số đo của bạn, {side.get('detail') or 'chi tiết'} nằm bên {where}-khung so với tâm thân {side.get('who') or ''} "
+                f"({seen}) = tay {arm} — ĐÚNG tay hồ sơ gán ({side['expected_arm']}), không phải lỗi lật. Bên theo THÂN người, không "
+                f"theo mép khung hay 'tay gần máy'. Ghi lại khung này không có lỗi trái/phải (hoặc đo lại)")
+    return None
+
+
 def inspection_plan(conn, pid: int, frames: List[Dict]) -> List[str]:
     """Strips the agent MUST make, built by code (playbook A1/A2): every one-sided or view-dependent detail of each character's profile,
     across the frames that character is in — so a systematic fault never depends on the agent thinking of it."""
@@ -163,7 +210,8 @@ def inspection_plan(conn, pid: int, frames: List[Dict]) -> List[str]:
                         f"NGƯỜI, không theo mép khung; ghép dải cùng vùng (vai, tay) qua các khung để so. XÁC NHẬN TỪNG CHI TIẾT MỘT "
                         f"(găng, băng tay, huy hiệu vai, tab…) riêng ở từng khung — một chi tiết đúng bên không nói gì về chi tiết kia "
                         f"(#8 28/09: S6·5 găng đúng bên nhưng huy hiệu vai lật, agent cho qua); khung ôm / bị che: ghi rõ chi tiết nào "
-                        f"không thấy → doubt, không pass")
+                        f"không thấy → doubt, không pass. Muốn ghi lỗi trái/phải: kèm `side` (view, body_center_x, detail_x, detail, "
+                        f"expected_arm) — code tự tính tay nào từ số đo, không tự kết luận theo mép khung")
         if re.search(r"backwards|ngược", text, re.I):
             plan.append(f"{n}: ghép dải vùng đầu qua các khung {ks} — phụ kiện đội ngược phải giữ chiều ở mọi hướng máy")
         if len(ks) < 2:
@@ -302,6 +350,11 @@ class QcAgent:
             issues = args.get("issues") or []
             if args["verdict"] in ("block", "minor", "doubt") and not issues:
                 return [{"type": "text", "text": "verdict khác pass phải có ít nhất một issue kèm evidence"}]
+            for issue in issues:
+                if isinstance(issue, dict) and lateral_issue(issue):
+                    why = lateral_problem(issue)
+                    if why:
+                        return [{"type": "text", "text": f"K{k} chưa ghi: {why}"}]
             if args["verdict"] == "block" and args["root_cause"] == "none":
                 return [{"type": "text", "text": "block cần root_cause (prompt / reference / model / plan)"}]
             fix = str(args.get("fix_en") or "")
