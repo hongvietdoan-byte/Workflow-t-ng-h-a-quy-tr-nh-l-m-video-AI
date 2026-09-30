@@ -191,10 +191,71 @@ def video(p, pid, shot):
     print("đã chi:", spent(p, pid))
 
 
+def t5(p, pid):
+    """T5: the first frame with all three drawn + a coarse white model locking where each stands (core/whitebox, official 粗粒度白模)."""
+    from core import budget, cost, formats, location_pack, looks, seedance_refs, shots, whitebox
+    from core.adapters import factory
+    from core.cost import record_usage
+    from core.providers import ProviderError
+    row = next(r for r in rows_of(p, pid) if r["data"]["shot_no"] == 2)
+    spec = SHOTS[1]
+    first = shots.approved_image_path(p.conn, DATA, pid, row["id"])
+    if not first:
+        raise SystemExit("shot 2 chưa có khung đầu đã duyệt")
+    m3d = location_pack.model3d(p.conn, 263)
+    wb = spec["whitebox"]
+    anim = whitebox.plan(m3d, wb["spot"], wb["people"], seconds=4.0, name="t5_whitebox")
+    out = os.path.join(DATA, str(pid), "whitebox")
+    os.makedirs(out, exist_ok=True)
+    mp4 = os.path.join(out, "t5_whitebox.mp4")
+    if not os.path.exists(mp4):
+        mp4 = whitebox.render(m3d, anim, out)
+    people = seedance_refs.identity_pictures(p.conn, pid, [row], 8)
+    lines = ["[Asset roles]", "@Image 1 is the first frame. It sets the place, where each person stands and faces, their poses, and the camera."]
+    for k, (n, _) in enumerate(people, 2):
+        lines.append(f"@Image {k} is {n}: use only {n}'s face, hair and clothes; not its background.")
+    lines.append("The people never swap faces, hair, clothes, places or actions.")
+    lines.append(whitebox.role_line(anim, 1))
+    look = looks.video_sentence(p.project(pid))
+    prompt = "\n".join(lines) + "\n[Event] " + (look + " " if look else "") + spec["motion"]
+    print(prompt)
+    usd = cost.clip_price(cost.load_pricing(), "dreamina-seedance-2-5-260628", "720p", 5) * 1.25
+    guard(p, pid, usd, "T5")
+    provider = factory.video_provider()
+    aspect = formats.spec(formats.project_aspect(p.project(pid)) or "9:16")["clip"]
+    with budget.SPEND_LOCK:
+        over = budget.check_video(p.conn, provider.name, "dreamina-seedance-2-5-260628", "720p", 5)
+        if over:
+            raise SystemExit("TRẦN CHUNG CHẶN: " + over)
+        try:
+            ext = provider.submit(first, prompt, None, 5, "seedance-2.5", aspect_ratio=aspect, resolution="720p",
+                                  reference_only=[first] + [path for _, path in people],
+                                  reference_video=[{"path": mp4, "refer_type": "feature"}])
+        except ProviderError as e:
+            raise SystemExit(f"ClipAI từ chối: [{e.code}] {e}")
+        record_usage(p.conn, None, "video", provider.name, "dreamina-seedance-2-5-260628", "720p", 5, "second", pid)
+    print("đã gửi:", ext)
+    t0 = time.time()
+    dest = os.path.join(DATA, str(pid), "videos", "t5.mp4")
+    os.makedirs(os.path.dirname(dest), exist_ok=True)
+    while time.time() - t0 < 2400:
+        st = provider.status(ext)
+        print(time.strftime("%H:%M:%S"), st.state, flush=True)
+        if st.state == "succeeded":
+            provider.download(ext, dest)
+            print("tải về:", dest)
+            break
+        if st.state == "failed":
+            print("thất bại:", getattr(st, "message", ""))
+            break
+        time.sleep(30)
+    print("đã chi:", spent(p, pid))
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--project", type=int)
-    ap.add_argument("step", choices=("setup", "frames", "approve", "plan", "video"))
+    ap.add_argument("step", choices=("setup", "frames", "approve", "plan", "video", "t5"))
     ap.add_argument("shots", nargs="?", default="1")
     a = ap.parse_args()
     p = _p()
@@ -205,6 +266,8 @@ def main():
         frames(p, a.project, shots)
     elif a.step == "approve":
         approve(p, a.project, shots)
+    elif a.step == "t5":
+        t5(p, a.project)
     elif a.step == "plan":
         plan(p, a.project, min(shots))
     else:
