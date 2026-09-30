@@ -26,9 +26,9 @@
 | S6 Ước tính, ngân sách, dashboard | 6 | 5 | 0 | 0 | 1 | 100 % |
 | S7 Agent QC | 2 | 1 | 0 | 0 | 0 | 66,7 % |
 | S10 Kỹ năng nhân vật & tham chiếu | 12 | 10 | 1 | 1 | 0 | 91,3 % |
-| K Chạy kiểm kịch bản hài 20–30 s | 3 | 0 | 0 | 0 | 0 | 0 % |
+| K Chạy kiểm kịch bản hài 20–30 s — ⏸ KHÔNG ƯU TIÊN (người dùng 30/09: các việc test kịch bản không làm trước nữa) | 3 | 0 | 0 | 3 | 0 | 0 % |
 | S8 Chấm lại bằng AI Development System (cuối cùng) | 5 | 2 | 0 | 0 | 0 | 42,9 % |
-| **Tổng** | **98** | **75** | **5** | **8** | **2** | **82,2 %** |
+| **Tổng** | **98** | **75** | **5** | **11** | **2** | **82,2 %** |
 
 Đợt hiện tại: **S1** · việc kế: **S5.5** 💵 Thử 1 cảnh `place_render_refs` (3–5 shot ở Tháp, render 3D đúng góc làm ảnh tham chiếu) — thay việc vẽ lại khung FFXN cũ; so độ khớp nền với mốc 0,073
 <!-- /tien-do -->
@@ -147,13 +147,13 @@
 - [x] S10.10 · 💵 T6: nhiều khung then chốt theo thứ tự giai đoạn · nặng:1 · ✅ · 30/09: thứ tự giai đoạn đúng (T1 đảo); lưỡi hologram biến sớm, màng lốc thoáng qua
 - [ ] S10.11 · Việc miễn phí tồn: Data Pack P5 (402 dừng cứng) + P3 (Structured Outputs), E1, E2, A4 / A5 / A14 / A21, S0.14 T5 · nặng:2 · 🔄 · 30/09: E1 (lỗi chỉ hiện lời, mã lỗi ở chú thích) ✅, E2 (chốt 8 ảnh tham chiếu) ✅, P5 (hết tiền → khóa dịch vụ, nút mở lại) ✅
 
-### K — Chạy kiểm kịch bản hài 20–30 s
-- [ ] K.1 · Soạn kịch bản hài 20–30 s có **Kenta + Orion cùng dùng kỹ năng** (người dùng 30/09) · nặng:1 · ⬜ · viết lại bản A (docs/KICH_BAN_KIEM_K1_2026-09-29.md) theo hồ sơ kỹ năng Kenta + Orion (đợt S10) và luật chia nhịp kỹ năng; người dùng duyệt
-- [ ] K.2 · Chạy trọn trên dashboard, chất lượng cao, trần duyệt một lần · nặng:3 · ⬜ · trần người dùng duyệt 30/09: ≤ 25 USD (khóa ngân sách dự án trước)
-- [ ] K.3 · Đo lại bảng mục 0 + phiếu so sánh phim tham khảo · nặng:1 · ⬜
+### K — Chạy kiểm kịch bản hài 20–30 s — ⏸ KHÔNG ƯU TIÊN (người dùng 30/09: các việc test kịch bản không làm trước nữa)
+- [ ] K.1 · Soạn kịch bản hài 20–30 s có **Kenta + Orion cùng dùng kỹ năng** (người dùng 30/09) · nặng:1 · ⏸ · viết lại bản A (docs/KICH_BAN_KIEM_K1_2026-09-29.md) theo hồ sơ kỹ năng Kenta + Orion (đợt S10) và luật chia nhịp kỹ năng; người dùng duyệt · tạm gác — không ưu tiên (người dùng 30/09); làm sau cùng khi người dùng gọi
+- [ ] K.2 · Chạy trọn trên dashboard, chất lượng cao, trần duyệt một lần · nặng:3 · ⏸ · trần người dùng duyệt 30/09: ≤ 25 USD (khóa ngân sách dự án trước) · tạm gác — không ưu tiên (người dùng 30/09); làm sau cùng khi người dùng gọi
+- [ ] K.3 · Đo lại bảng mục 0 + phiếu so sánh phim tham khảo · nặng:1 · ⏸ · tạm gác — không ưu tiên (người dùng 30/09); làm sau cùng khi người dùng gọi
 
 ### S8 — Chấm lại bằng AI Development System (cuối cùng)
-- [ ] S8.0 · Chấm 16 khu vực (2 agent độc lập, 0 USD) · nặng:2 · ⬜
+- [ ] S8.0 · Chấm 16 khu vực (2 agent độc lập, 0 USD) · nặng:2 · ⬜ · 30/09: không chờ K nữa (K tạm gác)
 - [x] S8.1 · Trường feedback chi tiết cho từng khoản trừ · nặng:1 · ✅ · 2026-09-29: `feedback` tùy chọn mỗi khoản trừ (vì sao · sửa · file · nghiệm thu · 💻/💵/👤 · ưu tiên), định dạng ở devsys/feedback_format.md NGOÀI rubric.md (điểm cũ không thành "thang cũ"), gửi kèm người chấm, hiện dưới từng khoản trừ trên web; test
 - [ ] S8.2 · Báo cáo đánh giá + danh sách việc theo điểm lấy lại · nặng:1 · ⬜
 - [x] S8.3 · So sánh với phần mềm dựng phim AI bên ngoài · nặng:2 · ✅ · 2026-09-29 (0 USD, chỉ đọc web công khai): docs/SO_SANH_PHAN_MEM_NGOAI_2026-09-29.md — 13 sản phẩm (ClipAI web, LTX, Runway, Higgsfield, Kling 3.0, 即梦/Dreamina, Google Flow, MiniMax, Katalist, OpenArt, Hedra, Pika, ElevenLabs) × 10 khâu; mình hơn ở Director/QC/chi phí/âm thanh, kém ở sinh nhiều khung-shot một lần, nối hành động qua cắt, sửa clip, lựa chọn khớp môi; 10 đề xuất X1–X10 chờ người dùng chọn (S8.4)

@@ -1,6 +1,7 @@
 # TODO — Theo dõi tiến độ dự án Auto Pipeline Video AI
 
 ## 📌 TRẠNG THÁI 2026-09-30 — PHIÊN MỚI ĐỌC MỤC NÀY TRƯỚC
+> **30/09 (người dùng): các việc TEST KỊCH BẢN (đợt K: K.1 kịch bản Kenta + Orion, K.2 chạy trọn ≤ 25 USD, K.3 đo lại) KHÔNG ưu tiên làm trước nữa** — tạm gác, làm khi người dùng gọi. Thứ tự mới: S10.11 việc miễn phí còn lại → S5.5' (place_render_refs 1 cảnh, đã duyệt) → S8 chấm lại → các việc S0 / S1 / S2 / S4 / S7 còn mở. Còn: dựng lại storyboard_ky_nang.jpg của Kenta (ô 1 còn chữ "lưỡi năng lượng" — thực ra là thanh định hướng kỹ năng).
 > **Tiến độ duy nhất:** `docs/KE_HOACH_SUA_SAU_DU_AN_8.md` (98 việc, 13 đợt; thêm đợt **S10 Kỹ năng nhân vật & tham chiếu** 30/09) — xem bằng
 > `py tools/plan_progress.py` hoặc web AI Development System. Kế hoạch làm nốt (người dùng duyệt 30/09): Bước 1 sổ sách → Bước 2 code miễn phí
 > S10.1–S10.7, S10.11 → Bước 3 thử trả tiền (trần 15 USD, hỏi từng bài) → Bước 4 kịch bản K có **Kenta + Orion cùng dùng kỹ năng** (K.2 ≤ 25 USD)
