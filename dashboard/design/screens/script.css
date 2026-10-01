@@ -18,7 +18,6 @@
 .st-key-script-cta-box [class*="st-key-script-cta-budget_"] button:not([class*="_no"]) { background: var(--grad-primary) !important; color: var(--on-primary) !important;
     border: 0 !important; font-weight: 700; box-shadow: 0 0 22px var(--glow); }
 .st-key-script-cta-box [class*="st-key-script-cta-budget_"] button p { font-size: 17px; color: var(--on-primary) !important; }
-.script-mode span { min-height: 3.9em; }
 .script-note { color: var(--muted); font-size: 13.5px; margin-top: 4px; }
 
 /* bốn thẻ chế độ đầu vào */
@@ -33,6 +32,9 @@
 
 /* khung viền cũ nằm trong thẻ kính: viền nhẹ để không thành hộp trong hộp */
 [data-testid="stVerticalBlock"][class*="st-key-card-script-"] [data-testid="stVerticalBlockBorderWrapper"] { border-color: var(--border-soft); }
+
+/* ba cổng dừng của chạy tự động: nhãn dài được xuống dòng (lõi cắt nhãn checkbox còn một dòng → mất nửa câu) */
+[class*="st-key-script-gates-"] label, [class*="st-key-script-gates-"] label * { white-space: normal !important; text-overflow: clip !important; overflow: visible !important; }
 
 /* một dòng tóm tắt + ⓘ (components.line) */
 .script-sum { color: var(--muted); font-size: 13.5px; }

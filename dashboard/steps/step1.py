@@ -1,7 +1,7 @@
 """Step 1: script, resources, run mode, Director, Character Bible, storyboard, World Bible."""
 from dashboard.common import *  # noqa: F401,F403  (shared imports + helpers)
 from dashboard import common as C
-from dashboard.steps.step1_v2 import cap  # noqa: F401  (v2: long captions become a one-line summary + ⓘ)
+from dashboard.steps.step1_v2 import cap, say, is_next  # noqa: F401  (v2: long captions / notes become a one-line summary + ⓘ)
 from dashboard.steps.step1_run import *  # noqa: F401,F403  (S9.5: Step 1 split in parts)
 from dashboard.steps.step1_run import _budget_summary  # noqa: F401
 from dashboard.steps.step1_prep import *  # noqa: F401,F403  (S9.5: Step 1 split in parts)
@@ -75,7 +75,16 @@ def script_input(p: Pipeline, pid: int, with_reset: bool = True) -> bool:
             st.toast(f"Đã tách {len(parsed)} cảnh")
         if act(analyse):
             st.rerun()
-    u4.caption("Nếu có cả file lẫn văn bản, hệ thống dùng file." if has_input else "Chọn file hoặc dán văn bản, rồi bấm Phân tích.")
+    if ui.v2_on():                                   # v2: the hint about "file wins" is P3 → ⓘ; the state of the input stays as one line
+        from dashboard.design import components as D
+        with u4:
+            if has_input:
+                D.line('<span class="script-sum">Sẵn sàng · bấm ▶ Phân tích</span>', "Nếu có cả file lẫn văn bản, hệ thống dùng file.",
+                       f"script-input-hint-{pid}")
+            else:
+                st.caption("Chọn file hoặc dán văn bản, rồi bấm Phân tích.")
+    else:
+        u4.caption("Nếu có cả file lẫn văn bản, hệ thống dùng file." if has_input else "Chọn file hoặc dán văn bản, rồi bấm Phân tích.")
     if with_reset:
         with u3:
             reset_script_button(p, pid)
@@ -315,8 +324,10 @@ def scene_list(p: Pipeline, pid: int, scenes, char_names) -> None:
     by_idx = {r["idx"]: r for r in status.values()}
     with_bg = sum(1 for s in scenes if assets.scene_location(p.conn, pid, json.loads(s["data"] or "{}")))
     unit = "shot" if scenes and any(json.loads(s["data"] or "{}").get("shot_no") for s in scenes) else "cảnh"
-    cap(f"🏞 {with_bg}/{len(scenes)} {unit} đã có Background"
-               + ("" if with_bg == len(scenes) else f" — {unit} chưa có thì không dựng được layout; chọn trong từng {unit} hoặc gắn địa điểm ở 1b"))
+    if not (ui.v2_on() and with_bg == len(scenes)):       # v2 (P4): "all of them have one" is not worth a line
+        cap(f"🏞 {with_bg}/{len(scenes)} {unit} đã có Background"
+            + ("" if with_bg == len(scenes) else f" — {unit} chưa có thì không dựng được layout; chọn trong từng {unit} hoặc gắn địa điểm ở 1b"),
+            summary=f"🏞 {with_bg}/{len(scenes)} {unit} đã có Background")
     proj = p.project(pid)
     modes = {0: "Tự động: nối trong cùng nhóm cảnh", 1: "Luôn nối cảnh liền trước", 2: "Không nối"}
     if C.expert():
@@ -332,9 +343,10 @@ def scene_list(p: Pipeline, pid: int, scenes, char_names) -> None:
     story = {x["idx"]: x for x in _shots.story_scenes(p, pid)}
     cuts = _shots.dialogue_cuts(p, pid) if any(json.loads(s["data"] or "{}").get("shot_no") for s in scenes) else []
     if cuts:
-        st.warning(f"✂ Director đã bỏ {len(cuts)} câu thoại của kịch bản — xem lại (thêm lại câu vào shot bằng ô sửa shot nếu cần):\n"
-                   + "\n".join(f"- Cảnh {c['scene']} · {c['speaker']}: “{escape(c['text'])}”"
-                                + (f" — ⚠ câu sau có thể là câu đáp lại ({escape(c['next'])})" if c["answered"] else "") for c in cuts))
+        say("warning", f"✂ Director đã bỏ {len(cuts)} câu thoại của kịch bản — xem lại (thêm lại câu vào shot bằng ô sửa shot nếu cần):\n"
+            + "\n".join(f"- Cảnh {c['scene']} · {c['speaker']}: “{escape(c['text'])}”"
+                         + (f" — ⚠ câu sau có thể là câu đáp lại ({escape(c['next'])})" if c["answered"] else "") for c in cuts),
+            f"script-cuts-{pid}", f"✂ Director đã bỏ {len(cuts)} câu thoại của kịch bản — xem lại")
     try:
         fixed = (json.loads(p.project(pid)["director_raw"] or "{}").get("normalized") or []) if cuts or scenes else []
     except (ValueError, KeyError, IndexError, AttributeError):
@@ -351,35 +363,38 @@ def scene_list(p: Pipeline, pid: int, scenes, char_names) -> None:
                     cap(paid)
                 _crew_notes(p, pid)
                 _director_review(p, pid)
-    cur_story = None
-    for s in scenes:
-        d = json.loads(s["data"] or "{}")
-        st_row = by_idx.get(s["idx"])
-        if d.get("shot_no"):                          # v3 shot rows: grouped under their script scene
-            if d.get("story_scene") != cur_story:
-                cur_story = d.get("story_scene")
-                group = [json.loads(x["data"] or "{}") for x in scenes if json.loads(x["data"] or "{}").get("story_scene") == cur_story]
-                total = sum(float(g.get("duration_s") or 0) for g in group)
-                head_col, redo_col = st.columns([5, 2], vertical_alignment="center")
-                head_col.markdown(f"**Cảnh {cur_story} — {escape((story.get(cur_story) or {}).get('heading') or '')}** · "
-                                  f"{len(group)} shot · {total:.1f}s")
-                _replan_button(p, pid, cur_story, redo_col)
-                warn = _shots.pacing_warnings(group)
-                if warn:
-                    cap("⚠ " + " · ".join(warn))
-            lines = "; ".join(f"{x.get('speaker')}: {x.get('text')}" for x in d.get("dialogue") or [])
-            head = [f"{_shots.label(d, s['idx'])} · {d.get('size')} · {d.get('role')} · {float(d.get('duration_s') or 0):g}s"
-                    + (" · ⭐" if d.get("shot_role") == "hero" else ""),
-                    (d.get("action") or "")[:60], lines[:70], scene_status_text(st_row) if st_row else ""]
-            with st.expander("   |   ".join(x for x in head if x)):
+    from contextlib import nullcontext
+    # v2 (P3, long list): more than 6 rows scroll inside a labelled box instead of making the card as tall as the list
+    with (st.container(height=460, key=f"script-rows-{pid}") if ui.v2_on() and len(scenes) > 6 else nullcontext()):
+        cur_story = None
+        for s in scenes:
+            d = json.loads(s["data"] or "{}")
+            st_row = by_idx.get(s["idx"])
+            if d.get("shot_no"):                          # v3 shot rows: grouped under their script scene
+                if d.get("story_scene") != cur_story:
+                    cur_story = d.get("story_scene")
+                    group = [json.loads(x["data"] or "{}") for x in scenes if json.loads(x["data"] or "{}").get("story_scene") == cur_story]
+                    total = sum(float(g.get("duration_s") or 0) for g in group)
+                    head_col, redo_col = st.columns([5, 2], vertical_alignment="center")
+                    head_col.markdown(f"**Cảnh {cur_story} — {escape((story.get(cur_story) or {}).get('heading') or '')}** · "
+                                      f"{len(group)} shot · {total:.1f}s")
+                    _replan_button(p, pid, cur_story, redo_col)
+                    warn = _shots.pacing_warnings(group)
+                    if warn:
+                        cap("⚠ " + " · ".join(warn))
+                lines = "; ".join(f"{x.get('speaker')}: {x.get('text')}" for x in d.get("dialogue") or [])
+                head = [f"{_shots.label(d, s['idx'])} · {d.get('size')} · {d.get('role')} · {float(d.get('duration_s') or 0):g}s"
+                        + (" · ⭐" if d.get("shot_role") == "hero" else ""),
+                        (d.get("action") or "")[:60], lines[:70], scene_status_text(st_row) if st_row else ""]
+                with st.expander("   |   ".join(x for x in head if x)):
+                    scene_editor(p, pid, s, char_names)
+                continue
+            bits = [f"S{s['idx']:02d}" + (f" · nhóm {d['sequence']}" if d.get("sequence") else "")
+                    + (" · ⭐" if d.get("shot_role") == "hero" else "") + (" · 🌀 phức tạp" if d.get("camera_complexity") == "complex" else ""),
+                    " · ".join(filter(None, [d.get("time"), d.get("location")])), ", ".join(d.get("characters") or []),
+                    scene_status_text(st_row) if st_row else ""]
+            with st.expander("   |   ".join(x for x in bits if x)):
                 scene_editor(p, pid, s, char_names)
-            continue
-        bits = [f"S{s['idx']:02d}" + (f" · nhóm {d['sequence']}" if d.get("sequence") else "")
-                + (" · ⭐" if d.get("shot_role") == "hero" else "") + (" · 🌀 phức tạp" if d.get("camera_complexity") == "complex" else ""),
-                " · ".join(filter(None, [d.get("time"), d.get("location")])), ", ".join(d.get("characters") or []),
-                scene_status_text(st_row) if st_row else ""]
-        with st.expander("   |   ".join(x for x in bits if x)):
-            scene_editor(p, pid, s, char_names)
     if st.button("➕ Thêm cảnh", key=f"scene_add_{pid}", help="Cho kịch bản mà công cụ không tự tách được"):
         act(lambda: p.add_scene_next(pid))
         st.rerun()

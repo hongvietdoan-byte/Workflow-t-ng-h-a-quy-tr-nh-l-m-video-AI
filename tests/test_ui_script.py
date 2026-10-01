@@ -116,6 +116,90 @@ class ScriptScreenV2Tests(unittest.TestCase):
         with mock.patch.object(step1_v2, "allowed", return_value=False):                                     # no autopilot right → skip it
             self.assertEqual(step1_v2.next_kind(self.p, pid, scenes, [1], False, False, True), "lock")
 
+    # ---- slim pass (01/10): details in ⓘ, panels closed by default, only the next job open --------------------------------------------
+    def test_next_panel_is_the_one_open_job(self):
+        pid = self.p.create_project("Trình tự việc")
+        self.assertEqual(step1_v2.next_panel(self.p, pid, [], [], False), "")                       # no script → nothing in card ② opens
+        paragraphs = script_parser.read_docx_paragraphs(SAMPLE)
+        script_parser.import_scenes(self.p, pid, script_parser.split_scenes(paragraphs), full_text="\n".join(paragraphs))
+        scenes = self.p.conn.execute("SELECT * FROM scenes WHERE project_id=?", (pid,)).fetchall()
+        self.p.set_project_field(pid, "aspect", None)
+        self.assertEqual(step1_v2.next_panel(self.p, pid, scenes, [], False), "format")             # format not chosen yet
+        self.p.set_project_field(pid, "aspect", "9:16")
+        self.p.set_project_field(pid, "genre", "SHORT_FORM")
+        self.assertEqual(step1_v2.next_panel(self.p, pid, scenes, [], False), "director")
+        fake = [{"anchor_approved": 0}]
+        self.assertEqual(step1_v2.next_panel(self.p, pid, scenes, fake, False), "bible")
+        self.assertEqual(step1_v2.next_panel(self.p, pid, scenes, [{"anchor_approved": 1}], True), "")
+
+    def prepared(self, lock: bool):
+        pid = self.project_with_bible(lock=lock)
+        self.p.set_project_field(pid, "aspect", "9:16")
+        self.p.set_project_field(pid, "genre", "SHORT_FORM")
+        return pid
+
+    def test_locked_bible_leaves_every_panel_of_card_two_closed(self):
+        pid = self.prepared(lock=True)
+        at = self.run_app()
+        self.assertEqual(at.session_state["_script_next"], "")
+        self.assertFalse(at.session_state[f"fold_director_{pid}"])
+        self.assertFalse(at.session_state[f"fold_bible_{pid}"])
+        opened = [e.label for e in at.expander if e.proto.expanded]
+        self.assertEqual(opened, [], opened)                                # 📐 Định dạng, 🧰 Tài nguyên, 1f Rà thoại … all one line each
+        labels = " ".join(e.label for e in at.expander)
+        self.assertIn("Định dạng", labels)                                  # …but each still has its one-line summary
+
+    def test_only_the_next_job_is_open(self):
+        pid = self.prepared(lock=False)                                     # characters exist, Bible not locked → the Bible is the job
+        at = self.run_app()
+        self.assertEqual(at.session_state["_script_next"], "bible")
+        self.assertTrue(at.session_state[f"fold_bible_{pid}"])
+        self.assertFalse(at.session_state[f"fold_director_{pid}"])
+        self.assertEqual([e.label for e in at.expander if e.proto.expanded], [])
+
+    def test_notes_become_one_line_plus_info_and_old_boxes_when_flag_off(self):
+        def app():
+            import streamlit as st
+            from dashboard.steps.step1_v2 import say
+            say("warning", "Một cảnh báo rất dài " * 20, "t-warn", "Tóm tắt cảnh báo")
+            say("success", "Đã xong việc", "t-ok")
+            say("info", "Ghi chú", "t-info")
+        at = AppTest.from_function(app).run()
+        self.assertFalse(at.exception, at.exception)
+        self.assertEqual(len(at.warning), 0)                                # no st.warning box in v2
+        self.assertEqual(len(at.success), 0)
+        self.assertEqual(len(at.info), 0)
+        body = " ".join(m.value for m in at.markdown)
+        self.assertIn("Tóm tắt cảnh báo", body)                             # the one summary line …
+        self.assertEqual(len(at.get("popover")), 3)                         # … and its ⓘ (the whole text lives inside)
+        full = [m.value for m in at.markdown if "Một cảnh báo rất dài" in (m.value or "")]
+        self.assertTrue(full, "the full message is kept inside the ⓘ")
+        with mock.patch.dict(os.environ, {"FEATURE_UI_V2": "0"}):
+            off = AppTest.from_function(app).run()
+            self.assertFalse(off.exception, off.exception)
+            self.assertEqual((len(off.warning), len(off.success), len(off.info)), (1, 1, 1))     # flag off = the old boxes
+            self.assertEqual(len(off.get("popover")), 0)
+
+    def test_cap_summary_keeps_the_figure_outside_and_the_text_inside(self):
+        def app():
+            from dashboard.steps.step1_v2 import cap
+            cap("💵 Ước tính Director (model X): 1 lượt · ~12k token vào / ~3k ra ≈ 0,34 USD — nếu bật hai lượt: 5 lượt ≈ 0,90 USD · thô ±50%",
+                summary="💵 Ước tính Director ≈ 0,34 USD")
+        at = AppTest.from_function(app).run()
+        self.assertFalse(at.exception, at.exception)
+        body = " ".join(m.value for m in at.markdown)
+        self.assertIn("≈ 0,34 USD", body)
+        self.assertIn("nếu bật hai lượt", body)                             # full text inside the popover
+        self.assertEqual(len(at.get("popover")), 1)
+
+    def test_lock_row_has_no_second_primary_button(self):
+        pid = self.prepared(lock=False)
+        at = self.run_app()
+        primaries = [b.key for b in at.button if b.proto.type == "primary"]
+        self.assertIn(f"script-cta-lock_{pid}", primaries)
+        self.assertNotIn(f"lock_go_{pid}", primaries)                       # the hero owns THE primary action
+        self.assertIn(f"lock_go_{pid}", tree_keys(at))                      # …but the old widget key is kept
+
 
 if __name__ == "__main__":
     unittest.main()

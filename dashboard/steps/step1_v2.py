@@ -20,18 +20,71 @@ def _short(text: str, limit: int = 88) -> str:
     return plain if len(plain) <= limit else plain[:limit].rsplit(" ", 1)[0] + "…"
 
 
-def cap(text: str, key: str = "") -> None:
-    """st.caption that, under UI v2, turns a LONG explanation into one summary line + a ⓘ holding the full text (nothing is lost).
-    Short captions, and everything while the flag is off, are plain st.caption exactly as before."""
-    if not ui.v2_on() or len(text) <= LONG_CAPTION:
-        st.caption(text)
-        return
-    import zlib
+def _uniq(base: str) -> str:
+    """Unique ⓘ key per call within one run (the same caption can be drawn twice, e.g. once per character)."""
     seen = st.session_state.setdefault("_script_cap_seen", {})
-    base = key or f"script-cap-{zlib.crc32(text.encode('utf-8')) & 0xFFFFFF:x}"
     n = seen.get(base, 0)
     seen[base] = n + 1
-    D.line(f'<span class="script-sum">{escape(_short(text))}</span>', text, f"{base}-{n}")
+    return f"{base}-{n}"
+
+
+def _auto_key(text: str, key: str = "") -> str:
+    import zlib
+    return key or f"script-cap-{zlib.crc32(text.encode('utf-8')) & 0xFFFFFF:x}"
+
+
+def cap(text: str, key: str = "", summary: str = "") -> None:
+    """st.caption that, under UI v2, turns a LONG explanation into one summary line + a ⓘ holding the full text (nothing is lost).
+    `summary` overrides the automatic first-clause summary (use it when a figure must stay visible). Short captions, and everything
+    while the flag is off, are plain st.caption exactly as before."""
+    if not ui.v2_on() or (len(text) <= LONG_CAPTION and not summary):
+        st.caption(text)
+        return
+    D.line(f'<span class="script-sum">{escape(summary or _short(text))}</span>', text, _uniq(_auto_key(text, key)))
+
+
+_NOTE = {"info": ("Ghi chú", "info"), "warning": ("Lưu ý", "warn"), "success": ("Đã xong", "ok")}
+
+
+def say(kind: str, text: str, key: str = "", summary: str = "") -> None:
+    """st.info / st.warning / st.success that, under UI v2, becomes a pill + ONE summary line + a ⓘ with the whole message
+    (P2 outside, P3 inside — docs/QUY_TAC_BO_CUC_UI_V2.md §5). Flag off: the plain Streamlit box, exactly as before.
+    Blocking errors are NOT routed here (they stay st.error / red lines: P1)."""
+    if not ui.v2_on():
+        {"info": st.info, "warning": st.warning, "success": st.success}[kind](text)
+        return
+    label, tone = _NOTE[kind]
+    D.line(f'{D.pill(label, tone)} <span class="script-sum">{escape(summary or _short(text))}</span>', text, _uniq(_auto_key(text, key)))
+
+
+def next_panel(p: Pipeline, pid: int, scenes, chars, locked: bool) -> str:
+    """Which collapsed panel of card ② is the next thing to do (the only one drawn open): format → director → bible → none."""
+    if not scenes:
+        return ""
+    proj = p.project(pid)
+    if formats.project_aspect(proj) is None or not proj["genre"]:
+        return "format"
+    if not chars:
+        return "director"
+    if not locked or any(not c["anchor_approved"] for c in chars):
+        return "bible"
+    return ""
+
+
+def is_next(name: str, legacy: bool) -> bool:
+    """`expanded=` / `default_open=` of a panel: the old rule while the flag is off; under v2 only the panel that is the next job."""
+    if not ui.v2_on():
+        return legacy
+    return st.session_state.get("_script_next") == name
+
+
+def sync_folds(pid: int, nxt: str) -> None:
+    """When the next job changes, the ui.fold panels follow it (one open at a time) instead of staying as they were left."""
+    if st.session_state.get("_script_next_seen") == (pid, nxt):
+        return
+    st.session_state["_script_next_seen"] = (pid, nxt)
+    for name in ("director", "bible"):
+        st.session_state[f"fold_{name}_{pid}"] = name == nxt
 
 
 _AUTO_BUSY =("queued", "running", "waiting", "needs_attention", "stopped", "error")
@@ -88,8 +141,9 @@ def _primary_action(p: Pipeline, pid: int, kind: str, scenes, chars, b_total: fl
         st.html(D.empty_state("Bắt đầu từ kịch bản", "Dán hoặc tải kịch bản ở thẻ ① rồi bấm ▶ Phân tích"))
     elif kind == "auto":
         info = autopilot.status(p, pid)
-        st.html(D.pill("Chạy tự động: " + info["state"], "info", running=info["state"] == "running")
-                + f'<div class="script-note">{escape(info["note"][:160])}</div><div class="script-note">Điều khiển ở thẻ ③ Chạy bên dưới.</div>')
+        st.html(D.pill("Chạy tự động: " + info["state"], "info", running=info["state"] == "running"))
+        D.line(f'<span class="script-sum">{escape(_short(info["note"], 70))} · điều khiển ở thẻ ③</span>',
+               info["note"] + "\n\nĐiều khiển chạy tự động ở thẻ ③ Chạy bên dưới.", f"script-auto-note-{pid}")
     elif kind == "plan":
         client = llm_client()
         label = "🤖 Lập kế hoạch"
@@ -106,7 +160,8 @@ def _primary_action(p: Pipeline, pid: int, kind: str, scenes, chars, b_total: fl
                      help="Chạy Director: Character Bible + thông số, ý đồ, thoại từng cảnh" if client else claude_hint()):
             from dashboard.steps.step1_director import run_director_now
             run_director_now(p, pid, client)
-        st.html('<div class="script-note">Director chia cảnh thành shot và lập Character Bible. Tùy chọn hai lượt ở thẻ ②.</div>')
+        D.line('<span class="script-sum">Director chia shot + lập Character Bible</span>',
+               "Director chia cảnh thành shot và lập Character Bible. Tùy chọn hai lượt ở thẻ ②.", f"script-plan-note-{pid}")
     elif kind == "budget":
         from core import project_budget
         try:
@@ -119,7 +174,8 @@ def _primary_action(p: Pipeline, pid: int, kind: str, scenes, chars, b_total: fl
                        "vượt trần khâu hoặc tổng sẽ bị DỪNG; chỉ người được nâng trần, kèm lý do.", st, "Có, khóa"):
             project_budget.approve(p, pid, p.actor, prop)
             st.rerun()
-        st.html('<div class="script-note">Chạy tự động chờ bước này trước khi gen ảnh. Chi tiết từng khâu ở thẻ ③.</div>')
+        D.line('<span class="script-sum">Chạy tự động chờ bước này trước khi gen ảnh</span>',
+               "Chạy tự động chờ bước này trước khi gen ảnh. Chi tiết từng khâu ở thẻ ③.", f"script-budget-note-{pid}")
     elif kind == "lock":
         st.button("✔ Duyệt & khóa → Storyboard", type="primary", key=f"script-cta-lock_{pid}", width="stretch",
                   on_click=lock_and_go, args=(p, pid))
@@ -127,7 +183,8 @@ def _primary_action(p: Pipeline, pid: int, kind: str, scenes, chars, b_total: fl
             st.error(st.session_state.pop("lock_error"))
         missing = [c["name"] for c in chars if not c["anchor_approved"]]
         if missing:
-            st.html(f'<div class="script-note">Chưa duyệt ảnh mốc: {escape(", ".join(missing))} (thẻ ②).</div>')
+            D.line(f'<span class="script-sum">Chưa duyệt ảnh mốc: {len(missing)} nhân vật (thẻ ②)</span>',
+                   "Chưa duyệt ảnh mốc: " + ", ".join(missing) + " (thẻ ②).", f"script-missing-anchor-{pid}")
     else:
         def go():
             st.session_state["step"] = STEPS[2]
@@ -150,17 +207,21 @@ def step1_v2(p: Pipeline, pid: int, proj, scenes, chars, risky, char_names, lock
     from dashboard.steps import step1 as S
     from dashboard.steps.step1_refs import inputs_and_refs_v2
     st.session_state["_script_cap_seen"] = {}                           # one count of equal captions per run (unique ⓘ keys)
+    nxt = next_panel(p, pid, scenes, chars, locked)                     # the one panel of card ② drawn open (everything else: one line)
+    st.session_state["_script_next"] = nxt
+    sync_folds(pid, nxt)
     _hero(p, pid, proj, scenes, chars, locked, stale)
-    note = st.session_state.pop("inherited_note", None)                 # S3.8: said once, right after the project was made
-    if note:
-        st.info("↪ " + note + " — đổi ở Bước 1 · Định dạng nếu dự án này khác.")
+    inherited = st.session_state.pop("inherited_note", None)            # S3.8: said once, right after the project was made
+    if inherited:
+        say("info", "↪ " + inherited + " — đổi ở Bước 1 · Định dạng nếu dự án này khác.", f"script-inherited-{pid}",
+             "Dự án này kế thừa thiết lập từ dự án trước")
     inputs_and_refs_v2(p, pid, bool(scenes))
 
     # ① Kịch bản (1a)
     with D.card(f"script-a-{pid}"):
         _card_head("1", "Kịch bản", [(S._script_summary(p, pid, scenes).replace("📜 ", ""), "ok" if scenes else "mute")])
         if st.session_state.get("parse_warn") and scenes:
-            st.warning(st.session_state["parse_warn"])
+            say("warning", st.session_state["parse_warn"], f"script-parse-warn-{pid}", "Không thấy tiêu đề cảnh — cả kịch bản thành 1 cảnh")
         if not scenes:
             st.html(D.empty_state("Chưa có kịch bản", "Tải file, dán văn bản hoặc gõ ý thô, rồi bấm ▶ Phân tích để tách cảnh."))
             S.script_input(p, pid, with_reset=False)
@@ -189,9 +250,12 @@ def step1_v2(p: Pipeline, pid: int, proj, scenes, chars, risky, char_names, lock
             with st.container(border=True):
                 a, b = st.columns([2, 1], vertical_alignment="center")
                 missing_anchor = [c["name"] for c in chars if not c["anchor_approved"]]
-                a.caption("Xong nhân vật (và storyboard nếu dựng): duyệt & khóa rồi sang Bước 2."
-                          + (f" Chưa duyệt ảnh mốc: {', '.join(missing_anchor)}." if missing_anchor else ""))
-                b.button("✔ Duyệt & khóa → Storyboard", type="primary", key=f"lock_go_{pid}", on_click=S._lock_and_go, args=(p, pid))
+                with a:                                                 # P2 one line, P3 in ⓘ; the ONE primary button is in the hero
+                    D.line('<span class="script-sum">' + (f"Chưa duyệt ảnh mốc: {len(missing_anchor)} nhân vật" if missing_anchor
+                                                          else "Xong nhân vật → duyệt & khóa rồi sang Bước 2") + "</span>",
+                           "Xong nhân vật (và storyboard nếu dựng): duyệt & khóa rồi sang Bước 2."
+                           + (f" Chưa duyệt ảnh mốc: {', '.join(missing_anchor)}." if missing_anchor else ""), f"script-lock-row-{pid}")
+                b.button("✔ Duyệt & khóa → Storyboard", key=f"lock_go_{pid}", on_click=S._lock_and_go, args=(p, pid))
                 if st.session_state.get("lock_error"):
                     st.error(st.session_state.pop("lock_error"))
         if C.expert():

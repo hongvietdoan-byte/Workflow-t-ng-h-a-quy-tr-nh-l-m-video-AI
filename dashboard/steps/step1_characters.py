@@ -1,7 +1,7 @@
 """Step 1 · 1e: Character Bible — reference pictures, outfits, subjects, voices, Lock, anchors (split from step1.py, S9.5)."""
 from dashboard.common import *  # noqa: F401,F403  (shared imports + helpers)
 from dashboard import common as C
-from dashboard.steps.step1_v2 import cap  # noqa: F401  (v2: long captions become a one-line summary + ⓘ)
+from dashboard.steps.step1_v2 import cap, say, is_next  # noqa: F401  (v2: long captions / notes become a one-line summary + ⓘ)
 
 
 def character_reference_panel(p: Pipeline, pid: int, chars) -> None:
@@ -10,12 +10,13 @@ def character_reference_panel(p: Pipeline, pid: int, chars) -> None:
     pool = [a for a in assets.project_assets(p.conn, pid) if a["kind"] in ("character", "pet") and a["images"]]
     saved = {r["name"]: r for r in p.conn.execute("SELECT name, ref_asset_id, ref_image_id, ref_image_ids FROM characters WHERE project_id=?", (pid,))}
     have = sum(1 for a in linked.values() if a)
-    with st.expander(f"🖼 Ảnh tham chiếu của từng nhân vật — {have}/{len(chars)} đã có", expanded=have < len(chars) or not pool):
+    with st.expander(f"🖼 Ảnh tham chiếu của từng nhân vật — {have}/{len(chars)} đã có", expanded=is_next("refs", have < len(chars) or not pool)):   # v2: the label carries the count
         cap("Đây là (những) ảnh mà bước gen ảnh sẽ **bám theo** (gương mặt, tóc, trang phục). Mặc định tự chọn theo tên, ưu tiên ảnh MỘT người rõ mặt "
                    "(không phải cả tấm bảng nhiều tư thế) và lấy thêm góc/chi tiết thứ hai nếu có, để nhân vật không bị lẫn với người khác trong cảnh. "
                    "Bạn đổi được sang tài nguyên khác, hoặc tự chọn 1-2 ảnh cụ thể. Muốn thêm tài nguyên, chọn ở mục “🧰 Tài nguyên đi kèm kịch bản” phía trên.")
         if not pool:
-            st.warning("Dự án chưa chọn tài nguyên nhân vật nào, nên ảnh sẽ vẽ chỉ theo mô tả chữ (dễ lệch thiết kế). Chọn ở “🧰 Tài nguyên đi kèm kịch bản”.")
+            say("warning", "Dự án chưa chọn tài nguyên nhân vật nào, nên ảnh sẽ vẽ chỉ theo mô tả chữ (dễ lệch thiết kế). Chọn ở “🧰 Tài nguyên đi kèm kịch bản”.",
+                f"script-noasset-{pid}", "Chưa chọn tài nguyên nhân vật — ảnh vẽ theo mô tả chữ")
         options = ["auto", "none"] + [a["id"] for a in pool]
         labels = {"auto": "Tự động (theo tên)", "none": "Không dùng ảnh (vẽ theo mô tả)", **{a["id"]: f"{a['name']} ({len(a['images'])} ảnh)" for a in pool}}
         for c in chars:
@@ -94,11 +95,11 @@ def subject_panel(p: Pipeline, pid: int, chars) -> None:
         if game != proj["game"]:
             p.set_game(pid, game)
         if subjects.is_covered(game):
-            st.success("Free Fire đã ký thỏa thuận bản quyền với Clip AI: chủ thể ở trạng thái active đã qua duyệt "
-                       "người thật + bản quyền, dùng được trong Seedance.")
+            say("success", "Free Fire đã ký thỏa thuận bản quyền với Clip AI: chủ thể ở trạng thái active đã qua duyệt "
+                "người thật + bản quyền, dùng được trong Seedance.", f"script-subj-cover-{pid}", "Đã có thỏa thuận bản quyền với Clip AI")
         else:
-            st.warning("Game / nội dung này chưa có thỏa thuận bản quyền: chủ thể active chỉ qua duyệt người thật; "
-                       "khi gen vẫn có thể bị chặn bản quyền.")
+            say("warning", "Game / nội dung này chưa có thỏa thuận bản quyền: chủ thể active chỉ qua duyệt người thật; "
+                "khi gen vẫn có thể bị chặn bản quyền.", f"script-subj-nocover-{pid}", "Chưa có thỏa thuận bản quyền cho nội dung này")
         with st.expander("➕ Thêm game / loại nội dung khác"):
             g_key = st.text_input("Mã ngắn (vd AOV, MV_CA_SI)", key=f"gnew_key_{pid}")
             g_label = st.text_input("Tên hiển thị", key=f"gnew_label_{pid}")
@@ -271,10 +272,13 @@ def bible_check_box(p: Pipeline, pid: int, rows, client, locked: bool) -> None:
             continue
         res = json.loads(r["bible_check"] or "{}")
         box = st.container(border=True)
-        box.warning(f"⚑ **{r['name']}**: mô tả mâu thuẫn với ảnh tài nguyên — " + "; ".join(flags[r["name"]]))
+        with box:
+            say("warning", f"⚑ **{r['name']}**: mô tả mâu thuẫn với ảnh tài nguyên — " + "; ".join(flags[r["name"]]), f"script-bflag-{pid}-{r['name']}",
+                f"⚑ {r['name']}: mô tả mâu thuẫn với ảnh tài nguyên")
         fixed = (res.get("fixed_description") or "").strip()
         if fixed:
-            box.caption(f"Đề xuất: {fixed}")
+            with box:
+                cap(f"Đề xuất: {fixed}", f"script-bfix-{pid}-{r['name']}")
             if not locked and box.button("✔ Dùng đề xuất này", key=f"bfix_{pid}_{r['name']}"):
                 act(lambda: llm_io.update_character(p, pid, r["name"], fixed, r["wardrobe"]), "Đã sửa mô tả theo ảnh")
                 st.rerun()
@@ -297,21 +301,33 @@ def character_bible_panel(p: Pipeline, pid: int, chars, risky) -> None:
     locked = any(c["locked"] for c in chars)
     rows = p.conn.execute("SELECT * FROM characters WHERE project_id=?", (pid,)).fetchall()
     with ui.fold("1e · 👥 Character Bible", _bible_summary(rows, locked), f"bible_{pid}",
-                 default_open=not locked or any(not r["anchor_approved"] for r in rows)) as bible_open:  # E1.15
+                 default_open=is_next("bible", not locked or any(not r["anchor_approved"] for r in rows))) as bible_open:  # E1.15
         if bible_open:
-            head, status = st.columns([3, 2], vertical_alignment="center")
-            head.markdown(ui.card_title("1e · 👥 Character Bible", f"{len(chars)} mục" + (" · 🔒 đã khóa" if locked else "")), unsafe_allow_html=True)
-            if risky:
-                status.caption(f"⚠ {len(risky)} mục có thể vướng IP (xem “⚠ Rủi ro” ở góc trên)")
+            if ui.v2_on():           # v2: the fold title above already says "1e · Character Bible" and the counts (P4: no second heading)
+                if risky:
+                    st.caption(f"⚠ {len(risky)} mục có thể vướng IP (xem “⚠ Rủi ro” ở góc trên)")
+            else:
+                head, status = st.columns([3, 2], vertical_alignment="center")
+                head.markdown(ui.card_title("1e · 👥 Character Bible", f"{len(chars)} mục" + (" · 🔒 đã khóa" if locked else "")), unsafe_allow_html=True)
+                if risky:
+                    status.caption(f"⚠ {len(risky)} mục có thể vướng IP (xem “⚠ Rủi ro” ở góc trên)")
             linked = assets.link_characters(p.conn, pid, char_names)
-            st.dataframe([{"Nhân vật / đối tượng": r["name"],
+            bible_rows = ([{"Nhân vật / đối tượng": r["name"],
                            "Mô tả": r["description"] + (f" · {r['wardrobe']}" if r["wardrobe"] else ""),
                            "Ảnh tham chiếu": (f"✔ {linked[r['name']]['name']} · {len(linked[r['name']]['refs'])} ảnh" if linked.get(r["name"]) else "— vẽ theo mô tả"),
                            "Lock": "✔" if r["lock_rules"] else "—",
                            "Giọng": voice.get_profile(r).get("voice_name") or ("—" if not voice.get_profile(r).get("voice_id") else "✔"),
                            "Ảnh mốc": "✔" if r["anchor_approved"] else "—",
                            "IP": "⚠" if r["name"] in risky else "",
-                           } for r in rows], width="stretch", hide_index=True, height=min(38 * (len(rows) + 1) + 3, 260))
+                           } for r in rows])
+            if ui.v2_on():                         # v2: a table that follows light/dark; long descriptions clipped (full text: ✏ Sửa / thêm below)
+                from dashboard.design import components as D
+                def clip(t: str) -> "D.Raw":
+                    return D.Raw(f'<span title="{escape(t)}">{escape(t if len(t) <= 70 else t[:69].rstrip() + "…")}</span>')
+                heads = list(bible_rows[0]) if bible_rows else []
+                st.html(D.table(heads, [[clip(v) if h == "Mô tả" else v for h, v in row.items()] for row in bible_rows]))
+            else:
+                st.dataframe(bible_rows, width="stretch", hide_index=True, height=min(38 * (len(rows) + 1) + 3, 260))
             client = llm_client()
             bible_check_box(p, pid, rows, client, locked)
             character_reference_panel(p, pid, chars)
