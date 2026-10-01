@@ -245,6 +245,10 @@ def settings_menu(p: Pipeline, pid) -> None:
             if pid is not None and allowed("lessons") and st.button("🎓 Bài học", key="settings_lessons", width="stretch"):
                 open_dialog("dlg_lessons")
         with t_sys:
+            if st.toggle("🌙 Nền tối", value=ui.dark_on(), key="dark_toggle", help="Đổi nền sang tối cho đỡ chói; nhớ trong địa chỉ trang (?theme=dark). "
+                                                                                    "Bảng dữ liệu vẫn nền sáng.") != ui.dark_on():
+                ui.set_dark(not ui.dark_on())
+                st.rerun()
             st.toggle("🧠 Chế độ chuyên gia", key="expert_mode",
                       help="Hiện mọi tùy chọn nâng cao: dán JSON tay, nối ảnh, World Bible, storyboard layout, chính sách QC, video tham chiếu, "
                            "kế hoạch model, thử nghiệm, bảng làm tay ở Bước 5. Tắt: mỗi bước chỉ hiện việc của một lần chạy thường.")

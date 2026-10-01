@@ -107,8 +107,73 @@ BADGES = STATE_LABELS
 MODE_LABELS = {"auto": "Tự duyệt theo QC", "human_qc": "Người duyệt"}
 
 
+DARK_CSS = """
+<style>
+/* 🌙 Nền tối (thử 01/10): đổi biến màu của khung + các thành phần gốc của Streamlit. Bảng dữ liệu (canvas) vẫn nền sáng. */
+:root{--bg:#0F1420;--surface:#171D2B;--border:#2B3550;--text:#E6EAF2;--muted:#A9B4C9;--primary:#8B85FF;--primary-soft:#262B52;
+--ok:#4ADE80;--ok-soft:#12301F;--warn:#FBBF24;--warn-soft:#3A2A0C;--bad:#F87171;--bad-soft:#3B1717;--info:#38BDF8;--info-soft:#0E2F40}
+.stApp,[data-testid="stAppViewContainer"],[data-testid="stMain"]{background:var(--bg);color:var(--text)}
+[data-testid="stHeader"]{background:transparent}
+.stApp p,.stApp li,.stApp label,.stApp h1,.stApp h2,.stApp h3,.stApp h4,.stApp h5,.stApp h6,.stApp summary{color:var(--text)}
+[data-testid="stCaptionContainer"],[data-testid="stCaptionContainer"] p{color:var(--muted)}
+.stButton>button,.stDownloadButton>button{background:var(--surface);color:var(--text);border-color:var(--border)}
+.stButton>button p{color:inherit}
+.stButton>button[kind="primary"]{background:var(--primary);color:#0F1420}
+.stButton>button[kind="primary"] p{color:#0F1420}
+.stButton>button:hover{border-color:var(--primary);color:var(--primary)}
+[data-baseweb="input"],[data-baseweb="base-input"],[data-baseweb="textarea"],[data-baseweb="select"]>div{background:var(--surface)!important;border-color:var(--border)!important}
+input,textarea,[data-baseweb="select"] div,[data-baseweb="select"] span{color:var(--text)!important}
+input::placeholder,textarea::placeholder{color:var(--muted)!important}
+[data-baseweb="popover"] [role="listbox"],[data-baseweb="popover"] ul,[data-baseweb="menu"]{background:var(--surface)!important}
+[data-baseweb="popover"] li,[data-baseweb="popover"] [role="option"]{color:var(--text)!important}
+[data-testid="stPopoverBody"],[data-testid="stPopover"]>div[role="dialog"],div[role="dialog"]{background:var(--surface);color:var(--text)}
+[data-testid="stExpander"] details{background:var(--surface);border-color:var(--border)}
+[data-testid="stExpander"] summary:hover{color:var(--primary)}
+button[data-baseweb="tab"] p{color:var(--muted)}
+button[data-baseweb="tab"][aria-selected="true"] p{color:var(--primary)}
+[data-testid="stFileUploaderDropzone"]{background:var(--surface);border-color:var(--border)}
+[data-testid="stFileUploaderDropzone"] *{color:var(--muted)}
+.stCheckbox label span,.stToggle label span{color:var(--text)}
+[data-testid="stAlert"]{background:var(--surface)}
+.scenetext,.scriptfull{background:var(--surface)}
+.stephead,.item,.note{background:var(--surface)}
+[data-testid="stBaseButton-secondary"],[data-testid="stPopoverButton"],[data-testid="stBaseButton-secondaryFormSubmit"]{background:var(--surface)!important;color:var(--text)!important;border-color:var(--border)!important}
+[data-testid="stBaseButton-primary"]{background:var(--primary)!important;color:#0F1420!important}
+[data-testid="stBaseButton-secondary"] p,[data-testid="stPopoverButton"] p{color:var(--text)!important}
+div[role="group"],[data-testid="stTextInputRootElement"],[data-testid="stNumberInputContainer"],[data-testid="stTextAreaRootElement"]{background:var(--surface)!important;border-color:var(--border)!important}
+ul[role="listbox"],[data-testid="stSelectboxVirtualDropdown"]{background:var(--surface)!important;color:var(--text)!important}
+[data-testid="stExpander"] summary,[data-testid="stExpander"] details{background:var(--surface)!important;color:var(--text)!important}
+[data-testid="stExpander"] summary p{color:var(--text)!important}
+</style>
+"""
+
+
+
+def dark_on() -> bool:
+    """🌙 Nền tối: the ⚙ toggle, remembered in the address (?theme=dark) so a reload keeps it."""
+    try:
+        if "dark_mode" not in st.session_state:
+            st.session_state["dark_mode"] = st.query_params.get("theme") == "dark"
+    except Exception:  # noqa: BLE001 - no request context (tests, tools): light
+        return False
+    return bool(st.session_state.get("dark_mode"))
+
+
+def set_dark(on: bool) -> None:
+    st.session_state["dark_mode"] = bool(on)
+    try:
+        if on:
+            st.query_params["theme"] = "dark"
+        elif "theme" in st.query_params:
+            del st.query_params["theme"]
+    except Exception:  # noqa: BLE001
+        pass
+
+
 def inject_css() -> None:
     st.markdown(CSS, unsafe_allow_html=True)
+    if dark_on():
+        st.markdown(DARK_CSS, unsafe_allow_html=True)
 
 
 def html(markup: str) -> None:
