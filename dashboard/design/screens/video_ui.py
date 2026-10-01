@@ -71,3 +71,30 @@ def hero_stats(latest: List, summ: Dict, spend: float) -> Tuple[int, int, int, i
     failed = sum(1 for j in latest if j["state"] in ("failed", "rejected"))
     busy = sum(1 for j in latest if j["state"] in ("queued", "running", "retryable"))
     return summ["videos"][0], summ["total"], waiting, failed, busy
+
+
+# ---- progressive disclosure (docs/QUY_TAC_BO_CUC_UI_V2.md §5): one summary line outside, the full content behind ⓘ ---------------------
+def layer0_summary(flags: List[Dict]) -> str:
+    redraw = sum(1 for f in flags if f.get("severity") == "redraw")
+    first = str(flags[0].get("problem") or "")
+    return D.pill(f"Đo lớp 0: {len(flags)} điểm", "bad" if redraw else "warn") + f' <span class="vid-sum">{escape(first[:70])}{"…" if len(first) > 70 else ""}</span>'
+
+
+def layer0_md(flags: List[Dict]) -> str:
+    return "**Đo lớp 0 (code đo ảnh khung đầu, miễn phí)**\n\n" + "\n".join(
+        f"- {'Vẽ lại' if f.get('severity') == 'redraw' else 'Lưu ý'}: {f.get('problem') or ''}" + (f" → _{f['fix']}_" if f.get("fix") else "")
+        for f in flags)
+
+
+def scores_summary(scores, labels: Dict[str, str]) -> str:
+    low = min(scores, key=lambda s: s["score"])
+    return f'<span class="vid-sum">Tiêu chí QC · thấp nhất: {escape(labels.get(low["criterion"], low["criterion"]))} {low["score"]:.2f}</span>'
+
+
+def scores_md(scores, labels: Dict[str, str]) -> str:
+    return "\n".join(f"- {labels.get(s['criterion'], s['criterion'])}: **{s['score']:.2f}** (ngưỡng {s['threshold_at_time']})" for s in scores)
+
+
+def note_summary(label: str, text: str) -> str:
+    text = (text or "").strip()
+    return f'<span class="vid-sum"><b>{escape(label)}:</b> {escape(text[:80])}{"…" if len(text) > 80 else ""}</span>'

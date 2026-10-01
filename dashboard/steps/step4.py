@@ -422,19 +422,21 @@ def video_card_v2(p: Pipeline, pid: int, j, runner, stale_reason) -> None:
             st.markdown(D.shimmer(150), unsafe_allow_html=True)
         mp = p.conn.execute("SELECT duration_sec FROM motion_prompts WHERE scene_id=?", (j["scene_id"],)).fetchone()
         st.markdown(V.meta_line(j["model"], mp["duration_sec"] if mp else None, price, j["retry_count"]), unsafe_allow_html=True)
-        if scores:
-            st.markdown(V.score_chips(scores, CRITERIA_LABEL), unsafe_allow_html=True)
+        if scores:                                                       # P3: the criteria behind ⓘ, one line outside
+            D.line(V.scores_summary(scores, CRITERIA_LABEL), V.scores_md(scores, CRITERIA_LABEL), f"vid-{jid}-qc")
         try:
             flags = qc_scene.flags_of(C.DATA, pid, j["source_job_id"]) if j["source_job_id"] else []
         except Exception:  # noqa: BLE001 - a missing/broken layer-0 file never hides the clip
             flags = []
         if flags:
-            st.markdown(V.layer0_rows(flags), unsafe_allow_html=True)
+            D.line(V.layer0_summary(flags), V.layer0_md(flags), f"vid-{jid}-l0")
         qnote = p.conn.execute("SELECT note FROM review_log WHERE job_id=? AND note IS NOT NULL AND note!='' ORDER BY id DESC LIMIT 1", (jid,)).fetchone()
         if qnote:
-            st.markdown(V.note_row("Ghi chú QC", qnote["note"]), unsafe_allow_html=True)
+            D.line(V.note_summary("Ghi chú QC", qnote["note"]), qnote["note"], f"vid-{jid}-note")
         if blocked:
-            st.caption("Bị bộ lọc nội dung chặn: gen lại nguyên prompt sẽ lại bị chặn và tốn credit — sửa motion prompt trước.")
+            D.line('<span class="vid-sum">Đừng gen lại nguyên prompt — sửa motion prompt trước</span>',
+                   "Bị bộ lọc nội dung chặn: gen lại nguyên prompt sẽ lại bị chặn và tốn credit — sửa motion prompt trước.\n\n"
+                   + str(blocked["error_message"] or ""), f"vid-{jid}-blk")
         if state == "pending_review":
             st.text_input("Câu sửa cho lần gen lại (nên viết tiếng Anh)", key=f"vnote_{jid}")
         vfix = ""

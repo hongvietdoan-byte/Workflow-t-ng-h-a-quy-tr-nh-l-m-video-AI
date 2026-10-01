@@ -10,8 +10,10 @@
 /* thẻ clip: video dọc không tràn thẻ */
 [class*="st-key-card-vid-"] [data-testid="stVideo"] video { max-height: 340px; border-radius: var(--r-md); }
 [class*="st-key-card-vid-"] [data-testid="stImage"] img { max-height: 340px; object-fit: contain; }
+[class*="st-key-card-vid-"] .vid-sum { color: var(--muted); font-size: 13px; }
 /* nhãn nút dài (kèm giá) xuống dòng thay vì bị cắt */
 [class*="st-key-card-vid-"] button p { white-space: normal; line-height: 1.25; }
 [class*="st-key-card-vid-"] button { height: auto; padding-top: 6px; padding-bottom: 6px; }
+[class*="st-key-card-vid-"] button:disabled p, [class*="st-key-card-vid-"] button:disabled { color: var(--disabled) !important; }
 /* thanh công cụ gen hàng loạt và thẻ tinh chỉnh */
 .st-key-card-vid-bar, .st-key-card-vid-tune { margin-bottom: 8px; }

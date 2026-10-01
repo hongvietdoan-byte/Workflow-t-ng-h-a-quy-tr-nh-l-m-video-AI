@@ -7,4 +7,7 @@
 .st-key-card-del-out, .st-key-card-del-tune { margin-top: 8px; }
 .st-key-hero-del [data-testid="stCheckbox"] { background: var(--glass); border: 1.5px solid var(--border-soft); border-radius: var(--r-md); padding: 8px 12px; }
 .st-key-hero-del [data-testid="stCheckbox"] label p { font-size: 14px; }
+/* nút chính bị khóa: lõi vẽ chữ trắng trên nền gần trắng (giao diện sáng) -> dùng màu chữ "disabled" trong phạm vi khóa của màn này */
+.st-key-hero-del button:disabled p, .st-key-hero-del button:disabled { color: var(--disabled) !important; }
+.st-key-hero-del [data-testid="stCheckbox"] label p { white-space: normal; }
 .st-key-card-del-out [data-testid="stVideo"] video { max-height: 480px; border-radius: var(--r-md); }

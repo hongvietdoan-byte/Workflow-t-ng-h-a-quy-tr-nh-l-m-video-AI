@@ -86,10 +86,15 @@ class VideoV2Tests(VideoSeed):
         html = md(self.open_video())
         self.assertIn("Đo lớp 0", html)                                  # layer-0 row
         self.assertIn("cỡ cảnh đo được MS", html)
-        self.assertIn("Giữ đúng nhân vật 0.91", html)
+        self.assertIn("Giữ đúng nhân vật", html)
+        self.assertIn("**0.91**", html)
         self.assertIn("Ghi chú QC", html)
         self.assertIn("Tay phải hơi lệch", html)
         self.assertIn("kling-v3-omni", html)
+
+    def test_details_sit_behind_an_info_popover(self):
+        at = self.open_video()
+        self.assertGreaterEqual(len(at.get("popover")), 3)             # QC criteria, layer-0 measurements and QC note sit behind ⓘ
 
     def test_old_widget_keys_are_kept(self):
         at = self.open_video()
