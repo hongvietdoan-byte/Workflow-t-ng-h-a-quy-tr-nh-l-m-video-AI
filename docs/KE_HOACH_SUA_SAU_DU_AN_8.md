@@ -29,10 +29,10 @@
 | S10 Kỹ năng nhân vật & tham chiếu | 12 | 12 | 0 | 0 | 0 | 100 % |
 | S11 Director mở rộng: ý tưởng → kịch bản, cover video ref, học trending (kế hoạch v2 01/10, `docs/KE_HOACH_TINH_NANG_DIRECTOR_2026-10-01.md`) | 15 | 2 | 1 | 1 | 0 | 17,3 % |
 | S12 Rà soát dashboard 01/10: sửa lỗi, tính năng thử, 4 màn, nhiều người dùng (`docs/RA_SOAT_DASHBOARD_2026-10-01.md`) | 7 | 6 | 0 | 1 | 0 | 80 % |
-| S13 Giao diện v2 "AI product" (gradient, kính mờ, nền tối) trên Streamlit, chạy song song nhiều nhánh (`docs/KE_HOACH_GIAO_DIEN_V2_2026-10-01.md`) | 11 | 7 | 2 | 0 | 0 | 74,1 % |
+| S13 Giao diện v2 "AI product" (gradient, kính mờ, nền tối) trên Streamlit, chạy song song nhiều nhánh (`docs/KE_HOACH_GIAO_DIEN_V2_2026-10-01.md`) | 11 | 8 | 1 | 0 | 0 | 79,6 % |
 | K Chạy kiểm kịch bản hài 20–30 s — ⏸ KHÔNG ƯU TIÊN (người dùng 30/09: các việc test kịch bản không làm trước nữa) | 3 | 0 | 0 | 3 | 0 | 0 % |
 | S8 Chấm lại bằng AI Development System (cuối cùng) | 5 | 2 | 0 | 0 | 0 | 42,9 % |
-| **Tổng** | **133** | **102** | **5** | **5** | **5** | **81,8 %** |
+| **Tổng** | **133** | **103** | **4** | **5** | **5** | **82,4 %** |
 
 Đợt hiện tại: **S13** · việc kế: **S13.3** G2/G6 — `tools/ui_snapshot.py` (CSDL mẫu gần thật × 4 độ rộng × sáng/tối × 2 độ phóng) + font Inter đi kèm
 <!-- /tien-do -->
@@ -187,7 +187,7 @@
 - [x] S13.4 · Nhánh C — lõi “Đặt lại thanh tiền” chỉ Owner (`core/money_reset.py`, mốc không xóa sổ, nhật ký, test) · nặng:2 · ✅ · 01/10: agent nhánh `ui/money-reset` đã gộp; 60 test liên quan qua; chưa có UI (nhánh B)
 - [x] S13.5 · Nhánh B — khung ứng dụng (thanh trên kính, stepper, hero, nền aurora, 📥 💵 ⚙, ô Đặt lại thanh tiền) · nặng:3 · ✅ · 01/10: nhánh `ui/shell` đã gộp (7 test + 100 test cũ với cờ tắt qua); hero dự án, thanh trên không còn đè chữ, ô Đặt lại thanh tiền chỉ Owner; chưa làm: thanh trên dính, bố cục < 1100 px
 - [x] S13.6 · Nhánh D — ⌂ Tất cả dự án (lưới thẻ) + 👥 Nhóm + 📊 Theo dõi dùng thẻ chung · nặng:2 · ✅ · 01/10: nhánh `ui/home-team` đã gộp (9 test mới + 94 test cũ qua); lưới thẻ dự án, Nhóm/Theo dõi dùng bảng HTML + pill; chưa thử < 1100 px
-- [ ] S13.7 · Nhánh E — màn Kịch bản (hero nhập, thẻ Lập kế hoạch có giá, khay tham chiếu, gập Tinh chỉnh) · nặng:3 · 🔄 · 01/10: agent chạy song song trong worktree riêng, nhánh `ui/script`; quy tắc `docs/QUY_TAC_BO_CUC_UI_V2.md`
+- [x] S13.7 · Nhánh E — màn Kịch bản (hero nhập, thẻ Lập kế hoạch có giá, khay tham chiếu, gập Tinh chỉnh) · nặng:3 · ✅ · 01/10: nhánh `ui/script` đã gộp (4 test mới + 82 test cũ qua); hero + 1 nút chính theo trạng thái, thẻ 📎/①/②/③, chi tiết dài vào ⓘ; còn: thẻ ② dài ~3400 px (panel cũ tự mở), caption ngắn chưa vào ⓘ
 - [x] S13.8 · Nhánh F — Storyboard (lưới khung thẻ kính, nhãn duyệt cố định, dải phiên bản, thanh hành động dính) · nặng:3 · ✅ · 01/10: nhánh `ui/storyboard` đã gộp (10 test mới + 94 test cũ qua); lưới khung thẻ kính, nhãn duyệt cố định, dải phiên bản bấm được, thanh hành động dính, lý do loại ngay trên thẻ, chi tiết ảnh thành hộp thoại; chưa test riêng cổng board_ok_ đang chờ
 - [ ] S13.9 · Nhánh G — Video + Bản giao (thẻ clip + QC chip, thẻ “Xuất bản đầy đủ”) · nặng:3 · 🔄 · 01/10: agent chạy song song trong worktree riêng, nhánh `ui/video-deliver`; quy tắc `docs/QUY_TAC_BO_CUC_UI_V2.md`
 - [ ] S13.10 · Nghiệm thu bằng số (0 chữ < 4.5:1, 0 chữ < 12 px, số click giảm, 0 điều khiển cũ mất, hiệu năng ≤ +20 %) + người dùng quyết bỏ giao diện cũ · nặng:2 · ⬜

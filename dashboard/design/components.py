@@ -118,7 +118,7 @@ def info(key: str, label: str = "ⓘ", help_text: str = "Xem chi tiết"):
 def line(text_html: str, details_md: str = "", key: str = "") -> None:
     """One summary line (HTML already escaped by the caller, e.g. made with pill()/escape) + a ⓘ with `details_md` when given."""
     if details_md and key:
-        c1, c2 = st.columns([12, 1], vertical_alignment="center")
+        c1, c2 = st.columns([24, 1], vertical_alignment="center")
         c1.markdown(text_html, unsafe_allow_html=True)
         with c2:
             with info(key):
