@@ -65,6 +65,25 @@ border:1px solid var(--border);border-left:4px solid var(--primary);border-radiu
 .nextband.wait{background:var(--warn-soft);color:#93370D;border:1px solid var(--warn)}.nextband.done{background:var(--ok-soft);color:var(--ok)}
 .sub-num{display:inline-block;min-width:26px;padding:1px 7px;margin-right:6px;border-radius:6px;background:var(--primary-soft);
 color:var(--primary);font-weight:700;font-size:12px;text-align:center}
+/* đợt 3 (01/10): dễ đọc hơn — chữ to hơn, màu chữ phụ đậm hơn (người dùng: "nhìn khá khó đọc chữ") */
+:root{--muted:#475467;--ok:#067647;--warn:#B54708;--bad:#B42318;--info:#026AA2}
+.stButton>button,.stDownloadButton>button{font-size:13.5px}
+[data-testid="stCaptionContainer"],[data-testid="stCaptionContainer"] p,.stCaption{font-size:13.5px;color:var(--muted);line-height:1.5}
+[data-testid="stMarkdownContainer"] p,[data-testid="stMarkdownContainer"] li{font-size:14.5px;line-height:1.55}
+[data-testid="stPopover"] button p,[data-testid="stSelectbox"] div[data-baseweb="select"] div{font-size:13.5px}
+label[data-testid="stWidgetLabel"] p{font-size:13.5px;color:var(--text)}
+.badge{font-size:11.5px;padding:2px 9px}
+.muted,.cardtitle span{font-size:12.5px}
+.qcrow,.crit,.item .t span{font-size:12.5px}.item .t b{font-size:13.5px}
+.st-key-step label[data-testid="stRadioOption"] p{font-size:14px}
+.nextband{font-size:14px}.stephead{font-size:15px}.stephead b{font-size:17px}
+/* radios of the 🎚 Mức tự động bar and the ⌂ filters look like the other chips */
+[class*="st-key-level_"] [data-testid="stRadioGroup"],[class*="st-key-home_status"] [data-testid="stRadioGroup"]{gap:6px;flex-wrap:wrap}
+[class*="st-key-level_"] label[data-testid="stRadioOption"],[class*="st-key-home_status"] label[data-testid="stRadioOption"]{border:1px solid var(--border);background:var(--surface);border-radius:16px;padding:4px 14px;margin:0;cursor:pointer}
+[class*="st-key-level_"] label[data-testid="stRadioOption"][data-selected="true"],[class*="st-key-home_status"] label[data-testid="stRadioOption"][data-selected="true"]{background:var(--primary);border-color:var(--primary)}
+[class*="st-key-level_"] label[data-testid="stRadioOption"] p,[class*="st-key-home_status"] label[data-testid="stRadioOption"] p{font-size:13.5px;color:var(--text);margin:0}
+[class*="st-key-level_"] label[data-testid="stRadioOption"][data-selected="true"] p,[class*="st-key-home_status"] label[data-testid="stRadioOption"][data-selected="true"] p{color:#fff;font-weight:600}
+[class*="st-key-level_"] label[data-testid="stRadioOption"]>div>div:first-child,[class*="st-key-home_status"] label[data-testid="stRadioOption"]>div>div:first-child{display:none}
 </style>
 """
 
