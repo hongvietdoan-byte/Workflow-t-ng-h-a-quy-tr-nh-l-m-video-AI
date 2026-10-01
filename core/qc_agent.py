@@ -41,6 +41,8 @@ PER_FRAME = True          # S7.1 01/10: judge each frame in its own short sessio
 FRAME_TURNS = 3           # turns per frame: 2 of looking, the last one FORCES a `record` call (tool_choice) for that frame
 FRAME_MIN_USD = 0.03      # money a frame needs to start; less → the rest are 'chưa soi' doubts, said
 RECORD_EVERY = 4          # after this many turns without a new record, the next turn offers only the record tools (record as you go)
+FACES_SHOWN = 3           # code-made face crops added to a frame's session
+FACE_EDGE = 384
 CASES_SHOWN = 4           # confirmed cases from the notebook (core/experience) shown before looking
 CASE_EDGE = 512           # their pictures, small: a reminder, not a frame to judge
 
@@ -304,6 +306,7 @@ class QcAgent:
         self.steps = 0
         self.sessions = 1
         self._n = 0
+        self._refused: Dict[int, Dict] = {}   # the last refused record of a frame (kept as a doubt when nothing else is recorded)
         self.cases: List[str] = []           # notebook cases shown (keys) — kept in the result so a run says what it learnt from
 
     def _must(self) -> List[Dict]:
@@ -341,7 +344,7 @@ class QcAgent:
                 {"type": "text", "text": f"CHẤM KHUNG K{k} ({f['label']}) — khung đầy đủ ở dưới. Tối đa {FRAME_TURNS} lượt: xem / cắt vùng / "
                                          f"ghép dải với khung khác / ảnh chuẩn, rồi `record` K{k} (lượt cuối chỉ còn công cụ ghi). "
                                          f"Khung khác chỉ để so; lỗi trái/phải kèm `side`."},
-                self._img(_crop(f["path"], None, self._out(f"k{k}")))]}]
+                self._img(_crop(f["path"], None, self._out(f"k{k}")))] + self._face_blocks(f)}]
             for t in range(FRAME_TURNS):
                 final = t == FRAME_TURNS - 1 or cap_usd - cap["spent"] < RESERVE_TURNS * last_cost
                 mark_cache(msgs)
@@ -389,6 +392,11 @@ class QcAgent:
                 msgs.append({"role": "user", "content": results})
                 if k in self.records:
                     break
+            if k not in self.records and self._refused.get(k):        # the forced record came back refused: keep what it said, as a doubt
+                said = self._refused[k]
+                self.records[k] = {"k": k, "verdict": "doubt", "issues": (said.get("issues") or []) + [{
+                    "type": "ghi bị từ chối", "description": said.get("_why", "")[:160], "evidence": "-", "severity": "minor"}],
+                    "root_cause": said.get("root_cause") or "none", "shot": f["label"], "job": f["job_id"], "said": said.get("verdict")}
             if k not in self.records:
                 self.records[k] = {"k": k, "verdict": "doubt", "issues": [{"type": "không kịp ghi", "description": f"agent không ghi K{k} sau "
                                    f"{FRAME_TURNS} lượt", "evidence": "-", "severity": "minor"}], "root_cause": "none",
@@ -401,6 +409,20 @@ class QcAgent:
             self.summary = {"summary": "chấm từng khung: " + ", ".join(f"{v} {n}" for v, n in sorted(counts.items())), "new_fault_types": []}
         return stopped
 
+    def _face_blocks(self, f: Dict) -> List[Dict]:
+        """Every face the YuNet detector finds, cropped with room for the hair / cap and zoomed — made by code before the session, so
+        eyes (gaze, B1) and headwear (A2) are seen without spending a look (S7.1 01/10: cảnh 2 #8 K4 gaze missed in 2 looks). Faces
+        seen from behind are not found: the frame itself and the cases still cover them."""
+        from . import text_placement
+        boxes = text_placement.face_boxes(f["path"]) or []
+        out = []
+        for n, (l, t, r, b) in enumerate(sorted(boxes, key=lambda x: x[0])[:FACES_SHOWN], 1):
+            w, h = r - l, b - t
+            region = [max(0.0, l - w * 0.6), max(0.0, t - h * 0.9), min(1.0, r + w * 0.6), min(1.0, b + h * 0.4)]
+            out += [{"type": "text", "text": f"Mặt {n} của K{f['k']} (code cắt sẵn, vùng {[round(x, 2) for x in region]}) — soi mắt nhìn về đâu, tóc / mũ:"},
+                    self._img(_crop(f["path"], region, self._out(f"k{f['k']}_face{n}"), FACE_EDGE))]
+        return out
+
     def _case_blocks(self) -> List[Dict]:
         """Sổ kinh nghiệm (core/experience): the confirmed cases of the same characters / view — false alarms and misses first — with
         their pictures, before the agent looks (S7.1 01/10: the relabelled Kenta-from-behind frames were in the repo, never shown)."""
@@ -411,7 +433,9 @@ class QcAgent:
             names = sorted({str(n).upper() for f in self.frames for n in f["data"].get("characters") or []})
             views = {"behind" if seen_from_behind(f["data"], n) else "camera" for f in self.frames for n in f["data"].get("characters") or []}
             cases = experience.relevant(self.p.conn, ("qc_image",), names, views, limit=CASES_SHOWN,
-                                        exclude_jobs=[f.get("job_id") for f in self.frames])
+                                        exclude_jobs=[f.get("job_id") for f in self.frames],
+                                        exclude_shots=[(self.pid, experience.job_context(self.p.conn, f["job_id"])["shot"]) for f in self.frames]
+                                        + [(self.pid, f"S{f['data'].get('story_scene')}·{f['data'].get('shot_no')}") for f in self.frames])
         except Exception as e:  # noqa: BLE001 - the notebook helps; a broken one never stops the check (said in the brief)
             return [{"type": "text", "text": f"(Sổ kinh nghiệm không đọc được: {type(e).__name__}: {e})"}]
         if not cases:
@@ -484,9 +508,11 @@ class QcAgent:
             if args["verdict"] in ("block", "minor", "doubt") and not issues:
                 return [{"type": "text", "text": "verdict khác pass phải có ít nhất một issue kèm evidence"}]
             for issue in issues if args["verdict"] in ("block", "minor") else []:     # a doubt is always recordable (S7.1 01/10:
-                if isinstance(issue, dict) and lateral_issue(issue):                    # refusing it looped cảnh 2 to the end)
+                if isinstance(issue, dict) and issue.get("severity") == "block" and lateral_issue(issue):   # looped cảnh 2; a
+                                                                                        # minor note "checked, right side" is no fault)
                     why = lateral_problem(issue)
                     if why:
+                        self._refused[k] = dict(args, _why=why)
                         return [{"type": "text", "text": f"K{k} chưa ghi: {why}"}]
             if args["verdict"] == "block" and args["root_cause"] == "none":
                 return [{"type": "text", "text": "block cần root_cause (prompt / reference / model / plan)"}]

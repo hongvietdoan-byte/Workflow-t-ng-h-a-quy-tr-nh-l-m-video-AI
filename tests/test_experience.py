@@ -31,6 +31,19 @@ class ExperienceTests(unittest.TestCase):
         self.add("judged_now", "missed", ["KENTA"], "behind", job=7)
         keys = [c["key"] for c in experience.relevant(self.conn, ["qc_image"], ["KENTA"], ["behind"], limit=3, exclude_jobs=[7])]
         self.assertEqual(keys, ["alarm_back", "alarm_front", "plain"])
+        experience.record(self.conn, key="same_shot", stage="qc_image", outcome="false_alarm", source="t", subjects=["KENTA"],
+                          view="behind", note="x", confirmed_by="người", project_id=8, shot="S2·3")
+        keys = [c["key"] for c in experience.relevant(self.conn, ["qc_image"], ["KENTA"], ["behind"], exclude_shots=[(8, "S2·3")])]
+        self.assertNotIn("same_shot", keys)                                    # another take of a shot being judged = the answer
+
+    def test_every_character_of_the_scene_gets_a_case(self):
+        for n in range(4):
+            self.add(f"kenta{n}", "false_alarm", ["KENTA"], "behind")
+        self.add("kenta_with_maxim", "false_alarm", ["KENTA", "MAXIM"], "behind")
+        experience.record(self.conn, key="maxim_cap", stage="qc_image", outcome="failure", source="t", subjects=["KENTA", "MAXIM"],
+                          view="behind", note="MAXIM nhìn từ sau: mũ đội xuôi", confirmed_by="người")
+        keys = [c["key"] for c in experience.relevant(self.conn, ["qc_image"], ["KENTA", "MAXIM"], ["behind"], limit=4)]
+        self.assertIn("maxim_cap", keys)                                       # the case ABOUT Maxim, not one he only stands in
 
     def test_one_outcome_never_fills_the_whole_list(self):
         for n in range(4):

@@ -144,17 +144,18 @@ def refresh(conn, data_dir: str) -> int:
 
 
 def relevant(conn, stages: Iterable[str], subjects: Iterable[str], views: Iterable[Optional[str]] = (), limit: int = 4,
-             exclude_jobs: Iterable[int] = ()) -> List[Dict]:
+             exclude_jobs: Iterable[int] = (), exclude_shots: Iterable[tuple] = ()) -> List[Dict]:
     """The cases worth showing before a stage acts: same characters AND same view first; false alarms and misses (the mistakes a
     checker makes) before plain successes / failures; only confirmed cases; never the frames being judged right now."""
     ensure(conn)
     want, views, skip = {str(s).upper() for s in subjects}, {v for v in views if v}, set(exclude_jobs)
+    skip_shots = {tuple(x) for x in exclude_shots}
     rows = conn.execute(f"SELECT * FROM experience_cases WHERE stage IN ({','.join('?' * len(list(stages)))}) AND confirmed_by IS NOT NULL",
                         list(stages)).fetchall()
     scored = []
     for r in rows:
-        if r["job_id"] in skip:
-            continue
+        if r["job_id"] in skip or (r["project_id"], r["shot"]) in skip_shots:   # never the frames judged now, nor another take
+            continue                                                             # of the same shot (that would hand over the answer)
         who = set(json.loads(r["subjects"] or "[]"))
         if want and not who & want:
             continue
@@ -164,10 +165,29 @@ def relevant(conn, stages: Iterable[str], subjects: Iterable[str], views: Iterab
     scored.sort(key=lambda x: (-x[0], -x[1]))
     # balance: at most half of the cases of one outcome — four false alarms alone would teach a checker to wave real flips through
     # (S7.1 01/10 dry run: cảnh 2 #8 has 2 real blocks)
-    per, out, rest = max(1, (limit + 1) // 2), [], []
+    # every character of the scene gets its own case first (S7.1 01/10: four Kenta cases, none for MAXIM's cap seen from behind —
+    # the fault the agent then passed), then the rest by score
+    out, used = [], set()
+    for name in sorted(want):
+        mine = [c for _, _, c in scored if name in json.loads(c["subjects"] or "[]") and c["key"] not in used]
+        mine.sort(key=lambda c: name.lower() not in str(c.get("note") or "").lower())   # a case ABOUT this person (named in its note)
+        if mine and len(out) < limit:
+            out.append(mine[0])
+            used.add(mine[0]["key"])
+    per = max(1, (limit + 1) // 2)
     for _, _, case in scored:
-        (out if sum(1 for c in out if c["outcome"] == case["outcome"]) < per else rest).append(case)
-    return (out + rest)[:limit]
+        if len(out) >= limit:
+            break
+        if case["key"] not in used and sum(1 for c in out if c["outcome"] == case["outcome"]) < per:
+            out.append(case)
+            used.add(case["key"])
+    for _, _, case in scored:
+        if len(out) >= limit:
+            break
+        if case["key"] not in used:
+            out.append(case)
+            used.add(case["key"])
+    return out
 
 
 def text_line(case: Dict) -> str:

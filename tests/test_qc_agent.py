@@ -121,6 +121,18 @@ class AgentTests(unittest.TestCase):
         self.assertTrue(all(len(m["content"]) for m in c.seen))
         self.assertTrue(res["summary"]["summary"].startswith("chấm từng khung"))
 
+    def test_a_refused_forced_record_is_kept_as_a_doubt_with_what_it_said(self):
+        flip = {"type": "A1 lật trái/phải", "description": "găng sai bên", "evidence": "K1", "severity": "block"}
+        bad = ("record", {"k": 1, "verdict": "block", "issues": [flip], "root_cause": "model", "fix_en": "Keep the gauntlet on his left arm."})
+        turns = [[bad]] * qc_agent.FRAME_TURNS + [[self.record(k)] for k in range(2, self.n + 1)]
+        c = Scripted(turns)
+        with mock.patch.object(qc_agent, "PER_FRAME", True):
+            res = qc_agent.QcAgent(self.p, self.pid, self.data, c, self.frames).run()
+        k1 = res["records"][0]
+        self.assertEqual(k1["verdict"], "doubt")
+        self.assertEqual(k1["said"], "block")
+        self.assertIn("găng sai bên", json.dumps(k1["issues"], ensure_ascii=False))
+
     def test_it_must_record_as_it_goes(self):
         """S7.1 01/10 lần 5: 10 turns of looking, the price per turn grew, nothing was recorded — after RECORD_EVERY turns without a
         record the next turn offers only the record tools."""
@@ -248,6 +260,9 @@ class AgentTests(unittest.TestCase):
         self.assertFalse(qc_agent.lateral_issue({"type": "shot_size", "description": "MCU thay vì CU"}))
         doubt = agent.tool("record", {"k": 2, "verdict": "doubt", "issues": [dict(flip, severity="minor")], "root_cause": "none"})
         self.assertIn("đã ghi K2", doubt[0]["text"])                           # a doubt never loops on the measurements
+        note = {"type": "A1 kiểm trái/phải", "description": "huy hiệu đúng bên trái thân", "evidence": "K3", "severity": "minor"}
+        ok = agent.tool("record", {"k": 3, "verdict": "minor", "issues": [note], "root_cause": "model"})
+        self.assertIn("đã ghi K3", ok[0]["text"])                              # a minor "checked, right side" note is no claimed fault
 
     def test_the_inspection_plan_comes_from_the_profiles(self):
         from unittest import mock
