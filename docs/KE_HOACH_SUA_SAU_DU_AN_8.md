@@ -29,10 +29,10 @@
 | S10 Kỹ năng nhân vật & tham chiếu | 12 | 12 | 0 | 0 | 0 | 100 % |
 | S11 Director mở rộng: ý tưởng → kịch bản, cover video ref, học trending (kế hoạch v2 01/10, `docs/KE_HOACH_TINH_NANG_DIRECTOR_2026-10-01.md`) | 15 | 2 | 1 | 1 | 0 | 17,3 % |
 | S12 Rà soát dashboard 01/10: sửa lỗi, tính năng thử, 4 màn, nhiều người dùng (`docs/RA_SOAT_DASHBOARD_2026-10-01.md`) | 7 | 6 | 0 | 1 | 0 | 80 % |
-| S13 Giao diện v2 "AI product" (gradient, kính mờ, nền tối) trên Streamlit, chạy song song nhiều nhánh (`docs/KE_HOACH_GIAO_DIEN_V2_2026-10-01.md`) | 12 | 9 | 1 | 0 | 0 | 82,8 % |
+| S13 Giao diện v2 "AI product" (gradient, kính mờ, nền tối) trên Streamlit, chạy song song nhiều nhánh (`docs/KE_HOACH_GIAO_DIEN_V2_2026-10-01.md`) | 12 | 10 | 0 | 0 | 0 | 86,2 % |
 | K Chạy kiểm kịch bản hài 20–30 s — ⏸ KHÔNG ƯU TIÊN (người dùng 30/09: các việc test kịch bản không làm trước nữa) | 3 | 0 | 0 | 3 | 0 | 0 % |
 | S8 Chấm lại bằng AI Development System (cuối cùng) | 5 | 2 | 0 | 0 | 0 | 42,9 % |
-| **Tổng** | **134** | **104** | **4** | **5** | **5** | **82,8 %** |
+| **Tổng** | **134** | **105** | **3** | **5** | **5** | **83,2 %** |
 
 Đợt hiện tại: **S13** · việc kế: **S13.3** G2/G6 — `tools/ui_snapshot.py` (CSDL mẫu gần thật × 4 độ rộng × sáng/tối × 2 độ phóng) + font Inter đi kèm
 <!-- /tien-do -->
@@ -190,7 +190,7 @@
 - [x] S13.7 · Nhánh E — màn Kịch bản (hero nhập, thẻ Lập kế hoạch có giá, khay tham chiếu, gập Tinh chỉnh) · nặng:3 · ✅ · 01/10: nhánh `ui/script` đã gộp (4 test mới + 82 test cũ qua); hero + 1 nút chính theo trạng thái, thẻ 📎/①/②/③, chi tiết dài vào ⓘ; còn: thẻ ② dài ~3400 px (panel cũ tự mở), caption ngắn chưa vào ⓘ
 - [x] S13.8 · Nhánh F — Storyboard (lưới khung thẻ kính, nhãn duyệt cố định, dải phiên bản, thanh hành động dính) · nặng:3 · ✅ · 01/10: nhánh `ui/storyboard` đã gộp (10 test mới + 94 test cũ qua); lưới khung thẻ kính, nhãn duyệt cố định, dải phiên bản bấm được, thanh hành động dính, lý do loại ngay trên thẻ, chi tiết ảnh thành hộp thoại; chưa test riêng cổng board_ok_ đang chờ
 - [x] S13.9 · Nhánh G — Video + Bản giao (thẻ clip + QC chip, thẻ “Xuất bản đầy đủ”) · nặng:3 · ✅ · 01/10: nhánh `ui/video-deliver` đã gộp (20 test mới + 157 test cũ qua); thẻ clip kính + pill + số đo lớp 0 vào ⓘ, Bản giao = 1 nút “Xuất bản đầy đủ” + 3 chip, ~40 điều khiển gom 4 tab Tinh chỉnh; chưa kiểm bằng mắt với clip thật
-- [ ] S13.11 · Lượt tinh gọn theo yêu cầu người dùng: chi tiết vào ⓘ, ngoài chỉ tóm tắt (B khung, D dự án/nhóm/theo dõi, E kịch bản, F storyboard; G đã làm khi giao) · nặng:2 · 🔄 · 01/10: 4 agent song song, nhánh `ui/*-slim`; AI Development System trang Kế hoạch cũng đã gọn
+- [x] S13.11 · Lượt tinh gọn theo yêu cầu người dùng: chi tiết vào ⓘ, ngoài chỉ tóm tắt (B khung, D dự án/nhóm/theo dõi, E kịch bản, F storyboard; G đã làm khi giao) · nặng:2 · ✅ · 01/10: 4 nhánh `ui/*-slim` đã gộp; trang Kịch bản 6640→~4000 px, thẻ ② 3428→1308 px; chi tiết vào ⓘ, panel dưới lưới đóng mặc định; trang Kế hoạch của AI Development System gọn
 - [ ] S13.10 · Nghiệm thu bằng số (0 chữ < 4.5:1, 0 chữ < 12 px, số click giảm, 0 điều khiển cũ mất, hiệu năng ≤ +20 %) + người dùng quyết bỏ giao diện cũ · nặng:2 · ⬜
 
 ### K — Chạy kiểm kịch bản hài 20–30 s — ⏸ KHÔNG ƯU TIÊN (người dùng 30/09: các việc test kịch bản không làm trước nữa)

@@ -140,3 +140,7 @@ ul[role="listbox"] { background: var(--raised) !important; }
 /* nhãn nút có giá không bị cắt "…" trong thẻ hẹp (đề nghị nhánh G) */
 [class*="st-key-card-"] [data-testid="stBaseButton-secondary"], [class*="st-key-card-"] [data-testid="stBaseButton-primary"] { white-space: normal; height: auto; }
 [class*="st-key-card-"] [data-testid="stBaseButton-secondary"] p, [class*="st-key-card-"] [data-testid="stBaseButton-primary"] p { white-space: normal; line-height: 1.25; }
+
+/* nhãn ô tick không bị cắt "…" (đề nghị lane E) + bỏ mũi tên của nút ⓘ (Streamlit vẽ bằng icon vật liệu, không phải svg) */
+[data-testid="stCheckbox"] label, [data-testid="stCheckbox"] label p { white-space: normal !important; text-overflow: clip !important; overflow: visible !important; }
+[class*="st-key-info-"] [data-testid="stPopoverButton"] [data-testid="stIconMaterial"], [class*="st-key-info-"] [data-testid="stPopoverButton"] span[class*="Icon"] { display: none !important; }
