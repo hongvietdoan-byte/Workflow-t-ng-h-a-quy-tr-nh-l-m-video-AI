@@ -33,3 +33,6 @@
 
 /* khung viền cũ nằm trong thẻ kính: viền nhẹ để không thành hộp trong hộp */
 [data-testid="stVerticalBlock"][class*="st-key-card-script-"] [data-testid="stVerticalBlockBorderWrapper"] { border-color: var(--border-soft); }
+
+/* một dòng tóm tắt + ⓘ (components.line) */
+.script-sum { color: var(--muted); font-size: 13.5px; }

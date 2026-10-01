@@ -5,6 +5,7 @@ Kho the Director / image prompts / QC already read — nothing new for the pipel
 Video-ref cover, dance cover and trend are plan S11 (docs/KE_HOACH_TINH_NANG_DIRECTOR_2026-10-01.md): shown as "sắp có", not clickable."""
 from dashboard.common import *  # noqa: F401,F403  (shared imports + helpers)
 from dashboard import common as C
+from dashboard.steps.step1_v2 import cap  # noqa: F401  (v2: long captions become a one-line summary + ⓘ)
 from core import assets
 
 COMING = (("🎬 Làm theo video ref", "giữ cấu trúc + nhịp của video mẫu, viết lại lời, nhân vật FF — kế hoạch S11 (R-A)"),
@@ -29,11 +30,11 @@ def inputs_and_refs(p: Pipeline, pid: int, has_script: bool) -> None:
         cols = st.columns(4)
         with cols[0].container(border=True):
             st.markdown("**📝 Kịch bản / ý tưởng**")
-            st.caption("✔ đang dùng — dán, kéo file hoặc gõ ý thô ở 1a bên dưới (tự nhận dạng)")
+            cap("✔ đang dùng — dán, kéo file hoặc gõ ý thô ở 1a bên dưới (tự nhận dạng)")
         for col, (title, why) in zip(cols[1:], COMING):
             with col.container(border=True):
                 st.markdown(f"**{title}**")
-                st.caption(why)
+                cap(why)
                 st.button("Sắp có", key=f"coming_{title[:2]}_{pid}", disabled=True, width="stretch")
         attach_form(p, pid)
 
@@ -42,15 +43,22 @@ def attach_form(p: Pipeline, pid: int) -> None:
     """The attached references + the form that adds one (keys ref_up_/ref_kind_/ref_name_/ref_shared_/ref_go_/ref_kho_)."""
     chosen = assets.project_assets(p.conn, pid)
     st.markdown("**🖼 Tham chiếu đang gắn cho dự án**")
-    if chosen:
+    if chosen and ui.v2_on() and len(chosen) > 3:          # v2 (P3): one summary line + the whole list inside ⓘ
+        from dashboard.design import components as D
+        rows = [f"- **{a['kind_label']}** {a['name']} — {len(a['images'])} ảnh ("
+                + ("chỉ dự án này" if a.get("project_id") else "Kho chung") + ")"
+                + (f" · {len(a['pending'])} ảnh chờ duyệt" if a.get("pending") else "") for a in chosen]
+        D.line(f'<span class="script-sum">{len(chosen)} tham chiếu đang gắn · '
+               f'{sum(len(a["images"]) for a in chosen)} ảnh</span>', "\n".join(rows), f"script-refs-list-{pid}")
+    elif chosen:
         for a in chosen[:12]:
             wait = f" · {len(a['pending'])} ảnh chờ duyệt" if a.get("pending") else ""
             scope = "chỉ dự án này" if a.get("project_id") else "Kho chung"
-            st.caption(f"• **{a['kind_label']}** {a['name']} — {len(a['images'])} ảnh ({scope}){wait}")
+            cap(f"• **{a['kind_label']}** {a['name']} — {len(a['images'])} ảnh ({scope}){wait}")
         if len(chosen) > 12:
-            st.caption(f"… và {len(chosen) - 12} mục nữa")
+            cap(f"… và {len(chosen) - 12} mục nữa")
     else:
-        st.caption("Chưa gắn gì — Director sẽ tự ghép nhân vật / nơi từ Kho theo tên trong kịch bản.")
+        cap("Chưa gắn gì — Director sẽ tự ghép nhân vật / nơi từ Kho theo tên trong kịch bản.")
     st.markdown("**➕ Gắn ảnh tham chiếu mới**")
     f1, f2, f3 = st.columns([2.4, 1.6, 2], vertical_alignment="bottom")
     files = f1.file_uploader("Ảnh (JPG / PNG / WebP)", type=["jpg", "jpeg", "png", "webp"], accept_multiple_files=True,
@@ -73,7 +81,7 @@ def attach_form(p: Pipeline, pid: int) -> None:
     if b1.button("📁 Mở Kho tài nguyên (duyệt ảnh chờ, nhân vật 3D, âm thanh)", key=f"ref_kho_{pid}", width="stretch"):
         open_dialog("dlg_assets")
     b2.caption("🎥 Video ref chuyển động gắn cho từng cảnh ở **Storyboard → 🎞 Motion**; ảnh khung nào muốn tự đưa vào: **Storyboard → 🖼 Ảnh → Nhập ảnh thủ công** (ghim ref cho từng khung: chưa có).")
-    st.caption("Ảnh quá lệch tỉ lệ hoặc quá nhỏ bị báo trước khi gửi video (luật model). Mỗi tài nguyên tối đa "
+    cap("Ảnh quá lệch tỉ lệ hoặc quá nhỏ bị báo trước khi gửi video (luật model). Mỗi tài nguyên tối đa "
                f"{assets.MAX_IMAGES_PER_ASSET} ảnh.")
 
 

@@ -7,7 +7,34 @@ from dashboard.common import *  # noqa: F401,F403  (shared imports + helpers)
 from dashboard import common as C
 from dashboard.design import components as D
 
-_AUTO_BUSY = ("queued", "running", "waiting", "needs_attention", "stopped", "error")
+LONG_CAPTION = 110          # characters; a caption longer than this is a P3 explanation (docs/QUY_TAC_BO_CUC_UI_V2.md §5)
+
+
+def _short(text: str, limit: int = 88) -> str:
+    """First sentence / clause of a caption, without markdown marks, cut at `limit`."""
+    plain = text.replace("**", "").replace("`", "").replace("\n", " ").strip()
+    for stop in (". ", " — ", ": ", "; "):
+        cut = plain.find(stop)
+        if 30 <= cut <= limit:
+            return plain[:cut].rstrip(" .:;") + ("…" if stop != ". " else "")
+    return plain if len(plain) <= limit else plain[:limit].rsplit(" ", 1)[0] + "…"
+
+
+def cap(text: str, key: str = "") -> None:
+    """st.caption that, under UI v2, turns a LONG explanation into one summary line + a ⓘ holding the full text (nothing is lost).
+    Short captions, and everything while the flag is off, are plain st.caption exactly as before."""
+    if not ui.v2_on() or len(text) <= LONG_CAPTION:
+        st.caption(text)
+        return
+    import zlib
+    seen = st.session_state.setdefault("_script_cap_seen", {})
+    base = key or f"script-cap-{zlib.crc32(text.encode('utf-8')) & 0xFFFFFF:x}"
+    n = seen.get(base, 0)
+    seen[base] = n + 1
+    D.line(f'<span class="script-sum">{escape(_short(text))}</span>', text, f"{base}-{n}")
+
+
+_AUTO_BUSY =("queued", "running", "waiting", "needs_attention", "stopped", "error")
 
 
 def _budget_state(p: Pipeline, pid: int):
@@ -122,6 +149,7 @@ def _tune(pid: int, name: str, summary: str):
 def step1_v2(p: Pipeline, pid: int, proj, scenes, chars, risky, char_names, locked: bool, stale: int) -> None:
     from dashboard.steps import step1 as S
     from dashboard.steps.step1_refs import inputs_and_refs_v2
+    st.session_state["_script_cap_seen"] = {}                           # one count of equal captions per run (unique ⓘ keys)
     _hero(p, pid, proj, scenes, chars, locked, stale)
     note = st.session_state.pop("inherited_note", None)                 # S3.8: said once, right after the project was made
     if note:
@@ -144,7 +172,7 @@ def step1_v2(p: Pipeline, pid: int, proj, scenes, chars, risky, char_names, lock
             S.script_views(p, pid, proj, scenes, char_names)
             with _tune(pid, "script", "làm lại việc tách cảnh") as tune_open:
                 if tune_open:
-                    st.caption("↺ Làm lại: xóa các cảnh chưa có ảnh/video và nhân vật chưa khóa để tách lại kịch bản.")
+                    cap("↺ Làm lại: xóa các cảnh chưa có ảnh/video và nhân vật chưa khóa để tách lại kịch bản.")
                     S.reset_script_button(p, pid)
 
     # ② Chuẩn bị · Director · Nhân vật (1b–1f)
@@ -177,6 +205,6 @@ def step1_v2(p: Pipeline, pid: int, proj, scenes, chars, risky, char_names, lock
     if scenes:
         with D.card(f"script-c-{pid}"):
             _card_head("3", "Chạy", [("tự động hoàn toàn hoặc lần lượt từng bước", "mute")])
-            st.caption("🎚 Mức tự động (ai duyệt, cổng dừng, độ chặt QC) chọn ở thanh trên cùng. Chạy tự động bên dưới; "
+            cap("🎚 Mức tự động (ai duyệt, cổng dừng, độ chặt QC) chọn ở thanh trên cùng. Chạy tự động bên dưới; "
                        "muốn đi từng bước thì làm xong thẻ ② rồi bấm Duyệt & khóa → Storyboard.")
             S.autopilot_panel(p, pid)

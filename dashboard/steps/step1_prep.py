@@ -1,6 +1,7 @@
 """Step 1 · 1b: format, resources, World Bible, image model, shot format, storyboard previz (split from step1.py, S9.5)."""
 from dashboard.common import *  # noqa: F401,F403  (shared imports + helpers)
 from dashboard import common as C
+from dashboard.steps.step1_v2 import cap  # noqa: F401  (v2: long captions become a one-line summary + ⓘ)
 
 WB_LABELS = (("render_style", "Phong cách dựng hình", "vd: hoạt hình 3D mềm, không viền, chuyển sắc liên tục"),
              ("palette", "Bảng màu", "màu chủ đạo, màu điểm nhấn, phủ định (no bloom...)"),
@@ -14,7 +15,7 @@ def world_bible_panel(p: Pipeline, pid: int) -> None:
     """Project style bible: typed, drafted by Claude from reference pictures, or taken from a saved preset; inherited by every prompt."""
     saved = style.load(p, pid)
     with st.expander("🎨 Phong cách hình ảnh (World Bible)" + (" ✓" if any(saved.values()) else " — chưa đặt"), expanded=False):
-        st.caption("Khóa một bộ tham số phong cách dùng chung: Director, QC và Motion kế thừa cho **mọi** cảnh. Đặt TRƯỚC khi chạy Director. "
+        cap("Khóa một bộ tham số phong cách dùng chung: Director, QC và Motion kế thừa cho **mọi** cảnh. Đặt TRƯỚC khi chạy Director. "
                    "Gõ tay, dùng mẫu đã lưu, hoặc tải 2–6 ảnh để Claude soạn nháp (skill style-analyst) rồi bạn sửa và Lưu.")
         presets = style.list_presets(p.conn)
         if presets:
@@ -90,7 +91,7 @@ def assets_panel(p: Pipeline, pid: int) -> None:
     label = f"🧰 Tài nguyên đi kèm kịch bản — {len(chosen)} đã chọn" + (f" · {len(suggested)} gợi ý mới" if suggested else "")
     # S9 E1.5: open only while the project has nothing attached (suggestions alone no longer unfold it — #8 showed 3 wrong ones)
     with st.expander(label, expanded=not chosen):
-        st.caption("Chọn nhân vật, vũ khí, thú cưng, bản đồ… có sẵn trong kho (hoặc tải ảnh riêng) để dùng cùng kịch bản. Director sẽ dùng đúng "
+        cap("Chọn nhân vật, vũ khí, thú cưng, bản đồ… có sẵn trong kho (hoặc tải ảnh riêng) để dùng cùng kịch bản. Director sẽ dùng đúng "
                    "tên và thiết kế này thay vì tự nghĩ ra, và ảnh của chúng là ảnh tham khảo khi gen. **Không bấm cũng được:** lúc chạy "
                    "Director, tài nguyên kịch bản nhắc đúng tên (có dấu) được tự gắn; tên trùng nhiều tài nguyên thì để bạn chọn; cái bạn đã "
                    "bỏ khỏi dự án không bị gắn lại.")
@@ -129,7 +130,7 @@ def assets_panel(p: Pipeline, pid: int) -> None:
                 assets.attach(p.conn, pid, pick)
                 st.rerun()
         elif not chosen:
-            st.caption(f"Kho tài nguyên của game này đang trống. Người quản lý có thể thêm ở nút “⚙” (Cài đặt) → Kho tài nguyên; "
+            cap(f"Kho tài nguyên của game này đang trống. Người quản lý có thể thêm ở nút “⚙” (Cài đặt) → Kho tài nguyên; "
                        "hoặc bạn tải ảnh riêng ở dưới.")
         with st.container(border=True):
             st.markdown("**⬆ Tải ảnh riêng cho dự án này** (nhân vật gốc, đạo cụ…)")
@@ -174,7 +175,7 @@ def project_format_panel(p: Pipeline, pid: int) -> None:
         pr = model_router.load_profiles()["priorities"]
         new_prio = c3.selectbox("Ưu tiên model video", prios, index=prios.index(prio), key=f"fmt_prio_{pid}",
                                 format_func=lambda k: pr[k]["label"], help=pr[prio]["note"])
-        st.caption("Ưu tiên model theo slide ClipAI “Hôm nay tôi chọn mô hình video như thế nào”: " + pr[new_prio]["note"]
+        cap("Ưu tiên model theo slide ClipAI “Hôm nay tôi chọn mô hình video như thế nào”: " + pr[new_prio]["note"]
                    + " Model cụ thể được đề xuất cho TỪNG cảnh ở Bước 4, đổi được.")
         has_images = p.conn.execute("SELECT 1 FROM jobs WHERE project_id=? AND type='image_gen' AND state='approved' LIMIT 1",
                                     (pid,)).fetchone()
@@ -192,7 +193,7 @@ def project_format_panel(p: Pipeline, pid: int) -> None:
             p.set_project_field(pid, "genre_locked", 1 if new_genre else 0)
             st.rerun()
         if model_router.chosen_priority(proj) is None:
-            st.caption("Dự án cũ chưa chọn ưu tiên model: đang dùng Kling cho mọi cảnh.")
+            cap("Dự án cũ chưa chọn ưu tiên model: đang dùng Kling cho mọi cảnh.")
             if st.button("Dùng ưu tiên đã chọn ở trên", key=f"fmt_prio_set_{pid}"):
                 p.set_project_field(pid, "model_priority", new_prio)
                 st.rerun()
@@ -216,7 +217,7 @@ def image_model_control(p: Pipeline, pid: int, proj) -> None:
                         help="Model vẽ ảnh khung đầu. Đổi model chỉ áp cho ảnh gen sau đó (ảnh đã có giữ nguyên). "
                              "Giá mỗi ảnh chưa đo — xem sổ chi sau khi chạy.")
     if pick is not None:
-        st.caption(f"{table[pick].get('desc', '')} · tối đa {table[pick].get('max_refs')} ảnh tham chiếu")
+        cap(f"{table[pick].get('desc', '')} · tối đa {table[pick].get('max_refs')} ảnh tham chiếu")
     if pick != cur:
         p.set_project_field(pid, "image_model", pick)
         st.rerun()
@@ -266,7 +267,7 @@ def shot_format_controls(p: Pipeline, pid: int, proj) -> None:
             p.set_project_field(pid, "dialogue_trim", 1 if new_trim else 0)
             st.rerun()
     if new_mode and not shots.has_work(p.conn, pid) and not any(s["data"].get("shot_no") for s in shots.shots_of(p, pid)):
-        st.caption("Chạy Director (1d) để chia các cảnh thành shot.")
+        cap("Chạy Director (1d) để chia các cảnh thành shot.")
 
 
 def storyboard_panel(p: Pipeline, pid: int) -> None:
@@ -276,7 +277,7 @@ def storyboard_panel(p: Pipeline, pid: int) -> None:
     with st.container(border=True):
         ui.html(ui.card_title("1g · 🎬 Storyboard (dựng layout trước khi gen ảnh)",
                               "không bắt buộc · Bước 2 tự bám theo layout của cảnh nào đã dựng"))
-        st.caption("Claude đọc góc máy/đường chân trời/mặt đất của ảnh bối cảnh (mỗi ảnh chỉ đọc 1 lần), đặt từng nhân vật theo "
+        cap("Claude đọc góc máy/đường chân trời/mặt đất của ảnh bối cảnh (mỗi ảnh chỉ đọc 1 lần), đặt từng nhân vật theo "
                    "“Vị trí nhân vật” của cảnh; chương trình tự tính cỡ người theo phối cảnh và giữ chân trên mặt đất. "
                    "Chỉ cảnh đã có Background (ảnh bối cảnh trong kho) mới dựng được. Không phải duyệt: sửa blocking rồi dựng lại nếu muốn.")
         client = llm_client()
@@ -296,10 +297,10 @@ def storyboard_panel(p: Pipeline, pid: int) -> None:
             with st.spinner("Claude đang rà lỗi liên tục…"):
                 act(lambda: previz.review_storyboard(p, pid, client, C.DATA))
         if client is None:
-            st.caption("Chưa cấu hình Claude: đặt LLM_PROVIDER=claude_cli (dùng hạn mức Claude Code trên máy) hoặc ANTHROPIC_API_KEY.")
+            cap("Chưa cấu hình Claude: đặt LLM_PROVIDER=claude_cli (dùng hạn mức Claude Code trên máy) hoặc ANTHROPIC_API_KEY.")
         moved = st.session_state.get(f"pv_moved_{pid}")
         if moved:
-            st.caption("Đã kéo chân về mặt đất (vị trí Claude đặt nằm ngoài vùng đứng được): "
+            cap("Đã kéo chân về mặt đất (vị trí Claude đặt nằm ngoài vùng đứng được): "
                        + ", ".join(f"S{i:02d} {n}" for i, n in moved))
         if os.path.exists(board):
             st.image(board, width="stretch")

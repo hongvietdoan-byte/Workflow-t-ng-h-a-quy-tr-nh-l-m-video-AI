@@ -89,6 +89,14 @@ class ScriptScreenV2Tests(unittest.TestCase):
         for k in OLD_KEYS:
             self.assertIn(k.format(p=pid), keys, k)
         self.assertIn(f"script-cta-next_{pid}", keys)                      # Bible locked → the primary action is "go to Storyboard"
+        self.assertTrue(at.get("popover"), "long explanations live in ⓘ popovers")
+
+    def test_long_caption_keeps_its_whole_text_for_the_info_popover(self):
+        long = "Ưu tiên model theo slide ClipAI: cảnh quan trọng dùng model tốt nhất, cảnh thường dùng model hiệu quả. " * 2
+        short = step1_v2._short(long)
+        self.assertLess(len(short), len(long))
+        self.assertLessEqual(len(short), 90)
+        self.assertEqual(step1_v2._short("Ngắn"), "Ngắn")
 
     def test_primary_action_follows_the_state(self):
         pid = self.project_with_bible(lock=False)
