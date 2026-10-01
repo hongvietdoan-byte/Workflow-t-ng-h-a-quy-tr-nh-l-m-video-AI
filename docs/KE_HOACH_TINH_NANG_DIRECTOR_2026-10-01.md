@@ -1,367 +1,359 @@
-# Kế hoạch 3 tính năng mới cho Director (2026-10-01)
+# Kế hoạch S11 — Director mở rộng: ý tưởng → kịch bản, cover video ref, học trending (bản v2, 2026-10-01)
 
-> Người dùng yêu cầu 01/10: (1) **Cover video ref** — nhập video tham chiếu, Director viết lại thành kịch bản giống vậy nhưng bằng nhân
-> vật + bối cảnh Free Fire; hoặc nhập clip nhảy TikTok → nhân vật FF nhảy giống ref. (2) **Ý tưởng thô → kịch bản chi tiết**. (3) **Học
-> trending** (TikTok chính, Facebook phụ), đặt lịch 1–3 ngày, làm rõ công cụ tìm/lọc, Director học và dùng thế nào, có cần Apify không,
-> tốn bao nhiêu, kế hoạch 1–5 tài khoản free rồi mới mua gói. (4) Plan chi tiết, có bằng chứng.
+> **v2** thay hẳn v1 (cùng ngày). v1 nêu 7 câu hỏi; người dùng đã trả lời Q1–Q7, và cho thêm hai thông tin mới:
+> (a) **Seedance báo lỗi khi video ref có mặt người** → clip nhảy phải chuyển sang dạng **không mặt** (mannequin hoặc depth map) mới dùng
+> làm ref; (b) **Antigravity (Gemini 3.8 Flash)** phân tích video ref rồi viết prompt Seedance 2.5 khá ổn → rút bài học (mục 7).
 >
-> **Trạng thái: KẾ HOẠCH — chưa code, 0 USD đã chi.** Mọi bài thử tốn tiền ở đây đều chờ người dùng duyệt từng bài (luật chi phí
-> `docs/CHUAN_XAY_DUNG.md`).
+> **Trạng thái: KẾ HOẠCH — chưa code, 0 USD đã chi.** Mọi bài thử tốn tiền ở đây chờ người dùng duyệt từng bài (luật chi phí
+> `docs/CHUAN_XAY_DUNG.md`). Việc nằm ở đợt **S11** của `docs/KE_HOACH_SUA_SAU_DU_AN_8.md`.
 
-## 0. Tóm tắt cho người bận
+## 0. Quyết định đã chốt (người dùng 01/10)
 
-| # | Tính năng | Làm thế nào (một câu) | Tiền chạy mỗi lần | Rủi ro chính | Đề xuất thứ tự |
-|---|---|---|---|---|---|
-| I | 💡 Ý tưởng thô → kịch bản | Director hỏi ≤ 5 câu còn thiếu → 3 hướng hook → dàn ý theo giây → kịch bản đúng khuôn Bước 1 | ≈ 0,05–0,15 USD Claude | Director "bịa" quá tay → tô màu phần Director thêm | **1** (rẻ nhất, R và T đều dùng lại) |
-| T | 📈 Học trending | Lịch 1–3 ngày gom dữ liệu (nguồn miễn phí + Apify) → Claude lọc thành **thẻ trend** → người duyệt → Director đọc thẻ đã duyệt khi viết | Apify ≈ 3,5–4,5 USD/tháng (vừa gói Free 5 USD) + Claude ≈ 1,5 USD/tháng | Bản quyền nhạc trend; trend nhạy cảm; điều khoản Apify cấm nhiều tài khoản free | **2** |
-| R-A | 🎬 Cover kịch bản từ video ref | Cắt shot + nghe thoại (offline) → Claude bóc tách cấu trúc → ghép vai/nơi FF → kịch bản + nhịp shot bám ref | ≈ 0,1–0,2 USD Claude/video ref (rồi đi pipeline thường) | Chép y lời / ý của người khác → chỉ giữ cấu trúc, viết lại lời | **3** |
-| R-B | 💃 Cover nhảy | Đo nhịp → chia đoạn theo phách → khung đầu nhân vật FF đúng tư thế → chuyển động từ video ref (Kling/Seedance; Motion Control nếu ClipAI mở API) | Thử A/B ≈ 2,5 USD; 1 bài 30 s ≈ 3,6 USD (Kling) – 11 USD (Seedance 2.5) | Người thật trong video ref có thể bị bộ lọc chặn; tay/chân biến dạng; nhạc gốc không được dùng thương mại | **4** (sau bài thử) |
+| # | Câu hỏi v1 | Người dùng trả lời | Ảnh hưởng tới plan |
+|---|---|---|---|
+| Q1 | Có luôn dùng trend? | **Không phải lúc nào cũng dùng** | Mỗi dự án có ô "Dùng trend: Tắt (mặc định) / Gợi ý / Ưu tiên" (mục 2, 3.5) |
+| Q2 | Apify: 1 tài khoản Free? | **Đã có sẵn 1 tài khoản Free**, mục đích **thử độ hiệu quả**, chưa dùng thật | Trần 4,5 USD/tháng; sau 4–6 tuần đo theo bảng 3.9 rồi mới quyết mua gói |
+| Q3 | Chính sách bản quyền khi dùng trend | **Được dùng trend vào sản phẩm**, chỉ tránh thứ có **mức bản quyền cao** | Thẻ trend có trường `copyright_level` (cao / vừa / thấp); code loại mức cao (mục 3.4) |
+| Q4 | Nhạc trend | Hiểu vấn đề nhạc; có nghĩ tới Suno Pro để làm bản mới, nhưng **bán tự động thì để sau** | Không thêm việc Suno; nhạc vẫn Clip AI `music_v2` cùng BPM (mục 4) |
+| Q5 | Clip nhảy để thử | **Có sẵn mẫu** — Google Drive `SeaTalk_VDO_20261001_111440.mp4` (mp4, 8 MB) | Bài thử A/B dùng clip này (mục 6.2) |
+| Q6 | Hỏi ClipAI mở API Motion Control? | **Chưa hỏi** | Thành việc riêng S11.14 |
+| Q7 | Tần suất quét TikTok | **3 ngày** | Lịch mặc định 3 ngày (mục 3.7) |
 
-**Câu trả lời ngắn cho câu hỏi Apify:** *có nên dùng* — Apify là cách hợp lệ, rẻ, không cần tài khoản TikTok để lấy bảng xếp hạng
-Creative Center (hashtag, bài hát, video, nhà sáng tạo) theo **Việt Nam** và video theo hashtag; API chính thức của TikTok (Research API)
-**cấm dùng thương mại** nên không dùng được. **Nhưng không nên tạo 1–5 tài khoản Apify free**: điều khoản chung của Apify cấm một người
-tạo/dùng nhiều tài khoản cá nhân, kể cả bằng email khác [S4]. Phương án thay: **1 tài khoản Apify Free (5 USD/tháng) + các nguồn miễn
-phí hợp lệ khác** (mục 3.3), đo 4–6 tuần theo chỉ số ở mục 3.9, đạt thì nâng **Starter** (một số nguồn báo 29 USD, nguồn khác báo đã
-giảm còn 19 USD — kiểm trên console trước khi mua [S1][S2]).
-
-## 1. Hiện trạng code liên quan (để tính năng mới dùng lại, không làm lại)
+## 1. Hiện trạng code dùng lại (không làm lại)
 
 | Đã có | Tệp | Dùng cho |
 |---|---|---|
-| Đọc kịch bản từ docx/xlsx/csv/txt/văn bản dán | `core/script_reader.py`, `core/script_parser.py` | I, R-A: đầu ra phải đúng khuôn này |
-| Director hai lượt (Tầng A ý đồ, Tầng B quay phim từng cảnh, Đạo diễn duyệt bằng code) | `core/director_two_pass.py`, `prompts/19`, `20`, `17` | I, R-A, T: chèn khối mới vào Tầng A |
-| Cắt shot video tham chiếu (ffmpeg scene score) → khung giữa → tờ 12 khung → Claude gắn nhãn cỡ/góc/chuyển động/vai trò shot | `core/reference_analysis.py`, `prompts/16_reference_shots.md` | R-A: phần "bóc tách hình" có sẵn ~70% |
-| Nghe thoại offline (faster-whisper, tiếng Việt, không tốn tiền) | `core/voice_check.py::transcribe` | R-A: lấy lời thoại video ref |
-| Nghiên cứu định kỳ bằng Claude web search (0,01 USD/lượt tìm), kết quả thành "bài học đề xuất" chờ người duyệt; chạy bằng Task Scheduler | `core/research.py`, `tools/monthly_research.py`, tab 🎓 Bài học | T: cùng khuôn "đề xuất → người duyệt → mới dùng" |
-| Video tham chiếu chuyển động: Kling `video_list refer_type=feature`, Seedance `role=reference_video`; đã chạy thật 30/09 (T1/T2) | `core/adapters/clipai.py`, `knowledge/reference_assets_prompting.md` | R-B: đường gửi video ref đã chứng minh |
-| Mẫu prompt chính thức chép động tác: *"Animate the character in @Image 1 with the same motion as the character in @Video"* | `docs/NGHIEN_CUU_PROMPT_THAM_CHIEU_2026-09-30.md` mục 1.1-5 | R-B |
-| Hồ sơ nhân vật FF + Kho tài nguyên (ảnh in-game, bối cảnh, 3D) | `core/assets.py`, `data/skills/`, `profile_digest.py` | R-A/R-B ghép vai, nơi |
+| Đọc kịch bản docx/xlsx/csv/txt/văn bản dán | `core/script_reader.py`, `core/script_parser.py` | I, R-A: đầu ra phải đúng khuôn này |
+| Director hai lượt (Tầng A ý đồ, Tầng B quay phim từng cảnh, duyệt bằng code) | `core/director_two_pass.py`, `prompts/19`, `20`, `17` | I, R-A, T: chèn khối mới vào Tầng A |
+| Cắt shot video ref → khung giữa → tờ 12 khung → Claude gắn nhãn cỡ/góc/chuyển động/vai trò | `core/reference_analysis.py` (`detect_cuts`, `shots_from_cuts`, `mid_frames`, `contact_sheets`, `label`), `prompts/16_reference_shots.md` | R-A, R-B: phần "bóc tách hình" có sẵn ~70 % |
+| Đọc thông số video (độ dài, rộng, cao, fps) | `core/video_analysis.py::probe` | R-B: kiểm clip ref |
+| Kiểm luật video ref từng nhà cung cấp (Kling 3–15,5 s, 1 video; Seedance 2–30 s, tổng ≤ 30 s; fps 24–60; SAR 1:1; cạnh/điểm ảnh) | `core/adapters/clipai.py::reference_video_problems` (S10.5) | R-B: không gửi video sai luật |
+| Đếm mặt bằng YuNet | `core/clip_measure.py::_faces` (`data/models/`) | R-B: **bản không mặt phải còn 0 mặt** |
+| MediaPipe đã cài (`requirements.txt`), đang dùng cho mốc môi | `core/clip_measure.py` | R-B: khung xương người nhảy (dựng mannequin) |
+| White-model Blender: mỗi người một khối màu, câu vai trò "khối đỏ = KENTA…", video đạt luật ref của cả hai bên | `core/whitebox.py`, `tools/render_plates.py` | R-B: dựng **mannequin** từ khung xương; câu ánh xạ màu → nhân vật dùng chung |
+| Ghép theo ảnh độ sâu | `core/composite.py::occluders` | (tham khảo cách đọc ảnh độ sâu) |
+| Nghe thoại offline (faster-whisper, tiếng Việt) | `core/voice_check.py::transcribe` | R-A |
+| Nghiên cứu định kỳ bằng Claude web search (0,01 USD/lượt), "đề xuất → người duyệt" | `core/research.py`, `tools/monthly_research.py`, tab 🎓 Bài học | T: cùng khuôn |
+| Video ref chuyển động: Kling `refer_type=feature`, Seedance `role=reference_video`; chạy thật 30/09 (T1/T2) | `core/adapters/clipai.py`, `knowledge/reference_assets_prompting.md` | R-B |
+| Kho chủ thể Seedance — ảnh nhân vật FF qua bộ lọc người thật 3/3 lần không cần dấu đỏ (S4.7, 01/10) | `core/adapters/clipai_subjects.py`, cờ `seedance_subjects` | R-B: ảnh Kelly/Maxim gửi qua kho chủ thể |
 | Sổ chi + trần + ước tính trước | `core/cost.py`, `core/budget.py`, `core/project_budget.py` | Mọi lời gọi Apify/Claude mới |
-| Đo tốc độ nói thật 2,86 âm tiết/s | `tools/measure_speech_rate.py` | I: tính độ dài thoại theo giây |
-| Sổ kinh nghiệm nhà máy | `core/experience.py` | T: ghi trend nào dùng tốt / hỏng |
+| Tốc độ nói đo thật 2,86 âm tiết/s | `tools/measure_speech_rate.py` | I |
+| Sổ kinh nghiệm nhà máy | `core/experience.py` | T: trend nào dùng tốt / hỏng |
 
-Giới hạn đã biết (bằng chứng trong repo):
-- **Motion Control của ClipAI chỉ có trên web**, API không có (tra 23/09, `TODO.md` dòng "Bỏ qua tới khi API có…"). Quyết định đã chốt
-  "chỉ dùng tính năng có API" (PLAN Mục 5) → R-B **không** dựa vào Motion Control cho tới khi ClipAI mở API.
-- Kling video tham chiếu: **3–15,5 s, 1 video, 24–60 fps, cạnh 700–4553 px, giá ×1,5**, có video thì `sound` = off (tài liệu Kling Omni,
-  ghi ở `NGHIEN_CUU_PROMPT_THAM_CHIEU` 1.1-6/7). Seedance 2.5: video ref ≥ 2 s, ≤ 10 video, clip ra 4–30 s.
-- Giá đang dùng (`data/pricing.json`): Kling 3.0 Omni 0,08 USD/s (×1,5 khi có video vào = 0,12), Seedance 2.5 720p 0,23 USD/s + phần
-  video vào ≈ 0,138 USD/s (công thức token của web ClipAI, ghi chú `_note_seedance_2_5_web`), Claude Sonnet 5: 2 USD/1M token vào,
-  10 USD/1M token ra, Claude web search 0,01 USD/lượt.
+Giới hạn đã biết: Motion Control ClipAI **chỉ có trên web** (tra 23/09); Kling video ref 3–15,5 s, giá ×1,5, có video thì `sound` = off;
+Seedance 2.5 video ref ≥ 2 s, ≤ 10 video, clip ra 4–30 s, **bám mốc giây** (2.0/Fast thì không — viết "Shot n", S4.8). Giá đang dùng
+(`data/pricing.json`): Kling 3.0 Omni 0,08 USD/s (×1,5 = 0,12 khi có video vào), Seedance 2.5 720p 0,23 USD/s + phần video vào ≈ 0,138 USD/s,
+Claude Sonnet 5: 2 / 10 USD mỗi 1M token vào/ra, web search 0,01 USD/lượt.
 
 ## 2. Tính năng I — 💡 Ý tưởng thô → kịch bản chi tiết
 
-### 2.1 Vấn đề và bằng chứng
-- Bước 1 hiện chỉ nhận **kịch bản đã viết** (tab "📎 Tải file" / "✍ Gõ / dán văn bản" ở `dashboard/steps/step1.py`). Ý tưởng 2–3 dòng
-  đưa thẳng vào thì `script_parser.split_scenes` ra 1 cảnh không có thoại, Director Tầng A phải tự bịa toàn bộ trong cùng lời gọi viết
-  Bible + ý đồ — không có chỗ cho người duyệt phần bịa thêm.
-- Bài học #8 (`docs/TONG_KET_DU_AN_8_2026-09-28.md`): lỗi "truyện cụt / hồi tưởng không có dấu hiệu" và "dài 83 s vs ~58 s" đều sinh
-  ở khâu **kịch bản**, trước Director. Một bước viết kịch bản có cấu trúc (hook, điểm xoay, kết, tính giây) chặn được loại lỗi này sớm
-  với giá rẻ nhất (chữ, không ảnh).
+**Vấn đề (bằng chứng):** Bước 1 chỉ nhận kịch bản đã viết (`dashboard/steps/step1.py`: tab "📎 Tải file" / "✍ Gõ / dán"). Ý tưởng 2–3 dòng
+đưa thẳng vào thì `split_scenes` ra 1 cảnh không thoại, Director phải bịa toàn bộ trong cùng lời gọi viết Bible + ý đồ, không có chỗ cho người
+duyệt phần bịa thêm. Lỗi "truyện cụt / hồi tưởng không dấu hiệu" và "83 s vs ~58 s" của #8 (`docs/TONG_KET_DU_AN_8_2026-09-28.md`) đều sinh
+ở khâu kịch bản — chặn sớm ở đây rẻ nhất (chữ, không ảnh).
 
-### 2.2 Luồng (tab thứ 3 ở Bước 1: "💡 Ý tưởng thô")
-1. **Nhập:** ô văn bản ý tưởng + các ô có mặc định: thời lượng (15/30/60 s), khung (9:16), nền tảng (TikTok/Reels/FB), giọng điệu
-   (hài/cảm động/hành động/drama), nhân vật muốn dùng (chọn từ Kho FF, có thể để trống), CTA (tải game/sự kiện/không).
-2. **Lượt 1 — Hỏi lại (1 lời gọi Claude, ~0,01–0,02 USD):** Director đọc ý tưởng, liệt kê *có gì / thiếu gì* (xung đột, nhân vật,
-   nơi, kết, CTA) và hỏi **≤ 5 câu**, mỗi câu có **đáp án mặc định**. Người dùng trả lời hoặc bấm "Dùng mặc định" — câu nào lấy mặc định
-   được ghi lại (luật 1 "không im lặng khi thiếu đầu vào").
-3. **Lượt 2 — 3 hướng (1 lời gọi):** 3 logline + hook 3 giây đầu khác nhau (ví dụ: 1 hướng bám ý gốc, 1 hướng bất ngờ hơn, 1 hướng dùng
-   **thẻ trend đã duyệt** nếu tính năng T đã có). Người dùng chọn 1 (hoặc trộn bằng ghi chú).
-4. **Lượt 3 — Dàn ý theo giây (1 lời gọi):** hook (0–3 s) → dựng tình huống → điểm xoay → cao trào → kết/CTA; mỗi nhịp có số giây, tổng
-   khớp thời lượng ± 10 %. Thoại tính theo **2,86 âm tiết/s** (đo thật) → code kiểm "thoại nhịp này cần X s > khung Y s" và báo.
-5. **Lượt 4 — Kịch bản đầy đủ:** viết đúng khuôn `CẢNH n - <thời gian>, <nơi>` / mô tả / `NHÂN VẬT: lời` mà `script_reader` hiểu
-   (code chạy lại `script_parser` lên đầu ra; không tách được → báo lỗi, không cho đi tiếp).
-6. **Duyệt:** màn hình 2 cột — trái ý tưởng gốc, phải kịch bản; **phần Director thêm được tô màu** (nhân vật mới, nơi mới, câu thoại không
-   có trong ý tưởng) để người dùng biết cái gì là của mình, cái gì là của máy. Sửa tay được; bấm "Dùng kịch bản này" → vào Bước 1 như kịch
-   bản tải lên (từ đây mọi cổng Bible / storyboard / ngân sách giữ nguyên).
+**Luồng (tab thứ 3 ở Bước 1: "💡 Ý tưởng thô"):**
+1. **Nhập:** ô ý tưởng + ô có mặc định: thời lượng (15/30/60 s), khung (9:16), nền tảng, giọng điệu, nhân vật (chọn từ Kho FF, để trống
+   được), CTA, **Dùng trend: Tắt (mặc định) / Gợi ý / Ưu tiên** (Q1).
+2. **Lượt 1 — Hỏi lại:** Director liệt kê có gì / thiếu gì, hỏi **≤ 5 câu**, mỗi câu có **đáp án mặc định**; câu nào lấy mặc định được ghi
+   lại (luật 1 "không im lặng khi thiếu đầu vào").
+3. **Lượt 2 — 3 hướng:** 3 logline + hook 3 s đầu. Khi ô trend = Gợi ý/Ưu tiên, 1 hướng dùng thẻ trend đã duyệt (mục 3); khi Tắt, không
+   đưa thẻ nào vào prompt.
+4. **Lượt 3 — Dàn ý theo giây:** hook → dựng → điểm xoay → cao trào → kết/CTA; tổng khớp thời lượng ± 10 %; thoại tính 2,86 âm tiết/s → code
+   báo nhịp nào thoại dài hơn khung.
+5. **Lượt 4 — Kịch bản đầy đủ** đúng khuôn `CẢNH n - <thời gian>, <nơi>` / mô tả / `NHÂN VẬT: lời`; code chạy lại `script_parser`, không
+   tách được → báo lỗi, không cho đi tiếp.
+6. **Duyệt 2 cột:** trái ý tưởng gốc, phải kịch bản; **tô màu phần Director thêm** (nhân vật / nơi / câu thoại mới). Sửa tay được; "Dùng kịch
+   bản này" → vào Bước 1 như kịch bản tải lên (mọi cổng Bible / storyboard / ngân sách giữ nguyên).
 
-### 2.3 Kiểm bằng code (không tốn tiền)
-- Nhân vật được nêu phải có trong Kho FF (hoặc gắn cờ "nhân vật mới — cần ảnh").
-- Nơi chốn: ưu tiên nơi có trong Kho (có render 3D / ảnh trong game); nơi không có → cờ "AI vẽ, ~70 % giống" (theo bài học gói bối cảnh).
-- Tổng giây, giây thoại từng nhịp, có hook trong 3 s đầu, có kết (không cụt), CTA đúng ô đã chọn.
-- Không ghi số tuổi < 18 (luật hồ sơ nhân vật đã chốt 25/09).
+**Kiểm bằng code (0 USD):** nhân vật có trong Kho FF (không có → cờ "nhân vật mới — cần ảnh"); nơi ưu tiên có trong Kho (không có → cờ "AI vẽ,
+~70 % giống"); tổng giây, giây thoại từng nhịp, có hook 3 s đầu, có kết, CTA đúng; không ghi số tuổi < 18.
 
-### 2.4 Kiến thức cho Director
-Tạo `prompts/23_idea_to_script.md` + `knowledge/roles/screenwriter.md` (vai **Biên kịch** — vai thứ 4 cạnh Đạo diễn/Quay phim/Dựng):
-cấu trúc video ngắn (hook – giữ chân – trả thưởng), công thức tiểu phẩm Kelly Show, luật thoại (`knowledge/dialogue_craft.md` đã có),
-hướng dẫn thể loại (`knowledge/genre_guides.md` đã có). Mỗi luật có lý do + nguồn như bộ kỹ năng 3 vai.
+**Kiến thức:** `prompts/23_idea_to_script.md` + `knowledge/roles/screenwriter.md` (vai **Biên kịch**, cạnh Đạo diễn/Quay phim/Dựng): cấu
+trúc video ngắn (hook – giữ chân – trả thưởng), công thức tiểu phẩm Kelly Show, `knowledge/dialogue_craft.md`, `knowledge/genre_guides.md`.
 
-### 2.5 Đo hiệu quả (bộ đo cố định)
-5 ý tưởng thô mẫu (người dùng đưa, hoặc lấy từ các dự án #1–#8) → chạy I → người dùng chấm 1–5 cho: giữ đúng ý, hook, logic, độ dài,
-"quay được bằng pipeline". Cổng bật mặc định: trung bình ≥ 4 và 0 kịch bản fail kiểm code. Chi phí đo ≈ 5 × 0,15 = **0,75 USD**.
-
-### 2.6 Chi phí
-4 lời gọi Sonnet 5, ước ~25k token vào (có cache phần luật) + ~6k token ra ≈ 0,05 + 0,06 = **≈ 0,1 USD/kịch bản** (trần cứng 0,3 USD/lần
-qua sổ chi, stage `screenwriter`).
+**Chi phí:** 4 lời gọi Sonnet 5 ≈ 25k token vào (cache phần luật) × 2 USD/1M + 6k ra × 10 USD/1M ≈ **0,1 USD/kịch bản**; trần cứng 0,3 USD/lần,
+stage `screenwriter`. **Bộ đo:** 5 ý tưởng thô → người dùng chấm 1–5 (giữ ý, hook, logic, độ dài, quay được) — cổng bật: TB ≥ 4, 0 lỗi kiểm
+code; ≈ 0,75 USD.
 
 ## 3. Tính năng T — 📈 Học trending (TikTok chính, Facebook phụ)
 
-### 3.1 Bằng chứng nhu cầu và rủi ro (ví dụ người dùng nêu)
-- "Ông chã húi, bà chả hơm": biến âm của "ông xã / bà xã" (xã → chã/chả; thúi/thơm → húi/hơm); khởi phát từ video "Bà chả húi, ăm chả húi
-  ơi" của TikToker Kiệt Hà Tịnh (> 10 triệu theo dõi) **đầu tháng 6/2026**, > 3 triệu lượt xem; sau đó bài hát "Ăm chã húi" (Lâm Thằn Lằn)
-  viral [S9][S10].
-- **Cùng trend đó đã bị báo chí gọi là "thảm họa mới của nhạc Việt"** và "hứng trọn gạch đá vì ca từ nhảm nhí" (Kenh14 / 24h / Việt Giải
-  Trí ngày 20/09/2026; Docnhanh) [S11][S12]. → Bằng chứng trực tiếp rằng **trend không tự động an toàn cho thương hiệu**: cụm từ có thể
-  dùng (đùa vợ chồng/cặp đôi Kelly – Kenta), nhưng bài hát thì rủi ro. Vì thế mỗi trend phải qua **thẻ có cờ rủi ro + người duyệt**.
-- Tuổi thọ: trend khởi phát tháng 6, lên báo tháng 6 → tháng 9 đã bị chê → **3–4 tháng** từ nổi tới bão hòa/phản ứng ngược. Thẻ trend
-  phải có **trạng thái vòng đời** (đang lên / đỉnh / đang xuống / hết hạn).
+### 3.1 Bằng chứng nhu cầu và rủi ro
+- "Ông chã húi, bà chả hơm": biến âm của "ông xã / bà xã"; khởi phát từ video "Bà chả húi, ăm chả húi ơi" của TikToker Kiệt Hà Tịnh (> 10 triệu
+  theo dõi) **đầu tháng 6/2026**, > 3 triệu lượt xem; sau đó bài hát "Ăm chã húi" (Lâm Thằn Lằn) viral [S9][S10].
+- **Cùng trend đó bị báo gọi là "thảm họa mới của nhạc Việt"** và "hứng trọn gạch đá vì ca từ nhảm nhí" (Kenh14 / Việt Giải Trí 20/09/2026;
+  Docnhanh) [S11][S12] → trend **không tự động an toàn**: cụm từ dùng được (đùa cặp đôi Kelly – Kenta), bài hát thì rủi ro → cần cờ rủi ro + người duyệt.
+- Tuổi thọ: nổi tháng 6 → bị chê tháng 9 ≈ **3–4 tháng** → thẻ cần vòng đời + hạn dùng.
 
 ### 3.2 Công cụ — đã so sánh
 
 | Nguồn | Lấy được gì | Hợp lệ? | Tiền | Kết luận |
 |---|---|---|---|---|
-| **TikTok Research API** (chính thức) | Video, bình luận, người dùng | **Không** — chỉ cho học thuật/phi lợi nhuận ở vùng được phép; FAQ nói nhà sáng tạo, nhà quảng cáo, đơn vị thương mại **không** đủ điều kiện; 1000 lượt/ngày [S6][S7] | Free | ❌ Loại |
-| **TikTok Creative Center** (web công khai cho nhà quảng cáo) | Hashtag top, bài hát top, nhà sáng tạo, video top; lọc **quốc gia** + 7/30/120 ngày; xem không cần đăng nhập [S8] | Có (công cụ công khai của TikTok) | Free | ✅ Nguồn chính — nhưng không có API, phải đọc tay **hoặc** qua Apify |
-| **Apify actor đọc Creative Center** (ví dụ `clockworks/tiktok-trends-scraper`, `crawloop/tiktok-trending-hashtags-scraper`, `automation-lab/tiktok-creative-center-scraper`) | Hashtag + hạng + lượt xem + số bài + đường cong phổ biến + nhà sáng tạo dẫn đầu; lọc quốc gia, cửa sổ 7/30/90 ngày; **không cần tài khoản TikTok** [S3][S13] | Có (dữ liệu công khai; người dùng chịu trách nhiệm tuân thủ — xem 3.8) | **0,99–1,70 USD / 1000 dòng** (rẻ nhất); bản "hashtag + sound + creator" 8,20 USD/1000 [S3][S13] | ✅ Dùng — thay việc đọc tay |
-| **Apify `clockworks/tiktok-scraper`** | Video theo hashtag / từ khóa / tài khoản: caption, hashtag, **nhạc (tên, tác giả, bản gốc?)**, lượt xem/thích/chia sẻ, thời gian; tải video tùy chọn | Có (như trên) | ~1,70 USD/1000 kết quả (giá "từ", gói trả phí) [S5]; **gói Free ≈ 0,003 USD/kết quả** (~1 666 kết quả cho 5 USD) [S14] | ✅ Dùng — lấy **ví dụ cụ thể** cho mỗi trend |
-| **Apify Facebook Posts Scraper** (`apify/facebook-posts-scraper` và bản khác) | Bài đăng trang công khai: chữ, media, lượt tương tác | Có | 0,65–2,00 USD/1000 bài [S15] | ✅ Phụ — theo dõi 5–10 trang meme/game VN + fanpage FF |
-| **Claude web search** (đã có trong `core/research.py`) | Báo/blog VN viết về trend ("… là gì mà hot vậy") — chính là cách tìm ra bằng chứng "ông chã húi" ở mục 3.1 | Có | 0,01 USD/lượt tìm + token | ✅ Dùng — giải thích **nghĩa + nguồn gốc + phản ứng dư luận**, thứ số liệu Apify không có |
-| **kworb.net/charts/tiktok/vn.html** | Bảng bài hát trend TikTok VN [S8b] | Trang công khai | Free | ✅ Kiểm chéo bài hát (đọc qua Claude web fetch) |
-| Nhập tay (người dùng dán link/cụm từ thấy trên điện thoại) | Bất cứ gì | Có | Free | ✅ Luôn có — trend người làm nội dung thấy trước máy |
+| TikTok Research API (chính thức) | video, bình luận, người dùng | **Không** — chỉ học thuật/phi lợi nhuận; nhà quảng cáo, đơn vị thương mại không đủ điều kiện; 1000 lượt/ngày [S6][S7] | Free | ❌ Loại |
+| TikTok Creative Center (web công khai) | hashtag, bài hát, nhà sáng tạo, video top; lọc **quốc gia** + 7/30/120 ngày; xem không cần đăng nhập [S8] | Có | Free | ✅ Nguồn chính (đọc qua Apify) |
+| Apify actor đọc Creative Center (`clockworks/tiktok-trends-scraper`, `crawloop/tiktok-trending-hashtags-scraper`, `automation-lab/tiktok-creative-center-scraper`) | hạng, lượt xem, số bài, đường cong phổ biến, nhà sáng tạo dẫn đầu; quốc gia, cửa sổ 7/30/90 ngày; **không cần tài khoản TikTok** [S3][S13] | Có (dữ liệu công khai) | **0,99–1,70 USD/1000 dòng**; bản hashtag+sound+creator 8,20 USD/1000 [S3][S13] | ✅ |
+| Apify `clockworks/tiktok-scraper` | video theo hashtag / từ khóa: caption, hashtag, nhạc, lượt xem/thích/chia sẻ, ngày | Có | ~1,70 USD/1000 (gói trả phí) [S5]; **gói Free ≈ 0,003 USD/kết quả** [S14] | ✅ ví dụ thật cho mỗi trend |
+| Apify Facebook Posts Scraper | bài đăng trang công khai | Có | 0,65–2,00 USD/1000 bài [S15] | ✅ phụ — 5–10 trang meme/game VN + fanpage FF |
+| Claude web search (`core/research.py`) | báo/blog viết về trend: **nghĩa, nguồn gốc, phản ứng dư luận** | Có | 0,01 USD/lượt + token | ✅ chính cách tìm ra bằng chứng ở 3.1 |
+| kworb.net TikTok VN [S8b] | bảng bài hát trend VN | Trang công khai | Free | ✅ kiểm chéo bài hát |
+| Nhập tay | cụm từ / link người dùng thấy trên điện thoại | Có | Free | ✅ |
 
-**Vì sao vẫn cần Apify dù có Claude web search:** web search chỉ thấy trend **khi báo đã viết** (trễ 1–3 tuần — ví dụ ông chã húi: video
-đầu tháng 6, báo viết cuối tháng 6). Creative Center cho số liệu **trong 7 ngày**, bắt được trend đang lên trước khi lên báo; scraper video
-cho ví dụ thật (caption, nhạc đi kèm) để Director thấy *cách người ta dùng*. Hai nguồn bổ sung nhau.
+**Vì sao cần cả Apify lẫn web search:** web search chỉ thấy trend **khi báo đã viết** (trễ 1–3 tuần — ví dụ trên: video đầu tháng 6, báo cuối
+tháng 6); Creative Center cho số liệu 7 ngày, bắt trend đang lên; scraper video cho ví dụ thật (caption, nhạc) để Director thấy cách người ta dùng.
 
-### 3.3 Chuyện "1–5 tài khoản free"
-- **Apify:** điều khoản chung **cấm tạo hoặc dùng nhiều tài khoản cá nhân**, trực tiếp hay qua người khác, kể cả bằng email khác, trừ khi
-  Apify cho phép; Acceptable Use Policy cấm tạo tài khoản giả [S4]. Hậu quả có thể là khóa cả tài khoản đang dùng → mất dữ liệu đã gom.
-  **Không đưa vào kế hoạch.** (Nếu cần nhiều người dùng chung: Apify có tài khoản tổ chức — kiểm điều kiện trên console.)
-- **Cách hợp lệ để "dùng nhiều gói free" đúng tinh thần yêu cầu:** mỗi **dịch vụ khác nhau** một tài khoản free:
-  1 Apify Free (5 USD/tháng) · TikTok Creative Center (free, không cần API) · Claude web search (đã trả qua khóa Anthropic) · kworb (free)
-  · (tùy chọn, cần kiểm điều khoản/giá trước khi đăng ký) một dịch vụ API TikTok khác có gói free để dự phòng khi actor Apify hỏng.
-  Đây là 3–5 nguồn free hợp lệ.
+**Tài khoản:** dùng **đúng 1 tài khoản Apify Free người dùng đã có** (Q2). Điều khoản Apify cấm một người tạo/dùng nhiều tài khoản cá nhân,
+kể cả bằng email khác [S4] — không lập thêm.
 
-### 3.4 Kiến trúc
+### 3.3 Kiến trúc
 
 ```
-Lịch (Windows Task Scheduler, mỗi 1–3 ngày, chỉnh trong ⚙)   ← giống tools/monthly_research.py
+Lịch (Windows Task Scheduler, mặc định mỗi 3 ngày — chỉnh 1–3 ngày trong ⚙)   ← giống tools/monthly_research.py
    └─ tools/trend_scan.py
-        1. GOM  (core/trends/sources/*.py — mỗi nguồn 1 adapter, đều qua sổ chi + trần tháng)
-           ├─ apify_creative_center: hashtag top 50 + bài hát top 50, quốc gia VN, cửa sổ 7 ngày
-           ├─ apify_tiktok_videos:  8–10 hashtag/cụm từ đang lên → 10 video/hashtag (caption, nhạc, lượt xem, ngày)
-           ├─ apify_facebook:       5–10 trang theo dõi → 10 bài mới/trang (tuần 1 lần)
-           ├─ claude_web_search:    "trend TikTok Việt Nam tuần này", "<cụm từ> là gì"  (≤ 5 lượt tìm)
-           └─ nhập tay:             ô dán link / cụm từ trên dashboard
-           → bảng trend_raw (nguồn, loại, nội dung, số liệu, url, lúc lấy)  — chỉ chữ + số, KHÔNG lưu video người khác
-        2. LỌC BẰNG CODE (0 USD): bỏ trùng; tính tốc độ tăng giữa 2 lần quét (hạng, lượt xem); bỏ hashtag quảng cáo/thương hiệu khác;
-           bỏ từ khóa nhạy cảm theo danh sách đen (chính trị, tôn giáo, tai nạn, bạo lực thật, 18+); giữ ~20 ứng viên
-        3. CHẮT LỌC (1 lời gọi Claude ~0,1 USD): mỗi ứng viên → THẺ TREND đề xuất (dưới)
-   └─ Dashboard ⚙ → "📈 Trend": người duyệt / sửa / loại thẻ (giống tab 🎓 Bài học)
-   └─ Director (Tầng A + Biên kịch I + Cover R-A) đọc ≤ 8 thẻ ĐÃ DUYỆT, còn hạn, hợp thể loại
+        1. GOM (core/trends/sources/*.py — mỗi nguồn 1 adapter, đều qua sổ chi + trần tháng)
+           ├─ apify_creative_center: hashtag top 50 + bài hát top 50, VN, 7 ngày        (tuần 1 lần)
+           ├─ apify_tiktok_videos:  8 hashtag/cụm đang lên × 10 video                  (mỗi 3 ngày)
+           ├─ apify_facebook:       5 trang × 10 bài                                     (tuần 1 lần)
+           ├─ claude_web_search:    "trend TikTok Việt Nam tuần này", "<cụm từ> là gì"  (≤ 5 lượt)
+           └─ nhập tay
+           → bảng trend_raw (nguồn, loại, nội dung, số liệu, url, lúc lấy) — chỉ chữ + số + URL, KHÔNG lưu video người khác
+        2. LỌC BẰNG CODE (0 USD): bỏ trùng; tốc độ tăng giữa 2 lần quét; bỏ hashtag quảng cáo thương hiệu khác; danh sách đen
+           (chính trị, tôn giáo, tai nạn, bạo lực thật, 18+); giữ ~20 ứng viên
+        3. CHẮT LỌC (1 lời gọi Claude ≈ 0,09 USD): mỗi ứng viên → THẺ TREND đề xuất (3.4)
+   └─ Dashboard ⚙ → "📈 Trend": duyệt / sửa / loại thẻ (giống tab 🎓 Bài học)
+   └─ Director (Tầng A + Biên kịch + Cover) đọc ≤ 8 thẻ ĐÃ DUYỆT, còn hạn, hợp thể loại — CHỈ khi ô "Dùng trend" ≠ Tắt
 ```
 
-**Thẻ trend** (bảng `trend_cards`):
+### 3.4 Thẻ trend (bảng `trend_cards`)
 
 | Trường | Ví dụ ("ông chã húi") |
 |---|---|
-| `kind` | cụm_từ / âm_thanh / định_dạng (khuôn video, ví dụ "POV…", "trước/sau") / hashtag / meme_hình / điệu_nhảy |
-| `title`, `meaning_vi`, `origin` | "Ông chã húi / bà chả hơm" = cách gọi đùa ông xã / bà xã; gốc video Kiệt Hà Tịnh 06/2026 |
-| `how_used` | 3 ví dụ caption/thoại thật (từ scraper) + cách dùng phổ biến (gọi người yêu, cà khịa cặp đôi) |
-| `fit_ff` (0–1) + gợi ý | 0,8 — Kelly gọi Kenta "ông chã húi" khi cãi yêu; hợp tiểu phẩm cặp đôi, KHÔNG hợp trailer hành động |
+| `kind` | cụm_từ / âm_thanh / định_dạng / hashtag / meme_hình / điệu_nhảy |
+| `title`, `meaning_vi`, `origin` | cách gọi đùa ông xã / bà xã; gốc video Kiệt Hà Tịnh 06/2026 |
+| `how_used` | 3 ví dụ caption/thoại thật (từ scraper) |
+| `fit_ff` (0–1) + gợi ý | 0,8 — Kelly gọi Kenta "ông chã húi" khi cãi yêu; hợp tiểu phẩm cặp đôi, không hợp trailer hành động |
 | `tone` | hài, dễ thương, Gen Z |
-| `risk_flags` | `song_criticized` (bài hát bị chê trên báo 09/2026), `overused` |
-| `music_license` | `cml` (có trong Commercial Music Library) / `unknown` / `not_cleared` |
-| `lifecycle` | đang_lên / đỉnh / đang_xuống / hết_hạn (code tính từ số liệu 2 lần quét + ngày báo viết) |
-| `expires_at` | mặc định +21 ngày, tự gia hạn nếu lần quét sau còn tăng |
-| `evidence` | URL nguồn + số liệu tại thời điểm quét |
+| **`copyright_level`** (Q3) | phần cụm từ: **thấp**; bài hát "Ăm chã húi": **cao** → tách thành 2 thẻ |
+| `risk_flags` | `song_criticized`, `overused` |
+| `lifecycle`, `expires_at` | đang_lên / đỉnh / đang_xuống / hết_hạn; mặc định +21 ngày, tự gia hạn nếu lần quét sau còn tăng |
+| `evidence` | URL + số liệu tại lúc quét |
 | `status` | đề_xuất → đã_duyệt / loại (người, kèm lý do) |
 
-### 3.5 Director "học" thế nào (không train model — đúng quyết định đã chốt "không fine-tune", PLAN Mục 5)
-"Học" = **đưa thẻ đã duyệt vào ngữ cảnh** khi viết, có luật dùng:
-1. Khối mới **"Xu hướng dùng được (đã duyệt, còn hạn)"** trong prompt Tầng A (`prompts/19`), prompt Biên kịch (I) và Cover (R-A): ≤ 8 thẻ,
-   chọn theo thể loại + giọng điệu của dự án (code lọc, không để Claude tự chọn trong 100 thẻ).
-2. **Luật dùng trend** (`knowledge/trend_usage.md`, mỗi luật có lý do):
-   - Không bắt buộc; ≤ 2 trend / 60 s — nhồi trend làm kịch bản thành chuỗi meme, mất câu chuyện.
-   - Đặt ở **hook (3 s đầu)** hoặc **câu chốt**; hợp tính cách nhân vật (hồ sơ chuẩn KELLY/KENTA/MAXIM) — Maxim ham ăn nói "chã húi" thì
-     hợp, nhưng cảnh bi không dùng.
-   - Thẻ `lifecycle = đang_xuống` → chỉ dùng kiểu **nhại/tự giễu**; `hết_hạn` → không đưa vào prompt.
-   - Có `risk_flags` → chỉ dùng phần an toàn (cụm từ, không dùng bài hát), Director phải ghi lý do.
-   - **Nhạc trend:** chỉ dùng bản gốc khi `music_license = cml` hoặc Garena có quyền. Còn lại → chỉ học **nhịp/BPM/không khí** đưa vào
-     brief nhạc Clip AI (`music_v2`) để tạo nhạc mới cùng cảm giác, **không chép giai điệu**.
-3. Đầu ra Director thêm trường `trend_refs: [{card_id, where: "scene 1 line 2", why}]` → code kiểm card còn hạn + đã duyệt; dashboard hiện
-   huy hiệu "📈 dùng trend X" ở cảnh đó để người dùng gỡ được.
-4. **Vòng phản hồi:** ghi `trend_usage` (dự án, thẻ, chỗ dùng). Khi người dùng nhập số liệu đăng bài (tab 📊, sau này kéo tự động bằng
-   chính scraper TikTok theo tài khoản kênh) → sổ kinh nghiệm `core/experience.py` ghi "trend X ở hook → giữ chân tốt / kém". Đây là
-   phần "Director trẻ dần lên" có bằng chứng, không chỉ cảm giác.
+**Mức bản quyền** (xếp từ cao xuống thấp — Claude đề xuất, người duyệt chốt):
 
-### 3.6 Bản quyền nhạc — rủi ro lớn nhất, phải nói rõ
-- Tài khoản **doanh nghiệp** trên TikTok **không** dùng được thư viện âm thanh thường, chỉ dùng **Commercial Music Library** (> 1 triệu bản
-  đã cấp phép); phần lớn nhạc trend **không** có trong CML vì quyền thương mại phải xin riêng từng chủ sở hữu [S16][S17].
-- Thư viện nhạc chung của TikTok chỉ cấp phép cho giải trí cá nhân, loại trừ dùng thương mại; tick "xác nhận sở hữu nhạc" khi không có
-  quyền tạo bằng chứng vi phạm cố ý (mức bồi thường luật định Mỹ tới 150 000 USD/bản) [S16].
-- → Video của Garena/Free Fire là nội dung thương hiệu: **pipeline không tự chèn nhạc trend vào bản giao**. Dashboard ghi rõ "nhạc trend:
-  chỉ gợi ý — gắn trên app TikTok nếu có trong CML" hoặc dùng nhạc tạo mới. Người dùng/pháp chế Garena chốt chính sách (câu hỏi mở Q4).
+| Mức | Gồm | Xử lý |
+|---|---|---|
+| **Cao** | bài hát của hãng đĩa / ca sĩ; đoạn phim, show, MV có bản quyền; nhân vật / thương hiệu IP khác | **Code loại khỏi prompt Director** (vẫn lưu thẻ để biết) |
+| **Vừa** | điệu nhảy do creator biên đạo; âm thanh gốc do người dùng TikTok tự tạo | Dùng được; Director phải ghi lý do trong `trend_refs`; người dùng thấy huy hiệu ⚠ ở cảnh đó |
+| **Thấp** | cụm từ, câu nói, meme chữ, khuôn định dạng ("POV…", "trước/sau"), hashtag | Dùng tự do |
 
-### 3.7 Lịch và chi phí — vừa gói Free 5 USD/tháng
+### 3.5 Director "học" thế nào (không fine-tune — đúng quyết định PLAN Mục 5)
+1. Khối **"Xu hướng dùng được"** vào prompt Tầng A (`prompts/19`), Biên kịch (I), Cover (R-A): ≤ 8 thẻ đã duyệt, còn hạn, `copyright_level ≠
+   cao`, lọc theo thể loại + giọng điệu bằng code. **Chỉ chèn khi ô "Dùng trend" của dự án là Gợi ý hoặc Ưu tiên** (Q1); Gợi ý = được phép
+   không dùng; Ưu tiên = cố đặt 1 trend nếu hợp, không hợp thì nói lý do.
+2. **Luật dùng** (`knowledge/trend_usage.md`, mỗi luật có lý do): ≤ 2 trend / 60 s; đặt ở hook hoặc câu chốt; hợp tính cách nhân vật (hồ sơ chuẩn);
+   `đang_xuống` → chỉ kiểu nhại/tự giễu; `hết_hạn` không đưa vào prompt; có `risk_flags` → chỉ dùng phần an toàn.
+3. Đầu ra Director thêm `trend_refs: [{card_id, where, why}]` → code kiểm thẻ còn hạn + đã duyệt + không phải mức cao; huy hiệu "📈 trend X" ở cảnh.
+4. **Vòng phản hồi:** bảng `trend_usage` (dự án, thẻ, chỗ dùng); số liệu đăng bài (nhập tay ở tab 📊, sau này kéo bằng chính scraper theo tài
+   khoản kênh) → `core/experience.py` ghi "trend X ở hook → giữ chân tốt / kém".
 
-Giá dùng để tính: Creative Center 1,70 USD/1000 dòng (bản rẻ 0,99) [S3][S13]; video TikTok **0,003 USD/kết quả ở gói Free** (lấy mức cao
-để an toàn) [S14]; Facebook 2 USD/1000 bài [S15]. **Chưa kiểm trên console Apify** (máy dựng plan bị chặn truy cập apify.com) → lần chạy
-đầu đo số thật, ghi vào `data/pricing.json` rồi mới bật lịch.
+### 3.6 Lịch và chi phí — vừa gói Free 5 USD/tháng
 
-| Việc | Tần suất | Số dòng/lần | USD/lần | Lần/tháng | USD/tháng |
+Giá tính: Creative Center 1,70 USD/1000 dòng [S3]; video TikTok **0,003 USD/kết quả gói Free** (lấy mức cao cho an toàn) [S14]; Facebook 2 USD/1000
+[S15]. **Chưa kiểm trên console** (máy dựng plan bị chặn apify.com) → lần chạy đầu đo số thật, ghi vào `data/pricing.json` rồi mới bật lịch.
+
+| Việc | Tần suất | Dòng/lần | USD/lần | Lần/tháng | USD/tháng |
 |---|---|---|---|---|---|
-| Creative Center VN: hashtag top 50 + bài hát top 50 (7 ngày) | 1 tuần/lần (cửa sổ 7 ngày, quét dày hơn không thêm tin) | 100 | 0,17 | 4,3 | **0,73** |
-| Video TikTok theo 8 hashtag/cụm đang lên × 10 video | **mỗi 3 ngày** (chỉnh 1–3 ngày) | 80 | 0,24 | 10 | **2,40** |
-| Facebook 5 trang × 10 bài | 1 tuần/lần | 50 | 0,10 | 4,3 | **0,43** |
-| **Tổng Apify** | | | | | **≈ 3,6 USD** (< 5 USD Free; chừa ~1,4 USD cho phí nền tảng/chạy lại) |
-| Claude chắt lọc thẻ (~25k token vào + 4k ra) | mỗi lần quét video | — | ≈ 0,09 | 10 | 0,9 |
-| Claude web search (≤ 5 lượt) | mỗi lần quét | — | 0,05 | 10 | 0,5 |
-| **Tổng Claude** | | | | | **≈ 1,4 USD** |
+| Creative Center VN: hashtag 50 + bài hát 50 (7 ngày) | tuần 1 lần (cửa sổ 7 ngày, quét dày không thêm tin) | 100 | 0,17 | 4,3 | 0,73 |
+| Video TikTok: 8 hashtag × 10 video | **mỗi 3 ngày** (Q7) | 80 | 0,24 | 10 | 2,40 |
+| Facebook 5 trang × 10 bài | tuần 1 lần | 50 | 0,10 | 4,3 | 0,43 |
+| **Tổng Apify** | | | | | **≈ 3,6** (< 5 Free; chừa ~1,4 cho phí nền tảng / chạy lại) |
+| Claude chắt lọc (~25k vào + 4k ra) | mỗi lần quét video | | 0,09 | 10 | 0,9 |
+| Claude web search (≤ 5 lượt) | mỗi lần quét | | 0,05 | 10 | 0,5 |
+| **Tổng Claude** | | | | | **≈ 1,4** |
 
-- Chạy **mỗi ngày** cùng cấu hình: Apify ≈ 0,73 + 7,2 + 0,43 ≈ **8,4 USD** → vượt Free → chỉ khi đã lên Starter.
-- Khóa cứng trong code: trần Apify tháng = **4,5 USD** (sổ chi stage `trend_apify`), trần mỗi lần 0,5 USD; hết trần → lịch tự dừng + báo
-  trên dashboard, không chạy tiếp lặng lẽ. Đặt thêm **giới hạn chi trên chính console Apify** làm lớp thứ hai.
+Khóa cứng: trần Apify tháng **4,5 USD** (stage `trend_apify`), mỗi lần ≤ 0,5 USD; hết trần → lịch tự dừng + báo trên dashboard. Đặt thêm giới
+hạn chi trên console Apify làm lớp thứ hai. Dữ liệu: chỉ công khai, chỉ chữ + số + URL.
 
-### 3.8 Pháp lý dữ liệu
-- Chỉ lấy **dữ liệu công khai**, chỉ lưu **chữ + số + URL**; không lưu video/ảnh của người khác (giống luật `reference_analysis`: "only
-  TEXT data is kept"). Không lấy dữ liệu cá nhân ngoài tên kênh công khai.
-- Người dùng Apify chịu trách nhiệm tính hợp pháp khi thu thập — cần **pháp chế Garena xác nhận** việc dùng scraper cho nghiên cứu trend
-  nội bộ (câu hỏi mở Q3). Đây là lý do T1 (nguồn miễn phí, không scraper) đi trước T2.
+### 3.7 Đo hiệu quả để quyết mua gói (Q2 — mục đích là THỬ)
+Sau 4–6 tuần, nâng **Apify Starter** (29 USD theo đa số nguồn, có nguồn báo 19 USD — kiểm console [S1][S2]) khi **cả 3** đúng: (a) ≥ 5 thẻ được
+duyệt/tuần trong 3 tuần liên tiếp; (b) ≥ 40 % kịch bản **có bật trend** giữ lại `trend_refs` (người dùng không gỡ); (c) Free hết trần ≥ 2 tháng
+hoặc cần quét hằng ngày. Không đạt (a)/(b) → giữ Free hoặc chỉ dùng nguồn miễn phí. Báo cáo tuần tự sinh trên tab 📈.
 
-### 3.9 Khi nào nâng gói (tiêu chí đo được, sau 4–6 tuần)
-Nâng **Apify Starter** khi **cả 3** đúng: (a) ≥ 5 thẻ được duyệt/tuần trong 3 tuần liên tiếp; (b) ≥ 40 % kịch bản mới có `trend_refs`
-mà người dùng giữ lại (không gỡ); (c) Free hết trần ≥ 2 tháng hoặc cần quét hằng ngày. Không đạt (a)/(b) → giữ Free, giảm nguồn.
-Giá Starter: 29 USD (đa số nguồn) hoặc 19 USD (một nguồn báo đã giảm) — phí gói = tiền dùng trả trước tương ứng [S1][S2]; kiểm trên
-console trước khi mua.
+## 4. Nhạc (Q4)
+- Nhạc trend **không** chèn vào bản giao: tài khoản doanh nghiệp TikTok chỉ dùng Commercial Music Library; phần lớn nhạc trend không có trong đó
+  [S16][S17]. Thẻ trend nhạc mức **cao** bị loại khỏi Director (3.4).
+- Trước mắt nhạc giữ cách hiện tại: Clip AI `music_v2`, **cùng BPM** với video (bản nhảy khớp phách nên vẫn khớp).
+- **Suno Pro — tạm gác** (người dùng: bán tự động thì chưa cần). Ghi chú để làm sau: theo điều khoản 03/09/2026, bài tải về trong lúc còn gói
+  Pro/Premier được dùng thương mại, nhưng quyền thương mại ≠ bảo hộ bản quyền [S19]; Suno không có API chính thức; không upload bài có bản quyền
+  lên Suno để "cover" vì giai điệu vẫn thuộc chủ cũ.
 
-## 4. Tính năng R-A — 🎬 Cover kịch bản từ video ref
+## 5. Tính năng R-A — 🎬 Cover kịch bản từ video ref
 
-### 4.1 Luồng ("🎬 Cover video ref" ở Bước 1, chọn loại "Tiểu phẩm / kịch bản")
-1. **Nhập video:** tải tệp mp4 lên (khuyến nghị). Dán link TikTok → chỉ tải khi người dùng tick "tôi có quyền dùng video này để tham
-   khảo" (qua Apify `tiktok-scraper` tùy chọn tải video, hoặc người dùng tự tải). Video ref lưu ở thư mục dữ liệu dự án, **không commit**.
-2. **Bóc tách — phần lớn đã có code, 0 USD:** `probe` → `detect_cuts` → khung giữa từng shot → tờ 12 khung (`core/reference_analysis.py`);
-   thoại: `voice_check.transcribe` (faster-whisper offline); nhịp nhạc/điểm nhấn âm: DSP (theo skill `motion-engine-dsp`, không AI).
-3. **Claude bóc cấu trúc (1 lời gọi có ảnh, ≈ 0,06 USD cho video 60 s ≈ 3 tờ khung):** prompt mới `prompts/24_reference_breakdown.md`:
-   - từng shot: giây bắt đầu/kết thúc, cỡ, góc, chuyển động máy, hành động, vai trò (hook/dựng/hành động/phản ứng/chèn/thoại/kết), cảm xúc;
-   - toàn video: hook là gì, điểm xoay, cú chốt, nhịp (giây TB/shot), chữ trên màn hình, nhạc đổi ở đâu;
-   - **vai trò** người trong video (A: người yêu đanh đá, B: người bị cà khịa…), **không** nhận dạng người thật.
-4. **Ghép FF (người dùng duyệt):** code gợi ý vai → nhân vật FF theo hồ sơ (tính cách, giới, độ tuổi tả chữ), nơi → nơi trong Kho (ưu
-   tiên có 3D/ảnh trong game), đạo cụ → vật phẩm FF; người dùng đổi trong bảng thả xuống.
-5. **Viết lại (1 lời gọi, ≈ 0,05 USD):** kịch bản đúng khuôn Bước 1, **giữ cấu trúc + nhịp + cú chốt**, **viết lại lời** cho hợp nhân
-   vật FF (không chép nguyên văn lời người khác — câu nào trùng > 70 % so với bản nghe được thì code gắn cờ). Kèm `ref_shots`: danh sách
-   shot đích (giây, cỡ, góc, chuyển động) để Tầng B Quay phim **bám** thay vì tự nghĩ.
-6. **Đi pipeline thường** (Bible, cổng storyboard, ngân sách…). Thêm: **xem song song** ref ↔ animatic của mình (`core/animatic.py` có sẵn)
-   để người dùng so nhịp trước khi chi tiền video. Shot nào cần chép **đường máy** → cắt đoạn ref tương ứng làm Kling `feature` (mẫu
-   chính thức "follow the camera movement of @video") — đường gửi đã chạy thật 30/09.
+1. **Nhập video:** tải tệp lên (khuyến nghị) hoặc link (chỉ tải khi người dùng tick "có quyền dùng để tham khảo"); lưu ở thư mục dữ liệu dự án,
+   **không commit**.
+2. **Bóc tách hình + tiếng (0 USD):** `probe` → `detect_cuts` → `mid_frames` → `contact_sheets`; thoại `voice_check.transcribe`; nhịp nhạc bằng DSP.
+3. **Claude bóc cấu trúc** (`prompts/24_reference_breakdown.md`, 1 lời gọi có ảnh ≈ 0,06 USD cho 60 s ≈ 3 tờ khung) — khuôn đầu ra học từ
+   Antigravity (mục 7):
+   - `duration`, `aspect`; `segments[]`: `{start, end, size, angle, move, what}` theo **mốc giây**;
+   - `cast[]`: `{role, gender_look, entrance_at, entrance_from, blocking, performance}` (vai trò, **không** nhận dạng người thật);
+   - `beats[]`: hook, điểm xoay, **điểm chạm cảm xúc**, cú chốt (mốc giây); chữ trên màn hình; chỗ nhạc đổi.
+4. **Ghép FF (người duyệt):** vai → nhân vật FF theo hồ sơ; nơi → nơi trong Kho (ưu tiên có 3D/ảnh in-game); đạo cụ → vật phẩm FF.
+5. **Viết lại (≈ 0,05 USD):** kịch bản đúng khuôn Bước 1, **giữ cấu trúc + nhịp + cú chốt, viết lại lời** (câu trùng > 70 % so với bản nghe được →
+   cờ); kèm `ref_shots` để Tầng B Quay phim bám. Shot cần chép **đường máy** → cắt đoạn ref làm Kling `feature` ("follow the camera movement of @video").
+6. **Pipeline thường** + xem song song ref ↔ animatic (`core/animatic.py`) trước khi chi tiền video.
 
-### 4.2 Chi phí
-Phân tích + viết lại ≈ **0,1–0,2 USD Claude/video ref**; phần ảnh/video như dự án thường. Bộ đo: 3 video ref (người dùng chọn) → người
-dùng chấm "giống tinh thần ref" + "ra chất FF" 1–5; cổng bật: TB ≥ 4.
+**Chi phí** ≈ 0,1–0,2 USD Claude/video ref. **Bộ đo:** 3 video ref; người dùng chấm "giống tinh thần ref" + "ra chất FF" 1–5; TB ≥ 4 mới bật cờ
+`ref_cover`.
 
-## 5. Tính năng R-B — 💃 Cover nhảy (nhân vật FF nhảy theo clip TikTok)
+## 6. Tính năng R-B — 💃 Cover nhảy
 
-### 5.1 Ba cách làm — so sánh có bằng chứng
+### 6.1 Chuyển video ref sang dạng KHÔNG MẶT (bước bắt buộc, mới)
+**Vì sao:** người dùng gửi video nhảy có mặt người → Seedance báo lỗi. Khớp với lỗi đã gặp: Seedance từ chối ảnh "may contain real person"
+(`InputImageSensitiveContentDetected.PrivacyInformation`, `docs/CHAY_THU_2026-09-27_NHAT_KY.md` phát hiện 9; S4.6). Người dùng đã thử 2 dạng không
+mặt dùng được làm ref: **mannequin** (người gỗ đỏ / xám trên phông xanh) và **depth map** (bản đồ độ sâu đen trắng).
 
-| Cách | Bằng chứng khả năng | Có qua API ClipAI? | Giá 30 s | Ghi chú |
+| Dạng | Cách làm | Ưu | Nhược | Tiền |
 |---|---|---|---|---|
-| **(1) Kling 3.0 Omni + video ref `feature`** — prompt "Animate the character in @Image 1 with the same motion as the character in @Video" | Mẫu chính thức của Kling cho chép **động tác cơ thể**; dự án đã gửi video ref Kling thật 30/09 (T2: "gọi tên `<<<video_1>>>` rõ hơn hẳn") | **Có** | 30 × 0,08 × 1,5 = **3,6 USD** (3 đoạn ≤ 15,5 s) | Video ref 3–15,5 s/lần → phải chia đoạn |
-| **(2) Seedance 2.5 + `reference_video`** | Video ref mang được "động tác, máy quay, nhịp, thời gian" (tài liệu chính thức, `NGHIEN_CUU…` 1.2-3); T1 30/09 chép hiệu ứng kỹ năng tốt nhất | **Có** | 30 × (0,23 + 0,138) ≈ **11 USD** | Clip tới 30 s một lần; đắt gấp ~3 |
-| **(3) Kling 3.0 Motion Control** | Sản phẩm **chuyên** chép điệu nhảy/cử chỉ từ video sang ảnh nhân vật, video ref 3–30 s, giữ tay và toàn thân tốt hơn [S18] | **Không** — ClipAI chỉ có trên web (tra 23/09) | chưa có giá ClipAI | Hỏi ClipAI mở API; trong lúc chờ: người dùng chạy trên web, nhập kết quả vào dashboard (bán tự động) |
+| **(a) Depth map — After Effects** (người dùng đã làm được) | effect **Instant Depth Map** trên AE. Tự động hóa: bản mẫu `.aep` có effect sẵn + script **ExtendScript ES3** (`tools/ae/depth_ref.jsx`: nhập clip, comp đúng luật ref — cạnh ≥ 704 px, 24–60 fps, SAR 1:1, trong `app.beginUndoGroup`/`endUndoGroup`, kiểm có comp/layer) + render dòng lệnh `aerender` gọi từ dashboard | Đã chứng minh trên máy người dùng; giữ khối người + chiều sâu, nhiều người cũng được | Cần máy có AE; **việc đầu tiên: đọc `matchName` của Instant Depth Map bằng script chỉ đọc** (tên hiển thị có thể khác `matchName`) rồi mới viết script áp effect | 0 |
+| **(a') Depth map — local tự động** | **Video Depth Anything Small** (28,4M tham số). **Chỉ bản Small giấy phép Apache-2.0**; Base/Large là CC-BY-NC-4.0 → không dùng thương mại [S20] | Chạy không cần AE; nhất quán theo thời gian | Thêm phụ thuộc + tải model; chậm trên CPU | 0 |
+| **(b) Mannequin** (công cụ người dùng đã dùng: không rõ) | MediaPipe Pose (đã cài) lấy 33 điểm khung xương / khung hình → Blender dựng người gỗ trên phông xanh, **mỗi người một màu** (mở rộng `core/whitebox.py`, dùng bảng màu `COLORS` của nó); bản đầu ≤ 2 người, theo dõi người bằng vị trí gần nhất | Màu = định danh nhân vật (đỏ → Kelly, xám → Maxim) — đúng kiểu ref người dùng đưa và đúng câu vai trò white-model đã chạy thật S10.6 | Tay/ngón kém chính xác; người che nhau dễ nhảy khung xương | 0 |
+| (c) Dự phòng: khung xương vẽ thẳng từ MediaPipe | nét xương trên nền đen | rẻ nhất | Seedance chưa chắc hiểu | 0 |
 
-→ Không đoán trước cách nào tốt hơn: **thử A/B trước khi build** (luật 5 "thang kiểm thật").
+**Kiểm trước khi gửi (code, 0 USD):** YuNet đếm mặt trên mẫu khung → **còn mặt thì không gửi** (báo khung nào); `reference_video_problems`
+theo nhà cung cấp; độ dài làm tròn lên số giây nguyên.
 
-### 5.2 Luồng (khi đã chọn được cách)
-1. **Nhập + kiểm video ref (code, 0 USD):** độ dài, fps 24–60, cạnh ≥ 700 px, SAR 1:1 (adapter Kling đã kiểm 3 luật), **1 người nhảy**,
-   thấy toàn thân, máy ít rung (đếm người bằng YuNet có sẵn; người dùng xác nhận nếu code không chắc). Video không đạt → báo rõ lý do.
-2. **Nhịp:** đo BPM + phách mạnh bằng DSP → **cắt đoạn tại phách** (Kling ≤ 15,5 s/đoạn) để chỗ nối rơi vào phách, đỡ lộ.
-3. **Khung đầu:** Deepix vẽ nhân vật FF (ảnh in-game trong Kho làm chuẩn) **đúng tư thế khung đầu video ref**, trên nền FF (render 3D / ảnh
-   trong game). Người duyệt khung đầu (cổng storyboard giữ nguyên).
-4. **Chuyển động từng đoạn:** đoạn n+1 dùng **khung cuối thật** của đoạn n làm khung đầu (liền mạch tư thế, nền).
-5. **QC nhảy (mới, code trước, Claude sau):** độ lệch nhịp (đỉnh năng lượng chuyển động của clip so với phách — đo bằng hiệu khung, 0 USD);
-   số người; mặt còn đúng nhân vật (tầng 0 Tổ QC đã có); tay/chân biến dạng (Claude QC video chỉ khi tầng code nghi ngờ).
-6. **Âm thanh:** bản giao **không** dùng nhạc gốc của clip ref trừ khi có quyền (CML/Garena) — mục 3.6. Mặc định: nhạc Clip AI `music_v2`
-   **cùng BPM** (điệu nhảy khớp phách nên vẫn khớp), hoặc để trống cho người dùng gắn nhạc CML trên app TikTok.
+### 6.2 Clip mẫu và bài thử A/B
+**Clip mẫu (Q5):** Google Drive `SeaTalk_VDO_20261001_111440.mp4` (id `1FcuhjmDvKexgH96wqj-s1p_ax1LcAVVp`, mp4, 8 028 435 byte, tạo 01/10).
+Đã đọc được metadata qua Drive; **chưa tải được nội dung** từ máy dựng plan (kết nối Drive hết phiên, tải trực tiếp bị proxy chặn) → đo trên
+máy người dùng (0 USD) ở S11.9 và ghi "hồ sơ clip thử" vào đây:
+```
+py -c "from core.video_analysis import probe; print(probe(r'D:\…\SeaTalk_VDO_20261001_111440.mp4'))"
+```
+cộng đếm mặt YuNet trên 10 khung mẫu và `reference_video_problems('omni'|'seedance', …)` → biết clip đạt hay phải cắt / đổi tỉ lệ / đổi fps.
 
-### 5.3 Rủi ro đã biết
-- **Người thật trong video ref:** bộ lọc "người thật" của Seedance từng chặn ảnh nhân vật; video ref có người thật có thể bị chặn
-  (`NGHIEN_CUU…` 3.2 ghi "[chưa kiểm với Seedance]") → bài thử phải gồm 1 video có người thật.
-- Biên đạo/nhạc của người sáng tạo gốc: ghi nguồn khi đăng; tránh clip của thương hiệu khác.
-- Nhân vật FF có trang phục rộng/vũ khí → tay chân dễ dính; chọn trang phục gọn cho bản đầu.
+**Bài thử (≈ 2,5–3 USD, chờ duyệt):** cùng 1 đoạn 5 s của clip mẫu, Kelly in-game qua Kho chủ thể, cùng 1 khung đầu Deepix (≈ 0,05):
 
-### 5.4 Bài thử A/B (chờ duyệt — **≈ 2,5 USD**)
-1 đoạn nhảy 5 s (người dùng chọn clip có quyền dùng), Kelly in-game, cùng khung đầu (1 ảnh Deepix ≈ 0,05):
-(1) Kling feature 5 × 0,12 = 0,60 USD · (2) Seedance 2.5 720p 5 × 0,37 ≈ 1,85 USD · (3) Motion Control trên web ClipAI (người dùng tự
-chạy, ghi giá). Chấm: đúng động tác (người dùng 1–5), mặt/trang phục giữ (Tổ QC tầng 0), lệch nhịp (code), có bị chặn không.
+| Ô | Đầu vào ref | Model | Ước tính |
+|---|---|---|---|
+| 1 | gốc có mặt (đối chứng) | Seedance 2.5 | 0 USD nếu bị từ chối lúc tạo (như các lần trước) |
+| 2 | depth (AE Instant Depth Map) | Seedance 2.5 720p | 5 × 0,37 ≈ 1,85 |
+| 3 | mannequin (MediaPipe + Blender) | Seedance 2.5 720p | (chỉ chạy nếu ô 2 hỏng hoặc người dùng muốn so) ≈ 1,85 |
+| 4 | dạng thắng ô 2/3 | Kling Omni `feature` ("Animate the character in @Image 1 with the same motion as the character in @Video") | 5 × 0,12 = 0,60 |
+| 5 | (người dùng tự chạy) | Motion Control trên web ClipAI | ghi giá web |
 
-## 6. Ma trận kế thừa (luật 2 — `docs/CHUAN_XAY_DUNG.md`)
+Chấm: đúng động tác (người dùng 1–5); mặt/trang phục giữ (Tổ QC tầng 0); lệch nhịp (code: đỉnh năng lượng chuyển động so với phách); có bị chặn không;
+nền xanh/xám của ref có lọt vào clip không.
 
-Ba luồng mới đều **đổ về Bước 1 như kịch bản thường** nên kế thừa các biện pháp sau Bước 1. Bảng điền trước khi merge mỗi đợt:
+### 6.3 Luồng đầy đủ (sau khi có cách thắng)
+1. Nhập clip → kiểm 6.1 → chuyển dạng không mặt.
+2. Đo BPM + phách mạnh (DSP) → **cắt đoạn tại phách** (Kling ≤ 15,5 s; Seedance 2.5 ≤ 30 s/clip).
+3. Khung đầu: Deepix vẽ nhân vật FF **đúng tư thế khung đầu ref** trên nền FF (render 3D / ảnh in-game); cổng duyệt khung đầu.
+4. Chuyển động từng đoạn; đoạn n+1 dùng **khung cuối thật** của đoạn n làm khung đầu.
+5. QC nhảy: lệch nhịp, số người, mặt đúng nhân vật, tay chân biến dạng (Claude QC video chỉ khi tầng code nghi).
+6. Nhạc theo mục 4.
+
+**Chi phí 1 bài 30 s:** Kling 30 × 0,12 = **3,6 USD**; Seedance 2.5 30 × 0,37 ≈ **11 USD**; + khung đầu ≈ 0,05/đoạn.
+
+### 6.4 Việc với ClipAI (Q6 — chưa hỏi)
+Gửi team ClipAI: "Có mở API cho **Kling Motion Control** (ảnh nhân vật + video nhảy 3–30 s → nhân vật nhảy theo) không? Có nhận video ref dạng
+depth / mannequin không?" — gộp với câu hỏi Bàn đạo diễn đang chờ. Có API thì thêm ô thứ 6 vào bài thử.
+
+## 7. Học từ Antigravity (ảnh chụp người dùng gửi 01/10)
+
+Tình huống: người dùng đưa `Video ref3.mp4` (mannequin đỏ + xám trên phông xanh, 14,08 s), nhờ viết prompt Seedance 2.5 thay **đỏ → Kelly**,
+**xám → Maxim**, clip 15 s. Antigravity (Gemini 3.8 Flash High) trả về: (1) phân tích điện ảnh, (2) bảng gán tài sản, (3) prompt hoàn chỉnh.
+
+| Antigravity làm tốt | Áp vào đâu ở dự án |
+|---|---|
+| **Phân đoạn máy theo mốc giây**: 00:00–00:09 toàn cảnh trực diện ngang mắt, máy tĩnh; 00:09–00:14 đẩy máy mượt vào trung cận hai người | `segments[]` trong `prompts/24` (5.3); prompt Seedance 2.5 viết theo mốc giây (2.5 bám mốc giây — `docs/CAP_NHAT_CLIPAI_2026-09-28.md`); 2.0/Fast viết "Shot n" (S4.8) |
+| **Mỗi nhân vật có thời điểm + hướng xuất hiện** (nam vào từ sau bên trái ở 00:02) | `cast[].entrance_at`, `entrance_from` |
+| **Điểm chạm cảm xúc** (00:09–00:14: nữ quay sang chống hông, nam nghiêng đầu mỉm cười) | `beats[]` loại `emotional_touch`; đúng chỗ đặt cận / đẩy máy |
+| **Màu mannequin = định danh nhân vật** | Trùng `core/whitebox.py` ("khối đỏ = KENTA") → một hàm sinh câu ánh xạ dùng chung cho white-model và mannequin |
+| **Độ dài clip làm tròn lên theo ref** (14,08 s → 15 s) | Code tính `ceil(duration)` trong giới hạn 4–30 s của Seedance 2.5 |
+| **Bảng gán tài sản**: @Image1 Kelly, @Image2 Maxim, @Image3 bối cảnh, @Video1 chuyển động — mỗi tài sản đúng một việc | Đúng luật `knowledge/reference_assets_prompting.md` (mẫu chính thức sd25-pe) — giữ |
+
+| Chỗ cần làm khác Antigravity | Vì sao (căn cứ) |
+|---|---|
+| Bối cảnh "Japan scene" anime (đường hoa anh đào, cổng Torii) | Dự án dùng nơi trong **Kho FF** (render 3D / ảnh in-game) — quyết định gói bối cảnh V4 |
+| Tả "nụ cười anime" cho Kelly in-game | Chỉ 2 look đã chốt (anime **hoặc** giống in-game) — không trộn trong một prompt (PLAN Mục 5, 2026-09-24) |
+| Không thấy câu "không lấy danh tính, trang phục, bối cảnh từ @Video1" | Luật chính thức Seedance 2.5: phải nói **không lấy** gì từ video (`NGHIEN_CUU_PROMPT_THAM_CHIEU` 1.2-3); thiếu → nền xanh / da mannequin có thể lọt vào clip |
+| Tả lại vũ đạo khá chi tiết trong prompt dù đã có video | Seedance: video đã có động tác thì **không tả lại từng động tác** (1.2-4) — chỉ nói thừa hưởng chiều nào (động tác, nhịp, đường máy) |
+| Nhắc "giai điệu J-Pop" của ref | Không chép nhạc (mục 4) |
+| Ảnh Kelly/Maxim gửi thẳng | Gửi qua **Kho chủ thể** (S4.7: 3/3 lần qua bộ lọc người thật) |
+
+**Cách học:** dựng lại phân tích của Antigravity thành **1 ví dụ mẫu** (few-shot, đã sửa 6 chỗ trên) trong `prompts/24`. **Đo:** cùng `Video ref3.mp4`
+(người dùng gửi file) → prompt của dự án vs prompt Antigravity, chạy Seedance 2.5 cả hai (≈ 2 × 15 × 0,37 ≈ 11 USD — chỉ khi người dùng duyệt;
+bản rẻ: 5 s đầu mỗi bên ≈ 3,7 USD) → người dùng chấm.
+
+## 8. Ma trận kế thừa (luật 2 — `docs/CHUAN_XAY_DUNG.md`)
 
 | Biện pháp | Ý tưởng → kịch bản | Cover kịch bản | Cover nhảy | Test |
 |---|---|---|---|---|
-| Ảnh tham chiếu đúng người/đúng look | kế thừa (qua Bước 1) | kế thừa | **khung đầu riêng** → dùng cùng hàm chọn ảnh | test chọn ảnh cho luồng nhảy |
+| Ảnh tham chiếu đúng người / đúng look | kế thừa (qua Bước 1) | kế thừa | khung đầu riêng → cùng hàm chọn ảnh; ảnh qua Kho chủ thể | test chọn ảnh luồng nhảy |
 | Cổng Bible / storyboard / không tự duyệt dưới sàn | kế thừa | kế thừa | cổng khung đầu + cổng đoạn đầu | test cổng |
-| Luật chọn model | kế thừa | kế thừa + Kling `feature` cho đường máy | cố định theo kết quả A/B | test router |
-| Gen lại phải đổi đầu vào, ≤ 2 lần | — (chữ) | kế thừa | kế thừa từng đoạn | test |
-| Sổ chi + trần + ước tính trước | stage `screenwriter` | stage `reference_breakdown` | ước tính cả bài trước khi gửi đoạn 1 | test ước tính |
-| Giữ phần người sửa tay | kịch bản sửa tay không bị ghi đè khi bấm lại | bảng ghép vai | khung đầu đã duyệt | test |
-| Không im lặng khi thiếu đầu vào | câu hỏi dùng mặc định được ghi | video không cắt được shot / không nghe được thoại → báo | video không đạt luật → báo | test |
-| Thẻ trend chỉ dùng khi đã duyệt + còn hạn | có | có | — | test lọc thẻ |
+| Luật chọn model | kế thừa | + Kling `feature` cho đường máy | cố định theo kết quả A/B | test router |
+| Gen lại phải đổi đầu vào, ≤ 2 lần | — | kế thừa | từng đoạn | test |
+| Sổ chi + trần + ước tính trước | stage `screenwriter` | stage `reference_breakdown` | ước tính cả bài trước đoạn 1 | test ước tính |
+| Giữ phần người sửa tay | kịch bản sửa tay | bảng ghép vai | khung đầu đã duyệt | test |
+| Không im lặng khi thiếu đầu vào | câu mặc định được ghi | không cắt được shot / không nghe được thoại → báo | video sai luật → báo | test |
+| **Video ref không mặt (YuNet = 0 mặt)** | — | đoạn ref làm Kling `feature` cũng kiểm | bắt buộc | test chặn gửi khi còn mặt |
+| **Thẻ trend: đã duyệt + còn hạn + không mức cao + ô dự án ≠ Tắt** | có | có | — | test lọc thẻ |
 
-## 7. Lộ trình — đợt và việc (đề xuất thêm vào `docs/KE_HOACH_SUA_SAU_DU_AN_8.md` thành đợt S11)
+## 9. Lộ trình S11 (thứ tự đã chốt Q1: rẻ trước, dùng lại nhiều trước)
 
 | Việc | Nội dung | Tiền | Công (ngày) | Phụ thuộc |
 |---|---|---|---|---|
-| **S11.0** | Người dùng chốt câu hỏi mở Q1–Q6 (mục 8) | 0 | — | — |
-| **S11.1** | I: prompt 23 + vai Biên kịch + 4 lượt + kiểm code + màn 2 cột tô phần Director thêm | 0 (code) | 2–3 | — |
-| **S11.2** | I: bộ đo 5 ý tưởng, người dùng chấm | ≈ 0,75 | 0,5 | S11.1 |
-| **S11.3** | T1: bảng `trend_raw`/`trend_cards`, nguồn **miễn phí** (Claude web search, kworb, nhập tay), tab ⚙ 📈 Trend, duyệt thẻ | ≈ 0,15/lần | 2 | — |
-| **S11.4** | T2: adapter Apify (`apify-client`, `APIFY_TOKEN` trong `dashboard.env`), sổ chi + trần tháng, lịch Task Scheduler 1–3 ngày | lần đo đầu ≈ 0,5 | 1,5 | Q2, Q3 |
-| **S11.5** | T3: khối "Xu hướng" vào Tầng A / Biên kịch / Cover + `knowledge/trend_usage.md` + `trend_refs` + huy hiệu | 0 | 1 | S11.3 |
-| **S11.6** | T4: vòng phản hồi số liệu đăng bài → sổ kinh nghiệm; báo cáo tuần chỉ số 3.9 | 0 | 1 | S11.5 |
-| **S11.7** | R-A: prompt 24 bóc tách + ghép vai/nơi + viết lại + `ref_shots` cho Tầng B + xem song song | ≈ 0,2/video | 3 | S11.1 |
-| **S11.8** | R-A: bộ đo 3 video ref | ≈ 0,6 | 0,5 | S11.7 |
-| **S11.9** | R-B: kiểm video ref + nhịp/cắt đoạn + **bài thử A/B 3 cách** | ≈ 2,5 | 1,5 | Q5 |
-| **S11.10** | R-B: luồng đầy đủ theo cách thắng + QC nhảy + âm thanh cùng BPM | 1 bài 30 s ≈ 3,6–11 | 3 | S11.9 |
-| **S11.11** | Đánh giá sau 4–6 tuần: quyết nâng Apify Starter theo 3.9 | 0 | — | S11.4 + 4 tuần |
+| S11.0 | Chốt Q1–Q7 | 0 | — | ✅ 01/10 |
+| S11.1 | I: prompt 23 + vai Biên kịch + 4 lượt + ô "Dùng trend" + kiểm code + màn 2 cột | 0 | 2–3 | — |
+| S11.2 | I: bộ đo 5 ý tưởng | ≈ 0,75 | 0,5 | S11.1 |
+| S11.3 | T1: `trend_raw` / `trend_cards` (có `copyright_level`), nguồn miễn phí, tab ⚙ 📈 Trend | ≈ 0,15/lần | 2 | — |
+| S11.4 | T2: adapter Apify (`apify-client`, `APIFY_TOKEN` trong `dashboard.env`, tài khoản Free có sẵn), sổ chi + trần 4,5 USD/tháng, lịch 3 ngày | lần đo đầu ≈ 0,5 | 1,5 | — |
+| S11.5 | T3: khối "Xu hướng" (chỉ khi ô ≠ Tắt) + `knowledge/trend_usage.md` + `trend_refs` + huy hiệu | 0 | 1 | S11.3 |
+| S11.6 | T4: vòng phản hồi + báo cáo tuần chỉ số 3.7 | 0 | 1 | S11.5 |
+| S11.7 | R-A: prompt 24 (khuôn học từ Antigravity + few-shot đã sửa) + ghép vai/nơi + viết lại + `ref_shots` + xem song song | ≈ 0,2/video | 3 | S11.1 |
+| S11.8 | R-A: bộ đo 3 video ref | ≈ 0,6 | 0,5 | S11.7 |
+| S11.9 | R-B: đo clip mẫu (probe + YuNet + luật ref) + chuyển không mặt local: Video Depth Anything Small, mannequin MediaPipe + Blender, kiểm 0 mặt | 0 | 2 | — |
+| S11.10 | R-B: script AE Instant Depth Map (đọc `matchName` trước) + `aerender` từ dashboard | 0 | 1 | máy có AE |
+| S11.11 | R-B: bài thử A/B 6.2 | ≈ 2,5–3 | 0,5 | S11.9, S11.10 |
+| S11.12 | R-B: luồng đầy đủ + QC nhảy + nhạc cùng BPM | 1 bài 30 s ≈ 3,6–11 | 3 | S11.11 |
+| S11.13 | Đánh giá sau 4–6 tuần: nâng Apify hay không | 0 | — | S11.4 + 4 tuần |
+| S11.14 | Hỏi ClipAI mở API Motion Control + nhận ref depth/mannequin | 0 | — | — |
 
-Tổng tiền thử trước khi dùng thật: **≈ 5 USD** (I 0,75 + T ≈ 0,7 + R-A 0,6 + R-B 2,5), chưa tính Apify Free (0 USD trả thêm).
-Mọi cờ mới **TẮT** tới khi qua bộ đo: `idea_to_script`, `trend_feed`, `trend_apify`, `ref_cover`, `dance_cover`.
+Tổng tiền thử trước khi dùng thật ≈ **5–6 USD** (I 0,75 + T ≈ 0,65 + R-A 0,6 + R-B 2,5–3); so prompt với Antigravity (7) tính riêng nếu duyệt.
+Cờ mới đều **TẮT** tới khi qua bộ đo: `idea_to_script`, `trend_feed`, `trend_apify`, `ref_cover`, `dance_cover`.
 
-## 8. Câu hỏi mở — cần người dùng chốt
-
-| # | Câu hỏi | Đề xuất của Claude |
+## 10. Còn mở
+| # | Việc | Ai |
 |---|---|---|
-| Q1 | Thứ tự làm | I → T1 → T2 → R-A → R-B (rẻ trước, dùng lại nhiều trước) |
-| Q2 | Apify: 1 tài khoản Free (đúng điều khoản) thay cho 1–5 tài khoản free? | Đồng ý 1 Free + nguồn free khác; không lập nhiều tài khoản Apify |
-| Q3 | Pháp chế Garena cho phép scraper dữ liệu công khai TikTok/FB cho nghiên cứu nội bộ? | Hỏi trước S11.4; S11.3 (không scraper) làm được ngay |
-| Q4 | Chính sách nhạc: video giao có được dùng nhạc trend không? | Mặc định không; chỉ CML/nhạc Garena có quyền; còn lại tạo nhạc cùng BPM |
-| Q5 | Clip nhảy dùng cho bài thử — người dùng chọn clip có quyền dùng (ví dụ clip nội bộ/nhân viên tự quay) | Clip tự quay là an toàn nhất, đồng thời thử luôn bộ lọc người thật |
-| Q6 | Hỏi ClipAI mở API Motion Control? | Có — gửi kèm câu hỏi Bàn đạo diễn đang chờ |
-| Q7 | Tần suất quét video TikTok: 1, 2 hay 3 ngày? | 3 ngày ở gói Free (bảng 3.7); 1 ngày khi lên Starter |
+| M1 | Gửi file `Video ref3.mp4` + prompt đầy đủ của Antigravity (ảnh chụp bị cắt ở mục 3) để làm ví dụ mẫu và đo ở mục 7 | Người dùng |
+| M2 | Hỏi ClipAI (S11.14) | Người dùng |
+| M3 | Công cụ đã tạo bản mannequin (để so với bản MediaPipe + Blender) | Người dùng nếu nhớ ra |
 
-## 9. Nguồn
+## 11. Nguồn
 
-Ghi chú độ tin: máy dựng plan **bị chặn truy cập** apify.com, docs.apify.com, kling.ai, clipai.ingarena.net, tuoitre.vn → các số dưới đây
-lấy từ **đoạn trích kết quả tìm kiếm** của chính trang Apify Store / trang thứ ba; phải kiểm lại trên console Apify ở lần chạy đầu (S11.4).
+Ghi chú độ tin: máy dựng plan **bị chặn** apify.com, docs.apify.com, kling.ai, clipai, tuoitre → số liệu Apify / Kling lấy từ **đoạn trích kết quả
+tìm kiếm** của chính trang đó hoặc trang thứ ba; kiểm lại trên console ở lần chạy đầu (S11.4).
 
-- [S1] Apify pricing (Free 0 USD kèm 5 USD dùng/tháng; Starter/Scale/Business; phí gói = tiền dùng trả trước; 1 CU = 1 GB RAM × 1 giờ) —
-  https://apify.com/pricing ; tổng hợp: https://scrapegraphai.com/blog/apify-pricing , https://use-apify.com/docs/what-is-apify/apify-pricing
-- [S2] Báo Starter giảm 29 → 19 USD — https://scrapewise.ai/blogs/apify-pricing-compute-units-cost-2026 (nguồn thứ ba, cần kiểm)
-- [S3] Actor Creative Center: https://apify.com/clockworks/tiktok-trends-scraper (từ 1,70 USD/1000), https://apify.com/crawloop/tiktok-trending-hashtags-scraper
-  (từ 0,99 USD/1000), https://apify.com/automation-lab/tiktok-creative-center-scraper (từ 1,62 USD/1000; quốc gia + cửa sổ 7/30/90 ngày,
-  không cần đăng nhập), https://apify.com/automation-lab/tiktok-trends-scraper (hashtag + sound + creator, từ 8,20 USD/1000)
-- [S4] Apify General Terms and Conditions (cấm nhiều tài khoản cá nhân) — https://docs.apify.com/legal/general-terms-and-conditions ;
-  Acceptable Use Policy — https://docs.apify.com/legal/acceptable-use-policy
-- [S5] TikTok Scraper (clockworks), 1,70 USD/1000 kết quả — https://apify.com/clockworks/tiktok-scraper
-- [S6] TikTok Research API — điều kiện + cấm thương mại: https://tokconnect.com/guides/tiktok-research-api/ ,
-  https://www.keyapi.ai/blog/tiktok-research-api-commercial-trend-scanning/
-- [S7] https://www.xpoz.ai/blog/guides/tiktok-research-api-limits-access-and-alternatives/ (1000 lượt/ngày)
-- [S8] TikTok Creative Center (hashtag/bài hát top theo vùng, 24 giờ/30/120 ngày, phần lớn xem không cần đăng nhập) — https://bir.ch/blog/tiktok-creative-center ;
-  [S8b] https://kworb.net/charts/tiktok/vn.html
-- [S9] Tuổi Trẻ Cười, "'Ông chả húi, bà chả hơm' là gì…" — https://cuoi.tuoitre.vn/ong-cha-hui-ba-cha-hom-la-gi-ma-nghe-mac-cuoi-vay-may-ni-100260629085401026.htm
+- [S1] Apify pricing — https://apify.com/pricing ; https://scrapegraphai.com/blog/apify-pricing ; https://use-apify.com/docs/what-is-apify/apify-pricing
+- [S2] Starter 29 → 19 USD (nguồn thứ ba, cần kiểm) — https://scrapewise.ai/blogs/apify-pricing-compute-units-cost-2026
+- [S3] https://apify.com/clockworks/tiktok-trends-scraper · https://apify.com/crawloop/tiktok-trending-hashtags-scraper · https://apify.com/automation-lab/tiktok-creative-center-scraper · https://apify.com/automation-lab/tiktok-trends-scraper
+- [S4] Apify General Terms (cấm nhiều tài khoản cá nhân) — https://docs.apify.com/legal/general-terms-and-conditions ; https://docs.apify.com/legal/acceptable-use-policy
+- [S5] https://apify.com/clockworks/tiktok-scraper
+- [S6] TikTok Research API — https://tokconnect.com/guides/tiktok-research-api/ ; https://www.keyapi.ai/blog/tiktok-research-api-commercial-trend-scanning/
+- [S7] https://www.xpoz.ai/blog/guides/tiktok-research-api-limits-access-and-alternatives/
+- [S8] TikTok Creative Center — https://bir.ch/blog/tiktok-creative-center ; [S8b] https://kworb.net/charts/tiktok/vn.html
+- [S9] https://cuoi.tuoitre.vn/ong-cha-hui-ba-cha-hom-la-gi-ma-nghe-mac-cuoi-vay-may-ni-100260629085401026.htm
 - [S10] https://ai-hay.vn/ong-cha-hui-la-gi-pN1UmIco4tC
-- [S11] "Thảm họa mới của nhạc Việt" — https://kenh14.vn/tham-hoa-moi-cua-nhac-viet-21526092009290863.chn ,
-  https://vietgiaitri.com/tham-hoa-moi-cua-nhac-viet-20260920i7775631/
-- [S12] Docnhanh, "'Ăm chã húi' và chiêu trò bám trend TikTok…" — https://docnhanh.vn/giai-tri/am-cha-hui-va-chieu-tro-bam-trend-tiktok-hien-tuong-mang-gay-sot-roi-hung-tron-gach-da-vi-ca-tu-nham-nhi-tintuc1052091
-- [S13] https://apify.com/dami_studio/tiktok-creative-center-trends , https://apify.com/memo23/tiktok-trending-hashtags-scraper/api
-- [S14] Apify Free: 5 USD ≈ 1 666 kết quả TikTok Scraper (0,003 USD/kết quả), CU 0,2 USD ở gói Free — https://use-apify.com/docs/what-is-apify/apify-free-plan
-- [S15] Facebook Posts Scraper 0,65–2,00 USD/1000 bài — https://apify.com/apify/facebook-posts-scraper , https://apify.com/dami_studio/facebook-posts-scraper
-- [S16] Commercial Music Library / tài khoản doanh nghiệp — https://www.soundstripe.com/blogs/why-can-i-only-use-commercial-sounds-on-tiktok ,
-  https://sriplaw.com/blog/tiktoks-2025-commercial-music-library-what-brands-still-get-wrong/
+- [S11] https://kenh14.vn/tham-hoa-moi-cua-nhac-viet-21526092009290863.chn ; https://vietgiaitri.com/tham-hoa-moi-cua-nhac-viet-20260920i7775631/
+- [S12] https://docnhanh.vn/giai-tri/am-cha-hui-va-chieu-tro-bam-trend-tiktok-hien-tuong-mang-gay-sot-roi-hung-tron-gach-da-vi-ca-tu-nham-nhi-tintuc1052091
+- [S13] https://apify.com/dami_studio/tiktok-creative-center-trends ; https://apify.com/memo23/tiktok-trending-hashtags-scraper/api
+- [S14] Apify Free ≈ 1 666 kết quả TikTok Scraper / 5 USD — https://use-apify.com/docs/what-is-apify/apify-free-plan
+- [S15] https://apify.com/apify/facebook-posts-scraper ; https://apify.com/dami_studio/facebook-posts-scraper
+- [S16] https://www.soundstripe.com/blogs/why-can-i-only-use-commercial-sounds-on-tiktok ; https://sriplaw.com/blog/tiktoks-2025-commercial-music-library-what-brands-still-get-wrong/
 - [S17] https://usethirdchair.com/blog/tiktok-commercial-music-library-what-it-covers-and-what-it-doesn-t
-- [S18] Kling 3.0 Motion Control (chép điệu nhảy/cử chỉ từ video sang ảnh nhân vật, 3–30 s) — https://kling.ai/document-api/api/video/motion-control ,
-  https://replicate.com/kwaivgi/kling-v3-motion-control
-- Trong repo: `docs/NGHIEN_CUU_PROMPT_THAM_CHIEU_2026-09-30.md` (luật video ref Kling/Seedance, kết quả T1–T3), `docs/CLIPAI_FEATURES.md`,
-  `data/pricing.json`, `core/reference_analysis.py`, `core/research.py`, `core/voice_check.py`, `docs/TONG_KET_DU_AN_8_2026-09-28.md`.
+- [S18] Kling 3.0 Motion Control (3–30 s, chép điệu nhảy/cử chỉ) — https://kling.ai/document-api/api/video/motion-control ; https://replicate.com/kwaivgi/kling-v3-motion-control
+- [S19] Suno — quyền thương mại theo gói (điều khoản 03/09/2026) — https://terms.law/ai-output-rights/suno/ ; https://www.veena.studio/blog/suno-commercial-use-rules ; https://aireiter.com/blog/suno-v6-commercial-use-copyright
+- [S20] Video Depth Anything (Small Apache-2.0; Base/Large CC-BY-NC-4.0) — https://github.com/DepthAnything/Video-Depth-Anything ; https://huggingface.co/papers/2501.12375
+- Người dùng 01/10: ảnh chụp video mannequin (0:02, 0:11 / 0:14), ảnh depth map nhóm nhảy, ảnh chụp phiên Antigravity "Video Analysis And Prompt Generation"; trả lời Q1–Q7.
+- Trong repo: `docs/NGHIEN_CUU_PROMPT_THAM_CHIEU_2026-09-30.md`, `docs/CLIPAI_FEATURES.md`, `docs/CAP_NHAT_CLIPAI_2026-09-28.md`, `docs/CHAY_THU_2026-09-27_NHAT_KY.md`,
+  `docs/KET_QUA_S4_7_S4_10_2026-10-01.md`, `data/pricing.json`, `core/reference_analysis.py`, `core/whitebox.py`, `core/clip_measure.py`, `core/research.py`.
