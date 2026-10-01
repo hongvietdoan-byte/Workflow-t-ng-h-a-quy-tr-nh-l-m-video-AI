@@ -10,6 +10,12 @@ def _card(key: str):
     return components.card(key)
 
 
+def _info(key: str):
+    """ⓘ (UI v2): chi tiết ưu tiên thấp nằm trong popover, bên ngoài chỉ có tóm tắt."""
+    from dashboard.design import components
+    return components.info(key)
+
+
 def step3(p: Pipeline, pid: int):
     summ = lineage.summary(p.conn, pid)
     status = lineage.scan(p.conn, pid)
@@ -55,7 +61,10 @@ def step3(p: Pipeline, pid: int):
                 act(lambda: claude_tasks.lint_motion(p, pid, client))
             st.rerun()
         if client is None:
-            st.caption(claude_hint())
+            if v2:
+                SB.note("Chưa có Claude — các nút bên trên tạm khóa", claude_hint(), "sb-mot-noclaude", kind="warn")
+            else:
+                st.caption(claude_hint())
         if C.expert():
             with st.expander("✍ Nâng cao: prompt gửi Claude (copy) & dán kết quả"):
                 st.code(llm_runner.plain(prompts.build_motion_bundle(p, pid)), language="markdown")
@@ -80,8 +89,23 @@ def step3(p: Pipeline, pid: int):
                 choice = model_router.scene_choice(p.conn, r["sid"])
                 scene_box = _card(f"sb-mot-{r['sid']}") if v2 else nullcontext()
                 scene_box.__enter__()
-                if v2:
-                    st.markdown(SB.motion_pills(r, srow, voices, bool(img_id), animatic_done), unsafe_allow_html=True)
+                flags = json.loads(r["check_flags"] or "[]") if r["check_flags"] else []
+                lint = json.loads(r["lint"] or "{}") if r["lint"] else {}
+                if v2:                                         # P1: các pill; mọi chi tiết (cờ, rà prompt, nội dung kịch bản) trong ⓘ
+                    h1, h2 = st.columns([12, 1], vertical_alignment="center")
+                    h1.markdown(SB.motion_pills(r, srow, voices, bool(img_id), animatic_done, flags, lint), unsafe_allow_html=True)
+                    with h2:
+                        with _info(f"sb-mot-{r['sid']}-more"):
+                            if flags:
+                                st.markdown("**Cờ kiểm tra**\n" + "\n".join(f"- ⚑ {f}" for f in flags))
+                            if lint:
+                                if lint.get("ok") and not lint.get("issues"):
+                                    st.markdown("**Rà prompt:** ổn")
+                                else:
+                                    st.markdown("**Rà prompt**\n" + "\n".join(f"- 🔍 {i}" for i in lint.get("issues") or []))
+                                if lint.get("revised_prompt"):
+                                    st.markdown("**Bản sửa đề xuất:** " + lint["revised_prompt"])
+                            scene_expander(p, r["sid"])
                 c0, c1, c2, c3 = st.columns([1.2, 5, 1.4, 1.6], vertical_alignment="top")
                 with c0:
                     ui.html(f'<b>{C.unit_label(p, pid, r["idx"])}</b>' + (" ⭐" if data.get("shot_role") == "hero" else "")
@@ -106,11 +130,14 @@ def step3(p: Pipeline, pid: int):
                                                                                      "negative_prompt": r["negative_prompt"]}]}))
                     act(lambda: llm_io.approve_motion_prompt(p, r["sid"]))
                     st.rerun()
-                flags = json.loads(r["check_flags"] or "[]") if r["check_flags"] else []
-                for f in flags:
-                    st.caption(f"⚑ {f}")
-                lint = json.loads(r["lint"] or "{}") if r["lint"] else {}
-                if lint:
+                if not v2:
+                    for f in flags:
+                        st.caption(f"⚑ {f}")
+                if v2 and lint.get("revised_prompt") and not (lint.get("ok") and not lint.get("issues")):
+                    if st.button("Dùng bản sửa của rà prompt", key=f"lint_apply_{r['sid']}"):
+                        act(lambda: claude_tasks.apply_lint(p, pid, r["sid"]), "Đã thay prompt (chờ duyệt lại)")
+                        st.rerun()
+                elif lint and not v2:
                     if lint.get("ok") and not lint.get("issues"):
                         st.caption("🔍 Rà prompt: ổn")
                     else:
@@ -140,7 +167,8 @@ def step3(p: Pipeline, pid: int):
                                 f.write(up.getbuffer())
                             act(lambda: p.set_motion_ref_video(r["sid"], dest, refer_type), "Đã gắn video tham chiếu")
                             st.rerun()
-                scene_expander(p, r["sid"])
+                if not v2:
+                    scene_expander(p, r["sid"])
                 scene_box.__exit__(None, None, None)
                 if not v2:
                     st.divider()
@@ -178,9 +206,16 @@ def voice_panel(p: Pipeline, pid: int) -> None:
         st.error(f"Clip AI audio: {e}")
         provider = None
     done = stat.get("succeeded", 0)
-    with st.expander(f"🎙 Giọng thoại (TTS) — {done}/{stat['total']} câu đã có giọng", expanded=done < stat["total"]):
-        st.caption("Thoại tiếng Việt được đọc bằng giọng của từng nhân vật (chọn ở Bước 1 · Character Bible). Độ dài giọng THẬT đặt "
-                   "thời lượng clip (thay cho ước lượng âm tiết), rồi được xếp lên video cuối không chồng tiếng và làm mốc cho phụ đề.")
+    v2 = ui.v2_on()
+    if v2:
+        from dashboard.design.screens import storyboard_cards as SB
+    with st.expander(f"🎙 Giọng thoại (TTS) — {done}/{stat['total']} câu đã có giọng", expanded=done < stat["total"] and not v2):
+        _about = ("Thoại tiếng Việt được đọc bằng giọng của từng nhân vật (chọn ở Bước 1 · Character Bible). Độ dài giọng THẬT đặt "
+                  "thời lượng clip (thay cho ước lượng âm tiết), rồi được xếp lên video cuối không chồng tiếng và làm mốc cho phụ đề.")
+        if v2:
+            SB.note("Mỗi câu thoại đọc bằng giọng của nhân vật", _about, "sb-voice-about")
+        else:
+            st.caption(_about)
         if stat["no_voice"]:
             st.warning("Chưa có giọng cho: " + ", ".join(stat["no_voice"]) + " → chọn ở Bước 1 (Character Bible → 🎙 Giọng).")
         c1, c2, c3 = st.columns(3)
@@ -199,8 +234,12 @@ def voice_panel(p: Pipeline, pid: int) -> None:
             st.rerun()
         late = voice.pending_fits(p.conn, pid, C.DATA)
         if late:
-            st.warning(f"{len(late)} cảnh ĐÃ CÓ video ngắn hơn giọng thật — giữ clip (bản dựng giữ hình dưới câu dài) hoặc bấm nút bên "
-                       "phải để làm lại các clip đó cho vừa giọng (tốn tiền video, clip nhóm làm lại cả nhóm).")
+            _late = (f"{len(late)} cảnh ĐÃ CÓ video ngắn hơn giọng thật — giữ clip (bản dựng giữ hình dưới câu dài) hoặc bấm nút bên "
+                     "phải để làm lại các clip đó cho vừa giọng (tốn tiền video, clip nhóm làm lại cả nhóm).")
+            if v2:
+                SB.note(f"⚠ {len(late)} cảnh đã có video ngắn hơn giọng thật", _late, "sb-voice-late", kind="warn")
+            else:
+                st.warning(_late)
         if c3.button("⏱ Đặt thời lượng clip theo giọng thật" + (f" (làm lại {len(late)} clip đã có)" if late else ""), key=f"tts_fit_{pid}",
                      help="Cảnh đã có video: thời lượng mới làm video cũ bị coi là cũ → chạy tự động làm lại (tốn tiền)."):
             ch = voice.fit_durations(p.conn, pid, C.DATA, with_clips=True)
@@ -249,9 +288,15 @@ def voice_panel(p: Pipeline, pid: int) -> None:
 def animatic_panel(p: Pipeline, pid: int) -> None:
     """The film's rhythm before any video credit: approved pictures × planned lengths + voices + music."""
     out = os.path.join(C.DATA, str(pid), "output", "ANIMATIC.mp4")
-    with st.expander("🎞 Animatic — xem nhịp phim trước khi gen video", expanded=os.path.exists(out)):
-        st.caption("Ghép ảnh đã duyệt theo thời lượng dự kiến của từng cảnh, kèm giọng thoại và nhạc (nếu đã có). Không tốn credit: "
-                   "dùng để chỉnh nhịp, độ dài, thoại trước bước đắt nhất (video).")
+    v2 = ui.v2_on()
+    with st.expander("🎞 Animatic — xem nhịp phim trước khi gen video", expanded=os.path.exists(out) and not v2):
+        _about = ("Ghép ảnh đã duyệt theo thời lượng dự kiến của từng cảnh, kèm giọng thoại và nhạc (nếu đã có). Không tốn credit: "
+                  "dùng để chỉnh nhịp, độ dài, thoại trước bước đắt nhất (video).")
+        if v2:
+            from dashboard.design.screens import storyboard_cards as SB
+            SB.note("Xem nhịp phim bằng ảnh đã duyệt · không tốn credit", _about, "sb-anim-about")
+        else:
+            st.caption(_about)
         if st.button("🎞 Dựng animatic", key=f"anim_{pid}"):
             with st.spinner("Đang dựng animatic…"):
                 ok = act(lambda: st.session_state.__setitem__(f"anim_res_{pid}", delivery.animatic(p, pid, C.DATA)))

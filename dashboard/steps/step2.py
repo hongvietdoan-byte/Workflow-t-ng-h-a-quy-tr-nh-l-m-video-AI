@@ -24,7 +24,18 @@ def image_progress(p: Pipeline, pid: int, runner) -> None:
     names = [r["name"] for r in p.conn.execute("SELECT name FROM characters WHERE project_id=?", (pid,))]
     linked = assets.link_characters(p.conn, pid, names) if names else {}
     with (D_card("sb-progress") if ui.v2_on() else st.container(border=True)):
-        if linked:
+        v2 = ui.v2_on()
+        if v2:
+            from dashboard.design.screens import storyboard_cards as SB
+        if linked and v2:                                 # v2: một dòng; danh sách có/thiếu ảnh tham chiếu vào ⓘ
+            have = [n for n, a in linked.items() if a]
+            lack = [n for n, a in linked.items() if not a]
+            detail = (("**Có ảnh tham chiếu:** " + ", ".join(have) + "\n\n" if have else
+                       "Chưa có nhân vật nào gắn tài nguyên: ảnh sẽ vẽ chỉ theo mô tả chữ (dễ lệch thiết kế).\n\n")
+                      + (f"**Chưa có ảnh tham chiếu cho:** {', '.join(lack)}" if lack else ""))
+            SB.note(f"🖼 Ảnh tham chiếu: {len(have)}/{len(linked)} nhân vật" + ("" if have else " — vẽ theo mô tả chữ"), detail, "sb-prog-refs",
+                    kind="" if have else "warn")
+        elif linked:
             have = [n for n, a in linked.items() if a]
             lack = [n for n, a in linked.items() if not a]
             st.caption(("🖼 Ảnh tham chiếu gửi kèm mỗi cảnh: " + ", ".join(have) + "." if have else
@@ -49,7 +60,7 @@ def image_progress(p: Pipeline, pid: int, runner) -> None:
                 return text + (" · ⚠ cần xem" if r["escalated"] else "")
             if ui.v2_on():                                                        # rule 7: HTML table, folded (the cards show the same)
                 from dashboard.design.screens import storyboard_cards as SB
-                with st.expander("Bảng trạng thái từng cảnh", expanded=False):
+                with st.expander(f"Bảng trạng thái từng cảnh ({len(rows)} cảnh)", expanded=False):
                     st.markdown(SB.status_table(p, pid), unsafe_allow_html=True)
             else:
                 st.dataframe([{"Cảnh": r["idx"], "Trạng thái": label(r), "Điểm QC": f"{r['qc']:.2f}" if r["qc"] is not None else "—",
@@ -59,16 +70,24 @@ def image_progress(p: Pipeline, pid: int, runner) -> None:
         flagged = p.conn.execute("SELECT COUNT(*) FROM jobs WHERE project_id=? AND type='image_gen' AND escalated=1 AND state='pending_review'", (pid,)).fetchone()[0]
         if autoqc.active(pid):
             st.info("🔍 **Đang tự kiểm tra ảnh** bằng Claude (so từng người với ảnh tham chiếu + Character Lock).")
-        if fixed:
+        if fixed and v2:
+            SB.note(f"🛠 Đã gen lại {fixed} lần" + (f" · {flagged} ảnh còn lỗi, cần xem" if flagged else ""),
+                    f"🛠 Đã gen lại {fixed} lần" + (f" · {flagged} ảnh vẫn còn lỗi sau các lần sửa, đã đánh dấu để bạn xem." if flagged else "."), "sb-prog-fixed",
+                    kind="warn" if flagged else "")
+        elif fixed:
             st.caption(f"🛠 Đã gen lại {fixed} lần" + (f" · {flagged} ảnh vẫn còn lỗi sau các lần sửa, đã đánh dấu để bạn xem." if flagged else "."))
         problem = autoqc.last_error(pid)
         if problem:
-            st.warning(f"⚠ **Tự kiểm tra ảnh đã dừng**: {problem}")
+            if v2:
+                SB.note("⚠ Tự kiểm tra ảnh đã dừng", f"**Tự kiểm tra ảnh đã dừng**: {problem}", "sb-prog-autoqc", kind="warn")
+            else:
+                st.warning(f"⚠ **Tự kiểm tra ảnh đã dừng**: {problem}")
             if st.button("↻ Thử kiểm tra lại", key=f"autoqc_retry_{pid}"):
                 autoqc.clear_error(pid)
                 st.rerun()
         if queued + running == 0:
-            st.success("Không còn ảnh nào đang chờ gen" + (f" · {counts.get('pending_review', 0)} ảnh chờ bạn duyệt." if counts.get("pending_review") else "."))
+            if not v2:                                    # v2: hero + thanh dính đã nói số ảnh chờ duyệt
+                st.success("Không còn ảnh nào đang chờ gen" + (f" · {counts.get('pending_review', 0)} ảnh chờ bạn duyệt." if counts.get("pending_review") else "."))
         elif proj["paused"]:
             st.warning(f"⏸ Dự án đang **tạm dừng** nên {queued + running} ảnh xếp hàng nhưng chưa gửi. Bấm **▶ Tiếp tục** ở thanh trên cùng.")
         elif running:
@@ -76,8 +95,12 @@ def image_progress(p: Pipeline, pid: int, runner) -> None:
         elif ap_running:
             st.info("🚀 Chế độ tự động đang xử lý các ảnh này (xem tiến độ ở Bước 1).")
         elif runner is None:
-            st.warning(f"⚠ Deepix chưa được cấu hình (thiếu `DEEPIX_TOKEN`): {queued} ảnh đang chờ. Nhập ảnh thủ công ở từng cảnh, "
-                       "hoặc nhờ quản trị cấu hình Deepix.")
+            _no = (f"⚠ Deepix chưa được cấu hình (thiếu `DEEPIX_TOKEN`): {queued} ảnh đang chờ. Nhập ảnh thủ công ở từng cảnh, "
+                   "hoặc nhờ quản trị cấu hình Deepix.")
+            if v2:
+                SB.note(f"⚠ Deepix chưa cấu hình: {queued} ảnh đang chờ", _no, "sb-prog-nodeepix", kind="warn")
+            else:
+                st.warning(_no)
         else:
             st.warning(f"⚠ {queued} ảnh đã xếp hàng nhưng chưa gửi: bấm **▶ Gen ảnh** ở trên.")
 
@@ -97,14 +120,20 @@ def step2(p: Pipeline, pid: int):
     if not v2:                                                            # v2: the shell header already shows the next step
         ui.html(next_step.band(p, pid, 2, C.DATA))
     if autopilot_manager(C.DB, C.DATA).wake(pid):      # S6.4: a redraw asked for while the run waits at the storyboard is sent
-        st.caption("⏳ Chạy tự động đang chờ bạn ở cổng — ảnh vẽ lại bạn vừa yêu cầu đang được gửi (trong trần đã duyệt).")
+        _wake = "⏳ Chạy tự động đang chờ bạn ở cổng — ảnh vẽ lại bạn vừa yêu cầu đang được gửi (trong trần đã duyệt)."
+        if v2:
+            SB.note("⏳ Đang gửi ảnh vẽ lại bạn vừa yêu cầu", _wake, "sb-wake")
+        else:
+            st.caption(_wake)
     pilot_panel(p, pid)
     from core import known_issues
     active_issues = known_issues.active(p.conn, pid)
-    if active_issues:                                    # S9 E2.1: one red line always; the details fold
+    if active_issues and v2:                             # v2: một dòng tóm tắt + MỘT expander đóng
+        SB.known_issues(active_issues)
+    elif active_issues:                                  # S9 E2.1: one red line always; the details fold
         st.error(f"⚠ {len(active_issues)} khâu đang dùng có lỗi đã biết ("
                  + ", ".join(f"{x['label']}: {len(x['open'])} lỗi" for x in active_issues) + ") — mở ▸ bên dưới để xem hướng sửa")
-    for st_ in active_issues:         # paused / replaced stages still in use: their open faults, before any spend
+    for st_ in ([] if v2 else active_issues):         # paused / replaced stages still in use: their open faults, before any spend
         with st.expander(f"⚠ Khâu có lỗi đã biết: {st_['label']} — {len(st_['open'])} lỗi chưa sửa"):
             st.caption(st_["status"])
             for bug, fix in st_["open"]:
@@ -112,18 +141,30 @@ def step2(p: Pipeline, pid: int):
             if st_["fixed"]:
                 st.caption("Đã sửa: " + "; ".join(st_["fixed"]))
     with (D_card("sb-gen") if v2 else st.container(border=True)):
-        c1, c2, c3, c4 = st.columns([2.4, 2, 2, 2.6], vertical_alignment="center")
+        if v2:                                            # v2: hai nút; ước tính tiền một dòng; cảnh báo ưu tiên thấp vào ⓘ
+            c1, c3 = st.columns([3, 2.4], vertical_alignment="center")
+            c2 = c4 = None
+        else:
+            c1, c2, c3, c4 = st.columns([2.4, 2, 2, 2.6], vertical_alignment="center")
         est_ok = True
         est = image_estimate(p, pid)
         if runner is not None:
-            est_ok = show_estimate(est, runner)
+            est_ok = SB.show_estimate(est, runner) if v2 else show_estimate(est, runner)
         gates = batch.image_gates(p, pid)                 # the automatic run's gates apply to this button too
-        for w in gates["warn"]:
-            st.caption(f"⚠ {w}")
+        if v2 and gates["warn"]:
+            SB.note(f"⚠ {len(gates['warn'])} lưu ý trước khi gen ảnh", "\n".join(f"- ⚠ {w}" for w in gates["warn"]), "sb-gen-warn", kind="warn")
+        else:
+            for w in gates["warn"]:
+                st.caption(f"⚠ {w}")
         forced = False
         if gates["block"]:
-            st.warning("Chế độ tự động sẽ DỪNG ở đây trước khi gen ảnh: " + "; ".join(gates["block"]) + ". Sửa ở Bước 1 (Character Bible / Lock).")
-            forced = st.checkbox("Tôi đã xem, vẫn gen ảnh (ghi lại vào 📊 Theo dõi)", key=f"gen_img_force_{pid}")
+            if v2:                                        # lỗi chặn (P1) luôn hiện; lời khuyên sửa vào tooltip của ô tick
+                st.warning("Gen ảnh bị chặn: " + "; ".join(gates["block"]))
+                forced = st.checkbox("Tôi đã xem, vẫn gen ảnh (ghi lại vào 📊 Theo dõi)", key=f"gen_img_force_{pid}",
+                                     help="Chế độ tự động sẽ DỪNG ở đây trước khi gen ảnh. Sửa ở Bước 1 (Character Bible / Lock).")
+            else:
+                st.warning("Chế độ tự động sẽ DỪNG ở đây trước khi gen ảnh: " + "; ".join(gates["block"]) + ". Sửa ở Bước 1 (Character Bible / Lock).")
+                forced = st.checkbox("Tôi đã xem, vẫn gen ảnh (ghi lại vào 📊 Theo dõi)", key=f"gen_img_force_{pid}")
         img_price = None if est["unit_price"] is None else est["unit_price"] * est["items"]
         if c1.button("▶ Gen ảnh các cảnh chưa có / đã cũ" + cost.price_tag(img_price, est["items"]), type="primary", key=f"gen_img_{pid}",
                      disabled=not est_ok or (bool(gates["block"]) and not forced)):
@@ -137,7 +178,7 @@ def step2(p: Pipeline, pid: int):
         pending = [j["id"] for j in p.conn.execute(
             "SELECT id FROM jobs WHERE project_id=? AND type='image_gen' AND state='pending_review' ORDER BY id", (pid,)).fetchall()]
         if v2:
-            c2.caption("✔ Duyệt hàng loạt: thanh hành động ở cuối lưới ảnh ↓")
+            pass                                          # duyệt hàng loạt: thanh hành động dính ở cuối lưới ảnh
         elif confirm_all("approve_all", pending, f"✔ Duyệt tất cả ({len(pending)} ảnh)", f"Duyệt tất cả {len(pending)} ảnh đang chờ duyệt?", c2):
             for jid in pending:
                 p.approve(jid, "user")
@@ -151,14 +192,25 @@ def step2(p: Pipeline, pid: int):
             for j in failed:
                 act(lambda: p.retry(j["id"], "gửi lại ảnh lỗi (lỗi nhà cung cấp)"))
             st.rerun()
-        c4.markdown(ui.badge(ui.MODE_LABELS.get(proj["operating_mode"], proj["operating_mode"]), "b-pri")
-                    + f' <span class="muted">{"Claude tự duyệt ảnh đạt" if proj["operating_mode"] == "auto" else "mọi ảnh chờ bạn duyệt"}</span>',
-                    unsafe_allow_html=True)
-        if runner is None:
-            st.caption("ℹ Deepix chưa cấu hình: nhập ảnh thủ công cho từng cảnh (cách cấu hình: docs/RUNBOOK.md).")
+        mode_text = f'{ui.MODE_LABELS.get(proj["operating_mode"], proj["operating_mode"])}: ' + (
+            "Claude tự duyệt ảnh đạt" if proj["operating_mode"] == "auto" else "mọi ảnh chờ bạn duyệt")
+        if v2:                                            # nhà cung cấp + chế độ: một dòng, chi tiết trong ⓘ
+            if runner is None:
+                SB.note("ℹ Deepix chưa cấu hình — nhập ảnh thủ công cho từng cảnh", "Cách cấu hình: docs/RUNBOOK.md.\n\n" + mode_text, "sb-gen-prov")
+            else:
+                SB.note(f"Ảnh: {runner.provider.name}" + (" (giả lập)" if runner.provider.name.startswith("mock") else " · API thật")
+                        + f" · khung {formats.label(formats.project_aspect(proj))}",
+                        f"Nhà cung cấp ảnh: {runner.provider.name}" + (" (giả lập)" if runner.provider.name.startswith("mock") else " (gọi API thật, tốn credit)")
+                        + f" · khung {formats.label(formats.project_aspect(proj))}\n\n" + mode_text, "sb-gen-prov")
         else:
-            st.caption(f"Nhà cung cấp ảnh: {runner.provider.name}" + (" (giả lập)" if runner.provider.name.startswith("mock") else " (gọi API thật, tốn credit)")
-                       + f" · khung {formats.label(formats.project_aspect(proj))}")
+            c4.markdown(ui.badge(ui.MODE_LABELS.get(proj["operating_mode"], proj["operating_mode"]), "b-pri")
+                        + f' <span class="muted">{"Claude tự duyệt ảnh đạt" if proj["operating_mode"] == "auto" else "mọi ảnh chờ bạn duyệt"}</span>',
+                        unsafe_allow_html=True)
+            if runner is None:
+                st.caption("ℹ Deepix chưa cấu hình: nhập ảnh thủ công cho từng cảnh (cách cấu hình: docs/RUNBOOK.md).")
+            else:
+                st.caption(f"Nhà cung cấp ảnh: {runner.provider.name}" + (" (giả lập)" if runner.provider.name.startswith("mock") else " (gọi API thật, tốn credit)")
+                           + f" · khung {formats.label(formats.project_aspect(proj))}")
     image_progress(p, pid, runner)
     if image_busy(p.conn, pid):
         auto_poll_images(pid)                           # results, the automatic check and automatic fixes all show up by themselves
@@ -217,8 +269,9 @@ def grid_v2(p: Pipeline, pid: int, proj) -> None:
     client = llm_client()
     to_check = p.conn.execute("SELECT COUNT(*) c FROM jobs WHERE project_id=? AND type='image_gen' AND state='succeeded'", (pid,)).fetchone()["c"]
     if client is None and to_check:
-        st.warning(f"⚠ **Chưa có điểm QC**: {to_check} ảnh vừa gen chưa được chấm vì chưa có Claude ({claude_hint()}). "
-                   "Trong lúc đó hãy tự xem từng ảnh (đúng nhân vật? đúng bối cảnh? lỗi tay/mặt?) rồi duyệt hoặc loại.")
+        SB.note(f"⚠ Chưa có điểm QC cho {to_check} ảnh (chưa có Claude)",
+                f"**Chưa có điểm QC**: {to_check} ảnh vừa gen chưa được chấm vì chưa có Claude ({claude_hint()}). "
+                "Trong lúc đó hãy tự xem từng ảnh (đúng nhân vật? đúng bối cảnh? lỗi tay/mặt?) rồi duyệt hoặc loại.", "sb-noqc", kind="warn")
     jobs = p.conn.execute(
         "SELECT j.*, s.idx, s.title FROM jobs j JOIN scenes s ON s.id=j.scene_id"
         " WHERE j.project_id=? AND j.type='image_gen' ORDER BY s.idx, j.id", (pid,)).fetchall()
@@ -422,7 +475,8 @@ def qc_policy_panel(p: Pipeline, pid: int) -> None:
     current = qc_policy.current(proj)
     keys = list(qc_policy.PRESETS) + [qc_policy.CUSTOM]
     labels = {**{k: v["label"] for k, v in qc_policy.PRESETS.items()}, qc_policy.CUSTOM: "Tùy chỉnh"}
-    with st.container(border=True):
+    v2 = ui.v2_on()
+    with (st.expander(f"⚙ Chính sách QC ảnh — {labels[current]}", expanded=False) if v2 else st.container(border=True)):
         c1, c2 = st.columns([1.3, 4], vertical_alignment="center")
         pick = c1.selectbox("Chính sách QC ảnh", keys, index=keys.index(current), format_func=labels.get, key=f"qcpol_{pid}")
         if pick != current:
@@ -433,7 +487,7 @@ def qc_policy_panel(p: Pipeline, pid: int) -> None:
         if pick == qc_policy.CUSTOM and not C.expert():  # S9 E2.3: technical settings only in expert mode
             st.caption("Chỉnh ngưỡng / số lần gen lại / tự sửa: bật ⚙ → 🧠 Chế độ chuyên gia.")
         if pick == qc_policy.CUSTOM and C.expert():
-            with st.expander("Tùy chỉnh chi tiết", expanded=True):
+            with (st.container(border=True) if v2 else st.expander("Tùy chỉnh chi tiết", expanded=True)):   # v2: đã nằm trong expander, không lồng thêm
                 th = st.slider("Ngưỡng đạt", 0.5, 1.0, float(proj["qc_auto_pass_threshold"]), 0.01, key=f"th_{pid}")
                 if abs(th - proj["qc_auto_pass_threshold"]) > 1e-9:
                     p.set_threshold(pid, th)
@@ -469,8 +523,14 @@ def pilot_panel(p: Pipeline, pid: int) -> None:
     if not state["enabled"]:
         if n >= pilot.MIN_SCENES and not has_images:
             c1, c2 = st.columns([3, 1.4], vertical_alignment="center")
-            c1.caption(f"💡 {n} cảnh: nên **gen thử {pilot.SIZE} cảnh đại diện** trước (cảnh then chốt + đầu mỗi nhóm), duyệt phong cách "
-                       "và nhân vật rồi mới gen phần còn lại — lỗi lộ ra ở mẫu thử thay vì ở cả lô.")
+            _tip = (f"💡 {n} cảnh: nên **gen thử {pilot.SIZE} cảnh đại diện** trước (cảnh then chốt + đầu mỗi nhóm), duyệt phong cách "
+                    "và nhân vật rồi mới gen phần còn lại — lỗi lộ ra ở mẫu thử thay vì ở cả lô.")
+            if ui.v2_on():
+                from dashboard.design.screens import storyboard_cards as SB
+                with c1:
+                    SB.note(f"💡 {n} cảnh: nên gen thử {pilot.SIZE} cảnh đại diện trước", _tip, "sb-pilot-tip")
+            else:
+                c1.caption(_tip)
             if c2.button("🧪 Bật gen thử trước", key=f"pilot_on_{pid}"):
                 pilot.start(p, pid)
                 st.rerun()
@@ -482,9 +542,14 @@ def pilot_panel(p: Pipeline, pid: int) -> None:
         return
     with st.container(border=True):
         ready = pilot.done(p, pid)
-        st.markdown(f"🧪 **Gen thử trước**: chỉ cảnh {', '.join(map(str, idx))} được gen. "
-                    + ("Các cảnh thử đã có ảnh duyệt — xem phong cách/nhân vật ổn chưa rồi mở gen cả lô." if ready
-                       else "Duyệt ảnh các cảnh này trước."))
+        _msg = (f"🧪 **Gen thử trước**: chỉ cảnh {', '.join(map(str, idx))} được gen. "
+                + ("Các cảnh thử đã có ảnh duyệt — xem phong cách/nhân vật ổn chưa rồi mở gen cả lô." if ready
+                   else "Duyệt ảnh các cảnh này trước."))
+        if ui.v2_on():
+            from dashboard.design.screens import storyboard_cards as SB
+            SB.note(f"🧪 Gen thử trước: chỉ cảnh {', '.join(map(str, idx))}" + (" · mẫu thử đã duyệt" if ready else " · duyệt các cảnh này trước"), _msg, "sb-pilot-msg")
+        else:
+            st.markdown(_msg)
         c1, c2 = st.columns(2)
         if c1.button("✔ Mẫu thử ổn — gen phần còn lại", key=f"pilot_release_{pid}", type="primary", disabled=not ready):
             pilot.release(p, pid)
@@ -501,8 +566,14 @@ def animatic_box(p: Pipeline, pid: int) -> None:
     out_dir = delivery.output_dir(C.DATA, pid)
     done = next((os.path.join(out_dir, f) for f in ("ANIMATIC_sub.mp4", "ANIMATIC.mp4") if os.path.exists(os.path.join(out_dir, f))), None)
     c1, c2 = st.columns([3, 1.4], vertical_alignment="center")
-    c1.caption("🎬 **Animatic** — xem cả phim bằng ảnh storyboard + giọng + nhạc + phụ đề theo đúng độ dài từng shot, TRƯỚC khi trả tiền "
-               "video (0 USD). Ảnh tĩnh có đẩy / lia nhẹ theo chuyển động máy: để xem nhịp, thứ tự, độ dài — không phải diễn xuất.")
+    _about = ("🎬 **Animatic** — xem cả phim bằng ảnh storyboard + giọng + nhạc + phụ đề theo đúng độ dài từng shot, TRƯỚC khi trả tiền "
+              "video (0 USD). Ảnh tĩnh có đẩy / lia nhẹ theo chuyển động máy: để xem nhịp, thứ tự, độ dài — không phải diễn xuất.")
+    if ui.v2_on():
+        from dashboard.design.screens import storyboard_cards as SB
+        with c1:
+            SB.note("🎬 Animatic — xem nhịp cả phim · 0 USD", _about, "sb-board-anim")
+    else:
+        c1.caption(_about)
     if c2.button("🎬 Dựng animatic" if not done else "🔄 Dựng lại animatic", key=f"animatic_{pid}"):
         with st.spinner("Đang dựng animatic (khoảng 1 phút)…"):
             try:
@@ -539,22 +610,35 @@ def shot_storyboard_panel(p: Pipeline, pid: int, gate_button: bool = True) -> No
     flagged = [r for r in rows if flags.get(r["id"])]
     title = (f"🎞 Storyboard — {len(have)}/{len(own)} ảnh · {len(rows)} {'shot' if is_v3 else 'cảnh'} · {total:.0f}s{note}"
              + (f" · ⚑ {len(flagged)} có cờ" if flagged else "") + (" · ⏸ CHỜ BẠN DUYỆT" if waiting else ""))
-    with st.expander(title, expanded=waiting):
-        st.caption("Ảnh khung đầu theo thứ tự phim: kiểm tra nhân vật (so với ảnh tài nguyên bên dưới), cỡ cảnh, nhịp, liên tục TRƯỚC khi gen "
-                   "video — sửa ảnh rẻ hơn nhiều so với gen lại clip. ⚑ = điểm QC cho thấy lỗi dễ thấy (Claude chưa được hiệu chỉnh: "
-                   "tự xem lại, không tin mù).")
+    v2 = ui.v2_on()
+    with st.expander(title, expanded=waiting and not v2):                  # v2: luôn đóng (nút duyệt nằm ở thanh dính)
+        _about = ("Ảnh khung đầu theo thứ tự phim: kiểm tra nhân vật (so với ảnh tài nguyên bên dưới), cỡ cảnh, nhịp, liên tục TRƯỚC khi gen "
+                  "video — sửa ảnh rẻ hơn nhiều so với gen lại clip. ⚑ = điểm QC cho thấy lỗi dễ thấy (Claude chưa được hiệu chỉnh: "
+                  "tự xem lại, không tin mù).")
         from core import features
         off = features.pending()
-        if off:                                    # rule 5: a feature switched off until its real test is never a mystery
-            st.caption("🧪 Đang tắt tới khi thử thật đạt: " + "; ".join(v["label"] for v in off.values())
-                       + " (bật thử bằng FEATURE_<TÊN>=1, xem core/features.py).")
+        _off = ("🧪 Đang tắt tới khi thử thật đạt: " + "; ".join(v["label"] for v in off.values())
+                + " (bật thử bằng FEATURE_<TÊN>=1, xem core/features.py).") if off else ""
+        if v2:
+            from dashboard.design.screens import storyboard_cards as SB
+            SB.note("Ảnh khung đầu theo thứ tự phim — xem trước khi gen video", _about + ("\n\n" + _off if _off else ""), "sb-board-about")
+        else:
+            st.caption(_about)
+            if off:                                # rule 5: a feature switched off until its real test is never a mystery
+                st.caption(_off)
         animatic_box(p, pid)
         if waiting:
             c1, c2 = st.columns([3, 1.4], vertical_alignment="center")
-            c1.warning(f"Chế độ tự động đang dừng ở đây: {storyboard_gate.summary(p, pid, C.DATA)}. Loại/gen lại shot sai ở danh sách ảnh bên trên, "
-                       "rồi bấm duyệt để viết motion prompt và gen video.")
+            _stop = (f"Chế độ tự động đang dừng ở đây: {storyboard_gate.summary(p, pid, C.DATA)}. Loại/gen lại shot sai ở danh sách ảnh bên trên, "
+                     "rồi bấm duyệt để viết motion prompt và gen video.")
+            if v2:
+                with c1:
+                    SB.note("⏸ Tự động đang dừng ở cổng storyboard: " + storyboard_gate.summary(p, pid, C.DATA), _stop, "sb-board-stop", kind="warn")
+            else:
+                c1.warning(_stop)
             if not gate_button:
-                c2.caption("Nút duyệt ở thanh hành động cuối lưới ảnh.")
+                if not v2:
+                    c2.caption("Nút duyệt ở thanh hành động cuối lưới ảnh.")
             elif c2.button("✔ Duyệt storyboard — gen video", key=f"board_ok_{pid}", type="primary"):
                 autopilot.resume(p, pid, p.actor)
                 autopilot_manager(C.DB, C.DATA).start(pid)
@@ -596,9 +680,15 @@ def set_check_panel(p: Pipeline, pid: int) -> None:
     last = claude_tasks.last_set_check(C.DATA, pid)
     label = "🎨 Kiểm tra đồng bộ cả bộ ảnh" + ("" if last is None else (" — ổn" if last.get("ok") and not last.get("issues")
                                                                          else f" — {len(last.get('issues') or [])} cảnh lệch"))
-    with st.expander(label, expanded=bool(last and last.get("issues"))):
-        st.caption("Claude xem MỘT tấm ghép mọi ảnh đã duyệt để tìm cảnh lệch phong cách/ánh sáng/màu/nhân vật so với cả bộ "
-                   "(ảnh đẹp nhưng lạc tông vẫn là lỗi). Nên chạy trước khi sang Bước 3.")
+    v2 = ui.v2_on()
+    with st.expander(label, expanded=bool(last and last.get("issues")) and not v2):       # v2: luôn đóng; nhãn đã nói "N cảnh lệch"
+        _about = ("Claude xem MỘT tấm ghép mọi ảnh đã duyệt để tìm cảnh lệch phong cách/ánh sáng/màu/nhân vật so với cả bộ "
+                  "(ảnh đẹp nhưng lạc tông vẫn là lỗi). Nên chạy trước khi sang Bước 3.")
+        if v2:
+            from dashboard.design.screens import storyboard_cards as SB
+            SB.note("Claude so cả bộ ảnh đã duyệt để tìm cảnh lệch tông", _about, "sb-setqc-about")
+        else:
+            st.caption(_about)
         client = llm_client()
         if st.button(f"🤖 Kiểm tra {approved} ảnh đã duyệt" + cost.llm_tag(cost.llm_estimate(p.conn, "setcheck", 1, images=1,
                                                                                             ledger_stage="qc"), 1),

@@ -65,6 +65,11 @@ class StoryboardV2Tests(unittest.TestCase):
         return " ".join(m.value for m in at.markdown)
 
     @staticmethod
+    def inside(at):
+        """Text held by the ⓘ popovers (de-duplicated: the test tree reports nested blocks more than once)."""
+        return " ".join(sorted({m.value for pop in at.get("popover") for m in pop.markdown}))
+
+    @staticmethod
     def states(db):
         return [(r["id"], r["state"]) for r in Pipeline(connect(db)).conn.execute("SELECT id, state FROM jobs ORDER BY id")]
 
@@ -189,6 +194,103 @@ class StoryboardV2Tests(unittest.TestCase):
         self.assertIn("Animatic", txt)
         self.assertIn(f"mp_{sc[0]}", {t.key for t in at.text_area})                          # every control still there
         self.assertIn(f"mpa_{sc[0]}", {b.key for b in at.button})
+
+
+    # -- bớt chữ: chi tiết trong ⓘ (QUY_TAC §5) ---------------------------------------------------------------------------------------
+    def test_card_keeps_p1_and_moves_details_into_an_info_popover(self):
+        p, pid, sc = self.seed(2)
+        review = self.job_in(p, sc[0], "pending_review")
+        at = self.board()
+        txt = self.text(at)
+        self.assertIn("QC 0.90", txt)                                           # P1: the QC chip stays
+        keys = {b.key for b in at.button}
+        for k in (f"a_{review}", f"dd_{review}", f"r_{review}", f"sel_btn_{review}"):
+            self.assertIn(k, keys)                                              # the 4 main buttons stay
+        pops = [b for b in at.get("popover") if b.proto.popover.label == "ⓘ"]
+        self.assertGreaterEqual(len(pops), 2)                                   # one ⓘ per card (2 scenes); the card's own "⋯ Thêm" is gone
+        inside = self.inside(at)
+        self.assertIn("Điểm QC từng tiêu chí", inside)                          # criterion scores live in the ⓘ
+
+    def test_old_take_reason_is_in_the_info_not_outside(self):
+        p, pid, sc = self.seed(1)
+        first = self.job_in(p, sc[0], "pending_review")
+        p.reject(first, "user", "sai tay trái hoàn toàn")
+        at = self.board()
+        self.assertNotIn("sai tay trái hoàn toàn", " ".join(c.value for c in at.caption))    # no loose caption outside ...
+        self.assertIn("sai tay trái hoàn toàn", self.inside(at))                             # ... the full reason is in the ⓘ
+        next(x for x in at.button if x.key == f"sbv_{pid}_{sc[0]}_0").click().run()          # an old take: look only, still no caption
+        self.assertFalse(any("Lý do gen lại" in c.value for c in at.caption))
+
+    def test_gen_bar_estimate_is_one_line_with_info(self):
+        p, pid, sc = self.seed(2)
+        at = self.board()
+        txt = self.text(at)
+        self.assertNotIn("Ước tính chi phí:", txt)                              # the long st.info is gone
+        self.assertFalse(any("Ước tính chi phí" in i.value for i in at.info))
+        self.assertTrue(any(b.proto.popover.label == "ⓘ" for b in at.get("popover")))
+
+    def test_panels_under_the_grid_are_closed_expanders(self):
+        p, pid, sc = self.seed(3)
+        self.job_in(p, sc[0], "approved")
+        self.job_in(p, sc[1], "approved")
+        at = self.board()
+        panels = [e for e in at.expander if e.label.startswith(("⚙ Chính sách QC", "🎨 Kiểm tra đồng bộ"))]
+        self.assertTrue(panels)
+        for e in panels:
+            self.assertFalse(e.proto.expanded, e.label)                         # default closed
+
+    # -- cổng storyboard đang chờ: nút board_ok_<pid> trên thanh dính -------------------------------------------------------------------
+    def test_board_ok_button_when_the_gate_waits(self):
+        import json
+        from core import autopilot
+        p, pid, sc = self.seed(1)
+        p.conn.execute("UPDATE scenes SET data=? WHERE id=?", (json.dumps({"shot_no": 1, "characters": ["Kelly"], "duration_s": 4}), sc[0]))
+        jid = self.job_in(p, sc[0], "approved")
+        p.conn.execute("UPDATE projects SET autopilot_state='waiting' WHERE id=?", (pid,))
+        p.conn.commit()
+        autopilot.set_gates(p, pid, {"waiting_for": "storyboard"})
+        at = self.board()
+        self.assertIn(f"board_ok_{pid}", {b.key for b in at.button})            # the button is on the sticky bar
+        self.assertEqual(sum(1 for b in at.button if b.key == f"board_ok_{pid}"), 1)   # and only there (not duplicated in the closed panel)
+        self.assertIn("Chờ bạn duyệt storyboard", self.text(at))
+        with mock.patch("dashboard.design.screens.storyboard_cards.autopilot_manager") as mgr:
+            next(b for b in at.button if b.key == f"board_ok_{pid}").click().run()
+        self.assertFalse(at.exception, at.exception)
+        mgr.return_value.start.assert_called_once_with(pid)                     # the background run starts again
+        gates = autopilot.get_gates(Pipeline(connect(self.db)), pid)
+        self.assertIsNone(gates["waiting_for"])
+        self.assertEqual(gates["storyboard_ok"], [jid])
+
+    def test_no_board_ok_button_when_nothing_waits(self):
+        p, pid, sc = self.seed(1)
+        self.job_in(p, sc[0], "approved")
+        at = self.board()
+        self.assertNotIn(f"board_ok_{pid}", {b.key for b in at.button})
+
+    # -- Motion: chi tiết vào ⓘ -------------------------------------------------------------------------------------------------------
+    def test_motion_card_details_go_into_the_info(self):
+        import json
+        p, pid, sc = self.seed(1)
+        self.job_in(p, sc[0], "approved")
+        store_motion_prompts(p, pid, {"scenes": [{"idx": 1, "motion_prompt": "push in slowly", "camera": "push", "duration_sec": 5,
+                                                  "negative_prompt": ""}]})
+        p.conn.execute("UPDATE motion_prompts SET check_flags=?, lint=? WHERE scene_id=?",
+                       (json.dumps(["thiếu hướng máy"]), json.dumps({"ok": False, "issues": ["mơ hồ vị trí"], "revised_prompt": "push in from left"}), sc[0]))
+        p.conn.commit()
+        at = AppTest.from_file(APP, default_timeout=60)
+        at.session_state["sb_tab"] = "🎞 Motion, giọng & animatic"
+        at.run()
+        at.radio(key="step").set_value(at.radio(key="step").options[2]).run()
+        self.assertFalse(at.exception, at.exception)
+        outside = " ".join(c.value for c in at.caption)
+        self.assertNotIn("thiếu hướng máy", outside)                            # flags are not loose captions any more
+        self.assertNotIn("mơ hồ vị trí", outside)
+        inside = self.inside(at)
+        self.assertIn("thiếu hướng máy", inside)
+        self.assertIn("mơ hồ vị trí", inside)
+        self.assertIn("push in from left", inside)
+        self.assertIn(f"lint_apply_{sc[0]}", {b.key for b in at.button})        # the "use the revision" action stays reachable
+        self.assertIn("⚑ 1 cờ", self.text(at))
 
 
 class FlagOffTest(unittest.TestCase):
