@@ -494,3 +494,4 @@ C1 + luật code) ≈ 0,02 / khung — là cấu hình được code ở GĐ2 v�
   4 khung (3 "Kelly đặt trong khung mà characters không có", 1 "OTS chỉ 1 người" = đúng ví dụ playbook E). 2 lỗi của chính code mới tìm
   ra nhờ chạy khô (báo mâu thuẫn thừa với tên người ngoài khung; không chọn được mặt khi khung 2 mặt) — đã sửa + test.
 - **Chờ:** (a) GĐ3 đo C1 trên bộ phát triển ≈ 0,86 USD (ước tính, hỏi trước); (b) người dùng gắn nhãn Google Sheet → bộ độc lập.
+- **Người dùng 01/10 (sau GĐ2):** duyệt GĐ3 (≈ 0,86 USD); yêu cầu dùng các tầng miễn phí lọc trước 134 khung bộ độc lập (nhiều khung cũ lỗi rõ) và thêm phần tích chọn nhãn ngay trên trang xem ảnh thay vì chỉ Google Sheet — giao session sau (TODO.md mục 01/10 BÀN GIAO).
