@@ -281,6 +281,25 @@ Tình huống: người dùng đưa `Video ref3.mp4` (mannequin đỏ + xám tr�
 | Nhắc "giai điệu J-Pop" của ref | Không chép nhạc (mục 4) |
 | Ảnh Kelly/Maxim gửi thẳng | Gửi qua **Kho chủ thể** (S4.7: 3/3 lần qua bộ lọc người thật) |
 
+**Prompt đầy đủ của Antigravity (ảnh chụp thứ 2 người dùng gửi 01/10) — khuôn 5 khối:**
+`VIDEO` (tỉ lệ 16:9, 15 s, phong cách hình) → `REFERENCE ASSETS` (@Image1 Kelly thay mannequin đỏ, @Image2 Maxim thay mannequin trắng xám,
+@Image3 bố cục cảnh, @Video1 "vũ đạo, đường đi, tương tác, đẩy máy") → `CHARACTERS & BLOCKING` ("Only two characters… Zero extra background
+people") → `CAMERA & PERFORMANCE PRINCIPLE` (một cảnh liền 15 s: 9 s toàn thân trực diện → đẩy máy liền vào trung cận hai người 6 s cuối) →
+`TIMELINE` 4 đoạn `[0-4s] [4-8s] [8-11s] [11-15s]`, **mỗi đoạn đủ 4 dòng `Camera / Action & Performance / Dialogue / Sound`**.
+
+| Thêm điểm nên học | Áp vào |
+|---|---|
+| Khuôn 5 khối + mỗi đoạn mốc giây có đủ Camera / Action / Dialogue / Sound (kể cả "Dialogue: None") | Khuôn đầu ra của prompt video cho shot từ video ref (người viết prompt Bước 3, nhánh Seedance 2.5); code kiểm đủ 4 dòng mỗi đoạn |
+| Câu chặn người thừa "Only two characters… Zero extra background people" | Câu cố định khi có `cast` đếm được (đã gặp lỗi thừa người ở storyboard, S4.6) |
+| Một nguyên tắc máy cho cả clip trước khi chia đoạn | Trường `camera_principle` trong bóc tách |
+
+| Thêm chỗ cần sửa | Căn cứ |
+|---|---|
+| Mốc đẩy máy lệch giữa phân tích (00:09) và timeline (bắt đầu 8 s, rõ ở 11 s) | Code lấy mốc từ `segments[]` đo được, không để model tự chia đều 4 đoạn |
+| Phong cách gọi tên "Makoto Shinkai" + cel-shaded | Dùng mô tả look anime đã chốt của dự án, không gọi tên tác giả thật |
+| Dòng `Sound` bịa nhạc (J-pop, synth, vocal hook) | Nhạc do bước âm thanh lo; prompt video ghi "no music" hoặc chỉ âm thực tế |
+| @Video1 vẫn chỉ nói lấy gì, không nói **không lấy** gì (da mannequin, phông xanh) | Luật sd25-pe (1.2-3) — thêm câu bắt buộc |
+
 **Cách học:** dựng lại phân tích của Antigravity thành **1 ví dụ mẫu** (few-shot, đã sửa 6 chỗ trên) trong `prompts/24`. **Đo:** cùng `Video ref3.mp4`
 (người dùng gửi file) → prompt của dự án vs prompt Antigravity, chạy Seedance 2.5 cả hai (≈ 2 × 15 × 0,37 ≈ 11 USD — chỉ khi người dùng duyệt;
 bản rẻ: 5 s đầu mỗi bên ≈ 3,7 USD) → người dùng chấm.
@@ -325,7 +344,7 @@ Cờ mới đều **TẮT** tới khi qua bộ đo: `idea_to_script`, `trend_fee
 ## 10. Còn mở
 | # | Việc | Ai |
 |---|---|---|
-| M1 | Gửi file `Video ref3.mp4` + prompt đầy đủ của Antigravity (ảnh chụp bị cắt ở mục 3) để làm ví dụ mẫu và đo ở mục 7 | Người dùng |
+| M1 | Gửi file `Video ref3.mp4` để đo ở mục 7 (prompt đầy đủ đã nhận 01/10 — ảnh chụp thứ 2; dòng cuối "Dialogue" của đoạn 11–15 s bị che) | Người dùng |
 | M2 | Hỏi ClipAI (S11.14) | Người dùng |
 | M3 | Công cụ đã tạo bản mannequin (để so với bản MediaPipe + Blender) | Người dùng nếu nhớ ra |
 

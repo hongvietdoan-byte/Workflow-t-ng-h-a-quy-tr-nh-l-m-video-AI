@@ -366,7 +366,7 @@ Thứ tự: Ý tưởng → Trend free → Trend Apify → Cover kịch bản �
 - **Được dùng trend vào sản phẩm**, chỉ tránh thứ có **mức bản quyền cao** (bài hát của hãng/ca sĩ, phim/show có bản quyền, IP khác).
 - Nhạc trend không vào bản giao; Suno Pro **để sau** (chưa cần luồng bán tự động).
 - Clip nhảy mẫu đã có (Drive `SeaTalk_VDO_20261001_111440.mp4`); video ref nhảy phải chuyển **không mặt** (mannequin hoặc depth — AE Instant Depth Map) vì Seedance báo lỗi khi có mặt người.
-- **Còn mở:** hỏi ClipAI mở API Motion Control (người dùng chưa hỏi); gửi `Video ref3.mp4` + prompt đầy đủ của Antigravity để làm ví dụ mẫu.
+- **Còn mở:** hỏi ClipAI mở API Motion Control (người dùng chưa hỏi); gửi `Video ref3.mp4` để đo (prompt đầy đủ của Antigravity đã nhận 01/10).
 
 **Còn mở (2026-09-23):**
 
