@@ -1,6 +1,7 @@
 """Step 1 · 1e: Character Bible — reference pictures, outfits, subjects, voices, Lock, anchors (split from step1.py, S9.5)."""
 from dashboard.common import *  # noqa: F401,F403  (shared imports + helpers)
 from dashboard import common as C
+from dashboard.steps.step1_v2 import cap  # noqa: F401  (v2: long captions become a one-line summary + ⓘ)
 
 
 def character_reference_panel(p: Pipeline, pid: int, chars) -> None:
@@ -10,7 +11,7 @@ def character_reference_panel(p: Pipeline, pid: int, chars) -> None:
     saved = {r["name"]: r for r in p.conn.execute("SELECT name, ref_asset_id, ref_image_id, ref_image_ids FROM characters WHERE project_id=?", (pid,))}
     have = sum(1 for a in linked.values() if a)
     with st.expander(f"🖼 Ảnh tham chiếu của từng nhân vật — {have}/{len(chars)} đã có", expanded=have < len(chars) or not pool):
-        st.caption("Đây là (những) ảnh mà bước gen ảnh sẽ **bám theo** (gương mặt, tóc, trang phục). Mặc định tự chọn theo tên, ưu tiên ảnh MỘT người rõ mặt "
+        cap("Đây là (những) ảnh mà bước gen ảnh sẽ **bám theo** (gương mặt, tóc, trang phục). Mặc định tự chọn theo tên, ưu tiên ảnh MỘT người rõ mặt "
                    "(không phải cả tấm bảng nhiều tư thế) và lấy thêm góc/chi tiết thứ hai nếu có, để nhân vật không bị lẫn với người khác trong cảnh. "
                    "Bạn đổi được sang tài nguyên khác, hoặc tự chọn 1-2 ảnh cụ thể. Muốn thêm tài nguyên, chọn ở mục “🧰 Tài nguyên đi kèm kịch bản” phía trên.")
         if not pool:
@@ -57,7 +58,7 @@ def outfit_panel(p: Pipeline, pid: int, name: str, box) -> None:
     optionally generate a 2-picture character set wearing it (it then becomes the reference; nothing to approve)."""
     current = assets.outfit_images(p.conn, pid, name)
     with box.popover("👗 Trang phục cho video này" + (f" — đang dùng {len(current)} ảnh" if current else ""), width="stretch"):
-        st.caption("Muốn nhân vật mặc trang phục khác (skin khác, đồ theo kịch bản): chọn ảnh trang phục trong kho. Khi gen, mặt/tóc lấy từ ảnh "
+        cap("Muốn nhân vật mặc trang phục khác (skin khác, đồ theo kịch bản): chọn ảnh trang phục trong kho. Khi gen, mặt/tóc lấy từ ảnh "
                    "nhân vật, quần áo lấy từ ảnh trang phục. Mô tả thêm bằng chữ ở ô “Trang phục / dấu hiệu” (mục ✏ Sửa nhân vật).")
         pool = [a for a in assets.project_assets(p.conn, pid) if a["images"]]
         by_id = {img["id"]: (a, n) for a in pool for n, img in enumerate(a["images"], 1)}
@@ -115,7 +116,7 @@ def subject_panel(p: Pipeline, pid: int, chars) -> None:
             st.error(f"Clip AI: {e}")
             return
         if library is None:
-            st.caption("Cần CLIPAI_TOKEN và VIDEO_PROVIDER=clipai (hoặc SUBJECT_PROVIDER=mock để thử) để tải lên kho.")
+            cap("Cần CLIPAI_TOKEN và VIDEO_PROVIDER=clipai (hoặc SUBJECT_PROVIDER=mock để thử) để tải lên kho.")
             return
         who = st.selectbox("Nhân vật", [r["name"] for r in rows], key=f"subj_who_{pid}")
         up = st.file_uploader("Ảnh nhân vật (JPG / PNG / WebP)", type=["jpg", "jpeg", "png", "webp"],
@@ -147,7 +148,7 @@ def subject_panel(p: Pipeline, pid: int, chars) -> None:
                 st.error(str(e))
                 assets = []
             if not assets:
-                st.caption("Kho chưa có ảnh nào (hoặc không đọc được).")
+                cap("Kho chưa có ảnh nào (hoặc không đọc được).")
             else:
                 pick = st.selectbox("Chủ thể trên kho", assets, key=f"subj_pick_{pid}",
                                     format_func=lambda a: f"{a.get('name')} · {a.get('provider_status')}")
@@ -164,7 +165,7 @@ def _voices(pid: int):
             st.session_state[key] = voice.library(provider) if provider else []   # official + team voices (FF 'VN' clones first)
         except ProviderError as e:
             st.session_state[key] = []
-            st.caption(f"Không lấy được danh sách giọng: {e}")
+            cap(f"Không lấy được danh sách giọng: {e}")
     return st.session_state[key]
 
 
@@ -242,7 +243,7 @@ def character_detail_panel(p: Pipeline, pid: int, c, voices, client, locked: boo
                 st.rerun()
             voice_preview_row(p, pid, c["name"], cur, names.get(cur))
         else:
-            st.caption("Chưa có danh sách giọng (cần AUDIO_PROVIDER / Clip AI). Voice Design / Voice Clone chỉ có trên web ClipAI: tạo ở đó rồi chọn ở đây.")
+            cap("Chưa có danh sách giọng (cần AUDIO_PROVIDER / Clip AI). Voice Design / Voice Clone chỉ có trên web ClipAI: tạo ở đó rồi chọn ở đây.")
         st.markdown("**🖼 Ảnh mốc** — ảnh tham chiếu bạn xác nhận là ĐÚNG nhân vật trước khi gen cả loạt")
         if c["anchor_approved"]:
             if st.button("↩ Bỏ duyệt ảnh mốc", key=f"anchor_off_{pid}_{c['name']}"):
@@ -250,7 +251,7 @@ def character_detail_panel(p: Pipeline, pid: int, c, voices, client, locked: boo
                 p.conn.commit()
                 st.rerun()
         elif not has_ref:
-            st.caption("Chưa có ảnh tham chiếu: nhân vật đang vẽ theo mô tả chữ (dễ lệch giữa các cảnh). Chọn tài nguyên ở "
+            cap("Chưa có ảnh tham chiếu: nhân vật đang vẽ theo mô tả chữ (dễ lệch giữa các cảnh). Chọn tài nguyên ở "
                        "“🧰 Tài nguyên đi kèm kịch bản” hoặc tạo bộ ảnh ở “👗 Trang phục cho video này”, rồi duyệt ảnh mốc.")
             if st.button("Vẫn vẽ theo mô tả chữ — bỏ qua ảnh mốc", key=f"anchor_on_{pid}_{c['name']}"):
                 p.conn.execute("UPDATE characters SET anchor_approved=1 WHERE project_id=? AND name=?", (pid, c["name"]))
@@ -322,7 +323,7 @@ def character_bible_panel(p: Pipeline, pid: int, chars, risky) -> None:
             if voices:
                 n_f = sum(1 for v in vi_pool if voice.voice_gender(v) == "female")
                 n_pref = sum(1 for v in vi_pool if voice.preferred(v))
-                st.caption(f"🇻🇳 {len(vi_pool)} giọng tiếng Việt ({n_f} nữ)"
+                cap(f"🇻🇳 {len(vi_pool)} giọng tiếng Việt ({n_f} nữ)"
                            + (f", ưu tiên ⭐ {n_pref} giọng clone Việt của team (hậu tố VN, `data/voices_vi.json`)" if n_pref else
                               " — chưa thấy giọng clone Việt của team (⭐): kiểm tra nhóm FF ở AI Audio → Voice Actors")
                            + ". Nên nghe thử câu mẫu. Từ tiếng Anh/tên riêng được đọc theo `data/pronunciation_vi.json`."
@@ -341,7 +342,7 @@ def character_bible_panel(p: Pipeline, pid: int, chars, risky) -> None:
                 subject_panel(p, pid, chars)
             with st.expander("✏ Sửa / thêm nhân vật, đối tượng · khóa"):
                 if locked:
-                    st.caption("Character Bible đang khóa. Muốn sửa phải mở khóa (ảnh đã gen sẽ báo ⚠ cũ nếu mô tả đổi).")
+                    cap("Character Bible đang khóa. Muốn sửa phải mở khóa (ảnh đã gen sẽ báo ⚠ cũ nếu mô tả đổi).")
                     if st.button("🔓 Mở khóa để sửa", key="btn_bad_unlock"):
                         act(lambda: llm_io.unlock_character_bible(p, pid), "Đã mở khóa Character Bible")
                         st.rerun()
@@ -355,7 +356,7 @@ def character_bible_panel(p: Pipeline, pid: int, chars, risky) -> None:
                         if act(lambda: llm_io.update_character(p, pid, c["name"], n_desc, n_ward, n_name), f"Đã lưu {n_name}"):
                             st.rerun()
                 st.markdown("**➕ Thêm nhân vật / đối tượng**")
-                st.caption("Không chỉ người: cũng có thể là sinh vật, linh vật, đạo cụ… bất cứ thứ gì cần giống nhau ở mọi cảnh.")
+                cap("Không chỉ người: cũng có thể là sinh vật, linh vật, đạo cụ… bất cứ thứ gì cần giống nhau ở mọi cảnh.")
                 a_name = st.text_input("Tên", key=f"cadd_name_{pid}")
                 a_desc = st.text_area("Mô tả ngoại hình", key=f"cadd_desc_{pid}", height=70)
                 a_ward = st.text_input("Trang phục / dấu hiệu (tùy chọn)", key=f"cadd_ward_{pid}")

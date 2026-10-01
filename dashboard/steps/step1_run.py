@@ -1,6 +1,7 @@
 """Step 1 · 1c: the automatic run, its progress and the project budget (split from step1.py, S9.5)."""
 from dashboard.common import *  # noqa: F401,F403  (shared imports + helpers)
 from dashboard import common as C
+from dashboard.steps.step1_v2 import cap  # noqa: F401  (v2: long captions become a one-line summary + ⓘ)
 
 
 @st.fragment(run_every=5)
@@ -15,7 +16,7 @@ def autopilot_progress(pid: int) -> None:
     for label, done, total in autopilot.progress(p, pid, C.DATA):
         ui.progress_bar(0 if not total else min(done / total, 1.0), text=f"{label}: {done}/{total}")
     if info["log"]:
-        st.caption(" · ".join(f"{e['at']} {e['msg']}" for e in info["log"][-4:]))
+        cap(" · ".join(f"{e['at']} {e['msg']}" for e in info["log"][-4:]))
     mgr = autopilot_manager(C.DB, C.DATA)
     stale = (autopilot.is_stale(p, pid, float(os.environ.get("AUTOPILOT_POLL_SEC", "15")))
              or (state == "queued" and not mgr.queued(pid) and not mgr.alive(pid)))
@@ -81,7 +82,7 @@ def project_budget_panel(p: Pipeline, pid: int) -> None:
                      "Đề xuất trần": f"{prop['stages'][k]['cap']:.2f}", "Trần đã khóa": (f"{caps[k]:.2f}" if k in caps else "—")}
                     for k, label in project_budget.STAGES.items()]
             st.dataframe(rows, hide_index=True, use_container_width=True)
-            st.caption(f"Tổng đề xuất ≈ {prop['total']:.2f} USD" + (f" · tổng đã khóa {data['total']:.2f} USD" if locked else "")
+            cap(f"Tổng đề xuất ≈ {prop['total']:.2f} USD" + (f" · tổng đã khóa {data['total']:.2f} USD" if locked else "")
                        + f" · đã chi {sum(spent.values()):.2f} USD. Đề xuất = đã chi + phần còn lại do CODE tính từ bảng shot + bảng giá, cộng "
                        f"{int(project_budget.IMAGE_REDO * 100)} % vẽ lại ảnh, {int(project_budget.VIDEO_REDO * 100)} % làm lại video, Claude ×"
                        f"{project_budget.LLM_MARGIN}; giá chưa xác minh (Seedance) ×{project_budget.UNVERIFIED_MARGIN}. Âm thanh chưa có giá: "
@@ -89,7 +90,7 @@ def project_budget_panel(p: Pipeline, pid: int) -> None:
             from core import cost as _cost                  # S6.6: how much Claude really read from the cache, per stage
             cached = [c for c in _cost.cache_stats(p.conn, pid) if c["input"] + c["cache_read"] + c["cache_write"]]
             if cached:
-                st.caption("🧠 Claude đọc lại từ cache (rẻ ×0,1): " + " · ".join(
+                cap("🧠 Claude đọc lại từ cache (rẻ ×0,1): " + " · ".join(
                     f"{c['stage']} {c['read_share'] * 100:.0f} % ({c['calls']} lượt)" for c in cached)
                     + " — khâu 0 % là chỗ nên xem lại cách gửi (prompt dưới 1024 token không cache; đổi ảnh phía trước làm mất cache sau).")
             target = st.number_input("Ngân sách mục tiêu (USD, để Director chia shot trong mức này; 0 = không đặt)", min_value=0.0,
@@ -114,7 +115,7 @@ def project_budget_panel(p: Pipeline, pid: int) -> None:
                 project_budget.raise_cap(p.conn, pid, stage, add, p.actor, why)
                 st.rerun()
             for r in (data.get("raises") or [])[-5:]:
-                st.caption(f"{r['at']} · {r['who']}: +{r['add_usd']:.2f} USD cho {project_budget.STAGES.get(r['stage'], r['stage'])} — {r['why']}")
+                cap(f"{r['at']} · {r['who']}: +{r['add_usd']:.2f} USD cho {project_budget.STAGES.get(r['stage'], r['stage'])} — {r['why']}")
 
 
 def autopilot_panel(p: Pipeline, pid: int) -> None:
@@ -129,12 +130,12 @@ def autopilot_panel(p: Pipeline, pid: int) -> None:
             project_budget_panel(p, pid)
             if info["state"] not in ("running", "queued") and C.expert():      # E1.11: destructive, rarely used
                 with st.expander("Chạy lại từ đầu cho dự án này"):
-                    st.caption("Đặt lại trạng thái tự động (ảnh/video đã làm được giữ nguyên).")
+                    cap("Đặt lại trạng thái tự động (ảnh/video đã làm được giữ nguyên).")
                     if st.button("↺ Đặt lại chế độ tự động", key=f"ap_reset_{pid}"):
                         autopilot.reset(p, pid, C.DATA)
                         st.rerun()
             return
-        st.caption("Chuỗi: Director → (dừng để bạn duyệt nhân vật, nếu bật) → dựng layout → ảnh + Claude QC → QC đồng bộ cả bộ → "
+        cap("Chuỗi: Director → (dừng để bạn duyệt nhân vật, nếu bật) → dựng layout → ảnh + Claude QC → QC đồng bộ cả bộ → "
                    "(dừng để bạn duyệt storyboard, nếu bật) → motion prompt + rà prompt → giọng thoại → chọn model từng cảnh → video + QC video → nhạc, hiệu ứng → "
                    "bản giao (phụ đề, card cuối, bản xuất theo thiết lập ở Bước 5). Gặp việc cần người thì **dừng và báo**.")
         gates = autopilot.get_gates(p, pid)
@@ -175,7 +176,7 @@ def autopilot_panel(p: Pipeline, pid: int) -> None:
             autopilot_manager(C.DB, C.DATA).start(pid)
             st.rerun()
         if issues:
-            st.caption("Hãy xử lý các mục đỏ ở trên trước khi bấm chạy.")
+            cap("Hãy xử lý các mục đỏ ở trên trước khi bấm chạy.")
 
 
 # siblings (bottom import: the parts use each other's functions at call time only)

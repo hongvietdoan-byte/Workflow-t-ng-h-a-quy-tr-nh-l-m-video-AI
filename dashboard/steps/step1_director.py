@@ -1,6 +1,7 @@
 """Step 1 · 1d/1f: Director, its reports, dialogue review, re-plan of a scene (split from step1.py, S9.5)."""
 from dashboard.common import *  # noqa: F401,F403  (shared imports + helpers)
 from dashboard import common as C
+from dashboard.steps.step1_v2 import cap  # noqa: F401  (v2: long captions become a one-line summary + ⓘ)
 
 
 def _director_summary(p: Pipeline, pid: int, chars) -> str:
@@ -11,6 +12,18 @@ def _director_summary(p: Pipeline, pid: int, chars) -> str:
     return f"✅ đã chạy · {n} shot · {len(chars)} nhân vật" + (f" · {paid}" if paid else "")
 
 
+def run_director_now(p: Pipeline, pid: int, client, resume: bool = False) -> None:
+    """Run the Director (spinner, toast, rerun). Shared by the 1d button and the hero button of the v2 screen."""
+    with st.spinner("Claude đang phân tích kịch bản…"):
+        ok = act(lambda: st.session_state.__setitem__("llm_res", llm_runner.run_director(p, pid, client, resume=resume)))
+    if ok:
+        r = st.session_state.pop("llm_res")
+        st.toast(f"Đã lưu {r['characters']} nhân vật, {r['scenes']} cảnh ({tokens_text(r)})"
+                 + (f" · {r['calls']} lượt Claude" if r.get("two_pass") else "")
+                 + (f" · Đạo diễn duyệt: cảnh {', '.join(map(str, r['flagged']))} cần xem" if r.get("flagged") else ""))
+        st.rerun()
+
+
 def director_panel(p: Pipeline, pid: int, chars) -> None:
     locked = any(c["locked"] for c in chars)
     kept = llm_io.locked_fields(p.conn, pid)
@@ -18,19 +31,19 @@ def director_panel(p: Pipeline, pid: int, chars) -> None:
                  sub="Character Bible + thông số, ý đồ, thoại từng cảnh") as director_open:  # E1.12
         if director_open:
             if kept:
-                st.caption(f"🔒 {sum(len(r['fields']) for r in kept)} trường bạn đã sửa tay ở {len(kept)} cảnh được giữ nguyên khi chạy lại.")
+                cap(f"🔒 {sum(len(r['fields']) for r in kept)} trường bạn đã sửa tay ở {len(kept)} cảnh được giữ nguyên khi chạy lại.")
             client = llm_client()
             if client is not None:
                 from core import director_two_pass
                 two = director_two_pass.enabled(p.project(pid))
                 label = f"🤖 Chạy Director{' hai lượt' if two else ''} bằng {llm_label(client)}"
                 if two:
-                    st.caption("🧪 Director hai lượt (cờ `director_two_pass`, chưa thử thật): Tầng A Đạo diễn viết Bible + ý đồ từng cảnh → "
+                    cap("🧪 Director hai lượt (cờ `director_two_pass`, chưa thử thật): Tầng A Đạo diễn viết Bible + ý đồ từng cảnh → "
                                "Tầng B Quay phim chia shot mỗi cảnh một lượt (phần chung cache) → code Đạo diễn duyệt bảng shot so với ý đồ.")
                 try:                                   # luật chi phí: the estimate before the click (both ways, so the choice is informed)
-                    st.caption("💵 " + director_two_pass.estimate_text(director_two_pass.estimate(p, pid, client)))
+                    cap("💵 " + director_two_pass.estimate_text(director_two_pass.estimate(p, pid, client)))
                 except Exception as e:  # noqa: BLE001 - an estimate that cannot be made is said, never hidden
-                    st.caption(f"💵 Chưa ước tính được chi phí Director ({type(e).__name__}: {e})")
+                    cap(f"💵 Chưa ước tính được chi phí Director ({type(e).__name__}: {e})")
                 go = (confirm_all(f"llm_dir_{pid}", ["again"], label + " (chạy lại)",
                                   "Character Bible đã khóa: chạy lại chỉ cập nhật thông số cảnh (trường bạn đã sửa tay được giữ), nhân vật đã khóa "
                                   "không đổi. Chạy?", st, "Có, chạy lại") if locked
@@ -41,16 +54,9 @@ def director_panel(p: Pipeline, pid: int, chars) -> None:
                     help="Lần chạy trước dừng vì Quay phim chưa chia được các cảnh này. Dùng lại ý đồ Tầng A và các cảnh đã chia (đã trả tiền) "
                          "khi kịch bản/luật không đổi — chỉ trả tiền cho các cảnh lỗi.")
                 if go or resume:
-                    with st.spinner("Claude đang phân tích kịch bản…"):
-                        ok = act(lambda: st.session_state.__setitem__("llm_res", llm_runner.run_director(p, pid, client, resume=resume)))
-                    if ok:
-                        r = st.session_state.pop("llm_res")
-                        st.toast(f"Đã lưu {r['characters']} nhân vật, {r['scenes']} cảnh ({tokens_text(r)})"
-                                 + (f" · {r['calls']} lượt Claude" if r.get("two_pass") else "")
-                                 + (f" · Đạo diễn duyệt: cảnh {', '.join(map(str, r['flagged']))} cần xem" if r.get("flagged") else ""))
-                        st.rerun()
+                    run_director_now(p, pid, client, resume)
             else:
-                st.caption(claude_hint() + " Hoặc dùng cách nhập tay bên dưới.")
+                cap(claude_hint() + " Hoặc dùng cách nhập tay bên dưới.")
             if C.expert():
                 with st.expander("✍ Nâng cao: prompt gửi Claude + dán JSON kết quả", expanded=client is None and not chars):
                     st.code(prompts.build_director_bundle(p, pid), language="markdown")
@@ -164,12 +170,12 @@ def _crew_notes(p: Pipeline, pid: int) -> None:
         # fields the code dropped when the answer was saved are gone from the rows — said from the answer itself
         r["pacing"] = list(dict.fromkeys((r.get("pacing") or []) + director_report.retime_dropped(raw)))
     except Exception as e:  # noqa: BLE001 - an old or odd answer must not break Step 1, but the checks' absence is said
-        st.caption(f"⚠ Không chạy được các kiểm của tổ làm phim trên bảng shot hiện tại: {escape(str(e)[:160])}")
+        cap(f"⚠ Không chạy được các kiểm của tổ làm phim trên bảng shot hiện tại: {escape(str(e)[:160])}")
         return
     try:                                             # S6.1 (Q7): the whole project's estimate the moment the shot plan exists
         from core import project_budget
         prop = project_budget.propose(p, pid)
-        st.caption(f"💵 Dự tính tổng dự án theo bảng shot này ≈ **{prop['total']:.2f} USD** — "
+        cap(f"💵 Dự tính tổng dự án theo bảng shot này ≈ **{prop['total']:.2f} USD** — "
                    + " · ".join(f"{label} {prop['stages'][k]['cap']:.2f}" for k, label in project_budget.STAGES.items()
                                 if prop["stages"][k]["cap"]) + " (đã gồm vẽ lại / làm lại dự phòng; duyệt và khóa ở 💵 Ngân sách dự án)")
     except Exception:  # noqa: BLE001 - an estimate line only; the budget panel says why when opened
@@ -190,7 +196,7 @@ def _crew_notes(p: Pipeline, pid: int) -> None:
         st.warning("⚠ Cảnh gặt lại điều chưa được gieo ở cảnh nào trước (`beat.payoff` không có `plant` trước đó): "
                    + ", ".join(map(str, r["payoff_unplanted"])))
     if r.get("turns_without_cause"):
-        st.caption("💡 Gợi ý (nguyên nhân cú xoay · lý do máy chuyển động): " + " · ".join(escape(w) for w in r["turns_without_cause"]))
+        cap("💡 Gợi ý (nguyên nhân cú xoay · lý do máy chuyển động): " + " · ".join(escape(w) for w in r["turns_without_cause"]))
     from core import story_check
     seen = story_check.load(C.DATA, pid)
     if seen:
@@ -199,16 +205,16 @@ def _crew_notes(p: Pipeline, pid: int) -> None:
                          + (" · (bảng shot đã đổi sau lần đọc)" if seen.get("fingerprint") != story_check.fingerprint(story_check.digest(p, pid))
                             else "")):
             st.markdown("\n".join(f"- {escape(line)}" for line in story_check.lines(seen)))
-            st.caption("Claude chỉ đọc cái sẽ hiện trên màn hình (hành động, thoại, chữ), không đọc ý đồ Director — để thấy chỗ người xem thật "
+            cap("Claude chỉ đọc cái sẽ hiện trên màn hình (hành động, thoại, chữ), không đọc ý đồ Director — để thấy chỗ người xem thật "
                        "có thể không hiểu. Chỉ là gợi ý: kết mở / giấu nguyên nhân có chủ ý vẫn được.")
     if r.get("continuity"):
-        st.caption("🧭 Liền mạch: " + " · ".join(escape(w) for w in r["continuity"]))
+        cap("🧭 Liền mạch: " + " · ".join(escape(w) for w in r["continuity"]))
     if r.get("acting"):
-        st.caption("🎭 Diễn xuất: " + " · ".join(escape(w) for w in r["acting"]))
+        cap("🎭 Diễn xuất: " + " · ".join(escape(w) for w in r["acting"]))
     if r.get("pacing"):
-        st.caption("⏱ Nhịp / góc máy kịch bản: " + " · ".join(escape(w) for w in r["pacing"]))
+        cap("⏱ Nhịp / góc máy kịch bản: " + " · ".join(escape(w) for w in r["pacing"]))
     if r.get("sound"):
-        st.caption("🔊 Âm thanh: " + " · ".join(escape(w) for w in r["sound"]))
+        cap("🔊 Âm thanh: " + " · ".join(escape(w) for w in r["sound"]))
     if r.get("script_notes"):
         with st.expander(f"📝 Ghi chú kịch bản của Đạo diễn cho người viết ({len(r['script_notes'])}) — chỉ đề xuất, thoại không bị sửa"):
             st.markdown("\n".join(f"- Cảnh {n.get('scene', '?')}"
@@ -234,7 +240,7 @@ def _director_review(p: Pipeline, pid: int) -> None:
         st.markdown("\n".join(f"- {escape(r)}" for r in rows))
         notes = [f"Cảnh {r['idx']}: {n}" for r in rv["scenes"] for n in r.get("notes") or []]
         if notes:
-            st.caption("Ghi chú diễn xuất / âm thanh theo từng cảnh: " + " · ".join(escape(n) for n in notes[:12]))
+            cap("Ghi chú diễn xuất / âm thanh theo từng cảnh: " + " · ".join(escape(n) for n in notes[:12]))
 
 
 # siblings (bottom import: the parts use each other's functions at call time only)
