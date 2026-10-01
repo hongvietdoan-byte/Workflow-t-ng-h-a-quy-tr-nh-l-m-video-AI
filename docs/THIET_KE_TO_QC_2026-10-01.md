@@ -529,3 +529,19 @@ gợi ý. Ra `data/qc_golden/prefilter.json` + `prefilter.csv` (ngoài git — c
   dây-khóa / không thấy"; trái/phải → "chi tiết X ở nửa TRÁI hay PHẢI của ẢNH so với mặt / đầu người đó" (hoặc "cùng phía ẢNH với ảnh chuẩn
   hay ngược"), code đổi chiều theo hướng máy (YuNet thấy mặt = quay mặt). Sửa (a)(b)(c) + replay 0 USD; rồi chạy lại GĐ3 ≈ 0,6 USD. Nếu
   trái/phải vẫn sai khi model chỉ khai vị trí trong ảnh → theo quyết định 19a hỏi lại Pose.
+
+**01/10 — Sửa sau GĐ3 (người dùng duyệt hướng "model khai quan sát, code áp luật"; 0 USD):**
+- **3 lỗi code:** (a) mệnh đề vai khác (vd hướng nhìn C2) mà code đã **chắc** thì vẫn tính vào kết luận khung (`qc_team.review_frame` +
+  `qc_rules`: không có câu trả lời model mà code chắc → dùng kết quả code); (b) `_LOOK` nhận "looking off-screen frame-left toward…",
+  "looking off-frame right", "looks off toward…"; (c) trần token C1 400 + 170 / mệnh đề. **Chạy lại từ bản ghi GĐ3 (0 USD,
+  run `20261001-113214`):** job 325 bị chặn đúng nhờ số đo hướng nhìn → mọi loại bắt 6/8 (trước 5/8); job 352 nay có mệnh đề hướng
+  nhìn nhưng mống mắt đo "trái, độ chắc vừa" — ngược nhãn người (đồng tử lệch phải) → chưa bắt; ghi lại để chỉnh ngưỡng / cách đo ở C2.
+- **Model khai, code kết luận** (`qc_spec` gắn `observe` cho `asym` / `headwear` / `count`; `qc_team.ANSWER_SCHEMA` thêm 4 ô chọn sẵn;
+  `qc_rules.observed` / `own_side`): trái/phải → `facing` (front / back / profile_facing_image_left / _right, theo THÂN) + `seen_at`
+  (nửa trái / phải ẢNH của thân; nghiêng hẳn: near_side / far_side) → code đổi ra bên của chính người đó; khung 1 người mà model khai
+  "back" khi YuNet thấy mặt (hoặc "front" cận cảnh mà không thấy mặt) → chưa chắc. Mũ → `cap_marks` (ở trán / ở gáy thấy gì) → code:
+  khóa ở trán hoặc lưỡi trai ở gáy = đội ngược. Số người → `extra_people`; người thừa chỉ lộ một phần / mờ phía sau = **nhỏ** (#8 323, 326).
+  Câu hỏi gửi model **không còn nói bên đúng** (chữ LEFT/RIGHT thay bằng "one", không gửi mệnh đề / hướng máy của bảng shot cho các mục
+  khai); `answer` của model giữ lại để đối chiếu, không dùng. Test: `tests/test_qc_team.py` 27. Chạy khô 33 khung #8 (client giả trả "na"):
+  33 yêu cầu dựng được, 207 mục khai, 0 câu lộ chữ bên.
+- **Chờ người dùng:** GĐ3 lần 2 ≈ 0,7 USD (LENH_TON_TIEN_CHO_DUYET #11; trần Claude đợt thử còn 0,65 → nâng +0,5).

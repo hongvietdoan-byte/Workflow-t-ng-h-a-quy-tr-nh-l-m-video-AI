@@ -24,4 +24,5 @@
 ## Thêm 01/10 chiều
 | # | Việc | Lệnh | Ước tính | Điều kiện |
 |---|---|---|---|---|
-| 10 | S7.2 GĐ3: đo chuyên viên Nhân vật (Tổ QC) trên 33 khung bộ phát triển #8 | nâng trần Claude đợt thử +1 USD, rồi `py tools/experiments/qc_team_eval.py --set dev --yes --max-usd 1.0 --bill-project new` | ≈ 0,86 USD Claude (trần 1,0) | **người dùng đã duyệt 01/10** |
+| 10 | ✔ đã chạy 01/10 (0,611 USD) — S7.2 GĐ3: đo chuyên viên Nhân vật (Tổ QC) trên 33 khung bộ phát triển #8 | nâng trần Claude đợt thử +1 USD, rồi `py tools/experiments/qc_team_eval.py --set dev --yes --max-usd 1.0 --bill-project new` | ≈ 0,86 USD Claude (trần 1,0) | **người dùng đã duyệt 01/10** |
+| 11 | S7.2 GĐ3 lần 2: đo lại C1 sau khi đổi sang "model khai quan sát, code áp luật" (trái/phải, mũ, số người) + 3 lỗi code | nâng trần Claude đợt thử +0,5 USD (`budget.save(c, llm_usd=11.8)`), rồi `py tools/experiments/qc_team_eval.py --set dev --yes --max-usd 0.9 --bill-project new` | ≈ 0,7 USD Claude (lần 1 0,611; thêm ô khai ≈ +0,1) (trần 0,9) | chờ người dùng duyệt |

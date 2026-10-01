@@ -15,9 +15,10 @@ from typing import Dict, List, Optional
 
 C1_MODEL_EDGE = 768           # the frame
 CROP_EDGE = 384               # face crops / case pictures
-C1_MAX_TOKENS_BASE = 300
-C1_TOKENS_PER_ASSERTION = 110
+C1_MAX_TOKENS_BASE = 400
+C1_TOKENS_PER_ASSERTION = 170   # GĐ3 01/10: 300 + 110 × 13 cut job 333 (max_tokens is not part of the replay key)
 CASES_SHOWN = 4
+OBSERVE_FIELDS = {"side": ["facing", "seen_at"], "cap": ["cap_marks"], "count": ["extra_people"]}
 
 ANSWER_SCHEMA = {
     "type": "object",
@@ -27,8 +28,17 @@ ANSWER_SCHEMA = {
             "answer": {"type": "string", "enum": ["true", "false", "unclear"]},
             "confidence": {"type": "string", "enum": ["high", "medium", "low"]},
             "note_vi": {"type": "string"},
-            "fix_en": {"type": "string"}},
-            "required": ["id", "answer", "confidence", "note_vi", "fix_en"], "additionalProperties": False}},
+            "fix_en": {"type": "string"},
+            # observations (GĐ3 01/10) — "na" when the assertion does not ask for it; qc_rules.observed decides from them
+            "facing": {"type": "string", "enum": ["front", "back", "profile_facing_image_left", "profile_facing_image_right",
+                                                  "not_visible", "na"]},
+            "seen_at": {"type": "string", "enum": ["image_left_of_body", "image_right_of_body", "near_side", "far_side",
+                                                   "not_visible", "na"]},
+            "cap_marks": {"type": "string", "enum": ["strap_or_buckle_at_forehead", "brim_at_forehead", "brim_at_nape",
+                                                     "strap_or_buckle_at_nape", "no_cap", "not_visible", "na"]},
+            "extra_people": {"type": "string", "enum": ["none", "partial_or_background", "clear", "missing", "na"]}},
+            "required": ["id", "answer", "confidence", "note_vi", "fix_en", "facing", "seen_at", "cap_marks", "extra_people"],
+            "additionalProperties": False}},
         "other_issues": {"type": "array", "items": {"type": "object", "properties": {
             "description_vi": {"type": "string"},
             "severity": {"type": "string", "enum": ["block", "minor"]}},
@@ -43,10 +53,18 @@ Cách trả lời mỗi mệnh đề (theo id): answer true (đúng như mệnh 
 ngoài khung); confidence high / medium / low; note_vi 1 câu bằng chứng nhìn thấy (vùng nào, thấy gì); fix_en: khi false, 1 câu tiếng Anh
 nói điều PHẢI đúng, còn lại để "".
 
-BÊN TRÁI / PHẢI LUÔN THEO THÂN NGƯỜI, KHÔNG THEO MÉP KHUNG: người QUAY MẶT vào máy thì tay TRÁI của họ nằm bên PHẢI khung so với tâm thân
-họ; người QUAY LƯNG (thấy gáy) thì tay TRÁI nằm bên TRÁI khung. Trước khi trả lời mệnh đề trái/phải: (1) người này quay mặt hay quay lưng,
-(2) tâm thân ở đâu, (3) chi tiết nằm phía nào của tâm thân. Các "ca đã phán" bên dưới có ca BÁO NHẦM đúng kiểu này — đừng lặp.
-Mũ đội ngược: quay mặt thì thấy dây / khóa cài ở trán; quay lưng thì thấy lưỡi trai che gáy.
+MỆNH ĐỀ CÓ Ô "KHAI" (chi tiết một bên, mũ, số người): bạn CHỈ KHAI ĐIỀU NHÌN THẤY, KHÔNG tự suy ra trái/phải của thân hay chiều mũ — code
+làm việc đó. Ô không được hỏi điền "na".
+- Chi tiết một bên → `facing`: thân người đó quay về đâu (front = thấy ngực / mặt, kể cả nghiêng ba phần tư; back = thấy lưng / gáy, kể cả ba
+  phần tư sau; profile_facing_image_left / _right = nghiêng hẳn, mặt hướng về mép TRÁI / PHẢI của ẢNH) theo THÂN, không theo đầu.
+  `seen_at`: chi tiết nằm ở nửa nào CỦA THÂN NGƯỜI ĐÓ khi nhìn trên ẢNH — image_left_of_body / image_right_of_body (so đường giữa thân, theo
+  trái / phải của ẢNH như bạn đang nhìn); khi nghiêng hẳn: near_side (phía gần máy) / far_side (phía xa, bị thân che một phần); không thấy →
+  not_visible. Tìm đúng món đồ được tả (vd găng giáp bạc, băng quấn trắng) rồi khai chỗ của NÓ — không suy từ món khác.
+- Mũ → `cap_marks`: thứ thấy ở TRÁN và ở GÁY: strap_or_buckle_at_forehead / brim_at_forehead / brim_at_nape / strap_or_buckle_at_nape /
+  no_cap / not_visible.
+- Số người → `extra_people`: none (đúng số) / partial_or_background (người thừa chỉ lộ một phần ở mép hoặc mờ phía sau) / clear (người thừa
+  rõ) / missing (thiếu người).
+Với các mệnh đề này vẫn điền `answer` theo bạn nghĩ (chỉ để đối chiếu) và note_vi tả đúng điều thấy.
 
 Thứ tự ưu tiên khi thời gian / sự chú ý có hạn: đúng người → số người → chi tiết một bên & mũ → kỹ năng. Trả lời ĐỦ mọi id được giao.
 other_issues: lỗi nhân vật rõ ràng ngoài danh sách (tối đa 3), không bắt bẻ vụn."""
@@ -160,6 +178,9 @@ def c1_request(frame: Dict, assertions: List[Dict], code: Dict, entity: List[Dic
     lines = []
     for a in assertions:
         c = code.get(a["id"]) or {}
+        if a.get("observe") in OBSERVE_FIELDS:      # neither the expected side nor the shot table's view: the model only reports
+            lines.append({"id": a["id"], "người": a["subject"], "khai": OBSERVE_FIELDS[a["observe"]], "question": a["question_en"]})
+            continue
         lines.append({"id": a["id"], "người": a["subject"], "hướng máy": a.get("view") or "không rõ", "mệnh đề": a["claim_vi"],
                       "question": a["question_en"], "số đo code": c.get("note", "")})
     data = frame["data"]
@@ -189,8 +210,11 @@ def review_frame(p, pid: int, data_dir: str, frame: Dict, client, entity: Option
     piece of evidence (assertions, code results, answers)."""
     from . import qc_measure, qc_rules, qc_spec
     spec = qc_spec.compile_frame(p.conn, pid, frame["job_id"], frame["data"], profiles=profiles)
-    mine = [a for a in spec["assertions"] if a["role"] in roles or a["role"] == "T0"]
     code = qc_measure.measure_frame(frame["path"], frame["data"], spec["assertions"])
+    # an assertion of a role not running yet still counts when the code alone is certain (GĐ3 01/10: #8 job 325 — the code measured a
+    # certain wrong gaze, the frame passed because gaze belongs to C2)
+    mine = [a for a in spec["assertions"] if a["role"] in roles or a["role"] == "T0"
+            or (code.get(a["id"]) or {}).get("status") in ("certain_ok", "certain_fail")]
     ask = [a for a in mine if a["role"] in roles and (code.get(a["id"]) or {}).get("status") != "certain_ok"]
     answers: Dict = {}
     other, problems, usage = [], [], {}
