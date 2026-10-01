@@ -195,6 +195,42 @@ class MeshyTests(unittest.TestCase):
         meshy.submit_rig(self.conn, c, light["id"])
         self.assertEqual([x for x in fake.calls if x["method"] == "POST"][-1]["body"]["input_task_id"], rm["task_id"])
 
+    def test_retexture_keeps_the_uv_and_is_rigged_from_its_link(self):
+        from PIL import Image
+        fake = FakeMeshy()
+        c = meshy.Client("k", fake)
+        r = meshy.submit_model(self.conn, c, self.plan())
+        fake.finish_model(r["task_id"])
+        meshy.refresh(self.conn, c)
+        rt = meshy.submit_retexture(self.conn, c, meshy.tasks(self.conn)[0]["id"], "white bandage on the RIGHT forearm",
+                                    Image.new("RGB", (60, 120), (200, 200, 200)))
+        body = [x for x in fake.calls if x["method"] == "POST"][-1]["body"]
+        self.assertTrue(body["enable_original_uv"])
+        self.assertTrue(body["image_style_url"].startswith("data:image/png;base64,"))
+        fake.finish_model(rt["task_id"])
+        fake.tasks[rt["task_id"]]["consumed_credits"] = 10                # what Meshy reports for a retexture
+        meshy.refresh(self.conn, c)
+        painted = [t for t in meshy.tasks(self.conn) if t["kind"] == "retexture"][0]
+        self.assertEqual(painted["status"], "DOWNLOADED")
+        meshy.submit_rig(self.conn, c, painted["id"])
+        body = [x for x in fake.calls if x["method"] == "POST"][-1]["body"]
+        self.assertEqual(body["model_url"], "https://assets.meshy.ai/x/m.glb")
+        self.assertEqual(body["texture_image_url"], "https://assets.meshy.ai/x/t.png")
+        self.assertNotIn("input_task_id", body)
+        self.assertEqual(meshy.spent_credits(self.conn), 45)
+
+    def test_renders_go_to_the_review_box_with_their_side(self):
+        from PIL import Image
+        renders = {}
+        for v in meshy.RENDER_ROLES:
+            renders[v] = os.path.join(self.dir, f"{v}.png")
+            Image.new("RGB", (40, 80), (90, 90, 90)).save(renders[v])
+        r = meshy.renders_to_library(self.conn, self.aid, renders, "3D render (Meshy)")
+        self.assertEqual(len(r["added"]), 6)
+        rows = self.conn.execute("SELECT role, status FROM asset_images WHERE variant='3D render (Meshy)'").fetchall()
+        self.assertEqual(sorted(x[0] for x in rows), ["back", "full_body", "full_body", "full_body", "side", "side"])
+        self.assertEqual({x[1] for x in rows}, {"pending"})
+
     def test_caps_refuse_before_sending(self):
         c = meshy.Client("k", FakeMeshy(balance=10))
         with self.assertRaisesRegex(meshy.MeshyError, "còn 10 credit"):

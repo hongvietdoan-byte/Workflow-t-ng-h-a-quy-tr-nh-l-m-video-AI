@@ -28,7 +28,7 @@ from datetime import datetime, timezone
 from typing import Callable, Dict, List, Optional
 
 BASE = "https://api.meshy.ai/openapi/v1"
-CREDITS = {"model": 30, "rig": 5, "remesh": 5}
+CREDITS = {"model": 30, "rig": 5, "remesh": 5, "retexture": 10}
 REMESH_POLYCOUNT = 150000            # rigging takes ≤ 300 000 faces; a 9:16 video frame does not need more
 MAX_CALL_CREDITS = 40
 MAX_TRIES_PER_CHARACTER = 3
@@ -283,8 +283,25 @@ class Client:
             path, body["image_urls"] = "/multi-image-to-3d", views[:4]
         return str(self._call("POST", path, body, timeout=180)["result"]), path
 
-    def create_rig(self, input_task_id: str, height_m: float) -> str:
-        return str(self._call("POST", "/rigging", {"input_task_id": input_task_id, "height_meters": float(height_m)})["result"])
+    def create_rig(self, input_task_id: Optional[str], height_m: float, model_url: Optional[str] = None,
+                   texture_image_url: Optional[str] = None) -> str:
+        """By the task (model / remesh), or by the file's link + its base-colour texture (a retextured model: the docs do not say
+        rigging takes a retexture task)."""
+        body = {"height_meters": float(height_m)}
+        if model_url:
+            body["model_url"] = model_url
+            if texture_image_url:
+                body["texture_image_url"] = texture_image_url
+        else:
+            body["input_task_id"] = input_task_id
+        return str(self._call("POST", "/rigging", body)["result"])
+
+    def create_retexture(self, input_task_id: str, text_style_prompt: str, image_style_url: Optional[str] = None) -> str:
+        body = {"input_task_id": input_task_id, "text_style_prompt": text_style_prompt[:TEXTURE_PROMPT_MAX], "enable_original_uv": True,
+                "enable_pbr": False, "target_formats": ["glb", "fbx"]}
+        if image_style_url:
+            body["image_style_url"] = image_style_url
+        return str(self._call("POST", "/retexture", body)["result"])
 
     def create_remesh(self, input_task_id: str, polycount: int) -> str:
         return str(self._call("POST", "/remesh", {"input_task_id": input_task_id, "target_polycount": int(polycount),
@@ -382,10 +399,32 @@ def submit_remesh(conn, client: Client, model_row: int, polycount: int = REMESH_
     return {"row": row, "task_id": task_id}
 
 
-def submit_rig(conn, client: Client, model_row: int) -> Dict:
-    """Rig a downloaded model — or, better, its downloaded lighter copy (kind 'remesh'): Meshy refuses > 300 000 faces."""
-    m = conn.execute("SELECT * FROM meshy_tasks WHERE id=?", (model_row,)).fetchone()
+def submit_retexture(conn, client: Client, row_id: int, text_style_prompt: str, style_image=None) -> Dict:
+    """Paint a finished model (or its lighter copy) again, keeping its UV layout — 01/10 Kenta: the white bandage on his RIGHT forearm
+    came out as black armour. `style_image`: a PIL picture that shows the right look (an in-game screenshot). 10 credits."""
+    m = conn.execute("SELECT * FROM meshy_tasks WHERE id=?", (row_id,)).fetchone()
     if m is None or m["kind"] not in ("model", "remesh") or m["status"] != "DOWNLOADED":
+        raise MeshyError("chỉ tô lại texture cho mô hình (hoặc bản giảm lưới) đã xong và đã tải về")
+    try:
+        bal = client.balance()
+    except MeshyError:
+        bal = None
+    why = check(conn, m["asset_id"], "retexture", CREDITS["retexture"], bal)
+    if why:
+        raise MeshyError(why)
+    row = _insert(conn, "retexture", m["asset_id"], CREDITS["retexture"],
+                  {"input_task_id": m["task_id"], "text_style_prompt": text_style_prompt, "style_image": style_image is not None,
+                   "endpoint": "/retexture"}, parent=m["task_id"])
+    task_id = _send(conn, row, lambda: client.create_retexture(m["task_id"], text_style_prompt,
+                                                               data_uri(style_image) if style_image is not None else None))
+    return {"row": row, "task_id": task_id}
+
+
+def submit_rig(conn, client: Client, model_row: int) -> Dict:
+    """Rig a downloaded model — or, better, its downloaded lighter copy (kind 'remesh'): Meshy refuses > 300 000 faces; a retextured
+    copy is rigged from its file link + texture (fresh signed links read from Meshy)."""
+    m = conn.execute("SELECT * FROM meshy_tasks WHERE id=?", (model_row,)).fetchone()
+    if m is None or m["kind"] not in ("model", "remesh", "retexture") or m["status"] != "DOWNLOADED":
         raise MeshyError("chỉ gắn khung xương cho mô hình (hoặc bản giảm lưới) đã xong và đã tải về")
     from . import assets
     height = assets.get_profile(conn, m["asset_id"]).get("height_m") or 1.75
@@ -398,7 +437,16 @@ def submit_rig(conn, client: Client, model_row: int) -> Dict:
         raise MeshyError(why)
     row = _insert(conn, "rig", m["asset_id"], CREDITS["rig"], {"input_task_id": m["task_id"], "height_meters": height,
                                                                 "endpoint": "/rigging"}, parent=m["task_id"])
-    task_id = _send(conn, row, lambda: client.create_rig(m["task_id"], height))
+    if m["kind"] == "retexture":
+        t = client.get("/retexture", m["task_id"])
+        glb = (t.get("model_urls") or {}).get("glb")
+        tex = ((t.get("texture_urls") or [{}])[0] or {}).get("base_color")
+        if not glb:
+            _update(conn, row, status="FAILED", credits=0, error="Meshy không trả link .glb của bản tô lại")
+            raise MeshyError("Meshy không trả link .glb của bản tô lại")
+        task_id = _send(conn, row, lambda: client.create_rig(None, height, model_url=glb, texture_image_url=tex))
+    else:
+        task_id = _send(conn, row, lambda: client.create_rig(m["task_id"], height))
     return {"row": row, "task_id": task_id}
 
 
@@ -419,7 +467,7 @@ def folder_for(conn, asset_id: int, task_id: str) -> str:
 def _files_of(kind: str, task: Dict) -> Dict[str, str]:
     """name on disk → signed URL, for what is worth keeping."""
     out = {}
-    if kind in ("model", "remesh"):
+    if kind in ("model", "remesh", "retexture"):
         for fmt, url in (task.get("model_urls") or {}).items():
             if url and fmt in ("glb", "fbx", "obj", "usdz"):
                 out[f"model.{fmt}"] = url
@@ -450,7 +498,7 @@ def refresh(conn, client: Client, now: Optional[float] = None) -> List[str]:
     notes = []
     for r in conn.execute("SELECT * FROM meshy_tasks WHERE status IN ('PENDING','IN_PROGRESS','SUCCEEDED') AND task_id IS NOT NULL")\
             .fetchall():
-        endpoint = json.loads(r["request"] or "{}").get("endpoint") or {"rig": "/rigging", "remesh": "/remesh"}.get(r["kind"],
+        endpoint = json.loads(r["request"] or "{}").get("endpoint") or {"rig": "/rigging", "remesh": "/remesh", "retexture": "/retexture"}.get(r["kind"],
                                                                                                                  "/multi-image-to-3d")
         try:
             t = client.get(endpoint, r["task_id"])
@@ -528,3 +576,45 @@ def tasks(conn, asset_id: Optional[int] = None) -> List[Dict]:
     if asset_id is not None:
         sql, args = sql + " WHERE asset_id=?", (asset_id,)
     return [dict(r) for r in conn.execute(sql + " ORDER BY id DESC", args).fetchall()]
+
+
+# ---- renders of the model (Blender on this computer, 0 credit) → the library ---------------------------------------------------------
+RENDER_SCRIPT = os.path.join(os.path.dirname(__file__), "..", "tools", "render_character_views.py")
+RENDER_ROLES = {"front": "full_body", "front_left_34": "full_body", "front_right_34": "full_body", "back": "back",
+                "left_side": "side", "right_side": "side"}
+
+
+def render_views(model_path: str, out_dir: Optional[str] = None, timeout: int = 1800) -> Dict[str, str]:
+    """front / back / left_side / right_side / front_left_34 / front_right_34 renders of a .glb (Meshy only gives a front picture).
+    `left_side` = the camera stands at the character's own LEFT. Returns {view: png path}."""
+    import subprocess
+    from . import plates3d
+    blender = plates3d.find_blender()
+    if not blender:
+        raise MeshyError("không tìm thấy Blender trên máy")
+    out = out_dir or os.path.join(os.path.dirname(os.path.abspath(model_path)), "renders")
+    os.makedirs(out, exist_ok=True)
+    args = ["-b", "--factory-startup", "-P", os.path.abspath(RENDER_SCRIPT), "--", os.path.abspath(model_path), out]
+    if blender.startswith(plates3d.STORE):
+        proc = plates3d._run_in_store(blender, args, out, timeout)
+    else:
+        proc = subprocess.run([blender] + args, capture_output=True, text=True, timeout=timeout)
+    if proc.returncode != 0:
+        raise MeshyError(f"Blender lỗi (mã {proc.returncode}) — xem log trong {out}")
+    return {v: os.path.join(out, f"{v}.png") for v in RENDER_ROLES if os.path.exists(os.path.join(out, f"{v}.png"))}
+
+
+def renders_to_library(conn, asset_id: int, renders: Dict[str, str], variant: str) -> Dict:
+    """The renders → the library's review box (pending): approved, a back / side / ¾ shot gets a reference of that side."""
+    from . import assets
+    added, skipped = [], []
+    for view, path in renders.items():
+        with open(path, "rb") as f:
+            data = f.read()
+        try:
+            assets.add_image(conn, asset_id, f"render3d_{view}.png", data, src_path=path, status="pending", role=RENDER_ROLES[view],
+                             look="ingame", variant=variant, limit=60)
+            added.append(view)
+        except assets.AssetError as e:
+            skipped.append(f"{view}: {e}")
+    return {"added": added, "skipped": skipped}
