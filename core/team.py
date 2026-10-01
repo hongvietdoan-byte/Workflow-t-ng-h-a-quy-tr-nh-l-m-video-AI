@@ -52,18 +52,36 @@ def _since(days: Optional[float]) -> str:
     return (datetime.now(timezone.utc) - timedelta(days=days)).strftime("%Y-%m-%dT%H:%M:%S") if days else "0000"
 
 
-def spend_by_user(conn, days: Optional[float] = None) -> Dict[str, float]:
-    """{e-mail or name: USD} of the jobs each person sent (image / video / priced audio), by the price table."""
+def _baseline_key(email: str) -> str:
+    return "user_reset:" + (email or "").strip().lower()
+
+
+def user_baseline(conn, email: str) -> Optional[str]:
+    """The time (UTC, same text format as usage_events.at) the Owner reset this person's money bar, or None. The ledger is untouched."""
+    row = conn.execute("SELECT value FROM app_settings WHERE key=?", (_baseline_key(email),)).fetchone()
+    v = str(row[0]).strip().replace("T", " ")[:19] if row and row[0] else ""
+    return v or None
+
+
+def spend_by_user(conn, days: Optional[float] = None, since_baseline: bool = False) -> Dict[str, float]:
+    """{e-mail or name: USD} of the jobs each person sent (image / video / priced audio), by the price table.
+    `since_baseline`: count each person only from their reset point (the person's bar); the default is the whole ledger."""
     from . import budget, cost
     pricing = cost.load_pricing()
     since = _since(days)
     out: Dict[str, float] = {}
+    bases: Dict[str, Optional[str]] = {}
     for r in conn.execute(
             "SELECT u.*, COALESCE(NULLIF(TRIM(j.created_by), ''), '') AS who FROM usage_events u JOIN jobs j ON j.id=u.job_id"
             " WHERE u.provider NOT LIKE 'mock%' AND j.created_at>=?", (since,)).fetchall():
         usd = budget.row_usd(pricing, r)
         if usd:
             who = r["who"] or NO_NAME
+            if since_baseline:
+                if who not in bases:
+                    bases[who] = user_baseline(conn, who) if who != NO_NAME else None
+                if bases[who] and str(r["at"] or "").replace("T", " ") < bases[who]:
+                    continue
             out[who] = round(out.get(who, 0.0) + usd, 4)
     return out
 
@@ -92,7 +110,8 @@ def set_limit(conn, email: str, usd: Optional[float]) -> None:
 
 
 def month_spend(conn, email: str) -> float:
-    return spend_by_user(conn, 30).get((email or "").strip(), 0.0)
+    """The last 30 days, counted from the person's reset point when the Owner set one (team.user_baseline)."""
+    return spend_by_user(conn, 30, since_baseline=True).get((email or "").strip(), 0.0)
 
 
 def limit_status(conn, email: str) -> Optional[Dict]:
