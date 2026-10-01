@@ -76,7 +76,7 @@ def step2(p: Pipeline, pid: int):
     proj = p.project(pid)
     runner = image_runner(p)
     summ = lineage.summary(p.conn, pid)
-    step_header("Bước 2 · Ảnh + QC", "mỗi cảnh một ảnh đúng nhân vật, đúng bối cảnh, đã duyệt",
+    step_header("Storyboard · Ảnh + QC", "mỗi cảnh một ảnh đúng nhân vật, đúng bối cảnh, đã duyệt",
                 f"{summ['images'][0]}/{summ['total']} cảnh có ảnh duyệt", summ["images"][1])
     from dashboard import next_step                                     # S9 E0.1: the next thing to do, one line
     ui.html(next_step.band(p, pid, 2, C.DATA))

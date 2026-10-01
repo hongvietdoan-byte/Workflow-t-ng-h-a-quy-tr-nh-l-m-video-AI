@@ -45,7 +45,7 @@ def step1(p: Pipeline, pid: int):
     char_names = [c["name"] for c in chars]
     locked = any(c["locked"] for c in chars)
     stale = len(lineage.stale_scene_ids(p.conn, pid)) if scenes else 0
-    step_header("Bước 1 · Kịch bản & đạo diễn", "tách cảnh → chuẩn bị → Director → nhân vật → thoại → khóa",
+    step_header("Kịch bản & đạo diễn", "tách cảnh → chuẩn bị → Director → nhân vật → thoại → khóa",
                 _count_label(p, pid, scenes) + f" · {len(chars)} nhân vật" + (" · đã khóa" if locked else ""), stale)
     note = st.session_state.pop("inherited_note", None)                 # S3.8: said once, right after the project was made
     if note:
@@ -53,6 +53,8 @@ def step1(p: Pipeline, pid: int):
     from dashboard import next_step                                     # S9 E0.1: the next thing to do, one line
     ui.html(next_step.band(p, pid, 1, C.DATA))
 
+    from dashboard.steps.step1_refs import inputs_and_refs                # đợt 3: ways in + attach reference pictures
+    inputs_and_refs(p, pid, bool(scenes))
     # S9.1 (người dùng, sau #8): once the script is split the card folds to one line; open again with "▸ Mở"
     with ui.fold("1a · 📜 Kịch bản", _script_summary(p, pid, scenes), f"script_{pid}",
                  default_open=not scenes or bool(st.session_state.get("parse_warn")),
@@ -145,7 +147,7 @@ def step1(p: Pipeline, pid: int):
             missing_anchor = [c["name"] for c in chars if not c["anchor_approved"]]
             a.caption("Xong nhân vật (và storyboard nếu dựng): duyệt & khóa rồi sang Bước 2."
                       + (f" Chưa duyệt ảnh mốc: {', '.join(missing_anchor)}." if missing_anchor else ""))
-            b.button("✔ Duyệt & khóa → Bước 2", type="primary", key=f"lock_go_{pid}", on_click=_lock_and_go, args=(p, pid))
+            b.button("✔ Duyệt & khóa → Storyboard", type="primary", key=f"lock_go_{pid}", on_click=_lock_and_go, args=(p, pid))
             if st.session_state.get("lock_error"):
                 st.error(st.session_state.pop("lock_error"))
 
@@ -361,6 +363,6 @@ def _lock_and_go(p: Pipeline, pid: int) -> None:
     except ERRORS as e:
         st.session_state["lock_error"] = str(e)
         return
-    st.session_state["step"] = STEPS[1]
+    st.session_state["step"] = STEPS[2]                 # đợt 3: Storyboard (Ảnh + QC, Motion & giọng)
 
 

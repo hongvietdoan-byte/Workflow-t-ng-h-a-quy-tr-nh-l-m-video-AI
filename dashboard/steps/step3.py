@@ -8,7 +8,7 @@ def step3(p: Pipeline, pid: int):
     summ = lineage.summary(p.conn, pid)
     status = lineage.scan(p.conn, pid)
     approved_imgs = [r for r in status.values() if r["image_job_id"]]
-    step_header("Bước 3 · Motion, giọng thoại & animatic", "viết cách chuyển động cho từng cảnh, làm giọng, xem nhịp — trước khi tốn credit video",
+    step_header("Storyboard · Motion, giọng thoại & animatic", "viết cách chuyển động cho từng cảnh, làm giọng, xem nhịp — trước khi tốn credit video",
                 f"{summ['motion'][0]}/{summ['total']} prompt đã duyệt", summ["motion"][1])
     from dashboard import next_step                                     # S9 E0.1
     ui.html(next_step.band(p, pid, 3, C.DATA))

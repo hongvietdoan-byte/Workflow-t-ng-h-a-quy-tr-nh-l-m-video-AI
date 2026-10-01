@@ -39,10 +39,30 @@ def configure(db: str, data: str) -> None:
     DB, DATA = db, data
 
 
-STEPS = ["1 · Kịch bản & đạo diễn", "2 · Ảnh + QC", "3 · Motion & giọng", "4 · Video + QC",
-         "5 · Âm thanh & xuất bản", "📊 Theo dõi"]
+# Đợt 3 (01/10): 5 bước → 4 màn + trang đầu + Nhóm. Mỗi màn dựng từ các hàm bước cũ, KHÔNG bỏ tính năng nào:
+#   Kịch bản = step1 · Storyboard = step2 (Ảnh + QC) + step3 (Motion & giọng) trong 2 tab · Video = step4 · Bản giao = step5.
+STEPS = ["⌂ Tất cả dự án", "Kịch bản", "Storyboard", "Video", "Bản giao", "👥 Nhóm", "📊 Theo dõi"]
+SCREEN_INDEX = {"home": 0, "script": 1, "storyboard": 2, "video": 3, "deliver": 4, "team": 5, "monitor": 6}
 
-STEP_PERMISSION = {"📊 Theo dõi": "monitor"}
+STEP_PERMISSION = {"📊 Theo dõi": "monitor", "👥 Nhóm": "monitor"}
+
+
+def screen_label(key: str) -> str:
+    return STEPS[SCREEN_INDEX[key]]
+
+
+SB_TABS = ("🖼 Ảnh + QC", "🎞 Motion, giọng & animatic")        # the two tabs of the Storyboard screen (dashboard/app.py)
+
+
+def go_screen(project_id, key: str, tab: int = 0) -> None:
+    """Button callback: open `project_id` (when given) on the screen `key` (runs before the widgets, so it may set both pickers).
+    `tab` picks the Storyboard tab (0 = Ảnh, 1 = Motion)."""
+    if project_id is not None:
+        st.session_state["global_pid"] = project_id
+    st.session_state["step"] = screen_label(key)
+    if key == "storyboard":
+        st.session_state["sb_tab"] = SB_TABS[tab]
+
 
 # Lịch sử / Bài học / Phân quyền moved off the step bar into the settings gear (see settings_menu()) --
 # each opens as its own closable st.dialog panel instead of living inline in the stepper.

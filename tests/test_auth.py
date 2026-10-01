@@ -187,7 +187,7 @@ class DashboardGateTests(unittest.TestCase):
         at = self.sign_in(OWNER)
         self.assertFalse(at.exception)
         options = list(at.radio(key="step").options)
-        self.assertEqual(len(options), 6)                                             # 5 steps + Theo dõi hiệu suất
+        self.assertEqual(len(options), 7)                                             # ⌂ + 4 screens + 👥 Nhóm + Theo dõi
         button_keys = [b.key for b in at.button]
         self.assertIn("settings_users", button_keys)                                  # Phân quyền: in the settings gear now
         self.assertTrue(any("Tắt Dashboard" in b.label for b in at.button))          # v2: in the ⚙ menu
@@ -228,7 +228,7 @@ class DashboardGateTests(unittest.TestCase):
         auth.add_user(self.conn, owner(), "boss2@garena.vn", ["monitor", "settings"])
         at = self.sign_in("boss2@garena.vn")
         options = list(at.radio(key="step").options)
-        self.assertEqual(len(options), 6)                                  # 5 steps + Theo dõi hiệu suất (granted)
+        self.assertEqual(len(options), 7)                                  # ⌂ + 4 screens + Nhóm + Theo dõi (monitor granted)
         self.assertTrue(any("Theo dõi" in o for o in options))
         self.assertIn("mc_pricing", [b.key for b in at.button])      # "settings" perm granted
         self.assertNotIn("settings_users", [b.key for b in at.button])     # "users" perm not granted

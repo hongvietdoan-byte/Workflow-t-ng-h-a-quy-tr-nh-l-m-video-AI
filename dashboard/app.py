@@ -13,11 +13,13 @@ import streamlit as st
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
-from core import memo  # noqa: E402
+from core import memo, team  # noqa: E402
 from dashboard import common as C  # noqa: E402
 from dashboard.common import *  # noqa: E402,F401,F403
 from dashboard.admin import monitor  # noqa: E402
 from dashboard.header import global_bar, require_login, user_name  # noqa: E402
+from dashboard.home import home  # noqa: E402
+from dashboard.team_screen import team_screen  # noqa: E402
 from dashboard.steps.step1 import step1  # noqa: E402
 from dashboard.steps.step2 import step2  # noqa: E402
 from dashboard.steps.step3 import step3  # noqa: E402
@@ -51,12 +53,28 @@ def step_done(p: Pipeline, pid: int) -> list:
 
 
 def step_label(done: list):
+    """Label of each screen on the bar, with its progress. `done` = step_done()'s five old steps; Storyboard joins Ảnh + Motion."""
+    def pick(*idx):
+        parts = [done[i] if i < len(done) else ("todo", "") for i in idx]
+        state = "stale" if any(x[0] == "stale" for x in parts) else ("done" if all(x[0] == "done" for x in parts) else "todo")
+        return state, " · ".join(x[1] for x in parts if x[1])
+
+    by_screen = {STEPS[1]: pick(0), STEPS[2]: pick(1, 2), STEPS[3]: pick(3), STEPS[4]: pick(4)}
     marks = {}
-    for i, name in enumerate(STEPS):
-        state, text = done[i] if i < len(done) else ("todo", "")
+    for name in STEPS:
+        state, text = by_screen.get(name, ("todo", ""))
         head = {"done": "✓  ", "stale": "⚠  ", "todo": ""}[state]
-        marks[name] = head + name + (f" · {text}" if text and state != "done" or (text and i in (1, 2, 3)) else "")
+        marks[name] = head + name + (f" · {text}" if text and (state != "done" or name == STEPS[2]) else "")
     return lambda name: marks[name]
+
+
+def storyboard(p: Pipeline, pid: int):
+    """Storyboard = Ảnh + QC (step 2) and Motion & giọng (step 3) side by side in two tabs — every control of both is still there."""
+    t_img, t_mot = st.tabs(list(C.SB_TABS), key="sb_tab", default=st.session_state.get("sb_tab") or C.SB_TABS[0])
+    with t_img:
+        step2(p, pid)
+    with t_mot:
+        step3(p, pid)
 
 
 def run_startup_sync(fn, what: str, code: str) -> None:
@@ -108,27 +126,36 @@ def main():
         st.session_state["research_checked"] = True
         research.maybe_run_in_background(DB)
     # the problems of this project are in the one status line under the top bar (header.status_line, scanned every 60 s)
-    deep = st.query_params.get("step")  # ?step=2 opens a step directly (1..5, monitor); 5a/5b and the
-    deep = {"5a": "5", "5b": "5"}.get(deep, deep)  # history/lessons/users dialog deep links still work (settings_menu)
-    keys = ["1", "2", "3", "4", "5", "monitor"]
+    on_project_screen = st.session_state.get("step") not in (STEPS[0], STEPS[5], STEPS[6])
+    if auth_on() and on_project_screen:                 # đợt 3: tell others this project is open (🔒 on the all-projects page)
+        team.touch(p.conn, pid, me().get("email"))
+        creator = (p.project(pid)["created_by"] or "").strip()
+        if creator and creator.lower() != (me().get("email") or "").lower() and me().get("role") != "owner":
+            st.warning(f"Dự án của {creator}. Bạn mở được để xem; chỉ duyệt / gen khi chủ dự án nhờ — mỗi job ghi tên người gửi.")
+    deep = st.query_params.get("step")  # ?step=1..5 / home / team / monitor opens a screen directly (old 1..5 links keep working)
+    deep_screen = {"1": 1, "2": 2, "3": 2, "4": 3, "5": 4, "5a": 4, "5b": 4, "home": 0, "team": 5, "monitor": 6}.get(deep)
     visible = [s for s in STEPS if allowed(STEP_PERMISSION.get(s, "workflow"))]
-    if deep in keys and "step" not in st.session_state and STEPS[keys.index(deep)] in visible:
-        st.session_state["step"] = STEPS[keys.index(deep)]
-    # The stepper's labels carry progress ("2 · Ảnh 3/3", "⚠ cũ"): when one changes Streamlit sees a new widget and would jump
-    # back to step 1. Re-assert the current step every run so it survives label changes.
+    if deep_screen is not None and "step" not in st.session_state and STEPS[deep_screen] in visible:
+        st.session_state["step"] = STEPS[deep_screen]
+        if deep == "3":
+            st.session_state["sb_tab"] = C.SB_TABS[1]       # the old step 3 (Motion & giọng) is the second tab of Storyboard
+    if "step" not in st.session_state and "_step_keep" not in st.session_state and STEPS[1] in visible:
+        st.session_state["step"] = STEPS[1]             # a project opens on its script, as before; ⌂ is one click away
+    # The bar's labels carry progress ("Storyboard · ảnh 3/3", "⚠ cũ"): when one changes Streamlit sees a new widget and would jump
+    # back to the first screen. Re-assert the current screen every run so it survives label changes.
     cur = st.session_state.get("step", st.session_state.get("_step_keep"))
     if cur in visible:
         st.session_state["step"] = cur
     else:
         st.session_state.pop("step", None)
-    if all(x in visible for x in STEPS[:5]):             # kế hoạch V4 5.3: the four cards of the main screen, above the step bar
+    if all(x in visible for x in STEPS[1:5]) and st.session_state.get("step") not in (STEPS[0], STEPS[5], STEPS[6]):   # the four cards of the project screens
         from dashboard import overview
         overview.cards(p, pid, STEPS)
-    step = st.radio("Bước", visible, horizontal=True, key="step", label_visibility="collapsed",
+    step = st.radio("Màn", visible, horizontal=True, key="step", label_visibility="collapsed",
                     format_func=step_label(step_done(p, pid)))
     st.session_state["_step_keep"] = step
-    {STEPS[0]: step1, STEPS[1]: step2, STEPS[2]: step3, STEPS[3]: step4, STEPS[4]: step5,
-     STEPS[5]: monitor}[step](p, pid)
+    {STEPS[0]: home, STEPS[1]: step1, STEPS[2]: storyboard, STEPS[3]: step4, STEPS[4]: step5,
+     STEPS[5]: team_screen, STEPS[6]: monitor}[step](p, pid)
 
 
 with memo.per_rerun():      # lineage.scan / summary, assets.project_assets: computed once per click and database state

@@ -5,6 +5,91 @@ from dashboard import common as C
 from dashboard.admin import asset_library_panel, history, knowledge_panel, lessons_tab, price_editor, users_tab
 
 
+def _go_item(project_id, screen) -> None:
+    C.go_screen(project_id, screen or "script")
+
+
+def inbox_card(p: Pipeline) -> None:
+    """📥 Việc cần bạn (đợt 3): what waits for you across all projects — reviews, locks of money, the automatic run, services out of credit.
+    The Owner can also list the whole team's (core/inbox.py)."""
+    from core import inbox
+    who = me()
+    email = who.get("email", "") if auth_on() else ""
+    is_owner = who.get("role") == "owner"
+    can_money = is_owner or allowed("settings")
+    mine = inbox.items(p.conn, email, is_owner, can_money, auth_on())
+    with st.popover(f"📥 Việc cần bạn ({len(mine)})" + (" 🔴" if any(i["level"] == "bad" for i in mine) else ""), width="stretch",
+                    help="Mọi việc đang chờ bạn ở mọi dự án: duyệt ảnh / clip, khóa ngân sách, chạy tự động đang dừng, dịch vụ hết tiền"):
+        team_view = False
+        if auth_on() and is_owner:
+            team_view = st.radio("Phạm vi", ["Của tôi", "Cả nhóm"], horizontal=True, label_visibility="collapsed", key="inbox_scope") == "Cả nhóm"
+        items = inbox.items(p.conn, email, is_owner, can_money, auth_on(), team_wide=True) if team_view else mine
+        kind = st.selectbox("Loại việc", [""] + list(inbox.KINDS), format_func=lambda k: "Tất cả loại việc" if not k else k,
+                            key="inbox_kind", label_visibility="collapsed")
+        if kind:
+            items = [i for i in items if i["kind"] == kind]
+        if not items:
+            st.caption("Không có việc nào đang chờ bạn." if not kind else "Không có việc loại này.")
+        for n, it in enumerate(items[:30]):
+            c1, c2 = st.columns([4, 1.2], vertical_alignment="center")
+            tag = {"bad": "🔴", "wait": "⏸", "warn": "⚠", "todo": "👉"}.get(it["level"], "")
+            c1.markdown(f"{tag} **{escape(it['kind'])}** — {escape(it['text'])}"
+                        + (f"  \n<small>#{it['project_id']} {escape(it['project'])}" + (f" · việc của {escape(it['who'])}" if it["who"] else "")
+                           + "</small>" if it["project_id"] else ""), unsafe_allow_html=True)
+            if it["project_id"] and it["screen"]:
+                c2.button("Mở →", key=f"inb_{n}", on_click=_go_item, args=(it["project_id"], it["screen"]), width="stretch")
+        if len(items) > 30:
+            st.caption(f"… còn {len(items) - 30} việc: lọc theo loại để xem tiếp.")
+
+
+LEVEL_BUSY = ("running", "queued", "waiting", "needs_attention")     # the run holds the review mode + gates (autopilot._save_cfg)
+LEGACY_KEYS = ("mode_{pid}", "ap_gate_bible_{pid}", "ap_gate_pilot_{pid}", "ap_gate_board_{pid}", "qcpol_{pid}")
+
+
+def _level_changed(pid: int) -> None:
+    """on_change of the 🎚 radio (runs before the widgets): write the three settings, then drop the older controls' remembered values so
+    they show the new settings instead of writing the old ones back (Streamlit keeps a keyed widget's value between runs)."""
+    from core import automation
+    pick = st.session_state.get(f"level_{pid}")
+    if not pick:
+        return
+    p = Pipeline(connect(C.DB))                     # a callback runs in another thread than the one that made `p`
+    try:
+        automation.apply(p, pid, pick)
+    except ValueError as e:
+        st.session_state["level_error"] = str(e)
+        return
+    for k in LEGACY_KEYS:
+        st.session_state.pop(k.format(pid=pid), None)
+
+
+def level_bar(p: Pipeline, pid: int) -> None:
+    """🎚 Mức tự động (đợt 3): one choice over who approves + the run's gates + QC strictness (core/automation.py). Only the project's
+    creator or the Owner changes it; locked while the automatic run holds the project."""
+    from core import automation
+    info = autopilot.status(p, pid)
+    busy = info["state"] in LEVEL_BUSY
+    cur = automation.current(p, pid)
+    keys = list(automation.LEVELS)
+    proj = p.project(pid)
+    creator = (proj["created_by"] or "").strip().lower() if "created_by" in proj.keys() else ""
+    can = (not auth_on()) or me().get("role") == "owner" or not creator or creator == (me().get("email") or "").lower()
+    st.session_state[f"level_{pid}"] = cur if cur in keys else None        # always show what the project really has
+    c1, c2 = st.columns([1, 5], vertical_alignment="center")
+    c1.caption("🎚 Mức tự động")
+    with c2:
+        st.radio("Mức tự động", keys, horizontal=True, label_visibility="collapsed", format_func=lambda k: automation.LEVELS[k]["label"],
+                 disabled=busy or not can, key=f"level_{pid}", on_change=_level_changed, args=(pid,),
+                 help=("Đang chạy tự động — đổi mức sau khi dừng." if busy else "Chỉ người tạo dự án hoặc Owner đổi mức." if not can else None))
+    err = st.session_state.pop("level_error", None)
+    if err:
+        st.warning(err)
+    st.caption((automation.LEVELS[cur]["desc"] if cur in keys else
+                "Tùy chỉnh: bạn đã chỉnh tay cổng duyệt / chính sách QC / người duyệt — chọn một mức để đặt lại cả ba.")
+               + ("  ·  chạy tự động đang giữ dự án nên không đổi được (lúc chạy luôn dùng QC tự duyệt, xong thì trả lại chế độ bạn chọn)"
+                  if busy else ""))
+
+
 def risk_popover(p: Pipeline, pid: int) -> None:
     """Small corner note: IP warnings and risk-control blocks seen so far in this project."""
     notes = preflight.risk_notes(p.conn, pid, preflight.load_blocklist())
@@ -538,14 +623,16 @@ def global_bar(p: Pipeline):
     """ONE bar: brand · project · state · risk · pause/continue/cancel · new project · ⚙."""
     projects = archive.active_projects(p.conn)          # 📦 archived projects are hidden (restore them in ⚙)
     with st.container(border=True):
-        c0, c1, c2, c3, c4, c5, c6 = st.columns([1.3, 2.3, 1.1, 2.4, 1.3, 1.2, 0.5], vertical_alignment="center")
+        c0, c1, c2, c3, c4, c5, c6, c7 = st.columns([1.2, 2.0, 1.0, 1.9, 1.2, 1.5, 1.2, 0.5], vertical_alignment="center")
         c0.markdown('<div class="brand"><i></i>AI Video Pipeline</div>', unsafe_allow_html=True)
         with c4:
             new_project_control(p)
         if not projects:
             with c5:
-                money_card(p, None)
+                inbox_card(p)
             with c6:
+                money_card(p, None)
+            with c7:
                 settings_menu(p, None)
             put_away = len(archive.archived_projects(p.conn))
             st.info("Chưa có dự án. Bấm “➕ Dự án mới” để bắt đầu."
@@ -571,11 +658,15 @@ def global_bar(p: Pipeline):
             st.toast(f"Đã hủy {p.cancel_all_active(pid)} việc")
             st.rerun()
         with c5:
-            money_card(p, pid)
+            inbox_card(p)
         with c6:
+            money_card(p, pid)
+        with c7:
             settings_menu(p, pid)
     if proj["paused"]:
         st.warning("Dự án đang TẠM DỪNG — không ảnh/clip nào được gửi đi. Bấm ▶ Tiếp tục ở thanh trên.")
+    if st.session_state.get("step") not in (C.STEPS[0], C.STEPS[5], C.STEPS[6]):
+        level_bar(p, pid)                                # a per-project control: not on ⌂ / Nhóm / Theo dõi
     status_line(p, pid)
     return pid
 

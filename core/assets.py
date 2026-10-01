@@ -1468,3 +1468,32 @@ def auto_sync(conn, created_by: Optional[str] = "auto-sync") -> List[Dict]:
             conn.execute("UPDATE asset_sources SET last_summary=? WHERE id=?", (f"Lỗi: {e}", src["id"]))
             conn.commit()
     return done
+
+
+def add_reference_images(conn, project_id: int, game: str, kind: str, name: str, files: List[tuple], shared: bool,
+                         created_by: Optional[str] = None) -> Dict:
+    """Đợt 3 (01/10): a person attaches pictures to a script from the script screen. `shared` = into the common Kho (pictures wait as
+    'chờ duyệt' — the pipeline does not use them until someone approves, rule G2); otherwise only for this project (the person who
+    uploaded them for this very project has approved them). Same name already there → the pictures join it. The asset is attached to
+    the project either way. Returns {"asset_id", "added", "skipped": [(file, why)], "created": bool}."""
+    name = " ".join((name or "").split())
+    if not name:
+        raise AssetError("Cho ảnh một cái tên")
+    scope = None if shared else project_id
+    row = conn.execute("SELECT id FROM assets WHERE game=? AND kind=? AND lower(name)=lower(?) AND COALESCE(project_id,0)=COALESCE(?,0)",
+                       (game, kind, name, scope)).fetchone()
+    created = row is None
+    aid = row["id"] if row else create(conn, game, kind, name, project_id=scope, created_by=created_by)
+    rep = {"asset_id": aid, "added": 0, "skipped": [], "created": created}
+    for fname, data in files:
+        sha = _sha(data)
+        if conn.execute("SELECT 1 FROM asset_images WHERE asset_id=? AND sha256=?", (aid, sha)).fetchone():
+            rep["skipped"].append((fname, "ảnh này đã có"))
+            continue
+        try:
+            add_image(conn, aid, fname, data, sha256=sha, status="pending" if shared else "approved")
+            rep["added"] += 1
+        except AssetError as e:
+            rep["skipped"].append((fname, str(e)))
+    attach(conn, project_id, aid)
+    return rep

@@ -411,7 +411,7 @@ def step5(p: Pipeline, pid: int):
     """Sound & delivery: clips → sound (music, effects, voices) → render → post (subtitles, end card, formats) → the deliverable."""
     stat = delivery.status(p, pid, C.DATA)
     state = "stale" if stat["final"]["state"] == "fresh" and stat.get("best_stale") else stat["final"]["state"]
-    step_header("Bước 5 · Âm thanh & xuất bản", "clip → âm thanh → dựng → phụ đề/card/kích thước → một bản giao",
+    step_header("Bản giao · Âm thanh & xuất bản", "clip → âm thanh → dựng → phụ đề/card/kích thước → một bản giao",
                 {"missing": "chưa dựng", "fresh": "bản giao mới nhất", "stale": "bản giao cũ"}[state], 1 if state == "stale" else 0)
     from dashboard import next_step                                     # S9 E0.1: the next thing to do, one line
     ui.html(next_step.band(p, pid, 5, C.DATA))

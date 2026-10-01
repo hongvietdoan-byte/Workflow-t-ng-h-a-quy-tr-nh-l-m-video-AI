@@ -8,7 +8,7 @@ def step4(p: Pipeline, pid: int):
     runner = video_runner(p)
     proj = p.project(pid)
     summ = lineage.summary(p.conn, pid)
-    step_header("Bước 4 · Gen video + QC video", "mỗi cảnh một clip đúng nhân vật, đúng vật lý, khớp motion prompt",
+    step_header("Video · Gen video + QC video", "mỗi cảnh một clip đúng nhân vật, đúng vật lý, khớp motion prompt",
                 f"{summ['videos'][0]}/{summ['total']} cảnh có clip dùng được", summ["videos"][1])
     from dashboard import next_step                                     # S9 E0.1
     ui.html(next_step.band(p, pid, 4, C.DATA))
@@ -156,7 +156,7 @@ def clip_set_panel(p: Pipeline, pid: int) -> None:
 
 
 def _go_step3() -> None:
-    st.session_state["step"] = STEPS[2]
+    C.go_screen(None, "storyboard", tab=1)                # the Motion tab of the Storyboard screen
 
 
 def model_plan_panel(p: Pipeline, pid: int) -> None:

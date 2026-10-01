@@ -236,10 +236,10 @@ class MergedStepTests(unittest.TestCase):
             at.run()
             self.assertFalse(at.exception)
             options = list(at.radio(key="step").options)
-            self.assertEqual(len(options), 6)
+            self.assertEqual(len(options), 7)
             self.assertFalse(any(o.startswith(("5a", "5b")) for o in options))
-            self.assertTrue(any(o.startswith("5 · Âm thanh & xuất bản") for o in options))
-            self.assertEqual(at.radio(key="step").value, next(o for o in options if o.startswith("5 ·")))
+            self.assertIn("Bản giao", options)
+            self.assertEqual(at.radio(key="step").value, "Bản giao")
             self.assertTrue(any("Phụ đề" in e.label for e in at.expander))
         finally:
             os.environ.pop("PIPELINE_DB", None)

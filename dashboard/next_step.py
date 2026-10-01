@@ -33,13 +33,13 @@ def next_action(p: Pipeline, pid: int, step: int, data_dir: str = "") -> Optiona
         if project_budget.enabled() and not (project_budget.get(conn, pid) or {}).get("locked"):
             return "Duyệt & KHÓA ngân sách dự án (💵 ở 1c) — chạy tự động chờ bước này trước khi gen ảnh", "todo"
         if any(c["locked"] for c in chars):         # locked = approved (a locked Bible may use the Kho pictures, no anchor)
-            return "Bước 1 xong — sang Bước 2", "done"
+            return "Kịch bản xong — sang màn Storyboard", "done"
         waiting_anchor = sum(1 for c in chars if not c["anchor_approved"])
         if waiting_anchor:
             return f"Duyệt ảnh mốc của {waiting_anchor} nhân vật ở 1e", "todo"
-        return "Bấm ✔ Duyệt & khóa → Bước 2 (cuối trang)", "todo"
+        return "Bấm ✔ Duyệt & khóa → Storyboard (cuối trang)", "todo"
     if not scenes:
-        return "Chưa có kịch bản — bắt đầu ở Bước 1", "todo"
+        return "Chưa có kịch bản — bắt đầu ở màn Kịch bản", "todo"
     summ = lineage.summary(conn, pid)
     total = summ["total"]
     if step == 2:
@@ -49,7 +49,7 @@ def next_action(p: Pipeline, pid: int, step: int, data_dir: str = "") -> Optiona
         left = total - summ["images"][0]
         if left:
             return f"Gen ảnh cho {left} cảnh chưa có ảnh duyệt", "todo"
-        return "Bước 2 xong — sang Bước 3", "done"
+        return "Ảnh xong — sang tab 🎞 Motion (cùng màn Storyboard)", "done"
     if step == 3:
         left = total - summ["motion"][0]
         if left:
@@ -59,7 +59,7 @@ def next_action(p: Pipeline, pid: int, step: int, data_dir: str = "") -> Optiona
         missing = v.get("missing", 0) + v.get("failed", 0)
         if missing:
             return f"Tạo giọng thoại cho {missing} câu còn thiếu", "todo"
-        return "Bước 3 xong — sang Bước 4", "done"
+        return "Motion & giọng xong — sang màn Video", "done"
     if step == 4:
         review = _count(conn, "SELECT COUNT(*) FROM jobs WHERE project_id=? AND type='video_gen' AND state='pending_review'", (pid,))
         if review:
@@ -68,7 +68,7 @@ def next_action(p: Pipeline, pid: int, step: int, data_dir: str = "") -> Optiona
         left = total - summ["videos"][0]
         if left:
             return f"Gen video cho {left} cảnh chưa có clip" + (f" ({failed} lần lỗi — xem danh sách)" if failed else ""), "todo"
-        return "Bước 4 xong — sang Bước 5", "done"
+        return "Video xong — sang màn Bản giao", "done"
     if step == 5:
         fin = lineage.latest_output(conn, pid, "final")
         if fin is None:

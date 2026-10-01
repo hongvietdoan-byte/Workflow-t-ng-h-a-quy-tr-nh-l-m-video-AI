@@ -86,3 +86,23 @@ class B5Tests(unittest.TestCase):
         self.assertEqual(len([w for w in assets.missing_files_detail(conn) if w["asset"] == "B5TEST"]), 1)
         assets.unlink_missing(conn)
         self.assertEqual([w for w in assets.missing_files_detail(conn) if w["asset"] == "B5TEST"], [])
+
+
+class ReferenceUploadTests(unittest.TestCase):
+    def test_project_only_pictures_are_approved_and_shared_ones_wait(self):
+        from core import assets
+        from core.db import connect
+        from core.pipeline import Pipeline
+        p = Pipeline(connect())
+        pid = p.create_project("refs")
+        mine = assets.add_reference_images(p.conn, pid, "FF", "character", "Orion", [("a.png", _png(400, 600))], shared=False)
+        row = p.conn.execute("SELECT status FROM asset_images WHERE asset_id=?", (mine["asset_id"],)).fetchone()
+        self.assertEqual(row["status"], "approved")
+        self.assertTrue(p.conn.execute("SELECT project_id FROM assets WHERE id=?", (mine["asset_id"],)).fetchone()["project_id"] == pid)
+        shared = assets.add_reference_images(p.conn, pid, "FF", "location", "Sân thượng", [("b.png", _png(800, 450)), ("b.png", _png(800, 450))], shared=True)
+        self.assertEqual((shared["added"], len(shared["skipped"])), (1, 1))                  # the same picture twice is kept once
+        self.assertEqual(p.conn.execute("SELECT status FROM asset_images WHERE asset_id=?", (shared["asset_id"],)).fetchone()["status"], "pending")
+        self.assertIsNone(p.conn.execute("SELECT project_id FROM assets WHERE id=?", (shared["asset_id"],)).fetchone()["project_id"])
+        self.assertTrue(p.conn.execute("SELECT 1 FROM project_assets WHERE project_id=? AND asset_id=?", (pid, shared["asset_id"])).fetchone())
+        with self.assertRaises(assets.AssetError):
+            assets.add_reference_images(p.conn, pid, "FF", "character", " ", [], shared=False)
