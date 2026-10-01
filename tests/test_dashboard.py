@@ -61,7 +61,7 @@ class DashboardSmokeTests(unittest.TestCase):
         st.dialog panel; opening one must close whichever was open before (st.dialog only allows one at once)."""
         self.seed()
         at = AppTest.from_file(APP, default_timeout=30).run()
-        at.button(key="settings_pricing").click().run()
+        at.button(key="mc_pricing").click().run()
         self.assertFalse(at.exception)
         self.assertTrue(any(t.key == "price_currency" for t in at.text_input))
         at.button(key="settings_history").click().run()
@@ -136,7 +136,7 @@ class DashboardSmokeTests(unittest.TestCase):
             self.assertFalse(at.exception, option)
         # Kho tài nguyên / Bảng giá / Kho kiến thức / Lịch sử / Bài học / Phân quyền: moved to the settings
         # gear, each its own dialog -- must render without error too.
-        for key in ("settings_assets", "settings_pricing", "settings_knowledge", "settings_history",
+        for key in ("settings_assets", "mc_pricing", "settings_knowledge", "settings_history",
                    "settings_lessons", "settings_users", "settings_limits"):
             at.button(key=key).click().run()
             self.assertFalse(at.exception, key)
@@ -294,7 +294,7 @@ class DashboardSmokeTests(unittest.TestCase):
         try:
             at = AppTest.from_file(APP, default_timeout=30).run()
             self.assertFalse(at.exception)
-            at.button(key="settings_pricing").click().run()
+            at.button(key="mc_pricing").click().run()
             at.text_input(key="price_currency").set_value("token").run()
             next(b for b in at.button if b.key == "btn_save_prices").click().run()
             self.assertFalse(at.exception)
@@ -786,7 +786,7 @@ class DashboardSmokeTests(unittest.TestCase):
         at = AppTest.from_file(APP, default_timeout=30).run()
         self.assertFalse(at.exception)
         bars = [x for x in at.get("popover") if not x.proto.popover.label.startswith("👗")]     # the per-character outfit popovers aside
-        self.assertEqual(len(bars), 3)                        # risk corner + "new project" + the one settings gear (v2)
+        self.assertEqual(len(bars), 4)                        # risk corner + "new project" + 💵 card + the one settings gear
         text = " ".join(m.value for m in at.markdown)
         self.assertIn("Cảnh 1 bị chặn (clipai)", text)      # risk-control block, with its scene
         self.assertIn("Nữ chiến binh Amazon", text)          # IP warning from the Character Bible

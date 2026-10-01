@@ -34,3 +34,5 @@ devsys/data/*
 !devsys/data/README.md
 data/skills/*/frames_png/
 data/skills/*/clips_local/
+data/feature_settings.json
+data/feature_settings.json.tmp

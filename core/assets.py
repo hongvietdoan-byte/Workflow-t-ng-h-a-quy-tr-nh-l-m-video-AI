@@ -73,6 +73,43 @@ def missing_files(conn) -> List[Dict]:
         "SELECT i.id, i.path, a.name FROM asset_images i JOIN assets a ON a.id=i.asset_id") if not os.path.exists(resolve(r["path"]))]
 
 
+def missing_files_detail(conn) -> List[Dict]:
+    """B5 01/10: like missing_files, with the source file the picture was imported from and whether it can be copied back."""
+    out = []
+    for r in conn.execute("SELECT i.id, i.path, i.src_path, a.name FROM asset_images i JOIN assets a ON a.id=i.asset_id").fetchall():
+        if not os.path.exists(resolve(r["path"])):
+            src = r["src_path"]
+            out.append({"id": r["id"], "asset": r["name"], "path": r["path"], "src_path": src,
+                        "can_reload": bool(src and os.path.isfile(src))})
+    return out
+
+
+def reload_image(conn, image_id: int) -> bool:
+    """B5: copy the picture back from the file it was imported from (the source still exists). False = nothing to copy from."""
+    row = conn.execute("SELECT path, src_path FROM asset_images WHERE id=?", (image_id,)).fetchone()
+    if not row or not row["src_path"] or not os.path.isfile(row["src_path"]):
+        return False
+    target = resolve(row["path"])
+    os.makedirs(os.path.dirname(target) or ".", exist_ok=True)
+    with open(row["src_path"], "rb") as f:
+        data = f.read()
+    if len(data) > MAX_IMAGE_BYTES:
+        data, _ = _shrink(data, row["src_path"])
+    with open(target, "wb") as f:
+        f.write(data)
+    return True
+
+
+def unlink_missing(conn) -> int:
+    """B5: drop the library entries whose picture file is gone (no file to delete — only the broken link). Returns how many."""
+    n = 0
+    for r in missing_files(conn):
+        conn.execute("DELETE FROM asset_images WHERE id=?", (r["id"],))
+        n += 1
+    conn.commit()
+    return n
+
+
 def fold(text: str) -> str:
     """Lower case, no accents, single spaces: 'Ông lão ORIN' -> 'ong lao orin' (for matching names in a script)."""
     text = unicodedata.normalize("NFD", (text or "").replace("đ", "d").replace("Đ", "D"))

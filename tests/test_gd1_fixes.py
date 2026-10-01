@@ -143,7 +143,7 @@ class PilotCoverageTests(unittest.TestCase):
 class LookTrustTests(unittest.TestCase):
     """W8: the QC agent earns the right to skip the storyboard checkpoint per look pack: >= 50 pictures, >= 90% agreement,
     <= 2% lenient mistakes."""
-    def _pictures(self, p, pid, n, disagree=0, lenient=0):
+    def _pictures(self, p, pid, n, disagree=0, lenient=0, both_reject=0):
         """n pictures: the first `lenient` passed by QC but rejected by the person, the next ones up to `disagree` failed by QC but
         approved by the person, the rest agreed (QC pass + person approve)."""
         idx = p.conn.execute("SELECT COUNT(*) FROM scenes WHERE project_id=?", (pid,)).fetchone()[0] + 1
@@ -151,6 +151,8 @@ class LookTrustTests(unittest.TestCase):
         for i in range(n):
             jid = p.create_job(sid, "image_gen")
             ai_pass, person = (True, "reject") if i < lenient else (False, "approve") if i < disagree else (True, "approve")
+            if i >= n - both_reject:
+                ai_pass, person = False, "reject"                      # QC and the person both reject: a correct catch
             p.conn.execute("INSERT INTO qc_results (job_id, criterion, score, threshold_at_time) VALUES (?,?,?,?)",
                            (jid, "overall", 0.9 if ai_pass else 0.3, 0.7))
             p.conn.execute("INSERT INTO review_log (job_id, reviewer_type, decision, decided_at) VALUES (?,?,?,datetime('now'))",
@@ -169,10 +171,28 @@ class LookTrustTests(unittest.TestCase):
         self._pictures(p, pid, 20, disagree=3)
         t = effectiveness.look_trust(p.conn, "FF_INGAME", None)
         self.assertEqual(t["pairs"], 60)
-        self.assertTrue(t["trusted"])                                                           # 57/60 = 95%, strict mistakes only
+        self.assertFalse(t["trusted"])                                                          # B2 01/10: nothing rejected → no proof yet
+        self._pictures(p, pid, 6, both_reject=6)
+        t = effectiveness.look_trust(p.conn, "FF_INGAME", None)
+        self.assertEqual((t["pairs"], t["rejected"], t["lenient_rate"]), (66, 6, 0.0))
+        self.assertTrue(t["trusted"])                                                           # 63/66 = 95%, 6 rejected, all caught
         self._pictures(p, pid, 10, lenient=3)
-        self.assertFalse(effectiveness.look_trust(p.conn, "FF_INGAME", None)["trusted"])      # 3 rejected pictures it passed
+        self.assertFalse(effectiveness.look_trust(p.conn, "FF_INGAME", None)["trusted"])      # 3 of 9 rejected pictures it passed
         self.assertEqual(effectiveness.look_trust(p.conn, "ANIME", None)["pairs"], 0)          # another look starts from zero
+
+
+    def test_b2_missing_every_rejected_picture_is_not_trusted(self):
+        """01/10 B2: 50 pictures, the person rejected 1, QC passed all 50 → it missed 100% of the rejected ones (was 2% of all)."""
+        from core import effectiveness
+        from core.db import connect
+        from core.pipeline import Pipeline
+        p = Pipeline(connect())
+        pid = p.create_project("b2")
+        p.set_project_field(pid, "look", "B2LOOK")
+        self._pictures(p, pid, 50, lenient=1)
+        t = effectiveness.look_trust(p.conn, "B2LOOK", None)
+        self.assertEqual((t["pairs"], t["rejected"], t["lenient_rate"]), (50, 1, 1.0))
+        self.assertFalse(t["trusted"])
 
 
 class BibleGapTests(unittest.TestCase):

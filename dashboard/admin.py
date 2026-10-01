@@ -229,6 +229,22 @@ def library_review_box(p: Pipeline, game: str) -> None:
 def library_health(p: Pipeline, game: str) -> None:
     """G6: what the library still lacks, so a project is not started on a character without a close-up or a place without an
     eye-level background."""
+    lost = assets.missing_files_detail(p.conn)
+    if lost:                                    # B5 01/10: files gone from disk — fix on screen (reload from the source, or drop the link)
+        with st.expander(f"⚠ {len(lost)} ảnh trong Kho mất file", expanded=False):
+            for w in lost[:30]:
+                a1, a2, a3 = st.columns([4, 1.4, 1.4], vertical_alignment="center")
+                a1.markdown(f"**{escape(w['asset'])}** · `{w['path']}`" + ("" if w["can_reload"] else " · nguồn không còn"))
+                if a2.button("↻ Tải lại", key=f"lib_lost_reload_{w['id']}", disabled=not w["can_reload"],
+                             help="Chép lại từ tệp gốc đã nhập"):
+                    assets.reload_image(p.conn, w["id"])
+                    st.rerun()
+                if a3.button("🔗 Gỡ liên kết", key=f"lib_lost_rm_{w['id']}", help="Xóa dòng hỏng khỏi Kho (file đã mất)"):
+                    assets.remove_image(p.conn, w["id"])
+                    st.rerun()
+            if st.button("🔗 Gỡ liên kết TẤT CẢ ảnh mất file", key="lib_lost_rm_all"):
+                assets.unlink_missing(p.conn)
+                st.rerun()
     rows = [r for r in assets.health(p.conn, game) if r["missing"] or r["pending"] or r["unlabelled"]]
     if not rows:
         return

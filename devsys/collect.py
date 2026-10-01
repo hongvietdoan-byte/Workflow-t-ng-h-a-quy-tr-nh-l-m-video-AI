@@ -632,7 +632,8 @@ def flags_state(root: str, cfg: Dict, files: Optional[Sequence[str]] = None) -> 
     from_file = env_file_flags(root)
     files = files if files is not None else repo_files(root)
     sites: Dict[str, List[str]] = {k: [] for k in feats}
-    rx = re.compile(r"""features\.on\(\s*["']([a-z0-9_]+)["']|feature_on\(\s*["']([a-z0-9_]+)["']""")
+    # B6 01/10: also the module constant `FEATURE = "name"` (core/director_two_pass.py, qc_team.py, project_budget.py … call features.on(FEATURE))
+    rx = re.compile(r"""features\.on\(\s*["']([a-z0-9_]+)["']|feature_on\(\s*["']([a-z0-9_]+)["']|^FEATURE\s*=\s*["']([a-z0-9_]+)["']""")
     for f in files:
         if not f.endswith(".py") or not (f.startswith("core/") or f.startswith("dashboard/")) or f == "core/features.py":
             continue
@@ -640,7 +641,7 @@ def flags_state(root: str, cfg: Dict, files: Optional[Sequence[str]] = None) -> 
             with open(os.path.join(root, f), encoding="utf-8", errors="replace") as fh:
                 for no, line in enumerate(fh, 1):
                     for m in rx.finditer(line):
-                        name = m.group(1) or m.group(2)
+                        name = m.group(1) or m.group(2) or m.group(3)
                         if name in sites:
                             sites[name].append(f"{f}:{no}")
         except OSError:

@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AI Video Pipeline - Dashboard Mockup</title>
+<style>
+:root{--bg:#F4F5F8;--surface:#fff;--border:#E2E5EB;--text:#1A1F2B;--muted:#667085;--primary:#4F46E5;--primary-soft:#EEF0FF;--ok:#12B76A;--ok-soft:#E7F8EF;--warn:#F79009;--warn-soft:#FFF4E0;--bad:#F04438;--bad-soft:#FDECEA;--info:#0BA5EC;--info-soft:#E5F5FD}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font:13px/1.45 Inter,system-ui,-apple-system,"Segoe UI",sans-serif}
+button{font:inherit;cursor:pointer}
+.topbar{display:flex;align-items:center;gap:20px;padding:12px 24px;background:var(--surface);border-bottom:1px solid var(--border);flex-wrap:wrap}
+.logo{display:flex;align-items:center;gap:8px;font-weight:700;font-size:15px}.logo i{width:28px;height:28px;border-radius:8px;background:var(--primary);display:block}
+.sel{padding:7px 12px;border:1px solid var(--border);border-radius:8px;background:var(--bg);font-size:12px}.sel b{font-weight:600}
+.seg{display:inline-flex;background:var(--bg);border:1px solid var(--border);border-radius:8px}.seg button{border:0;background:none;padding:7px 12px;border-radius:8px;font-size:12px;color:var(--muted)}.seg button.on{background:var(--primary);color:#fff;font-weight:600}
+.lbl{font-size:12px;color:var(--muted)}.grow{flex:1}
+.btn{border:1px solid var(--border);background:var(--surface);color:var(--text);padding:8px 14px;border-radius:8px;font-size:12px;font-weight:500}
+.btn.sm{padding:5px 9px;font-size:11px}.btn.primary{background:var(--primary);border-color:var(--primary);color:#fff}.btn.ok{background:var(--ok-soft);border-color:var(--ok);color:var(--ok)}.btn.bad{background:var(--bad-soft);border-color:var(--bad);color:var(--bad)}.btn.ghost{border-color:transparent;background:none;color:var(--primary)}.btn:hover{filter:brightness(.97)}
+.stepper{display:flex;align-items:center;gap:8px;padding:14px 24px;background:var(--surface);border-bottom:1px solid var(--border);overflow-x:auto}
+.step{display:flex;align-items:center;gap:10px;padding:8px 16px 8px 12px;border-radius:10px;border:1.5px solid transparent;background:none;text-align:left;min-width:max-content}
+.step .n{width:28px;height:28px;border-radius:50%;background:var(--border);color:var(--muted);display:grid;place-items:center;font-size:11px;font-weight:700}
+.step b{display:block;font-size:12px;color:var(--muted);font-weight:500}.step small{font-size:10px;color:var(--muted)}
+.step.done .n{background:var(--ok);color:#fff}.step.done small{color:var(--ok)}
+.step.active{background:var(--primary-soft);border-color:var(--primary)}.step.active .n{background:var(--primary);color:#fff}.step.active b{color:var(--text);font-weight:600}.step.active small{color:var(--primary)}
+.line{width:22px;height:2px;background:var(--border);flex:none}.line.done{background:var(--ok)}
+main{padding:20px 24px 40px}.screen{display:none}.screen.on{display:block}
+.grid2{display:grid;grid-template-columns:520px 1fr;gap:20px}.col{display:flex;flex-direction:column;gap:16px}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:16px}.card h3{margin:0 0 12px;font-size:14px}.card h3 span{font-size:11px;color:var(--muted);font-weight:400;margin-left:6px}
+.card.warn{background:var(--warn-soft);border-color:var(--warn)}
+.drop{border:1.5px dashed var(--border);background:var(--bg);border-radius:10px;padding:22px;text-align:center;margin-bottom:12px}.drop small{display:block;color:var(--muted);margin-top:4px}
+.row{display:flex;align-items:center;gap:8px;flex-wrap:wrap}.row.gap12{gap:12px}
+.badge{display:inline-block;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:600;background:var(--bg);color:var(--muted);white-space:nowrap}
+.b-ok{background:var(--ok-soft);color:var(--ok)}.b-warn{background:var(--warn-soft);color:var(--warn)}.b-bad{background:var(--bad-soft);color:var(--bad)}.b-info{background:var(--info-soft);color:var(--info)}.b-pri{background:var(--primary-soft);color:var(--primary)}
+.item{display:flex;align-items:center;gap:12px;background:var(--bg);border-radius:8px;padding:10px 12px;margin-bottom:8px}.item .av{width:36px;height:36px;border-radius:50%;background:var(--primary-soft);flex:none}.item .t{flex:1}.item .t b{display:block;font-size:12px}.item .t span{font-size:11px;color:var(--muted)}
+.foot{display:flex;align-items:center;gap:10px;background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:14px 16px}
+.chips{display:flex;gap:8px;margin:14px 0}.chip{padding:6px 12px;border-radius:16px;border:1px solid var(--border);background:var(--surface);font-size:11px;font-weight:500;color:var(--muted)}.chip.on{background:var(--primary);border-color:var(--primary);color:#fff}
+.imgs{display:grid;grid-template-columns:repeat(4,1fr);gap:16px}.img{background:var(--surface);border:1px solid var(--border);border-radius:12px;overflow:hidden}.img.fail{border-color:var(--bad)}.img .p{height:135px}.img .m{padding:10px 12px 12px;display:flex;flex-direction:column;gap:8px}
+.bar{height:5px;background:var(--border);border-radius:3px;flex:1;max-width:100px}.bar i{display:block;height:100%;border-radius:3px}
+.split{display:grid;grid-template-columns:1fr 340px;gap:20px;align-items:start}
+.crit{display:flex;justify-content:space-between;font-size:11px;margin:5px 0}
+.note{background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:10px;margin:10px 0}.note small{color:var(--muted);display:block;font-size:10px}
+table{width:100%;border-collapse:collapse;font-size:12px}th,td{text-align:left;padding:9px 10px;border-bottom:1px solid var(--border)}th{font-size:10px;text-transform:uppercase;color:var(--muted);letter-spacing:.04em}
+.prog{height:10px;background:var(--border);border-radius:5px;overflow:hidden}.prog i{display:block;height:100%;background:var(--primary)}
+.music{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}.wave{height:46px;border-radius:8px;background:repeating-linear-gradient(90deg,var(--primary-soft) 0 3px,transparent 3px 6px);margin:10px 0}
+textarea,input[type=text]{width:100%;border:1px solid var(--border);border-radius:8px;padding:9px 10px;font:inherit;background:var(--bg)}
+.video{aspect-ratio:16/9;border-radius:10px;background:linear-gradient(135deg,#1D2B4F,#8A9BD1);display:grid;place-items:center;color:#fff;font-size:28px}
+.legend{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+.note-top{background:var(--primary-soft);border:1px solid var(--primary);color:var(--primary);border-radius:8px;padding:8px 12px;font-size:11px;margin-bottom:16px}
+</style>
+</head>
+<body>
+<style>
+.inbox{position:relative}.inbox .dot{background:var(--bad);color:#fff;border-radius:10px;padding:0 6px;font-size:10px;font-weight:700;margin-left:4px}
+.drawer{display:none;position:absolute;right:0;top:40px;width:420px;background:var(--surface);border:1px solid var(--border);border-radius:12px;box-shadow:0 12px 32px rgba(16,24,40,.14);padding:14px;z-index:9}
+.drawer.on{display:block}.drawer h4{margin:0 0 10px;font-size:13px}
+.q{display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:8px;background:var(--bg);margin-bottom:8px}.q .t{flex:1}.q small{display:block;color:var(--muted);font-size:10px}
+.money{position:relative}.moneybox{display:none;position:absolute;right:0;top:40px;width:340px;background:var(--surface);border:1px solid var(--border);border-radius:12px;box-shadow:0 12px 32px rgba(16,24,40,.14);padding:14px;z-index:9}.moneybox.on{display:block}
+.kbd{font:10px monospace;background:var(--bg);border:1px solid var(--border);border-radius:4px;padding:1px 5px}
+.plan{display:grid;grid-template-columns:repeat(5,1fr);gap:10px;margin:12px 0}.plan .p{background:var(--bg);border-radius:10px;padding:10px;text-align:center}.plan .p b{display:block;font-size:15px}.plan .p small{color:var(--muted);font-size:10px}
+.gate{border:2px solid var(--primary);border-radius:12px;background:var(--primary-soft);padding:14px;margin:14px 0}
+.tune{border:1px dashed var(--border);border-radius:10px;padding:10px 14px;color:var(--muted);margin-top:14px}
+</style>
+<div class="topbar">
+  <div class="logo"><i></i>AI Video Pipeline</div>
+  <div class="sel"><span class="lbl">Dự án:</span> <b>Thử 02/10 — kịch bản mới ▾</b></div>
+  <div class="row"><span class="lbl">Mức tự động</span><div class="seg"><button>Tôi duyệt hết</button><button class="on">Duyệt cổng chính</button><button>Tự chạy trong trần</button></div></div>
+  <span class="grow"></span>
+  <div class="inbox"><button class="btn" id="inboxBtn">📥 Việc cần bạn <span class="dot">3</span></button>
+    <div class="drawer" id="inbox">
+      <h4>Việc đang chờ bạn <span class="badge b-info">phím: <span class="kbd">Y</span> duyệt · <span class="kbd">N</span> loại · <span class="kbd">E</span> sửa 1 câu · <span class="kbd">→</span> kế</span></h4>
+      <div class="q"><span class="badge b-warn">Ảnh</span><div class="t">Shot 4 — Kenta cầm kiếm<small>Tổ QC: tay phải sai chiều (đánh dấu, chưa chặn)</small></div><button class="btn sm ok">✔</button><button class="btn sm bad">✖</button><button class="btn sm">✎</button></div>
+      <div class="q"><span class="badge b-warn">Ngân sách</span><div class="t">Duyệt & khóa ngân sách ≈ 9,40 USD<small>ảnh 3,2 · video 5,1 · Claude 1,1</small></div><button class="btn sm primary">Khóa</button></div>
+      <div class="q"><span class="badge b-bad">Tiền</span><div class="t">ClipAI báo hết tiền<small>nạp xong bấm "mở lại"</small></div><button class="btn sm">Mở lại</button></div>
+    </div></div>
+  <div class="money"><button class="btn" id="moneyBtn">💵 3,12 / 10</button>
+    <div class="moneybox" id="money">
+      <b>Tiền</b>
+      <div class="note"><small>Đợt thử</small>3,12 / 10 USD<div class="prog"><i style="width:31%"></i></div></div>
+      <div class="note"><small>Claude API</small>2,40 / 11,80 USD<div class="prog"><i style="width:20%"></i></div></div>
+      <div class="note"><small>Dự án này 🔒</small>đã chi 3,12 / trần 9,40<div class="prog"><i style="width:33%"></i></div></div>
+      <div class="row"><button class="btn sm">Bảng giá</button><button class="btn sm">Đợt thử & Claude</button></div>
+    </div></div>
+  <button class="btn">⏸ Tạm dừng</button><button class="btn">⚙</button>
+</div>
+<div class="stepper" id="stepper"></div>
+<main>
+<div class="note-top">MOCKUP đề xuất đợt 3 (rà soát 01/10, mục 5.1): <b>5 bước → 4 màn + hộp "Việc cần bạn"</b>. Bấm các bước phía trên, 📥 và 💵 để xem. Chưa code — chờ bạn duyệt / góp ý.</div>
+
+<section class="screen on" id="s1">
+  <div class="grid2">
+    <div class="col">
+      <div class="card"><h3>Kịch bản <span>một ô nhập duy nhất</span></h3>
+        <div class="drop"><b>Kéo file vào, dán văn bản, hoặc gõ ý tưởng thô</b><small>Tự nhận dạng: có "CẢNH n" → kịch bản · ngắn → Biên kịch hỏi lại 4 lượt</small></div>
+        <textarea rows="5" placeholder="Dán kịch bản hoặc ý tưởng…">Kenta xuyên tường, bị Maxim chặn ở sân thượng…</textarea>
+        <div class="chips"><span class="chip on">⏱ 60 s</span><span class="chip on">📱 TikTok 9:16</span><span class="chip on">🎨 FF in-game</span><span class="chip on">🎬 Hành động</span></div>
+        <small class="lbl">4 chip này mặc định theo dự án trước; bấm để đổi.</small>
+      </div>
+    </div>
+    <div class="col">
+      <div class="card"><h3>Lập kế hoạch <span>một nút</span></h3>
+        <button class="btn primary" style="width:100%;padding:12px">▶ Lập kế hoạch (≈ 0,9 USD)</button>
+        <p class="lbl">= Director + Bible + rà thoại + người xem lần đầu + đề xuất ngân sách. Không còn ~6 nút "🤖 Claude…" riêng.</p>
+        <div class="plan"><div class="p"><b>12</b><small>shot</small></div><div class="p"><b>3</b><small>nhân vật</small></div><div class="p"><b>2</b><small>cảnh cờ rủi ro</small></div><div class="p"><b>9,40</b><small>USD dự tính</small></div><div class="p"><b>OK</b><small>rà thoại</small></div></div>
+        <div class="row"><span class="badge b-warn">Cần ảnh: nhân vật mới "Orion"</span><span class="badge b-ok">Rà thoại: đạt</span></div>
+      </div>
+      <div class="tune">▸ Tinh chỉnh (gập): World Bible · luật Director · ưu tiên model · khổ phụ · nhập JSON tay</div>
+    </div>
+  </div>
+</section>
+
+<section class="screen" id="s2">
+  <div class="card"><h3>Storyboard <span>ảnh + motion + giọng + animatic chạy liền sau khi duyệt kế hoạch</span></h3>
+    <div class="row gap12"><div class="video" style="width:360px">▶ Animatic 60 s</div>
+      <div style="flex:1"><div class="prog"><i style="width:78%"></i></div><p class="lbl">Ảnh 12/12 · Motion 12/12 · Giọng 9/11 · Animatic dựng lại tự động</p>
+      <div class="row"><span class="badge b-ok">9 khung đạt</span><span class="badge b-warn">2 khung Tổ QC ghi chú</span><span class="badge b-bad">1 khung lỗi lớp 0</span></div></div></div>
+    <div class="imgs" style="margin-top:14px">
+      <div class="img"><div class="video" style="border-radius:0">1</div><div style="padding:8px"><span class="badge b-ok">đạt</span></div></div>
+      <div class="img"><div class="video" style="border-radius:0">2</div><div style="padding:8px"><span class="badge b-ok">đạt</span></div></div>
+      <div class="img fail"><div class="video" style="border-radius:0">3</div><div style="padding:8px"><span class="badge b-bad">lỗi: thừa người</span> <small>gợi ý: <button class="btn sm">bỏ người thứ 3</button><button class="btn sm">vẽ lại</button></small></div></div>
+      <div class="img"><div class="video" style="border-radius:0">4</div><div style="padding:8px"><span class="badge b-warn">ghi chú QC</span> <small>sửa bằng 1 câu…</small></div></div>
+    </div>
+    <div class="gate"><b>Cổng duyệt duy nhất trước khi chi tiền video</b> — xem animatic + lưới khung, duyệt / sửa 1 câu từng khung bằng phím.
+      <div class="row" style="margin-top:8px"><button class="btn primary">✔ Duyệt storyboard → gửi video (≈ 5,1 USD)</button><span class="lbl">Mức "Tự chạy trong trần" thì cổng này tự qua khi QC sạch.</span></div></div>
+  </div>
+</section>
+
+<section class="screen" id="s3">
+  <div class="card"><h3>Video <span>chạy theo model đề xuất; chỉ hiện clip cần người xem</span></h3>
+    <div class="row"><div class="prog" style="flex:1"><i style="width:60%"></i></div><span class="lbl">7/12 clip xong · 1,9 / 5,1 USD</span></div>
+    <table><tr><th>Shot</th><th>Model (đề xuất theo cảnh)</th><th>Trạng thái</th><th>Cần bạn?</th></tr>
+      <tr><td>1–3</td><td>Seedance 2.5 · nhóm</td><td><span class="badge b-ok">xong</span></td><td>—</td></tr>
+      <tr><td>4</td><td>Kling 3.0 · khung đầu</td><td><span class="badge b-warn">đo lớp 0: mặt lệch</span></td><td><button class="btn sm">Xem</button><button class="btn sm">Sinh lại (≤ 2)</button></td></tr>
+      <tr><td>5–9</td><td>Kling 3.0</td><td><span class="badge b-info">đang chạy</span></td><td>—</td></tr></table>
+    <p class="lbl">Clip đạt không hiện — mở "Tất cả clip" nếu muốn xem hết.</p></div>
+</section>
+
+<section class="screen" id="s4">
+  <div class="card"><h3>Bản giao</h3>
+    <div class="row gap12"><div class="video" style="width:360px">FINAL 9:16</div>
+      <div style="flex:1"><button class="btn primary" style="width:100%;padding:12px">📦 Xuất bản đầy đủ (dựng + nhạc + phụ đề + −14 LUFS)</button>
+        <div class="chips"><span class="chip on">Phụ đề</span><span class="chip on">Card cuối (CTA)</span><span class="chip">Khổ phụ 1:1</span></div>
+        <p class="lbl">Mặc định 1 nút + 3 chip. ~40 điều khiển dựng / nhạc / SFX chuyển vào "Tinh chỉnh".</p></div></div>
+    <div class="tune">▸ Tinh chỉnh (gập): chuyển cảnh · rung · nhạc (BPM, mood) · SFX · màu · hạ nhạc · 10 hiệu ứng thử</div></div>
+</section>
+</main>
+<script>
+const S=[["1","Kịch bản","Lập kế hoạch"],["2","Storyboard","ảnh+motion+giọng"],["3","Video","chỉ clip cần xem"],["4","Bản giao","1 nút xuất"]];
+const st=document.getElementById('stepper');
+function show(i){document.querySelectorAll('.screen').forEach((s,k)=>s.classList.toggle('on',k===i));
+ st.innerHTML=S.map((s,k)=>`<button class="step ${k<i?'done':''} ${k===i?'active':''}" data-i="${k}"><span class="n">${s[0]}</span><span><b>${s[1]}</b><small>${s[2]}</small></span></button>${k<S.length-1?`<span class="line ${k<i?'done':''}"></span>`:''}`).join('');
+ st.querySelectorAll('.step').forEach(b=>b.onclick=()=>show(+b.dataset.i));}
+show(0);
+document.getElementById('inboxBtn').onclick=()=>document.getElementById('inbox').classList.toggle('on');
+document.getElementById('moneyBtn').onclick=()=>document.getElementById('money').classList.toggle('on');
+</script>
+</body></html>

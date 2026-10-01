@@ -85,6 +85,7 @@ def _agreement(conn, project_id: int) -> Dict:
 TRUST_PAIRS = 50          # W8 (kế hoạch tổng): the storyboard checkpoint may be skipped only after >= 50 pictures ...
 TRUST_AGREEMENT = 0.90    # ... of the same look pack where the QC agent agreed with the person at least 90% of the time ...
 TRUST_LENIENT = 0.02      # ... and passed at most 2% of the pictures the person rejected (lenient mistakes cost video money)
+TRUST_MIN_REJECTED = 5    # 01/10 B2: ... among at least this many rejected pictures (with none the rate means nothing)
 
 
 def look_trust(conn, look: Optional[str], image_model: Optional[str]) -> Dict:
@@ -102,9 +103,14 @@ def look_trust(conn, look: Optional[str], image_model: Optional[str]) -> Dict:
         return {"pairs": 0, "agreement": None, "lenient_rate": None, "trusted": False}
     verdicts = [(r["score"] >= (r["threshold"] or 0), r["person"] == "approve") for r in both]
     agreement = sum(1 for a, b in verdicts if a == b) / len(both)
-    lenient = sum(1 for a, b in verdicts if a and not b) / len(both)
-    return {"pairs": len(both), "agreement": agreement, "lenient_rate": lenient,
-            "trusted": len(both) >= TRUST_PAIRS and agreement >= TRUST_AGREEMENT and lenient <= TRUST_LENIENT}
+    rejected = sum(1 for a, b in verdicts if not b)
+    missed = sum(1 for a, b in verdicts if a and not b)
+    # 01/10 B2: the share of the pictures the PERSON rejected that the QC passed (it divided by all pictures: 50 pictures, 1 rejected,
+    # all passed = 100% missed but "2%" → trusted, and the storyboard checkpoint was skipped)
+    lenient = missed / rejected if rejected else None
+    return {"pairs": len(both), "agreement": agreement, "lenient_rate": lenient, "rejected": rejected,
+            "trusted": (len(both) >= TRUST_PAIRS and agreement >= TRUST_AGREEMENT and rejected >= TRUST_MIN_REJECTED
+                        and lenient is not None and lenient <= TRUST_LENIENT)}
 
 
 def report(conn, project_id: int, pricing: Dict) -> Dict:
