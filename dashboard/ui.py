@@ -9,7 +9,7 @@ import streamlit as st
 
 CSS = """
 <style>
-:root{--bg:#F4F5F8;--surface:#fff;--border:#E2E5EB;--text:#1A1F2B;--muted:#667085;--primary:#4F46E5;--primary-soft:#EEF0FF;
+:root{--bg:#F4F5F8;--surface:#fff;--border:#B8C1D1;--text:#1A1F2B;--muted:#667085;--primary:#4F46E5;--primary-soft:#EEF0FF;
 --ok:#12B76A;--ok-soft:#E7F8EF;--warn:#F79009;--warn-soft:#FFF4E0;--bad:#F04438;--bad-soft:#FDECEA;--info:#0BA5EC;--info-soft:#E5F5FD}
 .stApp{background:var(--bg)}
 header[data-testid="stHeader"]{background:transparent}
@@ -93,6 +93,11 @@ label[data-testid="stWidgetLabel"] p{font-size:13.5px;color:var(--text)}
 .st-key-step [data-testid="stRadioGroup"]>div:first-child label[data-testid="stRadioOption"]::before{content:"⌂";font-size:15px}
 .st-key-step [data-testid="stRadioGroup"]>div:nth-child(n+6) label[data-testid="stRadioOption"]::before{display:none}
 .st-key-step label[data-testid="stRadioOption"][data-selected="true"]::before{background:var(--primary);color:#fff}
+/* viền rõ nét hơn (người dùng 01/10): đậm màu + dày 1.5px cho thẻ, ô nhập, mục gập */
+div[data-testid="stVerticalBlockBorderWrapper"]{border-width:1.5px}
+[data-testid="stExpander"] details,[data-testid="stTextInputRootElement"],[data-testid="stNumberInputContainer"],[data-testid="stTextAreaRootElement"],div[role="group"]{border-width:1.5px}
+.stButton>button,.stDownloadButton>button,[data-testid="stPopoverButton"]{border-width:1.5px}
+.st-key-step label[data-testid="stRadioOption"]{border-width:2px}
 </style>
 """
 
@@ -110,7 +115,7 @@ MODE_LABELS = {"auto": "Tự duyệt theo QC", "human_qc": "Người duyệt"}
 DARK_CSS = """
 <style>
 /* 🌙 Nền tối (thử 01/10): đổi biến màu của khung + các thành phần gốc của Streamlit. Bảng dữ liệu (canvas) vẫn nền sáng. */
-:root{--bg:#0F1420;--surface:#171D2B;--border:#2B3550;--text:#E6EAF2;--muted:#A9B4C9;--primary:#8B85FF;--primary-soft:#262B52;
+:root{--bg:#0F1420;--surface:#171D2B;--border:#4A5A80;--text:#E6EAF2;--muted:#A9B4C9;--primary:#8B85FF;--primary-soft:#262B52;
 --ok:#4ADE80;--ok-soft:#12301F;--warn:#FBBF24;--warn-soft:#3A2A0C;--bad:#F87171;--bad-soft:#3B1717;--info:#38BDF8;--info-soft:#0E2F40}
 .stApp,[data-testid="stAppViewContainer"],[data-testid="stMain"]{background:var(--bg);color:var(--text)}
 [data-testid="stHeader"]{background:transparent}
