@@ -60,7 +60,14 @@ def step1(p: Pipeline, pid: int):
         if script_open:
             if st.session_state.get("parse_warn") and scenes:
                 st.warning(st.session_state["parse_warn"])
-            t_file, t_text = st.tabs(["📎 Tải file", "✍ Gõ / dán văn bản"])
+            from core import idea_to_script
+            if idea_to_script.enabled():                                # S11.1: a third way in — a raw idea → the Biên kịch
+                t_file, t_text, t_idea = st.tabs(["📎 Tải file", "✍ Gõ / dán văn bản", "💡 Ý tưởng thô"])
+                with t_idea:
+                    from dashboard.steps.step1_idea import idea_panel
+                    idea_panel(p, pid)
+            else:
+                t_file, t_text = st.tabs(["📎 Tải file", "✍ Gõ / dán văn bản"])
             with t_file:
                 up = st.file_uploader("Kịch bản", type=list(script_reader.SUPPORTED), key=f"up_{pid}", label_visibility="collapsed",
                                       help="Word (.docx, kể cả kịch bản viết trong bảng), Excel (.xlsx), CSV/TSV, .txt, .md")

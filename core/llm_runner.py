@@ -870,6 +870,8 @@ class MockLlm:
         v2 = self._v2(prompt)
         if v2 is not None:
             return LlmReply("```json\n" + json.dumps(v2, ensure_ascii=False) + "\n```", 90, 50)
+        if prompt.startswith("# Biên kịch — Lượt"):                      # S11.1 (core/idea_to_script.py)
+            return LlmReply("```json\n" + json.dumps(_mock_screenwriter(prompt), ensure_ascii=False) + "\n```", 120, 60)
         if prompt.startswith("# Đạo diễn — Tầng A"):                    # GĐ5 two-pass Director (core/director_two_pass.py)
             return LlmReply("```json\n" + json.dumps(_mock_intent(prompt), ensure_ascii=False) + "\n```", 100, 40)
         if "# Việc lần này: Quay phim chia shot Cảnh" in prompt:
@@ -984,6 +986,29 @@ def _mock_shots(scene: Dict, first: bool, last: bool) -> List[Dict]:
         out.append({"size": "MS", "angle": "low", "camera_move": "push_in", "role": "ending", "duration_s": 2.0, "hero": True,
                     "action": "tạo dáng kết (giả lập)", "image_prompt": "final pose, low angle (mock)", "characters": cast})
     return out
+
+
+def _mock_screenwriter(prompt: str) -> Dict:
+    """A fixed, valid answer for each turn of the Biên kịch (demo / tests without the API)."""
+    turn = int(re.match(r"# Biên kịch — Lượt (\d)", prompt).group(1))
+    if turn == 1:
+        return {"have": ["Kelly và Maxim", "một trận bo cuối"], "missing": ["ai thắng", "giọng điệu"],
+                "questions": [{"q": "Kết vui hay bất ngờ?", "default": "bất ngờ", "why": "đổi cú chốt"},
+                              {"q": "Có Kenta không?", "default": "không", "why": "đổi số nhân vật"}]}
+    if turn == 2:
+        return {"directions": [{"title": t, "logline": f"Kelly và Maxim tranh thùng thính ({t}, giả lập).", "hook_3s": "Thùng thính rơi giữa hai người.",
+                                "payoff": "Thùng thính trống trơn.", "trend_card": ""} for t in ("Hài", "Hồi hộp", "Ấm áp")]}
+    if turn == 3:
+        m = re.search(r"Thời lượng mục tiêu: (\d+) s", prompt)
+        d = int(m.group(1)) if m else 30
+        cut = [0, 3, round(d * .35), round(d * .65), round(d * .85), d]
+        names = ["hook", "setup", "turn", "climax", "ending"]
+        return {"beats": [{"name": n, "start": cut[i], "end": cut[i + 1], "place": "Đảo Quân Sự", "who": ["KELLY", "MAXIM"],
+                           "what": f"{n} (giả lập)", "dialogue": [{"speaker": "KELLY", "line": "Của tôi!"}] if n == "hook" else []}
+                          for i, n in enumerate(names)], "total_s": d, "question": "Ai lấy được thùng thính?"}
+    return {"script": "CẢNH 1 - NGÀY, ĐẢO QUÂN SỰ\nThùng thính rơi giữa Kelly và Maxim.\nKELLY: Của tôi!\nMAXIM: Còn lâu!\n\n"
+                      "CẢNH 2 - NGÀY, ĐẢO QUÂN SỰ\nHai người mở thùng — trống trơn.\nKELLY: Ủa?",
+            "added": [{"kind": "line", "text": "MAXIM: Còn lâu!"}], "notes": "giả lập"}
 
 
 def _mock_intent(prompt: str) -> Dict:

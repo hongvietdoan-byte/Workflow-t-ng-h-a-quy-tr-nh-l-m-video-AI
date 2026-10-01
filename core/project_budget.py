@@ -58,7 +58,7 @@ def _save(conn, pid: int, data: Dict) -> Dict:
 
 def claude_stage(tag: Optional[str]) -> str:
     t = str(tag or "")
-    if t.startswith("director"):
+    if t.startswith("director") or t == "screenwriter":       # S11.1: the Biên kịch writes before the Director, same budget line
         return "claude_director"
     if t in ("qc", "qc_agent", "video", "video_qc", "video_analysis", "storyboard_review", "check", "scene_qc") or t.startswith("qc"):
         # 28/09: video_analysis (the clip QC) fell into claude_other (cap 0.20) and the lock refused every clip QC

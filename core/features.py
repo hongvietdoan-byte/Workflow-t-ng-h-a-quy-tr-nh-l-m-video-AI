@@ -178,6 +178,12 @@ FEATURES: Dict[str, Dict] = {
         "why": "Nghiệm thu 2026-09-27 trên 33 khung có nhãn của #8 không đạt (bỏ lọt 6 khung dán, báo nhầm 12/21 khung tốt); chấm lại cả "
                "cảnh sau mỗi lần vẽ lại tốn ~0,5 USD Claude chỉ để ghi chú (docs/CHAY_THU_2026-09-27_NHAT_KY.md phát hiện 44)",
     },
+    "idea_to_script": {
+        "label": "💡 Ý tưởng thô → kịch bản ở Bước 1: Biên kịch (Claude) hỏi lại ≤ 5 câu → 3 hướng → dàn ý theo giây → kịch bản đúng khuôn, "
+                 "code kiểm, người duyệt từng lượt + màn 2 cột tô phần thêm (S11.1)",
+        "verified": False,
+        "why": "S11.1 01/10: code + test + giả lập; chưa qua bộ đo 5 ý tưởng người dùng chấm (S11.2, ≈ 0,75 USD — hỏi trước)",
+    },
     "qc_team": {
         "label": "Tổ QC nhiều tầng (docs/THIET_KE_TO_QC_2026-10-01.md): bảng shot → mệnh đề kiểm tra, code đo trước (mặt, hướng mắt, màu trời), "
                  "chuyên viên Nhân vật trả lời có cấu trúc 1 lượt / khung, bảng luật code kết luận — thay lớp 1 của QC theo cảnh",
