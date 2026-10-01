@@ -3,6 +3,19 @@ from dashboard.common import *  # noqa: F401,F403  (shared imports + helpers)
 from dashboard import common as C
 
 
+def _note(text: str) -> None:
+    """A caption. UI v2 (docs/QUY_TAC_BO_CUC_UI_V2.md §5): a long explanation is cut to one line and the whole text sits behind a ⓘ."""
+    if not ui.v2_on() or len(text) <= 90:
+        return st.caption(text)
+    import hashlib
+    from dashboard.design import components as D
+    c1, c2 = st.columns([12, 1], vertical_alignment="center")
+    c1.caption(text[:87].rstrip() + "…")
+    with c2:
+        with D.info("del-note-" + hashlib.md5(text.encode("utf-8")).hexdigest()[:8]):
+            st.markdown(text)
+
+
 # ---- step 5a -------------------------------------------------------------------------
 def preview_with_track(p: Pipeline, pid: int, music_path: str, tag: str) -> None:
     out = os.path.join(project_dir(pid, "output"), f"preview_music_{tag}.mp4")
@@ -232,7 +245,7 @@ def _probe(path: str, mtime: float, requested):
 
 
 
-def subtitle_panel(p: Pipeline, pid: int, out: str = None) -> None:
+def subtitle_panel(p: Pipeline, pid: int, out: str = None, auto_ext: bool = None) -> None:
     """5.4 Subtitles: from the voiced lines (exact timing) or the script's dialogue (estimated), language, font, colour per character,
     reading-speed check, .srt / .xlsx review sheet, burned into a copy of the latest render."""
     settings = subtitles.get_settings(p, pid)
@@ -241,7 +254,7 @@ def subtitle_panel(p: Pipeline, pid: int, out: str = None) -> None:
     final = lineage.latest_output(p.conn, pid, "final")
     has_final = final is not None and os.path.exists(final["path"])
     with st.expander("🔤 Phụ đề", expanded=has_final and settings["enabled"]):
-        st.caption("Câu đã có giọng thoại lấy đúng thời điểm giọng nói; câu chưa có giọng thì ước lượng theo độ dài câu. Dịch được sang "
+        _note("Câu đã có giọng thoại lấy đúng thời điểm giọng nói; câu chưa có giọng thì ước lượng theo độ dài câu. Dịch được sang "
                    "ngôn ngữ khác bằng Claude. In vào một bản sao — video cuối gốc giữ nguyên.")
         llm = llm_client()
         c1, c2, c3 = st.columns([2, 2, 1.4])
@@ -268,7 +281,7 @@ def subtitle_panel(p: Pipeline, pid: int, out: str = None) -> None:
                                      "Chung: vùng chung của TikTok + Reels + Shorts (chữ cao hơn, ở khoảng giữa khung).")
         karaoke = st.checkbox("Chữ sáng dần theo giọng (kiểu video ngắn)", settings.get("karaoke", False), key=f"sub_karaoke_{pid}",
                               help="Từ chưa nói màu xám, sáng lên khi được nói — thời gian chia theo độ dài chữ (không nghe giọng).")
-        auto = st.checkbox("Luôn thêm phụ đề khi xuất bản (cả chế độ tự động)", settings["enabled"], key=f"sub_auto_{pid}")
+        auto = auto_ext if auto_ext is not None else st.checkbox(SUB_AUTO_LABEL, settings["enabled"], key=f"sub_auto_{pid}")   # v2: drawn in the hero
         new = {"enabled": auto, "lang": lang, "font": font_name or "", "size": size, "pos": pos, "color": color, "speaker": speaker,
                "speaker_colors": by_speaker, "karaoke": karaoke, "platform": platform}
         if new != {k: settings.get(k) for k in new}:
@@ -411,6 +424,8 @@ def step5(p: Pipeline, pid: int):
     """Sound & delivery: clips → sound (music, effects, voices) → render → post (subtitles, end card, formats) → the deliverable."""
     stat = delivery.status(p, pid, C.DATA)
     state = "stale" if stat["final"]["state"] == "fresh" and stat.get("best_stale") else stat["final"]["state"]
+    if ui.v2_on():
+        return step5_v2(p, pid, stat, state)
     step_header("Bản giao · Âm thanh & xuất bản", "clip → âm thanh → dựng → phụ đề/card/kích thước → một bản giao",
                 {"missing": "chưa dựng", "fresh": "bản giao mới nhất", "stale": "bản giao cũ"}[state], 1 if state == "stale" else 0)
     from dashboard import next_step                                     # S9 E0.1: the next thing to do, one line
@@ -442,6 +457,88 @@ def step5(p: Pipeline, pid: int):
 
 
 
+
+
+def step5_v2(p: Pipeline, pid: int, stat, state: str) -> None:
+    """UI v2 of Bản giao: hero card “📦 Xuất bản đầy đủ” (one primary button + three chips: subtitles / end card / secondary size) → the
+    finished video, files and final check → ONE “Tinh chỉnh” card with labelled sections for every other control (none removed).
+    Layout containers are made in the visual order and filled in the order the logic needs (the chips feed the panels, the clips feed the button)."""
+    from dashboard.design import components as D
+    from dashboard.design.screens import deliver_ui as V
+    hero_c, band_c, out_c, tune_c = (st.container() for _ in range(4))
+    fin = stat["final"]
+    sub_set = subtitles.get_settings(p, pid)
+    dset = delivery.get_settings(p, pid)
+    with hero_c, D.hero("del"):
+        head_c, stats_c = st.container(), st.container()
+        k1, k2, k3 = st.columns(3)
+        sub_on = k1.checkbox(SUB_AUTO_LABEL, sub_set["enabled"], key=f"sub_auto_{pid}")
+        card_on = k2.checkbox(CARD_ON_LABEL, dset["end_card"].get("enabled", False), key=f"card_on_{pid}")
+        preset = k3.selectbox("Kích thước", list(EXPORT_PRESETS), key=f"exp_preset_{pid}",
+                              help="Khổ phụ: chọn ở đây rồi “Thêm vào danh sách xuất bản” trong mục Tinh chỉnh → Phụ đề · card · khung phụ.")
+        btn_c = st.container()
+    with band_c:
+        if not C.expert():                 # never silent: two voices at once is said in normal mode too
+            overlaps = audio_lib.overlapping_tts(audio_lib.assets_dir(C.DATA, pid))
+            if overlaps:
+                st.warning(f"⚠ {len(overlaps)} chỗ giọng đọc đè lên nhau — bấm ▶ Dựng video cuối (giọng tự xếp theo clip) hoặc bật ⚙ → "
+                           "Chế độ chuyên gia để xếp lại tay.")
+    with tune_c, D.card("del-tune"):
+        st.markdown(D.hero_html("Tinh chỉnh", "clip, nhạc, hiệu ứng, chuyển cảnh, phụ đề, card, khung phụ — mọi điều khiển cũ nằm ở đây"),
+                    unsafe_allow_html=True)
+        t_clip, t_music, t_sfx, t_post = st.tabs(["🎬 Clip & dựng", "🎵 Nhạc nền", "🔊 Hiệu ứng & giọng", "🔤 Phụ đề · card · khung phụ"])
+        with t_clip:
+            chosen, durations = clips_panel(p, pid)
+            timeline_panel(p, pid)
+            render_panel(p, pid, chosen, durations)
+        with t_music:
+            ui.html(ui.card_title("5.2 · 🔊 Âm thanh", "nhạc nền · hiệu ứng · giọng thoại (làm ở Bước 3)"))
+            step5a(p, pid)
+        with t_sfx:
+            sfx_assistant(p, pid)
+            if C.expert():
+                with st.expander("🎧 Hiệu ứng & giọng đọc thêm (tùy chọn)"):
+                    try:
+                        provider = music.audio_provider()
+                    except ProviderError as e:                 # U1: say why the audio buttons are missing instead of hiding it
+                        provider = None
+                        st.caption(f"⚠ Chưa dùng được dịch vụ âm thanh: {e}")
+                    extras_section(p, pid, provider)
+        with t_post:
+            subtitle_panel(p, pid, auto_ext=sub_on)
+            end_card_panel(p, pid, enabled_ext=card_on)
+            exports_panel(p, pid, preset_ext=preset)
+    n_exports = len(delivery.get_settings(p, pid)["exports"])
+    with head_c:
+        st.markdown(D.hero_html("📦 Xuất bản đầy đủ", "clip → âm thanh → dựng → phụ đề / card / kích thước → một bản giao",
+                                [(("Bản giao mới nhất", "ok") if state == "fresh" else ("Bản giao cũ", "warn") if state == "stale" else ("Chưa dựng", "mute")),
+                                 ("Phụ đề bật" if sub_on else "Phụ đề tắt", "ok" if sub_on else "mute"),
+                                 ("Card cuối bật" if card_on else "Card cuối tắt", "ok" if card_on else "mute"),
+                                 (f"{n_exports} khung phụ", "info" if n_exports else "mute")]), unsafe_allow_html=True)
+    with stats_c:
+        c = st.columns(4)
+        total_s = final_cut.total_seconds(durations, dset["transition"], float(dset["fade"])) if durations else 0.0
+        files_n = len(stat["layers"]) + (1 if fin.get("path") else 0)
+        c[0].markdown(D.stat("Clip đưa vào", f"{len(chosen)}"), unsafe_allow_html=True)
+        c[1].markdown(D.stat("Thời lượng dự kiến", f"{total_s:.1f} s"), unsafe_allow_html=True)
+        c[2].markdown(D.stat("File đã giao", str(files_n)), unsafe_allow_html=True)
+        best = stat["best"]
+        c[3].markdown(D.stat("Dung lượng bản chính", f"{os.path.getsize(best) / 1e6:.1f} MB" if best and os.path.exists(best) else "—"),
+                      unsafe_allow_html=True)
+    with btn_c:
+        reasons = fin["reasons"] + ([stat["best_stale"]] if stat.get("best_stale") else [])
+        if reasons:                                    # P2: one line, the full list behind ⓘ
+            D.line(D.pill(f"{len(reasons)} lý do bản giao cũ", "warn") + f" {escape(str(reasons[0]))[:90]}",
+                   "\n".join(f"- {r}" for r in reasons), "del-reasons")
+        _deliver_button(p, pid, chosen, durations, "📦 Xuất bản đầy đủ")
+        if not chosen:
+            st.markdown(D.empty_state("Chưa có clip nào để xuất", "Chạy Bước 4 (Video) hoặc tick clip trong Tinh chỉnh → Clip & dựng."), unsafe_allow_html=True)
+    with out_c, D.card("del-out"):
+        st.markdown("**Bản giao**")
+        if not (stat["best"] and os.path.exists(stat["best"])) and not stat["layers"]:
+            st.markdown(D.empty_state("Chưa có bản giao", "Bấm “📦 Xuất bản đầy đủ” ở thẻ trên."), unsafe_allow_html=True)
+        _deliver_files(p, pid, stat)
+        _final_qc(p, pid, bool(fin.get("path")))
 
 
 def timeline_panel(p: Pipeline, pid: int) -> None:
@@ -531,7 +628,7 @@ def render_panel(p: Pipeline, pid: int, chosen, durations) -> None:
                                       format_func=lambda t: tr_names[t])
                 fade = st.slider("Thời gian chuyển cảnh (giây)", 0.3, 2.0, float(s["fade"]), 0.1, key=f"fade_{pid}", disabled=transition == "cut")
                 volume = st.slider("Âm lượng nhạc nền", 0.0, 1.0, float(s["music_volume"]), 0.05, key=f"vol_{pid}", disabled=not track)
-                st.caption(f"Nhạc nền: {os.path.basename(track)}" if track else "Không có nhạc nền (chọn ở 5.2).")
+                _note(f"Nhạc nền: {os.path.basename(track)}" if track else "Không có nhạc nền (chọn ở 5.2).")
                 keep = st.checkbox("🔊 Giữ âm thanh gốc của clip (tiếng động do model tạo)", bool(s["keep_audio"]), key=f"keepaud_{pid}",
                                    help="Nhạc và giọng thoại được trộn lên trên. Cần MỌI clip đã chọn có âm thanh.")
         new = dict(s, transition=transition, fade=fade, music_volume=volume, keep_audio=keep)
@@ -543,7 +640,7 @@ def render_panel(p: Pipeline, pid: int, chosen, durations) -> None:
                 st.warning("Clip không có âm thanh: " + ", ".join(silent_clips) + " → âm thanh gốc sẽ bị bỏ cho cả bản ghép.")
         voiced = voice.status(p.conn, pid, C.DATA)
         extras = audio_lib.mix_list(audio_lib.assets_dir(C.DATA, pid))
-        st.caption(f"Giọng thoại đã tạo: {voiced.get('succeeded', 0)}/{voiced['total']} câu (tự xếp theo clip khi dựng) · hiệu ứng/giọng khác trong bản trộn: {len(extras)}")
+        _note(f"Giọng thoại đã tạo: {voiced.get('succeeded', 0)}/{voiced['total']} câu (tự xếp theo clip khi dựng) · hiệu ứng/giọng khác trong bản trộn: {len(extras)}")
         problems = final_cut.render_problems(durations, transition, fade)
         for msg in problems:
             st.warning(msg)
@@ -585,9 +682,9 @@ def viewer_check_panel(p: Pipeline, pid: int) -> None:
             st.warning("⚠ Chữ nằm dưới giao diện app ở: " + ", ".join(f"{f['t']:g}s ({'/'.join(f['text_hidden'])})"
                                                                     for f in res["frames"] if f.get("text_hidden")))
         elif not res.get("text_checked"):
-            st.caption("Chữ: bản mới nhất là bản dựng gốc (chưa in chữ) — kiểm chữ sau khi in phụ đề / card.")
+            _note("Chữ: bản mới nhất là bản dựng gốc (chưa in chữ) — kiểm chữ sau khi in phụ đề / card.")
         if not res["hidden"] and res["frames"] and not res["frames"][0].get("faces_seen"):
-            st.caption("Không có model dò mặt (data/models/face_detection_yunet_2023mar.onnx) — chỉ xem bằng mắt.")
+            _note("Không có model dò mặt (data/models/face_detection_yunet_2023mar.onnx) — chỉ xem bằng mắt.")
         st.image(res["path"], caption=f"{os.path.basename(row['path'])} — {len(res['frames'])} khung")
 
 
@@ -600,12 +697,12 @@ def loudness_line(p: Pipeline, pid: int) -> None:
         man = {}
     off = [c for c in man.get("color_match") or [] if c.get("off")]
     if off:                                   # GĐ4 D7: shots of one place that drift from their anchor
-        st.caption("🎨 Màu: " + ", ".join(f"shot {c['idx']} lệch shot {c['anchor_idx']} (điểm đen/trắng {c['levels']:g}, ám màu {c['cast']:g})"
+        _note("🎨 Màu: " + ", ".join(f"shot {c['idx']} lệch shot {c['anchor_idx']} (điểm đen/trắng {c['levels']:g}, ám màu {c['cast']:g})"
                                           + (" — đã khớp" if c.get("fixed") else "") for c in off)
                    + ("" if any(c.get("fixed") for c in off) else " · bật cờ khớp màu (FEATURE_SHOT_COLOR_MATCH=1) để tự sửa bản sao"))
     amb = man.get("ambience")
     if amb:                                   # GĐ4 D4/D5: which bed each scene got, and the scenes the library had nothing for
-        st.caption("🌧 Âm nền: " + (", ".join(f"cảnh {b['scene']}: {b['sound']}" for b in amb.get("beds") or []) or "không cảnh nào")
+        _note("🌧 Âm nền: " + (", ".join(f"cảnh {b['scene']}: {b['sound']}" for b in amb.get("beds") or []) or "không cảnh nào")
                    + (f" · chưa có âm hợp trong thư viện cho cảnh {', '.join(map(str, amb['missing']))}" if amb.get("missing") else ""))
     m = man.get("loudness")
     if not m or m.get("lufs") is None:
@@ -625,12 +722,12 @@ def cover_panel(p: Pipeline, pid: int) -> None:
         st.image(res["path"], width=220, caption=f"{res['t']:g}s — {res['why']}")
 
 
-def end_card_panel(p: Pipeline, pid: int) -> None:
+def end_card_panel(p: Pipeline, pid: int, enabled_ext: bool = None) -> None:
     s = delivery.get_settings(p, pid)
     card = dict(s["end_card"])
     with st.expander("🪧 Card chữ cuối video" + (" ✓" if card.get("enabled") else ""), expanded=False):
-        st.caption("Khung chữ tĩnh ghép vào cuối video (kêu gọi, thông điệp, ngày ra mắt…). Font tự chọn loại có đủ dấu tiếng Việt.")
-        enabled = st.checkbox("Thêm card cuối khi xuất bản", card.get("enabled", False), key=f"card_on_{pid}")
+        _note("Khung chữ tĩnh ghép vào cuối video (kêu gọi, thông điệp, ngày ra mắt…). Font tự chọn loại có đủ dấu tiếng Việt.")
+        enabled = enabled_ext if enabled_ext is not None else st.checkbox(CARD_ON_LABEL, card.get("enabled", False), key=f"card_on_{pid}")
         title = st.text_input("Dòng chính", card.get("title", ""), key=f"card_title_{pid}")
         subtitle = st.text_input("Dòng phụ (tùy chọn)", card.get("subtitle", ""), key=f"card_sub_{pid}")
         c1, c2, c3 = st.columns(3)
@@ -646,15 +743,17 @@ def end_card_panel(p: Pipeline, pid: int) -> None:
             st.rerun()
 
 
+SUB_AUTO_LABEL = "Luôn thêm phụ đề khi xuất bản (cả chế độ tự động)"
+CARD_ON_LABEL = "Thêm card cuối khi xuất bản"
 EXPORT_PRESETS = {"Dọc 1080×1920 (TikTok/Reels/Shorts)": (1080, 1920), "Ngang 1920×1080 (YouTube)": (1920, 1080),
                   "Vuông 1080×1080": (1080, 1080), "Dọc 4:5 1080×1350 (bài đăng)": (1080, 1350)}
 
 
-def exports_panel(p: Pipeline, pid: int) -> None:
+def exports_panel(p: Pipeline, pid: int, preset_ext: str = None) -> None:
     s = delivery.get_settings(p, pid)
     exports = list(s["exports"])
     with st.expander(f"📐 Xuất thêm kích thước / dung lượng ({len(exports)})", expanded=False):
-        st.caption("Tạo bản ở kích thước khác từ bản hoàn chỉnh mới nhất (có phụ đề, card nếu có). “Cắt khung” lấp đầy khung (không viền đen), "
+        _note("Tạo bản ở kích thước khác từ bản hoàn chỉnh mới nhất (có phụ đề, card nếu có). “Cắt khung” lấp đầy khung (không viền đen), "
                    "“Giữ nguyên hình” thêm viền. Giới hạn MB: mã hóa 2 lượt, tự nén lại nếu vượt.")
         for n, e in enumerate(exports):
             a, b = st.columns([4, 1])
@@ -664,7 +763,7 @@ def exports_panel(p: Pipeline, pid: int) -> None:
                 delivery.save_settings(p, pid, dict(s, exports=[x for i, x in enumerate(exports) if i != n]))
                 st.rerun()
         c1, c2, c3 = st.columns([2.2, 1.4, 1.2])
-        preset = c1.selectbox("Kích thước", list(EXPORT_PRESETS), key=f"exp_preset_{pid}")
+        preset = preset_ext if preset_ext is not None else c1.selectbox("Kích thước", list(EXPORT_PRESETS), key=f"exp_preset_{pid}")
         fit = c2.selectbox("Cách vừa khung", ["crop", "pad"], format_func=lambda f: {"crop": "Cắt khung", "pad": "Giữ nguyên hình"}[f],
                            key=f"exp_fit_{pid}")
         mb = c3.number_input("Tối đa MB (0 = không)", 0.0, 2000.0, 0.0, 1.0, key=f"exp_mb_{pid}")
@@ -682,6 +781,38 @@ def exports_panel(p: Pipeline, pid: int) -> None:
                 (st.success if res["fits"] else st.warning)(f"Xong: {res['size_mb']:.1f} MB" + ("" if res["fits"] else " — vẫn vượt giới hạn"))
 
 
+def _deliver_button(p: Pipeline, pid: int, chosen, durations, label: str = "📦 Xuất bản đầy đủ (dựng → phụ đề → card → các kích thước)") -> None:
+    """The one button of the chain: render → subtitles → end card → every size in the export list."""
+    if st.button(label, type="primary", key=f"deliver_{pid}", disabled=not chosen, width="stretch"):
+        with st.spinner("Đang xuất bản…"):
+            ok = act(lambda: st.session_state.__setitem__(f"deliver_res_{pid}", delivery.deliver(p, pid, C.DATA, llm_client(),
+                                                                                                clips=chosen, durations=durations)))
+        if ok:
+            res = st.session_state.pop(f"deliver_res_{pid}")
+            for w in res["warnings"]:
+                st.warning(w)
+            if res.get("qc") is not None:
+                st.session_state[f"final_qc_{pid}"] = res["qc"]
+            st.toast(f"Đã xuất bản: {len(res['layers']) + 1} file")
+            st.rerun()
+
+
+def _deliver_files(p: Pipeline, pid: int, stat) -> None:
+    """The finished video (player + download) and every file of the chain with its own download button."""
+    fin = stat["final"]
+    best = stat["best"]
+    if best and os.path.exists(best):
+        show_video(best)
+        with open(best, "rb") as f:
+            st.download_button(f"⬇ Tải {os.path.basename(best)}", f, file_name=os.path.basename(best), mime="video/mp4", key=f"best_dl_{pid}")
+    files = ([("Video cuối", fin["path"], None)] if fin.get("path") and os.path.exists(fin["path"]) else []) +         [({"subtitle": "Phụ đề", "endcard": "Card cuối", "ailabel": "Nhãn AI", "export": "Bản xuất"}.get(x["kind"], x["kind"]), x["path"], x["stale"]) for x in stat["layers"]]
+    for n, (label, path, stale) in enumerate(files):
+        a, b = st.columns([4, 1.3], vertical_alignment="center")
+        a.markdown(f"{label}: `{os.path.basename(path)}` · {os.path.getsize(path) / 1e6:.1f} MB" + (f" · :orange[⚠ {stale}]" if stale else ""))
+        with open(path, "rb") as f:
+            b.download_button("⬇ Tải", f, file_name=os.path.basename(path), mime="video/mp4", key=f"layer_dl_{pid}_{n}")
+
+
 def delivery_panel(p: Pipeline, pid: int, chosen, durations) -> None:
     """5.5 The deliverable: the most finished up-to-date version, its layers, and one button for the whole chain."""
     stat = delivery.status(p, pid, C.DATA)
@@ -693,31 +824,8 @@ def delivery_panel(p: Pipeline, pid: int, chosen, durations) -> None:
         ui.html(ui.card_title("5.5 · 📦 Bản giao", "bản hoàn chỉnh nhất của lần dựng mới nhất") + ui.badge(*state))
         for r in fin["reasons"] + ([stat["best_stale"]] if stat.get("best_stale") else []):
             st.caption(f"⚠ {r}")
-        if st.button("📦 Xuất bản đầy đủ (dựng → phụ đề → card → các kích thước)", type="primary", key=f"deliver_{pid}",
-                     disabled=not chosen, width="stretch"):
-            with st.spinner("Đang xuất bản…"):
-                ok = act(lambda: st.session_state.__setitem__(f"deliver_res_{pid}", delivery.deliver(p, pid, C.DATA, llm_client(),
-                                                                                                    clips=chosen, durations=durations)))
-            if ok:
-                res = st.session_state.pop(f"deliver_res_{pid}")
-                for w in res["warnings"]:
-                    st.warning(w)
-                if res.get("qc") is not None:
-                    st.session_state[f"final_qc_{pid}"] = res["qc"]
-                st.toast(f"Đã xuất bản: {len(res['layers']) + 1} file")
-                st.rerun()
-        best = stat["best"]
-        if best and os.path.exists(best):
-            show_video(best)
-            with open(best, "rb") as f:
-                st.download_button(f"⬇ Tải {os.path.basename(best)}", f, file_name=os.path.basename(best), mime="video/mp4", key=f"best_dl_{pid}")
-        files = ([("Video cuối", fin["path"], None)] if fin.get("path") and os.path.exists(fin["path"]) else []) + \
-            [({"subtitle": "Phụ đề", "endcard": "Card cuối", "ailabel": "Nhãn AI", "export": "Bản xuất"}.get(x["kind"], x["kind"]), x["path"], x["stale"]) for x in stat["layers"]]
-        for n, (label, path, stale) in enumerate(files):
-            a, b = st.columns([4, 1.3], vertical_alignment="center")
-            a.markdown(f"{label}: `{os.path.basename(path)}` · {os.path.getsize(path) / 1e6:.1f} MB" + (f" · :orange[⚠ {stale}]" if stale else ""))
-            with open(path, "rb") as f:
-                b.download_button("⬇ Tải", f, file_name=os.path.basename(path), mime="video/mp4", key=f"layer_dl_{pid}_{n}")
+        _deliver_button(p, pid, chosen, durations)
+        _deliver_files(p, pid, stat)
         _final_qc(p, pid, bool(fin.get("path")))
 
 
@@ -729,7 +837,7 @@ def _final_qc(p, pid, has_render: bool):
     if trying:                                       # S6.3: which parts of this cut are still being tried out
         with st.expander(f"🧪 Bản dựng đang dùng {len(trying)} tính năng chưa kiểm thật"):
             st.markdown("\n".join(f"- `{k}` — {escape(v['label'])}" for k, v in sorted(trying.items())))
-            st.caption("Bật bằng FEATURE_<TÊN>=1 trong dashboard.env. Sau khi một lần chạy thật chứng minh tính năng đúng, ghi `verified` "
+            _note("Bật bằng FEATURE_<TÊN>=1 trong dashboard.env. Sau khi một lần chạy thật chứng minh tính năng đúng, ghi `verified` "
                        "trong core/features.py (kèm ngày, dự án, số đo) — bản giao chính nên chỉ dùng tính năng đã kiểm.")
     key = f"final_qc_{pid}"
     if has_render and st.button("🔎 Kiểm bản dựng (miễn phí, ~30 s)", key=f"final_qc_btn_{pid}"):
@@ -737,6 +845,19 @@ def _final_qc(p, pid, has_render: bool):
             act(lambda: st.session_state.__setitem__(key, final_qc.run(p, pid, C.DATA)))
     res = st.session_state.get(key)
     if not res:
+        return
+    if ui.v2_on():                                    # UI v2: result as pills, one line per issue
+        from dashboard.design.screens import deliver_ui
+        st.markdown(deliver_ui.qc_pills(res), unsafe_allow_html=True)
+        issues = res["issues"]
+        if len(issues) <= 3:
+            st.markdown(deliver_ui.qc_rows(issues, final_qc._MARK), unsafe_allow_html=True)
+        else:                                          # P3: blocks stay visible, the rest behind ⓘ
+            from dashboard.design import components as D
+            blocks = [i for i in issues if i["level"] == "block"]
+            st.markdown(deliver_ui.qc_rows(blocks, final_qc._MARK), unsafe_allow_html=True)
+            with D.info(f"del-qc-{pid}"):
+                st.markdown(deliver_ui.qc_rows(issues, final_qc._MARK), unsafe_allow_html=True)
         return
     text = final_qc.summary(res)
     (st.success if res["ok"] and not res["warns"] else st.error if res["blocks"] else st.warning)(text.splitlines()[0])
