@@ -545,3 +545,16 @@ gợi ý. Ra `data/qc_golden/prefilter.json` + `prefilter.csv` (ngoài git — c
   khai); `answer` của model giữ lại để đối chiếu, không dùng. Test: `tests/test_qc_team.py` 27. Chạy khô 33 khung #8 (client giả trả "na"):
   33 yêu cầu dựng được, 207 mục khai, 0 câu lộ chữ bên.
 - **Chờ người dùng:** GĐ3 lần 2 ≈ 0,7 USD (LENH_TON_TIEN_CHO_DUYET #11; trần Claude đợt thử còn 0,65 → nâng +0,5).
+
+**01/10 — GĐ3 lần 2 (model khai, code kết luận; người dùng chạy; run `20261001-115335`, 0,653 USD = 0,020 USD / khung, 33/33 khung):**
+- **Số:** Nhân vật bắt 6/7, mọi loại 7/9; **báo nhầm 13/24 (54 %)**, doubt 18,2 % → vẫn không qua cổng.
+- **Mũ — đã đúng:** 5/5 khung mũ Maxim đội xuôi (324, 330, 332, 333, 356) bị chặn **đúng lý do** (khai "dây/khóa ở gáy" → code kết luận
+  đội xuôi), lần 1 không bắt được khung nào vì đúng lý do. 1 báo nhầm: 323 (Maxim quay mặt, khóa ở trán — model khai "ở gáy").
+- **Người thừa một phần → nhỏ:** đúng ở 323, 325, 356; 326 model vẫn khai "clear" (Kenta lộ nửa người mép trái) → còn chặn.
+- **Trái/phải — vẫn sai, cả khi chỉ khai vị trí:** kiểm bằng mắt 322, 337 (quay mặt, đúng hồ sơ: tay băng ở TRÁI ảnh, găng giáp + sao ở
+  PHẢI ảnh) — model khai ngược (tay áo đen "image_right_of_body", sao "image_left_of_body") ở 322 / 328 / 331 / 337 / 341 / 350; khung
+  quay lưng (319, 323) cũng khai sai nửa ảnh. Nghi một phần do tên ô `image_right_of_body` bị hiểu thành "bên phải của thân", nhưng khung
+  quay lưng sai cả hai cách hiểu → **model không định vị được chi tiết trái/phải trong ảnh** đủ tin để tự chặn.
+- **Tính lại không tốn tiền (bỏ mệnh đề trái/phải khỏi tự chặn):** báo nhầm **2/24 = 8,3 %** (qua cổng), doubt 0 %, Nhân vật bắt 5/7
+  (sót 347, 350 — chính là 2 lỗi trái/phải). → phần còn lại của C1 (đúng người, mũ, số người) dùng được; trái/phải cần cách khác.
+- **Theo quyết định 19a: hỏi lại người dùng** (Pose hoặc cách khác) — xem TODO.
