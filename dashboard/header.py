@@ -9,6 +9,9 @@ def _go_item(project_id, screen) -> None:
     C.go_screen(project_id, screen or "script")
 
 
+INBOX_SHOWN = 3          # v2: how many inbox items stay outside the ⓘ fold
+
+
 def inbox_card(p: Pipeline) -> None:
     """📥 Việc cần bạn (đợt 3): what waits for you across all projects — reviews, locks of money, the automatic run, services out of credit.
     The Owner can also list the whole team's (core/inbox.py)."""
@@ -24,13 +27,17 @@ def inbox_card(p: Pipeline) -> None:
         if auth_on() and is_owner:
             team_view = st.radio("Phạm vi", ["Của tôi", "Cả nhóm"], horizontal=True, label_visibility="collapsed", key="inbox_scope") == "Cả nhóm"
         items = inbox.items(p.conn, email, is_owner, can_money, auth_on(), team_wide=True) if team_view else mine
-        kind = st.selectbox("Loại việc", [""] + list(inbox.KINDS), format_func=lambda k: "Tất cả loại việc" if not k else k,
-                            key="inbox_kind", label_visibility="collapsed")
+        v2 = ui.v2_on()
+        kind = ""
+        if not v2 or len(items) > INBOX_SHOWN:             # v2: the type filter only matters once the list is longer than what is shown
+            kind = st.selectbox("Loại việc", [""] + list(inbox.KINDS), format_func=lambda k: "Tất cả loại việc" if not k else k,
+                                key="inbox_kind", label_visibility="collapsed")
         if kind:
             items = [i for i in items if i["kind"] == kind]
         if not items:
             st.caption("Không có việc nào đang chờ bạn." if not kind else "Không có việc loại này.")
-        for n, it in enumerate(items[:30]):
+
+        def draw(n: int, it) -> None:
             c1, c2 = st.columns([4, 1.2], vertical_alignment="center")
             tag = {"bad": "🔴", "wait": "⏸", "warn": "⚠", "todo": "👉"}.get(it["level"], "")
             c1.markdown(f"{tag} **{escape(it['kind'])}** — {escape(it['text'])}"
@@ -38,6 +45,19 @@ def inbox_card(p: Pipeline) -> None:
                            + "</small>" if it["project_id"] else ""), unsafe_allow_html=True)
             if it["project_id"] and it["screen"]:
                 c2.button("Mở →", key=f"inb_{n}", on_click=_go_item, args=(it["project_id"], it["screen"]), width="stretch")
+
+        shown = items[:30]
+        if v2 and len(shown) > INBOX_SHOWN:                 # v2: the first 3 stay outside, the rest fold into ⓘ
+            for n, it in enumerate(shown[:INBOX_SHOWN]):
+                draw(n, it)
+            with st.expander(f"ⓘ Còn {len(items) - INBOX_SHOWN} việc nữa"):
+                for n, it in enumerate(shown[INBOX_SHOWN:], start=INBOX_SHOWN):
+                    draw(n, it)
+                if len(items) > 30:
+                    st.caption(f"… còn {len(items) - 30} việc: lọc theo loại để xem tiếp.")
+            return
+        for n, it in enumerate(shown):
+            draw(n, it)
         if len(items) > 30:
             st.caption(f"… còn {len(items) - 30} việc: lọc theo loại để xem tiếp.")
 
@@ -85,7 +105,16 @@ def level_bar(p: Pipeline, pid: int, compact: bool = False) -> None:
     err = st.session_state.pop("level_error", None)
     if err:
         st.warning(err)
-    if cur not in keys or busy:                       # the level's description is the radio's tooltip; speak only when it matters
+    if compact and (cur not in keys or busy):         # v2: one short line, the full sentence in ⓘ
+        from dashboard.design import components as D
+        short = ("Tùy chỉnh tay — chọn một mức để đặt lại" if cur not in keys else "") + (" · " if cur not in keys and busy else "") \
+            + ("đang chạy tự động nên chưa đổi được mức" if busy else "")
+        full = (("**Tùy chỉnh:** bạn đã chỉnh tay cổng duyệt / chính sách QC / người duyệt — chọn một mức để đặt lại cả ba." if cur not in keys else "")
+                + ("\n\n" if cur not in keys and busy else "")
+                + ("**Đang chạy tự động:** chạy tự động đang giữ dự án nên không đổi được (lúc chạy luôn dùng QC tự duyệt, xong thì trả lại "
+                   "chế độ bạn chọn)." if busy else ""))
+        D.line(f'<span class="shell-status">{escape(short)}</span>', full, "shell-level-why")
+    elif cur not in keys or busy:                     # the level's description is the radio's tooltip; speak only when it matters
         st.caption(("Tùy chỉnh: bạn đã chỉnh tay cổng duyệt / chính sách QC / người duyệt — chọn một mức để đặt lại cả ba."
                     if cur not in keys else "") + ("  ·  chạy tự động đang giữ dự án nên không đổi được (lúc chạy luôn dùng QC tự duyệt, "
                                                     "xong thì trả lại chế độ bạn chọn)" if busy else ""))
@@ -215,8 +244,17 @@ def archived_list(p: Pipeline) -> None:
     rows = archive.archived_projects(p.conn)
     if not rows:
         return
+    if ui.v2_on():                                   # v2: a fold (the list can be long) whose note is the old one-line caption
+        with st.expander(f"📦 Dự án đã cất ({len(rows)})"):
+            st.caption("Ẩn khỏi danh sách, không chạy tự động; dữ liệu còn nguyên.")
+            _archived_rows(rows)
+        return
     st.markdown(f"**📦 Dự án đã cất ({len(rows)})**")
     st.caption("Ẩn khỏi danh sách, không chạy tự động; dữ liệu còn nguyên.")
+    _archived_rows(rows)
+
+
+def _archived_rows(rows) -> None:
     for r in rows:
         c1, c2 = st.columns([3, 1.4], vertical_alignment="center")
         c1.caption(f"#{r['id']} {escape(r['name'])}")
@@ -306,11 +344,18 @@ def _settings_project(p: Pipeline, pid: int) -> None:
                     horizontal=True, key=f"mode_{pid}")
     if mode != proj["operating_mode"]:
         p.set_mode(pid, mode)
-    st.caption("Chính sách QC (ngưỡng, tự gen lại) chỉnh ở Bước 2. Định dạng khung, thể loại, ưu tiên model ở Bước 1 · 1b.")
-    cheap = st.checkbox("🧪 Thử rẻ (ảnh cỡ nhỏ nhất · 720p · Kling std · Seedance 2.0/2.5 → Fast)", bool(proj["test_quality"]),
-                        key=f"cheap_{pid}",
-                        help="Cho đợt thử nghiệm: ảnh ở kích thước nhỏ nhất model Deepix nhận cho khung dự án, không gen 1080p, dùng "
-                             "bản rẻ hơn của model video. Dự án tạo khi đợt thử ngân sách đang bật tự bật chế độ này. Tắt khi làm video thật.")
+    v2 = ui.v2_on()
+    where = "Chính sách QC (ngưỡng, tự gen lại) chỉnh ở Bước 2. Định dạng khung, thể loại, ưu tiên model ở Bước 1 · 1b."
+    cheap_tip = ("Cho đợt thử nghiệm: ảnh ở kích thước nhỏ nhất model Deepix nhận cho khung dự án, không gen 1080p, dùng "
+                 "bản rẻ hơn của model video. Dự án tạo khi đợt thử ngân sách đang bật tự bật chế độ này. Tắt khi làm video thật.")
+    if v2:                                           # v2: the pointer + what "Thử rẻ" means fold into one ⓘ; the label stays short
+        from dashboard.design.screens import shell_parts as SP
+        SP.fold("Chỉnh QC, khung, thể loại ở đâu · “Thử rẻ” là gì", f"{where}\n\n**🧪 Thử rẻ** = ảnh cỡ nhỏ nhất · 720p · Kling std · "
+                f"Seedance 2.0/2.5 → Fast. {cheap_tip}")
+    else:
+        st.caption(where)
+    cheap = st.checkbox("🧪 Thử rẻ" if v2 else "🧪 Thử rẻ (ảnh cỡ nhỏ nhất · 720p · Kling std · Seedance 2.0/2.5 → Fast)", bool(proj["test_quality"]),
+                        key=f"cheap_{pid}", help=cheap_tip)
     if cheap != bool(proj["test_quality"]):
         p.set_project_field(pid, "test_quality", 1 if cheap else 0)
         st.rerun()
@@ -354,11 +399,13 @@ def money_card(p: Pipeline, pid) -> None:
             if st.button(f"Đã nạp tiền — mở lại {service}", key=f"mc_reopen_{service}"):
                 budget.reopen(p.conn, service)
                 st.rerun()
+        more = []                                        # v2: P3 details collected here, drawn once in a "ⓘ Chi tiết" fold at the end
         if s["enabled"]:
             frac = min(s["spent"] / s["usd"], 1.0) if s["usd"] else 0.0
             if v2:
-                st.html(D.meter(frac, f"Đợt thử: ${s['spent']:.2f} / ${s['usd']:.0f} · {s['images']}/{s['image_cap']} ảnh · "
-                                      f"{s['audios']}/{s['audio_cap']} âm thanh", invert=True) + SP.last_reset_line(p.conn, "trial"))
+                st.html(D.meter(frac, f"Đợt thử: ${s['spent']:.2f} / ${s['usd']:.0f}", invert=True))
+                more.append(f"- **Đợt thử:** {s['images']}/{s['image_cap']} ảnh · {s['audios']}/{s['audio_cap']} âm thanh")
+                more.append(SP.last_reset_md(p.conn, "trial", "Đợt thử"))
             else:
                 st.markdown(f"**Đợt thử:** \\${s['spent']:.2f} / \\${s['usd']:.0f} · {s['images']}/{s['image_cap']} ảnh · "
                             f"{s['audios']}/{s['audio_cap']} âm thanh")
@@ -368,11 +415,13 @@ def money_card(p: Pipeline, pid) -> None:
         if s["llm_usd"] > 0:
             if v2:
                 st.html(D.meter(min(s["llm_spent"] / s["llm_usd"], 1.0), f"Claude API: ${s['llm_spent']:.2f} / ${s['llm_usd']:.2f}"
-                                + (" — đã hết" if claude_out else ""), invert=True) + SP.last_reset_line(p.conn, "claude"))
+                                + (" — đã hết" if claude_out else ""), invert=True))
+                more.append(SP.last_reset_md(p.conn, "claude", "Claude API"))
             else:
                 st.markdown(f"**Claude API:** \\${s['llm_spent']:.2f} / \\${s['llm_usd']:.2f}" + (" — **đã hết**" if claude_out else ""))
                 ui.progress_bar(min(s["llm_spent"] / s["llm_usd"], 1.0), invert=True)
         project_has_budget = False
+        stage_table = ""
         if pid is not None and project_budget.enabled():
             data = project_budget.get(p.conn, pid) or {}
             project_has_budget = bool(data)
@@ -382,12 +431,13 @@ def money_card(p: Pipeline, pid) -> None:
                 total = float(data.get("total") or 0)
                 if v2:
                     st.html(D.pill("Ngân sách dự án đã khóa", "ok") + D.meter(sum(spent.values()) / total if total else 0.0,
-                            f"Dự án này: đã chi {sum(spent.values()):.2f} / trần {total:.2f} USD", invert=True) + SP.last_reset_line(p.conn, "project", pid))
+                            f"Dự án này: đã chi {sum(spent.values()):.2f} / trần {total:.2f} USD", invert=True))
+                    more.append(SP.last_reset_md(p.conn, "project", "Ngân sách dự án này", pid))
                 else:
                     st.markdown(f"**Dự án này 🔒** đã chi {sum(spent.values()):.2f} / trần {total:.2f} USD")
                 rows = [{"Khâu": lb, "Đã chi": f"{spent[k]:.2f}", "Trần": f"{caps.get(k, 0):.2f}"} for k, lb in project_budget.STAGES.items()]
-                if v2:                                   # rule 7: an HTML table follows the theme (st.dataframe is a light canvas)
-                    st.html('<table class="v2-table"><tr><th>Khâu</th><th>Đã chi</th><th>Trần</th></tr>' + "".join(
+                if v2:                                   # per-stage budget = P3 → the ⓘ fold; rule 7: an HTML table follows the theme
+                    stage_table = ('<table class="v2-table"><tr><th>Khâu</th><th>Đã chi</th><th>Trần</th></tr>' + "".join(
                         f"<tr><td>{escape(r['Khâu'])}</td><td>{r['Đã chi']}</td><td>{r['Trần']}</td></tr>" for r in rows) + "</table>")
                 else:
                     st.dataframe(rows, hide_index=True, width="stretch")
@@ -402,6 +452,11 @@ def money_card(p: Pipeline, pid) -> None:
                         st.rerun()
                 except Exception as e:  # noqa: BLE001 - the card must never break the bar
                     st.caption(f"Chưa tính được ngân sách dự án ({type(e).__name__}).")
+        if v2 and (stage_table or any(more)):
+            with st.expander("ⓘ Chi tiết từng khâu · lịch sử đặt lại"):
+                if stage_table:
+                    st.html(stage_table)
+                st.markdown("\n".join(x for x in more if x))
         if allowed("settings"):
             b1, b2 = st.columns(2)
             if b1.button("⚙ Đợt thử & Claude", key="mc_budget", width="stretch"):
@@ -623,7 +678,7 @@ def account_section(p: Pipeline) -> None:
     who = me()
     role = "Owner" if who["role"] == "owner" else "Thành viên"
     st.caption(f"👤 {escape(who['name'])} · {escape(who['email'])} · {role}"
-               + ("" if auth_on() else " · đăng nhập đang tắt (DASHBOARD_AUTH=off)"))
+               + ("" if auth_on() else (" · đăng nhập đang tắt" if ui.v2_on() else " · đăng nhập đang tắt (DASHBOARD_AUTH=off)")))
     if not auth_on():
         user_bar()
     if auth_on() and st.button("Đăng xuất", key="logout_btn"):
@@ -645,7 +700,9 @@ def user_bar() -> str:
     if typed != st.session_state["user_name"]:
         st.session_state["user_name"] = typed
         st.query_params["user"] = typed
-    if not typed:
+    if not typed and ui.v2_on():
+        st.markdown(":orange[Nhập tên để lượt gen được ghi cho bạn.]")
+    elif not typed:
         st.markdown(":orange[Nhập tên trước khi gen ảnh/video để lượt gen được ghi cho bạn (nếu để trống sẽ tính là “chưa nhập tên”).]")
     return typed
 
@@ -771,12 +828,14 @@ def _global_bar_v2(p: Pipeline, projects):
         with c_gear:
             settings_menu(p, pid, "⚙ Cài đặt")
     if proj["paused"]:
-        st.warning("Dự án đang TẠM DỪNG — không ảnh/clip nào được gửi đi. Bấm ▶ Tiếp tục ở thanh trên.")
+        st.warning("Dự án đang TẠM DỪNG — không gửi ảnh/clip nào. Bấm ▶ Tiếp tục ở thanh trên.")
     return pid
 
 
 def status_line(p: Pipeline, pid: int) -> None:
     """Kế hoạch V4 5.3: spending, the automatic run and the problems of this project in ONE line under the bar."""
+    if ui.v2_on():
+        return _status_line_v2(p, pid)
     bits = [] if auth_on() or user_name() else ["👤 chưa nhập tên (⚙)"]   # the name box moved into ⚙: say when it is empty
     spend = C.spend_text(p, pid)
     if spend:
@@ -812,6 +871,86 @@ def status_line(p: Pipeline, pid: int) -> None:
     if stale:                                           # S6.4: #8 ran for hours on code older than the fixes on disk
         st.warning(f"⚠ Code đã đổi sau khi Dashboard khởi động ({stale}) — tắt / mở lại Dashboard để dùng bản mới "
                    "(các việc đang chạy vẫn dùng code cũ tới lúc đó).")
+
+
+def _status_line_v2(p: Pipeline, pid: int) -> None:
+    """UI v2 status line (người dùng 01/10): ONE short line of what needs a glance (P1/P2) + a ⓘ holding every detail the old line listed.
+    Outside: spend count, queue size, the automatic run's state, number of problems, a low budget, a missing name. Inside ⓘ: all of it in full
+    (spend with price, queue split, plates, the run's note, the problems' titles, the locked budget, the cheap-test note)."""
+    from dashboard.design import components as D
+    short, full = [], []                                # short = visible; full = markdown bullets for ⓘ
+    if not (auth_on() or user_name()):
+        short.append("👤 chưa nhập tên (⚙)")
+        full.append("👤 chưa nhập tên (⚙)")
+    spend = C.spend_text(p, pid)
+    if spend:
+        sp = cost.spend_summary(p.conn, pid, cost.load_pricing())
+        short.append("💵 giả lập" if sp["mock"] and sp["mock"] == sp["events"] else f"💵 {sp['images']} ảnh · {sp['clips']} clip")
+        full.append("💵 " + spend)
+    proj = p.project(pid) if pid is not None else None
+    if proj is not None and "test_quality" in proj.keys() and proj["test_quality"]:
+        short.append("🧪 Thử rẻ")
+        full.append("🧪 Thử rẻ: ảnh cỡ nhỏ nhất · video 720p / Kling std / Seedance Fast")
+    blocker = ""
+    broken = cost.load_pricing().get("_error")
+    if broken:                                          # luật 1: a broken price table stops every paid send — P1, stays outside
+        blocker = "🔴 Bảng giá lỗi — mọi job trả tiền bị chặn"
+        full.append(f"🔴 {broken} — mọi job trả tiền bị chặn")
+    try:
+        from dashboard import overview
+        c = overview._counts(p, pid)
+        if c["queue"]:
+            n_img, n_vid = c["queue"].get("image_gen", 0), c["queue"].get("video_gen", 0)
+            short.append(f"hàng đợi {n_img + n_vid}")
+            full.append(f"Hàng đợi: {n_img} ảnh, {n_vid} clip")
+        plates = overview._plates(pid)
+        if plates:
+            full.append(plates)
+    except Exception:  # noqa: BLE001 - a status bit only
+        pass
+    ap = autopilot.status(p, pid)
+    if ap["state"] in ("running", "queued", "waiting"):
+        short.append("🚀 Tự động " + {"running": "đang chạy", "queued": "xếp hàng", "waiting": "chờ bạn"}[ap["state"]])
+        full.append(f"🚀 Tự động: {ap['note']}")
+    problems = [f for f in C.diag_problems(p) if f.get("project_id") in (None, pid)]
+    if problems:
+        short.append(f"🔴 {len(problems)} vấn đề")
+        full.append(f"🔴 {len(problems)} vấn đề — xem tab “📊 Theo dõi”:")
+        full.extend(f"    - {diag.redact(x['title'])}" for x in problems[:8])
+    budget = _budget_bit(p, pid)
+    if budget:
+        full.append(budget)
+        low = _budget_left_frac(p, pid)
+        if low is not None and low <= 0.2:              # money about to run out is P1
+            short.append("🔒 ngân sách sắp hết")
+    if blocker:
+        st.error(blocker)
+    if short or full:
+        text = "  ·  ".join(escape(x) for x in short) or "Chi tiết"
+        D.line(f'<span class="shell-status">{text}</span>', "\n".join(f"- {x}" if not x.startswith("    ") else x for x in full), "shell-status")
+    stale = code_changed_since_start()
+    if stale:                                           # S6.4: #8 ran for hours on code older than the fixes on disk
+        c1, c2 = st.columns([24, 1], vertical_alignment="center")
+        c1.warning("⚠ Code đã đổi sau khi Dashboard khởi động — tắt / mở lại để dùng bản mới.")
+        with c2:
+            with D.info("shell-stale"):
+                st.markdown(f"Code đã đổi sau khi Dashboard khởi động (`{stale}`) — tắt / mở lại Dashboard để dùng bản mới "
+                            "(các việc đang chạy vẫn dùng code cũ tới lúc đó).")
+
+
+def _budget_left_frac(p: Pipeline, pid) -> "float | None":
+    """Share of the locked project budget still left (None when there is none)."""
+    try:
+        from core import project_budget
+        if pid is None or not project_budget.enabled():
+            return None
+        data = project_budget.get(p.conn, pid) or {}
+        cap = float(data.get("total") or 0)
+        if not data.get("locked") or cap <= 0:
+            return None
+        return max(cap - sum(project_budget.spent_by_stage(p.conn, pid).values()), 0.0) / cap
+    except Exception:  # noqa: BLE001
+        return None
 
 
 _STARTED = __import__("time").time()
