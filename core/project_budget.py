@@ -73,7 +73,15 @@ def unverified(pricing: Dict, model: str) -> bool:
 
 
 def spent_by_stage(conn, pid: int) -> Dict[str, float]:
-    """Money already spent by this project, per stage (the ledger rows carry the project)."""
+    """Money spent by this project per stage since its starting point: the ledger total minus the baseline an Owner reset set
+    (core.money_reset), never below 0. Without a baseline it is the ledger total."""
+    base = (get(conn, pid) or {}).get("baseline") or {}
+    raw = ledger_by_stage(conn, pid)
+    return {k: round(max(0.0, v - float(base.get(k) or 0.0)), 4) for k, v in raw.items()}
+
+
+def ledger_by_stage(conn, pid: int) -> Dict[str, float]:
+    """Money already spent by this project, per stage (the ledger rows carry the project), ignoring any reset baseline."""
     from . import budget, cost
     pricing = cost.load_pricing()
     out = {k: 0.0 for k in STAGES}
@@ -159,7 +167,8 @@ def approve(p, pid: int, who: str, proposal: Optional[Dict] = None) -> Dict:
     prop = proposal or propose(p, pid)
     old = get(p.conn, pid) or {}
     data = {"caps": {k: v["cap"] for k, v in prop["stages"].items()}, "total": prop["total"], "approved_by": who, "approved_at": _now(),
-            "locked": True, "raises": old.get("raises") or [], "target": old.get("target"), "proposal": prop}
+            "locked": True, "raises": old.get("raises") or [], "target": old.get("target"), "proposal": prop,
+            "baseline": old.get("baseline") or {}, "baseline_at": old.get("baseline_at"), "resets": old.get("resets") or []}
     return _save(p.conn, pid, data)
 
 
