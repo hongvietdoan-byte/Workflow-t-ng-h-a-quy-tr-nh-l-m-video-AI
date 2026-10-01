@@ -1,0 +1,10 @@
+/* Màn Bản giao (S13, nhánh G) — token của lõi, selector bắt đầu bằng .st-key-card-del- / .st-key-hero-del */
+.st-key-card-del-out .del-qc { margin: 6px 0; display: flex; gap: 8px; flex-wrap: wrap; }
+[class*="st-key-card-del-"] .del-qrows { display: grid; gap: 6px; margin: 6px 0; }
+[class*="st-key-card-del-"] .del-qrow { display: flex; align-items: flex-start; gap: 10px; font-size: 13.5px; color: var(--text);
+    padding: 6px 10px; border-radius: var(--r-md); background: var(--glass); border: 1px solid var(--border-soft); }
+[class*="st-key-card-del-"] .del-qrow .v2-pill { flex: none; }
+.st-key-card-del-out, .st-key-card-del-tune { margin-top: 8px; }
+.st-key-hero-del [data-testid="stCheckbox"] { background: var(--glass); border: 1.5px solid var(--border-soft); border-radius: var(--r-md); padding: 8px 12px; }
+.st-key-hero-del [data-testid="stCheckbox"] label p { font-size: 14px; }
+.st-key-card-del-out [data-testid="stVideo"] video { max-height: 480px; border-radius: var(--r-md); }

@@ -1,0 +1,17 @@
+/* Màn Video (S13, nhánh G) — chỉ dùng token của lõi (var(--…)), selector bắt đầu bằng .st-key-card-vid- / .st-key-hero-vid / .st-key-vid- */
+[class*="st-key-card-vid-"] .vid-meta { color: var(--muted); font-size: 13px; margin: 4px 0 2px; }
+[class*="st-key-card-vid-"] .vid-l0, [class*="st-key-card-vid-"] .vid-note { margin: 6px 0; padding: 6px 10px; border-radius: var(--r-md);
+    background: var(--glass); border: 1px solid var(--border-soft); }
+[class*="st-key-card-vid-"] .vid-l0 > small, [class*="st-key-card-vid-"] .vid-note > small { display: block; color: var(--muted); font-size: 12.5px;
+    font-weight: 700; letter-spacing: .02em; margin-bottom: 3px; }
+[class*="st-key-card-vid-"] .vid-l0row { display: flex; align-items: flex-start; gap: 8px; margin: 3px 0; font-size: 13px; color: var(--text); }
+[class*="st-key-card-vid-"] .vid-l0row .v2-pill { flex: none; }
+[class*="st-key-card-vid-"] .vid-note > span { font-size: 13px; color: var(--text); }
+/* thẻ clip: video dọc không tràn thẻ */
+[class*="st-key-card-vid-"] [data-testid="stVideo"] video { max-height: 340px; border-radius: var(--r-md); }
+[class*="st-key-card-vid-"] [data-testid="stImage"] img { max-height: 340px; object-fit: contain; }
+/* nhãn nút dài (kèm giá) xuống dòng thay vì bị cắt */
+[class*="st-key-card-vid-"] button p { white-space: normal; line-height: 1.25; }
+[class*="st-key-card-vid-"] button { height: auto; padding-top: 6px; padding-bottom: 6px; }
+/* thanh công cụ gen hàng loạt và thẻ tinh chỉnh */
+.st-key-card-vid-bar, .st-key-card-vid-tune { margin-bottom: 8px; }
