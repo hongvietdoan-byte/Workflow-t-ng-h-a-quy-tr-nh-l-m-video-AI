@@ -26,7 +26,7 @@ def image_progress(p: Pipeline, pid: int, runner) -> None:
                         "🖼 Chưa có nhân vật nào gắn tài nguyên: ảnh sẽ vẽ chỉ theo mô tả chữ (dễ lệch thiết kế).")
                        + (f" Chưa có ảnh tham chiếu cho: {', '.join(lack)}." if have and lack else ""))
         total = summ["total"] or 1
-        st.progress(min(done / total, 1.0), text=f"{done}/{summ['total']} cảnh có ảnh đã duyệt · {queued} chờ gen · {running} đang gen · "
+        ui.progress_bar(min(done / total, 1.0), text=f"{done}/{summ['total']} cảnh có ảnh đã duyệt · {queued} chờ gen · {running} đang gen · "
                                                   f"{failed} lỗi" + (f" · ⚠ {stale} ảnh cũ" if stale else ""))
         rows = p.conn.execute(
             "SELECT j.state, j.retry_count, j.escalated, s.idx, s.id sid, (SELECT AVG(score) FROM qc_results WHERE job_id=j.id) AS qc "

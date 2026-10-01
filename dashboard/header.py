@@ -344,12 +344,12 @@ def money_card(p: Pipeline, pid) -> None:
         if s["enabled"]:
             st.markdown(f"**Đợt thử:** \\${s['spent']:.2f} / \\${s['usd']:.0f} · {s['images']}/{s['image_cap']} ảnh · "
                         f"{s['audios']}/{s['audio_cap']} âm thanh")
-            st.progress(min(s["spent"] / s["usd"], 1.0) if s["usd"] else 0.0)
+            ui.progress_bar(min(s["spent"] / s["usd"], 1.0) if s["usd"] else 0.0, invert=True)
         else:
             st.caption("Đợt thử: tắt (không giới hạn chi).")
         if s["llm_usd"] > 0:
             st.markdown(f"**Claude API:** \\${s['llm_spent']:.2f} / \\${s['llm_usd']:.2f}" + (" — **đã hết**" if claude_out else ""))
-            st.progress(min(s["llm_spent"] / s["llm_usd"], 1.0))
+            ui.progress_bar(min(s["llm_spent"] / s["llm_usd"], 1.0), invert=True)
         if pid is not None and project_budget.enabled():
             data = project_budget.get(p.conn, pid) or {}
             spent = project_budget.spent_by_stage(p.conn, pid)
@@ -494,7 +494,7 @@ def _dialog_budget(p: Pipeline) -> None:
     if s["enabled"]:
         st.markdown(f"**Đang bật** — tính từ {s['since']} (UTC): đã chi ≈ **\\${s['spent']:.2f} / \\${s['usd']:.0f}**, "
                     f"{s['images']}/{s['image_cap']} ảnh, {s['audios']}/{s['audio_cap']} âm thanh.")
-        st.progress(min(s["spent"] / s["usd"], 1.0) if s["usd"] else 0.0)
+        ui.progress_bar(min(s["spent"] / s["usd"], 1.0) if s["usd"] else 0.0, invert=True)
         if s["unknown"]:
             st.caption("Chưa có giá cho: " + ", ".join(s["unknown"]) + " (không tính vào tổng).")
     else:
@@ -521,7 +521,7 @@ def _dialog_budget(p: Pipeline) -> None:
     st.markdown(f"**🤖 Claude API** — đã dùng ≈ **\\${s['llm_spent']:.2f} / \\${s['llm_usd']:.2f}**"
                 + (f" (tính từ {s['llm_since']} UTC)" if s["llm_since"] else "")
                 + (" — **đã hết, Dashboard ngừng gọi Claude**" if s["llm_usd"] > 0 and s["llm_left"] <= 0 else ""))
-    st.progress(min(s["llm_spent"] / s["llm_usd"], 1.0) if s["llm_usd"] > 0 else 0.0)
+    ui.progress_bar(min(s["llm_spent"] / s["llm_usd"], 1.0) if s["llm_usd"] > 0 else 0.0, invert=True)
     st.caption("Luôn bật (kể cả khi tắt đợt thử): mỗi lần gọi Claude API ghi số token vào/ra × giá niêm yết (data/pricing.json); hết "
                "thì Dashboard dừng gọi Claude và báo. Tiền Claude cũng cộng vào trần đợt thử ở trên. Claude Code trên máy (claude_cli) "
                "không tính ở đây. Đặt 0 để bỏ trần.")

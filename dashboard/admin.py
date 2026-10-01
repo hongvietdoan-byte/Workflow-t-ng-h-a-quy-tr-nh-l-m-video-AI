@@ -518,7 +518,7 @@ def asset_library_panel(p: Pipeline) -> None:
         st.caption(f"{n_pending} mục nhân vật/thú cưng chưa được đọc" if n_pending else "Mọi mục nhân vật/thú cưng đã được đọc.")
         prog = asset_vision.progress(game)
         if asset_vision.active(game) and prog["total"]:
-            st.progress(prog["done"] / prog["total"], text=f"Đang đọc {prog['done']}/{prog['total']} mục…")
+            ui.progress_bar(prog["done"] / prog["total"], text=f"Đang đọc {prog['done']}/{prog['total']} mục…")
         problem = asset_vision.last_error(game)
         if problem:
             st.warning(f"⚠ Đã dừng: {problem}")

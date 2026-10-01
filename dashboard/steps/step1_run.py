@@ -13,7 +13,7 @@ def autopilot_progress(pid: int) -> None:
            "stopped": ("đã dừng", "b-warn"), "error": ("lỗi", "b-bad"), "waiting": ("chờ bạn duyệt", "b-pri")}.get(state, (state, ""))
     ui.html(ui.badge(*tag) + f' <span class="muted">{escape(info["note"])}</span>')
     for label, done, total in autopilot.progress(p, pid, C.DATA):
-        st.progress(0 if not total else min(done / total, 1.0), text=f"{label}: {done}/{total}")
+        ui.progress_bar(0 if not total else min(done / total, 1.0), text=f"{label}: {done}/{total}")
     if info["log"]:
         st.caption(" · ".join(f"{e['at']} {e['msg']}" for e in info["log"][-4:]))
     mgr = autopilot_manager(C.DB, C.DATA)

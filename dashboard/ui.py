@@ -9,8 +9,9 @@ import streamlit as st
 
 CSS = """
 <style>
-:root{--bg:#F4F5F8;--surface:#fff;--border:#B8C1D1;--text:#1A1F2B;--muted:#667085;--primary:#4F46E5;--primary-soft:#EEF0FF;
---ok:#12B76A;--ok-soft:#E7F8EF;--warn:#F79009;--warn-soft:#FFF4E0;--bad:#F04438;--bad-soft:#FDECEA;--info:#0BA5EC;--info-soft:#E5F5FD}
+:root{--bg:#F7F8FA;--surface:#FFFFFF;--raised:#FFFFFF;--border:#7C879A;--border-strong:#5F6B7E;--text:#111827;--muted:#4B5563;--disabled:#6B7280;
+--primary:#2F5BEA;--on-primary:#FFFFFF;--primary-soft:#E4EDFF;--focus:#1D4ED8;
+--ok:#13693A;--ok-soft:#E3F6EA;--warn:#8A4B00;--warn-soft:#FFF1D6;--bad:#B42318;--bad-soft:#FDE8E6;--info:#1D4ED8;--info-soft:#E4EDFF}
 .stApp{background:var(--bg)}
 header[data-testid="stHeader"]{background:transparent}
 .block-container{padding-top:1.2rem;padding-bottom:3rem;max-width:1500px}
@@ -20,7 +21,7 @@ div[data-testid="stVerticalBlockBorderWrapper"]{background:var(--surface);border
 /* buttons */
 .stButton>button,.stDownloadButton>button{border-radius:8px;border:1px solid var(--border);font-size:12px;font-weight:500;padding:.35rem .8rem;min-height:2.1rem}
 .stButton>button:disabled{opacity:.45;cursor:not-allowed}
-.stButton>button[kind="primary"]{background:var(--primary);border-color:var(--primary);color:#fff}
+.stButton>button[kind="primary"]{background:var(--primary);border-color:var(--primary);color:var(--on-primary)}
 .st-key-btn_resume button,.st-key-approve_all button,.st-key-btn_ok button{background:var(--ok-soft);border-color:var(--ok);color:var(--ok)}
 .st-key-btn_cancel button,.st-key-reject_all button,.st-key-btn_bad button{background:var(--bad-soft);border-color:var(--bad);color:var(--bad)}
 /* brand */
@@ -36,23 +37,23 @@ div[data-testid="stVerticalBlockBorderWrapper"]{background:var(--surface);border
 [class*="st-key-mode_"] [data-testid="stRadioGroup"],[class*="st-key-filter_"] [data-testid="stRadioGroup"]{gap:6px;flex-wrap:wrap}
 [class*="st-key-mode_"] label[data-testid="stRadioOption"],[class*="st-key-filter_"] label[data-testid="stRadioOption"]{border:1px solid var(--border);background:var(--surface);border-radius:16px;padding:3px 12px;margin:0;cursor:pointer}
 [class*="st-key-mode_"] label[data-testid="stRadioOption"][data-selected="true"],[class*="st-key-filter_"] label[data-testid="stRadioOption"][data-selected="true"]{background:var(--primary);border-color:var(--primary)}
-[class*="st-key-mode_"] label[data-testid="stRadioOption"] p,[class*="st-key-filter_"] label[data-testid="stRadioOption"] p{font-size:11.5px;color:var(--muted);margin:0}
-[class*="st-key-mode_"] label[data-testid="stRadioOption"][data-selected="true"] p,[class*="st-key-filter_"] label[data-testid="stRadioOption"][data-selected="true"] p{color:#fff;font-weight:600}
+[class*="st-key-mode_"] label[data-testid="stRadioOption"] p,[class*="st-key-filter_"] label[data-testid="stRadioOption"] p{font-size:13.5px;color:var(--text);margin:0}
+[class*="st-key-mode_"] label[data-testid="stRadioOption"][data-selected="true"] p,[class*="st-key-filter_"] label[data-testid="stRadioOption"][data-selected="true"] p{color:var(--on-primary);font-weight:600}
 .st-key-step label[data-testid="stRadioOption"]>div>div:first-child,[class*="st-key-mode_"] label[data-testid="stRadioOption"]>div>div:first-child,[class*="st-key-filter_"] label[data-testid="stRadioOption"]>div>div:first-child{display:none}
 /* badges, bars, items */
-.badge{display:inline-block;padding:2px 8px;border-radius:10px;font-size:10.5px;font-weight:600;background:var(--bg);color:var(--muted);white-space:nowrap}
+.badge{display:inline-block;padding:2px 8px;border-radius:10px;font-size:12px;font-weight:600;background:var(--bg);color:var(--muted);white-space:nowrap}
 .b-ok{background:var(--ok-soft);color:var(--ok)}.b-warn{background:var(--warn-soft);color:var(--warn)}.b-bad{background:var(--bad-soft);color:var(--bad)}
 .b-info{background:var(--info-soft);color:var(--info)}.b-pri{background:var(--primary-soft);color:var(--primary)}
 .bar{height:5px;background:var(--border);border-radius:3px;flex:1}.bar i{display:block;height:100%;border-radius:3px}
-.qcrow{display:flex;align-items:center;gap:8px;font-size:11px;margin:2px 0}.qcrow b{min-width:52px}
-.crit{display:flex;justify-content:space-between;font-size:11.5px;margin:5px 0}
+.qcrow{display:flex;align-items:center;gap:8px;font-size:12px;margin:2px 0}.qcrow b{min-width:52px}
+.crit{display:flex;justify-content:space-between;font-size:12.5px;margin:5px 0}
 .prog{height:10px;background:var(--border);border-radius:5px;overflow:hidden;margin:6px 0}.prog i{display:block;height:100%;background:var(--primary)}
 .item{display:flex;align-items:center;gap:12px;background:var(--bg);border-radius:8px;padding:10px 12px;margin-bottom:8px}
 .item .av{width:36px;height:36px;border-radius:50%;background:var(--primary-soft);flex:none;display:grid;place-items:center;font-weight:700;color:var(--primary)}
-.item .t{flex:1;min-width:0}.item .t b{display:block;font-size:12.5px}.item .t span{font-size:11.5px;color:var(--muted)}
-.cardtitle{font-size:14px;font-weight:700;margin:0 0 8px}.cardtitle span{font-size:11px;color:var(--muted);font-weight:400;margin-left:6px}
+.item .t{flex:1;min-width:0}.item .t b{display:block;font-size:12.5px}.item .t span{font-size:12.5px;color:var(--muted)}
+.cardtitle{font-size:14px;font-weight:700;margin:0 0 8px}.cardtitle span{font-size:12px;color:var(--muted);font-weight:400;margin-left:6px}
 .cardhead{display:flex;align-items:center;gap:8px;margin:4px 0 6px}.cardhead .grow{flex:1}
-.muted{color:var(--muted);font-size:11.5px}
+.muted{color:var(--muted);font-size:12.5px}
 .note-warn{background:var(--warn-soft);border:1px solid var(--warn);border-radius:10px;padding:10px 14px;margin:8px 0}
 .wave{height:46px;border-radius:8px;background:repeating-linear-gradient(90deg,var(--primary-soft) 0 3px,transparent 3px 6px);margin:8px 0}
 .scenetext{white-space:pre-wrap;font-size:13.5px;line-height:1.5;background:var(--bg);border-left:4px solid var(--primary);border-radius:6px;padding:10px 12px;margin:2px 0 8px}
@@ -66,13 +67,12 @@ border:1px solid var(--border);border-left:4px solid var(--primary);border-radiu
 .sub-num{display:inline-block;min-width:26px;padding:1px 7px;margin-right:6px;border-radius:6px;background:var(--primary-soft);
 color:var(--primary);font-weight:700;font-size:12px;text-align:center}
 /* đợt 3 (01/10): dễ đọc hơn — chữ to hơn, màu chữ phụ đậm hơn (người dùng: "nhìn khá khó đọc chữ") */
-:root{--muted:#475467;--ok:#067647;--warn:#B54708;--bad:#B42318;--info:#026AA2}
 .stButton>button,.stDownloadButton>button{font-size:13.5px}
 [data-testid="stCaptionContainer"],[data-testid="stCaptionContainer"] p,.stCaption{font-size:13.5px;color:var(--muted);line-height:1.5}
 [data-testid="stMarkdownContainer"] p,[data-testid="stMarkdownContainer"] li{font-size:14.5px;line-height:1.55}
 [data-testid="stPopover"] button p,[data-testid="stSelectbox"] div[data-baseweb="select"] div{font-size:13.5px}
 label[data-testid="stWidgetLabel"] p{font-size:13.5px;color:var(--text)}
-.badge{font-size:11.5px;padding:2px 9px}
+.badge{font-size:12px;padding:2px 9px}
 .muted,.cardtitle span{font-size:12.5px}
 .qcrow,.crit,.item .t span{font-size:12.5px}.item .t b{font-size:13.5px}
 .st-key-step label[data-testid="stRadioOption"] p{font-size:14px}
@@ -82,7 +82,7 @@ label[data-testid="stWidgetLabel"] p{font-size:13.5px;color:var(--text)}
 [class*="st-key-level_"] label[data-testid="stRadioOption"],[class*="st-key-home_status"] label[data-testid="stRadioOption"]{border:1px solid var(--border);background:var(--surface);border-radius:16px;padding:4px 14px;margin:0;cursor:pointer}
 [class*="st-key-level_"] label[data-testid="stRadioOption"][data-selected="true"],[class*="st-key-home_status"] label[data-testid="stRadioOption"][data-selected="true"]{background:var(--primary);border-color:var(--primary)}
 [class*="st-key-level_"] label[data-testid="stRadioOption"] p,[class*="st-key-home_status"] label[data-testid="stRadioOption"] p{font-size:13.5px;color:var(--text);margin:0}
-[class*="st-key-level_"] label[data-testid="stRadioOption"][data-selected="true"] p,[class*="st-key-home_status"] label[data-testid="stRadioOption"][data-selected="true"] p{color:#fff;font-weight:600}
+[class*="st-key-level_"] label[data-testid="stRadioOption"][data-selected="true"] p,[class*="st-key-home_status"] label[data-testid="stRadioOption"][data-selected="true"] p{color:var(--on-primary);font-weight:600}
 [class*="st-key-level_"] label[data-testid="stRadioOption"]>div>div:first-child,[class*="st-key-home_status"] label[data-testid="stRadioOption"]>div>div:first-child{display:none}
 /* khung giống bản demo đã duyệt: chữ Inter/hệ thống, thanh bước có số trong vòng tròn */
 .stApp,.stApp button,.stApp input,.stApp textarea{font-family:Inter,"Segoe UI",system-ui,-apple-system,Roboto,sans-serif}
@@ -92,12 +92,27 @@ label[data-testid="stWidgetLabel"] p{font-size:13.5px;color:var(--text)}
 .st-key-step label[data-testid="stRadioOption"]::before{content:counter(stp);width:26px;height:26px;border-radius:50%;background:var(--border);color:var(--muted);display:grid;place-items:center;font-size:12.5px;font-weight:700;flex:none}
 .st-key-step [data-testid="stRadioGroup"]>div:first-child label[data-testid="stRadioOption"]::before{content:"⌂";font-size:15px}
 .st-key-step [data-testid="stRadioGroup"]>div:nth-child(n+6) label[data-testid="stRadioOption"]::before{display:none}
-.st-key-step label[data-testid="stRadioOption"][data-selected="true"]::before{background:var(--primary);color:#fff}
+.st-key-step label[data-testid="stRadioOption"][data-selected="true"]::before{background:var(--primary);color:var(--on-primary)}
 /* viền rõ nét hơn (người dùng 01/10): đậm màu + dày 1.5px cho thẻ, ô nhập, mục gập */
 div[data-testid="stVerticalBlockBorderWrapper"]{border-width:1.5px}
 [data-testid="stExpander"] details,[data-testid="stTextInputRootElement"],[data-testid="stNumberInputContainer"],[data-testid="stTextAreaRootElement"],div[role="group"]{border-width:1.5px}
 .stButton>button,.stDownloadButton>button,[data-testid="stPopoverButton"]{border-width:1.5px}
 .st-key-step label[data-testid="stRadioOption"]{border-width:2px}
+/* thanh tiến độ đổi màu theo % hoàn thành + khung của container có viền (Streamlit 1.64: stVerticalBlock) */
+.pbwrap{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:4px 0}.pbtext{flex:1 1 100%;font-size:13px;color:var(--muted)}
+.pb{flex:1;height:10px;background:var(--border);border-radius:5px;overflow:hidden;min-width:80px}.pb i{display:block;height:100%;border-radius:5px}
+.pbpct{font-size:12px;font-weight:700;min-width:36px;text-align:right}
+[data-testid="stVerticalBlock"]{border-color:var(--border)!important;border-width:1.5px!important}
+/* ===== hệ thống thiết kế (01/10): tab / bước hiện ĐỦ mục với trạng thái chọn nền đặc; focus rõ; chữ tối thiểu 12-14px ===== */
+[role="tablist"]{gap:6px;border-bottom:1.5px solid var(--border)}
+[role="tab"]{background:var(--surface);border:1.5px solid var(--border);border-bottom:none;border-radius:8px 8px 0 0;padding:6px 14px;color:var(--muted)}
+[role="tab"] p{color:var(--muted)!important;font-size:14px;font-weight:600}
+[role="tab"][aria-selected="true"]{background:var(--primary-soft);border-color:var(--primary)}
+[role="tab"][aria-selected="true"] p{color:var(--primary)!important}
+[data-baseweb="tab-highlight"]{background:var(--primary)!important}
+:focus-visible{outline:2px solid var(--focus)!important;outline-offset:2px}
+a,a:visited{color:var(--info)}
+.stMarkdownColoredText{font-weight:600}
 </style>
 """
 
@@ -115,15 +130,16 @@ MODE_LABELS = {"auto": "Tự duyệt theo QC", "human_qc": "Người duyệt"}
 DARK_CSS = """
 <style>
 /* 🌙 Nền tối (thử 01/10): đổi biến màu của khung + các thành phần gốc của Streamlit. Bảng dữ liệu (canvas) vẫn nền sáng. */
-:root{--bg:#0F1420;--surface:#171D2B;--border:#4A5A80;--text:#E6EAF2;--muted:#A9B4C9;--primary:#8B85FF;--primary-soft:#262B52;
---ok:#4ADE80;--ok-soft:#12301F;--warn:#FBBF24;--warn-soft:#3A2A0C;--bad:#F87171;--bad-soft:#3B1717;--info:#38BDF8;--info-soft:#0E2F40}
+:root{--bg:#0F1115;--surface:#171A21;--raised:#1F232C;--border:#657086;--border-strong:#8791A3;--text:#F2F4F8;--muted:#AAB2C0;--disabled:#7C8596;
+--primary:#7C9CFF;--on-primary:#0F1115;--primary-soft:#1E2A4F;--focus:#9DB6FF;
+--ok:#6EE7A0;--ok-soft:#10281B;--warn:#FBBF55;--warn-soft:#2E2108;--bad:#FF8B80;--bad-soft:#34130F;--info:#8FB2FF;--info-soft:#122046}
 .stApp,[data-testid="stAppViewContainer"],[data-testid="stMain"]{background:var(--bg);color:var(--text)}
 [data-testid="stHeader"]{background:transparent}
 .stApp p,.stApp li,.stApp label,.stApp h1,.stApp h2,.stApp h3,.stApp h4,.stApp h5,.stApp h6,.stApp summary{color:var(--text)}
 [data-testid="stCaptionContainer"],[data-testid="stCaptionContainer"] p{color:var(--muted)}
 .stButton>button,.stDownloadButton>button{background:var(--surface);color:var(--text);border-color:var(--border)}
 .stButton>button p{color:inherit}
-.stButton>button[kind="primary"]{background:var(--primary);color:#0F1420}
+.stButton>button[kind="primary"]{background:var(--primary);color:var(--on-primary)}
 .stButton>button[kind="primary"] p{color:#0F1420}
 .stButton>button:hover{border-color:var(--primary);color:var(--primary)}
 [data-baseweb="input"],[data-baseweb="base-input"],[data-baseweb="textarea"],[data-baseweb="select"]>div{background:var(--surface)!important;border-color:var(--border)!important}
@@ -142,8 +158,9 @@ button[data-baseweb="tab"][aria-selected="true"] p{color:var(--primary)}
 [data-testid="stAlert"]{background:var(--surface)}
 .scenetext,.scriptfull{background:var(--surface)}
 .stephead,.item,.note{background:var(--surface)}
+.stMarkdownColoredText{filter:brightness(1.9) saturate(1.1)}
 [data-testid="stBaseButton-secondary"],[data-testid="stPopoverButton"],[data-testid="stBaseButton-secondaryFormSubmit"]{background:var(--surface)!important;color:var(--text)!important;border-color:var(--border)!important}
-[data-testid="stBaseButton-primary"]{background:var(--primary)!important;color:#0F1420!important}
+[data-testid="stBaseButton-primary"]{background:var(--primary)!important;color:var(--on-primary)!important}
 [data-testid="stBaseButton-secondary"] p,[data-testid="stPopoverButton"] p{color:var(--text)!important}
 div[role="group"],[data-testid="stTextInputRootElement"],[data-testid="stNumberInputContainer"],[data-testid="stTextAreaRootElement"]{background:var(--surface)!important;border-color:var(--border)!important}
 ul[role="listbox"],[data-testid="stSelectboxVirtualDropdown"]{background:var(--surface)!important;color:var(--text)!important}
@@ -202,6 +219,28 @@ def state_badge(state: str, kind: str = None) -> str:
 def stale_badge(reason: str = "") -> str:
     """'⚠ cũ' marker for a result made from inputs that have changed since (reason in the tooltip)."""
     return f'<span class="badge b-warn" title="{escape(reason)}">⚠ cũ{(" · " + escape(reason)) if reason else ""}</span>'
+
+
+def bar_color(frac: float, invert: bool = False) -> str:
+    """Colour of a progress bar by how complete it is (0–33 % red, 34–66 % orange, 67–99 % blue, 100 % green).
+    invert=True for money / budget bars where FULL is bad (≥ 90 % red, ≥ 70 % orange, else green)."""
+    f = max(0.0, min(1.0, float(frac or 0)))
+    if invert:
+        return "var(--bad)" if f >= 0.9 else "var(--warn)" if f >= 0.7 else "var(--ok)"
+    return "var(--ok)" if f >= 0.999 else "var(--info)" if f >= 0.67 else "var(--warn)" if f >= 0.34 else "var(--bad)"
+
+
+def progress_bar(frac: float, text: str = "", invert: bool = False) -> None:
+    """Drop-in for st.progress with the colour by percentage."""
+    f = max(0.0, min(1.0, float(frac or 0)))
+    html(pbar(f, text, invert))
+
+
+def pbar(frac: float, text: str = "", invert: bool = False) -> str:
+    f = max(0.0, min(1.0, float(frac or 0)))
+    label = f'<div class="pbtext">{escape(text)}</div>' if text else ""
+    return (f'<div class="pbwrap">{label}<div class="pb"><i style="width:{f * 100:.0f}%;background:{bar_color(f, invert)}"></i></div>'
+            f'<span class="pbpct">{f * 100:.0f}%</span></div>')
 
 
 def score_color(score: float, threshold: float) -> str:

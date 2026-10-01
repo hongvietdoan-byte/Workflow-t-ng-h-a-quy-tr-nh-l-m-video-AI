@@ -130,7 +130,7 @@ def home(p: Pipeline, pid: int):
         c[1].markdown(STATUS[r["status"]])
         total = max(r["scenes"], 1)
         done_units = (r["images"] + r["motion"] + r["videos"]) / (3 * total) if r["scenes"] else 0.0
-        c[2].progress(min(done_units, 1.0), text=f"{r['step_label']} · ảnh {r['images']}/{r['scenes']} · clip {r['videos']}/{r['scenes']}")
+        c[2].markdown(ui.pbar(min(done_units, 1.0), text=f"{r['step_label']} · ảnh {r['images']}/{r['scenes']} · clip {r['videos']}/{r['scenes']}"), unsafe_allow_html=True)
         c[3].caption(f"{r['spent']:.2f} / {r['cap']:.2f}" if r["cap"] else f"{r['spent']:.2f} / —")
         c[4].markdown(f":red[**{r['needs_review']}**]" if r["needs_review"] else "0")
         c[5].button("Mở →", key=f"home_open_{r['id']}", on_click=C.go_screen, args=(r["id"], r["screen"]), width="stretch",
