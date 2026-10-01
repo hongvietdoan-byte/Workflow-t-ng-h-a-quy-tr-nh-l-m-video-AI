@@ -290,3 +290,8 @@ Phần lớn việc còn lại trong `TODO.md` (mục "Đang làm/kế tiếp", 
 Seedance Fast chỉ qua bộ lọc khi dấu đỏ nằm trên mặt và có lúc vẽ dấu vào clip (QC `ref_mark` bắt); khớp môi (c) `core/dialogue_take.py` cho đúng
 người nói đúng lượt với 3 người trong khung; storyboard phải ghi ai có trong từng khung (`cast_note`).
 **Source**: chạy thật, 14 clip, 8,88 USD — docs/AB_HANH_DONG_S4_6_2026-09-29.md
+
+## Rà soát toàn dashboard + S11.2 - 2026-10-01
+**Context**: phiên kế tiếp làm theo báo cáo rà soát.
+**Finding**: Sơ đồ `docs/so_do/SO_DO_TINH_NANG.html` (nguồn feature_map.json, dựng `py tools/feature_map_build.py`). Báo cáo `docs/RA_SOAT_DASHBOARD_2026-10-01.md`: B1 11 khâu Claude dòng claude_other (sfx, music, style, layout, subtitles…) không có max_tokens riêng → luôn bị chặn khi dự án khóa ngân sách (sửa: bảng STAGES chung + test quét); B2 `core/effectiveness.py` look_trust chia lenient cho tổng ảnh thay vì ảnh bị loại; B3 thiếu kiểm tỉ lệ ảnh tham chiếu video; B4 CTA_TEXT trong Biên kịch; B5 6 ảnh Kho mất file; B6 devsys dò cờ. Đề xuất tắt setcheck_autofix, layout_to_model, chain_previous_auto. S11.2: `tools/experiments/idea_script_eval.py`, chạy 2/5 (0,438 USD), dừng vì ngân sách Claude API chung hết; screenwriter max_tokens 8000.
+**Source**: chạy thử 0 USD + chấm devsys (Claude Code session) 01/10

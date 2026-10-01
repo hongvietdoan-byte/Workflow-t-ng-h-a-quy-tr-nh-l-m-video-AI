@@ -10,6 +10,7 @@ Memory repo dùng chung cho các phiên Claude Code trên mọi máy của hongv
 
 | Ngày | Tiêu đề | File |
 |---|---|---|
+| 2026-10-01 | Rà soát dashboard: sơ đồ cây tính năng (docs/so_do), AI Dev System TB 88,2, 6 bug (B1 11 khâu Claude 'khác' max_tokens 32k > trần 0,20 khi khóa ngân sách; B2 look_trust sai mẫu số), 3 cờ gây hại đang BẬT; S11.2 2/5 ý tưởng, chờ nạp tiền. Chưa sửa — chờ người dùng chọn đợt (docs/RA_SOAT_DASHBOARD_2026-10-01.md mục 7) | projects/ai-video-pipeline.md |
 | 2026-09-29 | S4.6 A/B: hiệu ứng kỹ năng vẽ sẵn khung đầu+cuối (Kling); khớp môi (c) một clip cả đoạn thoại; Fast cần dấu trên mặt, dễ lọt dấu | projects/ai-video-pipeline.md |
 | 2026-09-26 | Đợt 10–11: sửa 11 lỗi, GĐ5 hai lượt, web devsys chấm điểm, đợt thử $10 bật 23 cờ, #1–#7 cất, không sync.so | projects/ai-video-pipeline.md |
 | 2026-09-26 | PDF gameplay FF = tư liệu hiểu hình (không ghép cảnh) → ff_gameplay_visual.md + gỡ chữ tả thực; Handbook → trường shot `sound` (Đ9, cờ sound_intent), Đ2/Đ3 | projects/ai-video-pipeline.md |
