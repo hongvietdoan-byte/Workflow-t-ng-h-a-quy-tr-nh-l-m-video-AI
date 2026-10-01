@@ -77,6 +77,8 @@ Thứ tự ưu tiên khi nghĩ (trên thắng dưới):
 
 ## Kết quả thử thật (cập nhật sau mỗi lần thử)
 
+- **2026-10-01 — Video tham chiếu KHÔNG MẶT (mannequin / depth map) với Seedance 2.5.** Người dùng xác nhận web ClipAI nhận cả depth map lẫn mannequin màu. Thử thật qua API (dự án #20, 1,38 USD, `tools/experiments/mannequin_ref_test.py`): 720p 16:9 5 s, `reference_only` [bối cảnh, Kelly, Maxim] + đoạn mannequin 5 s (bỏ tiếng, `setsar=1`) → **không bị từ chối**; câu "the red mannequin is Kelly, the white-grey mannequin is Maxim" ánh xạ đúng; động tác bám sát; mặt / trang phục giữ; không lọt phông xanh / thân mannequin. **Chưa đạt:** không theo khung máy của ref (ref toàn cảnh tĩnh thấy 2 người từ giây 0 → clip trung cảnh chỉ Kelly, máy lia, Maxim vào ở ≈ 2,7 s) — sửa sau: khung đầu vẽ sẵn đủ người đúng chỗ, hoặc câu khung máy rõ. Luật: nói rõ thứ KHÔNG lấy từ video (thân / màu / chất liệu mannequin, phông xanh, tiếng; với depth: dáng tóc lọt từ người thật). Bản lưu `D:/AI-Video-Output/2026-10-01_thu-ref-mannequin/`.
+
 - **LỖI MODEL ĐÃ GHI (người dùng 30/09): thanh định hướng kỹ năng đi theo tay nhân vật như cầm kiếm.** Video kỹ năng chính thức có THANH ĐỊNH
   HƯỚNG (chỉ báo nhắm của giao diện: tấm sọc ngang trong suốt xanh ngọc cạnh Kenta, chỉ hướng tung lốc). Hồ sơ cũ tả nhầm là "lưỡi hologram cầm
   tay" + khung tham chiếu 16,70 có thanh này → T1, T4, T6 đều vẽ Kenta CẦM nó như kiếm. Bài học chung (mọi nhân vật): khi đọc video kỹ năng,

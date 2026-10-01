@@ -168,7 +168,7 @@
 - [ ] S11.11 · 💵 💃 Bài thử A/B: gốc có mặt (đối chứng) / depth / mannequin × Seedance 2.5 / Kling feature (≈ 2,5–3 USD) · nặng:2 · ⬜
 - [ ] S11.12 · 💃 Cover nhảy đầy đủ theo cách thắng + QC nhảy + nhạc cùng BPM · nặng:3 · ⬜ · cờ `dance_cover` TẮT
 - [ ] S11.13 · Đánh giá sau 4–6 tuần: nâng Apify Starter hay không · nặng:1 · ⬜
-- [ ] S11.14 · Hỏi ClipAI mở API Motion Control + có nhận video ref depth / mannequin · nặng:1 · ⏸ · người dùng chưa hỏi
+- [ ] S11.14 · Hỏi ClipAI mở API Motion Control + có nhận video ref depth / mannequin · nặng:1 · ⏸ · phần ref không mặt XONG 01/10 (Seedance 2.5 nhận qua API, thử #20 1,38 USD); còn hỏi Motion Control
 
 ### S12 — Rà soát dashboard 01/10: sửa lỗi, tính năng thử, 4 màn, nhiều người dùng (`docs/RA_SOAT_DASHBOARD_2026-10-01.md`)
 - [x] S12.0 · Đợt 0: tắt 3 cờ gây hại (`setcheck_autofix`, `layout_to_model`, `chain_previous_auto`) + cất 18 dự án cũ (không xóa) · nặng:1 · ✅ · 01/10: sao lưu CSDL + dashboard.env
