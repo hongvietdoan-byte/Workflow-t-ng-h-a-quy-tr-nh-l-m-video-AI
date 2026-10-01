@@ -137,5 +137,13 @@ def home(p: Pipeline, pid: int):
                     type="primary" if r["status"] == "wait" and r["mine"] else "secondary")
         if r["autopilot_note"] and r["status"] in ("wait", "run"):
             c[0].caption("🚀 " + r["autopilot_note"][:110])
+    finished = [r for r in shown if r["done"] and r["final_video"] and os.path.exists(r["final_video"])]
+    if finished:
+        with st.expander(f"🎬 Sản phẩm đã hoàn tất ({len(finished)})", expanded=False):
+            for r in finished:
+                st.markdown(f"**#{r['id']} {r['name']}**")
+                show_video(r["final_video"], "Nhỏ")
+                with open(r["final_video"], "rb") as f:
+                    st.download_button("⬇ Tải FINAL_VIDEO.mp4", f, file_name=f"{r['name']}_FINAL_VIDEO.mp4", key=f"home_dl_{r['id']}")
     st.caption("“Của tôi” = dự án bạn tạo. Dự án của người khác mở được để xem; chỉ thao tác (duyệt, gen) khi chủ dự án nhờ hoặc bạn là Owner — hệ thống ghi tên người gửi mỗi job. 🔒 = người đó vừa "
                "mở dự án (trong 2 phút) — chỉ báo để hai người không duyệt chồng nhau, không khóa.")

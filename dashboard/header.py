@@ -684,6 +684,16 @@ def status_line(p: Pipeline, pid: int) -> None:
     broken = cost.load_pricing().get("_error")
     if broken:                                          # luật 1: a broken price table stops every paid send — say it everywhere
         bits.append(f"🔴 {escape(broken)} — mọi job trả tiền bị chặn")
+    try:                                                # what the four overview cards used to say, in the same one line
+        from dashboard import overview
+        c = overview._counts(p, pid)
+        if c["queue"]:
+            bits.append(f"hàng đợi: {c['queue'].get('image_gen', 0)} ảnh, {c['queue'].get('video_gen', 0)} clip")
+        plates = overview._plates(pid)
+        if plates:
+            bits.append(plates)
+    except Exception:  # noqa: BLE001 - a status bit only
+        pass
     ap = autopilot.status(p, pid)
     if ap["state"] in ("running", "queued", "waiting"):
         bits.append(f"🚀 Tự động: {ap['note']}")

@@ -82,19 +82,13 @@ class DashboardSmokeTests(unittest.TestCase):
         self.assertFalse(at.exception)
         self.assertTrue(any("World Bible" in x for x in labels()))
 
-    def test_the_four_cards_open_their_step(self):
-        """Kế hoạch V4 5.3 item 6: Kịch bản → Duyệt kế hoạch → Đang sản xuất → Video cuối, each opening its step."""
+    def test_the_overview_cards_are_gone_but_their_facts_stay_on_the_status_line(self):
+        """01/10: the four cards duplicated the bar's progress and the ⌂ page; the queue / background facts moved to the status line."""
         _, pid = self.seed()
         at = AppTest.from_file(APP, default_timeout=30).run()
         self.assertFalse(at.exception)
-        titles = " ".join(m.value for m in at.markdown)
-        for t in ("Kịch bản", "Duyệt kế hoạch", "Đang sản xuất", "Video cuối"):
-            self.assertIn(t, titles)
-        at.button(key=f"ov_2_{pid}").click().run()
-        self.assertFalse(at.exception)
-        self.assertEqual(at.radio(key="step").value, "Storyboard")      # pictures not finished in the seed → "Đang sản xuất" opens Storyboard (Video once they are)
-        at.button(key=f"ov_3_{pid}").click().run()
-        self.assertEqual(at.radio(key="step").value, "Bản giao")
+        self.assertFalse([b for b in at.button if (b.key or "").startswith("ov_")])
+        self.assertFalse(any("Tổng quan dự án" in e.label for e in at.expander))
 
     def test_the_limits_dialog_opens_with_its_numbers(self):
         self.seed()

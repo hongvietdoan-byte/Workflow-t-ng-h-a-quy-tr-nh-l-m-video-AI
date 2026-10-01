@@ -822,45 +822,8 @@ def monitor(p: Pipeline, pid: int) -> None:
     if snap["usage_today"]:
         st.caption("Dùng hôm nay: " + ", ".join(f"{q:g} {unit} ({kind})" for kind, unit, q in snap["usage_today"]))
     effectiveness_panel(p, pid)
-    ui.html(ui.card_title("👥 Số video theo người dùng", "ai đã gen bao nhiêu (theo e-mail đăng nhập; khi tắt đăng nhập thì theo tên tự khai)"))
-    period = st.radio("Khoảng thời gian", ["Hôm nay", "7 ngày", "30 ngày", "Tất cả"], horizontal=True, key="by_user_period")
-    days = {"Hôm nay": 1, "7 ngày": 7, "30 ngày": 30, "Tất cả": None}[period]
-    people = perf.by_user(p.conn, days)
-    if people:
-        st.dataframe([{"Người dùng": r["who"], "Video đã gen": str(r["videos_ok"]), "Video đã gửi": str(r["videos"]),
-                       "Lỗi": str(r["videos_failed"]), "Gen lại": str(r["videos_retry"]),
-                       "Tổng giây video": f"{r['seconds']:g}", "Ảnh đã gen": str(r["images"]), "Dự án": str(r["projects"]),
-                       "Lần gần nhất": (r["last_at"] or "")[:16].replace("T", " ")} for r in people],
-                     hide_index=True, use_container_width=True)
-        st.caption("“Video đã gen” = video thành công; “đã gửi” gồm cả lỗi và gen lại. Tên là tự khai, không phải tài khoản: "
-                   "chỉ dùng để thống kê, không ngăn được người khác mạo danh.")
-    else:
-        st.caption("Chưa có lượt gen nào trong khoảng này.")
-    ui.html(ui.card_title("📁 Tổng quan tất cả dự án", "mọi dự án — tự động hoàn toàn lẫn từng bước/bán tự động — cùng lúc"))
-    portfolio = perf.portfolio_rows(p.conn, C.DATA)
-    if not portfolio:
-        st.caption("Chưa có dự án nào.")
-    else:
-        mode_label = {"auto": "Auto", "human_qc": "Human QC"}
-        st.dataframe([{"Dự án": f"#{r['id']} {r['name']}",
-                       "Chế độ QC": mode_label.get(r["operating_mode"], r["operating_mode"]),
-                       "Đang chạy": ("⏸ Tạm dừng" if r["paused"] else "🚀 Tự động hoàn toàn" if r["running_auto"]
-                                    else "🧭 Từng bước" if not r["done"] else "-"),
-                       "Bước hiện tại": r["step_label"], "Ảnh duyệt": f"{r['images']}/{r['scenes']}",
-                       "Prompt duyệt": f"{r['motion']}/{r['scenes']}", "Video xong": f"{r['videos']}/{r['scenes']}",
-                       "Job hoạt động": r["active"], "Chờ duyệt": r["needs_review"],
-                       "Người tạo": r["created_by"], "Ghi chú tự động": r["autopilot_note"]}
-                      for r in portfolio], hide_index=True, use_container_width=True)
-        finished = [r for r in portfolio if r["done"]]
-        with st.expander(f"🎬 Sản phẩm đã hoàn tất ({len(finished)})", expanded=bool(finished)):
-            if not finished:
-                st.caption("Chưa có dự án nào ra FINAL_VIDEO.mp4.")
-            for r in finished:
-                st.markdown(f"**#{r['id']} {r['name']}**")
-                show_video(r["final_video"], "Nhỏ")
-                with open(r["final_video"], "rb") as f:
-                    st.download_button("⬇ Tải FINAL_VIDEO.mp4", f, file_name=f"{r['name']}_FINAL_VIDEO.mp4",
-                                       key=f"portfolio_dl_{r['id']}")
+    st.caption("👥 Số video / tiền theo người dùng → màn **Nhóm**. 📁 Bảng tất cả dự án và 🎬 sản phẩm đã hoàn tất → màn **⌂ Tất cả dự án**. "
+               "Trang này chỉ giữ sức khỏe hệ thống: hàng đợi, tốc độ, lỗi, hiệu quả.")
     st.caption("Ngưỡng cảnh báo chỉnh bằng biến môi trường: PERF_MAX_ACTIVE, PERF_FAIL_WARN, PERF_SLOW_WARN; "
                "song song: AUTOPILOT_MAX_PARALLEL; trần ngày: AUTOPILOT_DAILY_JOBS. "
                "Chưa đo thời gian gọi Claude (QC/motion).")
