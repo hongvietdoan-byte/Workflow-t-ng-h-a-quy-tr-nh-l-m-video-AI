@@ -1,0 +1,8 @@
+/* 📊 Theo dõi (nhánh D) */
+.st-key-hero-mon { margin-bottom: 8px; }
+[class*="st-key-card-mon-"] { margin-bottom: 8px; }
+.mon-tablewrap { overflow-x: auto; margin-bottom: 8px; }
+.v2-table.mon-table td, .v2-table.mon-table th { white-space: nowrap; }
+.mon-find { padding: 3px 0; font-size: 14px; }
+.st-key-hero-mon [data-testid="stMarkdownContainer"], [class*="st-key-card-mon-"] [data-testid="stMarkdownContainer"] { margin-bottom: 0; }
+[data-testid="stMarkdownContainer"]:has(> .mon-tablewrap), [data-testid="stMarkdownContainer"]:has(> .mon-find) { margin-bottom: 0; }

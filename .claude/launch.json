@@ -66,6 +66,16 @@
       "autoPort": true
     },
     {
+      "name": "dashboard-home",
+      "runtimeExecutable": "powershell",
+      "runtimeArgs": [
+        "-NoProfile",
+        "-Command",
+        "$env:PIPELINE_DB='data/demo/manifest.sqlite'; $env:PIPELINE_DATA='data/demo/projects'; $env:AUDIO_PROVIDER='mock'; $env:LLM_PROVIDER='mock'; $env:SUBJECT_PROVIDER='mock'; $env:FEATURE_UI_V2='1'; py -m streamlit run dashboard/app.py --server.port 8522 --server.headless true"
+      ],
+      "port": 8522
+    },
+    {
       "name": "docs-static",
       "runtimeExecutable": "py",
       "runtimeArgs": [
