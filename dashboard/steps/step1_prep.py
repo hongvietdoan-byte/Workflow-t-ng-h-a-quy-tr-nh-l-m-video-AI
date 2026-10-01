@@ -1,7 +1,7 @@
 """Step 1 · 1b: format, resources, World Bible, image model, shot format, storyboard previz (split from step1.py, S9.5)."""
 from dashboard.common import *  # noqa: F401,F403  (shared imports + helpers)
 from dashboard import common as C
-from dashboard.steps.step1_v2 import cap  # noqa: F401  (v2: long captions become a one-line summary + ⓘ)
+from dashboard.steps.step1_v2 import cap, say, is_next  # noqa: F401  (v2: long captions / notes become a one-line summary + ⓘ)
 
 WB_LABELS = (("render_style", "Phong cách dựng hình", "vd: hoạt hình 3D mềm, không viền, chuyển sắc liên tục"),
              ("palette", "Bảng màu", "màu chủ đạo, màu điểm nhấn, phủ định (no bloom...)"),
@@ -50,7 +50,7 @@ def world_bible_panel(p: Pipeline, pid: int) -> None:
                 st.session_state[f"wb_draft_{pid}"] = draft
         draft = st.session_state.get(f"wb_draft_{pid}")
         if draft:
-            st.info(draft.get("plain_note") or "Đã soạn bản nháp: xem và sửa các ô bên dưới rồi Lưu.")
+            say("info", draft.get("plain_note") or "Đã soạn bản nháp: xem và sửa các ô bên dưới rồi Lưu.", f"script-wb-draft-{pid}")
             for flag in draft.get("check_flags") or []:
                 st.markdown(f":orange[⚠ {escape(str(flag))}]")
             elements = draft.get("candidate_elements") or []
@@ -68,7 +68,7 @@ def world_bible_panel(p: Pipeline, pid: int) -> None:
         c1, c2, c3 = st.columns([1.2, 1, 2], vertical_alignment="bottom")
         if c1.button("💾 Lưu World Bible", key=f"wb_save_{pid}", type="primary"):
             style.save(p, pid, values)
-            st.success("Đã lưu. Director/Motion chạy sau sẽ dùng phong cách này.")
+            say("success", "Đã lưu. Director/Motion chạy sau sẽ dùng phong cách này.", f"script-wb-saved-{pid}")
         if c2.button("Xóa", key=f"wb_clear_{pid}"):
             style.save(p, pid, {})
             for key, _, _ in WB_LABELS:
@@ -90,7 +90,7 @@ def assets_panel(p: Pipeline, pid: int) -> None:
     suggested = [a for a in assets.find_in_text(p.conn, text, game, pid) if a["id"] not in chosen_ids]
     label = f"🧰 Tài nguyên đi kèm kịch bản — {len(chosen)} đã chọn" + (f" · {len(suggested)} gợi ý mới" if suggested else "")
     # S9 E1.5: open only while the project has nothing attached (suggestions alone no longer unfold it — #8 showed 3 wrong ones)
-    with st.expander(label, expanded=not chosen):
+    with st.expander(label, expanded=is_next("assets", not chosen)):     # v2: optional → never open on its own
         cap("Chọn nhân vật, vũ khí, thú cưng, bản đồ… có sẵn trong kho (hoặc tải ảnh riêng) để dùng cùng kịch bản. Director sẽ dùng đúng "
                    "tên và thiết kế này thay vì tự nghĩ ra, và ảnh của chúng là ảnh tham khảo khi gen. **Không bấm cũng được:** lúc chạy "
                    "Director, tài nguyên kịch bản nhắc đúng tên (có dấu) được tự gắn; tên trùng nhiều tài nguyên thì để bạn chọn; cái bạn đã "
@@ -161,7 +161,7 @@ def project_format_panel(p: Pipeline, pid: int) -> None:
     prio = model_router.priority_of(proj)
     label = f"📐 Định dạng: {formats.label(aspect)} · thể loại {llm_io.GENRES.get(genre, 'chưa chọn')} · model: " \
             f"{model_router.load_profiles()['priorities'][prio]['label']}"
-    with st.expander(label, expanded=aspect is None or not genre):
+    with st.expander(label, expanded=is_next("format", aspect is None or not genre)):
         c1, c2, c3 = st.columns(3)
         aspects = list(formats.ASPECTS)
         new_aspect = c1.selectbox("Tỉ lệ khung", aspects, index=aspects.index(aspect) if aspect else aspects.index(formats.DEFAULT_NEW),
@@ -252,7 +252,8 @@ def shot_format_controls(p: Pipeline, pid: int, proj) -> None:
     cur_style = ",".join(cur_styles) or None
     if new_mode != cur_mode:
         if shots.has_work(p.conn, pid):
-            st.warning("Dự án đã có ảnh/video: đổi cách chia cảnh chỉ áp dụng khi chạy lại Director sau khi “↺ Làm lại”.")
+            say("warning", "Dự án đã có ảnh/video: đổi cách chia cảnh chỉ áp dụng khi chạy lại Director sau khi “↺ Làm lại”.",
+                f"script-shotmode-{pid}", "Đổi cách chia cảnh chỉ áp dụng khi chạy lại Director")
         p.set_project_field(pid, "shot_mode", new_mode)
         st.rerun()
     if new_style != cur_style:
@@ -307,9 +308,10 @@ def storyboard_panel(p: Pipeline, pid: int) -> None:
             review = previz.last_review(C.DATA, pid)
             if review is not None:
                 if review["ok"] and not review["issues"]:
-                    st.success("Claude rà storyboard: không thấy lỗi liên tục/bố cục.")
+                    say("success", "Claude rà storyboard: không thấy lỗi liên tục/bố cục.", f"script-sbreview-ok-{pid}")
                 for issue in review["issues"]:
-                    st.warning(f"S{issue['idx']:02d}: {issue['problem']}" + (f" → {issue['fix']}" if issue.get("fix") else ""))
+                    say("warning", f"S{issue['idx']:02d}: {issue['problem']}" + (f" → {issue['fix']}" if issue.get("fix") else ""),
+                        f"script-sbreview-{pid}-{issue['idx']}")
 
 
 # siblings (bottom import: the parts use each other's functions at call time only)

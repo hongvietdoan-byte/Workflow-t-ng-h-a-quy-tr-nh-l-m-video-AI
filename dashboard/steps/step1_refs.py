@@ -5,7 +5,7 @@ Kho the Director / image prompts / QC already read — nothing new for the pipel
 Video-ref cover, dance cover and trend are plan S11 (docs/KE_HOACH_TINH_NANG_DIRECTOR_2026-10-01.md): shown as "sắp có", not clickable."""
 from dashboard.common import *  # noqa: F401,F403  (shared imports + helpers)
 from dashboard import common as C
-from dashboard.steps.step1_v2 import cap  # noqa: F401  (v2: long captions become a one-line summary + ⓘ)
+from dashboard.steps.step1_v2 import cap, say, is_next  # noqa: F401  (v2: long captions / notes become a one-line summary + ⓘ)
 from core import assets
 
 COMING = (("🎬 Làm theo video ref", "giữ cấu trúc + nhịp của video mẫu, viết lại lời, nhân vật FF — kế hoạch S11 (R-A)"),
@@ -80,7 +80,9 @@ def attach_form(p: Pipeline, pid: int) -> None:
     b1, b2 = st.columns(2)
     if b1.button("📁 Mở Kho tài nguyên (duyệt ảnh chờ, nhân vật 3D, âm thanh)", key=f"ref_kho_{pid}", width="stretch"):
         open_dialog("dlg_assets")
-    b2.caption("🎥 Video ref chuyển động gắn cho từng cảnh ở **Storyboard → 🎞 Motion**; ảnh khung nào muốn tự đưa vào: **Storyboard → 🖼 Ảnh → Nhập ảnh thủ công** (ghim ref cho từng khung: chưa có).")
+    with b2:
+        cap("🎥 Video ref chuyển động gắn cho từng cảnh ở **Storyboard → 🎞 Motion**; ảnh khung nào muốn tự đưa vào: **Storyboard → 🖼 Ảnh → Nhập ảnh thủ công** (ghim ref cho từng khung: chưa có).",
+            f"script-refs-video-{pid}", summary="🎥 Video ref gắn từng cảnh ở Storyboard → Motion")
     cap("Ảnh quá lệch tỉ lệ hoặc quá nhỏ bị báo trước khi gửi video (luật model). Mỗi tài nguyên tối đa "
                f"{assets.MAX_IMAGES_PER_ASSET} ảnh.")
 
@@ -92,12 +94,21 @@ def inputs_and_refs_v2(p: Pipeline, pid: int, has_script: bool) -> None:
     with D.card(f"script-refs-{pid}"):
         st.html('<div class="script-h">📎 Đầu vào &amp; tham chiếu</div>')
         cols = st.columns(4)
-        with cols[0]:
-            st.html(D.pill("Đang dùng", "ok") + '<div class="script-mode"><b>📝 Kịch bản / ý tưởng</b>'
-                    "<span>Dán, kéo file hoặc gõ ý thô ở thẻ ① bên dưới (tự nhận dạng)</span></div>")
+        with cols[0]:                                       # P2: pill + title; the one-line explanation of each way in is P3 → ⓘ
+            t, i = st.columns([3, 1], vertical_alignment="center")
+            t.html(D.pill("Đang dùng", "ok"))
+            with i:
+                with D.info(f"script-mode-main-{pid}"):
+                    st.markdown("Dán, kéo file hoặc gõ ý thô ở thẻ ① bên dưới (tự nhận dạng)")
+            st.html('<div class="script-mode"><b>📝 Kịch bản / ý tưởng</b></div>')
         for col, (title, why) in zip(cols[1:], COMING):
             with col:
-                st.html(D.pill("Sắp có", "mute") + f'<div class="script-mode"><b>{escape(title)}</b><span>{escape(why)}</span></div>')
+                t, i = st.columns([3, 1], vertical_alignment="center")
+                t.html(D.pill("Sắp có", "mute"))
+                with i:
+                    with D.info(f"script-mode-{title[:2]}-{pid}"):
+                        st.markdown(why)
+                st.html(f'<div class="script-mode"><b>{escape(title)}</b></div>')
                 st.button("Sắp có", key=f"coming_{title[:2]}_{pid}", disabled=True, width="stretch")
         with st.expander("🖼 Tham chiếu & gắn ảnh nhân vật / nơi — " + _summary(p, pid).split("tham chiếu: ", 1)[-1], expanded=not has_script):
             attach_form(p, pid)
