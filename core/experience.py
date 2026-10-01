@@ -75,12 +75,18 @@ def job_context(conn, job_id: int) -> Dict:
     return {"project_id": row["project_id"], "subjects": names, "view": view, "shot": data.get("shot")}
 
 
+SCRIPT_MARK = "[thử tự động]"   # review_log allows only 'user' / 'ai_agent': a decision an experiment script makes carries this mark
+
+
 def import_review_log(conn, data_dir: str) -> int:
-    """Every decision a PERSON made with a note: approve = success, reject = failure (the note is the reason)."""
+    """Every decision a PERSON made with a note: approve = success, reject = failure (the note is the reason). Decisions experiment
+    scripts made in the person's name (note starting with SCRIPT_MARK) are not a person's judgement and are left out (rà soát 01/10:
+    7 approvals + 5 S5.5' rejections had entered the notebook as human cases)."""
     ensure(conn)
     added = 0
     rows = conn.execute("SELECT r.id, r.job_id, r.decision, r.note, j.type FROM review_log r JOIN jobs j ON j.id=r.job_id "
-                        "WHERE r.reviewer_type='user' AND r.note IS NOT NULL AND trim(r.note)!=''").fetchall()
+                        "WHERE r.reviewer_type='user' AND r.note IS NOT NULL AND trim(r.note)!='' AND r.note NOT LIKE ?",
+                        (SCRIPT_MARK + "%",)).fetchall()
     for r in rows:
         ctx = job_context(conn, r["job_id"])
         stage = "video" if r["type"] == "video_gen" else "image"

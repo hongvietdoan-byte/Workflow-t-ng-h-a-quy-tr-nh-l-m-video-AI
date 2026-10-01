@@ -131,7 +131,7 @@ def approve(p, pid, shots):
             j = p.conn.execute("SELECT id FROM jobs WHERE scene_id=? AND type='image_gen' AND state IN ('succeeded','pending_review') "
                                "ORDER BY id DESC LIMIT 1", (r["id"],)).fetchone()
             if j:
-                p.approve(j["id"], "user", "người dùng duyệt các bài thử 30/09 — Claude xem ảnh trước khi duyệt")
+                p.approve(j["id"], "user", "[thử tự động] người dùng duyệt các bài thử 30/09 — Claude xem ảnh trước khi duyệt")
                 print("duyệt shot", r["data"]["shot_no"], "job", j["id"])
 
 

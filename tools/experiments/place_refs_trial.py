@@ -130,7 +130,7 @@ def redraw(p, pid):
         raise SystemExit(f"TRẦN CHẶN: đã chi ${s:.2f} + ≈ ${usd:.2f} > trần ${CAP_USD:.2f}")
     print(f"vẽ lại {len(jobs)} khung ≈ ${usd:.2f} (đã chi ${s:.2f}, trần ${CAP_USD:.2f})")
     for j in jobs:
-        p.reject(j["id"], "user", note=REDRAW_FIX)
+        p.reject(j["id"], "user", note="[thử tự động] " + REDRAW_FIX, fix=REDRAW_FIX)   # the model gets only the English fix
     frames(p, pid)
 
 

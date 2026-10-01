@@ -71,7 +71,7 @@ def _agreement(conn, project_id: int) -> Dict:
     """QC agent verdict (mean score >= the threshold of the time) vs the person's decision, on pictures that have both."""
     rows = conn.execute(
         "SELECT j.id, AVG(q.score) AS score, MAX(q.threshold_at_time) AS threshold,"
-        " (SELECT r.decision FROM review_log r WHERE r.job_id=j.id AND r.reviewer_type='user' ORDER BY r.id DESC LIMIT 1) AS person"
+        " (SELECT r.decision FROM review_log r WHERE r.job_id=j.id AND r.reviewer_type='user' AND COALESCE(r.note, '') NOT LIKE '[thử tự động]%' ORDER BY r.id DESC LIMIT 1) AS person"
         " FROM jobs j JOIN qc_results q ON q.job_id=j.id WHERE j.project_id=? AND j.type='image_gen' GROUP BY j.id",
         (project_id,)).fetchall()
     both = [r for r in rows if r["person"]]
@@ -93,7 +93,7 @@ def look_trust(conn, look: Optional[str], image_model: Optional[str]) -> Dict:
     (only when the feature `storyboard_auto_trust` is on — it waits for its real test)."""
     rows = conn.execute(
         "SELECT j.id, AVG(q.score) AS score, MAX(q.threshold_at_time) AS threshold,"
-        " (SELECT r.decision FROM review_log r WHERE r.job_id=j.id AND r.reviewer_type='user' ORDER BY r.id DESC LIMIT 1) AS person"
+        " (SELECT r.decision FROM review_log r WHERE r.job_id=j.id AND r.reviewer_type='user' AND COALESCE(r.note, '') NOT LIKE '[thử tự động]%' ORDER BY r.id DESC LIMIT 1) AS person"
         " FROM jobs j JOIN qc_results q ON q.job_id=j.id JOIN projects pr ON pr.id=j.project_id"
         " WHERE j.type='image_gen' AND COALESCE(pr.look,'')=COALESCE(?,'') AND COALESCE(pr.image_model,'')=COALESCE(?,'')"
         " GROUP BY j.id", (look, image_model)).fetchall()

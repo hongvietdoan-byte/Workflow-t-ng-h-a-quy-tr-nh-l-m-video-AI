@@ -53,6 +53,21 @@ class ExperienceTests(unittest.TestCase):
         self.assertIn("real_flip", keys)
         self.assertEqual(sum(k.startswith("alarm") for k in keys), 3)
 
+    def test_decisions_made_by_experiment_scripts_are_not_human_cases(self):
+        from core.pipeline import Pipeline
+        p = Pipeline(self.conn)
+        pid = p.create_project("t")
+        sid = p.create_scene(pid, 1, "s")
+        ids = []
+        for note in ("[thử tự động] Claude xem ảnh trước khi duyệt", "tay thừa ngón — vẽ lại"):
+            j = p.create_job(sid, "image_gen")
+            self.conn.execute("UPDATE jobs SET state='pending_review' WHERE id=?", (j,))
+            p.reject(j, "user", note=note, respawn=False)
+            ids.append(j)
+        experience.import_review_log(self.conn, tempfile.mkdtemp())
+        notes = [r["note"] for r in self.conn.execute("SELECT note FROM experience_cases")]
+        self.assertEqual(notes, ["tay thừa ngón — vẽ lại"])
+
     def test_a_label_corrected_from_block_to_pass_is_a_false_alarm(self):
         d = tempfile.mkdtemp()
         with open(os.path.join(d, "verdicts.json"), "w", encoding="utf-8") as f:
