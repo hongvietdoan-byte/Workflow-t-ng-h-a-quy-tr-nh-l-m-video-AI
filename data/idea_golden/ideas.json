@@ -1,0 +1,12 @@
+[
+ {"id": 1, "idea": "Kelly hẹn Kenta đi chơi nhưng Kenta mải leo rank, Kelly giận rồi \"trả đũa\" ngay trong trận.",
+  "duration_s": 30, "characters": ["KELLY", "KENTA"], "cta": "", "tests": "hài cặp đôi, thoại nhiều"},
+ {"id": 2, "idea": "Maxim ăn liên tục giữa bo cuối, đồng đội tưởng bỏ cuộc thì Maxim lật kèo.",
+  "duration_s": 30, "characters": ["MAXIM"], "cta": "", "tests": "hành động, kỹ năng"},
+ {"id": 3, "idea": "Kenta dạy một bạn mới chơi cách nhảy dù, bạn mới làm sai mà vẫn sống sót tới top 1.",
+  "duration_s": 60, "characters": [], "cta": "", "tests": "nhân vật ngoài Kho → phải gắn 'cần ảnh'; 60 s"},
+ {"id": 4, "idea": "Orion đứng trên tháp đồng hồ lúc bão, kể lại trận thua lần đầu.",
+  "duration_s": 15, "characters": [], "cta": "", "tests": "15 s, hook ≤ 3,5 s, nơi trong / ngoài Kho"},
+ {"id": 5, "idea": "Cả đội 4 người chuẩn bị cho sự kiện mới, kết bằng lời mời tải và tham gia.",
+  "duration_s": 30, "characters": [], "cta": "Tham gia sự kiện ngay", "tests": "CTA phải ở cảnh cuối"}
+]

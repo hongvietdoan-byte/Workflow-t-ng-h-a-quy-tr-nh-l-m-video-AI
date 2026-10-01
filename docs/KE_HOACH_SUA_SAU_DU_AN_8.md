@@ -26,12 +26,12 @@
 | S6 Ước tính, ngân sách, dashboard | 6 | 5 | 0 | 0 | 1 | 100 % |
 | S7 Agent QC | 3 | 1 | 2 | 0 | 0 | 66,7 % |
 | S10 Kỹ năng nhân vật & tham chiếu | 12 | 12 | 0 | 0 | 0 | 100 % |
-| S11 Director mở rộng: ý tưởng → kịch bản, cover video ref, học trending (kế hoạch v2 01/10, `docs/KE_HOACH_TINH_NANG_DIRECTOR_2026-10-01.md`) | 15 | 2 | 0 | 1 | 0 | 15,4 % |
+| S11 Director mở rộng: ý tưởng → kịch bản, cover video ref, học trending (kế hoạch v2 01/10, `docs/KE_HOACH_TINH_NANG_DIRECTOR_2026-10-01.md`) | 15 | 2 | 1 | 1 | 0 | 17,3 % |
 | K Chạy kiểm kịch bản hài 20–30 s — ⏸ KHÔNG ƯU TIÊN (người dùng 30/09: các việc test kịch bản không làm trước nữa) | 3 | 0 | 0 | 3 | 0 | 0 % |
 | S8 Chấm lại bằng AI Development System (cuối cùng) | 5 | 2 | 0 | 0 | 0 | 42,9 % |
-| **Tổng** | **115** | **89** | **2** | **4** | **5** | **82,7 %** |
+| **Tổng** | **115** | **89** | **3** | **4** | **5** | **83 %** |
 
-Đợt hiện tại: **S7** · việc kế: **S11.2** 💵 Bộ đo 5 ý tưởng thô, người dùng chấm 1–5 (≈ 0,75 USD)
+Đợt hiện tại: **S7** · việc kế: **S11.3** 📈 Trend T1: trend_raw / trend_cards (có `copyright_level` cao/vừa/thấp), nguồn miễn phí, tab ⚙ 📈 Trend duyệt thẻ
 <!-- /tien-do -->
 
 ## Danh sách việc (thứ tự người dùng đã duyệt)
@@ -153,7 +153,7 @@
 ### S11 — Director mở rộng: ý tưởng → kịch bản, cover video ref, học trending (kế hoạch v2 01/10, `docs/KE_HOACH_TINH_NANG_DIRECTOR_2026-10-01.md`)
 - [x] S11.0 · Người dùng chốt Q1–Q7 · nặng:1 · ✅ · 01/10: trend không bắt buộc (ô Tắt/Gợi ý/Ưu tiên); 1 tài khoản Apify Free có sẵn, mục đích thử; được dùng trend trừ mức bản quyền cao; nhạc: Suno Pro để sau; clip nhảy mẫu có sẵn (Drive SeaTalk_VDO_20261001_111440.mp4); chưa hỏi ClipAI; quét 3 ngày
 - [x] S11.1 · 💡 Ý tưởng thô → kịch bản: prompt 23 + vai Biên kịch + 4 lượt + ô "Dùng trend" + kiểm code + màn 2 cột tô phần Director thêm · nặng:3 · ✅ · cờ `idea_to_script` TẮT · 01/10: `core/idea_to_script.py` (4 lượt: hỏi ≤ 5 câu có mặc định — câu dùng mặc định được ghi; 3 hướng + hook 3 s; dàn ý theo giây hook→setup→turn→climax→ending; kịch bản đúng khuôn, tách lại bằng `script_parser` — không tách được thì hỏi lại / không cho dùng), `prompts/23_idea_to_script.md`, `knowledge/roles/screenwriter.md` (vai Biên kịch, thang ưu tiên, kiểm), kiểm code 0 USD (tổng giây ± 10 %, thoại / nhịp theo 2,86 âm tiết/s, hook ≤ 3,5 s, có kết, CTA ở cảnh cuối, nhân vật ngoài Kho → "cần ảnh", nơi ngoài Kho → "AI vẽ ~70 %", không tuổi < 18), ô "Dùng trend" Tắt/Gợi ý/Ưu tiên (Tắt: không có khối trend trong prompt; bật mà chưa có thẻ S11.3: dặn không bịa trend), sổ chi stage `screenwriter` (tính chung dòng Director của trần dự án), trần cứng 0,3 USD / ý tưởng, giá ước tính trên từng nút; Bước 1 tab "💡 Ý tưởng thô" (chỉ khi bật cờ) + duyệt 2 cột tô dòng mới / tên-nơi mới, sửa tay + kiểm lại, "✔ Dùng kịch bản này" → Bước 1 như kịch bản dán; `tests/test_idea_to_script.py` 7; chạy thử dashboard demo (Claude giả lập) đủ 4 lượt → 2 cảnh vào Bước 1. Chưa đo với Claude thật — S11.2
-- [ ] S11.2 · 💵 Bộ đo 5 ý tưởng thô, người dùng chấm 1–5 (≈ 0,75 USD) · nặng:1 · ⬜
+- [ ] S11.2 · 💵 Bộ đo 5 ý tưởng thô, người dùng chấm 1–5 (≈ 0,75 USD) · nặng:1 · 🔄 · 01/10: `tools/experiments/idea_script_eval.py` (4 lượt tự động: mặc định → hướng 1 → dàn ý giữ nguyên; ghi/chạy lại calls.jsonl; phiếu `docs/DO_S11_2_Y_TUONG_2026-10-01.md`; `--score` → cổng TB ≥ 4 + 0 lỗi chặn), `data/idea_golden/ideas.json`, `tests/test_idea_script_eval.py` 3. **Lỗi gốc tìm ra, 0 USD:** khâu `screenwriter` chưa có max_tokens riêng → 32k → lượt 1 ước tính 0,43 USD > trần 0,3/ý tưởng, MỌI ý tưởng bị chặn (cả trên dashboard) → `STAGE_SETTINGS` 8000 + effort medium + test. Chạy thật: ý tưởng 1–2 xong (0,162 + 0,147 USD, kiểm code đạt), ý tưởng 3 dừng giữa chừng vì **ngân sách Claude API chung hết** ($11,74/$11,80); tổng 0,438 USD. Thật ≈ 0,15 USD/ý tưởng (kế hoạch 0,1). Thấy: Biên kịch viết CTA thành dòng thoại `CTA_TEXT:` → bị gắn 'nhân vật mới'. Còn: người dùng nạp/nâng ngân sách → chạy nốt 3–5 (≈ 0,45 USD) → chấm
 - [ ] S11.3 · 📈 Trend T1: trend_raw / trend_cards (có `copyright_level` cao/vừa/thấp), nguồn miễn phí, tab ⚙ 📈 Trend duyệt thẻ · nặng:2 · ⬜ · cờ `trend_feed` TẮT
 - [ ] S11.4 · 📈 Trend T2: adapter Apify (tài khoản Free có sẵn), sổ chi + trần 4,5 USD/tháng, lịch 3 ngày · nặng:2 · ⬜ · lần đo đầu ≈ 0,5 USD, ghi giá thật vào pricing.json
 - [ ] S11.5 · 📈 Trend T3: khối "Xu hướng" (chỉ khi ô dự án ≠ Tắt, loại mức cao) + knowledge/trend_usage.md + `trend_refs` + huy hiệu · nặng:2 · ⬜

@@ -98,6 +98,13 @@ class IdeaTests(unittest.TestCase):
         with self.assertRaisesRegex(I.IdeaError, "trần"):
             I.questions(self.p.conn, self.pid, self.m)
 
+    def test_a_turn_fits_under_the_per_idea_cap(self):
+        """01/10 S11.2: without its own max_tokens the stage used 32k → turn 1 estimated 0.43 USD > 0.3 cap, every idea refused."""
+        model = llm_runner.DEFAULT_MODEL
+        mt = llm_runner.stage_settings(I.STAGE)["max_tokens"]
+        turn = llm_runner._price(model, "cache_write", 15000) + llm_runner._price(model, "output", mt)
+        self.assertLess(turn * llm_runner.TASK_MARGIN + 4 * I.TURN_USD, I.RUN_CAP_USD)   # the last turn's estimate after 4 spent turns
+
     def test_the_project_budget_counts_the_writer_with_the_director(self):
         from core import project_budget
         self.assertEqual(project_budget.claude_stage("screenwriter"), "claude_director")
