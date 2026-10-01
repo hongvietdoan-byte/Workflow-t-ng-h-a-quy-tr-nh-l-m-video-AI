@@ -139,11 +139,17 @@ def entity_blocks(p, pid: int, names: List[str], views: List[str], frame_jobs: L
     from . import assets, experience
     blocks: List[Dict] = [{"type": "text", "text": "# Ảnh chuẩn từng người trong cảnh"}]
     for n in names:
-        ref = (assets.link_characters(p.conn, pid, [n]).get(n) or {}).get("ref")
+        linked = assets.link_characters(p.conn, pid, [n]).get(n) or {}
+        ref = linked.get("ref")
         if ref and ref.get("path") and os.path.exists(ref["path"]):
             blocks += [{"type": "text", "text": f"Ảnh chuẩn {n}:"}, _image(ref["path"], CROP_EDGE)]
         else:
             blocks.append({"type": "text", "text": f"{n}: không có ảnh chuẩn trong Kho"})
+        if "behind" in views and linked:          # 01/10: the back of the standard (3D render / in-game) — compare the same side
+            back = assets.view_picture(linked, "back")
+            if back and os.path.exists(back["path"]):
+                blocks += [{"type": "text", "text": f"Ảnh chuẩn {n} — nhìn từ SAU LƯNG (so khung quay lưng với ảnh này):"},
+                           _image(back["path"], CROP_EDGE)]
     try:
         experience.refresh(p.conn, data_dir)
         cases = experience.relevant(p.conn, ("qc_image",), names, views, limit=CASES_SHOWN, exclude_jobs=frame_jobs,

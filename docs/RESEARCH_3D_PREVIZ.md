@@ -66,3 +66,10 @@ Bàn đạo diễn nhiều khả năng làm được phần lớn luồng này *
   câu KHÔNG có chữ trái/phải ("một cẳng tay quấn băng… tay kia găng giáp…", để ảnh quyết bên) → đúng. Kiểm bằng render: chi tiết hai bên
   đúng bên ở cả 4 (Maxim thiếu hình lưng áo — hồ sơ chưa ghi). 24 ảnh render 6 hướng (Kenta bản v2) đã vào Kho **đã duyệt** (người dùng);
   4 ảnh mặt trước Meshy tự tạo ("3D Meshy") để chờ duyệt (thừa).
+- 2026-10-01 (nối vào pipeline, 0 credit): ảnh chuẩn theo **hướng của từng người** trong shot (`assets.shot_roles(scene, name)` đọc
+  `runner.seen_from_behind` — shot qua vai X chỉ X quay lưng; shot "from behind" không nêu tên = cả nhóm; chữ profile / nghiêng → ảnh
+  nghiêng) cho cả 2 đường gửi ảnh: chọn tự động và **bộ 3 ảnh chuẩn** (model nhận bảng — ảnh hướng đó chèn ngay sau ảnh chính diện).
+  **Skin:** ảnh có variant "skin: …" (Wolfrahh đồ trắng, 10 ảnh đã đổi nhãn) không bao giờ được chọn tự động — chỉ qua "trang phục" của dự
+  án (trước khi sửa: 6 render đồ trắng vai trò toàn thân đã có thể lọt vào dự án dùng Wolfrahh đồ vàng). **QC (C1):** cảnh có người quay
+  lưng → thêm "ảnh chuẩn nhìn từ SAU LƯNG" của người đó (`assets.view_picture`). Kiểm trên #8 (chỉ đọc): job 319 Kenta quay lưng → ảnh sau
+  lưng in-game của Kenta; job 324 Maxim quay lưng → ảnh sau lưng Maxim; shot quay mặt giữ ảnh chính diện.

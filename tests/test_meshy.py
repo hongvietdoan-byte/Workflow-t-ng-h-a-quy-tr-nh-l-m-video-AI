@@ -123,6 +123,23 @@ class MeshyTests(unittest.TestCase):
         sheet_id = self.conn.execute("SELECT id FROM asset_images WHERE role='design_sheet'").fetchone()[0]
         self.assertIn("cắt 4 hướng", meshy.plan(self.conn, self.aid, sheet_image_id=sheet_id)["source"])   # the person's choice wins
 
+    def test_the_shot_picks_the_side_of_each_person_and_never_another_skin(self):
+        self.add_view("full_body")
+        self.add_view("back")
+        self.add_view("side")
+        self.add_view("back", variant="skin: đồ trắng (in-game)", color=(250, 250, 250))
+        a = assets.get(self.conn, self.aid)
+        over = {"characters": ["KELLY", "MAXIM"], "size": "MS", "blocking": "over KELLY's shoulder, MAXIM frame-right facing camera"}
+        self.assertEqual(assets.shot_roles(over, "KELLY")[0], "back")
+        self.assertNotEqual(assets.shot_roles(over, "MAXIM")[0], "back")      # the one facing the camera needs no back view
+        group = {"characters": ["KELLY"], "size": "WS", "blocking": "the squad seen from behind walking to the tower"}
+        self.assertEqual(assets.shot_roles(group, "KELLY")[0], "back")
+        self.assertEqual(assets.shot_roles({"size": "MS", "blocking": "KELLY in profile"}, "KELLY")[0], "side")
+        picked = assets.best_references(a, 2, over, "KELLY")
+        self.assertIn("back", [i["role"] for i in picked])            # no front_standard here: the back leads
+        self.assertFalse(any(assets.is_skin(i) for i in picked))
+        self.assertFalse(assets.is_skin(assets.view_picture(a, "back")))
+
     def test_joined_figures_are_not_guessed(self):
         path = os.path.join(self.dir, "joined.png")
         plain_turnaround(path, figures=4, gap=0)
