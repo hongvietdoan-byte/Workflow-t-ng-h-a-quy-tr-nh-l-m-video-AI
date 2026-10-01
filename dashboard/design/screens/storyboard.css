@@ -36,7 +36,11 @@
 [class*="st-key-card-sb-"] .cardtitle span { font-size: 12.5px; }
 
 /* dòng cảnh báo cam: dùng màu warn của giao diện (chữ cam mặc định của Streamlit chỉ 3,4:1 trên nền sáng) */
+.sb-sum { color: var(--muted); font-size: 13.5px; }
 .sb-warn { color: var(--warn); font-size: 13.5px; font-weight: 600; }
+
+/* ⓘ trên thẻ ảnh / thẻ Motion: nằm cùng hàng với nhãn, không chiếm thêm chiều cao */
+[class*="st-key-card-sb-"] [class*="st-key-info-"] { margin-left: auto; }
 
 /* thẻ Motion theo cảnh */
 [data-testid="stVerticalBlock"][class*="st-key-card-sb-mot-"] { padding: 12px 16px; }
