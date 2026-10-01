@@ -78,3 +78,23 @@ def card(key: str):
 def hero(key: str):
     with st.container(key=f"hero-{key}") as c:
         yield c
+
+
+class Raw(str):
+    """Pre-built, already-escaped HTML (pills, meters) to put inside a `table()` cell."""
+
+
+def _cell(v) -> str:
+    return str(v) if isinstance(v, Raw) else escape("" if v is None else str(v))
+
+
+def table(headers, rows, cls: str = "", num_cols=(), empty: str = "Chưa có dữ liệu") -> str:
+    """`v2-table` HTML (follows light/dark). Cells are escaped unless wrapped in `Raw`; `num_cols` = column indexes aligned right."""
+    head = "".join(f"<th{' class=num' if i in num_cols else ''}>{escape(h)}</th>" for i, h in enumerate(headers))
+    body = []
+    for r in rows:
+        body.append("<tr>" + "".join(f"<td{' class=num' if i in num_cols else ''}>{_cell(v)}</td>" for i, v in enumerate(r)) + "</tr>")
+    if not body:
+        body.append(f'<tr><td colspan="{len(headers)}" style="color:var(--muted)">{escape(empty)}</td></tr>')
+    wrap = (cls.split()[0] + "wrap") if cls else ""
+    return f'<div class="{wrap}"><table class="v2-table {escape(cls)}"><tr>{head}</tr>{"".join(body)}</table></div>'

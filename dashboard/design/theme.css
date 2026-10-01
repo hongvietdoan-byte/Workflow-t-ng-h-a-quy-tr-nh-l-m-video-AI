@@ -114,3 +114,14 @@ ul[role="listbox"] { background: var(--raised) !important; }
 .v2-vers { display: flex; gap: 6px; flex-wrap: wrap; margin: 6px 0; }
 .v2-ver { padding: 2px 9px; border-radius: var(--r-pill); font-size: 12.5px; font-weight: 700; border: 1.5px solid var(--border-soft); color: var(--muted); }
 .v2-ver.on { border-color: var(--primary); color: var(--text); background: var(--primary-soft); }
+
+/* tích hợp 01/10 (đề nghị của nhánh B, D) */
+/* Streamlit đặt margin-bottom âm cho markdown → HTML (div) đè lên phần tử sau (vd. ghi chú đè nút "Mở") */
+[class*="st-key-card-"] [data-testid="stMarkdownContainer"], [class*="st-key-hero-"] [data-testid="stMarkdownContainer"] { margin-bottom: 0 !important; }
+[data-testid="stMarkdownContainer"]:has(> .v2-table), [data-testid="stMarkdownContainer"]:has(> div > .v2-table) { margin-bottom: 0 !important; }
+/* liên kết (kể cả e-mail tự biến thành link) đọc được trên nền tối */
+[data-testid="stMarkdownContainer"] a, a, a:visited { color: var(--info) !important; }
+/* khối mã: không dùng màu highlight của prism (tương phản thấp trên nền tối) */
+[data-testid="stCode"], [data-testid="stCode"] pre, [data-testid="stCode"] code { background: var(--surface) !important; color: var(--text) !important; }
+[data-testid="stCode"] span { color: var(--text) !important; }
+.v2-stat { min-height: 84px; }
