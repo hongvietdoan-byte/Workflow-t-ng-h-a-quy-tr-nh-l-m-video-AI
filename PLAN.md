@@ -273,6 +273,24 @@ Tổng hợp từ: báo cáo rà soát `docs/DASHBOARD_REVIEW_2026-09-23.md`, k�
 
 **Chuyển sang Claude API (2026-09-24):** người dùng đã có khóa Claude API → Dashboard gọi Claude qua API (`LLM_PROVIDER=anthropic` trong `dashboard.env`, khóa ở biến môi trường Windows `ANTHROPIC_API_KEY`, model `claude-sonnet-5` $2/$10 mỗi triệu token vào/ra) thay cho Claude Code CLI — hết cảnh chạm giới hạn phiên giữa chừng như ở GĐ6. Tiền Claude API ghi vào sổ chi theo token (`data/pricing.json` → `per_million_tokens`), cộng vào trần đợt thử và có **trần riêng Claude API (mặc định $5, ⚙ → 💵 Ngân sách thử)**: hết thì dừng gọi Claude và báo. Sửa 2 lỗi chỉ gặp khi gọi qua API: ảnh > 5 MB (tấm ghép QC đồng bộ) tự thu nhỏ; giới hạn câu trả lời 8.000 → 32.000 token (kế hoạch shot 26 shot của Director bị cắt cụt). Đo prompt thật (đếm token miễn phí): Director ~36k token vào, QC 1 ảnh ~12k, motion cả 26 shot ~84k, QC 1 clip ~14k → **một dự án 26 shot chạy tự động đủ QC ≈ $2,5–3** (tắt QC clip ≈ $1,5; kiểu v2 3 cảnh ≈ $0,4–0,5) → **$5 ≈ 2 video chia shot** hoặc ~10 video v2 ngắn. QC ảnh + QC clip chiếm ~70% chi phí Claude; về sau có thể giảm bằng prompt caching (chưa làm).
 
+### 3.10 Director mở rộng — ý tưởng → kịch bản, cover video ref, học trending (kế hoạch 2026-10-01, chưa code)
+
+Chi tiết + bằng chứng + nguồn: `docs/KE_HOACH_TINH_NANG_DIRECTOR_2026-10-01.md`; việc ở đợt **S11** của `docs/KE_HOACH_SUA_SAU_DU_AN_8.md`.
+
+| Tính năng | Cách làm | Tiền chạy | Rủi ro chính |
+|---|---|---|---|
+| 💡 **Ý tưởng thô → kịch bản** (tab mới ở Bước 1) | Director (vai mới **Biên kịch**) hỏi ≤ 5 câu có mặc định → 3 hướng hook → dàn ý theo giây (thoại 2,86 âm tiết/s đo thật) → kịch bản đúng khuôn `script_reader`; màn 2 cột tô phần Director thêm | ≈ 0,1 USD Claude / kịch bản | bịa quá tay → tô màu + người duyệt |
+| 📈 **Học trending** (TikTok chính, FB phụ) | Lịch 1–3 ngày: TikTok Creative Center VN (qua Apify), video theo hashtag (Apify `tiktok-scraper`), 5–10 trang FB, Claude web search (nghĩa, nguồn gốc, phản ứng báo chí), nhập tay → lọc bằng code → Claude chắt thành **thẻ trend** (nghĩa, ví dụ, độ hợp FF, cờ rủi ro, quyền nhạc, vòng đời, hạn) → **người duyệt** → Director đọc ≤ 8 thẻ đã duyệt, còn hạn (không fine-tune) + luật dùng (≤ 2 trend / 60 s, đặt ở hook / câu chốt, hợp tính cách) + trường `trend_refs` | Apify ≈ 3,6 USD/tháng (vừa gói Free 5 USD, quét video mỗi 3 ngày) + Claude ≈ 1,4 USD/tháng | **nhạc trend không được dùng thương mại** trên tài khoản doanh nghiệp (chỉ Commercial Music Library); trend có thể bị dư luận chê (ví dụ "ăm chã húi" bị báo gọi "thảm họa nhạc Việt" 20/09) |
+| 🎬 **Cover kịch bản từ video ref** | cắt shot + tờ khung (`reference_analysis` có sẵn) + nghe thoại offline (faster-whisper) → Claude bóc cấu trúc (hook, điểm xoay, cú chốt, nhịp từng shot) → ghép vai / nơi / đạo cụ FF (người duyệt) → viết lại lời, giữ cấu trúc + `ref_shots` cho Quay phim bám | ≈ 0,1–0,2 USD Claude / video ref | chép lời người khác → cờ trùng > 70 % |
+| 💃 **Cover nhảy** | kiểm video ref (1 người, toàn thân, fps, cạnh) → đo BPM, cắt đoạn tại phách → khung đầu nhân vật FF đúng tư thế → chép động tác: Kling `feature` / Seedance 2.5 `reference_video` (đều có API) hoặc Kling Motion Control (chỉ web ClipAI) → nối đoạn bằng khung cuối thật → QC lệch nhịp + mặt; nhạc cùng BPM thay nhạc gốc | A/B 5 s ≈ 2,5 USD; bài 30 s ≈ 3,6 (Kling) – 11 USD (Seedance 2.5) | người thật trong video ref có thể bị bộ lọc chặn; tay chân biến dạng |
+
+**Apify:** dùng được và hợp lệ (dữ liệu công khai, không cần tài khoản TikTok); TikTok Research API cấm dùng thương mại nên loại.
+**Không lập 1–5 tài khoản Apify free** — điều khoản Apify cấm một người dùng nhiều tài khoản cá nhân; thay bằng 1 tài khoản Free + các
+nguồn free hợp lệ khác (Creative Center, Claude web search, kworb, nhập tay). Nâng Starter (29 hoặc 19 USD — kiểm console) khi đạt cả 3
+chỉ số sau 4–6 tuần: ≥ 5 thẻ duyệt/tuần · ≥ 40 % kịch bản giữ `trend_refs` · Free hết trần ≥ 2 tháng hoặc cần quét hằng ngày.
+Thứ tự đề xuất: Ý tưởng → Trend (nguồn free) → Trend (Apify) → Cover kịch bản → Cover nhảy (sau A/B). Tổng tiền thử ≈ 5 USD; mọi cờ
+mới TẮT tới khi qua bộ đo.
+
 ## 4. Rủi ro & mitigation tổng hợp
 
 | Rủi ro | Mitigation |
@@ -343,6 +361,18 @@ Tổng hợp từ: báo cáo rà soát `docs/DASHBOARD_REVIEW_2026-09-23.md`, k�
 - **Trần tiền mới (người dùng):** 15 USD cho các bài thử (hỏi từng bài) + 25 USD cho lượt chạy trọn K.2; kịch bản K có Kenta + Orion cùng dùng kỹ năng.
 - **Bàn đạo diễn ClipAI:** vẫn chỉ có trên web; phần "video white-model làm `reference_video`" nay làm bằng Blender của dự án (đợt S10.6).
 
+**Còn mở (2026-10-01) — kế hoạch Director mở rộng (3.10, câu hỏi Q1–Q7 ở mục 8 của tài liệu):**
+
+| Quyết định | Đề xuất |
+|---|---|
+| Thứ tự làm | Ý tưởng → Trend free → Trend Apify → Cover kịch bản → Cover nhảy |
+| Apify: 1 tài khoản Free thay cho 1–5 tài khoản free | Đồng ý 1 Free (điều khoản cấm nhiều tài khoản) + nguồn free khác |
+| Pháp chế Garena cho phép scraper dữ liệu công khai TikTok/FB | Hỏi trước khi làm adapter Apify; phần nguồn free làm được ngay |
+| Nhạc trend trong bản giao | Mặc định không; chỉ Commercial Music Library / nhạc Garena có quyền; còn lại tạo nhạc cùng BPM |
+| Clip nhảy cho bài thử A/B (≈ 2,5 USD) | Clip nội bộ tự quay (có quyền + thử luôn bộ lọc người thật) |
+| Hỏi ClipAI mở API Motion Control | Có, gửi kèm câu hỏi Bàn đạo diễn |
+| Tần suất quét TikTok | 3 ngày ở gói Free; hằng ngày khi lên Starter |
+
 **Còn mở (2026-09-23):**
 
 | Quyết định | Ghi chú |
@@ -406,6 +436,8 @@ Tổng hợp từ: báo cáo rà soát `docs/DASHBOARD_REVIEW_2026-09-23.md`, k�
 
 ## 7. Lộ trình triển khai (V0 → V1 bên dưới là lịch sử — lộ trình hiện tại: kế hoạch V4 + `TODO.md`)
 
+> **2026-10-01:** thêm đợt **S11** (Director mở rộng — mục 3.10, `docs/KE_HOACH_TINH_NANG_DIRECTOR_2026-10-01.md`), chờ người dùng chốt Q1–Q7.
+>
 > **Trạng thái 2026-09-30 (đọc trước):** tiến độ duy nhất ở `docs/KE_HOACH_SUA_SAU_DU_AN_8.md` (đợt S0–S10, K, S8); 📌 đầu `TODO.md` tóm tắt kế hoạch làm nốt. Đoạn dưới là trạng thái 2026-09-26 (lịch sử).
 >
 > **Trạng thái 2026-09-26:** lộ trình đang theo là **kế hoạch V4** `docs/KE_HOACH_V4_2026-09-25.md`; tiến độ ghi **duy nhất** ở

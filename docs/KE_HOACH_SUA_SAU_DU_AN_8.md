@@ -16,21 +16,22 @@
 | Đợt | Việc | Xong | Đang làm | Chờ người dùng | Bỏ | Tiến độ |
 |---|---|---|---|---|---|---|
 | P0 Theo dõi tiến độ | 2 | 2 | 0 | 0 | 0 | 100 % |
-| S1 Dựng & âm thanh | 15 | 13 | 0 | 0 | 1 | 96 % |
+| S1 Dựng & âm thanh | 15 | 14 | 0 | 0 | 1 | 100 % |
 | S0 Học từ phim drama tham khảo | 15 | 15 | 0 | 0 | 0 | 100 % |
 | S9 Dashboard gọn, dễ nhìn | 6 | 6 | 0 | 0 | 0 | 100 % |
-| S2 Timeline theo âm thanh + animatic | 6 | 5 | 0 | 0 | 0 | 81,8 % |
+| S2 Timeline theo âm thanh + animatic | 6 | 5 | 0 | 0 | 1 | 100 % |
 | S3 Director kể chuyện + Quay phim | 8 | 7 | 0 | 0 | 1 | 100 % |
-| S4 Video chất lượng | 12 | 6 | 2 | 0 | 0 | 55 % |
-| S5 Bối cảnh theo file 3D Tháp Đồng Hồ | 7 | 6 | 1 | 0 | 0 | 95 % |
+| S4 Video chất lượng | 12 | 11 | 0 | 0 | 1 | 100 % |
+| S5 Bối cảnh theo file 3D Tháp Đồng Hồ | 7 | 7 | 0 | 0 | 0 | 100 % |
 | S6 Ước tính, ngân sách, dashboard | 6 | 5 | 0 | 0 | 1 | 100 % |
-| S7 Agent QC | 2 | 1 | 0 | 0 | 0 | 66,7 % |
+| S7 Agent QC | 3 | 1 | 2 | 0 | 0 | 66,7 % |
 | S10 Kỹ năng nhân vật & tham chiếu | 12 | 12 | 0 | 0 | 0 | 100 % |
+| S11 Director mở rộng: ý tưởng → kịch bản, cover video ref, học trending (kế hoạch 01/10, `docs/KE_HOACH_TINH_NANG_DIRECTOR_2026-10-01.md`) | 12 | 0 | 0 | 1 | 0 | 0 % |
 | K Chạy kiểm kịch bản hài 20–30 s — ⏸ KHÔNG ƯU TIÊN (người dùng 30/09: các việc test kịch bản không làm trước nữa) | 3 | 0 | 0 | 3 | 0 | 0 % |
 | S8 Chấm lại bằng AI Development System (cuối cùng) | 5 | 2 | 0 | 0 | 0 | 42,9 % |
-| **Tổng** | **99** | **80** | **3** | **3** | **3** | **86,4 %** |
+| **Tổng** | **112** | **87** | **2** | **4** | **5** | **82,4 %** |
 
-Đợt hiện tại: **S1** · việc kế: **S1.15** Tùy chọn model nhạc Eleven Music v2.5 (cập nhật ClipAI)
+Đợt hiện tại: **S7** · việc kế: **S11.1** 💡 Ý tưởng thô → kịch bản: prompt 23 + vai Biên kịch + 4 lượt (hỏi ≤ 5 câu có mặc định → 3 hướng hook → dàn ý theo giây → kịch bản đúng khuôn Bước 1) + kiểm code + màn 2 cột tô phần Director thêm
 <!-- /tien-do -->
 
 ## Danh sách việc (thứ tự người dùng đã duyệt)
@@ -148,6 +149,20 @@
 - [x] S10.9 · 💵 T5: 3 người, khung đầu đủ người + white-model — người thứ ba giữ chỗ và mặt · nặng:2 · ✅ · 30/09: 3/3 người giữ mặt, đồ, chỗ đứng 5 s, không thêm người lạ
 - [x] S10.10 · 💵 T6: nhiều khung then chốt theo thứ tự giai đoạn · nặng:1 · ✅ · 30/09: thứ tự giai đoạn đúng (T1 đảo); lưỡi hologram biến sớm, màng lốc thoáng qua
 - [x] S10.11 · Việc miễn phí tồn: Data Pack P5 (402 dừng cứng) + P3 (Structured Outputs), E1, E2, A4 / A5 / A14 / A21, S0.14 T5 · nặng:2 · ✅ · 30/09: E1 (lỗi chỉ hiện lời, mã lỗi ở chú thích) ✅, E2 (chốt 8 ảnh tham chiếu) ✅, P5 (hết tiền → khóa dịch vụ, nút mở lại) ✅; A4 `tradeoffs.kind` lạ → báo ở bàn đo + đọc theo chữ, chữ dự phòng không nhận "khung hình" / "đọc câu" ✅; A5 thiếu `money_shot` chỉ báo khi thể loại COMMERCIAL ✅; A14 cửa sổ phủ định kiểm trục dừng ở dấu phẩy / chấm ✅; A21 lý do loudnorm chuyển chế độ động đọc từ số đo lượt đầu (không đo được LRA / LRA rộng / đỉnh cao) ✅; S0.14 T5 điều kiện cân nhắc cận mặt + khớp môi trong director.md Đ3 ✅ (tests/test_ton_dong_a_r1_r4.py, 10 test); **P3 không chuyển** — đo CSDL thật: 7 lần hỏi lại / 179 lời gọi Claude, 0 lần JSON hỏng; tài liệu chính thức: Structured Outputs có `enum` nhưng không có `minimum/maximum`/`minLength` → chỉ 1/7 (sai enum `angle`) chặn được bằng schema; giữ validator + hỏi lại
+
+### S11 — Director mở rộng: ý tưởng → kịch bản, cover video ref, học trending (kế hoạch 01/10, `docs/KE_HOACH_TINH_NANG_DIRECTOR_2026-10-01.md`)
+- [ ] S11.0 · Người dùng chốt câu hỏi mở Q1–Q7 (thứ tự, 1 tài khoản Apify Free, pháp chế scraper, chính sách nhạc trend, clip nhảy thử, hỏi ClipAI mở Motion Control, tần suất quét) · nặng:1 · ⏸ · mục 8 của kế hoạch
+- [ ] S11.1 · 💡 Ý tưởng thô → kịch bản: prompt 23 + vai Biên kịch + 4 lượt (hỏi ≤ 5 câu có mặc định → 3 hướng hook → dàn ý theo giây → kịch bản đúng khuôn Bước 1) + kiểm code + màn 2 cột tô phần Director thêm · nặng:3 · ⬜ · cờ `idea_to_script` TẮT
+- [ ] S11.2 · 💵 Bộ đo 5 ý tưởng thô, người dùng chấm 1–5 (≈ 0,75 USD) · nặng:1 · ⬜
+- [ ] S11.3 · 📈 Trend T1: bảng trend_raw / trend_cards, nguồn miễn phí (Claude web search, kworb, nhập tay), tab ⚙ 📈 Trend duyệt thẻ · nặng:2 · ⬜ · cờ `trend_feed` TẮT
+- [ ] S11.4 · 📈 Trend T2: adapter Apify (Creative Center VN + video theo hashtag + Facebook), sổ chi + trần tháng 4,5 USD, lịch 1–3 ngày (Task Scheduler) · nặng:2 · ⬜ · chờ Q2/Q3; lần đo đầu ≈ 0,5 USD, ghi giá thật vào pricing.json
+- [ ] S11.5 · 📈 Trend T3: khối "Xu hướng" vào Tầng A / Biên kịch / Cover + knowledge/trend_usage.md + trường `trend_refs` + huy hiệu · nặng:2 · ⬜
+- [ ] S11.6 · 📈 Trend T4: vòng phản hồi số liệu đăng bài → sổ kinh nghiệm; báo cáo tuần chỉ số nâng gói · nặng:1 · ⬜
+- [ ] S11.7 · 🎬 Cover kịch bản: prompt 24 bóc tách (cắt shot + whisper + tờ khung) → ghép vai / nơi FF → viết lại lời → `ref_shots` cho Tầng B + xem song song ref ↔ animatic · nặng:3 · ⬜ · cờ `ref_cover` TẮT
+- [ ] S11.8 · 💵 Bộ đo 3 video ref (≈ 0,6 USD) · nặng:1 · ⬜
+- [ ] S11.9 · 💵 💃 Cover nhảy: kiểm video ref + đo nhịp / cắt đoạn theo phách + A/B 3 cách (Kling feature / Seedance 2.5 / Motion Control web) (≈ 2,5 USD) · nặng:2 · ⬜ · chờ Q5
+- [ ] S11.10 · 💃 Cover nhảy đầy đủ theo cách thắng + QC nhảy (lệch nhịp, số người, mặt) + nhạc cùng BPM · nặng:3 · ⬜ · cờ `dance_cover` TẮT
+- [ ] S11.11 · Đánh giá sau 4–6 tuần: nâng Apify Starter hay không (3 tiêu chí mục 3.9) · nặng:1 · ⬜
 
 ### K — Chạy kiểm kịch bản hài 20–30 s — ⏸ KHÔNG ƯU TIÊN (người dùng 30/09: các việc test kịch bản không làm trước nữa)
 - [ ] K.1 · Soạn kịch bản hài 20–30 s có **Kenta + Orion cùng dùng kỹ năng** (người dùng 30/09) · nặng:1 · ⏸ · viết lại bản A (docs/KICH_BAN_KIEM_K1_2026-09-29.md) theo hồ sơ kỹ năng Kenta + Orion (đợt S10) và luật chia nhịp kỹ năng; người dùng duyệt · tạm gác — không ưu tiên (người dùng 30/09); làm sau cùng khi người dùng gọi
