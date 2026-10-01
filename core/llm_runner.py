@@ -318,7 +318,8 @@ class AnthropicClient:
     def complete(self, prompt: str, images: Sequence[Tuple[str, str]] = ()) -> LlmReply:
         return self._request(prompt, images, None)
 
-    def converse(self, messages: List[Dict], tools: List[Dict], system: str = "", max_tokens: Optional[int] = None) -> LlmReply:
+    def converse(self, messages: List[Dict], tools: List[Dict], system: str = "", max_tokens: Optional[int] = None,
+                 force_tool: Optional[str] = None) -> LlmReply:
         """One turn of a multi-turn tool-use conversation (the QC agent, core/qc_agent.py): the caller keeps `messages` and answers every
         tool_use with a tool_result. Same budget check, ledger and retries as `complete`; `reply.blocks` holds the content blocks."""
         self._last_prompt = system + "\n".join(b.get("text", "") for m in messages[:1] for b in (m["content"] if isinstance(m["content"], list)
@@ -326,7 +327,10 @@ class AnthropicClient:
         payload = {"model": self.model, "max_tokens": int(max_tokens or self.max_tokens), "messages": messages, "tools": tools}
         if system:
             payload["system"] = [{"type": "text", "text": system, "cache_control": {"type": "ephemeral"}}]
-        self._last_max_tokens = payload["max_tokens"]
+        if force_tool:                       # S7.1 01/10: the agent ignored "record now" on its last turn; a forced call cannot be
+            payload["tool_choice"] = {"type": "tool", "name": force_tool}   # ignored. Forced tool use does not go with thinking (Claude
+            payload["thinking"] = {"type": "disabled"}                       # Sonnet 5 accepts both; 5.5 / Opus 5.5 / Fable 5.1 reject a
+        self._last_max_tokens = payload["max_tokens"]                         # forced choice — the caller then records a doubt)
         body = json.dumps(payload).encode("utf-8")
         headers = {"x-api-key": self._key, "anthropic-version": API_VERSION, "content-type": "application/json",
                    "User-Agent": "AIVideoPipeline-LLM/0.1"}

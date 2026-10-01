@@ -19,8 +19,9 @@ class Scripted:
     def __init__(self, turns):
         self.turns, self.seen = list(turns), []
 
-    def converse(self, messages, tools, system="", max_tokens=None):
+    def converse(self, messages, tools, system="", max_tokens=None, force_tool=None):
         self.seen.append(copy.deepcopy(messages[-1]))    # a restart replaces the conversation
+        self.forced = getattr(self, "forced", []) + [force_tool]
         self.tool_sets = getattr(self, "tool_sets", []) + [[t["name"] for t in tools]]
         calls = self.turns.pop(0) if self.turns else []
         blocks = [{"type": "tool_use", "id": f"t{len(self.seen)}_{i}", "name": n, "input": inp} for i, (n, inp) in enumerate(calls)]
@@ -108,6 +109,8 @@ class AgentTests(unittest.TestCase):
         self.assertEqual(verdicts[2], "doubt")
         self.assertEqual(verdicts[3], "pass")
         self.assertEqual(len({tuple(t) for t in c.tool_sets}), 1)                      # one tool list: the cached prefix holds
+        self.assertEqual(c.forced[qc_agent.FRAME_TURNS + 1], "record")                # frame 2's last turn forces the record call
+        self.assertIsNone(c.forced[0])
         self.assertIn("view_frame", c.tool_sets[0])
         with mock.patch.object(qc_agent, "PER_FRAME", True):
             agent = qc_agent.QcAgent(self.p, self.pid, self.data, Scripted(turns), self.frames)
@@ -196,7 +199,7 @@ class AgentTests(unittest.TestCase):
     def test_at_the_scene_lock_it_stops_and_keeps_what_it_recorded(self):
         """28/09: the lock raised inside the loop lost everything the agent had recorded for scene 2."""
         class Capped(Scripted):
-            def converse(inner, messages, tools, system="", max_tokens=None):
+            def converse(inner, messages, tools, system="", max_tokens=None, force_tool=None):
                 if len(inner.seen) >= 2:
                     raise llm_runner.LlmError("chạm trần 'agent QC cảnh 1'", code="budget")
                 return super().converse(messages, tools, system, max_tokens)
@@ -271,7 +274,7 @@ class AgentTests(unittest.TestCase):
         from core.adapters.http import ProviderError
 
         class Flaky(Scripted):
-            def converse(inner, messages, tools, system="", max_tokens=None):
+            def converse(inner, messages, tools, system="", max_tokens=None, force_tool=None):
                 if len(inner.seen) >= 1:
                     raise ProviderError("network error: timed out", code="network", transient=True)
                 return super().converse(messages, tools, system, max_tokens)
@@ -284,7 +287,7 @@ class AgentTests(unittest.TestCase):
     def test_a_cut_answer_keeps_its_complete_records_and_goes_on(self):
         """28/09 scene 6: three cut answers were thrown away with the records already complete in them — nothing was recorded."""
         class Cut(Scripted):
-            def converse(inner, messages, tools, system="", max_tokens=None):
+            def converse(inner, messages, tools, system="", max_tokens=None, force_tool=None):
                 r = super().converse(messages, tools, system, max_tokens)
                 if len(inner.seen) <= 2:
                     r.stop_reason = "max_tokens"
@@ -300,7 +303,7 @@ class AgentTests(unittest.TestCase):
 
     def test_an_empty_answer_asks_to_call_tools(self):
         class Empty(Scripted):
-            def converse(inner, messages, tools, system="", max_tokens=None):
+            def converse(inner, messages, tools, system="", max_tokens=None, force_tool=None):
                 r = super().converse(messages, tools, system, max_tokens)
                 if len(inner.seen) == 1:
                     r.blocks, r.stop_reason = [], "end_turn"
@@ -341,7 +344,7 @@ class AgentTests(unittest.TestCase):
     def test_past_half_the_scene_money_it_may_only_record_and_it_always_sees_where_it_stands(self):
         """28/09: 8 turns and 46 pictures spent looking, nothing recorded, then the lock stopped it — all frames 'doubt'."""
         class Paid(Scripted):
-            def converse(inner, messages, tools, system="", max_tokens=None):
+            def converse(inner, messages, tools, system="", max_tokens=None, force_tool=None):
                 llm_runner._count_caps(qc_agent.scene_cap(len(self.frames)) * 0.3)      # each turn costs 30 % of the cap
                 return super().converse(messages, tools, system, max_tokens)
         many = [("view_frame", {"k": 1})] * (qc_agent.LOOKS_PER_TURN + 2)

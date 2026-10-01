@@ -38,7 +38,7 @@ RESERVE_TURNS = 2.5       # close when the scene's money left would not pay this
 PER_FRAME = True          # S7.1 01/10: judge each frame in its own short session (the shared brief / overview / cases cached) instead of
                           # one long scene conversation whose every turn resent all pictures (cảnh 2 #8: price/turn grew to 0,10 USD, 3 runs
                           # recorded nothing). Cross-frame checks stay: a frame's session may still strip / reference other frames.
-FRAME_TURNS = 4           # turns per frame; the last offers only `record` for that frame
+FRAME_TURNS = 3           # turns per frame: 2 of looking, the last one FORCES a `record` call (tool_choice) for that frame
 FRAME_MIN_USD = 0.03      # money a frame needs to start; less → the rest are 'chưa soi' doubts, said
 RECORD_EVERY = 4          # after this many turns without a new record, the next turn offers only the record tools (record as you go)
 CASES_SHOWN = 4           # confirmed cases from the notebook (core/experience) shown before looking
@@ -347,8 +347,12 @@ class QcAgent:
                 try:
                     # the tool list never changes between turns: a different list invalidates the whole cached prefix (brief, overview,
                     # cases); the last turn's looks are refused by code instead
-                    reply = self.client.converse(msgs, look_tools, SYSTEM, max_tokens=ANSWER_TOKENS)
+                    reply = (self.client.converse(msgs, look_tools, SYSTEM, max_tokens=ANSWER_TOKENS, force_tool="record") if final
+                             else self.client.converse(msgs, look_tools, SYSTEM, max_tokens=ANSWER_TOKENS))
                 except Exception as e:  # noqa: BLE001 - a lock, the network: stop, keep what was recorded
+                    if final and getattr(e, "code", None) not in ("budget", "auth", "config"):
+                        self._log({"name": "record (ép)", "input": {"k": k}}, [{"type": "text", "text": f"lỗi lượt ép ghi: {e}"}])
+                        break                                    # the forced turn failed: this frame becomes a doubt, the scene goes on
                     self._only_k = None
                     self.blocked = not self.records and getattr(e, "code", None) in ("budget", "auth", "config")
                     return f"dừng: {e}"
