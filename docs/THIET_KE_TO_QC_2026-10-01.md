@@ -416,7 +416,23 @@ C1 + luật code) ≈ 0,02 / khung — là cấu hình được code ở GĐ2 v�
 | Nhãn người không nhất quán (đã gặp: nhãn lượt 1 xét trái/phải theo mép khung) | trọng tài / tổ "sai" so nhãn nhưng thật ra nhãn sai | ca bất đồng hiện cho người xem lại kèm bằng chứng; sửa nhãn có lý do (như `labels_v2`) |
 | Quyết định do script thử lẫn vào dữ liệu "người" | ca giả trong sổ / bộ đo | dấu `[thử tự động]` + lọc (đã sửa — mục 20) |
 
-## 19. Câu hỏi cần người dùng quyết
+## 19a. Quyết định của người dùng (01/10) — thay cho phần liên quan ở các mục trên
+1. **Không tải Pose lúc này.** Bên trái/phải không cần đo cả dáng người (dáng / cỡ người mỗi nhân vật khác nhau là đúng). Cách làm thay:
+   quay mặt hay quay lưng = code dò mặt (YuNet thấy mặt → quay mặt; không thấy mặt mà thấy đầu → quay lưng); tâm thân ≈ tâm đầu / mặt; câu hỏi
+   gửi model hỏi thẳng "chi tiết X nằm ở tay TRÁI hay PHẢI của chính người đó" kèm cặp ảnh cắt + ảnh chuẩn; trọng tài Opus 5.5 kiểm khi chặn.
+   Pose chỉ thêm nếu GĐ3 đo thấy lỗi trái/phải vẫn còn (khi đó hỏi lại). Mục 7.2 / 7.3 / 7.4 / 18 GĐ2 hiểu theo quyết định này.
+2. **Trọng tài dùng Opus 5.5** — thử như mục 10.
+3. **Bộ độc lập gắn nhãn trên Google Sheet** "Gắn nhãn bộ đo QC (01-10)" (134 khung #1, #2, #3, #4, #7, #10, #11, #12, #13; cột chọn Đạt / Nhỏ /
+   Chặn + loại lỗi + ghi chú) + trang xem ảnh riêng tư "Bộ khung đo QC" trên claude.ai (mỗi dòng Sheet có link tới đúng ảnh). Claude đọc lại
+   Sheet qua Google Drive khi người dùng điền xong.
+4. **Ngưỡng nghiệm thu giữ nguyên**: bắt ≥ 90 % khung chặn, báo nhầm ≤ 10 %, doubt ≤ 15 %.
+5. **Director duyệt mọi cảnh ở mức nhẹ, cảnh then chốt duyệt kỹ.** Mức nhẹ: 1 lời gọi / cảnh, chỉ tấm ghép storyboard + câu hỏi "kể được gì,
+   có chỗ nào người xem lạc", trả `approve` hoặc nêu tối đa 1 shot. Mức kỹ (cảnh có shot ⭐ / money shot / thoại then chốt / `beat.turn`): đầy đủ
+   như mục 11. Thứ tự duyệt: cảnh then chốt trước.
+6. **`qc_agent` (agent điều tra)**: chọn phương án tối ưu = giữ làm công cụ trọng tài cho ca rất khó, **tắt mặc định** (0 USD khi không dùng,
+   không phải viết lại nếu cần), không làm đường chính (mục 10.4).
+
+## 19. Câu hỏi đã hỏi người dùng (trả lời ở 19a)
 1. Cho tải **MediaPipe Pose Landmarker** (1 file model công khai của Google, ≈ 5–30 MB tùy bản lite / full / heavy) vào `data/models/` để đo bên thân / tư thế?
 2. Trọng tài dùng **Opus 5.5** (đắt gấp 2 Sonnet 5 / token) — hay thử Sonnet 5 với đầu vào khác trước?
 3. **Bộ độc lập**: bạn dành ≈ 20–30 phút gắn nhãn 20–30 khung #13–#15 + xác nhận ≈ 56 ca cũ trên màn gắn nhãn nhanh?
