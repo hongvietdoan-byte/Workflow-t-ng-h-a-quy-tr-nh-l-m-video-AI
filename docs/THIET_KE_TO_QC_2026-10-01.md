@@ -558,3 +558,10 @@ gợi ý. Ra `data/qc_golden/prefilter.json` + `prefilter.csv` (ngoài git — c
 - **Tính lại không tốn tiền (bỏ mệnh đề trái/phải khỏi tự chặn):** báo nhầm **2/24 = 8,3 %** (qua cổng), doubt 0 %, Nhân vật bắt 5/7
   (sót 347, 350 — chính là 2 lỗi trái/phải). → phần còn lại của C1 (đúng người, mũ, số người) dùng được; trái/phải cần cách khác.
 - **Theo quyết định 19a: hỏi lại người dùng** (Pose hoặc cách khác) — xem TODO.
+
+**01/10 — Việc 3: trang gắn nhãn bộ độc lập (thay trang ảnh cũ không mở được từ phiên này):** https://claude.ai/artifact/GhovWc4sPSQe3GciCAoKs1
+("Bàn soát khung QC", riêng tư). 134 khung (ảnh thu nhỏ nhúng sẵn) + gợi ý của bước lọc trước (`qc_prefilter.py`) + người trong shot /
+cỡ / giờ / blocking; nút Đạt / Nhỏ / Chặn, loại lỗi, ghi chú, "✓ Đúng gợi ý"; lưu ngay vào CSDL của trang (bộ sưu tập `labels`, mã khung
+`P<dự án>-J<job>` → {label, category, note, shot, at}). Khung có gợi ý độ tin **cao** (= chính người dùng từng loại ảnh kèm lý do, 17 khung)
+tính là đã xác nhận nếu không sửa. Đọc về: `ArtifactData list labels` → gộp với 17 khung độ tin cao → `data/qc_golden/independent.json`
+(định dạng `qc_golden.independent_set`). Google Sheet cũ giữ làm dự phòng.
