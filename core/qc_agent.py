@@ -35,6 +35,11 @@ CLOSING_TURNS = 3         # the last turns of a scene offer ONLY record / record
 RECORD_TOOLS = ("record", "record_batch", "finish")
 RESERVE_TURNS = 2.5       # close when the scene's money left would not pay this many turns at the last turn's price (S7.1 01/10 lần 5:
                           # every turn resends the pictures, the price grew to ~0,10 USD, the cap ran out before the one record turn)
+PER_FRAME = True          # S7.1 01/10: judge each frame in its own short session (the shared brief / overview / cases cached) instead of
+                          # one long scene conversation whose every turn resent all pictures (cảnh 2 #8: price/turn grew to 0,10 USD, 3 runs
+                          # recorded nothing). Cross-frame checks stay: a frame's session may still strip / reference other frames.
+FRAME_TURNS = 4           # turns per frame; the last offers only `record` for that frame
+FRAME_MIN_USD = 0.03      # money a frame needs to start; less → the rest are 'chưa soi' doubts, said
 RECORD_EVERY = 4          # after this many turns without a new record, the next turn offers only the record tools (record as you go)
 CASES_SHOWN = 4           # confirmed cases from the notebook (core/experience) shown before looking
 CASE_EDGE = 512           # their pictures, small: a reminder, not a frame to judge
@@ -315,6 +320,82 @@ class QcAgent:
         self._n += 1
         return os.path.join(self.work, f"{self._n:03d}_{name}.jpg")
 
+    def _per_frame(self, first: Dict, cap: Dict, cap_usd: float) -> str:
+        """One short session per frame (PER_FRAME): the cached brief + overview + cases, then THIS frame; up to FRAME_TURNS turns of
+        looking (crops, strips across frames, standard pictures), the last turn offers only `record` for it. Returns why it stopped
+        ('' = every frame had its session)."""
+        from .llm_runner import LlmError  # noqa: F401 - same errors as the scene loop
+        last_cost, spent_before = 0.0, cap["spent"]
+        look_tools = [t for t in TOOLS if t["name"] not in ("record_batch", "finish")]
+        stopped = ""
+        for f in self._must():
+            k = f["k"]
+            if k in self.records:
+                continue
+            if cap_usd - cap["spent"] < max(FRAME_MIN_USD, last_cost):
+                stopped = f"dừng: tiền của cảnh còn ${cap_usd - cap['spent']:.3f} — không đủ chấm thêm khung"
+                break
+            self._only_k = k
+            msgs = [{"role": "user", "content": list(first["content"]) + [
+                {"type": "text", "text": f"CHẤM KHUNG K{k} ({f['label']}) — khung đầy đủ ở dưới. Tối đa {FRAME_TURNS} lượt: xem / cắt vùng / "
+                                         f"ghép dải với khung khác / ảnh chuẩn, rồi `record` K{k} (lượt cuối chỉ còn công cụ ghi). "
+                                         f"Khung khác chỉ để so; lỗi trái/phải kèm `side`."},
+                self._img(_crop(f["path"], None, self._out(f"k{k}")))]}]
+            for t in range(FRAME_TURNS):
+                final = t == FRAME_TURNS - 1 or cap_usd - cap["spent"] < RESERVE_TURNS * last_cost
+                mark_cache(msgs)
+                try:
+                    # the tool list never changes between turns: a different list invalidates the whole cached prefix (brief, overview,
+                    # cases); the last turn's looks are refused by code instead
+                    reply = self.client.converse(msgs, look_tools, SYSTEM, max_tokens=ANSWER_TOKENS)
+                except Exception as e:  # noqa: BLE001 - a lock, the network: stop, keep what was recorded
+                    self._only_k = None
+                    self.blocked = not self.records and getattr(e, "code", None) in ("budget", "auth", "config")
+                    return f"dừng: {e}"
+                self.steps += 1
+                last_cost, spent_before = max(cap["spent"] - spent_before, 0.0), cap["spent"]
+                blocks = [b for b in (reply.blocks or []) if b.get("type") != "tool_use" or isinstance(b.get("input"), dict)]
+                if reply.stop_reason == "max_tokens":
+                    blocks = [b for b in blocks if b.get("type") == "tool_use"]
+                if not blocks:
+                    msgs[-1]["content"].append({"type": "text", "text": f"(Lượt trước rỗng / bị cắt — gọi công cụ ngay, ghi K{k}.)"})
+                    continue
+                msgs.append({"role": "assistant", "content": blocks})
+                uses = [b for b in blocks if b.get("type") == "tool_use"]
+                if not uses:
+                    msgs.append({"role": "user", "content": [{"type": "text", "text": f"Ghi `record` cho K{k}."}]})
+                    continue
+                results, looks = [], 0
+                for u in uses:
+                    looking = u["name"] in ("view_frame", "strip", "reference")
+                    try:
+                        if looking and (final or looks >= LOOKS_PER_TURN):
+                            content = [{"type": "text", "text": f"hết lượt xem — ghi K{k} theo những gì đã thấy; chưa đủ bằng chứng → doubt"}]
+                        else:
+                            looks += looking
+                            content = self.tool(u["name"], u.get("input") or {})
+                    except Exception as e:  # noqa: BLE001 - a bad tool call is answered
+                        content = [{"type": "text", "text": f"lỗi công cụ: {type(e).__name__}: {e}"}]
+                    results.append({"type": "tool_result", "tool_use_id": u["id"], "content": content})
+                    self._log(u, content)
+                results[-1]["content"] = list(results[-1]["content"]) + [{"type": "text", "text": (
+                    f"[K{k}] lượt {t + 1}/{FRAME_TURNS} · cảnh đã dùng ${cap['spent']:.3f} / ${cap_usd:.2f}"
+                    + (" — lượt kế CHỈ còn ghi K%d." % k if t + 1 >= FRAME_TURNS - 1 else ""))}]
+                msgs.append({"role": "user", "content": results})
+                if k in self.records:
+                    break
+            if k not in self.records:
+                self.records[k] = {"k": k, "verdict": "doubt", "issues": [{"type": "không kịp ghi", "description": f"agent không ghi K{k} sau "
+                                   f"{FRAME_TURNS} lượt", "evidence": "-", "severity": "minor"}], "root_cause": "none",
+                                   "shot": f["label"], "job": f["job_id"]}
+        self._only_k = None
+        if not stopped and not self._left():
+            counts = {}
+            for r in self.records.values():
+                counts[r["verdict"]] = counts.get(r["verdict"], 0) + 1
+            self.summary = {"summary": "chấm từng khung: " + ", ".join(f"{v} {n}" for v, n in sorted(counts.items())), "new_fault_types": []}
+        return stopped
+
     def _case_blocks(self) -> List[Dict]:
         """Sổ kinh nghiệm (core/experience): the confirmed cases of the same characters / view — false alarms and misses first — with
         their pictures, before the agent looks (S7.1 01/10: the relabelled Kenta-from-behind frames were in the repo, never shown)."""
@@ -407,6 +488,8 @@ class QcAgent:
             fix = str(args.get("fix_en") or "")
             if args["verdict"] == "block" and args["root_cause"] != "plan" and (len(fix) < 15 or _VI.search(fix)):
                 return [{"type": "text", "text": "block cần fix_en là MỘT câu tiếng Anh (không dấu tiếng Việt)"}]
+            if getattr(self, "_only_k", None) and k != self._only_k:
+                return [{"type": "text", "text": f"phiên này chỉ chấm K{self._only_k} — ghi K{self._only_k}"}]
             if self.focus and self.by_k[k]["job_id"] not in self.focus:
                 return [{"type": "text", "text": f"K{k} là khung tham khảo (đã xét trước) — chỉ ghi các khung mới: {self._left()}"}]
             self.records[k] = dict(args, shot=self.by_k[k]["label"], job=self.by_k[k]["job_id"])
@@ -458,7 +541,13 @@ class QcAgent:
             place = assets.location_text(self.p.conn, loc) if loc is not None else ""
         except Exception:  # noqa: BLE001 - the brief goes without it
             place = ""
-        limits = (f"# Giới hạn (khóa cứng, không nâng được)\nTối đa {max_steps(len(self._must()))} lượt và ${scene_cap(len(self._must())):.2f} cho cảnh này; "
+        per_frame = (f"# Cách làm (khóa cứng)\nChấm TỪNG KHUNG, mỗi khung một phiên ngắn tối đa {FRAME_TURNS} lượt (tối đa {LOOKS_PER_TURN} "
+                     f"ảnh mỗi lượt), tổng ${scene_cap(len(self._must())):.2f} cho cảnh. Trong phiên của khung K: xem / cắt sát chỗ nghi / "
+                     "ghép dải với khung khác khi soi lỗi lặp qua khung / ảnh chuẩn — rồi `record` K; lượt cuối chỉ còn ghi. Khung không "
+                     "nghi ngờ: ghi pass ngay lượt 1. Chưa đủ bằng chứng → doubt (không bỏ trống).\n"
+                     "Kết luận NGẮN, CHUẨN: description 1 câu (ai, chi tiết gì, sai thế nào so với luật nào), evidence = công cụ + vùng đã "
+                     "xem, fix_en 1 câu mệnh lệnh tiếng Anh nói điều PHẢI đúng (không nói điều cấm).")
+        limits = per_frame if PER_FRAME else (f"# Giới hạn (khóa cứng, không nâng được)\nTối đa {max_steps(len(self._must()))} lượt và ${scene_cap(len(self._must())):.2f} cho cảnh này; "
                   f"tối đa {LOOKS_PER_TURN} ảnh mỗi lượt; quá {int(RECORD_ONLY_AT * 100)} % ngân sách thì CHỈ còn được ghi. "
                   f"Phải ghi (record) các khung: {[f['k'] for f in self._must()]}.\n"
                   "Cách làm (mục tiêu ≤ 6 lượt): lượt 1 — từ tấm tổng quan chọn khung nghi ngờ + làm các dải bắt buộc của kế hoạch soi "
@@ -496,7 +585,9 @@ class QcAgent:
         steps_max = max_steps(len(self._must()))
         last_cost, spent_before, last_record_step, recorded = 0.0, 0.0, 0, 0
         with tagged("qc_agent", self.pid), spend_cap(cap_usd, f"agent QC cảnh {self.story}") as cap:
-            while self.summary is None and self.steps < steps_max:
+            if PER_FRAME:
+                stopped = self._per_frame(messages[0], cap, cap_usd)
+            while not PER_FRAME and self.summary is None and self.steps < steps_max:
                 if too_long(messages):
                     messages = restart(messages, self._recap(messages))
                     self.sessions += 1

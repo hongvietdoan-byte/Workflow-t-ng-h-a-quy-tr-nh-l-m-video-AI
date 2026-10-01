@@ -42,6 +42,9 @@ class AgentTests(unittest.TestCase):
         self.p.conn.commit()
         self.frames = qc_scene.scene_frames(self.p, self.pid, self.scene, self.data)
         self.n = len(self.frames)
+        patcher = mock.patch.object(qc_agent, "PER_FRAME", False)     # these tests are about the whole-scene loop
+        patcher.start()
+        self.addCleanup(patcher.stop)
 
     def record(self, k, verdict="pass", fix=""):
         issues = [] if verdict == "pass" else [{"type": "tay", "description": "sáu ngón", "evidence": "cắt vùng tay K%d" % k, "severity": "block"}]
@@ -85,6 +88,35 @@ class AgentTests(unittest.TestCase):
         self.assertNotIn("chưa ai xác nhận", texts)                            # unconfirmed cases are never shown
         self.assertEqual(agent.cases, ["t:1"])
         self.assertGreaterEqual(sum(1 for b in first if b.get("type") == "image"), 2)   # overview + the case picture
+
+    def test_per_frame_every_frame_gets_its_own_short_session_and_a_verdict(self):
+        """S7.1 01/10: one session per frame; the last turn offers only `record`; a frame that is not recorded is a doubt; a record
+        for another frame is refused."""
+        turns = []
+        for k in range(1, self.n + 1):
+            if k == 2:                                   # frame 2 only looks: its last turn must still be record-only, then a doubt
+                turns += [[("view_frame", {"k": 2, "region": [0, 0, .5, .5]})]] * qc_agent.FRAME_TURNS
+            elif k == 3:                                 # tries to record another frame first
+                turns += [[self.record(1)], [self.record(3)]]
+            else:
+                turns += [[("view_frame", {"k": k, "region": [0, 0, .5, .5]})], [self.record(k)]]
+        c = Scripted(turns)
+        with mock.patch.object(qc_agent, "PER_FRAME", True):
+            res = qc_agent.QcAgent(self.p, self.pid, self.data, c, self.frames).run()
+        verdicts = {r["k"]: r["verdict"] for r in res["records"]}
+        self.assertEqual(len(verdicts), self.n)
+        self.assertEqual(verdicts[2], "doubt")
+        self.assertEqual(verdicts[3], "pass")
+        self.assertEqual(len({tuple(t) for t in c.tool_sets}), 1)                      # one tool list: the cached prefix holds
+        self.assertIn("view_frame", c.tool_sets[0])
+        with mock.patch.object(qc_agent, "PER_FRAME", True):
+            agent = qc_agent.QcAgent(self.p, self.pid, self.data, Scripted(turns), self.frames)
+            agent.run()
+        with open(os.path.join(agent.work, "tool_log.jsonl"), encoding="utf-8") as fh:   # frame 2's last look was refused by code
+            self.assertIn("hết lượt xem", fh.read())
+        self.assertNotIn("finish", c.tool_sets[0])
+        self.assertTrue(all(len(m["content"]) for m in c.seen))
+        self.assertTrue(res["summary"]["summary"].startswith("chấm từng khung"))
 
     def test_it_must_record_as_it_goes(self):
         """S7.1 01/10 lần 5: 10 turns of looking, the price per turn grew, nothing was recorded — after RECORD_EVERY turns without a
