@@ -28,7 +28,8 @@ from datetime import datetime, timezone
 from typing import Callable, Dict, List, Optional
 
 BASE = "https://api.meshy.ai/openapi/v1"
-CREDITS = {"model": 30, "rig": 5}
+CREDITS = {"model": 30, "rig": 5, "remesh": 5}
+REMESH_POLYCOUNT = 150000            # rigging takes ≤ 300 000 faces; a 9:16 video frame does not need more
 MAX_CALL_CREDITS = 40
 MAX_TRIES_PER_CHARACTER = 3
 RETENTION_DAYS = 3
@@ -285,6 +286,10 @@ class Client:
     def create_rig(self, input_task_id: str, height_m: float) -> str:
         return str(self._call("POST", "/rigging", {"input_task_id": input_task_id, "height_meters": float(height_m)})["result"])
 
+    def create_remesh(self, input_task_id: str, polycount: int) -> str:
+        return str(self._call("POST", "/remesh", {"input_task_id": input_task_id, "target_polycount": int(polycount),
+                                                  "target_formats": ["glb", "fbx"]})["result"])
+
     def get(self, endpoint: str, task_id: str) -> Dict:
         return self._call("GET", f"{endpoint}/{task_id}")
 
@@ -359,10 +364,29 @@ def submit_model(conn, client: Client, p: Dict, view_ids: Optional[List[int]] = 
     return {"row": row, "task_id": task_id}
 
 
-def submit_rig(conn, client: Client, model_row: int) -> Dict:
+def submit_remesh(conn, client: Client, model_row: int, polycount: int = REMESH_POLYCOUNT) -> Dict:
+    """A lighter copy of a finished model (01/10: the 4 first models had 1.0–1.8 M faces; rigging takes ≤ 300 000). 5 credits."""
     m = conn.execute("SELECT * FROM meshy_tasks WHERE id=?", (model_row,)).fetchone()
     if m is None or m["kind"] != "model" or m["status"] != "DOWNLOADED":
-        raise MeshyError("chỉ gắn khung xương cho mô hình đã dựng xong và đã tải về")
+        raise MeshyError("chỉ giảm lưới cho mô hình đã dựng xong và đã tải về")
+    try:
+        bal = client.balance()
+    except MeshyError:
+        bal = None
+    why = check(conn, m["asset_id"], "remesh", CREDITS["remesh"], bal)
+    if why:
+        raise MeshyError(why)
+    row = _insert(conn, "remesh", m["asset_id"], CREDITS["remesh"], {"input_task_id": m["task_id"], "target_polycount": polycount,
+                                                                      "endpoint": "/remesh"}, parent=m["task_id"])
+    task_id = _send(conn, row, lambda: client.create_remesh(m["task_id"], polycount))
+    return {"row": row, "task_id": task_id}
+
+
+def submit_rig(conn, client: Client, model_row: int) -> Dict:
+    """Rig a downloaded model — or, better, its downloaded lighter copy (kind 'remesh'): Meshy refuses > 300 000 faces."""
+    m = conn.execute("SELECT * FROM meshy_tasks WHERE id=?", (model_row,)).fetchone()
+    if m is None or m["kind"] not in ("model", "remesh") or m["status"] != "DOWNLOADED":
+        raise MeshyError("chỉ gắn khung xương cho mô hình (hoặc bản giảm lưới) đã xong và đã tải về")
     from . import assets
     height = assets.get_profile(conn, m["asset_id"]).get("height_m") or 1.75
     try:
@@ -395,7 +419,7 @@ def folder_for(conn, asset_id: int, task_id: str) -> str:
 def _files_of(kind: str, task: Dict) -> Dict[str, str]:
     """name on disk → signed URL, for what is worth keeping."""
     out = {}
-    if kind == "model":
+    if kind in ("model", "remesh"):
         for fmt, url in (task.get("model_urls") or {}).items():
             if url and fmt in ("glb", "fbx", "obj", "usdz"):
                 out[f"model.{fmt}"] = url
@@ -426,7 +450,8 @@ def refresh(conn, client: Client, now: Optional[float] = None) -> List[str]:
     notes = []
     for r in conn.execute("SELECT * FROM meshy_tasks WHERE status IN ('PENDING','IN_PROGRESS','SUCCEEDED') AND task_id IS NOT NULL")\
             .fetchall():
-        endpoint = json.loads(r["request"] or "{}").get("endpoint") or ("/rigging" if r["kind"] == "rig" else "/multi-image-to-3d")
+        endpoint = json.loads(r["request"] or "{}").get("endpoint") or {"rig": "/rigging", "remesh": "/remesh"}.get(r["kind"],
+                                                                                                                 "/multi-image-to-3d")
         try:
             t = client.get(endpoint, r["task_id"])
         except MeshyError as e:

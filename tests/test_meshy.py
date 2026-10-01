@@ -176,6 +176,25 @@ class MeshyTests(unittest.TestCase):
                                                              "rigged.glb", "task.json"])
         self.assertEqual(meshy.spent_credits(self.conn), 35)
 
+    def test_remesh_then_rig_the_lighter_copy(self):
+        fake = FakeMeshy()
+        c = meshy.Client("k", fake)
+        r = meshy.submit_model(self.conn, c, self.plan())
+        fake.finish_model(r["task_id"])
+        meshy.refresh(self.conn, c)
+        model = meshy.tasks(self.conn)[0]["id"]
+        rm = meshy.submit_remesh(self.conn, c, model)
+        post = [x for x in fake.calls if x["method"] == "POST"][-1]
+        self.assertTrue(post["url"].endswith("/remesh"))
+        self.assertEqual(post["body"]["target_polycount"], meshy.REMESH_POLYCOUNT)
+        fake.finish_model(rm["task_id"])
+        meshy.refresh(self.conn, c)
+        light = [t for t in meshy.tasks(self.conn) if t["kind"] == "remesh"][0]
+        self.assertEqual(light["status"], "DOWNLOADED")
+        self.assertIn("model.glb", os.listdir(light["folder"]))
+        meshy.submit_rig(self.conn, c, light["id"])
+        self.assertEqual([x for x in fake.calls if x["method"] == "POST"][-1]["body"]["input_task_id"], rm["task_id"])
+
     def test_caps_refuse_before_sending(self):
         c = meshy.Client("k", FakeMeshy(balance=10))
         with self.assertRaisesRegex(meshy.MeshyError, "còn 10 credit"):
