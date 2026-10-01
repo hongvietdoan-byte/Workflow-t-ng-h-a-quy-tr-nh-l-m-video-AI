@@ -1,11 +1,83 @@
 {
   "version": "0.0.1",
   "configurations": [
-    {"name": "dashboard-demo", "runtimeExecutable": "powershell", "runtimeArgs": ["-NoProfile", "-File", "tools/run_demo.ps1"], "port": 8511},
-    {"name": "dashboard-real", "runtimeExecutable": "powershell", "runtimeArgs": ["-NoProfile", "-Command", "$env:IMAGE_PROVIDER='deepix'; $env:VIDEO_PROVIDER='clipai'; $env:LLM_PROVIDER='claude_cli'; py -m streamlit run dashboard/app.py --server.port 8501 --server.headless true"], "port": 8501},
-    {"name": "devsys", "runtimeExecutable": "powershell", "runtimeArgs": ["-NoProfile", "-Command", "py -m streamlit run devsys/app.py --server.port $env:PORT --server.address 127.0.0.1 --server.headless true"], "port": 8502, "autoPort": true},
-    {"name": "dashboard-main", "runtimeExecutable": "powershell", "runtimeArgs": ["-NoProfile", "-Command", "Set-Location 'D:\\AI-Video-Pipeline'; foreach ($l in Get-Content 'dashboard.env' -Encoding UTF8) { $t = $l.Trim(); if ($t -and -not $t.StartsWith('#') -and $t.Contains('=')) { $k, $v = $t.Split('=', 2); [Environment]::SetEnvironmentVariable($k.Trim(), $v.Trim().Trim([char]34), 'Process') } }; foreach ($n in 'CLIPAI_TOKEN', 'DEEPIX_TOKEN', 'ANTHROPIC_API_KEY', 'MESHY_API_KEY') { if (-not [Environment]::GetEnvironmentVariable($n, 'Process')) { $s = [Environment]::GetEnvironmentVariable($n, 'User'); if ($s) { [Environment]::SetEnvironmentVariable($n, $s, 'Process') } } }; py -m streamlit run dashboard/app.py --server.port $env:PORT --server.address 127.0.0.1 --server.headless true --browser.gatherUsageStats false"], "port": 8501, "autoPort": true},
-    {"name": "devsys-main", "runtimeExecutable": "powershell", "runtimeArgs": ["-NoProfile", "-Command", "Set-Location 'D:\\AI-Video-Pipeline'; py -m streamlit run devsys/app.py --server.port $env:PORT --server.address 127.0.0.1 --server.headless true"], "port": 8502, "autoPort": true},
-    {"name": "dashboard-demo-idea", "runtimeExecutable": "powershell", "runtimeArgs": ["-NoProfile", "-Command", "$env:PIPELINE_DB='data/demo/manifest.sqlite'; $env:PIPELINE_DATA='data/demo/projects'; $env:AUDIO_PROVIDER='mock'; $env:LLM_PROVIDER='mock'; $env:SUBJECT_PROVIDER='mock'; $env:MOCK_REAL_MEDIA='1'; $env:FEATURE_IDEA_TO_SCRIPT='1'; py -m streamlit run dashboard/app.py --server.port $env:PORT --server.headless true"], "port": 8512, "autoPort": true}
+    {
+      "name": "dashboard-demo",
+      "runtimeExecutable": "powershell",
+      "runtimeArgs": [
+        "-NoProfile",
+        "-File",
+        "tools/run_demo.ps1"
+      ],
+      "port": 8511
+    },
+    {
+      "name": "dashboard-real",
+      "runtimeExecutable": "powershell",
+      "runtimeArgs": [
+        "-NoProfile",
+        "-Command",
+        "$env:IMAGE_PROVIDER='deepix'; $env:VIDEO_PROVIDER='clipai'; $env:LLM_PROVIDER='claude_cli'; py -m streamlit run dashboard/app.py --server.port 8501 --server.headless true"
+      ],
+      "port": 8501
+    },
+    {
+      "name": "devsys",
+      "runtimeExecutable": "powershell",
+      "runtimeArgs": [
+        "-NoProfile",
+        "-Command",
+        "py -m streamlit run devsys/app.py --server.port $env:PORT --server.address 127.0.0.1 --server.headless true"
+      ],
+      "port": 8502,
+      "autoPort": true
+    },
+    {
+      "name": "dashboard-main",
+      "runtimeExecutable": "powershell",
+      "runtimeArgs": [
+        "-NoProfile",
+        "-Command",
+        "Set-Location 'D:\\AI-Video-Pipeline'; foreach ($l in Get-Content 'dashboard.env' -Encoding UTF8) { $t = $l.Trim(); if ($t -and -not $t.StartsWith('#') -and $t.Contains('=')) { $k, $v = $t.Split('=', 2); [Environment]::SetEnvironmentVariable($k.Trim(), $v.Trim().Trim([char]34), 'Process') } }; foreach ($n in 'CLIPAI_TOKEN', 'DEEPIX_TOKEN', 'ANTHROPIC_API_KEY', 'MESHY_API_KEY') { if (-not [Environment]::GetEnvironmentVariable($n, 'Process')) { $s = [Environment]::GetEnvironmentVariable($n, 'User'); if ($s) { [Environment]::SetEnvironmentVariable($n, $s, 'Process') } } }; py -m streamlit run dashboard/app.py --server.port $env:PORT --server.address 127.0.0.1 --server.headless true --browser.gatherUsageStats false"
+      ],
+      "port": 8501,
+      "autoPort": true
+    },
+    {
+      "name": "devsys-main",
+      "runtimeExecutable": "powershell",
+      "runtimeArgs": [
+        "-NoProfile",
+        "-Command",
+        "Set-Location 'D:\\AI-Video-Pipeline'; py -m streamlit run devsys/app.py --server.port $env:PORT --server.address 127.0.0.1 --server.headless true"
+      ],
+      "port": 8502,
+      "autoPort": true
+    },
+    {
+      "name": "dashboard-demo-idea",
+      "runtimeExecutable": "powershell",
+      "runtimeArgs": [
+        "-NoProfile",
+        "-Command",
+        "$env:PIPELINE_DB='data/demo/manifest.sqlite'; $env:PIPELINE_DATA='data/demo/projects'; $env:AUDIO_PROVIDER='mock'; $env:LLM_PROVIDER='mock'; $env:SUBJECT_PROVIDER='mock'; $env:MOCK_REAL_MEDIA='1'; $env:FEATURE_IDEA_TO_SCRIPT='1'; py -m streamlit run dashboard/app.py --server.port $env:PORT --server.headless true"
+      ],
+      "port": 8512,
+      "autoPort": true
+    },
+    {
+      "name": "docs-static",
+      "runtimeExecutable": "py",
+      "runtimeArgs": [
+        "-m",
+        "http.server",
+        "8530",
+        "--bind",
+        "127.0.0.1",
+        "--directory",
+        "docs/so_do"
+      ],
+      "port": 8530
+    }
   ]
 }

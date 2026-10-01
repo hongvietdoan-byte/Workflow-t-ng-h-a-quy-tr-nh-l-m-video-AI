@@ -1,0 +1,620 @@
+# Sơ đồ cây tính năng — Dashboard AI Video Pipeline
+
+Ngày 2026-10-01 · Kiểm kê từ code (dashboard/*.py, dashboard/steps/*.py, core/*.py, core/features.py) — không theo trí nhớ. Nguồn: `docs/so_do/feature_map.json`; bản hình: `docs/so_do/SO_DO_TINH_NANG.html` (import Figma bằng plugin html.to.design).
+
+- Ai làm: 👤 Người dùng · 🤖 Claude (vai) · 🎨 Deepix (ảnh) · 🎬 ClipAI (video Kling/Seedance, giọng, nhạc, SFX) · 🧊 Blender/Meshy (3D) · ⚙ Code trên máy (ffmpeg, đo, kiểm)
+- 💵 = tốn tiền (qua sổ chi usage_events + ước tính trước) · 0 = miễn phí
+- CSDL = data/manifest.sqlite (bảng) · P/ = data/projects/<id>/ · A/ = data/assets/
+
+## Thanh trên cùng & khung chung
+_Giao diện / code: dashboard/header.py, overview.py, next_step.py_
+
+- **Đăng nhập & phân quyền**
+  - Trách nhiệm: Đăng nhập bằng email (không mật khẩu), quyền theo người (workflow / monitor / admin), nhật ký đăng nhập + đổi quyền
+  - Ai làm: 👤 Chủ hệ thống cấp quyền · ⚙ code kiểm quyền mỗi bước
+  - Đầu vào: email, bảng phân quyền, tên miền cho phép
+  - Đầu ra: phiên đăng nhập, bước nào hiện cho ai
+  - Lưu ở đâu: CSDL users, sessions, audit_log
+  - Tiền: 0
+  - Trên giao diện: màn đăng nhập · ⚙ → 👥 Phân quyền
+  - Code: core/auth.py, dashboard/admin.py (users)
+- **Dự án: chọn · ➕ mới · 🧬 nhân bản · 📦 cất**
+  - Trách nhiệm: Tạo dự án (game, khổ hình, look), nhân bản để so cách làm, cất dự án cũ; dự án mới kế thừa cài đặt (project_defaults)
+  - Ai làm: 👤 Người dùng
+  - Đầu vào: tên, game, khổ 9:16/16:9…, look ANIME/FF_INGAME
+  - Đầu ra: dự án #id
+  - Lưu ở đâu: CSDL projects; P/<id>/
+  - Tiền: 0
+  - Trên giao diện: thanh trên: hộp chọn dự án, ➕ Dự án mới, ⚙ → 🧬
+  - Code: core/pipeline.py, project_defaults.py, archive.py, compare.py
+- **Ai duyệt ảnh/clip (chế độ vận hành)**
+  - Trách nhiệm: Chọn người duyệt hay QC tự duyệt (human_qc …)
+  - Ai làm: 👤
+  - Đầu vào: lựa chọn
+  - Đầu ra: projects.operating_mode
+  - Lưu ở đâu: CSDL projects
+  - Tiền: 0
+  - Trên giao diện: ⚙ → radio 'Ai duyệt ảnh/clip'
+  - Code: dashboard/header.py, ui.MODE_LABELS
+- **🧪 Thử rẻ · 🧠 Chế độ chuyên gia**
+  - Trách nhiệm: Thử rẻ: ảnh nhỏ nhất, 720p, Kling std, Seedance 2.0 fast. Chuyên gia: hiện các khối nâng cao (dán JSON, prompt tay)
+  - Ai làm: 👤
+  - Đầu vào: công tắc
+  - Đầu ra: cài đặt dự án / phiên
+  - Lưu ở đâu: CSDL app_settings / session
+  - Tiền: giảm chi phí
+  - Trên giao diện: ⚙ menu
+  - Code: dashboard/header.py, common.expert()
+- **Dòng trạng thái & ⚠ Rủi ro**
+  - Trách nhiệm: Quét 60 s: lỗi, cảnh báo, dịch vụ hết tiền, khâu có lỗi đã biết
+  - Ai làm: ⚙ code (diag)
+  - Đầu vào: diag_events, known_issues
+  - Đầu ra: 1 dòng trạng thái + popover rủi ro
+  - Lưu ở đâu: CSDL diag_events
+  - Tiền: 0
+  - Trên giao diện: dưới thanh trên
+  - Code: core/diag.py, known_issues.py, header.status_line
+- **4 thẻ tổng quan + ➡ Việc kế tiếp + thanh bước**
+  - Trách nhiệm: Tiến độ theo cảnh (✓ / ⚠ cũ), việc nên làm tiếp 1 dòng, mở thẳng bước (?step=2)
+  - Ai làm: ⚙ code (lineage)
+  - Đầu vào: lineage.summary, delivery.status
+  - Đầu ra: nhãn bước, thẻ
+  - Lưu ở đâu: đọc CSDL (không ghi)
+  - Tiền: 0
+  - Trên giao diện: đầu màn chính
+  - Code: dashboard/overview.py, next_step.py, core/lineage.py
+- **Việc nền khi mở dashboard**
+  - Trách nhiệm: Đồng bộ thư mục tài nguyên 'auto', quét + nghe kho âm thanh, kiểm website FF hàng tháng, báo ảnh kho mất file, nghiên cứu hàng tháng, dọn thùng rác
+  - Ai làm: ⚙ code · 🤖 Claude (nghiên cứu tháng 💵)
+  - Đầu vào: thư mục nguồn, website ff.garena.com
+  - Đầu ra: mục kho mới, cảnh báo diag, bài học đề xuất
+  - Lưu ở đâu: CSDL assets, sounds, ff_articles, lessons, diag_events
+  - Tiền: nghiên cứu tháng 💵
+  - Trên giao diện: không có nút (tự chạy)
+  - Code: dashboard/app.py main(), assets.auto_sync, sound_lib, ff_site, research
+## Bước 1 · Kịch bản & đạo diễn
+_Giao diện / code: dashboard/steps/step1*.py_
+
+- **1a · 📜 Kịch bản (📎 file · ✍ dán · 💡 ý tưởng thô)**
+  - Trách nhiệm: Đọc kịch bản từ file (docx/pdf/txt…) hoặc văn bản → tách cảnh 'CẢNH n - …'; xem lại cách hệ thống đã đọc
+  - Ai làm: 👤 đưa kịch bản · ⚙ code tách cảnh
+  - Đầu vào: file / văn bản
+  - Đầu ra: cảnh kịch bản
+  - Lưu ở đâu: CSDL story_scenes, scenes
+  - Tiền: 0
+  - Trên giao diện: 3 tab
+  - Code: core/script_reader.py, script_parser.py
+- **💡 Ý tưởng thô → kịch bản (Biên kịch 4 lượt)**
+  - Trách nhiệm: Hỏi lại ≤ 5 câu có mặc định → 3 hướng + hook 3 s → dàn ý theo giây → kịch bản đúng khuôn; kiểm code; duyệt 2 cột; 'Dùng kịch bản này' → 1a
+  - Ai làm: 🤖 Claude vai Biên kịch · 👤 duyệt từng lượt
+  - Đầu vào: ý tưởng 2–3 dòng, thời lượng, nền tảng, CTA, ô trend
+  - Đầu ra: kịch bản + ghi chú kiểm
+  - Lưu ở đâu: CSDL app_settings 'idea:<pid>' → story_scenes
+  - Tiền: 💵 ≈ 0,15 USD/ý tưởng đo thật, trần 0,3
+  - Trên giao diện: tab 💡 (chỉ khi bật cờ)
+  - Code: core/idea_to_script.py, prompts/23, knowledge/roles/screenwriter.md, dashboard/steps/step1_idea.py
+  - Cờ: `idea_to_script` TẮT · chưa thử thật
+- **1b · 🧰 Chuẩn bị**
+  - Trên giao diện: fold 1b
+  - **🎨 Phong cách hình ảnh (World Bible)**
+    - Trách nhiệm: Ảnh tham khảo → Claude phân tích phong cách → bộ quy tắc hình; lưu làm mẫu phong cách
+    - Ai làm: 👤 tải ảnh · 🤖 Claude (phân tích phong cách)
+    - Đầu vào: ảnh phong cách
+    - Đầu ra: style bible, mẫu phong cách
+    - Lưu ở đâu: P/style_refs/, CSDL style_presets, projects
+    - Tiền: 💵 1 lượt Claude
+    - Trên giao diện: expander trong 1b
+    - Code: core/style.py, prompts/06
+  - **Tài nguyên dự án (gợi ý từ Kho)**
+    - Trách nhiệm: Gắn nhân vật / nơi / vật của Kho vào dự án, tải ảnh riêng
+    - Ai làm: 👤 · ⚙ gợi ý theo tên trong kịch bản
+    - Đầu vào: kịch bản, Kho
+    - Đầu ra: danh sách tài nguyên dự án
+    - Lưu ở đâu: CSDL project_assets, project_assets_declined; A/
+    - Tiền: 0
+    - Trên giao diện: ➕ Dùng tất cả gợi ý / ➕ Thêm / tải ảnh
+    - Code: core/assets.py
+  - **Look hình · khổ hình · kiểm IP**
+    - Trách nhiệm: ANIME / FF_INGAME; một khổ quyết định cỡ ảnh, tỉ lệ video, canvas; cảnh báo nhân vật bị chặn bản quyền trước khi tốn credit
+    - Ai làm: 👤 · ⚙ code
+    - Đầu vào: lựa chọn, ip_blocklist.json
+    - Đầu ra: cài đặt dự án, cảnh báo
+    - Lưu ở đâu: CSDL projects
+    - Tiền: 0
+    - Trên giao diện: radio 🎨 Look, khổ, cảnh báo IP
+    - Code: core/looks.py, formats.py, preflight.py
+- **1c · Chọn cách chạy (tay / 🤖 Chạy tự động) + 💵 Ngân sách dự án**
+  - Trách nhiệm: Chạy từng bước bằng tay hoặc Autopilot (duyệt tách cảnh xong, mọi bước còn lại tự chạy, dừng ở cổng); ngân sách chia theo khâu, KHÓA khi duyệt; dừng ở storyboard
+  - Ai làm: 👤 duyệt ngân sách · ⚙ Autopilot điều phối
+  - Đầu vào: ước tính theo khâu, trần
+  - Đầu ra: hàng đợi việc, trần đã khóa
+  - Lưu ở đâu: CSDL app_settings (project_budget:<pid>, autopilot), jobs
+  - Tiền: điều phối 0; việc con 💵
+  - Trên giao diện: fold 1c
+  - Code: core/autopilot.py (1370 dòng), project_budget.py, dashboard/steps/step1_run.py
+  - Cờ: `project_budget` BẬT
+- **1d · 🎬 Director (tổ làm phim)**
+  - Trách nhiệm: Tầng A Đạo diễn: Bible nhân vật + ý đồ từng cảnh; Tầng B Quay phim: chia shot (cỡ cảnh, máy, thời lượng, thoại, diễn xuất, âm thanh); code chuẩn hóa shot, kiểm liên tục, chấm bằng code
+  - Ai làm: 🤖 Claude vai Đạo diễn + Quay phim · ⚙ code chuẩn hóa/kiểm
+  - Đầu vào: cảnh kịch bản, Kho, kiến thức (knowledge/roles, ff_*), bài học
+  - Đầu ra: Character Bible, shot từng cảnh, đánh đổi, ghi chú kịch bản
+  - Lưu ở đâu: CSDL scenes(data JSON), characters, llm_calls; P/
+  - Tiền: 💵 trần director 64k token
+  - Trên giao diện: fold 1d · ✍ Nâng cao: dán JSON
+  - Code: core/director_two_pass.py, shots.py, shot_normalize.py, continuity.py, director_report.py, prompts/17,19,20
+  - Cờ: `director_two_pass` BẬT, `film_crew` BẬT · chưa thử thật, `camera_setups` BẬT · chưa thử thật
+- **1e · 👥 Character Bible**
+  - Trên giao diện: fold 1e
+  - **Ảnh tham chiếu + ảnh mốc**
+    - Trách nhiệm: Mỗi nhân vật có ảnh tham chiếu đã duyệt trước khi vẽ
+    - Ai làm: 👤 duyệt · ⚙ lấy từ Kho
+    - Đầu vào: ảnh Kho / tải lên
+    - Đầu ra: ảnh mốc
+    - Lưu ở đâu: CSDL characters; A/
+    - Tiền: 0
+    - Trên giao diện: expander 🖼 · ✔ duyệt ảnh mốc
+    - Code: dashboard/steps/step1_characters.py
+  - **Trang phục**
+    - Trách nhiệm: Đổi trang phục bằng ảnh + chữ, vẽ bộ ảnh nhân vật mặc đồ mới
+    - Ai làm: 👤 · 🎨 Deepix
+    - Đầu vào: mô tả + ảnh đồ
+    - Đầu ra: 2 ảnh nhân vật
+    - Lưu ở đâu: A/, CSDL asset_images
+    - Tiền: 💵 2 ảnh
+    - Trên giao diện: 💾 Lưu trang phục · 🧍 Tạo bộ ảnh (2 ảnh Deepix)
+    - Code: core/costume.py
+  - **🧩 Kho chủ thể Seedance**
+    - Trách nhiệm: Gắn nhân vật ↔ chủ thể Seedance để video giữ mặt (qua bộ lọc người thật)
+    - Ai làm: 👤 · 🎬 ClipAI
+    - Đầu vào: ảnh nhân vật, mã chủ thể
+    - Đầu ra: liên kết chủ thể
+    - Lưu ở đâu: CSDL characters (Bible JSON)
+    - Tiền: theo ClipAI
+    - Trên giao diện: expander 🧩 · 📥 Nhập chủ thể · Gắn cho …
+    - Code: core/subjects.py
+    - Cờ: `seedance_subjects` BẬT · chưa thử thật
+  - **Giọng nhân vật**
+    - Trách nhiệm: Chọn giọng TTS cho nhân vật có thoại (ưu tiên 4 giọng clone VN)
+    - Ai làm: 👤 · 🤖 Claude (voice casting)
+    - Đầu vào: data/voices_vi.json, Bible
+    - Đầu ra: voice_id mỗi nhân vật
+    - Lưu ở đâu: CSDL characters
+    - Tiền: 💵 1 lượt Claude
+    - Trên giao diện: 💾 Lưu giọng · 🤖 Claude chọn giọng
+    - Code: core/voice.py, prompts/15
+  - **🔍 Kiểm mô tả với ảnh · ✏ Sửa · 🔒 Khóa**
+    - Trách nhiệm: Claude so mô tả chữ với ảnh Kho; người sửa, khóa Bible (khóa = điều kiện xong Bước 1)
+    - Ai làm: 🤖 Claude (bible check) · 👤
+    - Đầu vào: Bible + ảnh
+    - Đầu ra: Bible đã khóa
+    - Lưu ở đâu: CSDL characters.locked
+    - Tiền: 💵 1 lượt
+    - Trên giao diện: nút 🔍, expander ✏, 🔓 Mở khóa
+    - Code: prompts/18, core/profile_digest.py
+- **1f · 🗣 Rà thoại**
+  - Trách nhiệm: Thoại có nói kịp trong clip không (2,86 âm tiết/s); Claude rà 6 lỗi thoại + độ dài, đề xuất câu thay
+  - Ai làm: ⚙ code đo · 🤖 Claude
+  - Đầu vào: thoại từng shot
+  - Đầu ra: câu sửa, thời lượng mới
+  - Lưu ở đâu: CSDL scenes
+  - Tiền: đo 0 · rà 💵
+  - Trên giao diện: fold 1f · ⏱ Tự tăng thời lượng · 🤖 Claude rà thoại
+  - Code: core/dialogue.py, prompts/10, dashboard/widgets.dialogue_panel
+- **1g · 🎬 Storyboard / layout (previz 2D) + nối ảnh cảnh trước**
+  - Trách nhiệm: Dựng bố cục từng shot thành lớp trước khi gen ảnh; chọn cách nối ảnh shot trước để giữ liên tục
+  - Ai làm: 🤖 Claude (layout) · ⚙ code ghép lớp
+  - Đầu vào: shot, ảnh nền, nhân vật cắt
+  - Đầu ra: ảnh layout
+  - Lưu ở đâu: P/layouts/, CSDL set_analyses
+  - Tiền: 💵 1 lượt/kịch bản
+  - Trên giao diện: fold 1g
+  - Code: core/layout.py, previz.py, prompts/07,08
+  - Cờ: `layout_to_model` BẬT · chưa thử thật, `chain_previous_auto` BẬT · chưa thử thật
+- **📋 Báo cáo Director & tổ làm phim**
+  - Trách nhiệm: Đánh đổi, 👀 người xem lần đầu hiểu gì, ghi chú cho người viết, 🎬 Đạo diễn duyệt, code đã chuẩn hóa mấy chỗ
+  - Ai làm: 🤖 Claude (first viewer) · ⚙ code
+  - Đầu vào: kế hoạch shot
+  - Đầu ra: báo cáo
+  - Lưu ở đâu: CSDL scenes / app_settings
+  - Tiền: người xem lần đầu 💵
+  - Trên giao diện: fold báo cáo
+  - Code: core/story_check.py, prompts/22
+  - Cờ: `story_check` BẬT · chưa thử thật
+## Bước 2 · Ảnh + QC
+_Giao diện / code: dashboard/steps/step2.py (554 dòng)_
+
+- **Gen ảnh khung đầu từng shot**
+  - Trách nhiệm: Xếp hàng ảnh thiếu / cũ, gửi Deepix, tải về; luật model kiểm trước khi gửi
+  - Ai làm: 🎨 Deepix · ⚙ runner/batch
+  - Đầu vào: shot + Bible + ảnh tham chiếu + layout
+  - Đầu ra: ảnh shot
+  - Lưu ở đâu: P/images/job_<id>.png, CSDL jobs, job_events
+  - Tiền: 💵 theo ảnh
+  - Trên giao diện: nút gen theo lô (ước tính giá) · ↻ Gen lại · ↺ Làm lại · nhập ảnh tay
+  - Code: core/runner.py (1715 dòng), batch.py, image_models.py, providers.py
+- **Ảnh phụ: toàn cảnh · storyboard Deepix · khung cuối · render 3D làm tham chiếu**
+  - Trách nhiệm: 1 ảnh toàn cảnh mỗi cảnh; vẽ cả cảnh trong 1 storyboard; ảnh khung cuối cho shot đổi trạng thái; render 3D đúng góc máy làm tham chiếu
+  - Ai làm: 🎨 Deepix · 🧊 Blender
+  - Đầu vào: cảnh, gói bối cảnh 3D
+  - Đầu ra: ảnh phụ
+  - Lưu ở đâu: P/establish/, P/plates/, CSDL end_frames
+  - Tiền: 💵
+  - Trên giao diện: theo cờ
+  - Code: core/scene_establish.py, scene_storyboard.py, end_frames.py, place_refs.py, location_pack.py
+  - Cờ: `scene_establishing` BẬT · chưa thử thật, `storyboard_api` BẬT · chưa thử thật, `end_frames` BẬT · chưa thử thật, `place_render_refs` TẮT · chưa thử thật, `location_plates` TẮT · chưa thử thật
+- **QC ảnh (lớp 0 code → Claude → người)**
+  - Trách nhiệm: Tự kiểm ảnh mới; QC theo cảnh; Tổ QC (code đo + model khai quan sát + code áp luật); kiểm đồng bộ cả bộ; chính sách QC 1 lựa chọn
+  - Ai làm: ⚙ code đo · 🤖 Claude (QC / Tổ QC) · 👤 duyệt
+  - Đầu vào: ảnh + đặc tả shot
+  - Đầu ra: điểm, lỗi, duyệt/loại, câu sửa
+  - Lưu ở đâu: CSDL qc_results, review_log; P/qc_scene/, qc_set/; data/qc_memory/cases.jsonl
+  - Tiền: 💵 mỗi lượt Claude
+  - Trên giao diện: 🔍 Chi tiết · Chấm điểm tay · 🗑 Xóa · ✔ duyệt · Lọc
+  - Code: core/autoqc.py, qc_scene.py, qc_team.py, qc_rules.py, qc_policy.py, prompts/02,13,21
+  - Cờ: `scene_qc` BẬT · chưa thử thật, `scene_qc_claude` TẮT · chưa thử thật, `qc_team` BẬT · chưa thử thật, `qc_agent` TẮT · chưa thử thật
+- **Cổng storyboard trước khi tốn credit video**
+  - Trách nhiệm: Người xem toàn bộ khung đầu trước Bước 4
+  - Ai làm: 👤
+  - Đầu vào: bộ ảnh
+  - Đầu ra: cổng mở
+  - Lưu ở đâu: CSDL jobs/app_settings
+  - Tiền: 0
+  - Trên giao diện: duyệt cả bộ ảnh
+  - Code: core/storyboard_gate.py
+  - Cờ: `storyboard_auto_trust` BẬT · chưa thử thật
+## Bước 3 · Motion, giọng thoại & animatic
+_Giao diện / code: dashboard/steps/step3.py_
+
+- **Motion prompt từng cảnh**
+  - Trách nhiệm: Claude viết cách chuyển động + máy quay; code lint (vật lý, tên người nói)
+  - Ai làm: 🤖 Claude (motion) · ⚙ lint
+  - Đầu vào: shot + ảnh đã duyệt
+  - Đầu ra: motion prompt đã duyệt
+  - Lưu ở đâu: CSDL motion_prompts
+  - Tiền: 💵
+  - Trên giao diện: fold · ✍ dán kết quả · Dùng bản sửa
+  - Code: prompts/03,11, core/motion_physics.py, speaker_lint.py
+  - Cờ: `speaker_tags` TẮT · chưa thử thật
+- **🎥 Video tham chiếu chuyển động**
+  - Trách nhiệm: Gửi kèm video mẫu động tác cho Kling (≥ 3 s, 700–4553 px)
+  - Ai làm: 👤
+  - Đầu vào: MP4
+  - Đầu ra: tham chiếu gắn cảnh
+  - Lưu ở đâu: P/motion_ref/
+  - Tiền: đắt hơn (27 vs 18)
+  - Trên giao diện: tải MP4 · Kiểu tham chiếu (Kling feature/base)
+  - Code: tools/reference_video.py, dashboard/steps/step3.py
+- **🎙 Giọng thoại (TTS)**
+  - Trách nhiệm: Tạo giọng từng câu thoại, kiểm lỗi giọng (cắt/thiếu chữ), chỉ đạo giọng (delivery), timeline theo âm thanh
+  - Ai làm: 🎬 ClipAI TTS · ⚙ voice_check (whisper)
+  - Đầu vào: thoại + giọng nhân vật
+  - Đầu ra: file giọng + độ dài
+  - Lưu ở đâu: P/audio_assets/, CSDL jobs
+  - Tiền: 💵
+  - Trên giao diện: expander 🎙
+  - Code: core/voice.py, voice_check.py, voice_direction.py, audio_first.py
+  - Cờ: `voice_direction` BẬT, `audio_first` BẬT · chưa thử thật, `voice_check_redo` BẬT · chưa thử thật
+- **🎞 Animatic**
+  - Trách nhiệm: Ghép ảnh + giọng theo nhịp để xem trước khi tốn credit video
+  - Ai làm: ⚙ ffmpeg
+  - Đầu vào: ảnh + giọng + thời lượng
+  - Đầu ra: animatic.mp4
+  - Lưu ở đâu: P/output/
+  - Tiền: 0
+  - Trên giao diện: 🎞 Dựng animatic
+  - Code: core/animatic.py
+## Bước 4 · Gen video + QC video
+_Giao diện / code: dashboard/steps/step4.py_
+
+- **🎛 Model cho từng cảnh**
+  - Trách nhiệm: Chọn Kling / Seedance theo loại cảnh (theo slide ClipAI), luật model kiểm trước khi gửi
+  - Ai làm: ⚙ model_router · 👤 chọn ưu tiên
+  - Đầu vào: shot, data/video_models.json
+  - Đầu ra: model mỗi shot
+  - Lưu ở đâu: CSDL scenes
+  - Tiền: 0
+  - Trên giao diện: expander · Dùng đề xuất theo cảnh / Bỏ model chung
+  - Code: core/model_router.py, video_rules.py
+- **Gen clip**
+  - Trách nhiệm: Gửi ClipAI, tự điều tốc song song, nhận mã thật, tải clip; shot ⭐ gen thêm bản
+  - Ai làm: 🎬 ClipAI Kling / Seedance · ⚙ runner/throttle
+  - Đầu vào: ảnh khung đầu (+ khung cuối) + motion + giọng/chủ thể
+  - Đầu ra: clip mp4
+  - Lưu ở đâu: P/videos/, CSDL jobs, job_events
+  - Tiền: 💵 đắt nhất
+  - Trên giao diện: nút gen (ước tính) · ■ Hủy · ✏ Sửa motion rồi gen lại · ↺
+  - Code: core/runner.py, throttle.py, seedance_refs.py, hero_takes.py, regen.py
+  - Cờ: `hero_takes` TẮT · chưa thử thật, `seedance_ref_groups` BẬT · chưa thử thật, `continuous_takes` BẬT · chưa thử thật, `closeup_start_frame` TẮT · chưa thử thật
+- **👄 Khớp môi**
+  - Trách nhiệm: Shot cận có thoại: Seedance tạo kèm giọng / một clip cả đoạn thoại; đo khớp môi bằng mốc môi
+  - Ai làm: 🎬 Seedance · ⚙ đo MediaPipe
+  - Đầu vào: giọng + ảnh
+  - Đầu ra: clip có môi
+  - Lưu ở đâu: P/lipsync/
+  - Tiền: 💵
+  - Trên giao diện: expander 👄
+  - Code: core/lipsync.py, dialogue_take.py
+  - Cờ: `lip_sync` BẬT · chưa thử thật, `dialogue_take` BẬT · chưa thử thật
+- **QC video (lớp 0 đo → Claude → người)**
+  - Trách nhiệm: Đo không AI (độ dài, khựng, mặt, đen), Claude xem khung, người quyết
+  - Ai làm: ⚙ clip_measure · 🤖 Claude (video QC) · 👤
+  - Đầu vào: clip
+  - Đầu ra: điểm, loại/dùng
+  - Lưu ở đâu: CSDL qc_results; P/qc_frames/
+  - Tiền: 💵
+  - Trên giao diện: 🤖 Kiểm tra N clip · 👀 Bản QC đã loại · ✔ Vẫn dùng
+  - Code: core/clip_measure.py, prompts/12
+- **🧪 Thử nghiệm Kling multi-shot / gộp shot**
+  - Trách nhiệm: Gen một nhóm shot trong 1 lần; kết quả không tự vào bản dựng
+  - Ai làm: 🎬 ClipAI · 👤
+  - Đầu vào: nhóm shot
+  - Đầu ra: clip thử
+  - Lưu ở đâu: P/experiments/
+  - Tiền: 💵
+  - Trên giao diện: 2 expander thử nghiệm
+  - Code: core/experiments.py
+## Bước 5 · Âm thanh & xuất bản
+_Giao diện / code: dashboard/steps/step5.py (753 dòng)_
+
+- **5.1 · 🎬 Clip theo thứ tự cảnh**
+  - Trách nhiệm: Clip dùng được theo thứ tự, độ dài, nhập clip tay
+  - Ai làm: ⚙ final_cut · 👤
+  - Đầu vào: clip đã duyệt
+  - Đầu ra: danh sách dựng
+  - Lưu ở đâu: P/videos/
+  - Tiền: 0
+  - Trên giao diện: fold 5.1 · Nhập clip thủ công
+  - Code: core/final_cut.py
+- **5.2 · 🔊 Âm thanh**
+  - Trên giao diện: fold
+  - **🎼 Nhạc nền**
+    - Trách nhiệm: Ý đồ nhạc → brief → N bản nháp → chọn → khớp nhịp bản dựng → co giãn theo cảnh; hạ nhạc dưới thoại
+    - Ai làm: 🤖 Claude (brief) · 🎬 ClipAI music · ⚙ music_timing/fit
+    - Đầu vào: cảnh, ý đồ âm thanh của Đạo diễn, kho nhạc của bạn
+    - Đầu ra: nhạc nền đã chọn
+    - Lưu ở đâu: P/music_drafts/, P/music/
+    - Tiền: 💵
+    - Trên giao diện: 🤖 Claude viết brief · 📋 Phiếu spotting · Chọn bản · Tải nhạc / Không dùng nhạc
+    - Code: core/music.py, music_intent.py, music_timing.py, music_fit.py, prompts/04
+    - Cờ: `music_fit` BẬT · chưa thử thật, `music_breath` BẬT · chưa thử thật, `sound_intent` BẬT · chưa thử thật
+  - **🎧 Hiệu ứng âm thanh (SFX) + giọng đọc thêm**
+    - Trách nhiệm: Claude đọc cảnh + kho âm thanh của bạn → đặt hiệu ứng theo shot; tạo SFX/TTS thêm; âm nền mỗi cảnh
+    - Ai làm: 🤖 Claude (sfx) · 🎬 ClipAI · ⚙ sound_ai nhận dạng
+    - Đầu vào: shot, kho âm thanh
+    - Đầu ra: danh sách hiệu ứng có giây
+    - Lưu ở đâu: P/audio_assets/, CSDL sounds
+    - Tiền: 💵
+    - Trên giao diện: 🤖 AI tự đề xuất hiệu ứng · tab SFX / TTS · 🗓 Xếp lại theo thoại
+    - Code: core/sfx_plan.py, audio_lib.py, sound_lib.py, sound_ai.py, ambience.py
+    - Cờ: `ambience_bed` BẬT · chưa thử thật, `impact_shake` BẬT · chưa thử thật
+- **5.3 · 🎞 Dựng video cuối + 🗺 Timeline tổng**
+  - Trách nhiệm: ffmpeg ghép clip + giọng + nhạc + SFX, chuyển cảnh, khớp màu, chuẩn hóa −14 LUFS; timeline cho thấy cái gì ở giây nào
+  - Ai làm: ⚙ ffmpeg_studio
+  - Đầu vào: clip + âm thanh + cài đặt
+  - Đầu ra: bản dựng mp4
+  - Lưu ở đâu: P/output/
+  - Tiền: 0
+  - Trên giao diện: ⚙ Thiết lập dựng · ▶ Dựng video cuối · 🔊 Giữ âm gốc
+  - Code: core/ffmpeg_studio.py, delivery.py, color_match.py, timeline_view.py
+  - Cờ: `loudness_normalize` BẬT, `shot_color_match` BẬT · chưa thử thật, `j_cut` BẬT · chưa thử thật, `shot_transitions` BẬT · chưa thử thật, `speed_ramp` TẮT · chưa thử thật, `motion_trim` BẬT · chưa thử thật, `end_hold` BẬT · chưa thử thật, `flashback_fx` BẬT · chưa thử thật
+- **5.4 · ✨ Hậu kỳ**
+  - Trách nhiệm: Phụ đề từ thoại (không đè mặt, chữ sáng theo giọng, font riêng), card chữ cuối, ảnh bìa, xuất thêm khổ/dung lượng, nhãn AI
+  - Ai làm: ⚙ code · 👤
+  - Đầu vào: bản dựng + thoại
+  - Đầu ra: bản có phụ đề/card + các khổ
+  - Lưu ở đâu: P/output/
+  - Tiền: 0
+  - Trên giao diện: 🔤 Phụ đề · 🪧 Card cuối · 🖼 Ảnh bìa · 📐 Xuất kích thước
+  - Code: core/subtitles.py, text_placement.py, delivery.py, data/fonts
+  - Cờ: `ai_label` TẮT · chưa thử thật
+- **🧐 Tự rà như người xem + 🔎 Kiểm bản dựng**
+  - Trách nhiệm: Chồng vùng giao diện app điện thoại lên bản dựng, đo lỗi bản cuối trước khi báo 'xong'
+  - Ai làm: ⚙ code
+  - Đầu vào: bản dựng
+  - Đầu ra: danh sách lỗi
+  - Lưu ở đâu: CSDL outputs / diag
+  - Tiền: 0
+  - Trên giao diện: 2 nút (miễn phí)
+  - Code: core/viewer_check.py, final_qc.py
+- **5.5 · 📦 Bản giao**
+  - Trách nhiệm: Một nút: dựng → phụ đề → card → các khổ; mỗi lớp tùy chọn, ghi dấu vân tay để biết bản cũ
+  - Ai làm: ⚙ delivery
+  - Đầu vào: tất cả ở trên
+  - Đầu ra: FINAL_VIDEO.mp4 + khổ phụ
+  - Lưu ở đâu: P/output/, CSDL outputs; bản giao ngoài git D:\AI-Video-Output\
+  - Tiền: 0
+  - Trên giao diện: 📦 Xuất bản đầy đủ · ⬇ Tải
+  - Code: core/delivery.py (904 dòng)
+## 📊 Theo dõi (quyền monitor)
+_Giao diện / code: dashboard/admin.py monitor()_
+
+- **Tải hệ thống & mức song song**
+  - Trách nhiệm: Dấu hiệu quá tải, mức song song tự học (giảm nửa khi 429), dùng hôm nay
+  - Ai làm: ⚙ code
+  - Đầu vào: jobs, usage_events
+  - Đầu ra: bảng số
+  - Lưu ở đâu: đọc CSDL
+  - Tiền: 0
+  - Trên giao diện: ↻ Làm mới · 4 chỉ số
+  - Code: core/perf.py, throttle.py, capacity.py
+- **Theo người dùng · theo dự án · 🎬 sản phẩm đã xong**
+  - Trách nhiệm: Ai gen bao nhiêu, dự án nào tốn bao nhiêu, tải bản giao
+  - Ai làm: ⚙
+  - Đầu vào: jobs, outputs
+  - Đầu ra: bảng
+  - Lưu ở đâu: đọc CSDL
+  - Tiền: 0
+  - Trên giao diện: radio khoảng thời gian · ⬇ Tải FINAL_VIDEO
+  - Code: dashboard/admin.py
+- **⚖ So sánh các cách làm (cùng kịch bản)**
+  - Trách nhiệm: So V0/V1/… của cùng kịch bản, chấm điểm tay
+  - Ai làm: 👤
+  - Đầu vào: các dự án nhân bản
+  - Đầu ra: điểm so sánh
+  - Lưu ở đâu: CSDL app_settings
+  - Tiền: 0
+  - Trên giao diện: 💾 Lưu điểm
+  - Code: core/compare.py, effectiveness.py
+- **Sự kiện lỗi · ⬇ báo cáo · nhật ký job · loại lỗi · bài học**
+  - Trách nhiệm: Lỗi im lặng / lỗi thật, báo cáo .md, lỗi lặp → bài học đề xuất người duyệt; nghiên cứu hàng tháng
+  - Ai làm: ⚙ diag · 🤖 Claude (lessons, research) · 👤 duyệt
+  - Đầu vào: diag_events, mistakes
+  - Đầu ra: bài học đã duyệt (vào prompt)
+  - Lưu ở đâu: CSDL diag_events, mistakes, lessons, learning_meta
+  - Tiền: nghiên cứu 💵
+  - Trên giao diện: expanders · Gỡ bài học
+  - Code: core/diag.py, lessons.py, research.py
+## 📁 Kho tài nguyên (⚙ → 📁)
+_Giao diện / code: dashboard/admin.py library (dialog)_
+
+- **Mục kho: nhân vật · vũ khí · thú · đạo cụ · nơi · phong cách**
+  - Trách nhiệm: Ảnh tham chiếu + mô tả + bí danh; dùng chung mọi dự án
+  - Ai làm: 👤
+  - Đầu vào: ảnh, tên
+  - Đầu ra: mục kho
+  - Lưu ở đâu: CSDL assets, asset_images; A/<id>/
+  - Tiền: 0
+  - Trên giao diện: lọc · ➕ Thêm · ✏ Sửa/gộp/xóa · tải nhiều ảnh
+  - Code: core/assets.py (1433 dòng)
+- **📥 Ảnh chờ duyệt · 🩺 Sức khỏe kho · Hồ sơ chuẩn nhân vật**
+  - Trách nhiệm: Ảnh mới chưa được pipeline dùng tới khi duyệt; mục thiếu ảnh/mô tả; hồ sơ chuẩn thắng Lock dự án
+  - Ai làm: 👤
+  - Đầu vào: ảnh đồng bộ/render
+  - Đầu ra: ảnh duyệt, hồ sơ
+  - Lưu ở đâu: CSDL asset_images, assets
+  - Tiền: 0
+  - Trên giao diện: ✔ Duyệt cả · ↧ Dùng làm nháp · 💾 Lưu hồ sơ
+  - Code: core/assets.py, profile_digest.py
+- **🔄 Đồng bộ thư mục · 🌐 Website FF**
+  - Trách nhiệm: Kéo ảnh từ thư mục (Drive) và tin/nhân vật từ ff.garena.com
+  - Ai làm: ⚙ code
+  - Đầu vào: thư mục, website
+  - Đầu ra: mục kho mới
+  - Lưu ở đâu: CSDL asset_sources, ff_articles
+  - Tiền: 0
+  - Trên giao diện: Thêm và đồng bộ · 🌐 Cập nhật ngay
+  - Code: core/assets.auto_sync, ff_site.py
+- **🤖 Đọc mô tả ngoại hình · 📹 Phân tích video kỹ năng**
+  - Trách nhiệm: Claude đọc ảnh → mô tả; đọc video gameplay → ghi chú kỹ năng có bằng chứng
+  - Ai làm: 🤖 Claude
+  - Đầu vào: ảnh / video ≤ 200 MB
+  - Đầu ra: mô tả, ghi chú kỹ năng
+  - Lưu ở đâu: CSDL assets
+  - Tiền: 💵
+  - Trên giao diện: 2 expander
+  - Code: core/asset_vision.py, video_analysis.py
+- **🏗 Bối cảnh 3D (Blender) · 🧍 Nhân vật 3D (Meshy)**
+  - Trách nhiệm: Render nền trống người từ file 3D (trời ghép), gói bối cảnh có điểm đứng; ảnh nhân vật → mô hình 3D + xương
+  - Ai làm: 🧊 Blender (0) · 🧊 Meshy 💵
+  - Đầu vào: file 3D, ảnh nhân vật
+  - Đầu ra: ảnh nền, mô hình .glb
+  - Lưu ở đâu: data/_plates3d, data/models3d, data/meshy_views
+  - Tiền: Blender 0 · Meshy 💵 có trần
+  - Trên giao diện: ▶ Render nền · ▶ Dựng 3D (đồng ý giá) · 🔄 Cập nhật
+  - Code: core/plates3d.py, location_pack.py, meshy.py, whitebox.py
+- **🎼 Kho âm thanh**
+  - Trách nhiệm: Thư mục nhạc/hiệu ứng của bạn: quét, phân tích, 'nghe' nhận dạng
+  - Ai làm: ⚙ code (AudioSet, whisper)
+  - Đầu vào: thư mục âm thanh
+  - Đầu ra: danh mục âm thanh có nhãn
+  - Lưu ở đâu: CSDL sound_sources, sounds
+  - Tiền: 0
+  - Trên giao diện: expander
+  - Code: core/sound_lib.py, sound_ai.py
+- **Hồ sơ kỹ năng nhân vật (CLI)**
+  - Trách nhiệm: Khung từ video kỹ năng chính thức theo giai đoạn để Director đọc
+  - Ai làm: 👤 chạy lệnh · ⚙
+  - Đầu vào: video kỹ năng
+  - Đầu ra: data/skills/<TÊN>/
+  - Lưu ở đâu: data/skills/
+  - Tiền: 0
+  - Trên giao diện: không có trên dashboard — lệnh tools/skill_dossier_build.py
+  - Code: core/skill_dossier.py
+  - Cờ: `skill_dossier` TẮT · chưa thử thật
+## ⚙ Cài đặt & quản trị (dialog)
+_Giao diện / code: dashboard/header.py, admin.py_
+
+- **💵 Ngân sách thử · 💲 Bảng giá**
+  - Trách nhiệm: Trần chi tổng + theo dịch vụ (Claude API, ClipAI, Deepix), khóa cứng khi hết; bảng giá dùng cho mọi ước tính
+  - Ai làm: 👤 · ⚙ khóa trần mọi lời gọi
+  - Đầu vào: trần, giá
+  - Đầu ra: khóa chi
+  - Lưu ở đâu: CSDL app_settings 'budget'; data/pricing.json; sổ chi usage_events, llm_calls
+  - Tiền: 0
+  - Trên giao diện: 💾 Lưu trần mới · Đã nạp tiền — mở lại · 💾 Lưu bảng giá
+  - Code: core/budget.py, cost.py, llm_runner.spend_cap
+- **📚 Kho kiến thức · 🎓 Bài học**
+  - Trách nhiệm: Tài liệu gửi kèm Director/QC/Motion; chắt lọc thành cẩm nang ngắn để giảm token
+  - Ai làm: 👤 · 🤖 Claude (distill)
+  - Đầu vào: tài liệu
+  - Đầu ra: cẩm nang
+  - Lưu ở đâu: knowledge/ (có sẵn), data/knowledge_user/<nhóm>/docs.json, distilled.json
+  - Tiền: chắt lọc 💵
+  - Trên giao diện: dialog · 🤖 Chắt lọc · ⬆ Thêm vào kho · Bật/tắt từng tài liệu
+  - Code: core/knowledge.py, prompts/05
+- **📏 Giới hạn hệ thống**
+  - Trách nhiệm: Giới hạn đo từ lịch sử job thật (song song, thời gian chờ…)
+  - Ai làm: ⚙
+  - Đầu vào: jobs
+  - Đầu ra: bảng giới hạn
+  - Lưu ở đâu: đọc CSDL
+  - Tiền: 0
+  - Trên giao diện: dialog
+  - Code: core/capacity.py
+- **🗒 Lịch sử & thùng rác**
+  - Trách nhiệm: Ảnh/clip đã xóa vào thùng rác (không xóa ngay), tự dọn; lịch sử thao tác
+  - Ai làm: 👤 · ⚙
+  - Đầu vào: file bị xóa
+  - Đầu ra: khôi phục / dọn
+  - Lưu ở đâu: P/trash/
+  - Tiền: 0
+  - Trên giao diện: dialog
+  - Code: core/trash.py
+- **Cờ tính năng (core/features.py)**
+  - Trách nhiệm: Tính năng đổi điều gửi model trả tiền mà chưa thử thật thì TẮT mặc định (luật 5)
+  - Ai làm: 👤 sửa dashboard.env
+  - Đầu vào: FEATURE_*
+  - Đầu ra: bật/tắt
+  - Lưu ở đâu: dashboard.env
+  - Tiền: 0
+  - Trên giao diện: dashboard.env (không có màn bật/tắt riêng)
+  - Code: core/features.py
+## 🧭 AI Development System (web riêng · Start-DevSystem.bat)
+_Giao diện / code: devsys/app.py_
+
+- **Tổng quan · Bản đồ hệ thống · Dòng thời gian**
+  - Trách nhiệm: Mức hoàn thiện thật theo khu vực, file nào thuộc khu vực nào, commit + đang sửa
+  - Ai làm: ⚙ code
+  - Đầu vào: repo, git
+  - Đầu ra: trang
+  - Lưu ở đâu: devsys/areas.json, devsys/data/
+  - Tiền: 0
+  - Trên giao diện: trang
+  - Code: devsys/app.py, collect.py
+- **Sức khỏe (đo bằng code)**
+  - Trách nhiệm: Test pass/fail, file quá dài, except nuốt lỗi…
+  - Ai làm: ⚙
+  - Đầu vào: repo + lần chạy test
+  - Đầu ra: chỉ số
+  - Lưu ở đâu: devsys/data/
+  - Tiền: 0
+  - Trên giao diện: trang
+  - Code: devsys/collect.py
+- **Chấm điểm AI khách quan (16 khu vực × 6 tiêu chí)**
+  - Trách nhiệm: Người chấm chỉ ghi khoản trừ + bằng chứng; code tính điểm và giới hạn
+  - Ai làm: 🤖 Claude API (stage devsys) hoặc Claude Code session (0 USD)
+  - Đầu vào: dữ liệu khu vực (export)
+  - Đầu ra: điểm 0–100
+  - Lưu ở đâu: devsys/data/scores/
+  - Tiền: API ≈ 1 USD / lần đủ; session 0
+  - Trên giao diện: Chấm lại · Người chấm ngoài
+  - Code: devsys/scorer.py, scores.py, rubric.md
+- **Bộ kỹ năng 3 vai · 📋 Kế hoạch đang chạy**
+  - Trách nhiệm: Bảng điểm vai Đạo diễn/Quay phim/Editor; tiến độ kế hoạch (% do code tính)
+  - Ai làm: ⚙
+  - Đầu vào: docs/KE_HOACH_SUA_SAU_DU_AN_8.md
+  - Đầu ra: bảng tiến độ
+  - Lưu ở đâu: file kế hoạch
+  - Tiền: 0
+  - Trên giao diện: trang
+  - Code: devsys/plan_progress.py
