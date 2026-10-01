@@ -43,3 +43,7 @@
 
 /* thẻ 💵 */
 .shell-last { color: var(--muted); font-size: 12.5px; margin: 2px 0 10px; }
+
+/* dòng trạng thái gọn dưới thanh (chi tiết trong ⓘ) */
+.shell-status { color: var(--muted); font-size: 13px; }
+.st-key-info-shell-status, .st-key-info-shell-level-why, .st-key-info-shell-stale, .st-key-info-shell-owner { margin: 0; }
