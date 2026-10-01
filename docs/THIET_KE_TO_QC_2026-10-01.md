@@ -495,3 +495,37 @@ C1 + luật code) ≈ 0,02 / khung — là cấu hình được code ở GĐ2 v�
   ra nhờ chạy khô (báo mâu thuẫn thừa với tên người ngoài khung; không chọn được mặt khi khung 2 mặt) — đã sửa + test.
 - **Chờ:** (a) GĐ3 đo C1 trên bộ phát triển ≈ 0,86 USD (ước tính, hỏi trước); (b) người dùng gắn nhãn Google Sheet → bộ độc lập.
 - **Người dùng 01/10 (sau GĐ2):** duyệt GĐ3 (≈ 0,86 USD); yêu cầu dùng các tầng miễn phí lọc trước 134 khung bộ độc lập (nhiều khung cũ lỗi rõ) và thêm phần tích chọn nhãn ngay trên trang xem ảnh thay vì chỉ Google Sheet — giao session sau (TODO.md mục 01/10 BÀN GIAO).
+
+**01/10 — Lọc trước bộ độc lập bằng tầng miễn phí (việc 2 bàn giao, 0 USD):** `tools/experiments/qc_prefilter.py` (CSDL chỉ đọc; test
+`tests/test_qc_prefilter.py` 10). 134 khung dựng lại từ CSDL = ảnh `image_gen` của #1 #2 #3 #4 #7 #10 #11 #12 #13 (kể cả thùng rác), bỏ 4 job
+hủy — khớp số 134 của Sheet (id `P<dự án>-J<job>`). Mỗi khung: tầng 0 (khung một màu, số mặt so bảng shot, hướng mắt chắc chắn sai, dải trời
+so giờ) + bảng shot tự mâu thuẫn + lịch sử có sẵn trong `review_log` phân theo nguồn: **người** (độ tin cao) · **người bấm theo QC đồng bộ**
+(ghi chú "Đồng bộ cả bộ:" do QC Claude viết, người bấm gen lại — vừa) · **phiên vận hành** (vừa / thấp) · **[thử tự động]** và **QC tự động
+cũ** (thấp). Loại lỗi lấy theo từ khóa xuất hiện SỚM NHẤT trong ghi chú (bỏ mệnh đề "Keep …"). Điểm `qc_results` cũ chỉ in kèm, không dùng
+gợi ý. Ra `data/qc_golden/prefilter.json` + `prefilter.csv` (ngoài git — chạy lại ≈ 1 phút).
+- **Kết quả:** gợi ý **Chặn 58** (cao 17 · vừa 15 · thấp 26) — Nhân vật 30, Bối cảnh / kiến trúc 17, Kỹ thuật 4, Liền mạch / ánh sáng 4,
+  Hướng nhìn 1, Khác 2; **Đạt 52** (vừa 8 · thấp 44); **để trống 24** (8 có cờ tầng 0 nghi: 3 mặt / 1 người, cận mà không thấy mặt, trời tối
+  trong cảnh ban ngày; 16 không có bằng chứng miễn phí — chủ yếu #10, #11, #13 S4·1–5 bản sau). Tầng 0 KHÔNG có phát hiện "chắc chắn" nào
+  trên 134 khung (không khung trống, không hướng mắt chắc chắn sai) — gợi ý chủ yếu đến từ quyết định cũ; người dùng vẫn phải xác nhận.
+- **Việc kế (3):** đưa gợi ý vào trang xem ảnh có tích nhãn.
+
+**01/10 — GĐ3 đo C1 trên bộ phát triển #8 (người dùng chạy; run `data/qc_golden/runs/20261001-104111`, 0,611 USD = 0,019 USD / khung):**
+- **Số:** 32/33 khung có kết quả (job 333 bị cắt ở giới hạn 1 730 token). Loại "Nhân vật": bắt 5/6 khung chặn; mọi loại: 5/8. **Báo nhầm
+  12/24 (50 %)**, doubt 18,8 % → **không qua cổng** (≤ 10 % / ≤ 15 %). Token TB / khung: vào 2 728 mới + 2 790 đọc cache, ra 1 137.
+- **Nguyên nhân 1 — trái/phải của Kenta (11/12 ca báo nhầm):** mọi ca báo nhầm đều có mệnh đề `asym` của KENTA "sai". Kiểm bằng mắt job 337
+  (nhãn đạt): Kenta quay mặt, tay băng trắng ở trái khung = tay PHẢI của Kenta, găng giáp + bắp tay trần + sao ở phải khung = bên TRÁI → **đúng
+  hồ sơ**; model ghi "găng giáp nằm bên trái khung" và "sao ở vai phải khung … là vai PHẢI" — **sai cả đọc vị trí lẫn đổi chiều**, và tự
+  mâu thuẫn giữa các khung. Luật trái/phải trong lời dặn (mục 8.2) không đủ: model vẫn suy luận đổi chiều sai.
+- **Nguyên nhân 2 — "bắt được" là nhờ may:** 4 khung chặn thật (324, 330, 332, 356) có lỗi **mũ Maxim đội XUÔI khi quay lưng**. Model trả
+  lời mệnh đề mũ "đúng, độ chắc cao" với bằng chứng *"thấy khóa cài mũ ở gáy, không thấy lưỡi trai"* — tức **nhìn đúng dấu hiệu lỗi nhưng kết
+  luận ngược**. Các khung này bị "chặn" chỉ vì mệnh đề trái/phải Kenta sai ngẫu nhiên. Ca 350 (sao vai phải) cũng lẫn trong các lời sai trái/phải.
+  → recall thật của C1 trên lỗi mũ / trái-phải ≈ 0.
+- **Nguyên nhân 3 — lỗi code (miễn phí, chạy lại được bằng replay):** (a) job 325: tầng 0 đo **chắc chắn** Maxim nhìn sai hướng (`certain_fail`)
+  nhưng khung vẫn "pass" — `review_frame` chỉ tính mệnh đề vai C1 / T0, mệnh đề hướng nhìn (C2) bị bỏ dù code đã chắc; (b) job 352: blocking
+  "looking off-screen frame-left toward…" không khớp `_LOOK` → không sinh mệnh đề hướng nhìn; (c) job 333: `C1_MAX_TOKENS` thiếu cho 13+ mệnh đề.
+- **Khác:** 2 ca báo nhầm còn lại là `count` khi người thừa chỉ lộ một phần / mờ phía sau (323, 326 — nhãn "nhỏ"). Doubt (6 khung) đều do
+  model trả "unclear" cho `asym` Kenta.
+- **Hướng sửa đề xuất (chờ người dùng quyết):** model chỉ **khai điều nhìn thấy** dạng chọn sẵn, **code áp luật**: mũ → "ở gáy thấy: lưỡi trai /
+  dây-khóa / không thấy"; trái/phải → "chi tiết X ở nửa TRÁI hay PHẢI của ẢNH so với mặt / đầu người đó" (hoặc "cùng phía ẢNH với ảnh chuẩn
+  hay ngược"), code đổi chiều theo hướng máy (YuNet thấy mặt = quay mặt). Sửa (a)(b)(c) + replay 0 USD; rồi chạy lại GĐ3 ≈ 0,6 USD. Nếu
+  trái/phải vẫn sai khi model chỉ khai vị trí trong ảnh → theo quyết định 19a hỏi lại Pose.
