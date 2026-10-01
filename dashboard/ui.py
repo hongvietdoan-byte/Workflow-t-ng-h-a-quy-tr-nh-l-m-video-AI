@@ -84,6 +84,15 @@ label[data-testid="stWidgetLabel"] p{font-size:13.5px;color:var(--text)}
 [class*="st-key-level_"] label[data-testid="stRadioOption"] p,[class*="st-key-home_status"] label[data-testid="stRadioOption"] p{font-size:13.5px;color:var(--text);margin:0}
 [class*="st-key-level_"] label[data-testid="stRadioOption"][data-selected="true"] p,[class*="st-key-home_status"] label[data-testid="stRadioOption"][data-selected="true"] p{color:#fff;font-weight:600}
 [class*="st-key-level_"] label[data-testid="stRadioOption"]>div>div:first-child,[class*="st-key-home_status"] label[data-testid="stRadioOption"]>div>div:first-child{display:none}
+/* khung giống bản demo đã duyệt: chữ Inter/hệ thống, thanh bước có số trong vòng tròn */
+.stApp,.stApp button,.stApp input,.stApp textarea{font-family:Inter,"Segoe UI",system-ui,-apple-system,Roboto,sans-serif}
+.st-key-step [data-testid="stRadioGroup"]{counter-reset:stp 0}
+.st-key-step [data-testid="stRadioGroup"]>div:not(:first-child) label[data-testid="stRadioOption"]{counter-increment:stp}
+.st-key-step label[data-testid="stRadioOption"]{display:flex;align-items:center;gap:9px}
+.st-key-step label[data-testid="stRadioOption"]::before{content:counter(stp);width:26px;height:26px;border-radius:50%;background:var(--border);color:var(--muted);display:grid;place-items:center;font-size:12.5px;font-weight:700;flex:none}
+.st-key-step [data-testid="stRadioGroup"]>div:first-child label[data-testid="stRadioOption"]::before{content:"⌂";font-size:15px}
+.st-key-step [data-testid="stRadioGroup"]>div:nth-child(n+6) label[data-testid="stRadioOption"]::before{display:none}
+.st-key-step label[data-testid="stRadioOption"][data-selected="true"]::before{background:var(--primary);color:#fff}
 </style>
 """
 

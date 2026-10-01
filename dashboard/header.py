@@ -80,14 +80,15 @@ def level_bar(p: Pipeline, pid: int) -> None:
     with c2:
         st.radio("Mức tự động", keys, horizontal=True, label_visibility="collapsed", format_func=lambda k: automation.LEVELS[k]["label"],
                  disabled=busy or not can, key=f"level_{pid}", on_change=_level_changed, args=(pid,),
-                 help=("Đang chạy tự động — đổi mức sau khi dừng." if busy else "Chỉ người tạo dự án hoặc Owner đổi mức." if not can else None))
+                 help=("Đang chạy tự động — đổi mức sau khi dừng." if busy else "Chỉ người tạo dự án hoặc Owner đổi mức." if not can
+                       else "\n\n".join(f"**{v['label']}**: {v['desc']}" for v in automation.LEVELS.values())))
     err = st.session_state.pop("level_error", None)
     if err:
         st.warning(err)
-    st.caption((automation.LEVELS[cur]["desc"] if cur in keys else
-                "Tùy chỉnh: bạn đã chỉnh tay cổng duyệt / chính sách QC / người duyệt — chọn một mức để đặt lại cả ba.")
-               + ("  ·  chạy tự động đang giữ dự án nên không đổi được (lúc chạy luôn dùng QC tự duyệt, xong thì trả lại chế độ bạn chọn)"
-                  if busy else ""))
+    if cur not in keys or busy:                       # the level's description is the radio's tooltip; speak only when it matters
+        st.caption(("Tùy chỉnh: bạn đã chỉnh tay cổng duyệt / chính sách QC / người duyệt — chọn một mức để đặt lại cả ba."
+                    if cur not in keys else "") + ("  ·  chạy tự động đang giữ dự án nên không đổi được (lúc chạy luôn dùng QC tự duyệt, "
+                                                    "xong thì trả lại chế độ bạn chọn)" if busy else ""))
 
 
 def risk_popover(p: Pipeline, pid: int) -> None:

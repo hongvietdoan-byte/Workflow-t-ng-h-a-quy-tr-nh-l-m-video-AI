@@ -64,7 +64,8 @@ def step_label(done: list):
     for name in STEPS:
         state, text = by_screen.get(name, ("todo", ""))
         head = {"done": "✓  ", "stale": "⚠  ", "todo": ""}[state]
-        marks[name] = head + name + (f" · {text}" if text and (state != "done" or name == STEPS[2]) else "")
+        shown = "Tất cả dự án" if name == STEPS[0] else name          # the ⌂ is drawn by the bar's CSS
+        marks[name] = head + shown + (f" · {text}" if text and (state != "done" or name == STEPS[2]) else "")
     return lambda name: marks[name]
 
 
@@ -150,7 +151,8 @@ def main():
         st.session_state.pop("step", None)
     if all(x in visible for x in STEPS[1:5]) and st.session_state.get("step") not in (STEPS[0], STEPS[5], STEPS[6]):   # the four cards of the project screens
         from dashboard import overview
-        overview.cards(p, pid, STEPS)
+        with st.expander("📊 Tổng quan dự án (kịch bản · kế hoạch · sản xuất · video cuối)", expanded=False):
+            overview.cards(p, pid, STEPS)                # folded: the progress is already on the bar below
     step = st.radio("Màn", visible, horizontal=True, key="step", label_visibility="collapsed",
                     format_func=step_label(step_done(p, pid)))
     st.session_state["_step_keep"] = step
