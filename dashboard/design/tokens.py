@@ -16,6 +16,7 @@ DARK: Dict[str, str] = {
     "aurora-1": "rgba(124,92,255,0.34)", "aurora-2": "rgba(34,211,238,0.20)", "aurora-3": "rgba(236,72,153,0.16)",
     "glow": "rgba(124,92,255,0.45)", "shadow": "0 10px 30px rgba(0,0,0,0.45)",
     "canvas-filter": "invert(0.92) hue-rotate(180deg)",      # st.dataframe = canvas luôn sáng → đảo màu ở nền tối (theme.css)
+    "scrim": "rgba(4,6,12,0.72)",                              # lớp phủ sau hộp thoại (mặc định Streamlit xanh-xám nhạt → sáng lạc ở nền tối)
 }
 LIGHT: Dict[str, str] = {
     "bg": "#F4F6FB", "surface": "#FFFFFF", "raised": "#FFFFFF", "glass": "rgba(255,255,255,0.72)", "glass-strong": "rgba(255,255,255,0.9)",
@@ -27,6 +28,7 @@ LIGHT: Dict[str, str] = {
     "aurora-1": "rgba(124,92,255,0.20)", "aurora-2": "rgba(34,211,238,0.16)", "aurora-3": "rgba(236,72,153,0.10)",
     "glow": "rgba(79,59,224,0.28)", "shadow": "0 8px 24px rgba(17,24,39,0.10)",
     "canvas-filter": "none",
+    "scrim": "rgba(150,176,202,0.25)",                         # giữ như mặc định Streamlit
 }
 # gradient stops are the same in both themes; white text sits on them (each stop checked ≥ 4.5:1 below)
 GRAD_STOPS: Tuple[str, str, str] = ("#6D4AFF", "#2563EB", "#0E7490")

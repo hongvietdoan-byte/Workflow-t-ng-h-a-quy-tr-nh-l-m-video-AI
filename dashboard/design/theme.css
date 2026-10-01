@@ -69,7 +69,8 @@ input, textarea { color: var(--text) !important; }
 [role="tab"] p { color: var(--muted) !important; font-size: 14px; font-weight: 600; }
 [role="tab"][aria-selected="true"] { background: var(--primary-soft); border-color: var(--primary); }
 [role="tab"][aria-selected="true"] p { color: var(--text) !important; }
-[data-baseweb="tab-highlight"] { background: var(--grad-primary) !important; height: 3px !important; }
+/* gạch chân tab đang chọn (Streamlit 1.64: react-aria, không còn data-baseweb="tab-highlight" → cũ ra xanh #2F5BEA của theme gốc) */
+[data-testid="stTab"] .react-aria-SelectionIndicator { background: var(--grad-primary) !important; height: 3px !important; }
 
 /* mục gập, hộp thoại, popover */
 [data-testid="stExpander"] details { background: var(--glass) !important; border: 1.5px solid var(--border-soft) !important; border-radius: var(--r-md) !important; }
@@ -136,6 +137,12 @@ ul[role="listbox"] { background: var(--raised) !important; }
     font-weight: 800; color: var(--info) !important; border-color: var(--info) !important; justify-content: center; }
 [class*="st-key-info-"] [data-testid="stPopoverButton"] svg { display: none; }
 [class*="st-key-info-"] { width: auto !important; flex: 0 0 auto; }
+/* 02/10: nút cũ 33×30 (bầu dục) và "ⓘ" lệch trái ~6,6 px: khung chứa mũi tên popover (16 px) vẫn chiếm chỗ dù icon đã ẩn + lớp bọc lề âm -5 px
+   → nút vuông tròn đều, bỏ hẳn khung mũi tên, căn giữa (đo sau: lệch 0 / 0,4 px) */
+[class*="st-key-info-"] [data-testid="stPopoverButton"] { width: 2rem !important; height: 2rem !important; min-height: 2rem !important; min-width: 2rem !important; }
+[class*="st-key-info-"] [data-testid="stPopoverButton"] > div { margin: 0 !important; width: 100%; justify-content: center; }
+[class*="st-key-info-"] [data-testid="stPopoverButton"] > div > div:has([data-testid="stIconMaterial"]) { display: none !important; }
+[class*="st-key-info-"] [data-testid="stPopoverButton"] p { line-height: 1 !important; margin: 0 !important; }
 
 /* nhãn nút có giá không bị cắt "…" trong thẻ hẹp (đề nghị nhánh G) */
 [class*="st-key-card-"] [data-testid="stBaseButton-secondary"], [class*="st-key-card-"] [data-testid="stBaseButton-primary"] { white-space: normal; height: auto; }
@@ -150,6 +157,7 @@ ul[role="listbox"] { background: var(--raised) !important; }
    .streamlit/config.toml (base = light). Ở chế độ tối các cổng này vẫn nền sáng → chữ var(--text) sáng trên nền trắng = tàng hình
    (tiêu đề mục gập, ô chọn có mũi tên ▾, nhãn ô nhập trong ⚙ → Kho tài nguyên / Tính năng thử …). Sửa tận gốc: body + hộp thoại nhận token. */
 body { background: var(--bg); color: var(--text); }
+[data-testid="stDialog"] { background: var(--scrim) !important; }   /* lớp phủ sau hộp thoại (02/10: cũ xanh-xám nhạt ở nền tối) */
 [data-testid="stDialog"] > div { background: var(--raised) !important; color: var(--text) !important; border: 1.5px solid var(--border) !important;
     border-radius: var(--r-lg) !important; box-shadow: var(--shadow); }
 [data-testid="stDialog"] section[role="dialog"], [data-testid="stDialog"] section[role="dialog"] :is(p, li, label, h1, h2, h3, h4, summary) { color: var(--text); }
@@ -164,28 +172,28 @@ body { background: var(--bg); color: var(--text); }
 [data-testid="stExpander"] summary :is(p, span, div), [data-testid="stExpander"] summary [data-testid="stIconMaterial"] { color: var(--text) !important; opacity: 1 !important; }
 [data-testid="stExpander"] details[open] > summary { border-bottom: 1px solid var(--border-soft); border-radius: var(--r-md) var(--r-md) 0 0; }
 [data-testid="stExpander"] [data-testid="stExpanderDetails"] { color: var(--text); }
-/* ô chọn (selectbox ▾) + ô nhập: giá trị + nhãn đọc được ở mọi nơi */
-[data-baseweb="select"] > div { background: var(--surface) !important; border-color: var(--border) !important; }
-[data-baseweb="select"] :is(div, span, input):not([data-baseweb="tag"], [data-baseweb="tag"] *) { color: var(--text) !important; }
-[data-baseweb="select"] [data-baseweb="tag"] { background: var(--primary-soft) !important; border: 1px solid var(--primary); }
-[data-baseweb="select"] [data-baseweb="tag"] :is(span, div) { color: var(--text) !important; }
-[data-baseweb="select"] svg, [data-testid="stPopoverButton"] [data-testid="stIconMaterial"] { color: var(--text) !important; fill: currentColor; }
+/* ô chọn (selectbox ▾ / multiselect) — Streamlit 1.64 bỏ thuộc tính data-baseweb, mọi luật cũ theo nó đã chết (đo 02/10: 0 phần tử khớp);
+   viết lại theo data-testid. Khung + giá trị ô chọn đã đúng nhờ luật ô nhập chung (đo: chữ 17.65:1). */
 label[data-testid="stWidgetLabel"] p { color: var(--text) !important; }
-[data-baseweb="popover"] [role="listbox"], [data-baseweb="popover"] ul, [data-baseweb="menu"] { background: var(--raised) !important; }
-[data-baseweb="popover"] li, [data-baseweb="popover"] [role="option"] { color: var(--text) !important; }
-[data-baseweb="popover"] [role="option"][aria-selected="true"], [data-baseweb="popover"] li:hover { background: var(--primary-soft) !important; }
-/* danh sách thả xuống của st.selectbox / multiselect (Streamlit 1.64: stSelectboxVirtualDropdown, gắn thẳng vào body, không nằm trong
-   data-baseweb="popover"); chữ từng dòng nằm ở thẻ con được tô màu chữ của theme gốc (#111827) → tàng hình trên nền tối (02/10) */
-[data-testid="stSelectboxVirtualDropdown"] { background: var(--raised) !important; }
+[data-testid="stPopoverButton"] [data-testid="stIconMaterial"] { color: var(--text) !important; }
+/* nhãn đã chọn của multiselect: theo màu v2 thay vì xanh #2F5BEA của theme gốc */
+[data-testid="stMultiSelect"] [data-tag] { background: var(--primary-soft) !important; border: 1px solid var(--primary) !important; }
+[data-testid="stMultiSelect"] [data-tag] :is(span, button) { color: var(--text) !important; }
+[data-testid="stMultiSelect"] [data-tag] svg { color: var(--text) !important; fill: currentColor; }
+/* danh sách thả xuống (stSelectboxVirtualDropdown / stMultiSelectDropdown) gắn thẳng vào body; chữ từng dòng nằm ở thẻ con được tô
+   màu chữ của theme gốc (#111827) → tàng hình trên nền tối (02/10) → ép cả thẻ con */
+:is([data-testid="stSelectboxVirtualDropdown"], [data-testid="stMultiSelectDropdown"]) { background: var(--raised) !important; }
 [data-testid="stSelectboxVirtualDropdown"] [role="option"], [data-testid="stSelectboxVirtualDropdown"] [role="option"] *,
-[data-baseweb="popover"] [role="option"] *, [data-baseweb="popover"] li * { color: var(--text) !important; }
-[data-testid="stSelectboxVirtualDropdown"] [role="option"]:hover,
-[data-testid="stSelectboxVirtualDropdown"] [role="option"][aria-selected="true"] { background: var(--primary-soft) !important; }
-/* Streamlit 1.64 không còn data-baseweb="select" → luật svg ở trên không khớp: mũi tên ▾ của ô chọn (fill = currentColor = #111827 của
-   theme gốc, 1.09:1 trên nền tối) và nét icon "?" (stroke rgba(17,24,39,.6)) tàng hình ở chế độ tối (đo 02/10) */
+[data-testid="stMultiSelectDropdown"] [role="option"], [data-testid="stMultiSelectDropdown"] [role="option"] * { color: var(--text) !important; }
+:is([data-testid="stSelectboxVirtualDropdown"], [data-testid="stMultiSelectDropdown"]) [role="option"]:hover,
+:is([data-testid="stSelectboxVirtualDropdown"], [data-testid="stMultiSelectDropdown"]) [role="option"][aria-selected="true"] { background: var(--primary-soft) !important; }
+/* mũi tên ▾ (fill = currentColor = #111827 của theme gốc, 1.09:1 trên nền tối) và nét icon "?" (stroke rgba(17,24,39,.6)) tàng hình (02/10) */
 :is([data-testid="stSelectbox"], [data-testid="stMultiSelect"]) svg:not([data-testid="stTooltipIcon"] svg) { color: var(--text) !important; }
 [data-testid="stTooltipIcon"] svg, [data-testid="stTooltipIcon"] svg * { stroke: var(--muted) !important; }
 [data-testid="stTooltipIcon"] button:hover svg, [data-testid="stTooltipIcon"] button:hover svg * { stroke: var(--text) !important; }
+/* popover ⚙ / 💵 mở hộp thoại (st.dialog) nhưng không tự đóng → nổi đè lên hộp thoại (02/10). Ẩn đúng các popover chứa nút mở hộp thoại
+   khi có hộp thoại; ⓘ bên trong hộp thoại vẫn hiện. Đóng hộp thoại → Streamlit chạy lại, popover cũng đóng. */
+body:has([data-testid="stDialog"]) [data-testid="stPopoverBody"]:has(.st-key-dark_toggle, .st-key-mc_pricing, .st-key-mc_budget) { display: none !important; }
 /* tooltip (help=) cũng là cổng gắn vào body: theo token thay vì hộp trắng của theme gốc */
 [data-testid="stTooltipContent"] { background: var(--raised) !important; color: var(--text) !important; border: 1px solid var(--border); }
 [data-testid="stTooltipContent"] * { color: var(--text) !important; }

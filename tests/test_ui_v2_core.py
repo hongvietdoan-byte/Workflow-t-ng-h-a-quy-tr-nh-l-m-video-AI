@@ -1,5 +1,6 @@
 """S13 nhánh A: token giao diện v2 đạt tương phản đã hứa, thành phần escape đúng, cờ ui_v2 nạp lớp thiết kế, trang G1 dựng được."""
 import os
+import re
 import tempfile
 import unittest
 from unittest import mock
@@ -53,6 +54,21 @@ class TokenTests(unittest.TestCase):
         self.assertRegex(css, r'\[data-testid="stSelectbox"\], \[data-testid="stMultiSelect"\]\) svg[^{]*\{[^}]*color:\s*var\(--text\)')
         self.assertRegex(css, r'\[data-testid="stTooltipIcon"\] svg \*\s*\{[^}]*stroke:\s*var\(--muted\)')
         self.assertRegex(css, r'\[data-testid="stTooltipContent"\]\s*\{[^}]*background:\s*var\(--raised\)')
+        # 02/10: Streamlit 1.64 bỏ thuộc tính data-baseweb → không còn luật nào dựa vào nó (ngoài ghi chú); thay bằng data-testid
+        rules = re.sub(r"/\*.*?\*/", "", css, flags=re.S)
+        self.assertNotIn("data-baseweb", rules)
+        self.assertIn('[data-testid="stTab"] .react-aria-SelectionIndicator', rules)
+        self.assertRegex(rules, r'\[data-testid="stMultiSelect"\] \[data-tag\]\s*\{[^}]*var\(--primary-soft\)')
+        # popover ⚙ / 💵 không đè lên hộp thoại nó mở; lớp phủ sau hộp thoại theo token
+        self.assertIn('body:has([data-testid="stDialog"]) [data-testid="stPopoverBody"]:has(.st-key-dark_toggle', rules)
+        self.assertRegex(rules, r'\[data-testid="stDialog"\]\s*\{\s*background:\s*var\(--scrim\)')
+        self.assertEqual(set(tokens.LIGHT), set(tokens.DARK))
+        # nút ⓘ tròn đều, khung mũi tên popover không chiếm chỗ (chữ lệch trái ~6,6 px)
+        self.assertRegex(rules, r'\[class\*="st-key-info-"\] \[data-testid="stPopoverButton"\]\s*\{[^}]*width:\s*2rem[^}]*height:\s*2rem')
+        self.assertIn('> div > div:has([data-testid="stIconMaterial"]) { display: none', rules)
+        for path in (os.path.join(os.path.dirname(__file__), "..", "dashboard", "ui.py"),
+                     os.path.join(os.path.dirname(__file__), "..", "dashboard", "design", "screens", "shell.css")):
+            self.assertNotIn("data-baseweb", re.sub(r"/\*.*?\*/", "", open(path, encoding="utf-8").read(), flags=re.S))
 
 
 class ComponentTests(unittest.TestCase):
