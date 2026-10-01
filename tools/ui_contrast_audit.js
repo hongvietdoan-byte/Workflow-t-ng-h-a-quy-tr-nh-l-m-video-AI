@@ -6,8 +6,9 @@
   const page = parse(getComputedStyle(document.body).backgroundColor);
   const bgOf = e => { let n = e; while (n) { const p = parse(getComputedStyle(n).backgroundColor); if (p && p.a > 0.5) return p.c; n = n.parentElement; } return (page && page.a > 0.5) ? page.c : [255, 255, 255]; };
   const bad = [], small = [];
-  document.querySelectorAll('p,span,label,button,summary,li,div,a,h1,h2,h3,h4').forEach(e => {
+  document.querySelectorAll('p,span,label,button,summary,li,div,a,h1,h2,h3,h4,td,th').forEach(e => {
     if (![...e.childNodes].some(n => n.nodeType === 3 && n.textContent.trim())) return;
+    if (e.closest('.v2-grad-text, [data-testid="stBaseButton-primary"], [data-testid="stCode"]')) return;   // gradient backgrounds: checked by tokens.promised_pairs
     const r = e.getBoundingClientRect(); if (r.width < 4 || r.height < 4) return;
     const s = getComputedStyle(e); if (s.visibility === 'hidden' || s.display === 'none' || parseFloat(s.opacity) < 0.05) return;
     const fg = parse(s.color); if (!fg) return;

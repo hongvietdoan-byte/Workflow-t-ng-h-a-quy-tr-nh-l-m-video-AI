@@ -78,6 +78,15 @@ def storyboard(p: Pipeline, pid: int):
         step3(p, pid)
 
 
+def shell_header(p: Pipeline, pid: int, done: list, cur) -> None:
+    """UI v2: the project hero strip (project screens only — not ⌂ / Nhóm / Theo dõi) followed by the one status line."""
+    from dashboard.design.screens import shell_parts
+    from dashboard.header import level_bar, status_line
+    if cur not in (STEPS[0], STEPS[5], STEPS[6]):
+        shell_parts.project_hero(p, pid, done, STEPS.index(cur) if cur in STEPS else 1, DATA, lambda: level_bar(p, pid, compact=True))
+    status_line(p, pid)
+
+
 def run_startup_sync(fn, what: str, code: str) -> None:
     """Folder auto-sync (possibly over a slow Drive) runs in the background so the page opens at once; new items show on the next refresh."""
     def work():
@@ -149,8 +158,10 @@ def main():
         st.session_state["step"] = cur
     else:
         st.session_state.pop("step", None)
-    step = st.radio("Màn", visible, horizontal=True, key="step", label_visibility="collapsed",
-                    format_func=step_label(step_done(p, pid)))
+    done = step_done(p, pid)
+    if ui.v2_on():                                      # S13 nhánh B: hero of the project + 🎚 level + status line sit between the bar and the stepper
+        shell_header(p, pid, done, cur)
+    step = st.radio("Màn", visible, horizontal=True, key="step", label_visibility="collapsed", format_func=step_label(done))
     st.session_state["_step_keep"] = step
     if deep == "design" and ui.v2_on():                   # G1 (S13): the real-Streamlit vertical slice of UI v2, for the owner to approve
         from dashboard.design import preview

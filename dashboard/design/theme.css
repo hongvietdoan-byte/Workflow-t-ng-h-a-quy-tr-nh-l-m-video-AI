@@ -114,3 +114,25 @@ ul[role="listbox"] { background: var(--raised) !important; }
 .v2-vers { display: flex; gap: 6px; flex-wrap: wrap; margin: 6px 0; }
 .v2-ver { padding: 2px 9px; border-radius: var(--r-pill); font-size: 12.5px; font-weight: 700; border: 1.5px solid var(--border-soft); color: var(--muted); }
 .v2-ver.on { border-color: var(--primary); color: var(--text); background: var(--primary-soft); }
+
+/* tích hợp 01/10 (đề nghị của nhánh B, D) */
+/* Streamlit đặt margin-bottom âm cho markdown → HTML (div) đè lên phần tử sau (vd. ghi chú đè nút "Mở") */
+[class*="st-key-card-"] [data-testid="stMarkdownContainer"], [class*="st-key-hero-"] [data-testid="stMarkdownContainer"] { margin-bottom: 0 !important; }
+[data-testid="stMarkdownContainer"]:has(> .v2-table), [data-testid="stMarkdownContainer"]:has(> div > .v2-table) { margin-bottom: 0 !important; }
+/* liên kết (kể cả e-mail tự biến thành link) đọc được trên nền tối */
+[data-testid="stMarkdownContainer"] a, a, a:visited { color: var(--info) !important; }
+/* khối mã: không dùng màu highlight của prism (tương phản thấp trên nền tối) */
+[data-testid="stCode"], [data-testid="stCode"] pre, [data-testid="stCode"] code { background: var(--surface) !important; color: var(--text) !important; }
+[data-testid="stCode"] span { color: var(--text) !important; }
+.v2-stat { min-height: 84px; }
+
+/* nút bị khóa đọc được (đề nghị nhánh F): chữ --disabled ≥ 3:1, viền đứt, nút chính khóa mất gradient */
+[data-testid="stBaseButton-secondary"]:disabled, [data-testid="stPopoverButton"]:disabled { color: var(--disabled) !important; border-style: dashed !important; opacity: 1 !important; }
+[data-testid="stBaseButton-primary"]:disabled { background: var(--glass-strong) !important; color: var(--disabled) !important; box-shadow: none !important; border: 1.5px dashed var(--border) !important; opacity: 1 !important; }
+.v2-warn-text { color: var(--warn); font-weight: 600; }
+
+/* ⓘ — nút chi tiết nhỏ, luôn hiện (không phụ thuộc rê chuột) */
+[class*="st-key-info-"] [data-testid="stPopoverButton"] { min-height: 1.9rem !important; width: 2.1rem; padding: 0 !important; border-radius: 50% !important;
+    font-weight: 800; color: var(--info) !important; border-color: var(--info) !important; justify-content: center; }
+[class*="st-key-info-"] [data-testid="stPopoverButton"] svg { display: none; }
+[class*="st-key-info-"] { width: auto !important; flex: 0 0 auto; }

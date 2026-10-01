@@ -5,6 +5,11 @@ from dashboard.widgets import auto_poll_images, image_busy
 from core import image_models
 
 
+def D_card(key: str):
+    from dashboard.design import components
+    return components.card(key)
+
+
 def image_progress(p: Pipeline, pid: int, runner) -> None:
     """One plain answer to "is it generating?": progress per scene, and when nothing moves, the reason and what to press."""
     proj = p.project(pid)
@@ -18,7 +23,7 @@ def image_progress(p: Pipeline, pid: int, runner) -> None:
     ap_running = autopilot.status(p, pid)["state"] in ("running", "queued")
     names = [r["name"] for r in p.conn.execute("SELECT name FROM characters WHERE project_id=?", (pid,))]
     linked = assets.link_characters(p.conn, pid, names) if names else {}
-    with st.container(border=True):
+    with (D_card("sb-progress") if ui.v2_on() else st.container(border=True)):
         if linked:
             have = [n for n, a in linked.items() if a]
             lack = [n for n, a in linked.items() if not a]
@@ -42,9 +47,14 @@ def image_progress(p: Pipeline, pid: int, runner) -> None:
                 if r["state"] == "approved" and (status.get(r["sid"]) or {}).get("image_stale"):
                     text += " · ⚠ cũ"
                 return text + (" · ⚠ cần xem" if r["escalated"] else "")
-            st.dataframe([{"Cảnh": r["idx"], "Trạng thái": label(r), "Điểm QC": f"{r['qc']:.2f}" if r["qc"] is not None else "—",
-                           "Đã gen lại": r["retry_count"]} for r in rows],
-                         hide_index=True, width="stretch", height=min(38 * (len(rows) + 1) + 3, 230))
+            if ui.v2_on():                                                        # rule 7: HTML table, folded (the cards show the same)
+                from dashboard.design.screens import storyboard_cards as SB
+                with st.expander("Bảng trạng thái từng cảnh", expanded=False):
+                    st.markdown(SB.status_table(p, pid), unsafe_allow_html=True)
+            else:
+                st.dataframe([{"Cảnh": r["idx"], "Trạng thái": label(r), "Điểm QC": f"{r['qc']:.2f}" if r["qc"] is not None else "—",
+                               "Đã gen lại": r["retry_count"]} for r in rows],
+                             hide_index=True, width="stretch", height=min(38 * (len(rows) + 1) + 3, 230))
         fixed = p.conn.execute("SELECT COUNT(*) FROM jobs WHERE project_id=? AND type='image_gen' AND retry_count>0 AND state NOT IN ('cancelled')", (pid,)).fetchone()[0]
         flagged = p.conn.execute("SELECT COUNT(*) FROM jobs WHERE project_id=? AND type='image_gen' AND escalated=1 AND state='pending_review'", (pid,)).fetchone()[0]
         if autoqc.active(pid):
@@ -76,10 +86,16 @@ def step2(p: Pipeline, pid: int):
     proj = p.project(pid)
     runner = image_runner(p)
     summ = lineage.summary(p.conn, pid)
-    step_header("Storyboard · Ảnh + QC", "mỗi cảnh một ảnh đúng nhân vật, đúng bối cảnh, đã duyệt",
-                f"{summ['images'][0]}/{summ['total']} cảnh có ảnh duyệt", summ["images"][1])
+    v2 = ui.v2_on()
+    if v2:
+        from dashboard.design.screens import storyboard_cards as SB
+        SB.hero(p, pid, summ, proj)
+    else:
+        step_header("Storyboard · Ảnh + QC", "mỗi cảnh một ảnh đúng nhân vật, đúng bối cảnh, đã duyệt",
+                    f"{summ['images'][0]}/{summ['total']} cảnh có ảnh duyệt", summ["images"][1])
     from dashboard import next_step                                     # S9 E0.1: the next thing to do, one line
-    ui.html(next_step.band(p, pid, 2, C.DATA))
+    if not v2:                                                            # v2: the shell header already shows the next step
+        ui.html(next_step.band(p, pid, 2, C.DATA))
     if autopilot_manager(C.DB, C.DATA).wake(pid):      # S6.4: a redraw asked for while the run waits at the storyboard is sent
         st.caption("⏳ Chạy tự động đang chờ bạn ở cổng — ảnh vẽ lại bạn vừa yêu cầu đang được gửi (trong trần đã duyệt).")
     pilot_panel(p, pid)
@@ -95,7 +111,7 @@ def step2(p: Pipeline, pid: int):
                 st.markdown(f"- **Lỗi:** {bug}  \n  **Hướng sửa:** {fix}")
             if st_["fixed"]:
                 st.caption("Đã sửa: " + "; ".join(st_["fixed"]))
-    with st.container(border=True):
+    with (D_card("sb-gen") if v2 else st.container(border=True)):
         c1, c2, c3, c4 = st.columns([2.4, 2, 2, 2.6], vertical_alignment="center")
         est_ok = True
         est = image_estimate(p, pid)
@@ -120,7 +136,9 @@ def step2(p: Pipeline, pid: int):
                 st.rerun()
         pending = [j["id"] for j in p.conn.execute(
             "SELECT id FROM jobs WHERE project_id=? AND type='image_gen' AND state='pending_review' ORDER BY id", (pid,)).fetchall()]
-        if confirm_all("approve_all", pending, f"✔ Duyệt tất cả ({len(pending)} ảnh)", f"Duyệt tất cả {len(pending)} ảnh đang chờ duyệt?", c2):
+        if v2:
+            c2.caption("✔ Duyệt hàng loạt: thanh hành động ở cuối lưới ảnh ↓")
+        elif confirm_all("approve_all", pending, f"✔ Duyệt tất cả ({len(pending)} ảnh)", f"Duyệt tất cả {len(pending)} ảnh đang chờ duyệt?", c2):
             for jid in pending:
                 p.approve(jid, "user")
             st.rerun()
@@ -144,6 +162,8 @@ def step2(p: Pipeline, pid: int):
     image_progress(p, pid, runner)
     if image_busy(p.conn, pid):
         auto_poll_images(pid)                           # results, the automatic check and automatic fixes all show up by themselves
+    if v2:
+        return grid_v2(p, pid, proj)
     if C.expert():
         qc_policy_panel(p, pid)
     if C.expert():
@@ -188,6 +208,50 @@ def step2(p: Pipeline, pid: int):
     with detail:
         job = next(j for j in jobs if j["id"] == st.session_state[sel_key])
         image_detail(p, pid, job, proj)
+
+
+def grid_v2(p: Pipeline, pid: int, proj) -> None:
+    """UI v2 (cờ ui_v2): thanh lọc → lưới thẻ kính 4 cột → MỘT thanh hành động dính → các mục gập (chính sách QC, kiểm bộ ảnh, storyboard)."""
+    from dashboard.design.screens import storyboard_cards as SB
+    from dashboard.design import components as D
+    client = llm_client()
+    to_check = p.conn.execute("SELECT COUNT(*) c FROM jobs WHERE project_id=? AND type='image_gen' AND state='succeeded'", (pid,)).fetchone()["c"]
+    if client is None and to_check:
+        st.warning(f"⚠ **Chưa có điểm QC**: {to_check} ảnh vừa gen chưa được chấm vì chưa có Claude ({claude_hint()}). "
+                   "Trong lúc đó hãy tự xem từng ảnh (đúng nhân vật? đúng bối cảnh? lỗi tay/mặt?) rồi duyệt hoặc loại.")
+    jobs = p.conn.execute(
+        "SELECT j.*, s.idx, s.title FROM jobs j JOIN scenes s ON s.id=j.scene_id"
+        " WHERE j.project_id=? AND j.type='image_gen' ORDER BY s.idx, j.id", (pid,)).fetchall()
+    if not jobs:
+        st.markdown(D.empty_state("Chưa có ảnh nào", "Bấm “▶ Gen ảnh các cảnh chưa có / đã cũ” ở trên (cần khóa Character Bible ở Kịch bản trước)."),
+                    unsafe_allow_html=True)
+    else:
+        history = {}
+        for j in jobs:
+            history.setdefault(j["scene_id"], []).append(j)
+        latest = {sid: hist[-1] for sid, hist in history.items()}
+        counts = {k: sum(1 for j in latest.values() if j["state"] in v) for k, v in FILTER_STATES.items()}
+        counts["all"] = len(latest)
+        flt = st.radio("Lọc", list(FILTERS), horizontal=True, key=f"filter_{pid}", label_visibility="collapsed",
+                       format_func=lambda k: f"{FILTERS[k]} {counts[k]}")
+        shown_sids = [sid for sid, j in latest.items() if flt == "all" or j["state"] in FILTER_STATES[flt]]
+        sel_key = f"sel_{pid}"
+        if st.session_state.get(sel_key) not in {j["id"] for j in jobs}:
+            st.session_state[sel_key] = latest[shown_sids[0]]["id"] if shown_sids else jobs[0]["id"]
+        stale = lineage.scan(p.conn, pid)
+        per_row = 4
+        for start in range(0, len(shown_sids), per_row):
+            cols = st.columns(per_row)
+            for col, sid in zip(cols, shown_sids[start:start + per_row]):
+                with col:
+                    SB.image_group_v2(p, pid, history[sid], proj, (stale.get(sid) or {}).get("image_stale"))
+        if not shown_sids:
+            st.markdown(D.empty_state("Không có ảnh nào trong bộ lọc này", "Chọn “Tất cả” để xem lại mọi cảnh."), unsafe_allow_html=True)
+    SB.action_bar(p, pid)
+    if C.expert():
+        qc_policy_panel(p, pid)
+        set_check_panel(p, pid)
+    shot_storyboard_panel(p, pid, gate_button=False)
 
 
 def image_card_group(p: Pipeline, pid: int, history: list, proj, stale_reason=None) -> None:
@@ -274,7 +338,8 @@ def image_card(p: Pipeline, pid: int, j, proj, read_only: bool = False, stale_re
         scene_expander(p, j["scene_id"])
 
 
-def image_detail(p: Pipeline, pid: int, j, proj):
+def image_detail(p: Pipeline, pid: int, j, proj, on_card: bool = False):
+    """`on_card` (UI v2): the review buttons and the reason inputs live on the picture's card, so this panel is the look-closer view."""
     jid, state = j["id"], j["state"]
     with st.container(border=True):
         ui.html(ui.card_title(f"Chi tiết ảnh — {C.unit_label(p, j['project_id'], j['idx'])}", f"lần gen #{jid} · đã gen lại {j['retry_count']} lần"))
@@ -317,6 +382,9 @@ def image_detail(p: Pipeline, pid: int, j, proj):
                             st.toast(f"Quyết định: {p.apply_qc(jid, obj['criteria'])}")
                         if act(score):
                             st.rerun()
+        if on_card:
+            st.caption("Duyệt / Loại / Vẽ lại và ô lý do nằm ngay trên thẻ ảnh.")
+            return
         if state in ("succeeded", "pending_review"):
             note = st.text_input("Câu sửa cho lần gen lại (đưa vào prompt — nên viết tiếng Anh, vd “Kelly wears the yellow jacket”)",
                                  key=f"note_{jid}")
@@ -453,7 +521,7 @@ def animatic_box(p: Pipeline, pid: int) -> None:
         player.video(done)
 
 
-def shot_storyboard_panel(p: Pipeline, pid: int) -> None:
+def shot_storyboard_panel(p: Pipeline, pid: int, gate_button: bool = True) -> None:
     """Every start picture in film order with size, role, length and lines — and, before any video is paid for, the storyboard
     checkpoint (W1): flagged shots first, the characters' reference pictures next to each picture, one button to go on to video."""
     from core import shots, storyboard_gate
@@ -485,7 +553,9 @@ def shot_storyboard_panel(p: Pipeline, pid: int) -> None:
             c1, c2 = st.columns([3, 1.4], vertical_alignment="center")
             c1.warning(f"Chế độ tự động đang dừng ở đây: {storyboard_gate.summary(p, pid, C.DATA)}. Loại/gen lại shot sai ở danh sách ảnh bên trên, "
                        "rồi bấm duyệt để viết motion prompt và gen video.")
-            if c2.button("✔ Duyệt storyboard — gen video", key=f"board_ok_{pid}", type="primary"):
+            if not gate_button:
+                c2.caption("Nút duyệt ở thanh hành động cuối lưới ảnh.")
+            elif c2.button("✔ Duyệt storyboard — gen video", key=f"board_ok_{pid}", type="primary"):
                 autopilot.resume(p, pid, p.actor)
                 autopilot_manager(C.DB, C.DATA).start(pid)
                 st.rerun()
@@ -514,7 +584,7 @@ def shot_storyboard_panel(p: Pipeline, pid: int) -> None:
                             + (f" · {float(d.get('duration_s') or 0):g}s" if d.get("duration_s") else "")
                             + (" · ➜" if d.get("continuous_with_next") else "") + (f" — {lines[:80]}" if lines else ""))
                 for why in flags.get(r["id"]) or []:
-                    col.markdown(f":orange[⚑ {escape(why)}]")
+                    _warn(col, f"⚑ {why}")
 
 
 def set_check_panel(p: Pipeline, pid: int) -> None:
@@ -552,3 +622,11 @@ def set_check_panel(p: Pipeline, pid: int) -> None:
                                help="Gen lại với câu sửa của QC (tiếng Anh) — đầu vào khác lần trước"):
                     act(lambda: claude_tasks.redo_from_set_check(p, pid, it["idx"], it["fix"]), "Đã xếp hàng gen lại")
                     st.rerun()
+
+
+def _warn(target, text) -> None:
+    """Orange warning line: Streamlit colour text is 3.4:1 on the light theme, so v2 uses the theme warn colour (class sb-warn)."""
+    if ui.v2_on():
+        target.markdown(f'<span class="sb-warn">{escape(str(text))}</span>', unsafe_allow_html=True)
+    else:
+        target.markdown(f":orange[{escape(str(text))}]")
