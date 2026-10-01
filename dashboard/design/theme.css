@@ -136,3 +136,7 @@ ul[role="listbox"] { background: var(--raised) !important; }
     font-weight: 800; color: var(--info) !important; border-color: var(--info) !important; justify-content: center; }
 [class*="st-key-info-"] [data-testid="stPopoverButton"] svg { display: none; }
 [class*="st-key-info-"] { width: auto !important; flex: 0 0 auto; }
+
+/* nhãn nút có giá không bị cắt "…" trong thẻ hẹp (đề nghị nhánh G) */
+[class*="st-key-card-"] [data-testid="stBaseButton-secondary"], [class*="st-key-card-"] [data-testid="stBaseButton-primary"] { white-space: normal; height: auto; }
+[class*="st-key-card-"] [data-testid="stBaseButton-secondary"] p, [class*="st-key-card-"] [data-testid="stBaseButton-primary"] p { white-space: normal; line-height: 1.25; }
