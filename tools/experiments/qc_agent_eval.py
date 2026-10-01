@@ -21,6 +21,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)
 sys.path.insert(0, ROOT)
 sys.path.insert(0, os.path.join(ROOT, "tools", "experiments"))
 LABELS = os.path.join(ROOT, "docs", "qc_agent_2026-09-27", "verdicts.json")
+EVAL_PROJECT = "Nghiệm thu agent QC"
 
 
 def picture(data_dir, pid, job):
@@ -42,6 +43,8 @@ def main():
     ap.add_argument("--db", default=os.path.join("data", "manifest.sqlite"))
     ap.add_argument("--yes", action="store_true")
     ap.add_argument("--max-usd", type=float, default=0.6, help="trần cứng Claude cho cả lần chạy")
+    ap.add_argument("--bill-project", default=None, help="dự án nhận tiền của lần nghiệm thu: số, hoặc 'new' = dự án riêng "
+                                                       "'Nghiệm thu agent QC' (tạo một lần) — không tính vào dự án đã giao đang được chấm")
     a = ap.parse_args()
     labels = json.load(open(LABELS, encoding="utf-8"))
     labels = labels if isinstance(labels, list) else labels.get("frames") or labels.get("verdicts")
@@ -53,6 +56,14 @@ def main():
     from core.pipeline import Pipeline
     p = Pipeline(connect(a.db))
     data_dir = os.path.join(os.path.dirname(os.path.abspath(a.db)), "projects")
+    bill = a.project
+    if a.bill_project == "new":
+        row = p.conn.execute("SELECT id FROM projects WHERE name=?", (EVAL_PROJECT,)).fetchone()
+        bill = row["id"] if row else p.create_project(EVAL_PROJECT, created_by="qc_agent_eval", game="FF", aspect="9:16")
+    elif a.bill_project:
+        bill = int(a.bill_project)
+    if bill != a.project:
+        print(f"tiền nghiệm thu tính vào dự án #{bill} (không vào #{a.project})")
     by_scene = {}
     for lab in labels:
         row = p.conn.execute("SELECT s.id, s.data FROM jobs j JOIN scenes s ON s.id=j.scene_id WHERE j.id=?", (lab["job"],)).fetchone()
@@ -84,12 +95,12 @@ def main():
                 print(f"dừng trước cảnh {s}: chạm trần cả lần chạy (${total['spent']:.3f})", flush=True)
                 break
             from core import project_budget                   # S7.1 01/10: the project's QC-stage cap stopped a scene midway (0,224 USD
-            over = project_budget.check(p.conn, a.project, "claude_qc", qc_agent.scene_cap(len(by_scene[s])))   # for nothing): ask first
+            over = project_budget.check(p.conn, bill, "claude_qc", qc_agent.scene_cap(len(by_scene[s])))   # for nothing): ask first
             if over:
                 print(f"dừng trước cảnh {s}: {over}", flush=True)
                 break
             res = qc_agent.QcAgent(p, a.project, data_dir, client, by_scene[s], s,
-                                   work_dir=os.path.join(data_dir, str(a.project), "qc_scene", f"agent_eval_scene_{s}")).run()
+                                   work_dir=os.path.join(data_dir, str(a.project), "qc_scene", f"agent_eval_scene_{s}"), bill_pid=bill).run()
             out[str(s)] = res
             _score(s, by_scene[s], res, caught, missed, false_block)
             _learn(p, a.project, data_dir, by_scene[s], res)

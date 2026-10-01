@@ -286,11 +286,12 @@ def mark_cache(messages: List[Dict]) -> None:
 
 class QcAgent:
     def __init__(self, p, pid: int, data_dir: str, client, frames: List[Dict], story_scene=None, work_dir: Optional[str] = None,
-                 focus: Optional[List[int]] = None):
+                 focus: Optional[List[int]] = None, bill_pid: Optional[int] = None):
         """frames: the whole scene (context: overview, shot table, strips); focus: the job ids that must be recorded (after a redraw, the
         new frames and their neighbours) — None = every frame (review 2026-09-28: a subset alone lost the context and the K numbers)."""
         from . import qc_scene
         self.p, self.pid, self.data_dir, self.client = p, pid, data_dir, client
+        self.bill_pid = bill_pid or pid       # an evaluation bills its own project, not the delivered one it judges (S7.1 01/10)
         self.frames = [dict(f, k=k, label=f.get("label") or f"S{f['data'].get('story_scene')}·{f['data'].get('shot_no')} {f['data'].get('size') or ''}")
                        for k, f in enumerate(frames, 1)]
         self.by_k = {f["k"]: f for f in self.frames}
@@ -588,7 +589,7 @@ class QcAgent:
         cap_usd = scene_cap(len(self._must()))
         steps_max = max_steps(len(self._must()))
         last_cost, spent_before, last_record_step, recorded = 0.0, 0.0, 0, 0
-        with tagged("qc_agent", self.pid), spend_cap(cap_usd, f"agent QC cảnh {self.story}") as cap:
+        with tagged("qc_agent", self.bill_pid), spend_cap(cap_usd, f"agent QC cảnh {self.story}") as cap:
             if PER_FRAME:
                 stopped = self._per_frame(messages[0], cap, cap_usd)
             while not PER_FRAME and self.summary is None and self.steps < steps_max:
