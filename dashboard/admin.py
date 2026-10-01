@@ -329,6 +329,92 @@ def plates3d_panel(p: Pipeline, game: str) -> None:
                 st.session_state.pop("p3d_manifest", None)
 
 
+def meshy_panel(p: Pipeline, game: str) -> None:
+    """🧍 Character → 3D model (Meshy, paid credits) → rig, saved in data/models3d; its own renders go to the review box. Every call is
+    estimated, checked against the caps and written to the ledger before it is sent (core/meshy.py)."""
+    from core import meshy
+    with st.expander("🧍 Nhân vật 3D — dựng mô hình 3D + khung xương bằng Meshy (TỐN CREDIT)", expanded=False):
+        # an expander's body runs even when closed: nothing (sheet cutting, the ledger) is done until the person opens the tool
+        if not st.toggle("Mở công cụ", key="meshy_open"):
+            st.caption("Bật để xem ảnh sẽ gửi, giá ước tính và các lần dựng.")
+            return
+        meshy.ensure_table(p.conn)
+        client = meshy.meshy_client()
+        cfg = meshy.settings(p.conn)
+        spent = meshy.spent_credits(p.conn)
+        st.caption((("Mã API: đã đặt (`MESHY_API_KEY`)." if client else
+                     "⚠ Chưa có `MESHY_API_KEY` — chạy `setx MESHY_API_KEY \"msy_...\"` trong PowerShell rồi mở lại Dashboard.") +
+                    f" Đã dùng ≈ {spent:g} credit (≈ \\${spent * meshy.usd_per_credit():.2f}) / trần \\${cfg['cap_usd']:g}"
+                    f" · 1 credit ≈ \\${meshy.usd_per_credit():g} (MESHY_USD_PER_CREDIT)."))
+        cap = st.number_input("Trần Meshy của đợt (USD)", 0.0, 1000.0, float(cfg["cap_usd"]), 5.0, key="meshy_cap")
+        if cap != float(cfg["cap_usd"]) and st.button("Lưu trần", key="meshy_cap_save"):
+            meshy.save_settings(p.conn, cap_usd=cap)
+            st.rerun()
+        chars = [a for a in assets.list_assets(p.conn, game, "character", None, shared_only=True)]
+        if not chars:
+            st.caption("Kho chưa có nhân vật.")
+            return
+        pick = st.selectbox("Nhân vật", range(len(chars)), format_func=lambda i: chars[i]["name"], key="meshy_char")
+        aid = chars[pick]["id"]
+        sheets = [i for i in chars[pick].get("images") or [] if i.get("role") == "design_sheet"]
+        sheet_id = None
+        if sheets:
+            labels = {i["id"]: f"#{i['id']} ({assets.STATUSES.get(i.get('status'), i.get('status'))})" for i in sheets}
+            sheet_id = st.selectbox("Bảng nhiều góc để cắt 4 hướng", [None] + list(labels),
+                                    format_func=lambda k: "tự chọn (bảng đã duyệt)" if k is None else labels[k], key="meshy_sheet")
+        own = st.session_state.get(f"meshy_tp{aid}", "").strip()
+        try:
+            plan = meshy.plan(p.conn, aid, sheet_image_id=sheet_id, work_dir=os.path.join(C.DATA, "meshy_views"), texture_override=own or None)
+        except meshy.MeshyError as e:
+            st.error(str(e))
+            return
+        st.caption(f"Nguồn: {plan['source'] or '—'} · ước {plan['credits']} credit (≈ \\${plan['usd']}) + gắn khung xương "
+                   f"{meshy.CREDITS['rig']} credit · lần dựng {meshy.tries(p.conn, aid)}/{meshy.MAX_TRIES_PER_CHARACTER}")
+        for prob in plan["problems"]:
+            st.warning(prob)
+        keep = []
+        if plan["views"]:
+            cols = st.columns(len(plan["views"]))
+            for k, (col, v) in enumerate(zip(cols, plan["views"])):
+                col.image(v["image"], caption=v["view"], use_container_width=True)
+                if col.checkbox("gửi", True, key=f"meshy_v{aid}_{k}"):
+                    keep.append(k)
+        st.caption("Câu texture: " + ("bạn tự viết." if plan["texture_by_person"] else "lấy từ hồ sơ chuẩn.") + " Đang gửi:")
+        st.code(plan["texture_prompt"], language=None)
+        st.text_area("Tự viết câu texture (để trống = lấy từ hồ sơ; dùng cho skin hồ sơ chưa tả, vd Wolfrahh đồ trắng)", key=f"meshy_tp{aid}",
+                     max_chars=meshy.TEXTURE_PROMPT_MAX)
+        ok = st.checkbox(f"Tôi đồng ý trả ≈ {plan['credits']} credit cho lần dựng này", key=f"meshy_ok{aid}")
+        if st.button("▶ Dựng 3D (Meshy)", key="meshy_go", type="primary",
+                     disabled=not (client and ok and keep and not plan["problems"] and keep and keep[0] == 0)):
+            try:
+                r = meshy.submit_model(p.conn, client, plan, view_ids=keep)
+                st.success(f"Đã gửi — mã việc {r['task_id']}. Bấm 🔄 để cập nhật (thường vài phút).")
+            except meshy.MeshyError as e:
+                st.error(str(e))
+        if keep and keep[0] != 0:
+            st.caption("Ảnh đầu gửi đi phải là mặt trước (Meshy lấy ảnh đầu làm mặt chính).")
+        rows = meshy.tasks(p.conn, aid)
+        if rows:
+            if st.button("🔄 Cập nhật + tải về", key="meshy_refresh", disabled=not client):
+                for n in meshy.refresh(p.conn, client):
+                    st.caption(n)
+            for r in rows:
+                st.markdown(f"**#{r['id']} · {r['kind']}** · {r['status']} · {r['credits'] if r['credits'] is not None else '≈' + str(r['credits_est'])}"
+                            f" credit · {r['created_at']} UTC" + (f" · `{r['folder']}`" if r["folder"] else "") +
+                            (f" · ⚠ {r['error']}" if r["error"] else ""))
+                if r["kind"] == "model" and r["status"] == "DOWNLOADED":
+                    c1, c2 = st.columns(2)
+                    if c1.button("📥 Ảnh 4 hướng vào hộp chờ duyệt", key=f"meshy_lib{r['id']}"):
+                        res = meshy.views_to_library(p.conn, r["id"])
+                        st.success(f"Thêm {len(res['added'])} ảnh (chờ duyệt)." + (f" Bỏ qua: {res['skipped']}" if res["skipped"] else ""))
+                    if c2.button(f"🦴 Gắn khung xương (≈ {meshy.CREDITS['rig']} credit)", key=f"meshy_rig{r['id']}", disabled=not client):
+                        try:
+                            rr = meshy.submit_rig(p.conn, client, r["id"])
+                            st.success(f"Đã gửi gắn khung xương — mã việc {rr['task_id']}.")
+                        except meshy.MeshyError as e:
+                            st.error(str(e))
+
+
 def asset_library_panel(p: Pipeline) -> None:
     """Settings: the shared resource library (people with the Kho tài nguyên right)."""
     catalog = subjects.games()
@@ -339,6 +425,7 @@ def asset_library_panel(p: Pipeline) -> None:
     library_review_box(p, game)
     library_health(p, game)
     plates3d_panel(p, game)
+    meshy_panel(p, game)
     with st.expander("🔄 Nguồn đồng bộ: thư mục tài nguyên (cập nhật kho bằng 1 cú bấm hoặc tự động)", expanded=not assets.list_sources(p.conn, game)):
         st.caption("Chọn một thư mục trên máy chạy Dashboard chứa ảnh (ví dụ thư mục đang đồng bộ với Google Drive). Kho sẽ giống thư mục đó: "
                    "ảnh mới được thêm, ảnh sửa được cập nhật, ảnh trùng không bị thêm hai lần; tên, mô tả bạn đã sửa trong Dashboard **không bị ghi đè**. "

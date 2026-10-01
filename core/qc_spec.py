@@ -19,7 +19,9 @@ SIZES = ("ECU", "CU", "MCU", "MS", "MLS", "LS", "WS", "EWS")
 _SIDE = re.compile(r"\b(LEFT|RIGHT)\b", re.I)
 _ARM_HEAD = re.compile(r"\b(LEFT|RIGHT)\s+(arm|hand|side|leg)\s*:", re.I)
 _HEADWEAR = re.compile(r"([\w\s-]{0,30}\b(?:cap|hat|helmet|hood|bandana|beanie)\b[^,;.]*?\b(?:backwards?|reversed|ngược)\b[^,;.]*)", re.I)
-_LOOK = re.compile(r"\blook(?:s|ing)?\s+(?:off\s+)?(?:toward|towards|at|to)\s+([^,;.]+)", re.I)
+# GĐ3 01/10: "looking off-screen frame-left toward Maxim" (#8 job 352) did not match the old pattern → no gaze assertion
+_LOOK = re.compile(r"\blook(?:s|ing)?\s+((?:off[- ]?(?:screen|frame)\s+)?(?:frame[- ](?:left|right)\s+)?(?:toward|towards|at|to)\s+[^,;.]+"
+                   r"|off[- ]?(?:screen|frame)\s+(?:frame[- ])?(?:left|right)\b[^,;.]*|off\s+(?:toward|towards|at|to)\s+[^,;.]+)", re.I)
 
 
 def view_of(data: Dict, name: str) -> Optional[str]:
@@ -96,7 +98,7 @@ def compile_frame(conn, project_id: int, frame_job: int, data: Dict, profiles: O
     missing = []
     has_dialogue = bool([d for d in data.get("dialogue") or [] if isinstance(d, dict) and str(d.get("text") or "").strip()])
     out.append(_a(frame_job, "count", ",".join(cast) or "-", f"Trong khung có đúng {len(cast)} người: {', '.join(cast) or 'không ai'}",
-                  f"Exactly {len(cast)} people are visible: {', '.join(cast) or 'nobody'}. Is that true?", len(cast), "code+model", "block",
+                  f"Exactly {len(cast)} people are visible: {', '.join(cast) or 'nobody'}. Is that true? Also report `extra_people`.", len(cast), "code+model", "block",
                   "characters"))
     for name in cast:
         prof = (profiles or {}).get(name) if profiles is not None else (assets.standard_for(conn, project_id, name) if conn else None)
@@ -118,16 +120,13 @@ def compile_frame(conn, project_id: int, frame_job: int, data: Dict, profiles: O
             key = detail.split(":")[-1].strip().split(" ")[-1].lower()
             sev = "block" if (key and key in forbidden) or re.search(r"glove|gauntlet|emblem|găng|huy hiệu", detail, re.I) else "minor"
             out.append(_a(frame_job, "asym", name, f"{name}: {detail} — ở tay/bên {side} của CHÍNH {name}",
-                          f"On {name}'s OWN body (not the frame edge), is this detail on {name}'s {side} side: {detail}? "
-                          f"Answer false if it is on the other side; unclear if it cannot be seen.", side, "code+model", sev,
+                          f"Where do you SEE this detail of {name} in the picture: {_SIDE.sub('one', detail)}? Report `facing` and "
+                          f"`seen_at` only (the side is decided by code).", side, "code+model", sev,
                           "profile.must_keep", view))
-        for hw in headwear_details(prof.get("must_keep")):
-            if view == "behind":
-                claim, q = (f"{name} quay lưng: thấy lưỡi trai che gáy (mũ đội ngược)",
-                            f"{name} is seen from behind. Is the cap's brim visible over the back of the neck ({hw})?")
-            else:
-                claim, q = (f"{name}: khóa / dây mũ ở trán, lưỡi trai hướng ra sau (mũ đội ngược)",
-                            f"Is {name}'s cap worn backwards — strap/buckle over the forehead, brim pointing back ({hw})?")
+        for _hw in headwear_details(prof.get("must_keep")):
+            claim = (f"{name} quay lưng: thấy lưỡi trai che gáy (mũ đội ngược)" if view == "behind"
+                     else f"{name}: khóa / dây mũ ở trán, lưỡi trai hướng ra sau (mũ đội ngược)")
+            q = f"Look at {name}'s cap: what do you SEE at the forehead and at the nape? Report `cap_marks` only (the direction is decided by code)."
             out.append(_a(frame_job, "headwear", name, claim, q, True, "model", "block", "profile.must_keep", view))
     blocking = str(data.get("blocking") or "")
     for name in cast:
@@ -158,5 +157,11 @@ def compile_frame(conn, project_id: int, frame_job: int, data: Dict, profiles: O
         out.append(_a(frame_job, "skill", cast[0] if cast else "-", f"Kỹ năng đúng giai đoạn {data['skill_phase']}",
                       f"Does the skill effect match phase {data['skill_phase']} of the skill dossier (and none of its never-draw items)?",
                       str(data["skill_phase"]), "model", "block", "skill_phase"))
+    # GĐ3 01/10: for sides, cap direction and head count the model reports what it SEES (fixed choices) and qc_rules decides
+    close = str(data.get("size") or "").upper() in ("ECU", "CU", "MCU", "MS")
+    for a in out:
+        obs = {"asym": "side", "headwear": "cap", "count": "count"}.get(a["type"])
+        if obs:
+            a.update(observe=obs, cast_n=len(cast), close=close)
     out.sort(key=lambda a: (a["priority"], a["subject"]))
     return {"assertions": out, "plan_conflicts": plan_conflicts(data), "missing_profiles": missing}

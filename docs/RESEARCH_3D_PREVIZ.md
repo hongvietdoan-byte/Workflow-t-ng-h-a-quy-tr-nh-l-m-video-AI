@@ -36,3 +36,40 @@ Bàn đạo diễn nhiều khả năng làm được phần lớn luồng này *
 
 ## Nhật ký
 - 2026-09-23: khởi tạo file từ trao đổi phiên rà soát; chưa thử nghiệm gì. Máy cloud của Claude bị chặn Sketchfab, Meshy docs, Dreamina, BytePlus — phải tải/thử trên máy người dùng.
+- 2026-10-01: **Nối API Meshy (code xong, 0 credit).** Lý do: Tổ QC GĐ3 cho thấy Claude không nhận ra trái/phải trong ảnh (đúng ~50 %) →
+  mô hình 3D cố định bên của mọi chi tiết, render hướng nào cũng đúng → ảnh chuẩn sau lưng / nghiêng cho shot quay lưng + QC so ảnh cùng
+  hướng. Người dùng duyệt: được phép đưa ảnh nhân vật lên Meshy (tài khoản Pro, credit gói tháng), trần đợt **150 USD / 3 nhân vật**, lưu
+  `data/models3d/`, có gắn khung xương; mã API người dùng tự `setx MESHY_API_KEY` (không qua chat).
+  Tài liệu chính thức đã đọc: quick-start, image/multi-image to 3D, rigging, pricing (3D có texture 30, rig 5 credit; lỗi hoàn credit),
+  balance, rate limits (Pro 20 req/s, 10 việc cùng lúc), file giữ 3 ngày. Code: `core/meshy.py` (sổ `meshy_tasks` ghi TRƯỚC khi gửi;
+  trần mỗi lần 40 credit, mỗi nhân vật 3 lần dựng, trần đợt USD theo `MESHY_USD_PER_CREDIT` mặc định 0,02; số dư đọc trước khi gửi, không
+  đọc được → không gửi; mất kết nối khi gửi → UNKNOWN, tính tiền, không tự gửi lại; tải file ngay khi xong; 4 ảnh render của Meshy →
+  hộp chờ duyệt của Kho với vai trò toàn thân / sau lưng / nghiêng), `core/sheet_views.py` (cắt ô TURNAROUND của bảng thiết kế thành 4
+  ảnh trước / ¾ / nghiêng / sau, bỏ chữ; hình dính nhau → không đoán), dashboard ⚙ → Kho → **🧍 Nhân vật 3D**, launcher đọc
+  `MESHY_API_KEY`. Test `tests/test_meshy.py` 12 (máy chủ giả). Đã xem bằng mắt: cắt Kelly + Maxim sạch; khung chạy trên dashboard demo.
+  **Bảng thiết kế trong Kho:** Kelly khớp hồ sơ → dùng được; Maxim áo da đen ≠ hồ sơ (bạc xám — người dùng: hồ sơ đúng) → cần bảng mới;
+  Kenta là ngoại hình cũ trước OB55 (bị cấm) → người dùng gửi thêm ảnh, Deepix vẽ bảng xoay OB55 (việc còn từ 24/09). Ảnh cắt từ bảng
+  1536×1024 chỉ ≈ 160×420 px/hình — bảng mới nên vẽ riêng 4 hình, ảnh lớn.
+- 2026-10-01 (tiếp): **Người dùng gửi ảnh in-game nhiều góc** → không cần Deepix vẽ bảng: Maxim (trước / nghiêng / sau — áo da bạc xám đúng
+  hồ sơ; lưng áo có hình mũ bảo hiểm xanh nứt, mặt trước mũ có logo sao — hồ sơ chưa ghi, chờ người dùng quyết có thêm không), Kenta OB55
+  (trước / nghiêng trái / sau / nghiêng phải — găng giáp + sao bên TRÁI, băng + găng hở ngón bên PHẢI, khớp hồ sơ), **Wolfrahh đồ trắng**
+  (skin — biến thể "đồ trắng (in-game)" của #59, hồ sơ #59 chưa có; quần trắng in cánh đen: chân TRÁI cánh ở đùi, chân PHẢI cánh ở cẳng).
+  Đã cắt bỏ huy hiệu "Lv. / Phần Thưởng", đưa vào Kho **chờ duyệt** (vai trò toàn thân / nghiêng / sau, nhóm biến thể riêng). Meshy chọn
+  ảnh theo thứ tự: bộ ảnh Kho đã duyệt cùng một nhóm (trước + nghiêng/sau, ≤ 4, mặt trước đầu) → cắt bảng → 1 ảnh chính diện; câu texture
+  người tự viết được (skin hồ sơ chưa tả) — khi đó không cần hồ sơ duyệt.
+- 2026-10-01 (chạy thật, người dùng yêu cầu tự động hết): **4 nhân vật có mô hình 3D + khung xương** trong `data/models3d/` — Kelly (cắt
+  bảng #25), Maxim (3 ảnh in-game), Kenta OB55 (4 ảnh in-game), Wolfrahh đồ trắng (4 ảnh in-game, câu texture tự viết). Tổng **215 credit**
+  (dựng 30 × 5 lần, giảm lưới 5 × 5, gắn khung xương 5 × 6, tô lại 10), còn 1 285. Bài học: (1) mô hình Meshy ra 1,0–1,8 triệu mặt → gắn
+  khung xương bị từ chối (≤ 320 000) → phải **giảm lưới (150 000) trước**; (2) Meshy chỉ trả 1 ảnh mặt trước → render 6 hướng bằng Blender
+  trên máy (`tools/render_character_views.py`, 0 credit) để kiểm và làm ảnh chuẩn; (3) **câu texture có chữ LEFT/RIGHT làm Meshy lẫn bên** —
+  Kenta lần 1: băng vải tay phải thành giáp; **tô lại texture không sửa được hình khối** (còn làm găng tay trái thành hở ngón) → dựng lại với
+  câu KHÔNG có chữ trái/phải ("một cẳng tay quấn băng… tay kia găng giáp…", để ảnh quyết bên) → đúng. Kiểm bằng render: chi tiết hai bên
+  đúng bên ở cả 4 (Maxim thiếu hình lưng áo — hồ sơ chưa ghi). 24 ảnh render 6 hướng (Kenta bản v2) đã vào Kho **đã duyệt** (người dùng);
+  4 ảnh mặt trước Meshy tự tạo ("3D Meshy") để chờ duyệt (thừa).
+- 2026-10-01 (nối vào pipeline, 0 credit): ảnh chuẩn theo **hướng của từng người** trong shot (`assets.shot_roles(scene, name)` đọc
+  `runner.seen_from_behind` — shot qua vai X chỉ X quay lưng; shot "from behind" không nêu tên = cả nhóm; chữ profile / nghiêng → ảnh
+  nghiêng) cho cả 2 đường gửi ảnh: chọn tự động và **bộ 3 ảnh chuẩn** (model nhận bảng — ảnh hướng đó chèn ngay sau ảnh chính diện).
+  **Skin:** ảnh có variant "skin: …" (Wolfrahh đồ trắng, 10 ảnh đã đổi nhãn) không bao giờ được chọn tự động — chỉ qua "trang phục" của dự
+  án (trước khi sửa: 6 render đồ trắng vai trò toàn thân đã có thể lọt vào dự án dùng Wolfrahh đồ vàng). **QC (C1):** cảnh có người quay
+  lưng → thêm "ảnh chuẩn nhìn từ SAU LƯNG" của người đó (`assets.view_picture`). Kiểm trên #8 (chỉ đọc): job 319 Kenta quay lưng → ảnh sau
+  lưng in-game của Kenta; job 324 Maxim quay lưng → ảnh sau lưng Maxim; shot quay mặt giữ ảnh chính diện.

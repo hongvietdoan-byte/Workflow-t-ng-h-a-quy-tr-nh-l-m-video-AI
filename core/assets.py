@@ -551,20 +551,43 @@ def shot_size(scene: Optional[Dict]) -> Optional[str]:
     return None
 
 
-def shot_roles(scene: Optional[Dict]) -> List[Optional[str]]:
+SKIN_PREFIX = "skin:"      # a picture's variant "skin: …" = another outfit (01/10 Wolfrahh in white): only used when the project picks it
+
+
+def is_skin(img: Dict) -> bool:
+    return str(img.get("variant") or "").strip().lower().startswith(SKIN_PREFIX)
+
+
+_SIDE_WORDS = ("profile", "side view", "from the side", "nghiêng", "góc nghiêng")
+
+
+def shot_roles(scene: Optional[Dict], name: Optional[str] = None) -> List[Optional[str]]:
     """T3: which kind of character picture suits the shot, best first (None = a picture whose role nobody set).
-    A close shot needs a face the model can copy; a wide shot the whole figure; a back-to-camera shot a back view."""
+    A close shot needs a face the model can copy; a wide shot the whole figure; a back-to-camera shot a back view. With `name`, the
+    back / front is read for THAT person (runner.seen_from_behind — an over-the-shoulder shot shows one person's back, not everyone's);
+    a profile shot puts the side pictures first (01/10: 3D renders of every side are in the library)."""
     size = shot_size(scene)
     order: List[Optional[str]] = (["close_up", "half_body", None, "full_body"] if size in _CLOSE else
                                   ["full_body", None, "half_body", "close_up"] if size in _WIDE else
                                   ["half_body", None, "full_body", "close_up"])
     text = fold(" ".join(str((scene or {}).get(k) or "") for k in ("blocking", "action", "shot", "image_prompt")))
-    if any(fold(w) in text for w in _BACK_WORDS):
+    behind = None
+    if name and scene:
+        from .runner import seen_from_behind
+        behind = seen_from_behind(scene, name)
+    back_words = any(fold(w) in text for w in _BACK_WORDS)
+    who = fold(name or "")
+    # "Kelly quay lưng …" (the back words within 40 letters after the name) — seen_from_behind reads only the English patterns
+    near = bool(who) and any(re.search(re.escape(who) + r".{0,40}" + re.escape(fold(w)), text) for w in _BACK_WORDS)
+    # seen_from_behind says False also when the words do not name this person: a "from behind" shot that names nobody is everyone's back
+    if behind is True or near or (back_words and (behind is None or who not in text)):
         order = ["back"] + order
-    return order + ["side", "skill_pose"]
+    elif any(fold(w) in text for w in _SIDE_WORDS):
+        order = ["side"] + order
+    return order + [r for r in ("side", "skill_pose") if r not in order]
 
 
-def best_references(asset: Dict, limit: int = 1, scene: Optional[Dict] = None) -> List[Dict]:
+def best_references(asset: Dict, limit: int = 1, scene: Optional[Dict] = None, name: Optional[str] = None) -> List[Dict]:
     """The `limit` pictures that work best as a reference, for `asset["kind"]`:
     - character/pet: single-figure shots (portrait/full-body), a composite sheet only as a last resort — one straight-on shot rarely
       pins down a face well, so a second angle or a close-up is included when available.
@@ -575,9 +598,10 @@ def best_references(asset: Dict, limit: int = 1, scene: Optional[Dict] = None) -
         return []
     kind = asset.get("kind")
     if kind in ("character", "pet"):
-        singles = [i for i in images if i.get("role") not in ("design_sheet", "related") and not _is_composite_sheet(_shape(i["path"]))]
-        pool = singles or [i for i in images if i.get("role") != "related"] or images
-        prefs = ["front_standard"] + shot_roles(scene)          # the person's grey-background front picture always leads
+        own = [i for i in images if not is_skin(i)] or images       # another outfit only through the project's outfit choice
+        singles = [i for i in own if i.get("role") not in ("design_sheet", "related") and not _is_composite_sheet(_shape(i["path"]))]
+        pool = singles or [i for i in own if i.get("role") != "related"] or own
+        prefs = ["front_standard"] + shot_roles(scene, name)          # the person's grey-background front picture always leads
         want_look = (scene or {}).get("_look")                 # the project's look: its standard pictures first (T6)
 
         def score(img):
@@ -601,6 +625,13 @@ def best_references(asset: Dict, limit: int = 1, scene: Optional[Dict] = None) -
     else:
         ranked = images
     return ranked[:max(limit, 1)]
+
+
+def view_picture(asset: Dict, role: str) -> Optional[Dict]:
+    """The approved picture of one side (role back / side / full_body) of the character's own outfit, the biggest — for QC to compare a
+    frame with the same side of the standard (01/10: 3D renders + in-game screenshots of every side)."""
+    pics = [i for i in asset.get("images") or [] if i.get("role") == role and not is_skin(i)]
+    return max(pics, key=lambda i: (lambda s: s[0] * s[1] if s else 0)(_shape(i["path"])), default=None)
 
 
 def best_reference(asset: Dict) -> Dict:
@@ -628,7 +659,8 @@ def standard_set(asset: Dict, sheets: bool) -> List[tuple]:
     return out
 
 
-def _chosen_images(asset: Dict, row: Dict, limit: int = MAX_REFS_PER_CHARACTER, scene: Optional[Dict] = None) -> List[Dict]:
+def _chosen_images(asset: Dict, row: Dict, limit: int = MAX_REFS_PER_CHARACTER, scene: Optional[Dict] = None,
+                   name: Optional[str] = None) -> List[Dict]:
     """The pictures to use for this asset: the person's explicit multi-picture choice, else their single-picture choice, else the
     automatic pick (up to `limit`)."""
     by_id = {img["id"]: img for img in asset["images"]}
@@ -640,7 +672,7 @@ def _chosen_images(asset: Dict, row: Dict, limit: int = MAX_REFS_PER_CHARACTER, 
             return chosen
     if row.get("ref_image_id") in by_id:
         return [by_id[row["ref_image_id"]]]
-    return best_references(asset, limit, scene)
+    return best_references(asset, limit, scene, name)
 
 
 def link_characters(conn, project_id: int, names: List[str], scene: Optional[Dict] = None) -> Dict[str, Optional[Dict]]:
@@ -662,7 +694,7 @@ def link_characters(conn, project_id: int, names: List[str], scene: Optional[Dic
         else:
             asset = match_character(chosen, n)
         if asset is not None:
-            imgs = _chosen_images(asset, row, scene=scene)
+            imgs = _chosen_images(asset, row, scene=scene, name=n)
             asset = dict(asset, ref=imgs[0], refs=imgs)
         out[n] = asset
     return out
@@ -902,7 +934,11 @@ def scene_references(conn, project_id: int, scene: Dict, limit: int = MAX_REFERE
         standard = standard_set(a, sheets) if a and sheets and not chosen_by_hand else []
         if standard:                               # the standard 3 pictures: front (identity + true colors), sheet, related
             own = [(img["path"], role) for img, role in standard]
-            caps.append(len(STANDARD_ROLES))
+            side = shot_roles(scene, name)[0]
+            seen_pic = view_picture(a, side) if side in ("back", "side") else None
+            if seen_pic:                           # 01/10: the shot shows this person's back / side → that side right after the front
+                own.insert(1, (seen_pic["path"], "character"))
+            caps.append(len(STANDARD_ROLES) + (1 if seen_pic else 0))
         else:
             own = [(img["path"], "character") for img in (a["refs"] if a else [])]
             caps.append(MAX_REFS_PER_CHARACTER)

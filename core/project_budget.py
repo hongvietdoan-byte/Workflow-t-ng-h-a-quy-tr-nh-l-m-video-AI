@@ -105,6 +105,9 @@ def remaining(p, pid: int) -> Dict[str, float]:
     qc = cost.llm_estimate(conn, "qc", cost._picture_qc_calls(conn, pid, n_img) + est["counts"]["clips"], pricing, images=2) or 0.0
     if n_img and qc_agent.enabled():
         qc += sum(qc_agent.scene_cap(n) for n in _frames_per_scene(conn, pid)) if qc_scene.enabled() else 0.0
+    from . import qc_team
+    if n_img and qc_team.enabled() and qc_scene.enabled():
+        qc += qc_team.FRAME_USD * n_img * (1 + IMAGE_REDO)
     return {"images": round((est["images"] or 0.0) * (1 + IMAGE_REDO), 2),
             "videos": round(vid * (1 + VIDEO_REDO), 2),
             "claude_director": 0.0 if director_done else round((cost.llm_estimate(conn, "director", 1, pricing) or 0.0) * LLM_MARGIN, 2),

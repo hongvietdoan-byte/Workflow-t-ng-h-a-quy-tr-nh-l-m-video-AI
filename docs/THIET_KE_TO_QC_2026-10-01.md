@@ -529,3 +529,59 @@ gợi ý. Ra `data/qc_golden/prefilter.json` + `prefilter.csv` (ngoài git — c
   dây-khóa / không thấy"; trái/phải → "chi tiết X ở nửa TRÁI hay PHẢI của ẢNH so với mặt / đầu người đó" (hoặc "cùng phía ẢNH với ảnh chuẩn
   hay ngược"), code đổi chiều theo hướng máy (YuNet thấy mặt = quay mặt). Sửa (a)(b)(c) + replay 0 USD; rồi chạy lại GĐ3 ≈ 0,6 USD. Nếu
   trái/phải vẫn sai khi model chỉ khai vị trí trong ảnh → theo quyết định 19a hỏi lại Pose.
+
+**01/10 — Sửa sau GĐ3 (người dùng duyệt hướng "model khai quan sát, code áp luật"; 0 USD):**
+- **3 lỗi code:** (a) mệnh đề vai khác (vd hướng nhìn C2) mà code đã **chắc** thì vẫn tính vào kết luận khung (`qc_team.review_frame` +
+  `qc_rules`: không có câu trả lời model mà code chắc → dùng kết quả code); (b) `_LOOK` nhận "looking off-screen frame-left toward…",
+  "looking off-frame right", "looks off toward…"; (c) trần token C1 400 + 170 / mệnh đề. **Chạy lại từ bản ghi GĐ3 (0 USD,
+  run `20261001-113214`):** job 325 bị chặn đúng nhờ số đo hướng nhìn → mọi loại bắt 6/8 (trước 5/8); job 352 nay có mệnh đề hướng
+  nhìn nhưng mống mắt đo "trái, độ chắc vừa" — ngược nhãn người (đồng tử lệch phải) → chưa bắt; ghi lại để chỉnh ngưỡng / cách đo ở C2.
+- **Model khai, code kết luận** (`qc_spec` gắn `observe` cho `asym` / `headwear` / `count`; `qc_team.ANSWER_SCHEMA` thêm 4 ô chọn sẵn;
+  `qc_rules.observed` / `own_side`): trái/phải → `facing` (front / back / profile_facing_image_left / _right, theo THÂN) + `seen_at`
+  (nửa trái / phải ẢNH của thân; nghiêng hẳn: near_side / far_side) → code đổi ra bên của chính người đó; khung 1 người mà model khai
+  "back" khi YuNet thấy mặt (hoặc "front" cận cảnh mà không thấy mặt) → chưa chắc. Mũ → `cap_marks` (ở trán / ở gáy thấy gì) → code:
+  khóa ở trán hoặc lưỡi trai ở gáy = đội ngược. Số người → `extra_people`; người thừa chỉ lộ một phần / mờ phía sau = **nhỏ** (#8 323, 326).
+  Câu hỏi gửi model **không còn nói bên đúng** (chữ LEFT/RIGHT thay bằng "one", không gửi mệnh đề / hướng máy của bảng shot cho các mục
+  khai); `answer` của model giữ lại để đối chiếu, không dùng. Test: `tests/test_qc_team.py` 27. Chạy khô 33 khung #8 (client giả trả "na"):
+  33 yêu cầu dựng được, 207 mục khai, 0 câu lộ chữ bên.
+- **Chờ người dùng:** GĐ3 lần 2 ≈ 0,7 USD (LENH_TON_TIEN_CHO_DUYET #11; trần Claude đợt thử còn 0,65 → nâng +0,5).
+
+**01/10 — GĐ3 lần 2 (model khai, code kết luận; người dùng chạy; run `20261001-115335`, 0,653 USD = 0,020 USD / khung, 33/33 khung):**
+- **Số:** Nhân vật bắt 6/7, mọi loại 7/9; **báo nhầm 13/24 (54 %)**, doubt 18,2 % → vẫn không qua cổng.
+- **Mũ — đã đúng:** 5/5 khung mũ Maxim đội xuôi (324, 330, 332, 333, 356) bị chặn **đúng lý do** (khai "dây/khóa ở gáy" → code kết luận
+  đội xuôi), lần 1 không bắt được khung nào vì đúng lý do. 1 báo nhầm: 323 (Maxim quay mặt, khóa ở trán — model khai "ở gáy").
+- **Người thừa một phần → nhỏ:** đúng ở 323, 325, 356; 326 model vẫn khai "clear" (Kenta lộ nửa người mép trái) → còn chặn.
+- **Trái/phải — vẫn sai, cả khi chỉ khai vị trí:** kiểm bằng mắt 322, 337 (quay mặt, đúng hồ sơ: tay băng ở TRÁI ảnh, găng giáp + sao ở
+  PHẢI ảnh) — model khai ngược (tay áo đen "image_right_of_body", sao "image_left_of_body") ở 322 / 328 / 331 / 337 / 341 / 350; khung
+  quay lưng (319, 323) cũng khai sai nửa ảnh. Nghi một phần do tên ô `image_right_of_body` bị hiểu thành "bên phải của thân", nhưng khung
+  quay lưng sai cả hai cách hiểu → **model không định vị được chi tiết trái/phải trong ảnh** đủ tin để tự chặn.
+- **Tính lại không tốn tiền (bỏ mệnh đề trái/phải khỏi tự chặn):** báo nhầm **2/24 = 8,3 %** (qua cổng), doubt 0 %, Nhân vật bắt 5/7
+  (sót 347, 350 — chính là 2 lỗi trái/phải). → phần còn lại của C1 (đúng người, mũ, số người) dùng được; trái/phải cần cách khác.
+- **Theo quyết định 19a: hỏi lại người dùng** (Pose hoặc cách khác) — xem TODO.
+
+**01/10 — Việc 3: trang gắn nhãn bộ độc lập (thay trang ảnh cũ không mở được từ phiên này):** https://claude.ai/artifact/GhovWc4sPSQe3GciCAoKs1
+("Bàn soát khung QC", riêng tư). 134 khung (ảnh thu nhỏ nhúng sẵn) + gợi ý của bước lọc trước (`qc_prefilter.py`) + người trong shot /
+cỡ / giờ / blocking; nút Đạt / Nhỏ / Chặn, loại lỗi, ghi chú, "✓ Đúng gợi ý"; lưu ngay vào CSDL của trang (bộ sưu tập `labels`, mã khung
+`P<dự án>-J<job>` → {label, category, note, shot, at}). Khung có gợi ý độ tin **cao** (= chính người dùng từng loại ảnh kèm lý do, 17 khung)
+tính là đã xác nhận nếu không sửa. Đọc về: `ArtifactData list labels` → gộp với 17 khung độ tin cao → `data/qc_golden/independent.json`
+(định dạng `qc_golden.independent_set`). Google Sheet cũ giữ làm dự phòng.
+
+**01/10 — Bộ độc lập đã gắn nhãn (người dùng, trên trang Bàn soát khung QC):** `data/qc_golden/independent.json` (ngoài git; bản gốc còn trong
+CSDL trang): 117 nhãn chọn trên trang + 17 theo quyết định loại ảnh cũ = 134. **Chặn 118 · Nhỏ 10 · Đạt 6.** Loại lỗi của khung không đạt:
+trống 64, Nhân vật 36, Bối cảnh / kiến trúc 16, Liền mạch / ánh sáng 5, Kỹ thuật 4, Khác 2, Hướng nhìn 1.
+- **Gợi ý tự động của bước lọc trước đúng ít:** độ tin "thấp" đúng 22 / 70, "vừa" đúng 15 / 23 → nhiều khung từng được duyệt nay người dùng
+  chấm Chặn (chuẩn đã nâng lên so với lúc làm các dự án cũ).
+- **Hệ quả cho việc đo:** recall đo tốt (118 khung chặn); **báo nhầm chỉ có 16 khung không chặn để đo** → con số báo nhầm sẽ dao động lớn;
+  64 khung chặn chưa ghi loại lỗi → chưa đo được recall riêng từng chuyên viên (C1 chỉ chịu "Nhân vật").
+
+**01/10 — Quyết định người dùng: dừng đo Tổ QC trên dự án cũ.** Các dự án cũ sai sót nhiều (118 / 134 khung Chặn) nên khó dùng để đánh giá;
+không ghi thêm loại lỗi, không chạy C1 trả tiền trên bộ độc lập. **Hướng tiếp:** áp dụng Tổ QC trên các dự án mới rồi sửa dần theo kết quả
+thật (cổng nghiệm thu đo trên dự án mới). Bộ độc lập + bộ phát triển #8 giữ lại để chạy lại offline khi sửa code.
+
+**01/10 — Bật thử Tổ QC trong pipeline (người dùng):** cờ `qc_team` nối vào lớp 1 của QC theo cảnh (`qc_scene.run_ready_scenes` →
+`qc_team.review_scene`): mỗi khung 1 lời gọi C1 có cấu trúc + tầng 0 + bảng luật; **mọi khung chờ người duyệt** với ghi chú
+"Tổ QC (thử, chưa nghiệm thu): <kết luận> · <lỗi> · trái/phải cần người xem (n)"; không tự duyệt / vẽ lại; kết quả trong
+`qc_scene/team.json`; cùng bộ ảnh không chấm lại. **Trái/phải không bao giờ tự chặn** (`qc_rules.SIDE_CAN_BLOCK = False`) — lỗi mức nhỏ
+"cần người xem". Kiểm trần tiền dự án trước mỗi cảnh (stage claude_qc), ước tính 0,03 USD / khung trong `cost.estimate_run` và đề xuất
+ngân sách dự án. `FEATURE_QC_TEAM=1` đã thêm vào dashboard.env (sao lưu data/backup_dashboard.env.before_qc_team_2026-10-01) — cần mở
+lại Dashboard. Test `tests/test_qc_team_pipeline.py` 3; toàn bộ 1652 qua.

@@ -26,7 +26,7 @@
       "code": ["core/place_refs.py", "core/skill_dossier.py", "tools/skill_dossier_build.py", "tools/asset_polish.py", "core/layout.py", "core/previz.py", "core/animatic.py", "core/story_check.py", "core/scene_storyboard.py", "core/storyboard_frames.py", "core/storyboard_gate.py", "core/end_frames.py", "core/image_models.py", "core/autoqc.py", "core/qc_scene.py", "core/qc_agent.py", "core/experience.py", "core/qc_spec.py", "core/qc_measure.py", "core/qc_rules.py", "core/qc_team.py", "core/qc_golden.py", "core/llm_sources.py", "core/qc_policy.py", "core/looks.py", "core/costume.py", "core/adapters/deepix.py", "core/runner.py", "dashboard/steps/step2.py"],
       "assets": ["prompts/02_*", "prompts/07_*", "prompts/08_*", "prompts/09_*", "prompts/13_*", "prompts/21_*", "prompts/14_*", "data/qc_checklist.json", "knowledge/ai_image_failure_modes.md", "knowledge/character_lock.md", "knowledge/set_consistency_qa.md", "tools/experiments/storyboard_test.py"],
       "docs": ["docs/PHAN_TICH_LOI_GD6_2026-09-24.md", "docs/THIET_KE_LAI_QC_VA_KET_NOI_2026-09-27.md", "docs/RA_SOAT_CLAUDE_KY_NANG_2026-09-27.md"],
-      "tests": ["tests/test_place_refs.py", "tests/test_skill_dossier.py", "tests/test_experience.py", "tests/test_qc_team.py", "tests/test_qc_prefilter.py"],
+      "tests": ["tests/test_place_refs.py", "tests/test_skill_dossier.py", "tests/test_experience.py", "tests/test_qc_team.py", "tests/test_qc_prefilter.py", "tests/test_meshy.py", "tests/test_qc_team_pipeline.py"],
       "flags": ["place_render_refs", "skill_dossier", "qc_team", "layout_to_model", "chain_previous_auto", "storyboard_api", "scene_establishing", "scene_qc", "scene_qc_claude", "scene_qc_trusted", "qc_agent", "end_frames", "storyboard_auto_trust", "setcheck_autofix", "profile_digest"],
       "diag_stages": ["previz", "image", "qc"],
       "keywords": ["ảnh", "QC", "storyboard", "Deepix", "layout", "previz", "khung cuối", "end_frame", "autoqc"]
@@ -114,7 +114,7 @@
       "name": "Gói bối cảnh 3D",
       "weight": 0.8,
       "description": "Mô hình 3D → ảnh nền (Blender), máy ảo theo shot, giờ/thời tiết, ghép phông xanh, kiểm nền.",
-      "code": ["core/whitebox.py", "core/location_pack.py", "core/plates3d.py", "core/plate_camera.py", "core/plate_choice.py", "core/plate_env.py", "core/plate_qc.py", "core/composite.py"],
+      "code": ["core/whitebox.py", "core/location_pack.py", "core/plates3d.py", "core/plate_camera.py", "core/plate_choice.py", "core/plate_env.py", "core/plate_qc.py", "core/composite.py", "core/meshy.py", "core/sheet_views.py"],
       "assets": ["tools/location_pack.py", "tools/render_plates.py", "tools/experiments/tower_plate.py"],
       "docs": ["docs/HUONG_DAN_3D.md", "docs/RESEARCH_3D_PREVIZ.md", "docs/BAN_GIAO_2026-09-25_THAP_VA_KHOP_MOI.md"],
       "tests": ["tests/test_whitebox.py", "tests/test_tower_pack.py"],

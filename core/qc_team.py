@@ -15,9 +15,10 @@ from typing import Dict, List, Optional
 
 C1_MODEL_EDGE = 768           # the frame
 CROP_EDGE = 384               # face crops / case pictures
-C1_MAX_TOKENS_BASE = 300
-C1_TOKENS_PER_ASSERTION = 110
+C1_MAX_TOKENS_BASE = 400
+C1_TOKENS_PER_ASSERTION = 170   # GĐ3 01/10: 300 + 110 × 13 cut job 333 (max_tokens is not part of the replay key)
 CASES_SHOWN = 4
+OBSERVE_FIELDS = {"side": ["facing", "seen_at"], "cap": ["cap_marks"], "count": ["extra_people"]}
 
 ANSWER_SCHEMA = {
     "type": "object",
@@ -27,8 +28,17 @@ ANSWER_SCHEMA = {
             "answer": {"type": "string", "enum": ["true", "false", "unclear"]},
             "confidence": {"type": "string", "enum": ["high", "medium", "low"]},
             "note_vi": {"type": "string"},
-            "fix_en": {"type": "string"}},
-            "required": ["id", "answer", "confidence", "note_vi", "fix_en"], "additionalProperties": False}},
+            "fix_en": {"type": "string"},
+            # observations (GĐ3 01/10) — "na" when the assertion does not ask for it; qc_rules.observed decides from them
+            "facing": {"type": "string", "enum": ["front", "back", "profile_facing_image_left", "profile_facing_image_right",
+                                                  "not_visible", "na"]},
+            "seen_at": {"type": "string", "enum": ["image_left_of_body", "image_right_of_body", "near_side", "far_side",
+                                                   "not_visible", "na"]},
+            "cap_marks": {"type": "string", "enum": ["strap_or_buckle_at_forehead", "brim_at_forehead", "brim_at_nape",
+                                                     "strap_or_buckle_at_nape", "no_cap", "not_visible", "na"]},
+            "extra_people": {"type": "string", "enum": ["none", "partial_or_background", "clear", "missing", "na"]}},
+            "required": ["id", "answer", "confidence", "note_vi", "fix_en", "facing", "seen_at", "cap_marks", "extra_people"],
+            "additionalProperties": False}},
         "other_issues": {"type": "array", "items": {"type": "object", "properties": {
             "description_vi": {"type": "string"},
             "severity": {"type": "string", "enum": ["block", "minor"]}},
@@ -43,10 +53,18 @@ Cách trả lời mỗi mệnh đề (theo id): answer true (đúng như mệnh 
 ngoài khung); confidence high / medium / low; note_vi 1 câu bằng chứng nhìn thấy (vùng nào, thấy gì); fix_en: khi false, 1 câu tiếng Anh
 nói điều PHẢI đúng, còn lại để "".
 
-BÊN TRÁI / PHẢI LUÔN THEO THÂN NGƯỜI, KHÔNG THEO MÉP KHUNG: người QUAY MẶT vào máy thì tay TRÁI của họ nằm bên PHẢI khung so với tâm thân
-họ; người QUAY LƯNG (thấy gáy) thì tay TRÁI nằm bên TRÁI khung. Trước khi trả lời mệnh đề trái/phải: (1) người này quay mặt hay quay lưng,
-(2) tâm thân ở đâu, (3) chi tiết nằm phía nào của tâm thân. Các "ca đã phán" bên dưới có ca BÁO NHẦM đúng kiểu này — đừng lặp.
-Mũ đội ngược: quay mặt thì thấy dây / khóa cài ở trán; quay lưng thì thấy lưỡi trai che gáy.
+MỆNH ĐỀ CÓ Ô "KHAI" (chi tiết một bên, mũ, số người): bạn CHỈ KHAI ĐIỀU NHÌN THẤY, KHÔNG tự suy ra trái/phải của thân hay chiều mũ — code
+làm việc đó. Ô không được hỏi điền "na".
+- Chi tiết một bên → `facing`: thân người đó quay về đâu (front = thấy ngực / mặt, kể cả nghiêng ba phần tư; back = thấy lưng / gáy, kể cả ba
+  phần tư sau; profile_facing_image_left / _right = nghiêng hẳn, mặt hướng về mép TRÁI / PHẢI của ẢNH) theo THÂN, không theo đầu.
+  `seen_at`: chi tiết nằm ở nửa nào CỦA THÂN NGƯỜI ĐÓ khi nhìn trên ẢNH — image_left_of_body / image_right_of_body (so đường giữa thân, theo
+  trái / phải của ẢNH như bạn đang nhìn); khi nghiêng hẳn: near_side (phía gần máy) / far_side (phía xa, bị thân che một phần); không thấy →
+  not_visible. Tìm đúng món đồ được tả (vd găng giáp bạc, băng quấn trắng) rồi khai chỗ của NÓ — không suy từ món khác.
+- Mũ → `cap_marks`: thứ thấy ở TRÁN và ở GÁY: strap_or_buckle_at_forehead / brim_at_forehead / brim_at_nape / strap_or_buckle_at_nape /
+  no_cap / not_visible.
+- Số người → `extra_people`: none (đúng số) / partial_or_background (người thừa chỉ lộ một phần ở mép hoặc mờ phía sau) / clear (người thừa
+  rõ) / missing (thiếu người).
+Với các mệnh đề này vẫn điền `answer` theo bạn nghĩ (chỉ để đối chiếu) và note_vi tả đúng điều thấy.
 
 Thứ tự ưu tiên khi thời gian / sự chú ý có hạn: đúng người → số người → chi tiết một bên & mũ → kỹ năng. Trả lời ĐỦ mọi id được giao.
 other_issues: lỗi nhân vật rõ ràng ngoài danh sách (tối đa 3), không bắt bẻ vụn."""
@@ -121,11 +139,17 @@ def entity_blocks(p, pid: int, names: List[str], views: List[str], frame_jobs: L
     from . import assets, experience
     blocks: List[Dict] = [{"type": "text", "text": "# Ảnh chuẩn từng người trong cảnh"}]
     for n in names:
-        ref = (assets.link_characters(p.conn, pid, [n]).get(n) or {}).get("ref")
+        linked = assets.link_characters(p.conn, pid, [n]).get(n) or {}
+        ref = linked.get("ref")
         if ref and ref.get("path") and os.path.exists(ref["path"]):
             blocks += [{"type": "text", "text": f"Ảnh chuẩn {n}:"}, _image(ref["path"], CROP_EDGE)]
         else:
             blocks.append({"type": "text", "text": f"{n}: không có ảnh chuẩn trong Kho"})
+        if "behind" in views and linked:          # 01/10: the back of the standard (3D render / in-game) — compare the same side
+            back = assets.view_picture(linked, "back")
+            if back and os.path.exists(back["path"]):
+                blocks += [{"type": "text", "text": f"Ảnh chuẩn {n} — nhìn từ SAU LƯNG (so khung quay lưng với ảnh này):"},
+                           _image(back["path"], CROP_EDGE)]
     try:
         experience.refresh(p.conn, data_dir)
         cases = experience.relevant(p.conn, ("qc_image",), names, views, limit=CASES_SHOWN, exclude_jobs=frame_jobs,
@@ -160,6 +184,9 @@ def c1_request(frame: Dict, assertions: List[Dict], code: Dict, entity: List[Dic
     lines = []
     for a in assertions:
         c = code.get(a["id"]) or {}
+        if a.get("observe") in OBSERVE_FIELDS:      # neither the expected side nor the shot table's view: the model only reports
+            lines.append({"id": a["id"], "người": a["subject"], "khai": OBSERVE_FIELDS[a["observe"]], "question": a["question_en"]})
+            continue
         lines.append({"id": a["id"], "người": a["subject"], "hướng máy": a.get("view") or "không rõ", "mệnh đề": a["claim_vi"],
                       "question": a["question_en"], "số đo code": c.get("note", "")})
     data = frame["data"]
@@ -189,8 +216,11 @@ def review_frame(p, pid: int, data_dir: str, frame: Dict, client, entity: Option
     piece of evidence (assertions, code results, answers)."""
     from . import qc_measure, qc_rules, qc_spec
     spec = qc_spec.compile_frame(p.conn, pid, frame["job_id"], frame["data"], profiles=profiles)
-    mine = [a for a in spec["assertions"] if a["role"] in roles or a["role"] == "T0"]
     code = qc_measure.measure_frame(frame["path"], frame["data"], spec["assertions"])
+    # an assertion of a role not running yet still counts when the code alone is certain (GĐ3 01/10: #8 job 325 — the code measured a
+    # certain wrong gaze, the frame passed because gaze belongs to C2)
+    mine = [a for a in spec["assertions"] if a["role"] in roles or a["role"] == "T0"
+            or (code.get(a["id"]) or {}).get("status") in ("certain_ok", "certain_fail")]
     ask = [a for a in mine if a["role"] in roles and (code.get(a["id"]) or {}).get("status") != "certain_ok"]
     answers: Dict = {}
     other, problems, usage = [], [], {}
@@ -219,3 +249,67 @@ def estimate_usd(n_frames: int, assertions_per_frame: int = 12, model_in: float 
     """Mục 16 for C1 alone: ≈ 4 000 new input tokens + 10 000 cache reads + (300 + 110 / assertion) output per frame (no thinking)."""
     per = (4000 * model_in + 10000 * model_in * 0.1 + (C1_MAX_TOKENS_BASE + C1_TOKENS_PER_ASSERTION * assertions_per_frame) * model_out) / 1e6
     return round(per * n_frames, 4)
+
+
+# ---- in the pipeline (cờ qc_team): layer 1 of the per-scene QC --------------------------------------------------------------------
+FEATURE = "qc_team"
+FRAME_USD = 0.03          # GĐ3 01/10 measured 0.019–0.020 USD / frame (C1); + the same-side picture of people seen from behind
+
+
+def enabled() -> bool:
+    from . import features
+    return features.on(FEATURE)
+
+
+def note_of(res: Dict) -> str:
+    """One line for the person at the storyboard gate."""
+    parts = [f"Tổ QC (thử, chưa nghiệm thu): {res['verdict']}"]
+    if res["fails"]:
+        parts.append("; ".join(f"{f['claim_vi']} — {f['why']}" for f in res["fails"])[:420])
+    side = [a for a in res.get("arbiter") or [] if "#asym:" in a]
+    if side:
+        parts.append(f"trái/phải cần người xem ({len(side)})")
+    if res.get("plan_conflicts"):
+        parts.append("bảng shot tự mâu thuẫn: " + "; ".join(res["plan_conflicts"]))
+    return " · ".join(parts)[:600]
+
+
+def review_scene(p, pid: int, story_scene, client, data_dir: str, frames: List[Dict], focus: Optional[List[int]] = None) -> Dict:
+    """Run C1 + the code layer on the scene's frames to look at (`focus` = job ids; None = all). Not trusted yet: every frame is held
+    for the person with the verdict as a note — nothing is approved or redrawn on its own. Results kept in qc_scene/team.json.
+    {"applied": {Kk: text}, "results": {job: result}} or {"stopped": reason, "blocked": bool} when the money lock / Claude says no."""
+    from . import llm_runner, project_budget, qc_scene, qc_spec
+    if not hasattr(client, "ask_json"):
+        return {"stopped": "Claude chưa sẵn sàng cho trả lời có cấu trúc (LLM_PROVIDER=anthropic)", "blocked": True}
+    todo = [r for r in frames if focus is None or r["job_id"] in focus]
+    over = project_budget.check(p.conn, pid, "claude_qc", FRAME_USD * len(todo))
+    if over:
+        return {"stopped": over, "blocked": True}
+    names = sorted({str(c).upper() for r in frames for c in r["data"].get("characters") or []})
+    views = sorted({qc_spec.view_of(r["data"], n) or "" for r in frames for n in r["data"].get("characters") or []} - {""})
+    shots = [f"S{r['data'].get('story_scene')}·{r['data'].get('shot_no')}" for r in frames]
+    entity = entity_blocks(p, pid, names, views, [r["job_id"] for r in frames], data_dir, shots)
+    applied, results = {}, {}
+    with llm_runner.tagged("qc_team", pid):
+        for k, r in enumerate(frames, 1):
+            if r not in todo:
+                continue
+            if p.job(r["job_id"])["state"] not in ("succeeded", "pending_review"):
+                applied[f"K{k}"] = f"giữ nguyên ({p.job(r['job_id'])['state']})"
+                continue
+            frame = {"job_id": r["job_id"], "path": r["path"], "data": r["data"], "label": shots[k - 1]}
+            try:
+                res = review_frame(p, pid, data_dir, frame, client, entity=entity)
+            except llm_runner.LlmError as e:
+                if e.code in ("budget", "auth", "config"):
+                    return {"stopped": str(e), "blocked": True, "applied": applied, "results": results}
+                applied[f"K{k}"] = f"lỗi Claude: {e}"
+                continue
+            results[r["job_id"]] = res
+            qc_scene._hold(p, r["job_id"], note_of(res))
+            applied[f"K{k}"] = f"giữ cho người ({res['verdict']})"
+    store = qc_scene._load(data_dir, pid, "team.json")
+    for job, res in results.items():
+        store[str(job)] = res
+    qc_scene._save(data_dir, pid, "team.json", store)
+    return {"applied": applied, "results": {str(k): v["verdict"] for k, v in results.items()}}
