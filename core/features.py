@@ -47,8 +47,8 @@ FEATURES: Dict[str, Dict] = {
     },
     "shot_color_match": {
         "label": "Khớp màu giữa các shot cùng nơi + cùng nhóm cỡ cảnh (điểm đen/trắng, ám màu của vật xám) — sửa bản sao clip lệch trước khi dựng",
-        "verified": False,
-        "why": "GĐ4 (editing.md E5, D7): đo thật #7 thấy 2/7 shot lệch điểm đen/trắng 0,14–0,15 (một phần do nội dung khung); sửa thử đưa "
+        "verified": True,        # 01/10 người dùng xem 2 bản dựng #8 có / không hiệu ứng (đợt 4) và chọn bản CÓ
+        "why": "Đã duyệt 01/10 (đợt 4, D:/AI-Video-Output/2026-10-01_ab-hieu-ung-8): người dùng xem bản dựng #8 có hiệu ứng và chọn giữ. Lý do ban đầu — GĐ4 (editing.md E5, D7): đo thật #7 thấy 2/7 shot lệch điểm đen/trắng 0,14–0,15 (một phần do nội dung khung); sửa thử đưa "
                "về ~0,04 — chưa có người xem bản dựng đã khớp màu",
     },
     "j_cut": {
@@ -58,25 +58,25 @@ FEATURES: Dict[str, Dict] = {
     },
     "music_breath": {
         "label": "Nhạc lặng 0,6 s ngay trước cú ngoặt (phần kịch bản TWIST / CAO TRÀO, hoặc shot ⭐ đầu tiên)",
-        "verified": False,
-        "why": "GĐ4 (editing.md E4, D6): chưa nghe thử; khoảng lặng dài/ngắn là gu dựng — bật khi người dùng nghe và đồng ý",
+        "verified": True,        # 01/10 người dùng xem 2 bản dựng #8 có / không hiệu ứng (đợt 4) và chọn bản CÓ
+        "why": "Đã duyệt 01/10 (đợt 4, D:/AI-Video-Output/2026-10-01_ab-hieu-ung-8): người dùng xem bản dựng #8 có hiệu ứng và chọn giữ. Lý do ban đầu — GĐ4 (editing.md E4, D6): chưa nghe thử; khoảng lặng dài/ngắn là gu dựng — bật khi người dùng nghe và đồng ý",
     },
     "sound_intent": {
         "label": "Nhạc theo ý đồ âm thanh của Đạo diễn từng shot: tắt hẳn từ shot 'cut' tới shot 'in', lặng 0,6 s trước shot 'breath'",
-        "verified": False,
-        "why": "2026-09-26 (director.md Đ9, bài học Handbook ch. V): chưa nghe thử bản dựng có nhạc ngắt theo shot; tắt thì bản dựng "
+        "verified": True,        # 01/10 người dùng xem 2 bản dựng #8 có / không hiệu ứng (đợt 4) và chọn bản CÓ
+        "why": "Đã duyệt 01/10 (đợt 4, D:/AI-Video-Output/2026-10-01_ab-hieu-ung-8): người dùng xem bản dựng #8 có hiệu ứng và chọn giữ. Lý do ban đầu — 2026-09-26 (director.md Đ9, bài học Handbook ch. V): chưa nghe thử bản dựng có nhạc ngắt theo shot; tắt thì bản dựng "
                "ghi lại số ý đồ chưa áp (manifest `sound_intent`)",
     },
     "flashback_fx": {
         "label": "Hồi tưởng ở khâu Dựng: shot hồi tưởng có flash trắng vào/ra, màu ấm nhạt + viền tối (người xem biết là ký ức)",
-        "verified": False,
-        "why": "2026-09-28 (sau #8, người dùng: hồi tưởng không có hiệu ứng nên không ai biết là hồi tưởng): mới thử bằng ffmpeg trên clip "
+        "verified": True,        # 01/10 người dùng xem 2 bản dựng #8 có / không hiệu ứng (đợt 4) và chọn bản CÓ
+        "why": "Đã duyệt 01/10 (đợt 4, D:/AI-Video-Output/2026-10-01_ab-hieu-ung-8): người dùng xem bản dựng #8 có hiệu ứng và chọn giữ. Lý do ban đầu — 2026-09-28 (sau #8, người dùng: hồi tưởng không có hiệu ứng nên không ai biết là hồi tưởng): mới thử bằng ffmpeg trên clip "
                "#8, chờ người dùng xem bản dựng lại",
     },
     "end_hold": {
         "label": "Giữ hình shot cuối ít nhất 2,5 s (kéo dài khung cuối) để cái kết không lướt qua",
-        "verified": False,
-        "why": "2026-09-28 (sau #8: hai shot kết mỗi shot 1 s, người dùng thấy kết cụt): chờ người dùng xem bản dựng lại",
+        "verified": True,        # 01/10 người dùng xem 2 bản dựng #8 có / không hiệu ứng (đợt 4) và chọn bản CÓ
+        "why": "Đã duyệt 01/10 (đợt 4, D:/AI-Video-Output/2026-10-01_ab-hieu-ung-8): người dùng xem bản dựng #8 có hiệu ứng và chọn giữ. Lý do ban đầu — 2026-09-28 (sau #8: hai shot kết mỗi shot 1 s, người dùng thấy kết cụt): chờ người dùng xem bản dựng lại",
     },
     "continuous_takes": {
         "label": "Đoạn diễn liên tục theo góc máy: mỗi vị trí máy (camera_setup) quay TRỌN đoạn diễn liên tục của cảnh, rồi mỗi shot được "
@@ -114,19 +114,19 @@ FEATURES: Dict[str, Dict] = {
     },
     "music_fit": {
         "label": "Nhạc nền đi theo cảnh thật: dời / co giãn từng đoạn của bản nhạc đã soạn cho khớp đầu mỗi cảnh trên bản dựng (miễn phí)",
-        "verified": False,
-        "why": "2026-09-28 (sau #8: nhạc soạn cho timeline 64 s, phim thành 84,5 s — đổi nhạc lệch cảnh, người dùng: nhạc phải đi theo "
+        "verified": True,        # 01/10 người dùng xem 2 bản dựng #8 có / không hiệu ứng (đợt 4) và chọn bản CÓ
+        "why": "Đã duyệt 01/10 (đợt 4, D:/AI-Video-Output/2026-10-01_ab-hieu-ung-8): người dùng xem bản dựng #8 có hiệu ứng và chọn giữ. Lý do ban đầu — 2026-09-28 (sau #8: nhạc soạn cho timeline 64 s, phim thành 84,5 s — đổi nhạc lệch cảnh, người dùng: nhạc phải đi theo "
                "diễn biến): chờ người dùng nghe bản dựng lại",
     },
     "impact_shake": {
         "label": "Rung khung hình 0,25 s ở những giây có hiệu ứng va chạm / nổ / súng trong bản trộn",
-        "verified": False,
-        "why": "GĐ4 (editing.md E6, D9): chưa xem thử trên bản dựng thật; rung sai chỗ làm người xem khó chịu",
+        "verified": True,        # 01/10 người dùng xem 2 bản dựng #8 có / không hiệu ứng (đợt 4) và chọn bản CÓ
+        "why": "Đã duyệt 01/10 (đợt 4, D:/AI-Video-Output/2026-10-01_ab-hieu-ung-8): người dùng xem bản dựng #8 có hiệu ứng và chọn giữ. Lý do ban đầu — GĐ4 (editing.md E6, D9): chưa xem thử trên bản dựng thật; rung sai chỗ làm người xem khó chịu",
     },
     "ambience_bed": {
         "label": "Âm nền mỗi cảnh từ thư viện âm thanh của bạn (theo thời tiết → giờ → bối cảnh), nhỏ dưới thoại, lặp đủ dài",
-        "verified": False,
-        "why": "GĐ4 (editing.md E3, D4/D5): thử #7 — cảnh ngày khu nhà trên đảo nhận 'Bird Ambience'; cảnh đêm không có âm đêm trong "
+        "verified": True,        # 01/10 người dùng xem 2 bản dựng #8 có / không hiệu ứng (đợt 4) và chọn bản CÓ
+        "why": "Đã duyệt 01/10 (đợt 4, D:/AI-Video-Output/2026-10-01_ab-hieu-ung-8): người dùng xem bản dựng #8 có hiệu ứng và chọn giữ. Lý do ban đầu — GĐ4 (editing.md E3, D4/D5): thử #7 — cảnh ngày khu nhà trên đảo nhận 'Bird Ambience'; cảnh đêm không có âm đêm trong "
                "thư viện nên để trống (báo) — chưa nghe bản trộn",
     },
     "speed_ramp": {
