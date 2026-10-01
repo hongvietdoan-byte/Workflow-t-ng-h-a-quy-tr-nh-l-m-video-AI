@@ -573,3 +573,7 @@ trống 64, Nhân vật 36, Bối cảnh / kiến trúc 16, Liền mạch / ánh
   chấm Chặn (chuẩn đã nâng lên so với lúc làm các dự án cũ).
 - **Hệ quả cho việc đo:** recall đo tốt (118 khung chặn); **báo nhầm chỉ có 16 khung không chặn để đo** → con số báo nhầm sẽ dao động lớn;
   64 khung chặn chưa ghi loại lỗi → chưa đo được recall riêng từng chuyên viên (C1 chỉ chịu "Nhân vật").
+
+**01/10 — Quyết định người dùng: dừng đo Tổ QC trên dự án cũ.** Các dự án cũ sai sót nhiều (118 / 134 khung Chặn) nên khó dùng để đánh giá;
+không ghi thêm loại lỗi, không chạy C1 trả tiền trên bộ độc lập. **Hướng tiếp:** áp dụng Tổ QC trên các dự án mới rồi sửa dần theo kết quả
+thật (cổng nghiệm thu đo trên dự án mới). Bộ độc lập + bộ phát triển #8 giữ lại để chạy lại offline khi sửa code.
