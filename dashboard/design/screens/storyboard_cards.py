@@ -1,0 +1,364 @@
+"""S13 nhánh F — Storyboard v2: thẻ ảnh kính, hero + thống kê, thanh hành động dính, thẻ Motion theo cảnh.
+
+Chỉ chạy khi cờ ui_v2 bật (step2.py / step3.py gọi vào đây sau khi kiểm `ui.v2_on()`); cờ tắt thì không import gì từ file này.
+Mọi khóa widget CŨ được giữ (a_, r_, dd_, c_, retry→dretry_, sel_btn_, note_, rn_, dfix_, hist_…_prev/_next, approve_all…, board_ok_…);
+khóa mới có tiền tố `sb…` (card-sb-<cảnh>, sticky-sb, sbv_/sbvon_ cho chip phiên bản).
+"""
+import json
+import os
+from html import escape
+
+import streamlit as st
+
+from dashboard.common import *  # noqa: F401,F403  (shared imports + helpers, như step2/step3)
+from dashboard import common as C
+from dashboard.design import components as D
+
+# job.state -> trạng thái duyệt cố định của thiết kế (components.FRAME_STATES)
+_FRAME = {"approved": "approved", "pending_review": "review", "succeeded": "review", "rejected": "rejected", "failed": "failed",
+          "queued": "queued", "retryable": "queued", "running": "working"}
+REVIEWABLE = ("succeeded", "pending_review")
+
+
+def frame_state(state: str) -> str:
+    return _FRAME.get(state, state)
+
+
+def state_pill(state: str) -> str:
+    """Pill từ trạng thái job THẬT; trạng thái lạ (đã hủy…) dùng nhãn cũ của ui.STATE_LABELS."""
+    key = _FRAME.get(state)
+    if key:
+        return D.frame_state_pill(key)
+    return D.pill(ui.state_label(state), "mute")
+
+
+# ---------------------------------------------------------------------------------------------------------------- số liệu / hero
+def board_stats(p, pid: int) -> dict:
+    """Đếm theo job MỚI NHẤT của mỗi cảnh (cùng cách chia với bộ lọc)."""
+    rows = p.conn.execute("SELECT j.scene_id, j.state, j.escalated FROM jobs j WHERE j.project_id=? AND j.type='image_gen' ORDER BY j.id",
+                          (pid,)).fetchall()
+    latest = {}
+    for r in rows:
+        latest[r["scene_id"]] = r
+    st_ = {"approved": 0, "review": 0, "failed": 0, "busy": 0, "rejected": 0}
+    for r in latest.values():
+        s = r["state"]
+        if s == "approved":
+            st_["approved"] += 1
+        elif s in REVIEWABLE:
+            st_["review"] += 1
+        elif s == "failed":
+            st_["failed"] += 1
+        elif s in ("queued", "running", "retryable"):
+            st_["busy"] += 1
+        elif s == "rejected":
+            st_["rejected"] += 1
+    st_["scenes"] = len(latest)
+    return st_
+
+
+def hero(p, pid: int, summ: dict, proj) -> None:
+    s = board_stats(p, pid)
+    done, stale = summ["images"]
+    total = summ["total"] or 0
+    pills = [(ui.MODE_LABELS.get(proj["operating_mode"], proj["operating_mode"]), "info")]
+    if s["review"]:
+        pills.append((f"{s['review']} cần duyệt", "warn"))
+    if stale:
+        pills.append((f"⚠ {stale} ảnh cũ", "warn"))
+    with D.hero("sb"):
+        st.markdown(D.hero_html("Storyboard · Ảnh + QC", "mỗi cảnh một ảnh đúng nhân vật, đúng bối cảnh, đã duyệt", pills), unsafe_allow_html=True)
+        c = st.columns(4)
+        c[0].markdown(D.stat("Đã duyệt", f"{done} / {total}", f"{(done / total * 100) if total else 0:.0f} %"), unsafe_allow_html=True)
+        c[1].markdown(D.stat("Chờ duyệt", str(s["review"])), unsafe_allow_html=True)
+        c[2].markdown(D.stat("Lỗi", str(s["failed"])), unsafe_allow_html=True)
+        c[3].markdown(D.stat("Đang gen / chờ gen", str(s["busy"])), unsafe_allow_html=True)
+        st.markdown(D.meter((done / total) if total else 0, f"{done}/{total} cảnh có ảnh đã duyệt"), unsafe_allow_html=True)
+
+
+def status_table(p, pid: int) -> str:
+    """Bảng trạng thái từng cảnh (thay st.dataframe, nền theo giao diện)."""
+    rows = p.conn.execute(
+        "SELECT j.state, j.retry_count, j.escalated, s.idx, s.id sid, (SELECT AVG(score) FROM qc_results WHERE job_id=j.id) AS qc "
+        "FROM jobs j JOIN scenes s ON s.id=j.scene_id WHERE j.project_id=? AND j.type='image_gen' AND j.state NOT IN ('rejected','cancelled') "
+        "ORDER BY s.idx", (pid,)).fetchall()
+    if not rows:
+        return ""
+    def qc(r):
+        return "%.2f" % r["qc"] if r["qc"] is not None else "—"
+    body = "".join("<tr><td>%s</td><td>%s</td><td>%s</td><td>%s</td></tr>" % (r["idx"], state_pill(r["state"]), qc(r), r["retry_count"]) for r in rows)
+    return ('<table class="v2-table"><tr><th>Cảnh</th><th>Trạng thái</th><th>Điểm QC</th><th>Đã gen lại</th></tr>' + body + "</table>")
+
+
+# ---------------------------------------------------------------------------------------------------------------- thẻ ảnh
+def _qc_chips(p, proj, jid: int) -> str:
+    scores = C.qc_scores(p, jid)
+    if not scores:
+        return ""
+    thr = float(proj["qc_auto_pass_threshold"])
+    mean = sum(s["score"] for s in scores) / len(scores)
+    kind = "ok" if mean >= thr else "warn" if mean >= thr - 0.15 else "bad"
+    out = D.pill(f"QC {mean:.2f}", kind)
+    worst = min(scores, key=lambda s: s["score"])
+    if worst["score"] < thr:
+        out += " " + D.pill(f"{CRITERIA_LABEL.get(worst['criterion'], worst['criterion'])} {worst['score']:.2f}", "bad" if worst["score"] < thr - 0.15 else "warn")
+    return out
+
+
+def _open_detail(pid: int, jid: int) -> None:
+    st.session_state[f"sel_{pid}"] = jid
+    detail_dialog(pid, jid)
+
+
+def _version_strip(pid: int, sid: int, key: str, n: int, pointer: int) -> None:
+    """v1…vN: bấm một chip = đặt con trỏ phiên bản (cùng việc ‹ › cũ đã làm; khóa ‹ › cũ giữ nguyên)."""
+    if n <= 1:
+        st.markdown('<div class="v2-vers"><span class="v2-ver on">v1</span></div>', unsafe_allow_html=True)
+        return
+    shown = list(range(max(0, min(pointer - 2, n - 4)), min(n, max(0, min(pointer - 2, n - 4)) + 4)))
+    cols = st.columns([1] + [1] * len(shown) + [1], gap="small")
+    if cols[0].button("‹", key=f"{key}_prev", disabled=pointer == 0, help="Bản trước"):
+        st.session_state[key] = pointer - 1
+        st.rerun()
+    for col, i in zip(cols[1:-1], shown):
+        if col.button(f"v{i + 1}", key=f"{'sbvon' if i == pointer else 'sbv'}_{pid}_{sid}_{i}", help=f"Bản {i + 1}/{n}" + (" (đang xem)" if i == pointer else "")):
+            st.session_state[key] = i
+            st.rerun()
+    if cols[-1].button("›", key=f"{key}_next", disabled=pointer == n - 1, help="Bản sau (mới hơn)"):
+        st.session_state[key] = pointer + 1
+        st.rerun()
+
+
+def image_group_v2(p, pid: int, history: list, proj, stale_reason=None) -> None:
+    """Một thẻ kính cho mỗi CẢNH: ảnh · nhãn · pill trạng thái · chip QC · dải phiên bản · lý do · 4 nút luôn hiện · ⋯ Thêm."""
+    sid = history[0]["scene_id"]
+    n = len(history)
+    key = f"hist_{pid}_{sid}"
+    pointer = min(st.session_state.get(key, n - 1), n - 1)
+    j = history[pointer]
+    is_latest = pointer == n - 1
+    jid, state = j["id"], j["state"]
+    busy = state in ("queued", "running", "retryable")
+    with D.card(f"sb-{sid}"):
+        img = C.job_image(pid, jid)
+        if img and not busy:
+            C.show_image(img, width="stretch")
+        elif busy:
+            st.markdown(D.shimmer(230), unsafe_allow_html=True)
+        else:
+            st.markdown(D.empty_state("Chưa có ảnh", ""), unsafe_allow_html=True)
+        pills = state_pill(state)
+        if j["escalated"]:
+            pills += " " + D.pill("⚠ cần xem", "warn")
+        if stale_reason and state == "approved" and is_latest:
+            pills += " " + D.pill("⚠ ảnh cũ", "warn")
+        if not is_latest:
+            pills += " " + D.pill("bản cũ", "mute")
+        st.markdown(f'<div><b>{escape(C.unit_label(p, j["project_id"], j["idx"]))}</b></div>', unsafe_allow_html=True)
+        st.markdown(pills + (" " + _qc_chips(p, proj, jid) if not busy else ""), unsafe_allow_html=True)
+        _version_strip(pid, sid, key, n, pointer)
+
+        def pair():
+            a = st.columns(2, gap="small")
+            b = st.columns(2, gap="small")
+            return a[0], a[1], b[0], b[1]
+
+        if not is_latest:                                   # an old take: look only, like before
+            if j["retry_reason"]:
+                st.caption(f"Lý do gen lại lúc đó: {j['retry_reason'][:160]}")
+            if st.button("🔍 Chi tiết", key=f"sel_btn_{jid}", width="stretch"):
+                _open_detail(pid, jid)
+        elif state in REVIEWABLE:
+            note = st.text_input("Lý do / câu sửa (tiếng Anh) cho lần vẽ lại", key=f"note_{jid}", placeholder="vd: Kelly wears the yellow jacket",
+                                 help="Đưa vào prompt lần vẽ lại. Để trống = vẽ lại không kèm ghi chú.")
+            b1, b2, b3, b4 = pair()
+            if b1.button("✔ Duyệt", key=f"a_{jid}", type="primary", width="stretch"):
+                act(lambda: p.approve(jid, "user"))
+                st.rerun()
+            if b2.button("✖ Loại", key=f"dd_{jid}", width="stretch", help="Loại hẳn, không gen lại (vào thùng rác)"):
+                act(lambda: p.reject(jid, "user", note or "đã xóa", respawn=False))
+                st.rerun()
+            if b3.button("↻ Vẽ lại", key=f"r_{jid}", width="stretch", help="Loại và gen lại, kèm lý do ở ô trên"):
+                act(lambda: p.reject(jid, "user", note or None))
+                st.rerun()
+            if b4.button("✎ Sửa", key=f"sel_btn_{jid}", width="stretch", help="Mở chi tiết: ảnh lớn, nội dung kịch bản, điểm QC từng tiêu chí"):
+                _open_detail(pid, jid)
+        elif busy:
+            b1, b2, b3, b4 = pair()
+            b1.button("✔ Duyệt", key=f"a_{jid}", disabled=True, width="stretch")
+            if state != "retryable" and b2.button("■ Hủy", key=f"c_{jid}", width="stretch", help="Hủy ảnh đang chờ / đang gen"):
+                act(lambda: p.cancel(jid))
+                st.rerun()
+            b3.button("↻ Vẽ lại", key=f"r_{jid}", disabled=True, width="stretch")
+            if b4.button("✎ Sửa", key=f"sel_btn_{jid}", width="stretch", help="Chi tiết / nhập ảnh thủ công"):
+                _open_detail(pid, jid)
+        elif state == "failed" and not j["escalated"]:
+            fix = st.text_input("Câu sửa cho model (tiếng Anh)", key=f"dfix_{jid}", placeholder="để trống = gửi lại y nguyên",
+                                help="Để trống = gửi lại Y NGUYÊN (chỉ khi lỗi do nhà cung cấp). Ảnh ra sai thì ghi câu sửa để đầu vào khác đi.")
+            b1, b2, b3, b4 = pair()
+            b1.button("✔ Duyệt", key=f"a_{jid}", disabled=True, width="stretch")
+            b2.button("✖ Loại", key=f"dd_{jid}", disabled=True, width="stretch")
+            if b3.button("↻ Vẽ lại", key=f"dretry_{jid}", width="stretch",
+                         help="Gen lại với câu sửa" if fix.strip() else "Gửi lại y nguyên — chỉ khi lỗi do nhà cung cấp"):
+                act(lambda: p.retry(jid, "người dùng gen lại với câu sửa" if fix.strip() else "gửi lại (lỗi nhà cung cấp)", fix=fix))
+                st.rerun()
+            if b4.button("✎ Sửa", key=f"sel_btn_{jid}", width="stretch"):
+                _open_detail(pid, jid)
+        elif state == "approved":
+            r_note = st.text_input("Lý do bỏ duyệt (đưa vào prompt gen lại)", key=f"rn_{jid}", placeholder="chỉ cần khi bỏ duyệt")
+            b1, b2, b3, b4 = pair()
+            b1.button("✔ Duyệt", key=f"a_{jid}", disabled=True, width="stretch")
+            b2.button("✖ Loại", key=f"dd_{jid}", disabled=True, width="stretch")
+            if b3.button("↻ Vẽ lại", key=f"reopen_{jid}", width="stretch",
+                         help="Bỏ duyệt và gen lại ảnh (motion/video làm từ ảnh này sẽ hiện ⚠ cũ)"):
+                if act(lambda: p.reopen_approved(jid, r_note or None), "Đã bỏ duyệt, xếp hàng gen lại"):
+                    st.rerun()
+            if b4.button("✎ Sửa", key=f"sel_btn_{jid}", width="stretch"):
+                _open_detail(pid, jid)
+            if stale_reason and st.button("↻ Gen lại theo nội dung mới", key=f"stale_{jid}", type="primary", width="stretch"):
+                if act(lambda: p.reopen_approved(jid, f"Nội dung cảnh đã đổi: {stale_reason}", fix=""), "Đã xếp hàng gen lại"):
+                    st.rerun()
+        else:                                               # rejected / cancelled / escalated failed
+            b1, b2, b3, b4 = pair()
+            b1.button("✔ Duyệt", key=f"a_{jid}", disabled=True, width="stretch")
+            b2.button("✖ Loại", key=f"dd_{jid}", disabled=True, width="stretch")
+            if j["escalated"]:
+                if b3.button("↺ Làm lại", key=f"rs_{jid}", type="primary", width="stretch", help="Đã hết số lần thử: bắt đầu lại cảnh này"):
+                    if act(lambda: p.restart_job(jid), "Đã xếp hàng ảnh mới cho cảnh"):
+                        st.rerun()
+            else:
+                b3.button("↻ Vẽ lại", key=f"r_{jid}", disabled=True, width="stretch")
+            if b4.button("✎ Sửa", key=f"sel_btn_{jid}", width="stretch"):
+                _open_detail(pid, jid)
+        with st.popover("⋯ Thêm", width="stretch"):
+            if stale_reason and is_latest:
+                st.caption(f"⚠ Ảnh cũ: {stale_reason}")
+            if is_latest and j["retry_reason"]:
+                st.caption(f"Lý do gen lại: {j['retry_reason'][:300]}")
+            C.scene_expander(p, j["scene_id"])
+
+
+@st.dialog("Chi tiết ảnh", width="large")
+def detail_dialog(pid: int, jid: int) -> None:
+    """✎ Sửa / 🔍 Chi tiết: ảnh lớn + kịch bản + điểm QC + nhập ảnh thủ công (các nút duyệt/loại/vẽ lại nằm ở thẻ)."""
+    from dashboard.steps.step2 import image_detail
+    p = Pipeline(connect(C.DB))
+    job = p.conn.execute("SELECT j.*, s.idx, s.title FROM jobs j JOIN scenes s ON s.id=j.scene_id WHERE j.id=?", (jid,)).fetchone()
+    if job is None:
+        st.caption("Ảnh này không còn.")
+        return
+    image_detail(p, pid, job, p.project(pid), on_card=True)
+
+
+# ---------------------------------------------------------------------------------------------------------------- thanh hành động dính
+def gate_waiting(p, pid: int) -> bool:
+    from core import shots
+    if not shots.shots_of(p, pid):
+        return False
+    return autopilot.get_gates(p, pid).get("waiting_for") == "storyboard" and autopilot.status(p, pid)["state"] == "waiting"
+
+
+def _confirm_all_primary(key: str, ids, label: str, question: str, container, primary: bool) -> bool:
+    """Như common.confirm_all (cùng khóa, cùng ngữ nghĩa hỏi-có/không) nhưng nút đầu là nút chính của thanh."""
+    ids = tuple(ids)
+    pending_key = f"ask_{key}"
+    if st.session_state.get(pending_key) not in (None, ids):
+        st.session_state[pending_key] = None
+    if st.session_state.get(pending_key) != ids:
+        if container.button(label, key=key, disabled=not ids, type="primary" if primary else "secondary", width="stretch"):
+            st.session_state[pending_key] = ids
+            st.rerun()
+        return False
+    container.warning(question)
+    yes, no = container.columns(2)
+    if yes.button("Có, duyệt hết", key=f"{key}_yes", type="primary"):
+        st.session_state[pending_key] = None
+        return True
+    if no.button("Không", key=f"{key}_no"):
+        st.session_state[pending_key] = None
+        st.rerun()
+    return False
+
+
+def action_bar(p, pid: int) -> None:
+    """MỘT thanh hành động dính ở cuối lưới: tóm tắt + ước tính tiền video (như trang Video) · Duyệt storyboard → gửi video · Duyệt tất cả."""
+    from core import storyboard_gate
+    pending = [r["id"] for r in p.conn.execute(
+        "SELECT id FROM jobs WHERE project_id=? AND type='image_gen' AND state='pending_review' ORDER BY id", (pid,)).fetchall()]
+    waiting = gate_waiting(p, pid)
+    with st.container(key="sticky-sb"):
+        with D.card("sb-actionbar"):
+            left, mid, right = st.columns([3.2, 2.4, 2.4], vertical_alignment="center")
+            with left:
+                st.markdown(D.pill(f"{len(pending)} ảnh chờ duyệt", "warn" if pending else "mute")
+                            + (" " + D.pill("⏸ Chờ bạn duyệt storyboard", "warn", running=True) if waiting else ""), unsafe_allow_html=True)
+                if waiting:
+                    st.caption(storyboard_gate.summary(p, pid, C.DATA))
+                    try:
+                        est = cost.estimate_videos_by_scene(p, pid, cost.load_pricing())
+                        if est and est.get("items"):
+                            st.caption("Ước tính gen video sau khi duyệt: " + cost.format_estimate(est))
+                    except Exception:  # noqa: BLE001 - an estimate problem must not hide the buttons
+                        st.caption("Chưa tính được ước tính gen video (xem Bước Video).")
+                else:
+                    st.caption("Duyệt xong từng ảnh trên thẻ, hoặc duyệt cả loạt bằng nút bên phải.")
+            with mid:
+                if waiting:
+                    if st.button("✔ Duyệt storyboard → gửi video", key=f"board_ok_{pid}", type="secondary" if pending else "primary", width="stretch"):
+                        autopilot.resume(p, pid, p.actor)
+                        autopilot_manager(C.DB, C.DATA).start(pid)
+                        st.rerun()
+                else:
+                    st.caption("Cổng storyboard: không có lượt chạy tự động nào đang chờ.")
+            with right:
+                if _confirm_all_primary("approve_all", pending, f"✔ Duyệt tất cả ({len(pending)} ảnh)", f"Duyệt tất cả {len(pending)} ảnh đang chờ duyệt?",
+                                        right, primary=bool(pending) or not waiting):
+                    for jid in pending:
+                        p.approve(jid, "user")
+                    st.rerun()
+
+
+# ---------------------------------------------------------------------------------------------------------------- Motion (step3)
+def motion_hero(p, pid: int, summ: dict, rows) -> None:
+    stat = voice.status(p.conn, pid, C.DATA)
+    out = os.path.join(C.DATA, str(pid), "output", "ANIMATIC.mp4")
+    m_done, m_stale = summ["motion"]
+    total = summ["total"] or 0
+    pills = [("⚠ %d mục cũ" % m_stale, "warn")] if m_stale else []
+    with D.hero("sb-mot"):
+        st.markdown(D.hero_html("Storyboard · Motion, giọng thoại & animatic", "viết cách chuyển động cho từng cảnh, làm giọng, xem nhịp — trước khi tốn credit video",
+                                pills), unsafe_allow_html=True)
+        c = st.columns(3)
+        c[0].markdown(D.stat("Motion prompt đã duyệt", f"{m_done} / {total}"), unsafe_allow_html=True)
+        c[1].markdown(D.stat("Câu thoại có giọng", f"{stat.get('succeeded', 0)} / {stat['total']}" if stat["total"] else "—"), unsafe_allow_html=True)
+        c[2].markdown(D.stat("Animatic", "đã dựng" if os.path.exists(out) else "chưa dựng"), unsafe_allow_html=True)
+        st.markdown(D.meter((m_done / total) if total else 0, "Tiến độ motion prompt"), unsafe_allow_html=True)
+
+
+def scene_voice_map(p, pid: int) -> dict:
+    """scene_id -> (số câu đã có giọng, tổng số câu)."""
+    out = {}
+    try:
+        directory = audio_lib.assets_dir(C.DATA, pid)
+        items = {(e.get("scene_id"), e.get("line")): e for e in audio_lib.load(directory) if e["kind"] == "tts" and e.get("scene_id")}
+        for ln in voice.planned_lines(p.conn, pid):
+            e = items.get((ln["scene_id"], ln["line"]))
+            done, tot = out.get(ln["scene_id"], (0, 0))
+            ok = e is not None and e.get("text") == ln["text"] and e.get("state") == "succeeded"
+            out[ln["scene_id"]] = (done + (1 if ok else 0), tot + 1)
+    except Exception:  # noqa: BLE001 - pills are a hint, never a reason to lose the controls
+        return {}
+    return out
+
+
+def motion_pills(r, srow: dict, voices: dict, has_image: bool, animatic_done: bool) -> str:
+    if srow.get("motion_stale"):
+        prompt = D.pill("Prompt cũ", "warn")
+    elif r["state"] == "approved":
+        prompt = D.pill("Prompt đã duyệt", "ok")
+    else:
+        prompt = D.pill("Prompt cần duyệt", "warn")
+    done, tot = voices.get(r["sid"], (0, 0))
+    voice_pill = D.pill("Không có thoại", "mute") if not tot else D.pill(f"Giọng {done}/{tot}", "ok" if done == tot else "warn")
+    anim = D.pill("Animatic có", "ok") if animatic_done and has_image else D.pill("Animatic: thiếu ảnh", "mute") if not has_image else D.pill("Animatic: chưa dựng", "info")
+    return f"{prompt} {voice_pill} {anim}"
