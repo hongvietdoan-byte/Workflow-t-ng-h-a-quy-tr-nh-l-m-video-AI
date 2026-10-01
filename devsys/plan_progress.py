@@ -20,6 +20,7 @@ TASK_RE = re.compile(r"^\s*- \[( |x|X)\] (?P<id>[A-Z]+\d*(?:\.\d+)?) · (?P<titl
                      r"(?: · (?P<rest>.*))?\s*$")
 WAVE_RE = re.compile(r"^###\s+(?P<id>[A-Z]+\d*)\s+[—-]\s+(?P<name>.+?)\s*$")
 CAP_RE = re.compile(r"Trần đợt:\s*(?P<usd>[\d.,]+)\s*USD\s*·\s*Claude\s*(?P<llm>[\d.,]+)\s*USD\s*·\s*từ\s*(?P<since>\S+)")
+FOCUS_RE = re.compile(r"^\s*>?\s*Đợt ưu tiên:\s*\**(?P<id>[A-Z]+\d*)\**", re.M)     # "Đợt ưu tiên: S13" = the person says which wave is current
 MARK_START, MARK_END = "<!-- tien-do -->", "<!-- /tien-do -->"
 
 
@@ -72,7 +73,8 @@ def parse(text: str) -> Dict:
     c = CAP_RE.search(text)
     if c:
         cap = {"usd": _num(c.group("usd")), "llm_usd": _num(c.group("llm")), "since": c.group("since")}
-    return {"waves": waves, "cap": cap, "bad": bad}
+    f = FOCUS_RE.search(text)
+    return {"waves": waves, "cap": cap, "bad": bad, "focus": f.group("id") if f else None}
 
 
 def percent(tasks: List[Dict]) -> Optional[float]:
@@ -97,6 +99,9 @@ def summary(plan: Dict) -> Dict:
                      "waiting": sum(x["status"] == "⏸" for x in t), "dropped": sum(x["status"] == "✖" for x in t)})
     unfinished = [r for r in rows if r["pct"] is not None and r["pct"] < 100]
     current = next((r["id"] for r in unfinished if r["done"] or r["doing"] or r["waiting"]), unfinished[0]["id"] if unfinished else None)
+    focus = plan.get("focus")                    # the person's own choice wins while that wave is still unfinished
+    if focus and any(r["id"] == focus for r in unfinished):
+        current = focus
     nxt = None
     if current:                  # the first task not started: in the current wave, else in the waves after it (current waits for the person)
         ids = [w["id"] for w in plan["waves"]]

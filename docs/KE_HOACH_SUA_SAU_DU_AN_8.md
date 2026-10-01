@@ -5,6 +5,7 @@
 > Xem tiến độ: web **AI Development System** (`Start-DevSystem.bat`, cổng 8502) → trang **📋 Kế hoạch đang chạy**, hoặc `py tools/plan_progress.py`.
 > **% do code tính** từ danh sách việc dưới đây (✅ tính đủ, 🔄 tính nửa, ✖ không tính; trọng số nặng:1/2/3). Xong một việc → đổi trạng thái
 > trong cùng commit với code, ghi mã commit + bằng chứng, rồi `py tools/plan_progress.py --write`.
+> Đợt ưu tiên: S13  (dòng này do người dùng/Claude đặt tay; bỏ dòng hoặc đổi mã đợt để đổi "Đợt hiện tại" trong bảng tiến độ; không có dòng → đợt chưa xong đầu tiên đang có việc)
 > Trạng thái: ⬜ chưa làm · 🔄 đang làm · ⏸ chờ người dùng · ✅ xong · ✖ bỏ (kèm lý do).
 
 **Luật chung mọi đợt:** test qua hết → commit + push `main` → `git pull` ở `D:\AI-Video-Pipeline` → cập nhật `TODO.md` → báo kết quả (kèm dòng
@@ -33,7 +34,7 @@
 | S8 Chấm lại bằng AI Development System (cuối cùng) | 5 | 2 | 0 | 0 | 0 | 42,9 % |
 | **Tổng** | **133** | **99** | **8** | **5** | **5** | **80 %** |
 
-Đợt hiện tại: **S7** · việc kế: **S11.3** 📈 Trend T1: trend_raw / trend_cards (có `copyright_level` cao/vừa/thấp), nguồn miễn phí, tab ⚙ 📈 Trend duyệt thẻ
+Đợt hiện tại: **S13** · việc kế: **S13.3** G2/G6 — `tools/ui_snapshot.py` (CSDL mẫu gần thật × 4 độ rộng × sáng/tối × 2 độ phóng) + font Inter đi kèm
 <!-- /tien-do -->
 
 ## Danh sách việc (thứ tự người dùng đã duyệt)
