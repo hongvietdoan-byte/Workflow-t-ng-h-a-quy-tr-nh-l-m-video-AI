@@ -57,3 +57,12 @@ Bàn đạo diễn nhiều khả năng làm được phần lớn luồng này *
   Đã cắt bỏ huy hiệu "Lv. / Phần Thưởng", đưa vào Kho **chờ duyệt** (vai trò toàn thân / nghiêng / sau, nhóm biến thể riêng). Meshy chọn
   ảnh theo thứ tự: bộ ảnh Kho đã duyệt cùng một nhóm (trước + nghiêng/sau, ≤ 4, mặt trước đầu) → cắt bảng → 1 ảnh chính diện; câu texture
   người tự viết được (skin hồ sơ chưa tả) — khi đó không cần hồ sơ duyệt.
+- 2026-10-01 (chạy thật, người dùng yêu cầu tự động hết): **4 nhân vật có mô hình 3D + khung xương** trong `data/models3d/` — Kelly (cắt
+  bảng #25), Maxim (3 ảnh in-game), Kenta OB55 (4 ảnh in-game), Wolfrahh đồ trắng (4 ảnh in-game, câu texture tự viết). Tổng **215 credit**
+  (dựng 30 × 5 lần, giảm lưới 5 × 5, gắn khung xương 5 × 6, tô lại 10), còn 1 285. Bài học: (1) mô hình Meshy ra 1,0–1,8 triệu mặt → gắn
+  khung xương bị từ chối (≤ 320 000) → phải **giảm lưới (150 000) trước**; (2) Meshy chỉ trả 1 ảnh mặt trước → render 6 hướng bằng Blender
+  trên máy (`tools/render_character_views.py`, 0 credit) để kiểm và làm ảnh chuẩn; (3) **câu texture có chữ LEFT/RIGHT làm Meshy lẫn bên** —
+  Kenta lần 1: băng vải tay phải thành giáp; **tô lại texture không sửa được hình khối** (còn làm găng tay trái thành hở ngón) → dựng lại với
+  câu KHÔNG có chữ trái/phải ("một cẳng tay quấn băng… tay kia găng giáp…", để ảnh quyết bên) → đúng. Kiểm bằng render: chi tiết hai bên
+  đúng bên ở cả 4 (Maxim thiếu hình lưng áo — hồ sơ chưa ghi). 24 ảnh render 6 hướng (Kenta bản v2) đã vào Kho **đã duyệt** (người dùng);
+  4 ảnh mặt trước Meshy tự tạo ("3D Meshy") để chờ duyệt (thừa).
