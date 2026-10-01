@@ -340,6 +340,32 @@ class AnthropicClient:
         finally:
             self._release(held)
 
+    def ask_json(self, messages: List[Dict], system: str, schema: Dict, max_tokens: int, thinking: Optional[Dict] = None,
+                 effort: Optional[str] = None) -> LlmReply:
+        """One call whose answer must follow `schema` (structured outputs: output_config.format json_schema — every object needs
+        additionalProperties false; enum works, min/max do not, so the caller still checks). Tổ QC (core/qc_team.py): no tool loop,
+        the answer is reply.text (JSON). `thinking` is sent as given ({"type": "disabled"} for the Sonnet 5 specialists; omitted for
+        Opus 5.5, which cannot turn it off); same budget check, ledger and retries as `complete`."""
+        self._last_prompt = system + "\n".join(b.get("text", "") for m in messages[:1] for b in (m["content"] if isinstance(m["content"], list)
+                                                                                                  else [{"text": m["content"]}]))
+        payload: Dict = {"model": self.model, "max_tokens": int(max_tokens), "messages": messages,
+                         "output_config": {"format": {"type": "json_schema", "schema": schema}}}
+        if effort:
+            payload["output_config"]["effort"] = effort
+        if thinking:
+            payload["thinking"] = thinking
+        if system:
+            payload["system"] = [{"type": "text", "text": system, "cache_control": {"type": "ephemeral"}}]
+        self._last_max_tokens = payload["max_tokens"]
+        body = json.dumps(payload).encode("utf-8")
+        headers = {"x-api-key": self._key, "anthropic-version": API_VERSION, "content-type": "application/json",
+                   "User-Agent": "AIVideoPipeline-LLM/0.1"}
+        held = self._check_budget(payload)
+        try:
+            return self._send(headers, body, payload, check=self._check_stop)
+        finally:
+            self._release(held)
+
     @staticmethod
     def image_block(path: str, edge: Optional[int] = None) -> Dict:
         """A picture as a content block (fitted to `edge`, default IMAGE_EDGE; ≤ 5 MB)."""

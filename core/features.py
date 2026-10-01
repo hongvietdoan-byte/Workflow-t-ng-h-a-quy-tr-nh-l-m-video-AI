@@ -178,6 +178,12 @@ FEATURES: Dict[str, Dict] = {
         "why": "Nghiệm thu 2026-09-27 trên 33 khung có nhãn của #8 không đạt (bỏ lọt 6 khung dán, báo nhầm 12/21 khung tốt); chấm lại cả "
                "cảnh sau mỗi lần vẽ lại tốn ~0,5 USD Claude chỉ để ghi chú (docs/CHAY_THU_2026-09-27_NHAT_KY.md phát hiện 44)",
     },
+    "qc_team": {
+        "label": "Tổ QC nhiều tầng (docs/THIET_KE_TO_QC_2026-10-01.md): bảng shot → mệnh đề kiểm tra, code đo trước (mặt, hướng mắt, màu trời), "
+                 "chuyên viên Nhân vật trả lời có cấu trúc 1 lượt / khung, bảng luật code kết luận — thay lớp 1 của QC theo cảnh",
+        "verified": False,
+        "why": "GĐ2 01/10: code + test + chạy khô; chưa đo trên bộ đo vàng (GĐ3, tốn tiền — hỏi trước)",
+    },
     "qc_agent": {
         "label": "Agent QC điều tra nhiều bước (Claude có công cụ: xem khung / cắt sát / ghép dải nhiều khung / ảnh chuẩn / bộ đo / ghi "
                  "kết luận) theo sổ tay kiểm tra — thay lớp 1 của QC theo cảnh",

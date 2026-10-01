@@ -480,3 +480,17 @@ C1 + luật code) ≈ 0,02 / khung — là cấu hình được code ở GĐ2 v�
 - Mọi con số giá mục 16: **ước tính**, đo ở GĐ3.
 - Ngưỡng "chắc" của tầng 0 (7.5): đặt từ bộ đo vàng, chưa có.
 - 6 câu hỏi mục 19.
+
+## 21. Tiến độ (cập nhật khi làm)
+**01/10 — GĐ1 + GĐ2 code xong (0 USD), cờ `qc_team` TẮT:**
+- `core/qc_spec.py` bộ dịch đặc tả (bảng shot + hồ sơ Kho → mệnh đề có loại / vai / ưu tiên / mức; mã ổn định để chạy lại; phát hiện bảng shot
+  tự mâu thuẫn). `core/qc_measure.py` tầng 0 (mặt YuNet, hướng mắt MediaPipe mống mắt, màu trời). `core/qc_rules.py` bảng luật mục 9.
+  `core/qc_team.py` C1 Nhân vật (1 lời gọi có cấu trúc `llm_runner.ask_json`, suy nghĩ tắt) + `RecordingClient` / `ReplayClient`.
+  `core/qc_golden.py` bộ đo vàng + chấm điểm (doubt ≠ bắt được). `tools/experiments/qc_team_eval.py` (kế hoạch / chạy thật có ghi / chạy lại).
+  Test: `tests/test_qc_team.py` (19); toàn bộ 1616 qua.
+- **Bằng chứng chạy khô trên dữ liệu thật (0 USD):** hướng mắt đo bằng code so nhãn người trên 5 khung #8 có nhãn hướng nhìn: 4/5 đúng,
+  ca sai ở độ chắc "medium" (không thành kết luận). Chạy khô cả chuỗi trên 33 khung bộ phát triển (Claude giả): không lỗi, TB 9,7 câu hỏi
+  C1 / khung, ~1 s / khung; **khung S2·4 (lỗi hướng nhìn thật) được code tự kết luận "chắc chắn sai" — không cần model**; bảng shot mâu thuẫn:
+  4 khung (3 "Kelly đặt trong khung mà characters không có", 1 "OTS chỉ 1 người" = đúng ví dụ playbook E). 2 lỗi của chính code mới tìm
+  ra nhờ chạy khô (báo mâu thuẫn thừa với tên người ngoài khung; không chọn được mặt khi khung 2 mặt) — đã sửa + test.
+- **Chờ:** (a) GĐ3 đo C1 trên bộ phát triển ≈ 0,86 USD (ước tính, hỏi trước); (b) người dùng gắn nhãn Google Sheet → bộ độc lập.

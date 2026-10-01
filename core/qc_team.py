@@ -1,0 +1,221 @@
+"""Tổ QC (docs/THIET_KE_TO_QC_2026-10-01.md) — GĐ2: code điều phối + chuyên viên C1 Nhân vật. Cờ `qc_team` (TẮT).
+
+review_frame(): bộ dịch đặc tả (qc_spec) → tầng 0 (qc_measure) → C1 (1 lời gọi có cấu trúc, không vòng lặp) → bảng luật (qc_rules).
+C2 Diễn xuất & hướng, C3 Cảnh & liền mạch, trọng tài (Opus 5.5) và Director duyệt cảnh: GĐ4–GĐ6 — ở GĐ2 các mệnh đề của họ chỉ có số đo code
+(không kết luận "sai" nếu code chưa chắc).
+
+Every model call goes through a client with `ask_json`; RecordingClient keeps the whole request (images by hash) and reply in
+calls.jsonl, ReplayClient answers the same requests again for 0 USD (mục 15.2): a code change is replayed before any paid run.
+"""
+import hashlib
+import json
+import os
+import tempfile
+from typing import Dict, List, Optional
+
+C1_MODEL_EDGE = 768           # the frame
+CROP_EDGE = 384               # face crops / case pictures
+C1_MAX_TOKENS_BASE = 300
+C1_TOKENS_PER_ASSERTION = 110
+CASES_SHOWN = 4
+
+ANSWER_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "answers": {"type": "array", "items": {"type": "object", "properties": {
+            "id": {"type": "string"},
+            "answer": {"type": "string", "enum": ["true", "false", "unclear"]},
+            "confidence": {"type": "string", "enum": ["high", "medium", "low"]},
+            "note_vi": {"type": "string"},
+            "fix_en": {"type": "string"}},
+            "required": ["id", "answer", "confidence", "note_vi", "fix_en"], "additionalProperties": False}},
+        "other_issues": {"type": "array", "items": {"type": "object", "properties": {
+            "description_vi": {"type": "string"},
+            "severity": {"type": "string", "enum": ["block", "minor"]}},
+            "required": ["description_vi", "severity"], "additionalProperties": False}}},
+    "required": ["answers", "other_issues"], "additionalProperties": False}
+
+C1_SYSTEM = """Bạn là CHUYÊN VIÊN NHÂN VẬT của tổ QC một xưởng phim AI (game Free Fire, nhân vật 3D in-game). Việc DUY NHẤT: trả lời từng
+mệnh đề kiểm tra về NHÂN VẬT trong khung được giao (đúng người, trang phục, chi tiết một bên, phụ kiện có chiều, số người, kỹ năng).
+Không chấm diễn xuất, ánh sáng, bối cảnh — tổ khác lo.
+
+Cách trả lời mỗi mệnh đề (theo id): answer true (đúng như mệnh đề) / false (thấy rõ là sai) / unclear (không thấy được: bị che, quá nhỏ, ra
+ngoài khung); confidence high / medium / low; note_vi 1 câu bằng chứng nhìn thấy (vùng nào, thấy gì); fix_en: khi false, 1 câu tiếng Anh
+nói điều PHẢI đúng, còn lại để "".
+
+BÊN TRÁI / PHẢI LUÔN THEO THÂN NGƯỜI, KHÔNG THEO MÉP KHUNG: người QUAY MẶT vào máy thì tay TRÁI của họ nằm bên PHẢI khung so với tâm thân
+họ; người QUAY LƯNG (thấy gáy) thì tay TRÁI nằm bên TRÁI khung. Trước khi trả lời mệnh đề trái/phải: (1) người này quay mặt hay quay lưng,
+(2) tâm thân ở đâu, (3) chi tiết nằm phía nào của tâm thân. Các "ca đã phán" bên dưới có ca BÁO NHẦM đúng kiểu này — đừng lặp.
+Mũ đội ngược: quay mặt thì thấy dây / khóa cài ở trán; quay lưng thì thấy lưỡi trai che gáy.
+
+Thứ tự ưu tiên khi thời gian / sự chú ý có hạn: đúng người → số người → chi tiết một bên & mũ → kỹ năng. Trả lời ĐỦ mọi id được giao.
+other_issues: lỗi nhân vật rõ ràng ngoài danh sách (tối đa 3), không bắt bẻ vụn."""
+
+
+def _img_key(block: Dict) -> str:
+    if block.get("type") == "image":
+        return "img:" + hashlib.sha256(block["source"]["data"].encode("ascii")).hexdigest()[:16]
+    return block.get("text", "")
+
+
+def request_key(messages: List[Dict], system: str, schema: Dict) -> str:
+    """The same request (text, pictures by hash, schema, system) → the same key."""
+    parts = [system, json.dumps(schema, sort_keys=True)]
+    for m in messages:
+        content = m["content"] if isinstance(m["content"], list) else [{"type": "text", "text": m["content"]}]
+        parts.append(m["role"] + "|" + "|".join(_img_key(b) for b in content))
+    return hashlib.sha256("\n".join(parts).encode("utf-8")).hexdigest()
+
+
+class RecordingClient:
+    """Wraps a real client: every ask_json is written to `path` (one JSON line: key, model, reply text, tokens, stop)."""
+
+    def __init__(self, inner, path: str):
+        self.inner, self.path = inner, path
+        self.model = getattr(inner, "model", "")
+        os.makedirs(os.path.dirname(os.path.abspath(path)), exist_ok=True)
+
+    def ask_json(self, messages, system, schema, max_tokens, thinking=None, effort=None):
+        reply = self.inner.ask_json(messages, system, schema, max_tokens, thinking=thinking, effort=effort)
+        with open(self.path, "a", encoding="utf-8") as fh:
+            fh.write(json.dumps({"key": request_key(messages, system, schema), "model": self.model, "text": reply.text,
+                                 "input_tokens": reply.input_tokens, "output_tokens": reply.output_tokens,
+                                 "cache_read_tokens": reply.cache_read_tokens, "cache_write_tokens": reply.cache_write_tokens,
+                                 "stop_reason": reply.stop_reason}, ensure_ascii=False) + "\n")
+        return reply
+
+
+class ReplayClient:
+    """Answers recorded requests again (0 USD). A request not in the record raises — the code change altered what is sent, so the
+    old answer is no evidence (mục 15.2)."""
+    name = "replay"
+
+    def __init__(self, path: str):
+        from .llm_runner import LlmReply
+        self.model = "replay"
+        self.calls = {}
+        for line in open(path, encoding="utf-8"):
+            if line.strip():
+                d = json.loads(line)
+                self.calls[d["key"]] = LlmReply(d["text"], d.get("input_tokens", 0), d.get("output_tokens", 0), d.get("stop_reason", ""),
+                                                d.get("cache_write_tokens", 0), d.get("cache_read_tokens", 0))
+        self.misses = 0
+
+    def ask_json(self, messages, system, schema, max_tokens, thinking=None, effort=None):
+        from .llm_runner import LlmError
+        key = request_key(messages, system, schema)
+        if key not in self.calls:
+            self.misses += 1
+            raise LlmError("replay: yêu cầu này chưa có trong bản ghi (code đã đổi điều gửi đi)", code="replay_miss")
+        return self.calls[key]
+
+
+def _image(path: str, edge: int) -> Dict:
+    from .llm_runner import AnthropicClient
+    return AnthropicClient.image_block(path, edge)
+
+
+def entity_blocks(p, pid: int, names: List[str], views: List[str], frame_jobs: List[int], data_dir: str,
+                  frame_shots: List[str] = ()) -> List[Dict]:
+    """The cached part: each person's standard picture + confirmed cases (sổ kinh nghiệm) with their pictures."""
+    from . import assets, experience
+    blocks: List[Dict] = [{"type": "text", "text": "# Ảnh chuẩn từng người trong cảnh"}]
+    for n in names:
+        ref = (assets.link_characters(p.conn, pid, [n]).get(n) or {}).get("ref")
+        if ref and ref.get("path") and os.path.exists(ref["path"]):
+            blocks += [{"type": "text", "text": f"Ảnh chuẩn {n}:"}, _image(ref["path"], CROP_EDGE)]
+        else:
+            blocks.append({"type": "text", "text": f"{n}: không có ảnh chuẩn trong Kho"})
+    try:
+        experience.refresh(p.conn, data_dir)
+        cases = experience.relevant(p.conn, ("qc_image",), names, views, limit=CASES_SHOWN, exclude_jobs=frame_jobs,
+                                    exclude_shots=[(pid, s) for s in frame_shots])   # never another take of a shot judged now
+    except Exception as e:  # noqa: BLE001 - the notebook helps; a broken one never stops the check
+        cases = []
+        blocks.append({"type": "text", "text": f"(Sổ kinh nghiệm không đọc được: {type(e).__name__})"})
+    if cases:
+        blocks.append({"type": "text", "text": "# Ca đã phán (người xác nhận) — cùng nhân vật / hướng máy"})
+        for k, c in enumerate(cases, 1):
+            blocks.append({"type": "text", "text": f"Ca {k}: {experience.text_line(c)}"})
+            if c.get("evidence") and os.path.exists(c["evidence"]):
+                blocks.append(_image(c["evidence"], CROP_EDGE))
+    blocks[-1] = dict(blocks[-1], cache_control={"type": "ephemeral"})
+    return blocks
+
+
+def face_blocks(path: str, code: Dict) -> List[Dict]:
+    from .qc_agent import _crop
+    out = []
+    for k, (l, t, r, b) in enumerate(code.get("_faces", {}).get("boxes") or [], 1):
+        w, h = r - l, b - t
+        region = [max(0.0, l - w * 0.6), max(0.0, t - h * 0.9), min(1.0, r + w * 0.6), min(1.0, b + h * 0.4)]
+        work = os.path.join(tempfile.gettempdir(), "qc_team_crops")      # never next to the project's pictures
+        os.makedirs(work, exist_ok=True)
+        crop = _crop(path, region, os.path.join(work, os.path.splitext(os.path.basename(path))[0] + f"__face{k}.jpg"), CROP_EDGE)
+        out += [{"type": "text", "text": f"Mặt {k} (code cắt sẵn, vùng {[round(x, 2) for x in region]}):"}, _image(crop, CROP_EDGE)]
+    return out
+
+
+def c1_request(frame: Dict, assertions: List[Dict], code: Dict, entity: List[Dict]) -> List[Dict]:
+    lines = []
+    for a in assertions:
+        c = code.get(a["id"]) or {}
+        lines.append({"id": a["id"], "người": a["subject"], "hướng máy": a.get("view") or "không rõ", "mệnh đề": a["claim_vi"],
+                      "question": a["question_en"], "số đo code": c.get("note", "")})
+    data = frame["data"]
+    head = (f"# Khung {frame.get('label') or frame['job_id']} — bảng shot: người {data.get('characters')}, cỡ {data.get('size')}, góc "
+            f"{data.get('angle')}\nBlocking: {str(data.get('blocking') or '')[:300]}\n# Mệnh đề cần trả lời (đủ mọi id)\n"
+            + json.dumps(lines, ensure_ascii=False, indent=0))
+    return [{"role": "user", "content": entity + [{"type": "text", "text": head}, {"type": "text", "text": "Khung đầy đủ:"},
+                                                  _image(frame["path"], C1_MODEL_EDGE)] + face_blocks(frame["path"], code)}]
+
+
+def parse_answers(text: str, assertions: List[Dict]) -> Dict:
+    """{"answers": {id: answer}, "other_issues": [...], "problems": [...]} — ids not asked are dropped, missing ids are listed."""
+    try:
+        obj = json.loads(text)
+    except ValueError:
+        return {"answers": {}, "other_issues": [], "problems": ["câu trả lời không phải JSON"]}
+    asked = {a["id"] for a in assertions}
+    answers = {x["id"]: x for x in obj.get("answers") or [] if isinstance(x, dict) and x.get("id") in asked}
+    missing = sorted(asked - set(answers))
+    return {"answers": answers, "other_issues": obj.get("other_issues") or [],
+            "problems": [f"thiếu câu trả lời: {', '.join(missing)}"] if missing else []}
+
+
+def review_frame(p, pid: int, data_dir: str, frame: Dict, client, entity: Optional[List[Dict]] = None, roles=("C1",),
+                 profiles: Optional[Dict[str, Dict]] = None) -> Dict:
+    """One frame through GĐ2: spec → code → C1 → rules. frame: {"job_id", "path", "data", "label"?}. Returns the verdict and every
+    piece of evidence (assertions, code results, answers)."""
+    from . import qc_measure, qc_rules, qc_spec
+    spec = qc_spec.compile_frame(p.conn, pid, frame["job_id"], frame["data"], profiles=profiles)
+    mine = [a for a in spec["assertions"] if a["role"] in roles or a["role"] == "T0"]
+    code = qc_measure.measure_frame(frame["path"], frame["data"], spec["assertions"])
+    ask = [a for a in mine if a["role"] in roles and (code.get(a["id"]) or {}).get("status") != "certain_ok"]
+    answers: Dict = {}
+    other, problems, usage = [], [], {}
+    if ask:
+        if entity is None:
+            names = sorted({str(c).upper() for c in frame["data"].get("characters") or []})
+            views = sorted({a["view"] for a in mine if a.get("view")})
+            d = frame["data"]
+            entity = entity_blocks(p, pid, names, views, [frame["job_id"]], data_dir,
+                                   [f"S{d.get('story_scene')}·{d.get('shot_no')}"])
+        msgs = c1_request(frame, ask, code, entity)
+        reply = client.ask_json(msgs, C1_SYSTEM, ANSWER_SCHEMA, C1_MAX_TOKENS_BASE + C1_TOKENS_PER_ASSERTION * len(ask),
+                                thinking={"type": "disabled"})
+        parsed = parse_answers(reply.text, ask)
+        answers, other, problems = parsed["answers"], parsed["other_issues"], parsed["problems"]
+        usage = {"input_tokens": reply.input_tokens, "output_tokens": reply.output_tokens, "cache_read_tokens": reply.cache_read_tokens,
+                 "cache_write_tokens": reply.cache_write_tokens}
+    verdict = qc_rules.frame_verdict(mine, answers, code)
+    return {"job_id": frame["job_id"], "verdict": verdict["verdict"], "arbiter": verdict["arbiter"], "fails": verdict["fails"],
+            "plan_conflicts": spec["plan_conflicts"], "missing_profiles": spec["missing_profiles"], "other_issues": other,
+            "problems": problems, "usage": usage, "asked": [a["id"] for a in ask],
+            "code": {k: v for k, v in code.items() if not k.startswith("_")}}
+
+
+def estimate_usd(n_frames: int, assertions_per_frame: int = 12, model_in: float = 2.0, model_out: float = 10.0) -> float:
+    """Mục 16 for C1 alone: ≈ 4 000 new input tokens + 10 000 cache reads + (300 + 110 / assertion) output per frame (no thinking)."""
+    per = (4000 * model_in + 10000 * model_in * 0.1 + (C1_MAX_TOKENS_BASE + C1_TOKENS_PER_ASSERTION * assertions_per_frame) * model_out) / 1e6
+    return round(per * n_frames, 4)
