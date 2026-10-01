@@ -257,6 +257,11 @@ FEATURES: Dict[str, Dict] = {
         "verified": False,
         "why": "K1/K2 (kế hoạch tổng K-a): tốn thêm 1 ảnh mỗi shot đổi trạng thái; chưa thử thật Kling end_frame với khung vẽ từ ảnh đầu",
     },
+    "ui_v2": {
+        "label": "Giao diện v2 kiểu “AI product”: nền tối aurora, thẻ kính, nút gradient + glow, thanh bước viên thuốc, pill trạng thái, chữ gradient (lớp thiết kế dashboard/design/, chạy trên cùng các màn hiện có)",
+        "verified": False,
+        "why": "S13 (01/10, docs/KE_HOACH_GIAO_DIEN_V2_2026-10-01.md): đang dựng theo giai đoạn; mặc định TẮT cho tới khi người dùng duyệt ảnh chụp trên Dashboard thật (cổng G1) — bật/tắt ở ⚙ → Hệ thống → 🧪 để so với giao diện cũ và quay lại tức thì",
+    },
     "storyboard_auto_trust": {
         "label": "Tự bỏ qua cổng duyệt storyboard khi QC đã đủ tin cậy (≥ 90% khớp người trên ≥ 50 ảnh cùng look) và storyboard không có cờ",
         "verified": False,

@@ -175,7 +175,8 @@ def dark_on() -> bool:
     """🌙 Nền tối: the ⚙ toggle, remembered in the address (?theme=dark) so a reload keeps it."""
     try:
         if "dark_mode" not in st.session_state:
-            st.session_state["dark_mode"] = st.query_params.get("theme") == "dark"
+            qp = st.query_params.get("theme")
+            st.session_state["dark_mode"] = qp == "dark" or (v2_on() and qp != "light")      # v2 opens dark unless ?theme=light
     except Exception:  # noqa: BLE001 - no request context (tests, tools): light
         return False
     return bool(st.session_state.get("dark_mode"))
@@ -186,16 +187,44 @@ def set_dark(on: bool) -> None:
     try:
         if on:
             st.query_params["theme"] = "dark"
+        elif v2_on():
+            st.query_params["theme"] = "light"
         elif "theme" in st.query_params:
             del st.query_params["theme"]
     except Exception:  # noqa: BLE001
         pass
 
 
+def v2_on() -> bool:
+    """UI v2 (cờ ui_v2): the design layer of dashboard/design/ on top of the old CSS."""
+    try:
+        from core import features
+        return features.on("ui_v2")
+    except Exception:  # noqa: BLE001 - never break the page for a style flag
+        return False
+
+
+_V2_CACHE = {"stamp": None, "css": ""}
+
+
+def _v2_css(dark: bool) -> str:
+    import os
+    from dashboard.design import tokens
+    path = os.path.join(os.path.dirname(__file__), "design", "theme.css")
+    stamp = os.path.getmtime(path)
+    if _V2_CACHE["stamp"] != stamp:
+        with open(path, encoding="utf-8") as f:
+            _V2_CACHE.update(stamp=stamp, css=f.read())
+    return "<style>" + tokens.css_vars("dark" if dark else "light") + _V2_CACHE["css"] + "</style>"
+
+
 def inject_css() -> None:
     st.markdown(CSS, unsafe_allow_html=True)
-    if dark_on():
+    dark = dark_on()
+    if dark:
         st.markdown(DARK_CSS, unsafe_allow_html=True)
+    if v2_on():
+        st.markdown(_v2_css(dark), unsafe_allow_html=True)
 
 
 def html(markup: str) -> None:

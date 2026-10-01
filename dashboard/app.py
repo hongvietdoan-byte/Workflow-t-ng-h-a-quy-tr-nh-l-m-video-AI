@@ -152,6 +152,10 @@ def main():
     step = st.radio("Màn", visible, horizontal=True, key="step", label_visibility="collapsed",
                     format_func=step_label(step_done(p, pid)))
     st.session_state["_step_keep"] = step
+    if deep == "design" and ui.v2_on():                   # G1 (S13): the real-Streamlit vertical slice of UI v2, for the owner to approve
+        from dashboard.design import preview
+        preview.render()
+        return
     {STEPS[0]: home, STEPS[1]: step1, STEPS[2]: storyboard, STEPS[3]: step4, STEPS[4]: step5,
      STEPS[5]: team_screen, STEPS[6]: monitor}[step](p, pid)
 
