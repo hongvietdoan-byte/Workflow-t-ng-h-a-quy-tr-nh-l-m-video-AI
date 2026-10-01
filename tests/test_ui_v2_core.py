@@ -47,6 +47,8 @@ class TokenTests(unittest.TestCase):
         self.assertIn("filter: var(--canvas-filter)", css)
         self.assertEqual(tokens.LIGHT["canvas-filter"], "none")
         self.assertIn("invert", tokens.DARK["canvas-filter"])
+        # 02/10: danh sách thả xuống của selectbox gắn thẳng vào body, chữ từng dòng ở thẻ con mang màu theme gốc → phải ép cả thẻ con
+        self.assertRegex(css, r'\[data-testid="stSelectboxVirtualDropdown"\] \[role="option"\] \*[^{]*\{[^}]*color:\s*var\(--text\)')
 
 
 class ComponentTests(unittest.TestCase):

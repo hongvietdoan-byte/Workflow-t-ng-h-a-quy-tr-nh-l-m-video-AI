@@ -174,6 +174,13 @@ label[data-testid="stWidgetLabel"] p { color: var(--text) !important; }
 [data-baseweb="popover"] [role="listbox"], [data-baseweb="popover"] ul, [data-baseweb="menu"] { background: var(--raised) !important; }
 [data-baseweb="popover"] li, [data-baseweb="popover"] [role="option"] { color: var(--text) !important; }
 [data-baseweb="popover"] [role="option"][aria-selected="true"], [data-baseweb="popover"] li:hover { background: var(--primary-soft) !important; }
+/* danh sách thả xuống của st.selectbox / multiselect (Streamlit 1.64: stSelectboxVirtualDropdown, gắn thẳng vào body, không nằm trong
+   data-baseweb="popover"); chữ từng dòng nằm ở thẻ con được tô màu chữ của theme gốc (#111827) → tàng hình trên nền tối (02/10) */
+[data-testid="stSelectboxVirtualDropdown"] { background: var(--raised) !important; }
+[data-testid="stSelectboxVirtualDropdown"] [role="option"], [data-testid="stSelectboxVirtualDropdown"] [role="option"] *,
+[data-baseweb="popover"] [role="option"] *, [data-baseweb="popover"] li * { color: var(--text) !important; }
+[data-testid="stSelectboxVirtualDropdown"] [role="option"]:hover,
+[data-testid="stSelectboxVirtualDropdown"] [role="option"][aria-selected="true"] { background: var(--primary-soft) !important; }
 /* chú thích: Streamlit tự đặt opacity .6 cho một số st.caption → màu --muted (đã ≥ 4.5:1) bị mờ thêm còn ~3:1 */
 [data-testid="stCaptionContainer"] { opacity: 1 !important; }
 /* viên chọn (radio dạng pill: Ai duyệt, lọc, mức tự động, trạng thái ⌂): nền gradient (chữ trắng ≥ 4.5:1 ở mọi điểm dừng);

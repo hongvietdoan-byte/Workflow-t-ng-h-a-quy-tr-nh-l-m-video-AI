@@ -25,6 +25,8 @@ Ngoài ra luật mục gập bị chia ở 3 nơi (CSS cũ đổi chữ tiêu đ
 **Lưu ý trung thực:** trên các màn chính của bản demo, tiêu đề `st.expander` ngoài trang vẫn đọc được trước khi sửa (đo: 0 tiêu đề < 4.5:1, kể cả lúc rê chuột);
 chỗ tàng hình đo được là trong hộp thoại (⚙ → Kho tài nguyên, Tính năng thử, Bảng giá). Nếu trên Dashboard thật còn thấy ở chỗ khác → chụp ảnh đúng chỗ đó.
 
+**Bổ sung 02/10 (kiểm trên Dashboard thật sau khi khởi động lại):** chỗ người dùng thấy thực ra còn ở **danh sách thả xuống của ô chọn ▾** (vd. Kịch bản → 📐 Định dạng → *Thể loại (hướng dẫn đạo diễn)*): Streamlit 1.64 gắn danh sách vào thẳng `body` (`[data-testid="stSelectboxVirtualDropdown"]`, không nằm trong `data-baseweb="popover"` nên luật cũ không khớp); chữ từng dòng nằm ở thẻ con mang màu chữ theme gốc `#111827` trên nền tối `#141824` → chỉ dòng đang rê / đang chọn hiện mờ. Sửa: ép `color: var(--text)` cho dòng **và mọi thẻ con**, nền dòng rê / đang chọn `--primary-soft` (`theme.css`), test `test_portals_and_folds_follow_the_theme`. Ảnh `anh_ui_v2/ra_soat_2026-10-02/truoc_toi_o_chon_the_loai.jpg` → `sau_toi_o_chon_the_loai.jpg`. Còn thấy nhỏ: icon "?" (help) cạnh nhãn rất mờ; popover ⚙ vẫn nổi đè lên hộp thoại mở từ nó.
+
 ## 2. Bảng lỗi
 
 | # | Màn / vùng | Chế độ | Mô tả | Nguyên nhân gốc | Trạng thái | Bằng chứng |
