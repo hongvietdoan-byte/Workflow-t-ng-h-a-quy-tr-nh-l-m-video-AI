@@ -35,38 +35,61 @@ def inputs_and_refs(p: Pipeline, pid: int, has_script: bool) -> None:
                 st.markdown(f"**{title}**")
                 st.caption(why)
                 st.button("Sắp có", key=f"coming_{title[:2]}_{pid}", disabled=True, width="stretch")
-        chosen = assets.project_assets(p.conn, pid)
-        st.markdown("**🖼 Tham chiếu đang gắn cho dự án**")
-        if chosen:
-            for a in chosen[:12]:
-                wait = f" · {len(a['pending'])} ảnh chờ duyệt" if a.get("pending") else ""
-                scope = "chỉ dự án này" if a.get("project_id") else "Kho chung"
-                st.caption(f"• **{a['kind_label']}** {a['name']} — {len(a['images'])} ảnh ({scope}){wait}")
-            if len(chosen) > 12:
-                st.caption(f"… và {len(chosen) - 12} mục nữa")
-        else:
-            st.caption("Chưa gắn gì — Director sẽ tự ghép nhân vật / nơi từ Kho theo tên trong kịch bản.")
-        st.markdown("**➕ Gắn ảnh tham chiếu mới**")
-        f1, f2, f3 = st.columns([2.4, 1.6, 2], vertical_alignment="bottom")
-        files = f1.file_uploader("Ảnh (JPG / PNG / WebP)", type=["jpg", "jpeg", "png", "webp"], accept_multiple_files=True,
-                                 key=f"ref_up_{pid}")
-        kind = f2.selectbox("Là", PICK_KINDS, format_func=lambda k: assets.KINDS[k], key=f"ref_kind_{pid}")
-        name = f3.text_input("Tên (vd: Orion, Sân thượng)", key=f"ref_name_{pid}")
-        shared = st.checkbox("Lưu vào Kho chung (dùng lại ở mọi dự án — ảnh chờ duyệt trước khi pipeline dùng)", False, key=f"ref_shared_{pid}",
-                             help="Bỏ chọn: chỉ dùng trong dự án này, dùng ngay.")
-        if st.button("➕ Gắn vào dự án", key=f"ref_go_{pid}", disabled=not (files and name.strip()), type="primary"):
-            def go():
-                rep = assets.add_reference_images(p.conn, pid, p.project(pid)["game"] or "FF", kind, name, [(f.name, f.getvalue()) for f in files],
-                                                  shared, created_by=p.actor)
-                msg = f"Đã gắn {rep['added']} ảnh cho “{name.strip()}”" + (" (chờ duyệt ở Kho)" if shared and rep["added"] else "")
-                if rep["skipped"]:
-                    msg += " · bỏ qua: " + "; ".join(f"{n}: {w}" for n, w in rep["skipped"][:3])
-                st.toast(msg)
-            if act(go):
-                st.rerun()
-        b1, b2 = st.columns(2)
-        if b1.button("📁 Mở Kho tài nguyên (duyệt ảnh chờ, nhân vật 3D, âm thanh)", key=f"ref_kho_{pid}", width="stretch"):
-            open_dialog("dlg_assets")
-        b2.caption("🎥 Video ref chuyển động gắn cho từng cảnh ở **Storyboard → 🎞 Motion**; ảnh khung nào muốn tự đưa vào: **Storyboard → 🖼 Ảnh → Nhập ảnh thủ công** (ghim ref cho từng khung: chưa có).")
-        st.caption("Ảnh quá lệch tỉ lệ hoặc quá nhỏ bị báo trước khi gửi video (luật model). Mỗi tài nguyên tối đa "
-                   f"{assets.MAX_IMAGES_PER_ASSET} ảnh.")
+        attach_form(p, pid)
+
+
+def attach_form(p: Pipeline, pid: int) -> None:
+    """The attached references + the form that adds one (keys ref_up_/ref_kind_/ref_name_/ref_shared_/ref_go_/ref_kho_)."""
+    chosen = assets.project_assets(p.conn, pid)
+    st.markdown("**🖼 Tham chiếu đang gắn cho dự án**")
+    if chosen:
+        for a in chosen[:12]:
+            wait = f" · {len(a['pending'])} ảnh chờ duyệt" if a.get("pending") else ""
+            scope = "chỉ dự án này" if a.get("project_id") else "Kho chung"
+            st.caption(f"• **{a['kind_label']}** {a['name']} — {len(a['images'])} ảnh ({scope}){wait}")
+        if len(chosen) > 12:
+            st.caption(f"… và {len(chosen) - 12} mục nữa")
+    else:
+        st.caption("Chưa gắn gì — Director sẽ tự ghép nhân vật / nơi từ Kho theo tên trong kịch bản.")
+    st.markdown("**➕ Gắn ảnh tham chiếu mới**")
+    f1, f2, f3 = st.columns([2.4, 1.6, 2], vertical_alignment="bottom")
+    files = f1.file_uploader("Ảnh (JPG / PNG / WebP)", type=["jpg", "jpeg", "png", "webp"], accept_multiple_files=True,
+                             key=f"ref_up_{pid}")
+    kind = f2.selectbox("Là", PICK_KINDS, format_func=lambda k: assets.KINDS[k], key=f"ref_kind_{pid}")
+    name = f3.text_input("Tên (vd: Orion, Sân thượng)", key=f"ref_name_{pid}")
+    shared = st.checkbox("Lưu vào Kho chung (dùng lại ở mọi dự án — ảnh chờ duyệt trước khi pipeline dùng)", False, key=f"ref_shared_{pid}",
+                         help="Bỏ chọn: chỉ dùng trong dự án này, dùng ngay.")
+    if st.button("➕ Gắn vào dự án", key=f"ref_go_{pid}", disabled=not (files and name.strip()), type="primary"):
+        def go():
+            rep = assets.add_reference_images(p.conn, pid, p.project(pid)["game"] or "FF", kind, name, [(f.name, f.getvalue()) for f in files],
+                                              shared, created_by=p.actor)
+            msg = f"Đã gắn {rep['added']} ảnh cho “{name.strip()}”" + (" (chờ duyệt ở Kho)" if shared and rep["added"] else "")
+            if rep["skipped"]:
+                msg += " · bỏ qua: " + "; ".join(f"{n}: {w}" for n, w in rep["skipped"][:3])
+            st.toast(msg)
+        if act(go):
+            st.rerun()
+    b1, b2 = st.columns(2)
+    if b1.button("📁 Mở Kho tài nguyên (duyệt ảnh chờ, nhân vật 3D, âm thanh)", key=f"ref_kho_{pid}", width="stretch"):
+        open_dialog("dlg_assets")
+    b2.caption("🎥 Video ref chuyển động gắn cho từng cảnh ở **Storyboard → 🎞 Motion**; ảnh khung nào muốn tự đưa vào: **Storyboard → 🖼 Ảnh → Nhập ảnh thủ công** (ghim ref cho từng khung: chưa có).")
+    st.caption("Ảnh quá lệch tỉ lệ hoặc quá nhỏ bị báo trước khi gửi video (luật model). Mỗi tài nguyên tối đa "
+               f"{assets.MAX_IMAGES_PER_ASSET} ảnh.")
+
+
+def inputs_and_refs_v2(p: Pipeline, pid: int, has_script: bool) -> None:
+    """UI v2 (S13 lane E): the first card of the screen — the four ways in as small cards, then the references (form in an expander
+    that is open while there is no script yet). Same widgets and keys as the folded version."""
+    from dashboard.design import components as D
+    with D.card(f"script-refs-{pid}"):
+        st.html('<div class="script-h">📎 Đầu vào &amp; tham chiếu</div>')
+        cols = st.columns(4)
+        with cols[0]:
+            st.html(D.pill("Đang dùng", "ok") + '<div class="script-mode"><b>📝 Kịch bản / ý tưởng</b>'
+                    "<span>Dán, kéo file hoặc gõ ý thô ở thẻ ① bên dưới (tự nhận dạng)</span></div>")
+        for col, (title, why) in zip(cols[1:], COMING):
+            with col:
+                st.html(D.pill("Sắp có", "mute") + f'<div class="script-mode"><b>{escape(title)}</b><span>{escape(why)}</span></div>')
+                st.button("Sắp có", key=f"coming_{title[:2]}_{pid}", disabled=True, width="stretch")
+        with st.expander("🖼 Tham chiếu & gắn ảnh nhân vật / nơi — " + _summary(p, pid).split("tham chiếu: ", 1)[-1], expanded=not has_script):
+            attach_form(p, pid)

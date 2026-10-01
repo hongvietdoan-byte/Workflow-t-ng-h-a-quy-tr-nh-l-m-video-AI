@@ -11,6 +11,18 @@ def _director_summary(p: Pipeline, pid: int, chars) -> str:
     return f"✅ đã chạy · {n} shot · {len(chars)} nhân vật" + (f" · {paid}" if paid else "")
 
 
+def run_director_now(p: Pipeline, pid: int, client, resume: bool = False) -> None:
+    """Run the Director (spinner, toast, rerun). Shared by the 1d button and the hero button of the v2 screen."""
+    with st.spinner("Claude đang phân tích kịch bản…"):
+        ok = act(lambda: st.session_state.__setitem__("llm_res", llm_runner.run_director(p, pid, client, resume=resume)))
+    if ok:
+        r = st.session_state.pop("llm_res")
+        st.toast(f"Đã lưu {r['characters']} nhân vật, {r['scenes']} cảnh ({tokens_text(r)})"
+                 + (f" · {r['calls']} lượt Claude" if r.get("two_pass") else "")
+                 + (f" · Đạo diễn duyệt: cảnh {', '.join(map(str, r['flagged']))} cần xem" if r.get("flagged") else ""))
+        st.rerun()
+
+
 def director_panel(p: Pipeline, pid: int, chars) -> None:
     locked = any(c["locked"] for c in chars)
     kept = llm_io.locked_fields(p.conn, pid)
@@ -41,14 +53,7 @@ def director_panel(p: Pipeline, pid: int, chars) -> None:
                     help="Lần chạy trước dừng vì Quay phim chưa chia được các cảnh này. Dùng lại ý đồ Tầng A và các cảnh đã chia (đã trả tiền) "
                          "khi kịch bản/luật không đổi — chỉ trả tiền cho các cảnh lỗi.")
                 if go or resume:
-                    with st.spinner("Claude đang phân tích kịch bản…"):
-                        ok = act(lambda: st.session_state.__setitem__("llm_res", llm_runner.run_director(p, pid, client, resume=resume)))
-                    if ok:
-                        r = st.session_state.pop("llm_res")
-                        st.toast(f"Đã lưu {r['characters']} nhân vật, {r['scenes']} cảnh ({tokens_text(r)})"
-                                 + (f" · {r['calls']} lượt Claude" if r.get("two_pass") else "")
-                                 + (f" · Đạo diễn duyệt: cảnh {', '.join(map(str, r['flagged']))} cần xem" if r.get("flagged") else ""))
-                        st.rerun()
+                    run_director_now(p, pid, client, resume)
             else:
                 st.caption(claude_hint() + " Hoặc dùng cách nhập tay bên dưới.")
             if C.expert():

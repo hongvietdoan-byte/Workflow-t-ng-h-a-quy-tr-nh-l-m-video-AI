@@ -1,0 +1,182 @@
+"""UI v2 (S13, lane E): the Kịch bản screen re-composed — same panels, same widget keys, fewer scrolls.
+
+Order: hero (title · pills · the ONE primary action of the moment · "Việc tiếp theo") → 📎 Đầu vào & tham chiếu → ① Kịch bản →
+② Chuẩn bị · Director · Nhân vật → ③ Chạy (tự động hoàn toàn + ngân sách). Rarely used things sit in a labelled "🔧 Tinh chỉnh" fold at
+the bottom of their card. Only used when `ui.v2_on()`; the old composition stays in step1.step1()."""
+from dashboard.common import *  # noqa: F401,F403  (shared imports + helpers)
+from dashboard import common as C
+from dashboard.design import components as D
+
+_AUTO_BUSY = ("queued", "running", "waiting", "needs_attention", "stopped", "error")
+
+
+def _budget_state(p: Pipeline, pid: int):
+    """(enabled, locked, total, spent) of the project budget; (False, …) when the feature is off or unreadable."""
+    from core import project_budget
+    if not project_budget.enabled():
+        return False, False, 0.0, 0.0
+    data = project_budget.get(p.conn, pid) or {}
+    try:
+        spent = sum(project_budget.spent_by_stage(p.conn, pid).values())
+    except Exception:  # noqa: BLE001 - a pill only
+        spent = 0.0
+    return True, bool(data.get("locked")), float(data.get("total") or 0.0), float(spent)
+
+
+def next_kind(p: Pipeline, pid: int, scenes, chars, locked: bool, budget_locked: bool, budget_on: bool) -> str:
+    """The one primary action of the moment: analyse | plan | auto | budget | lock | next (same order as next_step.py)."""
+    if not scenes:
+        return "analyse"
+    if autopilot.status(p, pid)["state"] in _AUTO_BUSY:
+        return "auto"
+    if not chars:
+        return "plan"
+    if budget_on and not budget_locked and allowed("autopilot"):
+        return "budget"
+    return "next" if locked else "lock"
+
+
+def _hero(p: Pipeline, pid: int, proj, scenes, chars, locked: bool, stale: int) -> None:
+    from dashboard.steps.step1 import _count_label, _lock_and_go
+    b_on, b_locked, b_total, b_spent = _budget_state(p, pid)
+    kind = next_kind(p, pid, scenes, chars, locked, b_locked, b_on)
+    pills = [(_count_label(p, pid, scenes) if scenes else "Chưa có cảnh", "ok" if scenes else "mute"),
+             (f"{len(chars)} nhân vật" if chars else "Chưa có nhân vật", "info" if chars else "mute"),
+             (("Bible đã khóa", "ok") if locked else ("Bible chưa khóa", "warn")) if chars else ("Chưa có Bible", "mute")]
+    if b_on:
+        pills.append(("Ngân sách đã khóa", "ok") if b_locked else ("Ngân sách chưa duyệt", "warn"))
+    if stale:
+        pills.append((f"{stale} mục cũ", "warn"))
+    with D.hero(f"script-{pid}"):
+        a, b = st.columns([3, 2], gap="large", vertical_alignment="center")
+        with a:
+            st.html(D.hero_html(proj["name"] or "Dự án", "Kịch bản & đạo diễn · tách cảnh → chuẩn bị → Director → nhân vật → thoại → khóa", pills))
+            # the "Việc tiếp theo" band is drawn once by the shell header in v2 (integrator, lane B) — not repeated here
+        with b.container(key="script-cta-box"):
+            _primary_action(p, pid, kind, scenes, chars, b_total, b_spent, _lock_and_go)
+
+
+def _primary_action(p: Pipeline, pid: int, kind: str, scenes, chars, b_total: float, b_spent: float, lock_and_go) -> None:
+    if kind == "analyse":
+        st.html(D.empty_state("Bắt đầu từ kịch bản", "Dán hoặc tải kịch bản ở thẻ ① rồi bấm ▶ Phân tích"))
+    elif kind == "auto":
+        info = autopilot.status(p, pid)
+        st.html(D.pill("Chạy tự động: " + info["state"], "info", running=info["state"] == "running")
+                + f'<div class="script-note">{escape(info["note"][:160])}</div><div class="script-note">Điều khiển ở thẻ ③ Chạy bên dưới.</div>')
+    elif kind == "plan":
+        client = llm_client()
+        label = "🤖 Lập kế hoạch"
+        if client is not None:
+            from core import director_two_pass
+            try:                                                   # the estimate the Director panel shows too — never invented here
+                est = director_two_pass.estimate(p, pid, client)
+                usd = (est.get(est["active"]) or est["single"]).get("usd")
+                if usd is not None:
+                    label += f" (≈ {usd:.2f} USD)"
+            except Exception:  # noqa: BLE001 - the button stays, only the number is missing
+                pass
+        if st.button(label, type="primary", key=f"script-cta_{pid}", disabled=client is None, width="stretch",
+                     help="Chạy Director: Character Bible + thông số, ý đồ, thoại từng cảnh" if client else claude_hint()):
+            from dashboard.steps.step1_director import run_director_now
+            run_director_now(p, pid, client)
+        st.html('<div class="script-note">Director chia cảnh thành shot và lập Character Bible. Tùy chọn hai lượt ở thẻ ②.</div>')
+    elif kind == "budget":
+        from core import project_budget
+        try:
+            prop = project_budget.propose(p, pid)
+        except Exception as e:  # noqa: BLE001 - say it, never hide the area
+            st.warning(f"Không tính được ngân sách ({type(e).__name__}: {e})")
+            return
+        if confirm_all(f"script-cta-budget_{pid}", ["go"], f"✔ Duyệt & khóa ngân sách ≈ {prop['total']:.2f} USD",
+                       f"Khóa ngân sách dự án ≈ {prop['total']:.2f} USD (trần từng khâu như bảng ở thẻ ③)? Sau khi khóa, mọi lời gọi trả tiền "
+                       "vượt trần khâu hoặc tổng sẽ bị DỪNG; chỉ người được nâng trần, kèm lý do.", st, "Có, khóa"):
+            project_budget.approve(p, pid, p.actor, prop)
+            st.rerun()
+        st.html('<div class="script-note">Chạy tự động chờ bước này trước khi gen ảnh. Chi tiết từng khâu ở thẻ ③.</div>')
+    elif kind == "lock":
+        st.button("✔ Duyệt & khóa → Storyboard", type="primary", key=f"script-cta-lock_{pid}", width="stretch",
+                  on_click=lock_and_go, args=(p, pid))
+        if st.session_state.get("lock_error"):
+            st.error(st.session_state.pop("lock_error"))
+        missing = [c["name"] for c in chars if not c["anchor_approved"]]
+        if missing:
+            st.html(f'<div class="script-note">Chưa duyệt ảnh mốc: {escape(", ".join(missing))} (thẻ ②).</div>')
+    else:
+        def go():
+            st.session_state["step"] = STEPS[2]
+        st.button("Sang Storyboard →", type="primary", key=f"script-cta-next_{pid}", width="stretch", on_click=go)
+    if b_total and kind != "analyse":
+        st.html(D.meter(b_spent / b_total, f"Ngân sách: đã chi {b_spent:.2f} / {b_total:.2f} USD", invert=True))
+
+
+def _card_head(num: str, title: str, pills=()) -> None:
+    chips = " ".join(D.pill(t, k) for t, k in pills)
+    st.html(f'<div class="script-h"><span class="script-n">{num}</span><span>{escape(title)}</span>{chips}</div>')
+
+
+def _tune(pid: int, name: str, summary: str):
+    """The labelled "🔧 Tinh chỉnh" fold at the bottom of a card (a fold, not an expander: the panels inside have expanders of their own)."""
+    return ui.fold("🔧 Tinh chỉnh", summary, f"tune_{name}_{pid}", default_open=False, sub="việc hiếm dùng — vẫn ở đây, không ẩn")
+
+
+def step1_v2(p: Pipeline, pid: int, proj, scenes, chars, risky, char_names, locked: bool, stale: int) -> None:
+    from dashboard.steps import step1 as S
+    from dashboard.steps.step1_refs import inputs_and_refs_v2
+    _hero(p, pid, proj, scenes, chars, locked, stale)
+    note = st.session_state.pop("inherited_note", None)                 # S3.8: said once, right after the project was made
+    if note:
+        st.info("↪ " + note + " — đổi ở Bước 1 · Định dạng nếu dự án này khác.")
+    inputs_and_refs_v2(p, pid, bool(scenes))
+
+    # ① Kịch bản (1a)
+    with D.card(f"script-a-{pid}"):
+        _card_head("1", "Kịch bản", [(S._script_summary(p, pid, scenes).replace("📜 ", ""), "ok" if scenes else "mute")])
+        if st.session_state.get("parse_warn") and scenes:
+            st.warning(st.session_state["parse_warn"])
+        if not scenes:
+            st.html(D.empty_state("Chưa có kịch bản", "Tải file, dán văn bản hoặc gõ ý thô, rồi bấm ▶ Phân tích để tách cảnh."))
+            S.script_input(p, pid, with_reset=False)
+        else:
+            with st.expander("📥 Nhập / thay kịch bản (tải file · dán văn bản · ý tưởng thô)", expanded=bool(st.session_state.get("parse_warn"))):
+                S.script_input(p, pid, with_reset=False)
+            if st.session_state.get("parse_info"):
+                S.parse_info_box()
+            S.script_views(p, pid, proj, scenes, char_names)
+            with _tune(pid, "script", "làm lại việc tách cảnh") as tune_open:
+                if tune_open:
+                    st.caption("↺ Làm lại: xóa các cảnh chưa có ảnh/video và nhân vật chưa khóa để tách lại kịch bản.")
+                    S.reset_script_button(p, pid)
+
+    # ② Chuẩn bị · Director · Nhân vật (1b–1f)
+    with D.card(f"script-b-{pid}"):
+        _card_head("2", "Chuẩn bị · Director · Nhân vật",
+                   [("Director đã chạy", "ok") if chars else ("Director chưa chạy", "mute")] if scenes else [])
+        S.project_format_panel(p, pid)
+        if scenes:
+            S.assets_panel(p, pid)
+            S.director_panel(p, pid, chars)
+        if chars:
+            S.character_bible_panel(p, pid, chars, risky)
+            S.dialogue_review_panel(p, pid)
+            with st.container(border=True):
+                a, b = st.columns([2, 1], vertical_alignment="center")
+                missing_anchor = [c["name"] for c in chars if not c["anchor_approved"]]
+                a.caption("Xong nhân vật (và storyboard nếu dựng): duyệt & khóa rồi sang Bước 2."
+                          + (f" Chưa duyệt ảnh mốc: {', '.join(missing_anchor)}." if missing_anchor else ""))
+                b.button("✔ Duyệt & khóa → Storyboard", type="primary", key=f"lock_go_{pid}", on_click=S._lock_and_go, args=(p, pid))
+                if st.session_state.get("lock_error"):
+                    st.error(st.session_state.pop("lock_error"))
+        if C.expert():
+            with _tune(pid, "prep", "phong cách World Bible · dựng layout storyboard (chế độ Chuyên gia)") as tune_open:
+                if tune_open:
+                    S.world_bible_panel(p, pid)
+                    if chars:
+                        S.storyboard_panel(p, pid)
+
+    # ③ Chạy (1c): the automatic run + the project budget. The level (who approves) is the 🎚 bar in the header.
+    if scenes:
+        with D.card(f"script-c-{pid}"):
+            _card_head("3", "Chạy", [("tự động hoàn toàn hoặc lần lượt từng bước", "mute")])
+            st.caption("🎚 Mức tự động (ai duyệt, cổng dừng, độ chặt QC) chọn ở thanh trên cùng. Chạy tự động bên dưới; "
+                       "muốn đi từng bước thì làm xong thẻ ② rồi bấm Duyệt & khóa → Storyboard.")
+            S.autopilot_panel(p, pid)
