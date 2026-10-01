@@ -565,3 +565,11 @@ cỡ / giờ / blocking; nút Đạt / Nhỏ / Chặn, loại lỗi, ghi chú, "
 `P<dự án>-J<job>` → {label, category, note, shot, at}). Khung có gợi ý độ tin **cao** (= chính người dùng từng loại ảnh kèm lý do, 17 khung)
 tính là đã xác nhận nếu không sửa. Đọc về: `ArtifactData list labels` → gộp với 17 khung độ tin cao → `data/qc_golden/independent.json`
 (định dạng `qc_golden.independent_set`). Google Sheet cũ giữ làm dự phòng.
+
+**01/10 — Bộ độc lập đã gắn nhãn (người dùng, trên trang Bàn soát khung QC):** `data/qc_golden/independent.json` (ngoài git; bản gốc còn trong
+CSDL trang): 117 nhãn chọn trên trang + 17 theo quyết định loại ảnh cũ = 134. **Chặn 118 · Nhỏ 10 · Đạt 6.** Loại lỗi của khung không đạt:
+trống 64, Nhân vật 36, Bối cảnh / kiến trúc 16, Liền mạch / ánh sáng 5, Kỹ thuật 4, Khác 2, Hướng nhìn 1.
+- **Gợi ý tự động của bước lọc trước đúng ít:** độ tin "thấp" đúng 22 / 70, "vừa" đúng 15 / 23 → nhiều khung từng được duyệt nay người dùng
+  chấm Chặn (chuẩn đã nâng lên so với lúc làm các dự án cũ).
+- **Hệ quả cho việc đo:** recall đo tốt (118 khung chặn); **báo nhầm chỉ có 16 khung không chặn để đo** → con số báo nhầm sẽ dao động lớn;
+  64 khung chặn chưa ghi loại lỗi → chưa đo được recall riêng từng chuyên viên (C1 chỉ chịu "Nhân vật").
