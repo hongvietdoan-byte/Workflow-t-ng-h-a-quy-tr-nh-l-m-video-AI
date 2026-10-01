@@ -249,3 +249,67 @@ def estimate_usd(n_frames: int, assertions_per_frame: int = 12, model_in: float 
     """Mục 16 for C1 alone: ≈ 4 000 new input tokens + 10 000 cache reads + (300 + 110 / assertion) output per frame (no thinking)."""
     per = (4000 * model_in + 10000 * model_in * 0.1 + (C1_MAX_TOKENS_BASE + C1_TOKENS_PER_ASSERTION * assertions_per_frame) * model_out) / 1e6
     return round(per * n_frames, 4)
+
+
+# ---- in the pipeline (cờ qc_team): layer 1 of the per-scene QC --------------------------------------------------------------------
+FEATURE = "qc_team"
+FRAME_USD = 0.03          # GĐ3 01/10 measured 0.019–0.020 USD / frame (C1); + the same-side picture of people seen from behind
+
+
+def enabled() -> bool:
+    from . import features
+    return features.on(FEATURE)
+
+
+def note_of(res: Dict) -> str:
+    """One line for the person at the storyboard gate."""
+    parts = [f"Tổ QC (thử, chưa nghiệm thu): {res['verdict']}"]
+    if res["fails"]:
+        parts.append("; ".join(f"{f['claim_vi']} — {f['why']}" for f in res["fails"])[:420])
+    side = [a for a in res.get("arbiter") or [] if "#asym:" in a]
+    if side:
+        parts.append(f"trái/phải cần người xem ({len(side)})")
+    if res.get("plan_conflicts"):
+        parts.append("bảng shot tự mâu thuẫn: " + "; ".join(res["plan_conflicts"]))
+    return " · ".join(parts)[:600]
+
+
+def review_scene(p, pid: int, story_scene, client, data_dir: str, frames: List[Dict], focus: Optional[List[int]] = None) -> Dict:
+    """Run C1 + the code layer on the scene's frames to look at (`focus` = job ids; None = all). Not trusted yet: every frame is held
+    for the person with the verdict as a note — nothing is approved or redrawn on its own. Results kept in qc_scene/team.json.
+    {"applied": {Kk: text}, "results": {job: result}} or {"stopped": reason, "blocked": bool} when the money lock / Claude says no."""
+    from . import llm_runner, project_budget, qc_scene, qc_spec
+    if not hasattr(client, "ask_json"):
+        return {"stopped": "Claude chưa sẵn sàng cho trả lời có cấu trúc (LLM_PROVIDER=anthropic)", "blocked": True}
+    todo = [r for r in frames if focus is None or r["job_id"] in focus]
+    over = project_budget.check(p.conn, pid, "claude_qc", FRAME_USD * len(todo))
+    if over:
+        return {"stopped": over, "blocked": True}
+    names = sorted({str(c).upper() for r in frames for c in r["data"].get("characters") or []})
+    views = sorted({qc_spec.view_of(r["data"], n) or "" for r in frames for n in r["data"].get("characters") or []} - {""})
+    shots = [f"S{r['data'].get('story_scene')}·{r['data'].get('shot_no')}" for r in frames]
+    entity = entity_blocks(p, pid, names, views, [r["job_id"] for r in frames], data_dir, shots)
+    applied, results = {}, {}
+    with llm_runner.tagged("qc_team", pid):
+        for k, r in enumerate(frames, 1):
+            if r not in todo:
+                continue
+            if p.job(r["job_id"])["state"] not in ("succeeded", "pending_review"):
+                applied[f"K{k}"] = f"giữ nguyên ({p.job(r['job_id'])['state']})"
+                continue
+            frame = {"job_id": r["job_id"], "path": r["path"], "data": r["data"], "label": shots[k - 1]}
+            try:
+                res = review_frame(p, pid, data_dir, frame, client, entity=entity)
+            except llm_runner.LlmError as e:
+                if e.code in ("budget", "auth", "config"):
+                    return {"stopped": str(e), "blocked": True, "applied": applied, "results": results}
+                applied[f"K{k}"] = f"lỗi Claude: {e}"
+                continue
+            results[r["job_id"]] = res
+            qc_scene._hold(p, r["job_id"], note_of(res))
+            applied[f"K{k}"] = f"giữ cho người ({res['verdict']})"
+    store = qc_scene._load(data_dir, pid, "team.json")
+    for job, res in results.items():
+        store[str(job)] = res
+    qc_scene._save(data_dir, pid, "team.json", store)
+    return {"applied": applied, "results": {str(k): v["verdict"] for k, v in results.items()}}

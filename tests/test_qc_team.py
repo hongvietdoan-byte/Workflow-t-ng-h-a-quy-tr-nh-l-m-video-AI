@@ -112,7 +112,9 @@ class RulesTests(unittest.TestCase):
         self.assertEqual(r["verdict"], "pass")                    # the model said false; what it saw says LEFT = right
         self.assertIn("bên LEFT", r["results"][a["id"]]["why"])
         seen = dict(seen, answer="true", seen_at="image_left_of_body")
-        self.assertEqual(qc_rules.frame_verdict([a], {a["id"]: seen}, {})["verdict"], "block")
+        wrong = qc_rules.frame_verdict([a], {a["id"]: seen}, {})
+        self.assertEqual(wrong["verdict"], "minor")                  # left/right never blocks on its own (user 01/10)
+        self.assertIn("cần người xem", wrong["fails"][0]["why"])
 
     def test_a_facing_the_face_detector_contradicts_is_a_doubt(self):
         a = self.side(cast_n=1)

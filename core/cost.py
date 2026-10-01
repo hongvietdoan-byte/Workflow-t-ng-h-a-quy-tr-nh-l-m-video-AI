@@ -331,12 +331,12 @@ def _scenes_to_draw(conn, project_id: int) -> int:
 def _picture_qc_calls(conn, project_id: int, pictures: int) -> float:
     """Claude calls to judge the pictures still to draw: per picture (old QC), per scene + re-looks after redraws (scene QC with
     layer 1 on), none when scene QC runs without Claude (layer 0 only) or the agent is counted apart."""
-    from . import qc_agent, qc_scene
+    from . import qc_agent, qc_scene, qc_team
     if not pictures:
         return 0
     if not qc_scene.enabled():
         return pictures
-    if qc_agent.enabled() or not qc_scene.claude_on():
+    if qc_agent.enabled() or qc_team.enabled() or not qc_scene.claude_on():
         return 0
     return _scenes_to_draw(conn, project_id) * (1 + REDRAW_SHARE)
 
@@ -409,6 +409,9 @@ def estimate_run(pipeline: Pipeline, project_id: int, pricing: Optional[Dict] = 
     from . import qc_agent
     if img["items"] and qc_agent.enabled():            # the agent: several turns per scene (not measured yet — a fixed figure)
         llm_usd += AGENT_SCENE_USD * _scenes_to_draw(conn, project_id)
+    from . import qc_scene, qc_team
+    if img["items"] and qc_team.enabled() and qc_scene.enabled():      # Tổ QC: one structured call per frame (+ redraws)
+        llm_usd += qc_team.FRAME_USD * img["items"] * (1 + REDRAW_SHARE)
     llm_usd *= LLM_MARGIN
     retry = int(proj["max_retry_count"] or 0)
     auto_cap = min(retry, 2)                           # automatic retries per picture/clip (pipeline.AUTO_RETRY_CAP)

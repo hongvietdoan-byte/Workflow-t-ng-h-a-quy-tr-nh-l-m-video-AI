@@ -577,3 +577,11 @@ trống 64, Nhân vật 36, Bối cảnh / kiến trúc 16, Liền mạch / ánh
 **01/10 — Quyết định người dùng: dừng đo Tổ QC trên dự án cũ.** Các dự án cũ sai sót nhiều (118 / 134 khung Chặn) nên khó dùng để đánh giá;
 không ghi thêm loại lỗi, không chạy C1 trả tiền trên bộ độc lập. **Hướng tiếp:** áp dụng Tổ QC trên các dự án mới rồi sửa dần theo kết quả
 thật (cổng nghiệm thu đo trên dự án mới). Bộ độc lập + bộ phát triển #8 giữ lại để chạy lại offline khi sửa code.
+
+**01/10 — Bật thử Tổ QC trong pipeline (người dùng):** cờ `qc_team` nối vào lớp 1 của QC theo cảnh (`qc_scene.run_ready_scenes` →
+`qc_team.review_scene`): mỗi khung 1 lời gọi C1 có cấu trúc + tầng 0 + bảng luật; **mọi khung chờ người duyệt** với ghi chú
+"Tổ QC (thử, chưa nghiệm thu): <kết luận> · <lỗi> · trái/phải cần người xem (n)"; không tự duyệt / vẽ lại; kết quả trong
+`qc_scene/team.json`; cùng bộ ảnh không chấm lại. **Trái/phải không bao giờ tự chặn** (`qc_rules.SIDE_CAN_BLOCK = False`) — lỗi mức nhỏ
+"cần người xem". Kiểm trần tiền dự án trước mỗi cảnh (stage claude_qc), ước tính 0,03 USD / khung trong `cost.estimate_run` và đề xuất
+ngân sách dự án. `FEATURE_QC_TEAM=1` đã thêm vào dashboard.env (sao lưu data/backup_dashboard.env.before_qc_team_2026-10-01) — cần mở
+lại Dashboard. Test `tests/test_qc_team_pipeline.py` 3; toàn bộ 1652 qua.

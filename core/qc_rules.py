@@ -14,6 +14,7 @@ _FRONT_OWN = {"image_left_of_body": "RIGHT", "image_right_of_body": "LEFT"}     
 _BACK_OWN = {"image_left_of_body": "LEFT", "image_right_of_body": "RIGHT"}        # back to the camera: same as the camera
 _NEAR_OWN = {"profile_facing_image_right": "RIGHT", "profile_facing_image_left": "LEFT"}   # in profile the side toward the camera
 _OTHER = {"LEFT": "RIGHT", "RIGHT": "LEFT"}
+SIDE_CAN_BLOCK = False     # user 01/10: left/right from the model is never an automatic block until measured on a new project
 CAP_BACKWARDS = {"strap_or_buckle_at_forehead", "brim_at_nape"}
 CAP_FORWARD = {"brim_at_forehead", "strap_or_buckle_at_nape", "no_cap"}
 
@@ -52,7 +53,10 @@ def observed(a: Dict, answer: Optional[Dict], code: Optional[Dict] = None) -> Tu
             ans.update(answer="unclear")
             return ans, None, f"khai: {facing} · {seen} → không suy ra được bên"
         ans.update(answer="true" if own == a["expected"] else "false")
-        return ans, None, f"khai: {facing} · {seen} → bên {own} của chính người đó (cần {a['expected']})"
+        how = f"khai: {facing} · {seen} → bên {own} của chính người đó (cần {a['expected']})"
+        if own != a["expected"] and not SIDE_CAN_BLOCK:        # GĐ3 01/10: the model places a detail on the right half of the
+            return ans, "minor", "trái/phải — cần người xem (QC chưa đo được tin cậy) · " + how     # picture ~50 % of the time
+        return ans, None, how
     if kind == "cap":
         marks = answer.get("cap_marks")
         ans.update(answer="true" if marks in CAP_BACKWARDS else ("false" if marks in CAP_FORWARD else "unclear"))

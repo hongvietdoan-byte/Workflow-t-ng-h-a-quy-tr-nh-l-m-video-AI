@@ -182,7 +182,8 @@ FEATURES: Dict[str, Dict] = {
         "label": "Tổ QC nhiều tầng (docs/THIET_KE_TO_QC_2026-10-01.md): bảng shot → mệnh đề kiểm tra, code đo trước (mặt, hướng mắt, màu trời), "
                  "chuyên viên Nhân vật trả lời có cấu trúc 1 lượt / khung, bảng luật code kết luận — thay lớp 1 của QC theo cảnh",
         "verified": False,
-        "why": "GĐ2 01/10: code + test + chạy khô; chưa đo trên bộ đo vàng (GĐ3, tốn tiền — hỏi trước)",
+        "why": "GĐ3 01/10 trên #8: mũ đúng 5/5 nhưng trái/phải do model đúng ~50 % → trái/phải chỉ đánh dấu cho người, không tự chặn; "
+               "người dùng 01/10 bật thử trên dự án mới — mọi khung vẫn chờ người (ghi chú của Tổ QC), chưa tự duyệt / vẽ lại",
     },
     "qc_agent": {
         "label": "Agent QC điều tra nhiều bước (Claude có công cụ: xem khung / cắt sát / ghép dải nhiều khung / ảnh chuẩn / bộ đo / ghi "

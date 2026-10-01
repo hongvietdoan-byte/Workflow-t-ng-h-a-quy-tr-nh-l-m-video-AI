@@ -371,8 +371,8 @@ def claude_on() -> bool:
     """Layer 1 (one Claude look per scene) runs by itself only when switched on, or when the QC agent replaces it. Trial #8
     2026-09-27: it failed its acceptance test, its verdicts were notes only, and re-reading a whole scene after each redraw cost
     ~0.5 USD of the Claude cap for nothing — layer 0 (code, free) keeps running in the image runner."""
-    from . import qc_agent
-    return features.on(CLAUDE_FLAG) or qc_agent.enabled()
+    from . import qc_agent, qc_team
+    return features.on(CLAUDE_FLAG) or qc_agent.enabled() or qc_team.enabled()
 
 
 def to_review(frames: List[Dict], judged: List[int]) -> List[Dict]:
@@ -415,7 +415,19 @@ def run_ready_scenes(p, pid: int, client, data_dir: str) -> Dict:
         judged = [j for prev in done.get(str(s), []) if not prev.get("skipped") for j in prev.get("jobs") or []]
         subset = to_review(frames, judged)
         try:
-            from . import qc_agent
+            from . import qc_agent, qc_team
+            if qc_team.enabled():                      # Tổ QC (01/10): code + C1 per frame, every frame held for the person
+                res = qc_team.review_scene(p, pid, s, client, data_dir, frames, focus=[r["job_id"] for r in subset])
+                if res.get("stopped"):
+                    summary["failed"].append((s, res["stopped"]))
+                    if res.get("blocked"):
+                        continue
+                else:
+                    rec = _load(data_dir, pid, "reviews.json")
+                    rec.setdefault(str(s), []).append({"jobs": key, "looked_at": [r["job_id"] for r in subset], "team": res["results"]})
+                    _save(data_dir, pid, "reviews.json", rec)
+                    summary["reviewed"].append((s, res["applied"]))
+                continue
             if qc_agent.enabled():                     # the investigating agent: the whole scene as context, records the subset
                 res = qc_agent.review_scene(p, pid, s, client, data_dir, frames, focus=[r["job_id"] for r in subset])
                 if res.get("stopped"):                 # a lock / Claude blocked / cut short: said, and NOT marked as judged, so the
