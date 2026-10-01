@@ -27,7 +27,7 @@ class EffortTests(unittest.TestCase):
         self.assertEqual((calls[0]["output_config"], calls[0]["max_tokens"]), ({"effort": "medium"}, 64000))
         self.assertEqual((calls[1]["output_config"], calls[1]["max_tokens"]), ({"effort": "low"}, 16000))
         self.assertNotIn("output_config", calls[2])                           # unlisted stage: the API default
-        self.assertEqual(calls[2]["max_tokens"], llm_runner.DEFAULT_MAX_TOKENS)
+        self.assertEqual(calls[2]["max_tokens"], llm_runner.DEFAULT_MAX_TOKENS)       # untagged: client default; a NAMED stage is bounded (test_stage_budget_scan)
 
     def test_env_overrides_and_models_without_effort(self):
         calls = []

@@ -61,7 +61,7 @@ class DashboardSmokeTests(unittest.TestCase):
         st.dialog panel; opening one must close whichever was open before (st.dialog only allows one at once)."""
         self.seed()
         at = AppTest.from_file(APP, default_timeout=30).run()
-        at.button(key="settings_pricing").click().run()
+        at.button(key="mc_pricing").click().run()
         self.assertFalse(at.exception)
         self.assertTrue(any(t.key == "price_currency" for t in at.text_input))
         at.button(key="settings_history").click().run()
@@ -82,19 +82,13 @@ class DashboardSmokeTests(unittest.TestCase):
         self.assertFalse(at.exception)
         self.assertTrue(any("World Bible" in x for x in labels()))
 
-    def test_the_four_cards_open_their_step(self):
-        """Kế hoạch V4 5.3 item 6: Kịch bản → Duyệt kế hoạch → Đang sản xuất → Video cuối, each opening its step."""
+    def test_the_overview_cards_are_gone_but_their_facts_stay_on_the_status_line(self):
+        """01/10: the four cards duplicated the bar's progress and the ⌂ page; the queue / background facts moved to the status line."""
         _, pid = self.seed()
         at = AppTest.from_file(APP, default_timeout=30).run()
         self.assertFalse(at.exception)
-        titles = " ".join(m.value for m in at.markdown)
-        for t in ("Kịch bản", "Duyệt kế hoạch", "Đang sản xuất", "Video cuối"):
-            self.assertIn(t, titles)
-        at.button(key=f"ov_2_{pid}").click().run()
-        self.assertFalse(at.exception)
-        self.assertTrue(at.radio(key="step").value.startswith("4"))
-        at.button(key=f"ov_3_{pid}").click().run()
-        self.assertTrue(at.radio(key="step").value.startswith("5"))
+        self.assertFalse([b for b in at.button if (b.key or "").startswith("ov_")])
+        self.assertFalse(any("Tổng quan dự án" in e.label for e in at.expander))
 
     def test_the_limits_dialog_opens_with_its_numbers(self):
         self.seed()
@@ -130,13 +124,13 @@ class DashboardSmokeTests(unittest.TestCase):
         at = AppTest.from_file(APP, default_timeout=30).run()
         self.assertFalse(at.exception)
         options = list(at.radio(key="step").options)
-        self.assertEqual(len(options), 6)                      # 5 steps + Theo dõi hiệu suất
+        self.assertEqual(len(options), 7)                      # ⌂ Tất cả dự án + 4 màn + 👥 Nhóm + Theo dõi hiệu suất
         for option in options:
             at.radio(key="step").set_value(option).run()
             self.assertFalse(at.exception, option)
         # Kho tài nguyên / Bảng giá / Kho kiến thức / Lịch sử / Bài học / Phân quyền: moved to the settings
         # gear, each its own dialog -- must render without error too.
-        for key in ("settings_assets", "settings_pricing", "settings_knowledge", "settings_history",
+        for key in ("settings_assets", "mc_pricing", "settings_knowledge", "settings_history",
                    "settings_lessons", "settings_users", "settings_limits"):
             at.button(key=key).click().run()
             self.assertFalse(at.exception, key)
@@ -147,7 +141,7 @@ class DashboardSmokeTests(unittest.TestCase):
         self.with_lock(p, pid)
         lock_character_bible(p, pid)
         at = AppTest.from_file(APP, default_timeout=30).run()
-        at.radio(key="step").set_value(at.radio(key="step").options[1]).run()
+        at.radio(key="step").set_value(at.radio(key="step").options[2]).run()
         next(b for b in at.button if "Gen ảnh các cảnh" in b.label).click().run()
         self.assertFalse(at.exception)
         rows = Pipeline(connect(self.db)).conn.execute("SELECT type, state FROM jobs").fetchall()
@@ -276,7 +270,7 @@ class DashboardSmokeTests(unittest.TestCase):
             from core import llm_runner as lr
             self.assertEqual(lr.run_qc(q, job, lr.MockLlm(), os.path.join(self.tmp, "projects"))["decision"], "pending_review")
             at = AppTest.from_file(APP, default_timeout=30).run()
-            at.radio(key="step").set_value(at.radio(key="step").options[1]).run()
+            at.radio(key="step").set_value(at.radio(key="step").options[2]).run()
             self.assertFalse(at.exception)
             state = Pipeline(connect(self.db)).conn.execute("SELECT state FROM jobs").fetchone()["state"]
             self.assertEqual(state, "pending_review")  # human_qc: mock scores wait for a person
@@ -294,7 +288,7 @@ class DashboardSmokeTests(unittest.TestCase):
         try:
             at = AppTest.from_file(APP, default_timeout=30).run()
             self.assertFalse(at.exception)
-            at.button(key="settings_pricing").click().run()
+            at.button(key="mc_pricing").click().run()
             at.text_input(key="price_currency").set_value("token").run()
             next(b for b in at.button if b.key == "btn_save_prices").click().run()
             self.assertFalse(at.exception)
@@ -335,14 +329,14 @@ class DashboardSmokeTests(unittest.TestCase):
         at.session_state[f"fold_motion_{pid}"] = True           # S9 E3.1 / E5.1: folded once everything there is approved
         at.session_state[f"fold_clips_{pid}"] = True
         at.run()
-        for index in (1, 2, 3, 4):                             # steps 2-5; Lịch sử (below) is its own panel now
+        for index in (2, 3, 4):                                # Storyboard (Ảnh + Motion tabs), Video, Bản giao; Lịch sử (below) is its own panel now
             at.radio(key="step").set_value(at.radio(key="step").options[index]).run()
             self.assertFalse(at.exception, index)
             self.assertTrue(any("Cảnh 1" in l and "nội dung kịch bản" in l for l in labels(at)), (index, labels(at)))
         at.button(key="settings_history").click().run()
         self.assertFalse(at.exception)
         self.assertTrue(any("Cảnh 1" in l and "nội dung kịch bản" in l for l in labels(at)), labels(at))
-        at.radio(key="step").set_value(at.radio(key="step").options[1]).run()
+        at.radio(key="step").set_value(at.radio(key="step").options[2]).run()
         self.assertTrue(any("Cảnh 1" in m.value for m in at.markdown))
         # the detail panel shows the script text itself
         joined = " ".join(m.value for m in at.markdown)
@@ -373,7 +367,7 @@ class DashboardSmokeTests(unittest.TestCase):
             return [r["state"] for r in Pipeline(connect(self.db)).conn.execute("SELECT state FROM jobs ORDER BY id")]
 
         at = AppTest.from_file(APP, default_timeout=30).run()
-        at.radio(key="step").set_value(at.radio(key="step").options[1]).run()
+        at.radio(key="step").set_value(at.radio(key="step").options[2]).run()
         next(b for b in at.button if b.key == "approve_all").click().run()
         self.assertEqual(states(), ["pending_review", "pending_review"])  # nothing approved by the first click
         self.assertTrue(any("Duyệt tất cả 2 ảnh" in w.value for w in at.warning))
@@ -387,7 +381,7 @@ class DashboardSmokeTests(unittest.TestCase):
     def test_a_new_pending_image_cancels_a_question_already_asked(self):
         p, pid, ids = self._pending_images(1)
         at = AppTest.from_file(APP, default_timeout=30).run()
-        at.radio(key="step").set_value(at.radio(key="step").options[1]).run()
+        at.radio(key="step").set_value(at.radio(key="step").options[2]).run()
         next(b for b in at.button if b.key == "approve_all").click().run()
         self.assertTrue(any("Duyệt tất cả 1 ảnh" in w.value for w in at.warning))
         q = Pipeline(connect(self.db))
@@ -396,7 +390,7 @@ class DashboardSmokeTests(unittest.TestCase):
         q.succeed(job)
         q.apply_qc(job, {"a": 0.9, "b": 0.9})
         at = AppTest.from_file(APP, default_timeout=30).run()
-        at.radio(key="step").set_value(at.radio(key="step").options[1]).run()
+        at.radio(key="step").set_value(at.radio(key="step").options[2]).run()
         self.assertFalse(any("Duyệt tất cả" in w.value for w in at.warning))  # the old question is gone
         self.assertTrue(any(b.key == "approve_all" for b in at.button))  # asks again from the button
 
@@ -668,7 +662,7 @@ class DashboardSmokeTests(unittest.TestCase):
         p.succeed(job)
         self.assertEqual(p.reject(job, "user", "sai"), "escalated")
         at = AppTest.from_file(APP, default_timeout=30).run()
-        at.radio(key="step").set_value(at.radio(key="step").options[1]).run()
+        at.radio(key="step").set_value(at.radio(key="step").options[2]).run()
         self.assertFalse(at.exception)
         next(b for b in at.button if b.key == f"rs_{job}").click().run()
         rows = Pipeline(connect(self.db)).conn.execute("SELECT state FROM jobs ORDER BY id").fetchall()
@@ -680,7 +674,7 @@ class DashboardSmokeTests(unittest.TestCase):
         q.succeed(new)
         q.approve(new, "user")
         at = AppTest.from_file(APP, default_timeout=30).run()
-        at.radio(key="step").set_value(at.radio(key="step").options[1]).run()
+        at.radio(key="step").set_value(at.radio(key="step").options[2]).run()
         next(b for b in at.button if b.key == f"sel_btn_{new}").click().run()  # open its detail panel
         at.text_input(key=f"rn_{new}").set_value("đổi màu áo").run()
         next(b for b in at.button if b.key == f"reopen_{new}").click().run()
@@ -786,7 +780,7 @@ class DashboardSmokeTests(unittest.TestCase):
         at = AppTest.from_file(APP, default_timeout=30).run()
         self.assertFalse(at.exception)
         bars = [x for x in at.get("popover") if not x.proto.popover.label.startswith("👗")]     # the per-character outfit popovers aside
-        self.assertEqual(len(bars), 3)                        # risk corner + "new project" + the one settings gear (v2)
+        self.assertEqual(len(bars), 5)                        # risk corner + "new project" + 📥 inbox + 💵 card + the one settings gear
         text = " ".join(m.value for m in at.markdown)
         self.assertIn("Cảnh 1 bị chặn (clipai)", text)      # risk-control block, with its scene
         self.assertIn("Nữ chiến binh Amazon", text)          # IP warning from the Character Bible
@@ -823,7 +817,7 @@ class DashboardSmokeTests(unittest.TestCase):
     def test_reject_floor_slider_is_saved_for_the_project(self):
         p, pid = self.seed()
         at = AppTest.from_file(APP, default_timeout=30).run()
-        at.radio(key="step").set_value(at.radio(key="step").options[1]).run()
+        at.radio(key="step").set_value(at.radio(key="step").options[2]).run()
         at.slider(key=f"rej_v_{pid}").set_value(0.7).run()
         self.assertEqual(Pipeline(connect(self.db)).project(pid)["qc_reject_floor"], 0.7)
         at.checkbox(key=f"rej_on_{pid}").set_value(False).run()
@@ -866,7 +860,7 @@ class DashboardSmokeTests(unittest.TestCase):
         os.environ["HEARTBEAT_SEC"] = "0"
         try:
             at = AppTest.from_file(APP, default_timeout=30).run()
-            at.radio(key="step").set_value(at.radio(key="step").options[1]).run()
+            at.radio(key="step").set_value(at.radio(key="step").options[2]).run()
             next(b for b in at.button if "Gen ảnh các cảnh" in b.label).click().run()   # queue + send; the page then polls by itself
             at.run()
             self.assertFalse(at.exception)

@@ -1,0 +1,11 @@
+/* 👥 Nhóm (nhánh D) */
+.st-key-hero-team { margin-bottom: 8px; }
+.team-tablewrap { overflow-x: auto; }
+.v2-table.team-table td { vertical-align: middle; }
+.v2-table.team-table .team-who { font-weight: 700; max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.v2-table.team-table .team-money { min-width: 150px; }
+.v2-table.team-table .team-money small { color: var(--muted); font-size: 12.5px; display: block; margin-bottom: 3px; }
+.v2-table.team-table .num { text-align: right; font-variant-numeric: tabular-nums; }
+[class*="st-key-card-team-"] { gap: 8px; }
+.st-key-hero-team [data-testid="stMarkdownContainer"], [class*="st-key-card-team-"] [data-testid="stMarkdownContainer"] { margin-bottom: 0; }
+[data-testid="stMarkdownContainer"]:has(> .team-tablewrap) { margin-bottom: 0; }

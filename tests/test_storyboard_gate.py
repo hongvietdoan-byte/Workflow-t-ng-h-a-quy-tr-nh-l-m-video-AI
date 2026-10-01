@@ -111,7 +111,7 @@ class StoryboardPanelTest(unittest.TestCase):
             p.conn.commit()
             app = os.path.join(os.path.dirname(__file__), "..", "dashboard", "app.py")
             at = AppTest.from_file(app, default_timeout=30).run()
-            step2 = next(o for o in at.radio(key="step").options if "2" in o)
+            step2 = "Storyboard"
             at.radio(key="step").set_value(step2).run()
             self.assertFalse(at.exception)
             text = " ".join(m.value for m in at.markdown)

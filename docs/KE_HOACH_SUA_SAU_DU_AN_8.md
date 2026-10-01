@@ -5,6 +5,7 @@
 > Xem tiến độ: web **AI Development System** (`Start-DevSystem.bat`, cổng 8502) → trang **📋 Kế hoạch đang chạy**, hoặc `py tools/plan_progress.py`.
 > **% do code tính** từ danh sách việc dưới đây (✅ tính đủ, 🔄 tính nửa, ✖ không tính; trọng số nặng:1/2/3). Xong một việc → đổi trạng thái
 > trong cùng commit với code, ghi mã commit + bằng chứng, rồi `py tools/plan_progress.py --write`.
+> Đợt ưu tiên: S13  (dòng này do người dùng/Claude đặt tay; bỏ dòng hoặc đổi mã đợt để đổi "Đợt hiện tại" trong bảng tiến độ; không có dòng → đợt chưa xong đầu tiên đang có việc)
 > Trạng thái: ⬜ chưa làm · 🔄 đang làm · ⏸ chờ người dùng · ✅ xong · ✖ bỏ (kèm lý do).
 
 **Luật chung mọi đợt:** test qua hết → commit + push `main` → `git pull` ở `D:\AI-Video-Pipeline` → cập nhật `TODO.md` → báo kết quả (kèm dòng
@@ -27,11 +28,13 @@
 | S7 Agent QC | 3 | 1 | 2 | 0 | 0 | 66,7 % |
 | S10 Kỹ năng nhân vật & tham chiếu | 12 | 12 | 0 | 0 | 0 | 100 % |
 | S11 Director mở rộng: ý tưởng → kịch bản, cover video ref, học trending (kế hoạch v2 01/10, `docs/KE_HOACH_TINH_NANG_DIRECTOR_2026-10-01.md`) | 15 | 2 | 1 | 1 | 0 | 17,3 % |
+| S12 Rà soát dashboard 01/10: sửa lỗi, tính năng thử, 4 màn, nhiều người dùng (`docs/RA_SOAT_DASHBOARD_2026-10-01.md`) | 7 | 6 | 0 | 1 | 0 | 80 % |
+| S13 Giao diện v2 "AI product" (gradient, kính mờ, nền tối) trên Streamlit, chạy song song nhiều nhánh (`docs/KE_HOACH_GIAO_DIEN_V2_2026-10-01.md`) | 12 | 10 | 0 | 0 | 0 | 86,2 % |
 | K Chạy kiểm kịch bản hài 20–30 s — ⏸ KHÔNG ƯU TIÊN (người dùng 30/09: các việc test kịch bản không làm trước nữa) | 3 | 0 | 0 | 3 | 0 | 0 % |
 | S8 Chấm lại bằng AI Development System (cuối cùng) | 5 | 2 | 0 | 0 | 0 | 42,9 % |
-| **Tổng** | **115** | **89** | **3** | **4** | **5** | **83 %** |
+| **Tổng** | **134** | **105** | **3** | **5** | **5** | **83,2 %** |
 
-Đợt hiện tại: **S7** · việc kế: **S11.3** 📈 Trend T1: trend_raw / trend_cards (có `copyright_level` cao/vừa/thấp), nguồn miễn phí, tab ⚙ 📈 Trend duyệt thẻ
+Đợt hiện tại: **S13** · việc kế: **S13.3** G2/G6 — `tools/ui_snapshot.py` (CSDL mẫu gần thật × 4 độ rộng × sáng/tối × 2 độ phóng) + font Inter đi kèm
 <!-- /tien-do -->
 
 ## Danh sách việc (thứ tự người dùng đã duyệt)
@@ -166,6 +169,29 @@
 - [ ] S11.12 · 💃 Cover nhảy đầy đủ theo cách thắng + QC nhảy + nhạc cùng BPM · nặng:3 · ⬜ · cờ `dance_cover` TẮT
 - [ ] S11.13 · Đánh giá sau 4–6 tuần: nâng Apify Starter hay không · nặng:1 · ⬜
 - [ ] S11.14 · Hỏi ClipAI mở API Motion Control + có nhận video ref depth / mannequin · nặng:1 · ⏸ · người dùng chưa hỏi
+
+### S12 — Rà soát dashboard 01/10: sửa lỗi, tính năng thử, 4 màn, nhiều người dùng (`docs/RA_SOAT_DASHBOARD_2026-10-01.md`)
+- [x] S12.0 · Đợt 0: tắt 3 cờ gây hại (`setcheck_autofix`, `layout_to_model`, `chain_previous_auto`) + cất 18 dự án cũ (không xóa) · nặng:1 · ✅ · 01/10: sao lưu CSDL + dashboard.env
+- [x] S12.1 · Đợt 1: sửa B1–B6 (trần max_tokens khâu Claude, công thức look_trust, tỉ lệ ảnh gửi video, CTA_TEXT, ảnh Kho mất file, devsys dò cờ) + đồng bộ trạng thái cờ + tách lịch sử TODO · nặng:2 · ✅ · 01/10: 1700 test qua
+- [x] S12.2 · Đợt 2: màn 🧪 Tính năng thử + thẻ 💵 Tiền + ⚙ gom 3 nhóm · nặng:2 · ✅ · 01/10
+- [x] S12.3 · Đợt 3: ⌂ Tất cả dự án + Kịch bản/Storyboard/Video/Bản giao + 👥 Nhóm + 📥 Việc cần bạn + 🎚 Mức tự động + 📎 tham chiếu + vai/hạn mức/🔒 đang mở · nặng:3 · ✅ · 01/10: agent soát cầu nối tìm 7 vấn đề, đã sửa
+- [x] S12.4 · Đợt 4: dựng 2 bản #8 có/không hiệu ứng (`tools/ab_render_effects.py`, 0 USD) → người dùng chọn bản CÓ → 8 cờ dựng/âm thanh verified · nặng:2 · ✅ · 01/10
+- [ ] S12.5 · 💵 Đợt 5: đo 27 cờ còn lại trong 1 dự án thử có trần (`docs/DOT5_KE_HOACH_DO_CO_2026-10-01.md`) · nặng:3 · ⏸ · cần người dùng: kịch bản mới + nạp Claude API + duyệt trần ≤ 15 USD
+- [x] S12.6 · Hệ thống màu + nền tối + viền + tab hiện đủ + thanh tiến độ màu theo % + công cụ quét tương phản · nặng:2 · ✅ · 01/10: `docs/THIET_KE_GIAO_DIEN_2026-10-01.md`, `tools/ui_contrast_audit.js`
+
+### S13 — Giao diện v2 "AI product" (gradient, kính mờ, nền tối) trên Streamlit, chạy song song nhiều nhánh (`docs/KE_HOACH_GIAO_DIEN_V2_2026-10-01.md`)
+- [x] S13.0 · Nghiên cứu (canvas Deepix, công cụ khác, kiến trúc UI hiện tại) + kế hoạch được người dùng duyệt · nặng:1 · ✅ · 01/10: giữ Streamlit, không canvas, mục tiêu ≈ 75–80 % cảm giác AI
+- [x] S13.1 · Nhánh A — lõi thiết kế: `dashboard/design/{tokens.py,theme.css,components.py}`, cờ `ui_v2`, test tương phản token · nặng:3 · ✅ · 01/10: token sáng/tối đạt tương phản (test), theme.css (aurora, kính, nút gradient, stepper viên thuốc, pill, tab), cờ `ui_v2` TẮT mặc định, `tests/test_ui_v2_core.py`
+- [x] S13.2 · G1 — lát cắt dọc THẬT trên Dashboard thật (thanh trên, stepper, hero, lưới 8–12 khung, hộp thoại, bảng, trạng thái rỗng/lỗi/đang chạy) → người dùng duyệt ảnh trước khi mở nhánh B–G · nặng:3 · ✅ · 01/10: người dùng duyệt lát cắt (đã xem trên bản demo) → mở song song nhánh B–G
+- [ ] S13.3 · G2/G6 — `tools/ui_snapshot.py` (CSDL mẫu gần thật × 4 độ rộng × sáng/tối × 2 độ phóng) + font Inter đi kèm · nặng:2 · ⬜
+- [x] S13.4 · Nhánh C — lõi “Đặt lại thanh tiền” chỉ Owner (`core/money_reset.py`, mốc không xóa sổ, nhật ký, test) · nặng:2 · ✅ · 01/10: agent nhánh `ui/money-reset` đã gộp; 60 test liên quan qua; chưa có UI (nhánh B)
+- [x] S13.5 · Nhánh B — khung ứng dụng (thanh trên kính, stepper, hero, nền aurora, 📥 💵 ⚙, ô Đặt lại thanh tiền) · nặng:3 · ✅ · 01/10: nhánh `ui/shell` đã gộp (7 test + 100 test cũ với cờ tắt qua); hero dự án, thanh trên không còn đè chữ, ô Đặt lại thanh tiền chỉ Owner; chưa làm: thanh trên dính, bố cục < 1100 px
+- [x] S13.6 · Nhánh D — ⌂ Tất cả dự án (lưới thẻ) + 👥 Nhóm + 📊 Theo dõi dùng thẻ chung · nặng:2 · ✅ · 01/10: nhánh `ui/home-team` đã gộp (9 test mới + 94 test cũ qua); lưới thẻ dự án, Nhóm/Theo dõi dùng bảng HTML + pill; chưa thử < 1100 px
+- [x] S13.7 · Nhánh E — màn Kịch bản (hero nhập, thẻ Lập kế hoạch có giá, khay tham chiếu, gập Tinh chỉnh) · nặng:3 · ✅ · 01/10: nhánh `ui/script` đã gộp (4 test mới + 82 test cũ qua); hero + 1 nút chính theo trạng thái, thẻ 📎/①/②/③, chi tiết dài vào ⓘ; còn: thẻ ② dài ~3400 px (panel cũ tự mở), caption ngắn chưa vào ⓘ
+- [x] S13.8 · Nhánh F — Storyboard (lưới khung thẻ kính, nhãn duyệt cố định, dải phiên bản, thanh hành động dính) · nặng:3 · ✅ · 01/10: nhánh `ui/storyboard` đã gộp (10 test mới + 94 test cũ qua); lưới khung thẻ kính, nhãn duyệt cố định, dải phiên bản bấm được, thanh hành động dính, lý do loại ngay trên thẻ, chi tiết ảnh thành hộp thoại; chưa test riêng cổng board_ok_ đang chờ
+- [x] S13.9 · Nhánh G — Video + Bản giao (thẻ clip + QC chip, thẻ “Xuất bản đầy đủ”) · nặng:3 · ✅ · 01/10: nhánh `ui/video-deliver` đã gộp (20 test mới + 157 test cũ qua); thẻ clip kính + pill + số đo lớp 0 vào ⓘ, Bản giao = 1 nút “Xuất bản đầy đủ” + 3 chip, ~40 điều khiển gom 4 tab Tinh chỉnh; chưa kiểm bằng mắt với clip thật
+- [x] S13.11 · Lượt tinh gọn theo yêu cầu người dùng: chi tiết vào ⓘ, ngoài chỉ tóm tắt (B khung, D dự án/nhóm/theo dõi, E kịch bản, F storyboard; G đã làm khi giao) · nặng:2 · ✅ · 01/10: 4 nhánh `ui/*-slim` đã gộp; trang Kịch bản 6640→~4000 px, thẻ ② 3428→1308 px; chi tiết vào ⓘ, panel dưới lưới đóng mặc định; trang Kế hoạch của AI Development System gọn
+- [ ] S13.10 · Nghiệm thu bằng số (0 chữ < 4.5:1, 0 chữ < 12 px, số click giảm, 0 điều khiển cũ mất, hiệu năng ≤ +20 %) + người dùng quyết bỏ giao diện cũ · nặng:2 · ⬜
 
 ### K — Chạy kiểm kịch bản hài 20–30 s — ⏸ KHÔNG ƯU TIÊN (người dùng 30/09: các việc test kịch bản không làm trước nữa)
 - [ ] K.1 · Soạn kịch bản hài 20–30 s có **Kenta + Orion cùng dùng kỹ năng** (người dùng 30/09) · nặng:1 · ⏸ · viết lại bản A (docs/KICH_BAN_KIEM_K1_2026-09-29.md) theo hồ sơ kỹ năng Kenta + Orion (đợt S10) và luật chia nhịp kỹ năng; người dùng duyệt · tạm gác — không ưu tiên (người dùng 30/09); làm sau cùng khi người dùng gọi

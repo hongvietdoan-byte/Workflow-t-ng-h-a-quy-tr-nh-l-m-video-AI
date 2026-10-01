@@ -1,0 +1,10 @@
+/* ⌂ Tất cả dự án (nhánh D) — thẻ dự án trong lưới 3 cột */
+.st-key-hero-home { margin-bottom: 8px; }
+[class*="st-key-card-home-"] { gap: 10px; }
+[class*="st-key-card-home-"] .home-name { font-size: 16.5px; font-weight: 800; letter-spacing: -0.01em; color: var(--text);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+[class*="st-key-card-home-"] .home-sub { font-size: 13px; color: var(--muted); }
+[class*="st-key-card-home-"] .home-sum { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+[class*="st-key-card-home-"] .home-note { font-size: 13px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-height: 20px; }
+[class*="st-key-card-home-"] [data-testid="stMarkdownContainer"], .st-key-hero-home [data-testid="stMarkdownContainer"] { max-width: 100%; margin-bottom: 0; }
+.st-key-hero-home .v2-stat, .st-key-hero-team .v2-stat, .st-key-hero-mon .v2-stat { min-height: 84px; }

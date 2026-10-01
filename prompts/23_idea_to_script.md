@@ -40,7 +40,7 @@ KELLY: <lời>
 KENTA: <lời>
 ```
 Tiêu đề mỗi cảnh bắt đầu bằng `CẢNH <số> - `. Hồi tưởng ghi "(HỒI TƯỞNG)" trong tiêu đề. Tên người nói viết HOA, đúng tên trong Kho nếu có.
-Giữ nguyên thoại của dàn ý (được sửa chữ cho tự nhiên, không đổi ý). CTA (nếu có) ở cảnh cuối, đúng chữ người dùng đưa. Không ghi số tuổi
+Giữ nguyên thoại của dàn ý (được sửa chữ cho tự nhiên, không đổi ý). CTA (nếu có) ở cảnh cuối, đúng chữ người dùng đưa; ghi CTA là dòng mô tả "CHỮ TRÊN MÀN: <chữ>" (hoặc người thật nói thì dùng tên người đó) — KHÔNG viết `CTA_TEXT:` / `CTA:` như một người nói. Không ghi số tuổi
 dưới 18. `added`: liệt kê những gì bạn THÊM so với ý gốc (nhân vật, nơi, tình tiết) để người dùng duyệt.
 Trả về JSON:
 {"script": "CẢNH 1 - ...\n...", "added": [{"kind": "character|place|event|line", "text": "..."}], "notes": "..."}

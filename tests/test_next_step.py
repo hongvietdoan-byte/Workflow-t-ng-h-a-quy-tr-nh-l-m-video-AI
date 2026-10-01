@@ -28,7 +28,7 @@ class NextStepTests(unittest.TestCase):
         p.conn.execute("UPDATE characters SET locked=1 WHERE project_id=?", (pid,))
         p.conn.commit()
         with __import__("unittest.mock", fromlist=["patch"]).patch("core.project_budget.enabled", return_value=False):
-            self.assertEqual(next_step.next_action(p, pid, 1), ("Bước 1 xong — sang Bước 2", "done"))   # #8: locked, no anchors
+            self.assertEqual(next_step.next_action(p, pid, 1), ("Kịch bản xong — sang màn Storyboard", "done"))   # #8: locked, no anchors
 
     def test_a_waiting_automatic_run_comes_first(self):
         p, pid = project()

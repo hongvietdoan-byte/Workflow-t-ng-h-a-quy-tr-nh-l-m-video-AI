@@ -5,15 +5,138 @@ from dashboard import common as C
 from dashboard.admin import asset_library_panel, history, knowledge_panel, lessons_tab, price_editor, users_tab
 
 
+def _go_item(project_id, screen) -> None:
+    C.go_screen(project_id, screen or "script")
+
+
+INBOX_SHOWN = 3          # v2: how many inbox items stay outside the ⓘ fold
+
+
+def inbox_card(p: Pipeline) -> None:
+    """📥 Việc cần bạn (đợt 3): what waits for you across all projects — reviews, locks of money, the automatic run, services out of credit.
+    The Owner can also list the whole team's (core/inbox.py)."""
+    from core import inbox
+    who = me()
+    email = who.get("email", "") if auth_on() else ""
+    is_owner = who.get("role") == "owner"
+    can_money = is_owner or allowed("settings")
+    mine = inbox.items(p.conn, email, is_owner, can_money, auth_on())
+    with st.popover(f"📥 Việc cần bạn ({len(mine)})" + (" 🔴" if any(i["level"] == "bad" for i in mine) else ""), width="stretch",
+                    help="Mọi việc đang chờ bạn ở mọi dự án: duyệt ảnh / clip, khóa ngân sách, chạy tự động đang dừng, dịch vụ hết tiền"):
+        team_view = False
+        if auth_on() and is_owner:
+            team_view = st.radio("Phạm vi", ["Của tôi", "Cả nhóm"], horizontal=True, label_visibility="collapsed", key="inbox_scope") == "Cả nhóm"
+        items = inbox.items(p.conn, email, is_owner, can_money, auth_on(), team_wide=True) if team_view else mine
+        v2 = ui.v2_on()
+        kind = ""
+        if not v2 or len(items) > INBOX_SHOWN:             # v2: the type filter only matters once the list is longer than what is shown
+            kind = st.selectbox("Loại việc", [""] + list(inbox.KINDS), format_func=lambda k: "Tất cả loại việc" if not k else k,
+                                key="inbox_kind", label_visibility="collapsed")
+        if kind:
+            items = [i for i in items if i["kind"] == kind]
+        if not items:
+            st.caption("Không có việc nào đang chờ bạn." if not kind else "Không có việc loại này.")
+
+        def draw(n: int, it) -> None:
+            c1, c2 = st.columns([4, 1.2], vertical_alignment="center")
+            tag = {"bad": "🔴", "wait": "⏸", "warn": "⚠", "todo": "👉"}.get(it["level"], "")
+            c1.markdown(f"{tag} **{escape(it['kind'])}** — {escape(it['text'])}"
+                        + (f"  \n<small>#{it['project_id']} {escape(it['project'])}" + (f" · việc của {escape(it['who'])}" if it["who"] else "")
+                           + "</small>" if it["project_id"] else ""), unsafe_allow_html=True)
+            if it["project_id"] and it["screen"]:
+                c2.button("Mở →", key=f"inb_{n}", on_click=_go_item, args=(it["project_id"], it["screen"]), width="stretch")
+
+        shown = items[:30]
+        if v2 and len(shown) > INBOX_SHOWN:                 # v2: the first 3 stay outside, the rest fold into ⓘ
+            for n, it in enumerate(shown[:INBOX_SHOWN]):
+                draw(n, it)
+            with st.expander(f"ⓘ Còn {len(items) - INBOX_SHOWN} việc nữa"):
+                for n, it in enumerate(shown[INBOX_SHOWN:], start=INBOX_SHOWN):
+                    draw(n, it)
+                if len(items) > 30:
+                    st.caption(f"… còn {len(items) - 30} việc: lọc theo loại để xem tiếp.")
+            return
+        for n, it in enumerate(shown):
+            draw(n, it)
+        if len(items) > 30:
+            st.caption(f"… còn {len(items) - 30} việc: lọc theo loại để xem tiếp.")
+
+
+LEVEL_BUSY = ("running", "queued", "waiting", "needs_attention")     # the run holds the review mode + gates (autopilot._save_cfg)
+LEGACY_KEYS = ("mode_{pid}", "ap_gate_bible_{pid}", "ap_gate_pilot_{pid}", "ap_gate_board_{pid}", "qcpol_{pid}")
+
+
+def _level_changed(pid: int) -> None:
+    """on_change of the 🎚 radio (runs before the widgets): write the three settings, then drop the older controls' remembered values so
+    they show the new settings instead of writing the old ones back (Streamlit keeps a keyed widget's value between runs)."""
+    from core import automation
+    pick = st.session_state.get(f"level_{pid}")
+    if not pick:
+        return
+    p = Pipeline(connect(C.DB))                     # a callback runs in another thread than the one that made `p`
+    try:
+        automation.apply(p, pid, pick)
+    except ValueError as e:
+        st.session_state["level_error"] = str(e)
+        return
+    for k in LEGACY_KEYS:
+        st.session_state.pop(k.format(pid=pid), None)
+
+
+def level_bar(p: Pipeline, pid: int, compact: bool = False) -> None:
+    """🎚 Mức tự động (đợt 3): one choice over who approves + the run's gates + QC strictness (core/automation.py). Only the project's
+    creator or the Owner changes it; locked while the automatic run holds the project."""
+    from core import automation
+    info = autopilot.status(p, pid)
+    busy = info["state"] in LEVEL_BUSY
+    cur = automation.current(p, pid)
+    keys = list(automation.LEVELS)
+    proj = p.project(pid)
+    creator = (proj["created_by"] or "").strip().lower() if "created_by" in proj.keys() else ""
+    can = (not auth_on()) or me().get("role") == "owner" or not creator or creator == (me().get("email") or "").lower()
+    st.session_state[f"level_{pid}"] = cur if cur in keys else None        # always show what the project really has
+    c1, c2 = (st, st) if compact else st.columns([1, 5], vertical_alignment="center")    # v2: the hero strip gives it its own row
+    c1.caption("🎚 Mức tự động")
+    with (st.container() if compact else c2):
+        st.radio("Mức tự động", keys, horizontal=True, label_visibility="collapsed", format_func=lambda k: automation.LEVELS[k]["label"],
+                 disabled=busy or not can, key=f"level_{pid}", on_change=_level_changed, args=(pid,),
+                 help=("Đang chạy tự động — đổi mức sau khi dừng." if busy else "Chỉ người tạo dự án hoặc Owner đổi mức." if not can
+                       else "\n\n".join(f"**{v['label']}**: {v['desc']}" for v in automation.LEVELS.values())))
+    err = st.session_state.pop("level_error", None)
+    if err:
+        st.warning(err)
+    if compact and (cur not in keys or busy):         # v2: one short line, the full sentence in ⓘ
+        from dashboard.design import components as D
+        short = ("Tùy chỉnh tay — chọn một mức để đặt lại" if cur not in keys else "") + (" · " if cur not in keys and busy else "") \
+            + ("đang chạy tự động nên chưa đổi được mức" if busy else "")
+        full = (("**Tùy chỉnh:** bạn đã chỉnh tay cổng duyệt / chính sách QC / người duyệt — chọn một mức để đặt lại cả ba." if cur not in keys else "")
+                + ("\n\n" if cur not in keys and busy else "")
+                + ("**Đang chạy tự động:** chạy tự động đang giữ dự án nên không đổi được (lúc chạy luôn dùng QC tự duyệt, xong thì trả lại "
+                   "chế độ bạn chọn)." if busy else ""))
+        D.line(f'<span class="shell-status">{escape(short)}</span>', full, "shell-level-why")
+    elif cur not in keys or busy:                     # the level's description is the radio's tooltip; speak only when it matters
+        st.caption(("Tùy chỉnh: bạn đã chỉnh tay cổng duyệt / chính sách QC / người duyệt — chọn một mức để đặt lại cả ba."
+                    if cur not in keys else "") + ("  ·  chạy tự động đang giữ dự án nên không đổi được (lúc chạy luôn dùng QC tự duyệt, "
+                                                    "xong thì trả lại chế độ bạn chọn)" if busy else ""))
+
+
 def risk_popover(p: Pipeline, pid: int) -> None:
     """Small corner note: IP warnings and risk-control blocks seen so far in this project."""
     notes = preflight.risk_notes(p.conn, pid, preflight.load_blocklist())
+    if ui.v2_on():                                   # v2: lives inside the "Thêm" menu (a popover cannot hold a popover) → a labelled fold
+        with st.expander(f"⚠ Rủi ro ({len(notes)})"):
+            _risk_body(notes)
+        return
     with st.popover(f"⚠ Rủi ro ({len(notes)})", help="Ghi chú rủi ro đã gặp: cảnh báo IP và các lần bị chặn risk control"):
-        if not notes:
-            st.caption("Chưa ghi nhận rủi ro nào.")
-        for n in notes:
-            tag = ui.badge("IP", "b-warn") if n["kind"] == "ip" else ui.badge("bị chặn", "b-bad")
-            ui.html(f'{tag} <b>{escape(n["title"])}</b><br><span class="muted">{escape(n["detail"])}</span>')
+        _risk_body(notes)
+
+
+def _risk_body(notes) -> None:
+    if not notes:
+        st.caption("Chưa ghi nhận rủi ro nào.")
+    for n in notes:
+        tag = ui.badge("IP", "b-warn") if n["kind"] == "ip" else ui.badge("bị chặn", "b-bad")
+        ui.html(f'{tag} <b>{escape(n["title"])}</b><br><span class="muted">{escape(n["detail"])}</span>')
 
 
 def sign_in(conn, email: str, passcode: str = None) -> bool:
@@ -121,15 +244,24 @@ def archived_list(p: Pipeline) -> None:
     rows = archive.archived_projects(p.conn)
     if not rows:
         return
+    if ui.v2_on():                                   # v2: a fold (the list can be long) whose note is the old one-line caption
+        with st.expander(f"📦 Dự án đã cất ({len(rows)})"):
+            st.caption("Ẩn khỏi danh sách, không chạy tự động; dữ liệu còn nguyên.")
+            _archived_rows(rows)
+        return
     st.markdown(f"**📦 Dự án đã cất ({len(rows)})**")
     st.caption("Ẩn khỏi danh sách, không chạy tự động; dữ liệu còn nguyên.")
+    _archived_rows(rows)
+
+
+def _archived_rows(rows) -> None:
     for r in rows:
         c1, c2 = st.columns([3, 1.4], vertical_alignment="center")
         c1.caption(f"#{r['id']} {escape(r['name'])}")
         c2.button("↩ Khôi phục", key=f"proj_restore_{r['id']}", on_click=_restore_project, args=(r["id"],))
 
 
-def settings_menu(p: Pipeline, pid) -> None:
+def settings_menu(p: Pipeline, pid, label: str = "⚙") -> None:
     """ONE gear: 'Dự án này' (review mode, QC policy, delete) and 'Hệ thống' (library, prices, knowledge, history, lessons, users,
     shut down). Each panel opens as its own closable dialog. Old ?step=history/lessons/users links still open the matching dialog."""
     deep = st.query_params.get("step")
@@ -141,77 +273,55 @@ def settings_menu(p: Pipeline, pid) -> None:
             open_dialog("dlg_lessons")
         elif deep == "users" and allowed("users"):
             open_dialog("dlg_users")
-    with st.popover("⚙", help="Cài đặt dự án và hệ thống"):
+    with st.popover(label, help="Cài đặt dự án và hệ thống"):
         account_section(p)
-        if pid is not None:
-            proj = p.project(pid)
-            st.markdown("**Dự án này**")
-            modes = list(ui.MODE_LABELS)
-            mode = st.radio("Ai duyệt ảnh/clip", modes, index=modes.index(proj["operating_mode"]), format_func=ui.MODE_LABELS.get,
-                            horizontal=True, key=f"mode_{pid}")
-            if mode != proj["operating_mode"]:
-                p.set_mode(pid, mode)
-            st.caption("Chính sách QC (ngưỡng, tự gen lại) chỉnh ở Bước 2. Định dạng khung, thể loại, ưu tiên model ở Bước 1 · 1b.")
-            if not can_delete_project(proj):
-                who = proj["created_by"]
-                st.caption("Dự án này do " + (escape(who) if who else "người dùng cũ") + " tạo nên bạn không xóa được.")
-            elif confirm_all(f"proj_del_{pid}", [pid], "🗑 Xóa dự án", f"Xóa hẳn dự án “{proj['name']}” cùng ảnh, clip, nhạc, video? Không thể khôi phục.",
-                             st, "Có, xóa dự án"):
-                autopilot.stop(p, pid, "Dự án bị xóa")
-                p.cancel_all_active(pid)
-                p.delete_project(pid, C.DATA)
-                st.toast(f"Đã xóa dự án “{proj['name']}”")
+        # rà soát 01/10 (đợt 2): 11 mục → 3 nhóm. Tiền (ngân sách thử, bảng giá) ở thẻ 💵 trên thanh trên.
+        t_proj, t_res, t_sys = st.tabs(["Dự án", "Tài nguyên & kiến thức", "Hệ thống"])
+        with t_proj:
+            if pid is not None:
+                _settings_project(p, pid)
+            else:
+                st.caption("Chưa chọn dự án.")
+            archived_list(p)
+        with t_res:
+            if allowed("assets") and st.button("📁 Kho tài nguyên", key="settings_assets", width="stretch"):
+                open_dialog("dlg_assets")
+            if allowed("knowledge") and st.button("📚 Kho kiến thức", key="settings_knowledge", width="stretch"):
+                open_dialog("dlg_knowledge")
+            if pid is not None and allowed("lessons") and st.button("🎓 Bài học", key="settings_lessons", width="stretch"):
+                open_dialog("dlg_lessons")
+        with t_sys:
+            if st.toggle("🌙 Nền tối", value=ui.dark_on(), key="dark_toggle", help="Đổi nền sang tối cho đỡ chói; nhớ trong địa chỉ trang (?theme=dark). "
+                                                                                    "Bảng dữ liệu vẫn nền sáng.") != ui.dark_on():
+                ui.set_dark(not ui.dark_on())
                 st.rerun()
-            if confirm_all(f"proj_archive_{pid}", [pid], "📦 Cất dự án này",
-                           f"Cất dự án “{proj['name']}”? Dự án ẩn khỏi danh sách, tạm dừng và không chạy tự động; KHÔNG xóa gì "
-                           "(ảnh, clip, chi tiêu giữ nguyên). Khôi phục bất cứ lúc nào ở ⚙ → “📦 Dự án đã cất”.", st, "Có, cất"):
-                archive.archive(p, pid)
-                st.toast(f"Đã cất dự án “{proj['name']}”")
-                st.rerun()
-            if st.button("🗒 Lịch sử & thùng rác", key="settings_history", width="stretch"):
+            st.toggle("🧠 Chế độ chuyên gia", key="expert_mode",
+                      help="Hiện mọi tùy chọn nâng cao: dán JSON tay, nối ảnh, World Bible, storyboard layout, chính sách QC, video tham chiếu, "
+                           "kế hoạch model, thử nghiệm, bảng làm tay ở Bước 5. Tắt: mỗi bước chỉ hiện việc của một lần chạy thường.")
+            if allowed("settings") and st.button("🧪 Tính năng thử", key="settings_features", width="stretch",
+                                                 help="Bật / tắt từng tính năng chưa thử thật, hoặc chọn preset Ổn định / Thử nghiệm"):
+                open_dialog("dlg_features")
+            if st.button("📏 Giới hạn hệ thống", key="settings_limits", width="stretch",
+                         help="Số cấu hình + số đo từ lịch sử job thật (kèm số mẫu), hàng đợi hiện tại, ước tính thời gian"):
+                open_dialog("dlg_limits")
+            if pid is not None and st.button("🗒 Lịch sử & thùng rác", key="settings_history", width="stretch"):
                 open_dialog("dlg_history")
-            cheap = st.checkbox("🧪 Thử rẻ (ảnh cỡ nhỏ nhất · 720p · Kling std · Seedance 2.0/2.5 → Fast)", bool(proj["test_quality"]),
-                                key=f"cheap_{pid}",
-                                help="Cho đợt thử nghiệm: ảnh ở kích thước nhỏ nhất model Deepix nhận cho khung dự án, không gen 1080p, dùng "
-                                     "bản rẻ hơn của model video. Dự án tạo khi đợt thử ngân sách đang bật tự bật chế độ này. Tắt khi làm video thật.")
-            if cheap != bool(proj["test_quality"]):
-                p.set_project_field(pid, "test_quality", 1 if cheap else 0)
-                st.rerun()
-            if st.button("🧬 Nhân bản dự án (để so sánh cách làm)", key="settings_clone", width="stretch"):
-                open_dialog("dlg_clone")
-            st.divider()
-        st.markdown("**Hệ thống**")
-        st.toggle("🧠 Chế độ chuyên gia", key="expert_mode",
-                  help="Hiện mọi tùy chọn nâng cao: dán JSON tay, nối ảnh, World Bible, storyboard layout, chính sách QC, video tham chiếu, "
-                       "kế hoạch model, thử nghiệm, bảng làm tay ở Bước 5. Tắt: mỗi bước chỉ hiện việc của một lần chạy thường.")
-        if allowed("assets") and st.button("📁 Kho tài nguyên", key="settings_assets", width="stretch"):
-            open_dialog("dlg_assets")
-        if allowed("settings") and st.button("💲 Bảng giá", key="settings_pricing", width="stretch"):
-            open_dialog("dlg_pricing")
-        if allowed("settings") and st.button("💵 Ngân sách thử", key="settings_budget", width="stretch"):
-            open_dialog("dlg_budget")
-        if allowed("knowledge") and st.button("📚 Kho kiến thức", key="settings_knowledge", width="stretch"):
-            open_dialog("dlg_knowledge")
-        if st.button("📏 Giới hạn hệ thống", key="settings_limits", width="stretch",
-                     help="Số cấu hình + số đo từ lịch sử job thật (kèm số mẫu), hàng đợi hiện tại, ước tính thời gian"):
-            open_dialog("dlg_limits")
-        if pid is not None and allowed("lessons") and st.button("🎓 Bài học", key="settings_lessons", width="stretch"):
-            open_dialog("dlg_lessons")
-        if pid is not None and allowed("users") and st.button("👥 Phân quyền", key="settings_users", width="stretch"):
-            open_dialog("dlg_users")
-        archived_list(p)
-        if allowed("shutdown"):
-            if confirm_all("shutdown", ["go"], "⏻ Tắt Dashboard", "Tắt Dashboard ngay bây giờ? (việc chạy nền dừng, tiến độ đã lưu)", st, "Có, tắt"):
-                stop = os.path.join(os.path.dirname(__file__), "..", "tools", "stop_dashboard.ps1")
-                subprocess.Popen(["powershell.exe", "-NoProfile", "-ExecutionPolicy", "Bypass", "-WindowStyle", "Hidden", "-File", stop],
-                                 creationflags=0x00000008)
-                st.info("Đang tắt… có thể đóng cửa sổ này.")
+            if pid is not None and allowed("users") and st.button("👥 Phân quyền", key="settings_users", width="stretch"):
+                open_dialog("dlg_users")
+            if allowed("shutdown"):
+                if confirm_all("shutdown", ["go"], "⏻ Tắt Dashboard", "Tắt Dashboard ngay bây giờ? (việc chạy nền dừng, tiến độ đã lưu)", st, "Có, tắt"):
+                    stop = os.path.join(os.path.dirname(__file__), "..", "tools", "stop_dashboard.ps1")
+                    subprocess.Popen(["powershell.exe", "-NoProfile", "-ExecutionPolicy", "Bypass", "-WindowStyle", "Hidden", "-File", stop],
+                                     creationflags=0x00000008)
+                    st.info("Đang tắt… có thể đóng cửa sổ này.")
     if st.session_state.get("dlg_assets"):
         _dialog_assets(p)
     if st.session_state.get("dlg_pricing"):
         _dialog_pricing()
     if st.session_state.get("dlg_budget"):
         _dialog_budget(p)
+    if st.session_state.get("dlg_features"):
+        _dialog_features(p)
     if pid is not None and st.session_state.get("dlg_clone"):
         _dialog_clone(p, pid)
     if st.session_state.get("dlg_knowledge"):
@@ -224,6 +334,181 @@ def settings_menu(p: Pipeline, pid) -> None:
         _dialog_lessons(p, pid)
     if pid is not None and st.session_state.get("dlg_users"):
         _dialog_users(p, pid)
+
+
+def _settings_project(p: Pipeline, pid: int) -> None:
+    """⚙ → Dự án: review mode, cheap test, clone, put away / delete."""
+    proj = p.project(pid)
+    modes = list(ui.MODE_LABELS)
+    mode = st.radio("Ai duyệt ảnh/clip", modes, index=modes.index(proj["operating_mode"]), format_func=ui.MODE_LABELS.get,
+                    horizontal=True, key=f"mode_{pid}")
+    if mode != proj["operating_mode"]:
+        p.set_mode(pid, mode)
+    v2 = ui.v2_on()
+    where = "Chính sách QC (ngưỡng, tự gen lại) chỉnh ở Bước 2. Định dạng khung, thể loại, ưu tiên model ở Bước 1 · 1b."
+    cheap_tip = ("Cho đợt thử nghiệm: ảnh ở kích thước nhỏ nhất model Deepix nhận cho khung dự án, không gen 1080p, dùng "
+                 "bản rẻ hơn của model video. Dự án tạo khi đợt thử ngân sách đang bật tự bật chế độ này. Tắt khi làm video thật.")
+    if v2:                                           # v2: the pointer + what "Thử rẻ" means fold into one ⓘ; the label stays short
+        from dashboard.design.screens import shell_parts as SP
+        SP.fold("Chỉnh QC, khung, thể loại ở đâu · “Thử rẻ” là gì", f"{where}\n\n**🧪 Thử rẻ** = ảnh cỡ nhỏ nhất · 720p · Kling std · "
+                f"Seedance 2.0/2.5 → Fast. {cheap_tip}")
+    else:
+        st.caption(where)
+    cheap = st.checkbox("🧪 Thử rẻ" if v2 else "🧪 Thử rẻ (ảnh cỡ nhỏ nhất · 720p · Kling std · Seedance 2.0/2.5 → Fast)", bool(proj["test_quality"]),
+                        key=f"cheap_{pid}", help=cheap_tip)
+    if cheap != bool(proj["test_quality"]):
+        p.set_project_field(pid, "test_quality", 1 if cheap else 0)
+        st.rerun()
+    if st.button("🧬 Nhân bản dự án (để so sánh cách làm)", key="settings_clone", width="stretch"):
+        open_dialog("dlg_clone")
+    if confirm_all(f"proj_archive_{pid}", [pid], "📦 Cất dự án này",
+                   f"Cất dự án “{proj['name']}”? Dự án ẩn khỏi danh sách, tạm dừng và không chạy tự động; KHÔNG xóa gì "
+                   "(ảnh, clip, chi tiêu giữ nguyên). Khôi phục bất cứ lúc nào ở ⚙ → Dự án → “📦 Dự án đã cất”.", st, "Có, cất"):
+        archive.archive(p, pid)
+        st.toast(f"Đã cất dự án “{proj['name']}”")
+        st.rerun()
+    if not can_delete_project(proj):
+        who = proj["created_by"]
+        st.caption("Dự án này do " + (escape(who) if who else "người dùng cũ") + " tạo nên bạn không xóa được.")
+    elif confirm_all(f"proj_del_{pid}", [pid], "🗑 Xóa dự án", f"Xóa hẳn dự án “{proj['name']}” cùng ảnh, clip, nhạc, video? Không thể khôi phục.",
+                     st, "Có, xóa dự án"):
+        autopilot.stop(p, pid, "Dự án bị xóa")
+        p.cancel_all_active(pid)
+        p.delete_project(pid, C.DATA)
+        st.toast(f"Đã xóa dự án “{proj['name']}”")
+        st.rerun()
+
+
+def money_card(p: Pipeline, pid) -> None:
+    """💵 ONE place for the money (rà soát 01/10, đợt 2): trial round, Claude API, services out of credit, this project's locked budget.
+    Replaces ⚙ Ngân sách thử / ⚙ Bảng giá / the scattered lines — those two dialogs open from here."""
+    from core import budget, project_budget
+    s = budget.status(p.conn)
+    claude_out = s["llm_usd"] > 0 and s["llm_left"] <= 0
+    halts = s.get("out_of_credit") or {}
+    flag = " 🔴" if (claude_out or halts) else ""
+    v2 = ui.v2_on()
+    label = f"💵 {s['spent']:.2f}/{s['usd']:.0f}" if s["enabled"] else "💵 Tiền"
+    if v2:
+        label = "💵 Tiền" + (f" · {s['spent']:.2f}/{s['usd']:.0f}" if s["enabled"] else "")      # v2: always a word next to the icon
+    from dashboard.design.screens import shell_parts as SP
+    from dashboard.design import components as D
+    with st.popover(label + flag, help="Tiền còn lại theo dịch vụ + dự án; duyệt ngân sách dự án; bảng giá"):
+        for service, h in halts.items():
+            st.error(f"**{service}** báo HẾT TIỀN lúc {h.get('at')} — mọi lượt gửi tới dịch vụ này đang dừng.")
+            if st.button(f"Đã nạp tiền — mở lại {service}", key=f"mc_reopen_{service}"):
+                budget.reopen(p.conn, service)
+                st.rerun()
+        more = []                                        # v2: P3 details collected here, drawn once in a "ⓘ Chi tiết" fold at the end
+        if s["enabled"]:
+            frac = min(s["spent"] / s["usd"], 1.0) if s["usd"] else 0.0
+            if v2:
+                st.html(D.meter(frac, f"Đợt thử: ${s['spent']:.2f} / ${s['usd']:.0f}", invert=True))
+                more.append(f"- **Đợt thử:** {s['images']}/{s['image_cap']} ảnh · {s['audios']}/{s['audio_cap']} âm thanh")
+                more.append(SP.last_reset_md(p.conn, "trial", "Đợt thử"))
+            else:
+                st.markdown(f"**Đợt thử:** \\${s['spent']:.2f} / \\${s['usd']:.0f} · {s['images']}/{s['image_cap']} ảnh · "
+                            f"{s['audios']}/{s['audio_cap']} âm thanh")
+                ui.progress_bar(frac, invert=True)
+        else:
+            st.caption("Đợt thử: tắt (không giới hạn chi).")
+        if s["llm_usd"] > 0:
+            if v2:
+                st.html(D.meter(min(s["llm_spent"] / s["llm_usd"], 1.0), f"Claude API: ${s['llm_spent']:.2f} / ${s['llm_usd']:.2f}"
+                                + (" — đã hết" if claude_out else ""), invert=True))
+                more.append(SP.last_reset_md(p.conn, "claude", "Claude API"))
+            else:
+                st.markdown(f"**Claude API:** \\${s['llm_spent']:.2f} / \\${s['llm_usd']:.2f}" + (" — **đã hết**" if claude_out else ""))
+                ui.progress_bar(min(s["llm_spent"] / s["llm_usd"], 1.0), invert=True)
+        project_has_budget = False
+        stage_table = ""
+        if pid is not None and project_budget.enabled():
+            data = project_budget.get(p.conn, pid) or {}
+            project_has_budget = bool(data)
+            spent = project_budget.spent_by_stage(p.conn, pid)
+            if data.get("locked"):
+                caps = data.get("caps") or {}
+                total = float(data.get("total") or 0)
+                if v2:
+                    st.html(D.pill("Ngân sách dự án đã khóa", "ok") + D.meter(sum(spent.values()) / total if total else 0.0,
+                            f"Dự án này: đã chi {sum(spent.values()):.2f} / trần {total:.2f} USD", invert=True))
+                    more.append(SP.last_reset_md(p.conn, "project", "Ngân sách dự án này", pid))
+                else:
+                    st.markdown(f"**Dự án này 🔒** đã chi {sum(spent.values()):.2f} / trần {total:.2f} USD")
+                rows = [{"Khâu": lb, "Đã chi": f"{spent[k]:.2f}", "Trần": f"{caps.get(k, 0):.2f}"} for k, lb in project_budget.STAGES.items()]
+                if v2:                                   # per-stage budget = P3 → the ⓘ fold; rule 7: an HTML table follows the theme
+                    stage_table = ('<table class="v2-table"><tr><th>Khâu</th><th>Đã chi</th><th>Trần</th></tr>' + "".join(
+                        f"<tr><td>{escape(r['Khâu'])}</td><td>{r['Đã chi']}</td><td>{r['Trần']}</td></tr>" for r in rows) + "</table>")
+                else:
+                    st.dataframe(rows, hide_index=True, width="stretch")
+            else:
+                try:
+                    prop = project_budget.propose(p, pid)
+                    st.markdown(f"**Dự án này:** chưa duyệt · dự tính ≈ {prop['total']:.2f} USD · đã chi {sum(spent.values()):.2f}")
+                    if confirm_all(f"mc_ok_{pid}", ["go"], f"✔ Duyệt & KHÓA ngân sách ≈ {prop['total']:.2f} USD",
+                                   f"Khóa ngân sách dự án ≈ {prop['total']:.2f} USD (trần từng khâu theo bảng ở Bước 1)? Sau khi khóa, mọi lời "
+                                   "gọi trả tiền vượt trần sẽ bị DỪNG; chỉ người được nâng trần, kèm lý do.", st, "Có, khóa"):
+                        project_budget.approve(p, pid, p.actor, prop)
+                        st.rerun()
+                except Exception as e:  # noqa: BLE001 - the card must never break the bar
+                    st.caption(f"Chưa tính được ngân sách dự án ({type(e).__name__}).")
+        if v2 and (stage_table or any(more)):
+            with st.expander("ⓘ Chi tiết từng khâu · lịch sử đặt lại"):
+                if stage_table:
+                    st.html(stage_table)
+                st.markdown("\n".join(x for x in more if x))
+        if allowed("settings"):
+            b1, b2 = st.columns(2)
+            if b1.button("⚙ Đợt thử & Claude", key="mc_budget", width="stretch"):
+                open_dialog("dlg_budget")
+            if b2.button("💲 Bảng giá", key="mc_pricing", width="stretch"):
+                open_dialog("dlg_pricing")
+        if v2:
+            SP.money_reset_block(p, pid, project_has_budget, me())           # Owner only (the block draws nothing for anyone else)
+
+
+@st.dialog("🧪 Tính năng thử", width="large", on_dismiss=lambda: close_dialog("dlg_features"))
+def _dialog_features(p: Pipeline) -> None:
+    """Rà soát 01/10 (đợt 2): every feature flag with its state, why and evidence; a preset or one flag at a time — no dashboard.env."""
+    from core import features
+    st.caption("Tính năng đổi cách gửi tới model trả tiền nhưng chưa qua thử thật thì mặc định TẮT. Chọn preset hoặc bật / tắt từng cái; "
+               "lựa chọn lưu ở máy này (data/feature_settings.json), có hiệu lực ngay cho việc gửi kế tiếp.")
+    cur = features.settings()
+    presets = list(features.PRESETS)
+    pick = st.radio("Preset", presets, index=presets.index(cur["preset"]), format_func=features.PRESETS.get, key="feat_preset")
+    if pick != cur["preset"]:
+        features.save_settings(preset=pick)
+        st.rerun()
+    if cur["preset"] == "experimental":
+        st.warning("Preset Thử nghiệm bật mọi tính năng chưa thử thật (trừ 3 cờ từng gây hại: " + ", ".join(features.HARMFUL)
+                   + "). Có thể tốn tiền và đổi kết quả — dùng cho dự án thử có trần.")
+    q = st.text_input("Tìm", key="feat_q", placeholder="tên hoặc lý do…").strip().lower()
+    only_unv = st.checkbox("Chỉ tính năng chưa thử thật", False, key="feat_unv")
+    rows = []
+    for name, meta in features.FEATURES.items():
+        if only_unv and meta["verified"]:
+            continue
+        if q and q not in name and q not in meta.get("label", "").lower() and q not in meta.get("why", "").lower():
+            continue
+        rows.append((name, meta))
+    st.caption(f"{len(rows)} / {len(features.FEATURES)} tính năng · đang bật {sum(1 for n in features.FEATURES if features.on(n))}"
+               f" · bật mà chưa thử thật {len(features.on_unverified())}")
+    for name, meta in rows[:60]:
+        c1, c2 = st.columns([5, 1.3], vertical_alignment="center")
+        on = features.on(name)
+        badge = "✅ đã thử thật" if meta["verified"] else "⚠ chưa thử thật"
+        harmful = " · ⛔ từng gây hại" if name in features.HARMFUL else ""
+        c1.markdown(f"**{escape(name)}** — {badge}{harmful}  \n{escape(meta.get('label', ''))}")
+        c1.caption(f"{features.why_state(name)} · {escape(meta.get('why', ''))}")
+        new = c2.toggle("Bật", on, key=f"feat_{name}")
+        if new != on:
+            features.save_settings(flags={name: new})
+            st.rerun()
+    if len(rows) > 60:
+        st.caption(f"… còn {len(rows) - 60} tính năng: lọc bằng ô Tìm.")
+    if cur["flags"] and st.button("↺ Bỏ mọi lựa chọn riêng (theo preset)", key="feat_reset"):
+        features.save_settings(flags={k: None for k in list(cur["flags"])})
+        st.rerun()
 
 
 @st.dialog("📏 Giới hạn hệ thống", width="large", on_dismiss=lambda: close_dialog("dlg_limits"))
@@ -299,7 +584,7 @@ def _dialog_budget(p: Pipeline) -> None:
     if s["enabled"]:
         st.markdown(f"**Đang bật** — tính từ {s['since']} (UTC): đã chi ≈ **\\${s['spent']:.2f} / \\${s['usd']:.0f}**, "
                     f"{s['images']}/{s['image_cap']} ảnh, {s['audios']}/{s['audio_cap']} âm thanh.")
-        st.progress(min(s["spent"] / s["usd"], 1.0) if s["usd"] else 0.0)
+        ui.progress_bar(min(s["spent"] / s["usd"], 1.0) if s["usd"] else 0.0, invert=True)
         if s["unknown"]:
             st.caption("Chưa có giá cho: " + ", ".join(s["unknown"]) + " (không tính vào tổng).")
     else:
@@ -326,7 +611,7 @@ def _dialog_budget(p: Pipeline) -> None:
     st.markdown(f"**🤖 Claude API** — đã dùng ≈ **\\${s['llm_spent']:.2f} / \\${s['llm_usd']:.2f}**"
                 + (f" (tính từ {s['llm_since']} UTC)" if s["llm_since"] else "")
                 + (" — **đã hết, Dashboard ngừng gọi Claude**" if s["llm_usd"] > 0 and s["llm_left"] <= 0 else ""))
-    st.progress(min(s["llm_spent"] / s["llm_usd"], 1.0) if s["llm_usd"] > 0 else 0.0)
+    ui.progress_bar(min(s["llm_spent"] / s["llm_usd"], 1.0) if s["llm_usd"] > 0 else 0.0, invert=True)
     st.caption("Luôn bật (kể cả khi tắt đợt thử): mỗi lần gọi Claude API ghi số token vào/ra × giá niêm yết (data/pricing.json); hết "
                "thì Dashboard dừng gọi Claude và báo. Tiền Claude cũng cộng vào trần đợt thử ở trên. Claude Code trên máy (claude_cli) "
                "không tính ở đây. Đặt 0 để bỏ trần.")
@@ -393,7 +678,7 @@ def account_section(p: Pipeline) -> None:
     who = me()
     role = "Owner" if who["role"] == "owner" else "Thành viên"
     st.caption(f"👤 {escape(who['name'])} · {escape(who['email'])} · {role}"
-               + ("" if auth_on() else " · đăng nhập đang tắt (DASHBOARD_AUTH=off)"))
+               + ("" if auth_on() else (" · đăng nhập đang tắt" if ui.v2_on() else " · đăng nhập đang tắt (DASHBOARD_AUTH=off)")))
     if not auth_on():
         user_bar()
     if auth_on() and st.button("Đăng xuất", key="logout_btn"):
@@ -415,7 +700,9 @@ def user_bar() -> str:
     if typed != st.session_state["user_name"]:
         st.session_state["user_name"] = typed
         st.query_params["user"] = typed
-    if not typed:
+    if not typed and ui.v2_on():
+        st.markdown(":orange[Nhập tên để lượt gen được ghi cho bạn.]")
+    elif not typed:
         st.markdown(":orange[Nhập tên trước khi gen ảnh/video để lượt gen được ghi cho bạn (nếu để trống sẽ tính là “chưa nhập tên”).]")
     return typed
 
@@ -432,13 +719,19 @@ def user_name() -> str:
 def global_bar(p: Pipeline):
     """ONE bar: brand · project · state · risk · pause/continue/cancel · new project · ⚙."""
     projects = archive.active_projects(p.conn)          # 📦 archived projects are hidden (restore them in ⚙)
+    if ui.v2_on():
+        return _global_bar_v2(p, projects)
     with st.container(border=True):
-        c0, c1, c2, c3, c4, c5 = st.columns([1.3, 2.4, 1.1, 2.6, 1.3, 0.5], vertical_alignment="center")
+        c0, c1, c2, c3, c4, c5, c6, c7 = st.columns([1.2, 2.0, 1.0, 1.9, 1.2, 1.5, 1.2, 0.5], vertical_alignment="center")
         c0.markdown('<div class="brand"><i></i>AI Video Pipeline</div>', unsafe_allow_html=True)
         with c4:
             new_project_control(p)
         if not projects:
             with c5:
+                inbox_card(p)
+            with c6:
+                money_card(p, None)
+            with c7:
                 settings_menu(p, None)
             put_away = len(archive.archived_projects(p.conn))
             st.info("Chưa có dự án. Bấm “➕ Dự án mới” để bắt đầu."
@@ -464,15 +757,85 @@ def global_bar(p: Pipeline):
             st.toast(f"Đã hủy {p.cancel_all_active(pid)} việc")
             st.rerun()
         with c5:
+            inbox_card(p)
+        with c6:
+            money_card(p, pid)
+        with c7:
             settings_menu(p, pid)
     if proj["paused"]:
         st.warning("Dự án đang TẠM DỪNG — không ảnh/clip nào được gửi đi. Bấm ▶ Tiếp tục ở thanh trên.")
+    if st.session_state.get("step") not in (C.STEPS[0], C.STEPS[5], C.STEPS[6]):
+        level_bar(p, pid)                                # a per-project control: not on ⌂ / Nhóm / Theo dõi
     status_line(p, pid)
+    return pid
+
+
+def _global_bar_v2(p: Pipeline, projects):
+    """UI v2 top bar (S13 nhánh B): glass bar · gradient brand · project picker · ➕ Dự án mới · 📥 Việc cần bạn · 💵 Tiền · ⋯ Thêm · ⚙ Cài đặt.
+    Pause / cancel / risk moved into the labelled "⋯ Thêm" menu (▶ Tiếp tục stays in the bar while paused). The hero strip, the 🎚 level and
+    the status line are drawn by app.py right under this bar (shell_parts.project_hero)."""
+    brand = '<div class="shell-brand"><i></i><span class="v2-grad-text">AI Video Pipeline</span></div>'
+    with st.container(key="shell-bar"):
+        if not projects:
+            c0, c4, c5, c6, c7 = st.columns([3, 1.6, 2, 1.6, 1.6], vertical_alignment="center")
+            c0.html(brand)
+            with c4:
+                new_project_control(p)
+            with c5:
+                inbox_card(p)
+            with c6:
+                money_card(p, None)
+            with c7:
+                settings_menu(p, None, "⚙ Cài đặt")
+            put_away = len(archive.archived_projects(p.conn))
+            st.info("Chưa có dự án. Bấm “➕ Dự án mới” để bắt đầu."
+                    + (f" ({put_away} dự án đã cất — mở ⚙ → “📦 Dự án đã cất” để khôi phục.)" if put_away else ""))
+            return None
+        ids = [r["id"] for r in projects]
+        default_pid = current_pid(p)
+        paused = False
+        pid_now = default_pid if default_pid in ids else ids[0]
+        paused = bool(p.project(pid_now)["paused"])
+        widths = [2.3, 2.6, 1.6, 2.0, 1.8] + ([1.4] if paused else []) + [1.2, 1.5]
+        cols = st.columns(widths, vertical_alignment="center")
+        c0, c1, c4, c5, c6 = cols[:5]
+        c_more, c_gear = cols[-2], cols[-1]
+        c0.html(brand)
+        pid = c1.selectbox("Dự án", ids, index=ids.index(default_pid) if default_pid in ids else 0,
+                           format_func=lambda i: next(r["name"] for r in projects if r["id"] == i), key="global_pid",
+                           label_visibility="collapsed")
+        proj = p.project(pid)
+        with c4:
+            new_project_control(p)
+        with c5:
+            inbox_card(p)
+        with c6:
+            money_card(p, pid)
+        if proj["paused"]:
+            if cols[5].button("▶ Tiếp tục", key="btn_resume", type="primary", width="stretch"):
+                p.set_paused(pid, False)
+                st.rerun()
+        with c_more:
+            with st.popover("⋯ Thêm", help="Tạm dừng / hủy việc đang chờ, ghi chú rủi ro", width="stretch"):
+                if not proj["paused"] and st.button("⏸ Tạm dừng dự án", key="btn_pause", width="stretch"):
+                    p.set_paused(pid, True)
+                    st.rerun()
+                if confirm_all("btn_cancel", [pid], "■ Hủy việc đang chờ / đang gen", "Hủy mọi ảnh/clip đang chờ hoặc đang gen của dự án này?",
+                               st, "Có, hủy"):
+                    st.toast(f"Đã hủy {p.cancel_all_active(pid)} việc")
+                    st.rerun()
+                risk_popover(p, pid)
+        with c_gear:
+            settings_menu(p, pid, "⚙ Cài đặt")
+    if proj["paused"]:
+        st.warning("Dự án đang TẠM DỪNG — không gửi ảnh/clip nào. Bấm ▶ Tiếp tục ở thanh trên.")
     return pid
 
 
 def status_line(p: Pipeline, pid: int) -> None:
     """Kế hoạch V4 5.3: spending, the automatic run and the problems of this project in ONE line under the bar."""
+    if ui.v2_on():
+        return _status_line_v2(p, pid)
     bits = [] if auth_on() or user_name() else ["👤 chưa nhập tên (⚙)"]   # the name box moved into ⚙: say when it is empty
     spend = C.spend_text(p, pid)
     if spend:
@@ -483,6 +846,16 @@ def status_line(p: Pipeline, pid: int) -> None:
     broken = cost.load_pricing().get("_error")
     if broken:                                          # luật 1: a broken price table stops every paid send — say it everywhere
         bits.append(f"🔴 {escape(broken)} — mọi job trả tiền bị chặn")
+    try:                                                # what the four overview cards used to say, in the same one line
+        from dashboard import overview
+        c = overview._counts(p, pid)
+        if c["queue"]:
+            bits.append(f"hàng đợi: {c['queue'].get('image_gen', 0)} ảnh, {c['queue'].get('video_gen', 0)} clip")
+        plates = overview._plates(pid)
+        if plates:
+            bits.append(plates)
+    except Exception:  # noqa: BLE001 - a status bit only
+        pass
     ap = autopilot.status(p, pid)
     if ap["state"] in ("running", "queued", "waiting"):
         bits.append(f"🚀 Tự động: {ap['note']}")
@@ -498,6 +871,86 @@ def status_line(p: Pipeline, pid: int) -> None:
     if stale:                                           # S6.4: #8 ran for hours on code older than the fixes on disk
         st.warning(f"⚠ Code đã đổi sau khi Dashboard khởi động ({stale}) — tắt / mở lại Dashboard để dùng bản mới "
                    "(các việc đang chạy vẫn dùng code cũ tới lúc đó).")
+
+
+def _status_line_v2(p: Pipeline, pid: int) -> None:
+    """UI v2 status line (người dùng 01/10): ONE short line of what needs a glance (P1/P2) + a ⓘ holding every detail the old line listed.
+    Outside: spend count, queue size, the automatic run's state, number of problems, a low budget, a missing name. Inside ⓘ: all of it in full
+    (spend with price, queue split, plates, the run's note, the problems' titles, the locked budget, the cheap-test note)."""
+    from dashboard.design import components as D
+    short, full = [], []                                # short = visible; full = markdown bullets for ⓘ
+    if not (auth_on() or user_name()):
+        short.append("👤 chưa nhập tên (⚙)")
+        full.append("👤 chưa nhập tên (⚙)")
+    spend = C.spend_text(p, pid)
+    if spend:
+        sp = cost.spend_summary(p.conn, pid, cost.load_pricing())
+        short.append("💵 giả lập" if sp["mock"] and sp["mock"] == sp["events"] else f"💵 {sp['images']} ảnh · {sp['clips']} clip")
+        full.append("💵 " + spend)
+    proj = p.project(pid) if pid is not None else None
+    if proj is not None and "test_quality" in proj.keys() and proj["test_quality"]:
+        short.append("🧪 Thử rẻ")
+        full.append("🧪 Thử rẻ: ảnh cỡ nhỏ nhất · video 720p / Kling std / Seedance Fast")
+    blocker = ""
+    broken = cost.load_pricing().get("_error")
+    if broken:                                          # luật 1: a broken price table stops every paid send — P1, stays outside
+        blocker = "🔴 Bảng giá lỗi — mọi job trả tiền bị chặn"
+        full.append(f"🔴 {broken} — mọi job trả tiền bị chặn")
+    try:
+        from dashboard import overview
+        c = overview._counts(p, pid)
+        if c["queue"]:
+            n_img, n_vid = c["queue"].get("image_gen", 0), c["queue"].get("video_gen", 0)
+            short.append(f"hàng đợi {n_img + n_vid}")
+            full.append(f"Hàng đợi: {n_img} ảnh, {n_vid} clip")
+        plates = overview._plates(pid)
+        if plates:
+            full.append(plates)
+    except Exception:  # noqa: BLE001 - a status bit only
+        pass
+    ap = autopilot.status(p, pid)
+    if ap["state"] in ("running", "queued", "waiting"):
+        short.append("🚀 Tự động " + {"running": "đang chạy", "queued": "xếp hàng", "waiting": "chờ bạn"}[ap["state"]])
+        full.append(f"🚀 Tự động: {ap['note']}")
+    problems = [f for f in C.diag_problems(p) if f.get("project_id") in (None, pid)]
+    if problems:
+        short.append(f"🔴 {len(problems)} vấn đề")
+        full.append(f"🔴 {len(problems)} vấn đề — xem tab “📊 Theo dõi”:")
+        full.extend(f"    - {diag.redact(x['title'])}" for x in problems[:8])
+    budget = _budget_bit(p, pid)
+    if budget:
+        full.append(budget)
+        low = _budget_left_frac(p, pid)
+        if low is not None and low <= 0.2:              # money about to run out is P1
+            short.append("🔒 ngân sách sắp hết")
+    if blocker:
+        st.error(blocker)
+    if short or full:
+        text = "  ·  ".join(escape(x) for x in short) or "Chi tiết"
+        D.line(f'<span class="shell-status">{text}</span>', "\n".join(f"- {x}" if not x.startswith("    ") else x for x in full), "shell-status")
+    stale = code_changed_since_start()
+    if stale:                                           # S6.4: #8 ran for hours on code older than the fixes on disk
+        c1, c2 = st.columns([24, 1], vertical_alignment="center")
+        c1.warning("⚠ Code đã đổi sau khi Dashboard khởi động — tắt / mở lại để dùng bản mới.")
+        with c2:
+            with D.info("shell-stale"):
+                st.markdown(f"Code đã đổi sau khi Dashboard khởi động (`{stale}`) — tắt / mở lại Dashboard để dùng bản mới "
+                            "(các việc đang chạy vẫn dùng code cũ tới lúc đó).")
+
+
+def _budget_left_frac(p: Pipeline, pid) -> "float | None":
+    """Share of the locked project budget still left (None when there is none)."""
+    try:
+        from core import project_budget
+        if pid is None or not project_budget.enabled():
+            return None
+        data = project_budget.get(p.conn, pid) or {}
+        cap = float(data.get("total") or 0)
+        if not data.get("locked") or cap <= 0:
+            return None
+        return max(cap - sum(project_budget.spent_by_stage(p.conn, pid).values()), 0.0) / cap
+    except Exception:  # noqa: BLE001
+        return None
 
 
 _STARTED = __import__("time").time()

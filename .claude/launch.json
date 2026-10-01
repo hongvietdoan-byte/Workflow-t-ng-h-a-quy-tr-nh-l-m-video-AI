@@ -66,6 +66,26 @@
       "autoPort": true
     },
     {
+      "name": "dashboard-shell",
+      "runtimeExecutable": "powershell",
+      "runtimeArgs": [
+        "-NoProfile",
+        "-Command",
+        "$env:PIPELINE_DB='data/demo/manifest.sqlite'; $env:PIPELINE_DATA='data/demo/projects'; $env:AUDIO_PROVIDER='mock'; $env:LLM_PROVIDER='mock'; $env:SUBJECT_PROVIDER='mock'; $env:FEATURE_UI_V2='1'; py -m streamlit run dashboard/app.py --server.port 8521 --server.headless true --browser.gatherUsageStats false"
+      ],
+      "port": 8521
+    },
+    {
+      "name": "dashboard-script",
+      "runtimeExecutable": "powershell",
+      "runtimeArgs": [
+        "-NoProfile",
+        "-Command",
+        "$env:PIPELINE_DB='data/demo/manifest.sqlite'; $env:PIPELINE_DATA='data/demo/projects'; $env:AUDIO_PROVIDER='mock'; $env:LLM_PROVIDER='mock'; $env:SUBJECT_PROVIDER='mock'; $env:FEATURE_UI_V2='1'; py -m streamlit run dashboard/app.py --server.port 8523 --server.headless true"
+      ],
+      "port": 8523
+    },
+    {
       "name": "docs-static",
       "runtimeExecutable": "py",
       "runtimeArgs": [

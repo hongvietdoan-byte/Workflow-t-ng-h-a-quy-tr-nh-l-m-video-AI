@@ -229,6 +229,22 @@ def library_review_box(p: Pipeline, game: str) -> None:
 def library_health(p: Pipeline, game: str) -> None:
     """G6: what the library still lacks, so a project is not started on a character without a close-up or a place without an
     eye-level background."""
+    lost = assets.missing_files_detail(p.conn)
+    if lost:                                    # B5 01/10: files gone from disk — fix on screen (reload from the source, or drop the link)
+        with st.expander(f"⚠ {len(lost)} ảnh trong Kho mất file", expanded=False):
+            for w in lost[:30]:
+                a1, a2, a3 = st.columns([4, 1.4, 1.4], vertical_alignment="center")
+                a1.markdown(f"**{escape(w['asset'])}** · `{w['path']}`" + ("" if w["can_reload"] else " · nguồn không còn"))
+                if a2.button("↻ Tải lại", key=f"lib_lost_reload_{w['id']}", disabled=not w["can_reload"],
+                             help="Chép lại từ tệp gốc đã nhập"):
+                    assets.reload_image(p.conn, w["id"])
+                    st.rerun()
+                if a3.button("🔗 Gỡ liên kết", key=f"lib_lost_rm_{w['id']}", help="Xóa dòng hỏng khỏi Kho (file đã mất)"):
+                    assets.remove_image(p.conn, w["id"])
+                    st.rerun()
+            if st.button("🔗 Gỡ liên kết TẤT CẢ ảnh mất file", key="lib_lost_rm_all"):
+                assets.unlink_missing(p.conn)
+                st.rerun()
     rows = [r for r in assets.health(p.conn, game) if r["missing"] or r["pending"] or r["unlabelled"]]
     if not rows:
         return
@@ -502,7 +518,7 @@ def asset_library_panel(p: Pipeline) -> None:
         st.caption(f"{n_pending} mục nhân vật/thú cưng chưa được đọc" if n_pending else "Mọi mục nhân vật/thú cưng đã được đọc.")
         prog = asset_vision.progress(game)
         if asset_vision.active(game) and prog["total"]:
-            st.progress(prog["done"] / prog["total"], text=f"Đang đọc {prog['done']}/{prog['total']} mục…")
+            ui.progress_bar(prog["done"] / prog["total"], text=f"Đang đọc {prog['done']}/{prog['total']} mục…")
         problem = asset_vision.last_error(game)
         if problem:
             st.warning(f"⚠ Đã dừng: {problem}")
@@ -719,7 +735,7 @@ def trash_section(pid: int) -> None:
                             st.rerun()
 
 
-def effectiveness_panel(p: Pipeline, pid: int) -> None:
+def effectiveness_panel(p: Pipeline, pid: int, nested: bool = False) -> None:
     """Is the workflow effective for the project in view: 5 figures from what the pipeline already records."""
     r = effectiveness.report(p.conn, pid, cost.load_pricing())
     ui.html(ui.card_title(f"🎯 Hiệu quả workflow — {p.project(pid)['name']}", "5 chỉ số, tính từ dữ liệu đã ghi; chưa đủ dữ liệu thì ghi rõ"))
@@ -738,8 +754,13 @@ def effectiveness_panel(p: Pipeline, pid: int) -> None:
     c5.metric("Thao tác tay / cảnh", num(r["touches_per_scene"]), help=f"Duyệt / loại / hủy do người bấm: {r['touches']} lần")
     manual = st.number_input("Làm tay mất bao nhiêu phút cho 1 giây video (mặc định chung 30 phút — người dùng chốt; sửa để so thử, không lưu)",
                              min_value=0.0, value=effectiveness.MANUAL_MIN_PER_SEC, step=1.0, key=f"eff_manual_{pid}")
-    with st.expander("📋 Bản tóm tắt để gửi báo cáo"):
-        st.code("\n".join(effectiveness.summary_lines(r, manual or None)), language="text")
+    summary = "\n".join(effectiveness.summary_lines(r, manual or None))
+    if nested:                                  # already inside an expander (Streamlit forbids expander-in-expander)
+        st.markdown("**📋 Bản tóm tắt để gửi báo cáo**")
+        st.code(summary, language="text")
+    else:
+        with st.expander("📋 Bản tóm tắt để gửi báo cáo"):
+            st.code(summary, language="text")
 
 
 def compare_panel(p: Pipeline) -> None:
@@ -776,6 +797,8 @@ def compare_panel(p: Pipeline) -> None:
 
 def monitor(p: Pipeline, pid: int) -> None:
     """Load and performance of the whole system (all projects), to spot overload before it costs credit."""
+    if ui.v2_on():
+        return _monitor_v2(p, pid)
     mgr = autopilot_manager(C.DB, C.DATA)
     snap = perf.snapshot(p.conn, mgr.queue_length(), mgr.running_count(), mgr.max_parallel)
     ui.html(ui.card_title("📊 Theo dõi hiệu suất & tải hệ thống", "toàn bộ dự án, làm mới bằng nút bên phải"))
@@ -806,45 +829,8 @@ def monitor(p: Pipeline, pid: int) -> None:
     if snap["usage_today"]:
         st.caption("Dùng hôm nay: " + ", ".join(f"{q:g} {unit} ({kind})" for kind, unit, q in snap["usage_today"]))
     effectiveness_panel(p, pid)
-    ui.html(ui.card_title("👥 Số video theo người dùng", "ai đã gen bao nhiêu (theo e-mail đăng nhập; khi tắt đăng nhập thì theo tên tự khai)"))
-    period = st.radio("Khoảng thời gian", ["Hôm nay", "7 ngày", "30 ngày", "Tất cả"], horizontal=True, key="by_user_period")
-    days = {"Hôm nay": 1, "7 ngày": 7, "30 ngày": 30, "Tất cả": None}[period]
-    people = perf.by_user(p.conn, days)
-    if people:
-        st.dataframe([{"Người dùng": r["who"], "Video đã gen": str(r["videos_ok"]), "Video đã gửi": str(r["videos"]),
-                       "Lỗi": str(r["videos_failed"]), "Gen lại": str(r["videos_retry"]),
-                       "Tổng giây video": f"{r['seconds']:g}", "Ảnh đã gen": str(r["images"]), "Dự án": str(r["projects"]),
-                       "Lần gần nhất": (r["last_at"] or "")[:16].replace("T", " ")} for r in people],
-                     hide_index=True, use_container_width=True)
-        st.caption("“Video đã gen” = video thành công; “đã gửi” gồm cả lỗi và gen lại. Tên là tự khai, không phải tài khoản: "
-                   "chỉ dùng để thống kê, không ngăn được người khác mạo danh.")
-    else:
-        st.caption("Chưa có lượt gen nào trong khoảng này.")
-    ui.html(ui.card_title("📁 Tổng quan tất cả dự án", "mọi dự án — tự động hoàn toàn lẫn từng bước/bán tự động — cùng lúc"))
-    portfolio = perf.portfolio_rows(p.conn, C.DATA)
-    if not portfolio:
-        st.caption("Chưa có dự án nào.")
-    else:
-        mode_label = {"auto": "Auto", "human_qc": "Human QC"}
-        st.dataframe([{"Dự án": f"#{r['id']} {r['name']}",
-                       "Chế độ QC": mode_label.get(r["operating_mode"], r["operating_mode"]),
-                       "Đang chạy": ("⏸ Tạm dừng" if r["paused"] else "🚀 Tự động hoàn toàn" if r["running_auto"]
-                                    else "🧭 Từng bước" if not r["done"] else "-"),
-                       "Bước hiện tại": r["step_label"], "Ảnh duyệt": f"{r['images']}/{r['scenes']}",
-                       "Prompt duyệt": f"{r['motion']}/{r['scenes']}", "Video xong": f"{r['videos']}/{r['scenes']}",
-                       "Job hoạt động": r["active"], "Chờ duyệt": r["needs_review"],
-                       "Người tạo": r["created_by"], "Ghi chú tự động": r["autopilot_note"]}
-                      for r in portfolio], hide_index=True, use_container_width=True)
-        finished = [r for r in portfolio if r["done"]]
-        with st.expander(f"🎬 Sản phẩm đã hoàn tất ({len(finished)})", expanded=bool(finished)):
-            if not finished:
-                st.caption("Chưa có dự án nào ra FINAL_VIDEO.mp4.")
-            for r in finished:
-                st.markdown(f"**#{r['id']} {r['name']}**")
-                show_video(r["final_video"], "Nhỏ")
-                with open(r["final_video"], "rb") as f:
-                    st.download_button("⬇ Tải FINAL_VIDEO.mp4", f, file_name=f"{r['name']}_FINAL_VIDEO.mp4",
-                                       key=f"portfolio_dl_{r['id']}")
+    st.caption("👥 Số video / tiền theo người dùng → màn **Nhóm**. 📁 Bảng tất cả dự án và 🎬 sản phẩm đã hoàn tất → màn **⌂ Tất cả dự án**. "
+               "Trang này chỉ giữ sức khỏe hệ thống: hàng đợi, tốc độ, lỗi, hiệu quả.")
     st.caption("Ngưỡng cảnh báo chỉnh bằng biến môi trường: PERF_MAX_ACTIVE, PERF_FAIL_WARN, PERF_SLOW_WARN; "
                "song song: AUTOPILOT_MAX_PARALLEL; trần ngày: AUTOPILOT_DAILY_JOBS. "
                "Chưa đo thời gian gọi Claude (QC/motion).")
@@ -881,6 +867,105 @@ def monitor(p: Pipeline, pid: int) -> None:
     st.code(text, language="markdown")
     st.caption("Giám sát luôn chạy nền khi có thao tác gọi nhà cung cấp/Claude; ngưỡng: DIAG_STUCK_IMAGE_MIN, "
                "DIAG_STUCK_VIDEO_MIN, DIAG_QUEUED_MIN, DIAG_RETRY_WARN.")
+
+
+def _monitor_v2(p: Pipeline, pid: int) -> None:
+    """UI v2 (flag ui_v2): same data and controls as `monitor`. Outside: 4 stats + system status (+ alerts/findings only when there are any);
+    every detail table / explanation sits in a labelled expander (closed) or an ⓘ."""
+    from dashboard.design import components as D
+    from dashboard.design.screens.v2_tables import Raw, table
+    mgr = autopilot_manager(C.DB, C.DATA)
+    snap = perf.snapshot(p.conn, mgr.queue_length(), mgr.running_count(), mgr.max_parallel)
+    busy = sum(k["running"] + k["queued"] for k in snap["kinds"])
+    stages = diag.stage_table(p.conn)
+    findings = diag.scan(p.conn, C.DATA, float(os.environ.get("AUTOPILOT_POLL_SEC", "15")))
+    events = diag.recent(p.conn, 24, 40)
+    n_bad = sum(1 for s in stages if diag.health(s) == "🔴")
+    n_warn = sum(1 for s in stages if diag.health(s) == "🟡")
+    learned = "; ".join(f"{dict(perf.KINDS)[k]}: {v['limit']} job cùng lúc, đã bị giới hạn {v['hits']} lần" for k, v in snap["learned"].items())
+    usage = ", ".join(f"{q:g} {unit} ({kind})" for kind, unit, q in snap["usage_today"])
+    explain = ("**Các số ở trên**\n\n"
+               "- Dự án chạy tự động: số dự án đang chạy / tối đa song song (`AUTOPILOT_MAX_PARALLEL`).\n"
+               "- Job hôm nay: đã gửi / trần ngày (`AUTOPILOT_DAILY_JOBS`, tính theo giờ UTC).\n\n"
+               "**Mức song song tự học** (tăng dần khi chạy êm, giảm một nửa khi nhà cung cấp báo quá tải 429): " + learned
+               + ("\n\n**Dùng hôm nay:** " + usage if usage else "")
+               + "\n\n👥 Số video / tiền theo người dùng → màn **Nhóm**. 📁 Bảng tất cả dự án và 🎬 sản phẩm đã hoàn tất → màn **⌂ Tất cả dự án**. "
+               "Trang này chỉ giữ sức khỏe hệ thống: hàng đợi, tốc độ, lỗi, hiệu quả.\n\n"
+               "Ngưỡng cảnh báo chỉnh bằng biến môi trường: `PERF_MAX_ACTIVE`, `PERF_FAIL_WARN`, `PERF_SLOW_WARN`; song song: `AUTOPILOT_MAX_PARALLEL`; "
+               "trần ngày: `AUTOPILOT_DAILY_JOBS`. Chưa đo thời gian gọi Claude (QC/motion).\n\n"
+               "Giám sát luôn chạy nền khi có thao tác gọi nhà cung cấp/Claude; ngưỡng: `DIAG_STUCK_IMAGE_MIN`, `DIAG_STUCK_VIDEO_MIN`, "
+               "`DIAG_QUEUED_MIN`, `DIAG_RETRY_WARN`.")
+    with D.hero("mon"):
+        st.markdown(D.hero_html("📊 Theo dõi hiệu suất & tải hệ thống", "Toàn bộ dự án — làm mới bằng nút bên dưới.",
+                                [("Quá tải", "bad") if snap["alerts"] else ("Chưa thấy quá tải", "ok")]), unsafe_allow_html=True)
+        c1, c2, c3, c4 = st.columns(4)
+        c1.markdown(D.stat("Dự án chạy tự động", f"{mgr.running_count()}/{mgr.max_parallel}"), unsafe_allow_html=True)
+        c2.markdown(D.stat("Đang xếp hàng", str(mgr.queue_length())), unsafe_allow_html=True)
+        c3.markdown(D.stat("Job hôm nay", f"{snap['jobs_today']}/{snap['daily_limit'] or '∞'}"), unsafe_allow_html=True)
+        c4.markdown(D.stat("Job đang chạy/chờ", str(busy)), unsafe_allow_html=True)
+        b1, b2, _ = st.columns([1.6, 0.4, 6], vertical_alignment="center")
+        with b1:
+            if st.button("↻ Làm mới", key="perf_refresh"):
+                st.rerun()
+        with b2:
+            with D.info("mon-explain"):
+                st.markdown(explain)
+    for msg in snap["alerts"]:                       # only when there is one
+        st.markdown(D.pill("Cảnh báo", "warn") + f" {escape(msg)}", unsafe_allow_html=True)
+    with D.card("mon-status"):
+        stage_pill = (D.pill(f"Khâu: {n_bad} lỗi", "bad") if n_bad else "") + (" " + D.pill(f"{n_warn} cảnh báo", "warn") if n_warn else "")
+        found = (D.pill(f"{len(findings)} vấn đề phát hiện", "bad" if any(f["severity"] == "error" for f in findings) else "warn")
+                 if findings else D.pill("Chưa thấy vấn đề âm thầm", "ok"))
+        D.line((stage_pill or D.pill("Các khâu ổn", "ok")) + " " + found,
+               "**Vấn đề phát hiện** gồm cả lỗi không ai báo (job kẹt, file mất, tiến trình chết, gen lại nhiều...). Bảng từng khâu, sự kiện "
+               "và báo cáo chẩn đoán nằm ở các mục gập bên dưới.", "mon-status")
+        show = (lambda f: st.markdown('<div class="mon-find">' + D.pill(diag.STAGE_LABEL.get(f["stage"], f["stage"]), "bad" if f["severity"] == "error" else "warn")
+                                      + f" {escape(diag.redact(f['title']))}" + (f" — {escape(diag.redact(f['detail']))}" if f["detail"] else "") + "</div>",
+                                      unsafe_allow_html=True))
+        for f in findings[:3]:                       # a list > 3 items → the top 3 here, the rest in a labelled expander (still up to 30)
+            show(f)
+        if len(findings) > 3:
+            with st.expander(f"Xem thêm {min(len(findings), 30) - 3} vấn đề khác", expanded=False):
+                for f in findings[3:30]:
+                    show(f)
+        if diag.lost():
+            st.warning(f"⚠ {diag.lost()} sự kiện chẩn đoán không ghi được vào CSDL (bận/lỗi) từ lúc mở Dashboard — xem file "
+                       "`data/manifest.sqlite.diag_lost.log`")
+    compare_panel(p)
+    with st.expander("📈 Tải theo loại job — 24 giờ qua", expanded=False):
+        rows = []
+        for k in snap["kinds"]:
+            total = k["ok_24h"] + k["failed_24h"]
+            rate = k["failed_24h"] / total if total else None
+            rows.append((dict(perf.KINDS)[k["kind"]], k["running"], k["queued"], k["ok_1h"], k["failed_1h"], k["ok_24h"], k["failed_24h"],
+                         Raw(D.pill(f"{rate:.0%}", "bad" if rate >= 0.3 else "warn" if rate >= 0.1 else "ok") if rate is not None else "-"),
+                         f"{k['avg_sec']:.0f}s" if k["avg_sec"] else "-",
+                         f"{k['recent_sec']:.0f}s / {k['earlier_sec']:.0f}s" if k["recent_sec"] and k["earlier_sec"] else "-"))
+        st.markdown(table(["Loại", "Đang chạy", "Chờ", "Xong 1h", "Lỗi 1h", "Xong 24h", "Lỗi 24h", "Tỉ lệ lỗi 24h", "Thời gian TB", "Gần đây / trước đó"],
+                          rows, cls="mon-table", num_cols=(1, 2, 3, 4, 5, 6)), unsafe_allow_html=True)
+        st.caption("Mức song song tự học (tăng dần khi chạy êm, giảm một nửa khi nhà cung cấp báo quá tải 429): " + learned)
+        if usage:
+            st.caption("Dùng hôm nay: " + usage)
+    with st.expander("🎯 Hiệu quả workflow — 5 chỉ số của dự án đang xem", expanded=False):
+        effectiveness_panel(p, pid, nested=True)
+    health_pill = {"🔴": ("Lỗi", "bad"), "🟡": ("Cảnh báo", "warn"), "🟢": ("Ổn", "ok")}
+    with st.expander("🩺 Giám sát từng khâu — lỗi, lỗi âm thầm và chỗ chưa trơn tru trong 24h qua", expanded=False):
+        dash = (lambda v: "-" if v is None else str(v))
+        st.markdown(table(["Tình trạng", "Khâu", "Job", "Xong", "Lỗi", "Gen lại", "Cảnh báo", "Lỗi ghi nhận"],
+                          [(Raw(D.pill(*health_pill.get(diag.health(s), ("Ổn", "ok")))), s["label"], dash(s["jobs"]), dash(s["ok"]), dash(s["failed"]),
+                            dash(s["retried"]), s["warn"], s["error"]) for s in stages], cls="mon-table", num_cols=(2, 3, 4, 5)),
+                    unsafe_allow_html=True)
+    with st.expander(f"Sự kiện lỗi/cảnh báo gần đây ({len(events)})", expanded=False):
+        st.markdown(table(["Giờ", "Mức", "Khâu", "Mã", "Lần", "Dự án", "Nội dung"],
+                          [(e["last_at"][11:19], Raw(D.pill(e["severity"], "bad" if e["severity"] == "error" else "warn")), e["stage"], e["code"] or "",
+                            e["count"], str(e["project_id"] or ""), e["message"]) for e in events], cls="mon-table", num_cols=(4,),
+                          empty="Chưa có sự kiện"), unsafe_allow_html=True)
+    with st.expander("📋 Báo cáo chẩn đoán — copy hoặc tải file, dán vào chat để sửa", expanded=False):
+        text = diag.report(p.conn, C.DATA, {"Đang chạy/xếp hàng": f"{mgr.running_count()}/{mgr.queue_length()}",
+                                          "Mức song song tự học": {k: v["limit"] for k, v in snap["learned"].items()}})
+        st.markdown("Bấm nút copy ở góc khung dưới (hoặc tải file), dán vào chat để mình sửa. Đã che khóa/token và đường dẫn cá nhân.")
+        st.download_button("⬇ Tải báo cáo (.md)", text, file_name="bao_cao_chan_doan.md", key="diag_dl")
+        st.code(text, language=None)
 
 
 def lessons_tab(p: Pipeline, pid: int) -> None:

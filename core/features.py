@@ -30,25 +30,25 @@ FEATURES: Dict[str, Dict] = {
         "label": "Director hai lượt (dự án chia shot): Tầng A Đạo diễn viết Bible + ý đồ từng cảnh, Tầng B Quay phim chia shot MỖI cảnh "
                  "một lượt (phần chung cache), code Đạo diễn duyệt bảng shot so với ý đồ",
         "verified": True,       # 2026-09-29 người dùng duyệt (S6.5): #8 chạy thật hai lượt, Đạo diễn duyệt 6/6 cảnh (TONG_KET_DU_AN_8 mục 3)
-        "why": "Kế hoạch V4 GĐ5 (H2/H7, 2026-09-26): mới thử bằng Claude giả lập — chưa có lần Director thật nào chạy hai lượt để so chất "
-               "lượng và tiền với một lượt (core/director_two_pass.py)",
+        "why": "Đã chạy thật: #8 (28–29/09) Director hai lượt, Đạo diễn duyệt 6/6 cảnh; người dùng duyệt 29/09 (S6.5). Lý do ban đầu (GĐ5, "
+               "26/09: mới thử bằng Claude giả lập) đã hết hiệu lực (core/director_two_pass.py)",
     },
     "voice_direction": {
         "label": "Chỉ đạo giọng lồng: câu thoại có `delivery` (cảm xúc, cường độ, nhịp, ngắt, nhấn, thẻ v3) → tham số TTS + chữ gửi TTS",
         "verified": True,       # 2026-09-29 người dùng duyệt (S6.5): #8 — 23 câu thoại đúng giọng, đúng người (4 giọng VN)
-        "why": "GĐ4 (director.md Đ5): tài liệu ElevenLabs tự mâu thuẫn về tham số áp dụng cho eleven_v3 (speed); thẻ [whispers] với giọng Việt "
-               "chưa nghe thử — cần tạo thử vài câu (tốn lượt âm thanh) trước khi bật",
+        "why": "Đã chạy thật: #8 có 23 câu thoại đúng giọng, đúng người (4 giọng VN); người dùng duyệt 29/09 (S6.5). Còn mở: thẻ [whispers] "
+               "với giọng Việt chưa nghe thử riêng (tài liệu ElevenLabs mâu thuẫn về `speed` của eleven_v3)",
     },
     "loudness_normalize": {
         "label": "Chuẩn hóa độ to bản giao về −14 LUFS / đỉnh thật −1,5 dBTP (loudnorm 2 lượt, tăng/giảm tuyến tính) khi số đo lệch mục tiêu",
         "verified": True,       # 2026-09-29 người dùng duyệt (S6.5): bản giao #8 đo −14 LUFS
-        "why": "GĐ4 (editing.md E8, D11): không nền tảng nào công bố LUFS; bản giao #7 đo −14,7 LUFS (đã đạt) — chưa nghe thử một bản "
-               "được chuẩn hóa trên điện thoại",
+        "why": "Đã chạy thật: bản giao #8 đo −14 LUFS; người dùng duyệt 29/09 (S6.5). Còn mở: chưa nghe thử một bản được chuẩn hóa trên điện "
+               "thoại (editing.md E8, D11: không nền tảng nào công bố LUFS)",
     },
     "shot_color_match": {
         "label": "Khớp màu giữa các shot cùng nơi + cùng nhóm cỡ cảnh (điểm đen/trắng, ám màu của vật xám) — sửa bản sao clip lệch trước khi dựng",
-        "verified": False,
-        "why": "GĐ4 (editing.md E5, D7): đo thật #7 thấy 2/7 shot lệch điểm đen/trắng 0,14–0,15 (một phần do nội dung khung); sửa thử đưa "
+        "verified": True,        # 01/10 người dùng xem 2 bản dựng #8 có / không hiệu ứng (đợt 4) và chọn bản CÓ
+        "why": "Đã duyệt 01/10 (đợt 4, D:/AI-Video-Output/2026-10-01_ab-hieu-ung-8): người dùng xem bản dựng #8 có hiệu ứng và chọn giữ. Lý do ban đầu — GĐ4 (editing.md E5, D7): đo thật #7 thấy 2/7 shot lệch điểm đen/trắng 0,14–0,15 (một phần do nội dung khung); sửa thử đưa "
                "về ~0,04 — chưa có người xem bản dựng đã khớp màu",
     },
     "j_cut": {
@@ -58,25 +58,25 @@ FEATURES: Dict[str, Dict] = {
     },
     "music_breath": {
         "label": "Nhạc lặng 0,6 s ngay trước cú ngoặt (phần kịch bản TWIST / CAO TRÀO, hoặc shot ⭐ đầu tiên)",
-        "verified": False,
-        "why": "GĐ4 (editing.md E4, D6): chưa nghe thử; khoảng lặng dài/ngắn là gu dựng — bật khi người dùng nghe và đồng ý",
+        "verified": True,        # 01/10 người dùng xem 2 bản dựng #8 có / không hiệu ứng (đợt 4) và chọn bản CÓ
+        "why": "Đã duyệt 01/10 (đợt 4, D:/AI-Video-Output/2026-10-01_ab-hieu-ung-8): người dùng xem bản dựng #8 có hiệu ứng và chọn giữ. Lý do ban đầu — GĐ4 (editing.md E4, D6): chưa nghe thử; khoảng lặng dài/ngắn là gu dựng — bật khi người dùng nghe và đồng ý",
     },
     "sound_intent": {
         "label": "Nhạc theo ý đồ âm thanh của Đạo diễn từng shot: tắt hẳn từ shot 'cut' tới shot 'in', lặng 0,6 s trước shot 'breath'",
-        "verified": False,
-        "why": "2026-09-26 (director.md Đ9, bài học Handbook ch. V): chưa nghe thử bản dựng có nhạc ngắt theo shot; tắt thì bản dựng "
+        "verified": True,        # 01/10 người dùng xem 2 bản dựng #8 có / không hiệu ứng (đợt 4) và chọn bản CÓ
+        "why": "Đã duyệt 01/10 (đợt 4, D:/AI-Video-Output/2026-10-01_ab-hieu-ung-8): người dùng xem bản dựng #8 có hiệu ứng và chọn giữ. Lý do ban đầu — 2026-09-26 (director.md Đ9, bài học Handbook ch. V): chưa nghe thử bản dựng có nhạc ngắt theo shot; tắt thì bản dựng "
                "ghi lại số ý đồ chưa áp (manifest `sound_intent`)",
     },
     "flashback_fx": {
         "label": "Hồi tưởng ở khâu Dựng: shot hồi tưởng có flash trắng vào/ra, màu ấm nhạt + viền tối (người xem biết là ký ức)",
-        "verified": False,
-        "why": "2026-09-28 (sau #8, người dùng: hồi tưởng không có hiệu ứng nên không ai biết là hồi tưởng): mới thử bằng ffmpeg trên clip "
+        "verified": True,        # 01/10 người dùng xem 2 bản dựng #8 có / không hiệu ứng (đợt 4) và chọn bản CÓ
+        "why": "Đã duyệt 01/10 (đợt 4, D:/AI-Video-Output/2026-10-01_ab-hieu-ung-8): người dùng xem bản dựng #8 có hiệu ứng và chọn giữ. Lý do ban đầu — 2026-09-28 (sau #8, người dùng: hồi tưởng không có hiệu ứng nên không ai biết là hồi tưởng): mới thử bằng ffmpeg trên clip "
                "#8, chờ người dùng xem bản dựng lại",
     },
     "end_hold": {
         "label": "Giữ hình shot cuối ít nhất 2,5 s (kéo dài khung cuối) để cái kết không lướt qua",
-        "verified": False,
-        "why": "2026-09-28 (sau #8: hai shot kết mỗi shot 1 s, người dùng thấy kết cụt): chờ người dùng xem bản dựng lại",
+        "verified": True,        # 01/10 người dùng xem 2 bản dựng #8 có / không hiệu ứng (đợt 4) và chọn bản CÓ
+        "why": "Đã duyệt 01/10 (đợt 4, D:/AI-Video-Output/2026-10-01_ab-hieu-ung-8): người dùng xem bản dựng #8 có hiệu ứng và chọn giữ. Lý do ban đầu — 2026-09-28 (sau #8: hai shot kết mỗi shot 1 s, người dùng thấy kết cụt): chờ người dùng xem bản dựng lại",
     },
     "continuous_takes": {
         "label": "Đoạn diễn liên tục theo góc máy: mỗi vị trí máy (camera_setup) quay TRỌN đoạn diễn liên tục của cảnh, rồi mỗi shot được "
@@ -114,19 +114,19 @@ FEATURES: Dict[str, Dict] = {
     },
     "music_fit": {
         "label": "Nhạc nền đi theo cảnh thật: dời / co giãn từng đoạn của bản nhạc đã soạn cho khớp đầu mỗi cảnh trên bản dựng (miễn phí)",
-        "verified": False,
-        "why": "2026-09-28 (sau #8: nhạc soạn cho timeline 64 s, phim thành 84,5 s — đổi nhạc lệch cảnh, người dùng: nhạc phải đi theo "
+        "verified": True,        # 01/10 người dùng xem 2 bản dựng #8 có / không hiệu ứng (đợt 4) và chọn bản CÓ
+        "why": "Đã duyệt 01/10 (đợt 4, D:/AI-Video-Output/2026-10-01_ab-hieu-ung-8): người dùng xem bản dựng #8 có hiệu ứng và chọn giữ. Lý do ban đầu — 2026-09-28 (sau #8: nhạc soạn cho timeline 64 s, phim thành 84,5 s — đổi nhạc lệch cảnh, người dùng: nhạc phải đi theo "
                "diễn biến): chờ người dùng nghe bản dựng lại",
     },
     "impact_shake": {
         "label": "Rung khung hình 0,25 s ở những giây có hiệu ứng va chạm / nổ / súng trong bản trộn",
-        "verified": False,
-        "why": "GĐ4 (editing.md E6, D9): chưa xem thử trên bản dựng thật; rung sai chỗ làm người xem khó chịu",
+        "verified": True,        # 01/10 người dùng xem 2 bản dựng #8 có / không hiệu ứng (đợt 4) và chọn bản CÓ
+        "why": "Đã duyệt 01/10 (đợt 4, D:/AI-Video-Output/2026-10-01_ab-hieu-ung-8): người dùng xem bản dựng #8 có hiệu ứng và chọn giữ. Lý do ban đầu — GĐ4 (editing.md E6, D9): chưa xem thử trên bản dựng thật; rung sai chỗ làm người xem khó chịu",
     },
     "ambience_bed": {
         "label": "Âm nền mỗi cảnh từ thư viện âm thanh của bạn (theo thời tiết → giờ → bối cảnh), nhỏ dưới thoại, lặp đủ dài",
-        "verified": False,
-        "why": "GĐ4 (editing.md E3, D4/D5): thử #7 — cảnh ngày khu nhà trên đảo nhận 'Bird Ambience'; cảnh đêm không có âm đêm trong "
+        "verified": True,        # 01/10 người dùng xem 2 bản dựng #8 có / không hiệu ứng (đợt 4) và chọn bản CÓ
+        "why": "Đã duyệt 01/10 (đợt 4, D:/AI-Video-Output/2026-10-01_ab-hieu-ung-8): người dùng xem bản dựng #8 có hiệu ứng và chọn giữ. Lý do ban đầu — GĐ4 (editing.md E3, D4/D5): thử #7 — cảnh ngày khu nhà trên đảo nhận 'Bird Ambience'; cảnh đêm không có âm đêm trong "
                "thư viện nên để trống (báo) — chưa nghe bản trộn",
     },
     "speed_ramp": {
@@ -169,7 +169,9 @@ FEATURES: Dict[str, Dict] = {
         "label": "Ngân sách dự án chia theo khâu (ảnh, video, Claude từng khâu), code tính ngay sau bảng shot, người duyệt thì KHÓA: mọi "
                  "lời gọi trả tiền kiểm trần khâu + tổng trước khi gửi; chạy tự động chờ duyệt ngân sách trước khi gen ảnh",
         "verified": True,       # 2026-09-29 người dùng duyệt (S6.5): #8 — khóa cứng chặn đúng ở trần (TONG_KET_DU_AN_8 mục 3, Chi phí)
-        "why": "Người dùng 2026-09-28: đặt trần rõ ràng, khóa lại; #8 ước 12,45 USD, chưa làm video đã chi 16,38 — chưa chạy thật lần nào",
+        "why": "Đã chạy thật: #8 — khóa cứng chặn đúng ở trần (TONG_KET_DU_AN_8 mục 3); người dùng duyệt 29/09 (S6.5). Lý do ban đầu "
+               "(28/09: #8 ước 12,45 USD, chưa làm video đã chi 16,38) là chính điều khóa này ngăn. Lỗi B1 01/10 (khâu Claude 'khác' bị chặn vì "
+               "max_tokens mặc định) đã sửa",
     },
     "scene_qc_claude": {
         "label": "QC theo cảnh lớp 1: Claude MỘT lượt mỗi cảnh tự chạy khi đủ khung (tắt: khung mới đi thẳng tới người duyệt, lớp 0 "
@@ -229,10 +231,9 @@ FEATURES: Dict[str, Dict] = {
     "dialogue_take": {
         "label": "Khớp môi (c) — S4.2: shot thoại thấy mặt người nói (cả shot trung / nhiều người) đi trong clip nhóm Seedance 2.5 kèm MỘT "
                  "track giọng của cả nhóm + câu thoại, tên người nói và mốc giây trong prompt (thay 'không khớp môi' khi không có sync.so)",
-        "verified": False,
-        "why": "A/B S4.6 vòng 2 (29/09, dự án thử #10): một clip 3 câu / 3 người nói cho đúng người mở miệng đúng lượt (in-game giữ bố cục "
-               "tốt hơn tả thực) — bằng công cụ thử, CHƯA chạy qua luồng chính (cắt clip nhóm + đặt giọng lên timeline); người dùng chọn "
-               "dùng (c) in-game cho S4.2",
+        "verified": True,       # 01/10 người dùng: S4.2 khớp môi (c) OK (dự án thử #14, 2,82 USD)
+        "why": "Đã chạy thật 01/10 (S4.2, dự án #14, 2,82 USD) và người dùng xác nhận OK; A/B S4.6 vòng 2 (29/09, #10): một clip 3 câu / 3 "
+               "người nói cho đúng người mở miệng đúng lượt. Còn mở: độ khớp đo 0,39–0,53 < 0,65 (S4.10) — hướng tiếp: mốc 0,1 s / dời giọng",
     },
     "storyboard_api": {
         "label": "Vẽ ảnh các shot của một cảnh bằng MỘT storyboard Deepix (shot rộng nhất làm neo, cùng ảnh tham chiếu) — cách Weave Canvas",
@@ -255,6 +256,11 @@ FEATURES: Dict[str, Dict] = {
         "label": "Ảnh khung cuối cho shot có end_state (vẽ thêm 1 ảnh, gửi clip khung đầu + cuối)",
         "verified": False,
         "why": "K1/K2 (kế hoạch tổng K-a): tốn thêm 1 ảnh mỗi shot đổi trạng thái; chưa thử thật Kling end_frame với khung vẽ từ ảnh đầu",
+    },
+    "ui_v2": {
+        "label": "Giao diện v2 kiểu “AI product”: nền tối aurora, thẻ kính, nút gradient + glow, thanh bước viên thuốc, pill trạng thái, chữ gradient (lớp thiết kế dashboard/design/, chạy trên cùng các màn hiện có)",
+        "verified": False,
+        "why": "S13 (01/10, docs/KE_HOACH_GIAO_DIEN_V2_2026-10-01.md): đang dựng theo giai đoạn; mặc định TẮT cho tới khi người dùng duyệt ảnh chụp trên Dashboard thật (cổng G1) — bật/tắt ở ⚙ → Hệ thống → 🧪 để so với giao diện cũ và quay lại tức thì",
     },
     "storyboard_auto_trust": {
         "label": "Tự bỏ qua cổng duyệt storyboard khi QC đã đủ tin cậy (≥ 90% khớp người trên ≥ 50 ảnh cùng look) và storyboard không có cờ",
@@ -310,14 +316,105 @@ FEATURES: Dict[str, Dict] = {
 }
 
 
+# ---- 🧪 Tính năng thử (rà soát 01/10, đợt 2): the person picks a preset / flips one flag on screen instead of editing dashboard.env ----
+# preset "custom" (default, nothing saved) = the old rule: FEATURE_<NAME> env, else `verified`.
+# "stable" = only the flags that passed a real test (`verified`); "experimental" = every flag but the ones that did harm.
+# A per-flag choice made on screen wins over everything. Stored in data/feature_settings.json (this computer, not in git).
+PRESETS = {"custom": "Theo dashboard.env (hiện tại)", "stable": "Ổn định — chỉ tính năng đã thử thật",
+           "experimental": "Thử nghiệm — bật hết trừ 3 cờ từng gây hại"}
+HARMFUL = ("setcheck_autofix", "layout_to_model", "chain_previous_auto")     # GĐ6 / rà soát 01/10 mục 3.2
+_SETTINGS = {"stamp": None, "path": None, "data": None}
+
+
+def settings_path() -> str:
+    return os.environ.get("FEATURE_SETTINGS_FILE") or os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                                                                   "data", "feature_settings.json")
+
+
+def settings() -> Dict:
+    """{"preset": custom|stable|experimental, "flags": {name: bool}} — re-read when the file changes."""
+    path = settings_path()
+    try:
+        stamp = os.stat(path).st_mtime_ns
+    except OSError:
+        stamp = None
+    if _SETTINGS["stamp"] != stamp or _SETTINGS["path"] != path:
+        data = {"preset": "custom", "flags": {}}
+        if stamp is not None:
+            try:
+                import json
+                with open(path, encoding="utf-8") as f:
+                    raw = json.load(f)
+                if raw.get("preset") in PRESETS:
+                    data["preset"] = raw["preset"]
+                data["flags"] = {k: bool(v) for k, v in (raw.get("flags") or {}).items() if k in FEATURES}
+            except (OSError, ValueError, AttributeError):
+                pass
+        _SETTINGS.update(stamp=stamp, path=path, data=data)
+    return _SETTINGS["data"]
+
+
+def save_settings(preset: str = None, flags: Dict = None) -> Dict:
+    """Write the choice (flags: {name: True|False|None}; None removes the single choice). Atomic."""
+    import json
+    cur = dict(settings())
+    cur["flags"] = dict(cur["flags"])
+    if preset is not None:
+        if preset not in PRESETS:
+            raise ValueError(f"preset không có: {preset}")
+        cur["preset"] = preset
+    for k, v in (flags or {}).items():
+        if k not in FEATURES:
+            raise ValueError(f"không có tính năng {k}")
+        if v is None:
+            cur["flags"].pop(k, None)
+        else:
+            cur["flags"][k] = bool(v)
+    path = settings_path()
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    tmp = path + ".tmp"
+    with open(tmp, "w", encoding="utf-8") as f:
+        json.dump(cur, f, ensure_ascii=False, indent=1)
+    os.replace(tmp, path)
+    return settings()
+
+
+def _env(name: str) -> str:
+    return os.environ.get("FEATURE_" + name.upper(), "").strip().lower()
+
+
 def on(name: str) -> bool:
-    """True when the feature passed its real test, or the person switched it on with FEATURE_<NAME>=1 (0 switches it off)."""
-    env = os.environ.get("FEATURE_" + name.upper(), "").strip().lower()
+    """True when the person chose it on screen (🧪), else by the preset: the feature passed its real test, or the person switched it on
+    with FEATURE_<NAME>=1 (0 switches it off)."""
+    s = settings()
+    if name in s["flags"]:
+        return s["flags"][name]
+    verified = bool(FEATURES[name]["verified"])
+    env = _env(name)
+    if s["preset"] == "stable":
+        return verified
+    if s["preset"] == "experimental":
+        return False if env in ("0", "false", "off", "no") else (name not in HARMFUL or env in ("1", "true", "on", "yes"))
     if env in ("1", "true", "on", "yes"):
         return True
     if env in ("0", "false", "off", "no"):
         return False
-    return bool(FEATURES[name]["verified"])
+    return verified
+
+
+def why_state(name: str) -> str:
+    """Why `on(name)` is what it is (shown in 🧪)."""
+    s = settings()
+    if name in s["flags"]:
+        return "bạn chọn trên màn này"
+    if s["preset"] == "stable":
+        return "preset Ổn định: " + ("đã thử thật" if FEATURES[name]["verified"] else "chưa thử thật → tắt")
+    if s["preset"] == "experimental":
+        return "preset Thử nghiệm" + (" (cờ từng gây hại → tắt)" if name in HARMFUL and on(name) is False else "")
+    env = _env(name)
+    if env:
+        return "dashboard.env / môi trường"
+    return "mặc định: " + ("đã thử thật → bật" if FEATURES[name]["verified"] else "chưa thử thật → tắt")
 
 
 def on_unverified() -> Dict[str, Dict]:

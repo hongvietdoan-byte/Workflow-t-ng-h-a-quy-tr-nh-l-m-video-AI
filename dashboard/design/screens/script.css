@@ -1,0 +1,40 @@
+/* S13 lane E — màn Kịch bản. Chỉ bám .st-key-script-* / .st-key-card-script-* (mọi màu lấy từ biến của lõi). */
+
+/* thẻ lớn của màn: không nhấc lên khi rê chuột (thẻ dài, có nhiều nút) */
+[data-testid="stVerticalBlock"][class*="st-key-card-script-"]:hover { transform: none; }
+[data-testid="stVerticalBlock"][class*="st-key-card-script-"] { padding: 18px 20px; gap: 0.9rem; }
+
+/* tiêu đề thẻ: số trong vòng tròn gradient + tên + pill trạng thái */
+.script-h { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; font-size: 17px; font-weight: 800; letter-spacing: -0.01em; color: var(--text); }
+.script-n { width: 28px; height: 28px; border-radius: 50%; display: grid; place-items: center; flex: none; background: var(--grad-primary);
+    color: var(--on-primary); font-size: 14px; font-weight: 800; }
+.script-h .v2-pill { font-weight: 700; }
+
+/* nút hành động chính trong hero: vùng lớn */
+.st-key-script-cta-box { gap: 0.6rem; }
+.st-key-script-cta-box [data-testid="stBaseButton-primary"] { min-height: 3.5rem; font-size: 17px; width: 100%; }
+.st-key-script-cta-box [data-testid="stBaseButton-primary"] p { font-size: 17px; }
+.st-key-script-cta-box button { min-height: 3.5rem; width: 100%; }
+.st-key-script-cta-box [class*="st-key-script-cta-budget_"] button:not([class*="_no"]) { background: var(--grad-primary) !important; color: var(--on-primary) !important;
+    border: 0 !important; font-weight: 700; box-shadow: 0 0 22px var(--glow); }
+.st-key-script-cta-box [class*="st-key-script-cta-budget_"] button p { font-size: 17px; color: var(--on-primary) !important; }
+.script-note { color: var(--muted); font-size: 13.5px; margin-top: 4px; }
+
+/* bốn thẻ chế độ đầu vào */
+.script-mode { margin-top: 8px; }
+.script-mode b { display: block; font-size: 15px; color: var(--text); }
+.script-mode span { display: block; color: var(--muted); font-size: 13px; margin-top: 2px; }
+
+/* chữ màu :green[] / :red[] / :orange[] của panel cũ (màu cố định, không đủ tương phản trên nền tối) → màu token */
+[class*="st-key-card-script-"] .stMarkdownColoredText[style*="rgb(21, 130, 55)"] { color: var(--ok) !important; }
+[class*="st-key-card-script-"] .stMarkdownColoredText[style*="rgb(189, 64, 67)"] { color: var(--bad) !important; }
+[class*="st-key-card-script-"] .stMarkdownColoredText[style*="rgb(255, 164, 33)"], [class*="st-key-card-script-"] .stMarkdownColoredText[style*="rgb(255, 171, 0)"] { color: var(--warn) !important; }
+
+/* khung viền cũ nằm trong thẻ kính: viền nhẹ để không thành hộp trong hộp */
+[data-testid="stVerticalBlock"][class*="st-key-card-script-"] [data-testid="stVerticalBlockBorderWrapper"] { border-color: var(--border-soft); }
+
+/* ba cổng dừng của chạy tự động: nhãn dài được xuống dòng (lõi cắt nhãn checkbox còn một dòng → mất nửa câu) */
+[class*="st-key-script-gates-"] label, [class*="st-key-script-gates-"] label * { white-space: normal !important; text-overflow: clip !important; overflow: visible !important; }
+
+/* một dòng tóm tắt + ⓘ (components.line) */
+.script-sum { color: var(--muted); font-size: 13.5px; }

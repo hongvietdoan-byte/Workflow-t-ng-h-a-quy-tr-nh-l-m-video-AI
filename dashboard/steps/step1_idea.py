@@ -2,6 +2,7 @@
 then a 2-column review (idea | script, what the Biên kịch added marked) and "Dùng kịch bản này" → Step 1 like a pasted script."""
 from dashboard.common import *  # noqa: F401,F403  (shared imports + helpers)
 from dashboard import common as C
+from dashboard.steps.step1_v2 import cap, say, is_next  # noqa: F401  (v2: long captions / notes become a one-line summary + ⓘ)
 
 _CSS = """<style>
 .idea-col{font-size:.9rem;line-height:1.55;white-space:pre-wrap;border:1px solid rgba(128,128,128,.3);border-radius:8px;padding:.6rem .8rem;
@@ -35,7 +36,7 @@ def idea_panel(p: Pipeline, pid: int) -> None:
     ui.html(_CSS)
     state = I.get_state(p.conn, pid)
     inp = state.get("inputs") or {}
-    st.caption("Viết 2–3 dòng ý tưởng; Biên kịch (Claude) hỏi lại, đưa 3 hướng, dàn ý theo giây rồi viết kịch bản đúng khuôn. Bạn duyệt từng "
+    cap("Viết 2–3 dòng ý tưởng; Biên kịch (Claude) hỏi lại, đưa 3 hướng, dàn ý theo giây rồi viết kịch bản đúng khuôn. Bạn duyệt từng "
                "bước; phần Biên kịch thêm được tô màu. Mọi lời gọi vào sổ chi, trần " + f"{I.RUN_CAP_USD:g} USD / ý tưởng.")
     with st.form(key=f"idea_form_{pid}"):
         idea = st.text_area("Ý tưởng", inp.get("idea", ""), height=90, placeholder="Kelly và Maxim tranh một thùng thính ở Đảo Quân Sự…")
@@ -58,9 +59,9 @@ def idea_panel(p: Pipeline, pid: int) -> None:
         return
     client = C.llm_client()
     if client is None:
-        st.info("Chưa có Claude (LLM_PROVIDER / ANTHROPIC_API_KEY) — không chạy được Biên kịch.")
+        say("info", "Chưa có Claude (LLM_PROVIDER / ANTHROPIC_API_KEY) — không chạy được Biên kịch.", f"script-idea-noclaude-{pid}")
         return
-    st.caption(f"Đã dùng ≈ {float(state.get('spent') or 0):.3f} USD cho ý tưởng này.")
+    cap(f"Đã dùng ≈ {float(state.get('spent') or 0):.3f} USD cho ý tưởng này.")
 
     # 1 — questions
     st.markdown("**1 · Hỏi lại**")
@@ -69,13 +70,13 @@ def idea_panel(p: Pipeline, pid: int) -> None:
             st.rerun()
         return
     if state.get("have"):
-        st.caption("Đã có: " + "; ".join(state["have"]) + (" · Còn thiếu: " + "; ".join(state["missing"]) if state.get("missing") else ""))
+        cap("Đã có: " + "; ".join(state["have"]) + (" · Còn thiếu: " + "; ".join(state["missing"]) if state.get("missing") else ""))
     replies = []
     for i, q in enumerate(state["questions"]):
         prev = (state.get("answers") or [{}] * len(state["questions"]))[i] if state.get("answers") else {}
         replies.append(st.text_input(f"{q['q']} — mặc định: {q['default']}", "" if prev.get("defaulted") else prev.get("a", ""),
                                      key=f"idea_a_{pid}_{i}", help=q.get("why") or None))
-    st.caption("Để trống = dùng đáp án mặc định (được ghi lại).")
+    cap("Để trống = dùng đáp án mặc định (được ghi lại).")
 
     # 2 — directions
     st.markdown("**2 · Ba hướng**")
@@ -109,9 +110,12 @@ def idea_panel(p: Pipeline, pid: int) -> None:
             for b in state["beats"]]
     st.dataframe(rows, hide_index=True, use_container_width=True)
     if state.get("question"):
-        st.caption(f"Câu hỏi xuyên video: {state['question']}")
-    for c in state.get("outline_checks") or []:
-        (st.error if c["level"] == "block" else st.warning)(c["text"])
+        cap(f"Câu hỏi xuyên video: {state['question']}")
+    for n, c in enumerate(state.get("outline_checks") or []):
+        if c["level"] == "block":                                    # blocks the next step → stays a red box (P1)
+            st.error(c["text"])
+        else:
+            say("warning", c["text"], f"script-idea-outline-{pid}-{n}")
 
     # 4 — script
     st.markdown("**4 · Kịch bản**")
@@ -124,9 +128,15 @@ def idea_panel(p: Pipeline, pid: int) -> None:
         st.markdown("**Ý tưởng gốc**")
         ui.html('<div class="idea-col">' + escape(inp["idea"]) + "</div>")
         if state.get("added"):
-            st.caption("Biên kịch tự ghi phần thêm:")
-            for a in state["added"]:
-                st.caption(f"• {a.get('kind')}: {a.get('text')}")
+            if ui.v2_on() and len(state["added"]) > 3:                 # v2 (list > 3): a count outside, the list in ⓘ
+                from dashboard.design import components as D
+                D.line(f'<span class="script-sum">Biên kịch tự ghi thêm {len(state["added"])} phần</span>',
+                       "Biên kịch tự ghi phần thêm:\n\n" + "\n".join(f"- {a.get('kind')}: {a.get('text')}" for a in state["added"]),
+                       f"script-idea-added-{pid}")
+            else:
+                cap("Biên kịch tự ghi phần thêm:")
+                for a in state["added"]:
+                    cap(f"• {a.get('kind')}: {a.get('text')}")
     with right:
         st.markdown("**Kịch bản** — <span style='background:rgba(255,196,0,.25)'>dòng mới</span> · "
                     "<span style='background:rgba(255,120,60,.4)'>tên / nơi mới</span>", unsafe_allow_html=True)
@@ -138,8 +148,13 @@ def idea_panel(p: Pipeline, pid: int) -> None:
     chk = state.get("script_checks") or {}
     for t in chk.get("problems") or []:
         st.error(t)
-    for t in chk.get("flags") or []:
-        st.warning(t)
+    flags = chk.get("flags") or []
+    if ui.v2_on() and len(flags) > 2:                                  # v2 (list > 2): one line + the whole list in ⓘ
+        from dashboard.design import components as D
+        D.line(f'<span class="script-sum">{len(flags)} lưu ý về kịch bản</span>', "\n".join(f"- {t}" for t in flags), f"script-idea-flags-{pid}")
+    else:
+        for n, t in enumerate(flags):
+            say("warning", t, f"script-idea-flag-{pid}-{n}")
     has_scenes = bool(p.conn.execute("SELECT 1 FROM scenes WHERE project_id=?", (pid,)).fetchone())
     if st.button("✔ Dùng kịch bản này" + (" (dự án đã có cảnh — bấm ↺ Làm lại ở trên trước)" if has_scenes else ""),
                  key=f"idea_use_{pid}", type="primary", disabled=not chk.get("ok") or has_scenes):

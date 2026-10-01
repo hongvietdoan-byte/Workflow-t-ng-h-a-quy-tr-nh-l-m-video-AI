@@ -1,6 +1,7 @@
 """Step 1: script, resources, run mode, Director, Character Bible, storyboard, World Bible."""
 from dashboard.common import *  # noqa: F401,F403  (shared imports + helpers)
 from dashboard import common as C
+from dashboard.steps.step1_v2 import cap, say, is_next  # noqa: F401  (v2: long captions / notes become a one-line summary + ⓘ)
 from dashboard.steps.step1_run import *  # noqa: F401,F403  (S9.5: Step 1 split in parts)
 from dashboard.steps.step1_run import _budget_summary  # noqa: F401
 from dashboard.steps.step1_prep import *  # noqa: F401,F403  (S9.5: Step 1 split in parts)
@@ -36,6 +37,99 @@ def _script_summary(p: Pipeline, pid: int, scenes) -> str:
     return f"📜 {_count_label(p, pid, scenes)} · {lines} câu thoại" + (f" · {len(text):,} ký tự".replace(",", ".") if text else "")
 
 
+def script_input(p: Pipeline, pid: int, with_reset: bool = True) -> bool:
+    """The ways to put a script in (file / typed / raw idea) + the ▶ Phân tích button. Keys: up_/paste_/btn_analyse_/btn_bad_reset_.
+    `with_reset` False: the reset button is drawn elsewhere (UI v2 puts it under "Tinh chỉnh"). Returns whether there is an input."""
+    from core import idea_to_script
+    if idea_to_script.enabled():                                # S11.1: a third way in — a raw idea → the Biên kịch
+        t_file, t_text, t_idea = st.tabs(["📎 Tải file", "✍ Gõ / dán văn bản", "💡 Ý tưởng thô"])
+        with t_idea:
+            from dashboard.steps.step1_idea import idea_panel
+            idea_panel(p, pid)
+    else:
+        t_file, t_text = st.tabs(["📎 Tải file", "✍ Gõ / dán văn bản"])
+    with t_file:
+        up = st.file_uploader("Kịch bản", type=list(script_reader.SUPPORTED), key=f"up_{pid}", label_visibility="collapsed",
+                              help="Word (.docx, kể cả kịch bản viết trong bảng), Excel (.xlsx), CSV/TSV, .txt, .md")
+        cap("Đọc được: Word (.docx, cả bảng), Excel (.xlsx), CSV/TSV, .txt, .md. Kịch bản dạng bảng cần dòng tiêu đề cột như "
+                   "Cảnh, Mô tả, Nhân vật, Lời thoại, Bối cảnh, Thời gian, Góc máy.")
+    with t_text:
+        pasted = st.text_area("Gõ hoặc dán kịch bản", key=f"paste_{pid}", height=170, label_visibility="collapsed",
+                              placeholder="CẢNH 1 - ĐÊM, RỪNG ELDER\nSương mù phủ kín khu rừng…\nLYRA: Có thứ gì đó đang theo chúng ta.\n\n"
+                                          "Dán cả bảng copy từ Excel / Google Sheets cũng được.")
+    if with_reset:
+        u2, u3, u4 = st.columns([2.4, 1.2, 4], vertical_alignment="center")
+    else:
+        u2, u4 = st.columns([2.4, 5.2], vertical_alignment="center")
+        u3 = None
+    has_input = up is not None or bool(pasted.strip())
+    if u2.button("▶ Phân tích (tách cảnh)", disabled=not has_input, type="primary", key=f"btn_analyse_{pid}"):
+        def analyse():
+            res = script_reader.read_script(up.name, up.getvalue()) if up is not None else script_reader.from_text(pasted)
+            parsed = script_parser.split_scenes(res.paragraphs)
+            script_parser.import_scenes(p, pid, parsed, full_text="\n\n".join(res.paragraphs))
+            st.session_state["parse_info"] = res.info
+            if len(parsed) == 1 and parsed[0].heading == "Mở đầu":
+                st.session_state["parse_warn"] = ("Không thấy tiêu đề cảnh (vd “Cảnh 1”, “Scene 2”, “INT./EXT.”): "
+                                                  "cả kịch bản thành 1 cảnh. Hãy thêm/sửa cảnh thủ công.")
+            st.toast(f"Đã tách {len(parsed)} cảnh")
+        if act(analyse):
+            st.rerun()
+    if ui.v2_on():                                   # v2: the hint about "file wins" is P3 → ⓘ; the state of the input stays as one line
+        from dashboard.design import components as D
+        with u4:
+            if has_input:
+                D.line('<span class="script-sum">Sẵn sàng · bấm ▶ Phân tích</span>', "Nếu có cả file lẫn văn bản, hệ thống dùng file.",
+                       f"script-input-hint-{pid}")
+            else:
+                st.caption("Chọn file hoặc dán văn bản, rồi bấm Phân tích.")
+    else:
+        u4.caption("Nếu có cả file lẫn văn bản, hệ thống dùng file." if has_input else "Chọn file hoặc dán văn bản, rồi bấm Phân tích.")
+    if with_reset:
+        with u3:
+            reset_script_button(p, pid)
+    return has_input
+
+
+def parse_info_box() -> None:
+    with st.expander("Hệ thống đã đọc kịch bản thế nào (kiểm tra lại)"):
+        for line in st.session_state["parse_info"]:
+            cap("• " + line)
+
+
+def reset_script_button(p: Pipeline, pid: int) -> None:
+    """↺ Làm lại: delete the scenes without a picture / job and the unlocked characters, so the script can be split again."""
+    if confirm_all(f"btn_bad_reset_{pid}", ["reset"], "↺ Làm lại",
+                   "Xóa các cảnh CHƯA có ảnh/video và các nhân vật CHƯA khóa để tách lại kịch bản? Cảnh đã có ảnh được giữ.",
+                   st, "Có, xóa"):
+        p.conn.execute("DELETE FROM characters WHERE project_id=? AND locked=0", (pid,))
+        p.conn.execute("DELETE FROM motion_prompts WHERE scene_id IN (SELECT id FROM scenes WHERE project_id=? AND id NOT IN (SELECT scene_id FROM jobs))", (pid,))
+        p.conn.execute("DELETE FROM scenes WHERE project_id=? AND id NOT IN (SELECT scene_id FROM jobs)", (pid,))
+        p.conn.commit()
+        if not p.conn.execute("SELECT 1 FROM scenes WHERE project_id=?", (pid,)).fetchone():
+            p.set_script_text(pid, None)
+            p.conn.execute("DELETE FROM story_scenes WHERE project_id=?", (pid,))
+            p.conn.commit()
+        st.session_state.pop("parse_info", None)
+        st.rerun()
+
+
+def script_views(p: Pipeline, pid: int, proj, scenes, char_names) -> None:
+    """Left: the whole script; right: the scenes (each one opens an editor)."""
+    left, right = st.columns(2, gap="large")
+    with left:
+        st.markdown("**Kịch bản đầy đủ**")
+        full = proj["script_text"] or "\n\n".join((json.loads(s["data"] or "{}").get("text") or s["title"] or "") for s in scenes)
+        if full.strip():
+            ui.html(script_html(full))
+        else:
+            cap("Chưa có kịch bản: tải file hoặc gõ/dán văn bản rồi bấm Phân tích.")
+    with right:
+        st.markdown("**Chia theo cảnh** · bấm vào từng cảnh để xem và sửa")
+        if scenes:
+            scene_list(p, pid, scenes, char_names)
+
+
 def step1(p: Pipeline, pid: int):
     proj = p.project(pid)
     scenes = p.conn.execute("SELECT idx, title, state, data FROM scenes WHERE project_id=? ORDER BY idx", (pid,)).fetchall()
@@ -45,7 +139,10 @@ def step1(p: Pipeline, pid: int):
     char_names = [c["name"] for c in chars]
     locked = any(c["locked"] for c in chars)
     stale = len(lineage.stale_scene_ids(p.conn, pid)) if scenes else 0
-    step_header("Bước 1 · Kịch bản & đạo diễn", "tách cảnh → chuẩn bị → Director → nhân vật → thoại → khóa",
+    if ui.v2_on():                                                      # S13 lane E: the re-composed screen (same widgets, same keys)
+        from dashboard.steps.step1_v2 import step1_v2
+        return step1_v2(p, pid, proj, scenes, chars, risky, char_names, locked, stale)
+    step_header("Kịch bản & đạo diễn", "tách cảnh → chuẩn bị → Director → nhân vật → thoại → khóa",
                 _count_label(p, pid, scenes) + f" · {len(chars)} nhân vật" + (" · đã khóa" if locked else ""), stale)
     note = st.session_state.pop("inherited_note", None)                 # S3.8: said once, right after the project was made
     if note:
@@ -53,6 +150,8 @@ def step1(p: Pipeline, pid: int):
     from dashboard import next_step                                     # S9 E0.1: the next thing to do, one line
     ui.html(next_step.band(p, pid, 1, C.DATA))
 
+    from dashboard.steps.step1_refs import inputs_and_refs                # đợt 3: ways in + attach reference pictures
+    inputs_and_refs(p, pid, bool(scenes))
     # S9.1 (người dùng, sau #8): once the script is split the card folds to one line; open again with "▸ Mở"
     with ui.fold("1a · 📜 Kịch bản", _script_summary(p, pid, scenes), f"script_{pid}",
                  default_open=not scenes or bool(st.session_state.get("parse_warn")),
@@ -60,68 +159,10 @@ def step1(p: Pipeline, pid: int):
         if script_open:
             if st.session_state.get("parse_warn") and scenes:
                 st.warning(st.session_state["parse_warn"])
-            from core import idea_to_script
-            if idea_to_script.enabled():                                # S11.1: a third way in — a raw idea → the Biên kịch
-                t_file, t_text, t_idea = st.tabs(["📎 Tải file", "✍ Gõ / dán văn bản", "💡 Ý tưởng thô"])
-                with t_idea:
-                    from dashboard.steps.step1_idea import idea_panel
-                    idea_panel(p, pid)
-            else:
-                t_file, t_text = st.tabs(["📎 Tải file", "✍ Gõ / dán văn bản"])
-            with t_file:
-                up = st.file_uploader("Kịch bản", type=list(script_reader.SUPPORTED), key=f"up_{pid}", label_visibility="collapsed",
-                                      help="Word (.docx, kể cả kịch bản viết trong bảng), Excel (.xlsx), CSV/TSV, .txt, .md")
-                st.caption("Đọc được: Word (.docx, cả bảng), Excel (.xlsx), CSV/TSV, .txt, .md. Kịch bản dạng bảng cần dòng tiêu đề cột như "
-                           "Cảnh, Mô tả, Nhân vật, Lời thoại, Bối cảnh, Thời gian, Góc máy.")
-            with t_text:
-                pasted = st.text_area("Gõ hoặc dán kịch bản", key=f"paste_{pid}", height=170, label_visibility="collapsed",
-                                      placeholder="CẢNH 1 - ĐÊM, RỪNG ELDER\nSương mù phủ kín khu rừng…\nLYRA: Có thứ gì đó đang theo chúng ta.\n\n"
-                                                  "Dán cả bảng copy từ Excel / Google Sheets cũng được.")
-            u2, u3, u4 = st.columns([2.4, 1.2, 4], vertical_alignment="center")
-            has_input = up is not None or bool(pasted.strip())
-            if u2.button("▶ Phân tích (tách cảnh)", disabled=not has_input, type="primary", key=f"btn_analyse_{pid}"):
-                def analyse():
-                    res = script_reader.read_script(up.name, up.getvalue()) if up is not None else script_reader.from_text(pasted)
-                    parsed = script_parser.split_scenes(res.paragraphs)
-                    script_parser.import_scenes(p, pid, parsed, full_text="\n\n".join(res.paragraphs))
-                    st.session_state["parse_info"] = res.info
-                    if len(parsed) == 1 and parsed[0].heading == "Mở đầu":
-                        st.session_state["parse_warn"] = ("Không thấy tiêu đề cảnh (vd “Cảnh 1”, “Scene 2”, “INT./EXT.”): "
-                                                          "cả kịch bản thành 1 cảnh. Hãy thêm/sửa cảnh thủ công.")
-                    st.toast(f"Đã tách {len(parsed)} cảnh")
-                if act(analyse):
-                    st.rerun()
-            u4.caption("Nếu có cả file lẫn văn bản, hệ thống dùng file." if has_input else "Chọn file hoặc dán văn bản, rồi bấm Phân tích.")
+            has_input = script_input(p, pid, True)
             if st.session_state.get("parse_info") and scenes:
-                with st.expander("Hệ thống đã đọc kịch bản thế nào (kiểm tra lại)"):
-                    for line in st.session_state["parse_info"]:
-                        st.caption("• " + line)
-            with u3:
-                if confirm_all(f"btn_bad_reset_{pid}", ["reset"], "↺ Làm lại",
-                               "Xóa các cảnh CHƯA có ảnh/video và các nhân vật CHƯA khóa để tách lại kịch bản? Cảnh đã có ảnh được giữ.",
-                               st, "Có, xóa"):
-                    p.conn.execute("DELETE FROM characters WHERE project_id=? AND locked=0", (pid,))
-                    p.conn.execute("DELETE FROM motion_prompts WHERE scene_id IN (SELECT id FROM scenes WHERE project_id=? AND id NOT IN (SELECT scene_id FROM jobs))", (pid,))
-                    p.conn.execute("DELETE FROM scenes WHERE project_id=? AND id NOT IN (SELECT scene_id FROM jobs)", (pid,))
-                    p.conn.commit()
-                    if not p.conn.execute("SELECT 1 FROM scenes WHERE project_id=?", (pid,)).fetchone():
-                        p.set_script_text(pid, None)
-                        p.conn.execute("DELETE FROM story_scenes WHERE project_id=?", (pid,))
-                        p.conn.commit()
-                    st.session_state.pop("parse_info", None)
-                    st.rerun()
-            left, right = st.columns(2, gap="large")
-            with left:
-                st.markdown("**Kịch bản đầy đủ**")
-                full = proj["script_text"] or "\n\n".join((json.loads(s["data"] or "{}").get("text") or s["title"] or "") for s in scenes)
-                if full.strip():
-                    ui.html(script_html(full))
-                else:
-                    st.caption("Chưa có kịch bản: tải file hoặc gõ/dán văn bản rồi bấm Phân tích.")
-            with right:
-                st.markdown("**Chia theo cảnh** · bấm vào từng cảnh để xem và sửa")
-                if scenes:
-                    scene_list(p, pid, scenes, char_names)
+                parse_info_box()
+            script_views(p, pid, proj, scenes, char_names)
     ui.html(ui.card_title("1b · 🧰 Chuẩn bị", "làm TRƯỚC Director: định dạng, tài nguyên, phong cách"))
     project_format_panel(p, pid)
     if scenes:
@@ -132,7 +173,7 @@ def step1(p: Pipeline, pid: int):
     if scenes:
         ui.html(ui.card_title("1c · Chọn cách chạy", "tự động hoàn toàn, hoặc lần lượt từng bước"))
         autopilot_panel(p, pid)
-        st.caption("🧭 Hoặc lần lượt từng bước: 1d Director → 1e Character Bible → 1f Rà thoại → khóa & sang Bước 2 → Bước 3 motion + "
+        cap("🧭 Hoặc lần lượt từng bước: 1d Director → 1e Character Bible → 1f Rà thoại → khóa & sang Bước 2 → Bước 3 motion + "
                    "giọng → Bước 4 video → Bước 5 âm thanh & xuất bản.")                     # E1.10: no card for text only
         director_panel(p, pid, chars)
     if chars:
@@ -145,7 +186,7 @@ def step1(p: Pipeline, pid: int):
             missing_anchor = [c["name"] for c in chars if not c["anchor_approved"]]
             a.caption("Xong nhân vật (và storyboard nếu dựng): duyệt & khóa rồi sang Bước 2."
                       + (f" Chưa duyệt ảnh mốc: {', '.join(missing_anchor)}." if missing_anchor else ""))
-            b.button("✔ Duyệt & khóa → Bước 2", type="primary", key=f"lock_go_{pid}", on_click=_lock_and_go, args=(p, pid))
+            b.button("✔ Duyệt & khóa → Storyboard", type="primary", key=f"lock_go_{pid}", on_click=_lock_and_go, args=(p, pid))
             if st.session_state.get("lock_error"):
                 st.error(st.session_state.pop("lock_error"))
 
@@ -239,11 +280,11 @@ def scene_editor(p: Pipeline, pid: int, scene, char_names) -> None:
     perf, why_text = _acting_inputs(d, k, lk) if d.get("shot_no") else (None, None)
     image_prompt = st.text_area("Prompt ảnh" + lk("image_prompt"), d.get("image_prompt", ""), key=f"{k}_prompt", height=80)
     if locked:
-        st.caption("🔒 = bạn đã sửa tay, Director chạy lại sẽ giữ nguyên.")
+        cap("🔒 = bạn đã sửa tay, Director chạy lại sẽ giữ nguyên.")
         if st.button("🔓 Cho Director điền lại các trường 🔒 của cảnh này", key=f"{k}_unlock"):
             act(lambda: llm_io.unlock_scene_fields(p, pid, idx))
             st.rerun()
-    st.caption("Sửa cảnh đã có ảnh/video: các kết quả cũ sẽ hiện ⚠ cũ để bạn làm lại đúng phần bị ảnh hưởng.")
+    cap("Sửa cảnh đã có ảnh/video: các kết quả cũ sẽ hiện ⚠ cũ để bạn làm lại đúng phần bị ảnh hưởng.")
     b1, b2 = st.columns(2)
     if b1.button("💾 Lưu cảnh", key=f"sds_{pid}_{idx}", type="primary"):
         table = lines_edit.to_dict("records") if hasattr(lines_edit, "to_dict") else lines_edit
@@ -283,8 +324,10 @@ def scene_list(p: Pipeline, pid: int, scenes, char_names) -> None:
     by_idx = {r["idx"]: r for r in status.values()}
     with_bg = sum(1 for s in scenes if assets.scene_location(p.conn, pid, json.loads(s["data"] or "{}")))
     unit = "shot" if scenes and any(json.loads(s["data"] or "{}").get("shot_no") for s in scenes) else "cảnh"
-    st.caption(f"🏞 {with_bg}/{len(scenes)} {unit} đã có Background"
-               + ("" if with_bg == len(scenes) else f" — {unit} chưa có thì không dựng được layout; chọn trong từng {unit} hoặc gắn địa điểm ở 1b"))
+    if not (ui.v2_on() and with_bg == len(scenes)):       # v2 (P4): "all of them have one" is not worth a line
+        cap(f"🏞 {with_bg}/{len(scenes)} {unit} đã có Background"
+            + ("" if with_bg == len(scenes) else f" — {unit} chưa có thì không dựng được layout; chọn trong từng {unit} hoặc gắn địa điểm ở 1b"),
+            summary=f"🏞 {with_bg}/{len(scenes)} {unit} đã có Background")
     proj = p.project(pid)
     modes = {0: "Tự động: nối trong cùng nhóm cảnh", 1: "Luôn nối cảnh liền trước", 2: "Không nối"}
     if C.expert():
@@ -300,9 +343,10 @@ def scene_list(p: Pipeline, pid: int, scenes, char_names) -> None:
     story = {x["idx"]: x for x in _shots.story_scenes(p, pid)}
     cuts = _shots.dialogue_cuts(p, pid) if any(json.loads(s["data"] or "{}").get("shot_no") for s in scenes) else []
     if cuts:
-        st.warning(f"✂ Director đã bỏ {len(cuts)} câu thoại của kịch bản — xem lại (thêm lại câu vào shot bằng ô sửa shot nếu cần):\n"
-                   + "\n".join(f"- Cảnh {c['scene']} · {c['speaker']}: “{escape(c['text'])}”"
-                                + (f" — ⚠ câu sau có thể là câu đáp lại ({escape(c['next'])})" if c["answered"] else "") for c in cuts))
+        say("warning", f"✂ Director đã bỏ {len(cuts)} câu thoại của kịch bản — xem lại (thêm lại câu vào shot bằng ô sửa shot nếu cần):\n"
+            + "\n".join(f"- Cảnh {c['scene']} · {c['speaker']}: “{escape(c['text'])}”"
+                         + (f" — ⚠ câu sau có thể là câu đáp lại ({escape(c['next'])})" if c["answered"] else "") for c in cuts),
+            f"script-cuts-{pid}", f"✂ Director đã bỏ {len(cuts)} câu thoại của kịch bản — xem lại")
     try:
         fixed = (json.loads(p.project(pid)["director_raw"] or "{}").get("normalized") or []) if cuts or scenes else []
     except (ValueError, KeyError, IndexError, AttributeError):
@@ -316,38 +360,41 @@ def scene_list(p: Pipeline, pid: int, scenes, char_names) -> None:
                         st.markdown("\n".join(f"- {escape(str(c))}" for c in fixed))
                 paid = _paid_line(p, pid)
                 if paid:
-                    st.caption(paid)
+                    cap(paid)
                 _crew_notes(p, pid)
                 _director_review(p, pid)
-    cur_story = None
-    for s in scenes:
-        d = json.loads(s["data"] or "{}")
-        st_row = by_idx.get(s["idx"])
-        if d.get("shot_no"):                          # v3 shot rows: grouped under their script scene
-            if d.get("story_scene") != cur_story:
-                cur_story = d.get("story_scene")
-                group = [json.loads(x["data"] or "{}") for x in scenes if json.loads(x["data"] or "{}").get("story_scene") == cur_story]
-                total = sum(float(g.get("duration_s") or 0) for g in group)
-                head_col, redo_col = st.columns([5, 2], vertical_alignment="center")
-                head_col.markdown(f"**Cảnh {cur_story} — {escape((story.get(cur_story) or {}).get('heading') or '')}** · "
-                                  f"{len(group)} shot · {total:.1f}s")
-                _replan_button(p, pid, cur_story, redo_col)
-                warn = _shots.pacing_warnings(group)
-                if warn:
-                    st.caption("⚠ " + " · ".join(warn))
-            lines = "; ".join(f"{x.get('speaker')}: {x.get('text')}" for x in d.get("dialogue") or [])
-            head = [f"{_shots.label(d, s['idx'])} · {d.get('size')} · {d.get('role')} · {float(d.get('duration_s') or 0):g}s"
-                    + (" · ⭐" if d.get("shot_role") == "hero" else ""),
-                    (d.get("action") or "")[:60], lines[:70], scene_status_text(st_row) if st_row else ""]
-            with st.expander("   |   ".join(x for x in head if x)):
+    from contextlib import nullcontext
+    # v2 (P3, long list): more than 6 rows scroll inside a labelled box instead of making the card as tall as the list
+    with (st.container(height=460, key=f"script-rows-{pid}") if ui.v2_on() and len(scenes) > 6 else nullcontext()):
+        cur_story = None
+        for s in scenes:
+            d = json.loads(s["data"] or "{}")
+            st_row = by_idx.get(s["idx"])
+            if d.get("shot_no"):                          # v3 shot rows: grouped under their script scene
+                if d.get("story_scene") != cur_story:
+                    cur_story = d.get("story_scene")
+                    group = [json.loads(x["data"] or "{}") for x in scenes if json.loads(x["data"] or "{}").get("story_scene") == cur_story]
+                    total = sum(float(g.get("duration_s") or 0) for g in group)
+                    head_col, redo_col = st.columns([5, 2], vertical_alignment="center")
+                    head_col.markdown(f"**Cảnh {cur_story} — {escape((story.get(cur_story) or {}).get('heading') or '')}** · "
+                                      f"{len(group)} shot · {total:.1f}s")
+                    _replan_button(p, pid, cur_story, redo_col)
+                    warn = _shots.pacing_warnings(group)
+                    if warn:
+                        cap("⚠ " + " · ".join(warn))
+                lines = "; ".join(f"{x.get('speaker')}: {x.get('text')}" for x in d.get("dialogue") or [])
+                head = [f"{_shots.label(d, s['idx'])} · {d.get('size')} · {d.get('role')} · {float(d.get('duration_s') or 0):g}s"
+                        + (" · ⭐" if d.get("shot_role") == "hero" else ""),
+                        (d.get("action") or "")[:60], lines[:70], scene_status_text(st_row) if st_row else ""]
+                with st.expander("   |   ".join(x for x in head if x)):
+                    scene_editor(p, pid, s, char_names)
+                continue
+            bits = [f"S{s['idx']:02d}" + (f" · nhóm {d['sequence']}" if d.get("sequence") else "")
+                    + (" · ⭐" if d.get("shot_role") == "hero" else "") + (" · 🌀 phức tạp" if d.get("camera_complexity") == "complex" else ""),
+                    " · ".join(filter(None, [d.get("time"), d.get("location")])), ", ".join(d.get("characters") or []),
+                    scene_status_text(st_row) if st_row else ""]
+            with st.expander("   |   ".join(x for x in bits if x)):
                 scene_editor(p, pid, s, char_names)
-            continue
-        bits = [f"S{s['idx']:02d}" + (f" · nhóm {d['sequence']}" if d.get("sequence") else "")
-                + (" · ⭐" if d.get("shot_role") == "hero" else "") + (" · 🌀 phức tạp" if d.get("camera_complexity") == "complex" else ""),
-                " · ".join(filter(None, [d.get("time"), d.get("location")])), ", ".join(d.get("characters") or []),
-                scene_status_text(st_row) if st_row else ""]
-        with st.expander("   |   ".join(x for x in bits if x)):
-            scene_editor(p, pid, s, char_names)
     if st.button("➕ Thêm cảnh", key=f"scene_add_{pid}", help="Cho kịch bản mà công cụ không tự tách được"):
         act(lambda: p.add_scene_next(pid))
         st.rerun()
@@ -361,6 +408,6 @@ def _lock_and_go(p: Pipeline, pid: int) -> None:
     except ERRORS as e:
         st.session_state["lock_error"] = str(e)
         return
-    st.session_state["step"] = STEPS[1]
+    st.session_state["step"] = STEPS[2]                 # đợt 3: Storyboard (Ảnh + QC, Motion & giọng)
 
 

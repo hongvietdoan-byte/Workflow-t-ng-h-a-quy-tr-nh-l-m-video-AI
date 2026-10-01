@@ -1,0 +1,357 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AI Video Pipeline - Dashboard Mockup</title>
+<style>
+:root{--bg:#F4F5F8;--surface:#fff;--border:#E2E5EB;--text:#1A1F2B;--muted:#667085;--primary:#4F46E5;--primary-soft:#EEF0FF;--ok:#12B76A;--ok-soft:#E7F8EF;--warn:#F79009;--warn-soft:#FFF4E0;--bad:#F04438;--bad-soft:#FDECEA;--info:#0BA5EC;--info-soft:#E5F5FD}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font:13px/1.45 Inter,system-ui,-apple-system,"Segoe UI",sans-serif}
+button{font:inherit;cursor:pointer}
+.topbar{display:flex;align-items:center;gap:20px;padding:12px 24px;background:var(--surface);border-bottom:1px solid var(--border);flex-wrap:wrap}
+.logo{display:flex;align-items:center;gap:8px;font-weight:700;font-size:15px}.logo i{width:28px;height:28px;border-radius:8px;background:var(--primary);display:block}
+.sel{padding:7px 12px;border:1px solid var(--border);border-radius:8px;background:var(--bg);font-size:12px}.sel b{font-weight:600}
+.seg{display:inline-flex;background:var(--bg);border:1px solid var(--border);border-radius:8px}.seg button{border:0;background:none;padding:7px 12px;border-radius:8px;font-size:12px;color:var(--muted)}.seg button.on{background:var(--primary);color:#fff;font-weight:600}
+.lbl{font-size:12px;color:var(--muted)}.grow{flex:1}
+.btn{border:1px solid var(--border);background:var(--surface);color:var(--text);padding:8px 14px;border-radius:8px;font-size:12px;font-weight:500}
+.btn.sm{padding:5px 9px;font-size:11px}.btn.primary{background:var(--primary);border-color:var(--primary);color:#fff}.btn.ok{background:var(--ok-soft);border-color:var(--ok);color:var(--ok)}.btn.bad{background:var(--bad-soft);border-color:var(--bad);color:var(--bad)}.btn.ghost{border-color:transparent;background:none;color:var(--primary)}.btn:hover{filter:brightness(.97)}
+.stepper{display:flex;align-items:center;gap:8px;padding:14px 24px;background:var(--surface);border-bottom:1px solid var(--border);overflow-x:auto}
+.step{display:flex;align-items:center;gap:10px;padding:8px 16px 8px 12px;border-radius:10px;border:1.5px solid transparent;background:none;text-align:left;min-width:max-content}
+.step .n{width:28px;height:28px;border-radius:50%;background:var(--border);color:var(--muted);display:grid;place-items:center;font-size:11px;font-weight:700}
+.step b{display:block;font-size:12px;color:var(--muted);font-weight:500}.step small{font-size:10px;color:var(--muted)}
+.step.done .n{background:var(--ok);color:#fff}.step.done small{color:var(--ok)}
+.step.active{background:var(--primary-soft);border-color:var(--primary)}.step.active .n{background:var(--primary);color:#fff}.step.active b{color:var(--text);font-weight:600}.step.active small{color:var(--primary)}
+.line{width:22px;height:2px;background:var(--border);flex:none}.line.done{background:var(--ok)}
+main{padding:20px 24px 40px}.screen{display:none}.screen.on{display:block}
+.grid2{display:grid;grid-template-columns:520px 1fr;gap:20px}.col{display:flex;flex-direction:column;gap:16px}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:16px}.card h3{margin:0 0 12px;font-size:14px}.card h3 span{font-size:11px;color:var(--muted);font-weight:400;margin-left:6px}
+.card.warn{background:var(--warn-soft);border-color:var(--warn)}
+.drop{border:1.5px dashed var(--border);background:var(--bg);border-radius:10px;padding:22px;text-align:center;margin-bottom:12px}.drop small{display:block;color:var(--muted);margin-top:4px}
+.row{display:flex;align-items:center;gap:8px;flex-wrap:wrap}.row.gap12{gap:12px}
+.badge{display:inline-block;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:600;background:var(--bg);color:var(--muted);white-space:nowrap}
+.b-ok{background:var(--ok-soft);color:var(--ok)}.b-warn{background:var(--warn-soft);color:var(--warn)}.b-bad{background:var(--bad-soft);color:var(--bad)}.b-info{background:var(--info-soft);color:var(--info)}.b-pri{background:var(--primary-soft);color:var(--primary)}
+.item{display:flex;align-items:center;gap:12px;background:var(--bg);border-radius:8px;padding:10px 12px;margin-bottom:8px}.item .av{width:36px;height:36px;border-radius:50%;background:var(--primary-soft);flex:none}.item .t{flex:1}.item .t b{display:block;font-size:12px}.item .t span{font-size:11px;color:var(--muted)}
+.foot{display:flex;align-items:center;gap:10px;background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:14px 16px}
+.chips{display:flex;gap:8px;margin:14px 0}.chip{padding:6px 12px;border-radius:16px;border:1px solid var(--border);background:var(--surface);font-size:11px;font-weight:500;color:var(--muted)}.chip.on{background:var(--primary);border-color:var(--primary);color:#fff}
+.imgs{display:grid;grid-template-columns:repeat(4,1fr);gap:16px}.img{background:var(--surface);border:1px solid var(--border);border-radius:12px;overflow:hidden}.img.fail{border-color:var(--bad)}.img .p{height:135px}.img .m{padding:10px 12px 12px;display:flex;flex-direction:column;gap:8px}
+.bar{height:5px;background:var(--border);border-radius:3px;flex:1;max-width:100px}.bar i{display:block;height:100%;border-radius:3px}
+.split{display:grid;grid-template-columns:1fr 340px;gap:20px;align-items:start}
+.crit{display:flex;justify-content:space-between;font-size:11px;margin:5px 0}
+.note{background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:10px;margin:10px 0}.note small{color:var(--muted);display:block;font-size:10px}
+table{width:100%;border-collapse:collapse;font-size:12px}th,td{text-align:left;padding:9px 10px;border-bottom:1px solid var(--border)}th{font-size:10px;text-transform:uppercase;color:var(--muted);letter-spacing:.04em}
+.prog{height:10px;background:var(--border);border-radius:5px;overflow:hidden}.prog i{display:block;height:100%;background:var(--primary)}
+.music{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}.wave{height:46px;border-radius:8px;background:repeating-linear-gradient(90deg,var(--primary-soft) 0 3px,transparent 3px 6px);margin:10px 0}
+textarea,input[type=text]{width:100%;border:1px solid var(--border);border-radius:8px;padding:9px 10px;font:inherit;background:var(--bg)}
+.video{aspect-ratio:16/9;border-radius:10px;background:linear-gradient(135deg,#1D2B4F,#8A9BD1);display:grid;place-items:center;color:#fff;font-size:28px}
+.legend{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+.note-top{background:var(--primary-soft);border:1px solid var(--primary);color:var(--primary);border-radius:8px;padding:8px 12px;font-size:11px;margin-bottom:16px}
+.modebar{border-radius:10px;padding:10px 14px;margin-bottom:14px;font-size:12px;border:1px solid var(--border);background:var(--surface)}
+.modebar b{font-size:13px}.ap{display:none;border:2px solid var(--warn);background:var(--warn-soft);border-radius:12px;padding:12px 14px;margin:12px 0}
+.ap .row{margin-top:6px}.autoflag{display:none;color:var(--ok);font-weight:600}
+body[data-mode=all] .ap.all{display:block}body[data-mode=main] .ap.main{display:block}body[data-mode=auto] .autoflag{display:inline}
+body[data-mode=auto] .gate .btn.primary{opacity:.55}
+.proj{display:grid;grid-template-columns:2.2fr 1.1fr 1.6fr 1.2fr 1fr 1.3fr;gap:10px;align-items:center;padding:12px 14px;border-bottom:1px solid var(--border)}
+.proj.h{font-size:10px;text-transform:uppercase;color:var(--muted);letter-spacing:.04em;background:var(--bg);border-radius:8px 8px 0 0}
+.proj:hover:not(.h){background:var(--primary-soft);cursor:pointer}.proj small{display:block;color:var(--muted);font-size:10px}
+.rev{display:grid;grid-template-columns:1fr 330px;gap:16px;margin-top:10px}.rev .big{aspect-ratio:9/16;max-height:420px;border-radius:12px;background:linear-gradient(160deg,#243B6B,#B58F6A);display:grid;place-items:center;color:#fff;font-size:22px;position:relative;margin:auto}
+.rev .big em{position:absolute;left:10px;top:10px;font-size:10px;background:rgba(0,0,0,.45);padding:3px 7px;border-radius:6px;font-style:normal}
+.rev .bbox{position:absolute;border:2px solid #F04438;border-radius:6px;right:18%;top:38%;width:30%;height:22%}.rev .bbox i{position:absolute;top:-18px;left:0;background:#F04438;color:#fff;font:10px/1 sans-serif;padding:3px 6px;border-radius:4px;font-style:normal;white-space:nowrap}
+.meas{display:grid;grid-template-columns:1fr auto;gap:2px 10px;font-size:11px;margin:8px 0}.meas span:nth-child(even){text-align:right;font-weight:600}
+.filmstrip{display:flex;gap:6px;margin-top:8px}.filmstrip i{flex:1;aspect-ratio:9/16;max-height:70px;border-radius:6px;background:linear-gradient(160deg,#243B6B,#B58F6A);display:block;opacity:.7}.filmstrip i.bad{outline:2px solid var(--bad);opacity:1}
+.scrub{height:6px;background:var(--border);border-radius:3px;position:relative;margin:8px 0}.scrub i{position:absolute;height:100%;background:var(--primary);width:38%;border-radius:3px}.scrub b{position:absolute;left:61%;top:-4px;width:2px;height:14px;background:var(--bad)}
+.sug{display:flex;gap:6px;flex-wrap:wrap;margin:8px 0}
+.who{display:flex;align-items:center;gap:8px;position:relative}.who .av2{width:26px;height:26px;border-radius:50%;background:var(--primary);color:#fff;display:grid;place-items:center;font-size:11px;font-weight:700}
+.rolebar{display:inline-flex;gap:0;background:var(--bg);border:1px dashed var(--warn);border-radius:8px;padding:2px;margin-left:6px}.rolebar button{border:0;background:none;padding:4px 9px;border-radius:6px;font-size:11px;color:var(--muted)}.rolebar button.on{background:var(--warn-soft);color:var(--warn);font-weight:700}
+.scope{display:inline-flex;background:var(--bg);border:1px solid var(--border);border-radius:8px}.scope button{border:0;background:none;padding:6px 12px;border-radius:8px;font-size:12px;color:var(--muted)}.scope button.on{background:var(--primary);color:#fff}
+body[data-scope=mine] .proj[data-own=other]{display:none}
+body[data-role=member][data-scope=mine] .proj[data-own=me]{display:none}body[data-role=member][data-scope=mine] .proj[data-lan]{display:grid}
+.own{display:inline-block;font-size:10px;padding:1px 7px;border-radius:9px;background:var(--bg);color:var(--muted)}.own.me{background:var(--primary-soft);color:var(--primary)}
+.ro{display:none}body[data-role=member] .owner-only{display:none}body[data-role=owner] .member-only{display:none}
+.tabs2{display:flex;gap:6px;margin-bottom:10px}.tabs2 button{border:1px solid var(--border);background:var(--surface);border-radius:16px;padding:4px 11px;font-size:11px}.tabs2 button.on{background:var(--primary);color:#fff;border-color:var(--primary)}
+.lock{font-size:10px;color:var(--warn)}
+.preset{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin:10px 0}.preset .pr{border:1.5px solid var(--border);border-radius:10px;padding:10px}.preset .pr.on{border-color:var(--primary);background:var(--primary-soft)}.preset small{display:block;color:var(--muted);font-size:10px;margin-top:3px}
+.fbar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:8px}
+.fbar input[type=text],.fbar select{width:auto;border:1px solid var(--border);border-radius:8px;padding:6px 9px;font:inherit;font-size:12px;background:var(--surface)}
+.fbar input[type=text]{min-width:190px}.chip{cursor:pointer;user-select:none}
+.fcount{margin:2px 0 8px;font-size:11px;color:var(--muted)}.fcount b{color:var(--text)}
+.proj.hide{display:none!important}.empty{display:none;text-align:center;padding:22px;color:var(--muted)}
+.sortb{font-size:11px;color:var(--muted);cursor:pointer}.sortb.on{color:var(--primary);font-weight:700}
+.fbox{position:relative;display:flex;gap:8px;align-items:center;margin-bottom:8px}
+.fbox input[type=text]{flex:1;max-width:380px;border:1px solid var(--border);border-radius:8px;padding:8px 10px;font:inherit;background:var(--surface)}
+.fpanel{display:none;position:absolute;left:0;top:42px;width:420px;background:var(--surface);border:1px solid var(--border);border-radius:12px;box-shadow:0 12px 32px rgba(16,24,40,.14);padding:14px;z-index:8}.fpanel.on{display:block}
+.fpanel .fr{margin-bottom:12px}.fpanel .fr>small{display:block;color:var(--muted);font-size:10px;text-transform:uppercase;letter-spacing:.04em;margin-bottom:5px}
+.fpanel select{width:100%;border:1px solid var(--border);border-radius:8px;padding:6px 9px;font:inherit;font-size:12px;background:var(--surface)}
+.fsel{border:1px solid var(--border);border-radius:8px;padding:7px 9px;font:inherit;font-size:12px;background:var(--surface)}
+.ftags{display:flex;gap:6px;flex-wrap:wrap;margin:0 0 6px}.ftag{background:var(--primary-soft);color:var(--primary);border-radius:12px;padding:2px 9px;font-size:11px}
+.refs{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-top:10px}
+.rf{border:1.5px dashed var(--border);border-radius:10px;padding:10px;background:var(--bg);font-size:11px;min-height:96px}.rf b{display:block;font-size:12px;margin-bottom:3px}.rf small{color:var(--muted);display:block;margin-top:3px;font-size:10px}
+.rf.has{border-style:solid;background:var(--surface)}.thumb{width:44px;height:44px;border-radius:8px;background:linear-gradient(160deg,#243B6B,#B58F6A);display:inline-block;margin-right:4px}
+.modes{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:12px}.md{border:1.5px solid var(--border);border-radius:10px;padding:9px;cursor:pointer;background:var(--surface)}.md.on{border-color:var(--primary);background:var(--primary-soft)}.md b{font-size:12px;display:block}.md small{font-size:10px;color:var(--muted);display:block;margin-top:2px}
+.ref-only{display:none}body[data-input=cover] .ref-only,body[data-input=dance] .ref-only{display:block}body[data-input=cover] .not-ref,body[data-input=dance] .not-ref{display:none}
+.pin{display:inline-block;background:var(--warn-soft);color:var(--warn);border-radius:8px;padding:1px 7px;font-size:10px;font-weight:600}
+</style>
+</head>
+<body data-input="script" data-mode="main" data-scope="mine" data-role="owner">
+<style>
+.inbox{position:relative}.inbox .dot{background:var(--bad);color:#fff;border-radius:10px;padding:0 6px;font-size:10px;font-weight:700;margin-left:4px}
+.drawer{display:none;position:absolute;right:0;top:40px;width:420px;background:var(--surface);border:1px solid var(--border);border-radius:12px;box-shadow:0 12px 32px rgba(16,24,40,.14);padding:14px;z-index:9}
+.drawer.on{display:block}.drawer h4{margin:0 0 10px;font-size:13px}
+.q{display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:8px;background:var(--bg);margin-bottom:8px}.q .t{flex:1}.q small{display:block;color:var(--muted);font-size:10px}
+.money{position:relative}.moneybox{display:none;position:absolute;right:0;top:40px;width:340px;background:var(--surface);border:1px solid var(--border);border-radius:12px;box-shadow:0 12px 32px rgba(16,24,40,.14);padding:14px;z-index:9}.moneybox.on{display:block}
+.kbd{font:10px monospace;background:var(--bg);border:1px solid var(--border);border-radius:4px;padding:1px 5px}
+.plan{display:grid;grid-template-columns:repeat(5,1fr);gap:10px;margin:12px 0}.plan .p{background:var(--bg);border-radius:10px;padding:10px;text-align:center}.plan .p b{display:block;font-size:15px}.plan .p small{color:var(--muted);font-size:10px}
+.gate{border:2px solid var(--primary);border-radius:12px;background:var(--primary-soft);padding:14px;margin:14px 0}
+.tune{border:1px dashed var(--border);border-radius:10px;padding:10px 14px;color:var(--muted);margin-top:14px}
+</style>
+<div class="topbar">
+  <div class="logo"><i></i>AI Video Pipeline</div>
+  <div class="sel"><span class="lbl">Dự án:</span> <b>Thử 02/10 — kịch bản mới ▾</b></div>
+  <div class="row"><span class="lbl">Mức tự động</span><div class="seg" id="modeseg"><button data-m="all">Tôi duyệt hết</button><button data-m="main" class="on">Duyệt cổng chính</button><button data-m="auto">Tự chạy trong trần</button></div></div>
+  <span class="grow"></span>
+  <div class="who"><span class="av2">V</span><span><b id="whoName">Việt</b> <span class="own me" id="whoRole">Owner</span></span>
+    <span class="rolebar" title="Chỉ trong mockup: xem giao diện theo từng vai"><button data-r="owner" class="on">xem như Owner</button><button data-r="member">xem như Thành viên</button></span></div>
+  <div class="inbox"><button class="btn" id="inboxBtn">📥 Việc cần bạn <span class="dot">3</span></button>
+    <div class="drawer" id="inbox">
+      <div class="tabs2" id="inboxTabs"><button class="on" data-t="me">Của tôi (3)</button><button class="owner-only" data-t="team">Cả nhóm (7)</button></div>
+      <select class="fsel" id="itype" style="margin-bottom:8px"><option value="">Lọc: tất cả loại việc</option><option>Ảnh</option><option>Video</option><option>Ngân sách</option><option>Tiền</option></select>
+      <h4>Việc đang chờ bạn <span class="badge b-info">phím: <span class="kbd">Y</span> duyệt · <span class="kbd">N</span> loại · <span class="kbd">E</span> sửa 1 câu · <span class="kbd">→</span> kế</span></h4>
+      <div class="q"><span class="badge b-warn">Ảnh</span><div class="t">Shot 4 — Kenta cầm kiếm<small>Tổ QC: tay phải sai chiều (đánh dấu, chưa chặn)</small></div><button class="btn sm ok">✔</button><button class="btn sm bad">✖</button><button class="btn sm">✎</button></div>
+      <div class="q"><span class="badge b-warn">Ngân sách</span><div class="t">Duyệt & khóa ngân sách ≈ 9,40 USD<small>ảnh 3,2 · video 5,1 · Claude 1,1</small></div><button class="btn sm primary">Khóa</button></div>
+      <div class="q owner-only"><span class="badge b-bad">Tiền</span><div class="t">ClipAI báo hết tiền<small>chỉ Owner / người có quyền Cài đặt thấy · nạp xong bấm "mở lại"</small></div><button class="btn sm">Mở lại</button></div>
+      <div class="q team-only" style="display:none"><span class="badge b-warn">Lan</span><div class="t">Quảng cáo skill Kelly — clip 4 mặt lệch<small>việc của Lan · bạn xem được, không duyệt thay (trừ khi Lan nhờ)</small></div><button class="btn sm">Xem</button><button class="btn sm">Nhận duyệt thay</button></div>
+      <div class="q team-only" style="display:none"><span class="badge b-warn">Minh</span><div class="t">Hành động Maxim — ngân sách chờ khóa<small>việc của Minh · nhắc Minh?</small></div><button class="btn sm">Nhắc</button></div>
+    </div></div>
+  <div class="money"><button class="btn" id="moneyBtn">💵 3,12 / 10</button>
+    <div class="moneybox" id="money">
+      <b>Tiền</b>
+      <div class="note"><small>Đợt thử</small>3,12 / 10 USD<div class="prog"><i style="width:31%"></i></div></div>
+      <div class="note"><small>Của riêng bạn (tháng này)</small>7,8 USD · 14 video · 61 ảnh<div class="prog"><i style="width:26%"></i></div><small>Hạn mức cá nhân: 30 USD/tháng (Owner đặt, tùy chọn)</small></div>
+      <div class="note owner-only"><small>Cả nhóm</small>31,4 USD · 5 người</div>
+      <div class="note"><small>Claude API</small>2,40 / 11,80 USD<div class="prog"><i style="width:20%"></i></div></div>
+      <div class="note"><small>Dự án này 🔒</small>đã chi 3,12 / trần 9,40<div class="prog"><i style="width:33%"></i></div></div>
+      <div class="row"><button class="btn sm">Bảng giá</button><button class="btn sm">Đợt thử & Claude</button></div>
+    </div></div>
+  <button class="btn">⏸ Tạm dừng</button><button class="btn">⚙</button>
+</div>
+<div class="stepper" id="stepper"></div>
+<main>
+<div class="modebar" id="modebar"></div>
+<div class="note-top">MOCKUP đề xuất đợt 3 (rà soát 01/10, mục 5.1): <b>5 bước → 4 màn + hộp "Việc cần bạn"</b>. Bấm các bước phía trên, 📥 và 💵 để xem. Chưa code — chờ bạn duyệt / góp ý.</div>
+
+<section class="screen on" id="s0">
+  <div class="card"><h3>Tất cả dự án <span>trang đầu · một dòng mỗi dự án · bấm dòng để mở dự án</span></h3>
+    <div class="row" style="margin-bottom:8px"><span class="scope" id="scope"><button data-s="mine" class="on">Của tôi</button><button data-s="team">Cả nhóm</button></span><span class="grow"></span><span class="lbl">Tổng chi hôm nay <b>3,12 USD</b> · Claude API còn <b>9,40</b></span></div>
+    <div class="fbox" id="fbox">
+      <input type="text" id="fq" placeholder="🔎 Tìm tên dự án, nhân vật, kịch bản…">
+      <button class="btn" id="fbtn">⛃ Bộ lọc <span class="badge b-info" id="fn">0</span></button>
+      <select class="fsel" id="fsort"><option value="wait">Sắp xếp: cần bạn trước</option><option value="date">Mới nhất</option><option value="cost">Tốn nhiều nhất</option></select>
+      <div class="fpanel" id="fpanel">
+        <div class="fr"><small>Trạng thái</small><span id="fstatus"><span class="chip on" data-v="">Tất cả</span><span class="chip" data-v="run">🚀 Đang chạy</span><span class="chip" data-v="wait">🖐 Chờ bạn</span><span class="chip" data-v="pause">⏸ Tạm dừng</span><span class="chip" data-v="done">✔ Xong</span></span></div>
+        <div class="fr"><small>Bước</small><select id="fstep"><option value="">Tất cả</option><option value="1">Kịch bản</option><option value="2">Storyboard</option><option value="3">Video</option><option value="4">Bản giao</option></select></div>
+        <div class="fr owner-only"><small>Người tạo</small><select id="fowner"><option value="">Tất cả</option><option>Việt</option><option>Lan</option><option>Minh</option><option>Hà</option></select></div>
+        <div class="fr"><label class="chip" id="fwarn"><input type="checkbox" style="display:none"> ⚠ Chỉ dự án có cảnh báo</label></div>
+        <div class="row"><button class="btn sm" id="freset">✕ Xóa lọc</button><button class="btn sm primary" id="fdone">Xong</button><span class="grow"></span><button class="btn sm" id="fsave">💾 Lưu bộ lọc…</button></div>
+      </div>
+    </div>
+    <div class="ftags" id="ftags"></div>
+    <div class="fcount" id="fcount"></div>
+    <div class="proj h"><span>Dự án</span><span>Trạng thái</span><span>Tiến độ</span><span>Tiền / trần</span><span>Chờ bạn</span><span>Việc kế</span></div>
+    <div class="proj" data-st="wait" data-step="2" data-by="Việt" data-plat="TikTok 9:16" data-model="Kling 3.0" data-days="0" data-warn="1" data-cost="33" data-amt="3.12" data-own="me" onclick="go(2)"><span><b>Thử 02/10 — kịch bản mới</b><small><span class="own me">của bạn</span> Kenta + Orion · 60 s · TikTok 9:16</small></span><span><span class="badge b-warn">chờ bạn</span></span><span>Storyboard 78 % <div class="prog"><i style="width:78%"></i></div></span><span>3,12 / 9,40<div class="prog"><i style="width:33%"></i></div></span><span><span class="badge b-bad">3</span></span><span><button class="btn sm primary">Duyệt ngay →</button></span></div>
+    <div class="proj" data-st="run" data-step="3" data-by="Minh" data-plat="Facebook 16:9" data-model="Seedance 2.5" data-days="1" data-warn="0" data-cost="58" data-amt="6.40" data-own="other" onclick="go(3)"><span><b>Hành động Maxim (A)</b><small><span class="own">Minh</span> <span class="lock">🔒 Minh đang mở</span> Seedance 2.5 · 30 s · 16:9</small></span><span><span class="badge b-info">đang chạy</span></span><span>Video 7/12 clip <div class="prog"><i style="width:58%"></i></div></span><span>6,40 / 11,00<div class="prog"><i style="width:58%"></i></div></span><span><span class="badge">0</span></span><span class="lbl">ước còn ~12 phút</span></div>
+    <div class="proj" data-st="wait" data-step="3" data-by="Lan" data-plat="TikTok 9:16" data-model="Kling 3.0" data-days="0" data-warn="1" data-cost="47" data-amt="2.10" data-own="other" data-lan="1" onclick="go(3)"><span><b>Quảng cáo skill Kelly</b><small><span class="own">Lan</span> Kling 3.0 · 20 s · 9:16 · <i class="lock">chỉ xem — việc của Lan</i></small></span><span><span class="badge b-info">đang chạy</span></span><span>Video 3/5 clip <div class="prog"><i style="width:60%"></i></div></span><span>2,10 / 4,50<div class="prog"><i style="width:47%"></i></div></span><span><span class="badge b-warn">1</span></span><span><small>clip 4: mặt lệch</small></span></div>
+    <div class="proj" data-st="pause" data-step="1" data-by="Việt" data-plat="Shorts 9:16" data-model="" data-days="3" data-warn="0" data-cost="0" data-amt="0" data-own="me" onclick="go(1)"><span><b>Ý tưởng thô: Orion trở lại</b><small><span class="own me">của bạn</span> chưa lập kế hoạch</small></span><span><span class="badge">tạm dừng</span></span><span>Kịch bản <div class="prog"><i style="width:10%"></i></div></span><span>0,00 / —</span><span><span class="badge">0</span></span><span><button class="btn sm">▶ Tiếp tục</button></span></div>
+    <div class="proj" data-st="done" data-step="4" data-by="Việt" data-plat="Facebook 16:9" data-model="Kling 3.0" data-days="30" data-warn="0" data-cost="99" data-amt="12.40" data-own="me" onclick="go(4)"><span><b>Teaser #8 (bản đã giao)</b><small><span class="own me">của bạn</span> xuất 28/09</small></span><span><span class="badge b-ok">xong</span></span><span>Bản giao 100 %<div class="prog"><i style="width:100%"></i></div></span><span>12,40 / 12,45</span><span><span class="badge">0</span></span><span><button class="btn sm">Mở bản giao</button></span></div>
+    <div class="empty" id="fempty">Không có dự án nào khớp bộ lọc. <button class="btn sm" onclick="document.getElementById('freset').click()">Xóa lọc</button></div>
+    <p class="lbl" style="margin-top:12px">Mặc định "Của tôi" (dự án bạn tạo hoặc được giao). "Cả nhóm" cho xem mọi dự án nhưng dự án của người khác chỉ XEM; muốn duyệt thay phải được chủ dự án nhờ hoặc là Owner. Dự án đang có người mở hiện 🔒 để hai người không duyệt chồng nhau. Hộp 📥 gom việc chờ của bạn (Owner thêm tab "Cả nhóm"). Dự án có cảnh báo (hết tiền, chạm trần, dịch vụ lỗi) nổi lên đầu bảng. Dữ liệu trong bảng là ví dụ.</p>
+  </div>
+</section>
+
+<section class="screen" id="s1">
+  <div class="grid2">
+    <div class="col">
+      <div class="card"><h3>Đầu vào <span>chọn cách bắt đầu · rồi đính kèm tham chiếu nếu có</span></h3>
+        <div class="modes" id="modes">
+          <div class="md on" data-i="script"><b>📝 Kịch bản / ý tưởng</b><small>dán, kéo file hoặc gõ ý thô (tự nhận dạng)</small></div>
+          <div class="md" data-i="cover"><b>🎬 Làm theo video ref</b><small>cover: giữ cấu trúc + nhịp, viết lại lời, nhân vật FF</small></div>
+          <div class="md" data-i="dance"><b>💃 Cover nhảy</b><small>nhân vật FF nhảy theo động tác của video ref</small></div>
+          <div class="md" data-i="trend"><b>📈 Theo trend</b><small>gợi ý từ thẻ trend đã duyệt (tùy chọn)</small></div>
+        </div>
+        <div class="not-ref">
+          <div class="drop"><b>Kéo file vào, dán văn bản, hoặc gõ ý tưởng thô</b><small>Tự nhận dạng: có "CẢNH n" → kịch bản · ngắn → Biên kịch hỏi lại 4 lượt</small></div>
+          <textarea rows="4" placeholder="Dán kịch bản hoặc ý tưởng…">Kenta xuyên tường, bị Maxim chặn ở sân thượng…</textarea>
+        </div>
+        <div class="ref-only">
+          <div class="drop"><b>🎬 Kéo VIDEO REF vào (MP4) hoặc dán link</b><small>Chỉ tải link khi bạn tick "có quyền dùng để tham khảo". Video lưu trong dự án, không đưa lên git.</small></div>
+          <div class="note"><small>Hệ thống tự làm khi bấm "Lập kế hoạch" (≈ 0,1–0,2 USD)</small>Bóc cảnh, mốc giây, vai, điểm chạm cảm xúc, thoại, nhịp nhạc → ghép vai/nơi với Kho FF → viết lại kịch bản → bạn duyệt 2 cột (ref ↔ bản FF).</div>
+          <div class="row"><span class="badge b-warn">Video có mặt người thật</span><span class="badge b-info">Cover nhảy: tự chuyển sang dạng không mặt (depth / người gỗ) trước khi gửi video</span></div>
+        </div>
+        <div class="chips"><span class="chip on">⏱ 60 s</span><span class="chip on">📱 TikTok 9:16</span><span class="chip on">🎨 FF in-game</span><span class="chip on">🎬 Hành động</span></div>
+        <small class="lbl">4 chip này mặc định theo dự án trước; bấm để đổi.</small>
+      </div>
+      <div class="card"><h3>📎 Tham chiếu đính kèm <span>tùy chọn · AI dùng đúng vai từng loại, không trộn lẫn</span></h3>
+        <div class="refs">
+          <div class="rf has"><b>🖼 Nhân vật</b><span class="thumb"></span><span class="thumb"></span><small>Kelly, Kenta (từ Kho FF) · Orion mới: kéo ảnh vào</small></div>
+          <div class="rf has"><b>🏞 Nơi / bối cảnh</b><span class="thumb"></span><small>Tháp đồng hồ (có 3D) · hoặc kéo ảnh nơi mới</small></div>
+          <div class="rf"><b>🎥 Video ref chuyển động</b><small>gắn vào từng cảnh/shot (chép động tác hoặc đường máy)</small></div>
+          <div class="rf"><b>🎵 Âm thanh / nhạc ref</b><small>giọng mẫu, nhạc muốn giống (chỉ để tham khảo)</small></div>
+        </div>
+        <div class="row" style="margin-top:10px"><span class="badge b-info">Ảnh mới có chọn: ➕ Lưu vào Kho (dùng lại mọi dự án) · hoặc chỉ dùng trong dự án này</span></div>
+        <p class="lbl">Ảnh đính kèm chưa duyệt vào Kho thì chỉ nằm ở trạng thái "chờ duyệt", pipeline chưa dùng. Ảnh quá lệch tỉ lệ / quá nhỏ bị báo ngay (luật model video).</p>
+      </div>
+    </div>
+    <div class="col">
+      <div class="card"><h3>Lập kế hoạch <span>một nút</span></h3>
+        <button class="btn primary" style="width:100%;padding:12px">▶ Lập kế hoạch (≈ 0,9 USD)</button>
+        <p class="lbl">= Director + Bible + rà thoại + người xem lần đầu + đề xuất ngân sách. Không còn ~6 nút "🤖 Claude…" riêng.</p>
+        <div class="plan"><div class="p"><b>12</b><small>shot</small></div><div class="p"><b>3</b><small>nhân vật</small></div><div class="p"><b>2</b><small>cảnh cờ rủi ro</small></div><div class="p"><b>9,40</b><small>USD dự tính</small></div><div class="p"><b>OK</b><small>rà thoại</small></div></div>
+        <div class="row"><span class="badge b-warn">Cần ảnh: nhân vật mới "Orion"</span><span class="badge b-ok">Rà thoại: đạt</span></div>
+      </div>
+      <div class="ap all"><b>🖐 Duyệt #1 — Kịch bản đã chuẩn hóa</b><br>Xem lại bản kịch bản AI sửa / thêm (2 cột, tô phần thêm) rồi duyệt.<div class="row"><button class="btn sm ok">✔ Duyệt kịch bản</button></div></div>
+      <div class="ap all"><b>🖐 Duyệt #2 — Bảng shot của Director</b><br>12 shot, cỡ cảnh + góc máy từng shot; sửa được từng dòng.<div class="row"><button class="btn sm ok">✔ Duyệt bảng shot</button></div></div>
+      <div class="ap all"><b>🖐 Duyệt #3 — Character Bible & nhân vật</b><br>Kelly / Kenta / Orion: ảnh chuẩn + luật giữ nguyên.<div class="row"><button class="btn sm ok">✔ Duyệt Bible</button></div></div>
+      <div class="ap main"><b>🖐 Cổng 1 — Duyệt kế hoạch (1 lần)</b><br>Gộp kịch bản + bảng shot + Bible + ngân sách ≈ 9,40 USD vào MỘT màn duyệt.<div class="row"><button class="btn sm ok">✔ Duyệt kế hoạch & khóa ngân sách</button></div></div>
+      <div class="tune">▸ Tinh chỉnh (gập): World Bible · luật Director · ưu tiên model · khổ phụ · nhập JSON tay</div>
+    </div>
+  </div>
+</section>
+
+<section class="screen" id="s2">
+  <div class="card"><h3>Storyboard <span>ảnh + motion + giọng + animatic chạy liền sau khi duyệt kế hoạch</span></h3>
+    <div class="row gap12"><div class="video" style="width:360px">▶ Animatic 60 s</div>
+      <div style="flex:1"><div class="prog"><i style="width:78%"></i></div><p class="lbl">Ảnh 12/12 · Motion 12/12 · Giọng 9/11 · Animatic dựng lại tự động</p>
+      <div class="row"><span class="badge b-ok">9 khung đạt</span><span class="badge b-warn">2 khung Tổ QC ghi chú</span><span class="badge b-bad">1 khung lỗi lớp 0</span></div></div></div>
+    <div class="imgs" style="margin-top:14px">
+      <div class="img"><div class="video" style="border-radius:0">1</div><div style="padding:8px"><span class="badge b-ok">đạt</span></div></div>
+      <div class="img"><div class="video" style="border-radius:0">2</div><div style="padding:8px"><span class="badge b-ok">đạt</span></div></div>
+      <div class="img fail"><div class="video" style="border-radius:0">3</div><div style="padding:8px"><span class="badge b-bad">lỗi: thừa người</span> <small>gợi ý: <button class="btn sm">bỏ người thứ 3</button><button class="btn sm">vẽ lại</button></small></div></div>
+      <div class="img"><div class="video" style="border-radius:0">4</div><div style="padding:8px"><span class="badge b-warn">ghi chú QC</span> <small>sửa bằng 1 câu…</small></div></div>
+    </div>
+    <div class="ap all"><b>🖐 Duyệt TỪNG khung (12 khung) + từng giọng + animatic</b><br>Mọi khung đều chờ bạn: ✔ / ✖ / sửa 1 câu (phím <span class="kbd">Y</span> <span class="kbd">N</span> <span class="kbd">E</span>). Giọng 11 câu nghe thử từng câu. Animatic duyệt cuối.<div class="row"><button class="btn sm ok">✔ 9 khung đạt (duyệt cả loạt)</button><button class="btn sm">Xem từng khung</button><button class="btn sm">▶ Nghe giọng</button></div></div>
+    <div class="card" style="background:var(--bg);margin-top:14px"><h3>🖐 Đang duyệt — Khung 4/12 <span>ví dụ duyệt ảnh · phím <span class="kbd">Y</span> đạt · <span class="kbd">N</span> loại · <span class="kbd">E</span> sửa · <span class="kbd">←</span><span class="kbd">→</span> đổi khung</span></h3>
+      <div class="rev"><div><div class="big"><em>Khung 4 · Kling 3.0 · khung đầu</em>Kenta cầm kiếm<div class="bbox"><i>tay phải sai chiều</i></div></div></div>
+      <div><b>Tổ QC đã soát</b>
+        <div class="meas"><span>Lớp 0 (đo bằng code)</span><span>✔ 1 mặt, nhìn đúng</span><span>Nhân vật</span><span>✔ Kenta OB55</span><span>Số người</span><span>✔ 2/2</span><span>Tay / vũ khí</span><span style="color:var(--warn)">⚠ nghi ngờ</span><span>Độ khớp bối cảnh 3D</span><span>0,24</span></div>
+        <div class="note"><small>Ghi chú Tổ QC (trái/phải chỉ đánh dấu, không tự chặn)</small>Kiếm ở tay phải trong shot, ảnh đang cầm tay trái. Vùng khoanh đỏ.</div>
+        <div class="sug"><button class="btn sm">Vẽ lại: kiếm ở tay phải</button><button class="btn sm">Giữ — chấp nhận</button><button class="btn sm">Dùng ảnh render 3D làm tham chiếu</button></div>
+        <textarea rows="2" placeholder="Hoặc gõ 1 câu sửa…"></textarea>
+        <div class="row" style="margin-top:8px"><button class="btn sm">📌 Ghim ref cho khung này</button><span class="pin">ảnh ref: tư thế cầm kiếm</span></div>
+        <div class="row" style="margin-top:8px"><button class="btn ok">✔ Đạt (Y)</button><button class="btn bad">✖ Loại (N)</button><button class="btn">✎ Sửa 1 câu (E)</button><span class="lbl">≈ 0,04 USD mỗi lần vẽ lại · còn 2 lần</span></div></div></div>
+      <div class="filmstrip"><i></i><i></i><i></i><i class="bad"></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div><small class="lbl">Dải 12 khung: khung đang xem viền đỏ.</small>
+    </div>
+    <div class="gate"><b>Cổng duyệt duy nhất trước khi chi tiền video</b> <span class="autoflag">· ở mức này cổng TỰ QUA khi QC sạch (khung có ghi chú vẫn dừng chờ bạn)</span> — xem animatic + lưới khung, duyệt / sửa 1 câu từng khung bằng phím.
+      <div class="row" style="margin-top:8px"><button class="btn primary">✔ Duyệt storyboard → gửi video (≈ 5,1 USD)</button><span class="lbl">Mức "Tự chạy trong trần" thì cổng này tự qua khi QC sạch.</span></div></div>
+  </div>
+</section>
+
+<section class="screen" id="s3">
+  <div class="card"><h3>Video <span>chạy theo model đề xuất; chỉ hiện clip cần người xem</span></h3>
+    <div class="row"><div class="prog" style="flex:1"><i style="width:60%"></i></div><span class="lbl">7/12 clip xong · 1,9 / 5,1 USD</span></div>
+    <table><tr><th>Shot</th><th>Model (đề xuất theo cảnh)</th><th>Trạng thái</th><th>Cần bạn?</th></tr>
+      <tr><td>1–3</td><td>Seedance 2.5 · nhóm</td><td><span class="badge b-ok">xong</span></td><td>—</td></tr>
+      <tr><td>4</td><td>Kling 3.0 · khung đầu</td><td><span class="badge b-warn">đo lớp 0: mặt lệch</span></td><td><button class="btn sm">Xem</button><button class="btn sm">Sinh lại (≤ 2)</button></td></tr>
+      <tr><td>5–9</td><td>Kling 3.0</td><td><span class="badge b-info">đang chạy</span></td><td>—</td></tr></table>
+    <div class="card" style="background:var(--bg);margin-top:14px"><h3>🖐 Đang duyệt — Clip 4/12 <span>ví dụ duyệt video · phím <span class="kbd">Y</span> đạt · <span class="kbd">N</span> sinh lại · <span class="kbd">Space</span> phát</span></h3>
+      <div class="rev"><div><div class="big"><em>Clip 4 · Kling 3.0 · 4 s · 720p</em>▶<div class="bbox" style="top:20%;right:30%"><i>mặt lệch ở 2,4 s</i></div></div>
+        <div class="scrub"><i></i><b></b></div><small class="lbl">0:01,5 / 0:04,0 · vạch đỏ = lúc lớp 0 đo thấy lỗi</small></div>
+      <div><b>Đo lớp 0 (miễn phí, bằng code)</b>
+        <div class="meas"><span>Số mặt</span><span style="color:var(--bad)">✖ 2 (cần 1) lúc 2,4 s</span><span>Khớp khung đầu</span><span>✔ 0,91</span><span>Khớp môi (mốc môi)</span><span>0,62 (cần ≥ 0,65)</span><span>Giật hình / khung đen</span><span>✔ không</span><span>Độ dài / tiếng</span><span>✔ 4,0 s · có tiếng</span></div>
+        <div class="note"><small>Gợi ý hệ thống</small>Sinh lại bằng khung đầu + cuối (≈ 0,62 USD, còn 2 lần) hoặc cắt clip ở 2,3 s (0 USD) nếu shot kế che được.</div>
+        <div class="row"><button class="btn sm">🎥 Gắn video ref chuyển động cho clip này</button><span class="pin">ref: đường máy theo sau</span></div>
+        <div class="sug"><button class="btn sm">Cắt ở 2,3 s (0 USD)</button><button class="btn sm">Sinh lại ≈ 0,62</button><button class="btn sm">Chấp nhận như vậy</button></div>
+        <div class="row" style="margin-top:8px"><button class="btn ok">✔ Đạt (Y)</button><button class="btn bad">↻ Sinh lại (N)</button><span class="lbl">mỗi lần sinh lại phải đổi đầu vào · tối đa 2 lần</span></div></div></div></div>
+    <div class="ap all"><b>🖐 Duyệt TỪNG clip (kể cả clip QC đạt)</b><br>Mỗi clip xong là dừng chờ bạn xem; chỉ gửi clip kế sau khi bạn duyệt (chậm nhưng an toàn nhất).<div class="row"><button class="btn sm ok">✔ Duyệt clip 1–3</button><button class="btn sm">Xem</button></div></div>
+    <div class="ap main"><b>🖐 Chỉ clip cần bạn</b><br>Clip QC đạt + đo lớp 0 sạch → tự qua. Clip 4 (mặt lệch) chờ bạn.</div>
+    <p class="lbl">Clip đạt không hiện — mở "Tất cả clip" nếu muốn xem hết.</p></div>
+</section>
+
+<section class="screen" id="s4">
+  <div class="card"><h3>Bản giao</h3>
+    <div class="row gap12"><div class="video" style="width:360px">FINAL 9:16</div>
+      <div style="flex:1"><button class="btn primary" style="width:100%;padding:12px">📦 Xuất bản đầy đủ (dựng + nhạc + phụ đề + −14 LUFS)</button>
+        <div class="chips"><span class="chip on">Phụ đề</span><span class="chip on">Card cuối (CTA)</span><span class="chip">Khổ phụ 1:1</span></div>
+        <p class="lbl">Mặc định 1 nút + 3 chip. ~40 điều khiển dựng / nhạc / SFX chuyển vào "Tinh chỉnh".</p></div></div>
+    <div class="ap all"><b>🖐 Duyệt bản dựng trước khi xuất</b><br>Xem bản dựng thử (nhạc, phụ đề, chuyển cảnh) và duyệt từng phần rồi mới xuất.<div class="row"><button class="btn sm ok">✔ Duyệt bản dựng</button></div></div>
+    <div class="ap main"><b>🖐 Cổng 3 — Duyệt bản giao cuối</b><br>Xem FINAL một lần rồi bấm xuất.</div>
+    <div class="tune">▸ Tinh chỉnh (gập): chuyển cảnh · rung · nhạc (BPM, mood) · SFX · màu · hạ nhạc · 10 hiệu ứng thử</div></div>
+</section>
+<section class="screen" id="s5">
+  <div class="card"><h3>👥 Nhóm <span>Owner / người có quyền "Theo dõi hiệu suất" · ai làm gì, tốn bao nhiêu, ai được làm gì</span></h3>
+    <div class="fbox"><input type="text" id="tq" placeholder="🔎 Tìm người dùng…"><select class="fsel" id="tsel"><option value="">Lọc: tất cả</option><option value="over">⚠ Gần hết hạn mức</option><option value="inact">💤 Không hoạt động &gt; 3 ngày</option><option value="Owner">Vai: Owner</option><option value="Người làm">Vai: Người làm</option><option value="Người duyệt">Vai: Người duyệt</option></select>
+      <select class="fsel" id="tper"><option>Hôm nay</option><option selected>7 ngày</option><option>30 ngày</option><option>Tất cả</option></select></div>
+    <table><tr><th>Người dùng</th><th>Vai</th><th>Video (xong / gửi)</th><th>Lỗi · Gen lại</th><th>Giây video</th><th>Ảnh</th><th>Tiền chi</th><th>Hạn mức</th><th>Dự án</th><th>Gần nhất</th></tr>
+      <tr class="trow" data-role="Owner" data-over="0" data-inact="0"><td><b>Việt</b></td><td><span class="badge b-info">Owner</span></td><td>14 / 16</td><td>2 · 3</td><td>96</td><td>61</td><td>7,80</td><td>30</td><td>3</td><td>hôm nay 18:20</td></tr>
+      <tr class="trow" data-role="Người làm" data-over="0" data-inact="0"><td><b>Lan</b></td><td><span class="badge">Người làm</span></td><td>9 / 9</td><td>0 · 1</td><td>58</td><td>40</td><td>5,10</td><td>20 <small class="lbl">(26 %)</small></td><td>2</td><td>hôm nay 16:02</td></tr>
+      <tr class="trow" data-role="Người duyệt" data-over="1" data-inact="0"><td><b>Minh</b></td><td><span class="badge b-warn">Người duyệt</span></td><td>5 / 7</td><td>2 · 2</td><td>41</td><td>22</td><td>9,60</td><td>10 <span class="badge b-bad">96 %</span></td><td>1</td><td>hôm qua</td></tr>
+      <tr class="trow" data-role="Người làm" data-over="0" data-inact="1"><td><b>Hà</b></td><td><span class="badge">Người làm</span></td><td>0 / 0</td><td>—</td><td>0</td><td>3</td><td>0,20</td><td>20</td><td>1</td><td>3 ngày trước</td></tr></table>
+    <p class="lbl">Số liệu lấy từ bảng "Số video theo người dùng" hiện có (theo e-mail đăng nhập), thêm cột tiền chi và hạn mức. Minh gần chạm hạn mức → hộp 📥 của Owner báo.</p>
+  </div>
+  <div class="card" style="margin-top:16px"><h3>Vai trò & quyền <span>chọn vai thay vì tick 5 ô</span></h3>
+    <div class="preset"><div class="pr on"><b>Người làm</b><small>Làm video, chạy tự động, duyệt dự án CỦA MÌNH. Xem tiền của mình.</small></div>
+      <div class="pr"><b>Người duyệt</b><small>Như Người làm + duyệt thay dự án của người khác khi được nhờ; xem Tất cả dự án.</small></div>
+      <div class="pr"><b>Quản lý</b><small>Như Người duyệt + 📊 Theo dõi, Bảng giá, Tính năng thử, Kho kiến thức. Không quản lý người dùng.</small></div></div>
+    <div class="row"><input type="text" placeholder="ten@garena.vn" style="max-width:260px"><span class="seg"><button class="on">Người làm</button><button>Người duyệt</button><button>Quản lý</button></span><button class="btn primary">Mời</button><span class="lbl">Hạn mức USD/tháng</span><input type="text" value="20" style="max-width:70px"></div>
+    <p class="lbl">Chỉ Owner: quản lý người dùng, tắt Dashboard, đặt hạn mức. Vai là bộ quyền dựng sẵn trên 5 quyền hiện có (Cài đặt & bảng giá, Kho kiến thức, Theo dõi, Bài học, Kho tài nguyên); mở "Tùy chỉnh" để tick lẻ như bây giờ.</p></div>
+  <div class="card" style="margin-top:16px"><h3>Lịch sử hoạt động <span>ai làm gì, lúc nào (để truy lại)</span></h3>
+    <div class="q"><span class="badge">18:20</span><div class="t"><b>Việt</b> duyệt & khóa ngân sách 9,40 USD — "Thử 02/10"</div></div>
+    <div class="q"><span class="badge">16:02</span><div class="t"><b>Lan</b> sinh lại clip 4 (lần 1/2) — "Quảng cáo skill Kelly" · 0,62 USD</div></div>
+    <div class="q"><span class="badge">15:40</span><div class="t"><b>Minh</b> bật tính năng thử "Khớp môi (c)" — <i>cần quyền Quản lý</i></div></div></div>
+</section>
+</main>
+<script>
+const S=[["⌂","Tất cả dự án","đang chạy · chờ bạn"],["1","Kịch bản","Lập kế hoạch"],["2","Storyboard","ảnh+motion+giọng"],["3","Video","chỉ clip cần xem"],["4","Bản giao","1 nút xuất"],["👥","Nhóm","theo người dùng"]];
+const st=document.getElementById('stepper');
+function show(i){document.querySelectorAll('.screen').forEach((s,k)=>s.classList.toggle('on',k===i));
+const vis=S.map((x,k)=>k).filter(k=>k<5||document.body.dataset.role==='owner');const last=vis[vis.length-1];
+ st.innerHTML=vis.map(k=>[S[k],k]).map(([s,k])=>`<button class="step ${k<i?'done':''} ${k===i?'active':''}" data-i="${k}"><span class="n">${s[0]}</span><span><b>${s[1]}</b><small>${s[2]}</small></span></button>${k<last?`<span class="line ${k<i?'done':''}"></span>`:''}`).join('');
+ st.querySelectorAll('.step').forEach(b=>b.onclick=()=>show(+b.dataset.i));}
+function go(i){show(i)}
+document.querySelectorAll('#modes .md').forEach(m=>m.onclick=()=>{document.querySelectorAll('#modes .md').forEach(x=>x.classList.toggle('on',x===m));document.body.dataset.input=m.dataset.i;});
+(function(){const $=id=>document.getElementById(id);const rows=[...document.querySelectorAll('.proj[data-st]')];const st={status:''};
+ const cb=id=>$(id).querySelector('input');const ST={run:'Đang chạy',wait:'Chờ bạn',pause:'Tạm dừng',done:'Xong'};
+ function apply(){const q=$('fq').value.trim().toLowerCase(),step=$('fstep').value,own=$('fowner').value;
+  rows.forEach(r=>{const d=r.dataset;let ok=true;
+   if(q&&!r.textContent.toLowerCase().includes(q))ok=false;
+   if(st.status&&d.st!==st.status)ok=false;if(step&&d.step!==step)ok=false;if(own&&d.by!==own)ok=false;if(cb('fwarn').checked&&d.warn!=='1')ok=false;
+   r.classList.toggle('hide',!ok);});
+  const tags=[];if(st.status)tags.push('Trạng thái: '+ST[st.status]);if(step)tags.push('Bước: '+$('fstep').selectedOptions[0].text);if(own)tags.push('Người tạo: '+own);if(cb('fwarn').checked)tags.push('Có cảnh báo');
+  $('fn').textContent=tags.length;$('ftags').innerHTML=tags.map(t=>'<span class="ftag">'+t+'</span>').join('');
+  const shown=rows.filter(r=>getComputedStyle(r).display!=='none').length;
+  $('fcount').innerHTML='Hiện <b>'+shown+'</b> / '+rows.length+' dự án';$('fempty').style.display=shown?'none':'block';}
+ function sort(){const k=$('fsort').value,by={wait:r=>({wait:0,run:1,pause:2,done:3}[r.dataset.st]),date:r=>+r.dataset.days,cost:r=>-(+r.dataset.amt)};
+  [...rows].sort((a,b)=>by[k](a)-by[k](b)).forEach(r=>$('fempty').parentNode.insertBefore(r,$('fempty')));}
+ $('fq').oninput=apply;$('fstep').oninput=apply;$('fowner').oninput=apply;$('fsort').onchange=()=>{sort();apply();};
+ $('fwarn').onclick=e=>{e.preventDefault();const c=cb('fwarn');c.checked=!c.checked;$('fwarn').classList.toggle('on',c.checked);apply();};
+ document.querySelectorAll('#fstatus .chip').forEach(c=>c.onclick=()=>{document.querySelectorAll('#fstatus .chip').forEach(x=>x.classList.toggle('on',x===c));st.status=c.dataset.v;apply();});
+ $('fbtn').onclick=()=>$('fpanel').classList.toggle('on');$('fdone').onclick=()=>$('fpanel').classList.remove('on');
+ $('freset').onclick=()=>{$('fq').value='';$('fstep').value='';$('fowner').value='';cb('fwarn').checked=false;$('fwarn').classList.remove('on');st.status='';
+  document.querySelectorAll('#fstatus .chip').forEach((x,k)=>x.classList.toggle('on',k===0));apply();};
+ $('fsave').onclick=()=>alert('Mockup: lưu bộ lọc hiện tại thành nút nhanh (vd "Việc của tôi cần duyệt"), mỗi người có bộ riêng.');
+ document.querySelectorAll('#scope button').forEach(b=>b.addEventListener('click',()=>setTimeout(apply,0)));
+ document.querySelectorAll('.rolebar button').forEach(b=>b.addEventListener('click',()=>setTimeout(apply,0)));
+ function iapply(){const k=$('itype').value,team=document.querySelector('#inboxTabs .on[data-t=team]');document.querySelectorAll('#inbox .q').forEach(q=>{const t=q.querySelector('.badge').textContent;
+  const okType=!k||t===k||(q.classList.contains('team-only')&&false);const okTeam=!q.classList.contains('team-only')||team;q.style.display=(okType&&okTeam)?'flex':'none';});}
+ $('itype').onchange=iapply;document.querySelectorAll('#inboxTabs button').forEach(b=>b.addEventListener('click',()=>setTimeout(iapply,0)));
+ function tapply(){const q=$('tq').value.trim().toLowerCase(),f=$('tsel').value;document.querySelectorAll('.trow').forEach(r=>{let ok=true;
+  if(q&&!r.textContent.toLowerCase().includes(q))ok=false;if(f==='over'&&r.dataset.over!=='1')ok=false;else if(f==='inact'&&r.dataset.inact!=='1')ok=false;else if(f&&f!=='over'&&f!=='inact'&&r.dataset.role!==f)ok=false;r.style.display=ok?'':'none';});}
+ $('tq').oninput=tapply;$('tsel').onchange=tapply;
+ sort();apply();})();
+let cur=0;const _show=show;show=function(i){cur=i;_show(i)};
+document.querySelectorAll('.rolebar button').forEach(b=>b.onclick=()=>{const r=b.dataset.r;document.body.dataset.role=r;
+ document.querySelectorAll('.rolebar button').forEach(x=>x.classList.toggle('on',x===b));
+ document.getElementById('whoName').textContent=r==='owner'?'Việt':'Lan';document.getElementById('whoRole').textContent=r==='owner'?'Owner':'Người làm';
+ if(r==='member'){document.body.dataset.scope='mine';document.querySelectorAll('#scope button').forEach(x=>x.classList.toggle('on',x.dataset.s==='mine'));}
+ show(cur===5&&r==='member'?0:cur);});
+document.querySelectorAll('#scope button').forEach(b=>b.onclick=()=>{document.body.dataset.scope=b.dataset.s;document.querySelectorAll('#scope button').forEach(x=>x.classList.toggle('on',x===b));});
+document.querySelectorAll('#inboxTabs button').forEach(b=>b.onclick=()=>{document.querySelectorAll('#inboxTabs button').forEach(x=>x.classList.toggle('on',x===b));
+ document.querySelectorAll('#inbox .q').forEach(q=>{if(q.classList.contains('team-only'))q.style.display=b.dataset.t==='team'?'flex':'none';});});
+show(0);
+const MODES={all:['Tôi duyệt hết','Dừng chờ bạn ở MỌI bước: duyệt kịch bản, bảng shot, Bible, từng khung ảnh, từng giọng, từng clip, bản dựng. ~25 lần duyệt / dự án, an toàn nhất, dùng cho dự án đầu tiên hoặc kịch bản mới.','Hộp 📥 hiện ~25 việc'],
+ main:['Duyệt cổng chính','Chỉ dừng ở 3 cổng: (1) kế hoạch + ngân sách, (2) storyboard trước khi chi tiền video, (3) bản giao. Clip / khung QC sạch tự qua; ghi chú QC vẫn chờ bạn.','Hộp 📥 hiện ~3–6 việc'],
+ auto:['Tự chạy trong trần','Không dừng ở cổng nào nếu QC sạch và chi phí còn trong trần đã khóa; chỉ gọi bạn khi QC có ghi chú, đo lớp 0 lỗi, hoặc sắp chạm trần. Dùng khi đã tin QC.','Hộp 📥 hiện 0–2 việc']};
+function setMode(m){document.body.dataset.mode=m;document.querySelectorAll('#modeseg button').forEach(b=>b.classList.toggle('on',b.dataset.m===m));
+ const x=MODES[m];document.getElementById('modebar').innerHTML='<b>Mức tự động: '+x[0]+'</b> — '+x[1]+' <span class="badge b-info">'+x[2]+'</span>';}
+document.querySelectorAll('#modeseg button').forEach(b=>b.onclick=()=>setMode(b.dataset.m));setMode('main');
+document.getElementById('inboxBtn').onclick=()=>document.getElementById('inbox').classList.toggle('on');
+document.getElementById('moneyBtn').onclick=()=>document.getElementById('money').classList.toggle('on');
+</script>
+</body></html>

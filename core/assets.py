@@ -73,6 +73,43 @@ def missing_files(conn) -> List[Dict]:
         "SELECT i.id, i.path, a.name FROM asset_images i JOIN assets a ON a.id=i.asset_id") if not os.path.exists(resolve(r["path"]))]
 
 
+def missing_files_detail(conn) -> List[Dict]:
+    """B5 01/10: like missing_files, with the source file the picture was imported from and whether it can be copied back."""
+    out = []
+    for r in conn.execute("SELECT i.id, i.path, i.src_path, a.name FROM asset_images i JOIN assets a ON a.id=i.asset_id").fetchall():
+        if not os.path.exists(resolve(r["path"])):
+            src = r["src_path"]
+            out.append({"id": r["id"], "asset": r["name"], "path": r["path"], "src_path": src,
+                        "can_reload": bool(src and os.path.isfile(src))})
+    return out
+
+
+def reload_image(conn, image_id: int) -> bool:
+    """B5: copy the picture back from the file it was imported from (the source still exists). False = nothing to copy from."""
+    row = conn.execute("SELECT path, src_path FROM asset_images WHERE id=?", (image_id,)).fetchone()
+    if not row or not row["src_path"] or not os.path.isfile(row["src_path"]):
+        return False
+    target = resolve(row["path"])
+    os.makedirs(os.path.dirname(target) or ".", exist_ok=True)
+    with open(row["src_path"], "rb") as f:
+        data = f.read()
+    if len(data) > MAX_IMAGE_BYTES:
+        data, _ = _shrink(data, row["src_path"])
+    with open(target, "wb") as f:
+        f.write(data)
+    return True
+
+
+def unlink_missing(conn) -> int:
+    """B5: drop the library entries whose picture file is gone (no file to delete — only the broken link). Returns how many."""
+    n = 0
+    for r in missing_files(conn):
+        conn.execute("DELETE FROM asset_images WHERE id=?", (r["id"],))
+        n += 1
+    conn.commit()
+    return n
+
+
 def fold(text: str) -> str:
     """Lower case, no accents, single spaces: 'Ông lão ORIN' -> 'ong lao orin' (for matching names in a script)."""
     text = unicodedata.normalize("NFD", (text or "").replace("đ", "d").replace("Đ", "D"))
@@ -1431,3 +1468,32 @@ def auto_sync(conn, created_by: Optional[str] = "auto-sync") -> List[Dict]:
             conn.execute("UPDATE asset_sources SET last_summary=? WHERE id=?", (f"Lỗi: {e}", src["id"]))
             conn.commit()
     return done
+
+
+def add_reference_images(conn, project_id: int, game: str, kind: str, name: str, files: List[tuple], shared: bool,
+                         created_by: Optional[str] = None) -> Dict:
+    """Đợt 3 (01/10): a person attaches pictures to a script from the script screen. `shared` = into the common Kho (pictures wait as
+    'chờ duyệt' — the pipeline does not use them until someone approves, rule G2); otherwise only for this project (the person who
+    uploaded them for this very project has approved them). Same name already there → the pictures join it. The asset is attached to
+    the project either way. Returns {"asset_id", "added", "skipped": [(file, why)], "created": bool}."""
+    name = " ".join((name or "").split())
+    if not name:
+        raise AssetError("Cho ảnh một cái tên")
+    scope = None if shared else project_id
+    row = conn.execute("SELECT id FROM assets WHERE game=? AND kind=? AND lower(name)=lower(?) AND COALESCE(project_id,0)=COALESCE(?,0)",
+                       (game, kind, name, scope)).fetchone()
+    created = row is None
+    aid = row["id"] if row else create(conn, game, kind, name, project_id=scope, created_by=created_by)
+    rep = {"asset_id": aid, "added": 0, "skipped": [], "created": created}
+    for fname, data in files:
+        sha = _sha(data)
+        if conn.execute("SELECT 1 FROM asset_images WHERE asset_id=? AND sha256=?", (aid, sha)).fetchone():
+            rep["skipped"].append((fname, "ảnh này đã có"))
+            continue
+        try:
+            add_image(conn, aid, fname, data, sha256=sha, status="pending" if shared else "approved")
+            rep["added"] += 1
+        except AssetError as e:
+            rep["skipped"].append((fname, str(e)))
+    attach(conn, project_id, aid)
+    return rep

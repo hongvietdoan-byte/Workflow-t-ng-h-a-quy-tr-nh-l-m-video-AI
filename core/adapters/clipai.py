@@ -122,7 +122,7 @@ def video_edit_problems(info: Dict) -> List[str]:
 IMAGE_RULES = {"omni": {"side": (300, 100_000), "ratio": (0.4, 2.5)}, "seedance": {"side": (300, 6000), "ratio": (0.4, 2.5)}}
 
 
-def reference_image_problems(family: str, sizes: List[Tuple[int, int]]) -> List[str]:
+def reference_image_problems(family: str, sizes: List[Tuple[int, int]], sides: bool = True) -> List[str]:
     """What ClipAI would refuse in reference pictures: width / height 0.4–2.5 (Kling 1:2.5–2.5:1; Seedance 2.5 — refused a 3.74-wide
     skill sheet in test T4 30/09), sides ≥ 300 px (Seedance ≤ 6000)."""
     r = IMAGE_RULES["omni" if family == "omni" else "seedance"]
@@ -132,8 +132,22 @@ def reference_image_problems(family: str, sizes: List[Tuple[int, int]]) -> List[
             continue
         if not r["ratio"][0] - 1e-3 <= w / h <= r["ratio"][1] + 1e-3:
             out.append(f"ảnh {k} ({w}×{h}) tỉ lệ {w / h:.2f} — cần {r['ratio'][0]}–{r['ratio'][1]}")
-        if min(w, h) < r["side"][0] or max(w, h) > r["side"][1]:
+        if sides and (min(w, h) < r["side"][0] or max(w, h) > r["side"][1]):
             out.append(f"ảnh {k} ({w}×{h}) — cạnh cần {r['side'][0]}–{r['side'][1]} px")
+    return out
+
+
+def image_sizes_of(blobs: List[bytes]) -> List[Tuple[int, int]]:
+    """(width, height) of picture bytes ((0, 0) = unreadable, not judged)."""
+    import io
+    out = []
+    for b in blobs:
+        try:
+            from PIL import Image as _Im
+            with _Im.open(io.BytesIO(b)) as im:
+                out.append(im.size)
+        except Exception:  # noqa: BLE001 - not a picture PIL knows: the server says it
+            out.append((0, 0))
     return out
 
 
@@ -536,6 +550,12 @@ class ClipAIVideoProvider:
                 # app sends "adaptive" there too). The first frame is drawn in the project format, so the clip keeps it.
                 ctx["ratio"] = "adaptive"
             path = PATH_SEEDANCE
+        # B3 01/10: the first / last frame and the extra pictures obey the picture rules too (reference_only already checked its own):
+        # Seedance refused a 3.74-wide skill sheet AFTER it was sent. Wrong → nothing is sent, nothing is paid.
+        sent = [image[1]] + ([end_image[1]] if end_image else []) + [d for _, d in extra_files]
+        bad = reference_image_problems(family, image_sizes_of(sent), sides=False)   # the ratio is the rule that bit; sides stay a reference_only check
+        if bad:
+            raise ProviderError("ảnh gửi kèm không đạt luật ClipAI: " + "; ".join(bad), code="rule_violation")
         files = ([("image_files", image[0], image[1])] + ([("image_files", end_image[0], end_image[1])] if end_image else [])
                  + [("image_files", name, data) for name, data in extra_files]
                 + [("video_files", name, data) for name, data in video_files]

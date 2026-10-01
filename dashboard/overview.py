@@ -64,13 +64,13 @@ def cards(p: Pipeline, pid: int, steps) -> None:
     ap = autopilot.status(p, pid)
     final, final_extra = _final("", p, pid)
     items = [
-        ("📜 Kịch bản", f"{c['story']} cảnh" + (f" → {c['shots']} shot" if c["shots"] != c["story"] else ""), "", steps[0]),
-        ("🧭 Duyệt kế hoạch", f"{c['locked']}/{c['chars']} nhân vật đã khóa" if c["chars"] else "chưa chạy Director", "", steps[0]),
+        ("📜 Kịch bản", f"{c['story']} cảnh" + (f" → {c['shots']} shot" if c["shots"] != c["story"] else ""), "", steps[1]),
+        ("🧭 Duyệt kế hoạch", f"{c['locked']}/{c['chars']} nhân vật đã khóa" if c["chars"] else "chưa chạy Director", "", steps[1]),
         ("🏭 Đang sản xuất", f"ảnh {c['images']}/{c['shots']} · clip {c['clips']}/{c['shots']}",
          " · ".join(x for x in [
              (f"hàng đợi: {c['queue'].get('image_gen', 0)} ảnh, {c['queue'].get('video_gen', 0)} clip" if c["queue"] else ""),
              (f"🚀 {ap['note']}" if ap["state"] in ("running", "queued", "waiting") and ap["note"] else ""), _plates(pid)] if x),
-         steps[3]),
+         steps[2] if c["images"] < c["shots"] else steps[3]),                      # pictures first (Storyboard), then clips (Video)
         ("🎬 Video cuối", final, final_extra, steps[4]),
     ]
     cols = st.columns(4)

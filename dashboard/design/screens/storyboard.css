@@ -1,0 +1,46 @@
+/* S13 nhánh F — màn Storyboard (Ảnh + QC, Motion). Chỉ bám .st-key-card-sb-*, .st-key-sticky-sb, .st-key-sbv*, .st-key-hist_*, .st-key-filter_*.
+   Màu/cỡ chữ chỉ lấy từ biến của tokens.py. */
+
+/* thẻ ảnh: gọn hơn thẻ mặc định để 4 cột vừa ở ≥ 1100 px */
+[data-testid="stVerticalBlock"][class*="st-key-card-sb-"] { padding: 12px 12px 10px; gap: 0.5rem; }
+[class*="st-key-card-sb-"] [data-testid="stImage"] img { width: 100%; object-fit: cover; }
+[class*="st-key-card-sb-"] [data-testid="stBaseButton-secondary"], [class*="st-key-card-sb-"] [data-testid="stBaseButton-primary"],
+[class*="st-key-card-sb-"] [data-testid="stPopoverButton"] { min-height: 2.2rem; padding: 0 8px; }
+[class*="st-key-card-sb-"] [data-testid="stBaseButton-secondary"] p, [class*="st-key-card-sb-"] [data-testid="stBaseButton-primary"] p,
+[class*="st-key-card-sb-"] [data-testid="stPopoverButton"] p { font-size: 13.5px; white-space: nowrap; }
+[class*="st-key-card-sb-"] button:disabled { opacity: 1 !important; color: var(--disabled) !important; border-style: dashed !important; box-shadow: none !important; }
+[class*="st-key-card-sb-"] [data-testid="stBaseButton-primary"]:disabled { background: var(--glass-strong) !important; color: var(--muted) !important; }
+[class*="st-key-card-sb-"] [data-testid="stBaseButton-primary"]:disabled p { color: var(--muted) !important; }
+[class*="st-key-card-sb-"] [data-testid="stTextInputRootElement"] input { font-size: 13.5px; }
+[class*="st-key-card-sb-"] label p { font-size: 12.5px; color: var(--muted); }
+
+/* dải phiên bản: chip bấm được (v1…vN, hiện bản đang xem) */
+[class*="st-key-sbv_"] button, [class*="st-key-sbvon_"] button, [class*="st-key-hist_"] button { min-height: 1.9rem !important; padding: 0 6px !important;
+    border-radius: var(--r-pill) !important; }
+[class*="st-key-sbv_"] button p, [class*="st-key-sbvon_"] button p, [class*="st-key-hist_"] button p { font-size: 12.5px !important; font-weight: 700; }
+[class*="st-key-sbvon_"] button { border-color: var(--primary) !important; background: var(--primary-soft) !important; color: var(--text) !important; }
+
+/* thanh hành động dính: nền đặc để không thấy lưới xuyên qua khi cuộn */
+[class*="st-key-card-sb-actionbar"] { background: var(--raised) !important; border-color: var(--border) !important; box-shadow: var(--shadow); }
+.st-key-sticky-sb { z-index: 40; }
+
+/* thanh lọc: viên thuốc */
+[class*="st-key-filter_"] [data-testid="stRadioGroup"] { gap: 8px; flex-wrap: wrap; }
+[class*="st-key-filter_"] label[data-testid="stRadioOption"] { background: var(--glass); border: 1.5px solid var(--border-soft); border-radius: var(--r-pill); padding: 5px 14px; }
+[class*="st-key-filter_"] label[data-testid="stRadioOption"]:hover { border-color: var(--border); }
+[class*="st-key-filter_"] label[data-testid="stRadioOption"][data-selected="true"] { background: var(--primary-soft); border-color: var(--primary); }
+[class*="st-key-filter_"] label[data-testid="stRadioOption"] p { color: var(--text) !important; font-size: 14px; margin: 0; }
+
+/* thành phần cũ nằm trong thẻ của màn này: nâng chữ 12 px lên 12,5 px */
+[class*="st-key-card-sb-"] .badge, [class*="st-key-card-sb-"] .pbpct, [class*="st-key-card-sb-"] .pbtext, [class*="st-key-card-sb-"] .qcrow,
+[class*="st-key-card-sb-"] .cardtitle span { font-size: 12.5px; }
+
+/* dòng cảnh báo cam: dùng màu warn của giao diện (chữ cam mặc định của Streamlit chỉ 3,4:1 trên nền sáng) */
+.sb-sum { color: var(--muted); font-size: 13.5px; }
+.sb-warn { color: var(--warn); font-size: 13.5px; font-weight: 600; }
+
+/* ⓘ trên thẻ ảnh / thẻ Motion: nằm cùng hàng với nhãn, không chiếm thêm chiều cao */
+[class*="st-key-card-sb-"] [class*="st-key-info-"] { margin-left: auto; }
+
+/* thẻ Motion theo cảnh */
+[data-testid="stVerticalBlock"][class*="st-key-card-sb-mot-"] { padding: 12px 16px; }

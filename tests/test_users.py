@@ -105,10 +105,10 @@ class NameBarTests(unittest.TestCase):
         p.actor = "Viet"
         p.create_job(sid, "video_gen")
         at = AppTest.from_file(APP, default_timeout=30)
-        at.query_params["step"] = "monitor"
+        at.query_params["step"] = "team"                 # 01/10: the per-person numbers live on the 👥 Nhóm screen now
         at.run()
         self.assertFalse(at.exception)
-        self.assertTrue(any("Số video theo người dùng" in m.value for m in at.markdown))
+        self.assertTrue(any("Nhóm" in m.value for m in at.markdown))
         self.assertTrue(any("Viet" in str(d.value) for d in at.dataframe))
 
 

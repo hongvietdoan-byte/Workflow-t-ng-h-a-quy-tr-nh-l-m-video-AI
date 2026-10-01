@@ -68,12 +68,18 @@ STAGE_SETTINGS: Dict[str, Dict[str, Any]] = {
     "screenwriter": {"effort": "medium", "max_tokens": 8000},   # S11.1 Biên kịch: one turn's JSON (a 60 s script ≈ 2-4k). 01/10 S11.2: the
                                                               # default 32k made turn 1's estimate 0.43 USD > the 0.3 USD per-idea cap
 }
+# 01/10 B1: a stage with no entry above used the client default (32k) → worst case ≈ 0.36 USD per call, over the whole "Claude — khác"
+# line of a locked project (0.20): music / sfx / style / subtitles / layout / lessons / distill / research … were refused for ever.
+# Every other named stage now answers at most this many tokens (one stage that needs more gets its own entry in STAGE_SETTINGS).
+DEFAULT_STAGE_MAX_TOKENS = 8000
 EFFORT_MODELS = ("claude-sonnet-5", "claude-opus-5", "claude-fable-5", "claude-opus-4-8", "claude-opus-4-7", "claude-opus-4-6",
                  "claude-sonnet-4-6")                       # models that take output_config.effort (Haiku 4.5 refuses it)
 
 
 def stage_settings(stage: str) -> Dict[str, Any]:
     out = dict(STAGE_SETTINGS.get(stage) or {})
+    if stage and stage != "other" and "max_tokens" not in out:   # untagged calls (stage "other") have no project lock: client default
+        out["max_tokens"] = DEFAULT_STAGE_MAX_TOKENS
     effort = os.environ.get(f"CLAUDE_EFFORT_{stage.upper()}", "").strip().lower()
     if effort in ("low", "medium", "high", "xhigh", "max"):
         out["effort"] = effort

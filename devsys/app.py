@@ -680,16 +680,66 @@ def page_skills():
 
 
 STATUS_BAND = {"✅": "ok", "🔄": "warn", "⏸": "bad", "⬜": "grey", "✖": "grey"}
+ORDER = {"⏸": 0, "🔄": 1, "⬜": 2, "✅": 3, "✖": 4}        # waiting for the person first, then running, then not started, then done
+
+
+def _short(text: str, n: int = 96) -> str:
+    text = " ".join(str(text or "").split())
+    return text if len(text) <= n else text[:n - 1].rstrip() + "…"
+
+
+def _wave_name(name: str) -> str:
+    """Wave title without the trailing `(docs/…)` reference, shortened; the full text goes in the ⓘ."""
+    import re
+    return _short(re.sub(r"\s*\(`?docs/[^)]*\)\s*$", "", name or ""), 78)
+
+
+def _task_row(t: dict, key: str, detail: bool = True) -> None:
+    """One compact line: status chip · id · short title; everything long (full title, note, commit, weight) is behind a small ⓘ."""
+    full = t["title"]
+    extra = bool(t["note"] or t["commit"] or len(full) > 96 or True)
+    c1, c2 = st.columns([14, 1], vertical_alignment="center")
+    c1.markdown(f"<div class='row'><span class='chip {STATUS_BAND[t['status']]}'>{t['status']} {plan_progress.STATUS[t['status']]}</span> "
+                f"<b>{escape(t['id'])}</b> {escape(_short(full))}</div>", unsafe_allow_html=True)
+    if detail and extra:
+        with c2.popover("ⓘ", help="Xem chi tiết việc này"):
+            st.markdown(f"**{t['id']}** · nặng {t['weight']} · {t['status']} {plan_progress.STATUS[t['status']]}")
+            st.markdown(full)
+            if t["commit"]:
+                st.markdown(f"Commit: `{t['commit']}`")
+            if t["note"]:
+                st.markdown(t["note"])
+
+
+def _wave_body(w: dict, r: dict, key: str) -> None:
+    """Not-done tasks first (waiting → running → not started), the done ones folded below."""
+    todo = sorted([t for t in w["tasks"] if t["status"] not in ("✅", "✖")], key=lambda t: ORDER[t["status"]])
+    done = [t for t in w["tasks"] if t["status"] in ("✅", "✖")]
+    for t in todo:
+        _task_row(t, f"{key}-{t['id']}")
+    if not todo:
+        st.caption("Không còn việc nào chưa xong.")
+    if done:
+        with st.expander(f"Đã xong ({len(done)} việc)", expanded=False):
+            st.markdown("".join(f"<div class='row'><span class='chip {STATUS_BAND[t['status']]}'>{t['status']}</span> <b>{escape(t['id'])}</b> "
+                                f"{escape(_short(t['title'], 110))}</div>" for t in done), unsafe_allow_html=True)
+
+
+def _pct_text(pct) -> str:
+    return "—" if pct is None else f"{pct:g} %".replace(".", ",")
 
 
 def page_plan():
-    st.title("📋 Kế hoạch đang chạy")
+    t1, t2 = st.columns([14, 1], vertical_alignment="center")
+    t1.title("📋 Kế hoạch đang chạy")
     path = plan_progress.PLAN_FILE
     plan = plan_progress.load(path)
     if plan is None:
         st.info(f"Chưa có file kế hoạch `{os.path.relpath(path, ROOT)}`.")
         return
-    st.caption(f"Nguồn: `{os.path.relpath(path, ROOT)}` — % do code tính từ danh sách việc (✅ đủ, 🔄 nửa, ✖ không tính; trọng số nặng 1/2/3).")
+    with t2.popover("ⓘ", help="Nguồn và cách tính"):
+        st.markdown(f"Nguồn: `{os.path.relpath(path, ROOT)}`. % do code tính từ danh sách việc: ✅ tính đủ, 🔄 tính nửa, ✖ không tính; "
+                    "trọng số nặng 1/2/3. Đặt tay đợt hiện tại bằng dòng `> Đợt ưu tiên: S13` ở đầu file.")
     if plan["bad"]:
         st.error("Dòng việc không đọc được (sửa trong file kế hoạch):\n\n" + "\n".join(f"- {b}" for b in plan["bad"]))
     s = plan_progress.summary(plan)
@@ -701,37 +751,46 @@ def page_plan():
         money = plan_progress.spend(plan["cap"], collect.default_db(ROOT))
     except Exception as e:  # noqa: BLE001 - the page still shows progress; the reason is shown
         st.warning(f"Không đọc được sổ chi: {e}")
-    tiles = [kpi("Tiến độ tổng", f"{total:g} %".replace(".", ","), f"{done}/{n} việc xong", "ok" if total >= 80 else "warn" if total >= 30 else "none"),
-             kpi("Đợt hiện tại", s["current"] or "—", next((r["name"] for r in s["waves"] if r["id"] == s["current"]), "")),
-             kpi("Việc kế", s["next"]["id"] if s["next"] else "—", s["next"]["title"] if s["next"] else ""),
+    cur = next((r for r in s["waves"] if r["id"] == s["current"]), None)
+    tiles = [kpi("Tiến độ tổng", _pct_text(total), f"{done}/{n} việc xong", "ok" if total >= 80 else "warn" if total >= 30 else "none"),
+             kpi("Đợt hiện tại", s["current"] or "—", _wave_name(cur["name"]) if cur else ""),
+             kpi("Việc kế", s["next"]["id"] if s["next"] else "—", _short(s["next"]["title"], 60) if s["next"] else ""),
              kpi("Chờ người dùng", str(len(s["waiting"])), ", ".join(t["id"] for t in s["waiting"]) or "không", "bad" if s["waiting"] else "none")]
     if money:
         tiles.append(kpi("Tiền đợt này", f"{money['usd']:.2f} / {money['cap_usd']:g} USD",
                          f"Claude {money['llm_usd']:.2f} / {money['cap_llm']:g} USD", "bad" if money["usd"] > money["cap_usd"] else "none"))
     st.markdown('<div class="kpis">' + "".join(tiles) + "</div>", unsafe_allow_html=True)
     st.progress(min(1.0, total / 100.0))
-    if s["doing"] or s["waiting"]:
+
+    waves = {w["id"]: (w, r) for w, r in zip(plan["waves"], s["waves"])}
+    finished = [wid for wid, (w, r) in waves.items() if r["pct"] is not None and r["pct"] >= 100]
+    others = [wid for wid in waves if wid not in finished and wid != s["current"]]
+
+    if s["waiting"]:
         with st.container(border=True):
-            st.markdown("**Đang làm / chờ người dùng**")
-            for t in s["doing"] + s["waiting"]:
-                st.markdown(f"{t['status']} **{escape(t['id'])}** {escape(t['title'])}" + (f" — <span class='muted'>{escape(t['note'])}</span>" if t["note"] else ""),
-                            unsafe_allow_html=True)
-    show = st.radio("Lọc", ["Tất cả", "Chưa xong", "Đã xong"], horizontal=True, label_visibility="collapsed")
-    for w, r in zip(plan["waves"], s["waves"]):
-        pct = r["pct"]
+            st.markdown("**⏸ Đang chờ bạn**")
+            for t in s["waiting"]:
+                _task_row(t, "w-" + t["id"])
+    if s["current"] in waves:
+        w, r = waves[s["current"]]
         with st.container(border=True):
-            c1, c2 = st.columns([3, 1])
-            c1.markdown(f"**{escape(w['id'])} — {escape(w['name'])}**  <span class='muted'>{r['done']}/{r['n']} xong</span>", unsafe_allow_html=True)
-            c2.markdown(f"<div style='text-align:right;font-weight:700'>{'—' if pct is None else f'{pct:g} %'.replace('.', ',')}</div>",
-                        unsafe_allow_html=True)
-            st.progress(min(1.0, (pct or 0.0) / 100.0))
-            rows = [t for t in w["tasks"] if show == "Tất cả" or (show == "Đã xong") == (t["status"] in ("✅", "✖"))]
-            if rows:
-                st.markdown("".join(
-                    f"<div class='row'><span class='chip {STATUS_BAND[t['status']]}'>{t['status']} {plan_progress.STATUS[t['status']]}</span> "
-                    f"<b>{escape(t['id'])}</b> {escape(t['title'])} <span class='muted'>· nặng {t['weight']}</span>"
-                    + (f" <code>{escape(t['commit'])}</code>" if t["commit"] else "")
-                    + (f" <span class='muted'>— {escape(t['note'])}</span>" if t["note"] else "") + "</div>" for t in rows), unsafe_allow_html=True)
+            c1, c2 = st.columns([5, 1], vertical_alignment="center")
+            c1.markdown(f"**▶ {escape(w['id'])} — {escape(_wave_name(w['name']))}**  <span class='muted'>{r['done']}/{r['n']} xong"
+                        f"{' · ' + str(r['doing']) + ' đang làm' if r['doing'] else ''}</span>", unsafe_allow_html=True)
+            c2.markdown(f"<div style='text-align:right;font-weight:800'>{_pct_text(r['pct'])}</div>", unsafe_allow_html=True)
+            st.progress(min(1.0, (r["pct"] or 0.0) / 100.0))
+            _wave_body(w, r, "cur")
+    for wid in others:
+        w, r = waves[wid]
+        with st.expander(f"{wid} — {_wave_name(w['name'])} · {_pct_text(r['pct'])} · {r['done']}/{r['n']} xong"
+                         + (f" · {r['waiting']} chờ bạn" if r["waiting"] else ""), expanded=False):
+            st.progress(min(1.0, (r["pct"] or 0.0) / 100.0))
+            _wave_body(w, r, wid)
+    if finished:
+        with st.expander(f"✅ Đã xong ({len(finished)} đợt)", expanded=False):
+            st.markdown("".join(f"<div class='row'><span class='chip ok'>✅ 100 %</span> <b>{escape(wid)}</b> "
+                                f"{escape(_wave_name(waves[wid][0]['name']))} <span class='muted'>· {waves[wid][1]['n']} việc</span></div>"
+                                for wid in finished), unsafe_allow_html=True)
 
 
 PAGES = {"📋 Kế hoạch đang chạy": page_plan, "Tổng quan": page_overview, "Bản đồ hệ thống": page_map, "Dòng thời gian": page_timeline, "Sức khỏe (đo bằng code)": page_health,
