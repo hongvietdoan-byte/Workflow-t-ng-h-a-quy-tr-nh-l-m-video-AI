@@ -33,6 +33,9 @@ RECORD_ONLY_AT = 0.5      # share of the scene's cap after which only record / f
 CLOSING_TURNS = 3         # the last turns of a scene offer ONLY record / record_batch / finish (S7.1 01/10: cảnh 2 #8 twice spent all its
                           # turns looking — the "record now" text answers were ignored — and recorded nothing: 0,43 USD for 6 doubts)
 RECORD_TOOLS = ("record", "record_batch", "finish")
+RESERVE_TURNS = 2.5       # close when the scene's money left would not pay this many turns at the last turn's price (S7.1 01/10 lần 5:
+                          # every turn resends the pictures, the price grew to ~0,10 USD, the cap ran out before the one record turn)
+RECORD_EVERY = 4          # after this many turns without a new record, the next turn offers only the record tools (record as you go)
 CASES_SHOWN = 4           # confirmed cases from the notebook (core/experience) shown before looking
 CASE_EDGE = 512           # their pictures, small: a reminder, not a frame to judge
 
@@ -491,13 +494,16 @@ class QcAgent:
                            code="config")
         cap_usd = scene_cap(len(self._must()))
         steps_max = max_steps(len(self._must()))
+        last_cost, spent_before, last_record_step, recorded = 0.0, 0.0, 0, 0
         with tagged("qc_agent", self.pid), spend_cap(cap_usd, f"agent QC cảnh {self.story}") as cap:
             while self.summary is None and self.steps < steps_max:
                 if too_long(messages):
                     messages = restart(messages, self._recap(messages))
                     self.sessions += 1
                 mark_cache(messages)
-                closing = self.steps >= steps_max - CLOSING_TURNS or cap["spent"] >= RECORD_ONLY_AT * cap_usd
+                closing = (self.steps >= steps_max - CLOSING_TURNS or cap["spent"] >= RECORD_ONLY_AT * cap_usd
+                           or cap_usd - cap["spent"] < RESERVE_TURNS * last_cost
+                           or (self.steps - last_record_step >= RECORD_EVERY and len(self.records) < len(self._must())))
                 tools = [t for t in TOOLS if t["name"] in RECORD_TOOLS] if closing else TOOLS
                 try:
                     reply = self.client.converse(messages, tools, SYSTEM, max_tokens=ANSWER_TOKENS)
@@ -506,6 +512,7 @@ class QcAgent:
                     self.blocked = not self.records and getattr(e, "code", None) in ("budget", "auth", "config")
                     break
                 self.steps += 1
+                last_cost, spent_before = max(cap["spent"] - spent_before, 0.0), cap["spent"]
                 blocks = [b for b in (reply.blocks or []) if b.get("type") != "tool_use" or isinstance(b.get("input"), dict)]
                 cut = reply.stop_reason == "max_tokens"
                 if cut:                                # 28/09: a cut answer was thrown away WITH the records already complete in it —
@@ -547,9 +554,10 @@ class QcAgent:
                 left = self._left()                    # where it stands, every turn (28/09: 8 turns spent looking, nothing recorded)
                 results[-1]["content"] = list(results[-1]["content"]) + [{"type": "text", "text": (
                     f"[Trạng thái] đã dùng ${cap['spent']:.3f} / ${cap_usd:.2f}, lượt {self.steps}/{steps_max}; chưa ghi: {left}"
-                    + (" — CHỈ còn được ghi (record_batch) / kết thúc." if (self.steps >= steps_max - CLOSING_TURNS
-                                                                          or cap["spent"] >= RECORD_ONLY_AT * cap_usd) else
+                    + (" — CHỈ còn được ghi (record_batch) / kết thúc." if closing else
                        " — ghi (record) khung nào đã đủ bằng chứng NGAY lượt này."))}]
+                if len(self.records) > recorded:
+                    recorded, last_record_step = len(self.records), self.steps
                 messages.append({"role": "user", "content": results})
         if self.summary is None:
             left = self._left()

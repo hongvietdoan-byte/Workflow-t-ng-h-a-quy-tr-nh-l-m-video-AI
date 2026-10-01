@@ -1,6 +1,7 @@
 """The QC agent (flag qc_agent, 2026-09-27): a multi-turn tool-use loop — it looks at frames, crops, lays details of several frames side by
 side, must record every frame before it may finish, and its verdicts wait for a person until the QC is trusted."""
 import copy
+from unittest import mock
 import json
 import os
 import tempfile
@@ -85,6 +86,14 @@ class AgentTests(unittest.TestCase):
         self.assertEqual(agent.cases, ["t:1"])
         self.assertGreaterEqual(sum(1 for b in first if b.get("type") == "image"), 2)   # overview + the case picture
 
+    def test_it_must_record_as_it_goes(self):
+        """S7.1 01/10 lần 5: 10 turns of looking, the price per turn grew, nothing was recorded — after RECORD_EVERY turns without a
+        record the next turn offers only the record tools."""
+        c = Scripted([[("view_frame", {"k": 1})]] * 30)
+        qc_agent.QcAgent(self.p, self.pid, self.data, c, self.frames).run()
+        self.assertIn("view_frame", c.tool_sets[qc_agent.RECORD_EVERY - 1])
+        self.assertNotIn("view_frame", c.tool_sets[qc_agent.RECORD_EVERY])
+
     def test_the_last_turns_offer_only_the_record_tools(self):
         """S7.1 01/10: cảnh 2 #8 spent every turn looking (text "record now" answers ignored) — the closing turns cannot look at all."""
         c = Scripted([[("view_frame", {"k": 1})]] * (qc_agent.MAX_STEPS + 2))
@@ -137,7 +146,8 @@ class AgentTests(unittest.TestCase):
     def test_a_long_run_restarts_instead_of_pruning(self):
         looks = [[("view_frame", {"k": 1}), ("view_frame", {"k": 2})]] * (qc_agent.MAX_SESSION_IMAGES // 2 + 1)
         c = Scripted(looks + [[self.record(k) for k in range(1, self.n + 1)], [("finish", {"summary": "xong"})]])
-        res = qc_agent.QcAgent(self.p, self.pid, self.data, c, self.frames).run()
+        with mock.patch.object(qc_agent, "RECORD_EVERY", 99):      # this test is about the restart, not record-as-you-go
+            res = qc_agent.QcAgent(self.p, self.pid, self.data, c, self.frames).run()
         self.assertEqual(res["summary"]["summary"], "xong")
         self.assertEqual(res["sessions"], 2)
 
