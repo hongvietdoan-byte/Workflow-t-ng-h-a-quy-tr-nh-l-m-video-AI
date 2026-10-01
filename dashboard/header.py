@@ -63,7 +63,7 @@ def _level_changed(pid: int) -> None:
         st.session_state.pop(k.format(pid=pid), None)
 
 
-def level_bar(p: Pipeline, pid: int) -> None:
+def level_bar(p: Pipeline, pid: int, compact: bool = False) -> None:
     """🎚 Mức tự động (đợt 3): one choice over who approves + the run's gates + QC strictness (core/automation.py). Only the project's
     creator or the Owner changes it; locked while the automatic run holds the project."""
     from core import automation
@@ -75,9 +75,9 @@ def level_bar(p: Pipeline, pid: int) -> None:
     creator = (proj["created_by"] or "").strip().lower() if "created_by" in proj.keys() else ""
     can = (not auth_on()) or me().get("role") == "owner" or not creator or creator == (me().get("email") or "").lower()
     st.session_state[f"level_{pid}"] = cur if cur in keys else None        # always show what the project really has
-    c1, c2 = st.columns([1, 5], vertical_alignment="center")
+    c1, c2 = (st, st) if compact else st.columns([1, 5], vertical_alignment="center")    # v2: the hero strip gives it its own row
     c1.caption("🎚 Mức tự động")
-    with c2:
+    with (st.container() if compact else c2):
         st.radio("Mức tự động", keys, horizontal=True, label_visibility="collapsed", format_func=lambda k: automation.LEVELS[k]["label"],
                  disabled=busy or not can, key=f"level_{pid}", on_change=_level_changed, args=(pid,),
                  help=("Đang chạy tự động — đổi mức sau khi dừng." if busy else "Chỉ người tạo dự án hoặc Owner đổi mức." if not can
@@ -94,12 +94,20 @@ def level_bar(p: Pipeline, pid: int) -> None:
 def risk_popover(p: Pipeline, pid: int) -> None:
     """Small corner note: IP warnings and risk-control blocks seen so far in this project."""
     notes = preflight.risk_notes(p.conn, pid, preflight.load_blocklist())
+    if ui.v2_on():                                   # v2: lives inside the "Thêm" menu (a popover cannot hold a popover) → a labelled fold
+        with st.expander(f"⚠ Rủi ro ({len(notes)})"):
+            _risk_body(notes)
+        return
     with st.popover(f"⚠ Rủi ro ({len(notes)})", help="Ghi chú rủi ro đã gặp: cảnh báo IP và các lần bị chặn risk control"):
-        if not notes:
-            st.caption("Chưa ghi nhận rủi ro nào.")
-        for n in notes:
-            tag = ui.badge("IP", "b-warn") if n["kind"] == "ip" else ui.badge("bị chặn", "b-bad")
-            ui.html(f'{tag} <b>{escape(n["title"])}</b><br><span class="muted">{escape(n["detail"])}</span>')
+        _risk_body(notes)
+
+
+def _risk_body(notes) -> None:
+    if not notes:
+        st.caption("Chưa ghi nhận rủi ro nào.")
+    for n in notes:
+        tag = ui.badge("IP", "b-warn") if n["kind"] == "ip" else ui.badge("bị chặn", "b-bad")
+        ui.html(f'{tag} <b>{escape(n["title"])}</b><br><span class="muted">{escape(n["detail"])}</span>')
 
 
 def sign_in(conn, email: str, passcode: str = None) -> bool:
@@ -215,7 +223,7 @@ def archived_list(p: Pipeline) -> None:
         c2.button("↩ Khôi phục", key=f"proj_restore_{r['id']}", on_click=_restore_project, args=(r["id"],))
 
 
-def settings_menu(p: Pipeline, pid) -> None:
+def settings_menu(p: Pipeline, pid, label: str = "⚙") -> None:
     """ONE gear: 'Dự án này' (review mode, QC policy, delete) and 'Hệ thống' (library, prices, knowledge, history, lessons, users,
     shut down). Each panel opens as its own closable dialog. Old ?step=history/lessons/users links still open the matching dialog."""
     deep = st.query_params.get("step")
@@ -227,7 +235,7 @@ def settings_menu(p: Pipeline, pid) -> None:
             open_dialog("dlg_lessons")
         elif deep == "users" and allowed("users"):
             open_dialog("dlg_users")
-    with st.popover("⚙", help="Cài đặt dự án và hệ thống"):
+    with st.popover(label, help="Cài đặt dự án và hệ thống"):
         account_section(p)
         # rà soát 01/10 (đợt 2): 11 mục → 3 nhóm. Tiền (ngân sách thử, bảng giá) ở thẻ 💵 trên thanh trên.
         t_proj, t_res, t_sys = st.tabs(["Dự án", "Tài nguyên & kiến thức", "Hệ thống"])
@@ -334,7 +342,12 @@ def money_card(p: Pipeline, pid) -> None:
     claude_out = s["llm_usd"] > 0 and s["llm_left"] <= 0
     halts = s.get("out_of_credit") or {}
     flag = " 🔴" if (claude_out or halts) else ""
+    v2 = ui.v2_on()
     label = f"💵 {s['spent']:.2f}/{s['usd']:.0f}" if s["enabled"] else "💵 Tiền"
+    if v2:
+        label = "💵 Tiền" + (f" · {s['spent']:.2f}/{s['usd']:.0f}" if s["enabled"] else "")      # v2: always a word next to the icon
+    from dashboard.design.screens import shell_parts as SP
+    from dashboard.design import components as D
     with st.popover(label + flag, help="Tiền còn lại theo dịch vụ + dự án; duyệt ngân sách dự án; bảng giá"):
         for service, h in halts.items():
             st.error(f"**{service}** báo HẾT TIỀN lúc {h.get('at')} — mọi lượt gửi tới dịch vụ này đang dừng.")
@@ -342,22 +355,42 @@ def money_card(p: Pipeline, pid) -> None:
                 budget.reopen(p.conn, service)
                 st.rerun()
         if s["enabled"]:
-            st.markdown(f"**Đợt thử:** \\${s['spent']:.2f} / \\${s['usd']:.0f} · {s['images']}/{s['image_cap']} ảnh · "
-                        f"{s['audios']}/{s['audio_cap']} âm thanh")
-            ui.progress_bar(min(s["spent"] / s["usd"], 1.0) if s["usd"] else 0.0, invert=True)
+            frac = min(s["spent"] / s["usd"], 1.0) if s["usd"] else 0.0
+            if v2:
+                st.html(D.meter(frac, f"Đợt thử: ${s['spent']:.2f} / ${s['usd']:.0f} · {s['images']}/{s['image_cap']} ảnh · "
+                                      f"{s['audios']}/{s['audio_cap']} âm thanh", invert=True) + SP.last_reset_line(p.conn, "trial"))
+            else:
+                st.markdown(f"**Đợt thử:** \\${s['spent']:.2f} / \\${s['usd']:.0f} · {s['images']}/{s['image_cap']} ảnh · "
+                            f"{s['audios']}/{s['audio_cap']} âm thanh")
+                ui.progress_bar(frac, invert=True)
         else:
             st.caption("Đợt thử: tắt (không giới hạn chi).")
         if s["llm_usd"] > 0:
-            st.markdown(f"**Claude API:** \\${s['llm_spent']:.2f} / \\${s['llm_usd']:.2f}" + (" — **đã hết**" if claude_out else ""))
-            ui.progress_bar(min(s["llm_spent"] / s["llm_usd"], 1.0), invert=True)
+            if v2:
+                st.html(D.meter(min(s["llm_spent"] / s["llm_usd"], 1.0), f"Claude API: ${s['llm_spent']:.2f} / ${s['llm_usd']:.2f}"
+                                + (" — đã hết" if claude_out else ""), invert=True) + SP.last_reset_line(p.conn, "claude"))
+            else:
+                st.markdown(f"**Claude API:** \\${s['llm_spent']:.2f} / \\${s['llm_usd']:.2f}" + (" — **đã hết**" if claude_out else ""))
+                ui.progress_bar(min(s["llm_spent"] / s["llm_usd"], 1.0), invert=True)
+        project_has_budget = False
         if pid is not None and project_budget.enabled():
             data = project_budget.get(p.conn, pid) or {}
+            project_has_budget = bool(data)
             spent = project_budget.spent_by_stage(p.conn, pid)
             if data.get("locked"):
                 caps = data.get("caps") or {}
-                st.markdown(f"**Dự án này 🔒** đã chi {sum(spent.values()):.2f} / trần {float(data.get('total') or 0):.2f} USD")
-                st.dataframe([{"Khâu": lb, "Đã chi": f"{spent[k]:.2f}", "Trần": f"{caps.get(k, 0):.2f}"}
-                              for k, lb in project_budget.STAGES.items()], hide_index=True, width="stretch")
+                total = float(data.get("total") or 0)
+                if v2:
+                    st.html(D.pill("Ngân sách dự án đã khóa", "ok") + D.meter(sum(spent.values()) / total if total else 0.0,
+                            f"Dự án này: đã chi {sum(spent.values()):.2f} / trần {total:.2f} USD", invert=True) + SP.last_reset_line(p.conn, "project", pid))
+                else:
+                    st.markdown(f"**Dự án này 🔒** đã chi {sum(spent.values()):.2f} / trần {total:.2f} USD")
+                rows = [{"Khâu": lb, "Đã chi": f"{spent[k]:.2f}", "Trần": f"{caps.get(k, 0):.2f}"} for k, lb in project_budget.STAGES.items()]
+                if v2:                                   # rule 7: an HTML table follows the theme (st.dataframe is a light canvas)
+                    st.html('<table class="v2-table"><tr><th>Khâu</th><th>Đã chi</th><th>Trần</th></tr>' + "".join(
+                        f"<tr><td>{escape(r['Khâu'])}</td><td>{r['Đã chi']}</td><td>{r['Trần']}</td></tr>" for r in rows) + "</table>")
+                else:
+                    st.dataframe(rows, hide_index=True, width="stretch")
             else:
                 try:
                     prop = project_budget.propose(p, pid)
@@ -375,6 +408,8 @@ def money_card(p: Pipeline, pid) -> None:
                 open_dialog("dlg_budget")
             if b2.button("💲 Bảng giá", key="mc_pricing", width="stretch"):
                 open_dialog("dlg_pricing")
+        if v2:
+            SP.money_reset_block(p, pid, project_has_budget, me())           # Owner only (the block draws nothing for anyone else)
 
 
 @st.dialog("🧪 Tính năng thử", width="large", on_dismiss=lambda: close_dialog("dlg_features"))
@@ -627,6 +662,8 @@ def user_name() -> str:
 def global_bar(p: Pipeline):
     """ONE bar: brand · project · state · risk · pause/continue/cancel · new project · ⚙."""
     projects = archive.active_projects(p.conn)          # 📦 archived projects are hidden (restore them in ⚙)
+    if ui.v2_on():
+        return _global_bar_v2(p, projects)
     with st.container(border=True):
         c0, c1, c2, c3, c4, c5, c6, c7 = st.columns([1.2, 2.0, 1.0, 1.9, 1.2, 1.5, 1.2, 0.5], vertical_alignment="center")
         c0.markdown('<div class="brand"><i></i>AI Video Pipeline</div>', unsafe_allow_html=True)
@@ -673,6 +710,68 @@ def global_bar(p: Pipeline):
     if st.session_state.get("step") not in (C.STEPS[0], C.STEPS[5], C.STEPS[6]):
         level_bar(p, pid)                                # a per-project control: not on ⌂ / Nhóm / Theo dõi
     status_line(p, pid)
+    return pid
+
+
+def _global_bar_v2(p: Pipeline, projects):
+    """UI v2 top bar (S13 nhánh B): glass bar · gradient brand · project picker · ➕ Dự án mới · 📥 Việc cần bạn · 💵 Tiền · ⋯ Thêm · ⚙ Cài đặt.
+    Pause / cancel / risk moved into the labelled "⋯ Thêm" menu (▶ Tiếp tục stays in the bar while paused). The hero strip, the 🎚 level and
+    the status line are drawn by app.py right under this bar (shell_parts.project_hero)."""
+    brand = '<div class="shell-brand"><i></i><span class="v2-grad-text">AI Video Pipeline</span></div>'
+    with st.container(key="shell-bar"):
+        if not projects:
+            c0, c4, c5, c6, c7 = st.columns([3, 1.6, 2, 1.6, 1.6], vertical_alignment="center")
+            c0.html(brand)
+            with c4:
+                new_project_control(p)
+            with c5:
+                inbox_card(p)
+            with c6:
+                money_card(p, None)
+            with c7:
+                settings_menu(p, None, "⚙ Cài đặt")
+            put_away = len(archive.archived_projects(p.conn))
+            st.info("Chưa có dự án. Bấm “➕ Dự án mới” để bắt đầu."
+                    + (f" ({put_away} dự án đã cất — mở ⚙ → “📦 Dự án đã cất” để khôi phục.)" if put_away else ""))
+            return None
+        ids = [r["id"] for r in projects]
+        default_pid = current_pid(p)
+        paused = False
+        pid_now = default_pid if default_pid in ids else ids[0]
+        paused = bool(p.project(pid_now)["paused"])
+        widths = [2.3, 2.6, 1.6, 2.0, 1.8] + ([1.4] if paused else []) + [1.2, 1.5]
+        cols = st.columns(widths, vertical_alignment="center")
+        c0, c1, c4, c5, c6 = cols[:5]
+        c_more, c_gear = cols[-2], cols[-1]
+        c0.html(brand)
+        pid = c1.selectbox("Dự án", ids, index=ids.index(default_pid) if default_pid in ids else 0,
+                           format_func=lambda i: next(r["name"] for r in projects if r["id"] == i), key="global_pid",
+                           label_visibility="collapsed")
+        proj = p.project(pid)
+        with c4:
+            new_project_control(p)
+        with c5:
+            inbox_card(p)
+        with c6:
+            money_card(p, pid)
+        if proj["paused"]:
+            if cols[5].button("▶ Tiếp tục", key="btn_resume", type="primary", width="stretch"):
+                p.set_paused(pid, False)
+                st.rerun()
+        with c_more:
+            with st.popover("⋯ Thêm", help="Tạm dừng / hủy việc đang chờ, ghi chú rủi ro", width="stretch"):
+                if not proj["paused"] and st.button("⏸ Tạm dừng dự án", key="btn_pause", width="stretch"):
+                    p.set_paused(pid, True)
+                    st.rerun()
+                if confirm_all("btn_cancel", [pid], "■ Hủy việc đang chờ / đang gen", "Hủy mọi ảnh/clip đang chờ hoặc đang gen của dự án này?",
+                               st, "Có, hủy"):
+                    st.toast(f"Đã hủy {p.cancel_all_active(pid)} việc")
+                    st.rerun()
+                risk_popover(p, pid)
+        with c_gear:
+            settings_menu(p, pid, "⚙ Cài đặt")
+    if proj["paused"]:
+        st.warning("Dự án đang TẠM DỪNG — không ảnh/clip nào được gửi đi. Bấm ▶ Tiếp tục ở thanh trên.")
     return pid
 
 
