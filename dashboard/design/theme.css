@@ -130,3 +130,9 @@ ul[role="listbox"] { background: var(--raised) !important; }
 [data-testid="stBaseButton-secondary"]:disabled, [data-testid="stPopoverButton"]:disabled { color: var(--disabled) !important; border-style: dashed !important; opacity: 1 !important; }
 [data-testid="stBaseButton-primary"]:disabled { background: var(--glass-strong) !important; color: var(--disabled) !important; box-shadow: none !important; border: 1.5px dashed var(--border) !important; opacity: 1 !important; }
 .v2-warn-text { color: var(--warn); font-weight: 600; }
+
+/* ⓘ — nút chi tiết nhỏ, luôn hiện (không phụ thuộc rê chuột) */
+[class*="st-key-info-"] [data-testid="stPopoverButton"] { min-height: 1.9rem !important; width: 2.1rem; padding: 0 !important; border-radius: 50% !important;
+    font-weight: 800; color: var(--info) !important; border-color: var(--info) !important; justify-content: center; }
+[class*="st-key-info-"] [data-testid="stPopoverButton"] svg { display: none; }
+[class*="st-key-info-"] { width: auto !important; flex: 0 0 auto; }

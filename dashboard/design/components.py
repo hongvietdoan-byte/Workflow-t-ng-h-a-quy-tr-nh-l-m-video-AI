@@ -98,3 +98,30 @@ def table(headers, rows, cls: str = "", num_cols=(), empty: str = "Chưa có d�
         body.append(f'<tr><td colspan="{len(headers)}" style="color:var(--muted)">{escape(empty)}</td></tr>')
     wrap = (cls.split()[0] + "wrap") if cls else ""
     return f'<div class="{wrap}"><table class="v2-table {escape(cls)}"><tr>{head}</tr>{"".join(body)}</table></div>'
+
+
+# ---- progressive disclosure (người dùng 01/10): chi tiết ưu tiên thấp nằm trong dấu ⓘ, bên ngoài chỉ tóm tắt ------------------------------
+@contextmanager
+def info(key: str, label: str = "ⓘ", help_text: str = "Xem chi tiết"):
+    """A small ⓘ button that opens a popover with the details; put the long text / lists / secondary controls inside it:
+
+        with D.info("sb-3-why"):
+            st.markdown("…long explanation…")
+
+    Priority rule (docs/QUY_TAC_BO_CUC_UI_V2.md §5): P1 state + the main action stay visible; P2 gets ONE summary line; P3 goes in ⓘ;
+    P4 (rarely useful) is not shown at all. The button always has the visible glyph "ⓘ" (never hover-only); click or keyboard opens it."""
+    with st.container(key=f"info-{key}"):
+        with st.popover(label, help=help_text) as p:
+            yield p
+
+
+def line(text_html: str, details_md: str = "", key: str = "") -> None:
+    """One summary line (HTML already escaped by the caller, e.g. made with pill()/escape) + a ⓘ with `details_md` when given."""
+    if details_md and key:
+        c1, c2 = st.columns([12, 1], vertical_alignment="center")
+        c1.markdown(text_html, unsafe_allow_html=True)
+        with c2:
+            with info(key):
+                st.markdown(details_md)
+    else:
+        st.markdown(text_html, unsafe_allow_html=True)

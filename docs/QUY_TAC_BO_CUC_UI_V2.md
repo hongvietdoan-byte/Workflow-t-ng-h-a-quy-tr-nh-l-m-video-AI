@@ -34,3 +34,11 @@ Mọi nhánh (B, D, E, F, G) phải đọc file này, `docs/THIET_KE_GIAO_DIEN_2
 - Chỉ chạy test mục tiêu: file test của nhánh + các test cũ của màn mình (`py -m pytest -q tests/test_dashboard.py tests/test_screens_dashboard.py <file của bạn> -p no:cacheprovider`). KHÔNG chạy cả bộ.
 - Kiểm bằng mắt: chạy `preview_start` với tên cấu hình riêng (cổng riêng, xem `.claude/launch.json`; nếu chưa có thì thêm cấu hình trong worktree của bạn), đăng nhập, bật cờ `ui_v2` (⚙ → 🧪), chụp ảnh sáng + tối, và chạy `tools/ui_contrast_audit.js` (0 chữ < 4.5:1, 0 chữ < 12 px trừ emoji).
 - Commit trên nhánh `ui/<tên>` của bạn (không push, không đụng `main`). Báo cáo cuối (tiếng Việt): file đã đổi, bảng đối chiếu điều khiển cũ → mới, ảnh chụp (đường dẫn), kết quả test, “Đề nghị cho lõi”, việc chưa xong.
+
+## 5. Thông tin theo mức ưu tiên (người dùng yêu cầu 01/10) — chi tiết vào dấu ⓘ
+- **P1 — luôn hiện:** trạng thái (nhãn/pill), nút hành động chính, lỗi chặn, tiền sắp hết.
+- **P2 — một dòng tóm tắt:** vd. “3 khung cần duyệt · QC thấp nhất 0.79”, “Bible đã khóa · 4 nhân vật”.
+- **P3 — vào ⓘ (`components.info(key)` hoặc `components.line(text, details_md, key)`):** giải thích dài, danh sách, số đo chi tiết, lý do/nguồn, hướng dẫn, ghi chú QC dài, lịch sử, cảnh báo ít quan trọng, mô tả tùy chọn, mọi đoạn `st.caption` dài.
+- **P4 — không hiện:** thông tin lặp lại ở nơi khác, mã nội bộ, đường dẫn file, thông tin mà người dùng thường không cần.
+- Quy tắc áp dụng: không đoạn văn bản thường nào dài hơn ~2 dòng ở ngoài; danh sách > 3 mục → tóm tắt + ⓘ; mỗi thẻ tối đa 1 dòng phụ; tooltip `help=` của widget chỉ để bổ sung, không thay cho nhãn. Nút ⓘ luôn hiện chữ “ⓘ” (không chỉ hiện khi rê chuột).
+- Không được mất thông tin: nội dung đưa vào ⓘ phải đầy đủ như cũ.
