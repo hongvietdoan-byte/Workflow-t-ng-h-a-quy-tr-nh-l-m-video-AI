@@ -13,6 +13,8 @@ STEP_NAME = {"script": "Kịch bản", "storyboard": "Storyboard", "video": "Vid
 PILL = {"err": ("Lỗi", "bad"), "wait": ("Chờ bạn", "warn"), "run": ("Đang chạy", "info"), "pause": ("Tạm dừng", "mute"),
         "done": ("Xong", "ok"), "idle": ("Chưa chạy", "mute")}                       # v2: the same states as STATUS, as pills
 GRID_COLS = 3
+SCOPE_NOTE = ("“Của tôi” = dự án bạn tạo. Dự án của người khác mở được để xem; chỉ thao tác (duyệt, gen) khi chủ dự án nhờ hoặc bạn là Owner — hệ thống ghi tên người gửi mỗi job. 🔒 = người đó vừa "
+              "mở dự án (trong 2 phút) — chỉ báo để hai người không duyệt chồng nhau, không khóa.")
 SORTS = {"wait": "Cần bạn trước", "new": "Mới nhất", "cost": "Tốn nhiều nhất"}
 
 
@@ -93,28 +95,39 @@ def tags_of(r: dict) -> list:
     return ["của bạn"] if auth_on() else []
 
 
+def _money_text(r: dict) -> str:
+    return f"{r['spent']:.2f}/{r['cap']:.2f} USD" if r["cap"] else f"{r['spent']:.2f} USD"
+
+
+def _details_html(r: dict) -> str:
+    """P3 of a project card (inside its ⓘ): everything the old card showed outside, in full."""
+    lines = [("Người tạo", escape(r["creator"]))]
+    if tags_of(r) and r["creator"] != "—":
+        lines.append(("Của ai", escape(" · ".join(tags_of(r)))))
+    if r["open_by"]:
+        lines.append(("🔒 Đang mở", escape(", ".join(x.split("@")[0] for x in r["open_by"])) + " (trong 2 phút)"))
+    lines += [("Bước", escape(STEP_NAME.get(r["screen"], r["screen"]))),
+              ("Tiến độ", escape(f"{r['step_label']} · ảnh {r['images']}/{r['scenes']} · chuyển động {r['motion']}/{r['scenes']} · clip {r['videos']}/{r['scenes']}")),
+              ("Tiền", escape(f"{r['spent']:.2f} / {r['cap']:.2f} USD" if r["cap"] else f"{r['spent']:.2f} / — USD (chưa khóa trần)")),
+              ("Chờ bạn", f"{r['needs_review']} mục cần duyệt")]
+    if r["autopilot_note"]:
+        lines.append(("🚀 Tự động", escape(r["autopilot_note"])))
+    return "".join(f"<div><b>{k}:</b> {v}</div>" for k, v in lines)
+
+
 def _card(r: dict) -> None:
-    """v2: one project = one glass card with ONE open button."""
+    """v2: one project = one glass card: P1 (name, state pill, progress bar, open button) + ONE summary line; the rest is in its ⓘ."""
     label, kind = PILL[r["status"]]
     with D.card(f"home-{r['id']}"):
-        st.markdown(f'<div class="home-name" title="{escape(r["name"])}">#{r["id"]} {escape(r["name"])}</div>', unsafe_allow_html=True)
-        chips = D.pill(label, kind, running=r["status"] == "run")
-        if tags_of(r):
-            chips += " " + D.pill(" · ".join(tags_of(r)), "mute")
-        if r["open_by"]:
-            chips += " " + D.pill("🔒 " + ", ".join(x.split("@")[0] for x in r["open_by"]) + " đang mở", "info")
-        st.markdown(chips, unsafe_allow_html=True)
-        st.markdown(D.meter(progress_of(r), f"{r['step_label']} · ảnh {r['images']}/{r['scenes']} · clip {r['videos']}/{r['scenes']}"),
-                    unsafe_allow_html=True)
-        if r["cap"]:
-            st.markdown(D.meter(r["spent"] / r["cap"], f"Tiền {r['spent']:.2f} / {r['cap']:.2f} USD", invert=True), unsafe_allow_html=True)
-        else:
-            st.markdown(f'<div class="home-sub">Tiền {r["spent"]:.2f} / — USD (chưa khóa trần)</div>', unsafe_allow_html=True)
-        st.markdown(D.pill(f"Chờ bạn: {r['needs_review']}", "warn" if r["needs_review"] else "mute")
-                    + " " + D.pill("Bước: " + STEP_NAME.get(r["screen"], r["screen"]), "mute"), unsafe_allow_html=True)
-        note = (r["autopilot_note"] or "")[:110] if r["status"] in ("wait", "run") else ""
-        st.markdown(f'<div class="home-note" title="{escape(note)}">' + (("🚀 " + escape(note)) if note else "&nbsp;") + "</div>",
-                    unsafe_allow_html=True)
+        c1, c2 = st.columns([7, 1], vertical_alignment="center")
+        c1.markdown(f'<div class="home-name" title="{escape(r["name"])}">#{r["id"]} {escape(r["name"])}</div>', unsafe_allow_html=True)
+        with c2:
+            with D.info(f"home-{r['id']}"):
+                st.markdown(_details_html(r), unsafe_allow_html=True)
+        st.markdown(D.pill(label, kind, running=r["status"] == "run"), unsafe_allow_html=True)
+        st.markdown(D.meter(progress_of(r)), unsafe_allow_html=True)
+        summary = " · ".join([r["step_label"], _money_text(r)] + ([f"{r['needs_review']} chờ bạn"] if r["needs_review"] else []))
+        st.markdown(f'<div class="home-sub home-sum" title="{escape(summary)}">{escape(summary)}</div>', unsafe_allow_html=True)
         st.button("Mở →", key=f"home_open_{r['id']}", on_click=C.go_screen, args=(r["id"], r["screen"]), width="stretch",
                   type="primary" if r["status"] == "wait" and r["mine"] else "secondary")
 
@@ -151,7 +164,7 @@ def home(p: Pipeline, pid: int):
     if not allrows:
         st.info("Chưa có dự án nào đang dùng. Bấm “➕ Dự án mới” ở thanh trên (dự án đã cất khôi phục ở ⚙ → Dự án).")
         return
-    top = st.columns([1.3, 3, 1.3, 1.8], vertical_alignment="center")
+    top = st.columns([1.3, 3, 1.3, 1.8, 0.35] if v2 else [1.3, 3, 1.3, 1.8], vertical_alignment="center")
     scope = "team" if (auth_on() and top[0].radio("Phạm vi", ["Của tôi", "Cả nhóm"], horizontal=True, label_visibility="collapsed",
                                                   key="home_scope") == "Cả nhóm") else "mine"
     if not auth_on():
@@ -170,10 +183,14 @@ def home(p: Pipeline, pid: int):
             for k in ("home_q", "home_status", "home_step", "home_creator", "home_warn"):
                 st.session_state.pop(k, None)
             st.rerun()
+    if v2:
+        with top[4]:
+            with D.info("home-scope"):
+                st.markdown(SCOPE_NOTE)
     shown = _sort(apply_filters(allrows, scope, q, status, step, creator, warn), sort)
     active_filters = [x for x in (STATUS.get(status), STEP_NAME.get(step), creator, "có cảnh báo" if warn else "", f"“{q}”" if q else "") if x]
     st.caption(f"Hiện **{len(shown)}** / {len(allrows)} dự án" + (" · đang lọc: " + ", ".join(active_filters) if active_filters else "")
-               + f" · tổng chi các dự án đang hiện ≈ {sum(r['spent'] for r in shown):.2f} USD")
+               + ("" if v2 else f" · tổng chi các dự án đang hiện ≈ {sum(r['spent'] for r in shown):.2f} USD"))   # v2: total = hero stat
     if not shown:
         st.info("Không có dự án nào khớp bộ lọc.")
         return
@@ -183,8 +200,8 @@ def home(p: Pipeline, pid: int):
     else:
         _rows(shown)
     _finished(shown)
-    st.caption("“Của tôi” = dự án bạn tạo. Dự án của người khác mở được để xem; chỉ thao tác (duyệt, gen) khi chủ dự án nhờ hoặc bạn là Owner — hệ thống ghi tên người gửi mỗi job. 🔒 = người đó vừa "
-               "mở dự án (trong 2 phút) — chỉ báo để hai người không duyệt chồng nhau, không khóa.")
+    if not v2:
+        st.caption(SCOPE_NOTE)
 
 
 def _rows(shown: list) -> None:

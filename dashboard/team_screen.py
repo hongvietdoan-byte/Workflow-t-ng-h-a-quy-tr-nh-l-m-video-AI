@@ -10,7 +10,10 @@ from core import perf, team
 from dashboard.design import components as D
 from dashboard.design.screens.v2_tables import Raw, table
 
-PERIODS = {"Hôm nay": 1, "7 ngày": 7, "30 ngày": 30, "Tất cả": None}
+NOTE = ("Số liệu theo e-mail đăng nhập (đăng nhập tắt: theo tên tự khai). “Tiền chi” = ảnh + video + âm thanh có giá của job người đó gửi; "
+        "tiền gọi Claude không gắn với người. **Hạn mức chỉ để cảnh báo** (hiện ở hộp 📥 của Owner khi ≥ 90 %), không chặn gửi — chặn thật là "
+        "trần đợt thử và ngân sách khóa của dự án.")
+PERIODS ={"Hôm nay": 1, "7 ngày": 7, "30 ngày": 30, "Tất cả": None}
 FILTERS = {"": "Tất cả", "over": "⚠ Gần hết hạn mức", "inact": "💤 Không hoạt động > 3 ngày", "owner": "Owner", "worker": "Người làm",
            "reviewer": "Người duyệt", "manager": "Quản lý", "custom": "Tùy chỉnh"}
 
@@ -63,11 +66,31 @@ def _money_cell(r: dict) -> Raw:
 
 def _people_table(shown: list) -> None:
     kinds = {"owner": "info", "worker": "mute", "reviewer": "ok", "manager": "warn", "custom": "mute"}
-    rows = [(Raw(f'<span class="team-who" title="{escape(r["who"])}">{escape(r["who"])}</span>'), Raw(D.pill(r["role"], kinds.get(r["role_key"], "mute"))),
-             f"{r['videos_ok']} / {r['videos']}", f"{r['failed']} · {r['retry']}", f"{r['seconds']:g}", r["images"], _money_cell(r),
-             r["projects"], r["last"]) for r in shown]
-    st.markdown(table(["Người dùng", "Vai", "Video (xong / gửi)", "Lỗi · Gen lại", "Giây video", "Ảnh", "Tiền chi", "Dự án", "Gần nhất"], rows,
-                      cls="team-table", num_cols=(2, 3, 4, 5, 7), empty="Không có ai khớp bộ lọc"), unsafe_allow_html=True)
+    who = lambda r: Raw(f'<span class="team-who" title="{escape(r["who"])}">{escape(r["who"])}</span>')   # noqa: E731
+    role = lambda r: Raw(D.pill(r["role"], kinds.get(r["role_key"], "mute")))                              # noqa: E731
+    # P1/P2: who, role, videos done / sent, money (+ limit bar); the rare columns are one click away in the labelled expander below
+    st.markdown(table(["Người dùng", "Vai", "Video (xong / gửi)", "Tiền chi"],
+                      [(who(r), role(r), f"{r['videos_ok']} / {r['videos']}", _money_cell(r)) for r in shown],
+                      cls="team-table", num_cols=(2,), empty="Không có ai khớp bộ lọc"), unsafe_allow_html=True)
+    with st.expander("📋 Chi tiết từng người — lỗi · gen lại, giây video, ảnh, dự án, lần gần nhất", expanded=False):
+        st.markdown(table(["Người dùng", "Lỗi · Gen lại", "Giây video", "Ảnh", "Dự án", "Gần nhất"],
+                          [(who(r), f"{r['failed']} · {r['retry']}", f"{r['seconds']:g}", r["images"], r["projects"], r["last"]) for r in shown],
+                          cls="team-table", num_cols=(1, 2, 3, 4), empty="Không có ai khớp bộ lọc"), unsafe_allow_html=True)
+
+
+def _history_v2(log, gens) -> None:
+    state_kind = {"succeeded": "ok", "failed": "bad", "running": "info", "queued": "mute"}
+    c_a, c_b = st.columns(2)
+    with c_a, D.card("team-audit"):
+        st.markdown("**Nhật ký quyền**")
+        st.markdown(table(["Lúc", "Ai", "Việc", "Chi tiết"], [(r["at"], r["email"], r["action"], r["detail"]) for r in log],
+                          cls="team-table", empty="Chưa có thay đổi quyền nào"), unsafe_allow_html=True)
+    with c_b, D.card("team-gens"):
+        st.markdown("**Lượt gen gần đây**")
+        st.markdown(table(["Lúc", "Ai", "Loại", "Dự án", "Trạng thái"],
+                          [((r["created_at"] or "")[:16].replace("T", " "), r["who"], "video" if r["type"] == "video_gen" else "ảnh", r["name"],
+                            Raw(D.pill(r["state"], state_kind.get(r["state"], "mute")))) for r in gens],
+                          cls="team-table", empty="Chưa có lượt gen nào"), unsafe_allow_html=True)
 
 
 def team_screen(p: Pipeline, pid: int):
@@ -79,7 +102,7 @@ def team_screen(p: Pipeline, pid: int):
     if not v2:
         st.markdown("### 👥 Nhóm")
     hero_slot = st.container() if v2 else None
-    c1, c2, c3 = st.columns([1.4, 2.4, 2], vertical_alignment="center")
+    c1, c2, c3, *c4 = st.columns([1.4, 2.4, 2, 0.35] if v2 else [1.4, 2.4, 2], vertical_alignment="center")
     period = c1.selectbox("Khoảng", list(PERIODS), index=1, label_visibility="collapsed", key="team_period")
     q = c2.text_input("Tìm", placeholder="🔎 Tìm người dùng…", label_visibility="collapsed", key="team_q").strip().lower()
     flt = c3.selectbox("Lọc", list(FILTERS), format_func=FILTERS.get, label_visibility="collapsed", key="team_filter")
@@ -88,6 +111,9 @@ def team_screen(p: Pipeline, pid: int):
              and (not flt or (flt == "over" and r["share"] is not None and r["share"] >= team.LIMIT_WARN)
                   or (flt == "inact" and r["inactive"]) or r["role_key"] == flt)]
     if v2:
+        with c4[0]:
+            with D.info("team-note"):
+                st.markdown(NOTE)
         _hero(hero_slot, rows, period)
         _people_table(shown)
     else:
@@ -95,14 +121,21 @@ def team_screen(p: Pipeline, pid: int):
                        "Lỗi · Gen lại": f"{r['failed']} · {r['retry']}", "Giây video": f"{r['seconds']:g}", "Ảnh": r["images"],
                        "Tiền chi (USD)": round(r["usd"], 2), "Hạn mức/tháng": (f"{r['limit']:g} ({r['share']:.0%})" if r["limit"] else "—"),
                        "Dự án": r["projects"], "Gần nhất": r["last"]} for r in shown], hide_index=True, width="stretch")
-    st.caption("Số liệu theo e-mail đăng nhập (đăng nhập tắt: theo tên tự khai). “Tiền chi” = ảnh + video + âm thanh có giá của job người đó gửi; "
-               "tiền gọi Claude không gắn với người. **Hạn mức chỉ để cảnh báo** (hiện ở hộp 📥 của Owner khi ≥ 90 %), không chặn gửi — chặn thật là "
-               "trần đợt thử và ngân sách khóa của dự án.")
+    if not v2:
+        st.caption(NOTE)
     if not is_owner:
         return
     st.divider()
-    ui.html(ui.card_title("Vai trò & hạn mức", "chọn vai thay vì tick từng quyền; quyền lẻ vẫn ở ⚙ → Hệ thống → 👥 Phân quyền"))
-    st.markdown("  \n".join(f"- **{r['label']}** — {r['desc']}" for r in team.ROLES.values()))
+    roles_md = "  \n".join(f"- **{r['label']}** — {r['desc']}" for r in team.ROLES.values())
+    if v2:                                  # title stays; the how-to line + the role descriptions go in its ⓘ
+        h1, h2 = st.columns([24, 1], vertical_alignment="center")
+        h1.markdown("**Vai trò & hạn mức**")
+        with h2:
+            with D.info("team-roles"):
+                st.markdown("Chọn vai thay vì tick từng quyền; quyền lẻ vẫn ở ⚙ → Hệ thống → 👥 Phân quyền.\n\n" + roles_md)
+    else:
+        ui.html(ui.card_title("Vai trò & hạn mức", "chọn vai thay vì tick từng quyền; quyền lẻ vẫn ở ⚙ → Hệ thống → 👥 Phân quyền"))
+        st.markdown(roles_md)
     actor = auth.Identity(me()["email"], me()["name"], me()["role"], me().get("perms", []))
     members = [r for r in rows if r["user"] and r["user"]["role"] != "owner"]
     labels = {k: v["label"] for k, v in team.ROLES.items()}
@@ -146,25 +179,17 @@ def team_screen(p: Pipeline, pid: int):
                 st.error(str(e))
             else:
                 st.rerun()
-    ui.html(ui.card_title("Lịch sử hoạt động", "đổi quyền / thêm bớt người (nhật ký của Owner) và lượt gen gần đây"))
+    if not v2:
+        ui.html(ui.card_title("Lịch sử hoạt động", "đổi quyền / thêm bớt người (nhật ký của Owner) và lượt gen gần đây"))
     log = auth.recent_audit(p.conn, 15)
     gens = p.conn.execute("SELECT j.created_at, COALESCE(NULLIF(TRIM(j.created_by),''),'(chưa nhập tên)') who, j.type, j.state, pr.name"
                           " FROM jobs j JOIN projects pr ON pr.id=j.project_id WHERE j.type IN ('image_gen','video_gen')"
                           " ORDER BY j.id DESC LIMIT 15").fetchall()
-    c_a, c_b = st.columns(2)
-    if v2:
-        state_kind = {"succeeded": "ok", "failed": "bad", "running": "info", "queued": "mute"}
-        with c_a, D.card("team-audit"):
-            st.markdown("**Nhật ký quyền**")
-            st.markdown(table(["Lúc", "Ai", "Việc", "Chi tiết"], [(r["at"], r["email"], r["action"], r["detail"]) for r in log],
-                              cls="team-table", empty="Chưa có thay đổi quyền nào"), unsafe_allow_html=True)
-        with c_b, D.card("team-gens"):
-            st.markdown("**Lượt gen gần đây**")
-            st.markdown(table(["Lúc", "Ai", "Loại", "Dự án", "Trạng thái"],
-                              [((r["created_at"] or "")[:16].replace("T", " "), r["who"], "video" if r["type"] == "video_gen" else "ảnh", r["name"],
-                                Raw(D.pill(r["state"], state_kind.get(r["state"], "mute")))) for r in gens],
-                              cls="team-table", empty="Chưa có lượt gen nào"), unsafe_allow_html=True)
+    if v2:                                  # P3: both logs live in one labelled expander, closed by default
+        with st.expander("🕘 Lịch sử hoạt động — nhật ký quyền (đổi quyền, thêm bớt người) và lượt gen gần đây", expanded=False):
+            _history_v2(log, gens)
         return
+    c_a, c_b = st.columns(2)
     with c_a:
         st.markdown("**Nhật ký quyền**")
         st.dataframe([{"Lúc": r["at"], "Ai": r["email"], "Việc": r["action"], "Chi tiết": r["detail"]} for r in log],

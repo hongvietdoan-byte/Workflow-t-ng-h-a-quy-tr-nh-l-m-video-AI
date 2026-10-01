@@ -117,6 +117,66 @@ class UiHomeTests(unittest.TestCase):
         self.assertIn("v2-pill", md)
 
 
+class SlimTests(unittest.TestCase):
+    """Lượt tinh gọn 01/10 (QUY_TAC §5): chi tiết vào ⓘ / expander có nhãn; ngoài chỉ P1 + một dòng tóm tắt."""
+    setUp = UiHomeTests.setUp
+    _md = UiHomeTests._md
+    _home = UiHomeTests._home
+
+    @staticmethod
+    def _in_info(at, text: str) -> bool:
+        """True when some ⓘ popover holds markdown containing `text`."""
+        return any(text in m.value for p in at.get("popover") for m in p.markdown)
+
+    def test_project_card_is_slim_and_details_are_in_its_info(self):
+        at = self._home()
+        md = self._md(at)
+        self.assertIn("home-sum", md)                                    # the ONE summary line
+        self.assertNotIn('class="home-note"', md)                                # autopilot note no longer outside
+        self.assertNotIn("Bước: ", md)                                   # the step pill is folded into the summary
+        self.assertTrue(self._in_info(at, "Người tạo:"))
+        for label in ("Người tạo:", "Tiến độ:", "Tiền:", "Chờ bạn:"):    # full details still there, inside the ⓘ
+            self.assertIn(label, md)
+
+    def test_scope_note_moved_into_info_beside_the_filters(self):
+        at = self._home()
+        self.assertTrue(self._in_info(at, "“Của tôi” = dự án bạn tạo"))
+        self.assertIn("“Của tôi” = dự án bạn tạo", self._md(at))
+        self.assertFalse(any("“Của tôi” = dự án bạn tạo" in c.value for c in at.caption))
+        self.assertFalse(any("tổng chi các dự án đang hiện" in c.value for c in at.caption))
+
+    def test_team_main_table_has_only_the_main_columns_rest_in_labelled_expander(self):
+        at = AppTest.from_file(APP, default_timeout=40)
+        at.session_state["step"] = "👥 Nhóm"
+        at.run()
+        self.assertFalse(at.exception, at.exception)
+        md = self._md(at)
+        main = [m.value for m in at.markdown if "Video (xong / gửi)" in m.value][0]
+        for gone in ("Giây video", "Lỗi · Gen lại", "Gần nhất"):
+            self.assertNotIn(gone, main)
+            self.assertIn(gone, md)                                      # …but they still exist (in the expander)
+        labels = {e.label: e for e in at.expander}
+        self.assertTrue(any("Chi tiết từng người" in k for k in labels))
+        self.assertTrue(any("Lịch sử hoạt động" in k for k in labels))
+        self.assertTrue(all(not e.proto.expanded for e in at.expander))
+        self.assertTrue(self._in_info(at, "Hạn mức chỉ để cảnh báo"))
+        self.assertTrue(self._in_info(at, "quyền lẻ vẫn ở"))
+        self.assertTrue(any(getattr(w, "key", None) == "team_new_email" for w in at.text_input))
+
+    def test_monitor_details_are_in_closed_expanders_and_ok_state_is_one_line(self):
+        at = AppTest.from_file(APP, default_timeout=40)
+        at.session_state["step"] = "📊 Theo dõi"
+        at.run()
+        self.assertFalse(at.exception, at.exception)
+        labels = [e.label for e in at.expander]
+        for want in ("Tải theo loại job", "Hiệu quả workflow", "Giám sát từng khâu", "Sự kiện lỗi/cảnh báo", "Báo cáo chẩn đoán"):
+            self.assertTrue(any(want in k for k in labels), want)
+        self.assertTrue(all(not e.proto.expanded for e in at.expander))
+        self.assertTrue(self._in_info(at, "AUTOPILOT_MAX_PARALLEL"))
+        self.assertNotIn("AUTOPILOT_MAX_PARALLEL</small>", self._md(at))  # internal codes no longer under the stats
+        self.assertFalse(any("PERF_MAX_ACTIVE" in c.value for c in at.caption))
+
+
 class FlagOffTests(unittest.TestCase):
     def test_flag_off_keeps_the_old_rows(self):
         tmp = tempfile.mkdtemp()
