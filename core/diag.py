@@ -227,7 +227,7 @@ def health(item: Dict) -> str:
 # ---- the report to paste into the chat ---------------------------------------------------------
 def report(conn, data_dir: str, extra: Optional[Dict] = None, hours: float = 24) -> str:
     lines = [f"# Báo cáo chẩn đoán — {datetime.now().strftime('%Y-%m-%d %H:%M')} (cửa sổ {hours:g}h)", ""]
-    env = {k: ("đã đặt" if os.environ.get(k) else "chưa đặt") for k in ("CLIPAI_TOKEN", "DEEPIX_TOKEN", "ANTHROPIC_API_KEY")}
+    env = {k: ("đã đặt" if os.environ.get(k) else "chưa đặt") for k in ("CLIPAI_TOKEN", "DEEPIX_TOKEN", "ANTHROPIC_API_KEY", "MESHY_API_KEY")}
     plain = {k: os.environ.get(k) or "-" for k in ("IMAGE_PROVIDER", "VIDEO_PROVIDER", "AUDIO_PROVIDER", "LLM_PROVIDER",
                                                     "AUTOPILOT_MAX_PARALLEL", "AUTOPILOT_DAILY_JOBS", "THROTTLE_START")}
     lines += ["## Cấu hình (không có giá trị bí mật)", "- Khóa: " + ", ".join(f"{k}: {v}" for k, v in env.items()),

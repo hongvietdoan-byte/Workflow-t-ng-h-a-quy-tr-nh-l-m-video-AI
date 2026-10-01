@@ -71,7 +71,7 @@ if (-not $env:FFMPEG_PATH -and -not (Get-Command ffmpeg -ErrorAction SilentlyCon
 
 # Keys saved once with setx live in the user's Windows environment. A launcher that was itself started earlier (an old window, another tool)
 # does not see them, so read them from the user's environment here. They are only passed to the dashboard process, never printed or written.
-foreach ($name in "CLIPAI_TOKEN", "DEEPIX_TOKEN", "ANTHROPIC_API_KEY") {
+foreach ($name in "CLIPAI_TOKEN", "DEEPIX_TOKEN", "ANTHROPIC_API_KEY", "MESHY_API_KEY") {
     if (-not [Environment]::GetEnvironmentVariable($name, "Process")) {
         $saved = [Environment]::GetEnvironmentVariable($name, "User")
         if ($saved) { [Environment]::SetEnvironmentVariable($name, $saved, "Process") }
