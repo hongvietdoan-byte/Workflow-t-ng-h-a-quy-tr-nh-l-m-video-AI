@@ -792,6 +792,8 @@ def compare_panel(p: Pipeline) -> None:
 
 def monitor(p: Pipeline, pid: int) -> None:
     """Load and performance of the whole system (all projects), to spot overload before it costs credit."""
+    if ui.v2_on():
+        return _monitor_v2(p, pid)
     mgr = autopilot_manager(C.DB, C.DATA)
     snap = perf.snapshot(p.conn, mgr.queue_length(), mgr.running_count(), mgr.max_parallel)
     ui.html(ui.card_title("📊 Theo dõi hiệu suất & tải hệ thống", "toàn bộ dự án, làm mới bằng nút bên phải"))
@@ -860,6 +862,90 @@ def monitor(p: Pipeline, pid: int) -> None:
     st.code(text, language="markdown")
     st.caption("Giám sát luôn chạy nền khi có thao tác gọi nhà cung cấp/Claude; ngưỡng: DIAG_STUCK_IMAGE_MIN, "
                "DIAG_STUCK_VIDEO_MIN, DIAG_QUEUED_MIN, DIAG_RETRY_WARN.")
+
+
+def _monitor_v2(p: Pipeline, pid: int) -> None:
+    """UI v2 (flag ui_v2): same data and controls as `monitor`, in cards / pills / v2-tables."""
+    from dashboard.design import components as D
+    from dashboard.design.screens.v2_tables import Raw, table
+    mgr = autopilot_manager(C.DB, C.DATA)
+    snap = perf.snapshot(p.conn, mgr.queue_length(), mgr.running_count(), mgr.max_parallel)
+    busy = sum(k["running"] + k["queued"] for k in snap["kinds"])
+    with D.hero("mon"):
+        st.markdown(D.hero_html("📊 Theo dõi hiệu suất & tải hệ thống", "Toàn bộ dự án — làm mới bằng nút bên dưới.",
+                                [("Quá tải", "bad") if snap["alerts"] else ("Chưa thấy quá tải", "ok")]), unsafe_allow_html=True)
+        c1, c2, c3, c4 = st.columns(4)
+        c1.markdown(D.stat("Dự án chạy tự động", f"{mgr.running_count()}/{mgr.max_parallel}", "AUTOPILOT_MAX_PARALLEL"), unsafe_allow_html=True)
+        c2.markdown(D.stat("Đang xếp hàng", str(mgr.queue_length())), unsafe_allow_html=True)
+        c3.markdown(D.stat("Job hôm nay", f"{snap['jobs_today']}/{snap['daily_limit'] or '∞'}", "AUTOPILOT_DAILY_JOBS (giờ UTC)"), unsafe_allow_html=True)
+        c4.markdown(D.stat("Job đang chạy/chờ", str(busy)), unsafe_allow_html=True)
+        if st.button("↻ Làm mới", key="perf_refresh"):
+            st.rerun()
+    compare_panel(p)
+    with D.card("mon-load"):
+        ui.html(ui.card_title("Tải theo loại job", "24 giờ qua"))
+        for msg in snap["alerts"]:
+            st.markdown(D.pill("Cảnh báo", "warn") + f" {escape(msg)}", unsafe_allow_html=True)
+        if not snap["alerts"]:
+            st.markdown(D.pill("Ổn", "ok") + " Chưa thấy dấu hiệu quá tải.", unsafe_allow_html=True)
+        rows = []
+        for k in snap["kinds"]:
+            total = k["ok_24h"] + k["failed_24h"]
+            rate = k["failed_24h"] / total if total else None
+            rows.append((dict(perf.KINDS)[k["kind"]], k["running"], k["queued"], k["ok_1h"], k["failed_1h"], k["ok_24h"], k["failed_24h"],
+                         Raw(D.pill(f"{rate:.0%}", "bad" if rate >= 0.3 else "warn" if rate >= 0.1 else "ok") if rate is not None else "-"),
+                         f"{k['avg_sec']:.0f}s" if k["avg_sec"] else "-",
+                         f"{k['recent_sec']:.0f}s / {k['earlier_sec']:.0f}s" if k["recent_sec"] and k["earlier_sec"] else "-"))
+        st.markdown(table(["Loại", "Đang chạy", "Chờ", "Xong 1h", "Lỗi 1h", "Xong 24h", "Lỗi 24h", "Tỉ lệ lỗi 24h", "Thời gian TB", "Gần đây / trước đó"],
+                          rows, cls="mon-table", num_cols=(1, 2, 3, 4, 5, 6)), unsafe_allow_html=True)
+        st.caption("Mức song song tự học (tăng dần khi chạy êm, giảm một nửa khi nhà cung cấp báo quá tải 429): " + "; ".join(
+            f"{dict(perf.KINDS)[k]}: {v['limit']} job cùng lúc, đã bị giới hạn {v['hits']} lần" for k, v in snap["learned"].items()))
+        if snap["usage_today"]:
+            st.caption("Dùng hôm nay: " + ", ".join(f"{q:g} {unit} ({kind})" for kind, unit, q in snap["usage_today"]))
+    with D.card("mon-effect"):
+        effectiveness_panel(p, pid)
+    st.caption("👥 Số video / tiền theo người dùng → màn **Nhóm**. 📁 Bảng tất cả dự án và 🎬 sản phẩm đã hoàn tất → màn **⌂ Tất cả dự án**. "
+               "Trang này chỉ giữ sức khỏe hệ thống: hàng đợi, tốc độ, lỗi, hiệu quả.")
+    st.caption("Ngưỡng cảnh báo chỉnh bằng biến môi trường: PERF_MAX_ACTIVE, PERF_FAIL_WARN, PERF_SLOW_WARN; "
+               "song song: AUTOPILOT_MAX_PARALLEL; trần ngày: AUTOPILOT_DAILY_JOBS. "
+               "Chưa đo thời gian gọi Claude (QC/motion).")
+
+    health_pill = {"🔴": ("Lỗi", "bad"), "🟡": ("Cảnh báo", "warn"), "🟢": ("Ổn", "ok")}
+    with D.card("mon-stages"):
+        ui.html(ui.card_title("🩺 Giám sát từng khâu", "lỗi, lỗi âm thầm và chỗ chưa trơn tru trong 24h qua"))
+        stages = diag.stage_table(p.conn)
+        dash = (lambda v: "-" if v is None else str(v))
+        st.markdown(table(["Tình trạng", "Khâu", "Job", "Xong", "Lỗi", "Gen lại", "Cảnh báo", "Lỗi ghi nhận"],
+                          [(Raw(D.pill(*health_pill.get(diag.health(s), ("Ổn", "ok")))), s["label"], dash(s["jobs"]), dash(s["ok"]), dash(s["failed"]),
+                            dash(s["retried"]), s["warn"], s["error"]) for s in stages], cls="mon-table", num_cols=(2, 3, 4, 5)),
+                    unsafe_allow_html=True)
+    with D.card("mon-findings"):
+        findings = diag.scan(p.conn, C.DATA, float(os.environ.get("AUTOPILOT_POLL_SEC", "15")))
+        st.markdown(f"**Vấn đề phát hiện ({len(findings)})** — gồm cả lỗi không ai báo (job kẹt, file mất, tiến trình chết, gen lại nhiều...)")
+        if not findings:
+            st.markdown(D.pill("Ổn", "ok") + " Chưa thấy vấn đề âm thầm.", unsafe_allow_html=True)
+        for f in findings[:30]:
+            st.markdown('<div class="mon-find">' + D.pill(diag.STAGE_LABEL.get(f["stage"], f["stage"]), "bad" if f["severity"] == "error" else "warn")
+                        + f" {escape(diag.redact(f['title']))}" + (f" — {escape(diag.redact(f['detail']))}" if f["detail"] else "") + "</div>",
+                        unsafe_allow_html=True)
+        if diag.lost():
+            st.warning(f"⚠ {diag.lost()} sự kiện chẩn đoán không ghi được vào CSDL (bận/lỗi) từ lúc mở Dashboard — xem file "
+                       "`data/manifest.sqlite.diag_lost.log`")
+        events = diag.recent(p.conn, 24, 40)
+        with st.expander(f"Sự kiện lỗi/cảnh báo gần đây ({len(events)})"):
+            st.markdown(table(["Giờ", "Mức", "Khâu", "Mã", "Lần", "Dự án", "Nội dung"],
+                              [(e["last_at"][11:19], Raw(D.pill(e["severity"], "bad" if e["severity"] == "error" else "warn")), e["stage"], e["code"] or "",
+                                e["count"], str(e["project_id"] or ""), e["message"]) for e in events], cls="mon-table", num_cols=(4,),
+                              empty="Chưa có sự kiện"), unsafe_allow_html=True)
+    with D.card("mon-report"):
+        text = diag.report(p.conn, C.DATA, {"Đang chạy/xếp hàng": f"{mgr.running_count()}/{mgr.queue_length()}",
+                                          "Mức song song tự học": {k: v["limit"] for k, v in snap["learned"].items()}})
+        st.markdown("**📋 Báo cáo chẩn đoán** — bấm nút copy ở góc khung dưới (hoặc tải file), dán vào chat để mình sửa. "
+                    "Đã che khóa/token và đường dẫn cá nhân.")
+        st.download_button("⬇ Tải báo cáo (.md)", text, file_name="bao_cao_chan_doan.md", key="diag_dl")
+        st.code(text, language=None)
+        st.caption("Giám sát luôn chạy nền khi có thao tác gọi nhà cung cấp/Claude; ngưỡng: DIAG_STUCK_IMAGE_MIN, "
+                   "DIAG_STUCK_VIDEO_MIN, DIAG_QUEUED_MIN, DIAG_RETRY_WARN.")
 
 
 def lessons_tab(p: Pipeline, pid: int) -> None:

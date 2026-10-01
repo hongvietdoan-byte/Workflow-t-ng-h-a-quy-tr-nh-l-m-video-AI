@@ -2,22 +2,34 @@
 from dashboard.common import *  # noqa: F401,F403  (shared imports + helpers)
 from dashboard import common as C
 from dashboard.widgets import dialogue_panel
+from contextlib import nullcontext
+
+
+def _card(key: str):
+    from dashboard.design import components
+    return components.card(key)
 
 
 def step3(p: Pipeline, pid: int):
     summ = lineage.summary(p.conn, pid)
     status = lineage.scan(p.conn, pid)
     approved_imgs = [r for r in status.values() if r["image_job_id"]]
-    step_header("Storyboard · Motion, giọng thoại & animatic", "viết cách chuyển động cho từng cảnh, làm giọng, xem nhịp — trước khi tốn credit video",
-                f"{summ['motion'][0]}/{summ['total']} prompt đã duyệt", summ["motion"][1])
-    from dashboard import next_step                                     # S9 E0.1
-    ui.html(next_step.band(p, pid, 3, C.DATA))
+    v2 = ui.v2_on()
     rows = p.conn.execute("SELECT s.id sid, s.idx, s.data, m.* FROM motion_prompts m JOIN scenes s ON s.id=m.scene_id"
                           " WHERE s.project_id=? ORDER BY s.idx", (pid,)).fetchall()
+    if v2:
+        from dashboard.design.screens import storyboard_cards as SB
+        SB.motion_hero(p, pid, summ, rows)
+    else:
+        step_header("Storyboard · Motion, giọng thoại & animatic", "viết cách chuyển động cho từng cảnh, làm giọng, xem nhịp — trước khi tốn credit video",
+                    f"{summ['motion'][0]}/{summ['total']} prompt đã duyệt", summ["motion"][1])
+    from dashboard import next_step                                     # S9 E0.1
+    if not v2:                                                            # v2: the shell header already shows the next step
+        ui.html(next_step.band(p, pid, 3, C.DATA))
     stale_idx = sorted(r["idx"] for r in status.values() if r["motion_stale"] and r["image_job_id"])
     missing = [r for r in approved_imgs if r["motion_state"] is None]
     client = llm_client()
-    with st.container(border=True):
+    with (_card("sb-mot-tools") if v2 else st.container(border=True)):
         c1, c2, c3 = st.columns([2.6, 2, 2], vertical_alignment="center")
         todo = len(missing) + len(stale_idx)
         calls = (1 if missing else 0) + (1 if stale_idx else 0)            # one Claude call per batch (all missing / all outdated)
@@ -59,11 +71,17 @@ def step3(p: Pipeline, pid: int):
         if motion_open:
             if not rows:
                 st.caption("Chưa có motion prompt: duyệt ảnh ở Bước 2 rồi bấm “🤖 Viết motion prompt”.")
+            voices = SB.scene_voice_map(p, pid) if v2 else {}
+            animatic_done = os.path.exists(os.path.join(C.DATA, str(pid), "output", "ANIMATIC.mp4")) if v2 else False
             for r in rows:
                 data = json.loads(r["data"] or "{}")
                 srow = status.get(r["sid"]) or {}
                 img_id = srow.get("image_job_id")
                 choice = model_router.scene_choice(p.conn, r["sid"])
+                scene_box = _card(f"sb-mot-{r['sid']}") if v2 else nullcontext()
+                scene_box.__enter__()
+                if v2:
+                    st.markdown(SB.motion_pills(r, srow, voices, bool(img_id), animatic_done), unsafe_allow_html=True)
                 c0, c1, c2, c3 = st.columns([1.2, 5, 1.4, 1.6], vertical_alignment="top")
                 with c0:
                     ui.html(f'<b>{C.unit_label(p, pid, r["idx"])}</b>' + (" ⭐" if data.get("shot_role") == "hero" else "")
@@ -98,7 +116,7 @@ def step3(p: Pipeline, pid: int):
                     else:
                         with st.container(border=True):
                             for issue in lint.get("issues") or []:
-                                st.markdown(f":orange[🔍 {escape(str(issue))}]")
+                                _warn(st, f"🔍 {issue}")
                             if lint.get("revised_prompt"):
                                 st.caption("Bản sửa đề xuất: " + lint["revised_prompt"])
                                 if st.button("Dùng bản sửa", key=f"lint_apply_{r['sid']}"):
@@ -123,7 +141,9 @@ def step3(p: Pipeline, pid: int):
                             act(lambda: p.set_motion_ref_video(r["sid"], dest, refer_type), "Đã gắn video tham chiếu")
                             st.rerun()
                 scene_expander(p, r["sid"])
-                st.divider()
+                scene_box.__exit__(None, None, None)
+                if not v2:
+                    st.divider()
 
 
 
@@ -221,7 +241,7 @@ def voice_panel(p: Pipeline, pid: int) -> None:
                 chk = e.get("check") or {}
                 b.caption(f"{(e.get('duration_ms') or 0) / 1000:.1f}s" + (" · ✔ đã kiểm" if chk.get("ok") else ""))
                 for prob in chk.get("problems") or []:
-                    b.markdown(f":orange[⚠ {escape(prob)}]")
+                    _warn(b, f"⚠ {prob}")
             else:
                 b.caption(ui.state_label(e["state"], "audio") + (f": {e.get('message')}" if e.get("message") else ""))
 
@@ -241,3 +261,10 @@ def animatic_panel(p: Pipeline, pid: int) -> None:
                 st.rerun()
         if os.path.exists(out):
             show_video(out)
+
+
+def _warn(target, text) -> None:
+    if ui.v2_on():
+        target.markdown(f'<span class="sb-warn">{escape(str(text))}</span>', unsafe_allow_html=True)
+    else:
+        target.markdown(f":orange[{escape(str(text))}]")

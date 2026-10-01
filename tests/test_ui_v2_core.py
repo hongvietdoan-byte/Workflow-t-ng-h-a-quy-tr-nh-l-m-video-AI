@@ -87,3 +87,19 @@ class FlagTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class InfoTests(unittest.TestCase):
+    def test_info_popover_and_summary_line_render_with_the_details_inside(self):
+        def app():
+            import streamlit as st
+            from dashboard.design import components as D
+            D.line("<b>3 khung cần duyệt</b>", "Chi tiết dài\n\n- khung 3\n- khung 5", key="demo")
+            with D.info("other"):
+                st.markdown("nội dung phụ")
+        at = AppTest.from_function(app, default_timeout=30).run()
+        self.assertFalse(at.exception, at.exception)
+        labels = [x.proto.popover.label for x in at.get("popover")]
+        self.assertEqual(labels.count("ⓘ"), 2)                      # the glyph is always visible text, never hover-only
+        self.assertTrue(any("khung cần duyệt" in m.value for m in at.markdown))
+        self.assertTrue(any("khung 5" in m.value for m in at.markdown))         # the details are in the popover, not dropped

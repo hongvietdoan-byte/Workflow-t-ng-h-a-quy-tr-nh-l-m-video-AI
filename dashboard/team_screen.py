@@ -4,7 +4,11 @@ Reads what already exists (core/perf.by_user, core/auth users + audit log) and a
 monthly limit (warning only), role presets (core/team.ROLES over the 5 permissions), invite by e-mail. Only the Owner changes people."""
 from dashboard.common import *  # noqa: F401,F403  (shared imports + helpers)
 from dashboard import common as C
+from contextlib import ExitStack
+
 from core import perf, team
+from dashboard.design import components as D
+from dashboard.design.screens.v2_tables import Raw, table
 
 PERIODS = {"Hôm nay": 1, "7 ngày": 7, "30 ngày": 30, "Tất cả": None}
 FILTERS = {"": "Tất cả", "over": "⚠ Gần hết hạn mức", "inact": "💤 Không hoạt động > 3 ngày", "owner": "Owner", "worker": "Người làm",
@@ -35,12 +39,46 @@ def people_rows(p: Pipeline, days) -> list:
     return out
 
 
+def _hero(slot, rows: list, period: str) -> None:
+    with slot:
+        with D.hero("team"):
+            st.markdown(D.hero_html("Nhóm", "Ai làm gì, tốn bao nhiêu, ai được làm gì."), unsafe_allow_html=True)
+            sc = st.columns(3)
+            sc[0].markdown(D.stat("Số người", str(len(rows)), f"{sum(1 for r in rows if r['user'])} có tài khoản"), unsafe_allow_html=True)
+            sc[1].markdown(D.stat(f"Video xong · {period}", str(sum(r["videos_ok"] for r in rows)),
+                                  f"{sum(r['videos'] for r in rows)} đã gửi · {sum(r['failed'] for r in rows)} lỗi"), unsafe_allow_html=True)
+            sc[2].markdown(D.stat(f"Tiền chi · {period}", f"{sum(r['usd'] for r in rows):.2f} USD", "ảnh + video + âm thanh có giá"),
+                           unsafe_allow_html=True)
+
+
+def _money_cell(r: dict) -> Raw:
+    html = f"<b>{r['usd']:.2f}</b> USD"
+    if r["limit"]:
+        html = f'<div class="team-money"><small>{r["usd"]:.2f} USD · hạn mức {r["limit"]:g}/tháng</small>' + D.meter(
+            r["share"] or 0.0, invert=True) + "</div>"
+        if (r["share"] or 0) >= team.LIMIT_WARN:
+            html += D.pill("gần hết hạn mức", "bad")
+    return Raw(html)
+
+
+def _people_table(shown: list) -> None:
+    kinds = {"owner": "info", "worker": "mute", "reviewer": "ok", "manager": "warn", "custom": "mute"}
+    rows = [(Raw(f'<span class="team-who" title="{escape(r["who"])}">{escape(r["who"])}</span>'), Raw(D.pill(r["role"], kinds.get(r["role_key"], "mute"))),
+             f"{r['videos_ok']} / {r['videos']}", f"{r['failed']} · {r['retry']}", f"{r['seconds']:g}", r["images"], _money_cell(r),
+             r["projects"], r["last"]) for r in shown]
+    st.markdown(table(["Người dùng", "Vai", "Video (xong / gửi)", "Lỗi · Gen lại", "Giây video", "Ảnh", "Tiền chi", "Dự án", "Gần nhất"], rows,
+                      cls="team-table", num_cols=(2, 3, 4, 5, 7), empty="Không có ai khớp bộ lọc"), unsafe_allow_html=True)
+
+
 def team_screen(p: Pipeline, pid: int):
     if not (me().get("role") == "owner" or allowed("monitor")):
         st.warning("Màn Nhóm dành cho Owner hoặc người có quyền “Theo dõi hiệu suất”.")
         return
     is_owner = me().get("role") == "owner"
-    st.markdown("### 👥 Nhóm")
+    v2 = ui.v2_on()
+    if not v2:
+        st.markdown("### 👥 Nhóm")
+    hero_slot = st.container() if v2 else None
     c1, c2, c3 = st.columns([1.4, 2.4, 2], vertical_alignment="center")
     period = c1.selectbox("Khoảng", list(PERIODS), index=1, label_visibility="collapsed", key="team_period")
     q = c2.text_input("Tìm", placeholder="🔎 Tìm người dùng…", label_visibility="collapsed", key="team_q").strip().lower()
@@ -49,10 +87,14 @@ def team_screen(p: Pipeline, pid: int):
     shown = [r for r in rows if (not q or q in r["who"].lower())
              and (not flt or (flt == "over" and r["share"] is not None and r["share"] >= team.LIMIT_WARN)
                   or (flt == "inact" and r["inactive"]) or r["role_key"] == flt)]
-    st.dataframe([{"Người dùng": r["who"], "Vai": r["role"], "Video (xong / gửi)": f"{r['videos_ok']} / {r['videos']}",
-                   "Lỗi · Gen lại": f"{r['failed']} · {r['retry']}", "Giây video": f"{r['seconds']:g}", "Ảnh": r["images"],
-                   "Tiền chi (USD)": round(r["usd"], 2), "Hạn mức/tháng": (f"{r['limit']:g} ({r['share']:.0%})" if r["limit"] else "—"),
-                   "Dự án": r["projects"], "Gần nhất": r["last"]} for r in shown], hide_index=True, width="stretch")
+    if v2:
+        _hero(hero_slot, rows, period)
+        _people_table(shown)
+    else:
+        st.dataframe([{"Người dùng": r["who"], "Vai": r["role"], "Video (xong / gửi)": f"{r['videos_ok']} / {r['videos']}",
+                       "Lỗi · Gen lại": f"{r['failed']} · {r['retry']}", "Giây video": f"{r['seconds']:g}", "Ảnh": r["images"],
+                       "Tiền chi (USD)": round(r["usd"], 2), "Hạn mức/tháng": (f"{r['limit']:g} ({r['share']:.0%})" if r["limit"] else "—"),
+                       "Dự án": r["projects"], "Gần nhất": r["last"]} for r in shown], hide_index=True, width="stretch")
     st.caption("Số liệu theo e-mail đăng nhập (đăng nhập tắt: theo tên tự khai). “Tiền chi” = ảnh + video + âm thanh có giá của job người đó gửi; "
                "tiền gọi Claude không gắn với người. **Hạn mức chỉ để cảnh báo** (hiện ở hộp 📥 của Owner khi ≥ 90 %), không chặn gửi — chặn thật là "
                "trần đợt thử và ngân sách khóa của dự án.")
@@ -65,6 +107,9 @@ def team_screen(p: Pipeline, pid: int):
     members = [r for r in rows if r["user"] and r["user"]["role"] != "owner"]
     labels = {k: v["label"] for k, v in team.ROLES.items()}
     labels["custom"] = "Tùy chỉnh (giữ nguyên)"
+    roles_box = ExitStack()
+    if v2:
+        roles_box.enter_context(D.card("team-roles"))
     for r in members:
         u = r["user"]
         cols = st.columns([2.4, 1.6, 1.1, 1.2, 1], vertical_alignment="center")
@@ -86,7 +131,8 @@ def team_screen(p: Pipeline, pid: int):
             else:
                 st.toast(f"Đã lưu {u['email']}")
                 st.rerun()
-    with st.container(border=True):
+    roles_box.close()
+    with (D.card("team-invite") if v2 else st.container(border=True)):
         st.markdown("**Mời người mới**")
         i1, i2, i3, i4 = st.columns([3, 1.6, 1.2, 1], vertical_alignment="bottom")
         email = i1.text_input("E-mail", key="team_new_email", placeholder="ten@garena.vn")
@@ -106,6 +152,19 @@ def team_screen(p: Pipeline, pid: int):
                           " FROM jobs j JOIN projects pr ON pr.id=j.project_id WHERE j.type IN ('image_gen','video_gen')"
                           " ORDER BY j.id DESC LIMIT 15").fetchall()
     c_a, c_b = st.columns(2)
+    if v2:
+        state_kind = {"succeeded": "ok", "failed": "bad", "running": "info", "queued": "mute"}
+        with c_a, D.card("team-audit"):
+            st.markdown("**Nhật ký quyền**")
+            st.markdown(table(["Lúc", "Ai", "Việc", "Chi tiết"], [(r["at"], r["email"], r["action"], r["detail"]) for r in log],
+                              cls="team-table", empty="Chưa có thay đổi quyền nào"), unsafe_allow_html=True)
+        with c_b, D.card("team-gens"):
+            st.markdown("**Lượt gen gần đây**")
+            st.markdown(table(["Lúc", "Ai", "Loại", "Dự án", "Trạng thái"],
+                              [((r["created_at"] or "")[:16].replace("T", " "), r["who"], "video" if r["type"] == "video_gen" else "ảnh", r["name"],
+                                Raw(D.pill(r["state"], state_kind.get(r["state"], "mute")))) for r in gens],
+                              cls="team-table", empty="Chưa có lượt gen nào"), unsafe_allow_html=True)
+        return
     with c_a:
         st.markdown("**Nhật ký quyền**")
         st.dataframe([{"Lúc": r["at"], "Ai": r["email"], "Việc": r["action"], "Chi tiết": r["detail"]} for r in log],

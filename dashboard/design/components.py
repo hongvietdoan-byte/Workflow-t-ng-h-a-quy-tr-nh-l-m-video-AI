@@ -78,3 +78,50 @@ def card(key: str):
 def hero(key: str):
     with st.container(key=f"hero-{key}") as c:
         yield c
+
+
+class Raw(str):
+    """Pre-built, already-escaped HTML (pills, meters) to put inside a `table()` cell."""
+
+
+def _cell(v) -> str:
+    return str(v) if isinstance(v, Raw) else escape("" if v is None else str(v))
+
+
+def table(headers, rows, cls: str = "", num_cols=(), empty: str = "Chưa có dữ liệu") -> str:
+    """`v2-table` HTML (follows light/dark). Cells are escaped unless wrapped in `Raw`; `num_cols` = column indexes aligned right."""
+    head = "".join(f"<th{' class=num' if i in num_cols else ''}>{escape(h)}</th>" for i, h in enumerate(headers))
+    body = []
+    for r in rows:
+        body.append("<tr>" + "".join(f"<td{' class=num' if i in num_cols else ''}>{_cell(v)}</td>" for i, v in enumerate(r)) + "</tr>")
+    if not body:
+        body.append(f'<tr><td colspan="{len(headers)}" style="color:var(--muted)">{escape(empty)}</td></tr>')
+    wrap = (cls.split()[0] + "wrap") if cls else ""
+    return f'<div class="{wrap}"><table class="v2-table {escape(cls)}"><tr>{head}</tr>{"".join(body)}</table></div>'
+
+
+# ---- progressive disclosure (người dùng 01/10): chi tiết ưu tiên thấp nằm trong dấu ⓘ, bên ngoài chỉ tóm tắt ------------------------------
+@contextmanager
+def info(key: str, label: str = "ⓘ", help_text: str = "Xem chi tiết"):
+    """A small ⓘ button that opens a popover with the details; put the long text / lists / secondary controls inside it:
+
+        with D.info("sb-3-why"):
+            st.markdown("…long explanation…")
+
+    Priority rule (docs/QUY_TAC_BO_CUC_UI_V2.md §5): P1 state + the main action stay visible; P2 gets ONE summary line; P3 goes in ⓘ;
+    P4 (rarely useful) is not shown at all. The button always has the visible glyph "ⓘ" (never hover-only); click or keyboard opens it."""
+    with st.container(key=f"info-{key}"):
+        with st.popover(label, help=help_text) as p:
+            yield p
+
+
+def line(text_html: str, details_md: str = "", key: str = "") -> None:
+    """One summary line (HTML already escaped by the caller, e.g. made with pill()/escape) + a ⓘ with `details_md` when given."""
+    if details_md and key:
+        c1, c2 = st.columns([12, 1], vertical_alignment="center")
+        c1.markdown(text_html, unsafe_allow_html=True)
+        with c2:
+            with info(key):
+                st.markdown(details_md)
+    else:
+        st.markdown(text_html, unsafe_allow_html=True)

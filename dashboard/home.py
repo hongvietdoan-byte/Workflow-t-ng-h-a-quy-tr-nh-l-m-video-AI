@@ -5,10 +5,14 @@ right screen. Data: core/perf.portfolio_rows + project_budget + core/team (prese
 from dashboard.common import *  # noqa: F401,F403  (shared imports + helpers)
 from dashboard import common as C
 from core import archive, project_budget, team
+from dashboard.design import components as D
 
 STATUS = {"err": "🔴 Lỗi", "wait": "🖐 Chờ bạn", "run": "🚀 Đang chạy", "pause": "⏸ Tạm dừng", "done": "✔ Xong", "idle": "· Chưa chạy"}
 STEP_SCREEN = {0: "script", 1: "storyboard", 2: "storyboard", 3: "video", 4: "deliver", 5: "deliver"}
 STEP_NAME = {"script": "Kịch bản", "storyboard": "Storyboard", "video": "Video", "deliver": "Bản giao"}
+PILL = {"err": ("Lỗi", "bad"), "wait": ("Chờ bạn", "warn"), "run": ("Đang chạy", "info"), "pause": ("Tạm dừng", "mute"),
+        "done": ("Xong", "ok"), "idle": ("Chưa chạy", "mute")}                       # v2: the same states as STATUS, as pills
+GRID_COLS = 3
 SORTS = {"wait": "Cần bạn trước", "new": "Mới nhất", "cost": "Tốn nhiều nhất"}
 
 
@@ -78,8 +82,68 @@ def apply_filters(rs: list, scope: str, q: str, status: str, step: str, creator:
     return out
 
 
+def progress_of(r: dict) -> float:
+    total = max(r["scenes"], 1)
+    return min((r["images"] + r["motion"] + r["videos"]) / (3 * total), 1.0) if r["scenes"] else 0.0
+
+
+def tags_of(r: dict) -> list:
+    if not r["mine"]:
+        return ["của " + r["creator"].split("@")[0]]
+    return ["của bạn"] if auth_on() else []
+
+
+def _card(r: dict) -> None:
+    """v2: one project = one glass card with ONE open button."""
+    label, kind = PILL[r["status"]]
+    with D.card(f"home-{r['id']}"):
+        st.markdown(f'<div class="home-name" title="{escape(r["name"])}">#{r["id"]} {escape(r["name"])}</div>', unsafe_allow_html=True)
+        chips = D.pill(label, kind, running=r["status"] == "run")
+        if tags_of(r):
+            chips += " " + D.pill(" · ".join(tags_of(r)), "mute")
+        if r["open_by"]:
+            chips += " " + D.pill("🔒 " + ", ".join(x.split("@")[0] for x in r["open_by"]) + " đang mở", "info")
+        st.markdown(chips, unsafe_allow_html=True)
+        st.markdown(D.meter(progress_of(r), f"{r['step_label']} · ảnh {r['images']}/{r['scenes']} · clip {r['videos']}/{r['scenes']}"),
+                    unsafe_allow_html=True)
+        if r["cap"]:
+            st.markdown(D.meter(r["spent"] / r["cap"], f"Tiền {r['spent']:.2f} / {r['cap']:.2f} USD", invert=True), unsafe_allow_html=True)
+        else:
+            st.markdown(f'<div class="home-sub">Tiền {r["spent"]:.2f} / — USD (chưa khóa trần)</div>', unsafe_allow_html=True)
+        st.markdown(D.pill(f"Chờ bạn: {r['needs_review']}", "warn" if r["needs_review"] else "mute")
+                    + " " + D.pill("Bước: " + STEP_NAME.get(r["screen"], r["screen"]), "mute"), unsafe_allow_html=True)
+        note = (r["autopilot_note"] or "")[:110] if r["status"] in ("wait", "run") else ""
+        st.markdown(f'<div class="home-note" title="{escape(note)}">' + (("🚀 " + escape(note)) if note else "&nbsp;") + "</div>",
+                    unsafe_allow_html=True)
+        st.button("Mở →", key=f"home_open_{r['id']}", on_click=C.go_screen, args=(r["id"], r["screen"]), width="stretch",
+                  type="primary" if r["status"] == "wait" and r["mine"] else "secondary")
+
+
+def _grid(shown: list) -> None:
+    for i in range(0, len(shown), GRID_COLS):
+        for col, r in zip(st.columns(GRID_COLS), shown[i:i + GRID_COLS]):
+            with col:
+                _card(r)
+
+
+def _hero(slot, shown: list, allrows: list) -> None:
+    with slot:
+        with D.hero("home"):
+            st.markdown(D.hero_html("Tất cả dự án", "Mọi dự án đang dùng trên một trang — bấm “Mở →” để vào đúng màn đang chờ."),
+                        unsafe_allow_html=True)
+            sc = st.columns(4)
+            sc[0].markdown(D.stat("Số dự án", f"{len(shown)} / {len(allrows)}", "đang hiện / tất cả"), unsafe_allow_html=True)
+            sc[1].markdown(D.stat("Đang chạy", str(sum(1 for r in shown if r["status"] == "run"))), unsafe_allow_html=True)
+            sc[2].markdown(D.stat("Chờ bạn", str(sum(1 for r in shown if r["status"] == "wait")),
+                                  f"{sum(r['needs_review'] for r in shown)} mục cần duyệt"), unsafe_allow_html=True)
+            sc[3].markdown(D.stat("Tổng chi", f"{sum(r['spent'] for r in shown):.2f} USD", "các dự án đang hiện"), unsafe_allow_html=True)
+
+
 def home(p: Pipeline, pid: int):
-    st.markdown("### ⌂ Tất cả dự án")
+    v2 = ui.v2_on()
+    if not v2:
+        st.markdown("### ⌂ Tất cả dự án")
+    hero_slot = st.container() if v2 else None
     who = me()
     email = who.get("email", "") if auth_on() else ""
     is_owner = who.get("role") == "owner"
@@ -113,6 +177,17 @@ def home(p: Pipeline, pid: int):
     if not shown:
         st.info("Không có dự án nào khớp bộ lọc.")
         return
+    if v2:
+        _hero(hero_slot, shown, allrows)
+        _grid(shown)
+    else:
+        _rows(shown)
+    _finished(shown)
+    st.caption("“Của tôi” = dự án bạn tạo. Dự án của người khác mở được để xem; chỉ thao tác (duyệt, gen) khi chủ dự án nhờ hoặc bạn là Owner — hệ thống ghi tên người gửi mỗi job. 🔒 = người đó vừa "
+               "mở dự án (trong 2 phút) — chỉ báo để hai người không duyệt chồng nhau, không khóa.")
+
+
+def _rows(shown: list) -> None:
     head = st.columns([2.6, 1.3, 2, 1.5, 0.9, 1.4], vertical_alignment="center")
     for c, t in zip(head, ["Dự án", "Trạng thái", "Tiến độ", "Tiền / trần", "Chờ bạn", ""]):
         c.caption(t.upper())
@@ -137,6 +212,9 @@ def home(p: Pipeline, pid: int):
                     type="primary" if r["status"] == "wait" and r["mine"] else "secondary")
         if r["autopilot_note"] and r["status"] in ("wait", "run"):
             c[0].caption("🚀 " + r["autopilot_note"][:110])
+
+
+def _finished(shown: list) -> None:
     finished = [r for r in shown if r["done"] and r["final_video"] and os.path.exists(r["final_video"])]
     if finished:
         with st.expander(f"🎬 Sản phẩm đã hoàn tất ({len(finished)})", expanded=False):
@@ -145,5 +223,3 @@ def home(p: Pipeline, pid: int):
                 show_video(r["final_video"], "Nhỏ")
                 with open(r["final_video"], "rb") as f:
                     st.download_button("⬇ Tải FINAL_VIDEO.mp4", f, file_name=f"{r['name']}_FINAL_VIDEO.mp4", key=f"home_dl_{r['id']}")
-    st.caption("“Của tôi” = dự án bạn tạo. Dự án của người khác mở được để xem; chỉ thao tác (duyệt, gen) khi chủ dự án nhờ hoặc bạn là Owner — hệ thống ghi tên người gửi mỗi job. 🔒 = người đó vừa "
-               "mở dự án (trong 2 phút) — chỉ báo để hai người không duyệt chồng nhau, không khóa.")

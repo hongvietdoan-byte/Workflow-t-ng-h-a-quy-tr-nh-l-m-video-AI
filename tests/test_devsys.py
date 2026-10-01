@@ -574,3 +574,24 @@ class AppTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class PlanFocusTests(unittest.TestCase):
+    """01/10: "Đợt ưu tiên: S13" in the plan file makes that wave the current one (the default picks the first unfinished wave)."""
+    PLAN = ("> Đợt ưu tiên: {focus}\n### S7 — A\n- [x] S7.1 · a · nặng:1 · ✅\n- [ ] S7.2 · b · nặng:1 · 🔄\n"
+            "### S13 — B\n- [ ] S13.1 · c · nặng:1 · 🔄\n- [ ] S13.2 · d · nặng:1 · ⬜\n")
+
+    def test_focus_wave_wins_while_unfinished(self):
+        from devsys import plan_progress
+        plan = plan_progress.parse(self.PLAN.format(focus="S13"))
+        self.assertEqual(plan["focus"], "S13")
+        self.assertEqual(plan_progress.summary(plan)["current"], "S13")
+        self.assertEqual(plan_progress.summary(plan)["next"]["id"], "S13.2")
+
+    def test_no_line_or_a_finished_wave_falls_back_to_the_first_unfinished(self):
+        from devsys import plan_progress
+        plan = plan_progress.parse(self.PLAN.replace("> Đợt ưu tiên: {focus}\n", ""))
+        self.assertIsNone(plan["focus"])
+        self.assertEqual(plan_progress.summary(plan)["current"], "S7")
+        done = plan_progress.parse(self.PLAN.format(focus="S7").replace("🔄\n### S13", "✅\n### S13"))
+        self.assertEqual(plan_progress.summary(done)["current"], "S13")        # S7 finished → the focus no longer applies
