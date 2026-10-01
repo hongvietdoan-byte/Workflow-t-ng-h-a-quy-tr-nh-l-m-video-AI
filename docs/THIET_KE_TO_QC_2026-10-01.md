@@ -495,3 +495,16 @@ C1 + luật code) ≈ 0,02 / khung — là cấu hình được code ở GĐ2 v�
   ra nhờ chạy khô (báo mâu thuẫn thừa với tên người ngoài khung; không chọn được mặt khi khung 2 mặt) — đã sửa + test.
 - **Chờ:** (a) GĐ3 đo C1 trên bộ phát triển ≈ 0,86 USD (ước tính, hỏi trước); (b) người dùng gắn nhãn Google Sheet → bộ độc lập.
 - **Người dùng 01/10 (sau GĐ2):** duyệt GĐ3 (≈ 0,86 USD); yêu cầu dùng các tầng miễn phí lọc trước 134 khung bộ độc lập (nhiều khung cũ lỗi rõ) và thêm phần tích chọn nhãn ngay trên trang xem ảnh thay vì chỉ Google Sheet — giao session sau (TODO.md mục 01/10 BÀN GIAO).
+
+**01/10 — Lọc trước bộ độc lập bằng tầng miễn phí (việc 2 bàn giao, 0 USD):** `tools/experiments/qc_prefilter.py` (CSDL chỉ đọc; test
+`tests/test_qc_prefilter.py` 10). 134 khung dựng lại từ CSDL = ảnh `image_gen` của #1 #2 #3 #4 #7 #10 #11 #12 #13 (kể cả thùng rác), bỏ 4 job
+hủy — khớp số 134 của Sheet (id `P<dự án>-J<job>`). Mỗi khung: tầng 0 (khung một màu, số mặt so bảng shot, hướng mắt chắc chắn sai, dải trời
+so giờ) + bảng shot tự mâu thuẫn + lịch sử có sẵn trong `review_log` phân theo nguồn: **người** (độ tin cao) · **người bấm theo QC đồng bộ**
+(ghi chú "Đồng bộ cả bộ:" do QC Claude viết, người bấm gen lại — vừa) · **phiên vận hành** (vừa / thấp) · **[thử tự động]** và **QC tự động
+cũ** (thấp). Loại lỗi lấy theo từ khóa xuất hiện SỚM NHẤT trong ghi chú (bỏ mệnh đề "Keep …"). Điểm `qc_results` cũ chỉ in kèm, không dùng
+gợi ý. Ra `data/qc_golden/prefilter.json` + `prefilter.csv` (ngoài git — chạy lại ≈ 1 phút).
+- **Kết quả:** gợi ý **Chặn 58** (cao 17 · vừa 15 · thấp 26) — Nhân vật 30, Bối cảnh / kiến trúc 17, Kỹ thuật 4, Liền mạch / ánh sáng 4,
+  Hướng nhìn 1, Khác 2; **Đạt 52** (vừa 8 · thấp 44); **để trống 24** (8 có cờ tầng 0 nghi: 3 mặt / 1 người, cận mà không thấy mặt, trời tối
+  trong cảnh ban ngày; 16 không có bằng chứng miễn phí — chủ yếu #10, #11, #13 S4·1–5 bản sau). Tầng 0 KHÔNG có phát hiện "chắc chắn" nào
+  trên 134 khung (không khung trống, không hướng mắt chắc chắn sai) — gợi ý chủ yếu đến từ quyết định cũ; người dùng vẫn phải xác nhận.
+- **Việc kế (3):** đưa gợi ý vào trang xem ảnh có tích nhãn.
