@@ -144,3 +144,61 @@ ul[role="listbox"] { background: var(--raised) !important; }
 /* nhãn ô tick không bị cắt "…" (đề nghị lane E) + bỏ mũi tên của nút ⓘ (Streamlit vẽ bằng icon vật liệu, không phải svg) */
 [data-testid="stCheckbox"] label, [data-testid="stCheckbox"] label p { white-space: normal !important; text-overflow: clip !important; overflow: visible !important; }
 [class*="st-key-info-"] [data-testid="stPopoverButton"] [data-testid="stIconMaterial"], [class*="st-key-info-"] [data-testid="stPopoverButton"] span[class*="Icon"] { display: none !important; }
+
+/* ── rà soát sáng/tối 02/10 (docs/RA_SOAT_UI_V2_SANG_TOI_2026-10-02.md) ──
+   Gốc: Streamlit vẽ hộp thoại st.dialog, menu chọn, tooltip ở CỔNG (portal) NGOÀI .stApp, nền/màu chữ lấy theo theme gốc
+   .streamlit/config.toml (base = light). Ở chế độ tối các cổng này vẫn nền sáng → chữ var(--text) sáng trên nền trắng = tàng hình
+   (tiêu đề mục gập, ô chọn có mũi tên ▾, nhãn ô nhập trong ⚙ → Kho tài nguyên / Tính năng thử …). Sửa tận gốc: body + hộp thoại nhận token. */
+body { background: var(--bg); color: var(--text); }
+[data-testid="stDialog"] > div { background: var(--raised) !important; color: var(--text) !important; border: 1.5px solid var(--border) !important;
+    border-radius: var(--r-lg) !important; box-shadow: var(--shadow); }
+[data-testid="stDialog"] section[role="dialog"], [data-testid="stDialog"] section[role="dialog"] :is(p, li, label, h1, h2, h3, h4, summary) { color: var(--text); }
+[data-testid="stDialog"] [data-testid="stCaptionContainer"], [data-testid="stDialog"] [data-testid="stCaptionContainer"] p { color: var(--muted); }
+[data-testid="stDialog"] [aria-label="Close"] { color: var(--text) !important; }
+/* mục gập (st.expander) — một luật cho MỌI nơi (trang, hộp thoại, popover): tiêu đề luôn màu chữ chính trên nền thẻ ở cả 4 trạng thái
+   (thường / rê chuột / mở / đóng); rê chuột chỉ đổi viền + nền nhấn nhẹ, không đổi màu chữ thành màu nhấn (trước: chữ = --primary khi rê). */
+[data-testid="stExpander"] details { background: var(--glass) !important; }
+[data-testid="stExpander"] summary { background: var(--surface) !important; color: var(--text) !important; border-radius: var(--r-md); }
+[data-testid="stExpander"] summary:hover, [data-testid="stExpander"] summary:focus-visible { background: var(--raised) !important; color: var(--text) !important;
+    box-shadow: inset 0 0 0 1.5px var(--primary); }
+[data-testid="stExpander"] summary :is(p, span, div), [data-testid="stExpander"] summary [data-testid="stIconMaterial"] { color: var(--text) !important; opacity: 1 !important; }
+[data-testid="stExpander"] details[open] > summary { border-bottom: 1px solid var(--border-soft); border-radius: var(--r-md) var(--r-md) 0 0; }
+[data-testid="stExpander"] [data-testid="stExpanderDetails"] { color: var(--text); }
+/* ô chọn (selectbox ▾) + ô nhập: giá trị + nhãn đọc được ở mọi nơi */
+[data-baseweb="select"] > div { background: var(--surface) !important; border-color: var(--border) !important; }
+[data-baseweb="select"] :is(div, span, input):not([data-baseweb="tag"], [data-baseweb="tag"] *) { color: var(--text) !important; }
+[data-baseweb="select"] [data-baseweb="tag"] { background: var(--primary-soft) !important; border: 1px solid var(--primary); }
+[data-baseweb="select"] [data-baseweb="tag"] :is(span, div) { color: var(--text) !important; }
+[data-baseweb="select"] svg, [data-testid="stPopoverButton"] [data-testid="stIconMaterial"] { color: var(--text) !important; fill: currentColor; }
+label[data-testid="stWidgetLabel"] p { color: var(--text) !important; }
+[data-baseweb="popover"] [role="listbox"], [data-baseweb="popover"] ul, [data-baseweb="menu"] { background: var(--raised) !important; }
+[data-baseweb="popover"] li, [data-baseweb="popover"] [role="option"] { color: var(--text) !important; }
+[data-baseweb="popover"] [role="option"][aria-selected="true"], [data-baseweb="popover"] li:hover { background: var(--primary-soft) !important; }
+/* chú thích: Streamlit tự đặt opacity .6 cho một số st.caption → màu --muted (đã ≥ 4.5:1) bị mờ thêm còn ~3:1 */
+[data-testid="stCaptionContainer"] { opacity: 1 !important; }
+/* viên chọn (radio dạng pill: Ai duyệt, lọc, mức tự động, trạng thái ⌂): nền gradient (chữ trắng ≥ 4.5:1 ở mọi điểm dừng);
+   trước: nền --primary #8F7BFF ở chế độ tối + chữ trắng = 3.3:1 */
+:is([class*="st-key-mode_"], [class*="st-key-filter_"], [class*="st-key-level_"], [class*="st-key-home_status"]) label[data-testid="stRadioOption"][data-selected="true"] {
+    background: var(--grad-primary) !important; border-color: transparent !important; }
+:is([class*="st-key-mode_"], [class*="st-key-filter_"], [class*="st-key-level_"], [class*="st-key-home_status"]) label[data-testid="stRadioOption"][data-selected="true"] p { color: #fff !important; }
+/* hộp báo st.info / st.warning / st.error / st.success: chữ theo token (màu chữ gốc của theme sáng xanh/đỏ đậm → chìm trên nền tối) */
+[data-testid="stAlert"] [data-testid="stAlertContainer"] { background: var(--glass-strong) !important; border: 1.5px solid var(--border-soft); }
+[data-testid="stAlert"] :is(p, li, span, div, [data-testid="stMarkdownContainer"]) { color: var(--text) !important; }
+[data-testid="stAlertContentInfo"] { border-left: 4px solid var(--info); padding-left: 10px; }
+[data-testid="stAlertContentWarning"] { border-left: 4px solid var(--warn); padding-left: 10px; }
+[data-testid="stAlertContentError"] { border-left: 4px solid var(--bad); padding-left: 10px; }
+[data-testid="stAlertContentSuccess"] { border-left: 4px solid var(--ok); padding-left: 10px; }
+/* bảng st.dataframe / st.data_editor vẽ bằng canvas theo theme gốc (luôn sáng) → ở chế độ tối đảo màu cả bảng (token --canvas-filter;
+   sáng = none). Bảng quan trọng vẫn nên dùng components.table (HTML theo token) — đây là lưới an toàn cho các panel admin còn lại. */
+[data-testid="stDataFrame"], [data-testid="stDataEditor"] { filter: var(--canvas-filter); }
+/* chữ màu cũ :red[] :orange[] :green[] :blue[] :violet[] :gray[] :yellow[] — Streamlit ghi màu theme sáng vào style nội dòng
+   (cam #E2660C = 3.4:1 trên nền trắng; xám #31333F gần như tàng hình trên nền tối, kể cả qua bộ lọc sáng 1.9 của css cũ) → đổi sang token
+   đã kiểm tương phản ở cả 2 nền, bỏ bộ lọc. Bám giá trị màu của Streamlit 1.64 (đổi phiên bản Streamlit → kiểm lại bằng ui_contrast_audit.js). */
+.stMarkdownColoredText[style*="rgb(189, 64, 67)"] { color: var(--bad) !important; filter: none !important; }
+.stMarkdownColoredText[style*="rgb(226, 102, 12)"], .stMarkdownColoredText[style*="rgb(146, 108, 5)"] { color: var(--warn) !important; filter: none !important; }
+.stMarkdownColoredText[style*="rgb(21, 130, 55)"] { color: var(--ok) !important; filter: none !important; }
+.stMarkdownColoredText[style*="rgb(0, 84, 163)"] { color: var(--info) !important; filter: none !important; }
+.stMarkdownColoredText[style*="rgb(88, 63, 132)"] { color: var(--primary) !important; filter: none !important; }
+.stMarkdownColoredText[style*="rgb(49, 51, 63)"] { color: var(--muted) !important; filter: none !important; }
+/* nút gửi form (st.form_submit_button): chữ theo màu nút (trước: chữ trắng trên nền trắng trong hộp thoại tối) */
+[data-testid="stBaseButton-secondaryFormSubmit"] p { color: inherit !important; }

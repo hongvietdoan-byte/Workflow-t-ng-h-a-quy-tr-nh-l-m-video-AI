@@ -35,6 +35,19 @@ class TokenTests(unittest.TestCase):
         self.assertNotIn("st-emotion-cache", css)                 # emotion class names change with every Streamlit version
         self.assertNotRegex(css, r"font-size:\s*(\d|1[01])(\.\d+)?px")      # nothing under 12 px
 
+    def test_portals_and_folds_follow_the_theme(self):
+        """Rà soát 02/10: hộp thoại st.dialog / menu nằm ngoài .stApp (cổng) → phải nhận token, nếu không ở nền tối chữ sáng nằm trên
+        nền sáng = tàng hình (tiêu đề mục gập, ô chọn ▾, nhãn trong ⚙ → Kho tài nguyên / Tính năng thử)."""
+        path = os.path.join(os.path.dirname(__file__), "..", "dashboard", "design", "theme.css")
+        css = open(path, encoding="utf-8").read()
+        self.assertRegex(css, r"body\s*\{[^}]*background:\s*var\(--bg\)[^}]*color:\s*var\(--text\)")
+        self.assertRegex(css, r'\[data-testid="stDialog"\] > div\s*\{[^}]*background:\s*var\(--raised\)')
+        self.assertRegex(css, r'\[data-testid="stExpander"\] summary:hover[^{]*\{[^}]*color:\s*var\(--text\)')
+        self.assertRegex(css, r'\[data-testid="stCaptionContainer"\]\s*\{\s*opacity:\s*1')
+        self.assertIn("filter: var(--canvas-filter)", css)
+        self.assertEqual(tokens.LIGHT["canvas-filter"], "none")
+        self.assertIn("invert", tokens.DARK["canvas-filter"])
+
 
 class ComponentTests(unittest.TestCase):
     def test_everything_user_supplied_is_escaped(self):
