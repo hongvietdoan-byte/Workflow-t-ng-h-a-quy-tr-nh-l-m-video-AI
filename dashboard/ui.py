@@ -215,7 +215,12 @@ def _v2_css(dark: bool) -> str:
     if _V2_CACHE["stamp"] != stamp:
         with open(path, encoding="utf-8") as f:
             _V2_CACHE.update(stamp=stamp, css=f.read())
-    return "<style>" + tokens.css_vars("dark" if dark else "light") + _V2_CACHE["css"] + "</style>"
+    import glob
+    screens = ""
+    for f in sorted(glob.glob(os.path.join(os.path.dirname(__file__), "design", "screens", "*.css"))):   # one file per lane/screen (S13)
+        with open(f, encoding="utf-8") as fh:
+            screens += "\n/* " + os.path.basename(f) + " */\n" + fh.read()
+    return "<style>" + tokens.css_vars("dark" if dark else "light") + _V2_CACHE["css"] + screens + "</style>"
 
 
 def inject_css() -> None:
