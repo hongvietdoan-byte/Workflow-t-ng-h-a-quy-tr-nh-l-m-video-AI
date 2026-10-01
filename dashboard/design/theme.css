@@ -125,3 +125,8 @@ ul[role="listbox"] { background: var(--raised) !important; }
 [data-testid="stCode"], [data-testid="stCode"] pre, [data-testid="stCode"] code { background: var(--surface) !important; color: var(--text) !important; }
 [data-testid="stCode"] span { color: var(--text) !important; }
 .v2-stat { min-height: 84px; }
+
+/* nút bị khóa đọc được (đề nghị nhánh F): chữ --disabled ≥ 3:1, viền đứt, nút chính khóa mất gradient */
+[data-testid="stBaseButton-secondary"]:disabled, [data-testid="stPopoverButton"]:disabled { color: var(--disabled) !important; border-style: dashed !important; opacity: 1 !important; }
+[data-testid="stBaseButton-primary"]:disabled { background: var(--glass-strong) !important; color: var(--disabled) !important; box-shadow: none !important; border: 1.5px dashed var(--border) !important; opacity: 1 !important; }
+.v2-warn-text { color: var(--warn); font-weight: 600; }
