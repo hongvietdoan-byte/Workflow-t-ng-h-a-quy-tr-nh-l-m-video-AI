@@ -90,7 +90,21 @@
     }
   };
 
-  const doPage = () => record('trang hiện tại' + (ROOT ? ' [' + ROOT + ']' : ''), scan(rootEl()));
+  // Tooltip tự vẽ (.v2-tip / .v2-tip-anchor[data-tip]::after): chữ là pseudo-element nên scan() không thấy → đọc style của ::after (--text trên --raised)
+  // và kiểm mép phải (tooltip rộng tối đa min(320px, 78vw), neo ở mép trái của nhãn).
+  const doTips = (name) => {
+    const els = [...document.querySelectorAll('.v2-tip[data-tip], .v2-tip-anchor[data-tip]')].filter(e => e.getBoundingClientRect().width > 0);
+    if (!els.length) return;
+    let worst = 99, over = 0, tipBg = '';
+    els.forEach(e => {
+      const a = getComputedStyle(e, '::after'); const fg = parse(a.color), bg = parse(a.backgroundColor); if (!fg || !bg) return;
+      const mix = fg.c.map((v, i) => v * fg.a + bg.c[i] * (1 - fg.a));
+      const r = (Math.max(lum(mix), lum(bg.c)) + 0.05) / (Math.min(lum(mix), lum(bg.c)) + 0.05); worst = Math.min(worst, r); tipBg = a.backgroundColor;
+      if (e.getBoundingClientRect().left + Math.min(320, innerWidth * 0.78) > innerWidth - 4) over++;
+    });
+    lines.push(`    tooltip ${name}: ${els.length} cái · tương phản thấp nhất ${worst.toFixed(2)}:1 trên ${tipBg}` + (worst < 4.5 ? ' ✗' : '') + (over ? ` · ⚠ ${over} cái có thể tràn mép phải` : ''));
+  };
+  const doPage = () => { record('trang hiện tại' + (ROOT ? ' [' + ROOT + ']' : ''), scan(rootEl())); doTips('trang hiện tại'); };
 
   const stepLabels = () => [...document.querySelectorAll('.st-key-step label, [data-testid="stRadio"] label')]
     .filter(l => l.closest('.st-key-step') && l.getBoundingClientRect().width > 0);
@@ -100,7 +114,7 @@
     for (let i = 0; i < n; i++) {
       const lab = stepLabels()[i]; const name = (lab.textContent || '').trim().replace(/\s+/g, ' ');
       await clickEl(lab); await openFolds();
-      record(`${tag}màn "${name}" @${innerWidth}px`, scan(rootEl()));
+      record(`${tag}màn "${name}" @${innerWidth}px`, scan(rootEl())); doTips(name);
       // các tab con (vd. Storyboard: Ảnh + QC | Motion & giọng): bấm từng tab, quét lại
       const tabs = [...document.querySelectorAll('[role="tab"]')].filter(t => t.getBoundingClientRect().width > 0 && !t.closest('[data-testid="stDialog"]'));
       for (const t of tabs) {
