@@ -119,6 +119,27 @@ class DashboardSmokeTests(unittest.TestCase):
         self.assertTrue(any("Bối cảnh 3D" in e.label for e in at.expander))
         self.assertTrue(any(s.key == "p3d_file" for s in at.selectbox))
 
+    def test_review_box_bulk_remove_redraws_only_the_box(self):
+        from core import assets
+        from tests.test_new_skills import PNG
+        self.seed()
+        os.environ["ASSET_DIR"] = os.path.join(self.tmp, "assets")
+        self.addCleanup(lambda: os.environ.pop("ASSET_DIR", None))
+        conn = connect(self.db)
+        aid = assets.create(conn, "FF", "character", "KELLY")
+        for n in range(3):
+            assets.add_image(conn, aid, f"k{n}.png", PNG + bytes([n]), status="pending")
+        ids = [w["id"] for w in assets.pending_images(conn, "FF")]
+        at = AppTest.from_file(APP, default_timeout=30).run()
+        at.button(key="settings_assets").click().run()
+        for i in ids[:2]:
+            at.checkbox(key=f"lib_rev_pick_{i}").check()
+        at.run()
+        at.button(key="lib_rev_rmpick_FF").click().run()
+        at.button(key="lib_rev_rmyes_FF").click().run()
+        self.assertFalse(at.exception)
+        self.assertEqual([w["id"] for w in assets.pending_images(connect(self.db), "FF")], ids[2:])
+
     def test_every_step_renders_without_error(self):
         self.seed()
         at = AppTest.from_file(APP, default_timeout=30).run()

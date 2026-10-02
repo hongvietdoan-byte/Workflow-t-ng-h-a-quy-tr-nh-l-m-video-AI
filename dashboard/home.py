@@ -4,7 +4,7 @@ works on them). One filter box (search + ⛃ Bộ lọc: status / step / creator
 right screen. Data: core/perf.portfolio_rows + project_budget + core/team (presence)."""
 from dashboard.common import *  # noqa: F401,F403  (shared imports + helpers)
 from dashboard import common as C
-from core import archive, project_budget, team
+from core import access, archive, project_budget, team
 from dashboard.design import components as D
 
 STATUS = {"err": "🔴 Lỗi", "wait": "🖐 Chờ bạn", "run": "🚀 Đang chạy", "pause": "⏸ Tạm dừng", "done": "✔ Xong", "idle": "· Chưa chạy"}
@@ -13,8 +13,9 @@ STEP_NAME = {"script": "Kịch bản", "storyboard": "Storyboard", "video": "Vid
 PILL = {"err": ("Lỗi", "bad"), "wait": ("Chờ bạn", "warn"), "run": ("Đang chạy", "info"), "pause": ("Tạm dừng", "mute"),
         "done": ("Xong", "ok"), "idle": ("Chưa chạy", "mute")}                       # v2: the same states as STATUS, as pills
 GRID_COLS = 3
-SCOPE_NOTE = ("“Của tôi” = dự án bạn tạo. Dự án của người khác mở được để xem; chỉ thao tác (duyệt, gen) khi chủ dự án nhờ hoặc bạn là Owner — hệ thống ghi tên người gửi mỗi job. 🔒 = người đó vừa "
-              "mở dự án (trong 2 phút) — chỉ báo để hai người không duyệt chồng nhau, không khóa.")
+SCOPE_NOTE = ("Bạn chỉ thấy dự án DO BẠN TẠO và dự án chủ dự án / Owner cho bạn theo dõi (thẻ ghi “theo dõi · chỉ xem” hoặc “theo dõi · được sửa”). "
+              "“Chỉ xem” = xem được nhưng mọi nút ghi bị khóa; “Được sửa” = duyệt, gen, sửa như chủ. Owner thấy và làm được mọi dự án. "
+              "🔒 = người đó vừa mở dự án (trong 2 phút) — chỉ báo để hai người không duyệt chồng nhau, không khóa.")
 SORTS = {"wait": "Cần bạn trước", "new": "Mới nhất", "cost": "Tốn nhiều nhất"}
 
 
@@ -33,9 +34,11 @@ def status_of(r: dict, waiting_note: bool) -> str:
 
 
 def rows(p: Pipeline, email: str, is_owner: bool) -> list:
-    """Active projects with the fields the page filters and sorts on."""
+    """Active projects the signed-in person may see (core/access.py: their own, the ones they watch, everything for the Owner), with the
+    fields the page filters and sorts on. `access` = 'admin' | 'own' | 'edit' | 'view'."""
     from core import perf
-    active = {r["id"] for r in archive.active_projects(p.conn)}
+    active = {r["id"] for r in archive.active_projects(p.conn, C.access_user())}
+    levels = access.levels_for(p.conn, C.access_user()) if auth_on() else {}
     out = []
     for r in perf.portfolio_rows(p.conn, C.DATA):
         if r["id"] not in active:
@@ -49,7 +52,7 @@ def rows(p: Pipeline, email: str, is_owner: bool) -> list:
         waiting = r["autopilot_state"] in ("waiting", "needs_attention")
         creator = (r["created_by"] or "").strip()
         mine = (not auth_on()) or (creator.lower() == (email or "").lower() if creator else is_owner)
-        out.append({**r, "status": status_of(r, waiting), "screen": STEP_SCREEN.get(r["step"], "script"), "spent": spent,
+        out.append({**r, "access": levels.get(r["id"], "admin"), "status": status_of(r, waiting), "screen": STEP_SCREEN.get(r["step"], "script"), "spent": spent,
                     "cap": float((data or {}).get("total") or 0) if (data or {}).get("locked") else None,
                     "mine": mine, "creator": creator or "—", "open_by": team.open_by(p.conn, r["id"], exclude=email),
                     "warn": bool(waiting or r["autopilot_state"] == "error")})
@@ -90,6 +93,8 @@ def progress_of(r: dict) -> float:
 
 
 def tags_of(r: dict) -> list:
+    if r.get("access") in ("view", "edit"):
+        return ["của " + r["creator"].split("@")[0], "theo dõi · " + ("chỉ xem" if r["access"] == "view" else "được sửa")]
     if not r["mine"]:
         return ["của " + r["creator"].split("@")[0]]
     return ["của bạn"] if auth_on() else []
@@ -119,11 +124,9 @@ def _card(r: dict) -> None:
     """v2: one project = one glass card: P1 (name, state pill, progress bar, open button) + ONE summary line; the rest is in its ⓘ."""
     label, kind = PILL[r["status"]]
     with D.card(f"home-{r['id']}"):
-        c1, c2 = st.columns([7, 1], vertical_alignment="center")
-        c1.markdown(f'<div class="home-name" title="{escape(r["name"])}">#{r["id"]} {escape(r["name"])}</div>', unsafe_allow_html=True)
-        with c2:
-            with D.info(f"home-{r['id']}"):
-                st.markdown(_details_html(r), unsafe_allow_html=True)
+        with D.info(f"home-{r['id']}", anchor=f'<div class="home-name">#{r["id"]} {escape(r["name"])}</div>',
+                    help_text="Người tạo, tiến độ, tiền, việc chờ bạn — bấm để xem"):
+            st.markdown(_details_html(r), unsafe_allow_html=True)
         st.markdown(D.pill(label, kind, running=r["status"] == "run"), unsafe_allow_html=True)
         st.markdown(D.meter(progress_of(r)), unsafe_allow_html=True)
         summary = " · ".join([r["step_label"], _money_text(r)] + ([f"{r['needs_review']} chờ bạn"] if r["needs_review"] else []))
@@ -133,10 +136,9 @@ def _card(r: dict) -> None:
 
 
 def _grid(shown: list) -> None:
-    for i in range(0, len(shown), GRID_COLS):
-        for col, r in zip(st.columns(GRID_COLS), shown[i:i + GRID_COLS]):
-            with col:
-                _card(r)
+    for col, r in zip(D.grid(len(shown), GRID_COLS), shown):       # 02/10: shared n-column card grid (components.grid)
+        with col:
+            _card(r)
 
 
 def _hero(slot, shown: list, allrows: list) -> None:
@@ -164,12 +166,13 @@ def home(p: Pipeline, pid: int):
     if not allrows:
         st.info("Chưa có dự án nào đang dùng. Bấm “➕ Dự án mới” ở thanh trên (dự án đã cất khôi phục ở ⚙ → Dự án).")
         return
-    top = st.columns([1.3, 3, 1.3, 1.8, 0.35] if v2 else [1.3, 3, 1.3, 1.8], vertical_alignment="center")
-    scope = "team" if (auth_on() and top[0].radio("Phạm vi", ["Của tôi", "Cả nhóm"], horizontal=True, label_visibility="collapsed",
-                                                  key="home_scope") == "Cả nhóm") else "mine"
-    if not auth_on():
-        top[0].caption("Đăng nhập tắt: mọi dự án")
+    top = st.columns([1.3, 3, 1.3, 1.8, 0.9] if v2 else [1.3, 3, 1.3, 1.8], vertical_alignment="center")
+    if auth_on() and is_owner:                 # only the Owner has a wider view to switch to; a member's list is already "theirs + shared with them"
+        scope = "team" if top[0].radio("Phạm vi", ["Của tôi", "Cả nhóm"], horizontal=True, label_visibility="collapsed",
+                                       key="home_scope") == "Cả nhóm" else "mine"
+    else:
         scope = "team"
+        top[0].caption("Của bạn + được chia sẻ" if auth_on() else "Đăng nhập tắt: mọi dự án")
     q = top[1].text_input("Tìm", placeholder="🔎 Tìm tên dự án hoặc người tạo…", label_visibility="collapsed", key="home_q").strip()
     sort = top[3].selectbox("Sắp xếp", list(SORTS), format_func=SORTS.get, label_visibility="collapsed", key="home_sort")
     with top[2].popover("⛃ Bộ lọc", width="stretch"):
@@ -185,7 +188,7 @@ def home(p: Pipeline, pid: int):
             st.rerun()
     if v2:
         with top[4]:
-            with D.info("home-scope"):
+            with D.info("home-scope", label="Chú thích", help_text=D.md_plain(SCOPE_NOTE)):
                 st.markdown(SCOPE_NOTE)
     shown = _sort(apply_filters(allrows, scope, q, status, step, creator, warn), sort)
     active_filters = [x for x in (STATUS.get(status), STEP_NAME.get(step), creator, "có cảnh báo" if warn else "", f"“{q}”" if q else "") if x]
@@ -211,7 +214,9 @@ def _rows(shown: list) -> None:
     for r in shown:
         c = st.columns([2.6, 1.3, 2, 1.5, 0.9, 1.4], vertical_alignment="center")
         tags = []
-        if not r["mine"]:
+        if r.get("access") in ("view", "edit"):
+            tags.append(f"của {r['creator']} · theo dõi, " + ("chỉ xem" if r["access"] == "view" else "được sửa"))
+        elif not r["mine"]:
             tags.append(f"của {r['creator']}")
         elif auth_on():
             tags.append("của bạn")
@@ -224,7 +229,7 @@ def _rows(shown: list) -> None:
         done_units = (r["images"] + r["motion"] + r["videos"]) / (3 * total) if r["scenes"] else 0.0
         c[2].markdown(ui.pbar(min(done_units, 1.0), text=f"{r['step_label']} · ảnh {r['images']}/{r['scenes']} · clip {r['videos']}/{r['scenes']}"), unsafe_allow_html=True)
         c[3].caption(f"{r['spent']:.2f} / {r['cap']:.2f}" if r["cap"] else f"{r['spent']:.2f} / —")
-        c[4].markdown(f":red[**{r['needs_review']}**]" if r["needs_review"] else "0")
+        c[4].markdown(colored("bad", f"**{r['needs_review']}**") if r["needs_review"] else "0", unsafe_allow_html=True)
         c[5].button("Mở →", key=f"home_open_{r['id']}", on_click=C.go_screen, args=(r["id"], r["screen"]), width="stretch",
                     type="primary" if r["status"] == "wait" and r["mine"] else "secondary")
         if r["autopilot_note"] and r["status"] in ("wait", "run"):

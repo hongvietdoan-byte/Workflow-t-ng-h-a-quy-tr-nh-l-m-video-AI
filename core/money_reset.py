@@ -48,6 +48,14 @@ def _put_last(conn, bar: str, key, who: str, why: str, at: str) -> None:
     _put(conn, _last_key(bar, key), json.dumps({"at": at, "who": who, "why": why}, ensure_ascii=False))
 
 
+def user_bar(conn, email: str) -> Dict:
+    """The monthly bar of one person as the Team screen shows it: {email, month_usd (30 days, from their reset point), limit (soft, warning
+    only), since (their reset point or None)}."""
+    mail = str(email or "").strip().lower()
+    return {"email": mail, "month_usd": round(team.month_spend(conn, mail), 4), "limit": team.get_limit(conn, mail),
+            "since": team.user_baseline(conn, mail)}
+
+
 def reset(conn, actor, bars, reason: str, *, usd: Optional[float] = None, llm_usd: Optional[float] = None,
           email: Optional[str] = None, project_id: Optional[int] = None) -> Dict:
     """Move the starting point of the chosen bars to now. Only the Owner; a reason is required. Returns {bar: what was set}."""
@@ -86,8 +94,9 @@ def reset(conn, actor, bars, reason: str, *, usd: Optional[float] = None, llm_us
         done["claude"] = {"llm_since": b.get("llm_since"), "llm_usd": b.get("llm_usd")}
         _put_last(conn, "claude", None, who, why, at)
     if "user" in bars:
+        before = team.month_spend(conn, mail)
         _put(conn, team._baseline_key(mail), at)
-        done["user"] = {"email": mail, "since": at}
+        done["user"] = {"email": mail, "since": at, "before_usd": round(before, 4), "after_usd": round(team.month_spend(conn, mail), 4)}
         _put_last(conn, "user", mail, who, why, at)
     if "project" in bars:
         pid = int(project_id)

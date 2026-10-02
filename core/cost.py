@@ -266,7 +266,7 @@ def price_tag(usd: Optional[float], count: int = 1) -> str:
 # Tokens of ONE call per stage (usage_events.stage) when the ledger has no call of that stage yet: (input, output). Pictures count in
 # the input (~w*h/750 tokens each at the 1024 px edge ≈ 1,400). Rough on purpose — replaced by the measured average after the first calls.
 LLM_STAGE_TOKENS = {"director": (25000, 18000), "motion": (9000, 4000), "qc": (6000, 900), "style": (9000, 1500),
-                    "video_analysis": (14000, 2500), "setcheck": (8000, 1200), "clipcheck": (10000, 1200),
+                    "video_analysis": (14000, 4000), "setcheck": (8000, 1200), "clipcheck": (10000, 1200),
                     "asset_vision": (6000, 900), "research": (25000, 1500),
                     "editor": (25000, 3000)}   # rough-cut review (P2): ~12 mosaics (images counted separately) + text ≈ 25k in, JSON out
 IMAGE_TOKENS = 1400

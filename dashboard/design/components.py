@@ -11,6 +11,7 @@ CONTRACT (other lanes code against these signatures — do not change without te
   card(key, *, border=True) / hero(key)                    context managers returning the container (use `with card("frame-12"):`)
   frame_state_pill(state) -> str                           the fixed review labels: Cần duyệt / Đang làm / Đã duyệt / Từ chối / Lỗi
 """
+import re
 from contextlib import contextmanager
 from html import escape
 from typing import Iterable, Tuple
@@ -100,28 +101,219 @@ def table(headers, rows, cls: str = "", num_cols=(), empty: str = "Chưa có d�
     return f'<div class="{wrap}"><table class="v2-table {escape(cls)}"><tr>{head}</tr>{"".join(body)}</table></div>'
 
 
-# ---- progressive disclosure (người dùng 01/10): chi tiết ưu tiên thấp nằm trong dấu ⓘ, bên ngoài chỉ tóm tắt ------------------------------
+_COLORED_OLD = {"warn": "orange", "ok": "green", "bad": "red"}
+_COLORED_ALIAS = {"orange": "warn", "green": "ok", "red": "bad", "yellow": "warn"}
+
+
+def colored(kind: str, text: str, html: bool = True) -> str:
+    """Chữ màu theo trạng thái cho st.markdown (kind: warn | ok | bad; chấp nhận cả tên màu cũ orange | green | red). Cờ ui_v2 bật →
+    `<span class="v2-*-text">` màu token (đạt ≥ 4.5:1 ở sáng và tối) — người gọi truyền `unsafe_allow_html=True`; tắt → `:orange[…]` / `:green[…]` / `:red[…]` như cũ.
+    `html=False`: dùng được trong st.markdown KHÔNG cho HTML (vd. chi tiết trong popover) — v2 chỉ in đậm (icon ✔ ⚠ ✖ đã mang nghĩa).
+    `text` là markdown (người gọi tự escape nếu có dữ liệu ngoài)."""
+    from dashboard import ui
+    kind = _COLORED_ALIAS.get(kind, kind)
+    kind = kind if kind in _COLORED_OLD else "warn"
+    if ui.v2_on():
+        return f'<span class="v2-{kind}-text">{text}</span>' if html else f"**{text}**"
+    return f":{_COLORED_OLD[kind]}[{text}]"
+
+
+def _records(rows) -> list:
+    """list[dict] | DataFrame | list[sqlite3.Row] → list[dict]."""
+    if hasattr(rows, "to_dict"):
+        return rows.to_dict("records")
+    return [dict(r) for r in rows or []]
+
+
+def data_table(rows, *, empty: str = "Chưa có dữ liệu", num_cols=(), **dataframe_kwargs) -> None:
+    """Thay MỌI `st.dataframe(rows, …)` chỉ-đọc: cờ ui_v2 bật → bảng HTML `v2-table` (nền theo sáng/tối, ô được escape); cờ tắt → đúng `st.dataframe(rows, **kwargs)` như cũ.
+    `height=` (pixel) → bảng cuộn trong khung cao tối đa ngần đó. `num_cols` = chỉ số cột căn phải. Không dùng cho bảng sửa được (st.data_editor)."""
+    from dashboard import ui
+    if not ui.v2_on():
+        st.dataframe(rows, **dataframe_kwargs)
+        return
+    recs = _records(rows)
+    headers: list = []
+    for r in recs:
+        for k in r:
+            if k not in headers:
+                headers.append(k)
+    body = [[("✓" if v is True else "" if v is False else v) for v in (r.get(h) for h in headers)] for r in recs]
+    html = table([str(h) for h in headers], body, num_cols=num_cols, empty=empty)
+    height = dataframe_kwargs.get("height")
+    if isinstance(height, int) and height > 0:
+        html = f'<div class="v2-table-scroll" style="max-height:{int(height)}px">{html}</div>'
+    st.markdown(html, unsafe_allow_html=True)
+
+
+# ---- chú thích dạng tooltip (người dùng 02/10: bỏ nút tròn ⓘ) ------------------------------------------------------------------------
+# P1 trạng thái + nút chính luôn hiện; P2 một dòng tóm tắt; P3 chi tiết = tooltip khi rê chuột / focus NGAY TRÊN dòng đó (gạch chân chấm mờ gợi ý có
+# chú thích), bấm vào dòng thì mở popover đầy đủ (máy cảm ứng / bàn phím); P4 không hiện. Không còn nút ⓘ riêng.
+_TIP_MAX = 420
+
+
+def md_plain(md: str, limit: int = _TIP_MAX) -> str:
+    """Markdown → chữ thường ngắn cho tooltip: bỏ ** và `, gạch đầu dòng → •, cắt ở `limit`."""
+    out = []
+    for ln in str(md or "").replace("\r", "").split("\n"):
+        ln = ln.strip()
+        if not ln:
+            continue
+        ln = re.sub(r"^#{1,6}\s*", "", ln)
+        ln = re.sub(r"^[-*]\s+", "• ", ln)
+        ln = re.sub(r"<[^>]+>", "", ln).replace("**", "").replace("`", "").replace("__", "")
+        out.append(ln)
+    text = "\n".join(out).strip()
+    if len(text) > limit:
+        text = text[:limit].rsplit(" ", 1)[0].rstrip(" ,;:—-·") + "…"
+    return text
+
+
+def _first_time(key: str) -> bool:
+    """True đúng LẦN ĐẦU `key` hiện ra trong phiên → chỉ lúc đó phần tử mới có lớp .v2-glow (3 nhịp vầng sáng rồi dừng). Rerun sau (autopilot 5 s…) không nháy lại."""
+    try:
+        seen = st.session_state.setdefault("_v2_glow_seen", set())
+    except Exception:  # noqa: BLE001 - no session (bare mode): no animation
+        return False
+    if key in seen:
+        return False
+    seen.add(key)
+    return True
+
+
+def _attr(text: str) -> str:
+    """Giá trị thuộc tính HTML an toàn trong st.markdown: escape + xuống dòng thành &#10; (dòng trống sẽ cắt khối HTML của Markdown)."""
+    return escape(text, quote=True).replace("\n", "&#10;")
+
+
+def tip(text_html: str, tip_md: str, key: str = "", attention: bool = False) -> str:
+    """HTML: `text_html` + tooltip CSS (hiện khi rê chuột HOẶC focus bàn phím / chạm). Không cần popover → dùng được TRONG popover.
+    `text_html` do người gọi escape sẵn; `tip_md` được đổi sang chữ thường và escape ở đây."""
+    plain = md_plain(tip_md)
+    glow = " v2-attention" if attention and key and _first_time("tip:" + key) else ""
+    return (f'<span class="v2-tip{glow}" tabindex="0" data-tip="{_attr(plain)}">'
+            f'{text_html}</span>')
+
+
 @contextmanager
-def info(key: str, label: str = "ⓘ", help_text: str = "Xem chi tiết"):
-    """A small ⓘ button that opens a popover with the details; put the long text / lists / secondary controls inside it:
+def info(key: str, label: str = "Chi tiết", help_text: str = "Bấm để xem chi tiết", anchor: str = None, attention: bool = False):
+    """Chi tiết nằm trong popover; không còn nút tròn ⓘ.
 
-        with D.info("sb-3-why"):
+        with D.info("sb-3-why", anchor="<b>Cảnh 3</b>", help_text="tóm tắt cho tooltip"):   # bấm vào chính dòng/nhãn `anchor`
             st.markdown("…long explanation…")
+        with D.info("home-scope", label="Chú thích"):                                       # không có nhãn để gắn → liên kết chữ nhỏ
 
-    Priority rule (docs/QUY_TAC_BO_CUC_UI_V2.md §5): P1 state + the main action stay visible; P2 gets ONE summary line; P3 goes in ⓘ;
-    P4 (rarely useful) is not shown at all. The button always has the visible glyph "ⓘ" (never hover-only); click or keyboard opens it."""
-    with st.container(key=f"info-{key}"):
-        with st.popover(label, help=help_text) as p:
-            yield p
+    `anchor` (HTML đã escape): hiện dòng đó như chữ thường; rê chuột / focus → tooltip `help_text` (con trỏ help), bấm / Enter → popover.
+    `attention=True` (mặc định TẮT): chỉ cho thông tin mới / bất thường / cảnh báo — vầng sáng mờ vài nhịp ĐÚNG LẦN ĐẦU hiện ra rồi dừng.
+    Popover không lồng được trong popover: bên trong popover dùng `tip()` hoặc `shell_parts.fold()`."""
+    if anchor is not None:
+        with st.container(key=f"infoa-{key}"):
+            # tooltip tự vẽ bằng CSS (hiện khi rê chuột HOẶC focus bàn phím; ẩn khi popover đang mở) — không dùng help= của Streamlit
+            # (trễ, không hiện khi focus, không theo token); chữ đã đổi sang văn bản thường + escape
+            glow = " v2-attention" if attention and _first_time("info:" + key) else ""
+            st.markdown(f'<div class="v2-tip-anchor{glow}" data-tip="{_attr(md_plain(help_text))}">{anchor}</div>', unsafe_allow_html=True)
+            with st.popover("Chi tiết") as p:
+                yield p
+    else:
+        with st.container(key=f"info-{key}"):
+            with st.popover(label, help=help_text) as p:
+                yield p
 
 
-def line(text_html: str, details_md: str = "", key: str = "") -> None:
-    """One summary line (HTML already escaped by the caller, e.g. made with pill()/escape) + a ⓘ with `details_md` when given."""
+def line(text_html: str, details_md: str = "", key: str = "", attention: bool = False) -> None:
+    """One summary line (HTML already escaped by the caller, e.g. made with pill()/escape). With `details_md` + `key` the line itself carries the
+    tooltip (hover/focus) and opens the full details on click."""
     if details_md and key:
-        c1, c2 = st.columns([24, 1], vertical_alignment="center")
-        c1.markdown(text_html, unsafe_allow_html=True)
-        with c2:
-            with info(key):
-                st.markdown(details_md)
+        with info(key, anchor=text_html, help_text=md_plain(details_md), attention=attention):
+            st.markdown(details_md)
     else:
         st.markdown(text_html, unsafe_allow_html=True)
+
+
+_NOTE_KINDS = {"info": ("Ghi chú", "info"), "warning": ("Lưu ý", "warn"), "warn": ("Lưu ý", "warn"), "success": ("Đã xong", "ok"),
+               "mute": ("Ghi chú", "mute")}
+
+
+def short_text(text: str, limit: int = 88) -> str:
+    """Câu đầu / mệnh đề đầu của một đoạn dài, không có dấu markdown, cắt ở `limit`."""
+    plain = text.replace("**", "").replace("`", "").replace("\n", " ").strip()
+    for stop in (". ", " — ", ": ", "; "):
+        cut = plain.find(stop)
+        if 30 <= cut <= limit:
+            return plain[:cut].rstrip(" .:;") + ("…" if stop != ". " else "")
+    return plain if len(plain) <= limit else plain[:limit].rsplit(" ", 1)[0] + "…"
+
+
+def note(kind: str, text: str, summary: str = "", key: str = "", attention: bool = False) -> None:
+    """Thay st.info / st.warning / st.success: nhãn + MỘT dòng tóm tắt; cả đoạn `text` ở tooltip + popover khi bấm.
+    `summary` trống → câu đầu của `text`; không có `key` hoặc đoạn đã ngắn → hiện nguyên văn một dòng.
+    Lỗi chặn KHÔNG đi qua đây (P1: st.error)."""
+    label, tone = _NOTE_KINDS.get(kind, _NOTE_KINDS["info"])
+    one = summary or short_text(text)
+    plain = " ".join(str(text).split())
+    if key and (summary or one != plain):
+        line(f'{pill(label, tone)} <span class="v2-sum">{escape(one)}</span>', text, key, attention)
+    else:
+        st.markdown(f'{pill(label, tone)} <span class="v2-sum">{escape(plain)}</span>', unsafe_allow_html=True)
+
+
+def version_strip(n: int, current: int) -> str:
+    """Dải phiên bản chỉ-đọc v1…vN (HTML; `current` = chỉ số 0..n-1 đang xem). Tự xuống dòng khi hẹp, không bị cắt “v..”."""
+    n = max(int(n or 1), 1)
+    cur = max(0, min(int(current or 0), n - 1))
+    return '<div class="v2-vers">' + "".join(f'<span class="v2-ver{" on" if i == cur else ""}">v{i + 1}</span>' for i in range(n)) + "</div>"
+
+
+def confirm_all(key: str, ids, label: str, question: str, container=st, yes_label: str = "Có, duyệt hết", primary: bool = False,
+                stretch: bool = False) -> bool:
+    """MỘT nút (“duyệt hết”, “xóa”…) rồi hỏi Có/Không; True chỉ khi người dùng bấm Có. Câu hỏi gắn với đúng tập `ids`: tập đổi → hỏi lại.
+    Bản dùng chung của common.confirm_all (cùng khóa `key`, `key_yes`, `key_no`, `ask_<key>`); `primary` = nút đầu là nút chính của vùng."""
+    ids = tuple(ids)
+    pending_key = f"ask_{key}"
+    if st.session_state.get(pending_key) not in (None, ids):
+        st.session_state[pending_key] = None  # the list changed since the question: forget it
+    if st.session_state.get(pending_key) != ids:
+        extra = {"width": "stretch"} if stretch else {}
+        if container.button(label, key=key, disabled=not ids, type="primary" if primary else "secondary", **extra):
+            st.session_state[pending_key] = ids
+            st.rerun()
+        return False
+    container.warning(question)
+    yes, no = container.columns(2)
+    if yes.button(yes_label, key=f"{key}_yes", type="primary"):
+        st.session_state[pending_key] = None
+        return True
+    if no.button("Không", key=f"{key}_no"):
+        st.session_state[pending_key] = None
+        st.rerun()
+    return False
+
+
+@contextmanager
+def cta_box(key: str):
+    """Hộp của MỘT nút chính lớn của màn (cao 3,5 rem, chữ 17 px, toàn chiều rộng): `.st-key-cta-<key>`; mọi nút trong hộp (kể cả confirm_all) lớn như nhau."""
+    with st.container(key=f"cta-{key}") as c:
+        yield c
+
+
+def cta(label: str, key: str, **kwargs) -> bool:
+    """Nút chính lớn (type="primary", full width) trong `cta_box`. `kwargs` như st.button (on_click, args, disabled, help…)."""
+    kwargs.setdefault("type", "primary")
+    kwargs.setdefault("width", "stretch")
+    with cta_box(f"btn-{key}"):
+        return st.button(label, key=key, **kwargs)
+
+
+def grid(count: int, cols: int = 3, gap: str = "small") -> list:
+    """Lưới `cols` cột cho `count` thẻ: trả về danh sách `count` cột (mỗi `cols` cột là một hàng st.columns):
+
+        for item, col in zip(items, D.grid(len(items), 3)):
+            with col, D.card(f"x-{item.id}"): …
+    """
+    out = []
+    cols = max(int(cols), 1)
+    count = max(int(count), 0)
+    for start in range(0, count, cols):
+        row = st.columns(cols, gap=gap)
+        out.extend(row[: min(cols, count - start)])
+    return out

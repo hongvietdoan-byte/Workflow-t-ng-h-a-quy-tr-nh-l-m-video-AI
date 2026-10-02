@@ -47,7 +47,7 @@ def step4(p: Pipeline, pid: int):
     for j in sorted(latest.values(), key=lambda x: x["idx"]):
         video_card(p, pid, j, runner, (status.get(j["scene_id"]) or {}).get("video_stale"))
     if not latest:
-        st.caption("Chưa có clip nào: duyệt motion prompt ở Bước 3 rồi bấm “▶ Gen video”.")
+        st.caption("Chưa có clip nào: duyệt motion prompt ở tab Motion (Storyboard) rồi bấm “▶ Gen video”.")
     clip_set_panel(p, pid)
     if C.expert():
         experiments_panel(p, pid, runner)
@@ -97,8 +97,8 @@ def step4_v2(p: Pipeline, pid: int, runner, proj, summ) -> None:
             pass
     with grid_c:
         if not latest:
-            st.markdown(D.empty_state("Chưa có clip nào", "Duyệt motion prompt ở Bước 3 rồi bấm “▶ Gen video” ở thanh trên."), unsafe_allow_html=True)
-            st.button("✏ Mở Motion prompt (Bước 3)", key=f"vid-empty-go_{pid}", on_click=_go_step3)
+            st.markdown(D.empty_state("Chưa có clip nào", "Duyệt motion prompt ở tab Motion (Storyboard) rồi bấm “▶ Gen video” ở thanh trên."), unsafe_allow_html=True)
+            st.button("✏ Mở Motion prompt (tab Motion)", key=f"vid-empty-go_{pid}", on_click=_go_step3)
         cols = st.columns(3)
         for n, j in enumerate(ordered):
             with cols[n % 3]:
@@ -114,7 +114,7 @@ def _video_settings(p: Pipeline, pid: int, proj, runner) -> None:
     """Audio / QC / subjects switches + which provider is used (state is saved as the boxes change)."""
     m1, m2 = st.columns(2)
     audio_on = m1.checkbox("🔊 Model tự tạo âm thanh (tiếng động, không khí)", bool(proj["video_audio"]), key=f"vaudio_{pid}",
-                           help="Kling `sound` / Seedance `generate_audio`. Thoại tiếng Việt nên dùng giọng TTS ở Bước 3: theo blog Kling, "
+                           help="Kling `sound` / Seedance `generate_audio`. Thoại tiếng Việt nên dùng giọng TTS ở tab Motion (Storyboard): theo blog Kling, "
                                 "giọng tự sinh của Kling 3.0 chỉ có 5 ngôn ngữ (chưa có tiếng Việt). Có thể đổi giá.")
     if audio_on != bool(proj["video_audio"]):
         p.set_video_audio(pid, audio_on)
@@ -202,7 +202,7 @@ def clip_set_panel(p: Pipeline, pid: int) -> None:
                                                                          else f" — {len(last.get('issues') or [])} clip lệch"))
     with st.expander(label, expanded=bool(last and last.get("issues"))):
         st.caption("Claude xem khung giữa của mọi clip và các điểm nối giữa hai shot liền mạch: màu, ánh sáng, chất hình, nhân vật có "
-                   "khớp nhau không (clip do các model khác nhau làm dễ lệch). Nên chạy trước khi dựng ở Bước 5.")
+                   "khớp nhau không (clip do các model khác nhau làm dễ lệch). Nên chạy trước khi dựng ở màn Bản giao.")
         client = llm_client()
         if st.button(f"🤖 Kiểm tra {usable} clip" + cost.llm_tag(cost.llm_estimate(p.conn, "clipcheck", 1, images=2, ledger_stage="qc"), 1),
                      key=f"clipqc_{pid}", disabled=client is None, help=None if client else claude_hint()):
@@ -224,7 +224,7 @@ def clip_set_panel(p: Pipeline, pid: int) -> None:
                                      " AND j.type='video_gen' AND j.state IN ('succeeded','approved') ORDER BY j.id DESC LIMIT 1",
                                      (pid, it["idx"])).fetchone()
                 if job and not (it.get("fix") or "").strip():
-                    c2.caption("QC không nêu câu sửa — sửa motion prompt ở Bước 3")
+                    c2.caption("QC không nêu câu sửa — sửa motion prompt ở tab Motion (Storyboard)")
                 elif job and c2.button("↻ Gen lại clip này" + cost.price_tag(cost.clip_estimate(p.conn, p.job(job["id"])["scene_id"])),
                                        key=f"clipqc_redo_{pid}_{n}", help="Gen lại với câu sửa của QC (tiếng Anh) — đầu vào khác lần trước"):
                     act(lambda: regen.regenerate_video(p, C.DATA, job["id"], f"Đồng bộ cả bộ clip: {it['problem']}", fix=it["fix"]),
@@ -252,7 +252,7 @@ def model_plan_panel(p: Pipeline, pid: int) -> None:
                      expanded=bool(rows)):
         st.caption("Theo slide ClipAI “Hôm nay tôi chọn mô hình video như thế nào”: cảnh then chốt / phức tạp / có video tham chiếu → Seedance 2.5; "
                    "cảnh thường → Seedance 2.0 hoặc 2.0 Fast; đối thoại nhiều nhân vật / cảnh chuyển tiếp rẻ → Kling 3.0 Omni. "
-                   "MiniMax H3 và Seedance 2.0 Mini chỉ có trên web ClipAI (không gen tự động được). Đổi ưu tiên ở Bước 1 · 📐 Định dạng.")
+                   "MiniMax H3 và Seedance 2.0 Mini chỉ có trên web ClipAI (không gen tự động được). Đổi ưu tiên ở màn Kịch bản · 📐 Định dạng.")
         from core import shots as _shots
         if _shots.mode(proj) == "multishot":
             groups = _shots.multishot_groups(p.conn, pid)
@@ -271,7 +271,7 @@ def model_plan_panel(p: Pipeline, pid: int) -> None:
                 p.set_video_model(pid, None)
                 st.rerun()
         if not rows:
-            st.caption("Chưa có motion prompt nào: viết ở Bước 3.")
+            st.caption("Chưa có motion prompt nào: viết ở tab Motion (Storyboard).")
             return
         api = model_router.api_models(profiles)
         options = [None] + list(api)
@@ -344,7 +344,7 @@ def video_card(p: Pipeline, pid: int, j, runner, stale_reason) -> None:
                     st.rerun()
             if clip and j["state"] in ("succeeded", "approved") and st.button(
                     ("↻ Gen lại theo ảnh/prompt mới" if stale_reason else "↻ Gen lại video") + tag, key=f"vregen_{j['id']}",
-                    help="Clip này vào thùng rác (giữ 30 ngày) và xếp hàng video mới. Muốn đổi cách quay thì sửa motion prompt ở Bước 3 trước."):
+                    help="Clip này vào thùng rác (giữ 30 ngày) và xếp hàng video mới. Muốn đổi cách quay thì sửa motion prompt ở tab Motion (Storyboard) trước."):
                 if act(lambda: regen.regenerate_video(p, C.DATA, j["id"], f"làm lại vì {stale_reason}" if stale_reason else None),
                        "Đã xếp hàng gen lại video"):
                     st.rerun()
@@ -464,7 +464,7 @@ def video_card_v2(p: Pipeline, pid: int, j, runner, stale_reason) -> None:
                       help="Chưa có clip để gen lại" if not blocked else "Bị chặn nội dung: sửa motion prompt rồi mới gen lại")
         r3, r4 = st.columns(2)
         r3.button("✏ Sửa motion prompt", key=f"vfix_{jid}", on_click=_go_step3, width="stretch",
-                  help="Mở tab Motion của Storyboard (Bước 3).")
+                  help="Mở tab Motion của Storyboard (tab Motion).")
         if r4.button("✖ Loại & gen lại" + tag, key=f"vr_rej_{jid}", disabled=not reviewable, width="stretch",
                      help="Loại clip này và xếp hàng gen lại (kèm câu sửa nếu bạn nhập)."):
             act(lambda: p.reject(jid, "user", st.session_state.get(f"vnote_{jid}") or None))

@@ -256,8 +256,7 @@ def _existing(conn, game: str, item: Dict) -> Optional[Dict]:
 
 
 def _with_block(description: str, text: str) -> str:
-    base = (description or "").split(MARK)[0].rstrip()
-    return (base + "\n\n" if base else "") + f"{MARK} {text}"
+    return assets.replace_block(description, MARK, text)
 
 
 def sync(conn, game: str = "FF", created_by: Optional[str] = None, getter=fetch, download=None) -> Dict:

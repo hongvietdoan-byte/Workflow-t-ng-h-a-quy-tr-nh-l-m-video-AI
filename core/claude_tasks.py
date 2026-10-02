@@ -9,6 +9,7 @@ goes). Same `ask_json` path as the Director/QC/motion steps, so they run with th
 - cast_voices          a voice (and a persona line) for each speaking character
 - music_brief          music brief from genre, intent and scene timing (prompts/04, previously unused)
 """
+from . import access
 import json
 import os
 from typing import Dict, List, Optional, Tuple
@@ -76,6 +77,7 @@ def review_dialogue(p: Pipeline, project_id: int, client) -> Dict:
 
 def apply_dialogue_fix(p: Pipeline, project_id: int, idx: int, line: int, text: str) -> None:
     """Replace one line (the person accepted the suggestion). The scene's dialogue becomes a structured list set by hand."""
+    access.need_edit(p, project_id, "sửa thoại")
     row = p.conn.execute("SELECT data FROM scenes WHERE project_id=? AND idx=?", (project_id, idx)).fetchone()
     rows = [{"speaker": w, "text": t} for w, t in dialogue.scene_lines(json.loads(row["data"] or "{}"))]
     if not 1 <= line <= len(rows):
@@ -122,6 +124,7 @@ def lint_motion(p: Pipeline, project_id: int, client, scene_ids: Optional[List[i
 
 def apply_lint(p: Pipeline, project_id: int, scene_id: int) -> bool:
     """Use the revised prompt proposed by the check (the prompt then waits for approval again)."""
+    access.need_edit(p, project_id, "áp dụng sửa motion")
     row = p.conn.execute("SELECT s.idx, m.* FROM motion_prompts m JOIN scenes s ON s.id=m.scene_id WHERE m.scene_id=?",
                          (scene_id,)).fetchone()
     lint = json.loads(row["lint"] or "{}") if row else {}
@@ -143,6 +146,7 @@ def video_criteria() -> List[str]:
 def qc_video(p: Pipeline, job_id: int, client, data_dir: str, autofix: Optional[bool] = None) -> Dict:
     """Score one finished clip from evenly spaced frames next to its approved first frame and the character references; the score
     goes through the same decision path as pictures (threshold, hard criteria, automatic redo, escalation)."""
+    access.need_edit_job(p, job_id, "QC video")
     from . import performance, video_analysis     # GĐ4: QC checks the acting the Director asked for (at the drawn strength)
     job = p.job(job_id)
     path = job["result_path"]
@@ -234,6 +238,7 @@ def unchecked_videos(p: Pipeline, project_id: int) -> List[int]:
 
 
 def qc_video_batch(p: Pipeline, project_id: int, client, data_dir: str) -> Dict:
+    access.need_edit(p, project_id, "QC video hàng loạt")
     out = {"checked": 0, "failed": [], "decisions": {}}
     for jid in unchecked_videos(p, project_id):
         try:
@@ -376,6 +381,7 @@ def last_set_check(data_dir: str, project_id: int) -> Optional[Dict]:
 def redo_from_set_check(p: Pipeline, project_id: int, idx: int, fix: str) -> None:
     """Regenerate the approved picture of scene idx with the fix sentence (the person pressed 'gen lại'). The model gets only the
     English fix (the QC's `fix`), never the Vietnamese note; without a fix it would be the same input again — refused (luật 6)."""
+    access.need_edit(p, project_id, "làm lại theo kiểm bộ")
     if not (fix or "").strip():
         raise ValueError(f"cảnh {idx}: QC đồng bộ không nêu câu sửa — gen lại sẽ gửi y hệt đầu vào; sửa prompt ảnh ở Bước 1 trước")
     row = p.conn.execute("SELECT j.id FROM jobs j JOIN scenes s ON s.id=j.scene_id WHERE s.project_id=? AND s.idx=?"
@@ -405,6 +411,7 @@ def character_lock(p: Pipeline, project_id: int, name: str, client) -> Dict:
 
 
 def set_lock(p: Pipeline, project_id: int, name: str, lock: Optional[Dict]) -> None:
+    access.need_edit(p, project_id, "khóa nhân vật")
     value = None if not lock or not any((lock.get(k) or "").strip() for k in llm_io.LOCK_KEYS) else \
         json.dumps({k: (lock.get(k) or "").strip() for k in llm_io.LOCK_KEYS}, ensure_ascii=False)
     p.conn.execute("UPDATE characters SET lock_rules=? WHERE project_id=? AND name=?", (value, project_id, name))
@@ -504,6 +511,7 @@ def _check_cast(obj) -> None:
 
 def cast_voices(p: Pipeline, project_id: int, client, voices: List[Dict], overwrite: bool = False) -> Dict:
     """Pick a voice for every speaking character without one (or all when overwrite)."""
+    access.need_edit(p, project_id, "gán giọng")
     speakers = {w.upper() for ln in voice.planned_lines(p.conn, project_id) for w in [ln["speaker"]] if w}
     rows = p.conn.execute("SELECT name, description, voice_profile FROM characters WHERE project_id=?", (project_id,)).fetchall()
     todo = [r for r in rows if r["name"].upper() in speakers and (overwrite or not voice.get_profile(r).get("voice_id"))]

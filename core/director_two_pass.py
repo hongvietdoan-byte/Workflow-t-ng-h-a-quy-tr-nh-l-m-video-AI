@@ -18,6 +18,7 @@ The merged answer has exactly the single-call shape (genre, characters, scenes[*
 through the very same `llm_io.validate_for_project` (shot normaliser, schema, `_check_lines`) and `store_scene_analysis` (locked /
 hand-edited Bible entries, `_user_locked` shot fields, store_plan) — every later step works unchanged.
 """
+from . import access
 import copy
 import hashlib
 import json
@@ -505,6 +506,7 @@ def _ask_scenes(p: Pipeline, project_id: int, client, intent: Dict, todo: List[i
 def run(p: Pipeline, project_id: int, client, resume: bool = False) -> Dict:
     """Tầng A → Tầng B (every scene) → merge → the single call's validation + storing → Đạo diễn duyệt. resume: reuse a stored Tầng A
     answer and the scene answers that passed, when the prompts they came from are unchanged (a failed run is not paid twice)."""
+    access.need_edit(p, project_id, "chạy Director")
     from .llm_runner import LlmError, _director_references, _retry_note, ask_json
     conn = p.conn
     if shots.has_work(conn, project_id):          # store_plan would refuse AFTER paying: say it before any call (no money spent)
@@ -586,6 +588,7 @@ def replan_scene(p: Pipeline, project_id: int, scene_idx: int, client, note: str
     """"↻ Chia shot lại cảnh này" with the two passes: one Tầng B call for that scene, from the stored intent (the shared part is the
     same text → read from the cache), merged into the stored plan, checked as a whole, then shots.replace_from (earlier scenes keep
     their rows and work)."""
+    access.need_edit(p, project_id, "chia shot lại")
     from .llm_runner import LlmError
     raw = load_raw(p, project_id)
     plan = json.loads(p.project(project_id)["director_raw"] or "{}")

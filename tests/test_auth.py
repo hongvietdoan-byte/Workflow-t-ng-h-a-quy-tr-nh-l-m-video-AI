@@ -167,6 +167,11 @@ class DashboardGateTests(unittest.TestCase):
         os.environ.pop("PIPELINE_DB", None)
         os.environ.pop("PIPELINE_DATA", None)
 
+    def own_demo(self, email):
+        """Per-project rights (đợt F): a member only sees projects they made, so the demo project is made theirs first."""
+        self.conn.execute("UPDATE projects SET created_by=?", (email,))
+        self.conn.commit()
+
     def sign_in(self, email, params=None):
         at = AppTest.from_file(APP, default_timeout=40)
         for k, v in (params or {}).items():
@@ -196,6 +201,7 @@ class DashboardGateTests(unittest.TestCase):
         self.assertNotIn("@", str(dict(at.query_params)))
 
     def test_company_e_mail_only_gets_the_video_steps(self):
+        self.own_demo("new.person@garena.vn")
         at = self.sign_in("new.person@garena.vn")
         self.assertFalse(at.exception)
         options = list(at.radio(key="step").options)
@@ -214,7 +220,7 @@ class DashboardGateTests(unittest.TestCase):
         pid = self.conn.execute("SELECT id FROM projects").fetchone()[0]
         self.conn.execute("UPDATE projects SET created_by='maker@garena.vn' WHERE id=?", (pid,))
         self.conn.commit()
-        for email, can in (("other@garena.vn", False), (OWNER, False), ("maker@garena.vn", True)):
+        for email, can in (("other@garena.vn", False), (OWNER, True), ("maker@garena.vn", True)):      # Owner: toàn quyền (đợt F)
             at = self.sign_in(email)
             self.assertFalse(at.exception)
             self.assertEqual(any(b.key == f"proj_del_{pid}" for b in at.button), can, email)
@@ -226,6 +232,7 @@ class DashboardGateTests(unittest.TestCase):
 
     def test_a_granted_permission_shows_up_for_that_person(self):
         auth.add_user(self.conn, owner(), "boss2@garena.vn", ["monitor", "settings"])
+        self.own_demo("boss2@garena.vn")
         at = self.sign_in("boss2@garena.vn")
         options = list(at.radio(key="step").options)
         self.assertEqual(len(options), 7)                                  # ⌂ + 4 screens + Nhóm + Theo dõi (monitor granted)
@@ -239,6 +246,7 @@ class DashboardGateTests(unittest.TestCase):
         self.assertTrue(any("chưa được cấp quyền" in e.value for e in at.error))
 
     def test_the_e_mail_in_the_address_signs_in_again_after_a_reload(self):
+        self.own_demo("back@garena.vn")
         at = self.sign_in(None, {"login": "back@garena.vn"})
         self.assertFalse(at.exception)
         self.assertEqual(len(at.radio(key="step").options), 5)

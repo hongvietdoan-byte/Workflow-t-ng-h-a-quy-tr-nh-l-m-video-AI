@@ -5,6 +5,7 @@ copied into the project's mix (audio_lib), where it can still be adjusted or rem
 
 Effects are for scene changes and accents (a hit, a whoosh, an impact), not a constant bed, so the prompt asks for few, well-placed ones.
 """
+from . import access
 import json
 import os
 from typing import Dict, List, Optional
@@ -174,6 +175,7 @@ def apply(p: Pipeline, data_dir: str, pid: int, chosen: List[Dict], scenes: Opti
     """Replace the effects an earlier AI proposal added with `chosen` (rows: id, at, volume, name). Other effects stay. Returns the count.
     Each effect is anchored to the shot its second falls in on `scenes` (the timeline the proposal was made on; read again when not
     given), so a later render with other clip lengths moves it with its shot (place_on_timeline)."""
+    access.need_edit(p, pid, "áp dụng hiệu ứng âm thanh")
     directory = audio_lib.assets_dir(data_dir, pid)
     if scenes is None:
         scenes = timeline(p, data_dir, pid)

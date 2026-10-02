@@ -8,6 +8,7 @@ validators/persistence (core/llm_io.py), so a pasted answer and an API answer ar
 - LLM_PROVIDER=mock uses a deterministic offline stand-in (demos, tests, no key, no cost).
 - Invalid JSON is retried once with the validation error attached; failures are reported, not hidden.
 """
+from . import access
 import base64
 import contextlib
 import functools
@@ -687,6 +688,7 @@ def run_director(p: Pipeline, project_id: int, client, resume: bool = False) -> 
     """The Director: one call for the whole script (Bible + scenes + shots), or — feature director_two_pass on a shot project — Tầng A
     Đạo diễn + one Tầng B Quay phim call per scene + code review (core/director_two_pass.py; same stored shape). resume (two passes
     only): reuse the paid Tầng A answer and the scenes that passed in a failed run."""
+    access.need_edit(p, project_id, "chạy Director")
     from . import assets, director_two_pass
     auto = assets.auto_attach(p.conn, project_id)            # the library resources the script names — no click needed (2026-09-27)
     if auto["attached"] or auto["ambiguous"]:
@@ -722,6 +724,7 @@ def run_director_scene(p: Pipeline, project_id: int, scene_idx: int, client, not
     """1.4 "↻ Chia shot lại cảnh này": one Claude call for ONE script scene (the shared prompt is cached), merged into the stored plan,
     normalised and line-checked as a whole, then only that scene and the later ones are rewritten (earlier scenes keep their work).
     ~1/6 of a whole Director answer: a few cents instead of ~$0,3."""
+    access.need_edit(p, project_id, "chia shot lại")
     from . import director_two_pass, shots
     if director_two_pass.enabled(p.project(project_id)) and director_two_pass.load_raw(p, project_id).get("done"):
         return director_two_pass.replan_scene(p, project_id, scene_idx, client, note)   # GĐ5: the DP re-splits from the stored intent
@@ -758,6 +761,7 @@ def image_path(data_dir: str, project_id: int, job_id: int) -> str:
 def run_qc(p: Pipeline, job_id: int, client, data_dir: str, autofix: bool = False) -> Dict:
     """Score one generated picture against the scene spec AND the chosen resources' reference pictures. autofix: a faulty picture is
     regenerated automatically (up to the project's max_retry_count) instead of waiting for the person."""
+    access.need_edit_job(p, job_id, "chạy QC")
     job = p.job(job_id)
     path = image_path(data_dir, job["project_id"], job_id)
     if not os.path.exists(path):
@@ -792,6 +796,7 @@ def _no_feet_in_frame(shot: Dict, obj: Dict) -> None:
 
 def run_qc_batch(p: Pipeline, project_id: int, client, data_dir: str) -> Dict:
     """QC every generated image that has not been scored yet (state 'succeeded')."""
+    access.need_edit(p, project_id, "chạy QC hàng loạt")
     jobs = p.conn.execute("SELECT id FROM jobs WHERE project_id=? AND type='image_gen' AND state='succeeded'"
                           " ORDER BY id", (project_id,)).fetchall()
     summary: Dict[str, Any] = {"checked": 0, "failed": [], "decisions": {}, "input_tokens": 0, "output_tokens": 0}
@@ -814,6 +819,7 @@ def run_qc_batch(p: Pipeline, project_id: int, client, data_dir: str) -> Dict:
 def run_motion(p: Pipeline, project_id: int, client, data_dir: str, only_idx=None) -> Dict:
     """Motion prompts for approved-image scenes that do not have one yet (existing/approved prompts are kept).
     only_idx: rewrite exactly these scenes (e.g. the ones whose prompt is outdated because the image or the scene changed)."""
+    access.need_edit(p, project_id, "viết motion prompt")
     from . import shots
     rows = [dict(r) for r in p.conn.execute(
         "SELECT s.id, s.idx, EXISTS (SELECT 1 FROM motion_prompts m WHERE m.scene_id=s.id) AS has_mp"

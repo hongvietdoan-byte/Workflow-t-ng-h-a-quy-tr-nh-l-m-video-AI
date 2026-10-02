@@ -3,6 +3,7 @@ import sqlite3
 from datetime import datetime, timezone
 from typing import Mapping, Optional
 
+from . import access
 from .states import REVIEWABLE, InvalidTransition, JobState, check_transition
 
 
@@ -69,6 +70,8 @@ class Pipeline:
     def __init__(self, conn: sqlite3.Connection):
         self.conn = conn
         self.actor: Optional[str] = None   # who is working (dashboard user name); stamped on the jobs created through this object
+        self.user: Optional[dict] = None   # {'email','role'} of the signed-in person (dashboard) -> per-project rights, core/access.py;
+        #                                    None = system / background / sign-in off: no limit
 
     # ---- projects / scenes / jobs -------------------------------------
     def create_project(self, name: str, operating_mode: str = "human_qc",
@@ -77,7 +80,11 @@ class Pipeline:
                        game: Optional[str] = None) -> int:
         """aspect / genre / model_priority left None keep the v1 behaviour (the dashboard sets them for new projects).
         The id is never one a deleted project used (its spend history, outputs and folder keep that id)."""
-        used = [self.conn.execute(sql).fetchone()[0] or 0 for sql in (
+        if self.user is not None and self.user.get("role") != "owner":
+            mine = (self.user.get("email") or "").strip().lower()
+            if (created_by or "").strip().lower() != mine:           # one may only create projects in one's own name
+                raise access.AccessDenied("Bạn chỉ được tạo dự án đứng tên chính mình — dự án đứng tên người khác phải do Owner làm.")
+        used =[self.conn.execute(sql).fetchone()[0] or 0 for sql in (
             "SELECT MAX(id) FROM projects", "SELECT MAX(project_id) FROM usage_events", "SELECT MAX(deleted_project_id) FROM usage_events",
             "SELECT MAX(project_id) FROM outputs",
             "SELECT MAX(project_id) FROM diag_events")]
@@ -94,6 +101,7 @@ class Pipeline:
 
     def set_project_field(self, project_id: int, field: str, value) -> None:
         """Plain v2 project settings (aspect, genre, model_priority, qc_video, render_settings, qc_policy, autopilot_gates, pilot)."""
+        access.need_edit(self, project_id, "đổi cài đặt dự án")
         allowed = {"aspect", "genre", "genre_locked", "model_priority", "qc_video", "render_settings", "qc_policy",
                    "autopilot_gates", "autopilot_saved_cfg", "pilot", "shot_mode", "style_profile", "test_quality", "look",
                    "director_raw", "director_intent_raw", "image_model", "dialogue_trim"}
@@ -108,6 +116,7 @@ class Pipeline:
     def delete_project(self, project_id: int, data_dir: Optional[str] = None) -> None:
         """Remove a project with its scenes, jobs, results and own assets. Spend history (usage_events) is kept, the project id moved to
         `deleted_project_id` (new projects never reuse it); the files are parked in <data>/_deleted for the trash retention period."""
+        access.need_manage(self, project_id, "xóa dự án")
         from . import assets
         c = self.conn
         jobs = "(SELECT id FROM jobs WHERE project_id=?)"
@@ -129,33 +138,39 @@ class Pipeline:
             park_project_folder(data_dir, project_id)
 
     def set_mode(self, project_id: int, mode: str) -> None:
+        access.need_edit(self, project_id, "đổi chế độ duyệt")
         self.conn.execute("UPDATE projects SET operating_mode=? WHERE id=?", (mode, project_id))
         self.conn.commit()
 
     def set_threshold(self, project_id: int, threshold: float) -> None:
+        access.need_edit(self, project_id, "đổi ngưỡng QC")
         self.conn.execute("UPDATE projects SET qc_auto_pass_threshold=? WHERE id=?", (threshold, project_id))
         self.conn.commit()
 
     def set_review_floor(self, project_id: int, floor: Optional[float]) -> None:
         """Auto mode 'review zone': scores in [floor, threshold) wait for a human instead of auto-rejecting.
         None disables the zone (below threshold = auto-reject)."""
+        access.need_edit(self, project_id, "đổi ngưỡng QC")
         self.conn.execute("UPDATE projects SET qc_review_floor=? WHERE id=?", (floor, project_id))
         self.conn.commit()
 
     def set_reject_floor(self, project_id: int, floor: Optional[float]) -> None:
         """Images scoring below this are rejected automatically in BOTH modes (and a new one is queued).
         None disables it."""
+        access.need_edit(self, project_id, "đổi ngưỡng QC")
         self.conn.execute("UPDATE projects SET qc_reject_floor=? WHERE id=?", (floor, project_id))
         self.conn.commit()
 
     def set_video_audio(self, project_id: int, on: bool) -> None:
         """Ask the video model to generate its own audio track (speech/ambience; Kling `sound`, Seedance
         `generate_audio`). Off by default: it may change the price and needs dialogue written into the prompt."""
+        access.need_edit(self, project_id, "đổi cài đặt âm thanh video")
         self.conn.execute("UPDATE projects SET video_audio=? WHERE id=?", (1 if on else 0, project_id))
         self.conn.commit()
 
     def set_max_retry(self, project_id: int, max_retry: int) -> None:
         """How many automatic re-gens a rejected job gets before it is escalated to a human, unfixed."""
+        access.need_edit(self, project_id, "đổi số lần gen lại")
         self.conn.execute("UPDATE projects SET max_retry_count=? WHERE id=?", (max_retry, project_id))
         self.conn.commit()
 
@@ -163,6 +178,7 @@ class Pipeline:
         """Deepix has no scriptable Storyboard tool (web UI only) — this is the workaround: when on, each scene's
         image generation also gets the PREVIOUS scene's approved image as an extra reference (image-to-image),
         so style/lighting/palette carry over the way a real storyboard would, without a Storyboard API to call."""
+        access.need_edit(self, project_id, "đổi chế độ storyboard")
         self.conn.execute("UPDATE projects SET storyboard_mode=? WHERE id=?", (1 if on else 0, project_id))
         self.conn.commit()
 
@@ -170,16 +186,19 @@ class Pipeline:
         """A local video the generator copies MOTION from for this scene (never appearance — that still comes only
         from the approved first-frame image / Character Bible). `refer_type`: "feature" copies the motion into a new
         clip (default), "base" edits the given clip instead — only meaningful on Kling. `path=None` clears it."""
+        access.need_edit_scene(self, scene_id, "gắn video tham chiếu")
         self.conn.execute("UPDATE motion_prompts SET ref_video_path=?, ref_video_type=? WHERE scene_id=?",
                           (path, refer_type, scene_id))
         self.conn.commit()
 
     def set_script_text(self, project_id: int, text: str) -> None:
+        access.need_edit(self, project_id, "sửa kịch bản")
         self.conn.execute("UPDATE projects SET script_text=? WHERE id=?", (text, project_id))
         self.conn.commit()
 
     def add_scene_next(self, project_id: int, title: str = "") -> int:
         """Append an empty scene after the last one (for scripts the parser could not split). Returns its idx."""
+        access.need_edit(self, project_id, "thêm cảnh")
         idx = (self.conn.execute("SELECT COALESCE(MAX(idx),0) m FROM scenes WHERE project_id=?",
                                  (project_id,)).fetchone()["m"]) + 1
         self.create_scene(project_id, idx, title or f"CẢNH {idx}")
@@ -187,6 +206,7 @@ class Pipeline:
 
     def delete_scene(self, project_id: int, idx: int) -> None:
         """Remove a scene that has no jobs yet (a scene with images/videos must be handled through its jobs)."""
+        access.need_edit(self, project_id, "xóa cảnh")
         row = self.conn.execute("SELECT id FROM scenes WHERE project_id=? AND idx=?", (project_id, idx)).fetchone()
         if row is None:
             raise KeyError(f"scene {idx} does not exist")
@@ -200,6 +220,7 @@ class Pipeline:
         """The user changed their mind about an approved IMAGE: reject it and (by default) queue a new one.
         Videos already made from it are not touched. `fix`: the words the model gets (English); None = the person's `note` itself,
         "" = nothing (the input already changed — e.g. the scene was edited — so a Vietnamese system note must not reach the model)."""
+        access.need_edit_job(self, job_id, "bỏ duyệt ảnh")
         job = self.job(job_id)
         if job["type"] != "image_gen":
             raise ValueError("only approved images can be reopened")
@@ -215,6 +236,7 @@ class Pipeline:
     def restart_job(self, job_id: int) -> int:
         """Escalated job (retries used up): start the scene's image/video over with a fresh job (retry count 0).
         Without this an escalated scene would stay stuck in 'needs_attention'. Returns the new job id."""
+        access.need_edit_job(self, job_id, "làm lại việc")
         job = self.job(job_id)
         if not job["escalated"]:
             raise InvalidTransition(f"job {job_id} is not escalated")
@@ -232,25 +254,30 @@ class Pipeline:
 
     def set_game(self, project_id: int, game: str) -> None:
         """Game the characters belong to (FF has the signed copyright agreement for Seedance subjects)."""
+        access.need_edit(self, project_id, "đổi game")
         self.conn.execute("UPDATE projects SET game=? WHERE id=?", (game, project_id))
         self.conn.commit()
 
     def set_use_subjects(self, project_id: int, on: bool) -> None:
         """Attach the active Seedance subjects of a scene's characters to its video requests (Seedance only)."""
+        access.need_edit(self, project_id, "đổi cài đặt chủ thể")
         self.conn.execute("UPDATE projects SET use_subjects=? WHERE id=?", (1 if on else 0, project_id))
         self.conn.commit()
 
     def set_video_model(self, project_id: int, model: Optional[str]) -> None:
         """Model used by the video provider (e.g. 'seedance', 'kling', 'minimax'); None = provider default."""
+        access.need_edit(self, project_id, "đổi model video")
         self.conn.execute("UPDATE projects SET video_model=? WHERE id=?", (model or None, project_id))
         self.conn.commit()
 
     def set_paused(self, project_id: int, paused: bool) -> None:
+        access.need_edit(self, project_id, "tạm dừng / tiếp tục dự án")
         self.conn.execute("UPDATE projects SET paused=? WHERE id=?", (1 if paused else 0, project_id))
         self.conn.commit()
 
     def cancel_all_active(self, project_id: int, actor: str = "user") -> int:
         """Emergency stop: cancel every queued/running/retryable job of the project."""
+        access.need_edit(self, project_id, "hủy việc đang chạy")
         ids = [r["id"] for r in self.conn.execute(
             "SELECT id FROM jobs WHERE project_id=? AND state IN ('queued','running','retryable')", (project_id,))]
         for job_id in ids:
@@ -258,12 +285,14 @@ class Pipeline:
         return len(ids)
 
     def create_scene(self, project_id: int, idx: int, title: str = "") -> int:
+        access.need_edit(self, project_id, "thêm cảnh")
         cur = self.conn.execute(
             "INSERT INTO scenes (project_id, idx, title) VALUES (?,?,?)", (project_id, idx, title))
         self.conn.commit()
         return cur.lastrowid
 
     def create_job(self, scene_id: int, job_type: str = "image_gen") -> int:
+        access.need_edit_scene(self, scene_id, "gửi việc (ảnh / video)")
         project_id = self.conn.execute(
             "SELECT project_id FROM scenes WHERE id=?", (scene_id,)).fetchone()["project_id"]
         return self._insert_job(project_id, scene_id, job_type)
@@ -277,6 +306,7 @@ class Pipeline:
     def _insert_job(self, project_id: int, scene_id: int, job_type: str,
                     parent_job_id: Optional[int] = None, retry_count: int = 0,
                     retry_reason: Optional[str] = None) -> int:
+        access.need_edit(self, project_id, "gửi việc (ảnh / video)")
         now = _now()
         who = self.actor
         if who is None and parent_job_id is not None:   # a retry made by the system belongs to whoever started the original
@@ -298,6 +328,7 @@ class Pipeline:
 
     def transition(self, job_id: int, new_state: JobState, actor: str = "system",
                    note: Optional[str] = None) -> None:
+        access.need_edit_job(self, job_id, "đổi trạng thái việc")
         current = self.state(job_id)
         check_transition(current, new_state)
         self.conn.execute("UPDATE jobs SET state=?, updated_at=? WHERE id=?",
@@ -325,6 +356,7 @@ class Pipeline:
         `reason` is for people (job history). Without `fix` this is a plain resend of the same input — honest only after a provider /
         transient failure — and nothing extra reaches the model (retry_reason = PLAIN_RESEND…); `fix` (English, e.g. the person's
         own sentence) is what the model gets on the next try."""
+        access.need_edit_job(self, job_id, "gen lại")
         if self.state(job_id) != JobState.FAILED:
             raise InvalidTransition(f"job {job_id} is {self.state(job_id).value}, only failed jobs can be retried")
         if self._retries_exhausted(self.job(job_id)):
@@ -338,6 +370,7 @@ class Pipeline:
     def resend(self, job_id: int, reason: str) -> int:
         """failed -> retryable -> cancelled, and the SAME attempt queued again (retry count unchanged): the provider never created the
         task, so this is not a new try and must not use up max_retry_count. Returns the new job id."""
+        access.need_edit_job(self, job_id, "gửi lại")
         job = self.job(job_id)
         self.transition(job_id, JobState.RETRYABLE, note=reason)
         self.transition(job_id, JobState.CANCELLED, note="gửi lại (nhà cung cấp không tạo task)")
@@ -348,12 +381,14 @@ class Pipeline:
     def set_qc_autofix(self, project_id: int, on: bool) -> None:
         """On: a picture the QC agent finds faulty is regenerated automatically (its issues go into the retry prompt) up to
         max_retry_count times; only a picture that passes, or that is still faulty after the last try, reaches the person."""
+        access.need_edit(self, project_id, "đổi cài đặt QC")
         self.conn.execute("UPDATE projects SET qc_autofix=? WHERE id=?", (1 if on else 0, project_id))
         self.conn.commit()
 
     def apply_qc(self, job_id: int, scores: Mapping[str, float], issues: Optional[str] = None, autofix: bool = False) -> str:
         """... Returns 'already_processed' instead of raising when the picture was already judged by another check in the
         meantime (the automatic background check and a manual click can land on the same picture)."""
+        access.need_edit_job(self, job_id, "ghi kết quả QC")
         if self.state(job_id) != JobState.SUCCEEDED:
             return "already_processed"
         """Record per-criterion scores, then decide per project operating_mode.
@@ -436,6 +471,7 @@ class Pipeline:
         return "needs_review"
 
     def approve(self, job_id: int, reviewer_type: str = "user", note: Optional[str] = None) -> None:
+        access.need_edit_job(self, job_id, "duyệt")
         self._require_reviewable(job_id)
         self._log_review(job_id, reviewer_type, "approve", note)
         self.transition(job_id, JobState.APPROVED, actor=reviewer_type, note=note)
@@ -444,6 +480,7 @@ class Pipeline:
                respawn: bool = True, fix: Optional[str] = None) -> str:
         """Reject and spawn a retry job (unless respawn=False = plain delete); escalate when
         max_retry_count is exceeded."""
+        access.need_edit_job(self, job_id, "loại")
         self._require_reviewable(job_id)
         self._log_review(job_id, reviewer_type, "reject", note)
         self.transition(job_id, JobState.REJECTED, actor=reviewer_type, note=note)
@@ -470,6 +507,7 @@ class Pipeline:
 
     def keep_rejected(self, job_id: int, note: Optional[str] = None) -> None:
         """The person overrides the QC agent: the rejected result is approved as it is and the takes queued after it are dropped."""
+        access.need_edit_job(self, job_id, "giữ bản đã loại")
         job = self.job(job_id)
         keep = self.keepable_rejected(job["scene_id"], job["type"])
         if keep is None or keep["id"] != job_id:

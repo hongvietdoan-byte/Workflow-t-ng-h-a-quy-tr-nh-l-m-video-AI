@@ -95,20 +95,15 @@ def inputs_and_refs_v2(p: Pipeline, pid: int, has_script: bool) -> None:
         st.html('<div class="script-h">📎 Đầu vào &amp; tham chiếu</div>')
         cols = st.columns(4)
         with cols[0]:                                       # P2: pill + title; the one-line explanation of each way in is P3 → ⓘ
-            t, i = st.columns([3, 1], vertical_alignment="center")
-            t.html(D.pill("Đang dùng", "ok"))
-            with i:
-                with D.info(f"script-mode-main-{pid}"):
-                    st.markdown("Dán, kéo file hoặc gõ ý thô ở thẻ ① bên dưới (tự nhận dạng)")
-            st.html('<div class="script-mode"><b>📝 Kịch bản / ý tưởng</b></div>')
+            st.html(D.pill("Đang dùng", "ok"))
+            with D.info(f"script-mode-main-{pid}", anchor='<div class="script-mode"><b>📝 Kịch bản / ý tưởng</b></div>',
+                        help_text="Dán, kéo file hoặc gõ ý thô ở thẻ ① bên dưới (tự nhận dạng)"):
+                st.markdown("Dán, kéo file hoặc gõ ý thô ở thẻ ① bên dưới (tự nhận dạng)")
         for col, (title, why) in zip(cols[1:], COMING):
             with col:
-                t, i = st.columns([3, 1], vertical_alignment="center")
-                t.html(D.pill("Sắp có", "mute"))
-                with i:
-                    with D.info(f"script-mode-{title[:2]}-{pid}"):
-                        st.markdown(why)
-                st.html(f'<div class="script-mode"><b>{escape(title)}</b></div>')
+                st.html(D.pill("Sắp có", "mute"))
+                with D.info(f"script-mode-{title[:2]}-{pid}", anchor=f'<div class="script-mode"><b>{escape(title)}</b></div>', help_text=D.md_plain(why)):
+                    st.markdown(why)
                 st.button("Sắp có", key=f"coming_{title[:2]}_{pid}", disabled=True, width="stretch")
         with st.expander("🖼 Tham chiếu & gắn ảnh nhân vật / nơi — " + _summary(p, pid).split("tham chiếu: ", 1)[-1], expanded=not has_script):
             attach_form(p, pid)

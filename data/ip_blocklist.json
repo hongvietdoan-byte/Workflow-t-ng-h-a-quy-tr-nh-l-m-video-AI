@@ -1,7 +1,30 @@
 {
   "_note": "Seed blocklist of IPs known to fail Kling risk control. Extend from content_moderation_failures logs.",
   "entries": [
-    {"name": "Wonder Woman", "aliases": ["Diana Prince", "Nữ thần chiến binh Amazon", "Nữ chiến binh Amazon", "Amazon warrior princess"],
-     "reason": "Kling 3.0 Omni: 'Failure to pass the risk control system' (reported)"}
+    {
+      "name": "Wonder Woman",
+      "aliases": [
+        "Diana Prince",
+        "Nữ thần chiến binh Amazon",
+        "Nữ chiến binh Amazon",
+        "Amazon warrior princess"
+      ],
+      "reason": "Kling 3.0 Omni: 'Failure to pass the risk control system' (reported)"
+    },
+    {
+      "name": "Chrono",
+      "aliases": [
+        "CHRONO"
+      ],
+      "reason": "Nhân vật mô phỏng người thật (bản quyền / hình ảnh) — người dùng 02/10/2026: không dùng"
+    },
+    {
+      "name": "J BIEBS",
+      "aliases": [
+        "J Biebs",
+        "JBIEBS"
+      ],
+      "reason": "Nhân vật mô phỏng người thật (bản quyền / hình ảnh) — người dùng 02/10/2026: không dùng"
+    }
   ]
 }

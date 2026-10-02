@@ -108,7 +108,7 @@ def idea_panel(p: Pipeline, pid: int) -> None:
     rows = [{"Nhịp": b["name"], "Giây": f"{b['start']:g}–{b['end']:g}", "Nơi": b.get("place", ""), "Ai": ", ".join(b.get("who") or []),
              "Chuyện gì": b.get("what", ""), "Thoại": " / ".join(f"{d.get('speaker')}: {d.get('line')}" for d in b.get("dialogue") or [])}
             for b in state["beats"]]
-    st.dataframe(rows, hide_index=True, use_container_width=True)
+    data_table(rows, hide_index=True, use_container_width=True)
     if state.get("question"):
         cap(f"Câu hỏi xuyên video: {state['question']}")
     for n, c in enumerate(state.get("outline_checks") or []):
@@ -158,5 +158,5 @@ def idea_panel(p: Pipeline, pid: int) -> None:
     has_scenes = bool(p.conn.execute("SELECT 1 FROM scenes WHERE project_id=?", (pid,)).fetchone())
     if st.button("✔ Dùng kịch bản này" + (" (dự án đã có cảnh — bấm ↺ Làm lại ở trên trước)" if has_scenes else ""),
                  key=f"idea_use_{pid}", type="primary", disabled=not chk.get("ok") or has_scenes):
-        if act(lambda: st.toast(f"Đã đưa {I.use_script(p, pid)} cảnh vào Bước 1")):
+        if act(lambda: st.toast(f"Đã đưa {I.use_script(p, pid)} cảnh vào màn Kịch bản")):
             st.rerun()

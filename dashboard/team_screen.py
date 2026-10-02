@@ -3,16 +3,19 @@
 Reads what already exists (core/perf.by_user, core/auth users + audit log) and adds: money per person (core/team.spend_by_user), a soft
 monthly limit (warning only), role presets (core/team.ROLES over the 5 permissions), invite by e-mail. Only the Owner changes people."""
 from dashboard.common import *  # noqa: F401,F403  (shared imports + helpers)
-from dashboard import common as C
+from dashboard import access_ui, common as C
 from contextlib import ExitStack
 
-from core import perf, team
+from core import access, perf, team
 from dashboard.design import components as D
 from dashboard.design.screens.v2_tables import Raw, table
 
 NOTE = ("Số liệu theo e-mail đăng nhập (đăng nhập tắt: theo tên tự khai). “Tiền chi” = ảnh + video + âm thanh có giá của job người đó gửi; "
         "tiền gọi Claude không gắn với người. **Hạn mức chỉ để cảnh báo** (hiện ở hộp 📥 của Owner khi ≥ 90 %), không chặn gửi — chặn thật là "
         "trần đợt thử và ngân sách khóa của dự án.")
+ACCESS_NOTE = ("Mỗi người chỉ thấy dự án DO CHÍNH HỌ TẠO. Owner thấy và làm được mọi dự án. Thêm người vào danh sách theo dõi của một dự án để họ "
+               "thấy dự án đó: “Chỉ xem” (nút ghi bị khóa) hoặc “Được sửa” (duyệt, gen, sửa như chủ; không cất / xóa). Dự án cũ chưa có chủ "
+               "chỉ Owner thấy cho tới khi gán chủ ở đây. Chủ dự án cũng đổi được danh sách này ở ⚙ → Dự án → “Người theo dõi dự án”.")
 PERIODS ={"Hôm nay": 1, "7 ngày": 7, "30 ngày": 30, "Tất cả": None}
 FILTERS = {"": "Tất cả", "over": "⚠ Gần hết hạn mức", "inact": "💤 Không hoạt động > 3 ngày", "owner": "Owner", "worker": "Người làm",
            "reviewer": "Người duyệt", "manager": "Quản lý", "custom": "Tùy chỉnh"}
@@ -93,6 +96,71 @@ def _history_v2(log, gens) -> None:
                           cls="team-table", empty="Chưa có lượt gen nào"), unsafe_allow_html=True)
 
 
+def _usd(x) -> str:
+    return f"{float(x or 0):.2f} USD"
+
+
+def user_reset_block(p: Pipeline, actor: dict, rows: list, v2: bool) -> None:
+    """Owner-only "↺ Đặt lại" of one person's monthly money bar (core.money_reset bar `user`). One row per person with the bar now and a
+    button; the button opens a panel with a REQUIRED reason and a yes/no question that states the number before → after. The ledger is
+    never touched and the personal limit stays a warning (hiding this is a convenience: core.money_reset refuses anyone but the Owner)."""
+    from core import money_reset
+    if actor.get("role") != "owner":
+        return
+    people = [r["who"] for r in rows if r["user"] or r["usd"]]
+    ss = st.session_state
+    target = ss.get("team_mr_target")
+    if target not in people:
+        target = ss["team_mr_target"] = None
+    done = ss.get("team_mr_done")
+    with st.expander("↺ Đặt lại thanh tiền của từng người (chỉ Owner)", expanded=bool(target or done)):
+        st.caption("Thanh tháng của người đó đếm lại từ bây giờ; sổ chi giữ nguyên, mỗi lần đặt lại được ghi nhật ký kèm lý do. "
+                   "Hạn mức cá nhân vẫn chỉ cảnh báo.")
+        if done:
+            u = done.get("user") or {}
+            st.success(f"Đã đặt lại thanh của {u.get('email', '?')}: {_usd(u.get('before_usd'))} → {_usd(u.get('after_usd'))} "
+                       f"(đếm lại từ {u.get('since', '?')} UTC).")
+            ss["team_mr_done"] = None
+        for who in people:
+            bar = money_reset.user_bar(p.conn, who)
+            rec = money_reset.last(p.conn, "user", who)
+            c = st.columns([3, 2.4, 1.3], vertical_alignment="center")
+            c[0].markdown(f"<b>{escape(who)}</b>" + (f"  \n<small>đặt lại lần cuối {escape(str(rec.get('at', '')))} bởi "
+                                                   f"{escape(str(rec.get('who', '?')))} — {escape(str(rec.get('why', '')))}</small>"
+                                                   if rec else ""), unsafe_allow_html=True)
+            c[1].markdown(f"{_usd(bar['month_usd'])} / 30 ngày" + (f"  \n<small>hạn mức {bar['limit']:g} USD</small>" if bar["limit"] else ""),
+                          unsafe_allow_html=True)
+            if c[2].button("↺ Đặt lại", key=f"team_mr_{who}", help="Đếm lại thanh tiền tháng của người này từ bây giờ (cần lý do).",
+                           type="primary" if who == target else "secondary"):
+                ss["team_mr_target"] = who
+                st.rerun()
+        if not target:
+            return
+        bar = money_reset.user_bar(p.conn, target)
+        with (D.card("team-mr") if v2 else st.container(border=True)):
+            st.markdown(f"<b>Đặt lại thanh của {escape(target)}</b> — hiện {_usd(bar['month_usd'])} → sau khi đặt lại 0.00 USD "
+                        "(chỉ tính từ các lượt gen sau bây giờ).", unsafe_allow_html=True)
+            why = (st.text_input("Lý do (bắt buộc)", key=f"team_mr_why_{target}",
+                                 placeholder="ví dụ: sang tháng mới, đã nạp thêm tiền") or "").strip()
+            if not why:
+                st.caption("Cần nhập lý do.")
+            ids = (target, why) if why else ()
+            if C.confirm_all(f"team_mr_go_{target}", ids, "↺ Đặt lại thanh này",
+                             f"Đặt lại thanh của {target}? Đang {_usd(bar['month_usd'])} → 0.00 USD. Sổ chi giữ nguyên. Lý do: {why}",
+                             st, "Có, đặt lại"):
+                try:
+                    res = money_reset.reset(p.conn, actor, ["user"], why, email=target)
+                except Exception as e:  # noqa: BLE001 - shown, never a crash of the screen
+                    st.error(f"Không đặt lại được: {e}")
+                    return
+                ss["team_mr_done"] = res
+                ss["team_mr_target"] = None
+                st.rerun()
+            if st.button("Đóng", key="team_mr_close"):
+                ss["team_mr_target"] = None
+                st.rerun()
+
+
 def team_screen(p: Pipeline, pid: int):
     if not (me().get("role") == "owner" or allowed("monitor")):
         st.warning("Màn Nhóm dành cho Owner hoặc người có quyền “Theo dõi hiệu suất”.")
@@ -102,7 +170,7 @@ def team_screen(p: Pipeline, pid: int):
     if not v2:
         st.markdown("### 👥 Nhóm")
     hero_slot = st.container() if v2 else None
-    c1, c2, c3, *c4 = st.columns([1.4, 2.4, 2, 0.35] if v2 else [1.4, 2.4, 2], vertical_alignment="center")
+    c1, c2, c3, *c4 = st.columns([1.4, 2.4, 2, 0.9] if v2 else [1.4, 2.4, 2], vertical_alignment="center")
     period = c1.selectbox("Khoảng", list(PERIODS), index=1, label_visibility="collapsed", key="team_period")
     q = c2.text_input("Tìm", placeholder="🔎 Tìm người dùng…", label_visibility="collapsed", key="team_q").strip().lower()
     flt = c3.selectbox("Lọc", list(FILTERS), format_func=FILTERS.get, label_visibility="collapsed", key="team_filter")
@@ -112,12 +180,12 @@ def team_screen(p: Pipeline, pid: int):
                   or (flt == "inact" and r["inactive"]) or r["role_key"] == flt)]
     if v2:
         with c4[0]:
-            with D.info("team-note"):
+            with D.info("team-note", label="Chú thích", help_text=D.md_plain(NOTE)):
                 st.markdown(NOTE)
         _hero(hero_slot, rows, period)
         _people_table(shown)
     else:
-        st.dataframe([{"Người dùng": r["who"], "Vai": r["role"], "Video (xong / gửi)": f"{r['videos_ok']} / {r['videos']}",
+        data_table([{"Người dùng": r["who"], "Vai": r["role"], "Video (xong / gửi)": f"{r['videos_ok']} / {r['videos']}",
                        "Lỗi · Gen lại": f"{r['failed']} · {r['retry']}", "Giây video": f"{r['seconds']:g}", "Ảnh": r["images"],
                        "Tiền chi (USD)": round(r["usd"], 2), "Hạn mức/tháng": (f"{r['limit']:g} ({r['share']:.0%})" if r["limit"] else "—"),
                        "Dự án": r["projects"], "Gần nhất": r["last"]} for r in shown], hide_index=True, width="stretch")
@@ -128,11 +196,9 @@ def team_screen(p: Pipeline, pid: int):
     st.divider()
     roles_md = "  \n".join(f"- **{r['label']}** — {r['desc']}" for r in team.ROLES.values())
     if v2:                                  # title stays; the how-to line + the role descriptions go in its ⓘ
-        h1, h2 = st.columns([24, 1], vertical_alignment="center")
-        h1.markdown("**Vai trò & hạn mức**")
-        with h2:
-            with D.info("team-roles"):
-                st.markdown("Chọn vai thay vì tick từng quyền; quyền lẻ vẫn ở ⚙ → Hệ thống → 👥 Phân quyền.\n\n" + roles_md)
+        _roles_note = "Chọn vai thay vì tick từng quyền; quyền lẻ vẫn ở ⚙ → Hệ thống → 👥 Phân quyền.\n\n" + roles_md
+        with D.info("team-roles", anchor="<b>Vai trò & hạn mức</b>", help_text=D.md_plain(_roles_note)):
+            st.markdown(_roles_note)
     else:
         ui.html(ui.card_title("Vai trò & hạn mức", "chọn vai thay vì tick từng quyền; quyền lẻ vẫn ở ⚙ → Hệ thống → 👥 Phân quyền"))
         st.markdown(roles_md)
@@ -165,6 +231,7 @@ def team_screen(p: Pipeline, pid: int):
                 st.toast(f"Đã lưu {u['email']}")
                 st.rerun()
     roles_box.close()
+    user_reset_block(p, me(), rows, v2)
     with (D.card("team-invite") if v2 else st.container(border=True)):
         st.markdown("**Mời người mới**")
         i1, i2, i3, i4 = st.columns([3, 1.6, 1.2, 1], vertical_alignment="bottom")
@@ -179,12 +246,16 @@ def team_screen(p: Pipeline, pid: int):
                 st.error(str(e))
             else:
                 st.rerun()
+    with (D.card("team-access") if v2 else st.container(border=True)):        # đợt F: who watches which project, and projects with no creator
+        st.markdown("**Quyền theo dự án**", help=ACCESS_NOTE)
+        access_ui.team_panel(p)
     if not v2:
         ui.html(ui.card_title("Lịch sử hoạt động", "đổi quyền / thêm bớt người (nhật ký của Owner) và lượt gen gần đây"))
     log = auth.recent_audit(p.conn, 15)
-    gens = p.conn.execute("SELECT j.created_at, COALESCE(NULLIF(TRIM(j.created_by),''),'(chưa nhập tên)') who, j.type, j.state, pr.name"
-                          " FROM jobs j JOIN projects pr ON pr.id=j.project_id WHERE j.type IN ('image_gen','video_gen')"
-                          " ORDER BY j.id DESC LIMIT 15").fetchall()
+    gens = access.filter_rows(p.conn, p.conn.execute(
+        "SELECT j.created_at, COALESCE(NULLIF(TRIM(j.created_by),''),'(chưa nhập tên)') who, j.type, j.state, pr.name, j.project_id"
+        " FROM jobs j JOIN projects pr ON pr.id=j.project_id WHERE j.type IN ('image_gen','video_gen')"
+        " ORDER BY j.id DESC LIMIT 200").fetchall(), C.access_user(), key="project_id")[:15]
     if v2:                                  # P3: both logs live in one labelled expander, closed by default
         with st.expander("🕘 Lịch sử hoạt động — nhật ký quyền (đổi quyền, thêm bớt người) và lượt gen gần đây", expanded=False):
             _history_v2(log, gens)
@@ -192,10 +263,10 @@ def team_screen(p: Pipeline, pid: int):
     c_a, c_b = st.columns(2)
     with c_a:
         st.markdown("**Nhật ký quyền**")
-        st.dataframe([{"Lúc": r["at"], "Ai": r["email"], "Việc": r["action"], "Chi tiết": r["detail"]} for r in log],
+        data_table([{"Lúc": r["at"], "Ai": r["email"], "Việc": r["action"], "Chi tiết": r["detail"]} for r in log],
                      hide_index=True, width="stretch")
     with c_b:
         st.markdown("**Lượt gen gần đây**")
-        st.dataframe([{"Lúc": (r["created_at"] or "")[:16].replace("T", " "), "Ai": r["who"],
+        data_table([{"Lúc": (r["created_at"] or "")[:16].replace("T", " "), "Ai": r["who"],
                        "Loại": "video" if r["type"] == "video_gen" else "ảnh", "Dự án": r["name"], "Trạng thái": r["state"]} for r in gens],
                      hide_index=True, width="stretch")

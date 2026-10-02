@@ -2,7 +2,11 @@
 
 /* thanh trên */
 .st-key-shell-bar { background: var(--glass-strong); border: 1.5px solid var(--border-soft); border-radius: var(--r-lg); padding: 10px 14px;
-    box-shadow: var(--shadow); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); margin-bottom: 8px; }
+    box-shadow: var(--shadow); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); margin-bottom: 8px;
+    }
+/* 02/10: thanh trên dính — cuộn xuống vẫn còn Dự án mới / Việc cần bạn / Tiền / ⚙. position:sticky phải đặt trên lớp bọc cha trực tiếp (stLayoutWrapper /
+   stElementContainer) vì chính khối có khóa chỉ cao bằng thanh; cha của lớp bọc là cả trang nên dính suốt khi cuộn (đo: top 64 → 8 px sau khi cuộn 900 px). */
+:is([data-testid="stLayoutWrapper"], [data-testid="stElementContainer"]):has(> .st-key-shell-bar) { position: sticky; top: 8px; z-index: 60; }
 .st-key-shell-bar [data-testid="stHorizontalBlock"] { gap: 10px; flex-wrap: nowrap; align-items: center; }
 .st-key-shell-bar [data-testid="stColumn"] { min-width: 0; }                      /* cho cột co lại thay vì đè lên nhau */
 .st-key-shell-bar [data-testid^="stBaseButton"], .st-key-shell-bar [data-testid="stPopoverButton"] { width: 100%; white-space: nowrap; overflow: hidden; }
@@ -52,5 +56,5 @@
 .shell-status { color: var(--muted); font-size: 13px; }
 .st-key-info-shell-status, .st-key-info-shell-level-why, .st-key-info-shell-stale, .st-key-info-shell-owner { margin: 0; }
 
-/* 02/10 (rà soát #12): nhãn mục gập "ⓘ …" trong popover (⚙ rộng ~390 px) xuống dòng thay vì bị cắt */
+/* 02/10 (rà soát #12): nhãn mục gập "Chi tiết · …" trong popover (⚙ rộng ~390 px) xuống dòng thay vì bị cắt */
 [data-testid="stPopoverBody"] [data-testid="stExpander"] summary p { white-space: normal !important; overflow: visible !important; text-overflow: clip !important; }

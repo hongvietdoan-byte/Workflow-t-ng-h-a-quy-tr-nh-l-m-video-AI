@@ -21,6 +21,7 @@ import streamlit as st
 
 from core import effectiveness, costume, previz, asset_vision, autoqc, ff_site, sfx_plan, sound_lib, assets, audio_lib, subtitles, script_reader, auth, autopilot, dialogue, diag, knowledge, lessons, perf, regen, research, style, subjects, trash, waveform, cost, ffmpeg_studio, final_cut, llm_io, llm_runner, music, preflight, prompts, script_parser, video_analysis  # noqa: E402
 from core import batch, budget, claude_tasks, delivery, formats, lineage, model_router, pilot, qc_policy, voice, voice_check  # noqa: E402
+from core import access  # noqa: E402
 from core.db import connect  # noqa: E402
 from core.pipeline import Pipeline, PipelinePaused  # noqa: E402
 from core.adapters import factory  # noqa: E402
@@ -86,7 +87,7 @@ def close_dialog(flag: str) -> None:
     st.session_state[flag] = False
 
 ERRORS = (sqlite3.IntegrityError, zipfile.BadZipFile, llm_runner.LlmError, InvalidTransition, llm_io.SchemaError, PipelinePaused, ffmpeg_studio.FFmpegNotFound,
-          ffmpeg_studio.FFmpegError, ValueError, KeyError)
+          ffmpeg_studio.FFmpegError, ValueError, KeyError, access.AccessDenied)     # AccessDenied: lỗi quyền theo dự án, tiếng Việt (core/access.py)
 
 CRITERIA_LABEL = {"character": "Đúng nhân vật", "hands_face": "Không lỗi tay/mặt", "composition": "Đúng bố cục",
                   "mood_lighting": "Đúng mood / ánh sáng", "consistency": "Không chi tiết thừa/sai",
@@ -212,24 +213,8 @@ def act(fn, success: str = ""):
 def confirm_all(key: str, ids, label: str, question: str, container=st, yes_label: str = "Có, duyệt hết") -> bool:
     """One 'approve all' button, then a yes/no question. True only when the user answers Yes.
     The question is tied to the exact set of items it was asked about: if the set changes, it is asked again."""
-    ids = tuple(ids)
-    pending_key = f"ask_{key}"
-    if st.session_state.get(pending_key) not in (None, ids):
-        st.session_state[pending_key] = None  # the list changed since the question: forget it
-    if st.session_state.get(pending_key) != ids:
-        if container.button(label, key=key, disabled=not ids):
-            st.session_state[pending_key] = ids
-            st.rerun()
-        return False
-    container.warning(question)
-    yes, no = container.columns(2)
-    if yes.button(yes_label, key=f"{key}_yes", type="primary"):
-        st.session_state[pending_key] = None
-        return True
-    if no.button("Không", key=f"{key}_no"):
-        st.session_state[pending_key] = None
-        st.rerun()
-    return False
+    from dashboard.design import components
+    return components.confirm_all(key, ids, label, question, container, yes_label)
 
 def job_image(pid: int, jid: int):
     """The job's image; a rejected/deleted one is looked up in the trash so versions can still be compared."""
@@ -281,7 +266,7 @@ def scene_expander(p: Pipeline, scene_id, expanded: bool = False, with_motion: b
         if d.get("text"):
             ui.html(f'<div class="scenetext">{escape(d["text"])}</div>')
         else:
-            st.caption("Chưa có nội dung kịch bản (chạy phân tích ở Bước 1).")
+            st.caption("Chưa có nội dung kịch bản (chạy phân tích ở màn Kịch bản).")
         lines = [("Bối cảnh", " · ".join(filter(None, [d.get("time"), d.get("location")]))),
                  ("Nhân vật", ", ".join(d.get("characters") or [])),
                  ("Mood / ánh sáng / cỡ cảnh", " · ".join(filter(None, [d.get("mood"), d.get("lighting"), d.get("shot")]))),
@@ -313,6 +298,23 @@ def me() -> dict:
 def allowed(permission: str) -> bool:
     return auth.can(me(), permission)
 
+def access_user():
+    """{'email','role'} of the signed-in person for the per-project rights (core/access.py); None when sign-in is off."""
+    return access.user_of(me()) if auth_on() else None
+
+def scoped(p: Pipeline) -> Pipeline:
+    """Make `p` act as the signed-in person: every core write on it is then checked against their rights on the project."""
+    p.user = access_user()
+    return p
+
+def project_level(p: Pipeline, pid: int):
+    """The signed-in person's level on a project: 'admin' | 'own' | 'edit' | 'view' | None (core/access.level)."""
+    return access.level(p.conn, pid, access_user())
+
+def read_only(p: Pipeline, pid: int) -> bool:
+    """True when the person may look at this project but not change it (a "Chỉ xem" watcher)."""
+    return access.RANK[project_level(p, pid)] < access.RANK["edit"]
+
 def request_source() -> tuple:
     """(where the request came from for the audit log, whether it is the dashboard machine itself)."""
     try:
@@ -342,12 +344,12 @@ def clean_name(raw: str) -> str:
     return " ".join((raw or "").split())[:40]
 
 def can_delete_project(proj) -> bool:
-    """Only the person who created a project may delete it (an old project with no recorded creator: the Owner)."""
+    """Only the person who created a project, or the Owner, may delete it (core/access.can_manage; a "theo dõi" watcher may not)."""
     if not auth_on():
         return True
-    creator = proj["created_by"] if "created_by" in proj.keys() else None
+    creator = ((proj["created_by"] if "created_by" in proj.keys() else None) or "").strip().lower()
     who = me()
-    return who["email"] == creator if creator else who["role"] == "owner"
+    return who.get("role") == "owner" or (bool(creator) and creator == (who.get("email") or "").strip().lower())
 
 # ---- step 1 --------------------------------------------------------------------------
 @st.cache_resource
@@ -377,3 +379,5 @@ def scene_status_text(row) -> str:
     return " · ".join([f"ảnh {mark(row['image_job_id'], row['image_stale'])}",
                        f"prompt {mark(row['motion_state'] == 'approved', row['motion_stale'])}",
                        f"video {mark(row['video_state'] in ('succeeded', 'approved'), row['video_stale'])}"])
+
+from dashboard.design.components import colored, data_table  # noqa: E402,F401  (v2: read-only tables follow light/dark; flag off = st.dataframe)

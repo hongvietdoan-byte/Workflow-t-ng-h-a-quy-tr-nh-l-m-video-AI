@@ -52,7 +52,7 @@ def world_bible_panel(p: Pipeline, pid: int) -> None:
         if draft:
             say("info", draft.get("plain_note") or "Đã soạn bản nháp: xem và sửa các ô bên dưới rồi Lưu.", f"script-wb-draft-{pid}")
             for flag in draft.get("check_flags") or []:
-                st.markdown(f":orange[⚠ {escape(str(flag))}]")
+                st.markdown(colored("warn", f"⚠ {escape(str(flag))}"), unsafe_allow_html=True)
             elements = draft.get("candidate_elements") or []
             if elements:
                 st.markdown("**Yếu tố bầu không khí nhận ra** — tick để thêm vào “Chất liệu / hoàn thiện”:")
@@ -176,7 +176,7 @@ def project_format_panel(p: Pipeline, pid: int) -> None:
         new_prio = c3.selectbox("Ưu tiên model video", prios, index=prios.index(prio), key=f"fmt_prio_{pid}",
                                 format_func=lambda k: pr[k]["label"], help=pr[prio]["note"])
         cap("Ưu tiên model theo slide ClipAI “Hôm nay tôi chọn mô hình video như thế nào”: " + pr[new_prio]["note"]
-                   + " Model cụ thể được đề xuất cho TỪNG cảnh ở Bước 4, đổi được.")
+                   + " Model cụ thể được đề xuất cho TỪNG cảnh ở màn Video, đổi được.")
         has_images = p.conn.execute("SELECT 1 FROM jobs WHERE project_id=? AND type='image_gen' AND state='approved' LIMIT 1",
                                     (pid,)).fetchone()
         if new_aspect != aspect:
@@ -277,7 +277,7 @@ def storyboard_panel(p: Pipeline, pid: int) -> None:
     board = os.path.join(previz.layouts_dir(C.DATA, pid), "storyboard.png")
     with st.container(border=True):
         ui.html(ui.card_title("1g · 🎬 Storyboard (dựng layout trước khi gen ảnh)",
-                              "không bắt buộc · Bước 2 tự bám theo layout của cảnh nào đã dựng"))
+                              "không bắt buộc · màn Storyboard tự bám theo layout của cảnh nào đã dựng"))
         cap("Claude đọc góc máy/đường chân trời/mặt đất của ảnh bối cảnh (mỗi ảnh chỉ đọc 1 lần), đặt từng nhân vật theo "
                    "“Vị trí nhân vật” của cảnh; chương trình tự tính cỡ người theo phối cảnh và giữ chân trên mặt đất. "
                    "Chỉ cảnh đã có Background (ảnh bối cảnh trong kho) mới dựng được. Không phải duyệt: sửa blocking rồi dựng lại nếu muốn.")
