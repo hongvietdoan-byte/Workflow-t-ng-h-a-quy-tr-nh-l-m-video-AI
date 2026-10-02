@@ -32,7 +32,8 @@ def size_of(data: Dict) -> str:
 
 
 def lens_of(data: Dict, default: float) -> float:
-    """The DP's lens (shot field `lens_mm`, dp.md Q2: e.g. 24 mm close = hero / distorted, 135 mm = compressed, isolated) — the framing
+    """The DP's lens (shot field `lens_mm`, dp.md Q2: e.g. 24 mm close enlarges the foreground and stretches space, 135 mm compresses the background and separates the subject — what that
+    means is the scene's intent, the DP records it in `why`) — the framing
     (how much of the body fills the frame) stays the size's, so a longer lens moves the camera back and flattens the background."""
     lens = data.get("lens_mm")
     if isinstance(lens, (int, float)) and not isinstance(lens, bool) and 14 <= lens <= 200:

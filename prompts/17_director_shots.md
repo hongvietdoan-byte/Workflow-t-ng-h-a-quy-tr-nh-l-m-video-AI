@@ -87,7 +87,7 @@ Dự án này sản xuất **theo shot**, không theo cảnh: mỗi cảnh kịc
   đổi nơi cùng lúc…), `zoom_through` (lao vào khung — bước sang thế giới / trạng thái khác…), `j_cut` / `l_cut` (âm của shot sau vào trước
   / âm shot trước kéo sang). Phần lớn chỗ nối là `cut`; chuyển cảnh đặc biệt dùng nhiều thì mất tác dụng.
 - **`why`:** một câu cho người duyệt: shot cho người xem biết/cảm gì → vì sao cỡ/góc/chuyển động này → nối với shot trước thế nào.
-- **`lens_mm`** (chỉ khi cần khác mặc định theo cỡ cảnh): 24 đặt gần = anh hùng/ngợp; 85–135 = nén, cô lập. **`weather`**, **`plate_spot`**,
+- **`lens_mm`** (chỉ khi cần khác mặc định theo cỡ cảnh): 24 đặt gần phóng to tiền cảnh, kéo dãn không gian; 85–135 nén hậu cảnh, tách chủ thể — dùng cho ý đồ nào là **tùy cảnh**, ghi vào `why`. **`weather`**, **`plate_spot`**,
   **`plate_mode`**, **`plate_view`** (hướng máy = cái gì ở nền, kèm lý do — theo kịch bản, không theo chỗ đứng), **`practical_lights`**
   (cảnh đêm: `[]` = chỉ trăng, hoặc đèn có lý do): chỉ khi có khối "Gói bối cảnh" (tên + luật ở đó); `weather` có thể ghi ở cảnh cho cả cảnh. **`lip_sync`**:
   chỉ khi khớp môi đang BẬT (xem khối Thời lượng). Bỏ trường nào không dùng.
