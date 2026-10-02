@@ -10,6 +10,7 @@ font = "sans serif"
 
 [server]
 headless = true
+enableStaticServing = true      # dashboard/static/fonts/* (font Inter đi kèm) phục vụ ở /app/static/fonts/…
 
 [client]
 toolbarMode = "minimal"
