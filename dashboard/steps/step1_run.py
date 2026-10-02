@@ -8,7 +8,7 @@ from dashboard.steps.step1_v2 import cap, say, is_next, reset_scope  # noqa: F40
 def autopilot_progress(pid: int) -> None:
     """Live progress (refreshes itself every 5 s while the page is open; the run itself lives in a background thread)."""
     reset_scope("ap")                    # 02/10: stable tooltip/popover keys across the 5 s refreshes → an open popover is not remounted (closed)
-    p = Pipeline(connect(C.DB))
+    p = C.scoped(Pipeline(connect(C.DB)))
     info = autopilot.status(p, pid)
     state = info["state"]
     tag = {"queued": ("xếp hàng", "b-warn"), "running": ("đang chạy", "b-info"), "done": ("hoàn tất", "b-ok"), "needs_attention": ("cần bạn xử lý", "b-warn"),
@@ -43,7 +43,7 @@ def autopilot_progress(pid: int) -> None:
         label = "✔ Đã duyệt — tiếp tục" if state == "waiting" else "▶ Tiếp tục"
         if st.button(label, key=f"ap_resume_{pid}", type="primary"):
             autopilot.resume(p, pid, p.actor)
-            autopilot_manager(C.DB, C.DATA).start(pid)
+            autopilot_manager(C.DB, C.DATA).start(pid, user=C.access_user())
             st.rerun()
     if state == "done":
         out = os.path.join(C.DATA, str(pid), "output", "FINAL_VIDEO.mp4")
@@ -195,7 +195,7 @@ def autopilot_panel(p: Pipeline, pid: int) -> None:
                        + "). Trong lúc chạy, dự án chuyển sang “QC tự duyệt theo ngưỡng”; dừng hoặc xong sẽ trả lại cách duyệt cũ.",
                        st, "Có, chạy") and not issues:
             autopilot.start(p, pid, p.actor)
-            autopilot_manager(C.DB, C.DATA).start(pid)
+            autopilot_manager(C.DB, C.DATA).start(pid, user=C.access_user())
             st.rerun()
         if issues:
             cap("Hãy xử lý các mục đỏ ở trên trước khi bấm chạy.")

@@ -306,7 +306,7 @@ def image_group_v2(p, pid: int, history: list, proj, stale_reason=None) -> None:
 def detail_dialog(pid: int, jid: int) -> None:
     """✎ Sửa / 🔍 Chi tiết: ảnh lớn + kịch bản + điểm QC + nhập ảnh thủ công (các nút duyệt/loại/vẽ lại nằm ở thẻ)."""
     from dashboard.steps.step2 import image_detail
-    p = Pipeline(connect(C.DB))
+    p = C.scoped(Pipeline(connect(C.DB)))
     job = p.conn.execute("SELECT j.*, s.idx, s.title FROM jobs j JOIN scenes s ON s.id=j.scene_id WHERE j.id=?", (jid,)).fetchone()
     if job is None:
         st.caption("Ảnh này không còn.")
@@ -362,7 +362,7 @@ def action_bar(p, pid: int) -> None:
                 with mid:
                     if st.button("✔ Duyệt storyboard → gửi video", key=f"board_ok_{pid}", type="secondary" if pending else "primary", width="stretch"):
                         autopilot.resume(p, pid, p.actor)
-                        autopilot_manager(C.DB, C.DATA).start(pid)
+                        autopilot_manager(C.DB, C.DATA).start(pid, user=C.access_user())
                         st.rerun()
             with right:
                 if _confirm_all_primary("approve_all", pending, f"✔ Duyệt tất cả ({len(pending)} ảnh)", f"Duyệt tất cả {len(pending)} ảnh đang chờ duyệt?",

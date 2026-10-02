@@ -7,7 +7,7 @@ the "settings" permission only.
 """
 from typing import Dict, List, Optional
 
-from . import archive, budget, project_budget, team
+from . import access, archive, budget, project_budget, team
 
 WAITING = ("waiting", "needs_attention")        # autopilot states that wait for a person (dashboard/next_step.py)
 
@@ -23,14 +23,24 @@ def _mine(created_by: Optional[str], email: str, is_owner: bool, auth_on: bool) 
 
 
 def items(conn, email: str, is_owner: bool = True, can_money: bool = True, auth_on: bool = False, team_wide: bool = False) -> List[Dict]:
+    """Rights (core/access.py): a person gets the items of the projects they made and of projects where they are a watcher with the
+    "Được sửa" level (they can act on those). A "Chỉ xem" watcher gets none (nothing there is theirs to do). Only the Owner can widen
+    to the whole team with `team_wide`; for anyone else `team_wide` changes nothing."""
     out: List[Dict] = []
+    levels = access.levels_for(conn, {"email": email, "role": "owner" if is_owner else "member"}) if auth_on else {}
     for pr in archive.active_projects(conn):
         pid, name = pr["id"], pr["name"]
         row = conn.execute("SELECT created_by, autopilot_state, autopilot_note FROM projects WHERE id=?", (pid,)).fetchone()
         mine = _mine(row["created_by"], email, is_owner, auth_on)
-        if not mine and not team_wide:
+        if auth_on and not is_owner:
+            lv = levels.get(pid)
+            if lv not in ("own", "edit"):
+                continue
+            mine = True                                # a watcher with "Được sửa" acts on it like on their own
+        elif not mine and not team_wide:
             continue
-        who = "" if mine else (row["created_by"] or "")
+        creator = (row["created_by"] or "").strip()
+        who = creator if auth_on and creator and creator.lower() != (email or "").strip().lower() else ""
 
         def add(kind: str, text: str, screen: str, level: str = "todo", sub: str = ""):
             out.append({"kind": kind, "project_id": pid, "project": name, "text": text, "screen": screen, "level": level,

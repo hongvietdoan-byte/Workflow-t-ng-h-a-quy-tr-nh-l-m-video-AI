@@ -14,6 +14,7 @@ like a pasted script — every later gate (Bible, storyboard, budget) is unchang
 Money: stage `screenwriter` (counted with the Director in the project budget), a hard cap of RUN_CAP_USD per idea for all its turns
 (llm_runner.spend_cap), the estimate shown before each paid turn. State per project in app_settings ('idea:<pid>').
 """
+from . import access
 import json
 import re
 from typing import Dict, List, Optional
@@ -345,6 +346,7 @@ def edit(conn, pid: int, script: str) -> Dict:
 
 def use_script(p, pid: int) -> int:
     """Put the approved script into Step 1 exactly like a pasted script. Refused while the checks block. Returns the scene count."""
+    access.need_edit(p, pid, "dùng kịch bản")
     from . import script_parser
     state = get_state(p.conn, pid)
     checks = check_script(p.conn, pid, state.get("script") or "", state.get("inputs") or {})

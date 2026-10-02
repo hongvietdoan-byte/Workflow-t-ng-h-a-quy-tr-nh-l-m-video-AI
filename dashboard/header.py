@@ -1,7 +1,7 @@
 """Header: login, account bar, settings gear + dialogs, project bar (picker, risk, project settings, pause/cancel)."""
 from dashboard.common import *  # noqa: F401,F403  (shared imports + helpers)
-from core import archive
-from dashboard import common as C
+from core import access, archive
+from dashboard import access_ui, common as C
 from dashboard.admin import asset_library_panel, history, knowledge_panel, lessons_tab, price_editor, users_tab
 
 
@@ -73,7 +73,7 @@ def _level_changed(pid: int) -> None:
     pick = st.session_state.get(f"level_{pid}")
     if not pick:
         return
-    p = Pipeline(connect(C.DB))                     # a callback runs in another thread than the one that made `p`
+    p = C.scoped(Pipeline(connect(C.DB)))                     # a callback runs in another thread than the one that made `p`
     try:
         automation.apply(p, pid, pick)
     except ValueError as e:
@@ -93,14 +93,14 @@ def level_bar(p: Pipeline, pid: int, compact: bool = False) -> None:
     keys = list(automation.LEVELS)
     proj = p.project(pid)
     creator = (proj["created_by"] or "").strip().lower() if "created_by" in proj.keys() else ""
-    can = (not auth_on()) or me().get("role") == "owner" or not creator or creator == (me().get("email") or "").lower()
+    can = (not auth_on()) or not C.read_only(p, pid)        # đợt F: creator, Owner and "Được sửa" watchers
     st.session_state[f"level_{pid}"] = cur if cur in keys else None        # always show what the project really has
     c1, c2 = (st, st) if compact else st.columns([1, 5], vertical_alignment="center")    # v2: the hero strip gives it its own row
     c1.caption("🎚 Mức tự động")
     with (st.container() if compact else c2):
         st.radio("Mức tự động", keys, horizontal=True, label_visibility="collapsed", format_func=lambda k: automation.LEVELS[k]["label"],
                  disabled=busy or not can, key=f"level_{pid}", on_change=_level_changed, args=(pid,),
-                 help=("Đang chạy tự động — đổi mức sau khi dừng." if busy else "Chỉ người tạo dự án hoặc Owner đổi mức." if not can
+                 help=("Đang chạy tự động — đổi mức sau khi dừng." if busy else "Chỉ người có quyền sửa dự án (chủ, Owner, người theo dõi “Được sửa”) đổi mức." if not can
                        else "\n\n".join(f"**{v['label']}**: {v['desc']}" for v in automation.LEVELS.values())))
     err = st.session_state.pop("level_error", None)
     if err:
@@ -205,7 +205,7 @@ def require_login(conn) -> None:
 def current_pid(p: Pipeline):
     """The project selected in the header dropdown (global_bar), read from session_state so the header row
     (rendered above the dropdown) already knows it in the same script run -- selectbox key="global_pid"."""
-    ids = [r["id"] for r in archive.active_projects(p.conn)]          # 📦 archived projects are not offered
+    ids = [r["id"] for r in archive.active_projects(p.conn, C.access_user())]          # 📦 archived projects are not offered
     pid = st.session_state.get("global_pid")
     return pid if pid in ids else (ids[0] if ids else None)
 
@@ -234,31 +234,34 @@ def new_project_control(p: Pipeline) -> None:
 
 def _restore_project(project_id: int) -> None:
     """Button callback (runs before the widgets, so it may still switch the picker to the restored project)."""
-    archive.restore(Pipeline(connect(C.DB)), project_id)     # a callback runs in another thread than the one that made `p`
+    archive.restore(C.scoped(Pipeline(connect(C.DB))), project_id)     # a callback runs in another thread than the one that made `p`
     st.session_state["global_pid"] = project_id
     st.toast("Đã khôi phục dự án — dự án vẫn đang tạm dừng, bấm ▶ Tiếp tục khi muốn chạy tiếp")
 
 
 def archived_list(p: Pipeline) -> None:
     """⚙ → 📦 Dự án đã cất: every put-away project with a restore button (nothing was deleted)."""
-    rows = archive.archived_projects(p.conn)
+    rows = archive.archived_projects(p.conn, C.access_user())
     if not rows:
         return
     if ui.v2_on():                                   # v2: a fold (the list can be long) whose note is the old one-line caption
         with st.expander(f"📦 Dự án đã cất ({len(rows)})"):
             st.caption("Ẩn khỏi danh sách, không chạy tự động; dữ liệu còn nguyên.")
-            _archived_rows(rows)
+            _archived_rows(p, rows)
         return
     st.markdown(f"**📦 Dự án đã cất ({len(rows)})**")
     st.caption("Ẩn khỏi danh sách, không chạy tự động; dữ liệu còn nguyên.")
-    _archived_rows(rows)
+    _archived_rows(p, rows)
 
 
-def _archived_rows(rows) -> None:
+def _archived_rows(p, rows) -> None:
     for r in rows:
         c1, c2 = st.columns([3, 1.4], vertical_alignment="center")
         c1.caption(f"#{r['id']} {escape(r['name'])}")
-        c2.button("↩ Khôi phục", key=f"proj_restore_{r['id']}", on_click=_restore_project, args=(r["id"],))
+        if access.can_manage(p.conn, r["id"], C.access_user()):         # restore = Owner / the project's creator
+            c2.button("↩ Khôi phục", key=f"proj_restore_{r['id']}", on_click=_restore_project, args=(r["id"],))
+        else:
+            c2.caption("Chỉ Owner / chủ dự án khôi phục")
 
 
 def settings_menu(p: Pipeline, pid, label: str = "⚙") -> None:
@@ -337,7 +340,19 @@ def settings_menu(p: Pipeline, pid, label: str = "⚙") -> None:
 
 
 def _settings_project(p: Pipeline, pid: int) -> None:
-    """⚙ → Dự án: review mode, cheap test, clone, put away / delete."""
+    """⚙ → Dự án: review mode, cheap test, clone, put away / delete — and (Owner / creator) who watches the project. A "Chỉ xem" watcher
+    sees the settings with every input disabled (the core refuses the writes anyway: core/access.py)."""
+    ro = C.read_only(p, pid)
+    if ro:
+        st.caption("👁 Chỉ xem — bạn không đổi được cài đặt dự án này.")
+    with access_ui.read_only(ro):
+        _settings_project_body(p, pid)
+    if auth_on():
+        with st.expander("👁 Người theo dõi dự án", expanded=False):
+            access_ui.watchers_editor(p, pid, "set")
+
+
+def _settings_project_body(p: Pipeline, pid: int) -> None:
     proj = p.project(pid)
     modes = list(ui.MODE_LABELS)
     mode = st.radio("Ai duyệt ảnh/clip", modes, index=modes.index(proj["operating_mode"]), format_func=ui.MODE_LABELS.get,
@@ -361,6 +376,9 @@ def _settings_project(p: Pipeline, pid: int) -> None:
         st.rerun()
     if st.button("🧬 Nhân bản dự án (để so sánh cách làm)", key="settings_clone", width="stretch"):
         open_dialog("dlg_clone")
+    if not can_delete_project(proj):                 # archive / delete = Owner or the creator (a "Được sửa" watcher may not)
+        st.caption("Cất / xóa dự án: chỉ Owner hoặc chủ dự án (" + (escape(proj["created_by"]) if proj["created_by"] else "chưa có chủ") + ").")
+        return
     if confirm_all(f"proj_archive_{pid}", [pid], "📦 Cất dự án này",
                    f"Cất dự án “{proj['name']}”? Dự án ẩn khỏi danh sách, tạm dừng và không chạy tự động; KHÔNG xóa gì "
                    "(ảnh, clip, chi tiêu giữ nguyên). Khôi phục bất cứ lúc nào ở ⚙ → Dự án → “📦 Dự án đã cất”.", st, "Có, cất"):
@@ -559,7 +577,7 @@ def _dialog_limits(p: Pipeline) -> None:
 def _own(p: Pipeline) -> Pipeline:
     """A dialog's buttons rerun only the dialog, in another thread than the one that made `p` (SQLite refuses to share a
     connection across threads): every dialog works on its own connection, as the same person."""
-    fresh = Pipeline(connect(C.DB))
+    fresh = C.scoped(Pipeline(connect(C.DB)))
     fresh.actor = p.actor
     return fresh
 
@@ -718,7 +736,7 @@ def user_name() -> str:
 
 def global_bar(p: Pipeline):
     """ONE bar: brand · project · state · risk · pause/continue/cancel · new project · ⚙."""
-    projects = archive.active_projects(p.conn)          # 📦 archived projects are hidden (restore them in ⚙)
+    projects = archive.active_projects(p.conn, C.access_user())          # 📦 archived projects are hidden (restore them in ⚙)
     if ui.v2_on():
         return _global_bar_v2(p, projects)
     with st.container(border=True):
@@ -733,7 +751,7 @@ def global_bar(p: Pipeline):
                 money_card(p, None)
             with c7:
                 settings_menu(p, None)
-            put_away = len(archive.archived_projects(p.conn))
+            put_away = len(archive.archived_projects(p.conn, C.access_user()))
             st.info("Chưa có dự án. Bấm “➕ Dự án mới” để bắt đầu."
                     + (f" ({put_away} dự án đã cất — mở ⚙ → “📦 Dự án đã cất” để khôi phục.)" if put_away else ""))
             return None
@@ -746,6 +764,7 @@ def global_bar(p: Pipeline):
         with c2:
             risk_popover(p, pid)
         b1, b3 = c3.columns(2)              # kế hoạch V4 5.3: one pause / continue button
+        access_ui.set_read_only(auth_on() and C.read_only(p, pid))       # "Chỉ xem": pause / continue / cancel are disabled
         if proj["paused"]:
             if b1.button("▶ Tiếp tục", key="btn_resume", type="primary"):
                 p.set_paused(pid, False)
@@ -756,6 +775,7 @@ def global_bar(p: Pipeline):
         if confirm_all("btn_cancel", [pid], "■ Hủy việc", "Hủy mọi ảnh/clip đang chờ hoặc đang gen của dự án này?", b3, "Có, hủy"):
             st.toast(f"Đã hủy {p.cancel_all_active(pid)} việc")
             st.rerun()
+        access_ui.set_read_only(False)
         with c5:
             inbox_card(p)
         with c6:
@@ -787,7 +807,7 @@ def _global_bar_v2(p: Pipeline, projects):
                 money_card(p, None)
             with c7:
                 settings_menu(p, None, "⚙ Cài đặt")
-            put_away = len(archive.archived_projects(p.conn))
+            put_away = len(archive.archived_projects(p.conn, C.access_user()))
             st.info("Chưa có dự án. Bấm “➕ Dự án mới” để bắt đầu."
                     + (f" ({put_away} dự án đã cất — mở ⚙ → “📦 Dự án đã cất” để khôi phục.)" if put_away else ""))
             return None
@@ -811,6 +831,7 @@ def _global_bar_v2(p: Pipeline, projects):
             inbox_card(p)
         with c6:
             money_card(p, pid)
+        access_ui.set_read_only(auth_on() and C.read_only(p, pid))       # "Chỉ xem": pause / continue / cancel are disabled
         if proj["paused"]:
             if cols[5].button("▶ Tiếp tục", key="btn_resume", type="primary", width="stretch"):
                 p.set_paused(pid, False)
@@ -825,6 +846,7 @@ def _global_bar_v2(p: Pipeline, projects):
                     st.toast(f"Đã hủy {p.cancel_all_active(pid)} việc")
                     st.rerun()
                 risk_popover(p, pid)
+        access_ui.set_read_only(False)
         with c_gear:
             settings_menu(p, pid, "⚙ Cài đặt")
     if proj["paused"]:
@@ -994,7 +1016,7 @@ def _create_project(p: Pipeline) -> None:
     name = (st.session_state.get("new_name") or "").strip()
     if not name:
         return
-    p = Pipeline(connect(C.DB))                     # a callback runs in another thread than the one that made `p`
+    p = C.scoped(Pipeline(connect(C.DB)))                     # a callback runs in another thread than the one that made `p`
     pid = p.create_project(name, created_by=me()["email"], aspect=st.session_state.get("new_aspect"),
                            genre=st.session_state.get("new_genre"), model_priority=st.session_state.get("new_prio"),
                            game=st.session_state.get("new_game"))

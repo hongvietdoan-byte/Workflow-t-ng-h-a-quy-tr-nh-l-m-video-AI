@@ -328,6 +328,15 @@ CREATE TABLE IF NOT EXISTS style_presets (
     created_at TEXT NOT NULL,
     created_by TEXT
 );
+CREATE TABLE IF NOT EXISTS project_watchers (
+    project_id INTEGER NOT NULL,       -- core/access.py: người được chủ dự án / Owner cho theo dõi dự án này
+    email TEXT NOT NULL,
+    level TEXT NOT NULL CHECK (level IN ('view','edit')),   -- 'view' = chỉ xem, 'edit' = xem + sửa / gửi job / duyệt
+    added_by TEXT,
+    added_at TEXT NOT NULL,
+    PRIMARY KEY (project_id, email)
+);
+CREATE INDEX IF NOT EXISTS idx_watchers_email ON project_watchers(email);
 CREATE TABLE IF NOT EXISTS content_moderation_failures (
     id INTEGER PRIMARY KEY,
     job_id INTEGER NOT NULL REFERENCES jobs(id),

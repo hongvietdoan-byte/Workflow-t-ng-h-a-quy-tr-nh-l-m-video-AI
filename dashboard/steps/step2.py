@@ -119,7 +119,7 @@ def step2(p: Pipeline, pid: int):
     from dashboard import next_step                                     # S9 E0.1: the next thing to do, one line
     if not v2:                                                            # v2: the shell header already shows the next step
         ui.html(next_step.band(p, pid, 2, C.DATA))
-    if autopilot_manager(C.DB, C.DATA).wake(pid):      # S6.4: a redraw asked for while the run waits at the storyboard is sent
+    if not C.read_only(p, pid) and autopilot_manager(C.DB, C.DATA).wake(pid, user=C.access_user()):      # S6.4: a redraw asked for while the run waits at the storyboard is sent
         _wake = "⏳ Chạy tự động đang chờ bạn ở cổng — ảnh vẽ lại bạn vừa yêu cầu đang được gửi (trong trần đã duyệt)."
         if v2:
             SB.note("⏳ Đang gửi ảnh vẽ lại bạn vừa yêu cầu", _wake, "sb-wake")
@@ -638,7 +638,7 @@ def shot_storyboard_panel(p: Pipeline, pid: int, gate_button: bool = True) -> No
                     c2.caption("Nút duyệt ở thanh hành động cuối lưới ảnh.")
             elif c2.button("✔ Duyệt storyboard — gen video", key=f"board_ok_{pid}", type="primary"):
                 autopilot.resume(p, pid, p.actor)
-                autopilot_manager(C.DB, C.DATA).start(pid)
+                autopilot_manager(C.DB, C.DATA).start(pid, user=C.access_user())
                 st.rerun()
         per_row = 6
         for k in range(0, len(rows), per_row):

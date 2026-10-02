@@ -1,5 +1,6 @@
 """One action per step instead of "create jobs" + "submit": queue what is missing or outdated, then send it.
 Shared by the dashboard buttons and the automatic run, so both redo exactly the parts a change affected (core.lineage)."""
+from . import access
 from typing import Dict, List
 
 from . import lineage, llm_io, pilot, regen
@@ -35,6 +36,7 @@ def queue_images(p: Pipeline, project_id: int, confirmed: bool = False) -> Dict:
     """Image jobs for ready scenes without a live picture, and a redo for approved pictures made from an outdated spec.
     While a pilot is running only its scenes are queued. The automatic run's gates apply (image_gates): a blocking one raises
     GateError unless the person confirmed (`confirmed=True`, recorded as a diag); warnings are recorded as diags."""
+    access.need_edit(p, project_id, "gửi gen ảnh")
     from . import diag
     conn = p.conn
     fresh = [r["id"] for r in conn.execute(
@@ -71,6 +73,7 @@ def videos_to_make(p: Pipeline, project_id: int) -> List[Dict]:
 
 def queue_videos(p: Pipeline, project_id: int, data_dir: str) -> Dict:
     """Video jobs for scenes whose image + motion prompt are approved and current, and a redo for clips made from old inputs."""
+    access.need_edit(p, project_id, "gửi gen video")
     conn = p.conn
     created = 0
     for r in llm_io.ready_for_video(p, project_id):

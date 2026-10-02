@@ -12,6 +12,7 @@ methods dropped half way, QC re-judging).
 
 Test / acceptance runs (tools/experiments) are not production: they carry their own spend_cap and are counted under claude_other.
 Audio has no USD price yet: it stays capped by count (core.budget.check_audio)."""
+from . import access
 import json
 import re
 from datetime import datetime, timezone
@@ -164,6 +165,7 @@ def propose(p, pid: int) -> Dict:
 
 
 def approve(p, pid: int, who: str, proposal: Optional[Dict] = None) -> Dict:
+    access.need_edit(p, pid, "duyệt & khóa ngân sách")
     prop = proposal or propose(p, pid)
     old = get(p.conn, pid) or {}
     data = {"caps": {k: v["cap"] for k, v in prop["stages"].items()}, "total": prop["total"], "approved_by": who, "approved_at": _now(),

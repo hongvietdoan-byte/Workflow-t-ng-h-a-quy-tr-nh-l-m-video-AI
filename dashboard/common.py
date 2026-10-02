@@ -21,6 +21,7 @@ import streamlit as st
 
 from core import effectiveness, costume, previz, asset_vision, autoqc, ff_site, sfx_plan, sound_lib, assets, audio_lib, subtitles, script_reader, auth, autopilot, dialogue, diag, knowledge, lessons, perf, regen, research, style, subjects, trash, waveform, cost, ffmpeg_studio, final_cut, llm_io, llm_runner, music, preflight, prompts, script_parser, video_analysis  # noqa: E402
 from core import batch, budget, claude_tasks, delivery, formats, lineage, model_router, pilot, qc_policy, voice, voice_check  # noqa: E402
+from core import access  # noqa: E402
 from core.db import connect  # noqa: E402
 from core.pipeline import Pipeline, PipelinePaused  # noqa: E402
 from core.adapters import factory  # noqa: E402
@@ -86,7 +87,7 @@ def close_dialog(flag: str) -> None:
     st.session_state[flag] = False
 
 ERRORS = (sqlite3.IntegrityError, zipfile.BadZipFile, llm_runner.LlmError, InvalidTransition, llm_io.SchemaError, PipelinePaused, ffmpeg_studio.FFmpegNotFound,
-          ffmpeg_studio.FFmpegError, ValueError, KeyError)
+          ffmpeg_studio.FFmpegError, ValueError, KeyError, access.AccessDenied)     # AccessDenied: lỗi quyền theo dự án, tiếng Việt (core/access.py)
 
 CRITERIA_LABEL = {"character": "Đúng nhân vật", "hands_face": "Không lỗi tay/mặt", "composition": "Đúng bố cục",
                   "mood_lighting": "Đúng mood / ánh sáng", "consistency": "Không chi tiết thừa/sai",
@@ -297,6 +298,23 @@ def me() -> dict:
 def allowed(permission: str) -> bool:
     return auth.can(me(), permission)
 
+def access_user():
+    """{'email','role'} of the signed-in person for the per-project rights (core/access.py); None when sign-in is off."""
+    return access.user_of(me()) if auth_on() else None
+
+def scoped(p: Pipeline) -> Pipeline:
+    """Make `p` act as the signed-in person: every core write on it is then checked against their rights on the project."""
+    p.user = access_user()
+    return p
+
+def project_level(p: Pipeline, pid: int):
+    """The signed-in person's level on a project: 'admin' | 'own' | 'edit' | 'view' | None (core/access.level)."""
+    return access.level(p.conn, pid, access_user())
+
+def read_only(p: Pipeline, pid: int) -> bool:
+    """True when the person may look at this project but not change it (a "Chỉ xem" watcher)."""
+    return access.RANK[project_level(p, pid)] < access.RANK["edit"]
+
 def request_source() -> tuple:
     """(where the request came from for the audit log, whether it is the dashboard machine itself)."""
     try:
@@ -326,12 +344,12 @@ def clean_name(raw: str) -> str:
     return " ".join((raw or "").split())[:40]
 
 def can_delete_project(proj) -> bool:
-    """Only the person who created a project may delete it (an old project with no recorded creator: the Owner)."""
+    """Only the person who created a project, or the Owner, may delete it (core/access.can_manage; a "theo dõi" watcher may not)."""
     if not auth_on():
         return True
-    creator = proj["created_by"] if "created_by" in proj.keys() else None
+    creator = ((proj["created_by"] if "created_by" in proj.keys() else None) or "").strip().lower()
     who = me()
-    return who["email"] == creator if creator else who["role"] == "owner"
+    return who.get("role") == "owner" or (bool(creator) and creator == (who.get("email") or "").strip().lower())
 
 # ---- step 1 --------------------------------------------------------------------------
 @st.cache_resource

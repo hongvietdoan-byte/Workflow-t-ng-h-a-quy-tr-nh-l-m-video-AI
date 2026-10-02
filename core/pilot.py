@@ -1,5 +1,6 @@
 """Pilot before the batch (game-asset-set-generator skill: "pilot run of 3-5 assets"): generate a few representative scenes first,
 let the person (or QC) confirm the look, then the rest. Saves credit when a style / character problem would repeat in every scene."""
+from . import access
 import json
 from typing import Dict, List
 
@@ -78,12 +79,14 @@ def active(p: Pipeline, project_id: int) -> bool:
 
 
 def start(p: Pipeline, project_id: int) -> List[int]:
+    access.need_edit(p, project_id, "chạy thử mẫu")
     scenes = pick(p, project_id)
     save(p, project_id, {"enabled": True, "scenes": scenes, "released": False})
     return scenes
 
 
 def release(p: Pipeline, project_id: int) -> None:
+    access.need_edit(p, project_id, "duyệt ảnh mẫu thử")
     state = get(p, project_id)
     state["released"] = True
     save(p, project_id, state)
