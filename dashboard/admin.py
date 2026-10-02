@@ -190,6 +190,14 @@ def _role_options(kind: str) -> dict:
     return {"": "— chưa rõ —", **assets.ROLES.get(kind, {})}
 
 
+def _fresh(p: Pipeline) -> Pipeline:
+    """A fragment redraws alone, in another thread than the run that made `p` (SQLite refuses to share a connection across threads): every
+    library box works on its own connection, as the same person."""
+    fresh = C.scoped(Pipeline(connect(C.DB)))
+    fresh.actor = p.actor
+    return fresh
+
+
 REVIEW_PAGE = 24
 
 
@@ -212,6 +220,7 @@ def library_review_box(p: Pipeline, game: str) -> None:
     """G2: pictures that came in without a person looking (folder sync, website, 3D render) wait here; the pipeline only uses approved
     ones. The role is guessed for free from the picture's shape — correct it when it is wrong.
     A fragment: every click here redraws only this box (not the whole library page); pick many pictures to approve / drop at once."""
+    p = _fresh(p)
     waiting = assets.pending_images(p.conn, game)
     if not waiting:
         return
@@ -225,7 +234,9 @@ def library_review_box(p: Pipeline, game: str) -> None:
 
     done = _rerun_here
 
-    with st.expander(f"📥 Ảnh chờ duyệt ({len(waiting)}) — pipeline chưa dùng các ảnh này", expanded=False):
+    # the label stays the same while the count changes: a changed label makes Streamlit build the expander again, closed — after every click
+    st.caption(f"📥 {len(waiting)} ảnh chờ duyệt")
+    with st.expander("📥 Ảnh chờ duyệt — pipeline chưa dùng các ảnh này", expanded=False):
         st.caption("Tick các ảnh rồi duyệt / bỏ một lượt (bấm trong hộp này không tải lại cả trang). Chọn đúng vai trò (toàn thân / nửa người / cận mặt / "
                    "sau lưng…; bối cảnh: nền ngang tầm mắt / góc cao / toàn cảnh từ trên) và look — shot cận lấy ảnh cận mặt, shot quay lưng lấy ảnh sau lưng, "
                    "ảnh bản đồ chụp từ trên cao không bao giờ làm nền.")
@@ -290,9 +301,11 @@ def library_review_box(p: Pipeline, game: str) -> None:
 
 @st.fragment
 def library_lost_box(p: Pipeline) -> None:
+    p = _fresh(p)
     lost = assets.missing_files_detail(p.conn)
     if lost:                                    # B5 01/10: files gone from disk — fix on screen (reload from the source, or drop the link)
-        with st.expander(f"⚠ {len(lost)} ảnh trong Kho mất file", expanded=False):
+        st.caption(f"⚠ {len(lost)} ảnh trong Kho mất file")
+        with st.expander("⚠ Ảnh trong Kho mất file", expanded=False):
             for w in lost[:30]:
                 a1, a2, a3 = st.columns([4, 1.4, 1.4], vertical_alignment="center")
                 a1.markdown(f"**{escape(w['asset'])}** · `{w['path']}`" + ("" if w["can_reload"] else " · nguồn không còn"))
@@ -354,6 +367,7 @@ def profile_form(p: Pipeline, a: dict) -> None:
 def plates3d_panel(p: Pipeline, game: str) -> None:
     """🏗 3D place -> empty eye-level / low / high backgrounds rendered by Blender on this computer (no AI, no credit), into the review
     box. How to test: docs/HUONG_DAN_3D.md."""
+    p = _fresh(p)
     from core import plates3d
     with st.expander("🏗 Bối cảnh 3D — render nền trống người từ file 3D (Blender, không tốn credit)", expanded=False):
         blender = plates3d.find_blender()
@@ -418,6 +432,7 @@ def plates3d_panel(p: Pipeline, game: str) -> None:
 def meshy_panel(p: Pipeline, game: str) -> None:
     """🧍 Character → 3D model (Meshy, paid credits) → rig, saved in data/models3d; its own renders go to the review box. Every call is
     estimated, checked against the caps and written to the ledger before it is sent (core/meshy.py)."""
+    p = _fresh(p)
     from core import meshy
     with st.expander("🧍 Nhân vật 3D — dựng mô hình 3D + khung xương bằng Meshy (TỐN CREDIT)", expanded=False):
         # an expander's body runs even when closed: nothing (sheet cutting, the ledger) is done until the person opens the tool
@@ -504,6 +519,7 @@ def meshy_panel(p: Pipeline, game: str) -> None:
 
 @st.fragment
 def lib_sources_box(p, game) -> None:
+    p = _fresh(p)
     with st.expander("🔄 Nguồn đồng bộ: thư mục tài nguyên (cập nhật kho bằng 1 cú bấm hoặc tự động)", expanded=not assets.list_sources(p.conn, game)):
         st.caption("Chọn một thư mục trên máy chạy Dashboard chứa ảnh (ví dụ thư mục đang đồng bộ với Google Drive). Kho sẽ giống thư mục đó: "
                    "ảnh mới được thêm, ảnh sửa được cập nhật, ảnh trùng không bị thêm hai lần; tên, mô tả bạn đã sửa trong Dashboard **không bị ghi đè**. "
@@ -563,6 +579,7 @@ def lib_sources_box(p, game) -> None:
 
 @st.fragment
 def lib_ff_site_box(p, game) -> None:
+    p = _fresh(p)
     with st.expander("🌐 Cập nhật từ website Free Fire (ff.garena.com)"):
         st.caption("Đọc trang web chính thức: 6 bản đồ và mọi khu vực (tên, mô tả, ảnh), cùng 12 nhân vật / thú cưng / vũ khí mới nhất (tiểu sử, kỹ năng, chỉ số). "
                    "Mục đã có trong kho chỉ được **bổ sung** mô tả (đặt trong khối `[ff.garena.com]`, chạy lại thì thay khối đó) và ảnh chính thức, "
@@ -579,6 +596,7 @@ def lib_ff_site_box(p, game) -> None:
 
 @st.fragment
 def lib_vision_box(p, game) -> None:
+    p = _fresh(p)
     with st.expander("🤖 Đọc mô tả ngoại hình bằng Claude (nhân vật / thú cưng)"):
         st.caption("Ảnh đầu của mỗi nhân vật thường là một bảng thiết kế nhiều góc/tư thế (turn-around, bảng màu, phụ kiện) — rất nhiều chi tiết hữu ích, "
                    "nhưng gửi thẳng tấm đó cho AI vẽ ảnh lại làm nó chép lẫn lộn giữa các nhân vật trong cùng một cảnh, nên màn Storyboard không dùng tấm này làm ảnh "
@@ -604,6 +622,7 @@ def lib_vision_box(p, game) -> None:
 
 @st.fragment
 def lib_video_box(p, game) -> None:
+    p = _fresh(p)
     with st.expander("📹 Phân tích video kỹ năng bằng Claude (nhân vật quay trong gameplay)"):
         st.caption("Tải video gameplay quay skill của một nhân vật — Claude nhìn các khung hình lấy mẫu đều theo thời gian và viết lại "
                    "nhận dạng nhân vật + kỹ năng/VFX thành chữ, MỖI câu gắn nhãn [OBSERVED] (thấy trực tiếp) / [EXPLICIT] (chữ overlay nói rõ) / "
@@ -671,6 +690,7 @@ def lib_video_box(p, game) -> None:
 
 @st.fragment
 def lib_bulk_box(p, game) -> None:
+    p = _fresh(p)
     with st.expander("⬆ Tải nhiều ảnh cùng lúc (tên file = tên tài nguyên)"):
         st.caption("Chọn nhiều ảnh một lượt: `Lyra_front.png` + `Lyra_back.png` thành một mục Lyra; mục đã có thì được thêm ảnh; ảnh trùng bị bỏ qua.")
         bulk_kind = st.selectbox("Loại", list(assets.KINDS), format_func=lambda k: assets.KINDS[k], key="lib_bulk_kind")
@@ -684,6 +704,7 @@ def lib_bulk_box(p, game) -> None:
 
 @st.fragment
 def lib_sound_box(p) -> None:
+    p = _fresh(p)
     with st.expander("🎼 Kho âm thanh (nhạc nền & hiệu ứng) — thư mục nguồn", expanded=not sound_lib.list_sources(p.conn)):
         st.caption("Thư mục chứa nhạc và hiệu ứng (mp3, wav, m4a, ogg, flac). Hệ thống chỉ liệt kê file (không mở từng file) nên thư mục vài GB vẫn xong ngay; "
                    "phân loại nhạc nền / hiệu ứng và tâm trạng (vui vẻ, sôi động, kịch tính, hài...) dựa theo tên thư mục. Ở màn Bản giao mọi người tìm, nghe thử và dùng.")
@@ -720,6 +741,7 @@ def lib_sound_box(p) -> None:
 
 @st.fragment
 def lib_new_item_box(p, game) -> None:
+    p = _fresh(p)
     with st.expander("➕ Thêm một mục"):
         c1, c2 = st.columns([3, 2])
         name = c1.text_input("Tên", key="lib_new_name")
@@ -740,6 +762,7 @@ def lib_new_item_box(p, game) -> None:
 
 @st.fragment
 def lib_asset_card(p: Pipeline, a: dict, items: list) -> None:
+    p = _fresh(p)
     with st.expander(f"{a['kind_label']} · {a['name']} · {len(a['images'])} ảnh"):
         if a["images"]:
             cols = st.columns(min(len(a["images"]), 6))

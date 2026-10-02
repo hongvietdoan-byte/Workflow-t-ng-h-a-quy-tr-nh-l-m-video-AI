@@ -152,10 +152,35 @@ def release_hold(conn, hold_id: Optional[int]) -> None:
         conn.commit()
 
 
+_SPENT_CACHE: Dict = {}
+
+
 def spent(conn, pricing: Optional[Dict] = None, since: Optional[str] = None) -> Dict:
     """{"usd", "images", "unknown": [model:tier without a price], "llm_usd"} of real (non-mock) submissions since `since`
-    ("usd" includes the Claude API part)."""
-    pricing = pricing or cost.load_pricing()
+    ("usd" includes the Claude API part).
+    The ledger only grows, so with the default price list the answer is remembered until a row is added (the top bar asked 6 times on every
+    redraw and each ask went through every row; 02/10)."""
+    key = None
+    if pricing is None:
+        try:
+            db = next((r[2] for r in conn.execute("PRAGMA database_list") if r[1] == "main"), "")
+            cnt, last = conn.execute("SELECT COUNT(*), COALESCE(MAX(id), 0) FROM usage_events").fetchone()
+            pp = os.environ.get("PIPELINE_PRICING") or cost.DEFAULT_PRICING_PATH
+            pf = os.path.getmtime(pp) if os.path.exists(pp) else 0
+            key = (db, since, cnt, last, pf)
+            if key in _SPENT_CACHE:
+                return dict(_SPENT_CACHE[key])
+        except Exception:  # noqa: BLE001 - no cache is always correct
+            key = None
+    out = _spent(conn, pricing or cost.load_pricing(), since)
+    if key is not None:
+        if len(_SPENT_CACHE) > 50:
+            _SPENT_CACHE.clear()
+        _SPENT_CACHE[key] = dict(out)
+    return out
+
+
+def _spent(conn, pricing: Dict, since: Optional[str]) -> Dict:
     rows = conn.execute("SELECT * FROM usage_events WHERE provider NOT LIKE 'mock%'" + (" AND at >= ?" if since else ""),
                         (since,) if since else ()).fetchall()
     usd, images, unknown, llm, audios = 0.0, 0, set(), 0.0, 0

@@ -319,6 +319,19 @@ def scene_editor(p: Pipeline, pid: int, scene, char_names) -> None:
                 st.rerun()
 
 
+@st.fragment
+def scene_editor_box(pid: int, idx: int, char_names) -> None:
+    """The scene editor is built only when asked for (02/10): an expander's body runs even when closed, and 8-30 editors (17 inputs, a table and
+    two text areas each) made the whole script screen take 1+ s to draw. Being a fragment, typing in one scene redraws only that scene — on its
+    own connection and a fresh read of the scene (the run that made the page lives in another thread)."""
+    p = C.scoped(Pipeline(connect(C.DB)))
+    if not st.toggle("✏ Mở trình sửa của cảnh này", key=f"sd_open_{pid}_{idx}"):
+        return
+    row = p.conn.execute("SELECT idx, title, state, data FROM scenes WHERE project_id=? AND idx=?", (pid, idx)).fetchone()
+    if row is not None:
+        scene_editor(p, pid, row, char_names)
+
+
 def scene_list(p: Pipeline, pid: int, scenes, char_names) -> None:
     status = lineage.scan(p.conn, pid)
     by_idx = {r["idx"]: r for r in status.values()}
@@ -387,14 +400,14 @@ def scene_list(p: Pipeline, pid: int, scenes, char_names) -> None:
                         + (" · ⭐" if d.get("shot_role") == "hero" else ""),
                         (d.get("action") or "")[:60], lines[:70], scene_status_text(st_row) if st_row else ""]
                 with st.expander("   |   ".join(x for x in head if x)):
-                    scene_editor(p, pid, s, char_names)
+                    scene_editor_box(pid, s["idx"], char_names)
                 continue
             bits = [f"S{s['idx']:02d}" + (f" · nhóm {d['sequence']}" if d.get("sequence") else "")
                     + (" · ⭐" if d.get("shot_role") == "hero" else "") + (" · 🌀 phức tạp" if d.get("camera_complexity") == "complex" else ""),
                     " · ".join(filter(None, [d.get("time"), d.get("location")])), ", ".join(d.get("characters") or []),
                     scene_status_text(st_row) if st_row else ""]
             with st.expander("   |   ".join(x for x in bits if x)):
-                scene_editor(p, pid, s, char_names)
+                scene_editor_box(pid, s["idx"], char_names)
     if st.button("➕ Thêm cảnh", key=f"scene_add_{pid}", help="Cho kịch bản mà công cụ không tự tách được"):
         act(lambda: p.add_scene_next(pid))
         st.rerun()

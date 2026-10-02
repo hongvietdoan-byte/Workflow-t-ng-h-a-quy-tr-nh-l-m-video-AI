@@ -115,7 +115,8 @@ class DashboardSmokeTests(unittest.TestCase):
         at = AppTest.from_file(APP, default_timeout=30).run()
         at.button(key="settings_assets").click().run()
         self.assertFalse(at.exception)
-        self.assertTrue(any("Ảnh chờ duyệt (1)" in e.label for e in at.expander))
+        self.assertTrue(any("Ảnh chờ duyệt" in e.label for e in at.expander))
+        self.assertTrue(any("1 ảnh chờ duyệt" in c.value for c in at.caption))
         self.assertTrue(any("Bối cảnh 3D" in e.label for e in at.expander))
         self.assertTrue(any(s.key == "p3d_file" for s in at.selectbox))
 
@@ -477,6 +478,7 @@ class DashboardSmokeTests(unittest.TestCase):
         at = self.script_open(pid)
         self.assertTrue(any(e.label.startswith("S01") for e in at.expander))  # the scene row itself, no picker
         self.assertFalse(any(sb.key == f"scene_pick_{pid}" for sb in at.selectbox))
+        at.toggle(key=f"sd_open_{pid}_1").set_value(True).run()
         at.text_area(key=f"sd_{pid}_1_prompt").set_value("dark forest, low fog").run()
         at.text_area(key=f"sd_{pid}_1_text").set_value("CẢNH 1. Nội dung sửa").run()
         next(b for b in at.button if b.key == f"sds_{pid}_1").click().run()
@@ -500,6 +502,7 @@ class DashboardSmokeTests(unittest.TestCase):
         assets.add_image(p.conn, loc, "wide.png", buf.getvalue())
         assets.attach(p.conn, pid, loc)
         at = self.script_open(pid)
+        at.toggle(key=f"sd_open_{pid}_1").set_value(True).run()
         box = at.selectbox(key=f"sd_{pid}_1_bg")
         self.assertIsNone(box.value)                                                  # automatic by default
         box.set_value(loc).run()
@@ -561,6 +564,7 @@ class DashboardSmokeTests(unittest.TestCase):
         import json
         p, pid = self.seed()
         at = self.script_open(pid)
+        at.toggle(key=f"sd_open_{pid}_1").set_value(True).run()
         at.text_input(key=f"sd_{pid}_1_blocking").set_value("Kelly frame-left facing right").run()
         at.number_input(key=f"sd_{pid}_1_seq").set_value(2).run()
         next(b for b in at.button if b.key == f"sds_{pid}_1").click().run()
@@ -656,6 +660,7 @@ class DashboardSmokeTests(unittest.TestCase):
         next(b for b in at.button if b.key == f"scene_add_{pid}").click().run()
         self.assertFalse(at.exception)
         self.assertEqual(Pipeline(connect(self.db)).conn.execute("SELECT COUNT(*) c FROM scenes").fetchone()["c"], 2)
+        at.toggle(key=f"sd_open_{pid}_2").set_value(True).run()
         next(b for b in at.button if b.key == f"scene_del_{pid}_2").click().run()
         self.assertEqual(Pipeline(connect(self.db)).conn.execute("SELECT COUNT(*) c FROM scenes").fetchone()["c"], 2)  # asked first
         next(b for b in at.button if b.key == f"scene_del_{pid}_2_yes").click().run()

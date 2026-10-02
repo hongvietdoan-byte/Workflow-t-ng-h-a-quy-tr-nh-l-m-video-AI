@@ -475,8 +475,28 @@ def loudness_problems(m: Optional[dict]) -> List[str]:
 _DURATION = re.compile(r"Duration:\s*(\d+):(\d+):(\d+(?:\.\d+)?)")
 
 
+_DURATION_CACHE: dict = {}
+
+
 def probe_duration(path: str) -> Optional[float]:
-    """Length in seconds read from `ffmpeg -i` (no ffprobe needed); None when it cannot be determined."""
+    """Length in seconds read from `ffmpeg -i` (no ffprobe needed); None when it cannot be determined.
+    Remembered per (file, size, modified time): the Dashboard asks for every clip on each redraw and each ask started an ffmpeg process."""
+    try:
+        st = os.stat(path)
+        key = (os.path.abspath(path), st.st_size, st.st_mtime_ns)
+    except OSError:
+        key = None
+    if key is not None and key in _DURATION_CACHE:
+        return _DURATION_CACHE[key]
+    value = _probe_duration(path)
+    if key is not None and value is not None:
+        if len(_DURATION_CACHE) > 2000:
+            _DURATION_CACHE.clear()
+        _DURATION_CACHE[key] = value
+    return value
+
+
+def _probe_duration(path: str) -> Optional[float]:
     try:
         proc = subprocess.run([find_ffmpeg(), "-hide_banner", "-i", path], capture_output=True, text=True, encoding="utf-8", errors="replace")
     except (FFmpegNotFound, OSError):
