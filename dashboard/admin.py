@@ -190,45 +190,106 @@ def _role_options(kind: str) -> dict:
     return {"": "— chưa rõ —", **assets.ROLES.get(kind, {})}
 
 
+REVIEW_PAGE = 24
+
+
+def _rerun_here() -> None:
+    """Redraw only the fragment the click came from; a full-script run (no fragment to scope to) redraws everything."""
+    from streamlit.errors import StreamlitAPIException
+    try:
+        st.rerun(scope="fragment")
+    except StreamlitAPIException:
+        st.rerun()
+
+
+def _rv_all(ids: list, on: bool) -> None:
+    for i in ids:
+        st.session_state[f"lib_rev_pick_{i}"] = on
+
+
+@st.fragment
 def library_review_box(p: Pipeline, game: str) -> None:
     """G2: pictures that came in without a person looking (folder sync, website, 3D render) wait here; the pipeline only uses approved
-    ones. The role is guessed for free from the picture's shape — correct it when it is wrong."""
+    ones. The role is guessed for free from the picture's shape — correct it when it is wrong.
+    A fragment: every click here redraws only this box (not the whole library page); pick many pictures to approve / drop at once."""
     waiting = assets.pending_images(p.conn, game)
     if not waiting:
         return
+    shown = waiting[:max(REVIEW_PAGE, st.session_state.get(f"lib_rev_n_{game}", REVIEW_PAGE))]
+    shown_ids = [w["id"] for w in shown]
+    picked = [i for i in shown_ids if st.session_state.get(f"lib_rev_pick_{i}")]
+    looks = {"": "— look —", **assets.LOOKS}
+
+    def row_meta(w: dict) -> tuple:                     # what the person set on this row (or the suggestion)
+        return (st.session_state.get(f"lib_rev_role_{w['id']}", w["role"] or ""), st.session_state.get(f"lib_rev_look_{w['id']}", w["look"] or ""))
+
+    done = _rerun_here
+
     with st.expander(f"📥 Ảnh chờ duyệt ({len(waiting)}) — pipeline chưa dùng các ảnh này", expanded=False):
-        st.caption("Chọn đúng vai trò (toàn thân / nửa người / cận mặt / sau lưng…; bối cảnh: nền ngang tầm mắt / góc cao / toàn cảnh từ trên) "
-                   "và look — shot cận sẽ lấy ảnh cận mặt, shot quay lưng lấy ảnh sau lưng, ảnh bản đồ chụp từ trên cao không bao giờ làm nền.")
-        if st.button(f"✔ Duyệt cả {len(waiting)} ảnh (giữ vai trò đề xuất)", key=f"lib_rev_all_{game}"):
-            assets.approve_images(p.conn, [w["id"] for w in waiting])
-            st.rerun()
-        for w in waiting[:24]:
-            c0, c1, c2, c3, c4 = st.columns([1, 2, 1.6, 1.2, 1.4], vertical_alignment="center")
+        st.caption("Tick các ảnh rồi duyệt / bỏ một lượt (bấm trong hộp này không tải lại cả trang). Chọn đúng vai trò (toàn thân / nửa người / cận mặt / "
+                   "sau lưng…; bối cảnh: nền ngang tầm mắt / góc cao / toàn cảnh từ trên) và look — shot cận lấy ảnh cận mặt, shot quay lưng lấy ảnh sau lưng, "
+                   "ảnh bản đồ chụp từ trên cao không bao giờ làm nền.")
+        t1, t2, t3, t4, t5 = st.columns([1.2, 1.2, 2, 2, 2], vertical_alignment="center")
+        t1.button("☑ Chọn hết", key=f"lib_rev_selall_{game}", on_click=_rv_all, args=(shown_ids, True))
+        t2.button("☐ Bỏ chọn", key=f"lib_rev_selnone_{game}", on_click=_rv_all, args=(shown_ids, False))
+        if t3.button(f"✔ Duyệt {len(picked)} ảnh đã chọn", key=f"lib_rev_okpick_{game}", disabled=not picked, type="primary"):
+            for w in shown:
+                if w["id"] in picked:
+                    role, look = row_meta(w)
+                    assets.set_image_meta(p.conn, w["id"], role=role, look=look, status="approved")
+            done()
+        if t4.button(f"✔ Duyệt cả {len(waiting)} ảnh (giữ vai trò)", key=f"lib_rev_all_{game}"):
+            for w in waiting:
+                role, look = row_meta(w)
+                assets.set_image_meta(p.conn, w["id"], role=role, look=look, status="approved")
+            done()
+        ask = f"lib_rev_ask_{game}"
+        if st.session_state.get(ask) and picked:
+            st.warning(f"Bỏ {len(picked)} ảnh đã chọn? File ảnh sẽ bị xóa khỏi kho.")
+            y, n = st.columns(2)
+            if y.button("Có, bỏ", key=f"lib_rev_rmyes_{game}", type="primary"):
+                for i in picked:
+                    assets.remove_image(p.conn, i)
+                    st.session_state.pop(f"lib_rev_pick_{i}", None)
+                st.session_state[ask] = False
+                done()
+            if n.button("Không", key=f"lib_rev_rmno_{game}"):
+                st.session_state[ask] = False
+                done()
+        elif t5.button(f"🗑 Bỏ {len(picked)} ảnh đã chọn", key=f"lib_rev_rmpick_{game}", disabled=not picked):
+            st.session_state[ask] = True
+            done()
+        for w in shown:
+            c_pick, c0, c1, c2, c3, c4 = st.columns([0.45, 1, 1.8, 1.6, 1.2, 1.4], vertical_alignment="center")
+            c_pick.checkbox("Chọn", key=f"lib_rev_pick_{w['id']}", label_visibility="collapsed")
             try:
                 c0.image(assets.thumbnail(w["path"]), width=90)
             except Exception:  # noqa: BLE001 - a broken file must not break the page
                 c0.caption("(không đọc được ảnh)")
             c1.markdown(f"**{escape(w['asset'])}**")
             opts = _role_options(w["kind"])
-            role = c2.selectbox("Vai trò", list(opts), index=list(opts).index(w["role"] or ""), format_func=opts.get,
-                                key=f"lib_rev_role_{w['id']}", label_visibility="collapsed")
-            looks = {"": "— look —", **assets.LOOKS}
-            look = c3.selectbox("Look", list(looks), index=list(looks).index(w["look"] or ""), format_func=looks.get,
-                                key=f"lib_rev_look_{w['id']}", label_visibility="collapsed")
+            c2.selectbox("Vai trò", list(opts), index=list(opts).index(w["role"] or "") if (w["role"] or "") in opts else 0, format_func=opts.get,
+                         key=f"lib_rev_role_{w['id']}", label_visibility="collapsed")
+            c3.selectbox("Look", list(looks), index=list(looks).index(w["look"] or "") if (w["look"] or "") in looks else 0, format_func=looks.get,
+                         key=f"lib_rev_look_{w['id']}", label_visibility="collapsed")
             a, b = c4.columns(2)
             if a.button("✔", key=f"lib_rev_ok_{w['id']}", help="Duyệt ảnh này"):
+                role, look = row_meta(w)
                 assets.set_image_meta(p.conn, w["id"], role=role, look=look, status="approved")
-                st.rerun()
+                done()
             if b.button("🗑", key=f"lib_rev_rm_{w['id']}", help="Bỏ ảnh này"):
                 assets.remove_image(p.conn, w["id"])
-                st.rerun()
-        if len(waiting) > 24:
-            st.caption(f"… còn {len(waiting) - 24} ảnh: duyệt bớt rồi trang sẽ hiện tiếp.")
+                st.session_state.pop(f"lib_rev_pick_{w['id']}", None)
+                done()
+        if len(waiting) > len(shown):
+            more = len(waiting) - len(shown)
+            if st.button(f"… còn {more} ảnh — hiện thêm {min(more, REVIEW_PAGE)}", key=f"lib_rev_more_{game}"):
+                st.session_state[f"lib_rev_n_{game}"] = len(shown) + REVIEW_PAGE
+                done()
 
 
-def library_health(p: Pipeline, game: str) -> None:
-    """G6: what the library still lacks, so a project is not started on a character without a close-up or a place without an
-    eye-level background."""
+@st.fragment
+def library_lost_box(p: Pipeline) -> None:
     lost = assets.missing_files_detail(p.conn)
     if lost:                                    # B5 01/10: files gone from disk — fix on screen (reload from the source, or drop the link)
         with st.expander(f"⚠ {len(lost)} ảnh trong Kho mất file", expanded=False):
@@ -238,13 +299,18 @@ def library_health(p: Pipeline, game: str) -> None:
                 if a2.button("↻ Tải lại", key=f"lib_lost_reload_{w['id']}", disabled=not w["can_reload"],
                              help="Chép lại từ tệp gốc đã nhập"):
                     assets.reload_image(p.conn, w["id"])
-                    st.rerun()
+                    _rerun_here()
                 if a3.button("🔗 Gỡ liên kết", key=f"lib_lost_rm_{w['id']}", help="Xóa dòng hỏng khỏi Kho (file đã mất)"):
                     assets.remove_image(p.conn, w["id"])
-                    st.rerun()
+                    _rerun_here()
             if st.button("🔗 Gỡ liên kết TẤT CẢ ảnh mất file", key="lib_lost_rm_all"):
                 assets.unlink_missing(p.conn)
-                st.rerun()
+                _rerun_here()
+
+
+def library_health(p: Pipeline, game: str) -> None:
+    """G6: what the library still lacks, so a project is not started on a character without a close-up or a place without an
+    eye-level background."""
     rows = [r for r in assets.health(p.conn, game) if r["missing"] or r["pending"] or r["unlabelled"]]
     if not rows:
         return
@@ -284,6 +350,7 @@ def profile_form(p: Pipeline, a: dict) -> None:
         st.rerun()
 
 
+@st.fragment
 def plates3d_panel(p: Pipeline, game: str) -> None:
     """🏗 3D place -> empty eye-level / low / high backgrounds rendered by Blender on this computer (no AI, no credit), into the review
     box. How to test: docs/HUONG_DAN_3D.md."""
@@ -343,8 +410,11 @@ def plates3d_panel(p: Pipeline, game: str) -> None:
                 st.success(f"Đã thêm {len(r['added'])} ảnh nền vào “{place}” (chờ duyệt ở 📥 phía trên)."
                            + (f" Bỏ qua: {'; '.join(r['skipped'])}" if r["skipped"] else ""))
                 st.session_state.pop("p3d_manifest", None)
+                st.toast(f"Đã thêm {len(r['added'])} ảnh nền vào “{place}” (chờ duyệt)")
+                st.rerun()
 
 
+@st.fragment
 def meshy_panel(p: Pipeline, game: str) -> None:
     """🧍 Character → 3D model (Meshy, paid credits) → rig, saved in data/models3d; its own renders go to the review box. Every call is
     estimated, checked against the caps and written to the ledger before it is sent (core/meshy.py)."""
@@ -365,7 +435,7 @@ def meshy_panel(p: Pipeline, game: str) -> None:
         cap = st.number_input("Trần Meshy của đợt (USD)", 0.0, 1000.0, float(cfg["cap_usd"]), 5.0, key="meshy_cap")
         if cap != float(cfg["cap_usd"]) and st.button("Lưu trần", key="meshy_cap_save"):
             meshy.save_settings(p.conn, cap_usd=cap)
-            st.rerun()
+            _rerun_here()
         chars = [a for a in assets.list_assets(p.conn, game, "character", None, shared_only=True)]
         if not chars:
             st.caption("Kho chưa có nhân vật.")
@@ -431,17 +501,9 @@ def meshy_panel(p: Pipeline, game: str) -> None:
                             st.error(str(e))
 
 
-def asset_library_panel(p: Pipeline) -> None:
-    """Settings: the shared resource library (people with the Kho tài nguyên right)."""
-    catalog = subjects.games()
-    keys = list(catalog)
-    game = st.selectbox("Game / loại nội dung", keys, format_func=lambda k: catalog[k][0], key="lib_game")
-    items = assets.list_assets(p.conn, game, None, None, shared_only=True)
-    st.caption(f"{len(items)} mục trong kho **{catalog[game][0]}**. Mọi dự án của game này đều chọn dùng được.")
-    library_review_box(p, game)
-    library_health(p, game)
-    plates3d_panel(p, game)
-    meshy_panel(p, game)
+
+@st.fragment
+def lib_sources_box(p, game) -> None:
     with st.expander("🔄 Nguồn đồng bộ: thư mục tài nguyên (cập nhật kho bằng 1 cú bấm hoặc tự động)", expanded=not assets.list_sources(p.conn, game)):
         st.caption("Chọn một thư mục trên máy chạy Dashboard chứa ảnh (ví dụ thư mục đang đồng bộ với Google Drive). Kho sẽ giống thư mục đó: "
                    "ảnh mới được thêm, ảnh sửa được cập nhật, ảnh trùng không bị thêm hai lần; tên, mô tả bạn đã sửa trong Dashboard **không bị ghi đè**. "
@@ -470,7 +532,7 @@ def asset_library_panel(p: Pipeline) -> None:
                         st.rerun()
                 if confirm_all(f"src_del_{src['id']}", [src["id"]], "🗑 Bỏ nguồn này", "Bỏ thư mục này khỏi danh sách (ảnh đã nhập vẫn giữ)?", b2, "Có, bỏ"):
                     assets.remove_source(p.conn, src["id"])
-                    st.rerun()
+                    _rerun_here()
                 rep = st.session_state.get(f"src_rep_{src['id']}")
                 if rep:
                     st.success(assets.summary(rep) or "Không có gì thay đổi")
@@ -497,6 +559,10 @@ def asset_library_panel(p: Pipeline) -> None:
                     st.rerun()
         st.caption("💡 Cách dễ nhất để luôn cập nhật: cài **Google Drive cho máy tính** (Drive for desktop), để thư mục tài nguyên ở chế độ "
                    "“Ngoại tuyến/Mirror”, rồi thêm chính thư mục đó làm nguồn với “Tự động” bật. Ai thêm ảnh lên Drive, lần mở Dashboard sau ảnh tự vào kho.")
+
+
+@st.fragment
+def lib_ff_site_box(p, game) -> None:
     with st.expander("🌐 Cập nhật từ website Free Fire (ff.garena.com)"):
         st.caption("Đọc trang web chính thức: 6 bản đồ và mọi khu vực (tên, mô tả, ảnh), cùng 12 nhân vật / thú cưng / vũ khí mới nhất (tiểu sử, kỹ năng, chỉ số). "
                    "Mục đã có trong kho chỉ được **bổ sung** mô tả (đặt trong khối `[ff.garena.com]`, chạy lại thì thay khối đó) và ảnh chính thức, "
@@ -509,6 +575,10 @@ def asset_library_panel(p: Pipeline) -> None:
             if ff_site.start_background(C.DB, game, me().get("email")):
                 st.toast("Đang đọc website ở nền, vài phút; bấm tải lại trang để xem kết quả")
             st.rerun()
+
+
+@st.fragment
+def lib_vision_box(p, game) -> None:
     with st.expander("🤖 Đọc mô tả ngoại hình bằng Claude (nhân vật / thú cưng)"):
         st.caption("Ảnh đầu của mỗi nhân vật thường là một bảng thiết kế nhiều góc/tư thế (turn-around, bảng màu, phụ kiện) — rất nhiều chi tiết hữu ích, "
                    "nhưng gửi thẳng tấm đó cho AI vẽ ảnh lại làm nó chép lẫn lộn giữa các nhân vật trong cùng một cảnh, nên màn Storyboard không dùng tấm này làm ảnh "
@@ -524,18 +594,22 @@ def asset_library_panel(p: Pipeline) -> None:
             st.warning(f"⚠ Đã dừng: {problem}")
             if st.button("↻ Thử lại", key="asset_vision_retry"):
                 asset_vision.clear_error(game)
-                st.rerun()
+                _rerun_here()
         vision_usd = cost.llm_estimate(p.conn, "asset_vision", n_pending, images=asset_vision.MAX_IMAGES)
         if st.button("🤖 Đọc mô tả ngoại hình" + cost.llm_tag(vision_usd, n_pending), key="asset_vision_go", disabled=not n_pending or asset_vision.active(game), type="primary"):
             if asset_vision.start(C.DB, game):
                 st.toast("Đang đọc ở nền; bấm tải lại trang để xem tiến độ")
-            st.rerun()
+            _rerun_here()
+
+
+@st.fragment
+def lib_video_box(p, game) -> None:
     with st.expander("📹 Phân tích video kỹ năng bằng Claude (nhân vật quay trong gameplay)"):
         st.caption("Tải video gameplay quay skill của một nhân vật — Claude nhìn các khung hình lấy mẫu đều theo thời gian và viết lại "
                    "nhận dạng nhân vật + kỹ năng/VFX thành chữ, MỖI câu gắn nhãn [OBSERVED] (thấy trực tiếp) / [EXPLICIT] (chữ overlay nói rõ) / "
                    "[INFERRED] (suy luận có lý do) / [UNKNOWN] (không xác nhận được) — video là bằng chứng gốc, không tự bịa sát thương/thời gian hồi/"
                    "tầm bắn nếu video không xác nhận. Bạn xem, sửa và tự chọn ảnh muốn giữ trước khi lưu — không tự động ghi gì cả.")
-        characters = [a for a in items if a["kind"] in ("character", "pet")]
+        characters = [a for a in assets.list_assets(p.conn, game, None, None, shared_only=True) if a["kind"] in ("character", "pet")]
         if not characters:
             st.caption("Kho chưa có nhân vật/thú cưng nào.")
         else:
@@ -562,7 +636,7 @@ def asset_library_panel(p: Pipeline) -> None:
                         st.error(str(e))
                     else:
                         st.session_state[f"va_draft_{va_asset_id}"] = {"text": text, "frames": frames, "source": va_video.name}
-                        st.rerun()
+                        _rerun_here()
             draft = st.session_state.get(f"va_draft_{va_asset_id}")
             if draft:
                 st.markdown(f"**Bản nháp phân tích — {by_id[va_asset_id]}** (từ `{draft['source']}`)")
@@ -593,6 +667,10 @@ def asset_library_panel(p: Pipeline) -> None:
                                 st.warning(str(e))
                     st.success(f"Đã thêm {added} ảnh.")
                     st.rerun()
+
+
+@st.fragment
+def lib_bulk_box(p, game) -> None:
     with st.expander("⬆ Tải nhiều ảnh cùng lúc (tên file = tên tài nguyên)"):
         st.caption("Chọn nhiều ảnh một lượt: `Lyra_front.png` + `Lyra_back.png` thành một mục Lyra; mục đã có thì được thêm ảnh; ảnh trùng bị bỏ qua.")
         bulk_kind = st.selectbox("Loại", list(assets.KINDS), format_func=lambda k: assets.KINDS[k], key="lib_bulk_kind")
@@ -602,6 +680,10 @@ def asset_library_panel(p: Pipeline) -> None:
             st.success(f"Mục mới: {len(r['created'])}, ảnh thêm: {r['added']}, trùng bỏ qua: {r['unchanged']}" + (f", lỗi: {len(r['skipped'])}" if r["skipped"] else ""))
             for name, why in r["skipped"][:20]:
                 st.caption(f"• {name} — {why}")
+
+
+@st.fragment
+def lib_sound_box(p) -> None:
     with st.expander("🎼 Kho âm thanh (nhạc nền & hiệu ứng) — thư mục nguồn", expanded=not sound_lib.list_sources(p.conn)):
         st.caption("Thư mục chứa nhạc và hiệu ứng (mp3, wav, m4a, ogg, flac). Hệ thống chỉ liệt kê file (không mở từng file) nên thư mục vài GB vẫn xong ngay; "
                    "phân loại nhạc nền / hiệu ứng và tâm trạng (vui vẻ, sôi động, kịch tính, hài...) dựa theo tên thư mục. Ở màn Bản giao mọi người tìm, nghe thử và dùng.")
@@ -620,10 +702,10 @@ def asset_library_panel(p: Pipeline) -> None:
                     except (sound_lib.SoundError, OSError) as e:
                         st.error(str(e))
                     else:
-                        st.rerun()
+                        _rerun_here()
                 if confirm_all(f"snd_del_{src['id']}", [src["id"]], "🗑 Bỏ nguồn này", "Bỏ thư mục khỏi kho âm thanh (file gốc không bị xóa)?", st, "Có, bỏ"):
                     sound_lib.remove_source(p.conn, src["id"])
-                    st.rerun()
+                    _rerun_here()
         a1, a2 = st.columns([4, 1.4], vertical_alignment="bottom")
         snd_path = a1.text_input("Thêm thư mục âm thanh", key="snd_new_path", placeholder=r"G:\My Drive\...\Free Fire Save resources\Sound Effect")
         if a2.button("Thêm và quét", key="snd_new_go", disabled=not snd_path.strip(), type="primary"):
@@ -633,7 +715,11 @@ def asset_library_panel(p: Pipeline) -> None:
             except (sound_lib.SoundError, OSError) as e:
                 st.error(str(e))
             else:
-                st.rerun()
+                _rerun_here()
+
+
+@st.fragment
+def lib_new_item_box(p, game) -> None:
     with st.expander("➕ Thêm một mục"):
         c1, c2 = st.columns([3, 2])
         name = c1.text_input("Tên", key="lib_new_name")
@@ -650,6 +736,78 @@ def asset_library_panel(p: Pipeline) -> None:
                 st.error(str(e))
             else:
                 st.rerun()
+
+
+@st.fragment
+def lib_asset_card(p: Pipeline, a: dict, items: list) -> None:
+    with st.expander(f"{a['kind_label']} · {a['name']} · {len(a['images'])} ảnh"):
+        if a["images"]:
+            cols = st.columns(min(len(a["images"]), 6))
+            for col, img in zip(cols, a["images"]):
+                col.image(assets.thumbnail(img["path"]), width=110,
+                          caption=assets.ROLES.get(a["kind"], {}).get(img.get("role") or "", "chưa rõ vai trò")
+                          + (f" · {assets.LOOKS[img['look']]}" if img.get("look") in assets.LOOKS else ""))
+                if col.button("Xóa ảnh", key=f"lib_img_rm_{img['id']}"):
+                    assets.remove_image(p.conn, img["id"])
+                    st.rerun()
+        if a["description"]:
+            st.caption(a["description"][:700])
+        if a["kind"] in ("character", "pet"):
+            profile_form(p, a)
+        if st.checkbox("✏️ Sửa, gộp hoặc xóa mục này", key=f"lib_edit_{a['id']}"):     # the form only exists when asked for (keeps the page light)
+            e_name = st.text_input("Tên", a["name"], key=f"lib_e_name_{a['id']}")
+            e_alias = st.text_input("Tên gọi khác", a["aliases"], key=f"lib_e_alias_{a['id']}")
+            e_desc = st.text_area("Mô tả", a["description"], key=f"lib_e_desc_{a['id']}", height=70)
+            more = st.file_uploader("Thêm ảnh", type=["png", "jpg", "jpeg", "webp"], accept_multiple_files=True, key=f"lib_e_up_{a['id']}")
+            others = [x for x in items if x["id"] != a["id"]]
+            if others:
+                g1, g2 = st.columns([3, 1.4], vertical_alignment="bottom")
+                names = {x["id"]: f"{x['kind_label']}: {x['name']}" for x in others}
+                target = g1.selectbox("Gộp mục này vào mục khác (ảnh chuyển sang, tên này thành tên gọi khác)", [None] + list(names),
+                                      format_func=lambda i: "— không gộp —" if i is None else names[i], key=f"lib_merge_{a['id']}")
+                if target is not None and g2.button("Gộp", key=f"lib_merge_go_{a['id']}"):
+                    try:
+                        assets.merge(p.conn, a["id"], target)
+                    except assets.AssetError as e:
+                        st.error(str(e))
+                    else:
+                        st.rerun()
+            b1, b2 = st.columns(2)
+            if b1.button("💾 Lưu", key=f"lib_e_save_{a['id']}", type="primary"):
+                try:
+                    assets.update(p.conn, a["id"], e_name, e_alias, e_desc)
+                    for f in more:
+                        assets.add_image(p.conn, a["id"], f.name, f.getvalue())
+                except assets.AssetError as e:
+                    st.error(str(e))
+                else:
+                    st.rerun()
+            if confirm_all(f"lib_del_{a['id']}", [a["id"]], "🗑 Xóa mục này", f"Xóa “{a['name']}” khỏi kho (các dự án đang dùng cũng mất)?", b2, "Có, xóa"):
+                assets.delete(p.conn, a["id"])
+                st.rerun()
+
+
+
+
+def asset_library_panel(p: Pipeline) -> None:
+    """Settings: the shared resource library (people with the Kho tài nguyên right)."""
+    catalog = subjects.games()
+    keys = list(catalog)
+    game = st.selectbox("Game / loại nội dung", keys, format_func=lambda k: catalog[k][0], key="lib_game")
+    items = assets.list_assets(p.conn, game, None, None, shared_only=True)
+    st.caption(f"{len(items)} mục trong kho **{catalog[game][0]}**. Mọi dự án của game này đều chọn dùng được.")
+    library_review_box(p, game)
+    library_lost_box(p)
+    library_health(p, game)
+    plates3d_panel(p, game)
+    meshy_panel(p, game)
+    lib_sources_box(p, game)
+    lib_ff_site_box(p, game)
+    lib_vision_box(p, game)
+    lib_video_box(p, game)
+    lib_bulk_box(p, game)
+    lib_sound_box(p)
+    lib_new_item_box(p, game)
     kind_filter = st.radio("Xem", ["all"] + list(assets.KINDS), horizontal=True, key="lib_filter",
                            format_func=lambda k: "Tất cả" if k == "all" else assets.KINDS[k])
     query = st.text_input("Tìm theo tên", key="lib_query", placeholder="vd Lyra, Đền, Bermuda")
@@ -661,51 +819,7 @@ def asset_library_panel(p: Pipeline) -> None:
         page = int(st.number_input(f"Trang (có {len(shown)} mục, {pages} trang)", 1, pages, 1, key="lib_page"))
         shown = shown[(page - 1) * per_page: page * per_page]
     for a in shown:
-        with st.expander(f"{a['kind_label']} · {a['name']} · {len(a['images'])} ảnh"):
-            if a["images"]:
-                cols = st.columns(min(len(a["images"]), 6))
-                for col, img in zip(cols, a["images"]):
-                    col.image(assets.thumbnail(img["path"]), width=110,
-                              caption=assets.ROLES.get(a["kind"], {}).get(img.get("role") or "", "chưa rõ vai trò")
-                              + (f" · {assets.LOOKS[img['look']]}" if img.get("look") in assets.LOOKS else ""))
-                    if col.button("Xóa ảnh", key=f"lib_img_rm_{img['id']}"):
-                        assets.remove_image(p.conn, img["id"])
-                        st.rerun()
-            if a["description"]:
-                st.caption(a["description"][:700])
-            if a["kind"] in ("character", "pet"):
-                profile_form(p, a)
-            if st.checkbox("✏️ Sửa, gộp hoặc xóa mục này", key=f"lib_edit_{a['id']}"):     # the form only exists when asked for (keeps the page light)
-                e_name = st.text_input("Tên", a["name"], key=f"lib_e_name_{a['id']}")
-                e_alias = st.text_input("Tên gọi khác", a["aliases"], key=f"lib_e_alias_{a['id']}")
-                e_desc = st.text_area("Mô tả", a["description"], key=f"lib_e_desc_{a['id']}", height=70)
-                more = st.file_uploader("Thêm ảnh", type=["png", "jpg", "jpeg", "webp"], accept_multiple_files=True, key=f"lib_e_up_{a['id']}")
-                others = [x for x in items if x["id"] != a["id"]]
-                if others:
-                    g1, g2 = st.columns([3, 1.4], vertical_alignment="bottom")
-                    names = {x["id"]: f"{x['kind_label']}: {x['name']}" for x in others}
-                    target = g1.selectbox("Gộp mục này vào mục khác (ảnh chuyển sang, tên này thành tên gọi khác)", [None] + list(names),
-                                          format_func=lambda i: "— không gộp —" if i is None else names[i], key=f"lib_merge_{a['id']}")
-                    if target is not None and g2.button("Gộp", key=f"lib_merge_go_{a['id']}"):
-                        try:
-                            assets.merge(p.conn, a["id"], target)
-                        except assets.AssetError as e:
-                            st.error(str(e))
-                        else:
-                            st.rerun()
-                b1, b2 = st.columns(2)
-                if b1.button("💾 Lưu", key=f"lib_e_save_{a['id']}", type="primary"):
-                    try:
-                        assets.update(p.conn, a["id"], e_name, e_alias, e_desc)
-                        for f in more:
-                            assets.add_image(p.conn, a["id"], f.name, f.getvalue())
-                    except assets.AssetError as e:
-                        st.error(str(e))
-                    else:
-                        st.rerun()
-                if confirm_all(f"lib_del_{a['id']}", [a["id"]], "🗑 Xóa mục này", f"Xóa “{a['name']}” khỏi kho (các dự án đang dùng cũng mất)?", b2, "Có, xóa"):
-                    assets.delete(p.conn, a["id"])
-                    st.rerun()
+        lib_asset_card(p, a, items)
 
 
 # ---- history -------------------------------------------------------------------------

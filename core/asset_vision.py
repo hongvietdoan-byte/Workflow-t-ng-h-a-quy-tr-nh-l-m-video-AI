@@ -99,8 +99,7 @@ def describe(client, asset: Dict) -> str:
 
 
 def _with_block(description: str, text: str) -> str:
-    base = (description or "").split(MARK)[0].rstrip()
-    return (base + "\n\n" if base else "") + f"{MARK} {text}"
+    return assets.replace_block(description, MARK, text)
 
 
 def sync_one(conn, client, asset_id: int) -> bool:

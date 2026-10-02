@@ -152,6 +152,9 @@ def main():
     ap.add_argument("--draft", action="store_true")
     ap.add_argument("--limit", type=int, default=5)
     ap.add_argument("--yes", action="store_true")
+    ap.add_argument("--skip", default="", help="bỏ các mục này (tên, cách nhau bằng dấu phẩy)")
+    ap.add_argument("--no-pets", action="store_true", help="bỏ thú cưng (người dùng 02/10: chỉ làm hồ sơ nhân vật)")
+    ap.add_argument("--only", default="", help="chỉ soạn các nhân vật này (tên, cách nhau bằng dấu phẩy)")
     a = ap.parse_args()
     from core.db import connect
     conn = connect(a.db)
@@ -166,7 +169,12 @@ def main():
     if a.apply:
         print("đã ghi:", apply_free(conn, rep))
     if a.draft:
-        todo = rep["missing"][:max(a.limit, 0)]
+        skip = {n.strip().lower() for n in a.skip.split(",") if n.strip()}
+        rep["missing"] = [c for c in rep["missing"] if c["images"] and c["name"].lower() not in skip]   # no picture = nothing to describe
+        if a.no_pets:
+            rep["missing"] = [c for c in rep["missing"] if c["kind"] != "pet"]
+        names = {n.strip().lower() for n in a.only.split(",") if n.strip()}
+        todo = [c for c in rep["missing"] if c["name"].lower() in names] if names else rep["missing"][:max(a.limit, 0)]
         print(f"soạn nháp {len(todo)} hồ sơ: " + ", ".join(c["name"] for c in todo)
               + f"\nƯớc tính ≈ ${EST_USD_PER_CHARACTER * len(todo):.2f} Claude API (tính vào trần Claude, ⚙ → 💵)")
         if not a.yes:
