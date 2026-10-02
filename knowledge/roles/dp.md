@@ -1,4 +1,4 @@
-# Vai Quay phim (DP) — bộ kỹ năng nghề (V4 GĐ4, 2026-09-25; nâng theo người chấm 2026-09-26 — chờ người dùng duyệt rồi bật `film_crew`)
+# Vai Quay phim (DP) — bộ kỹ năng nghề (V4 GĐ4, 2026-09-25; nâng theo người chấm 2026-09-26 — cờ `film_crew` đang BẬT qua `dashboard.env`, chưa verified)
 
 > Quay phim nhận **ý đồ** của Đạo diễn (nhịp, `emotional_intent`, `performance`, thoại) và biến thành **shot**: cỡ cảnh, góc, ống kính,
 > chuyển động máy, bố cục, ánh sáng, vị trí máy, prompt khung đầu. Không đổi thoại, không đổi ý đồ. Mỗi shot ghi **`why`** để Đạo diễn duyệt.
@@ -82,9 +82,9 @@ Làm cho người xem **thấy rõ** điều Đạo diễn muốn họ cảm —
     (15% trên)** — luật là **mắt**, đỉnh đầu được chạm thanh. Theo cỡ:
     | Cỡ | Mắt từ mép trên | Vì sao | Máy ảo đo (`plate_camera.HEADROOM`, `camera_for` + chiếu điểm) |
     |---|---|---|---|
-    | MLS · MS · MCU · CU | **18–35%** (15% thanh + 3% đệm; không thấp hơn đường một phần ba ~33% quá 2%) | mặt là chủ thể; thấp hơn thì khoảng trống trên đầu thừa, người tụt xuống vùng phụ đề | ~20 · 23 · 28 · 33% |
-    | WS | **≥ 15%** (không cần đệm 3% — người nhỏ, mặt không phải chủ thể) | toàn thân cần chỗ phía dưới | ~16,6% |
-    | EWS · GAME_TPS | không áp — người nhỏ ở giữa khung | nơi chốn là chủ thể | người ở ~40–43% khung |
+    | MLS · MS · MCU · CU | **18–35%** (15% thanh + 3% đệm; không thấp hơn đường một phần ba ~33% quá 2%) | mặt là chủ thể; thấp hơn thì khoảng trống trên đầu thừa, người tụt xuống vùng phụ đề | ~21 · 23 · 28 · 33% (đo lại 02/10: MLS 20,7 · MS 23,0 · MCU 28,0 · CU 33,0) |
+    | WS | **≥ 15%** (không cần đệm 3% — người nhỏ, mặt không phải chủ thể) | toàn thân cần chỗ phía dưới | ~16,6% (đo 02/10; đỉnh đầu ~12%) |
+    | EWS · GAME_TPS | không áp — người nhỏ ở giữa khung | nơi chốn là chủ thể | **đỉnh đầu** ~42% (EWS) / ~40% (GAME_TPS); mắt ~43% / ~42% — đo 02/10 |
     | ECU | không áp — mắt/chi tiết lấp khung | chi tiết là chủ thể | ~57% (giữa khung) |
     Mốc 30–35% của nguồn cộng đồng [Q29] là cho khung **cận** — khớp CU. Sửa ở GĐ4: trước đó mắt MS ở ~14%, lọt vào thanh.
 - **Trong pipeline.** `start_frame`: vị trí người (trái/giữa/phải, tiền/hậu cảnh, hướng mặt) — máy ảo đọc "frame-left/right" để đặt người;
