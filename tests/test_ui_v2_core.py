@@ -191,6 +191,12 @@ class SharedComponentTests(unittest.TestCase):
         css = open(os.path.join(os.path.dirname(__file__), "..", "dashboard", "design", "theme.css"), encoding="utf-8").read()
         self.assertRegex(css, r'\[class\*="st-key-cta-"\] \[data-testid="stBaseButton-primary"\]\s*\{[^}]*min-height:\s*3\.5rem')
 
+    def test_tooltip_of_later_columns_grows_to_the_left(self):
+        """Tooltips in the 2nd+ column anchor to their right edge, so they are not clipped at the window edge (≤ 1100 px)."""
+        css = open(os.path.join(os.path.dirname(__file__), "..", "dashboard", "design", "theme.css"), encoding="utf-8").read()
+        self.assertRegex(css, r'\[data-testid="stColumn"\]:not\(:first-child\) \.v2-tip::after[^{]*\{[^}]*left:\s*auto;\s*right:\s*0')
+        self.assertRegex(css, r'\[data-testid="stColumn"\]:not\(:first-child\)[^{]*\.v2-tip-anchor\[data-tip\]::after')
+
     def test_data_table_follows_the_flag(self):
         def app():
             from dashboard.design import components as D
