@@ -187,6 +187,8 @@ ul[role="listbox"] { background: var(--raised) !important; }
 .v2-tip::after, .v2-tip-anchor[data-tip]::after { content: attr(data-tip); position: absolute; left: 0; top: calc(100% + 6px); z-index: 1000; width: max-content; max-width: min(320px, 78vw);
     white-space: pre-line; background: var(--raised); color: var(--text); border: 1px solid var(--border); border-radius: var(--r-md); padding: 8px 10px;
     font-size: 13px; font-weight: 400; line-height: 1.4; text-decoration: none; box-shadow: var(--shadow); opacity: 0; visibility: hidden; pointer-events: none; }
+/* tooltip của cột thứ 2 trở đi mọc về bên trái (neo mép phải) để không bị cắt ở mép phải cửa sổ hẹp (≤ 1100 px) */
+[data-testid="stColumn"]:not(:first-child) .v2-tip::after, [data-testid="stColumn"]:not(:first-child) .v2-tip-anchor[data-tip]::after { left: auto; right: 0; }
 .v2-tip:hover::after, .v2-tip:focus::after, .v2-tip:focus-within::after,
 [class*="st-key-infoa-"]:hover .v2-tip-anchor::after, [class*="st-key-infoa-"]:has(button:focus-visible) .v2-tip-anchor::after { opacity: 1; visibility: visible; }
 [class*="st-key-infoa-"]:has(button[aria-expanded="true"]) .v2-tip-anchor::after { opacity: 0; visibility: hidden; }

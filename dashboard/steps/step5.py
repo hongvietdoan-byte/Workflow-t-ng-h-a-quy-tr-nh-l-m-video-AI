@@ -649,6 +649,7 @@ def render_panel(p: Pipeline, pid: int, chosen, durations) -> None:
                 st.rerun()
         loudness_line(p, pid)
         viewer_check_panel(p, pid)
+        rough_cut_panel(p, pid)
         cover_panel(p, pid)
 
 
@@ -682,6 +683,29 @@ def viewer_check_panel(p: Pipeline, pid: int) -> None:
         if not res["hidden"] and res["frames"] and not res["frames"][0].get("faces_seen"):
             _note("Không có model dò mặt (data/models/face_detection_yunet_2023mar.onnx) — chỉ xem bằng mắt.")
         st.image(res["path"], caption=f"{os.path.basename(row['path'])} — {len(res['frames'])} khung")
+
+
+def rough_cut_panel(p: Pipeline, pid: int) -> None:
+    """P1 of KE_HOACH_DUYET_BAN_THO (cờ rough_cut_review): the rough cut measured against the Director's intent — shot clock, scene
+    seconds vs `target_s`, strong scenes with a shot long enough, silences, sheets of frames around the cuts. Free (ffmpeg); no Claude."""
+    from core import features
+    if not features.on("rough_cut_review"):
+        return
+    from core import rough_cut
+    if st.button("📏 Đo bản dựng thô so với ý đồ Đạo diễn", key=f"rough_cut_{pid}",
+                 help="Miễn phí (ffmpeg, không gọi Claude). Cùng bản dựng + cùng ý đồ thì lấy lại kết quả đã lưu."):
+        with st.spinner("Đang đo…"):
+            ok = act(lambda: rough_cut.build(p, pid, C.DATA))
+        if not ok:
+            return
+    res = rough_cut.load(C.DATA, pid)
+    if not res:
+        return
+    for line in rough_cut.lines(res):
+        (st.warning if line.startswith("⚠") else _note)(line)
+    for path in res.get("sheets") or []:
+        if os.path.exists(path):
+            st.image(path, caption=os.path.basename(path))
 
 
 def loudness_line(p: Pipeline, pid: int) -> None:

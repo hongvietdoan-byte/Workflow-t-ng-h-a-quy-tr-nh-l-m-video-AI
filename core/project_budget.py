@@ -61,7 +61,8 @@ def claude_stage(tag: Optional[str]) -> str:
     t = str(tag or "")
     if t.startswith("director") or t == "screenwriter":       # S11.1: the Biên kịch writes before the Director, same budget line
         return "claude_director"
-    if t in ("qc", "qc_agent", "video", "video_qc", "video_analysis", "storyboard_review", "check", "scene_qc") or t.startswith("qc"):
+    if t in ("qc", "qc_agent", "video", "video_qc", "video_analysis", "storyboard_review", "check", "scene_qc", "editor") or t.startswith("qc"):
+        # "editor" (rough-cut review, P2): a check of the finished cut, same line as the other checks, not "khác" (cap 0.20)
         # 28/09: video_analysis (the clip QC) fell into claude_other (cap 0.20) and the lock refused every clip QC
         return "claude_qc"
     if t.startswith("motion") or t == "translate":

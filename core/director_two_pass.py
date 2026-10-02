@@ -400,6 +400,42 @@ def load_raw(p: Pipeline, project_id: int) -> Dict:
         return {}
 
 
+def intent_all(p: Pipeline, project_id: int) -> Dict:
+    """The Director's intent per script scene for a reader that comes AFTER the Director (the rough-cut review, KE_HOACH_DUYET_BAN_THO P0):
+    one reader of `director_intent_raw` instead of a second copy in `scenes.data` (CHUAN_XAY_DUNG luật 4 — one source). Returns
+    {"source": "director_intent_raw" | "story_scene" | "none", "stale": bool, "fingerprint": str, "scenes": {idx: {...}}}.
+    `director_intent_raw` (two passes) carries focus / peak / target_s / dp_notes / editor_notes / sound; a single-call project has only
+    what the script scene itself stores (emotional_intent, beat) — said in `source`, never filled in silently. `stale` = the plan was
+    replaced after the intent was written (forget()), so the intent no longer belongs to the shots. The fingerprint changes when the
+    intent does, so a review built on the old one expires."""
+    raw = load_raw(p, project_id)
+    scenes: Dict[int, Dict] = {}
+    source = "none"
+    intent = raw.get("intent") if isinstance(raw.get("intent"), dict) else None
+    if intent and not raw.get("stale"):
+        for sc in intent.get("scenes") or []:
+            if isinstance(sc, dict) and isinstance(sc.get("idx"), int):
+                scenes[sc["idx"]] = {k: copy.deepcopy(sc[k]) for k in ("emotional_intent", "beat") + INTENT_KEYS if k in sc}
+        source = "director_intent_raw" if scenes else "none"
+    if not scenes:
+        for r in p.conn.execute("SELECT idx, data FROM story_scenes WHERE project_id=? ORDER BY idx", (project_id,)):
+            try:
+                d = json.loads(r["data"] or "{}")
+            except ValueError:
+                d = {}
+            got = {k: d[k] for k in ("emotional_intent", "beat") if d.get(k)}
+            if got:
+                scenes[r["idx"]] = got
+        source = "story_scene" if scenes else "none"
+    return {"source": source, "stale": bool(raw.get("stale")), "scenes": scenes,
+            "fingerprint": _fingerprint(json.dumps([source, scenes], sort_keys=True, ensure_ascii=False))}
+
+
+def intent_for(p: Pipeline, project_id: int, idx: int) -> Dict:
+    """The intent of ONE script scene (see intent_all); {} when there is none."""
+    return dict(intent_all(p, project_id)["scenes"].get(idx) or {})
+
+
 def _save_raw(p: Pipeline, project_id: int, raw: Dict) -> None:
     p.set_project_field(project_id, "director_intent_raw", json.dumps(raw, ensure_ascii=False))
 
