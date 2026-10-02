@@ -65,6 +65,8 @@ STAGE_SETTINGS: Dict[str, Dict[str, Any]] = {
     "video": {"effort": "low", "max_tokens": 16000},
     "music": {"effort": "low"}, "sfx": {"effort": "low"}, "subtitles": {"effort": "low"}, "lessons": {"effort": "low"},
     "devsys": {"effort": "low", "max_tokens": 16000},        # AI Development System scorer: fixed rubric, JSON (no temperature on these models)
+    "editor": {"effort": "low", "max_tokens": 12000},         # P2 (KE_HOACH_DUYET_BAN_THO): Biên tập viên / Đạo diễn duyệt bản thô — JSON ≤ 6 đề xuất;
+                                                              # own entry so the 32k default never makes its worst case refuse on a locked project (B1 01/10)
     "screenwriter": {"effort": "medium", "max_tokens": 8000},   # S11.1 Biên kịch: one turn's JSON (a 60 s script ≈ 2-4k). 01/10 S11.2: the
                                                               # default 32k made turn 1's estimate 0.43 USD > the 0.3 USD per-idea cap
 }

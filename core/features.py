@@ -106,6 +106,13 @@ FEATURES: Dict[str, Dict] = {
         "why": "2026-09-29 (kế hoạch S3.2, sau #8: truyện cụt, Maxim trúng đạn không thấy ai bắn): mới thử bằng Claude giả lập — chưa biết "
                "người xem Claude có bắt đúng chỗ người xem thật thấy khó hiểu không (lần chạy kiểm K)",
     },
+    "rough_cut_review": {
+        "label": "Duyệt bản dựng thô (P0–P1 chỉ đo, 0 USD): sau khi ghép, đo nhịp thật của bản dựng so với ý đồ Đạo diễn (độ dài cảnh so `target_s`, "
+                 "đỉnh `peak` có shot đủ dài không, khoảng lặng) + tấm khung quanh điểm cắt ≤ 12 ảnh. Lượt Claude Biên tập viên + Đạo diễn là P2, chưa có",
+        "verified": False,
+        "why": "2026-10-02 (kế hoạch docs/KE_HOACH_DUYET_BAN_THO_2026-10-02.md, P0–P1): mới thử bằng test + fixture; chưa chạy trên bản dựng thật, "
+               "chưa biết các số đo có giúp người dùng thấy đúng chỗ nhịp chùng hay không",
+    },
     "audio_first": {
         "label": "Timeline theo âm thanh: tạo giọng ngay sau Director, kéo độ dài từng shot theo giọng thật, kiểm tổng so với mục tiêu "
                  "kịch bản (±10 %) và khóa timeline TRƯỚC khi làm ảnh / video",
