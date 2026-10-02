@@ -289,6 +289,13 @@ def seed_states(out: str) -> None:
             p.start(job)
             p.succeed(job)
             p.conn.execute("UPDATE jobs SET state='pending_review' WHERE id=?", (job,))
+    sid2 = p.conn.execute("SELECT id FROM scenes WHERE project_id=1 AND idx=2").fetchone()["id"]      # cảnh 2 có v1…v7: thử dải phiên bản dài
+    for _ in range(6):
+        job = p.create_job(sid2)
+        p.start(job)
+        p.succeed(job)
+        p.apply_qc(job, {"character": .6, "hands_face": .5, "composition": .6, "mood_lighting": .6, "consistency": .6})
+        p.reject(job, "user", "thử dải phiên bản", respawn=False)
     paused = p.create_project("Dự án tạm dừng")
     p.conn.execute("UPDATE projects SET paused=1 WHERE id=?", (paused,))
     p.create_project("Dự án có tên rất dài để thử cắt chữ ở thẻ, hộp thư, thanh chọn dự án và mọi nơi khác nữa của giao diện v2")
