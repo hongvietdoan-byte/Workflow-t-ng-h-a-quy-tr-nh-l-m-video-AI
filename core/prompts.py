@@ -168,12 +168,12 @@ def duration_block(pipeline: Pipeline, project_id: int, for_dp: bool = False) ->
     from . import lipsync
     if lipsync.enabled() and lipsync.post_available():   # V4 GĐ3: lip sync is on — the "no close-up on the speaker" rule (N3) is a choice
         parts.append("- **Khớp môi đang BẬT**: được đặt thoại ở shot thấy mặt người nói (kể cả cận) — miệng sẽ được khớp với giọng Việt. "
-                     "Câu then chốt quay cận mặt (CU/ECU/MCU, ngang mắt, mặt không bị che, ≤ 5 s) ghi `\"lip_sync\": true` trong shot "
+                     "Câu then chốt quay cận mặt (CU/ECU/MCU, ngang mắt, mặt không bị che, ≤ 5 s, máy tĩnh hoặc đẩy rất chậm) ghi `\"lip_sync\": true` trong shot "
                      "(tạo video kèm giọng — đắt hơn, dùng cho ~20% câu quan trọng nhất); các shot thoại khác khớp môi sau khi có clip. "
                      "Shot người nói quay lưng / ngoài khung thì không cần.")
     elif lipsync.enabled():  # user decision 2026-09-26: no sync.so — the ONLY way a mouth is matched is Seedance generating with the voice
         parts.append("- **Khớp môi đang BẬT, chỉ bằng cách tạo video KÈM GIỌNG** (Seedance nhận file giọng của shot — không có khớp môi sau): "
-                     "câu then chốt đặt ở shot cận thấy rõ mặt người nói (CU/ECU/MCU, ngang mắt, mặt không bị che, ≤ 5 s, chỉ người nói "
+                     "câu then chốt đặt ở shot cận thấy rõ mặt người nói (CU/ECU/MCU, ngang mắt, mặt không bị che, ≤ 5 s, máy tĩnh hoặc đẩy rất chậm, chỉ người nói "
                      "mở miệng) và ghi `\"lip_sync\": true`. Các câu thoại khác đặt ở trung/toàn, qua vai, người nói quay nghiêng, hoặc lên "
                      "shot người nghe (như luật N3 khi tắt) — shot rộng giữ nguyên miệng của clip. Shot người nói quay lưng / ngoài khung thì "
                      "không cần.")
