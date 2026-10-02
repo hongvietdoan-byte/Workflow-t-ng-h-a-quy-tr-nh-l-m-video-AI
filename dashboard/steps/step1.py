@@ -402,7 +402,7 @@ def scene_list(p: Pipeline, pid: int, scenes, char_names) -> None:
 
 def _lock_and_go(p: Pipeline, pid: int) -> None:
     """Button callback: lock the Character Bible and move to Step 2 (a callback may still change the step selector)."""
-    p = Pipeline(connect(C.DB))                     # a callback runs in another thread than the one that made `p`
+    p = C.scoped(Pipeline(connect(C.DB)))                     # a callback runs in another thread than the one that made `p`
     try:
         llm_io.lock_character_bible(p, pid)
     except ERRORS as e:

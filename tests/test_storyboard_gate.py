@@ -119,7 +119,7 @@ class StoryboardPanelTest(unittest.TestCase):
             with mock.patch("dashboard.steps.step2.autopilot_manager") as mgr:
                 at.button(key=f"board_ok_{pid}").click().run()
             self.assertFalse(at.exception)
-            mgr.return_value.start.assert_called_once_with(pid)                # the background run is started again
+            mgr.return_value.start.assert_called_once_with(pid, user=None)                # the background run is started again
             gates = autopilot.get_gates(Pipeline(connect(db)), pid)
             self.assertIsNone(gates["waiting_for"])
             self.assertEqual(gates["storyboard_ok"], [jid])

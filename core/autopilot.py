@@ -13,6 +13,7 @@ Design:
   provider) STOPS the run with a clear note instead of guessing; nothing else is skipped or approved blindly.
 - Spending is capped by the number of jobs per scene (retries included), not just by good behaviour.
 """
+from . import access
 import json
 import re
 import os
@@ -134,6 +135,7 @@ def _owner(p: Pipeline, project_id: int, user: Optional[str]) -> None:
 
 def start(p: Pipeline, project_id: int, user: Optional[str] = None) -> None:
     """The user approved the scene breakdown: automatic QC for the run (the previous review setting is restored at the end)."""
+    access.need_edit(p, project_id, "bật chạy tự động")
     _owner(p, project_id, user)
     _save_cfg(p, project_id)
     if _count(p, "SELECT COUNT(*) FROM characters WHERE project_id=?", project_id) and not get_gates(p, project_id)["bible"]:
@@ -151,6 +153,7 @@ def start(p: Pipeline, project_id: int, user: Optional[str] = None) -> None:
 
 def resume(p: Pipeline, project_id: int, user: Optional[str] = None) -> None:
     """Continue after a stop / a checkpoint / needs_attention / error / restart. At a checkpoint, continuing = the person approves it."""
+    access.need_edit(p, project_id, "tiếp tục chạy tự động")
     _owner(p, project_id, user)
     gates = get_gates(p, project_id)
     if gates.get("waiting_for") == "bible":
@@ -202,6 +205,7 @@ def progress(p: Pipeline, project_id: int, data_dir: str) -> List[tuple]:
 
 
 def stop(p: Pipeline, project_id: int, note: str = "Đã dừng theo yêu cầu") -> None:
+    access.need_edit(p, project_id, "dừng chạy tự động")
     _set(p, project_id, STOPPED, note)
     _log(p, project_id, note)
     _restore_cfg(p, project_id)
@@ -1028,8 +1032,20 @@ class Manager:
     def queue_length(self) -> int:
         return len(self._queue)
 
-    def start(self, project_id: int) -> bool:
+    def _check_user(self, project_id: int, user, action: str) -> None:
+        """`user` ({'email','role'}, core/access.py) comes from the dashboard session; None = the system. A person without the edit
+        right on the project cannot start its run (it spends money)."""
+        if user is not None:
+            from .db import connect
+            conn = connect(self.db_path)
+            try:
+                access.require(conn, project_id, user, "edit", action)
+            finally:
+                conn.close()
+
+    def start(self, project_id: int, user=None) -> bool:
         """Start now if a slot is free, otherwise wait in the queue. False when already running or queued."""
+        self._check_user(project_id, user, "bật chạy tự động")
         with self._lock:
             if self.alive(project_id):
                 return False
@@ -1042,10 +1058,11 @@ class Manager:
             self._launch(project_id)
             return True
 
-    def wake(self, project_id: int) -> bool:
+    def wake(self, project_id: int, user=None) -> bool:
         """S6.4: the person asked for a redraw while the run waits at a storyboard / pilot gate — a thread sends and collects it
         (Manager._run → serve_waiting). False when nothing to do (not waiting there, already alive, no queued picture)."""
         from .db import connect
+        self._check_user(project_id, user, "gửi lại ảnh khi chạy tự động đang chờ")
         p = Pipeline(connect(self.db_path))
         if (self.alive(project_id) or status(p, project_id)["state"] != WAITING
                 or get_gates(p, project_id).get("waiting_for") not in SERVE_GATES
@@ -1139,6 +1156,7 @@ def get_gates(p: Pipeline, project_id: int) -> Dict:
 
 
 def set_gates(p: Pipeline, project_id: int, changes: Dict) -> None:
+    access.need_edit(p, project_id, "đổi cổng duyệt")
     gates = get_gates(p, project_id)
     gates.update(changes)
     p.set_project_field(project_id, "autopilot_gates", json.dumps(gates, ensure_ascii=False))
@@ -1164,6 +1182,7 @@ def _restore_cfg(p: Pipeline, project_id: int) -> None:
 
 def reset(p: Pipeline, project_id: int, data_dir: Optional[str] = None) -> None:
     """Forget the automatic run's state (pictures and clips already made are kept)."""
+    access.need_edit(p, project_id, "đặt lại chạy tự động")
     p.conn.execute("UPDATE projects SET autopilot_state=NULL, autopilot_note=NULL WHERE id=?", (project_id,))
     p.conn.commit()
     set_gates(p, project_id, {"bible_done": False, "pilot_done": False, "storyboard_ok": None, "waiting_for": None})

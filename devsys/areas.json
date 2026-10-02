@@ -179,10 +179,10 @@
       "name": "Chẩn đoán, hiệu năng & giới hạn",
       "weight": 0.6,
       "description": "Ghi lỗi/cảnh báo khi chạy thật, số đo tải, giới hạn hệ thống đo từ lịch sử job, hiệu quả quy trình.",
-      "code": ["core/diag.py", "core/perf.py", "core/capacity.py", "core/effectiveness.py", "core/inbox.py", "core/team.py", "dashboard/home.py", "dashboard/team_screen.py"],
+      "code": ["core/diag.py", "core/perf.py", "core/capacity.py", "core/effectiveness.py", "core/inbox.py", "core/team.py", "core/access.py", "dashboard/access_ui.py", "dashboard/home.py", "dashboard/team_screen.py"],
       "assets": ["tools/diagnose.py", "tools/audit_run.py", "tools/load_test.py"],
       "docs": [],
-      "tests": [],
+      "tests": ["tests/test_access.py", "tests/test_access_ui.py"],
       "flags": [],
       "diag_stages": [],
       "keywords": ["chẩn đoán", "diag", "hiệu năng", "giới hạn hệ thống", "capacity", "perf"]

@@ -5,6 +5,7 @@ Render settings live in the project (`projects.render_settings`), so the manual 
 same video. File names stay the ones people know: FINAL_VIDEO.mp4, FINAL_VIDEO_sub_<lang>.mp4, FINAL_VIDEO_end.mp4,
 FINAL_VIDEO_<W>x<H>.mp4.
 """
+from . import access
 import contextlib
 import functools
 import json
@@ -44,6 +45,7 @@ def get_settings(p: Pipeline, project_id: int) -> Dict:
 
 
 def save_settings(p: Pipeline, project_id: int, settings: Dict) -> None:
+    access.need_edit(p, project_id, "lưu cài đặt bản giao")
     clean = {k: settings.get(k, DEFAULTS[k]) for k in DEFAULTS}
     if clean["transition"] not in ("cut", "crossfade", "dip_to_black"):
         raise ValueError("transition phải là cut / crossfade / dip_to_black")
@@ -75,6 +77,7 @@ def audio_hash(data_dir: str, project_id: int) -> str:
 # ---- outputs table ------------------------------------------------------------------------------------------------------
 def record(p: Pipeline, project_id: int, kind: str, path: str, parent_id: Optional[int] = None,
            manifest: Optional[Dict] = None) -> int:
+    access.need_edit(p, project_id, "ghi bản giao")
     cur = p.conn.execute("INSERT INTO outputs (project_id, kind, path, parent_id, manifest, created_at, created_by) VALUES (?,?,?,?,?,?,?)",
                          (project_id, kind, path, parent_id, json.dumps(manifest or {}, ensure_ascii=False), _now(), p.actor))
     p.conn.commit()
@@ -401,6 +404,7 @@ def render(p: Pipeline, project_id: int, data_dir: str, music_path: Optional[str
            durations: Optional[List[float]] = None, settings: Optional[Dict] = None) -> Dict:
     """Cut the clips (the chosen ones, or every usable clip) with the project's render settings, the selected music and the
     mix (sound effects + voice lines placed on the timeline). Returns {"path", "output_id", "seconds"}."""
+    access.need_edit(p, project_id, "dựng bản giao")
     settings = settings or get_settings(p, project_id)
     rows = final_cut.collect_clips_for_render(p.conn, data_dir, project_id, clips)
     paths = [r["path"] for r in rows if r.get("path")]
@@ -744,6 +748,7 @@ def ai_label_layer(p: Pipeline, project_id: int, data_dir: str, parent_id: Optio
 @_locked
 def export_layer(p: Pipeline, project_id: int, data_dir: str, spec: Dict, parent_id: Optional[int] = None) -> Dict:
     """Another size / file-size limit of the most finished version (with subtitles and card when they exist)."""
+    access.need_edit(p, project_id, "xuất bản giao")
     parent = _parent(p, project_id, parent_id, ("final", "subtitle", "endcard", "ailabel"))
     if parent is None:
         raise ValueError("chưa có video cuối để xuất")
@@ -802,6 +807,7 @@ def deliver(p: Pipeline, project_id: int, data_dir: str, llm=None, music_path: O
             render_fn: Optional[Callable] = None, subtitle_fn: Optional[Callable] = None, clips=None, durations=None) -> Dict:
     """The whole chain in one go. A failing optional layer is reported (diag + warnings) and the chain goes on: the final video
     always comes out when the render works. render_fn / subtitle_fn: replaceable (automatic run, tests)."""
+    access.need_edit(p, project_id, "giao bản dựng")
     warnings = []
     before = lineage.latest_output(p.conn, project_id, "final")
     if render_fn is None:

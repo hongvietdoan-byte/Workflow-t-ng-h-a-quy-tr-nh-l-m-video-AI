@@ -767,7 +767,7 @@ def compare_panel(p: Pipeline) -> None:
     """v3: the same script made in different ways (v2 / one clip per shot / Kling multi-shot) side by side, with the numbers and
     the person's 1–5 marks — the base of docs/V3_AB_REPORT.md."""
     from core import compare
-    projects = p.conn.execute("SELECT id, name FROM projects ORDER BY id DESC").fetchall()
+    projects = access.filter_rows(p.conn, p.conn.execute("SELECT id, name FROM projects ORDER BY id DESC").fetchall(), C.access_user())
     with st.expander("⚖ So sánh các cách làm (cùng kịch bản)", expanded=False):
         chosen = st.multiselect("Chọn 2–3 dự án", [r["id"] for r in projects], max_selections=3, key="cmp_projects",
                                 format_func=lambda i: next(f"#{r['id']} {r['name']}" for r in projects if r["id"] == i))
@@ -801,6 +801,7 @@ def monitor(p: Pipeline, pid: int) -> None:
         return _monitor_v2(p, pid)
     mgr = autopilot_manager(C.DB, C.DATA)
     snap = perf.snapshot(p.conn, mgr.queue_length(), mgr.running_count(), mgr.max_parallel)
+    snap["projects"] = access.filter_rows(p.conn, snap["projects"], C.access_user())     # only the projects this person may see
     ui.html(ui.card_title("📊 Theo dõi hiệu suất & tải hệ thống", "toàn bộ dự án, làm mới bằng nút bên phải"))
     compare_panel(p)
     if st.button("↻ Làm mới", key="perf_refresh"):
@@ -876,6 +877,7 @@ def _monitor_v2(p: Pipeline, pid: int) -> None:
     from dashboard.design.screens.v2_tables import Raw, table
     mgr = autopilot_manager(C.DB, C.DATA)
     snap = perf.snapshot(p.conn, mgr.queue_length(), mgr.running_count(), mgr.max_parallel)
+    snap["projects"] = access.filter_rows(p.conn, snap["projects"], C.access_user())     # only the projects this person may see
     busy = sum(k["running"] + k["queued"] for k in snap["kinds"])
     stages = diag.stage_table(p.conn)
     findings = diag.scan(p.conn, C.DATA, float(os.environ.get("AUTOPILOT_POLL_SEC", "15")))

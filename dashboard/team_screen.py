@@ -3,16 +3,19 @@
 Reads what already exists (core/perf.by_user, core/auth users + audit log) and adds: money per person (core/team.spend_by_user), a soft
 monthly limit (warning only), role presets (core/team.ROLES over the 5 permissions), invite by e-mail. Only the Owner changes people."""
 from dashboard.common import *  # noqa: F401,F403  (shared imports + helpers)
-from dashboard import common as C
+from dashboard import access_ui, common as C
 from contextlib import ExitStack
 
-from core import perf, team
+from core import access, perf, team
 from dashboard.design import components as D
 from dashboard.design.screens.v2_tables import Raw, table
 
 NOTE = ("Số liệu theo e-mail đăng nhập (đăng nhập tắt: theo tên tự khai). “Tiền chi” = ảnh + video + âm thanh có giá của job người đó gửi; "
         "tiền gọi Claude không gắn với người. **Hạn mức chỉ để cảnh báo** (hiện ở hộp 📥 của Owner khi ≥ 90 %), không chặn gửi — chặn thật là "
         "trần đợt thử và ngân sách khóa của dự án.")
+ACCESS_NOTE = ("Mỗi người chỉ thấy dự án DO CHÍNH HỌ TẠO. Owner thấy và làm được mọi dự án. Thêm người vào danh sách theo dõi của một dự án để họ "
+               "thấy dự án đó: “Chỉ xem” (nút ghi bị khóa) hoặc “Được sửa” (duyệt, gen, sửa như chủ; không cất / xóa). Dự án cũ chưa có chủ "
+               "chỉ Owner thấy cho tới khi gán chủ ở đây. Chủ dự án cũng đổi được danh sách này ở ⚙ → Dự án → “Người theo dõi dự án”.")
 PERIODS ={"Hôm nay": 1, "7 ngày": 7, "30 ngày": 30, "Tất cả": None}
 FILTERS = {"": "Tất cả", "over": "⚠ Gần hết hạn mức", "inact": "💤 Không hoạt động > 3 ngày", "owner": "Owner", "worker": "Người làm",
            "reviewer": "Người duyệt", "manager": "Quản lý", "custom": "Tùy chỉnh"}
@@ -179,12 +182,16 @@ def team_screen(p: Pipeline, pid: int):
                 st.error(str(e))
             else:
                 st.rerun()
+    with (D.card("team-access") if v2 else st.container(border=True)):        # đợt F: who watches which project, and projects with no creator
+        st.markdown("**Quyền theo dự án**", help=ACCESS_NOTE)
+        access_ui.team_panel(p)
     if not v2:
         ui.html(ui.card_title("Lịch sử hoạt động", "đổi quyền / thêm bớt người (nhật ký của Owner) và lượt gen gần đây"))
     log = auth.recent_audit(p.conn, 15)
-    gens = p.conn.execute("SELECT j.created_at, COALESCE(NULLIF(TRIM(j.created_by),''),'(chưa nhập tên)') who, j.type, j.state, pr.name"
-                          " FROM jobs j JOIN projects pr ON pr.id=j.project_id WHERE j.type IN ('image_gen','video_gen')"
-                          " ORDER BY j.id DESC LIMIT 15").fetchall()
+    gens = access.filter_rows(p.conn, p.conn.execute(
+        "SELECT j.created_at, COALESCE(NULLIF(TRIM(j.created_by),''),'(chưa nhập tên)') who, j.type, j.state, pr.name, j.project_id"
+        " FROM jobs j JOIN projects pr ON pr.id=j.project_id WHERE j.type IN ('image_gen','video_gen')"
+        " ORDER BY j.id DESC LIMIT 200").fetchall(), C.access_user(), key="project_id")[:15]
     if v2:                                  # P3: both logs live in one labelled expander, closed by default
         with st.expander("🕘 Lịch sử hoạt động — nhật ký quyền (đổi quyền, thêm bớt người) và lượt gen gần đây", expanded=False):
             _history_v2(log, gens)
