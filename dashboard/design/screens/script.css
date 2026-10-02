@@ -11,13 +11,10 @@
 .script-h .v2-pill { font-weight: 700; }
 
 /* nút hành động chính trong hero: vùng lớn */
-.st-key-script-cta-box { gap: 0.6rem; }
-.st-key-script-cta-box [data-testid="stBaseButton-primary"] { min-height: 3.5rem; font-size: 17px; width: 100%; }
-.st-key-script-cta-box [data-testid="stBaseButton-primary"] p { font-size: 17px; }
-.st-key-script-cta-box button { min-height: 3.5rem; width: 100%; }
-.st-key-script-cta-box [class*="st-key-script-cta-budget_"] button:not([class*="_no"]) { background: var(--grad-primary) !important; color: var(--on-primary) !important;
+/* (02/10) vùng nút chính lớn đã chuyển vào lõi: components.cta_box → theme.css [class*="st-key-cta-"]; riêng nút duyệt ngân sách (confirm_all) dùng gradient */
+.st-key-cta-script [class*="st-key-script-cta-budget_"] button:not([class*="_no"]) { background: var(--grad-primary) !important; color: var(--on-primary) !important;
     border: 0 !important; font-weight: 700; box-shadow: 0 0 22px var(--glow); }
-.st-key-script-cta-box [class*="st-key-script-cta-budget_"] button p { font-size: 17px; color: var(--on-primary) !important; }
+.st-key-cta-script [class*="st-key-script-cta-budget_"] button p { font-size: 17px; color: var(--on-primary) !important; }
 .script-note { color: var(--muted); font-size: 13.5px; margin-top: 4px; }
 
 /* bốn thẻ chế độ đầu vào */

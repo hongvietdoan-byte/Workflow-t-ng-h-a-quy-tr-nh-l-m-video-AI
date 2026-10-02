@@ -10,6 +10,7 @@ shot's start picture (shots.last_frame_for) and needs none.
 End frames live in their own table (not image_gen jobs: many queries treat an approved image_gen job as THE start picture of its
 shot). They pass through the same spending limit and ledger as pictures. Off until a real test (feature `end_frames`).
 """
+from . import access
 import json
 import os
 from typing import Dict, List, Optional
@@ -59,6 +60,7 @@ def usable_path(conn, scene_id: int) -> Optional[str]:
 def queue(p: Pipeline, project_id: int) -> List[int]:
     """Queue an end frame for every shot that needs one and has an approved start picture but no end frame from that picture yet
     (a new start picture makes the old end frame outdated). Returns the scene ids queued."""
+    access.need_edit(p, project_id, "gửi vẽ khung cuối")
     proj = p.project(project_id)
     mode = proj["shot_mode"] if "shot_mode" in proj.keys() else None
     out = []
@@ -217,6 +219,7 @@ def reject(p: Pipeline, row_id: int, note: Optional[str] = None) -> None:
 def redo(p: Pipeline, scene_id: int, fix: Optional[str] = None) -> int:
     """Draw the end frame again (the person asked). `fix` (English) goes into the new prompt so the input changes; at most MAX_REDOS
     redos per start picture (luật 6) — then the layer to fix is the shot's end_state / start picture, not another paid try."""
+    access.need_edit_scene(p, scene_id, "vẽ lại khung cuối")
     start = _start_job(p.conn, scene_id)
     if start is None:
         raise ValueError("shot chưa có ảnh khung đầu đã duyệt — không vẽ khung cuối được")

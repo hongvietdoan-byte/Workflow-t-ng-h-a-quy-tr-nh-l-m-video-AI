@@ -140,9 +140,9 @@ class SlimTests(unittest.TestCase):
 
     def test_scope_note_moved_into_info_beside_the_filters(self):
         at = self._home()
-        self.assertTrue(self._in_info(at, "“Của tôi” = dự án bạn tạo"))
-        self.assertIn("“Của tôi” = dự án bạn tạo", self._md(at))
-        self.assertFalse(any("“Của tôi” = dự án bạn tạo" in c.value for c in at.caption))
+        self.assertTrue(self._in_info(at, "Bạn chỉ thấy dự án DO BẠN TẠO"))
+        self.assertIn("Bạn chỉ thấy dự án DO BẠN TẠO", self._md(at))
+        self.assertFalse(any("Bạn chỉ thấy dự án DO BẠN TẠO" in c.value for c in at.caption))
         self.assertFalse(any("tổng chi các dự án đang hiện" in c.value for c in at.caption))
 
     def test_team_main_table_has_only_the_main_columns_rest_in_labelled_expander(self):

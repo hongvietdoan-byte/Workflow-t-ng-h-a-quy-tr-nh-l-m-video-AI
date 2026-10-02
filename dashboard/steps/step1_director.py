@@ -86,7 +86,8 @@ def dialogue_review_panel(p: Pipeline, pid: int) -> None:
         def entry_md(e) -> str:
             icon = {"ok": "✔", "tight": "◐", "extend": "⚠", "split": "✖"}[e["status"]]
             color = {"ok": "green", "tight": "orange", "extend": "orange", "split": "red"}[e["status"]]
-            return (f":{color}[{icon} S{e['idx']:02d}] {escape(', '.join(e['speakers']))} · "
+            tag = colored(color, f"{icon} S{e['idx']:02d}", html=False)
+            return (f"{tag} {escape(', '.join(e['speakers']))} · "
                     + (f"giọng thật ≈ {e['needed']:g}s" if e["measured"] else f"{e['syllables']} âm tiết ≈ {e['needed']:g}s")
                     + f" / clip {e['planned']:g}s (model tối đa {e['max']}s)" + (f" — {escape(e['advice'])}" if e["advice"] else ""))
         shown = entries

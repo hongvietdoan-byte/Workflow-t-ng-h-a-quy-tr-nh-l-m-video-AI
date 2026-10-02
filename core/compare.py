@@ -7,6 +7,7 @@ V2 Kling multi-shot per group.
 - scores: the person's 1–5 marks per criterion, kept in app_settings (key 'eval:<project id>').
 - report_markdown: the table for docs/V3_AB_REPORT.md.
 """
+from . import access
 import json
 import os
 from typing import Dict, List, Optional
@@ -31,6 +32,7 @@ def _cols(conn, table: str) -> List[str]:
 def clone_project(p: Pipeline, project_id: int, name: str, shot_mode: Optional[str] = "keep", with_rows: bool = True) -> int:
     """A new project with the same starting point. shot_mode: 'keep' or a new value (None / 'per_shot' / 'multishot').
     with_rows: copy the scene / shot rows (same Director plan) — False keeps only the script scenes (run the Director again)."""
+    access.need_view(p, project_id, "nhân bản dự án")
     conn = p.conn
     src = p.project(project_id)
     skip = SKIP_PROJECT | ({"director_raw"} if not with_rows else set())    # the old plan must not seed "chia shot lại một cảnh"
@@ -46,7 +48,7 @@ def clone_project(p: Pipeline, project_id: int, name: str, shot_mode: Optional[s
         values[cols.index("autopilot_gates")] = json.dumps({k: v for k, v in gates.items() if k in ("bible", "pilot", "storyboard")}) \
             if gates else None
     cur = conn.execute(f"INSERT INTO projects (name, created_at, created_by, {', '.join(cols)}) VALUES (?, datetime('now'), ?, "
-                       + ", ".join("?" for _ in cols) + ")", [name, p.actor] + values)
+                       + ", ".join("?" for _ in cols) + ")", [name, (p.user or {}).get("email") or p.actor] + values)
     new = cur.lastrowid
     ccols = [c for c in _cols(conn, "characters") if c not in ("id", "project_id")]
     fresh = {} if with_rows else FRESH_BIBLE        # "chạy lại Director": a fresh Bible (T1 standard profiles still apply from the Kho)

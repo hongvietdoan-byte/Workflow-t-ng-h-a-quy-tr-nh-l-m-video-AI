@@ -37,11 +37,8 @@ def state_pill(state: str) -> str:
 @contextmanager
 def row(summary_html: str, key: str, ratio: int = 24):
     """MỘT dòng tóm tắt (HTML đã escape) + nút ⓘ bên phải; chi tiết dài viết trong khối `with` (QUY_TAC §5: P2 ngoài, P3 trong ⓘ)."""
-    c1, c2 = st.columns([ratio, 1], vertical_alignment="center")
-    c1.markdown(summary_html, unsafe_allow_html=True)
-    with c2:
-        with D.info(key) as pop:
-            yield pop
+    with D.info(key, anchor=summary_html) as pop:          # 02/10: bấm / rê chuột ngay trên dòng tóm tắt, không còn nút ⓘ riêng
+        yield pop
 
 
 def sum_html(text: str, kind: str = "") -> str:
@@ -184,20 +181,21 @@ def _open_detail(pid: int, jid: int) -> None:
 def _version_strip(pid: int, sid: int, key: str, n: int, pointer: int) -> None:
     """v1…vN: bấm một chip = đặt con trỏ phiên bản (cùng việc ‹ › cũ đã làm; khóa ‹ › cũ giữ nguyên)."""
     if n <= 1:
-        st.markdown('<div class="v2-vers"><span class="v2-ver on">v1</span></div>', unsafe_allow_html=True)
+        st.markdown(D.version_strip(1, 0), unsafe_allow_html=True)
         return
     shown = list(range(max(0, min(pointer - 2, n - 4)), min(n, max(0, min(pointer - 2, n - 4)) + 4)))
-    cols = st.columns([1] + [1] * len(shown) + [1], gap="small")
-    if cols[0].button("‹", key=f"{key}_prev", disabled=pointer == 0, help="Bản trước"):
-        st.session_state[key] = pointer - 1
-        st.rerun()
-    for col, i in zip(cols[1:-1], shown):
-        if col.button(f"v{i + 1}", key=f"{'sbvon' if i == pointer else 'sbv'}_{pid}_{sid}_{i}", help=f"Bản {i + 1}/{n}" + (" (đang xem)" if i == pointer else "")):
-            st.session_state[key] = i
+    with st.container(key=f"vers-{pid}-{sid}"):                      # CSS: hàng chip tự xuống dòng khi thẻ hẹp, không cắt “v..” (02/10)
+        cols = st.columns([1] + [1] * len(shown) + [1], gap="small")
+        if cols[0].button("‹", key=f"{key}_prev", disabled=pointer == 0, help="Bản trước"):
+            st.session_state[key] = pointer - 1
             st.rerun()
-    if cols[-1].button("›", key=f"{key}_next", disabled=pointer == n - 1, help="Bản sau (mới hơn)"):
-        st.session_state[key] = pointer + 1
-        st.rerun()
+        for col, i in zip(cols[1:-1], shown):
+            if col.button(f"v{i + 1}", key=f"{'sbvon' if i == pointer else 'sbv'}_{pid}_{sid}_{i}", help=f"Bản {i + 1}/{n}" + (" (đang xem)" if i == pointer else "")):
+                st.session_state[key] = i
+                st.rerun()
+        if cols[-1].button("›", key=f"{key}_next", disabled=pointer == n - 1, help="Bản sau (mới hơn)"):
+            st.session_state[key] = pointer + 1
+            st.rerun()
 
 
 def image_group_v2(p, pid: int, history: list, proj, stale_reason=None) -> None:
@@ -225,11 +223,9 @@ def image_group_v2(p, pid: int, history: list, proj, stale_reason=None) -> None:
             pills += " " + D.pill("⚠ ảnh cũ", "warn")
         if not is_latest:
             pills += " " + D.pill("bản cũ", "mute")
-        head, tip = st.columns([6, 1], vertical_alignment="center")
-        head.markdown(f'<div><b>{escape(C.unit_label(p, j["project_id"], j["idx"]))}</b></div>', unsafe_allow_html=True)
-        with tip:
-            with D.info(f"sb-{sid}-more", help_text="Chi tiết: điểm QC, lý do gen lại, nội dung kịch bản"):
-                card_details(p, proj, j, is_latest, stale_reason)
+        with D.info(f"sb-{sid}-more", anchor=f'<b>{escape(C.unit_label(p, j["project_id"], j["idx"]))}</b>',
+                    help_text="Điểm QC, lý do gen lại, nội dung kịch bản — bấm để xem"):
+            card_details(p, proj, j, is_latest, stale_reason)
         st.markdown(pills + (" " + _qc_chips(p, proj, jid) if not busy else ""), unsafe_allow_html=True)
         _version_strip(pid, sid, key, n, pointer)
 
@@ -310,7 +306,7 @@ def image_group_v2(p, pid: int, history: list, proj, stale_reason=None) -> None:
 def detail_dialog(pid: int, jid: int) -> None:
     """✎ Sửa / 🔍 Chi tiết: ảnh lớn + kịch bản + điểm QC + nhập ảnh thủ công (các nút duyệt/loại/vẽ lại nằm ở thẻ)."""
     from dashboard.steps.step2 import image_detail
-    p = Pipeline(connect(C.DB))
+    p = C.scoped(Pipeline(connect(C.DB)))
     job = p.conn.execute("SELECT j.*, s.idx, s.title FROM jobs j JOIN scenes s ON s.id=j.scene_id WHERE j.id=?", (jid,)).fetchone()
     if job is None:
         st.caption("Ảnh này không còn.")
@@ -328,24 +324,7 @@ def gate_waiting(p, pid: int) -> bool:
 
 def _confirm_all_primary(key: str, ids, label: str, question: str, container, primary: bool) -> bool:
     """Như common.confirm_all (cùng khóa, cùng ngữ nghĩa hỏi-có/không) nhưng nút đầu là nút chính của thanh."""
-    ids = tuple(ids)
-    pending_key = f"ask_{key}"
-    if st.session_state.get(pending_key) not in (None, ids):
-        st.session_state[pending_key] = None
-    if st.session_state.get(pending_key) != ids:
-        if container.button(label, key=key, disabled=not ids, type="primary" if primary else "secondary", width="stretch"):
-            st.session_state[pending_key] = ids
-            st.rerun()
-        return False
-    container.warning(question)
-    yes, no = container.columns(2)
-    if yes.button("Có, duyệt hết", key=f"{key}_yes", type="primary"):
-        st.session_state[pending_key] = None
-        return True
-    if no.button("Không", key=f"{key}_no"):
-        st.session_state[pending_key] = None
-        st.rerun()
-    return False
+    return D.confirm_all(key, ids, label, question, container, primary=primary, stretch=True)
 
 
 def action_bar(p, pid: int) -> None:
@@ -383,7 +362,7 @@ def action_bar(p, pid: int) -> None:
                 with mid:
                     if st.button("✔ Duyệt storyboard → gửi video", key=f"board_ok_{pid}", type="secondary" if pending else "primary", width="stretch"):
                         autopilot.resume(p, pid, p.actor)
-                        autopilot_manager(C.DB, C.DATA).start(pid)
+                        autopilot_manager(C.DB, C.DATA).start(pid, user=C.access_user())
                         st.rerun()
             with right:
                 if _confirm_all_primary("approve_all", pending, f"✔ Duyệt tất cả ({len(pending)} ảnh)", f"Duyệt tất cả {len(pending)} ảnh đang chờ duyệt?",

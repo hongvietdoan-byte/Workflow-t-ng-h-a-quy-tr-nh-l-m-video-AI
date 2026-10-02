@@ -1,13 +1,14 @@
 """Step 1 · 1c: the automatic run, its progress and the project budget (split from step1.py, S9.5)."""
 from dashboard.common import *  # noqa: F401,F403  (shared imports + helpers)
 from dashboard import common as C
-from dashboard.steps.step1_v2 import cap, say, is_next  # noqa: F401  (v2: long captions / notes become a one-line summary + ⓘ)
+from dashboard.steps.step1_v2 import cap, say, is_next, reset_scope  # noqa: F401  (v2: long captions / notes become a one-line summary + ⓘ)
 
 
 @st.fragment(run_every=5)
 def autopilot_progress(pid: int) -> None:
     """Live progress (refreshes itself every 5 s while the page is open; the run itself lives in a background thread)."""
-    p = Pipeline(connect(C.DB))
+    reset_scope("ap")                    # 02/10: stable tooltip/popover keys across the 5 s refreshes → an open popover is not remounted (closed)
+    p = C.scoped(Pipeline(connect(C.DB)))
     info = autopilot.status(p, pid)
     state = info["state"]
     tag = {"queued": ("xếp hàng", "b-warn"), "running": ("đang chạy", "b-info"), "done": ("hoàn tất", "b-ok"), "needs_attention": ("cần bạn xử lý", "b-warn"),
@@ -21,7 +22,7 @@ def autopilot_progress(pid: int) -> None:
     for label, done, total in autopilot.progress(p, pid, C.DATA):
         ui.progress_bar(0 if not total else min(done / total, 1.0), text=f"{label}: {done}/{total}")
     if info["log"]:
-        cap(" · ".join(f"{e['at']} {e['msg']}" for e in info["log"][-4:]))
+        cap(" · ".join(f"{e['at']} {e['msg']}" for e in info["log"][-4:]), scope="ap")
     mgr = autopilot_manager(C.DB, C.DATA)
     stale = (autopilot.is_stale(p, pid, float(os.environ.get("AUTOPILOT_POLL_SEC", "15")))
              or (state == "queued" and not mgr.queued(pid) and not mgr.alive(pid)))
@@ -42,7 +43,7 @@ def autopilot_progress(pid: int) -> None:
         label = "✔ Đã duyệt — tiếp tục" if state == "waiting" else "▶ Tiếp tục"
         if st.button(label, key=f"ap_resume_{pid}", type="primary"):
             autopilot.resume(p, pid, p.actor)
-            autopilot_manager(C.DB, C.DATA).start(pid)
+            autopilot_manager(C.DB, C.DATA).start(pid, user=C.access_user())
             st.rerun()
     if state == "done":
         out = os.path.join(C.DATA, str(pid), "output", "FINAL_VIDEO.mp4")
@@ -93,7 +94,7 @@ def project_budget_panel(p: Pipeline, pid: int) -> None:
                 from dashboard.design import components as D
                 st.html(D.table(list(rows[0]), [list(r.values()) for r in rows], num_cols=(1, 2, 3, 4)))
             else:
-                st.dataframe(rows, hide_index=True, use_container_width=True)
+                data_table(rows, hide_index=True, use_container_width=True)
             cap(f"Tổng đề xuất ≈ {prop['total']:.2f} USD" + (f" · tổng đã khóa {data['total']:.2f} USD" if locked else "")
                        + f" · đã chi {sum(spent.values()):.2f} USD. Đề xuất = đã chi + phần còn lại do CODE tính từ bảng shot + bảng giá, cộng "
                        f"{int(project_budget.IMAGE_REDO * 100)} % vẽ lại ảnh, {int(project_budget.VIDEO_REDO * 100)} % làm lại video, Claude ×"
@@ -150,7 +151,7 @@ def autopilot_panel(p: Pipeline, pid: int) -> None:
             return
         cap("Chuỗi: Director → (dừng để bạn duyệt nhân vật, nếu bật) → dựng layout → ảnh + Claude QC → QC đồng bộ cả bộ → "
                    "(dừng để bạn duyệt storyboard, nếu bật) → motion prompt + rà prompt → giọng thoại → chọn model từng cảnh → video + QC video → nhạc, hiệu ứng → "
-                   "bản giao (phụ đề, card cuối, bản xuất theo thiết lập ở Bước 5). Gặp việc cần người thì **dừng và báo**.")
+                   "bản giao (phụ đề, card cuối, bản xuất theo thiết lập ở màn Bản giao). Gặp việc cần người thì **dừng và báo**.")
         gates = autopilot.get_gates(p, pid)
         from contextlib import nullcontext
         # v2: the labels of the three gates may wrap (the core theme clips checkbox labels to one line and would hide half the sentence)
@@ -168,7 +169,7 @@ def autopilot_panel(p: Pipeline, pid: int) -> None:
             autopilot.set_gates(p, pid, {"bible": bible, "pilot": pilot, "storyboard": board})
         issues = autopilot.problems(p, pid)
         for msg in issues:
-            st.markdown(f":red[✖ {msg}]")
+            st.markdown(colored("bad", f"✖ {escape(str(msg))}"), unsafe_allow_html=True)
         scenes = p.conn.execute("SELECT COUNT(*) c FROM scenes WHERE project_id=?", (pid,)).fetchone()["c"]
         per = p.project(pid)["max_retry_count"] + 2
         run_est = None
@@ -194,7 +195,7 @@ def autopilot_panel(p: Pipeline, pid: int) -> None:
                        + "). Trong lúc chạy, dự án chuyển sang “QC tự duyệt theo ngưỡng”; dừng hoặc xong sẽ trả lại cách duyệt cũ.",
                        st, "Có, chạy") and not issues:
             autopilot.start(p, pid, p.actor)
-            autopilot_manager(C.DB, C.DATA).start(pid)
+            autopilot_manager(C.DB, C.DATA).start(pid, user=C.access_user())
             st.rerun()
         if issues:
             cap("Hãy xử lý các mục đỏ ở trên trước khi bấm chạy.")

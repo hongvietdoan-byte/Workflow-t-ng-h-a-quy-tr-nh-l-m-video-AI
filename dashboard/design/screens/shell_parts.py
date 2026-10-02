@@ -64,8 +64,8 @@ def short_text(text: str, limit: int = 96) -> str:
 
 
 def fold(label: str, body_md: str = "") -> None:
-    """ⓘ inside a POPOVER (a popover cannot hold a popover → a labelled fold with the visible glyph ⓘ)."""
-    with st.expander("ⓘ " + label):
+    """Chi tiết TRONG một POPOVER (popover không lồng được trong popover → mục gập có nhãn chữ; 02/10: bỏ glyph ⓘ cùng nút tròn)."""
+    with st.expander("Chi tiết · " + label):
         if body_md:
             st.markdown(body_md)
 
@@ -91,29 +91,22 @@ def project_hero(p, pid: int, done: list, screen_index: int, data_dir: str, leve
     proj = p.project(pid)
     frac = overall_progress(p, pid, done)
     text, level = next_line(p, pid, screen_index, data_dir)
+    icon = {"wait": "⏸ ", "todo": "👉 Việc tiếp theo: ", "done": "✅ "}.get(level, "")
+    short = short_text(text)
     with D.hero("shell"):
+        # 02/10 (rà soát #10): hai CỘT liền thay cho hai hàng × hai cột — trước đây "Việc tiếp theo" bị căn giữa theo khối 🎚 cao bên phải
+        # nên cách xa các pill; nay mỗi cột xếp sát từ trên xuống.
         left, right = st.columns([5, 4], vertical_alignment="top")
         with left:
             st.html(D.hero_html(proj["name"], "", status_pills(p, pid, proj)))
-        with right:
-            m1, m2 = st.columns([12, 1], vertical_alignment="center")
-            m1.html(D.meter(frac, "Tiến độ tổng"))
-            with m2:
-                with D.info("shell-progress"):
-                    st.markdown(progress_details(pid, done))
-        nxt, lvl = st.columns([5, 4], vertical_alignment="center")
-        icon = {"wait": "⏸ ", "todo": "👉 Việc tiếp theo: ", "done": "✅ "}.get(level, "")
-        short = short_text(text)
-        with nxt:
             if short != " ".join(text.split()):
-                n1, n2 = st.columns([24, 1], vertical_alignment="center")
-                n1.html(f'<div class="v2-note shell-next">{escape(icon + short)}</div>')
-                with n2:
-                    with D.info("shell-next"):
-                        st.markdown(icon + text)
+                with D.info("shell-next", anchor=f'<div class="v2-note shell-next">{escape(icon + short)}</div>', help_text=D.md_plain(icon + text)):
+                    st.markdown(icon + text)
             else:
                 st.html(f'<div class="v2-note shell-next">{escape(icon + short)}</div>')
-        with lvl:
+        with right:
+            with D.info("shell-progress", anchor=D.meter(frac, "Tiến độ tổng"), help_text=D.md_plain(progress_details(pid, done))):
+                st.markdown(progress_details(pid, done))
             with st.container(key="shell-level"):
                 level_fn()
 

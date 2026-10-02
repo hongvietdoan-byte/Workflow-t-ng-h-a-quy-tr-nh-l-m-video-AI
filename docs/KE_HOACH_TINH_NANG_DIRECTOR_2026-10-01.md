@@ -254,7 +254,9 @@ nền xanh/xám của ref có lọt vào clip không.
 
 **Chi phí 1 bài 30 s:** Kling 30 × 0,12 = **3,6 USD**; Seedance 2.5 30 × 0,37 ≈ **11 USD**; + khung đầu ≈ 0,05/đoạn.
 
-### 6.4 Việc với ClipAI (Q6 — chưa hỏi)
+### 6.4 Việc với ClipAI (Q6 — phần ref không mặt ĐÃ CÓ câu trả lời 01/10)
+**01/10 tối:** Seedance 2.5 nhận ref depth map / mannequin cả trên web (người dùng) lẫn qua API (thử thật dự án #20, 1,38 USD — ánh xạ màu → nhân vật đúng, động tác đúng, khung máy chưa theo ref; chi tiết `knowledge/reference_assets_prompting.md` mục Kết quả thử thật). Người dùng: "dùng được là ok, lỗi fix sau". Còn hỏi ClipAI: API Motion Control.
+
 Gửi team ClipAI: "Có mở API cho **Kling Motion Control** (ảnh nhân vật + video nhảy 3–30 s → nhân vật nhảy theo) không? Có nhận video ref dạng
 depth / mannequin không?" — gộp với câu hỏi Bàn đạo diễn đang chờ. Có API thì thêm ô thứ 6 vào bài thử.
 
@@ -336,7 +338,7 @@ bản rẻ: 5 s đầu mỗi bên ≈ 3,7 USD) → người dùng chấm.
 | S11.11 | R-B: bài thử A/B 6.2 | ≈ 2,5–3 | 0,5 | S11.9, S11.10 |
 | S11.12 | R-B: luồng đầy đủ + QC nhảy + nhạc cùng BPM | 1 bài 30 s ≈ 3,6–11 | 3 | S11.11 |
 | S11.13 | Đánh giá sau 4–6 tuần: nâng Apify hay không | 0 | — | S11.4 + 4 tuần |
-| S11.14 | Hỏi ClipAI mở API Motion Control + nhận ref depth/mannequin | 0 | — | — |
+| S11.14 | Hỏi ClipAI mở API Motion Control (ref depth/mannequin: ĐÃ xác nhận qua API 01/10) | 0 | — | — |
 
 Tổng tiền thử trước khi dùng thật ≈ **5–6 USD** (I 0,75 + T ≈ 0,65 + R-A 0,6 + R-B 2,5–3); so prompt với Antigravity (7) tính riêng nếu duyệt.
 Cờ mới đều **TẮT** tới khi qua bộ đo: `idea_to_script`, `trend_feed`, `trend_apify`, `ref_cover`, `dance_cover`.

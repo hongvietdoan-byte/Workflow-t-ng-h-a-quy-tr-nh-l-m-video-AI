@@ -1,11 +1,12 @@
-# Vai Dựng (Editor hậu kỳ) — bộ kỹ năng nghề (V4 GĐ4, 2026-09-25; nâng theo người chấm 2026-09-26 — chờ người dùng duyệt)
+# Vai Dựng (Editor hậu kỳ) — bộ kỹ năng nghề (V4 GĐ4, 2026-09-25; nâng theo người chấm 2026-09-26 — cờ `film_crew` đang BẬT qua `dashboard.env`, chưa verified; **tài liệu này không nạp vào prompt nào**)
 
 > Dựng nhận **clip đã duyệt + giọng + chữ trên màn hình + nhạc** và làm ra bản giao. Phần lớn là **code** (`core/delivery.py`,
 > `final_cut.py`, `ffmpeg_studio.py`, `subtitles.py`, `text_placement.py`, `audio_lib.py`, `voice.py`, `music.py`, `music_timing.py`,
 > `sound_ai.py`, `sfx_plan.py`, `composite.py`, `plate_env.py`, `formats.py`). Tài liệu này để code và (khi cần mắt) Claude/người biết **vì sao** và
 > **đặt ở đâu**. Không đổi shot, không gen lại hình — lỗi hình trả Quay phim, lỗi diễn/giọng trả Đạo diễn.
 > Mỗi kỹ năng: **Làm gì · vì sao** — **Trong pipeline** (✅ code có · ⚠ làm một phần · ❌ chưa có → việc code, README) — **Kiểm** — **Ví dụ FF**.
-> Nguồn: `knowledge/sources.md` mục GĐ4 (số [En]). Vùng an toàn: `safe_zones.md`. **[KN]** = kinh nghiệm nghề chưa có nguồn chính thức —
+> **Không nạp vào prompt nào:** `prompts.role_text` chỉ đọc `director.md` và `dp.md`; thư mục `knowledge/editor/` là tài liệu cho người sửa code
+> và cho Claude khi được chủ động đưa vào, còn phần Dựng tự chạy bằng code. Nguồn: `knowledge/sources.md` mục GĐ4 (số [En]). Vùng an toàn: `safe_zones.md`. **[KN]** = kinh nghiệm nghề chưa có nguồn chính thức —
 > code coi là giá trị khởi điểm, đo lại được.
 
 ## Tầng 1 — Mục đích
@@ -34,7 +35,7 @@ xúc, âm thanh làm thế giới game "thật", màu các shot liền nhau như
   - **Nhịp**: độ dài shot liền nhau thay đổi theo **cụm** (cụm nhanh xen cụm chậm), không đều tăm tắp [E4]; cao trào ngắn, chỗ thở dài.
 - **Trong pipeline.** ✅ Cắt theo `duration_s`, lấy đầu clip (Quay phim dặn hành động xảy ra sớm); ✅ một vị trí máy nhiều shot: cắt clip dài
   thành đoạn (`shots.setup_motion`, H5); ✅ chuyển cảnh cắt/mờ chồng/mờ đen (`ffmpeg_studio.OVERLAP_STYLES`). ✅ **Cắt J** (D1): câu của người nói mới vào sớm 0,25 s trước khi hình cắt
-  sang họ, không đè câu trước (`voice.J_LEAD`, cờ `j_cut` TẮT; phụ đề đi theo giọng). ✅ **Điểm cắt theo chuyển động** (D2, `shots.motion_start`, cờ `motion_trim` TẮT): clip dài hơn shot được cắt từ chỗ
+  sang họ, không đè câu trước (`voice.J_LEAD`, cờ `j_cut` TẮT mặc định — `verified` False, `dashboard.env` hiện bật; phụ đề đi theo giọng). ✅ **Điểm cắt theo chuyển động** (D2, `shots.motion_start`, cờ `motion_trim` TẮT mặc định — `verified` False, `dashboard.env` hiện bật): clip dài hơn shot được cắt từ chỗ
   hành động thật sự xảy ra — dời đầu ≤ 1 s khi đoạn sau chuyển động gấp 1,5 lần đoạn đầu; bỏ qua shot thoại / nối liền / khớp môi. Thử #7
   shot 3 (cận rơi lệ): giọt lệ lăn từ ~1,1 s → cắt từ 1,0 s. Rủi ro: model tự chèn cảnh khác cuối clip cũng là "chuyển động mạnh" —
   giới hạn 1 s giữ đoạn đó ngoài.
@@ -63,7 +64,7 @@ xúc, âm thanh làm thế giới game "thật", màu các shot liền nhau như
   chỉ dùng tự động khi tin ≥ 0,40); ✅ trộn lớp phụ (`ffmpeg_studio.build_extras_mix_cmd`); ✅ **Claude đặt hiệu ứng** theo cảnh + thư viện âm
   của người dùng (`core/sfx_plan.py`, nút ở Bước 5, autopilot tự đề xuất rồi áp dụng) — cố ý chỉ cho **điểm nhấn** (đập, vút, va chạm) và
   chuyển cảnh, không làm nền liên tục; **cộng thêm** các âm Đạo diễn ghi trong `sound.sfx` của shot (tiếng thở, lên đạn… — director.md Đ9),
-  âm không đặt được thì báo, không thay bằng âm khác loại. ✅ **Nền không khí + âm thời tiết** (D4/D5, `core/ambience.py`, cờ `ambience_bed` TẮT): mỗi
+  âm không đặt được thì báo, không thay bằng âm khác loại. ✅ **Nền không khí + âm thời tiết** (D4/D5, `core/ambience.py`, cờ `ambience_bed` BẬT — người dùng duyệt 01/10/2026, đợt 4): mỗi
   cảnh kịch bản một âm nền từ **thư viện âm của bạn**, chọn theo thời tiết (mưa/bão → thunderstorm, bão cát → windy desert…) → giờ (đêm
   chỉ nhận âm đêm) → bối cảnh (phố → city/traffic, đảo/rừng → bird), khớp **nguyên từ**, lặp đủ dài, mờ vào/ra 0,6 s, ~−18 dB; là lớp
   **riêng** dưới lớp điểm nhấn của `sfx_plan`, và **không** tham gia điều khiển việc hạ nhạc (nếu không nhạc bị đè cả cảnh). Không có âm
@@ -87,10 +88,13 @@ xúc, âm thanh làm thế giới game "thật", màu các shot liền nhau như
   (cài đặt cũ ngưỡng 0,02 / tỉ lệ 8 đo lại 18,6–22,3 dB — gần như tắt; D14 2026-09-25 đo 14,5–22,8 dB; nguồn thứ cấp khuyên 6–10 dB [E32]);
   ✅ nhạc mờ vào 0,3 s. ✅ **Khoảng lặng trước cú ngoặt** (D6): nhạc xuống ~−26 dB trong 0,6 s ngay trước
   đầu phần kịch bản TWIST / CAO TRÀO (hoặc shot ⭐ đầu tiên) trên timeline thật của bản dựng (`delivery.twist_times`,
-  `ffmpeg_studio.breath_filter`, cờ `music_breath` TẮT). ✅ **Nhạc theo ý đồ âm thanh của Đạo diễn** (2026-09-26, director.md Đ9,
-  `core/sound_intent.py`, cờ `sound_intent` TẮT): nhạc tắt hẳn từ shot `cut` tới shot `in`, lặng 0,6 s trước shot `breath`, trên timeline
+  `ffmpeg_studio.breath_filter`, cờ `music_breath` BẬT — người dùng duyệt 01/10/2026, đợt 4). ✅ **Nhạc theo ý đồ âm thanh của Đạo diễn** (2026-09-26, director.md Đ9,
+  `core/sound_intent.py`, cờ `sound_intent` BẬT — người dùng duyệt 01/10/2026, đợt 4): nhạc tắt hẳn từ shot `cut` tới shot `in`, lặng 0,6 s trước shot `breath`, trên timeline
   thật của bản dựng (`delivery.sound_plan`); cờ tắt thì manifest ghi số ý đồ chưa áp. Âm `sfx` Đạo diễn yêu cầu đi vào `sfx_plan` (E3),
   âm không đặt được hiện ở Bước 5.
+  ✅ **Nhạc đi theo cảnh thật** (`core/music_fit.py`, `delivery` — cờ `music_fit` BẬT, người dùng duyệt 01/10/2026, đợt 4): dời / co giãn từng đoạn của
+  bản nhạc đã soạn cho khớp đầu mỗi cảnh trên bản dựng thật (nhạc soạn cho timeline 64 s mà phim thành 84,5 s ở #8 thì đoạn nhạc lệch
+  cảnh); miễn phí, ghi vào manifest `music_fit`.
   **Hai khoảng lặng cùng lúc:** khi cả D6 và `sound.breath` của Đạo diễn bật, hai khoảng lặng cách nhau ≤ 1 s là **một** khoảnh khắc —
   giữ cái Đạo diễn đặt, bỏ cái tự động (`delivery.merge_breaths`); lặng hai lần liền nghe như lỗi.
 - **Kiểm.** Code: `music_timing.score_draft` (độ to tại mốc ngoặt); **test giữ mức hạ nhạc** (`tests/test_crew_skills_0926.py`: giọng
@@ -107,7 +111,7 @@ xúc, âm thanh làm thế giới game "thật", màu các shot liền nhau như
   tiết cho người và nền (`plate_env.grade`, 60%). ✅ **Khớp màu giữa các shot** (`core/color_match.py`, D7): shot cùng cảnh + cùng nơi +
   cùng nhóm cỡ (xa/trung — cận) so với shot đầu nhóm (neo) bằng **điểm đen/trắng** (5% / 95% độ sáng) và **ám màu của điểm ảnh xám** —
   không so màu trung bình (áo vàng cận mặt không phải "ánh sáng ấm hơn"); mọi lần dựng đều đo (manifest `color_match`, hiện 🎨 ở Bước 5); bản
-  sao đã chỉnh (tăng/giảm từng kênh ≤ 20%, 70% đường tới neo) chỉ dùng khi bật cờ `shot_color_match`. ✅ **Khớp hạt** người–nền khi ghép
+  sao đã chỉnh (tăng/giảm từng kênh ≤ 20%, 70% đường tới neo) dùng khi cờ `shot_color_match` BẬT (người dùng duyệt 01/10/2026, đợt 4). ✅ **Khớp hạt** người–nền khi ghép
   (D8, `composite.match_grain`: thêm nhiễu cho người tới mức hạt của nền, không bao giờ bớt; hạt mới mỗi khung của clip — hạt đứng yên trông
   như vết bẩn). Đo trên nền render thật Tháp #263: người "sạch" 0,002 → 0,014, nền 0,016.
 - **Kiểm.** Code: độ lệch mỗi shot so với neo (ngưỡng ám màu 0,035, điểm đen/trắng 0,08). Đo thật #7 (2026-09-25): 2/7 shot lệch điểm
@@ -124,10 +128,10 @@ xúc, âm thanh làm thế giới game "thật", màu các shot liền nhau như
 - **Trong pipeline.** ✅ Thời tiết rơi (mưa/tuyết/bụi) + chớp trên ảnh và clip (`plate_env.overlay_still/overlay_video`); ✅ thông báo game
   kiểu riêng (vàng trên nền tối, dải trên — `subtitles` HUD); ✅ card cuối. ✅ **Rung máy khi va chạm** (D9): khung rung 0,25 s, ≤ 10 px,
   tắt dần, đúng giây của hiệu ứng có nhãn va chạm/nổ/súng/đấm trong bản trộn (`ffmpeg_studio.add_shake`, cỡ khung giữ nguyên; cờ
-  `impact_shake` TẮT). ❌ **Bảng tên nhân vật** (D10) — **đã bỏ** 2026-09-28 sau #8 (người dùng: dòng tên lẫn vào phụ đề, đè trán nhân vật). Nếu dùng lại: hiện **một lần duy nhất** khi nhân vật xuất hiện lần đầu trong **cả video** (như giới thiệu nhân vật), đặt **cạnh chính nhân vật đó** theo vị trí dò được (không ở dải chữ chung, không đè mặt), không ghi vào `.srt`. ❌ Lóa ống kính, hạt
+  `impact_shake` BẬT — người dùng duyệt 01/10/2026, đợt 4). ❌ **Bảng tên nhân vật** (D10) — **đã bỏ** 2026-09-28 sau #8 (người dùng: dòng tên lẫn vào phụ đề, đè trán nhân vật). Nếu dùng lại: hiện **một lần duy nhất** khi nhân vật xuất hiện lần đầu trong **cả video** (như giới thiệu nhân vật), đặt **cạnh chính nhân vật đó** theo vị trí dò được (không ở dải chữ chung, không đè mặt), không ghi vào `.srt`. ❌ Lóa ống kính, hạt
   phim toàn khung — chưa làm (hiếm khi cần cho FF; ghi nhận).
 - **Sau #8 (2026-09-28, kế hoạch sửa S1):** hồi tưởng có ngữ pháp riêng ở khâu Dựng — flash trắng 0,25 s vào/ra, màu ấm nhạt + viền tối (cờ
-  `flashback_fx`); shot cuối giữ hình ≥ 2,5 s (cờ `end_hold`); nhạc không tắt liền quá 8 s (`sound_intent.MAX_OFF_S` — `cut` lặp không kéo
+  `flashback_fx` BẬT); shot cuối giữ hình ≥ 2,5 s (cờ `end_hold` BẬT); cả hai người dùng duyệt 01/10/2026, đợt 4; nhạc không tắt liền quá 8 s (`sound_intent.MAX_OFF_S` — `cut` lặp không kéo
   dài khoảng lặng); hiệu ứng AI gắn theo shot (đổi độ dài clip thì đi theo shot); hiệu ứng đè câu thoại tự hạ 6 dB; nhạc ngắn hơn phim thì
   lặp lại có crossfade; phụ đề chỉ đổi chỗ sang vị trí **không** che mặt; `core/final_qc.py` đo bản dựng trước khi giao.
 - **Kiểm.** Người: có hiệu ứng nào không cần? Code: chữ HUD trong vùng an toàn; `final_qc` (độ dài, lỗ nhạc, hiệu ứng lệch shot, đỉnh âm,
@@ -141,8 +145,10 @@ xúc, âm thanh làm thế giới game "thật", màu các shot liền nhau như
   sai) [E24]. Khung dọc hẹp: ~15–20 ký tự/dòng ở cỡ mặc định, 2 dòng [KN].
   - **Phụ đề động kiểu video ngắn:** từng chữ sáng lên khi được nói (chữ chưa nói màu xám) — cách phụ đề của TikTok/Reels giữ mắt người xem
     trên chữ; chỉ dùng cho thoại, không cho thông báo game [KN].
-- **Trong pipeline.** ✅ Lề trên 15% / dưới 36% (chính thức 35%, code thêm 1% đệm) / trái 6% / **phải 18%** khung dọc (`subtitles.SAFE_*`; phải sửa từ 6% lên 18% ở GĐ4 theo số
-  chính thức Google Ads); ✅ dò mặt YuNet trên khung thật, dời câu (`text_placement`); ✅ bảng dễ đọc `subtitles.density`: `MAX_CPS = 17`,
+- **Trong pipeline.** ✅ **Phụ đề mặc định dùng hộp TikTok** (`core/subtitles.py` `PLATFORMS['tiktok']`: trên 8% / dưới 27% / hai bên 13,5%;
+  chọn ở Bước 5 · Phụ đề, sau #8 28/09). **Hộp chung** trên 15% / dưới 36% (chính thức 35%, code thêm 1% đệm) / trái 6% / **phải 18%** khung dọc
+  (`subtitles.SAFE_*`; phải sửa từ 6% lên 18% ở GĐ4 theo số chính thức Google Ads) chỉ là hộp của phụ đề khi chọn **"Chung"** (đăng nhiều
+  nền tảng); `SAFE_*` còn là mốc của kiểm giao diện (`viewer_check`); ✅ dò mặt YuNet trên khung thật, dời câu (`text_placement`); ✅ bảng dễ đọc `subtitles.density`: `MAX_CPS = 17`,
   hiện < `MIN_CUE_S` 0,83 s, cách dòng sau < 2 khung, chồng dòng sau, **vắt qua điểm cắt** > 0,5 s mỗi bên (điểm cắt lấy từ timeline bản
   dựng, `delivery.cut_times`) — cảnh báo ở Bước 5, không tự sửa (người sửa bảng giờ). ✅ Cỡ chữ mặc định "Vừa" 8% cạnh ngắn — **đo bằng
   render thật** (xem `safe_zones.md` mục 6). ✅ **Phụ đề động** (ô "Chữ sáng dần theo giọng" ở Bước 5, `subtitles.karaoke_text`, ASS `\kf`):
@@ -163,7 +169,7 @@ xúc, âm thanh làm thế giới game "thật", màu các shot liền nhau như
   phải đỉnh thật); âm 48 kHz stereo; ✅ xuất theo kích thước/dung lượng (`resize_to_size`, 2 lượt). ✅ **Đo** LUFS + đỉnh thật của một file
   (`ffmpeg_studio.measure_loudness`, thước EBU R128 của ffmpeg; `loudness_problems` so với mục tiêu) — **mọi lần dựng bản giao đều đo**, lưu
   vào `outputs.manifest.loudness`, hiện ở Bước 5 (🔊). ✅ **Chuẩn hóa** (`normalize_loudness`: `loudnorm` 2 lượt, I=−14, TP=−1,5, tăng/giảm
-  **tuyến tính** — không nén lại bản trộn; mặc định ffmpeg là I=−24 [E22]) khi số đo lệch mục tiêu — sau cờ `loudness_normalize` (TẮT).
+  **tuyến tính** — không nén lại bản trộn; mặc định ffmpeg là I=−24 [E22]) khi số đo lệch mục tiêu — sau cờ `loudness_normalize` (BẬT — người dùng duyệt 29/09/2026, S6.5).
   Lưu ý: `loudnorm` tự **chuyển sang chế độ động** khi đạt −14 LUFS mà vượt trần đỉnh thật (bản trộn có đỉnh cao, độ to thấp) — khi đó bản
   trộn bị nén. Code đọc chế độ ffmpeg **tự in ra** ở lượt 2 (`normalization_type` → `mode`) và báo ở 🔊 Bước 5 (`loudness_problems`);
   thử 2026-09-26: bản −10,8 LUFS đỉnh 0,1 → linear; bản −14,8 LUFS đỉnh −1,5 → dynamic (mức tăng đẩy đỉnh quá trần).

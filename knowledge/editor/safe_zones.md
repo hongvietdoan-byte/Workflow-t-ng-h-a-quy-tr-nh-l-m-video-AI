@@ -1,4 +1,4 @@
-# Dựng (Editor) — Vùng an toàn đặt chữ (V4 GĐ4, 2026-09-25 — chờ người dùng duyệt)
+# Dựng (Editor) — Vùng an toàn đặt chữ (V4 GĐ4, 2026-09-25; cờ `film_crew` đang BẬT qua `dashboard.env`, chưa verified; tài liệu không nạp vào prompt nào)
 
 > Nguồn kiến thức của vai **Dựng** (`editing.md` E7). Mỗi số ghi nguồn + mức tin cậy; nguồn đầy đủ ở `knowledge/sources.md` mục GĐ4 [En].
 
@@ -15,7 +15,9 @@ câu chuyện. Vì vậy chữ luôn đặt trong vùng an toàn **chung** của
 | TikTok | ~108–130 px | ~320–484 px | ~44–60 px | ~120–140 px | Tài liệu chính thức chỉ nói vùng an toàn đổi theo độ dài chú thích và nút tương tác; số px chỉ có trong file mẫu tải về [E6][E7]; số ở đây từ nguồn thứ cấp [E34] · **thấp–trung bình** |
 
 **Vùng an toàn chung (lấy biên lớn nhất mỗi phía của các nguồn chính thức, cộng TikTok thứ cấp):** trên 15%, dưới 35%, trái 6%, phải 18%
-→ hộp chữ ≈ x 65–886, y 288–1248 trên khung 1080×1920 (code đặt lề dưới 36% — thêm 1% đệm so với 35% chính thức). Khung khác tỉ lệ thì quy đổi theo phần trăm. Code: `core/subtitles.py`
+→ hộp chữ ≈ x 65–886, y 288–1248 trên khung 1080×1920 (code đặt lề dưới 36% — thêm 1% đệm so với 35% chính thức). **Hộp chung này không
+phải hộp mặc định của phụ đề:** phụ đề mặc định dùng hộp **TikTok** (8% / 27% / 13,5%, xem đoạn "Hộp theo nền tảng" dưới); hộp chung 15/36/6/18
+chỉ dùng khi chọn **"Chung"** ở Bước 5 · Phụ đề. Khung khác tỉ lệ thì quy đổi theo phần trăm. Code: `core/subtitles.py`
 `SAFE_TOP 0,15 · SAFE_BOTTOM 0,36 · SAFE_LEFT 0,06 · SAFE_RIGHT 0,18` (phải sửa từ 6% lên 18% ở GĐ4).
 
 **Hộp theo nền tảng (2026-09-28, sau #8 — người dùng: "sub hình như chưa chuẩn safezone của TikTok"):** hộp chung đặt phụ đề ở 60–64 %

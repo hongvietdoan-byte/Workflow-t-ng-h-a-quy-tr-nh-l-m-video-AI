@@ -206,8 +206,8 @@ class StoryboardV2Tests(unittest.TestCase):
         keys = {b.key for b in at.button}
         for k in (f"a_{review}", f"dd_{review}", f"r_{review}", f"sel_btn_{review}"):
             self.assertIn(k, keys)                                              # the 4 main buttons stay
-        pops = [b for b in at.get("popover") if b.proto.popover.label == "ⓘ"]
-        self.assertGreaterEqual(len(pops), 2)                                   # one ⓘ per card (2 scenes); the card's own "⋯ Thêm" is gone
+        pops = [b for b in at.get("popover") if b.proto.popover.label == "Chi tiết"]
+        self.assertGreaterEqual(len(pops), 2)                                   # one popover per card (2 scenes), opened by the card's own title
         inside = self.inside(at)
         self.assertIn("Điểm QC từng tiêu chí", inside)                          # criterion scores live in the ⓘ
 
@@ -227,7 +227,7 @@ class StoryboardV2Tests(unittest.TestCase):
         txt = self.text(at)
         self.assertNotIn("Ước tính chi phí:", txt)                              # the long st.info is gone
         self.assertFalse(any("Ước tính chi phí" in i.value for i in at.info))
-        self.assertTrue(any(b.proto.popover.label == "ⓘ" for b in at.get("popover")))
+        self.assertTrue(any(b.proto.popover.label == "Chi tiết" for b in at.get("popover")))
 
     def test_panels_under_the_grid_are_closed_expanders(self):
         p, pid, sc = self.seed(3)
@@ -256,7 +256,7 @@ class StoryboardV2Tests(unittest.TestCase):
         with mock.patch("dashboard.design.screens.storyboard_cards.autopilot_manager") as mgr:
             next(b for b in at.button if b.key == f"board_ok_{pid}").click().run()
         self.assertFalse(at.exception, at.exception)
-        mgr.return_value.start.assert_called_once_with(pid)                     # the background run starts again
+        mgr.return_value.start.assert_called_once_with(pid, user=None)                     # the background run starts again
         gates = autopilot.get_gates(Pipeline(connect(self.db)), pid)
         self.assertIsNone(gates["waiting_for"])
         self.assertEqual(gates["storyboard_ok"], [jid])

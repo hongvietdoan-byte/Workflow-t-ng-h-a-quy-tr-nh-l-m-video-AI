@@ -16,6 +16,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 from core import memo, team  # noqa: E402
 from dashboard import common as C  # noqa: E402
 from dashboard.common import *  # noqa: E402,F401,F403
+from dashboard import access_ui  # noqa: E402
 from dashboard.admin import monitor  # noqa: E402
 from dashboard.header import global_bar, require_login, user_name  # noqa: E402
 from dashboard.home import home  # noqa: E402
@@ -109,6 +110,8 @@ def main():
     p = Pipeline(connect(DB))
     require_login(p.conn)
     p.actor = me()["email"] if auth_on() else (user_name() or None)     # the account / name box is in ⚙ (one-line top bar)
+    C.scoped(p)                                          # đợt F: core writes are checked against this person's rights per project (core/access.py)
+    access_ui.set_read_only(False)                       # the read-only lock is decided below, after the top bar and the screen bar
     pid = global_bar(p)
     if pid is None:
         return
@@ -139,17 +142,7 @@ def main():
     on_project_screen = st.session_state.get("step") not in (STEPS[0], STEPS[5], STEPS[6])
     if auth_on() and on_project_screen:                 # đợt 3: tell others this project is open (🔒 on the all-projects page)
         team.touch(p.conn, pid, me().get("email"))
-        creator = (p.project(pid)["created_by"] or "").strip()
-        if creator and creator.lower() != (me().get("email") or "").lower() and me().get("role") != "owner":
-            if ui.v2_on():                              # v2: one short line, the rest in ⓘ
-                from dashboard.design import components as D
-                w1, w2 = st.columns([24, 1], vertical_alignment="center")
-                w1.warning(f"Dự án của {creator} — bạn chỉ xem; duyệt / gen khi chủ dự án nhờ.")
-                with w2:
-                    with D.info("shell-owner"):
-                        st.markdown(f"Dự án của {creator}. Bạn mở được để xem; chỉ duyệt / gen khi chủ dự án nhờ — mỗi job ghi tên người gửi.")
-            else:
-                st.warning(f"Dự án của {creator}. Bạn mở được để xem; chỉ duyệt / gen khi chủ dự án nhờ — mỗi job ghi tên người gửi.")
+        access_ui.banner(p, pid)                        # đợt F: who owns it and what this person may do (chỉ xem / được sửa)
     deep = st.query_params.get("step")  # ?step=1..5 / home / team / monitor opens a screen directly (old 1..5 links keep working)
     deep_screen = {"1": 1, "2": 2, "3": 2, "4": 3, "5": 4, "5a": 4, "5b": 4, "home": 0, "team": 5, "monitor": 6}.get(deep)
     visible = [s for s in STEPS if allowed(STEP_PERMISSION.get(s, "workflow"))]
@@ -175,8 +168,13 @@ def main():
         from dashboard.design import preview
         preview.render()
         return
-    {STEPS[0]: home, STEPS[1]: step1, STEPS[2]: storyboard, STEPS[3]: step4, STEPS[4]: step5,
-     STEPS[5]: team_screen, STEPS[6]: monitor}[step](p, pid)
+    if auth_on() and step not in (STEPS[0], STEPS[5], STEPS[6]) and C.read_only(p, pid):
+        access_ui.set_read_only(True)                    # "Chỉ xem": every input of the project screens is disabled (fragments included)
+    try:
+        {STEPS[0]: home, STEPS[1]: step1, STEPS[2]: storyboard, STEPS[3]: step4, STEPS[4]: step5,
+         STEPS[5]: team_screen, STEPS[6]: monitor}[step](p, pid)
+    except access.AccessDenied as e:                     # a write the rights refuse: say why, never a stack trace
+        st.error(f"🔒 {e}")
 
 
 with memo.per_rerun():      # lineage.scan / summary, assets.project_assets: computed once per click and database state

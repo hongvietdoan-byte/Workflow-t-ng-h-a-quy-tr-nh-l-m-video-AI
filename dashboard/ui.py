@@ -70,7 +70,7 @@ color:var(--primary);font-weight:700;font-size:12px;text-align:center}
 .stButton>button,.stDownloadButton>button{font-size:13.5px}
 [data-testid="stCaptionContainer"],[data-testid="stCaptionContainer"] p,.stCaption{font-size:13.5px;color:var(--muted);line-height:1.5}
 [data-testid="stMarkdownContainer"] p,[data-testid="stMarkdownContainer"] li{font-size:14.5px;line-height:1.55}
-[data-testid="stPopover"] button p,[data-testid="stSelectbox"] div[data-baseweb="select"] div{font-size:13.5px}
+[data-testid="stPopover"] button p,[data-testid="stSelectbox"] input{font-size:13.5px}
 label[data-testid="stWidgetLabel"] p{font-size:13.5px;color:var(--text)}
 .badge{font-size:12px;padding:2px 9px}
 .muted,.cardtitle span{font-size:12.5px}
@@ -109,9 +109,10 @@ div[data-testid="stVerticalBlockBorderWrapper"]{border-width:1.5px}
 [role="tab"] p{color:var(--muted)!important;font-size:14px;font-weight:600}
 [role="tab"][aria-selected="true"]{background:var(--primary-soft);border-color:var(--primary)}
 [role="tab"][aria-selected="true"] p{color:var(--primary)!important}
-[data-baseweb="tab-highlight"]{background:var(--primary)!important}
+[data-testid="stTab"] .react-aria-SelectionIndicator{background:var(--primary)!important}
 :focus-visible{outline:2px solid var(--focus)!important;outline-offset:2px}
 a,a:visited{color:var(--info)}
+body:has([data-testid="stDialog"]) [data-testid="stPopoverBody"]:has(.st-key-dark_toggle,.st-key-mc_pricing,.st-key-mc_budget){display:none!important}
 .stMarkdownColoredText{font-weight:600}
 </style>
 """
@@ -142,16 +143,21 @@ DARK_CSS = """
 .stButton>button[kind="primary"]{background:var(--primary);color:var(--on-primary)}
 .stButton>button[kind="primary"] p{color:#0F1420}
 .stButton>button:hover{border-color:var(--primary);color:var(--primary)}
-[data-baseweb="input"],[data-baseweb="base-input"],[data-baseweb="textarea"],[data-baseweb="select"]>div{background:var(--surface)!important;border-color:var(--border)!important}
-input,textarea,[data-baseweb="select"] div,[data-baseweb="select"] span{color:var(--text)!important}
+[data-testid="stTextInputRootElement"],[data-testid="stTextAreaRootElement"],[data-testid="stNumberInputContainer"]{background:var(--surface)!important;border-color:var(--border)!important}
+input,textarea{color:var(--text)!important}
+:is([data-testid="stSelectbox"],[data-testid="stMultiSelect"]) svg:not([data-testid="stTooltipIcon"] svg){color:var(--text)!important}
+[data-testid="stTooltipIcon"] svg,[data-testid="stTooltipIcon"] svg *{stroke:var(--muted)!important}
+[data-testid="stTooltipContent"]{background:var(--surface)!important;border:1px solid var(--border)}
+[data-testid="stTooltipContent"] *{color:var(--text)!important}
 input::placeholder,textarea::placeholder{color:var(--muted)!important}
-[data-baseweb="popover"] [role="listbox"],[data-baseweb="popover"] ul,[data-baseweb="menu"]{background:var(--surface)!important}
-[data-baseweb="popover"] li,[data-baseweb="popover"] [role="option"]{color:var(--text)!important}
+:is([data-testid="stSelectboxVirtualDropdown"],[data-testid="stMultiSelectDropdown"]){background:var(--surface)!important}
+:is([data-testid="stSelectboxVirtualDropdown"],[data-testid="stMultiSelectDropdown"]) [role="option"],:is([data-testid="stSelectboxVirtualDropdown"],[data-testid="stMultiSelectDropdown"]) [role="option"] *{color:var(--text)!important}
+:is([data-testid="stSelectboxVirtualDropdown"],[data-testid="stMultiSelectDropdown"]) [role="option"]:hover{background:var(--primary-soft)!important}
 [data-testid="stPopoverBody"],[data-testid="stPopover"]>div[role="dialog"],div[role="dialog"]{background:var(--surface);color:var(--text)}
 [data-testid="stExpander"] details{background:var(--surface);border-color:var(--border)}
 [data-testid="stExpander"] summary:hover{color:var(--primary)}
-button[data-baseweb="tab"] p{color:var(--muted)}
-button[data-baseweb="tab"][aria-selected="true"] p{color:var(--primary)}
+[data-testid="stTab"] p{color:var(--muted)}
+[data-testid="stTab"][aria-selected="true"] p{color:var(--primary)}
 [data-testid="stFileUploaderDropzone"]{background:var(--surface);border-color:var(--border)}
 [data-testid="stFileUploaderDropzone"] *{color:var(--muted)}
 .stCheckbox label span,.stToggle label span{color:var(--text)}

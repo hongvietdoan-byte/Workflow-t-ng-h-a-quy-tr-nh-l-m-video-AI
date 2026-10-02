@@ -146,7 +146,7 @@ def step1(p: Pipeline, pid: int):
                 _count_label(p, pid, scenes) + f" · {len(chars)} nhân vật" + (" · đã khóa" if locked else ""), stale)
     note = st.session_state.pop("inherited_note", None)                 # S3.8: said once, right after the project was made
     if note:
-        st.info("↪ " + note + " — đổi ở Bước 1 · Định dạng nếu dự án này khác.")
+        st.info("↪ " + note + " — đổi ở màn Kịch bản · Định dạng nếu dự án này khác.")
     from dashboard import next_step                                     # S9 E0.1: the next thing to do, one line
     ui.html(next_step.band(p, pid, 1, C.DATA))
 
@@ -173,8 +173,8 @@ def step1(p: Pipeline, pid: int):
     if scenes:
         ui.html(ui.card_title("1c · Chọn cách chạy", "tự động hoàn toàn, hoặc lần lượt từng bước"))
         autopilot_panel(p, pid)
-        cap("🧭 Hoặc lần lượt từng bước: 1d Director → 1e Character Bible → 1f Rà thoại → khóa & sang Bước 2 → Bước 3 motion + "
-                   "giọng → Bước 4 video → Bước 5 âm thanh & xuất bản.")                     # E1.10: no card for text only
+        cap("🧭 Hoặc lần lượt từng bước: 1d Director → 1e Character Bible → 1f Rà thoại → khóa & sang màn Storyboard → tab Motion (Storyboard) motion + "
+                   "giọng → màn Video video → màn Bản giao âm thanh & xuất bản.")                     # E1.10: no card for text only
         director_panel(p, pid, chars)
     if chars:
         character_bible_panel(p, pid, chars, risky)
@@ -184,7 +184,7 @@ def step1(p: Pipeline, pid: int):
         with st.container(border=True):
             a, b = st.columns([2, 1], vertical_alignment="center")
             missing_anchor = [c["name"] for c in chars if not c["anchor_approved"]]
-            a.caption("Xong nhân vật (và storyboard nếu dựng): duyệt & khóa rồi sang Bước 2."
+            a.caption("Xong nhân vật (và storyboard nếu dựng): duyệt & khóa rồi sang màn Storyboard."
                       + (f" Chưa duyệt ảnh mốc: {', '.join(missing_anchor)}." if missing_anchor else ""))
             b.button("✔ Duyệt & khóa → Storyboard", type="primary", key=f"lock_go_{pid}", on_click=_lock_and_go, args=(p, pid))
             if st.session_state.get("lock_error"):
@@ -402,7 +402,7 @@ def scene_list(p: Pipeline, pid: int, scenes, char_names) -> None:
 
 def _lock_and_go(p: Pipeline, pid: int) -> None:
     """Button callback: lock the Character Bible and move to Step 2 (a callback may still change the step selector)."""
-    p = Pipeline(connect(C.DB))                     # a callback runs in another thread than the one that made `p`
+    p = C.scoped(Pipeline(connect(C.DB)))                     # a callback runs in another thread than the one that made `p`
     try:
         llm_io.lock_character_bible(p, pid)
     except ERRORS as e:

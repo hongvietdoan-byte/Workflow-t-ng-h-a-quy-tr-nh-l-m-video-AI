@@ -1,4 +1,4 @@
-# Vai Đạo diễn — bộ kỹ năng nghề (V4 GĐ4, 2026-09-25; nâng theo người chấm 2026-09-26 — chờ người dùng duyệt rồi bật `film_crew`)
+# Vai Đạo diễn — bộ kỹ năng nghề (V4 GĐ4, 2026-09-25; nâng theo người chấm 2026-09-26 — cờ `film_crew` đang BẬT qua `dashboard.env`, chưa verified)
 
 > Đạo diễn giữ **ý đồ**: câu chuyện nói gì, người xem cảm gì ở từng nhịp, nhân vật diễn thế nào, câu thoại được nói ra sao.
 > Góc máy chi tiết thuộc **Quay phim** (`dp.md`), hậu kỳ thuộc **Dựng** (`knowledge/editor/`); ai giao gì cho ai: `README.md`.
@@ -11,7 +11,7 @@
 > theo ghi chú của bạn; code **duyệt thay bạn** phần đo được (thoại đủ, đúng thứ tự; giây trong khung; trọng tâm có trong khung; khoảnh
 > khắc mạnh có shot giữ) và báo cảnh lệch ở Bước 1. Vì vậy khi chạy hai lượt, các kỹ năng gắn với shot (`performance`, `sound` từng shot)
 > được Quay phim đặt **từ ý đồ bạn ghi**, còn `delivery` bạn ghi ở câu thoại đi theo câu vào shot — ý đồ càng cụ thể, shot càng đúng.
-> Ở Tầng A, code cắt khỏi bộ này các khối "Trong pipeline" mức shot (Đ2, Đ4, Đ9, Đ10, Đ11, tầng 5 — đánh dấu `<!-- shot -->` trong file,
+> Ở Tầng A, code cắt khỏi bộ này các khối "Trong pipeline" mức shot (Đ2, Đ4, Đ9, Đ10, Đ11, N3, tầng 5 — đánh dấu bằng cặp chú thích HTML tên `shot` trong file — đừng viết nguyên dấu mở ở đây, nó cắt nhầm cả đoạn,
 > `prompts.role_text(..., intent_only=True)`) và thay bằng một câu "ghi vào `dp_notes` / mức cảnh". Phần *Làm gì · vì sao* và *Kiểm* vẫn
 > giữ (bạn cần hiểu vì sao để ghi ý đồ đúng), nên vẫn còn nhắc tên trường shot — đó là thông tin, không phải việc của bạn ở Tầng A.
 
@@ -81,7 +81,7 @@ quyết định ở lại hay lướt trong vài giây đầu, nên cảm xúc p
   ghi vào `dp_notes` — Quay phim đặt `role: "hook"`, `hook_mid`, độ dài shot.
  -->
 - **Kiểm.** Code (`core/performance.py`): cường độ 5 quá 2 lần → "đỉnh mất giá"; ≥ 6 shot **liền nhau trên phim** (shot không có diễn
-  xuất cắt chuỗi) cùng cường độ → "đường phẳng"; chuỗi shot cường độ ≥ 4 mà cả chuỗi lẫn shot ngay sau không có shot nào ≥ 2 s → "chưa kịp
+  xuất cắt chuỗi) cùng cường độ → "đường phẳng" (mốc 6 = `performance.FLAT_RUN` là **mốc dự án — giả thuyết**, chưa đo trên video FF); chuỗi shot cường độ ≥ 4 mà cả chuỗi lẫn shot ngay sau không có shot nào ≥ 2 s → "chưa kịp
   thấm" — cả hai bỏ qua khi `why` của một shot trong chuỗi ghi "cố ý / dồn nhịp / có chủ đích". Móc giữa video
   (`director_report.mid_hook_gaps`, bàn đo + Bước 1 ⏱): video > 20 s, đoạn > 15 s giữa móc đầu và 5 s cuối không có shot `hook_mid`
   (hay móc / đỉnh cường độ 5) → ⚠ — code chỉ biết có đánh dấu, không biết chi tiết có thật sự "dở dang" (người xem bản dựng thô). Bàn đo
@@ -95,7 +95,7 @@ quyết định ở lại hay lướt trong vài giây đầu, nên cảm xúc p
     **bất ngờ**. Chọn có chủ đích cho từng cảnh.
   - **Phản ứng trước, nguyên nhân sau** — một cách làm cụ thể của "biết sau": cho thấy mặt nhân vật sững lại / hoảng lên trước, rồi mới
     cắt sang cái họ thấy [Đ31]. Người xem thấy phản ứng mà chưa thấy lý do → tự đặt câu hỏi, và câu hỏi giữ họ lại; thấy lý do trước thì
-    họ chỉ xác nhận. Giới hạn: nguyên nhân phải lộ ngay shot kế (≤ 2 s) — để lâu thành rối. Thứ tự thường ngày (hành động → phản ứng) vẫn
+    họ chỉ xác nhận. Giới hạn: nguyên nhân phải lộ ngay shot kế (≤ 2 s — **mốc dự án, giả thuyết**, chưa đo) — để lâu thành rối. Thứ tự thường ngày (hành động → phản ứng) vẫn
     đúng khi muốn người xem *đồng cảm* với phản ứng (đã biết chuyện, giờ xem nhân vật đón nhận).
   - **Motif:** một hình ảnh lặp lại và biến tấu (McKee gọi là hệ hình ảnh [Đ5]) — cảnh mở và cảnh kết "vần" với nhau.
   - **Thời tiết, ánh sáng:** mưa khi buồn là cách dễ đoán nhất nên dễ sáo (Ruskin gọi việc gán cảm xúc cho thiên nhiên là "pathetic
@@ -143,7 +143,8 @@ quyết định ở lại hay lướt trong vài giây đầu, nên cảm xúc p
 <!-- intent: - **Trong pipeline (Tầng A).** Bạn không viết `performance` từng shot: ghi vào `dp_notes` của cảnh diễn xuất của khoảnh khắc chính
   (ai, hành vi nhìn thấy được, cường độ 1–5 theo thang: 1 gần như không thấy · 2 kìm nén · 3 rõ nhưng tự nhiên · 4 mạnh · 5 đỉnh của phim)
   và `peak` (cường độ đỉnh của cảnh); Quay phim đặt `performance` cho từng shot từ đó.
- -->- **Kiểm.** Code (`performance.warnings`, hiện ở Bước 1 và bàn đo): `face` ngắn (≤ 3 từ) chứa tên cảm xúc → "tả việc mặt làm"; shot
+ -->
+- **Kiểm.** Code (`performance.warnings`, hiện ở Bước 1 và bàn đo): `face` ngắn (≤ 3 từ) chứa tên cảm xúc → "tả việc mặt làm"; shot
   thoại/phản ứng/móc/kết có người mà thiếu `performance` → "model tự chọn biểu cảm"; đỉnh > 2 lần; 6 shot liền cùng mức → đường phẳng.
   QC clip (Claude xem khung) chấm biểu cảm so với `performance`. **Bảng kiểm "diễn quá / diễn đơ"** cho người xem:
   diễn quá = miệng há to/nhăn cả mặt ở cận, khóc nấc khi kịch bản ghi "cố mỉm cười", cả khung cùng một cảm xúc; diễn đơ = mắt vô hồn nhìn
@@ -163,7 +164,7 @@ quyết định ở lại hay lướt trong vài giây đầu, nên cảm xúc p
 - **Trong pipeline.** Mỗi câu thoại có thể có `delivery`:
   `{"emotion": "…", "intensity": 1-5, "pace": "slow|normal|fast", "pause_before": true|"short"|"long", "stress": "chữ cần nhấn",
   "tag": "whispers"}`.
-  Code (`core/voice_direction.py`, cờ `voice_direction` TẮT tới khi nghe thử): nhịp → `speed` (0,9 / 1,1); câu có **cường độ hoặc thẻ âm**
+  Code (`core/voice_direction.py`, cờ `voice_direction` BẬT — người dùng duyệt 29/09/2026, S6.5): nhịp → `speed` (0,9 / 1,1); câu có **cường độ hoặc thẻ âm**
   dùng Natural, **chỉ câu cường độ 5** dùng Creative (ElevenLabs: Creative dễ "ảo giác" — không đặt rủi ro đó lên mọi câu quan trọng);
   câu chỉ có nhịp/ngắt giữ độ ổn định mặc định của giọng; `pause_before: true` → "… " (đã nghe ở 2A), `"short"`/`"long"` → `[short
   pause]`/`[long pause]` (chỉ eleven_v3; model khác dùng "…"); `stress` → chữ hoa; `tag` chỉ nhận danh sách an toàn. Phụ đề giữ nguyên
@@ -201,11 +202,18 @@ quyết định ở lại hay lướt trong vài giây đầu, nên cảm xúc p
   rút phản ứng/chèn → (nếu được phép) bỏ câu không ai đáp; thoại cần nhiều hơn khung → thoại thắng, ghi `tradeoffs`.
 - **N3. Khớp môi.** Cờ `lip_sync` **TẮT** (mặc định): không đặt thoại ở cận mặt người đang nói — trung/toàn, qua vai, người nói quay nghiêng,
   hoặc câu lên shot người nghe; cận mặt dành cho im lặng (code `storyboard_gate.lip_sync_risk`). Cờ **BẬT**: được thấy mặt người nói; câu
-  then chốt quay cận (CU/ECU/MCU, ngang mắt, mặt không che, ≤ 5 s) ghi `"lip_sync": true` (~20% câu quan trọng nhất — đắt hơn).
+  then chốt quay cận (CU/ECU/MCU, ngang mắt, mặt không che, ≤ 5 s) là ~20% câu quan trọng nhất — đắt hơn.
   **Quyết định 2026-09-26 (người dùng): không mở tài khoản sync.so** — khớp môi CHỈ bằng cách tạo video kèm giọng (Seedance
-  `reference_audio`, "prompt trực tiếp"). Vì vậy khi cờ bật: câu cần thấy miệng khớp → shot cận thấy mặt người nói + `"lip_sync": true`;
+  `reference_audio`, "prompt trực tiếp"). Vì vậy khi cờ bật: câu cần thấy miệng khớp → shot cận thấy mặt người nói;
   các câu khác vẫn theo cách né của N3 (trung/toàn, qua vai, nghiêng, lên shot người nghe) — shot rộng giữ miệng của clip, không có bước
-  khớp môi sau. Code: `lipsync.method_for` không chọn `post` khi không có `SYNC_API_KEY` (cận → `generate`, rộng → `skip`).
+  khớp môi sau.
+<!-- shot -->
+  Shot đó ghi `"lip_sync": true`. Code: `lipsync.method_for` không chọn `post` khi không có `SYNC_API_KEY` (cận → `generate`, rộng → `skip`);
+  khi cờ `dialogue_take` BẬT (verified 01/10/2026, S4.2) shot thoại thấy mặt người nói — cả shot trung / nhiều người — được `method_for` xếp kiểu
+  **`take`**: đi trong clip nhóm Seedance 2.5 kèm MỘT track giọng của cả nhóm, thay cho `generate` từng shot.
+<!-- /shot -->
+<!-- intent:   Tầng A: ghi vào `dp_notes` câu nào cần thấy miệng khớp (và ai nói); Quay phim đặt `"lip_sync": true` và chọn kiểu làm clip.
+ -->
   **Rủi ro chưa thử:** Seedance không công bố hỗ trợ tiếng Việt — có thể miệng không khớp âm Việt; vì vậy câu then chốt vẫn nên có
   đường lui (câu lên shot người nghe) và thử 1 shot cận (~$0,60) trước khi đặt nhiều `lip_sync: true`.
 - **N4. Nhân vật đúng thiết kế.** Ảnh chuẩn Kho là chuẩn thật; hồ sơ chuẩn đã duyệt thắng mô tả của dự án; mắt người/ảnh chuẩn là trọng tài
@@ -246,7 +254,7 @@ quyết định ở lại hay lướt trong vài giây đầu, nên cảm xúc p
   đây để làm gì (tension/hide/release/reveal/time/place/comic/memory), `enter` soft/sudden, `bed` sparse (cảnh cố ý thưa nhạc, lặng
   được quá 8 s) / continuous; gốc JSON `music` {tone, motif, ending} — brief nhạc đọc giọng điệu **của phim này** (`core/music_intent.py`). Người làm âm thanh (`sfx_plan`) nhận ý đồ
   này, **phải** đặt các âm được yêu cầu hoặc nói kho thiếu âm nào (Bước 5 🔊 + autopilot ghi cảnh báo). Nhạc theo `cut/in/breath` vào
-  bản dựng khi cờ `sound_intent` BẬT (TẮT tới khi nghe thử); tắt thì manifest bản dựng ghi số ý đồ chưa áp. J-cut/L-cut của thoại vẫn là
+  bản dựng khi cờ `sound_intent` BẬT (người dùng duyệt 01/10/2026); tắt thì manifest bản dựng ghi số ý đồ chưa áp. J-cut/L-cut của thoại vẫn là
   việc của Dựng (cờ `j_cut`; L-cut = đặt câu lên shot người nghe, N3).
 <!-- /shot -->
 <!-- intent: - **Trong pipeline (Tầng A).** Ghi `sound` **mức cảnh** (prompt 19: nhạc tắt/vào lại ở đâu, âm cơ thể nào cần nghe rõ, vì sao); Quay
@@ -285,11 +293,17 @@ quyết định ở lại hay lướt trong vài giây đầu, nên cảm xúc p
 - **Làm gì · vì sao.** Kéo giãn **một** khoảnh khắc (viên đạn rời nòng, cú nhảy kỹ năng, giọt nước mắt rơi) cho người xem thấy điều mắt
   thường bỏ lỡ và cảm nó nặng hơn; dừng hình ở cú chốt để khoảnh khắc "đóng dấu". Dùng nhiều thì mất tác dụng — 1–2 lần mỗi phim, ở đỉnh
   hoặc money shot. Không kéo giãn shot có thoại (giọng chậm lại là sai).
+<!-- shot -->
 - **Trong pipeline.** Đạo diễn chọn khoảnh khắc (ghi trong `dp_notes` / `why`); Quay phim ghi shot `speed` (0,25–0,9) và/hoặc
   `freeze_end_s` (≤ 1,5 s) — dp.md Q11; Dựng làm khi cắt clip (editing.md E10, cờ `speed_ramp`). Code bỏ hai trường ở shot có thoại/khớp môi
   hoặc ngoài khoảng, **và báo** ở bàn đo + Bước 1 ⏱ (`director_report.retime_dropped`).
+<!-- /shot -->
+<!-- intent: - **Trong pipeline (Tầng A).** Chọn **một** khoảnh khắc đáng kéo giãn hoặc dừng hình và ghi vào `dp_notes` của cảnh đó (ai, hành động nào,
+  vì sao) — Quay phim đặt nhịp chiếu cho shot; shot có thoại không kéo giãn.
+ -->
 - **Kiểm.** Code: `shots.clean_retime` (chỉ shot không thoại), test ffmpeg độ dài đúng. Người: xem bản dựng — chậm có mượt không (nội suy
-  khung có thể méo tay/vũ khí khi chuyển động nhanh).
+  khung có thể méo tay/vũ khí khi chuyển động nhanh). **Chưa đo thật:** chưa có bản giao nào dùng quay chậm được người dùng xem; mốc "1–2 lần
+  mỗi phim" và giới hạn 0,25–0,9 là giá trị khởi điểm của dự án, không phải số đo (cờ `speed_ramp` còn `verified` False).
 
 ### Đ12. Kỹ thuật thấy trong clip mẫu ClipAI — tư liệu, không phải công thức — 2026-09-28 (sửa 2026-09-29)
 Nguồn: clip mẫu ClipAI người dùng gửi 2026-09-28 (MV 201 s; `docs/PHAN_TICH_CLIP_MAU_CLIPAI_2026-09-28.md`).
@@ -321,7 +335,7 @@ Hy sinh một mục thấp hơn thì ghi ở gốc JSON: `"tradeoffs": [{"kind":
 theo từng loại** (`director_report._uncovered`): bỏ câu thoại / lệch khung thời lượng / shot thiếu thời gian nói / **bỏ góc máy kịch bản
 ghi** ("SAU VAI X", "CẬN CẢNH", "TOÀN CẢNH" mà không shot nào của cảnh giữ — `script_angles`) phải có một `tradeoff` cùng `kind` (thiếu
 `kind` thì code đọc chữ của `gave_up` — không đọc `chose`) và đúng cảnh khi có ghi cảnh; một `tradeoff` về chuyện khác không che được → ⚠
-ở Bước 1 và tính là một lỗi của bàn đo. Bàn đo cũng báo: không có shot `hook` trong 3 s đầu, thiếu `money_shot`, trường bị code bỏ.
+ở Bước 1 và tính là một lỗi của bàn đo. Bàn đo cũng báo: không có shot `hook` trong 3 s đầu, thiếu `money_shot` (chỉ báo khi thể loại COMMERCIAL — phim kịch không có khoảnh khắc sản phẩm), trường bị code bỏ.
 
 ## Tầng 5 — Tự rà trước khi trả lời (câu hỏi của đạo diễn)
 - Tắt tiếng đi, người xem còn hiểu ai muốn gì, ai đổi trạng thái không? 3 giây đầu có lý do để ở lại không?

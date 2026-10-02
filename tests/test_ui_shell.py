@@ -1,5 +1,6 @@
 """UI v2 khung ứng dụng (S13 nhánh B): thanh trên, hero dự án, thẻ 💵 với khối "Đặt lại thanh tiền" chỉ Owner (AppTest, cờ ui_v2 bật)."""
 import os
+import re
 import tempfile
 import unittest
 from unittest import mock
@@ -129,7 +130,8 @@ class SlimInfoTests(ShellBase):
         html = self.html_text(at)
         self.assertNotIn("kịch bản · ảnh · motion", html)                                    # the long meter label is gone
         self.assertNotIn(f"Dự án #{self.pid}</div>", html)                                   # internal number is not in the hero any more
-        self.assertIn("ⓘ", self.popover_labels(at))
+        self.assertIn("Chi tiết", self.popover_labels(at))
+        self.assertNotIn("ⓘ", self.popover_labels(at))
         self.assertTrue(any("trung bình 5 phần" in m.value and f"Dự án #{self.pid}" in m.value for m in at.markdown))
 
     def test_status_line_is_one_short_line_with_the_full_text_in_info(self):
@@ -139,7 +141,9 @@ class SlimInfoTests(ShellBase):
         self.assertFalse(at.exception, at.exception)
         line = [m.value for m in at.markdown if 'class="shell-status"' in m.value and "💵" in m.value]
         self.assertEqual(len(line), 1, line)
-        self.assertTrue("≈" not in line[0] and "âm thanh" not in line[0] and len(line[0]) < 200, line)
+        visible = re.sub(r' data-tip="[^"]*"', "", line[0])                    # the tooltip text (data-tip) is the full details, not what is drawn
+        self.assertTrue("≈" not in visible and "âm thanh" not in visible and len(visible) < 200, line)
+        self.assertIn("âm thanh", line[0])                                     # … the details ride on the line itself as its hover/focus tooltip
         self.assertTrue(any("💵" in m.value and "âm thanh" in m.value and 'class="shell-status"' not in m.value for m in at.markdown))
 
     def test_money_card_keeps_the_meter_outside_and_counts_plus_history_in_a_fold(self):
@@ -150,7 +154,7 @@ class SlimInfoTests(ShellBase):
         self.assertFalse(at.exception, at.exception)
         meter = [e for e in at.get("html") if "Đợt thử: $" in str(e.proto.body)]
         self.assertTrue(meter and "âm thanh" not in str(meter[0].proto.body) and "Đặt lại lần cuối" not in self.html_text(at))
-        self.assertTrue(any("ⓘ Chi tiết" in x.label for x in at.expander))
+        self.assertTrue(any("Chi tiết từng khâu" in x.label for x in at.expander))
         self.assertTrue(any("ảnh" in m.value and "đặt lại lần cuối" in m.value for m in at.markdown))      # nothing dropped, only moved
         self.assertIn("shell-mr-trial", [c.key for c in at.checkbox])                                      # keys unchanged
 
@@ -160,7 +164,7 @@ class SlimInfoTests(ShellBase):
         with mock.patch("core.inbox.items", return_value=its):
             at = self.run_app()
         self.assertFalse(at.exception, at.exception)
-        self.assertTrue(any(x.label.startswith("ⓘ Còn 3 việc") for x in at.expander), [x.label for x in at.expander])
+        self.assertTrue(any(x.label.startswith("Còn 3 việc") for x in at.expander), [x.label for x in at.expander])
         self.assertEqual(sorted(f"inb_{n}" for n in range(6)), sorted(b.key for b in at.button if b.key and b.key.startswith("inb_")))
 
     def test_inbox_with_few_items_has_no_fold(self):
@@ -168,7 +172,7 @@ class SlimInfoTests(ShellBase):
                 "who": "", "sub": ""}]
         with mock.patch("core.inbox.items", return_value=its):
             at = self.run_app()
-        self.assertFalse(any(x.label.startswith("ⓘ Còn") for x in at.expander))
+        self.assertFalse(any(x.label.startswith("Còn ") and "việc nữa" in x.label for x in at.expander))
 
     def test_settings_project_tab_folds_the_pointers_and_keeps_the_cheap_key(self):
         at = self.run_app()
@@ -179,8 +183,8 @@ class SlimInfoTests(ShellBase):
     def test_flag_off_has_none_of_the_info_folds(self):
         with mock.patch.dict(os.environ, {"FEATURE_UI_V2": "0"}):
             at = self.run_app()
-        self.assertFalse(any(x.label.startswith("ⓘ") for x in at.expander))
-        self.assertNotIn("ⓘ", self.popover_labels(at))
+        self.assertFalse(any(x.label.startswith("Chi tiết") or "việc nữa" in x.label for x in at.expander))
+        self.assertNotIn("Chi tiết", self.popover_labels(at))
         self.assertTrue(any("Thử rẻ (ảnh cỡ nhỏ nhất" in c.label for c in at.checkbox))
 
 

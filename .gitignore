@@ -36,3 +36,4 @@ data/skills/*/frames_png/
 data/skills/*/clips_local/
 data/feature_settings.json
 data/feature_settings.json.tmp
+data/ui_snapshot/

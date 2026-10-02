@@ -295,3 +295,8 @@ người nói đúng lượt với 3 người trong khung; storyboard phải ghi
 **Context**: phiên kế tiếp làm theo báo cáo rà soát.
 **Finding**: Sơ đồ `docs/so_do/SO_DO_TINH_NANG.html` (nguồn feature_map.json, dựng `py tools/feature_map_build.py`). Báo cáo `docs/RA_SOAT_DASHBOARD_2026-10-01.md`: B1 11 khâu Claude dòng claude_other (sfx, music, style, layout, subtitles…) không có max_tokens riêng → luôn bị chặn khi dự án khóa ngân sách (sửa: bảng STAGES chung + test quét); B2 `core/effectiveness.py` look_trust chia lenient cho tổng ảnh thay vì ảnh bị loại; B3 thiếu kiểm tỉ lệ ảnh tham chiếu video; B4 CTA_TEXT trong Biên kịch; B5 6 ảnh Kho mất file; B6 devsys dò cờ. Đề xuất tắt setcheck_autofix, layout_to_model, chain_previous_auto. S11.2: `tools/experiments/idea_script_eval.py`, chạy 2/5 (0,438 USD), dừng vì ngân sách Claude API chung hết; screenwriter max_tokens 8000.
 **Source**: chạy thử 0 USD + chấm devsys (Claude Code session) 01/10
+
+## Seedance 2.5 nhận video ref không mặt qua API - 2026-10-01
+**Context**: R-B cover nhảy cần ref không mặt (Seedance chặn video có mặt người).
+**Finding**: web + API đều nhận mannequin / depth map. Thử #20 (1,38 USD): đỏ → Kelly, trắng xám → Maxim đúng, động tác đúng, không lọt phông xanh; khung máy KHÔNG theo ref (trung cảnh + lia thay vì toàn cảnh tĩnh) — người dùng: dùng được, sửa sau. Sổ chi Seedance có video đầu vào phải tính cả giây video (công thức web) — script ghi quantity tương đương.
+**Source**: test thật `tools/experiments/mannequin_ref_test.py`, ảnh chụp web của người dùng
