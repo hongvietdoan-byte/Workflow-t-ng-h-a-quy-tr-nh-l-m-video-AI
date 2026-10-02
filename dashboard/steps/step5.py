@@ -9,11 +9,7 @@ def _note(text: str) -> None:
         return st.caption(text)
     import hashlib
     from dashboard.design import components as D
-    c1, c2 = st.columns([12, 1], vertical_alignment="center")
-    c1.caption(text[:87].rstrip() + "…")
-    with c2:
-        with D.info("del-note-" + hashlib.md5(text.encode("utf-8")).hexdigest()[:8]):
-            st.markdown(text)
+    D.line(f'<span class="v2-sum">{escape(text[:87].rstrip() + "…")}</span>', text, "del-note-" + hashlib.md5(text.encode("utf-8")).hexdigest()[:8])
 
 
 # ---- step 5a -------------------------------------------------------------------------
@@ -220,7 +216,7 @@ def extras_section(p: Pipeline, pid: int, provider):
                 vol = c.slider("Âm lượng", 0.0, 2.0, float(e["volume"]), 0.05, key=f"ax_vol_{pid}_{sig}")
                 if d.button("Xóa", key=f"ax_rm_{pid}_{i}", help="Chuyển file vào thùng rác của dự án (khôi phục được trong thời hạn lưu)"):
                     if e.get("file"):
-                        trash.move_to_trash(os.path.join(directory, e["file"]), C.DATA, pid, "audio", "xóa ở Bước 5")
+                        trash.move_to_trash(os.path.join(directory, e["file"]), C.DATA, pid, "audio", "xóa ở màn Bản giao")
                     audio_lib.remove(directory, i)
                     st.rerun()
                 if e["state"] == "succeeded" and (use, start, vol) != (e["use"], e["start"], e["volume"]):
@@ -295,13 +291,13 @@ def subtitle_panel(p: Pipeline, pid: int, out: str = None, auto_ext: bool = None
             else:
                 st.rerun()
         if lang != "src" and llm is None:
-            st.markdown(f":orange[Dịch sang ngôn ngữ khác cần Claude ({claude_hint()}).]")
+            st.markdown(colored("warn", f"Dịch sang ngôn ngữ khác cần Claude ({escape(str(claude_hint()))})."), unsafe_allow_html=True)
         key = f"sub_cues_{pid}"
         if st.button("📝 Tạo danh sách phụ đề" + (cost.llm_tag(cost.llm_estimate(p.conn, "subtitles", 1)) if lang != "src" else ""), key=f"sub_make_{pid}", type="primary", disabled=lang != "src" and llm is None):
             try:
                 cues = delivery.subtitle_cues(p, pid, C.DATA)   # D2: timed on the latest render (its clips, seconds, transition)
                 if not cues:
-                    st.info("Chưa có dòng thoại nào hoặc chưa có clip ở Bước 4.")
+                    st.info("Chưa có dòng thoại nào hoặc chưa có clip ở màn Video.")
                 else:
                     with st.spinner("Đang dịch…" if lang != "src" else "Đang tạo…"):
                         shown = subtitles.localize(llm, cues, lang, C.DATA, pid)   # D8: saved translations / fixes reused
@@ -326,7 +322,7 @@ def subtitle_panel(p: Pipeline, pid: int, out: str = None, auto_ext: bool = None
             font, note = subtitles.font_for_text(subtitles.font_by_family(fonts, font_name) if font_name else default, fonts,
                                                  " ".join(c.text for c in cues))
             if note:
-                st.markdown(f":orange[{escape(note)}]")
+                st.markdown(colored("warn", escape(note)), unsafe_allow_html=True)
             fast = subtitles.density(cues, delivery.cut_times(p, pid))
             if fast:
                 why = lambda d: (f"{d['cps']} ký tự/s" if d["cps"] > subtitles.MAX_CPS else "chồng dòng sau" if d["overlap"]  # noqa: E731
@@ -431,7 +427,7 @@ def step5(p: Pipeline, pid: int):
     from dashboard import next_step                                     # S9 E0.1: the next thing to do, one line
     ui.html(next_step.band(p, pid, 5, C.DATA))
     chosen, durations = clips_panel(p, pid)
-    ui.html(ui.card_title("5.2 · 🔊 Âm thanh", "nhạc nền · hiệu ứng · giọng thoại (làm ở Bước 3)"))
+    ui.html(ui.card_title("5.2 · 🔊 Âm thanh", "nhạc nền · hiệu ứng · giọng thoại (làm ở tab Motion (Storyboard))"))
     step5a(p, pid)
     sfx_assistant(p, pid)
     if not C.expert():                     # never silent: two voices at once is said in normal mode too
@@ -492,7 +488,7 @@ def step5_v2(p: Pipeline, pid: int, stat, state: str) -> None:
             timeline_panel(p, pid)
             render_panel(p, pid, chosen, durations)
         with t_music:
-            ui.html(ui.card_title("5.2 · 🔊 Âm thanh", "nhạc nền · hiệu ứng · giọng thoại (làm ở Bước 3)"))
+            ui.html(ui.card_title("5.2 · 🔊 Âm thanh", "nhạc nền · hiệu ứng · giọng thoại (làm ở tab Motion (Storyboard))"))
             step5a(p, pid)
         with t_sfx:
             sfx_assistant(p, pid)
@@ -532,7 +528,7 @@ def step5_v2(p: Pipeline, pid: int, stat, state: str) -> None:
                    "\n".join(f"- {r}" for r in reasons), "del-reasons")
         _deliver_button(p, pid, chosen, durations, "📦 Xuất bản đầy đủ")
         if not chosen:
-            st.markdown(D.empty_state("Chưa có clip nào để xuất", "Chạy Bước 4 (Video) hoặc tick clip trong Tinh chỉnh → Clip & dựng."), unsafe_allow_html=True)
+            st.markdown(D.empty_state("Chưa có clip nào để xuất", "Chạy màn Video hoặc tick clip trong Tinh chỉnh → Clip & dựng."), unsafe_allow_html=True)
     with out_c, D.card("del-out"):
         st.markdown("**Bản giao**")
         if not (stat["best"] and os.path.exists(stat["best"])) and not stat["layers"]:
@@ -572,7 +568,7 @@ def clips_panel(p: Pipeline, pid: int):
     total_s = sum(_probe(c["path"], os.path.getmtime(c["path"]), c["requested_sec"]) for c in present if c["usable"])
     with ui.fold("5.1 · 🎬 Clip theo thứ tự cảnh", f"🎬 {sum(1 for c in present if c['usable'])}/{len(clips)} clip dùng được · "
                  f"{total_s:.1f} s · mở để bỏ / chỉnh độ dài từng clip", f"clips_{pid}", default_open=bool(missing) or not present,
-                 sub=f"{len(present)} có sẵn / {len(clips)} · lấy tự động từ Bước 4") as clips_open:  # S9 E5.1
+                 sub=f"{len(present)} có sẵn / {len(clips)} · lấy tự động từ màn Video") as clips_open:  # S9 E5.1
         if not clips_open:                 # folded: every usable clip at its real length (as the automatic run does)
             for c in present:
                 if c["usable"]:
@@ -580,7 +576,7 @@ def clips_panel(p: Pipeline, pid: int):
                     durations.append(float(_probe(c["path"], os.path.getmtime(c["path"]), c["requested_sec"])))
         if clips_open:
             if not present:
-                st.info("Chưa có clip nào. Chạy Bước 4" + (" hoặc nhập clip thủ công bên dưới." if C.expert()
+                st.info("Chưa có clip nào. Chạy màn Video" + (" hoặc nhập clip thủ công bên dưới." if C.expert()
                                                               else " (nhập clip thủ công: bật ⚙ → Chế độ chuyên gia)."))
             names = ", ".join(f"cảnh {c['idx']}" + (f" ({ui.state_label(c['state'], 'video_gen')})" if c["state"] else "") for c in missing if c["idx"])
             if names:
@@ -808,7 +804,7 @@ def _deliver_files(p: Pipeline, pid: int, stat) -> None:
     files = ([("Video cuối", fin["path"], None)] if fin.get("path") and os.path.exists(fin["path"]) else []) +         [({"subtitle": "Phụ đề", "endcard": "Card cuối", "ailabel": "Nhãn AI", "export": "Bản xuất"}.get(x["kind"], x["kind"]), x["path"], x["stale"]) for x in stat["layers"]]
     for n, (label, path, stale) in enumerate(files):
         a, b = st.columns([4, 1.3], vertical_alignment="center")
-        a.markdown(f"{label}: `{os.path.basename(path)}` · {os.path.getsize(path) / 1e6:.1f} MB" + (f" · :orange[⚠ {stale}]" if stale else ""))
+        a.markdown(f"{label}: `{os.path.basename(path)}` · {os.path.getsize(path) / 1e6:.1f} MB" + (f" · {colored('warn', '⚠ ' + escape(str(stale)))}" if stale else ""), unsafe_allow_html=True)
         with open(path, "rb") as f:
             b.download_button("⬇ Tải", f, file_name=os.path.basename(path), mime="video/mp4", key=f"layer_dl_{pid}_{n}")
 
@@ -856,7 +852,7 @@ def _final_qc(p, pid, has_render: bool):
             from dashboard.design import components as D
             blocks = [i for i in issues if i["level"] == "block"]
             st.markdown(deliver_ui.qc_rows(blocks, final_qc._MARK), unsafe_allow_html=True)
-            with D.info(f"del-qc-{pid}"):
+            with D.info(f"del-qc-{pid}", label=f"Xem cả {len(issues)} lưu ý", help_text="Toàn bộ lưu ý của lượt kiểm tra cuối"):
                 st.markdown(deliver_ui.qc_rows(issues, final_qc._MARK), unsafe_allow_html=True)
         return
     text = final_qc.summary(res)

@@ -63,7 +63,7 @@ def image_progress(p: Pipeline, pid: int, runner) -> None:
                 with st.expander(f"Bảng trạng thái từng cảnh ({len(rows)} cảnh)", expanded=False):
                     st.markdown(SB.status_table(p, pid), unsafe_allow_html=True)
             else:
-                st.dataframe([{"Cảnh": r["idx"], "Trạng thái": label(r), "Điểm QC": f"{r['qc']:.2f}" if r["qc"] is not None else "—",
+                data_table([{"Cảnh": r["idx"], "Trạng thái": label(r), "Điểm QC": f"{r['qc']:.2f}" if r["qc"] is not None else "—",
                                "Đã gen lại": r["retry_count"]} for r in rows],
                              hide_index=True, width="stretch", height=min(38 * (len(rows) + 1) + 3, 230))
         fixed = p.conn.execute("SELECT COUNT(*) FROM jobs WHERE project_id=? AND type='image_gen' AND retry_count>0 AND state NOT IN ('cancelled')", (pid,)).fetchone()[0]
@@ -93,7 +93,7 @@ def image_progress(p: Pipeline, pid: int, runner) -> None:
         elif running:
             st.info(f"🔄 Đang tạo {running} ảnh, {queued} đang chờ. Trang tự cập nhật; ảnh xong tự hiện.")
         elif ap_running:
-            st.info("🚀 Chế độ tự động đang xử lý các ảnh này (xem tiến độ ở Bước 1).")
+            st.info("🚀 Chế độ tự động đang xử lý các ảnh này (xem tiến độ ở màn Kịch bản).")
         elif runner is None:
             _no = (f"⚠ Deepix chưa được cấu hình (thiếu `DEEPIX_TOKEN`): {queued} ảnh đang chờ. Nhập ảnh thủ công ở từng cảnh, "
                    "hoặc nhờ quản trị cấu hình Deepix.")
@@ -161,9 +161,9 @@ def step2(p: Pipeline, pid: int):
             if v2:                                        # lỗi chặn (P1) luôn hiện; lời khuyên sửa vào tooltip của ô tick
                 st.warning("Gen ảnh bị chặn: " + "; ".join(gates["block"]))
                 forced = st.checkbox("Tôi đã xem, vẫn gen ảnh (ghi lại vào 📊 Theo dõi)", key=f"gen_img_force_{pid}",
-                                     help="Chế độ tự động sẽ DỪNG ở đây trước khi gen ảnh. Sửa ở Bước 1 (Character Bible / Lock).")
+                                     help="Chế độ tự động sẽ DỪNG ở đây trước khi gen ảnh. Sửa ở màn Kịch bản (Character Bible / Lock).")
             else:
-                st.warning("Chế độ tự động sẽ DỪNG ở đây trước khi gen ảnh: " + "; ".join(gates["block"]) + ". Sửa ở Bước 1 (Character Bible / Lock).")
+                st.warning("Chế độ tự động sẽ DỪNG ở đây trước khi gen ảnh: " + "; ".join(gates["block"]) + ". Sửa ở màn Kịch bản (Character Bible / Lock).")
                 forced = st.checkbox("Tôi đã xem, vẫn gen ảnh (ghi lại vào 📊 Theo dõi)", key=f"gen_img_force_{pid}")
         img_price = None if est["unit_price"] is None else est["unit_price"] * est["items"]
         if c1.button("▶ Gen ảnh các cảnh chưa có / đã cũ" + cost.price_tag(img_price, est["items"]), type="primary", key=f"gen_img_{pid}",
@@ -232,7 +232,7 @@ def step2(p: Pipeline, pid: int):
         "SELECT j.*, s.idx, s.title FROM jobs j JOIN scenes s ON s.id=j.scene_id"
         " WHERE j.project_id=? AND j.type='image_gen' ORDER BY s.idx, j.id", (pid,)).fetchall()
     if not jobs:
-        st.caption("Chưa có ảnh nào: bấm “▶ Gen ảnh các cảnh chưa có / đã cũ” (cần khóa Character Bible ở Bước 1 trước).")
+        st.caption("Chưa có ảnh nào: bấm “▶ Gen ảnh các cảnh chưa có / đã cũ” (cần khóa Character Bible ở màn Kịch bản trước).")
         return
     history = {}
     for j in jobs:
@@ -292,12 +292,9 @@ def grid_v2(p: Pipeline, pid: int, proj) -> None:
         if st.session_state.get(sel_key) not in {j["id"] for j in jobs}:
             st.session_state[sel_key] = latest[shown_sids[0]]["id"] if shown_sids else jobs[0]["id"]
         stale = lineage.scan(p.conn, pid)
-        per_row = 4
-        for start in range(0, len(shown_sids), per_row):
-            cols = st.columns(per_row)
-            for col, sid in zip(cols, shown_sids[start:start + per_row]):
-                with col:
-                    SB.image_group_v2(p, pid, history[sid], proj, (stale.get(sid) or {}).get("image_stale"))
+        for col, sid in zip(D.grid(len(shown_sids), 4), shown_sids):      # 02/10: shared n-column card grid (components.grid)
+            with col:
+                SB.image_group_v2(p, pid, history[sid], proj, (stale.get(sid) or {}).get("image_stale"))
         if not shown_sids:
             st.markdown(D.empty_state("Không có ảnh nào trong bộ lọc này", "Chọn “Tất cả” để xem lại mọi cảnh."), unsafe_allow_html=True)
     SB.action_bar(p, pid)
@@ -424,7 +421,7 @@ def image_detail(p: Pipeline, pid: int, j, proj, on_card: bool = False):
         elif state == "succeeded":
             client = llm_client()
             if client is not None:
-                st.caption("🔍 Claude tự kiểm tra ảnh này ở nền (không cần bấm); xem tiến độ ở đầu Bước 2.")
+                st.caption("🔍 Claude tự kiểm tra ảnh này ở nền (không cần bấm); xem tiến độ ở đầu màn Storyboard.")
             if C.expert():
                 with st.expander("Nâng cao: prompt QC + dán điểm tay"):
                     st.code(llm_runner.plain(prompts.build_qc_bundle(p, j["scene_id"], C.DATA)), language="markdown")
@@ -683,7 +680,7 @@ def set_check_panel(p: Pipeline, pid: int) -> None:
     v2 = ui.v2_on()
     with st.expander(label, expanded=bool(last and last.get("issues")) and not v2):       # v2: luôn đóng; nhãn đã nói "N cảnh lệch"
         _about = ("Claude xem MỘT tấm ghép mọi ảnh đã duyệt để tìm cảnh lệch phong cách/ánh sáng/màu/nhân vật so với cả bộ "
-                  "(ảnh đẹp nhưng lạc tông vẫn là lỗi). Nên chạy trước khi sang Bước 3.")
+                  "(ảnh đẹp nhưng lạc tông vẫn là lỗi). Nên chạy trước khi sang tab Motion (Storyboard).")
         if v2:
             from dashboard.design.screens import storyboard_cards as SB
             SB.note("Claude so cả bộ ảnh đã duyệt để tìm cảnh lệch tông", _about, "sb-setqc-about")
@@ -707,7 +704,7 @@ def set_check_panel(p: Pipeline, pid: int) -> None:
                 c1.markdown(f"**S{it['idx']:02d}**: {escape(it['problem'])}" + (f" → _{escape(it.get('fix') or '')}_" if it.get("fix") else ""))
                 img_unit = cost._number(cost.load_pricing()["per_image"].get(image_models.of_project(p.project(pid))))
                 if not (it.get("fix") or "").strip():
-                    c2.caption("QC không nêu câu sửa — sửa prompt ảnh ở Bước 1")
+                    c2.caption("QC không nêu câu sửa — sửa prompt ảnh ở màn Kịch bản")
                 elif c2.button("↻ Gen lại cảnh này" + cost.price_tag(img_unit), key=f"setqc_redo_{pid}_{n}",
                                help="Gen lại với câu sửa của QC (tiếng Anh) — đầu vào khác lần trước"):
                     act(lambda: claude_tasks.redo_from_set_check(p, pid, it["idx"], it["fix"]), "Đã xếp hàng gen lại")

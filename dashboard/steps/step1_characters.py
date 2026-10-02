@@ -108,7 +108,7 @@ def subject_panel(p: Pipeline, pid: int, chars) -> None:
             if st.button("Thêm", key=f"gnew_{pid}", disabled=not (g_key.strip() and g_label.strip())):
                 if act(lambda: subjects.add_game(g_key, g_label, g_cov), "Đã thêm"):
                     st.rerun()
-        st.dataframe([{"Nhân vật": r["name"], "Trạng thái": subjects.STATUS_LABEL.get(r["subject_status"], r["subject_status"]),
+        data_table([{"Nhân vật": r["name"], "Trạng thái": subjects.STATUS_LABEL.get(r["subject_status"], r["subject_status"]),
                        "Tên trên kho": r["subject_name"] or ""} for r in rows], width="stretch", hide_index=True,
                      height=min(38 * (len(rows) + 1) + 3, 200))
         try:
@@ -225,7 +225,7 @@ def character_detail_panel(p: Pipeline, pid: int, c, voices, client, locked: boo
                     for suffix in ("must", "may", "forb"):
                         st.session_state.pop(f"{k}_{suffix}", None)
                     st.rerun()
-        st.markdown("**🎙 Giọng nói (TTS)** — thoại tiếng Việt được đọc bằng giọng này (Bước 3)")
+        st.markdown("**🎙 Giọng nói (TTS)** — thoại tiếng Việt được đọc bằng giọng này (tab Motion)")
         if voices:
             ordered = voice.vietnamese_first(voices)          # v3: voices that list Vietnamese first (🇻🇳)
             ids = [None] + [v.get("id") for v in ordered]
@@ -327,7 +327,7 @@ def character_bible_panel(p: Pipeline, pid: int, chars, risky) -> None:
                 heads = list(bible_rows[0]) if bible_rows else []
                 st.html(D.table(heads, [[clip(v) if h == "Mô tả" else v for h, v in row.items()] for row in bible_rows]))
             else:
-                st.dataframe(bible_rows, width="stretch", hide_index=True, height=min(38 * (len(rows) + 1) + 3, 260))
+                data_table(bible_rows, width="stretch", hide_index=True, height=min(38 * (len(rows) + 1) + 3, 260))
             client = llm_client()
             bible_check_box(p, pid, rows, client, locked)
             character_reference_panel(p, pid, chars)

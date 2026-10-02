@@ -143,11 +143,8 @@ def main():
         if creator and creator.lower() != (me().get("email") or "").lower() and me().get("role") != "owner":
             if ui.v2_on():                              # v2: one short line, the rest in ⓘ
                 from dashboard.design import components as D
-                w1, w2 = st.columns([24, 1], vertical_alignment="center")
-                w1.warning(f"Dự án của {creator} — bạn chỉ xem; duyệt / gen khi chủ dự án nhờ.")
-                with w2:
-                    with D.info("shell-owner"):
-                        st.markdown(f"Dự án của {creator}. Bạn mở được để xem; chỉ duyệt / gen khi chủ dự án nhờ — mỗi job ghi tên người gửi.")
+                D.note("warning", f"Dự án của {creator}. Bạn mở được để xem; chỉ duyệt / gen khi chủ dự án nhờ — mỗi job ghi tên người gửi.",
+                       f"Dự án của {creator} — bạn chỉ xem; duyệt / gen khi chủ dự án nhờ.", "shell-owner")
             else:
                 st.warning(f"Dự án của {creator}. Bạn mở được để xem; chỉ duyệt / gen khi chủ dự án nhờ — mỗi job ghi tên người gửi.")
     deep = st.query_params.get("step")  # ?step=1..5 / home / team / monitor opens a screen directly (old 1..5 links keep working)

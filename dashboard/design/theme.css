@@ -107,6 +107,7 @@ ul[role="listbox"] { background: var(--raised) !important; }
 
 /* bảng HTML (thay st.dataframe khi cần nền tối) + thanh hành động dính + ảnh khung + dải phiên bản */
 .v2-table { width: 100%; border-collapse: separate; border-spacing: 0; font-size: 14px; border: 1.5px solid var(--border-soft); border-radius: var(--r-md); overflow: hidden; }
+.v2-table-scroll { overflow: auto; border-radius: var(--r-md); }
 .v2-table th { text-align: left; font-size: 12.5px; letter-spacing: .04em; text-transform: uppercase; color: var(--muted); background: var(--glass-strong); padding: 9px 12px; }
 .v2-table td { padding: 10px 12px; border-top: 1px solid var(--border-soft); color: var(--text); }
 .v2-table tr:hover td { background: var(--primary-soft); }
@@ -131,26 +132,66 @@ ul[role="listbox"] { background: var(--raised) !important; }
 [data-testid="stBaseButton-secondary"]:disabled, [data-testid="stPopoverButton"]:disabled { color: var(--disabled) !important; border-style: dashed !important; opacity: 1 !important; }
 [data-testid="stBaseButton-primary"]:disabled { background: var(--glass-strong) !important; color: var(--disabled) !important; box-shadow: none !important; border: 1.5px dashed var(--border) !important; opacity: 1 !important; }
 .v2-warn-text { color: var(--warn); font-weight: 600; }
+.v2-ok-text { color: var(--ok); font-weight: 600; }
+.v2-bad-text { color: var(--bad); font-weight: 600; }
 
-/* ⓘ — nút chi tiết nhỏ, luôn hiện (không phụ thuộc rê chuột) */
-[class*="st-key-info-"] [data-testid="stPopoverButton"] { min-height: 1.9rem !important; width: 2.1rem; padding: 0 !important; border-radius: 50% !important;
-    font-weight: 800; color: var(--info) !important; border-color: var(--info) !important; justify-content: center; }
-[class*="st-key-info-"] [data-testid="stPopoverButton"] svg { display: none; }
-[class*="st-key-info-"] { width: auto !important; flex: 0 0 auto; }
-/* 02/10: nút cũ 33×30 (bầu dục) và "ⓘ" lệch trái ~6,6 px: khung chứa mũi tên popover (16 px) vẫn chiếm chỗ dù icon đã ẩn + lớp bọc lề âm -5 px
-   → nút vuông tròn đều, bỏ hẳn khung mũi tên, căn giữa (đo sau: lệch 0 / 0,4 px) */
-[class*="st-key-info-"] [data-testid="stPopoverButton"] { width: 2rem !important; height: 2rem !important; min-height: 2rem !important; min-width: 2rem !important; }
-[class*="st-key-info-"] [data-testid="stPopoverButton"] > div { margin: 0 !important; width: 100%; justify-content: center; }
-[class*="st-key-info-"] [data-testid="stPopoverButton"] > div > div:has([data-testid="stIconMaterial"]) { display: none !important; }
-[class*="st-key-info-"] [data-testid="stPopoverButton"] p { line-height: 1 !important; margin: 0 !important; }
+/* Chú thích (02/10, người dùng: bỏ nút tròn ⓘ; thông tin thường xuyên KHÔNG cần dấu hiệu nháy/gạch chân — người dùng tự rê chuột / bấm). Ba dạng:
+   (1) infoa-<key>: dòng/nhãn có chú thích — nhìn như chữ thường; con trỏ dạng help; rê chuột / focus → nền nhấn nhẹ + tooltip tự vẽ; bấm hoặc Enter/Space → popover.
+       Nút popover phủ kín dòng nhưng trong suốt (chữ chỉ cho trình đọc màn hình), viền focus hiện quanh cả dòng (cảm ứng / bàn phím vẫn mở được).
+   (2) info-<key>: không có nhãn để gắn → liên kết chữ nhỏ "Chi tiết", không viền, không hình tròn.
+   (3) .v2-tip: tooltip CSS thuần cho chỗ không dùng được popover (trong popover ⚙, trong bảng) — rê chuột HOẶC focus/chạm (tabindex=0).
+   Biến thể .v2-attention (MẶC ĐỊNH TẮT, components.info/line/note(..., attention=True)): chỉ cho thông tin mới / bất thường / cảnh báo thật sự cần gây chú ý — vầng sáng
+   mờ 3 nhịp × 2 s rồi dừng. Python chỉ gắn lớp ĐÚNG LẦN ĐẦU phần tử hiện ra trong phiên (components._first_time) nên rerun (autopilot 5 s…) không nháy lại;
+   prefers-reduced-motion: vầng tĩnh, không animation. */
+@keyframes v2-glow {
+    0%, 100% { box-shadow: 0 0 6px 0 color-mix(in srgb, var(--primary) 18%, transparent); }
+    50% { box-shadow: 0 0 14px 3px color-mix(in srgb, var(--primary) 50%, transparent); }
+}
+[class*="st-key-infoa-"] { position: relative; width: fit-content !important; max-width: 100%; flex: 0 1 auto; }
+[class*="st-key-infoa-"] { gap: 0 !important; }
+/* thẻ đang hiện tooltip nổi lên trên thẻ bên cạnh (mỗi thẻ kính là một ngữ cảnh xếp chồng riêng → tooltip bị thẻ sau đè mất) */
+[data-testid="stVerticalBlock"][class*="st-key-card-"]:is(:has([class*="st-key-infoa-"]:hover), :has(.v2-tip:hover), :has(.v2-tip:focus), :has([class*="st-key-infoa-"] button:focus-visible)) { z-index: 40; }
+.v2-tip-anchor, .v2-tip { border-radius: var(--r-sm); cursor: help; }
+.v2-tip-anchor { position: relative; }
+[class*="st-key-infoa-"]:hover .v2-tip-anchor, [class*="st-key-infoa-"]:has(button:focus-visible) .v2-tip-anchor, .v2-tip:hover, .v2-tip:focus { background: var(--primary-soft); }
+.v2-tip-anchor.v2-attention, .v2-tip.v2-attention { box-shadow: 0 0 7px 0 color-mix(in srgb, var(--primary) 20%, transparent); animation: v2-glow 2s ease-in-out 3; }
+@media (prefers-reduced-motion: reduce) { .v2-tip-anchor.v2-attention, .v2-tip.v2-attention { animation: none; } }
+[class*="st-key-infoa-"] [data-testid="stMarkdownContainer"] { margin-bottom: 0 !important; }
+[class*="st-key-infoa-"] [data-testid="stPopover"] { position: absolute; inset: 0; width: 100% !important; height: 100%; }
+[class*="st-key-infoa-"] [data-testid="stPopoverButton"] { position: absolute; inset: 0; width: 100% !important; height: 100% !important; min-height: 0 !important;
+    padding: 0 !important; margin: 0 !important; border: 0 !important; background: transparent !important; box-shadow: none !important; border-radius: var(--r-md) !important;
+    cursor: help; overflow: visible; }
+[class*="st-key-infoa-"] [data-testid="stPopoverButton"] > div { position: absolute; width: 1px; height: 1px; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+[class*="st-key-infoa-"] [data-testid="stPopoverButton"]:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+[class*="st-key-info-"] { width: auto !important; flex: 0 0 auto; white-space: nowrap; }
+[class*="st-key-info-"] [data-testid="stPopoverButton"] { min-height: 0 !important; height: auto !important; width: auto !important; padding: 0 2px !important; border: 0 !important;
+    background: transparent !important; color: var(--info) !important; font-size: 13px; font-weight: 600; border-radius: var(--r-sm) !important; }
+[class*="st-key-info-"] [data-testid="stPopoverButton"]:hover { background: var(--primary-soft) !important; }
+[class*="st-key-info-"] [data-testid="stPopoverButton"] p { line-height: 1.3 !important; margin: 0 !important; font-size: 13px; color: var(--info) !important; }
+[class*="st-key-info-"] [data-testid="stPopoverButton"]:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+.v2-tip { position: relative; display: inline; }
+.v2-tip:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+.v2-tip::after, .v2-tip-anchor[data-tip]::after { content: attr(data-tip); position: absolute; left: 0; top: calc(100% + 6px); z-index: 1000; width: max-content; max-width: min(320px, 78vw);
+    white-space: pre-line; background: var(--raised); color: var(--text); border: 1px solid var(--border); border-radius: var(--r-md); padding: 8px 10px;
+    font-size: 13px; font-weight: 400; line-height: 1.4; text-decoration: none; box-shadow: var(--shadow); opacity: 0; visibility: hidden; pointer-events: none; }
+.v2-tip:hover::after, .v2-tip:focus::after, .v2-tip:focus-within::after,
+[class*="st-key-infoa-"]:hover .v2-tip-anchor::after, [class*="st-key-infoa-"]:has(button:focus-visible) .v2-tip-anchor::after { opacity: 1; visibility: visible; }
+[class*="st-key-infoa-"]:has(button[aria-expanded="true"]) .v2-tip-anchor::after { opacity: 0; visibility: hidden; }
+.v2-sum { color: var(--muted); font-size: 14px; }
+
+/* nút chính lớn của màn (components.cta_box / cta): cao 3,5 rem, chữ 17 px, toàn chiều rộng */
+[class*="st-key-cta-"] { gap: 0.6rem; }
+[class*="st-key-cta-"] [data-testid="stBaseButton-primary"] { min-height: 3.5rem; font-size: 17px; width: 100%; }
+[class*="st-key-cta-"] [data-testid="stBaseButton-primary"] p { font-size: 17px; }
+[class*="st-key-cta-"] button { min-height: 3.5rem; width: 100%; }
 
 /* nhãn nút có giá không bị cắt "…" trong thẻ hẹp (đề nghị nhánh G) */
 [class*="st-key-card-"] [data-testid="stBaseButton-secondary"], [class*="st-key-card-"] [data-testid="stBaseButton-primary"] { white-space: normal; height: auto; }
 [class*="st-key-card-"] [data-testid="stBaseButton-secondary"] p, [class*="st-key-card-"] [data-testid="stBaseButton-primary"] p { white-space: normal; line-height: 1.25; }
 
-/* nhãn ô tick không bị cắt "…" (đề nghị lane E) + bỏ mũi tên của nút ⓘ (Streamlit vẽ bằng icon vật liệu, không phải svg) */
+/* nhãn ô tick không bị cắt "…" (đề nghị lane E) */
 [data-testid="stCheckbox"] label, [data-testid="stCheckbox"] label p { white-space: normal !important; text-overflow: clip !important; overflow: visible !important; }
-[class*="st-key-info-"] [data-testid="stPopoverButton"] [data-testid="stIconMaterial"], [class*="st-key-info-"] [data-testid="stPopoverButton"] span[class*="Icon"] { display: none !important; }
+[class*="st-key-info-"] [data-testid="stPopoverButton"] [data-testid="stIconMaterial"], [class*="st-key-infoa-"] [data-testid="stPopoverButton"] [data-testid="stIconMaterial"] { display: none !important; }
 
 /* ── rà soát sáng/tối 02/10 (docs/RA_SOAT_UI_V2_SANG_TOI_2026-10-02.md) ──
    Gốc: Streamlit vẽ hộp thoại st.dialog, menu chọn, tooltip ở CỔNG (portal) NGOÀI .stApp, nền/màu chữ lấy theo theme gốc

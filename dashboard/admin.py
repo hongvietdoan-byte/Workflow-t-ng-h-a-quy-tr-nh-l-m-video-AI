@@ -78,7 +78,7 @@ def knowledge_panel() -> None:
                f"📁 Bạn thêm (ngoài git): `{ov['user_dir']}`")
     if ov["tokens"] > 25_000:
         st.warning("Lượng tài liệu khá lớn: mỗi lần chạy bước này sẽ gửi ≈ %s token. Tắt bớt tài liệu ít dùng để tiết kiệm." % f"{ov['tokens']:,}")
-    st.dataframe([{"Tên": d["title"], "Nguồn": "có sẵn" if d["source"] == "builtin" else "bạn thêm",
+    data_table([{"Tên": d["title"], "Nguồn": "có sẵn" if d["source"] == "builtin" else "bạn thêm",
                    "Ghi chú": d["note"], "Ký tự": d["chars"], "≈ token": knowledge.approx_tokens(d["chars"]),
                    "Bật": "✓" if d["enabled"] else "—",
                    "Cẩm nang thay thế": "✓" if d.get("replaced") else ""} for d in ov["docs"]],
@@ -179,10 +179,10 @@ def users_tab(p: Pipeline, pid: int) -> None:
             else:
                 st.success("Đã lưu")
         st.caption(f"Địa chỉ đưa cho người khác: {lan_address()}")
-    st.markdown(":orange[Không có mật khẩu: ai mở được Dashboard và gõ đúng e-mail của một người thì vào như người đó, kể cả Owner. "
-                "Chỉ dùng trong mạng tin cậy. Muốn Owner chỉ đăng nhập từ máy chạy Dashboard, đặt DASHBOARD_OWNER_LOCAL_ONLY=1.]")
+    st.markdown(colored("warn", "Không có mật khẩu: ai mở được Dashboard và gõ đúng e-mail của một người thì vào như người đó, kể cả Owner. "
+                        "Chỉ dùng trong mạng tin cậy. Muốn Owner chỉ đăng nhập từ máy chạy Dashboard, đặt DASHBOARD_OWNER_LOCAL_ONLY=1."), unsafe_allow_html=True)
     with st.expander("Nhật ký (đăng nhập, thay đổi quyền)"):
-        st.dataframe([{"Lúc": r["at"], "Ai": r["email"] or "", "Việc": r["action"], "Chi tiết": r["detail"] or ""}
+        data_table([{"Lúc": r["at"], "Ai": r["email"] or "", "Việc": r["action"], "Chi tiết": r["detail"] or ""}
                       for r in auth.recent_audit(conn)], hide_index=True, use_container_width=True)
 
 
@@ -249,7 +249,7 @@ def library_health(p: Pipeline, game: str) -> None:
     if not rows:
         return
     with st.expander(f"🩺 Sức khỏe kho — {len(rows)} mục còn thiếu", expanded=False):
-        st.dataframe([{"Mục": r["name"], "Loại": r["kind"], "Ảnh đã duyệt": r["approved"], "Chờ duyệt": r["pending"],
+        data_table([{"Mục": r["name"], "Loại": r["kind"], "Ảnh đã duyệt": r["approved"], "Chờ duyệt": r["pending"],
                        "Chưa rõ vai trò": r["unlabelled"], "Còn thiếu": ", ".join(r["missing"])} for r in rows],
                      hide_index=True, use_container_width=True)
 
@@ -511,8 +511,8 @@ def asset_library_panel(p: Pipeline) -> None:
             st.rerun()
     with st.expander("🤖 Đọc mô tả ngoại hình bằng Claude (nhân vật / thú cưng)"):
         st.caption("Ảnh đầu của mỗi nhân vật thường là một bảng thiết kế nhiều góc/tư thế (turn-around, bảng màu, phụ kiện) — rất nhiều chi tiết hữu ích, "
-                   "nhưng gửi thẳng tấm đó cho AI vẽ ảnh lại làm nó chép lẫn lộn giữa các nhân vật trong cùng một cảnh, nên Bước 2 không dùng tấm này làm ảnh "
-                   "tham chiếu (xem “🖼 Ảnh tham chiếu” ở Bước 1). Chữ thì không bị chép lẫn như vậy: nút này cho Claude **nhìn ảnh và viết lại** màu/kiểu tóc, "
+                   "nhưng gửi thẳng tấm đó cho AI vẽ ảnh lại làm nó chép lẫn lộn giữa các nhân vật trong cùng một cảnh, nên màn Storyboard không dùng tấm này làm ảnh "
+                   "tham chiếu (xem “🖼 Ảnh tham chiếu” ở màn Kịch bản). Chữ thì không bị chép lẫn như vậy: nút này cho Claude **nhìn ảnh và viết lại** màu/kiểu tóc, "
                    "trang phục, phụ kiện thành một đoạn mô tả, lưu vào mô tả của mục (không đè phần bạn đã viết) — Director sẽ đọc được đoạn này khi phân tích kịch bản.")
         n_pending = asset_vision.pending(p.conn, game)
         st.caption(f"{n_pending} mục nhân vật/thú cưng chưa được đọc" if n_pending else "Mọi mục nhân vật/thú cưng đã được đọc.")
@@ -604,7 +604,7 @@ def asset_library_panel(p: Pipeline) -> None:
                 st.caption(f"• {name} — {why}")
     with st.expander("🎼 Kho âm thanh (nhạc nền & hiệu ứng) — thư mục nguồn", expanded=not sound_lib.list_sources(p.conn)):
         st.caption("Thư mục chứa nhạc và hiệu ứng (mp3, wav, m4a, ogg, flac). Hệ thống chỉ liệt kê file (không mở từng file) nên thư mục vài GB vẫn xong ngay; "
-                   "phân loại nhạc nền / hiệu ứng và tâm trạng (vui vẻ, sôi động, kịch tính, hài...) dựa theo tên thư mục. Ở Bước 5 mọi người tìm, nghe thử và dùng.")
+                   "phân loại nhạc nền / hiệu ứng và tâm trạng (vui vẻ, sôi động, kịch tính, hài...) dựa theo tên thư mục. Ở màn Bản giao mọi người tìm, nghe thử và dùng.")
         for src in sound_lib.list_sources(p.conn):
             with st.container(border=True):
                 st.markdown(f"**{escape(src['path'])}** · {src['tracks']} bản")
@@ -806,9 +806,9 @@ def monitor(p: Pipeline, pid: int) -> None:
     if st.button("↻ Làm mới", key="perf_refresh"):
         st.rerun()
     for msg in snap["alerts"]:
-        st.markdown(f":orange[⚠ {msg}]")
+        st.markdown(colored("warn", f"⚠ {escape(str(msg))}"), unsafe_allow_html=True)
     if not snap["alerts"]:
-        st.markdown(":green[✔ Chưa thấy dấu hiệu quá tải.]")
+        st.markdown(colored("ok", "✔ Chưa thấy dấu hiệu quá tải."), unsafe_allow_html=True)
     c1, c2, c3, c4 = st.columns(4)
     c1.metric("Dự án chạy tự động", f"{mgr.running_count()}/{mgr.max_parallel}", help="AUTOPILOT_MAX_PARALLEL")
     c2.metric("Đang xếp hàng", mgr.queue_length())
@@ -823,7 +823,7 @@ def monitor(p: Pipeline, pid: int) -> None:
                      "Thời gian TB": f"{k['avg_sec']:.0f}s" if k["avg_sec"] else "-",
                      "Gần đây / trước đó": (f"{k['recent_sec']:.0f}s / {k['earlier_sec']:.0f}s"
                                             if k["recent_sec"] and k["earlier_sec"] else "-")})
-    st.dataframe(rows, hide_index=True, use_container_width=True)
+    data_table(rows, hide_index=True, use_container_width=True)
     st.caption("Mức song song tự học (tăng dần khi chạy êm, giảm một nửa khi nhà cung cấp báo quá tải 429): " + "; ".join(
         f"{dict(perf.KINDS)[k]}: {v['limit']} job cùng lúc, đã bị giới hạn {v['hits']} lần" for k, v in snap["learned"].items()))
     if snap["usage_today"]:
@@ -839,24 +839,24 @@ def monitor(p: Pipeline, pid: int) -> None:
     st.markdown("---")
     ui.html(ui.card_title("🩺 Giám sát từng khâu", "lỗi, lỗi âm thầm và chỗ chưa trơn tru trong 24h qua"))
     stages = diag.stage_table(p.conn)
-    st.dataframe([{"": diag.health(s), "Khâu": s["label"], "Job": "-" if s["jobs"] is None else str(s["jobs"]),
+    data_table([{"": diag.health(s), "Khâu": s["label"], "Job": "-" if s["jobs"] is None else str(s["jobs"]),
                    "Xong": "-" if s["ok"] is None else str(s["ok"]), "Lỗi": "-" if s["failed"] is None else str(s["failed"]),
                    "Gen lại": "-" if s["retried"] is None else str(s["retried"]), "Cảnh báo": s["warn"],
                    "Lỗi ghi nhận": s["error"]} for s in stages], hide_index=True, use_container_width=True)
     findings = diag.scan(p.conn, C.DATA, float(os.environ.get("AUTOPILOT_POLL_SEC", "15")))
     st.markdown(f"**Vấn đề phát hiện ({len(findings)})** — gồm cả lỗi không ai báo (job kẹt, file mất, tiến trình chết, gen lại nhiều...)")
     if not findings:
-        st.markdown(":green[✔ Chưa thấy vấn đề âm thầm.]")
+        st.markdown(colored("ok", "✔ Chưa thấy vấn đề âm thầm."), unsafe_allow_html=True)
     for f in findings[:30]:
-        color = "red" if f["severity"] == "error" else "orange"
-        st.markdown(f":{color}[● {diag.STAGE_LABEL.get(f['stage'], f['stage'])}] {escape(diag.redact(f['title']))}"
-                    + (f" — {escape(diag.redact(f['detail']))}" if f["detail"] else ""))
+        color = "bad" if f["severity"] == "error" else "warn"
+        st.markdown(colored(color, f"● {escape(diag.STAGE_LABEL.get(f['stage'], f['stage']))}") + f" {escape(diag.redact(f['title']))}"
+                    + (f" — {escape(diag.redact(f['detail']))}" if f["detail"] else ""), unsafe_allow_html=True)
     if diag.lost():
         st.warning(f"⚠ {diag.lost()} sự kiện chẩn đoán không ghi được vào CSDL (bận/lỗi) từ lúc mở Dashboard — xem file "
                    "`data/manifest.sqlite.diag_lost.log`")
     events = diag.recent(p.conn, 24, 40)
     with st.expander(f"Sự kiện lỗi/cảnh báo gần đây ({len(events)})"):
-        st.dataframe([{"Giờ": e["last_at"][11:19], "Mức": e["severity"], "Khâu": e["stage"], "Mã": e["code"] or "",
+        data_table([{"Giờ": e["last_at"][11:19], "Mức": e["severity"], "Khâu": e["stage"], "Mã": e["code"] or "",
                        "Lần": e["count"], "Dự án": str(e["project_id"] or ""), "Nội dung": e["message"]} for e in events],
                      hide_index=True, use_container_width=True)
     text = diag.report(p.conn, C.DATA, {"Đang chạy/xếp hàng": f"{mgr.running_count()}/{mgr.queue_length()}",
@@ -903,12 +903,12 @@ def _monitor_v2(p: Pipeline, pid: int) -> None:
         c2.markdown(D.stat("Đang xếp hàng", str(mgr.queue_length())), unsafe_allow_html=True)
         c3.markdown(D.stat("Job hôm nay", f"{snap['jobs_today']}/{snap['daily_limit'] or '∞'}"), unsafe_allow_html=True)
         c4.markdown(D.stat("Job đang chạy/chờ", str(busy)), unsafe_allow_html=True)
-        b1, b2, _ = st.columns([1.6, 0.4, 6], vertical_alignment="center")
+        b1, b2, _ = st.columns([1.6, 1.9, 4.5], vertical_alignment="center")
         with b1:
             if st.button("↻ Làm mới", key="perf_refresh"):
                 st.rerun()
         with b2:
-            with D.info("mon-explain"):
+            with D.info("mon-explain", label="Giải thích số liệu", help_text=D.md_plain(explain)):
                 st.markdown(explain)
     for msg in snap["alerts"]:                       # only when there is one
         st.markdown(D.pill("Cảnh báo", "warn") + f" {escape(msg)}", unsafe_allow_html=True)
@@ -1031,7 +1031,7 @@ def lessons_tab(p: Pipeline, pid: int) -> None:
     rows = lessons.clusters(conn)
     with st.expander(f"Các loại lỗi đã ghi nhận ({len(rows)})"):
         if rows:
-            st.dataframe([{"Bước": r["group"], "Loại lỗi": r["label"], "Số lần": r["events"], "Số dự án": r["projects"],
+            data_table([{"Bước": r["group"], "Loại lỗi": r["label"], "Số lần": r["events"], "Số dự án": r["projects"],
                            "Đủ để đề xuất": "có" if r["ready"] else "chưa"} for r in rows], hide_index=True,
                          use_container_width=True)
         else:
@@ -1068,7 +1068,7 @@ def history(p: Pipeline, pid: int):
     with st.expander("Nhật ký chi tiết các job"):
         for j in jobs:
             st.markdown(f"**job #{j['id']} {j['type']}** — {j['state']} (retry {j['retry_count']})")
-            st.dataframe([dict(h) for h in p.history(j["id"])], width="stretch")
+            data_table([dict(h) for h in p.history(j["id"])], width="stretch")
     trash_section(pid)
 
 

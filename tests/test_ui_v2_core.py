@@ -63,12 +63,147 @@ class TokenTests(unittest.TestCase):
         self.assertIn('body:has([data-testid="stDialog"]) [data-testid="stPopoverBody"]:has(.st-key-dark_toggle', rules)
         self.assertRegex(rules, r'\[data-testid="stDialog"\]\s*\{\s*background:\s*var\(--scrim\)')
         self.assertEqual(set(tokens.LIGHT), set(tokens.DARK))
-        # nút ⓘ tròn đều, khung mũi tên popover không chiếm chỗ (chữ lệch trái ~6,6 px)
-        self.assertRegex(rules, r'\[class\*="st-key-info-"\] \[data-testid="stPopoverButton"\]\s*\{[^}]*width:\s*2rem[^}]*height:\s*2rem')
-        self.assertIn('> div > div:has([data-testid="stIconMaterial"]) { display: none', rules)
+        # 02/10: không còn nút tròn ⓘ — chú thích gắn ngay trên dòng/nhãn (infoa-), liên kết chữ nhỏ (info-) hoặc tooltip CSS (.v2-tip)
+        self.assertNotIn("border-radius: 50%", re.search(r'\[class\*="st-key-info-"\] \[data-testid="stPopoverButton"\]\s*\{[^}]*\}', rules).group(0))
+        self.assertRegex(rules, r'\[class\*="st-key-infoa-"\] \[data-testid="stPopoverButton"\]\s*\{[^}]*position:\s*absolute[^}]*inset:\s*0')
+        self.assertRegex(rules, r'\.v2-tip:focus::after')                                  # tooltip cũng hiện khi focus bàn phím / chạm
+        # người dùng 02/10: chú thích thường KHÔNG có gạch chân / nháy; chỉ biến thể attention (mặc định tắt) có vầng sáng hữu hạn 3 nhịp, tắt khi giảm chuyển động
+        self.assertNotIn("underline dotted", rules)
+        self.assertRegex(rules, r'\.v2-tip-anchor\.v2-attention[^{]*\{[^}]*animation:\s*v2-glow 2s ease-in-out 3\b')
+        self.assertNotIn("infinite", re.search(r"@keyframes v2-glow.*?\n\}", rules, flags=re.S).group(0))
+        self.assertRegex(rules, r'@media \(prefers-reduced-motion: reduce\)\s*\{\s*\.v2-tip-anchor\.v2-attention[^}]*animation:\s*none')
+        self.assertNotRegex(rules, r'\.v2-tip-anchor\s*\{[^}]*animation')
+        self.assertRegex(rules, r'\.v2-tip-anchor\[data-tip\]::after\s*\{[^}]*background:\s*var\(--raised\)[^}]*color:\s*var\(--text\)[^}]*font-size:\s*13px')
         for path in (os.path.join(os.path.dirname(__file__), "..", "dashboard", "ui.py"),
                      os.path.join(os.path.dirname(__file__), "..", "dashboard", "design", "screens", "shell.css")):
             self.assertNotIn("data-baseweb", re.sub(r"/\*.*?\*/", "", open(path, encoding="utf-8").read(), flags=re.S))
+
+
+class SharedComponentTests(unittest.TestCase):
+    """02/10: thành phần dùng chung còn thiếu ở lõi (note / version_strip / confirm_all / cta / grid / tip / md_plain / data_table)."""
+
+    def test_tip_is_escaped_flat_and_plain(self):
+        html = D.tip("<b>Nhãn</b>", '**Đậm** "trích"\n\n- một\n- <script>x</script>')
+        self.assertIn('class="v2-tip"', html)
+        self.assertIn('tabindex="0"', html)                         # keyboard / touch focus shows it
+        self.assertNotIn("<script", html)
+        self.assertNotIn("\n", html)                                # a newline/blank line would end the Markdown HTML block
+        self.assertIn("&#10;• một", html)
+        self.assertEqual(D.md_plain("**a**\n`b`\n- c"), "a\nb\n• c")
+        self.assertLessEqual(len(D.md_plain("x " * 600)), 430)
+
+    def test_tip_attention_is_opt_in(self):
+        def app():
+            import streamlit as st
+            from dashboard.design import components as D
+            st.markdown(D.tip("a", "b", key="k1"), unsafe_allow_html=True)
+            st.markdown(D.tip("a", "b", key="k2", attention=True), unsafe_allow_html=True)
+            st.markdown(D.tip("a", "b", key="k2", attention=True), unsafe_allow_html=True)      # second time the same key: no glow again
+        at = AppTest.from_function(app, default_timeout=30).run()
+        vals = [m.value for m in at.markdown]
+        self.assertNotIn("v2-attention", vals[0])
+        self.assertIn("v2-attention", vals[1])
+        self.assertNotIn("v2-attention", vals[2])
+
+    def test_attention_glow_plays_once_per_session_not_on_every_rerun(self):
+        def app():
+            from dashboard.design import components as D
+            D.line("<b>x</b>", "chi tiết", key="warn", attention=True)
+        at = AppTest.from_function(app, default_timeout=30).run()
+        first = [m.value for m in at.markdown if "v2-tip-anchor" in m.value]
+        self.assertTrue(any("v2-attention" in v for v in first))
+        at.run()                                                    # autopilot_progress refresh = a rerun of the same session
+        again = [m.value for m in at.markdown if "v2-tip-anchor" in m.value]
+        self.assertTrue(again and not any("v2-attention" in v for v in again))
+
+    def test_keys_of_a_self_refreshing_fragment_are_stable_so_an_open_popover_survives(self):
+        """autopilot_progress reruns itself every 5 s: a changed popover/tooltip key = a remounted element = an open popover closes."""
+        def app():
+            import streamlit as st
+            from dashboard.steps import step1_v2 as S
+            S.reset_scope("ap")
+            st.session_state.setdefault("seen_keys", []).append([S._uniq("script-cap-abc", "ap"), S._uniq("script-cap-abc", "ap")])
+        at = AppTest.from_function(app, default_timeout=30).run()
+        at.run()
+        at.run()
+        runs = at.session_state["seen_keys"]
+        self.assertEqual(runs[0], runs[1])
+        self.assertEqual(runs[1], runs[2])                          # same keys at every refresh
+        self.assertNotEqual(runs[0][0], runs[0][1])                 # two equal captions in ONE run still get different keys
+
+    def test_note_one_line_with_full_text_behind_it(self):
+        def app():
+            from dashboard.design import components as D
+            D.note("warning", "Câu đầu tiên của ghi chú dài này. Câu thứ hai nói thêm nhiều điều nữa để vượt giới hạn.", key="n1")
+            D.note("success", "Ngắn", key="n2")
+        at = AppTest.from_function(app, default_timeout=30).run()
+        self.assertFalse(at.exception, at.exception)
+        self.assertEqual(len(at.get("popover")), 1)                 # only the long one gets a popover; the short one is printed as is
+        self.assertTrue(any("Câu thứ hai" in m.value for p in at.get("popover") for m in p.markdown))
+        self.assertTrue(any("Lưu ý" in m.value for m in at.markdown))
+
+    def test_version_strip_marks_current_and_wraps(self):
+        html = D.version_strip(4, 2)
+        self.assertEqual(html.count("v2-ver"), 5)                   # 4 chips + the "v2-vers" wrapper class name
+        self.assertIn('class="v2-ver on">v3<', html)
+        self.assertIn('class="v2-ver">v1<', html)
+        self.assertIn("v1", D.version_strip(0, 5))                  # clamps
+        css = open(os.path.join(os.path.dirname(__file__), "..", "dashboard", "design", "theme.css"), encoding="utf-8").read()
+        self.assertRegex(css, r"\.v2-vers\s*\{[^}]*flex-wrap:\s*wrap")
+
+    def test_confirm_all_asks_again_when_the_set_changes_and_returns_true_only_on_yes(self):
+        def app():
+            import streamlit as st
+            from dashboard.design import components as D
+            ids = st.session_state.get("ids", ("a", "b"))
+            st.session_state["ok"] = D.confirm_all("ca", ids, "Duyệt hết", "Chắc chưa?", st, primary=True, stretch=True)
+        at = AppTest.from_function(app, default_timeout=30).run()
+        btn = next(b for b in at.button if b.key == "ca")
+        self.assertEqual(btn.proto.type, "primary")
+        btn.click().run()
+        self.assertTrue(any("Chắc chưa?" in w.value for w in at.warning))
+        at.session_state["ids"] = ("a",)                            # the set changed → the old question is forgotten
+        at.run()
+        self.assertFalse(any("Chắc chưa?" in w.value for w in at.warning))
+        next(b for b in at.button if b.key == "ca").click().run()
+        next(b for b in at.button if b.key == "ca_yes").click().run()
+        self.assertTrue(at.session_state["ok"])
+
+    def test_common_confirm_all_is_the_shared_one(self):
+        import inspect
+        from dashboard import common
+        self.assertIn("components.confirm_all", inspect.getsource(common.confirm_all))
+
+    def test_cta_and_grid(self):
+        def app():
+            import streamlit as st
+            from dashboard.design import components as D
+            D.cta("Bắt đầu", "go")
+            cols = D.grid(5, 3)
+            for i, c in enumerate(cols):
+                c.write(f"thẻ {i}")
+            st.session_state["n_cols"] = len(cols)
+        at = AppTest.from_function(app, default_timeout=30).run()
+        self.assertFalse(at.exception, at.exception)
+        self.assertEqual(at.session_state["n_cols"], 5)
+        self.assertEqual(next(b for b in at.button if b.key == "go").proto.type, "primary")
+        self.assertEqual(len(at.columns), 6)                        # a row of 3 + a row of 3 (the last row keeps the same width)
+        css = open(os.path.join(os.path.dirname(__file__), "..", "dashboard", "design", "theme.css"), encoding="utf-8").read()
+        self.assertRegex(css, r'\[class\*="st-key-cta-"\] \[data-testid="stBaseButton-primary"\]\s*\{[^}]*min-height:\s*3\.5rem')
+
+    def test_data_table_follows_the_flag(self):
+        def app():
+            from dashboard.design import components as D
+            D.data_table([{"A": "<b>x</b>", "B": 2}], hide_index=True)
+        with mock.patch.dict(os.environ, {"FEATURE_UI_V2": "1"}):
+            at = AppTest.from_function(app, default_timeout=30).run()
+        html = " ".join(m.value for m in at.markdown)
+        self.assertIn("v2-table", html)
+        self.assertIn("&lt;b&gt;", html)                            # cells are escaped
+        self.assertEqual(len(at.dataframe), 0)
+        with mock.patch.dict(os.environ, {"FEATURE_UI_V2": "0"}):
+            at = AppTest.from_function(app, default_timeout=30).run()
+        self.assertEqual(len(at.dataframe), 1)                      # flag off: exactly the old st.dataframe
 
 
 class ComponentTests(unittest.TestCase):
@@ -135,6 +270,13 @@ class InfoTests(unittest.TestCase):
         at = AppTest.from_function(app, default_timeout=30).run()
         self.assertFalse(at.exception, at.exception)
         labels = [x.proto.popover.label for x in at.get("popover")]
-        self.assertEqual(labels.count("ⓘ"), 2)                      # the glyph is always visible text, never hover-only
+        self.assertNotIn("ⓘ", labels)                               # 02/10: no round ⓘ button any more
+        self.assertEqual(labels.count("Chi tiết"), 2)               # the trigger has a text name (screen readers); visually it is the line itself
+        keys = [x.key for x in at.get("popover")]
+        self.assertEqual(len(keys), 2)
+        # the hover/focus tooltip is drawn by CSS from data-tip on the anchor line: the details as plain text, escaped, no blank lines
+        tips = [m.value for m in at.markdown if "v2-tip-anchor" in (m.value or "")]
+        self.assertTrue(any('data-tip="Chi tiết dài&#10;• khung 3&#10;• khung 5"' in t for t in tips), tips)
+        self.assertFalse(any("v2-attention" in t for t in tips))   # the attention glow is OFF by default
         self.assertTrue(any("khung cần duyệt" in m.value for m in at.markdown))
         self.assertTrue(any("khung 5" in m.value for m in at.markdown))         # the details are in the popover, not dropped

@@ -50,7 +50,7 @@ def inbox_card(p: Pipeline) -> None:
         if v2 and len(shown) > INBOX_SHOWN:                 # v2: the first 3 stay outside, the rest fold into ⓘ
             for n, it in enumerate(shown[:INBOX_SHOWN]):
                 draw(n, it)
-            with st.expander(f"ⓘ Còn {len(items) - INBOX_SHOWN} việc nữa"):
+            with st.expander(f"Còn {len(items) - INBOX_SHOWN} việc nữa"):
                 for n, it in enumerate(shown[INBOX_SHOWN:], start=INBOX_SHOWN):
                     draw(n, it)
                 if len(items) > 30:
@@ -297,7 +297,7 @@ def settings_menu(p: Pipeline, pid, label: str = "⚙") -> None:
                 st.rerun()
             st.toggle("🧠 Chế độ chuyên gia", key="expert_mode",
                       help="Hiện mọi tùy chọn nâng cao: dán JSON tay, nối ảnh, World Bible, storyboard layout, chính sách QC, video tham chiếu, "
-                           "kế hoạch model, thử nghiệm, bảng làm tay ở Bước 5. Tắt: mỗi bước chỉ hiện việc của một lần chạy thường.")
+                           "kế hoạch model, thử nghiệm, bảng làm tay ở màn Bản giao. Tắt: mỗi bước chỉ hiện việc của một lần chạy thường.")
             if allowed("settings") and st.button("🧪 Tính năng thử", key="settings_features", width="stretch",
                                                  help="Bật / tắt từng tính năng chưa thử thật, hoặc chọn preset Ổn định / Thử nghiệm"):
                 open_dialog("dlg_features")
@@ -345,7 +345,7 @@ def _settings_project(p: Pipeline, pid: int) -> None:
     if mode != proj["operating_mode"]:
         p.set_mode(pid, mode)
     v2 = ui.v2_on()
-    where = "Chính sách QC (ngưỡng, tự gen lại) chỉnh ở Bước 2. Định dạng khung, thể loại, ưu tiên model ở Bước 1 · 1b."
+    where = "Chính sách QC (ngưỡng, tự gen lại) chỉnh ở màn Storyboard. Định dạng khung, thể loại, ưu tiên model ở màn Kịch bản · 1b."
     cheap_tip = ("Cho đợt thử nghiệm: ảnh ở kích thước nhỏ nhất model Deepix nhận cho khung dự án, không gen 1080p, dùng "
                  "bản rẻ hơn của model video. Dự án tạo khi đợt thử ngân sách đang bật tự bật chế độ này. Tắt khi làm video thật.")
     if v2:                                           # v2: the pointer + what "Thử rẻ" means fold into one ⓘ; the label stays short
@@ -440,20 +440,20 @@ def money_card(p: Pipeline, pid) -> None:
                     stage_table = ('<table class="v2-table"><tr><th>Khâu</th><th>Đã chi</th><th>Trần</th></tr>' + "".join(
                         f"<tr><td>{escape(r['Khâu'])}</td><td>{r['Đã chi']}</td><td>{r['Trần']}</td></tr>" for r in rows) + "</table>")
                 else:
-                    st.dataframe(rows, hide_index=True, width="stretch")
+                    data_table(rows, hide_index=True, width="stretch")
             else:
                 try:
                     prop = project_budget.propose(p, pid)
                     st.markdown(f"**Dự án này:** chưa duyệt · dự tính ≈ {prop['total']:.2f} USD · đã chi {sum(spent.values()):.2f}")
                     if confirm_all(f"mc_ok_{pid}", ["go"], f"✔ Duyệt & KHÓA ngân sách ≈ {prop['total']:.2f} USD",
-                                   f"Khóa ngân sách dự án ≈ {prop['total']:.2f} USD (trần từng khâu theo bảng ở Bước 1)? Sau khi khóa, mọi lời "
+                                   f"Khóa ngân sách dự án ≈ {prop['total']:.2f} USD (trần từng khâu theo bảng ở màn Kịch bản)? Sau khi khóa, mọi lời "
                                    "gọi trả tiền vượt trần sẽ bị DỪNG; chỉ người được nâng trần, kèm lý do.", st, "Có, khóa"):
                         project_budget.approve(p, pid, p.actor, prop)
                         st.rerun()
                 except Exception as e:  # noqa: BLE001 - the card must never break the bar
                     st.caption(f"Chưa tính được ngân sách dự án ({type(e).__name__}).")
         if v2 and (stage_table or any(more)):
-            with st.expander("ⓘ Chi tiết từng khâu · lịch sử đặt lại"):
+            with st.expander("Chi tiết từng khâu · lịch sử đặt lại"):
                 if stage_table:
                     st.html(stage_table)
                 st.markdown("\n".join(x for x in more if x))
@@ -540,7 +540,7 @@ def _dialog_limits(p: Pipeline) -> None:
                          "s chạy / s clip": x["run_per_clip_s"]["median"], "Tỉ lệ lỗi": x["fail_rate"],
                          "Bị giới hạn tốc độ": x["rate_limited"], "Ngày gần nhất": x["last_day"]})
     if rows:
-        st.dataframe(rows, hide_index=True, width="stretch")
+        data_table(rows, hide_index=True, width="stretch")
     else:
         st.caption("Chưa có job nào xong — chưa đủ dữ liệu.")
     st.caption(" · ".join(f"{label}: chạy cùng lúc cao nhất {m[k]['peak']}, cao nhất không bị giới hạn tốc độ {m[k]['peak_without_rate_limit']}"
@@ -701,9 +701,9 @@ def user_bar() -> str:
         st.session_state["user_name"] = typed
         st.query_params["user"] = typed
     if not typed and ui.v2_on():
-        st.markdown(":orange[Nhập tên để lượt gen được ghi cho bạn.]")
+        st.markdown(colored("warn", "Nhập tên để lượt gen được ghi cho bạn."), unsafe_allow_html=True)
     elif not typed:
-        st.markdown(":orange[Nhập tên trước khi gen ảnh/video để lượt gen được ghi cho bạn (nếu để trống sẽ tính là “chưa nhập tên”).]")
+        st.markdown(colored("warn", "Nhập tên trước khi gen ảnh/video để lượt gen được ghi cho bạn (nếu để trống sẽ tính là “chưa nhập tên”)."), unsafe_allow_html=True)
     return typed
 
 
@@ -930,12 +930,8 @@ def _status_line_v2(p: Pipeline, pid: int) -> None:
         D.line(f'<span class="shell-status">{text}</span>', "\n".join(f"- {x}" if not x.startswith("    ") else x for x in full), "shell-status")
     stale = code_changed_since_start()
     if stale:                                           # S6.4: #8 ran for hours on code older than the fixes on disk
-        c1, c2 = st.columns([24, 1], vertical_alignment="center")
-        c1.warning("⚠ Code đã đổi sau khi Dashboard khởi động — tắt / mở lại để dùng bản mới.")
-        with c2:
-            with D.info("shell-stale"):
-                st.markdown(f"Code đã đổi sau khi Dashboard khởi động (`{stale}`) — tắt / mở lại Dashboard để dùng bản mới "
-                            "(các việc đang chạy vẫn dùng code cũ tới lúc đó).")
+        D.note("warning", f"Code đã đổi sau khi Dashboard khởi động (`{stale}`) — tắt / mở lại Dashboard để dùng bản mới "
+               "(các việc đang chạy vẫn dùng code cũ tới lúc đó).", "⚠ Code đã đổi sau khi Dashboard khởi động — tắt / mở lại để dùng bản mới.", "shell-stale", attention=True)
 
 
 def _budget_left_frac(p: Pipeline, pid) -> "float | None":
@@ -975,7 +971,7 @@ def code_changed_since_start() -> str:
 
 
 def _budget_bit(p: Pipeline, pid) -> str:
-    """S6.4: the project's locked budget as used / cap / left, in the status line (it was only inside Bước 1)."""
+    """S6.4: the project's locked budget as used / cap / left, in the status line (it was only inside the Kịch bản screen)."""
     if pid is None:
         return ""
     try:

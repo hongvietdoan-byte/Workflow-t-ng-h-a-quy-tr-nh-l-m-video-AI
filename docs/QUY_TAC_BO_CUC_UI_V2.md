@@ -35,10 +35,31 @@ Mọi nhánh (B, D, E, F, G) phải đọc file này, `docs/THIET_KE_GIAO_DIEN_2
 - Kiểm bằng mắt: chạy `preview_start` với tên cấu hình riêng (cổng riêng, xem `.claude/launch.json`; nếu chưa có thì thêm cấu hình trong worktree của bạn), đăng nhập, bật cờ `ui_v2` (⚙ → 🧪), chụp ảnh sáng + tối, và chạy `tools/ui_contrast_audit.js` (0 chữ < 4.5:1, 0 chữ < 12 px trừ emoji).
 - Commit trên nhánh `ui/<tên>` của bạn (không push, không đụng `main`). Báo cáo cuối (tiếng Việt): file đã đổi, bảng đối chiếu điều khiển cũ → mới, ảnh chụp (đường dẫn), kết quả test, “Đề nghị cho lõi”, việc chưa xong.
 
-## 5. Thông tin theo mức ưu tiên (người dùng yêu cầu 01/10) — chi tiết vào dấu ⓘ
+## 5. Thông tin theo mức ưu tiên (người dùng yêu cầu 01/10) — chi tiết thành chú thích (tooltip + popover), KHÔNG còn nút ⓘ
 - **P1 — luôn hiện:** trạng thái (nhãn/pill), nút hành động chính, lỗi chặn, tiền sắp hết.
 - **P2 — một dòng tóm tắt:** vd. “3 khung cần duyệt · QC thấp nhất 0.79”, “Bible đã khóa · 4 nhân vật”.
-- **P3 — vào ⓘ (`components.info(key)` hoặc `components.line(text, details_md, key)`):** giải thích dài, danh sách, số đo chi tiết, lý do/nguồn, hướng dẫn, ghi chú QC dài, lịch sử, cảnh báo ít quan trọng, mô tả tùy chọn, mọi đoạn `st.caption` dài.
+- **P3 — vào chú thích (`components.line(text, details_md, key)`, `components.note(kind, text, summary, key)` hoặc `with components.info(key, anchor=…)`):** giải thích dài, danh sách, số đo chi tiết, lý do/nguồn, hướng dẫn, ghi chú QC dài, lịch sử, cảnh báo ít quan trọng, mô tả tùy chọn, mọi đoạn `st.caption` dài.
 - **P4 — không hiện:** thông tin lặp lại ở nơi khác, mã nội bộ, đường dẫn file, thông tin mà người dùng thường không cần.
-- Quy tắc áp dụng: không đoạn văn bản thường nào dài hơn ~2 dòng ở ngoài; danh sách > 3 mục → tóm tắt + ⓘ; mỗi thẻ tối đa 1 dòng phụ; tooltip `help=` của widget chỉ để bổ sung, không thay cho nhãn. Nút ⓘ luôn hiện chữ “ⓘ” (không chỉ hiện khi rê chuột).
-- Không được mất thông tin: nội dung đưa vào ⓘ phải đầy đủ như cũ.
+- Quy tắc áp dụng: không đoạn văn bản thường nào dài hơn ~2 dòng ở ngoài; danh sách > 3 mục → tóm tắt + chú thích; mỗi thẻ tối đa 1 dòng phụ; tooltip `help=` của widget chỉ để bổ sung, không thay cho nhãn.
+- Không được mất thông tin: nội dung đưa vào chú thích phải đầy đủ như cũ (tooltip rút gọn ≤ ~420 ký tự, popover có ĐỦ).
+
+## 6. Chú thích (tooltip) — thay nút tròn ⓘ (người dùng 02/10)
+Nút tròn “i” bị bỏ. Thông tin P3 hiện **ngay trên chính dòng / nhãn / thẻ cần giải thích**:
+1. **Dòng có chú thích** (`components.line`, `components.note`, `components.info(key, anchor=<HTML>)`): trông như chữ thường — KHÔNG gạch chân, KHÔNG nháy. Con trỏ đổi thành dạng “help”; **rê chuột hoặc focus bàn phím** → nền nhấn nhẹ + tooltip (tự vẽ bằng CSS từ `data-tip`, nền `--raised`, chữ `--text` ≥ 14,7:1 sáng/tối, 13 px); **bấm / chạm / Enter** → popover đầy đủ (máy cảm ứng và bàn phím không phụ thuộc rê chuột). Tooltip tự ẩn khi popover đang mở. Nút popover nằm đè kín dòng nhưng trong suốt, tên truy cập “Chi tiết”.
+2. **Không có nhãn để gắn** (`components.info(key, label="…")` không có `anchor`): liên kết chữ nhỏ có nhãn (vd. “Chú thích”, “Giải thích số liệu”, “Xem cả N lưu ý”) — không viền, không hình tròn.
+3. **Trong popover** (popover không lồng được): `components.tip(html, md)` (tooltip CSS thuần, `tabindex=0` nên chạm/focus cũng hiện) hoặc mục gập `shell_parts.fold(label, md)` (nhãn “Chi tiết · …”).
+4. **Biến thể gây chú ý `attention=True`** (`info` / `line` / `note` / `tip(…, key=…, attention=True)`) — **MẶC ĐỊNH TẮT**, chỉ cho thông tin MỚI / BẤT THƯỜNG / CẢNH BÁO thật sự (hiện dùng: cảnh báo “Code đã đổi sau khi Dashboard khởi động”). Vầng sáng mờ `--primary` 3 nhịp × 2 s (`animation-iteration-count` hữu hạn) rồi dừng; Python chỉ gắn lớp `v2-attention` ĐÚNG LẦN ĐẦU phần tử hiện ra trong phiên (`components._first_time`), nên rerun — kể cả `autopilot_progress` làm mới 5 s — không nháy lại; `prefers-reduced-motion`: vầng tĩnh, không animation. Không đè lên nút chính / cảnh báo (chỉ là `box-shadow`, không đổi bố cục). Thông tin thường xuyên (QC, ước tính, ghi chú) KHÔNG dùng biến thể này.
+5. **Khóa ổn định:** khóa `key` của chú thích phải giống nhau giữa các lần rerun của một fragment tự làm mới (khóa đổi = phần tử mount lại = popover đang mở bị đóng). Fragment như `autopilot_progress` dùng `step1_v2.reset_scope("ap")` + `cap(..., scope="ap")`.
+6. Văn bản trong thuộc tính HTML luôn qua `components._attr` (escape + xuống dòng = `&#10;`); dòng trống trong khối HTML làm Markdown cắt đôi khối.
+
+### Thành phần dùng chung ở lõi (`dashboard/design/components.py`) — các màn dùng thay bản tự viết
+| Hàm | Việc |
+|---|---|
+| `note(kind, text, summary, key)` | thay `st.info/warning/success`: nhãn + một dòng tóm tắt, cả đoạn ở chú thích (`step1_v2.say` gọi hàm này) |
+| `version_strip(n, current)` | dải phiên bản chỉ-đọc v1…vN, tự xuống dòng (dải bấm được ở `storyboard_cards._version_strip` bọc trong `vers-*` + CSS cùng ý) |
+| `confirm_all(key, ids, label, question, container, yes_label, primary, stretch)` | một nút → hỏi Có/Không; `common.confirm_all` và bản “nút chính” của Storyboard gọi hàm này |
+| `cta_box(key)` / `cta(label, key)` | nút chính lớn (3,5 rem, chữ 17 px, toàn chiều rộng) — CSS `[class*="st-key-cta-"]` |
+| `grid(count, cols)` | lưới n cột cho thẻ (Tất cả dự án 3 cột, Storyboard 4 cột) |
+| `data_table(rows, …)` | thay `st.dataframe` chỉ-đọc: v2 → bảng HTML theo sáng/tối, cờ tắt → `st.dataframe` như cũ (qua `dashboard.common`) |
+| `colored(kind, text)` | thay `:orange[]/:green[]/:red[]`: v2 → `.v2-warn-text / .v2-ok-text / .v2-bad-text` (token) |
+| `tip(html, md)`, `md_plain(md)` | tooltip CSS thuần; markdown → chữ thường ngắn |

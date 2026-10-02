@@ -102,7 +102,7 @@ def team_screen(p: Pipeline, pid: int):
     if not v2:
         st.markdown("### 👥 Nhóm")
     hero_slot = st.container() if v2 else None
-    c1, c2, c3, *c4 = st.columns([1.4, 2.4, 2, 0.35] if v2 else [1.4, 2.4, 2], vertical_alignment="center")
+    c1, c2, c3, *c4 = st.columns([1.4, 2.4, 2, 0.9] if v2 else [1.4, 2.4, 2], vertical_alignment="center")
     period = c1.selectbox("Khoảng", list(PERIODS), index=1, label_visibility="collapsed", key="team_period")
     q = c2.text_input("Tìm", placeholder="🔎 Tìm người dùng…", label_visibility="collapsed", key="team_q").strip().lower()
     flt = c3.selectbox("Lọc", list(FILTERS), format_func=FILTERS.get, label_visibility="collapsed", key="team_filter")
@@ -112,12 +112,12 @@ def team_screen(p: Pipeline, pid: int):
                   or (flt == "inact" and r["inactive"]) or r["role_key"] == flt)]
     if v2:
         with c4[0]:
-            with D.info("team-note"):
+            with D.info("team-note", label="Chú thích", help_text=D.md_plain(NOTE)):
                 st.markdown(NOTE)
         _hero(hero_slot, rows, period)
         _people_table(shown)
     else:
-        st.dataframe([{"Người dùng": r["who"], "Vai": r["role"], "Video (xong / gửi)": f"{r['videos_ok']} / {r['videos']}",
+        data_table([{"Người dùng": r["who"], "Vai": r["role"], "Video (xong / gửi)": f"{r['videos_ok']} / {r['videos']}",
                        "Lỗi · Gen lại": f"{r['failed']} · {r['retry']}", "Giây video": f"{r['seconds']:g}", "Ảnh": r["images"],
                        "Tiền chi (USD)": round(r["usd"], 2), "Hạn mức/tháng": (f"{r['limit']:g} ({r['share']:.0%})" if r["limit"] else "—"),
                        "Dự án": r["projects"], "Gần nhất": r["last"]} for r in shown], hide_index=True, width="stretch")
@@ -128,11 +128,9 @@ def team_screen(p: Pipeline, pid: int):
     st.divider()
     roles_md = "  \n".join(f"- **{r['label']}** — {r['desc']}" for r in team.ROLES.values())
     if v2:                                  # title stays; the how-to line + the role descriptions go in its ⓘ
-        h1, h2 = st.columns([24, 1], vertical_alignment="center")
-        h1.markdown("**Vai trò & hạn mức**")
-        with h2:
-            with D.info("team-roles"):
-                st.markdown("Chọn vai thay vì tick từng quyền; quyền lẻ vẫn ở ⚙ → Hệ thống → 👥 Phân quyền.\n\n" + roles_md)
+        _roles_note = "Chọn vai thay vì tick từng quyền; quyền lẻ vẫn ở ⚙ → Hệ thống → 👥 Phân quyền.\n\n" + roles_md
+        with D.info("team-roles", anchor="<b>Vai trò & hạn mức</b>", help_text=D.md_plain(_roles_note)):
+            st.markdown(_roles_note)
     else:
         ui.html(ui.card_title("Vai trò & hạn mức", "chọn vai thay vì tick từng quyền; quyền lẻ vẫn ở ⚙ → Hệ thống → 👥 Phân quyền"))
         st.markdown(roles_md)
@@ -192,10 +190,10 @@ def team_screen(p: Pipeline, pid: int):
     c_a, c_b = st.columns(2)
     with c_a:
         st.markdown("**Nhật ký quyền**")
-        st.dataframe([{"Lúc": r["at"], "Ai": r["email"], "Việc": r["action"], "Chi tiết": r["detail"]} for r in log],
+        data_table([{"Lúc": r["at"], "Ai": r["email"], "Việc": r["action"], "Chi tiết": r["detail"]} for r in log],
                      hide_index=True, width="stretch")
     with c_b:
         st.markdown("**Lượt gen gần đây**")
-        st.dataframe([{"Lúc": (r["created_at"] or "")[:16].replace("T", " "), "Ai": r["who"],
+        data_table([{"Lúc": (r["created_at"] or "")[:16].replace("T", " "), "Ai": r["who"],
                        "Loại": "video" if r["type"] == "video_gen" else "ảnh", "Dự án": r["name"], "Trạng thái": r["state"]} for r in gens],
                      hide_index=True, width="stretch")

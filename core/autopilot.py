@@ -259,7 +259,7 @@ def _director_phase(p: Pipeline, pid: int, ctx: Context) -> Optional[str]:
         _log(p, pid, f"Director: {r['characters']} nhân vật, {r['scenes']} cảnh" + (f", {n_shots} shot" if n_shots != r["scenes"] else "")
              + (f" — hai lượt ({r['calls']} lượt Claude, chưa thử thật)" if r.get("two_pass") else ""))
         if r.get("flagged"):                               # Đạo diễn duyệt: the person sees it at Bước 1 (the Bible gate still waits)
-            _d(p, pid, "director", "warn", "Đạo diễn duyệt: cảnh " + ", ".join(map(str, r["flagged"])) + " lệch ý đồ — xem Bước 1",
+            _d(p, pid, "director", "warn", "Đạo diễn duyệt: cảnh " + ", ".join(map(str, r["flagged"])) + " lệch ý đồ — xem màn Kịch bản",
                "director_review")
     missing = [f"S{s['idx']:02d}" for s in p.conn.execute("SELECT idx, data FROM scenes WHERE project_id=? ORDER BY idx", (pid,))
                if not (json.loads(s["data"] or "{}").get("image_prompt") or "").strip()]
@@ -279,15 +279,15 @@ def _director_phase(p: Pipeline, pid: int, ctx: Context) -> Optional[str]:
                                  "(chạy tiếp không kiểm)")
     if flags and not gates["bible_done"]:
         raise _Wait("bible", "Mô tả nhân vật mâu thuẫn với ảnh tài nguyên: " + "; ".join(f"{n}: {m[0]}" for n, m in flags.items())
-                    + " — sửa ở Bước 1 (đề xuất sửa có sẵn) rồi bấm Tiếp tục")
+                    + " — sửa ở màn Kịch bản (đề xuất sửa có sẵn) rồi bấm Tiếp tục")
     gaps = bible_gaps(p, pid)
     if gaps["no_lock"] and not gates["bible_done"]:           # O6: a character without a Lock drifts from shot to shot
         raise _Wait("bible", "Nhân vật chưa có Character Lock (nét nhận diện phải giữ): " + ", ".join(gaps["no_lock"])
-                    + " — viết Lock ở Bước 1 (hoặc duyệt hồ sơ chuẩn ở ⚙ → Kho) rồi bấm Tiếp tục")
+                    + " — viết Lock ở màn Kịch bản (hoặc duyệt hồ sơ chuẩn ở ⚙ → Kho) rồi bấm Tiếp tục")
     for name in gaps["no_picture"]:
         _d(p, pid, "director", "warn", f"{name} chưa có ảnh tham chiếu ở Kho — model chỉ vẽ theo chữ, dễ lệch thiết kế", "no_reference")
     if gates["bible"] and not gates["bible_done"]:
-        raise _Wait("bible", "Chờ bạn duyệt Character Bible (mô tả, Character Lock, giọng, ảnh mốc) ở Bước 1 rồi bấm Tiếp tục")
+        raise _Wait("bible", "Chờ bạn duyệt Character Bible (mô tả, Character Lock, giọng, ảnh mốc) ở màn Kịch bản rồi bấm Tiếp tục")
     llm_io.lock_character_bible(p, pid)
     return None
 
@@ -324,7 +324,7 @@ def _previz_phase(p: Pipeline, pid: int, ctx: Context) -> Optional[str]:
         if r.get("storyboard"):
             review = previz.review_storyboard(p, pid, ctx.llm, ctx.data_dir)
             if review.get("issues"):
-                _log(p, pid, f"Rà storyboard: {len(review['issues'])} lưu ý liên tục (xem Bước 1)")
+                _log(p, pid, f"Rà storyboard: {len(review['issues'])} lưu ý liên tục (xem màn Kịch bản)")
     except (llm_runner.LlmError, ValueError, OSError) as e:
         _log(p, pid, f"Không dựng được layout, gen ảnh theo cách cũ: {str(e)[:150]}")
         _d(p, pid, "previz", "warn", f"autopilot bỏ qua layout: {e}", "previz_skipped")
@@ -392,7 +392,7 @@ def _images_phase(p: Pipeline, pid: int, ctx: Context) -> Optional[str]:
     held = _approve_unflagged(p, pid, "image_gen")         # W15: a picture below a floor waits for the person (storyboard)
     if pilot.active(p, pid):
         if pilot.done(p, pid):
-            raise _Wait("pilot", "Ảnh các cảnh gen thử đã xong — xem ở Bước 2, ổn thì bấm Tiếp tục để gen phần còn lại")
+            raise _Wait("pilot", "Ảnh các cảnh gen thử đã xong — xem ở màn Storyboard, ổn thì bấm Tiếp tục để gen phần còn lại")
         return "Ảnh gen thử: đang làm"
     fresh = lineage.summary(p.conn, pid)["images"][0]
     total = len(_scene_rows(p, pid))
@@ -407,7 +407,7 @@ SERVE_GATES = ("storyboard", "pilot")   # gates reached AFTER the budget was app
 
 def serve_waiting(p: Pipeline, pid: int, ctx: Context) -> bool:
     """S6.4 (PH 25, trial #8): the run waits at the storyboard / pilot gate and the person sends a picture back to be redrawn — the new
-    job used to sit queued until someone pressed Bước 2's button. While waiting at such a gate the pictures already asked for are sent
+    job used to sit queued until someone pressed the Storyboard screen's button. While waiting at such a gate the pictures already asked for are sent
     and collected (the same caps and budget locks as the images phase; nothing new is created, nothing approved — the person decides).
     True while picture jobs are still queued / running."""
     from . import project_budget
@@ -484,7 +484,7 @@ def _storyboard_phase(p: Pipeline, pid: int, ctx: Context) -> Optional[str]:
     if not held and _qc_trusted(p, pid, ctx):
         return None
     raise _Wait("storyboard", "Ảnh khung đầu đã đủ (" + storyboard_gate.summary(p, pid, ctx.data_dir if ctx else None) + (f", {held} ảnh dưới mức sàn chờ bạn xem" if held else "")
-                              + ") — xem “🎞 Storyboard” ở Bước 2, sửa/gen lại shot sai, rồi bấm “Duyệt storyboard” để gen video")
+                              + ") — xem “🎞 Storyboard” ở màn Storyboard, sửa/gen lại shot sai, rồi bấm “Duyệt storyboard” để gen video")
 
 
 def _plates_phase(p: Pipeline, pid: int, ctx: Context) -> Optional[str]:
@@ -786,7 +786,7 @@ def _videos_phase(p: Pipeline, pid: int, ctx: Context) -> Optional[str]:
                 raise _Stop(BUDGET_NOTE)
             if _shot_sends(p, sid, "video_gen") >= SHOT_SENDS:      # O3/W6: an outdated clip is not remade past the shot's cap
                 _d(p, pid, "video", "warn", f"clip của shot #{sid} đã cũ ({r['video_stale']}) nhưng đã gửi {SHOT_SENDS} lần — "
-                   "không tự làm lại, xem ở Bước 4", "shot_cap")
+                   "không tự làm lại, xem ở màn Video", "shot_cap")
                 continue
             regen.regenerate_video(p, ctx.data_dir, r["video_job_id"], f"làm lại vì {r['video_stale']}")
     ctx.video_runner.submit_pending(pid)
@@ -803,7 +803,7 @@ def _videos_phase(p: Pipeline, pid: int, ctx: Context) -> Optional[str]:
         _log(p, pid, line)
     held = _approve_unflagged(p, pid, "video_gen")         # W15: a clip still faulty after its fixes is never approved blindly
     if held and not _active(p, pid, "video_gen"):
-        raise _Wait("clips", f"{len(held)} clip QC còn lỗi (" + "; ".join(held[:3]) + ") — xem ở Bước 4: giữ, sửa hoặc gen lại, "
+        raise _Wait("clips", f"{len(held)} clip QC còn lỗi (" + "; ".join(held[:3]) + ") — xem ở màn Video: giữ, sửa hoặc gen lại, "
                              "rồi bấm Tiếp tục (clip còn chờ sẽ được giữ như bạn đã xem)")
     fresh = lineage.summary(p.conn, pid)["videos"][0]
     total = len(_scene_rows(p, pid))
@@ -959,7 +959,7 @@ def tick(p: Pipeline, project_id: int, ctx: Context) -> str:
         qc = res.get("qc") or {}
         if qc.get("blocks"):                     # S1.9 (trial #8): a cut with a blocking fault is not "done" — the person looks first
             from . import final_qc
-            note = f"Bản dựng có {qc['blocks']} lỗi chặn — xem Bước 5 · Kiểm bản dựng: " + "; ".join(
+            note = f"Bản dựng có {qc['blocks']} lỗi chặn — xem màn Bản giao · Kiểm bản dựng: " + "; ".join(
                 i["msg"] for i in qc["issues"] if i["level"] == "block")[:300]
             _set(p, project_id, ATTENTION, note)
             _log(p, project_id, final_qc.summary(qc)[:600])
@@ -1251,7 +1251,7 @@ def _check_voices(p: Pipeline, pid: int, ctx: Context) -> None:
         return
     if not res["bad"]:
         return
-    _d(p, pid, "voice", "warn", f"{res['bad']} câu thoại có giọng nghi lỗi (cắt/thiếu chữ/ngắt quãng) — nghe lại ở Bước 3 → 🎙 Giọng thoại",
+    _d(p, pid, "voice", "warn", f"{res['bad']} câu thoại có giọng nghi lỗi (cắt/thiếu chữ/ngắt quãng) — nghe lại ở tab Motion (Storyboard) → 🎙 Giọng thoại",
        "voice_check")
     marker = os.path.join(audio_lib.assets_dir(ctx.data_dir, pid), "voice_redo_done")
     if features.on("voice_check_redo") and not os.path.exists(marker):
@@ -1262,7 +1262,7 @@ def _check_voices(p: Pipeline, pid: int, ctx: Context) -> None:
 
 def _story_check_phase(p: Pipeline, pid: int, ctx: Context) -> Optional[str]:
     """S3.2 (feature story_check): the first-time viewer reads the shot plan once (cached by what is on screen) — its reading goes to
-    the log and, when it is lost somewhere, to 📊 Theo dõi and Bước 1. It never stops the run: the person reads it at the plan."""
+    the log and, when it is lost somewhere, to 📊 Theo dõi and the Kịch bản screen. It never stops the run: the person reads it at the plan."""
     from . import features, story_check
     if not features.on("story_check") or ctx.llm is None:
         return None
@@ -1277,7 +1277,7 @@ def _story_check_phase(p: Pipeline, pid: int, ctx: Context) -> Optional[str]:
             _log(p, pid, line[:200])
         lost = [c for c in res.get("confusing") or [] if isinstance(c, dict)]
         if lost or (res.get("understood") or 5) <= 3:
-            _d(p, pid, "director", "warn", f"người xem lần đầu hiểu {res.get('understood')}/5, {len(lost)} chỗ khó hiểu — xem Bước 1",
+            _d(p, pid, "director", "warn", f"người xem lần đầu hiểu {res.get('understood')}/5, {len(lost)} chỗ khó hiểu — xem màn Kịch bản",
                "story_unclear")
     return None
 
@@ -1307,7 +1307,7 @@ def _voice_first_phase(p: Pipeline, pid: int, ctx: Context) -> Optional[str]:
             _d(p, pid, "voice", "warn", f"chưa chọn được giọng tự động: {e}", "no_voice")
         missing = audio_first.speakers_without_voice(p.conn, pid)
     if missing:
-        raise _Wait("voices", "Chưa có giọng cho: " + ", ".join(missing) + " — chọn giọng ở Bước 1 → 🎙 Giọng rồi bấm chạy tiếp "
+        raise _Wait("voices", "Chưa có giọng cho: " + ", ".join(missing) + " — chọn giọng ở màn Kịch bản → 🎙 Giọng rồi bấm chạy tiếp "
                               "(timeline được đo bằng giọng thật trước khi làm ảnh)")
     if stat["missing"] or stat.get("failed"):
         r = voice.generate(p.conn, pid, ctx.audio, ctx.data_dir)
@@ -1349,7 +1349,7 @@ def _voice_phase(p: Pipeline, pid: int, ctx: Context) -> Optional[str]:
         if r["no_voice"]:
             _log(p, pid, "Chưa có giọng cho: " + ", ".join(r["no_voice"]) + " (các câu này chỉ có phụ đề)")
             _d(p, pid, "voice", "warn", "chưa có giọng cho: " + ", ".join(r["no_voice"]) + " — các câu của họ chỉ có phụ đề (chọn giọng ở "
-                                        "Bước 1 → 🎙 Giọng)", "no_voice")
+                                        "màn Kịch bản → 🎙 Giọng)", "no_voice")
         for why in r.get("held") or []:
             _d(p, pid, "voice", "warn", f"không tự gửi lại câu thoại lỗi: {why}", "voice_not_resent")
     if stat.get("running") or stat["missing"]:
@@ -1365,6 +1365,6 @@ def _voice_phase(p: Pipeline, pid: int, ctx: Context) -> Optional[str]:
     if late and not get_gates(p, pid).get("voice_fit_decided"):
         _d(p, pid, "voice", "warn", f"{len(late)} clip đã có ngắn hơn giọng thật — chờ người quyết: làm lại các clip đó (tốn tiền video) "
                                     "hay giữ clip, bản dựng giữ hình dưới câu thoại dài", "voice_longer_than_clip")
-        raise _Wait("voice_fit", f"{len(late)} clip đã làm ngắn hơn giọng thoại thật (giọng chọn sau khi có video). Chọn ở Bước 4: làm lại "
+        raise _Wait("voice_fit", f"{len(late)} clip đã làm ngắn hơn giọng thoại thật (giọng chọn sau khi có video). Chọn ở màn Video: làm lại "
                                  "các clip đó cho vừa giọng (tốn tiền video) hoặc giữ clip — bản dựng giữ hình dưới câu dài")
     return None

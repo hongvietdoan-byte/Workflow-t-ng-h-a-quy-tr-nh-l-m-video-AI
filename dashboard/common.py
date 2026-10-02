@@ -212,24 +212,8 @@ def act(fn, success: str = ""):
 def confirm_all(key: str, ids, label: str, question: str, container=st, yes_label: str = "Có, duyệt hết") -> bool:
     """One 'approve all' button, then a yes/no question. True only when the user answers Yes.
     The question is tied to the exact set of items it was asked about: if the set changes, it is asked again."""
-    ids = tuple(ids)
-    pending_key = f"ask_{key}"
-    if st.session_state.get(pending_key) not in (None, ids):
-        st.session_state[pending_key] = None  # the list changed since the question: forget it
-    if st.session_state.get(pending_key) != ids:
-        if container.button(label, key=key, disabled=not ids):
-            st.session_state[pending_key] = ids
-            st.rerun()
-        return False
-    container.warning(question)
-    yes, no = container.columns(2)
-    if yes.button(yes_label, key=f"{key}_yes", type="primary"):
-        st.session_state[pending_key] = None
-        return True
-    if no.button("Không", key=f"{key}_no"):
-        st.session_state[pending_key] = None
-        st.rerun()
-    return False
+    from dashboard.design import components
+    return components.confirm_all(key, ids, label, question, container, yes_label)
 
 def job_image(pid: int, jid: int):
     """The job's image; a rejected/deleted one is looked up in the trash so versions can still be compared."""
@@ -281,7 +265,7 @@ def scene_expander(p: Pipeline, scene_id, expanded: bool = False, with_motion: b
         if d.get("text"):
             ui.html(f'<div class="scenetext">{escape(d["text"])}</div>')
         else:
-            st.caption("Chưa có nội dung kịch bản (chạy phân tích ở Bước 1).")
+            st.caption("Chưa có nội dung kịch bản (chạy phân tích ở màn Kịch bản).")
         lines = [("Bối cảnh", " · ".join(filter(None, [d.get("time"), d.get("location")]))),
                  ("Nhân vật", ", ".join(d.get("characters") or [])),
                  ("Mood / ánh sáng / cỡ cảnh", " · ".join(filter(None, [d.get("mood"), d.get("lighting"), d.get("shot")]))),
@@ -377,3 +361,5 @@ def scene_status_text(row) -> str:
     return " · ".join([f"ảnh {mark(row['image_job_id'], row['image_stale'])}",
                        f"prompt {mark(row['motion_state'] == 'approved', row['motion_stale'])}",
                        f"video {mark(row['video_state'] in ('succeeded', 'approved'), row['video_stale'])}"])
+
+from dashboard.design.components import colored, data_table  # noqa: E402,F401  (v2: read-only tables follow light/dark; flag off = st.dataframe)

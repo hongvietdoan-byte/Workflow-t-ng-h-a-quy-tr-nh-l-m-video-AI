@@ -11,21 +11,23 @@ LONG_CAPTION = 110          # characters; a caption longer than this is a P3 exp
 
 
 def _short(text: str, limit: int = 88) -> str:
-    """First sentence / clause of a caption, without markdown marks, cut at `limit`."""
-    plain = text.replace("**", "").replace("`", "").replace("\n", " ").strip()
-    for stop in (". ", " — ", ": ", "; "):
-        cut = plain.find(stop)
-        if 30 <= cut <= limit:
-            return plain[:cut].rstrip(" .:;") + ("…" if stop != ". " else "")
-    return plain if len(plain) <= limit else plain[:limit].rsplit(" ", 1)[0] + "…"
+    """First sentence / clause of a caption, without markdown marks, cut at `limit` (shared: components.short_text)."""
+    return D.short_text(text, limit)
 
 
-def _uniq(base: str) -> str:
-    """Unique ⓘ key per call within one run (the same caption can be drawn twice, e.g. once per character)."""
-    seen = st.session_state.setdefault("_script_cap_seen", {})
+def _uniq(base: str, scope: str = "") -> str:
+    """Unique tooltip/popover key per call within one run (the same caption can be drawn twice, e.g. once per character).
+    `scope` = a fragment that reruns by itself (autopilot_progress, every 5 s): it keeps its OWN counters and `reset_scope()` clears them at the start of each of its
+    runs, so its keys stay the same from one refresh to the next — a changed key remounts the element and would close an open popover / tooltip (02/10)."""
+    seen = st.session_state.setdefault("_script_cap_seen" + (f"_{scope}" if scope else ""), {})
     n = seen.get(base, 0)
     seen[base] = n + 1
-    return f"{base}-{n}"
+    return f"{base}-{scope + '-' if scope else ''}{n}"
+
+
+def reset_scope(scope: str) -> None:
+    """Call at the top of a self-refreshing fragment that draws cap()/say() with `scope=` (see `_uniq`)."""
+    st.session_state["_script_cap_seen_" + scope] = {}
 
 
 def _auto_key(text: str, key: str = "") -> str:
@@ -33,28 +35,24 @@ def _auto_key(text: str, key: str = "") -> str:
     return key or f"script-cap-{zlib.crc32(text.encode('utf-8')) & 0xFFFFFF:x}"
 
 
-def cap(text: str, key: str = "", summary: str = "") -> None:
+def cap(text: str, key: str = "", summary: str = "", scope: str = "") -> None:
     """st.caption that, under UI v2, turns a LONG explanation into one summary line + a ⓘ holding the full text (nothing is lost).
     `summary` overrides the automatic first-clause summary (use it when a figure must stay visible). Short captions, and everything
     while the flag is off, are plain st.caption exactly as before."""
     if not ui.v2_on() or (len(text) <= LONG_CAPTION and not summary):
         st.caption(text)
         return
-    D.line(f'<span class="script-sum">{escape(summary or _short(text))}</span>', text, _uniq(_auto_key(text, key)))
+    D.line(f'<span class="script-sum">{escape(summary or _short(text))}</span>', text, _uniq(_auto_key(text, key), scope))
 
 
-_NOTE = {"info": ("Ghi chú", "info"), "warning": ("Lưu ý", "warn"), "success": ("Đã xong", "ok")}
-
-
-def say(kind: str, text: str, key: str = "", summary: str = "") -> None:
+def say(kind: str, text: str, key: str = "", summary: str = "", scope: str = "") -> None:
     """st.info / st.warning / st.success that, under UI v2, becomes a pill + ONE summary line + a ⓘ with the whole message
     (P2 outside, P3 inside — docs/QUY_TAC_BO_CUC_UI_V2.md §5). Flag off: the plain Streamlit box, exactly as before.
     Blocking errors are NOT routed here (they stay st.error / red lines: P1)."""
     if not ui.v2_on():
         {"info": st.info, "warning": st.warning, "success": st.success}[kind](text)
         return
-    label, tone = _NOTE[kind]
-    D.line(f'{D.pill(label, tone)} <span class="script-sum">{escape(summary or _short(text))}</span>', text, _uniq(_auto_key(text, key)))
+    D.note(kind, text, summary or _short(text), _uniq(_auto_key(text, key), scope))
 
 
 def next_panel(p: Pipeline, pid: int, scenes, chars, locked: bool) -> str:
@@ -132,7 +130,7 @@ def _hero(p: Pipeline, pid: int, proj, scenes, chars, locked: bool, stale: int) 
         with a:
             st.html(D.hero_html(proj["name"] or "Dự án", "Kịch bản & đạo diễn · tách cảnh → chuẩn bị → Director → nhân vật → thoại → khóa", pills))
             # the "Việc tiếp theo" band is drawn once by the shell header in v2 (integrator, lane B) — not repeated here
-        with b.container(key="script-cta-box"):
+        with b, D.cta_box("script"):
             _primary_action(p, pid, kind, scenes, chars, b_total, b_spent, _lock_and_go)
 
 
@@ -213,7 +211,7 @@ def step1_v2(p: Pipeline, pid: int, proj, scenes, chars, risky, char_names, lock
     _hero(p, pid, proj, scenes, chars, locked, stale)
     inherited = st.session_state.pop("inherited_note", None)            # S3.8: said once, right after the project was made
     if inherited:
-        say("info", "↪ " + inherited + " — đổi ở Bước 1 · Định dạng nếu dự án này khác.", f"script-inherited-{pid}",
+        say("info", "↪ " + inherited + " — đổi ở màn Kịch bản · Định dạng nếu dự án này khác.", f"script-inherited-{pid}",
              "Dự án này kế thừa thiết lập từ dự án trước")
     inputs_and_refs_v2(p, pid, bool(scenes))
 
@@ -252,8 +250,8 @@ def step1_v2(p: Pipeline, pid: int, proj, scenes, chars, risky, char_names, lock
                 missing_anchor = [c["name"] for c in chars if not c["anchor_approved"]]
                 with a:                                                 # P2 one line, P3 in ⓘ; the ONE primary button is in the hero
                     D.line('<span class="script-sum">' + (f"Chưa duyệt ảnh mốc: {len(missing_anchor)} nhân vật" if missing_anchor
-                                                          else "Xong nhân vật → duyệt & khóa rồi sang Bước 2") + "</span>",
-                           "Xong nhân vật (và storyboard nếu dựng): duyệt & khóa rồi sang Bước 2."
+                                                          else "Xong nhân vật → duyệt & khóa rồi sang màn Storyboard") + "</span>",
+                           "Xong nhân vật (và storyboard nếu dựng): duyệt & khóa rồi sang màn Storyboard."
                            + (f" Chưa duyệt ảnh mốc: {', '.join(missing_anchor)}." if missing_anchor else ""), f"script-lock-row-{pid}")
                 b.button("✔ Duyệt & khóa → Storyboard", key=f"lock_go_{pid}", on_click=S._lock_and_go, args=(p, pid))
                 if st.session_state.get("lock_error"):

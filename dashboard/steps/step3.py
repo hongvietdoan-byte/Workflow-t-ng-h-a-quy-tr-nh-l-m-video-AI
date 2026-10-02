@@ -10,10 +10,10 @@ def _card(key: str):
     return components.card(key)
 
 
-def _info(key: str):
-    """ⓘ (UI v2): chi tiết ưu tiên thấp nằm trong popover, bên ngoài chỉ có tóm tắt."""
+def _info(key: str, anchor=None, help_text="Bấm để xem chi tiết"):
+    """Chú thích (UI v2): chi tiết ưu tiên thấp nằm trong popover mở ngay khi bấm vào `anchor`, bên ngoài chỉ có tóm tắt."""
     from dashboard.design import components
-    return components.info(key)
+    return components.info(key, anchor=anchor, help_text=help_text)
 
 
 def step3(p: Pipeline, pid: int):
@@ -79,7 +79,7 @@ def step3(p: Pipeline, pid: int):
                  default_open=not rows or motion_ok < len(rows), sub=f"{len(rows)} cảnh") as motion_open:  # S9 E3.1
         if motion_open:
             if not rows:
-                st.caption("Chưa có motion prompt: duyệt ảnh ở Bước 2 rồi bấm “🤖 Viết motion prompt”.")
+                st.caption("Chưa có motion prompt: duyệt ảnh ở màn Storyboard rồi bấm “🤖 Viết motion prompt”.")
             voices = SB.scene_voice_map(p, pid) if v2 else {}
             animatic_done = os.path.exists(os.path.join(C.DATA, str(pid), "output", "ANIMATIC.mp4")) if v2 else False
             for r in rows:
@@ -92,20 +92,18 @@ def step3(p: Pipeline, pid: int):
                 flags = json.loads(r["check_flags"] or "[]") if r["check_flags"] else []
                 lint = json.loads(r["lint"] or "{}") if r["lint"] else {}
                 if v2:                                         # P1: các pill; mọi chi tiết (cờ, rà prompt, nội dung kịch bản) trong ⓘ
-                    h1, h2 = st.columns([12, 1], vertical_alignment="center")
-                    h1.markdown(SB.motion_pills(r, srow, voices, bool(img_id), animatic_done, flags, lint), unsafe_allow_html=True)
-                    with h2:
-                        with _info(f"sb-mot-{r['sid']}-more"):
-                            if flags:
-                                st.markdown("**Cờ kiểm tra**\n" + "\n".join(f"- ⚑ {f}" for f in flags))
-                            if lint:
-                                if lint.get("ok") and not lint.get("issues"):
-                                    st.markdown("**Rà prompt:** ổn")
-                                else:
-                                    st.markdown("**Rà prompt**\n" + "\n".join(f"- 🔍 {i}" for i in lint.get("issues") or []))
-                                if lint.get("revised_prompt"):
-                                    st.markdown("**Bản sửa đề xuất:** " + lint["revised_prompt"])
-                            scene_expander(p, r["sid"])
+                    with _info(f"sb-mot-{r['sid']}-more", SB.motion_pills(r, srow, voices, bool(img_id), animatic_done, flags, lint),
+                               "Cờ kiểm tra, rà prompt, nội dung kịch bản — bấm để xem"):
+                        if flags:
+                            st.markdown("**Cờ kiểm tra**\n" + "\n".join(f"- ⚑ {f}" for f in flags))
+                        if lint:
+                            if lint.get("ok") and not lint.get("issues"):
+                                st.markdown("**Rà prompt:** ổn")
+                            else:
+                                st.markdown("**Rà prompt**\n" + "\n".join(f"- 🔍 {i}" for i in lint.get("issues") or []))
+                            if lint.get("revised_prompt"):
+                                st.markdown("**Bản sửa đề xuất:** " + lint["revised_prompt"])
+                        scene_expander(p, r["sid"])
                 c0, c1, c2, c3 = st.columns([1.2, 5, 1.4, 1.6], vertical_alignment="top")
                 with c0:
                     ui.html(f'<b>{C.unit_label(p, pid, r["idx"])}</b>' + (" ⭐" if data.get("shot_role") == "hero" else "")
@@ -210,14 +208,14 @@ def voice_panel(p: Pipeline, pid: int) -> None:
     if v2:
         from dashboard.design.screens import storyboard_cards as SB
     with st.expander(f"🎙 Giọng thoại (TTS) — {done}/{stat['total']} câu đã có giọng", expanded=done < stat["total"] and not v2):
-        _about = ("Thoại tiếng Việt được đọc bằng giọng của từng nhân vật (chọn ở Bước 1 · Character Bible). Độ dài giọng THẬT đặt "
+        _about = ("Thoại tiếng Việt được đọc bằng giọng của từng nhân vật (chọn ở màn Kịch bản · Character Bible). Độ dài giọng THẬT đặt "
                   "thời lượng clip (thay cho ước lượng âm tiết), rồi được xếp lên video cuối không chồng tiếng và làm mốc cho phụ đề.")
         if v2:
             SB.note("Mỗi câu thoại đọc bằng giọng của nhân vật", _about, "sb-voice-about")
         else:
             st.caption(_about)
         if stat["no_voice"]:
-            st.warning("Chưa có giọng cho: " + ", ".join(stat["no_voice"]) + " → chọn ở Bước 1 (Character Bible → 🎙 Giọng).")
+            st.warning("Chưa có giọng cho: " + ", ".join(stat["no_voice"]) + " → chọn ở màn Kịch bản (Character Bible → 🎙 Giọng).")
         c1, c2, c3 = st.columns(3)
         todo = stat["missing"] + stat.get("failed", 0)
         if c1.button(f"🎙 Tạo giọng cho {todo} câu", key=f"tts_gen_{pid}", type="primary", disabled=provider is None or not todo,

@@ -119,11 +119,9 @@ def _card(r: dict) -> None:
     """v2: one project = one glass card: P1 (name, state pill, progress bar, open button) + ONE summary line; the rest is in its ⓘ."""
     label, kind = PILL[r["status"]]
     with D.card(f"home-{r['id']}"):
-        c1, c2 = st.columns([7, 1], vertical_alignment="center")
-        c1.markdown(f'<div class="home-name" title="{escape(r["name"])}">#{r["id"]} {escape(r["name"])}</div>', unsafe_allow_html=True)
-        with c2:
-            with D.info(f"home-{r['id']}"):
-                st.markdown(_details_html(r), unsafe_allow_html=True)
+        with D.info(f"home-{r['id']}", anchor=f'<div class="home-name">#{r["id"]} {escape(r["name"])}</div>',
+                    help_text="Người tạo, tiến độ, tiền, việc chờ bạn — bấm để xem"):
+            st.markdown(_details_html(r), unsafe_allow_html=True)
         st.markdown(D.pill(label, kind, running=r["status"] == "run"), unsafe_allow_html=True)
         st.markdown(D.meter(progress_of(r)), unsafe_allow_html=True)
         summary = " · ".join([r["step_label"], _money_text(r)] + ([f"{r['needs_review']} chờ bạn"] if r["needs_review"] else []))
@@ -133,10 +131,9 @@ def _card(r: dict) -> None:
 
 
 def _grid(shown: list) -> None:
-    for i in range(0, len(shown), GRID_COLS):
-        for col, r in zip(st.columns(GRID_COLS), shown[i:i + GRID_COLS]):
-            with col:
-                _card(r)
+    for col, r in zip(D.grid(len(shown), GRID_COLS), shown):       # 02/10: shared n-column card grid (components.grid)
+        with col:
+            _card(r)
 
 
 def _hero(slot, shown: list, allrows: list) -> None:
@@ -164,7 +161,7 @@ def home(p: Pipeline, pid: int):
     if not allrows:
         st.info("Chưa có dự án nào đang dùng. Bấm “➕ Dự án mới” ở thanh trên (dự án đã cất khôi phục ở ⚙ → Dự án).")
         return
-    top = st.columns([1.3, 3, 1.3, 1.8, 0.35] if v2 else [1.3, 3, 1.3, 1.8], vertical_alignment="center")
+    top = st.columns([1.3, 3, 1.3, 1.8, 0.9] if v2 else [1.3, 3, 1.3, 1.8], vertical_alignment="center")
     scope = "team" if (auth_on() and top[0].radio("Phạm vi", ["Của tôi", "Cả nhóm"], horizontal=True, label_visibility="collapsed",
                                                   key="home_scope") == "Cả nhóm") else "mine"
     if not auth_on():
@@ -185,7 +182,7 @@ def home(p: Pipeline, pid: int):
             st.rerun()
     if v2:
         with top[4]:
-            with D.info("home-scope"):
+            with D.info("home-scope", label="Chú thích", help_text=D.md_plain(SCOPE_NOTE)):
                 st.markdown(SCOPE_NOTE)
     shown = _sort(apply_filters(allrows, scope, q, status, step, creator, warn), sort)
     active_filters = [x for x in (STATUS.get(status), STEP_NAME.get(step), creator, "có cảnh báo" if warn else "", f"“{q}”" if q else "") if x]
@@ -224,7 +221,7 @@ def _rows(shown: list) -> None:
         done_units = (r["images"] + r["motion"] + r["videos"]) / (3 * total) if r["scenes"] else 0.0
         c[2].markdown(ui.pbar(min(done_units, 1.0), text=f"{r['step_label']} · ảnh {r['images']}/{r['scenes']} · clip {r['videos']}/{r['scenes']}"), unsafe_allow_html=True)
         c[3].caption(f"{r['spent']:.2f} / {r['cap']:.2f}" if r["cap"] else f"{r['spent']:.2f} / —")
-        c[4].markdown(f":red[**{r['needs_review']}**]" if r["needs_review"] else "0")
+        c[4].markdown(colored("bad", f"**{r['needs_review']}**") if r["needs_review"] else "0", unsafe_allow_html=True)
         c[5].button("Mở →", key=f"home_open_{r['id']}", on_click=C.go_screen, args=(r["id"], r["screen"]), width="stretch",
                     type="primary" if r["status"] == "wait" and r["mine"] else "secondary")
         if r["autopilot_note"] and r["status"] in ("wait", "run"):
