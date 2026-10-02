@@ -202,6 +202,9 @@ body { background: var(--bg); color: var(--text); }
 [data-testid="stDialog"] > div { background: var(--raised) !important; color: var(--text) !important; border: 1.5px solid var(--border) !important;
     border-radius: var(--r-lg) !important; box-shadow: var(--shadow); }
 [data-testid="stDialog"] section[role="dialog"], [data-testid="stDialog"] section[role="dialog"] :is(p, li, label, h1, h2, h3, h4, summary) { color: var(--text); }
+/* 02/10 S13.10: khối nội dung ngay dưới <section role="dialog"> mang màu chữ của theme gốc (#111827) → tiêu đề thẻ (.cardtitle), "0%" … là div có chữ
+   trực tiếp bị 1.09:1 ở nền tối (Bài học / Lịch sử / Thùng rác / Phân quyền / Đợt thử). Đặt màu ở khối đó để mọi div con thừa hưởng. */
+[data-testid="stDialog"] section[role="dialog"] > div { color: var(--text); }
 [data-testid="stDialog"] [data-testid="stCaptionContainer"], [data-testid="stDialog"] [data-testid="stCaptionContainer"] p { color: var(--muted); }
 [data-testid="stDialog"] [aria-label="Close"] { color: var(--text) !important; }
 /* mục gập (st.expander) — một luật cho MỌI nơi (trang, hộp thoại, popover): tiêu đề luôn màu chữ chính trên nền thẻ ở cả 4 trạng thái

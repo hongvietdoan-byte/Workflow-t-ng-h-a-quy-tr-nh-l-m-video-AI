@@ -478,7 +478,9 @@ def _migrate(conn: sqlite3.Connection) -> None:
         conn.execute("ALTER TABLE projects ADD COLUMN qc_reject_floor REAL DEFAULT 0.5")
     _migrate_usage_events(conn)
     _migrate_outputs(conn)
-    job_cols = {r["name"] for r in conn.execute("PRAGMA table_info(jobs)")}
+    # S13.10: every ⌂ card / money bar reads usage_events per project (core.project_budget, core.cost) — without this it is a full scan per project
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_usage_events_project ON usage_events(project_id, kind)")
+    job_cols ={r["name"] for r in conn.execute("PRAGMA table_info(jobs)")}
     for col in ("external_id", "result_path", "created_by"):
         if col not in job_cols:
             conn.execute(f"ALTER TABLE jobs ADD COLUMN {col} TEXT")
