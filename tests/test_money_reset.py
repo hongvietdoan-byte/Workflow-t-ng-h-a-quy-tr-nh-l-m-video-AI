@@ -96,6 +96,21 @@ class ResetTests(unittest.TestCase):
         self.assertIsNotNone(project_budget.check(self.conn, self.pid, "images", per))
         self.assertEqual(money_reset.last(self.conn, "project", self.pid)["who"], "boss@x")
 
+    def test_user_bar_reports_before_after_and_keeps_limit_a_warning(self):
+        self.spend(2, "2000-01-01 00:00:00")            # the job is recent (inside 30 days); the usage row is before the reset point
+        team.set_limit(self.conn, "lan@x", 1.0)
+        bar = money_reset.user_bar(self.conn, " Lan@X ")
+        self.assertEqual((bar["email"], bar["limit"], bar["since"]), ("lan@x", 1.0, None))
+        self.assertGreater(bar["month_usd"], 0)
+        done = money_reset.reset(self.conn, OWNER, ["user"], "tháng mới", email="lan@x")
+        self.assertEqual(done["user"]["before_usd"], bar["month_usd"])
+        self.assertEqual(done["user"]["after_usd"], 0.0)
+        self.assertEqual(money_reset.user_bar(self.conn, "lan@x")["limit"], 1.0)         # the personal limit is untouched (warning only)
+        with self.assertRaises(auth.AuthError):                                          # no non-Owner path to the same effect
+            money_reset.reset(self.conn, MEMBER, ["user"], "x", email="lan@x")
+        with self.assertRaises(ValueError):
+            money_reset.reset(self.conn, OWNER, ["user"], "  ", email="lan@x")
+
     def test_audit_row_written(self):
         money_reset.reset(self.conn, auth.Identity("boss@x", "B", "owner", []), ["trial"], "ghi vết")
         row = self.conn.execute("SELECT email, detail FROM audit_log WHERE action='reset_money'").fetchone()

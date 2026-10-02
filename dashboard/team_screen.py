@@ -93,6 +93,71 @@ def _history_v2(log, gens) -> None:
                           cls="team-table", empty="Chưa có lượt gen nào"), unsafe_allow_html=True)
 
 
+def _usd(x) -> str:
+    return f"{float(x or 0):.2f} USD"
+
+
+def user_reset_block(p: Pipeline, actor: dict, rows: list, v2: bool) -> None:
+    """Owner-only "↺ Đặt lại" of one person's monthly money bar (core.money_reset bar `user`). One row per person with the bar now and a
+    button; the button opens a panel with a REQUIRED reason and a yes/no question that states the number before → after. The ledger is
+    never touched and the personal limit stays a warning (hiding this is a convenience: core.money_reset refuses anyone but the Owner)."""
+    from core import money_reset
+    if actor.get("role") != "owner":
+        return
+    people = [r["who"] for r in rows if r["user"] or r["usd"]]
+    ss = st.session_state
+    target = ss.get("team_mr_target")
+    if target not in people:
+        target = ss["team_mr_target"] = None
+    done = ss.get("team_mr_done")
+    with st.expander("↺ Đặt lại thanh tiền của từng người (chỉ Owner)", expanded=bool(target or done)):
+        st.caption("Thanh tháng của người đó đếm lại từ bây giờ; sổ chi giữ nguyên, mỗi lần đặt lại được ghi nhật ký kèm lý do. "
+                   "Hạn mức cá nhân vẫn chỉ cảnh báo.")
+        if done:
+            u = done.get("user") or {}
+            st.success(f"Đã đặt lại thanh của {u.get('email', '?')}: {_usd(u.get('before_usd'))} → {_usd(u.get('after_usd'))} "
+                       f"(đếm lại từ {u.get('since', '?')} UTC).")
+            ss["team_mr_done"] = None
+        for who in people:
+            bar = money_reset.user_bar(p.conn, who)
+            rec = money_reset.last(p.conn, "user", who)
+            c = st.columns([3, 2.4, 1.3], vertical_alignment="center")
+            c[0].markdown(f"<b>{escape(who)}</b>" + (f"  \n<small>đặt lại lần cuối {escape(str(rec.get('at', '')))} bởi "
+                                                   f"{escape(str(rec.get('who', '?')))} — {escape(str(rec.get('why', '')))}</small>"
+                                                   if rec else ""), unsafe_allow_html=True)
+            c[1].markdown(f"{_usd(bar['month_usd'])} / 30 ngày" + (f"  \n<small>hạn mức {bar['limit']:g} USD</small>" if bar["limit"] else ""),
+                          unsafe_allow_html=True)
+            if c[2].button("↺ Đặt lại", key=f"team_mr_{who}", help="Đếm lại thanh tiền tháng của người này từ bây giờ (cần lý do).",
+                           type="primary" if who == target else "secondary"):
+                ss["team_mr_target"] = who
+                st.rerun()
+        if not target:
+            return
+        bar = money_reset.user_bar(p.conn, target)
+        with (D.card("team-mr") if v2 else st.container(border=True)):
+            st.markdown(f"<b>Đặt lại thanh của {escape(target)}</b> — hiện {_usd(bar['month_usd'])} → sau khi đặt lại 0.00 USD "
+                        "(chỉ tính từ các lượt gen sau bây giờ).", unsafe_allow_html=True)
+            why = (st.text_input("Lý do (bắt buộc)", key=f"team_mr_why_{target}",
+                                 placeholder="ví dụ: sang tháng mới, đã nạp thêm tiền") or "").strip()
+            if not why:
+                st.caption("Cần nhập lý do.")
+            ids = (target, why) if why else ()
+            if C.confirm_all(f"team_mr_go_{target}", ids, "↺ Đặt lại thanh này",
+                             f"Đặt lại thanh của {target}? Đang {_usd(bar['month_usd'])} → 0.00 USD. Sổ chi giữ nguyên. Lý do: {why}",
+                             st, "Có, đặt lại"):
+                try:
+                    res = money_reset.reset(p.conn, actor, ["user"], why, email=target)
+                except Exception as e:  # noqa: BLE001 - shown, never a crash of the screen
+                    st.error(f"Không đặt lại được: {e}")
+                    return
+                ss["team_mr_done"] = res
+                ss["team_mr_target"] = None
+                st.rerun()
+            if st.button("Đóng", key="team_mr_close"):
+                ss["team_mr_target"] = None
+                st.rerun()
+
+
 def team_screen(p: Pipeline, pid: int):
     if not (me().get("role") == "owner" or allowed("monitor")):
         st.warning("Màn Nhóm dành cho Owner hoặc người có quyền “Theo dõi hiệu suất”.")
@@ -165,6 +230,7 @@ def team_screen(p: Pipeline, pid: int):
                 st.toast(f"Đã lưu {u['email']}")
                 st.rerun()
     roles_box.close()
+    user_reset_block(p, me(), rows, v2)
     with (D.card("team-invite") if v2 else st.container(border=True)):
         st.markdown("**Mời người mới**")
         i1, i2, i3, i4 = st.columns([3, 1.6, 1.2, 1], vertical_alignment="bottom")

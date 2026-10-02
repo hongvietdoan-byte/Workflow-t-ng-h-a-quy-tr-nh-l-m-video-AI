@@ -182,7 +182,7 @@
       "code": ["core/diag.py", "core/perf.py", "core/capacity.py", "core/effectiveness.py", "core/inbox.py", "core/team.py", "dashboard/home.py", "dashboard/team_screen.py"],
       "assets": ["tools/diagnose.py", "tools/audit_run.py", "tools/load_test.py"],
       "docs": [],
-      "tests": [],
+      "tests": ["tests/test_team_money_reset.py"],
       "flags": [],
       "diag_stages": [],
       "keywords": ["chẩn đoán", "diag", "hiệu năng", "giới hạn hệ thống", "capacity", "perf"]
