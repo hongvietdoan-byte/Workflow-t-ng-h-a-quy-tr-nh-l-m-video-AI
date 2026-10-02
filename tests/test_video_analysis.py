@@ -51,6 +51,11 @@ class PromptAndAnalyzeTests(unittest.TestCase):
             self.assertIn(tag, text)
         self.assertIn("không tự suy diễn", text)
 
+    def test_prompt_asks_for_phases_ui_marks_and_a_never_draw_list(self):
+        text = va.build_prompt("KENTA", {"duration_sec": 30.0})
+        for part in ("Các giai đoạn theo thời gian", "Chỉ báo giao diện", "Danh sách không được vẽ", "Tương tác"):
+            self.assertIn(part, text)
+
     def test_prompt_appends_the_viewers_note_when_given(self):
         text = va.build_prompt("KELLY", {}, note="chỉ nhìn skill chủ động, bỏ qua trang phục")
         self.assertIn("chỉ nhìn skill chủ động", text)
@@ -109,3 +114,21 @@ class ProbeErrorTests(unittest.TestCase):
             with self.assertRaises(va.VideoAnalysisError) as ctx:
                 va.probe("whatever.mp4")
         self.assertEqual(ctx.exception.code, "config")
+
+
+class DescriptionBlocksTests(unittest.TestCase):
+    def test_writing_one_tool_block_keeps_the_person_text_and_the_other_blocks(self):
+        from core import asset_vision, assets, ff_site
+        desc = "Tay viết của người dùng."
+        desc = va.with_block(desc, "kỹ năng từ video", "v.mp4")
+        desc = asset_vision._with_block(desc, "ngoại hình đọc từ ảnh")
+        desc = ff_site._with_block(desc, "tiểu sử chính thức")                    # written LAST: used to cut the two blocks above
+        self.assertIn("Tay viết của người dùng.", desc)
+        for mark in assets.BLOCK_MARKS:
+            self.assertIn(mark, desc)
+        again = ff_site._with_block(desc, "tiểu sử mới")
+        self.assertEqual(again.count("[ff.garena.com]"), 1)
+        self.assertIn("tiểu sử mới", again)
+        self.assertNotIn("tiểu sử chính thức", again)
+        self.assertIn("kỹ năng từ video", again)
+        self.assertTrue(again.startswith("Tay viết của người dùng."))

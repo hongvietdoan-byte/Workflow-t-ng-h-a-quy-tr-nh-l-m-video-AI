@@ -43,7 +43,7 @@ ROLES = {
 }
 ROLES["pet"] = ROLES["character"]
 LOOKS = {"ingame": "in-game FF", "anime": "anime"}
-STATUSES = {"approved": "đã duyệt", "pending": "chờ duyệt"}
+STATUSES = {"approved": "đã duyệt", "pending": "chờ duyệt", "redundant": "ảnh thừa (trùng / icon — không dùng)"}
 _NOISE = {"front", "back", "side", "full", "avatar", "face", "portrait", "main", "ref", "reference", "hd", "final", "copy",
           "truoc", "sau", "ngang", "mat", "new", "old", "moi", "cu"}
 
@@ -371,7 +371,7 @@ def _row(conn, r, images_by_asset: Optional[Dict] = None) -> Dict:
                                                 " ORDER BY sort, id", (r["id"],))]
     images = [dict(i, path=resolve(i["path"])) for i in images]
     pending = [i for i in images if i.get("status") == "pending" and os.path.exists(i["path"])]
-    images = [i for i in images if i.get("status") != "pending"]            # G2: only pictures a person approved are used
+    images = [i for i in images if i.get("status") in (None, "approved")]            # G2: only pictures a person approved are used
     return {"id": r["id"], "game": r["game"], "kind": r["kind"], "kind_label": KINDS.get(r["kind"], r["kind"]), "name": r["name"],
             "aliases": r["aliases"] or "", "description": r["description"] or "", "project_id": r["project_id"],
             "created_by": r["created_by"], "images": [i for i in images if os.path.exists(i["path"])], "pending": pending,
@@ -684,7 +684,7 @@ def standard_set(asset: Dict, sheets: bool) -> List[tuple]:
     picture ('related', e.g. the skill). Empty when the asset has no approved front_standard picture (the automatic pick is used)."""
     by_role = {}
     for img in asset.get("images") or []:
-        if img.get("status", "approved") != "pending" and img.get("role") in STANDARD_ROLES:
+        if img.get("status", "approved") == "approved" and img.get("role") in STANDARD_ROLES:
             by_role.setdefault(img["role"], img)
     if "front_standard" not in by_role:
         return []
@@ -833,7 +833,9 @@ def set_profile(conn, asset_id: int, data: Dict, approved: bool, reason: Optiona
     The change log (`history`) is kept; `reason` adds a dated entry (kế hoạch V4 4.4: every change of an approved profile says why).
     The short forms (`digest`, core/profile_digest.py) are made again from the new text the next time they are asked for."""
     old = get_profile(conn, asset_id)
-    clean: Dict = {k: str(data.get(k) or "").strip() for k in PROFILE_KEYS if k != "height_m"}
+    def text(v) -> str:                                  # a model may answer a list: one line of "a; b", not "['a', 'b']"
+        return "; ".join(str(x).strip() for x in v if str(x).strip()) if isinstance(v, (list, tuple)) else str(v or "").strip()
+    clean: Dict = {k: text(data.get(k)) for k in PROFILE_KEYS if k != "height_m"}
     history = list(old.get("history") or [])
     if reason:
         import datetime
@@ -1124,6 +1126,24 @@ def _news_for(conn, items: List[Dict], limit: int = 3, around: int = 170) -> str
 
 
 CONTEXT_DESC_CHARS = 320
+
+# Automatic text blocks kept inside a library description, each owned by one tool. The person's own text comes first and is never touched.
+BLOCK_MARKS = ("[ff.garena.com]", "[AI đọc ảnh]", "[Phân tích video kỹ năng]")
+
+
+def replace_block(description: str, mark: str, text: str) -> str:
+    """Put `text` in the block `mark` of a description and leave the person's text and every OTHER tool's block as they are
+    (02/10: each tool used to cut the description at its own mark, so writing the ff.garena.com block erased the AI-read and video blocks
+    after it). Blocks are written back in the fixed order of BLOCK_MARKS."""
+    pattern = "(" + "|".join(re.escape(m) for m in BLOCK_MARKS) + ")"
+    parts = re.split(pattern, description or "")
+    base, blocks = parts[0].rstrip(), {}
+    for m, body in zip(parts[1::2], parts[2::2]):
+        blocks[m] = body.strip()
+    blocks[mark] = text.strip()
+    out = [base] if base else []
+    out += [f"{m} {blocks[m]}" for m in BLOCK_MARKS if blocks.get(m)]
+    return "\n\n".join(out)
 
 
 def _brief(text: str, limit: int = CONTEXT_DESC_CHARS) -> str:

@@ -19,7 +19,7 @@ import re
 import subprocess
 from typing import Dict, List, Optional, Tuple
 
-from . import llm_runner
+from . import assets, llm_runner
 from .ffmpeg_studio import FFmpegNotFound, find_ffmpeg
 
 MARK = "[Phân tích video kỹ năng]"
@@ -96,6 +96,21 @@ def build_prompt(character_name: str, meta: Dict, note: Optional[str] = None) ->
         "- Tên skill (nếu overlay hiện rõ), cách kích hoạt, hình học + màu + chuyển động của VFX, VFX neo vào đâu "
         "(mặt đất/người/vũ khí/mục tiêu), quan hệ không gian giữa nhân vật và hiệu ứng (xuyên tường, dịch chuyển, tầm...), "
         "sát thương/thời gian hồi/tầm CHỈ khi có số hiện rõ trong khung hình.\n\n"
+        "### Các giai đoạn theo thời gian (bài học hồ sơ Kenta / Orion — knowledge/skill_dossier_method.md)\n"
+        "- Chia kỹ năng thành các giai đoạn NỐI TIẾP, mỗi giai đoạn một dòng: tên ngắn · mốc giây (từ nhãn khung) · điều nhìn thấy · "
+        "độ dài ước tính. Mỗi giai đoạn tả cả TRẠNG THÁI TAY / VŨ KHÍ (cầm gì, kiếm trong vỏ hay đã rút, tay không) và nơi hiệu ứng neo.\n"
+        "- Phân biệt rõ: cái người chơi thấy rất nhanh (vài khung) khác với cái kéo dài; không gộp.\n\n"
+        "### Chỉ báo giao diện — KHÔNG phải kỹ năng, KHÔNG vẽ\n"
+        "- Liệt kê mọi thứ thuộc giao diện game chứ không thuộc hiệu ứng: thanh máu / năng lượng, số sát thương, chữ banner, nút bấm, "
+        "vệt đỏ chỉ hướng sát thương quanh người trúng đòn, thanh / vòng / mũi tên định hướng hoặc phạm vi kỹ năng (vd tấm sọc ngang "
+        "trong suốt cạnh chân hay tay nhân vật là chỉ báo nhắm, không phải vũ khí). Chưa chắc là của kỹ năng hay giao diện → ghi "
+        "[UNKNOWN], không tự quyết.\n\n"
+        "### Tương tác (chỉ những gì thấy)\n"
+        "- Hiệu ứng gặp thứ gì (tường, đạn, kẻ địch, kỹ năng khác) và điều xảy ra, kèm mốc giây. Chưa thấy trong video thì KHÔNG ghi "
+        "như đã biết.\n\n"
+        "### Danh sách không được vẽ\n"
+        "- Những thứ mô tả cũ / phiên bản cũ / thói quen của model hay vẽ nhầm cho kỹ năng này (vd rút kiếm, khiên, vỡ tường, giáp phát "
+        "sáng bọc người, hiệu ứng đặc tối màu) — mỗi mục kèm lý do ngắn.\n\n"
         "### Không xác nhận được\n"
         "- Liệt kê ngắn các điểm quan trọng mà khung hình KHÔNG cho thấy rõ (để tránh người đọc sau này tưởng là đã biết)."
         + extra
@@ -118,5 +133,4 @@ def analyze(client, character_name: str, frame_paths: List[str], meta: Dict, not
 
 
 def with_block(description: str, text: str, source_note: str) -> str:
-    base = (description or "").split(MARK)[0].rstrip()
-    return (base + "\n\n" if base else "") + f"{MARK} ({source_note}) {text}"
+    return assets.replace_block(description, MARK, f"({source_note}) {text}")
