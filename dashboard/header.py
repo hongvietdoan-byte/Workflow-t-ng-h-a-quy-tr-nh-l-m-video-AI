@@ -350,7 +350,7 @@ def _settings_project(p: Pipeline, pid: int) -> None:
                  "bản rẻ hơn của model video. Dự án tạo khi đợt thử ngân sách đang bật tự bật chế độ này. Tắt khi làm video thật.")
     if v2:                                           # v2: the pointer + what "Thử rẻ" means fold into one ⓘ; the label stays short
         from dashboard.design.screens import shell_parts as SP
-        SP.fold("Chỉnh QC, khung, thể loại ở đâu · “Thử rẻ” là gì", f"{where}\n\n**🧪 Thử rẻ** = ảnh cỡ nhỏ nhất · 720p · Kling std · "
+        SP.fold("Chỉnh ở đâu? · “Thử rẻ” là gì", f"{where}\n\n**🧪 Thử rẻ** = ảnh cỡ nhỏ nhất · 720p · Kling std · "
                 f"Seedance 2.0/2.5 → Fast. {cheap_tip}")
     else:
         st.caption(where)
@@ -774,7 +774,7 @@ def _global_bar_v2(p: Pipeline, projects):
     """UI v2 top bar (S13 nhánh B): glass bar · gradient brand · project picker · ➕ Dự án mới · 📥 Việc cần bạn · 💵 Tiền · ⋯ Thêm · ⚙ Cài đặt.
     Pause / cancel / risk moved into the labelled "⋯ Thêm" menu (▶ Tiếp tục stays in the bar while paused). The hero strip, the 🎚 level and
     the status line are drawn by app.py right under this bar (shell_parts.project_hero)."""
-    brand = '<div class="shell-brand"><i></i><span class="v2-grad-text">AI Video Pipeline</span></div>'
+    brand = '<div class="shell-brand" title="AI Video Pipeline"><i></i><span class="v2-grad-text">AI Video Pipeline</span></div>'
     with st.container(key="shell-bar"):
         if not projects:
             c0, c4, c5, c6, c7 = st.columns([3, 1.6, 2, 1.6, 1.6], vertical_alignment="center")

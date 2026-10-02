@@ -44,10 +44,10 @@ chỗ tàng hình đo được là trong hộp thoại (⚙ → Kho tài nguyên
 | 7 | Chữ màu cũ `:orange[]` (vd. "Nhập tên để lượt gen được ghi cho bạn." trong ⚙) | sáng 3.42:1 | Cam Streamlit `#E2660C` | màu nội dòng của theme sáng; CSS cũ chỉ có bộ lọc sáng cho chế độ tối; `:gray[]` `#31333F` gần như tàng hình ở nền tối | **Đã sửa**: ánh xạ đỏ/cam/vàng/xanh lá/xanh dương/tím/xám → `--bad/--warn/--ok/--info/--primary/--muted`, bỏ bộ lọc | `sau_sang_tinh_nang_thu_1280.jpg` (dòng cam trong ⚙) |
 | 8 | Hộp `st.info`/`st.warning` (vd. "🔄 Đang tạo 1 ảnh…" ở Storyboard) | tối | Chữ xanh đậm `rgb(0,84,163)` trên nền tối 2.36:1 | màu chữ alert theo theme sáng | **Đã sửa**: chữ alert = `--text`, viền trái màu theo loại (`--info/--warn/--bad/--ok`) | audit Storyboard tối 1 → 0 |
 | 9 | Mục gập (expander) mọi nơi | cả hai | Luật màu chia 3 nơi, rê chuột đổi chữ sang màu nhấn | xem mục 1 | **Đã sửa** (thống nhất) | `sau_toi_theo_doi_muc_gap.jpg` |
-| 10 | Hero cột phải (mọi màn dự án) | cả hai, rõ ở 1100 px | Nhãn "🎚 Mức tự động" cách xa 3 nút chọn; cột trái có khoảng trống dọc lớn giữa pill và "Việc tiếp theo" | bố cục 2 cột `project_hero` (nhánh B) | **Đề xuất** (đổi bố cục): đặt nhãn sát nút, "Việc tiếp theo" ngay dưới pill, cột phải thu gọn | `toi_1100_hero_thua_doc.jpg` |
-| 11 | Thanh trên ở 1100 px | cả hai | Chữ "AI Video Pipeline" ẩn, chỉ còn logo | co giãn của thanh trên | **Đề xuất** (chấp nhận được; cân nhắc tooltip) | `toi_1100_hero_thua_doc.jpg` |
-| 12 | ⚙ → mục gập "ⓘ Chỉnh QC, khung, thể loại ở đâu · 'Thứ rẻ' là gì" | cả hai | Nhãn bị cắt ở popover rộng 390 px | `shell_parts.fold` dùng expander trong popover (bản tạm, TODO D) | **Đề xuất**: rút gọn nhãn ("ⓘ Chỉnh ở đâu?") khi làm `components.info` dùng được trong popover | `sau_toi_popover_caidat.jpg` |
-| 13 | Nền mờ phía sau hộp thoại | tối | Lớp phủ `rgba(150,176,202,.25)` (xám xanh sáng) — trang phía sau không tối đi | theme gốc | **Đề xuất**: token `--scrim` (tối: `rgba(0,0,0,.55)`) | `sau_toi_bang_gia.jpg` |
+| 10 | Hero cột phải (mọi màn dự án) | cả hai, rõ ở 1100 px | Nhãn "🎚 Mức tự động" cách xa 3 nút chọn; cột trái có khoảng trống dọc lớn giữa pill và "Việc tiếp theo" | bố cục 2 cột `project_hero` (nhánh B) | **Đã sửa 02/10 (người dùng duyệt):** `project_hero` thành 2 cột liền (trái: tên + pill + "Việc tiếp theo"; phải: tiến độ + 🎚); nhãn 🎚 cách nút 30 → 6 px (gốc: `<p>` của caption lề dưới 16 px) | `toi_1100_hero_thua_doc.jpg` → `sau_toi_1100_hero.jpg`, `sau_sang_1440_hero.jpg` |
+| 11 | Thanh trên ở 1100 px | cả hai | Chữ "AI Video Pipeline" ẩn, chỉ còn logo | co giãn của thanh trên | **Đã sửa 02/10:** chữ co còn 15 px ở 1200–1279 px, chỉ ẩn < 1200 px (đo: hiện chữ ở 1150 px thì 2 nút bị cắt, 1200 px thì 0), logo có `title` | `sau_toi_1100_hero.jpg` |
+| 12 | ⚙ → mục gập "ⓘ Chỉnh QC, khung, thể loại ở đâu · 'Thứ rẻ' là gì" | cả hai | Nhãn bị cắt ở popover rộng 390 px | `shell_parts.fold` dùng expander trong popover (bản tạm, TODO D) | **Đã sửa 02/10:** nhãn → "ⓘ Chỉnh ở đâu? · “Thử rẻ” là gì" + nhãn mục gập trong popover được xuống dòng (đo: không cắt ở popover 377 px) | `sau_toi_popover_caidat_nhan.jpg` |
+| 13 | Nền mờ phía sau hộp thoại | tối | Lớp phủ `rgba(150,176,202,.25)` (xám xanh sáng) — trang phía sau không tối đi | theme gốc | **Đã sửa 02/10:** token `--scrim` (tối `rgba(4,6,12,.72)`, sáng giữ mặc định) | `sau_toi_hop_thoai_khong_bi_popover_de.jpg` |
 
 Không phát hiện: chữ < 12 px (0 ở mọi màn), cuộn ngang ở 1100 px, nhãn bị "…" ở Storyboard 1100 px, exception trong log server, lỗi console của app.
 
@@ -103,7 +103,7 @@ Không phát hiện: chữ < 12 px (0 ở mọi màn), cuộn ngang ở 1100 px,
 
 ## 7. Việc còn lại
 - Kiểm trên **Dashboard thật** (cổng 8501, cần khởi động lại để nạp `tokens.py`) ở chỗ người dùng đã thấy lỗi; nếu tiêu đề mục gập ngoài trang vẫn mờ → chụp ảnh đúng chỗ.
-- Đề xuất #10–#13 (bố cục hero, thanh trên < 1280, nhãn ⓘ trong popover, nền mờ hộp thoại) — cần duyệt vì đổi bố cục/nhánh B.
+- ~~Đề xuất #10–#13~~ — người dùng duyệt 02/10, đã làm cả 4 (xem bảng lỗi).
 - Chưa quét: panel Chuyên gia ở Video (cần bật 🧠), ca "Tự động đang chạy", các hộp thoại khác (Kho kiến thức, Bài học, Giới hạn hệ thống, Lịch sử & thùng rác, Phân quyền, Đợt thử & Claude), 1100 px các màn ngoài Storyboard, dữ liệu thật (#8).
 - Ánh xạ chữ màu cũ bám giá trị RGB của Streamlit 1.64 → khi nâng Streamlit phải chạy lại bộ đo; về lâu dài thay `:orange[]…` bằng `.v2-warn-text`/pill.
 - `DARK_CSS` cũ trong `dashboard/ui.py` có luật trùng/lỗi thời (`div[role="dialog"]`) — dọn khi bỏ nhánh mã cũ (sau khi `ui_v2` mặc định bật).
