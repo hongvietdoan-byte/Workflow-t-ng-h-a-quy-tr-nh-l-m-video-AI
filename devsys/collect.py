@@ -545,17 +545,18 @@ def parse_todo(text: str) -> List[Dict]:
             closed_at = indent
         if re.match(r"^\s*[-*]\s*\[x\]", line, re.I) and not re.search(r"chưa (?:thử|chạy) thật|còn\s*:", line, re.I):
             continue
-        if DONE_LOG.match(line) and "[ ]" not in line:   # 03/10: a note of what was done ("Đã chạy…", "Chấm lại…") is a log, not a task:
-            continue                                      # it names files/flags, so it used to flip the fingerprint of every area it mentions
         found = [name for name, rx in TODO_MARKERS if rx.search(line)]
         if not found:
             continue
+        is_log = bool(DONE_LOG.match(line)) and "[ ]" not in line   # 03/10: a note of what was done ("Đã chạy…", "Chấm lại…") is a log:
+        # it names files/flags, so tying it to an area flipped the fingerprint of every area it mentions. A leftover written inside it
+        # ("Còn: …", "CHỜ NGƯỜI DÙNG …") still counts — as a general item (`_chung`), never as an item of one area.
         focus = ""
         m = re.search(r"(?<!\w)còn\s*:(.{0,300})", line, re.I)
         if m:
             focus = "còn:" + m.group(1).split("|")[0].strip()
         items.append({"line": no, "section": section, "markers": found, "kind": kind, "text": line.strip(),
-                      "focus": focus, "waiting_user": bool(WAITING_USER.search(line))})
+                      "focus": focus, "waiting_user": bool(WAITING_USER.search(line)), "log": is_log})
     return items
 
 
@@ -586,6 +587,9 @@ def todo_by_area(items: List[Dict], cfg: Dict) -> Dict[str, List[Dict]]:
     out["_chung"] = []
     for it in items:
         if it["kind"] == "recurring":
+            continue
+        if it.get("log"):                                  # a done-log note: general only, never one area's item
+            out["_chung"].append(dict(it, matched_by=""))
             continue
         hits = [aid for aid, rx in strong.items() if any(r.search(it["text"]) for r in rx)]
         how = "tên file/cờ"

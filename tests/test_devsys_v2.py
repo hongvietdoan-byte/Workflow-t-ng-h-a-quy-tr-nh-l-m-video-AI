@@ -539,12 +539,17 @@ class AppNameShadowTests(unittest.TestCase):
 
 
 class TodoLogLinesTests(unittest.TestCase):
-    def test_done_log_entries_are_not_open_items(self):
-        """03/10: "- **Đã chạy …**" / "- **Chấm lại …**" notes name files and flags and say "chưa …": they must not become open TODO items of
-        the areas they mention (that flipped those areas' fingerprint → a false 'đã đổi, nên chấm lại')."""
-        text = ("# TODO\n"
-                "- **Đã chạy 03/10 (dọn):** sửa `core/costume.py`; chưa làm B7\n"
-                "- **Chấm lại toàn bộ 03/10:** chưa thử thật costume\n"
-                "- [ ] việc thật còn mở, chưa làm\n")
+    def test_done_log_entries_are_general_items_not_area_items(self):
+        """03/10: "- **Đã chạy …**" / "- **Chấm lại …**" notes name files and flags and say "chưa …": tying them to the areas they mention flipped
+        those areas' fingerprint (a false 'đã đổi, nên chấm lại'). They stay visible as general items (`_chung`) - a leftover written in
+        them ("Còn: …") is not lost - but never belong to one area."""
+        text = "\n".join(["# TODO",
+                          "- **Đã chạy 03/10 (dọn):** sửa `core/costume.py`; chưa làm B7. Còn: gán lại dự án",
+                          "- **Chấm lại toàn bộ 03/10:** chưa thử thật costume",
+                          "- [ ] việc thật còn mở, chưa làm `core/costume.py`", ""])
         items = collect.parse_todo(text)
-        self.assertEqual([i["text"] for i in items], ["- [ ] việc thật còn mở, chưa làm"])
+        self.assertEqual([i["log"] for i in items], [True, True, False])
+        cfg = {"areas": [{"id": "assets", "name": "Kho", "code": ["core/costume.py"], "keywords": []}]}
+        by = collect.todo_by_area(items, cfg)
+        self.assertEqual([i["text"] for i in by["assets"]], ["- [ ] việc thật còn mở, chưa làm `core/costume.py`"])
+        self.assertEqual(len(by["_chung"]), 2)
