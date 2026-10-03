@@ -732,6 +732,56 @@ def editor_review_panel(p: Pipeline, pid: int, measured: dict) -> None:
             _note("Kết quả duyệt này là của bản dựng / ý đồ trước — bấm duyệt lại.")
         for line in editor_review.lines(saved):
             (st.warning if line.startswith("⚖️") else _note)(line)
+        if saved.get("rough_cut") == measured.get("fingerprint"):
+            editor_apply_panel(p, pid, saved)
+    editor_apply_state(p, pid)
+
+
+def editor_apply_panel(p: Pipeline, pid: int, review: dict) -> None:
+    """P3: tick the proposals to apply (a contested one is applied only if ticked), then ▶ — the cut is rendered again (ffmpeg, 0 USD) with the
+    new lengths / music cues, checked again, and kept only when no check got worse; the old cut stays beside it."""
+    from core import editor_apply, editor_review
+    todo = [f for f in review.get("proposals") or [] if f.get("applicable")]
+    if not todo:
+        _note("Không có đề xuất nào áp được tự động (chỉ gợi ý).")
+        return
+    chosen = []
+    for f in todo:
+        label = f"{f['id']} · shot {f['target_shot']} · {editor_review.describe(f)} — {f['why']}" + (" · ⚖️ Đạo diễn phản đối" if f["status"] == "contested" else "")
+        if st.checkbox(label, value=f["status"] != "contested", key=f"apply_{pid}_{review['fingerprint']}_{f['id']}"):
+            chosen.append(f["id"])
+    if st.button(f"▶ Áp {len(chosen)} đề xuất đã chọn và dựng lại (miễn phí)", key=f"editor_apply_{pid}", disabled=not chosen,
+                 help="Dựng lại bằng ffmpeg, không gọi Claude. Chỉ giữ bản mới nếu bản dựng kiểm không tệ hơn; bản cũ luôn còn để so (A/B). "
+                      f"Tối đa {editor_apply.MAX_ATTEMPTS} lần cho một kết quả duyệt."):
+        with st.spinner("Đang dựng lại…"):
+            ok = act(lambda: st.session_state.__setitem__(f"editor_apply_res_{pid}", editor_apply.apply(p, pid, C.DATA, chosen)))
+        if ok:
+            st.rerun()
+
+
+def editor_apply_state(p: Pipeline, pid: int) -> None:
+    """The last application and, when the current cut is an applied one, the two cuts side by side with a way back."""
+    from core import editor_apply, lineage
+    res = st.session_state.get(f"editor_apply_res_{pid}")
+    for line in editor_apply.lines(res):
+        (st.warning if line.startswith("↩️") else _note)(line)
+    cur = lineage.latest_output(p.conn, pid, "final")
+    meta = (editor_apply._manifest(cur).get("editor_apply") if cur is not None else None)
+    if not meta:
+        return
+    old = p.conn.execute("SELECT path FROM outputs WHERE id=?", (meta["from_output"],)).fetchone()
+    _note(f"Bản dựng hiện tại đã áp đề xuất (vòng {meta['round']}). Bản trước còn giữ để so.")
+    a, b = st.columns(2)
+    if old and os.path.exists(old["path"]):
+        a.caption("A · bản trước")
+        a.video(old["path"])
+    if os.path.exists(cur["path"]):
+        b.caption("B · bản đã áp")
+        b.video(cur["path"])
+    if st.button("↩️ Quay về bản trước (A)", key=f"editor_revert_{pid}"):
+        if act(lambda: editor_apply.revert(p, pid, C.DATA), "Đã quay về bản trước"):
+            st.session_state.pop(f"editor_apply_res_{pid}", None)
+            st.rerun()
 
 
 def loudness_line(p: Pipeline, pid: int) -> None:

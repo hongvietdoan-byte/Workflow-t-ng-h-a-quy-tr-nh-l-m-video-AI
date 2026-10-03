@@ -22,7 +22,7 @@ from . import claude_tasks, cost, director_two_pass, features, llm_runner, rough
 
 STAGE = "editor"
 PROMPT_EDITOR, PROMPT_DIRECTOR = "24_editor_review.md", "25_director_on_editor.md"
-PROMPT_VERSION = 1                       # bump when a prompt or a list below changes: a saved review then expires
+PROMPT_VERSION = 3                       # bump when a prompt or a list below changes: a saved review then expires
 MAX_FINDINGS = 6                         # a longer list drowns the cut ("fix everything" ruins its rhythm)
 RUN_CAP_USD = 0.40                       # one review (two calls, ~0.17 USD estimated): the hard lock of the task (llm_runner.spend_cap)
 AMOUNT_MIN, AMOUNT_MAX = 0.2, 3.0
@@ -115,7 +115,9 @@ def vet(findings: List[Dict], res: Dict) -> Tuple[List[Dict], List[Dict]]:
         if act in NEEDS_SHOT and shot is None:
             no(f, f"shot {int(f.get('target_shot') or 0)} không có trong bản dựng")
             continue
-        applicable = act in ("shorten_shot", "extend_hold", "music_cue", "transition")
+        # The render's transition style (cut / crossfade / dip_to_black) is one setting for the whole film; a per-shot edge exists only
+        # behind `shot_transitions` (unverified) — so a transition proposal is a suggestion, not something P3 can apply.
+        applicable = act in ("shorten_shot", "extend_hold", "music_cue")
         if act in ("shorten_shot", "extend_hold", "slow_or_freeze") and (shot["dialogue"] or shot["lip_sync"]):
             no(f, f"shot {shot['n']} có thoại / khớp môi — không đụng")
             continue
@@ -291,6 +293,13 @@ def run(p, project_id: int, client, data_dir: str, force: bool = False) -> Dict:
     return result
 
 
+def describe(f: Dict) -> str:
+    """One proposal in a few words ("bớt 0,6 s", "nhạc → cut")."""
+    return {"shorten_shot": f"bớt {f['amount']:g} s", "extend_hold": f"giữ khung cuối thêm {f['amount']:g} s", "music_cue": f"nhạc → {f['value']}",
+            "transition": f"chuyển cảnh → {f['value']}", "slow_or_freeze": f"{f['value']}", "suggest_flag": f"thử bật {f['value']}",
+            "retrim_from_raw": "cắt lại từ clip gốc", "none": "nhận xét"}.get(f["action"], f["action"])
+
+
 def lines(res: Optional[Dict]) -> List[str]:
     """What the screen shows. Contested proposals show both sides; nothing here says "applied" — P2 only reports."""
     if not res:
@@ -300,9 +309,7 @@ def lines(res: Optional[Dict]) -> List[str]:
            f"   {len(res.get('proposals') or [])} đề xuất giữ lại / {res.get('proposed', 0)} đề xuất · {len(res.get('rejected') or [])} bị code bỏ · "
            f"ý đồ: {res.get('intent_source')} · tốn {((res.get('cost') or {}).get('usd', 0)):.3f} USD ({(res.get('cost') or {}).get('calls', 0)} lời gọi)"]
     for f in res.get("proposals") or []:
-        what = {"shorten_shot": f"bớt {f['amount']:g} s", "extend_hold": f"giữ thêm {f['amount']:g} s", "music_cue": f"nhạc → {f['value']}",
-                "transition": f"chuyển cảnh → {f['value']}", "slow_or_freeze": f"{f['value']}", "suggest_flag": f"thử bật {f['value']}",
-                "retrim_from_raw": "cắt lại từ clip gốc", "none": "nhận xét"}.get(f["action"], f["action"])
+        what = describe(f)
         out.append(f"{mark.get(f['status'], '•')} {f['id']} @{f['at_s']:g}s cảnh {f['scene']} [{f['observed']}] shot {f['target_shot']}: {what} — {f['why']}"
                    + ("" if f.get("applicable") else " (chỉ gợi ý, chưa áp được)"))
         out.append(f"     chứng cứ: {f['evidence']}")

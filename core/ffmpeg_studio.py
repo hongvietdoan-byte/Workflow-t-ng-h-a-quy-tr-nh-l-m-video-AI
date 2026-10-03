@@ -214,6 +214,17 @@ def add_flashback(src: str, dst: str, seconds: Optional[float] = None, ffmpeg: O
     return dst
 
 
+def trim_head(src: str, dst: str, seconds: float, ffmpeg: Optional[str] = None) -> str:
+    """The first `seconds` of the clip, re-encoded (frame accurate; the sound cut with it). The concat of a cut with plain `transition=cut`
+    uses the whole file, so a shot made shorter in the edit needs its own shorter copy."""
+    ff = ffmpeg or find_ffmpeg()
+    cmd = [ff, "-y", "-i", src, "-t", f"{seconds:.2f}", *_ENCODE]
+    if has_audio(src):
+        cmd += AAC
+    run(cmd + [dst])
+    return dst
+
+
 def hold_last_frame(src: str, dst: str, extra: float, ffmpeg: Optional[str] = None) -> str:
     """The clip followed by its own last frame for `extra` seconds (sound padded with silence)."""
     ff = ffmpeg or find_ffmpeg()

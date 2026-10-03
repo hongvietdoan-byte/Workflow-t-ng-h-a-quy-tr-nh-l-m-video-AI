@@ -187,9 +187,10 @@ def check_subtitle_faces(video: str, cues: Sequence, height: int = 1920, fontsiz
     return out
 
 
-def run(p: Pipeline, project_id: int, data_dir: str, frames: bool = True) -> Dict:
+def run(p: Pipeline, project_id: int, data_dir: str, frames: bool = True, layers: bool = True) -> Dict:
     """Every check on the latest final render (+ its subtitle layer when there is one). frames=False skips the checks that read the
-    video (tests, quick status). Returns {"ok", "blocks", "warns", "issues"}."""
+    video (tests, quick status). layers=False measures the rough cut alone (no subtitle layer): the rough-cut review (P3) compares two
+    cuts whose timing differs, and the layer of the older one does not belong to the newer. Returns {"ok", "blocks", "warns", "issues"}."""
     fin = lineage.latest_output(p.conn, project_id, "final")
     if fin is None:
         return {"ok": False, "blocks": 1, "warns": 0, "issues": [_issue("no_render", "block", "chưa có bản dựng")]}
@@ -207,7 +208,7 @@ def run(p: Pipeline, project_id: int, data_dir: str, frames: bool = True) -> Dic
     issues += check_peak(man.get("loudness"))
     issues += check_effects(audio_lib.load(audio_lib.assets_dir(data_dir, project_id)))
     issues += check_short_shots(timeline)
-    sub = lineage.latest_output(p.conn, project_id, "subtitle")
+    sub = lineage.latest_output(p.conn, project_id, "subtitle") if layers else None
     speakers = sorted({str(c) for d in datas for c in (d.get("characters") or [])})
     if sub is not None:
         srt = os.path.splitext(sub["path"])[0] + ".srt"

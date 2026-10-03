@@ -27,10 +27,10 @@ thì nói vậy và trả danh sách rỗng — không bịa chỗ để sửa.
 đồ cần lặng mà số đo không lặng) · `transition_jarring` (chỗ nối cảnh gây giật) · `flat_run` (nhiều shot liền cùng độ dài / cùng nhịp mà ý đồ đòi lên xuống) · `other`.
 
 `action` và trường kèm theo:
-- `shorten_shot` — `target_shot` (số thứ tự shot `n`), `amount` (giây bớt, 0,2–3).
-- `extend_hold` — `target_shot`, `amount` (giây thêm, 0,2–3).
+- `shorten_shot` — `target_shot` (số thứ tự shot `n`), `amount` (giây bớt, 0,2–3): cắt bớt **cuối** shot (giữ phần đầu clip).
+- `extend_hold` — `target_shot`, `amount` (giây thêm, 0,2–3): **đóng băng khung cuối** của shot thêm chừng đó giây (không có thêm chuyển động) — chỉ khi khoảnh khắc cuối cần thời gian để người xem nhận.
 - `music_cue` — `target_shot`, `value` ∈ `keep` · `cut` · `in` · `breath` (ý đồ nhạc tại shot đó).
-- `transition` — `target_shot` (shot đầu cảnh mới), `value` ∈ `cut` · `crossfade` · `dip_to_black`.
+- `transition` — `target_shot` (shot đầu cảnh mới), `value` ∈ `cut` · `crossfade` · `dip_to_black`. **Chỉ là gợi ý**: kiểu chuyển cảnh là cài đặt chung của cả phim, chưa chỉnh được từng chỗ.
 - `slow_or_freeze` — `target_shot`, `value` ∈ `slow` · `freeze` (chỉ shot không thoại).
 - `suggest_flag` — `value` ∈ `j_cut` · `motion_trim` · `speed_ramp` (bạn gợi ý thử A/B, không tự bật).
 - `retrim_from_raw` — `target_shot`, mô tả đoạn nên lấy (`why`); chỉ ghi vào báo cáo, chưa áp.

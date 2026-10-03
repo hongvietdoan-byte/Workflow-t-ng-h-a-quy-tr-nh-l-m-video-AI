@@ -183,7 +183,12 @@ def sheets(video: str, items: List[Dict], out_dir: str, ffmpeg: Optional[str] = 
 # ---- the whole measurement ------------------------------------------------------------------------------------------------------------
 def fingerprint(final_row, intent: Dict) -> str:
     man = _json(final_row["manifest"])
-    blob = json.dumps({"out": final_row["id"], "path": final_row["path"], "timeline": man.get("timeline"),
+    try:                                    # the FILE, not the row: putting the old cut back (editor_apply) makes a new row for the same picture
+        stat = os.stat(final_row["path"])
+        made = [stat.st_size, int(stat.st_mtime)]
+    except OSError:
+        made = None
+    blob = json.dumps({"file": made, "path": final_row["path"], "timeline": man.get("timeline"),
                        "fade": man.get("fade"), "transition": man.get("transition"), "intent": intent.get("fingerprint")},
                       sort_keys=True, ensure_ascii=False, default=str)
     return hashlib.sha1(blob.encode("utf-8")).hexdigest()[:16]

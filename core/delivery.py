@@ -271,13 +271,23 @@ def twist_times(p: Pipeline, project_id: int, rows: List[Dict], durations: List[
     return (marked or ([hero] if hero is not None else []))[:2]
 
 
-def sound_plan(p: Pipeline, rows: List[Dict], durations: List[float], transition: str = "cut", fade: float = 1.0) -> Dict:
+def scene_data(p: Pipeline, scene_id, edits: Optional[Dict] = None) -> Dict:
+    """The data of one shot row as a render reads it. `edits` (editor_apply, P3): {"music": {scene_id: "keep|cut|in|breath"}} overrides that
+    shot's `sound.music` for THIS render only — the Director's plan in the database is not touched (the person approved the edit, it is
+    not a rewrite of the plan)."""
+    row = p.conn.execute("SELECT data FROM scenes WHERE id=?", (scene_id,)).fetchone() if scene_id else None
+    data = json.loads(row["data"] or "{}") if row else {}
+    music = ((edits or {}).get("music") or {}).get(scene_id)
+    if music:
+        data = dict(data, sound=dict(data.get("sound") if isinstance(data.get("sound"), dict) else {}, music=music))
+    return data
+
+
+def sound_plan(p: Pipeline, rows: List[Dict], durations: List[float], transition: str = "cut", fade: float = 1.0,
+               edits: Optional[Dict] = None) -> Dict:
     """director.md Đ9: the music silences the Director planned per shot (sound.music cut / in / breath) on the render's timeline."""
     from . import sound_intent
-    datas = []
-    for r in [r for r in rows if r.get("path")]:
-        row = p.conn.execute("SELECT data FROM scenes WHERE id=?", (r.get("scene_id"),)).fetchone() if r.get("scene_id") else None
-        datas.append(json.loads(row["data"] or "{}") if row else {})
+    datas = [scene_data(p, r.get("scene_id"), edits) for r in rows if r.get("path")]
     return sound_intent.music_plan(datas, durations, transition, fade, tuple(ffmpeg_studio.OVERLAP_STYLES))
 
 
@@ -360,6 +370,44 @@ def _edge_transitions(p: Pipeline, rows: List[Dict], paths: List[str], durations
     return out
 
 
+FIT_TOLERANCE_S = 0.04
+
+
+def _fit_edits(rows: List[Dict], paths: List[str], durations: List[float], edits: Optional[Dict], work_dir: str) -> List[Dict]:
+    """P3 (core/editor_apply.py): the shots the person's edit changed in length get a copy of their clip of exactly that length - shorter =
+    its first seconds (`ffmpeg_studio.trim_head`), longer = its last frame held (`hold_last_frame`). A cut with `transition` cut joins whole
+    files and ignores `durations`, so a different length must live in the file. The original clip is untouched. `paths` changes in place.
+    Returns [{"idx", "from_s", "to_s", "how", "path"} | {"idx", "error"}] for the manifest."""
+    want = set((edits or {}).get("fit") or [])
+    out = []
+    if not want:
+        return out
+    usable = [r for r in rows if r.get("path")]
+    for i, (r, d) in enumerate(zip(usable, durations)):
+        if r.get("scene_id") not in want:
+            continue
+        have = ffmpeg_studio.probe_duration(paths[i])
+        if not have:
+            out.append({"idx": r.get("idx"), "error": "không đo được độ dài clip"})
+            continue
+        if abs(have - float(d)) <= FIT_TOLERANCE_S:
+            continue
+        os.makedirs(work_dir, exist_ok=True)
+        dst = os.path.join(work_dir, f"fit_{r.get('idx')}.mp4")
+        try:
+            if float(d) < have:
+                ffmpeg_studio.trim_head(paths[i], dst, float(d))
+                how = "trim"
+            else:
+                ffmpeg_studio.hold_last_frame(paths[i], dst, float(d) - have)
+                how = "hold"
+            out.append({"idx": r.get("idx"), "from_s": round(have, 2), "to_s": round(float(d), 2), "how": how, "path": dst})
+            paths[i] = dst
+        except Exception as e:  # noqa: BLE001 - the whole render fails loudly rather than silently ignoring the person's edit
+            raise ValueError(f"không cắt / giữ khung được shot {r.get('idx')}: {str(e)[:160]}")
+    return out
+
+
 def _colour_match(p: Pipeline, project_id: int, rows: List[Dict], paths: List[str], work_dir: str) -> Optional[List[Dict]]:
     """editing.md E5 (việc code D7): shots of one place and size class are measured against their anchor (black / white points, cast of
     grey things); with the feature `shot_color_match` on, the drifting ones go into the cut as corrected copies (originals untouched).
@@ -401,9 +449,11 @@ def _loudness(path: str) -> Optional[Dict]:
 
 @_locked
 def render(p: Pipeline, project_id: int, data_dir: str, music_path: Optional[str] = "auto", clips: Optional[List[str]] = None,
-           durations: Optional[List[float]] = None, settings: Optional[Dict] = None) -> Dict:
+           durations: Optional[List[float]] = None, settings: Optional[Dict] = None, edits: Optional[Dict] = None) -> Dict:
     """Cut the clips (the chosen ones, or every usable clip) with the project's render settings, the selected music and the
-    mix (sound effects + voice lines placed on the timeline). Returns {"path", "output_id", "seconds"}."""
+    mix (sound effects + voice lines placed on the timeline). Returns {"path", "output_id", "seconds"}.
+    `edits` (core/editor_apply.py, P3): {"music": {scene_id: value}, "fit": [scene_id, ...], "meta": {...}} - per-render overrides the
+    person approved; `fit` = shots whose clip is cut / held to its `durations` entry; `meta` is written into the manifest as `editor_apply`."""
     access.need_edit(p, project_id, "dựng bản giao")
     settings = settings or get_settings(p, project_id)
     rows = final_cut.collect_clips_for_render(p.conn, data_dir, project_id, clips)
@@ -428,6 +478,7 @@ def render(p: Pipeline, project_id: int, data_dir: str, music_path: Optional[str
     aspect = formats.project_aspect(p.project(project_id))
     out = os.path.join(output_dir(data_dir, project_id), "FINAL_VIDEO.mp4")
     originals = list(paths)                   # lineage follows the shots' own clips, never the colour-matched copies
+    fitted_edits = _fit_edits(rows, paths, durations, edits, os.path.join(output_dir(data_dir, project_id), "_fit"))
     colour = _colour_match(p, project_id, rows, paths, os.path.join(output_dir(data_dir, project_id), "_colour"))
     flashbacks = _flashbacks(p, rows, paths, durations, os.path.join(output_dir(data_dir, project_id), "_flashback"))
     edges = _edge_transitions(p, rows, paths, durations, os.path.join(output_dir(data_dir, project_id), "_edges"))
@@ -440,8 +491,7 @@ def render(p: Pipeline, project_id: int, data_dir: str, music_path: Optional[str
         from . import music_fit
         try:
             drafts_dir, _ = music.project_dirs(data_dir, project_id)
-            datas = [json.loads((p.conn.execute("SELECT data FROM scenes WHERE id=?", (r.get("scene_id"),)).fetchone() or {"data": "{}"})["data"] or "{}")
-                     if r.get("scene_id") else {} for r in rows if r.get("path")]
+            datas = [scene_data(p, r.get("scene_id"), edits) for r in rows if r.get("path")]
             fitted = music_fit.fit(track, music_fit.prompt_of(music.load_drafts(drafts_dir), drafts_dir, track), datas, durations,
                                    os.path.join(output_dir(data_dir, project_id), "_music"))
             track = fitted["path"]
@@ -459,7 +509,7 @@ def render(p: Pipeline, project_id: int, data_dir: str, music_path: Optional[str
             amb = {"extras": [], "missing": [], "error": str(e)[:200]}
     breaths = twist_times(p, project_id, rows, durations, settings["transition"], settings["fade"]) if features.on("music_breath") and track else []
     music_off, intent = [], None
-    plan = sound_plan(p, rows, durations, settings["transition"], settings["fade"])
+    plan = sound_plan(p, rows, durations, settings["transition"], settings["fade"], edits)
     if plan["planned"]:                        # director.md Đ9: the Director's music silences (cut … in, breath before a shot)
         if features.on("sound_intent") and track:
             breaths, music_off = merge_breaths(breaths, plan["breaths"]), plan["off"]
@@ -508,6 +558,10 @@ def render(p: Pipeline, project_id: int, data_dir: str, music_path: Optional[str
                                 "missing": amb["missing"], **({"error": amb["error"]} if amb.get("error") else {})}
     manifest["timeline"] =[{"idx": r.get("idx"), "scene_id": r.get("scene_id"), "seconds": float(d)} for r, d in zip(rows, durations)]
     manifest["transition"], manifest["fade"] = settings["transition"], settings["fade"]
+    if edits and edits.get("meta"):
+        manifest["editor_apply"] = edits["meta"]
+    if fitted_edits:
+        manifest["editor_fit"] = fitted_edits
     oid = record(p, project_id, "final", out, None, manifest)
     return {"path": out, "output_id": oid, "seconds": final_cut.total_seconds(durations, settings["transition"], settings["fade"])}
 
