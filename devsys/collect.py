@@ -498,6 +498,7 @@ def tests_by_area(run: Optional[Dict], tmap: Dict[str, Dict], cfg: Dict) -> Dict
 TODO_MARKERS = (("[ ]", re.compile(r"\[ \]")), ("chưa làm", re.compile(r"chưa làm", re.I)),
                 ("chưa thử thật", re.compile(r"chưa (?:thử|chạy) thật", re.I)), ("⏳", re.compile("⏳")),
                 ("còn:", re.compile(r"(?<!\w)còn\s*:", re.I)))
+DONE_LOG = re.compile(r"^\s*(?:>\s*)?[-*]\s*\*\*(?:Đã (?:chạy|làm|xong|dọn)|Chấm lại)", re.I)
 WAITING_USER = re.compile(r"(cần|chờ) người dùng|chờ feedback|người dùng (quyết|duyệt|chốt)", re.I)
 
 
@@ -544,6 +545,8 @@ def parse_todo(text: str) -> List[Dict]:
             closed_at = indent
         if re.match(r"^\s*[-*]\s*\[x\]", line, re.I) and not re.search(r"chưa (?:thử|chạy) thật|còn\s*:", line, re.I):
             continue
+        if DONE_LOG.match(line) and "[ ]" not in line:   # 03/10: a note of what was done ("Đã chạy…", "Chấm lại…") is a log, not a task:
+            continue                                      # it names files/flags, so it used to flip the fingerprint of every area it mentions
         found = [name for name, rx in TODO_MARKERS if rx.search(line)]
         if not found:
             continue

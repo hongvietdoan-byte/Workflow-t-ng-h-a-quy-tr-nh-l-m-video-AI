@@ -536,3 +536,15 @@ class AppNameShadowTests(unittest.TestCase):
                 for t in node.targets:
                     mod_bound |= {x.id for x in ast.walk(t) if isinstance(x, ast.Name) and isinstance(x.ctx, ast.Store)}
         self.assertEqual(sorted(funcs & mod_bound), [])
+
+
+class TodoLogLinesTests(unittest.TestCase):
+    def test_done_log_entries_are_not_open_items(self):
+        """03/10: "- **Đã chạy …**" / "- **Chấm lại …**" notes name files and flags and say "chưa …": they must not become open TODO items of
+        the areas they mention (that flipped those areas' fingerprint → a false 'đã đổi, nên chấm lại')."""
+        text = ("# TODO\n"
+                "- **Đã chạy 03/10 (dọn):** sửa `core/costume.py`; chưa làm B7\n"
+                "- **Chấm lại toàn bộ 03/10:** chưa thử thật costume\n"
+                "- [ ] việc thật còn mở, chưa làm\n")
+        items = collect.parse_todo(text)
+        self.assertEqual([i["text"] for i in items], ["- [ ] việc thật còn mở, chưa làm"])
