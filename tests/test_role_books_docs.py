@@ -70,7 +70,9 @@ class FlagStateInDocsTests(unittest.TestCase):
             self.assertNotIn("chờ người dùng duyệt", _read(*parts).splitlines()[0], parts[-1])
 
     def test_nothing_claims_the_editor_books_reach_a_prompt(self):
-        self.assertIn("không nạp vào prompt nào", _read("knowledge", "editor", "editing.md"))
+        # P2 (02/10): only the <!-- review --> blocks of editing.md are loaded, and only by core/editor_review.py (role_text still reads
+        # director.md + dp.md); safe_zones.md is loaded by nothing
+        self.assertIn("chỉ các khối `<!-- review -->`", _read("knowledge", "editor", "editing.md").splitlines()[0])
         for path in ("core/prompts.py", "core/knowledge.py"):
             src = _read(*path.split("/"))
             self.assertNotIn("editing.md", src.replace("knowledge/ff_directing", ""), path)

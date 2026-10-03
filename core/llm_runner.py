@@ -888,6 +888,17 @@ class MockLlm:
             return LlmReply("```json\n" + json.dumps(v2, ensure_ascii=False) + "\n```", 90, 50)
         if prompt.startswith("# Biên kịch — Lượt"):                      # S11.1 (core/idea_to_script.py)
             return LlmReply("```json\n" + json.dumps(_mock_screenwriter(prompt), ensure_ascii=False) + "\n```", 120, 60)
+        if prompt.startswith("# Biên tập viên — duyệt bản dựng thô"):    # P2 rough-cut review (core/editor_review.py): one proposal
+            clock = json.loads(re.search(r"# Đồng hồ shot[^\n]*\n```json\s*(.*?)```", prompt, re.S).group(1))
+            free = [s for s in clock if s["n"] > 1 and not s["dialogue"] and not s["lip_sync"] and s["seconds"] >= 1.5]
+            out = {"summary": "Bản dựng giả lập: nhịp ổn, một shot hơi dài.", "findings": ([] if not free else [
+                {"at_s": free[0]["start"], "scene": free[0]["story_scene"], "observed": "drag", "evidence": f"shot {free[0]['n']} dài {free[0]['seconds']} s (giả lập)",
+                 "action": "shorten_shot", "target_shot": free[0]["n"], "amount": 0.5, "value": "", "why": "shot kéo dài hơn việc nó kể (giả lập)"}])}
+            return LlmReply("```json\n" + json.dumps(out, ensure_ascii=False) + "\n```", 120, 60)
+        if prompt.startswith("# Đạo diễn — trả lời đề xuất của Biên tập viên"):
+            found = json.loads(re.search(r"# Đề xuất của Biên tập viên\s*```json\s*(.*?)```", prompt, re.S).group(1))
+            out = {"verdicts": [{"id": f["id"], "verdict": "agree", "reason": "", "amount": 0, "value": ""} for f in found]}
+            return LlmReply("```json\n" + json.dumps(out, ensure_ascii=False) + "\n```", 80, 30)
         if prompt.startswith("# Đạo diễn — Tầng A"):                    # GĐ5 two-pass Director (core/director_two_pass.py)
             return LlmReply("```json\n" + json.dumps(_mock_intent(prompt), ensure_ascii=False) + "\n```", 100, 40)
         if "# Việc lần này: Quay phim chia shot Cảnh" in prompt:

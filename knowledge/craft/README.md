@@ -3,7 +3,7 @@
 > Kho **tư liệu** cho ba nghề Đạo diễn / Quay phim / Dựng: mỗi kỹ thuật = cách làm + **nhiều** ý đồ có thể phục vụ (có điều kiện ngữ cảnh) +
 > ví dụ có mốc giây từ mẫu đã phân tích + nguồn. Viết theo `PHUONG_PHAP_PHAN_TICH.md` (4 tầng: quan sát → ý đồ → kỹ thuật → gợi ý).
 > **Không phải bảng tra.** Không nạp tự động vào prompt (code chưa đọc thư mục này) — Đạo diễn / Quay phim / Dựng (`knowledge/roles/`,
-> `knowledge/editor/` — riêng `knowledge/editor/` cũng không nạp vào prompt nào) chỉ lấy sang khi đã đủ điều kiện "gợi ý cho pipeline" (≥ 2 mẫu khác nhau hoặc nguồn chuyên gia xác nhận).
+> `knowledge/editor/` — riêng `knowledge/editor/` chỉ nạp các khối `<!-- review -->` vào bước duyệt bản thô) chỉ lấy sang khi đã đủ điều kiện "gợi ý cho pipeline" (≥ 2 mẫu khác nhau hoặc nguồn chuyên gia xác nhận).
 
 ## Bốn nguyên tắc của người dùng (bắt buộc khi đọc / thêm)
 1. **Kỹ thuật không có nghĩa mặc định.** Không viết "X = Y". Viết "ở [mẫu, mốc giây], X được dùng để Y, vì [ngữ cảnh]".
@@ -79,7 +79,7 @@ Mã `[Qn]` / `[En]` là của `knowledge/sources.md`; mã `[Sn]` và `#n` là c�
 "Camera Concepts" `[S4]`, StudioBinder "Camera Movements" `[S6]`. Nguồn chỉ có tóm tắt tìm kiếm (theasc.com trang chủ, LBBOnline, Team Deakins
 chung) **không** dùng làm căn cứ ở kho này — mục nào chỉ dựa vào chúng được ghi *giả thuyết*.
 
-## Đối chiếu với kiến thức đang dùng (mâu thuẫn đã thấy; E4 đã sửa 2026-09-29 — `knowledge/editor/` là tài liệu cho người/Claude, **không nạp vào prompt nào**: `role_text` chỉ đọc `director.md` + `dp.md`)
+## Đối chiếu với kiến thức đang dùng (mâu thuẫn đã thấy; E4 đã sửa 2026-09-29 — `knowledge/editor/` là tài liệu cho người/Claude, **chỉ các khối `<!-- review -->` của `editing.md` được nạp, vào bước duyệt bản thô** (`core/editor_review.py`); `role_text` chỉ đọc `director.md` + `dp.md`)
 - `knowledge/editor/editing.md` E4: "cắt mỗi ô nhịp = thong thả, mỗi 1–2 phách = căng" — là **một cách** dựng theo nhạc; hai MV kể chuyện đo
   được (22 đoạn 1, 23 đoạn 1) cắt **không bám phách** (trúng phách 27% / 39% so với ngẫu nhiên 27% / 31%). → Ghi ở `dung.md` mục "Cắt theo câu
   vs theo phách"; **đã sửa E4 (người dùng duyệt 2026-09-29)**: điểm cắt bám câu / cảnh hoặc phách là lựa chọn theo ngữ cảnh.

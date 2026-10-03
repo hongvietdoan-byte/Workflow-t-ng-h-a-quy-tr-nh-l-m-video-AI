@@ -1,7 +1,7 @@
 # Tổ làm phim — trang tổng (V4 GĐ4, 2026-09-25 — cờ `film_crew` đang BẬT qua `dashboard.env`, chưa verified)
 
 Ba vai, mỗi vai một bộ kỹ năng nghề: **Đạo diễn** (`director.md`), **Quay phim** (`dp.md`), **Dựng** (`knowledge/editor/editing.md` +
-`safe_zones.md` — hai file này **không nạp vào prompt nào**: `role_text` chỉ đọc `director.md` và `dp.md`). Nguồn bên ngoài: `knowledge/sources.md` mục GĐ4. Khi cờ `film_crew` bật, Director (Claude) đọc `director.md` + `dp.md`
+`safe_zones.md` — `role_text` chỉ đọc `director.md` và `dp.md`; chỉ các khối `<!-- review -->` của `editing.md` được nạp, vào bước duyệt bản thô `core/editor_review.py`; `safe_zones.md` không nạp). Nguồn bên ngoài: `knowledge/sources.md` mục GĐ4. Khi cờ `film_crew` bật, Director (Claude) đọc `director.md` + `dp.md`
 (dự án chia shot) thay cho 3 tài liệu rải rác (`cinematography_basics`, `film_director_method`, `dialogue_craft` — vẫn còn cho luồng cũ;
 nhãn cờ ở `core/features.py` ghi cùng 3 tên). Hai lượt: Tầng A đọc `director.md` bản đã cắt các khối "Trong pipeline" mức shot
 (đánh dấu `<!-- shot -->`, `prompts.role_text(..., intent_only=True)`) — phần "vì sao" và "kiểm" vẫn giữ nên vẫn nhắc tên trường shot.
