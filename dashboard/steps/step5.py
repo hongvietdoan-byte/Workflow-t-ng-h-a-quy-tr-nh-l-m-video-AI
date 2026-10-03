@@ -706,6 +706,32 @@ def rough_cut_panel(p: Pipeline, pid: int) -> None:
     for path in res.get("sheets") or []:
         if os.path.exists(path):
             st.image(path, caption=os.path.basename(path))
+    editor_review_panel(p, pid, res)
+
+
+def editor_review_panel(p: Pipeline, pid: int, measured: dict) -> None:
+    """P2 of KE_HOACH_DUYET_BAN_THO: Biên tập viên (sees the sheets + numbers) then Đạo diễn (the intent) review the rough cut. Costs Claude —
+    the estimate is on the button; one task cap; nothing is applied (P3)."""
+    from core import cost, editor_review
+    n_img = len(measured.get("sheets") or [])
+    usd = editor_review.estimate(p.conn, n_img)
+    saved = editor_review.load(C.DATA, pid)
+    label = "🎬 Biên tập viên + Đạo diễn duyệt bản thô" + cost.llm_tag(usd, 2) + (f" · trần {editor_review.RUN_CAP_USD:.2f} USD" if usd is not None else "")
+    if st.button(label, key=f"editor_review_{pid}", disabled=not n_img,
+                 help="Hai lời gọi Claude: Biên tập viên xem ảnh quanh điểm cắt + số đo âm rồi đề xuất; Đạo diễn đọc ý đồ của mình và đồng ý / phản đối. "
+                      "Chưa áp gì vào bản dựng. Cùng bản dựng + cùng ý đồ thì lấy lại kết quả đã lưu (không tốn tiền)."):
+        client = C.llm_client()
+        if client is not None:
+            with st.spinner("Biên tập viên và Đạo diễn đang xem bản dựng…"):
+                ok = act(lambda: editor_review.run(p, pid, client, C.DATA))
+            if not ok:
+                return
+            saved = editor_review.load(C.DATA, pid)
+    if saved:
+        if saved.get("rough_cut") != measured.get("fingerprint"):
+            _note("Kết quả duyệt này là của bản dựng / ý đồ trước — bấm duyệt lại.")
+        for line in editor_review.lines(saved):
+            (st.warning if line.startswith("⚖️") else _note)(line)
 
 
 def loudness_line(p: Pipeline, pid: int) -> None:

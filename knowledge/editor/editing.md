@@ -1,11 +1,11 @@
-# Vai Dựng (Editor hậu kỳ) — bộ kỹ năng nghề (V4 GĐ4, 2026-09-25; nâng theo người chấm 2026-09-26 — cờ `film_crew` đang BẬT qua `dashboard.env`, chưa verified; **tài liệu này không nạp vào prompt nào**)
+# Vai Dựng (Editor hậu kỳ) — bộ kỹ năng nghề (V4 GĐ4, 2026-09-25; nâng theo người chấm 2026-09-26 — cờ `film_crew` đang BẬT qua `dashboard.env`, chưa verified; **chỉ các khối `<!-- review -->` được nạp, và chỉ vào bước duyệt bản thô (`core/editor_review.py`, cờ `rough_cut_review`)**)
 
 > Dựng nhận **clip đã duyệt + giọng + chữ trên màn hình + nhạc** và làm ra bản giao. Phần lớn là **code** (`core/delivery.py`,
 > `final_cut.py`, `ffmpeg_studio.py`, `subtitles.py`, `text_placement.py`, `audio_lib.py`, `voice.py`, `music.py`, `music_timing.py`,
 > `sound_ai.py`, `sfx_plan.py`, `composite.py`, `plate_env.py`, `formats.py`). Tài liệu này để code và (khi cần mắt) Claude/người biết **vì sao** và
 > **đặt ở đâu**. Không đổi shot, không gen lại hình — lỗi hình trả Quay phim, lỗi diễn/giọng trả Đạo diễn.
 > Mỗi kỹ năng: **Làm gì · vì sao** — **Trong pipeline** (✅ code có · ⚠ làm một phần · ❌ chưa có → việc code, README) — **Kiểm** — **Ví dụ FF**.
-> **Không nạp vào prompt nào:** `prompts.role_text` chỉ đọc `director.md` và `dp.md`; thư mục `knowledge/editor/` là tài liệu cho người sửa code
+> **Nạp vào prompt khi nào:** chỉ 7 khối `<!-- review -->` (phần phán đoán: E1, E3, E4, E6, E9, E12, Tầng 4) vào lời gọi Biên tập viên duyệt bản thô (`core/editor_review.py`, cờ `rough_cut_review`); `prompts.role_text` vẫn chỉ đọc `director.md` và `dp.md`; phần còn lại của thư mục `knowledge/editor/` là tài liệu cho người sửa code
 > và cho Claude khi được chủ động đưa vào, còn phần Dựng tự chạy bằng code. Nguồn: `knowledge/sources.md` mục GĐ4 (số [En]). Vùng an toàn: `safe_zones.md`. **[KN]** = kinh nghiệm nghề chưa có nguồn chính thức —
 > code coi là giá trị khởi điểm, đo lại được.
 
@@ -23,6 +23,7 @@ xúc, âm thanh làm thế giới game "thật", màu các shot liền nhau như
 
 ## Tầng 3 — Kỹ năng
 
+<!-- review -->
 ### E1. Nghệ thuật cắt
 - **Làm gì · vì sao.** Thứ tự ưu tiên của một điểm cắt (Murch [E1]): **cảm xúc** (51%) > **câu chuyện** (23%) > **nhịp** (10%) > **hướng mắt**
   người xem (7%) > mặt phẳng 2D/trục (5%) > liền mạch không gian 3D (4%) — cảm xúc nặng hơn năm tiêu chí còn lại cộng lại; phải hy sinh thì
@@ -33,6 +34,7 @@ xúc, âm thanh làm thế giới game "thật", màu các shot liền nhau như
     khung ở chỗ đổi người nói [KN]. **Cắt khớp** (hình khối/chuyển động giống nhau), **cắt xen** (hai hành động cùng lúc), **dựng chuỗi**
     (nén thời gian trên nhạc).
   - **Nhịp**: độ dài shot liền nhau thay đổi theo **cụm** (cụm nhanh xen cụm chậm), không đều tăm tắp [E4]; cao trào ngắn, chỗ thở dài.
+<!-- /review -->
 - **Trong pipeline.** ✅ Cắt theo `duration_s`, lấy đầu clip (Quay phim dặn hành động xảy ra sớm); ✅ một vị trí máy nhiều shot: cắt clip dài
   thành đoạn (`shots.setup_motion`, H5); ✅ chuyển cảnh cắt/mờ chồng/mờ đen (`ffmpeg_studio.OVERLAP_STYLES`). ✅ **Cắt J** (D1): câu của người nói mới vào sớm 0,25 s trước khi hình cắt
   sang họ, không đè câu trước (`voice.J_LEAD`, cờ `j_cut` TẮT mặc định — `verified` False, `dashboard.env` hiện bật; phụ đề đi theo giọng). ✅ **Điểm cắt theo chuyển động** (D2, `shots.motion_start`, cờ `motion_trim` TẮT mặc định — `verified` False, `dashboard.env` hiện bật): clip dài hơn shot được cắt từ chỗ
@@ -55,11 +57,13 @@ xúc, âm thanh làm thế giới game "thật", màu các shot liền nhau như
 - **Ví dụ FF.** ✔ 2A: câu "Không liên quan đến ông." bị cắt giữa chữ (0,64 s) → tạo lại có "…" ở cuối → 1,12 s, kết tự nhiên. ✔ 2A: giọng
   lồng chạm 0,0 dBFS → thêm bộ giới hạn, đo −1,3 dBFS.
 
+<!-- review -->
 ### E3. Âm thanh nhiều lớp
 - **Làm gì · vì sao.** Thế giới game thành "thật" nhờ âm: **nền không khí** chạy liên tục dưới thoại (gió, trận đánh xa) để vết cắt không
   "hụt hơi", chuyển nền bằng mờ chồng âm; **foley** theo hành động (bước chân, áo, vũ khí); **hiệu ứng nhiều lớp** — một phát súng = đầu
   (transient) + thân + đuôi vang theo môi trường; va chạm = đập + mảnh vỡ + trầm; **vút/dâng** dẫn vào cú chuyển, **cú đập** rơi đúng khung của
   cú đánh; **không gian**: gần thì khô, đủ trầm; xa thì bớt cao tần, thêm vang; **thời tiết** (mưa, sấm, gió) khớp hình [KN].
+<!-- /review -->
 - **Trong pipeline.** ✅ Tạo SFX bằng ClipAI (`audio_lib.submit_sfx`, sổ chi lượt âm thanh); ✅ nghe clip để biết âm có sẵn (`sound_ai` YAMNet,
   chỉ dùng tự động khi tin ≥ 0,40); ✅ trộn lớp phụ (`ffmpeg_studio.build_extras_mix_cmd`); ✅ **Claude đặt hiệu ứng** theo cảnh + thư viện âm
   của người dùng (`core/sfx_plan.py`, nút ở Bước 5, autopilot tự đề xuất rồi áp dụng) — cố ý chỉ cho **điểm nhấn** (đập, vút, va chạm) và
@@ -75,6 +79,7 @@ xúc, âm thanh làm thế giới game "thật", màu các shot liền nhau như
 - **Ví dụ FF.** ✔ Video FF gốc: hiệu ứng kỹ năng có ở ~38% shot — là "chất Free Fire", cần âm đi kèm. ✘ Cảnh đêm tuyết im lặng hoàn toàn
   (không nền không khí) nghe như chưa làm xong.
 
+<!-- review -->
 ### E4. Nhạc nền
 - **Làm gì · vì sao.** Nhạc chọn theo **cảm xúc từng đoạn** (ưu tiên 51% của Murch [E1]). **Điểm cắt bám gì là lựa chọn theo ngữ cảnh,
   không mặc định:** bám **câu thoại / câu hát / đổi cảnh** khi hình kể theo lời (hai MV kể chuyện đo được — S0.12 mẫu 22, 23 — cắt **không**
@@ -82,6 +87,7 @@ xúc, âm thanh làm thế giới game "thật", màu các shot liền nhau như
   **phách** khi cần đồng bộ, "đóng đinh" (vũ đạo, đoạn cao trào, montage): 1 phách = 60/BPM giây, cắt mỗi ô nhịp = thong thả, mỗi 1–2 phách
   = căng [E31]; trộn được trong cùng một phim, ghi lý do chọn. **Điểm rơi** của nhạc trùng cú ngoặt (hạ gục, lộ mặt); **hạ nhạc khi có thoại** (sidechain); không
   nhả hạ nhạc giữa hai câu cách nhau < 0,5 s để tránh "bơm"; **khoảng lặng có chủ ý** 0,3–1 s ngay trước cú ngoặt tăng lực cú đập [KN].
+<!-- /review -->
 - **Trong pipeline.** ✅ `music_timing`: đoạn nhạc theo nhịp dựng, BPM 70–140 hợp mốc cắt, chấm bản nháp theo độ to ở mốc ngoặt, giữ bản khớp
   nhất (autopilot + Bước 5); ✅ hạ nhạc khi có giọng (`ffmpeg_studio.DUCK`): **người dùng chốt 8–12 dB** (2026-09-26) → ngưỡng 0,05,
   tỉ lệ 3, attack 20 ms, release 400 ms — **đo thật** trên nhạc đã chọn của #7 dưới 3 câu giọng TTS thật: nhạc hạ **9,4–11,5 dB** khi đang nói
@@ -120,11 +126,13 @@ xúc, âm thanh làm thế giới game "thật", màu các shot liền nhau như
 - **Ví dụ FF.** ✔ GĐ2: người sáng quá trên nền đêm → chỉnh màu người theo giờ. ✘ Job 165/197: màu áo Kenta trôi/nhấp nháy trong clip — lỗi hình
   (trả Quay phim gen lại), không sửa bằng màu.
 
+<!-- review -->
 ### E6. Hiệu ứng
 - **Làm gì · vì sao.** Hiệu ứng chỉ khi **có lý do** (quy tắc "cắt phải có lý do" áp cho hiệu ứng [E2]); không dùng khi nó che mặt, che chữ, hay
   làm giảm độ rõ của truyện. Thời tiết, phát sáng, lóa: **cùng hướng nguồn sáng** với nền; hạt phủ cuối, đều cả khung để "dán" lớp ghép; rung
   máy khi va chạm 3–8 khung, giảm dần, bắt đầu đúng khung va chạm; chuyển cảnh mặc định **cắt thẳng** — lia nhanh/zoom chỉ khi đổi cảnh hay
   nhảy thời gian, kèm âm vút [KN]. **Chữ động kiểu game FF**: thông báo hạ gục, bảng tên — trong vùng an toàn, đủ lâu để đọc.
+<!-- /review -->
 - **Trong pipeline.** ✅ Thời tiết rơi (mưa/tuyết/bụi) + chớp trên ảnh và clip (`plate_env.overlay_still/overlay_video`); ✅ thông báo game
   kiểu riêng (vàng trên nền tối, dải trên — `subtitles` HUD); ✅ card cuối. ✅ **Rung máy khi va chạm** (D9): khung rung 0,25 s, ≤ 10 px,
   tắt dần, đúng giây của hiệu ứng có nhãn va chạm/nổ/súng/đấm trong bản trộn (`ffmpeg_studio.add_shake`, cỡ khung giữ nguyên; cờ
@@ -190,11 +198,13 @@ xúc, âm thanh làm thế giới game "thật", màu các shot liền nhau như
   LRA 5,1** — nằm trong mục tiêu dù chưa chuẩn hóa (một lần đo, chưa phải bảo đảm cho mọi dự án); chuẩn hóa thử một bản sao → −14,3 LUFS,
   đỉnh −2,4 dBTP, hình và độ dài giữ nguyên.
 
+<!-- review -->
 ### E9. Tự rà như người xem thật
 - **Làm gì · vì sao.** Không có số chính thức về tỉ lệ người xem tắt tiếng (con số "85%" hay nhắc không có nguồn gốc Meta; Facebook IQ 2017 chỉ
   khuyên làm video hiểu được khi tắt tiếng [E35]; Reels mặc định bật tiếng [E10]; TikTok–Kantar: 88% người dùng coi âm thanh là thiết yếu [E8]).
   → Rà cả hai: (1) **tắt tiếng** — truyện hiểu được nhờ hình + phụ đề + chữ; (2) **bật tiếng** — thoại rõ trên nhạc; (3) chồng lớp giao diện app
   lên từng khung — chữ/mặt không lọt vào vùng bị che; (4) thu nhỏ ~360×640 — chữ còn đọc được; (5) đo lại độ to sau mã hóa [KN].
+<!-- /review -->
 - **Trong pipeline.** ✅ Bảng khung có chữ, dò mặt; ✅ animatic (Bước 1, `delivery.animatic`). ✅ **Tự rà như người xem** (D13,
   `core/viewer_check.py`, nút 🧐 ở Bước 5): 8 khung của bản giao mới nhất, vùng giao diện app tô đỏ + bản cỡ điện thoại, báo mặt nằm dưới
   vùng giao diện (YuNet). Chạy thật #7: 8/8 khung không mặt nào bị che. ✅ **Kiểm chữ** (2026-09-26, `viewer_check.text_bands`): so khung
@@ -225,6 +235,7 @@ xúc, âm thanh làm thế giới game "thật", màu các shot liền nhau như
   code (làm tay: đổi thứ tự 1–2 shot đầu ở Bước 5, dựng lại — miễn phí).
 - **Kiểm.** Code: test chọn shot ⭐. Người: nhìn ảnh bìa cỡ nhỏ (~200 px) — còn nhận ra nhân vật/khoảnh khắc không.
 
+<!-- review -->
 ### E12. Kỹ thuật thấy trong clip mẫu ClipAI — tư liệu, không phải công thức — 2026-09-28 (sửa 2026-09-29)
 Nguồn: clip mẫu ClipAI người dùng gửi 2026-09-28 (MV 201 s; `docs/PHAN_TICH_CLIP_MAU_CLIPAI_2026-09-28.md`).
 > Người dùng sửa 2026-09-29: máy quay, góc, dựng, âm thanh **không có nghĩa mặc định** — cùng một kỹ thuật phục vụ nhiều ý đồ khác nhau tùy tình huống. Mục này ghi **kỹ thuật đã thấy + cách làm + ý đồ ở đúng chỗ đó**, không phải công thức. Chọn khi ý đồ của cảnh cần; ghi lý do theo tình huống (như Q1: "ý nghĩa góc không cố định").
@@ -235,11 +246,14 @@ Nguồn: clip mẫu ClipAI người dùng gửi 2026-09-28 (MV 201 s; `docs/PHAN
 - **Nhạc liên tục, năng lượng tăng dần, một khoảng lặng sau câu mở** — một đường cong âm thanh hợp MV kể chuyện; phim thoại có thể dùng
   lặng dài, cắt nhạc đột ngột, hay chỉ âm nền. Không học đỉnh +0,7 dBFS (giữ −1 dBTP).
 - **Kiểm.** Người: xem bản dựng — cách nối / âm thanh có phục vụ ý đồ cảnh không.
+<!-- /review -->
 
+<!-- review -->
 ## Tầng 4 — Ưu tiên khi xung đột
 Nghe rõ thoại > đọc được chữ (không bị che) > cảm xúc/nhịp cắt theo Đạo diễn > liền mạch (màu, hướng) > đẹp/hiệu ứng. Đây là thang chung
 (`knowledge/roles/README.md`) chiếu vào việc dựng: cảm xúc đã được Đạo diễn đặt vào shot và diễn xuất; thoại rõ và chữ đọc được là điều kiện để
 cảm xúc đó tới người xem. Không sửa được bằng dựng → trả lại vai phụ trách kèm lý do (hình → Quay phim; diễn/giọng → Đạo diễn).
+<!-- /review -->
 
 ## Tầng 5 — Tự rà (trên bản dựng thật)
 - Tắt tiếng có hiểu không? Bật tiếng có nghe rõ từng câu không, câu nào bị chồng/cắt cụt, hình đổi trước khi câu nói xong?
