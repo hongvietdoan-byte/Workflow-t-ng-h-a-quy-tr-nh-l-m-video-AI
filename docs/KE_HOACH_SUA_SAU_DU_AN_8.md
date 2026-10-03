@@ -5,7 +5,7 @@
 > Xem tiến độ: web **AI Development System** (`Start-DevSystem.bat`, cổng 8502) → trang **📋 Kế hoạch đang chạy**, hoặc `py tools/plan_progress.py`.
 > **% do code tính** từ danh sách việc dưới đây (✅ tính đủ, 🔄 tính nửa, ✖ không tính; trọng số nặng:1/2/3). Xong một việc → đổi trạng thái
 > trong cùng commit với code, ghi mã commit + bằng chứng, rồi `py tools/plan_progress.py --write`.
-> Đợt ưu tiên: S13  (dòng này do người dùng/Claude đặt tay; bỏ dòng hoặc đổi mã đợt để đổi "Đợt hiện tại" trong bảng tiến độ; không có dòng → đợt chưa xong đầu tiên đang có việc)
+> Đợt ưu tiên: S14  (dòng này do người dùng/Claude đặt tay; bỏ dòng hoặc đổi mã đợt để đổi "Đợt hiện tại" trong bảng tiến độ; không có dòng → đợt chưa xong đầu tiên đang có việc)
 > Trạng thái: ⬜ chưa làm · 🔄 đang làm · ⏸ chờ người dùng · ✅ xong · ✖ bỏ (kèm lý do).
 
 **Luật chung mọi đợt:** test qua hết → commit + push `main` → `git pull` ở `D:\AI-Video-Pipeline` → cập nhật `TODO.md` → báo kết quả (kèm dòng
@@ -30,11 +30,12 @@
 | S11 Director mở rộng: ý tưởng → kịch bản, cover video ref, học trending (kế hoạch v2 01/10, `docs/KE_HOACH_TINH_NANG_DIRECTOR_2026-10-01.md`) | 15 | 2 | 1 | 1 | 0 | 17,3 % |
 | S12 Rà soát dashboard 01/10: sửa lỗi, tính năng thử, 4 màn, nhiều người dùng (`docs/RA_SOAT_DASHBOARD_2026-10-01.md`) | 7 | 6 | 0 | 1 | 0 | 80 % |
 | S13 Giao diện v2 "AI product" (gradient, kính mờ, nền tối) trên Streamlit, chạy song song nhiều nhánh (`docs/KE_HOACH_GIAO_DIEN_V2_2026-10-01.md`) | 12 | 10 | 0 | 0 | 0 | 86,2 % |
+| S14 Nâng cấp dashboard sau chấm lại 03/10 (`docs/KE_HOACH_NANG_CAP_DASHBOARD_2026-10-03.md`; người dùng duyệt 04/10) | 16 | 1 | 0 | 3 | 0 | 3,2 % |
 | K Chạy kiểm kịch bản hài 20–30 s — ⏸ KHÔNG ƯU TIÊN (người dùng 30/09: các việc test kịch bản không làm trước nữa) | 3 | 0 | 0 | 3 | 0 | 0 % |
 | S8 Chấm lại bằng AI Development System (cuối cùng) | 5 | 2 | 0 | 0 | 0 | 42,9 % |
-| **Tổng** | **134** | **105** | **3** | **5** | **5** | **83,2 %** |
+| **Tổng** | **150** | **106** | **3** | **8** | **5** | **73,9 %** |
 
-Đợt hiện tại: **S13** · việc kế: **S13.3** G2/G6 — `tools/ui_snapshot.py` (CSDL mẫu gần thật × 4 độ rộng × sáng/tối × 2 độ phóng) + font Inter đi kèm
+Đợt hiện tại: **S14** · việc kế: **S14.1** A1 — cổng tiền chung `core/spend_gate.py` + giá chưa biết không tính 0 USD + trần job/ngày theo lượt gửi + test quét
 <!-- /tien-do -->
 
 ## Danh sách việc (thứ tự người dùng đã duyệt)
@@ -192,6 +193,24 @@
 - [x] S13.9 · Nhánh G — Video + Bản giao (thẻ clip + QC chip, thẻ “Xuất bản đầy đủ”) · nặng:3 · ✅ · 01/10: nhánh `ui/video-deliver` đã gộp (20 test mới + 157 test cũ qua); thẻ clip kính + pill + số đo lớp 0 vào ⓘ, Bản giao = 1 nút “Xuất bản đầy đủ” + 3 chip, ~40 điều khiển gom 4 tab Tinh chỉnh; chưa kiểm bằng mắt với clip thật
 - [x] S13.11 · Lượt tinh gọn theo yêu cầu người dùng: chi tiết vào ⓘ, ngoài chỉ tóm tắt (B khung, D dự án/nhóm/theo dõi, E kịch bản, F storyboard; G đã làm khi giao) · nặng:2 · ✅ · 01/10: 4 nhánh `ui/*-slim` đã gộp; trang Kịch bản 6640→~4000 px, thẻ ② 3428→1308 px; chi tiết vào ⓘ, panel dưới lưới đóng mặc định; trang Kế hoạch của AI Development System gọn
 - [ ] S13.10 · Nghiệm thu bằng số (0 chữ < 4.5:1, 0 chữ < 12 px, số click giảm, 0 điều khiển cũ mất, hiệu năng ≤ +20 %) + người dùng quyết bỏ giao diện cũ · nặng:2 · ⬜
+
+### S14 — Nâng cấp dashboard sau chấm lại 03/10 (`docs/KE_HOACH_NANG_CAP_DASHBOARD_2026-10-03.md`; người dùng duyệt 04/10)
+- [x] S14.0 · Kế hoạch chi tiết đã rà soát độc lập + người dùng chốt 6 quyết định (mục 6 của kế hoạch) · nặng:1 · ✅ · 3280c7f · 04/10: làm Làn 1+2 trước; đăng nhập LAN theo "máy được duyệt" (tên máy PC); kiểm thử giao diện trên UI v2; dự án thử 30 s gom cờ + ClipAI; Gói H liệt kê trần từng việc; chữ 12,5 px; build từ 08:00 04/10
+- [ ] S14.1 · A1 — cổng tiền chung `core/spend_gate.py` + giá chưa biết không tính 0 USD + trần job/ngày theo lượt gửi + test quét · nặng:3 · ⬜
+- [ ] S14.2 · A2 — nút tốn tiền ghi giá trên nhãn + test quét · nặng:1 · ⬜
+- [ ] S14.3 · B1 — vòng đời job (6 chỗ `p.start`, hủy ở nhà cung cấp, mã thoát ffmpeg, đếm lượt làm lại giọng, lipsync, autopilot dừng) · nặng:3 · ⬜
+- [ ] S14.4 · C1 — dữ liệu & kiến thức (gộp Kho, thùng rác Kho, người nói CTA/TITLE, bảng khâu diag, bài học) + lỗi tiếng Việt (J1) · nặng:3 · ⬜
+- [ ] S14.5 · C2 — `ff_site` an toàn (danh sách URL được phép, bỏ `vm`, bọc nội dung web trong prompt) · nặng:2 · ⬜
+- [ ] S14.6 · K — đợt ngân sách: reset = đóng đợt cũ + mở đợt mới có trần; bấm thẻ ngân sách xem mức dùng theo ngày và từng dòng sổ chi · nặng:2 · ⬜
+- [ ] S14.7 · D1 — quyền (nút mở lại dịch vụ, Khôi phục, `need_edit` ở lõi) + đăng nhập LAN theo máy được duyệt · nặng:2 · ⬜
+- [ ] S14.8 · E1 — giao diện v2 (⌂ chỉ dựng video khi chọn, hộp thư có job lỗi, việc tiếp theo báo lỗi, bảng đổi tên khóa, chữ 12,5 px) · nặng:2 · ⬜
+- [ ] S14.9 · L — dọn cờ đợt 1: bỏ hẳn `layout_to_model`, `chain_previous_auto`, `setcheck_autofix`, `seedance_sample_mode`, `location_plates` · nặng:1 · ⬜
+- [ ] S14.10 · F1 — devsys đo đúng (S1, S2, S3, S11, S15) rồi một lần đổi thang v2.1 · nặng:2 · ⬜
+- [ ] S14.11 · Dự án thử 30 s — soạn kịch bản gom cờ chưa verified + bảng trần từng việc (0 USD) · nặng:1 · ⬜
+- [ ] S14.12 · Dự án thử 30 s — chạy thật (Gói H + ClipAI sửa cục bộ, phông xanh, giá Seedance 2.5) + nghiệm thu ước tính · nặng:3 · ⏸ · chờ người dùng duyệt bảng trần + nạp Claude API
+- [ ] S14.13 · L — dọn cờ đợt 2: bỏ `qc_agent`, `scene_qc_claude`, `scene_qc_trusted` nếu `qc_team` đạt trên dự án thử · nặng:1 · ⏸ · sau S14.12
+- [ ] S14.14 · G — `ui_v2` mặc định + gỡ giao diện cũ + tách file lớn · nặng:3 · ⏸ · chờ người dùng duyệt sau khi dùng thử UI v2
+- [ ] S14.15 · I1 — tài liệu khớp trạng thái cuối + chấm lại toàn bộ bằng AI Dev System · nặng:1 · ⬜
 
 ### K — Chạy kiểm kịch bản hài 20–30 s — ⏸ KHÔNG ƯU TIÊN (người dùng 30/09: các việc test kịch bản không làm trước nữa)
 - [ ] K.1 · Soạn kịch bản hài 20–30 s có **Kenta + Orion cùng dùng kỹ năng** (người dùng 30/09) · nặng:1 · ⏸ · viết lại bản A (docs/KICH_BAN_KIEM_K1_2026-09-29.md) theo hồ sơ kỹ năng Kenta + Orion (đợt S10) và luật chia nhịp kỹ năng; người dùng duyệt · tạm gác — không ưu tiên (người dùng 30/09); làm sau cùng khi người dùng gọi
