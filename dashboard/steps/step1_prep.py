@@ -121,9 +121,9 @@ def assets_panel(p: Pipeline, pid: int) -> None:
                 if c3.button("✖ Bỏ", key=f"as_drop_{pid}_{a['id']}"):
                     assets.detach(p.conn, pid, a["id"])
                     st.rerun()
-        library = [a for a in assets.list_assets(p.conn, game, None, pid) if a["id"] not in chosen_ids]
+        library = assets.library_labels(p.conn, game, pid, chosen_ids)      # names only: the full entries (pictures, disk checks) are not needed here
         if library:
-            labels = {a["id"]: f"{a['kind_label']}: {a['name']}" for a in library}
+            labels = dict(library)
             pick = st.selectbox("Thêm từ kho", [None] + list(labels), key=f"as_pick_{pid}",
                                 format_func=lambda i: "— chọn —" if i is None else labels[i])
             if pick is not None and st.button("➕ Thêm vào dự án", key=f"as_add_{pid}"):
