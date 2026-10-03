@@ -370,6 +370,10 @@ def plates3d_panel(p: Pipeline, game: str) -> None:
     p = _fresh(p)
     from core import plates3d
     with st.expander("🏗 Bối cảnh 3D — render nền trống người từ file 3D (Blender, không tốn credit)", expanded=False):
+        # an expander's body runs even when closed: nothing (Blender lookup, the 3D folder scan) is done until the person opens the tool
+        if not st.toggle("Mở công cụ", key="p3d_open"):
+            st.caption("Bật để tìm Blender và liệt kê file 3D.")
+            return
         blender = plates3d.find_blender()
         st.caption(("Blender: `" + blender + "`") if blender else "⚠ Chưa thấy Blender — cài Blender 5.0 hoặc đặt BLENDER_PATH trong dashboard.env.")
         folder = st.text_input("Thư mục file 3D (MODEL3D_DIR)", plates3d.model_dir(), key="p3d_dir")

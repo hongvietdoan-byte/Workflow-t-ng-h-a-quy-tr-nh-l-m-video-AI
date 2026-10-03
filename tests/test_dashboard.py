@@ -118,6 +118,7 @@ class DashboardSmokeTests(unittest.TestCase):
         self.assertTrue(any("Ảnh chờ duyệt" in e.label for e in at.expander))
         self.assertTrue(any("1 ảnh chờ duyệt" in c.value for c in at.caption))
         self.assertTrue(any("Bối cảnh 3D" in e.label for e in at.expander))
+        at.toggle(key="p3d_open").set_value(True).run()
         self.assertTrue(any(s.key == "p3d_file" for s in at.selectbox))
 
     def test_review_box_bulk_remove_redraws_only_the_box(self):

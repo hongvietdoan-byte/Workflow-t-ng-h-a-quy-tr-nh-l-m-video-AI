@@ -113,6 +113,8 @@ class GameNoticeTests(unittest.TestCase):
 
 class StoreBlenderTests(unittest.TestCase):
     def test_the_store_package_is_found_when_nothing_else_is(self):
+        plates3d._STORE_CACHE.clear()                  # the answer is remembered per process (02/10): start clean, leave clean
+        self.addCleanup(plates3d._STORE_CACHE.clear)
         fake = mock.Mock(stdout="BlenderFoundation.Blender_abc|C:\\Program Files\\WindowsApps\\Blender_5\n")
         with mock.patch.object(plates3d.os, "name", "nt"), mock.patch.object(plates3d.subprocess, "run", return_value=fake):
             got = plates3d.store_blender()
