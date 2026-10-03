@@ -1,6 +1,6 @@
 {
-  "version": 1,
-  "updated": "2026-09-26",
+  "version": 2,
+  "updated": "2026-10-03",
   "_note": "Bản đồ hệ thống của AI Development System. Mỗi file .py dưới core/ và dashboard/ phải thuộc ít nhất một khu vực (thiếu = cảnh báo). 'code' / 'assets' / 'docs' là mẫu đường dẫn (fnmatch, '*' khớp cả '/'). 'tests' thêm tay ngoài các test tự dò theo import. 'flags' = tên trong core/features.py. 'diag_stages' = stage của bảng diag_events. 'keywords' dùng để gán dòng TODO.md vào khu vực (không phân biệt hoa thường). Sửa file này khi thêm module mới rồi tăng 'version'.",
   "scan_roots": ["core", "dashboard"],
   "infra_modules": ["core/__init__.py", "core/db.py", "core/pipeline.py", "core/providers.py", "core/states.py", "core/adapters/http.py", "core/adapters/__init__.py", "dashboard/__init__.py"],
@@ -144,6 +144,7 @@
       "assets": ["mockup/*", "tools/launch_dashboard.ps1", "tools/stop_dashboard.ps1", "Start-Dashboard.bat", "Stop-Dashboard.bat", ".streamlit/*", "tools/make_icon.py", "tools/seed_demo.py", "tools/run_demo.ps1", "tools/ui_v2_acceptance.py", "tools/ui_contrast_audit.js", "tools/ui_snapshot.py", "assets/fonts/*", "dashboard/static/*", "docs/ui_snapshots/*"],
       "docs": ["docs/UI_AUDIT.md", "docs/DASHBOARD_REVIEW_2026-09-23.md", "docs/PHAN_TICH_VONG_DASHBOARD_2026-09-24.md"],
       "tests": ["tests/test_ui_v2_acceptance.py", "tests/test_ui_snapshot.py"],
+      "ui_metrics": true,
       "flags": ["ui_v2"],
       "diag_stages": [],
       "keywords": ["dashboard", "giao diện", "đăng nhập", "Chế độ chuyên gia", "thanh trên", "màn chính"]
@@ -205,10 +206,10 @@
       "name": "Hệ thống phát triển (AI Development System)",
       "weight": 0.3,
       "description": "Chính web theo dõi tiến độ này: bản đồ khu vực, dòng thời gian, sức khỏe đo bằng code, chấm điểm AI.",
-      "code": ["devsys/*.py", "tools/devsys_score.py", "tools/devsys_collect.py", "tools/devsys_hook.py", "tools/plan_progress.py"],
-      "assets": ["devsys/areas.json", "devsys/rubric.md", "Start-DevSystem.bat", "tools/launch_devsys.ps1"],
+      "code": ["devsys/*.py", "tools/devsys_score.py", "tools/devsys_collect.py", "tools/devsys_hook.py", "tools/devsys_ui_metrics.py", "tools/plan_progress.py"],
+      "assets": ["devsys/areas.json", "devsys/rubric.md", "devsys/rubric_v1.md", "Start-DevSystem.bat", "tools/launch_devsys.ps1"],
       "docs": [],
-      "tests": ["tests/test_devsys.py"],
+      "tests": ["tests/test_devsys.py", "tests/test_devsys_v2.py"],
       "flags": [],
       "diag_stages": [],
       "keywords": ["devsys", "AI Development System"]

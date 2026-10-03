@@ -21,7 +21,7 @@ os.chdir(ROOT)
 import pandas as pd  # noqa: E402
 import streamlit as st  # noqa: E402
 
-from devsys import collect, plan_progress, scorer, scores  # noqa: E402
+from devsys import collect, metrics, plan_progress, scorer, scores  # noqa: E402
 
 st.set_page_config(page_title="AI Development System", page_icon="🧭", layout="wide")
 
@@ -407,6 +407,11 @@ def page_timeline():
 
 
 # ---- trang: Sức khỏe ---------------------------------------------------------------------------------------------------
+@st.cache_data(show_spinner="Đang đo bằng code (ast)…", max_entries=2)
+def load_metrics(key: str):
+    return {a["id"]: metrics.facts_extra(ROOT, cfg, a, snap) for a in cfg["areas"]}
+
+
 def page_health():
     st.title("Sức khỏe — đo bằng code (miễn phí, khách quan)")
     run = snap.get("latest_run")
@@ -420,6 +425,24 @@ def page_health():
                      "Chờ người dùng": h["todo_waiting_user"], "Diag cảnh báo/lỗi": f"{h['diag_warn']}/{h['diag_error']}",
                      "File > 900 dòng": len(h["big_files"]), "Commit 7 ngày": h["commits_7d"]})
     st.dataframe(pd.DataFrame(rows), hide_index=True)
+    with st.expander("Số đo thang bản 2 — do code tính (nuốt lỗi, hàm dài, độ phủ test, điều khiển giao diện…)"):
+        show_m = st.toggle("Tính số đo (đọc ast toàn bộ code, ≈ 10 giây, miễn phí)", value=False, key="show_metrics")
+        mrows = []
+        for a in (cfg["areas"] if show_m else []):
+            m = load_metrics(key)[a["id"]]
+            mrows.append({"Khu vực": a["name"], "Khoản trừ tự động": round(sum(x["points"] for x in m["auto"]), 1),
+                          "except nuốt lỗi": len(m["metrics"]["swallowed"]), "Module không test": len(m["metrics"]["modules_untested"]),
+                          "Hàm công khai chưa được test nhắc": f"{m['metrics']['funcs_untested']}/{m['metrics']['funcs_public']}",
+                          "Hàm > 150 dòng": len(m["metrics"]["long_funcs"]), "Hàm phức tạp > 30": len(m["metrics"]["complex_funcs"]),
+                          "Điều khiển giao diện": sum(m["metrics"]["controls"].values()),
+                          "Cờ BẬT chưa thử thật": len(m["metrics"]["flags_on_unverified"]),
+                          "Lời gọi tiền không thấy guard": len(m["metrics"]["paid_unguarded"])})
+        if mrows:
+            st.dataframe(pd.DataFrame(mrows), hide_index=True)
+        ui = metrics.ui_metrics(ROOT)
+        st.caption("Đo giao diện thật: " + (", ".join(f"{k} = {ui.get(k)}" for k in ("clicks_old", "clicks_v2", "perf_worst_pct", "keys_lost",
+                                                                                      "contrast_fail", "small_text")) + f" · {ui.get('date', '')[:16]}"
+                                              if ui else "chưa có — `py tools/devsys_ui_metrics.py --run-acceptance` rồi `--contrast <file>`."))
     if not snap["diag"]["available"]:
         st.caption("Diag: " + snap["diag"]["note"])
     if snap.get("todo_note"):
@@ -511,13 +534,28 @@ def page_scores():
                 st.markdown(md(rec["summary"]))
             if rec.get("rubric_hash") and rec["rubric_hash"] != scores.rubric_hash(ROOT):
                 st.warning("Điểm này chấm theo thang cũ (devsys/rubric.md đã đổi).")
-            for k, label, mx in scores.CRITERIA:
+            if rec.get("format") == scores.FORMAT_V2:
+                sev = rec.get("severity") or {}
+                st.caption(f"Thang bản 2 · lỗi chặn {sev.get('chan', 0)} · lớn {sev.get('lon', 0)} · nhỏ {sev.get('nho', 0)} · "
+                           f"khoản trừ tự động do code đo −{rec.get('auto_points', 0):g}")
+                for cap in rec.get("code_caps", []):
+                    if cap.startswith("khu vực:"):
+                        st.markdown(md(f"🔒 {cap}"))
+                if rec.get("drift"):
+                    dr = rec["drift"]
+                    st.caption(f"Độ ổn định: {dr['prev_score']:g} → {dr['now']:g} (lệch {dr['delta']:+g}, ngưỡng {dr['limit']:g}) — "
+                               + ("có giải thích: " + "; ".join(e["why"] for e in dr.get("explanations", []))[:300] if dr.get("explained") else "trong ngưỡng"))
+            else:
+                st.info("Điểm này chấm theo thang bản 1 (6 tiêu chí, người chấm tự ghi số điểm trừ) — không so thẳng với bản 2.")
+            for k, label, mx in scores.criteria_of(rec):
                 c = rec["criteria"][k]
                 st.markdown(f"**{label}** — {c['score']:g}/{mx}")
                 st.progress(min(1.0, c["score"] / mx))
                 for d in c["deductions"]:
                     ev = ", ".join(f"`{e}`" + (" ⚠" if e in d.get("unverified", []) else "") for e in d["evidence"])
-                    st.markdown(md(f"- −{d['points']:g}: {d['reason']} — {ev}"))
+                    tag = "🤖 code đo" if d.get("auto") else scores.SEVERITY_LABEL.get(d.get("muc"), "")
+                    tag = f"[{tag}{' · dấu hiệu' if d.get('heuristic') else ''}] " if tag else ""
+                    st.markdown(md(f"- −{d['points']:g} {tag}{d['reason']} — {ev}"))
                     fb = d.get("feedback")
                     if fb:                     # S8.1: why it costs points and how to win them back
                         bits = [f"**Vì sao:** {fb['why']}" if fb.get("why") else "", f"**Sửa:** {fb['fix']}" if fb.get("fix") else "",
@@ -532,6 +570,10 @@ def page_scores():
             if rec.get("unverified_evidence"):
                 st.warning("Bằng chứng không kiểm được trong repo (⚠): " +
                            "; ".join(f"{u['evidence']} ({u['why']})" for u in rec["unverified_evidence"][:12]))
+            if rec.get("checklist"):
+                with st.expander("Checklist các loại lỗi đã gặp (B1–B6, 26/09)"):
+                    st.dataframe(pd.DataFrame([{"Loại": c["id"], "Trả lời": c["tra_loi"], "Khoản trừ": c["khoan_tru"], "Ghi chú": c["ghi_chu"]}
+                                               for c in rec["checklist"]]), hide_index=True)
             if rec.get("can_kiem_lai"):
                 st.markdown("**Cần kiểm lại**")
                 for c in rec["can_kiem_lai"]:
@@ -545,6 +587,23 @@ def page_scores():
                 st.caption("Lịch sử: " + " → ".join(f"{s['score']:g} ({fmt_date(s['date'])}, {s.get('scorer')})" for s in hist[-8:]))
             with st.expander("JSON đầy đủ của lần chấm"):
                 st.json(rec)
+        with st.expander("Báo cáo hành động theo khu vực · độ ổn định · so thang cũ ↔ mới"):
+            real = [s for s in all_scores if not str(s.get("scorer", "")).startswith("mock")]
+            st.download_button("Tải báo cáo hành động (Markdown)", scores.action_report(scores.latest_by_area(real), cfg), file_name="bao_cao_hanh_dong.md",
+                               mime="text/markdown")
+            stab = scores.stability(real)
+            if stab["n"]:
+                st.markdown(md(f"**Độ ổn định:** {stab['n']} cặp lần chấm cùng thang, lệch trung bình {stab['mean_abs']} điểm, lớn nhất {stab['max_abs']}; "
+                               f"{stab['over_limit']} cặp > {scores.DRIFT_LIMIT:g}; {len(stab['noise'])} cặp lệch dù dấu vân tay không đổi."))
+            else:
+                st.caption("Chưa có hai lần chấm liền nhau cùng thang bản 2 — chưa đo được độ ổn định.")
+            old = scores.latest_by_area([s for s in real if s.get("format") == scores.FORMAT])
+            new = scores.latest_by_area([s for s in real if s.get("format") == scores.FORMAT_V2])
+            if new:
+                st.dataframe(pd.DataFrame([{"Khu vực": r["name"], "Bản 1": r["old"], "Bản 2": r["new"], "Chênh": r["delta"]}
+                                           for r in scores.compare_rounds(old, new, cfg) if r["new"] is not None]), hide_index=True)
+            else:
+                st.caption("Chưa có điểm bản 2 để so với bản 1.")
 
     st.subheader("Chấm lại")
     job = score_job()

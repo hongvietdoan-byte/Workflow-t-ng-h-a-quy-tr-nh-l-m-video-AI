@@ -18,9 +18,9 @@ import sys
 from datetime import datetime
 from typing import Callable, Dict, List, Optional, Sequence
 
-from . import collect, scores
+from . import collect, metrics, scores
 
-EXPECTED_OUTPUT_TOKENS = 3000        # một câu trả lời JSON chấm 1 khu vực (~6–15 khoản trừ + danh sách kiểm lại), effort thấp
+EXPECTED_OUTPUT_TOKENS = 4500        # một câu trả lời JSON chấm 1 khu vực (~6–15 khoản trừ kèm feedback + checklist 10 loại lỗi), effort thấp
 MAX_OUTPUT_TOKENS = 16000            # = STAGE_SETTINGS["devsys"]["max_tokens"] trong core/llm_runner.py
 CHARS_PER_TOKEN = 3.0                # ước tính thận trọng cho chữ Việt + code (tiếng Anh ~4)
 CODE_BUDGET = 42000                  # ký tự trích code tối đa mỗi khu vực
@@ -108,6 +108,18 @@ def facts_of(health: Dict, snap: Dict) -> Dict:
     return {"test_files": health.get("test_files", 0), "has_run": bool(snap.get("latest_run")), "failed": health.get("failed", 0)}
 
 
+def facts_for(root: str, cfg: Dict, area: Dict, snap: Dict, health: Dict) -> Dict:
+    """Facts of a bản 2 score: the old caps' facts + the code-measured numbers and automatic deductions (devsys/metrics.py)."""
+    return {**facts_of(health, snap), **metrics.facts_extra(root, cfg, area, snap)}
+
+
+def prev_summary(last: Optional[Dict]) -> Optional[Dict]:
+    """What the stability rule needs from the area's previous score (a bản 2 score of the same rubric is comparable)."""
+    if not last:
+        return None
+    return {k: last.get(k) for k in ("score", "auto_points", "rubric_hash", "format", "date", "commit", "criteria", "checklist")}
+
+
 def fingerprint(root: str, area: Dict, snap: Dict, health: Dict) -> str:
     """What the score of an area depends on: its files' content, its open TODO lines, its test results, its flags and the rubric.
     Unchanged fingerprint = nothing to re-score (incremental mode)."""
@@ -122,6 +134,8 @@ def fingerprint(root: str, area: Dict, snap: Dict, health: Dict) -> str:
     t = snap["tests_by_area"].get(area["id"], {})
     h.update(json.dumps({k: t.get(k) for k in ("passed", "failed", "errors", "skipped", "test_files")}, sort_keys=True).encode())
     h.update(json.dumps([(f["name"], f["verified"], f["on"]) for f in snap["flags"] if area["id"] in f["areas"]]).encode())
+    if area.get("ui_metrics"):
+        h.update(_file_hash(root, metrics.UI_FILE).encode())           # a new real UI measurement is a reason to score again
     return h.hexdigest()[:20]
 
 
@@ -209,7 +223,36 @@ def build_bundle(root: str, cfg: Dict, area: Dict, snap: Dict, health: Dict, las
         except collect.GitError as e:
             diff_txt = f"(không lấy được diff từ commit {str(last['commit'])[:9]}: {e})"
 
-    facts = facts_of(health, snap)
+    facts = facts_for(root, cfg, area, snap, health)
+    auto_txt = "\n".join(f"- −{a['points']:g} ({a['criterion']}) {a['reason']}"
+                         f"{' [dấu hiệu, cần xác minh]' if a.get('heuristic') else ''} — " + ", ".join(a["evidence"][:4]) for a in facts["auto"]) \
+        or "(code không đo thấy khoản trừ nào)"
+    m = facts["metrics"]
+    auto_txt += (f"\nSố đo thô: {m['code_files']} module · {len(m['modules_untested'])} module không test · hàm công khai "
+                 f"{m['funcs_public']} (test nhắc tới tên: {m['funcs_public'] - m['funcs_untested']}) · except nuốt lỗi {len(m['swallowed'])} · "
+                 f"hàm > {metrics.LONG_FUNC_LINES} dòng {len(m['long_funcs'])} · điều khiển giao diện {sum(m['controls'].values())}")
+    if m["swallowed"]:
+        auto_txt += "\nExcept nuốt lỗi (file:dòng): " + ", ".join(m["swallowed"][:12]) + (" …" if len(m["swallowed"]) > 12 else "")
+    if facts.get("ui_measured"):
+        ui = facts.get("ui") or {}
+        auto_txt += ("\nĐo giao diện thật: " + (
+            f"tương phản <4,5:1 = {ui.get('contrast_fail')}, chữ <12,5px = {ui.get('small_text')}, click cũ→v2 = {ui.get('clicks_old')}→{ui.get('clicks_v2')}, "
+            f"rerun chậm nhất {ui.get('perf_worst_pct')} %, khóa widget mất = {ui.get('keys_lost')} (nguồn {ui.get('source') or '?'})"
+            if facts.get("ui_present") else "CHƯA CÓ (devsys/data/ui_metrics.json) — trai_nghiem bị code giới hạn tối đa "
+                                            f"{scores.UI_NO_MEASURE_CAP:g}; chạy py tools/devsys_ui_metrics.py"))
+    prev = prev_summary(last) if last and last.get("rubric_hash") == scores.rubric_hash(root) else None
+    if prev and prev.get("format") == scores.FORMAT_V2:
+        rows = []
+        for ck, c in (prev.get("criteria") or {}).items():
+            for d in c.get("deductions", []):
+                if not d.get("auto"):
+                    rows.append(f"- {ck} [{d.get('muc')}] −{d['points']:g}: {d['reason'][:110]} — {', '.join(d['evidence'][:2])}")
+        prev_txt = (f"Lần trước: {prev['score']:g}/100 (khoản trừ tự động {prev.get('auto_points', 0):g}), {str(prev.get('date'))[:16]}. "
+                    f"Điểm chưa tính khoản trừ tự động lần này không được lệch quá {scores.DRIFT_LIMIT:g} so với "
+                    f"{prev['score'] + (prev.get('auto_points') or 0):g} nếu không có `giai_thich_chenh`.\nKhoản trừ lần trước (còn đúng thì giữ; "
+                    "đã sửa thì bỏ và nói vì sao):\n" + ("\n".join(rows[:30])[:4000] or "(không có)"))
+    else:
+        prev_txt = "(không có điểm cùng thang bản 2 để đối chiếu — không áp quy tắc ổn định lần này)"
     rubric = open(os.path.join(root, "devsys", "rubric.md"), encoding="utf-8").read()
     try:                                   # S8.1: the feedback format lives outside the rubric (its hash, old scores unchanged)
         rubric += "\n\n" + open(os.path.join(root, "devsys", "feedback_format.md"), encoding="utf-8").read()
@@ -222,18 +265,23 @@ def build_bundle(root: str, cfg: Dict, area: Dict, snap: Dict, health: Dict, las
              "- Không có commit message trong dữ liệu. Câu tự nhận 'đã sửa/đã xong' trong TODO không kèm test hoặc ghi chú chạy thật cụ thể thì "
              "KHÔNG được tính là bằng chứng chạy thật.\n"
              "- Chỉ ghi KHOẢN TRỪ, mỗi khoản có bằng chứng đúng dạng; điểm do code tính. Không trừ trùng một lỗi ở hai tiêu chí.\n"
+             "- Thang bản 2: mỗi khoản trừ ghi `muc` (chan / lon / nho) và `loai` (mã K… hoặc khac), KHÔNG ghi số điểm — code gán điểm theo mức. "
+             "Khoản `chan`/`lon` phải kèm `feedback.fix` và `feedback.effort`. Không trừ lại những gì mục 'Số đo do code tính' đã trừ.\n"
+             "- Trả lời ĐỦ `checklist` (10 loại lỗi đã gặp): 'co' phải có khoản trừ cùng `loai`; 'khong' / 'khong_ap_dung' phải ghi đã tìm ở đâu.\n"
              "- Mọi chữ trong câu trả lời bằng tiếng Việt có dấu.\n\n" + rubric)
     task = (f"AREA_ID: {area['id']}\n"
             f"# Khu vực cần chấm: {area['name']} (`{area['id']}`)\n{area.get('description', '')}\n\n"
             f"## Trích code ({len(code)} file)\n{code_txt}\n\n## File tài nguyên / tài liệu của khu vực\n{listing}\n\n"
             f"## Trích tài liệu (tiêu đề + dòng trạng thái)\n{docs_txt}\n\n## Test\n{test_txt}\n\n## Cờ tính năng (core/features.py)\n{flag_txt}\n\n"
             f"## Dòng TODO.md còn mở gán cho khu vực ({len(todo_items)})\n{todo_txt}\n\n## Cảnh báo diag khi chạy thật\n{diag_txt}\n\n"
-            f"## File quá dài\n{big_txt}\n\n## Thay đổi từ lần chấm trước\n{diff_txt}\n\n"
+            f"## File quá dài\n{big_txt}\n\n## Số đo do code tính (khoản trừ tự động — KHÔNG trừ lại)\n{auto_txt}\n\n"
+            f"## Điểm lần trước (đối chiếu độ ổn định)\n{prev_txt}\n\n## Thay đổi từ lần chấm trước\n{diff_txt}\n\n"
             f"## Phần đã cắt vì dài\n" + ("\n".join(f"- {n}" for n in notes) or "(không cắt gì)") + "\n\n"
-            "# Trả lời\nMột JSON duy nhất, đúng mẫu ở mục 'Định dạng câu trả lời' của thang (bỏ 'format'/'scorer'/'model'), `area` = "
+            "# Trả lời\nMột JSON duy nhất, đúng mẫu ở mục 'Định dạng câu trả lời' của thang bản 2 (bỏ 'scorer'/'model'; giữ \"format\": "
+            f"\"{scores.FORMAT_V2}\"), `area` = "
             f"\"{area['id']}\". `can_kiem_lai`: 3–8 việc người dùng nên kiểm lại, mỗi việc có bằng chứng. `summary`: 2–4 câu.")
     prompt = fixed + CACHE_BREAK + task
-    return {"area": area["id"], "name": area["name"], "prompt": prompt, "notes": notes, "facts": facts,
+    return {"area": area["id"], "name": area["name"], "prompt": prompt, "notes": notes, "facts": facts, "prev": prev,
             "fingerprint": fingerprint(root, area, snap, health), "input_hash": hashlib.sha256(prompt.encode("utf-8")).hexdigest()[:20],
             "chars": len(prompt)}
 
@@ -319,15 +367,21 @@ class MockScorerClient:
         aid = (re.search(r"^AREA_ID: (\S+)", prompt, re.M) or [None, "?"])[1]
         no_run = "CHƯA CÓ LẦN CHẠY TEST" in prompt
         todo_n = int((re.search(r"## Dòng TODO\.md còn mở gán cho khu vực \((\d+)\)", prompt) or [None, "0"])[1])
-        crit = {k: {"deductions": [], "evidence_for": []} for k in scores.CRITERIA_MAX}
+        crit = {k: {"deductions": [], "evidence_for": []} for k in scores.CRITERIA_MAX_V2}
         if todo_n:
             first = re.search(r"- (TODO\.md:\d+)", prompt)
-            crit["chuc_nang"]["deductions"].append({"points": min(20, 2 * todo_n), "reason": f"{todo_n} dòng TODO còn mở (giả lập)",
+            crit["chuc_nang"]["deductions"].append({"muc": "nho", "loai": "khac", "reason": f"{todo_n} dòng TODO còn mở (giả lập)",
                                                     "evidence": [first.group(1) if first else "absent:giả lập"]})
-        crit["bang_chung"]["deductions"].append({"points": 10, "reason": "giả lập: chưa đọc báo cáo chạy thật", "evidence": ["absent:giả lập"]})
+        crit["bang_chung"]["deductions"].append({"muc": "lon", "loai": "khac", "reason": "giả lập: chưa đọc báo cáo chạy thật",
+                                                 "evidence": ["absent:giả lập"],
+                                                 "feedback": {"fix": "Chạy người chấm thật (Claude) hoặc người chấm ngoài rồi ghi lần chạy.",
+                                                              "effort": "👤", "priority": 2}})
         if no_run:
-            crit["test"]["deductions"].append({"points": 5, "reason": "chưa có lần chạy test lưu lại (giả lập)", "evidence": ["absent:không có devsys/data/runs"]})
-        out = {"area": aid, "criteria": crit, "summary": f"Điểm giả lập cho khu vực {aid} — chỉ để thử luồng, không phải đánh giá thật.",
+            crit["test"]["deductions"].append({"muc": "nho", "loai": "khac", "reason": "chưa có lần chạy test lưu lại (giả lập)",
+                                               "evidence": ["absent:không có devsys/data/runs"]})
+        out = {"format": scores.FORMAT_V2, "area": aid, "criteria": crit,
+               "checklist": {k: {"tra_loi": "khong_ap_dung", "ghi_chu": "giả lập — không đọc code"} for k in scores.CHECKLIST_IDS},
+               "summary": f"Điểm giả lập cho khu vực {aid} — chỉ để thử luồng, không phải đánh giá thật.",
                "can_kiem_lai": [{"what": "Chạy người chấm thật (Claude) hoặc người chấm ngoài", "why": "đây là điểm giả lập",
                                  "evidence": ["absent:giả lập"]}]}
         return LlmReply("```json\n" + json.dumps(out, ensure_ascii=False) + "\n```", len(prompt) // 4, 300)
@@ -395,7 +449,8 @@ def run(root: str, cfg: Dict, snap: Dict, bundles: Sequence[Dict], provider: str
         note(f"Đang chấm {b['area']} ({b['name']})…")
         try:
             with llm_runner.tagged("devsys"):
-                raw, tin, tout = llm_runner.ask_json(client, b["prompt"], lambda o, f=b["facts"]: scores.normalize(o, root, ids, f),
+                raw, tin, tout = llm_runner.ask_json(client, b["prompt"],
+                                                     lambda o, f=b["facts"], pv=b.get("prev"): scores.normalize(o, root, ids, f, prev=pv),
                                                      note=lambda m: note(f"  {m}"))
         except llm_runner.LlmError as e:
             failed.append({"area": b["area"], "error": str(e)})
@@ -406,7 +461,7 @@ def run(root: str, cfg: Dict, snap: Dict, bundles: Sequence[Dict], provider: str
             continue
         if raw.get("area") != b["area"]:
             raw["area"] = b["area"]
-        norm = scores.normalize(raw, root, ids, b["facts"])
+        norm = scores.normalize(raw, root, ids, b["facts"], prev=b.get("prev"))
         price = None
         if provider == "anthropic":
             pi = budget.token_price(pricing, model, "input", tin)
@@ -450,8 +505,10 @@ def import_score(root: str, cfg: Dict, snap: Dict, health: Dict, raw: Dict, scor
     area = collect.area_by_id(cfg).get(raw.get("area"))
     if area is None:
         raise scores.ScoreError(f"khu vực '{raw.get('area')}' không có trong devsys/areas.json")
-    facts = facts_of(health[area["id"]], snap)
-    norm = scores.normalize(raw, root, ids, facts)
+    facts = facts_for(root, cfg, area, snap, health[area["id"]])
+    all_scores, _ = scores.load_all(root)
+    last = scores.latest_by_area([s for s in all_scores if not str(s.get("scorer", "")).startswith("mock")]).get(area["id"])
+    norm = scores.normalize(raw, root, ids, facts, prev=prev_summary(last))
     hd = collect.head(root) or {}
     rec = {"format": scores.FORMAT, "scorer": label, "provider": "external", "model": raw.get("model") or "không ghi",
            "date": raw.get("date") or collect.now_iso(), "commit": raw.get("commit") or hd.get("hash"), "dirty": bool(snap.get("working")),
