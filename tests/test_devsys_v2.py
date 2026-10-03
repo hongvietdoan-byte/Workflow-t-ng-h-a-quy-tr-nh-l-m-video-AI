@@ -513,3 +513,26 @@ class RealRepoMeasureTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class AppNameShadowTests(unittest.TestCase):
+    def test_no_module_level_name_shadows_a_helper_function(self):
+        """03/10: `stale = snap.get("tests_stale")` in the sidebar replaced the helper `stale(aid)` with None whenever the tests were fresh,
+        so the 'Chấm điểm AI' page crashed with "'NoneType' object is not callable"."""
+        import ast
+        path = os.path.join(os.path.dirname(__file__), "..", "devsys", "app.py")
+        tree = ast.parse(open(path, encoding="utf-8").read())
+        funcs = {n.name for n in tree.body if isinstance(n, ast.FunctionDef)}
+        bound = set()
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Assign):
+                for t in node.targets:
+                    bound |= {x.id for x in ast.walk(t) if isinstance(x, ast.Name) and isinstance(x.ctx, ast.Store)}
+        # only assignments outside any function body count as module scope
+        in_func = {id(x) for n in tree.body if isinstance(n, ast.FunctionDef) for x in ast.walk(n)}
+        mod_bound = set()
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Assign) and id(node) not in in_func:
+                for t in node.targets:
+                    mod_bound |= {x.id for x in ast.walk(t) if isinstance(x, ast.Name) and isinstance(x.ctx, ast.Store)}
+        self.assertEqual(sorted(funcs & mod_bound), [])
