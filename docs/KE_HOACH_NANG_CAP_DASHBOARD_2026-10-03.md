@@ -230,3 +230,13 @@ Agent Plan rà soát độc lập đã xác minh **24 mục đúng** (T1–T7, T
 4. Gộp theo bảng xung đột (mục 4), chạy cả bộ test (nền: `py -m pytest -q -p no:cacheprovider`, ≈ 12 phút), push `main`, pull ở `D:\AI-Video-Pipeline`, khởi động lại Dashboard (và AI Dev System nếu đổi `devsys/`), rồi nghiệm thu (mục 5).
 5. Chấm lại bằng phiên con: `py tools/devsys_score.py --export <khu_vực>` (chạy ở `D:\AI-Video-Pipeline`) → phiên chấm đọc `devsys/data/incoming/PROMPT.md` + `KIEM_CHUNG_*.md` (nếu còn) → `--import` **từ `D:/AI-Video-Pipeline`**. Nhớ: `py tools/devsys_collect.py --tests` trước khi export (nếu không `test` bị cap 6,4/12).
 6. Cuối mỗi đợt: cập nhật `TODO.md` + `docs/` + `py tools/plan_progress.py --write` nếu đổi trạng thái việc; commit + push; `git pull` ở `D:\AI-Video-Pipeline`.
+
+## 11. Giữ context gọn khi build (người dùng yêu cầu 04/10)
+
+Mục tiêu: phiên điều phối không bị đầy context → không phải nén tự động giữa chừng (nén làm mất chi tiết, lệch lối tư duy).
+1. **Phiên chính chỉ điều phối:** không tự sửa code của nhánh; không đọc nguyên file lớn (đọc theo đoạn / `grep`); chạy test chỉ lấy dòng cuối (`-q`, `tail`).
+2. **Mỗi nhánh = 1 phiên con** (`Agent`, `isolation: worktree`) với prompt tự đủ: việc + file:dòng + test cần đỏ→xanh + luật mục 1 + quyết định mục 6b. Tối đa 2–3 phiên con chạy cùng lúc.
+3. **Phiên con báo cáo ngắn (≤ 30 dòng):** file đã sửa, tên test đỏ→xanh, mã commit, việc còn mở/rủi ro. Không dán diff hay log dài.
+4. **Rà độc lập trước khi gộp:** một phiên con mới (context sạch) đọc diff của nhánh đối chiếu kế hoạch; chỉ gộp khi không còn lỗi.
+5. **Ghi trạng thái ra file sau MỖI nhánh gộp xong:** đổi trạng thái việc S14.x trong `docs/KE_HOACH_SUA_SAU_DU_AN_8.md` (kèm commit + bằng chứng) → `py tools/plan_progress.py --write` → dòng tiến độ trong `TODO.md` → commit + push. Trạng thái thật nằm trên đĩa, không nằm trong trí nhớ phiên.
+6. **Điểm nghỉ:** sau khi gộp xong Làn 1+2 (và sau mỗi làn tiếp theo) Claude báo "điểm nghỉ" → người dùng mở phiên mới hoặc `/clear`, rồi nhắn "đọc TODO và làm tiếp S14". Không dựa vào nén tự động cho các đợt dài.
