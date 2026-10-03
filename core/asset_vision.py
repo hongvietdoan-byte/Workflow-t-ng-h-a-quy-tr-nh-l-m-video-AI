@@ -56,7 +56,11 @@ def _eligible(a: Dict) -> bool:
 
 def pending(conn, game: str) -> int:
     """Library resources (character/pet, with pictures) that have not been read by Claude yet."""
-    return sum(1 for a in assets.list_assets(conn, game, None, None, shared_only=True) if _eligible(a))
+    # one query, no pictures read from disk (02/10: the full list of entries was built just to count them; at 10× the library that took 0.5 s)
+    row = conn.execute("SELECT COUNT(*) FROM assets a WHERE a.project_id IS NULL AND a.game=? AND a.kind IN ('character', 'pet')"
+                       " AND instr(COALESCE(a.description, ''), ?) = 0"
+                       " AND EXISTS (SELECT 1 FROM asset_images i WHERE i.asset_id=a.id AND i.status='approved')", (game, MARK)).fetchone()
+    return int(row[0])
 
 
 def can_run(conn, game: str, client_factory: Optional[Callable] = None) -> bool:

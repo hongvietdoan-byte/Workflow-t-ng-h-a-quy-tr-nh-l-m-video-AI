@@ -489,6 +489,10 @@ def _migrate(conn: sqlite3.Connection) -> None:
     _migrate_outputs(conn)
     # S13.10: every ⌂ card / money bar reads usage_events per project (core.project_budget, core.cost) — without this it is a full scan per project
     conn.execute("CREATE INDEX IF NOT EXISTS idx_usage_events_project ON usage_events(project_id, kind)")
+    # 02/10: the library's per-entry reads (pictures of one entry, "has an approved picture") were full scans of asset_images — with 10× the
+    # library the Dashboard's library screens took seconds
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_asset_images_asset ON asset_images(asset_id)")
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_assets_game_kind ON assets(game, kind)")
     job_cols ={r["name"] for r in conn.execute("PRAGMA table_info(jobs)")}
     for col in ("external_id", "result_path", "created_by"):
         if col not in job_cols:

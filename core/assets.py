@@ -16,7 +16,7 @@ import os
 import re
 import shutil
 import unicodedata
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Tuple
 
 KINDS = {"character": "Nhân vật", "weapon": "Vũ khí / trang bị", "pet": "Thú cưng", "prop": "Đạo cụ",
          "location": "Địa điểm / bản đồ", "style": "Phong cách"}
@@ -363,19 +363,36 @@ def merge(conn, from_id: int, into_id: int) -> int:
     return moved
 
 
+def _resolved(images: List[Dict]):
+    """The pictures with their usable path and whether the file is there — one disk check each (resolve() + exists() made two)."""
+    out, here = [], {}
+    for i in images:
+        path = i["path"]
+        if not path:
+            full, ok = path, False
+        elif os.path.isabs(path) or os.path.exists(path):
+            full, ok = path, os.path.exists(path) if os.path.isabs(path) else True
+        else:
+            full = os.path.join(REPO, path)
+            ok = os.path.exists(full)
+        out.append(dict(i, path=full))
+        here[i["id"]] = ok
+    return out, here
+
+
 def _row(conn, r, images_by_asset: Optional[Dict] = None) -> Dict:
     if images_by_asset is not None:
         images = images_by_asset.get(r["id"], [])
     else:
         images = [dict(i) for i in conn.execute("SELECT id, path, label, role, look, variant, status FROM asset_images WHERE asset_id=?"
                                                 " ORDER BY sort, id", (r["id"],))]
-    images = [dict(i, path=resolve(i["path"])) for i in images]
-    pending = [i for i in images if i.get("status") == "pending" and os.path.exists(i["path"])]
+    images, here = _resolved(images)                                               # one disk check per picture (it was four)
+    pending = [i for i in images if i.get("status") == "pending" and here[i["id"]]]
     images = [i for i in images if i.get("status") in (None, "approved")]            # G2: only pictures a person approved are used
     return {"id": r["id"], "game": r["game"], "kind": r["kind"], "kind_label": KINDS.get(r["kind"], r["kind"]), "name": r["name"],
             "aliases": r["aliases"] or "", "description": r["description"] or "", "project_id": r["project_id"],
-            "created_by": r["created_by"], "images": [i for i in images if os.path.exists(i["path"])], "pending": pending,
-            "missing": [i["path"] for i in images if not os.path.exists(i["path"])]}   # approved pictures whose file is gone (said, luật 1)
+            "created_by": r["created_by"], "images": [i for i in images if here[i["id"]]], "pending": pending,
+            "missing": [i["path"] for i in images if not here[i["id"]]]}   # approved pictures whose file is gone (said, luật 1)
 
 
 def get(conn, asset_id: int) -> Optional[Dict]:
@@ -400,7 +417,10 @@ def list_assets(conn, game: Optional[str] = None, kind: Optional[str] = None, pr
     sql += " ORDER BY kind, lower(name)"
     rows = conn.execute(sql, args).fetchall()
     images: Dict[int, List[Dict]] = {}                # one query for every picture instead of one per entry (a library has hundreds)
-    for i in conn.execute("SELECT asset_id, id, path, label, role, look, variant, status FROM asset_images ORDER BY sort, id"):
+    # only the pictures of the entries asked for (02/10: the whole table was read for every call — 10× the library, 10× the time)
+    ids_sql = sql.replace("SELECT * FROM assets", "SELECT id FROM assets", 1).replace(" ORDER BY kind, lower(name)", "")
+    for i in conn.execute("SELECT asset_id, id, path, label, role, look, variant, status FROM asset_images WHERE asset_id IN (" + ids_sql
+                          + ") ORDER BY sort, id", args):
         images.setdefault(i["asset_id"], []).append({k: i[k] for k in ("id", "path", "label", "role", "look", "variant", "status")})
     return [_row(conn, r, images) for r in rows]
 
@@ -414,11 +434,52 @@ def find_in_text(conn, text: str, game: Optional[str], project_id: Optional[int]
     """Assets whose name or another name appears in the text (whole words, accents and case ignored)."""
     body = " " + fold(text) + " "
     found = []
-    for a in list_assets(conn, game, None, project_id):
-        hits = sum(body.count(" " + fold(n) + " ") for n in names_of(a) if len(fold(n)) >= 2)
+    # names first (no pictures read, no disk checks); full entries only for the ones the text mentions
+    sql, args = "SELECT id, name, aliases FROM assets WHERE (project_id IS NULL", []
+    if project_id is not None:
+        sql += " OR project_id=?"
+        args.append(project_id)
+    sql += ")"
+    if game:
+        sql += " AND game=?"
+        args.append(game)
+    hit_ids = {}
+    for r in conn.execute(sql + " ORDER BY kind, lower(name)", args).fetchall():
+        names = [n for n in [r["name"]] + re.split(r"[,;|]", r["aliases"] or "") if fold(n)]
+        hits = sum(body.count(" " + fold(n) + " ") for n in names if len(fold(n)) >= 2)
         if hits:
+            hit_ids[r["id"]] = hits
+    for aid, hits in hit_ids.items():
+        a = get(conn, aid)
+        if a is not None:
             found.append(dict(a, mentions=hits))
     return sorted(found, key=lambda a: -a["mentions"])
+
+
+def names_of_kinds(conn, game: Optional[str], kinds) -> List[Tuple[int, str]]:
+    """[(id, name)] of the shared library entries of these kinds — names only (no pictures read), in the order of list_assets."""
+    kinds = list(kinds)
+    sql = "SELECT id, name FROM assets WHERE project_id IS NULL AND kind IN (" + ",".join("?" * len(kinds)) + ")"
+    args = list(kinds)
+    if game:
+        sql += " AND game=?"
+        args.append(game)
+    return [(r["id"], r["name"]) for r in conn.execute(sql + " ORDER BY kind, lower(name)", args)]
+
+
+def library_labels(conn, game: Optional[str], project_id: Optional[int] = None, exclude=()) -> List[Tuple[int, str]]:
+    """[(id, "Loại: tên")] of the shared library (+ the project's own), in the order of list_assets — for a picker that needs only names."""
+    sql, args = "SELECT id, kind, name FROM assets WHERE (project_id IS NULL", []
+    if project_id is not None:
+        sql += " OR project_id=?"
+        args.append(project_id)
+    sql += ")"
+    if game:
+        sql += " AND game=?"
+        args.append(game)
+    gone = set(exclude)
+    return [(r["id"], f"{KINDS.get(r['kind'], r['kind'])}: {r['name']}")
+            for r in conn.execute(sql + " ORDER BY kind, lower(name)", args) if r["id"] not in gone]
 
 
 # ---- assets of a project --------------------------------------------------------------------------------------------

@@ -80,7 +80,22 @@ def find_blender() -> Optional[str]:
 STORE = "store:"
 
 
+_STORE_CACHE: dict = {}
+
+
 def store_blender() -> Optional[str]:
+    """Remembered per process (an answer is kept for good, "not installed" for 5 minutes): the PowerShell query takes ~1 s and the Dashboard
+    asked on every redraw of the library dialog (02/10).""" 
+    import time
+    hit = _STORE_CACHE.get("v")
+    if hit and (hit[0] is not None or time.time() - hit[1] < 300):
+        return hit[0]
+    value = _store_blender()
+    _STORE_CACHE["v"] = (value, time.time())
+    return value
+
+
+def _store_blender() -> Optional[str]:
     """Blender installed from the Microsoft Store (2026-09-25, this machine: 5.0.1). Its folder under WindowsApps is hidden from file
     search and its blender.exe cannot be started directly ("Access is denied"); the Store alias blender-launcher.exe drops every
     argument. It runs headless only inside its package context (Invoke-CommandInDesktopPackage). Returns "store:<family>|<exe>"."""

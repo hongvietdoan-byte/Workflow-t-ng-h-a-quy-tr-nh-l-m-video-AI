@@ -370,6 +370,10 @@ def plates3d_panel(p: Pipeline, game: str) -> None:
     p = _fresh(p)
     from core import plates3d
     with st.expander("🏗 Bối cảnh 3D — render nền trống người từ file 3D (Blender, không tốn credit)", expanded=False):
+        # an expander's body runs even when closed: nothing (Blender lookup, the 3D folder scan) is done until the person opens the tool
+        if not st.toggle("Mở công cụ", key="p3d_open"):
+            st.caption("Bật để tìm Blender và liệt kê file 3D.")
+            return
         blender = plates3d.find_blender()
         st.caption(("Blender: `" + blender + "`") if blender else "⚠ Chưa thấy Blender — cài Blender 5.0 hoặc đặt BLENDER_PATH trong dashboard.env.")
         folder = st.text_input("Thư mục file 3D (MODEL3D_DIR)", plates3d.model_dir(), key="p3d_dir")
@@ -628,11 +632,10 @@ def lib_video_box(p, game) -> None:
                    "nhận dạng nhân vật + kỹ năng/VFX thành chữ, MỖI câu gắn nhãn [OBSERVED] (thấy trực tiếp) / [EXPLICIT] (chữ overlay nói rõ) / "
                    "[INFERRED] (suy luận có lý do) / [UNKNOWN] (không xác nhận được) — video là bằng chứng gốc, không tự bịa sát thương/thời gian hồi/"
                    "tầm bắn nếu video không xác nhận. Bạn xem, sửa và tự chọn ảnh muốn giữ trước khi lưu — không tự động ghi gì cả.")
-        characters = [a for a in assets.list_assets(p.conn, game, None, None, shared_only=True) if a["kind"] in ("character", "pet")]
-        if not characters:
+        by_id = dict(assets.names_of_kinds(p.conn, game, ("character", "pet")))
+        if not by_id:
             st.caption("Kho chưa có nhân vật/thú cưng nào.")
         else:
-            by_id = {a["id"]: a["name"] for a in characters}
             va_asset_id = st.selectbox("Nhân vật / thú cưng", list(by_id), format_func=lambda i: by_id[i], key="va_asset")
             va_video = st.file_uploader("Video gameplay (mp4/mov/webm/mkv, tối đa 200 MB)", type=["mp4", "mov", "webm", "mkv"], key="va_video")
             va_note = st.text_input("Ghi chú thêm cho Claude (tuỳ chọn)", key="va_note",

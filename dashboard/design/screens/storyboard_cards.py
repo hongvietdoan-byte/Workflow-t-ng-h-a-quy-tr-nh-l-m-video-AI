@@ -186,14 +186,14 @@ def _version_strip(pid: int, sid: int, key: str, n: int, pointer: int) -> None:
     shown = list(range(max(0, min(pointer - 2, n - 4)), min(n, max(0, min(pointer - 2, n - 4)) + 4)))
     with st.container(key=f"vers-{pid}-{sid}"):                      # CSS: hàng chip tự xuống dòng khi thẻ hẹp, không cắt “v..” (02/10)
         cols = st.columns([1] + [1] * len(shown) + [1], gap="small")
-        if cols[0].button("‹", key=f"{key}_prev", disabled=pointer == 0, help="Bản trước"):
+        if cols[0].button("‹", key=f"{key}_prev", disabled=pointer == 0):
             st.session_state[key] = pointer - 1
             st.rerun()
         for col, i in zip(cols[1:-1], shown):
-            if col.button(f"v{i + 1}", key=f"{'sbvon' if i == pointer else 'sbv'}_{pid}_{sid}_{i}", help=f"Bản {i + 1}/{n}" + (" (đang xem)" if i == pointer else "")):
+            if col.button(f"v{i + 1}", key=f"{'sbvon' if i == pointer else 'sbv'}_{pid}_{sid}_{i}"):
                 st.session_state[key] = i
                 st.rerun()
-        if cols[-1].button("›", key=f"{key}_next", disabled=pointer == n - 1, help="Bản sau (mới hơn)"):
+        if cols[-1].button("›", key=f"{key}_next", disabled=pointer == n - 1):
             st.session_state[key] = pointer + 1
             st.rerun()
 
@@ -238,28 +238,27 @@ def image_group_v2(p, pid: int, history: list, proj, stale_reason=None) -> None:
             if st.button("🔍 Chi tiết", key=f"sel_btn_{jid}", width="stretch"):
                 _open_detail(pid, jid)
         elif state in REVIEWABLE:
-            note = st.text_input("Câu sửa (tiếng Anh)", key=f"note_{jid}", placeholder="vd: Kelly wears the yellow jacket",
-                                 help="Đưa vào prompt lần vẽ lại. Để trống = vẽ lại không kèm ghi chú.")
+            note = st.text_input("Câu sửa (tiếng Anh)", key=f"note_{jid}", placeholder="vd: Kelly wears the yellow jacket")
             b1, b2, b3, b4 = pair()
             if b1.button("✔ Duyệt", key=f"a_{jid}", type="primary", width="stretch"):
                 act(lambda: p.approve(jid, "user"))
                 st.rerun()
-            if b2.button("✖ Loại", key=f"dd_{jid}", width="stretch", help="Loại hẳn, không gen lại (vào thùng rác)"):
+            if b2.button("✖ Loại", key=f"dd_{jid}", width="stretch"):
                 act(lambda: p.reject(jid, "user", note or "đã xóa", respawn=False))
                 st.rerun()
-            if b3.button("↻ Vẽ lại", key=f"r_{jid}", width="stretch", help="Loại và gen lại, kèm lý do ở ô trên"):
+            if b3.button("↻ Vẽ lại", key=f"r_{jid}", width="stretch"):
                 act(lambda: p.reject(jid, "user", note or None))
                 st.rerun()
-            if b4.button("✎ Sửa", key=f"sel_btn_{jid}", width="stretch", help="Mở chi tiết: ảnh lớn, nội dung kịch bản, điểm QC từng tiêu chí"):
+            if b4.button("✎ Sửa", key=f"sel_btn_{jid}", width="stretch"):
                 _open_detail(pid, jid)
         elif busy:
             b1, b2, b3, b4 = pair()
             b1.button("✔ Duyệt", key=f"a_{jid}", disabled=True, width="stretch")
-            if state != "retryable" and b2.button("■ Hủy", key=f"c_{jid}", width="stretch", help="Hủy ảnh đang chờ / đang gen"):
+            if state != "retryable" and b2.button("■ Hủy", key=f"c_{jid}", width="stretch"):
                 act(lambda: p.cancel(jid))
                 st.rerun()
             b3.button("↻ Vẽ lại", key=f"r_{jid}", disabled=True, width="stretch")
-            if b4.button("✎ Sửa", key=f"sel_btn_{jid}", width="stretch", help="Chi tiết / nhập ảnh thủ công"):
+            if b4.button("✎ Sửa", key=f"sel_btn_{jid}", width="stretch"):
                 _open_detail(pid, jid)
         elif state == "failed" and not j["escalated"]:
             fix = st.text_input("Câu sửa (tiếng Anh)", key=f"dfix_{jid}", placeholder="để trống = gửi lại y nguyên",
@@ -274,8 +273,7 @@ def image_group_v2(p, pid: int, history: list, proj, stale_reason=None) -> None:
             if b4.button("✎ Sửa", key=f"sel_btn_{jid}", width="stretch"):
                 _open_detail(pid, jid)
         elif state == "approved":
-            r_note = st.text_input("Lý do bỏ duyệt", key=f"rn_{jid}", placeholder="chỉ cần khi bỏ duyệt",
-                                   help="Đưa vào prompt gen lại ảnh.")
+            r_note = st.text_input("Lý do bỏ duyệt", key=f"rn_{jid}", placeholder="chỉ cần khi bỏ duyệt")
             b1, b2, b3, b4 = pair()
             b1.button("✔ Duyệt", key=f"a_{jid}", disabled=True, width="stretch")
             b2.button("✖ Loại", key=f"dd_{jid}", disabled=True, width="stretch")
