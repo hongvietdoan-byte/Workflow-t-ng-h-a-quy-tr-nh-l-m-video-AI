@@ -187,7 +187,7 @@ Sự thật đã xác nhận: người lạ **không chọn được** dự án 
 1. Đồng ý làm Làn 1 + 2 trước (A1, A2, B1, C1, C2). Bắt đầu build từ 08:00 04/10.
 2. Dashboard chỉ chia sẻ nội bộ. Đăng nhập theo **"máy được duyệt"**: lấy IP (`st.context.ip_address`), tra ngược tên máy PC (DNS/NetBIOS); lần đầu ghi (e-mail, tên máy) chờ Owner duyệt ở 👥 Nhóm; sau đó e-mail chỉ đăng nhập được từ máy đã duyệt; audit ghi tên máy; Owner từ máy khác vẫn cần `DASHBOARD_OWNER_PASSCODE`. Không lấy được tài khoản Windows (cần NTLM/Kerberos — không làm). Thử tra tên máy trên mạng công ty trước khi code (nhánh D1).
 3. Từ 04/10 mọi kiểm thử giao diện làm trên UI v2.
-4. Kiểm ClipAI gom chung với các cờ chưa verified vào **một dự án thử 30 giây** (kịch bản thiết kế đủ loại shot: mở cảnh, thoại 2 người, kỹ năng ⭐, chuyển cảnh có `transition_in`, CTA).
+4. Kiểm ClipAI gom chung với các cờ chưa verified vào **một dự án thử 30 giây** (kịch bản thiết kế đủ loại shot: mở cảnh, thoại 2 người, kỹ năng ⭐, chuyển cảnh có `transition_in`, CTA). **Chạy thật qua Dashboard** (UI v2, các nút người dùng bấm), không chạy bằng script dòng lệnh — để kiểm luôn giao diện, sổ chi, đợt ngân sách (Gói K). Thay cho S12.5 / Đợt 5 (đã bỏ, gộp vào S14.12).
 5. Gói H được làm, nhưng liệt kê trần từng việc và hỏi trước khi chi.
 6. Thử chữ tối thiểu 12,5 px.
 7. **Gói K mới (0 USD) — đợt ngân sách:** reset = đóng đợt hiện tại (lưu tóm tắt bắt đầu/kết thúc/chi theo loại) + mở đợt mới với trần mới; bấm thẻ ngân sách → mức dùng theo ngày (ảnh/video/âm thanh/Claude), lọc theo đợt/dự án, bấm một ngày → từng dòng sổ chi. Tái dùng `core/money_reset.py` + `dashboard/design/screens/shell_parts.py`.
