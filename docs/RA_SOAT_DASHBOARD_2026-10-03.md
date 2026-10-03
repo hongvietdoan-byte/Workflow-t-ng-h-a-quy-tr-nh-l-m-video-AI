@@ -9,7 +9,7 @@
 
 ## 1. Điểm 16 khu vực (thang v2; lần chấm lại 03/10 sau kiểm chứng)
 
-Tổng có trọng số **85,5** (trung bình thường 86,2; thấp nhất 76,4, cao nhất 94,7). Thang v2 khác thang v1 (mức chặn/lớn/nhỏ, số đo tự động, thêm tiêu chí tin cậy + bảo trì) nên
+Tổng có trọng số **85,6** (trung bình thường 86,4; thấp nhất 76,4, cao nhất 94,7). Thang v2 khác thang v1 (mức chặn/lớn/nhỏ, số đo tự động, thêm tiêu chí tin cậy + bảo trì) nên
 **đây là mốc mới, không so thẳng với 87,2 của v1**. Hai người chấm độc lập cho `dashboard_ui` ra 84,3 và 84,5 (chênh 0,2); `step1`: 80,1 / 85,4 (chênh 5,3 — có giải thích: lỗi `CTA_TEXT` và quyền `llm_io`).
 
 | Hạng | Khu vực | Điểm | Chặn | Việc lớn nhất (mức đã hiệu chỉnh sau kiểm chứng) |
@@ -19,13 +19,13 @@ Tổng có trọng số **85,5** (trung bình thường 86,2; thấp nhất 76,4
 | 3 | Chạy tự động | 92,5 | 0 | trần job/ngày thiếu 3/6 đường (nhỏ: trần tiền vẫn áp) |
 | 4 | Kiến thức & bộ kỹ năng 3 vai | 91,7 | 0 | danh mục Kho ≠ thứ Director đọc khi `film_crew` bật (đã đọc code: đúng) |
 | 5 | Gói bối cảnh 3D | 91,3 | 0 | `composite_video` không kiểm mã thoát ffmpeg (lớn nhưng rất hiếm) |
-| 6 | Bước 3 · Motion & giọng | 88,1 | 0 | `voice_check.redo` trả TTS lặp (nhỏ — TTS chưa có giá USD) |
-| 7 | Tài liệu | 87,8 | 0 | `PLAN.md` còn ghi S11 "chưa code"; khối S13 trong TODO tự mâu thuẫn |
+| 6 | Bước 3 · Motion & giọng | 89,7 | 0 | `voice_check.redo` trả TTS lặp (nhỏ — TTS chưa có giá USD) |
+| 7 | Tài liệu | 88,2 | 0 | `PLAN.md` còn ghi S11 "chưa code"; khối S13 trong TODO tự mâu thuẫn |
 | 8 | Lõi pipeline & nhà cung cấp | 85,5 | 1 | **gửi trả tiền xong mới `start()`: Tạm dừng đúng lúc → trả tiền 2 lần (đã tái hiện; lớn nhưng hiếm)** |
 | 9 | Dashboard chung / giao diện | 84,3 | 0 | ⌂ dựng video mọi lần rerun (đã đo); nút "mở lại dịch vụ" không kiểm quyền (đã tái hiện) |
 | 10 | Bước 5 · Âm thanh & xuất bản | 84,0 | 0 | duyệt bản thô P2/P3 chưa chạy Claude thật; nút "Xuất bản đầy đủ" không ghi giá |
 | 11 | Bước 4 · Video + QC | 83,8 | 0 | cửa sổ gửi–bắt đầu job (như trên); `composite_video`; 4 cờ bật chưa verified |
-| 12 | Hệ thống phát triển (devsys) | 82,5 | 0 | bộ dò cờ lệch `core.features.on`; `import_score` không đối chiếu `input_hash` |
+| 12 | Hệ thống phát triển (devsys) | 83,5 | 0 | bộ dò cờ lệch `core.features.on`; `import_score` không đối chiếu `input_hash` |
 | 13 | Ngân sách & sổ chi | 82,3 | 0 | ước tính/bảng giá chưa nghiệm thu thật sau #8; nút "mở lại dịch vụ" |
 | 14 | Bước 2 · Ảnh + QC | 79,7 | 0 | `costume.make_character_set` bỏ qua cổng tiền (lớn, thường gặp) |
 | 15 | Bước 1 · Kịch bản & Đạo diễn | 79,6 | 0 | `CTA_TEXT:`/`TITLE:` thành người nói ở đường kịch bản dán; 3 nút Claude không ghi giá |
