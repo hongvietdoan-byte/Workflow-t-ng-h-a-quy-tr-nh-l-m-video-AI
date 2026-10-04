@@ -110,5 +110,70 @@ class ClaudeProjectLockTests(unittest.TestCase):
         self.assertEqual(len(calls), 1)
 
 
+class UnknownPriceTests(unittest.TestCase):
+    """T6 (S14.1 A1): a price the table does not know is not 0 — a locked project refuses it (it used to pass as $0)."""
+    def setUp(self):
+        db = os.path.join(tempfile.mkdtemp(), "m.sqlite")
+        self.p = Pipeline(connect(db))
+        self.pid = self.p.create_project("t")
+
+    def lock(self):
+        project_budget.approve(self.p, self.pid, "a@x", {"stages": {k: {"cap": 5.0} for k in project_budget.STAGES}, "total": 30.0})
+
+    @mock.patch.dict(os.environ, ON)
+    def test_none_is_refused_when_locked_and_points_to_the_price_table(self):
+        self.lock()
+        why = project_budget.check(self.p.conn, self.pid, "images", None)
+        self.assertIsNotNone(why)
+        self.assertIn("chưa có giá", why.lower())
+        self.assertIn("Bảng giá", why)
+
+    @mock.patch.dict(os.environ, ON)
+    def test_none_passes_when_the_project_is_not_locked(self):
+        self.assertIsNone(project_budget.check(self.p.conn, self.pid, "images", None))
+
+    @mock.patch.dict(os.environ, ON)
+    def test_an_unpriced_ledger_row_is_not_counted_as_zero_silently(self):
+        self.lock()
+        cost.record_usage(self.p.conn, None, "image", "deepix", "model-without-price", "1k", 1, "image", project_id=self.pid)
+        self.assertEqual(project_budget.unpriced_by_stage(self.p.conn, self.pid)["images"], 1)
+        why = project_budget.check(self.p.conn, self.pid, "images", 0.05)
+        self.assertIsNotNone(why)
+        self.assertIn("chưa có giá", why.lower())
+        self.assertIsNone(project_budget.check(self.p.conn, self.pid, "videos", 0.05))      # another stage is not blocked
+
+    @mock.patch.dict(os.environ, ON)
+    def test_the_image_runner_refuses_a_model_without_price_in_a_locked_project(self):
+        from core.providers import MockImageProvider
+        from core.runner import ImageRunner
+
+        class Fake(MockImageProvider):
+            name = "deepix-fake"
+
+            def usage_info(self, model=None):
+                return "model-without-price", "1k"
+        self.lock()
+        r = ImageRunner(self.p, Fake(), tempfile.mkdtemp())
+        why = r._over_budget({"project_id": self.pid}, ("prompt", []), {})
+        self.assertIsNotNone(why)
+        self.assertIn("chưa có giá", why.lower())
+
+    @mock.patch.dict(os.environ, ON)
+    def test_the_video_runner_refuses_a_model_without_price_in_a_locked_project(self):
+        from core.providers import MockVideoProvider
+        from core.runner import VideoRunner
+
+        class Fake(MockVideoProvider):
+            name = "clipai-fake"
+
+            def usage_info(self, model=None, duration=5, resolution=None):
+                return "video-model-without-price", "720p", duration
+        self.lock()
+        r = VideoRunner(self.p, Fake(), tempfile.mkdtemp())
+        why = r._over_budget({"project_id": self.pid}, ("a.png", "prompt", None, 5, "video-model-without-price"), {})
+        self.assertIsNotNone(why)
+        self.assertIn("chưa có giá", why.lower())
+
+
 if __name__ == "__main__":
     unittest.main()

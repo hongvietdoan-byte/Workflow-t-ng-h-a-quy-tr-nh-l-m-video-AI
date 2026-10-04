@@ -82,20 +82,45 @@ def spent_by_stage(conn, pid: int) -> Dict[str, float]:
     return {k: round(max(0.0, v - float(base.get(k) or 0.0)), 4) for k, v in raw.items()}
 
 
-def ledger_by_stage(conn, pid: int) -> Dict[str, float]:
-    """Money already spent by this project, per stage (the ledger rows carry the project), ignoring any reset baseline."""
+def _stage_of(r) -> Optional[str]:
+    if r["kind"] == "image":
+        return "images"
+    if r["kind"] == "llm":
+        return claude_stage(r["stage"] if "stage" in r.keys() else None)
+    if r["kind"] == "video":
+        return "videos"
+    return None
+
+
+def _ledger(conn, pid: int, since: Optional[str] = None):
+    """(USD per stage, count of rows WITHOUT a price per stage) — a row the price table does not know is not $0 (T6, S14.1)."""
     from . import budget, cost
     pricing = cost.load_pricing()
     out = {k: 0.0 for k in STAGES}
+    unpriced = {k: 0 for k in STAGES}
     for r in conn.execute("SELECT * FROM usage_events WHERE project_id=? AND provider NOT LIKE 'mock%'", (pid,)).fetchall():
-        usd = budget.row_usd(pricing, r) or 0.0
-        if r["kind"] == "image":
-            out["images"] += usd
-        elif r["kind"] == "llm":
-            out[claude_stage(r["stage"] if "stage" in r.keys() else None)] += usd
-        elif r["kind"] == "video":
-            out["videos"] += usd
-    return {k: round(v, 4) for k, v in out.items()}
+        stage = _stage_of(r)
+        if stage is None:
+            continue
+        usd = budget.row_usd(pricing, r)
+        if usd is None:
+            if not since or str(r["at"] or "") > str(since):
+                unpriced[stage] += 1
+            continue
+        out[stage] += usd
+    return {k: round(v, 4) for k, v in out.items()}, unpriced
+
+
+def ledger_by_stage(conn, pid: int) -> Dict[str, float]:
+    """Money already spent by this project, per stage (the ledger rows carry the project), ignoring any reset baseline. Rows without
+    a price add nothing here — they are counted by unpriced_by_stage and a locked project refuses that stage (check)."""
+    return _ledger(conn, pid)[0]
+
+
+def unpriced_by_stage(conn, pid: int) -> Dict[str, int]:
+    """How many ledger rows of this project have NO price in data/pricing.json, per stage (their money is unknown, not 0) — since the
+    Owner's reset point (core.money_reset baseline_at) when there is one: a reset also clears the rows before it."""
+    return _ledger(conn, pid, since=(get(conn, pid) or {}).get("baseline_at"))[1]
 
 
 def remaining(p, pid: int) -> Dict[str, float]:
@@ -196,20 +221,33 @@ def raise_cap(conn, pid: int, stage: str, add_usd: float, who: str, why: str) ->
     return _save(conn, pid, data)
 
 
-def check(conn, pid: Optional[int], stage: str, usd: float) -> Optional[str]:
+PRICE_TABLE_HINT = "thêm giá ở ⚙ → 💵 Tiền → 💲 Bảng giá (hoặc chọn model có giá)"
+
+
+def check(conn, pid: Optional[int], stage: str, usd: Optional[float]) -> Optional[str]:
     """A reason not to pay `usd` more for this stage of the project (its approved, locked budget; Claude calls in flight count), else
-    None. No approved budget → no project lock (the global caps still apply)."""
+    None. No approved budget → no project lock (the global caps still apply). `usd=None` = the price is NOT known (a model missing
+    from the price table): a locked project refuses it — an unknown price is not $0 (T6, S14.1). A ledger row of this stage without a
+    price makes the money spent unknown too: refused the same way, said."""
     if pid is None or not enabled():
         return None
     data = get(conn, pid)
     if not data or not data.get("locked"):
         return None
+    name = STAGES.get(stage, stage)
+    if usd is None:
+        return (f"lần gửi này CHƯA CÓ GIÁ (model không có trong bảng giá) — dự án đã khóa ngân sách nên không gửi khâu '{name}'; "
+                + PRICE_TABLE_HINT)
+    unpriced = unpriced_by_stage(conn, pid)
+    if unpriced.get(stage):
+        return (f"sổ chi khâu '{name}' có {unpriced[stage]} lượt gửi CHƯA CÓ GIÁ — không tính được đã chi bao nhiêu nên dự án đã khóa "
+                f"không gửi thêm; " + PRICE_TABLE_HINT)
     from . import budget
     spent = spent_by_stage(conn, pid)
     inflight = budget.held(conn, pid, stage) if stage.startswith("claude") else 0.0
     cap = float(data["caps"].get(stage, 0.0))
     if spent.get(stage, 0.0) + inflight + usd > cap + 1e-9:
-        return (f"chạm trần khâu '{STAGES.get(stage, stage)}' của dự án: đã chi ≈ ${spent.get(stage, 0.0):.2f}"
+        return (f"chạm trần khâu '{name}' của dự án: đã chi ≈ ${spent.get(stage, 0.0):.2f}"
                 + (f" + đang chạy ≈ ${inflight:.2f}" if inflight else "") + f", lần này ≈ ${usd:.2f}, trần ${cap:.2f} — dừng. "
                 "Chỉ người được nâng trần (Bước 1 → 💵 Ngân sách dự án, kèm lý do)")
     if sum(spent.values()) + budget.held(conn, pid) + usd > float(data["total"]) + 1e-9:

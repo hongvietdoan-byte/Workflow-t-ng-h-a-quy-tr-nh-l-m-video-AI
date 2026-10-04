@@ -1041,7 +1041,7 @@ class VideoRunner(_Runner):
             reason = budget.check_video(self.p.conn, self.provider.name, *usage)
             if reason or str(self.provider.name).startswith("mock"):
                 return reason
-            price = cost.clip_price(cost.load_pricing(), *usage) or 0.0
+            price = cost.clip_price(cost.load_pricing(), *usage)        # None = no price: a locked project refuses it (T6)
             return project_budget.check(self.p.conn, job["project_id"], "videos", price)
         return None if str(self.provider.name).startswith("mock") else budget.pricing_problem()
 
@@ -1441,7 +1441,7 @@ class ImageRunner(_Runner):
             return reason
         from . import cost, project_budget
         price = cost._number(cost.load_pricing().get("per_image", {}).get(model)) if model else None
-        return project_budget.check(self.p.conn, job["project_id"], "images", price or 0.0)
+        return project_budget.check(self.p.conn, job["project_id"], "images", price)     # None = no price: refused when locked (T6)
 
     def _plate(self, job, data=None):
         """The location-pack plate of this shot (feature location_plates), else None."""
