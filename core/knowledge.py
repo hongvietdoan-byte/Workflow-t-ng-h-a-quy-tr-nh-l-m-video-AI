@@ -171,19 +171,46 @@ def _extract(filename: str, data: bytes) -> str:
     return data.decode("utf-8", errors="replace")
 
 
-def add_doc(group: str, filename: str, data: bytes, title: Optional[str] = None, note: str = "") -> Dict:
-    """Add an uploaded document to a step's knowledge base (enabled at once)."""
+def _checked_text(group: str, filename: str, data: bytes, docs: List[Dict], replacing=frozenset()) -> str:
+    """The document's text after the size checks; documents in `replacing` (files about to be swapped out) do not count."""
     text = _extract(filename, data).strip()
     if not text:
         raise ValueError("Tài liệu rỗng")
     if len(text) > MAX_DOC_CHARS:
         raise ValueError(f"Tài liệu dài {len(text):,} ký tự; tối đa {MAX_DOC_CHARS:,} (≈ {approx_tokens(MAX_DOC_CHARS):,} token). "
                          "Hãy rút gọn hoặc tách nhỏ.")
-    docs = _load(group)
-    used = sum(d["chars"] for d in docs if d.get("enabled", True))
+    used = sum(d["chars"] for d in docs if d.get("enabled", True) and d["file"] not in replacing)
     if used + len(text) > MAX_USER_CHARS:
         raise ValueError(f"Tổng tài liệu bổ sung của bước này sẽ vượt {MAX_USER_CHARS:,} ký tự "
                          f"(đang dùng {used:,}). Tắt hoặc xóa bớt tài liệu cũ trước.")
+    return text
+
+
+def add_doc(group: str, filename: str, data: bytes, title: Optional[str] = None, note: str = "") -> Dict:
+    """Add an uploaded document to a step's knowledge base (enabled at once)."""
+    docs = _load(group)
+    text = _checked_text(group, filename, data, docs)
+    return _write_new(group, filename, text, docs, title, note)
+
+
+def replace_doc(group: str, old_title: str, filename: str, data: bytes, title: Optional[str] = None, note: str = "") -> Dict:
+    """S14.4 C1b (04/10): swap the uploaded document(s) titled `old_title` for a new one. The new text is built and checked
+    against the limits (not counting the documents it replaces) BEFORE anything is removed: a failure keeps the old ones."""
+    docs = _load(group)
+    old = {d["file"] for d in docs if d.get("title") == old_title}
+    text = _checked_text(group, filename, data, docs, old)          # raises ValueError → nothing changed
+    entry = _write_new(group, filename, text, docs, title, note)
+    remaining = [d for d in _load(group) if d["file"] not in old]
+    _save(group, remaining)
+    for f in old:
+        try:
+            os.remove(os.path.join(group_dir(group), f))
+        except OSError:
+            pass                                                     # the manifest no longer lists it: never sent again
+    return entry
+
+
+def _write_new(group: str, filename: str, text: str, docs: List[Dict], title: Optional[str], note: str) -> Dict:
     folder = group_dir(group)
     stem, n = _slug(filename), 1
     file = f"{stem}.md"

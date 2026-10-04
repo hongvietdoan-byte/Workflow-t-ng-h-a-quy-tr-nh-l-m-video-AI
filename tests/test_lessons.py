@@ -60,6 +60,44 @@ class LessonTests(unittest.TestCase):
         lessons.decide(self.conn, row["id"], False)                              # withdrawing removes it again
         self.assertEqual(knowledge.user_docs("director"), [])
 
+    def _approved_one(self):
+        make_rejects(self.p, 3, ["bàn tay bị méo", "tay có 6 ngón", "sai bàn tay"])
+        lessons.propose(self.conn, llm_runner.MockLlm())
+        row = lessons.list_lessons(self.conn, "proposed")[0]
+        lessons.decide(self.conn, row["id"], True)
+        return row
+
+    def test_a_too_big_new_document_keeps_the_old_one_and_the_proposal(self):
+        """S14.4 C1b (04/10): the old document was deleted BEFORE the new one was checked → a failure lost both."""
+        first = self._approved_one()
+        before = knowledge.user_docs("director")
+        self.conn.execute("INSERT INTO lessons (created_at, group_name, key, title, body, source, evidence, state)"
+                          " VALUES ('x','director','k2','To','" + "x" * (knowledge.MAX_DOC_CHARS + 10) + "','mistakes','{}','proposed')")
+        self.conn.commit()
+        big = self.conn.execute("SELECT id FROM lessons WHERE key='k2'").fetchone()["id"]
+        with self.assertRaises(lessons.LessonError) as cm:
+            lessons.decide(self.conn, big, True)
+        self.assertIn("ký tự", str(cm.exception))                                  # Vietnamese, says what to do
+        self.assertEqual(self.conn.execute("SELECT state FROM lessons WHERE id=?", (big,)).fetchone()["state"], "proposed")
+        after = knowledge.user_docs("director")
+        self.assertEqual([d["file"] for d in after], [d["file"] for d in before])  # the old document is still there
+        self.assertIn(first["body"][:20], knowledge.read_doc("director", "user", after[0]["file"]))
+
+    def test_the_cap_check_does_not_count_the_document_being_replaced(self):
+        self._approved_one()
+        used = sum(d["chars"] for d in knowledge.user_docs("director"))
+        filler = "y" * (knowledge.MAX_USER_CHARS - used - 5)                        # room left: 5 chars + the old doc itself
+        for i in range(0, len(filler), knowledge.MAX_DOC_CHARS):
+            knowledge.add_doc("director", f"f{i}.md", filler[i:i + knowledge.MAX_DOC_CHARS].encode())
+        lessons.sync_knowledge(self.conn, "director")                              # same text again: fits once the old one goes
+        self.assertEqual(sum(1 for d in knowledge.user_docs("director") if d["title"] == lessons.DOC_TITLE), 1)
+
+    def test_the_lessons_buttons_go_through_act(self):
+        src = open(os.path.join(os.path.dirname(__file__), "..", "dashboard", "admin.py"), encoding="utf-8").read()
+        calls = [ln for ln in src.splitlines() if "lessons.decide(" in ln]
+        self.assertTrue(calls)
+        self.assertEqual([ln for ln in calls if "act(lambda" not in ln], [])     # an error shows a message, not a crash
+
     def test_rejected_proposals_are_not_proposed_again(self):
         make_rejects(self.p, 3, ["tay sai"] * 4)
         lessons.propose(self.conn)

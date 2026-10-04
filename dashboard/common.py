@@ -87,7 +87,8 @@ def close_dialog(flag: str) -> None:
     st.session_state[flag] = False
 
 ERRORS = (sqlite3.IntegrityError, zipfile.BadZipFile, llm_runner.LlmError, InvalidTransition, llm_io.SchemaError, PipelinePaused, ffmpeg_studio.FFmpegNotFound,
-          ffmpeg_studio.FFmpegError, ValueError, KeyError, access.AccessDenied)     # AccessDenied: lỗi quyền theo dự án, tiếng Việt (core/access.py)
+          ffmpeg_studio.FFmpegError, ValueError, KeyError, access.AccessDenied,     # AccessDenied: lỗi quyền theo dự án, tiếng Việt (core/access.py)
+          lessons.LessonError)                                                      # S14.4 C1b: bài học không ghi được tài liệu
 
 CRITERIA_LABEL = {"character": "Đúng nhân vật", "hands_face": "Không lỗi tay/mặt", "composition": "Đúng bố cục",
                   "mood_lighting": "Đúng mood / ánh sáng", "consistency": "Không chi tiết thừa/sai",
