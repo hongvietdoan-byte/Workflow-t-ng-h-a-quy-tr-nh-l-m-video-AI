@@ -63,7 +63,7 @@ def _chunks(durations: List[float], most: float) -> List[float]:
 
 def _spoken(shot: Dict):
     return [(str(d.get("speaker") or "").strip().upper(), str(d.get("text") or "").strip()) for d in shot.get("dialogue") or []
-            if isinstance(d, dict) and str(d.get("speaker") or "").strip().upper() not in dialogue.NOT_SPEAKERS
+            if isinstance(d, dict) and not dialogue.is_non_speaker(str(d.get("speaker") or ""))
             and str(d.get("text") or "").strip()]
 
 

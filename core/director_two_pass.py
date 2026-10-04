@@ -60,7 +60,7 @@ def frame_of(scene: Dict) -> Tuple[float, float]:
 def _spoken(lines) -> List[Tuple[str, str]]:
     return [(str(d.get("speaker") or "").strip().upper(), str(d.get("text") or "").strip()) for d in lines or []
             if isinstance(d, dict) and str(d.get("text") or "").strip()
-            and str(d.get("speaker") or "").strip().upper() not in dialogue.NOT_SPEAKERS]
+            and not dialogue.is_non_speaker(str(d.get("speaker") or ""))]
 
 
 def kept_lines(scene: Dict) -> List[Tuple[str, str]]:
@@ -228,11 +228,11 @@ def merge(intent: Dict, parts: Dict[int, Dict]) -> Dict:
         s["intent"] = {k: copy.deepcopy(sc[k]) for k in INTENT_KEYS if k in sc}
         s["shots"] = copy.deepcopy(part["shots"])
         how = [d.get("delivery") for d in sc.get("dialogue") or [] if isinstance(d, dict) and str(d.get("text") or "").strip()
-               and str(d.get("speaker") or "").strip().upper() not in dialogue.NOT_SPEAKERS]
+               and not dialogue.is_non_speaker(str(d.get("speaker") or ""))]
         k = 0
         for shot in s["shots"]:
             for d in shot.get("dialogue") or []:
-                if not isinstance(d, dict) or str(d.get("speaker") or "").strip().upper() in dialogue.NOT_SPEAKERS:
+                if not isinstance(d, dict) or dialogue.is_non_speaker(str(d.get("speaker") or "")):
                     continue
                 if k < len(how) and how[k] and not d.get("delivery"):
                     d["delivery"] = copy.deepcopy(how[k])

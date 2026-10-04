@@ -281,7 +281,10 @@ def parse(script: str):
     return script_parser.split_scenes(res.paragraphs), res
 
 
-_ON_SCREEN_SPEAKERS = {"cta", "cta text", "cta_text", "chu", "text", "chu tren man", "chu man hinh", "title", "super", "caption"}
+def _on_screen(name: str) -> bool:
+    """B4 01/10 + S14.4 C1b: "CTA_TEXT: …" is a line of text on the screen, not a person — one list in core.dialogue."""
+    from .dialogue import is_non_speaker
+    return is_non_speaker(name)
 
 
 def check_script(conn, pid: int, script: str, inputs: Dict) -> Dict:
@@ -296,7 +299,7 @@ def check_script(conn, pid: int, script: str, inputs: Dict) -> Dict:
     lib = library(conn, pid)
     known = {_fold(n) for n in lib["characters"]}
     for name in sorted({c for s in scenes for c in s.characters}):
-        if _fold(name) in _ON_SCREEN_SPEAKERS:         # B4 01/10: "CTA_TEXT: …" is a line of text on the screen, not a person
+        if _on_screen(name):
             continue
         if _fold(name) not in known:
             flags.append(f"nhân vật mới — cần ảnh: {name}")
@@ -312,7 +315,7 @@ def check_script(conn, pid: int, script: str, inputs: Dict) -> Dict:
         problems.append("có số tuổi dưới 18 — bỏ đi (luật cứng)")
     from .dialogue import lines, syllables
     talk = sum(syllables(said) for s in scenes for who, said in lines(s.text)
-               if _fold(who) not in _ON_SCREEN_SPEAKERS) / SPEECH_RATE
+               if not _on_screen(who)) / SPEECH_RATE
     if talk > float(inputs.get("duration_s") or 0):
         flags.append(f"tổng thoại ≈ {talk:.0f} s > thời lượng {inputs.get('duration_s')} s — video sẽ dài hơn mục tiêu")
     return {"ok": not problems, "scenes": len(scenes), "problems": problems, "flags": sorted(set(flags))}

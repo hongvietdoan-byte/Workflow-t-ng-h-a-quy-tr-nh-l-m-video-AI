@@ -65,8 +65,8 @@ def _characters(lines: List[str]) -> List[str]:
         if not m:
             continue
         name = m.group(1).strip()
-        from .dialogue import NOT_SPEAKERS
-        if len(name.split()) > 3 or is_heading(line) or name.upper() in NOT_SPEAKERS:
+        from .dialogue import is_non_speaker
+        if len(name.split()) > 3 or is_heading(line) or is_non_speaker(name):
             continue
         seen[name.upper()] = seen.get(name.upper(), 0) + 1
     return sorted(seen, key=lambda n: (-seen[n], n))

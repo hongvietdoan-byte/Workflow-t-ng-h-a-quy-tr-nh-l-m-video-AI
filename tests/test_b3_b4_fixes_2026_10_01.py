@@ -57,6 +57,37 @@ class B4Tests(unittest.TestCase):
         r = idea_to_script.check_script(p.conn, pid, script, {"duration_s": 60})
         self.assertFalse([f for f in r["flags"] if "CTA" in f.upper()], r["flags"])
 
+    # S14.4 C1b (04/10): one list of "not a voice" names, used by the PASTED-script path too
+    _ON_SCREEN = ("CTA: Tải game ngay\nCTA_TEXT: Tải ngay\nCTA TEXT: Chơi ngay\nTITLE: Hồi 1\nSUPER: 3 ngày sau\n"
+                  "Chữ trên màn: Hết giờ\nCHỮ: Hết giờ\nOn-screen text: Go\n")
+
+    def test_dialogue_lines_skip_on_screen_text(self):
+        from core import dialogue
+        got = dialogue.lines(self._ON_SCREEN + "KELLY: Đi thôi!\nCHU: Chào anh\n")
+        self.assertEqual(got, [("KELLY", "Đi thôi!"), ("CHU", "Chào anh")])
+
+    def test_is_non_speaker_folds_accents_but_keeps_a_person_named_chu(self):
+        from core.dialogue import is_non_speaker
+        for name in ("CTA", "cta_text", "Cta Text", "TITLE", "Super", "chữ trên màn", "CHỮ", "Chữ", "Ghi chu", "ON SCREEN TEXT"):
+            self.assertTrue(is_non_speaker(name), name)
+        for name in ("CHU", "Chu", "KELLY", "Ông Lão Orin"):
+            self.assertFalse(is_non_speaker(name), name)
+
+    def test_pasted_script_characters_skip_on_screen_text(self):
+        from core import script_parser
+        scenes = script_parser.split_scenes(["CẢNH 1", "KELLY chạy.", "KELLY: Đi thôi!"] + self._ON_SCREEN.strip().splitlines()
+                                             + ["CHU: Chào anh"])
+        self.assertEqual(sorted(scenes[0].characters), ["CHU", "KELLY"])
+
+    def test_a_character_named_chu_is_still_a_new_character(self):
+        script = "CẢNH 1 - 0-5s, Sân\nCHU: Chào anh\n"
+        from core.db import connect
+        from core.pipeline import Pipeline
+        p = Pipeline(connect())
+        pid = p.create_project("b4chu")
+        r = idea_to_script.check_script(p.conn, pid, script, {"duration_s": 60})
+        self.assertIn("nhân vật mới — cần ảnh: CHU", r["flags"])
+
 
 if __name__ == "__main__":
     unittest.main()

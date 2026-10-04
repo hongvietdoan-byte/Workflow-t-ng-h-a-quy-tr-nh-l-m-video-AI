@@ -125,7 +125,7 @@ def _check_lines(pipeline: Pipeline, project_id: int, obj: Dict) -> None:
     if not script:
         return
     used = [_norm_line(d.get("text")) for sc in obj["scenes"] for sh in sc.get("shots") or [] for d in sh.get("dialogue") or []
-            if isinstance(d, dict) and str(d.get("speaker") or "").strip().upper() not in _dlg.NOT_SPEAKERS]
+            if isinstance(d, dict) and not _dlg.is_non_speaker(str(d.get("speaker") or ""))]
     invented = [t for t in used if t and t not in script]
     if invented:
         raise SchemaError("dialogue: câu không có nguyên văn trong kịch bản (không thêm, không sửa chữ): " + "; ".join(invented[:3]))
