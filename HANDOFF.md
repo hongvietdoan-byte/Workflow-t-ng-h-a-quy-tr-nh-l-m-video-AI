@@ -12,3 +12,11 @@ Gốc: 7bca2b9 (Gộp S14.1 A1a). Không push, không merge main, không sửa T
    `voice.generate(settle=True)`) xóa bản cũ khi bản mới succeeded, trả bản cũ (+ `redo_error`) khi bản mới lỗi / bị từ chối / không gửi.
    Vượt trần → `refused` (tiếng Việt). Nút Bước 3 (`tts_redo_{pid}`, giữ khóa) qua `confirm_all` + "đã dùng X/Y lượt".
    Test: `tests/test_audio_g2.py::VoiceRedoTests` (3 test).
+3. Autopilot: `_setcheck_block` dùng `spend_gate.reason` (trần thử + ngân sách dự án khóa) → bỏ khỏi PENDING_B của test quét.
+   `tick` → `_tick`; mọi lần ghi trạng thái của tick qua `_tick_set` (UPDATE … WHERE autopilot_state='running' — stop()/reset() của người
+   không bị ghi đè bởi _Wait/_Stop/lỗi/ghi chú tiến độ/DONE); `_still_running` trước `submit_pending` (ảnh, video), `lipsync.post_tick`,
+   `delivery.deliver`. `PipelinePaused` bắt trong tick → ghi chú "Đang tạm dừng — …", trạng thái RUNNING.
+   `_stop_if_claude_blocked` đọc `.code` (`llm_runner.FailText`/`fail_text`; producers: run_qc_batch, qc_video_batch, qc_scene, qc_agent,
+   qc_team); CLI: `llm_runner.cli_error_code` cho mã `usage_limit`/`auth` ngay nơi sinh lỗi. Mã dừng: auth/config, usage_limit/rate_limit,
+   out_of_credit, budget (MỚI: trước đây budget chỉ dừng nếu câu chứa "hết ngân sách claude").
+   Test: `tests/test_autopilot.py::SafetyTests` (+7), `tests/test_v3.py` sửa 1 test sang FailText có mã.

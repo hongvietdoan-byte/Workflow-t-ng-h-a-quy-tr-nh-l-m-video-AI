@@ -56,10 +56,7 @@ PENDING = {
     ("core/previz.py", "_deepix_cutout"): "S14.1 A1 phần còn lại — Deepix cutout (cờ PREVIZ_CUTOUT) chưa có sổ chi / cổng",
 }
 # (b): check_image / check_video without project_budget.check — the same waiting list
-PENDING_B = {
-    ("core/autopilot.py", "_setcheck_block"): "S14.1 A1b — autopilot: kiểm trước khi xếp vẽ lại (lượt gửi thật vẫn qua ImageRunner "
-                                               "có project_budget.check); dùng spend_gate.reason khi chuyển",
-}
+PENDING_B = {}     # S14.1 A1b: lipsync.post_tick → spend_gate.spend, autopilot._setcheck_block → spend_gate.reason
 
 
 def _files():

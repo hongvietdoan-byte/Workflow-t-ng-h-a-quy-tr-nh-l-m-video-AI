@@ -499,9 +499,12 @@ class BudgetAndCompareTests(unittest.TestCase):
         self.assertIsNone(p.conn.execute("SELECT video_model FROM motion_prompts WHERE scene_id=?", (rows[1]["id"],)).fetchone()[0])
 
     def test_the_automatic_run_stops_when_claude_is_out_of_usage(self):
-        from core import autopilot
+        from core import autopilot, llm_runner
+        # S14.3 B1b: read from LlmError.code (the CLI error gets 'usage_limit' where it is born), no longer from words in the text
+        msg = "You've hit your session limit · resets 7:20am"
         with self.assertRaises(autopilot._Stop) as ctx:
-            autopilot._stop_if_claude_blocked([(1, "Claude Code báo lỗi: You've hit your session limit · resets 7:20am")])
+            autopilot._stop_if_claude_blocked([(1, llm_runner.fail_text(llm_runner.LlmError(
+                f"Claude Code báo lỗi: {msg}", code=llm_runner.cli_error_code(msg))))])
         self.assertIn("hết hạn mức", str(ctx.exception))
         autopilot._stop_if_claude_blocked([(1, "JSON không hợp lệ")])          # an ordinary QC failure does not stop the run
 

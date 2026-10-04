@@ -447,5 +447,6 @@ def run_ready_scenes(p, pid: int, client, data_dir: str) -> Dict:
                     _save(data_dir, pid, "reviews.json", rec)
             summary["reviewed"].append((s, res["applied"]))
         except Exception as e:  # noqa: BLE001 - one scene's failure is said, the others go on
-            summary["failed"].append((s, f"{type(e).__name__}: {e}"))
+            from .llm_runner import fail_text
+            summary["failed"].append((s, fail_text(e, f"{type(e).__name__}: {e}")))      # keeps LlmError.code for the autopilot
     return summary
