@@ -415,5 +415,126 @@ class CompositeVideoChecks(unittest.TestCase):
         self.assertIn("plate_video", _diag_codes(p, pid))
 
 
+class ReviewFixes(_Base):
+    """Rà soát độc lập nhánh B1a (04/10): 2 lỗi phải sửa + 3 điểm nhỏ."""
+
+    def test_a_paid_job_with_stale_inputs_is_fetched_not_failed(self):
+        job = self.p.create_job(self.scene_ready_for_video(1), "video_gen")
+        self.p.conn.execute("UPDATE jobs SET external_id='paid-3' WHERE id=?", (job,))
+        self.p.conn.commit()
+        provider = MockVideoProvider(polls_to_finish=9)
+        r = VideoRunner(self.p, provider, self.dir)
+        with mock.patch.object(r, "_blocked", return_value="motion prompt đã đổi"):
+            r.submit_pending(self.pid)
+        row = self.p.job(job)
+        self.assertEqual((row["state"], row["external_id"]), ("running", "paid-3"))
+        self.assertEqual(provider._tasks, {})
+        self.assertIn("stale_paid", _diag_codes(self.p, self.pid))
+
+    def test_cancelled_in_flight_at_deepix_does_not_claim_a_cancel(self):
+        test = self
+        scene = self.p.create_scene(self.pid, 1, "S1")
+        self.p.conn.execute("UPDATE scenes SET data=? WHERE id=?", ('{"image_prompt": "misty forest"}', scene))
+        self.p.conn.commit()
+        self.p.create_job(scene)
+
+        class DeepixCancelledDuringSubmit(_Deepixish):
+            def submit(self, *a, **kw):
+                tid = super().submit(*a, **kw)
+                test.p.cancel_all_active(test.pid)
+                return tid
+
+        ImageRunner(self.p, DeepixCancelledDuringSubmit(), self.dir).submit_pending(self.pid)
+        msg = self.p.conn.execute("SELECT message FROM diag_events WHERE code='cancelled_in_flight'").fetchone()["message"]
+        self.assertIn("ảnh đã gửi vẫn tính tiền", msg)
+        self.assertNotIn("đã yêu cầu hủy", msg)
+
+    def test_cancel_all_gives_up_when_the_turn_stays_busy_and_cancels_nothing(self):
+        import threading
+        from core import runner
+        jid = self.p.create_job(self.scene_ready_for_video(1), "video_gen")
+        self.p.conn.execute("UPDATE jobs SET external_id='v-1' WHERE id=?", (jid,))
+        self.p.start(jid)
+        taken, release = threading.Event(), threading.Event()
+
+        def hold():
+            with runner._turn(self.pid, "video_gen"):
+                taken.set()
+                release.wait(10)
+
+        t = threading.Thread(target=hold, daemon=True)
+        t.start()
+        taken.wait(5)
+        provider = MockVideoProvider()
+        try:
+            rep = runner.cancel_all(self.p, self.pid, video=VideoRunner(self.p, provider, self.dir), image=None, wait=0.2)
+        finally:
+            release.set()
+            t.join(5)
+        self.assertTrue(rep["busy"])
+        self.assertIn("đang bận", runner.cancel_note(rep))
+        self.assertEqual(provider.cancelled, [])
+        self.assertEqual(self.p.job(jid)["state"], "running")
+        self.assertTrue(runner._turn(self.pid, "image_gen").acquire(blocking=False))     # nothing left held
+        runner._turn(self.pid, "image_gen").release()
+
+    def test_cancel_all_also_cancels_queued_jobs_that_already_have_a_task(self):
+        from core import runner
+        q = self.p.create_job(self.scene_ready_for_video(1), "video_gen")
+        self.p.conn.execute("UPDATE jobs SET external_id='old-5' WHERE id=?", (q,))
+        self.p.conn.commit()
+        provider = MockVideoProvider()
+        runner.cancel_all(self.p, self.pid, video=VideoRunner(self.p, provider, self.dir), image=None)
+        self.assertEqual(provider.cancelled, ["old-5"])
+        self.assertEqual(self.p.job(q)["state"], "cancelled")
+
+
+class CompositeRealFfmpeg(unittest.TestCase):
+    """Rà soát B1a lỗi 1: when the loop stopped early (the writer died → BrokenPipe), the finally block waited on the ffmpeg reader
+    whose stdout pipe was full and unread → hung for ever (the poll thread kept the project's _turn lock, ■ Hủy hung behind it)."""
+
+    def test_a_dead_writer_raises_fast_with_real_ffmpeg_and_the_clip_is_kept(self):
+        import subprocess
+        import threading
+        import time
+        from PIL import Image
+        from core import composite, ffmpeg_studio
+        try:
+            ff = ffmpeg_studio.find_ffmpeg()
+        except Exception as e:  # noqa: BLE001
+            self.skipTest(f"không có ffmpeg trên máy này ({e}) — ca treo thật chỉ kiểm được khi có ffmpeg")
+        d = tempfile.mkdtemp()
+        green = os.path.join(d, "g.mp4")
+        subprocess.run([ff, "-y", "-loglevel", "error", "-f", "lavfi", "-i", "color=c=0x00ff00:s=320x240:d=5:r=24",
+                        "-pix_fmt", "yuv420p", green], check=True, timeout=60)
+        before = os.path.getsize(green)
+        plate = os.path.join(d, "p.png")
+        Image.new("RGB", (320, 240), (90, 90, 120)).save(plate)
+        out = os.path.join(d, "no_such_dir", "o.mp4")                     # the writer cannot open its output → dies
+
+        def cheap(frame, plate_, out_path, env=None, place=None, seed=1, **kw):     # the per-frame grade is not what is tested
+            Image.new("RGB", (320, 240)).save(out_path)
+            return {"path": out_path, "placement": {"x": 0}}
+
+        result = {}
+
+        def go():
+            try:
+                composite.composite_video(green, {"plate": plate}, out, ff)
+                result["ok"] = True
+            except Exception as e:  # noqa: BLE001
+                result["error"] = e
+
+        start = time.time()
+        with mock.patch.object(composite, "composite", side_effect=cheap):
+            t = threading.Thread(target=go, daemon=True)
+            t.start()
+            t.join(60)
+        self.assertFalse(t.is_alive(), "composite_video treo quá 60 s khi writer chết")
+        self.assertIsInstance(result.get("error"), composite.CompositeError, result)
+        self.assertEqual(os.path.getsize(green), before)
+        print(f"\n[ffmpeg thật] writer chết → CompositeError sau {time.time() - start:.1f} s")
+
+
 if __name__ == "__main__":
     unittest.main()
