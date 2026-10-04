@@ -129,12 +129,14 @@ def _check_lines(pipeline: Pipeline, project_id: int, obj: Dict) -> None:
         return
     used = [_norm_line(d.get("text")) for sc in obj["scenes"] for sh in sc.get("shots") or [] for d in sh.get("dialogue") or []
             if isinstance(d, dict) and not _dlg.is_non_speaker(str(d.get("speaker") or ""))]
-    invented = [t for t in used if t and t not in script]
+    from collections import Counter               # S14.4 C1b: counted, not a set — a line written twice must be said twice
+    have, said = Counter(script), Counter(t for t in used if t)
+    invented = [t for t in said if said[t] > have[t]]
     if invented:
         raise SchemaError("dialogue: câu không có nguyên văn trong kịch bản (không thêm, không sửa chữ): " + "; ".join(invented[:3]))
     proj = pipeline.project(project_id)
     if not ("dialogue_trim" in proj.keys() and proj["dialogue_trim"]):
-        dropped = [t for t in script if t not in used]
+        dropped = [t for t in have if have[t] > said[t]]
         if dropped:
             raise SchemaError("dialogue: thiếu câu thoại của kịch bản (không được bỏ): " + "; ".join(dropped[:3]))
 

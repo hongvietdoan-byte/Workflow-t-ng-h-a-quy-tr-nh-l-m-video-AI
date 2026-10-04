@@ -147,9 +147,12 @@ def report(obj: Dict, script_text: str, model: str = "kling") -> Dict:
         if VOID.search(str(s.get("image_prompt") or "")):   # 2A: "black void" opening looked unfinished
             void.append(tag)
 
+    from collections import Counter               # S14.4 C1b: a line written twice and said once is one dropped line
+    left = Counter(dialogue.norm(t) for _, _, s in shots for _, t in _spoken(s))
     dropped = []
     for i, (sc_i, who, said) in enumerate(script_lines):
-        if dialogue.norm(said) in used:
+        if left[dialogue.norm(said)] > 0:
+            left[dialogue.norm(said)] -= 1
             continue
         nxt = script_lines[i + 1] if i + 1 < len(script_lines) and script_lines[i + 1][0] == sc_i else None
         dropped.append({"scene": sc_i, "speaker": who, "text": said,
