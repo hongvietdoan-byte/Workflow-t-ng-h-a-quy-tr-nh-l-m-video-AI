@@ -30,10 +30,10 @@
 | S11 Director mở rộng: ý tưởng → kịch bản, cover video ref, học trending (kế hoạch v2 01/10, `docs/KE_HOACH_TINH_NANG_DIRECTOR_2026-10-01.md`) | 15 | 2 | 1 | 1 | 0 | 17,3 % |
 | S12 Rà soát dashboard 01/10: sửa lỗi, tính năng thử, 4 màn, nhiều người dùng (`docs/RA_SOAT_DASHBOARD_2026-10-01.md`) | 7 | 6 | 0 | 0 | 1 | 100 % |
 | S13 Giao diện v2 "AI product" (gradient, kính mờ, nền tối) trên Streamlit, chạy song song nhiều nhánh (`docs/KE_HOACH_GIAO_DIEN_V2_2026-10-01.md`) | 12 | 10 | 0 | 0 | 0 | 86,2 % |
-| S14 Nâng cấp dashboard sau chấm lại 03/10 (`docs/KE_HOACH_NANG_CAP_DASHBOARD_2026-10-03.md`; người dùng duyệt 04/10) | 19 | 5 | 0 | 3 | 0 | 32,4 % |
+| S14 Nâng cấp dashboard sau chấm lại 03/10 (`docs/KE_HOACH_NANG_CAP_DASHBOARD_2026-10-03.md`; người dùng duyệt 04/10) | 26 | 5 | 0 | 4 | 0 | 23,1 % |
 | K Chạy kiểm kịch bản hài 20–30 s — ⏸ KHÔNG ƯU TIÊN (người dùng 30/09: các việc test kịch bản không làm trước nữa) | 3 | 0 | 0 | 3 | 0 | 0 % |
 | S8 Chấm lại bằng AI Development System (cuối cùng) | 5 | 2 | 0 | 0 | 0 | 42,9 % |
-| **Tổng** | **153** | **110** | **3** | **7** | **6** | **77,1 %** |
+| **Tổng** | **160** | **110** | **3** | **8** | **6** | **73,1 %** |
 
 Đợt hiện tại: **S14** · việc kế: **S14.2** A2 — nút tốn tiền ghi giá trên nhãn + test quét
 <!-- /tien-do -->
@@ -213,6 +213,13 @@
 - [x] S14.16 · Chính sách tiền mới (mục 6c): trần → cảnh báo có số liệu, reset mốc trần + mức dự tính, tự gen lại ảnh ≤ 3 / video ≤ 2 lần, người dùng không giới hạn, ước tính tính dư · nặng:2 · ✅ · db30825 · 04/10 tối: `core/money_policy.py`; trần tiền → cảnh báo `money_warning` có số liệu; chặn chỉ out_of_credit/Tạm dừng/trần ngày autopilot; `pipeline.AUTO_REGEN_LIMIT` ảnh 3 / video 2, bấm tay không giới hạn + đặt lại bộ đếm, đủ giới hạn → 📥; trần autopilot theo sản phẩm (cột `jobs.origin`, shot ảnh × 4 + shot × 3, không đếm job bấm tay); ước tính dư × 1,5 (hiển thị + gửi); cổng duyệt ngân sách GIỮ, hiện "đã chi + ước tính phần còn lại"; `money_reset.set_planned`; `docs/CHUAN_XAY_DUNG.md` sửa luật; `tests/test_money_policy.py`; 2 lượt rà độc lập; cả bộ 2143 qua, 4 bỏ qua · chưa làm: reset mốc trần trên CSDL thật (làm cùng Gói K), khóa cứng `--max-usd` cho script dòng lệnh
 - [ ] S14.17 · Đạo diễn viết lại prompt shot trước mỗi lần gen lại theo ghi chú người dùng VÀ lỗi QC (mục 6c ý 6) · nặng:2 · ⬜ · người dùng duyệt 04/10; tốn ít Claude mỗi lần (ghi sổ)
 - [ ] S14.18 · Giới hạn theo người: tối đa 2 dự án chạy song song chưa hoàn thiện (hỏi giữ/bỏ khi muốn tạo mới) + mức cơ bản 2 dự án tạo mới/ngày (thứ 3 cần Owner duyệt), tối đa 1 dự án dở đang cất (dự án xong cất vào Kho dự án đã xong, không giới hạn), Owner nâng được, Owner không giới hạn; bỏ trần job/ngày chung (mục 6d) · nặng:2 · ⬜ · làm sau D1 (S14.7)
+- [ ] S14.19 · Bộ não prompt — Đợt 0+1: bảng `lesson_reviews`/`effectiveness_snapshots`/`user_feedback`, `core/feedback.py`, thu góp ý 3 chỗ, `effectiveness.snapshot/history/trend/delta`, GHI MỐC NỀN trước tiên (`docs/KE_HOACH_BO_NAO_PROMPT_TU_HOC_2026-10-04.md`) · nặng:2 · ⬜
+- [ ] S14.20 · Bộ não prompt — Đợt 2: trục Murch `knowledge/craft/uu_tien_cam_xuc.md` cho director+motion, 6 tag rủi ro motion (+ "chưa phân loại" không im lặng), `knowledge/i2v_motion_discipline.md` (3 mục), `knowledge/sound_design_method.md`; sau cờ, tắt mặc định · nặng:2 · ⬜
+- [ ] S14.21 · Bộ não prompt — Đợt 3: khung nhập kịch bản hội thoại (`step1_box.py`, `classify` 0 USD, ô "nói thêm" wish rỗng = prompt y hệt, giữ khóa `up_`/`paste_`) sau cờ `idea_to_script` · nặng:3 · ⬜
+- [ ] S14.22 · Bộ não prompt — Đợt 3 cổng bật cờ: replay 0 miss → chạy nốt 3/5 ý tưởng (≈ 0,45 USD) → người dùng chấm phiếu → TB ≥ 4,0 · nặng:1 · ⏸ · cần người dùng duyệt tiền + chấm phiếu
+- [ ] S14.23 · Bộ não prompt — Đợt 4: bảng kê tài nguyên trước Director (cờ `asset_checklist`, `prompts/27_asset_checklist.md`, khâu Claude riêng) · nặng:2 · ⬜
+- [ ] S14.24 · Bộ não prompt — Đợt 5: agent chấm bài học (`core/lesson_judge.py`, rubric 6 tiêu chí, 8 van về người, chống trôi knowledge) — CHẾ ĐỘ BÓNG trước; bảng lessons hiện 0 bài nên chờ dữ liệu · nặng:3 · ⬜
+- [ ] S14.25 · Bộ não prompt — Đợt 6a: góp ý → mistakes (cờ `feedback_to_mistakes`); Đợt 6b (ops_summary devsys, luật `hieu_qua_tut`/`gop_y_lap`, `db:` chỉ khoản tự động, trang hiệu quả) GỘP VÀO F1 S14.10 · nặng:2 · ⬜
 - [ ] S14.15 · I1 — tài liệu khớp trạng thái cuối + chấm lại toàn bộ bằng AI Dev System · nặng:1 · ⬜
 
 ### K — Chạy kiểm kịch bản hài 20–30 s — ⏸ KHÔNG ƯU TIÊN (người dùng 30/09: các việc test kịch bản không làm trước nữa)
