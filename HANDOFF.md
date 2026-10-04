@@ -34,3 +34,14 @@ Xanh cả trước/sau (chốt hành vi): gửi lỗi vẫn queued→running→f
 ## Kết quả test & thử thật
 - 859 qua, 2 bỏ qua (59 file test liên quan: mọi file import core.runner + pipeline/access/spend_gate/composite/UI hủy-xóa/test_ui_v2_acceptance).
 - **T9 chưa thử thật**: chạy composite_video với ffmpeg thật trên clip xanh 1 s (24 khung, 320x240) quá 7 phút chưa xong (ghép từng khung chậm) nên đã dừng — cần chạy thử 1 clip thật để xác nhận kiểm độ dài không chặn nhầm clip ghép tốt.
+
+## Sửa theo rà soát độc lập (04/10)
+- Lỗi 1 (`core/composite.py`): vòng lặp dừng sớm (writer chết / khung lỗi) → đóng `reader.stdout` + `kill` reader trước khi chờ; mọi `wait` có hạn
+  (`_finish`, 120 s rồi kill); mã thoát reader chỉ xét khi đã đọc hết. Test ffmpeg THẬT (clip xanh 5 s 320x240, writer ghi vào thư mục
+  không tồn tại): trước treo > 60 s, nay `CompositeError` sau ~0,2 s, clip gốc nguyên (skip có lý do khi không có ffmpeg).
+- Lỗi 2 (`core/runner.py`): thứ tự `_wait` → job đã có `external_id` (RUNNING, không gửi lại; `_blocked` có lý do → diag warn `stale_paid`) → `_blocked`.
+- Điểm 3: hủy-giữa-lúc-gửi ở Deepix ghi câu `NO_CANCEL_NOTE`, không ghi "đã yêu cầu hủy".
+- Điểm 4: `cancel_all(..., wait=None)` chờ khóa `_turn` tối đa `CANCEL_WAIT_S` = 20 s; hết giờ → `{"busy": True}`, không hủy gì,
+  `cancel_note` báo "đang bận tải/ghép clip, thử lại sau ít phút"; luồng xóa dự án KHÔNG xóa khi bận (st.warning).
+- Điểm 5: `cancel_all` hủy ở nhà cung cấp cả job `queued` đã có `external_id` (dedupe như cũ).
+- Test liên quan sau sửa: 865 qua, 2 bỏ qua. Rủi ro cũ "cancel_all chờ khóa vô hạn" và "already_sent sau _blocked" đã hết.
