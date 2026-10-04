@@ -360,6 +360,51 @@ CREATE TABLE IF NOT EXISTS content_moderation_failures (
     error_message TEXT NOT NULL,
     at TEXT NOT NULL
 );
+CREATE TABLE IF NOT EXISTS lesson_reviews (
+    id INTEGER PRIMARY KEY,            -- S14.19 (KE_HOACH_BO_NAO_PROMPT_TU_HOC Đợt 0): who decided a lesson; NOT review_log (C4: no job,
+    lesson_id INTEGER NOT NULL REFERENCES lessons(id),        -- and a rejected lesson there would come back as a new mistake)
+    reviewer_type TEXT NOT NULL CHECK (reviewer_type IN ('ai_agent','user')),
+    decision TEXT NOT NULL CHECK (decision IN ('approve','reject','needs_human')),
+    score REAL,                        -- 0..1; NULL when a person decided
+    threshold_at_time REAL,            -- same shape as qc_results.threshold_at_time
+    detail TEXT,                       -- JSON: criteria, deductions, evidence, floor, model, tokens
+    note TEXT,
+    decided_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_lesson_reviews ON lesson_reviews(lesson_id, id);
+CREATE TABLE IF NOT EXISTS effectiveness_snapshots (
+    id INTEGER PRIMARY KEY,            -- S14.19 Đợt 1: core/effectiveness.snapshot — the figures + WHAT was on when they were taken
+    at TEXT NOT NULL,                  -- rounded to the minute: UNIQUE (project_id, at) stops a double click
+    project_id INTEGER REFERENCES projects(id),   -- NULL = the whole system
+    trigger TEXT NOT NULL,             -- 'delivery' | 'manual' | 'weekly'
+    video_seconds REAL, scenes INTEGER,
+    wall_min_per_sec REAL, gen_min_per_sec REAL,
+    cost_per_sec REAL, currency TEXT,
+    image_first_pass REAL, video_first_pass REAL,
+    qc_agreement REAL, qc_pairs INTEGER,
+    touches_per_scene REAL,
+    satisfaction REAL, feedback_n INTEGER,
+    lessons_on INTEGER,                -- approved lessons at that time
+    flags_on TEXT,                     -- JSON names of the feature flags ON
+    knowledge_fp TEXT,                 -- knowledge.fingerprint of director + motion
+    detail TEXT,                       -- JSON effectiveness.report() as it was
+    UNIQUE (project_id, at)
+);
+CREATE INDEX IF NOT EXISTS idx_eff_at ON effectiveness_snapshots(at);
+CREATE TABLE IF NOT EXISTS user_feedback (
+    id INTEGER PRIMARY KEY,            -- S14.19 Đợt 0: core/feedback.py — what the person said about a delivery, a scene or a screen
+    at TEXT NOT NULL,
+    kind TEXT NOT NULL CHECK (kind IN ('delivery','scene','screen')),
+    project_id INTEGER REFERENCES projects(id),
+    scene_id INTEGER REFERENCES scenes(id),
+    screen TEXT,
+    stage TEXT,                        -- 'director'|'image'|'motion'|'audio'|'render'|'ui'
+    rating INTEGER CHECK (rating BETWEEN 1 AND 5),
+    text TEXT,
+    created_by TEXT,
+    handled TEXT                       -- NULL | 'mistake:<id>' | 'bỏ qua: <lý do>'
+);
+CREATE INDEX IF NOT EXISTS idx_feedback_at ON user_feedback(at);
 """
 
 

@@ -1,0 +1,132 @@
+"""S14.19 Đợt 0 (KE_HOACH_BO_NAO_PROMPT_TU_HOC): the three new tables, core/feedback.py and the compare scores moved to user_feedback."""
+import json
+import os
+import shutil
+import sqlite3
+import tempfile
+import unittest
+
+from core import compare, db, feedback
+from core.db import connect
+from core.pipeline import Pipeline
+
+NEW_TABLES = ("lesson_reviews", "effectiveness_snapshots", "user_feedback")
+
+
+def _tables(conn):
+    return {r[0] for r in conn.execute("SELECT name FROM sqlite_master WHERE type='table'")}
+
+
+class SchemaTests(unittest.TestCase):
+    def setUp(self):
+        self.dir = tempfile.mkdtemp()
+        self.path = os.path.join(self.dir, "old.sqlite")
+
+    def tearDown(self):
+        shutil.rmtree(self.dir, ignore_errors=True)
+
+    def test_an_old_database_gains_the_three_tables_and_keeps_its_rows(self):
+        conn = connect(self.path)
+        pid = Pipeline(conn).create_project("cũ")
+        conn.close()
+        raw = sqlite3.connect(self.path)                   # make it look like a database from before S14.19
+        for t in NEW_TABLES:
+            raw.execute(f"DROP TABLE IF EXISTS {t}")
+        raw.execute("PRAGMA user_version = 0")
+        raw.commit()
+        raw.close()
+        db._MIGRATED.clear()
+        for _ in range(2):                                 # migrating twice is harmless
+            conn = connect(self.path)
+            self.assertTrue(set(NEW_TABLES) <= _tables(conn))
+            self.assertEqual(conn.execute("SELECT name FROM projects WHERE id=?", (pid,)).fetchone()[0], "cũ")
+            conn.close()
+
+    def test_snapshot_unique_and_feedback_checks(self):
+        conn = connect(":memory:")
+        conn.execute("INSERT INTO effectiveness_snapshots (at, project_id, trigger) VALUES ('2026-10-05T10:00', NULL, 'manual')")
+        with self.assertRaises(sqlite3.IntegrityError):
+            conn.execute("INSERT INTO user_feedback (at, kind) VALUES ('x', 'bogus')")
+        with self.assertRaises(sqlite3.IntegrityError):
+            conn.execute("INSERT INTO user_feedback (at, kind, rating) VALUES ('x', 'screen', 9)")
+
+
+class FeedbackTests(unittest.TestCase):
+    def setUp(self):
+        self.conn = connect(":memory:")
+        self.p = Pipeline(self.conn)
+        self.pid = self.p.create_project("fb")
+        self.sid = self.p.create_scene(self.pid, 1, "S1")
+
+    def test_three_kinds_are_recorded(self):
+        a = feedback.add(self.conn, "delivery", project_id=self.pid, rating=5, text="dùng được", stage="render", created_by="a@x")
+        b = feedback.add(self.conn, "scene", project_id=self.pid, scene_id=self.sid, rating=2, text="mặt lệch", stage="image")
+        c = feedback.add(self.conn, "screen", screen="Bản giao", text="nút khó tìm", stage="ui")
+        self.assertEqual(len({a, b, c}), 3)
+        rows = feedback.list(self.conn)
+        self.assertEqual({r["kind"] for r in rows}, {"delivery", "scene", "screen"})
+        self.assertEqual(len(feedback.list(self.conn, project_id=self.pid)), 2)
+        self.assertEqual([r["text"] for r in feedback.list(self.conn, kind="screen")], ["nút khó tìm"])
+
+    def test_deleting_a_scene_or_the_project_keeps_the_remark_unlinked(self):
+        sid2 = self.p.create_scene(self.pid, 2, "S2")
+        feedback.add(self.conn, "scene", project_id=self.pid, scene_id=sid2, text="cảnh 2 tối")
+        self.p.delete_scene(self.pid, 2)
+        feedback.add(self.conn, "scene", project_id=self.pid, scene_id=self.sid, text="cảnh 1 lệch")
+        self.conn.execute("INSERT INTO effectiveness_snapshots (at, project_id, trigger) VALUES ('2026-10-05T10:00', ?, 'manual')",
+                          (self.pid,))
+        self.p.delete_project(self.pid)
+        rows = feedback.list(self.conn)
+        self.assertEqual(len(rows), 2)
+        self.assertTrue(all(r["scene_id"] is None and r["project_id"] is None for r in rows))
+        self.assertEqual(self.conn.execute("SELECT COUNT(*) FROM effectiveness_snapshots").fetchone()[0], 0)
+
+    def test_bad_input_is_refused_not_silently_dropped(self):
+        with self.assertRaises(ValueError):
+            feedback.add(self.conn, "bogus", text="x")
+        with self.assertRaises(ValueError):
+            feedback.add(self.conn, "screen", rating=7)
+        with self.assertRaises(ValueError):
+            feedback.add(self.conn, "screen")                     # nothing said at all
+        with self.assertRaises(ValueError):
+            feedback.add(self.conn, "screen", text="x", stage="nope")
+
+    def test_satisfaction_and_summary(self):
+        self.assertEqual(feedback.satisfaction(self.conn, self.pid), {"satisfaction": None, "n": 0})
+        feedback.add(self.conn, "delivery", project_id=self.pid, rating=5)
+        feedback.add(self.conn, "delivery", project_id=self.pid, rating=1, text="nhạc to", stage="audio")
+        feedback.add(self.conn, "screen", screen="x", text="y", stage="ui")
+        s = feedback.satisfaction(self.conn, self.pid)
+        self.assertEqual(s["n"], 2)
+        self.assertAlmostEqual(s["satisfaction"], 0.5)
+        summ = feedback.summary(self.conn, days=30)
+        self.assertEqual(summ["n"], 3)
+        self.assertEqual(summ["by_stage"]["audio"]["n"], 1)
+        self.assertEqual(feedback.summary(self.conn, stage="audio")["n"], 1)
+
+
+class CompareScoresTests(unittest.TestCase):
+    def setUp(self):
+        self.conn = connect(":memory:")
+        self.pid = Pipeline(self.conn).create_project("cmp")
+
+    def test_save_scores_writes_user_feedback(self):
+        compare.save_scores(self.conn, self.pid, {"characters": 4, "overall": 5, "note": "ổn", "bogus": 9})
+        rows = feedback.list(self.conn, project_id=self.pid)
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0]["kind"], "delivery")
+        self.assertEqual(rows[0]["screen"], compare.FEEDBACK_SCREEN)
+        self.assertEqual(rows[0]["rating"], 5)
+        self.assertIsNone(self.conn.execute("SELECT 1 FROM app_settings WHERE key=?", (f"eval:{self.pid}",)).fetchone())
+        self.assertEqual(compare.get_scores(self.conn, self.pid), {"characters": 4, "overall": 5, "note": "ổn"})
+
+    def test_old_scores_in_app_settings_still_read(self):
+        self.conn.execute("INSERT INTO app_settings (key, value) VALUES (?, ?)",
+                          (f"eval:{self.pid}", json.dumps({"rhythm": 3, "note": "cũ"}, ensure_ascii=False)))
+        self.assertEqual(compare.get_scores(self.conn, self.pid), {"rhythm": 3, "note": "cũ"})
+        compare.save_scores(self.conn, self.pid, {"rhythm": 4})          # a new save wins over the old one
+        self.assertEqual(compare.get_scores(self.conn, self.pid), {"rhythm": 4})
+
+
+if __name__ == "__main__":
+    unittest.main()

@@ -968,7 +968,7 @@ def compare_panel(p: Pipeline) -> None:
                        for k, label in compare.CRITERIA.items()}
                 note = st.text_area("Nhận xét", old.get("note", ""), key=f"cmp_note_{r['project_id']}", height=70)
                 if st.button("💾 Lưu điểm", key=f"cmp_save_{r['project_id']}"):
-                    compare.save_scores(p.conn, r["project_id"], {**new, "note": note})
+                    compare.save_scores(p.conn, r["project_id"], {**new, "note": note}, created_by=(p.user or {}).get("email") or p.actor)
                     st.toast("Đã lưu điểm")
                     st.rerun()                     # the table below was built before the save
         st.markdown(compare.report_markdown(rows).replace("$", "\\$"))      # "$" would start a formula

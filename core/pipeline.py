@@ -150,6 +150,10 @@ class Pipeline:
         c.execute("UPDATE jobs SET parent_job_id=NULL WHERE project_id=?", (project_id,))
         c.execute("DELETE FROM jobs WHERE project_id=?", (project_id,))
         c.execute("DELETE FROM motion_prompts WHERE scene_id IN (SELECT id FROM scenes WHERE project_id=?)", (project_id,))
+        from .feedback import detach                     # S14.19: what the person said stays, unlinked; the project's snapshots go
+        detach(c, project_id=project_id)
+        c.execute("UPDATE user_feedback SET project_id=NULL WHERE project_id=?", (project_id,))
+        c.execute("DELETE FROM effectiveness_snapshots WHERE project_id=?", (project_id,))
         for table in ("prompt_versions", "scenes", "story_scenes", "characters", "project_assets", "outputs", "diag_events"):
             c.execute(f"DELETE FROM {table} WHERE project_id=?", (project_id,))
         for r in c.execute("SELECT id FROM assets WHERE project_id=?", (project_id,)).fetchall():
@@ -236,6 +240,8 @@ class Pipeline:
         if self.conn.execute("SELECT 1 FROM jobs WHERE scene_id=?", (row["id"],)).fetchone():
             raise ValueError(f"cảnh {idx} đã có ảnh/video nên không xóa được; hãy loại các bản đã gen trước")
         self.conn.execute("DELETE FROM motion_prompts WHERE scene_id=?", (row["id"],))
+        from .feedback import detach
+        detach(self.conn, scene_ids=[row["id"]])
         self.conn.execute("DELETE FROM scenes WHERE id=?", (row["id"],))
         self.conn.commit()
 

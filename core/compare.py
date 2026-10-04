@@ -4,7 +4,7 @@ V2 Kling multi-shot per group.
 - clone_project: a copy that starts from the same point (script, script scenes, scene / shot rows, Character Bible with its
   Lock, voices and references, World Bible, render / subtitle / end card settings) — without pictures, prompts or clips.
 - metrics: the numbers of one project for the comparison table.
-- scores: the person's 1–5 marks per criterion, kept in app_settings (key 'eval:<project id>').
+- scores: the person's 1–5 marks per criterion, kept in user_feedback (S14.19; older ones in app_settings 'eval:<project id>').
 - report_markdown: the table for docs/V3_AB_REPORT.md.
 """
 from . import access
@@ -122,7 +122,19 @@ def metrics(p: Pipeline, project_id: int, data_dir: str) -> Dict:
     }
 
 
+FEEDBACK_SCREEN = "compare"
+"""S14.19: the marks are a 'delivery' row of user_feedback with this screen; text = JSON of the marks + note (one place for every
+mark the person gives). Older marks stay in app_settings 'eval:<pid>' and are still read when there is no new row."""
+
+
 def get_scores(conn, project_id: int) -> Dict:
+    from . import feedback
+    rows = feedback.list(conn, kind="delivery", project_id=project_id, screen=FEEDBACK_SCREEN, limit=1)
+    if rows:
+        try:
+            return json.loads(rows[0]["text"] or "{}")
+        except ValueError:
+            return {}
     row = conn.execute("SELECT value FROM app_settings WHERE key=?", (f"eval:{project_id}",)).fetchone()
     try:
         return json.loads(row["value"]) if row else {}
@@ -130,13 +142,15 @@ def get_scores(conn, project_id: int) -> Dict:
         return {}
 
 
-def save_scores(conn, project_id: int, scores: Dict) -> None:
+def save_scores(conn, project_id: int, scores: Dict, created_by: Optional[str] = None) -> None:
+    from . import feedback
     clean = {k: int(v) for k, v in scores.items() if k in CRITERIA and v}
     if scores.get("note"):
         clean["note"] = str(scores["note"])[:2000]
-    conn.execute("INSERT INTO app_settings (key, value) VALUES (?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value",
-                 (f"eval:{project_id}", json.dumps(clean, ensure_ascii=False)))
-    conn.commit()
+    marks = [v for k, v in clean.items() if k != "note"]
+    rating = clean.get("overall") or (round(sum(marks) / len(marks)) if marks else None)
+    feedback.add(conn, "delivery", project_id=project_id, screen=FEEDBACK_SCREEN, rating=rating,
+                 text=json.dumps(clean, ensure_ascii=False), created_by=created_by)
 
 
 def report_markdown(rows: List[Dict]) -> str:
