@@ -97,7 +97,10 @@ def main(argv=None):
     ap.add_argument("--ref", action="append", default=[])
     ap.add_argument("--size", default="1024x1536")
     ap.add_argument("--model", default="gpt-image-2.5-sunburst")
+    from core import script_cap  # noqa: E402  (S14.2: trần CỨNG --max-usd, bắt buộc khi gọi API trả tiền)
+    script_cap.add_argument(ap)
     a = ap.parse_args(argv)
+    script_cap.from_args(argparse.Namespace(paid=a.step == "draw", max_usd=a.max_usd), "asset_polish").start()
     if a.step == "spent":
         print(spent())
         return

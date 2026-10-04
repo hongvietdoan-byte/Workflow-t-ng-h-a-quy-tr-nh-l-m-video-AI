@@ -45,7 +45,10 @@ def main():
     ap.add_argument("--db", default=os.environ.get("PIPELINE_DB", os.path.join("data", "manifest.sqlite")))
     ap.add_argument("--yes", action="store_true")
     ap.add_argument("--model", help="model ảnh (mặc định: model của dự án); 4 frame #7 dùng gpt-image-2.5-sunburst")
+    from core import script_cap  # noqa: E402  (S14.2: trần CỨNG --max-usd, bắt buộc khi gọi API trả tiền)
+    script_cap.add_argument(ap)
     a = ap.parse_args()
+    script_cap.from_args(a, "scene_wide_test").start()
     import storyboard_test
     p = Pipeline(connect(a.db))
     prompts, refs, story, proj = storyboard_test.build(p, a.project, a.shots)

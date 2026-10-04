@@ -16,7 +16,7 @@ import sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
-from core import assets  # noqa: E402
+from core import assets, script_cap  # noqa: E402
 
 EST_USD = 0.006
 GENDER = re.compile(r"\b(male|female|man|woman|boy|girl|he|she)\b", re.I)
@@ -62,10 +62,11 @@ def main() -> None:
     ap.add_argument("--game", default="FF")
     ap.add_argument("--yes", action="store_true")
     ap.add_argument("--approve", action="store_true")
-    ap.add_argument("--max-usd", type=float, default=0.5)
+    script_cap.add_argument(ap)          # S14.2: trần CỨNG, bắt buộc khi --yes
     ap.add_argument("--only", default="")
     ap.add_argument("--checks", default=os.path.join("data", "library_check.json"))
     a = ap.parse_args()
+    cap = script_cap.from_args(a, "soạn hồ sơ nhân vật")
     if a.repo:
         assets.REPO = a.repo
     from core.db import connect
@@ -97,10 +98,10 @@ def main() -> None:
         if re.search(r"\b(1[0-7]|[1-9])[- ]?(year[- ]old|yo)\b", json.dumps(obj), re.I):
             raise llm_io.SchemaError("an age under 18 is written — use 'young, not yet 20'")
 
+    cap.start()
     for c, prof in todo:
-        if budget.llm_spent(conn) - start + EST_USD > a.max_usd:
-            print("dừng: chạm trần --max-usd của lượt này")
-            break
+        if not cap.allow(max(EST_USD, cap.estimate_llm("profile_draft"))):
+            break                                    # script_cap đã in: đã chi bao nhiêu, vì sao dừng
         issues = (checks.get(c["name"]) or {}).get("profile_issues") or []
         try:
             with llm_runner.tagged("profile_draft"):

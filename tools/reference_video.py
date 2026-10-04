@@ -95,7 +95,10 @@ def main():
     s.add_argument("cuts"); s.add_argument("labels"); s.add_argument("--title"); s.add_argument("--width", type=int); s.add_argument("--height", type=int)
     s.set_defaults(fn=_cuts)
     s = sub.add_parser("stats"); s.add_argument("style", nargs="?"); s.set_defaults(fn=_stats)
+    from core import script_cap  # noqa: E402  (S14.2: trần CỨNG --max-usd, bắt buộc khi gọi API trả tiền)
+    script_cap.add_argument(ap)
     args = ap.parse_args()
+    script_cap.from_args(argparse.Namespace(paid=args.cmd == "label", max_usd=args.max_usd), "reference_video").start()
     if getattr(args, "work", None) and args.cmd == "sheets":
         os.makedirs(args.work, exist_ok=True)
     args.fn(args)

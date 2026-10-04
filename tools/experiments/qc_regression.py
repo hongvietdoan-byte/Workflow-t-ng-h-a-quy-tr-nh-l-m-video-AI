@@ -63,7 +63,10 @@ def main():
     ap.add_argument("--project", type=int, required=True)
     ap.add_argument("--db", default=os.path.join("data", "manifest.sqlite"))
     ap.add_argument("--yes", action="store_true")
+    from core import script_cap  # noqa: E402  (S14.2: trần CỨNG --max-usd, bắt buộc khi gọi API trả tiền)
+    script_cap.add_argument(ap)
     a = ap.parse_args()
+    script_cap.from_args(a, "qc_regression").start()
     from group_test import load_env
     load_env(".")
     from core import llm_runner, qc_scene

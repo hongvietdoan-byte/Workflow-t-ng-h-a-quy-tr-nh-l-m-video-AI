@@ -155,7 +155,10 @@ def main():
     ap.add_argument("--skip", default="", help="bỏ các mục này (tên, cách nhau bằng dấu phẩy)")
     ap.add_argument("--no-pets", action="store_true", help="bỏ thú cưng (người dùng 02/10: chỉ làm hồ sơ nhân vật)")
     ap.add_argument("--only", default="", help="chỉ soạn các nhân vật này (tên, cách nhau bằng dấu phẩy)")
+    from core import script_cap  # noqa: E402  (S14.2: trần CỨNG --max-usd, bắt buộc khi gọi API trả tiền)
+    script_cap.add_argument(ap)
     a = ap.parse_args()
+    script_cap.from_args(a, "draft_profiles").start()
     from core.db import connect
     conn = connect(a.db)
     rep = report(conn, a.game)

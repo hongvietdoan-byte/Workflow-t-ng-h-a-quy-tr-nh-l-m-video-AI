@@ -640,6 +640,8 @@ def record_usage(conn: sqlite3.Connection, job_id: Optional[int], kind: str, pro
                  " VALUES (?,?,?,?,?,?,?,?,datetime('now'),?)",
                  (job_id, project_id, kind, provider, model, tier, quantity, unit, stage))
     conn.commit()
+    from . import script_cap                  # S14.2: counted on a command-line run's --max-usd (no lock active → nothing)
+    script_cap.record_row(kind, provider, model, tier, quantity)
 
 
 def cancel_usage(conn: sqlite3.Connection, job_id: int) -> int:

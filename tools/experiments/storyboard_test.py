@@ -51,7 +51,10 @@ def main():
     ap.add_argument("--shots", type=int, nargs="+", required=True)
     ap.add_argument("--db", default=os.environ.get("PIPELINE_DB", os.path.join("data", "manifest.sqlite")))   # run from the main folder
     ap.add_argument("--yes", action="store_true")
+    from core import script_cap  # noqa: E402  (S14.2: trần CỨNG --max-usd, bắt buộc khi gọi API trả tiền)
+    script_cap.add_argument(ap)
     a = ap.parse_args()
+    script_cap.from_args(a, "storyboard_test").start()
     p = Pipeline(connect(a.db))
     prompts, refs, story, proj = build(p, a.project, a.shots)
     model = image_models.of_project(proj)

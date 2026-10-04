@@ -1181,7 +1181,7 @@ def lessons_tab(p: Pipeline, pid: int) -> None:
             st.error(str(e))
     monthly = st.checkbox("Tự nghiên cứu hàng tháng (khi mở Dashboard và đã đến hạn)", value=research.enabled(conn), key="ls_monthly",
                           help="Mặc định tắt vì tốn phí. Máy phải mở Dashboard ít nhất một lần trong tháng, hoặc dùng "
-                               "tools/monthly_research.py với Task Scheduler.")
+                               "tools/monthly_research.py --max-usd <USD> (trần cứng, bắt buộc) với Task Scheduler.")
     if monthly != research.enabled(conn):
         lessons.set_meta(conn, "research_monthly", "1" if monthly else "0")
     last = lessons.meta(conn, "research_last_run")

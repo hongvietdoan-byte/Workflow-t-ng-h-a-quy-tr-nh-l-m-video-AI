@@ -94,7 +94,10 @@ def main(argv=None) -> int:
     ap.add_argument("--import", dest="import_file", metavar="FILE", help="nhập file điểm của người chấm ngoài")
     ap.add_argument("--scorer", help="tên người chấm khi --import (vd. claude-code-session)")
     ap.add_argument("--db", default=None, help="sổ chi (mặc định data/manifest.sqlite hoặc PIPELINE_DB)")
+    from core import script_cap  # noqa: E402  (S14.2: trần CỨNG --max-usd, bắt buộc khi gọi API trả tiền)
+    script_cap.add_argument(ap)
     args = ap.parse_args(argv)
+    script_cap.from_args(argparse.Namespace(paid=args.yes and args.provider != "mock", max_usd=args.max_usd), "devsys_score").start()
 
     cfg = collect.load_areas()
     if args.report is not None or args.compare or args.stability:
