@@ -289,8 +289,8 @@ def library_review_box(p: Pipeline, game: str) -> None:
                 role, look = row_meta(w)
                 assets.set_image_meta(p.conn, w["id"], role=role, look=look, status="approved")
                 done()
-            if confirm_all(f"lib_rev_rm_{w['id']}", [w["id"]], "🗑", f"Bỏ ảnh này? Vào thùng rác của mục (khôi phục được trong "
-                           f"{assets.trash_days()} ngày).", b, "Có, bỏ"):
+            if confirm_all(key=f"lib_rev_rm_{w['id']}", ids=[w["id"]], label="🗑", question=f"Bỏ ảnh này? Vào thùng rác của mục (khôi phục được trong "
+                           f"{assets.trash_days()} ngày).", container=b, yes_label="Có, bỏ"):
                 assets.trash_image(p.conn, w["id"])
                 st.session_state.pop(f"lib_rev_pick_{w['id']}", None)
                 done()
@@ -325,9 +325,9 @@ def library_lost_box(p: Pipeline) -> None:
                     assets.remove_image(p.conn, w["id"])
                     _rerun_here()
             dead = [w["id"] for w in lost if not w["can_reload"]]   # S14.4: the ones that can be reloaded are kept
-            if confirm_all("lib_lost_rm_all", dead, f"🔗 Gỡ liên kết {len(dead)} ảnh mất file không tải lại được",
-                           f"Gỡ {len(dead)} dòng ảnh mất file (nguồn cũng không còn)? Danh sách được sao lưu ra tệp JSON trong thư mục Kho "
-                           "(_backup); ảnh còn tải lại được giữ nguyên.", st, "Có, gỡ"):
+            if confirm_all(key="lib_lost_rm_all", ids=dead, label=f"🔗 Gỡ liên kết {len(dead)} ảnh mất file không tải lại được",
+                           question=f"Gỡ {len(dead)} dòng ảnh mất file (nguồn cũng không còn)? Danh sách được sao lưu ra tệp JSON trong thư mục Kho "
+                           "(_backup); ảnh còn tải lại được giữ nguyên.", container=st, yes_label="Có, gỡ"):
                 n = assets.unlink_missing(p.conn, only_unreloadable=True)
                 st.toast(f"Đã gỡ {n} dòng ảnh mất file (đã sao lưu)")
                 _rerun_here()
@@ -809,8 +809,8 @@ def lib_asset_card(p: Pipeline, a: dict, items: list) -> None:
                 col.image(assets.thumbnail(img["path"]), width=110,
                           caption=assets.ROLES.get(a["kind"], {}).get(img.get("role") or "", "chưa rõ vai trò")
                           + (f" · {assets.LOOKS[img['look']]}" if img.get("look") in assets.LOOKS else ""))
-                if confirm_all(f"lib_img_rm_{img['id']}", [img["id"]], "Xóa ảnh", f"Xóa ảnh này? Ảnh vào thùng rác của mục, khôi phục "
-                               f"được trong {assets.trash_days()} ngày.", col, "Có, xóa"):
+                if confirm_all(key=f"lib_img_rm_{img['id']}", ids=[img["id"]], label="Xóa ảnh", question=f"Xóa ảnh này? Ảnh vào thùng rác của mục, khôi phục "
+                               f"được trong {assets.trash_days()} ngày.", container=col, yes_label="Có, xóa"):
                     assets.trash_image(p.conn, img["id"])
                     st.rerun()
         lib_removed_images(p, a)
@@ -829,9 +829,9 @@ def lib_asset_card(p: Pipeline, a: dict, items: list) -> None:
                 names = {x["id"]: f"{x['kind_label']}: {x['name']}" for x in others}
                 target = g1.selectbox("Gộp mục này vào mục khác (ảnh chuyển sang, tên này thành tên gọi khác)", [None] + list(names),
                                       format_func=lambda i: "— không gộp —" if i is None else names[i], key=f"lib_merge_{a['id']}")
-                if target is not None and confirm_all(f"lib_merge_go_{a['id']}", [a["id"], target], "Gộp",
-                                                      f"Gộp “{a['name']}” vào “{names[target]}”? Mọi ảnh (cả ảnh chờ duyệt) chuyển sang, "
-                                                      f"“{a['name']}” thành tên gọi khác rồi bị xóa khỏi Kho.", g2, "Có, gộp"):
+                if target is not None and confirm_all(key=f"lib_merge_go_{a['id']}", ids=[a["id"], target], label="Gộp",
+                                                      question=f"Gộp “{a['name']}” vào “{names[target]}”? Mọi ảnh (cả ảnh chờ duyệt) chuyển sang, "
+                                                      f"“{a['name']}” thành tên gọi khác rồi bị xóa khỏi Kho.", container=g2, yes_label="Có, gộp"):
                     try:
                         assets.merge(p.conn, a["id"], target)
                     except assets.AssetError as e:
