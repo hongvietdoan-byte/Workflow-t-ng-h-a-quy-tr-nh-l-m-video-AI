@@ -532,6 +532,21 @@ class ProductJobCap(unittest.TestCase):
         self.ap.resume(self.p, self.pid)                                            # the person looked: counted from now
         self.ap._job_cap_check(self.p, self.pid)
 
+    def test_a_project_without_shots_never_reaches_its_cap(self):
+        pid = self.p.create_project("empty")
+        self.assertEqual(self.ap._job_caps(self.p, pid), 0)
+        self.assertIsNone(self.ap._job_cap_reason(self.p, pid))
+
+    def test_a_resend_keeps_the_origin_of_its_job(self):
+        self.p.origin = "auto"
+        try:
+            job = self.p.create_job(self.sids[0])
+        finally:
+            self.p.origin = None
+        self.p.start(job)
+        self.p.fail(job, "not created")
+        self.assertEqual(self.p.job(self.p.resend(job, "gửi lại"))["origin"], "auto")
+
     def test_the_run_marks_its_jobs_as_machine_made(self):
         from core.pipeline import Pipeline as P
         self.p.origin = "auto"

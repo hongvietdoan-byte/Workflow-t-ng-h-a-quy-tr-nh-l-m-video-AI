@@ -279,7 +279,7 @@ def _job_cap_reason(p: Pipeline, pid: int) -> Optional[str]:
     from .pipeline import AUTO_REGEN_LIMIT
     made = _machine_jobs(p, pid)
     total, cap = made["image_gen"] + made["video_gen"], _job_caps(p, pid)
-    if total < cap:
+    if cap <= 0 or total < cap:                         # a project without shots never "reaches" its cap
         return None
     images, videos = _shots(p, pid)
     name = p.project(pid)["name"]
