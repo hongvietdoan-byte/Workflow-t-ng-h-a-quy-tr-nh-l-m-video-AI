@@ -88,8 +88,11 @@ def _load(group: str) -> List[Dict]:
 
 
 def _save(group: str, docs: List[Dict]) -> None:
-    with open(_manifest(group), "w", encoding="utf-8") as f:
+    path = _manifest(group)
+    tmp = path + ".tmp"                      # S14.4 C1b: atomic — a failure never leaves a half-written manifest
+    with open(tmp, "w", encoding="utf-8") as f:
         json.dump(docs, f, ensure_ascii=False, indent=1)
+    os.replace(tmp, path)
 
 
 def _read(path: str) -> str:
@@ -227,9 +230,7 @@ def replace_doc(group: str, old_title: str, filename: str, data: bytes, title: O
     docs = _load(group)
     old = {d["file"] for d in docs if d.get("title") == old_title}
     text = _checked_text(group, filename, data, docs, old)          # raises ValueError → nothing changed
-    entry = _write_new(group, filename, text, docs, title, note)
-    remaining = [d for d in _load(group) if d["file"] not in old]
-    _save(group, remaining)
+    entry = _write_new(group, filename, text, docs, title, note, drop=old)   # ONE manifest write: add new + drop old together
     for f in old:
         try:
             os.remove(os.path.join(group_dir(group), f))
@@ -238,7 +239,10 @@ def replace_doc(group: str, old_title: str, filename: str, data: bytes, title: O
     return entry
 
 
-def _write_new(group: str, filename: str, text: str, docs: List[Dict], title: Optional[str], note: str) -> Dict:
+def _write_new(group: str, filename: str, text: str, docs: List[Dict], title: Optional[str], note: str,
+               drop=frozenset()) -> Dict:
+    """Write the new document's file, then the manifest once (with the entries in `drop` left out). A failed manifest write removes
+    the new file again: the knowledge base stays exactly as it was."""
     folder = group_dir(group)
     stem, n = _slug(filename), 1
     file = f"{stem}.md"
@@ -250,8 +254,15 @@ def _write_new(group: str, filename: str, text: str, docs: List[Dict], title: Op
     entry = {"file": file, "title": (title or "").strip() or os.path.splitext(os.path.basename(filename))[0],
              "note": note.strip(), "original": os.path.basename(filename), "chars": len(text), "enabled": True,
              "added_at": time.strftime("%Y-%m-%d %H:%M")}
+    try:
+        _save(group, [d for d in docs if d["file"] not in drop] + [entry])
+    except Exception:
+        try:
+            os.remove(os.path.join(folder, file))
+        except OSError:
+            pass
+        raise
     docs.append(entry)
-    _save(group, docs)
     return entry
 
 
