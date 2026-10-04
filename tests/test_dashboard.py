@@ -807,7 +807,7 @@ class DashboardSmokeTests(unittest.TestCase):
         at = AppTest.from_file(APP, default_timeout=30).run()
         self.assertFalse(at.exception)
         bars = [x for x in at.get("popover") if not x.proto.popover.label.startswith("👗")]     # the per-character outfit popovers aside
-        self.assertEqual(len(bars), 5)                        # risk corner + "new project" + 📥 inbox + 💵 card + the one settings gear
+        self.assertEqual(len(bars), 6)                        # risk corner + 💬 góp ý (S14.19) + "new project" + 📥 inbox + 💵 card + ⚙
         text = " ".join(m.value for m in at.markdown)
         self.assertIn("Cảnh 1 bị chặn (clipai)", text)      # risk-control block, with its scene
         self.assertIn("Nữ chiến binh Amazon", text)          # IP warning from the Character Bible

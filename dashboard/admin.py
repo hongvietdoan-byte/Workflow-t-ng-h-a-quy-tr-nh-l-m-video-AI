@@ -935,12 +935,40 @@ def effectiveness_panel(p: Pipeline, pid: int, nested: bool = False) -> None:
     manual = st.number_input("Làm tay mất bao nhiêu phút cho 1 giây video (mặc định chung 30 phút — người dùng chốt; sửa để so thử, không lưu)",
                              min_value=0.0, value=effectiveness.MANUAL_MIN_PER_SEC, step=1.0, key=f"eff_manual_{pid}")
     summary = "\n".join(effectiveness.summary_lines(r, manual or None))
+    effectiveness_history(p, pid)
     if nested:                                  # already inside an expander (Streamlit forbids expander-in-expander)
         st.markdown("**📋 Bản tóm tắt để gửi báo cáo**")
         st.code(summary, language="text")
     else:
         with st.expander("📋 Bản tóm tắt để gửi báo cáo"):
             st.code(summary, language="text")
+
+
+EFF_CHART = {"image_first_pass": "Ảnh đạt lần đầu", "video_first_pass": "Video đạt lần đầu", "qc_agreement": "QC đồng ý với người",
+             "satisfaction": "Hài lòng (góp ý Bước 5)"}
+
+
+def effectiveness_history(p: Pipeline, pid: int) -> None:
+    """S14.19 Đợt 1: 📌 Lưu mốc (0 USD) + the saved milestones of this project as a chart, and what changed between the last two
+    (flags, approved lessons, Director / motion knowledge) — so a figure that moves can be traced to its cause. No snapshot on page open."""
+    a, b = st.columns([1.2, 4], vertical_alignment="center")
+    if a.button("📌 Lưu mốc", key=f"eff_snap_{pid}", help="Chụp các chỉ số lúc này kèm cờ đang bật, số bài học đang bật và dấu vân tay kiến "
+                                                          "thức (0 USD). Mỗi lần xuất bản cũng tự chụp một mốc."):
+        act(lambda: effectiveness.snapshot(p.conn, pid, cost.load_pricing(), "manual"), "Đã lưu mốc")
+    hist = effectiveness.history(p.conn, pid)
+    if not hist:
+        b.caption("Chưa có mốc nào — bấm 📌 Lưu mốc, hoặc xuất bản ở Bước 5 (tự chụp).")
+        return
+    last = hist[-1]
+    b.caption(f"{len(hist)} mốc · mới nhất {last['at'].replace('T', ' ')} ({last['trigger']}) · {len(last['flags_on'])} cờ bật · "
+              f"{last['lessons_on'] or 0} bài học")
+    if len(hist) < 2:
+        return
+    import pandas as pd
+    st.line_chart(pd.DataFrame({label: [h[k] for h in hist] for k, label in EFF_CHART.items()},
+                               index=[h["at"].replace("T", " ") for h in hist]), height=180)
+    d = effectiveness.delta(hist[-2], hist[-1])
+    st.caption("Giữa 2 mốc gần nhất: " + ("; ".join(d["changed"]) if d["changed"] else "không đổi cờ, bài học hay kiến thức"))
 
 
 def compare_panel(p: Pipeline) -> None:
@@ -968,7 +996,7 @@ def compare_panel(p: Pipeline) -> None:
                        for k, label in compare.CRITERIA.items()}
                 note = st.text_area("Nhận xét", old.get("note", ""), key=f"cmp_note_{r['project_id']}", height=70)
                 if st.button("💾 Lưu điểm", key=f"cmp_save_{r['project_id']}"):
-                    compare.save_scores(p.conn, r["project_id"], {**new, "note": note})
+                    compare.save_scores(p.conn, r["project_id"], {**new, "note": note}, created_by=(p.user or {}).get("email") or p.actor)
                     st.toast("Đã lưu điểm")
                     st.rerun()                     # the table below was built before the save
         st.markdown(compare.report_markdown(rows).replace("$", "\\$"))      # "$" would start a formula

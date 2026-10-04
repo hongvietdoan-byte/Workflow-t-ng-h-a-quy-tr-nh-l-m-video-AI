@@ -131,6 +131,43 @@ def risk_popover(p: Pipeline, pid: int) -> None:
         _risk_body(notes)
 
 
+def screen_feedback(p: Pipeline, pid) -> None:
+    """S14.19 Đợt 0: 💬 “Góp ý màn này” — what is wrong with the screen in view → user_feedback (kind 'screen', 0 USD).
+    v2: a labelled fold inside “⋯ Thêm” (a popover cannot hold a popover); classic: a popover next to ⚠ Rủi ro.
+    Open to a "Chỉ xem" watcher too: saying what is wrong with a screen changes nothing in the project."""
+    prev = access_ui.is_read_only()
+    access_ui.set_read_only(False)
+    try:
+        _screen_feedback_wrap(p, pid)
+    finally:
+        access_ui.set_read_only(prev)
+
+
+def _screen_feedback_wrap(p: Pipeline, pid) -> None:
+    if ui.v2_on():
+        with st.expander("💬 Góp ý màn này"):
+            _screen_feedback_body(p, pid)
+        return
+    with st.popover("💬 Góp ý", help="Góp ý màn này: chỗ nào khó dùng, thiếu, sai"):
+        _screen_feedback_body(p, pid)
+
+
+def _screen_feedback_body(p: Pipeline, pid) -> None:
+    from core import feedback
+    screen = str(st.session_state.get("step") or "")
+    with st.form("fb_screen_form", clear_on_submit=True, border=False):
+        text = st.text_area(f"Màn “{screen or 'này'}” chưa ổn chỗ nào?", key="fb_screen_text", height=80)
+        stage = st.selectbox("Khâu", list(feedback.STAGES), index=list(feedback.STAGES).index("ui"), key="fb_screen_stage",
+                             format_func=feedback.STAGES.get)
+        sent = st.form_submit_button("💬 Gửi góp ý", key="fb_screen_send", width="stretch")
+    if sent:
+        if not (text or "").strip():
+            st.warning("Góp ý trống — viết vài chữ rồi gửi lại.")
+            return
+        act(lambda: feedback.add(p.conn, "screen", project_id=pid, screen=screen or None, stage=stage, text=text,
+                                 created_by=(p.user or {}).get("email") or p.actor), "Đã ghi góp ý — cảm ơn!")
+
+
 def _risk_body(notes) -> None:
     if not notes:
         st.caption("Chưa ghi nhận rủi ro nào.")
@@ -796,6 +833,7 @@ def global_bar(p: Pipeline):
         proj = p.project(pid)
         with c2:
             risk_popover(p, pid)
+            screen_feedback(p, pid)
         b1, b3 = c3.columns(2)              # kế hoạch V4 5.3: one pause / continue button
         access_ui.set_read_only(auth_on() and C.read_only(p, pid))       # "Chỉ xem": pause / continue / cancel are disabled
         if proj["paused"]:
@@ -879,6 +917,7 @@ def _global_bar_v2(p: Pipeline, projects):
                     st.toast(cancel_everything(p, pid))
                     st.rerun()
                 risk_popover(p, pid)
+                screen_feedback(p, pid)
         access_ui.set_read_only(False)
         with c_gear:
             settings_menu(p, pid, "⚙ Cài đặt")
