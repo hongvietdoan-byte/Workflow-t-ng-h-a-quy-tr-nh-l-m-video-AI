@@ -176,18 +176,19 @@ def step(conn, pid: int, story_scene, provider, data_dir: str, model: Optional[s
         idx[str(story_scene)] = rec
         _save(data_dir, pid, idx)
         return {"ready": "ready", "failed": "skipped"}.get(rec.get("state"), "waiting")
-    from . import budget, cost
-    with budget.SPEND_LOCK:
-        over = budget.check_image(conn, getattr(provider, "name", "?"), model)
-        if over:
-            say("warn", "budget", f"ảnh toàn cảnh cảnh {story_scene} không gửi: {over}")
+    from . import spend_gate
+    # S14.1: the gate adds the project's locked budget (it was skipped), a paused project and 'out_of_credit' → halt
+    with spend_gate.spend(conn, "image", getattr(provider, "name", "?"), project_id=pid, model=model,
+                          ledger_stage="establishing") as slot:
+        if slot.over:
+            say("warn", "budget", f"ảnh toàn cảnh cảnh {story_scene} không gửi: {slot.over}")
             return "skipped"
         prompt = prompt_for(conn, pid, rows, with_render)
         try:
             try:
-                mid = provider.submit(prompt, pictures or None, size=SIZE, model=model)
+                mid = slot.send(provider.submit, prompt, pictures or None, size=SIZE, model=model)
             except TypeError:                                  # a provider without per-job models (mock)
-                mid = provider.submit(prompt, pictures or None, size=SIZE)
+                mid = slot.send(provider.submit, prompt, pictures or None, size=SIZE)
         except ProviderError as e:
             idx[str(story_scene)] = {"key": key, "state": "failed", "error": str(e)}
             _save(data_dir, pid, idx)
@@ -195,8 +196,7 @@ def step(conn, pid: int, story_scene, provider, data_dir: str, model: Optional[s
             return "skipped"
         info = getattr(provider, "usage_info", None)             # the same model / tier the picture runner records
         used, tier = (info(model) if model else info()) if info is not None else (model or "unknown", "image")
-        cost.record_usage(conn, None, "image", getattr(provider, "name", "?"), used, tier, 1, "image", project_id=pid,
-                          stage="establishing")
+        slot.record(model=used, tier=tier)
     idx[str(story_scene)] = {"key": key, "state": "running", "message_id": mid, "prompt": prompt, "refs": pictures}
     _save(data_dir, pid, idx)
     say("info", "establishing", f"gửi ảnh toàn cảnh cảnh {story_scene} ({len(pictures)} ảnh bối cảnh tham chiếu)")

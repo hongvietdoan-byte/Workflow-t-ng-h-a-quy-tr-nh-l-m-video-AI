@@ -76,21 +76,21 @@ def estimate(p: Pipeline, project_id: int, sequence: int) -> Dict:
 
 def kling_multishot(p: Pipeline, project_id: int, sequence: int, provider, data_dir: str) -> Dict:
     """Send one Kling multi-shot generation for the sequence (costs credit like one clip of the summed length, max 15 s).
-    Goes through the same money cap as every clip: refused (ValueError, nothing sent) when budget.check_video says no."""
-    from . import budget, formats
-    from .cost import record_usage
+    Goes through the money gate (core.spend_gate) like every clip: refused (ValueError, nothing sent) by the trial cap or the
+    project's locked budget; PipelinePaused when the project is paused."""
+    from . import formats, spend_gate
     scenes, shots, total = _plan(p, project_id, sequence)
     first = os.path.join(data_dir, str(project_id), "images", f"job_{scenes[0]['jid']}.png")
     aspect = formats.project_aspect(p.project(project_id))
     kwargs = {"multi_prompt": shots}
     if aspect:
         kwargs["aspect_ratio"] = formats.spec(aspect)["clip"]
-    with budget.SPEND_LOCK:                              # limit check + submission + ledger entry as one step
-        over = budget.check_video(p.conn, provider.name, MODEL, _tier(), total)
-        if over:
-            raise ValueError(f"Không gửi thử nghiệm multi-shot: {over}")
-        task = provider.submit(first, shots[0]["prompt"], None, total, "kling", **kwargs)
-        record_usage(p.conn, None, "video", provider.name, MODEL, _tier(), total, "second", project_id)
+    # limit check + submission + ledger entry as one step (S14.1: the gate adds the project's locked budget, a paused project and
+    # 'out_of_credit' → halt)
+    with spend_gate.spend(p.conn, "video", provider.name, project_id=project_id, model=MODEL, tier=_tier(), units=total) as slot:
+        slot.raise_if_over("Không gửi thử nghiệm multi-shot")
+        task = slot.send(provider.submit, first, shots[0]["prompt"], None, total, "kling", **kwargs)
+        slot.record()
     items = load(data_dir, project_id)
     entry = {"kind": "kling_multishot", "sequence": sequence, "scenes": [s["idx"] for s in scenes[:len(shots)]], "seconds": total,
              "external_id": task, "state": "running", "file": None, "at": datetime.now(timezone.utc).isoformat(timespec="seconds")}

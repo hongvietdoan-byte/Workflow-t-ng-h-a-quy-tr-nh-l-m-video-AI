@@ -15,8 +15,7 @@ import json
 import os
 from typing import Dict, List, Optional
 
-from . import budget, features
-from .cost import record_usage
+from . import features, spend_gate
 from .pipeline import Pipeline
 from .providers import ProviderError
 
@@ -159,14 +158,15 @@ def tick(p: Pipeline, project_id: int, provider, data_dir: str) -> Dict[str, int
                 kwargs["size"] = image_models.size_for(proj, model or image_models.of_project(proj))
             if model:
                 kwargs["model"] = model
-            with budget.SPEND_LOCK:
-                over = budget.check_image(p.conn, provider.name, kwargs.get("model") or _usage_model(provider))
-                if over:
-                    _set(p, row["id"], note=f"chờ: {over}")
-                    _diag(p, row, "warn", "budget", f"khung cuối chưa gửi: {over}")
+            # S14.1: the gate adds the project's locked budget (it was skipped), a paused project and 'out_of_credit' → halt
+            with spend_gate.spend(p.conn, "image", provider.name, project_id=project_id,
+                                  model=kwargs.get("model") or _usage_model(provider), ledger_stage="end_frame") as slot:
+                if slot.over:
+                    _set(p, row["id"], note=f"chờ: {slot.over}")
+                    _diag(p, row, "warn", "budget", f"khung cuối chưa gửi: {slot.over}")
                     break
                 try:
-                    ext = provider.submit(assets.reference_note(refs) + "Scene: " + prompt, [r["path"] for r in refs], **kwargs)
+                    ext = slot.send(provider.submit, assets.reference_note(refs) + "Scene: " + prompt, [r["path"] for r in refs], **kwargs)
                 except ProviderError as e:
                     if e.transient:
                         break
@@ -176,7 +176,7 @@ def tick(p: Pipeline, project_id: int, provider, data_dir: str) -> Dict[str, int
                 info = getattr(provider, "usage_info", None)
                 if info is not None:
                     used, tier = info(kwargs["model"]) if kwargs.get("model") else info()
-                    record_usage(p.conn, None, "image", provider.name, used, tier, 1, "image", project_id=project_id, stage="end_frame")
+                    slot.record(model=used, tier=tier)
             _set(p, row["id"], state="running", external_id=ext, prompt=prompt,
                  sent_refs=json.dumps([{"label": r["label"], "role": r["role"], "file": os.path.basename(r["path"])} for r in refs],
                                       ensure_ascii=False))
