@@ -30,10 +30,10 @@
 | S11 Director mở rộng: ý tưởng → kịch bản, cover video ref, học trending (kế hoạch v2 01/10, `docs/KE_HOACH_TINH_NANG_DIRECTOR_2026-10-01.md`) | 15 | 2 | 1 | 1 | 0 | 17,3 % |
 | S12 Rà soát dashboard 01/10: sửa lỗi, tính năng thử, 4 màn, nhiều người dùng (`docs/RA_SOAT_DASHBOARD_2026-10-01.md`) | 7 | 6 | 0 | 0 | 1 | 100 % |
 | S13 Giao diện v2 "AI product" (gradient, kính mờ, nền tối) trên Streamlit, chạy song song nhiều nhánh (`docs/KE_HOACH_GIAO_DIEN_V2_2026-10-01.md`) | 12 | 10 | 0 | 0 | 0 | 86,2 % |
-| S14 Nâng cấp dashboard sau chấm lại 03/10 (`docs/KE_HOACH_NANG_CAP_DASHBOARD_2026-10-03.md`; người dùng duyệt 04/10) | 16 | 1 | 3 | 3 | 0 | 17,7 % |
+| S14 Nâng cấp dashboard sau chấm lại 03/10 (`docs/KE_HOACH_NANG_CAP_DASHBOARD_2026-10-03.md`; người dùng duyệt 04/10) | 18 | 1 | 3 | 4 | 0 | 15,7 % |
 | K Chạy kiểm kịch bản hài 20–30 s — ⏸ KHÔNG ƯU TIÊN (người dùng 30/09: các việc test kịch bản không làm trước nữa) | 3 | 0 | 0 | 3 | 0 | 0 % |
 | S8 Chấm lại bằng AI Development System (cuối cùng) | 5 | 2 | 0 | 0 | 0 | 42,9 % |
-| **Tổng** | **150** | **106** | **6** | **7** | **6** | **76,4 %** |
+| **Tổng** | **152** | **106** | **6** | **8** | **6** | **75,3 %** |
 
 Đợt hiện tại: **S14** · việc kế: **S14.2** A2 — nút tốn tiền ghi giá trên nhãn + test quét
 <!-- /tien-do -->
@@ -210,6 +210,8 @@
 - [ ] S14.12 · Dự án thử 30 s — chạy thật (Gói H + ClipAI sửa cục bộ, phông xanh, giá Seedance 2.5) + nghiệm thu ước tính · nặng:3 · ⏸ · chờ người dùng duyệt bảng trần + nạp Claude API · CHẠY THẬT QUA DASHBOARD (UI v2, các nút người dùng bấm) — không chạy bằng script/công cụ dòng lệnh, để kiểm luôn giao diện + sổ chi + đợt ngân sách
 - [ ] S14.13 · L — dọn cờ đợt 2: bỏ `qc_agent`, `scene_qc_claude`, `scene_qc_trusted` nếu `qc_team` đạt trên dự án thử · nặng:1 · ⏸ · sau S14.12
 - [ ] S14.14 · G — `ui_v2` mặc định + gỡ giao diện cũ + tách file lớn · nặng:3 · ⏸ · chờ người dùng duyệt sau khi dùng thử UI v2
+- [ ] S14.16 · Chính sách tiền mới (mục 6c): trần → cảnh báo có số liệu, reset mốc trần + mức dự tính, tự gen lại ≤ 3 lần / người dùng không giới hạn, ước tính tính dư · nặng:2 · ⬜
+- [ ] S14.17 · Đạo diễn viết lại prompt shot theo ghi chú từ chối của người dùng trước khi gen lại (mục 6c ý 6) · nặng:2 · ⏸ · chờ người dùng duyệt (tốn ít Claude mỗi lần)
 - [ ] S14.15 · I1 — tài liệu khớp trạng thái cuối + chấm lại toàn bộ bằng AI Dev System · nặng:1 · ⬜
 
 ### K — Chạy kiểm kịch bản hài 20–30 s — ⏸ KHÔNG ƯU TIÊN (người dùng 30/09: các việc test kịch bản không làm trước nữa)
