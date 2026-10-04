@@ -158,8 +158,17 @@ def _ask(conn, pid: int, state: Dict, turn: int, client, validate):
     left = round(RUN_CAP_USD - float(state.get("spent") or 0), 4)
     if left < TURN_USD / 2:
         raise IdeaError(f"đã dùng hết trần {RUN_CAP_USD} USD cho ý tưởng này — bấm 'Ý tưởng mới' để làm lại từ đầu")
-    with llm_runner.tagged(STAGE, pid), llm_runner.spend_cap(left, "Biên kịch") as cap:
-        obj, _, _ = llm_runner.ask_json(client, build_prompt(conn, pid, state, turn), validate)
+    cap = {}
+    try:
+        with llm_runner.tagged(STAGE, pid), llm_runner.spend_cap(left, "Biên kịch") as cap:
+            obj, _, _ = llm_runner.ask_json(client, build_prompt(conn, pid, state, turn), validate)
+    except Exception:
+        # S14.4 C1b: a turn that failed after paid calls (2 bad answers…) still counts toward this idea's cap, and is saved
+        if float(cap.get("spent") or 0):
+            fresh = get_state(conn, pid)
+            fresh["spent"] = round(float(fresh.get("spent") or 0) + float(cap["spent"]), 4)
+            save_state(conn, pid, fresh)
+        raise
     state["spent"] = round(float(state.get("spent") or 0) + float(cap.get("spent") or 0), 4)
     state["turn"] = turn
     return obj
