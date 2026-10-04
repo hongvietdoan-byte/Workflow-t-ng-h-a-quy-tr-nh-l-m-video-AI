@@ -1,15 +1,16 @@
 """S14.1 A1a — scan test (docs/KE_HOACH_NANG_CAP_DASHBOARD_2026-10-03.md mục 3.1): a paid send outside the money gate must not come back.
 
 (a) Every call that sends paid work — `.submit…(`, `post_multipart(`, `generate_tts|generate_music|generate_sfx(`, Deepix `cutout(` —
-    in core/ dashboard/ tools/ sits in a function that uses `spend_gate.spend(`, or the old pattern `SPEND_LOCK` + `check_*` +
-    `project_budget.check` in the same function or the same class. Otherwise it must be in the small allow-list below (each entry says
-    why) or in PENDING ("CHỜ CHUYỂN": known, not moved yet, named after the S14 task that moves it) — the test stays green but the
+    in core/ dashboard/ tools/ sits INSIDE the body of a `with spend_gate.spend(...)` block (the AST With node, not just the same
+    function: a send before/after the block is outside). Otherwise it must be in the small allow-list below, named function by
+    function (each entry says why), or in PENDING ("CHỜ CHUYỂN": known, not moved yet, named after the S14 task that moves it) — the test stays green but the
     list is printed, never silent.
 (b) Every call of `budget.check_image` / `budget.check_video` sits in a function that also calls `project_budget.check` (or the
     gate) — the end frame, establishing picture and multi-shot try had the trial cap only.
 Entries that no longer match anything are reported too (a stale list hides nothing)."""
 import ast
 import re
+import textwrap
 import unittest
 from pathlib import Path
 
@@ -106,8 +107,21 @@ def _seg(src, node):
 GATED = re.compile(r"spend_gate\.spend\(")
 
 
-def _old_pattern(text):
-    return "SPEND_LOCK" in text and re.search(r"check_(image|video|audio)\(", text) and "project_budget.check(" in text
+def _is_gate(expr) -> bool:
+    """`spend_gate.spend(...)` (the context expression of a with item)."""
+    f = expr.func if isinstance(expr, ast.Call) else None
+    return (isinstance(f, ast.Attribute) and f.attr == "spend" and isinstance(f.value, ast.Name)
+            and f.value.id == "spend_gate")
+
+
+def _inside_gate(tree, call) -> bool:
+    """The send is INSIDE the body of a `with spend_gate.spend(...)` block (same function or not: the with node itself decides) —
+    a send before or after the block in the same function is outside the gate (review 04/10)."""
+    for node in ast.walk(tree):
+        if isinstance(node, (ast.With, ast.AsyncWith)) and any(_is_gate(i.context_expr) for i in node.items):
+            if any(_contains(stmt, call) for stmt in node.body):
+                return True
+    return False
 
 
 def scan():
@@ -117,6 +131,13 @@ def scan():
         src = f.read_text(encoding="utf-8", errors="ignore")
         if not re.search(r"submit|post_multipart|generate_(tts|music|sfx)|cutout\(", src):
             continue
+        scan_source(rel, src, bad, waiting, used)
+    return bad, waiting, used
+
+
+def scan_source(rel, src, bad, waiting, used):
+    """(a) for one file's source — appends to bad / waiting / used."""
+    if True:
         tree = ast.parse(src)
         for call in [n for n in ast.walk(tree) if isinstance(n, ast.Call)]:
             name, recv = _callee(call)
@@ -132,8 +153,8 @@ def scan():
             if name in CALLEE_OK or recv in RECEIVER_OK:
                 used.add(("callee", name if name in CALLEE_OK else recv))
                 continue
-            fn_src, cls_src = _seg(src, fn), _seg(src, cls)
-            if GATED.search(fn_src) or _old_pattern(fn_src) or (cls is not None and _old_pattern(cls_src)):
+            fn_src = _seg(src, fn)
+            if _inside_gate(tree, call):
                 continue
             if key in FUNC_OK:
                 why, marker = FUNC_OK[key]
@@ -146,7 +167,6 @@ def scan():
                 waiting.append(f"{where} — CHỜ CHUYỂN: {PENDING[key]}")
                 continue
             bad.append(where)
-    return bad, waiting, used
 
 
 def scan_checks():
@@ -194,6 +214,32 @@ class SpendGateScan(unittest.TestCase):
         if waiting:
             print("\nCHỜ CHUYỂN (check_* thiếu project_budget):\n  " + "\n  ".join(waiting))
         self.assertEqual(bad, [], "\n".join(bad))
+
+    def test_the_rule_catches_a_send_outside_the_with_block(self):
+        sample = textwrap.dedent("""
+            from core import spend_gate
+            def inside(conn, provider):
+                with spend_gate.spend(conn, "image", provider.name) as slot:
+                    slot.send(provider.submit, "p")
+                    provider.submit("direct inside")
+            def outside(conn, provider):
+                with spend_gate.spend(conn, "image", provider.name) as slot:
+                    slot.record()
+                provider.submit("after the block")
+            def before(conn, provider):
+                provider.submit("before the block")
+                with spend_gate.spend(conn, "image", provider.name) as slot:
+                    pass
+            class Runner:
+                def check(self):
+                    with budget.SPEND_LOCK:
+                        budget.check_image(1, "x"); project_budget.check(1, 1, "images", 0.1)
+                def send(self, provider):
+                    provider.submit("same class, other method")
+            """)
+        bad, waiting, used = [], [], set()
+        scan_source("core/sample.py", sample, bad, waiting, used)
+        self.assertEqual(sorted(b.split(" → ")[0].split(" ")[1] for b in bad), ["Runner.send", "before", "outside"])
 
     def test_no_stale_entry_in_the_lists(self):
         _, _, used = scan()
