@@ -41,7 +41,7 @@ class StageNameTests(unittest.TestCase):
 
     def test_aliases_are_folded_to_one_name(self):
         for raw, want in (("videos", "video"), ("images", "image"), ("image_gen", "image"), ("video_gen", "video"),
-                          ("delivery", "render"), (" Video ", "video"), ("voice", "voice"), ("weird", "weird")):
+                          ("delivery", "render"), ("translate", "motion"), (" Video ", "video"), ("voice", "voice"), ("weird", "weird")):
             self.assertEqual(diag.normalize_stage(raw), want, raw)
         self.assertEqual(diag.normalize_stage("lipsync"), "lipsync")          # no 'lipsync -> video' (nobody writes it)
         self.assertIn("voice", diag.STAGE_LABEL)
@@ -76,11 +76,14 @@ class StageNameTests(unittest.TestCase):
                         fn = n.func
                         name = fn.attr if isinstance(fn, ast.Attribute) else getattr(fn, "id", "")
                         base = getattr(getattr(fn, "value", None), "id", "")
-                        pos = {("diag", "record"): 1, ("", "_d"): 2, ("", "_diagnosed"): 0}.get((base, name))
+                        pos = {("diag", "record"): 1, ("", "_d"): 2, ("", "_diagnosed"): 0, ("", "_run"): 2,
+                               ("claude_tasks", "_run"): 2, ("", "_retry_note"): 1, ("", "_note"): 1}.get((base, name))
                         if pos is None or len(n.args) <= pos:
                             continue
                         a = n.args[pos]
-                        if isinstance(a, ast.Constant) and isinstance(a.value, str) and a.value not in known:
+                        # _run's stage is also the cost tag (llm_runner.tagged): an alias ('translate') is fine there
+                        ok = known | set(diag.STAGE_ALIASES) if name == "_run" else known
+                        if isinstance(a, ast.Constant) and isinstance(a.value, str) and a.value not in ok:
                             bad.append(f"{os.path.relpath(path, root)}:{n.lineno} {a.value!r}")
         self.assertEqual(bad, [])
 

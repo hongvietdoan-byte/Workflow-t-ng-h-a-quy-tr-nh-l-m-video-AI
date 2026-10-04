@@ -22,7 +22,8 @@ STAGES = (("director", "Director (phân cảnh)"), ("previz", "Layout / storyboa
 OTHER = "other"                     # stage_table row for any stage name not in STAGES (S14.4 C1b: nothing disappears)
 STAGE_LABEL = {**dict(STAGES), OTHER: "Khác"}
 # S14.4 C1b (04/10): other spellings seen in the code / old rows -> the one name of STAGES. No 'lipsync' here: nothing writes it.
-STAGE_ALIASES = {"videos": "video", "images": "image", "image_gen": "image", "video_gen": "video", "delivery": "render"}
+STAGE_ALIASES = {"videos": "video", "images": "image", "image_gen": "image", "video_gen": "video", "delivery": "render",
+                 "translate": "motion"}          # claude_tasks.translate_motion_fields (_run tag 'translate')
 
 
 def normalize_stage(stage) -> str:
