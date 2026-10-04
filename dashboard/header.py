@@ -503,6 +503,9 @@ def money_card(p: Pipeline, pid) -> None:
                 if stage_table:
                     st.html(stage_table)
                 st.markdown("\n".join(x for x in more if x))
+        from dashboard.design.screens import money_days as MD
+        if MD.can_view(me()):                                             # S14.6 Gói K: sổ chi MỌI dự án → người có quyền tiền / theo dõi
+            MD.open_button()                                              # mức dùng theo ngày + đợt ngân sách
         if allowed("settings"):
             b1, b2 = st.columns(2)
             if b1.button("⚙ Đợt thử & Claude", key="mc_budget", width="stretch"):
@@ -511,6 +514,8 @@ def money_card(p: Pipeline, pid) -> None:
                 open_dialog("dlg_pricing")
         if v2:
             SP.money_reset_block(p, pid, project_has_budget, me())           # Owner only (the block draws nothing for anyone else)
+    from dashboard.design.screens import money_days as MD
+    MD.dialog_if_open(me())
 
 
 @st.dialog("🧪 Tính năng thử", width="large", on_dismiss=lambda: close_dialog("dlg_features"))

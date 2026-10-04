@@ -164,8 +164,11 @@ def money_reset_block(p, pid, project_has_budget: bool, actor: dict) -> None:
     with st.expander("↺ Đặt lại thanh tiền (chỉ Owner)"):
         st.caption("Thanh đếm lại từ bây giờ; sổ chi giữ nguyên, mỗi lần đặt lại được ghi nhật ký.")
         bars = []
-        if st.checkbox("Đợt thử (tổng tiền cả đợt)", key="shell-mr-trial"):
-            bars.append("trial")
+        # S14.6 (rà soát 04/10): mốc thanh đợt thử = mốc của ĐỢT ngân sách → chỉ đổi qua "▶ Bắt đầu đợt ngân sách mới" (core.budget_rounds),
+        # nếu không đợt và thanh lệch nhau. Giữ khóa shell-mr-trial (ô bị khóa, chỉ đường sang đợt mới).
+        st.checkbox("Đợt thử (tổng tiền cả đợt) — đặt lại bằng đợt mới", key="shell-mr-trial", value=False, disabled=True,
+                    help="Thanh đợt thử đếm theo đợt ngân sách: mở 📅 Mức dùng theo ngày · đợt ngân sách → ▶ Bắt đầu đợt ngân sách mới.")
+        st.caption("Thanh đợt thử: dùng 📅 Mức dùng theo ngày · đợt ngân sách → ▶ Bắt đầu đợt ngân sách mới (đóng đợt cũ + lưu tóm tắt).")
         if st.checkbox("Claude API", key="shell-mr-claude"):
             bars.append("claude")
         if project_has_budget and pid is not None:
