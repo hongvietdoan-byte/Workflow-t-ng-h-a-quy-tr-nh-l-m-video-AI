@@ -891,7 +891,19 @@ def _deliver_button(p: Pipeline, pid: int, chosen, durations, label: str = "📦
             if res.get("qc") is not None:
                 st.session_state[f"final_qc_{pid}"] = res["qc"]
             st.toast(f"Đã xuất bản: {len(res['layers']) + 1} file")
+            snapshot_after_delivery(p, pid)
             st.rerun()
+
+
+def snapshot_after_delivery(p: Pipeline, pid: int) -> None:
+    """S14.19 Đợt 1: a delivery is a milestone — record the effectiveness figures with the flags / lessons / knowledge in use (0 USD).
+    A failure never breaks the delivery, and is said."""
+    from core import effectiveness
+    try:
+        effectiveness.snapshot(p.conn, pid, cost.load_pricing(), "delivery")
+    except Exception as e:  # noqa: BLE001 - the video is delivered; only the measurement is missing
+        st.warning(f"Đã xuất bản, nhưng không ghi được mốc hiệu quả: {e}")
+        st.toast(f"⚠ Không ghi được mốc hiệu quả: {e}")          # the warning goes with the rerun; the toast stays visible
 
 
 def _deliver_files(p: Pipeline, pid: int, stat) -> None:

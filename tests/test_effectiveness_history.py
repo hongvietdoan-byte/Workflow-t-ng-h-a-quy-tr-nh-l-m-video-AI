@@ -104,6 +104,65 @@ class SnapshotTests(unittest.TestCase):
         self.assertEqual(effectiveness.finished_projects(self.conn), [self.pid])
 
 
+class PanelAndDeliveryHookTests(unittest.TestCase):
+    """📌 Lưu mốc in the effectiveness panel (📊 Theo dõi, UI v2) and the snapshot taken after a delivery."""
+
+    def setUp(self):
+        self.dir = tempfile.mkdtemp()
+        self.db = os.path.join(self.dir, "m.sqlite")
+        patcher = mock.patch.dict(os.environ, {"PIPELINE_DB": self.db, "PIPELINE_DATA": os.path.join(self.dir, "projects"),
+                                               "KNOWLEDGE_USER_DIR": os.path.join(self.dir, "k"), "FEATURE_UI_V2": "1"})
+        patcher.start()
+        self.addCleanup(patcher.stop)
+        self.p = Pipeline(connect(self.db))
+        self.pid = self.p.create_project("mốc")
+
+    def tearDown(self):
+        self.p.conn.close()
+        shutil.rmtree(self.dir, ignore_errors=True)
+
+    def rows(self):
+        return self.p.conn.execute("SELECT project_id, trigger FROM effectiveness_snapshots ORDER BY id").fetchall()
+
+    def test_pin_button_saves_a_snapshot_and_opening_the_page_does_not(self):
+        from streamlit.testing.v1 import AppTest
+        app = os.path.join(os.path.dirname(__file__), "..", "dashboard", "app.py")
+        at = AppTest.from_file(app, default_timeout=60)
+        at.session_state["step"] = "📊 Theo dõi"
+        at.run()
+        self.assertFalse(at.exception, at.exception)
+        self.assertEqual(self.rows(), [])                               # opening the page takes no snapshot
+        next(b for b in at.button if b.key == f"eff_snap_{self.pid}").click().run()
+        self.assertFalse(at.exception, at.exception)
+        self.assertEqual([tuple(r) for r in self.rows()], [(self.pid, "manual")])
+        next(b for b in at.button if b.key == f"eff_snap_{self.pid}").click().run()     # same minute → still one row
+        self.assertEqual(len(self.rows()), 1)
+
+    def test_two_milestones_show_a_chart_and_what_changed(self):
+        from streamlit.testing.v1 import AppTest
+        with mock.patch("core.features.on", side_effect=lambda n: n == "film_crew"):
+            effectiveness.snapshot(self.p.conn, self.pid, PRICING, "manual", now=T0)
+        with mock.patch("core.features.on", side_effect=lambda n: n == "lip_sync"):
+            effectiveness.snapshot(self.p.conn, self.pid, PRICING, "delivery", now=T0.replace(minute=9))
+        at = AppTest.from_file(os.path.join(os.path.dirname(__file__), "..", "dashboard", "app.py"), default_timeout=60)
+        at.session_state["step"] = "📊 Theo dõi"
+        at.run()
+        self.assertFalse(at.exception, at.exception)
+        captions = "\n".join(c.value for c in at.caption)
+        self.assertIn("2 mốc", captions)
+        self.assertIn("Bật cờ: lip_sync", captions)
+        self.assertIn("Tắt cờ: film_crew", captions)
+
+    def test_after_delivery_hook_records_a_delivery_snapshot_and_never_breaks_the_delivery(self):
+        from dashboard.steps import step5
+        step5.snapshot_after_delivery(self.p, self.pid)
+        self.assertEqual([tuple(r) for r in self.rows()], [(self.pid, "delivery")])
+        with mock.patch("core.effectiveness.snapshot", side_effect=RuntimeError("hỏng")), \
+                mock.patch.object(step5.st, "warning") as warn:
+            step5.snapshot_after_delivery(self.p, self.pid)            # a failure is said, not raised
+        warn.assert_called_once()
+
+
 class BaselineToolTests(unittest.TestCase):
     def setUp(self):
         self.dir = tempfile.mkdtemp()
