@@ -30,10 +30,10 @@
 | S11 Director mở rộng: ý tưởng → kịch bản, cover video ref, học trending (kế hoạch v2 01/10, `docs/KE_HOACH_TINH_NANG_DIRECTOR_2026-10-01.md`) | 15 | 2 | 1 | 1 | 0 | 17,3 % |
 | S12 Rà soát dashboard 01/10: sửa lỗi, tính năng thử, 4 màn, nhiều người dùng (`docs/RA_SOAT_DASHBOARD_2026-10-01.md`) | 7 | 6 | 0 | 0 | 1 | 100 % |
 | S13 Giao diện v2 "AI product" (gradient, kính mờ, nền tối) trên Streamlit, chạy song song nhiều nhánh (`docs/KE_HOACH_GIAO_DIEN_V2_2026-10-01.md`) | 12 | 10 | 0 | 0 | 0 | 86,2 % |
-| S14 Nâng cấp dashboard sau chấm lại 03/10 (`docs/KE_HOACH_NANG_CAP_DASHBOARD_2026-10-03.md`; người dùng duyệt 04/10) | 18 | 4 | 0 | 3 | 0 | 28,6 % |
+| S14 Nâng cấp dashboard sau chấm lại 03/10 (`docs/KE_HOACH_NANG_CAP_DASHBOARD_2026-10-03.md`; người dùng duyệt 04/10) | 19 | 4 | 0 | 3 | 0 | 27 % |
 | K Chạy kiểm kịch bản hài 20–30 s — ⏸ KHÔNG ƯU TIÊN (người dùng 30/09: các việc test kịch bản không làm trước nữa) | 3 | 0 | 0 | 3 | 0 | 0 % |
 | S8 Chấm lại bằng AI Development System (cuối cùng) | 5 | 2 | 0 | 0 | 0 | 42,9 % |
-| **Tổng** | **152** | **109** | **3** | **7** | **6** | **77 %** |
+| **Tổng** | **153** | **109** | **3** | **7** | **6** | **76,4 %** |
 
 Đợt hiện tại: **S14** · việc kế: **S14.2** A2 — nút tốn tiền ghi giá trên nhãn + test quét
 <!-- /tien-do -->
@@ -212,6 +212,7 @@
 - [ ] S14.14 · G — `ui_v2` mặc định + gỡ giao diện cũ + tách file lớn · nặng:3 · ⏸ · chờ người dùng duyệt sau khi dùng thử UI v2
 - [ ] S14.16 · Chính sách tiền mới (mục 6c): trần → cảnh báo có số liệu, reset mốc trần + mức dự tính, tự gen lại ảnh ≤ 3 / video ≤ 2 lần, người dùng không giới hạn, ước tính tính dư · nặng:2 · ⬜
 - [ ] S14.17 · Đạo diễn viết lại prompt shot trước mỗi lần gen lại theo ghi chú người dùng VÀ lỗi QC (mục 6c ý 6) · nặng:2 · ⬜ · người dùng duyệt 04/10; tốn ít Claude mỗi lần (ghi sổ)
+- [ ] S14.18 · Giới hạn theo người: tối đa 2 dự án tạo mới/ngày/người (e-mail + máy), dự án thứ 3 cần Owner duyệt, luôn hỏi giữ/bỏ khi có 2 dự án dở, Owner không giới hạn; bỏ trần job/ngày chung (mục 6d) · nặng:2 · ⬜ · làm sau D1 (S14.7)
 - [ ] S14.15 · I1 — tài liệu khớp trạng thái cuối + chấm lại toàn bộ bằng AI Dev System · nặng:1 · ⬜
 
 ### K — Chạy kiểm kịch bản hài 20–30 s — ⏸ KHÔNG ƯU TIÊN (người dùng 30/09: các việc test kịch bản không làm trước nữa)
