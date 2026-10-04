@@ -8,6 +8,7 @@
 
 A figure is None when there is not enough data yet (the page says so instead of showing a misleading 0).
 """
+import json
 from datetime import datetime
 from typing import Dict, List, Optional
 
@@ -154,3 +155,156 @@ def summary_lines(r: Dict, manual_min_per_sec: Optional[float] = MANUAL_MIN_PER_
     if manual_min_per_sec and r["wall_min_per_sec"]:
         lines.append(f"So với làm tay ({manual_min_per_sec:g} phút/giây video): nhanh gấp {manual_min_per_sec / r['wall_min_per_sec']:.1f} lần")
     return lines
+
+
+# ---- S14.19 Đợt 1 (KE_HOACH_BO_NAO_PROMPT_TU_HOC): snapshots — the figures AND what was on when they were taken ----------------------
+# Taken on purpose only (after a delivery, the 📌 button, tools/effectiveness_baseline.py) — never on page open: report() reads every
+# job event of the project. `at` is rounded to the minute and UNIQUE (project_id, at) → a double click keeps one row.
+
+TRIGGERS = ("delivery", "manual", "weekly")
+METRICS = ("video_seconds", "scenes", "wall_min_per_sec", "gen_min_per_sec", "cost_per_sec", "image_first_pass", "video_first_pass",
+           "qc_agreement", "qc_pairs", "touches_per_scene", "satisfaction", "feedback_n", "lessons_on")
+KNOWLEDGE_GROUPS = ("director", "motion")
+
+
+def flags_on() -> List[str]:
+    """Names of the feature flags ON right now (core/features.on — the screen choice, preset or FEATURE_<NAME>)."""
+    from . import features
+    return sorted(n for n in features.FEATURES if features.on(n))
+
+
+def knowledge_fp() -> str:
+    """What the Director + motion writer read: fingerprint of their documents (built-in foldable + the person's), plus the distilled
+    playbook in use. 'director:<12>|motion:<12>'; a group that cannot be read says 'lỗi' instead of failing the snapshot."""
+    from . import knowledge
+    parts = []
+    for g in KNOWLEDGE_GROUPS:
+        try:
+            inputs = knowledge.distill_inputs(g, True)
+            active = knowledge.distilled_active(g)
+            if active:
+                inputs = inputs + [("__distilled__", str(active.get("text") or active))]
+            parts.append(f"{g}:{knowledge.fingerprint(inputs)[:12]}")
+        except Exception:  # noqa: BLE001 - a broken document must not lose the figures
+            parts.append(f"{g}:lỗi")
+    return "|".join(parts)
+
+
+def _lessons(conn) -> List[Dict]:
+    return [dict(r) for r in conn.execute("SELECT id, group_name, title FROM lessons WHERE state='approved' ORDER BY id").fetchall()]
+
+
+def finished_projects(conn) -> List[int]:
+    """Projects with a delivered video (an outputs row 'final')."""
+    return [r[0] for r in conn.execute("SELECT DISTINCT o.project_id FROM outputs o JOIN projects p ON p.id=o.project_id"
+                                        " WHERE o.kind='final' ORDER BY o.project_id").fetchall()]
+
+
+def report_all(conn, pricing: Dict, project_ids: Optional[List[int]] = None) -> Dict:
+    """The whole system: the reports of `project_ids` (default: the finished ones) added up, each figure weighted by what it is
+    measured on (seconds, scenes, QC pairs). Same keys as report(), plus 'projects'."""
+    ids = finished_projects(conn) if project_ids is None else project_ids
+    reps = [report(conn, i, pricing) for i in ids]
+    secs = sum(r["video_seconds"] for r in reps)
+
+    def per_sec(key):
+        vals = [(r[key], r["video_seconds"]) for r in reps if r[key] is not None and r["video_seconds"]]
+        s = sum(w for _, w in vals)
+        return sum(v * w for v, w in vals) / s if s else None
+
+    def weighted(part, key, weight):
+        vals = [(r[part][key], r[part][weight]) for r in reps if r[part][key] is not None and r[part][weight]]
+        s = sum(w for _, w in vals)
+        return sum(v * w for v, w in vals) / s if s else None
+
+    scenes = sum(r["scenes"] for r in reps)
+    touches = sum(r["touches"] for r in reps)
+    qc_pairs = sum(r["qc"]["pairs"] for r in reps)
+    return {"projects": ids, "video_seconds": secs, "scenes": scenes,
+            "wall_min_per_sec": per_sec("wall_min_per_sec"), "gen_min_per_sec": per_sec("gen_min_per_sec"),
+            "cost_per_sec": per_sec("cost_per_sec"), "currency": pricing.get("currency"),
+            "image": {"first_pass": weighted("image", "first_pass", "scenes")},
+            "video": {"first_pass": weighted("video", "first_pass", "scenes")},
+            "qc": {"agreement": weighted("qc", "agreement", "pairs"), "pairs": qc_pairs},
+            "touches": touches, "touches_per_scene": touches / scenes if scenes else None}
+
+
+def _minute(now: Optional[datetime] = None) -> str:
+    return (now or datetime.now()).strftime("%Y-%m-%dT%H:%M")
+
+
+def snapshot(conn, project_id: Optional[int], pricing: Dict, trigger: str, now: Optional[datetime] = None) -> int:
+    """Record the figures of one project (None = the whole system, report_all) with the flags / approved lessons / knowledge in use.
+    Returns the row id — the existing one when a snapshot of the same project was already taken in the same minute."""
+    from . import feedback
+    if trigger not in TRIGGERS:
+        raise ValueError(f"trigger không hợp lệ: {trigger!r} (chỉ {', '.join(TRIGGERS)})")
+    r = report(conn, project_id, pricing) if project_id is not None else report_all(conn, pricing)
+    at = _minute(now)
+    found = conn.execute("SELECT id FROM effectiveness_snapshots WHERE project_id IS ? AND at=?", (project_id, at)).fetchone()
+    if found:                      # UNIQUE does not stop two NULL project ids; this does (and a double click returns the same row)
+        return found[0]
+    sat = feedback.satisfaction(conn, project_id)
+    lessons = _lessons(conn)
+    detail = dict(r, lessons=lessons)
+    cur = conn.execute(
+        "INSERT INTO effectiveness_snapshots (at, project_id, trigger, video_seconds, scenes, wall_min_per_sec, gen_min_per_sec,"
+        " cost_per_sec, currency, image_first_pass, video_first_pass, qc_agreement, qc_pairs, touches_per_scene, satisfaction,"
+        " feedback_n, lessons_on, flags_on, knowledge_fp, detail) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+        (at, project_id, trigger, r["video_seconds"], r["scenes"], r["wall_min_per_sec"], r["gen_min_per_sec"], r["cost_per_sec"],
+         r["currency"], r["image"]["first_pass"], r["video"]["first_pass"], r["qc"]["agreement"], r["qc"]["pairs"],
+         r["touches_per_scene"], sat["satisfaction"], sat["n"], len(lessons), json.dumps(flags_on()), knowledge_fp(),
+         json.dumps(detail, ensure_ascii=False, default=str)))
+    conn.commit()
+    return cur.lastrowid
+
+
+def history(conn, project_id: Optional[int] = None, limit: int = 50) -> List[Dict]:
+    """Snapshots of one project (None = the whole-system ones), oldest first; flags_on / detail decoded."""
+    rows = conn.execute("SELECT * FROM (SELECT * FROM effectiveness_snapshots WHERE project_id IS ? ORDER BY at DESC, id DESC LIMIT ?)"
+                        " ORDER BY at, id", (project_id, int(limit))).fetchall()
+    out = []
+    for row in rows:
+        d = dict(row)
+        for k, empty in (("flags_on", []), ("detail", {})):
+            try:
+                d[k] = json.loads(d[k]) if d[k] else empty
+            except ValueError:
+                d[k] = empty
+        out.append(d)
+    return out
+
+
+def trend(conn, metric: str, project_id: Optional[int] = None, limit: int = 50) -> List[tuple]:
+    """[(at, value)] of one figure over the snapshots, oldest first (like devsys/scores.trend)."""
+    if metric not in METRICS:
+        raise ValueError(f"chỉ số không có: {metric!r} (chỉ {', '.join(METRICS)})")
+    return [(h["at"], h[metric]) for h in history(conn, project_id, limit)]
+
+
+def delta(a: Dict, b: Dict) -> Dict:
+    """Snapshot a → snapshot b (rows of history()): each figure (before, after, change) and WHAT changed in between — flags switched
+    on / off, approved lessons added / gone, the knowledge read by the Director / motion writer. 'changed' = plain lines."""
+    metrics = {}
+    for m in METRICS:
+        x, y = a.get(m), b.get(m)
+        metrics[m] = (x, y, (y - x) if x is not None and y is not None else None)
+    fa, fb = set(a.get("flags_on") or []), set(b.get("flags_on") or [])
+    la = {x["id"]: x for x in (a.get("detail") or {}).get("lessons") or []}
+    lb = {x["id"]: x for x in (b.get("detail") or {}).get("lessons") or []}
+    out = {"metrics": metrics, "flags_added": sorted(fb - fa), "flags_removed": sorted(fa - fb),
+           "lessons_on": (a.get("lessons_on"), b.get("lessons_on")),
+           "lessons_added": [lb[i] for i in sorted(set(lb) - set(la))], "lessons_removed": [la[i] for i in sorted(set(la) - set(lb))],
+           "knowledge_changed": (a.get("knowledge_fp") or "") != (b.get("knowledge_fp") or "")}
+    lines = []
+    if out["flags_added"]:
+        lines.append("Bật cờ: " + ", ".join(out["flags_added"]))
+    if out["flags_removed"]:
+        lines.append("Tắt cờ: " + ", ".join(out["flags_removed"]))
+    if out["lessons_added"] or out["lessons_removed"] or out["lessons_on"][0] != out["lessons_on"][1]:
+        lines.append(f"Bài học đang bật: {out['lessons_on'][0]} → {out['lessons_on'][1]}"
+                     + "".join(f"; + {x['title']}" for x in out["lessons_added"]) + "".join(f"; − {x['title']}" for x in out["lessons_removed"]))
+    if out["knowledge_changed"]:
+        lines.append(f"Kiến thức Director/motion đã đổi ({a.get('knowledge_fp')} → {b.get('knowledge_fp')})")
+    out["changed"] = lines
+    return out
