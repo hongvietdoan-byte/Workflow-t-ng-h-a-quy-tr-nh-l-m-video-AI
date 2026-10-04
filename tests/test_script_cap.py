@@ -145,5 +145,33 @@ class ScriptScan(unittest.TestCase):
         self.assertEqual([], [f for f in SCRIPT_OK if f not in found or found[f]])
 
 
+class DevsysScoreSpawn(unittest.TestCase):
+    """Rà soát A2 (chặn): devsys/app.py spawned devsys_score --yes WITHOUT --max-usd → the script refused and the page said nothing."""
+
+    def test_claude_scoring_command_declares_the_max_usd(self):
+        from devsys import scorer
+        cmd = scorer.score_command(["lipsync", "budget"], "anthropic", {"usd_max": 0.4321})
+        self.assertIn("--yes", cmd)
+        self.assertEqual(cmd[cmd.index("--max-usd") + 1], "0.44")          # rounded UP: the cap never under the estimate
+        a = _args("--yes", "--max-usd", cmd[cmd.index("--max-usd") + 1])
+        self.assertEqual(script_cap.from_args(a, "x", log=lambda *_: None).max_usd, 0.44)
+        self.assertNotIn("--max-usd", scorer.score_command(["lipsync"], "mock", {}))
+
+    def test_app_spawns_through_score_command(self):
+        src = (ROOT / "devsys" / "app.py").read_text(encoding="utf-8")
+        self.assertIn("scorer.score_command(", src)
+        self.assertNotRegex(src, r'"--provider", provider, "--yes"\]')
+        self.assertIn("scorer.run_state(", src)
+
+    def test_a_refused_or_failed_run_is_a_failure_on_the_page(self):
+        from devsys import scorer
+        for log in ("Từ chối chạy (devsys_score): lệnh gọi API trả tiền phải khai trần cứng --max-usd",
+                    "Traceback (most recent call last):\n  File x", "DỪNG (devsys_score): đã chi ≈ $0.40",
+                    "Lỗi: không gọi được Claude"):
+            self.assertEqual(scorer.run_state(log), "failed", log)
+        self.assertEqual(scorer.run_state("Xong: 3 khu vực"), "done")
+        self.assertEqual(scorer.run_state("đang chấm khu vực 1/3"), "running")
+
+
 if __name__ == "__main__":
     unittest.main()

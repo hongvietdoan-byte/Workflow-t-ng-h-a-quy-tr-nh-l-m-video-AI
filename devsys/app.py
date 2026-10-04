@@ -144,8 +144,9 @@ def score_job():
     except (OSError, ValueError):
         return None
     log = read_log("score_run.log")
-    done = bool(re.search(r"^(Xong:|Không chấm|Lỗi:|Traceback)", log, re.M))
-    job["running"] = not done and time.time() - job.get("started", 0) < 45 * 60
+    state = scorer.run_state(log)                 # rà soát A2: a refused / stopped / crashed run is shown as a failure
+    job["failed"] = state == "failed"
+    job["running"] = state == "running" and time.time() - job.get("started", 0) < 45 * 60
     job["log"] = log
     return job
 
@@ -612,7 +613,11 @@ def page_scores():
                 "bấm 🔄 Làm mới để xem tiến độ.")
         st.code(job["log"][-2500:] or "…", language=None)
         return
-    if job and job.get("log"):
+    if job and job.get("failed"):
+        st.error("Lần chấm gần nhất KHÔNG chạy xong (bị từ chối, chạm trần --max-usd hoặc lỗi) — xem dòng cuối nhật ký bên dưới, "
+                 "sửa rồi bấm chấm lại.")
+        st.code(job["log"][-2500:], language=None)
+    elif job and job.get("log"):
         with st.expander("Kết quả lần chấm gần nhất"):
             st.code(job["log"][-3000:], language=None)
     c1, c2 = st.columns(2)
@@ -653,7 +658,7 @@ def page_scores():
         label = md(f"Chấm giả lập {len(todo)} khu vực ($0)")
     if st.button(label, type="primary", disabled=not ok):
         areas = [b["area"] for b in todo]
-        spawn([os.path.join("tools", "devsys_score.py"), "--areas", ",".join(areas), "--provider", provider, "--yes"], "score_run.log")
+        spawn(scorer.score_command(areas, provider, est if provider == "anthropic" else {}), "score_run.log")  # S14.2: + --max-usd
         with open(os.path.join(collect.data_dir(ROOT), "score_job.json"), "w", encoding="utf-8") as f:
             json.dump({"started": time.time(), "areas": areas, "provider": provider}, f)
         time.sleep(1.0)
