@@ -183,19 +183,25 @@ class _Runner:
                 break               # T2: paused while this pass was sending — the jobs sent so far are running, send no more
             if self._wait(job):
                 continue            # v3: this job is sent later (after the previous shot's picture / with its multi-shot group)
+            if job["external_id"]:
+                # T2: its task already exists at the provider (a multi-shot follower given the leader's task, relink_failed, or a send
+                # whose RUNNING step was lost) — sending it again would pay twice. It only moves to RUNNING; the next poll fetches it.
+                # Checked BEFORE _blocked (rà soát B1a): stale inputs must not write off a task already paid for.
+                stale = self._blocked(job)
+                self._running(job["id"], "đã có task ở nhà cung cấp — không gửi lại")
+                if stale:
+                    self._diag(job, "warn", "stale_paid", f"đầu vào đã cũ ({stale}) nhưng task {job['external_id']} đã trả tiền — lấy kết "
+                                                          "quả về, không gửi lại")
+                else:
+                    self._diag(job, "info", "already_sent", f"job đã có task {job['external_id']} ở nhà cung cấp — chuyển sang đang chạy, "
+                                                            "không gửi lại (tránh trả tiền 2 lần)")
+                slots -= 1
+                continue
             blocked = self._blocked(job)
             if blocked:
                 self._diag(job, "warn", "stale_input", f"không gửi: {blocked}")
                 self._running(job["id"])                 # QUEUED→FAILED is not a transition (core/states.py): RUNNING, then fail
                 self.p.fail(job["id"], f"stale_input: {blocked}")
-                continue
-            if job["external_id"]:
-                # T2: its task already exists at the provider (a multi-shot follower given the leader's task, relink_failed, or a send
-                # whose RUNNING step was lost) — sending it again would pay twice. It only moves to RUNNING; the next poll fetches it.
-                self._running(job["id"], "đã có task ở nhà cung cấp — không gửi lại")
-                self._diag(job, "info", "already_sent", f"job đã có task {job['external_id']} ở nhà cung cấp — chuyển sang đang chạy, "
-                                                        "không gửi lại (tránh trả tiền 2 lần)")
-                slots -= 1
                 continue
             args = self._submit_args(job)
             if args is None and self._editing(job):
