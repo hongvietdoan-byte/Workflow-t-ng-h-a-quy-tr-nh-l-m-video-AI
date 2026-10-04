@@ -41,6 +41,12 @@ Nguồn: `docs/KE_HOACH_NANG_CAP_DASHBOARD_2026-10-03.md` mục 6c. 0 USD, khôn
 + `budget.spent`: khóa cache phân biệt CSDL trong bộ nhớ (test_v3 chập chờn).
 Kết quả: 677 test liên quan xanh (gồm test_grader_fixes_0926, test_end_frames, test_ui_video).
 
+## Rà lượt 2 (đã merge main vào nhánh, commit d1b6fb1)
+1. Câu lỗi ước tính chi phí (header, step1_run, step1_v2, project_budget) theo luật J1: lý do + "Cách xử lý".
+2. `_job_cap_reason`: dự án 0 shot không báo chạm trần. 3. `Pipeline.resend` giữ `origin` của job cha.
+4. `serve_waiting` dùng `project_budget.approval_pending` (chỉ có/không, không tính ước tính).
+5. Nhãn "Đã chi + ước tính phần còn lại": đã chi (sổ chi) + còn lại (`estimate_run`, tính dư).
+
 ## Bước kế / còn dở
 - Không có việc dở trong prompt. Việc sau: UI Gói K gọi `money_reset.set_planned` (reset thật), rà các cảnh báo trên dự án thử 30 s.
 - Chờ người dùng: khóa cứng cho `tools/experiments/*`; trần "dự án/ngày/người" thay `AUTOPILOT_DAILY_JOBS` (việc sau).
