@@ -51,9 +51,12 @@ def items(conn, email: str, is_owner: bool = True, can_money: bool = True, auth_
             if n:
                 add(kind, f"Duyệt {n} {label} đang chờ", screen, "todo")
         for kind, typ, screen, label in (("Ảnh", "image_gen", "storyboard", "ảnh"), ("Video", "video_gen", "video", "clip")):
-            # S14.16: the automatic regeneration limit (pipeline.AUTO_REGEN_LIMIT) reached — the latest job of the shot, escalated
-            for j in conn.execute("SELECT j.retry_count, s.idx FROM jobs j JOIN scenes s ON s.id=j.scene_id WHERE j.project_id=?"
-                                  " AND j.type=? AND j.escalated=1 AND j.retry_count>0 AND j.state IN ('failed','rejected','pending_review')"
+            # S14.16: the automatic regeneration limit (pipeline.AUTO_REGEN_LIMIT) reached — ONLY that reason (the diag line the
+            # pipeline writes at the limit, pipeline.AUTO_LIMIT_CODE), for the shot's latest job still waiting (escalated, or finished
+            # and kept as it is); a job held for another reason (QC without a fix, a failure not temporary) is not listed here
+            for j in conn.execute("SELECT DISTINCT j.retry_count, s.idx FROM diag_events d JOIN jobs j ON j.id=d.job_id"
+                                  " JOIN scenes s ON s.id=j.scene_id WHERE d.code='auto_regen_limit' AND j.project_id=? AND j.type=?"
+                                  " AND (j.escalated=1 OR j.state IN ('succeeded','approved'))"
                                   " AND NOT EXISTS (SELECT 1 FROM jobs k WHERE k.scene_id=j.scene_id AND k.type=j.type AND k.id>j.id)"
                                   " ORDER BY s.idx", (pid, typ)).fetchall():
                 add(kind, f"Cần bạn quyết — đã tự gen lại {j['retry_count']} lần: {label} shot {j['idx']} (máy không tự gen thêm)",

@@ -638,6 +638,10 @@ def _plate_fallback_phase(p: Pipeline, pid: int, ctx: Context) -> Optional[str]:
         job = p.conn.execute("SELECT * FROM jobs WHERE id=?", (rec["job_id"],)).fetchone()
         if row is None or job is None or job["state"] not in ("succeeded", "approved"):
             continue
+        if p._retries_exhausted(job):                      # S14.16: at the clip's automatic limit no new clip — the scene is not
+            p._limit_said(job)                             # switched to green screen either; the person decides (📥)
+            location_pack.record_video_qc(ctx.data_dir, pid, int(sid), rec["job_id"], dict(rec, fallback=True), rec["mode"])
+            continue
         data = json.loads(row["data"] or "{}")
         data["plate_mode"] = "green"
         p.conn.execute("UPDATE scenes SET data=? WHERE id=?", (json.dumps(data, ensure_ascii=False), int(sid)))
@@ -1357,6 +1361,7 @@ def _setcheck_block(p: Pipeline, pid: int, issue: Dict, provider_name: str = "")
     job = p.conn.execute("SELECT * FROM jobs WHERE scene_id=? AND type='image_gen' AND state='approved' ORDER BY id DESC LIMIT 1",
                          (row["id"],)).fetchone()
     if job is not None and p._retries_exhausted(job):
+        p._limit_said(job)                                  # 📥 "Cần bạn quyết — đã tự gen lại N lần"
         return f"Cần bạn quyết — ảnh của shot đã tự gen lại {job['retry_count']} lần (tối đa {p.auto_limit(job)})"
     # S14.1 A1b / S14.16: the money gate asked before queueing the redraw — only a real stop (the service out of credit) holds it; the
     # caps only warn. The real send still goes through ImageRunner's own gate.

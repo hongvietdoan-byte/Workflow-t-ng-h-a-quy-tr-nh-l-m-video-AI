@@ -312,7 +312,7 @@ class EveryAutoPathIsCounted(unittest.TestCase):
                 job = regen.regenerate_video(self.p, data, job, "nền vẽ lại", auto=True)
         self.assertEqual(self.p.job(job)["retry_count"], 2)
         self.assertIsNone(regen.regenerate_video(self.p, data, job, "nền vẽ lại", auto=True))     # clip limit 2: none made
-        self.assertEqual(self.p.job(job)["escalated"], 1)
+        self.assertTrue(self.p.conn.execute("SELECT 1 FROM diag_events WHERE code='auto_regen_limit' AND job_id=?", (job,)).fetchone())
         new = regen.regenerate_video(self.p, data, job, "người dùng gen lại")                     # a person: never capped
         self.assertEqual(self.p.job(new)["retry_count"], 0)
 
@@ -330,6 +330,95 @@ class EveryAutoPathIsCounted(unittest.TestCase):
         self.p.approve(job)
         self.assertEqual(self.p.reopen_approved(job, "lệch bộ", fix="match the set", auto=True), "escalated")
         self.assertEqual(self.p.state(job), JobState.APPROVED)                                     # nothing reopened
+
+
+class InboxOnlyForTheLimit(unittest.TestCase):
+    """Rà soát S14.16 #2/#3: 📥 "đã tự gen lại N lần" shows for a FINISHED job at the limit too, and never for a job held for another
+    reason (QC without a fix, a failure that is not temporary)."""
+
+    def setUp(self):
+        self.p = Pipeline(connect())
+        self.pid = self.p.create_project("i", "human_qc", 0.85, 9)
+
+    def limit_items(self):
+        return [i["text"] for i in inbox.items(self.p.conn, "a@x") if "đã tự gen lại" in i["text"]]
+
+    def test_a_finished_clip_at_its_limit_is_listed_and_its_scene_not_blocked(self):
+        from core import regen
+        sid = self.p.create_scene(self.pid, 1)
+        job = self.p.create_job(sid, "video_gen")
+        data = tempfile.mkdtemp()
+        for n in range(3):
+            self.p.start(job)
+            self.p.succeed(job)
+            if n < 2:
+                job = regen.regenerate_video(self.p, data, job, "nền", auto=True)
+        self.assertIsNone(regen.regenerate_video(self.p, data, job, "nền", auto=True))
+        self.assertEqual(self.p.state(job), JobState.SUCCEEDED)                        # the finished clip is kept as it is
+        self.assertEqual(self.p.conn.execute("SELECT state FROM scenes WHERE id=?", (sid,)).fetchone()[0], "ready")
+        self.assertTrue(any("đã tự gen lại 2 lần" in t for t in self.limit_items()), self.limit_items())
+
+    def test_an_approved_picture_at_its_limit_is_listed(self):
+        sid = self.p.create_scene(self.pid, 1)
+        job = self.p.create_job(sid)
+        for _ in range(3):
+            self.p.start(job)
+            self.p.succeed(job)
+            self.p.approve(job)
+            self.p.reopen_approved(job, "lệch", fix="match", auto=True)
+            job = self.p.conn.execute("SELECT id FROM jobs WHERE parent_job_id=?", (job,)).fetchone()["id"]
+        self.p.start(job)
+        self.p.succeed(job)
+        self.p.approve(job)
+        self.assertEqual(self.p.reopen_approved(job, "lệch", fix="match", auto=True), "escalated")
+        self.assertTrue(any("đã tự gen lại 3 lần" in t for t in self.limit_items()), self.limit_items())
+
+    def test_the_set_check_block_at_the_limit_goes_to_the_inbox(self):
+        from core import autopilot
+        sid = self.p.create_scene(self.pid, 1)
+        job = self.p.create_job(sid)
+        self.p.start(job)
+        self.p.succeed(job)
+        self.p.approve(job)
+        self.p.conn.execute("UPDATE jobs SET retry_count=3 WHERE id=?", (job,))
+        self.p.conn.commit()
+        self.assertIn("Cần bạn quyết", autopilot._setcheck_block(self.p, self.pid, {"idx": 1, "fix": "x"}, "mock"))
+        self.assertTrue(self.limit_items())
+
+    def test_a_job_held_for_another_reason_is_not_said_to_be_at_the_limit(self):
+        sid = self.p.create_scene(self.pid, 1)
+        job = self.p.create_job(sid)
+        self.p.start(job)
+        self.p.succeed(job)
+        self.p.reject(job, "ai_agent", "x", fix="fix a")                                # one automatic retry: retry_count 1
+        child = self.p.conn.execute("SELECT id FROM jobs WHERE parent_job_id=?", (job,)).fetchone()["id"]
+        self.p.start(child)
+        self.p.succeed(child)
+        self.p.set_qc_autofix(self.pid, True)
+        self.assertEqual(self.p.apply_qc(child, dict(GOOD, mood=0.1), autofix=True), "needs_review")   # QC named no fix
+        self.assertEqual(self.p.job(child)["escalated"], 1)
+        self.assertEqual(self.limit_items(), [])
+
+
+class PlateFallbackAtTheLimit(unittest.TestCase):
+    def test_the_scene_is_not_switched_to_green_screen_when_no_new_clip_is_made(self):
+        from core import autopilot, location_pack
+        p = Pipeline(connect())
+        pid = p.create_project("g", "human_qc", 0.85, 9)
+        sid = p.create_scene(pid, 1)
+        job = p.create_job(sid, "video_gen")
+        p.start(job)
+        p.succeed(job)
+        p.conn.execute("UPDATE jobs SET retry_count=2 WHERE id=?", (job,))
+        p.conn.commit()
+        data = tempfile.mkdtemp()
+        rec = {"ok": False, "mode": "first_frame", "job_id": job, "score": 0.2}
+        from core import features
+        with mock.patch.object(location_pack, "video_qc", return_value={str(sid): rec}),                 mock.patch.object(location_pack, "record_video_qc"), mock.patch.object(features, "on", return_value=True):
+            self.assertIsNone(autopilot._plate_fallback_phase(p, pid, autopilot.Context(data, None, None, None)))
+        self.assertEqual(p.conn.execute("SELECT COUNT(*) FROM jobs").fetchone()[0], 1)            # no new clip
+        data_row = json.loads(p.conn.execute("SELECT data FROM scenes WHERE id=?", (sid,)).fetchone()[0] or "{}")
+        self.assertNotEqual(data_row.get("plate_mode"), "green")
 
 
 class InboxMoneyWarning(unittest.TestCase):

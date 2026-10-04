@@ -589,6 +589,11 @@ class Pipeline:
             pass
 
     def _escalate(self, job: sqlite3.Row, limit: bool = False) -> None:
+        """Hand the shot to the person. `limit`: the automatic limit was reached — said in diag (AUTO_LIMIT_CODE, read by 📥). A FINISHED
+        job (succeeded / approved: a redo the run wanted) keeps its state and its scene is not blocked — only said (rà soát S14.16)."""
+        if limit and job["state"] in ("succeeded", "approved"):
+            self._limit_said(job)
+            return
         self.conn.execute("UPDATE jobs SET escalated=1 WHERE id=?", (job["id"],))
         self.conn.execute("UPDATE scenes SET state='needs_attention' WHERE id=?", (job["scene_id"],))
         self.conn.commit()
