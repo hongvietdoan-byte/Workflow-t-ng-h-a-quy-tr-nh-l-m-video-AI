@@ -15,7 +15,8 @@ APP = os.path.join(os.path.dirname(__file__), "..", "dashboard", "app.py")
 # widgets that stay usable in read-only mode because they only navigate / look, or belong to the person (not the project)
 FREE_KEYS = {"global_pid", "step", "logout_btn", "settings_limits", "settings_history", "dark_toggle", "expert_mode", "new_name", "new_aspect",
              "new_genre", "new_prio", "new_game", "new_project_go", "home_q", "home_sort", "home_scope", "home_status", "home_step",
-             "home_creator", "home_warn", "home_reset", "inbox_scope", "inbox_kind"}
+             "home_creator", "home_warn", "home_reset", "inbox_scope", "inbox_kind",
+             "fb_screen_text", "fb_screen_stage", "fb_screen_send"}        # S14.19: 💬 Góp ý màn này — open to a view-only person too
 
 
 class AccessUiBase(unittest.TestCase):

@@ -133,7 +133,17 @@ def risk_popover(p: Pipeline, pid: int) -> None:
 
 def screen_feedback(p: Pipeline, pid) -> None:
     """S14.19 Đợt 0: 💬 “Góp ý màn này” — what is wrong with the screen in view → user_feedback (kind 'screen', 0 USD).
-    v2: a labelled fold inside “⋯ Thêm” (a popover cannot hold a popover); classic: a popover next to ⚠ Rủi ro."""
+    v2: a labelled fold inside “⋯ Thêm” (a popover cannot hold a popover); classic: a popover next to ⚠ Rủi ro.
+    Open to a "Chỉ xem" watcher too: saying what is wrong with a screen changes nothing in the project."""
+    prev = access_ui.is_read_only()
+    access_ui.set_read_only(False)
+    try:
+        _screen_feedback_wrap(p, pid)
+    finally:
+        access_ui.set_read_only(prev)
+
+
+def _screen_feedback_wrap(p: Pipeline, pid) -> None:
     if ui.v2_on():
         with st.expander("💬 Góp ý màn này"):
             _screen_feedback_body(p, pid)
