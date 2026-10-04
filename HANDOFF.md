@@ -28,6 +28,16 @@ Nguồn: `docs/KE_HOACH_NANG_CAP_DASHBOARD_2026-10-03.md` mục 3.3 (từ `sync_
    (`seedance_refs.identity_pictures`, code `speaker_no_identity`); `qc_worse` so cả mức chặn.
    Kèm: sửa test chập chờn `test_feature_settings` (cache `features.settings()` cùng mtime sau 2 lần lưu liền).
 
+## Sửa theo rà soát độc lập (04/10)
+1. `tests/test_role_books_docs.py`: bỏ cấm chuỗi editing.md trong `knowledge.py`; thay bằng kiểm mục editing.md có `elsewhere=True`
+   và không cộng vào số ký tự Director (vẫn cấm editing.md trong `prompts.py`, cấm `safe_zones`).
+2. Alias stage `translate→motion`; test quét hằng stage mở rộng sang `_run`/`claude_tasks._run` (đối số 3, chấp nhận alias vì là
+   nhãn chi phí) và `_retry_note`/`_note`.
+3. `knowledge.replace_doc`: thêm-mới + bỏ-cũ trong MỘT lần `_save`; `_save` ghi nguyên tử (tmp + replace); lỗi → xóa file mới.
+4. `lessons.sync_knowledge` (không còn bài duyệt): lỗi `remove_doc` → `LessonError` tiếng Việt, bài học giữ trạng thái cũ.
+5. Dịch nốt: `ask_text` sai 2 lần; `knowledge.set_enabled/remove_doc` không tìm thấy tài liệu.
+6. `seedance_refs`: diag `speaker_no_identity` chỉ ghi khi chưa có cùng nội dung trong 10 phút (không phồng `count`).
+
 ## Chưa làm (để nhánh khác, theo giao việc)
 `_SPENT_CACHE`; hợp nhất danh sách khâu Claude (+ khâu riêng STAGE_SETTINGS cho 4 việc Claude nhỏ); Meshy; Blender;
 `location_pack.cache_key`; `effectiveness`.
