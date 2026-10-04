@@ -88,5 +88,35 @@ class PromptVersionsUi(unittest.TestCase):
         self.assertIn(f"pvrevert_video_{self.sid}", {b.key for b in at.button})
 
 
+class SpinnerScan(unittest.TestCase):
+    """Rà S14.17 #3: mọi nút có thể gọi Đạo diễn (Loại & gen lại kèm ghi chú, bỏ duyệt kèm ghi chú, gen lại clip kèm câu sửa) chạy dưới
+    spinner — người dùng thấy đang chờ Claude thay vì trang đứng im."""
+
+    def test_every_rewrite_button_runs_under_the_spinner(self):
+        import re
+        root = os.path.join(os.path.dirname(__file__), "..", "dashboard")
+        files = [os.path.join(root, "steps", "step2.py"), os.path.join(root, "steps", "step4.py"),
+                 os.path.join(root, "design", "screens", "storyboard_cards.py")]
+        bad = []
+        for path in files:
+            for n, line in enumerate(open(path, encoding="utf-8").read().splitlines(), 1):
+                calls = re.search(r"act\((.*)", line)
+                if not calls:
+                    continue
+                body = calls.group(1)
+                paid = ((re.search(r"p\.reject\([^)]*\"user\"", body) and "respawn=False" not in body)
+                        or re.search(r"reopen_approved\(jid, r_note", body) or re.search(r"regenerate_video\(.*fix=", body))
+                if paid and not body.startswith("_spin("):
+                    bad.append(f"{os.path.basename(path)}:{n}")
+        self.assertEqual(bad, [])
+
+    def test_spinner_only_when_the_flag_is_on(self):
+        import contextlib
+        from dashboard.design.screens import prompt_versions_ui as PV
+        with mock.patch.dict(os.environ, {"FEATURE_DIRECTOR_REWRITE": "0", "FEATURE_SETTINGS_FILE": os.path.join(tempfile.mkdtemp(), "n.json")}):
+            self.assertIsInstance(PV.busy(), contextlib.nullcontext)
+            self.assertEqual(PV.spin(lambda: 7)(), 7)
+
+
 if __name__ == "__main__":
     unittest.main()

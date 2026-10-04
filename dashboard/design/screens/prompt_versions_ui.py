@@ -1,6 +1,7 @@
 """S14.17 — mục gập "✏ Prompt đã sửa (vN)" trên thẻ ảnh Storyboard và thẻ clip Video (UI v2): so sánh prompt cũ/mới (bôi phần đổi), danh sách
 thay đổi của Đạo diễn, lý do, nút "↩ Dùng lại prompt cũ" (không tốn tiền). Chỉ hiện khi shot có phiên bản do Đạo diễn viết lại
 (core/prompt_rewrite.py) và prompt hiện tại vẫn là bản đã lưu cuối. Khóa widget mới: pvrevert_<kind>_<scene_id>."""
+import contextlib
 from html import escape
 
 import streamlit as st
@@ -8,6 +9,23 @@ import streamlit as st
 from core import prompt_rewrite
 
 _STYLE = {"del": "background:rgba(220,60,60,.18);text-decoration:line-through;", "ins": "background:rgba(40,170,90,.22);"}
+
+
+WAIT_TEXT = "Đạo diễn đang viết lại prompt… (tối đa khoảng 3 phút; lỗi / quá giờ thì gen lại theo cách cũ, ghi chú của bạn giữ nguyên)"
+
+
+def busy():
+    """A spinner while a reject / redo may wait for the Director (flag director_rewrite on); otherwise nothing."""
+    from core import features
+    return st.spinner(WAIT_TEXT) if features.on("director_rewrite") else contextlib.nullcontext()
+
+
+def spin(fn):
+    """Wrap a button action (passed to act()) so it runs under busy()."""
+    def run():
+        with busy():
+            return fn()
+    return run
 
 
 def diff_html(old: str, new: str) -> str:

@@ -362,6 +362,37 @@ class Ledger(unittest.TestCase):
         self.assertIn(prompt_rewrite.STAGE, cost.LLM_STAGE_TOKENS)
         self.assertEqual(project_budget.claude_stage(prompt_rewrite.STAGE), "claude_director")
 
+    def test_short_wait_one_retry_then_old_way_with_the_note_kept(self):
+        from core.adapters.http import ProviderError
+        tmp = tempfile.mkdtemp()
+        db = os.path.join(tmp, "m.sqlite")
+        p = Pipeline(connect(db))
+        pid = p.create_project("t")
+        sid = p.create_scene(pid, 1)
+        p.conn.execute("UPDATE scenes SET data=? WHERE id=?", (json.dumps({"image_prompt": OLD}), sid))
+        p.conn.commit()
+        job = p.create_job(sid)
+        p.start(job)
+        p.succeed(job)
+        waits = []
+
+        def send(method, url, headers, body, timeout):
+            waits.append(timeout)
+            raise ProviderError("timed out")
+        client = llm_runner.AnthropicClient("sk-test", "claude-sonnet-5", transport=send, sleep=lambda s: None, ledger=db)
+        with mock.patch.dict(os.environ, dict(ON, FEATURE_SETTINGS_FILE=os.path.join(tmp, "none.json"))), \
+                mock.patch.object(prompt_rewrite, "client_for", lambda pp: client):
+            p.reject(job, "user", "đổi áo sang màu vàng")
+        self.assertEqual(len(waits), 2)                                       # one try + at most one retry
+        self.assertTrue(all(60 <= w <= 90 for w in waits), waits)
+        child = p.conn.execute("SELECT retry_reason FROM jobs WHERE parent_job_id=?", (job,)).fetchone()
+        self.assertEqual(child["retry_reason"], "đổi áo sang màu vàng")       # the person's note is not lost: the old Fix: way
+        self.assertTrue(p.conn.execute("SELECT 1 FROM diag_events WHERE code=?", (prompt_rewrite.FALLBACK_CODE,)).fetchone())
+
+    def test_cli_client_wait_is_short_for_the_rewrite(self):
+        self.assertLessEqual(llm_runner.stage_settings(prompt_rewrite.STAGE)["timeout"], 90)
+        self.assertLessEqual(llm_runner.stage_settings(prompt_rewrite.STAGE)["retries"], 1)
+
     def test_mock_llm_answers_the_rewrite_prompt(self):
         p = Pipeline(connect())
         pid = p.create_project("t")
