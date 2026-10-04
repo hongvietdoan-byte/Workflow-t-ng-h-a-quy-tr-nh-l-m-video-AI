@@ -150,6 +150,41 @@ class DailyCapTests(Setup):
         self.assertNotIn("trong ngày", autopilot.status(self.p, self.pid)["note"])
         self.assertGreater(perf.jobs_today(self.p.conn), 0)
 
+    def test_a_waiting_redraw_is_sent_when_nothing_was_sent_yet(self):
+        """Review B1b: at the storyboard gate the queued redraw itself counted against the cap (cap 1, 0 sent, 1 queued → stop)."""
+        ctx = self.build(image=RealImage(), video=RealVideo(polls_to_finish=1))
+        sid = self.p.conn.execute("SELECT id FROM scenes WHERE project_id=? ORDER BY idx", (self.pid,)).fetchone()["id"]
+        jid = self.p.create_job(sid, "image_gen")
+        autopilot._set(self.p, self.pid, autopilot.WAITING, "chờ storyboard")
+        autopilot.set_gates(self.p, self.pid, {"waiting_for": "storyboard"})
+        with mock.patch.dict(os.environ, {"AUTOPILOT_DAILY_JOBS": "1"}):
+            autopilot.serve_waiting(self.p, self.pid, ctx)
+        self.assertNotEqual(self.p.job(jid)["state"], "queued")                 # sent
+        self.assertFalse(any("trong ngày" in e["msg"] for e in autopilot.status(self.p, self.pid)["log"]))
+
+    def test_queued_jobs_count_only_for_running_projects_and_once(self):
+        ctx = self.build(image=RealImage(), video=RealVideo(polls_to_finish=1))
+        sids = [r["id"] for r in self.p.conn.execute("SELECT id FROM scenes WHERE project_id=? ORDER BY idx", (self.pid,))]
+        others = {}
+        for name in ("paused", "stopped"):
+            pid = self.p.create_project(name)
+            others[name] = (pid, self.p.create_scene(pid, 1, "s"))
+            autopilot.start(self.p, pid)
+        self.p.set_paused(others["paused"][0], True)
+        autopilot.stop(self.p, others["stopped"][0])
+        for pid, sid in others.values():
+            self.p.create_job(sid, "image_gen")                                 # queued in a paused / stopped project
+        autopilot.start(self.p, self.pid)
+        sent = self.p.create_job(sids[0], "image_gen")
+        self.p.conn.execute("UPDATE jobs SET external_id='T1' WHERE id=?", (sent,))   # already in the ledger
+        self.p.conn.commit()
+        paid_rows(self.p.conn, 1)
+        with mock.patch.dict(os.environ, {"AUTOPILOT_DAILY_JOBS": "2"}):
+            autopilot._daily_cap(self.p, ctx)                                    # 1 sent + 0 counted queued < 2
+            self.p.create_job(sids[1], "image_gen")
+            with self.assertRaises(autopilot._Stop):
+                autopilot._daily_cap(self.p, ctx)                                # 1 sent + 1 queued here = 2
+
     def test_the_snapshot_shows_the_counted_sends(self):
         self.build()
         paid_rows(self.p.conn, 2)

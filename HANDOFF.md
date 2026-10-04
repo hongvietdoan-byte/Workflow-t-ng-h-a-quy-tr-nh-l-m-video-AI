@@ -27,6 +27,15 @@ Gốc: 7bca2b9 (Gộp S14.1 A1a). Không push, không merge main, không sửa T
    (trước so ISO 'T…+00:00' với 'YYYY-MM-DD HH:MM:SS' → dòng hôm nay bị loại). Nhãn: admin "Lượt gửi thật hôm nay" (2 chỗ + chú thích),
    header.py:548. `tests/test_dashboard.py:777` đổi nhãn theo. DailyCapTests: test cũ dùng provider không tên mock (nghĩa đổi: mock không tính) + 4 test mới.
 
+5. Sửa theo rà soát độc lập: `serve_waiting` dùng `_daily_cap(p)` (chỉ lượt đã gửi — ảnh vẽ lại đang chờ không tự chặn mình);
+   job queued chỉ tính ở dự án autopilot `running` + không tạm dừng + chưa có `external_id`; `Manager._run` ghi ERROR qua `_tick_set`
+   (không đè STOPPED); `superseded` ẩn ở `voice_check.bad_lines`, `final_qc.check_effects`, danh sách âm thanh Bước 5 (`audio_lib.mix_rows`,
+   không còn nút Xóa trên bản cũ). Test: DailyCapTests +2, ThreadTests +1, VoiceRedoTests +3.
+
+## Ghi lại cho S14.16 (không sửa ở nhánh này)
+- Câu báo của mã lỗi `budget`: trần `spend_cap` của agent QC (qc_agent/qc_team) giờ dừng cả autopilot với câu "Claude bị chặn vì ngân sách —
+  nâng trần…" — cần câu phân biệt trần QC từng cảnh với trần Claude/dự án.
+
 ## Rủi ro cần rà
 - `superseded` là trạng thái mới trong manifest âm thanh: chỗ nào đếm dòng tts theo state có thể thấy dòng "biến mất" trong lúc chờ bản mới.
 - `budget` code giờ dừng autopilot (trước chỉ khi câu chứa "hết ngân sách claude").

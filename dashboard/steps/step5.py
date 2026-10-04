@@ -201,7 +201,7 @@ def extras_section(p: Pipeline, pid: int, provider):
                         "Không khớp được dòng thoại nào với phụ đề (kiểm tra lại nội dung có đúng như kịch bản không)")
                 st.rerun()
         items = audio_lib.load(directory)
-        for i, e in enumerate(items):
+        for i, e in audio_lib.mix_rows(items):          # an old voice waiting for its redo is hidden (no Xóa on it)
             with st.container(border=True):
                 ui.html(f'<div class="cardhead"><b>{audio_lib.KINDS.get(e["kind"], e["kind"])}</b>'
                         f'<span class="muted">{e["label"][:90]}</span><span class="grow"></span>{ui.state_badge(e["state"])}</div>')

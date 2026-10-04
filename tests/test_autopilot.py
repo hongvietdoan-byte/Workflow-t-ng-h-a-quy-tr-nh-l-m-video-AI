@@ -326,6 +326,25 @@ class ThreadTests(unittest.TestCase):
             time.sleep(0.1)
         self.assertEqual(autopilot.status(Pipeline(connect(db)), pid)["state"], "done")
 
+    def test_an_unexpected_error_after_a_stop_keeps_the_stop(self):
+        """Review B1b: Manager._run wrote ERROR over a STOPPED set by the person during the failing tick."""
+        tmp = tempfile.mkdtemp()
+        db = os.path.join(tmp, "m.sqlite")
+        p = Pipeline(connect(db))
+        pid = p.create_project("err")
+
+        def factory(pipeline, data_dir):
+            return autopilot.Context(data_dir, None, None, None)
+
+        def stop_then_fail(pp, project_id, ctx):
+            autopilot.stop(pp, project_id)
+            raise RuntimeError("boom")
+        autopilot.start(p, pid)
+        with mock.patch.object(autopilot, "tick", side_effect=stop_then_fail):
+            autopilot.Manager(db, tmp, factory, poll_sec=0.01)._run(pid)
+        st = autopilot.status(Pipeline(connect(db)), pid)
+        self.assertEqual((st["state"], st["note"]), (autopilot.STOPPED, "Đã dừng theo yêu cầu"))
+
     def test_a_broken_configuration_is_reported_in_the_project_not_lost(self):
         tmp = tempfile.mkdtemp()
         db = os.path.join(tmp, "m.sqlite")

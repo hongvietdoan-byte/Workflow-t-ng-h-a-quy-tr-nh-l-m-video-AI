@@ -364,6 +364,31 @@ class VoiceRedoTests(unittest.TestCase):
         self.assertFalse(os.path.exists(os.path.join(self.dir, self.first)))
         self.assertEqual(lines[0]["redos"], 2)
 
+    def superseded(self):
+        from core import audio_lib
+        items = audio_lib.load(self.dir)
+        items[0].update(state="superseded", use=True, start=0.0, duration_ms=1500)
+        audio_lib._save(self.dir, items)
+        return items
+
+    def test_an_old_voice_waiting_for_its_redo_is_not_a_flagged_line(self):
+        self.superseded()
+        self.assertEqual(voice_check.bad_lines(self.data, self.pid), [])          # the 🔁 button and "X/Y" skip it
+        self.assertEqual(voice_check.redo_counts(self.data, self.pid), (0, 0))
+
+    def test_the_final_check_ignores_an_old_voice_waiting_for_its_redo(self):
+        from core import final_qc
+        items = self.superseded() + [{"kind": "sound_effect", "use": True, "label": "AI: boom", "anchor_idx": 1, "start": 0.5,
+                                      "duration_ms": 500, "state": "succeeded"}]
+        self.assertEqual([i["code"] for i in final_qc.check_effects(items)], [])
+
+    def test_the_mix_list_hides_an_old_voice_waiting_for_its_redo(self):
+        from core import audio_lib
+        items = self.superseded()
+        self.assertEqual(audio_lib.mix_rows(items), [])
+        src = open(os.path.join(os.path.dirname(__file__), "..", "dashboard", "steps", "step5.py"), encoding="utf-8").read()
+        self.assertIn("audio_lib.mix_rows(items)", src)                         # the Bước 5 list (with its Xóa button) uses it
+
     def test_the_redo_count_is_kept_per_line_and_capped(self):
         from core import audio_lib
         for n in range(voice_check.MAX_REDOS):

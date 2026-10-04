@@ -185,7 +185,7 @@ def asr_ready(asr) -> bool:
 def bad_lines(data_dir: str, project_id: int) -> List[Dict]:
     directory = audio_lib.assets_dir(data_dir, project_id)
     return [e for e in audio_lib.load(directory) if e.get("kind") == "tts" and e.get("dialogue")
-            and (e.get("check") or {}).get("ok") is False]
+            and e.get("state") != SUPERSEDED and (e.get("check") or {}).get("ok") is False]   # an old voice awaiting its redo: not a line
 
 
 # Luật 6 (docs/CHUAN_XAY_DUNG.md): một câu được TẠO LẠI tối đa MAX_REDOS lần với cùng (văn bản gốc, giọng) — lần thứ 3 phải đổi đầu vào

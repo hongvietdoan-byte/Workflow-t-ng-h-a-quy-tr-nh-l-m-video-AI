@@ -442,7 +442,7 @@ def serve_waiting(p: Pipeline, pid: int, ctx: Context) -> bool:
     if not (_count(p, "SELECT COUNT(*) FROM jobs WHERE project_id=? AND type='image_gen' AND state IN ('queued','running')", pid)):
         return False
     try:
-        _daily_cap(p, ctx)
+        _daily_cap(p)                     # review B1b: the queued redraw itself is not counted here (cap 1, 0 sent → it goes)
         sent = ctx.image_runner.submit_pending(pid)
         _budget_stop(p, pid, "image_gen")
         ctx.image_runner.poll_once(pid)
@@ -508,7 +508,9 @@ def _real(runner) -> bool:
 def _daily_cap(p: Pipeline, ctx: Optional[Context] = None) -> None:
     """S14.1 (mục 3.1): the automatic run's daily cap counts the REAL paid sends of the day (perf.sends_today: ledger rows of any
     project, button or run; simulated mock* providers cost nothing) + the jobs already queued that this run's (real) runners will
-    send. AUTOPILOT_DAILY_JOBS=0 = off. Only the automatic run is capped — a person's button is not."""
+    send — counted only when a NEW job is about to be made (ctx given), only in projects whose run is going (running, not paused) and
+    not yet sent (no external_id: a sent job is already a ledger row). AUTOPILOT_DAILY_JOBS=0 = off. Only the automatic run is
+    capped — a person's button is not."""
     limit = perf.daily_limit()
     if not limit:
         return
@@ -516,7 +518,9 @@ def _daily_cap(p: Pipeline, ctx: Optional[Context] = None) -> None:
     if ctx is not None:
         kinds = [k for k, r in (("image_gen", ctx.image_runner), ("video_gen", ctx.video_runner)) if _real(r)]
         if kinds:
-            queued = _count(p, "SELECT COUNT(*) FROM jobs WHERE state='queued' AND type IN (" + ",".join("?" * len(kinds)) + ")", *kinds)
+            queued = _count(p, "SELECT COUNT(*) FROM jobs j JOIN projects pr ON pr.id=j.project_id WHERE j.state='queued'"
+                               " AND (j.external_id IS NULL OR j.external_id='') AND pr.autopilot_state=? AND COALESCE(pr.paused, 0)=0"
+                               " AND j.type IN (" + ",".join("?" * len(kinds)) + ")", RUNNING, *kinds)
     if perf.sends_today(p.conn) + queued >= limit:
         raise _Stop(DAILY_NOTE)
 
@@ -1192,7 +1196,9 @@ class Manager:
             try:
                 state = tick(p, project_id, ctx)
             except Exception as e:  # noqa: BLE001
-                _set(p, project_id, ERROR, f"Lỗi không lường trước: {e}")
+                if not _tick_set(p, project_id, ERROR, f"Lỗi không lường trước: {e}"):    # a stop made meanwhile stays (review B1b)
+                    _d(p, project_id, "autopilot", "warn", f"lỗi sau khi đã dừng {type(e).__name__}: {e}", "unexpected")
+                    return
                 _d(p, project_id, "autopilot", "error", f"lỗi không lường trước {type(e).__name__}: {e}", "unexpected")
                 _log(p, project_id, f"Lỗi không lường trước: {str(e)[:200]}")
                 return
