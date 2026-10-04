@@ -46,7 +46,7 @@ def queue_images(p: Pipeline, project_id: int, confirmed: bool = False) -> Dict:
     from . import shots
     fresh = [sid for sid in fresh if shots.needs_own_image(conn, sid)]   # v3 multi-shot: later shots of a group need no picture
     fresh = pilot.allowed_scenes(p, project_id, fresh)
-    redo_ids = pilot.allowed_scenes(p, project_id, list(stale))
+    redo_ids = pilot.allowed_scenes(p, project_id, [sid for sid in stale if not p.has_pending_take(sid, "image_gen")])   # S14.17 rà #2
     if fresh or redo_ids:
         gates = image_gates(p, project_id)
         if gates["block"] and not confirmed:
@@ -83,7 +83,8 @@ def queue_videos(p: Pipeline, project_id: int, data_dir: str) -> Dict:
     redo = 0
     for sid, r in lineage.scan(conn, project_id).items():
         if r["video_stale"] and r["video_job_id"] and not r["motion_stale"] and r["motion_state"] == "approved" \
-                and r["video_state"] in ("succeeded", "approved", "pending_review"):
+                and r["video_state"] in ("succeeded", "approved", "pending_review") and not p.has_pending_take(sid, "video_gen"):
+            # S14.17 rà #2: a new take already waits (e.g. the Director rewrote the motion prompt) — redoing the older clip = 2nd paid job
             regen.regenerate_video(p, data_dir, r["video_job_id"], f"làm lại vì {r['video_stale']}")   # input changed: no fix
             redo += 1
     return {"created": created, "redo": redo}

@@ -429,7 +429,7 @@ def _images_phase(p: Pipeline, pid: int, ctx: Context) -> Optional[str]:
             continue
         if not needs_own_image(p.conn, scene["id"]):    # v3 multi-shot: later shots of a group start from the group's picture
             continue
-        if scene["id"] in stale:
+        if scene["id"] in stale and not p.has_pending_take(scene["id"], "image_gen"):   # S14.17 rà #2: a new take already waits
             _job_cap_check(p, pid)
             if _shot_sends(p, scene["id"], "image_gen") >= _shot_cap("image_gen"):      # W7: the shot's own cap
                 _d(p, pid, "image", "warn", f"S{scene['idx']:02d}: ảnh đã cũ nhưng shot đã gửi {_shot_cap('image_gen')} lần — không tự "
@@ -917,7 +917,8 @@ def _videos_phase(p: Pipeline, pid: int, ctx: Context) -> Optional[str]:
         _job_cap_check(p, pid)
         _create_job(p, ctx, r["scene_id"], "video_gen")
     for sid, r in lineage.scan(p.conn, pid).items():
-        if r["video_stale"] and r["video_job_id"] and not r["motion_stale"] and r["video_state"] in ("succeeded", "approved"):
+        if r["video_stale"] and r["video_job_id"] and not r["motion_stale"] and r["video_state"] in ("succeeded", "approved") \
+                and not p.has_pending_take(sid, "video_gen"):            # S14.17 rà #2: a new take already waits — no 2nd paid job
             _job_cap_check(p, pid)
             if _shot_sends(p, sid, "video_gen") >= _shot_cap("video_gen"):      # O3/W6: an outdated clip is not remade past the shot's cap
                 _d(p, pid, "video", "warn", f"clip của shot #{sid} đã cũ ({r['video_stale']}) nhưng đã gửi {_shot_cap('video_gen')} lần — "
