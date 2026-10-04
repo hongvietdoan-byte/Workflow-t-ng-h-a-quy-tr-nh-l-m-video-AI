@@ -123,7 +123,7 @@ def validate_intent(pipeline: Pipeline, project_id: int) -> Callable[[Any], Dict
                 raise SchemaError(f"{w}.peak: số nguyên 1–5 hoặc bỏ trống")
             for key in ("dp_notes", "editor_notes"):
                 if sc.get(key) is not None and not isinstance(sc.get(key), str):
-                    raise SchemaError(f"{w}.{key}: expected text")
+                    raise SchemaError(f"{w}.{key}: cần chữ")
             if "sound" in sc:
                 from . import sound_intent
                 sound, _ = sound_intent.clean(sc.get("sound"))
@@ -135,7 +135,7 @@ def validate_intent(pipeline: Pipeline, project_id: int) -> Callable[[Any], Dict
                 _check_kept(sc, script.get(sc["idx"]) or [], trim, w)
         for key in ("tradeoffs", "script_notes", "dropped_lines", "ip_risk_notes"):
             if obj.get(key) is not None and not isinstance(obj[key], list):
-                raise SchemaError(f"root.{key}: expected a list")
+                raise SchemaError(f"root.{key}: cần danh sách")
         return obj
     return check
 
@@ -199,7 +199,7 @@ def check_scene(scene: Dict, names) -> Callable[[Any], Dict]:
                               f" — nhận {len(got)} câu" + _first_mismatch(got, kept))
         trade = part.get("tradeoffs")
         if trade is not None and not isinstance(trade, list):
-            raise SchemaError("tradeoffs: expected a list")
+            raise SchemaError("tradeoffs: cần danh sách")
         return {"idx": idx, "shots": probe["scenes"][0]["shots"], "tradeoffs": [t for t in trade or [] if isinstance(t, dict)],
                 "normalized": changes}
     return check

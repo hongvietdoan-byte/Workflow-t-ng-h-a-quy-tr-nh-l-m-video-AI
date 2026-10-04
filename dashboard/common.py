@@ -115,7 +115,7 @@ def image_runner(p: Pipeline):
     try:
         provider = factory.image_provider()
     except ProviderError as e:
-        st.error(f"Deepix: {e}")
+        st.error(f"Deepix (tạo ảnh) chưa sẵn sàng: {e}")      # J1: the adapter's message is Vietnamese + says what to do
         return None
     return ImageRunner(p, provider, DATA) if provider else None
 
