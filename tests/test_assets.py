@@ -570,6 +570,43 @@ class MergeKeepsEveryPictureTests(unittest.TestCase):
         self.assertIsNotNone(assets.get(self.conn, dup))
         self.assertEqual(len(self._rows(keep)), assets.MAX_IMAGES_PER_ASSET - 1)
 
+    def test_a_new_picture_never_takes_the_file_name_of_a_merged_row_whose_file_is_lost(self):
+        keep = assets.create(self.conn, "FF", "character", "CHRONO")
+        dup = assets.create(self.conn, "FF", "character", "CHRONO1")
+        assets.add_image(self.conn, keep, "1.png", PNG + b"1")
+        assets.add_image(self.conn, keep, "2.png", PNG + b"2")
+        gone = assets.add_image(self.conn, dup, "g.png", PNG + b"g")
+        os.remove(gone)
+        assets.merge(self.conn, dup, keep)                                 # the lost row now points at <keep>/3.png (no file there)
+        assets.trash_image(self.conn, assets.get(self.conn, keep)["images"][0]["id"])
+        new = assets.add_image(self.conn, keep, "n.png", PNG + b"n")
+        paths = [os.path.normcase(r["path"]) for r in self._rows(keep)]
+        self.assertEqual(len(paths), len(set(paths)), paths)               # two rows on one file = deleting one kills the other
+        self.assertEqual(paths.count(os.path.normcase(new)), 1)
+
+    def test_a_failed_file_move_is_said_with_how_many_moved(self):
+        from unittest import mock
+        keep = assets.create(self.conn, "FF", "character", "CHRONO")
+        dup = assets.create(self.conn, "FF", "character", "CHRONO1")
+        assets.add_image(self.conn, dup, "a.png", PNG + b"a")
+        assets.add_image(self.conn, dup, "b.png", PNG + b"b")
+        real = shutil.move
+        calls = []
+
+        def locked(a, b):
+            calls.append(a)
+            if len(calls) == 2:
+                raise PermissionError(32, "file đang mở ở chương trình khác")
+            return real(a, b)
+        with mock.patch("core.assets.shutil.move", side_effect=locked):
+            with self.assertRaises(AssetError) as e:
+                assets.merge(self.conn, dup, keep)
+        self.assertIn("đã chuyển 1", str(e.exception))
+        self.assertIn("còn 1", str(e.exception))
+        self.assertIsNotNone(assets.get(self.conn, dup))                   # the source and its last picture are kept
+        self.assertEqual(len(self._rows(dup)), 1)
+        self.assertEqual(len(self._rows(keep)), 1)
+
     def test_the_standard_profile_is_copied_or_the_merge_is_refused(self):
         keep = assets.create(self.conn, "FF", "character", "CHRONO")
         dup = assets.create(self.conn, "FF", "character", "CHRONO1")

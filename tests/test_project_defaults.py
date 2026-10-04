@@ -33,6 +33,20 @@ class ProjectDefaultsTests(unittest.TestCase):
         changed = project_defaults.changed_places(self.conn, pid)
         self.assertEqual([(c["name"], c["what"], c["scenes"]) for c in changed], [("Tháp Đồng Hồ", "đổi mô tả / ảnh", [1])])
 
+    def test_a_place_picture_put_in_the_kho_trash_makes_the_plan_outdated(self):
+        # S14.4 C1a: trashing a picture (status 'removed') changes the place like deleting it did
+        from core import assets
+        pid = self.p.create_project("t")
+        aid = self._place(pid, "Tháp Đồng Hồ", "quảng trường")
+        self.conn.execute("INSERT INTO asset_images (asset_id, path, label, sort, status) VALUES (?, 'x/1.png', '1', 1, 'approved')", (aid,))
+        self.conn.commit()
+        iid = self.conn.execute("SELECT max(id) FROM asset_images").fetchone()[0]
+        self.conn.execute("UPDATE projects SET director_raw=? WHERE id=?",
+                          (json.dumps({"scenes": [], "places_at_plan": project_defaults.places_fingerprint(self.conn, pid)}), pid))
+        self.conn.commit()
+        assets.trash_image(self.conn, iid)
+        self.assertEqual([c["name"] for c in project_defaults.changed_places(self.conn, pid)], ["Tháp Đồng Hồ"])
+
     def test_an_old_plan_without_a_fingerprint_says_nothing(self):
         pid = self.p.create_project("b")
         self.conn.execute("UPDATE projects SET director_raw=? WHERE id=?", (json.dumps({"scenes": []}), pid))

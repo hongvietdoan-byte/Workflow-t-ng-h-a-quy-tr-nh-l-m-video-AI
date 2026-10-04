@@ -18,6 +18,15 @@
 - `dashboard/app.py`: `periodic("purge_asset_trash", purge_removed, every=3600)`.
 - Test: `tests/test_assets.py` (MergeKeepsEveryPictureTests, LibraryTrashTests, LibraryKhoUiTests — ui_v2 bật), sửa `tests/test_b3_b4_fixes_2026_10_01.py::B5Tests`.
 
+## Sửa theo rà soát độc lập (04/10)
+- `add_image` và `merge` chọn tên file tránh cả đường dẫn các dòng của mục đích đang giữ (`_held_paths`, mọi status) — trước đó dòng
+  mất file sau gộp và ảnh mới có thể cùng trỏ 1 file.
+- `merge`: `OSError` khi chuyển file → `AssetError` tiếng Việt (đã chuyển bao nhiêu, nguồn còn bao nhiêu, nguồn được giữ).
+- `project_defaults.places_fingerprint` bỏ qua ảnh `removed` → bỏ ảnh bối cảnh vào thùng rác làm kế hoạch "lỗi thời" như xóa hẳn.
+- Test mới: `test_a_new_picture_never_takes_the_file_name_of_a_merged_row_whose_file_is_lost`,
+  `test_a_failed_file_move_is_said_with_how_many_moved` (test_assets), `test_a_place_picture_put_in_the_kho_trash_makes_the_plan_outdated`
+  (test_project_defaults).
+
 ## Dở / chưa làm
 - Chưa chạy thật trên Dashboard với Kho thật (chỉ AppTest + CSDL tạm).
 - Đồng bộ thư mục: ảnh trong thùng rác vẫn giữ `src_path` → sync không nhập lại khi còn trong thùng; sau 30 ngày dọn thì sync nhập lại (chờ duyệt).

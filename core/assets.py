@@ -219,8 +219,9 @@ def add_image(conn, asset_id: int, filename: str, data: bytes, src_path: Optiona
         raise AssetError(f"Mỗi tài nguyên tối đa {limit} ảnh")
     folder = os.path.join(root(), str(asset_id))
     os.makedirs(folder, exist_ok=True)
+    taken = _held_paths(conn, asset_id)
     n = have + 1
-    while os.path.exists(os.path.join(folder, f"{n}{ext}")):
+    while os.path.exists(os.path.join(folder, f"{n}{ext}")) or _path_key(os.path.join(folder, f"{n}{ext}")) in taken:
         n += 1
     path = os.path.join(folder, f"{n}{ext}")
     with open(path, "wb") as f:
@@ -238,6 +239,21 @@ def add_image(conn, asset_id: int, filename: str, data: bytes, src_path: Optiona
 def _count(conn, asset_id: int) -> int:
     """Pictures that take one of the 6 places of an asset: every status except the library trash ('removed')."""
     return conn.execute("SELECT COUNT(*) FROM asset_images WHERE asset_id=? AND status IS NOT 'removed'", (asset_id,)).fetchone()[0]
+
+
+def _path_key(path: str) -> str:
+    return os.path.normcase(os.path.abspath(path))
+
+
+def _held_paths(conn, asset_id: int) -> set:
+    """S14.4: file names the asset's rows already point at (every status — a lost file's row, a trashed picture): a new picture must
+    not take one, or two rows share a file and deleting one deletes the other's picture."""
+    out = set()
+    for r in conn.execute("SELECT path FROM asset_images WHERE asset_id=?", (asset_id,)):
+        if r["path"]:
+            out.add(_path_key(r["path"]))
+            out.add(_path_key(resolve(r["path"])))
+    return out
 
 
 def guess_role(path: str, kind: Optional[str], conn=None) -> Optional[str]:
@@ -449,18 +465,23 @@ def merge(conn, from_id: int, into_id: int) -> int:
     # else: the target's approved profile wins over the source's draft (a draft is never inherited)
     folder = os.path.join(root(), str(into_id))
     os.makedirs(folder, exist_ok=True)
-    taken: set = set()
+    taken = _held_paths(conn, into_id)                                 # rows of the target whose file is lost / trashed keep their name
     moved = 0
     for img in rows:
         current = resolve(img["path"])
         ext = os.path.splitext(img["path"])[1]
         n = have + moved + 1
-        while os.path.exists(os.path.join(folder, f"{n}{ext}")) or os.path.normcase(os.path.join(folder, f"{n}{ext}")) in taken:
+        while os.path.exists(os.path.join(folder, f"{n}{ext}")) or _path_key(os.path.join(folder, f"{n}{ext}")) in taken:
             n += 1
         target = os.path.join(folder, f"{n}{ext}")
-        taken.add(os.path.normcase(target))
         if current and os.path.exists(current):
-            shutil.move(current, target)
+            try:
+                shutil.move(current, target)
+            except OSError as e:                                        # e.g. a file held open by another program (Windows)
+                raise AssetError(f"Không chuyển được ảnh “{os.path.basename(current)}” sang “{dst['name']}” ({e.strerror or e}) — "
+                                 f"đã chuyển {moved} ảnh, “{src['name']}” còn {len(rows) - moved} ảnh và được giữ lại. Đóng chương "
+                                 "trình đang mở ảnh rồi gộp lại.") from None
+        taken.add(_path_key(target))
         # file lost: only the row moves (its path now points into the target folder, so ↻ Tải lại writes it there)
         conn.execute("UPDATE asset_images SET asset_id=?, path=?, sort=? WHERE id=?", (into_id, target, n, img["id"]))
         conn.commit()                                                   # one row at a time: a failed move never leaves a file without its row
