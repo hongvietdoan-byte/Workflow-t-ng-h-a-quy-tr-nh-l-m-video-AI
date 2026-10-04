@@ -208,10 +208,15 @@ def _lessons(conn) -> List[Dict]:
     return [dict(r) for r in conn.execute("SELECT id, group_name, title FROM lessons WHERE state='approved' ORDER BY id").fetchall()]
 
 
-def finished_projects(conn) -> List[int]:
-    """Projects with a delivered video (an outputs row 'final')."""
-    return [r[0] for r in conn.execute("SELECT DISTINCT o.project_id FROM outputs o JOIN projects p ON p.id=o.project_id"
-                                        " WHERE o.kind='final' ORDER BY o.project_id").fetchall()]
+def finished_projects(conn, data_dir: Optional[str] = None) -> List[int]:
+    """Projects with a delivered video: an outputs row 'final', or (with `data_dir`) a pre-v2 <data>/<id>/output/FINAL_VIDEO.mp4
+    rendered before the outputs table existed (lineage.final_status reads the same file)."""
+    ids = {r[0] for r in conn.execute("SELECT DISTINCT o.project_id FROM outputs o JOIN projects p ON p.id=o.project_id"
+                                      " WHERE o.kind='final'").fetchall()}
+    if data_dir:
+        ids |= {r[0] for r in conn.execute("SELECT id FROM projects").fetchall()
+                if os.path.exists(os.path.join(data_dir, str(r[0]), "output", "FINAL_VIDEO.mp4"))}
+    return sorted(ids)
 
 
 def report_all(conn, pricing: Dict, project_ids: Optional[List[int]] = None) -> Dict:
@@ -247,13 +252,15 @@ def _minute(now: Optional[datetime] = None) -> str:
     return (now or datetime.now()).strftime("%Y-%m-%dT%H:%M")
 
 
-def snapshot(conn, project_id: Optional[int], pricing: Dict, trigger: str, now: Optional[datetime] = None) -> int:
-    """Record the figures of one project (None = the whole system, report_all) with the flags / approved lessons / knowledge in use.
-    Returns the row id — the existing one when a snapshot of the same project was already taken in the same minute."""
+def snapshot(conn, project_id: Optional[int], pricing: Dict, trigger: str, now: Optional[datetime] = None,
+             system_projects: Optional[List[int]] = None) -> int:
+    """Record the figures of one project (None = the whole system: report_all over `system_projects`, default the finished ones) with the
+    flags / approved lessons / knowledge in use. Returns the row id — the existing one when a snapshot of the same project was already
+    taken in the same minute."""
     from . import feedback
     if trigger not in TRIGGERS:
         raise ValueError(f"trigger không hợp lệ: {trigger!r} (chỉ {', '.join(TRIGGERS)})")
-    r = report(conn, project_id, pricing) if project_id is not None else report_all(conn, pricing)
+    r = report(conn, project_id, pricing) if project_id is not None else report_all(conn, pricing, system_projects)
     at = _minute(now)
     found = conn.execute("SELECT id FROM effectiveness_snapshots WHERE project_id IS ? AND at=?", (project_id, at)).fetchone()
     if found:                      # UNIQUE does not stop two NULL project ids; this does (and a double click returns the same row)
