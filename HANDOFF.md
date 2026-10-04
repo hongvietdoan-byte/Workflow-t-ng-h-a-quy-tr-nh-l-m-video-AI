@@ -26,7 +26,22 @@ Nguồn: `docs/KE_HOACH_NANG_CAP_DASHBOARD_2026-10-03.md` mục 6c. 0 USD, khôn
 - Mới: `tests/test_money_policy.py` (31 test, đỏ trước → xanh).
 - 630 test liên quan xanh (danh sách lệnh trong báo cáo phiên).
 
+## Đợt sửa sau rà độc lập (7 điểm) + việc bổ sung người dùng duyệt
+1. `test_grader_fixes_0926` thử multi-shot: vượt trần → gửi + ghi sổ + cảnh báo; hết tiền → ValueError (test mới).
+2-3. 📥 "đã tự gen lại N lần" đọc diag `auto_regen_limit` (cả job đã xong ở giới hạn, cả `_setcheck_block`); job giữ vì lý do khác không hiện.
+   Job đã succeeded/approved ở giới hạn: giữ nguyên, không chặn cảnh, chỉ ghi diag.
+4. Plate fallback ở giới hạn: không đổi `plate_mode="green"`.
+5. Hiển thị dùng ước tính dư: `cost.estimate_run` cộng mục thiếu giá, `estimate_images.unit_over`, `clip_estimate`, `price_tag` "(ước tính)".
+6. Khung cuối: bấm tay không giới hạn; máy tự vẽ lại ≤ AUTO_REGEN_LIMIT ảnh (bộ đếm app_settings `end_frame_auto_redos:<scene>`).
+7. Chú thích experiments, `tools/pilot_run.py` theo AUTO_REGEN_LIMIT.
++ Trần job theo SẢN PHẨM (`autopilot._job_caps`): cột mới `jobs.origin` ('auto' trong `autopilot.tick` và mọi lần tự gen lại);
+  trần = shot ảnh × 4 + shot video × 3; chạm trần → `_Stop` kèm số liệu + 📥; start/resume đặt lại mốc (`gates.job_cap_from`).
+  Trần job/ngày KHÔNG đổi logic (chỉ câu báo có số liệu, làm trước đó).
++ Cổng duyệt ngân sách dự án GIỮ, hiện ước tính TỔNG (`project_budget.cost_summary`) ở `gate_reason` và 3 màn duyệt.
++ `budget.spent`: khóa cache phân biệt CSDL trong bộ nhớ (test_v3 chập chờn).
+Kết quả: 677 test liên quan xanh (gồm test_grader_fixes_0926, test_end_frames, test_ui_video).
+
 ## Bước kế / còn dở
 - Không có việc dở trong prompt. Việc sau: UI Gói K gọi `money_reset.set_planned` (reset thật), rà các cảnh báo trên dự án thử 30 s.
-- Rủi ro cần rà: trần số job theo dự án của autopilot (`_job_caps`/BUDGET_NOTE) vẫn chặn — không phải tiền, chưa đổi; cổng chờ duyệt
-  ngân sách dự án (`gate_reason`) vẫn giữ; `tools/pilot_run.py` SHOT_SENDS=3 chưa đổi.
+- Chờ người dùng: khóa cứng cho `tools/experiments/*`; trần "dự án/ngày/người" thay `AUTOPILOT_DAILY_JOBS` (việc sau).
+- Rủi ro: job cũ (trước cột `origin`) không tính vào trần sản phẩm; job approved ở giới hạn vẫn nằm trong 📥 đến khi người dùng làm lại.
