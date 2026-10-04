@@ -116,6 +116,7 @@ def main():
     if pid is None:
         return
     C.periodic("purge_trash", lambda: purge_trash(DATA))                # V4 5.3: housekeeping every 60 s, not on every click
+    C.periodic("purge_asset_trash", lambda: assets.purge_removed(p.conn), every=3600)   # S14.4: Kho pictures deleted > 30 days ago
     C.periodic(f"sweep_{pid}", lambda: trash.sweep_rejected(p, DATA, pid))
     if "assets_synced" not in st.session_state:         # folders marked "auto": pick up new pictures, once per browser session
         st.session_state["assets_synced"] = True

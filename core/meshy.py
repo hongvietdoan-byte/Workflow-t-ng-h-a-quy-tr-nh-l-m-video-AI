@@ -144,7 +144,7 @@ def texture_prompt(name: str, profile: Dict) -> str:
 
 
 def _images(conn, asset_id: int) -> List[Dict]:
-    return [dict(r) for r in conn.execute("SELECT id, path, role, status, variant FROM asset_images WHERE asset_id=? ORDER BY id",
+    return [dict(r) for r in conn.execute("SELECT id, path, role, status, variant FROM asset_images WHERE asset_id=? AND status IS NOT 'removed' ORDER BY id",
                                           (asset_id,)).fetchall()]
 
 
