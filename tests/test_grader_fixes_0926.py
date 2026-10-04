@@ -38,11 +38,20 @@ class ExperimentCapTests(unittest.TestCase):
         self.plan.stop()
 
     @mock.patch.dict(os.environ, {"CLIPAI_KLING_MODE": "std"})
-    def test_over_the_cap_nothing_is_sent_or_recorded(self):
+    def test_over_the_cap_it_is_sent_recorded_and_warned(self):
+        # S14.16 (chính sách tiền 04/10, mục 6c): was "over the cap nothing is sent or recorded" — the trial cap only warns now
         budget.restart(self.p.conn, usd=1.0)                                     # 15 s x 0.08 = 1.20 > 1.00
+        experiments.kling_multishot(self.p, self.pid, 1, self.provider, self.dir)
+        self.assertEqual(len(self.sent), 1)
+        self.assertAlmostEqual(budget.spent(self.p.conn)["usd"], 1.2, places=2)
+        self.assertTrue(self.p.conn.execute("SELECT 1 FROM diag_events WHERE code='money_warning'").fetchone())
+
+    @mock.patch.dict(os.environ, {"CLIPAI_KLING_MODE": "std"})
+    def test_out_of_credit_nothing_is_sent_or_recorded(self):
+        budget.halt(self.p.conn, "clipai", "insufficient balance")
         with self.assertRaises(ValueError) as e:
             experiments.kling_multishot(self.p, self.pid, 1, self.provider, self.dir)
-        self.assertIn("vượt trần", str(e.exception))
+        self.assertIn("HẾT TIỀN", str(e.exception))
         self.assertEqual(self.sent, [])
         self.assertEqual(budget.spent(self.p.conn)["usd"], 0)
 

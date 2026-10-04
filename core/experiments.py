@@ -76,8 +76,8 @@ def estimate(p: Pipeline, project_id: int, sequence: int) -> Dict:
 
 def kling_multishot(p: Pipeline, project_id: int, sequence: int, provider, data_dir: str) -> Dict:
     """Send one Kling multi-shot generation for the sequence (costs credit like one clip of the summed length, max 15 s).
-    Goes through the money gate (core.spend_gate) like every clip: refused (ValueError, nothing sent) by the trial cap or the
-    project's locked budget; PipelinePaused when the project is paused."""
+    Goes through the money gate (core.spend_gate) like every clip: refused (ValueError, nothing sent) only when the service is out
+    of credit; PipelinePaused when the project is paused. The trial cap / the project's budget only warn (S14.16, money_policy)."""
     from . import formats, spend_gate
     scenes, shots, total = _plan(p, project_id, sequence)
     first = os.path.join(data_dir, str(project_id), "images", f"job_{scenes[0]['jid']}.png")
@@ -85,8 +85,7 @@ def kling_multishot(p: Pipeline, project_id: int, sequence: int, provider, data_
     kwargs = {"multi_prompt": shots}
     if aspect:
         kwargs["aspect_ratio"] = formats.spec(aspect)["clip"]
-    # limit check + submission + ledger entry as one step (S14.1: the gate adds the project's locked budget, a paused project and
-    # 'out_of_credit' → halt)
+    # check + submission + ledger entry as one step (S14.1 / S14.16: a paused project and 'out_of_credit' stop; the caps warn)
     with spend_gate.spend(p.conn, "video", provider.name, project_id=project_id, model=MODEL, tier=_tier(), units=total,
                           ledger_stage="kling_multishot") as slot:
         slot.raise_if_over("Không gửi thử nghiệm multi-shot")
