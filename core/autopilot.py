@@ -162,7 +162,8 @@ def start(p: Pipeline, project_id: int, user: Optional[str] = None) -> None:
     p.set_mode(project_id, "auto")
     p.set_review_floor(project_id, None)   # nothing may wait for a human
     p.set_paused(project_id, False)
-    set_gates(p, project_id, {"bible_done": False, "pilot_done": False, "storyboard_ok": None, "waiting_for": None})
+    set_gates(p, project_id, {"bible_done": False, "pilot_done": False, "storyboard_ok": None, "waiting_for": None,
+                              "job_cap_from": _last_job_id(p)})          # S14.16: machine-made jobs are counted from here
     _set(p, project_id, RUNNING, "Đã duyệt phân cảnh, đang chạy tự động")
     _log(p, project_id, "Bạn đã duyệt phân cảnh → bắt đầu chạy tự động")
     from . import known_issues
@@ -200,6 +201,7 @@ def resume(p: Pipeline, project_id: int, user: Optional[str] = None) -> None:
         n = _approve_held(p, project_id, "video_gen", "giữ sau khi xem")
         set_gates(p, project_id, {"waiting_for": None})
         _log(p, project_id, f"Bạn đã xem {n} clip còn lỗi → tiếp tục")
+    set_gates(p, project_id, {"job_cap_from": _last_job_id(p)})   # S14.16: the person looked — the job cap counts again from here
     _save_cfg(p, project_id)
     p.set_mode(project_id, "auto")
     p.set_paused(project_id, False)
@@ -235,10 +237,63 @@ def _count(p: Pipeline, sql: str, *args) -> int:
     return p.conn.execute(sql, args).fetchone()[0]
 
 
-def _job_caps(p: Pipeline, pid: int):
-    n = _count(p, "SELECT COUNT(*) FROM scenes WHERE project_id=?", pid)
-    per_scene = p.project(pid)["max_retry_count"] + 2
-    return n * per_scene, n * per_scene
+def _last_job_id(p: Pipeline) -> int:
+    return int(p.conn.execute("SELECT COALESCE(MAX(id), 0) FROM jobs").fetchone()[0])
+
+
+def _shots(p: Pipeline, pid: int):
+    """(image shots, video shots) of the project: shots that need their own start picture, every shot for its clip."""
+    from .shots import needs_own_image
+    rows = _scene_rows(p, pid)
+    return sum(1 for r in rows if needs_own_image(p.conn, r["id"])), len(rows)
+
+
+def _job_caps(p: Pipeline, pid: int) -> int:
+    """Người dùng duyệt 04/10 (S14.16): the automatic run's job cap of a project, by the PRODUCT — image shots × (1 + automatic
+    picture redos) + video shots × (1 + automatic clip redos), the limits from pipeline.AUTO_REGEN_LIMIT. Only machine-made jobs
+    count (jobs.origin 'auto'): reaching it means something abnormal (a loop making jobs), never a person clicking."""
+    from .pipeline import AUTO_REGEN_LIMIT
+    images, videos = _shots(p, pid)
+    return images * (1 + AUTO_REGEN_LIMIT["image_gen"]) + videos * (1 + AUTO_REGEN_LIMIT["video_gen"])
+
+
+def _machine_jobs(p: Pipeline, pid: int) -> Dict[str, int]:
+    """Machine-made picture / clip jobs of the project since the run was (re)started (gates job_cap_from) — an order the provider
+    never created (resent at once, core.runner._not_created) is not an attempt and does not count."""
+    from .runner import RESEND_NOTE
+    since = int(get_gates(p, pid).get("job_cap_from") or 0)
+    out = {"image_gen": 0, "video_gen": 0}
+    for r in p.conn.execute("SELECT j.type, COUNT(*) n FROM jobs j WHERE j.project_id=? AND j.origin='auto' AND j.id>? AND"
+                            " j.type IN ('image_gen','video_gen') AND NOT (j.state='cancelled' AND EXISTS (SELECT 1 FROM jobs r"
+                            " WHERE r.parent_job_id=j.id AND r.retry_reason LIKE ?)) GROUP BY j.type",
+                            (pid, since, RESEND_NOTE + "%")).fetchall():
+        out[r["type"]] = r["n"]
+    return out
+
+
+JOB_CAP_NOTE = "Chạm trần job do máy tạo"
+
+
+def _job_cap_reason(p: Pipeline, pid: int) -> Optional[str]:
+    """The stop text (numbers, project, how to open) when the machine-made jobs reached the product cap, else None."""
+    from .pipeline import AUTO_REGEN_LIMIT
+    made = _machine_jobs(p, pid)
+    total, cap = made["image_gen"] + made["video_gen"], _job_caps(p, pid)
+    if total < cap:
+        return None
+    images, videos = _shots(p, pid)
+    name = p.project(pid)["name"]
+    return (f"{JOB_CAP_NOTE} (trần job do máy) của dự án '{name}': đã có {total} job do máy tạo (ảnh {made['image_gen']}, video "
+            f"{made['video_gen']}) / trần {cap} = {images} shot ảnh × {1 + AUTO_REGEN_LIMIT['image_gen']} + {videos} shot video × "
+            f"{1 + AUTO_REGEN_LIMIT['video_gen']} — bất thường (có thể vòng lặp tạo job thừa), đã dừng. Cách mở: xem 📊 Theo dõi / "
+            "chẩn đoán, sửa nguyên nhân rồi bấm Tiếp tục (đếm lại từ lúc đó)")
+
+
+def _job_cap_check(p: Pipeline, pid: int) -> None:
+    why = _job_cap_reason(p, pid)
+    if why:
+        _d(p, pid, "autopilot", "error", why, "job_cap")
+        raise _Stop(why)
 
 
 def _scene_rows(p: Pipeline, pid: int):
@@ -367,7 +422,6 @@ def _images_phase(p: Pipeline, pid: int, ctx: Context) -> Optional[str]:
     if gates["pilot"] and not gates["pilot_done"] and not pilot.active(p, pid):
         pilot.start(p, pid)
         _log(p, pid, "Gen thử các cảnh đại diện trước")
-    cap_images, _ = _job_caps(p, pid)
     stale = {sid: r for sid, r in lineage.scan(p.conn, pid).items() if r["image_stale"] and r["image_job_id"]}
     from .shots import needs_own_image
     for scene in _scene_rows(p, pid):
@@ -376,8 +430,7 @@ def _images_phase(p: Pipeline, pid: int, ctx: Context) -> Optional[str]:
         if not needs_own_image(p.conn, scene["id"]):    # v3 multi-shot: later shots of a group start from the group's picture
             continue
         if scene["id"] in stale:
-            if _count(p, "SELECT COUNT(*) FROM jobs WHERE project_id=? AND type='image_gen'", pid) >= cap_images:
-                raise _Stop(BUDGET_NOTE)
+            _job_cap_check(p, pid)
             if _shot_sends(p, scene["id"], "image_gen") >= _shot_cap("image_gen"):      # W7: the shot's own cap
                 _d(p, pid, "image", "warn", f"S{scene['idx']:02d}: ảnh đã cũ nhưng shot đã gửi {_shot_cap('image_gen')} lần — không tự "
                    "làm lại", "shot_cap")
@@ -388,8 +441,7 @@ def _images_phase(p: Pipeline, pid: int, ctx: Context) -> Optional[str]:
             continue
         if _count(p, "SELECT COUNT(*) FROM jobs WHERE scene_id=? AND type='image_gen' AND escalated=1", scene["id"]):
             continue
-        if _count(p, "SELECT COUNT(*) FROM jobs WHERE project_id=? AND type='image_gen'", pid) >= cap_images:
-            raise _Stop(BUDGET_NOTE)
+        _job_cap_check(p, pid)
         _daily_cap(p, ctx)
         p.conn.execute("UPDATE scenes SET state='ready' WHERE id=? AND state='needs_attention'", (scene["id"],))
         _create_job(p, ctx, scene["id"], "image_gen")
@@ -484,7 +536,6 @@ def _stop_if_claude_blocked(failed) -> None:
     # S14.16 (core.money_policy): the money amounts only warn — a 'budget' code is no reason to stop the run any more
 
 
-BUDGET_NOTE = "Đã chạm trần số job (kể cả gen lại) — dừng để tránh tốn credit"
 
 
 def _budget_stop(p: Pipeline, pid: int, kind: str) -> None:
@@ -825,12 +876,12 @@ def _flag_reasons(p: Pipeline, job) -> List[str]:
     return out
 
 
-def _hero_block(p: Pipeline, pid: int, scene_id: int, cap_videos: int) -> Optional[str]:
+def _hero_block(p: Pipeline, pid: int, scene_id: int) -> Optional[str]:
     """S0.14 T4: why the ⭐ shot may not get its second take (None = it may) — the shot's send cap and the project's job cap hold."""
     if _shot_sends(p, scene_id, "video_gen") >= _shot_cap("video_gen"):
         return f"shot đã gửi {_shot_cap('video_gen')} lần"
-    if _video_sends(p, pid) >= cap_videos:
-        return "đã chạm trần số job video của dự án"
+    if _job_cap_reason(p, pid):
+        return "đã chạm trần job do máy tạo của dự án"
     return None
 
 
@@ -858,19 +909,16 @@ def _approve_held(p: Pipeline, pid: int, kind: str, note: str) -> int:
 def _videos_phase(p: Pipeline, pid: int, ctx: Context) -> Optional[str]:
     """Clips for every scene (per-scene model), redo of outdated clips, Claude's video check when switched on."""
     from . import claude_tasks, lineage, regen
-    _, cap_videos = _job_caps(p, pid)
     for r in llm_io.ready_for_video(p, pid):
         if _has(p, r["scene_id"], "video_gen", "'queued','running','succeeded','retryable','failed','pending_review','approved'"):
             continue
         if _count(p, "SELECT COUNT(*) FROM jobs WHERE scene_id=? AND type='video_gen' AND escalated=1", r["scene_id"]):
             continue
-        if _video_sends(p, pid) >= cap_videos:
-            raise _Stop(BUDGET_NOTE)
+        _job_cap_check(p, pid)
         _create_job(p, ctx, r["scene_id"], "video_gen")
     for sid, r in lineage.scan(p.conn, pid).items():
         if r["video_stale"] and r["video_job_id"] and not r["motion_stale"] and r["video_state"] in ("succeeded", "approved"):
-            if _video_sends(p, pid) >= cap_videos:
-                raise _Stop(BUDGET_NOTE)
+            _job_cap_check(p, pid)
             if _shot_sends(p, sid, "video_gen") >= _shot_cap("video_gen"):      # O3/W6: an outdated clip is not remade past the shot's cap
                 _d(p, pid, "video", "warn", f"clip của shot #{sid} đã cũ ({r['video_stale']}) nhưng đã gửi {_shot_cap('video_gen')} lần — "
                    "không tự làm lại, xem ở màn Video", "shot_cap")
@@ -887,7 +935,7 @@ def _videos_phase(p: Pipeline, pid: int, ctx: Context) -> Optional[str]:
             _log(p, pid, f"QC video lỗi ở {len(r['failed'])} clip: {r['failed'][0][1][:120]}")
             _stop_if_claude_blocked(r["failed"])
     from . import hero_takes                                # S0.14 T4: a ⭐ shot gets a second take to choose from (flag hero_takes)
-    for line in hero_takes.step(p, pid, ctx.data_dir, lambda sid: _hero_block(p, pid, sid, cap_videos)):
+    for line in hero_takes.step(p, pid, ctx.data_dir, lambda sid: _hero_block(p, pid, sid)):
         _log(p, pid, line)
     held = _approve_unflagged(p, pid, "video_gen")         # W15: a clip still faulty after its fixes is never approved blindly
     if held and not _active(p, pid, "video_gen"):
@@ -1017,10 +1065,14 @@ def tick(p: Pipeline, project_id: int, ctx: Context) -> str:
     if p.project(project_id)["paused"]:
         _set(p, project_id, note="Đang tạm dừng")
         return RUNNING
+    before = p.origin
+    p.origin = "auto"                                    # S14.16: every job the run makes is machine-made (jobs.origin, _job_caps)
     try:
         return _tick(p, project_id, ctx)
     except _Stopped:                                     # the person stopped / reset the run during this tick: their state stays
         return status(p, project_id)["state"]
+    finally:
+        p.origin = before
 
 
 def _tick(p: Pipeline, project_id: int, ctx: Context) -> str:
@@ -1323,11 +1375,11 @@ def _setcheck_phase(p: Pipeline, pid: int, ctx: Context) -> Optional[str]:
                    + " — xem cờ ⚑ ở storyboard (không tự gen lại)", "set_check_report")
             _log(p, pid, "QC đồng bộ cả bộ ảnh: " + (f"{len(issues)} cảnh lệch, chờ bạn xem ở storyboard" if issues else "ổn"))
             issues = []
-        cap_images, _ = _job_caps(p, pid)
         redone = 0
         for it in issues:
-            if _count(p, "SELECT COUNT(*) FROM jobs WHERE project_id=? AND type='image_gen'", pid) >= cap_images:
-                _d(p, pid, "qc", "warn", f"QC đồng bộ: không gen lại cảnh {it['idx']} — đã chạm trần job ảnh của dự án", "set_check_cap")
+            cap_why = _job_cap_reason(p, pid)
+            if cap_why:
+                _d(p, pid, "qc", "warn", f"QC đồng bộ: không gen lại cảnh {it['idx']} — {cap_why}", "set_check_cap")
                 break
             why = _setcheck_block(p, pid, it, str(getattr(getattr(ctx.image_runner, "provider", None), "name", "") or ""))
             if why:

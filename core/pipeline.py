@@ -79,6 +79,7 @@ class Pipeline:
     def __init__(self, conn: sqlite3.Connection):
         self.conn = conn
         self.actor: Optional[str] = None   # who is working (dashboard user name); stamped on the jobs created through this object
+        self.origin: Optional[str] = None  # 'auto' while the automatic run works (autopilot.tick): stamped on jobs.origin (S14.16 job cap)
         self.user: Optional[dict] = None   # {'email','role'} of the signed-in person (dashboard) -> per-project rights, core/access.py;
         #                                    None = system / background / sign-in off: no limit
 
@@ -245,7 +246,8 @@ class Pipeline:
         self.transition(job_id, JobState.REJECTED, actor="user", note=note or "bỏ duyệt")
         if respawn:  # a person asking for another take: never capped, the automatic count starts again (S14.16)
             self._insert_job(job["project_id"], job["scene_id"], "image_gen", parent_job_id=job_id,
-                             retry_count=job["retry_count"] + 1 if auto else 0, retry_reason=note if fix is None else (fix.strip() or None))
+                             retry_count=job["retry_count"] + 1 if auto else 0, retry_reason=note if fix is None else (fix.strip() or None),
+                             origin="auto" if auto else None)
         return "rejected"
 
     def restart_job(self, job_id: int) -> int:
@@ -320,7 +322,7 @@ class Pipeline:
 
     def _insert_job(self, project_id: int, scene_id: int, job_type: str,
                     parent_job_id: Optional[int] = None, retry_count: int = 0,
-                    retry_reason: Optional[str] = None) -> int:
+                    retry_reason: Optional[str] = None, origin: Optional[str] = None) -> int:
         access.need_edit(self, project_id, "gửi việc (ảnh / video)")
         now = _now()
         who = self.actor
@@ -329,9 +331,9 @@ class Pipeline:
             who = row["created_by"] if row else None
         cur = self.conn.execute(
             "INSERT INTO jobs (project_id, scene_id, type, state, parent_job_id, retry_count,"
-            " retry_reason, created_at, updated_at, created_by) VALUES (?,?,?,?,?,?,?,?,?,?)",
+            " retry_reason, created_at, updated_at, created_by, origin) VALUES (?,?,?,?,?,?,?,?,?,?,?)",
             (project_id, scene_id, job_type, JobState.QUEUED.value, parent_job_id, retry_count,
-             retry_reason, now, now, who))
+             retry_reason, now, now, who, origin or self.origin))
         self._event(cur.lastrowid, None, JobState.QUEUED, "system", retry_reason)
         self.conn.commit()
         return cur.lastrowid
@@ -563,7 +565,7 @@ class Pipeline:
         if close_old is not None:
             self.transition(job_id, close_old, note="superseded by retry")
         return self._insert_job(job["project_id"], job["scene_id"], job["type"],
-                                parent_job_id=job_id, retry_count=next_count, retry_reason=reason)
+                                parent_job_id=job_id, retry_count=next_count, retry_reason=reason, origin="auto" if auto else None)
 
     def auto_limit(self, job: sqlite3.Row) -> int:
         """How many automatic tries this job's shot may have: AUTO_REGEN_LIMIT of its kind, lowered by the project's max_retry_count."""

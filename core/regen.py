@@ -32,4 +32,5 @@ def regenerate_video(pipeline: Pipeline, data_dir: str, job_id: int, note: Optio
         pipeline.reject(job_id, actor, note or "gen lại video", respawn=False)  # raises unless the job is reviewable
     trash.move_to_trash(path, data_dir, job["project_id"], "videos", "gen lại video", job_id, row["idx"])
     return pipeline._insert_job(job["project_id"], job["scene_id"], "video_gen", parent_job_id=job_id,
-                                retry_count=job["retry_count"] + 1 if auto else 0, retry_reason=(fix or "").strip() or None)
+                                retry_count=job["retry_count"] + 1 if auto else 0, retry_reason=(fix or "").strip() or None,
+                                origin="auto" if auto else None)

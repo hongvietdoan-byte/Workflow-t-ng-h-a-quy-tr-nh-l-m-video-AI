@@ -494,7 +494,7 @@ def _migrate(conn: sqlite3.Connection) -> None:
     conn.execute("CREATE INDEX IF NOT EXISTS idx_asset_images_asset ON asset_images(asset_id)")
     conn.execute("CREATE INDEX IF NOT EXISTS idx_assets_game_kind ON assets(game, kind)")
     job_cols ={r["name"] for r in conn.execute("PRAGMA table_info(jobs)")}
-    for col in ("external_id", "result_path", "created_by"):
+    for col in ("external_id", "result_path", "created_by", "origin"):     # origin 'auto' = made by the machine (S14.16 job cap)
         if col not in job_cols:
             conn.execute(f"ALTER TABLE jobs ADD COLUMN {col} TEXT")
     user_cols = {r["name"] for r in conn.execute("PRAGMA table_info(users)")}

@@ -487,6 +487,63 @@ class DisplayEstimatesAreHigh(unittest.TestCase):
         self.assertIn("ước tính dư", cost.format_run_estimate(run))
 
 
+class ProductJobCap(unittest.TestCase):
+    """Người dùng duyệt 04/10: the automatic run's job cap of a project counts only MACHINE-made jobs, against the product:
+    image shots × (1 + AUTO_REGEN_LIMIT ảnh) + video shots × (1 + AUTO_REGEN_LIMIT video). A person's clicks never use it up."""
+
+    def setUp(self):
+        from core import autopilot
+        self.ap = autopilot
+        self.p = Pipeline(connect())
+        self.pid = self.p.create_project("cap", "human_qc", 0.85, 9)
+        self.sids = [self.p.create_scene(self.pid, i) for i in (1, 2)]
+        autopilot.start(self.p, self.pid)
+
+    def test_the_cap_comes_from_the_product_and_the_limits(self):
+        from core.pipeline import AUTO_REGEN_LIMIT
+        self.assertEqual(self.ap._job_caps(self.p, self.pid),
+                         2 * (1 + AUTO_REGEN_LIMIT["image_gen"]) + 2 * (1 + AUTO_REGEN_LIMIT["video_gen"]))
+
+    def test_many_clicks_by_a_person_do_not_stop_the_run(self):
+        for _ in range(30):
+            job = self.p.create_job(self.sids[0])                                   # a person's button: origin not 'auto'
+            self.p.start(job)
+            self.p.succeed(job)
+            self.p.reject(job, "user", "lại")
+        self.ap._job_cap_check(self.p, self.pid)                                    # no _Stop
+
+    def test_a_loop_of_machine_jobs_hits_the_cap_and_stops_with_numbers(self):
+        cap = self.ap._job_caps(self.p, self.pid)
+        self.p.origin = "auto"
+        try:
+            for _ in range(cap):
+                self.p.create_job(self.sids[0])
+        finally:
+            self.p.origin = None
+        with self.assertRaises(self.ap._Stop) as e:
+            self.ap._job_cap_check(self.p, self.pid)
+        text = str(e.exception)
+        self.assertIn(f"{cap} job do máy tạo", text)
+        self.assertIn(f"trần {cap}", text)
+        self.assertIn("'cap'", text)
+        self.assertIn("Tiếp tục", text)
+        self.ap._set(self.p, self.pid, self.ap.STOPPED, text)
+        self.assertTrue(any("trần job do máy" in i["text"] for i in inbox.items(self.p.conn, "a@x")))
+        self.ap.resume(self.p, self.pid)                                            # the person looked: counted from now
+        self.ap._job_cap_check(self.p, self.pid)
+
+    def test_the_run_marks_its_jobs_as_machine_made(self):
+        from core.pipeline import Pipeline as P
+        self.p.origin = "auto"
+        try:
+            job = self.p.create_job(self.sids[1])
+        finally:
+            self.p.origin = None
+        self.assertEqual(self.p.job(job)["origin"], "auto")
+        self.assertIsNone(self.p.job(self.p.create_job(self.sids[1]))["origin"])
+        self.assertTrue(hasattr(P(self.p.conn), "origin"))
+
+
 class ResetWithPlan(unittest.TestCase):
     OWNER = {"email": "o@x", "role": "owner"}
 

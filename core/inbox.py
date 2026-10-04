@@ -63,6 +63,9 @@ def items(conn, email: str, is_owner: bool = True, can_money: bool = True, auth_
                     screen, "wait")
         if row["autopilot_state"] in WAITING and row["autopilot_note"]:
             add("Chạy tự động", f"Đang chờ bạn: {row['autopilot_note'][:160]}", "script", "wait")
+        if row["autopilot_state"] == "stopped" and "trần job do máy" in (row["autopilot_note"] or ""):
+            # S14.16: the product job cap stopped the run (autopilot._job_cap_reason) — only something abnormal reaches it
+            add("Chạy tự động", f"Cần bạn xem: {(row['autopilot_note'] or '')[:220]}", "script", "bad")
         if row["autopilot_state"] == "error":
             add("Chạy tự động", f"Chạy tự động báo lỗi: {(row['autopilot_note'] or '')[:160]}", "script", "bad")
         finished = row["autopilot_state"] == "done" or conn.execute(
