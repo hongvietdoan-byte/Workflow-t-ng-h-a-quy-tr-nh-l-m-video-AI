@@ -182,7 +182,24 @@ def identity_pictures(conn, project_id: int, rows: List[Dict], room: int) -> Lis
         ref = (links.get(n) or {}).get("ref")
         if ref and os.path.exists(ref.get("path", "")):
             out.append((n, ref["path"]))
+    _say_speakers_without_picture(conn, project_id, rows, {n for n, _ in out})
     return out[:max(room, 0)]
+
+
+def _say_speakers_without_picture(conn, project_id: int, rows: List[Dict], pictured: set) -> None:
+    """S14.4 C1b: a SPEAKER of these shots with no identity picture (Kho) is said (diag) — Seedance cannot tell whose mouth moves."""
+    from . import dialogue, diag
+    who = []
+    for r in rows:
+        for s, _ in dialogue.scene_lines(r.get("data") or {}):
+            s = str(s).strip()
+            if s and not dialogue.is_non_speaker(s) and s not in pictured and s.upper() not in {p.upper() for p in pictured} \
+                    and s not in who:
+                who.append(s)
+    if who:
+        diag.record(conn, "video", "warn", f"Người nói chưa có ảnh định danh: {', '.join(who)} — model không biết ai mở miệng, khớp môi có thể "
+                    "sai người. Cách xử lý: Bước 1 → Character Bible: gắn ảnh Kho cho nhân vật này rồi gen lại shot.",
+                    "speaker_no_identity", project_id)
 
 
 def reads_seconds(model: Optional[str]) -> bool:

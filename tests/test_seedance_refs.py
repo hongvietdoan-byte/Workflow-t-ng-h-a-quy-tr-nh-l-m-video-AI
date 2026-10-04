@@ -372,6 +372,21 @@ class PromptLessonsTests(unittest.TestCase):
         text = sr.prompt([("a", 2), ("b", 2)], [("KENTA", "k.png"), ("KELLY", "l.png")])
         self.assertLess(text.index("Image 3 is KENTA"), text.index("Image 4 is KELLY"))
 
+    def test_a_speaker_without_an_identity_picture_is_said(self):
+        """S14.4 C1b (04/10): a speaker with no library picture was left out of the identity list silently → the mouth of the wrong
+        person could move."""
+        from core import seedance_refs as sr
+        from core.db import connect
+        from core.pipeline import Pipeline
+        p = Pipeline(connect())
+        pid = p.create_project("ids")
+        rows = [{"data": {"characters": ["KELLY", "MAXIM"], "dialogue": [{"speaker": "MAXIM", "text": "Đi thôi"}]}}]
+        self.assertEqual(sr.identity_pictures(p.conn, pid, rows, 5), [])
+        notes = [r["message"] for r in p.conn.execute("SELECT message FROM diag_events WHERE code='speaker_no_identity'")]
+        self.assertEqual(len(notes), 1)
+        self.assertIn("MAXIM", notes[0])
+        self.assertNotIn("KELLY", notes[0])                                    # only who speaks
+
     def test_strong_emotion_is_softened_and_the_eyes_guarded(self):
         from core import seedance_refs as sr
         d = {"size": "CU", "performance": {"intensity": 5, "face": "extremely furious snarl", "eyes": "wide, ecstatic"}, "action": "x"}
