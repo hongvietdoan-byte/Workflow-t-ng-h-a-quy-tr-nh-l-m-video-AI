@@ -279,6 +279,134 @@ class VoiceCheckTests(unittest.TestCase):
         self.assertIn("nghi lỗi", warn.call_args[0][4])       # _d(p, pid, stage, severity, message, code)
 
 
+class VoiceRedoTests(unittest.TestCase):
+    """S14.3 B1b (T7): the 🔁 redo of flagged voices deleted the finished line BEFORE the new one existed (a failed / refused redo lost
+    the voice) and had no count of its own (MAX_RESENDS is for provider errors; the person's button skipped it)."""
+
+    def setUp(self):
+        from core import audio_lib, voice
+        from core.db import connect
+        from core.pipeline import Pipeline
+        self.p = Pipeline(connect())
+        self.pid = self.p.create_project("redo")
+        sid = self.p.create_scene(self.pid, 1, "s")
+        self.p.conn.execute("UPDATE scenes SET data=? WHERE id=?",
+                            (json.dumps({"shot_no": 1, "dialogue": [{"speaker": "KELLY", "text": "Đi thôi."}]}, ensure_ascii=False), sid))
+        self.p.conn.execute("INSERT INTO characters (project_id, name, description) VALUES (?, 'KELLY', 'x')", (self.pid,))
+        self.p.conn.commit()
+        voice.set_profile(self.p.conn, self.pid, "KELLY", {"voice_id": 71, "voice_name": "Kelly"})
+        self.data = tempfile.mkdtemp()
+        self.dir = audio_lib.assets_dir(self.data, self.pid)
+        self.audio = self.Audio()
+        voice.generate(self.p.conn, self.pid, self.audio, self.data, ledger=False)
+        audio_lib.refresh(self.audio, self.dir)
+        self.first = self.lines()[0]["file"]
+        self.flag()
+
+    def tearDown(self):
+        shutil.rmtree(self.data, ignore_errors=True)
+
+    class Audio(music.MockAudioProvider):
+        def __init__(self):
+            super().__init__()
+            self.calls, self.fail_send, self.fail_make = 0, False, False
+
+        def generate_tts(self, *a, **k):
+            from core.providers import ProviderError
+            self.calls += 1
+            if self.fail_send:
+                raise ProviderError("HTTP 400", code="bad_request")
+            return super().generate_tts(*a, **k)
+
+        def status(self, category, asset_id):
+            from core.adapters.clipai_audio import AudioStatus
+            if self.fail_make:
+                return AudioStatus("failed", None, None, "voice failed")
+            return super().status(category, asset_id)
+
+    def lines(self):
+        from core import audio_lib
+        return [e for e in audio_lib.load(self.dir) if e["kind"] == "tts" and e.get("scene_id")]
+
+    def flag(self):
+        from core import audio_lib
+        items = audio_lib.load(self.dir)
+        for e in items:
+            if e["kind"] == "tts" and e.get("state") == "succeeded":
+                e["check"] = {"ok": False, "problems": ["quá ngắn"]}
+        audio_lib._save(self.dir, items)
+
+    def test_a_failed_redo_keeps_the_old_voice(self):
+        self.audio.fail_send = True
+        voice_check.redo(self.p.conn, self.pid, self.audio, self.data)
+        lines = self.lines()
+        self.assertEqual([(e["state"], e["file"]) for e in lines], [("succeeded", self.first)])   # used to be gone
+        self.assertTrue(os.path.exists(os.path.join(self.dir, self.first)))
+        self.assertIn("HTTP 400", lines[0].get("redo_error") or "")
+
+    def test_the_old_voice_stays_until_the_new_one_is_made(self):
+        from core import audio_lib, voice
+        self.audio.fail_make = True
+        r = voice_check.redo(self.p.conn, self.pid, self.audio, self.data)
+        self.assertEqual(r["sent"], 1)
+        self.assertTrue(os.path.exists(os.path.join(self.dir, self.first)))                 # the new one is still being made
+        audio_lib.refresh(self.audio, self.dir)                                             # … and fails at the provider
+        voice.generate(self.p.conn, self.pid, self.audio, self.data, ledger=False)          # any later pass settles it
+        self.assertEqual([(e["state"], e["file"]) for e in self.lines()], [("succeeded", self.first)])
+        self.audio.fail_make = False
+        self.flag()
+        voice_check.redo(self.p.conn, self.pid, self.audio, self.data)
+        audio_lib.refresh(self.audio, self.dir)
+        voice_check.settle_redos(self.dir)
+        lines = self.lines()
+        self.assertEqual(len(lines), 1)                                                     # the new voice replaced the old one
+        self.assertNotEqual(lines[0]["file"], self.first)
+        self.assertFalse(os.path.exists(os.path.join(self.dir, self.first)))
+        self.assertEqual(lines[0]["redos"], 2)
+
+    def superseded(self):
+        from core import audio_lib
+        items = audio_lib.load(self.dir)
+        items[0].update(state="superseded", use=True, start=0.0, duration_ms=1500)
+        audio_lib._save(self.dir, items)
+        return items
+
+    def test_an_old_voice_waiting_for_its_redo_is_not_a_flagged_line(self):
+        self.superseded()
+        self.assertEqual(voice_check.bad_lines(self.data, self.pid), [])          # the 🔁 button and "X/Y" skip it
+        self.assertEqual(voice_check.redo_counts(self.data, self.pid), (0, 0))
+
+    def test_the_final_check_ignores_an_old_voice_waiting_for_its_redo(self):
+        from core import final_qc
+        items = self.superseded() + [{"kind": "sound_effect", "use": True, "label": "AI: boom", "anchor_idx": 1, "start": 0.5,
+                                      "duration_ms": 500, "state": "succeeded"}]
+        self.assertEqual([i["code"] for i in final_qc.check_effects(items)], [])
+
+    def test_the_mix_list_hides_an_old_voice_waiting_for_its_redo(self):
+        from core import audio_lib
+        items = self.superseded()
+        self.assertEqual(audio_lib.mix_rows(items), [])
+        src = open(os.path.join(os.path.dirname(__file__), "..", "dashboard", "steps", "step5.py"), encoding="utf-8").read()
+        self.assertIn("audio_lib.mix_rows(items)", src)                         # the Bước 5 list (with its Xóa button) uses it
+
+    def test_the_redo_count_is_kept_per_line_and_capped(self):
+        from core import audio_lib
+        for n in range(voice_check.MAX_REDOS):
+            r = voice_check.redo(self.p.conn, self.pid, self.audio, self.data)
+            self.assertEqual(r["sent"], 1)
+            audio_lib.refresh(self.audio, self.dir)
+            voice_check.settle_redos(self.dir)
+            self.assertEqual(self.lines()[0]["redos"], n + 1)
+            self.flag()
+        self.assertEqual(voice_check.redo_counts(self.data, self.pid), (voice_check.MAX_REDOS, voice_check.MAX_REDOS))
+        calls = self.audio.calls
+        r = voice_check.redo(self.p.conn, self.pid, self.audio, self.data)
+        self.assertEqual((r["sent"], self.audio.calls), (0, calls))                        # refused: nothing paid
+        self.assertEqual(len(r["refused"]), 1)
+        self.assertIn(f"{voice_check.MAX_REDOS} lần", r["refused"][0])
+        self.assertEqual(self.lines()[0]["state"], "succeeded")                             # the old voice is still there
+
+
 class PreferredVietnameseVoiceTests(unittest.TestCase):
     """User choice 2026-09-24: the 4 team clones with the 'VN' suffix first (2 male, 2 female) — the API gives them no language."""
     OFFICIAL = [{"id": 30002, "name": "Xinghe Jiang", "languages": ["en", "vi"], "labels": {"gender": "male"}},

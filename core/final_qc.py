@@ -66,7 +66,8 @@ def check_effects(items: Sequence[Dict]) -> List[Dict]:
     """AI effects without a shot anchor (made before the anchor existed) may sit at an old second; effects over a spoken line."""
     out = []
     speech = [(e["start"], e["start"] + (e.get("duration_ms") or 0) / 1000.0) for e in items
-              if e.get("kind") == "tts" and e.get("use") and e.get("duration_ms")]
+              if e.get("kind") == "tts" and e.get("use") and e.get("duration_ms") and e.get("state") != "superseded"]
+    # (not an old voice waiting for its redo — voice_check 'superseded', like the other tts readers)
     for e in items:
         if e.get("kind") != "sound_effect" or not e.get("use"):
             continue

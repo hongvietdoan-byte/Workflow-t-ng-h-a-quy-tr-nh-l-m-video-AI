@@ -23,7 +23,7 @@ from dataclasses import dataclass
 from typing import Callable, Dict, List, Optional
 
 from . import audio_lib, previz, sfx_plan, sound_lib, subtitles, dialogue, diag, ffmpeg_studio, final_cut, llm_io, llm_runner, music, perf
-from .pipeline import Pipeline
+from .pipeline import Pipeline, PipelinePaused
 
 RUNNING, WAITING, STOPPED, ATTENTION, DONE, ERROR = "running", "waiting", "stopped", "needs_attention", "done", "error"
 QUEUED = "queued"   # approved, waiting for a free slot (see Manager.max_parallel)
@@ -80,6 +80,25 @@ def _set(p: Pipeline, pid: int, state: Optional[str] = None, note: Optional[str]
         p.conn.execute("UPDATE projects SET autopilot_note=? WHERE id=?", (note, pid))
     p.conn.execute("UPDATE projects SET autopilot_beat=? WHERE id=?", (time.time(), pid))
     p.conn.commit()
+
+
+def _tick_set(p: Pipeline, pid: int, state: Optional[str] = None, note: Optional[str] = None) -> bool:
+    """A tick's own write: only while the run is still RUNNING in the database (one conditional UPDATE, so a stop() / reset() made
+    by the person during the tick is never overwritten — S14.3 B1b). False = not written (the person stopped it meanwhile)."""
+    cur = p.conn.execute("UPDATE projects SET autopilot_state=COALESCE(?, autopilot_state), autopilot_note=COALESCE(?, autopilot_note),"
+                         " autopilot_beat=? WHERE id=? AND autopilot_state=?", (state, note, time.time(), pid, RUNNING))
+    p.conn.commit()
+    return cur.rowcount > 0
+
+
+class _Stopped(Exception):
+    """The run is no longer RUNNING (the person stopped / reset it during this tick): nothing more is sent or written."""
+
+
+def _still_running(p: Pipeline, pid: int) -> None:
+    """Checked right before a paid send / the delivery: stop() does not wait for the running tick (S14.3 B1b)."""
+    if status(p, pid)["state"] != RUNNING:
+        raise _Stopped()
 
 
 def _d(p: Pipeline, pid: int, stage: str, severity: str, message: str, code: Optional[str] = None) -> None:
@@ -371,9 +390,10 @@ def _images_phase(p: Pipeline, pid: int, ctx: Context) -> Optional[str]:
             continue
         if _count(p, "SELECT COUNT(*) FROM jobs WHERE project_id=? AND type='image_gen'", pid) >= cap_images:
             raise _Stop(BUDGET_NOTE)
-        _daily_cap(p)
+        _daily_cap(p, ctx)
         p.conn.execute("UPDATE scenes SET state='ready' WHERE id=? AND state='needs_attention'", (scene["id"],))
-        p.create_job(scene["id"], "image_gen")
+        _create_job(p, ctx, scene["id"], "image_gen")
+    _still_running(p, pid)
     ctx.image_runner.submit_pending(pid)
     _budget_stop(p, pid, "image_gen")
     ctx.image_runner.poll_once(pid)
@@ -422,7 +442,7 @@ def serve_waiting(p: Pipeline, pid: int, ctx: Context) -> bool:
     if not (_count(p, "SELECT COUNT(*) FROM jobs WHERE project_id=? AND type='image_gen' AND state IN ('queued','running')", pid)):
         return False
     try:
-        _daily_cap(p)
+        _daily_cap(p)                     # review B1b: the queued redraw itself is not counted here (cap 1, 0 sent → it goes)
         sent = ctx.image_runner.submit_pending(pid)
         _budget_stop(p, pid, "image_gen")
         ctx.image_runner.poll_once(pid)
@@ -439,19 +459,28 @@ class _Stop(Exception):
     pass
 
 
-_LIMIT_HINTS = ("hit your session limit", "hit your usage limit", "usage limit", "rate limit", "session limit",
-                "hết ngân sách claude")
+_LOGIN_CODES = ("auth", "config")
+_LIMIT_CODES = ("usage_limit", "rate_limit")
 
 
 def _stop_if_claude_blocked(failed) -> None:
-    """Claude cannot answer at all (login refused, or the plan's usage limit reached): stop with a clear note instead of asking it
-    again on every tick (a real run asked 1,500+ times while the limit lasted). Resume once Claude is available again."""
-    messages = [str(m) for _, m in failed]
-    if any("API key" in m or "auth" in m.lower() for m in messages):
-        raise _Stop("Claude từ chối đăng nhập / khóa API")
-    hit = next((m for m in messages if any(h in m.lower() for h in _LIMIT_HINTS)), None)
+    """Claude cannot answer at all (login refused / not set up, the plan's usage limit reached, out of credit, a money lock): stop
+    with a clear note instead of asking it again on every tick (a real run asked 1,500+ times while the limit lasted). Resume once
+    Claude is available again. Read from LlmError.code (the failed texts are llm_runner.FailText) — never from words in the text
+    (S14.3 B1b: a QC note mentioning 'author' or a 'rate limit' sign stopped the run)."""
+    coded = [(getattr(m, "code", None), str(m)) for _, m in failed]
+    hit = next((m for c, m in coded if c in _LOGIN_CODES), None)
+    if hit:
+        raise _Stop("Claude từ chối đăng nhập / khóa API hoặc chưa cấu hình (" + hit[-80:] + ")")
+    hit = next((m for c, m in coded if c in _LIMIT_CODES), None)
     if hit:
         raise _Stop("Claude đã hết hạn mức sử dụng — bấm Tiếp tục khi hạn mức được làm mới (" + hit[-80:] + ")")
+    hit = next((m for c, m in coded if c == "out_of_credit"), None)
+    if hit:
+        raise _Stop("Hết tiền trên tài khoản Anthropic — nạp thêm rồi bấm Tiếp tục (" + hit[-80:] + ")")
+    hit = next((m for c, m in coded if c == "budget"), None)
+    if hit:
+        raise _Stop("Claude bị chặn vì ngân sách — nâng trần rồi bấm Tiếp tục (" + hit[-120:] + ")")
 
 
 BUDGET_NOTE = "Đã chạm trần số job (kể cả gen lại) — dừng để tránh tốn credit"
@@ -468,13 +497,42 @@ def _budget_stop(p: Pipeline, pid: int, kind: str) -> None:
                          (pid, "image" if kind == "image_gen" else "video")).fetchone()
     if row is not None:
         raise _Stop("Dừng vì ngân sách: " + row["message"])
-DAILY_NOTE = "Đã chạm trần job trong ngày (AUTOPILOT_DAILY_JOBS) — dừng; bấm Tiếp tục ngày mai hoặc nâng trần"
+DAILY_NOTE = ("Đã chạm trần lượt gửi ảnh/video thật trong ngày (AUTOPILOT_DAILY_JOBS) — dừng; bấm Tiếp tục ngày mai hoặc nâng trần")
 
 
-def _daily_cap(p: Pipeline) -> None:
+def _real(runner) -> bool:
+    name = str(getattr(getattr(runner, "provider", None), "name", "") or "")
+    return bool(name) and not name.startswith("mock")
+
+
+def _daily_cap(p: Pipeline, ctx: Optional[Context] = None) -> None:
+    """S14.1 (mục 3.1): the automatic run's daily cap counts the REAL paid sends of the day (perf.sends_today: ledger rows of any
+    project, button or run; simulated mock* providers cost nothing) + the jobs already queued that this run's (real) runners will
+    send — counted only when a NEW job is about to be made (ctx given), only in projects whose run is going (running, not paused) and
+    not yet sent (no external_id: a sent job is already a ledger row). AUTOPILOT_DAILY_JOBS=0 = off. Only the automatic run is
+    capped — a person's button is not."""
     limit = perf.daily_limit()
-    if limit and perf.jobs_today(p.conn) >= limit:
+    if not limit:
+        return
+    queued = 0
+    if ctx is not None:
+        kinds = [k for k, r in (("image_gen", ctx.image_runner), ("video_gen", ctx.video_runner)) if _real(r)]
+        if kinds:
+            queued = _count(p, "SELECT COUNT(*) FROM jobs j JOIN projects pr ON pr.id=j.project_id WHERE j.state='queued'"
+                               " AND (j.external_id IS NULL OR j.external_id='') AND pr.autopilot_state=? AND COALESCE(pr.paused, 0)=0"
+                               " AND j.type IN (" + ",".join("?" * len(kinds)) + ")", RUNNING, *kinds)
+    if perf.sends_today(p.conn) + queued >= limit:
         raise _Stop(DAILY_NOTE)
+
+
+def _create_job(p: Pipeline, ctx: Context, scene_id: int, kind: str) -> int:
+    """A new picture / clip job of the automatic run, the daily cap checked and the job made under budget.SPEND_LOCK (two runs cannot
+    both take the last place of the day)."""
+    from . import budget
+    p.conn.commit()        # never wait for the lock inside an open write transaction: the holder may need the database (deadlock)
+    with budget.SPEND_LOCK:
+        _daily_cap(p, ctx)
+        return p.create_job(scene_id, kind)
 
 
 def _storyboard_phase(p: Pipeline, pid: int, ctx: Context) -> Optional[str]:
@@ -546,6 +604,7 @@ def _lipsync_phase(p: Pipeline, pid: int, ctx: Context) -> Optional[str]:
         return None
     if not any(r["method"] == "post" for r in lipsync.plan(p.conn, pid)):
         return None
+    _still_running(p, pid)
     c = lipsync.post_tick(p, pid, ctx.data_dir, provider, ffmpeg_studio.find_ffmpeg(), log=lambda m: _log(p, pid, m))
     return f"Khớp môi: còn {c['running'] + c['sent']} clip" if c["running"] or c["sent"] else None
 
@@ -782,8 +841,7 @@ def _videos_phase(p: Pipeline, pid: int, ctx: Context) -> Optional[str]:
             continue
         if _video_sends(p, pid) >= cap_videos:
             raise _Stop(BUDGET_NOTE)
-        _daily_cap(p)
-        p.create_job(r["scene_id"], "video_gen")
+        _create_job(p, ctx, r["scene_id"], "video_gen")
     for sid, r in lineage.scan(p.conn, pid).items():
         if r["video_stale"] and r["video_job_id"] and not r["motion_stale"] and r["video_state"] in ("succeeded", "approved"):
             if _video_sends(p, pid) >= cap_videos:
@@ -793,6 +851,7 @@ def _videos_phase(p: Pipeline, pid: int, ctx: Context) -> Optional[str]:
                    "không tự làm lại, xem ở màn Video", "shot_cap")
                 continue
             regen.regenerate_video(p, ctx.data_dir, r["video_job_id"], f"làm lại vì {r['video_stale']}")
+    _still_running(p, pid)
     ctx.video_runner.submit_pending(pid)
     _budget_stop(p, pid, "video_gen")
     ctx.video_runner.poll_once(pid)
@@ -922,7 +981,6 @@ def _sfx_phase(p: Pipeline, pid: int, ctx: Context) -> Optional[str]:
 
 def tick(p: Pipeline, project_id: int, ctx: Context) -> str:
     """One step of the run. Returns the resulting state."""
-    from . import delivery
     st = status(p, project_id)["state"]
     if st != RUNNING:
         return st
@@ -935,6 +993,14 @@ def tick(p: Pipeline, project_id: int, ctx: Context) -> str:
         _set(p, project_id, note="Đang tạm dừng")
         return RUNNING
     try:
+        return _tick(p, project_id, ctx)
+    except _Stopped:                                     # the person stopped / reset the run during this tick: their state stays
+        return status(p, project_id)["state"]
+
+
+def _tick(p: Pipeline, project_id: int, ctx: Context) -> str:
+    from . import delivery
+    try:
         phases = [("director", _director_phase), ("storycheck", _story_check_phase), ("voicefirst", _voice_first_phase), ("previz", _previz_phase), ("plates", _plates_phase), ("images", _images_phase), ("setcheck", _setcheck_phase),
                   ("endframes", _end_frame_phase), ("storyboard", _storyboard_phase), ("motion", _motion_phase), ("voice", _voice_phase), ("videos", _videos_phase), ("music", _music_phase),
                   ("platefix", _plate_fallback_phase), ("lipsync", _lipsync_phase), ("sfx", _sfx_phase)]
@@ -945,13 +1011,16 @@ def tick(p: Pipeline, project_id: int, ctx: Context) -> str:
                 idle = not (_active(p, project_id, "image_gen") or _active(p, project_id, "video_gen"))
                 if blocked and idle and name in ("images", "videos"):
                     note = "Cần bạn xử lý: " + "; ".join(blocked)
-                    _set(p, project_id, ATTENTION, note)
+                    if not _tick_set(p, project_id, ATTENTION, note):
+                        raise _Stopped()
                     _log(p, project_id, note)
                     _d(p, project_id, "autopilot", "warn", note, "needs_attention")
                     return ATTENTION
-                _set(p, project_id, note=f"{PHASE_LABELS[name]} — {progress_note}")
+                if not _tick_set(p, project_id, note=f"{PHASE_LABELS[name]} — {progress_note}"):
+                    raise _Stopped()
                 _log(p, project_id, f"{PHASE_LABELS[name]}: {progress_note}")
                 return RUNNING
+        _still_running(p, project_id)
         res = delivery.deliver(p, project_id, ctx.data_dir, ctx.llm, render_fn=ctx.render or default_render, subtitle_fn=ctx.subtitle)
         out = res["final"]
         names = {"subtitle": "phụ đề", "endcard": "card cuối", "ailabel": "nhãn AI", "export": "bản xuất"}
@@ -965,26 +1034,35 @@ def tick(p: Pipeline, project_id: int, ctx: Context) -> str:
             from . import final_qc
             note = f"Bản dựng có {qc['blocks']} lỗi chặn — xem màn Bản giao · Kiểm bản dựng: " + "; ".join(
                 i["msg"] for i in qc["issues"] if i["level"] == "block")[:300]
-            _set(p, project_id, ATTENTION, note)
+            if not _tick_set(p, project_id, ATTENTION, note):
+                raise _Stopped()
             _log(p, project_id, final_qc.summary(qc)[:600])
             _restore_cfg(p, project_id)
             return ATTENTION
-        _set(p, project_id, DONE, f"Xong: {out}{extra}")
+        if not _tick_set(p, project_id, DONE, f"Xong: {out}{extra}"):
+            raise _Stopped()
         _log(p, project_id, "Đã ghép video cuối")
         _restore_cfg(p, project_id)
         return DONE
     except _Wait as e:
+        if not _tick_set(p, project_id, WAITING, str(e)):
+            raise _Stopped()
         set_gates(p, project_id, {"waiting_for": e.gate})
-        _set(p, project_id, WAITING, str(e))
         _log(p, project_id, str(e))
         return WAITING
+    except PipelinePaused as e:                          # the money gate saw the project paused mid-tick (not a ValueError): wait
+        if not _tick_set(p, project_id, note=f"Đang tạm dừng — {e}"):
+            raise _Stopped()
+        return RUNNING
     except _Stop as e:
-        _set(p, project_id, STOPPED, str(e))
+        if not _tick_set(p, project_id, STOPPED, str(e)):
+            raise _Stopped()
         _log(p, project_id, str(e))
         _d(p, project_id, "autopilot", "warn", str(e), "stopped")
         return STOPPED
     except (llm_runner.LlmError, ValueError, OSError, ffmpeg_studio.FFmpegError, ffmpeg_studio.FFmpegNotFound) as e:
-        _set(p, project_id, ERROR, f"Lỗi: {e}")
+        if not _tick_set(p, project_id, ERROR, f"Lỗi: {e}"):
+            raise _Stopped()
         _log(p, project_id, f"Lỗi: {str(e)[:200]}")
         render_error = isinstance(e, (ffmpeg_studio.FFmpegError, ffmpeg_studio.FFmpegNotFound))
         _d(p, project_id, "render" if render_error else "autopilot", "error", f"{type(e).__name__}: {e}", "error")
@@ -1118,7 +1196,9 @@ class Manager:
             try:
                 state = tick(p, project_id, ctx)
             except Exception as e:  # noqa: BLE001
-                _set(p, project_id, ERROR, f"Lỗi không lường trước: {e}")
+                if not _tick_set(p, project_id, ERROR, f"Lỗi không lường trước: {e}"):    # a stop made meanwhile stays (review B1b)
+                    _d(p, project_id, "autopilot", "warn", f"lỗi sau khi đã dừng {type(e).__name__}: {e}", "unexpected")
+                    return
                 _d(p, project_id, "autopilot", "error", f"lỗi không lường trước {type(e).__name__}: {e}", "unexpected")
                 _log(p, project_id, f"Lỗi không lường trước: {str(e)[:200]}")
                 return
@@ -1247,7 +1327,7 @@ def _setcheck_phase(p: Pipeline, pid: int, ctx: Context) -> Optional[str]:
 def _setcheck_block(p: Pipeline, pid: int, issue: Dict, provider_name: str = "") -> Optional[str]:
     """Why a set-check outlier must not be redrawn automatically (setcheck_autofix): no English fix sentence (the same input again),
     the shot's picture already sent SHOT_SENDS times (luật 6: ≤ 2 regenerations), or the spending limit would refuse it."""
-    from . import budget, image_models
+    from . import image_models, spend_gate
     if not (issue.get("fix") or "").strip():
         return "QC không nêu câu sửa — gen lại sẽ gửi y hệt đầu vào"
     row = p.conn.execute("SELECT id FROM scenes WHERE project_id=? AND idx=?", (pid, issue.get("idx"))).fetchone()
@@ -1255,7 +1335,10 @@ def _setcheck_block(p: Pipeline, pid: int, issue: Dict, provider_name: str = "")
         return "không có cảnh này"
     if _shot_sends(p, row["id"], "image_gen") >= SHOT_SENDS:
         return f"ảnh của shot đã gửi {SHOT_SENDS} lần (tối đa 2 lần gen lại)"
-    over = budget.check_image(p.conn, provider_name or "deepix", image_models.of_project(p.project(pid)))
+    # S14.1 A1b: the money gate's checks (trial caps + the project's locked 'images' budget, an unpriced model refused when locked),
+    # asked before queueing the redraw; the real send still goes through ImageRunner's own gate
+    over = spend_gate.reason(p.conn, "image", provider_name or "deepix", project_id=pid, model=image_models.of_project(p.project(pid)),
+                             units=1, budget_stage="images")
     return f"ngân sách: {over}" if over else None
 
 

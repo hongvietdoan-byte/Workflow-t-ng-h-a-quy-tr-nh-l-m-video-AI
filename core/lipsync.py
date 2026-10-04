@@ -16,6 +16,7 @@ Both need the shot's own audio: `shot_audio` cuts it from the voiced lines, plac
 import json
 import os
 import subprocess
+import time
 from typing import Dict, List, Optional
 
 from . import audio_lib, dialogue, features, voice
@@ -23,6 +24,9 @@ from . import audio_lib, dialogue, features, voice
 FEATURE = "lip_sync"
 _NO_FACE = ("EWS", "GAME_TPS")
 _CLOSE = ("ECU", "CU", "MCU")
+# How long a sent post lip sync may stay 'running' before it is given up (the clip keeps its mouth, said): sync.so answers in minutes;
+# a task 'COMPLETED' without an outputUrl is reported as running by the adapter and used to be polled forever (S14.3 B1b).
+RUNNING_LIMIT_S = float(os.environ.get("LIPSYNC_RUNNING_LIMIT_MIN", "60")) * 60
 
 
 def enabled() -> bool:
@@ -162,10 +166,10 @@ def plan(conn, pid: int) -> List[Dict]:
 # ---- post lip sync on finished clips ------------------------------------------------------------------------------------------
 def post_tick(p, pid: int, data_dir: str, provider, ffmpeg: str, log=lambda m: None) -> Dict[str, int]:
     """Send every finished clip of a "post" shot (its voice is ready) to the lip-sync provider once, poll, and put the synced clip in
-    place of the clip (the original kept as <idx>_prelipsync.mp4). Ledger kind video, provider name, seconds; the test spending limit
-    is checked first (core.budget)."""
-    from . import budget, diag
-    from .cost import record_usage
+    place of the clip (the original kept as <idx>_prelipsync.mp4). Each send goes through the money gate (core.spend_gate: paused
+    project → PipelinePaused, trial caps, the project's locked 'videos' budget; ledger kind video, label 'lipsync', seconds); a task
+    still 'running' after RUNNING_LIMIT_S is given up with a note."""
+    from . import diag, spend_gate
     from .providers import ProviderError
     counts = {"sent": 0, "done": 0, "failed": 0, "running": 0}
     idx = index(data_dir, pid)
@@ -185,6 +189,19 @@ def post_tick(p, pid: int, data_dir: str, provider, ffmpeg: str, log=lambda m: N
         if rec.get("state") == "done" and rec.get("job_id") == job["id"]:
             continue
         if rec.get("state") == "running" and rec.get("job_id") == job["id"]:
+            sent_at = rec.get("sent_at")
+            if not isinstance(sent_at, (int, float)):            # a record from before the time limit: its clock starts now
+                mark(data_dir, pid, s["id"], sent_at=time.time())
+            elif time.time() - sent_at > RUNNING_LIMIT_S:
+                mins = int(RUNNING_LIMIT_S // 60)
+                msg = (f"khớp môi shot {s['idx']}: quá hạn chờ {mins} phút mà sync.so chưa trả kết quả (task {rec.get('task')}; "
+                       "trạng thái COMPLETED thiếu outputUrl cũng tính là đang chờ) — bỏ, giữ clip gốc; kiểm task trên sync.so, "
+                       f"đổi hạn bằng LIPSYNC_RUNNING_LIMIT_MIN")
+                mark(data_dir, pid, s["id"], state="failed", error=msg)
+                say("error", "lipsync_timeout", msg, s["id"], job["id"])
+                log(f"Khớp môi shot {s['idx']}: quá hạn chờ — giữ clip gốc")
+                counts["failed"] += 1
+                continue
             try:
                 st = provider.status(rec["task"])
             except ProviderError as e:                            # one network error must not put the whole run in ERROR
@@ -238,14 +255,19 @@ def post_tick(p, pid: int, data_dir: str, provider, ffmpeg: str, log=lambda m: N
         if seg is None:
             say("warn", "lipsync_audio", f"khớp môi shot {s['idx']}: câu thoại chưa có giọng — chưa gửi", s["id"], job["id"])
             continue
-        with budget.SPEND_LOCK:                                   # limit check + submission + ledger entry as one step
-            over = budget.check_video(p.conn, provider.name, provider.model, "post", length)
-            if over:
-                log(f"Khớp môi dừng: {over}")
-                say("warn", "budget", f"khớp môi dừng: {over}", s["id"], job["id"])
+        # S14.1 A1b: the money gate — paused project, trial caps, the project's locked 'videos' budget (a model without a price is
+        # refused BEFORE sending: an unpriced 'videos' row would block every clip of a locked project), check + send + ledger under
+        # SPEND_LOCK; 'out_of_credit' halts the service.
+        with spend_gate.spend(p.conn, "video", provider.name, project_id=pid, model=provider.model, tier="post", units=length,
+                              budget_stage="videos", ledger_stage="lipsync") as slot:
+            if slot.paused:
+                slot.raise_if_over(f"khớp môi shot {s['idx']}")    # PipelinePaused: autopilot.tick says it and waits
+            if slot.over:
+                log(f"Khớp môi dừng: {slot.over}")
+                say("warn", "budget", f"khớp môi dừng: {slot.over}", s["id"], job["id"])
                 break
             try:
-                task = provider.submit(job["result_path"], seg["path"])
+                task = slot.send(provider.submit, job["result_path"], seg["path"])
             except ProviderError as e:
                 say("warn" if e.transient else "error", e.code or "lipsync_submit", f"khớp môi shot {s['idx']}: gửi lỗi ({e})"
                     + (" — sẽ gửi lại lần sau" if e.transient else " — giữ clip gốc"), s["id"], job["id"])
@@ -254,8 +276,10 @@ def post_tick(p, pid: int, data_dir: str, provider, ffmpeg: str, log=lambda m: N
                 mark(data_dir, pid, s["id"], state="failed", job_id=job["id"], error=str(e))
                 counts["failed"] += 1
                 continue
-            record_usage(p.conn, job["id"], "video", provider.name, provider.model, "post", length, "second", stage="lipsync")
-        mark(data_dir, pid, s["id"], state="running", task=task, job_id=job["id"], offsets=seg["offsets"], method="post")
+            # B1b: the paid task is written down BEFORE anything else can fail (a lost task = sent and paid again next tick)
+            mark(data_dir, pid, s["id"], state="running", task=task, job_id=job["id"], offsets=seg["offsets"], method="post",
+                 sent_at=time.time())
+            slot.record(length, job_id=job["id"])
         counts["sent"] += 1
     return counts
 

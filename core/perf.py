@@ -23,11 +23,25 @@ def _midnight() -> datetime:
 
 
 def daily_limit() -> int:
+    """The automatic run's cap of REAL picture/clip sends per day (UTC), counted by sends_today; 0 = off. Buttons are not capped."""
     return int(os.environ.get("AUTOPILOT_DAILY_JOBS", "300"))
 
 
+def _sql_midnight() -> str:
+    """Today 00:00 UTC in the format of usage_events.at (SQLite datetime('now'): 'YYYY-MM-DD HH:MM:SS' — an ISO 'T…+00:00' string
+    sorts AFTER every row of the day)."""
+    return _midnight().strftime("%Y-%m-%d %H:%M:%S")
+
+
+def sends_today(conn) -> int:
+    """Paid picture + clip sends since 00:00 UTC, by anyone (button, automatic run, any project): the ledger rows (usage_events) of
+    kind image/video whose provider is not simulated (mock*). What the automatic run's daily cap counts (S14.1, mục 3.1)."""
+    return conn.execute("SELECT COUNT(*) FROM usage_events WHERE kind IN ('image','video') AND provider NOT LIKE 'mock%' AND at>=?",
+                        (_sql_midnight(),)).fetchone()[0]
+
+
 def jobs_today(conn) -> int:
-    """Image + video jobs created since 00:00 UTC, by anyone (autopilot or manual)."""
+    """Image + video jobs created since 00:00 UTC, by anyone (autopilot or manual) — shown only; the daily cap counts sends_today."""
     return conn.execute("SELECT COUNT(*) c FROM jobs WHERE type IN ('image_gen','video_gen') AND created_at>=?",
                         (_iso(_midnight()),)).fetchone()["c"]
 
@@ -169,7 +183,7 @@ def alerts(kinds: List[Dict], today: int, limit: int, queued_projects: int, runn
         if k["recent_sec"] and k["earlier_sec"] and k["recent_sec"] >= SLOW_WARN * k["earlier_sec"]:
             out.append(f"{label}: đang chậm dần (gần đây {k['recent_sec']:.0f}s so với {k['earlier_sec']:.0f}s trước đó) — có thể quá tải.")
     if limit and today >= 0.8 * limit:
-        out.append(f"Đã tạo {today}/{limit} job hôm nay — gần chạm trần ngày (các dự án tự động sẽ dừng khi chạm).")
+        out.append(f"Đã gửi {today}/{limit} lượt ảnh/video thật hôm nay — gần chạm trần ngày (các dự án tự động sẽ dừng khi chạm).")
     if queued_projects:
         out.append(f"{queued_projects} dự án đang xếp hàng (đang chạy {running_projects}/{max_parallel}).")
     return out
@@ -177,11 +191,11 @@ def alerts(kinds: List[Dict], today: int, limit: int, queued_projects: int, runn
 
 def snapshot(conn, queued_projects: int = 0, running_projects: int = 0, max_parallel: int = 0) -> Dict:
     kinds = [by_kind(conn, k) for k, _ in KINDS]
-    today, limit = jobs_today(conn), daily_limit()
+    today, limit, sends = jobs_today(conn), daily_limit(), sends_today(conn)
     units = conn.execute("SELECT kind, unit, SUM(quantity) q FROM usage_events WHERE at>=? GROUP BY kind, unit",
-                         (_iso(_midnight()),)).fetchall()
+                         (_sql_midnight(),)).fetchall()
     from .throttle import THROTTLE
     learned = {k: THROTTLE.info(k) for k, _ in KINDS}
-    return {"kinds": kinds, "learned": learned, "projects": project_rows(conn), "jobs_today": today, "daily_limit": limit,
+    return {"kinds": kinds, "learned": learned, "projects": project_rows(conn), "jobs_today": today, "sends_today": sends, "daily_limit": limit,
             "usage_today": [(u["kind"], u["unit"], u["q"]) for u in units],
-            "alerts": alerts(kinds, today, limit, queued_projects, running_projects, max_parallel)}
+            "alerts": alerts(kinds, sends, limit, queued_projects, running_projects, max_parallel)}

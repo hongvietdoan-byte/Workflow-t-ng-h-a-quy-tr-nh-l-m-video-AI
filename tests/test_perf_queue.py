@@ -2,6 +2,7 @@ import os
 import tempfile
 import time
 import unittest
+from unittest import mock
 
 from core import autopilot, llm_runner, perf, script_parser
 from core.db import connect
@@ -90,9 +91,27 @@ class DatabaseModeTests(unittest.TestCase):
         conn.close()
 
 
+class RealImage(MockImageProvider):
+    """Not named mock*: its sends are real ones for the daily cap (S14.1 mục 3.1 — the cap counts paid sends, not jobs)."""
+    name = "deepix-fake"
+
+
+class RealVideo(MockVideoProvider):
+    name = "clipai-fake"
+
+
+def paid_rows(conn, n, provider="deepix", kind="image", at="datetime('now')"):
+    for _ in range(n):
+        conn.execute("INSERT INTO usage_events (kind, provider, model, tier, quantity, unit, at) VALUES (?,?,'m','t',1,'image',"
+                     + at + ")", (kind, provider))
+    conn.commit()
+
+
 class DailyCapTests(Setup):
     def test_daily_job_cap_stops_new_jobs_across_projects(self):
-        ctx = self.build()
+        # S14.1 (3.1): the cap now counts REAL sends of the day (usage_events, mock* excluded) + jobs queued to be sent — the test uses
+        # providers that are not named mock* (a simulated send costs nothing and no longer counts)
+        ctx = self.build(image=RealImage(), video=RealVideo(polls_to_finish=1))
         os.environ["AUTOPILOT_DAILY_JOBS"] = "2"
         try:
             autopilot.set_gates(self.p, self.pid, {"bible": False, "storyboard": False})   # unattended run (checkpoint: test_v2)
@@ -102,6 +121,74 @@ class DailyCapTests(Setup):
             self.assertEqual(perf.jobs_today(self.p.conn), 2)        # not one job more than the cap
         finally:
             os.environ.pop("AUTOPILOT_DAILY_JOBS", None)
+
+    def test_the_cap_counts_the_real_sends_of_the_day_by_anyone(self):
+        ctx = self.build(image=RealImage(), video=RealVideo(polls_to_finish=1))
+        paid_rows(self.p.conn, 3)                                    # sent today by a button / another project
+        paid_rows(self.p.conn, 5, kind="audio")                      # sound and Claude are capped elsewhere
+        paid_rows(self.p.conn, 5, at="datetime('now', '-2 days')")   # another day
+        self.assertEqual(perf.sends_today(self.p.conn), 3)
+        with mock.patch.dict(os.environ, {"AUTOPILOT_DAILY_JOBS": "3"}):
+            autopilot.start(self.p, self.pid)
+            self.assertEqual(autopilot.run_until_done(self.p, self.pid, ctx), autopilot.STOPPED)
+        self.assertIn("trong ngày", autopilot.status(self.p, self.pid)["note"])
+        self.assertEqual(perf.jobs_today(self.p.conn), 0)           # used to count jobs only: 0 < 3, pictures were sent
+
+    def test_simulated_sends_do_not_count(self):
+        ctx = self.build()                                           # mock providers: free
+        paid_rows(self.p.conn, 5, provider="mock-image")
+        with mock.patch.dict(os.environ, {"AUTOPILOT_DAILY_JOBS": "1"}):
+            autopilot.start(self.p, self.pid)
+            self.assertEqual(autopilot.run_until_done(self.p, self.pid, ctx), autopilot.DONE)
+
+    def test_zero_turns_the_cap_off(self):
+        ctx = self.build(image=RealImage(), video=RealVideo(polls_to_finish=1))
+        paid_rows(self.p.conn, 50)
+        with mock.patch.dict(os.environ, {"AUTOPILOT_DAILY_JOBS": "0"}):
+            autopilot.start(self.p, self.pid)
+            autopilot.tick(self.p, self.pid, ctx)
+        self.assertNotIn("trong ngày", autopilot.status(self.p, self.pid)["note"])
+        self.assertGreater(perf.jobs_today(self.p.conn), 0)
+
+    def test_a_waiting_redraw_is_sent_when_nothing_was_sent_yet(self):
+        """Review B1b: at the storyboard gate the queued redraw itself counted against the cap (cap 1, 0 sent, 1 queued → stop)."""
+        ctx = self.build(image=RealImage(), video=RealVideo(polls_to_finish=1))
+        sid = self.p.conn.execute("SELECT id FROM scenes WHERE project_id=? ORDER BY idx", (self.pid,)).fetchone()["id"]
+        jid = self.p.create_job(sid, "image_gen")
+        autopilot._set(self.p, self.pid, autopilot.WAITING, "chờ storyboard")
+        autopilot.set_gates(self.p, self.pid, {"waiting_for": "storyboard"})
+        with mock.patch.dict(os.environ, {"AUTOPILOT_DAILY_JOBS": "1"}):
+            autopilot.serve_waiting(self.p, self.pid, ctx)
+        self.assertNotEqual(self.p.job(jid)["state"], "queued")                 # sent
+        self.assertFalse(any("trong ngày" in e["msg"] for e in autopilot.status(self.p, self.pid)["log"]))
+
+    def test_queued_jobs_count_only_for_running_projects_and_once(self):
+        ctx = self.build(image=RealImage(), video=RealVideo(polls_to_finish=1))
+        sids = [r["id"] for r in self.p.conn.execute("SELECT id FROM scenes WHERE project_id=? ORDER BY idx", (self.pid,))]
+        others = {}
+        for name in ("paused", "stopped"):
+            pid = self.p.create_project(name)
+            others[name] = (pid, self.p.create_scene(pid, 1, "s"))
+            autopilot.start(self.p, pid)
+        self.p.set_paused(others["paused"][0], True)
+        autopilot.stop(self.p, others["stopped"][0])
+        for pid, sid in others.values():
+            self.p.create_job(sid, "image_gen")                                 # queued in a paused / stopped project
+        autopilot.start(self.p, self.pid)
+        sent = self.p.create_job(sids[0], "image_gen")
+        self.p.conn.execute("UPDATE jobs SET external_id='T1' WHERE id=?", (sent,))   # already in the ledger
+        self.p.conn.commit()
+        paid_rows(self.p.conn, 1)
+        with mock.patch.dict(os.environ, {"AUTOPILOT_DAILY_JOBS": "2"}):
+            autopilot._daily_cap(self.p, ctx)                                    # 1 sent + 0 counted queued < 2
+            self.p.create_job(sids[1], "image_gen")
+            with self.assertRaises(autopilot._Stop):
+                autopilot._daily_cap(self.p, ctx)                                # 1 sent + 1 queued here = 2
+
+    def test_the_snapshot_shows_the_counted_sends(self):
+        self.build()
+        paid_rows(self.p.conn, 2)
+        self.assertEqual(perf.snapshot(self.p.conn)["sends_today"], 2)
 
 
 class PerfTests(Setup):

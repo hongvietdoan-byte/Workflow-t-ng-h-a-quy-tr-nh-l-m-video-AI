@@ -359,7 +359,8 @@ class QcAgent:
                         break                                    # the forced turn failed: this frame becomes a doubt, the scene goes on
                     self._only_k = None
                     self.blocked = not self.records and getattr(e, "code", None) in ("budget", "auth", "config")
-                    return f"dừng: {e}"
+                    from .llm_runner import fail_text
+                    return fail_text(e, f"dừng: {e}")                # keeps LlmError.code (autopilot._stop_if_claude_blocked)
                 self.steps += 1
                 last_cost, spent_before = max(cap["spent"] - spent_before, 0.0), cap["spent"]
                 blocks = [b for b in (reply.blocks or []) if b.get("type") != "tool_use" or isinstance(b.get("input"), dict)]
@@ -630,7 +631,8 @@ class QcAgent:
                 try:
                     reply = self.client.converse(messages, tools, SYSTEM, max_tokens=ANSWER_TOKENS)
                 except Exception as e:  # noqa: BLE001 - a lock, the network, the provider: stop here and KEEP what was recorded
-                    stopped = f"dừng: {e}"
+                    from .llm_runner import fail_text
+                    stopped = fail_text(e, f"dừng: {e}")              # keeps LlmError.code (autopilot._stop_if_claude_blocked)
                     self.blocked = not self.records and getattr(e, "code", None) in ("budget", "auth", "config")
                     break
                 self.steps += 1

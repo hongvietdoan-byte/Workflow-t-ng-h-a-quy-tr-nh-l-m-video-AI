@@ -54,6 +54,32 @@ class LlmError(Exception):
         self.partial = partial
 
 
+class FailText(str):
+    """The text of a failed Claude call that keeps LlmError.code. The `failed` lists of the QC batches are (id, text) pairs read as
+    text everywhere; autopilot._stop_if_claude_blocked reads `.code` instead of guessing from words in the text (S14.3 B1b)."""
+    code: Optional[str] = None
+
+
+def fail_text(e: BaseException, text: Optional[str] = None) -> "FailText":
+    out = FailText(str(e) if text is None else text)
+    out.code = getattr(e, "code", None)
+    return out
+
+
+_CLI_LIMIT = ("hit your session limit", "hit your usage limit", "usage limit", "session limit", "rate limit")
+
+
+def cli_error_code(detail: str) -> str:
+    """The code of a Claude Code (CLI) failure, read once where the error is born: 'auth' (log in again), 'usage_limit' (the plan's
+    limit reached — the automatic run stops until it resets), else 'cli_error'."""
+    low = str(detail or "").lower()
+    if "authenticate" in low or "oauth" in low:
+        return "auth"
+    if any(h in low for h in _CLI_LIMIT):
+        return "usage_limit"
+    return "cli_error"
+
+
 # C4: how hard Claude thinks and how long it may answer, per stage (usage_events.stage). Thinking tokens count against max_tokens and
 # are billed as output: the Director at the default effort ran out of 32k tokens on a 58-second per-shot script (2026-09-24).
 # Override one stage with CLAUDE_EFFORT_<STAGE> / CLAUDE_MAX_TOKENS_<STAGE> (e.g. CLAUDE_EFFORT_DIRECTOR=high).
@@ -804,7 +830,7 @@ def run_qc_batch(p: Pipeline, project_id: int, client, data_dir: str) -> Dict:
         try:
             r = run_qc(p, j["id"], client, data_dir)
         except LlmError as e:
-            summary["failed"].append((j["id"], str(e)))
+            summary["failed"].append((j["id"], fail_text(e)))
             if e.code in ("auth", "config"):
                 break
             continue
@@ -1226,8 +1252,9 @@ class ClaudeCliClient:
                 out = {}
             if proc.returncode != 0 or out.get("is_error") or "result" not in out:
                 detail = str(out.get("result") or proc.stderr or proc.stdout or "")[:300].strip()
-                hint = " Mở Claude Code (lệnh `claude`) một lần để đăng nhập lại rồi thử lại." if "authenticate" in detail.lower() or "oauth" in detail.lower() else ""
-                raise LlmError(f"Claude Code báo lỗi: {detail}.{hint}", code="auth" if hint else "cli_error")
+                code = cli_error_code(detail)
+                hint = " Mở Claude Code (lệnh `claude`) một lần để đăng nhập lại rồi thử lại." if code == "auth" else ""
+                raise LlmError(f"Claude Code báo lỗi: {detail}.{hint}", code=code)
             usage = out.get("usage") or {}
             tokens_in = sum(int(usage.get(k, 0) or 0) for k in ("input_tokens", "cache_read_input_tokens", "cache_creation_input_tokens"))
             return LlmReply(str(out["result"]), tokens_in, int(usage.get("output_tokens", 0)))

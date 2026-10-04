@@ -159,6 +159,97 @@ class SafetyTests(Setup):
         self.assertEqual(autopilot.tick(self.p, self.pid, ctx), "stopped")
         self.assertEqual(self.p.conn.execute("SELECT COUNT(*) c FROM jobs").fetchone()["c"], 0)
 
+    def test_a_stop_during_a_tick_sends_nothing_and_stays_stopped(self):
+        """S14.3 B1b: stop() does not wait for the running tick — the tick used to send the queued pictures anyway and a later
+        _Wait / progress note overwrote STOPPED."""
+        class Counting(MockImageProvider):
+            sent = 0
+
+            def submit(self, *a, **k):
+                Counting.sent += 1
+                return super().submit(*a, **k)
+        ctx = self.build(image=Counting())
+        autopilot.start(self.p, self.pid)
+
+        def stop_now(p, pid, c):
+            autopilot.stop(p, pid)
+            return None
+        with mock.patch.object(autopilot, "_plates_phase", side_effect=stop_now):
+            self.assertEqual(autopilot.tick(self.p, self.pid, ctx), autopilot.STOPPED)
+        self.assertEqual(Counting.sent, 0)                                   # nothing sent after the stop
+        self.assertEqual(autopilot.status(self.p, self.pid)["state"], autopilot.STOPPED)
+
+    def test_a_wait_or_a_progress_note_after_a_stop_does_not_overwrite_it(self):
+        ctx = self.build()
+        for outcome in (autopilot._Wait("budget", "Chờ duyệt ngân sách"), "Ảnh: 1/6 đã duyệt"):
+            autopilot.start(self.p, self.pid)
+
+            def stop_then(p, pid, c, outcome=outcome):
+                autopilot.stop(p, pid)
+                if isinstance(outcome, Exception):
+                    raise outcome
+                return outcome
+            with mock.patch.object(autopilot, "_plates_phase", side_effect=stop_then):
+                self.assertEqual(autopilot.tick(self.p, self.pid, ctx), autopilot.STOPPED)
+            st = autopilot.status(self.p, self.pid)
+            self.assertEqual((st["state"], st["note"]), (autopilot.STOPPED, "Đã dừng theo yêu cầu"), outcome)
+
+    def test_a_stop_before_the_delivery_does_not_render(self):
+        ctx = self.build()
+        autopilot.start(self.p, self.pid)
+        names = ["_director_phase", "_story_check_phase", "_voice_first_phase", "_previz_phase", "_plates_phase", "_images_phase",
+                 "_setcheck_phase", "_end_frame_phase", "_storyboard_phase", "_motion_phase", "_voice_phase", "_videos_phase",
+                 "_music_phase", "_plate_fallback_phase", "_lipsync_phase"]
+        patches = [mock.patch.object(autopilot, n, return_value=None) for n in names]
+        for x in patches:
+            x.start()
+        try:
+            with mock.patch.object(autopilot, "_sfx_phase", side_effect=lambda p, pid, c: autopilot.stop(p, pid)), \
+                    mock.patch("core.delivery.deliver", side_effect=AssertionError("rendered after the stop")):
+                self.assertEqual(autopilot.tick(self.p, self.pid, ctx), autopilot.STOPPED)
+        finally:
+            for x in patches:
+                x.stop()
+
+    def test_a_pause_raised_by_the_money_gate_inside_a_tick_waits_not_errors(self):
+        from core.pipeline import PipelinePaused
+        ctx = self.build()
+        autopilot.start(self.p, self.pid)
+        with mock.patch.object(autopilot, "_plates_phase", side_effect=PipelinePaused("dự án đang TẠM DỪNG — không gửi việc tốn tiền")):
+            self.assertEqual(autopilot.tick(self.p, self.pid, ctx), autopilot.RUNNING)
+        st = autopilot.status(self.p, self.pid)
+        self.assertEqual(st["state"], autopilot.RUNNING)
+        self.assertIn("tạm dừng", st["note"].lower())
+
+    def test_claude_blocked_is_read_from_the_error_code(self):
+        from core.llm_runner import LlmError, fail_text
+        with self.assertRaises(autopilot._Stop) as stop:
+            autopilot._stop_if_claude_blocked([(1, fail_text(LlmError("Claude Code báo lỗi: You've hit your session limit",
+                                                                      code="usage_limit")))])
+        self.assertIn("hết hạn mức", str(stop.exception))
+        with self.assertRaises(autopilot._Stop) as stop:
+            autopilot._stop_if_claude_blocked([(1, fail_text(LlmError("Anthropic rejected the API key (HTTP 401)", code="auth")))])
+        self.assertIn("đăng nhập", str(stop.exception))
+        # plain words are not a code: an author's name, a QC note about a 'rate limit' sign, … do not stop the run (used to)
+        autopilot._stop_if_claude_blocked([(1, "QC: author signature visible"), (2, "the poster says rate limit")])
+        autopilot._stop_if_claude_blocked([(1, fail_text(LlmError("JSON không hợp lệ", code="bad_json")))])
+
+    def test_the_cli_usage_limit_gets_its_own_code(self):
+        from core import llm_runner
+        self.assertEqual(llm_runner.cli_error_code("You've hit your session limit · resets 7:20am"), "usage_limit")
+        self.assertEqual(llm_runner.cli_error_code("Please run /login to authenticate (oauth)"), "auth")
+        self.assertEqual(llm_runner.cli_error_code("something else broke"), "cli_error")
+
+    def test_the_set_check_redo_respects_the_locked_project_budget(self):
+        from core import project_budget
+        self.build()
+        project_budget.approve(self.p, self.pid, "a@x", {"stages": {k: {"cap": 0.0 if k == "images" else 5.0} for k in project_budget.STAGES},
+                                                         "total": 100.0})
+        with mock.patch.dict(os.environ, {"FEATURE_PROJECT_BUDGET": "1"}):
+            why = autopilot._setcheck_block(self.p, self.pid, {"idx": 1, "fix": "make the jacket red"}, "deepix")
+        self.assertIsNotNone(why)
+        self.assertIn("ngân sách", why)
+
     def test_render_failure_is_reported_not_swallowed(self):
         ctx = self.build()
         ctx.render = lambda *a: (_ for _ in ()).throw(ValueError("ffmpeg blew up"))
@@ -234,6 +325,25 @@ class ThreadTests(unittest.TestCase):
         while time.time() < deadline and autopilot.status(Pipeline(connect(db)), pid)["state"] == "running":
             time.sleep(0.1)
         self.assertEqual(autopilot.status(Pipeline(connect(db)), pid)["state"], "done")
+
+    def test_an_unexpected_error_after_a_stop_keeps_the_stop(self):
+        """Review B1b: Manager._run wrote ERROR over a STOPPED set by the person during the failing tick."""
+        tmp = tempfile.mkdtemp()
+        db = os.path.join(tmp, "m.sqlite")
+        p = Pipeline(connect(db))
+        pid = p.create_project("err")
+
+        def factory(pipeline, data_dir):
+            return autopilot.Context(data_dir, None, None, None)
+
+        def stop_then_fail(pp, project_id, ctx):
+            autopilot.stop(pp, project_id)
+            raise RuntimeError("boom")
+        autopilot.start(p, pid)
+        with mock.patch.object(autopilot, "tick", side_effect=stop_then_fail):
+            autopilot.Manager(db, tmp, factory, poll_sec=0.01)._run(pid)
+        st = autopilot.status(Pipeline(connect(db)), pid)
+        self.assertEqual((st["state"], st["note"]), (autopilot.STOPPED, "Đã dừng theo yêu cầu"))
 
     def test_a_broken_configuration_is_reported_in_the_project_not_lost(self):
         tmp = tempfile.mkdtemp()

@@ -244,7 +244,8 @@ def qc_video_batch(p: Pipeline, project_id: int, client, data_dir: str) -> Dict:
         try:
             r = qc_video(p, jid, client, data_dir)
         except (LlmError, Exception) as e:  # noqa: BLE001 - one clip that cannot be read must not stop the others
-            out["failed"].append((jid, str(e)))
+            from .llm_runner import fail_text
+            out["failed"].append((jid, fail_text(e)))
             if isinstance(e, LlmError) and e.code in ("auth", "config", "budget"):
                 break
             if not (isinstance(e, LlmError) and e.code in ("bad_json", "no_video", "bad_image", "truncated", "refusal", "empty",

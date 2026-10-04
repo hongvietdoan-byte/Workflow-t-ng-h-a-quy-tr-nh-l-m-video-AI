@@ -302,7 +302,7 @@ def review_scene(p, pid: int, story_scene, client, data_dir: str, frames: List[D
                 res = review_frame(p, pid, data_dir, frame, client, entity=entity)
             except llm_runner.LlmError as e:
                 if e.code in ("budget", "auth", "config"):
-                    return {"stopped": str(e), "blocked": True, "applied": applied, "results": results}
+                    return {"stopped": llm_runner.fail_text(e), "blocked": True, "applied": applied, "results": results}
                 applied[f"K{k}"] = f"lỗi Claude: {e}"
                 continue
             results[r["job_id"]] = res

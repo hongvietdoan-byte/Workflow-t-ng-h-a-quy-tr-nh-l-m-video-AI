@@ -993,7 +993,9 @@ def monitor(p: Pipeline, pid: int) -> None:
     c1, c2, c3, c4 = st.columns(4)
     c1.metric("Dự án chạy tự động", f"{mgr.running_count()}/{mgr.max_parallel}", help="AUTOPILOT_MAX_PARALLEL")
     c2.metric("Đang xếp hàng", mgr.queue_length())
-    c3.metric("Job hôm nay", f"{snap['jobs_today']}/{snap['daily_limit'] or '∞'}", help="AUTOPILOT_DAILY_JOBS (giờ UTC)")
+    c3.metric("Lượt gửi thật hôm nay", f"{snap['sends_today']}/{snap['daily_limit'] or '∞'}",
+              help=f"Ảnh + video đã gửi trả tiền từ 00:00 UTC (sổ chi, mọi dự án, không tính mock); {snap['jobs_today']} job tạo hôm nay. "
+                   "Trần AUTOPILOT_DAILY_JOBS chỉ chặn chạy tự động (0 = tắt), không chặn nút bấm tay")
     c4.metric("Job đang chạy/chờ", sum(k["running"] + k["queued"] for k in snap["kinds"]))
     rows = []
     for k in snap["kinds"]:
@@ -1068,7 +1070,8 @@ def _monitor_v2(p: Pipeline, pid: int) -> None:
     usage = ", ".join(f"{q:g} {unit} ({kind})" for kind, unit, q in snap["usage_today"])
     explain = ("**Các số ở trên**\n\n"
                "- Dự án chạy tự động: số dự án đang chạy / tối đa song song (`AUTOPILOT_MAX_PARALLEL`).\n"
-               "- Job hôm nay: đã gửi / trần ngày (`AUTOPILOT_DAILY_JOBS`, tính theo giờ UTC).\n\n"
+               "- Lượt gửi thật hôm nay: ảnh + video đã gửi trả tiền (sổ chi, không tính mock) / trần ngày của chạy tự động "
+               "(`AUTOPILOT_DAILY_JOBS`, 0 = tắt, giờ UTC; nút bấm tay không bị chặn).\n\n"
                "**Mức song song tự học** (tăng dần khi chạy êm, giảm một nửa khi nhà cung cấp báo quá tải 429): " + learned
                + ("\n\n**Dùng hôm nay:** " + usage if usage else "")
                + "\n\n👥 Số video / tiền theo người dùng → màn **Nhóm**. 📁 Bảng tất cả dự án và 🎬 sản phẩm đã hoàn tất → màn **⌂ Tất cả dự án**. "
@@ -1083,7 +1086,7 @@ def _monitor_v2(p: Pipeline, pid: int) -> None:
         c1, c2, c3, c4 = st.columns(4)
         c1.markdown(D.stat("Dự án chạy tự động", f"{mgr.running_count()}/{mgr.max_parallel}"), unsafe_allow_html=True)
         c2.markdown(D.stat("Đang xếp hàng", str(mgr.queue_length())), unsafe_allow_html=True)
-        c3.markdown(D.stat("Job hôm nay", f"{snap['jobs_today']}/{snap['daily_limit'] or '∞'}"), unsafe_allow_html=True)
+        c3.markdown(D.stat("Lượt gửi thật hôm nay", f"{snap['sends_today']}/{snap['daily_limit'] or '∞'}"), unsafe_allow_html=True)
         c4.markdown(D.stat("Job đang chạy/chờ", str(busy)), unsafe_allow_html=True)
         b1, b2, _ = st.columns([1.6, 1.9, 4.5], vertical_alignment="center")
         with b1:

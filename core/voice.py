@@ -208,7 +208,8 @@ def preview(provider, data_dir: str, project_id: int, voice_id: int, voice_name:
 
 
 def _line_items(directory: str) -> List[tuple]:
-    return [(i, e) for i, e in enumerate(audio_lib.load(directory)) if e["kind"] == "tts" and e.get("scene_id")]
+    return [(i, e) for i, e in enumerate(audio_lib.load(directory)) if e["kind"] == "tts" and e.get("scene_id")
+            and e.get("state") != "superseded"]      # an old voice kept while its redo is made (voice_check.redo) is not the line
 
 
 def slow_end(text: str) -> str:
@@ -237,13 +238,17 @@ def resend_block(entry: Dict, by_person: bool = False) -> Optional[str]:
     return None
 
 
-def generate(conn, project_id: int, provider, data_dir: str, scene_ids=None, ledger=True, slow=None, by_person: bool = False) -> Dict:
+def generate(conn, project_id: int, provider, data_dir: str, scene_ids=None, ledger=True, slow=None, by_person: bool = False,
+             settle: bool = True) -> Dict:
     """Voice every line that has no voice yet (or whose text / voice changed). Returns {"sent", "skipped", "no_voice": [speakers],
     "held": [why a failed line was not resent]}. slow: scene ids whose lines are sent with a trailing "…" (a redo of a line whose end
     was cut). A failed line with unchanged text/voice is resent only as `resend_block` allows (the automatic run used to delete and
     resend it on every tick, uncounted)."""
     from . import features, voice_direction
     directory = audio_lib.assets_dir(data_dir, project_id)
+    if settle:                                                # a redo decided since (voice_check.settle_redos): old voice back / gone
+        from . import voice_check
+        voice_check.settle_redos(directory)
     have = {(e["scene_id"], e.get("line")): (i, e) for i, e in _line_items(directory)}
     sent, skipped, no_voice, held = 0, 0, set(), []
     for ln in planned_lines(conn, project_id):

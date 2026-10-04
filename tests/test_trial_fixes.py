@@ -316,8 +316,10 @@ class LipSyncPostTickTests(Base):
         def check(*a, **k):
             held.append(budget.SPEND_LOCK._is_owned())
             return real(*a, **k)
+        prov = self.provider(submit=ProviderError("400", code="bad"))
+        prov.name = "syncso-test"                 # S14.1 A1b: the money gate treats a mock* provider as free (no check at all)
         with mock.patch("core.budget.check_video", side_effect=check):
-            c = lipsync.post_tick(self.p, self.pid, self.dir, self.provider(submit=ProviderError("400", code="bad")), "ffmpeg")
+            c = lipsync.post_tick(self.p, self.pid, self.dir, prov, "ffmpeg")
         self.assertEqual(held, [True])
         self.assertEqual(c["failed"], 1)
 

@@ -130,7 +130,7 @@
       "code": ["core/lipsync.py", "core/dialogue_take.py", "core/adapters/syncso.py"],
       "assets": [],
       "docs": ["docs/NGHIEN_CUU_KHOP_MOI.md", "docs/BAN_GIAO_2026-09-25_THAP_VA_KHOP_MOI.md"],
-      "tests": ["tests/test_lipsync.py", "tests/test_dialogue_take.py", "tests/test_dialogue_take_runner.py"],
+      "tests": ["tests/test_lipsync.py", "tests/test_lipsync_gate.py", "tests/test_dialogue_take.py", "tests/test_dialogue_take_runner.py"],
       "flags": ["lip_sync", "dialogue_take"],
       "diag_stages": [],
       "keywords": ["khớp môi", "lip", "sync.so", "syncso", "reference_audio"]

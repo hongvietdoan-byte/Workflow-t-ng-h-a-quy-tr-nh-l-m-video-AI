@@ -98,6 +98,12 @@ def submit_tts(provider, directory: str, text: str, voice_actor_id: int, voice_n
     return _add(directory, "tts", label, asset_id, extra=extra)
 
 
+def mix_rows(items: List[Dict]) -> List[tuple]:
+    """(index, entry) of the sound list shown in Bước 5 — without an old voice kept while its redo is made (voice_check
+    'superseded': not in the mix, not to be deleted by hand; it goes or comes back by itself). Indexes stay those of `items`."""
+    return [(i, e) for i, e in enumerate(items) if e.get("state") != "superseded"]
+
+
 def update(directory: str, index: int, **fields) -> None:
     items = load(directory)
     items[index].update(fields)
