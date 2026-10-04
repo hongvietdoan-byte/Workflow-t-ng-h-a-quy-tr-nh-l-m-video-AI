@@ -396,13 +396,41 @@ def _check_lock(obj) -> None:
     llm_io._check_lock(obj, "lock")
 
 
+def _on_disk(p: Pipeline, project_id: int, name: str, pics: List[Dict], what: str, linked: Optional[Dict] = None) -> List[Dict]:
+    """S14.4 C1b: library pictures whose file is gone are left out — and SAID (the library skipped them silently, so the check ran
+    on fewer pictures, or none, without anyone knowing). `linked` = the character's library entry (its `missing` list)."""
+    kept = [r for r in pics if r.get("path") and os.path.exists(r["path"])]
+    lost = [str(r.get("path")) for r in pics if r not in kept] + _library_missing(p, project_id, name, linked)
+    if lost:
+        diag.record(p.conn, "director", "warn",
+                    f"{what} — {name}: bỏ qua {len(lost)} ảnh Kho mất file ({', '.join(os.path.basename(x) for x in lost[:3])})."
+                    " Cách xử lý: Kho tài nguyên → 'Ảnh mất file' → tải lại từ nguồn hoặc gỡ liên kết, rồi chạy lại.",
+                    "library_file_missing", project_id)
+    return kept
+
+
+def _library_missing(p: Pipeline, project_id: int, name: str, linked: Optional[Dict]) -> List[str]:
+    """Approved pictures whose file is gone, of the library entry used for this character (the linked one, else one with its name)."""
+    if linked:
+        return list(linked.get("missing") or [])
+    key = assets.fold(name)
+    for a in assets.project_assets(p.conn, project_id):
+        if a["kind"] in ("character", "pet") and a.get("missing") and key in {assets.fold(a["name"])} | {
+                assets.fold(x) for x in (a.get("aliases") or "").split(",") if x.strip()}:
+            return list(a["missing"])
+    return []
+
+
 def character_lock(p: Pipeline, project_id: int, name: str, client) -> Dict:
     row = p.conn.execute("SELECT * FROM characters WHERE project_id=? AND name=?", (project_id, name)).fetchone()
     if row is None:
         raise ValueError(f"không có nhân vật '{name}'")
     linked = assets.link_characters(p.conn, project_id, [name]).get(name)
-    images = [(f"Ảnh tham chiếu — {name}:", assets.thumbnail(r["path"], 900)) for r in (linked or {}).get("refs", [])]
-    images += [(f"Ảnh trang phục — {name}:", assets.thumbnail(i["path"], 900)) for i in assets.outfit_images(p.conn, project_id, name)]
+    refs = _on_disk(p, project_id, name, list((linked or {}).get("refs", [])), "Character Lock", linked)
+    outfits = _on_disk(p, project_id, name, list(assets.outfit_images(p.conn, project_id, name)), "Character Lock (trang phục)",
+                      {"missing": []})          # the library entry's lost pictures were said once just above
+    images = [(f"Ảnh tham chiếu — {name}:", assets.thumbnail(r["path"], 900)) for r in refs]
+    images += [(f"Ảnh trang phục — {name}:", assets.thumbnail(i["path"], 900)) for i in outfits]
     prompt = "\n\n---\n\n".join([_read("prompts", "14_character_lock.md"), _read("knowledge", "character_lock.md"),
                                  f"# {name}\nMô tả: {row['description']}\nTrang phục: {row['wardrobe'] or ''}"])
     obj = _run(p, project_id, "director", prompt, _check_lock, client, images)
@@ -459,7 +487,8 @@ def bible_check(p: Pipeline, project_id: int, client) -> Dict:
     linked = assets.link_characters(p.conn, project_id, list(rows))
     todo, images, out = [], [], {}
     for name, row in rows.items():
-        refs = ((linked.get(name) or {}).get("refs") or [])[:1]
+        refs = _on_disk(p, project_id, name, list((linked.get(name) or {}).get("refs") or []), "Kiểm Character Bible",
+                        linked.get(name))[:1]
         if not refs:
             continue
         key = _bible_key(row, refs)
@@ -494,7 +523,7 @@ def bible_flags(p: Pipeline, project_id: int) -> Dict[str, List[str]]:
     out = {}
     for name, row in rows.items():
         res = json.loads(row["bible_check"] or "{}") if row["bible_check"] else {}
-        refs = ((linked.get(name) or {}).get("refs") or [])[:1]
+        refs = [r for r in (linked.get(name) or {}).get("refs") or [] if r.get("path") and os.path.exists(r["path"])][:1]  # = bible_check
         if res and refs and res.get("key") == _bible_key(row, refs) and not res.get("ok"):
             out[name] = [str(m) for m in res.get("mismatches") or []] or ["mô tả chưa khớp ảnh"]
     return out
