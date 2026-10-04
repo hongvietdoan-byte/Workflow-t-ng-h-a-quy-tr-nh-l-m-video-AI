@@ -50,6 +50,8 @@ def main(argv=None) -> int:
         return 0
     new = compare.clone_project(p, a.project, f"{src['name']} · thử 0–{int(rep['total_s'] + 0.5)}s", with_rows=False)
     p.conn.execute("DELETE FROM story_scenes WHERE project_id=? AND idx>?", (new, a.sections))
+    from core import feedback                       # S14.19: a remark on a dropped row stays, unlinked (foreign key)
+    feedback.detach(p.conn, scene_ids=[r[0] for r in p.conn.execute("SELECT id FROM scenes WHERE project_id=? AND idx>?", (new, a.sections))])
     p.conn.execute("DELETE FROM scenes WHERE project_id=? AND idx>?", (new, a.sections))
     p.conn.commit()
     p.set_script_text(new, script)
