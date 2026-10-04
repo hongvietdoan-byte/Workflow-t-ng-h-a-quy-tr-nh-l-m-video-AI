@@ -944,11 +944,22 @@ VERDICT_LABELS = {"👍": "👍 Dùng được", "🤔": "🤔 Tạm được", 
 
 def delivery_feedback(p: Pipeline, pid: int, stat) -> None:
     """S14.19 Đợt 0 (KE_HOACH_BO_NAO_PROMPT_TU_HOC): "Bản này dùng được chứ?" under the delivered video — 👍/🤔/👎 + what is not right +
-    which stage → user_feedback (kind 'delivery'). Shown only once there is a delivered video. Nothing is sent anywhere (0 USD)."""
-    from core import feedback
+    which stage → user_feedback (kind 'delivery'). Shown only once there is a delivered video. Nothing is sent anywhere (0 USD).
+    Open to a "Chỉ xem" watcher too (like 💬 Góp ý màn này): a remark changes nothing in the project."""
+    from dashboard import access_ui
     best = stat.get("best")
     if not ((best and os.path.exists(best)) or stat["final"].get("path")):
         return
+    prev = access_ui.is_read_only()
+    access_ui.set_read_only(False)
+    try:
+        _delivery_feedback_form(p, pid)
+    finally:
+        access_ui.set_read_only(prev)
+
+
+def _delivery_feedback_form(p: Pipeline, pid: int) -> None:
+    from core import feedback
     n = feedback.satisfaction(p.conn, pid)["n"]
     st.markdown("**Bản này dùng được chứ?**" + (f"  ·  đã có {n} góp ý cho dự án này" if n else ""))
     with st.form(f"fb_form_{pid}", clear_on_submit=True, border=False):

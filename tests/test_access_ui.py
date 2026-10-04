@@ -15,8 +15,8 @@ APP = os.path.join(os.path.dirname(__file__), "..", "dashboard", "app.py")
 # widgets that stay usable in read-only mode because they only navigate / look, or belong to the person (not the project)
 FREE_KEYS = {"global_pid", "step", "logout_btn", "settings_limits", "settings_history", "dark_toggle", "expert_mode", "new_name", "new_aspect",
              "new_genre", "new_prio", "new_game", "new_project_go", "home_q", "home_sort", "home_scope", "home_status", "home_step",
-             "home_creator", "home_warn", "home_reset", "inbox_scope", "inbox_kind",
-             "fb_screen_text", "fb_screen_stage", "fb_screen_send"}        # S14.19: 💬 Góp ý màn này — open to a view-only person too
+             "home_creator", "home_warn", "home_reset", "inbox_scope", "inbox_kind"}
+# S14.19: the remarks (💬 Góp ý màn này, "Bản này dùng được chứ?" — keys fb_*) stay open to a view-only person: they change nothing
 
 
 class AccessUiBase(unittest.TestCase):
@@ -106,7 +106,7 @@ class ReadOnlyModeTests(AccessUiBase):
         unlocked = []
         for kind in ("button", "checkbox", "text_area", "text_input", "selectbox", "radio", "toggle", "number_input", "slider", "multiselect"):
             for w in getattr(at, kind):
-                if getattr(w, "key", None) not in FREE_KEYS and not str(getattr(w, "key", "")).startswith(("sel_btn_", "home_open_", "inb_")) \
+                if getattr(w, "key", None) not in FREE_KEYS and not str(getattr(w, "key", "")).startswith(("sel_btn_", "home_open_", "inb_", "fb_")) \
                         and not w.proto.disabled:
                     unlocked.append((kind, w.key))
         self.assertEqual(unlocked, [])
@@ -118,10 +118,22 @@ class ReadOnlyModeTests(AccessUiBase):
         for step in ("2", "4", "5"):
             at = self.sign_in(WVIEW, step)
             bad = [(k, w.key) for k in ("button", "checkbox", "text_area", "text_input", "selectbox", "radio", "toggle")
-                   for w in getattr(at, k) if w.key not in FREE_KEYS and not str(w.key).startswith(("sel_btn_", "home_open_", "inb_"))
+                   for w in getattr(at, k) if w.key not in FREE_KEYS and not str(w.key).startswith(("sel_btn_", "home_open_", "inb_", "fb_"))
                    and not w.proto.disabled]
             self.assertEqual(bad, [], step)
 
+    def test_view_only_person_can_still_give_feedback_on_a_delivery(self):
+        out = os.path.join(self.tmp, "projects", str(self.pid), "output")
+        os.makedirs(out, exist_ok=True)
+        with open(os.path.join(out, "FINAL_VIDEO.mp4"), "wb") as f:
+            f.write(b"x")
+        at = self.sign_in(WVIEW, "5")
+        keys = {b.key: b.proto.disabled for b in at.button}
+        self.assertIn(f"fb_send_{self.pid}", keys)
+        self.assertFalse(keys[f"fb_send_{self.pid}"])
+        self.assertFalse(at.text_area(key=f"fb_text_{self.pid}").proto.disabled)
+        self.assertFalse(keys["fb_screen_send"])
+        self.assertTrue(keys[f"deliver_{self.pid}"])                       # the delivery itself stays locked
     def test_a_press_that_slips_through_is_refused_by_the_core(self):
         at = self.sign_in(WVIEW, "1")
         self.assertTrue(next(b for b in at.button if b.key == "btn_pause").proto.disabled)
