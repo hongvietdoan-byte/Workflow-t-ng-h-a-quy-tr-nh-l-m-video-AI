@@ -87,7 +87,8 @@ def kling_multishot(p: Pipeline, project_id: int, sequence: int, provider, data_
         kwargs["aspect_ratio"] = formats.spec(aspect)["clip"]
     # limit check + submission + ledger entry as one step (S14.1: the gate adds the project's locked budget, a paused project and
     # 'out_of_credit' → halt)
-    with spend_gate.spend(p.conn, "video", provider.name, project_id=project_id, model=MODEL, tier=_tier(), units=total) as slot:
+    with spend_gate.spend(p.conn, "video", provider.name, project_id=project_id, model=MODEL, tier=_tier(), units=total,
+                          ledger_stage="kling_multishot") as slot:
         slot.raise_if_over("Không gửi thử nghiệm multi-shot")
         task = slot.send(provider.submit, first, shots[0]["prompt"], None, total, "kling", **kwargs)
         slot.record()

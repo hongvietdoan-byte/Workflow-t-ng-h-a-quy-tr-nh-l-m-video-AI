@@ -11,6 +11,16 @@
 - Test: `tests/test_spend_gate.py` (đỏ→xanh), `tests/test_project_budget.py::UnknownPriceTests`, `tests/test_spend_gate_scan.py`.
 - `devsys/areas.json` khu vực budget: thêm `core/spend_gate.py` + 2 file test (không tăng version).
 
+## Sửa sau rà soát (04/10)
+- Test quét: lời gửi phải nằm TRONG thân khối `with spend_gate.spend(...)` (nút ast.With); bỏ quy tắc cùng hàm/cùng class (chỉ
+  danh sách trắng theo tên hàm); test tự kiểm `test_the_rule_catches_a_send_outside_the_with_block`.
+- experiments ghi sổ `ledger_stage="kling_multishot"`; `budget.check_image(count>1)` báo "N ảnh ≈ $…".
+
+## CẢNH BÁO cho A1b
+- `core/lipsync.py` `post_tick` (~241-257) chỉ kiểm `check_video`. Khi `SYNC_MODEL` không có giá (vd. lipsync-2), một lượt gửi ở
+  dự án khóa ghi dòng 'videos' CHƯA CÓ GIÁ → `project_budget.check` (T6) chặn CẢ khâu video của dự án. A1b phải đưa lipsync qua
+  `spend_gate.spend` (giá None → từ chối TRƯỚC khi gửi, không ghi dòng không giá).
+
 ## Còn lại (ngoài phạm vi A1a — danh sách CHỜ CHUYỂN trong test quét)
 - lipsync `post_tick` (A1b), autopilot `_setcheck_block` (A1b), runner `_Runner._submit_pending` (giữ mẫu cũ, danh sách trắng),
   storyboard_frames `run` (submit_storyboard_frame), previz `_deepix_cutout`.

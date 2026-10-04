@@ -370,6 +370,6 @@ def check_image(conn, provider_name: str, model: Optional[str] = None, count: in
     if price is None:
         return _no_price(f"ảnh model {model or '(không rõ model)'}")
     if s["usd"] + price * count > b["usd"] + 1e-9:
-        return (f"vượt trần ngân sách thử: đã chi ≈ ${s['usd']:.2f}, ảnh này ≈ ${price * count:.3f}, trần ${b['usd']:.0f} "
+        return (f"vượt trần ngân sách thử: đã chi ≈ ${s['usd']:.2f}, {'ảnh này' if count == 1 else f'{count} ảnh'} ≈ ${price * count:.3f}, trần ${b['usd']:.0f} "
                 "— nâng trần hoặc bắt đầu đợt mới trong ⚙ → Ngân sách thử")
     return None

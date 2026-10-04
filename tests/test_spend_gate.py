@@ -166,6 +166,33 @@ class ExperimentGateTests(unittest.TestCase):
         self.assertEqual(sent, [])
 
 
+class ExperimentLedgerStageTests(unittest.TestCase):
+    @mock.patch.dict(os.environ, {"CLIPAI_KLING_MODE": "std"})
+    def test_the_multishot_try_is_labelled_in_the_ledger(self):
+        p = Pipeline(connect())
+        pid = p.create_project("exp", aspect="9:16")
+
+        class Provider:
+            name = "clipai"
+
+            def submit(self, *a, **k):
+                return "clipai:video:1"
+        plan = ([{"idx": 1, "jid": 1}, {"idx": 2, "jid": 2}], [{"prompt": "a", "duration": 10}, {"prompt": "b", "duration": 5}], 15)
+        with mock.patch.object(experiments, "_plan", return_value=plan):
+            experiments.kling_multishot(p, pid, 1, Provider(), tempfile.mkdtemp())
+        self.assertEqual(p.conn.execute("SELECT stage FROM usage_events WHERE project_id=?", (pid,)).fetchone()[0], "kling_multishot")
+
+
+class TrialCapCountTests(unittest.TestCase):
+    def test_a_set_of_pictures_is_said_as_n_pictures(self):
+        p = Pipeline(connect())
+        budget.restart(p.conn, usd=0.05)
+        why = budget.check_image(p.conn, "deepix", "gpt-image-2", count=2)
+        self.assertIn("2 ảnh ≈ $0.104", why)
+        self.assertNotIn("ảnh này", why)
+        self.assertIn("ảnh này ≈ $0.052", budget.check_image(p.conn, "deepix", "gpt-image-2", count=1))
+
+
 class GateUnitTests(unittest.TestCase):
     def setUp(self):
         self.p = Pipeline(connect())
