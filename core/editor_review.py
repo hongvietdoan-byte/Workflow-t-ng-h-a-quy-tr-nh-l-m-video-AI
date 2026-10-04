@@ -62,18 +62,18 @@ def _check_editor(obj) -> None:
     """Shape only (a bad shape asks again once); what the proposals may DO is vetted after, item by item."""
     from .llm_io import SchemaError
     if not isinstance(obj, dict) or not isinstance(obj.get("summary"), str) or not isinstance(obj.get("findings"), list):
-        raise SchemaError("expected {summary, findings: [...]}")
+        raise SchemaError("cần object {summary, findings: [...]}")
     for i, f in enumerate(obj["findings"]):
         if not isinstance(f, dict):
-            raise SchemaError(f"findings[{i}]: expected an object")
+            raise SchemaError(f"findings[{i}]: cần object")
         for key in ("observed", "evidence", "action", "why"):
             if not isinstance(f.get(key), str):
-                raise SchemaError(f"findings[{i}].{key}: expected text")
+                raise SchemaError(f"findings[{i}].{key}: cần chữ")
         for key in ("at_s", "target_shot", "amount"):
             if f.get(key) is None:
                 f[key] = 0
             if not isinstance(f[key], (int, float)) or isinstance(f[key], bool):
-                raise SchemaError(f"findings[{i}].{key}: expected a number")
+                raise SchemaError(f"findings[{i}].{key}: cần số")
         f["value"] = str(f.get("value") or "")
 
 
@@ -175,7 +175,7 @@ def _check_director(ids: List[str]):
     def check(obj) -> None:
         from .llm_io import SchemaError
         if not isinstance(obj, dict) or not isinstance(obj.get("verdicts"), list):
-            raise SchemaError("expected {verdicts: [...]}")
+            raise SchemaError("cần object {verdicts: [...]}")
         got = []
         for i, v in enumerate(obj["verdicts"]):
             if not isinstance(v, dict) or v.get("verdict") not in ("agree", "object", "modify") or not isinstance(v.get("id"), str):
@@ -185,7 +185,7 @@ def _check_director(ids: List[str]):
                 raise SchemaError(f"verdicts[{i}].reason: bắt buộc khi {v['verdict']}")
             for key in ("amount",):
                 if not isinstance(v.get(key) or 0, (int, float)):
-                    raise SchemaError(f"verdicts[{i}].{key}: expected a number")
+                    raise SchemaError(f"verdicts[{i}].{key}: cần số")
             got.append(v["id"])
         if sorted(got) != sorted(ids):
             raise SchemaError("cần đúng một mục cho mỗi id: " + ", ".join(ids))

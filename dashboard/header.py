@@ -494,7 +494,10 @@ def money_card(p: Pipeline, pid) -> None:
                         project_budget.approve(p, pid, p.actor, prop)
                         st.rerun()
                 except Exception as e:  # noqa: BLE001 - the card must never break the bar
-                    st.caption(f"Chưa tính được ngân sách dự án ({type(e).__name__}).")
+                    # J1 (S14.4 C1b): the reason + what to do, not only the class name
+                    diag.record(p.conn, "system", "warn", f"thẻ ngân sách dự án: {type(e).__name__}: {e}", "budget_card", pid)
+                    st.caption(f"Chưa tính được ngân sách dự án: {str(e)[:160] or type(e).__name__}. Cách xử lý: kiểm tra dự án đã "
+                               "tách cảnh và bảng giá (⚙ Cài đặt), rồi tải lại trang; vẫn lỗi thì gửi báo cáo ở ⚙ Chẩn đoán.")
         if v2 and (stage_table or any(more)):
             with st.expander("Chi tiết từng khâu · lịch sử đặt lại"):
                 if stage_table:

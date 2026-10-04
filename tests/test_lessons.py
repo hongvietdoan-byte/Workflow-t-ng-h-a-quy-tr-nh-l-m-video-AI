@@ -60,6 +60,66 @@ class LessonTests(unittest.TestCase):
         lessons.decide(self.conn, row["id"], False)                              # withdrawing removes it again
         self.assertEqual(knowledge.user_docs("director"), [])
 
+    def _approved_one(self):
+        make_rejects(self.p, 3, ["bàn tay bị méo", "tay có 6 ngón", "sai bàn tay"])
+        lessons.propose(self.conn, llm_runner.MockLlm())
+        row = lessons.list_lessons(self.conn, "proposed")[0]
+        lessons.decide(self.conn, row["id"], True)
+        return row
+
+    def test_a_too_big_new_document_keeps_the_old_one_and_the_proposal(self):
+        """S14.4 C1b (04/10): the old document was deleted BEFORE the new one was checked → a failure lost both."""
+        first = self._approved_one()
+        before = knowledge.user_docs("director")
+        self.conn.execute("INSERT INTO lessons (created_at, group_name, key, title, body, source, evidence, state)"
+                          " VALUES ('x','director','k2','To','" + "x" * (knowledge.MAX_DOC_CHARS + 10) + "','mistakes','{}','proposed')")
+        self.conn.commit()
+        big = self.conn.execute("SELECT id FROM lessons WHERE key='k2'").fetchone()["id"]
+        with self.assertRaises(lessons.LessonError) as cm:
+            lessons.decide(self.conn, big, True)
+        self.assertIn("ký tự", str(cm.exception))                                  # Vietnamese, says what to do
+        self.assertEqual(self.conn.execute("SELECT state FROM lessons WHERE id=?", (big,)).fetchone()["state"], "proposed")
+        after = knowledge.user_docs("director")
+        self.assertEqual([d["file"] for d in after], [d["file"] for d in before])  # the old document is still there
+        self.assertIn(first["body"][:20], knowledge.read_doc("director", "user", after[0]["file"]))
+
+    def test_the_cap_check_does_not_count_the_document_being_replaced(self):
+        self._approved_one()
+        used = sum(d["chars"] for d in knowledge.user_docs("director"))
+        filler = "y" * (knowledge.MAX_USER_CHARS - used - 5)                        # room left: 5 chars + the old doc itself
+        for i in range(0, len(filler), knowledge.MAX_DOC_CHARS):
+            knowledge.add_doc("director", f"f{i}.md", filler[i:i + knowledge.MAX_DOC_CHARS].encode())
+        lessons.sync_knowledge(self.conn, "director")                              # same text again: fits once the old one goes
+        self.assertEqual(sum(1 for d in knowledge.user_docs("director") if d["title"] == lessons.DOC_TITLE), 1)
+
+    def test_a_failing_manifest_write_keeps_exactly_the_old_document(self):
+        """Rà soát C1b: add-new and drop-old were two writes — a failure in between left both documents in the manifest."""
+        from unittest import mock
+        self._approved_one()
+        before = knowledge.user_docs("director")
+        files_before = sorted(os.listdir(knowledge.group_dir("director")))
+        with mock.patch.object(knowledge, "_save", side_effect=OSError("đĩa đầy")) as save:
+            with self.assertRaises(lessons.LessonError):
+                lessons.sync_knowledge(self.conn, "director")
+        self.assertEqual(save.call_count, 1)                                     # one write: all or nothing
+        self.assertEqual([d["file"] for d in knowledge.user_docs("director")], [d["file"] for d in before])
+        self.assertEqual(sorted(os.listdir(knowledge.group_dir("director"))), files_before)   # the new file is not left behind
+
+    def test_withdrawing_the_last_lesson_that_cannot_be_removed_is_said(self):
+        from unittest import mock
+        row = self._approved_one()
+        with mock.patch.object(knowledge, "remove_doc", side_effect=OSError("bị khóa")):
+            with self.assertRaises(lessons.LessonError) as cm:
+                lessons.decide(self.conn, row["id"], False)
+        self.assertIn("Cách xử lý", str(cm.exception))
+        self.assertEqual(self.conn.execute("SELECT state FROM lessons WHERE id=?", (row["id"],)).fetchone()["state"], "approved")
+
+    def test_the_lessons_buttons_go_through_act(self):
+        src = open(os.path.join(os.path.dirname(__file__), "..", "dashboard", "admin.py"), encoding="utf-8").read()
+        calls = [ln for ln in src.splitlines() if "lessons.decide(" in ln]
+        self.assertTrue(calls)
+        self.assertEqual([ln for ln in calls if "act(lambda" not in ln], [])     # an error shows a message, not a crash
+
     def test_rejected_proposals_are_not_proposed_again(self):
         make_rejects(self.p, 3, ["tay sai"] * 4)
         lessons.propose(self.conn)
@@ -97,6 +157,18 @@ class ResearchTests(unittest.TestCase):
         self.assertEqual(knowledge.user_docs("director"), [])
         again = research.run(self.conn, llm_runner.MockLlm())
         self.assertEqual(again["proposed"], 0)                                   # same findings are not duplicated
+
+    def test_a_finding_that_is_not_an_object_is_counted_not_fatal(self):
+        """S14.4 C1b (04/10): 'findings': ["text", {...}] crashed the whole round on f.get()."""
+        class Mixed:
+            def complete_with_search(self, prompt, max_uses=3):
+                return llm_runner.LlmReply('{"findings": ["chỉ là chữ", {"title": "Ánh sáng ven", "rule": "Dùng rim light", '
+                                           '"url": "https://x"}]}', 1, 1)
+
+        r = research.run(self.conn, Mixed(), {"director": ["ánh sáng"]})
+        self.assertEqual(r["proposed"], 1)
+        self.assertEqual(len(r["errors"]), 1)
+        self.assertIn("director", r["errors"][0])
 
     def test_a_bad_answer_is_reported_not_fatal(self):
         class Junk:

@@ -33,13 +33,13 @@ def digest(p, project_id: int) -> List[Dict]:
 def _check(obj) -> None:
     from .llm_io import SchemaError
     if not isinstance(obj, dict) or not isinstance(obj.get("summary"), str):
-        raise SchemaError("expected {summary, who_wants_what, turns, confusing, ending, understood}")
+        raise SchemaError("cần object {summary, who_wants_what, turns, confusing, ending, understood}")
     for key in ("turns", "confusing"):
         if not isinstance(obj.get(key) or [], list):
-            raise SchemaError(f"{key}: expected a list")
+            raise SchemaError(f"{key}: cần danh sách")
     u = obj.get("understood")
     if not isinstance(u, (int, float)) or not 1 <= u <= 5:
-        raise SchemaError("understood: expected 1–5")
+        raise SchemaError("understood: cần số 1–5")
 
 
 def path(data_dir: str, project_id: int) -> str:

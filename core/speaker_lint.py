@@ -37,7 +37,7 @@ def speakers(data: Dict) -> List[str]:
         if not isinstance(d, dict):
             continue
         who = str(d.get("speaker") or "").strip().upper()
-        if who and who not in dialogue.NOT_SPEAKERS and str(d.get("text") or "").strip() and who not in out:
+        if who and not dialogue.is_non_speaker(who) and str(d.get("text") or "").strip() and who not in out:
             out.append(who)
     return out
 

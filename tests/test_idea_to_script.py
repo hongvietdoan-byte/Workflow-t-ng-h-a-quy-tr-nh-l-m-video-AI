@@ -98,6 +98,18 @@ class IdeaTests(unittest.TestCase):
         with self.assertRaisesRegex(I.IdeaError, "trần"):
             I.questions(self.p.conn, self.pid, self.m)
 
+    def test_a_failed_turn_still_counts_what_it_cost(self):
+        """S14.4 C1b (04/10): two bad answers were paid but not added to the idea's spend → the cap never closed."""
+        class PaidJunk:
+            def complete(self, prompt, images=()):
+                llm_runner._CAPS.stack[-1]["spent"] += 0.05                    # what the ledger adds for a real call
+                return llm_runner.LlmReply("không phải json", 10, 10)
+
+        I.start(self.p.conn, self.pid, IDEA)
+        with self.assertRaises(llm_runner.LlmError):
+            I.questions(self.p.conn, self.pid, PaidJunk())
+        self.assertAlmostEqual(I.get_state(self.p.conn, self.pid)["spent"], 0.10)
+
     def test_a_turn_fits_under_the_per_idea_cap(self):
         """01/10 S11.2: without its own max_tokens the stage used 32k → turn 1 estimated 0.43 USD > 0.3 cap, every idea refused."""
         model = llm_runner.DEFAULT_MODEL

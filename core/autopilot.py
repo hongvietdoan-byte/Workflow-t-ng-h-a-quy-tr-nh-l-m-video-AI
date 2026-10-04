@@ -632,15 +632,15 @@ def _plates_phase(p: Pipeline, pid: int, ctx: Context) -> Optional[str]:
         return None
     for it in items:
         if it["weather_problem"]:
-            _d(p, pid, "images", "warn", f"shot {it['idx']}: {it['weather_problem']}", "weather")
+            _d(p, pid, "image", "warn", f"shot {it['idx']}: {it['weather_problem']}", "weather")
         if it.get("spot_problem"):
-            _d(p, pid, "images", "warn", f"shot {it['idx']}: {it['spot_problem']}", "plate_spot")
+            _d(p, pid, "image", "warn", f"shot {it['idx']}: {it['spot_problem']}", "plate_spot")
         if it.get("needs"):                               # S5.7: the shot's picture waits — said, with what to write
-            _d(p, pid, "images", "error", f"shot {it['idx']}: {it['needs']}", "plate_view")
+            _d(p, pid, "image", "error", f"shot {it['idx']}: {it['needs']}", "plate_view")
         elif it.get("view_problem"):
-            _d(p, pid, "images", "warn", f"shot {it['idx']}: {it['view_problem']}", "plate_view")
+            _d(p, pid, "image", "warn", f"shot {it['idx']}: {it['view_problem']}", "plate_view")
         if it.get("light_problem"):
-            _d(p, pid, "images", "warn", f"shot {it['idx']}: {it['light_problem']}", "practical_lights")
+            _d(p, pid, "image", "warn", f"shot {it['idx']}: {it['light_problem']}", "practical_lights")
     idx = location_pack.index(ctx.data_dir, pid)
     if all(str(it["scene_id"]) in idx and idx[str(it["scene_id"])].get("key") == it["key"] for it in items):   # failed ones included
         return None
@@ -665,7 +665,7 @@ def _lipsync_phase(p: Pipeline, pid: int, ctx: Context) -> Optional[str]:
             for s in p.conn.execute("SELECT id, idx, data FROM scenes WHERE project_id=? ORDER BY idx", (pid,)).fetchall():
                 note = lipsync.no_post_note(json.loads(s["data"] or "{}"))
                 if note:
-                    diag.record(p.conn, "videos", "info", f"S{s['idx']:02d}: {note}", "lipsync_no_post", pid, s["id"])
+                    diag.record(p.conn, "video", "info", f"S{s['idx']:02d}: {note}", "lipsync_no_post", pid, s["id"])
             open(marker, "w").close()
         return None
     if not any(r["method"] == "post" for r in lipsync.plan(p.conn, pid)):
@@ -702,7 +702,7 @@ def _plate_fallback_phase(p: Pipeline, pid: int, ctx: Context) -> Optional[str]:
             new = regen.regenerate_video(p, ctx.data_dir, rec["job_id"], f"nền bị vẽ lại (điểm {rec.get('score')}) → diễn trên phông xanh",
                                          auto=True)              # S14.16: counted on the clip's automatic limit
         except Exception as e:  # noqa: BLE001 - say it, never loop on it
-            _d(p, pid, "videos", "warn", f"shot {sid}: không gen lại được sang cách 2 ({e})", "plate_fallback")
+            _d(p, pid, "video", "warn", f"shot {sid}: không gen lại được sang cách 2 ({e})", "plate_fallback")
             continue
         if new is None:                                      # the clip's automatic limit: the person decides (📥)
             continue

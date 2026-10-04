@@ -24,13 +24,36 @@ _LINE = re.compile(r"^\s*([^:\n]{1,30}?)\s*:\s*(.+?)\s*$")
 NOT_SPEAKERS = {"TEXT CUỐI", "CARD CUỐI", "CHỮ CUỐI", "END CARD", "GHI CHÚ", "LƯU Ý", "THỜI LƯỢNG", "NHÂN VẬT", "BỐI CẢNH",
                 "ĐỊA ĐIỂM", "THỜI GIAN", "GÓC MÁY", "MÔ TẢ", "KỊCH BẢN", "NOTE", "CAMERA",
                 "HỆ THỐNG", "SYSTEM", "THÔNG BÁO", "HUD", "CẤU TRÚC", "FLASHBACK", "FLASHBACK NGẮN",   # on-screen text, not a voice
-                "TEXT", "CHỮ", "CAPTION", "ON-SCREEN TEXT", "ON SCREEN TEXT"}
+                "TEXT", "CHỮ", "CAPTION", "ON-SCREEN TEXT", "ON SCREEN TEXT",
+                # S14.4 C1b (04/10): text cards of a short ad are not a voice either (one list for every reader)
+                "CTA", "CTA TEXT", "CTA_TEXT", "TITLE", "SUPER", "SUBTITLE", "LOGO", "CHỮ TRÊN MÀN", "CHỮ MÀN HÌNH",
+                "CHỮ TRÊN MÀN HÌNH", "TIÊU ĐỀ", "PHỤ ĐỀ"}
+# Names that only mean "on-screen text" WITH their accents: 'CHỮ' folds to 'chu', which is also a person's name (Chu).
+_ACCENT_ONLY = {"chu"}
+
+
+def _fold(text: str) -> str:
+    """'Chữ trên màn' -> 'chu tren man'; 'CTA_TEXT' / 'CTA-TEXT' -> 'cta text' (same words, no accents, no case)."""
+    import unicodedata
+    text = unicodedata.normalize("NFD", (text or "").replace("đ", "d").replace("Đ", "D"))
+    text = "".join(c for c in text if unicodedata.category(c) != "Mn")
+    return re.sub(r"\s+", " ", re.sub(r"[\W_]+", " ", text.lower())).strip()
+
+
+_NOT_SPEAKERS_FOLDED = {_fold(n) for n in NOT_SPEAKERS} - _ACCENT_ONLY
+
+
+def is_non_speaker(name: str) -> bool:
+    """True for a heading / on-screen text label ('CTA_TEXT', 'Chữ trên màn', 'TITLE'), compared without accents — except
+    the words in `_ACCENT_ONLY`, matched with their accents only so a character named 'CHU' still speaks."""
+    raw = re.sub(r"\s+", " ", str(name or "")).strip()
+    return raw.upper() in NOT_SPEAKERS or _fold(raw) in _NOT_SPEAKERS_FOLDED
 
 
 def _is_speaker(name: str) -> bool:
     """'KELLY' (capitals, the usual script style) or 'Kelly' / 'Ông Lão Orin' (every word capitalised, at most 3 words) — not a
     heading such as 'Ghi chú' or 'TEXT CUỐI'."""
-    if not name or not any(ch.isalpha() for ch in name) or name.upper() in NOT_SPEAKERS:
+    if not name or not any(ch.isalpha() for ch in name) or is_non_speaker(name):
         return False
     if name == name.upper():
         return True

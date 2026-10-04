@@ -21,7 +21,14 @@ from typing import Dict, List, Optional
 
 SHORT, MEDIUM = 200, 500
 SOURCE_KEYS = ("identity", "must_keep", "height_m", "build")        # what the digest is made from (the hash covers these + forbidden)
-_MINOR_AGE = re.compile(r"\b(?:[1-9]|1[0-7])[- ]?(?:-|\s)?years?[- ]old\b", re.IGNORECASE)
+_UNDER_18 = r"(?:[1-9]|1[0-7])"
+_UNDER_18_WORDS = (r"(?:one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen)")
+# S14.4 C1b (04/10): also 'aged 17', '17yo', '17 tuổi', 'seventeen-year-old', 'age 16' (only '17-year-old' was caught)
+_MINOR_AGE = re.compile(
+    rf"\b(?:{_UNDER_18}|{_UNDER_18_WORDS})[- ]?(?:-|\s)?years?[- ]old\b"
+    rf"|\b(?:aged?|tuổi)\s*:?\s*{_UNDER_18}\b"
+    rf"|\b{_UNDER_18}\s*(?:yo|y/o|yrs?)\b"
+    rf"|\b{_UNDER_18}\s*tuổi(?!\w)", re.IGNORECASE)
 _WORD = re.compile(r"[a-zA-Z]{4,}")                                  # "silver-white" = silver + white
 _HEAD = re.compile(r"^[^—:]{1,40}—\s*")                              # "Kelly — " at the start of an identity line
 _CAPS = re.compile(r"\b[A-Z]{4,}\b")

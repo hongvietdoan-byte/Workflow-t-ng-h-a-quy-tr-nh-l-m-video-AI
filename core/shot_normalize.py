@@ -44,7 +44,7 @@ ROLE_SYN = {"establishing": "setup", "establish": "setup", "reaction_shot": "rea
 
 def _spoken(shot: Dict) -> List[Tuple[str, str]]:
     return [(str(d.get("speaker") or "").strip(), str(d.get("text") or "").strip()) for d in shot.get("dialogue") or []
-            if isinstance(d, dict) and str(d.get("speaker") or "").strip().upper() not in dialogue.NOT_SPEAKERS
+            if isinstance(d, dict) and not dialogue.is_non_speaker(str(d.get("speaker") or ""))
             and str(d.get("text") or "").strip()]
 
 

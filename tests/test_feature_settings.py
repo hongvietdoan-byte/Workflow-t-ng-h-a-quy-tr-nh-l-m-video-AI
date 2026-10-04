@@ -71,6 +71,20 @@ class FeatureSettingsTests(unittest.TestCase):
         features.save_settings(preset="stable")
         self.assertEqual(json.load(open(self.path, encoding="utf-8"))["preset"], "stable")
 
+    def test_a_flag_that_needs_another_says_it_has_no_effect_alone(self):
+        """S14.4 C1b (04/10): dialogue_take does nothing without lip_sync (runner checks lipsync.enabled()) — it looked ON."""
+        features.save_settings(flags={"dialogue_take": True, "lip_sync": False})
+        self.assertEqual(features.unmet("dialogue_take"), ["lip_sync"])
+        self.assertIn("lip_sync", features.why_state("dialogue_take"))
+        self.assertIn("không có tác dụng", features.why_state("dialogue_take"))
+        self.assertIn("dialogue_take", features.unmet_all())
+        features.save_settings(flags={"lip_sync": True})
+        self.assertEqual(features.unmet("dialogue_take"), [])
+        self.assertNotIn("không có tác dụng", features.why_state("dialogue_take"))
+        for name, needs in features.REQUIRES.items():                      # every name is a real flag
+            self.assertIn(name, features.FEATURES)
+            self.assertTrue(all(n in features.FEATURES for n in needs))
+
 
 if __name__ == "__main__":
     unittest.main()

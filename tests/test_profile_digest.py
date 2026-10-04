@@ -64,6 +64,14 @@ class DigestTests(unittest.TestCase):
         young = dict(KELLY, identity="Kelly — 17-year-old sprinter: slim athletic young woman")
         self.assertNotIn("17", pd.build(young)["lock_short"])             # the age never reaches the short form
 
+    def test_every_way_of_writing_a_minor_age_is_caught(self):
+        """S14.4 C1b (04/10): 'aged 17', '17yo', '17 tuổi', 'seventeen-year-old', 'age 16' slipped through."""
+        for text in ("a girl aged 17", "17yo sprinter", "cô gái 17 tuổi", "a seventeen-year-old boy", "age 16", "16-year-old",
+                     "a 9 year old kid", "fifteen year old"):
+            self.assertTrue(pd._MINOR_AGE.search(text), text)
+        for text in ("38-year-old swordsman", "aged 25", "not yet 20", "18 tuổi", "age 18", "17 meters tall", "seventeen stars"):
+            self.assertFalse(pd._MINOR_AGE.search(text), text)
+
     def test_a_hand_written_digest_is_kept_until_the_profile_changes(self):
         manual = {"hash": pd.source_hash(KELLY), "lock_short": "sprinter, dark brown bob, yellow track suit", "lock_medium": "same",
                   "source": "manual"}

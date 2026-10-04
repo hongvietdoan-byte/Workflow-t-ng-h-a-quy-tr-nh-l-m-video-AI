@@ -88,8 +88,11 @@ def _load(group: str) -> List[Dict]:
 
 
 def _save(group: str, docs: List[Dict]) -> None:
-    with open(_manifest(group), "w", encoding="utf-8") as f:
+    path = _manifest(group)
+    tmp = path + ".tmp"                      # S14.4 C1b: atomic — a failure never leaves a half-written manifest
+    with open(tmp, "w", encoding="utf-8") as f:
         json.dump(docs, f, ensure_ascii=False, indent=1)
+    os.replace(tmp, path)
 
 
 def _read(path: str) -> str:
@@ -100,13 +103,40 @@ def _read(path: str) -> str:
         return ""
 
 
+# S14.4 C1b (04/10): with the `film_crew` flag the Director reads the role books instead of 3 scattered documents
+# (core/prompts.py build_director_bundle / dp_common) — the knowledge page shows the same thing.
+CREW_REPLACES = ("knowledge/cinematography_basics.md", "knowledge/film_director_method.md", "knowledge/dialogue_craft.md")
+CREW_DOCS = {"director": [
+    ("knowledge/roles/director.md", "Bộ nguyên tắc vai Đạo diễn", "cờ film_crew: thay 3 tài liệu cũ", False),
+    ("knowledge/roles/dp.md", "Bộ nguyên tắc vai Quay phim (DP)", "cờ film_crew: gửi khi dự án chia shot (Tầng B)", False),
+    ("knowledge/editor/editing.md", "Bộ nguyên tắc vai Editor (dựng)",
+     "cờ film_crew: gửi ở khâu Editor duyệt bản thô (Bước 5), không gửi kèm Director", True)]}
+
+
+def _film_crew() -> bool:
+    from . import features
+    try:
+        return features.on("film_crew")
+    except KeyError:                                     # an old feature table without the flag: as before
+        return False
+
+
 def builtin_docs(group: str) -> List[Dict]:
     out = []
+    crew = _film_crew()
     for rel, title, note in GROUPS[group][2]:
         path = os.path.join(ROOT, *rel.split("/"))
         text = _read(path)
+        item = {"source": "builtin", "title": title, "note": note, "file": rel, "path": os.path.abspath(path),
+                "chars": len(text), "enabled": True, "exists": bool(text), "crew_replaced": crew and rel in CREW_REPLACES}
+        if item["crew_replaced"]:
+            item["note"] = "cờ film_crew: KHÔNG gửi — bộ nguyên tắc vai thay thế"
+        out.append(item)
+    for rel, title, note, elsewhere in (CREW_DOCS.get(group, []) if crew else []):
+        path = os.path.join(ROOT, *rel.split("/"))
+        text = _read(path)
         out.append({"source": "builtin", "title": title, "note": note, "file": rel, "path": os.path.abspath(path),
-                    "chars": len(text), "enabled": True, "exists": bool(text)})
+                    "chars": len(text), "enabled": True, "exists": bool(text), "crew_replaced": False, "elsewhere": elsewhere})
     return out
 
 
@@ -130,7 +160,8 @@ def overview(group: str) -> Dict:
     for d in docs:
         d["folded"] = d["source"] == "builtin" and d["file"] in folded
         d["replaced"] = bool(playbook) and (d["source"] == "user" or d["folded"])  # not sent: the playbook stands in
-    sent = sum(d["chars"] for d in docs if d["enabled"] and not d["replaced"]) + (playbook["chars"] if playbook else 0)
+    sent = sum(d["chars"] for d in docs if d["enabled"] and not d["replaced"] and not d.get("crew_replaced")
+               and not d.get("elsewhere")) + (playbook["chars"] if playbook else 0)
     user_sent = sum(d["chars"] for d in docs if d["enabled"] and d["source"] == "user" and not d["replaced"])
     return {"docs": docs, "chars": sent, "tokens": approx_tokens(sent), "user_chars": user_sent,
             "raw_chars": raw, "raw_tokens": approx_tokens(raw), "distilled": distilled_status(group),
@@ -171,19 +202,47 @@ def _extract(filename: str, data: bytes) -> str:
     return data.decode("utf-8", errors="replace")
 
 
-def add_doc(group: str, filename: str, data: bytes, title: Optional[str] = None, note: str = "") -> Dict:
-    """Add an uploaded document to a step's knowledge base (enabled at once)."""
+def _checked_text(group: str, filename: str, data: bytes, docs: List[Dict], replacing=frozenset()) -> str:
+    """The document's text after the size checks; documents in `replacing` (files about to be swapped out) do not count."""
     text = _extract(filename, data).strip()
     if not text:
         raise ValueError("Tài liệu rỗng")
     if len(text) > MAX_DOC_CHARS:
         raise ValueError(f"Tài liệu dài {len(text):,} ký tự; tối đa {MAX_DOC_CHARS:,} (≈ {approx_tokens(MAX_DOC_CHARS):,} token). "
                          "Hãy rút gọn hoặc tách nhỏ.")
-    docs = _load(group)
-    used = sum(d["chars"] for d in docs if d.get("enabled", True))
+    used = sum(d["chars"] for d in docs if d.get("enabled", True) and d["file"] not in replacing)
     if used + len(text) > MAX_USER_CHARS:
         raise ValueError(f"Tổng tài liệu bổ sung của bước này sẽ vượt {MAX_USER_CHARS:,} ký tự "
                          f"(đang dùng {used:,}). Tắt hoặc xóa bớt tài liệu cũ trước.")
+    return text
+
+
+def add_doc(group: str, filename: str, data: bytes, title: Optional[str] = None, note: str = "") -> Dict:
+    """Add an uploaded document to a step's knowledge base (enabled at once)."""
+    docs = _load(group)
+    text = _checked_text(group, filename, data, docs)
+    return _write_new(group, filename, text, docs, title, note)
+
+
+def replace_doc(group: str, old_title: str, filename: str, data: bytes, title: Optional[str] = None, note: str = "") -> Dict:
+    """S14.4 C1b (04/10): swap the uploaded document(s) titled `old_title` for a new one. The new text is built and checked
+    against the limits (not counting the documents it replaces) BEFORE anything is removed: a failure keeps the old ones."""
+    docs = _load(group)
+    old = {d["file"] for d in docs if d.get("title") == old_title}
+    text = _checked_text(group, filename, data, docs, old)          # raises ValueError → nothing changed
+    entry = _write_new(group, filename, text, docs, title, note, drop=old)   # ONE manifest write: add new + drop old together
+    for f in old:
+        try:
+            os.remove(os.path.join(group_dir(group), f))
+        except OSError:
+            pass                                                     # the manifest no longer lists it: never sent again
+    return entry
+
+
+def _write_new(group: str, filename: str, text: str, docs: List[Dict], title: Optional[str], note: str,
+               drop=frozenset()) -> Dict:
+    """Write the new document's file, then the manifest once (with the entries in `drop` left out). A failed manifest write removes
+    the new file again: the knowledge base stays exactly as it was."""
     folder = group_dir(group)
     stem, n = _slug(filename), 1
     file = f"{stem}.md"
@@ -195,8 +254,15 @@ def add_doc(group: str, filename: str, data: bytes, title: Optional[str] = None,
     entry = {"file": file, "title": (title or "").strip() or os.path.splitext(os.path.basename(filename))[0],
              "note": note.strip(), "original": os.path.basename(filename), "chars": len(text), "enabled": True,
              "added_at": time.strftime("%Y-%m-%d %H:%M")}
+    try:
+        _save(group, [d for d in docs if d["file"] not in drop] + [entry])
+    except Exception:
+        try:
+            os.remove(os.path.join(folder, file))
+        except OSError:
+            pass
+        raise
     docs.append(entry)
-    _save(group, docs)
     return entry
 
 
@@ -207,13 +273,13 @@ def set_enabled(group: str, file: str, enabled: bool) -> None:
             d["enabled"] = bool(enabled)
             _save(group, docs)
             return
-    raise KeyError(f"'{file}' is not an uploaded document of this step")
+    raise KeyError(f"Không tìm thấy tài liệu '{file}' trong tài liệu bổ sung của bước này — tải lại trang (có thể vừa bị xóa).")
 
 
 def remove_doc(group: str, file: str) -> None:
     docs = _load(group)
     if not any(d["file"] == file for d in docs):
-        raise KeyError(f"'{file}' is not an uploaded document of this step")
+        raise KeyError(f"Không tìm thấy tài liệu '{file}' trong tài liệu bổ sung của bước này — tải lại trang (có thể vừa bị xóa).")
     _save(group, [d for d in docs if d["file"] != file])
     try:
         os.remove(os.path.join(group_dir(group), file))

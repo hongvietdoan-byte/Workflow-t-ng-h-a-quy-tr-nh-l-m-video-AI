@@ -60,7 +60,7 @@ def frame_of(scene: Dict) -> Tuple[float, float]:
 def _spoken(lines) -> List[Tuple[str, str]]:
     return [(str(d.get("speaker") or "").strip().upper(), str(d.get("text") or "").strip()) for d in lines or []
             if isinstance(d, dict) and str(d.get("text") or "").strip()
-            and str(d.get("speaker") or "").strip().upper() not in dialogue.NOT_SPEAKERS]
+            and not dialogue.is_non_speaker(str(d.get("speaker") or ""))]
 
 
 def kept_lines(scene: Dict) -> List[Tuple[str, str]]:
@@ -123,7 +123,7 @@ def validate_intent(pipeline: Pipeline, project_id: int) -> Callable[[Any], Dict
                 raise SchemaError(f"{w}.peak: số nguyên 1–5 hoặc bỏ trống")
             for key in ("dp_notes", "editor_notes"):
                 if sc.get(key) is not None and not isinstance(sc.get(key), str):
-                    raise SchemaError(f"{w}.{key}: expected text")
+                    raise SchemaError(f"{w}.{key}: cần chữ")
             if "sound" in sc:
                 from . import sound_intent
                 sound, _ = sound_intent.clean(sc.get("sound"))
@@ -135,7 +135,7 @@ def validate_intent(pipeline: Pipeline, project_id: int) -> Callable[[Any], Dict
                 _check_kept(sc, script.get(sc["idx"]) or [], trim, w)
         for key in ("tradeoffs", "script_notes", "dropped_lines", "ip_risk_notes"):
             if obj.get(key) is not None and not isinstance(obj[key], list):
-                raise SchemaError(f"root.{key}: expected a list")
+                raise SchemaError(f"root.{key}: cần danh sách")
         return obj
     return check
 
@@ -199,7 +199,7 @@ def check_scene(scene: Dict, names) -> Callable[[Any], Dict]:
                               f" — nhận {len(got)} câu" + _first_mismatch(got, kept))
         trade = part.get("tradeoffs")
         if trade is not None and not isinstance(trade, list):
-            raise SchemaError("tradeoffs: expected a list")
+            raise SchemaError("tradeoffs: cần danh sách")
         return {"idx": idx, "shots": probe["scenes"][0]["shots"], "tradeoffs": [t for t in trade or [] if isinstance(t, dict)],
                 "normalized": changes}
     return check
@@ -228,11 +228,11 @@ def merge(intent: Dict, parts: Dict[int, Dict]) -> Dict:
         s["intent"] = {k: copy.deepcopy(sc[k]) for k in INTENT_KEYS if k in sc}
         s["shots"] = copy.deepcopy(part["shots"])
         how = [d.get("delivery") for d in sc.get("dialogue") or [] if isinstance(d, dict) and str(d.get("text") or "").strip()
-               and str(d.get("speaker") or "").strip().upper() not in dialogue.NOT_SPEAKERS]
+               and not dialogue.is_non_speaker(str(d.get("speaker") or ""))]
         k = 0
         for shot in s["shots"]:
             for d in shot.get("dialogue") or []:
-                if not isinstance(d, dict) or str(d.get("speaker") or "").strip().upper() in dialogue.NOT_SPEAKERS:
+                if not isinstance(d, dict) or dialogue.is_non_speaker(str(d.get("speaker") or "")):
                     continue
                 if k < len(how) and how[k] and not d.get("delivery"):
                     d["delivery"] = copy.deepcopy(how[k])

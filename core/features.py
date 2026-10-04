@@ -383,6 +383,7 @@ def save_settings(preset: str = None, flags: Dict = None) -> Dict:
     with open(tmp, "w", encoding="utf-8") as f:
         json.dump(cur, f, ensure_ascii=False, indent=1)
     os.replace(tmp, path)
+    _SETTINGS["stamp"] = object()         # two saves in one clock tick keep the same mtime: never serve the old cache (test flake 04/10)
     return settings()
 
 
@@ -409,8 +410,32 @@ def on(name: str) -> bool:
     return verified
 
 
+# S14.4 C1b (04/10): a flag that only works together with another one (dialogue_take: the runner asks lipsync.enabled() = lip_sync
+# first). Shown in 🧪 instead of a flag that looks ON and does nothing.
+REQUIRES = {"dialogue_take": ("lip_sync",)}
+
+
+def unmet(name: str) -> list:
+    """The flags `name` needs that are off (empty when it is off itself or has no needs)."""
+    if name not in REQUIRES or not on(name):
+        return []
+    return [n for n in REQUIRES[name] if not on(n)]
+
+
+def unmet_all() -> Dict[str, str]:
+    """{flag: Vietnamese warning} for every flag that is ON but has no effect because a flag it needs is off."""
+    return {k: f"'{k}' đang bật nhưng không có tác dụng: cần bật thêm {', '.join(repr(n) for n in miss)}"
+            for k in REQUIRES for miss in [unmet(k)] if miss}
+
+
 def why_state(name: str) -> str:
     """Why `on(name)` is what it is (shown in 🧪)."""
+    miss = unmet(name)
+    base = _why_state(name)
+    return base + (f" — ⚠ không có tác dụng: cần bật thêm {', '.join(miss)}" if miss else "")
+
+
+def _why_state(name: str) -> str:
     s = settings()
     if name in s["flags"]:
         return "bạn chọn trên màn này"

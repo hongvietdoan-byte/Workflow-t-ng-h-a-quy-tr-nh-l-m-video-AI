@@ -663,7 +663,7 @@ def ask_json(client, prompt: str, validate: Callable[[Any], Any], images: Sequen
             error = str(e)[:300]
             if note is not None and attempt == 0:
                 note(f"câu trả lời lần 1 không hợp lệ, đã hỏi lại: {error}")   # a silent retry that costs tokens
-    raise LlmError(f"the model did not return valid JSON twice: {error}", code="bad_json")
+    raise LlmError(f"Claude trả lời sai định dạng 2 lần liền ({error}). Cách xử lý: bấm chạy lại; nếu vẫn lỗi, rút gọn kịch bản / ghi chú của bước này hoặc gửi báo cáo chẩn đoán (⚙ Chẩn đoán).", code="bad_json")
 
 
 def ask_text(client, prompt: str, validate: Callable[[str], str]):
@@ -680,7 +680,8 @@ def ask_text(client, prompt: str, validate: Callable[[str], str]):
             return validate(reply.text), tin, tout
         except ValueError as e:
             error = str(e)[:300]
-    raise LlmError(f"the model did not return a usable playbook twice: {error}", code="bad_text")
+    raise LlmError(f"Claude trả cẩm nang không dùng được 2 lần liền ({error}). Cách xử lý: bấm chắt lọc lại; nếu vẫn lỗi, tắt bớt "
+                   "tài liệu dài của bước này rồi thử lại.", code="bad_text")
 
 
 def run_distill(group: str, client, include_builtin: bool = False) -> Dict:

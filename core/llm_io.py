@@ -13,18 +13,21 @@ class SchemaError(ValueError):
     pass
 
 
+_TYPE_VI = {str: "chữ", int: "số nguyên", float: "số", list: "danh sách", dict: "object {…}", bool: "true/false"}
+
+
 def _req(obj: Mapping, key: str, typ, where: str):
     if key not in obj:
-        raise SchemaError(f"{where}: missing '{key}'")
+        raise SchemaError(f"{where}: thiếu trường '{key}'")
     if not isinstance(obj[key], typ) or isinstance(obj[key], bool) and typ is not bool:
-        raise SchemaError(f"{where}.{key}: expected {typ.__name__ if isinstance(typ, type) else typ}")
+        raise SchemaError(f"{where}.{key}: sai kiểu — cần {_TYPE_VI.get(typ, getattr(typ, '__name__', typ))}")
     return obj[key]
 
 
 def _load(data: Any) -> Dict:
     obj = json.loads(data) if isinstance(data, str) else data
     if not isinstance(obj, dict):
-        raise SchemaError("root must be an object")
+        raise SchemaError("gốc JSON phải là một object {…}")
     return obj
 
 
@@ -41,7 +44,7 @@ def validate_scene_analysis(data: Any) -> Dict:
     [{speaker, text}], `duration_s` (1-30; each model clamps to its own limit)."""
     obj = _load(data)
     if obj.get("genre") is not None and not isinstance(obj.get("genre"), str):
-        raise SchemaError("root.genre: expected text")
+        raise SchemaError("root.genre: cần chữ")
     chars = _req(obj, "characters", list, "root")
     for i, c in enumerate(chars):
         w = f"characters[{i}]"
@@ -60,7 +63,7 @@ def validate_scene_analysis(data: Any) -> Dict:
         _check_sequence(s.get("sequence"), w)
         for key in ("blocking", "emotional_intent"):
             if s.get(key) is not None and not isinstance(s.get(key), str):
-                raise SchemaError(f"{w}.{key}: expected text")
+                raise SchemaError(f"{w}.{key}: cần chữ")
         _check_choice(s.get("camera_complexity"), COMPLEXITY, f"{w}.camera_complexity")
         _check_choice(s.get("shot_role"), SHOT_ROLES, f"{w}.shot_role")
         s["beat"] = _clean_beat(s.get("beat")) if "beat" in s else None
@@ -70,7 +73,7 @@ def validate_scene_analysis(data: Any) -> Dict:
         _check_duration(s.get("duration_s"), f"{w}.duration_s")
         for name in _req(s, "characters", list, w):
             if name not in names:
-                raise SchemaError(f"{w}.characters: '{name}' not in Character Bible")
+                raise SchemaError(f"{w}.characters: '{name}' không có trong Character Bible")
         if s.get("shots") is not None:                  # v3: the scene split into shots (core.shots)
             from .shots import ShotError, validate as _validate_shots
             try:
@@ -125,20 +128,22 @@ def _check_lines(pipeline: Pipeline, project_id: int, obj: Dict) -> None:
     if not script:
         return
     used = [_norm_line(d.get("text")) for sc in obj["scenes"] for sh in sc.get("shots") or [] for d in sh.get("dialogue") or []
-            if isinstance(d, dict) and str(d.get("speaker") or "").strip().upper() not in _dlg.NOT_SPEAKERS]
-    invented = [t for t in used if t and t not in script]
+            if isinstance(d, dict) and not _dlg.is_non_speaker(str(d.get("speaker") or ""))]
+    from collections import Counter               # S14.4 C1b: counted, not a set — a line written twice must be said twice
+    have, said = Counter(script), Counter(t for t in used if t)
+    invented = [t for t in said if said[t] > have[t]]
     if invented:
         raise SchemaError("dialogue: câu không có nguyên văn trong kịch bản (không thêm, không sửa chữ): " + "; ".join(invented[:3]))
     proj = pipeline.project(project_id)
     if not ("dialogue_trim" in proj.keys() and proj["dialogue_trim"]):
-        dropped = [t for t in script if t not in used]
+        dropped = [t for t in have if have[t] > said[t]]
         if dropped:
             raise SchemaError("dialogue: thiếu câu thoại của kịch bản (không được bỏ): " + "; ".join(dropped[:3]))
 
 
 def _check_choice(value: Any, allowed, where: str) -> None:
     if value is not None and value not in allowed:
-        raise SchemaError(f"{where}: must be one of {', '.join(allowed)} or null")
+        raise SchemaError(f"{where}: chỉ nhận một trong {', '.join(allowed)} hoặc null")
 
 
 BEAT_KEYS = ("want", "obstacle", "turn", "value", "plant", "payoff", "cause")   # GĐ4 director.md Đ1: value shift + set-up / pay-off;
@@ -156,25 +161,25 @@ def _check_beat(value: Any, where: str) -> None:
     if value is None:
         return
     if not isinstance(value, dict) or any(k not in BEAT_KEYS or not isinstance(v, str) for k, v in value.items()):
-        raise SchemaError(f"{where}: expected {{{', '.join(BEAT_KEYS)}}} as text")
+        raise SchemaError(f"{where}: cần object {{{', '.join(BEAT_KEYS)}}}, mỗi giá trị là chữ")
 
 
 def _check_dialogue(value: Any, where: str) -> None:
     if value is None:
         return
     if not isinstance(value, list):
-        raise SchemaError(f"{where}: expected a list of {{speaker, text}}")
+        raise SchemaError(f"{where}: cần danh sách {{speaker, text}}")
     for j, d in enumerate(value):
         if not isinstance(d, dict) or not isinstance(d.get("speaker", ""), str) or not isinstance(d.get("text"), str) \
                 or not d["text"].strip():
-            raise SchemaError(f"{where}[{j}]: expected {{speaker, text}} with non-empty text")
+            raise SchemaError(f"{where}[{j}]: cần {{speaker, text}} với text không rỗng")
 
 
 def _check_duration(value: Any, where: str) -> None:
     if value is None:
         return
     if not isinstance(value, (int, float)) or isinstance(value, bool) or not 1 <= value <= 30:
-        raise SchemaError(f"{where}: must be a number of seconds between 1 and 30")
+        raise SchemaError(f"{where}: cần số giây từ 1 đến 30")
 
 
 LOCK_KEYS = ("must_keep", "may_change", "forbidden")
@@ -184,7 +189,7 @@ def _check_lock(value: Any, where: str) -> None:
     """Character Lock (game-character-consistency-designer skill): traits that must never change, what may vary per shot,
     and the drifts that are forbidden."""
     if not isinstance(value, dict) or any(k not in LOCK_KEYS or not isinstance(v, str) for k, v in value.items()):
-        raise SchemaError(f"{where}: expected {{must_keep, may_change, forbidden}} as text")
+        raise SchemaError(f"{where}: cần object {{must_keep, may_change, forbidden}}, mỗi giá trị là chữ")
 
 
 def _check_location_asset(value: Any, where: str) -> None:
@@ -192,7 +197,7 @@ def _check_location_asset(value: Any, where: str) -> None:
     if value is None:
         return
     if not isinstance(value, int) or isinstance(value, bool) or value <= 0:
-        raise SchemaError(f"{where}.location_asset: must be null or a resource id (positive whole number)")
+        raise SchemaError(f"{where}.location_asset: chỉ nhận null hoặc mã tài nguyên (số nguyên dương)")
 
 
 def _check_sequence(value: Any, where: str) -> None:
@@ -200,7 +205,7 @@ def _check_sequence(value: Any, where: str) -> None:
     if value is None:
         return
     if not isinstance(value, int) or isinstance(value, bool) or value <= 0:
-        raise SchemaError(f"{where}.sequence: must be null or a positive whole number")
+        raise SchemaError(f"{where}.sequence: chỉ nhận null hoặc số nguyên dương")
 
 
 def validate_qc_result(data: Any, required_criteria: List[str]) -> Dict:
@@ -208,10 +213,10 @@ def validate_qc_result(data: Any, required_criteria: List[str]) -> Dict:
     criteria = _req(obj, "criteria", dict, "root")
     for name in required_criteria:
         if name not in criteria:
-            raise SchemaError(f"criteria: missing '{name}'")
+            raise SchemaError(f"criteria: thiếu tiêu chí '{name}'")
     for name, score in criteria.items():
         if not isinstance(score, (int, float)) or isinstance(score, bool) or not 0 <= score <= 1:
-            raise SchemaError(f"criteria.{name}: score must be a number in [0, 1]")
+            raise SchemaError(f"criteria.{name}: điểm phải là số trong [0, 1]")
     return obj
 
 
@@ -225,12 +230,12 @@ def validate_motion_prompts(data: Any) -> Dict:
         _req(s, "motion_prompt", str, w)
         dur = s.get("duration_sec", 5)
         if not isinstance(dur, (int, float)) or not 1 <= dur <= 30:
-            raise SchemaError(f"{w}.duration_sec: must be between 1 and 30")
+            raise SchemaError(f"{w}.duration_sec: cần từ 1 đến 30 giây")
         flags = s.get("check_flags")
         if flags is not None and (not isinstance(flags, list) or not all(isinstance(f, str) for f in flags)):
-            raise SchemaError(f"{w}.check_flags: expected a list of text")
+            raise SchemaError(f"{w}.check_flags: cần danh sách chữ")
         if s.get("spatial_state") is not None and not isinstance(s.get("spatial_state"), str):
-            raise SchemaError(f"{w}.spatial_state: expected text")
+            raise SchemaError(f"{w}.spatial_state: cần chữ")
     return obj
 
 
@@ -290,7 +295,7 @@ def _store(pipeline: Pipeline, project_id: int, obj: Dict) -> None:
         row = conn.execute("SELECT id, data FROM scenes WHERE project_id=? AND idx=?",
                            (project_id, s["idx"])).fetchone()
         if row is None:
-            raise SchemaError(f"scene idx {s['idx']} does not exist in project {project_id}")
+            raise SchemaError(f"Cảnh số {s['idx']} không có trong dự án #{project_id} (chỉ dùng số cảnh đã tách từ kịch bản)")
         merged = json.loads(row["data"] or "{}")
         locked = set(merged.get("_user_locked") or [])
         for key in DIRECTOR_KEYS:
@@ -321,7 +326,7 @@ def unlock_scene_fields(pipeline: Pipeline, project_id: int, idx: int, keys: Opt
     conn = pipeline.conn
     row = conn.execute("SELECT id, data FROM scenes WHERE project_id=? AND idx=?", (project_id, idx)).fetchone()
     if row is None:
-        raise KeyError(f"scene {idx} does not exist")
+        raise KeyError(f"Cảnh {idx} không có trong dự án — tải lại trang (có thể cảnh vừa bị xóa).")
     data = json.loads(row["data"] or "{}")
     data["_user_locked"] = [] if keys is None else [k for k in data.get("_user_locked") or [] if k not in keys]
     conn.execute("UPDATE scenes SET data=? WHERE id=?", (json.dumps(data, ensure_ascii=False), row["id"]))
@@ -349,23 +354,23 @@ def update_scene(pipeline: Pipeline, project_id: int, idx: int, fields: Mapping[
     conn = pipeline.conn
     row = conn.execute("SELECT id, data FROM scenes WHERE project_id=? AND idx=?", (project_id, idx)).fetchone()
     if row is None:
-        raise KeyError(f"scene {idx} does not exist")
+        raise KeyError(f"Cảnh {idx} không có trong dự án — tải lại trang (có thể cảnh vừa bị xóa).")
     data = json.loads(row["data"] or "{}")
     before = json.loads(row["data"] or "{}")
     for key in SCENE_FIELDS:
         if key in fields:
             value = fields[key]
             if not isinstance(value, str):
-                raise SchemaError(f"{key}: expected text")
+                raise SchemaError(f"{key}: cần chữ")
             data[key] = value.strip()
     if "image_prompt" in fields and not data.get("image_prompt"):
-        raise SchemaError("image_prompt must not be empty")
+        raise SchemaError("Prompt ảnh (image_prompt) không được để trống — nhập lại rồi lưu.")
     if "characters" in fields:
         names = {r["name"] for r in conn.execute("SELECT name FROM characters WHERE project_id=?", (project_id,))}
         cast = list(fields["characters"] or [])
         unknown = [c for c in cast if c not in names]
         if unknown:
-            raise SchemaError(f"characters: {', '.join(unknown)} not in Character Bible")
+            raise SchemaError(f"Nhân vật {', '.join(unknown)} không có trong Character Bible — thêm vào Character Bible trước, rồi chọn lại.")
         data["characters"] = cast
     if "location_asset" in fields:
         _check_location_asset(fields["location_asset"], "scene")
@@ -412,7 +417,7 @@ def update_scene(pipeline: Pipeline, project_id: int, idx: int, fields: Mapping[
             data.pop("performance", None)
     if "why" in fields:
         if fields["why"] is not None and not isinstance(fields["why"], str):
-            raise SchemaError("why: expected text")
+            raise SchemaError("why: cần chữ")
         if (fields["why"] or "").strip():
             data["why"] = fields["why"].strip()
         else:
@@ -438,9 +443,9 @@ def add_character(pipeline: Pipeline, project_id: int, name: str, description: s
     that must look the same in every scene. New entries start unlocked."""
     name, description = (name or "").strip(), (description or "").strip()
     if not name or not description:
-        raise ValueError("name and description must not be empty")
+        raise ValueError("Tên và mô tả nhân vật không được để trống — điền đủ cả hai rồi bấm lại.")
     if pipeline.conn.execute("SELECT 1 FROM characters WHERE project_id=? AND name=?", (project_id, name)).fetchone():
-        raise ValueError(f"'{name}' already exists in the Character Bible")
+        raise ValueError(f"'{name}' đã có trong Character Bible — sửa mục đó thay vì thêm mới, hoặc đặt tên khác.")
     pipeline.conn.execute("INSERT INTO characters (project_id, name, description, wardrobe) VALUES (?,?,?,?)",
                           (project_id, name, description, (wardrobe or "").strip() or None))
     pipeline.conn.commit()
@@ -452,18 +457,18 @@ def update_character(pipeline: Pipeline, project_id: int, name: str, description
     conn = pipeline.conn
     row = conn.execute("SELECT id, locked FROM characters WHERE project_id=? AND name=?", (project_id, name)).fetchone()
     if row is None:
-        raise KeyError(f"character '{name}' does not exist")
+        raise KeyError(f"Không tìm thấy nhân vật '{name}' — tải lại trang (có thể vừa bị đổi tên hoặc xóa).")
     if row["locked"]:
-        raise ValueError(f"character '{name}' is locked; unlock the Character Bible first")
+        raise ValueError(f"Nhân vật '{name}' đang khóa. Mở khóa Character Bible trước (nút 🔓 ở Bước 1), sửa xong khóa lại.")
     description = (description or "").strip()
     if not description:
-        raise ValueError("description must not be empty")
+        raise ValueError("Mô tả nhân vật không được để trống — nhập mô tả rồi lưu lại.")
     new_name = (new_name or name).strip()
     if not new_name:
-        raise ValueError("name must not be empty")
+        raise ValueError("Tên nhân vật không được để trống — nhập tên rồi lưu lại.")
     if new_name != name and conn.execute("SELECT 1 FROM characters WHERE project_id=? AND name=?",
                                          (project_id, new_name)).fetchone():
-        raise ValueError(f"a character named '{new_name}' already exists")
+        raise ValueError(f"Đã có nhân vật tên '{new_name}' — chọn tên khác.")
     old = conn.execute("SELECT description, wardrobe, user_edited FROM characters WHERE id=?", (row["id"],)).fetchone()
     edited = set(json.loads(old["user_edited"] or "[]"))
     if description != (old["description"] or ""):
@@ -497,7 +502,7 @@ def store_motion_prompts(pipeline: Pipeline, project_id: int, data: Any) -> int:
         row = conn.execute("SELECT id FROM scenes WHERE project_id=? AND idx=?",
                            (project_id, s["idx"])).fetchone()
         if row is None:
-            raise SchemaError(f"scene idx {s['idx']} does not exist in project {project_id}")
+            raise SchemaError(f"Cảnh số {s['idx']} không có trong dự án #{project_id} (chỉ dùng số cảnh đã tách từ kịch bản)")
         from .shots import image_scene
         approved = conn.execute("SELECT 1 FROM jobs WHERE scene_id=? AND type='image_gen' AND state='approved'",
                                 (image_scene(conn, row["id"]),)).fetchone()

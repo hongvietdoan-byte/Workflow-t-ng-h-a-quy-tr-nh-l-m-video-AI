@@ -172,28 +172,50 @@ def edit(conn, lesson_id: int, title: str, body: str) -> None:
         sync_knowledge(conn, row["group_name"])
 
 
+class LessonError(Exception):
+    """A decision that could not be applied; the message is Vietnamese and says what to do (shown as it is)."""
+
+
 def decide(conn, lesson_id: int, approve: bool) -> None:
-    row = conn.execute("SELECT group_name FROM lessons WHERE id=?", (lesson_id,)).fetchone()
+    """Approve / reject a lesson and rewrite the step's document. If the document cannot be written (too long, disk…) the
+    lesson goes back to the state it had and LessonError says why — the old document is kept (S14.4 C1b)."""
+    row = conn.execute("SELECT group_name, state, decided_at FROM lessons WHERE id=?", (lesson_id,)).fetchone()
     if row is None:
         raise KeyError(lesson_id)
     conn.execute("UPDATE lessons SET state=?, decided_at=? WHERE id=?", ("approved" if approve else "rejected", _now(), lesson_id))
     conn.commit()
-    sync_knowledge(conn, row["group_name"])
+    try:
+        sync_knowledge(conn, row["group_name"])
+    except LessonError:
+        conn.execute("UPDATE lessons SET state=?, decided_at=? WHERE id=?", (row["state"], row["decided_at"], lesson_id))
+        conn.commit()
+        raise
 
 
 def sync_knowledge(conn, group: str) -> Optional[Dict]:
-    """(Re)write the step's auto-maintained knowledge document from all approved lessons."""
-    for d in knowledge.user_docs(group):
-        if d["title"] == DOC_TITLE:
-            knowledge.remove_doc(group, d["file"])
+    """(Re)write the step's auto-maintained knowledge document from all approved lessons. The new document is built and
+    checked first; the old one is removed only once the new one is in place (knowledge.replace_doc)."""
     approved = [r for r in list_lessons(conn, "approved") if r["group_name"] == group]
     if not approved:
+        for d in knowledge.user_docs(group):
+            if d["title"] == DOC_TITLE:
+                try:
+                    knowledge.remove_doc(group, d["file"])
+                except (KeyError, ValueError, OSError) as e:
+                    raise LessonError(f"Không gỡ được tài liệu bài học của bước '{group}' ({e}). Bài học vẫn giữ trạng thái cũ. "
+                                      "Cách xử lý: đóng chương trình đang mở file trong thư mục kiến thức (data/knowledge_user), "
+                                      "tải lại trang rồi bấm lại.") from e
         return None
     lines = ["# Bài học rút ra từ các dự án trước (đã được người duyệt)", ""]
     for r in reversed(approved):
         lines.append(f"- **{r['title']}**: {r['body'].strip()}")
-    return knowledge.add_doc(group, "bai_hoc.md", "\n".join(lines).encode("utf-8"), title=DOC_TITLE,
-                             note="tự sinh từ tab Bài học; đừng sửa tay")
+    try:
+        return knowledge.replace_doc(group, DOC_TITLE, "bai_hoc.md", "\n".join(lines).encode("utf-8"), title=DOC_TITLE,
+                                     note="tự sinh từ tab Bài học; đừng sửa tay")
+    except (ValueError, OSError) as e:
+        raise LessonError(f"Không cập nhật được tài liệu bài học của bước '{group}': {e} Tài liệu cũ vẫn giữ nguyên. "
+                          "Cách xử lý: rút gọn nội dung bài học (sửa ở tab Bài học) hoặc tắt/xóa bớt tài liệu bổ sung "
+                          "của bước này rồi duyệt lại.") from e
 
 
 # ---- settings kept next to the data ----------------------------------------------------------------

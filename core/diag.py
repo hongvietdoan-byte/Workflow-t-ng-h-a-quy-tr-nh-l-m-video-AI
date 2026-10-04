@@ -17,9 +17,19 @@ from datetime import datetime, timedelta, timezone
 from typing import Dict, List, Optional
 
 STAGES = (("director", "Director (phân cảnh)"), ("previz", "Layout / storyboard"), ("image", "Gen ảnh"), ("qc", "QC ảnh"), ("motion", "Motion prompt"),
-          ("video", "Gen video"), ("music", "Nhạc nền"), ("render", "Ghép & render"), ("autopilot", "Chạy tự động"),
-          ("system", "Hệ thống"))
-STAGE_LABEL = dict(STAGES)
+          ("video", "Gen video"), ("voice", "Giọng thoại (TTS)"), ("music", "Nhạc nền"), ("render", "Ghép & render"),
+          ("autopilot", "Chạy tự động"), ("system", "Hệ thống"))
+OTHER = "other"                     # stage_table row for any stage name not in STAGES (S14.4 C1b: nothing disappears)
+STAGE_LABEL = {**dict(STAGES), OTHER: "Khác"}
+# S14.4 C1b (04/10): other spellings seen in the code / old rows -> the one name of STAGES. No 'lipsync' here: nothing writes it.
+STAGE_ALIASES = {"videos": "video", "images": "image", "image_gen": "image", "video_gen": "video", "delivery": "render",
+                 "translate": "motion"}          # claude_tasks.translate_motion_fields (_run tag 'translate')
+
+
+def normalize_stage(stage) -> str:
+    """'videos' -> 'video', 'delivery' -> 'render' …; an unknown name is kept (lower case) and shown under 'Khác'."""
+    s = str(stage or "").strip().lower()
+    return STAGE_ALIASES.get(s, s)
 SEVERITIES = ("info", "warn", "error")
 STUCK_MIN = {"image_gen": int(os.environ.get("DIAG_STUCK_IMAGE_MIN", "10")),
              "video_gen": int(os.environ.get("DIAG_STUCK_VIDEO_MIN", "30"))}
@@ -79,6 +89,7 @@ def record(conn, stage: str, severity: str, message: str, code: Optional[str] = 
     """Note a problem. Same stage/severity/code/message/project within 10 minutes = one row with a growing counter.
     Never raises; a busy database is retried, and a diagnostic that still cannot be written is kept by _keep_lost (not swallowed)."""
     msg = redact(message)[:400]
+    stage = normalize_stage(stage) or "system"
     last: Optional[Exception] = None
     for attempt in range(3):
         try:
@@ -199,11 +210,17 @@ def _hours_ago(h: float) -> str:
 def stage_table(conn, hours: float = 24) -> List[Dict]:
     since = _hours_ago(hours)
     rows = []
-    for stage, label in STAGES:
-        counts = {s: 0 for s in SEVERITIES}
-        for r in conn.execute("SELECT severity, SUM(count) n FROM diag_events WHERE stage=? AND last_at>=? GROUP BY severity",
-                              (stage, since)).fetchall():
-            counts[r["severity"]] = r["n"]
+    by_stage: Dict[str, Dict[str, int]] = {}
+    known = {s for s, _ in STAGES}
+    for r in conn.execute("SELECT stage, severity, SUM(count) n FROM diag_events WHERE last_at>=? GROUP BY stage, severity",
+                          (since,)).fetchall():
+        name = normalize_stage(r["stage"])                      # rows written before S14.4 under 'videos' / 'delivery' …
+        name = name if name in known else OTHER
+        bucket = by_stage.setdefault(name, {s: 0 for s in SEVERITIES})
+        bucket[r["severity"]] = bucket.get(r["severity"], 0) + (r["n"] or 0)
+    extra = ((OTHER, STAGE_LABEL[OTHER]),) if OTHER in by_stage else ()      # 'Khác' only when something landed there
+    for stage, label in STAGES + extra:
+        counts = by_stage.get(stage, {s: 0 for s in SEVERITIES})
         item = {"stage": stage, "label": label, "info": counts["info"], "warn": counts["warn"], "error": counts["error"],
                 "jobs": None, "ok": None, "failed": None, "retried": None}
         kind = {"image": "image_gen", "video": "video_gen"}.get(stage)

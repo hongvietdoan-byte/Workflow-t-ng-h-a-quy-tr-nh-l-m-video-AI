@@ -81,6 +81,20 @@ class DescribeTests(Base):
         self.assertEqual(asset_vision.pending(self.conn, "FF"), 0)
 
 
+    def test_pending_counts_exactly_what_the_run_would_read(self):
+        """S14.4 C1b (04/10): the count used status='approved' only and no file check; the run uses approved-or-unset pictures
+        whose file is there → the button said 'N chờ' and the run did nothing (or the other way round)."""
+        old = assets.create(self.conn, "FF", "character", "OLD", "", "", None, "x")
+        assets.add_image(self.conn, old, "o.png", picture(400, 600, 5))
+        gone = assets.create(self.conn, "FF", "character", "GONE", "", "", None, "x")
+        assets.add_image(self.conn, gone, "g.png", picture(400, 600, 6))
+        self.conn.commit()
+        os.remove(assets.resolve(self.conn.execute("SELECT path FROM asset_images WHERE asset_id=?", (gone,)).fetchone()["path"]))
+        eligible = [a["id"] for a in assets.list_assets(self.conn, "FF", None, None, shared_only=True) if asset_vision._eligible(a)]
+        self.assertEqual(eligible, [old])
+        self.assertEqual(asset_vision.pending(self.conn, "FF"), len(eligible))
+
+
 class BackgroundTests(Base):
     def test_it_reads_every_eligible_asset_once_and_skips_what_is_already_done(self):
         a1 = assets.create(self.conn, "FF", "character", "KELLY", "", "", None, "x")

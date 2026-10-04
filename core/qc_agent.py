@@ -721,7 +721,7 @@ def review_scene(p, pid: int, story_scene, client, data_dir: str, frames: Option
     frames = agent._must()
     for r in res["records"]:
         if r["verdict"] in ("block", "doubt") and p.job(r["job"])["state"] == "approved":
-            diag.record(p.conn, "image_gen", "warn", f"Agent QC: khung đã duyệt {r['shot']} (job {r['job']}) bị {r['verdict']} — "
+            diag.record(p.conn, "image", "warn", f"Agent QC: khung đã duyệt {r['shot']} (job {r['job']}) bị {r['verdict']} — "
                         + "; ".join(i.get("description", "") for i in r.get("issues") or [])[:300], code="qc_agent_approved_flag",
                         project_id=pid)
     mapped = {"frames": [], "scene": {"ok": True, "notes": res["summary"].get("summary", "")}}

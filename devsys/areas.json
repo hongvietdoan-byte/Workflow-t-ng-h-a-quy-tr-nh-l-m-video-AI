@@ -41,7 +41,7 @@
       "docs": [],
       "tests": [],
       "flags": ["voice_direction", "voice_check_redo", "j_cut", "audio_first"],
-      "diag_stages": ["motion"],
+      "diag_stages": ["motion", "voice"],
       "keywords": ["motion", "giọng", "TTS", "voice", "lồng tiếng", "ElevenLabs", "delivery"]
     },
     {
@@ -67,7 +67,7 @@
       "docs": ["docs/KE_HOACH_DUYET_BAN_THO_2026-10-02.md"],
       "tests": ["tests/test_rough_cut.py", "tests/test_editor_review.py", "tests/test_editor_apply.py"],
       "flags": ["loudness_normalize", "shot_color_match", "j_cut", "music_breath", "sound_intent", "impact_shake", "ambience_bed", "motion_trim", "speed_ramp", "flashback_fx", "end_hold", "music_fit", "shot_transitions", "ai_label", "rough_cut_review"],
-      "diag_stages": ["music", "render", "delivery"],
+      "diag_stages": ["music", "render"],
       "keywords": ["nhạc", "âm thanh", "hiệu ứng", "phụ đề", "render", "dựng", "LUFS", "độ to", "khớp màu", "bản giao", "delivery", "subtitle", "sfx"]
     },
     {

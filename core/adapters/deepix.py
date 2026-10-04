@@ -126,8 +126,9 @@ class DeepixImageProvider:
     def from_env(cls, transport: Transport = urllib_transport) -> "DeepixImageProvider":
         token = clean_token(os.environ.get("DEEPIX_TOKEN", ""))
         if not token:
-            raise ProviderError("DEEPIX_TOKEN is not set. Deepix web -> sidebar 'Profile' -> Deepix Token, then set "
-                                "it as an environment variable (never commit it).", code="config")
+            raise ProviderError("Chưa đặt DEEPIX_TOKEN nên chưa tạo ảnh được. Cách xử lý: mở web Deepix → thanh bên 'Profile' → "
+                                "Deepix Token, sao chép rồi đặt vào biến môi trường DEEPIX_TOKEN (vd. trong dashboard.env), "
+                                "khởi động lại Dashboard. Không commit token lên git.", code="config")
         return cls(token, os.environ.get("DEEPIX_API_BASE", DEFAULT_BASE).strip() or DEFAULT_BASE, transport,
                    os.environ.get("DEEPIX_MODEL", DEFAULT_MODEL), os.environ.get("DEEPIX_SIZE", DEFAULT_SIZE))
 

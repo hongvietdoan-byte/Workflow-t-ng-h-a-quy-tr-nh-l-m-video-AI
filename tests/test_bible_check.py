@@ -53,6 +53,26 @@ class BibleCheckTests(unittest.TestCase):
         self.conn.commit()
         self.assertEqual(claude_tasks.bible_flags(self.p, self.pid), {})  # the text changed: the old result no longer applies
 
+    def test_a_library_picture_whose_file_is_gone_is_skipped_and_said(self):
+        """S14.4 C1b (04/10): a lost file went to Claude as a path that does not open (the whole check failed)."""
+        for r in self.conn.execute("SELECT path FROM asset_images").fetchall():
+            os.remove(r["path"])
+        sent = []
+
+        class Strict(Wrong):
+            def complete(self, prompt, images=()):
+                sent.extend(path for _, path in images)
+                for _, path in images:
+                    open(path, "rb").close()                               # a missing file would raise here
+                return super().complete(prompt, images)
+
+        self.assertEqual(claude_tasks.bible_check(self.p, self.pid, Strict()), {})
+        claude_tasks.character_lock(self.p, self.pid, "KELLY", Strict())
+        self.assertEqual(sent, [])
+        notes = [r["message"] for r in self.conn.execute("SELECT message FROM diag_events WHERE code='library_file_missing'")]
+        self.assertTrue(notes)
+        self.assertIn("mất file", notes[0])
+
     def test_the_run_waits_at_the_bible_when_it_contradicts_the_pictures_even_with_the_gate_off(self):
         from core import autopilot
         autopilot.set_gates(self.p, self.pid, {"bible": False})

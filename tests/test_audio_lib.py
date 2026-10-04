@@ -40,6 +40,16 @@ class AudioLibTests(unittest.TestCase):
         vols = [m["volume"] for m in audio_lib.mix_list(self.dir)]
         self.assertEqual(vols, [1.0, audio_lib.SFX_UNDER_SPEECH, 1.0])       # 2,5 s is inside the line (1–3 s); 4 s is after it
 
+    def test_a_switched_on_sound_whose_file_is_gone_is_named(self):
+        """S14.4 C1b (04/10): mix_list dropped it silently — the video came out without that sound and nobody knew."""
+        path = os.path.join(self.dir, "boom.wav")
+        open(path, "wb").close()
+        audio_lib.add_local(self.dir, path, "Tiếng nổ", 1.0, 1.0, 500, None)
+        self.assertEqual(audio_lib.missing_in_mix(self.dir), [])
+        os.remove(os.path.join(self.dir, audio_lib.load(self.dir)[0]["file"]))
+        self.assertEqual(audio_lib.mix_list(self.dir), [])
+        self.assertEqual(audio_lib.missing_in_mix(self.dir), ["Tiếng nổ"])
+
     def test_cannot_use_unfinished_asset_and_remove_deletes_file(self):
         audio_lib.submit_sfx(self.provider, self.dir, "wind")
         with self.assertRaises(ValueError):
