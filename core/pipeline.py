@@ -393,7 +393,7 @@ class Pipeline:
         self.transition(job_id, JobState.RETRYABLE, note=reason)
         self.transition(job_id, JobState.CANCELLED, note="gửi lại (nhà cung cấp không tạo task)")
         return self._insert_job(job["project_id"], job["scene_id"], job["type"], parent_job_id=job_id,
-                                retry_count=job["retry_count"], retry_reason=reason)
+                                retry_count=job["retry_count"], retry_reason=reason, origin=job["origin"])
 
     # ---- QC / review ---------------------------------------------------
     def set_qc_autofix(self, project_id: int, on: bool) -> None:
