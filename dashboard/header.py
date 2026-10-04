@@ -504,7 +504,7 @@ def money_card(p: Pipeline, pid) -> None:
                     st.html(stage_table)
                 st.markdown("\n".join(x for x in more if x))
         from dashboard.design.screens import money_days as MD
-        if allowed("settings") or allowed("monitor"):                     # S14.6 Gói K: sổ chi MỌI dự án → người có quyền tiền / theo dõi
+        if MD.can_view(me()):                                             # S14.6 Gói K: sổ chi MỌI dự án → người có quyền tiền / theo dõi
             MD.open_button()                                              # mức dùng theo ngày + đợt ngân sách
         if allowed("settings"):
             b1, b2 = st.columns(2)

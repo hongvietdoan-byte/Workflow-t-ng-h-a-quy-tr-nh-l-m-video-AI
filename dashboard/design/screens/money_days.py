@@ -19,21 +19,33 @@ def open_button() -> None:
         open_dialog(FLAG)
 
 
+def can_view(actor: Dict) -> bool:
+    """Bảng ghi sổ chi MỌI dự án → chỉ người có quyền tiền (settings) hoặc theo dõi (monitor); Owner luôn được."""
+    from core import auth
+    return auth.can(actor or {}, "settings") or auth.can(actor or {}, "monitor")
+
+
 def _money(slot: Dict) -> str:
+    """Một ô "$x · n lượt". Dòng chưa có giá KHÔNG ước tính được không bao giờ hiện thành $0.00: "chưa có giá · n lượt"."""
     usd = slot["usd"] + slot["est_usd"]
+    none_n = int(slot.get("none_n") or 0)
     if not slot["n"] and not usd:
         return "—"
+    if none_n and none_n >= slot["n"] and not usd:
+        return f"chưa có giá · {slot['n']} lượt"
     text = f"${usd:.2f} · {slot['n']} lượt"
-    return text + " (có ước tính)" if slot["est_usd"] else text
+    if slot["est_usd"]:
+        text += " (có ước tính)"
+    return text + (f" (+{none_n} lượt chưa có giá)" if none_n else "")
 
 
 def _round_label(r: Dict) -> str:
-    from core import budget_rounds as R
     start = (r.get("started_at") or "đầu sổ")[:16]
     end = (r.get("ended_at") or "nay")[:16]
     tag = "đang mở" if not r.get("ended_at") else "đã đóng"
-    return f"{r['name']} ({start} → {end} UTC, {tag})" if r["name"] != R.FIRST_NAME or r.get("ended_at") else \
-        f"{r['name']} (từ {start} UTC — mốc hiện tại, chưa mở đợt mới)"
+    if r.get("virtual"):
+        return f"{r['name']} (từ {start} UTC — mốc hiện tại, chưa mở đợt mới)"
+    return f"{r['name']} ({start} → {end} UTC, {tag})"
 
 
 def _summary_md(r: Dict) -> str:
@@ -71,17 +83,29 @@ def new_round_block(conn, actor: Dict) -> None:
         c1, c2 = st.columns(2)
         usd = c1.number_input("Mức dự tính tổng (USD)", 0.0, 100000.0, float(b["usd"]), 5.0, key="md_new_usd")
         llm = c2.number_input("Mức dự tính Claude API (USD)", 0.0, 100000.0, float(b["llm_usd"]), 1.0, key="md_new_llm")
+        targets = R.reset_targets(conn)
+        plans: Dict = {}
+        if targets["projects"]:                   # người dùng 04/10 (6c): "reset các mốc trần hiện tại" → mặc định BẬT
+            if st.checkbox(f"Đặt lại thanh của {len(targets['projects'])} dự án đang có ngân sách", value=True, key="md_new_projects"):
+                for tpid, cur_plan in targets["projects"].items():
+                    plans[tpid] = st.number_input(f"Mức dự tính dự án #{tpid} (USD)", 0.0, 100000.0, float(cur_plan), 1.0,
+                                                  key=f"md_new_plan_{tpid}")
+        users = []
+        if targets["users"]:
+            if st.checkbox(f"Đặt lại thanh theo người ({len(targets['users'])} người)", value=True, key="md_new_users"):
+                users = list(targets["users"])
         why = (st.text_input("Lý do (bắt buộc)", key="md_new_why", placeholder="ví dụ: chính sách tiền mới 04/10") or "").strip()
         ready = bool(name) and bool(why)
         if not ready:
             st.caption("Cần nhập tên đợt và lý do.")
         cur = R.current(conn)
-        ids = (name, float(usd), float(llm), why) if ready else ()
+        bars = R.bars_text(usd, llm, plans, users)
+        ids = (name, float(usd), float(llm), why, tuple(sorted(plans.items())), tuple(users)) if ready else ()
         if D.confirm_all("md_new_go", ids, "▶ Đóng đợt hiện tại & mở đợt mới",
-                         f"Đóng đợt «{cur['name']}» và mở đợt «{name}» với mức dự tính ${usd:.2f} (Claude ${llm:.2f})? "
-                         f"Thanh đợt thử + Claude đếm lại từ bây giờ (sổ chi giữ nguyên). Lý do: {why}", st, "Có, mở đợt mới"):
+                         f"Đóng đợt «{cur['name']}» và mở đợt «{name}»? Các thanh sẽ đếm lại từ bây giờ: {bars}. "
+                         f"Sổ chi giữ nguyên. Lý do: {why}", st, "Có, mở đợt mới"):
             try:
-                out = R.start_new(conn, actor, name, usd, llm, why)
+                out = R.start_new(conn, actor, name, usd, llm, why, projects=plans, users=users)
             except Exception as e:  # noqa: BLE001 - said, never a crash of the dialog
                 st.error(f"Không mở được đợt mới: {e}")
                 return
@@ -133,7 +157,7 @@ def body(conn, actor: Dict) -> None:
 
 
 def dialog_if_open(actor: Dict) -> None:
-    if st.session_state.get(FLAG):
+    if st.session_state.get(FLAG) and can_view(actor):
         _dialog(actor)
 
 

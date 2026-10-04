@@ -89,30 +89,35 @@ class MoneyResetTests(ShellBase):
         self.p.conn.commit()
 
     def test_owner_sees_block_and_reset_moves_the_baseline_without_deleting_rows(self):
-        budget.save(self.p.conn, enabled=True, usd=10.0, since="2026-09-30 00:00:00")
+        budget.save(self.p.conn, enabled=True, usd=10.0, since="2026-09-30 00:00:00", llm_usd=5.0, llm_since="2026-09-30 00:00:00")
         self.seed_spend()
         rows = self.p.conn.execute("SELECT COUNT(*) FROM usage_events").fetchone()[0]
-        self.assertEqual(budget.spent(self.p.conn, since=budget.get(self.p.conn)["since"])["images"], 3)
         at = self.run_app()
         self.assertFalse(at.exception, at.exception)
-        self.assertIn("shell-mr-trial", [c.key for c in at.checkbox])
-        at.checkbox(key="shell-mr-trial").set_value(True)
-        at.text_input(key="shell-mr-why").set_value("bắt đầu đợt thử mới")
+        self.assertIn("shell-mr-claude", [c.key for c in at.checkbox])
+        at.checkbox(key="shell-mr-claude").set_value(True)
+        at.text_input(key="shell-mr-why").set_value("nạp thêm tiền Claude")
         at.run()
         at.button(key="shell_mr_go").click().run()                           # step 1: ask
         self.assertIn("shell_mr_go_yes", [b.key for b in at.button])
-        self.assertIsNone(money_reset.last(connect(self.db), "trial"))        # nothing done before the yes
+        self.assertIsNone(money_reset.last(connect(self.db), "claude"))       # nothing done before the yes
         at.button(key="shell_mr_go_yes").click().run()                       # step 2: confirm
         self.assertFalse(at.exception, at.exception)
         conn = connect(self.db)
         self.assertEqual(conn.execute("SELECT COUNT(*) FROM usage_events").fetchone()[0], rows)     # the ledger is untouched
-        last = money_reset.last(conn, "trial")
-        self.assertEqual(last["why"], "bắt đầu đợt thử mới")
-        self.assertEqual(budget.spent(conn, since=budget.get(conn)["since"])["images"], 0)          # the bar counts from now
+        self.assertEqual(money_reset.last(conn, "claude")["why"], "nạp thêm tiền Claude")
+        self.assertGreater(budget.get(conn)["llm_since"], "2026-09-30 00:00:00")
+
+    def test_trial_bar_only_moves_through_a_new_budget_round(self):
+        """S14.6 (rà soát 04/10): ô thanh đợt thử ở khối cũ bị khóa (giữ khóa) và chỉ sang ▶ Bắt đầu đợt ngân sách mới."""
+        at = self.run_app()
+        box = at.checkbox(key="shell-mr-trial")
+        self.assertTrue(box.proto.disabled)
+        self.assertTrue(any("Bắt đầu đợt ngân sách mới" in c.value for c in at.caption))
 
     def test_reason_is_required(self):
         at = self.run_app()
-        at.checkbox(key="shell-mr-trial").set_value(True).run()
+        at.checkbox(key="shell-mr-claude").set_value(True).run()
         self.assertTrue(at.button(key="shell_mr_go").disabled)
 
 
@@ -149,7 +154,7 @@ class SlimInfoTests(ShellBase):
     def test_money_card_keeps_the_meter_outside_and_counts_plus_history_in_a_fold(self):
         budget.save(self.p.conn, enabled=True, usd=10.0, since="2026-09-30 00:00:00")
         self.seed_spend()
-        money_reset.reset(self.p.conn, {"role": "owner", "email": "o@x"}, ["trial"], "thử lại")
+        money_reset.reset(self.p.conn, {"role": "owner", "email": "o@x"}, ["trial"], "thử lại")       # (core only: history line shown)
         at = self.run_app()
         self.assertFalse(at.exception, at.exception)
         meter = [e for e in at.get("html") if "Đợt thử: $" in str(e.proto.body)]
