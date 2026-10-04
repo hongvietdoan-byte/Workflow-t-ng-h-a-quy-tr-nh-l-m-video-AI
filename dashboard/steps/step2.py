@@ -190,7 +190,7 @@ def step2(p: Pipeline, pid: int):
                      help="Gửi lại Y NGUYÊN đầu vào — chỉ dùng khi lỗi do nhà cung cấp (mạng, quá tải, không tạo task). Ảnh ra sai thì "
                           "mở ảnh và ghi câu sửa (tiếng Anh) để lần gen có đầu vào khác."):
             for j in failed:
-                act(lambda: p.retry(j["id"], "gửi lại ảnh lỗi (lỗi nhà cung cấp)"))
+                act(lambda: p.retry(j["id"], "gửi lại ảnh lỗi (lỗi nhà cung cấp)", by_user=True))
             st.rerun()
         mode_text = f'{ui.MODE_LABELS.get(proj["operating_mode"], proj["operating_mode"])}: ' + (
             "Claude tự duyệt ảnh đạt" if proj["operating_mode"] == "auto" else "mọi ảnh chờ bạn duyệt")
@@ -370,7 +370,7 @@ def image_card(p: Pipeline, pid: int, j, proj, read_only: bool = False, stale_re
         elif state == "failed" and not j["escalated"]:
             a, b = st.columns(2)
             if a.button("↻ Gửi lại", key=f"retry_{jid}", help="Gửi lại y nguyên — chỉ khi lỗi do nhà cung cấp. Muốn sửa thì 🔍 Xem → câu sửa."):
-                act(lambda: p.retry(jid, "gửi lại (lỗi nhà cung cấp)"))
+                act(lambda: p.retry(jid, "gửi lại (lỗi nhà cung cấp)", by_user=True))
                 st.rerun()
             if b.button("🔍 Xem", key=f"sel_btn_{jid}"):
                 st.session_state[f"sel_{pid}"] = jid
@@ -452,7 +452,7 @@ def image_detail(p: Pipeline, pid: int, j, proj, on_card: bool = False):
             fix = st.text_input("Câu sửa cho model (tiếng Anh) — để trống = gửi lại y nguyên (chỉ khi lỗi do nhà cung cấp)",
                                 key=f"dfix_{jid}")
             if st.button("↻ Gen lại với câu sửa" if fix.strip() else "↻ Gửi lại (lỗi nhà cung cấp)", key=f"dretry_{jid}"):
-                act(lambda: p.retry(jid, "người dùng gen lại với câu sửa" if fix.strip() else "gửi lại (lỗi nhà cung cấp)", fix=fix))
+                act(lambda: p.retry(jid, "người dùng gen lại với câu sửa" if fix.strip() else "gửi lại (lỗi nhà cung cấp)", fix=fix, by_user=True))
                 st.rerun()
         if j["escalated"] and st.button("↺ Làm lại từ đầu", key=f"drs_{jid}", type="primary"):
             if act(lambda: p.restart_job(jid), "Đã xếp hàng job mới cho cảnh"):

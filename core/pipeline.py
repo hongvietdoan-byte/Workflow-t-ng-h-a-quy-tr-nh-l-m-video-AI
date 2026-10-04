@@ -30,7 +30,16 @@ def hard_failures(scores: Mapping[str, float], kind: str = "image") -> list:
     return [f"{k} {v:.2f} < {floors[k]:.2f}" for k, v in scores.items() if k in floors and v < floors[k]]
 
 
-AUTO_RETRY_CAP = 2          # automatic (QC) retries per picture/clip — user decision 2026-09-24; people may retry more by hand
+AUTO_REGEN_LIMIT = {"image_gen": 3, "video_gen": 2}
+"""THE one place of the automatic regeneration limit (chính sách tiền 04/10, S14.16 — docs/KE_HOACH_NANG_CAP_DASHBOARD_2026-10-03.md mục
+6c.3; replaces AUTO_RETRY_CAP = 2 of 24/09): the dashboard regenerates BY ITSELF at most 3 times per PICTURE and 2 times per CLIP (a clip
+costs much more). Counted along the chain of jobs of the same shot (parent_job_id) by `retry_count`, which only machine-made tries raise:
+the QC rejecting (reviewer 'ai_agent'), the run retrying after a provider / transient failure, the provider refusal → other model, the
+automatic redo of the set check / plate fallback. A try a PERSON asks for (reject by hand, retry(by_user=True), reopen_approved,
+regen.regenerate_video, restart_job) is never capped and starts the count again at 0. At the limit no job is made: the shot is escalated,
+said in diag (AUTO_LIMIT_CODE) and listed in 📥 "Cần bạn quyết — đã tự gen lại N lần" (core.inbox). The project's max_retry_count can
+only lower it."""
+AUTO_LIMIT_CODE = "auto_regen_limit"
 PLAIN_RESEND = "gửi lại nguyên đầu vào"
 """retry_reason prefix of a plain resend after a provider failure (same input, nothing to fix): a note for people, NEVER sent to a model
 (core.runner.model_fix). Only provider/transient failures are resent this way — a picture/clip that came out wrong needs a fix."""
@@ -216,21 +225,27 @@ class Pipeline:
         self.conn.execute("DELETE FROM scenes WHERE id=?", (row["id"],))
         self.conn.commit()
 
-    def reopen_approved(self, job_id: int, note: Optional[str] = None, respawn: bool = True, fix: Optional[str] = None) -> str:
+    def reopen_approved(self, job_id: int, note: Optional[str] = None, respawn: bool = True, fix: Optional[str] = None,
+                        auto: bool = False) -> str:
         """The user changed their mind about an approved IMAGE: reject it and (by default) queue a new one.
         Videos already made from it are not touched. `fix`: the words the model gets (English); None = the person's `note` itself,
-        "" = nothing (the input already changed — e.g. the scene was edited — so a Vietnamese system note must not reach the model)."""
+        "" = nothing (the input already changed — e.g. the scene was edited — so a Vietnamese system note must not reach the model).
+        `auto`: the run redoes it by itself (set-check autofix) — counted on AUTO_REGEN_LIMIT; at the limit nothing is reopened, the
+        shot waits for the person ('escalated')."""
         access.need_edit_job(self, job_id, "bỏ duyệt ảnh")
         job = self.job(job_id)
         if job["type"] != "image_gen":
             raise ValueError("only approved images can be reopened")
         if self.state(job_id) != JobState.APPROVED:
             raise InvalidTransition(f"job {job_id} is {self.state(job_id).value}, not approved")
+        if auto and respawn and self._retries_exhausted(job):
+            self._escalate(job, limit=True)
+            return "escalated"
         self._log_review(job_id, "user", "reject", note or "bỏ duyệt")
         self.transition(job_id, JobState.REJECTED, actor="user", note=note or "bỏ duyệt")
-        if respawn:  # a fresh job, not an automatic retry: a user asking for another take is not capped by max_retry_count
+        if respawn:  # a person asking for another take: never capped, the automatic count starts again (S14.16)
             self._insert_job(job["project_id"], job["scene_id"], "image_gen", parent_job_id=job_id,
-                             retry_count=0, retry_reason=note if fix is None else (fix.strip() or None))
+                             retry_count=job["retry_count"] + 1 if auto else 0, retry_reason=note if fix is None else (fix.strip() or None))
         return "rejected"
 
     def restart_job(self, job_id: int) -> int:
@@ -351,21 +366,22 @@ class Pipeline:
     def cancel(self, job_id: int, actor: str = "user") -> None:
         self.transition(job_id, JobState.CANCELLED, actor=actor)
 
-    def retry(self, job_id: int, reason: Optional[str] = None, fix: Optional[str] = None) -> Optional[int]:
+    def retry(self, job_id: int, reason: Optional[str] = None, fix: Optional[str] = None, by_user: bool = False) -> Optional[int]:
         """failed -> retryable -> new queued job (parent link). Returns None if escalated.
         `reason` is for people (job history). Without `fix` this is a plain resend of the same input — honest only after a provider /
         transient failure — and nothing extra reaches the model (retry_reason = PLAIN_RESEND…); `fix` (English, e.g. the person's
-        own sentence) is what the model gets on the next try."""
+        own sentence) is what the model gets on the next try. `by_user`: a person pressed the button — never capped, the automatic
+        count starts again; otherwise (the runner / the run) it is an automatic try, capped by AUTO_REGEN_LIMIT."""
         access.need_edit_job(self, job_id, "gen lại")
         if self.state(job_id) != JobState.FAILED:
             raise InvalidTransition(f"job {job_id} is {self.state(job_id).value}, only failed jobs can be retried")
-        if self._retries_exhausted(self.job(job_id)):
-            self._escalate(self.job(job_id))
+        if not by_user and self._retries_exhausted(self.job(job_id)):
+            self._escalate(self.job(job_id), limit=True)
             return None
         self.transition(job_id, JobState.RETRYABLE, note=reason)
         fix = (fix or "").strip()
         carried = fix or (PLAIN_RESEND + (f" ({reason})" if reason else ""))
-        return self._spawn_retry(job_id, carried, close_old=JobState.CANCELLED)
+        return self._spawn_retry(job_id, carried, close_old=JobState.CANCELLED, auto=not by_user)
 
     def resend(self, job_id: int, reason: str) -> int:
         """failed -> retryable -> cancelled, and the SAME attempt queued again (retry count unchanged): the provider never created the
@@ -448,12 +464,13 @@ class Pipeline:
         return self.reject(job_id, "ai_agent", f"QC {overall:.2f} < {threshold}{suffix}", fix=fix)
 
     def _no_auto_retry(self, job, scores: Mapping[str, float], threshold: float, fix: str) -> Optional[str]:
-        """F5 (user decision 2026-09-24): an automatic retry only when its input changes, at most AUTO_RETRY_CAP times per shot,
-        and never a third time for the same fault. Returns why not (Vietnamese, for the person), or None."""
+        """F5 (user decision 2026-09-24): an automatic retry only when its input changes, at most AUTO_REGEN_LIMIT times per shot
+        (S14.16: picture 3, clip 2), and never a third time for the same fault. Returns why not (Vietnamese, for the person), or None."""
         if not fix:
             return "QC không nêu lỗi cụ thể để sửa — gen lại sẽ gửi y hệt đầu vào (không tự gen lại)"
-        if job["retry_count"] >= AUTO_RETRY_CAP:
-            return f"đã tự gen lại {job['retry_count']} lần (tối đa {AUTO_RETRY_CAP})"
+        if self._retries_exhausted(job):
+            self._limit_said(job)
+            return f"Cần bạn quyết — đã tự gen lại {job['retry_count']} lần (tối đa {self.auto_limit(job)})"
         floors = hard_floors("video" if job["type"] == "video_gen" else "image")
         failing = {k for k, v in scores.items() if v < threshold or (k in floors and v < floors[k])}
         if job["parent_job_id"] and failing:
@@ -478,8 +495,8 @@ class Pipeline:
 
     def reject(self, job_id: int, reviewer_type: str = "user", note: Optional[str] = None,
                respawn: bool = True, fix: Optional[str] = None) -> str:
-        """Reject and spawn a retry job (unless respawn=False = plain delete); escalate when
-        max_retry_count is exceeded."""
+        """Reject and spawn a retry job (unless respawn=False = plain delete). By the QC ('ai_agent'): an automatic try, escalated at
+        AUTO_REGEN_LIMIT. By a person: never capped, the automatic count starts again (S14.16)."""
         access.need_edit_job(self, job_id, "loại")
         self._require_reviewable(job_id)
         self._log_review(job_id, reviewer_type, "reject", note)
@@ -537,24 +554,46 @@ class Pipeline:
 
     def _spawn_retry(self, job_id: int, reason: Optional[str],
                      close_old: Optional[JobState] = None, auto: bool = False) -> Optional[int]:
+        """auto: a machine-made try (+1 on the chain's count, escalated at the limit); else a person's: never capped, count back to 0."""
         job = self.job(job_id)
-        if self._retries_exhausted(job) or (auto and job["retry_count"] + 1 > AUTO_RETRY_CAP):
-            self._escalate(job)
+        if auto and self._retries_exhausted(job):
+            self._escalate(job, limit=True)
             return None
-        next_count = job["retry_count"] + 1
+        next_count = job["retry_count"] + 1 if auto else 0
         if close_old is not None:
             self.transition(job_id, close_old, note="superseded by retry")
         return self._insert_job(job["project_id"], job["scene_id"], job["type"],
                                 parent_job_id=job_id, retry_count=next_count, retry_reason=reason)
 
-    def _retries_exhausted(self, job: sqlite3.Row) -> bool:
+    def auto_limit(self, job: sqlite3.Row) -> int:
+        """How many automatic tries this job's shot may have: AUTO_REGEN_LIMIT of its kind, lowered by the project's max_retry_count."""
+        cap = AUTO_REGEN_LIMIT.get(job["type"], min(AUTO_REGEN_LIMIT.values()))
         max_retry = self.project(job["project_id"])["max_retry_count"]
-        return job["retry_count"] + 1 > max_retry
+        return min(cap, max_retry) if max_retry is not None else cap
 
-    def _escalate(self, job: sqlite3.Row) -> None:
+    def _retries_exhausted(self, job: sqlite3.Row) -> bool:
+        """One more AUTOMATIC try would pass the limit (retry_count = machine-made tries since the last person's action)."""
+        return job["retry_count"] + 1 > self.auto_limit(job)
+
+    def _limit_said(self, job: sqlite3.Row) -> None:
+        """The automatic limit is reached: said once in diag (📥 lists the escalated job — core.inbox)."""
+        try:
+            from . import diag
+            kind = "ảnh" if job["type"] == "image_gen" else "clip"
+            idx = self.conn.execute("SELECT idx FROM scenes WHERE id=?", (job["scene_id"],)).fetchone()
+            diag.record(self.conn, "image" if job["type"] == "image_gen" else "video", "warn",
+                        f"Cần bạn quyết — {kind} shot {idx['idx'] if idx else '?'} đã tự gen lại {job['retry_count']} lần (tối đa "
+                        f"{self.auto_limit(job)}): không tự gen thêm; xem, sửa đầu vào rồi bấm gen lại / làm lại",
+                        code=AUTO_LIMIT_CODE, project_id=job["project_id"], scene_id=job["scene_id"], job_id=job["id"])
+        except Exception:  # noqa: BLE001 - the escalation itself stands; the note is a convenience
+            pass
+
+    def _escalate(self, job: sqlite3.Row, limit: bool = False) -> None:
         self.conn.execute("UPDATE jobs SET escalated=1 WHERE id=?", (job["id"],))
         self.conn.execute("UPDATE scenes SET state='needs_attention' WHERE id=?", (job["scene_id"],))
         self.conn.commit()
+        if limit:
+            self._limit_said(job)
 
     # ---- queries -------------------------------------------------------
     def history(self, job_id: int):

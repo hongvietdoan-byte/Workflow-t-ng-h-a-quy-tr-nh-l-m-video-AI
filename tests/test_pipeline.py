@@ -141,8 +141,9 @@ class PipelineTests(unittest.TestCase):
         self.assertIsNone(self.p.project(self.p.job(job)["project_id"])["qc_review_floor"])
         self.assertEqual(self.p.apply_qc(job, {"a": 0.7, "b": 0.7}, issues=FIX), "rejected")
 
-    def test_no_paid_retry_without_a_fix_nor_for_the_same_fault_twice_nor_past_two(self):
-        """F5 (user decision 2026-09-24): a retry must change the input; at most 2 automatic retries; the same fault twice stops."""
+    def test_no_paid_retry_without_a_fix_nor_for_the_same_fault_twice_nor_past_three(self):
+        """F5 (user decision 2026-09-24): a retry must change the input; the same fault twice stops. S14.16 (04/10): was "past two" —
+        a PICTURE gets at most 3 automatic retries (pipeline.AUTO_REGEN_LIMIT)."""
         _, _, job = self.make_job("auto", max_retry=5)
         self.assertEqual(self.p.apply_qc(job, BAD), "needs_review")                 # QC named nothing to fix: no identical resend
         self.assertEqual(self.p.job(job)["escalated"], 1)
@@ -154,12 +155,12 @@ class PipelineTests(unittest.TestCase):
         self.assertEqual(self.p.apply_qc(child, BAD, issues="fix B"), "needs_review")   # same criteria failed again
         self.assertIn("cùng lỗi", self.p.history(child)[-1]["note"])
         _, _, job = self.make_job("auto", max_retry=5)
-        for n, fault in enumerate(["character", "hands_face"]):
+        for n, fault in enumerate(["character", "hands_face", "composition"]):
             self.assertEqual(self.p.apply_qc(job, dict(GOOD, **{fault: 0.1}), issues=f"fix {n}"), "rejected")
             job = self.p.conn.execute("SELECT id FROM jobs WHERE parent_job_id=?", (job,)).fetchone()["id"]
             self.p.start(job)
             self.p.succeed(job)
-        self.assertEqual(self.p.apply_qc(job, dict(GOOD, composition=0.1), issues="fix 3"), "needs_review")   # 2 retries done
+        self.assertEqual(self.p.apply_qc(job, dict(GOOD, mood=0.1), issues="fix 4"), "needs_review")   # 3 retries done
         self.assertIn("Also:", self.p.job(job)["retry_reason"])                         # the earlier fix is kept with the new one
 
 

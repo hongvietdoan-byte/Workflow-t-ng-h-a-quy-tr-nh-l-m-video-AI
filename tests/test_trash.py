@@ -185,7 +185,10 @@ class QcRejectFloorTests(unittest.TestCase):
         p, pid, job = self.make("human_qc")
         p.conn.execute("UPDATE projects SET max_retry_count=0 WHERE id=?", (pid,))
         p.conn.commit()
-        self.assertEqual(p.apply_qc(job, LOW, issues="fix the hand"), "escalated")
+        # S14.16: was "escalated" (rejected + flagged) — the automatic limit (pipeline.AUTO_REGEN_LIMIT lowered by max_retry_count)
+        # is now one check: the picture is kept for the person, flagged, like at every other limit
+        self.assertEqual(p.apply_qc(job, LOW, issues="fix the hand"), "needs_review")
+        self.assertEqual(p.job(job)["escalated"], 1)
         p2, pid2, job2 = self.make("human_qc")
         self.assertEqual(p2.apply_qc(job2, LOW), "needs_review")          # F5: no fix named -> no identical paid retry, the person decides
 

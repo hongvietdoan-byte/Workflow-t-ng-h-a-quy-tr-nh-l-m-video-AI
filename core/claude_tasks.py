@@ -246,7 +246,7 @@ def qc_video_batch(p: Pipeline, project_id: int, client, data_dir: str) -> Dict:
         except (LlmError, Exception) as e:  # noqa: BLE001 - one clip that cannot be read must not stop the others
             from .llm_runner import fail_text
             out["failed"].append((jid, fail_text(e)))
-            if isinstance(e, LlmError) and e.code in ("auth", "config", "budget"):
+            if isinstance(e, LlmError) and e.code in ("auth", "config", "out_of_credit", "ledger"):
                 break
             if not (isinstance(e, LlmError) and e.code in ("bad_json", "no_video", "bad_image", "truncated", "refusal", "empty",
                                                             "too_many_images")):
@@ -379,9 +379,10 @@ def last_set_check(data_dir: str, project_id: int) -> Optional[Dict]:
         return None
 
 
-def redo_from_set_check(p: Pipeline, project_id: int, idx: int, fix: str) -> None:
-    """Regenerate the approved picture of scene idx with the fix sentence (the person pressed 'gen lại'). The model gets only the
-    English fix (the QC's `fix`), never the Vietnamese note; without a fix it would be the same input again — refused (luật 6)."""
+def redo_from_set_check(p: Pipeline, project_id: int, idx: int, fix: str, auto: bool = False) -> str:
+    """Regenerate the approved picture of scene idx with the fix sentence (the person pressed 'gen lại'; `auto=True`: the run's
+    set-check autofix — counted on pipeline.AUTO_REGEN_LIMIT, 'escalated' at the limit). The model gets only the English fix (the QC's
+    `fix`), never the Vietnamese note; without a fix it would be the same input again — refused (luật 6)."""
     access.need_edit(p, project_id, "làm lại theo kiểm bộ")
     if not (fix or "").strip():
         raise ValueError(f"cảnh {idx}: QC đồng bộ không nêu câu sửa — gen lại sẽ gửi y hệt đầu vào; sửa prompt ảnh ở Bước 1 trước")
@@ -389,7 +390,7 @@ def redo_from_set_check(p: Pipeline, project_id: int, idx: int, fix: str) -> Non
                          " AND j.type='image_gen' AND j.state='approved' ORDER BY j.id DESC LIMIT 1", (project_id, idx)).fetchone()
     if row is None:
         raise ValueError(f"cảnh {idx} không có ảnh đã duyệt")
-    p.reopen_approved(row["id"], f"Đồng bộ cả bộ: {fix}", fix=fix.strip())
+    return p.reopen_approved(row["id"], f"Đồng bộ cả bộ: {fix}", fix=fix.strip(), auto=auto)
 
 
 # ---- 5. Character Lock from pictures -----------------------------------------------------------------------------------------

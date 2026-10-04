@@ -415,9 +415,10 @@ def estimate_run(pipeline: Pipeline, project_id: int, pricing: Optional[Dict] = 
         llm_usd += qc_team.FRAME_USD * img["items"] * (1 + REDRAW_SHARE)
     llm_usd *= LLM_MARGIN
     retry = int(proj["max_retry_count"] or 0)
-    auto_cap = min(retry, 2)                           # automatic retries per picture/clip (pipeline.AUTO_RETRY_CAP)
+    from .pipeline import AUTO_REGEN_LIMIT             # automatic regenerations: picture 3, clip 2 (S14.16), lowered by max_retry
+    img_cap, vid_cap = min(retry, AUTO_REGEN_LIMIT["image_gen"]), min(retry, AUTO_REGEN_LIMIT["video_gen"])
     base = (img_usd or 0.0) + vid_usd + llm_usd
-    worst = (img_usd or 0.0) * (1 + auto_cap) + vid_usd * (1 + auto_cap) + llm_usd * (1 + auto_cap)
+    worst = (img_usd or 0.0) * (1 + img_cap) + vid_usd * (1 + vid_cap) + llm_usd * (1 + img_cap)
     from . import budget
     b = budget.status(conn) if budget.get(conn).get("enabled") else None
     llm_left = b["llm_left"] if b and b["llm_usd"] > 0 else None
@@ -428,15 +429,15 @@ def estimate_run(pipeline: Pipeline, project_id: int, pricing: Optional[Dict] = 
 
 def format_run_estimate(est: Dict) -> str:
     c = est["counts"]
-    text = (f"≈ {est['total']:.2f} USD (tối đa ≈ {est['max']:.2f} nếu mọi ảnh/clip phải tự gen lại 2 lần): {c['images']} ảnh"
+    text = (f"≈ {est['total']:.2f} USD (ước tính; tối đa ≈ {est['max']:.2f} nếu mọi ảnh tự gen lại 3 lần, mọi clip 2 lần): {c['images']} ảnh"
             + (f" (gồm {c['end_frames']} khung cuối)" if c.get("end_frames") else "")
             + f" ≈ {(est['images'] or 0):.2f} · {c['clips']} clip / {c['seconds']:.0f} giây ≈ {est['videos']:.2f} · Claude ≈ {est['llm']:.2f}"
             + " (đã cộng 30 % dự phòng)")
     if est.get("llm_left") is not None:
-        text += f" · trần Claude còn ≈ {est['llm_left']:.2f}" + (" ⚠ KHÔNG ĐỦ — nâng trần Claude trước khi chạy"
+        text += f" · trần Claude còn ≈ {est['llm_left']:.2f}" + (" ⚠ KHÔNG ĐỦ — sẽ vượt mức dự tính (chỉ cảnh báo, vẫn chạy)"
                                                                  if est["llm"] > est["llm_left"] else "")
     if est["unknown"]:
-        text += " — CHƯA có giá (không tính, sẽ bị trần từ chối khi đợt thử bật): " + ", ".join(est["unknown"])
+        text += " — CHƯA có giá (chưa cộng vào số trên; khi gửi được ước tính dư và cảnh báo): " + ", ".join(est["unknown"])
     return text
 
 

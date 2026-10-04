@@ -687,7 +687,7 @@ class DashboardSmokeTests(unittest.TestCase):
         job = p.create_job(scene)
         p.start(job)
         p.succeed(job)
-        self.assertEqual(p.reject(job, "user", "sai"), "escalated")
+        self.assertEqual(p.reject(job, "ai_agent", "sai"), "escalated")    # S14.16: only an automatic reject is capped (was "user")
         at = AppTest.from_file(APP, default_timeout=30).run()
         at.radio(key="step").set_value(at.radio(key="step").options[2]).run()
         self.assertFalse(at.exception)
