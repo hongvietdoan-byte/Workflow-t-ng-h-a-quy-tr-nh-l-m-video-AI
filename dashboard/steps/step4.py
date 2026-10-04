@@ -430,6 +430,8 @@ def video_card_v2(p: Pipeline, pid: int, j, runner, stale_reason) -> None:
             flags = []
         if flags:
             D.line(V.layer0_summary(flags), V.layer0_md(flags), f"vid-{jid}-l0")
+        from dashboard.design.screens import prompt_versions_ui     # S14.17: the Director rewrote the motion prompt → old/new + ↩
+        prompt_versions_ui.panel(p, j["scene_id"], "video", act)
         qnote = p.conn.execute("SELECT note FROM review_log WHERE job_id=? AND note IS NOT NULL AND note!='' ORDER BY id DESC LIMIT 1", (jid,)).fetchone()
         if qnote:
             D.line(V.note_summary("Ghi chú QC", qnote["note"]), qnote["note"], f"vid-{jid}-note")
