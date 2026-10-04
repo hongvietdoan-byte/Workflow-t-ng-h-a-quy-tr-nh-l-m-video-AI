@@ -88,10 +88,10 @@
       "name": "Ngân sách & sổ chi",
       "weight": 1.0,
       "description": "Sổ chi (usage_events), bảng giá, ước tính trước khi bấm, trần ngân sách thử + trần Claude API.",
-      "code": ["core/budget.py", "core/project_budget.py", "core/money_reset.py", "core/cost.py", "dashboard/admin.py", "dashboard/header.py"],
+      "code": ["core/budget.py", "core/project_budget.py", "core/money_reset.py", "core/cost.py", "core/spend_gate.py", "dashboard/admin.py", "dashboard/header.py"],
       "assets": ["data/pricing.json"],
       "docs": [],
-      "tests": ["tests/test_out_of_credit.py", "tests/test_project_budget.py"],
+      "tests": ["tests/test_out_of_credit.py", "tests/test_project_budget.py", "tests/test_spend_gate.py", "tests/test_spend_gate_scan.py"],
       "flags": ["project_budget"],
       "diag_stages": [],
       "keywords": ["ngân sách", "sổ chi", "trần", "giá", "pricing", "budget", "credit", "ước tính", "báo giá"]
