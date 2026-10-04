@@ -218,5 +218,86 @@ class BaselineToolTests(unittest.TestCase):
         self.assertFalse(os.path.exists(os.path.join(self.dir, "nope.sqlite")))
 
 
+class ReviewFixTests(unittest.TestCase):
+    """S14.19 rà soát: dashboard.env flags, a fuller knowledge fingerprint, old-style finished projects, --project."""
+
+    def setUp(self):
+        self.dir = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, self.dir, True)
+        patcher = mock.patch.dict(os.environ, {"KNOWLEDGE_USER_DIR": os.path.join(self.dir, "k")})
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
+    def test_knowledge_fp_changes_with_one_line_of_the_director_prompt(self):
+        from core import knowledge
+        before = effectiveness.knowledge_fp()
+        real = knowledge._read
+
+        def edited(path):
+            text = real(path)
+            return text + "\nmột dòng mới" if path.replace("\\", "/").endswith("prompts/01_director_scene_analysis.md") else text
+        with mock.patch.object(knowledge, "_read", side_effect=edited):
+            after = effectiveness.knowledge_fp()
+        self.assertNotEqual(before.split("|")[0], after.split("|")[0])
+        self.assertEqual(before.split("|")[1], after.split("|")[1])          # motion did not change
+
+    def test_knowledge_fp_covers_genre_files_and_golden(self):
+        from core import knowledge
+        real = knowledge._read
+        for tail in ("knowledge/genre/SHORT_FORM.md", "eval/golden.json", "knowledge/ff_gameplay_visual.md"):
+            before = effectiveness.knowledge_fp()
+            with mock.patch.object(knowledge, "_read",
+                                   side_effect=lambda p, t=tail: real(p) + ("x" if p.replace("\\", "/").endswith(t) else "")):
+                self.assertNotEqual(before, effectiveness.knowledge_fp(), tail)
+
+    def make_db(self):
+        db = os.path.join(self.dir, "m.sqlite")
+        data = os.path.join(self.dir, "projects")
+        conn = connect(db)
+        p = Pipeline(conn)
+        old = p.create_project("cũ kiểu v1")
+        extra = p.create_project("chưa xong")
+        conn.close()
+        os.makedirs(os.path.join(data, str(old), "output"))
+        with open(os.path.join(data, str(old), "output", "FINAL_VIDEO.mp4"), "wb") as f:
+            f.write(b"x")
+        return db, data, old, extra
+
+    def rows(self, db):
+        conn = connect(db)
+        try:
+            return [tuple(r) for r in conn.execute("SELECT project_id FROM effectiveness_snapshots ORDER BY id")]
+        finally:
+            conn.close()
+
+    def test_old_style_final_video_counts_and_project_option_adds(self):
+        from tools import effectiveness_baseline
+        db, data, old, extra = self.make_db()
+        conn = connect(db)
+        self.assertEqual(effectiveness.finished_projects(conn), [])
+        self.assertEqual(effectiveness.finished_projects(conn, data), [old])
+        conn.close()
+        with redirect_stdout(io.StringIO()):
+            effectiveness_baseline.main(["--db", db, "--data", data, "--project", str(extra), "--yes", "--env", os.devnull])
+        self.assertEqual(self.rows(db), [(None,), (old,), (extra,)])
+
+    def test_tool_reads_dashboard_env_flags(self):
+        from core import features
+        from tools import effectiveness_baseline
+        db, data, _, _ = self.make_db()
+        env = os.path.join(self.dir, "dashboard.env")
+        name = next(n for n, f in features.FEATURES.items() if not f["verified"])
+        with open(env, "w", encoding="utf-8") as f:
+            f.write(f"# thử\nFEATURE_{name.upper()}=1\n")
+        with mock.patch.dict(os.environ, {}), mock.patch.object(features, "settings",
+                                                                 return_value={"preset": "custom", "flags": {}}):
+            os.environ.pop(f"FEATURE_{name.upper()}", None)
+            n_before = len(effectiveness.flags_on())
+            out = io.StringIO()
+            with redirect_stdout(out):
+                effectiveness_baseline.main(["--db", db, "--data", data, "--env", env])
+            self.assertIn(name, out.getvalue())
+            self.assertEqual(len(effectiveness.flags_on()), n_before + 1)
+
 if __name__ == "__main__":
     unittest.main()

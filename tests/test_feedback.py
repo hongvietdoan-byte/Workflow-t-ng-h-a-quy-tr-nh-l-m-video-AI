@@ -195,5 +195,34 @@ class FeedbackUiTests(unittest.TestCase):
         self.assertTrue(rows[0]["screen"])
 
 
+class ReviewFixTests(unittest.TestCase):
+    """S14.19 rà soát: ↺ Làm lại keeps scene remarks, ⚖ re-save updates instead of adding."""
+
+    def setUp(self):
+        self.conn = connect(":memory:")
+        self.p = Pipeline(self.conn)
+        self.pid = self.p.create_project("rà")
+
+    def test_reset_script_keeps_scene_remarks_unlinked(self):
+        from dashboard.steps.step1 import reset_unworked_scenes
+        sid = self.p.create_scene(self.pid, 1, "S1")
+        feedback.add(self.conn, "scene", project_id=self.pid, scene_id=sid, text="cảnh tối")
+        reset_unworked_scenes(self.p, self.pid)                      # FOREIGN KEY failed before the fix
+        self.assertIsNone(self.conn.execute("SELECT 1 FROM scenes WHERE id=?", (sid,)).fetchone())
+        rows = feedback.list(self.conn)
+        self.assertEqual((len(rows), rows[0]["scene_id"], rows[0]["project_id"]), (1, None, self.pid))
+
+    def test_compare_resave_updates_the_same_row(self):
+        compare.save_scores(self.conn, self.pid, {"overall": 2})
+        compare.save_scores(self.conn, self.pid, {"overall": 5, "note": "đã sửa"})
+        rows = feedback.list(self.conn, project_id=self.pid)
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0]["rating"], 5)
+        self.assertEqual(feedback.satisfaction(self.conn, self.pid)["n"], 1)
+        self.assertEqual(compare.get_scores(self.conn, self.pid), {"overall": 5, "note": "đã sửa"})
+        other = self.p.create_project("khác")
+        compare.save_scores(self.conn, other, {"overall": 3})
+        self.assertEqual(len(feedback.list(self.conn)), 2)
+
 if __name__ == "__main__":
     unittest.main()

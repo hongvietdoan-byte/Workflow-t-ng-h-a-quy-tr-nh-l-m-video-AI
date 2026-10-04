@@ -9,6 +9,7 @@
 A figure is None when there is not enough data yet (the page says so instead of showing a misleading 0).
 """
 import json
+import os
 from datetime import datetime
 from typing import Dict, List, Optional
 
@@ -173,18 +174,31 @@ def flags_on() -> List[str]:
     return sorted(n for n in features.FEATURES if features.on(n))
 
 
+def _knowledge_inputs(g: str) -> List[tuple]:
+    """(name, text) of everything group `g` can read: every built-in file of knowledge.GROUPS (main prompt, gameplay, eval/golden.json…),
+    the film-crew role books (sent or not — flags_on says which), the genre folder (Director), the person's ENABLED documents and the
+    distilled playbook in use. Wider than distill_inputs (only the foldable documents): a change to the Director prompt must show."""
+    from . import knowledge
+    rels = [rel for rel, _, _ in knowledge.GROUPS[g][2]] + [c[0] for c in knowledge.CREW_DOCS.get(g, [])]
+    inputs = [(rel, knowledge._read(os.path.join(knowledge.ROOT, *rel.split("/")))) for rel in dict.fromkeys(rels)]
+    if g == "director" and os.path.isdir(knowledge.GENRE_DIR):
+        inputs += [(f"knowledge/genre/{n}", knowledge._read(os.path.join(knowledge.GENRE_DIR, n)))
+                   for n in sorted(os.listdir(knowledge.GENRE_DIR)) if os.path.isfile(os.path.join(knowledge.GENRE_DIR, n))]
+    inputs += [(f"user:{d['file']}", knowledge._read(d["path"])) for d in knowledge.user_docs(g) if d["enabled"]]
+    active = knowledge.distilled_active(g)
+    if active:
+        inputs.append(("__distilled__", str(active.get("text") or "")))
+    return inputs
+
+
 def knowledge_fp() -> str:
-    """What the Director + motion writer read: fingerprint of their documents (built-in foldable + the person's), plus the distilled
-    playbook in use. 'director:<12>|motion:<12>'; a group that cannot be read says 'lỗi' instead of failing the snapshot."""
+    """What the Director + motion writer read (_knowledge_inputs): 'director:<12>|motion:<12>'; a group that cannot be read says 'lỗi'
+    instead of failing the snapshot."""
     from . import knowledge
     parts = []
     for g in KNOWLEDGE_GROUPS:
         try:
-            inputs = knowledge.distill_inputs(g, True)
-            active = knowledge.distilled_active(g)
-            if active:
-                inputs = inputs + [("__distilled__", str(active.get("text") or active))]
-            parts.append(f"{g}:{knowledge.fingerprint(inputs)[:12]}")
+            parts.append(f"{g}:{knowledge.fingerprint(_knowledge_inputs(g))[:12]}")
         except Exception:  # noqa: BLE001 - a broken document must not lose the figures
             parts.append(f"{g}:lỗi")
     return "|".join(parts)
