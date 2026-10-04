@@ -171,7 +171,7 @@ def spent(conn, pricing: Optional[Dict] = None, since: Optional[str] = None) -> 
             cnt, last = conn.execute("SELECT COUNT(*), COALESCE(MAX(id), 0) FROM usage_events").fetchone()
             pp = os.environ.get("PIPELINE_PRICING") or cost.DEFAULT_PRICING_PATH
             pf = os.path.getmtime(pp) if os.path.exists(pp) else 0
-            key = (db, since, cnt, last, pf)
+            key = (db or f"memory:{id(conn)}", since, cnt, last, pf)   # two in-memory databases must not share an answer
             if key in _SPENT_CACHE:
                 return dict(_SPENT_CACHE[key])
         except Exception:  # noqa: BLE001 - no cache is always correct
