@@ -212,7 +212,7 @@
 - [ ] S14.14 · G — `ui_v2` mặc định + gỡ giao diện cũ + tách file lớn · nặng:3 · ⏸ · chờ người dùng duyệt sau khi dùng thử UI v2
 - [ ] S14.16 · Chính sách tiền mới (mục 6c): trần → cảnh báo có số liệu, reset mốc trần + mức dự tính, tự gen lại ảnh ≤ 3 / video ≤ 2 lần, người dùng không giới hạn, ước tính tính dư · nặng:2 · ⬜
 - [ ] S14.17 · Đạo diễn viết lại prompt shot trước mỗi lần gen lại theo ghi chú người dùng VÀ lỗi QC (mục 6c ý 6) · nặng:2 · ⬜ · người dùng duyệt 04/10; tốn ít Claude mỗi lần (ghi sổ)
-- [ ] S14.18 · Giới hạn theo người: tối đa 2 dự án chạy song song chưa hoàn thiện (hỏi giữ/bỏ khi muốn tạo mới) + mức cơ bản 2 dự án tạo mới/ngày (thứ 3 cần Owner duyệt), Owner nâng được, Owner không giới hạn; bỏ trần job/ngày chung (mục 6d) · nặng:2 · ⬜ · làm sau D1 (S14.7)
+- [ ] S14.18 · Giới hạn theo người: tối đa 2 dự án chạy song song chưa hoàn thiện (hỏi giữ/bỏ khi muốn tạo mới) + mức cơ bản 2 dự án tạo mới/ngày (thứ 3 cần Owner duyệt), tối đa 1 dự án dở đang cất (dự án xong cất vào Kho dự án đã xong, không giới hạn), Owner nâng được, Owner không giới hạn; bỏ trần job/ngày chung (mục 6d) · nặng:2 · ⬜ · làm sau D1 (S14.7)
 - [ ] S14.15 · I1 — tài liệu khớp trạng thái cuối + chấm lại toàn bộ bằng AI Dev System · nặng:1 · ⬜
 
 ### K — Chạy kiểm kịch bản hài 20–30 s — ⏸ KHÔNG ƯU TIÊN (người dùng 30/09: các việc test kịch bản không làm trước nữa)

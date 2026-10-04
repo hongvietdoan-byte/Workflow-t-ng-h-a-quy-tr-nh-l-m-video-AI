@@ -208,6 +208,7 @@ Sự thật đã xác nhận: người lạ **không chọn được** dự án 
 2. Hai mức là **mức cơ bản**: Owner nâng riêng cho từng người ở 👥 Nhóm. **Owner không bị giới hạn.**
 3. Trong dự án vẫn giới hạn số lần gen sản phẩm (tự gen lại ảnh ≤ 3 / video ≤ 2; trần autopilot theo sản phẩm — S14.16).
 4. "Hoàn thiện" = dự án đã xuất bản giao (bước Bản giao xong); dự án đã cất 📦 hoặc đã xóa không tính là đang chạy.
+5. **Giới hạn cất dự án (người dùng thường):** tại mọi thời điểm chỉ được giữ **tối đa 1 dự án DỞ ở trạng thái cất 📦**. Đã có 1 dự án dở đang cất mà muốn cất thêm → báo có số liệu, đưa lựa chọn: khôi phục dự án đang cất để làm tiếp, xóa hẳn một dự án dở (vào thùng rác như luồng xóa hiện có), hoặc xin Owner duyệt. **Dự án ĐÃ XONG khi cất vào "Kho dự án đã xong" riêng** (giữ lại quá trình job, sổ chi, bản giao để tra cứu) — **không giới hạn số lượng**, không tính vào giới hạn (a). Owner không bị giới hạn và nâng được mức này cho từng người.
 5. Trần job/ngày chung cả máy (`AUTOPILOT_DAILY_JOBS`, mặc định 300) **bỏ** khi giới hạn theo người chạy.
 6. **Script dòng lệnh** (`tools/experiments/*`, `tools/library_*`, `tools/profile_finalize.py`…): GIỮ khóa cứng `--max-usd` do chính lệnh khai báo (không ai thấy cảnh báo ở dòng lệnh) — đề xuất của Claude, người dùng chưa phản đối; làm cùng S14.16 phần sửa sau nếu kịp, nếu không thì S14.18.
 
