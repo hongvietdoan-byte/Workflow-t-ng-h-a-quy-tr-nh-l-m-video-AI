@@ -9,11 +9,11 @@
   - `daily / day_detail / projects_in / unpriced_note`: ngày theo giờ VN (UTC+7), bỏ nhà cung cấp mock, lọc đợt + dự án.
 - `dashboard/design/screens/money_days.py` (mới): nút `mc_days` trong thẻ 💵 → hộp thoại `dlg_money_days` (bảng theo ngày
   `md_round`/`md_project`/`md_day`, các đợt đã đóng, khối "▶ Bắt đầu đợt ngân sách mới" chỉ Owner `md_new_*`, `confirm_all`).
-- `dashboard/header.py` money_card: gọi nút + hộp thoại; `dashboard/common.py`: thêm `dlg_money_days` vào `DIALOG_FLAGS`.
+- `dashboard/header.py` money_card: gọi nút (chỉ người có quyền `settings` hoặc `monitor` — sổ chi mọi dự án; người "chỉ xem" không thấy, giữ test_access_ui) + hộp thoại; `dashboard/common.py`: thêm `dlg_money_days` vào `DIALOG_FLAGS`.
 - `devsys/areas.json`: thêm `core/budget_rounds.py` + `tests/test_budget_rounds.py` (không tăng version).
 
 ## Test
-- `tests/test_budget_rounds.py` (10), `tests/test_money_days_ui.py` (6, AppTest UI v2) — đỏ trước, xanh sau.
+- `tests/test_budget_rounds.py` (10), `tests/test_money_days_ui.py` (4, AppTest UI v2) — đỏ trước, xanh sau.
 - Đo trên bản sao CSDL thật (2395 dòng sổ chi): daily cả sổ 0,03 s, chi tiết một ngày 0,005 s.
 
 ## Chưa làm / lưu ý

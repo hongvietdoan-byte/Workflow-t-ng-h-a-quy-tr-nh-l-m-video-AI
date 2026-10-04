@@ -93,10 +93,12 @@ class MoneyDaysUiTests(unittest.TestCase):
         self.assertNotIn("md_new_why", [t.key for t in at.text_input])
 
 
-class MemberMoneyDaysTests(MoneyDaysUiTests):
+class MemberMoneyDaysTests(unittest.TestCase):
+    """Bảng ghi sổ chi MỌI dự án → chỉ người có quyền tiền (settings) / theo dõi (monitor); thành viên mới không thấy nút."""
+    setUp = MoneyDaysUiTests.setUp
     AUTH = "on"
 
-    def open_days(self):
+    def test_new_member_without_money_rights_has_no_daily_button(self):
         at = AppTest.from_file(APP, default_timeout=60)
         at.run()
         at.text_input(key="login_email").set_value("lan@garena.vn")
@@ -104,19 +106,9 @@ class MemberMoneyDaysTests(MoneyDaysUiTests):
         self.assertEqual(at.session_state["identity"]["role"], "member")
         at.session_state["global_pid"] = self.pid
         at.run()
-        if "mc_days" not in [b.key for b in at.button]:
-            self.skipTest("thành viên mới chưa thấy thẻ 💵 ở màn này")
-        at.button(key="mc_days").click().run()
         self.assertFalse(at.exception, at.exception)
-        return at
-
-    def test_owner_opens_a_new_round_with_reason_and_confirmation(self):
-        at = self.open_days()
+        self.assertNotIn("mc_days", [b.key for b in at.button])
         self.assertNotIn("md_new_go", [b.key for b in at.button])
-
-    def test_money_card_opens_the_daily_table_and_a_day_shows_its_rows(self):
-        at = self.open_days()
-        self.assertIn("md_round", [s.key for s in at.selectbox])
 
 
 if __name__ == "__main__":

@@ -504,7 +504,8 @@ def money_card(p: Pipeline, pid) -> None:
                     st.html(stage_table)
                 st.markdown("\n".join(x for x in more if x))
         from dashboard.design.screens import money_days as MD
-        MD.open_button()                                                  # S14.6 Gói K: mức dùng theo ngày + đợt ngân sách
+        if allowed("settings") or allowed("monitor"):                     # S14.6 Gói K: sổ chi MỌI dự án → người có quyền tiền / theo dõi
+            MD.open_button()                                              # mức dùng theo ngày + đợt ngân sách
         if allowed("settings"):
             b1, b2 = st.columns(2)
             if b1.button("⚙ Đợt thử & Claude", key="mc_budget", width="stretch"):
