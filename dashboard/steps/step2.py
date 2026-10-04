@@ -343,6 +343,7 @@ def image_card(p: Pipeline, pid: int, j, proj, read_only: bool = False, stale_re
         if scores:
             mean = sum(s["score"] for s in scores) / len(scores)
             ui.html(ui.qc_bar(mean, proj["qc_auto_pass_threshold"]))
+        retake = "" if read_only else cost.image_button_tag(image_models.of_project(proj), 1, retake_conn=p.conn)   # S14.2 A2
         if read_only:
             if j["retry_reason"]:
                 st.caption(f"Lý do gen lại lúc đó: {j['retry_reason'][:160]}")
@@ -351,6 +352,7 @@ def image_card(p: Pipeline, pid: int, j, proj, read_only: bool = False, stale_re
                 st.rerun()
         elif state in ("succeeded", "pending_review"):
             a, b, c = st.columns(3)
+            st.caption("✖ Loại = gen lại 1 ảnh" + retake)
             if a.button("✔ Duyệt", key=f"a_{jid}"):
                 act(lambda: p.approve(jid, "user"))
                 st.rerun()
@@ -370,6 +372,7 @@ def image_card(p: Pipeline, pid: int, j, proj, read_only: bool = False, stale_re
                 st.rerun()
         elif state == "failed" and not j["escalated"]:
             a, b = st.columns(2)
+            st.caption("↻ Gửi lại 1 ảnh" + retake)
             if a.button("↻ Gửi lại", key=f"retry_{jid}", help="Gửi lại y nguyên — chỉ khi lỗi do nhà cung cấp. Muốn sửa thì 🔍 Xem → câu sửa."):
                 act(lambda: p.retry(jid, "gửi lại (lỗi nhà cung cấp)", by_user=True))
                 st.rerun()
@@ -377,10 +380,10 @@ def image_card(p: Pipeline, pid: int, j, proj, read_only: bool = False, stale_re
                 st.session_state[f"sel_{pid}"] = jid
                 st.rerun()
         else:
-            if stale_reason and state == "approved" and st.button("↻ Gen lại theo nội dung mới", key=f"stale_{jid}", type="primary"):
+            if stale_reason and state == "approved" and st.button("↻ Gen lại theo nội dung mới" + retake, key=f"stale_{jid}", type="primary"):
                 if act(lambda: p.reopen_approved(jid, f"Nội dung cảnh đã đổi: {stale_reason}", fix=""), "Đã xếp hàng gen lại"):
                     st.rerun()
-            if j["escalated"] and st.button("↺ Làm lại từ đầu", key=f"rs_{jid}", help="Đã hết số lần thử: bắt đầu lại cảnh này"):
+            if j["escalated"] and st.button("↺ Làm lại từ đầu" + retake, key=f"rs_{jid}", help="Đã hết số lần thử: bắt đầu lại cảnh này"):
                 if act(lambda: p.restart_job(jid), "Đã xếp hàng ảnh mới cho cảnh"):
                     st.rerun()
             if st.button("🔍 Xem", key=f"sel_btn_{jid}"):
@@ -392,6 +395,7 @@ def image_card(p: Pipeline, pid: int, j, proj, read_only: bool = False, stale_re
 def image_detail(p: Pipeline, pid: int, j, proj, on_card: bool = False):
     """`on_card` (UI v2): the review buttons and the reason inputs live on the picture's card, so this panel is the look-closer view."""
     jid, state = j["id"], j["state"]
+    retake = cost.image_button_tag(image_models.of_project(proj), 1, retake_conn=p.conn)   # S14.2 A2: one picture again
     with st.container(border=True):
         ui.html(ui.card_title(f"Chi tiết ảnh — {C.unit_label(p, j['project_id'], j['idx'])}", f"lần gen #{jid} · đã gen lại {j['retry_count']} lần"))
         ui.html(ui.state_badge(state))
@@ -440,7 +444,7 @@ def image_detail(p: Pipeline, pid: int, j, proj, on_card: bool = False):
             note = st.text_input("Câu sửa cho lần gen lại (đưa vào prompt — nên viết tiếng Anh, vd “Kelly wears the yellow jacket”)",
                                  key=f"note_{jid}")
             a, b = st.columns(2)
-            if b.button("✖ Loại & gen lại", key=f"dr_{jid}"):
+            if b.button("✖ Loại & gen lại" + retake, key=f"dr_{jid}"):
                 act(_spin(lambda: p.reject(jid, "user", note or None)))
                 st.rerun()
             if a.button("✔ Duyệt", key=f"da_{jid}", type="primary"):
@@ -452,16 +456,16 @@ def image_detail(p: Pipeline, pid: int, j, proj, on_card: bool = False):
         if state == "failed" and not j["escalated"]:
             fix = st.text_input("Câu sửa cho model (tiếng Anh) — để trống = gửi lại y nguyên (chỉ khi lỗi do nhà cung cấp)",
                                 key=f"dfix_{jid}")
-            if st.button("↻ Gen lại với câu sửa" if fix.strip() else "↻ Gửi lại (lỗi nhà cung cấp)", key=f"dretry_{jid}"):
+            if st.button(("↻ Gen lại với câu sửa" if fix.strip() else "↻ Gửi lại (lỗi nhà cung cấp)") + retake, key=f"dretry_{jid}"):
                 act(lambda: p.retry(jid, "người dùng gen lại với câu sửa" if fix.strip() else "gửi lại (lỗi nhà cung cấp)", fix=fix, by_user=True))
                 st.rerun()
-        if j["escalated"] and st.button("↺ Làm lại từ đầu", key=f"drs_{jid}", type="primary"):
+        if j["escalated"] and st.button("↺ Làm lại từ đầu" + retake, key=f"drs_{jid}", type="primary"):
             if act(lambda: p.restart_job(jid), "Đã xếp hàng job mới cho cảnh"):
                 st.rerun()
         if state == "approved":
             r_note = st.text_input("Lý do bỏ duyệt (đưa vào prompt gen lại)", key=f"rn_{jid}")
             st.caption("Bỏ duyệt: motion prompt và video làm từ ảnh này sẽ hiện ⚠ cũ để làm lại.")
-            if st.button("↩ Bỏ duyệt & gen lại ảnh", key=f"reopen_{jid}"):
+            if st.button("↩ Bỏ duyệt & gen lại ảnh" + retake, key=f"reopen_{jid}"):
                 if act(_spin(lambda: p.reopen_approved(jid, r_note or None)), "Đã bỏ duyệt, xếp hàng gen lại"):
                     st.rerun()
 
@@ -637,7 +641,7 @@ def shot_storyboard_panel(p: Pipeline, pid: int, gate_button: bool = True) -> No
             if not gate_button:
                 if not v2:
                     c2.caption("Nút duyệt ở thanh hành động cuối lưới ảnh.")
-            elif c2.button("✔ Duyệt storyboard — gen video", key=f"board_ok_{pid}", type="primary"):
+            elif c2.button("✔ Duyệt storyboard — gen video" + cost.video_batch_tag(p, pid), key=f"board_ok_{pid}", type="primary"):
                 autopilot.resume(p, pid, p.actor)
                 autopilot_manager(C.DB, C.DATA).start(pid, user=C.access_user())
                 st.rerun()

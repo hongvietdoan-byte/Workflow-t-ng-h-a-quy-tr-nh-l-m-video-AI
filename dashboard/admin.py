@@ -29,7 +29,8 @@ def distill_panel(group: str, ov: dict) -> None:
         st.info("Cẩm nang đang TẮT: bước này dùng tài liệu gốc.")
     client = llm_client()
     if client is not None and inputs:
-        if st.button(f"🤖 Chắt lọc bằng {llm_label(client)}", type="primary", key=f"kb_distill_{group}"):
+        price = cost.llm_tokens_tag(knowledge.approx_tokens(src), knowledge.approx_tokens(knowledge.TARGET_CHARS[group]) * 2)  # S14.2 A2
+        if st.button(f"🤖 Chắt lọc bằng {llm_label(client)}" + price, type="primary", key=f"kb_distill_{group}"):
             with st.spinner("Claude đang đọc và tổng kết tài liệu…"):
                 ok = act(lambda: st.session_state.__setitem__("llm_res", llm_runner.run_distill(group, client, include)))
             if ok:

@@ -54,7 +54,7 @@ class DeliverV2Tests(DeliverSeed):
         deliver = next(b for b in at.button if b.key == f"deliver_{self.pid}")
         self.assertFalse(deliver.disabled)
         self.assertEqual(deliver.proto.type, "primary")
-        self.assertEqual(deliver.label, "📦 Xuất bản đầy đủ")
+        self.assertEqual(deliver.label, "📦 Xuất bản đầy đủ · ≈ 0.00 USD (ước tính)")   # S14.2 A2: no subtitle translation → 0 USD
 
     def test_three_chips_are_the_real_widgets_with_the_old_keys(self):
         self.with_clip()

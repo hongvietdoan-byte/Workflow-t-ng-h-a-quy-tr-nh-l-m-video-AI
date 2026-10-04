@@ -238,7 +238,7 @@ def estimate_videos_by_scene(pipeline: Pipeline, project_id: int, pricing: Dict)
     return result
 
 
-def clip_estimate(conn, scene_id: int, pricing: Optional[Dict] = None) -> Optional[float]:
+def clip_estimate(conn, scene_id: int, pricing: Optional[Dict] = None, seconds: Optional[float] = None) -> Optional[float]:
     """M8: USD of sending this one shot's clip again (its model/tier/length; a remade shot of a multi-shot group goes alone).
     A model / tier without a price is estimated HIGH (money_policy.estimate, S14.16); None only when nothing of its kind has a price."""
     from . import model_router, shots
@@ -253,7 +253,7 @@ def clip_estimate(conn, scene_id: int, pricing: Optional[Dict] = None) -> Option
     tier = os.environ.get("CLIPAI_KLING_MODE", "pro") if family == "omni" else (
         choice.get("resolution") or (model_router.load_profiles()["models"].get(choice["model"]) or {}).get("tier") or "720p")
     mp = conn.execute("SELECT duration_sec FROM motion_prompts WHERE scene_id=?", (scene_id,)).fetchone()
-    seconds = (mp["duration_sec"] if mp and mp["duration_sec"] else None) or shots.planned_seconds(conn, scene_id) or 5
+    seconds = seconds or (mp["duration_sec"] if mp and mp["duration_sec"] else None) or shots.planned_seconds(conn, scene_id) or 5
     sec = effective_duration(canonical, family, seconds)
     exact = clip_price(pricing, canonical, tier, sec)
     if exact is not None:
@@ -342,6 +342,91 @@ def llm_tag(usd: Optional[float], calls: int = 1) -> str:
     if calls <= 0:
         return ""
     return f" · Claude ≈ {usd:.2f} USD" if usd is not None else " · Claude: chưa có giá"
+
+
+def _over_tag(est: Dict, what: str = "", extra: float = 0.0) -> str:
+    """Label text for a money_policy.estimate result (+ `extra` USD): exact → ' · ≈ x USD (ước tính)'; a model/mức without a price →
+    its high estimate said as such; nothing of the kind priced → ' · chưa có giá'."""
+    usd = est.get("usd")
+    if usd is None:
+        return f" · {what}chưa có giá"
+    usd += extra or 0.0
+    if est.get("missing"):
+        return f" · {what}chưa có giá — ước tính dư ≈ {usd:.2f} USD"
+    return f" · {what}≈ {usd:.2f} USD (ước tính)"
+
+
+def image_button_tag(model: Optional[str], count: int = 1, pricing: Optional[Dict] = None, retake_conn=None) -> str:
+    """S14.2 A2: price text for a button that sends `count` pictures of `model` — the money gate's high estimate (money_policy).
+    `retake_conn`: a retake — the Director's prompt rewrite before it (S14.17, flag director_rewrite) is added."""
+    if count <= 0:
+        return ""
+    from . import money_policy
+    extra = rewrite_estimate(retake_conn, count, 0, 0, 0, pricing)[0] if retake_conn is not None else 0.0
+    return _over_tag(money_policy.estimate("image", model, None, count, pricing), extra=extra)
+
+
+def video_button_tag(conn, scene_ids, pricing: Optional[Dict] = None, seconds: Optional[Dict] = None) -> str:
+    """S14.2 A2: price text for a button that (re)makes the clips of these shots (each with its model/tier/length, clip_estimate);
+    `seconds` {scene_id: new length} when the remake is longer."""
+    ids = list(scene_ids or [])
+    if not ids:
+        return ""
+    pricing = pricing or load_pricing()
+    vals = [clip_estimate(conn, sid, pricing, (seconds or {}).get(sid)) for sid in ids]
+    if any(v is None for v in vals):
+        return f" · {len(ids)} clip, chưa có giá"
+    return f" · {len(ids)} clip ≈ {sum(vals):.2f} USD (ước tính)"
+
+
+def video_batch_tag(pipeline: Pipeline, project_id: int, pricing: Optional[Dict] = None) -> str:
+    """S14.2 A2: price text for a button that sends the project's ready clips (estimate_videos_by_scene: each shot its model, ⭐ twice);
+    a model/mức without a price is estimated high per clip (clip_estimate → money_policy), said as such."""
+    pricing = pricing or load_pricing()
+    est = estimate_videos_by_scene(pipeline, project_id, pricing)
+    if not est["items"]:
+        return ""
+    if est.get("min") is not None:
+        return f" · {est['items']} clip ≈ {est['min']:.2f} USD (ước tính)"
+    from . import hero_takes
+    conn = pipeline.conn
+    live = {r["scene_id"] for r in conn.execute(
+        "SELECT scene_id FROM jobs WHERE project_id=? AND type='video_gen' AND state NOT IN ('cancelled','rejected','queued')",
+        (project_id,))}
+    rows = [r for r in ready_for_video(pipeline, project_id) if r["scene_id"] not in live]
+    hero = set(hero_takes.extra_clips(conn, project_id, [r["scene_id"] for r in rows]))
+    vals = [(clip_estimate(conn, r["scene_id"], pricing), 2 if r["scene_id"] in hero else 1) for r in rows]
+    if not vals or any(v is None for v, _ in vals):
+        return f" · {est['items']} clip, chưa có giá"
+    return f" · {est['items']} clip, chưa có giá — ước tính dư ≈ {sum(v * n for v, n in vals):.2f} USD"
+
+
+def llm_button_tag(conn, stage: str, calls: int = 1, images: int = 0, pricing: Optional[Dict] = None,
+                   ledger_stage: Optional[str] = None) -> str:
+    """S14.2 A2: ' · Claude ≈ 0.05 USD (ước tính)' for a button that makes `calls` Claude calls of this kind, tính dư (× LLM_MARGIN).
+    A model without a price: the highest known token price × money_policy.SAFETY_FACTOR, said as 'chưa có giá — ước tính dư'."""
+    if calls <= 0:
+        return ""
+    pricing = pricing or load_pricing()
+    usd = llm_estimate(conn, stage, calls, pricing, images, ledger_stage)
+    if usd is not None:
+        return f" · Claude ≈ {usd * LLM_MARGIN:.2f} USD (ước tính)"
+    base_in, base_out = LLM_STAGE_TOKENS.get(stage, (6000, 1500))
+    return llm_tokens_tag((base_in + images * IMAGE_TOKENS) * calls, base_out * calls, pricing)
+
+
+def llm_tokens_tag(input_tokens: float, output_tokens: float, pricing: Optional[Dict] = None) -> str:
+    """S14.2 A2: ' · Claude ≈ x USD (ước tính)' for a known number of tokens, × LLM_MARGIN; a model without a price: the highest known
+    token price × money_policy.SAFETY_FACTOR, said as 'chưa có giá — ước tính dư'."""
+    from . import money_policy
+    pricing = pricing or load_pricing()
+    a, guess_a = money_policy.token_price(pricing, llm_model(), "input", input_tokens)
+    b, guess_b = money_policy.token_price(pricing, llm_model(), "output", output_tokens)
+    if a is None or b is None:
+        return " · Claude: chưa có giá"
+    if guess_a or guess_b:
+        return f" · Claude chưa có giá — ước tính dư ≈ {(a + b) * LLM_MARGIN:.2f} USD"
+    return f" · Claude ≈ {(a + b) * LLM_MARGIN:.2f} USD (ước tính)"
 
 
 LLM_MARGIN = 1.3          # trial #8 2026-09-27: one call per stage was estimated (1.37 USD) — redraws re-judged, retries and tests

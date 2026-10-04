@@ -146,7 +146,8 @@ def _video_batch(p: Pipeline, pid: int, runner) -> None:
     stale_videos = [r for r in lineage.scan(p.conn, pid).values() if r["video_stale"]]
     c1, c2 = st.columns([2.6, 2])
     todo = batch.videos_to_make(p, pid)
-    if c1.button(f"▶ Gen video ({len(todo)} cảnh sẵn sàng" + (f", {len(stale_videos)} đã cũ" if stale_videos else "") + ")",
+    if c1.button(f"▶ Gen video ({len(todo)} cảnh sẵn sàng" + (f", {len(stale_videos)} đã cũ" if stale_videos else "") + ")"
+                 + cost.video_batch_tag(p, pid),
                  type="primary", key=f"gen_vid_{pid}", disabled=runner is None or not allowed_run or not (todo or stale_videos)):
         def go():
             r = batch.queue_videos(p, pid, C.DATA)
