@@ -390,9 +390,9 @@ def _images_phase(p: Pipeline, pid: int, ctx: Context) -> Optional[str]:
             continue
         if _count(p, "SELECT COUNT(*) FROM jobs WHERE project_id=? AND type='image_gen'", pid) >= cap_images:
             raise _Stop(BUDGET_NOTE)
-        _daily_cap(p)
+        _daily_cap(p, ctx)
         p.conn.execute("UPDATE scenes SET state='ready' WHERE id=? AND state='needs_attention'", (scene["id"],))
-        p.create_job(scene["id"], "image_gen")
+        _create_job(p, ctx, scene["id"], "image_gen")
     _still_running(p, pid)
     ctx.image_runner.submit_pending(pid)
     _budget_stop(p, pid, "image_gen")
@@ -442,7 +442,7 @@ def serve_waiting(p: Pipeline, pid: int, ctx: Context) -> bool:
     if not (_count(p, "SELECT COUNT(*) FROM jobs WHERE project_id=? AND type='image_gen' AND state IN ('queued','running')", pid)):
         return False
     try:
-        _daily_cap(p)
+        _daily_cap(p, ctx)
         sent = ctx.image_runner.submit_pending(pid)
         _budget_stop(p, pid, "image_gen")
         ctx.image_runner.poll_once(pid)
@@ -497,13 +497,38 @@ def _budget_stop(p: Pipeline, pid: int, kind: str) -> None:
                          (pid, "image" if kind == "image_gen" else "video")).fetchone()
     if row is not None:
         raise _Stop("Dừng vì ngân sách: " + row["message"])
-DAILY_NOTE = "Đã chạm trần job trong ngày (AUTOPILOT_DAILY_JOBS) — dừng; bấm Tiếp tục ngày mai hoặc nâng trần"
+DAILY_NOTE = ("Đã chạm trần lượt gửi ảnh/video thật trong ngày (AUTOPILOT_DAILY_JOBS) — dừng; bấm Tiếp tục ngày mai hoặc nâng trần")
 
 
-def _daily_cap(p: Pipeline) -> None:
+def _real(runner) -> bool:
+    name = str(getattr(getattr(runner, "provider", None), "name", "") or "")
+    return bool(name) and not name.startswith("mock")
+
+
+def _daily_cap(p: Pipeline, ctx: Optional[Context] = None) -> None:
+    """S14.1 (mục 3.1): the automatic run's daily cap counts the REAL paid sends of the day (perf.sends_today: ledger rows of any
+    project, button or run; simulated mock* providers cost nothing) + the jobs already queued that this run's (real) runners will
+    send. AUTOPILOT_DAILY_JOBS=0 = off. Only the automatic run is capped — a person's button is not."""
     limit = perf.daily_limit()
-    if limit and perf.jobs_today(p.conn) >= limit:
+    if not limit:
+        return
+    queued = 0
+    if ctx is not None:
+        kinds = [k for k, r in (("image_gen", ctx.image_runner), ("video_gen", ctx.video_runner)) if _real(r)]
+        if kinds:
+            queued = _count(p, "SELECT COUNT(*) FROM jobs WHERE state='queued' AND type IN (" + ",".join("?" * len(kinds)) + ")", *kinds)
+    if perf.sends_today(p.conn) + queued >= limit:
         raise _Stop(DAILY_NOTE)
+
+
+def _create_job(p: Pipeline, ctx: Context, scene_id: int, kind: str) -> int:
+    """A new picture / clip job of the automatic run, the daily cap checked and the job made under budget.SPEND_LOCK (two runs cannot
+    both take the last place of the day)."""
+    from . import budget
+    p.conn.commit()        # never wait for the lock inside an open write transaction: the holder may need the database (deadlock)
+    with budget.SPEND_LOCK:
+        _daily_cap(p, ctx)
+        return p.create_job(scene_id, kind)
 
 
 def _storyboard_phase(p: Pipeline, pid: int, ctx: Context) -> Optional[str]:
@@ -812,8 +837,7 @@ def _videos_phase(p: Pipeline, pid: int, ctx: Context) -> Optional[str]:
             continue
         if _video_sends(p, pid) >= cap_videos:
             raise _Stop(BUDGET_NOTE)
-        _daily_cap(p)
-        p.create_job(r["scene_id"], "video_gen")
+        _create_job(p, ctx, r["scene_id"], "video_gen")
     for sid, r in lineage.scan(p.conn, pid).items():
         if r["video_stale"] and r["video_job_id"] and not r["motion_stale"] and r["video_state"] in ("succeeded", "approved"):
             if _video_sends(p, pid) >= cap_videos:

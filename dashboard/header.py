@@ -545,7 +545,7 @@ def _dialog_limits(p: Pipeline) -> None:
                 f"**{cfg['learned']['video_gen']}**\n"
                 f"- Trần nhà cung cấp: video ClipAI **{cfg['provider_caps']['video_gen'] or 'không'}** · ảnh Deepix "
                 f"**{cfg['provider_caps']['image_gen'] or 'chưa đo'}**\n"
-                f"- Job mỗi ngày: **{cfg['daily_jobs']}** (`AUTOPILOT_DAILY_JOBS`)")
+                f"- Lượt gửi ảnh/video thật mỗi ngày (chỉ chạy tự động): **{cfg['daily_jobs'] or 'không giới hạn'}** (`AUTOPILOT_DAILY_JOBS`)")
     m = capacity.measured(p.conn)
     st.markdown("**Số đo từ lịch sử job** — *chờ* = trong pipeline (cổng duyệt, ảnh shot trước, hàng đợi); *chạy* = nhà cung cấp "
                 "xếp hàng + tạo (bỏ shot đi theo nhóm multi-shot và task nối lại)")

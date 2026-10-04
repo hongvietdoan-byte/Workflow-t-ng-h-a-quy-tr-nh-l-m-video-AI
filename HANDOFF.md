@@ -20,3 +20,14 @@ Gốc: 7bca2b9 (Gộp S14.1 A1a). Không push, không merge main, không sửa T
    qc_team); CLI: `llm_runner.cli_error_code` cho mã `usage_limit`/`auth` ngay nơi sinh lỗi. Mã dừng: auth/config, usage_limit/rate_limit,
    out_of_credit, budget (MỚI: trước đây budget chỉ dừng nếu câu chứa "hết ngân sách claude").
    Test: `tests/test_autopilot.py::SafetyTests` (+7), `tests/test_v3.py` sửa 1 test sang FailText có mã.
+4. Trần ngày (mục 3.1): `perf.sends_today` = dòng `usage_events` hôm nay (UTC), kind image/video, provider không `mock%`, mọi dự án/nút;
+   `autopilot._daily_cap(p, ctx)` = sends_today + job đang `queued` của runner thật ≥ trần → dừng; `_create_job` kiểm + tạo job dưới
+   `SPEND_LOCK` (commit trước khi chờ khóa — tránh khóa chết SQLite, đã gặp ở QueueTests). Chỉ đường autopilot; `AUTOPILOT_DAILY_JOBS=0` = tắt.
+   `perf.jobs_today` giữ làm số phụ; `snapshot` thêm `sends_today`, cảnh báo dùng lượt gửi; sửa luôn so sánh giờ `usage_today`
+   (trước so ISO 'T…+00:00' với 'YYYY-MM-DD HH:MM:SS' → dòng hôm nay bị loại). Nhãn: admin "Lượt gửi thật hôm nay" (2 chỗ + chú thích),
+   header.py:548. `tests/test_dashboard.py:777` đổi nhãn theo. DailyCapTests: test cũ dùng provider không tên mock (nghĩa đổi: mock không tính) + 4 test mới.
+
+## Rủi ro cần rà
+- `superseded` là trạng thái mới trong manifest âm thanh: chỗ nào đếm dòng tts theo state có thể thấy dòng "biến mất" trong lúc chờ bản mới.
+- `budget` code giờ dừng autopilot (trước chỉ khi câu chứa "hết ngân sách claude").
+- Hạn chờ khớp môi 60 phút là ước lượng (chưa chạy sync.so thật).
