@@ -151,6 +151,28 @@ class FlagTests(unittest.TestCase):
         self.assertIn("Vai Quay phim (DP)", on)
         self.assertNotIn("Phương pháp đạo diễn — ra quyết định hình ảnh", on)     # folded into the role book
 
+    def test_the_knowledge_page_shows_what_film_crew_really_sends(self):
+        """S14.4 C1b (04/10): with film_crew on, ⚙ Kiến thức still listed the 3 old documents as sent and not the role books."""
+        from core import knowledge, prompts
+        files = lambda ov: {d["file"]: d for d in ov["docs"]}  # noqa: E731
+        off = files(knowledge.overview("director"))
+        self.assertNotIn("knowledge/roles/director.md", off)
+        self.assertFalse(any(d.get("crew_replaced") for d in off.values()))
+        os.environ["FEATURE_FILM_CREW"] = "1"
+        ov = knowledge.overview("director")
+        on = files(ov)
+        for rel in ("knowledge/roles/director.md", "knowledge/roles/dp.md", "knowledge/editor/editing.md"):
+            self.assertIn(rel, on)
+            self.assertTrue(on[rel]["exists"], rel)
+        self.assertEqual({f for f, d in on.items() if d.get("crew_replaced")}, set(knowledge.CREW_REPLACES))
+        bundle = prompts.build_director_bundle(self.p, self.pid)
+        for rel in knowledge.CREW_REPLACES:                                       # the same 3 files prompts.py leaves out
+            first = next(ln for ln in open(os.path.join(knowledge.ROOT, rel), encoding="utf-8").read().splitlines() if ln.strip())
+            self.assertNotIn(first, bundle, rel)
+        sent = sum(d["chars"] for d in ov["docs"] if d["enabled"] and not d["replaced"] and not d.get("crew_replaced")
+                   and not d.get("elsewhere"))
+        self.assertEqual(ov["chars"], sent)
+
     def test_camera_setups_ask_for_and_keep_the_setup_letter(self):
         from core import prompts, shots
         self.assertNotIn("camera_setup", prompts.duration_block(self.p, self.pid))

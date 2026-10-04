@@ -100,13 +100,40 @@ def _read(path: str) -> str:
         return ""
 
 
+# S14.4 C1b (04/10): with the `film_crew` flag the Director reads the role books instead of 3 scattered documents
+# (core/prompts.py build_director_bundle / dp_common) — the knowledge page shows the same thing.
+CREW_REPLACES = ("knowledge/cinematography_basics.md", "knowledge/film_director_method.md", "knowledge/dialogue_craft.md")
+CREW_DOCS = {"director": [
+    ("knowledge/roles/director.md", "Bộ nguyên tắc vai Đạo diễn", "cờ film_crew: thay 3 tài liệu cũ", False),
+    ("knowledge/roles/dp.md", "Bộ nguyên tắc vai Quay phim (DP)", "cờ film_crew: gửi khi dự án chia shot (Tầng B)", False),
+    ("knowledge/editor/editing.md", "Bộ nguyên tắc vai Editor (dựng)",
+     "cờ film_crew: gửi ở khâu Editor duyệt bản thô (Bước 5), không gửi kèm Director", True)]}
+
+
+def _film_crew() -> bool:
+    from . import features
+    try:
+        return features.on("film_crew")
+    except KeyError:                                     # an old feature table without the flag: as before
+        return False
+
+
 def builtin_docs(group: str) -> List[Dict]:
     out = []
+    crew = _film_crew()
     for rel, title, note in GROUPS[group][2]:
         path = os.path.join(ROOT, *rel.split("/"))
         text = _read(path)
+        item = {"source": "builtin", "title": title, "note": note, "file": rel, "path": os.path.abspath(path),
+                "chars": len(text), "enabled": True, "exists": bool(text), "crew_replaced": crew and rel in CREW_REPLACES}
+        if item["crew_replaced"]:
+            item["note"] = "cờ film_crew: KHÔNG gửi — bộ nguyên tắc vai thay thế"
+        out.append(item)
+    for rel, title, note, elsewhere in (CREW_DOCS.get(group, []) if crew else []):
+        path = os.path.join(ROOT, *rel.split("/"))
+        text = _read(path)
         out.append({"source": "builtin", "title": title, "note": note, "file": rel, "path": os.path.abspath(path),
-                    "chars": len(text), "enabled": True, "exists": bool(text)})
+                    "chars": len(text), "enabled": True, "exists": bool(text), "crew_replaced": False, "elsewhere": elsewhere})
     return out
 
 
@@ -130,7 +157,8 @@ def overview(group: str) -> Dict:
     for d in docs:
         d["folded"] = d["source"] == "builtin" and d["file"] in folded
         d["replaced"] = bool(playbook) and (d["source"] == "user" or d["folded"])  # not sent: the playbook stands in
-    sent = sum(d["chars"] for d in docs if d["enabled"] and not d["replaced"]) + (playbook["chars"] if playbook else 0)
+    sent = sum(d["chars"] for d in docs if d["enabled"] and not d["replaced"] and not d.get("crew_replaced")
+               and not d.get("elsewhere")) + (playbook["chars"] if playbook else 0)
     user_sent = sum(d["chars"] for d in docs if d["enabled"] and d["source"] == "user" and not d["replaced"])
     return {"docs": docs, "chars": sent, "tokens": approx_tokens(sent), "user_chars": user_sent,
             "raw_chars": raw, "raw_tokens": approx_tokens(raw), "distilled": distilled_status(group),
