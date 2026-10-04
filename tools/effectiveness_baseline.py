@@ -28,7 +28,11 @@ def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description="Ghi mốc nền hiệu quả workflow (0 USD)")
     ap.add_argument("--db", default=os.environ.get("PIPELINE_DB") or os.path.join("data", "manifest.sqlite"))
     ap.add_argument("--yes", action="store_true", help="ghi thật (không có thì chỉ in ra sẽ ghi gì)")
+    ap.add_argument("--env", default=os.path.join(ROOT, "dashboard.env"),
+                    help="file cài đặt Dashboard để đọc đúng cờ đang bật (mặc định dashboard.env ở gốc repo)")
     a = ap.parse_args(argv)
+    from core.adapters.check import load_dashboard_env
+    load_dashboard_env(a.env)              # the FEATURE_* switches the Dashboard runs with (without it: only the verified flags)
     if hasattr(sys.stdout, "reconfigure"):
         try:
             sys.stdout.reconfigure(encoding="utf-8")
