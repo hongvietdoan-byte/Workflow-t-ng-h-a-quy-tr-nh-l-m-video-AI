@@ -78,7 +78,22 @@ def queue(p: Pipeline, project_id: int) -> List[int]:
     return out
 
 
-MAX_REDOS = 2              # luật 6 (người dùng chốt): an end frame is drawn again at most 2 times per start picture
+# S14.16 (mục 6c.3, thay MAX_REDOS = 2 của luật 6 cũ): a person's redo is never capped; the run's own redos of one shot's end frame
+# follow pipeline.AUTO_REGEN_LIMIT["image_gen"] (3), counted since the person's last redo (app_settings key _AUTO_KEY).
+_AUTO_KEY = "end_frame_auto_redos:{}"
+
+
+def _auto_count(conn, scene_id: int) -> int:
+    row = conn.execute("SELECT value FROM app_settings WHERE key=?", (_AUTO_KEY.format(scene_id),)).fetchone()
+    try:
+        return int(row[0]) if row else 0
+    except (TypeError, ValueError):
+        return 0
+
+
+def _set_auto_count(conn, scene_id: int, n: int) -> None:
+    conn.execute("INSERT INTO app_settings (key, value) VALUES (?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value",
+                 (_AUTO_KEY.format(scene_id), str(int(n))))
 
 
 def prompt_for(p: Pipeline, project_id: int, scene_id: int, fix: Optional[str] = None) -> str:
@@ -216,18 +231,21 @@ def reject(p: Pipeline, row_id: int, note: Optional[str] = None) -> None:
     _set(p, row_id, state="rejected", note=note or "người dùng loại")
 
 
-def redo(p: Pipeline, scene_id: int, fix: Optional[str] = None) -> int:
-    """Draw the end frame again (the person asked). `fix` (English) goes into the new prompt so the input changes; at most MAX_REDOS
-    redos per start picture (luật 6) — then the layer to fix is the shot's end_state / start picture, not another paid try."""
+def redo(p: Pipeline, scene_id: int, fix: Optional[str] = None, auto: bool = False) -> int:
+    """Draw the end frame again. `fix` (English) goes into the new prompt so the input changes. The person asked (default): never
+    capped, the automatic count starts again. `auto=True` (the run by itself): at most pipeline.AUTO_REGEN_LIMIT["image_gen"] since the
+    person's last redo — then the layer to fix is the shot's end_state / start picture (ValueError, said)."""
     access.need_edit_scene(p, scene_id, "vẽ lại khung cuối")
     start = _start_job(p.conn, scene_id)
     if start is None:
         raise ValueError("shot chưa có ảnh khung đầu đã duyệt — không vẽ khung cuối được")
-    made = p.conn.execute("SELECT COUNT(*) FROM end_frames WHERE scene_id=? AND start_job_id=? AND external_id IS NOT NULL",
-                          (scene_id, start["id"])).fetchone()[0]
-    if made > MAX_REDOS:
-        raise ValueError(f"khung cuối của shot này đã vẽ {made} lần (tối đa {MAX_REDOS} lần vẽ lại) — sửa end_state / ảnh khung đầu thay vì "
-                         "vẽ lại")
+    from .pipeline import AUTO_REGEN_LIMIT
+    limit = AUTO_REGEN_LIMIT["image_gen"]
+    done = _auto_count(p.conn, scene_id)
+    if auto and done >= limit:
+        raise ValueError(f"Cần bạn quyết — khung cuối của shot này đã tự vẽ lại {done} lần (tối đa {limit}) — sửa end_state / ảnh khung "
+                         "đầu, hoặc bấm vẽ lại tay")
+    _set_auto_count(p.conn, scene_id, done + 1 if auto else 0)
     row = current(p.conn, scene_id)
     if row is not None and row["state"] not in ("rejected", "failed"):
         reject(p, row["id"], "làm lại")

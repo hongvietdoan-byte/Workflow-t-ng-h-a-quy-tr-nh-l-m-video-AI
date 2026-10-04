@@ -485,11 +485,20 @@ class EndFrameTests(Base):
         end_frames.tick(self.p, self.pid, prov, self.dir)
         row = end_frames.current(self.p.conn, self.sid)
         self.assertEqual(json.loads(row["sent_refs"])[0]["label"], "start frame")
-        for _ in range(end_frames.MAX_REDOS):
-            end_frames.redo(self.p, self.sid)
+        # S14.16 (mục 6c.3): was "≤ 2 redos" for everyone — a person's redo is never capped; the run's own redos follow
+        # pipeline.AUTO_REGEN_LIMIT (picture: 3) and a person's redo starts the count again
+        from core.pipeline import AUTO_REGEN_LIMIT
+        for _ in range(4):
+            end_frames.redo(self.p, self.sid)                                       # the person: no limit
+            end_frames.tick(self.p, self.pid, prov, self.dir)
+        for _ in range(AUTO_REGEN_LIMIT["image_gen"]):
+            end_frames.redo(self.p, self.sid, auto=True)
             end_frames.tick(self.p, self.pid, prov, self.dir)
         with self.assertRaises(ValueError):
-            end_frames.redo(self.p, self.sid)                                       # luật 6: ≤ 2 redos
+            end_frames.redo(self.p, self.sid, auto=True)                            # the run: ≤ 3 automatic redos
+        end_frames.redo(self.p, self.sid)                                           # the person again: allowed, count reset
+        end_frames.tick(self.p, self.pid, prov, self.dir)
+        end_frames.redo(self.p, self.sid, auto=True)
         os.remove(os.path.join(self.dir, str(self.pid), "images", f"job_{self.img}.png"))
         self.p.conn.execute("INSERT INTO end_frames (project_id, scene_id, start_job_id, state, created_at, updated_at)"
                             " VALUES (?,?,?,'queued',datetime('now'),datetime('now'))", (self.pid, self.sid, self.img))
