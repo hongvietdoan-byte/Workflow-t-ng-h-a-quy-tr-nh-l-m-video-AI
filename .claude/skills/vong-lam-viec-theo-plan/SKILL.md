@@ -42,6 +42,10 @@ Mục tiêu: làm hết một đợt dài mà không để phiên chính đầy 
 | Hạn mức tuần thấp mà còn nhiều việc | làm theo thứ tự giá trị (lỗ tiền, mất dữ liệu trước; giao diện, dọn dẹp sau) |
 
 ## 4. Điểm nghỉ
+**Hai loại dừng, đừng lẫn:**
+- **Dừng vì hạn mức gói** (5 giờ / tuần ≥ 90 %), context còn thấp → KHÔNG cần `/clear`. Làm bước 1–4 bên dưới, rồi đặt lịch `CronCreate` một lần (vài phút sau giờ hạn mức đặt lại, lấy từ `resetsAt`) để tự làm tiếp TRONG CÙNG phiên, và báo người dùng giờ chạy lại.
+- **Dừng vì context** (65–75 %) → làm bước 1–5: người dùng `/clear` rồi gõ "tiếp tục".
+
 1. Chờ mọi phiên con xong (không bỏ dở giữa chừng).
 2. Gộp các nhánh đã xanh và đã rà. Nhánh dở thì để nguyên trên nhánh, kèm `HANDOFF.md`.
 3. Cập nhật kế hoạch + `plan_progress --write` + `TODO.md`, ghi rõ **bước kế + file nguồn + nhánh dở (tên, commit cuối)**. Commit, push, pull ở `D:\AI-Video-Pipeline`.
