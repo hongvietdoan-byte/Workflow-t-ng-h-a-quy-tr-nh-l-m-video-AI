@@ -136,6 +136,18 @@ class ResearchTests(unittest.TestCase):
         again = research.run(self.conn, llm_runner.MockLlm())
         self.assertEqual(again["proposed"], 0)                                   # same findings are not duplicated
 
+    def test_a_finding_that_is_not_an_object_is_counted_not_fatal(self):
+        """S14.4 C1b (04/10): 'findings': ["text", {...}] crashed the whole round on f.get()."""
+        class Mixed:
+            def complete_with_search(self, prompt, max_uses=3):
+                return llm_runner.LlmReply('{"findings": ["chỉ là chữ", {"title": "Ánh sáng ven", "rule": "Dùng rim light", '
+                                           '"url": "https://x"}]}', 1, 1)
+
+        r = research.run(self.conn, Mixed(), {"director": ["ánh sáng"]})
+        self.assertEqual(r["proposed"], 1)
+        self.assertEqual(len(r["errors"]), 1)
+        self.assertIn("director", r["errors"][0])
+
     def test_a_bad_answer_is_reported_not_fatal(self):
         class Junk:
             def complete_with_search(self, prompt, max_uses=3):
