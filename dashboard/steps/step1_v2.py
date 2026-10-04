@@ -170,7 +170,7 @@ def _primary_action(p: Pipeline, pid: int, kind: str, scenes, chars, b_total: fl
         try:                                                   # S14.16: the approval shows the TOTAL estimated cost (tính dư)
             st.markdown("💵 " + project_budget.cost_summary(p, pid)["text"])
         except Exception as e:  # noqa: BLE001 - the approval still works; the missing estimate is said
-            st.caption(f"Chưa tính được ước tính tổng chi phí ({type(e).__name__}).")
+            st.caption(f"Chưa tính được phần đã chi + ước tính phần còn lại: {str(e)[:160] or type(e).__name__}. Cách xử lý: kiểm tra dự án đã tách cảnh và bảng giá (⚙ Cài đặt), rồi tải lại trang; vẫn lỗi thì gửi báo cáo ở ⚙ Chẩn đoán.")
         if confirm_all(f"script-cta-budget_{pid}", ["go"], f"✔ Duyệt & khóa ngân sách ≈ {prop['total']:.2f} USD",
                        f"Khóa ngân sách dự án ≈ {prop['total']:.2f} USD (trần từng khâu như bảng ở thẻ ③)? Sau khi khóa, mọi lời gọi trả tiền "
                        "vượt mức khâu hoặc tổng sẽ được CẢNH BÁO (vẫn gửi); chỉ người được nâng mức, kèm lý do.", st, "Có, khóa"):

@@ -318,7 +318,8 @@ def gate_reason(p, pid: int) -> Optional[str]:
     try:
         summary = " " + cost_summary(p, pid)["text"] + "."
     except Exception as e:  # noqa: BLE001 - the gate still waits; the missing estimate is said
-        summary = f" (chưa tính được ước tính tổng: {type(e).__name__})"
+        summary = (f" (chưa tính được đã chi + ước tính phần còn lại: {str(e)[:160] or type(e).__name__}. Cách xử lý: kiểm tra "
+                   "bảng giá ở ⚙ Cài đặt rồi tải lại; vẫn lỗi thì gửi báo cáo ở ⚙ Chẩn đoán)")
     return f"Chờ duyệt ngân sách dự án (đề xuất ≈ ${prop['total']:.2f}){over}.{summary} — Bước 1 → 💵 Ngân sách dự án"
 
 
