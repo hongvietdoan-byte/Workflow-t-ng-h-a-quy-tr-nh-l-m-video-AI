@@ -282,9 +282,9 @@ def review_scene(p, pid: int, story_scene, client, data_dir: str, frames: List[D
     if not hasattr(client, "ask_json"):
         return {"stopped": "Claude chưa sẵn sàng cho trả lời có cấu trúc (LLM_PROVIDER=anthropic)", "blocked": True}
     todo = [r for r in frames if focus is None or r["job_id"] in focus]
-    over = project_budget.check(p.conn, pid, "claude_qc", FRAME_USD * len(todo))
-    if over:
-        return {"stopped": over, "blocked": True}
+    from . import money_policy             # S14.16: the project's QC amount only warns — the frames are still looked at
+    money_policy.note(p.conn, project_budget.warning(p.conn, pid, "claude_qc", FRAME_USD * len(todo)), stage="qc", project_id=pid,
+                      key=f"qc_team:{pid}")
     names = sorted({str(c).upper() for r in frames for c in r["data"].get("characters") or []})
     views = sorted({qc_spec.view_of(r["data"], n) or "" for r in frames for n in r["data"].get("characters") or []} - {""})
     shots = [f"S{r['data'].get('story_scene')}·{r['data'].get('shot_no')}" for r in frames]
@@ -301,7 +301,7 @@ def review_scene(p, pid: int, story_scene, client, data_dir: str, frames: List[D
             try:
                 res = review_frame(p, pid, data_dir, frame, client, entity=entity)
             except llm_runner.LlmError as e:
-                if e.code in ("budget", "auth", "config"):
+                if e.code in ("out_of_credit", "ledger", "auth", "config"):
                     return {"stopped": llm_runner.fail_text(e), "blocked": True, "applied": applied, "results": results}
                 applied[f"K{k}"] = f"lỗi Claude: {e}"
                 continue

@@ -111,6 +111,28 @@ def project_hero(p, pid: int, done: list, screen_index: int, data_dir: str, leve
                 level_fn()
 
 
+# ---- 💵 màu thanh theo mức dự tính (S14.16, core.money_policy) -------------------------------------------------------------------
+
+_MONEY_COLOR = {"ok": "var(--ok)", "warn": "var(--warn)", "danger": "var(--bad)"}
+
+
+def money_meter(spent: float, planned: float, text: str = "") -> str:
+    """A 💵 meter coloured by the planned amount (chính sách tiền 04/10): green, yellow at ≥ money_policy.WARN_AT, red at ≥ DANGER_AT.
+    The bar fills to 100 %; the number says the real share (it may pass 100 % — the caps warn, they do not stop)."""
+    from core import money_policy
+    share = float(spent or 0) / float(planned) if planned else 0.0
+    color = _MONEY_COLOR[money_policy.level(spent, planned)]
+    label = f'<div style="font-size:13px;color:var(--muted);margin-bottom:3px">{escape(text)}</div>' if text else ""
+    return (f'{label}<div class="v2-meter-row"><div class="v2-meter"><i style="width:{min(share, 1.0) * 100:.0f}%;background:{color}">'
+            f'</i></div><b>{share * 100:.0f}%</b></div>')
+
+
+def money_flag(spent: float, planned: float) -> str:
+    """' 🟡' / ' 🔴' after the 💵 label when the money passed the planned amount / passed it far ('' otherwise)."""
+    from core import money_policy
+    return {"warn": " 🟡", "danger": " 🔴"}.get(money_policy.level(spent, planned), "")
+
+
 # ---- 💵 Đặt lại thanh tiền (chỉ Owner) -------------------------------------------------------------------------------------------
 
 def last_reset_line(conn, bar: str, key=None) -> str:

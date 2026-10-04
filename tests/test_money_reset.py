@@ -79,21 +79,23 @@ class ResetTests(unittest.TestCase):
         self.assertEqual(money_reset.last(self.conn, "user", "lan@x")["who"], "boss@x")
 
     @mock.patch.dict(os.environ, ON)
-    def test_project_baseline_unblocks_then_blocks_again(self):
+    def test_project_baseline_clears_the_warning_then_warns_again(self):
+        # S14.16: was "unblocks then blocks again" — the project amount warns (project_budget.warning), check never refuses
         self.spend(30, "2020-01-01 00:00:00")
         per = project_budget.spent_by_stage(self.conn, self.pid)["images"] / 30
         self.assertGreater(per, 0)
         project_budget._save(self.conn, self.pid, {"caps": {k: 1.0 for k in project_budget.STAGES}, "total": 6.0, "locked": True,
                                                    "raises": []})
-        self.assertIsNotNone(project_budget.check(self.conn, self.pid, "images", per))      # blocked: already over
+        self.assertIsNotNone(project_budget.warning(self.conn, self.pid, "images", per))    # warned: already over
+        self.assertIsNone(project_budget.check(self.conn, self.pid, "images", per))
         before = self.ledger()
         money_reset.reset(self.conn, OWNER, ["project"], "làm lại", project_id=self.pid)
         self.assertEqual(self.ledger(), before)
         self.assertEqual(project_budget.spent_by_stage(self.conn, self.pid)["images"], 0.0)
-        self.assertIsNone(project_budget.check(self.conn, self.pid, "images", per))
+        self.assertIsNone(project_budget.warning(self.conn, self.pid, "images", per))
         self.assertEqual(project_budget.get(self.conn, self.pid)["resets"][0]["why"], "làm lại")
-        self.spend(30, "2020-02-01 00:00:00")                                               # spending after the baseline passes the cap
-        self.assertIsNotNone(project_budget.check(self.conn, self.pid, "images", per))
+        self.spend(30, "2020-02-01 00:00:00")                                               # spending after the baseline passes the line
+        self.assertIsNotNone(project_budget.warning(self.conn, self.pid, "images", per))
         self.assertEqual(money_reset.last(self.conn, "project", self.pid)["who"], "boss@x")
 
     def test_user_bar_reports_before_after_and_keeps_limit_a_warning(self):

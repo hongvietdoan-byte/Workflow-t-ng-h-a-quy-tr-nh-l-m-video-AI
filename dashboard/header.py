@@ -419,12 +419,18 @@ def money_card(p: Pipeline, pid) -> None:
     s = budget.status(p.conn)
     claude_out = s["llm_usd"] > 0 and s["llm_left"] <= 0
     halts = s.get("out_of_credit") or {}
-    flag = " 🔴" if (claude_out or halts) else ""
+    flag = " 🔴" if halts else ""
     v2 = ui.v2_on()
+    from dashboard.design.screens import shell_parts as SP
+    if v2 and not flag:                              # S14.16: yellow past the planned amount, red far past it (money_policy)
+        flags = [SP.money_flag(s["spent"], s["usd"]) if s["enabled"] else "", SP.money_flag(s["llm_spent"], s["llm_usd"])
+                 if s["llm_usd"] > 0 else ""]
+        flag = " 🔴" if " 🔴" in flags else " 🟡" if " 🟡" in flags else ""
+    elif claude_out:
+        flag = " 🔴"
     label = f"💵 {s['spent']:.2f}/{s['usd']:.0f}" if s["enabled"] else "💵 Tiền"
     if v2:
         label = "💵 Tiền" + (f" · {s['spent']:.2f}/{s['usd']:.0f}" if s["enabled"] else "")      # v2: always a word next to the icon
-    from dashboard.design.screens import shell_parts as SP
     from dashboard.design import components as D
     with st.popover(label + flag, help="Tiền còn lại theo dịch vụ + dự án; duyệt ngân sách dự án; bảng giá"):
         for service, h in halts.items():
@@ -436,7 +442,7 @@ def money_card(p: Pipeline, pid) -> None:
         if s["enabled"]:
             frac = min(s["spent"] / s["usd"], 1.0) if s["usd"] else 0.0
             if v2:
-                st.html(D.meter(frac, f"Đợt thử: ${s['spent']:.2f} / ${s['usd']:.0f}", invert=True))
+                st.html(SP.money_meter(s["spent"], s["usd"], f"Đợt thử: ${s['spent']:.2f} / mức dự tính ${s['usd']:.0f}"))
                 more.append(f"- **Đợt thử:** {s['images']}/{s['image_cap']} ảnh · {s['audios']}/{s['audio_cap']} âm thanh")
                 more.append(SP.last_reset_md(p.conn, "trial", "Đợt thử"))
             else:
@@ -447,8 +453,8 @@ def money_card(p: Pipeline, pid) -> None:
             st.caption("Đợt thử: tắt (không giới hạn chi).")
         if s["llm_usd"] > 0:
             if v2:
-                st.html(D.meter(min(s["llm_spent"] / s["llm_usd"], 1.0), f"Claude API: ${s['llm_spent']:.2f} / ${s['llm_usd']:.2f}"
-                                + (" — đã hết" if claude_out else ""), invert=True))
+                st.html(SP.money_meter(s["llm_spent"], s["llm_usd"], f"Claude API: ${s['llm_spent']:.2f} / mức dự tính ${s['llm_usd']:.2f}"
+                                       + (" — đã vượt (vẫn gọi)" if claude_out else "")))
                 more.append(SP.last_reset_md(p.conn, "claude", "Claude API"))
             else:
                 st.markdown(f"**Claude API:** \\${s['llm_spent']:.2f} / \\${s['llm_usd']:.2f}" + (" — **đã hết**" if claude_out else ""))
@@ -461,10 +467,10 @@ def money_card(p: Pipeline, pid) -> None:
             spent = project_budget.spent_by_stage(p.conn, pid)
             if data.get("locked"):
                 caps = data.get("caps") or {}
-                total = float(data.get("total") or 0)
+                total = float(project_budget.planned(p.conn, pid) or 0)
                 if v2:
-                    st.html(D.pill("Ngân sách dự án đã khóa", "ok") + D.meter(sum(spent.values()) / total if total else 0.0,
-                            f"Dự án này: đã chi {sum(spent.values()):.2f} / trần {total:.2f} USD", invert=True))
+                    st.html(D.pill("Ngân sách dự án đã duyệt", "ok") + SP.money_meter(sum(spent.values()), total,
+                            f"Dự án này: đã chi {sum(spent.values()):.2f} / mức dự tính {total:.2f} USD"))
                     more.append(SP.last_reset_md(p.conn, "project", "Ngân sách dự án này", pid))
                 else:
                     st.markdown(f"**Dự án này 🔒** đã chi {sum(spent.values()):.2f} / trần {total:.2f} USD")
@@ -478,9 +484,13 @@ def money_card(p: Pipeline, pid) -> None:
                 try:
                     prop = project_budget.propose(p, pid)
                     st.markdown(f"**Dự án này:** chưa duyệt · dự tính ≈ {prop['total']:.2f} USD · đã chi {sum(spent.values()):.2f}")
+                    try:                                                   # S14.16: the approval shows the TOTAL estimated cost (tính dư)
+                        st.markdown("💵 " + project_budget.cost_summary(p, pid)["text"])
+                    except Exception as e:  # noqa: BLE001 - the approval still works; the missing estimate is said
+                        st.caption(f"Chưa tính được phần đã chi + ước tính phần còn lại: {str(e)[:160] or type(e).__name__}. Cách xử lý: kiểm tra dự án đã tách cảnh và bảng giá (⚙ Cài đặt), rồi tải lại trang; vẫn lỗi thì gửi báo cáo ở ⚙ Chẩn đoán.")
                     if confirm_all(f"mc_ok_{pid}", ["go"], f"✔ Duyệt & KHÓA ngân sách ≈ {prop['total']:.2f} USD",
                                    f"Khóa ngân sách dự án ≈ {prop['total']:.2f} USD (trần từng khâu theo bảng ở màn Kịch bản)? Sau khi khóa, mọi lời "
-                                   "gọi trả tiền vượt trần sẽ bị DỪNG; chỉ người được nâng trần, kèm lý do.", st, "Có, khóa"):
+                                   "gọi trả tiền vượt mức sẽ được CẢNH BÁO (vẫn gửi); chỉ người được nâng mức, kèm lý do.", st, "Có, khóa"):
                         project_budget.approve(p, pid, p.actor, prop)
                         st.rerun()
                 except Exception as e:  # noqa: BLE001 - the card must never break the bar
@@ -646,7 +656,7 @@ def _dialog_budget(p: Pipeline) -> None:
     st.divider()
     st.markdown(f"**🤖 Claude API** — đã dùng ≈ **\\${s['llm_spent']:.2f} / \\${s['llm_usd']:.2f}**"
                 + (f" (tính từ {s['llm_since']} UTC)" if s["llm_since"] else "")
-                + (" — **đã hết, Dashboard ngừng gọi Claude**" if s["llm_usd"] > 0 and s["llm_left"] <= 0 else ""))
+                + (" — **đã vượt mức dự tính (vẫn gọi, chỉ cảnh báo)**" if s["llm_usd"] > 0 and s["llm_left"] <= 0 else ""))
     ui.progress_bar(min(s["llm_spent"] / s["llm_usd"], 1.0) if s["llm_usd"] > 0 else 0.0, invert=True)
     st.caption("Luôn bật (kể cả khi tắt đợt thử): mỗi lần gọi Claude API ghi số token vào/ra × giá niêm yết (data/pricing.json); hết "
                "thì Dashboard dừng gọi Claude và báo. Tiền Claude cũng cộng vào trần đợt thử ở trên. Claude Code trên máy (claude_cli) "

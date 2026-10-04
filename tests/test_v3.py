@@ -367,21 +367,24 @@ class VietnameseVoiceTests(unittest.TestCase):
 
 class BudgetAndCompareTests(unittest.TestCase):
     def test_the_spending_limit_is_off_until_a_test_round_starts(self):
+        # S14.16 (chính sách tiền 04/10): the trial's amounts now WARN (warn_*) — check_* refuse only a service out of credit
         from core import budget, cost
         p, pid = kenta_project()
-        self.assertIsNone(budget.check_video(p.conn, "clipai", "kling-v3-omni", "pro", 15))
+        self.assertIsNone(budget.warn_video(p.conn, "clipai", "kling-v3-omni", "pro", 15))
         budget.restart(p.conn, usd=1.0)
-        self.assertIsNone(budget.check_video(p.conn, "clipai", "kling-v3-omni", "pro", 5))       # $0.40 fits
+        self.assertIsNone(budget.warn_video(p.conn, "clipai", "kling-v3-omni", "pro", 5))        # $0.40 fits
         cost.record_usage(p.conn, None, "video", "clipai", "kling-v3-omni", "pro", 10, "second", pid)   # $0.80 spent
-        self.assertIn("trần ngân sách", budget.check_video(p.conn, "clipai", "kling-v3-omni", "pro", 5))
-        self.assertIsNone(budget.check_video(p.conn, "mock", "kling-v3-omni", "pro", 5))          # the simulator never counts
+        self.assertIn("vượt", budget.warn_video(p.conn, "clipai", "kling-v3-omni", "pro", 5))
+        self.assertIsNone(budget.check_video(p.conn, "clipai", "kling-v3-omni", "pro", 5))
+        self.assertIsNone(budget.warn_video(p.conn, "mock", "kling-v3-omni", "pro", 5))           # the simulator never counts
         budget.save(p.conn, image_cap=1)
         cost.record_usage(p.conn, None, "image", "deepix", "seedream", "default", 1, "image", pid)
-        self.assertIn("ảnh", budget.check_image(p.conn, "deepix"))
+        self.assertIn("ảnh", budget.warn_image(p.conn, "deepix"))
         budget.stop(p.conn)
-        self.assertIsNone(budget.check_video(p.conn, "clipai", "kling-v3-omni", "pro", 5))
+        self.assertIsNone(budget.warn_video(p.conn, "clipai", "kling-v3-omni", "pro", 5))
 
-    def test_a_job_over_the_limit_stays_queued(self):
+    def test_a_job_over_the_limit_is_sent_with_a_warning(self):
+        # S14.16: was "stays queued" — over the trial's amount the clip is sent and the warning is in diag (money_warning)
         from core import batch, budget, cost
         from core.providers import MockVideoProvider
         from core.runner import VideoRunner
@@ -397,10 +400,9 @@ class BudgetAndCompareTests(unittest.TestCase):
         provider.usage_info = lambda model=None, duration=5, resolution=None: ("kling-v3-omni", "pro", duration)
         vr = VideoRunner(p, provider, data)
         batch.queue_videos(p, pid, data)
-        self.assertEqual(vr.submit_pending(pid), 0)
-        self.assertTrue(p.conn.execute("SELECT 1 FROM diag_events WHERE code='budget'").fetchone())
-        self.assertFalse(p.conn.execute("SELECT 1 FROM jobs WHERE project_id=? AND type='video_gen' AND state!='queued'",
-                                        (pid,)).fetchone())
+        self.assertGreater(vr.submit_pending(pid), 0)
+        self.assertTrue(p.conn.execute("SELECT 1 FROM diag_events WHERE code='money_warning'").fetchone())
+        self.assertFalse(p.conn.execute("SELECT 1 FROM diag_events WHERE code='budget'").fetchone())
 
     def test_cheap_test_mode_never_asks_for_1080p_or_kling_pro(self):
         from core import batch, model_router
@@ -543,7 +545,8 @@ class BudgetAndCompareTests(unittest.TestCase):
         self.assertTrue(out.endswith("."))
         self.assertEqual(_shorten("short.", 512), "short.")
 
-    def test_claude_api_calls_are_priced_in_the_ledger_and_stop_at_the_claude_cap(self):
+    def test_claude_api_calls_are_priced_in_the_ledger_and_warn_at_the_claude_cap(self):
+        # S14.16: was "stop at the Claude cap" — past it the call warns and goes; only out of credit refuses
         import json as _json
         from core import budget
         from core.adapters.http import HttpResponse
@@ -562,15 +565,20 @@ class BudgetAndCompareTests(unittest.TestCase):
         self.assertAlmostEqual(s["llm_spent"], 0.5 * 2.0 + 0.1 * 10.0)            # $2 / $10 per million tokens
         self.assertAlmostEqual(budget.spent(conn)["usd"], 2.0)                       # counts in the test round's total too
         budget.save(conn, llm_usd=2.0)                                               # the $2 are used up
+        self.assertEqual(client.complete("again").text, "OK")                        # warned, sent
+        self.assertEqual(len(calls), 2)
+        self.assertTrue(conn.execute("SELECT 1 FROM diag_events WHERE code='money_warning'").fetchone())
+        budget.halt(conn, "anthropic", "credit balance too low")                     # the account itself is empty: refused
         with self.assertRaises(llm_runner.LlmError) as err:
-            client.complete("again")
-        self.assertEqual(err.exception.code, "budget")
-        self.assertEqual(len(calls), 1)                                              # refused before paying
+            client.complete("refused")
+        self.assertEqual(err.exception.code, "out_of_credit")
+        self.assertEqual(len(calls), 2)
+        budget.reopen(conn, "anthropic")
         budget.restart_llm(conn, 5.0)                                                # topped up: count from now
         self.assertEqual(client.complete("after top-up").text, "OK")
         free = llm_runner.AnthropicClient("sk-test", "claude-sonnet-5", transport=transport)   # no ledger: nothing written
         free.complete("x")
-        self.assertEqual(conn.execute("SELECT COUNT(*) FROM usage_events WHERE kind='llm'").fetchone()[0], 4)
+        self.assertEqual(conn.execute("SELECT COUNT(*) FROM usage_events WHERE kind='llm'").fetchone()[0], 6)
 
     def test_the_api_client_shrinks_a_picture_over_5_mb_and_leaves_room_for_a_long_answer(self):
         import base64 as _b64

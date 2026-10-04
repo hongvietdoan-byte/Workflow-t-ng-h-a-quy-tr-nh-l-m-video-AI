@@ -116,6 +116,6 @@ def render() -> None:
 
 @st.dialog("Hộp thoại mẫu")
 def _dialog() -> None:
-    st.markdown(D.hero_html("Khóa ngân sách", "Sau khi khóa, mọi lời gọi trả tiền vượt trần sẽ dừng.", [("≈ 9,40 USD", "info")]), unsafe_allow_html=True)
+    st.markdown(D.hero_html("Khóa ngân sách", "Sau khi khóa, mọi lời gọi trả tiền vượt mức sẽ được cảnh báo.", [("≈ 9,40 USD", "info")]), unsafe_allow_html=True)
     st.text_area("Lý do (bắt buộc)", key="v2d_reason")
     st.button("✔ Duyệt & khóa", key="v2d_lock", type="primary")

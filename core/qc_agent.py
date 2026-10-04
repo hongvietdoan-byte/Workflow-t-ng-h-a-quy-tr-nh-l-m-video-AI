@@ -354,11 +354,11 @@ class QcAgent:
                     reply = (self.client.converse(msgs, look_tools, SYSTEM, max_tokens=ANSWER_TOKENS, force_tool="record") if final
                              else self.client.converse(msgs, look_tools, SYSTEM, max_tokens=ANSWER_TOKENS))
                 except Exception as e:  # noqa: BLE001 - a lock, the network: stop, keep what was recorded
-                    if final and getattr(e, "code", None) not in ("budget", "auth", "config"):
+                    if final and getattr(e, "code", None) not in ("out_of_credit", "ledger", "auth", "config"):
                         self._log({"name": "record (ép)", "input": {"k": k}}, [{"type": "text", "text": f"lỗi lượt ép ghi: {e}"}])
                         break                                    # the forced turn failed: this frame becomes a doubt, the scene goes on
                     self._only_k = None
-                    self.blocked = not self.records and getattr(e, "code", None) in ("budget", "auth", "config")
+                    self.blocked = not self.records and getattr(e, "code", None) in ("out_of_credit", "ledger", "auth", "config")
                     from .llm_runner import fail_text
                     return fail_text(e, f"dừng: {e}")                # keeps LlmError.code (autopilot._stop_if_claude_blocked)
                 self.steps += 1
@@ -633,7 +633,7 @@ class QcAgent:
                 except Exception as e:  # noqa: BLE001 - a lock, the network, the provider: stop here and KEEP what was recorded
                     from .llm_runner import fail_text
                     stopped = fail_text(e, f"dừng: {e}")              # keeps LlmError.code (autopilot._stop_if_claude_blocked)
-                    self.blocked = not self.records and getattr(e, "code", None) in ("budget", "auth", "config")
+                    self.blocked = not self.records and getattr(e, "code", None) in ("out_of_credit", "ledger", "auth", "config")
                     break
                 self.steps += 1
                 last_cost, spent_before = max(cap["spent"] - spent_before, 0.0), cap["spent"]

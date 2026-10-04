@@ -66,22 +66,33 @@ class LipSyncGateTests(Base):
         return lipsync.index(self.dir, self.pid).get(str(self.sid)) or {}
 
     @mock.patch.dict(os.environ, ON)
-    def test_a_model_without_a_price_is_refused_before_sending_when_the_project_is_locked(self):
+    def test_a_model_without_a_price_is_estimated_high_warned_and_sent_when_the_project_is_locked(self):
+        # S14.16 (chính sách tiền 04/10): was "refused before sending" — a missing price is estimated high and warned, not refused
         lock(self.p, self.pid)
         provider = Sync(model="lipsync-2")                       # null in data/pricing.json
         c = lipsync.post_tick(self.p, self.pid, self.dir, provider, "ffmpeg")
-        self.assertEqual(provider.sent, [])                       # nothing sent …
-        self.assertEqual(self.rows(), [])                         # … and no unpriced 'videos' row blocking every clip of the project
-        self.assertEqual(c["sent"], 0)
-        self.assertTrue(any("CHƯA CÓ GIÁ" in m for m in codes(self.p, "budget")))
+        self.assertEqual(len(provider.sent), 1)
+        self.assertEqual(len(self.rows()), 1)                     # the paid send is in the ledger
+        self.assertEqual(c["sent"], 1)
+        self.assertTrue(any("thiếu giá: lipsync-2:post" in m for m in codes(self.p, "money_warning")))
+        self.assertFalse(codes(self.p, "budget"))
 
     @mock.patch.dict(os.environ, ON)
-    def test_the_locked_video_budget_is_checked(self):
+    def test_the_locked_video_budget_is_compared_and_warned(self):
+        # S14.16: was "is checked" (= refused) — past the line the clip is sent with a warning
         lock(self.p, self.pid, videos=0.2)                        # 4 s × 0.084 = 0.336 > 0.2
         provider = Sync()
         lipsync.post_tick(self.p, self.pid, self.dir, provider, "ffmpeg")
+        self.assertEqual(len(provider.sent), 1)
+        self.assertTrue(any("mức dự tính $0.20" in m for m in codes(self.p, "money_warning")))
+
+    def test_out_of_credit_still_stops_the_lip_sync(self):
+        from core import budget
+        budget.halt(self.p.conn, "syncso", "no credit")
+        provider = Sync()
+        lipsync.post_tick(self.p, self.pid, self.dir, provider, "ffmpeg")
         self.assertEqual(provider.sent, [])
-        self.assertTrue(any("chạm trần" in m for m in codes(self.p, "budget")))
+        self.assertTrue(any("HẾT TIỀN" in m for m in codes(self.p, "budget")))
 
     def test_the_ledger_row_carries_the_project_and_the_lipsync_label(self):
         provider = Sync()

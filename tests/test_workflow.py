@@ -105,12 +105,13 @@ class DeadEndTests(unittest.TestCase):
         return job
 
     def test_escalated_image_scene_can_start_over(self):
+        # S14.16: a person's reject is never capped any more — the escalation comes from the automatic (QC) rejects
         job = self.finished_image()
-        self.assertEqual(self.p.reject(job, "user", "sai lần 1"), "rejected")  # max_retry=1: one retry allowed
+        self.assertEqual(self.p.reject(job, "ai_agent", "sai lần 1"), "rejected")  # max_retry=1: one automatic retry allowed
         retry = self.p.conn.execute("SELECT id FROM jobs WHERE parent_job_id=?", (job,)).fetchone()["id"]
         self.p.start(retry)
         self.p.succeed(retry)
-        self.assertEqual(self.p.reject(retry, "user", "vẫn sai"), "escalated")
+        self.assertEqual(self.p.reject(retry, "ai_agent", "vẫn sai"), "escalated")
         self.assertEqual(self.p.conn.execute("SELECT state FROM scenes").fetchone()["state"], "needs_attention")
         new = self.p.restart_job(retry)
         self.assertEqual((self.p.state(new).value, self.p.job(new)["retry_count"]), ("queued", 0))

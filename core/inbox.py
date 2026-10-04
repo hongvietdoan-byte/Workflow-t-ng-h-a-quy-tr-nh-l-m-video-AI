@@ -7,7 +7,7 @@ the "settings" permission only.
 """
 from typing import Dict, List, Optional
 
-from . import access, archive, budget, project_budget, team
+from . import access, archive, budget, money_policy, project_budget, team
 
 WAITING = ("waiting", "needs_attention")        # autopilot states that wait for a person (dashboard/next_step.py)
 
@@ -50,8 +50,22 @@ def items(conn, email: str, is_owner: bool = True, can_money: bool = True, auth_
             n = conn.execute("SELECT COUNT(*) FROM jobs WHERE project_id=? AND type=? AND state='pending_review'", (pid, typ)).fetchone()[0]
             if n:
                 add(kind, f"Duyệt {n} {label} đang chờ", screen, "todo")
+        for kind, typ, screen, label in (("Ảnh", "image_gen", "storyboard", "ảnh"), ("Video", "video_gen", "video", "clip")):
+            # S14.16: the automatic regeneration limit (pipeline.AUTO_REGEN_LIMIT) reached — ONLY that reason (the diag line the
+            # pipeline writes at the limit, pipeline.AUTO_LIMIT_CODE), for the shot's latest job still waiting (escalated, or finished
+            # and kept as it is); a job held for another reason (QC without a fix, a failure not temporary) is not listed here
+            for j in conn.execute("SELECT DISTINCT j.retry_count, s.idx FROM diag_events d JOIN jobs j ON j.id=d.job_id"
+                                  " JOIN scenes s ON s.id=j.scene_id WHERE d.code='auto_regen_limit' AND j.project_id=? AND j.type=?"
+                                  " AND (j.escalated=1 OR j.state IN ('succeeded','approved'))"
+                                  " AND NOT EXISTS (SELECT 1 FROM jobs k WHERE k.scene_id=j.scene_id AND k.type=j.type AND k.id>j.id)"
+                                  " ORDER BY s.idx", (pid, typ)).fetchall():
+                add(kind, f"Cần bạn quyết — đã tự gen lại {j['retry_count']} lần: {label} shot {j['idx']} (máy không tự gen thêm)",
+                    screen, "wait")
         if row["autopilot_state"] in WAITING and row["autopilot_note"]:
             add("Chạy tự động", f"Đang chờ bạn: {row['autopilot_note'][:160]}", "script", "wait")
+        if row["autopilot_state"] == "stopped" and "trần job do máy" in (row["autopilot_note"] or ""):
+            # S14.16: the product job cap stopped the run (autopilot._job_cap_reason) — only something abnormal reaches it
+            add("Chạy tự động", f"Cần bạn xem: {(row['autopilot_note'] or '')[:220]}", "script", "bad")
         if row["autopilot_state"] == "error":
             add("Chạy tự động", f"Chạy tự động báo lỗi: {(row['autopilot_note'] or '')[:160]}", "script", "bad")
         finished = row["autopilot_state"] == "done" or conn.execute(
@@ -66,9 +80,16 @@ def items(conn, email: str, is_owner: bool = True, can_money: bool = True, auth_
         for service in (s.get("out_of_credit") or {}):
             out.append({"kind": "Tiền", "project_id": None, "project": "", "text": f"{service} báo HẾT TIỀN — nạp xong bấm mở lại ở 💵",
                         "screen": None, "level": "bad", "who": "", "sub": ""})
-        if s["llm_usd"] > 0 and s["llm_left"] <= 0:
-            out.append({"kind": "Tiền", "project_id": None, "project": "", "text": "Claude API đã hết tiền — Dashboard ngừng gọi Claude",
-                        "screen": None, "level": "bad", "who": "", "sub": ""})
+        warns = money_policy.recent(conn, hours=24)
+        if warns:                       # S14.16: the caps warn instead of refusing — one line, the newest warning with its numbers
+            last = warns[0]["message"]
+            out.append({"kind": "Tiền", "project_id": None, "project": "",
+                        "text": f"Cảnh báo tiền ({len(warns)} trong 24 giờ, vẫn gửi): {last[:200]}", "screen": None, "level": "warn",
+                        "who": "", "sub": ""})
+        elif s["llm_usd"] > 0 and s["llm_left"] <= 0:
+            out.append({"kind": "Tiền", "project_id": None, "project": "",
+                        "text": f"Claude API đã vượt mức dự tính (${s['llm_spent']:.2f} / ${s['llm_usd']:.2f}) — vẫn gọi, xem 💵",
+                        "screen": None, "level": "warn", "who": "", "sub": ""})
         if is_owner:
             for u in conn.execute("SELECT email FROM users WHERE role!='owner' AND active=1").fetchall():
                 st = team.limit_status(conn, u["email"])

@@ -159,7 +159,9 @@ def estimate_images(pipeline: Pipeline, project_id: int, pricing: Dict, model: s
     n = pending_image_units(pipeline, project_id) + ends + wide
     price = _number(pricing["per_image"].get(model))
     max_retry = pipeline.project(project_id)["max_retry_count"]
-    result = {"kind": "image", "items": n, "seconds": 0, "unit_price": price, "known": price is not None,
+    from . import money_policy                  # S14.16: a missing price is shown as a high estimate (never left out)
+    over = price if price is not None else money_policy.estimate("image", model, None, 1, pricing)["usd"]
+    result = {"kind": "image", "items": n, "seconds": 0, "unit_price": price, "known": price is not None, "unit_over": over,
               "currency": pricing["currency"], "max_retry": max_retry, "end_frames": ends, "establishing": wide}
     result.update(_range(None if price is None else price * n, max_retry))
     return result
@@ -238,7 +240,7 @@ def estimate_videos_by_scene(pipeline: Pipeline, project_id: int, pricing: Dict)
 
 def clip_estimate(conn, scene_id: int, pricing: Optional[Dict] = None) -> Optional[float]:
     """M8: USD of sending this one shot's clip again (its model/tier/length; a remade shot of a multi-shot group goes alone).
-    None when the model has no price."""
+    A model / tier without a price is estimated HIGH (money_policy.estimate, S14.16); None only when nothing of its kind has a price."""
     from . import model_router, shots
     from .adapters.clipai import effective_duration, resolve_model
     from .providers import ProviderError
@@ -252,14 +254,20 @@ def clip_estimate(conn, scene_id: int, pricing: Optional[Dict] = None) -> Option
         choice.get("resolution") or (model_router.load_profiles()["models"].get(choice["model"]) or {}).get("tier") or "720p")
     mp = conn.execute("SELECT duration_sec FROM motion_prompts WHERE scene_id=?", (scene_id,)).fetchone()
     seconds = (mp["duration_sec"] if mp and mp["duration_sec"] else None) or shots.planned_seconds(conn, scene_id) or 5
-    return clip_price(pricing, canonical, tier, effective_duration(canonical, family, seconds))
+    sec = effective_duration(canonical, family, seconds)
+    exact = clip_price(pricing, canonical, tier, sec)
+    if exact is not None:
+        return exact
+    from . import money_policy                  # S14.16: no price → the high estimate the money gate uses too
+    return money_policy.estimate("video", canonical, tier, sec, pricing)["usd"]
 
 
 def price_tag(usd: Optional[float], count: int = 1) -> str:
-    """Text for a paid button: ' · ≈ $0.40' (or 'chưa có giá') — M8: the price is shown before the click."""
+    """Text for a paid button: ' · ≈ 0.40 USD (ước tính)' (or 'chưa có giá') — M8: the price is shown before the click; S14.16: it
+    is an estimate (tính dư), said so."""
     if count <= 0:
         return ""
-    return f" · ≈ {usd:.2f} USD" if usd is not None else " · chưa có giá"   # no "$": Streamlit labels read it as math
+    return f" · ≈ {usd:.2f} USD (ước tính)" if usd is not None else " · chưa có giá"   # no "$": Streamlit labels read it as math
 
 
 # ---- Claude (batch buttons, the automatic run) ------------------------------------------------------------------------------
@@ -375,8 +383,10 @@ def estimate_run(pipeline: Pipeline, project_id: int, pricing: Optional[Dict] = 
                                                             (project_id,)).fetchone():
         img["items"] = n_scenes + img.get("end_frames", 0)          # before the Director: one picture per scene at least
     img_usd = None if img["unit_price"] is None else img["unit_price"] * img["items"]
+    from . import money_policy                   # S14.16: an unknown price is listed AND counted at its high estimate
     if img_usd is None and img["items"]:
         unknown.append(f"ảnh {img_model}")
+        img_usd = None if img.get("unit_over") is None else img["unit_over"] * img["items"]
     rows = model_router.plan(conn, project_id, pricing)
     made = {r["scene_id"] for r in conn.execute("SELECT scene_id FROM jobs WHERE project_id=? AND type='video_gen' AND state IN"
                                                 " ('succeeded','approved','running','queued','pending_review')", (project_id,))}
@@ -385,6 +395,8 @@ def estimate_run(pipeline: Pipeline, project_id: int, pricing: Optional[Dict] = 
     for r in todo:
         if r["cost"] is None:
             unknown.append(f"clip {r['model']}")
+            vid_usd += money_policy.estimate("video", r["model"], r.get("resolution") or r.get("tier"), r["billed_seconds"],
+                                             pricing)["usd"] or 0.0
         else:
             vid_usd += r["cost"]
     from . import lipsync
@@ -392,11 +404,12 @@ def estimate_run(pipeline: Pipeline, project_id: int, pricing: Optional[Dict] = 
         for r in todo:                                   # clip price already (they go to Seedance with the voice)
             data = json.loads(conn.execute("SELECT data FROM scenes WHERE id=?", (r["scene_id"],)).fetchone()["data"] or "{}")
             if lipsync.method_for(data) == "post":
-                price = clip_price(pricing, os.environ.get("SYNC_MODEL", "lipsync-2-pro"), "post", r["billed_seconds"])
+                sync = os.environ.get("SYNC_MODEL", "lipsync-2-pro")
+                price = clip_price(pricing, sync, "post", r["billed_seconds"])
                 if price is None:
                     unknown.append("khớp môi sau")
-                else:
-                    vid_usd += price
+                    price = money_policy.estimate("video", sync, "post", r["billed_seconds"], pricing)["usd"] or 0.0
+                vid_usd += price
     llm_calls = {"director": 0 if conn.execute("SELECT 1 FROM characters WHERE project_id=? AND TRIM(description)!=''",
                                                (project_id,)).fetchone() else 1,
                  "qc": _picture_qc_calls(conn, project_id, img["items"]) + len(todo), "motion": 1 if todo else 0}
@@ -415,9 +428,10 @@ def estimate_run(pipeline: Pipeline, project_id: int, pricing: Optional[Dict] = 
         llm_usd += qc_team.FRAME_USD * img["items"] * (1 + REDRAW_SHARE)
     llm_usd *= LLM_MARGIN
     retry = int(proj["max_retry_count"] or 0)
-    auto_cap = min(retry, 2)                           # automatic retries per picture/clip (pipeline.AUTO_RETRY_CAP)
+    from .pipeline import AUTO_REGEN_LIMIT             # automatic regenerations: picture 3, clip 2 (S14.16), lowered by max_retry
+    img_cap, vid_cap = min(retry, AUTO_REGEN_LIMIT["image_gen"]), min(retry, AUTO_REGEN_LIMIT["video_gen"])
     base = (img_usd or 0.0) + vid_usd + llm_usd
-    worst = (img_usd or 0.0) * (1 + auto_cap) + vid_usd * (1 + auto_cap) + llm_usd * (1 + auto_cap)
+    worst = (img_usd or 0.0) * (1 + img_cap) + vid_usd * (1 + vid_cap) + llm_usd * (1 + img_cap)
     from . import budget
     b = budget.status(conn) if budget.get(conn).get("enabled") else None
     llm_left = b["llm_left"] if b and b["llm_usd"] > 0 else None
@@ -428,15 +442,15 @@ def estimate_run(pipeline: Pipeline, project_id: int, pricing: Optional[Dict] = 
 
 def format_run_estimate(est: Dict) -> str:
     c = est["counts"]
-    text = (f"≈ {est['total']:.2f} USD (tối đa ≈ {est['max']:.2f} nếu mọi ảnh/clip phải tự gen lại 2 lần): {c['images']} ảnh"
+    text = (f"≈ {est['total']:.2f} USD (ước tính; tối đa ≈ {est['max']:.2f} nếu mọi ảnh tự gen lại 3 lần, mọi clip 2 lần): {c['images']} ảnh"
             + (f" (gồm {c['end_frames']} khung cuối)" if c.get("end_frames") else "")
             + f" ≈ {(est['images'] or 0):.2f} · {c['clips']} clip / {c['seconds']:.0f} giây ≈ {est['videos']:.2f} · Claude ≈ {est['llm']:.2f}"
             + " (đã cộng 30 % dự phòng)")
     if est.get("llm_left") is not None:
-        text += f" · trần Claude còn ≈ {est['llm_left']:.2f}" + (" ⚠ KHÔNG ĐỦ — nâng trần Claude trước khi chạy"
+        text += f" · trần Claude còn ≈ {est['llm_left']:.2f}" + (" ⚠ KHÔNG ĐỦ — sẽ vượt mức dự tính (chỉ cảnh báo, vẫn chạy)"
                                                                  if est["llm"] > est["llm_left"] else "")
     if est["unknown"]:
-        text += " — CHƯA có giá (không tính, sẽ bị trần từ chối khi đợt thử bật): " + ", ".join(est["unknown"])
+        text += " — CHƯA có giá (đã cộng ước tính dư: giá cao nhất đã biết × 1,5; khi gửi sẽ cảnh báo): " + ", ".join(est["unknown"])
     return text
 
 
@@ -446,7 +460,9 @@ def format_estimate(est: Dict) -> str:
     if est["kind"] == "video":
         head += f" · {est['seconds']:.0f} giây · {est['model']} ({est['tier']})"
     if not est["known"]:
-        return head + " — chưa có giá trong data/pricing.json nên chưa tính được chi phí"
+        over = est.get("unit_over")
+        return head + " — chưa có giá trong data/pricing.json" + (
+            f"; ước tính dư ≈ {over * est['items']:.2f} USD (giá cao nhất đã biết × 1,5)" if over is not None else "")
     return (f"{head} → ước tính {est['min']:.1f} {est['currency']} "
             f"(tối đa {est['max']:.1f} nếu mọi mục phải làm lại đủ {est['max_retry']} lần)")
 

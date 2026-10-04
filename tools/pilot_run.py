@@ -23,9 +23,12 @@ import time
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 from core import budget, db, llm_io, llm_runner  # noqa: E402
-from core.pipeline import Pipeline  # noqa: E402
+from core.pipeline import AUTO_REGEN_LIMIT, Pipeline  # noqa: E402
 
-SHOT_SENDS = 3          # 1 lần đầu + tối đa 2 lần gen lại (người dùng chốt: gen lại < 3)
+
+def shot_sends(kind: str) -> int:
+    """1 lần đầu + số lần tự gen lại tối đa (S14.16: ảnh 3, video 2 — pipeline.AUTO_REGEN_LIMIT): phiên vận hành chạy bằng lệnh coi như máy."""
+    return 1 + AUTO_REGEN_LIMIT.get(kind, 2)
 
 
 def _money(p) -> str:
@@ -136,8 +139,8 @@ def main(argv=None) -> int:
     elif a.cmd == "redo":
         jid, fix = int(a.args[0]), a.args[1]
         job = p.job(jid)
-        if _sends(p, job["scene_id"], job["type"]) >= SHOT_SENDS:
-            print(f"shot đã gửi {SHOT_SENDS} lần — không gen lại (giới hạn người dùng chốt)")
+        if _sends(p, job["scene_id"], job["type"]) >= shot_sends(job["type"]):
+            print(f"shot đã gửi {shot_sends(job['type'])} lần — không gen lại (giới hạn tự gen lại: ảnh 3 / video 2)")
             return 1
         if job["type"] == "video_gen":
             from core import regen

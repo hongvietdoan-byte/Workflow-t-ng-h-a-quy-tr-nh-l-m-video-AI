@@ -95,6 +95,10 @@ def project_budget_panel(p: Pipeline, pid: int) -> None:
                 st.html(D.table(list(rows[0]), [list(r.values()) for r in rows], num_cols=(1, 2, 3, 4)))
             else:
                 data_table(rows, hide_index=True, use_container_width=True)
+            try:                                                   # S14.16: the approval shows the TOTAL estimated cost (tính dư)
+                st.markdown("💵 " + project_budget.cost_summary(p, pid)["text"])
+            except Exception as e:  # noqa: BLE001 - the approval still works; the missing estimate is said
+                st.caption(f"Chưa tính được phần đã chi + ước tính phần còn lại: {str(e)[:160] or type(e).__name__}. Cách xử lý: kiểm tra dự án đã tách cảnh và bảng giá (⚙ Cài đặt), rồi tải lại trang; vẫn lỗi thì gửi báo cáo ở ⚙ Chẩn đoán.")
             cap(f"Tổng đề xuất ≈ {prop['total']:.2f} USD" + (f" · tổng đã khóa {data['total']:.2f} USD" if locked else "")
                        + f" · đã chi {sum(spent.values()):.2f} USD. Đề xuất = đã chi + phần còn lại do CODE tính từ bảng shot + bảng giá, cộng "
                        f"{int(project_budget.IMAGE_REDO * 100)} % vẽ lại ảnh, {int(project_budget.VIDEO_REDO * 100)} % làm lại video, Claude ×"
@@ -117,7 +121,7 @@ def project_budget_panel(p: Pipeline, pid: int) -> None:
             if not locked:
                 if confirm_all(f"pb_ok_{pid}", ["go"], f"✔ Duyệt & KHÓA ngân sách ≈ {prop['total']:.2f} USD",
                                f"Khóa ngân sách dự án ≈ {prop['total']:.2f} USD (trần từng khâu như bảng)? Sau khi khóa, mọi lời gọi trả tiền "
-                               "vượt trần khâu hoặc tổng sẽ bị DỪNG; chỉ người được nâng trần, kèm lý do.", st, "Có, khóa"):
+                               "vượt mức khâu hoặc tổng sẽ được CẢNH BÁO (vẫn gửi); chỉ người được nâng mức, kèm lý do.", st, "Có, khóa"):
                     project_budget.approve(p, pid, p.actor, prop)
                     st.rerun()
                 return

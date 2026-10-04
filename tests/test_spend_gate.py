@@ -25,6 +25,12 @@ def usage(conn, pid):
     return conn.execute("SELECT COUNT(*) FROM usage_events WHERE project_id=?", (pid,)).fetchone()[0]
 
 
+def money_warnings(conn):
+    """S14.16: the money warnings written by the gate (diag, core.money_policy.WARN_CODE)."""
+    from core import money_policy
+    return [r[0] for r in conn.execute("SELECT message FROM diag_events WHERE code=?", (money_policy.WARN_CODE,))]
+
+
 class FakeImage(MockImageProvider):
     """A provider that is NOT named mock*: the caps apply to it as to Deepix."""
     name = "deepix-fake"
@@ -65,21 +71,21 @@ class CostumeGateTests(unittest.TestCase):
         shutil.rmtree(self.dir, ignore_errors=True)
 
     @mock.patch.dict(os.environ, ON)
-    def test_a_locked_project_budget_refuses_the_set_and_nothing_is_sent(self):
+    def test_a_locked_project_budget_warns_and_the_set_is_sent(self):
+        # S14.16 (chính sách tiền 04/10): was "refuses the set and nothing is sent" — the amount now only warns
         lock(self.p, self.pid, images=0.06)                       # room for 1 picture, the set costs 2
         provider = FakeImage()
-        with self.assertRaises(ValueError) as e:
-            costume.make_character_set(self.p, self.pid, "Kelly", provider, self.data, sleep=lambda s: None)
-        self.assertIn("Ảnh", str(e.exception))
-        self.assertEqual(provider.prompts, {})
-        self.assertEqual(usage(self.conn, self.pid), 0)
+        costume.make_character_set(self.p, self.pid, "Kelly", provider, self.data, sleep=lambda s: None)
+        self.assertEqual(len(provider.prompts), 2)
+        self.assertEqual(usage(self.conn, self.pid), 2)
+        self.assertTrue(money_warnings(self.conn))
 
-    def test_the_trial_cap_refuses_the_set_too(self):
-        budget.restart(self.conn, usd=0.05)                       # 2 × 0.052 > 0.05
+    def test_the_trial_cap_warns_and_the_set_is_sent_too(self):
+        budget.restart(self.conn, usd=0.05)                       # 2 × 0.052 > 0.05 — S14.16: a warning, not a refusal
         provider = FakeImage()
-        with self.assertRaises(ValueError):
-            costume.make_character_set(self.p, self.pid, "Kelly", provider, self.data, sleep=lambda s: None)
-        self.assertEqual(provider.prompts, {})
+        costume.make_character_set(self.p, self.pid, "Kelly", provider, self.data, sleep=lambda s: None)
+        self.assertEqual(len(provider.prompts), 2)
+        self.assertTrue(any("vượt" in w for w in money_warnings(self.conn)))
 
     def test_the_first_picture_is_recorded_even_when_the_second_send_fails(self):
         provider = FakeImage(fail_on=2)
@@ -109,7 +115,8 @@ class CostumeGateTests(unittest.TestCase):
 
 class EndFrameGateTests(unittest.TestCase):
     @mock.patch.dict(os.environ, ON)
-    def test_a_locked_project_budget_keeps_the_end_frame_waiting(self):
+    def test_a_locked_project_budget_warns_and_the_end_frame_is_sent(self):
+        # S14.16: was "keeps the end frame waiting" — the locked amount only warns now
         from tests.test_end_frames import _shot_with_end_state
         from tests.test_v3 import _approve_all_images, kenta_project
         p, pid = kenta_project()
@@ -121,16 +128,15 @@ class EndFrameGateTests(unittest.TestCase):
         lock(p, pid, images=0.0)
         provider = FakeImage()
         counts = end_frames.tick(p, pid, provider, data)
-        self.assertEqual(counts["sent"], 0)
-        self.assertEqual([t for t, pr in provider.prompts.items()], [])
-        note = p.conn.execute("SELECT note, state FROM end_frames WHERE project_id=?", (pid,)).fetchone()
-        self.assertEqual(note["state"], "queued")
-        self.assertIn("chờ", note["note"])
+        self.assertEqual(counts["sent"], 1)
+        self.assertEqual(len(provider.prompts), 1)
+        self.assertTrue(money_warnings(p.conn))
 
 
 class EstablishGateTests(unittest.TestCase):
     @mock.patch.dict(os.environ, {**ON, "FEATURE_SCENE_ESTABLISHING": "1"})
-    def test_a_locked_project_budget_skips_the_wide_picture(self):
+    def test_a_locked_project_budget_warns_and_the_wide_picture_is_sent(self):
+        # S14.16: was "skips the wide picture" — the locked amount only warns now
         from tests.test_v3 import kenta_project
         p, pid = kenta_project(shot_mode="per_shot")
         llm_runner.run_director(p, pid, llm_runner.MockLlm())
@@ -140,14 +146,15 @@ class EstablishGateTests(unittest.TestCase):
         said = []
         got = scene_establish.step(p.conn, pid, first["data"]["story_scene"], provider, tempfile.mkdtemp(), model="gpt-image-2",
                                    say=lambda sev, code, msg: said.append((code, msg)))
-        self.assertEqual(got, "skipped")
-        self.assertEqual(provider.prompts, {})
-        self.assertTrue(any(code == "budget" for code, _ in said))
+        self.assertNotEqual(got, "skipped")
+        self.assertEqual(len(provider.prompts), 1)
+        self.assertTrue(money_warnings(p.conn))
 
 
 class ExperimentGateTests(unittest.TestCase):
     @mock.patch.dict(os.environ, {**ON, "CLIPAI_KLING_MODE": "std"})
-    def test_a_locked_project_budget_refuses_the_multishot_try(self):
+    def test_a_locked_project_budget_warns_and_the_multishot_try_is_sent(self):
+        # S14.16: was "refuses the multishot try" — the locked amount only warns now
         p = Pipeline(connect())
         pid = p.create_project("exp", aspect="9:16")
         sent = []
@@ -160,10 +167,10 @@ class ExperimentGateTests(unittest.TestCase):
                 return "clipai:video:1"
         plan = ([{"idx": 1, "jid": 1}, {"idx": 2, "jid": 2}], [{"prompt": "a", "duration": 10}, {"prompt": "b", "duration": 5}], 15)
         lock(p, pid, videos=1.0)                                   # 15 s × 0.08 = 1.20 > 1.00
-        with mock.patch.object(experiments, "_plan", return_value=plan), self.assertRaises(ValueError) as e:
+        with mock.patch.object(experiments, "_plan", return_value=plan):
             experiments.kling_multishot(p, pid, 1, Provider(), tempfile.mkdtemp())
-        self.assertIn("Video", str(e.exception))
-        self.assertEqual(sent, [])
+        self.assertEqual(sent, [1])
+        self.assertTrue(any("Video" in w for w in money_warnings(p.conn)))
 
 
 class ExperimentLedgerStageTests(unittest.TestCase):
@@ -185,12 +192,14 @@ class ExperimentLedgerStageTests(unittest.TestCase):
 
 class TrialCapCountTests(unittest.TestCase):
     def test_a_set_of_pictures_is_said_as_n_pictures(self):
+        # S14.16: the trial cap warns (budget.warn_image) — check_image only refuses for a service out of credit
         p = Pipeline(connect())
         budget.restart(p.conn, usd=0.05)
-        why = budget.check_image(p.conn, "deepix", "gpt-image-2", count=2)
-        self.assertIn("2 ảnh ≈ $0.104", why)
+        self.assertIsNone(budget.check_image(p.conn, "deepix", "gpt-image-2", count=2))
+        why = budget.warn_image(p.conn, "deepix", "gpt-image-2", count=2)
+        self.assertIn("2 ảnh (gpt-image-2)", why)
+        self.assertIn("lượt này ≈ $0.10", why)
         self.assertNotIn("ảnh này", why)
-        self.assertIn("ảnh này ≈ $0.052", budget.check_image(p.conn, "deepix", "gpt-image-2", count=1))
 
 
 class GateUnitTests(unittest.TestCase):
@@ -205,11 +214,13 @@ class GateUnitTests(unittest.TestCase):
                 pass
 
     @mock.patch.dict(os.environ, ON)
-    def test_a_price_the_table_does_not_know_is_refused_when_locked(self):
+    def test_a_price_the_table_does_not_know_is_estimated_high_and_warned_when_locked(self):
+        # S14.16: was "refused when locked" — a missing price is estimated high (money_policy.estimate) and warned
         from core import spend_gate
         lock(self.p, self.pid)
         with spend_gate.spend(self.p.conn, "image", "deepix", project_id=self.pid, model="model-without-price") as slot:
-            self.assertIn("chưa có giá", (slot.over or "").lower())
+            self.assertIsNone(slot.over)
+            self.assertIn("chưa có giá", (slot.warning or "").lower())
 
     def test_record_writes_the_ledger_stage_and_mock_is_free(self):
         from core import spend_gate
@@ -222,7 +233,7 @@ class GateUnitTests(unittest.TestCase):
 
     def test_refused_raises_spend_refused_a_value_error(self):
         from core import spend_gate
-        budget.restart(self.p.conn, usd=0.01)
+        budget.halt(self.p.conn, "deepix", "no money")             # S14.16: only a service out of credit refuses now
         with spend_gate.spend(self.p.conn, "image", "deepix", project_id=self.pid, model="gpt-image-2") as slot:
             with self.assertRaises(spend_gate.SpendRefused) as e:
                 slot.raise_if_over("Không tạo")

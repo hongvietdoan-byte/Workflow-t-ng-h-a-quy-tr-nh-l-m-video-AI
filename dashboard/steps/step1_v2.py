@@ -151,7 +151,7 @@ def _primary_action(p: Pipeline, pid: int, kind: str, scenes, chars, b_total: fl
                 est = director_two_pass.estimate(p, pid, client)
                 usd = (est.get(est["active"]) or est["single"]).get("usd")
                 if usd is not None:
-                    label += f" (≈ {usd:.2f} USD)"
+                    label += f" (≈ {usd:.2f} USD, ước tính)"
             except Exception:  # noqa: BLE001 - the button stays, only the number is missing
                 pass
         if st.button(label, type="primary", key=f"script-cta_{pid}", disabled=client is None, width="stretch",
@@ -167,9 +167,13 @@ def _primary_action(p: Pipeline, pid: int, kind: str, scenes, chars, b_total: fl
         except Exception as e:  # noqa: BLE001 - say it, never hide the area
             st.warning(f"Không tính được ngân sách ({type(e).__name__}: {e})")
             return
+        try:                                                   # S14.16: the approval shows the TOTAL estimated cost (tính dư)
+            st.markdown("💵 " + project_budget.cost_summary(p, pid)["text"])
+        except Exception as e:  # noqa: BLE001 - the approval still works; the missing estimate is said
+            st.caption(f"Chưa tính được phần đã chi + ước tính phần còn lại: {str(e)[:160] or type(e).__name__}. Cách xử lý: kiểm tra dự án đã tách cảnh và bảng giá (⚙ Cài đặt), rồi tải lại trang; vẫn lỗi thì gửi báo cáo ở ⚙ Chẩn đoán.")
         if confirm_all(f"script-cta-budget_{pid}", ["go"], f"✔ Duyệt & khóa ngân sách ≈ {prop['total']:.2f} USD",
                        f"Khóa ngân sách dự án ≈ {prop['total']:.2f} USD (trần từng khâu như bảng ở thẻ ③)? Sau khi khóa, mọi lời gọi trả tiền "
-                       "vượt trần khâu hoặc tổng sẽ bị DỪNG; chỉ người được nâng trần, kèm lý do.", st, "Có, khóa"):
+                       "vượt mức khâu hoặc tổng sẽ được CẢNH BÁO (vẫn gửi); chỉ người được nâng mức, kèm lý do.", st, "Có, khóa"):
             project_budget.approve(p, pid, p.actor, prop)
             st.rerun()
         D.line('<span class="script-sum">Chạy tự động chờ bước này trước khi gen ảnh</span>',

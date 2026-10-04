@@ -29,6 +29,12 @@ NOT_CREATED_RESENDS = 3
 RESEND_NOTE = "gửi lại: nhà cung cấp không tạo task"
 
 
+def _job_ids(job) -> dict:
+    """job_id / scene_id of a job row (or a partial dict) for a diag line (S14.16 money warnings)."""
+    keys = job.keys()
+    return {"job_id": job["id"] if "id" in keys else None, "scene_id": job["scene_id"] if "scene_id" in keys else None}
+
+
 def model_fix(retry_reason: Optional[str]) -> Optional[str]:
     """The fix sentence a retry sends to the picture/video model, or None. A resend of the same input after a provider failure
     (RESEND_NOTE / pipeline.PLAIN_RESEND) carries a note for people only — it is never put into the model's prompt."""
@@ -220,7 +226,7 @@ class _Runner:
                 over = self._over_budget(job, args, kwargs)
                 if over:
                     self._diag(job, "warn", "budget", over)
-                    break                        # v3 test spending limit: leave everything queued, say why
+                    break                        # a real stop (S14.16: the service is out of credit): leave everything queued, say why
                 try:
                     task_id = self.provider.submit(*args, **kwargs)
                 except ProviderError as e:
@@ -1084,18 +1090,19 @@ class VideoRunner(_Runner):
             record_usage(self.p.conn, job["id"], "video", self.provider.name, model, tier, seconds, "second")
 
     def _over_budget(self, job, args, kwargs) -> Optional[str]:
-        from . import budget, cost, project_budget
+        """S14.16 (core.money_policy): a real stop only (the service is out of credit); the trial / project amounts, a clip without
+        a price (estimated high) and a broken price table WARN — said in diag, the clip is sent."""
+        from . import spend_gate
         try:
             usage = self._usage(args, kwargs)
         except ProviderError as e:                       # e.g. a model the provider does not know: nothing to price, nothing sent
             return f"không tính được giá clip ({e})"
-        if usage:
-            reason = budget.check_video(self.p.conn, self.provider.name, *usage)
-            if reason or str(self.provider.name).startswith("mock"):
-                return reason
-            price = cost.clip_price(cost.load_pricing(), *usage)        # None = no price: a locked project refuses it (T6)
-            return project_budget.check(self.p.conn, job["project_id"], "videos", price)
-        return None if str(self.provider.name).startswith("mock") else budget.pricing_problem()
+        model, tier, seconds = usage if usage else (None, None, 0)
+        stop, warns, _est = spend_gate.assess(self.p.conn, "video", self.provider.name, job["project_id"], model, tier, seconds or 5,
+                                              "videos")
+        if not stop:
+            spend_gate.warn(self.p.conn, warns, stage="video", project_id=job["project_id"], **_job_ids(job))
+        return stop
 
     def _on_refused(self, job, code, message: str) -> None:
         """Seedance's privacy filter refuses a start picture that looks like a real person (a realistic CGI frame too), and its
@@ -1558,20 +1565,18 @@ class ImageRunner(_Runner):
         return assets.missing_layout(self.p.conn, job["project_id"], json.loads(row["data"] or "{}"))
 
     def _over_budget(self, job, args, kwargs) -> Optional[str]:
-        from . import budget
         model = (kwargs or {}).get("model")
         info = getattr(self.provider, "usage_info", None)
         if model is None and info is not None:
             try:
                 model = info()[0]
-            except Exception:  # noqa: BLE001 - a provider without a model name: priced as unknown (refused while the limit is on)
+            except Exception:  # noqa: BLE001 - a provider without a model name: estimated high as unknown (a warning, S14.16)
                 model = None
-        reason = budget.check_image(self.p.conn, self.provider.name, model)
-        if reason or str(self.provider.name).startswith("mock"):
-            return reason
-        from . import cost, project_budget
-        price = cost._number(cost.load_pricing().get("per_image", {}).get(model)) if model else None
-        return project_budget.check(self.p.conn, job["project_id"], "images", price)     # None = no price: refused when locked (T6)
+        from . import spend_gate                 # S14.16: only a service out of credit stops; the caps / a missing price warn
+        stop, warns, _est = spend_gate.assess(self.p.conn, "image", self.provider.name, job["project_id"], model, None, 1, "images")
+        if not stop:
+            spend_gate.warn(self.p.conn, warns, stage="image", project_id=job["project_id"], **_job_ids(job))
+        return stop
 
     def _plate(self, job, data=None):
         """The location-pack plate of this shot (feature location_plates), else None."""

@@ -29,8 +29,11 @@ Chữ thật → 1 ảnh/nhóm → người xem → 1 cảnh video → mở rộ
 năng có mục "thử thật" chưa đóng thì **không bật mặc định và không đưa vào autopilot**.
 
 ## 6. Chẩn đoán trước khi gen lại
-Gen lại chỉ khi **đầu vào đổi** (câu sửa vào prompt, ảnh khác, model khác…); tối đa 2 lần/ảnh/clip (người dùng chốt). Cùng lỗi 2 lần → dừng
-shot, báo lớp cần sửa. Autopilot không tắt cổng duyệt, không tự duyệt thứ QC đánh dấu dưới sàn, khi QC chưa hiệu chỉnh.
+Gen lại chỉ khi **đầu vào đổi** (câu sửa vào prompt, ảnh khác, model khác…) — mỗi lần phải đổi đầu vào. **Tự động** (QC tự từ chối,
+autopilot gen lại, gửi lại khi nhà cung cấp lỗi, đổi model sau khi bị từ chối): **ảnh ≤ 3 lần, video ≤ 2 lần** mỗi shot, đếm theo chuỗi job
+(`parent_job_id`), hằng số duy nhất `core/pipeline.py` `AUTO_REGEN_LIMIT` (người dùng chốt 04/10, thay "≤ 2" của 24/09). Đủ giới hạn → không
+tạo job tự động nữa, ghi `diag` + đưa vào 📥 "Cần bạn quyết — đã tự gen lại N lần". **Người dùng bấm tay** (từ chối tay, gen lại, bỏ duyệt,
+làm lại): **không giới hạn** và đặt lại bộ đếm. Cùng lỗi 2 lần → dừng shot, báo lớp cần sửa. Autopilot không tắt cổng duyệt, không tự duyệt thứ QC đánh dấu dưới sàn, khi QC chưa hiệu chỉnh.
 
 ## 7. QC chỉ so với chuẩn thật
 QC so với **ảnh tài nguyên/hồ sơ chuẩn**, không so với sản phẩm của pipeline (layout, "số đông" của bộ ảnh). Câu sửa của QC phải qua kiểm
@@ -41,8 +44,16 @@ Mục "đã sửa" trong TODO/tài liệu ghi rõ: test hồi quy dựng từ d�
 thử thật"). Không viết "đã sửa" chỉ vì N test pass.
 
 ## Luật chi phí
-- Mọi lời gọi Claude đi qua **một client có sổ chi** + nhãn công đoạn (`stage`) + `project_id`; không có đường gọi nào ngoài sổ/trần.
-- Mọi nút/lệnh tốn tiền (ảnh, video, âm thanh, Claude hàng loạt) **hiện ước tính trước** (trên nút hoặc câu hỏi xác nhận).
+- **Chính sách tiền 04/10** (`docs/KE_HOACH_NANG_CAP_DASHBOARD_2026-10-03.md` mục 6c, `core/money_policy.py`; thay "trần cứng" 28/09):
+  mọi lời gọi tốn tiền qua **sổ chi + ước tính trước** (cổng `core/spend_gate.py` / runner / `llm_runner`), ghi sổ ngay sau khi gửi.
+  **Ước tính tính dư**: mức chưa có giá = giá cao nhất đã biết của cùng model (không có thì cùng loại) × 1,5; model chưa xác minh × 1,25.
+- **Trần chỉ để CẢNH BÁO** (ngân sách dự án, đợt thử, Claude API, trần một việc/khâu = "mức dự tính"): vượt → vẫn gửi, kèm cảnh báo có số
+  liệu (đã chi, mức dự tính, ước tính lượt này, % vượt, model thiếu giá) ghi `diag` mã `money_warning` → thanh 💵 vàng (≥ 100 %) / đỏ
+  (≥ 150 %) + một dòng 📥.
+- **Chỉ CHẶN** khi: nhà cung cấp báo hết tiền thật (`out_of_credit` → `budget.halt`), dự án Tạm dừng (`PipelinePaused`), trần job/ngày của
+  autopilot. Mọi lần chặn kèm thông báo tiếng Việt có số liệu (lý do, đã chi, mức dự tính, cách mở).
+- Mọi lời gọi Claude đi qua **một client có sổ chi** + nhãn công đoạn (`stage`) + `project_id`; không có đường gọi nào ngoài sổ chi.
+- Mọi nút/lệnh tốn tiền (ảnh, video, âm thanh, Claude hàng loạt) **hiện ước tính trước** (trên nút hoặc câu hỏi xác nhận, ghi "(ước tính)").
 - Sổ chi video đối chiếu với nhà cung cấp (task không được tạo → bỏ khỏi sổ; `cost` thật khi quy đổi được).
 - Không gửi lại một job trả tiền khi chưa chắc lần trước không chạy (tránh trả 2 lần).
 
@@ -54,6 +65,6 @@ thử thật"). Không viết "đã sửa" chỉ vì N test pass.
 | Cỡ cảnh/khung cắt trong prompt ảnh | | | | | | | | |
 | Luật chọn model (≥ 3 người, look in-game → Kling…) | | | | | | | | |
 | Cổng Bible / storyboard / không tự duyệt dưới sàn | | | | | | | | |
-| Gen lại phải đổi đầu vào, tối đa 2 lần | | | | | | | | |
-| Sổ chi + trần + ước tính trước | | | | | | | | |
+| Gen lại phải đổi đầu vào; tự động ảnh ≤ 3 / video ≤ 2, bấm tay không giới hạn | | | | | | | | |
+| Sổ chi + ước tính trước (tính dư) + cảnh báo khi vượt mức dự tính | | | | | | | | |
 | Giữ phần người sửa tay | | | | | | | | |

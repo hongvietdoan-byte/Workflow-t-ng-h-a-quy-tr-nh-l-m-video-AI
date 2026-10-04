@@ -32,7 +32,7 @@ FILE_OK = {
     "tools/voice_trial.py": "thử giọng dòng lệnh: audio_lib.submit_tts (audio_refusal)",
 }
 CALLEE_OK = {
-    "submit_pending": "runner._Runner.submit_pending — cổng SPEND_LOCK + _over_budget (check_* + project_budget.check)",
+    "submit_pending": "runner._Runner.submit_pending — cổng SPEND_LOCK + _over_budget (spend_gate.assess: chặn khi hết tiền, cảnh báo khi vượt mức — S14.16)",
     "submit_drafts": "music.submit_drafts — audio_refusal (budget.check_audio) + record_audio_usage",
     "submit_tts": "audio_lib.submit_tts — audio_refusal + sổ âm thanh",
     "submit_sfx": "audio_lib.submit_sfx — audio_refusal + sổ âm thanh",
@@ -44,7 +44,7 @@ RECEIVER_OK = {"pool": "ThreadPoolExecutor.submit — không phải lời gọi 
 # (file, function qualname) → (why, a text that must stay in the function so the reason does not rot)
 FUNC_OK = {
     ("core/runner.py", "_Runner._submit_pending"): ("mẫu cũ giữ nguyên: SPEND_LOCK + self._over_budget (ImageRunner/VideoRunner gọi "
-                                                   "check_* + project_budget.check, xem quét (b)); chuyển sang cổng ở nhánh A1b",
+                                                   "spend_gate.assess — cùng kiểm tra của cổng, S14.16); chuyển sang cổng ở nhánh A1b",
                                                    "SPEND_LOCK"),
     ("core/audio_lib.py", "submit_sfx"): ("âm thanh chưa có giá USD: audio_refusal (check_audio) giới hạn theo lượt", "audio_refusal("),
     ("core/audio_lib.py", "submit_tts"): ("âm thanh chưa có giá USD: audio_refusal (check_audio) giới hạn theo lượt", "audio_refusal("),

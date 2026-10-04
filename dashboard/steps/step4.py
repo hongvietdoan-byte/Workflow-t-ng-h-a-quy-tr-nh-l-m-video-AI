@@ -161,7 +161,7 @@ def _video_batch(p: Pipeline, pid: int, runner) -> None:
                  help="Gửi lại Y NGUYÊN đầu vào — chỉ dùng khi lỗi do nhà cung cấp (mạng, quá tải). Clip bị bộ lọc nội dung chặn "
                       "không nằm trong nút này: sửa prompt trước."):
         for j in failed:
-            act(lambda: p.retry(j["id"], "gửi lại clip lỗi (lỗi nhà cung cấp)"))
+            act(lambda: p.retry(j["id"], "gửi lại clip lỗi (lỗi nhà cung cấp)", by_user=True))
         st.rerun()
     from core import lipsync as _lipsync
     if _lipsync.enabled() and not _lipsync.post_available():
@@ -326,7 +326,7 @@ def video_card(p: Pipeline, pid: int, j, runner, stale_reason) -> None:
                 vfix = st.text_input("Câu sửa (tiếng Anh) — trống = gửi lại y nguyên, chỉ khi lỗi do nhà cung cấp", key=f"vfixtxt_{j['id']}")
                 if st.button(("↻ Gen lại với câu sửa" if vfix.strip() else "↻ Gửi lại (lỗi nhà cung cấp)") + tag, key=f"vr_{j['id']}"):
                     act(lambda: p.retry(j["id"], "người dùng gen lại với câu sửa" if vfix.strip() else "gửi lại (lỗi nhà cung cấp)",
-                                        fix=vfix))
+                                        fix=vfix, by_user=True))
                     st.rerun()
             if j["state"] == "failed" and runner is not None and _written_off(p, j) and st.button(
                     "🔎 Tìm task thật (không gửi lại)", key=f"vrl_{j['id']}",
@@ -451,7 +451,7 @@ def video_card_v2(p: Pipeline, pid: int, j, runner, stale_reason) -> None:
         if can_resend:
             if r2.button(("↻ Gen lại với câu sửa" if vfix.strip() else "↻ Gửi lại") + tag, key=f"vr_{jid}", width="stretch",
                          help="Lỗi do nhà cung cấp: gửi lại, có thể kèm câu sửa."):
-                act(lambda: p.retry(jid, "người dùng gen lại với câu sửa" if vfix.strip() else "gửi lại (lỗi nhà cung cấp)", fix=vfix))
+                act(lambda: p.retry(jid, "người dùng gen lại với câu sửa" if vfix.strip() else "gửi lại (lỗi nhà cung cấp)", fix=vfix, by_user=True))
                 st.rerun()
         elif clip and state in ("succeeded", "pending_review", "approved"):
             if r2.button(("↻ Gen lại theo ảnh/prompt mới" if stale_reason else "↻ Gen lại video") + tag, key=f"vregen_{jid}", width="stretch",

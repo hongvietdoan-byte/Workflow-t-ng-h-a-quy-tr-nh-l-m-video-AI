@@ -59,8 +59,10 @@ def note(text: str, details: str, key: str, kind: str = "") -> None:
 def estimate_short(est: dict) -> str:
     unit = "ảnh" if est["kind"] == "image" else "clip"
     if not est.get("known"):
-        return f"{est['items']} {unit} · chưa có giá"
-    return f"{est['items']} {unit} ≈ {est['min']:.1f} {est['currency']}"
+        over = est.get("unit_over")                    # S14.16: a missing price shows its high estimate
+        return (f"{est['items']} {unit} ≈ {over * est['items']:.1f} {est['currency']} (ước tính dư, thiếu giá)" if over is not None
+                else f"{est['items']} {unit} · chưa có giá")
+    return f"{est['items']} {unit} ≈ {est['min']:.1f} {est['currency']} (ước tính)"
 
 
 def show_estimate(est, runner) -> bool:
@@ -268,7 +270,7 @@ def image_group_v2(p, pid: int, history: list, proj, stale_reason=None) -> None:
             b2.button("✖ Loại", key=f"dd_{jid}", disabled=True, width="stretch")
             if b3.button("↻ Vẽ lại", key=f"dretry_{jid}", width="stretch",
                          help="Gen lại với câu sửa" if fix.strip() else "Gửi lại y nguyên — chỉ khi lỗi do nhà cung cấp"):
-                act(lambda: p.retry(jid, "người dùng gen lại với câu sửa" if fix.strip() else "gửi lại (lỗi nhà cung cấp)", fix=fix))
+                act(lambda: p.retry(jid, "người dùng gen lại với câu sửa" if fix.strip() else "gửi lại (lỗi nhà cung cấp)", fix=fix, by_user=True))
                 st.rerun()
             if b4.button("✎ Sửa", key=f"sel_btn_{jid}", width="stretch"):
                 _open_detail(pid, jid)
