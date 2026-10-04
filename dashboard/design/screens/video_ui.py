@@ -43,7 +43,7 @@ def meta_line(model: Optional[str], seconds: Optional[float], usd: Optional[floa
     bits = [escape(model or "model mặc định")]
     if seconds:
         bits.append(f"{seconds:g} s")
-    bits.append(f"≈ {usd:.2f} USD" if usd is not None else "chưa có giá")
+    bits.append(f"≈ {usd:.2f} USD (ước tính)" if usd is not None else "chưa có giá")
     bits.append(f"gen lại {retries} lần")
     return '<div class="vid-meta">' + " · ".join(bits) + "</div>"
 

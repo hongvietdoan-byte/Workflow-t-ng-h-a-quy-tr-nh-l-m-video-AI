@@ -117,7 +117,7 @@ def project_budget_panel(p: Pipeline, pid: int) -> None:
             if not locked:
                 if confirm_all(f"pb_ok_{pid}", ["go"], f"✔ Duyệt & KHÓA ngân sách ≈ {prop['total']:.2f} USD",
                                f"Khóa ngân sách dự án ≈ {prop['total']:.2f} USD (trần từng khâu như bảng)? Sau khi khóa, mọi lời gọi trả tiền "
-                               "vượt trần khâu hoặc tổng sẽ bị DỪNG; chỉ người được nâng trần, kèm lý do.", st, "Có, khóa"):
+                               "vượt mức khâu hoặc tổng sẽ được CẢNH BÁO (vẫn gửi); chỉ người được nâng mức, kèm lý do.", st, "Có, khóa"):
                     project_budget.approve(p, pid, p.actor, prop)
                     st.rerun()
                 return
