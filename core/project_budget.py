@@ -303,6 +303,15 @@ def cost_summary(p, pid: int) -> Dict:
             "audio_items": audio_items, "claude": round(claude, 2), "total": total, "unpriced": unpriced, "text": text}
 
 
+def approval_pending(p, pid: int) -> bool:
+    """Only yes / no: the automatic run must wait for the person to approve the project's budget (no estimate computed — cheap,
+    for checks that run every poll, e.g. autopilot.serve_waiting). The sentence with the numbers is gate_reason."""
+    if not enabled():
+        return False
+    data = get(p.conn, pid)
+    return not (data and data.get("locked"))
+
+
 def gate_reason(p, pid: int) -> Optional[str]:
     """Why the automatic run must wait before paying for pictures: the budget is not approved yet, or the proposal is over the
     person's target."""

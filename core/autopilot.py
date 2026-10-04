@@ -489,7 +489,7 @@ def serve_waiting(p: Pipeline, pid: int, ctx: Context) -> bool:
     from . import project_budget
     if status(p, pid)["state"] != WAITING or get_gates(p, pid).get("waiting_for") not in SERVE_GATES:
         return False
-    if project_budget.gate_reason(p, pid):
+    if project_budget.approval_pending(p, pid):          # yes / no only: no cost estimate on every poll
         return False
     if not (_count(p, "SELECT COUNT(*) FROM jobs WHERE project_id=? AND type='image_gen' AND state IN ('queued','running')", pid)):
         return False

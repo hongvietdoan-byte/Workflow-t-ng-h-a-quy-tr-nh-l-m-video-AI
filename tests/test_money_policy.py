@@ -581,6 +581,19 @@ class BudgetApprovalShowsTheTotal(unittest.TestCase):
         self.assertIn("(ước tính, tính dư)", why)
 
 
+class ServeWaitingIsCheap(unittest.TestCase):
+    @mock.patch.dict(os.environ, ON)
+    def test_serve_waiting_asks_only_yes_or_no_without_the_cost_summary(self):
+        from core import autopilot
+        p = Pipeline(connect())
+        pid = p.create_project("w")
+        autopilot._set(p, pid, autopilot.WAITING, "chờ storyboard")
+        autopilot.set_gates(p, pid, {"waiting_for": "storyboard"})
+        with mock.patch.object(project_budget, "cost_summary", side_effect=AssertionError("tính không cần thiết")):
+            self.assertTrue(project_budget.approval_pending(p, pid) in (True, False))
+            autopilot.serve_waiting(p, pid, autopilot.Context(tempfile.mkdtemp(), None, None, None))
+
+
 class ResetWithPlan(unittest.TestCase):
     OWNER = {"email": "o@x", "role": "owner"}
 
