@@ -151,8 +151,12 @@ def current_tag() -> Tuple[str, Optional[int]]:
     return getattr(_TAG, "value", None) or ("other", None)
 
 
-# ---- hard spending locks (trial #8 2026-09-28: the QC agent spent ~2 USD on 1.5 scenes — estimate was 0.3-0.8 — and emptied the
-# Claude cap; nothing capped one task). Checked BEFORE each paid call; none of them can be raised by the model:
+# ---- spending marks (trial #8 2026-09-28: the QC agent spent ~2 USD on 1.5 scenes — estimate was 0.3-0.8 — and emptied the
+# Claude cap; nothing capped one task). Checked BEFORE each paid call; none of them can be raised by the model.
+# Chính sách tiền 04/10 (S14.16, core.money_policy): the three marks below WARN — a warning with numbers goes to diag
+# (money_policy.WARN_CODE) and the call is sent. A call is refused only when Anthropic is out of credit (budget.halt → code
+# 'out_of_credit') or when paid calls could not be written to the ledger (code 'ledger'). The agents keep their own step limits
+# (qc_agent max_steps, closing turns) so a task without a hard money lock still ends.
 #   1. one call   : its worst case (every input token paid as a cache write, the whole max_tokens answer) over MAX_CALL_USD -> refused
 #   2. one task   : spend_cap(usd, what) -> refused when spent + the next call's expected cost x TASK_MARGIN would pass the cap. The
 #                   expected cost counts the prefix already sent as a cache read and the new part as a cache write, plus the whole
@@ -172,7 +176,8 @@ _CAPS = threading.local()
 
 @contextlib.contextmanager
 def spend_cap(usd: float, what: str):
-    """Lock 2: Claude calls inside this block (this thread) may not spend more than `usd` in total."""
+    """Mark 2: Claude calls inside this block (this thread) are expected to spend at most `usd` in total — past it each call is said
+    once as a warning (S14.16), the calls go on; `entry["spent"]` lets the caller wind down itself (qc_agent's closing turns)."""
     stack = list(getattr(_CAPS, "stack", None) or [])
     entry = {"cap": float(usd), "spent": 0.0, "last": 0.0, "calls": 0, "what": what, "prev_tokens": 0}
     _CAPS.stack = stack + [entry]
@@ -183,8 +188,9 @@ def spend_cap(usd: float, what: str):
 
 
 def _price(model: str, tier: str, n: float) -> float:
-    from . import budget, cost
-    return budget.token_price(cost.load_pricing(), model, tier, n) or 0.0
+    """Token price, estimated HIGH for a model the table does not know (money_policy.token_price: highest known × 1,5)."""
+    from . import cost, money_policy
+    return money_policy.token_price(cost.load_pricing(), model, tier, n)[0] or 0.0
 
 
 def reply_usd(model: str, reply: "LlmReply") -> float:
@@ -238,18 +244,21 @@ def expected_usd(model: str, payload: Dict, prev_tokens: int) -> float:
 
 
 def _check_caps(model: str, payload: Dict) -> Optional[str]:
+    """Marks 1-2 → a WARNING with numbers or None (S14.16: the call still goes). A task mark is said once per spend_cap block."""
+    from . import money_policy
+    out = []
     worst = worst_usd(model, payload)
     if worst > MAX_CALL_USD:
-        return (f"một lời gọi Claude có thể tốn tới ≈ ${worst:.2f} > khóa ${MAX_CALL_USD:.2f}/lời gọi — không gửi (hạ max_tokens của "
-                "khâu này, hoặc người dùng nâng CLAUDE_MAX_CALL_USD)")
+        out.append(money_policy.warning_text("một lời gọi Claude", 0.0, MAX_CALL_USD, worst,
+                                             extra="hạ max_tokens của khâu này nếu không cần câu trả lời dài"))
     n = input_tokens(payload)
     for e in getattr(_CAPS, "stack", None) or []:
         nxt = max(e["last"], expected_usd(model, payload, e["prev_tokens"])) * TASK_MARGIN
-        if e["spent"] + nxt > e["cap"] + 1e-9:
-            return (f"chạm trần '{e['what']}': đã dùng ≈ ${e['spent']:.3f}, lượt kế ≈ ${nxt:.3f}, trần ${e['cap']:.2f} — dừng "
-                    "(khóa cứng, không tự nâng)")
+        if e["spent"] + nxt > e["cap"] + 1e-9 and not e.get("warned"):
+            e["warned"] = True
+            out.append(money_policy.warning_text(f"việc '{e['what']}'", e["spent"], e["cap"], nxt))
         e["_next_tokens"] = n
-    return None
+    return " | ".join(out) or None
 
 
 def _count_caps(usd: float) -> None:
@@ -469,9 +478,7 @@ class AnthropicClient:
                 if not e.transient or attempt == self.retries:
                     raise
                 if attempt < self.retries and payload is not None:
-                    reason = _check_caps(self.model, payload)         # a retry is a new paid call: the locks again
-                    if reason:
-                        raise LlmError(reason, code="budget") from None
+                    self._warn(_check_caps(self.model, payload))    # a retry is a new paid call: the marks again (a warning)
                 self._sleep(2 ** attempt * 2)
         raise last  # pragma: no cover
 
@@ -494,23 +501,41 @@ class AnthropicClient:
         except Exception:  # noqa: BLE001 - a hold not released expires after budget.HOLD_MINUTES
             pass
 
+    def _warn(self, text: Optional[str]) -> None:
+        """A money warning of a Claude call → diag (money_policy.note, once every few minutes per stage). Without a ledger there is
+        no database to write to: nothing is said (tests / command-line tools)."""
+        if not text or not self.ledger:
+            return
+        try:
+            from . import money_policy
+            stage, project_id = current_tag()
+            conn = self._ledger_conn()
+            try:
+                money_policy.note(conn, text, stage="system", project_id=project_id, key=f"claude:{stage}")
+            finally:
+                conn.close()
+        except Exception:  # noqa: BLE001 - a warning that cannot be written never stops the call
+            pass
+
     def _check_budget(self, payload: Optional[Dict] = None):
-        """Refuse before paying: locks 1-2 (one call, one task — see spend_cap), then lock 3 — the Claude cap (core.budget) and the
-        project's approved budget for this stage (core.project_budget) — with the worst case of this call and of every call in flight
-        in any process (holds in the database). Returns the hold id (release it after the call)."""
-        reason = _check_caps(self.model, payload) if payload is not None else None
-        if reason:
-            raise LlmError(reason, code="budget")
+        """Before paying (S14.16, core.money_policy): marks 1-2 (one call, one task — see spend_cap), then mark 3 — the Claude amount
+        (core.budget) and the project's approved amount for this stage (core.project_budget), with the worst case of this call and of
+        every call in flight in any process (holds in the database) — all WARN. Refused only when Anthropic is out of credit (code
+        'out_of_credit') or paid calls could not be written to the ledger (code 'ledger'). Returns the hold id (release it after)."""
+        warns = []
+        caps = _check_caps(self.model, payload) if payload is not None else None
+        if caps:
+            warns.append(caps)
         if not self.ledger:
             return None
-        from . import budget, cost
+        from . import budget, cost, money_policy
         if self.unrecorded:
             raise LlmError(f"{self.unrecorded} lời gọi Claude đã trả tiền nhưng không ghi được vào sổ chi — kiểm tra CSDL rồi mở lại "
-                           "Dashboard (không gọi tiếp khi sổ chi không ghi được)", code="budget")
+                           "Dashboard (không gọi tiếp khi sổ chi không ghi được)", code="ledger")
         if budget.token_price(cost.load_pricing(), self.model, "input", 1) is None:
-            raise LlmError(f"model Claude '{self.model}' chưa có giá trong data/pricing.json (per_million_tokens) — thêm giá trước "
-                           "khi dùng, nếu không sổ chi tính $0 và trần không chặn", code="budget")
-        hid = None
+            warns.append(f"⚠ thiếu giá: model Claude '{self.model}' chưa có trong data/pricing.json (per_million_tokens) — ước tính "
+                         f"bằng giá cao nhất đã biết × {money_policy.SAFETY_FACTOR:g}, VẪN GỌI (thêm giá ở ⚙ → 💲 Bảng giá)")
+        hid, reason = None, None
         try:
             from . import project_budget
             stage, project_id = current_tag()
@@ -518,14 +543,15 @@ class AnthropicClient:
             mine = worst_usd(self.model, payload) if payload is not None else 0.0
             conn = self._ledger_conn()
             try:
-                reason, hid = budget.hold_llm(conn, mine, project_id, part,
-                                              extra_check=(lambda c: project_budget.check(c, project_id, part, mine)) if project_id else None)
+                reason, hid = budget.hold_llm(conn, mine, project_id, part, warnings=warns,
+                                              extra_warn=(lambda c: project_budget.warning(c, project_id, part, mine)) if project_id else None)
             finally:
                 conn.close()
-        except Exception as e:  # noqa: BLE001 - unknown spend means no call (a cap that cannot be read does not protect)
-            reason = f"không đọc được sổ chi để kiểm trần Claude ({type(e).__name__}: {e})"
+        except Exception as e:  # noqa: BLE001 - the amounts could not be read: said, the call goes (they only warn now)
+            warns.append(f"⚠ không đọc được sổ chi để so mức dự tính Claude ({type(e).__name__}: {e}) — VẪN GỌI")
         if reason:
-            raise LlmError(reason, code="budget")
+            raise LlmError(reason, code="out_of_credit")
+        self._warn(" | ".join(warns) if warns else None)
         return hid
 
     def _record(self, reply: LlmReply) -> None:

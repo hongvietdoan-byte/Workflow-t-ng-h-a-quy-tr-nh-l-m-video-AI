@@ -1,5 +1,6 @@
-"""GĐ-C1 (docs/KE_HOACH_TONG_2026-09-24.md): every Claude API call goes through the cost ledger with its stage and project, and the
-Claude cap refuses when the spend cannot be known (unpriced model, unreadable or unwritable ledger); a cut answer is reported."""
+"""GĐ-C1 (docs/KE_HOACH_TONG_2026-09-24.md): every Claude API call goes through the cost ledger with its stage and project; a cut
+answer is reported. S14.16 (chính sách tiền 04/10): the Claude amounts WARN (diag money_warning) — an unpriced model or an unreadable
+ledger is warned and the call goes; only a ledger that cannot be WRITTEN (code 'ledger') or Anthropic out of credit refuses."""
 import glob
 import json
 import os
@@ -47,11 +48,12 @@ class LedgerTests(unittest.TestCase):
         got = [(r["stage"], r["project_id"]) for r in self.rows()]
         self.assertEqual(got, [("asset_vision", pid)] * 2 + [("other", None)] * 2)
 
-    def test_an_unpriced_model_is_refused_before_paying(self):
-        with self.assertRaises(llm_runner.LlmError) as err:
-            self.client("claude-unknown-9").complete("x")
-        self.assertEqual(err.exception.code, "budget")
-        self.assertEqual(self.calls, [])
+    def test_an_unpriced_model_is_estimated_high_warned_and_sent(self):
+        # S14.16: was "refused before paying"
+        self.client("claude-unknown-9").complete("x")
+        self.assertEqual(len(self.calls), 1)
+        warns = [r[0] for r in self.conn.execute("SELECT message FROM diag_events WHERE code='money_warning'")]
+        self.assertTrue(any("claude-unknown-9" in w for w in warns), warns)
 
     def test_a_dated_model_id_takes_the_price_of_its_family(self):
         self.client("claude-sonnet-5-20260901").complete("x")
@@ -59,13 +61,14 @@ class LedgerTests(unittest.TestCase):
         self.assertAlmostEqual(budget.token_price({"per_million_tokens": {"claude-opus-5": {"input": 5}, "claude-opus-5-5":
                                                                          {"input": 4}}}, "claude-opus-5-5-x", "input", 1e6), 4)
 
-    def test_an_unreadable_ledger_refuses_instead_of_letting_the_call_through(self):
+    def test_an_unreadable_ledger_is_warned_and_the_call_goes(self):
+        # S14.16: was "refuses instead of letting the call through" — the amounts only warn, so an unreadable one warns too
         c = self.client()
         with mock.patch.object(budget, "check_llm", side_effect=RuntimeError("locked")):
-            with self.assertRaises(llm_runner.LlmError) as err:
-                c.complete("x")
-        self.assertEqual(err.exception.code, "budget")
-        self.assertEqual(self.calls, [])
+            c.complete("x")
+        self.assertEqual(len(self.calls), 1)
+        warns = [r[0] for r in self.conn.execute("SELECT message FROM diag_events WHERE code='money_warning'")]
+        self.assertTrue(any("không đọc được sổ chi" in w for w in warns), warns)
 
     def test_a_ledger_that_cannot_be_written_keeps_the_answer_then_refuses_the_next_call(self):
         c = self.client()
@@ -73,7 +76,7 @@ class LedgerTests(unittest.TestCase):
             self.assertEqual(c.complete("x").text, "OK")          # the paid answer is not lost
         with self.assertRaises(llm_runner.LlmError) as err:
             c.complete("y")
-        self.assertEqual(err.exception.code, "budget")
+        self.assertEqual(err.exception.code, "ledger")                     # S14.16: its own code (was 'budget') — still refused
         self.assertEqual(len(self.calls), 1)
 
     def test_a_cut_answer_is_recorded_and_reported_not_asked_again(self):
@@ -196,7 +199,8 @@ class MotionBatchTests(unittest.TestCase):
 class AudioCapAndClipPriceTests(unittest.TestCase):
     """GĐ-C4: audio (no price yet) is capped by count; a paid button knows its clip's price (M8)."""
 
-    def test_audio_stops_at_the_test_round_count(self):
+    def test_audio_warns_past_the_test_round_count(self):
+        # S14.16: was "audio stops at the test round count" — the count is a planned amount that warns
         from core import audio_lib
 
         class Tts:
@@ -213,10 +217,11 @@ class AudioCapAndClipPriceTests(unittest.TestCase):
         budget.save(conn, audio_cap=2)
         d = tempfile.mkdtemp()
         results = [audio_lib.submit_tts(Tts(), d, f"câu {i}", 1, ledger=(conn, None)) for i in range(3)]
-        self.assertEqual(Tts.sent, 2)
-        self.assertEqual(results[2]["state"], "failed")
-        self.assertIn("trần 2 lượt", results[2]["message"])
-        self.assertEqual(budget.status(conn)["audios"], 2)
+        self.assertEqual(Tts.sent, 3)
+        self.assertNotEqual(results[2]["state"], "failed")
+        self.assertEqual(budget.status(conn)["audios"], 3)
+        warns = [r[0] for r in conn.execute("SELECT message FROM diag_events WHERE code='money_warning'")]
+        self.assertTrue(any("mức dự tính 2 lượt" in w for w in warns), warns)
 
     def test_a_clip_is_priced_with_its_model_and_length(self):
         from core import cost
@@ -266,51 +271,54 @@ class SpendLockTests(unittest.TestCase):
                                                  "usage": {"input_tokens": usage[0], "output_tokens": usage[1]}}).encode())
         return llm_runner.AnthropicClient("sk-test", "claude-sonnet-5", transport=send, sleep=lambda s: None, ledger=db)
 
-    def test_a_task_lock_stops_the_next_call_before_it_is_paid(self):
+    def test_a_task_mark_warns_before_the_next_call_and_the_call_goes(self):
+        # S14.16: was "a task lock stops the next call before it is paid" — the task mark warns (once per block), the call is sent
         calls = []
         c = self.client(calls)                       # each call: 20k in × $2/M + 2k out × $10/M = 0.06
         msgs = [{"role": "user", "content": [{"type": "text", "text": "x"}]}]
         with llm_runner.spend_cap(0.15, "thử") as cap:
             c.converse(msgs, [], max_tokens=4000)
             c.converse(msgs, [], max_tokens=4000)
-            with self.assertRaises(llm_runner.LlmError) as e:     # 0.12 spent + the next ≈ 0.06 > 0.15 → refused, not sent
-                c.converse(msgs, [], max_tokens=4000)
-        self.assertEqual(len(calls), 2)
-        self.assertEqual(e.exception.code, "budget")
-        self.assertIn("chạm trần 'thử'", str(e.exception))
-        self.assertAlmostEqual(cap["spent"], 0.12, places=3)
-        c.converse(msgs, [], max_tokens=4000)        # outside the block the task lock is gone
+            self.assertIn("việc 'thử'", llm_runner._check_caps("claude-sonnet-5", {"max_tokens": 4000, "messages": msgs}))
+            c.converse(msgs, [], max_tokens=4000)    # 0.12 spent + the next ≈ 0.06 > 0.15 → warned, sent
         self.assertEqual(len(calls), 3)
+        self.assertTrue(cap.get("warned"))
+        self.assertAlmostEqual(cap["spent"], 0.18, places=3)
 
-    def test_nested_locks_all_count_and_the_tightest_one_stops(self):
+    def test_nested_marks_all_count_and_the_tightest_one_warns(self):
+        # S14.16: was "the tightest one stops"
         calls = []
         c = self.client(calls)
         msgs = [{"role": "user", "content": [{"type": "text", "text": "x"}]}]
         with llm_runner.spend_cap(1.0, "cả lần chạy") as total:
-            with llm_runner.spend_cap(0.07, "một cảnh"):
+            with llm_runner.spend_cap(0.07, "một cảnh") as scene:
                 c.converse(msgs, [], max_tokens=4000)
-                with self.assertRaises(llm_runner.LlmError):
-                    c.converse(msgs, [], max_tokens=4000)
-        self.assertAlmostEqual(total["spent"], 0.06, places=3)
+                c.converse(msgs, [], max_tokens=4000)
+        self.assertTrue(scene.get("warned"))
+        self.assertFalse(total.get("warned"))
+        self.assertAlmostEqual(total["spent"], 0.12, places=3)
 
-    def test_one_call_whose_worst_case_is_over_the_per_call_lock_is_refused(self):
+    def test_one_call_whose_worst_case_is_over_the_per_call_mark_is_warned_and_sent(self):
+        # S14.16: was "is refused"
         calls = []
         c = self.client(calls)
-        with self.assertRaises(llm_runner.LlmError):
-            c.converse([{"role": "user", "content": [{"type": "text", "text": "x"}]}], [], max_tokens=200000)   # 200k × $10/M = 2 USD
-        self.assertEqual(calls, [])
+        payload = {"max_tokens": 200000, "messages": [{"role": "user", "content": [{"type": "text", "text": "x"}]}]}
+        self.assertIn("một lời gọi Claude", llm_runner._check_caps("claude-sonnet-5", payload))     # 200k × $10/M = 2 USD
+        c.converse(payload["messages"], [], max_tokens=200000)
+        self.assertEqual(len(calls), 1)
 
-    def test_the_project_cap_is_never_crossed_by_the_next_call(self):
+    def test_the_claude_amount_is_warned_before_the_next_call_crosses_it(self):
+        # S14.16: was "the project cap is never crossed" — the call that would cross it is warned (with numbers) and sent
         from core import budget
         db = os.path.join(tempfile.mkdtemp(), "m.sqlite")
         conn = connect(db)
         budget.save(conn, enabled=True, llm_usd=0.05)
         calls = []
         c = self.client(calls, db=db)
-        with self.assertRaises(llm_runner.LlmError) as e:      # worst case of this call (4000 out = 0.04 + input) with 0 spent: ok?
-            c.converse([{"role": "user", "content": [{"type": "text", "text": "x" * 40000}]}], [], max_tokens=4000)
-        self.assertIn("có thể tốn tới", str(e.exception))      # 16k in ($0.032) + 4k out ($0.04) = 0.072 > 0.05 → refused
-        self.assertEqual(calls, [])
+        c.converse([{"role": "user", "content": [{"type": "text", "text": "x" * 40000}]}], [], max_tokens=4000)
+        self.assertEqual(len(calls), 1)                        # 16k in ($0.032) + 4k out ($0.04) = 0.072 > 0.05 → warned
+        warns = [r[0] for r in conn.execute("SELECT message FROM diag_events WHERE code='money_warning'")]
+        self.assertTrue(any("Claude API" in w and "mức dự tính $0.05" in w for w in warns), warns)
         self.assertIsNone(budget.check_llm(conn, 0.01))
 
 
@@ -355,11 +363,14 @@ class SpendLockReviewTests(unittest.TestCase):
         payload = {"max_tokens": 6000, "messages": [{"role": "user", "content": [{"type": "text", "text": "x"}]}]}   # worst ≈ 0.06
         held = c._check_budget(payload)                                  # a first call in flight holds its worst case IN THE DATABASE
         try:
-            with self.assertRaises(llm_runner.LlmError):                # another client (= another process) sees it: 0.06 + 0.06 > 0.10
-                other._check_budget(payload)
+            warns = []                                                   # another client (= another process) sees it: 0.06 + 0.06 > 0.10
+            reason, hid = budget.hold_llm(conn, 0.06, warnings=warns)    # S14.16: warned (was refused), still held
+            budget.release_hold(conn, hid)
+            self.assertIsNone(reason)
+            self.assertTrue(any("Claude API" in w for w in warns), warns)
         finally:
             c._release(held)
-        other._release(other._check_budget(payload))                    # released: it passes again
+        other._release(other._check_budget(payload))                    # released: no warning, it passes
         self.assertEqual(budget.held(conn), 0.0)
 
 

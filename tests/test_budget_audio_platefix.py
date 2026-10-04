@@ -30,19 +30,21 @@ class CheckAudioTests(unittest.TestCase):
         self.assertIsNone(budget.check_audio(self.p.conn, "mock"))
         self.assertIsNone(budget.check_audio(self.p.conn, "mock-audio"))
 
-    def test_the_count_cap_stops_the_next_audio(self):
+    def test_the_count_cap_warns_on_the_next_audio(self):
+        # S14.16 (chính sách tiền 04/10): was "stops the next audio" — the count is a planned amount that warns (warn_audio)
         budget.restart(self.p.conn)
         budget.save(self.p.conn, audio_cap=2)
         self.audio(n=1)
-        self.assertIsNone(budget.check_audio(self.p.conn, "clipai"))           # 1 made, the 2nd still fits
+        self.assertIsNone(budget.warn_audio(self.p.conn, "clipai"))            # 1 made, the 2nd still fits
         self.audio(n=1)
-        note = budget.check_audio(self.p.conn, "clipai")
+        note = budget.warn_audio(self.p.conn, "clipai")
         self.assertIn("2 âm thanh", note)
-        self.assertIn("trần 2", note)
+        self.assertIn("mức dự tính 2", note)
+        self.assertIsNone(budget.check_audio(self.p.conn, "clipai"))           # nothing refused
         self.audio(provider="mock", n=3)                                        # simulated audio never counts
-        self.assertIn("2 âm thanh", budget.check_audio(self.p.conn, "clipai"))
+        self.assertIn("2 âm thanh", budget.warn_audio(self.p.conn, "clipai"))
         budget.stop(self.p.conn)
-        self.assertIsNone(budget.check_audio(self.p.conn, "clipai"))
+        self.assertIsNone(budget.warn_audio(self.p.conn, "clipai"))
 
     def test_only_audio_since_the_round_started_counts(self):
         self.audio(n=3)

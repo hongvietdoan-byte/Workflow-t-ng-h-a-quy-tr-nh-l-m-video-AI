@@ -144,13 +144,19 @@ def record_audio_usage(ledger, provider, model: str, count: int = 1) -> None:
 
 
 def audio_refusal(ledger, provider) -> Optional[str]:
-    """A reason not to send one more audio job now (test round's audio cap), else None."""
+    """A reason not to send one more audio job now (S14.16: only the service out of credit), else None. The test round's audio count
+    only warns (written to diag, the job goes)."""
     if ledger is None:
         return None
-    from .budget import check_audio
+    from .budget import check_audio, warn_audio
     try:
-        return check_audio(ledger[0], provider.name)
-    except Exception as e:  # noqa: BLE001 - a cap that cannot be read does not protect
+        stop = check_audio(ledger[0], provider.name)
+        if not stop:
+            from . import money_policy
+            money_policy.note(ledger[0], warn_audio(ledger[0], provider.name), stage="music",
+                              project_id=ledger[1] if len(ledger) > 1 and isinstance(ledger[1], int) else None, key="audio")
+        return stop
+    except Exception as e:  # noqa: BLE001 - a ledger that cannot be read cannot be written either: nothing paid is sent
         return f"không đọc được sổ chi ({type(e).__name__})"
 
 

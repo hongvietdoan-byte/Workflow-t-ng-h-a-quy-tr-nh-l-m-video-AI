@@ -193,35 +193,44 @@ class BudgetPriceTests(unittest.TestCase):
         self.p = Pipeline(connect())
         self.conn = self.p.conn
 
-    def test_a_clip_without_a_price_is_refused_while_the_limit_is_on(self):
+    def test_a_clip_without_a_price_is_warned_while_the_limit_is_on(self):
+        # S14.16 (chính sách tiền 04/10): was "refused" — estimated high and warned (warn_video); check_video refuses nothing here
         budget.restart(self.conn, usd=10.0)
-        self.assertIn("chưa có giá", budget.check_video(self.conn, "clipai", "kling-video-o1", "std", 5))
-        self.assertIsNone(budget.check_video(self.conn, "clipai", "kling-v3-omni", "std", 5))
+        self.assertIsNone(budget.check_video(self.conn, "clipai", "kling-video-o1", "std", 5))
+        self.assertIn("thiếu giá: kling-video-o1:std", budget.warn_video(self.conn, "clipai", "kling-video-o1", "std", 5))
+        self.assertIsNone(budget.warn_video(self.conn, "clipai", "kling-v3-omni", "std", 5))
         budget.stop(self.conn)
-        self.assertIsNone(budget.check_video(self.conn, "clipai", "kling-video-o1", "std", 5))    # production work is not blocked
+        self.assertIsNone(budget.warn_video(self.conn, "clipai", "kling-video-o1", "std", 5))     # no trial round: nothing to say
 
-    def test_a_broken_price_table_is_an_error_and_refuses_paid_sends(self):
+    def test_a_broken_price_table_is_an_error_and_warns_on_paid_sends(self):
+        # S14.16: was "refuses paid sends" — the broken table is still an error (pricing_problem) and every paid send warns
         path = os.path.join(tempfile.mkdtemp(), "pricing.json")
         with open(path, "w", encoding="utf-8") as f:
             f.write('{"per_image": {"x": 0.05,')
         with mock.patch.dict(os.environ, {"PIPELINE_PRICING": path}):
             self.assertIn("hỏng", cost.load_pricing()["_error"])
-            self.assertIn("không gửi job trả tiền", budget.check_video(self.conn, "clipai", "kling-v3-omni", "std", 5))
-            self.assertIsNotNone(budget.check_image(self.conn, "deepix", "gpt-image-2.5-sunburst"))
-            self.assertIsNotNone(budget.check_audio(self.conn, "clipai-audio"))
-            self.assertIsNone(budget.check_video(self.conn, "mock", "kling-v3-omni", "std", 5))
+            self.assertIsNone(budget.check_video(self.conn, "clipai", "kling-v3-omni", "std", 5))
+            self.assertIn("VẪN GỬI", budget.warn_video(self.conn, "clipai", "kling-v3-omni", "std", 5))
+            self.assertIsNotNone(budget.warn_image(self.conn, "deepix", "gpt-image-2.5-sunburst"))
+            self.assertIsNotNone(budget.warn_audio(self.conn, "clipai-audio"))
+            self.assertIsNone(budget.warn_video(self.conn, "mock", "kling-v3-omni", "std", 5))
 
     def test_pictures_count_against_the_usd_cap_and_audio_says_it_is_counted(self):
         budget.restart(self.conn, usd=0.1)
         budget.save(self.conn, image_cap=100, audio_cap=0)
         pid = self.p.create_project("x")
-        self.assertIsNone(budget.check_image(self.conn, "deepix", "gpt-image-2.5-sunburst"))
+        self.assertIsNone(budget.warn_image(self.conn, "deepix", "gpt-image-2.5-sunburst"))
         cost.record_usage(self.conn, None, "image", "deepix", "gpt-image-2.5-sunburst", "image", 1, "image", project_id=pid)
-        self.assertIn("vượt trần", budget.check_image(self.conn, "deepix", "gpt-image-2.5-sunburst"))       # 2 × $0.052 > $0.10
-        self.assertIn("chưa có giá", budget.check_image(self.conn, "deepix", "unknown-model"))
-        self.assertIn("SỐ LƯỢT", budget.check_audio(self.conn, "clipai-audio"))
+        # S14.16: the same numbers, now as warnings (warn_*) — check_* refuse nothing here
+        self.assertIn("vượt", budget.warn_image(self.conn, "deepix", "gpt-image-2.5-sunburst"))             # 2 × $0.052 > $0.10
+        self.assertIsNone(budget.check_image(self.conn, "deepix", "gpt-image-2.5-sunburst"))
+        self.assertIn("thiếu giá", budget.warn_image(self.conn, "deepix", "unknown-model"))
+        self.assertIn("SỐ LƯỢT", budget.warn_audio(self.conn, "clipai-audio"))
+        self.assertIsNone(budget.check_audio(self.conn, "clipai-audio"))
 
-    def test_the_automatic_run_stops_with_the_reason_when_the_limit_refuses(self):
+    def test_the_automatic_run_sends_an_unpriced_model_and_stops_only_when_out_of_credit(self):
+        # S14.16: was "stops with the reason when the limit refuses" — an unpriced model is warned and sent; the run stops (with the
+        # reason) only when the service is out of credit
         pid = self.p.create_project("run")
         sid = self.p.create_scene(pid, 1, "s")
         self.p.conn.execute("UPDATE scenes SET data=? WHERE id=?", (json.dumps({"image_prompt": "x"}), sid))
@@ -235,10 +244,18 @@ class BudgetPriceTests(unittest.TestCase):
             def usage_info(self):
                 return "unknown-model", "image"
         ImageRunner(self.p, Unpriced(), tempfile.mkdtemp()).submit_pending(pid)
-        self.assertEqual(self.p.state(jid).value, "queued")                          # not sent, nothing paid
+        self.assertEqual(self.p.state(jid).value, "running")                         # sent (warned in diag)
+        self.assertTrue(codes(self.p, "money_warning"))
+        autopilot._budget_stop(self.p, pid, "image_gen")                              # nothing to stop for
+        jid2 = self.p.create_job(sid)
+        budget.halt(self.conn, "deepix", "insufficient balance")
+        self.p.conn.execute("UPDATE jobs SET state='succeeded' WHERE id=?", (jid,))
+        self.p.conn.commit()
+        ImageRunner(self.p, Unpriced(), tempfile.mkdtemp()).submit_pending(pid)
+        self.assertEqual(self.p.state(jid2).value, "queued")                         # out of credit: not sent
         with self.assertRaises(autopilot._Stop) as stop:
             autopilot._budget_stop(self.p, pid, "image_gen")
-        self.assertIn("chưa có giá", str(stop.exception))
+        self.assertIn("HẾT TIỀN", str(stop.exception))
 
     def test_every_model_the_router_picks_in_cheap_mode_has_a_price(self):
         pricing = cost.load_pricing()

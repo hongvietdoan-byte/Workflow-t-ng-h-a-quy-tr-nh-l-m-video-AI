@@ -108,3 +108,30 @@ def reset(conn, actor, bars, reason: str, *, usd: Optional[float] = None, llm_us
         _put_last(conn, "project", pid, who, why, at)
     auth.audit(conn, who, "reset_money", f"{bars} {why}")
     return done
+
+
+PLAN_BARS = ("trial", "claude", "project")
+
+
+def set_planned(conn, actor, bar: str, usd: float, reason: str, *, project_id: Optional[int] = None) -> Dict:
+    """Chính sách tiền 04/10 (S14.16, core.money_policy): the Owner resets a bar's starting point AND sets its planned amount (mức dự
+    tính) — the line the 💵 bar compares against (yellow ≥ money_policy.WARN_AT, red ≥ DANGER_AT) and above which a paid send warns.
+      trial    restart the test round from now with `usd` as its planned amount (switched on)
+      claude   restart the Claude count from now with `usd` as its planned amount
+      project  move the project's baseline to now (reset) and store `usd` as its planned total (project_budget.set_planned)
+    Only the Owner, with a reason (audit + "Đặt lại lần cuối"). Nothing is run on the real database by this change itself — the button
+    comes with the Gói K screen. Returns {"bar", "planned", ...the reset's result}."""
+    if bar not in PLAN_BARS:
+        raise ValueError(f"không đặt mức dự tính cho thanh '{bar}' (chỉ {', '.join(PLAN_BARS)})")
+    amount = float(usd)
+    if amount < 0:
+        raise ValueError("mức dự tính phải ≥ 0")
+    if bar == "trial":
+        done = reset(conn, actor, ["trial"], reason, usd=amount)
+    elif bar == "claude":
+        done = reset(conn, actor, ["claude"], reason, llm_usd=amount)
+    else:
+        done = reset(conn, actor, ["project"], reason, project_id=project_id)
+        project_budget.set_planned(conn, int(project_id), amount)
+    auth.audit(conn, str(_get(actor, "email") or "?"), "set_planned", f"{bar} {project_id or ''} {amount:.2f} {reason}")
+    return {"bar": bar, "planned": round(amount, 2), **done}

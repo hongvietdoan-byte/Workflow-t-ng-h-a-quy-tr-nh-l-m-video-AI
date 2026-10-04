@@ -32,24 +32,29 @@ class BudgetTests(unittest.TestCase):
         self.assertAlmostEqual(prop["total"], round(sum(v["cap"] for v in prop["stages"].values()), 2), places=2)
 
     @mock.patch.dict(os.environ, ON)
-    def test_locked_caps_stop_a_stage_and_only_a_person_raises_them_with_a_reason(self):
+    def test_locked_caps_warn_for_a_stage_and_only_a_person_raises_them_with_a_reason(self):
+        # S14.16 (chính sách tiền 04/10): was "locked caps stop a stage" — past the line it now WARNS (warning), check never refuses
         project_budget.approve(self.p, self.pid, "a@x", {"stages": {k: {"cap": 0.5 if k == "images" else 1.0} for k in project_budget.STAGES},
                                                           "total": 5.5})
-        self.assertIsNone(project_budget.check(self.p.conn, self.pid, "images", 0.3))
+        self.assertIsNone(project_budget.warning(self.p.conn, self.pid, "images", 0.3))
         self.spend("image", "gpt-image-2.5-sunburst", "1152x2048", 9)                     # 9 pictures × ~0.052
-        why = project_budget.check(self.p.conn, self.pid, "images", 0.06)
-        self.assertIn("chạm trần khâu 'Ảnh'", why)
+        why = project_budget.warning(self.p.conn, self.pid, "images", 0.06)
+        self.assertIn("khâu 'Ảnh'", why)
+        self.assertIn("mức dự tính $0.50", why)
+        self.assertIsNone(project_budget.check(self.p.conn, self.pid, "images", 0.06))
         with self.assertRaises(ValueError):
             project_budget.raise_cap(self.p.conn, self.pid, "images", 1.0, "a@x", "")      # a reason is required
         project_budget.raise_cap(self.p.conn, self.pid, "images", 1.0, "a@x", "vẽ lại 3 khung lỗi tay")
-        self.assertIsNone(project_budget.check(self.p.conn, self.pid, "images", 0.06))
+        self.assertIsNone(project_budget.warning(self.p.conn, self.pid, "images", 0.06))
         self.assertEqual(project_budget.get(self.p.conn, self.pid)["raises"][0]["why"], "vẽ lại 3 khung lỗi tay")
 
     @mock.patch.dict(os.environ, ON)
-    def test_the_total_stops_even_when_a_stage_has_room(self):
+    def test_the_total_warns_even_when_a_stage_has_room(self):
+        # S14.16: was "the total stops" — the total is a planned amount that warns
         project_budget.approve(self.p, self.pid, "a@x", {"stages": {k: {"cap": 10.0} for k in project_budget.STAGES}, "total": 1.0})
         self.spend("llm", "claude-sonnet-5", "output", 90000, stage="qc")                  # 0.9
-        self.assertIn("TỔNG", project_budget.check(self.p.conn, self.pid, "claude_qc", 0.2))
+        self.assertIn("TỔNG", project_budget.warning(self.p.conn, self.pid, "claude_qc", 0.2))
+        self.assertIsNone(project_budget.check(self.p.conn, self.pid, "claude_qc", 0.2))
 
     def test_off_or_not_approved_no_project_lock(self):
         self.assertIsNone(project_budget.check(self.p.conn, self.pid, "images", 99.0))
@@ -87,7 +92,8 @@ class BudgetTests(unittest.TestCase):
 
 class ClaudeProjectLockTests(unittest.TestCase):
     @mock.patch.dict(os.environ, ON)
-    def test_a_claude_call_of_a_stage_over_its_locked_cap_is_not_sent(self):
+    def test_a_claude_call_of_a_stage_over_its_locked_cap_is_sent_with_a_warning(self):
+        # S14.16: was "is not sent" — the stage line only warns now (diag money_warning)
         from tests.test_llm_ledger import HttpResponse
         db = os.path.join(tempfile.mkdtemp(), "m.sqlite")
         p = Pipeline(connect(db))
@@ -101,31 +107,33 @@ class ClaudeProjectLockTests(unittest.TestCase):
             return HttpResponse(200, json.dumps({"content": [{"type": "text", "text": "ok"}], "stop_reason": "end_turn",
                                                  "usage": {"input_tokens": 10, "output_tokens": 10}}).encode())
         c = llm_runner.AnthropicClient("sk-test", "claude-sonnet-5", transport=send, sleep=lambda s: None, ledger=db)
-        with llm_runner.tagged("qc_agent", pid), self.assertRaises(llm_runner.LlmError) as e:
+        with llm_runner.tagged("qc_agent", pid):
             c.converse([{"role": "user", "content": [{"type": "text", "text": "x"}]}], [], max_tokens=4000)   # worst ≈ 0.04 > 0.01
-        self.assertIn("Claude — QC", str(e.exception))
-        self.assertEqual(calls, [])
-        with llm_runner.tagged("style", pid):                                              # another stage still has room
-            c.converse([{"role": "user", "content": [{"type": "text", "text": "x"}]}], [], max_tokens=4000)
         self.assertEqual(len(calls), 1)
+        warns = [r[0] for r in p.conn.execute("SELECT message FROM diag_events WHERE code='money_warning'")]
+        self.assertTrue(any("Claude — QC" in w for w in warns), warns)
 
 
 class UnknownPriceTests(unittest.TestCase):
-    """T6 (S14.1 A1): a price the table does not know is not 0 — a locked project refuses it (it used to pass as $0)."""
+    """T6 (S14.1 A1): a price the table does not know is not 0. S14.16: a locked project WARNS about it (estimated high, sent)."""
     def setUp(self):
         db = os.path.join(tempfile.mkdtemp(), "m.sqlite")
         self.p = Pipeline(connect(db))
         self.pid = self.p.create_project("t")
 
+    def warned(self) -> str:
+        return " ".join(r[0] for r in self.p.conn.execute("SELECT message FROM diag_events WHERE code='money_warning'"))
+
     def lock(self):
         project_budget.approve(self.p, self.pid, "a@x", {"stages": {k: {"cap": 5.0} for k in project_budget.STAGES}, "total": 30.0})
 
     @mock.patch.dict(os.environ, ON)
-    def test_none_is_refused_when_locked_and_points_to_the_price_table(self):
+    def test_none_is_warned_when_locked_and_points_to_the_price_table(self):
         self.lock()
-        why = project_budget.check(self.p.conn, self.pid, "images", None)
+        self.assertIsNone(project_budget.check(self.p.conn, self.pid, "images", None))      # S14.16: never refused
+        why = project_budget.warning(self.p.conn, self.pid, "images", None)
         self.assertIsNotNone(why)
-        self.assertIn("chưa có giá", why.lower())
+        self.assertIn("thiếu giá", why.lower())
         self.assertIn("Bảng giá", why)
 
     @mock.patch.dict(os.environ, ON)
@@ -137,13 +145,14 @@ class UnknownPriceTests(unittest.TestCase):
         self.lock()
         cost.record_usage(self.p.conn, None, "image", "deepix", "model-without-price", "1k", 1, "image", project_id=self.pid)
         self.assertEqual(project_budget.unpriced_by_stage(self.p.conn, self.pid)["images"], 1)
-        why = project_budget.check(self.p.conn, self.pid, "images", 0.05)
+        why = project_budget.warning(self.p.conn, self.pid, "images", 0.05)               # S14.16: a warning, not a refusal
         self.assertIsNotNone(why)
-        self.assertIn("chưa có giá", why.lower())
-        self.assertIsNone(project_budget.check(self.p.conn, self.pid, "videos", 0.05))      # another stage is not blocked
+        self.assertIn("1 dòng sổ chi", why.lower())
+        self.assertIsNone(project_budget.warning(self.p.conn, self.pid, "videos", 0.05))    # another stage is not concerned
 
     @mock.patch.dict(os.environ, ON)
-    def test_the_image_runner_refuses_a_model_without_price_in_a_locked_project(self):
+    def test_the_image_runner_sends_a_model_without_price_in_a_locked_project_with_a_warning(self):
+        # S14.16: was "refuses" — estimated high and warned (diag), not stopped
         from core.providers import MockImageProvider
         from core.runner import ImageRunner
 
@@ -154,12 +163,12 @@ class UnknownPriceTests(unittest.TestCase):
                 return "model-without-price", "1k"
         self.lock()
         r = ImageRunner(self.p, Fake(), tempfile.mkdtemp())
-        why = r._over_budget({"project_id": self.pid}, ("prompt", []), {})
-        self.assertIsNotNone(why)
-        self.assertIn("chưa có giá", why.lower())
+        self.assertIsNone(r._over_budget({"project_id": self.pid}, ("prompt", []), {}))
+        self.assertIn("model-without-price", self.warned())
 
     @mock.patch.dict(os.environ, ON)
-    def test_the_video_runner_refuses_a_model_without_price_in_a_locked_project(self):
+    def test_the_video_runner_sends_a_model_without_price_in_a_locked_project_with_a_warning(self):
+        # S14.16: was "refuses" — estimated high and warned (diag), not stopped
         from core.providers import MockVideoProvider
         from core.runner import VideoRunner
 
@@ -170,9 +179,8 @@ class UnknownPriceTests(unittest.TestCase):
                 return "video-model-without-price", "720p", duration
         self.lock()
         r = VideoRunner(self.p, Fake(), tempfile.mkdtemp())
-        why = r._over_budget({"project_id": self.pid}, ("a.png", "prompt", None, 5, "video-model-without-price"), {})
-        self.assertIsNotNone(why)
-        self.assertIn("chưa có giá", why.lower())
+        self.assertIsNone(r._over_budget({"project_id": self.pid}, ("a.png", "prompt", None, 5, "video-model-without-price"), {}))
+        self.assertIn("video-model-without-price", self.warned())
 
 
 if __name__ == "__main__":

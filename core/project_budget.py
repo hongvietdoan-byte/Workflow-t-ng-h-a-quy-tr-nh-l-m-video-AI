@@ -4,9 +4,10 @@ methods dropped half way, QC re-judging).
 
   propose   code (not Claude) computes it right after the Director's shot table: every stage's money already spent + what is left to
             make, with the measured redo share and a margin; video models whose price has no exact source get UNVERIFIED_MARGIN
-  approve   the person approves → locked: every paid call checks its stage cap and the total BEFORE it is sent (images/clips in the
-            runners, Claude in llm_runner with the holds of calls in flight); at a cap it stops — only a person raises a cap, with a
-            reason that is kept
+  approve   the person approves → locked: every paid call compares its stage line and the total BEFORE it is sent (images/clips
+            in the runners, Claude in llm_runner with the holds of calls in flight). Chính sách tiền 04/10 (S14.16): past a line the
+            send WARNS (`warning`, core.money_policy) and goes — nothing is refused for money; the Owner sets the planned amount
+            (core.money_reset.set_planned); a person may still raise a line, with a reason that is kept
   target    optional: the money the person wants to spend; the Director gets it as an input (fewer lip-sync shots, fewer seconds …)
             and a proposal over it is said before any picture is paid
 
@@ -225,33 +226,54 @@ PRICE_TABLE_HINT = "thêm giá ở ⚙ → 💵 Tiền → 💲 Bảng giá (ho�
 
 
 def check(conn, pid: Optional[int], stage: str, usd: Optional[float]) -> Optional[str]:
-    """A reason not to pay `usd` more for this stage of the project (its approved, locked budget; Claude calls in flight count), else
-    None. No approved budget → no project lock (the global caps still apply). `usd=None` = the price is NOT known (a model missing
-    from the price table): a locked project refuses it — an unknown price is not $0 (T6, S14.1). A ledger row of this stage without a
-    price makes the money spent unknown too: refused the same way, said."""
+    """Kept for the callers' API. Chính sách tiền 04/10 (S14.16, core.money_policy): the project's budget is a PLANNED amount that
+    warns (see `warning`) — it never refuses a send any more, so this is always None."""
+    return None
+
+
+def planned(conn, pid: int) -> Optional[float]:
+    """The project's planned amount (mức dự tính): the one the Owner set (core.money_reset.set_planned), else the approved total."""
+    data = get(conn, pid) or {}
+    for key in ("planned", "total"):
+        if data.get(key) not in (None, ""):
+            return float(data[key])
+    return None
+
+
+def set_planned(conn, pid: int, usd: float) -> Dict:
+    """Store the project's planned amount (warning line of the 💵 bar). Used through core.money_reset.set_planned (Owner + reason)."""
+    data = get(conn, pid) or {"caps": {}, "locked": False, "raises": [], "resets": []}
+    data["planned"] = round(float(usd), 2)
+    return _save(conn, pid, data)
+
+
+def warning(conn, pid: Optional[int], stage: str, usd: Optional[float]) -> Optional[str]:
+    """A warning with numbers when paying `usd` more for this stage passes the project's approved amount (stage line or the planned
+    total; Claude calls in flight count), or when the price is not known (usd None / ledger rows of this stage without a price), else
+    None. The send goes (S14.16)."""
     if pid is None or not enabled():
         return None
     data = get(conn, pid)
     if not data or not data.get("locked"):
         return None
+    from . import budget, money_policy
     name = STAGES.get(stage, stage)
-    if usd is None:
-        return (f"lần gửi này CHƯA CÓ GIÁ (model không có trong bảng giá) — dự án đã khóa ngân sách nên không gửi khâu '{name}'; "
-                + PRICE_TABLE_HINT)
-    unpriced = unpriced_by_stage(conn, pid)
-    if unpriced.get(stage):
-        return (f"sổ chi khâu '{name}' có {unpriced[stage]} lượt gửi CHƯA CÓ GIÁ — không tính được đã chi bao nhiêu nên dự án đã khóa "
-                f"không gửi thêm; " + PRICE_TABLE_HINT)
-    from . import budget
     spent = spent_by_stage(conn, pid)
     inflight = budget.held(conn, pid, stage) if stage.startswith("claude") else 0.0
-    cap = float(data["caps"].get(stage, 0.0))
-    if spent.get(stage, 0.0) + inflight + usd > cap + 1e-9:
-        return (f"chạm trần khâu '{name}' của dự án: đã chi ≈ ${spent.get(stage, 0.0):.2f}"
-                + (f" + đang chạy ≈ ${inflight:.2f}" if inflight else "") + f", lần này ≈ ${usd:.2f}, trần ${cap:.2f} — dừng. "
-                "Chỉ người được nâng trần (Bước 1 → 💵 Ngân sách dự án, kèm lý do)")
-    if sum(spent.values()) + budget.held(conn, pid) + usd > float(data["total"]) + 1e-9:
-        return (f"chạm TỔNG ngân sách dự án: đã chi ≈ ${sum(spent.values()):.2f}, lần này ≈ ${usd:.2f}, tổng ${data['total']:.2f} — dừng")
+    cap = float((data.get("caps") or {}).get(stage, 0.0))
+    here = spent.get(stage, 0.0) + inflight
+    unpriced = unpriced_by_stage(conn, pid).get(stage)
+    missing = []
+    if usd is None:
+        missing.append(f"lượt này (khâu {name})")
+    if unpriced:
+        missing.append(f"{unpriced} dòng sổ chi khâu {name}")
+    if missing or money_policy.over(here, cap, usd or 0.0):
+        return money_policy.warning_text(f"dự án — khâu '{name}'", here, cap, usd, missing,
+                                         extra=PRICE_TABLE_HINT if missing else "")
+    total = planned(conn, pid)
+    if total is not None and money_policy.over(sum(spent.values()) + budget.held(conn, pid), total, usd or 0.0):
+        return money_policy.warning_text("dự án — TỔNG", sum(spent.values()) + budget.held(conn, pid), total, usd)
     return None
 
 

@@ -1,32 +1,35 @@
-"""One money gate for a paid send outside the runners (S14.1 A1a, docs/KE_HOACH_NANG_CAP_DASHBOARD_2026-10-03.md mục 3.1).
+"""One money gate for a paid send outside the runners (S14.1 A1a, docs/KE_HOACH_NANG_CAP_DASHBOARD_2026-10-03.md mục 3.1), with the
+money policy of 04/10 (S14.16, mục 6c — core.money_policy): prices are for reference, the caps WARN, only a real stop refuses.
 
 Before: every place that paid for a picture / clip outside ImageRunner / VideoRunner wrote its own checks, and some forgot one —
 the character set (core.costume) checked nothing, the end frame / establishing picture / Kling multi-shot try skipped the project's
-locked budget. The gate puts the existing checks (it re-uses them, no new money logic) in one place:
+budget. The gate puts the existing checks (it re-uses them, no new money logic) in one place:
 
-  * the project is paused → nothing is sent (the same rule as Pipeline.start);
-  * budget.check_image / check_video / check_audio: the trial round's caps, a service out of credit (budget.halted), a broken price
-    table (budget.pricing_problem), a model without a price while the trial is on;
-  * project_budget.check: the project's locked budget for `budget_stage` (images / videos / claude_*) — a price the table does not
-    know is passed as None and refused when the project is locked (T6);
-  * all of it under budget.SPEND_LOCK, from the check to the ledger row (two threads must not both pass the cap);
+  REFUSED (slot.over = the reason, Vietnamese, with how to reopen):
+  * the project is paused → nothing is sent (the same rule as Pipeline.start; slot.paused);
+  * the service said it is out of credit (budget.check_* → budget.halted).
+  WARNED, the send goes (slot.warning = one sentence with numbers, also written to diag as money_policy.WARN_CODE):
+  * budget.warn_image / warn_video / warn_audio: the trial round's planned amount / count, a broken price table;
+  * project_budget.warning: the project's approved amount for `budget_stage` (images / videos / claude_*) and its total;
+  * a model / tier the price table does not know: estimated HIGH (money_policy.estimate: the highest known price × 1,5).
+  * all of it under budget.SPEND_LOCK, from the check to the ledger row;
   * slot.send(fn, …): a provider error 'out_of_credit' halts that service (budget.halt), the error goes on to the caller;
   * slot.record(): one usage_events row right after each send, labelled `ledger_stage` (character_set, end_frame, establishing…);
     a send that failed is not recorded; a send the caller forgot to record is recorded when the block ends (never left out).
 
 Usage:
     with spend_gate.spend(conn, "image", provider.name, project_id=pid, model=m, tier=t, units=2, ledger_stage="character_set") as slot:
-        if slot.over: ...                     # the caller decides: note + break, return "skipped", or slot.raise_if_over("…")
+        if slot.over: ...                     # a real stop: the caller decides (note + break, "skipped", or slot.raise_if_over("…"))
         task = slot.send(provider.submit, prompt, refs)
         slot.record()
 
-`slot.over` is a reason (Vietnamese, says where to fix it) or None. The gate itself never raises on a refusal — each caller keeps its
+`slot.over` is a reason or None; `slot.warning` a warning or None. The gate itself never raises on a refusal — each caller keeps its
 own behaviour; slot.raise_if_over raises SpendRefused (a ValueError, caught by the dashboard's act()) or PipelinePaused.
 """
 from contextlib import contextmanager
-from typing import Any, Callable, Iterator, Optional
+from typing import Any, Callable, Dict, Iterator, List, Optional, Tuple
 
-from . import budget, cost, project_budget
+from . import budget, cost, money_policy, project_budget
 from .pipeline import PipelinePaused
 from .providers import ProviderError
 
@@ -46,6 +49,9 @@ class Slot:
         self.conn, self.kind, self.provider_name, self.project_id = conn, kind, provider_name, project_id
         self.model, self.tier, self.units, self.ledger_stage = model, tier, units, ledger_stage
         self.over: Optional[str] = None
+        self.warning: Optional[str] = None             # S14.16: the caps warn — the send goes (money_policy)
+        self.warnings: List[str] = []
+        self.estimate: Optional[Dict] = None           # money_policy.estimate of this send (usd, how, missing)
         self.paused = False
         self.sent = 0
         self.recorded = 0
@@ -88,40 +94,75 @@ def _paused(conn, project_id: Optional[int]) -> bool:
     return bool(row and row["paused"])
 
 
+def _paused_text(conn, kind: str, project_id: int, model: Optional[str], tier: Optional[str], units: float) -> str:
+    """A real stop says its numbers (S14.16): the project's money spent, its planned amount, the send stopped, how to open."""
+    try:
+        spent = sum(project_budget.spent_by_stage(conn, project_id).values())
+        plan = project_budget.planned(conn, project_id)
+        est = money_policy.estimate(kind, model, tier, units)["usd"]
+        what = {"image": "ảnh", "video": "clip", "audio": "âm thanh"}.get(kind, kind)
+        return (f"⛔ CHẶN: {PAUSED} (đã chi ≈ ${spent:.2f}" + (f", mức dự tính ${plan:.2f}" if plan is not None else "")
+                + f"; lượt bị chặn: {what} {model or ''}" + (f" ≈ ${est:.2f} (ước tính)" if est is not None else "") + ")")
+    except Exception:  # noqa: BLE001 - the stop itself must still be said
+        return PAUSED
+
+
 def _price(kind: str, model: Optional[str], tier: Optional[str], units: float) -> Optional[float]:
-    pricing = cost.load_pricing()
+    """This send's price, estimated HIGH when the table does not know the model / tier (money_policy.estimate)."""
+    return money_policy.estimate(kind, model, tier, units)["usd"]
+
+
+def assess(conn, kind: str, provider_name: str, project_id: Optional[int] = None, model: Optional[str] = None,
+           tier: Optional[str] = None, units: float = 1, budget_stage: Optional[str] = None) -> Tuple[Optional[str], List[str], Dict]:
+    """(stop reason or None, warnings, estimate) of one send — without the lock. Stop = only a service out of credit (the paused
+    project is checked by `spend`). Simulated providers (mock*) cost nothing: no stop, no warning."""
+    name = str(provider_name or "")
+    est = money_policy.estimate(kind, model, tier, units)
+    if name.startswith("mock"):
+        return None, [], est
     if kind == "image":
-        one = cost._number(pricing.get("per_image", {}).get(model)) if model else None
-        return None if one is None else one * units
-    if kind == "video":
-        return cost.clip_price(pricing, model, tier, units) if model else None
-    return None
+        stop = budget.check_image(conn, name, model, count=max(1, int(round(units))))
+        warn = budget.warn_image(conn, name, model, count=max(1, int(round(units))))
+    elif kind == "video":
+        stop = budget.check_video(conn, name, model or "", tier or "", units)
+        warn = budget.warn_video(conn, name, model or "", tier or "", units)
+    else:
+        stop = budget.check_audio(conn, name)
+        warn = budget.warn_audio(conn, name)
+    if stop:
+        return stop, [], est
+    warns = [warn] if warn else []
+    if project_id is not None and budget_stage:
+        pw = project_budget.warning(conn, project_id, budget_stage, est["usd"])
+        if pw:
+            warns.append(pw)
+    if est.get("missing") and kind != "audio" and not any(est["missing"] in w for w in warns):
+        warns.append(f"⚠ thiếu giá: {est['missing']} — {est['note']} — VẪN GỬI (thêm giá ở ⚙ → 💵 Tiền → 💲 Bảng giá)")
+    return None, warns, est
 
 
 def reason(conn, kind: str, provider_name: str, project_id: Optional[int] = None, model: Optional[str] = None,
            tier: Optional[str] = None, units: float = 1, budget_stage: Optional[str] = None) -> Optional[str]:
-    """Why this send must not go (the gate's checks, without the lock), else None. Simulated providers (mock*) cost nothing."""
-    name = str(provider_name or "")
-    if name.startswith("mock"):
+    """Why this send must not go (a real stop: the service is out of credit), else None. Warnings: see `assess`."""
+    return assess(conn, kind, provider_name, project_id, model, tier, units, budget_stage)[0]
+
+
+def warn(conn, warnings: List[str], *, stage: str, project_id: Optional[int] = None, job_id: Optional[int] = None,
+         scene_id: Optional[int] = None) -> Optional[str]:
+    """Write the warnings of one send to diag (money_policy.note, at most once every few minutes per kind) → the joined text or None."""
+    if not warnings:
         return None
-    if kind == "image":
-        why = budget.check_image(conn, name, model, count=max(1, int(round(units))))
-    elif kind == "video":
-        why = budget.check_video(conn, name, model or "", tier or "", units)     # no model → no price → refused while the trial is on
-    else:
-        why = budget.check_audio(conn, name)
-    if why:
-        return why
-    if project_id is not None and budget_stage:
-        return project_budget.check(conn, project_id, budget_stage, _price(kind, model, tier, units))
-    return None
+    text = " | ".join(warnings)
+    money_policy.note(conn, text, stage=stage, project_id=project_id, job_id=job_id, scene_id=scene_id,
+                      key=f"{stage}:{project_id or '-'}")
+    return text
 
 
 @contextmanager
 def spend(conn, kind: str, provider_name: str, *, project_id: Optional[int] = None, model: Optional[str] = None,
           tier: Optional[str] = None, units: float = 1, budget_stage: Any = _DEFAULT,
           ledger_stage: Optional[str] = None) -> Iterator[Slot]:
-    """Hold budget.SPEND_LOCK, check, yield a Slot (slot.over = the reason or None). See the module text."""
+    """Hold budget.SPEND_LOCK, check, yield a Slot (slot.over = a real stop or None, slot.warning = a money warning or None)."""
     if kind not in UNIT:
         raise ValueError(f"spend_gate: loại '{kind}' không hỗ trợ (Claude đi qua llm_runner)")
     stage = BUDGET_STAGE[kind] if budget_stage is _DEFAULT else budget_stage
@@ -131,9 +172,11 @@ def spend(conn, kind: str, provider_name: str, *, project_id: Optional[int] = No
     with budget.SPEND_LOCK:
         slot = Slot(conn, kind, provider_name, project_id, model, tier, units, ledger_stage)
         if _paused(conn, project_id):
-            slot.over, slot.paused = PAUSED, True
+            slot.over, slot.paused = _paused_text(conn, kind, project_id, model, tier, units), True
         else:
-            slot.over = reason(conn, kind, provider_name, project_id, model, tier, units, stage)
+            slot.over, slot.warnings, slot.estimate = assess(conn, kind, provider_name, project_id, model, tier, units, stage)
+            slot.warning = warn(conn, slot.warnings, stage={"image": "image", "video": "video"}.get(kind, "music"),
+                                project_id=project_id)
         try:
             yield slot
         finally:

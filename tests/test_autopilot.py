@@ -240,15 +240,19 @@ class SafetyTests(Setup):
         self.assertEqual(llm_runner.cli_error_code("Please run /login to authenticate (oauth)"), "auth")
         self.assertEqual(llm_runner.cli_error_code("something else broke"), "cli_error")
 
-    def test_the_set_check_redo_respects_the_locked_project_budget(self):
-        from core import project_budget
+    def test_the_set_check_redo_is_held_only_when_the_service_is_out_of_credit(self):
+        # S14.16 (chính sách tiền 04/10): was "respects the locked project budget" (= held at a 0 images line) — the project amount
+        # only warns now; the redo waits only when the service is out of credit
+        from core import budget, project_budget
         self.build()
         project_budget.approve(self.p, self.pid, "a@x", {"stages": {k: {"cap": 0.0 if k == "images" else 5.0} for k in project_budget.STAGES},
                                                          "total": 100.0})
         with mock.patch.dict(os.environ, {"FEATURE_PROJECT_BUDGET": "1"}):
+            self.assertIsNone(autopilot._setcheck_block(self.p, self.pid, {"idx": 1, "fix": "make the jacket red"}, "deepix"))
+            budget.halt(self.p.conn, "deepix", "insufficient balance")
             why = autopilot._setcheck_block(self.p, self.pid, {"idx": 1, "fix": "make the jacket red"}, "deepix")
         self.assertIsNotNone(why)
-        self.assertIn("ngân sách", why)
+        self.assertIn("HẾT TIỀN", why)
 
     def test_render_failure_is_reported_not_swallowed(self):
         ctx = self.build()

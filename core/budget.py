@@ -1,19 +1,18 @@
-"""Hard spending limit for the test runs (kế hoạch v3, GĐ5): the person set "≤ $50 for testing".
+"""Spending of the test runs (kế hoạch v3, GĐ5): the person set "≤ $50 for testing".
 
-Before a paid job is sent, the money already recorded in `usage_events` (every project, from the moment the limit was started)
-plus the price of that job must stay under the limit — otherwise the job is left queued and the reason is shown. Prices come
-from data/pricing.json (estimates until measured). Deepix pictures have a provisional price (per_image) and a count cap; audio has
-no price, so only its count is capped. A job whose model has no price is refused while the limit is on (it would count as $0), and a
-broken price table refuses every paid job. Simulated providers (mock) never count.
+Chính sách tiền 04/10 (S14.16, core.money_policy — THAY "trần cứng" 28/09): the trial's money / count caps, a model without a price and
+the Claude cap are PLANNED AMOUNTS that WARN (warn_image / warn_video / warn_audio / warn_llm: a sentence with the money spent, the
+planned amount, this send's estimate, the % over, the model without a price) — the send goes. The check_* functions now refuse only
+when a service said it is out of credit (halt → halted, reopened by a person). Prices come from data/pricing.json; a missing price is
+estimated high (money_policy.estimate). Simulated providers (mock) never count.
 
 Settings live in the `app_settings` table (key 'budget'): {"usd": 50, "since": time or null, "image_cap": 80, "enabled": false,
 "llm_usd": 5, "llm_since": time or null}.
-The limit is OFF until a test round is started (`restart`, ⚙ → Ngân sách thử), so normal production work is never blocked.
-BUDGET_USD / BUDGET_IMAGE_CAP set the defaults.
+The trial round is OFF until it is started (`restart`, ⚙ → Ngân sách thử). BUDGET_USD / BUDGET_IMAGE_CAP set the defaults.
 
 Claude API (usage kind 'llm', tokens priced per million from pricing.json `per_million_tokens`) counts in the test round's total and
-has its own cap `llm_usd` (CLAUDE_BUDGET_USD, default $5 = the money loaded on the Anthropic account), always on: when it is used up
-the next Claude call is refused with a clear note (`check_llm`). `llm_since` restarts the count after the person tops up.
+has its own planned amount `llm_usd` (CLAUDE_BUDGET_USD, default $5 = the money loaded on the Anthropic account): past it every call
+warns (`warn_llm`). `llm_since` restarts the count after the person tops up.
 """
 import json
 import os
@@ -125,15 +124,20 @@ def held(conn, project_id: Optional[int] = None, stage: Optional[str] = None) ->
 
 
 def hold_llm(conn, usd: float, project_id: Optional[int] = None, stage: Optional[str] = None,
-             extra_check=None) -> Tuple[Optional[str], Optional[int]]:
-    """Check the Claude cap with this call's worst case + every call in flight (all processes) and hold the money in ONE write
-    transaction. `extra_check(conn)` → a reason (the project budget) is checked inside the same transaction. (reason, hold id)."""
+             extra_check=None, warnings: Optional[list] = None, extra_warn=None) -> Tuple[Optional[str], Optional[int]]:
+    """Check the Claude money with this call's worst case + every call in flight (all processes) and hold the money in ONE write
+    transaction. (reason, hold id): reason = a real stop only (Anthropic out of credit, or `extra_check(conn)`). S14.16: the Claude cap
+    and `extra_warn(conn)` (the project budget) only add a warning text to `warnings` — the call goes."""
     _holds_table(conn)
     conn.execute("BEGIN IMMEDIATE")
     try:
         reason = check_llm(conn, usd + held(conn))
         if not reason and extra_check is not None:
             reason = extra_check(conn)
+        if not reason and warnings is not None:
+            for w in (warn_llm(conn, usd + held(conn)), extra_warn(conn) if extra_warn is not None else None):
+                if w:
+                    warnings.append(w)
         hid = None
         if not reason:
             hid = conn.execute("INSERT INTO llm_holds (at, project_id, stage, usd) VALUES (datetime('now'),?,?,?)",
@@ -255,25 +259,36 @@ def halted(conn, provider_name: str) -> Optional[str]:
     h = (get(conn).get(HALT_KEY) or {}).get(service_of(provider_name))
     if not h:
         return None
-    return (f"{service_of(provider_name)} báo HẾT TIỀN lúc {h['at']} ({h['message'][:120]}) — đã dừng mọi lượt gửi tới dịch vụ này; "
-            "nạp tiền rồi mở lại trong ⚙ → 💵 Ngân sách")
+    try:                                   # S14.16: a real stop says the numbers too (money spent / planned amount)
+        b = get(conn)
+        llm = service_of(provider_name) == "anthropic"
+        used = llm_spent(conn) if llm else spent(conn, since=b["since"] if b["enabled"] else None)["usd"]
+        plan = b["llm_usd"] if llm else (b["usd"] if b["enabled"] else None)
+        nums = f"; đã chi ≈ ${used:.2f}" + (f", mức dự tính ${plan:.2f}" if plan else "")
+    except Exception:  # noqa: BLE001 - the stop itself must still be said
+        nums = ""
+    return (f"⛔ CHẶN: {service_of(provider_name)} báo HẾT TIỀN lúc {h['at']} ({h['message'][:120]}){nums} — đã dừng mọi lượt gửi tới "
+            "dịch vụ này; cách mở: nạp tiền rồi mở lại trong ⚙ → 💵 Ngân sách")
 
 
 def check_llm(conn, next_usd: float = 0.0) -> Optional[str]:
-    """A reason not to call the Claude API now, else None: its money is used up, or this call (`next_usd`, its worst case) would cross
-    the cap — the cap is never crossed, not just reached (trial #8 2026-09-28: 5.54 / 5.50). llm_usd <= 0 switches the cap off."""
-    stop = halted(conn, "anthropic")
-    if stop:
-        return stop
+    """A reason the Claude API must NOT be called now, else None. Chính sách tiền 04/10 (S14.16, core.money_policy): only a real stop —
+    Anthropic said it is out of credit (halt). The Claude cap (llm_usd) is a planned amount that WARNS (warn_llm), it never refuses."""
+    return halted(conn, "anthropic")
+
+
+def warn_llm(conn, next_usd: float = 0.0) -> Optional[str]:
+    """A warning with numbers when the Claude money used (+ this call's worst case `next_usd`) passes the planned amount llm_usd, else
+    None. llm_usd <= 0 = no planned amount. The call still goes (S14.16)."""
+    from . import money_policy
     b = get(conn)
     if b["llm_usd"] <= 0:
         return None
     used = llm_spent(conn)
-    if used >= b["llm_usd"] - 1e-9 or used + next_usd > b["llm_usd"] + 1e-9:
-        return (f"Hết ngân sách Claude API: đã dùng ≈ ${used:.2f} / ${b['llm_usd']:.2f}"
-                + (f" (lời gọi này có thể tốn tới ≈ ${next_usd:.2f})" if next_usd else "")
-                + " — nạp thêm tiền trên Anthropic Console rồi cập nhật trong ⚙ → 💵 Ngân sách thử")
-    return None
+    if not money_policy.over(used, b["llm_usd"], next_usd):
+        return None
+    return money_policy.warning_text("Claude API", used, b["llm_usd"], next_usd or None,
+                                     extra="nạp thêm tiền trên Anthropic Console / đặt lại mức ở ⚙ → 💵 Ngân sách")
 
 
 def pricing_problem(pricing: Optional[Dict] = None) -> Optional[str]:
@@ -284,54 +299,65 @@ def pricing_problem(pricing: Optional[Dict] = None) -> Optional[str]:
     return None
 
 
-def _no_price(what: str) -> str:
-    return (f"{what} chưa có giá trong data/pricing.json — trần ngân sách thử không tính được nên KHÔNG gửi (giống trần Claude); "
-            "thêm giá ở ⚙ → 💲 Bảng giá, chọn model khác, hoặc tắt đợt thử")
-
-
-def check_video(conn, provider_name: str, model: str, tier: str, seconds: float) -> Optional[str]:
-    """A reason not to send this clip (it would pass the limit, its model/tier has no price while the limit is on, or the price table
-    is broken), else None. A clip without a price used to count as $0 and pass the cap."""
-    if provider_name.startswith("mock"):
-        return None
-    stop = halted(conn, provider_name)          # Data Pack P5: the service said it is out of money
-    if stop:
-        return stop
-    pricing = cost.load_pricing()
-    broken = pricing_problem(pricing)
-    if broken:
-        return broken
+def _trial_warning(conn, pricing: Dict, what: str, usd: Optional[float], est: Dict) -> Optional[str]:
+    """The trial round's money warning for one send priced `usd` (an over-estimate when the table has no price: est["missing"])."""
+    from . import money_policy
     b = get(conn)
     if not b["enabled"]:
         return None
-    price = cost.clip_price(pricing, model, tier, seconds)
-    if price is None:
-        return _no_price(f"clip {model}:{tier}")
     s = spent(conn, pricing, since=b["since"])
-    if s["usd"] + price > b["usd"] + 1e-9:
-        return (f"vượt trần ngân sách thử: đã chi ≈ ${s['usd']:.2f}, clip này ≈ ${price:.2f}, trần ${b['usd']:.0f} "
-                "— nâng trần hoặc bắt đầu đợt mới trong ⚙ → Ngân sách thử")
+    missing = [est["missing"]] if est.get("missing") else []
+    if usd is None or missing or money_policy.over(s["usd"], b["usd"], usd):
+        return money_policy.warning_text(f"đợt thử — {what}", s["usd"], b["usd"], usd, missing + list(s["unknown"]),
+                                         extra=est.get("note") or "")
     return None
 
 
-def check_audio(conn, provider_name: str) -> Optional[str]:
-    """C12: TTS / music / sound effects have no price in pricing.json, so the money cap cannot see them — the count is capped instead
-    (and the reason says so). A broken price table refuses them too."""
-    if provider_name.startswith("mock"):
+def _hard(conn, provider_name: str) -> Optional[str]:
+    """The only refusal left for a paid send (S14.16): the service said it is out of money. Simulated providers never stop."""
+    if str(provider_name or "").startswith("mock"):
         return None
-    stop = halted(conn, provider_name)          # Data Pack P5: the service said it is out of money
-    if stop:
-        return stop
+    return halted(conn, provider_name)
+
+
+def check_video(conn, provider_name: str, model: str, tier: str, seconds: float) -> Optional[str]:
+    """A reason NOT to send this clip, else None. Chính sách tiền 04/10 (S14.16): only a service out of credit refuses; the trial cap,
+    a model/tier without a price and a broken price table only warn (warn_video)."""
+    return _hard(conn, provider_name)
+
+
+def warn_video(conn, provider_name: str, model: str, tier: str, seconds: float) -> Optional[str]:
+    """Warning with numbers for this clip (trial cap passed, no price → estimated high, broken price table), else None."""
+    from . import money_policy
+    if str(provider_name or "").startswith("mock"):
+        return None
+    pricing = cost.load_pricing()
+    broken = pricing_problem(pricing)
+    if broken:
+        return f"⚠ {broken} — giá ước tính có thể sai, VẪN GỬI"
+    est = money_policy.estimate("video", model, tier, seconds, pricing)
+    return _trial_warning(conn, pricing, f"clip {model}:{tier}", est["usd"], est)
+
+
+def check_audio(conn, provider_name: str) -> Optional[str]:
+    """A reason NOT to send one audio job, else None: only a service out of credit (S14.16). The trial's count cap warns (warn_audio)."""
+    return _hard(conn, provider_name)
+
+
+def warn_audio(conn, provider_name: str) -> Optional[str]:
+    """C12: TTS / music / sound effects have no price, so the trial counts them — past its count the send WARNS (and goes)."""
+    if str(provider_name or "").startswith("mock"):
+        return None
     broken = pricing_problem()
     if broken:
-        return broken
+        return f"⚠ {broken} — VẪN GỬI"
     b = get(conn)
     if not b["enabled"]:
         return None
     n = spent(conn, since=b["since"])["audios"]
     if n + 1 > b["audio_cap"]:
-        return (f"đã tạo {n} âm thanh trong đợt thử (trần {b['audio_cap']} lượt — âm thanh chưa có giá nên trần tính theo SỐ LƯỢT, "
-                "không vào tổng USD) — nâng trần trong ⚙ → Ngân sách thử")
+        return (f"⚠ đợt thử: đã tạo {n} âm thanh, mức dự tính {b['audio_cap']} lượt (âm thanh chưa có giá USD nên tính theo SỐ LƯỢT), "
+                f"lượt này là lượt {n + 1} — VẪN GỬI (trần chỉ để cảnh báo; đặt lại ở ⚙ → Ngân sách thử)")
     return None
 
 
@@ -348,28 +374,31 @@ def audio_tag(conn, count: int = 1) -> str:
 
 
 def check_image(conn, provider_name: str, model: Optional[str] = None, count: int = 1) -> Optional[str]:
-    """A reason not to send `count` more pictures (default one): the count cap, and — now that data/pricing.json has per_image prices
-    (provisional) — the USD cap too; a picture model without a price is refused while the limit is on (it would count as $0).
-    `count` > 1: a set sent together (core.costume's 2 pictures, S14.1) is checked whole before the first one goes."""
-    if provider_name.startswith("mock"):
+    """A reason NOT to send `count` more pictures, else None: only a service out of credit (S14.16). The trial's count and money caps
+    and a picture model without a price only warn (warn_image)."""
+    return _hard(conn, provider_name)
+
+
+def warn_image(conn, provider_name: str, model: Optional[str] = None, count: int = 1) -> Optional[str]:
+    """Warning with numbers for `count` pictures sent together (core.costume's 2 pictures are checked whole): the trial's count cap,
+    the trial's money (a model without a price is estimated high — core.money_policy), a broken price table. None = nothing to say."""
+    from . import money_policy
+    if str(provider_name or "").startswith("mock"):
         return None
-    stop = halted(conn, provider_name)          # Data Pack P5: the service said it is out of money
-    if stop:
-        return stop
     pricing = cost.load_pricing()
     broken = pricing_problem(pricing)
     if broken:
-        return broken
+        return f"⚠ {broken} — giá ước tính có thể sai, VẪN GỬI"
     b = get(conn)
     if not b["enabled"]:
         return None
     s = spent(conn, pricing, since=b["since"])
-    if s["images"] + count > b["image_cap"]:
-        return f"đã gen {s['images']} ảnh trong đợt thử (trần {b['image_cap']} ảnh) — nâng trần trong ⚙ → Ngân sách thử"
-    price = cost._number(pricing.get("per_image", {}).get(model)) if model else None
-    if price is None:
-        return _no_price(f"ảnh model {model or '(không rõ model)'}")
-    if s["usd"] + price * count > b["usd"] + 1e-9:
-        return (f"vượt trần ngân sách thử: đã chi ≈ ${s['usd']:.2f}, {'ảnh này' if count == 1 else f'{count} ảnh'} ≈ ${price * count:.3f}, trần ${b['usd']:.0f} "
-                "— nâng trần hoặc bắt đầu đợt mới trong ⚙ → Ngân sách thử")
+    count_note = f"đã gen {s['images']} ảnh, mức dự tính {b['image_cap']} ảnh" if s["images"] + count > b["image_cap"] else ""
+    est = money_policy.estimate("image", model, None, count, pricing)
+    what = f"{'ảnh này' if count == 1 else f'{count} ảnh'} ({model or 'không rõ model'})"
+    money = _trial_warning(conn, pricing, what, est["usd"], est)
+    if money:
+        return money + (f"; {count_note}" if count_note else "")
+    if count_note:
+        return f"⚠ đợt thử: {count_note} — VẪN GỬI (trần chỉ để cảnh báo; đặt lại ở ⚙ → Ngân sách thử)"
     return None
