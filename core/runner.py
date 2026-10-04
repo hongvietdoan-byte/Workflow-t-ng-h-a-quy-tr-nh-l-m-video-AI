@@ -37,10 +37,11 @@ def _job_ids(job) -> dict:
 
 def model_fix(retry_reason: Optional[str]) -> Optional[str]:
     """The fix sentence a retry sends to the picture/video model, or None. A resend of the same input after a provider failure
-    (RESEND_NOTE / pipeline.PLAIN_RESEND) carries a note for people only — it is never put into the model's prompt."""
-    from .pipeline import PLAIN_RESEND
+    (RESEND_NOTE / pipeline.PLAIN_RESEND) carries a note for people only — it is never put into the model's prompt. Nor does a take whose
+    shot prompt the Director already rewrote (pipeline.REWRITE_NOTE, S14.17): the fix is in the prompt itself."""
+    from .pipeline import PLAIN_RESEND, REWRITE_NOTE
     text = (retry_reason or "").strip()
-    if not text or text.startswith(RESEND_NOTE) or text.startswith(PLAIN_RESEND):
+    if not text or text.startswith(RESEND_NOTE) or text.startswith(PLAIN_RESEND) or text.startswith(REWRITE_NOTE):
         return None
     return text
 

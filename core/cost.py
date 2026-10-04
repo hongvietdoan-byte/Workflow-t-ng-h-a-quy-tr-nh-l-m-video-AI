@@ -276,6 +276,7 @@ def price_tag(usd: Optional[float], count: int = 1) -> str:
 LLM_STAGE_TOKENS = {"director": (25000, 18000), "motion": (9000, 4000), "qc": (6000, 900), "style": (9000, 1500),
                     "video_analysis": (14000, 4000), "setcheck": (8000, 1200), "clipcheck": (10000, 1200),
                     "asset_vision": (6000, 900), "research": (25000, 1500),
+                    "director_rewrite": (5000, 900),   # S14.17: one shot's prompt rewritten before a retake (+ the faulty picture)
                     "editor": (9000, 3000)}    # rough-cut review (P2, both calls): text only here — the sheets (≤ 12) are added as `images` ≈ 1,400 tokens each
 IMAGE_TOKENS = 1400
 
@@ -283,6 +284,22 @@ IMAGE_TOKENS = 1400
 def llm_model() -> str:
     from .llm_runner import DEFAULT_MODEL
     return os.environ.get("ANTHROPIC_MODEL", "").strip() or DEFAULT_MODEL
+
+
+def rewrite_estimate(conn, n_images: int, n_clips: int, img_cap: int, vid_cap: int, pricing: Optional[Dict] = None,
+                     unknown: Optional[list] = None):
+    """S14.17 (flag director_rewrite): the Director's rewrite of a shot prompt before each retake, priced on the high side (tính dư):
+    (base = one rewrite per picture and per clip, worst = one per possible take). (0, 0) when the flag is off."""
+    from . import features
+    if not features.on("director_rewrite") or not (n_images or n_clips):
+        return 0.0, 0.0
+    one = llm_call_usd(conn, "director_rewrite", pricing, images=1)
+    if one is None:
+        if unknown is not None:
+            unknown.append(f"Claude {llm_model()}")
+        return 0.0, 0.0
+    one *= LLM_MARGIN
+    return one * (n_images + n_clips), one * (n_images * (1 + img_cap) + n_clips * (1 + vid_cap))
 
 
 def llm_call_usd(conn, stage: str, pricing: Optional[Dict] = None, images: int = 0, ledger_stage: Optional[str] = None) -> Optional[float]:
@@ -430,12 +447,15 @@ def estimate_run(pipeline: Pipeline, project_id: int, pricing: Optional[Dict] = 
     retry = int(proj["max_retry_count"] or 0)
     from .pipeline import AUTO_REGEN_LIMIT             # automatic regenerations: picture 3, clip 2 (S14.16), lowered by max_retry
     img_cap, vid_cap = min(retry, AUTO_REGEN_LIMIT["image_gen"]), min(retry, AUTO_REGEN_LIMIT["video_gen"])
+    rewrite, rewrite_max = rewrite_estimate(conn, img["items"], len(todo), img_cap, vid_cap, pricing, unknown)
+    llm_usd += rewrite
     base = (img_usd or 0.0) + vid_usd + llm_usd
-    worst = (img_usd or 0.0) * (1 + img_cap) + vid_usd * (1 + vid_cap) + llm_usd * (1 + img_cap)
+    worst = (img_usd or 0.0) * (1 + img_cap) + vid_usd * (1 + vid_cap) + (llm_usd - rewrite) * (1 + img_cap) + rewrite_max
     from . import budget
     b = budget.status(conn) if budget.get(conn).get("enabled") else None
     llm_left = b["llm_left"] if b and b["llm_usd"] > 0 else None
     return {"images": img_usd, "videos": round(vid_usd, 2), "llm": round(llm_usd, 2), "total": round(base, 2), "max": round(worst, 2),
+            "rewrite": round(rewrite, 3),
             "llm_left": llm_left, "unknown": sorted(set(unknown)), "counts": {"images": img["items"], "end_frames": img.get("end_frames", 0),
                                                         "clips": len(todo), "seconds": sum(r["billed_seconds"] for r in todo)}}
 

@@ -14,6 +14,7 @@ import streamlit as st
 from dashboard.common import *  # noqa: F401,F403  (shared imports + helpers, như step2/step3)
 from dashboard import common as C
 from dashboard.design import components as D
+from dashboard.design.screens.prompt_versions_ui import spin as _spin  # S14.17: spinner khi Đạo diễn viết lại prompt
 
 # job.state -> trạng thái duyệt cố định của thiết kế (components.FRAME_STATES)
 _FRAME = {"approved": "approved", "pending_review": "review", "succeeded": "review", "rejected": "rejected", "failed": "failed",
@@ -230,6 +231,9 @@ def image_group_v2(p, pid: int, history: list, proj, stale_reason=None) -> None:
             card_details(p, proj, j, is_latest, stale_reason)
         st.markdown(pills + (" " + _qc_chips(p, proj, jid) if not busy else ""), unsafe_allow_html=True)
         _version_strip(pid, sid, key, n, pointer)
+        if is_latest:                                       # S14.17: the Director rewrote this shot's prompt → old/new + ↩
+            from dashboard.design.screens import prompt_versions_ui
+            prompt_versions_ui.panel(p, sid, "image", act)
 
         def pair():
             a = st.columns(2, gap="small")
@@ -249,7 +253,7 @@ def image_group_v2(p, pid: int, history: list, proj, stale_reason=None) -> None:
                 act(lambda: p.reject(jid, "user", note or "đã xóa", respawn=False))
                 st.rerun()
             if b3.button("↻ Vẽ lại", key=f"r_{jid}", width="stretch"):
-                act(lambda: p.reject(jid, "user", note or None))
+                act(_spin(lambda: p.reject(jid, "user", note or None)))
                 st.rerun()
             if b4.button("✎ Sửa", key=f"sel_btn_{jid}", width="stretch"):
                 _open_detail(pid, jid)
@@ -281,7 +285,7 @@ def image_group_v2(p, pid: int, history: list, proj, stale_reason=None) -> None:
             b2.button("✖ Loại", key=f"dd_{jid}", disabled=True, width="stretch")
             if b3.button("↻ Vẽ lại", key=f"reopen_{jid}", width="stretch",
                          help="Bỏ duyệt và gen lại ảnh (motion/video làm từ ảnh này sẽ hiện ⚠ cũ)"):
-                if act(lambda: p.reopen_approved(jid, r_note or None), "Đã bỏ duyệt, xếp hàng gen lại"):
+                if act(_spin(lambda: p.reopen_approved(jid, r_note or None)), "Đã bỏ duyệt, xếp hàng gen lại"):
                     st.rerun()
             if b4.button("✎ Sửa", key=f"sel_btn_{jid}", width="stretch"):
                 _open_detail(pid, jid)

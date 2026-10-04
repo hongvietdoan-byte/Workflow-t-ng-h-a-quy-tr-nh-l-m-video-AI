@@ -2,6 +2,7 @@
 from dashboard.common import *  # noqa: F401,F403  (shared imports + helpers)
 from dashboard import common as C
 from dashboard.widgets import auto_poll_videos, video_busy
+from dashboard.design.screens.prompt_versions_ui import spin as _spin  # S14.17: spinner khi Đạo diễn viết lại prompt
 
 
 def _latest_jobs(p: Pipeline, pid: int) -> dict:
@@ -227,7 +228,7 @@ def clip_set_panel(p: Pipeline, pid: int) -> None:
                     c2.caption("QC không nêu câu sửa — sửa motion prompt ở tab Motion (Storyboard)")
                 elif job and c2.button("↻ Gen lại clip này" + cost.price_tag(cost.clip_estimate(p.conn, p.job(job["id"])["scene_id"])),
                                        key=f"clipqc_redo_{pid}_{n}", help="Gen lại với câu sửa của QC (tiếng Anh) — đầu vào khác lần trước"):
-                    act(lambda: regen.regenerate_video(p, C.DATA, job["id"], f"Đồng bộ cả bộ clip: {it['problem']}", fix=it["fix"]),
+                    act(_spin(lambda: regen.regenerate_video(p, C.DATA, job["id"], f"Đồng bộ cả bộ clip: {it['problem']}", fix=it["fix"])),
                         "Đã xếp hàng gen lại")
                     st.rerun()
 
@@ -317,7 +318,7 @@ def video_card(p: Pipeline, pid: int, j, runner, stale_reason) -> None:
                     act(lambda: p.approve(j["id"], "user"))
                     st.rerun()
                 if y.button("✖ Loại & gen lại" + tag, key=f"vr_rej_{j['id']}"):
-                    act(lambda: p.reject(j["id"], "user", st.session_state.get(f"vnote_{j['id']}") or None))
+                    act(_spin(lambda: p.reject(j["id"], "user", st.session_state.get(f"vnote_{j['id']}") or None)))
                     st.rerun()
             if j["state"] == "failed" and blocked:
                 st.caption("Bị bộ lọc nội dung chặn: gen lại nguyên prompt sẽ lại bị chặn và tốn credit.")
@@ -430,6 +431,8 @@ def video_card_v2(p: Pipeline, pid: int, j, runner, stale_reason) -> None:
             flags = []
         if flags:
             D.line(V.layer0_summary(flags), V.layer0_md(flags), f"vid-{jid}-l0")
+        from dashboard.design.screens import prompt_versions_ui     # S14.17: the Director rewrote the motion prompt → old/new + ↩
+        prompt_versions_ui.panel(p, j["scene_id"], "video", act)
         qnote = p.conn.execute("SELECT note FROM review_log WHERE job_id=? AND note IS NOT NULL AND note!='' ORDER BY id DESC LIMIT 1", (jid,)).fetchone()
         if qnote:
             D.line(V.note_summary("Ghi chú QC", qnote["note"]), qnote["note"], f"vid-{jid}-note")
@@ -467,7 +470,7 @@ def video_card_v2(p: Pipeline, pid: int, j, runner, stale_reason) -> None:
                   help="Mở tab Motion của Storyboard (tab Motion).")
         if r4.button("✖ Loại & gen lại" + tag, key=f"vr_rej_{jid}", disabled=not reviewable, width="stretch",
                      help="Loại clip này và xếp hàng gen lại (kèm câu sửa nếu bạn nhập)."):
-            act(lambda: p.reject(jid, "user", st.session_state.get(f"vnote_{jid}") or None))
+            act(_spin(lambda: p.reject(jid, "user", st.session_state.get(f"vnote_{jid}") or None)))
             st.rerun()
         # ---- rare actions: one popover ------------------------------------------------------------------------------------------
         can_cancel = state in ("queued", "running")

@@ -24,13 +24,21 @@ def regenerate_video(pipeline: Pipeline, data_dir: str, job_id: int, note: Optio
     actor = "ai_agent" if auto else "user"
     row = pipeline.conn.execute("SELECT idx FROM scenes WHERE id=?", (job["scene_id"],)).fetchone()
     path = job["result_path"] or os.path.join(data_dir, str(job["project_id"]), "videos", f"{row['idx']:02d}.mp4")
+    from . import access
+    access.need_edit_job(pipeline, job_id, "gen lại video")
+    if job["state"] != "approved":
+        pipeline._require_reviewable(job_id)           # checked BEFORE the paid rewrite (reject below would raise the same)
+    # S14.17: the Director rewrites the motion prompt while the clip is still alive (review #1: no moment without a live take) and
+    # while its file is still there (the faulty frames)
+    plan = pipeline._rewrite_before_retry(job, (fix or "").strip() or None, note=note, by="qc" if auto else "user")
     if job["state"] == "approved":                     # an approved clip (video QC passed) can still be redone
         from .states import JobState
         pipeline._log_review(job_id, actor, "reject", note or "gen lại video")
         pipeline.transition(job_id, JobState.REJECTED, actor=actor, note=note or "gen lại video")
     else:
         pipeline.reject(job_id, actor, note or "gen lại video", respawn=False)  # raises unless the job is reviewable
+    reason = plan.apply()
     trash.move_to_trash(path, data_dir, job["project_id"], "videos", "gen lại video", job_id, row["idx"])
     return pipeline._insert_job(job["project_id"], job["scene_id"], "video_gen", parent_job_id=job_id,
-                                retry_count=job["retry_count"] + 1 if auto else 0, retry_reason=(fix or "").strip() or None,
+                                retry_count=job["retry_count"] + 1 if auto else 0, retry_reason=reason,
                                 origin="auto" if auto else None)

@@ -2,6 +2,7 @@
 from dashboard.common import *  # noqa: F401,F403  (shared imports + helpers)
 from dashboard import common as C
 from dashboard.widgets import auto_poll_images, image_busy
+from dashboard.design.screens.prompt_versions_ui import spin as _spin  # S14.17: spinner khi Đạo diễn viết lại prompt
 from core import image_models
 
 
@@ -354,7 +355,7 @@ def image_card(p: Pipeline, pid: int, j, proj, read_only: bool = False, stale_re
                 act(lambda: p.approve(jid, "user"))
                 st.rerun()
             if b.button("✖ Loại", key=f"r_{jid}", help="Loại và gen lại (ghi chú lý do ở khung chi tiết bên phải)"):
-                act(lambda: p.reject(jid, "user", st.session_state.get(f"note_{jid}") or None))
+                act(_spin(lambda: p.reject(jid, "user", st.session_state.get(f"note_{jid}") or None)))
                 st.rerun()
             if c.button("🔍 Xem", key=f"sel_btn_{jid}"):
                 st.session_state[f"sel_{pid}"] = jid
@@ -440,7 +441,7 @@ def image_detail(p: Pipeline, pid: int, j, proj, on_card: bool = False):
                                  key=f"note_{jid}")
             a, b = st.columns(2)
             if b.button("✖ Loại & gen lại", key=f"dr_{jid}"):
-                act(lambda: p.reject(jid, "user", note or None))
+                act(_spin(lambda: p.reject(jid, "user", note or None)))
                 st.rerun()
             if a.button("✔ Duyệt", key=f"da_{jid}", type="primary"):
                 act(lambda: p.approve(jid, "user"))
@@ -461,7 +462,7 @@ def image_detail(p: Pipeline, pid: int, j, proj, on_card: bool = False):
             r_note = st.text_input("Lý do bỏ duyệt (đưa vào prompt gen lại)", key=f"rn_{jid}")
             st.caption("Bỏ duyệt: motion prompt và video làm từ ảnh này sẽ hiện ⚠ cũ để làm lại.")
             if st.button("↩ Bỏ duyệt & gen lại ảnh", key=f"reopen_{jid}"):
-                if act(lambda: p.reopen_approved(jid, r_note or None), "Đã bỏ duyệt, xếp hàng gen lại"):
+                if act(_spin(lambda: p.reopen_approved(jid, r_note or None)), "Đã bỏ duyệt, xếp hàng gen lại"):
                     st.rerun()
 
 

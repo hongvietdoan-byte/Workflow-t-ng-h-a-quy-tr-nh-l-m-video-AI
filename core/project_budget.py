@@ -146,7 +146,8 @@ def remaining(p, pid: int) -> Dict[str, float]:
         qc += qc_team.FRAME_USD * n_img * (1 + IMAGE_REDO)
     return {"images": round((est["images"] or 0.0) * (1 + IMAGE_REDO), 2),
             "videos": round(vid * (1 + VIDEO_REDO), 2),
-            "claude_director": 0.0 if director_done else round((cost.llm_estimate(conn, "director", 1, pricing) or 0.0) * LLM_MARGIN, 2),
+            "claude_director": round((0.0 if director_done else (cost.llm_estimate(conn, "director", 1, pricing) or 0.0) * LLM_MARGIN)
+                                     + (est.get("rewrite") or 0.0), 2),     # S14.17: the Director's rewrites before retakes (flag on)
             "claude_qc": round(qc * LLM_MARGIN, 2),
             "claude_motion": round(((cost.llm_estimate(conn, "motion", 1 if est["counts"]["clips"] else 0, pricing) or 0.0)
                                     + (_translate_worst(conn, pid) if est["counts"]["clips"] else 0.0)) * LLM_MARGIN, 2),
