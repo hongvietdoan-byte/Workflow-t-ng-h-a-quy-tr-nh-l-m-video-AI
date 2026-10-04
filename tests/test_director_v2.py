@@ -45,6 +45,37 @@ class ReportTests(unittest.TestCase):
         self.assertIn("Tổng lỗi đo được", director_report.text(r))
 
 
+class RepeatedLineTests(unittest.TestCase):
+    """S14.4 C1b (04/10): a line said twice in the script and once in the plan was matched as a set → 'nothing dropped'."""
+    SCRIPT2 = "CẢNH 1 - 0-6s, Sân\nKELLY: Đi thôi!\nMAXIM: Ừ.\nKELLY: Đi thôi!\n"
+
+    def _plan(self, said):
+        return {"scenes": [{"idx": 1, "shots": [{"duration_s": 2, "size": "MS", "dialogue": [{"speaker": w, "text": t}]}
+                                                for w, t in said]}]}
+
+    def test_the_report_counts_a_repeated_line(self):
+        r = director_report.report(self._plan([("KELLY", "Đi thôi!"), ("MAXIM", "Ừ.")]), self.SCRIPT2)
+        self.assertEqual([d["text"] for d in r["dropped"]], ["Đi thôi!"])
+        full = director_report.report(self._plan([("KELLY", "Đi thôi!"), ("MAXIM", "Ừ."), ("KELLY", "Đi thôi!")]), self.SCRIPT2)
+        self.assertEqual(full["dropped"], [])
+
+    def test_the_line_check_counts_a_repeated_line(self):
+        from unittest import mock
+        from core import llm_io, shots as shots_mod
+        from core.db import connect
+        from core.pipeline import Pipeline
+        p = Pipeline(connect())
+        pid = p.create_project("rep")
+        story = [{"text": "KELLY: Đi thôi!\nMAXIM: Ừ.\nKELLY: Đi thôi!"}]
+        with mock.patch.object(shots_mod, "story_scenes", return_value=story):
+            with self.assertRaisesRegex(llm_io.SchemaError, "thiếu câu thoại"):
+                llm_io._check_lines(p, pid, self._plan([("KELLY", "Đi thôi!"), ("MAXIM", "Ừ.")]))
+            with self.assertRaisesRegex(llm_io.SchemaError, "không có nguyên văn"):       # said 3 times, written twice
+                llm_io._check_lines(p, pid, self._plan([("KELLY", "Đi thôi!"), ("MAXIM", "Ừ."), ("KELLY", "Đi thôi!"),
+                                                        ("KELLY", "Đi thôi!")]))
+            llm_io._check_lines(p, pid, self._plan([("KELLY", "Đi thôi!"), ("MAXIM", "Ừ."), ("KELLY", "Đi thôi!")]))
+
+
 class NormalizeTests(unittest.TestCase):
     def test_run4_is_fixed_without_touching_a_line(self):
         fixed, changes = shot_normalize.normalize(RUN4, SCRIPT)
@@ -150,6 +181,28 @@ class FlagTests(unittest.TestCase):
         self.assertIn("Vai Đạo diễn — bộ kỹ năng nghề", on)
         self.assertIn("Vai Quay phim (DP)", on)
         self.assertNotIn("Phương pháp đạo diễn — ra quyết định hình ảnh", on)     # folded into the role book
+
+    def test_the_knowledge_page_shows_what_film_crew_really_sends(self):
+        """S14.4 C1b (04/10): with film_crew on, ⚙ Kiến thức still listed the 3 old documents as sent and not the role books."""
+        from core import knowledge, prompts
+        files = lambda ov: {d["file"]: d for d in ov["docs"]}  # noqa: E731
+        off = files(knowledge.overview("director"))
+        self.assertNotIn("knowledge/roles/director.md", off)
+        self.assertFalse(any(d.get("crew_replaced") for d in off.values()))
+        os.environ["FEATURE_FILM_CREW"] = "1"
+        ov = knowledge.overview("director")
+        on = files(ov)
+        for rel in ("knowledge/roles/director.md", "knowledge/roles/dp.md", "knowledge/editor/editing.md"):
+            self.assertIn(rel, on)
+            self.assertTrue(on[rel]["exists"], rel)
+        self.assertEqual({f for f, d in on.items() if d.get("crew_replaced")}, set(knowledge.CREW_REPLACES))
+        bundle = prompts.build_director_bundle(self.p, self.pid)
+        for rel in knowledge.CREW_REPLACES:                                       # the same 3 files prompts.py leaves out
+            first = next(ln for ln in open(os.path.join(knowledge.ROOT, rel), encoding="utf-8").read().splitlines() if ln.strip())
+            self.assertNotIn(first, bundle, rel)
+        sent = sum(d["chars"] for d in ov["docs"] if d["enabled"] and not d["replaced"] and not d.get("crew_replaced")
+                   and not d.get("elsewhere"))
+        self.assertEqual(ov["chars"], sent)
 
     def test_camera_setups_ask_for_and_keep_the_setup_letter(self):
         from core import prompts, shots

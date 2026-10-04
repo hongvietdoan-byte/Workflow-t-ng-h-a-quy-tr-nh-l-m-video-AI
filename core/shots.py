@@ -164,12 +164,12 @@ def _shot_text(s: Dict) -> str:
 def _split_lines(s: Dict):
     """(spoken lines, on-screen text): a 'line' of the system / HUD / a text card is shown on screen, never voiced (kịch bản
     "ANH CHỌN AI?": "HỆ THỐNG: Maxim đã bị hạ" came back as a NARRATOR line)."""
-    from .dialogue import NOT_SPEAKERS
+    from .dialogue import is_non_speaker
     from .voice_direction import clean as clean_delivery
     spoken, screen = [], [str(x).strip() for x in s.get("on_screen_text") or [] if str(x).strip()]
     for d in s.get("dialogue") or []:
         who, said = str(d.get("speaker") or "").strip(), str(d["text"]).strip()
-        if who.upper() in NOT_SPEAKERS:
+        if is_non_speaker(who):
             screen.append(said)
             continue
         line = {"speaker": who, "text": said}

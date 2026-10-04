@@ -94,6 +94,15 @@ class QualityGateTests(unittest.TestCase):
         self.assertIn("silence: 1 → 2", why[0])
         self.assertTrue(editor_apply.qc_worse(before, {"issues": [{"code": "music_hole", "level": "block"}]})[0])      # a new kind counts
 
+    def test_a_warning_that_became_blocking_is_worse(self):
+        """S14.4 C1b (04/10): the same count compared without the level — warn → block passed as 'not worse'."""
+        before = {"issues": [{"code": "silence", "level": "warn"}]}
+        worse, why = editor_apply.qc_worse(before, {"issues": [{"code": "silence", "level": "block"}]})
+        self.assertTrue(worse)
+        self.assertIn("chặn", why[0])
+        self.assertFalse(editor_apply.qc_worse({"issues": [{"code": "silence", "level": "block"}]},
+                                               {"issues": [{"code": "silence", "level": "warn"}]})[0])   # block → warn is better
+
 
 class RenderOverrideTests(Base):
     def test_a_music_edit_changes_the_render_not_the_plan(self):

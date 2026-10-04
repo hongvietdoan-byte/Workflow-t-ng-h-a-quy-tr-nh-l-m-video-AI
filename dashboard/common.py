@@ -87,7 +87,8 @@ def close_dialog(flag: str) -> None:
     st.session_state[flag] = False
 
 ERRORS = (sqlite3.IntegrityError, zipfile.BadZipFile, llm_runner.LlmError, InvalidTransition, llm_io.SchemaError, PipelinePaused, ffmpeg_studio.FFmpegNotFound,
-          ffmpeg_studio.FFmpegError, ValueError, KeyError, access.AccessDenied)     # AccessDenied: lỗi quyền theo dự án, tiếng Việt (core/access.py)
+          ffmpeg_studio.FFmpegError, ValueError, KeyError, access.AccessDenied,     # AccessDenied: lỗi quyền theo dự án, tiếng Việt (core/access.py)
+          lessons.LessonError)                                                      # S14.4 C1b: bài học không ghi được tài liệu
 
 CRITERIA_LABEL = {"character": "Đúng nhân vật", "hands_face": "Không lỗi tay/mặt", "composition": "Đúng bố cục",
                   "mood_lighting": "Đúng mood / ánh sáng", "consistency": "Không chi tiết thừa/sai",
@@ -114,7 +115,7 @@ def image_runner(p: Pipeline):
     try:
         provider = factory.image_provider()
     except ProviderError as e:
-        st.error(f"Deepix: {e}")
+        st.error(f"Deepix (tạo ảnh) chưa sẵn sàng: {e}")      # J1: the adapter's message is Vietnamese + says what to do
         return None
     return ImageRunner(p, provider, DATA) if provider else None
 

@@ -13,6 +13,7 @@ image prompt, just through words instead of pixels, where it can't be mis-copied
 Runs in the background, one game's library at a time, and only for resources that do not have this text yet (a person's own edits to the
 description are kept; this appends a marked, replaceable block, like core/ff_site.py does for the website text).
 """
+import os
 import threading
 import time
 from typing import Callable, Dict, List, Optional, Tuple
@@ -57,10 +58,16 @@ def _eligible(a: Dict) -> bool:
 def pending(conn, game: str) -> int:
     """Library resources (character/pet, with pictures) that have not been read by Claude yet."""
     # one query, no pictures read from disk (02/10: the full list of entries was built just to count them; at 10× the library that took 0.5 s)
-    row = conn.execute("SELECT COUNT(*) FROM assets a WHERE a.project_id IS NULL AND a.game=? AND a.kind IN ('character', 'pet')"
-                       " AND instr(COALESCE(a.description, ''), ?) = 0"
-                       " AND EXISTS (SELECT 1 FROM asset_images i WHERE i.asset_id=a.id AND i.status='approved')", (game, MARK)).fetchone()
-    return int(row[0])
+    # S14.4 C1b: the same rule as _eligible — an approved picture whose FILE is there (a lost file made the count say "N chờ" while
+    # the run read nothing). One query + one exists() per candidate asset until a file is found (no full rows built).
+    rows = conn.execute("SELECT a.id, i.path FROM assets a JOIN asset_images i ON i.asset_id=a.id WHERE a.project_id IS NULL"
+                        " AND a.game=? AND a.kind IN ('character', 'pet') AND instr(COALESCE(a.description, ''), ?) = 0"
+                        " AND COALESCE(i.status, 'approved')='approved' ORDER BY a.id", (game, MARK)).fetchall()
+    found = set()
+    for r in rows:
+        if r["id"] not in found and r["path"] and os.path.exists(assets.resolve(r["path"])):
+            found.add(r["id"])
+    return len(found)
 
 
 def can_run(conn, game: str, client_factory: Optional[Callable] = None) -> bool:

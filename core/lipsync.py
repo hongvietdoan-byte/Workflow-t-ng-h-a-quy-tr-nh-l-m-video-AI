@@ -175,7 +175,7 @@ def post_tick(p, pid: int, data_dir: str, provider, ffmpeg: str, log=lambda m: N
     idx = index(data_dir, pid)
 
     def say(severity: str, code: str, message: str, scene_id: int, job_id=None) -> None:
-        diag.record(p.conn, "videos", severity, message, code, pid, scene_id, job_id)
+        diag.record(p.conn, "video", severity, message, code, pid, scene_id, job_id)
 
     for s in conn_rows(p, pid):
         data = json.loads(s["data"] or "{}")

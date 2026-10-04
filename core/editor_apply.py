@@ -130,10 +130,22 @@ def _counts(qc: Dict) -> Dict[str, int]:
     return out
 
 
+def _blocks(qc: Dict) -> Dict[str, int]:
+    out: Dict[str, int] = {}
+    for i in qc.get("issues") or []:
+        if i.get("level") == "block":
+            out[i["code"]] = out.get(i["code"], 0) + 1
+    return out
+
+
 def qc_worse(before: Dict, after: Dict) -> Tuple[bool, List[str]]:
-    """The new cut is worse when any check (blocking or warning) fires more often than on the old one — new kinds count as more."""
+    """The new cut is worse when any check (blocking or warning) fires more often than on the old one — new kinds count as more —
+    or (S14.4 C1b) when a check fires at a heavier level: more BLOCKING ones of a code, even with the same total (warn → block)."""
     a, b = _counts(before), _counts(after)
     why = [f"{code}: {a.get(code, 0)} → {n}" for code, n in sorted(b.items()) if n > a.get(code, 0)]
+    ab, bb = _blocks(before), _blocks(after)
+    why += [f"{code}: mức chặn {ab.get(code, 0)} → {n}" for code, n in sorted(bb.items())
+            if n > ab.get(code, 0) and not b.get(code, 0) > a.get(code, 0)]
     return bool(why), why
 
 

@@ -71,6 +71,10 @@ def run(conn, client, topics: Optional[Dict[str, List[str]]] = None) -> Dict:
                 continue
             done += 1
             for f in obj["findings"][:3]:
+                if not isinstance(f, dict):                  # S14.4 C1b: a bare string in the list must not stop the round
+                    errors.append(f"{group}: bỏ qua 1 kết quả không đúng dạng (cần object có title/rule/url): {str(f)[:80]}")
+                    diag.record(conn, "system", "warn", f"nghiên cứu định kỳ ({group}): kết quả không phải object", "research")
+                    continue
                 title, rule = str(f.get("title", "")).strip(), str(f.get("rule", "")).strip()
                 if title and rule and lessons.add_research(conn, group, title, rule, str(f.get("url", ""))):
                     proposed += 1

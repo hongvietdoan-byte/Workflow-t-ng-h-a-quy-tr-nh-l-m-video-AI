@@ -1199,19 +1199,19 @@ def lessons_tab(p: Pipeline, pid: int) -> None:
             body = st.text_area("Nội dung quy tắc", row["body"], key=f"ls_b_{row['id']}", height=100)
             a, b, _ = st.columns([1, 1, 3])
             if a.button("👍 Duyệt", key=f"ls_ok_{row['id']}", type="primary"):
-                lessons.edit(conn, row["id"], title, body)
-                lessons.decide(conn, row["id"], True)
-                st.rerun()
+                # S14.4 C1b: through act() — a document that cannot be written shows a Vietnamese reason, no crash
+                if act(lambda r=row["id"], t=title, b_=body: (lessons.edit(conn, r, t, b_), lessons.decide(conn, r, True))):
+                    st.rerun()
             if b.button("👎 Bỏ", key=f"ls_no_{row['id']}"):
-                lessons.decide(conn, row["id"], False)
-                st.rerun()
+                if act(lambda r=row["id"]: lessons.decide(conn, r, False)):
+                    st.rerun()
     approved = lessons.list_lessons(conn, "approved")
     with st.expander(f"Bài học đã duyệt ({len(approved)})"):
         for row in approved:
             st.markdown(f"- **{escape(row['title'])}** ({row['group_name']}): {escape(row['body'])}")
             if st.button("Gỡ bài học này", key=f"ls_rm_{row['id']}"):
-                lessons.decide(conn, row["id"], False)
-                st.rerun()
+                if act(lambda r=row["id"]: lessons.decide(conn, r, False)):
+                    st.rerun()
     lessons.harvest(conn)
     rows = lessons.clusters(conn)
     with st.expander(f"Các loại lỗi đã ghi nhận ({len(rows)})"):

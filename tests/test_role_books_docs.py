@@ -73,10 +73,21 @@ class FlagStateInDocsTests(unittest.TestCase):
         # P2 (02/10): only the <!-- review --> blocks of editing.md are loaded, and only by core/editor_review.py (role_text still reads
         # director.md + dp.md); safe_zones.md is loaded by nothing
         self.assertIn("chỉ các khối `<!-- review -->`", _read("knowledge", "editor", "editing.md").splitlines()[0])
+        src = _read("core", "prompts.py")
+        self.assertNotIn("editing.md", src.replace("knowledge/ff_directing", ""), "core/prompts.py")
         for path in ("core/prompts.py", "core/knowledge.py"):
-            src = _read(*path.split("/"))
-            self.assertNotIn("editing.md", src.replace("knowledge/ff_directing", ""), path)
-            self.assertNotIn("safe_zones", src, path)
+            self.assertNotIn("safe_zones", _read(*path.split("/")), path)
+        # S14.4 C1b: the knowledge page lists editing.md under film_crew (plan 3.3) — but marked "elsewhere" (not counted as sent)
+        import os
+        from unittest import mock
+        from core import knowledge
+        with mock.patch.dict(os.environ, {"FEATURE_FILM_CREW": "1"}):
+            ov = knowledge.overview("director")
+        ed = [d for d in ov["docs"] if d["file"].endswith("editing.md")]
+        self.assertEqual(len(ed), 1)
+        self.assertTrue(ed[0]["elsewhere"])
+        self.assertEqual(ov["chars"], sum(d["chars"] for d in ov["docs"] if d["enabled"] and not d["replaced"]
+                                          and not d.get("crew_replaced") and not d.get("elsewhere")))
 
     def test_default_subtitle_box_is_tiktok(self):
         from core import subtitles
