@@ -36,6 +36,63 @@ class RecordTests(unittest.TestCase):
         diag.record(conn, "video", "error", "x")          # watching must not break the work
 
 
+class StageNameTests(unittest.TestCase):
+    """S14.4 C1b (04/10): a stage written under another name ('videos', 'images', 'delivery'...) disappeared from the table."""
+
+    def test_aliases_are_folded_to_one_name(self):
+        for raw, want in (("videos", "video"), ("images", "image"), ("image_gen", "image"), ("video_gen", "video"),
+                          ("delivery", "render"), (" Video ", "video"), ("voice", "voice"), ("weird", "weird")):
+            self.assertEqual(diag.normalize_stage(raw), want, raw)
+        self.assertEqual(diag.normalize_stage("lipsync"), "lipsync")          # no 'lipsync -> video' (nobody writes it)
+        self.assertIn("voice", diag.STAGE_LABEL)
+
+    def test_record_stores_the_folded_name_and_the_table_counts_old_rows_too(self):
+        conn = connect()
+        diag.record(conn, "videos", "warn", "a")
+        conn.execute("INSERT INTO diag_events (at, last_at, stage, severity, message, count) VALUES (?,?,?,?,?,1)",
+                     (diag._now(), diag._now(), "images", "error", "old row"))            # written before the fix
+        diag.record(conn, "voice", "warn", "tts")
+        diag.record(conn, "made_up", "warn", "x")
+        conn.commit()
+        self.assertEqual([r["stage"] for r in conn.execute("SELECT stage FROM diag_events WHERE message='a'")], ["video"])
+        rows = {s["stage"]: s for s in diag.stage_table(conn)}
+        self.assertEqual((rows["video"]["warn"], rows["image"]["error"], rows["voice"]["warn"]), (1, 1, 1))
+        self.assertEqual(rows["other"]["warn"], 1)                                   # an unknown stage is not lost
+
+    def test_every_constant_stage_in_the_code_is_a_known_one(self):
+        """Scan: diag.record(conn, "<stage>"…), autopilot._d(p, pid, "<stage>"…), llm_runner._diagnosed("<stage>")."""
+        import ast
+        root = os.path.join(os.path.dirname(__file__), "..")
+        known, bad = {s for s, _ in diag.STAGES}, []
+        for top in ("core", "dashboard"):
+            for dp, _, fs in os.walk(os.path.join(root, top)):
+                for f in fs:
+                    if not f.endswith(".py"):
+                        continue
+                    path = os.path.join(dp, f)
+                    for n in ast.walk(ast.parse(open(path, encoding="utf-8").read())):
+                        if not isinstance(n, ast.Call):
+                            continue
+                        fn = n.func
+                        name = fn.attr if isinstance(fn, ast.Attribute) else getattr(fn, "id", "")
+                        base = getattr(getattr(fn, "value", None), "id", "")
+                        pos = {("diag", "record"): 1, ("", "_d"): 2, ("", "_diagnosed"): 0}.get((base, name))
+                        if pos is None or len(n.args) <= pos:
+                            continue
+                        a = n.args[pos]
+                        if isinstance(a, ast.Constant) and isinstance(a.value, str) and a.value not in known:
+                            bad.append(f"{os.path.relpath(path, root)}:{n.lineno} {a.value!r}")
+        self.assertEqual(bad, [])
+
+    def test_devsys_areas_use_known_stages(self):
+        import json
+        cfg = json.load(open(os.path.join(os.path.dirname(__file__), "..", "devsys", "areas.json"), encoding="utf-8"))
+        known = {s for s, _ in diag.STAGES}
+        used = [s for a in cfg["areas"] for s in a.get("diag_stages", [])]
+        self.assertEqual([s for s in used if s not in known], [])
+        self.assertIn("voice", used)
+
+
 class HookTests(Setup):
     def test_transient_and_permanent_provider_problems_are_seen(self):
         self.build()
@@ -127,6 +184,8 @@ class ScanTests(Setup):
         rows = {s["stage"]: s for s in diag.stage_table(self.p.conn)}
         self.assertGreater(rows["video"]["ok"], 0)
         self.assertEqual(diag.health(rows["image"]), "🟢")
+        self.assertIn("voice", rows)                       # S14.4 C1b: the TTS stage has its own row
+        self.assertNotIn(diag.OTHER, rows)                 # 'Khác' only appears when an unknown stage was written
 
 
 if __name__ == "__main__":

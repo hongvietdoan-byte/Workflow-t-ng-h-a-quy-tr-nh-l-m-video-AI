@@ -472,7 +472,7 @@ def render(p: Pipeline, project_id: int, data_dir: str, music_path: Optional[str
     if placed and keep_audio:        # AU-e: the video model's own speech under the Vietnamese TTS lines = two voices at once
         keep_audio = False
         from . import diag
-        diag.record(p.conn, "delivery", "info", "đã có giọng thoại TTS: tắt tiếng gốc của clip trong bản ghép (tránh 2 giọng chồng nhau)",
+        diag.record(p.conn, "render", "info", "đã có giọng thoại TTS: tắt tiếng gốc của clip trong bản ghép (tránh 2 giọng chồng nhau)",
                     "clip_audio_muted", project_id)
     extras = audio_lib.mix_list(audio_lib.assets_dir(data_dir, project_id))
     aspect = formats.project_aspect(p.project(project_id))

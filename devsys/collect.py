@@ -696,13 +696,19 @@ def diag_summary(db_path: Optional[str] = None, days: int = 14, root: str = ROOT
     except Exception:  # noqa: BLE001 - redaction is best effort; messages are short already
         def redact(t):
             return str(t)
+    try:
+        from core.diag import normalize_stage          # S14.4 C1b: old rows 'videos'/'delivery' count under 'video'/'render'
+    except Exception:  # noqa: BLE001 - another repo without it: stage names as written
+        def normalize_stage(s):
+            return s
     by_stage: Dict[str, Dict[str, int]] = {}
     recent = []
     for r in rows:
-        s = by_stage.setdefault(r["stage"], {"info": 0, "warn": 0, "error": 0})
+        stage = normalize_stage(r["stage"])
+        s = by_stage.setdefault(stage, {"info": 0, "warn": 0, "error": 0})
         s[r["severity"]] = s.get(r["severity"], 0) + int(r["count"] or 1)
         if r["severity"] in ("warn", "error") and len(recent) < 60:
-            recent.append({"stage": r["stage"], "severity": r["severity"], "code": r["code"], "message": redact(r["message"])[:300],
+            recent.append({"stage": stage, "severity": r["severity"], "code": r["code"], "message": redact(r["message"])[:300],
                            "count": r["count"], "last_at": r["last_at"]})
     return {"available": True, "note": f"{len(rows)} dòng diag trong {days} ngày", "by_stage": by_stage, "recent": recent, "days": days}
 
