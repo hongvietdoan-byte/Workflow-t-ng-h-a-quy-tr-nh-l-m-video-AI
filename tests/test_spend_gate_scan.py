@@ -52,13 +52,11 @@ FUNC_OK = {
 }
 # ---- CHỜ CHUYỂN: known raw sends not moved to the gate yet — the S14 task that moves each one --------------------------------------
 PENDING = {
-    ("core/lipsync.py", "post_tick"): "S14.1 A1b — lipsync qua spend_gate (nhánh khác; hiện SPEND_LOCK + check_video, thiếu project_budget)",
     ("core/storyboard_frames.py", "run"): "S14.1 A1 phần còn lại — provider.submit_storyboard_frame qua spend_gate",
     ("core/previz.py", "_deepix_cutout"): "S14.1 A1 phần còn lại — Deepix cutout (cờ PREVIZ_CUTOUT) chưa có sổ chi / cổng",
 }
 # (b): check_image / check_video without project_budget.check — the same waiting list
 PENDING_B = {
-    ("core/lipsync.py", "post_tick"): "S14.1 A1b — lipsync thiếu project_budget.check",
     ("core/autopilot.py", "_setcheck_block"): "S14.1 A1b — autopilot: kiểm trước khi xếp vẽ lại (lượt gửi thật vẫn qua ImageRunner "
                                                "có project_budget.check); dùng spend_gate.reason khi chuyển",
 }
@@ -250,7 +248,7 @@ class SpendGateScan(unittest.TestCase):
         self.assertEqual(stale, [], "mục danh sách không còn khớp lời gọi nào — xóa khỏi danh sách (đã chuyển xong?)")
 
     def test_the_moved_callers_use_the_gate(self):
-        for rel in ("core/costume.py", "core/experiments.py", "core/scene_establish.py", "core/end_frames.py"):
+        for rel in ("core/costume.py", "core/experiments.py", "core/scene_establish.py", "core/end_frames.py", "core/lipsync.py"):
             self.assertIn("spend_gate.spend(", (ROOT / rel).read_text(encoding="utf-8"), rel)
 
 
