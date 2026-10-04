@@ -535,6 +535,7 @@ def step5_v2(p: Pipeline, pid: int, stat, state: str) -> None:
             st.markdown(D.empty_state("Chưa có bản giao", "Bấm “📦 Xuất bản đầy đủ” ở thẻ trên."), unsafe_allow_html=True)
         _deliver_files(p, pid, stat)
         _final_qc(p, pid, bool(fin.get("path")))
+        delivery_feedback(p, pid, stat)
 
 
 def timeline_panel(p: Pipeline, pid: int) -> None:
@@ -898,7 +899,19 @@ def _deliver_button(p: Pipeline, pid: int, chosen, durations, label: str = "📦
             if res.get("qc") is not None:
                 st.session_state[f"final_qc_{pid}"] = res["qc"]
             st.toast(f"Đã xuất bản: {len(res['layers']) + 1} file")
+            snapshot_after_delivery(p, pid)
             st.rerun()
+
+
+def snapshot_after_delivery(p: Pipeline, pid: int) -> None:
+    """S14.19 Đợt 1: a delivery is a milestone — record the effectiveness figures with the flags / lessons / knowledge in use (0 USD).
+    A failure never breaks the delivery, and is said."""
+    from core import effectiveness
+    try:
+        effectiveness.snapshot(p.conn, pid, cost.load_pricing(), "delivery")
+    except Exception as e:  # noqa: BLE001 - the video is delivered; only the measurement is missing
+        st.warning(f"Đã xuất bản, nhưng không ghi được mốc hiệu quả: {e}")
+        st.toast(f"⚠ Không ghi được mốc hiệu quả: {e}")          # the warning goes with the rerun; the toast stays visible
 
 
 def _deliver_files(p: Pipeline, pid: int, stat) -> None:
@@ -931,6 +944,47 @@ def delivery_panel(p: Pipeline, pid: int, chosen, durations) -> None:
         _deliver_button(p, pid, chosen, durations)
         _deliver_files(p, pid, stat)
         _final_qc(p, pid, bool(fin.get("path")))
+        delivery_feedback(p, pid, stat)
+
+
+VERDICT_LABELS = {"👍": "👍 Dùng được", "🤔": "🤔 Tạm được", "👎": "👎 Chưa dùng được"}
+
+
+def delivery_feedback(p: Pipeline, pid: int, stat) -> None:
+    """S14.19 Đợt 0 (KE_HOACH_BO_NAO_PROMPT_TU_HOC): "Bản này dùng được chứ?" under the delivered video — 👍/🤔/👎 + what is not right +
+    which stage → user_feedback (kind 'delivery'). Shown only once there is a delivered video. Nothing is sent anywhere (0 USD).
+    Open to a "Chỉ xem" watcher too (like 💬 Góp ý màn này): a remark changes nothing in the project."""
+    from dashboard import access_ui
+    best = stat.get("best")
+    if not ((best and os.path.exists(best)) or stat["final"].get("path")):
+        return
+    prev = access_ui.is_read_only()
+    access_ui.set_read_only(False)
+    try:
+        _delivery_feedback_form(p, pid)
+    finally:
+        access_ui.set_read_only(prev)
+
+
+def _delivery_feedback_form(p: Pipeline, pid: int) -> None:
+    from core import feedback
+    n = feedback.satisfaction(p.conn, pid)["n"]
+    st.markdown("**Bản này dùng được chứ?**" + (f"  ·  đã có {n} góp ý cho dự án này" if n else ""))
+    with st.form(f"fb_form_{pid}", clear_on_submit=True, border=False):
+        verdict = st.radio("Bản này dùng được chứ?", list(feedback.VERDICTS), index=None, horizontal=True, key=f"fb_verdict_{pid}",
+                           format_func=VERDICT_LABELS.get, label_visibility="collapsed")
+        a, b = st.columns([3, 1.4])
+        text = a.text_area("Chỗ nào chưa ổn?", key=f"fb_text_{pid}", height=70, placeholder="vd: nhạc át giọng ở cảnh 3, chữ phụ đề che mặt…")
+        stage = b.selectbox("Khâu", [""] + list(feedback.STAGES), key=f"fb_stage_{pid}",
+                            format_func=lambda s: "— chưa rõ khâu —" if not s else feedback.STAGES[s])
+        sent = st.form_submit_button("💬 Gửi góp ý", key=f"fb_send_{pid}")
+    if sent:
+        if not verdict and not (text or "").strip():
+            st.warning("Góp ý trống — chọn 👍/🤔/👎 hoặc viết vài chữ rồi gửi lại.")
+            return
+        act(lambda: feedback.add(p.conn, "delivery", project_id=pid, stage=stage or None,
+                                 rating=feedback.VERDICTS.get(verdict) if verdict else None, text=text,
+                                 created_by=(p.user or {}).get("email") or p.actor), "Đã ghi góp ý — cảm ơn!")
 
 
 def _final_qc(p, pid, has_render: bool):

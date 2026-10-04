@@ -299,6 +299,8 @@ def replace_from(pipeline: Pipeline, project_id: int, scenes: List[Dict], from_s
     if gone:
         marks = ",".join("?" * len(gone))
         conn.execute(f"DELETE FROM motion_prompts WHERE scene_id IN ({marks})", [r["id"] for r in gone])
+        from .feedback import detach
+        detach(conn, scene_ids=[r["id"] for r in gone])
         conn.execute(f"DELETE FROM scenes WHERE id IN ({marks})", [r["id"] for r in gone])
     n = conn.execute("SELECT COALESCE(MAX(idx), 0) FROM scenes WHERE project_id=?", (project_id,)).fetchone()[0]
     written = 0
@@ -341,6 +343,8 @@ def store_plan(pipeline: Pipeline, project_id: int, scenes: List[Dict], force: b
         if locked and d.get("shot_no"):
             kept[(d.get("story_scene"), d["shot_no"])] = {"_user_locked": locked, **{k: d[k] for k in locked}}
     conn.execute("DELETE FROM motion_prompts WHERE scene_id IN (SELECT id FROM scenes WHERE project_id=?)", (project_id,))
+    from .feedback import detach
+    detach(conn, project_id=project_id)
     conn.execute("DELETE FROM scenes WHERE project_id=?", (project_id,))
     n = 0
     for s in sorted(scenes, key=lambda x: x["idx"]):

@@ -102,14 +102,7 @@ def reset_script_button(p: Pipeline, pid: int) -> None:
     if confirm_all(f"btn_bad_reset_{pid}", ["reset"], "↺ Làm lại",
                    "Xóa các cảnh CHƯA có ảnh/video và các nhân vật CHƯA khóa để tách lại kịch bản? Cảnh đã có ảnh được giữ.",
                    st, "Có, xóa"):
-        p.conn.execute("DELETE FROM characters WHERE project_id=? AND locked=0", (pid,))
-        p.conn.execute("DELETE FROM motion_prompts WHERE scene_id IN (SELECT id FROM scenes WHERE project_id=? AND id NOT IN (SELECT scene_id FROM jobs))", (pid,))
-        p.conn.execute("DELETE FROM scenes WHERE project_id=? AND id NOT IN (SELECT scene_id FROM jobs)", (pid,))
-        p.conn.commit()
-        if not p.conn.execute("SELECT 1 FROM scenes WHERE project_id=?", (pid,)).fetchone():
-            p.set_script_text(pid, None)
-            p.conn.execute("DELETE FROM story_scenes WHERE project_id=?", (pid,))
-            p.conn.commit()
+        reset_unworked_scenes(p, pid)
         st.session_state.pop("parse_info", None)
         st.rerun()
 
@@ -423,4 +416,17 @@ def _lock_and_go(p: Pipeline, pid: int) -> None:
         return
     st.session_state["step"] = STEPS[2]                 # đợt 3: Storyboard (Ảnh + QC, Motion & giọng)
 
-
+def reset_unworked_scenes(p: Pipeline, pid: int) -> None:
+    """↺ Làm lại (the database part): delete the unlocked characters and the scenes without a job; S14.19: the person's remarks on those
+    scenes stay, unlinked (user_feedback.scene_id is a foreign key — the delete failed with a remark attached)."""
+    from core import feedback
+    gone = [r[0] for r in p.conn.execute("SELECT id FROM scenes WHERE project_id=? AND id NOT IN (SELECT scene_id FROM jobs)", (pid,))]
+    p.conn.execute("DELETE FROM characters WHERE project_id=? AND locked=0", (pid,))
+    p.conn.execute("DELETE FROM motion_prompts WHERE scene_id IN (SELECT id FROM scenes WHERE project_id=? AND id NOT IN (SELECT scene_id FROM jobs))", (pid,))
+    feedback.detach(p.conn, scene_ids=gone)
+    p.conn.execute("DELETE FROM scenes WHERE project_id=? AND id NOT IN (SELECT scene_id FROM jobs)", (pid,))
+    p.conn.commit()
+    if not p.conn.execute("SELECT 1 FROM scenes WHERE project_id=?", (pid,)).fetchone():
+        p.set_script_text(pid, None)
+        p.conn.execute("DELETE FROM story_scenes WHERE project_id=?", (pid,))
+        p.conn.commit()
