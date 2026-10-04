@@ -278,7 +278,8 @@ def warning(conn, pid: Optional[int], stage: str, usd: Optional[float]) -> Optio
 
 
 def cost_summary(p, pid: int) -> Dict:
-    """Người dùng 04/10 (S14.16): the project's TOTAL estimated cost for the approval gate — images, videos, audio, Claude, total,
+    """Người dùng 04/10 (S14.16): "Đã chi + ước tính phần còn lại" for the approval gate — spent (ledger) + what is left (images,
+    videos, audio, Claude), total,
     estimated HIGH (cost.estimate_run + money_policy.estimate: an item without a price at the highest known price × 1,5).
     {"images", "videos", "audio" (None = audio has no price at all: counted by sends), "audio_items", "claude", "total",
     "unpriced" (items estimated without their own price), "text"}."""
@@ -291,8 +292,11 @@ def cost_summary(p, pid: int) -> Dict:
         audio_items = 1
     audio = money_policy.estimate("audio", None, None, audio_items)["usd"]
     unpriced = len(run.get("unknown") or [])
-    total = round(images + videos + claude + (audio or 0.0), 2)
-    text = (f"Ước tính tổng chi phí dự án ≈ ${total:.2f} (ước tính, tính dư): Ảnh ≈ ${images:.2f} · Video ≈ ${videos:.2f} · "
+    remaining = round(images + videos + claude + (audio or 0.0), 2)
+    spent = round(sum(ledger_by_stage(p.conn, pid).values()), 2)          # from the ledger (all the project's paid rows)
+    total = round(spent + remaining, 2)
+    text = (f"Đã chi + ước tính phần còn lại ≈ ${total:.2f}: đã chi ${spent:.2f} (theo sổ chi) + còn lại ≈ ${remaining:.2f} "
+            f"(ước tính, tính dư): Ảnh ≈ ${images:.2f} · Video ≈ ${videos:.2f} · "
             + (f"Âm thanh ≈ ${audio:.2f}" if audio is not None else f"Âm thanh {audio_items} lượt (chưa có giá USD, tính theo lượt)")
             + f" · Claude ≈ ${claude:.2f} · Tổng ≈ ${total:.2f}")
     if unpriced:
@@ -300,7 +304,8 @@ def cost_summary(p, pid: int) -> Dict:
     else:
         text += " — mọi mục đều có giá (giá cao nhất × 1,5 chỉ dùng khi thiếu giá)"
     return {"images": round(images, 2), "videos": round(videos, 2), "audio": None if audio is None else round(audio, 2),
-            "audio_items": audio_items, "claude": round(claude, 2), "total": total, "unpriced": unpriced, "text": text}
+            "audio_items": audio_items, "claude": round(claude, 2), "remaining": remaining, "spent": spent, "total": total,
+            "unpriced": unpriced, "text": text}
 
 
 def approval_pending(p, pid: int) -> bool:

@@ -571,9 +571,13 @@ class BudgetApprovalShowsTheTotal(unittest.TestCase):
         with mock.patch.object(image_models, "of_project", return_value="model-without-price"):
             s = project_budget.cost_summary(p, pid)
             why = project_budget.gate_reason(p, pid)
-        for k in ("images", "videos", "audio", "claude", "total"):
+        for k in ("images", "videos", "audio", "claude", "remaining", "spent", "total"):
             self.assertIn(k, s)
-        self.assertAlmostEqual(s["total"], round(s["images"] + s["videos"] + (s["audio"] or 0) + s["claude"], 2), places=2)
+        self.assertAlmostEqual(s["remaining"], round(s["images"] + s["videos"] + (s["audio"] or 0) + s["claude"], 2), places=2)
+        self.assertAlmostEqual(s["total"], round(s["spent"] + s["remaining"], 2), places=2)
+        self.assertIn("Đã chi + ước tính phần còn lại", s["text"])
+        self.assertIn(f"đã chi ${s['spent']:.2f}", s["text"])
+        self.assertIn(f"còn lại ≈ ${s['remaining']:.2f}", s["text"])
         self.assertGreater(s["images"], 0)
         self.assertGreaterEqual(s["unpriced"], 1)
         for word in ("Ảnh", "Video", "Âm thanh", "Claude", "Tổng", "(ước tính, tính dư)", "giá cao nhất × 1,5"):
