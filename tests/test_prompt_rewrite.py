@@ -210,6 +210,80 @@ class Rewrite(Base):
         self.assertEqual(self.child(job2)["retry_reason"], "áo vàng hơn")
 
 
+LIVE = "'approved','queued','running','succeeded','pending_review','retryable','failed'"     # autopilot._images_phase / _videos_phase
+
+
+class ReviewFixes(Base):
+    """Phiên rà độc lập S14.17: (1) không có lúc nào cảnh mất job sống trong khi chờ Claude; (2) không gen lại bản cũ khi bản mới đã xếp hàng."""
+
+    def watching(self, sid, kind):
+        from core import autopilot
+        seen = []
+        real = self.client.complete
+
+        def complete(prompt, images=()):
+            seen.append(autopilot._has(self.p, sid, kind, LIVE))
+            return real(prompt, images)
+        self.client.complete = complete
+        return seen
+
+    def test_take_stays_alive_while_claude_writes_on_reject(self):
+        _, sid, job = self.make()
+        seen = self.watching(sid, "image_gen")
+        with mock.patch.dict(os.environ, ON):
+            self.p.reject(job, "user", "đổi áo sang màu vàng")
+        self.assertEqual(seen, [True])
+        self.assertEqual(self.image_prompt(sid), NEW)
+
+    def test_take_stays_alive_while_claude_writes_on_reopen_and_regen(self):
+        from core import regen
+        _, sid, job = self.make()
+        self.p.approve(job, "user")
+        seen = self.watching(sid, "image_gen")
+        with mock.patch.dict(os.environ, ON):
+            self.p.reopen_approved(job, "áo phải màu vàng")
+        self.assertEqual(seen, [True])
+        _, sid2, vjob = self.make(kind="video_gen")
+        self.client = FakeClient({"new_prompt": "Slow pan", "changed": ["chậm"], "why": "x"})
+        seen_v = self.watching(sid2, "video_gen")
+        with mock.patch.dict(os.environ, ON):
+            regen.regenerate_video(self.p, self.tmp, vjob, "quá nhanh", fix="Slow the pan down.")
+        self.assertEqual(seen_v, [True])
+
+    def test_regen_checks_reviewable_before_paying_claude(self):
+        from core import regen
+        from core.states import InvalidTransition
+        _, sid, job = self.make(kind="video_gen")
+        self.p.conn.execute("UPDATE jobs SET state='queued' WHERE id=?", (job,))
+        self.p.conn.commit()
+        with mock.patch.dict(os.environ, ON), self.assertRaises(InvalidTransition):
+            regen.regenerate_video(self.p, self.tmp, job, "x", fix="Slow down.")
+        self.assertEqual(self.client.calls, [])
+
+    def test_older_clip_made_outdated_by_the_rewrite_is_not_redone_while_the_new_take_waits(self):
+        from core import batch, lineage
+        pid, sid, img = self.make()
+        self.p.approve(img, "user")
+        lineage.stamp_motion(self.p.conn, sid)
+        mp = self.p.conn.execute("SELECT * FROM motion_prompts WHERE scene_id=?", (sid,)).fetchone()
+        clips = []
+        for state in ("approved", "pending_review"):            # hero take: two clips of the same shot
+            j = self.p.create_job(sid, "video_gen")
+            self.p.conn.execute("UPDATE jobs SET state=?, source_job_id=?, input_hash=? WHERE id=?",
+                                (state, img, lineage.video_input_hash(mp, None), j))
+            clips.append(j)
+        self.p.conn.commit()
+        self.client.answer = {"new_prompt": "Static camera, Kelly turns her head slowly", "changed": ["x"], "why": "y"}
+        with mock.patch.dict(os.environ, ON):
+            self.p.reject(clips[1], "user", "giữ máy đứng yên")
+        self.assertTrue(lineage.scan(self.p.conn, pid)[sid]["video_stale"])     # clip 1 now looks outdated…
+        before = self.p.conn.execute("SELECT COUNT(*) FROM jobs WHERE type='video_gen'").fetchone()[0]
+        res = batch.queue_videos(self.p, pid, self.tmp)
+        self.assertEqual(res, {"created": 0, "redo": 0})                         # …but the new take already waits: no second paid job
+        self.assertEqual(self.p.conn.execute("SELECT COUNT(*) FROM jobs WHERE type='video_gen'").fetchone()[0], before)
+        self.assertEqual(self.p.state(clips[0]).value, "approved")
+
+
 class Fallback(Base):
     def diag_rows(self):
         return self.p.conn.execute("SELECT * FROM diag_events WHERE code=?", (prompt_rewrite.FALLBACK_CODE,)).fetchall()

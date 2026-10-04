@@ -14,6 +14,7 @@ import difflib
 import json
 import os
 import re
+import shutil
 import tempfile
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
@@ -192,18 +193,21 @@ def build_prompt(p, job, kind: str, old: str, note: Optional[str], fix: Optional
     return "\n\n---\n\n".join(parts)
 
 
-def _images(job, kind: str) -> List[Tuple[str, str]]:
+def _images(job, kind: str) -> Tuple[List[Tuple[str, str]], Optional[str]]:
+    """(pictures of the faulty take for Claude, the temporary folder to delete afterwards or None)."""
     path = job["result_path"]
     if not path or not os.path.exists(path):
-        return []
+        return [], None
     if kind == "image":
-        return [("Ảnh lỗi (bản vừa gen, bị từ chối):", path)]
+        return [("Ảnh lỗi (bản vừa gen, bị từ chối):", path)], None
+    tmp = tempfile.mkdtemp(prefix="rewrite_")
     try:
         from .video_analysis import extract_frames
-        frames = extract_frames(path, tempfile.mkdtemp(prefix="rewrite_"), count=3)
+        frames = extract_frames(path, tmp, count=3)
     except Exception:  # noqa: BLE001 - no ffmpeg / unreadable clip: the Director works from the notes (said in the prompt)
-        return []
-    return [(f"Khung {i} của clip lỗi:", fr) for i, fr in enumerate(frames, 1)]
+        shutil.rmtree(tmp, ignore_errors=True)
+        return [], None
+    return [(f"Khung {i} của clip lỗi:", fr) for i, fr in enumerate(frames, 1)], tmp
 
 
 def _validate(obj) -> Dict:
@@ -234,9 +238,10 @@ def _new_people(conn, job, old: str, new: str) -> List[str]:
     return out
 
 
-def rewrite_for_retry(p, job, note: Optional[str] = None, fix: Optional[str] = None, qc: Optional[Dict] = None,
-                      client=None, by: str = "user") -> RewriteResult:
-    """The Director rewrites the shot's prompt for the next take and saves it (old one kept as a version). Raises LlmError (Claude),
+def propose_rewrite(p, job, note: Optional[str] = None, fix: Optional[str] = None, qc: Optional[Dict] = None,
+                    client=None, by: str = "user") -> RewriteResult:
+    """The Director's new prompt for the shot's next take — Claude call + code checks, NOTHING written (the job is still alive while
+    Claude thinks, so the automatic run never sees the shot without a live take — review S14.17 #1). Raises LlmError (Claude),
     RewriteRefused (answer not usable) or ValueError (nothing to rewrite) — the caller then keeps the old way."""
     from . import llm_runner, looks
     from .runner import no_minor_age
@@ -249,10 +254,14 @@ def rewrite_for_retry(p, job, note: Optional[str] = None, fix: Optional[str] = N
     client = client if client is not None else client_for(p)
     if client is None:
         raise llm_runner.LlmError("Chưa cấu hình Claude (ANTHROPIC_API_KEY hoặc LLM_PROVIDER).", code="config")
-    images = _images(job, kind)
-    text = build_prompt(p, job, kind, old, note, fix, qc, len(images), by)
-    with llm_runner.tagged(STAGE, job["project_id"]):
-        obj, _, _ = llm_runner.ask_json(client, text, _validate, images)
+    images, tmp = _images(job, kind)
+    try:
+        text = build_prompt(p, job, kind, old, note, fix, qc, len(images), by)
+        with llm_runner.tagged(STAGE, job["project_id"]):
+            obj, _, _ = llm_runner.ask_json(client, text, _validate, images)
+    finally:
+        if tmp:
+            shutil.rmtree(tmp, ignore_errors=True)
     new = no_minor_age(obj["new_prompt"]).strip()
     new, removed = looks.clean_prompt(p.project(job["project_id"]), new)
     new = new.strip()
@@ -264,39 +273,80 @@ def rewrite_for_retry(p, job, note: Optional[str] = None, fix: Optional[str] = N
     changed = [c.strip() for c in obj.get("changed") or [] if c.strip()][:8]
     if removed:
         changed.append("Code gỡ chữ kéo về tả thực (look in-game): " + ", ".join(removed))
+    return RewriteResult(new, changed, str(obj.get("why") or ""), 0, old, removed)
+
+
+def save_rewrite(p, job, res: RewriteResult, note: Optional[str] = None) -> int:
+    """Write the proposed prompt into the shot (old one kept as a version). Returns the new version number."""
+    kind = KINDS[job["type"]]
     vers = versions(p.conn, job["scene_id"], kind)
-    if not vers or vers[-1]["prompt"] != old:            # the prompt in use now (the Director's / a hand edit) is saved before it changes
-        _add_version(p.conn, job["project_id"], job["scene_id"], kind, old, "original" if not vers else "manual", who=p.actor)
-    version = _add_version(p.conn, job["project_id"], job["scene_id"], kind, new, "director_rewrite", note=(note or fix or "")[:600],
-                           changed=changed, why=str(obj.get("why") or "")[:600], job_id=job["id"], who=p.actor)
-    _set_prompt(p.conn, job["scene_id"], kind, new)
+    if not vers or vers[-1]["prompt"] != res.old_prompt:   # the prompt in use now (the Director's / a hand edit) is saved before it changes
+        _add_version(p.conn, job["project_id"], job["scene_id"], kind, res.old_prompt, "original" if not vers else "manual", who=p.actor)
+    res.version = _add_version(p.conn, job["project_id"], job["scene_id"], kind, res.new_prompt, "director_rewrite",
+                               note=(note or "")[:600], changed=res.changed, why=res.why[:600], job_id=job["id"], who=p.actor)
+    _set_prompt(p.conn, job["scene_id"], kind, res.new_prompt)
     p.conn.commit()
-    return RewriteResult(new, changed, str(obj.get("why") or ""), version, old, removed)
+    return res.version
+
+
+def rewrite_for_retry(p, job, note: Optional[str] = None, fix: Optional[str] = None, qc: Optional[Dict] = None,
+                      client=None, by: str = "user") -> RewriteResult:
+    """propose_rewrite + save_rewrite in one go (tools / tests)."""
+    res = propose_rewrite(p, job, note=note, fix=fix, qc=qc, client=client, by=by)
+    save_rewrite(p, job, res, note or fix)
+    return res
+
+
+class Plan:
+    """What before_retry decided: `reason` = the retry_reason if nothing is rewritten; apply() — called AFTER the old take was rejected,
+    right before the new job is inserted — writes the new prompt and returns the retry_reason to store."""
+
+    def __init__(self, p, job, reason: Optional[str], res: Optional[RewriteResult] = None, note: Optional[str] = None):
+        self.p, self.job, self.reason, self.res, self.note = p, job, reason, res, note
+
+    def apply(self) -> Optional[str]:
+        if self.res is None:
+            return self.reason
+        p, job = self.p, self.job
+        kind = KINDS[job["type"]]
+        unit = "ảnh" if kind == "image" else "clip"
+        idx = p.conn.execute("SELECT idx FROM scenes WHERE id=?", (job["scene_id"],)).fetchone()
+        try:
+            if current_prompt(p.conn, job["scene_id"], kind) != self.res.old_prompt:
+                raise RewriteRefused("prompt của shot vừa được sửa tay trong lúc Đạo diễn viết — giữ bản của người")
+            version = save_rewrite(p, job, self.res, self.note)
+        except Exception as e:  # noqa: BLE001 - never lose the take: the old way, said
+            _fallback(p, job, e)
+            return self.reason
+        diag.record(p.conn, kind, "info", f"Đạo diễn đã viết lại prompt {unit} shot {idx['idx'] if idx else '?'} (v{version}): "
+                    + "; ".join(self.res.changed)[:250], DONE_CODE, job["project_id"], scene_id=job["scene_id"], job_id=job["id"])
+        return f"{REWRITE_NOTE} (v{version}): {(self.note or '')[:300]}"
+
+
+def _fallback(p, job, e: BaseException) -> None:
+    kind = KINDS[job["type"]]
+    unit = "ảnh" if kind == "image" else "clip"
+    idx = p.conn.execute("SELECT idx FROM scenes WHERE id=?", (job["scene_id"],)).fetchone()
+    diag.record(p.conn, kind, "warn",
+                f"Đạo diễn chưa viết lại prompt {unit} shot {idx['idx'] if idx else '?'} ({type(e).__name__}: {str(e)[:160]}) — lần gen "
+                "lại dùng cách cũ: nối 'Fix: …' vào cuối prompt (ghi chú của bạn giữ nguyên)", FALLBACK_CODE, job["project_id"],
+                scene_id=job["scene_id"], job_id=job["id"])
 
 
 def before_retry(p, job, reason: Optional[str], note: Optional[str] = None, qc: Optional[Dict] = None,
-                 by: str = "user") -> Optional[str]:
-    """Hook of core.pipeline (reject / reopen_approved) and core.regen: `reason` is what the next job would carry (the "Fix:" text).
-    Returns the retry_reason to store: REWRITE_NOTE… when the Director rewrote the prompt, else `reason` unchanged (flag off, nothing to
-    fix — e.g. a resend after a provider failure —, or the rewrite failed: then said in diag)."""
+                 by: str = "user") -> Plan:
+    """Hook of core.pipeline (reject / reopen_approved) and core.regen, called while the old take is STILL ALIVE: `reason` is what the
+    next job would carry (the "Fix:" text). Returns a Plan; Plan.apply() gives REWRITE_NOTE… when the Director rewrote the prompt, else
+    `reason` unchanged (flag off, nothing to fix — e.g. a resend after a provider failure —, or the rewrite failed: then said in diag)."""
     from .runner import model_fix
     if job is None or job["type"] not in KINDS or not enabled():
-        return reason
+        return Plan(p, job, reason)
     fix = model_fix(reason)
     if fix is None:                                       # plain resend / no fix: the input does not change, nothing to rewrite
-        return reason
-    kind = KINDS[job["type"]]
-    unit = "ảnh" if kind == "image" else "clip"
+        return Plan(p, job, reason)
     try:
-        res = rewrite_for_retry(p, job, note=note if note and note != fix else None, fix=fix, qc=qc, by=by)
+        res = propose_rewrite(p, job, note=note if note and note != fix else None, fix=fix, qc=qc, by=by)
     except Exception as e:  # noqa: BLE001 - every failure keeps the old way, said (never silent)
-        idx = p.conn.execute("SELECT idx FROM scenes WHERE id=?", (job["scene_id"],)).fetchone()
-        diag.record(p.conn, kind, "warn",
-                    f"Đạo diễn chưa viết lại prompt {unit} shot {idx['idx'] if idx else '?'} ({type(e).__name__}: {str(e)[:160]}) — lần gen "
-                    "lại dùng cách cũ: nối 'Fix: …' vào cuối prompt", FALLBACK_CODE, job["project_id"], scene_id=job["scene_id"],
-                    job_id=job["id"])
-        return reason
-    idx = p.conn.execute("SELECT idx FROM scenes WHERE id=?", (job["scene_id"],)).fetchone()
-    diag.record(p.conn, kind, "info", f"Đạo diễn đã viết lại prompt {unit} shot {idx['idx'] if idx else '?'} (v{res.version}): "
-                + "; ".join(res.changed)[:250], DONE_CODE, job["project_id"], scene_id=job["scene_id"], job_id=job["id"])
-    return f"{REWRITE_NOTE} (v{res.version}): {(note or fix)[:300]}"
+        _fallback(p, job, e)
+        return Plan(p, job, reason)
+    return Plan(p, job, reason, res, note or fix)

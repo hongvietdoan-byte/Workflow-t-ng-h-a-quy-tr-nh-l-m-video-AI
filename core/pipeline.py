@@ -74,6 +74,16 @@ def cheap_while_testing(conn, project_id: int) -> bool:
         return False
 
 
+class _KeepReason:
+    """No rewrite (flag off / nothing to fix): the retry_reason stays as it is (same interface as core.prompt_rewrite.Plan)."""
+
+    def __init__(self, reason: Optional[str]):
+        self.reason = reason
+
+    def apply(self) -> Optional[str]:
+        return self.reason
+
+
 class PipelinePaused(Exception):
     pass
 
@@ -245,13 +255,13 @@ class Pipeline:
         if auto and respawn and self._retries_exhausted(job):
             self._escalate(job, limit=True)
             return "escalated"
-        self._log_review(job_id, "user", "reject", note or "bỏ duyệt")
+        reason = note if fix is None else (fix.strip() or None)
+        plan = self._rewrite_before_retry(job, reason, note=note, by="qc" if auto else "user") if respawn else _KeepReason(reason)
+        self._log_review(job_id, "user", "reject", note or "bỏ duyệt")      # S14.17: rejected only after Claude answered (review #1)
         self.transition(job_id, JobState.REJECTED, actor="user", note=note or "bỏ duyệt")
         if respawn:  # a person asking for another take: never capped, the automatic count starts again (S14.16)
-            reason = note if fix is None else (fix.strip() or None)
-            reason = self._rewrite_before_retry(job, reason, note=note, by="qc" if auto else "user")   # S14.17
             self._insert_job(job["project_id"], job["scene_id"], "image_gen", parent_job_id=job_id,
-                             retry_count=job["retry_count"] + 1 if auto else 0, retry_reason=reason,
+                             retry_count=job["retry_count"] + 1 if auto else 0, retry_reason=plan.apply(),
                              origin="auto" if auto else None)
         return "rejected"
 
@@ -507,28 +517,37 @@ class Pipeline:
         optional): the QC's finding, for the Director's rewrite of the shot prompt (S14.17, flag director_rewrite)."""
         access.need_edit_job(self, job_id, "loại")
         self._require_reviewable(job_id)
-        self._log_review(job_id, reviewer_type, "reject", note)
-        self.transition(job_id, JobState.REJECTED, actor=reviewer_type, note=note)
-        if not respawn:
-            return "rejected"
         # W4: the model gets only the fix sentences (the person's note, or the QC's issues added to the earlier fixes) — never the
         # score line or the Vietnamese note meant for people
         reason = note if fix is None else _combine_fix(self.job(job_id)["retry_reason"], fix)
         auto = reviewer_type == "ai_agent"
-        if not (auto and self._retries_exhausted(self.job(job_id))):    # at the limit no take is made: no paid rewrite either
-            reason = self._rewrite_before_retry(self.job(job_id), reason, note=note, qc=qc, by="qc" if auto else "user")
-        new_id = self._spawn_retry(job_id, reason, auto=auto)
+        plan = _KeepReason(reason)
+        if respawn and not (auto and self._retries_exhausted(self.job(job_id))):    # at the limit no take is made: no paid rewrite
+            # S14.17 review #1: Claude is asked while the take is STILL ALIVE — the run never sees the shot without a live job
+            plan = self._rewrite_before_retry(self.job(job_id), reason, note=note, qc=qc, by="qc" if auto else "user")
+        self._log_review(job_id, reviewer_type, "reject", note)
+        self.transition(job_id, JobState.REJECTED, actor=reviewer_type, note=note)
+        if not respawn:
+            return "rejected"
+        new_id = self._spawn_retry(job_id, plan.apply(), auto=auto)
         return "rejected" if new_id else "escalated"
 
     def _rewrite_before_retry(self, job, reason: Optional[str], note: Optional[str] = None, qc: Optional[dict] = None,
-                              by: str = "user") -> Optional[str]:
+                              by: str = "user"):
         """S14.17: the Director rewrites the shot prompt before a take with a fix (flag director_rewrite; off = `reason` unchanged).
-        Never raises: a failed rewrite keeps the old "Fix: …" way and says so in diag (core/prompt_rewrite.py)."""
+        Call it while the old take is still alive; `.apply()` the result right before the new job is inserted (it writes the prompt
+        and returns the retry_reason). Never raises: a failed rewrite keeps the old "Fix: …" way, said in diag (core/prompt_rewrite.py)."""
         from . import features
         if not features.on("director_rewrite"):
-            return reason
+            return _KeepReason(reason)
         from . import prompt_rewrite
         return prompt_rewrite.before_retry(self, job, reason, note=note, qc=qc, by=by)
+
+    def has_pending_take(self, scene_id: int, kind: str) -> bool:
+        """A take of this kind is queued / running / waiting to be resent for the scene (S14.17 review #2: a redo of an older outdated
+        take is then pointless — the new take already uses the new input — and would be a second paid job)."""
+        return bool(self.conn.execute("SELECT 1 FROM jobs WHERE scene_id=? AND type=? AND state IN ('queued','running','retryable')",
+                                      (scene_id, kind)).fetchone())
 
     def keepable_rejected(self, scene_id: int, kind: str = "video_gen"):
         """The last result the QC agent rejected for this scene, when its file is still the scene's latest result (no later job
