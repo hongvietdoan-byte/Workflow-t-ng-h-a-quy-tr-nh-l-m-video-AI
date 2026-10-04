@@ -248,6 +248,15 @@ def composite(green_path: str, plate: Dict, out_path: str, env: Optional[Dict] =
     return {"path": out_path, "mask": mask_out, "placement": place, "occluded_share": round(occluded, 3)}
 
 
+def _finish(proc, timeout: float = 120) -> int:
+    """Exit code of an ffmpeg pipe process; one that does not end within `timeout` is killed (never wait for ever)."""
+    try:
+        return proc.wait(timeout=timeout)
+    except subprocess.TimeoutExpired:
+        proc.kill()
+        return proc.wait(timeout=10)
+
+
 def composite_video(green_clip: str, plate: Dict, out_path: str, ffmpeg: str, env: Optional[Dict] = None, fps: int = 24) -> Dict:
     """Mode 2: a character clip made on green, keyed frame by frame over the plate (placement from the first frame). Audio kept."""
     np = _np()
@@ -268,24 +277,55 @@ def composite_video(green_clip: str, plate: Dict, out_path: str, ffmpeg: str, en
                                "-c:v", "libx264", "-crf", "18", "-pix_fmt", "yuv420p", *ffmpeg_studio.COLOR_TAGS, "-c:a", "copy",
                                "-shortest", out_path], stdin=subprocess.PIPE)   # RGB frames: converted with the BT.709 matrix they are tagged with
     work = tempfile.mkdtemp()
-    place, n = None, 0
+    place, n, broken_pipe, read_all = None, 0, None, False
     try:
         while True:
             raw = reader.stdout.read(gw * gh * 3)
             if len(raw) < gw * gh * 3:
+                read_all = True
                 break
             frame = os.path.join(work, "g.png")
             Image.fromarray(np.frombuffer(raw, dtype=np.uint8).reshape(gh, gw, 3)).save(frame)
             res = composite(frame, plate, os.path.join(work, "c.png"), env, place=place, seed=n + 1)
             place = res["placement"]
-            writer.stdin.write(np.asarray(Image.open(res["path"]).convert("RGB"), dtype=np.uint8).tobytes())
+            try:
+                writer.stdin.write(np.asarray(Image.open(res["path"]).convert("RGB"), dtype=np.uint8).tobytes())
+            except OSError as e:          # BrokenPipe: the writer died — its exit code below says why
+                broken_pipe = e
+                break
             n += 1
     finally:
-        writer.stdin.close()
-        writer.wait()
-        reader.wait()
+        try:
+            writer.stdin.close()
+        except OSError:
+            pass
+        writer_code = _finish(writer)
+        if not read_all and reader.poll() is None:
+            # stopped early (writer died / a frame failed): the reader still has frames to push into a pipe nobody reads any more —
+            # reader.wait() hung for ever here (review of B1a, reproduced with real ffmpeg), holding the runner's _turn lock
+            try:
+                reader.stdout.close()
+            except OSError:
+                pass
+            reader.kill()
+        reader_code = _finish(reader)
         import shutil
         shutil.rmtree(work, ignore_errors=True)
+    # T9 (S14.3 B1a): the exit codes and the file were not checked — a writer that died left a half-written clip that the runner then
+    # put in place of the provider's clip. Any of these → CompositeError (the runner keeps the original clip and says so, diag plate_video).
     if n == 0:
         raise CompositeError("clip phông xanh không có khung hình nào")
+    if writer_code != 0 or broken_pipe is not None:
+        raise CompositeError(f"ffmpeg ghi clip ghép lỗi (mã thoát {writer_code}" + (f", {broken_pipe}" if broken_pipe else "") + ")")
+    if read_all and reader_code != 0:          # killed on purpose after an early stop: its code says nothing
+        raise CompositeError(f"ffmpeg đọc clip phông xanh lỗi (mã thoát {reader_code}) — clip ghép có thể thiếu khung")
+    if not os.path.exists(out_path) or os.path.getsize(out_path) == 0:
+        raise CompositeError("ffmpeg không tạo ra clip ghép")
+    want = n / float(fps)
+    source = ffmpeg_studio.probe_duration(green_clip)            # '-shortest': a shorter audio track legitimately ends the clip sooner
+    if source:
+        want = min(want, source)
+    got = ffmpeg_studio.probe_duration(out_path)
+    if got is None or got < want * 0.9 - 0.1:
+        raise CompositeError(f"clip ghép dài {got if got is not None else '?'} s, đã ghi {n} khung ≈ {want:.2f} s — bỏ, giữ clip gốc")
     return {"path": out_path, "frames": n, "placement": place}

@@ -391,10 +391,25 @@ def _settings_project_body(p: Pipeline, pid: int) -> None:
     elif confirm_all(f"proj_del_{pid}", [pid], "🗑 Xóa dự án", f"Xóa hẳn dự án “{proj['name']}” cùng ảnh, clip, nhạc, video? Không thể khôi phục.",
                      st, "Có, xóa dự án"):
         autopilot.stop(p, pid, "Dự án bị xóa")
-        p.cancel_all_active(pid)
+        report = {}
+        note = cancel_everything(p, pid, report)          # T3: the running tasks are stopped at the provider too, not only here
+        if report.get("busy"):                            # nothing was cancelled: deleting now would orphan tasks still billing
+            st.warning(f"Chưa xóa dự án. {note}")
+            return
         p.delete_project(pid, C.DATA)
-        st.toast(f"Đã xóa dự án “{proj['name']}”")
+        st.toast(f"Đã xóa dự án “{proj['name']}”. {note}")
         st.rerun()
+
+
+def cancel_everything(p: Pipeline, pid, report_out=None) -> str:
+    """■ Hủy / delete project (T3, S14.3 B1a): core.runner.cancel_all — rights first, then the running tasks at ClipAI / Deepix (once
+    per task), then every queued/running job here. A service not configured on this machine (video_runner / image_runner → None) is
+    named in the note, never skipped silently. Returns the sentence for the toast."""
+    from core import runner as job_runner
+    report = job_runner.cancel_all(p, pid, video=C.video_runner(p), image=C.image_runner(p))
+    if report_out is not None:
+        report_out.update(report)              # the caller may need {"busy": True} (the turn stayed busy: nothing was cancelled)
+    return job_runner.cancel_note(report)
 
 
 def money_card(p: Pipeline, pid) -> None:
@@ -773,7 +788,7 @@ def global_bar(p: Pipeline):
             p.set_paused(pid, True)
             st.rerun()
         if confirm_all("btn_cancel", [pid], "■ Hủy việc", "Hủy mọi ảnh/clip đang chờ hoặc đang gen của dự án này?", b3, "Có, hủy"):
-            st.toast(f"Đã hủy {p.cancel_all_active(pid)} việc")
+            st.toast(cancel_everything(p, pid))
             st.rerun()
         access_ui.set_read_only(False)
         with c5:
@@ -843,7 +858,7 @@ def _global_bar_v2(p: Pipeline, projects):
                     st.rerun()
                 if confirm_all("btn_cancel", [pid], "■ Hủy việc đang chờ / đang gen", "Hủy mọi ảnh/clip đang chờ hoặc đang gen của dự án này?",
                                st, "Có, hủy"):
-                    st.toast(f"Đã hủy {p.cancel_all_active(pid)} việc")
+                    st.toast(cancel_everything(p, pid))
                     st.rerun()
                 risk_popover(p, pid)
         access_ui.set_read_only(False)
