@@ -112,6 +112,35 @@ def new_round_block(conn, actor: Dict) -> None:
             st.success(f"Đã đóng «{out['closed']['name']}» (chi ${out['closed']['summary']['total_usd']:.2f}) và mở «{out['opened']['name']}».")
 
 
+def trial_start_button(conn, actor: Dict, usd: float, image_cap: int, audio_cap: int, container=st) -> bool:
+    """S14.2: nút "▶ Bắt đầu đợt thử" (GIỮ khóa `budget_start`, ⚙ → Đợt thử & Claude). Trước đây chỉ dời mốc thanh đợt thử mà không mở
+    đợt ngân sách → lệch với 📅 theo đợt. Giờ: chỉ Owner, lý do bắt buộc, đi qua core.budget_rounds.start_trial (= start_new: đóng đợt
+    hiện tại + mở đợt mới, thanh đợt thử + Claude đếm lại). Người khác: nút tắt + câu chỉ đường. True khi đã mở đợt."""
+    from core import budget_rounds as R
+    if (actor or {}).get("role") != "owner":
+        container.button("▶ Bắt đầu đợt thử (tính từ bây giờ)", key="budget_start", type="primary", disabled=True,
+                         help="Chỉ Owner mở đợt mới")
+        container.caption("Mở đợt thử mới = mở đợt ngân sách mới: chỉ Owner (💵 → 📅 Mức dùng theo ngày · đợt ngân sách → "
+                          "▶ Bắt đầu đợt ngân sách mới).")
+        return False
+    why = (container.text_input("Lý do mở đợt thử mới (bắt buộc)", key="budget_start_why",
+                                placeholder="ví dụ: thử dự án 30 giây mới") or "").strip()
+    if not container.button("▶ Bắt đầu đợt thử (tính từ bây giờ)", key="budget_start", type="primary",
+                            help="Đóng đợt ngân sách hiện tại (lưu tóm tắt) và mở đợt mới với mức dự tính này; thanh đợt thử và thanh "
+                                 "Claude đếm lại từ bây giờ. Giống ▶ Bắt đầu đợt ngân sách mới ở 📅."):
+        return False
+    if not why:
+        container.error("Chưa mở đợt thử: cần nhập lý do (ô ngay trên nút). Mở đợt thử = mở đợt ngân sách mới, được ghi nhật ký.")
+        return False
+    try:
+        out = R.start_trial(conn, actor, float(usd), why, image_cap=int(image_cap), audio_cap=int(audio_cap))
+    except Exception as e:  # noqa: BLE001 - said, never a crash of the dialog
+        container.error(f"Không mở được đợt thử: {e}")
+        return False
+    container.success(f"Đã đóng «{out['closed']['name']}» và mở «{out['opened']['name']}» (mức dự tính ${float(usd):.2f}).")
+    return True
+
+
 def body(conn, actor: Dict) -> None:
     """Nội dung hộp thoại (tách riêng để test bằng AppTest.from_function)."""
     from core import budget_rounds as R

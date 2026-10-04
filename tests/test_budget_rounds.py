@@ -241,6 +241,53 @@ class RoundTests(Base):
         self.assertIn("Cách sửa", msg)
         self.assertEqual(R.current(self.conn)["name"], "Đợt 2")             # the round itself was written whole
 
+    def test_start_trial_opens_a_budget_round_owner_only_with_reason(self):
+        """S14.2: "▶ Bắt đầu đợt thử" (budget_start) used to move the trial bar WITHOUT a round → the bar and 📅 rounds disagreed."""
+        budget.save(self.conn, enabled=True, usd=20.0, since="2026-09-30 00:00:00", llm_usd=5.0, image_cap=10, audio_cap=10)
+        before = budget.get(self.conn)
+        with self.assertRaises(auth.AuthError):
+            R.start_trial(self.conn, MEMBER, 30, "lý do", image_cap=99)
+        with self.assertRaises(ValueError):
+            R.start_trial(self.conn, OWNER, 30, "  ", image_cap=99)
+        self.assertEqual(budget.get(self.conn), before)                      # refused → caps and bar unchanged
+        self.assertEqual(self.conn.execute("SELECT COUNT(*) FROM budget_rounds").fetchone()[0], 0)
+        out = R.start_trial(self.conn, OWNER, 30, "thử dự án mới", image_cap=50, audio_cap=70, pricing=PRICING)
+        b = budget.get(self.conn)
+        cur = R.current(self.conn)
+        self.assertEqual(cur["id"], out["opened"]["id"])
+        self.assertTrue(cur["name"].startswith("Đợt thử "))
+        self.assertEqual(cur["started_at"], b["since"])                      # the bar and the round start together
+        self.assertEqual((b["usd"], b["llm_usd"], b["image_cap"], b["audio_cap"]), (30.0, 5.0, 50, 70))
+        self.assertEqual(cur["planned_usd"], 30.0)
+
+    def test_trial_start_button_keeps_its_key_and_goes_through_the_round(self):
+        from streamlit.testing.v1 import AppTest
+
+        import os
+        import tempfile
+        db = os.path.join(tempfile.mkdtemp(), "r.sqlite")
+
+        def page(role, db):
+            import streamlit as st
+            from core.db import connect
+            from dashboard.design.screens import money_days
+            conn = connect(db)
+            money_days.trial_start_button(conn, {"email": "boss@x", "role": role, "perms": []}, 12.0, 5, 6)
+            from core import budget_rounds
+            st.session_state["_rounds"] = conn.execute("SELECT COUNT(*) FROM budget_rounds").fetchone()[0]
+            st.session_state["_name"] = budget_rounds.current(conn)["name"]
+
+        at = AppTest.from_function(page, args=("member", db)).run()
+        self.assertTrue(at.button(key="budget_start").disabled)
+        at = AppTest.from_function(page, args=("owner", db)).run()
+        at.button(key="budget_start").click().run()
+        self.assertTrue(any("lý do" in e.value for e in at.error))                # no reason → said, nothing opened
+        self.assertEqual(at.session_state["_rounds"], 0)
+        at.text_input(key="budget_start_why").input("đợt mới").run()
+        at.button(key="budget_start").click().run()
+        self.assertEqual(at.session_state["_rounds"], 2)                         # the old round closed + the new one
+        self.assertTrue(at.session_state["_name"].startswith("Đợt thử "))
+
     def test_project_and_people_bars_are_reset_with_the_round(self):
         from core import project_budget, team
         budget.save(self.conn, enabled=True, usd=20.0, since="2026-09-30 00:00:00")

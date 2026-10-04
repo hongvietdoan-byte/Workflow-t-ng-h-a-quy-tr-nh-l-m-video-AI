@@ -362,7 +362,26 @@ def start_new(conn, actor, name: str, planned_usd: float, planned_llm_usd: float
             conn.commit()
     if failed:
         raise BarsNotReset(f"Đã đóng đợt «{old['name']}» và mở đợt «{title}», nhưng CHƯA đặt lại được: " + "; ".join(failed)
-                           + ". Cách sửa: đặt lại tay các thanh đó — thanh đợt thử: 💵 → ⚙ Đợt thử & Claude → ▶ Bắt đầu đợt thử; "
-                           "Claude / dự án: 💵 → ↺ Đặt lại thanh tiền; theo người: 👥 Nhóm → ↺ Đặt lại.")
+                           + ". Cách sửa: đặt lại tay các thanh đó — đợt thử / Claude / dự án: 💵 → ↺ Đặt lại thanh tiền; "
+                           "theo người: 👥 Nhóm → ↺ Đặt lại.")
     get = lambda i: _row(conn.execute("SELECT * FROM budget_rounds WHERE id=?", (i,)).fetchone())  # noqa: E731
     return {"closed": get(closed_id), "opened": get(new_id), "bars": done}
+
+
+def trial_name(at: Optional[datetime] = None) -> str:
+    """Tên tự đặt cho đợt mở từ nút "▶ Bắt đầu đợt thử": "Đợt thử 05/10 14:30" (giờ máy)."""
+    return "Đợt thử " + (at or datetime.now()).strftime("%d/%m %H:%M")
+
+
+def start_trial(conn, actor, usd: float, reason: str, image_cap: Optional[int] = None, audio_cap: Optional[int] = None,
+                name: Optional[str] = None, pricing: Optional[Dict] = None) -> Dict:
+    """S14.2: nút "▶ Bắt đầu đợt thử" (⚙ → Đợt thử & Claude, khóa `budget_start`) từng chỉ dời mốc thanh đợt thử (budget.restart) mà
+    KHÔNG mở đợt ngân sách → bảng 📅 theo đợt lệch với thanh. Giờ nó đi qua start_new: chỉ Owner, lý do bắt buộc, đóng đợt hiện tại
+    (lưu tóm tắt) và mở đợt mới với mức dự tính `usd` (Claude giữ mức đang đặt); thanh đợt thử và thanh Claude đếm lại từ bây giờ.
+    Trần số ảnh / âm thanh chỉ lưu SAU khi mở đợt được (lỗi → không đổi gì). Trả kết quả của start_new."""
+    from . import budget
+    out = start_new(conn, actor, name or trial_name(), usd, float(budget.get(conn).get("llm_usd") or 0.0), reason, pricing=pricing)
+    caps = {k: int(v) for k, v in (("image_cap", image_cap), ("audio_cap", audio_cap)) if v is not None}
+    if caps:
+        budget.save(conn, **caps)
+    return out
