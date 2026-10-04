@@ -44,6 +44,22 @@ def add(conn, kind: str, project_id: Optional[int] = None, scene_id: Optional[in
     return cur.lastrowid
 
 
+def upsert(conn, kind: str, project_id: int, screen: str, stage: Optional[str] = None, rating: Optional[int] = None,
+           text: Optional[str] = None, created_by: Optional[str] = None) -> int:
+    """One remark per (kind, project, screen) source that is re-saved (⚖ So sánh 💾 Lưu điểm): the newest version replaces the old row
+    instead of adding one — the satisfaction of the project counts it once. Same checks as add(); returns the row id."""
+    row = conn.execute("SELECT id FROM user_feedback WHERE kind=? AND project_id=? AND screen=? ORDER BY id DESC LIMIT 1",
+                       (kind, project_id, screen)).fetchone()
+    new = add(conn, kind, project_id=project_id, screen=screen, stage=stage, rating=rating, text=text, created_by=created_by)
+    if row is None:
+        return new
+    conn.execute("UPDATE user_feedback SET at=(SELECT at FROM user_feedback WHERE id=?), stage=?, rating=?,"
+                 " text=(SELECT text FROM user_feedback WHERE id=?), created_by=?, handled=NULL WHERE id=?",
+                 (new, stage, None if rating is None else int(rating), new, created_by, row[0]))
+    conn.execute("DELETE FROM user_feedback WHERE id=?", (new,))
+    conn.commit()
+    return row[0]
+
 def list(conn, kind: Optional[str] = None, project_id: Optional[int] = None, stage: Optional[str] = None,
          screen: Optional[str] = None, limit: int = 200) -> List[Dict]:
     """Newest first."""

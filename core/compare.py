@@ -124,7 +124,7 @@ def metrics(p: Pipeline, project_id: int, data_dir: str) -> Dict:
 
 FEEDBACK_SCREEN = "compare"
 """S14.19: the marks are a 'delivery' row of user_feedback with this screen; text = JSON of the marks + note (one place for every
-mark the person gives). Older marks stay in app_settings 'eval:<pid>' and are still read when there is no new row."""
+mark the person gives; a re-save updates that row, feedback.upsert). Older marks stay in app_settings 'eval:<pid>' and are still read when there is no new row."""
 
 
 def get_scores(conn, project_id: int) -> Dict:
@@ -149,7 +149,7 @@ def save_scores(conn, project_id: int, scores: Dict, created_by: Optional[str] =
         clean["note"] = str(scores["note"])[:2000]
     marks = [v for k, v in clean.items() if k != "note"]
     rating = clean.get("overall") or (round(sum(marks) / len(marks)) if marks else None)
-    feedback.add(conn, "delivery", project_id=project_id, screen=FEEDBACK_SCREEN, rating=rating,
+    feedback.upsert(conn, "delivery", project_id, FEEDBACK_SCREEN, rating=rating,
                  text=json.dumps(clean, ensure_ascii=False), created_by=created_by)
 
 
