@@ -1,5 +1,7 @@
 """S14.6 Gói K: đợt ngân sách có lịch sử + mức dùng theo NGÀY (core.budget_rounds). 0 USD — chỉ CSDL trong bộ nhớ."""
+import sqlite3
 import unittest
+from unittest import mock
 
 from core import auth, budget, budget_rounds as R, money_reset
 from core.db import connect
@@ -7,6 +9,7 @@ from core.pipeline import Pipeline
 
 OWNER = {"email": "boss@x", "role": "owner", "perms": []}
 MEMBER = {"email": "lan@x", "role": "member", "perms": ["knowledge"]}
+FIRST = "Đợt từ 30/09/2026"          # tên đợt đầu tính từ mốc thật 2026-09-30 00:00 UTC (= 07:00 giờ VN)
 PRICING = {"currency": "usd",
            "per_image": {"img-a": 0.05, "img-b": 0.10},
            "per_video_second": {"vid-a:720p": 0.10, "vid-a:1080p": None, "vid-b:std": 0.20},
@@ -63,12 +66,31 @@ class DailyTests(Base):
         self.assertAlmostEqual(d["video"]["usd"], 0.0)
         self.assertAlmostEqual(d["video"]["est_usd"], 0.75)
         self.assertIn("vid-a:1080p", d["unpriced"])
-        self.assertIn("tts", d["unpriced"])
+        self.assertNotIn("tts", d["unpriced"])                                    # no estimate possible → its own group
+        self.assertEqual(d["no_estimate"], ["tts"])
+        self.assertEqual(d["no_estimate_n"], 2)
         self.assertEqual(d["audio"]["n"], 2)
+        self.assertEqual(d["audio"]["none_n"], 2)
         self.assertAlmostEqual(d["total_usd"], 0.75)
         self.assertAlmostEqual(d["est_usd"], 0.75)
-        self.assertIn("chưa có giá", R.unpriced_note(d))
-        self.assertIn("ước tính dư", R.unpriced_note(d))
+        note = R.unpriced_note(d)
+        self.assertIn("vid-a:1080p", note)
+        self.assertIn("ước tính dư ≈ $0.75", note)
+        self.assertIn("chưa có giá — không ước tính được: tts (2 lượt)", note)
+
+    def test_only_unestimable_rows_never_say_zero_dollars(self):
+        self.ev("audio", "tts", "-", 3, "2026-10-03 05:00:00")
+        d = R.daily(self.conn, pricing=PRICING)[0]
+        self.assertEqual(d["unpriced"], [])
+        note = R.unpriced_note(d)
+        self.assertNotIn("$0.00", note)
+        self.assertNotIn("đã cộng vào tổng", note)
+        self.assertIn("không ước tính được: tts (3 lượt)", note)
+        from dashboard.design.screens import money_days
+        cell = money_days._money(d["audio"])
+        self.assertNotIn("$0.00", cell)
+        self.assertIn("chưa có giá", cell)
+        self.assertIn("3 lượt", cell)
 
     def test_filters_by_round_window_and_project(self):
         self.ev("image", "img-a", "1k", 1, "2026-10-01 03:00:00")
@@ -110,10 +132,10 @@ class RoundTests(Base):
         budget.save(self.conn, enabled=True, usd=20.0, since="2026-09-30 00:00:00")
         cur = R.current(self.conn)
         self.assertIsNone(cur["id"])
-        self.assertEqual(cur["name"], R.FIRST_NAME)
+        self.assertEqual(cur["name"], FIRST)
         self.assertEqual(cur["started_at"], "2026-09-30 00:00:00")
         self.assertEqual(cur["planned_usd"], 20.0)
-        self.assertEqual([r["name"] for r in R.history(self.conn)], [R.FIRST_NAME])
+        self.assertEqual([r["name"] for r in R.history(self.conn)], [FIRST])
 
     def test_only_owner_and_reason_required_and_nothing_changes(self):
         budget.save(self.conn, enabled=True, usd=20.0, since="2026-09-30 00:00:00")
@@ -140,7 +162,7 @@ class RoundTests(Base):
         rows = self.conn.execute("SELECT COUNT(*) FROM usage_events").fetchone()[0]
         out = R.start_new(self.conn, OWNER, "Đợt 04/10", 30.0, 8.0, "chính sách tiền mới", pricing=PRICING)
         closed, opened = out["closed"], out["opened"]
-        self.assertEqual(closed["name"], R.FIRST_NAME)
+        self.assertEqual(closed["name"], FIRST)
         self.assertEqual(closed["started_at"], "2026-09-30 00:00:00")
         self.assertEqual(closed["ended_at"], opened["started_at"])
         self.assertEqual(closed["planned_usd"], 20.0)
@@ -162,14 +184,96 @@ class RoundTests(Base):
         self.assertEqual(money_reset.last(self.conn, "trial")["why"], "chính sách tiền mới")
         self.assertEqual(money_reset.last(self.conn, "claude")["why"], "chính sách tiền mới")
         self.assertEqual(R.current(self.conn)["id"], opened["id"])
-        self.assertEqual([r["name"] for r in R.history(self.conn)], ["Đợt 04/10", R.FIRST_NAME])
+        self.assertEqual([r["name"] for r in R.history(self.conn)], ["Đợt 04/10", FIRST])
         self.assertEqual(self.conn.execute("SELECT COUNT(*) FROM usage_events").fetchone()[0], rows)   # ledger untouched
         self.assertEqual(self.conn.execute("SELECT COUNT(*) FROM audit_log WHERE action='budget_round'").fetchone()[0], 1)
         # a second new round closes the first REAL round (its id), not a new "Trước 04/10"
         self.ev("image", "img-b", "1k", 1, "2099-01-01 00:00:00")
         out2 = R.start_new(self.conn, OWNER, "Đợt 3", 40.0, 8.0, "đợt tiếp", pricing=PRICING)
         self.assertEqual(out2["closed"]["id"], opened["id"])
-        self.assertEqual([r["name"] for r in R.history(self.conn)], ["Đợt 3", "Đợt 04/10", R.FIRST_NAME])
+        self.assertEqual([r["name"] for r in R.history(self.conn)], ["Đợt 3", "Đợt 04/10", FIRST])
+
+    def test_first_round_name_comes_from_the_real_baseline(self):
+        budget.save(self.conn, enabled=True, usd=20.0, since="2026-09-30 20:00:00")       # 03:00 01/10 giờ VN
+        self.assertEqual(R.current(self.conn)["name"], "Đợt từ 01/10/2026")
+        budget.save(self.conn, since=None)
+        self.assertEqual(R.current(self.conn)["name"], "Từ đầu sổ chi")
+
+    def snapshot(self):
+        return (budget.get(self.conn), self.conn.execute("SELECT COUNT(*) FROM budget_rounds").fetchone()[0],
+                money_reset.last(self.conn, "trial"), money_reset.last(self.conn, "claude"))
+
+    def test_summary_failure_writes_nothing(self):
+        budget.save(self.conn, enabled=True, usd=20.0, since="2026-09-30 00:00:00")
+        before = self.snapshot()
+        with mock.patch.object(R, "summarize", side_effect=RuntimeError("hỏng")):
+            with self.assertRaises(RuntimeError):
+                R.start_new(self.conn, OWNER, "Đợt 2", 30, 5, "lý do", pricing=PRICING)
+        self.assertEqual(self.snapshot(), before)
+
+    def test_insert_failure_rolls_back_and_leaves_the_bars(self):
+        budget.save(self.conn, enabled=True, usd=20.0, since="2026-09-30 00:00:00")
+        before = self.snapshot()
+
+        class Boom:
+            def __init__(self, c):
+                self._c = c
+
+            def execute(self, sql, *a):
+                if sql.startswith("INSERT INTO budget_rounds (name, started_at, planned_usd"):
+                    raise sqlite3.OperationalError("đĩa đầy")
+                return self._c.execute(sql, *a)
+
+            def __getattr__(self, k):
+                return getattr(self._c, k)
+        with self.assertRaises(sqlite3.OperationalError):
+            R.start_new(Boom(self.conn), OWNER, "Đợt 2", 30, 5, "lý do", pricing=PRICING)
+        self.assertEqual(self.snapshot(), before)
+
+    def test_bar_failure_after_the_round_is_said_with_a_fix(self):
+        budget.save(self.conn, enabled=True, usd=20.0, since="2026-09-30 00:00:00")
+        with mock.patch.object(money_reset, "set_planned", side_effect=RuntimeError("khóa CSDL")):
+            with self.assertRaises(R.BarsNotReset) as cm:
+                R.start_new(self.conn, OWNER, "Đợt 2", 30, 5, "lý do", pricing=PRICING)
+        msg = str(cm.exception)
+        self.assertIn("Đợt 2", msg)
+        self.assertIn("khóa CSDL", msg)
+        self.assertIn("Cách sửa", msg)
+        self.assertEqual(R.current(self.conn)["name"], "Đợt 2")             # the round itself was written whole
+
+    def test_project_and_people_bars_are_reset_with_the_round(self):
+        from core import project_budget, team
+        budget.save(self.conn, enabled=True, usd=20.0, since="2026-09-30 00:00:00")
+        project_budget.set_planned(self.conn, self.pid, 12.0)
+        auth.add_user(self.conn, auth.Identity("boss@x", "Boss", "owner", []), "lan@x.vn", ["knowledge"])
+        targets = R.reset_targets(self.conn)
+        self.assertEqual(targets["projects"], {self.pid: 12.0})
+        self.assertIn("lan@x.vn", targets["users"])
+        out = R.start_new(self.conn, OWNER, "Đợt 2", 30, 5, "lý do", pricing=PRICING,
+                          projects={self.pid: 15.0}, users=["lan@x.vn"])
+        self.assertEqual(project_budget.planned(self.conn, self.pid), 15.0)
+        self.assertEqual(money_reset.last(self.conn, "project", self.pid)["why"], "lý do")
+        self.assertIsNotNone(team.user_baseline(self.conn, "lan@x.vn"))
+        self.assertEqual(money_reset.last(self.conn, "user", "lan@x.vn")["why"], "lý do")
+        self.assertEqual(sorted(out["bars"]), ["claude", f"project:{self.pid}", "trial", "user:lan@x.vn"])
+        lines = R.bars_text(30, 5, {self.pid: 15.0}, ["lan@x.vn"])
+        for part in ("Đợt thử", "Claude", f"dự án #{self.pid}", "lan@x.vn"):
+            self.assertIn(part, lines)
+
+    def test_unknown_project_refused_before_writing(self):
+        budget.save(self.conn, enabled=True, usd=20.0, since="2026-09-30 00:00:00")
+        before = self.snapshot()
+        with self.assertRaises(ValueError):
+            R.start_new(self.conn, OWNER, "Đợt 2", 30, 5, "lý do", pricing=PRICING, projects={self.pid: 10.0})   # no budget yet
+        self.assertEqual(self.snapshot(), before)
+
+    def test_schema_stamp_covers_the_rounds_table(self):
+        from core import db
+        with mock.patch.object(R, "TABLE", R.TABLE.replace("close_reason TEXT", "close_reason TEXT, x TEXT")):
+            db._STAMP.clear()
+            changed = db.schema_stamp()
+        db._STAMP.clear()
+        self.assertNotEqual(changed, db.schema_stamp())
 
     def test_window_of_a_round(self):
         budget.save(self.conn, enabled=True, usd=20.0, since="2026-09-30 00:00:00")

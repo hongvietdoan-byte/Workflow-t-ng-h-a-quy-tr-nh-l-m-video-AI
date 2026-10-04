@@ -440,7 +440,8 @@ def schema_stamp() -> int:
         import hashlib
         import inspect
         try:
-            src = SCHEMA + repr(V2_COLUMNS) + "".join(inspect.getsource(f) for f in (_migrate, _migrate_v2, _migrate_usage_events,
+            from .budget_rounds import TABLE as rounds_table          # S14.6: the rounds table is created in _migrate too
+            src = SCHEMA + repr(V2_COLUMNS) + rounds_table + "".join(inspect.getsource(f) for f in (_migrate, _migrate_v2, _migrate_usage_events,
                                                                                        _migrate_outputs))
             _STAMP.append(int(hashlib.sha1(src.encode("utf-8")).hexdigest()[:7], 16) or 1)
         except (OSError, TypeError):
