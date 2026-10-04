@@ -628,7 +628,8 @@ def ask_text(client, prompt: str, validate: Callable[[str], str]):
             return validate(reply.text), tin, tout
         except ValueError as e:
             error = str(e)[:300]
-    raise LlmError(f"the model did not return a usable playbook twice: {error}", code="bad_text")
+    raise LlmError(f"Claude trả cẩm nang không dùng được 2 lần liền ({error}). Cách xử lý: bấm chắt lọc lại; nếu vẫn lỗi, tắt bớt "
+                   "tài liệu dài của bước này rồi thử lại.", code="bad_text")
 
 
 def run_distill(group: str, client, include_builtin: bool = False) -> Dict:

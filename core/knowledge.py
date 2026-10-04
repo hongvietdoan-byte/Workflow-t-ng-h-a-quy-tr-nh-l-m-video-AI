@@ -273,13 +273,13 @@ def set_enabled(group: str, file: str, enabled: bool) -> None:
             d["enabled"] = bool(enabled)
             _save(group, docs)
             return
-    raise KeyError(f"'{file}' is not an uploaded document of this step")
+    raise KeyError(f"Không tìm thấy tài liệu '{file}' trong tài liệu bổ sung của bước này — tải lại trang (có thể vừa bị xóa).")
 
 
 def remove_doc(group: str, file: str) -> None:
     docs = _load(group)
     if not any(d["file"] == file for d in docs):
-        raise KeyError(f"'{file}' is not an uploaded document of this step")
+        raise KeyError(f"Không tìm thấy tài liệu '{file}' trong tài liệu bổ sung của bước này — tải lại trang (có thể vừa bị xóa).")
     _save(group, [d for d in docs if d["file"] != file])
     try:
         os.remove(os.path.join(group_dir(group), file))

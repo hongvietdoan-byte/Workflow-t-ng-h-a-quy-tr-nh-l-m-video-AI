@@ -59,6 +59,29 @@ class MessageTests(unittest.TestCase):
         self.assertNotIn("did not return", str(cm.exception))
         self.assertIn("Cách xử lý", str(cm.exception))
 
+    def test_a_bad_playbook_twice_is_explained_in_vietnamese(self):
+        class Bad:
+            def complete(self, prompt, images=None):
+                return llm_runner.LlmReply("x", 1, 1)
+
+        def refuse(text):
+            raise ValueError("ngắn quá")
+        with self.assertRaises(llm_runner.LlmError) as cm:
+            llm_runner.ask_text(Bad(), "p", refuse)
+        self.assertNotIn("did not return", str(cm.exception))
+        self.assertIn("Cách xử lý", str(cm.exception))
+
+    def test_an_unknown_knowledge_document_is_explained_in_vietnamese(self):
+        import tempfile
+        from unittest import mock
+        from core import knowledge
+        with mock.patch.dict(os.environ, {"KNOWLEDGE_USER_DIR": tempfile.mkdtemp()}):
+            for fn in (lambda: knowledge.set_enabled("qc", "khong_co.md", True), lambda: knowledge.remove_doc("qc", "khong_co.md")):
+                with self.assertRaises(KeyError) as cm:
+                    fn()
+                self.assertNotIn("is not an uploaded document", str(cm.exception))
+                self.assertIn("tải lại trang", str(cm.exception))
+
     def test_editing_a_locked_character_is_explained_in_vietnamese(self):
         p = Pipeline(connect())
         pid = p.create_project("j1")
