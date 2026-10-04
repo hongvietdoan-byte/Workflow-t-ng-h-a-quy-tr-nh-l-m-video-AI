@@ -283,6 +283,52 @@ class ReviewFixes(Base):
         self.assertEqual(self.p.conn.execute("SELECT COUNT(*) FROM jobs WHERE type='video_gen'").fetchone()[0], before)
         self.assertEqual(self.p.state(clips[0]).value, "approved")
 
+class ReviewMinor(Base):
+    def test_estimate_counts_the_rewrites_when_the_flag_is_on(self):
+        from core import cost, project_budget
+        pid, sid, job = self.make()
+        with mock.patch.dict(os.environ, OFF):
+            off = cost.estimate_run(self.p, pid)
+            rem_off = project_budget.remaining(self.p, pid)
+        with mock.patch.dict(os.environ, ON):
+            on = cost.estimate_run(self.p, pid)
+            rem_on = project_budget.remaining(self.p, pid)
+        self.assertEqual(off["rewrite"], 0)
+        self.assertGreater(on["rewrite"], 0)
+        self.assertGreater(on["total"], off["total"])
+        self.assertGreater(on["max"], off["max"])
+        self.assertGreater(rem_on["claude_director"], rem_off["claude_director"])
+
+    def test_clip_qc_reject_hands_root_cause_and_problem_to_the_director(self):
+        _, sid, job = self.make("auto", kind="video_gen")
+        with mock.patch.dict(os.environ, ON):
+            self.p.apply_qc(job, BAD, issues="Camera shakes; keep it still.")
+        prompt = self.client.calls[0][0]
+        self.assertIn("root_cause", prompt)
+        self.assertIn("hands_face 0.40", prompt)
+        self.assertIn("Camera shakes", prompt)
+
+    def test_clip_frames_folder_is_removed_after_the_call(self):
+        _, sid, job = self.make(kind="video_gen")
+        clip = os.path.join(self.tmp, "c.mp4")
+        with open(clip, "wb") as f:
+            f.write(b"x")
+        self.p.conn.execute("UPDATE jobs SET result_path=? WHERE id=?", (clip, job))
+        self.p.conn.commit()
+        made = []
+
+        def frames(path, out_dir, count=8):
+            made.append(out_dir)
+            out = os.path.join(out_dir, "frame_01.jpg")
+            with open(out, "wb") as f:
+                f.write(b"j")
+            return [out]
+        self.client.answer = {"new_prompt": "Static camera", "changed": ["x"], "why": "y"}
+        with mock.patch.dict(os.environ, ON), mock.patch("core.video_analysis.extract_frames", frames):
+            self.p.reject(job, "user", "rung quá")
+        self.assertEqual(len(self.client.calls[0][1]), 1)                     # the frame went to Claude
+        self.assertTrue(made and not os.path.exists(made[0]))                 # …and its temporary folder is gone
+
 
 class Fallback(Base):
     def diag_rows(self):

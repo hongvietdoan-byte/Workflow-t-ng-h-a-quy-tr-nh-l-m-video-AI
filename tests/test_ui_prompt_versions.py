@@ -66,6 +66,9 @@ class PromptVersionsUi(unittest.TestCase):
         self.assertIn("line-through", html)
         self.assertIn("Đổi màu áo (thử)", html)
         jobs_before = self.p.conn.execute("SELECT COUNT(*) FROM jobs").fetchone()[0]
+        self.assertTrue(at.button(key=f"pvrevert_image_{self.sid}").disabled)      # rà (a): warned, confirmed first
+        self.assertIn("TỐN TIỀN", " ".join(c.value for c in at.caption))
+        at.checkbox(key=f"pvrevack_image_{self.sid}").check().run()
         at.button(key=f"pvrevert_image_{self.sid}").click().run()
         self.assertFalse(at.exception, at.exception)
         conn = connect(self.db)

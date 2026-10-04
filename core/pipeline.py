@@ -418,7 +418,8 @@ class Pipeline:
         self.conn.execute("UPDATE projects SET qc_autofix=? WHERE id=?", (1 if on else 0, project_id))
         self.conn.commit()
 
-    def apply_qc(self, job_id: int, scores: Mapping[str, float], issues: Optional[str] = None, autofix: bool = False) -> str:
+    def apply_qc(self, job_id: int, scores: Mapping[str, float], issues: Optional[str] = None, autofix: bool = False,
+                 qc: Optional[dict] = None) -> str:
         """... Returns 'already_processed' instead of raising when the picture was already judged by another check in the
         meantime (the automatic background check and a manual click can land on the same picture)."""
         access.need_edit_job(self, job_id, "ghi kết quả QC")
@@ -454,17 +455,20 @@ class Pipeline:
                  else ("fail" if too_low else None)))
         self.conn.commit()
         hold = None if passed else self._no_auto_retry(job, scores, threshold, fix)
+        if qc is None:                            # S14.17 rà (c): what the Director reads before rewriting (picture QC and clip QC)
+            low = [f"{k} {v:.2f}" for k, v in scores.items() if v < threshold]
+            qc = {"root_cause": ("điểm thấp: " + ", ".join(low)) if low else None, "problem": issues, "fix": fix or None}
         if too_low and not (autofix and not auto):  # far below the bar: not worth a human's time (with auto-fix on, the fix branch below handles it)
             if hold:
                 return self._hold(job_id, f"QC {overall:.2f} < mức tối thiểu {reject_floor} — {hold}{suffix}")
-            return self.reject(job_id, "ai_agent", f"QC {overall:.2f} < mức tối thiểu {reject_floor}{suffix}", fix=fix)
+            return self.reject(job_id, "ai_agent", f"QC {overall:.2f} < mức tối thiểu {reject_floor}{suffix}", fix=fix, qc=qc)
         if not auto:
             if autofix and not passed:
                 if self._retries_exhausted(job) or hold:  # F5: no paid retry with the same input — keep it for the person, flagged
                     return self._hold(job_id, f"QC {overall:.2f} < {threshold} — " + (hold or f"sau {job['retry_count']} lần tự sửa")
                                       + f" — cần bạn xem{suffix}")
                 self.transition(job_id, JobState.PENDING_REVIEW, actor="ai_agent", note=f"QC {overall:.2f} < {threshold}, tự sửa{suffix}")
-                self.reject(job_id, "ai_agent", f"QC {overall:.2f} < {threshold}{suffix}", fix=fix)   # the new job's prompt carries the fix
+                self.reject(job_id, "ai_agent", f"QC {overall:.2f} < {threshold}{suffix}", fix=fix, qc=qc)   # the new take carries the fix
                 return "auto_fix"
             self.transition(job_id, JobState.PENDING_REVIEW, actor="ai_agent",
                             note=f"QC {overall:.2f} (suggestion only){suffix}")
@@ -478,7 +482,7 @@ class Pipeline:
             return "pending_review"
         if hold:
             return self._hold(job_id, f"QC {overall:.2f} < {threshold} — {hold}{suffix}")
-        return self.reject(job_id, "ai_agent", f"QC {overall:.2f} < {threshold}{suffix}", fix=fix)
+        return self.reject(job_id, "ai_agent", f"QC {overall:.2f} < {threshold}{suffix}", fix=fix, qc=qc)
 
     def _no_auto_retry(self, job, scores: Mapping[str, float], threshold: float, fix: str) -> Optional[str]:
         """F5 (user decision 2026-09-24): an automatic retry only when its input changes, at most AUTO_REGEN_LIMIT times per shot

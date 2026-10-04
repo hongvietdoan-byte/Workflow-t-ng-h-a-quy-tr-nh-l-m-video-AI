@@ -14,6 +14,10 @@ _STYLE = {"del": "background:rgba(220,60,60,.18);text-decoration:line-through;",
 WAIT_TEXT = "Đạo diễn đang viết lại prompt… (tối đa khoảng 3 phút; lỗi / quá giờ thì gen lại theo cách cũ, ghi chú của bạn giữ nguyên)"
 
 
+REVERT_WARNING = ("⚠ Đổi prompt về bản cũ: lần gen sau dùng bản này. Nếu shot đã có ảnh / clip ĐÃ DUYỆT làm từ prompt hiện tại, bản đó sẽ bị coi là "
+                  "cũ và chạy tự động / nút “Gen” sẽ làm lại nó — TỐN TIỀN (trừ khi đã có lần gen đang chờ cho shot).")
+
+
 def busy():
     """A spinner while a reject / redo may wait for the Director (flag director_rewrite on); otherwise nothing."""
     from core import features
@@ -57,8 +61,10 @@ def panel(p, scene_id: int, kind: str, act=None) -> bool:
             st.caption("Lý do: " + str(last["why"]))
         if last.get("note"):
             st.caption("Theo: " + str(last["note"])[:300])
-        if st.button("↩ Dùng lại prompt cũ", key=f"pvrevert_{kind}_{scene_id}",
-                     help="Không tốn tiền: đặt lại prompt bản trước cho shot (lần gen sau dùng bản này). Không tự gen lại."):
+        st.caption(REVERT_WARNING)
+        ok = st.checkbox("Tôi hiểu, vẫn dùng lại prompt cũ", key=f"pvrevack_{kind}_{scene_id}")
+        if st.button("↩ Dùng lại prompt cũ", key=f"pvrevert_{kind}_{scene_id}", disabled=not ok,
+                     help="Bản thân nút này không gọi Claude, không tạo job — nhưng đọc cảnh báo bên trên."):
             run = act or (lambda fn, msg="": (fn(), True)[1])
             if run(lambda: prompt_rewrite.revert(p, scene_id, kind), "Đã dùng lại prompt cũ — gen lại khi bạn muốn"):
                 st.rerun()

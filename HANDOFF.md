@@ -17,10 +17,21 @@ Nhánh `s14-17-director-rewrite` (từ `43788fa`). Không sửa TODO.md, chưa p
 - UI v2: `dashboard/design/screens/prompt_versions_ui.py` — mục gập "✏ Prompt đã sửa (vN)" trên thẻ ảnh Storyboard + thẻ clip Video,
   so sánh bôi đỏ/xanh, danh sách thay đổi, nút `pvrevert_<kind>_<scene_id>` "↩ Dùng lại prompt cũ". Khóa widget cũ giữ nguyên.
 
+## Sửa theo phiên rà độc lập (05/10)
+1. Claude được gọi khi job CÒN SỐNG (`propose_rewrite`, không ghi DB); `Plan.apply()` ghi prompt ngay trước khi chèn job mới — `reject`,
+   `reopen_approved`, `regenerate_video` kiểm quyền/reviewable trước, rồi rewrite, rồi REJECTED. Prompt bị sửa tay trong lúc chờ → giữ bản người.
+2. `Pipeline.has_pending_take(scene, kind)`; vòng làm lại bản cũ (`autopilot._images_phase`/`_videos_phase`, `batch.queue_images`/`queue_videos`)
+   bỏ qua cảnh đã có job cùng loại queued/running/retryable.
+3. Khâu `director_rewrite`: `timeout` 90 s, `retries` 1 (STAGE_SETTINGS mới hỗ trợ 2 khóa này; Claude CLI lấy min); hết giờ → "Fix:" + diag.
+   Spinner `prompt_versions_ui.spin()` bọc các nút có thể gọi Đạo diễn (step2, step4, storyboard_cards); nút gen lại clip vì "cũ" không có câu sửa → không bọc.
+- (a) "↩ Dùng lại prompt cũ": cảnh báo tốn tiền + ô xác nhận `pvrevack_<kind>_<scene_id>`. (b) `cost.rewrite_estimate` cộng vào
+  `estimate_run` (key `rewrite`, max theo số lần gen) và `project_budget.remaining["claude_director"]`. (c) `apply_qc(qc=None)` tự dựng
+  root_cause (tiêu chí thấp)/problem/fix cho QC ảnh + QC clip. (d) thư mục tạm khung clip xóa sau lời gọi.
+
 ## Test
-- `tests/test_prompt_rewrite.py` (20), `tests/test_ui_prompt_versions.py` (2).
+- `tests/test_prompt_rewrite.py` (31: + ReviewFixes, ReviewMinor, chờ ngắn), `tests/test_ui_prompt_versions.py` (4: + SpinnerScan).
 
 ## Còn mở / rủi ro
-- Chưa chạy thật Claude (cờ verified False). Gọi Claude đồng bộ trong nút Loại/Vẽ lại (chờ vài giây).
-- Đổi `image_prompt` / `motion_prompt` làm lineage coi bản DUYỆT cũ hơn của cùng shot là "cũ" (hiếm: chỉ khi còn bản duyệt cũ hơn bản vừa loại).
+- Chưa chạy thật Claude (cờ verified False). Nút chờ tối đa ~3 phút khi Claude chậm (90 s × 2).
+- "Dùng lại prompt cũ" khi không có lần gen đang chờ vẫn có thể làm bản đã duyệt bị coi là cũ → đã cảnh báo + xác nhận, không chặn.
 - `p.retry(by_user=True, fix=…)` (job lỗi + câu sửa) chưa gọi rewrite — ngoài phạm vi S14.17.
