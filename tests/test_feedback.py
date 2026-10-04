@@ -128,5 +128,72 @@ class CompareScoresTests(unittest.TestCase):
         self.assertEqual(compare.get_scores(self.conn, self.pid), {"rhythm": 4})
 
 
+class FeedbackUiTests(unittest.TestCase):
+    """AppTest, UI v2: the 💬 button of the top bar and the "Bản này dùng được chứ?" block of Bước 5."""
+
+    def setUp(self):
+        from unittest import mock
+        from tests.test_ui_deliver import DeliverSeed
+        self.seed = DeliverSeed("run")
+        self.seed.setUp()
+        self.addCleanup(self.seed.doCleanups)
+        self.addCleanup(shutil.rmtree, self.seed.tmp, True)
+        self.mock = mock
+
+    def deliver(self):
+        out = os.path.join(self.seed.data, str(self.seed.pid), "output")
+        os.makedirs(out, exist_ok=True)
+        with open(os.path.join(out, "FINAL_VIDEO.mp4"), "wb") as f:      # a delivered video (pre-v2 location, no lineage needed)
+            f.write(b"not a real video")
+        self.seed.with_clip()
+
+    def rows(self):
+        conn = connect(self.seed.db)
+        try:
+            return feedback.list(conn)
+        finally:
+            conn.close()
+
+    def test_delivery_block_records_a_verdict_text_and_stage(self):
+        self.deliver()
+        at = self.seed.open_deliver()
+        pid = self.seed.pid
+        self.assertIn("Bản này dùng được chứ?", "\n".join(m.value for m in at.markdown))
+        at.radio(key=f"fb_verdict_{pid}").set_value("👎")
+        at.text_area(key=f"fb_text_{pid}").set_value("nhạc át giọng")
+        at.selectbox(key=f"fb_stage_{pid}").set_value("audio")
+        next(b for b in at.button if b.key == f"fb_send_{pid}").click().run()
+        self.assertFalse(at.exception, at.exception)
+        rows = self.rows()
+        self.assertEqual(len(rows), 1)
+        self.assertEqual((rows[0]["kind"], rows[0]["project_id"], rows[0]["rating"], rows[0]["stage"], rows[0]["text"]),
+                         ("delivery", pid, 1, "audio", "nhạc át giọng"))
+
+    def test_delivery_block_waits_for_a_delivery_and_old_keys_stay(self):
+        self.seed.with_clip()
+        at = self.seed.open_deliver()
+        self.assertNotIn(f"fb_send_{self.seed.pid}", {b.key for b in at.button})
+        self.assertIn(f"deliver_{self.seed.pid}", {b.key for b in at.button})
+
+    def test_empty_delivery_remark_says_so(self):
+        self.deliver()
+        at = self.seed.open_deliver()
+        next(b for b in at.button if b.key == f"fb_send_{self.seed.pid}").click().run()
+        self.assertEqual(self.rows(), [])
+        self.assertTrue(any("trống" in w.value for w in at.warning))
+
+    def test_screen_button_in_the_top_bar_records_a_screen_remark(self):
+        at = self.seed.open_deliver()
+        self.assertTrue(any("Góp ý màn này" in e.label for e in at.expander))
+        at.text_area(key="fb_screen_text").set_value("màn này rối")
+        next(b for b in at.button if b.key == "fb_screen_send").click().run()
+        self.assertFalse(at.exception, at.exception)
+        rows = self.rows()
+        self.assertEqual(len(rows), 1)
+        self.assertEqual((rows[0]["kind"], rows[0]["stage"], rows[0]["text"], rows[0]["project_id"]),
+                         ("screen", "ui", "màn này rối", self.seed.pid))
+        self.assertTrue(rows[0]["screen"])
+
+
 if __name__ == "__main__":
     unittest.main()

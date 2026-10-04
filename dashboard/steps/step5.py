@@ -535,6 +535,7 @@ def step5_v2(p: Pipeline, pid: int, stat, state: str) -> None:
             st.markdown(D.empty_state("Chưa có bản giao", "Bấm “📦 Xuất bản đầy đủ” ở thẻ trên."), unsafe_allow_html=True)
         _deliver_files(p, pid, stat)
         _final_qc(p, pid, bool(fin.get("path")))
+        delivery_feedback(p, pid, stat)
 
 
 def timeline_panel(p: Pipeline, pid: int) -> None:
@@ -923,6 +924,36 @@ def delivery_panel(p: Pipeline, pid: int, chosen, durations) -> None:
         _deliver_button(p, pid, chosen, durations)
         _deliver_files(p, pid, stat)
         _final_qc(p, pid, bool(fin.get("path")))
+        delivery_feedback(p, pid, stat)
+
+
+VERDICT_LABELS = {"👍": "👍 Dùng được", "🤔": "🤔 Tạm được", "👎": "👎 Chưa dùng được"}
+
+
+def delivery_feedback(p: Pipeline, pid: int, stat) -> None:
+    """S14.19 Đợt 0 (KE_HOACH_BO_NAO_PROMPT_TU_HOC): "Bản này dùng được chứ?" under the delivered video — 👍/🤔/👎 + what is not right +
+    which stage → user_feedback (kind 'delivery'). Shown only once there is a delivered video. Nothing is sent anywhere (0 USD)."""
+    from core import feedback
+    best = stat.get("best")
+    if not ((best and os.path.exists(best)) or stat["final"].get("path")):
+        return
+    n = feedback.satisfaction(p.conn, pid)["n"]
+    st.markdown("**Bản này dùng được chứ?**" + (f"  ·  đã có {n} góp ý cho dự án này" if n else ""))
+    with st.form(f"fb_form_{pid}", clear_on_submit=True, border=False):
+        verdict = st.radio("Bản này dùng được chứ?", list(feedback.VERDICTS), index=None, horizontal=True, key=f"fb_verdict_{pid}",
+                           format_func=VERDICT_LABELS.get, label_visibility="collapsed")
+        a, b = st.columns([3, 1.4])
+        text = a.text_area("Chỗ nào chưa ổn?", key=f"fb_text_{pid}", height=70, placeholder="vd: nhạc át giọng ở cảnh 3, chữ phụ đề che mặt…")
+        stage = b.selectbox("Khâu", [""] + list(feedback.STAGES), key=f"fb_stage_{pid}",
+                            format_func=lambda s: "— chưa rõ khâu —" if not s else feedback.STAGES[s])
+        sent = st.form_submit_button("💬 Gửi góp ý", key=f"fb_send_{pid}")
+    if sent:
+        if not verdict and not (text or "").strip():
+            st.warning("Góp ý trống — chọn 👍/🤔/👎 hoặc viết vài chữ rồi gửi lại.")
+            return
+        act(lambda: feedback.add(p.conn, "delivery", project_id=pid, stage=stage or None,
+                                 rating=feedback.VERDICTS.get(verdict) if verdict else None, text=text,
+                                 created_by=(p.user or {}).get("email") or p.actor), "Đã ghi góp ý — cảm ơn!")
 
 
 def _final_qc(p, pid, has_render: bool):
