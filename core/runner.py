@@ -18,6 +18,7 @@ from . import subjects as subject_links
 from . import trash
 from .cost import record_usage
 from .pipeline import Pipeline
+from .states import InvalidTransition, JobState
 from .preflight import record_failure
 from .providers import RISK_CONTROL, ProviderError
 from . import budget, throttle as throttle_store
@@ -178,20 +179,30 @@ class _Runner:
         for job in self._jobs(project_id, "queued"):
             if slots <= 0:
                 break
+            if submitted and self.p.project(project_id)["paused"]:
+                break               # T2: paused while this pass was sending — the jobs sent so far are running, send no more
             if self._wait(job):
                 continue            # v3: this job is sent later (after the previous shot's picture / with its multi-shot group)
             blocked = self._blocked(job)
             if blocked:
                 self._diag(job, "warn", "stale_input", f"không gửi: {blocked}")
-                self.p.start(job["id"])
+                self._running(job["id"])                 # QUEUED→FAILED is not a transition (core/states.py): RUNNING, then fail
                 self.p.fail(job["id"], f"stale_input: {blocked}")
+                continue
+            if job["external_id"]:
+                # T2: its task already exists at the provider (a multi-shot follower given the leader's task, relink_failed, or a send
+                # whose RUNNING step was lost) — sending it again would pay twice. It only moves to RUNNING; the next poll fetches it.
+                self._running(job["id"], "đã có task ở nhà cung cấp — không gửi lại")
+                self._diag(job, "info", "already_sent", f"job đã có task {job['external_id']} ở nhà cung cấp — chuyển sang đang chạy, "
+                                                        "không gửi lại (tránh trả tiền 2 lần)")
+                slots -= 1
                 continue
             args = self._submit_args(job)
             if args is None and self._editing(job):
                 continue            # M5: the person is editing this shot's motion prompt — wait for the approval, do not burn a try
             if args is None:
                 self._diag(job, "error", "missing_input", "thiếu đầu vào (ảnh đã duyệt / motion prompt / prompt ảnh)")
-                self.p.start(job["id"])
+                self._running(job["id"])
                 self.p.fail(job["id"], "missing inputs (approved image / motion prompt / image prompt)")
                 continue
             running_all = self.p.conn.execute("SELECT COUNT(*) FROM jobs WHERE type=? AND state='running'",
@@ -219,21 +230,47 @@ class _Runner:
                                    "đợi, nạp tiền rồi mở lại ở ⚙ → 💵 Ngân sách")
                         break
                     self._diag(job, "warn" if e.code == RISK_CONTROL else "error", e.code, f"gửi job thất bại: {e}")
-                    self.p.start(job["id"])
+                    self._running(job["id"])
                     switched = self._record_provider_failure(job, e.code, str(e))
                     self.p.fail(job["id"], f"{e.code or 'error'}: {e}")
                     if switched:
                         self._retry_switched(job)
                     continue
+                # T2: the task exists (and may be billed) from here on. Its id, its stamp and RUNNING are one transaction (the UPDATEs are
+                # not committed; transition() commits them with the state) — never Pipeline.start(): a pause pressed while submit()
+                # was in flight made start() raise and left a paid job queued, sent and paid again on the next pass.
                 self.p.conn.execute("UPDATE jobs SET external_id=? WHERE id=?", (task_id, job["id"]))
                 for col, value in self._stamp(job, args).items():
                     self.p.conn.execute(f"UPDATE jobs SET {col}=? WHERE id=?", (value, job["id"]))
-                self.p.conn.commit()
+                try:
+                    self._running(job["id"])
+                except InvalidTransition as e:
+                    self.p.conn.commit()                    # keep the task id: it is the only link to what may be billed
+                    self._record_usage(job, args, kwargs)
+                    self._cancelled_in_flight(job, task_id, e)
+                    continue
                 self._record_usage(job, args, kwargs)
-            self.p.start(job["id"])
             slots -= 1
             submitted += 1
         return submitted
+
+    def _running(self, job_id: int, note: Optional[str] = None) -> None:
+        """QUEUED → RUNNING without Pipeline.start()'s pause check (T2): used once the task exists at the provider, or on the way to
+        FAILED (QUEUED→FAILED is not a transition). Commits whatever the caller wrote on the job before it, in the same transaction."""
+        self.p.transition(job_id, JobState.RUNNING, note=note)
+
+    def _cancelled_in_flight(self, job, task_id: str, error: Exception) -> None:
+        """T2: the job was cancelled (cancel_all_active) while submit() was in flight — the provider task exists and may be billed. Its
+        id and ledger row are kept (written by the caller); the task is cancelled at the provider; the diagnostics say all of it."""
+        state = self.p.job(job["id"])["state"]
+        try:
+            self.provider.cancel(task_id)
+            asked = "đã yêu cầu hủy ở nhà cung cấp"
+        except Exception as e:  # noqa: BLE001 - a provider without cancel (Deepix) / a network error: said, not hidden
+            asked = f"KHÔNG hủy được ở nhà cung cấp ({type(e).__name__}: {e})"
+        self._diag(job, "error", "cancelled_in_flight",
+                   f"job bị hủy ({state}) trong lúc đang gửi — task {task_id} đã tạo ở {self.provider.name}, có thể đã tính tiền "
+                   f"(đã ghi sổ chi); {asked}. Chi tiết: {error}")
 
     def poll_once(self, project_id: int) -> Dict[str, int]:
         lock = _turn(project_id, self.job_type)
@@ -344,8 +381,7 @@ class _Runner:
                             (new_ext, job["input_hash"], job["source_job_id"], job["model"], new_id))
         self.p.conn.execute("UPDATE jobs SET escalated=0 WHERE id IN (?, ?)", (job_id, new_id))
         self.p.conn.execute("UPDATE scenes SET state='ready' WHERE id=? AND state='needs_attention'", (job["scene_id"],))
-        self.p.conn.commit()
-        self.p.start(new_id)
+        self._running(new_id, f"nối lại task thật {new_ext}")     # T2: one transaction with the task id; nothing is sent, so a pause does not stop it
         self._diag(job, "info", "relinked", f"task thật của job này mang mã khác ({new_ext}) — nối lại vào job {new_id}, không gửi lại")
         return new_id
 
@@ -405,6 +441,13 @@ class _Runner:
         if job["external_id"] and job["state"] == "running":
             self.provider.cancel(job["external_id"])
         self.p.cancel(job_id)
+
+    def cancel_all(self, project_id: int, other: Optional["_Runner"] = None, actor: str = "user") -> Dict:
+        """T3: see the module function cancel_all (this runner + optionally the other kind's runner)."""
+        pair = {self.job_type: self}
+        if other is not None:
+            pair[other.job_type] = other
+        return cancel_all(self.p, project_id, video=pair.get("video_gen"), image=pair.get("image_gen"), actor=actor)
 
     def run(self, project_id: int, interval: float = 90, max_iterations: int = 10_000,
             sleep: Callable[[float], None] = time.sleep) -> None:
@@ -1207,8 +1250,7 @@ class VideoRunner(_Runner):
                          (leader["id"], leader["external_id"], leader["model"] or "kling",
                           lineage.video_input_hash(mp, aspect) if mp else None,
                           lineage.approved_image_id(conn, shots.image_scene(conn, r["id"])), jid))
-            conn.commit()
-            self.p.start(jid)
+            self._running(jid, f"phần của clip nhóm (job {leader['id']})")   # T2: one transaction with the leader's task id (paid once)
             self._clean_edges(self.p.job(jid), dest)
             try:
                 shots.trim_clip(self.p, r["id"], dest)
@@ -1217,6 +1259,74 @@ class VideoRunner(_Runner):
             conn.execute("UPDATE jobs SET result_path=? WHERE id=?", (dest, jid))
             conn.commit()
             self.p.succeed(jid)
+
+
+NO_CANCEL_API = ("deepix",)          # providers with no cancel endpoint (core/adapters/deepix.py: cancel() does nothing)
+
+
+def cancel_all(p: Pipeline, project_id: int, video: Optional[_Runner] = None, image: Optional[_Runner] = None,
+               actor: str = "user") -> Dict:
+    """T3 (S14.3 B1a): the project's ■ Hủy / delete-project stop. Before: only Pipeline.cancel_all_active — the jobs were cancelled
+    on our side while the providers kept generating (and billing) every running task.
+
+    1. the right to edit is checked FIRST (a viewer must not reach the provider before being refused);
+    2. the project's send/poll turn of both kinds is held, so no send is in flight while we cancel;
+    3. every running job with a task is cancelled at its provider — once per task (a multi-shot group shares one task), each call in
+       its own try/except (one error never stops the rest, it is reported); Deepix has no cancel API: those pictures are only dropped
+       from our queue and are still billed; a kind with no configured service (`video`/`image` None) is reported, not skipped silently;
+    4. then Pipeline.cancel_all_active.
+    Returns {"cancelled", "at_provider", "failed": [(task, error)], "no_cancel_api", "no_provider"}; cancel_note() words it."""
+    from . import access
+    access.need_edit(p, project_id, "hủy việc đang chạy")
+    runners = {"video_gen": video, "image_gen": image}
+    locks = [_turn(project_id, kind) for kind in ("image_gen", "video_gen")]          # one fixed order: never two orders, never a deadlock
+    for lock in locks:
+        lock.acquire()
+    try:
+        report = {"cancelled": 0, "at_provider": 0, "failed": [], "no_cancel_api": 0, "no_provider": 0}
+        done = set()
+        rows = p.conn.execute("SELECT * FROM jobs WHERE project_id=? AND state='running' AND external_id IS NOT NULL ORDER BY id",
+                              (project_id,)).fetchall()
+        for job in rows:
+            key = (job["type"], job["external_id"])
+            if key in done:
+                continue                    # the same task (multi-shot followers carry the leader's): one cancel call
+            done.add(key)
+            r = runners.get(job["type"])
+            if r is None:
+                report["no_provider"] += 1
+                continue
+            if str(getattr(r.provider, "name", "")).startswith(NO_CANCEL_API):
+                report["no_cancel_api"] += 1
+                continue
+            try:
+                r.provider.cancel(job["external_id"])
+                report["at_provider"] += 1
+            except Exception as e:  # noqa: BLE001 - one provider error must not leave the other tasks running; it is reported
+                report["failed"].append((job["external_id"], f"{type(e).__name__}: {e}"))
+                diag.record(p.conn, "image" if job["type"] == "image_gen" else "video", "error",
+                            f"không hủy được task {job['external_id']} ở nhà cung cấp ({type(e).__name__}: {e}) — job vẫn bị hủy phía "
+                            "mình; kiểm tra / hủy trên web nhà cung cấp", "cancel_failed", project_id, job["scene_id"], job["id"])
+        report["cancelled"] = p.cancel_all_active(project_id, actor=actor)
+        return report
+    finally:
+        for lock in reversed(locks):
+            lock.release()
+
+
+def cancel_note(report: Dict) -> str:
+    """The person-facing sentence for cancel_all (toast). No refund is promised: ClipAI's refund policy is not verified."""
+    parts = [f"Đã hủy {report['cancelled']} việc."]
+    if report["at_provider"]:
+        parts.append(f"Đã yêu cầu nhà cung cấp dừng {report['at_provider']} task đang gen.")
+    if report["no_cancel_api"]:
+        parts.append(f"Deepix không có lệnh hủy: {report['no_cancel_api']} ảnh đã bỏ khỏi hàng đợi phía mình; ảnh đã gửi vẫn tính tiền.")
+    if report["failed"]:
+        parts.append(f"KHÔNG hủy được {len(report['failed'])} task ở nhà cung cấp ("
+                     + ", ".join(t for t, _ in report["failed"][:5]) + ") — kiểm tra / hủy trên web nhà cung cấp.")
+    if report["no_provider"]:
+        parts.append(f"{report['no_provider']} task chưa hủy ở nhà cung cấp (dịch vụ chưa cấu hình ở máy này) — hủy trên web nhà cung cấp.")
+    return " ".join(parts)
 
 
 def previous_frame_job(conn, project_id: int, idx: int, sequence=None):
