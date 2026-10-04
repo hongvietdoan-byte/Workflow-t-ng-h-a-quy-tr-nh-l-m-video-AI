@@ -386,6 +386,10 @@ class PromptLessonsTests(unittest.TestCase):
         self.assertEqual(len(notes), 1)
         self.assertIn("MAXIM", notes[0])
         self.assertNotIn("KELLY", notes[0])                                    # only who speaks
+        for _ in range(3):                                                     # every runner tick asks again
+            sr.identity_pictures(p.conn, pid, rows, 5)
+        counts = [r["count"] for r in p.conn.execute("SELECT count FROM diag_events WHERE code='speaker_no_identity'")]
+        self.assertEqual(counts, [1])                                          # said once, the counter is not blown up
 
     def test_strong_emotion_is_softened_and_the_eyes_guarded(self):
         from core import seedance_refs as sr
