@@ -12,8 +12,7 @@ import os
 import time
 from typing import Callable, Dict, List
 
-from . import assets
-from .cost import record_usage
+from . import assets, spend_gate
 from .pipeline import Pipeline
 from .providers import ProviderError
 
@@ -45,19 +44,25 @@ def make_character_set(p: Pipeline, project_id: int, name: str, provider, data_d
     """Generate the 2 pictures, store them as a project resource "<NAME> · trang phục N", make it this character's reference and
     clear the separate outfit pictures (the set already wears the outfit). Returns {"asset_id", "paths"}. Costs 2 image credits."""
     refs = _refs(p, project_id, name)
-    old_size = getattr(provider, "size", None)
-    if old_size is not None:
-        provider.size = PORTRAIT_SIZE
-    try:
-        tasks = [(key, provider.submit(set_prompt(p, project_id, name, view, refs), [r["path"] for r in refs])) for key, view in VIEWS]
-    finally:
-        if old_size is not None:
-            provider.size = old_size
+    prompts = [(key, set_prompt(p, project_id, name, view, refs)) for key, view in VIEWS]
     info = getattr(provider, "usage_info", None)
-    for _ in tasks:
-        if info is not None:
-            model, tier = info()
-            record_usage(p.conn, None, "image", provider.name, model, tier, 1, "image", project_id=project_id)
+    model, tier = info() if info is not None else (None, None)
+    # S14.1: the set used to skip every money cap (trial round, the project's locked budget, a service out of credit) and was
+    # recorded only after both sends — the gate checks both pictures before the first goes and records each one right after it.
+    with spend_gate.spend(p.conn, "image", provider.name, project_id=project_id, model=model, tier=tier, units=len(VIEWS),
+                          ledger_stage="character_set") as slot:
+        slot.raise_if_over(f"Không tạo bộ ảnh nhân vật {name}")
+        old_size = getattr(provider, "size", None)
+        if old_size is not None:
+            provider.size = PORTRAIT_SIZE
+        tasks = []
+        try:
+            for key, prompt in prompts:
+                tasks.append((key, slot.send(provider.submit, prompt, [r["path"] for r in refs])))
+                slot.record()
+        finally:
+            if old_size is not None:
+                provider.size = old_size
     folder = os.path.join(data_dir, str(project_id), "costumes")
     os.makedirs(folder, exist_ok=True)
     stem = assets.fold(name).replace(" ", "_") or "character"

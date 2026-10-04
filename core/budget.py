@@ -347,9 +347,10 @@ def audio_tag(conn, count: int = 1) -> str:
     return f" · {count} lượt âm thanh (chưa có giá USD; đợt thử {used}/{b['audio_cap']} lượt)"
 
 
-def check_image(conn, provider_name: str, model: Optional[str] = None) -> Optional[str]:
-    """A reason not to send one more picture: the count cap, and — now that data/pricing.json has per_image prices (provisional) — the
-    USD cap too; a picture model without a price is refused while the limit is on (it would count as $0)."""
+def check_image(conn, provider_name: str, model: Optional[str] = None, count: int = 1) -> Optional[str]:
+    """A reason not to send `count` more pictures (default one): the count cap, and — now that data/pricing.json has per_image prices
+    (provisional) — the USD cap too; a picture model without a price is refused while the limit is on (it would count as $0).
+    `count` > 1: a set sent together (core.costume's 2 pictures, S14.1) is checked whole before the first one goes."""
     if provider_name.startswith("mock"):
         return None
     stop = halted(conn, provider_name)          # Data Pack P5: the service said it is out of money
@@ -363,12 +364,12 @@ def check_image(conn, provider_name: str, model: Optional[str] = None) -> Option
     if not b["enabled"]:
         return None
     s = spent(conn, pricing, since=b["since"])
-    if s["images"] + 1 > b["image_cap"]:
+    if s["images"] + count > b["image_cap"]:
         return f"đã gen {s['images']} ảnh trong đợt thử (trần {b['image_cap']} ảnh) — nâng trần trong ⚙ → Ngân sách thử"
     price = cost._number(pricing.get("per_image", {}).get(model)) if model else None
     if price is None:
         return _no_price(f"ảnh model {model or '(không rõ model)'}")
-    if s["usd"] + price > b["usd"] + 1e-9:
-        return (f"vượt trần ngân sách thử: đã chi ≈ ${s['usd']:.2f}, ảnh này ≈ ${price:.3f}, trần ${b['usd']:.0f} "
+    if s["usd"] + price * count > b["usd"] + 1e-9:
+        return (f"vượt trần ngân sách thử: đã chi ≈ ${s['usd']:.2f}, {'ảnh này' if count == 1 else f'{count} ảnh'} ≈ ${price * count:.3f}, trần ${b['usd']:.0f} "
                 "— nâng trần hoặc bắt đầu đợt mới trong ⚙ → Ngân sách thử")
     return None
