@@ -268,7 +268,7 @@ def composite_video(green_clip: str, plate: Dict, out_path: str, ffmpeg: str, en
                                "-c:v", "libx264", "-crf", "18", "-pix_fmt", "yuv420p", *ffmpeg_studio.COLOR_TAGS, "-c:a", "copy",
                                "-shortest", out_path], stdin=subprocess.PIPE)   # RGB frames: converted with the BT.709 matrix they are tagged with
     work = tempfile.mkdtemp()
-    place, n = None, 0
+    place, n, broken_pipe = None, 0, None
     try:
         while True:
             raw = reader.stdout.read(gw * gh * 3)
@@ -278,14 +278,36 @@ def composite_video(green_clip: str, plate: Dict, out_path: str, ffmpeg: str, en
             Image.fromarray(np.frombuffer(raw, dtype=np.uint8).reshape(gh, gw, 3)).save(frame)
             res = composite(frame, plate, os.path.join(work, "c.png"), env, place=place, seed=n + 1)
             place = res["placement"]
-            writer.stdin.write(np.asarray(Image.open(res["path"]).convert("RGB"), dtype=np.uint8).tobytes())
+            try:
+                writer.stdin.write(np.asarray(Image.open(res["path"]).convert("RGB"), dtype=np.uint8).tobytes())
+            except OSError as e:          # BrokenPipe: the writer died — its exit code below says why
+                broken_pipe = e
+                break
             n += 1
     finally:
-        writer.stdin.close()
-        writer.wait()
-        reader.wait()
+        try:
+            writer.stdin.close()
+        except OSError:
+            pass
+        writer_code = writer.wait()
+        reader_code = reader.wait()
         import shutil
         shutil.rmtree(work, ignore_errors=True)
+    # T9 (S14.3 B1a): the exit codes and the file were not checked — a writer that died left a half-written clip that the runner then
+    # put in place of the provider's clip. Any of these → CompositeError (the runner keeps the original clip and says so, diag plate_video).
     if n == 0:
         raise CompositeError("clip phông xanh không có khung hình nào")
+    if writer_code != 0 or broken_pipe is not None:
+        raise CompositeError(f"ffmpeg ghi clip ghép lỗi (mã thoát {writer_code}" + (f", {broken_pipe}" if broken_pipe else "") + ")")
+    if reader_code != 0:
+        raise CompositeError(f"ffmpeg đọc clip phông xanh lỗi (mã thoát {reader_code}) — clip ghép có thể thiếu khung")
+    if not os.path.exists(out_path) or os.path.getsize(out_path) == 0:
+        raise CompositeError("ffmpeg không tạo ra clip ghép")
+    want = n / float(fps)
+    source = ffmpeg_studio.probe_duration(green_clip)            # '-shortest': a shorter audio track legitimately ends the clip sooner
+    if source:
+        want = min(want, source)
+    got = ffmpeg_studio.probe_duration(out_path)
+    if got is None or got < want * 0.9 - 0.1:
+        raise CompositeError(f"clip ghép dài {got if got is not None else '?'} s, đã ghi {n} khung ≈ {want:.2f} s — bỏ, giữ clip gốc")
     return {"path": out_path, "frames": n, "placement": place}
