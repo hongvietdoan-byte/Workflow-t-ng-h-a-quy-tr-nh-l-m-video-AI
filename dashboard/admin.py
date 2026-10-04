@@ -256,11 +256,12 @@ def library_review_box(p: Pipeline, game: str) -> None:
             done()
         ask = f"lib_rev_ask_{game}"
         if st.session_state.get(ask) and picked:
-            st.warning(f"Bỏ {len(picked)} ảnh đã chọn? File ảnh sẽ bị xóa khỏi kho.")
+            st.warning(f"Bỏ {len(picked)} ảnh đã chọn? Ảnh vào thùng rác của từng mục (khôi phục được trong {assets.trash_days()} ngày, "
+                       "ở mục đó trong danh sách Kho).")
             y, n = st.columns(2)
             if y.button("Có, bỏ", key=f"lib_rev_rmyes_{game}", type="primary"):
                 for i in picked:
-                    assets.remove_image(p.conn, i)
+                    assets.trash_image(p.conn, i)
                     st.session_state.pop(f"lib_rev_pick_{i}", None)
                 st.session_state[ask] = False
                 done()
@@ -288,8 +289,9 @@ def library_review_box(p: Pipeline, game: str) -> None:
                 role, look = row_meta(w)
                 assets.set_image_meta(p.conn, w["id"], role=role, look=look, status="approved")
                 done()
-            if b.button("🗑", key=f"lib_rev_rm_{w['id']}", help="Bỏ ảnh này"):
-                assets.remove_image(p.conn, w["id"])
+            if confirm_all(key=f"lib_rev_rm_{w['id']}", ids=[w["id"]], label="🗑", question=f"Bỏ ảnh này? Vào thùng rác của mục (khôi phục được trong "
+                           f"{assets.trash_days()} ngày).", container=b, yes_label="Có, bỏ"):
+                assets.trash_image(p.conn, w["id"])
                 st.session_state.pop(f"lib_rev_pick_{w['id']}", None)
                 done()
         if len(waiting) > len(shown):
@@ -311,13 +313,23 @@ def library_lost_box(p: Pipeline) -> None:
                 a1.markdown(f"**{escape(w['asset'])}** · `{w['path']}`" + ("" if w["can_reload"] else " · nguồn không còn"))
                 if a2.button("↻ Tải lại", key=f"lib_lost_reload_{w['id']}", disabled=not w["can_reload"],
                              help="Chép lại từ tệp gốc đã nhập"):
-                    assets.reload_image(p.conn, w["id"])
-                    _rerun_here()
+                    try:
+                        ok = assets.reload_image(p.conn, w["id"])
+                    except (assets.AssetError, OSError) as e:     # S14.4: a bad source file is said, not a traceback
+                        st.error(f"Không tải lại được ảnh của {w['asset']}: {e}")
+                    else:
+                        if ok:
+                            _rerun_here()
+                        st.warning(f"Không tải lại được ảnh của {w['asset']}: tệp gốc không còn")
                 if a3.button("🔗 Gỡ liên kết", key=f"lib_lost_rm_{w['id']}", help="Xóa dòng hỏng khỏi Kho (file đã mất)"):
                     assets.remove_image(p.conn, w["id"])
                     _rerun_here()
-            if st.button("🔗 Gỡ liên kết TẤT CẢ ảnh mất file", key="lib_lost_rm_all"):
-                assets.unlink_missing(p.conn)
+            dead = [w["id"] for w in lost if not w["can_reload"]]   # S14.4: the ones that can be reloaded are kept
+            if confirm_all(key="lib_lost_rm_all", ids=dead, label=f"🔗 Gỡ liên kết {len(dead)} ảnh mất file không tải lại được",
+                           question=f"Gỡ {len(dead)} dòng ảnh mất file (nguồn cũng không còn)? Danh sách được sao lưu ra tệp JSON trong thư mục Kho "
+                           "(_backup); ảnh còn tải lại được giữ nguyên.", container=st, yes_label="Có, gỡ"):
+                n = assets.unlink_missing(p.conn, only_unreloadable=True)
+                st.toast(f"Đã gỡ {n} dòng ảnh mất file (đã sao lưu)")
                 _rerun_here()
 
 
@@ -763,6 +775,30 @@ def lib_new_item_box(p, game) -> None:
                 st.rerun()
 
 
+def lib_removed_images(p: Pipeline, a: dict) -> None:
+    """S14.4: the asset's pictures in the Kho trash, each with ↩ Khôi phục (emptied after assets.trash_days())."""
+    gone = assets.removed_images(p.conn, a["id"])
+    if not gone:
+        return
+    st.caption(f"🗑 {len(gone)} ảnh đã xóa — khôi phục được trước khi tự xóa hẳn")
+    cols = st.columns(min(len(gone), 6))
+    for col, r in zip(cols, gone[:6]):
+        if r["exists"]:
+            col.image(assets.thumbnail(r["path"]), width=80, caption=f"còn {r['days_left']} ngày")
+        else:
+            col.caption("(file đã mất)")
+        if col.button("↩ Khôi phục", key=f"lib_img_restore_{r['id']}", disabled=not r["exists"]):
+            try:
+                assets.restore_image(p.conn, r["id"])
+            except assets.AssetError as e:
+                st.error(str(e))
+            else:
+                st.toast("Đã khôi phục ảnh")
+                st.rerun()
+    if len(gone) > 6:
+        st.caption(f"… và {len(gone) - 6} ảnh khác (khôi phục bớt ảnh trên để thấy)")
+
+
 @st.fragment
 def lib_asset_card(p: Pipeline, a: dict, items: list) -> None:
     p = _fresh(p)
@@ -773,9 +809,11 @@ def lib_asset_card(p: Pipeline, a: dict, items: list) -> None:
                 col.image(assets.thumbnail(img["path"]), width=110,
                           caption=assets.ROLES.get(a["kind"], {}).get(img.get("role") or "", "chưa rõ vai trò")
                           + (f" · {assets.LOOKS[img['look']]}" if img.get("look") in assets.LOOKS else ""))
-                if col.button("Xóa ảnh", key=f"lib_img_rm_{img['id']}"):
-                    assets.remove_image(p.conn, img["id"])
+                if confirm_all(key=f"lib_img_rm_{img['id']}", ids=[img["id"]], label="Xóa ảnh", question=f"Xóa ảnh này? Ảnh vào thùng rác của mục, khôi phục "
+                               f"được trong {assets.trash_days()} ngày.", container=col, yes_label="Có, xóa"):
+                    assets.trash_image(p.conn, img["id"])
                     st.rerun()
+        lib_removed_images(p, a)
         if a["description"]:
             st.caption(a["description"][:700])
         if a["kind"] in ("character", "pet"):
@@ -791,7 +829,9 @@ def lib_asset_card(p: Pipeline, a: dict, items: list) -> None:
                 names = {x["id"]: f"{x['kind_label']}: {x['name']}" for x in others}
                 target = g1.selectbox("Gộp mục này vào mục khác (ảnh chuyển sang, tên này thành tên gọi khác)", [None] + list(names),
                                       format_func=lambda i: "— không gộp —" if i is None else names[i], key=f"lib_merge_{a['id']}")
-                if target is not None and g2.button("Gộp", key=f"lib_merge_go_{a['id']}"):
+                if target is not None and confirm_all(key=f"lib_merge_go_{a['id']}", ids=[a["id"], target], label="Gộp",
+                                                      question=f"Gộp “{a['name']}” vào “{names[target]}”? Mọi ảnh (cả ảnh chờ duyệt) chuyển sang, "
+                                                      f"“{a['name']}” thành tên gọi khác rồi bị xóa khỏi Kho.", container=g2, yes_label="Có, gộp"):
                     try:
                         assets.merge(p.conn, a["id"], target)
                     except assets.AssetError as e:

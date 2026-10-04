@@ -554,7 +554,9 @@ V2_COLUMNS = {
              ("sent_group", "TEXT")),  # M10: the Kling multi-shot group exactly as sent (split the clip by it, not by today's plan)   # W12: provider list checks     # v3 Kling multi-shot: the job that makes this shot's clip together with its group
     # G1/G2 (docs/KE_HOACH_TONG_2026-09-24.md): what a library picture shows, for which look, and whether a person approved it
     "assets": (("profile", "TEXT"),),        # T1: the character's standard profile, approved once, inherited by every project
-    "asset_images": (("role", "TEXT"), ("look", "TEXT"), ("variant", "TEXT"), ("status", "TEXT NOT NULL DEFAULT 'approved'")),
+    "asset_images": (("role", "TEXT"), ("look", "TEXT"), ("variant", "TEXT"), ("status", "TEXT NOT NULL DEFAULT 'approved'"),
+                     ("removed_at", "TEXT"),      # S14.4: when the picture went to the library trash (status 'removed'); emptied after 30 days
+                     ("removed_from", "TEXT")),   # the status it had before, given back by assets.restore_image
     "usage_events": (("deleted_project_id", "INTEGER"),
                      ("stage", "TEXT")),                      # what a Claude call was for (director, qc, motion, asset_vision…)        # spend of a deleted project stays readable (its id is never reused)
     "motion_prompts": (("image_job_id", "INTEGER"), ("spec_hash", "TEXT"), ("video_model", "TEXT"), ("check_flags", "TEXT"),

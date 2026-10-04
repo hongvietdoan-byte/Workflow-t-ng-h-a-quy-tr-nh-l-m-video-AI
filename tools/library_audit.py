@@ -25,7 +25,7 @@ JUNK_NAME = re.compile(r"^\d+$")
 def audit(conn, game: str = "FF") -> dict:
     from PIL import Image
     rows = conn.execute("SELECT i.id, i.path, i.role, i.status, i.sha256, i.src_path, a.id AS aid, a.kind, a.name, a.profile, a.description"
-                        " FROM asset_images i JOIN assets a ON a.id=i.asset_id WHERE a.game=?", (game,)).fetchall()
+                        " FROM asset_images i JOIN assets a ON a.id=i.asset_id WHERE a.game=? AND i.status IS NOT 'removed'", (game,)).fetchall()
     out = {"missing": [], "unreadable": [], "small": collections.Counter(), "no_role": collections.Counter(), "shared": [], "per_kind": {}}
     sizes = {}
     for r in rows:

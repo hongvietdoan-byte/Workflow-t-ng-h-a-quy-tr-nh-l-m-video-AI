@@ -17,7 +17,8 @@ def places_fingerprint(conn, project_id: int) -> Dict[str, str]:
     out = {}
     for a in conn.execute("SELECT a.id, a.name, a.description, a.profile FROM assets a JOIN project_assets pa ON pa.asset_id=a.id "
                           "WHERE pa.project_id=? AND a.kind='location'", (project_id,)).fetchall():
-        pics = [r[0] for r in conn.execute("SELECT path FROM asset_images WHERE asset_id=? ORDER BY id", (a["id"],)).fetchall()] \
+        pics = [r[0] for r in conn.execute("SELECT path FROM asset_images WHERE asset_id=? AND status IS NOT 'removed'"   # S14.4: Kho trash = gone
+                                                 " ORDER BY id", (a["id"],)).fetchall()] \
             if _has_table(conn, "asset_images") else []
         key = json.dumps([a["name"], a["description"], a["profile"], pics], ensure_ascii=False, sort_keys=True)
         out[str(a["id"])] = hashlib.sha1(key.encode("utf-8")).hexdigest()[:12]

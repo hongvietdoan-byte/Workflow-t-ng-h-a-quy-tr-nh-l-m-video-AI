@@ -675,7 +675,7 @@ def _director_references(conn, project_id: int) -> List[Tuple[str, str]]:
             continue
         if a["images"]:
             out.append((f"Ảnh tham chiếu — {a['name']}:", assets.thumbnail(assets.best_reference(a)["path"], 900)))
-        elif conn.execute("SELECT 1 FROM asset_images WHERE asset_id=?", (a["id"],)).fetchone():
+        elif conn.execute("SELECT 1 FROM asset_images WHERE asset_id=? AND status IS NOT 'removed'", (a["id"],)).fetchone():   # S14.4: not the Kho trash
             blind.append(a["name"])            # the library has pictures of it, but none can be read
     if blind:                                  # A1/R1: never let the Director describe a known character blind (it invents one)
         raise LlmError(f"Director cần ảnh của {', '.join(blind)} nhưng không đọc được file ảnh trong Kho tài nguyên — kiểm tra thư mục "
