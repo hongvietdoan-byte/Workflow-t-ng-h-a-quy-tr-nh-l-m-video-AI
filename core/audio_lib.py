@@ -166,6 +166,13 @@ def mix_list(directory: str) -> List[Dict]:
     return out
 
 
+def missing_in_mix(directory: str) -> List[str]:
+    """S14.4 C1b: labels of the finished sounds switched on for the mix whose file is gone — mix_list leaves them out, the render
+    says so (diag) instead of shipping a video without them silently."""
+    return [str(e.get("label") or e.get("file") or "?") for e in load(directory)
+            if e["use"] and e["state"] == "succeeded" and (not e.get("file") or not os.path.exists(os.path.join(directory, e["file"])))]
+
+
 def _duration(e: Dict) -> float:
     return (e.get("duration_ms") or 0) / 1000.0
 

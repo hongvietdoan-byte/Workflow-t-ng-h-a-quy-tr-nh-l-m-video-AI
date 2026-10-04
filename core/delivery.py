@@ -475,6 +475,11 @@ def render(p: Pipeline, project_id: int, data_dir: str, music_path: Optional[str
         diag.record(p.conn, "render", "info", "đã có giọng thoại TTS: tắt tiếng gốc của clip trong bản ghép (tránh 2 giọng chồng nhau)",
                     "clip_audio_muted", project_id)
     extras = audio_lib.mix_list(audio_lib.assets_dir(data_dir, project_id))
+    lost_sounds = audio_lib.missing_in_mix(audio_lib.assets_dir(data_dir, project_id))
+    if lost_sounds:                           # S14.4 C1b: never a video without a chosen sound and no word about it
+        from . import diag
+        diag.record(p.conn, "render", "warn", f"bỏ {len(lost_sounds)} âm thanh đã bật nhưng mất file: {', '.join(lost_sounds[:5])}. "
+                    "Cách xử lý: Bước 5 → Âm thanh: tạo/tải lại hoặc tắt các mục này, rồi ghép lại.", "mix_file_missing", project_id)
     aspect = formats.project_aspect(p.project(project_id))
     out = os.path.join(output_dir(data_dir, project_id), "FINAL_VIDEO.mp4")
     originals = list(paths)                   # lineage follows the shots' own clips, never the colour-matched copies
