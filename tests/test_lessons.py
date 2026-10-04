@@ -92,6 +92,28 @@ class LessonTests(unittest.TestCase):
         lessons.sync_knowledge(self.conn, "director")                              # same text again: fits once the old one goes
         self.assertEqual(sum(1 for d in knowledge.user_docs("director") if d["title"] == lessons.DOC_TITLE), 1)
 
+    def test_a_failing_manifest_write_keeps_exactly_the_old_document(self):
+        """Rà soát C1b: add-new and drop-old were two writes — a failure in between left both documents in the manifest."""
+        from unittest import mock
+        self._approved_one()
+        before = knowledge.user_docs("director")
+        files_before = sorted(os.listdir(knowledge.group_dir("director")))
+        with mock.patch.object(knowledge, "_save", side_effect=OSError("đĩa đầy")) as save:
+            with self.assertRaises(lessons.LessonError):
+                lessons.sync_knowledge(self.conn, "director")
+        self.assertEqual(save.call_count, 1)                                     # one write: all or nothing
+        self.assertEqual([d["file"] for d in knowledge.user_docs("director")], [d["file"] for d in before])
+        self.assertEqual(sorted(os.listdir(knowledge.group_dir("director"))), files_before)   # the new file is not left behind
+
+    def test_withdrawing_the_last_lesson_that_cannot_be_removed_is_said(self):
+        from unittest import mock
+        row = self._approved_one()
+        with mock.patch.object(knowledge, "remove_doc", side_effect=OSError("bị khóa")):
+            with self.assertRaises(lessons.LessonError) as cm:
+                lessons.decide(self.conn, row["id"], False)
+        self.assertIn("Cách xử lý", str(cm.exception))
+        self.assertEqual(self.conn.execute("SELECT state FROM lessons WHERE id=?", (row["id"],)).fetchone()["state"], "approved")
+
     def test_the_lessons_buttons_go_through_act(self):
         src = open(os.path.join(os.path.dirname(__file__), "..", "dashboard", "admin.py"), encoding="utf-8").read()
         calls = [ln for ln in src.splitlines() if "lessons.decide(" in ln]

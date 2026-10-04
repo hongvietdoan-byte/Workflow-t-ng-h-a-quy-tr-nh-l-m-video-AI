@@ -199,7 +199,12 @@ def sync_knowledge(conn, group: str) -> Optional[Dict]:
     if not approved:
         for d in knowledge.user_docs(group):
             if d["title"] == DOC_TITLE:
-                knowledge.remove_doc(group, d["file"])
+                try:
+                    knowledge.remove_doc(group, d["file"])
+                except (KeyError, ValueError, OSError) as e:
+                    raise LessonError(f"Không gỡ được tài liệu bài học của bước '{group}' ({e}). Bài học vẫn giữ trạng thái cũ. "
+                                      "Cách xử lý: đóng chương trình đang mở file trong thư mục kiến thức (data/knowledge_user), "
+                                      "tải lại trang rồi bấm lại.") from e
         return None
     lines = ["# Bài học rút ra từ các dự án trước (đã được người duyệt)", ""]
     for r in reversed(approved):
