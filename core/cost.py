@@ -276,6 +276,7 @@ def price_tag(usd: Optional[float], count: int = 1) -> str:
 LLM_STAGE_TOKENS = {"director": (25000, 18000), "motion": (9000, 4000), "qc": (6000, 900), "style": (9000, 1500),
                     "video_analysis": (14000, 4000), "setcheck": (8000, 1200), "clipcheck": (10000, 1200),
                     "asset_vision": (6000, 900), "research": (25000, 1500),
+                    "director_rewrite": (5000, 900),   # S14.17: one shot's prompt rewritten before a retake (+ the faulty picture)
                     "editor": (9000, 3000)}    # rough-cut review (P2, both calls): text only here — the sheets (≤ 12) are added as `images` ≈ 1,400 tokens each
 IMAGE_TOKENS = 1400
 

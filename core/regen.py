@@ -30,7 +30,9 @@ def regenerate_video(pipeline: Pipeline, data_dir: str, job_id: int, note: Optio
         pipeline.transition(job_id, JobState.REJECTED, actor=actor, note=note or "gen lại video")
     else:
         pipeline.reject(job_id, actor, note or "gen lại video", respawn=False)  # raises unless the job is reviewable
-    trash.move_to_trash(path, data_dir, job["project_id"], "videos", "gen lại video", job_id, row["idx"])
+    reason = (fix or "").strip() or None
+    reason = pipeline._rewrite_before_retry(job, reason, note=note, by="qc" if auto else "user")   # S14.17: the Director rewrites the
+    trash.move_to_trash(path, data_dir, job["project_id"], "videos", "gen lại video", job_id, row["idx"])   # motion prompt (needs the clip)
     return pipeline._insert_job(job["project_id"], job["scene_id"], "video_gen", parent_job_id=job_id,
-                                retry_count=job["retry_count"] + 1 if auto else 0, retry_reason=(fix or "").strip() or None,
+                                retry_count=job["retry_count"] + 1 if auto else 0, retry_reason=reason,
                                 origin="auto" if auto else None)

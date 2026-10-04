@@ -96,6 +96,7 @@ STAGE_SETTINGS: Dict[str, Dict[str, Any]] = {
                                                               # own entry so the 32k default never makes its worst case refuse on a locked project (B1 01/10)
     "screenwriter": {"effort": "medium", "max_tokens": 8000},   # S11.1 Biên kịch: one turn's JSON (a 60 s script ≈ 2-4k). 01/10 S11.2: the
                                                               # default 32k made turn 1's estimate 0.43 USD > the 0.3 USD per-idea cap
+    "director_rewrite": {"effort": "low", "max_tokens": 6000},  # S14.17 Đạo diễn viết lại prompt MỘT shot trước khi gen lại: JSON ngắn
 }
 # 01/10 B1: a stage with no entry above used the client default (32k) → worst case ≈ 0.36 USD per call, over the whole "Claude — khác"
 # line of a locked project (0.20): music / sfx / style / subtitles / layout / lessons / distill / research … were refused for ever.
@@ -952,6 +953,11 @@ class MockLlm:
             found = json.loads(re.search(r"# Đề xuất của Biên tập viên\s*```json\s*(.*?)```", prompt, re.S).group(1))
             out = {"verdicts": [{"id": f["id"], "verdict": "agree", "reason": "", "amount": 0, "value": ""} for f in found]}
             return LlmReply("```json\n" + json.dumps(out, ensure_ascii=False) + "\n```", 80, 30)
+        if prompt.startswith("# Đạo diễn — viết lại prompt shot"):      # S14.17 (core/prompt_rewrite.py)
+            old = re.search(r"# Prompt cũ của shot\n```text\n(.*?)\n```", prompt, re.S).group(1)
+            out = {"new_prompt": f"{old} (rewritten by the Director, mock)", "changed": ["Thêm câu sửa vào thân prompt (giả lập)"],
+                   "why": "giả lập"}
+            return LlmReply("```json\n" + json.dumps(out, ensure_ascii=False) + "\n```", 80, 40)
         if prompt.startswith("# Đạo diễn — Tầng A"):                    # GĐ5 two-pass Director (core/director_two_pass.py)
             return LlmReply("```json\n" + json.dumps(_mock_intent(prompt), ensure_ascii=False) + "\n```", 100, 40)
         if "# Việc lần này: Quay phim chia shot Cảnh" in prompt:

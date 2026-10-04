@@ -320,6 +320,12 @@ FEATURES: Dict[str, Dict] = {
         "verified": False,
         "why": "S4.12 (2026-10-01, docs/KET_QUA_S4_11_S4_12_2026-10-01.md): thử 1 clip #8; tính tiền cả giây clip nguồn + giây ra",
     },
+    "director_rewrite": {
+        "label": "Đạo diễn viết lại prompt shot trước mỗi lần gen lại (người từ chối kèm ghi chú / QC từ chối kèm lỗi): sửa đúng chỗ gây "
+                 "lỗi, lưu bản cũ, thẻ ảnh/clip hiện so sánh cũ/mới + nút dùng lại prompt cũ — thay cho nối 'Fix: …' cuối prompt",
+        "verified": False,
+        "why": "S14.17 người dùng duyệt 04/10, chưa chạy thật Claude (core/prompt_rewrite.py; Claude lỗi → quay về 'Fix: …' + diag)",
+    },
 }
 
 

@@ -337,6 +337,22 @@ CREATE TABLE IF NOT EXISTS project_watchers (
     PRIMARY KEY (project_id, email)
 );
 CREATE INDEX IF NOT EXISTS idx_watchers_email ON project_watchers(email);
+CREATE TABLE IF NOT EXISTS prompt_versions (
+    id INTEGER PRIMARY KEY,            -- S14.17 core/prompt_rewrite.py: every version of a shot's prompt the Director rewrote before a retake
+    project_id INTEGER,
+    scene_id INTEGER NOT NULL,
+    kind TEXT NOT NULL CHECK (kind IN ('image','video')),   -- image = scenes.data.image_prompt, video = motion_prompts.motion_prompt
+    version INTEGER NOT NULL,
+    prompt TEXT NOT NULL,
+    source TEXT NOT NULL,              -- original | manual | director_rewrite | revert
+    note TEXT,                         -- the note / QC fix the rewrite answered
+    changed TEXT,                      -- JSON list of changes (Vietnamese, for people)
+    why TEXT,
+    job_id INTEGER,                    -- the rejected take that led to the rewrite
+    created_at TEXT NOT NULL,
+    created_by TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_prompt_versions_scene ON prompt_versions(scene_id, kind, version);
 CREATE TABLE IF NOT EXISTS content_moderation_failures (
     id INTEGER PRIMARY KEY,
     job_id INTEGER NOT NULL REFERENCES jobs(id),

@@ -355,7 +355,8 @@ def apply(p, pid: int, frames: List[Dict], obj: Dict, data_dir: str) -> Dict[str
         elif f["verdict"] == "fix" and f["root_cause"] != "plan":
             if job["state"] == "succeeded":
                 p.transition(r["job_id"], JobState.PENDING_REVIEW, actor="ai_agent", note="QC cảnh")
-            res = p.reject(r["job_id"], "ai_agent", f"QC cảnh [{f['root_cause']}]: {f['problem']} — {evidence}"[:600], fix=f["fix"])
+            res = p.reject(r["job_id"], "ai_agent", f"QC cảnh [{f['root_cause']}]: {f['problem']} — {evidence}"[:600], fix=f["fix"],
+                           qc={"root_cause": f.get("root_cause"), "problem": f.get("problem"), "fix": f.get("fix")})   # S14.17 Đạo diễn đọc lỗi
             out[f"K{k}"] = f"vẽ lại ({f['root_cause']}) → {res}"
         else:
             why = "bảng shot cần người sửa" if f["verdict"] == "fix" else "chưa đủ rõ"
