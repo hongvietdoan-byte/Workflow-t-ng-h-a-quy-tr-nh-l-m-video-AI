@@ -2,7 +2,7 @@
 
 ## Đã làm
 - `core/budget_rounds.py` (mới): bảng `budget_rounds` (tạo trong `db._migrate` + `ensure()`), chỉ mục `idx_usage_events_at`.
-  - `current / history / window`: chưa có đợt nào → đợt ảo "Trước 04/10" = mốc `budget.get()["since"]`.
+  - `current / history / window`: chưa có đợt nào → đợt ảo tên theo ngày mốc thật (`first_name`, vd. "Đợt từ 30/09/2026") = mốc `budget.get()["since"]`.
   - `start_new(conn, actor, name, planned_usd, planned_llm_usd, reason)`: chỉ Owner, lý do + tên bắt buộc; đặt mốc + mức dự tính
     qua `money_reset.set_planned("trial")` và `("claude")` (không viết lại logic), đóng đợt cũ với tóm tắt (`summarize`: theo loại
     ảnh/video/âm thanh/Claude USD + số lượt, theo dự án, dòng chưa có giá → ước tính dư money_policy), mở đợt mới, audit `budget_round`.
@@ -19,3 +19,16 @@
 ## Chưa làm / lưu ý
 - KHÔNG mở đợt trên CSDL thật — người dùng tự bấm (💵 Tiền → 📅 Mức dùng theo ngày · đợt ngân sách → ▶ Bắt đầu đợt ngân sách mới).
 - Mở đợt chỉ đặt lại thanh đợt thử + Claude; thanh dự án / theo người vẫn ở khối "↺ Đặt lại thanh tiền" cũ.
+
+## Sửa sau rà soát độc lập (04/10)
+1. `start_new` nguyên tử: kiểm đầu vào + `summarize` trước; đóng + mở đợt trong một giao dịch (`rollback` khi lỗi); chỉ sau đó mới
+   đặt thanh qua money_reset. Thanh nào lỗi → `BarsNotReset` (đợt đã ghi trọn, câu lỗi nêu thanh + cách sửa). Mốc đợt được đồng bộ
+   theo mốc thanh đợt thử sau khi đặt lại.
+2. Mở đợt kèm 2 tùy chọn MẶC ĐỊNH BẬT: thanh các dự án đang có ngân sách (`reset_targets`, sửa mức từng dòng `md_new_plan_<pid>`) và
+   thanh theo người (`md_new_users`); câu xác nhận liệt kê đúng các thanh (`bars_text`).
+3. Dòng chưa có giá không ước tính được (âm thanh) tách nhóm "không ước tính được (N lượt)", không cộng tổng, ô không hiện $0.00.
+4. `db.schema_stamp` băm cả `budget_rounds.TABLE`.  5. `dialog_if_open` kiểm quyền `settings`/`monitor` (`money_days.can_view`).
+6. Khối "↺ Đặt lại thanh tiền" cũ: ô `shell-mr-trial` bị khóa (giữ khóa), câu chỉ sang "▶ Bắt đầu đợt ngân sách mới".
+7. Tên đợt đầu theo ngày mốc thật (giờ VN); không mốc → "Từ đầu sổ chi".
+- Còn lại (chưa đổi, ngoài phạm vi rà): nút "▶ Bắt đầu đợt thử" trong ⚙ Đợt thử & Claude (`budget_start`) vẫn dời mốc thanh đợt thử
+  mà không mở đợt → có thể lệch mốc đợt; nên chuyển sang budget_rounds ở lượt sau.
