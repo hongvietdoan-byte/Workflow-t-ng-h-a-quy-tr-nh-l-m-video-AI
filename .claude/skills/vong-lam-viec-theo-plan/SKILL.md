@@ -53,6 +53,7 @@ Mục tiêu: làm hết một đợt dài mà không để phiên chính đầy 
 5. **Không tự xóa phiên.** Remote Control đang bật thì ứng dụng từ chối `clear_session`. Người dùng gõ `/clear` rồi "tiếp tục". Chỉ dùng `clear_session("self")` khi người dùng yêu cầu rõ trong chính lượt đó.
 
 ## 5. Luôn nhớ
+- **Báo về điện thoại khi cần người dùng quyết** (người dùng yêu cầu 04/10): gọi `PushNotification` (nạp bằng `ToolSearch select:PushNotification`, `status: "proactive"`) khi phải chờ người dùng — câu hỏi chặn việc, duyệt việc tốn tiền, đến điểm nghỉ, lỗi không tự xử lý được. Một dòng < 200 ký tự, mở đầu bằng việc cần làm. KHÔNG gửi cho tiến độ thường.
 - Không im lặng khi thiếu đầu vào; "đã sửa" phải kèm bằng chứng chạy thật (tên test, số liệu).
 - Không tự chạy tiếp sang việc người dùng chưa duyệt. Việc nằm trong đợt đã duyệt thì làm theo thứ tự.
 - Ở thư mục gốc dùng `py`, không dùng `python`; console cần `PYTHONUTF8=1`.
