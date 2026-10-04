@@ -235,7 +235,7 @@ class AudioCapAndClipPriceTests(unittest.TestCase):
         usd = cost.clip_estimate(p.conn, sid)
         self.assertIsNotNone(usd)
         self.assertGreater(usd, 0)
-        self.assertEqual(cost.price_tag(usd), f" · ≈ {usd:.2f} USD")
+        self.assertEqual(cost.price_tag(usd), f" · ≈ {usd:.2f} USD (ước tính)")      # S14.16: the label says it is an estimate
         self.assertEqual(cost.price_tag(None), " · chưa có giá")
 
 

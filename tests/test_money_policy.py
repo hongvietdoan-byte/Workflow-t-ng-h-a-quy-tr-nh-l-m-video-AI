@@ -455,6 +455,38 @@ class MoneyUi(unittest.TestCase):
         self.assertIn("(ước tính)", video_ui.meta_line("kling", 5, 0.4, 0))
 
 
+class DisplayEstimatesAreHigh(unittest.TestCase):
+    """Rà soát S14.16 #5: what the screens show uses the same high estimate as the gate — a missing price is not left out."""
+
+    def test_a_paid_button_says_estimate(self):
+        from core import cost
+        self.assertEqual(cost.price_tag(0.4), " · ≈ 0.40 USD (ước tính)")
+        self.assertEqual(cost.price_tag(None), " · chưa có giá")
+
+    def test_an_unpriced_picture_model_is_estimated_high_in_the_image_estimate(self):
+        from core import cost
+        from tests.test_v3 import kenta_project
+        p, pid = kenta_project()
+        llm_runner.run_director(p, pid, llm_runner.MockLlm())
+        pricing = cost.load_pricing()
+        est = cost.estimate_images(p, pid, pricing, "model-without-price")
+        self.assertFalse(est["known"])
+        top = max(v for v in pricing["per_image"].values() if isinstance(v, (int, float)))
+        self.assertAlmostEqual(est["unit_over"], top * money_policy.SAFETY_FACTOR)
+        self.assertIn("ước tính dư", cost.format_estimate(est))
+
+    def test_the_run_estimate_adds_the_high_estimate_of_unpriced_items(self):
+        from core import cost, image_models
+        from tests.test_v3 import kenta_project
+        p, pid = kenta_project()
+        llm_runner.run_director(p, pid, llm_runner.MockLlm())
+        with mock.patch.object(image_models, "of_project", return_value="model-without-price"):
+            run = cost.estimate_run(p, pid)
+        self.assertGreater(run["images"] or 0, 0)
+        self.assertTrue(any("model-without-price" in u for u in run["unknown"]))
+        self.assertIn("ước tính dư", cost.format_run_estimate(run))
+
+
 class ResetWithPlan(unittest.TestCase):
     OWNER = {"email": "o@x", "role": "owner"}
 

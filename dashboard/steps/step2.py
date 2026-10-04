@@ -165,7 +165,8 @@ def step2(p: Pipeline, pid: int):
             else:
                 st.warning("Chế độ tự động sẽ DỪNG ở đây trước khi gen ảnh: " + "; ".join(gates["block"]) + ". Sửa ở màn Kịch bản (Character Bible / Lock).")
                 forced = st.checkbox("Tôi đã xem, vẫn gen ảnh (ghi lại vào 📊 Theo dõi)", key=f"gen_img_force_{pid}")
-        img_price = None if est["unit_price"] is None else est["unit_price"] * est["items"]
+        unit = est.get("unit_over", est["unit_price"])            # S14.16: a missing price shows its high estimate
+        img_price = None if unit is None else unit * est["items"]
         if c1.button("▶ Gen ảnh các cảnh chưa có / đã cũ" + cost.price_tag(img_price, est["items"]), type="primary", key=f"gen_img_{pid}",
                      disabled=not est_ok or (bool(gates["block"]) and not forced)):
             def go():
@@ -184,7 +185,6 @@ def step2(p: Pipeline, pid: int):
                 p.approve(jid, "user")
             st.rerun()
         failed = p.conn.execute("SELECT id FROM jobs WHERE project_id=? AND type='image_gen' AND state='failed' AND escalated=0", (pid,)).fetchall()
-        unit = est["unit_price"]
         if c3.button(f"↻ Gửi lại ảnh lỗi ({len(failed)}){cost.price_tag(None if unit is None else unit * len(failed), len(failed))}",
                      key="reject_all", disabled=not failed,
                      help="Gửi lại Y NGUYÊN đầu vào — chỉ dùng khi lỗi do nhà cung cấp (mạng, quá tải, không tạo task). Ảnh ra sai thì "
@@ -702,7 +702,8 @@ def set_check_panel(p: Pipeline, pid: int) -> None:
             for n, it in enumerate(last.get("issues") or []):
                 c1, c2 = st.columns([4, 1.3], vertical_alignment="center")
                 c1.markdown(f"**S{it['idx']:02d}**: {escape(it['problem'])}" + (f" → _{escape(it.get('fix') or '')}_" if it.get("fix") else ""))
-                img_unit = cost._number(cost.load_pricing()["per_image"].get(image_models.of_project(p.project(pid))))
+                from core import money_policy        # S14.16: the same high estimate as the money gate
+                img_unit = money_policy.estimate("image", image_models.of_project(p.project(pid)))["usd"]
                 if not (it.get("fix") or "").strip():
                     c2.caption("QC không nêu câu sửa — sửa prompt ảnh ở màn Kịch bản")
                 elif c2.button("↻ Gen lại cảnh này" + cost.price_tag(img_unit), key=f"setqc_redo_{pid}_{n}",

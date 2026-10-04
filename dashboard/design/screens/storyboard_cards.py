@@ -59,7 +59,9 @@ def note(text: str, details: str, key: str, kind: str = "") -> None:
 def estimate_short(est: dict) -> str:
     unit = "ảnh" if est["kind"] == "image" else "clip"
     if not est.get("known"):
-        return f"{est['items']} {unit} · chưa có giá"
+        over = est.get("unit_over")                    # S14.16: a missing price shows its high estimate
+        return (f"{est['items']} {unit} ≈ {over * est['items']:.1f} {est['currency']} (ước tính dư, thiếu giá)" if over is not None
+                else f"{est['items']} {unit} · chưa có giá")
     return f"{est['items']} {unit} ≈ {est['min']:.1f} {est['currency']} (ước tính)"
 
 
