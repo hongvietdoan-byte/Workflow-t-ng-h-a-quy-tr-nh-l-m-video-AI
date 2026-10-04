@@ -70,6 +70,8 @@ class B5Tests(unittest.TestCase):
         from core.db import connect
         conn = connect()
         d = tempfile.mkdtemp()
+        os.environ["ASSET_DIR"] = os.path.join(d, "assets")             # the backup of unlinked rows goes into the library folder
+        self.addCleanup(lambda: os.environ.pop("ASSET_DIR", None))
         src = os.path.join(d, "src.png")
         open(src, "wb").write(_png(400, 400))
         aid = assets.create(conn, "FF", "character", "B5TEST")
@@ -84,7 +86,19 @@ class B5Tests(unittest.TestCase):
         self.assertTrue(assets.reload_image(conn, lost["1.png"]["id"]))
         self.assertFalse(assets.reload_image(conn, lost["2.png"]["id"]))
         self.assertEqual(len([w for w in assets.missing_files_detail(conn) if w["asset"] == "B5TEST"]), 1)
-        assets.unlink_missing(conn)
+        # S14.4 (04/10): "gỡ liên kết tất cả" only drops the rows that can NOT be reloaded, after a JSON backup of them
+        conn.execute("INSERT INTO asset_images (asset_id, path, label, sort, src_path, status) VALUES (?,?,?,?,?,?)",
+                     (aid, os.path.join(d, "gone", "3.png"), "z", 3, src, "approved"))
+        conn.commit()
+        self.assertEqual(assets.unlink_missing(conn), 1)
+        left = [w for w in assets.missing_files_detail(conn) if w["asset"] == "B5TEST"]
+        self.assertEqual([w["path"].split(os.sep)[-1] for w in left], ["3.png"])          # can still be reloaded: kept
+        backups = [f for f in os.listdir(os.path.join(assets.root(), "_backup")) if f.startswith("unlink_missing_")]
+        self.assertEqual(len(backups), 1)
+        import json
+        saved = json.load(open(os.path.join(assets.root(), "_backup", backups[0]), encoding="utf-8"))
+        self.assertEqual([r["path"].split(os.sep)[-1] for r in saved["rows"]], ["2.png"])
+        self.assertEqual(assets.unlink_missing(conn, only_unreloadable=False), 1)
         self.assertEqual([w for w in assets.missing_files_detail(conn) if w["asset"] == "B5TEST"], [])
 
 

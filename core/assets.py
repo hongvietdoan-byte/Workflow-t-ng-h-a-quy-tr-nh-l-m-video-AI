@@ -70,13 +70,15 @@ def resolve(path: Optional[str]) -> Optional[str]:
 def missing_files(conn) -> List[Dict]:
     """Library pictures whose file cannot be found (checked when the Dashboard opens: rule 1 of docs/CHUAN_XAY_DUNG.md)."""
     return [{"id": r["id"], "asset": r["name"], "path": r["path"]} for r in conn.execute(
-        "SELECT i.id, i.path, a.name FROM asset_images i JOIN assets a ON a.id=i.asset_id") if not os.path.exists(resolve(r["path"]))]
+        "SELECT i.id, i.path, a.name FROM asset_images i JOIN assets a ON a.id=i.asset_id WHERE i.status IS NOT 'removed'")
+        if not os.path.exists(resolve(r["path"]))]
 
 
 def missing_files_detail(conn) -> List[Dict]:
     """B5 01/10: like missing_files, with the source file the picture was imported from and whether it can be copied back."""
     out = []
-    for r in conn.execute("SELECT i.id, i.path, i.src_path, a.name FROM asset_images i JOIN assets a ON a.id=i.asset_id").fetchall():
+    for r in conn.execute("SELECT i.id, i.path, i.src_path, a.name FROM asset_images i JOIN assets a ON a.id=i.asset_id"
+                          " WHERE i.status IS NOT 'removed'").fetchall():
         if not os.path.exists(resolve(r["path"])):
             src = r["src_path"]
             out.append({"id": r["id"], "asset": r["name"], "path": r["path"], "src_path": src,
@@ -100,14 +102,29 @@ def reload_image(conn, image_id: int) -> bool:
     return True
 
 
-def unlink_missing(conn) -> int:
-    """B5: drop the library entries whose picture file is gone (no file to delete — only the broken link). Returns how many."""
-    n = 0
-    for r in missing_files(conn):
-        conn.execute("DELETE FROM asset_images WHERE id=?", (r["id"],))
+def unlink_missing(conn, only_unreloadable: bool = True) -> int:
+    """B5: drop the library entries whose picture file is gone (no file to delete — only the broken link). Returns how many.
+    S14.4 (04/10): by default only the rows that can NOT be copied back from their source (`can_reload` False) — a reloadable one is
+    one click from being whole again. The dropped rows are first written to <Kho>/_backup/unlink_missing_<date time>.json."""
+    ids = [r["id"] for r in missing_files_detail(conn) if not (only_unreloadable and r["can_reload"])]
+    if not ids:
+        return 0
+    rows = [dict(r) for r in conn.execute(f"SELECT i.*, a.name AS asset_name, a.game AS asset_game FROM asset_images i"
+                                          f" JOIN assets a ON a.id=i.asset_id WHERE i.id IN ({','.join('?' * len(ids))})", ids)]
+    import datetime
+    folder = os.path.join(root(), "_backup")
+    os.makedirs(folder, exist_ok=True)
+    stamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+    path = os.path.join(folder, f"unlink_missing_{stamp}.json")
+    n = 1
+    while os.path.exists(path):                     # two clicks in the same second: never overwrite an earlier backup
         n += 1
+        path = os.path.join(folder, f"unlink_missing_{stamp}_{n}.json")
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump({"when": stamp, "only_unreloadable": only_unreloadable, "rows": rows}, f, ensure_ascii=False, indent=1)
+    conn.execute(f"DELETE FROM asset_images WHERE id IN ({','.join('?' * len(ids))})", ids)
     conn.commit()
-    return n
+    return len(ids)
 
 
 def fold(text: str) -> str:
@@ -197,7 +214,7 @@ def add_image(conn, asset_id: int, filename: str, data: bytes, src_path: Optiona
     fingerprint = sha256 or hashlib.sha256(data).hexdigest()          # of the original file, so a re-sync recognises it
     if len(data) > MAX_IMAGE_BYTES:
         data, ext = _shrink(data, filename)
-    have = conn.execute("SELECT COUNT(*) FROM asset_images WHERE asset_id=?", (asset_id,)).fetchone()[0]
+    have = _count(conn, asset_id)
     if have >= limit:
         raise AssetError(f"Mỗi tài nguyên tối đa {limit} ảnh")
     folder = os.path.join(root(), str(asset_id))
@@ -216,6 +233,11 @@ def add_image(conn, asset_id: int, filename: str, data: bytes, src_path: Optiona
                   status if status in STATUSES else "pending", role, look if look in LOOKS else None, variant))
     conn.commit()
     return path
+
+
+def _count(conn, asset_id: int) -> int:
+    """Pictures that take one of the 6 places of an asset: every status except the library trash ('removed')."""
+    return conn.execute("SELECT COUNT(*) FROM asset_images WHERE asset_id=? AND status IS NOT 'removed'", (asset_id,)).fetchone()[0]
 
 
 def guess_role(path: str, kind: Optional[str], conn=None) -> Optional[str]:
@@ -296,6 +318,73 @@ def remove_image(conn, image_id: int) -> None:
         conn.commit()
 
 
+# ---- S14.4 (04/10): the library trash — a picture deleted on screen can be brought back for 30 days ---------------------------
+# Only the screens use it (⚙ → Kho). remove_image above keeps deleting at once (folder sync with remove_missing, tools, tests).
+# The picture keeps its row and its file; status 'removed' is not in STATUSES, so every reader that takes None/approved/pending
+# (_row, list_assets, pending_images, asset_vision.pending…) skips it, and it frees its place among the 6 of the asset.
+TRASH_DAYS = 30
+
+
+def trash_days() -> int:
+    """How long a deleted library picture stays restorable: the project trash's setting (TRASH_DAYS, default 30)."""
+    try:
+        from . import trash
+        return trash.retention_days()
+    except Exception:  # noqa: BLE001 - the library works without the project trash module
+        return TRASH_DAYS
+
+
+def trash_image(conn, image_id: int) -> None:
+    """Put a library picture in the trash: hidden everywhere, file kept, restorable with restore_image until purge_removed."""
+    row = conn.execute("SELECT status FROM asset_images WHERE id=?", (image_id,)).fetchone()
+    if row is None:
+        raise AssetError("Không còn ảnh này trong Kho")
+    if row["status"] == "removed":
+        return
+    conn.execute("UPDATE asset_images SET status='removed', removed_from=?, removed_at=datetime('now') WHERE id=?",
+                 (row["status"], image_id))
+    conn.commit()
+
+
+def removed_images(conn, asset_id: int) -> List[Dict]:
+    """The asset's pictures in the trash, newest first: [{id, path (usable), exists, removed_at, days_left, label}]."""
+    days = trash_days()
+    out = []
+    for r in conn.execute("SELECT id, path, label, removed_at, CAST(julianday('now') - julianday(COALESCE(removed_at, 'now')) AS REAL) AS age"
+                          " FROM asset_images WHERE asset_id=? AND status='removed' ORDER BY removed_at DESC, id DESC", (asset_id,)):
+        path = resolve(r["path"])
+        out.append({"id": r["id"], "path": path, "exists": bool(path and os.path.exists(path)), "removed_at": r["removed_at"],
+                    "label": r["label"], "days_left": max(int(days - (r["age"] or 0) + 0.999), 0)})
+    return out
+
+
+def restore_image(conn, image_id: int) -> None:
+    """Bring a trashed picture back with the status it had. Refused (AssetError, said on screen) when its file is gone or the asset
+    already has its 6 pictures. The file never moved, so nothing on disk is overwritten (a newer upload took another file name)."""
+    row = conn.execute("SELECT asset_id, path, status, removed_from FROM asset_images WHERE id=?", (image_id,)).fetchone()
+    if row is None or row["status"] != "removed":
+        raise AssetError("Ảnh này không nằm trong thùng rác của Kho")
+    if not os.path.exists(resolve(row["path"])):
+        raise AssetError("File ảnh đã mất khỏi ổ đĩa — không khôi phục được (tải ảnh lên lại)")
+    have = _count(conn, row["asset_id"])
+    if have >= MAX_IMAGES_PER_ASSET:
+        raise AssetError(f"Mục này đã đủ {MAX_IMAGES_PER_ASSET} ảnh — xóa bớt một ảnh rồi khôi phục")
+    back = row["removed_from"] if row["removed_from"] in STATUSES else "pending"     # unknown → a person looks again (G2)
+    conn.execute("UPDATE asset_images SET status=?, removed_from=NULL, removed_at=NULL WHERE id=?", (back, image_id))
+    conn.commit()
+
+
+def purge_removed(conn, days: Optional[int] = None) -> int:
+    """Empty the library trash: pictures deleted more than `days` (default trash_days()) ago lose their file and their row.
+    Returns how many. Called by the Dashboard's housekeeping (dashboard/app.py, at most once an hour)."""
+    days = trash_days() if days is None else days
+    rows = conn.execute("SELECT id FROM asset_images WHERE status='removed' AND removed_at IS NOT NULL"
+                        " AND julianday('now') - julianday(removed_at) >= ?", (days,)).fetchall()
+    for r in rows:
+        remove_image(conn, r["id"])
+    return len(rows)
+
+
 def thumbnail(path: str, side: int = 220) -> str:
     """Small cached copy of a picture for lists (decoding a 2560 px original for every rerun made the page slow)."""
     try:
@@ -327,30 +416,57 @@ def delete(conn, asset_id: int) -> None:
     shutil.rmtree(os.path.join(root(), str(asset_id)), ignore_errors=True)
 
 
+def _same_profile(a: Dict, b: Dict) -> bool:
+    return all(str(a.get(k) or "").strip() == str(b.get(k) or "").strip() for k in PROFILE_KEYS) and bool(a.get("approved")) == bool(b.get("approved"))
+
+
 def merge(conn, from_id: int, into_id: int) -> int:
-    """Fold asset `from_id` into `into_id` (same picture set, one name): its pictures are moved (up to the 6-picture limit), its
-    other names become aliases of the target, and it is deleted. Returns how many pictures moved."""
+    """Fold asset `from_id` into `into_id` (same picture set, one name): EVERY picture row is moved (approved, waiting for review,
+    redundant, in the trash, or with its file lost — S14.4: only approved readable ones used to move, the rest died with the deleted
+    asset), its other names become aliases of the target, its standard profile is copied when the target has none, and it is
+    deleted once it has no picture left. Refused before anything changes (AssetError, said on screen) when the target has no room
+    for the pictures that take a place, or when both have a different standard profile that a person must choose between.
+    Returns how many pictures moved."""
     if from_id == into_id:
         raise AssetError("Chọn một mục khác để gộp vào")
     src, dst = get(conn, from_id), get(conn, into_id)
     if src is None or dst is None:
         raise AssetError("Không có mục này")
-    have = len(dst["images"])
+    rows = [dict(r) for r in conn.execute("SELECT id, path, status FROM asset_images WHERE asset_id=? ORDER BY sort, id", (from_id,))]
+    have = _count(conn, into_id)                                        # same count as add_image: the trash takes no place
+    taking = sum(1 for r in rows if r["status"] != "removed")
+    if have + taking > MAX_IMAGES_PER_ASSET:
+        raise AssetError(f"“{dst['name']}” đã có {have}/{MAX_IMAGES_PER_ASSET} ảnh, còn {MAX_IMAGES_PER_ASSET - have} chỗ — "
+                         f"“{src['name']}” có {taking} ảnh. Xóa bớt ảnh ở một trong hai mục rồi gộp lại (chưa đổi gì).")
+    sp, dp = get_profile(conn, from_id), get_profile(conn, into_id)
+    copy_profile = False
+    if sp and not dp:
+        copy_profile = True
+    elif sp and dp and not _same_profile(sp, dp) and not (dp.get("approved") and not sp.get("approved")):
+        raise AssetError(f"Hai mục đều có hồ sơ chuẩn khác nhau (“{src['name']}”: {'đã duyệt' if sp.get('approved') else 'nháp'}, "
+                         f"“{dst['name']}”: {'đã duyệt' if dp.get('approved') else 'nháp'}) — mở 📋 Hồ sơ chuẩn, giữ một bản rồi gộp "
+                         "lại (chưa đổi gì).")
+    # else: the target's approved profile wins over the source's draft (a draft is never inherited)
+    folder = os.path.join(root(), str(into_id))
+    os.makedirs(folder, exist_ok=True)
+    taken: set = set()
     moved = 0
-    for img in src["images"]:
-        if have >= MAX_IMAGES_PER_ASSET:
-            break
+    for img in rows:
+        current = resolve(img["path"])
         ext = os.path.splitext(img["path"])[1]
-        folder = os.path.join(root(), str(into_id))
-        os.makedirs(folder, exist_ok=True)
-        n = have + 1
-        while os.path.exists(os.path.join(folder, f"{n}{ext}")):
+        n = have + moved + 1
+        while os.path.exists(os.path.join(folder, f"{n}{ext}")) or os.path.normcase(os.path.join(folder, f"{n}{ext}")) in taken:
             n += 1
         target = os.path.join(folder, f"{n}{ext}")
-        shutil.move(img["path"], target)
+        taken.add(os.path.normcase(target))
+        if current and os.path.exists(current):
+            shutil.move(current, target)
+        # file lost: only the row moves (its path now points into the target folder, so ↻ Tải lại writes it there)
         conn.execute("UPDATE asset_images SET asset_id=?, path=?, sort=? WHERE id=?", (into_id, target, n, img["id"]))
-        have += 1
+        conn.commit()                                                   # one row at a time: a failed move never leaves a file without its row
         moved += 1
+    if copy_profile:
+        conn.execute("UPDATE assets SET profile=(SELECT profile FROM assets WHERE id=?) WHERE id=?", (from_id, into_id))   # with its history
     names = [n for n in re.split(r"[,;|]", dst["aliases"]) if n.strip()]
     for n in [src["name"]] + [x for x in re.split(r"[,;|]", src["aliases"]) if x.strip()]:
         if fold(n) != fold(dst["name"]) and fold(n) not in {fold(x) for x in names}:
@@ -359,6 +475,9 @@ def merge(conn, from_id: int, into_id: int) -> int:
     conn.execute("UPDATE project_assets SET asset_id=? WHERE asset_id=? AND NOT EXISTS (SELECT 1 FROM project_assets p2"
                  " WHERE p2.project_id=project_assets.project_id AND p2.asset_id=?)", (into_id, from_id, into_id))
     conn.commit()
+    left = conn.execute("SELECT COUNT(*) FROM asset_images WHERE asset_id=?", (from_id,)).fetchone()[0]
+    if left:                                                            # never delete a picture with its asset
+        raise AssetError(f"Còn {left} ảnh chưa chuyển được khỏi “{src['name']}” — mục cũ được giữ lại")
     delete(conn, from_id)
     return moved
 
@@ -822,7 +941,7 @@ def outfit_images(conn, project_id: int, name: str) -> List[Dict]:
     ids = [int(x) for x in str((row["outfit_image_ids"] if row else "") or "").split(",") if x.strip().isdigit()]
     out = []
     for i in ids:
-        r = conn.execute("SELECT id, path FROM asset_images WHERE id=?", (i,)).fetchone()
+        r = conn.execute("SELECT id, path FROM asset_images WHERE id=? AND status IS NOT 'removed'", (i,)).fetchone()
         if r and os.path.exists(resolve(r["path"])):
             out.append({"id": r["id"], "path": resolve(r["path"])})
     return out
@@ -1466,7 +1585,7 @@ def add_files(conn, game: str, kind: str, files: List[tuple], created_by: Option
             rep["created"].append(asset_name)
         for name, data in items:
             sha = _sha(data)
-            if conn.execute("SELECT 1 FROM asset_images WHERE asset_id=? AND sha256=?", (aid, sha)).fetchone():
+            if conn.execute("SELECT 1 FROM asset_images WHERE asset_id=? AND sha256=? AND status IS NOT 'removed'", (aid, sha)).fetchone():
                 rep["unchanged"] += 1
                 continue
             try:
@@ -1568,7 +1687,7 @@ def add_reference_images(conn, project_id: int, game: str, kind: str, name: str,
     rep = {"asset_id": aid, "added": 0, "skipped": [], "created": created}
     for fname, data in files:
         sha = _sha(data)
-        if conn.execute("SELECT 1 FROM asset_images WHERE asset_id=? AND sha256=?", (aid, sha)).fetchone():
+        if conn.execute("SELECT 1 FROM asset_images WHERE asset_id=? AND sha256=? AND status IS NOT 'removed'", (aid, sha)).fetchone():
             rep["skipped"].append((fname, "ảnh này đã có"))
             continue
         try:

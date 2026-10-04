@@ -526,5 +526,235 @@ class SyncDashboardTests(unittest.TestCase):
         self.assertFalse(at.exception)
 
 
+# ---- S14.4 C1a (04/10): merge không mất ảnh, xóa ảnh Kho vào thùng rác (khôi phục được), dọn sau 30 ngày --------------------------
+class MergeKeepsEveryPictureTests(unittest.TestCase):
+    def setUp(self):
+        self.dir = tempfile.mkdtemp()
+        os.environ["ASSET_DIR"] = os.path.join(self.dir, "assets")
+        self.conn = connect()
+
+    def tearDown(self):
+        os.environ.pop("ASSET_DIR", None)
+        shutil.rmtree(self.dir, ignore_errors=True)
+
+    def _rows(self, aid):
+        return [dict(r) for r in self.conn.execute("SELECT id, path, status FROM asset_images WHERE asset_id=? ORDER BY id", (aid,))]
+
+    def test_pending_and_missing_file_pictures_move_too(self):
+        keep = assets.create(self.conn, "FF", "character", "CHRONO")
+        dup = assets.create(self.conn, "FF", "character", "CHRONO1")
+        assets.add_image(self.conn, dup, "a.png", PNG + b"a")
+        assets.add_image(self.conn, dup, "p.png", PNG + b"p", status="pending")
+        gone = assets.add_image(self.conn, dup, "g.png", PNG + b"g")
+        os.remove(gone)                                                    # file lost on disk, the row is still there
+        self.assertEqual(assets.merge(self.conn, dup, keep), 3)
+        rows = self._rows(keep)
+        self.assertEqual(sorted(r["status"] for r in rows), ["approved", "approved", "pending"])
+        self.assertEqual([w["asset"] for w in assets.pending_images(self.conn)], ["CHRONO"])   # still waiting for a person, not lost
+        folder = os.path.normcase(os.path.join(assets.root(), str(keep)))
+        self.assertTrue(all(os.path.normcase(r["path"]).startswith(folder) for r in rows))      # the lost one points into the new folder
+        self.assertEqual(len(assets.missing_files(self.conn)), 1)                              # still reported, not silently dropped
+        self.assertIsNone(assets.get(self.conn, dup))
+
+    def test_a_full_target_is_refused_and_nothing_changes(self):
+        keep = assets.create(self.conn, "FF", "character", "CHRONO")
+        dup = assets.create(self.conn, "FF", "character", "CHRONO1")
+        for i in range(assets.MAX_IMAGES_PER_ASSET - 1):
+            assets.add_image(self.conn, keep, f"{i}.png", PNG + bytes([i]))
+        assets.add_image(self.conn, dup, "b.png", PNG + b"b")
+        assets.add_image(self.conn, dup, "c.png", PNG + b"c", status="pending")
+        with self.assertRaises(AssetError) as e:
+            assets.merge(self.conn, dup, keep)
+        self.assertIn("còn 1", str(e.exception))                           # says how many places are left
+        self.assertEqual(len(self._rows(dup)), 2)
+        self.assertIsNotNone(assets.get(self.conn, dup))
+        self.assertEqual(len(self._rows(keep)), assets.MAX_IMAGES_PER_ASSET - 1)
+
+    def test_the_standard_profile_is_copied_or_the_merge_is_refused(self):
+        keep = assets.create(self.conn, "FF", "character", "CHRONO")
+        dup = assets.create(self.conn, "FF", "character", "CHRONO1")
+        assets.set_profile(self.conn, dup, {"identity": "white hair"}, approved=True)
+        assets.merge(self.conn, dup, keep)
+        self.assertEqual(assets.get_profile(self.conn, keep)["identity"], "white hair")
+        self.assertTrue(assets.get_profile(self.conn, keep)["approved"])
+        other = assets.create(self.conn, "FF", "character", "CHRONO2")
+        assets.set_profile(self.conn, other, {"identity": "black hair"}, approved=True)
+        with self.assertRaises(AssetError):
+            assets.merge(self.conn, other, keep)                           # two different approved profiles: a person decides
+        self.assertIsNotNone(assets.get(self.conn, other))
+        self.assertEqual(assets.get_profile(self.conn, keep)["identity"], "white hair")
+
+
+class LibraryTrashTests(unittest.TestCase):
+    def setUp(self):
+        self.dir = tempfile.mkdtemp()
+        os.environ["ASSET_DIR"] = os.path.join(self.dir, "assets")
+        self.conn = connect()
+        self.aid = assets.create(self.conn, "FF", "character", "LYRA")
+
+    def tearDown(self):
+        os.environ.pop("ASSET_DIR", None)
+        shutil.rmtree(self.dir, ignore_errors=True)
+
+    def test_a_trashed_picture_is_hidden_kept_on_disk_and_restored(self):
+        path = assets.add_image(self.conn, self.aid, "a.png", PNG + b"a")
+        assets.add_image(self.conn, self.aid, "b.png", PNG + b"b", status="pending")
+        first, = assets.get(self.conn, self.aid)["images"]
+        pend, = assets.get(self.conn, self.aid)["pending"]
+        assets.trash_image(self.conn, first["id"])
+        assets.trash_image(self.conn, pend["id"])
+        a = assets.get(self.conn, self.aid)
+        self.assertEqual((a["images"], a["pending"], a["missing"]), ([], [], []))
+        self.assertTrue(os.path.exists(path))                                         # the file stays until the trash is emptied
+        self.assertEqual(sorted(r["id"] for r in assets.removed_images(self.conn, self.aid)), sorted([first["id"], pend["id"]]))
+        self.assertEqual(assets.pending_images(self.conn), [])
+        self.assertEqual(assets.list_assets(self.conn, "FF")[0]["images"], [])
+        assets.restore_image(self.conn, first["id"])
+        assets.restore_image(self.conn, pend["id"])
+        a = assets.get(self.conn, self.aid)
+        self.assertEqual([i["id"] for i in a["images"]], [first["id"]])                # back with the status it had
+        self.assertEqual([i["id"] for i in a["pending"]], [pend["id"]])
+        self.assertEqual(assets.removed_images(self.conn, self.aid), [])
+
+    def test_a_trashed_picture_with_a_lost_file_is_not_reported_as_missing(self):
+        path = assets.add_image(self.conn, self.aid, "a.png", PNG + b"a")
+        old, = assets.get(self.conn, self.aid)["images"]
+        assets.trash_image(self.conn, old["id"])
+        os.remove(path)
+        self.assertEqual(assets.missing_files(self.conn), [])
+        self.assertEqual(assets.missing_files_detail(self.conn), [])
+        with self.assertRaises(AssetError):                                           # nothing to bring back
+            assets.restore_image(self.conn, old["id"])
+
+    def test_trashed_pictures_free_their_place_and_a_full_asset_refuses_the_restore(self):
+        assets.add_image(self.conn, self.aid, "a.png", PNG + b"a")
+        old, = assets.get(self.conn, self.aid)["images"]
+        assets.trash_image(self.conn, old["id"])
+        for i in range(assets.MAX_IMAGES_PER_ASSET):                                  # the trashed one does not take a place
+            assets.add_image(self.conn, self.aid, f"{i}.png", PNG + bytes([i]))
+        with self.assertRaises(AssetError):
+            assets.restore_image(self.conn, old["id"])
+        self.assertEqual(len(assets.removed_images(self.conn, self.aid)), 1)
+
+    def test_restoring_never_overwrites_a_newer_file(self):
+        path = assets.add_image(self.conn, self.aid, "a.png", PNG + b"old")
+        old, = assets.get(self.conn, self.aid)["images"]
+        assets.trash_image(self.conn, old["id"])
+        newer = assets.add_image(self.conn, self.aid, "a2.png", PNG + b"new")          # uploaded while the first was in the trash
+        self.assertNotEqual(os.path.normcase(newer), os.path.normcase(path))
+        assets.restore_image(self.conn, old["id"])
+        self.assertEqual(len(assets.get(self.conn, self.aid)["images"]), 2)
+        self.assertEqual(open(path, "rb").read(), PNG + b"old")
+        self.assertEqual(open(newer, "rb").read(), PNG + b"new")
+
+    def test_the_trash_is_emptied_after_the_retention_period(self):
+        old_path = assets.add_image(self.conn, self.aid, "a.png", PNG + b"a")
+        new_path = assets.add_image(self.conn, self.aid, "b.png", PNG + b"b")
+        old, new = assets.get(self.conn, self.aid)["images"]
+        assets.trash_image(self.conn, old["id"])
+        assets.trash_image(self.conn, new["id"])
+        self.conn.execute("UPDATE asset_images SET removed_at=datetime('now', '-31 days') WHERE id=?", (old["id"],))
+        self.conn.commit()
+        self.assertEqual(assets.purge_removed(self.conn, days=30), 1)
+        self.assertFalse(os.path.exists(old_path))
+        self.assertTrue(os.path.exists(new_path))
+        self.assertEqual([r["id"] for r in assets.removed_images(self.conn, self.aid)], [new["id"]])
+        self.assertIsNone(self.conn.execute("SELECT 1 FROM asset_images WHERE id=?", (old["id"],)).fetchone())
+
+    def test_remove_image_still_deletes_the_file_at_once(self):
+        path = assets.add_image(self.conn, self.aid, "a.png", PNG + b"a")
+        img, = assets.get(self.conn, self.aid)["images"]
+        assets.remove_image(self.conn, img["id"])
+        self.assertFalse(os.path.exists(path))
+
+    def test_merge_carries_trashed_pictures_without_counting_them(self):
+        keep = assets.create(self.conn, "FF", "character", "LYRA2")
+        for i in range(assets.MAX_IMAGES_PER_ASSET):
+            assets.add_image(self.conn, keep, f"{i}.png", PNG + bytes([i]))
+        assets.trash_image(self.conn, assets.get(self.conn, keep)["images"][0]["id"])
+        assets.add_image(self.conn, self.aid, "x.png", PNG + b"x")
+        self.assertEqual(assets.merge(self.conn, self.aid, keep), 1)
+        self.assertEqual(len(assets.get(self.conn, keep)["images"]), assets.MAX_IMAGES_PER_ASSET)
+        self.assertEqual(len(assets.removed_images(self.conn, keep)), 1)
+
+
+class LibraryKhoUiTests(unittest.TestCase):
+    """The ⚙ → Kho buttons that lose data ask first (confirm_all); ui_v2 on."""
+
+    def setUp(self):
+        self.tmp, self.db, self.data, self.p, self.pid = split_only()
+        self.env = {"PIPELINE_DB": self.db, "PIPELINE_DATA": self.data, "ASSET_DIR": os.path.join(self.tmp, "assets"), "FEATURE_UI_V2": "1"}
+        os.environ.update(self.env)
+
+    def tearDown(self):
+        for k in self.env:
+            os.environ.pop(k, None)
+
+    def _kho(self):
+        at = AppTest.from_file(APP, default_timeout=40).run()
+        at.button(key="settings_assets").click().run()
+        self.assertFalse(at.exception)
+        return at
+
+    def test_deleting_a_picture_asks_then_trashes_it_and_it_can_be_restored(self):
+        aid = assets.create(self.p.conn, "FF", "character", "LYRA")
+        path = assets.add_image(self.p.conn, aid, "a.png", PNG + b"a")
+        img, = assets.get(self.p.conn, aid)["images"]
+        at = self._kho()
+        at.button(key=f"lib_img_rm_{img['id']}").click().run()
+        self.assertEqual(len(assets.get(self.p.conn, aid)["images"]), 1)               # only asked
+        at.button(key=f"lib_img_rm_{img['id']}_yes").click().run()
+        self.assertFalse(at.exception)
+        self.assertEqual(assets.get(self.p.conn, aid)["images"], [])
+        self.assertTrue(os.path.exists(path))
+        at.button(key=f"lib_img_restore_{img['id']}").click().run()
+        self.assertFalse(at.exception)
+        self.assertEqual(len(assets.get(self.p.conn, aid)["images"]), 1)
+
+    def test_merging_asks_first(self):
+        keep = assets.create(self.p.conn, "FF", "character", "CHRONO")
+        dup = assets.create(self.p.conn, "FF", "character", "CHRONO1")
+        assets.add_image(self.p.conn, dup, "b.png", PNG + b"b", status="pending")
+        at = self._kho()
+        at.checkbox(key=f"lib_edit_{dup}").check().run()
+        at.selectbox(key=f"lib_merge_{dup}").set_value(keep).run()
+        at.button(key=f"lib_merge_go_{dup}").click().run()
+        self.assertIsNotNone(assets.get(self.p.conn, dup))                              # only asked
+        at.button(key=f"lib_merge_go_{dup}_yes").click().run()
+        self.assertFalse(at.exception)
+        self.assertIsNone(assets.get(self.p.conn, dup))
+        self.assertEqual(len(assets.get(self.p.conn, keep)["pending"]), 1)
+
+    def _lost(self, aid, name, src):
+        self.p.conn.execute("INSERT INTO asset_images (asset_id, path, label, sort, src_path, status) VALUES (?,?,?,?,?,?)",
+                            (aid, os.path.join(self.tmp, "gone", name), name, 1, src, "approved"))
+        self.p.conn.commit()
+        return self.p.conn.execute("SELECT max(id) FROM asset_images").fetchone()[0]
+
+    def test_unlink_all_asks_and_keeps_the_pictures_that_can_be_reloaded(self):
+        aid = assets.create(self.p.conn, "FF", "character", "LYRA")
+        src = os.path.join(self.tmp, "src.png")
+        open(src, "wb").write(PNG)
+        can = self._lost(aid, "1.png", src)
+        cannot = self._lost(aid, "2.png", os.path.join(self.tmp, "nope.png"))
+        at = self._kho()
+        at.button(key="lib_lost_rm_all").click().run()
+        self.assertEqual(len(assets.missing_files(self.p.conn)), 2)                     # only asked
+        at.button(key="lib_lost_rm_all_yes").click().run()
+        self.assertFalse(at.exception)
+        self.assertEqual([m["id"] for m in assets.missing_files(self.p.conn)], [can])
+        self.assertNotIn(cannot, [m["id"] for m in assets.missing_files(self.p.conn)])
+
+    def test_a_reload_that_fails_says_why_instead_of_a_traceback(self):
+        aid = assets.create(self.p.conn, "FF", "character", "LYRA")
+        src = os.path.join(self.tmp, "huge.png")
+        open(src, "wb").write(b"0" * (assets.MAX_IMAGE_BYTES + 1))                    # too big and not a picture: cannot be shrunk
+        iid = self._lost(aid, "1.png", src)
+        at = self._kho()
+        at.button(key=f"lib_lost_reload_{iid}").click().run()
+        self.assertFalse(at.exception)
+        self.assertTrue(any("Không tải lại được" in e.value for e in at.error))
+
+
 if __name__ == "__main__":
     unittest.main()
