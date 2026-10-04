@@ -167,6 +167,10 @@ def _primary_action(p: Pipeline, pid: int, kind: str, scenes, chars, b_total: fl
         except Exception as e:  # noqa: BLE001 - say it, never hide the area
             st.warning(f"Không tính được ngân sách ({type(e).__name__}: {e})")
             return
+        try:                                                   # S14.16: the approval shows the TOTAL estimated cost (tính dư)
+            st.markdown("💵 " + project_budget.cost_summary(p, pid)["text"])
+        except Exception as e:  # noqa: BLE001 - the approval still works; the missing estimate is said
+            st.caption(f"Chưa tính được ước tính tổng chi phí ({type(e).__name__}).")
         if confirm_all(f"script-cta-budget_{pid}", ["go"], f"✔ Duyệt & khóa ngân sách ≈ {prop['total']:.2f} USD",
                        f"Khóa ngân sách dự án ≈ {prop['total']:.2f} USD (trần từng khâu như bảng ở thẻ ③)? Sau khi khóa, mọi lời gọi trả tiền "
                        "vượt mức khâu hoặc tổng sẽ được CẢNH BÁO (vẫn gửi); chỉ người được nâng mức, kèm lý do.", st, "Có, khóa"):

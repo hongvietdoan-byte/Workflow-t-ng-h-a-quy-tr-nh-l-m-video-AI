@@ -544,6 +544,28 @@ class ProductJobCap(unittest.TestCase):
         self.assertTrue(hasattr(P(self.p.conn), "origin"))
 
 
+class BudgetApprovalShowsTheTotal(unittest.TestCase):
+    """Người dùng 04/10: the budget approval gate stays; it shows the project's TOTAL estimated cost (tính dư), per kind + total."""
+
+    @mock.patch.dict(os.environ, ON)
+    def test_the_summary_has_every_kind_the_total_and_the_unpriced_count(self):
+        from core import image_models
+        from tests.test_v3 import kenta_project
+        p, pid = kenta_project()
+        llm_runner.run_director(p, pid, llm_runner.MockLlm())
+        with mock.patch.object(image_models, "of_project", return_value="model-without-price"):
+            s = project_budget.cost_summary(p, pid)
+            why = project_budget.gate_reason(p, pid)
+        for k in ("images", "videos", "audio", "claude", "total"):
+            self.assertIn(k, s)
+        self.assertAlmostEqual(s["total"], round(s["images"] + s["videos"] + (s["audio"] or 0) + s["claude"], 2), places=2)
+        self.assertGreater(s["images"], 0)
+        self.assertGreaterEqual(s["unpriced"], 1)
+        for word in ("Ảnh", "Video", "Âm thanh", "Claude", "Tổng", "(ước tính, tính dư)", "giá cao nhất × 1,5"):
+            self.assertIn(word, s["text"])
+        self.assertIn("(ước tính, tính dư)", why)
+
+
 class ResetWithPlan(unittest.TestCase):
     OWNER = {"email": "o@x", "role": "owner"}
 

@@ -484,6 +484,10 @@ def money_card(p: Pipeline, pid) -> None:
                 try:
                     prop = project_budget.propose(p, pid)
                     st.markdown(f"**Dự án này:** chưa duyệt · dự tính ≈ {prop['total']:.2f} USD · đã chi {sum(spent.values()):.2f}")
+                    try:                                                   # S14.16: the approval shows the TOTAL estimated cost (tính dư)
+                        st.markdown("💵 " + project_budget.cost_summary(p, pid)["text"])
+                    except Exception as e:  # noqa: BLE001 - the approval still works; the missing estimate is said
+                        st.caption(f"Chưa tính được ước tính tổng chi phí ({type(e).__name__}).")
                     if confirm_all(f"mc_ok_{pid}", ["go"], f"✔ Duyệt & KHÓA ngân sách ≈ {prop['total']:.2f} USD",
                                    f"Khóa ngân sách dự án ≈ {prop['total']:.2f} USD (trần từng khâu theo bảng ở màn Kịch bản)? Sau khi khóa, mọi lời "
                                    "gọi trả tiền vượt mức sẽ được CẢNH BÁO (vẫn gửi); chỉ người được nâng mức, kèm lý do.", st, "Có, khóa"):

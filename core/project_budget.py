@@ -277,6 +277,32 @@ def warning(conn, pid: Optional[int], stage: str, usd: Optional[float]) -> Optio
     return None
 
 
+def cost_summary(p, pid: int) -> Dict:
+    """Người dùng 04/10 (S14.16): the project's TOTAL estimated cost for the approval gate — images, videos, audio, Claude, total,
+    estimated HIGH (cost.estimate_run + money_policy.estimate: an item without a price at the highest known price × 1,5).
+    {"images", "videos", "audio" (None = audio has no price at all: counted by sends), "audio_items", "claude", "total",
+    "unpriced" (items estimated without their own price), "text"}."""
+    from . import cost, money_policy, voice
+    run = cost.estimate_run(p, pid)
+    images, videos, claude = float(run["images"] or 0), float(run["videos"] or 0), float(run["llm"] or 0)
+    try:
+        audio_items = len(voice.planned_lines(p.conn, pid)) + 1          # every voiced line + the music
+    except Exception:  # noqa: BLE001 - no voice plan yet: the music only
+        audio_items = 1
+    audio = money_policy.estimate("audio", None, None, audio_items)["usd"]
+    unpriced = len(run.get("unknown") or [])
+    total = round(images + videos + claude + (audio or 0.0), 2)
+    text = (f"Ước tính tổng chi phí dự án ≈ ${total:.2f} (ước tính, tính dư): Ảnh ≈ ${images:.2f} · Video ≈ ${videos:.2f} · "
+            + (f"Âm thanh ≈ ${audio:.2f}" if audio is not None else f"Âm thanh {audio_items} lượt (chưa có giá USD, tính theo lượt)")
+            + f" · Claude ≈ ${claude:.2f} · Tổng ≈ ${total:.2f}")
+    if unpriced:
+        text += (f" — {unpriced} mục chưa có giá được ước bằng giá cao nhất × 1,5 ({', '.join(run['unknown'])})")
+    else:
+        text += " — mọi mục đều có giá (giá cao nhất × 1,5 chỉ dùng khi thiếu giá)"
+    return {"images": round(images, 2), "videos": round(videos, 2), "audio": None if audio is None else round(audio, 2),
+            "audio_items": audio_items, "claude": round(claude, 2), "total": total, "unpriced": unpriced, "text": text}
+
+
 def gate_reason(p, pid: int) -> Optional[str]:
     """Why the automatic run must wait before paying for pictures: the budget is not approved yet, or the proposal is over the
     person's target."""
@@ -289,7 +315,11 @@ def gate_reason(p, pid: int) -> Optional[str]:
     over = ""
     if data and data.get("target") and prop["total"] > float(data["target"]):
         over = f" — đề xuất ≈ ${prop['total']:.2f} VƯỢT mục tiêu ${float(data['target']):.2f}: bớt shot khớp môi / giây video / shot, rồi tính lại"
-    return f"Chờ duyệt ngân sách dự án (đề xuất ≈ ${prop['total']:.2f}){over} — Bước 1 → 💵 Ngân sách dự án"
+    try:
+        summary = " " + cost_summary(p, pid)["text"] + "."
+    except Exception as e:  # noqa: BLE001 - the gate still waits; the missing estimate is said
+        summary = f" (chưa tính được ước tính tổng: {type(e).__name__})"
+    return f"Chờ duyệt ngân sách dự án (đề xuất ≈ ${prop['total']:.2f}){over}.{summary} — Bước 1 → 💵 Ngân sách dự án"
 
 
 def director_note(conn, pid: int) -> str:
