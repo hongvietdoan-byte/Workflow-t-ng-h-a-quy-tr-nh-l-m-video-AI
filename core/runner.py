@@ -270,8 +270,11 @@ class _Runner:
         id and ledger row are kept (written by the caller); the task is cancelled at the provider; the diagnostics say all of it."""
         state = self.p.job(job["id"])["state"]
         try:
-            self.provider.cancel(task_id)
-            asked = "đã yêu cầu hủy ở nhà cung cấp"
+            if str(getattr(self.provider, "name", "")).startswith(NO_CANCEL_API):
+                asked = NO_CANCEL_NOTE                  # nothing to call: never claim a cancel that did not happen
+            else:
+                self.provider.cancel(task_id)
+                asked = "đã yêu cầu hủy ở nhà cung cấp"
         except Exception as e:  # noqa: BLE001 - a provider without cancel (Deepix) / a network error: said, not hidden
             asked = f"KHÔNG hủy được ở nhà cung cấp ({type(e).__name__}: {e})"
         self._diag(job, "error", "cancelled_in_flight",
@@ -1267,17 +1270,20 @@ class VideoRunner(_Runner):
             self.p.succeed(jid)
 
 
-NO_CANCEL_API = ("deepix",)          # providers with no cancel endpoint (core/adapters/deepix.py: cancel() does nothing)
+NO_CANCEL_API = ("deepix",)
+NO_CANCEL_NOTE = "Deepix không có lệnh hủy: đã bỏ khỏi hàng đợi phía mình; ảnh đã gửi vẫn tính tiền"
+CANCEL_WAIT_S = 20.0                 # cancel_all waits this long for the project's send/poll turn, then says "busy"          # providers with no cancel endpoint (core/adapters/deepix.py: cancel() does nothing)
 
 
 def cancel_all(p: Pipeline, project_id: int, video: Optional[_Runner] = None, image: Optional[_Runner] = None,
-               actor: str = "user") -> Dict:
+               actor: str = "user", wait: Optional[float] = None) -> Dict:
     """T3 (S14.3 B1a): the project's ■ Hủy / delete-project stop. Before: only Pipeline.cancel_all_active — the jobs were cancelled
     on our side while the providers kept generating (and billing) every running task.
 
     1. the right to edit is checked FIRST (a viewer must not reach the provider before being refused);
-    2. the project's send/poll turn of both kinds is held, so no send is in flight while we cancel;
-    3. every running job with a task is cancelled at its provider — once per task (a multi-shot group shares one task), each call in
+    2. the project's send/poll turn of both kinds is held, so no send is in flight while we cancel — waited for at most `wait`
+       seconds; still busy (a long download / composite) → nothing is cancelled, {"busy": True} (never half a cancel);
+    3. every running job — and every queued one that already has a task (old data) — with a task is cancelled at its provider — once per task (a multi-shot group shares one task), each call in
        its own try/except (one error never stops the rest, it is reported); Deepix has no cancel API: those pictures are only dropped
        from our queue and are still billed; a kind with no configured service (`video`/`image` None) is reported, not skipped silently;
     4. then Pipeline.cancel_all_active.
@@ -1286,12 +1292,17 @@ def cancel_all(p: Pipeline, project_id: int, video: Optional[_Runner] = None, im
     access.need_edit(p, project_id, "hủy việc đang chạy")
     runners = {"video_gen": video, "image_gen": image}
     locks = [_turn(project_id, kind) for kind in ("image_gen", "video_gen")]          # one fixed order: never two orders, never a deadlock
+    held = []
     for lock in locks:
-        lock.acquire()
+        if not lock.acquire(timeout=CANCEL_WAIT_S if wait is None else wait):
+            for h in reversed(held):
+                h.release()
+            return {"busy": True, "cancelled": 0, "at_provider": 0, "failed": [], "no_cancel_api": 0, "no_provider": 0}
+        held.append(lock)
     try:
-        report = {"cancelled": 0, "at_provider": 0, "failed": [], "no_cancel_api": 0, "no_provider": 0}
+        report = {"busy": False, "cancelled": 0, "at_provider": 0, "failed": [], "no_cancel_api": 0, "no_provider": 0}
         done = set()
-        rows = p.conn.execute("SELECT * FROM jobs WHERE project_id=? AND state='running' AND external_id IS NOT NULL ORDER BY id",
+        rows = p.conn.execute("SELECT * FROM jobs WHERE project_id=? AND state IN ('running','queued') AND external_id IS NOT NULL ORDER BY id",
                               (project_id,)).fetchall()
         for job in rows:
             key = (job["type"], job["external_id"])
@@ -1322,11 +1333,14 @@ def cancel_all(p: Pipeline, project_id: int, video: Optional[_Runner] = None, im
 
 def cancel_note(report: Dict) -> str:
     """The person-facing sentence for cancel_all (toast). No refund is promised: ClipAI's refund policy is not verified."""
+    if report.get("busy"):
+        return ("Chưa hủy gì: dự án đang bận tải/ghép clip — thử lại sau ít phút. (Không hủy dở: việc ở nhà cung cấp và ở đây "
+                "đều giữ nguyên.)")
     parts = [f"Đã hủy {report['cancelled']} việc."]
     if report["at_provider"]:
         parts.append(f"Đã yêu cầu nhà cung cấp dừng {report['at_provider']} task đang gen.")
     if report["no_cancel_api"]:
-        parts.append(f"Deepix không có lệnh hủy: {report['no_cancel_api']} ảnh đã bỏ khỏi hàng đợi phía mình; ảnh đã gửi vẫn tính tiền.")
+        parts.append(NO_CANCEL_NOTE.replace("đã bỏ", f"{report['no_cancel_api']} ảnh đã bỏ") + ".")
     if report["failed"]:
         parts.append(f"KHÔNG hủy được {len(report['failed'])} task ở nhà cung cấp ("
                      + ", ".join(t for t, _ in report["failed"][:5]) + ") — kiểm tra / hủy trên web nhà cung cấp.")

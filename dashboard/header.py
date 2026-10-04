@@ -391,18 +391,24 @@ def _settings_project_body(p: Pipeline, pid: int) -> None:
     elif confirm_all(f"proj_del_{pid}", [pid], "🗑 Xóa dự án", f"Xóa hẳn dự án “{proj['name']}” cùng ảnh, clip, nhạc, video? Không thể khôi phục.",
                      st, "Có, xóa dự án"):
         autopilot.stop(p, pid, "Dự án bị xóa")
-        note = cancel_everything(p, pid)                  # T3: the running tasks are stopped at the provider too, not only here
+        report = {}
+        note = cancel_everything(p, pid, report)          # T3: the running tasks are stopped at the provider too, not only here
+        if report.get("busy"):                            # nothing was cancelled: deleting now would orphan tasks still billing
+            st.warning(f"Chưa xóa dự án. {note}")
+            return
         p.delete_project(pid, C.DATA)
         st.toast(f"Đã xóa dự án “{proj['name']}”. {note}")
         st.rerun()
 
 
-def cancel_everything(p: Pipeline, pid) -> str:
+def cancel_everything(p: Pipeline, pid, report_out=None) -> str:
     """■ Hủy / delete project (T3, S14.3 B1a): core.runner.cancel_all — rights first, then the running tasks at ClipAI / Deepix (once
     per task), then every queued/running job here. A service not configured on this machine (video_runner / image_runner → None) is
     named in the note, never skipped silently. Returns the sentence for the toast."""
     from core import runner as job_runner
     report = job_runner.cancel_all(p, pid, video=C.video_runner(p), image=C.image_runner(p))
+    if report_out is not None:
+        report_out.update(report)              # the caller may need {"busy": True} (the turn stayed busy: nothing was cancelled)
     return job_runner.cancel_note(report)
 
 

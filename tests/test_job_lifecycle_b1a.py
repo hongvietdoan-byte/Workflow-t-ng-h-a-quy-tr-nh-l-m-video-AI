@@ -489,6 +489,39 @@ class ReviewFixes(_Base):
         self.assertEqual(self.p.job(q)["state"], "cancelled")
 
 
+class DeleteWhileBusy(CancelButtons):
+    """Rà soát B1a điểm 4: the turn stays busy → nothing is cancelled, so the project must NOT be deleted (its tasks would bill on)."""
+    test_the_cancel_button_cancels_the_running_task_at_the_provider = None
+    test_deleting_the_project_cancels_the_running_task_at_the_provider = None
+
+    def test_a_busy_project_is_not_deleted(self):
+        import threading
+        from core import runner
+        taken, release = threading.Event(), threading.Event()
+
+        def hold():
+            with runner._turn(self.pid, "video_gen"):
+                taken.set()
+                release.wait(60)
+
+        t = threading.Thread(target=hold, daemon=True)
+        t.start()
+        taken.wait(5)
+        try:
+            with mock.patch("core.adapters.factory.video_provider", return_value=self.provider), \
+                    mock.patch.object(runner, "CANCEL_WAIT_S", 0.2):
+                at = self.app()
+                next(b for b in at.button if b.key == f"proj_del_{self.pid}").click().run()
+                next(b for b in at.button if b.key == f"proj_del_{self.pid}_yes").click().run()
+                self.assertFalse(at.exception, at.exception)
+        finally:
+            release.set()
+            t.join(5)
+        self.assertIsNotNone(self.p.project(self.pid))
+        self.assertEqual(self.provider.cancelled, [])
+        self.assertEqual(self.p.job(self.job)["state"], "running")
+
+
 class CompositeRealFfmpeg(unittest.TestCase):
     """Rà soát B1a lỗi 1: when the loop stopped early (the writer died → BrokenPipe), the finally block waited on the ffmpeg reader
     whose stdout pipe was full and unread → hung for ever (the poll thread kept the project's _turn lock, ■ Hủy hung behind it)."""
