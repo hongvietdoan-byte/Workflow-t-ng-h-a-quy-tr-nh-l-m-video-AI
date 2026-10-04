@@ -256,11 +256,17 @@ def voice_panel(p: Pipeline, pid: int) -> None:
             st.toast(f"Đã kiểm {r['checked']} câu mới · {r['bad']} câu nghi lỗi" + ("" if r["asr"] else " (chưa so chữ: chưa cài faster-whisper)"))
             st.rerun()
         bad = voice_check.bad_lines(C.DATA, pid)
-        if bad and k2.button(f"🔁 Tạo lại {len(bad)} câu nghi lỗi", key=f"tts_redo_{pid}", disabled=provider is None,
-                             help="Mỗi câu một lần gọi TTS (tốn credit âm thanh, tính vào trần lượt âm thanh)"):
-            r = voice_check.redo(p.conn, pid, provider, C.DATA)
-            st.toast(f"Đã gửi lại {r['sent']} câu")
-            st.rerun()
+        if bad:
+            used, allowed = voice_check.redo_counts(C.DATA, pid)      # T7 (S14.3): own count per line, ≤ MAX_REDOS per (câu, giọng)
+            ids = tuple((b.get("scene_id"), b.get("line"), b.get("file")) for b in bad) if provider is not None else ()
+            if confirm_all(f"tts_redo_{pid}", ids, f"🔁 Tạo lại {len(bad)} câu nghi lỗi (đã dùng {used}/{allowed} lượt)",
+                           f"Tạo lại {len(bad)} câu nghi lỗi? Mỗi câu một lần gọi TTS (tốn credit âm thanh, tính vào trần lượt âm thanh); "
+                           f"mỗi câu tối đa {voice_check.MAX_REDOS} lần với cùng câu + giọng (đã dùng {used}/{allowed}). "
+                           "Giọng cũ được giữ cho tới khi có bản mới.", k2, yes_label="Có, tạo lại"):
+                r = voice_check.redo(p.conn, pid, provider, C.DATA)
+                st.toast(f"Đã gửi lại {r['sent']} câu" + (f" · không tạo lại {len(r['refused'])} câu: {r['refused'][0]}"
+                                                           if r.get("refused") else ""))
+                st.rerun()
         directory = audio_lib.assets_dir(C.DATA, pid)
         items = {(e.get("scene_id"), e.get("line")): e for e in audio_lib.load(directory) if e["kind"] == "tts" and e.get("scene_id")}
         cur = None

@@ -6,7 +6,8 @@ Two layers:
 2. When `faster-whisper` is installed (`pip install faster-whisper`, model downloaded once, runs offline): speech → text, compared
    word by word with the line (missing / wrong words, the end of the sentence cut off).
 
-A line that fails is flagged (kept, never deleted); `redo()` makes it again on request. The automatic run does not redo on its own
+A line that fails is flagged (kept, never deleted); `redo()` makes it again on request — the old voice stays until the new one is
+made, at most MAX_REDOS times per (text, voice). The automatic run does not redo on its own
 until this check has passed a real test (rule 5 — `features.voice_check_redo`).
 """
 import difflib
@@ -154,6 +155,7 @@ def check_project(data_dir: str, project_id: int, asr: Optional[Callable[[str], 
     """Check every finished dialogue voice not checked yet in its current form (same file + same text). The result is kept on the
     line (`check`) and shown in Step 3. Returns {"checked", "bad", "asr"}."""
     directory = audio_lib.assets_dir(data_dir, project_id)
+    settle_redos(directory)
     items = audio_lib.load(directory)
     checked = bad = 0
     for e in items:
@@ -186,15 +188,95 @@ def bad_lines(data_dir: str, project_id: int) -> List[Dict]:
             and (e.get("check") or {}).get("ok") is False]
 
 
+# Luật 6 (docs/CHUAN_XAY_DUNG.md): một câu được TẠO LẠI tối đa MAX_REDOS lần với cùng (văn bản gốc, giọng) — lần thứ 3 phải đổi đầu vào
+# (sửa câu thoại / đổi giọng). Bộ đếm `redos` riêng của dòng, khác `resends` / voice.MAX_RESENDS (lỗi nhà cung cấp; người bấm bỏ qua).
+MAX_REDOS = 2
+SUPERSEDED = "superseded"   # the old voice while its redo is being made: hidden from the timeline, given back if the redo fails
+
+
+def _redos(e: Dict) -> int:
+    """Redos already made of this line with its current text + voice (a changed text or voice starts again from 0)."""
+    key = e.get("redo_key")
+    if key is not None and list(key) != [e.get("text"), e.get("voice_id")]:
+        return 0
+    return int(e.get("redos") or 0)
+
+
+def redo_counts(data_dir: str, project_id: int):
+    """(redos used, redos allowed) over the flagged lines — shown on the 🔁 button."""
+    bad = bad_lines(data_dir, project_id)
+    return sum(min(_redos(e), MAX_REDOS) for e in bad), MAX_REDOS * len(bad)
+
+
+def settle_redos(directory: str) -> int:
+    """Finish the redos whose new voice is decided: made → the old line (and its file) is removed; failed / refused / never sent →
+    the old voice is given back (state succeeded, `redo_error` says why) and the failed try is dropped. Running → wait. Returns the
+    number settled. Called by redo, check_project and voice.generate (any later pass), so a lost redo never hides a line for long."""
+    items = audio_lib.load(directory)
+    news = {e["redo_of"]: (i, e) for i, e in enumerate(items) if e.get("redo_of") and e.get("state") != SUPERSEDED}
+    drop, settled = [], 0
+    for i, e in enumerate(items):
+        if e.get("state") != SUPERSEDED:
+            continue
+        j, new = news.get(e.get("redo_token"), (None, None))
+        if new is not None and new.get("state") == "running":
+            continue
+        settled += 1
+        if new is not None and new.get("state") == "succeeded":
+            drop.append(i)                                       # the new voice exists: only now the old one goes
+            continue
+        e["state"] = "succeeded"
+        e.pop("redo_token", None)
+        if new is None:
+            e["redo_error"] = "lần tạo lại không gửi được (thiếu giọng / bị giữ) — giữ giọng cũ"
+        else:
+            if not new.get("refused"):                            # a refused send (spending cap) was never made: not counted
+                e["redos"] = int(new.get("redos") or 0)
+                e["redo_key"] = [e.get("text"), e.get("voice_id")]
+            e["redo_error"] = f"tạo lại lỗi: {new.get('message') or 'không rõ'} — giữ giọng cũ"
+            drop.append(j)
+    if settled:
+        audio_lib._save(directory, items)
+        for k in sorted(drop, reverse=True):
+            audio_lib.remove(directory, k)
+    return settled
+
+
 def redo(conn, project_id: int, provider, data_dir: str) -> Dict:
-    """Make the flagged lines again (one TTS call each — counted against the audio cap). Returns voice.generate's result."""
+    """Make the flagged lines again (one TTS call each — counted against the audio cap). The old voice is kept (hidden) until the new
+    one is made (settle_redos); a line already redone MAX_REDOS times with the same text + voice is refused, said in "refused".
+    Returns voice.generate's result + "refused"."""
+    import uuid
     from . import voice
     directory = audio_lib.assets_dir(data_dir, project_id)
-    scene_ids = set()
-    for i in reversed([i for i, e in enumerate(audio_lib.load(directory)) if e.get("kind") == "tts" and e.get("dialogue")
-                       and (e.get("check") or {}).get("ok") is False]):
-        scene_ids.add(audio_lib.load(directory)[i].get("scene_id"))
-        audio_lib.remove(directory, i)
+    settle_redos(directory)
+    items = audio_lib.load(directory)
+    tokens, scene_ids, refused = {}, set(), []
+    for e in items:
+        if not (e.get("kind") == "tts" and e.get("dialogue") and e.get("state") == "succeeded"
+                and (e.get("check") or {}).get("ok") is False):
+            continue
+        used = _redos(e)
+        if used >= MAX_REDOS:
+            refused.append(f"S{int(e.get('scene_idx') or 0):02d} {e.get('speaker') or ''}: đã tạo lại {used} lần với cùng câu + giọng "
+                           f"(tối đa {MAX_REDOS} lần) — sửa câu thoại hoặc đổi giọng rồi tạo lại")
+            continue
+        tok = uuid.uuid4().hex
+        e.update(state=SUPERSEDED, redo_token=tok)
+        tokens[(e.get("scene_id"), e.get("line"))] = (tok, used)
+        scene_ids.add(e.get("scene_id"))
     if not scene_ids:
-        return {"sent": 0, "skipped": 0, "no_voice": []}
-    return voice.generate(conn, project_id, provider, data_dir, scene_ids=scene_ids, slow=scene_ids)
+        return {"sent": 0, "skipped": 0, "no_voice": [], "held": [], "refused": refused}
+    audio_lib._save(directory, items)
+    try:
+        r = voice.generate(conn, project_id, provider, data_dir, scene_ids=scene_ids, slow=scene_ids, settle=False)
+    finally:
+        items = audio_lib.load(directory)
+        for key, (tok, used) in tokens.items():
+            new = [e for e in items if (e.get("scene_id"), e.get("line")) == key and e.get("kind") == "tts"
+                   and e.get("state") != SUPERSEDED and not e.get("redo_of")]
+            if new:
+                new[-1].update(redo_of=tok, redos=used + 1, redo_key=[new[-1].get("text"), new[-1].get("voice_id")])
+        audio_lib._save(directory, items)
+        settle_redos(directory)                                   # a send that failed / was refused gives the old voice back now
+    return {**r, "refused": refused}
