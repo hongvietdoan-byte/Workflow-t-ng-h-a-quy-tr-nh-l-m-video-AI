@@ -58,14 +58,16 @@ def idea_settings_form(p: Pipeline, pid: int, idea: str) -> None:
             platform = c3.selectbox("Nền tảng", I.PLATFORMS, index=I.PLATFORMS.index(inp["platform"]) if inp.get("platform") in I.PLATFORMS else 0)
             trend = c4.selectbox("Dùng trend", list(I.TREND_MODES), format_func=I.TREND_MODES.get,
                                  index=list(I.TREND_MODES).index(inp.get("trend", "off")))
-            lib = I.library(p.conn, pid)
-            d1, d2, d3 = st.columns([2, 1.2, 1.4])
-            chars = d1.multiselect("Nhân vật (Kho FF, để trống được)", sorted(set(n.upper() for n in lib["characters"])),
-                                   default=[c for c in inp.get("characters", []) if c in {n.upper() for n in lib["characters"]}])
+            d2, d3 = st.columns([1.2, 1.4])                      # rà S14.31: ONE list of people — the key points' (the old box is gone)
             tone = d2.text_input("Giọng điệu", inp.get("tone", ""), placeholder="hài, dễ thương")
             cta = d3.text_input("CTA (đúng chữ, cảnh cuối)", inp.get("cta", ""), placeholder="Tải Free Fire ngay")
             from core import idea_buildable as B
             k, an = B.kit(p.conn, pid), inp.get("anchors") or {}
+            gone = [c for c in an.get("characters", []) if c.upper() not in [x["name"].upper() for x in k["characters"]]]
+            if gone:                                              # rà: a saved choice that left the Kho is said, not dropped silently
+                st.warning("Nhân vật đã chọn không còn trong danh sách dựng được: " + ", ".join(gone) + " — chọn lại.")
+            if an.get("place") and an["place"] not in [x["name"] for x in k["places"]]:
+                st.warning(f"Nơi đã chọn ({an['place']}) không còn trong danh sách dựng được — chọn lại.")
             st.markdown("**Điểm then chốt** — bắt buộc; Biên kịch chỉ mở rộng chi tiết quanh các điểm này (thiếu thì không chạy, 0 USD)")
             e1, e2 = st.columns(2)
             kchars = [c["name"].upper() for c in k["characters"]]
@@ -82,7 +84,7 @@ def idea_settings_form(p: Pipeline, pid: int, idea: str) -> None:
             new = st.form_submit_button("💡 Ý tưởng mới (bắt đầu lại từ lượt 1)" if inp else "💡 Bắt đầu")
         if inp and idea.strip() and idea.strip() != inp.get("idea"):
             cap("Chữ trong khung khác ý tưởng đang làm — bấm 💡 Ý tưởng mới để bắt đầu lại với chữ mới (các lượt cũ bị bỏ).")
-    if new and act(lambda: I.start(p.conn, pid, idea, dur, aspect, platform, tone, chars, cta, trend, p=p,
+    if new and act(lambda: I.start(p.conn, pid, idea, dur, aspect, platform, tone, achars, cta, trend, p=p,
                                       anchors={"characters": achars, "costume": costume, "place": place, "plot": plot, "ending": ending,
                                                "gameplay_ui": gp})):
         st.rerun()

@@ -346,3 +346,70 @@ class BuildableKitS1431(unittest.TestCase):
 
     def test_turn_estimate_covers_the_real_cost(self):
         self.assertGreaterEqual(I.TURN_USD, 0.045)                                 # real ≈ 0.037 / turn (05/10 record)
+
+    # ---- rà S14.31 (coordinator review) -----------------------------------------------------------------------------------------------
+    def _add_place(self, name, path=None, exist=True):
+        import os
+        import tempfile
+        if path is None:
+            path = os.path.join(tempfile.mkdtemp(), "m.glb")
+            if exist:
+                open(path, "wb").write(b"x")
+        lid = assets.create(self.p.conn, "FF", "location", name)
+        self.p.conn.execute("UPDATE assets SET profile=? WHERE id=?", (json.dumps({"model3d": {"path": path, "default_spot": "a", "spots": {
+            "a": {"at": [0, 0, 0], "label": "khu A"}}}}), lid))
+        self.p.conn.commit()
+
+    def test_heading_with_only_a_time_is_a_scene_without_a_place(self):
+        script = ("CẢNH 1 - NGÀY, ĐẢO QUÂN SỰ\nThùng thính rơi giữa Kelly và Maxim.\nKELLY: Của tôi!\n\n"
+                  "CẢNH 2 - 5-10s\nHai người mở thùng ra thì trống trơn.")
+        c = I.check_script(self.p.conn, self.pid, script, {"duration_s": 15, "anchors": ANCHORS})
+        self.assertTrue(any("thiếu nơi" in t for t in c["problems"]))
+        self.assertFalse(any("5-10s" in t and "chưa có" in t for t in c["problems"]))
+
+    def test_exclamations_and_everyday_words_are_not_game_interface(self):
+        inp = {"duration_s": 15, "anchors": dict(ANCHORS, characters=["MAXIM"], plot="", ending="")}
+        for body in ("Maxim uống thuốc, ui da, đắng quá.\nMAXIM: Ui da!",
+                     "Maxim bấm nút thang máy, hai bạn bắn nhau bằng súng nước.\nMAXIM: Giao tranh đi!",
+                     "Maxim đứng trong bóng cover của tán cây.\nMAXIM: Bấm nút gọi đi!"):
+            c = I.check_script(self.p.conn, self.pid, "CẢNH 1 - NGÀY, ĐẢO QUÂN SỰ\n" + body, inp)
+            self.assertEqual(c["blocked_scenes"], [], body)
+        real = "CẢNH 1 - NGÀY, ĐẢO QUÂN SỰ\nCận giao diện game Free Fire, minimap và bảng xếp hạng.\nMAXIM: Hạng nhất!"
+        self.assertEqual(I.check_script(self.p.conn, self.pid, real, inp)["blocked_scenes"][0]["scene"], 1)
+
+    def test_place_match_is_by_whole_phrase(self):
+        self._add_place("Nhà thờ")
+        I.start(self.p.conn, self.pid, IDEA, anchors=dict(ANCHORS, place="Nhà"))
+        with self.assertRaisesRegex(I.IdeaError, "Nhà"):
+            I.questions(self.p.conn, self.pid, self.m)
+        c = I.check_script(self.p.conn, self.pid, "CẢNH 1 - NGÀY, NHÀ\nKelly.", {"duration_s": 15})
+        self.assertTrue(any("chưa có mô hình 3D" in t for t in c["problems"]))
+
+    def test_a_3d_file_missing_on_disk_leaves_the_kit_with_a_reason(self):
+        self._add_place("Quảng Trường", path="Z:/khong/co/file.glb")
+        from core import idea_buildable as B
+        k = B.kit(self.p.conn, self.pid)
+        self.assertNotIn("Quảng Trường", [x["name"] for x in k["places"]])
+        self.assertTrue(any(x["name"] == "Quảng Trường" and "file 3D" in x["why"] for x in k["excluded"]))
+        I.start(self.p.conn, self.pid, IDEA, anchors=dict(ANCHORS, place="Quảng Trường"))
+        with self.assertRaisesRegex(I.IdeaError, "file 3D"):
+            I.questions(self.p.conn, self.pid, self.m)
+
+    def test_old_project_without_anchors_is_pointed_to_new_idea_and_the_check_says_it_did_not_run(self):
+        I.start(self.p.conn, self.pid, IDEA)
+        with self.assertRaisesRegex(I.IdeaError, "Ý tưởng mới"):
+            I.directions(self.p.conn, self.pid, self.m)
+        c = I.check_script(self.p.conn, self.pid, "CẢNH 1 - NGÀY, ĐẢO QUÂN SỰ\nKelly.\nKELLY: Hi", {"duration_s": 15})
+        self.assertTrue(any("điểm then chốt" in f for f in c["flags"]))
+
+    def test_unapproved_outfit_is_marked_in_the_kit(self):
+        from core import idea_buildable as B
+        aid = self.p.conn.execute("SELECT id FROM assets WHERE name='MAXIM'").fetchone()[0]
+        self.p.conn.execute("UPDATE assets SET profile=NULL, description='áo xanh' WHERE id=?", (aid,))
+        self.p.conn.commit()
+        self.assertIn("hồ sơ chưa duyệt", B.kit_block(B.kit(self.p.conn, self.pid)))
+
+    def test_characters_of_the_old_box_are_checked_too(self):
+        I.start(self.p.conn, self.pid, IDEA, characters=["LUNA"], anchors=ANCHORS)
+        with self.assertRaisesRegex(I.IdeaError, "LUNA"):
+            I.questions(self.p.conn, self.pid, self.m)

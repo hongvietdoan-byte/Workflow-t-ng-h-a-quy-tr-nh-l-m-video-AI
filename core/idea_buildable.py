@@ -8,6 +8,7 @@ Ba việc, đều bằng code:
   3. check_scenes(...)     sau lượt viết: cảnh giao diện / màn hình điện thoại / sảnh / combat gameplay, nơi ngoài kit → cảnh bị CHẶN;
                             check_anchors(...): điểm then chốt phải còn trong kịch bản.
 """
+import os
 import re
 from typing import Dict, List, Optional, Tuple
 
@@ -57,12 +58,16 @@ def _brief(text: str, n: int = 220) -> str:
 def kit(conn, pid: int, game: str = "FF") -> Dict[str, List[Dict]]:
     """{"places": [{name, spots: [labels], names}], "characters": [{name, outfit, names}], "skills": [{character, skill}]}."""
     from . import location_pack, skill_dossier
-    out: Dict[str, List[Dict]] = {"places": [], "characters": [], "skills": []}
+    out: Dict[str, List[Dict]] = {"places": [], "characters": [], "skills": [], "excluded": []}
     for a in assets.list_assets(conn, game, None, pid):
         names = [a["name"]] + [x.strip() for x in str(a.get("aliases") or "").split(",") if x.strip()]
         if a["kind"] == "location":
             entry = location_pack.model3d(conn, a["id"])
             plates = [i for i in a["images"] if i.get("role") in _CAMERA_PLATES]
+            if entry and not os.path.exists(assets.resolve(entry["path"]) or ""):     # rà: the entry names a file that is gone
+                out["excluded"].append({"name": a["name"], "why": f"file 3D không còn trên đĩa ({entry['path']})"
+                                        + ("" if plates else " và không có nền ngang tầm mắt")})
+                entry = None
             if entry or plates:
                 spots = [str(v.get("label") or k) for k, v in ((entry or {}).get("spots") or {}).items()]
                 out["places"].append({"name": a["name"], "names": names, "spots": spots, "has_3d": bool(entry)})
@@ -70,8 +75,9 @@ def kit(conn, pid: int, game: str = "FF") -> Dict[str, List[Dict]]:
             if not any(i.get("role") in _STANDARD_ROLES and not assets.is_skin(i) for i in a["images"]):
                 continue
             prof = assets.get_profile(conn, a["id"])
-            outfit = _brief("; ".join(x for x in (prof.get("must_keep"), prof.get("identity")) if x)) if prof.get("approved") else ""
-            out["characters"].append({"name": a["name"], "names": names, "outfit": outfit or _brief(a.get("description") or "")})
+            approved = _brief(prof.get("must_keep") or prof.get("identity") or "") if prof.get("approved") else ""
+            draft = "" if approved else _brief(a.get("description") or "")
+            out["characters"].append({"name": a["name"], "names": names, "outfit": approved or draft, "draft": bool(draft)})
     have = {assets.fold(c["name"]) for c in out["characters"]}
     for d in (skill_dossier.load(n) for n in skill_dossier.names()):
         if d and d.get("active", True) and assets.fold(d.get("character") or "") in have:
@@ -79,15 +85,17 @@ def kit(conn, pid: int, game: str = "FF") -> Dict[str, List[Dict]]:
     return out
 
 
+def has_phrase(text: str, phrase: str) -> bool:
+    """`phrase` is in `text` as whole words ("nha" is not in "nha tho"); both folded."""
+    t, f = assets.fold(text), assets.fold(phrase)
+    return bool(f) and re.search(r"(?<!\w)" + re.escape(f) + r"(?!\w)", t) is not None
+
+
 def _find(items: List[Dict], text: str) -> Optional[Dict]:
-    t = assets.fold(text)
-    if not t:
-        return None
+    """The item whose name (or alias) is in `text` as a whole phrase."""
     for it in items:
-        for n in it.get("names") or [it["name"]]:
-            f = assets.fold(n)
-            if f and (f == t or f in t or t in f):
-                return it
+        if any(has_phrase(text, n) for n in it.get("names") or [it["name"]]):
+            return it
     return None
 
 
@@ -96,21 +104,24 @@ def place_in_kit(k: Dict, where: str) -> Optional[Dict]:
     hit = _find(k["places"], where)
     if hit:
         return hit
-    t = assets.fold(where)
-    return next((p for p in k["places"] if t and any(assets.fold(s) and (assets.fold(s) in t or t in assets.fold(s)) for s in p["spots"])), None)
+    return next((p for p in k["places"] if any(has_phrase(where, s) for s in p["spots"])), None)
 
 
 def gate(conn, pid: int, inputs: Dict) -> List[str]:
     """Why the Biên kịch must not be called yet (0 USD): missing key points, or key points outside what can be built."""
     a = clean_anchors((inputs or {}).get("anchors"))
     miss = missing_anchors(a)
-    why = [f"Thiếu điểm then chốt — hãy cho biết: {'; '.join(miss)}"] if miss else []
+    why = ([f"Thiếu điểm then chốt — hãy cho biết: {'; '.join(miss)}. Dự án tạo trước S14.31 chưa có các điểm này: mở ⚙ Thiết lập, "
+            "điền rồi bấm 💡 Ý tưởng mới (bắt đầu lại từ lượt 1)"] if miss else [])
     k = kit(conn, pid)
-    for c in a["characters"]:
+    box = [str(c).upper() for c in (inputs or {}).get("characters") or []]
+    for c in list(dict.fromkeys(a["characters"] + box)):
         if not _find(k["characters"], c):
             why.append(f"nhân vật {c} chưa có ảnh chuẩn đã duyệt trong Kho — chọn nhân vật khác hoặc bổ sung ảnh chuẩn")
     if a["place"] and not place_in_kit(k, a["place"]):
-        why.append(f"nơi {a['place']} chưa có mô hình 3D / nền ngang tầm mắt trong Kho — chọn nơi khác hoặc bổ sung tư liệu")
+        gone = next((x for x in k["excluded"] if has_phrase(a["place"], x["name"])), None)
+        why.append(f"nơi {a['place']} " + (f"bị loại khỏi danh sách dựng được: {gone['why']}" if gone else
+                                           "chưa có mô hình 3D / nền ngang tầm mắt trong Kho") + " — chọn nơi khác hoặc bổ sung tư liệu")
     return why
 
 
@@ -132,9 +143,12 @@ RULES = """## Ràng buộc DỰNG ĐƯỢC (xưởng chỉ dựng chắc đượ
 def kit_block(k: Dict) -> str:
     lines = ["## Thứ dựng chắc được (CHỈ chọn trong danh sách này)"]
     lines.append("Nơi (map — khu vực): " + ("; ".join(f"{p['name']} — " + (", ".join(p["spots"]) or "mặc định") for p in k["places"]) or "(trống)"))
-    lines.append("Nhân vật (trang phục mặc định): " + ("; ".join(f"{c['name']} — {c['outfit'] or 'chưa có hồ sơ trang phục'}"
-                                                              for c in k["characters"]) or "(trống)"))
+    lines.append("Nhân vật (trang phục mặc định): " + ("; ".join(
+        f"{c['name']} — " + (f"{c['outfit']} (hồ sơ chưa duyệt — lấy từ mô tả, chưa chắc đúng)" if c.get("draft") else
+                             c["outfit"] or "chưa có hồ sơ trang phục") for c in k["characters"]) or "(trống)"))
     lines.append("Kỹ năng có hồ sơ: " + ("; ".join(f"{s['character']} — {s['skill']}" for s in k["skills"]) or "(không có)"))
+    if k.get("excluded"):
+        lines.append("Đã loại, KHÔNG dùng: " + "; ".join(f"{x['name']} ({x['why']})" for x in k["excluded"]))
     if not k["places"] or not k["characters"]:
         lines.append("Danh sách trống một phần: KHÔNG được tự bịa nơi / nhân vật — ghi vào `notes` rằng Kho thiếu gì.")
     return "\n".join(lines)
@@ -154,26 +168,49 @@ def blocks(conn, pid: int, inputs: Dict) -> str:
 
 
 # ---- the code check after the writing turn (0 USD) ------------------------------------------------------------------------------------
-_UI = [("màn hình điện thoại", r"man hinh (dien thoai|may|game|choi)|cam dien thoai (choi|ngam)|dien thoai dang choi"),
-       ("giao diện game", r"giao dien|\bui\b|\bmenu\b|bang xep hang|nut (ban|bam|nhay)|bam nut|joystick|map nho|minimap"),
-       ("sảnh chờ", r"sanh cho|sanh game|\blobby\b|man hinh cho|man hinh chon")]
-_GAMEPLAY = [("combat gameplay", r"nhay du|vong bo|thu hep bo|goc nhin (nguoi choi|thu nhat)|ngam ban|doi suong|dau sung|giao tranh|ban nhau|"
-                                 r"nap dan|bat cover|\bcover\b")]
+# Heuristic by design (rà S14.31): only specific game phrases, and only in the description / heading — never in what a person says.
+_UI = [("màn hình điện thoại", r"man hinh (dien thoai|choi game|game)|cam dien thoai (choi|ngam)|dien thoai dang choi"),
+       ("giao diện game", r"giao dien (game|free fire|ff|tran dau|nguoi choi|choi game)|\bmenu (game|chinh|free fire|chon)|bang xep hang|joystick|minimap|"
+                          r"nut ban (tren|trong) |ban do nho"),
+       ("sảnh chờ", r"sanh cho|sanh game|\blobby\b|man hinh (cho|chon nhan vat)")]
+_GAMEPLAY = [("combat gameplay", r"nhay du|vong bo|thu hep bo|goc nhin (nguoi choi|thu nhat)|bat cover|ban ha guc|ha guc (doi thu|ke dich)")]
 _HUD = r"\bhud\b|thanh may|so doi|ten nguoi choi"
 _ON_HEAD = r"tren dau"
+def _said(line: str) -> bool:
+    """'KELLY: …' (speaker all in capitals, short); 'Cận màn hình điện thoại: …' is a description of what the camera shows."""
+    who, sep, rest = line.partition(":")
+    who = who.strip()
+    return bool(sep and rest.strip() and 1 < len(who) <= 30 and who == who.upper() and any(c.isalpha() for c in who))
 
 
-def _scene_hits(text: str) -> List[str]:
-    t = assets.fold(text)
+def _scene_hits(heading: str, body: str) -> List[str]:
+    """Hits in the heading + the description lines; a line someone SAYS ("NAME: …") is dialogue, not what the camera shows."""
+    shown = [ln for ln in body.splitlines() if not _said(ln)]
+    raw = heading + "\n" + "\n".join(shown)
+    t = assets.fold(raw)
     hits = [name for name, rx in _UI + _GAMEPLAY if re.search(rx, t)]
+    if re.search(r"\bUI\b", raw):                         # the capitals only: "ui da" is an exclamation
+        hits.append("giao diện game")
     if re.search(r"\bhud\b", t) and not re.search(_ON_HEAD, t):
         hits.append("HUD")
     return hits
 
 
+_TIME_WORDS = {"ngay", "dem", "sang", "chieu", "toi", "trua", "hoang hon", "binh minh", "ban ngay", "ban dem", "s", "giay", "phut", "p"}
+
+
+def _only_time(text: str) -> bool:
+    """'NGÀY', '5-10s', 'ĐÊM' — a heading part that says when, not where."""
+    f = assets.fold(text)
+    return not f or all(w in _TIME_WORDS or re.fullmatch(r"[0-9]+(s|p|g|h)?", w) for w in f.split())
+
+
 def _where(heading: str) -> str:
+    """The place of a scene heading ("" = the heading names none: only a time)."""
     m = re.match(r"^\s*c[ảa]nh\s*\d+\s*[-–—:.]\s*(.*)$", heading, re.I)
-    return ((m.group(1) if m else heading).split(",", 1)[-1]).strip()
+    rest = (m.group(1) if m else heading).strip()
+    where = rest.split(",", 1)[-1].strip() if "," in rest else rest
+    return "" if _only_time(where) else where
 
 
 def check_scenes(scenes, k: Dict, anchors: Dict) -> Tuple[List[str], List[str], List[Dict]]:
@@ -183,13 +220,15 @@ def check_scenes(scenes, k: Dict, anchors: Dict) -> Tuple[List[str], List[str], 
     allowed = clean_anchors(anchors)["gameplay_ui"] == "co"
     for s in scenes:
         why = []
-        hits = _scene_hits(s.heading + "\n" + s.text)
+        hits = _scene_hits(s.heading, s.text)
         if hits and not allowed:
             why.append("cảnh dựng giao diện / gameplay chưa có tư liệu dựng được: " + ", ".join(hits))
         elif hits:
             flags.append(f"cảnh {s.idx}: có {', '.join(hits)} — rủi ro (chưa có tư liệu dựng được), người dùng đã chọn 'có'")
         where = _where(s.heading)
-        if where and not place_in_kit(k, where):
+        if not where:
+            why.append("thiếu nơi quay — tiêu đề cảnh chỉ có thời gian, cần 'CẢNH n - <thời gian>, <nơi trong Kho>'")
+        elif not place_in_kit(k, where):
             why.append(f"nơi {where} chưa có mô hình 3D / gói bối cảnh trong Kho")
         if why:
             blocked.append({"scene": s.idx, "why": why})
@@ -212,12 +251,11 @@ def check_anchors(scenes, anchors: Dict) -> List[str]:
     if not any(v for v in a.values()) or not scenes:
         return []
     whole = "\n".join(s.heading + "\n" + s.text for s in scenes)
-    fw = assets.fold(whole)
     lost = []
     for c in a["characters"]:
-        if assets.fold(c) not in fw:
+        if not has_phrase(whole, c):
             lost.append(f"nhân vật {c}")
-    if a["place"] and not any(assets.fold(a["place"]) in assets.fold(s.heading) or assets.fold(a["place"]) in assets.fold(s.text) for s in scenes):
+    if a["place"] and not has_phrase(whole, a["place"]):
         lost.append(f"nơi {a['place']}")
     if a["plot"] and not _kept(a["plot"], whole):
         lost.append(f"diễn biến chính ({a['plot']})")

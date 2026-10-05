@@ -92,6 +92,8 @@ def start(conn, pid: int, idea: str, duration_s: int = 30, aspect: str = "9:16",
         raise IdeaError("Ý tưởng quá ngắn — viết ít nhất một câu: ai, ở đâu, chuyện gì")
     if trend not in TREND_MODES:
         raise IdeaError("chế độ trend không hợp lệ")
+    if anchors and not characters:                       # one list of people (rà S14.31): the key points' characters are the chosen ones
+        characters = list(idea_buildable.clean_anchors(anchors)["characters"])
     state = {"inputs": {"idea": idea, "duration_s": int(duration_s), "aspect": aspect, "platform": platform, "tone": tone.strip(),
                         "characters": [str(c).upper() for c in characters or []], "cta": cta.strip(), "trend": trend,
                         "anchors": idea_buildable.clean_anchors(anchors)},
@@ -416,6 +418,9 @@ def check_script(conn, pid: int, script: str, inputs: Dict) -> Dict:
         problems += pr
         flags += fl
         problems += idea_buildable.check_anchors(scenes, anchors)
+        if not any(idea_buildable.clean_anchors(anchors).values()):       # rà: said, not a silent pass
+            flags.append("không có điểm then chốt nào để đối chiếu (ý tưởng tạo trước S14.31 hoặc kịch bản dán) — chưa kiểm được nhân vật / nơi / "
+                         "diễn biến / cú chốt")
     if inputs.get("cta") and scenes and _fold(inputs["cta"]) not in _fold(scenes[-1].heading + " " + scenes[-1].text):
         problems.append(f"CTA \"{inputs['cta']}\" chưa có ở cảnh cuối")
     if _AGE.search(script):
