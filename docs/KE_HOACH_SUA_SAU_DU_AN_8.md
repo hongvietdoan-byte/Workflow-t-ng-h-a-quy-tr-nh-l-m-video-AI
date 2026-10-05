@@ -30,10 +30,10 @@
 | S11 Director mở rộng: ý tưởng → kịch bản, cover video ref, học trending (kế hoạch v2 01/10, `docs/KE_HOACH_TINH_NANG_DIRECTOR_2026-10-01.md`) | 15 | 2 | 1 | 1 | 0 | 17,3 % |
 | S12 Rà soát dashboard 01/10: sửa lỗi, tính năng thử, 4 màn, nhiều người dùng (`docs/RA_SOAT_DASHBOARD_2026-10-01.md`) | 7 | 6 | 0 | 0 | 1 | 100 % |
 | S13 Giao diện v2 "AI product" (gradient, kính mờ, nền tối) trên Streamlit, chạy song song nhiều nhánh (`docs/KE_HOACH_GIAO_DIEN_V2_2026-10-01.md`) | 12 | 10 | 0 | 0 | 0 | 86,2 % |
-| S14 Nâng cấp dashboard sau chấm lại 03/10 (`docs/KE_HOACH_NANG_CAP_DASHBOARD_2026-10-03.md`; người dùng duyệt 04/10) | 27 | 11 | 0 | 4 | 0 | 42,6 % |
+| S14 Nâng cấp dashboard sau chấm lại 03/10 (`docs/KE_HOACH_NANG_CAP_DASHBOARD_2026-10-03.md`; người dùng duyệt 04/10) | 28 | 11 | 0 | 4 | 0 | 41,1 % |
 | K Chạy kiểm kịch bản hài 20–30 s — ⏸ KHÔNG ƯU TIÊN (người dùng 30/09: các việc test kịch bản không làm trước nữa) | 3 | 0 | 0 | 3 | 0 | 0 % |
 | S8 Chấm lại bằng AI Development System (cuối cùng) | 5 | 2 | 0 | 0 | 0 | 42,9 % |
-| **Tổng** | **161** | **116** | **3** | **8** | **6** | **76,4 %** |
+| **Tổng** | **162** | **116** | **3** | **8** | **6** | **75,9 %** |
 
 Đợt hiện tại: **S14** · việc kế: **S14.5** C2 — `ff_site` an toàn (danh sách URL được phép, bỏ `vm`, bọc nội dung web trong prompt)
 <!-- /tien-do -->
@@ -221,6 +221,7 @@
 - [ ] S14.24 · Bộ não prompt — Đợt 5: agent chấm bài học (`core/lesson_judge.py`, rubric 6 tiêu chí, 8 van về người, chống trôi knowledge) — CHẾ ĐỘ BÓNG trước; bảng lessons hiện 0 bài nên chờ dữ liệu · nặng:3 · ⬜
 - [ ] S14.25 · Bộ não prompt — Đợt 6a: góp ý → mistakes (cờ `feedback_to_mistakes`); Đợt 6b (ops_summary devsys, luật `hieu_qua_tut`/`gop_y_lap`, `db:` chỉ khoản tự động, trang hiệu quả) GỘP VÀO F1 S14.10 · nặng:2 · ⬜
 - [ ] S14.26 · Tự gắn giọng tiếng Việt từ lúc phân tích cảnh (người dùng yêu cầu 05/10): phân tích cảnh ghi thêm giới tính/độ tuổi/tính cách từng vai có thoại (cùng lời gọi Claude, không thêm tiền) → luật 0 USD gắn giọng ưu tiên `data/voices_vi.json` (nam ↔ 2 giọng nam, nữ ↔ 2 giọng nữ, vai chính lấy giọng đầu) vào hồ sơ giọng, sang bước gắn tài nguyên đã có sẵn, người dùng đổi được; KHÔNG ghi đè giọng người dùng đã chọn; quá 2 vai cùng giới → dùng lại giọng kèm biến thể chỉnh giọng (cao độ ±2–3 nửa cung bằng ffmpeg sau TTS, 0 USD, + tốc độ/độ ổn định ClipAI) để hai vai trùng giọng nghe khác nhau; báo rõ vai nào dùng chung giọng; nút '🤖 Claude chọn giọng' giữ nguyên · nặng:2 · ⬜
+- [ ] S14.27 · AI Dev System: ô trả lời ngay tại mỗi việc ⏸ chờ người dùng (người dùng góp ý 05/10) — chọn nhanh / điền chữ, lưu vào file trên main (vd. `docs/TRA_LOI_NGUOI_DUNG.md` hoặc bảng riêng, có người + giờ) để phiên Claude đọc lúc bắt đầu; câu trả lời trong chat với Claude Code cũng ghi về cùng chỗ → hai nơi khớp nhau; việc đã có trả lời hiện '✅ đã trả lời — chờ Claude áp dụng' · nặng:2 · ⬜
 - [ ] S14.15 · I1 — tài liệu khớp trạng thái cuối + chấm lại toàn bộ bằng AI Dev System · nặng:1 · ⬜
 
 ### K — Chạy kiểm kịch bản hài 20–30 s — ⏸ KHÔNG ƯU TIÊN (người dùng 30/09: các việc test kịch bản không làm trước nữa)
