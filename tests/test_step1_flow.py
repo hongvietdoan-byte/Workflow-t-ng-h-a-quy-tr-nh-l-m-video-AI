@@ -108,5 +108,30 @@ class Step1LayoutTests(unittest.TestCase):
             os.environ.pop("PIPELINE_DATA", None)
 
 
+class ClassifyTests(unittest.TestCase):
+    """S14.21 (Đợt 3): script or idea, decided by code for 0 USD with the same test the Biên kịch trusts (idea_to_script.parse)."""
+
+    def test_a_script_with_scene_headings_is_a_script(self):
+        from core import idea_to_script as I
+        got = I.classify("CẢNH 1 - ĐÊM, RỪNG\nSương mù.\nLYRA: Đi thôi.\n\nCẢNH 2 - NGÀY, LÀNG\nKAEL: Về rồi.\n\nCẢNH 3 - ĐÊM, LÀNG\nYên lặng.")
+        self.assertEqual(got["kind"], "script")
+        self.assertEqual(got["scenes"], 3)
+        self.assertTrue(any("3 tiêu đề cảnh" in w for w in got["why"]))
+
+    def test_two_lines_without_heading_go_to_the_writer(self):
+        from core import idea_to_script as I
+        got = I.classify("Kelly và Maxim tranh một thùng thính ở Đảo Quân Sự.\nCuối cùng mở ra thì trống trơn.")
+        self.assertEqual(got["kind"], "idea")
+
+    def test_grey_zone_asks_instead_of_guessing(self):
+        from core import idea_to_script as I
+        talk = "Hai người cãi nhau.\nKELLY: Của tôi!\nMAXIM: Không, của tôi!"
+        self.assertEqual(I.classify(talk)["kind"], "unsure")                  # ≥ 2 dialogue lines but no heading
+        self.assertEqual(I.classify("Một ý tưởng rất dài. " * 90)["kind"], "unsure")   # > 1500 characters
+        self.assertEqual(I.classify("   ")["kind"], "unsure")                 # nothing to read — nothing guessed
+        for kind in ("script", "idea", "unsure"):
+            self.assertIn(kind, I.CLASSIFY_KINDS)
+
+
 if __name__ == "__main__":
     unittest.main()
