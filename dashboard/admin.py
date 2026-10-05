@@ -821,9 +821,11 @@ def lib_new_item_box(p, game) -> None:
         aliases = st.text_input("Tên gọi khác trong kịch bản (cách nhau bằng dấu phẩy)", key="lib_new_aliases")
         desc = st.text_area("Mô tả (ngoại hình, đặc điểm để Director dùng)", key="lib_new_desc", height=70)
         files = st.file_uploader("Ảnh tham khảo", type=["png", "jpg", "jpeg", "webp"], accept_multiple_files=True, key="lib_new_files")
+        why = st.text_input("Vẫn tạo dù Kho báo trùng — lý do (để trống = không tạo trùng)", key="lib_new_dup_reason")   # S14.43B
         if st.button("Thêm vào kho", key="lib_new_go", disabled=not name.strip()):
             try:
-                aid = assets.create(p.conn, game, kind, name, desc, aliases, None, me().get("email"))
+                aid = assets.create(p.conn, game, kind, name, desc, aliases, None, me().get("email"),
+                                    allow_duplicate=bool(why.strip()), duplicate_reason=why)
                 for f in files[: assets.MAX_IMAGES_PER_ASSET]:
                     assets.add_image(p.conn, aid, f.name, f.getvalue())
             except assets.AssetError as e:

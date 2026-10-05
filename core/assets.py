@@ -237,7 +237,7 @@ def _all_names(name: str, aliases: Optional[str]) -> List[str]:
 
 def find_same(conn, game: str, kind: str, name: str, aliases: str = "", project_id: Optional[int] = None,
               exclude_id: Optional[int] = None) -> Optional[Dict]:
-    """The entry of the same game and kind (shared, or of the same project) whose name or other names share a name_key() with `name`
+    """The entry of the same game, kind and scope (shared Kho, or the same project) whose name or other names share a name_key() with `name`
     / `aliases` — {"id", "name", "matched": [(new word, existing word)]} — or None. S14.37 created 'CHIM CÁNH CỤT' with alias
     'Mr. Waggor' next to the existing 'Mr.Waggor' because nothing looked."""
     mine = {}
@@ -246,8 +246,8 @@ def find_same(conn, game: str, kind: str, name: str, aliases: str = "", project_
             mine.setdefault(name_key(n), n)
     if not mine:
         return None
-    rows = conn.execute("SELECT id, name, aliases FROM assets WHERE game=? AND kind=? AND (project_id IS NULL OR project_id IS ?)"
-                        " ORDER BY id", (game, kind, project_id)).fetchall()
+    rows = conn.execute("SELECT id, name, aliases FROM assets WHERE game=? AND kind=? AND project_id IS ? ORDER BY id",
+                        (game, kind, project_id)).fetchall()      # same scope only: a project's own entry may shadow a shared one
     for r in rows:
         if exclude_id is not None and r["id"] == exclude_id:
             continue
@@ -1632,9 +1632,14 @@ def sync_folder(conn, folder: str, game: str, kind: str = "character", created_b
     def asset_for(name: str, k: str, description: str = "", aliases: str = "") -> int:
         row = conn.execute("SELECT id FROM assets WHERE game=? AND kind=? AND lower(name)=lower(?) AND project_id IS NULL",
                            (game, k, name)).fetchone()
+        row = row or find_same(conn, game, k, name)                    # S14.43B: 'Mr Waggor.png' joins 'Mr.Waggor', never a twin
         if row:
             return row["id"]
-        aid = create(conn, game, k, name, description, aliases, created_by=created_by)
+        try:
+            aid = create(conn, game, k, name, description, aliases, created_by=created_by)
+        except AssetError as e:                                         # one refused name never stops the whole source
+            rep["skipped"].append((name, str(e)))
+            return None
         rep["created"].append(name)
         return aid
 
@@ -1650,6 +1655,8 @@ def sync_folder(conn, folder: str, game: str, kind: str = "character", created_b
                 rep["skipped"].append((path, str(e.strerror or e)))
                 continue
             aid = aid or asset_for(name, k, description, aliases)
+            if not aid:
+                continue
             sha = _sha(data)
             if conn.execute("SELECT 1 FROM asset_images WHERE asset_id=? AND sha256=?", (aid, sha)).fetchone():
                 continue
@@ -1700,6 +1707,8 @@ def sync_folder(conn, folder: str, game: str, kind: str = "character", created_b
                 rep["updated"] += 1
                 continue
             aid = aid or asset_for(name, k, description, aliases)
+            if not aid:
+                continue
             twin = conn.execute("SELECT id FROM asset_images WHERE asset_id=? AND sha256=?", (aid, sha)).fetchone()
             if twin:                                                        # same picture, new name or place
                 conn.execute("UPDATE asset_images SET src_path=? WHERE id=?", (key, twin["id"]))
@@ -1784,8 +1793,15 @@ def add_files(conn, game: str, kind: str, files: List[tuple], created_by: Option
     for asset_name, items in groups.items():
         row = conn.execute("SELECT id FROM assets WHERE game=? AND kind=? AND lower(name)=lower(?) AND project_id IS NULL",
                            (game, kind, asset_name)).fetchone()
-        aid = row["id"] if row else create(conn, game, kind, asset_name, created_by=created_by)
-        if not row:
+        row = row or find_same(conn, game, kind, asset_name)            # S14.43B: another spelling joins the existing entry
+        if row:
+            aid = row["id"]
+        else:
+            try:
+                aid = create(conn, game, kind, asset_name, created_by=created_by)
+            except AssetError as e:                                     # one refused name never stops the rest of the batch
+                rep["skipped"] += [(name, str(e)) for name, _ in items]
+                continue
             rep["created"].append(asset_name)
         for name, data in items:
             sha = _sha(data)
@@ -1886,6 +1902,7 @@ def add_reference_images(conn, project_id: int, game: str, kind: str, name: str,
     scope = None if shared else project_id
     row = conn.execute("SELECT id FROM assets WHERE game=? AND kind=? AND lower(name)=lower(?) AND COALESCE(project_id,0)=COALESCE(?,0)",
                        (game, kind, name, scope)).fetchone()
+    row = row or find_same(conn, game, kind, name, project_id=scope)    # S14.43B: another spelling joins the existing entry
     created = row is None
     aid = row["id"] if row else create(conn, game, kind, name, project_id=scope, created_by=created_by)
     rep = {"asset_id": aid, "added": 0, "skipped": [], "created": created}

@@ -295,3 +295,81 @@ class MergeNeverTouchesAnotherInstallTests(_MergeHome):
         plan = kho_merge.make_plan(self.conn, self.keep, self.merge, self.db)
         with mock.patch.object(kho_merge.os.path, "relpath", side_effect=ValueError("path is on mount 'C:', start on mount 'D:'")):
             self.assertIn("1.png", kho_merge.plan_text(plan))
+
+
+class BatchFlowsJoinTheExistingEntryTests(unittest.TestCase):
+    """Lỗi 2: chặn trùng không được làm văng cả lô / cả nguồn; luồng tự động gắn ảnh vào mục có sẵn; mục chỉ-cho-dự án như cũ."""
+
+    def setUp(self):
+        self.dir = tempfile.mkdtemp()
+        env = mock.patch.dict(os.environ, {"ASSET_DIR": os.path.join(self.dir, "assets")})
+        env.start()
+        self.addCleanup(env.stop)
+        self.conn = connect()
+        self.waggor = assets.create(self.conn, "FF", "pet", "Mr.Waggor")
+
+    def tearDown(self):
+        shutil.rmtree(self.dir, ignore_errors=True)
+
+    def n_assets(self):
+        return self.conn.execute("SELECT COUNT(*) FROM assets").fetchone()[0]
+
+    def pics(self, aid):
+        return self.conn.execute("SELECT COUNT(*) FROM asset_images WHERE asset_id=?", (aid,)).fetchone()[0]
+
+    def project(self):
+        pid = self.conn.execute("INSERT INTO projects (name, created_at) VALUES ('p', 0)").lastrowid
+        self.conn.commit()
+        return pid
+
+    def test_add_files_puts_a_differently_spelled_name_into_the_existing_entry(self):
+        rep = assets.add_files(self.conn, "FF", "pet", [("Mr. Waggor_front.png", PNG), ("Kactus.png", PNG + b"k")])
+        self.assertEqual(rep["created"], ["Kactus"])
+        self.assertEqual(self.n_assets(), 2)
+        self.assertEqual(self.pics(self.waggor), 1)
+
+    def test_sync_folder_puts_a_differently_spelled_name_into_the_existing_entry(self):
+        folder = os.path.join(self.dir, "src")
+        os.makedirs(folder)
+        open(os.path.join(folder, "Mr. Waggor.png"), "wb").write(PNG)
+        open(os.path.join(folder, "Kactus.png"), "wb").write(PNG + b"k")
+        rep = assets.sync_folder(self.conn, folder, "FF", "pet")
+        self.assertEqual(rep["created"], ["Kactus"])
+        self.assertEqual(self.n_assets(), 2)
+        self.assertEqual(self.pics(self.waggor), 1)
+
+    def test_a_project_only_entry_is_not_blocked_by_a_shared_one(self):
+        pid = self.project()
+        rep = assets.add_reference_images(self.conn, pid, "FF", "pet", "Mr. Waggor", [("a.png", PNG)], shared=False)
+        self.assertTrue(rep["created"])
+        self.assertEqual(self.conn.execute("SELECT project_id FROM assets WHERE id=?", (rep["asset_id"],)).fetchone()[0], pid)
+        with self.assertRaises(AssetError):                              # but twice in the same project is a duplicate
+            assets.create(self.conn, "FF", "pet", "mr waggor", project_id=pid)
+
+    def test_manual_create_box_refuses_then_creates_with_a_reason(self):
+        from streamlit.testing.v1 import AppTest
+        from tests.test_step1_flow import split_only
+        tmp, db, data, p, _pid = split_only()
+        env = mock.patch.dict(os.environ, {"PIPELINE_DB": db, "PIPELINE_DATA": data, "ASSET_DIR": os.path.join(tmp, "assets"),
+                                           "FEATURE_UI_V2": "1"})
+        env.start()
+        self.addCleanup(env.stop)
+        assets.create(p.conn, "FF", "pet", "Mr.Waggor")
+        app = os.path.join(os.path.dirname(__file__), "..", "dashboard", "app.py")
+        at = AppTest.from_file(app, default_timeout=40).run()
+        at.button(key="settings_assets").click().run()
+        at.text_input(key="lib_new_name").set_value("Mr. Waggor").run()
+        at.selectbox(key="lib_new_kind").set_value("pet").run()
+        at.button(key="lib_new_go").click().run()
+        self.assertFalse(at.exception)
+        self.assertTrue(any("#" in e.value and "Mr.Waggor" in e.value for e in at.error))
+        self.assertEqual(p.conn.execute("SELECT COUNT(*) FROM assets WHERE kind='pet'").fetchone()[0], 1)
+        at.text_input(key="lib_new_dup_reason").set_value("bản skin khác").run()
+        at.button(key="lib_new_go").click().run()
+        self.assertFalse(at.exception)
+        self.assertEqual(p.conn.execute("SELECT COUNT(*) FROM assets WHERE kind='pet'").fetchone()[0], 2)
+
+    def test_shared_reference_pictures_join_the_existing_entry(self):
+        rep = assets.add_reference_images(self.conn, self.project(), "FF", "pet", "Mr. Waggor", [("a.png", PNG)], shared=True)
+        self.assertEqual(rep["asset_id"], self.waggor)
+        self.assertFalse(rep["created"])
