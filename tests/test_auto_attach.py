@@ -41,7 +41,8 @@ class AutoAttachTests(unittest.TestCase):
         self.assertNotIn(self.maxim, self.attached())
 
     def test_two_characters_with_one_name_are_left_to_a_person(self):
-        other = assets.create(self.conn, "FF", "character", "Kelly thức tỉnh", aliases="Kelly")
+        other = assets.create(self.conn, "FF", "character", "Kelly thức tỉnh", aliases="Kelly", allow_duplicate=True,
+                              duplicate_reason="test: hai nhân vật cố ý chung tên gọi khác")       # S14.43B: refused without it
         r = assets.auto_attach(self.conn, self.pid)
         self.assertEqual(sorted(r["ambiguous"]), ["KELLY", "Kelly thức tỉnh"])
         self.assertNotIn(other, self.attached())

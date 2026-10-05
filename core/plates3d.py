@@ -297,6 +297,7 @@ def to_library(conn, manifest: Dict, game: str, place: str, sky_picture: Optiona
     import hashlib
     row = conn.execute("SELECT id FROM assets WHERE game=? AND kind='location' AND lower(name)=lower(?) AND project_id IS NULL",
                        (game, place)).fetchone()
+    row = row or assets.find_same(conn, game, "location", place)     # S14.43B: 'Thap Dong Ho' / an alias = the same place, never a twin
     aid = row["id"] if row else assets.create(conn, game, "location", place, "Bối cảnh dựng từ file 3D (render nền trống người).",
                                               created_by="3d")
     added, skipped = [], []

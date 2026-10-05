@@ -61,16 +61,89 @@ class AssetError(Exception):
 REPO = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 
 
+def _db_path() -> Optional[str]:
+    """The database file in use when it is named (PIPELINE_DB, as the Dashboard and the tools read it); None = not named / in memory."""
+    db = os.environ.get("PIPELINE_DB")
+    return os.path.abspath(db) if db and db != ":memory:" else None
+
+
+def _db_home() -> Optional[str]:
+    """The install folder of the named database (<home>/data/manifest.sqlite -> <home>), or None when it is not under a 'data' folder."""
+    db = _db_path()
+    if db and os.path.basename(os.path.dirname(db)).lower() == "data":
+        return os.path.dirname(os.path.dirname(db))
+    return None
+
+
 def root() -> str:
-    return os.environ.get("ASSET_DIR") or os.path.join("data", "assets")
+    """The library picture folder, ALWAYS absolute (S14.43B): ASSET_DIR when set, else 'assets' next to the database in use
+    (PIPELINE_DB), else <repository>/data/assets. It used to be "data/assets" relative to the working folder: S14.33 ran a script in a
+    worktree with the main database — the rows went to the main database, the 33 picture files into the worktree, which was then
+    cleaned away. A picture folder apart from the database is reported by root_warning()."""
+    if os.environ.get("ASSET_DIR"):
+        return os.path.abspath(os.environ["ASSET_DIR"])
+    db = _db_path()
+    if db:
+        return os.path.join(os.path.dirname(db), "assets")
+    return os.path.join(REPO, "data", "assets")
+
+
+_WARNED = set()
+
+
+def root_warning() -> Optional[str]:
+    """A sentence when the pictures would not be stored next to the database in use (rule 1 of docs/CHUAN_XAY_DUNG.md: say it, never
+    split silently), else None. Also written once per process to the log."""
+    folder, db = root(), _db_path()
+    msg = None
+    if db and os.environ.get("ASSET_DIR"):
+        expected = os.path.join(os.path.dirname(db), "assets")
+        if os.path.normcase(folder) != os.path.normcase(expected):
+            msg = (f"Thư mục ảnh Kho (ASSET_DIR = {folder}) KHÁC gốc với CSDL đang dùng ({db}, ảnh phải ở {expected}): hàng CSDL và file "
+                   "ảnh sẽ nằm hai nơi — kiểm lại ASSET_DIR / PIPELINE_DB.")
+    elif not db and not os.environ.get("ASSET_DIR"):
+        cwd_db = os.path.abspath(os.path.join("data", "manifest.sqlite"))
+        if os.path.normcase(os.path.dirname(cwd_db)) != os.path.normcase(os.path.join(REPO, "data")):
+            msg = (f"Chưa đặt PIPELINE_DB: CSDL mặc định theo thư mục đang chạy ({cwd_db}) KHÁC gốc với thư mục ảnh Kho ({folder}) — "
+                   "đặt PIPELINE_DB (đường tuyệt đối) hoặc chạy từ gốc repo.")
+    if msg and msg not in _WARNED:
+        _WARNED.add(msg)
+        import logging
+        logging.getLogger(__name__).warning(msg)
+    return msg
+
+
+def _homes() -> List[str]:
+    """Folders that a stored relative path ("data/assets/…") may be relative to, most trusted first."""
+    out = []
+    for h in (_db_home(), REPO):
+        if h and os.path.normcase(os.path.abspath(h)) not in {os.path.normcase(x) for x in out}:
+            out.append(os.path.abspath(h))
+    return out
+
+
+def stored_path(path: str) -> str:
+    """The form written in the database for a library file: relative "data/assets/…" (unchanged format) when the file sits under the
+    data/assets of the database's install folder or of the repository; otherwise the absolute path (a test / a custom ASSET_DIR)."""
+    full = os.path.abspath(path)
+    for home in _homes():
+        base = os.path.join(home, "data", "assets")
+        if os.path.normcase(full).startswith(os.path.normcase(base) + os.sep):
+            return os.path.relpath(full, home)
+    return full
 
 
 def resolve(path: Optional[str]) -> Optional[str]:
-    """A stored picture path made usable from any working folder (A1): stored paths are relative to the repository ("data/assets/…"),
-    so a Dashboard or tool started elsewhere used to find no picture at all — and the Director then described characters blind."""
-    if not path or os.path.isabs(path) or os.path.exists(path):
+    """A stored picture path made usable from any working folder (A1): stored paths are relative to the install folder ("data/assets/…"),
+    so a Dashboard or tool started elsewhere used to find no picture at all — and the Director then described characters blind.
+    S14.43B: tried against the database's install folder first, then the working folder, then the repository."""
+    if not path or os.path.isabs(path):
         return path
-    return os.path.join(REPO, path)
+    homes = _homes()
+    for cand in [os.path.join(homes[0], path), path] + [os.path.join(h, path) for h in homes[1:]]:
+        if os.path.exists(cand):
+            return cand
+    return os.path.join(homes[0], path)
 
 
 def missing_files(conn) -> List[Dict]:
@@ -149,8 +222,62 @@ def kind_from_word(word: str) -> Optional[str]:
 
 
 # ---- library ------------------------------------------------------------------------------------------------
+def name_key(text: str) -> str:
+    """S14.43B: the key two names of one thing share — fold() without spaces: 'Mr.Waggor' == 'Mr. Waggor' == 'mr waggor' == 'MR-WAGGOR'."""
+    return fold(text).replace(" ", "")
+
+
+def _all_names(name: str, aliases: Optional[str]) -> List[str]:
+    return [n.strip() for n in [name] + re.split(r"[,;|\n]+", aliases or "") if n and n.strip()]
+
+
+def find_same(conn, game: str, kind: str, name: str, aliases: str = "", project_id: Optional[int] = None,
+              exclude_id: Optional[int] = None) -> Optional[Dict]:
+    """The entry of the same game and kind (shared, or of the same project) whose name or other names share a name_key() with `name`
+    / `aliases` — {"id", "name", "matched": [(new word, existing word)]} — or None. S14.37 created 'CHIM CÁNH CỤT' with alias
+    'Mr. Waggor' next to the existing 'Mr.Waggor' because nothing looked."""
+    mine = {}
+    for n in _all_names(name, aliases):
+        if name_key(n):
+            mine.setdefault(name_key(n), n)
+    if not mine:
+        return None
+    rows = conn.execute("SELECT id, name, aliases FROM assets WHERE game=? AND kind=? AND (project_id IS NULL OR project_id IS ?)"
+                        " ORDER BY id", (game, kind, project_id)).fetchall()
+    for r in rows:
+        if exclude_id is not None and r["id"] == exclude_id:
+            continue
+        matched = [(mine[name_key(n)], n) for n in _all_names(r["name"], r["aliases"]) if name_key(n) in mine]
+        if matched:
+            return {"id": r["id"], "name": r["name"], "matched": matched}
+    return None
+
+
+def find_duplicates(conn, game: Optional[str] = None) -> List[Dict]:
+    """S14.43B: pairs of entries of the same game + kind (shared, or one shared and one of a project, or of the same project) sharing
+    a name_key() through their name or other names. Only a list for a person / tools/kho_merge.py — nothing is merged here.
+    [{"a": {id, name, kind, game, project_id, aliases}, "b": {...}, "keys": [shared keys]}] ordered by ids."""
+    sql = "SELECT id, game, kind, name, aliases, project_id FROM assets" + (" WHERE game=?" if game else "") + " ORDER BY id"
+    rows = [dict(r) for r in conn.execute(sql, (game,) if game else ())]
+    keys = {r["id"]: {name_key(n) for n in _all_names(r["name"], r["aliases"]) if name_key(n)} for r in rows}
+    out = []
+    for i, a in enumerate(rows):
+        for b in rows[i + 1:]:
+            if (a["game"], a["kind"]) != (b["game"], b["kind"]):
+                continue
+            if a["project_id"] is not None and b["project_id"] is not None and a["project_id"] != b["project_id"]:
+                continue
+            shared = sorted(keys[a["id"]] & keys[b["id"]])
+            if shared:
+                out.append({"a": a, "b": b, "keys": shared})
+    return out
+
+
 def create(conn, game: str, kind: str, name: str, description: str = "", aliases: str = "", project_id: Optional[int] = None,
-           created_by: Optional[str] = None) -> int:
+           created_by: Optional[str] = None, allow_duplicate: bool = False, duplicate_reason: str = "") -> int:
+    """A new library entry. Refused (AssetError naming the existing entry) when one of the same game and kind already carries the
+    name or one of the other names, spelled any way (name_key) — S14.43B. `allow_duplicate=True` with a `duplicate_reason` creates it
+    anyway (written to audit_log); the very same name in the same scope is always refused."""
     name = " ".join((name or "").split())
     if not name:
         raise AssetError("Tên tài nguyên không được để trống")
@@ -159,10 +286,21 @@ def create(conn, game: str, kind: str, name: str, description: str = "", aliases
     dup = conn.execute("SELECT id FROM assets WHERE game=? AND kind=? AND lower(name)=lower(?) AND COALESCE(project_id,0)=COALESCE(?,0)",
                        (game, kind, name, project_id)).fetchone()
     if dup:
-        raise AssetError(f"Đã có {KINDS[kind].lower()} tên “{name}”")
+        raise AssetError(f"Đã có {KINDS[kind].lower()} tên “{name}” (#{dup['id']})")
+    same = find_same(conn, game, kind, name, aliases or "", project_id)
+    if same and not allow_duplicate:
+        words = "; ".join(f"“{a}” = “{b}”" for a, b in same["matched"][:4])
+        raise AssetError(f"Kho đã có {KINDS[kind].lower()} #{same['id']} “{same['name']}” trùng tên ({words}) — chưa tạo mục mới. "
+                         "Dùng mục có sẵn (thêm tên gọi khác / ảnh vào đó); nếu thật sự là thứ khác thì tạo lại với "
+                         "allow_duplicate=True kèm lý do.")
+    if same and not (duplicate_reason or "").strip():
+        raise AssetError(f"Tạo trùng với #{same['id']} “{same['name']}” cần ghi lý do (duplicate_reason) — chưa tạo mục mới.")
     cur = conn.execute("INSERT INTO assets (game, kind, name, aliases, description, project_id, created_by, created_at)"
                        " VALUES (?,?,?,?,?,?,?, datetime('now'))",
-                       (game, kind, name, aliases.strip(), description.strip(), project_id, created_by))
+                       (game, kind, name, (aliases or "").strip(), (description or "").strip(), project_id, created_by))
+    if same:
+        conn.execute("INSERT INTO audit_log (at, email, action, detail) VALUES (datetime('now'), ?, 'kho_create_duplicate', ?)",
+                     (created_by, f"#{cur.lastrowid} “{name}” trùng #{same['id']} “{same['name']}”: {duplicate_reason.strip()}"[:300]))
     conn.commit()
     return cur.lastrowid
 
@@ -229,11 +367,12 @@ def add_image(conn, asset_id: int, filename: str, data: bytes, src_path: Optiona
     n = have + 1
     while os.path.exists(os.path.join(folder, f"{n}{ext}")) or _path_key(os.path.join(folder, f"{n}{ext}")) in taken:
         n += 1
-    path = os.path.join(folder, f"{n}{ext}")
-    with open(path, "wb") as f:
+    full = os.path.join(folder, f"{n}{ext}")
+    with open(full, "wb") as f:
         f.write(data)
+    path = stored_path(full)                                          # S14.43B: "data/assets/…" as before, whatever the working folder
     kind = (conn.execute("SELECT kind FROM assets WHERE id=?", (asset_id,)).fetchone() or {"kind": None})["kind"]
-    role = role if role in ROLES.get(kind, {}) else guess_role(path, kind, conn)
+    role = role if role in ROLES.get(kind, {}) else guess_role(full, kind, conn)
     conn.execute("INSERT INTO asset_images (asset_id, path, label, sort, src_path, sha256, src_size, src_mtime, status, role, look, variant)"
                  " VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
                  (asset_id, path, os.path.splitext(os.path.basename(filename))[0], n, src_path, fingerprint, src_size, src_mtime,
@@ -435,7 +574,23 @@ def delete(conn, asset_id: int) -> None:
     conn.execute("DELETE FROM project_assets WHERE asset_id=?", (asset_id,))
     conn.execute("DELETE FROM assets WHERE id=?", (asset_id,))
     conn.commit()
-    shutil.rmtree(os.path.join(root(), str(asset_id)), ignore_errors=True)
+    folder = asset_folder(asset_id)
+    if folder:
+        shutil.rmtree(folder, ignore_errors=True)
+
+
+def asset_folder(asset_id) -> Optional[str]:
+    """<library>/<id>, absolute, only for a whole positive id and only inside the library folder (S14.43B: delete used to remove
+    "data/assets/<id>" under whatever folder the program was started from). None = refused."""
+    try:
+        n = int(asset_id)
+    except (TypeError, ValueError):
+        return None
+    if n <= 0 or str(n) != str(asset_id).strip():
+        return None
+    base = os.path.realpath(root())
+    folder = os.path.realpath(os.path.join(base, str(n)))
+    return folder if os.path.normcase(os.path.dirname(folder)) == os.path.normcase(base) else None
 
 
 def _same_profile(a: Dict, b: Dict) -> bool:
@@ -489,7 +644,7 @@ def merge(conn, from_id: int, into_id: int) -> int:
                                  "trình đang mở ảnh rồi gộp lại.") from None
         taken.add(_path_key(target))
         # file lost: only the row moves (its path now points into the target folder, so ↻ Tải lại writes it there)
-        conn.execute("UPDATE asset_images SET asset_id=?, path=?, sort=? WHERE id=?", (into_id, target, n, img["id"]))
+        conn.execute("UPDATE asset_images SET asset_id=?, path=?, sort=? WHERE id=?", (into_id, stored_path(target), n, img["id"]))
         conn.commit()                                                   # one row at a time: a failed move never leaves a file without its row
         moved += 1
     if copy_profile:
