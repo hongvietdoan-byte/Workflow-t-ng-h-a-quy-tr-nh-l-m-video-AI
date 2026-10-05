@@ -229,5 +229,89 @@ class MigrationOnAnOldDatabase(unittest.TestCase):
         self.assertEqual([r["id"] for r in PL.open_projects(conn, MEM)], [1])
 
 
+class ReviewFixes(Base):
+    """Rà độc lập 05/10: các lỗ của S14.18."""
+
+    def test_cloning_a_parked_project_gives_an_open_copy(self):
+        a = self.make("A")
+        archive.archive(self.me, a)
+        new = compare.clone_project(self.me, a, "bản sao")
+        self.assertFalse(archive.is_archived(self.me.project(new)))      # never a 2nd unfinished 📦 through a copy
+        self.assertEqual([r["id"] for r in PL.parked_projects(self.conn, MEM)], [a])
+
+    def test_one_approval_is_not_used_twice_by_two_creations_at_once(self):
+        import threading
+        import time
+        path = os.path.join(tempfile.mkdtemp(), "m.sqlite")
+        conn = connect(path)
+        auth.ensure_owner(conn)
+        auth.add_user(conn, owner_id(), MEM, [])
+        PL.set_limits(conn, {"email": OWNER, "role": "owner"}, MEM, open=10)
+        me = as_user(conn, MEM)
+        for name in ("A", "B"):
+            me.create_project(name, created_by=MEM)
+        rid = PL.request(conn, me.user, "daily", "gấp")
+        PL.approve(conn, {"email": OWNER, "role": "owner"}, rid)
+        real = PL._approved
+
+        def slow(*a, **k):                      # both creations pass the check before either writes: the race window, made wide
+            out = real(*a, **k)
+            time.sleep(0.3)
+            return out
+        made, refused = [], []
+
+        def worker(name):
+            p = as_user(connect(path), MEM)
+            try:
+                made.append(p.create_project(name, created_by=MEM))
+            except PL.LimitReached:
+                refused.append(name)
+        with mock.patch.object(PL, "_approved", side_effect=slow):
+            threads = [threading.Thread(target=worker, args=(n,)) for n in ("C", "D")]
+            [t.start() for t in threads]
+            [t.join() for t in threads]
+        self.assertEqual((len(made), len(refused)), (1, 1))
+        check = connect(path)
+        self.assertEqual(check.execute("SELECT COUNT(*) FROM project_creations WHERE email=?", (MEM,)).fetchone()[0], 3)
+        self.assertEqual(check.execute("SELECT used_project_id FROM limit_requests WHERE id=?", (rid,)).fetchone()[0], made[0])
+
+    def test_a_swap_that_fails_half_way_changes_nothing(self):
+        a, b = self.make("A"), self.make("B")
+        rid = PL.request(self.conn, self.me.user, "parked", "giữ", project_id=b)
+        PL.approve(self.conn, {"email": OWNER, "role": "owner"}, rid)
+        archive.archive(self.me, a)
+        with mock.patch.object(PL, "_use", side_effect=RuntimeError("hỏng giữa chừng")), self.assertRaises(RuntimeError):
+            archive.archive(self.me, b)
+        self.assertFalse(archive.is_archived(self.me.project(b)))
+        self.assertEqual(self.me.project(b)["paused"], 0)
+        self.assertEqual(self.conn.execute("SELECT status FROM limit_requests WHERE id=?", (rid,)).fetchone()[0], "approved")
+        c = self.conn.execute("SELECT 1").fetchone()                       # the connection is usable (no transaction left open)
+        self.assertIsNotNone(c)
+        PL.set_limits(self.conn, {"email": OWNER, "role": "owner"}, MEM, parked=0)   # the swap then needs the approval: _use runs
+        with mock.patch.object(PL, "_use", side_effect=RuntimeError("hỏng")), self.assertRaises(RuntimeError):
+            archive.swap(self.me, put_away=b, bring_back=a)
+        self.assertTrue(archive.is_archived(self.me.project(a)))
+        self.assertFalse(archive.is_archived(self.me.project(b)))
+        self.assertEqual(len(PL.parked_projects(self.conn, MEM)), 1)
+
+    def test_old_project_with_only_final_video_file_is_finished(self):
+        data = tempfile.mkdtemp()
+        a = self.make("A")
+        os.makedirs(os.path.join(data, str(a), "output"))
+        open(os.path.join(data, str(a), "output", "FINAL_VIDEO.mp4"), "wb").close()
+        with mock.patch.dict(os.environ, {"PIPELINE_DATA": data}):
+            self.assertTrue(PL.is_finished(self.conn, a))
+            self.assertEqual(PL.open_projects(self.conn, MEM), [])
+
+    def test_an_old_daily_approval_shows_expired(self):
+        self.make("A"), self.make("B")
+        rid = PL.request(self.conn, self.me.user, "daily", "gấp")
+        PL.approve(self.conn, {"email": OWNER, "role": "owner"}, rid)
+        row = PL.requests(self.conn)[0]
+        self.assertEqual(PL.status_label(row), PL.STATUS_LABELS["approved"])
+        with mock.patch.object(PL, "_today", return_value="2099-01-01"):
+            self.assertEqual(PL.status_label(PL.requests(self.conn)[0]), "⌛ hết hạn (duyệt cho ngày " + row["decided_day"] + ")")
+
+
 if __name__ == "__main__":
     unittest.main()

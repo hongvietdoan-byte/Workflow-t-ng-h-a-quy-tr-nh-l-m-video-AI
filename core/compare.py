@@ -14,7 +14,7 @@ from typing import Dict, List, Optional
 
 from .pipeline import Pipeline
 
-SKIP_PROJECT = {"id", "name", "created_at", "created_by", "paused", "autopilot_state", "autopilot_note", "autopilot_beat",
+SKIP_PROJECT = {"id", "name", "created_at", "created_by", "archived", "paused", "autopilot_state", "autopilot_note", "autopilot_beat",
                 "autopilot_log", "autopilot_user", "autopilot_saved_cfg", "pilot"}
 FRESH_BIBLE = {"description": "", "wardrobe": None, "locked": 0, "lock_rules": None, "bible_check": None, "user_edited": None,
                "anchor_approved": 0}
@@ -35,43 +35,49 @@ def clone_project(p: Pipeline, project_id: int, name: str, shot_mode: Optional[s
     access.need_view(p, project_id, "nhân bản dự án")
     conn = p.conn
     from . import person_limits                     # S14.18: a copy is a new project — same per-person limits as "➕ Dự án mới"
-    approval = person_limits.check_create(conn, p.user)
-    src = p.project(project_id)
-    skip = SKIP_PROJECT | ({"director_raw"} if not with_rows else set())    # the old plan must not seed "chia shot lại một cảnh"
-    cols = [c for c in _cols(conn, "projects") if c not in skip]
-    values = [src[c] for c in cols]
-    if shot_mode != "keep":
-        values[cols.index("shot_mode")] = shot_mode
-    if "autopilot_gates" in cols:          # the person's checkpoint switches carry over; the run state (Bible approved…) does not
+    with person_limits.LOCK:                        # rà 05/10: check, copy, count and use the approval as ONE step
+        approval = person_limits.check_create(conn, p.user)
         try:
-            gates = json.loads(src["autopilot_gates"] or "{}")
-        except ValueError:
-            gates = {}
-        values[cols.index("autopilot_gates")] = json.dumps({k: v for k, v in gates.items() if k in ("bible", "pilot", "storyboard")}) \
-            if gates else None
-    cur = conn.execute(f"INSERT INTO projects (name, created_at, created_by, {', '.join(cols)}) VALUES (?, datetime('now'), ?, "
-                       + ", ".join("?" for _ in cols) + ")", [name, (p.user or {}).get("email") or p.actor] + values)
-    new = cur.lastrowid
-    ccols = [c for c in _cols(conn, "characters") if c not in ("id", "project_id")]
-    fresh = {} if with_rows else FRESH_BIBLE        # "chạy lại Director": a fresh Bible (T1 standard profiles still apply from the Kho)
-    for r in conn.execute("SELECT * FROM characters WHERE project_id=?", (project_id,)).fetchall():
-        conn.execute(f"INSERT INTO characters (project_id, {', '.join(ccols)}) VALUES (?, " + ", ".join("?" for _ in ccols) + ")",
-                     [new] + [fresh[c] if c in fresh else r[c] for c in ccols])
-    conn.execute("INSERT INTO project_assets (project_id, asset_id) SELECT ?, asset_id FROM project_assets WHERE project_id=?",
-                 (new, project_id))
-    conn.execute("INSERT INTO story_scenes (project_id, idx, heading, text, data) SELECT ?, idx, heading, text, data"
-                 " FROM story_scenes WHERE project_id=?", (new, project_id))
-    if with_rows:
-        conn.execute("INSERT INTO scenes (project_id, idx, title, state, data) SELECT ?, idx, title, 'ready', data"
-                     " FROM scenes WHERE project_id=?", (new, project_id))
-    else:                                 # one row per script scene, as right after the import: the Director starts again
-        from .shots import story_scenes
-        for s in story_scenes(p, project_id):
-            conn.execute("INSERT INTO scenes (project_id, idx, title, data) VALUES (?,?,?,?)",
-                         (new, s["idx"], s["heading"], json.dumps({"text": s["text"], "characters": s["data"].get("characters") or []},
-                                                                  ensure_ascii=False)))
-    conn.commit()
-    person_limits.record_create(conn, p.user, new, approval)
+            src = p.project(project_id)
+            skip = SKIP_PROJECT | ({"director_raw"} if not with_rows else set())    # the old plan must not seed "chia shot lại một cảnh"
+            cols = [c for c in _cols(conn, "projects") if c not in skip]
+            values = [src[c] for c in cols]
+            if shot_mode != "keep":
+                values[cols.index("shot_mode")] = shot_mode
+            if "autopilot_gates" in cols:          # the person's checkpoint switches carry over; the run state (Bible approved…) does not
+                try:
+                    gates = json.loads(src["autopilot_gates"] or "{}")
+                except ValueError:
+                    gates = {}
+                values[cols.index("autopilot_gates")] = json.dumps({k: v for k, v in gates.items() if k in ("bible", "pilot", "storyboard")}) \
+                    if gates else None
+            cur = conn.execute(f"INSERT INTO projects (name, created_at, created_by, {', '.join(cols)}) VALUES (?, datetime('now'), ?, "
+                               + ", ".join("?" for _ in cols) + ")", [name, (p.user or {}).get("email") or p.actor] + values)
+            new = cur.lastrowid
+            ccols = [c for c in _cols(conn, "characters") if c not in ("id", "project_id")]
+            fresh = {} if with_rows else FRESH_BIBLE        # "chạy lại Director": a fresh Bible (T1 standard profiles still apply from the Kho)
+            for r in conn.execute("SELECT * FROM characters WHERE project_id=?", (project_id,)).fetchall():
+                conn.execute(f"INSERT INTO characters (project_id, {', '.join(ccols)}) VALUES (?, " + ", ".join("?" for _ in ccols) + ")",
+                             [new] + [fresh[c] if c in fresh else r[c] for c in ccols])
+            conn.execute("INSERT INTO project_assets (project_id, asset_id) SELECT ?, asset_id FROM project_assets WHERE project_id=?",
+                         (new, project_id))
+            conn.execute("INSERT INTO story_scenes (project_id, idx, heading, text, data) SELECT ?, idx, heading, text, data"
+                         " FROM story_scenes WHERE project_id=?", (new, project_id))
+            if with_rows:
+                conn.execute("INSERT INTO scenes (project_id, idx, title, state, data) SELECT ?, idx, title, 'ready', data"
+                             " FROM scenes WHERE project_id=?", (new, project_id))
+            else:                                 # one row per script scene, as right after the import: the Director starts again
+                from .shots import story_scenes
+                for s in story_scenes(p, project_id):
+                    conn.execute("INSERT INTO scenes (project_id, idx, title, data) VALUES (?,?,?,?)",
+                                 (new, s["idx"], s["heading"], json.dumps({"text": s["text"], "characters": s["data"].get("characters") or []},
+                                                                          ensure_ascii=False)))
+            person_limits.record_create(conn, p.user, new, approval)    # no commit inside
+            conn.commit()
+        except Exception:
+            conn.rollback()
+            raise
+    person_limits.audit_use(conn, approval, new)
     from .pipeline import cheap_while_testing
     cheap_while_testing(conn, new)          # a copy made during a budget test round is cheap too
     return new

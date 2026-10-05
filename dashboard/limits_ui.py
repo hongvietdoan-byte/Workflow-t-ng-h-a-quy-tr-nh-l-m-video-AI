@@ -180,7 +180,7 @@ def team_block(p: Pipeline, members: list) -> None:
         c[0].markdown(f"**#{r['id']} {escape(r['email'])}** — {escape(PL.KIND_LABELS.get(r['kind'], r['kind']))}"
                       + (f" (dự án #{r['project_id']})" if r["project_id"] else "")
                       + f"  \n<small>{escape(r['requested_at'])} · lý do: {escape(r['reason'])}</small>", unsafe_allow_html=True)
-        c[1].markdown(PL.STATUS_LABELS.get(r["status"], r["status"]) + (f"  \n<small>{escape(r['decided_by'] or '')}</small>"
+        c[1].markdown(PL.status_label(r) + (f"  \n<small>{escape(r['decided_by'] or '')}</small>"
                                                                        if r["decided_by"] else ""), unsafe_allow_html=True)
         if r["status"] != "pending":
             continue

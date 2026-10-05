@@ -13,6 +13,8 @@ Mỗi lần chặn: LimitReached (một AccessDenied) với câu tiếng Việt 
 ghi nhật ký audit 'limit_block'. Trần job/ngày chung cả máy (AUTOPILOT_DAILY_JOBS) đã bỏ cùng việc này.
 """
 import json
+import os
+import threading
 from datetime import datetime
 from typing import Dict, List, Optional
 
@@ -22,6 +24,9 @@ BASE = {"open": 2, "daily": 2, "parked": 1}
 LABELS = {"open": "Dự án dở cùng lúc", "daily": "Dự án tạo mới / ngày", "parked": "Dự án dở đang cất 📦"}
 KIND_LABELS = {"daily": "thêm 1 dự án mới hôm nay", "parked": "cất thêm 1 dự án dở"}
 STATUS_LABELS = {"pending": "⏳ chờ duyệt", "approved": "✅ đã duyệt (chưa dùng)", "rejected": "⛔ từ chối", "used": "✔ đã dùng"}
+LOCK = threading.RLock()
+"""Rà 05/10: check + write of a creation / a 📦 move is ONE step in this process (the Dashboard is one process; two clicks at once must not
+both pass the check nor use one approval twice). Callers hold it around check → write → commit."""
 
 
 class LimitReached(access.AccessDenied):
@@ -111,9 +116,13 @@ def set_limits(conn, actor, email: str, open: Optional[int] = None, daily: Optio
 
 
 # ---- đếm ------------------------------------------------------------------------------------------------------------------------------
-def is_finished(conn, project_id: int) -> bool:
-    """'Hoàn thiện' = the delivery was rendered (an outputs row 'final' — same test as the 📥 box)."""
-    return conn.execute("SELECT 1 FROM outputs WHERE project_id=? AND kind='final' LIMIT 1", (project_id,)).fetchone() is not None
+def is_finished(conn, project_id: int, data_dir: Optional[str] = None) -> bool:
+    """'Hoàn thiện' = the "Bản giao" step is done, as the automatic run's step list counts it (autopilot.progress): an outputs row
+    'final', or a pre-v2 <data>/<id>/output/FINAL_VIDEO.mp4 rendered before the outputs table existed (effectiveness.finished_projects)."""
+    if conn.execute("SELECT 1 FROM outputs WHERE project_id=? AND kind='final' LIMIT 1", (project_id,)).fetchone() is not None:
+        return True
+    data_dir = data_dir or os.environ.get("PIPELINE_DATA", os.path.join("data", "projects"))
+    return os.path.exists(os.path.join(data_dir, str(project_id), "output", "FINAL_VIDEO.mp4"))
 
 
 def _describe(conn, r) -> Dict:
@@ -209,7 +218,8 @@ def check_create(conn, user) -> Optional[int]:
 
 
 def record_create(conn, user, project_id: int, request_id: Optional[int] = None) -> None:
-    """After the project row exists: count it for the day (kept when the project is deleted) and use up the approval."""
+    """After the project row exists, in the SAME transaction (no commit here; the caller commits or rolls back, holding LOCK): count it
+    for the day (kept when the project is deleted) and use up the approval."""
     email = _email(user)
     if not email:
         return
@@ -217,14 +227,22 @@ def record_create(conn, user, project_id: int, request_id: Optional[int] = None)
                  (email, project_id, _today(), _stamp(), request_id))
     if request_id is not None:
         _use(conn, request_id, project_id)
-    conn.commit()
 
 
 def _use(conn, request_id: int, project_id: int) -> None:
-    conn.execute("UPDATE limit_requests SET status='used', used_at=?, used_project_id=? WHERE id=? AND status='approved'",
-                 (_stamp(), project_id, request_id))
+    """Mark an approval used — no commit (the caller's transaction). Refuses when it was not 'approved' any more (used by another
+    click): the caller rolls back, nothing is made."""
+    cur = conn.execute("UPDATE limit_requests SET status='used', used_at=?, used_project_id=? WHERE id=? AND status='approved'",
+                       (_stamp(), project_id, request_id))
+    if cur.rowcount != 1:
+        raise LimitReached("used", f"Lượt Owner duyệt #{request_id} đã được dùng cho dự án khác — không tạo / cất thêm.", [], 0, 0)
+
+
+def audit_use(conn, request_id: Optional[int], project_id: int) -> None:
+    """After the commit: the approval used, in the audit log."""
+    if request_id is None:
+        return
     row = conn.execute("SELECT email, kind FROM limit_requests WHERE id=?", (request_id,)).fetchone()
-    conn.commit()
     if row:
         auth.audit(conn, row["email"], "limit_request_used", f"#{request_id} ({row['kind']}) → dự án #{project_id}")
 
@@ -247,11 +265,6 @@ def check_archive(conn, user, project_id: int, bringing_back: Optional[int] = No
            "tiếp, xóa hẳn một dự án dở (vào thùng rác), hoặc xin Owner duyệt"
            + (f" (yêu cầu #{pending} đang chờ)" if pending else "") + ". Dự án đã xong cất vào “Kho dự án đã xong”, không giới hạn.")
     raise _block(conn, email, LimitReached("parked", msg, rows, len(rows), lim, pending))
-
-
-def after_archive(conn, request_id: Optional[int], project_id: int) -> None:
-    if request_id is not None:
-        _use(conn, request_id, project_id)
 
 
 def check_restore(conn, user, project_id: int, putting_away: Optional[int] = None) -> None:
@@ -292,6 +305,13 @@ def requests(conn, status: Optional[str] = None, limit: int = 50) -> List[Dict]:
     sql = "SELECT * FROM limit_requests" + (" WHERE status=?" if status else "")
     sql += " ORDER BY CASE status WHEN 'pending' THEN 0 ELSE 1 END, id DESC LIMIT ?"
     return [dict(r) for r in conn.execute(sql, ((status, limit) if status else (limit,)))]
+
+
+def status_label(row) -> str:
+    """👥 Nhóm: an approved 'daily' place not used on the day it was approved is expired (check_create only takes today's)."""
+    if row["status"] == "approved" and row["kind"] == "daily" and row["decided_day"] and row["decided_day"] != _today():
+        return f"⌛ hết hạn (duyệt cho ngày {row['decided_day']})"
+    return STATUS_LABELS.get(row["status"], row["status"])
 
 
 def pending_count(conn) -> int:

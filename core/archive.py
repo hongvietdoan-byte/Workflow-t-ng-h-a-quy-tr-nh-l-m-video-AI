@@ -41,14 +41,25 @@ def parked_projects(conn, user=None) -> List:
     return [r for r in archived_projects(conn, user) if not is_finished(conn, r["id"])]
 
 
-def _put_away(p: Pipeline, project_id: int) -> None:
-    from . import autopilot
-    row = p.project(project_id)
-    if row["autopilot_state"] in ACTIVE_AUTOPILOT:
-        autopilot.stop(p, project_id, "Dự án đã cất (📦) — chạy tự động dừng")
-    p.set_paused(project_id, True)
-    p.conn.execute("UPDATE projects SET archived=1 WHERE id=?", (project_id,))
-    p.conn.commit()
+def _move(p: Pipeline, put_away=None, bring_back=None, approval=None) -> None:
+    """Rà 05/10: the 📦 flags (+ pause of the one put away) and the approval used change in ONE transaction — a failure half way leaves
+    everything as it was. The automatic run of the project put away is stopped after the commit (its own writes)."""
+    from . import autopilot, person_limits
+    stop = put_away is not None and p.project(put_away)["autopilot_state"] in ACTIVE_AUTOPILOT
+    try:
+        if put_away is not None:
+            p.conn.execute("UPDATE projects SET archived=1, paused=1 WHERE id=?", (put_away,))   # paused: nothing queued is sent
+        if bring_back is not None:
+            p.conn.execute("UPDATE projects SET archived=0 WHERE id=?", (bring_back,))
+        if approval is not None:
+            person_limits._use(p.conn, approval, put_away)
+        p.conn.commit()
+    except Exception:
+        p.conn.rollback()
+        raise
+    person_limits.audit_use(p.conn, approval, put_away)
+    if stop:
+        autopilot.stop(p, put_away, "Dự án đã cất (📦) — chạy tự động dừng")
 
 
 def archive(p: Pipeline, project_id: int) -> None:
@@ -56,29 +67,27 @@ def archive(p: Pipeline, project_id: int) -> None:
     the numbers and the choices); a finished one goes to the "Kho dự án đã xong", unlimited."""
     access.need_manage(p, project_id, "cất dự án")
     from . import person_limits
-    approval = person_limits.check_archive(p.conn, p.user, project_id)
-    _put_away(p, project_id)
-    person_limits.after_archive(p.conn, approval, project_id)
+    with person_limits.LOCK:
+        approval = person_limits.check_archive(p.conn, p.user, project_id)
+        _move(p, put_away=project_id, approval=approval)
 
 
 def restore(p: Pipeline, project_id: int) -> None:
     """Back in the picker, still paused (see the module note). S14.18: an unfinished project takes one of the person's 'open' places."""
     access.need_manage(p, project_id, "khôi phục dự án")
     from . import person_limits
-    person_limits.check_restore(p.conn, p.user, project_id)
-    p.conn.execute("UPDATE projects SET archived=0 WHERE id=?", (project_id,))
-    p.conn.commit()
+    with person_limits.LOCK:
+        person_limits.check_restore(p.conn, p.user, project_id)
+        _move(p, bring_back=project_id)
 
 
 def swap(p: Pipeline, put_away: int, bring_back: int) -> None:
     """S14.18 GIỮ / BỎ in one move: put `put_away` away and bring `bring_back` back, the limits counted after the move (never 3
-    unfinished open nor 2 unfinished put away in between)."""
+    unfinished open nor 2 unfinished put away in between) — one transaction (_move)."""
     access.need_manage(p, put_away, "cất dự án")
     access.need_manage(p, bring_back, "khôi phục dự án")
     from . import person_limits
-    approval = person_limits.check_archive(p.conn, p.user, put_away, bringing_back=bring_back)
-    person_limits.check_restore(p.conn, p.user, bring_back, putting_away=put_away)
-    _put_away(p, put_away)
-    p.conn.execute("UPDATE projects SET archived=0 WHERE id=?", (bring_back,))
-    p.conn.commit()
-    person_limits.after_archive(p.conn, approval, put_away)
+    with person_limits.LOCK:
+        approval = person_limits.check_archive(p.conn, p.user, put_away, bringing_back=bring_back)
+        person_limits.check_restore(p.conn, p.user, bring_back, putting_away=put_away)
+        _move(p, put_away=put_away, bring_back=bring_back, approval=approval)

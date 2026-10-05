@@ -108,20 +108,26 @@ class Pipeline:
             if (created_by or "").strip().lower() != mine:           # one may only create projects in one's own name
                 raise access.AccessDenied("Bạn chỉ được tạo dự án đứng tên chính mình — dự án đứng tên người khác phải do Owner làm.")
         from . import person_limits                                 # S14.18: 2 unfinished at once, 2 new a day (Owner: no limit)
-        approval = person_limits.check_create(self.conn, self.user)
-        used =[self.conn.execute(sql).fetchone()[0] or 0 for sql in (
-            "SELECT MAX(id) FROM projects", "SELECT MAX(project_id) FROM usage_events", "SELECT MAX(deleted_project_id) FROM usage_events",
-            "SELECT MAX(project_id) FROM outputs",
-            "SELECT MAX(project_id) FROM diag_events")]
-        cur = self.conn.execute(
-            "INSERT INTO projects (id, name, operating_mode, qc_auto_pass_threshold, max_retry_count, created_at, created_by,"
-            " aspect, genre, genre_locked, model_priority)"
-            " VALUES (?,?,?,?,?,?,?,?,?,?,?)", (max(used) + 1, name, operating_mode, threshold, max_retry, _now(), created_by,
-                                                aspect, genre, 1 if genre else 0, model_priority))
-        if game:
-            self.conn.execute("UPDATE projects SET game=? WHERE id=?", (game, cur.lastrowid))
-        self.conn.commit()
-        person_limits.record_create(self.conn, self.user, cur.lastrowid, approval)
+        with person_limits.LOCK:                                    # check, insert, count and use the approval as ONE step (rà 05/10)
+            approval = person_limits.check_create(self.conn, self.user)
+            used =[self.conn.execute(sql).fetchone()[0] or 0 for sql in (
+                "SELECT MAX(id) FROM projects", "SELECT MAX(project_id) FROM usage_events", "SELECT MAX(deleted_project_id) FROM usage_events",
+                "SELECT MAX(project_id) FROM outputs",
+                "SELECT MAX(project_id) FROM diag_events")]
+            try:
+                cur = self.conn.execute(
+                    "INSERT INTO projects (id, name, operating_mode, qc_auto_pass_threshold, max_retry_count, created_at, created_by,"
+                    " aspect, genre, genre_locked, model_priority)"
+                    " VALUES (?,?,?,?,?,?,?,?,?,?,?)", (max(used) + 1, name, operating_mode, threshold, max_retry, _now(), created_by,
+                                                        aspect, genre, 1 if genre else 0, model_priority))
+                if game:
+                    self.conn.execute("UPDATE projects SET game=? WHERE id=?", (game, cur.lastrowid))
+                person_limits.record_create(self.conn, self.user, cur.lastrowid, approval)    # no commit inside
+                self.conn.commit()
+            except Exception:
+                self.conn.rollback()
+                raise
+        person_limits.audit_use(self.conn, approval, cur.lastrowid)
         cheap_while_testing(self.conn, cur.lastrowid)
         return cur.lastrowid
 
