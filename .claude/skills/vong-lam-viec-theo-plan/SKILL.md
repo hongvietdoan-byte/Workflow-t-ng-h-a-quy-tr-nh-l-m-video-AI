@@ -10,9 +10,10 @@ Mục tiêu: làm hết một đợt dài mà không để phiên chính đầy 
 ## 1. Đầu phiên
 1. `git pull` (worktree: `git fetch origin && git merge --ff-only origin/main`).
 2. Đọc `CLAUDE.md` và `TODO.md`: khối mới nhất ở đầu và mục "Việc phải làm lại MỖI LẦN".
-3. Tìm đợt đang làm: dòng `> Đợt ưu tiên: Sxx` trong `docs/KE_HOACH_SUA_SAU_DU_AN_8.md`, hoặc chạy `PYTHONUTF8=1 py tools/plan_progress.py`. Việc kế là việc ⬜ đầu tiên. Bỏ qua việc ⏸ (chờ người dùng).
-4. Đọc file kế hoạch chi tiết của đợt mà tiêu đề đợt trỏ tới. Chỉ đọc đoạn liên quan (`grep` hoặc đọc theo khoảng dòng), không đọc cả file lớn. **Mở lại code và đối chiếu số dòng** trước khi sửa, vì số dòng ghi trong kế hoạch có thể đã lệch.
-5. Đo ngưỡng lần đầu (mục 3).
+3. Đọc câu trả lời người dùng cho việc ⏸: `PYTHONUTF8=1 py -m devsys.answers list --pending` (người dùng trả lời trên web 8502 trang 📋, lưu ở `devsys/data/user_answers.json` của bản chính, không vào git). Mỗi câu: áp dụng (đổi trạng thái việc trong kế hoạch, ghi chú/commit) rồi `py -m devsys.answers applied <mã> "ghi chú · mã commit"`; câu chưa rõ thì hỏi lại người dùng. File hỏng → lệnh báo lỗi, báo người dùng, không tự xóa.
+4. Tìm đợt đang làm: dòng `> Đợt ưu tiên: Sxx` trong `docs/KE_HOACH_SUA_SAU_DU_AN_8.md`, hoặc chạy `PYTHONUTF8=1 py tools/plan_progress.py`. Việc kế là việc ⬜ đầu tiên. Bỏ qua việc ⏸ chưa có câu trả lời.
+5. Đọc file kế hoạch chi tiết của đợt mà tiêu đề đợt trỏ tới. Chỉ đọc đoạn liên quan (`grep` hoặc đọc theo khoảng dòng), không đọc cả file lớn. **Mở lại code và đối chiếu số dòng** trước khi sửa, vì số dòng ghi trong kế hoạch có thể đã lệch.
+6. Đo ngưỡng lần đầu (mục 3).
 
 ## 2. Làm việc
 - **Phiên chính chỉ điều phối.** Không tự sửa code của nhánh. Test chỉ lấy dòng cuối (`-q`, `tail`).
@@ -56,6 +57,7 @@ Mục tiêu: làm hết một đợt dài mà không để phiên chính đầy 
 
 ## 5. Luôn nhớ
 - **Báo về điện thoại khi cần người dùng quyết** (người dùng yêu cầu 04/10): gọi `PushNotification` (nạp bằng `ToolSearch select:PushNotification`, `status: "proactive"`) khi phải chờ người dùng — câu hỏi chặn việc, duyệt việc tốn tiền, đến điểm nghỉ, lỗi không tự xử lý được. Một dòng < 200 ký tự, mở đầu bằng việc cần làm. KHÔNG gửi cho tiến độ thường.
+- **Người dùng trả lời một việc ⏸ trong chat** → ghi về cùng chỗ với web: `PYTHONUTF8=1 py -m devsys.answers add <mã> "…" --source chat` (thêm `--choice Duyệt|Không|"Để sau"` nếu rõ). Áp dụng xong → `py -m devsys.answers applied <mã> "ghi chú · mã commit"`. Câu trả lời không tự đổi trạng thái việc: phiên Claude sửa kế hoạch.
 - Không im lặng khi thiếu đầu vào; "đã sửa" phải kèm bằng chứng chạy thật (tên test, số liệu).
 - Không tự chạy tiếp sang việc người dùng chưa duyệt. Việc nằm trong đợt đã duyệt thì làm theo thứ tự.
 - Ở thư mục gốc dùng `py`, không dùng `python`; console cần `PYTHONUTF8=1`.
