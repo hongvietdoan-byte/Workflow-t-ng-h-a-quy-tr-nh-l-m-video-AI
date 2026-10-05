@@ -37,17 +37,32 @@ def _script_summary(p: Pipeline, pid: int, scenes) -> str:
     return f"📜 {_count_label(p, pid, scenes)} · {lines} câu thoại" + (f" · {len(text):,} ký tự".replace(",", ".") if text else "")
 
 
+def analyse_script(p: Pipeline, pid: int, up=None, pasted: str = "", file=None) -> None:
+    """▶ Phân tích (0 USD): read the file (uploader `up`, or a (name, bytes) `file` from the chat box) or the text, split the scenes,
+    import them. One path for both screens (S14.21: was a closure inside script_input)."""
+    if up is not None:
+        res = script_reader.read_script(up.name, up.getvalue())
+    elif file is not None:
+        res = script_reader.read_script(file[0], file[1])
+    else:
+        res = script_reader.from_text(pasted)
+    parsed = script_parser.split_scenes(res.paragraphs)
+    script_parser.import_scenes(p, pid, parsed, full_text="\n\n".join(res.paragraphs))
+    st.session_state["parse_info"] = res.info
+    if len(parsed) == 1 and parsed[0].heading == "Mở đầu":
+        st.session_state["parse_warn"] = ("Không thấy tiêu đề cảnh (vd “Cảnh 1”, “Scene 2”, “INT./EXT.”): "
+                                          "cả kịch bản thành 1 cảnh. Hãy thêm/sửa cảnh thủ công.")
+    st.toast(f"Đã tách {len(parsed)} cảnh")
+
+
 def script_input(p: Pipeline, pid: int, with_reset: bool = True) -> bool:
     """The ways to put a script in (file / typed / raw idea) + the ▶ Phân tích button. Keys: up_/paste_/btn_analyse_/btn_bad_reset_.
     `with_reset` False: the reset button is drawn elsewhere (UI v2 puts it under "Tinh chỉnh"). Returns whether there is an input."""
     from core import idea_to_script
-    if idea_to_script.enabled():                                # S11.1: a third way in — a raw idea → the Biên kịch
-        t_file, t_text, t_idea = st.tabs(["📎 Tải file", "✍ Gõ / dán văn bản", "💡 Ý tưởng thô"])
-        with t_idea:
-            from dashboard.steps.step1_idea import idea_panel
-            idea_panel(p, pid)
-    else:
-        t_file, t_text = st.tabs(["📎 Tải file", "✍ Gõ / dán văn bản"])
+    if idea_to_script.enabled():                                # S14.21 (Đợt 3): one chat-style box for script / idea / "nói thêm"
+        from dashboard.steps.step1_box import script_box
+        return script_box(p, pid, with_reset)
+    t_file, t_text = st.tabs(["📎 Tải file", "✍ Gõ / dán văn bản"])
     with t_file:
         up = st.file_uploader("Kịch bản", type=list(script_reader.SUPPORTED), key=f"up_{pid}", label_visibility="collapsed",
                               help="Word (.docx, kể cả kịch bản viết trong bảng), Excel (.xlsx), CSV/TSV, .txt, .md")
@@ -64,16 +79,7 @@ def script_input(p: Pipeline, pid: int, with_reset: bool = True) -> bool:
         u3 = None
     has_input = up is not None or bool(pasted.strip())
     if u2.button("▶ Phân tích (tách cảnh)", disabled=not has_input, type="primary", key=f"btn_analyse_{pid}"):
-        def analyse():
-            res = script_reader.read_script(up.name, up.getvalue()) if up is not None else script_reader.from_text(pasted)
-            parsed = script_parser.split_scenes(res.paragraphs)
-            script_parser.import_scenes(p, pid, parsed, full_text="\n\n".join(res.paragraphs))
-            st.session_state["parse_info"] = res.info
-            if len(parsed) == 1 and parsed[0].heading == "Mở đầu":
-                st.session_state["parse_warn"] = ("Không thấy tiêu đề cảnh (vd “Cảnh 1”, “Scene 2”, “INT./EXT.”): "
-                                                  "cả kịch bản thành 1 cảnh. Hãy thêm/sửa cảnh thủ công.")
-            st.toast(f"Đã tách {len(parsed)} cảnh")
-        if act(analyse):
+        if act(lambda: analyse_script(p, pid, up, pasted)):
             st.rerun()
     if ui.v2_on():                                   # v2: the hint about "file wins" is P3 → ⓘ; the state of the input stays as one line
         from dashboard.design import components as D

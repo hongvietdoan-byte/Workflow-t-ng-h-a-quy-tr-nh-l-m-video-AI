@@ -122,5 +122,96 @@ class IdeaTests(unittest.TestCase):
         self.assertEqual(project_budget.claude_stage("screenwriter"), "claude_director")
 
 
+def _legacy_build_prompt(conn, pid, state, turn):
+    """build_prompt as it was before S14.21 (01/10, the version that recorded the S11.2 replay) — frozen here on purpose."""
+    from core.prompts import _read
+    inp = state["inputs"]
+    lib = I.library(conn, pid)
+    parts = [f"# Biên kịch — Lượt {turn}", I._section("CHUNG"), "## Vai của bạn", _read("knowledge", "roles", "screenwriter.md"),
+             "## Viết thoại", _read("knowledge", "dialogue_craft.md"), "## Thể loại", _read("knowledge", "genre_guides.md"),
+             "## Đầu vào của người dùng",
+             f"Ý tưởng: {inp['idea']}\nThời lượng mục tiêu: {inp['duration_s']} s · khung {inp['aspect']} · nền tảng {inp['platform']}"
+             + (f"\nGiọng điệu: {inp['tone']}" if inp.get("tone") else "")
+             + (f"\nNhân vật người dùng chọn: {', '.join(inp['characters'])}" if inp.get("characters") else "")
+             + (f"\nCTA (đúng chữ, ở cảnh cuối): {inp['cta']}" if inp.get("cta") else ""),
+             "## Kho FF (ưu tiên dùng)\nNhân vật: " + (", ".join(sorted(set(lib["characters"]))) or "(trống)")
+             + "\nNơi: " + (", ".join(sorted(set(lib["places"]))) or "(trống)")]
+    tb = I.trend_block(conn, inp.get("trend", "off"))
+    if tb:
+        parts.append(tb)
+    if turn >= 2 and state.get("answers"):
+        parts.append("## Trả lời của người dùng (câu ghi [mặc định] = người dùng để trống, dùng đáp án mặc định)\n" + "\n".join(
+            f"- {a['q']} → {a['a']}" + (" [mặc định]" if a.get("defaulted") else "") for a in state["answers"]))
+    if turn >= 3 and state.get("chosen") is not None:
+        d = state["directions"][state["chosen"]]
+        parts.append(f"## Hướng người dùng chọn\n{d['title']}: {d['logline']} — hook 3 s: {d['hook_3s']} — chốt: {d['payoff']}"
+                     + (f"\nGhi chú của người dùng: {state['choice_note']}" if state.get("choice_note") else ""))
+    if turn >= 4 and state.get("beats"):
+        parts.append("## Dàn ý đã duyệt\n" + json.dumps(state["beats"], ensure_ascii=False, indent=0))
+    parts.append(I._section(f"LƯỢT {turn}"))
+    return "\n\n".join(parts)
+
+
+class WishTests(unittest.TestCase):
+    """S14.21 (Đợt 3, C3): the free "nói thêm" box. An empty wish must leave the prompt byte-identical (the S11.2 replay keys on
+    sha256(prompt) — a changed prompt = a replay miss = the 0,438 USD already paid lost)."""
+
+    def setUp(self):
+        self.p = Pipeline(connect())
+        self.pid = self.p.create_project("ý tưởng", operating_mode="human_qc")
+        for name in ("KELLY", "MAXIM"):
+            assets.create(self.p.conn, "FF", "character", name)
+        assets.create(self.p.conn, "FF", "location", "Đảo Quân Sự")
+        self.m = Recorder()
+
+    def run_all(self, wishes=None):
+        wishes = wishes or {}
+        I.start(self.p.conn, self.pid, IDEA, cta="Tải Free Fire ngay")
+        I.questions(self.p.conn, self.pid, self.m, wish=wishes.get(1, ""))
+        I.answer(self.p.conn, self.pid, ["vui", ""])
+        I.directions(self.p.conn, self.pid, self.m, wish=wishes.get(2, ""))
+        I.outline(self.p.conn, self.pid, self.m, 1, "nhấn mạnh cú chốt", wish=wishes.get(3, ""))
+        return I.write(self.p.conn, self.pid, self.m, wish=wishes.get(4, ""))
+
+    def test_empty_wish_keeps_every_turn_prompt_byte_identical(self):
+        self.run_all()
+        st = I.get_state(self.p.conn, self.pid)
+        self.assertNotIn("wishes", st)                                        # nothing stored when nothing was said
+        for turn in (1, 2, 3, 4):
+            old = _legacy_build_prompt(self.p.conn, self.pid, st, turn)
+            self.assertEqual(I.build_prompt(self.p.conn, self.pid, st, turn), old)
+            self.assertEqual(I.build_prompt(self.p.conn, self.pid, st, turn, wish=""), old)
+            self.assertEqual(I.build_prompt(self.p.conn, self.pid, st, turn, wish="   \n"), old)
+            self.assertEqual(I.build_prompt(self.p.conn, self.pid, dict(st, wishes={}), turn), old)
+        self.assertNotIn("Yêu cầu thêm", "".join(self.m.prompts))
+
+    def test_wish_goes_right_before_the_turn_block_and_is_remembered_later(self):
+        self.run_all({2: "cho Maxim thắng ở cuối"})
+        p2, p4 = self.m.prompts[1], self.m.prompts[3]
+        block = "## Yêu cầu thêm của người dùng (ưu tiên làm theo)"
+        self.assertIn(block, p2)
+        self.assertIn("cho Maxim thắng ở cuối", p2)
+        self.assertLess(p2.index("## Trả lời của người dùng"), p2.index(block))   # after what the turn reads …
+        self.assertLess(p2.index(block), p2.index("# Việc lần này: 3 HƯỚNG"))      # … right before the turn's own job
+        self.assertIn("không phá ràng buộc cứng", p2)                              # the rule from prompts/23 comes with the wish
+        self.assertNotIn(block, self.m.prompts[0])                                 # turn 1 was before the wish
+        self.assertIn("cho Maxim thắng ở cuối", p4)                                # turn 4 still remembers turn 2
+        self.assertEqual(I.get_state(self.p.conn, self.pid)["wishes"], {"2": "cho Maxim thắng ở cuối"})
+
+    def test_rerunning_a_turn_drops_the_wishes_of_later_turns(self):
+        self.run_all({2: "hài hơn", 4: "thêm câu chốt"})
+        I.directions(self.p.conn, self.pid, self.m, wish="nghiêm túc")
+        self.assertEqual(I.get_state(self.p.conn, self.pid)["wishes"], {"2": "nghiêm túc"})
+
+    def test_ask_again_for_directions_only_when_the_input_changed(self):
+        """C8: "↻ Hỏi lại 3 hướng khác" used to resend the very same prompt (0,03 USD for nothing)."""
+        self.run_all()
+        st = I.get_state(self.p.conn, self.pid)
+        self.assertFalse(I.directions_input_changed(st, ["vui", ""], ""))
+        self.assertTrue(I.directions_input_changed(st, ["vui", ""], "đổi cảm xúc chính"))
+        self.assertTrue(I.directions_input_changed(st, ["buồn", ""], ""))
+        self.assertTrue(I.directions_input_changed(st, ["vui", "có"], ""))
+
+
 if __name__ == "__main__":
     unittest.main()
