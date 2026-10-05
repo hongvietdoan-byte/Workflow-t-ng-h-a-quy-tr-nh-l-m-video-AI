@@ -63,14 +63,14 @@ class IdeaTests(unittest.TestCase):
         self.assertIn("Hướng người dùng chọn", self.m.prompts[2])
         self.assertIn("Dàn ý đã duyệt", self.m.prompts[3])
         self.assertIn("Đảo Quân Sự", self.m.prompts[0])                       # the library is in the prompt
-        self.assertEqual(st["script_checks"]["scenes"], 2)
+        self.assertEqual(st["script_checks"]["scenes"], 1)                          # S14.35: the mock writes 2 scenes in one place -> the code joins them
         self.assertIn('CTA "Tải Free Fire ngay" chưa có ở cảnh cuối', st["script_checks"]["problems"])
         with self.assertRaises(I.IdeaError):
             I.use_script(self.p, self.pid)                                     # a blocking check stops it
         I.edit(self.p.conn, self.pid, st["script"] + "\nKELLY: Tải Free Fire ngay!")
-        self.assertEqual(I.use_script(self.p, self.pid), 2)
+        self.assertEqual(I.use_script(self.p, self.pid), 1)
         rows = self.p.conn.execute("SELECT data FROM scenes WHERE project_id=? ORDER BY idx", (self.pid,)).fetchall()
-        self.assertEqual(len(rows), 2)
+        self.assertEqual(len(rows), 1)
         self.assertIn("KELLY", json.loads(rows[0][0])["text"])
 
     def test_trend_off_puts_no_trend_in_the_prompt_and_on_says_there_is_none_yet(self):

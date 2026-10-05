@@ -211,8 +211,11 @@ def get(p, pid: int) -> Optional[Dict]:
     if not enabled():
         return None
     row = p.conn.execute("SELECT value FROM app_settings WHERE key=?", (_key(pid),)).fetchone()
+    make = to_create_rows(p.conn, pid)         # S14.35: sets the idea needs made (Đạo diễn ảnh ref / Meshy 3D) — listed, never run here
     if not row:
-        return None
+        if not make:
+            return None
+        return {"rows": make, "missing": [], "to_create": [r["name"] for r in make], "warnings": [], "stale": False, "library_size": 0}
     try:
         state = json.loads(row[0])
     except ValueError:
@@ -238,7 +241,24 @@ def get(p, pid: int) -> Optional[Dict]:
     if told and differ:
         warnings.append("Code kiểm lại thấy thiếu thêm: " + ", ".join(differ) + " (Claude không ghi vào `thieu`).")
     stale = state.get("script_hash") != _hash(script_text(p, pid))
-    return {"rows": rows, "missing": missing, "warnings": warnings, "stale": stale, "library_size": state.get("library_size") or 0}
+    return {"rows": rows + make, "missing": missing, "to_create": [r["name"] for r in make], "warnings": warnings, "stale": stale,
+            "library_size": state.get("library_size") or 0}
+
+
+def to_create_rows(conn, pid: int) -> List[Dict]:
+    """S14.35: a place outside the game that the Kho does not have — status `to_create`, with the person's choice and the price estimate."""
+    from . import idea_buildable
+    try:
+        needs = idea_buildable.scene_needs(conn, pid)
+    except Exception:  # noqa: BLE001 - the table must still draw without the idea's state
+        return []
+    rows = []
+    for n in needs:
+        price = f" · ước ≤ {n['est_usd']:.2f} USD" if n.get("est_usd") else ""
+        rows.append({"kind": "location", "name": n["name"], "scenes": [], "main": True, "asset_id": None, "for_character": None,
+                     "why": "nơi ngoài game, chưa có trong Kho", "note": n["note"], "status": "to_create", "choice": n["choice"],
+                     "est_usd": n.get("est_usd"), "status_label": f"🛠 cần tạo bối cảnh — {n['label']}{price}"})
+    return rows
 
 
 def attach(p, pid: int, asset_id: int) -> None:

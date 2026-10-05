@@ -418,7 +418,10 @@ def check_script(conn, pid: int, script: str, inputs: Dict) -> Dict:
             flags.append(f"nơi ngoài Kho — AI vẽ, ~70 % giống: {where}")
     if scenes and not (len(scenes) == 1 and scenes[0].heading == "Mở đầu"):
         anchors = inputs.get("anchors")
-        pr, fl, blocked = idea_buildable.check_scenes(scenes, idea_buildable.kit(conn, pid), anchors)
+        k = idea_buildable.kit(conn, pid)
+        need = idea_buildable.place_state(conn, pid, k, anchors)["state"] == "needs_scene"      # S14.35: a set to make, not a block
+        pr, fl, blocked = idea_buildable.check_scenes(scenes, k, anchors,
+                                                      idea_buildable.clean_anchors(anchors)["place"] if need else "")
         problems += pr
         flags += fl
         problems += idea_buildable.check_anchors(scenes, anchors)
@@ -452,6 +455,13 @@ def write(conn, pid: int, client, wish: str = "", p=None) -> Dict:
         return obj
     obj = _ask(conn, pid, state, 4, client, ok, wish)
     state["script"], state["added"], state["notes"] = obj["script"].strip(), obj.get("added") or [], obj.get("notes") or ""
+    from . import scene_merge                       # S14.35 ý 3: merge by code after the writing turn (prompt 23 untouched)
+    merged, rep = scene_merge.merge_script(state["script"])
+    state["merge"] = rep
+    if merged != state["script"]:                   # joined scenes and/or continuity notes at the cuts that stay
+        state["script_unmerged"], state["script"] = state["script"], merged
+    else:
+        state.pop("script_unmerged", None)
     state["script_checks"] = check_script(conn, pid, state["script"], state["inputs"])
     return save_state(conn, pid, state)
 
