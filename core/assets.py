@@ -46,7 +46,10 @@ ROLES = {
 }
 ROLES["pet"] = ROLES["character"]
 LOOKS = {"ingame": "in-game FF", "anime": "anime"}
-STATUSES = {"approved": "đã duyệt", "pending": "chờ duyệt", "redundant": "ảnh thừa (trùng / icon — không dùng)"}
+STATUSES = {"approved": "đã duyệt", "pending": "chờ duyệt", "redundant": "ảnh thừa (trùng / icon — không dùng)",
+            "claude_ok": "Claude duyệt sơ bộ (dùng được, chờ người dùng xác nhận)"}   # S14.42: pending -> claude_ok -> approved
+USABLE = (None, "approved", "claude_ok")        # statuses the pipeline may use; 'claude_ok' is shown with the "Claude duyệt" mark
+USABLE_SQL = "('approved','claude_ok')"
 _NOISE = {"front", "back", "side", "full", "avatar", "face", "portrait", "main", "ref", "reference", "hd", "final", "copy",
           "truoc", "sau", "ngang", "mat", "new", "old", "moi", "cu"}
 
@@ -531,8 +534,8 @@ def _row(conn, r, images_by_asset: Optional[Dict] = None) -> Dict:
                                                 " ORDER BY sort, id", (r["id"],))]
     images, here = _resolved(images)                                               # one disk check per picture (it was four)
     pending = [i for i in images if i.get("status") == "pending" and here[i["id"]]]
-    images = [i for i in images if i.get("status") in (None, "approved")]            # G2: only pictures a person approved are used
-    return {"id": r["id"], "game": r["game"], "kind": r["kind"], "kind_label": KINDS.get(r["kind"], r["kind"]), "name": r["name"],
+    images = [i for i in images if i.get("status") in USABLE]            # G2: only approved pictures (a person's, or S14.42 'claude_ok') are used
+    return {"id": r["id"], "claude_only": sum(1 for i in images if i.get("status") == "claude_ok" and here[i["id"]]), "game": r["game"], "kind": r["kind"], "kind_label": KINDS.get(r["kind"], r["kind"]), "name": r["name"],
             "aliases": r["aliases"] or "", "description": r["description"] or "", "project_id": r["project_id"],
             "created_by": r["created_by"], "images": [i for i in images if here[i["id"]]], "pending": pending,
             "missing": [i["path"] for i in images if not here[i["id"]]]}   # approved pictures whose file is gone (said, luật 1)
@@ -888,7 +891,7 @@ def standard_set(asset: Dict, sheets: bool) -> List[tuple]:
     picture ('related', e.g. the skill). Empty when the asset has no approved front_standard picture (the automatic pick is used)."""
     by_role = {}
     for img in asset.get("images") or []:
-        if img.get("status", "approved") == "approved" and img.get("role") in STANDARD_ROLES:
+        if img.get("status", "approved") in USABLE and img.get("role") in STANDARD_ROLES:
             by_role.setdefault(img["role"], img)
     if "front_standard" not in by_role:
         return []
@@ -1759,7 +1762,7 @@ def add_outfit_images(conn, project_id: int, game: str, name: str, files: List[t
     shas = [_sha(data) for _, data in files]
     rows = conn.execute("SELECT id, sha256, status FROM asset_images WHERE asset_id=? AND status IS NOT 'removed'", (rep["asset_id"],)).fetchall()
     by_sha = {r["sha256"]: r for r in rows}
-    ids = [by_sha[h]["id"] for h in dict.fromkeys(shas) if h in by_sha and by_sha[h]["status"] in (None, "approved")][:2]
+    ids = [by_sha[h]["id"] for h in dict.fromkeys(shas) if h in by_sha and by_sha[h]["status"] in USABLE][:2]
     if ids:
         set_outfit(conn, project_id, who, ids)
         rep.update(outfit_set=True, note=f"đã gắn {len(ids)} ảnh làm trang phục của {who} trong dự án này")

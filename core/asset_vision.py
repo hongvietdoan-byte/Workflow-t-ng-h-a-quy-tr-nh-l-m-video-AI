@@ -62,7 +62,7 @@ def pending(conn, game: str) -> int:
     # the run read nothing). One query + one exists() per candidate asset until a file is found (no full rows built).
     rows = conn.execute("SELECT a.id, i.path FROM assets a JOIN asset_images i ON i.asset_id=a.id WHERE a.project_id IS NULL"
                         " AND a.game=? AND a.kind IN ('character', 'pet') AND instr(COALESCE(a.description, ''), ?) = 0"
-                        " AND COALESCE(i.status, 'approved')='approved' ORDER BY a.id", (game, MARK)).fetchall()
+                        " AND COALESCE(i.status, 'approved') IN ('approved','claude_ok') ORDER BY a.id", (game, MARK)).fetchall()
     found = set()
     for r in rows:
         if r["id"] not in found and r["path"] and os.path.exists(assets.resolve(r["path"])):

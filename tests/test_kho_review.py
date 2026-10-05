@@ -16,7 +16,7 @@ class Base(unittest.TestCase):
         self.dir = tempfile.mkdtemp()
         os.environ["ASSET_DIR"] = os.path.join(self.dir, "assets")
         self.conn = connect()
-        self.pid = self.conn.execute("INSERT INTO projects (name) VALUES ('t')").lastrowid
+        self.pid = self.conn.execute("INSERT INTO projects (name, created_at) VALUES ('t', datetime('now'))").lastrowid
         self.conn.commit()
 
     def tearDown(self):
@@ -100,6 +100,7 @@ class Transitions(Base):
         _, mine = self.image("Của S14.33", status="pending")
         self.conn.execute("UPDATE assets SET created_by='S14.33' WHERE id=(SELECT asset_id FROM asset_images WHERE id=?)", (mine,))
         _, other = self.image("Của người khác", status="pending")
+        self.conn.execute("UPDATE assets SET created_by=NULL WHERE id=(SELECT asset_id FROM asset_images WHERE id=?)", (other,))
         got = [r["id"] for r in kho_review.pending_of(self.conn, "S14.33")]
         self.assertEqual(got, [mine])
 

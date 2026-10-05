@@ -84,7 +84,7 @@ def place_pictures(conn, asset_id) -> List[str]:
     """The place's approved pictures, full views first (eye level, then the rest) — the 3D renders of the tower for #8."""
     if not asset_id:
         return []
-    rows = conn.execute("SELECT path FROM asset_images WHERE asset_id=? AND status='approved'"
+    rows = conn.execute("SELECT path FROM asset_images WHERE asset_id=? AND status IN ('approved','claude_ok')"
                         " ORDER BY (role='eye_level') DESC, (role='detail') ASC, id", (asset_id,)).fetchall()
     return [r["path"] for r in rows if r["path"] and os.path.exists(r["path"])][:MAX_PLACE_PICTURES]
 

@@ -721,6 +721,60 @@ def lib_bulk_box(p, game) -> None:
 
 
 @st.fragment
+def claude_review_box(p: Pipeline, game: str) -> None:
+    """S14.42 tầng B/C: what Claude approved first (dùng được ngay) and a person has not confirmed yet — a grid to look at samples,
+    'Thu hồi' (back to waiting) / 'Xác nhận' (→ đã duyệt). Looking is optional: the items are usable without it."""
+    from core import kho_review
+    p = _fresh(p)
+    imgs = kho_review.claude_only_images(p.conn)
+    snds = kho_review.claude_only_sounds(p.conn)
+    bad = kho_review.rejected(p.conn, "image") + kho_review.rejected(p.conn, "sound")
+    if not (imgs or snds or bad):
+        return
+    st.caption(f"🔎 {len(imgs)} ảnh + {len(snds)} âm thanh Claude duyệt sơ bộ · {len(bad)} bị loại")
+    with st.expander("🔎 Claude duyệt sơ bộ — dùng được ngay, chờ bạn xác nhận (xem mẫu không bắt buộc)", expanded=False):
+        st.caption("Ảnh / âm thanh Claude đã nhìn, nghe và cho dùng; mục dùng thật sẽ hiện dấu “Claude duyệt” kèm nút Xác nhận. "
+                   "Mục Claude loại KHÔNG xóa — nằm trong docs/KHO_TAI_NGUYEN_LOI_2026-10-05.md để làm lại sau.")
+        a1, a2 = st.columns(2)
+        if a1.button(f"✔ Xác nhận cả {len(imgs)} ảnh", key=f"cr_ok_all_{game}", disabled=not imgs):
+            for r in imgs:
+                kho_review.confirm(p.conn, "image", r["id"])
+            _rerun_here()
+        for k in range(0, len(imgs[:60]), 4):
+            cols = st.columns(4)
+            for col, r in zip(cols, imgs[k:k + 4]):
+                with col:
+                    try:
+                        st.image(assets.thumbnail(r["path"]), width=150)
+                    except Exception:  # noqa: BLE001
+                        st.caption("(không đọc được ảnh)")
+                    st.caption(escape(r["asset"])[:48])
+                    b1, b2 = st.columns(2)
+                    if b1.button("✔", key=f"cr_ok_{r['id']}", help="Xác nhận (đã duyệt)"):
+                        kho_review.confirm(p.conn, "image", r["id"])
+                        _rerun_here()
+                    if b2.button("↩", key=f"cr_rv_{r['id']}", help="Thu hồi về chờ duyệt"):
+                        kho_review.revoke(p.conn, "image", r["id"])
+                        _rerun_here()
+        if len(imgs) > 60:
+            st.caption(f"… và {len(imgs) - 60} ảnh nữa (xác nhận hoặc thu hồi bớt để thấy tiếp).")
+        for s in snds[:6]:
+            c1, c2, c3 = st.columns([4, 1, 1], vertical_alignment="center")
+            c1.markdown(f"🎵 {escape(s['name'])}")
+            if os.path.exists(s["path"]):
+                with c1:
+                    st.audio(s["path"])
+            if c2.button("✔", key=f"cr_sok_{s['id']}", help="Xác nhận"):
+                kho_review.confirm(p.conn, "sound", s["id"])
+                _rerun_here()
+            if c3.button("↩", key=f"cr_srv_{s['id']}", help="Thu hồi"):
+                kho_review.revoke(p.conn, "sound", s["id"])
+                _rerun_here()
+        if len(snds) > 6:
+            st.caption(f"… và {len(snds) - 6} âm thanh nữa (xem ở danh sách nguồn âm thanh).")
+
+
+@st.fragment
 def lib_sound_box(p) -> None:
     p = _fresh(p)
     with st.expander("🎼 Kho âm thanh (nhạc nền & hiệu ứng) — thư mục nguồn", expanded=not sound_lib.list_sources(p.conn)):
@@ -866,6 +920,7 @@ def asset_library_panel(p: Pipeline) -> None:
     items = assets.list_assets(p.conn, game, None, None, shared_only=True)
     st.caption(f"{len(items)} mục trong kho **{catalog[game][0]}**. Mọi dự án của game này đều chọn dùng được.")
     library_review_box(p, game)
+    claude_review_box(p, game)
     library_lost_box(p)
     library_health(p, game)
     plates3d_panel(p, game)

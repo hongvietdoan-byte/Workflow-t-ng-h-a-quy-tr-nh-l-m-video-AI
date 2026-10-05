@@ -342,6 +342,13 @@ TRUSTED_SQL = "kind='sfx' AND voice=0 AND heard_label IS NOT NULL AND heard_labe
 
 
 # ---- choosing for a project -------------------------------------------------------------------------------------------
+def _not_rejected(conn, rows):
+    """S14.42: a track Claude rejected on review (core/kho_review.py) is kept in the library but never suggested as background music."""
+    from . import kho_review
+    bad = kho_review.rejected_sound_ids(conn)
+    return [r for r in rows if r["id"] not in bad] if bad else list(rows)
+
+
 def suggest_music(conn, scene_mood_texts: List[str], limit: int = 5, seed: int = 0) -> List[Dict]:
     """Background tracks that fit the scene moods: tracks of a wanted mood first (the first scene mood weighs most)."""
     wanted: List[str] = []
@@ -351,14 +358,14 @@ def suggest_music(conn, scene_mood_texts: List[str], limit: int = 5, seed: int =
                 wanted.append(m)
     picks: List[Dict] = []
     for m in wanted:
-        rows = conn.execute("SELECT * FROM sounds WHERE kind='music' AND mood=? ORDER BY path", (m,)).fetchall()
+        rows = _not_rejected(conn, conn.execute("SELECT * FROM sounds WHERE kind='music' AND mood=? ORDER BY path", (m,)).fetchall())
         if rows:
             start = seed % len(rows)
             picks.extend(dict(r) for r in rows[start:] + rows[:start])
         if len(picks) >= limit * 2:
             break
     if not picks:
-        rows = conn.execute("SELECT * FROM sounds WHERE kind='music' ORDER BY path").fetchall()
+        rows = _not_rejected(conn, conn.execute("SELECT * FROM sounds WHERE kind='music' ORDER BY path").fetchall())
         if rows:
             start = seed % len(rows)
             picks = [dict(r) for r in rows[start:] + rows[:start]]
