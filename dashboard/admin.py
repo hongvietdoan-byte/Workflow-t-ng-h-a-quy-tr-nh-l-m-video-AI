@@ -1027,9 +1027,9 @@ def monitor(p: Pipeline, pid: int) -> None:
     c1, c2, c3, c4 = st.columns(4)
     c1.metric("Dự án chạy tự động", f"{mgr.running_count()}/{mgr.max_parallel}", help="AUTOPILOT_MAX_PARALLEL")
     c2.metric("Đang xếp hàng", mgr.queue_length())
-    c3.metric("Lượt gửi thật hôm nay", f"{snap['sends_today']}/{snap['daily_limit'] or '∞'}",
+    c3.metric("Lượt gửi thật hôm nay", f"{snap['sends_today']}",
               help=f"Ảnh + video đã gửi trả tiền từ 00:00 UTC (sổ chi, mọi dự án, không tính mock); {snap['jobs_today']} job tạo hôm nay. "
-                   "Trần AUTOPILOT_DAILY_JOBS chỉ chặn chạy tự động (0 = tắt), không chặn nút bấm tay")
+                   "Không còn trần chung mỗi ngày (S14.18) — giới hạn theo người ở 👥 Nhóm")
     c4.metric("Job đang chạy/chờ", sum(k["running"] + k["queued"] for k in snap["kinds"]))
     rows = []
     for k in snap["kinds"]:
@@ -1049,7 +1049,7 @@ def monitor(p: Pipeline, pid: int) -> None:
     st.caption("👥 Số video / tiền theo người dùng → màn **Nhóm**. 📁 Bảng tất cả dự án và 🎬 sản phẩm đã hoàn tất → màn **⌂ Tất cả dự án**. "
                "Trang này chỉ giữ sức khỏe hệ thống: hàng đợi, tốc độ, lỗi, hiệu quả.")
     st.caption("Ngưỡng cảnh báo chỉnh bằng biến môi trường: PERF_MAX_ACTIVE, PERF_FAIL_WARN, PERF_SLOW_WARN; "
-               "song song: AUTOPILOT_MAX_PARALLEL; trần ngày: AUTOPILOT_DAILY_JOBS. "
+               "song song: AUTOPILOT_MAX_PARALLEL. "
                "Chưa đo thời gian gọi Claude (QC/motion).")
 
 
@@ -1104,14 +1104,14 @@ def _monitor_v2(p: Pipeline, pid: int) -> None:
     usage = ", ".join(f"{q:g} {unit} ({kind})" for kind, unit, q in snap["usage_today"])
     explain = ("**Các số ở trên**\n\n"
                "- Dự án chạy tự động: số dự án đang chạy / tối đa song song (`AUTOPILOT_MAX_PARALLEL`).\n"
-               "- Lượt gửi thật hôm nay: ảnh + video đã gửi trả tiền (sổ chi, không tính mock) / trần ngày của chạy tự động "
-               "(`AUTOPILOT_DAILY_JOBS`, 0 = tắt, giờ UTC; nút bấm tay không bị chặn).\n\n"
+               "- Lượt gửi thật hôm nay: ảnh + video đã gửi trả tiền (sổ chi, không tính mock, giờ UTC) — chỉ để xem; không còn trần chung "
+               "mỗi ngày (S14.18: giới hạn theo người ở 👥 Nhóm).\n\n"
                "**Mức song song tự học** (tăng dần khi chạy êm, giảm một nửa khi nhà cung cấp báo quá tải 429): " + learned
                + ("\n\n**Dùng hôm nay:** " + usage if usage else "")
                + "\n\n👥 Số video / tiền theo người dùng → màn **Nhóm**. 📁 Bảng tất cả dự án và 🎬 sản phẩm đã hoàn tất → màn **⌂ Tất cả dự án**. "
                "Trang này chỉ giữ sức khỏe hệ thống: hàng đợi, tốc độ, lỗi, hiệu quả.\n\n"
-               "Ngưỡng cảnh báo chỉnh bằng biến môi trường: `PERF_MAX_ACTIVE`, `PERF_FAIL_WARN`, `PERF_SLOW_WARN`; song song: `AUTOPILOT_MAX_PARALLEL`; "
-               "trần ngày: `AUTOPILOT_DAILY_JOBS`. Chưa đo thời gian gọi Claude (QC/motion).\n\n"
+               "Ngưỡng cảnh báo chỉnh bằng biến môi trường: `PERF_MAX_ACTIVE`, `PERF_FAIL_WARN`, `PERF_SLOW_WARN`; song song: `AUTOPILOT_MAX_PARALLEL`. "
+               "Chưa đo thời gian gọi Claude (QC/motion).\n\n"
                "Giám sát luôn chạy nền khi có thao tác gọi nhà cung cấp/Claude; ngưỡng: `DIAG_STUCK_IMAGE_MIN`, `DIAG_STUCK_VIDEO_MIN`, "
                "`DIAG_QUEUED_MIN`, `DIAG_RETRY_WARN`.")
     with D.hero("mon"):
@@ -1120,7 +1120,7 @@ def _monitor_v2(p: Pipeline, pid: int) -> None:
         c1, c2, c3, c4 = st.columns(4)
         c1.markdown(D.stat("Dự án chạy tự động", f"{mgr.running_count()}/{mgr.max_parallel}"), unsafe_allow_html=True)
         c2.markdown(D.stat("Đang xếp hàng", str(mgr.queue_length())), unsafe_allow_html=True)
-        c3.markdown(D.stat("Lượt gửi thật hôm nay", f"{snap['sends_today']}/{snap['daily_limit'] or '∞'}"), unsafe_allow_html=True)
+        c3.markdown(D.stat("Lượt gửi thật hôm nay", f"{snap['sends_today']}"), unsafe_allow_html=True)
         c4.markdown(D.stat("Job đang chạy/chờ", str(busy)), unsafe_allow_html=True)
         b1, b2, _ = st.columns([1.6, 1.9, 4.5], vertical_alignment="center")
         with b1:

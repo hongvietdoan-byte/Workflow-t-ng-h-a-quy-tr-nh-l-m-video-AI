@@ -1,0 +1,233 @@
+"""S14.18 (mục 6d kế hoạch nâng cấp dashboard): giới hạn theo NGƯỜI, kiểm ở lõi (core/person_limits.py) — mọi đường tạo / cất dự án.
+
+(a) tối đa 2 dự án DỞ song song (chưa có bản giao 'final'; đã cất / đã xóa không tính) · (b) 2 dự án tạo mới / ngày, thứ 3 cần Owner duyệt
+· tối đa 1 dự án DỞ đang cất (dự án xong cất vào "Kho dự án đã xong", không giới hạn) · Owner không giới hạn, Owner nâng mức riêng từng người
+· trần job/ngày chung AUTOPILOT_DAILY_JOBS bỏ."""
+import os
+import sqlite3
+import tempfile
+import unittest
+from unittest import mock
+
+from core import archive, auth, compare, person_limits as PL
+from core.auth import Identity
+from core.db import connect
+from core.pipeline import Pipeline
+
+OWNER = auth.OWNER_EMAIL
+MEM = "nv@garena.vn"
+OTHER = "khac@garena.vn"
+
+
+def owner_id() -> Identity:
+    return Identity(OWNER, "owner", "owner", [])
+
+
+def as_user(conn, email: str, role: str = "member") -> Pipeline:
+    p = Pipeline(conn)
+    p.user = {"email": email, "role": role}
+    p.actor = email
+    return p
+
+
+def finish(conn, pid: int) -> None:
+    """A delivered project: the final render is recorded (what the 📥 box and the limits call "xong")."""
+    conn.execute("INSERT INTO outputs (project_id, kind, path, manifest, created_at) VALUES (?, 'final', ?, '{}', datetime('now'))", (pid, f"/x/{pid}.mp4"))
+    conn.commit()
+
+
+class Base(unittest.TestCase):
+    def setUp(self):
+        self.conn = connect()
+        auth.ensure_owner(self.conn)
+        auth.add_user(self.conn, owner_id(), MEM, [])
+        auth.add_user(self.conn, owner_id(), OTHER, [])
+        self.me = as_user(self.conn, MEM)
+
+    def make(self, name: str, p=None) -> int:
+        p = p or self.me
+        return p.create_project(name, created_by=p.user["email"])
+
+
+class OpenProjectLimit(Base):
+    def test_third_open_project_is_refused_with_the_list(self):
+        a, b = self.make("A"), self.make("B")
+        with self.assertRaises(PL.LimitReached) as e:
+            self.make("C")
+        err = e.exception
+        self.assertEqual(err.kind, "open")
+        self.assertEqual([r["id"] for r in err.projects], [a, b])
+        self.assertIn("2/2", str(err))
+        self.assertTrue(all("step" in r and "spent" in r for r in err.projects))     # tên, bước đang ở, đã chi ước tính
+        self.assertEqual(self.conn.execute("SELECT COUNT(*) FROM projects").fetchone()[0], 2)
+
+    def test_archived_finished_or_deleted_projects_do_not_count(self):
+        PL.set_limits(self.conn, {"email": OWNER, "role": "owner"}, MEM, daily=10)   # the daily limit is not what is tested here
+        a, b = self.make("A"), self.make("B")
+        archive.archive(self.me, a)                         # BỎ = cất: frees a place
+        c = self.make("C")
+        finish(self.conn, b)                                # hoàn thiện: not open any more
+        self.make("D")
+        with self.assertRaises(PL.LimitReached):
+            self.make("E")                                  # C + D open
+        self.me.delete_project(c)
+        self.make("E")
+
+    def test_someone_else_projects_do_not_count(self):
+        o = as_user(self.conn, OTHER)
+        self.make("O1", o), self.make("O2", o)
+        self.make("A"), self.make("B")
+
+    def test_clone_is_a_new_project_too(self):
+        a, _ = self.make("A"), self.make("B")
+        with self.assertRaises(PL.LimitReached):
+            compare.clone_project(self.me, a, "bản sao")
+
+    def test_restoring_a_parked_project_at_the_limit_is_refused_then_swap_works(self):
+        a, b = self.make("A"), self.make("B")
+        archive.archive(self.me, a)
+        with mock.patch.object(PL, "_today", return_value="2099-01-01"):
+            c = self.make("C")
+        with self.assertRaises(PL.LimitReached) as e:
+            archive.restore(self.me, a)
+        self.assertEqual(e.exception.kind, "open")
+        archive.swap(self.me, put_away=c, bring_back=a)       # GIỮ a, BỎ c in one go: never 3 open nor 2 parked
+        self.assertFalse(archive.is_archived(self.me.project(a)))
+        self.assertTrue(archive.is_archived(self.me.project(c)))
+        self.assertEqual({r["id"] for r in PL.open_projects(self.conn, MEM)}, {a, b})
+
+
+class DailyLimit(Base):
+    def test_third_creation_of_the_day_needs_owner_approval(self):
+        a = self.make("A")
+        b = self.make("B")
+        self.me.delete_project(a), self.me.delete_project(b)       # deleting does not give the day's places back
+        with self.assertRaises(PL.LimitReached) as e:
+            self.make("C")
+        self.assertEqual(e.exception.kind, "daily")
+        self.assertIn(f"Hôm nay bạn đã tạo 2/2 dự án: #{a}, #{b}", str(e.exception))
+        with self.assertRaises(ValueError):
+            PL.request(self.conn, self.me.user, "daily", "  ")       # a reason is required
+        rid = PL.request(self.conn, self.me.user, "daily", "cần làm gấp bản cho sự kiện")
+        self.assertEqual(PL.pending_count(self.conn), 1)
+        with self.assertRaises(PL.LimitReached):
+            self.make("C")                                          # still waiting
+        with self.assertRaises(auth.AuthError):
+            PL.approve(self.conn, {"email": OTHER, "role": "member"}, rid)
+        PL.approve(self.conn, {"email": OWNER, "role": "owner"}, rid)
+        c = self.make("C")
+        row = self.conn.execute("SELECT status, used_project_id FROM limit_requests WHERE id=?", (rid,)).fetchone()
+        self.assertEqual((row["status"], row["used_project_id"]), ("used", c))
+        self.me.delete_project(c)
+        with self.assertRaises(PL.LimitReached):
+            self.make("D")                                          # one approval = one project
+        actions = [r["action"] for r in auth.recent_audit(self.conn)]
+        self.assertIn("limit_request", actions)
+        self.assertIn("limit_approve", actions)
+
+    def test_rejected_request_does_not_open_a_place(self):
+        a, b = self.make("A"), self.make("B")
+        archive.archive(self.me, a)
+        finish(self.conn, b)
+        rid = PL.request(self.conn, self.me.user, "daily", "thử")
+        PL.reject(self.conn, {"email": OWNER, "role": "owner"}, rid)
+        with self.assertRaises(PL.LimitReached) as e:
+            self.make("C")
+        self.assertEqual(e.exception.kind, "daily")
+        self.assertEqual(PL.pending_count(self.conn), 0)
+
+    def test_owner_inbox_lists_waiting_requests(self):
+        from core import inbox
+        self.make("A"), self.make("B")
+        PL.request(self.conn, self.me.user, "daily", "lý do")
+        rows = [i for i in inbox.items(self.conn, OWNER, True, True, True) if i["kind"] == "Yêu cầu"]
+        self.assertEqual(len(rows), 1)
+        self.assertIn("1 yêu cầu", rows[0]["text"])
+        self.assertFalse([i for i in inbox.items(self.conn, MEM, False, False, True) if i["kind"] == "Yêu cầu"])
+
+
+class ParkedLimit(Base):
+    def test_second_unfinished_parked_project_is_refused_finished_ones_are_free(self):
+        a, b = self.make("A"), self.make("B")
+        archive.archive(self.me, a)
+        with self.assertRaises(PL.LimitReached) as e:
+            archive.archive(self.me, b)
+        self.assertEqual(e.exception.kind, "parked")
+        self.assertIn("1/1", str(e.exception))
+        self.assertEqual([r["id"] for r in e.exception.projects], [a])
+        self.assertFalse(archive.is_archived(self.me.project(b)))
+        finish(self.conn, b)
+        archive.archive(self.me, b)                                 # a finished project goes to the "Kho dự án đã xong": no limit
+        self.assertEqual([r["id"] for r in archive.finished_projects(self.conn)], [b])
+        self.assertEqual([r["id"] for r in archive.parked_projects(self.conn)], [a])
+
+    def test_owner_approval_lets_one_more_be_parked(self):
+        a, b = self.make("A"), self.make("B")
+        archive.archive(self.me, a)
+        rid = PL.request(self.conn, self.me.user, "parked", "giữ lại để so sánh", project_id=b)
+        PL.approve(self.conn, {"email": OWNER, "role": "owner"}, rid)
+        archive.archive(self.me, b)
+        self.assertTrue(archive.is_archived(self.me.project(b)))
+        self.assertEqual(self.conn.execute("SELECT status FROM limit_requests WHERE id=?", (rid,)).fetchone()[0], "used")
+
+
+class OwnerAndOverrides(Base):
+    def test_owner_has_no_limit(self):
+        o = as_user(self.conn, OWNER, "owner")
+        ids = [o.create_project(f"O{i}", created_by=OWNER) for i in range(4)]
+        archive.archive(o, ids[0]), archive.archive(o, ids[1])
+
+    def test_scripts_without_a_signed_in_person_are_not_limited(self):
+        system = Pipeline(self.conn)
+        for i in range(4):
+            system.create_project(f"s{i}", created_by="claude-code-test")
+
+    def test_owner_raises_one_person_limits(self):
+        with self.assertRaises(auth.AuthError):
+            PL.set_limits(self.conn, {"email": MEM, "role": "member"}, MEM, open=5)
+        PL.set_limits(self.conn, {"email": OWNER, "role": "owner"}, MEM, open=3, daily=3, parked=2)
+        self.assertEqual(PL.limits(self.conn, MEM), {"open": 3, "daily": 3, "parked": 2})
+        self.assertEqual(PL.limits(self.conn, OTHER), PL.BASE)
+        a, b, c = self.make("A"), self.make("B"), self.make("C")
+        archive.archive(self.me, a), archive.archive(self.me, b)
+        with self.assertRaises(PL.LimitReached) as e:
+            self.make("D")
+        self.assertIn("3/3", str(e.exception))
+        self.assertIn("limit_set", [r["action"] for r in auth.recent_audit(self.conn)])
+
+
+class DailyJobCapRemoved(unittest.TestCase):
+    def test_autopilot_daily_jobs_no_longer_stops_anything(self):
+        from core import autopilot, cost, perf
+        p = Pipeline(connect())
+        pid = p.create_project("d")
+        for _ in range(5):
+            cost.record_usage(p.conn, None, "image", "deepix", "gpt-image-2", "1k", 1, "image", project_id=pid)
+        self.assertFalse(hasattr(autopilot, "_daily_cap"))
+        self.assertFalse(hasattr(perf, "daily_limit"))
+        with mock.patch.dict(os.environ, {"AUTOPILOT_DAILY_JOBS": "1"}):
+            self.assertEqual(perf.snapshot(p.conn)["sends_today"], 5)
+            self.assertNotIn("daily_limit", perf.snapshot(p.conn))
+
+
+class MigrationOnAnOldDatabase(unittest.TestCase):
+    def test_old_database_gets_the_new_tables_and_keeps_its_rows(self):
+        path = os.path.join(tempfile.mkdtemp(), "old.sqlite")
+        conn = connect(path)
+        Pipeline(conn).create_project("cũ", created_by=MEM)
+        conn.execute("DROP TABLE limit_requests")
+        conn.execute("DROP TABLE project_creations")
+        conn.commit()
+        conn.close()
+        raw = sqlite3.connect(path)
+        self.assertEqual(raw.execute("SELECT COUNT(*) FROM sqlite_master WHERE name IN ('limit_requests','project_creations')").fetchone()[0], 0)
+        raw.close()
+        conn = connect(path)                                        # DROP changed schema_version: migrated again, like an old file
+        names = {r[0] for r in conn.execute("SELECT name FROM sqlite_master WHERE type='table'")}
+        self.assertTrue({"limit_requests", "project_creations"} <= names)
+        self.assertEqual([r["name"] for r in conn.execute("SELECT name FROM projects")], ["cũ"])
+        self.assertEqual([r["id"] for r in PL.open_projects(conn, MEM)], [1])
+
+
+if __name__ == "__main__":
+    unittest.main()

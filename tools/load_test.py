@@ -66,7 +66,6 @@ def run_once(n_projects, latency, poll, max_parallel, timeout, script):
                                  VideoRunner(pipeline, Slow(MockVideoProvider(polls_to_finish=3), latency), data_dir),
                                  llm_runner.MockLlm(), MockAudioProvider(), fake_render)
 
-    os.environ["AUTOPILOT_DAILY_JOBS"] = "0"      # no cap: we are measuring, not protecting
     mgr = autopilot.Manager(db, data, factory, poll_sec=poll, max_parallel=max_parallel)
     t0 = time.time()
     for i in ids:

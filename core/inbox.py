@@ -11,7 +11,7 @@ from . import access, archive, budget, money_policy, project_budget, team
 
 WAITING = ("waiting", "needs_attention")        # autopilot states that wait for a person (dashboard/next_step.py)
 
-KINDS = ("Ảnh", "Video", "Ngân sách", "Tiền", "Chạy tự động", "Hạn mức")
+KINDS = ("Ảnh", "Video", "Ngân sách", "Tiền", "Chạy tự động", "Hạn mức", "Yêu cầu")
 
 
 def _mine(created_by: Optional[str], email: str, is_owner: bool, auth_on: bool) -> bool:
@@ -97,6 +97,14 @@ def items(conn, email: str, is_owner: bool = True, can_money: bool = True, auth_
                     out.append({"kind": "Hạn mức", "project_id": None, "project": "",
                                 "text": f"{u['email']} đã dùng {st['share']:.0%} hạn mức ({st['spent']:.2f}/{st['limit']:.2f} USD / tháng)",
                                 "screen": None, "level": "warn", "who": u["email"], "sub": ""})
+    if is_owner and auth_on:            # S14.18: a person asks for one project more (3rd of the day / 2nd unfinished 📦) → Owner decides
+        from . import person_limits
+        waiting = person_limits.requests(conn, "pending")
+        if waiting:
+            names = ", ".join(sorted({r["email"] for r in waiting}))
+            out.append({"kind": "Yêu cầu", "project_id": None, "project": "",
+                        "text": f"{len(waiting)} yêu cầu vượt mức dự án chờ bạn duyệt ở 👥 Nhóm ({names})", "screen": None,
+                        "level": "wait", "who": "", "sub": ""})
     order = {"bad": 0, "wait": 1, "warn": 2, "todo": 3}
     out.sort(key=lambda x: (order.get(x["level"], 9), x["project_id"] or 0))
     return out

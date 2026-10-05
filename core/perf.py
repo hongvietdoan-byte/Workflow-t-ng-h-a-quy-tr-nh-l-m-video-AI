@@ -22,11 +22,6 @@ def _midnight() -> datetime:
     return datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
 
 
-def daily_limit() -> int:
-    """The automatic run's cap of REAL picture/clip sends per day (UTC), counted by sends_today; 0 = off. Buttons are not capped."""
-    return int(os.environ.get("AUTOPILOT_DAILY_JOBS", "300"))
-
-
 def _sql_midnight() -> str:
     """Today 00:00 UTC in the format of usage_events.at (SQLite datetime('now'): 'YYYY-MM-DD HH:MM:SS' — an ISO 'T…+00:00' string
     sorts AFTER every row of the day)."""
@@ -35,13 +30,13 @@ def _sql_midnight() -> str:
 
 def sends_today(conn) -> int:
     """Paid picture + clip sends since 00:00 UTC, by anyone (button, automatic run, any project): the ledger rows (usage_events) of
-    kind image/video whose provider is not simulated (mock*). What the automatic run's daily cap counts (S14.1, mục 3.1)."""
+    kind image/video whose provider is not simulated (mock*). Shown on 📊 (S14.18: the machine-wide daily cap that counted it is gone)."""
     return conn.execute("SELECT COUNT(*) FROM usage_events WHERE kind IN ('image','video') AND provider NOT LIKE 'mock%' AND at>=?",
                         (_sql_midnight(),)).fetchone()[0]
 
 
 def jobs_today(conn) -> int:
-    """Image + video jobs created since 00:00 UTC, by anyone (autopilot or manual) — shown only; the daily cap counts sends_today."""
+    """Image + video jobs created since 00:00 UTC, by anyone (autopilot or manual) — shown only."""
     return conn.execute("SELECT COUNT(*) c FROM jobs WHERE type IN ('image_gen','video_gen') AND created_at>=?",
                         (_iso(_midnight()),)).fetchone()["c"]
 
@@ -87,6 +82,35 @@ def by_kind(conn, kind: str, now: Optional[datetime] = None) -> Dict:
 STEP_LABELS = ("① Kịch bản", "② Gen ảnh", "③ Video Prompt", "④ Gen video", "⑤ Ghép & render", "✅ Hoàn tất")
 
 
+def _progress(conn, pid: int):
+    """(scenes, approved pictures, approved motion prompts, finished clips) of one project."""
+    def c(sql: str) -> int:
+        return conn.execute(sql, (pid,)).fetchone()[0]
+    return (c("SELECT COUNT(*) FROM scenes WHERE project_id=?"),
+            c("SELECT COUNT(DISTINCT scene_id) FROM jobs WHERE project_id=? AND type='image_gen' AND state='approved'"),
+            c("SELECT COUNT(DISTINCT s.id) FROM scenes s JOIN motion_prompts mp ON mp.scene_id=s.id WHERE s.project_id=? AND mp.state='approved'"),
+            c("SELECT COUNT(DISTINCT scene_id) FROM jobs WHERE project_id=? AND type='video_gen' AND state='succeeded'"))
+
+
+def _step(done: bool, scenes: int, images: int, motion: int, videos: int) -> int:
+    if done:
+        return 5
+    if not scenes:
+        return 0
+    if images < scenes:
+        return 1
+    if motion < scenes:
+        return 2
+    if videos < scenes:
+        return 3
+    return 4
+
+
+def step_label(conn, pid: int, done: bool = False) -> str:
+    """Where a project is (the ⌂ list's step), from the database only — S14.18 lists the person's unfinished projects with it."""
+    return STEP_LABELS[_step(done, *_progress(conn, pid))]
+
+
 def portfolio_rows(conn, data_dir: str) -> List[Dict]:
     """Every project (auto or step-by-step, running or idle) with its current step and final output, so a
     portfolio of many projects (e.g. 10 auto, or 3 semi-auto + 7 auto) can be tracked from one table."""
@@ -96,27 +120,12 @@ def portfolio_rows(conn, data_dir: str) -> List[Dict]:
         def c(sql: str) -> int:
             return conn.execute(sql, (r["id"],)).fetchone()["c"]
 
-        scenes = c("SELECT COUNT(*) c FROM scenes WHERE project_id=?")
-        images = c("SELECT COUNT(DISTINCT scene_id) c FROM jobs WHERE project_id=? AND type='image_gen' AND state='approved'")
-        motion = c("SELECT COUNT(DISTINCT s.id) c FROM scenes s JOIN motion_prompts mp ON mp.scene_id=s.id"
-                   " WHERE s.project_id=? AND mp.state='approved'")
-        videos = c("SELECT COUNT(DISTINCT scene_id) c FROM jobs WHERE project_id=? AND type='video_gen' AND state='succeeded'")
+        scenes, images, motion, videos = _progress(conn, r["id"])
         active = c("SELECT COUNT(*) c FROM jobs WHERE project_id=? AND state IN ('queued','running','retryable')")
         needs_review = c("SELECT COUNT(*) c FROM jobs WHERE project_id=? AND state='pending_review'")
         final_video = os.path.join(data_dir, str(r["id"]), "output", "FINAL_VIDEO.mp4")
         done = os.path.exists(final_video)
-        if done:
-            step = 5
-        elif not scenes:
-            step = 0
-        elif images < scenes:
-            step = 1
-        elif motion < scenes:
-            step = 2
-        elif videos < scenes:
-            step = 3
-        else:
-            step = 4
+        step = _step(done, scenes, images, motion, videos)
         out.append({"id": r["id"], "name": r["name"], "operating_mode": r["operating_mode"],
                     "running_auto": bool(r["autopilot_state"] and r["autopilot_state"] not in ("done", "stopped", "error")),
                     "autopilot_state": r["autopilot_state"], "autopilot_note": r["autopilot_note"] or "",
@@ -169,7 +178,7 @@ def by_user(conn, days: Optional[float] = None) -> List[Dict]:
     return out
 
 
-def alerts(kinds: List[Dict], today: int, limit: int, queued_projects: int, running_projects: int, max_parallel: int) -> List[str]:
+def alerts(kinds: List[Dict], queued_projects: int, running_projects: int, max_parallel: int) -> List[str]:
     out = []
     labels = dict(KINDS)
     active = sum(k["running"] + k["queued"] for k in kinds)
@@ -182,8 +191,6 @@ def alerts(kinds: List[Dict], today: int, limit: int, queued_projects: int, runn
                        "nên giảm số dự án chạy song song.")
         if k["recent_sec"] and k["earlier_sec"] and k["recent_sec"] >= SLOW_WARN * k["earlier_sec"]:
             out.append(f"{label}: đang chậm dần (gần đây {k['recent_sec']:.0f}s so với {k['earlier_sec']:.0f}s trước đó) — có thể quá tải.")
-    if limit and today >= 0.8 * limit:
-        out.append(f"Đã gửi {today}/{limit} lượt ảnh/video thật hôm nay — gần chạm trần ngày (các dự án tự động sẽ dừng khi chạm).")
     if queued_projects:
         out.append(f"{queued_projects} dự án đang xếp hàng (đang chạy {running_projects}/{max_parallel}).")
     return out
@@ -191,11 +198,11 @@ def alerts(kinds: List[Dict], today: int, limit: int, queued_projects: int, runn
 
 def snapshot(conn, queued_projects: int = 0, running_projects: int = 0, max_parallel: int = 0) -> Dict:
     kinds = [by_kind(conn, k) for k, _ in KINDS]
-    today, limit, sends = jobs_today(conn), daily_limit(), sends_today(conn)
+    today, sends = jobs_today(conn), sends_today(conn)
     units = conn.execute("SELECT kind, unit, SUM(quantity) q FROM usage_events WHERE at>=? GROUP BY kind, unit",
                          (_sql_midnight(),)).fetchall()
     from .throttle import THROTTLE
     learned = {k: THROTTLE.info(k) for k, _ in KINDS}
-    return {"kinds": kinds, "learned": learned, "projects": project_rows(conn), "jobs_today": today, "sends_today": sends, "daily_limit": limit,
+    return {"kinds": kinds, "learned": learned, "projects": project_rows(conn), "jobs_today": today, "sends_today": sends,
             "usage_today": [(u["kind"], u["unit"], u["q"]) for u in units],
-            "alerts": alerts(kinds, sends, limit, queued_projects, running_projects, max_parallel)}
+            "alerts": alerts(kinds, queued_projects, running_projects, max_parallel)}

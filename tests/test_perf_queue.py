@@ -107,52 +107,24 @@ def paid_rows(conn, n, provider="deepix", kind="image", at="datetime('now')"):
     conn.commit()
 
 
-class DailyCapTests(Setup):
-    def test_daily_job_cap_stops_new_jobs_across_projects(self):
-        # S14.1 (3.1): the cap now counts REAL sends of the day (usage_events, mock* excluded) + jobs queued to be sent — the test uses
-        # providers that are not named mock* (a simulated send costs nothing and no longer counts)
+class DailyCapGoneTests(Setup):
+    """S14.18: the machine-wide daily cap AUTOPILOT_DAILY_JOBS is gone (limits are per person: core/person_limits, and per product).
+    The tests that held the old cap now hold that the variable no longer stops anything; sends of the day are still counted to show."""
+
+    def test_the_old_variable_no_longer_stops_the_run(self):
         ctx = self.build(image=RealImage(), video=RealVideo(polls_to_finish=1))
-        os.environ["AUTOPILOT_DAILY_JOBS"] = "2"
-        try:
+        paid_rows(self.p.conn, 50)                                   # far over the old cap
+        with mock.patch.dict(os.environ, {"AUTOPILOT_DAILY_JOBS": "2"}):
             autopilot.set_gates(self.p, self.pid, {"bible": False, "storyboard": False})   # unattended run (checkpoint: test_v2)
             autopilot.start(self.p, self.pid)
-            self.assertEqual(autopilot.run_until_done(self.p, self.pid, ctx), autopilot.STOPPED)
-            self.assertIn("trong ngày", autopilot.status(self.p, self.pid)["note"])
-            self.assertEqual(perf.jobs_today(self.p.conn), 2)        # not one job more than the cap
-        finally:
-            os.environ.pop("AUTOPILOT_DAILY_JOBS", None)
-
-    def test_the_cap_counts_the_real_sends_of_the_day_by_anyone(self):
-        ctx = self.build(image=RealImage(), video=RealVideo(polls_to_finish=1))
-        paid_rows(self.p.conn, 3)                                    # sent today by a button / another project
-        paid_rows(self.p.conn, 5, kind="audio")                      # sound and Claude are capped elsewhere
-        paid_rows(self.p.conn, 5, at="datetime('now', '-2 days')")   # another day
-        self.assertEqual(perf.sends_today(self.p.conn), 3)
-        with mock.patch.dict(os.environ, {"AUTOPILOT_DAILY_JOBS": "3"}):
-            autopilot.start(self.p, self.pid)
-            self.assertEqual(autopilot.run_until_done(self.p, self.pid, ctx), autopilot.STOPPED)
-        self.assertIn("trong ngày", autopilot.status(self.p, self.pid)["note"])
-        self.assertEqual(perf.jobs_today(self.p.conn), 0)           # used to count jobs only: 0 < 3, pictures were sent
-
-    def test_simulated_sends_do_not_count(self):
-        ctx = self.build()                                           # mock providers: free
-        paid_rows(self.p.conn, 5, provider="mock-image")
-        with mock.patch.dict(os.environ, {"AUTOPILOT_DAILY_JOBS": "1"}):
-            autopilot.start(self.p, self.pid)
             self.assertEqual(autopilot.run_until_done(self.p, self.pid, ctx), autopilot.DONE)
+        self.assertNotIn("trong ngày", autopilot.status(self.p, self.pid)["note"])
+        self.assertGreater(perf.jobs_today(self.p.conn), 2)
+        self.assertFalse(hasattr(autopilot, "_daily_cap"))
 
-    def test_zero_turns_the_cap_off(self):
+    def test_a_waiting_redraw_is_sent_whatever_was_sent_today(self):
         ctx = self.build(image=RealImage(), video=RealVideo(polls_to_finish=1))
         paid_rows(self.p.conn, 50)
-        with mock.patch.dict(os.environ, {"AUTOPILOT_DAILY_JOBS": "0"}):
-            autopilot.start(self.p, self.pid)
-            autopilot.tick(self.p, self.pid, ctx)
-        self.assertNotIn("trong ngày", autopilot.status(self.p, self.pid)["note"])
-        self.assertGreater(perf.jobs_today(self.p.conn), 0)
-
-    def test_a_waiting_redraw_is_sent_when_nothing_was_sent_yet(self):
-        """Review B1b: at the storyboard gate the queued redraw itself counted against the cap (cap 1, 0 sent, 1 queued → stop)."""
-        ctx = self.build(image=RealImage(), video=RealVideo(polls_to_finish=1))
         sid = self.p.conn.execute("SELECT id FROM scenes WHERE project_id=? ORDER BY idx", (self.pid,)).fetchone()["id"]
         jid = self.p.create_job(sid, "image_gen")
         autopilot._set(self.p, self.pid, autopilot.WAITING, "chờ storyboard")
@@ -160,35 +132,17 @@ class DailyCapTests(Setup):
         with mock.patch.dict(os.environ, {"AUTOPILOT_DAILY_JOBS": "1"}):
             autopilot.serve_waiting(self.p, self.pid, ctx)
         self.assertNotEqual(self.p.job(jid)["state"], "queued")                 # sent
-        self.assertFalse(any("trong ngày" in e["msg"] for e in autopilot.status(self.p, self.pid)["log"]))
 
-    def test_queued_jobs_count_only_for_running_projects_and_once(self):
-        ctx = self.build(image=RealImage(), video=RealVideo(polls_to_finish=1))
-        sids = [r["id"] for r in self.p.conn.execute("SELECT id FROM scenes WHERE project_id=? ORDER BY idx", (self.pid,))]
-        others = {}
-        for name in ("paused", "stopped"):
-            pid = self.p.create_project(name)
-            others[name] = (pid, self.p.create_scene(pid, 1, "s"))
-            autopilot.start(self.p, pid)
-        self.p.set_paused(others["paused"][0], True)
-        autopilot.stop(self.p, others["stopped"][0])
-        for pid, sid in others.values():
-            self.p.create_job(sid, "image_gen")                                 # queued in a paused / stopped project
-        autopilot.start(self.p, self.pid)
-        sent = self.p.create_job(sids[0], "image_gen")
-        self.p.conn.execute("UPDATE jobs SET external_id='T1' WHERE id=?", (sent,))   # already in the ledger
-        self.p.conn.commit()
-        paid_rows(self.p.conn, 1)
-        with mock.patch.dict(os.environ, {"AUTOPILOT_DAILY_JOBS": "2"}):
-            autopilot._daily_cap(self.p, ctx)                                    # 1 sent + 0 counted queued < 2
-            self.p.create_job(sids[1], "image_gen")
-            with self.assertRaises(autopilot._Stop):
-                autopilot._daily_cap(self.p, ctx)                                # 1 sent + 1 queued here = 2
-
-    def test_the_snapshot_shows_the_counted_sends(self):
+    def test_sends_of_the_day_are_still_counted_for_the_screen(self):
         self.build()
-        paid_rows(self.p.conn, 2)
-        self.assertEqual(perf.snapshot(self.p.conn)["sends_today"], 2)
+        paid_rows(self.p.conn, 3)                                    # sent today
+        paid_rows(self.p.conn, 5, kind="audio")                      # not a picture / clip
+        paid_rows(self.p.conn, 5, at="datetime('now', '-2 days')")   # another day
+        paid_rows(self.p.conn, 4, provider="mock-image")             # simulated: free
+        self.assertEqual(perf.sends_today(self.p.conn), 3)
+        snap = perf.snapshot(self.p.conn)
+        self.assertEqual(snap["sends_today"], 3)
+        self.assertNotIn("daily_limit", snap)
 
 
 class PerfTests(Setup):
@@ -226,15 +180,15 @@ class PerfTests(Setup):
     def test_alerts_flag_overload_failures_slowdown_and_queue(self):
         base = {"kind": "video_gen", "running": 0, "queued": 0, "ok_1h": 0, "failed_1h": 0, "ok_24h": 0, "failed_24h": 0,
                 "avg_sec": None, "recent_sec": None, "earlier_sec": None, "recent_fail_rate": 0.0, "recent_outcomes": 0}
-        self.assertEqual(perf.alerts([base], 0, 300, 0, 0, 2), [])
+        self.assertEqual(perf.alerts([base], 0, 0, 2), [])
         busy = dict(base, running=perf.MAX_ACTIVE, queued=3)
-        self.assertTrue(any("cùng lúc" in a for a in perf.alerts([busy], 0, 300, 0, 0, 2)))
+        self.assertTrue(any("cùng lúc" in a for a in perf.alerts([busy], 0, 0, 2)))
         failing = dict(base, recent_fail_rate=0.5, recent_outcomes=10)
-        self.assertTrue(any("bị lỗi" in a for a in perf.alerts([failing], 0, 300, 0, 0, 2)))
+        self.assertTrue(any("bị lỗi" in a for a in perf.alerts([failing], 0, 0, 2)))
         slow = dict(base, recent_sec=200, earlier_sec=60)
-        self.assertTrue(any("chậm dần" in a for a in perf.alerts([slow], 0, 300, 0, 0, 2)))
-        self.assertTrue(any("trần ngày" in a for a in perf.alerts([base], 250, 300, 0, 0, 2)))
-        self.assertTrue(any("xếp hàng" in a for a in perf.alerts([base], 0, 300, 2, 2, 2)))
+        self.assertTrue(any("chậm dần" in a for a in perf.alerts([slow], 0, 0, 2)))
+        self.assertFalse(any("trần ngày" in a for a in perf.alerts([base], 0, 0, 2)))   # S14.18: no machine-wide daily cap
+        self.assertTrue(any("xếp hàng" in a for a in perf.alerts([base], 2, 2, 2)))
 
 
 if __name__ == "__main__":

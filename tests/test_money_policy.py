@@ -194,21 +194,22 @@ class AutopilotStopsOnlyWhenClaudeCannotAnswer(unittest.TestCase):
         self.assertIn("Hết tiền", str(e.exception))
 
 
-class DailyCapSaysTheNumbers(unittest.TestCase):
-    def test_the_daily_cap_stop_says_sends_cap_money_and_how_to_open(self):
+class DailyCapIsGone(unittest.TestCase):
+    """S14.18 (mục 6d.5): the machine-wide daily job cap AUTOPILOT_DAILY_JOBS was removed with the per-person limits — the old variable
+    stops nothing (the stops that remain: out_of_credit, paused project, product job cap, auto-regeneration limits)."""
+
+    def test_the_old_daily_cap_variable_stops_nothing(self):
         from core import autopilot, cost
         p = Pipeline(connect())
         pid = p.create_project("d")
         for _ in range(3):
             cost.record_usage(p.conn, None, "image", "deepix", "gpt-image-2", "1k", 1, "image", project_id=pid)
-        with mock.patch.dict(os.environ, {"AUTOPILOT_DAILY_JOBS": "3"}), self.assertRaises(autopilot._Stop) as e:
-            autopilot._daily_cap(p)
-        text = str(e.exception)
-        self.assertIn("trong ngày", text)
-        self.assertIn("3 lượt", text)
-        self.assertIn("trần 3", text)
-        self.assertIn("đã chi hôm nay ≈ $0.16", text)
-        self.assertIn("AUTOPILOT_DAILY_JOBS", text)
+        self.assertFalse(hasattr(autopilot, "_daily_cap"))
+        self.assertFalse(hasattr(autopilot, "DAILY_NOTE"))
+        sid = p.create_scene(pid, 1, "s")
+        with mock.patch.dict(os.environ, {"AUTOPILOT_DAILY_JOBS": "3"}):
+            jid = autopilot._create_job(p, None, sid, "image_gen")
+        self.assertEqual(p.job(jid)["state"], "queued")
 
 
 class AutoRegenLimit(unittest.TestCase):

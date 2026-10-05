@@ -34,6 +34,8 @@ def clone_project(p: Pipeline, project_id: int, name: str, shot_mode: Optional[s
     with_rows: copy the scene / shot rows (same Director plan) — False keeps only the script scenes (run the Director again)."""
     access.need_view(p, project_id, "nhân bản dự án")
     conn = p.conn
+    from . import person_limits                     # S14.18: a copy is a new project — same per-person limits as "➕ Dự án mới"
+    approval = person_limits.check_create(conn, p.user)
     src = p.project(project_id)
     skip = SKIP_PROJECT | ({"director_raw"} if not with_rows else set())    # the old plan must not seed "chia shot lại một cảnh"
     cols = [c for c in _cols(conn, "projects") if c not in skip]
@@ -69,6 +71,7 @@ def clone_project(p: Pipeline, project_id: int, name: str, shot_mode: Optional[s
                          (new, s["idx"], s["heading"], json.dumps({"text": s["text"], "characters": s["data"].get("characters") or []},
                                                                   ensure_ascii=False)))
     conn.commit()
+    person_limits.record_create(conn, p.user, new, approval)
     from .pipeline import cheap_while_testing
     cheap_while_testing(conn, new)          # a copy made during a budget test round is cheap too
     return new

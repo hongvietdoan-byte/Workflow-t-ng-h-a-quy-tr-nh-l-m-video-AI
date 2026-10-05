@@ -107,6 +107,8 @@ class Pipeline:
             mine = (self.user.get("email") or "").strip().lower()
             if (created_by or "").strip().lower() != mine:           # one may only create projects in one's own name
                 raise access.AccessDenied("Bạn chỉ được tạo dự án đứng tên chính mình — dự án đứng tên người khác phải do Owner làm.")
+        from . import person_limits                                 # S14.18: 2 unfinished at once, 2 new a day (Owner: no limit)
+        approval = person_limits.check_create(self.conn, self.user)
         used =[self.conn.execute(sql).fetchone()[0] or 0 for sql in (
             "SELECT MAX(id) FROM projects", "SELECT MAX(project_id) FROM usage_events", "SELECT MAX(deleted_project_id) FROM usage_events",
             "SELECT MAX(project_id) FROM outputs",
@@ -119,6 +121,7 @@ class Pipeline:
         if game:
             self.conn.execute("UPDATE projects SET game=? WHERE id=?", (game, cur.lastrowid))
         self.conn.commit()
+        person_limits.record_create(self.conn, self.user, cur.lastrowid, approval)
         cheap_while_testing(self.conn, cur.lastrowid)
         return cur.lastrowid
 

@@ -424,6 +424,30 @@ CREATE TABLE IF NOT EXISTS login_attempts (
     ok INTEGER NOT NULL DEFAULT 0
 );
 CREATE INDEX IF NOT EXISTS idx_login_attempts_ip ON login_attempts(ip, at);
+CREATE TABLE IF NOT EXISTS project_creations (
+    id INTEGER PRIMARY KEY,            -- S14.18 core/person_limits.py: every project a signed-in person made (kept when the project is
+    email TEXT NOT NULL,               -- deleted: deleting does not give the day's places back)
+    project_id INTEGER,
+    day TEXT NOT NULL,                 -- local date YYYY-MM-DD (the "per day" limit)
+    at TEXT NOT NULL,
+    request_id INTEGER                 -- the Owner-approved request it used (3rd+ project of the day), NULL otherwise
+);
+CREATE INDEX IF NOT EXISTS idx_project_creations ON project_creations(email, day);
+CREATE TABLE IF NOT EXISTS limit_requests (
+    id INTEGER PRIMARY KEY,            -- S14.18: a person asks the Owner for one place more (👥 Nhóm approves / refuses)
+    email TEXT NOT NULL,
+    kind TEXT NOT NULL CHECK (kind IN ('daily','parked')),   -- 'daily' = one more new project today; 'parked' = one more unfinished 📦
+    reason TEXT NOT NULL,
+    project_id INTEGER,                -- the project it is about (parked), shown to the Owner
+    status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending','approved','rejected','used')),
+    requested_at TEXT NOT NULL,
+    decided_at TEXT,
+    decided_by TEXT,
+    decided_day TEXT,                  -- an approved 'daily' place is for the day it was approved
+    used_at TEXT,
+    used_project_id INTEGER
+);
+CREATE INDEX IF NOT EXISTS idx_limit_requests ON limit_requests(status, email);
 """
 
 

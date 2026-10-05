@@ -54,7 +54,6 @@ def config() -> Dict:
         "per_project_running": 5,
         "throttle_start": t.start, "throttle_max": t.maximum, "throttle_up_every": t.up_every,
         "provider_caps": {k: t.cap(k) or None for k in KINDS},
-        "daily_jobs": perf.daily_limit(),
         "autopilot_max_scenes": autopilot.MAX_SCENES,
         "learned": {k: t.limit(k) for k in KINDS},
     }
