@@ -273,8 +273,16 @@ def generate(conn, project_id: int, provider, data_dir: str, scene_ids=None, led
         if old is not None:
             i, e = old
             same = (e.get("text") == ln["text"] and e.get("voice_id") == ln["voice"]["voice_id"]
-                    and (how is None or e.get("delivery") == how)
-                    and (e.get("pitch_semitones") or None) == (pitch or None))   # S14.26: another variant of the voice = another line      # feature off: a line made with direction is kept, not re-paid
+                    and (how is None or e.get("delivery") == how))      # feature off: a line made with direction is kept, not re-paid
+            if same and e["state"] in ("running", "succeeded") and (e.get("pitch_semitones") or None) != (pitch or None):
+                # S14.26: only the variant's pitch changed (or was lost) — ffmpeg from the kept original, 0 USD, never a new TTS
+                e["pitch_semitones"] = pitch or None
+                if voice_casting.needs_render(e):
+                    voice_casting.render_pitch(directory, e)
+                audio_lib.update(directory, i, **{k: e.get(k) for k in ("pitch_semitones", "pitch_applied", "pitch_failed",
+                                                                        "raw_file", "message") if k in e})
+                skipped += 1
+                continue
             if same and e["state"] in ("running", "succeeded"):
                 skipped += 1
                 continue
@@ -289,7 +297,7 @@ def generate(conn, project_id: int, provider, data_dir: str, scene_ids=None, led
         extra = {"scene_id": ln["scene_id"], "scene_idx": ln["idx"], "line": ln["line"], "speaker": ln["speaker"],
                  "text": ln["text"], "voice_id": ln["voice"]["voice_id"], "dialogue": True, "resends": resends}
         if pitch:
-            extra["pitch_semitones"] = pitch                 # pitched after download (audio_lib.refresh → voice_casting.shift_pitch)
+            extra["pitch_semitones"] = pitch                 # pitched after download (audio_lib.refresh → voice_casting.render_pitch)
         said = speakable(ln["text"])
         if slow and ln["scene_id"] in slow:
             said = slow_end(said)

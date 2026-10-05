@@ -125,29 +125,24 @@ def refresh(provider, directory: str) -> Dict[str, int]:
                 st = provider.status(e["kind"], e["asset_id"])
                 if st.state == "succeeded":
                     dest = os.path.join(directory, f"{e['kind']}_{e['asset_id']}.{_ext(provider)}")
-                    provider.download(st.url, dest)
+                    if e.get("pitch_semitones"):         # S14.26: a voice shared by two roles — the download is kept as the original
+                        from .voice_casting import raw_path
+                        provider.download(st.url, raw_path(dest))
+                    else:
+                        provider.download(st.url, dest)
                     e.update(state="succeeded", file=os.path.basename(dest), duration_ms=st.duration_ms)
-                    if e.get("pitch_semitones"):         # S14.26: a voice shared by two roles — the variant's pitch, 0 USD
-                        _pitch(e, dest)
                 elif st.state == "failed":
                     e.update(state="failed", message=st.message, provider_failed=True)   # made and failed at the provider
             except ProviderError as ex:
                 if not ex.transient:
                     e.update(state="failed", message=str(ex), error_code=ex.code, transient=False)
+        if e.get("kind") == "tts":                     # S14.26: variant pitch (new, failed before or changed) — ffmpeg, 0 USD
+            from . import voice_casting
+            if voice_casting.needs_render(e):
+                voice_casting.render_pitch(directory, e)
         counts[e["state"]] = counts.get(e["state"], 0) + 1
     _save(directory, items)
     return counts
-
-
-def _pitch(e: Dict, path: str) -> None:
-    """Shift the downloaded line by its variant's semitones; a failure stays written on the line (the role would sound like the
-    other one on the same voice) instead of being hidden."""
-    from . import voice_casting
-    try:
-        voice_casting.shift_pitch(path, e["pitch_semitones"])
-        e.update(pitch_applied=e["pitch_semitones"], pitch_failed=False)
-    except Exception as ex:  # noqa: BLE001 - ffmpeg missing / failed: reported on the line
-        e.update(pitch_failed=True, message=f"chưa chỉnh được cao độ {e['pitch_semitones']:+g} nửa cung (giọng sẽ giống vai dùng chung): {ex}"[:300])
 
 
 def set_mix(directory: str, index: int, use: bool, start: float, volume: float) -> None:

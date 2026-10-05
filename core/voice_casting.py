@@ -7,8 +7,11 @@
    order; the role with most lines takes the first free voice. The choice goes into the character's voice profile with "auto": True —
    the person changes it in Character Bible (a saved choice drops "auto" and is never overwritten, not even by a new analysis).
 3. More roles of one gender than voices → a voice is used again with a `variant`: pitch ±2–3 semitones (ffmpeg after the TTS,
-   `shift_pitch`, 0 USD) + a ClipAI `speed` (input_params 0.7–1.2), so two roles on one voice do not sound the same. `shared_voices`
-   tells the screen which roles share a voice.
+   `render_pitch`, 0 USD) + a ClipAI `speed` (input_params 0.7–1.2), so two roles on one voice do not sound the same. `shared_voices`
+   tells the screen which roles share a voice. The download is kept untouched as `<file>.raw.<ext>`; the line's file is always rendered
+   from it (twice = same result; a changed variant is re-pitched from it, never sent to the TTS again).
+4. A profile that has a `variant` keeps being pitched even after the feature is switched off (the flag only decides casting + the prompt
+   block; the variant is part of the saved voice). Saving the same voice again on the screen keeps its variant (`saved_profile`).
 """
 import json
 import os
@@ -144,7 +147,8 @@ def apply(conn, project_id: int) -> Dict:
         r = rows[who]
         prof, traits = voice.get_profile(r), get_traits(r)
         g = traits.get("gender")
-        fits = prof.get("voice_id") and (not prof.get("auto") or gender_of_voice.get(prof["voice_id"]) == g)
+        fits = prof.get("voice_id") and (not prof.get("auto") or g not in ("nam", "nữ")      # unknown now: keep (no re-paid TTS)
+                                         or gender_of_voice.get(prof["voice_id"]) == g)
         if fits:                                         # the person's choice, or an auto voice still right: kept (no re-paid TTS)
             uses[prof["voice_id"]] = uses.get(prof["voice_id"], 0) + 1
             report["kept"].append(r["name"])
@@ -176,10 +180,13 @@ def apply(conn, project_id: int) -> Dict:
 def after_analysis(conn, project_id: int, obj: Dict) -> Optional[Dict]:
     """Called once the Director's answer is stored: traits saved, missing ones reported, voices cast by rule. None when the feature is
     off. A failure is written to diag and returned — the paid analysis stays saved."""
-    if not enabled():
-        store_traits(conn, project_id, obj.get("characters") or [])     # kept if given (e.g. pasted JSON); nothing is cast
-        return None
     from . import diag
+    if not enabled():
+        try:
+            store_traits(conn, project_id, obj.get("characters") or [])     # kept if given (e.g. pasted JSON); nothing is cast
+        except Exception as e:  # noqa: BLE001 - the paid analysis is already stored: say it, do not raise
+            diag.record(conn, "director", "error", f"Lưu voice_traits lỗi: {e}", "auto_voice_cast", project_id)
+        return None
     try:
         found, problems = store_traits(conn, project_id, obj.get("characters") or [])
         named = {voice._norm(c.get("name")) for c in obj.get("characters") or [] if isinstance(c, dict)}
@@ -248,11 +255,61 @@ def build_pitch_cmd(src: str, dst: str, semitones: float, ffmpeg: str = "ffmpeg"
     return [ffmpeg, "-y", "-hide_banner", "-i", src, "-af", pitch_filter(semitones), dst]
 
 
-def shift_pitch(path: str, semitones: float, ffmpeg: Optional[str] = None) -> str:
-    """Change the voice file in place (written to a temp file next to it, then swapped). Raises on an ffmpeg failure."""
-    from . import ffmpeg_studio
+def saved_profile(prof: Dict, pick, voice_name: Optional[str], persona: str) -> Optional[Dict]:
+    """The profile the screen's 💾 Lưu writes: the person's choice (no "auto"), keeping the variant when the voice is the same one —
+    dropping it would send the paid lines to the TTS again and make the two roles on that voice sound alike."""
+    if not pick:
+        return None
+    out = {"voice_id": pick, "voice_name": voice_name or "", "persona": persona or ""}
+    if pick == prof.get("voice_id") and prof.get("variant"):
+        out["variant"] = dict(prof["variant"])
+    return out
+
+
+def raw_path(path: str) -> str:
     root, ext = os.path.splitext(path)
-    tmp = f"{root}.pitch{ext}"
-    ffmpeg_studio.run(build_pitch_cmd(path, tmp, semitones, ffmpeg or ffmpeg_studio.find_ffmpeg()))
-    os.replace(tmp, path)
-    return path
+    return f"{root}.raw{ext}"
+
+
+def needs_render(e: Dict) -> bool:
+    """A finished line whose file does not have its variant's pitch yet (a failed or changed pitch) — re-rendered at 0 USD."""
+    return (e.get("state") == "succeeded" and bool(e.get("file"))
+            and (bool(e.get("pitch_failed")) or (e.get("pitch_semitones") or None) != (e.get("pitch_applied") or None)))
+
+
+def render_pitch(directory: str, e: Dict, ffmpeg: Optional[str] = None) -> bool:
+    """Write the line's file from the untouched download (`raw_path`) with `e["pitch_semitones"]` (none = a plain copy). The first
+    time the current file IS the download and is kept as the original. Each run writes its own temp file and swaps it in, so two
+    refreshes at once give the same file (never pitched twice). Updates e (pitch_applied / pitch_failed / message / raw_file); a
+    failure is written on the line, the temp file removed and the plain voice left in place."""
+    import shutil
+    import uuid
+    from . import ffmpeg_studio
+    path = os.path.join(directory, e["file"])
+    raw = raw_path(path)
+    semis = e.get("pitch_semitones") or None
+    root, ext = os.path.splitext(path)
+    tmp = f"{root}.{uuid.uuid4().hex}.tmp{ext}"
+    try:
+        if not os.path.exists(raw):
+            if e.get("pitch_applied"):
+                raise RuntimeError("không còn file gốc chưa chỉnh (bản cũ chỉnh đè) — tạo lại câu này nếu cần")
+            shutil.copyfile(path, tmp)
+            os.replace(tmp, raw)
+        if semis:
+            ffmpeg_studio.run(build_pitch_cmd(raw, tmp, semis, ffmpeg or ffmpeg_studio.find_ffmpeg()))
+        else:
+            shutil.copyfile(raw, tmp)
+        os.replace(tmp, path)
+    except Exception as ex:  # noqa: BLE001 - ffmpeg missing / failed: written on the line, retried later at 0 USD
+        if os.path.exists(tmp):
+            os.remove(tmp)
+        if not os.path.exists(path) and os.path.exists(raw):
+            shutil.copyfile(raw, path)                   # the plain voice meanwhile, never a missing file
+        e.update(pitch_failed=True, message=(f"chưa chỉnh được cao độ {semis or 0:+g} nửa cung (giọng sẽ giống vai dùng chung): "
+                                             f"{ex}")[:300])
+        return False
+    if e.get("pitch_failed"):
+        e["message"] = None
+    e.update(raw_file=os.path.basename(raw), pitch_applied=semis, pitch_failed=False)
+    return True

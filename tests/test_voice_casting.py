@@ -78,6 +78,13 @@ class MissingTraitTests(Base):
         rows = self.p.conn.execute("SELECT message FROM diag_events WHERE project_id=?", (self.pid,)).fetchall()
         self.assertTrue(any("KELLY" in r["message"] for r in rows))
 
+    def test_a_traits_failure_with_the_flag_off_is_written_not_raised(self):
+        with mock.patch.dict(os.environ, {"FEATURE_AUTO_VOICE_CAST": "0"}),                 mock.patch.object(voice_casting, "store_traits", side_effect=RuntimeError("hỏng")):
+            obj = store_scene_analysis(self.p, self.pid, analysis([("KENTA", "nam")], ["KENTA"]))
+        self.assertEqual(obj["characters"][0]["name"], "KENTA")
+        rows = self.p.conn.execute("SELECT message FROM diag_events WHERE project_id=?", (self.pid,)).fetchall()
+        self.assertTrue(any("hỏng" in r["message"] for r in rows))
+
     def test_traits_are_stored_on_the_character(self):
         with mock.patch.dict(os.environ, ON):
             store_scene_analysis(self.p, self.pid, analysis([("KENTA", "nam")], ["KENTA"]))
@@ -156,12 +163,48 @@ class RuleTests(Base):
         self.assertEqual(self.prof("B")["voice_id"], 72)
         self.assertNotIn("variant", self.prof("B"))
 
+    def test_an_auto_voice_whose_gender_became_unknown_is_kept_and_counted(self):
+        with mock.patch.dict(os.environ, ON):
+            store_scene_analysis(self.p, self.pid, analysis([("A", "nam"), ("B", "nam")], ["A", "A", "B"]))
+            obj = analysis([("A", "không rõ"), ("B", "nam"), ("C", "nam")], ["A", "A", "B", "C"])
+            store_scene_analysis(self.p, self.pid, obj)
+        self.assertEqual(self.prof("A")["voice_id"], 72)                       # kept: no re-paid TTS
+        self.assertIn("A", obj["voice_cast"]["kept"])
+        self.assertNotIn("A", obj["voice_cast"]["unknown"])
+        self.assertFalse(any(x.startswith("A:") and "chưa tự gắn" in x for x in obj["voice_cast"]["problems"]))
+        self.assertEqual(self.prof("C")["voice_id"], 72)                       # 72 counted as used by A → C gets a variant
+        self.assertIn("variant", self.prof("C"))
+
     def test_no_preferred_voice_file_is_reported(self):
         with mock.patch.dict(os.environ, ON), mock.patch.object(voice, "voice_config", return_value={}):
             obj = analysis([("A", "nam")], ["A"])
             store_scene_analysis(self.p, self.pid, obj)
         self.assertTrue(any("voices_vi.json" in x for x in obj["voice_cast"]["problems"]))
         self.assertIsNone(self.prof("A").get("voice_id"))
+
+
+def fake_ffmpeg(cmd):
+    """Writes the input + the filter, so pitching twice from the original gives the same bytes and pitching a pitched file does not."""
+    with open(cmd[cmd.index("-i") + 1], "rb") as f:
+        data = f.read()
+    with open(cmd[-1], "wb") as f:
+        f.write(data + b"|" + cmd[cmd.index("-af") + 1].encode())
+
+
+def read(d, name):
+    with open(os.path.join(d, name), "rb") as f:
+        return f.read()
+
+
+class Prov:
+    name = "mock"
+
+    def status(self, kind, asset_id):
+        return mock.Mock(state="succeeded", url="u", duration_ms=1200)
+
+    def download(self, url, dest):
+        with open(dest, "wb") as f:
+            f.write(b"x")
 
 
 class PitchTests(unittest.TestCase):
@@ -173,63 +216,59 @@ class PitchTests(unittest.TestCase):
         self.assertIn(f"atempo={1 / ratio:.6f}", spec)
         self.assertEqual(cmd[-1], "out.mp3")
 
-    def test_shift_pitch_runs_ffmpeg_with_the_semitones(self):
+    def test_rendering_twice_gives_the_same_file_from_the_kept_original(self):
         d = tempfile.mkdtemp()
-        src = os.path.join(d, "tts_1.mp3")
-        with open(src, "wb") as f:
+        with open(os.path.join(d, "tts_1.mp3"), "wb") as f:
             f.write(b"raw")
-        calls = []
-
-        def fake_run(cmd):
-            calls.append(cmd)
-            with open(cmd[-1], "wb") as f:
-                f.write(b"shifted")
-        with mock.patch("core.ffmpeg_studio.run", side_effect=fake_run), mock.patch("core.ffmpeg_studio.find_ffmpeg", return_value="ff"):
-            voice_casting.shift_pitch(src, -2.5)
-        self.assertEqual(len(calls), 1)
-        self.assertEqual(calls[0][0], "ff")
-        self.assertIn(f"asetrate={44100 * 2 ** (-2.5 / 12):.0f}", calls[0][calls[0].index("-af") + 1])
-        with open(src, "rb") as f:
-            self.assertEqual(f.read(), b"shifted")
+        e = {"file": "tts_1.mp3", "pitch_semitones": -2.5}
+        with mock.patch("core.ffmpeg_studio.run", side_effect=fake_ffmpeg) as run,                 mock.patch("core.ffmpeg_studio.find_ffmpeg", return_value="ff"):
+            self.assertTrue(voice_casting.render_pitch(d, e))
+            first = read(d, "tts_1.mp3")
+            self.assertTrue(voice_casting.render_pitch(d, e))           # a second refresh (UI + autopilot at once)
+        self.assertEqual(read(d, "tts_1.mp3"), first)                   # not pitched twice
+        self.assertEqual(read(d, e["raw_file"]), b"raw")                 # the download stays untouched
+        self.assertIn(f"asetrate={44100 * 2 ** (-2.5 / 12):.0f}".encode(), first)
+        tmps = [c.args[0][-1] for c in run.call_args_list]
+        self.assertEqual(len(set(tmps)), 2)                              # each run its own temp file
+        self.assertEqual(sorted(os.listdir(d)), ["tts_1.mp3", "tts_1.raw.mp3"])
+        e["pitch_semitones"] = None                                      # back to the plain voice: copied from the original
+        voice_casting.render_pitch(d, e)
+        self.assertEqual(read(d, "tts_1.mp3"), b"raw")
 
     def test_a_finished_line_with_a_variant_is_pitched_after_download(self):
         d = tempfile.mkdtemp()
-
-        class Prov:
-            name = "mock"
-
-            def status(self, kind, asset_id):
-                return mock.Mock(state="succeeded", url="u", duration_ms=1200)
-
-            def download(self, url, dest):
-                with open(dest, "wb") as f:
-                    f.write(b"x")
         audio_lib._add(d, "tts", "l", "a1", extra={"pitch_semitones": 3})
         audio_lib._add(d, "tts", "l2", "a2")
-        with mock.patch.object(voice_casting, "shift_pitch") as shift:
+        with mock.patch("core.ffmpeg_studio.run", side_effect=fake_ffmpeg), mock.patch("core.ffmpeg_studio.find_ffmpeg", return_value="ff"):
             audio_lib.refresh(Prov(), d)
-        self.assertEqual(shift.call_count, 1)
-        self.assertEqual(shift.call_args[0][1], 3)
-        self.assertEqual(audio_lib.load(d)[0]["pitch_applied"], 3)
+        e = audio_lib.load(d)[0]
+        self.assertEqual(e["pitch_applied"], 3)
+        self.assertEqual(read(d, e["raw_file"]), b"x")
+        self.assertNotEqual(read(d, e["file"]), b"x")
+        self.assertEqual(read(d, audio_lib.load(d)[1]["file"]), b"x")      # no variant: untouched, no raw copy
+        self.assertNotIn("raw_file", audio_lib.load(d)[1])
 
-    def test_a_failed_pitch_is_written_on_the_line_not_hidden(self):
+    def test_a_failed_pitch_is_written_on_the_line_cleaned_up_and_retried_later(self):
         d = tempfile.mkdtemp()
-
-        class Prov:
-            name = "mock"
-
-            def status(self, kind, asset_id):
-                return mock.Mock(state="succeeded", url="u", duration_ms=1200)
-
-            def download(self, url, dest):
-                with open(dest, "wb") as f:
-                    f.write(b"x")
         audio_lib._add(d, "tts", "l", "a1", extra={"pitch_semitones": -3})
-        with mock.patch.object(voice_casting, "shift_pitch", side_effect=RuntimeError("ffmpeg hỏng")):
+
+        def broken(cmd):
+            with open(cmd[-1], "wb") as f:
+                f.write(b"half")
+            raise RuntimeError("ffmpeg hỏng")
+        with mock.patch("core.ffmpeg_studio.run", side_effect=broken), mock.patch("core.ffmpeg_studio.find_ffmpeg", return_value="ff"):
             audio_lib.refresh(Prov(), d)
         e = audio_lib.load(d)[0]
         self.assertTrue(e["pitch_failed"])
         self.assertIn("cao độ", e["message"])
+        self.assertEqual(read(d, e["file"]), b"x")                        # the plain voice is there meanwhile
+        self.assertFalse([n for n in os.listdir(d) if ".tmp" in n])       # no temp file left behind
+        with mock.patch("core.ffmpeg_studio.run", side_effect=fake_ffmpeg), mock.patch("core.ffmpeg_studio.find_ffmpeg", return_value="ff"):
+            audio_lib.refresh(Prov(), d)                                  # 0 USD: re-pitched from the original
+        e = audio_lib.load(d)[0]
+        self.assertFalse(e["pitch_failed"])
+        self.assertEqual(e["pitch_applied"], -3)
+
 
 
 class GenerateTests(Base):
@@ -254,12 +293,42 @@ class GenerateTests(Base):
         a = [e for e in items if e.get("speaker") == "A"][0]
         self.assertNotIn("pitch_semitones", a)
 
+    def test_only_a_changed_pitch_is_re_pitched_never_sent_to_tts_again(self):
+        sent = []
+
+        class Tts(Prov):
+            def generate_tts(self, text, voice_id, model, lang, name="", params=None):
+                sent.append(text)
+                return f"t{len(sent)}"
+        d = tempfile.mkdtemp()
+        with mock.patch.dict(os.environ, ON), mock.patch("core.ffmpeg_studio.run", side_effect=fake_ffmpeg),                 mock.patch("core.ffmpeg_studio.find_ffmpeg", return_value="ff"):
+            store_scene_analysis(self.p, self.pid, analysis([("A", "nam"), ("B", "nam"), ("C", "nam")], ["A", "A", "B", "C"]))
+            voice.generate(self.p.conn, self.pid, Tts(), d, ledger=False, settle=False)
+            audio_lib.refresh(Tts(), audio_lib.assets_dir(d, self.pid))
+            paid = len(sent)
+            # the person saves C's voice again (same voice, persona edited) through the screen's helper → the variant stays
+            prof = self.prof("C")
+            voice.set_profile(self.p.conn, self.pid, "C", voice_casting.saved_profile(prof, prof["voice_id"], prof["voice_name"], "khác"))
+            self.assertEqual(self.prof("C")["variant"], prof["variant"])
+            self.assertNotIn("auto", self.prof("C"))
+            voice.generate(self.p.conn, self.pid, Tts(), d, ledger=False, settle=False)
+            self.assertEqual(len(sent), paid)
+            # defence: the variant itself changes (or is lost) → only re-pitched from the original, 0 USD
+            voice.set_profile(self.p.conn, self.pid, "C", {"voice_id": prof["voice_id"], "voice_name": prof["voice_name"]})
+            out = voice.generate(self.p.conn, self.pid, Tts(), d, ledger=False, settle=False)
+        self.assertEqual(len(sent), paid)
+        self.assertEqual(out["sent"], 0)
+        c = [e for e in audio_lib.load(audio_lib.assets_dir(d, self.pid)) if e.get("speaker") == "C"][0]
+        self.assertIsNone(c.get("pitch_semitones"))
+        self.assertEqual(read(audio_lib.assets_dir(d, self.pid), c["file"]), b"x")   # back to the plain download
+
 
 class ScreenTests(unittest.TestCase):
     """Character Bible (giao diện cũ và v2 dùng chung step1_characters): vai dùng chung giọng được nói rõ; nút luật 0 USD chỉ gắn vai
     chưa có giọng; nút '🤖 Claude chọn giọng' không đổi (khóa cast_{pid})."""
 
     def page(db, pid):  # noqa: N805 - run by AppTest.from_function
+        import os
         import streamlit as st
         from core import voice
         from core.db import connect
@@ -268,7 +337,7 @@ class ScreenTests(unittest.TestCase):
         p = Pipeline(connect(db))
         rows = p.conn.execute("SELECT * FROM characters WHERE project_id=?", (pid,)).fetchall()
         speakers = {ln["speaker"].upper() for ln in voice.planned_lines(p.conn, pid) if ln["speaker"]}
-        S.voice_rule_box(p, pid, rows, speakers)
+        S.voice_rule_box(p, pid, rows, speakers, data_dir=os.path.dirname(db))
         for r in rows:
             S.voice_cast_note(p, pid, r, voice.get_profile(r))
         st.session_state["_profiles"] = {r["name"]: voice.get_profile(r).get("voice_id") for r in
@@ -285,6 +354,8 @@ class ScreenTests(unittest.TestCase):
         voice.set_profile(p.conn, pid, "A", {"voice_id": 72, "voice_name": "voice boy ingame VN", "persona": "tự chọn"})
         voice.set_profile(p.conn, pid, "B", {"voice_id": 72, "voice_name": "voice boy ingame VN",
                                              "auto": True, "variant": {"pitch": 3, "speed": 1.05}})
+        audio_lib._add(audio_lib.assets_dir(os.path.dirname(db), pid), "tts", "l", "a1",
+                       extra={"speaker": "B", "dialogue": True, "scene_id": 1, "pitch_semitones": 3, "pitch_failed": True})
         with mock.patch.object(voice, "voice_config", return_value=CONFIG), mock.patch.dict(os.environ, ON):
             at = AppTest.from_function(ScreenTests.page, args=(db, pid), default_timeout=40).run()
             self.assertFalse(at.exception)
@@ -292,6 +363,7 @@ class ScreenTests(unittest.TestCase):
             self.assertIn("Vai dùng chung giọng", text)
             self.assertIn("B (biến thể +3 nửa cung", text)
             self.assertIn("A (gốc)", text)
+            self.assertTrue(any("chưa chỉnh được cao độ" in w.value and "B" in w.value for w in at.warning))
             at.button(key=f"vrule_{pid}").click().run()
             self.assertFalse(at.exception)
         self.assertEqual(at.session_state["_profiles"]["A"], 72)            # the person's choice kept
