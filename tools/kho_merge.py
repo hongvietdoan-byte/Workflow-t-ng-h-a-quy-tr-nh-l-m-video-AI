@@ -47,6 +47,22 @@ def display_name(name: str) -> str:
     return _TITLE.sub(r"\1. ", name)
 
 
+def _inside(path: str, folder: str) -> bool:
+    """`path` is under `folder` (absolute, real paths — 8.3 short names, other drives)."""
+    a, b = os.path.normcase(os.path.realpath(path)), os.path.normcase(os.path.realpath(folder))
+    try:
+        return os.path.commonpath([a, b]) == b
+    except ValueError:                                   # another drive
+        return False
+
+
+def _show(path: str, base: str) -> str:
+    try:
+        return os.path.relpath(path, base)
+    except ValueError:                                   # another drive: the full path
+        return path
+
+
 def _row(conn, aid: int) -> Optional[Dict]:
     r = conn.execute("SELECT * FROM assets WHERE id=?", (aid,)).fetchone()
     return dict(r) if r else None
@@ -113,6 +129,9 @@ def make_plan(conn, keep: int, merge: int, db: str, keep_name: bool = False) -> 
         dst = os.path.join(kfolder, f"{n}{ext}")
         taken.add(assets._path_key(dst))
         src = assets.resolve(img["path"])
+        if src and os.path.isfile(src) and not _inside(src, folder):     # rà 06/10: never move a picture of another install
+            raise MergeError(f"Ảnh #{img['id']} ({img['path']}) trỏ ra ngoài thư mục Kho của CSDL này ({src} ∉ {folder}) — không dời "
+                             "file của nơi khác. Chưa đổi gì.")
         moves.append({"id": img["id"], "status": img["status"], "old_path": img["path"], "src": src if src and os.path.isfile(src) else None,
                       "dst": dst, "stored": assets.stored_path(dst), "sort": n})
     new_name = k["name"] if keep_name else display_name(k["name"])
@@ -153,7 +172,7 @@ def plan_text(plan: Dict) -> str:
            f"  mô tả: giữ cả hai (mục giữ trước) — {len(plan['description'])} ký tự",
            f"  ảnh chuyển ({len(plan['moves'])}):"]
     for mv in plan["moves"]:
-        src = os.path.relpath(mv["src"], os.path.dirname(os.path.dirname(plan["db"]))) if mv["src"] else "(file mất — chỉ dời hàng)"
+        src = _show(mv["src"], os.path.dirname(os.path.dirname(plan["db"]))) if mv["src"] else "(file mất — chỉ dời hàng)"
         out.append(f"    ảnh #{mv['id']} [{mv['status']}] {src} → {mv['stored']} (sort {mv['sort']})")
     out.append("  bảng liên kết:")
     for ln in plan["links"]:

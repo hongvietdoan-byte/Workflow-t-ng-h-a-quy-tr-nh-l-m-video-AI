@@ -136,9 +136,13 @@ def stored_path(path: str) -> str:
 def resolve(path: Optional[str]) -> Optional[str]:
     """A stored picture path made usable from any working folder (A1): stored paths are relative to the install folder ("data/assets/…"),
     so a Dashboard or tool started elsewhere used to find no picture at all — and the Director then described characters blind.
-    S14.43B: tried against the database's install folder first, then the working folder, then the repository."""
+    S14.43B: when the database in use is named (PIPELINE_DB under a 'data' folder) ONLY its install folder — never a same-named file
+    of the working folder or of the repository (rà 06/10: kho_merge on a copy of the database moved the main machine's pictures).
+    Otherwise the working folder, then the repository (as before)."""
     if not path or os.path.isabs(path):
         return path
+    if _db_home():
+        return os.path.join(_db_home(), path)
     homes = _homes()
     for cand in [os.path.join(homes[0], path), path] + [os.path.join(h, path) for h in homes[1:]]:
         if os.path.exists(cand):

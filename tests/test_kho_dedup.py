@@ -144,7 +144,9 @@ class DuplicateGuardTests(unittest.TestCase):
 PROFILE = json.dumps({"appearance": "béo tròn, khăn bandana", "approved": True}, ensure_ascii=False)
 
 
-class KhoMergeTests(_Home):
+class _MergeHome(_Home):
+    """Mục 303-giống (2 ảnh) + 414-giống (1 ảnh chờ duyệt, hồ sơ, alias), liên kết dự án / từ chối / nhân vật."""
+
     def setUp(self):
         super().setUp()
         c = self.conn
@@ -166,6 +168,9 @@ class KhoMergeTests(_Home):
 
     def count(self, sql, *a):
         return self.conn.execute(sql, a).fetchone()[0]
+
+
+class KhoMergeTests(_MergeHome):
 
     def test_dry_run_changes_nothing_and_prints_the_plan(self):
         before = self.count("SELECT COUNT(*) FROM asset_images WHERE asset_id=?", self.merge)
@@ -259,3 +264,34 @@ class KhoMergeTests(_Home):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+# ---- rà độc lập 06/10 ------------------------------------------------------------------------------------------------------------
+class MergeNeverTouchesAnotherInstallTests(_MergeHome):
+    """Lỗi 1: chạy --db <bản sao> từ thư mục repo thật — resolve() dò cwd / REPO và kho_merge dời ẢNH THẬT của máy chính."""
+
+    def test_pictures_of_the_working_folder_or_repository_are_never_moved(self):
+        merge_file = os.path.join(self.home, "data", "assets", str(self.merge), "1.png")
+        os.remove(merge_file)                                           # the copy has the row, not the file
+        decoy_cwd = os.path.join(self.elsewhere, "data", "assets", str(self.merge), "1.png")
+        fake_repo = os.path.join(self.tmp, "repo")
+        decoy_repo = os.path.join(fake_repo, "data", "assets", str(self.merge), "1.png")
+        for d in (decoy_cwd, decoy_repo):
+            os.makedirs(os.path.dirname(d))
+            open(d, "wb").write(b"real picture")
+        with mock.patch.object(assets, "REPO", fake_repo):
+            plan = kho_merge.make_plan(self.conn, self.keep, self.merge, self.db)
+            self.assertIsNone(plan["moves"][0]["src"])
+            self.assertIn("file mất", kho_merge.plan_text(plan))
+            kho_merge.apply(self.conn, plan, self.db)
+        self.assertTrue(os.path.isfile(decoy_cwd))
+        self.assertTrue(os.path.isfile(decoy_repo))
+
+    def test_resolve_stays_in_the_install_of_the_database(self):
+        open(os.path.join(self.elsewhere, "x.png"), "wb").write(PNG)
+        self.assertEqual(os.path.normcase(assets.resolve("x.png")), os.path.normcase(os.path.join(self.home, "x.png")))
+
+    def test_plan_text_survives_a_picture_on_another_drive(self):
+        plan = kho_merge.make_plan(self.conn, self.keep, self.merge, self.db)
+        with mock.patch.object(kho_merge.os.path, "relpath", side_effect=ValueError("path is on mount 'C:', start on mount 'D:'")):
+            self.assertIn("1.png", kho_merge.plan_text(plan))
