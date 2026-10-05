@@ -134,6 +134,50 @@ class ReadOnlyModeTests(AccessUiBase):
         self.assertFalse(at.text_area(key=f"fb_text_{self.pid}").proto.disabled)
         self.assertFalse(keys["fb_screen_send"])
         self.assertTrue(keys[f"deliver_{self.pid}"])                       # the delivery itself stays locked
+    @staticmethod
+    def crafted(at, values):
+        """What a crafted browser message would send: the current widget states + `values` ({widget id: (field, value)}).
+        AppTest refuses to set a disabled widget, so the message is built by hand like a modified client would."""
+        ws = at._tree.get_widget_states()
+        for wid, (field, value) in values.items():
+            w = next((x for x in ws.widgets if x.id == wid), None) or ws.widgets.add()
+            w.id = wid
+            setattr(w, field, value)
+        return at._run(ws)
+
+    def test_streamlit_drops_values_sent_for_a_disabled_widget(self):
+        """S14.7 (D1, kế hoạch 3.5 ý 4): khóa "chỉ xem" có hiệu lực ở SERVER vì Streamlit bỏ giá trị gửi lên của widget `disabled`
+        (đã kiểm trên 1.64.0). Ghim bản tối thiểu trong requirements.txt để một lần hạ cấp không mở lại lỗ này."""
+        script = ("import streamlit as st\n"
+                  "v = st.text_input('x', key='t', disabled={d})\n"
+                  "c = st.button('b', key='b', disabled={d})\n"
+                  "st.markdown(f'v={{v!r}} c={{c}}')\n")
+        for disabled, want in ((False, "v='hack' c=True"), (True, "v='' c=False")):     # control first: the crafted message works
+            at = AppTest.from_string(script.format(d=disabled))
+            at.run()
+            self.crafted(at, {at.text_input(key="t").id: ("string_value", "hack"), at.button(key="b").id: ("trigger_value", True)})
+            self.assertFalse(at.exception, at.exception)
+            self.assertEqual(at.markdown[-1].value, want, f"disabled={disabled}")
+        # the real screen: a click sent for the disabled ⏸ never reaches the core (no refusal message, nothing written)
+        real = self.sign_in(WVIEW, "1")
+        pause = next(b for b in real.button if b.key == "btn_pause")
+        self.assertTrue(pause.proto.disabled)
+        before = [e.value for e in real.error]     # (a viewer already sees one refusal: the format panel auto-fills an empty aspect)
+        self.crafted(real, {pause.id: ("trigger_value", True)})
+        self.assertFalse(real.exception, real.exception)
+        self.assertEqual([e.value for e in real.error], before)          # no new refusal: the core was never even asked
+        self.assertEqual(self.conn.execute("SELECT paused FROM projects WHERE id=?", (self.pid,)).fetchone()[0], 0)
+
+    def test_requirements_pin_the_streamlit_that_drops_disabled_values(self):
+        import re
+        import streamlit
+        req = open(os.path.join(os.path.dirname(__file__), "..", "requirements.txt"), encoding="utf-8").read()
+        m = re.search(r"^streamlit\s*>=\s*([\d.]+)", req, re.M)
+        self.assertIsNotNone(m, "requirements.txt không ghim streamlit")
+        pin = tuple(int(x) for x in m.group(1).split("."))
+        self.assertGreaterEqual(pin, (1, 64), "ghim streamlit thấp hơn bản đã kiểm (1.64)")
+        self.assertGreaterEqual(tuple(int(x) for x in streamlit.__version__.split(".")[:2]), pin[:2])
+
     def test_a_press_that_slips_through_is_refused_by_the_core(self):
         at = self.sign_in(WVIEW, "1")
         self.assertTrue(next(b for b in at.button if b.key == "btn_pause").proto.disabled)
