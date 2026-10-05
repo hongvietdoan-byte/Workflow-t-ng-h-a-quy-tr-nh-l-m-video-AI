@@ -56,3 +56,39 @@
 **7691958368008670485** (10,9 s · 5 shot · 331 nghìn, "my own bodyguard squad") — Đường phố 3D mưa: chữ nổi cạnh đầu "Damage:179 / Kill:14" ngay trên Kelly và "Damage:6553 / Kill:0" trên băng nhóm (gã mặt hề xanh, đầu lâu, Hayato áo đỏ) = so sánh chỉ số kiểu hậu trận bằng chữ trắng/vàng/đỏ; cận Kelly mỉm cười tự mãn, cánh tay nhóm với vào ống kính (góc rộng tương tự selfie), cuối: đội hình cả nhóm bảo vệ (ngựa, pet, 8–9 nhân vật) + emoji 😂 trên đầu nhóm. Máy giơ cao (selfie rộng) cho cảm giác quay bằng điện thoại.
 
 **7690585823615487253** (14,3 s · 4 shot · 43,4 nghìn, "meow meow") — Dựng chia đôi cột trái/phải theo trend meme mèo: bên trái Kelly (rồi Maxim) bắt chước nét mặt, bên phải clip mèo thật (đen, cam, trắng tai cụp, xám trắng) — 4 vòng; mỗi vòng Kelly chu môi → há mồm → quay lại; Maxim 1 vòng ôm má. Lớp phủ: bố cục 2 cột 1080×1920; hiệu ứng mờ sáng ở cuối vòng. Dùng LẠI video mèo thật bên ngoài (tư liệu bên thứ ba).
+
+## Lô 3 (phần 1)
+
+**7690799953974676756** (19,3 s · 6 shot · 11,6 nghìn, "POV: Just me and my bestfriend Kelly") — **Người thật (quay thật) đứng cạnh Kelly 3D ghép vào cảnh** (phòng có rèm sáo): hai người thật (áo thi đấu Infinix, mũ hồng) chắp tay/giơ tay đồng bộ với Kelly (0–8,4 s); selfie người thật + Kelly ngồi sau (8,4–12,6 s, Kelly nháy mắt); phòng thi đấu eSports tím cam, người chơi thật + Kelly cùng uống nước (12,6–19 s). Là bài hợp tác với người thật, nằm NGOÀI khả năng pipeline (cần ghép người thật + nhân vật 3D).
+
+**7689306563324022036** (26,5 s · ≥ 14 shot · 114,7 nghìn, "help me get my basketball back") — Sân cỏ trường (nhà gạch đỏ) ngoài trời thật: bóng rổ + chảo kẹt trên cây (cận cây), Kelly dùng drone, tay cầm game, ném bóng; Maxim ngã lăn ra cỏ (quay từ dưới thấp, mờ). Cắt nhanh 0,3–2 s/shot cuối clip. Nền là ảnh/cảnh thật, nhân vật 3D ghép, ánh nắng loang khớp.
+
+**7689305142444723477** (7,8 s · 1 shot · 43 nghìn, "Shooting Age Test") — Cận mặt Kelly nhìn thẳng máy, **lớp phủ ống ngắm** (chữ thập, đường dọc/ngang di chuyển theo mặt) + thanh "Shooting Age Test: 35 30 25 20 18" với ô vàng nhảy theo; hộp đạn có đầu lâu thả xuống chắn mắt Kelly (~3,5 s); cuối cắt: Kelly nằm xuống (cận trên), thẻ kết quả "AGE 25 / ABOVE AVERAGE" viền cyan. Toàn bộ "bắn súng" thể hiện bằng ống ngắm + chữ, không có cảnh gameplay.
+
+**7686844295956958484** (27,4 s · ≥ 14 shot · 143,3 nghìn, "Little wins in life") — Meme "chiến thắng nhỏ": dòng chữ cố định "Little wins in life:" suốt clip ở đỉnh khung; chuỗi vignette 1–3 s: Kelly vẫy tay vào ghế sofa tìm điện thoại, ngồi xem tivi ăn bắp rang, cận răng sâu được trám cam, cửa mở đúng lúc, nồi nước sôi đúng lúc, rồi **gameplay thật trên điện thoại (BOOYAH!)** cận ngón tay/điện thoại cầm tay và cảnh nhân vật chạy xem từ trên (HUD 19/200), kết Kelly reo. Cấu trúc trend "danh sách chiến thắng nhỏ".
+
+**7686780406732950805** (17,6 s · 8 shot · 44,3 nghìn, "What are you doing Maxim") — Kelly ngồi sofa chơi điện thoại (ánh sáng màn hình trên mặt, 0–3,7 s), Maxim ngoài mưa đêm ngậm hoa hồng (cận) với hiệu ứng tim lấp lánh, chiếc mũ ướt; cảnh cổng nhà: Maxim cầm hoa đứng sau cửa, người đàn ông đổ nước từ trên xuống; pet cánh cụt kính đen đứng thẳng; kết cận Maxim nhăn mặt ghê tởm ôm hoa. Hai không gian đối lập (phòng ấm / ngoài trời tối lạnh), cắt theo phản ứng.
+
+**7685702905357192468** (22,9 s · 11 shot · 2,6 triệu, "finally cooled down") — Chuỗi hành động chuyển động mạnh: cận Kelly đẫm mồ hôi (0–1,7 s), điều hoà trần xả khói lạnh khi Kelly cầm túi đá (1,7–4,2 s), chạy qua siêu thị có xe đẩy (4,2–5,2), góc thấp bám chân chạy ngoài phố (5,2–6,9), nhảy parkour qua tường (6,9–10), vào căn hộ nơi nhân vật nữ tóc tết tím nằm sofa (cận hạnh phúc, ngón cái, ~13–20), kết Kelly lau mồ hôi. Các cảnh nhảy/chạy giống video AI sinh (mặt thay đổi nhẹ).
+
+**7684522768712420629** (10,0 s · 1 shot · 1,2 triệu, "Best love for my fans") — Kelly đứng văn phòng, **danh sách chữ bên trái "Dad / Friends / Teammates / Fans"**; Kelly "chia" khối tinh thể tím (icon kim cương/gem game) bằng tay: mỗi người nhận 1 khối bay đến cạnh nhãn (~1–7 s), Fans nhận cuối. Lớp phủ chữ + icon vật phẩm game thay vì cho thấy màn hình.
+
+## Lô 3 (phần 2)
+
+**7289320309457456386** (9,3 s · 3 shot · 7 triệu, "Maxim… run so fast") — Đường quê: Kelly và Tatsuya (áo đỏ trắng) bò trên mặt đường (0–2 s, pet cánh cụt xa), cận hai người cúi chạy với **hai icon kỹ năng hình thoi (giày cánh, người chạy xanh) lơ lửng trên đầu** (2–5 s), cảnh chính: Maxim lao chạy với hamburger treo trên cần câu gắn trên đầu pet cánh cụt (người chạy đuổi theo), Kelly + Tatsuya phía sau với icon "bực mình" đỏ bay lên (5–9,3 s).
+
+**7232234101292518658** (8,3 s · 2 shot · 2,9 triệu, "BOOYAH needs … team spirit") — Phòng chờ hồng: bàn tròn Maxim + nữ đội mũ kính bay viết giấy (0–1,5 s); Kelly trỏ vào TV đứng hiển thị **bản đồ map FF** (1,5–3,5 s, "bàn kế hoạch"); lại cặp bàn (3,5–6 s); cuối pet cánh cụt ngồi sau laptop (6,8–8,3). Bản đồ chỉ là màn hình vật lý trong cảnh (TV đứng), nhân vật chỉ trỏ.
+
+**7221842644983385345** (8,0 s · 1 shot · 1,2 triệu, "POV: When my teammate dies") — Cận nhân vật nữ tóc đôi tai mèo chơi điện thoại; **HUD đầu khung bên trái: "1 Me" thanh máu trắng, "2 Teammate" thanh máu rút dần rồi đỏ + đầu lâu (~2,5 s)**; sau đó hòm đạn đầu lâu xanh lá bay lên góc trên trái kèm các icon vật phẩm rơi (Gloo Wall, áo giáp, súng, M1887 …) và nhân vật vỗ tay + nước mắt hài vòi phun. Chết = HUD + hòm đồ rơi, không có cảnh chết.
+
+**7419580988151401736** (14,8 s · 9 shot · 6,2 triệu, "Who will catch Moco's phone") — Công viên: cận giày xanh bên hòn đá, Kelly đi trên lối đi (icon giày cánh trên đầu), Tatsuya chạy mờ qua ghế đá (icon chạy), nữ đạp xe goggles (icon vòng xoắn), cảnh cuối cả nhóm vồ về phía bụi cây có icon "mặt quỷ" xanh, chỉ báo ▼ xanh trên đầu nhân vật tóc tím; mặt nạ đỏ nằm trên bụi cây (đối tượng tìm). Icon kỹ năng hình thoi trên đầu thay vì thanh máu: mỗi nhân vật = 1 icon.
+
+**7382957458920164625** (15,0 s · 4 shot · 2,3 triệu, "why he's so happy throwing a paper ball") — Hành lang văn phòng có biển WC nữ/nam, Kelly + nhân vật nữ váy hồng đi vào WC nữ; Alvaro (tóc đỏ) lạng ra WC nam (cận biển nam); insert thùng rác đen (logo "MOCO LUCKY"); lớp học: Alvaro giơ tay ném giấy, Kelly ngồi trước nhìn khó chịu, Alvaro thò tay vào áo (5,4–15 s, 3 shot ngắn 1 s cuối). Hài tình huống, đạo cụ thật (bàn ghế, thùng rác).
+
+**7608930762607332615** (17,3 s · 9 shot · 3,7 triệu, "Guess who I just met? @alok") — Kelly và nhóm ngồi ghế dài trước tường gạch xem điện thoại (0–1,7); insert điện thoại thật phát bài "BULLETPROOF" (Free Fire × ALOK, 1,7–3,1); chớp trắng (3,1–4,7); 3 nhân vật ngồi ghế; Kelly nhìn nhạc; **cuộc gặp**: bắt tay/chạm tay với ALOK (nhân vật 3D râu), chớp trắng sáng mờ lộ hình ALOK đeo tai nghe, kết poster dựng sân khấu DJ (Alok + Kelly + khán giả, màu tím đỏ). Dùng chớp trắng như chuyển cảnh sang không gian "sự kiện".
+
+**7149121058619100443** (5,3 s · 1 shot · 319 nghìn, "Hayato says he likes this trend") — Một shot tĩnh trung cận Hayato (tóc đen vệt bạc, găng đỏ) khoanh tay trên nền cây lá thu/đình chùa mờ; cử động nhẹ (đổi dáng, đầu nghiêng); một cột vàng đỏ chạy ngang tiền cảnh 2 lần (~2–5 s) = vật che. Trend nhảy trong bối cảnh CGI thực.
+
+**7152079580948483329** (18,4 s · 11 shot · 1,2 triệu, "Don't look away from your teacher") — Lớp học cửa sổ sáng: Kelly chống cằm chán (0–1,3), giáo viên NGƯỜI THẬT viết "1+1=2" trên bảng (cận tay), Kelly nhìn xuống, insert điện thoại thật (cửa hàng game trong tay, 3,9–4,9), Kelly sốc khi thấy bảng chi chít công thức (quay người thật lưng đứng viết), Kelly vùi mặt vào tay. Nhịp: nhàm chán → bất ngờ.
+
+**7392520376967859472** (8,4 s · 1 shot · 4,5 triệu, 720×900 (4:5), "Screenshot Challenge… Elite Master") — Cận mặt Kelly; **cột huy hiệu hạng 5 bậc dọc mép trái + chữ "My rank" đầu khung**; ngôi sao vàng di chuyển từ bậc này sang bậc khác, nét mặt Kelly đổi theo (cười, bĩu môi) để người xem "chọn hạng". 1 take, lớp phủ đồ hoạ trên mặt.
