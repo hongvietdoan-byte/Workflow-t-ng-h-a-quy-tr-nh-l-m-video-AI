@@ -326,6 +326,20 @@ FEATURES: Dict[str, Dict] = {
         "verified": False,
         "why": "S14.17 người dùng duyệt 04/10, chưa chạy thật Claude (core/prompt_rewrite.py; Claude lỗi → quay về 'Fix: …' + diag)",
     },
+    "murch_knowledge": {
+        "label": "Bộ não prompt Đợt 2: Director + motion đọc thang ưu tiên cảm xúc (Murch), motion đọc kỷ luật I2V (giữ trước, hỏng thì "
+                 "giảm chuyển động, check_flags gọi tên rủi ro), Director đọc phương pháp âm thanh; người xem lần đầu chấm thêm cam_xuc",
+        "verified": False,
+        "why": "S14.20 (05/10): chỉ thêm tài liệu vào prompt (≈ +9 nghìn ký tự mỗi lần chạy Director/motion); chưa so prompt Bước 3 "
+               "thật trên dự án cũ (nghiệm thu Đợt 2 cần Claude thật)",
+    },
+    "risk_tags": {
+        "label": "Bài học lỗi: tách tag 'motion' thành 6 trục rủi ro I2V (face_morph, body_deform, wardrobe_drift, background_drift, "
+                 "motion_overload, text_logo_corrupt) + identity/physics/lipsync/audio; lỗi không gán được tag hiện ở 'Chưa phân loại' + diag",
+        "verified": False,
+        "why": "S14.20 (05/10): bảng lessons còn 0 bài học, từ khóa chưa đo trên lỗi thật; tag hiếm hơn → có thể không đủ ngưỡng 3 lần / "
+               "2 dự án (chưa hạ ngưỡng, chờ Đợt 5 có phân bố thật)",
+    },
 }
 
 

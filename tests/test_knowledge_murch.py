@@ -156,8 +156,8 @@ class KnowledgeTextTests(unittest.TestCase):
         text = _read("knowledge", "craft", "uu_tien_cam_xuc.md")
         self.assertIn("cảm xúc nặng hơn năm tiêu chí còn lại cộng lại; phải hy sinh thì bỏ từ dưới lên", text)
         self.assertIn("ở khâu dựng, cảm xúc đứng dưới điều kiện nghe rõ thoại và đọc được chữ", text)
-        order = ["cảm xúc", "câu chuyện", "nhịp", "hướng mắt", "mặt phẳng 2D", "không gian 3D"]
-        body = text[text.index("## Thang"):]
+        order = ["cảm xúc", "câu chuyện", "nhịp", "hướng mắt", "mặt phẳng 2d", "không gian 3d"]
+        body = text[text.index("## Thang"):].lower()
         pos = [body.find(x) for x in order]
         self.assertTrue(all(p >= 0 for p in pos), pos)
         self.assertEqual(pos, sorted(pos))

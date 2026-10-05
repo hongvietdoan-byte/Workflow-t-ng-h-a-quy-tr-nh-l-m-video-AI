@@ -121,6 +121,43 @@ def _film_crew() -> bool:
         return False
 
 
+# S14.20 (Bộ não prompt Đợt 2, cờ `murch_knowledge`, TẮT mặc định): the Murch priority scale for the Director AND the motion writer,
+# the I2V discipline (+ the motion prompt's addendum) for motion, the sound method for the Director. Flag off → nothing sent, nothing listed.
+MURCH_DOCS = {
+    "director": [("knowledge/craft/uu_tien_cam_xuc.md", "Thứ tự ưu tiên cảm xúc (trục Murch)",
+                  "cờ murch_knowledge: thang chung khi phải đánh đổi (tách từ editing.md E1)"),
+                 ("knowledge/sound_design_method.md", "Phương pháp thiết kế âm thanh",
+                  "cờ murch_knowledge: dẫn → đập → đuôi, ý đồ → chất âm, khoảng lặng, chống lạm dụng")],
+    "motion": [("prompts/03_video_motion_murch.md", "Bổ sung quy tắc motion",
+                "cờ murch_knowledge: giữ trước, ưu tiên cảm xúc, check_flags gọi tên rủi ro"),
+               ("knowledge/craft/uu_tien_cam_xuc.md", "Thứ tự ưu tiên cảm xúc (trục Murch)",
+                "cờ murch_knowledge: dùng chung với Director"),
+               ("knowledge/i2v_motion_discipline.md", "Kỷ luật chuyển động I2V",
+                "cờ murch_knowledge: 6 rủi ro + cách chữa, giữ trước, hỏng thì giảm chuyển động (P0→P5)")],
+}
+
+
+def _murch_on() -> bool:
+    from . import features
+    try:
+        return features.on("murch_knowledge")
+    except KeyError:
+        return False
+
+
+def murch_blocks(group: str) -> List[str]:
+    """The texts of MURCH_DOCS[group] when the flag is on, else []. A listed file that cannot be read is said aloud (CHUAN luật 1)."""
+    if not _murch_on():
+        return []
+    out = []
+    for rel, title, _ in MURCH_DOCS.get(group, []):
+        text = _read(os.path.join(ROOT, *rel.split("/"))).strip()
+        if not text:
+            raise FileNotFoundError(f"Cờ murch_knowledge bật nhưng không đọc được '{rel}' ({title}) — tắt cờ hoặc khôi phục file.")
+        out.append(text)
+    return out
+
+
 def builtin_docs(group: str) -> List[Dict]:
     out = []
     crew = _film_crew()
@@ -137,6 +174,11 @@ def builtin_docs(group: str) -> List[Dict]:
         text = _read(path)
         out.append({"source": "builtin", "title": title, "note": note, "file": rel, "path": os.path.abspath(path),
                     "chars": len(text), "enabled": True, "exists": bool(text), "crew_replaced": False, "elsewhere": elsewhere})
+    for rel, title, note in (MURCH_DOCS.get(group, []) if _murch_on() else []):
+        path = os.path.join(ROOT, *rel.split("/"))
+        text = _read(path)
+        out.append({"source": "builtin", "title": title, "note": note, "file": rel, "path": os.path.abspath(path),
+                    "chars": len(text), "enabled": True, "exists": bool(text), "crew_replaced": False})
     return out
 
 
