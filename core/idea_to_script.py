@@ -316,6 +316,11 @@ def check_outline(beats: List[Dict], duration_s: float) -> List[Dict]:
     total = float(beats[-1].get("end") or 0)
     if abs(total - duration_s) > 0.1 * duration_s:
         out.append({"level": "block", "text": f"tổng {total:g} s, mục tiêu {duration_s:g} s ± 10 %"})
+    from . import clean_dialogue
+    for b in beats:                                     # S14.41: lời thoại sạch already at the outline (the 05c run had "Của tao!" here)
+        hits = clean_dialogue.find("\n".join(str(d.get("line") or "") for d in b.get("dialogue") or [] if isinstance(d, dict)))
+        if hits:
+            out.append({"level": "block", "text": f"nhịp {b.get('name')}: {clean_dialogue.describe(hits)}"})
     from .dialogue import syllables
     for b in beats:
         n = sum(syllables(str(d.get("line") or "")) for d in b.get("dialogue") or [] if isinstance(d, dict))
@@ -393,6 +398,23 @@ def _on_screen(name: str) -> bool:
     return is_non_speaker(name)
 
 
+def _clean_scenes(scenes, blocked: List[Dict]) -> List[str]:
+    """S14.41: a scene with mày/tao or swearing is blocked (scene + words shown), appended to `blocked` like check_scenes."""
+    from . import clean_dialogue
+    out = []
+    for s in scenes:
+        hits = clean_dialogue.find(s.heading + "\n" + s.text)
+        if hits:
+            why = clean_dialogue.describe(hits)
+            row = next((b for b in blocked if b["scene"] == s.idx), None)
+            if row:
+                row["why"].append(why)
+            else:
+                blocked.append({"scene": s.idx, "why": [why]})
+            out.append(f"cảnh {s.idx}: {why}")
+    return out
+
+
 def check_script(conn, pid: int, script: str, inputs: Dict) -> Dict:
     """{"ok", "scenes", "problems": [block texts], "flags": [notes for the person], "blocked_scenes": [{scene, why}]} — 0 USD."""
     from . import idea_buildable
@@ -425,6 +447,7 @@ def check_script(conn, pid: int, script: str, inputs: Dict) -> Dict:
         problems += pr
         flags += fl
         problems += idea_buildable.check_anchors(scenes, anchors)
+        problems += _clean_scenes(scenes, blocked)                        # S14.41: lời thoại sạch, blocked like check_scenes
         if not any(idea_buildable.clean_anchors(anchors).values()):       # rà: said, not a silent pass
             flags.append("không có điểm then chốt nào để đối chiếu (ý tưởng tạo trước S14.31 hoặc kịch bản dán) — chưa kiểm được nhân vật / nơi / "
                          "diễn biến / cú chốt")

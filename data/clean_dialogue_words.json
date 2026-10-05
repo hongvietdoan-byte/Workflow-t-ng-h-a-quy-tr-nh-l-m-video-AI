@@ -1,0 +1,72 @@
+{
+  "_note": "S14.41 (05/10): từ không được có trong kịch bản Biên kịch (core/clean_dialogue.py đọc). Sửa tay được. pronouns + swears so CÓ DẤU, đúng chữ (không bỏ dấu: 'tao' ≠ 'tạo', 'mày' ≠ 'máy'). unaccented = cụm KHÔNG DẤU chỉ khi không trùng từ sạch (vd 'dit me'; KHÔNG thêm 'may', 'tao', 'deo', 'lon', 'vai lon', 'do cho', 'du me' vì trùng máy/tạo/đeo/lớn/vai lớn/đó cho/dù mẹ). short_forms = viết tắt, không phân biệt hoa thường. Mọi từ bắt theo ranh giới từ (chữ, số, gạch nối ở sát bên thì không bắt). allow = cụm sạch chứa từ bị cấm, bỏ qua trước khi bắt.",
+  "pronouns": [
+    "mày",
+    "tao",
+    "chúng mày",
+    "bọn mày",
+    "chúng tao",
+    "bọn tao"
+  ],
+  "swears": [
+    "địt",
+    "đụ",
+    "đéo",
+    "đếch",
+    "lồn",
+    "cặc",
+    "buồi",
+    "đĩ",
+    "đù má",
+    "đụ má",
+    "địt mẹ",
+    "mẹ kiếp",
+    "vãi lồn",
+    "vãi đái",
+    "vãi chưởng",
+    "chó chết",
+    "đồ chó",
+    "thằng chó",
+    "con chó cái",
+    "khốn nạn",
+    "đồ khốn",
+    "thằng khốn",
+    "óc chó",
+    "ngu như chó",
+    "cút mẹ"
+  ],
+  "unaccented": [
+    "dit me",
+    "dit con me",
+    "du ma",
+    "me kiep",
+    "oc cho"
+  ],
+  "short_forms": [
+    "đm",
+    "dm",
+    "đmm",
+    "dmm",
+    "đcm",
+    "dcm",
+    "đkm",
+    "dkm",
+    "đmcs",
+    "dmcs",
+    "vl",
+    "vcl",
+    "vkl",
+    "vcc",
+    "vđ",
+    "clgt",
+    "cmm",
+    "cmnr",
+    "loz"
+  ],
+  "allow": [
+    "mày mò",
+    "lông mày",
+    "chân mày",
+    "mày râu"
+  ]
+}

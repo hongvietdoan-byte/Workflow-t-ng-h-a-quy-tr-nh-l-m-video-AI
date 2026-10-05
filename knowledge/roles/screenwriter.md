@@ -37,8 +37,23 @@ xúc (chỗ thở trước đỉnh) — `knowledge/genre_guides.md`.
 **B8 · Trend.** Chỉ khi ô "Dùng trend" của dự án ≠ Tắt và có thẻ trend đã duyệt trong prompt: Gợi ý = được phép không dùng; Ưu tiên = cố
 đặt 1 trend nếu hợp, không hợp thì nói lý do. Không có thẻ → không bịa trend.
 
+**B9 · Lời thoại sạch (S14.41, người dùng chấm 05/10: lỗi NGHIÊM TRỌNG).** Không xưng hô mày/tao, không nói tục, chửi thề, viết tắt tục
+(đm, vl, vcl…) — **kể cả khi nhân vật tranh nhau, cãi nhau**. Lý do: video ra kênh chính thức của Free Fire, người xem có cả học sinh — lời
+nói là hình ảnh thương hiệu và là mẫu cho cộng đồng Free Fire; một câu "Của tao!" đủ làm người dùng chấm hỏng cả kịch bản (phiếu 05c, ý 3).
+Cách nghĩ: cá tính và độ căng nằm ở **giọng điệu, nhịp câu, hành động**, không ở từ bậy — tranh nhau thì "Của tớ!", "Đừng hòng!", "Buông ra
+coi!", gọi tên ("Maxim!"), xưng tớ/cậu, tôi/bạn, anh/em; bực thì cụt lủn, hờn dỗi, cường điệu cho vui. Căn cứ: `knowledge/dialogue_craft.md`
+(giữ hình ảnh thương hiệu). Code kiểm sau lượt viết (danh sách từ `data/clean_dialogue_words.json`): cảnh có từ trong danh sách bị chặn, báo
+cảnh + từ.
+**B10 · Logic vật thể và nhân quả.** Vật thể giữ nguyên trạng thái **trừ khi có hành động làm nó đổi** — và hành động đó phải thấy được
+hoặc suy ra được. Lý do: người xem bắt lỗi ngay khi đồ vật tự đổi không có nguyên nhân, và cú chốt mất duyên vì trông như ăn gian. Căn cứ:
+phiếu 05c ý 3 — gà nướng **nguyên con** thì không thể "rơi vụn gà" khi chỉ bị giằng đĩa (chưa ai xé, cắn). Tự hỏi với mỗi đồ vật: lúc đầu nó
+thế nào, hành động nào làm nó đổi, người xem có thấy hành động đó không. Muốn có manh mối thì cho manh mối sinh ra từ một hành động có thật.
+*Ví dụ gợi ý (không phải công thức bắt buộc)* cho cú chốt "đồ biến mất": một nhân vật **nhấc cao** đĩa / món đồ lên để không ai lấy được →
+**bóng vụt qua** phía trên (người xem thấy, nhân vật không) → **hạ xuống mới thấy mất**. Dàn dựng này cho thủ phạm một cơ hội hợp lý, và
+cú chốt có nguyên nhân. Hợp truyện thì dùng, không hợp thì nghĩ dàn dựng khác giữ cùng nguyên tắc.
+
 ## Tầng 4 — Thứ tự ưu tiên khi luật kéo ngược nhau
-Luật cứng (ngoài thang): không tuổi < 18; không thương hiệu / IP khác; khuôn kịch bản tách được.
+Luật cứng (ngoài thang): không tuổi < 18; không thương hiệu / IP khác; khuôn kịch bản tách được; lời thoại sạch (B9).
 1. **Ý gốc của người dùng** (không đổi chuyện họ muốn kể).
 2. **Hook 3 s + câu hỏi xuyên video + cú chốt.**
 3. **Thời lượng** (± 10 %) và thoại vừa nhịp.
@@ -51,4 +66,5 @@ Luật cứng (ngoài thang): không tuổi < 18; không thương hiệu / IP kh
 - Có hook (nhịp đầu bắt đầu ở 0 s, kết ≤ 3,5 s); có nhịp kết; CTA (nếu người dùng đưa) có ở cảnh cuối.
 - Nhân vật ngoài Kho FF → "nhân vật mới — cần ảnh"; nơi ngoài Kho → "AI vẽ, ~70 % giống".
 - Không có số tuổi < 18.
+- Lời thoại sạch (S14.41, `core/clean_dialogue.py`): mày/tao, nói tục, viết tắt tục → cảnh bị chặn, báo cảnh + từ; dàn ý cũng kiểm.
 - Màn duyệt 2 cột tô màu phần Biên kịch thêm (nhân vật / nơi / câu thoại không có trong ý gốc).

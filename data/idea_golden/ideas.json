@@ -1,7 +1,7 @@
 [
  {
   "id": 1,
-  "idea": "Kelly ngồi một mình trên bậc thềm quảng trường trước Tháp Đồng Hồ, tự tin đoán hạng của mình; cột huy hiệu hạng chạy qua rồi dừng ở hạng thấp nhất, Kelly cười gượng rồi nhún vai như không có gì.",
+  "idea": "Kelly ngồi một mình trên bậc thềm quảng trường trước Tháp Đồng Hồ, nhìn thẳng vào máy và chủ động dự đoán rank của bạn (người xem), chỉ tay tự tin như đã đọc vị; cột huy hiệu hạng hiện cạnh Kelly chạy qua rồi dừng ở hạng thấp nhất, Kelly cười gượng rồi nhún vai như không có gì.",
   "duration_s": 15,
   "characters": [
    "KELLY"
@@ -13,7 +13,7 @@
    ],
    "costume": "mặc định",
    "place": "Tháp Đồng Hồ",
-   "plot": "Kelly ngồi bậc thềm quảng trường trước Tháp Đồng Hồ đoán hạng của mình, cột huy hiệu hạng chạy rồi dừng ở hạng thấp nhất",
+   "plot": "Kelly ngồi bậc thềm quảng trường trước Tháp Đồng Hồ chủ động dự đoán rank của bạn (người xem), cột huy hiệu hạng chạy rồi dừng ở hạng thấp nhất",
    "ending": "Kelly cười gượng rồi nhún vai như không có gì",
    "gameplay_ui": "khong"
   },
