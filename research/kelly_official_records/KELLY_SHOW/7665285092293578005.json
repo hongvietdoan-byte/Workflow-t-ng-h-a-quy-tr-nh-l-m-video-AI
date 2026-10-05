@@ -4,7 +4,7 @@
  "source": "7665285092293578005.mp4",
  "style": "KELLY_SHOW",
  "method": "doc-anh-trong-phien",
- "analyzed_at": "2026-10-05T10:14:41+00:00",
+ "analyzed_at": "2026-10-05T10:51:35+00:00",
  "duration_sec": 11.67,
  "width": 1080,
  "height": 1920,
@@ -33,7 +33,8 @@
   "gm": "trung cận, lia ngang liền qua 3 người (pan ~11 s)",
   "lp": "HUD trên đầu từng người, đổi theo thời gian",
   "chot": "Shirou há hốc nhìn vào máy, Alvaro quay lại — không CTA",
-  "dung": "⚠ cần: nền văn phòng + 3 nhân vật cùng khung + lớp HUD hoạt hình bám đầu (hậu kỳ); lia ngang 1 cú liền khó cho model video"
+  "dung": "⚠ cần: nền văn phòng + 3 nhân vật cùng khung + lớp HUD hoạt hình bám đầu (hậu kỳ); lia ngang 1 cú liền khó cho model video",
+  "am": "nhạc 100 % thời lượng (0 s nhạc rõ; 3 s nhạc to lên) · lời (whisper đoán, chủ yếu là lời hát nhạc trend): 'Hmm'"
  },
  "views": 625700,
  "reason": "user",

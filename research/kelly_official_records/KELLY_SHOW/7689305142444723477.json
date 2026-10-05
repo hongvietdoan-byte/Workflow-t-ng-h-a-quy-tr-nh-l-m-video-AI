@@ -4,7 +4,7 @@
  "source": "7689305142444723477.mp4",
  "style": "KELLY_SHOW",
  "method": "doc-anh-trong-phien",
- "analyzed_at": "2026-10-05T10:14:41+00:00",
+ "analyzed_at": "2026-10-05T10:51:35+00:00",
  "duration_sec": 7.79,
  "width": 1080,
  "height": 1920,
@@ -33,7 +33,8 @@
   "gm": "cận 7,8 s, cuối nghiêng/cận nằm",
   "lp": "chữ thập, thanh 35→18, thẻ AGE 25",
   "chot": "thẻ kết quả 'ABOVE AVERAGE'",
-  "dung": "✅ 1 shot cận + overlay (dễ)"
+  "dung": "✅ 1 shot cận + overlay (dễ)",
+  "am": "nhạc 100 % thời lượng (0 s nhạc rõ) · lời (whisper đoán, chủ yếu là lời hát nhạc trend): 'Let's do tonight, at tonight!' · nhạc trend + tiếng súng/nổ khi hộp đạn rơi (hiệu ứng game)"
  },
  "views": 43000,
  "reason": "newest",

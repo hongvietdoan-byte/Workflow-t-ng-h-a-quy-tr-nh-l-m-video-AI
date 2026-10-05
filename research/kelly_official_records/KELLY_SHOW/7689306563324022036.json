@@ -4,7 +4,7 @@
  "source": "7689306563324022036.mp4",
  "style": "KELLY_SHOW",
  "method": "doc-anh-trong-phien",
- "analyzed_at": "2026-10-05T10:14:41+00:00",
+ "analyzed_at": "2026-10-05T10:51:35+00:00",
  "duration_sec": 26.47,
  "width": 1080,
  "height": 1920,
@@ -363,7 +363,8 @@
   "gm": "đủ cỡ, nhiều góc thấp/cao",
   "lp": "không",
   "chot": "bóng lại kẹt trên cây",
-  "dung": "⚠ 23 shot, cần nền ngoài trời + vật thể 3D (bóng, chảo, drone)"
+  "dung": "⚠ 23 shot, cần nền ngoài trời + vật thể 3D (bóng, chảo, drone)",
+  "am": "nhạc 100 % thời lượng (0 s nhạc nhỏ (nền dưới thoại); 2 s nhạc rõ; 8 s nhạc to lên) · lời (whisper đoán, chủ yếu là lời hát nhạc trend): 'I put your new fuzzies on the cheek'"
  },
  "views": 114700,
  "reason": "newest",

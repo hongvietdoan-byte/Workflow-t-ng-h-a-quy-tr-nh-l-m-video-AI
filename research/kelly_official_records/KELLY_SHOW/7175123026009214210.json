@@ -4,7 +4,7 @@
  "source": "7175123026009214210.mp4",
  "style": "KELLY_SHOW",
  "method": "doc-anh-trong-phien",
- "analyzed_at": "2026-10-05T10:14:41+00:00",
+ "analyzed_at": "2026-10-05T10:51:35+00:00",
  "duration_sec": 14.08,
  "width": 720,
  "height": 1280,
@@ -33,7 +33,8 @@
   "gm": "cận gần như selfie, máy tĩnh 14 s",
   "lp": "huy hiệu hạng trên đầu",
   "chot": "đạt hạng cao nhất + Kelly nhìn điện thoại",
-  "dung": "✅ 1 shot cận + huy hiệu overlay; ⚠ lời hát khớp môi theo bài trend"
+  "dung": "✅ 1 shot cận + huy hiệu overlay; ⚠ lời hát khớp môi theo bài trend",
+  "am": "nhạc 93 % thời lượng (0 s nhạc rõ; 14 s nhạc nhỏ (nền dưới thoại)) · lời (whisper đoán, chủ yếu là lời hát nhạc trend): 'Now somebody anybody everybody scream that girl's got some s'"
  },
  "views": 31400000,
  "reason": "top_view",
