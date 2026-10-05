@@ -36,6 +36,21 @@ class TokenTests(unittest.TestCase):
         self.assertNotIn("st-emotion-cache", css)                 # emotion class names change with every Streamlit version
         self.assertNotRegex(css, r"font-size:\s*(\d|1[01])(\.\d+)?px")      # nothing under 12 px
 
+    def test_no_font_size_below_the_caption_token_anywhere(self):
+        """S14.8 U7 (người dùng 04/10: chữ tối thiểu 12,5 px = tokens.TYPE['caption']): mọi CSS của dashboard (ui.py, theme.css,
+        shell.css) không có cỡ chữ px nhỏ hơn; `.badge` chỉ khai một lần."""
+        from dashboard import ui
+        floor = float(tokens.TYPE["caption"].replace("px", ""))
+        self.assertEqual(floor, 12.5)
+        here = os.path.join(os.path.dirname(__file__), "..", "dashboard", "design")
+        sources = {"ui.py": ui.CSS}
+        for name in ("theme.css", os.path.join("screens", "shell.css")):
+            sources[name] = open(os.path.join(here, name), encoding="utf-8").read()
+        small = [(name, m.group(0)) for name, css in sources.items()
+                 for m in re.finditer(r"font-size:\s*(\d+(?:\.\d+)?)px", css) if float(m.group(1)) < floor]
+        self.assertEqual(small, [])
+        self.assertEqual(len(re.findall(r"(?:^|[}\n])\.badge\{", ui.CSS)), 1)
+
     def test_portals_and_folds_follow_the_theme(self):
         """Rà soát 02/10: hộp thoại st.dialog / menu nằm ngoài .stApp (cổng) → phải nhận token, nếu không ở nền tối chữ sáng nằm trên
         nền sáng = tàng hình (tiêu đề mục gập, ô chọn ▾, nhãn trong ⚙ → Kho tài nguyên / Tính năng thử)."""

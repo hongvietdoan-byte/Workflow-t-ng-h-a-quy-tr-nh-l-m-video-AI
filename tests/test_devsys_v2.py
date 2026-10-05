@@ -312,6 +312,13 @@ class MetricsTests(unittest.TestCase):
         only_acc = metrics.ui_from_text(acc)
         self.assertIsNone(only_acc["contrast_fail"])
 
+    def test_keys_renamed_on_purpose_are_not_counted_as_lost(self):
+        """S14.8 U8: keys_lost chỉ đếm khóa mất KHÔNG có lý do trong RENAMED (tools/ui_v2_acceptance.py) — cả bản in cũ lẫn mới."""
+        old_print = "   màn Storyboard   cũ   30 · v2   31 · mất trong v2 ['retry_5', 'fold_refs_3_btn', 'lạ_1']\n"
+        self.assertEqual(metrics.ui_from_text(old_print)["keys_lost"], 1)
+        new_print = "   màn Storyboard   cũ   30 · v2   31 · mất trong v2 [] · đổi có chủ ý ['retry_5']\n"
+        self.assertEqual(metrics.ui_from_text(new_print)["keys_lost"], 0)
+
     def test_real_ui_measurement_replaces_the_cap_and_adds_deductions(self):
         from tools import devsys_ui_metrics
         root, cfg, snap = self._repo_with('def speak(t):\n    return t\n', ui_area=True)

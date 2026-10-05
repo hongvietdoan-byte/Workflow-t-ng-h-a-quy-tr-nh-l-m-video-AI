@@ -11,7 +11,7 @@ from . import access, archive, budget, delivered, money_policy, project_budget, 
 
 WAITING = ("waiting", "needs_attention")        # autopilot states that wait for a person (dashboard/next_step.py)
 
-KINDS = ("Ảnh", "Video", "Ngân sách", "Tiền", "Chạy tự động", "Hạn mức", "Yêu cầu", "Bản giao")
+KINDS = ("Ảnh", "Video", "Lỗi gen", "Ngân sách", "Tiền", "Chạy tự động", "Hạn mức", "Yêu cầu", "Bản giao")
 
 
 def _mine(created_by: Optional[str], email: str, is_owner: bool, auth_on: bool) -> bool:
@@ -61,6 +61,17 @@ def items(conn, email: str, is_owner: bool = True, can_money: bool = True, auth_
                                   " ORDER BY s.idx", (pid, typ)).fetchall():
                 add(kind, f"Cần bạn quyết — đã tự gen lại {j['retry_count']} lần: {label} shot {j['idx']} (máy không tự gen thêm)",
                     screen, "wait")
+        for typ, screen, label in (("image_gen", "storyboard", "ảnh"), ("video_gen", "video", "clip")):
+            # S14.8 U4: the LATEST job of a shot failed (failed / retryable, core/states.JobState) — only image_gen / video_gen
+            # (pipeline.create_job makes only these two); a shot that already has a newer job is not listed (storyboard_cards.board_stats)
+            idx = [r["idx"] for r in conn.execute(
+                "SELECT s.idx FROM jobs j JOIN scenes s ON s.id=j.scene_id WHERE j.project_id=? AND j.type=?"
+                " AND j.state IN ('failed','retryable')"
+                " AND NOT EXISTS (SELECT 1 FROM jobs k WHERE k.scene_id=j.scene_id AND k.type=j.type AND k.id>j.id)"
+                " ORDER BY s.idx", (pid, typ)).fetchall()]
+            if idx:
+                shots = ", ".join(str(i) for i in idx[:8]) + ("…" if len(idx) > 8 else "")
+                add("Lỗi gen", f"Gen {label} lỗi ở {len(idx)} shot — mở để vẽ lại / xem lý do: {label} shot {shots}", screen, "bad")
         if row["autopilot_state"] in WAITING and row["autopilot_note"]:
             add("Chạy tự động", f"Đang chờ bạn: {row['autopilot_note'][:160]}", "script", "wait")
         if row["autopilot_state"] == "stopped" and "trần job do máy" in (row["autopilot_note"] or ""):

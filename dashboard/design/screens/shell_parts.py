@@ -43,14 +43,18 @@ def status_pills(p, pid: int, proj) -> List[Tuple[str, str]]:
     return out
 
 
+NEXT_ERROR = "Không đọc được việc tiếp theo — thử tải lại (đã ghi vào ⚙ Chẩn đoán)."
+
+
 def next_line(p, pid: int, screen_index: int, data_dir: str) -> Tuple[str, str]:
     """(text, level) of the one-line "việc tiếp theo" for the current screen, read by code (dashboard/next_step.py)."""
     from dashboard import next_step
     step = _NEXT_STEP.get(screen_index, 1)
     try:
         res = next_step.next_action(p, pid, step, data_dir)
-    except Exception:  # noqa: BLE001 - the strip must never break the page
-        res = None
+    except Exception as e:  # noqa: BLE001 - the strip must never break the page; S14.8 U3: say so + diag, not "nothing to do"
+        next_step.note_error(p, pid, step, e)
+        return NEXT_ERROR, "warn"
     return res if res else ("Chưa có việc nào đang chờ.", "done")
 
 
@@ -91,7 +95,7 @@ def project_hero(p, pid: int, done: list, screen_index: int, data_dir: str, leve
     proj = p.project(pid)
     frac = overall_progress(p, pid, done)
     text, level = next_line(p, pid, screen_index, data_dir)
-    icon = {"wait": "⏸ ", "todo": "👉 Việc tiếp theo: ", "done": "✅ "}.get(level, "")
+    icon = {"wait": "⏸ ", "todo": "👉 Việc tiếp theo: ", "done": "✅ ", "warn": "⚠ "}.get(level, "")
     short = short_text(text)
     with D.hero("shell"):
         # 02/10 (rà soát #10): hai CỘT liền thay cho hai hàng × hai cột — trước đây "Việc tiếp theo" bị căn giữa theo khối 🎚 cao bên phải

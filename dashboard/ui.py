@@ -19,7 +19,7 @@ h1,h2,h3{letter-spacing:-.01em}
 /* bordered containers = cards */
 div[data-testid="stVerticalBlockBorderWrapper"]{background:var(--surface);border-radius:12px;border-color:var(--border)}
 /* buttons */
-.stButton>button,.stDownloadButton>button{border-radius:8px;border:1px solid var(--border);font-size:12px;font-weight:500;padding:.35rem .8rem;min-height:2.1rem}
+.stButton>button,.stDownloadButton>button{border-radius:8px;border:1px solid var(--border);font-size:12.5px;font-weight:500;padding:.35rem .8rem;min-height:2.1rem}
 .stButton>button:disabled{opacity:.45;cursor:not-allowed}
 .stButton>button[kind="primary"]{background:var(--primary);border-color:var(--primary);color:var(--on-primary)}
 .st-key-btn_resume button,.st-key-approve_all button,.st-key-btn_ok button{background:var(--ok-soft);border-color:var(--ok);color:var(--ok)}
@@ -41,17 +41,17 @@ div[data-testid="stVerticalBlockBorderWrapper"]{background:var(--surface);border
 [class*="st-key-mode_"] label[data-testid="stRadioOption"][data-selected="true"] p,[class*="st-key-filter_"] label[data-testid="stRadioOption"][data-selected="true"] p{color:var(--on-primary);font-weight:600}
 .st-key-step label[data-testid="stRadioOption"]>div>div:first-child,[class*="st-key-mode_"] label[data-testid="stRadioOption"]>div>div:first-child,[class*="st-key-filter_"] label[data-testid="stRadioOption"]>div>div:first-child{display:none}
 /* badges, bars, items */
-.badge{display:inline-block;padding:2px 8px;border-radius:10px;font-size:12px;font-weight:600;background:var(--bg);color:var(--muted);white-space:nowrap}
+.badge{display:inline-block;padding:2px 9px;border-radius:10px;font-size:12.5px;font-weight:600;background:var(--bg);color:var(--muted);white-space:nowrap}
 .b-ok{background:var(--ok-soft);color:var(--ok)}.b-warn{background:var(--warn-soft);color:var(--warn)}.b-bad{background:var(--bad-soft);color:var(--bad)}
 .b-info{background:var(--info-soft);color:var(--info)}.b-pri{background:var(--primary-soft);color:var(--primary)}
 .bar{height:5px;background:var(--border);border-radius:3px;flex:1}.bar i{display:block;height:100%;border-radius:3px}
-.qcrow{display:flex;align-items:center;gap:8px;font-size:12px;margin:2px 0}.qcrow b{min-width:52px}
+.qcrow{display:flex;align-items:center;gap:8px;font-size:12.5px;margin:2px 0}.qcrow b{min-width:52px}
 .crit{display:flex;justify-content:space-between;font-size:12.5px;margin:5px 0}
 .prog{height:10px;background:var(--border);border-radius:5px;overflow:hidden;margin:6px 0}.prog i{display:block;height:100%;background:var(--primary)}
 .item{display:flex;align-items:center;gap:12px;background:var(--bg);border-radius:8px;padding:10px 12px;margin-bottom:8px}
 .item .av{width:36px;height:36px;border-radius:50%;background:var(--primary-soft);flex:none;display:grid;place-items:center;font-weight:700;color:var(--primary)}
 .item .t{flex:1;min-width:0}.item .t b{display:block;font-size:12.5px}.item .t span{font-size:12.5px;color:var(--muted)}
-.cardtitle{font-size:14px;font-weight:700;margin:0 0 8px}.cardtitle span{font-size:12px;color:var(--muted);font-weight:400;margin-left:6px}
+.cardtitle{font-size:14px;font-weight:700;margin:0 0 8px}.cardtitle span{font-size:12.5px;color:var(--muted);font-weight:400;margin-left:6px}
 .cardhead{display:flex;align-items:center;gap:8px;margin:4px 0 6px}.cardhead .grow{flex:1}
 .muted{color:var(--muted);font-size:12.5px}
 .note-warn{background:var(--warn-soft);border:1px solid var(--warn);border-radius:10px;padding:10px 14px;margin:8px 0}
@@ -63,16 +63,15 @@ div[data-testid="stVerticalBlockBorderWrapper"]{background:var(--surface);border
 border:1px solid var(--border);border-left:4px solid var(--primary);border-radius:10px;font-size:14px}
 .stephead b{font-size:16px}
 .nextband{margin:-4px 0 10px;padding:7px 14px;border-radius:8px;font-size:13px;font-weight:600;background:var(--primary-soft);color:var(--primary)}
-.nextband.wait{background:var(--warn-soft);color:#93370D;border:1px solid var(--warn)}.nextband.done{background:var(--ok-soft);color:var(--ok)}
+.nextband.wait,.nextband.warn{background:var(--warn-soft);color:#93370D;border:1px solid var(--warn)}.nextband.done{background:var(--ok-soft);color:var(--ok)}
 .sub-num{display:inline-block;min-width:26px;padding:1px 7px;margin-right:6px;border-radius:6px;background:var(--primary-soft);
-color:var(--primary);font-weight:700;font-size:12px;text-align:center}
+color:var(--primary);font-weight:700;font-size:12.5px;text-align:center}
 /* đợt 3 (01/10): dễ đọc hơn — chữ to hơn, màu chữ phụ đậm hơn (người dùng: "nhìn khá khó đọc chữ") */
 .stButton>button,.stDownloadButton>button{font-size:13.5px}
 [data-testid="stCaptionContainer"],[data-testid="stCaptionContainer"] p,.stCaption{font-size:13.5px;color:var(--muted);line-height:1.5}
 [data-testid="stMarkdownContainer"] p,[data-testid="stMarkdownContainer"] li{font-size:14.5px;line-height:1.55}
 [data-testid="stPopover"] button p,[data-testid="stSelectbox"] input{font-size:13.5px}
 label[data-testid="stWidgetLabel"] p{font-size:13.5px;color:var(--text)}
-.badge{font-size:12px;padding:2px 9px}
 .muted,.cardtitle span{font-size:12.5px}
 .qcrow,.crit,.item .t span{font-size:12.5px}.item .t b{font-size:13.5px}
 .st-key-step label[data-testid="stRadioOption"] p{font-size:14px}
@@ -101,7 +100,7 @@ div[data-testid="stVerticalBlockBorderWrapper"]{border-width:1.5px}
 /* thanh tiến độ đổi màu theo % hoàn thành + khung của container có viền (Streamlit 1.64: stVerticalBlock) */
 .pbwrap{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:4px 0}.pbtext{flex:1 1 100%;font-size:13px;color:var(--muted)}
 .pb{flex:1;height:10px;background:var(--border);border-radius:5px;overflow:hidden;min-width:80px}.pb i{display:block;height:100%;border-radius:5px}
-.pbpct{font-size:12px;font-weight:700;min-width:36px;text-align:right}
+.pbpct{font-size:12.5px;font-weight:700;min-width:36px;text-align:right}
 [data-testid="stVerticalBlock"]{border-color:var(--border)!important;border-width:1.5px!important}
 /* ===== hệ thống thiết kế (01/10): tab / bước hiện ĐỦ mục với trạng thái chọn nền đặc; focus rõ; chữ tối thiểu 12-14px ===== */
 [role="tablist"]{gap:6px;border-bottom:1.5px solid var(--border)}

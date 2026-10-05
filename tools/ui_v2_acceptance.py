@@ -129,6 +129,30 @@ def measure_auto_path(v2: str) -> dict:
 
 
 # ---------------------------------------------------------------- 2. khóa điều khiển
+# Khóa cũ được CHỦ Ý đổi tên / bỏ trong v2 (kèm lý do) — mẫu "{}" thay cho số. Bảng này chỉ dài thêm khi có quyết định rõ (S14.8 U6:
+# chuyển từ tests/test_ui_v2_acceptance.py vào đây để công cụ, test và devsys/metrics.py dùng chung một bảng).
+RENAMED = {
+    "retry_{}": "storyboard_cards.py: nút '↻ Vẽ lại' của ảnh lỗi dùng dretry_{} (cùng p.retry) — khóa cũ chỉ còn ở giao diện cũ",
+    "inbox_kind": "header.inbox_card: bộ lọc loại việc chỉ hiện khi hộp thư > 3 việc (INBOX_SHOWN)",
+    "fold_refs_{}_btn": "v2 thay thẻ gập 'Tham chiếu' bằng khối luôn mở (inputs_and_refs_v2)",
+    "fold_script_{}_btn": "v2 thay thẻ gập 'Kịch bản' bằng thẻ ① + expander 'Nhập / thay kịch bản'",
+}
+
+
+def _renamed(key: str) -> bool:
+    return re.sub(r"\d+", "{}", key) in RENAMED or re.sub(r"_\d+", "_{}", key) in RENAMED
+
+
+def explained(keys) -> list:
+    """Khóa mất CÓ lý do trong RENAMED."""
+    return sorted(k for k in keys if _renamed(k))
+
+
+def unexplained(keys) -> list:
+    """Khóa mất KHÔNG có lý do — chỉ những khóa này làm phép đo `keys` thất bại."""
+    return sorted(k for k in keys if not _renamed(k))
+
+
 KEY_RE = re.compile(r'\bkey\s*=\s*(f?)(["\'])(.*?)\2')
 
 
@@ -227,6 +251,21 @@ def build_perf_fixture(tmp: str, n_projects: int = 50, frames: int = 30, events:
     return big
 
 
+def mark_finished(n: int = 20, size: int = 1 << 20) -> list:
+    """S14.8 U1: n dự án nền thành "đã xong" (FINAL_VIDEO.mp4 ~1 MB + đã xuất bản giao) → ⌂ có mục 🎬 Sản phẩm đã hoàn tất."""
+    from core import delivered
+    from core.db import connect
+    conn = connect(os.environ["PIPELINE_DB"])
+    ids = [r["id"] for r in conn.execute("SELECT id FROM projects ORDER BY id LIMIT ?", (n,)).fetchall()]
+    for pid in ids:
+        out = os.path.join(os.environ["PIPELINE_DATA"], str(pid), "output")
+        os.makedirs(out, exist_ok=True)
+        with open(os.path.join(out, "FINAL_VIDEO.mp4"), "wb") as fh:
+            fh.write(bytes(size))
+        delivered.mark(conn, pid, out, source="test")
+    return ids
+
+
 SQL = {"n": 0, "s": 0.0, "by": {}}
 
 
@@ -258,9 +297,11 @@ def measure_perf(v2: str, reps: int) -> dict:
     _install_sql_counter()
     at = _app()
     res = {}
-    for label, step in (("home_50", "⌂ Tất cả dự án"), ("storyboard_30", "Storyboard")):
+    for label, step in (("home_50", "⌂ Tất cả dự án"), ("storyboard_30", "Storyboard"), ("home_50_done20", "⌂ Tất cả dự án")):
         if label == "storyboard_30":
             at.selectbox(key="global_pid").set_value(big)
+        if label == "home_50_done20":                         # S14.8 U1: 20 dự án xong không được làm ⌂ chậm hơn 20 %
+            mark_finished(20)
         at.radio(key="step").set_value(step).run()
         if at.exception:
             res[label] = {"error": [e.message[:200] for e in at.exception]}
@@ -277,7 +318,7 @@ def measure_perf(v2: str, reps: int) -> dict:
         top = sorted(SQL["by"].items(), key=lambda kv: -kv[1][1])[:3]
         res[label] = {"median_s": round(statistics.median(times), 3), "min_s": round(min(times), 3), "cpu_min_s": round(min(cpus), 3),
                       "sql_n": sqls[-1][0], "sql_ms": round(sqls[-1][1] * 1000, 1),
-                      "sql_top": [(k, n, round(t * 1000, 1)) for k, (n, t) in top]}
+                      "sql_top": [(k, n, round(t * 1000, 1)) for k, (n, t) in top], "videos": len(at.get("video"))}
     return res
 
 
@@ -356,8 +397,9 @@ def main() -> int:
         old, new = child("keys", "0"), child("keys", "1")
         for s in old:
             ko, kn = {k for _, k in old[s]}, {k for _, k in new.get(s, [])}
-            print(f"   màn {s:22} cũ {len(ko):4} · v2 {len(kn):4} · mất trong v2 {sorted(ko - kn)}")
-            if ko - kn:
+            print(f"   màn {s:22} cũ {len(ko):4} · v2 {len(kn):4} · mất trong v2 {unexplained(ko - kn)}"
+                  + (f" · đổi có chủ ý {explained(ko - kn)}" if explained(ko - kn) else ""))
+            if unexplained(ko - kn):
                 bad = True
     if a.mode in ("all", "perf"):
         rounds = [(child("perf", "0", ["--reps", str(a.reps)]), child("perf", "1", ["--reps", str(a.reps)])) for _ in range(3)]   # xen kẽ 3 vòng: máy ồn
@@ -377,6 +419,16 @@ def main() -> int:
             if d > 20:
                 print("     SQL chậm nhất v2:", sn["sql_top"])
             bad = bad or d > 20
+        for v in ("0", "1"):                                   # S14.8 U1: ⌂ 20 dự án xong so với 0 dự án xong, cùng một bản giao diện
+            if not all("min_s" in r[int(v)].get(k, {}) for r in rounds for k in ("home_50", "home_50_done20")):
+                continue
+            base = min(r[int(v)]["home_50"]["min_s"] for r in rounds)
+            done = min(r[int(v)]["home_50_done20"]["min_s"] for r in rounds)
+            nvid = max(r[int(v)]["home_50_done20"]["videos"] for r in rounds)
+            d = (done / base - 1) * 100
+            ok = d <= 20 and nvid <= 1
+            print(f"PERF-DONE ui_v2={v} home_50_done20 {done:.3f}s so home_50 {base:.3f}s · {d:+.1f} % · st.video {nvid}  {'ĐẠT' if ok else 'VƯỢT'}")
+            bad = bad or not ok
     return 1 if bad else 0
 
 

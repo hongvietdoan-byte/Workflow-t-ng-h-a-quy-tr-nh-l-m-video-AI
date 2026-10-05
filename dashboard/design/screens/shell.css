@@ -33,7 +33,7 @@
 .st-key-step [data-testid="stRadioGroup"] > div { flex: 0 0 auto; }
 @media (max-width: 1279px) {
     .st-key-step label[data-testid="stRadioOption"] { padding: 6px 12px; gap: 7px; }
-    .st-key-step label[data-testid="stRadioOption"]::before { width: 22px; height: 22px; font-size: 12px; }
+    .st-key-step label[data-testid="stRadioOption"]::before { width: 22px; height: 22px; font-size: 12.5px; }
 }
 
 /* 🎚 Mức tự động = nhóm nút chọn một */

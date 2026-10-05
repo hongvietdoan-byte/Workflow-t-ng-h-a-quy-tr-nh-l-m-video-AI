@@ -286,6 +286,20 @@ _CLICK = re.compile(r"CLICK[^:]*:\s*cũ\s*(\d+)\s*·\s*v2\s*(\d+)")
 _KEYS_LOST = re.compile(r"mất(?: trong v2)?\s*(\[[^\]]*\])")
 
 
+def _renamed_check():
+    """S14.8 U8: the RENAMED table of tools/ui_v2_acceptance.py (keys renamed on purpose, with a reason) as a predicate. The file is
+    loaded by path (tools/ is not a package); if it cannot be read, every key counts as lost (the stricter answer)."""
+    import importlib.util
+    path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "tools", "ui_v2_acceptance.py")
+    try:
+        spec = importlib.util.spec_from_file_location("_ui_v2_acceptance_renamed", path)
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        return lambda key: not mod.unexplained([key])
+    except (OSError, ImportError, AttributeError, SyntaxError):
+        return lambda key: False
+
+
 def ui_from_text(acceptance: str = "", contrast: str = "", source: str = "") -> Dict:
     """Parse the printed output of `py tools/ui_v2_acceptance.py all` and of tools/ui_contrast_audit.js (one line per zone:
     '<vùng> | chữ<4.5: N | chữ<12.5px: M') into the numbers the scorer uses. Missing parts stay None."""
@@ -298,9 +312,10 @@ def ui_from_text(acceptance: str = "", contrast: str = "", source: str = "") -> 
     if perf:
         out["perf_worst_pct"] = max(perf)
     lost = 0
+    explained = _renamed_check()
     for k in _KEYS_LOST.finditer(acceptance):
         try:
-            lost += len(json.loads(k.group(1).replace("'", '"')))
+            lost += sum(1 for key in json.loads(k.group(1).replace("'", '"')) if not explained(key))   # S14.8 U8: renamed on purpose ≠ lost
         except ValueError:
             pass
     if acceptance:

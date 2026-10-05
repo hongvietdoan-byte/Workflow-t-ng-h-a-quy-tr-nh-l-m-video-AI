@@ -91,6 +91,26 @@ class InboxTests(unittest.TestCase):
         b = inbox.items(self.p.conn, "viet@garena.vn", is_owner=True, can_money=True, auth_on=True)
         self.assertTrue([i for i in b if i["kind"] == "Tiền" and "clipai" in i["text"]])
 
+    def test_failed_generation_is_listed_only_for_the_latest_job_of_a_shot(self):
+        """S14.8 U4: job ảnh/video lỗi (failed/retryable) mới nhất của mỗi cảnh → mục "Lỗi gen" (ảnh → storyboard, video → video);
+        cảnh đã có job mới hơn không lỗi thì không nhắc."""
+        sid2 = self.p.create_scene(self.mine, 2, "s2")
+        sid3 = self.p.create_scene(self.mine, 3, "s3")
+        img = self.p.create_job(sid2, "image_gen")
+        vid = self.p.create_job(sid3, "video_gen")
+        old = self.p.create_job(sid3, "image_gen")
+        self.p.conn.execute("UPDATE jobs SET state='failed' WHERE id IN (?,?)", (img, old))
+        self.p.conn.execute("UPDATE jobs SET state='retryable' WHERE id=?", (vid,))
+        self.p.create_job(sid3, "image_gen")                                     # cảnh 3: ảnh lỗi cũ đã có lượt mới → không nhắc
+        self.p.conn.commit()
+        self.assertIn("Lỗi gen", inbox.KINDS)
+        got = [i for i in inbox.items(self.p.conn, "viet@garena.vn", is_owner=False, can_money=False, auth_on=True) if i["kind"] == "Lỗi gen"]
+        self.assertEqual(sorted((i["screen"], i["level"]) for i in got), [("storyboard", "bad"), ("video", "bad")])
+        texts = " | ".join(i["text"] for i in got)
+        self.assertIn("ảnh shot 2", texts)
+        self.assertIn("clip shot 3", texts)
+        self.assertNotIn("ảnh shot 3", texts)
+
     def test_archived_projects_are_not_listed(self):
         from core import archive
         archive.archive(self.p, self.mine)

@@ -198,3 +198,30 @@ class MemberSignInTests(ShellBase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class NextLineErrorTests(ShellBase):
+    """S14.8 U3: "việc tiếp theo" đọc lỗi → câu báo + dòng diag (không im lặng như "Chưa có việc nào"); None hợp lệ giữ câu cũ."""
+
+    def test_error_says_so_and_writes_a_diag_line(self):
+        from dashboard.design.screens import shell_parts
+        with mock.patch("dashboard.next_step.next_action", side_effect=RuntimeError("hỏng")):
+            text, level = shell_parts.next_line(self.p, self.pid, 1, os.path.join(os.path.dirname(self.db), "projects"))
+        self.assertEqual(level, "warn")
+        self.assertIn("Không đọc được việc tiếp theo", text)
+        row = self.p.conn.execute("SELECT stage, code, message, project_id FROM diag_events WHERE code='next_step_error'").fetchone()
+        self.assertIsNotNone(row)
+        self.assertEqual(row["project_id"], self.pid)
+        self.assertIn("RuntimeError", row["message"])
+        with mock.patch("dashboard.next_step.next_action", return_value=None):
+            self.assertEqual(shell_parts.next_line(self.p, self.pid, 1, "")[1], "done")
+
+    def test_hero_shows_the_warning_and_the_band_has_a_warn_style(self):
+        from dashboard import next_step, ui
+        self.assertRegex(ui.CSS, r"\.nextband\.warn\{")
+        with mock.patch("dashboard.next_step.next_action", side_effect=RuntimeError("hỏng")):
+            at = self.run_app()
+            band = next_step.band(self.p, self.pid, 1)
+        self.assertFalse(at.exception, at.exception)
+        self.assertIn("Không đọc được việc tiếp theo", self.html_text(at))
+        self.assertIn('class="nextband warn"', band)

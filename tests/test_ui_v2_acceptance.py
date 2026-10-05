@@ -8,13 +8,7 @@ import unittest
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "tools"))
 import ui_v2_acceptance as U  # noqa: E402
 
-# khóa cũ được chủ ý đổi tên / bỏ trong v2 (kèm lý do) — danh sách này chỉ được dài thêm khi có quyết định rõ
-RENAMED = {
-    "retry_{}": "storyboard_cards.py: nút '↻ Vẽ lại' của ảnh lỗi dùng dretry_{} (cùng p.retry) — khóa cũ chỉ còn ở giao diện cũ",
-    "inbox_kind": "header.inbox_card: bộ lọc loại việc chỉ hiện khi hộp thư > 3 việc (INBOX_SHOWN)",
-    "fold_refs_{}_btn": "v2 thay thẻ gập 'Tham chiếu' bằng khối luôn mở (inputs_and_refs_v2)",
-    "fold_script_{}_btn": "v2 thay thẻ gập 'Kịch bản' bằng thẻ ① + expander 'Nhập / thay kịch bản'",
-}
+RENAMED = U.RENAMED     # S14.8 U6: bảng khóa đổi tên có chủ ý nằm ở tools/ui_v2_acceptance.py (công cụ + test + devsys dùng chung)
 
 
 def _git_has(rev: str) -> bool:
@@ -38,9 +32,13 @@ class AcceptanceTests(unittest.TestCase):
         lost = set()
         for screen in old:
             lost |= {k for _, k in old[screen]} - {k for _, k in new.get(screen, [])}
-        import re
-        undocumented = sorted(k for k in lost if re.sub(r"\d+", "{}", k) not in RENAMED and not re.sub(r"_\d+", "_{}", k) in RENAMED)
-        self.assertEqual(undocumented, [], "khóa widget cũ biến mất ở v2 mà chưa có lý do trong RENAMED")
+        self.assertEqual(U.unexplained(lost), [], "khóa widget cũ biến mất ở v2 mà chưa có lý do trong RENAMED")
+
+    def test_renamed_table_explains_only_its_own_patterns(self):
+        """S14.8 U6/U8: khóa mất có lý do trong RENAMED không tính là mất; khóa khác vẫn bị báo."""
+        self.assertIn("retry_{}", U.RENAMED)
+        self.assertEqual(U.unexplained({"retry_5", "fold_refs_3_btn", "inbox_kind", "new_thing_2"}), ["new_thing_2"])
+        self.assertEqual(U.explained({"retry_5", "x"}), ["retry_5"])
 
 
 if __name__ == "__main__":

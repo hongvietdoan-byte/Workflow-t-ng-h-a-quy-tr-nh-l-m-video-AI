@@ -90,6 +90,27 @@ class UiHomeTests(unittest.TestCase):
         self.assertIn(f"home_open_{self.b}", keys)
         self.assertNotIn(f"home_open_{self.a}", keys)
 
+    def _finish(self, pid: int) -> None:
+        from core import delivered
+        out = os.path.join(self.tmp, "projects", str(pid), "output")
+        os.makedirs(out, exist_ok=True)
+        with open(os.path.join(out, "FINAL_VIDEO.mp4"), "wb") as fh:
+            fh.write(b"0" * 2048)
+        delivered.mark(self.p.conn, pid, out, source="test")
+
+    def test_finished_videos_only_render_once_picked(self):
+        """S14.8 U1: ⌂ không dựng st.video cho mọi dự án xong (chậm khi nhiều) — chỉ 1 video, sau khi chọn; nút tải theo dự án đã chọn."""
+        c = self.p.create_project("Dự án C")
+        for pid in (self.a, self.b, c):
+            self._finish(pid)
+        at = self._home()
+        self.assertEqual(len(at.get("video")), 0)
+        self.assertNotIn(f"home_dl_{self.a}", [getattr(d, "key", None) for d in at.get("download_button")])
+        at.selectbox(key="home_finished_pick").set_value(c).run()
+        self.assertFalse(at.exception, at.exception)
+        self.assertEqual(len(at.get("video")), 1)
+        self.assertEqual([getattr(d, "key", None) for d in at.get("download_button")], [f"home_dl_{c}"])
+
     def test_team_table_renders_for_the_owner_with_editor_keys(self):
         at = AppTest.from_file(APP, default_timeout=40)
         at.session_state["step"] = "👥 Nhóm"

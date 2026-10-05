@@ -239,9 +239,14 @@ def _rows(shown: list) -> None:
 def _finished(shown: list) -> None:
     finished = [r for r in shown if r["done"] and r.get("delivered", True) and r["final_video"] and os.path.exists(r["final_video"])]
     if finished:
+        # S14.8 U1: st.video đọc cả file mỗi lượt vẽ, kể cả trong expander gập → 20 dự án xong làm ⌂ chậm +78 %. Chỉ dựng player
+        # và nút tải (đọc file) cho MỘT dự án người dùng chọn; mặc định trống.
+        by_id = {r["id"]: r for r in finished}
         with st.expander(f"🎬 Sản phẩm đã hoàn tất ({len(finished)})", expanded=False):
-            for r in finished:
-                st.markdown(f"**#{r['id']} {r['name']}**")
+            pick = st.selectbox("Xem dự án", [""] + list(by_id), key="home_finished_pick",
+                                format_func=lambda k: "— chọn một dự án để xem / tải video —" if k == "" else f"#{k} {by_id[k]['name']}")
+            r = by_id.get(pick)
+            if r:
                 show_video(r["final_video"], "Nhỏ")
                 with open(r["final_video"], "rb") as f:
                     st.download_button("⬇ Tải FINAL_VIDEO.mp4", f, file_name=f"{r['name']}_FINAL_VIDEO.mp4", key=f"home_dl_{r['id']}")

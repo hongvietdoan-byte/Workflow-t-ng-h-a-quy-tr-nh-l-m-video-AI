@@ -83,13 +83,23 @@ def next_action(p: Pipeline, pid: int, step: int, data_dir: str = "") -> Optiona
     return None
 
 
+def note_error(p: Pipeline, pid: int, step: int, error: Exception) -> None:
+    """S14.8 U3: reading the next step failed — keep the reason in ⚙ Chẩn đoán (core/diag never raises)."""
+    from core import diag
+    conn = getattr(p, "conn", None)
+    if conn is None:                   # no database to write to (the band / strip still shows the error to the person)
+        return
+    diag.record(conn, "system", "warn", f"việc tiếp theo (bước {step}) đọc lỗi: {type(error).__name__}: {error}", "next_step_error", pid)
+
+
 def band(p: Pipeline, pid: int, step: int, data_dir: str = "") -> str:
     """HTML of the band ('' when nothing to say)."""
     from html import escape
     try:
         res = next_action(p, pid, step, data_dir)
-    except Exception as e:  # noqa: BLE001 - the band must never break a step; the reason is shown instead
-        return f'<div class="nextband wait">⚠ Không đọc được việc tiếp theo ({escape(type(e).__name__)})</div>'
+    except Exception as e:  # noqa: BLE001 - the band must never break a step; the reason is shown + kept in diag (S14.8 U3)
+        note_error(p, pid, step, e)
+        return f'<div class="nextband warn">⚠ Không đọc được việc tiếp theo ({escape(type(e).__name__)})</div>'
     if not res:
         return ""
     text, level = res

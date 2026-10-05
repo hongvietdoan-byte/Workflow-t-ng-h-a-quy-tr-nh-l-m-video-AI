@@ -22,7 +22,7 @@ def inbox_card(p: Pipeline) -> None:
     can_money = is_owner or allowed("settings")
     mine = inbox.items(p.conn, email, is_owner, can_money, auth_on())
     with st.popover(f"📥 Việc cần bạn ({len(mine)})" + (" 🔴" if any(i["level"] == "bad" for i in mine) else ""), width="stretch",
-                    help="Mọi việc đang chờ bạn ở mọi dự án: duyệt ảnh / clip, khóa ngân sách, chạy tự động đang dừng, dịch vụ hết tiền"):
+                    help="Mọi việc đang chờ bạn ở mọi dự án: duyệt ảnh / clip, ảnh / clip gen lỗi, khóa ngân sách, chạy tự động đang dừng, dịch vụ hết tiền"):
         team_view = False
         if auth_on() and is_owner:
             team_view = st.radio("Phạm vi", ["Của tôi", "Cả nhóm"], horizontal=True, label_visibility="collapsed", key="inbox_scope") == "Cả nhóm"
