@@ -1,5 +1,5 @@
 """S14.41 (chấm phiếu 05c, 05/10): lời thoại sạch (không mày/tao, không nói tục) — kiểm bằng code sau lượt viết; luật Biên kịch mới
-(lời thoại sạch + logic vật thể); ý tưởng mẫu 1 đổi (Kelly đoán rank của bạn). 0 USD (MockLlm, không gọi API thật)."""
+(lời thoại sạch + logic vật thể); ý tưởng mẫu 1 đổi (Kelly đoán rank của chính Kelly — người dùng chốt 05/10). 0 USD (MockLlm, không gọi API thật)."""
 import json
 import os
 import unittest
@@ -92,11 +92,11 @@ class ScreenwriterRulesS1441(unittest.TestCase):
         self.assertIn("nhấc cao", pr)
         self.assertIn("không phải công thức", pr)
 
-    def test_golden_idea_1_is_kelly_guessing_your_rank(self):
+    def test_golden_idea_1_is_kelly_guessing_her_own_rank(self):
         ideas = json.load(open(os.path.join(ROOT, "data", "idea_golden", "ideas.json"), encoding="utf-8"))
         one = next(i for i in ideas if i["id"] == 1)
-        self.assertIn("rank của bạn", one["idea"])
-        self.assertIn("rank của bạn", one["anchors"]["plot"])
+        self.assertIn("rank của chính Kelly", one["idea"])
+        self.assertIn("rank của chính Kelly", one["anchors"]["plot"])
         self.assertNotIn("hạng của mình", one["idea"])
 
 
