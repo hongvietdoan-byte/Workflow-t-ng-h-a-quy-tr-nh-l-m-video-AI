@@ -277,6 +277,7 @@ LLM_STAGE_TOKENS = {"director": (25000, 18000), "motion": (9000, 4000), "qc": (6
                     "video_analysis": (14000, 4000), "setcheck": (8000, 1200), "clipcheck": (10000, 1200),
                     "asset_vision": (6000, 900), "research": (25000, 1500),
                     "director_rewrite": (5000, 900),   # S14.17: one shot's prompt rewritten before a retake (+ the faulty picture)
+                    "asset_checklist": (12000, 2500),  # S14.23: script + library names (≈ 30 tokens / entry, a few hundred entries), no picture
                     "editor": (9000, 3000)}    # rough-cut review (P2, both calls): text only here — the sheets (≤ 12) are added as `images` ≈ 1,400 tokens each
 IMAGE_TOKENS = 1400
 

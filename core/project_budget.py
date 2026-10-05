@@ -60,7 +60,7 @@ def _save(conn, pid: int, data: Dict) -> Dict:
 
 def claude_stage(tag: Optional[str]) -> str:
     t = str(tag or "")
-    if t.startswith("director") or t == "screenwriter":       # S11.1: the Biên kịch writes before the Director, same budget line
+    if t.startswith("director") or t in ("screenwriter", "asset_checklist"):   # S11.1 Biên kịch / S14.23 bảng kê: before the Director, same line
         return "claude_director"
     if t in ("qc", "qc_agent", "video", "video_qc", "video_analysis", "storyboard_review", "check", "scene_qc", "editor") or t.startswith("qc"):
         # "editor" (rough-cut review, P2): a check of the finished cut, same line as the other checks, not "khác" (cap 0.20)
