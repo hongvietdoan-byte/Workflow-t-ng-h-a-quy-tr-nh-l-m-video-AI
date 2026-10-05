@@ -61,14 +61,17 @@ def items(conn, email: str, is_owner: bool = True, can_money: bool = True, auth_
                                   " ORDER BY s.idx", (pid, typ)).fetchall():
                 add(kind, f"Cần bạn quyết — đã tự gen lại {j['retry_count']} lần: {label} shot {j['idx']} (máy không tự gen thêm)",
                     screen, "wait")
+        # S14.8 U4: the LATEST job of a shot failed (failed / retryable, core/states.JobState) — only image_gen / video_gen
+        # (pipeline.create_job makes only these two); a shot that already has a newer job is not listed (storyboard_cards.board_stats).
+        # One query for both types (⌂ / every page draws this for every project).
+        failed = {"image_gen": [], "video_gen": []}
+        for r in conn.execute("SELECT j.type, s.idx FROM jobs j JOIN scenes s ON s.id=j.scene_id WHERE j.project_id=?"
+                              " AND j.type IN ('image_gen','video_gen') AND j.state IN ('failed','retryable')"
+                              " AND NOT EXISTS (SELECT 1 FROM jobs k WHERE k.scene_id=j.scene_id AND k.type=j.type AND k.id>j.id)"
+                              " ORDER BY s.idx", (pid,)).fetchall():
+            failed[r["type"]].append(r["idx"])
         for typ, screen, label in (("image_gen", "storyboard", "ảnh"), ("video_gen", "video", "clip")):
-            # S14.8 U4: the LATEST job of a shot failed (failed / retryable, core/states.JobState) — only image_gen / video_gen
-            # (pipeline.create_job makes only these two); a shot that already has a newer job is not listed (storyboard_cards.board_stats)
-            idx = [r["idx"] for r in conn.execute(
-                "SELECT s.idx FROM jobs j JOIN scenes s ON s.id=j.scene_id WHERE j.project_id=? AND j.type=?"
-                " AND j.state IN ('failed','retryable')"
-                " AND NOT EXISTS (SELECT 1 FROM jobs k WHERE k.scene_id=j.scene_id AND k.type=j.type AND k.id>j.id)"
-                " ORDER BY s.idx", (pid, typ)).fetchall()]
+            idx = failed[typ]
             if idx:
                 shots = ", ".join(str(i) for i in idx[:8]) + ("…" if len(idx) > 8 else "")
                 add("Lỗi gen", f"Gen {label} lỗi ở {len(idx)} shot — mở để vẽ lại / xem lý do: {label} shot {shots}", screen, "bad")
