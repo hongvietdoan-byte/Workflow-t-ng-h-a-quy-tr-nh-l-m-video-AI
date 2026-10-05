@@ -27,7 +27,7 @@ def checklist_panel(p: Pipeline, pid: int, scope: str = "dir") -> None:
         if st.button(("📋 Lập bảng kê tài nguyên" if res is None else "↻ Lập lại bảng kê")
                      + cost.llm_button_tag(p.conn, asset_checklist.STAGE, 1),
                      key=f"asset_chk_{scope}_{pid}", disabled=client is None,
-                     help="Một lượt Claude (không ảnh): đọc kịch bản, kê nhân vật / nơi / đồ vật / vũ khí / thú cưng / trang phục, ghép với "
+                     help="Một lượt Claude (không ảnh; tối đa 2 lượt nếu sai định dạng — giá trên nút đã tính cả 2): đọc kịch bản, kê nhân vật / nơi / đồ vật / vũ khí / thú cưng / trang phục, ghép với "
                           "Kho. Code kiểm lại id và loại." if client else claude_hint()):
             with st.spinner("Claude đang kê tài nguyên kịch bản cần…"):
                 if act(lambda: asset_checklist.run(p, pid, client)):

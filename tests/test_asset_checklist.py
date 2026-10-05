@@ -220,3 +220,37 @@ class MissingInputs(Base):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class ReviewFixes(Base):
+    """Rà độc lập S14.23 (05/10): quyền chi tiền / gắn, Kho đúng dự án, ước tính tính dư."""
+
+    def stranger(self):
+        self.p.user = {"email": "la@garena.vn", "role": "member"}
+        self.p.actor = "la@garena.vn"
+
+    def test_a_viewer_cannot_spend_on_a_checklist(self):
+        from core import access
+        self.stranger()
+        client = FakeClient(self.answer())
+        with mock.patch.dict(os.environ, ON), self.assertRaises(access.AccessDenied):
+            asset_checklist.run(self.p, self.pid, client)
+        self.assertEqual(client.calls, [])
+
+    def test_a_viewer_cannot_attach(self):
+        from core import access
+        self.stranger()
+        with self.assertRaises(access.AccessDenied):
+            asset_checklist.attach(self.p, self.pid, self.roof)
+
+    def test_attach_only_from_this_projects_library(self):
+        other = assets.create(self.p.conn, "OTHERGAME", "character", "Người lạ")
+        with self.assertRaises(asset_checklist.ChecklistError):
+            asset_checklist.attach(self.p, self.pid, other)
+        asset_checklist.attach(self.p, self.pid, self.roof)          # the right Kho still works
+
+    def test_the_estimate_counts_the_retry(self):
+        from core import cost
+        one = cost.llm_estimate(self.p.conn, asset_checklist.STAGE, 1)
+        if one:
+            self.assertGreaterEqual(asset_checklist.estimate_usd(self.p.conn), 2 * one - 1e-9)

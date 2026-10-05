@@ -164,7 +164,7 @@ def _status(row: Dict, attached: set, lib_ids: set) -> str:
 # ---- run / read ---------------------------------------------------------------------------------------------------------------------
 def estimate_usd(conn) -> Optional[float]:
     from . import cost
-    return cost.llm_estimate(conn, STAGE, 1)
+    return cost.llm_estimate(conn, STAGE, 2)     # rà: ask_json may call twice when the JSON is wrong — the label counts both (tính dư)
 
 
 def run(p, pid: int, client) -> Dict:
@@ -172,6 +172,8 @@ def run(p, pid: int, client) -> Dict:
     from . import diag, llm_runner
     if not enabled():
         raise ChecklistError("Bảng kê tài nguyên đang tắt (cờ `asset_checklist` ở ⚙ Cài đặt → 🧪) — chưa gọi Claude.")
+    from . import access
+    access.need_edit(p, pid, "lập bảng kê tài nguyên")    # rà S14.23: a viewer must not spend on Claude nor write the project's table
     if client is None:
         raise ChecklistError("Chưa cấu hình Claude (ANTHROPIC_API_KEY hoặc LLM_PROVIDER) — chưa lập được bảng kê tài nguyên.")
     script = script_text(p, pid)
@@ -216,7 +218,7 @@ def get(p, pid: int) -> Optional[Dict]:
     except ValueError:
         return {"rows": [], "missing": [], "stale": True, "warnings": ["Bảng kê đã lưu bị hỏng — bấm lập lại."]}
     attached = _attached(p.conn, pid)
-    lib_ids = {r[0] for r in p.conn.execute("SELECT id FROM assets")}
+    lib_ids = {a["id"] for a in library(p.conn, pid)}      # rà: the same Kho as at run time (this game / this project)
     rows = []
     for r in state.get("rows") or []:
         r = dict(r)
@@ -241,9 +243,10 @@ def get(p, pid: int) -> Optional[Dict]:
 
 def attach(p, pid: int, asset_id: int) -> None:
     """Quick "Gắn": the library entry joins the project (the Director then reads it in 'Tài nguyên có sẵn')."""
-    from . import assets
-    if p.conn.execute("SELECT 1 FROM assets WHERE id=?", (asset_id,)).fetchone() is None:
-        raise ChecklistError(f"Mục Kho {asset_id} không còn — lập lại bảng kê.")
+    from . import access, assets
+    access.need_edit(p, pid, "gắn tài nguyên")
+    if asset_id not in {a["id"] for a in library(p.conn, pid)}:     # rà: only an entry of THIS project's Kho (game, shared or own)
+        raise ChecklistError(f"Mục Kho {asset_id} không còn hoặc không thuộc Kho của dự án này — lập lại bảng kê.")
     assets.attach(p.conn, pid, asset_id)
 
 
