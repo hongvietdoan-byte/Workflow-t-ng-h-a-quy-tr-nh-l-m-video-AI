@@ -32,6 +32,8 @@ def director_panel(p: Pipeline, pid: int, chars) -> None:
         if director_open:
             if kept:
                 cap(f"🔒 {sum(len(r['fields']) for r in kept)} trường bạn đã sửa tay ở {len(kept)} cảnh được giữ nguyên khi chạy lại.")
+            from dashboard.steps.step1_checklist import checklist_panel
+            checklist_panel(p, pid, "dir")          # S14.23: flag asset_checklist off → draws nothing
             client = llm_client()
             if client is not None:
                 from core import director_two_pass

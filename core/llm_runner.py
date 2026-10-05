@@ -98,6 +98,8 @@ STAGE_SETTINGS: Dict[str, Dict[str, Any]] = {
                                                               # default 32k made turn 1's estimate 0.43 USD > the 0.3 USD per-idea cap
     "director_rewrite": {"effort": "low", "max_tokens": 6000,   # S14.17 Đạo diễn viết lại prompt MỘT shot trước khi gen lại: JSON ngắn.
                          "timeout": 90, "retries": 1},          # The person waits on the button: 90 s, one retry, then the old "Fix:" way
+    "asset_checklist": {"effort": "low", "max_tokens": 6000},   # S14.23 bảng kê tài nguyên trước Director: JSON ngắn (≈ 1 dòng / thứ cần);
+                                                              # own entry so the 32k default never makes the worst case refuse (S11.2)
 }
 # 01/10 B1: a stage with no entry above used the client default (32k) → worst case ≈ 0.36 USD per call, over the whole "Claude — khác"
 # line of a locked project (0.20): music / sfx / style / subtitles / layout / lessons / distill / research … were refused for ever.
@@ -970,6 +972,9 @@ class MockLlm:
             out = {"new_prompt": f"{old} (rewritten by the Director, mock)", "changed": ["Thêm câu sửa vào thân prompt (giả lập)"],
                    "why": "giả lập"}
             return LlmReply("```json\n" + json.dumps(out, ensure_ascii=False) + "\n```", 80, 40)
+        if prompt.startswith("# Bảng kê tài nguyên"):                  # S14.23 (core/asset_checklist.py)
+            from .asset_checklist import mock_answer
+            return LlmReply("```json\n" + json.dumps(mock_answer(prompt), ensure_ascii=False) + "\n```", 90, 40)
         if prompt.startswith("# Đạo diễn — Tầng A"):                    # GĐ5 two-pass Director (core/director_two_pass.py)
             return LlmReply("```json\n" + json.dumps(_mock_intent(prompt), ensure_ascii=False) + "\n```", 100, 40)
         if "# Việc lần này: Quay phim chia shot Cảnh" in prompt:

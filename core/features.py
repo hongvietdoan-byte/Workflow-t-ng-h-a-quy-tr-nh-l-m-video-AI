@@ -341,6 +341,14 @@ FEATURES: Dict[str, Dict] = {
         "why": "S14.26 (05/10): chưa chạy Director thật với khối voice_traits; biến thể cao độ ffmpeg chưa nghe thử trên 4 giọng VN "
                "(giọng nam +3 nửa cung có thể nghe méo) — bật để thử ở dự án mới (core/voice_casting.py)",
     },
+    "asset_checklist": {
+        "label": "Bảng kê tài nguyên trước Director: một lượt Claude rẻ (không ảnh) đọc kịch bản, kê nhân vật/nơi/đồ vật/vũ khí/thú "
+                 "cưng/trang phục cần thấy, ghép với Kho (code kiểm lại id + loại) → bảng ✅ đã gắn / có trong Kho / ⚠️ thiếu, gắn "
+                 "nhanh trước khi trả tiền cho Director",
+        "verified": False,
+        "why": "S14.23 (05/10): chưa chạy Claude thật; nghiệm thu = 2 kịch bản thật (Kho đủ / Kho thiếu) — báo đúng cái thiếu, "
+               "không báo nhầm cái đã có (core/asset_checklist.py, prompts/27_asset_checklist.md)",
+    },
     "risk_tags": {
         "label": "Bài học lỗi: tách tag 'motion' thành 6 trục rủi ro I2V (face_morph, body_deform, wardrobe_drift, background_drift, "
                  "motion_overload, text_logo_corrupt) + identity/physics/lipsync/audio; lỗi không gán được tag hiện ở 'Chưa phân loại' + diag",

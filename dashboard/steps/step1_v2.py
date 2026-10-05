@@ -143,6 +143,8 @@ def _primary_action(p: Pipeline, pid: int, kind: str, scenes, chars, b_total: fl
         D.line(f'<span class="script-sum">{escape(_short(info["note"], 70))} · điều khiển ở thẻ ③</span>',
                info["note"] + "\n\nĐiều khiển chạy tự động ở thẻ ③ Chạy bên dưới.", f"script-auto-note-{pid}")
     elif kind == "plan":
+        from dashboard.steps.step1_checklist import checklist_panel
+        checklist_panel(p, pid, "hero")            # S14.23: flag asset_checklist off → draws nothing
         client = llm_client()
         label = "🤖 Lập kế hoạch"
         if client is not None:
