@@ -96,7 +96,10 @@ def main():
         cost.record_usage(p.conn, None, "image", provider.name, model, "image", 1, "image", project_id=a.project, stage="scene_wide_test")
         print(f"  gửi khung {i + 1}: {m}", flush=True)
 
-    res = storyboard_frames.run(provider, prompts, refs, story, out, size="1152x2048", model=model, on_submit=ledger)
+    res = storyboard_frames.run(provider, prompts, refs, story, out, size="1152x2048", model=model, on_submit=ledger,
+                                conn=p.conn)   # rà soát A2: trần --max-usd + hết tiền kiểm TRƯỚC mỗi khung
+    if res.get("stopped"):
+        print(res["stopped"])
     final = os.path.join(os.path.dirname(out), res["storyboard_id"])
     os.replace(out, final)
     print(json.dumps({"storyboard_id": res["storyboard_id"], "frames": [{k: v for k, v in f.items() if k != "path"} for f in res["frames"]]},
