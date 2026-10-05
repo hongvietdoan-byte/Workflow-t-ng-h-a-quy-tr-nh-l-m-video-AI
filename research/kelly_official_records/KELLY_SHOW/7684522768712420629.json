@@ -1,0 +1,42 @@
+{
+ "video_id": "7684522768712420629",
+ "title": "Best love for my fans❤️❤️❤️#FreeFire #freefire #freefire_lover #freef.",
+ "source": "7684522768712420629.mp4",
+ "style": "KELLY_SHOW",
+ "method": "doc-anh-trong-phien",
+ "analyzed_at": "2026-10-05T10:51:56+00:00",
+ "duration_sec": 10.01,
+ "width": 1080,
+ "height": 1920,
+ "shots": [
+  {
+   "i": 1,
+   "start": 0.0,
+   "end": 10.01,
+   "dur": 10.01,
+   "size": "MCU",
+   "angle": "eye",
+   "camera_move": "static",
+   "role": "hook",
+   "subject": "danh sách Dad/Friends/Teammates/Fans, khối gem tím chia từng người",
+   "text_on_screen": true,
+   "game_ui": true,
+   "vfx": false
+  }
+ ],
+ "overall": {
+  "dd": "trend 'Best love for my fans' (danh sách nhãn + gem)",
+  "hook": "4 nhãn chữ bên trái + Kelly cầm khối gem",
+  "bg": "văn phòng tường xám",
+  "ne": "'tình yêu dành cho' = khối gem bay đến cạnh từng nhãn",
+  "nv": "Kelly",
+  "gm": "trung, tĩnh 10 s",
+  "lp": "4 nhãn + 4 khối gem",
+  "chot": "Fans nhận cuối",
+  "dung": "✅ dễ: 1 shot trung + lớp chữ/icon",
+  "am": "nhạc 100 % thời lượng (0 s nhạc rõ) · lời (whisper đoán, chủ yếu là lời hát nhạc trend): 'I might not be the same, but that's not important.'"
+ },
+ "views": 1200000,
+ "reason": "newest",
+ "channel": "freefire_kelly_official"
+}

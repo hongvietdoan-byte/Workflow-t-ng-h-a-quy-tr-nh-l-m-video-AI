@@ -1,0 +1,42 @@
+{
+ "video_id": "7392520376967859472",
+ "title": "Screenshot Challenge! Who can help me reach Elite Master? 🚀 #freefire.",
+ "source": "7392520376967859472.mp4",
+ "style": "KELLY_SHOW",
+ "method": "doc-anh-trong-phien",
+ "analyzed_at": "2026-10-05T10:51:56+00:00",
+ "duration_sec": 8.38,
+ "width": 720,
+ "height": 900,
+ "shots": [
+  {
+   "i": 1,
+   "start": 0.0,
+   "end": 8.38,
+   "dur": 8.38,
+   "size": "CU",
+   "angle": "eye",
+   "camera_move": "static",
+   "role": "hook",
+   "subject": "'My rank', cột 5 huy hiệu hạng, sao vàng chạy, mặt Kelly đổi nét",
+   "text_on_screen": true,
+   "game_ui": true,
+   "vfx": false
+  }
+ ],
+ "overall": {
+  "dd": "trend 'Screenshot challenge / My rank'",
+  "hook": "chữ 'My rank' + cột 5 huy hiệu hạng bên trái",
+  "bg": "nền mờ",
+  "ne": "chọn hạng = sao vàng chạy dọc cột huy hiệu",
+  "nv": "Kelly cận",
+  "gm": "cận 4:5 tĩnh",
+  "lp": "cột hạng + sao",
+  "chot": "Kelly đổi nét mặt khi sao dừng",
+  "dung": "✅ 1 shot cận + overlay",
+  "am": "nhạc 100 % thời lượng (0 s nhạc rõ) · không có lời"
+ },
+ "views": 4500000,
+ "reason": "theme:food",
+ "channel": "freefire_kelly_official"
+}

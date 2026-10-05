@@ -1,0 +1,42 @@
+{
+ "video_id": "7665285092293578005",
+ "title": "When everyone screams 😭💀#freefire #freefire_lover #freefirekelly #fun.",
+ "source": "7665285092293578005.mp4",
+ "style": "KELLY_SHOW",
+ "method": "doc-anh-trong-phien",
+ "analyzed_at": "2026-10-05T10:51:56+00:00",
+ "duration_sec": 11.67,
+ "width": 1080,
+ "height": 1920,
+ "shots": [
+  {
+   "i": 1,
+   "start": 0.0,
+   "end": 11.67,
+   "dur": 11.67,
+   "size": "MCU",
+   "angle": "eye",
+   "camera_move": "pan",
+   "role": "hook",
+   "subject": "cú lia ngang Kelly→Alvaro→Shirou, HUD số đội+tên+máu trên đầu, đầu lâu, thẻ SUPER REVIVAL, ô F 0",
+   "text_on_screen": true,
+   "game_ui": true,
+   "vfx": false
+  }
+ ],
+ "overall": {
+  "dd": "tiểu phẩm phản ứng nhóm, 1 cú máy",
+  "hook": "mặt Kelly sốc + thanh máu/đầu lâu hiện ngay giây 0–2",
+  "bg": "văn phòng thật (quầy gỗ vàng, tranh tường FF) — chưa có trong Kho",
+  "ne": "KHÔNG quay màn hình điện thoại: HUD trên đầu (ô số đội + tên + thanh máu + đầu lâu + thẻ SUPER REVIVAL + ô F 0) cho biết ai chết/ai cứu được",
+  "nv": "Kelly áo vàng, Alvaro tóc đỏ, Shirou hoodie — 3 người cùng cầm điện thoại, mặt diễn sốc",
+  "gm": "trung cận, lia ngang liền qua 3 người (pan ~11 s)",
+  "lp": "HUD trên đầu từng người, đổi theo thời gian",
+  "chot": "Shirou há hốc nhìn vào máy, Alvaro quay lại — không CTA",
+  "dung": "⚠ cần: nền văn phòng + 3 nhân vật cùng khung + lớp HUD hoạt hình bám đầu (hậu kỳ); lia ngang 1 cú liền khó cho model video",
+  "am": "nhạc 100 % thời lượng (0 s nhạc rõ; 3 s nhạc to lên) · lời (whisper đoán, chủ yếu là lời hát nhạc trend): 'Hmm'"
+ },
+ "views": 625700,
+ "reason": "user",
+ "channel": "freefire_kelly_official"
+}

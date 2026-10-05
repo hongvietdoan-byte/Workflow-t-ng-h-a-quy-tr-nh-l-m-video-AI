@@ -1,0 +1,72 @@
+{
+ "video_id": "7577695624548732177",
+ "title": "Maxim, can you remember my password? 😆📱#freefire #freefire_lover #fre.",
+ "source": "7577695624548732177.mp4",
+ "style": "KELLY_SHOW",
+ "method": "doc-anh-trong-phien",
+ "analyzed_at": "2026-10-05T10:51:56+00:00",
+ "duration_sec": 18.48,
+ "width": 1080,
+ "height": 1920,
+ "shots": [
+  {
+   "i": 1,
+   "start": 0.0,
+   "end": 1.27,
+   "dur": 1.27,
+   "size": "MS",
+   "angle": "eye",
+   "camera_move": "static",
+   "role": "hook",
+   "subject": "Maxim khoe điện thoại ảnh mình",
+   "text_on_screen": false,
+   "game_ui": false,
+   "vfx": false
+  },
+  {
+   "i": 2,
+   "start": 1.27,
+   "end": 15.67,
+   "dur": 14.4,
+   "size": "MS",
+   "angle": "eye",
+   "camera_move": "push_in",
+   "role": "action",
+   "subject": "Kelly vẽ hình mở khoá, đẩy số vào đồng hồ 9:35",
+   "text_on_screen": false,
+   "game_ui": false,
+   "vfx": true,
+   "transition_in": "cut"
+  },
+  {
+   "i": 3,
+   "start": 15.67,
+   "end": 18.48,
+   "dur": 2.81,
+   "size": "MS",
+   "angle": "eye",
+   "camera_move": "static",
+   "role": "ending",
+   "subject": "Maxim ôm đầu, quả cầu năng lượng xanh trên mũ",
+   "text_on_screen": false,
+   "game_ui": false,
+   "vfx": true,
+   "transition_in": "cut"
+  }
+ ],
+ "overall": {
+  "dd": "tiểu phẩm hài 2 nhân vật (51,2 triệu view)",
+  "hook": "Maxim khoe điện thoại có ảnh mình 0–1,3 s",
+  "bg": "phòng họp có bảng trắng + bản đồ map FF dán tường — chưa có trong Kho",
+  "ne": "màn hình điện thoại chỉ là màn khoá (đồng hồ 9:35) với đường vẽ mở khoá chồng lên — không cần gameplay",
+  "nv": "Maxim mũ lưỡi trai tóc bạc, Kelly áo vàng",
+  "gm": "trung, đẩy vào số hoá tới cận màn hình điện thoại (1,3–15,7 s)",
+  "lp": "đường vẽ trắng trên màn khoá, quả cầu năng lượng xanh trên mũ Maxim (VFX)",
+  "chot": "Maxim ôm đầu 'quá tải' (VFX)",
+  "dung": "✅ dựng được nếu có nền phòng họp + 2 nhân vật; đường vẽ + VFX làm hậu kỳ",
+  "am": "nhạc 89 % thời lượng (0 s nhạc rõ; 16 s nhạc to lên) · lời (whisper đoán, chủ yếu là lời hát nhạc trend): 'What?' · tiếng chuông/beep điện thoại 0–8 s, nhạc to lên ở 16 s; lời thoại thật duy nhất 'What?' 16,9–18,9 s"
+ },
+ "views": 51200000,
+ "reason": "top_view",
+ "channel": "freefire_kelly_official"
+}

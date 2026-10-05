@@ -1,0 +1,42 @@
+{
+ "video_id": "7329471098037292290",
+ "title": "Looking forward my 2024!! Grand master, I can't wait!!!! #freefire #f.",
+ "source": "7329471098037292290.mp4",
+ "style": "KELLY_SHOW",
+ "method": "doc-anh-trong-phien",
+ "analyzed_at": "2026-10-05T10:51:56+00:00",
+ "duration_sec": 12.47,
+ "width": 720,
+ "height": 1280,
+ "shots": [
+  {
+   "i": 1,
+   "start": 0.0,
+   "end": 12.47,
+   "dur": 12.47,
+   "size": "CU",
+   "angle": "eye",
+   "camera_move": "static",
+   "role": "hook",
+   "subject": "Kelly nói trực diện; 6 thanh dọc emoji đầy dần 'My 2024'",
+   "text_on_screen": true,
+   "game_ui": true,
+   "vfx": false
+  }
+ ],
+ "overall": {
+  "dd": "trend 'My 2024' (6 thanh emoji đầy dần)",
+  "hook": "6 thanh dọc phía trên đầu Kelly + chữ 'My 2024'",
+  "bg": "tường nhà thật trung tính",
+  "ne": "mọi thành tích năm (tình yêu, học hành, hạng…) thể hiện bằng thanh emoji, không cần cảnh game",
+  "nv": "Kelly cận trực diện",
+  "gm": "cận, tĩnh 12,5 s",
+  "lp": "6 thanh + emoji + chữ",
+  "chot": "Kelly áp tay lên má reo",
+  "dung": "✅ rất dễ: 1 shot cận + lớp thanh hoạt hình hậu kỳ (khó nhất: khớp lời)",
+  "am": "nhạc 100 % thời lượng (0 s nhạc rõ) · lời (whisper đoán, chủ yếu là lời hát nhạc trend): 'And it's just no turning back'"
+ },
+ "views": 12400000,
+ "reason": "top_view",
+ "channel": "freefire_kelly_official"
+}

@@ -1,0 +1,42 @@
+{
+ "video_id": "7427399185474882824",
+ "title": "Perfect Pitch Challenge? Easy! 🎤😎#freefire #freefire_lover #freefirek.",
+ "source": "7427399185474882824.mp4",
+ "style": "KELLY_SHOW",
+ "method": "doc-anh-trong-phien",
+ "analyzed_at": "2026-10-05T10:51:56+00:00",
+ "duration_sec": 12.54,
+ "width": 576,
+ "height": 1024,
+ "shots": [
+  {
+   "i": 1,
+   "start": 0.0,
+   "end": 12.54,
+   "dur": 12.54,
+   "size": "CU",
+   "angle": "eye",
+   "camera_move": "static",
+   "role": "hook",
+   "subject": "Kelly nói; khối gỗ nốt nhạc DO-RE-MI, 3 tim, thanh năng lượng, lựu đạn",
+   "text_on_screen": true,
+   "game_ui": true,
+   "vfx": true
+  }
+ ],
+ "overall": {
+  "dd": "thử thách chơi nhạc 'Perfect Pitch' (đồ hoạ trên cảnh 3D)",
+  "hook": "Kelly nói vào máy + khối gỗ DO trồi lên",
+  "bg": "phòng sưu tập kệ đồ chơi + đường đua thu nhỏ (cảnh 3D tổng hợp)",
+  "ne": "thử thách game thể hiện bằng đồ vật 3D chồng lên cảnh (khối gỗ nốt nhạc, lựu đạn, tim), không dùng màn hình",
+  "nv": "Kelly áo vàng, nhân vật mũ nồi tóc bạc hồng ngồi sau bấm điện thoại",
+  "gm": "cận, máy tĩnh 12,5 s",
+  "lp": "3 tim góc phải, thanh năng lượng cầu vồng, khối chữ DO-RE-MI",
+  "chot": "Kelly chơi hết bài",
+  "dung": "⚠ cần đồ hoạ 3D + vật lý; nhân vật nói chuyện — khớp môi",
+  "am": "nhạc 100 % thời lượng (0 s nhạc rõ; 4 s nhạc to lên) · lời (whisper đoán, chủ yếu là lời hát nhạc trend): 'ता दार'"
+ },
+ "views": 25100000,
+ "reason": "top_view",
+ "channel": "freefire_kelly_official"
+}

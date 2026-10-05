@@ -1,0 +1,42 @@
+{
+ "video_id": "7221842644983385345",
+ "title": "POV: When my teammate dies 🤣🤣 #freefire #freefire_lover #freefirekell.",
+ "source": "7221842644983385345.mp4",
+ "style": "KELLY_SHOW",
+ "method": "doc-anh-trong-phien",
+ "analyzed_at": "2026-10-05T10:51:56+00:00",
+ "duration_sec": 7.98,
+ "width": 720,
+ "height": 1280,
+ "shots": [
+  {
+   "i": 1,
+   "start": 0.0,
+   "end": 7.98,
+   "dur": 7.98,
+   "size": "CU",
+   "angle": "eye",
+   "camera_move": "static",
+   "role": "hook",
+   "subject": "POV nữ tai mèo; HUD 1 Me/2 Teammate máu rút→đầu lâu; hòm loot rơi icon; nước mắt hài",
+   "text_on_screen": true,
+   "game_ui": true,
+   "vfx": true
+  }
+ ],
+ "overall": {
+  "dd": "trend 'POV: khi đồng đội chết' (8 s, 1 shot)",
+  "hook": "HUD '1 Me / 2 Teammate' ngay giây 0",
+  "bg": "phòng tường xám sọc",
+  "ne": "đồng đội chết = thanh máu rút đỏ + đầu lâu, hòm loot hiện icon vật phẩm, không cảnh chết",
+  "nv": "nhân vật nữ tai mèo",
+  "gm": "cận → ngước lên",
+  "lp": "HUD, hòm loot, nước mắt hài",
+  "chot": "vỗ tay khóc hài",
+  "dung": "✅ 1 shot cận + HUD hậu kỳ",
+  "am": "nhạc 100 % thời lượng (0 s nhạc rõ) · không có lời · AudioSet gắn tiếng súng/hiệu ứng (không lời)"
+ },
+ "views": 1200000,
+ "reason": "theme:pov",
+ "channel": "freefire_kelly_official"
+}
