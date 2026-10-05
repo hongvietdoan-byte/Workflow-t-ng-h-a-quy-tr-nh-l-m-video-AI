@@ -1,6 +1,6 @@
 """S14.18 (mục 6d kế hoạch nâng cấp dashboard): giới hạn theo NGƯỜI, kiểm ở lõi (core/person_limits.py) — mọi đường tạo / cất dự án.
 
-(a) tối đa 2 dự án DỞ song song (chưa có bản giao 'final'; đã cất / đã xóa không tính) · (b) 2 dự án tạo mới / ngày, thứ 3 cần Owner duyệt
+(a) tối đa 2 dự án DỞ song song (chưa XUẤT BẢN GIAO — S14.30; đã cất / đã xóa không tính) · (b) 2 dự án tạo mới / ngày, thứ 3 cần Owner duyệt
 · tối đa 1 dự án DỞ đang cất (dự án xong cất vào "Kho dự án đã xong", không giới hạn) · Owner không giới hạn, Owner nâng mức riêng từng người
 · trần job/ngày chung AUTOPILOT_DAILY_JOBS bỏ."""
 import os
@@ -30,10 +30,17 @@ def as_user(conn, email: str, role: str = "member") -> Pipeline:
     return p
 
 
-def finish(conn, pid: int) -> None:
-    """A delivered project: the final render is recorded (what the 📥 box and the limits call "xong")."""
+def render_only(conn, pid: int) -> None:
+    """Only the final render (Dựng thử / first cut) — S14.30: NOT finished any more."""
     conn.execute("INSERT INTO outputs (project_id, kind, path, manifest, created_at) VALUES (?, 'final', ?, '{}', datetime('now'))", (pid, f"/x/{pid}.mp4"))
     conn.commit()
+
+
+def finish(conn, pid: int) -> None:
+    """A delivered project (S14.30): the "Bản giao" step exported it — what the 📥 box and the limits call "xong"."""
+    from core import delivered
+    render_only(conn, pid)
+    delivered.mark(conn, pid, f"/x/{pid}.mp4", by=MEM)
 
 
 class Base(unittest.TestCase):
@@ -294,14 +301,53 @@ class ReviewFixes(Base):
         self.assertFalse(archive.is_archived(self.me.project(b)))
         self.assertEqual(len(PL.parked_projects(self.conn, MEM)), 1)
 
-    def test_old_project_with_only_final_video_file_is_finished(self):
+    def test_old_project_with_only_final_video_file_is_not_finished(self):
+        """S14.30 (đổi từ S14.18): chỉ có FINAL_VIDEO.mp4 = mới ghép, chưa xuất bản giao → vẫn là dự án dở."""
         data = tempfile.mkdtemp()
         a = self.make("A")
         os.makedirs(os.path.join(data, str(a), "output"))
         open(os.path.join(data, str(a), "output", "FINAL_VIDEO.mp4"), "wb").close()
         with mock.patch.dict(os.environ, {"PIPELINE_DATA": data}):
-            self.assertTrue(PL.is_finished(self.conn, a))
-            self.assertEqual(PL.open_projects(self.conn, MEM), [])
+            self.assertFalse(PL.is_finished(self.conn, a))
+            self.assertEqual([r["id"] for r in PL.open_projects(self.conn, MEM)], [a])
+            self.assertTrue(PL.open_projects(self.conn, MEM)[0]["rendered"])
+
+
+class FinishedMeansDelivered(Base):
+    """S14.30: "hoàn thiện" = đã xuất bản giao; bản ghép cuối đầu tiên chưa tính."""
+
+    def test_a_rendered_but_not_delivered_project_still_takes_an_open_place(self):
+        a, b = self.make("A"), self.make("B")
+        render_only(self.conn, a)
+        self.assertFalse(PL.is_finished(self.conn, a))
+        with self.assertRaises(PL.LimitReached) as e:
+            self.make("C")
+        msg = str(e.exception)
+        self.assertIn(f"#{a}", msg)
+        self.assertIn("xuất bản giao để tính là xong", msg)          # nói rõ cách thoát giới hạn
+        self.assertTrue(e.exception.projects[0]["rendered"])
+        finish(self.conn, a)
+        self.make("C")
+
+    def test_message_without_a_rendered_project_does_not_mention_delivering(self):
+        self.make("A"), self.make("B")
+        with self.assertRaises(PL.LimitReached) as e:
+            self.make("C")
+        self.assertNotIn("để tính là xong", str(e.exception))
+
+    def test_a_rendered_project_put_away_is_parked_not_in_the_finished_store(self):
+        a, b = self.make("A"), self.make("B")
+        archive.archive(self.me, a)
+        render_only(self.conn, b)
+        with self.assertRaises(PL.LimitReached) as e:
+            archive.archive(self.me, b)
+        self.assertEqual(e.exception.kind, "parked")
+        self.assertIn(f"#{b}", str(e.exception))
+        self.assertIn("xuất bản giao để tính là xong", str(e.exception))
+        self.assertEqual(archive.finished_projects(self.conn), [])
+        finish(self.conn, b)
+        archive.archive(self.me, b)
+        self.assertEqual([r["id"] for r in archive.finished_projects(self.conn)], [b])
 
     def test_an_old_daily_approval_shows_expired(self):
         self.make("A"), self.make("B")
