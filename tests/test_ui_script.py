@@ -32,6 +32,20 @@ def tree_keys(at):
     return out
 
 
+def ordered_keys(at):
+    """Every element key in drawing order (S14.28: which block comes first)."""
+    out = []
+
+    def walk(node):
+        key = getattr(node, "key", None)
+        if key and key not in out:
+            out.append(key)
+        for child in getattr(node, "children", {}).values():
+            walk(child)
+    walk(at.main)
+    return out
+
+
 class ScriptScreenV2Tests(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.mkdtemp()
@@ -59,10 +73,10 @@ class ScriptScreenV2Tests(unittest.TestCase):
         self.assertIn("v2-hero-title", html)                               # hero with the project title
         self.assertIn("Dự án trống", html)
         self.assertIn("v2-empty", html)                                    # the "no script yet" state
-        self.assertIn("Đầu vào", html)                                     # the 📎 input panel is the first card
+        self.assertIn("Gắn ảnh tham chiếu sau khi phân tích cảnh", html)  # S14.28: only a hint line before a script (no form)
         keys = tree_keys(at)
         for k in OLD_KEYS:
-            if k.startswith(("lock_go", "ap_gate")):                       # need scenes / characters
+            if k.startswith(("lock_go", "ap_gate", "ref_go")):             # need scenes / characters (ref_go_: S14.28, after the analysis)
                 continue
             self.assertIn(k.format(p=pid), keys, k)
         self.assertNotIn(f"script-cta_{pid}", keys)                         # nothing to plan before a script exists
@@ -199,6 +213,93 @@ class ScriptScreenV2Tests(unittest.TestCase):
         self.assertIn(f"script-cta-lock_{pid}", primaries)
         self.assertNotIn(f"lock_go_{pid}", primaries)                       # the hero owns THE primary action
         self.assertIn(f"lock_go_{pid}", tree_keys(at))                      # …but the old widget key is kept
+
+    # ---- S14.28: kịch bản lên đầu, tham chiếu sau phân tích cảnh, loại Trang phục, dòng trang phục trong danh sách nhân vật ----
+    def test_s14_28_script_first_and_no_reference_form_before_analysis(self):
+        pid = self.p.create_project("Chưa có kịch bản")
+        at = self.run_app()
+        keys = ordered_keys(at)
+        for k in (f"ref_go_{pid}", f"ref_up_{pid}", f"ref_name_{pid}"):
+            self.assertNotIn(k, keys)                                         # no big form before there is a script
+        self.assertIn(f"up_{pid}", keys)
+        self.assertLess(keys.index(f"card-script-a-{pid}"), keys.index(f"card-script-refs-{pid}"))
+        self.assertIn("Gắn ảnh tham chiếu sau khi phân tích cảnh", self.html(at))
+        coming = [b for b in at.button if (b.key or "").startswith("coming_")]
+        self.assertEqual(len(coming), 3)
+        self.assertTrue(all(b.disabled for b in coming))
+        self.assertNotIn("v2-pill", "".join(getattr(getattr(e, "proto", None), "body", "") or "" for e in at.get("html")
+                                             if "Sắp có" in (getattr(getattr(e, "proto", None), "body", "") or "")))  # no 3 big cards
+
+    def test_s14_28_references_after_scene_analysis_folded_with_recognised_names(self):
+        pid = self.prepared(lock=False)
+        at = self.run_app()
+        keys = ordered_keys(at)
+        self.assertLess(keys.index(f"card-script-a-{pid}"), keys.index(f"card-script-refs-{pid}"))
+        self.assertLess(keys.index(f"card-script-refs-{pid}"), keys.index(f"card-script-b-{pid}"))
+        self.assertIn(f"ref_go_{pid}", keys)                                  # same widget keys, inside the fold
+        refs = [e for e in at.expander if e.label.startswith("🖼 Tham chiếu")]
+        self.assertEqual(len(refs), 1)
+        self.assertFalse(refs[0].proto.expanded)                              # folded by default
+        self.assertIn("LYRA (nhân vật)", at.selectbox(key=f"ref_for_{pid}").options)    # attach per recognised character / place
+
+    def test_s14_28_outfit_kind_asks_which_character(self):
+        pid = self.prepared(lock=False)
+        at = self.run_app()
+        self.assertNotIn(f"ref_outfit_for_{pid}", tree_keys(at))
+        at.selectbox(key=f"ref_kind_{pid}").set_value("outfit").run()
+        self.assertFalse(at.exception, at.exception)
+        opts = at.selectbox(key=f"ref_outfit_for_{pid}").options
+        self.assertIn("LYRA", opts)
+        self.assertIn("KAEL", opts)
+
+    def test_s14_28_character_list_shows_outfit_line_and_kho_outfits(self):
+        from core import assets
+        from tests.test_new_skills import PNG
+        os.environ["ASSET_DIR"] = os.path.join(self.tmp, "assets")
+        self.addCleanup(lambda: os.environ.pop("ASSET_DIR", None))
+        pid = self.prepared(lock=False)
+        kho = assets.create(self.p.conn, "FF", "outfit", "Đồ bơi hè")                  # shared Kho outfit, NOT attached to the project
+        img = assets.add_image(self.p.conn, kho, "a.png", PNG, status="approved")
+        img_id = self.p.conn.execute("SELECT id FROM asset_images WHERE asset_id=?", (kho,)).fetchone()["id"]
+        assets.set_outfit(self.p.conn, pid, "LYRA", [img_id])
+        self.assertTrue(img)
+        at = self.run_app()
+        labels = [x.proto.popover.label for x in at.get("popover")]
+        self.assertTrue(any(l.startswith("👗 Trang phục: Đồ bơi hè") for l in labels), labels)
+        self.assertTrue(any(l.startswith("👗 Trang phục: mặc định FF") for l in labels), labels)
+        self.assertIn("Trang phục", self.html(at))                                       # a column of the Character Bible table
+        self.assertTrue(any("Đồ bơi hè" in o for o in at.multiselect(key=f"outfit_{pid}_KAEL").options))
+        self.assertIn(f"outfit_set_{pid}_LYRA", tree_keys(at))                           # the paid 2-picture set button stays
+
+
+class ScriptScreenOldUiTests(unittest.TestCase):
+    """S14.28 on the old screen (flag off): the script fold first, the reference fold after it and absent before a script."""
+    run_app, prepared, project_with_bible = ScriptScreenV2Tests.run_app, ScriptScreenV2Tests.prepared, ScriptScreenV2Tests.project_with_bible
+
+    def setUp(self):
+        ScriptScreenV2Tests.setUp(self)
+        env = mock.patch.dict(os.environ, {"FEATURE_UI_V2": "0"})
+        env.start()
+        self.addCleanup(env.stop)
+
+    def test_s14_28_old_ui_script_fold_before_references(self):
+        pid = self.p.create_project("Cũ")
+        pid2 = self.prepared(lock=False)                                  # both made before the app reads the project list
+        at = AppTest.from_file(APP, default_timeout=90)
+        at.session_state["global_pid"] = pid
+        at.run()
+        self.assertFalse(at.exception, at.exception)
+        keys = ordered_keys(at)
+        self.assertNotIn(f"ref_go_{pid}", keys)
+        self.assertNotIn(f"fold_refs_{pid}_btn", keys)
+        at = AppTest.from_file(APP, default_timeout=90)
+        at.session_state["global_pid"] = pid2
+        at.run()
+        self.assertFalse(at.exception, at.exception)
+        keys = ordered_keys(at)
+        self.assertLess(keys.index(f"fold_script_{pid2}_btn"), keys.index(f"fold_refs_{pid2}_btn"))
+
+
 
 
 if __name__ == "__main__":

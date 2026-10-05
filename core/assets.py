@@ -19,13 +19,16 @@ import unicodedata
 from typing import Dict, List, Optional, Tuple
 
 KINDS = {"character": "Nhân vật", "weapon": "Vũ khí / trang bị", "pet": "Thú cưng", "prop": "Đạo cụ",
-         "location": "Địa điểm / bản đồ", "style": "Phong cách"}
+         "location": "Địa điểm / bản đồ", "style": "Phong cách", "outfit": "Trang phục"}
+# S14.28: "outfit" = a costume / skin picture worn BY a character (set per project with set_outfit). It is never a character's face,
+# a place or an object of a scene: match_character / scene_references / auto_attach's `main` filter on their own kinds and skip it.
 _KIND_WORDS = {"character": ("character", "characters", "char", "chars", "nhan vat", "nhanvat", "nv"),
                "weapon": ("weapon", "weapons", "vu khi", "vukhi", "trang bi", "gun", "guns"),
                "pet": ("pet", "pets", "thu cung", "thucung"),
                "prop": ("prop", "props", "item", "items", "do vat", "dao cu", "daocu"),
                "location": ("location", "locations", "map", "maps", "place", "places", "ban do", "bando", "dia diem", "bo canh"),
-               "style": ("style", "styles", "phong cach")}
+               "style": ("style", "styles", "phong cach"),
+               "outfit": ("outfit", "outfits", "trang phuc", "trangphuc", "costume", "costumes", "skin", "skins")}
 IMAGE_EXT = (".png", ".jpg", ".jpeg", ".webp")
 MAX_IMAGE_BYTES = 10 * 1024 * 1024        # the image generator refuses larger reference pictures
 MAX_IMAGES_PER_ASSET = 6
@@ -968,6 +971,23 @@ def outfit_images(conn, project_id: int, name: str) -> List[Dict]:
     return out
 
 
+def outfit_label(conn, project_id: int, name: str) -> Optional[str]:
+    """S14.28: the name of the outfit a character wears in this project ("Kelly đồ bơi", or "Kelly đồ bơi + Áo khoác" for two
+    sets), None = the outfit of its own reference pictures (mặc định)."""
+    pics = outfit_images(conn, project_id, name)
+    if not pics:
+        return None
+    marks = ",".join("?" * len(pics))
+    owners = {r["id"]: r["name"] for r in conn.execute(
+        f"SELECT i.id, a.name FROM asset_images i JOIN assets a ON a.id=i.asset_id WHERE i.id IN ({marks})", [x["id"] for x in pics])}
+    names: List[str] = []
+    for x in pics:
+        n = owners.get(x["id"])
+        if n and n not in names:
+            names.append(n)
+    return " + ".join(names) or f"{len(pics)} ảnh"
+
+
 _FLAT = re.compile(r"no stacked|flat|phẳng|không có (bậc|tầng)", re.I)
 
 
@@ -1376,7 +1396,8 @@ def context_text(conn, project_id: int) -> str:
         pics = f" — có {len(a['images'])} ảnh tham khảo" if a["images"] else ""
         desc = f": {_brief(a['description'])}" if a["description"] else ""
         ident = f" (id {a['id']})" if a["kind"] == "location" and a["images"] else ""
-        lines.append(f"- [{a['kind_label']}] **{a['name']}**{ident}{also}{desc}{pics}")
+        worn = " — trang phục để nhân vật mặc, không phải nhân vật (không thêm vào Character Bible)" if a["kind"] == "outfit" else ""
+        lines.append(f"- [{a['kind_label']}] **{a['name']}**{ident}{also}{desc}{pics}{worn}")
     news = _news_for(conn, items)
     return ("# Tài nguyên có sẵn cho dự án này (BẮT BUỘC dùng)\n" + "\n".join(lines) + news +
             "\nDùng đúng tên và thiết kế ở trên cho Character Bible và các cảnh; không tự bịa lại ngoại hình của những mục này. "
@@ -1717,4 +1738,34 @@ def add_reference_images(conn, project_id: int, game: str, kind: str, name: str,
         except AssetError as e:
             rep["skipped"].append((fname, str(e)))
     attach(conn, project_id, aid)
+    return rep
+
+
+def add_outfit_images(conn, project_id: int, game: str, name: str, files: List[tuple], shared: bool, character: Optional[str] = None,
+                      created_by: Optional[str] = None) -> Dict:
+    """S14.28: pictures of an outfit ("Trang phục") from the script screen → into the Kho (kind "outfit", reusable in other projects
+    when `shared`) and, when `character` is given, set as that character's outfit in this project (set_outfit, up to 2 pictures).
+    The character must be in this project's Character Bible — checked BEFORE anything is saved (luật 1: không im lặng).
+    Shared pictures wait for approval (G2), so the outfit is then NOT set and `note` says why. Returns add_reference_images' dict +
+    {"outfit_set": bool, "note": str}."""
+    who = " ".join((character or "").split())
+    if who and conn.execute("SELECT 1 FROM characters WHERE project_id=? AND name=?", (project_id, who)).fetchone() is None:
+        raise AssetError(f"Không có nhân vật “{who}” trong Character Bible của dự án — chạy Director hoặc thêm nhân vật trước")
+    rep = add_reference_images(conn, project_id, game, "outfit", name, files, shared, created_by=created_by)
+    rep.update(outfit_set=False, note="")
+    if not who:
+        rep["note"] = "đã lưu vào Kho — chưa gắn cho nhân vật nào (chọn ở 👗 Trang phục của nhân vật)"
+        return rep
+    shas = [_sha(data) for _, data in files]
+    rows = conn.execute("SELECT id, sha256, status FROM asset_images WHERE asset_id=? AND status IS NOT 'removed'", (rep["asset_id"],)).fetchall()
+    by_sha = {r["sha256"]: r for r in rows}
+    ids = [by_sha[h]["id"] for h in dict.fromkeys(shas) if h in by_sha and by_sha[h]["status"] in (None, "approved")][:2]
+    if ids:
+        set_outfit(conn, project_id, who, ids)
+        rep.update(outfit_set=True, note=f"đã gắn {len(ids)} ảnh làm trang phục của {who} trong dự án này")
+    elif shared:
+        rep["note"] = (f"ảnh ở Kho chung đang chờ duyệt — duyệt xong (📁 Kho tài nguyên) rồi chọn ở 👗 Trang phục của {who}; "
+                       "chưa gắn cho nhân vật")
+    else:
+        rep["note"] = f"không có ảnh nào dùng được — chưa gắn trang phục cho {who}"
     return rep
