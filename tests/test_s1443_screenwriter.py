@@ -140,14 +140,20 @@ class SparseScriptS1443(unittest.TestCase):
             self.assertFalse(I.sparse(text)["sparse"], text[:80])
 
     def test_expand_request_in_the_chat_is_recognised_by_rule(self):
-        for said in ("viết kịch bản chi tiết từ dàn ý này", "Viết chi tiết từ dàn ý này giúp mình", "hãy viết bổ sung cho chi tiết",
-                     "Phát triển dàn ý này thành kịch bản đầy đủ", "mở rộng kịch bản này cho chi tiết hơn", "giúp mình viết lại chi tiết hơn"):
+        for said in ("viết kịch bản chi tiết từ dàn ý này", "Viết chi tiết từ dàn ý này giúp mình", "hãy viết bổ sung kịch bản trên cho chi tiết",
+                     "Phát triển dàn ý này thành kịch bản đầy đủ", "mở rộng kịch bản này cho chi tiết hơn", "giúp mình viết lại kịch bản này chi tiết hơn"):
             with self.subTest(said=said):
                 self.assertIsNotNone(I.expand_request(said))
         r = I.expand_request("viết kịch bản chi tiết từ dàn ý này:\n" + SPARSE)
         self.assertEqual(r["rest"].strip(), SPARSE)
+        r = I.expand_request("Viết kịch bản chi tiết từ dàn ý này: Kelly khoe rank, màn hình lộ, Kelly tắt máy")    # rà 4: after ':' = rest
+        self.assertEqual(r["rest"], "Kelly khoe rank, màn hình lộ, Kelly tắt máy")
         for not_said in ("KELLY: Viết chi tiết đi!", "Kelly viết nhật ký chi tiết về trận đấu ở Đảo Quân Sự.", SPARSE, RICH,
-                         "cho Maxim thắng ở cuối", ""):
+                         "cho Maxim thắng ở cuối", "",
+                         # rà 4: a NEW idea / a wish, not "write out THIS outline" — the typed text must not be dropped
+                         "Mình muốn viết một kịch bản đầy đủ về Kelly đi câu cá ở Bermuda",
+                         "Viết kịch bản chi tiết: Kelly và Maxim tranh đĩa bánh ở bếp", "Bổ sung chi tiết cho cảnh 2: Kelly ngã",
+                         "viết dài hơn chút"):
             with self.subTest(not_said=not_said[:30]):
                 self.assertIsNone(I.expand_request(not_said))
 
@@ -289,6 +295,26 @@ if ScriptBoxTests is not None:
             self.assertEqual(at.session_state[f"box_text_{pid}"].strip(), SPARSE)
             self.assertIn(f"idea_form_{pid}", tree_keys(at))
             self.assertEqual(I.get_state(self.p.conn, pid), {})
+
+        def test_request_alone_takes_the_text_in_the_box_and_says_what_it_took(self):
+            pid = self.p.create_project("Lấy dàn ý cũ")
+            at = self.say(self.app(pid), SPARSE)
+            at = self.say(at, "viết kịch bản chi tiết từ dàn ý này")
+            self.assertEqual(at.session_state[f"box_text_{pid}"].strip(), SPARSE)
+            html = self.html(at)
+            self.assertIn("Đã lấy", html)                                     # rà 4: said which outline was taken + where from
+            self.assertIn("khung chat", html)
+            self.assertIn("CẢNH 1 - NGÀY, ĐẢO QUÂN SỰ", html)
+
+        def test_while_an_idea_is_being_written_the_request_is_a_wish(self):
+            from tests.test_idea_to_script import ANCHORS as A2, make_kit as mk
+            pid = self.p.create_project("Đang viết")
+            at = self.say(self.app(pid), IDEA)
+            mk(self.p.conn)
+            I.start(self.p.conn, pid, IDEA, anchors=A2)
+            at = self.say(at, "viết lại kịch bản này chi tiết hơn")
+            self.assertEqual(at.session_state[f"box_wish_{pid}"], "viết lại kịch bản này chi tiết hơn")
+            self.assertEqual(at.session_state[f"box_text_{pid}"], IDEA)
 
 
 if __name__ == "__main__":

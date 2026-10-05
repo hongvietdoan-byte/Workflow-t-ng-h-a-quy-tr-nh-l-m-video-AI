@@ -474,6 +474,9 @@ def expand_usd() -> float:
 _EXPAND_VERB = re.compile(r"^(?:(?:hay|giup|nho|ban|claude|vui long|lam on|minh muon|toi muon|em muon|can)\s+(?:minh|toi|em|ban|claude)?\s*)*"
                           r"(?:viet|phat trien|mo rong|trien khai|chi tiet hoa|lam chi tiet|bo sung|lam ro)\b")
 _EXPAND_WHAT = re.compile(r"chi tiet|day du|cu the|bo sung|dan y|thanh kich ban|outline|dai hon")
+# rà 06/10: must point at an EXISTING outline — "kịch bản" + (dàn ý / này / trên), or "dàn ý" + (này / trên). "Viết kịch bản chi tiết: <ý
+# mới>" or "Mình muốn viết một kịch bản đầy đủ về …" is a new idea (classify), not this request.
+_EXPAND_THIS = re.compile(r"(\bkich ban\b.*\b(dan y|nay|tren)\b)|(\b(dan y|nay|tren)\b.*\bkich ban\b)|(\bdan y\b.*\b(nay|tren)\b)")
 
 
 def expand_request(text: str) -> Optional[Dict]:
@@ -486,12 +489,15 @@ def expand_request(text: str) -> Optional[Dict]:
     first, _, rest = body.partition("\n")
     from .dialogue import lines
     from .script_parser import is_heading
-    if is_heading(first) or lines(first) or len(first) > 120:
+    if is_heading(first) or lines(first):
         return None
-    t = " ".join(re.sub(r"[^0-9a-z]+", " ", _fold(first)).split())
-    if not (_EXPAND_VERB.match(t) and _EXPAND_WHAT.search(t)):
+    ask, colon, after = first.partition(":")                        # rà: "…dàn ý này: <dàn ý>" — what follows ':' is the outline
+    if len(ask) > 120:
         return None
-    return {"rest": rest.strip()}
+    t = " ".join(re.sub(r"[^0-9a-z]+", " ", _fold(ask)).split())
+    if not (_EXPAND_VERB.match(t) and _EXPAND_WHAT.search(t) and _EXPAND_THIS.search(t)):
+        return None
+    return {"rest": "\n".join(x for x in (after.strip(), rest.strip()) if x)}
 
 
 def _on_screen(name: str) -> bool:

@@ -35,11 +35,12 @@ def _take(p: Pipeline, pid: int, got) -> None:
         ss[k["mode"]] = "script"
     if not text.strip():
         return
-    if not files and I.expand_request(text) is not None:               # S14.43 mục 5: "viết kịch bản chi tiết từ dàn ý này" (0 USD, by rule)
-        _expand_from_chat(p, pid, I.expand_request(text)["rest"])
-        return
     started = bool(I.get_state(p.conn, pid).get("inputs"))
     mode = ss.get(k["mode"]) or I.classify(ss.get(k["text"], "")).get("kind")
+    req = None if files or (started and mode == "idea") else I.expand_request(text)   # rà: while an idea is written → a wish (below)
+    if req is not None:                                                # S14.43 mục 5: "viết kịch bản chi tiết từ dàn ý này" (0 USD, by rule)
+        _expand_from_chat(p, pid, req["rest"])
+        return
     if (started and mode == "idea" and not files and I.classify(text)["kind"] != "script"
             and len(text.strip()) < I.IDEA_MAX_CHARS):                   # rà: "Lưu ý: …" / "Kelly: nói nhẹ hơn" is a wish, not a script
         ss[k["wish"]] = text.strip()                                   # "nói thêm" for the next paid turn (shown, removable)
@@ -64,12 +65,18 @@ def _expand_from_chat(p: Pipeline, pid: int, rest: str) -> None:
     """The outline the request is about: pasted with it, else the text already in the box, else the script in use. None → said (luật 1)."""
     from core import idea_to_script as I
     k, ss = _keys(pid), st.session_state
-    outline = (rest or "").strip() or (ss.get(k["text"]) or "").strip() or ((p.project(pid)["script_text"] or "").strip())
+    sources = (((rest or "").strip(), ""), ((ss.get(k["text"]) or "").strip(), "chữ đang có trong khung chat"),
+               ((p.project(pid)["script_text"] or "").strip(), "kịch bản đang dùng của dự án"))
+    outline, src = next(((t, s) for t, s in sources if t), ("", ""))
     if not outline:
         ss[k["expand_msg"]] = ("Chưa có dàn ý / kịch bản nào để viết chi tiết — dán dàn ý ngay dưới dòng yêu cầu (cùng một tin) rồi gửi lại. "
                                "Chưa tốn gì.")
         return
-    ss.pop(k["expand_msg"], None)
+    if src:                                                            # rà: taken from elsewhere → say what and from where
+        head = " / ".join(ln.strip() for ln in outline.splitlines() if ln.strip())[:160]
+        ss[k["expand_msg"]] = f"Đã lấy dàn ý từ {src} để viết chi tiết (đoạn đầu: “{head}…”). Sai dàn ý thì dán dàn ý đúng ngay dưới dòng yêu cầu."
+    else:
+        ss.pop(k["expand_msg"], None)
     ss[k["text"]] = outline
     ss[k["mode"]] = "idea"                                             # → the Biên kịch's turns, each behind a priced button
     ss[k["expand"]] = "request"
