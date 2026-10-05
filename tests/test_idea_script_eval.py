@@ -8,21 +8,20 @@ import unittest
 from core import assets, llm_runner
 from core.db import connect
 from core.pipeline import Pipeline
+from tests.test_idea_to_script import ANCHORS, make_kit
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "tools", "experiments"))
 import idea_script_eval as E  # noqa: E402
 
-ITEMS = [{"id": 1, "idea": "Kelly và Maxim tranh nhau một thùng thính ở Đảo Quân Sự.", "duration_s": 30, "characters": ["KELLY"]},
-         {"id": 2, "idea": "Maxim lật kèo ở bo cuối bằng một cú nhảy liều lĩnh.", "duration_s": 30, "cta": "Tải Free Fire ngay"}]
+ITEMS = [{"id": 1, "idea": "Kelly và Maxim tranh nhau một thùng thính ở Đảo Quân Sự.", "duration_s": 30, "characters": ["KELLY"], "anchors": ANCHORS},
+         {"id": 2, "idea": "Maxim lật kèo ở bo cuối bằng một cú nhảy liều lĩnh.", "duration_s": 30, "cta": "Tải Free Fire ngay", "anchors": ANCHORS}]
 
 
 class EvalTests(unittest.TestCase):
     def setUp(self):
         self.p = Pipeline(connect())
         self.pid = self.p.create_project("nghiệm thu", operating_mode="human_qc")
-        for name in ("KELLY", "MAXIM"):
-            assets.create(self.p.conn, "FF", "character", name)
-        assets.create(self.p.conn, "FF", "location", "Đảo Quân Sự")
+        make_kit(self.p.conn)                                                             # S14.31: the Biên kịch only reads what can be built
         self.tmp = tempfile.mkdtemp()
 
     def test_record_then_replay_gives_the_same_scripts_and_a_sheet(self):
