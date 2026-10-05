@@ -190,8 +190,9 @@ FEATURES: Dict[str, Dict] = {
     "idea_to_script": {
         "label": "💡 Ý tưởng thô → kịch bản ở Bước 1: Biên kịch (Claude) hỏi lại ≤ 5 câu → 3 hướng → dàn ý theo giây → kịch bản đúng khuôn, "
                  "code kiểm, người duyệt từng lượt + màn 2 cột tô phần thêm (S11.1)",
-        "verified": False,
-        "why": "S11.1 01/10: code + test + giả lập; chưa qua bộ đo 5 ý tưởng người dùng chấm (S11.2, ≈ 0,75 USD — hỏi trước)",
+        "verified": True,       # 2026-10-06 người dùng duyệt bật mặc định (S14.43 mục 5)
+        "why": "S14.22 cổng S11.2 ĐẠT: người dùng chấm phiếu 05d (docs/DO_S11_2_Y_TUONG_2026-10-05d.md) TB 4,20 ≥ 4,0, đo thật 0,709 USD; "
+               "06/10 người dùng duyệt bật mặc định — dùng khi người dùng yêu cầu hoặc khi kịch bản sơ sài (Claude hỏi trong khung chat, chưa tự chi)",
     },
     "qc_team": {
         "label": "Tổ QC nhiều tầng (docs/THIET_KE_TO_QC_2026-10-01.md): bảng shot → mệnh đề kiểm tra, code đo trước (mặt, hướng mắt, màu trời), "

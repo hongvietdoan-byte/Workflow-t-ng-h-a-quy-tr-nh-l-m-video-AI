@@ -51,7 +51,10 @@ class ScriptScreenV2Tests(unittest.TestCase):
         self.tmp = tempfile.mkdtemp()
         self.db = os.path.join(self.tmp, "m.sqlite")
         env = mock.patch.dict(os.environ, {"PIPELINE_DB": self.db, "PIPELINE_DATA": os.path.join(self.tmp, "projects"),
-                                           "KNOWLEDGE_USER_DIR": os.path.join(self.tmp, "ku"), "FEATURE_UI_V2": "1", "LLM_PROVIDER": "mock"})
+                                           "KNOWLEDGE_USER_DIR": os.path.join(self.tmp, "ku"), "FEATURE_UI_V2": "1", "LLM_PROVIDER": "mock",
+                                           # S14.43: idea_to_script is ON by default now — these tests are the old (flag-off) screen;
+                                           # ScriptBoxTests switches it on again
+                                           "FEATURE_IDEA_TO_SCRIPT": "0"})
         env.start()
         self.addCleanup(env.stop)
         self.p = Pipeline(connect(self.db))

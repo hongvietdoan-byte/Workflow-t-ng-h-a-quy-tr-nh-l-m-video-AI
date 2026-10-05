@@ -21,7 +21,7 @@ Trận đấu -> HUD/bảng kill/icon trên đầu; màn hình game -> nhân v�
 
 ## Cú chốt = tiết lộ rõ, có twist (gợi ý)
 - Cú chốt hay thường là một cú đảo ngược kỳ vọng: lộ thủ phạm, hoặc nhân quả bất ngờ mà người xem vẫn kịp hiểu. Nên cân nhắc để người xem hiểu CHUYỆN GÌ ĐÃ XẢY RA ngay ở khung cuối, không chỉ thấy mặt ngơ ngác.
-- Ví dụ: con gà nướng biến mất khỏi bàn, hai người tìm khắp bếp; cú chốt cho thấy chim cánh cụt (pet trong game) núp trên quạt trần, ăn mất gà, nhét đầy mồm. Có thể gieo manh mối nhỏ sớm (bóng đen trên quạt, vụn gà rơi) để cú chốt vừa bất ngờ vừa hợp lý.
+- Ví dụ: con gà nướng biến mất khỏi bàn, hai người tìm khắp bếp; cú chốt cho thấy pet **Mr. Waggor** (chim cánh cụt kính đen — tên thật trong FF, S14.43) núp trên quạt trần, ăn mất gà, nhét đầy mồm. Có thể gieo manh mối nhỏ sớm (bóng đen trên quạt, vụn gà rơi) để cú chốt vừa bất ngờ vừa hợp lý.
 - Cú chốt nên chốt cả hai vế: ai/cái gì là nguyên nhân + phản ứng của người trong chuyện. Khi twist cần vật hoặc nơi, kiểm trước Kho có dựng được không.
 
 ## "Wow" cho clip 15 s

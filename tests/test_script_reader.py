@@ -166,7 +166,8 @@ class RefusalTests(unittest.TestCase):
 class DashboardTests(unittest.TestCase):
     def test_typing_a_script_and_pressing_analyse_creates_the_scenes(self):
         tmp = tempfile.mkdtemp()
-        os.environ.update({"PIPELINE_DB": os.path.join(tmp, "m.sqlite"), "PIPELINE_DATA": os.path.join(tmp, "projects")})
+        os.environ.update({"PIPELINE_DB": os.path.join(tmp, "m.sqlite"), "PIPELINE_DATA": os.path.join(tmp, "projects"),
+                           "FEATURE_IDEA_TO_SCRIPT": "0"})          # S14.43: on by default now — this is the old (flag-off) two tabs
         try:
             pl = Pipeline(connect(os.environ["PIPELINE_DB"]))
             pid = pl.create_project("typed")
@@ -183,6 +184,7 @@ class DashboardTests(unittest.TestCase):
         finally:
             os.environ.pop("PIPELINE_DB", None)
             os.environ.pop("PIPELINE_DATA", None)
+            os.environ.pop("FEATURE_IDEA_TO_SCRIPT", None)
 
 
 if __name__ == "__main__":

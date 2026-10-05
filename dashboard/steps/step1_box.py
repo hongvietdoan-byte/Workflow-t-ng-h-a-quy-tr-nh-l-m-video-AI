@@ -7,7 +7,9 @@ script → the old ▶ Phân tích split; idea → the Biên kịch's turns, eac
 luật 3), always with a one-click override. S14.38: the chat is the ONLY door in — no ✍ Sửa toàn văn (paste_) and no 📎 popover (up_): a file is dropped on the chat input
 (same file types), the script in use is read-only under "Xem kịch bản" (st.code → copy, edit elsewhere, paste back into the chat).
 A full script pasted while one is in use asks once before replacing it. Keys kept: btn_analyse_, btn_bad_reset_ (the flag-off tabs of
-step1.script_input keep up_/paste_). No expander in the box itself: it sits inside the v2 "Nhập / thay" expander (C2)."""
+step1.script_input keep up_/paste_). No expander in the box itself: it sits inside the v2 "Nhập / thay" expander (C2).
+S14.43 mục 5: a script with headings but thin (idea_to_script.sparse) → Claude asks in the chat to write it out (priced turns only after "Có");
+"viết kịch bản chi tiết từ dàn ý này" typed in the chat (idea_to_script.expand_request, by rule) → the Biên kịch path with that outline."""
 from dashboard.common import *  # noqa: F401,F403  (shared imports + helpers)
 from dashboard.steps.step1_v2 import cap, say  # noqa: F401
 
@@ -17,7 +19,8 @@ _KIND_TEXT = {"script": "KỊCH BẢN", "idea": "Ý TƯỞNG"}
 
 def _keys(pid: int) -> dict:
     return {"text": f"box_text_{pid}", "mode": f"in_mode_{pid}", "wish": f"box_wish_{pid}", "file": f"box_file_{pid}",
-            "pending": f"box_pending_{pid}", "ask": f"box_ask_{pid}", "chat": f"box_in_{pid}"}
+            "pending": f"box_pending_{pid}", "ask": f"box_ask_{pid}", "chat": f"box_in_{pid}",
+            "expand": f"box_expand_{pid}", "expand_off": f"box_expand_off_{pid}", "expand_msg": f"box_expand_msg_{pid}"}
 
 
 def _take(p: Pipeline, pid: int, got) -> None:
@@ -34,6 +37,10 @@ def _take(p: Pipeline, pid: int, got) -> None:
         return
     started = bool(I.get_state(p.conn, pid).get("inputs"))
     mode = ss.get(k["mode"]) or I.classify(ss.get(k["text"], "")).get("kind")
+    req = None if files or (started and mode == "idea") else I.expand_request(text)   # rà: while an idea is written → a wish (below)
+    if req is not None:                                                # S14.43 mục 5: "viết kịch bản chi tiết từ dàn ý này" (0 USD, by rule)
+        _expand_from_chat(p, pid, req["rest"])
+        return
     if (started and mode == "idea" and not files and I.classify(text)["kind"] != "script"
             and len(text.strip()) < I.IDEA_MAX_CHARS):                   # rà: "Lưu ý: …" / "Kelly: nói nhẹ hơn" is a wish, not a script
         ss[k["wish"]] = text.strip()                                   # "nói thêm" for the next paid turn (shown, removable)
@@ -51,6 +58,59 @@ def _take(p: Pipeline, pid: int, got) -> None:
     ss[k["text"]] = text
     if not files:
         ss.pop(k["mode"], None)                                        # a new text is classified again
+        ss.pop(k["expand"], None)
+
+
+def _expand_from_chat(p: Pipeline, pid: int, rest: str) -> None:
+    """The outline the request is about: pasted with it, else the text already in the box, else the script in use. None → said (luật 1)."""
+    from core import idea_to_script as I
+    k, ss = _keys(pid), st.session_state
+    sources = (((rest or "").strip(), ""), ((ss.get(k["text"]) or "").strip(), "chữ đang có trong khung chat"),
+               ((p.project(pid)["script_text"] or "").strip(), "kịch bản đang dùng của dự án"))
+    outline, src = next(((t, s) for t, s in sources if t), ("", ""))
+    if not outline:
+        ss[k["expand_msg"]] = ("Chưa có dàn ý / kịch bản nào để viết chi tiết — dán dàn ý ngay dưới dòng yêu cầu (cùng một tin) rồi gửi lại. "
+                               "Chưa tốn gì.")
+        return
+    if src:                                                            # rà: taken from elsewhere → say what and from where
+        head = " / ".join(ln.strip() for ln in outline.splitlines() if ln.strip())[:160]
+        ss[k["expand_msg"]] = f"Đã lấy dàn ý từ {src} để viết chi tiết (đoạn đầu: “{head}…”). Sai dàn ý thì dán dàn ý đúng ngay dưới dòng yêu cầu."
+    else:
+        ss.pop(k["expand_msg"], None)
+    ss[k["text"]] = outline
+    ss[k["mode"]] = "idea"                                             # → the Biên kịch's turns, each behind a priced button
+    ss[k["expand"]] = "request"
+    if I.get_state(p.conn, pid).get("inputs", {}).get("idea", "").strip() != outline:
+        ss.pop(k["wish"], None)
+
+
+def _expand_yes(pid: int) -> None:
+    k, ss = _keys(pid), st.session_state
+    ss[k["mode"]] = "idea"
+    ss[k["expand"]] = "yes"
+
+
+def _expand_no(pid: int, text: str) -> None:
+    st.session_state[_keys(pid)["expand_off"]] = text.strip()
+
+
+def sparse_offer(pid: int, text: str) -> None:
+    """S14.43 mục 5: a script with headings but thin (I.sparse, 0 USD) → Claude ASKS in the chat whether to write it out; nothing is paid
+    here — "Có" only switches to the Biên kịch path where every turn has its own priced button."""
+    from core import idea_to_script as I
+    k, ss = _keys(pid), st.session_state
+    if not text.strip() or ss.get(k["expand_off"]) == text.strip():
+        return
+    s = I.sparse(text)
+    if not s["sparse"]:
+        return
+    with st.chat_message("assistant"):
+        st.markdown(f"**Kịch bản còn ngắn/sơ sài** ({escape('; '.join(s['why']))}) — bạn có muốn mình viết bổ sung cho chi tiết không? "
+                    f"(≈ ${I.expand_usd():.2f} ước tính: 4 lượt Biên kịch × {I.TURN_USD:g} USD, trần {I.RUN_CAP_USD:g} USD; chưa tốn gì "
+                    "cho tới khi bấm nút có ghi giá ở từng lượt)")
+        a, b = st.columns(2)
+        a.button("✍ Có, viết bổ sung chi tiết", key=f"box_expand_yes_{pid}", on_click=_expand_yes, args=(pid,), type="primary", width="stretch")
+        b.button("Không, giữ nguyên", key=f"box_expand_no_{pid}", on_click=_expand_no, args=(pid, text), width="stretch")
 
 
 def _scene_count(p: Pipeline, pid: int) -> int:
@@ -225,7 +285,13 @@ def script_box(p: Pipeline, pid: int, with_reset: bool = True) -> bool:
                 else:
                     if mode == "script" and text.strip():
                         st.markdown("**" + (receipt(text, c) or "Đã nhận kịch bản — bấm ▶ Phân tích (0 USD).") + "**")
+                    if mode == "idea" and ss.get(k["expand"]) and c["kind"] == "script":
+                        st.markdown("Bạn " + ("yêu cầu" if ss[k["expand"]] == "request" else "đồng ý") + " **viết bổ sung chi tiết từ dàn ý / "
+                                    "kịch bản này** → Biên kịch (giữ cảnh, nơi, thoại có sẵn). Đặt ⚙ Thiết lập + điểm then chốt, rồi mỗi lượt "
+                                    f"bấm nút có ghi giá (cả 4 lượt ≈ ${I.expand_usd():.2f}).")
                     _verdict(pid, mode, bool(forced), c["why"])
+                    if mode == "script":
+                        sparse_offer(pid, text)
                 if mode == "idea":
                     from dashboard.steps.step1_idea import idea_settings_form, idea_turns
                     idea_settings_form(p, pid, text or (state.get("inputs") or {}).get("idea", ""))
@@ -237,6 +303,10 @@ def script_box(p: Pipeline, pid: int, with_reset: bool = True) -> bool:
                     w1, w2 = st.columns(2)
                     w1.button("✕ Bỏ lời này", key=f"box_wish_drop_{pid}", on_click=lambda: ss.pop(k["wish"], None))
                     w2.button("↪ Không, đây là ý tưởng mới", key=f"box_wish_as_idea_{pid}", on_click=_wish_to_idea, args=(pid,))
+        if ss.get(k["expand_msg"]):
+            with st.chat_message("assistant"):
+                st.markdown(escape(ss[k["expand_msg"]]))
+                st.button("✕ Đã hiểu", key=f"box_expand_msg_drop_{pid}", on_click=lambda: ss.pop(k["expand_msg"], None))
         _cards(p, pid)
         has_input = bool(file) or bool(text.strip())
         ready = bool(file) or (bool(text.strip()) and (mode or ss.get(k["mode"]) or I.classify(text)["kind"]) == "script")

@@ -1,4 +1,4 @@
-"""💡 Ý tưởng thô → kịch bản (S11.1, docs/KE_HOACH_TINH_NANG_DIRECTOR_2026-10-01.md mục 2; cờ `idea_to_script`, TẮT tới khi qua bộ đo S11.2).
+"""💡 Ý tưởng thô → kịch bản (S11.1, docs/KE_HOACH_TINH_NANG_DIRECTOR_2026-10-01.md mục 2; cờ `idea_to_script`, BẬT mặc định từ 06/10 — cổng S11.2 đạt TB 4,20 phiếu 05d).
 
 Step 1 only took a written script: a 2–3 line idea became one scene without dialogue and the Director invented everything inside the
 Bible call, with nowhere for the person to approve what was invented (#8: "truyện cụt", 83 s of script for ~58 s of video). Here a
@@ -43,10 +43,22 @@ def missing_anchors(anchors) -> List[str]:
     return idea_buildable.missing_anchors(anchors)
 
 
-def buildable_blocks(conn, pid: int, inputs: Dict) -> str:
-    """S14.31: the rules of "chỉ viết thứ dựng được" + the kit (not the whole Kho) + the person's key points — right after CHUNG."""
+def buildable_blocks(conn, pid: int, inputs: Dict, extra: str = "") -> str:
+    """S14.31: the rules of "chỉ viết thứ dựng được" + the kit (not the whole Kho) + the person's key points — right after CHUNG.
+    S14.43 mục 1: `extra` (answers, wishes, chosen direction) is searched too for Kho entries named by another name."""
     from . import idea_buildable
-    return idea_buildable.blocks(conn, pid, inputs)
+    return idea_buildable.blocks(conn, pid, inputs, extra)
+
+
+def _said_text(state: Dict, wish: str = "") -> str:
+    """What the person said after the idea (answers, wishes, the chosen direction + note) — where a Kho name may also appear."""
+    parts = [f"{a.get('q', '')} {a.get('a', '')}" for a in state.get("answers") or []]
+    parts += [str(v) for v in (state.get("wishes") or {}).values()] + ([wish] if wish else [])
+    if state.get("chosen") is not None and state.get("directions"):
+        d = state["directions"][state["chosen"]]
+        parts.append(" ".join(str(d.get(k) or "") for k in ("title", "logline", "hook_3s", "payoff")))
+    parts.append(str(state.get("choice_note") or ""))
+    return "\n".join(p for p in parts if p.strip())
 
 
 def enabled() -> bool:
@@ -98,6 +110,8 @@ def start(conn, pid: int, idea: str, duration_s: int = 30, aspect: str = "9:16",
                         "characters": [str(c).upper() for c in characters or []], "cta": cta.strip(), "trend": trend,
                         "anchors": idea_buildable.clean_anchors(anchors)},
              "spent": 0.0, "turn": 0}
+    if classify(idea)["kind"] == "script":              # S14.43 mục 5: a thin script / outline to write out — only then (idea prompts unchanged)
+        state["inputs"]["from_script"] = True
     return save_state(conn, pid, state)
 
 
@@ -155,16 +169,32 @@ def wish_block(state: Dict, turn: int, wish: str = "") -> str:
             + "\n".join(f"- (lượt {n}) {v}" for n, v in said))
 
 
+PATTERN_FILE = ("knowledge", "craft", "khuon_hai.md")
+PATTERN_TURNS = (2, 3)          # the turns that pick the shape of the story; turn 1 (questions) and 4 (follows the outline) do not need it
+
+
+def pattern_block() -> str:
+    """S14.43 mục 6: the reusable comedy patterns (knowledge/craft/khuon_hai.md), as SUGGESTIONS. A missing file is said (CHUAN luật 1)."""
+    from .prompts import _read
+    text = (_read(*PATTERN_FILE) or "").strip()
+    if not text:
+        raise IdeaError("không đọc được knowledge/craft/khuon_hai.md (kho khuôn hài của Biên kịch) — khôi phục file")
+    return "## Kho khuôn hài (GỢI Ý — trộn được, không bắt buộc)\n" + text
+
+
 def build_prompt(conn, pid: int, state: Dict, turn: int, wish: str = "") -> str:
     from .prompts import _read
     inp = state["inputs"]
-    parts = [f"# Biên kịch — Lượt {turn}", _section("CHUNG"), buildable_blocks(conn, pid, inp), "## Vai của bạn", _read("knowledge", "roles", "screenwriter.md"),
+    parts = [f"# Biên kịch — Lượt {turn}", _section("CHUNG"), buildable_blocks(conn, pid, inp, _said_text(state, wish)), "## Vai của bạn", _read("knowledge", "roles", "screenwriter.md"),
              "## Viết thoại", _read("knowledge", "dialogue_craft.md"), "## Thể loại", _read("knowledge", "genre_guides.md"),
              "## Đầu vào của người dùng",
              f"Ý tưởng: {inp['idea']}\nThời lượng mục tiêu: {inp['duration_s']} s · khung {inp['aspect']} · nền tảng {inp['platform']}"
              + (f"\nGiọng điệu: {inp['tone']}" if inp.get("tone") else "")
              + (f"\nNhân vật người dùng chọn: {', '.join(inp['characters'])}" if inp.get("characters") else "")
-             + (f"\nCTA (đúng chữ, ở cảnh cuối): {inp['cta']}" if inp.get("cta") else ""),
+             + (f"\nCTA (đúng chữ, ở cảnh cuối): {inp['cta']}" if inp.get("cta") else "")
+             + ("\nĐầu vào là KỊCH BẢN / DÀN Ý SƠ SÀI người dùng đã viết (có tiêu đề cảnh), nhờ viết bổ sung cho chi tiết: giữ thứ tự cảnh, nơi, "
+                "nhân vật, diễn biến và thoại có sẵn (được sửa chữ cho tự nhiên); thêm mô tả hành động + thoại cho đủ thời lượng, không đổi chuyện."
+                if inp.get("from_script") else ""),
              ]
     tb = trend_block(conn, inp.get("trend", "off"))
     if tb:
@@ -173,6 +203,8 @@ def build_prompt(conn, pid: int, state: Dict, turn: int, wish: str = "") -> str:
     kelly = knowledge.kelly_blocks("screenwriter")      # S14.34 (flag kelly_knowledge): suggestions only; off → [] → prompt byte-identical
     if kelly:
         parts.insert(3, "## Gợi ý từ kênh Kelly (trộn được, không bắt buộc)\n" + kelly[0])
+    if turn in PATTERN_TURNS:                           # S14.43 mục 6: comedy patterns where the shape is chosen (directions + outline)
+        parts.append(pattern_block())
     if turn >= 2 and state.get("answers"):
         parts.append("## Trả lời của người dùng (câu ghi [mặc định] = người dùng để trống, dùng đáp án mặc định)\n" + "\n".join(
             f"- {a['q']} → {a['a']}" + (" [mặc định]" if a.get("defaulted") else "") for a in state["answers"]))
@@ -390,6 +422,85 @@ def classify(text: str) -> Dict:
     if len(body) < IDEA_MAX_CHARS and len(lines) < IDEA_MAX_LINES and talk == 0:
         return {"kind": "idea", "scenes": 0, "why": ["không có tiêu đề cảnh", f"{len(lines)} dòng ngắn, không có thoại"]}
     return {"kind": "unsure", "scenes": 0, "why": ["không có tiêu đề cảnh", f"{len(body)} ký tự · {len(lines)} dòng"]}
+
+
+# ---- S14.43 mục 5: a script with headings that is still thin → offer the Biên kịch (0 USD to detect; paid only behind the priced turns) ----
+# Căn cứ (đo 06/10 bằng split_scenes + dialogue.lines, chữ mô tả = dòng không phải thoại, không tính tiêu đề):
+#   kịch bản người viết trong samples/ (script_demo_1/2, anh_chon_ai, kenta_…): TB 21–82 chữ mô tả / cảnh, cảnh mỏng nhất 15 chữ;
+#   kịch bản Biên kịch được chấm TB 4,20 (phiếu 05d): TB 33–131 chữ / cảnh, cảnh mỏng nhất 29 chữ; các phiếu 05/05b/05c: cảnh mỏng nhất 17.
+# → SPARSE_AVG_WORDS = 12 (≈ một nửa trung bình của kịch bản người viết mỏng nhất, 21) và một cảnh "trơ" = < 10 chữ mô tả VÀ không thoại
+#   (dưới 2/3 cảnh mỏng nhất từng thấy, 15): sơ sài khi TB < 12 hoặc ≥ một nửa số cảnh trơ. Một dàn ý "CẢNH n + 1 câu" có TB 2–5 chữ.
+#   Rà 06/10: độ dày một cảnh = chữ mô tả + chữ THOẠI (lời nói cũng là nội dung quay được; kịch bản 3 cảnh × 2–3 câu thoại ≈ 15–20 chữ / cảnh
+#   không phải dàn ý). Các mốc trên đo bằng chữ mô tả nên cộng thoại chỉ làm kịch bản thật dày thêm — không bắt nhầm thêm.
+SPARSE_AVG_WORDS = 12
+BARE_SCENE_WORDS = 10
+
+
+def sparse(text: str) -> Dict:
+    """{"sparse", "why": [Vietnamese reasons with numbers], "scenes", "avg_words", "bare", "talk"} — only a SCRIPT (scene headings) can be
+    sparse; an idea goes to the Biên kịch anyway (classify)."""
+    from .dialogue import lines
+    out = {"sparse": False, "why": [], "scenes": 0, "avg_words": 0.0, "bare": 0, "talk": 0}
+    if classify(text)["kind"] != "script":
+        return out
+    scenes, _ = parse(text)
+    scenes = [s for s in scenes if s.heading != "Mở đầu" or s.text.strip()]
+    if not scenes:
+        return out
+    words, bare, talk = [], 0, 0
+    for s in scenes:
+        rows = [r for r in s.text.splitlines() if r.strip()]
+        said = [r for r in rows if lines(r)]
+        n = sum(len(r.split()) for r in rows if r not in said)
+        spoken = sum(len(x.split()) for r in said for _, x in lines(r))
+        words.append(n + spoken)                        # rà 7: what is said fills a scene too — a dialogue script is not an outline
+        talk += len(said)
+        bare += 1 if n < BARE_SCENE_WORDS and not said else 0
+    avg = sum(words) / len(words)
+    out.update(scenes=len(scenes), avg_words=round(avg, 1), bare=bare, talk=talk)
+    why = []
+    if avg < SPARSE_AVG_WORDS:
+        why.append(f"trung bình {avg:.0f} chữ mô tả + thoại / cảnh (kịch bản đủ chi tiết thường ≥ 21; ngưỡng {SPARSE_AVG_WORDS})")
+    if bare * 2 >= len(scenes):
+        why.append(f"{bare}/{len(scenes)} cảnh chỉ có tiêu đề + dưới {BARE_SCENE_WORDS} chữ, không thoại")
+    if why:
+        why.append(f"{talk} dòng thoại cả kịch bản")
+    out.update(sparse=bool(why), why=why)
+    return out
+
+
+def expand_usd() -> float:
+    """What writing it out costs at most as estimated before: the 4 paid turns (each shown again on its own button), within RUN_CAP_USD."""
+    return round(4 * TURN_USD, 4)
+
+
+_EXPAND_VERB = re.compile(r"^(?:(?:hay|giup|nho|ban|claude|vui long|lam on|minh muon|toi muon|em muon|can)\s+(?:minh|toi|em|ban|claude)?\s*)*"
+                          r"(?:viet|phat trien|mo rong|trien khai|chi tiet hoa|lam chi tiet|bo sung|lam ro)\b")
+_EXPAND_WHAT = re.compile(r"chi tiet|day du|cu the|bo sung|dan y|thanh kich ban|outline|dai hon")
+# rà 06/10: must point at an EXISTING outline — "kịch bản" + (dàn ý / này / trên), or "dàn ý" + (này / trên). "Viết kịch bản chi tiết: <ý
+# mới>" or "Mình muốn viết một kịch bản đầy đủ về …" is a new idea (classify), not this request.
+_EXPAND_THIS = re.compile(r"(\bkich ban\b.*\b(dan y|nay|tren)\b)|(\b(dan y|nay|tren)\b.*\bkich ban\b)|(\bdan y\b.*\b(nay|tren)\b)")
+
+
+def expand_request(text: str) -> Optional[Dict]:
+    """S14.43 mục 5: the person typed "viết kịch bản chi tiết từ dàn ý này" (0 USD, by rule — no model). Only the FIRST line is read, and it
+    must start with the request (a scene heading, a dialogue line or an idea that merely contains 'viết' is not one).
+    → {"rest": the text after that line (the outline pasted with it, may be "")} or None."""
+    body = (text or "").strip()
+    if not body:
+        return None
+    first, _, rest = body.partition("\n")
+    from .dialogue import lines
+    from .script_parser import is_heading
+    if is_heading(first) or lines(first):
+        return None
+    ask, colon, after = first.partition(":")                        # rà: "…dàn ý này: <dàn ý>" — what follows ':' is the outline
+    if len(ask) > 120:
+        return None
+    t = " ".join(re.sub(r"[^0-9a-z]+", " ", _fold(ask)).split())
+    if not (_EXPAND_VERB.match(t) and _EXPAND_WHAT.search(t) and _EXPAND_THIS.search(t)):
+        return None
+    return {"rest": "\n".join(x for x in (after.strip(), rest.strip()) if x)}
 
 
 def _on_screen(name: str) -> bool:

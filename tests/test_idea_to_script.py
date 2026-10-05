@@ -156,6 +156,8 @@ def _legacy_build_prompt(conn, pid, state, turn):
     tb = I.trend_block(conn, inp.get("trend", "off"))
     if tb:
         parts.append(tb)
+    if turn in I.PATTERN_TURNS:                                          # S14.43 mục 6: kho khuôn hài (gợi ý) at turns 2–3
+        parts.append(I.pattern_block())
     if turn >= 2 and state.get("answers"):
         parts.append("## Trả lời của người dùng (câu ghi [mặc định] = người dùng để trống, dùng đáp án mặc định)\n" + "\n".join(
             f"- {a['q']} → {a['a']}" + (" [mặc định]" if a.get("defaulted") else "") for a in state["answers"]))
@@ -318,6 +320,7 @@ class BuildableKitS1431(unittest.TestCase):
         self.assertIn("mở thùng ra thì trống trơn", pr)
 
     def test_scenes_with_the_game_interface_or_gameplay_are_blocked(self):
+        # S14.43 mục 4 + rà: a phone screen alone is no longer blocked, but the FF interface / gameplay ON the screen still is
         bad = "CẢNH 1 - NGÀY, ĐẢO QUÂN SỰ\nCận màn hình điện thoại: Kelly bấm nút bắn trong giao diện Free Fire.\nKELLY: Trúng rồi!"
         ok = "CẢNH 1 - NGÀY, ĐẢO QUÂN SỰ\nMaxim đứng ở bãi cỏ, thanh máu, tên và số đội hiện trên đầu.\nMAXIM: Đội mình còn bốn người!"
         inputs = {"duration_s": 15, "anchors": dict(ANCHORS, characters=["MAXIM"], plot="", ending="")}
