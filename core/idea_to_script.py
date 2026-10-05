@@ -21,8 +21,8 @@ from typing import Dict, List, Optional
 
 FEATURE = "idea_to_script"
 STAGE = "screenwriter"
-RUN_CAP_USD = 0.30              # plan: 4 Sonnet calls ≈ 0.1 USD / script; hard cap 0.3 per idea
-TURN_USD = 0.03                 # estimate shown before a turn (≈ 6k tokens in, 1.5k out)
+RUN_CAP_USD = 0.40              # S14.31: was 0.30; 4 turns × TURN_USD 0.045 + the biggest turn estimate must fit (real ≈ 0.15 / idea)
+TURN_USD = 0.045                # estimate shown before a turn; S14.31: real ≈ 0.037 / turn (05/10 record, was 0.03 = 23 % low)
 SPEECH_RATE = 2.86              # syllables / second, measured (tools/measure_speech_rate.py)
 DURATIONS = (15, 30, 60)
 PLATFORMS = ("TikTok", "Facebook Reels", "YouTube Shorts")
@@ -36,6 +36,17 @@ _HEADING_PLACE = re.compile(r"^\s*c[ảa]nh\s*\d+\s*[-–—:.]\s*(.*)$", re.I)
 
 class IdeaError(ValueError):
     """Shown to the person as it is (a ValueError, so the dashboard's `act` shows it instead of crashing)."""
+
+
+def missing_anchors(anchors) -> List[str]:
+    from . import idea_buildable
+    return idea_buildable.missing_anchors(anchors)
+
+
+def buildable_blocks(conn, pid: int, inputs: Dict) -> str:
+    """S14.31: the rules of "chỉ viết thứ dựng được" + the kit (not the whole Kho) + the person's key points — right after CHUNG."""
+    from . import idea_buildable
+    return idea_buildable.blocks(conn, pid, inputs)
 
 
 def enabled() -> bool:
@@ -69,8 +80,11 @@ def reset(conn, pid: int) -> None:
 
 
 def start(conn, pid: int, idea: str, duration_s: int = 30, aspect: str = "9:16", platform: str = "TikTok", tone: str = "",
-          characters: Optional[List[str]] = None, cta: str = "", trend: str = "off", p=None) -> Dict:
-    """A new idea (forgets the previous one's turns)."""
+          characters: Optional[List[str]] = None, cta: str = "", trend: str = "off", p=None,
+          anchors: Optional[Dict] = None) -> Dict:
+    """A new idea (forgets the previous one's turns). `anchors` = the key points the person fixes (S14.31 ý 6): characters, costume, place,
+    plot, ending, gameplay_ui — while one is missing the Biên kịch is not called (`_ask`), 0 USD."""
+    from . import idea_buildable
     if p is not None:                                   # rà S14.21: a viewer must not spend on (or change) the Biên kịch
         access.need_edit(p, pid, "chạy Biên kịch")
     idea = (idea or "").strip()
@@ -78,8 +92,11 @@ def start(conn, pid: int, idea: str, duration_s: int = 30, aspect: str = "9:16",
         raise IdeaError("Ý tưởng quá ngắn — viết ít nhất một câu: ai, ở đâu, chuyện gì")
     if trend not in TREND_MODES:
         raise IdeaError("chế độ trend không hợp lệ")
+    if anchors and not characters:                       # one list of people (rà S14.31): the key points' characters are the chosen ones
+        characters = list(idea_buildable.clean_anchors(anchors)["characters"])
     state = {"inputs": {"idea": idea, "duration_s": int(duration_s), "aspect": aspect, "platform": platform, "tone": tone.strip(),
-                        "characters": [str(c).upper() for c in characters or []], "cta": cta.strip(), "trend": trend},
+                        "characters": [str(c).upper() for c in characters or []], "cta": cta.strip(), "trend": trend,
+                        "anchors": idea_buildable.clean_anchors(anchors)},
              "spent": 0.0, "turn": 0}
     return save_state(conn, pid, state)
 
@@ -141,16 +158,14 @@ def wish_block(state: Dict, turn: int, wish: str = "") -> str:
 def build_prompt(conn, pid: int, state: Dict, turn: int, wish: str = "") -> str:
     from .prompts import _read
     inp = state["inputs"]
-    lib = library(conn, pid)
-    parts = [f"# Biên kịch — Lượt {turn}", _section("CHUNG"), "## Vai của bạn", _read("knowledge", "roles", "screenwriter.md"),
+    parts = [f"# Biên kịch — Lượt {turn}", _section("CHUNG"), buildable_blocks(conn, pid, inp), "## Vai của bạn", _read("knowledge", "roles", "screenwriter.md"),
              "## Viết thoại", _read("knowledge", "dialogue_craft.md"), "## Thể loại", _read("knowledge", "genre_guides.md"),
              "## Đầu vào của người dùng",
              f"Ý tưởng: {inp['idea']}\nThời lượng mục tiêu: {inp['duration_s']} s · khung {inp['aspect']} · nền tảng {inp['platform']}"
              + (f"\nGiọng điệu: {inp['tone']}" if inp.get("tone") else "")
              + (f"\nNhân vật người dùng chọn: {', '.join(inp['characters'])}" if inp.get("characters") else "")
              + (f"\nCTA (đúng chữ, ở cảnh cuối): {inp['cta']}" if inp.get("cta") else ""),
-             "## Kho FF (ưu tiên dùng)\nNhân vật: " + (", ".join(sorted(set(lib["characters"]))) or "(trống)")
-             + "\nNơi: " + (", ".join(sorted(set(lib["places"]))) or "(trống)")]
+             ]
     tb = trend_block(conn, inp.get("trend", "off"))
     if tb:
         parts.append(tb)
@@ -184,6 +199,10 @@ def _keep_wish(state: Dict, turn: int, wish: str) -> None:
 
 def _ask(conn, pid: int, state: Dict, turn: int, client, validate, wish: str = ""):
     from . import llm_runner
+    from . import idea_buildable
+    why = idea_buildable.gate(conn, pid, state.get("inputs") or {})
+    if why:                                             # S14.31 ý 6: ask again for what is missing — nothing is sent, 0 USD
+        raise IdeaError("; ".join(why))
     left = round(RUN_CAP_USD - float(state.get("spent") or 0), 4)
     if left < TURN_USD / 2:
         raise IdeaError(f"đã dùng hết trần {RUN_CAP_USD} USD cho ý tưởng này — bấm 'Ý tưởng mới' để làm lại từ đầu")
@@ -371,12 +390,13 @@ def _on_screen(name: str) -> bool:
 
 
 def check_script(conn, pid: int, script: str, inputs: Dict) -> Dict:
-    """{"ok", "scenes", "problems": [block texts], "flags": [notes for the person]} — 0 USD."""
-    problems, flags = [], []
+    """{"ok", "scenes", "problems": [block texts], "flags": [notes for the person], "blocked_scenes": [{scene, why}]} — 0 USD."""
+    from . import idea_buildable
+    problems, flags, blocked = [], [], []
     try:
         scenes, _ = parse(script)
     except Exception as e:  # noqa: BLE001 - shown as it is
-        return {"ok": False, "scenes": 0, "problems": [f"không đọc được: {e}"], "flags": []}
+        return {"ok": False, "scenes": 0, "problems": [f"không đọc được: {e}"], "flags": [], "blocked_scenes": []}
     if not scenes or (len(scenes) == 1 and scenes[0].heading == "Mở đầu"):
         problems.append("không tách được cảnh — mỗi cảnh cần tiêu đề 'CẢNH n - <thời gian>, <nơi>'")
     lib = library(conn, pid)
@@ -392,6 +412,15 @@ def check_script(conn, pid: int, script: str, inputs: Dict) -> Dict:
         where = (m.group(1) if m else "").split(",", 1)[-1].strip()
         if where and not any(p and (p in _fold(where) or _fold(where) in p) for p in places):
             flags.append(f"nơi ngoài Kho — AI vẽ, ~70 % giống: {where}")
+    if scenes and not (len(scenes) == 1 and scenes[0].heading == "Mở đầu"):
+        anchors = inputs.get("anchors")
+        pr, fl, blocked = idea_buildable.check_scenes(scenes, idea_buildable.kit(conn, pid), anchors)
+        problems += pr
+        flags += fl
+        problems += idea_buildable.check_anchors(scenes, anchors)
+        if not any(idea_buildable.clean_anchors(anchors).values()):       # rà: said, not a silent pass
+            flags.append("không có điểm then chốt nào để đối chiếu (ý tưởng tạo trước S14.31 hoặc kịch bản dán) — chưa kiểm được nhân vật / nơi / "
+                         "diễn biến / cú chốt")
     if inputs.get("cta") and scenes and _fold(inputs["cta"]) not in _fold(scenes[-1].heading + " " + scenes[-1].text):
         problems.append(f"CTA \"{inputs['cta']}\" chưa có ở cảnh cuối")
     if _AGE.search(script):
@@ -401,7 +430,7 @@ def check_script(conn, pid: int, script: str, inputs: Dict) -> Dict:
                if not _on_screen(who)) / SPEECH_RATE
     if talk > float(inputs.get("duration_s") or 0):
         flags.append(f"tổng thoại ≈ {talk:.0f} s > thời lượng {inputs.get('duration_s')} s — video sẽ dài hơn mục tiêu")
-    return {"ok": not problems, "scenes": len(scenes), "problems": problems, "flags": sorted(set(flags))}
+    return {"ok": not problems, "scenes": len(scenes), "problems": problems, "flags": sorted(set(flags)), "blocked_scenes": blocked}
 
 
 def write(conn, pid: int, client, wish: str = "", p=None) -> Dict:

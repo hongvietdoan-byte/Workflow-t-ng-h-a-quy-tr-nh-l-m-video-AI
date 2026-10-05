@@ -75,7 +75,7 @@ def run_idea(p, pid: int, item: dict, client) -> dict:
     """The 4 turns with the eval's fixed choices; returns the final state (+ error when a turn failed — the turns done are kept)."""
     from core import idea_to_script as I
     I.start(p.conn, pid, item["idea"], duration_s=int(item.get("duration_s") or 30), characters=item.get("characters") or [],
-            cta=item.get("cta") or "", trend="off")
+            cta=item.get("cta") or "", trend="off", anchors=item.get("anchors"))   # S14.31: no anchors → refused, 0 USD
     steps = (lambda: I.questions(p.conn, pid, client), lambda: I.answer(p.conn, pid, []),
              lambda: I.directions(p.conn, pid, client), lambda: I.outline(p.conn, pid, client, 0),
              lambda: I.write(p.conn, pid, client))
