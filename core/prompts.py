@@ -241,6 +241,7 @@ def build_director_bundle(pipeline: Pipeline, project_id: int, only_scene: Optio
         shot_style_block(proj) if shots.mode(proj) else "",
         duration_block(pipeline, project_id) if shots.mode(proj) else "",
         *crew,
+        *knowledge.murch_blocks("director"),      # S14.20: Murch scale + sound method (flag murch_knowledge, off → nothing)
         _location_block(pipeline, project_id) if shots.mode(proj) else "",
         keep("research_notes.md"),
         keep("film_director_method.md"),
@@ -328,6 +329,7 @@ def build_intent_bundle(pipeline: Pipeline, project_id: int) -> str:
         knowledge.genre_text(proj["genre"] if "genre" in proj.keys() else None),
         intent_frame_block(pipeline, project_id),
         *method,
+        *knowledge.murch_blocks("director"),      # S14.20 (flag murch_knowledge): the Director writes intent + sound here
         _location_block(pipeline, project_id),     # weather / time names of a location pack (the spots are the DP's)
         keep("character_lock.md"),
         assets.context_text(pipeline.conn, project_id),
@@ -633,6 +635,7 @@ def build_motion_bundle(pipeline: Pipeline, project_id: int, only_missing: bool 
     for rel in ("video_motion_vocab.md", "research_notes.md", "t2v_prompt_structure.md", "reference_assets_prompting.md"):
         if f"knowledge/{rel}" not in folded:
             parts.append(_read("knowledge", rel))
+    parts += knowledge.murch_blocks("motion")    # S14.20 (flag murch_knowledge): addendum + Murch scale + I2V discipline; off → []
     if (any_complex or not complexity_known) and "knowledge/motion_complex_shots.md" not in folded:
         parts.append(_read("knowledge", "motion_complex_shots.md"))
     if any_complex:

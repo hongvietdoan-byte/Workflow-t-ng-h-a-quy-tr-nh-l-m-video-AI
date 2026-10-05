@@ -9,6 +9,7 @@ import os
 from typing import Dict, List, Optional
 
 PROMPT = "22_first_viewer.md"
+PROMPT_MURCH = "22_first_viewer_murch.md"    # S14.20 addendum (cờ murch_knowledge): + cam_xuc 1–5
 
 
 def digest(p, project_id: int) -> List[Dict]:
@@ -40,6 +41,9 @@ def _check(obj) -> None:
     u = obj.get("understood")
     if not isinstance(u, (int, float)) or not 1 <= u <= 5:
         raise SchemaError("understood: cần số 1–5")
+    cx = obj.get("cam_xuc")                   # S14.20 (cờ murch_knowledge): optional — only asked for with the flag on
+    if cx is not None and (not isinstance(cx, (int, float)) or isinstance(cx, bool) or not 1 <= cx <= 5):
+        raise SchemaError("cam_xuc: cần số 1–5")
 
 
 def path(data_dir: str, project_id: int) -> str:
@@ -65,11 +69,16 @@ def run(p, project_id: int, client, data_dir: str) -> Dict:
     film = digest(p, project_id)
     if not film:
         return {}
-    key = fingerprint(film)
+    from . import features
+    murch = features.on("murch_knowledge")
+    key = fingerprint(film) + ("+cx" if murch else "")     # flag on asks a new field: an old reading without it is not reused
     old = load(data_dir, project_id)
     if old and old.get("fingerprint") == key:
         return old
-    prompt = claude_tasks._read("prompts", PROMPT) + "\n\n---\n\n" + claude_tasks._block("Phim (theo thứ tự trên màn hình)", film)
+    head = claude_tasks._read("prompts", PROMPT)
+    if murch:                                  # S14.20: the viewer also scores the heaviest axis (Murch: emotion); off → prompt as before
+        head = head.rstrip("\n") + "\n\n" + claude_tasks._read("prompts", PROMPT_MURCH).strip() + "\n"
+    prompt = head + "\n\n---\n\n" + claude_tasks._block("Phim (theo thứ tự trên màn hình)", film)
     obj = claude_tasks._run(p, project_id, "director", prompt, _check, client)
     res = dict(obj, fingerprint=key, shots=len(film))
     os.makedirs(os.path.dirname(path(data_dir, project_id)), exist_ok=True)
@@ -82,7 +91,8 @@ def lines(res: Optional[Dict]) -> List[str]:
     """The reading as short lines for Step 1 / the log."""
     if not res:
         return []
-    out = [f"👀 Người xem lần đầu ({res.get('understood', '?')}/5): {res.get('summary', '')}"]
+    feel = f" · cảm xúc {res['cam_xuc']}/5" if res.get("cam_xuc") is not None else ""
+    out = [f"👀 Người xem lần đầu ({res.get('understood', '?')}/5{feel}): {res.get('summary', '')}"]
     for c in res.get("confusing") or []:
         if isinstance(c, dict):
             out.append(f"❓ {c.get('at', '')}: {c.get('question', '')}")

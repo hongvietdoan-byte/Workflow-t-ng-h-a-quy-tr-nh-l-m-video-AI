@@ -37,14 +37,75 @@ TAGS = {
 }
 GROUP_OF_STAGE = {"image": "director", "video": "motion"}
 
+# S14.20 (Bộ não prompt Đợt 2b, cờ `risk_tags`, TẮT mặc định): the one "motion" tag split into the 6 risk axes of the I2V Risk
+# Assessment (knowledge/i2v_motion_discipline.md mục 1 — the same dictionary the motion writer uses in check_flags) + 4 feedback tags.
+# "Mặt biến dạng khi quay đầu" and "nền trôi khi orbit" are two illnesses with two cures; one tag made the lesson useless.
+# tag -> (label, keywords, cure). Keywords are a first guess (not measured on real mistakes yet — the flag's test).
+RISK_TAGS = {
+    "face_morph": ("Mặt biến dạng / đổi mặt trong clip",
+                   ("mặt biến dạng", "méo mặt", "mặt méo", "mặt nhòe", "mặt nhoè", "mặt đổi", "đổi mặt", "face morph", "face distort",
+                    "face warp", "melting face"),
+                   "giảm góc quay đầu, giảm chuyển động máy, bớt hành động đồng thời"),
+    "body_deform": ("Cơ thể / tay chân biến dạng khi chuyển động",
+                    ("cơ thể biến dạng", "thân méo", "tay chân", "khớp tay", "khớp gối", "khớp vai", "gãy tay", "gãy chân", "thừa tay", "thừa chân", "body deform",
+                     "limb", "extra arm", "extra leg"),
+                    "giảm biên độ, chia hành động"),
+    "wardrobe_drift": ("Trang phục đổi / trôi trong clip",
+                       ("trang phục đổi", "đổi trang phục", "áo đổi", "áo choàng đổi", "quần áo đổi", "đổi màu áo", "vải", "wardrobe",
+                        "outfit change", "costume change", "costume drift"),
+                       "khóa thiết kế, chỉ cho phần vải cần phản ứng chuyển động"),
+    "background_drift": ("Nền / kiến trúc trôi, méo khi máy di chuyển",
+                         ("nền trôi", "nền đổi", "nền méo", "nền biến", "bối cảnh trôi", "kiến trúc méo", "tường méo", "background drift",
+                          "background warp", "background morph"),
+                         "giảm cường độ máy, giữ điểm neo"),
+    "motion_overload": ("Quá nhiều thứ cùng chuyển động / hỗn loạn",
+                        ("quá nhiều chuyển động", "hỗn loạn", "rối mắt", "loạn", "chaotic", "too much motion", "overload"),
+                        "giảm ngân sách chuyển động: một máy + một hành động chính"),
+    "text_logo_corrupt": ("Chữ / logo / UI hỏng trong clip",
+                          ("chữ", "logo", "biển hiệu", "hud", "watermark", "text", "letters"),
+                          "đừng yêu cầu model animate chữ / logo"),
+    "identity": ("Sai người / đổi người giữa clip",
+                 ("sai nhân vật", "khác nhân vật", "đổi người", "không giống", "nhận diện", "identity", "wrong character"),
+                 "ảnh tham chiếu đúng người, giảm quay đầu"),
+    "physics": ("Vật lý sai (xuyên vật, trôi nổi, trượt chân)",
+                ("xuyên tường", "xuyên người", "xuyên vật", "trôi nổi", "lơ lửng", "trượt chân", "chân trượt", "physics", "clipping",
+                 "floating"),
+                "một câu vật lý cơ thể, chỗ chạm đất rõ"),
+    "lipsync": ("Khớp môi lệch câu thoại",
+                ("khớp môi", "môi lệch", "môi không", "mấp máy", "mở miệng", "lip sync", "lipsync", "lip-sync", "mouth"),
+                "nêu đúng người nói, một clip cả đoạn thoại"),
+    "audio": ("Âm thanh / nhạc / giọng sai",
+              ("âm thanh", "tiếng ồn", "nhạc", "giọng", "audio", "sound", "music"),
+              "sửa ở khâu âm thanh, không gen lại hình"),
+}
+UNCLASSIFIED = "unclassified"
+UNCLASSIFIED_LABEL = "Chưa phân loại"
+
 
 def _now() -> str:
     return datetime.now(timezone.utc).isoformat(timespec="seconds")
 
 
+def _risk_on() -> bool:
+    from . import features
+    try:
+        return features.on("risk_tags")
+    except KeyError:
+        return False
+
+
+def active_tags() -> Dict[str, tuple]:
+    """tag -> (label, keywords): the old table, or with the flag `risk_tags` the old one without "motion" + the risk axes."""
+    if not _risk_on():
+        return TAGS
+    out = {t: v for t, v in TAGS.items() if t != "motion"}
+    out.update({t: (label, words) for t, (label, words, _) in RISK_TAGS.items()})
+    return out
+
+
 def tags_of(text: str) -> List[str]:
     low = (text or "").lower()
-    return [t for t, (_, words) in TAGS.items() if any(w in low for w in words)]
+    return [t for t, (_, words) in active_tags().items() if any(w in low for w in words)]
 
 
 def _clean(note: Optional[str]) -> str:
@@ -90,15 +151,26 @@ def _add(conn, source: str, ref: int, at: Optional[str], project_id: int, stage:
 def clusters(conn, min_events: int = MIN_EVENTS, min_projects: int = MIN_PROJECTS) -> List[Dict]:
     """Kinds of mistakes that repeat: same (step, tag) often enough, across enough projects."""
     buckets: Dict[tuple, List] = {}
+    risk = _risk_on()
+    table = active_tags()
     for m in conn.execute("SELECT * FROM mistakes ORDER BY id").fetchall():
-        for tag in tags_of(m["text"]):
+        tags = tags_of(m["text"])
+        if not tags and risk:                 # S14.20: a mistake no tag matches is kept and shown, not dropped (CHUAN luật 1)
+            buckets.setdefault((m["group_name"], UNCLASSIFIED), []).append(m)
+        for tag in tags:
             buckets.setdefault((m["group_name"], tag), []).append(m)
     out = []
+    lost = 0
     for (group, tag), items in buckets.items():
         projects = {m["project_id"] for m in items}
-        out.append({"group": group, "tag": tag, "label": TAGS[tag][0], "events": len(items), "projects": len(projects),
-                    "examples": list(dict.fromkeys(m["text"] for m in items))[:4],
-                    "ready": len(items) >= min_events and len(projects) >= min_projects})
+        unclassified = tag == UNCLASSIFIED
+        lost += len(items) if unclassified else 0
+        out.append({"group": group, "tag": tag, "label": UNCLASSIFIED_LABEL if unclassified else table[tag][0], "events": len(items),
+                    "projects": len(projects), "examples": list(dict.fromkeys(m["text"] for m in items))[:4],
+                    "ready": (not unclassified) and len(items) >= min_events and len(projects) >= min_projects})
+    if lost:
+        diag.record(conn, "lessons", "warn", f"{lost} lỗi đã ghi không khớp loại lỗi nào (cờ risk_tags) — xem mục 'Chưa phân loại' "
+                    "ở tab Bài học; không gom thành bài học tới khi có từ khóa phù hợp", code="lesson_unclassified")
     return sorted(out, key=lambda c: (-c["ready"], -c["events"]))
 
 
