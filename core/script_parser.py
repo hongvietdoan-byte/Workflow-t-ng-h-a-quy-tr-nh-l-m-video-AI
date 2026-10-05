@@ -65,8 +65,8 @@ def _characters(lines: List[str]) -> List[str]:
         if not m:
             continue
         name = m.group(1).strip()
-        from .dialogue import is_non_speaker
-        if len(name.split()) > 3 or is_heading(line) or is_non_speaker(name):
+        from .dialogue import _is_speaker, is_non_speaker
+        if len(name.split()) > 3 or is_heading(line) or is_non_speaker(name) or not _is_speaker(name):   # S14.34: "Cận mặt Kelly:" is a label
             continue
         seen[name.upper()] = seen.get(name.upper(), 0) + 1
     return sorted(seen, key=lambda n: (-seen[n], n))
