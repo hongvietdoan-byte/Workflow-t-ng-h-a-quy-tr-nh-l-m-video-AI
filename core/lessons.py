@@ -169,7 +169,7 @@ def clusters(conn, min_events: int = MIN_EVENTS, min_projects: int = MIN_PROJECT
                     "projects": len(projects), "examples": list(dict.fromkeys(m["text"] for m in items))[:4],
                     "ready": (not unclassified) and len(items) >= min_events and len(projects) >= min_projects})
     if lost:
-        diag.record(conn, "lessons", "warn", f"{lost} lỗi đã ghi không khớp loại lỗi nào (cờ risk_tags) — xem mục 'Chưa phân loại' "
+        diag.record(conn, "system", "warn", f"{lost} lỗi đã ghi không khớp loại lỗi nào (cờ risk_tags) — xem mục 'Chưa phân loại' "
                     "ở tab Bài học; không gom thành bài học tới khi có từ khóa phù hợp", code="lesson_unclassified")
     return sorted(out, key=lambda c: (-c["ready"], -c["events"]))
 
