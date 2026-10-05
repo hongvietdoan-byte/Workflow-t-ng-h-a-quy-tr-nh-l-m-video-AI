@@ -208,7 +208,8 @@ RULES = """## Ràng buộc DỰNG ĐƯỢC (xưởng chỉ dựng chắc đượ
 - Cảnh có màn hình điện thoại (người dùng 06/10): nhân vật cầm / cúi nhìn / chỉ vào điện thoại mà máy nhìn **TỪ XA** (không đọc được nội dung) thì
   dùng thoải mái — ghi rõ "từ xa" / "toàn cảnh". LỘ góc nhìn màn hình (cận màn hình, "màn hình hiện…", giơ điện thoại về phía máy) vẫn viết
   được nhưng xưởng phải VẼ màn hình mô phỏng (ảnh tham khảo trên mạng) → tốn thêm một tài nguyên: chỉ dùng khi màn hình CHÍNH LÀ cú hài /
-  manh mối (vd. khoe rank rồi màn hình tự lộ), tả rõ màn hình hiện gì, và ghi trong `notes` là cần màn hình mô phỏng.
+  manh mối (vd. filter / app / tin nhắn tự lộ), tả rõ màn hình hiện gì, và ghi trong `notes` là cần màn hình mô phỏng. Màn hình hiện
+  giao diện / sảnh / bảng xếp hạng / gameplay Free Fire thì VẪN bị chặn như trên (chưa có tư liệu dựng được).
 - Kỹ thuật NÉ: quay người chơi NGOÀI ĐỜI (nhân vật 3D ở nơi trong danh sách); muốn người xem hiểu tình huống trong
   trận thì cho **thanh máu + tên + số đội hiện trên đầu nhân vật** thay vì dựng giao diện. Một cảnh = một nơi, một việc, camera xa/trung/cận rõ.
 - Nhịp và nhân quả phải hợp lý: việc lớn cần đủ thời gian và bước đệm (nhảy dù → đáp đất → tìm đồ → giao tranh → thắng; không thể vừa
@@ -289,9 +290,12 @@ def blocks(conn, pid: int, inputs: Dict, extra: str = "") -> str:
 
 # ---- the code check after the writing turn (0 USD) ------------------------------------------------------------------------------------
 # Heuristic by design (rà S14.31): only specific game phrases, and only in the description / heading — never in what a person says.
-# S14.43 mục 4 (người dùng 06/10): the phone screen is no longer blocked — seen from afar it is free, an exposed screen is a resource
-# to draw (screen_view / screen_needs below). Only the game interface as a SET (no phone) and combat gameplay stay blocked.
-_UI = [("giao diện game", r"giao dien (game|free fire|ff|tran dau|nguoi choi|choi game)|\bmenu (game|chinh|free fire|chon)|bang xep hang|joystick|minimap|"
+# S14.43 mục 4 (người dùng 06/10): a phone screen ALONE is no longer blocked — seen from afar it is free, an exposed screen is a resource
+# to draw (screen_view / screen_needs below). Rà 06/10: the FF interface / gameplay stays blocked wherever it is, ON a phone screen too
+# (the simulated-screen exemption is only for content that is not the FF interface: a filter, a message, an app outside the game).
+_UI = [("điện thoại đang chơi game", r"cam dien thoai (choi|ngam)|dien thoai dang choi|choi (game|free fire|ff) (tren|bang) dien thoai|"
+                                     r"man hinh (choi game|game)\b"),
+       ("giao diện game", r"giao dien (game|free fire|ff|tran dau|nguoi choi|choi game)|\bmenu (game|chinh|free fire|chon)|bang xep hang|joystick|minimap|"
                           r"nut ban (tren|trong) |ban do nho"),
        ("sảnh chờ", r"sanh cho|sanh game|\blobby\b|man hinh (cho|chon nhan vat)")]
 _GAMEPLAY = [("combat gameplay", r"nhay du|vong bo|thu hep bo|goc nhin (nguoi choi|thu nhat)|bat cover|ban ha guc|ha guc (doi thu|ke dich)")]
@@ -306,7 +310,7 @@ def _said(line: str) -> bool:
 
 # ---- S14.43 mục 4: how the camera sees a phone screen (0 USD, folded phrases; order: close > far > content > unclear) ----------------
 _SCREEN_OVERLAY = r"^\s*chu tren man"                                  # "CHỮ TRÊN MÀN (HÌNH): …" = post-production text, not a phone
-_SCREEN_MENTION = r"man hinh|gio (dien thoai|dt)\b|(can|zoom|phong to)( canh)? (vao |sat )?(dien thoai|dt)\b"
+_SCREEN_MENTION = r"dien thoai|\bdt\b|smartphone|iphone"          # rà: a phone must be named ("màn hình TV / game" is not a phone)
 _SCREEN_CLOSE = (r"\bcan( canh)? (vao |sat )?(man hinh|dien thoai)|(zoom|phong to|day may|lia) (vao |sat |toi )?(man hinh|dien thoai)|"
                  r"quay man hinh|chen (canh )?man hinh|insert man hinh|goc nhin (cua |tu |qua )?man hinh|man hinh (chiem|day|lap day) (ca )?khung|"
                  r"gio (dien thoai|man hinh)( \w+)? (ve phia|vao|truoc|huong ve|len truoc) (may|ong kinh|camera|nguoi xem)")
@@ -334,8 +338,8 @@ def screen_view(line: str) -> str:
 
 def _scene_hits(heading: str, body: str) -> List[str]:
     """Hits in the heading + the description lines; a line someone SAYS ("NAME: …") is dialogue, not what the camera shows. A line
-    that exposes a phone screen is that screen's content (a simulated screen to draw — S14.43), not a game set: it is left out here."""
-    shown = [ln for ln in [heading] + body.splitlines() if not _said(ln) and screen_view(ln) != "exposed"]
+    exposing a phone screen is checked too (rà 06/10): the FF interface / gameplay on it is still blocked. The heading is never dialogue."""
+    shown = [heading] + [ln for ln in body.splitlines() if not _said(ln)]
     raw = "\n".join(shown)
     t = assets.fold(raw)
     hits = [name for name, rx in _UI + _GAMEPLAY if re.search(rx, t)]
@@ -393,8 +397,8 @@ def check_scenes(scenes, k: Dict, anchors: Dict, custom_place: str = "") -> Tupl
 def screen_lines(scene) -> Dict[str, List[str]]:
     """{'exposed': [lines], 'unclear': [lines]} — the description lines (and heading) of a scene that show a phone screen."""
     out: Dict[str, List[str]] = {"exposed": [], "unclear": []}
-    for ln in [scene.heading] + scene.text.splitlines():
-        v = "" if _said(ln) else screen_view(ln)
+    for ln in [scene.heading] + [x for x in scene.text.splitlines() if not _said(x)]:
+        v = screen_view(ln)
         if v in out:
             out[v].append(ln.strip())
     return out

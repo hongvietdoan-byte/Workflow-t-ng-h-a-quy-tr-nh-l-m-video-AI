@@ -320,9 +320,8 @@ class BuildableKitS1431(unittest.TestCase):
         self.assertIn("mở thùng ra thì trống trơn", pr)
 
     def test_scenes_with_the_game_interface_or_gameplay_are_blocked(self):
-        # S14.43 mục 4: a phone screen is no longer blocked (from afar = free, exposed = a simulated screen to draw — tests/test_s1443_*);
-        # the game interface as a set (no phone) still is
-        bad = "CẢNH 1 - NGÀY, ĐẢO QUÂN SỰ\nCận giao diện Free Fire: Kelly bấm nút bắn trong giao diện game.\nKELLY: Trúng rồi!"
+        # S14.43 mục 4 + rà: a phone screen alone is no longer blocked, but the FF interface / gameplay ON the screen still is
+        bad = "CẢNH 1 - NGÀY, ĐẢO QUÂN SỰ\nCận màn hình điện thoại: Kelly bấm nút bắn trong giao diện Free Fire.\nKELLY: Trúng rồi!"
         ok = "CẢNH 1 - NGÀY, ĐẢO QUÂN SỰ\nMaxim đứng ở bãi cỏ, thanh máu, tên và số đội hiện trên đầu.\nMAXIM: Đội mình còn bốn người!"
         inputs = {"duration_s": 15, "anchors": dict(ANCHORS, characters=["MAXIM"], plot="", ending="")}
         c = I.check_script(self.p.conn, self.pid, bad, inputs)

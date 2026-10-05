@@ -32,14 +32,18 @@ class PhoneScreenS1443(unittest.TestCase):
         cases = {
             "Toàn cảnh: Kelly và Maxim cúi nhìn điện thoại, màn hình nhìn từ xa không đọc được.": "far",
             "Máy đặt từ xa, Kelly chỉ vào màn hình điện thoại của Maxim.": "far",
-            "Ánh sáng màn hình hắt lên mặt Kelly.": "far",
+            "Ánh sáng màn hình điện thoại hắt lên mặt Kelly.": "far",
             "Cận màn hình điện thoại: huy hiệu hạng Huyền Thoại xoay.": "exposed",
             "Cận cảnh điện thoại trên tay Kelly.": "exposed",
             "Kelly giơ điện thoại về phía máy quay khoe rank.": "exposed",
-            "Màn hình hiện dòng chữ 'Up next in 3'.": "exposed",
-            "Quay màn hình: bảng xếp hạng bạn bè.": "exposed",
+            "Màn hình điện thoại hiện dòng chữ 'Up next in 3'.": "exposed",
+            "Quay màn hình điện thoại: tin nhắn của Maxim.": "exposed",
             "Trung cảnh, Kelly chỉ tay vào màn hình điện thoại của Maxim.": "unclear",
-            "Maxim cau mày nhìn xuống màn hình mình.": "unclear",
+            "Maxim cau mày nhìn xuống màn hình điện thoại của mình.": "unclear",
+            "Kelly nhìn vào điện thoại.": "unclear",                        # rà 6: a phone without 'màn hình' is said too
+            "Điện thoại của Maxim rung lên.": "unclear",
+            "Màn hình TV trong phòng khách sáng lên.": "",                 # rà 1: no phone context → not a phone screen
+            "Màn hình game nhấp nháy.": "",
             "Kelly đứng ở bãi cỏ, thanh máu hiện trên đầu.": "",
             "CHỮ TRÊN MÀN HÌNH: Tải Free Fire ngay": "",
         }
@@ -59,9 +63,22 @@ class PhoneScreenS1443(unittest.TestCase):
         c = self.check("Cận màn hình điện thoại: huy hiệu hạng Huyền Thoại xoay, lớp 'Up next in 3' bật lên.\nKELLY: Ơ…")
         self.assertEqual(c["blocked_scenes"], [])
         self.assertTrue(any("cần tài nguyên màn hình mô phỏng" in f for f in c["flags"]), c["flags"])
-        # game interface on the exposed phone screen = what the simulated screen shows (not a set to build)
-        c2 = self.check("Cận màn hình điện thoại hiện bảng xếp hạng Free Fire.\nKELLY: Hạng nhất!")
-        self.assertEqual(c2["blocked_scenes"], [])
+        c2 = self.check("Cận màn hình điện thoại: filter đoán trình độ quét mặt Kelly, hiện chữ 'Đồng'.\nKELLY: Ủa alo?")
+        self.assertEqual(c2["blocked_scenes"], [])                          # a filter / app outside the game: drawn, not blocked
+
+    def test_ff_interface_or_gameplay_on_a_phone_screen_is_still_blocked(self):
+        """Rà (06/10): the screen exemption is only for content that is NOT the FF interface / gameplay — these were blocked on main."""
+        for body in ("Cận màn hình chờ chọn nhân vật Free Fire.", "Màn hình game hiện bảng xếp hạng bạn bè.",
+                     "Cận màn hình sảnh chờ Free Fire, Kelly bấm nút Bắt đầu.", "Cận màn hình điện thoại: nhân vật nhảy dù, vòng bo thu hẹp.",
+                     "Cận màn hình điện thoại: Kelly bấm nút bắn trong giao diện Free Fire.", "Cận màn hình điện thoại hiện bảng xếp hạng Free Fire.",
+                     "Kelly cầm điện thoại chơi Free Fire."):
+            with self.subTest(body=body):
+                self.assertEqual([b["scene"] for b in self.check(body + "\nKELLY: Ơ!")["blocked_scenes"]], [1])
+
+    def test_a_heading_is_never_read_as_dialogue(self):
+        c = I.check_script(self.p.conn, self.pid, "CẢNH 1: SẢNH CHỜ FREE FIRE\nKelly đứng chờ.\nKELLY: Lâu quá!", INP)
+        self.assertEqual([b["scene"] for b in c["blocked_scenes"]], [1])
+        self.assertTrue(any("sảnh chờ" in t for t in c["problems"]), c["problems"])
 
     def test_game_interface_without_a_phone_is_still_blocked(self):
         c = self.check("Cận giao diện game Free Fire, minimap và bảng xếp hạng.\nMAXIM: Hạng nhất!")
