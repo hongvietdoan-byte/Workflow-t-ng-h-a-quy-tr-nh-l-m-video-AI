@@ -4,7 +4,7 @@
 A conversation shell around priced widgets, NOT a free chat: one `st.chat_input` is the single way in for text (a pasted script, a raw
 idea, or a "nói thêm" for the Biên kịch) and it NEVER calls a model. Code decides for 0 USD what the text is (idea_to_script.classify:
 script → the old ▶ Phân tích split; idea → the Biên kịch's turns, each behind a button with its price; grey zone → ask, never guess —
-luật 3), always with a one-click override. Old keys kept: up_ (📎 popover, same uploader), paste_ (✍ Sửa toàn văn, a ui.fold — the box
+luật 3), always with a one-click override. Old keys kept: up_ (📎 popover, same uploader), paste_ (✍ Sửa toàn văn, a popover since S14.36 — the box
 sits inside the v2 "Nhập / thay" expander, so no expander here: C2), btn_analyse_, btn_bad_reset_."""
 from dashboard.common import *  # noqa: F401,F403  (shared imports + helpers)
 from dashboard.steps.step1_v2 import cap, say  # noqa: F401
@@ -74,37 +74,58 @@ def _verdict(pid: int, mode: str, forced: bool, why) -> None:
              on_click=_set_mode, args=(pid, other), width="stretch")
 
 
+def receipt(text: str, c: dict = None) -> str:
+    """S14.36: the one-line card shown in the chat when a SCRIPT was pasted (0 USD, from I.classify): how many scenes were seen + the size
+    of the paste. "" for an idea / grey zone / nothing (those have their own verdict line)."""
+    from core import idea_to_script as I
+    body = (text or "").strip()
+    c = c or I.classify(body)
+    if not body or c.get("kind") != "script":
+        return ""
+    lines = len([ln for ln in body.splitlines() if ln.strip()])
+    return (f"Đã nhận kịch bản {c.get('scenes', 0)} cảnh ({lines} dòng · {len(body):,} ký tự)".replace(",", ".")
+            + " — bấm ▶ Phân tích để tách cảnh (0 USD).")
+
+
 def script_box(p: Pipeline, pid: int, with_reset: bool = True) -> bool:
-    """Same contract as step1.script_input (keys, return value: is there an input)."""
+    """Same contract as step1.script_input (keys, return value: is there an input).
+    S14.36 layout: the chat is the centre — messages on top, the input under them; 📎 and ✍ Sửa toàn văn are two small popovers beside
+    the input (same keys up_/paste_), the ▶ Phân tích row sits right under the messages. The input is read FIRST (containers draw in order)."""
     from core import idea_to_script as I
     from dashboard.steps.step1 import analyse_script, reset_script_button
     k, ss = _keys(pid), st.session_state
     body, foot = st.container(), st.container()                        # drawn in this order; the chat input is read FIRST (below)
     with foot:
-        a, b = st.columns([6, 1.5], vertical_alignment="bottom")
-        with b.popover("📎 Đính kèm file", width="stretch"):
+        a, b, b2 = st.columns([6, 1.3, 1.6], vertical_alignment="bottom")
+        with a:
+            got = st.chat_input("Dán kịch bản, gõ ý tưởng, hoặc nói thêm cho Biên kịch…", key=k["chat"], accept_file=True,
+                                file_type=list(script_reader.SUPPORTED))
+        if got:
+            _take(p, pid, got)
+        if k["paste"] not in ss:
+            ss[k["paste"]] = ss.get(k["text"], "")
+        with b.popover("📎 Đính kèm", width="stretch"):
             up = st.file_uploader("Kịch bản", type=list(script_reader.SUPPORTED), key=f"up_{pid}", label_visibility="collapsed",
                                   help="Word (.docx, kể cả kịch bản viết trong bảng), Excel (.xlsx), CSV/TSV, .txt, .md")
             cap("Đọc được: Word (.docx, cả bảng), Excel (.xlsx), CSV/TSV, .txt, .md. Kịch bản dạng bảng cần dòng tiêu đề cột như "
                 "Cảnh, Mô tả, Nhân vật, Lời thoại, Bối cảnh, Thời gian, Góc máy.")
-        with a:
-            got = st.chat_input("Dán kịch bản, gõ ý tưởng, hoặc nói thêm cho Biên kịch…", key=k["chat"], accept_file=True,
-                                file_type=list(script_reader.SUPPORTED))
-    if got:
-        _take(p, pid, got)
-    if k["paste"] not in ss:
-        ss[k["paste"]] = ss.get(k["text"], "")
+        n_chars = len(ss.get(k["paste"]) or "")
+        with b2.popover("✍ Sửa toàn văn" + (f" · {n_chars:,}".replace(",", ".") if n_chars else ""), width="stretch"):
+            pasted = st.text_area("Gõ hoặc dán kịch bản", key=k["paste"], height=300, label_visibility="collapsed",
+                                  placeholder="CẢNH 1 - ĐÊM, RỪNG ELDER\nSương mù phủ kín khu rừng…\nLYRA: Có thứ gì đó đang theo chúng ta.\n\n"
+                                              "Dán cả bảng copy từ Excel / Google Sheets cũng được (300 dòng cũng được).")
+        ss[k["text"]] = pasted
     state = I.get_state(p.conn, pid)
     with body:
         if state.get("inputs"):                                        # the ceiling of this idea (mẫu step1_v2 meter)
             from dashboard.design import components as D
             spent = float(state.get("spent") or 0)
             st.html(D.meter(spent / I.RUN_CAP_USD, f"Biên kịch: đã dùng ≈ {spent:.3f} / {I.RUN_CAP_USD:g} USD cho ý tưởng này", invert=True))
-        text, file = ss.get(k["paste"]) or "", ss.get(k["file"])
+        text, file = pasted or "", ss.get(k["file"])
         mode = "script" if (up is not None or file) else None
         if up is None and not file and not text.strip() and not state.get("inputs"):
             with st.chat_message("assistant"):
-                st.markdown("Dán kịch bản (có tiêu đề **CẢNH 1 - …**) hoặc gõ 2–3 dòng ý tưởng vào khung dưới cùng; file thì bấm 📎. "
+                st.markdown("Dán kịch bản (có tiêu đề **CẢNH 1 - …**) hoặc gõ vài dòng ý tưởng vào khung bên dưới; file thì bấm 📎. "
                             "Gõ vào khung không tốn tiền — chỉ nút có ghi giá mới gọi Claude.")
         else:
             with st.chat_message("user"):
@@ -123,6 +144,8 @@ def script_box(p: Pipeline, pid: int, with_reset: bool = True) -> bool:
                     if file and up is None:
                         st.button("✕ Bỏ file này", key=f"box_file_drop_{pid}", on_click=lambda: (ss.pop(k["file"], None), ss.pop(k["mode"], None)))
                 else:
+                    if mode == "script" and text.strip():
+                        st.markdown("**" + (receipt(text, c) or "Đã nhận kịch bản — bấm ▶ Phân tích (0 USD).") + "**")
                     _verdict(pid, mode, bool(forced), c["why"])
                 if mode == "idea":
                     from dashboard.steps.step1_idea import idea_settings_form, idea_turns
@@ -135,13 +158,6 @@ def script_box(p: Pipeline, pid: int, with_reset: bool = True) -> bool:
                     w1, w2 = st.columns(2)
                     w1.button("✕ Bỏ lời này", key=f"box_wish_drop_{pid}", on_click=lambda: ss.pop(k["wish"], None))
                     w2.button("↪ Không, đây là ý tưởng mới", key=f"box_wish_as_idea_{pid}", on_click=_wish_to_idea, args=(pid,))
-        with ui.fold("✍ Sửa toàn văn", f"{len(text):,} ký tự".replace(",", ".") if text else "trống", f"box_full_{pid}",
-                     default_open=True, sub="dán / sửa tay cả kịch bản ở đây (300 dòng cũng được)") as full_open:
-            if full_open:
-                pasted = st.text_area("Gõ hoặc dán kịch bản", key=k["paste"], height=170, label_visibility="collapsed",
-                                      placeholder="CẢNH 1 - ĐÊM, RỪNG ELDER\nSương mù phủ kín khu rừng…\nLYRA: Có thứ gì đó đang theo chúng ta.\n\n"
-                                                  "Dán cả bảng copy từ Excel / Google Sheets cũng được.")
-                ss[k["text"]] = text = pasted                              # kept while the fold is shut (paste_ is not drawn then)
         has_input = up is not None or bool(file) or bool(text.strip())
         ready = up is not None or bool(file) or (bool(text.strip()) and (mode or ss.get(k["mode"]) or I.classify(text)["kind"]) == "script")
         if with_reset:
@@ -155,7 +171,7 @@ def script_box(p: Pipeline, pid: int, with_reset: bool = True) -> bool:
                 st.rerun()
         u4.caption("Sẵn sàng · bấm ▶ Phân tích (0 USD)" if ready else
                    ("Ý tưởng → làm qua Biên kịch ở trên, hoặc bấm 'không phải, đây là kịch bản' để tách thẳng." if has_input
-                    else "Dán / gõ vào khung dưới cùng hoặc 📎 đính kèm file, rồi bấm Phân tích."))
+                    else "Dán / gõ vào khung bên dưới hoặc 📎 đính kèm file, rồi bấm Phân tích."))
         if with_reset:
             with u3:
                 reset_script_button(p, pid)

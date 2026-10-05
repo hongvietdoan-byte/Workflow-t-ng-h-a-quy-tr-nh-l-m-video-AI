@@ -227,7 +227,7 @@ def step1_v2(p: Pipeline, pid: int, proj, scenes, chars, risky, char_names, lock
         if st.session_state.get("parse_warn") and scenes:
             say("warning", st.session_state["parse_warn"], f"script-parse-warn-{pid}", "Không thấy tiêu đề cảnh — cả kịch bản thành 1 cảnh")
         if not scenes:
-            st.html(D.empty_state("Chưa có kịch bản", "Tải file, dán văn bản hoặc gõ ý thô, rồi bấm ▶ Phân tích để tách cảnh."))
+            st.html(D.empty_state("Chưa có kịch bản", "dán vào khung chat, gõ ý thô hoặc 📎 file rồi bấm ▶ Phân tích"))   # S14.36: one line (CSS .script-a)
             S.script_input(p, pid, with_reset=False)
         else:
             from core import idea_to_script
