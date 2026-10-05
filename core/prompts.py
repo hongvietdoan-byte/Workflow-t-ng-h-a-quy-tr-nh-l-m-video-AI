@@ -242,6 +242,7 @@ def build_director_bundle(pipeline: Pipeline, project_id: int, only_scene: Optio
         duration_block(pipeline, project_id) if shots.mode(proj) else "",
         *crew,
         *knowledge.murch_blocks("director"),      # S14.20: Murch scale + sound method (flag murch_knowledge, off → nothing)
+        *knowledge.kelly_blocks("director"),      # S14.34: Kelly suggestions (flag kelly_knowledge, off → nothing)
         _location_block(pipeline, project_id) if shots.mode(proj) else "",
         keep("research_notes.md"),
         keep("film_director_method.md"),
@@ -331,6 +332,7 @@ def build_intent_bundle(pipeline: Pipeline, project_id: int) -> str:
         intent_frame_block(pipeline, project_id),
         *method,
         *knowledge.murch_blocks("director"),      # S14.20 (flag murch_knowledge): the Director writes intent + sound here
+        *knowledge.kelly_blocks("director"),      # S14.34 (flag kelly_knowledge)
         _location_block(pipeline, project_id),     # weather / time names of a location pack (the spots are the DP's)
         keep("character_lock.md"),
         voice_casting.prompt_block(),              # S14.26 (flag auto_voice_cast): gender / age / personality of speaking roles
@@ -371,6 +373,7 @@ def dp_common(pipeline: Pipeline, project_id: int, intent: dict) -> str:
         looks.director_note(proj),
         _budget_note(pipeline, project_id),
         _read("knowledge", "ff_gameplay_visual.md"),
+        *knowledge.kelly_blocks("dp"),             # S14.34 (flag kelly_knowledge, off → nothing)
         duration_block(pipeline, project_id, for_dp=True),
         _location_block(pipeline, project_id),
         _read("knowledge", "reference_assets_prompting.md"),   # 30/09: model per reference job, limits, 3 people in one shot

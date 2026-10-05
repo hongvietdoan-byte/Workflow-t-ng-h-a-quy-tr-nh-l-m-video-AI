@@ -157,8 +157,8 @@
       "code": ["core/knowledge.py", "core/lessons.py", "core/research.py", "core/reference_analysis.py", "core/video_analysis.py"],
       "assets": ["knowledge/*", "prompts/05_*", "tools/monthly_research.py", "tools/ff_style_knowledge.py", "research/*", "samples/*"],
       "docs": ["docs/DANH_GIA_BO_NGUYEN_TAC_V4.md", "docs/FF_STYLE_RESEARCH.md"],
-      "tests": ["tests/test_role_knowledge.py", "tests/test_knowledge_murch.py"],
-      "flags": ["film_crew", "murch_knowledge", "risk_tags"],
+      "tests": ["tests/test_role_knowledge.py", "tests/test_knowledge_murch.py", "tests/test_kelly_knowledge.py"],
+      "flags": ["film_crew", "murch_knowledge", "kelly_knowledge", "risk_tags"],
       "diag_stages": [],
       "keywords": ["kiến thức", "kỹ năng", "3 vai", "Quay phim", "bài học", "knowledge", "film_crew", "nguyên tắc"]
     },

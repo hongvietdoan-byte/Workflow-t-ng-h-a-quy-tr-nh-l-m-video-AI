@@ -224,9 +224,11 @@ def main(argv=None):
     ap.add_argument("--yes", action="store_true")
     script_cap.add_argument(ap)          # S14.2: trần CỨNG, bắt buộc khi --yes
     ap.add_argument("--replay", default=None)
+    ap.add_argument("--kelly", action="store_true", help="bật cờ kelly_knowledge (S14.34) cho lần chạy này; ghi vào result.json, replay tự đọc lại")
     ap.add_argument("--score", default=None, help="phiếu đã chấm (.md)")
     ap.add_argument("--run", default=None, help="thư mục bản chạy (với --score)")
     ap.add_argument("--sheet-dir", default=os.path.join(ROOT, "docs"))
+    ap.add_argument("--sheet-suffix", default="", help="vd b -> DO_S11_2_Y_TUONG_<ngày>b.md")
     a = ap.parse_args(argv)
     if a.score:
         run_dir = a.run or os.path.dirname(os.path.abspath(a.score))
@@ -238,9 +240,17 @@ def main(argv=None):
         print(json.dumps(g, ensure_ascii=False, indent=1))
         print("QUA — được bật cờ idea_to_script" if g["pass"] else "CHƯA QUA — giữ cờ TẮT")
         return g
-    from core import idea_to_script as I
+    if a.replay and not a.kelly:                     # the prompt (and so its sha256 key) differs with the flag: follow the record
+        meta = os.path.join(os.path.dirname(os.path.abspath(a.replay)), "result.json")
+        if os.path.exists(meta):
+            a.kelly = bool(json.load(open(meta, encoding="utf-8")).get("kelly"))
+    if a.kelly:
+        os.environ["FEATURE_KELLY_KNOWLEDGE"] = "1"
+    from core import assets, idea_to_script as I
     from core.db import connect
     from core.pipeline import Pipeline
+    # the Kho's pictures are stored relative to the repository that owns the database (a worktree run reads the main machine's data)
+    assets.REPO = os.path.dirname(os.path.dirname(os.path.abspath(a.db)))
     items = json.load(open(a.ideas, encoding="utf-8"))
     if a.limit:
         items = items[:a.limit]
@@ -272,9 +282,9 @@ def main(argv=None):
         hard.start()
         print(f"tiền tính vào dự án #{pid} '{EVAL_PROJECT}'")
     out = run_all(p, pid, items, client, a.max_usd)
-    out.update(ideas=items, replay_misses=getattr(client, "misses", 0), model=getattr(client, "model", ""))
+    out.update(ideas=items, replay_misses=getattr(client, "misses", 0), model=getattr(client, "model", ""), kelly=bool(a.kelly))
     json.dump(out, open(os.path.join(run_dir, "result.json"), "w", encoding="utf-8"), ensure_ascii=False, indent=1)
-    path = os.path.join(a.sheet_dir, f"DO_S11_2_Y_TUONG_{time.strftime('%Y-%m-%d')}{'_replay' if a.replay else ''}.md")
+    path = os.path.join(a.sheet_dir, f"DO_S11_2_Y_TUONG_{time.strftime('%Y-%m-%d')}{a.sheet_suffix}{'_replay' if a.replay else ''}.md")
     with open(path, "w", encoding="utf-8") as fh:
         fh.write(sheet(items, out, run_dir))
     print(f"tiền thật ${out['usd']:.3f} · lỗi {len(out['errors'])} · ghi: {run_dir}\nphiếu chấm: {path}")
