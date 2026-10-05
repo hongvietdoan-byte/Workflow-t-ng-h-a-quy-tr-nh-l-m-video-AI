@@ -174,9 +174,28 @@ class _Runner:
         if not lock.acquire(blocking=False):
             return 0                       # M3: another thread is sending this project's jobs right now
         try:
-            return self._submit_pending(project_id)
+            sent = self._submit_pending(project_id)
         finally:
             lock.release()
+        self._script_cap_stop(project_id)
+        return sent
+
+    def _script_cap_stop(self, project_id: int) -> None:
+        """S14.2 rà soát A2 (a): a command-line run hit its --max-usd (core.script_cap) — its queued jobs will never be sent, so they
+        are cancelled (said in the job history), and once nothing sent is still running CapReached ends the script's wait loop now
+        instead of after its 30–45 minute timeout. No lock active (dashboard / autopilot) → nothing."""
+        from . import script_cap
+        cap = script_cap.active()
+        if cap is None or not cap.stopped:
+            return
+        for job in self._jobs(project_id, "queued"):
+            try:
+                self.p.transition(job["id"], JobState.CANCELLED, actor="script_cap",
+                                  note="lệnh dòng lệnh chạm trần --max-usd — không gửi")
+            except InvalidTransition:
+                pass
+        if not self._jobs(project_id, "running"):
+            raise script_cap.CapReached(cap.stopped)
 
     def _submit_pending(self, project_id: int) -> int:
         if self.p.project(project_id)["paused"]:

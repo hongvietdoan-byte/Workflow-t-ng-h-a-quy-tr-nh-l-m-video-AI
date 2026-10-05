@@ -145,6 +145,37 @@ class ScriptScan(unittest.TestCase):
         self.assertEqual([], [f for f in SCRIPT_OK if f not in found or found[f]])
 
 
+class RunnerAtTheCap(unittest.TestCase):
+    """Rà soát A2 (a): a script waiting on runner jobs past its cap waited 40–45 minutes for jobs that would never be sent."""
+
+    def test_queued_jobs_are_cancelled_and_the_wait_ends_once_the_sent_ones_are_done(self):
+        from core.pipeline import Pipeline
+        from core.providers import MockImageProvider
+        from core.runner import ImageRunner
+
+        class PaidLooking(MockImageProvider):
+            name = "deepix"                                      # script_cap prices it (mock* would be 0 USD)
+
+        p = Pipeline(connect())
+        pid = p.create_project("t", max_retry=2)
+        jobs = []
+        for i in (1, 2, 3):
+            sid = p.create_scene(pid, i, f"S{i}")
+            p.conn.execute("UPDATE scenes SET data=? WHERE id=?", ('{"image_prompt": "forest"}', sid))
+            jobs.append(p.create_job(sid))
+        p.conn.commit()
+        runner = ImageRunner(p, PaidLooking(), tempfile.mkdtemp(), max_concurrent=3)
+        one = script_cap.ScriptCap(1, "x").estimate("image", None)          # the high estimate of an unknown picture model
+        with script_cap.ScriptCap(one * 1.5, "ảnh", log=lambda *_: None) as cap:
+            runner.submit_pending(pid)                                       # 1 sent, the 2nd refused → the rest cancelled
+            self.assertEqual([p.state(j).value for j in jobs], ["running", "cancelled", "cancelled"])
+            self.assertTrue(cap.stopped)
+            runner.poll_once(pid)                                            # the paid one is still fetched
+            with self.assertRaises(script_cap.CapReached):
+                runner.submit_pending(pid)                                   # nothing left to wait for → the loop ends now
+        self.assertEqual(p.state(jobs[0]).value, "succeeded")
+
+
 class DevsysScoreSpawn(unittest.TestCase):
     """Rà soát A2 (chặn): devsys/app.py spawned devsys_score --yes WITHOUT --max-usd → the script refused and the page said nothing."""
 
