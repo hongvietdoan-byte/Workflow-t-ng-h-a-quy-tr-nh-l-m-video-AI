@@ -127,6 +127,8 @@ def refresh(provider, directory: str) -> Dict[str, int]:
                     dest = os.path.join(directory, f"{e['kind']}_{e['asset_id']}.{_ext(provider)}")
                     provider.download(st.url, dest)
                     e.update(state="succeeded", file=os.path.basename(dest), duration_ms=st.duration_ms)
+                    if e.get("pitch_semitones"):         # S14.26: a voice shared by two roles — the variant's pitch, 0 USD
+                        _pitch(e, dest)
                 elif st.state == "failed":
                     e.update(state="failed", message=st.message, provider_failed=True)   # made and failed at the provider
             except ProviderError as ex:
@@ -135,6 +137,17 @@ def refresh(provider, directory: str) -> Dict[str, int]:
         counts[e["state"]] = counts.get(e["state"], 0) + 1
     _save(directory, items)
     return counts
+
+
+def _pitch(e: Dict, path: str) -> None:
+    """Shift the downloaded line by its variant's semitones; a failure stays written on the line (the role would sound like the
+    other one on the same voice) instead of being hidden."""
+    from . import voice_casting
+    try:
+        voice_casting.shift_pitch(path, e["pitch_semitones"])
+        e.update(pitch_applied=e["pitch_semitones"], pitch_failed=False)
+    except Exception as ex:  # noqa: BLE001 - ffmpeg missing / failed: reported on the line
+        e.update(pitch_failed=True, message=f"chưa chỉnh được cao độ {e['pitch_semitones']:+g} nửa cung (giọng sẽ giống vai dùng chung): {ex}"[:300])
 
 
 def set_mix(directory: str, index: int, use: bool, start: float, volume: float) -> None:

@@ -261,6 +261,10 @@ def store_scene_analysis(pipeline: Pipeline, project_id: int, data: Any) -> Dict
     except Exception:
         conn.rollback()                          # all or nothing: a refused answer must not leave half the Bible overwritten
         raise
+    from . import voice_casting                  # S14.26: voice traits of the speaking roles → voices cast by rule (0 USD, flag)
+    cast = voice_casting.after_analysis(conn, project_id, obj)
+    if cast is not None:
+        obj["voice_cast"] = cast
     return obj
 
 

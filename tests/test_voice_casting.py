@@ -1,0 +1,259 @@
+"""S14.26 (05/10): giọng tiếng Việt tự gắn từ lúc phân tích cảnh — Director ghi giới tính / tuổi / tính cách mỗi vai có thoại (cùng lời
+gọi), luật 0 USD gắn giọng theo data/voices_vi.json (nam ↔ 2 giọng nam, nữ ↔ 2 giọng nữ, vai chính lấy giọng đầu), không ghi đè lựa
+chọn của người dùng, quá 2 vai cùng giới → dùng lại giọng kèm biến thể cao độ (ffmpeg sau TTS) + tốc độ ClipAI. Không gọi API thật."""
+import copy
+import json
+import os
+import tempfile
+import unittest
+from unittest import mock
+
+from core import audio_lib, prompts, voice, voice_casting
+from core.db import connect
+from core.llm_io import store_scene_analysis
+from core.pipeline import Pipeline
+
+CONFIG = {"game_codes": ["FF"], "retired": [{"id": 69, "name": "voice Hip VN"}],
+          "preferred": [{"id": 72, "name": "voice boy ingame VN", "gender": "male"},
+                        {"id": 30168, "name": "Voice Hip VN 2", "gender": "male"},
+                        {"id": 71, "name": "Voice girl ingame VN", "gender": "female"},
+                        {"id": 70, "name": "Voice Kelly VN", "gender": "female"}]}
+ON = {"FEATURE_AUTO_VOICE_CAST": "1"}
+
+
+def person(name, gender, age="khoảng 25", personality="nóng tính"):
+    c = {"name": name, "description": f"{name} mô tả"}
+    if gender is not None:
+        c["voice_traits"] = {"gender": gender, "age": age, "personality": personality}
+    return c
+
+
+def analysis(people, lines):
+    """people: [(name, gender)], lines: [speaker, ...] — one scene whose lines are said in this order."""
+    return {"characters": [person(n, g) for n, g in people],
+            "scenes": [{"idx": 1, "location": "Bermuda", "time": "Ngày", "characters": [n for n, _ in people], "mood": "căng",
+                        "lighting": "nắng", "shot": "MS", "image_prompt": "p",
+                        "dialogue": [{"speaker": who, "text": f"Câu {i} của {who}."} for i, who in enumerate(lines, 1)]}]}
+
+
+class Base(unittest.TestCase):
+    def setUp(self):
+        self.p = Pipeline(connect())
+        self.pid = self.p.create_project("t")
+        self.p.create_scene(self.pid, 1, "CẢNH 1")
+        patcher = mock.patch.object(voice, "voice_config", return_value=CONFIG)
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
+    def prof(self, name):
+        return voice.get_profile(self.p.conn.execute("SELECT voice_profile FROM characters WHERE project_id=? AND name=?",
+                                                     (self.pid, name)).fetchone())
+
+
+class TraitParseTests(unittest.TestCase):
+    def test_gender_is_checked_against_the_enum_and_synonyms_are_normalised(self):
+        self.assertEqual(voice_casting.clean_traits({"gender": "Male", "age": "30", "personality": "lì"})[0]["gender"], "nam")
+        self.assertEqual(voice_casting.clean_traits({"gender": "nữ"})[0]["gender"], "nữ")
+        self.assertEqual(voice_casting.clean_traits({"gender": "không rõ"})[0]["gender"], "không rõ")
+        traits, problems = voice_casting.clean_traits({"gender": "robot", "age": 25})
+        self.assertEqual(traits["gender"], "không rõ")
+        self.assertTrue(any("robot" in x for x in problems))
+        self.assertEqual(traits["age"], "25")
+
+    def test_not_an_object_is_reported_not_silently_dropped(self):
+        traits, problems = voice_casting.clean_traits("nam")
+        self.assertIsNone(traits)
+        self.assertTrue(problems)
+
+
+class MissingTraitTests(Base):
+    def test_a_speaker_without_traits_is_reported(self):
+        obj = analysis([("KENTA", "nam"), ("KELLY", None)], ["KENTA", "KELLY"])
+        with mock.patch.dict(os.environ, ON):
+            store_scene_analysis(self.p, self.pid, obj)
+        report = obj["voice_cast"]
+        self.assertTrue(any("KELLY" in x and "thiếu" in x for x in report["problems"]))
+        self.assertIn("KELLY", report["unknown"])
+        self.assertIsNone(self.prof("KELLY").get("voice_id"))            # no guess for an unknown gender
+        rows = self.p.conn.execute("SELECT message FROM diag_events WHERE project_id=?", (self.pid,)).fetchall()
+        self.assertTrue(any("KELLY" in r["message"] for r in rows))
+
+    def test_traits_are_stored_on_the_character(self):
+        with mock.patch.dict(os.environ, ON):
+            store_scene_analysis(self.p, self.pid, analysis([("KENTA", "nam")], ["KENTA"]))
+        row = self.p.conn.execute("SELECT voice_traits FROM characters WHERE name='KENTA'").fetchone()
+        self.assertEqual(json.loads(row["voice_traits"])["gender"], "nam")
+
+    def test_flag_off_changes_nothing(self):
+        with mock.patch.dict(os.environ, {"FEATURE_AUTO_VOICE_CAST": "0"}):
+            obj = analysis([("KENTA", "nam")], ["KENTA"])
+            store_scene_analysis(self.p, self.pid, obj)
+            self.assertIsNone(self.prof("KENTA").get("voice_id"))
+            self.assertNotIn(voice_casting.PROMPT_MARK, prompts.build_director_bundle(self.p, self.pid))
+        with mock.patch.dict(os.environ, ON):
+            self.assertIn(voice_casting.PROMPT_MARK, prompts.build_director_bundle(self.p, self.pid))
+
+
+class RuleTests(Base):
+    def test_male_and_female_get_their_voices_and_the_main_role_gets_the_first(self):
+        # KELLY speaks most among the women, MAXIM most among the men
+        lines = ["KENTA", "MAXIM", "MAXIM", "KELLY", "KELLY", "MISA"]
+        with mock.patch.dict(os.environ, ON):
+            store_scene_analysis(self.p, self.pid, analysis([("KENTA", "nam"), ("MAXIM", "nam"), ("KELLY", "nữ"), ("MISA", "nữ")], lines))
+        self.assertEqual(self.prof("MAXIM")["voice_id"], 72)
+        self.assertEqual(self.prof("KENTA")["voice_id"], 30168)
+        self.assertEqual(self.prof("KELLY")["voice_id"], 71)
+        self.assertEqual(self.prof("MISA")["voice_id"], 70)
+        for n in ("KENTA", "MAXIM", "KELLY", "MISA"):
+            self.assertTrue(self.prof(n)["auto"])
+            self.assertNotIn("variant", self.prof(n))
+        self.assertIn("nam", self.prof("MAXIM")["persona"])
+
+    def test_more_than_two_of_one_gender_reuse_a_voice_with_different_pitch(self):
+        people = [("A", "nam"), ("B", "nam"), ("C", "nam"), ("D", "nam"), ("E", "nam")]
+        with mock.patch.dict(os.environ, ON):
+            obj = analysis(people, ["A", "A", "A", "A", "B", "B", "B", "C", "C", "D", "E"])
+            store_scene_analysis(self.p, self.pid, obj)
+        profs = {n: self.prof(n) for n, _ in people}
+        self.assertEqual(profs["A"]["voice_id"], 72)
+        self.assertEqual(profs["B"]["voice_id"], 30168)
+        by_voice = {}
+        for n, pr in profs.items():
+            by_voice.setdefault(pr["voice_id"], []).append((pr.get("variant") or {}).get("pitch", 0))
+        for vid, pitches in by_voice.items():
+            self.assertEqual(len(pitches), len(set(pitches)), f"giọng {vid} trùng cao độ: {pitches}")
+        for n in ("C", "D", "E"):
+            self.assertTrue(2 <= abs(profs[n]["variant"]["pitch"]) <= 3)
+        self.assertTrue(obj["voice_cast"]["shared"])
+        shared = voice_casting.shared_voices(self.p.conn, self.pid)
+        self.assertIn("A", shared[72]) and self.assertIn("C", shared[72])
+
+    def test_a_person_s_choice_is_never_overwritten_even_by_a_new_analysis(self):
+        obj = analysis([("KENTA", "nam"), ("KELLY", "nữ")], ["KENTA", "KELLY"])
+        with mock.patch.dict(os.environ, ON):
+            store_scene_analysis(self.p, self.pid, copy.deepcopy(obj))
+            voice.set_profile(self.p.conn, self.pid, "KENTA", {"voice_id": 70, "voice_name": "Voice Kelly VN", "persona": "tự chọn"})
+            store_scene_analysis(self.p, self.pid, copy.deepcopy(obj))
+            voice_casting.apply(self.p.conn, self.pid)
+        self.assertEqual(self.prof("KENTA")["voice_id"], 70)
+        self.assertNotIn("auto", self.prof("KENTA"))
+        self.assertEqual(self.prof("KENTA")["persona"], "tự chọn")
+
+    def test_an_auto_voice_stays_put_on_a_new_analysis(self):
+        obj = analysis([("A", "nam"), ("B", "nam")], ["A", "B", "B"])
+        with mock.patch.dict(os.environ, ON):
+            store_scene_analysis(self.p, self.pid, copy.deepcopy(obj))
+            first = {n: self.prof(n)["voice_id"] for n in ("A", "B")}
+            again = analysis([("A", "nam"), ("B", "nam")], ["A", "A", "A", "B"])      # now A speaks more
+            store_scene_analysis(self.p, self.pid, again)
+        self.assertEqual({n: self.prof(n)["voice_id"] for n in ("A", "B")}, first)     # no re-paid TTS for a reshuffle
+
+    def test_the_rule_skips_a_voice_the_person_already_gave_someone(self):
+        with mock.patch.dict(os.environ, ON):
+            store_scene_analysis(self.p, self.pid, analysis([("A", "nam"), ("B", "nam")], ["A"]))   # B no line yet
+            voice.set_profile(self.p.conn, self.pid, "A", {"voice_id": 30168, "voice_name": "Voice Hip VN 2"})
+            store_scene_analysis(self.p, self.pid, analysis([("A", "nam"), ("B", "nam")], ["A", "B"]))
+        self.assertEqual(self.prof("B")["voice_id"], 72)
+        self.assertNotIn("variant", self.prof("B"))
+
+    def test_no_preferred_voice_file_is_reported(self):
+        with mock.patch.dict(os.environ, ON), mock.patch.object(voice, "voice_config", return_value={}):
+            obj = analysis([("A", "nam")], ["A"])
+            store_scene_analysis(self.p, self.pid, obj)
+        self.assertTrue(any("voices_vi.json" in x for x in obj["voice_cast"]["problems"]))
+        self.assertIsNone(self.prof("A").get("voice_id"))
+
+
+class PitchTests(unittest.TestCase):
+    def test_the_pitch_command_keeps_the_length(self):
+        cmd = voice_casting.build_pitch_cmd("in.mp3", "out.mp3", 3, ffmpeg="ffmpeg")
+        spec = cmd[cmd.index("-af") + 1]
+        ratio = 2 ** (3 / 12)
+        self.assertIn(f"asetrate={44100 * ratio:.0f}", spec)
+        self.assertIn(f"atempo={1 / ratio:.6f}", spec)
+        self.assertEqual(cmd[-1], "out.mp3")
+
+    def test_shift_pitch_runs_ffmpeg_with_the_semitones(self):
+        d = tempfile.mkdtemp()
+        src = os.path.join(d, "tts_1.mp3")
+        with open(src, "wb") as f:
+            f.write(b"raw")
+        calls = []
+
+        def fake_run(cmd):
+            calls.append(cmd)
+            with open(cmd[-1], "wb") as f:
+                f.write(b"shifted")
+        with mock.patch("core.ffmpeg_studio.run", side_effect=fake_run), mock.patch("core.ffmpeg_studio.find_ffmpeg", return_value="ff"):
+            voice_casting.shift_pitch(src, -2.5)
+        self.assertEqual(len(calls), 1)
+        self.assertEqual(calls[0][0], "ff")
+        self.assertIn(f"asetrate={44100 * 2 ** (-2.5 / 12):.0f}", calls[0][calls[0].index("-af") + 1])
+        with open(src, "rb") as f:
+            self.assertEqual(f.read(), b"shifted")
+
+    def test_a_finished_line_with_a_variant_is_pitched_after_download(self):
+        d = tempfile.mkdtemp()
+
+        class Prov:
+            name = "mock"
+
+            def status(self, kind, asset_id):
+                return mock.Mock(state="succeeded", url="u", duration_ms=1200)
+
+            def download(self, url, dest):
+                with open(dest, "wb") as f:
+                    f.write(b"x")
+        audio_lib._add(d, "tts", "l", "a1", extra={"pitch_semitones": 3})
+        audio_lib._add(d, "tts", "l2", "a2")
+        with mock.patch.object(voice_casting, "shift_pitch") as shift:
+            audio_lib.refresh(Prov(), d)
+        self.assertEqual(shift.call_count, 1)
+        self.assertEqual(shift.call_args[0][1], 3)
+        self.assertEqual(audio_lib.load(d)[0]["pitch_applied"], 3)
+
+    def test_a_failed_pitch_is_written_on_the_line_not_hidden(self):
+        d = tempfile.mkdtemp()
+
+        class Prov:
+            name = "mock"
+
+            def status(self, kind, asset_id):
+                return mock.Mock(state="succeeded", url="u", duration_ms=1200)
+
+            def download(self, url, dest):
+                with open(dest, "wb") as f:
+                    f.write(b"x")
+        audio_lib._add(d, "tts", "l", "a1", extra={"pitch_semitones": -3})
+        with mock.patch.object(voice_casting, "shift_pitch", side_effect=RuntimeError("ffmpeg hỏng")):
+            audio_lib.refresh(Prov(), d)
+        e = audio_lib.load(d)[0]
+        self.assertTrue(e["pitch_failed"])
+        self.assertIn("cao độ", e["message"])
+
+
+class GenerateTests(Base):
+    def test_a_variant_line_goes_to_tts_with_its_speed_and_pitch_tag(self):
+        sent = []
+
+        class Prov:
+            name = "mock"
+
+            def generate_tts(self, text, voice_id, model, lang, name="", params=None):
+                sent.append((voice_id, params))
+                return f"t{len(sent)}"
+        with mock.patch.dict(os.environ, ON):
+            store_scene_analysis(self.p, self.pid, analysis([("A", "nam"), ("B", "nam"), ("C", "nam")], ["A", "A", "B", "C"]))
+            d = tempfile.mkdtemp()
+            voice.generate(self.p.conn, self.pid, Prov(), d, ledger=False, settle=False)
+        items = audio_lib.load(audio_lib.assets_dir(d, self.pid))
+        c = [e for e in items if e.get("speaker") == "C"][0]
+        self.assertEqual(c["voice_id"], 72)
+        self.assertEqual(c["pitch_semitones"], self.prof("C")["variant"]["pitch"])
+        self.assertEqual(sent[-1][1]["speed"], self.prof("C")["variant"]["speed"])
+        a = [e for e in items if e.get("speaker") == "A"][0]
+        self.assertNotIn("pitch_semitones", a)
+
+
+if __name__ == "__main__":
+    unittest.main()

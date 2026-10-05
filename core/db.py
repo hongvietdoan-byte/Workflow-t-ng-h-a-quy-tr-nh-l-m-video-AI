@@ -655,7 +655,8 @@ V2_COLUMNS = {
                  ("dialogue_trim", "INTEGER NOT NULL DEFAULT 0")),   # 1 = the Director may drop lines (never add / reword)
     "characters": (("lock_rules", "TEXT"), ("voice_profile", "TEXT"), ("anchor_approved", "INTEGER NOT NULL DEFAULT 0"),
                    ("user_edited", "TEXT"),
-                   ("bible_check", "TEXT")),         # F1: {key: sha of pictures + description, ok, mismatches, fixed_description}         # fields the person edited by hand (description, wardrobe): the Director keeps them
+                   ("bible_check", "TEXT"),
+                   ("voice_traits", "TEXT")),         # S14.26: {gender nam|nữ|không rõ, age, personality} from the Director (core/voice_casting.py)         # F1: {key: sha of pictures + description, ok, mismatches, fixed_description}         # fields the person edited by hand (description, wardrobe): the Director keeps them
     "jobs": (("input_hash", "TEXT"), ("source_job_id", "INTEGER"), ("model", "TEXT"),
              ("group_leader", "INTEGER"),
              ("task_seen", "INTEGER NOT NULL DEFAULT 0"), ("task_unseen", "INTEGER NOT NULL DEFAULT 0"),

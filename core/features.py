@@ -333,6 +333,14 @@ FEATURES: Dict[str, Dict] = {
         "why": "S14.20 (05/10): chỉ thêm tài liệu vào prompt (≈ +9 nghìn ký tự mỗi lần chạy Director/motion); chưa so prompt Bước 3 "
                "thật trên dự án cũ (nghiệm thu Đợt 2 cần Claude thật)",
     },
+    "auto_voice_cast": {
+        "label": "Tự gắn giọng tiếng Việt từ phân tích cảnh: Director ghi giới tính/tuổi/tính cách vai có thoại (cùng lượt Claude), luật "
+                 "0 USD gắn giọng data/voices_vi.json (vai chính giọng đầu), quá 2 vai cùng giới → dùng lại giọng + biến thể cao độ "
+                 "±2–3 nửa cung (ffmpeg sau TTS) + tốc độ ClipAI; không ghi đè giọng người dùng chọn",
+        "verified": False,
+        "why": "S14.26 (05/10): chưa chạy Director thật với khối voice_traits; biến thể cao độ ffmpeg chưa nghe thử trên 4 giọng VN "
+               "(giọng nam +3 nửa cung có thể nghe méo) — bật để thử ở dự án mới (core/voice_casting.py)",
+    },
     "risk_tags": {
         "label": "Bài học lỗi: tách tag 'motion' thành 6 trục rủi ro I2V (face_morph, body_deform, wardrobe_drift, background_drift, "
                  "motion_overload, text_logo_corrupt) + identity/physics/lipsync/audio; lỗi không gán được tag hiện ở 'Chưa phân loại' + diag",

@@ -220,7 +220,7 @@ def build_director_bundle(pipeline: Pipeline, project_id: int, only_scene: Optio
             f"### Cảnh {r['idx']} — {r['title']}\n{json.loads(r['data'] or '{}').get('text', '')}" for r in rows)
     folded = knowledge.folded_builtin("director")
     keep = lambda rel: "" if f"knowledge/{rel}" in folded else _read("knowledge", rel)  # noqa: E731
-    from . import features
+    from . import features, voice_casting
     if features.on("film_crew"):                   # H3/H7: one reasoned rule book per role instead of the scattered documents
         crew = [role_text("director.md")] + ([role_text("dp.md")] if shots.mode(proj) else [])
         keep = lambda rel: "" if rel in ("cinematography_basics.md", "film_director_method.md", "dialogue_craft.md") else (  # noqa: E731
@@ -246,6 +246,7 @@ def build_director_bundle(pipeline: Pipeline, project_id: int, only_scene: Optio
         keep("research_notes.md"),
         keep("film_director_method.md"),
         keep("character_lock.md"),
+        voice_casting.prompt_block(),              # S14.26 (flag auto_voice_cast): gender / age / personality of speaking roles
         keep("dialogue_craft.md"),
         keep("reference_assets_prompting.md"),     # 30/09: which model / how many pictures / when to split a shot (official docs)
         ff,
@@ -311,7 +312,7 @@ def build_intent_bundle(pipeline: Pipeline, project_id: int) -> str:
     genre, look, the Free Fire gameplay reference, the library — never the DP's camera knowledge (cinematography_basics, dp.md, prompt
     17): each role reads its own book (kế hoạch H7). Keeps every block of the single call that protects the Bible and the lines:
     standard profiles (T1), the stored Bible (exact names, locked / hand-edited entries), locked fields, World Bible, the preamble."""
-    from . import features
+    from . import features, voice_casting
     proj = pipeline.project(project_id)
     folded = knowledge.folded_builtin("director")
     keep = lambda rel: "" if f"knowledge/{rel}" in folded else _read("knowledge", rel)  # noqa: E731
@@ -332,6 +333,7 @@ def build_intent_bundle(pipeline: Pipeline, project_id: int) -> str:
         *knowledge.murch_blocks("director"),      # S14.20 (flag murch_knowledge): the Director writes intent + sound here
         _location_block(pipeline, project_id),     # weather / time names of a location pack (the spots are the DP's)
         keep("character_lock.md"),
+        voice_casting.prompt_block(),              # S14.26 (flag auto_voice_cast): gender / age / personality of speaking roles
         assets.context_text(pipeline.conn, project_id),
         standard_block(pipeline, project_id),
         bible_block(pipeline, project_id),

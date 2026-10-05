@@ -41,9 +41,13 @@ def get_profile(row) -> Dict:
 def set_profile(conn, project_id: int, name: str, profile: Optional[Dict]) -> None:
     clean = None
     if profile and profile.get("voice_id"):
-        clean = json.dumps({"voice_id": int(profile["voice_id"]), "voice_name": str(profile.get("voice_name") or ""),
-                            "model": profile.get("model") or DEFAULT_MODEL, "persona": str(profile.get("persona") or "")},
-                           ensure_ascii=False)
+        keep = {"voice_id": int(profile["voice_id"]), "voice_name": str(profile.get("voice_name") or ""),
+                "model": profile.get("model") or DEFAULT_MODEL, "persona": str(profile.get("persona") or "")}
+        if profile.get("auto"):                 # S14.26: cast by rule (core/voice_casting.py) — a choice saved by the person has no "auto"
+            keep["auto"] = True
+        if isinstance(profile.get("variant"), dict) and profile["variant"].get("pitch"):
+            keep["variant"] = {k: float(v) for k, v in profile["variant"].items() if k in ("pitch", "speed") and v}
+        clean = json.dumps(keep, ensure_ascii=False)
     conn.execute("UPDATE characters SET voice_profile=? WHERE project_id=? AND name=?", (clean, project_id, name))
     conn.commit()
 
@@ -247,7 +251,7 @@ def generate(conn, project_id: int, provider, data_dir: str, scene_ids=None, led
     resend it on every tick, uncounted)."""
     if p is not None:
         access.need_edit(p, project_id, "tạo giọng")
-    from . import features, voice_direction
+    from . import features, voice_casting, voice_direction
     directory = audio_lib.assets_dir(data_dir, project_id)
     if settle:                                                # a redo decided since (voice_check.settle_redos): old voice back / gone
         from . import voice_check
@@ -262,12 +266,15 @@ def generate(conn, project_id: int, provider, data_dir: str, scene_ids=None, led
             continue
         model = vi_model(ln["voice"].get("model"))
         how = ln.get("delivery") if features.on("voice_direction") else None   # GĐ4: the Director's direction of the line
+        variant = ln["voice"].get("variant") or None           # S14.26: a voice shared by two roles (core/voice_casting.py)
+        pitch = (variant or {}).get("pitch")
         old = have.get((ln["scene_id"], ln["line"]))
         resends = 0
         if old is not None:
             i, e = old
             same = (e.get("text") == ln["text"] and e.get("voice_id") == ln["voice"]["voice_id"]
-                    and (how is None or e.get("delivery") == how))      # feature off: a line made with direction is kept, not re-paid
+                    and (how is None or e.get("delivery") == how)
+                    and (e.get("pitch_semitones") or None) == (pitch or None))   # S14.26: another variant of the voice = another line      # feature off: a line made with direction is kept, not re-paid
             if same and e["state"] in ("running", "succeeded"):
                 skipped += 1
                 continue
@@ -281,6 +288,8 @@ def generate(conn, project_id: int, provider, data_dir: str, scene_ids=None, led
             have = {(e2["scene_id"], e2.get("line")): (j, e2) for j, e2 in _line_items(directory)}
         extra = {"scene_id": ln["scene_id"], "scene_idx": ln["idx"], "line": ln["line"], "speaker": ln["speaker"],
                  "text": ln["text"], "voice_id": ln["voice"]["voice_id"], "dialogue": True, "resends": resends}
+        if pitch:
+            extra["pitch_semitones"] = pitch                 # pitched after download (audio_lib.refresh → voice_casting.shift_pitch)
         said = speakable(ln["text"])
         if slow and ln["scene_id"] in slow:
             said = slow_end(said)
@@ -290,7 +299,7 @@ def generate(conn, project_id: int, provider, data_dir: str, scene_ids=None, led
             said = voice_direction.spoken_text(said, how, model)
         audio_lib.submit_tts(provider, directory, said, ln["voice"]["voice_id"], ln["voice"].get("voice_name", ""),
                              model, None, ledger=(conn, project_id) if ledger else None,
-                             extra=extra, params=voice_direction.params(how, model))
+                             extra=extra, params=voice_casting.tts_params(voice_direction.params(how, model), variant))
         sent += 1
     return {"sent": sent, "skipped": skipped, "no_voice": sorted(no_voice), "held": held}
 
