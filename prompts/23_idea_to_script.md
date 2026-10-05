@@ -44,3 +44,8 @@ Giữ nguyên thoại của dàn ý (được sửa chữ cho tự nhiên, khôn
 dưới 18. `added`: liệt kê những gì bạn THÊM so với ý gốc (nhân vật, nơi, tình tiết) để người dùng duyệt.
 Trả về JSON:
 {"script": "CẢNH 1 - ...\n...", "added": [{"kind": "character|place|event|line", "text": "..."}], "notes": "..."}
+
+## YÊU CẦU THÊM
+Người dùng nói thêm (theo lượt, dưới đây): **ưu tiên làm theo**, nhưng không phá ràng buộc cứng — tiêu đề cảnh đúng khuôn `CẢNH <số> - `,
+tổng thời lượng trong ± 10 % mục tiêu, không nhân vật / số tuổi dưới 18, JSON đúng định dạng của lượt. Yêu cầu nào trái các ràng buộc này:
+làm phần làm được và ghi rõ phần không làm được (trong `notes` hoặc câu hỏi).

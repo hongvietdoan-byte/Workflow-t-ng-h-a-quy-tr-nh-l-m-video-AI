@@ -123,7 +123,20 @@ def _section(name: str) -> str:
     return m.group(1).strip()
 
 
-def build_prompt(conn, pid: int, state: Dict, turn: int) -> str:
+def wish_block(state: Dict, turn: int, wish: str = "") -> str:
+    """S14.21 (Đợt 3): the person's free "nói thêm" of this turn and of the earlier ones (state["wishes"] = {"2": "…"}), same shape as
+    core/sfx_plan.py `wish`. Nothing said → "" → the prompt stays byte-identical (C3: the S11.2 replay keys on sha256(prompt))."""
+    wishes = {str(k): str(v).strip() for k, v in (state.get("wishes") or {}).items() if str(v).strip()}
+    if wish.strip():
+        wishes[str(turn)] = wish.strip()
+    said = sorted((int(k), v) for k, v in wishes.items() if k.isdigit() and int(k) <= turn)
+    if not said:
+        return ""
+    return ("## Yêu cầu thêm của người dùng (ưu tiên làm theo)\n" + _section("YÊU CẦU THÊM") + "\n"
+            + "\n".join(f"- (lượt {n}) {v}" for n, v in said))
+
+
+def build_prompt(conn, pid: int, state: Dict, turn: int, wish: str = "") -> str:
     from .prompts import _read
     inp = state["inputs"]
     lib = library(conn, pid)
@@ -148,16 +161,31 @@ def build_prompt(conn, pid: int, state: Dict, turn: int) -> str:
                      + (f"\nGhi chú của người dùng: {state['choice_note']}" if state.get("choice_note") else ""))
     if turn >= 4 and state.get("beats"):
         parts.append("## Dàn ý đã duyệt\n" + json.dumps(state["beats"], ensure_ascii=False, indent=0))
+    wb = wish_block(state, turn, wish)
+    if wb:                                          # CHỈ khi có chữ (C3) — y như sfx_plan.py `if wish.strip()`
+        parts.append(wb)
     parts.append(_section(f"LƯỢT {turn}"))
     return "\n\n".join(parts)
 
 
 # ---- the turns ----------------------------------------------------------------------------------------------------------------------
-def _ask(conn, pid: int, state: Dict, turn: int, client, validate):
+def _keep_wish(state: Dict, turn: int, wish: str) -> None:
+    """This turn's wish is stored; the wishes of LATER turns belonged to the path being redone and are dropped."""
+    kept = {k: v for k, v in (state.get("wishes") or {}).items() if str(k).isdigit() and int(k) < turn}
+    if wish.strip():
+        kept[str(turn)] = wish.strip()
+    if kept:
+        state["wishes"] = kept
+    else:
+        state.pop("wishes", None)
+
+
+def _ask(conn, pid: int, state: Dict, turn: int, client, validate, wish: str = ""):
     from . import llm_runner
     left = round(RUN_CAP_USD - float(state.get("spent") or 0), 4)
     if left < TURN_USD / 2:
         raise IdeaError(f"đã dùng hết trần {RUN_CAP_USD} USD cho ý tưởng này — bấm 'Ý tưởng mới' để làm lại từ đầu")
+    _keep_wish(state, turn, wish)
     cap = {}
     try:
         with llm_runner.tagged(STAGE, pid), llm_runner.spend_cap(left, "Biên kịch") as cap:
@@ -180,7 +208,7 @@ def _need(obj, key, kind):
     return obj[key]
 
 
-def questions(conn, pid: int, client) -> Dict:
+def questions(conn, pid: int, client, wish: str = "") -> Dict:
     state = get_state(conn, pid)
     if not state.get("inputs"):
         raise IdeaError("chưa nhập ý tưởng")
@@ -193,7 +221,7 @@ def questions(conn, pid: int, client) -> Dict:
             if not (isinstance(q, dict) and str(q.get("q") or "").strip() and str(q.get("default") or "").strip()):
                 raise ValueError("mỗi câu hỏi cần `q` và `default`")
         return obj
-    obj = _ask(conn, pid, state, 1, client, ok)
+    obj = _ask(conn, pid, state, 1, client, ok, wish)
     state.update(have=obj.get("have") or [], missing=obj.get("missing") or [], questions=obj["questions"])
     for k in ("answers", "directions", "chosen", "beats", "outline_checks", "script", "added", "script_checks"):
         state.pop(k, None)
@@ -209,7 +237,16 @@ def answer(conn, pid: int, replies: List[str]) -> Dict:
     return save_state(conn, pid, state)
 
 
-def directions(conn, pid: int, client) -> Dict:
+def directions_input_changed(state: Dict, replies: List[str], wish: str = "") -> bool:
+    """C8: "↻ Hỏi lại 3 hướng khác" is only worth paying for when what turn 2 reads changed — a new wish, or other answers."""
+    if wish.strip() and wish.strip() != str((state.get("wishes") or {}).get("2") or ""):
+        return True
+    qs = state.get("questions") or []
+    now = [((replies[i] if i < len(replies) else "").strip() or q["default"]) for i, q in enumerate(qs)]
+    return now != [a.get("a") for a in state.get("answers") or []]
+
+
+def directions(conn, pid: int, client, wish: str = "") -> Dict:
     state = get_state(conn, pid)
     if "answers" not in state:
         state = answer(conn, pid, [])
@@ -224,7 +261,7 @@ def directions(conn, pid: int, client) -> Dict:
         if state["inputs"].get("trend") == "off" and any(str(d.get("trend_card") or "").strip() for d in ds):
             raise ValueError("chế độ trend Tắt: trend_card phải để trống")
         return obj
-    obj = _ask(conn, pid, state, 2, client, ok)
+    obj = _ask(conn, pid, state, 2, client, ok, wish)
     state["directions"] = obj["directions"]
     state.pop("chosen", None)
     return save_state(conn, pid, state)
@@ -260,7 +297,7 @@ def check_outline(beats: List[Dict], duration_s: float) -> List[Dict]:
     return out
 
 
-def outline(conn, pid: int, client, choice: int, note: str = "") -> Dict:
+def outline(conn, pid: int, client, choice: int, note: str = "", wish: str = "") -> Dict:
     state = get_state(conn, pid)
     if not state.get("directions") or not 0 <= choice < len(state["directions"]):
         raise IdeaError("chọn một trong 3 hướng trước")
@@ -273,7 +310,7 @@ def outline(conn, pid: int, client, choice: int, note: str = "") -> Dict:
                     or not isinstance(b.get("end"), (int, float)):
                 raise ValueError(f"mỗi nhịp cần name ∈ {BEATS}, start, end (số)")
         return obj
-    obj = _ask(conn, pid, state, 3, client, ok)
+    obj = _ask(conn, pid, state, 3, client, ok, wish)
     state["beats"], state["question"] = obj["beats"], obj.get("question") or ""
     state["outline_checks"] = check_outline(obj["beats"], state["inputs"]["duration_s"])
     return save_state(conn, pid, state)
@@ -288,6 +325,35 @@ def parse(script: str):
     from . import script_parser, script_reader
     res = script_reader.from_text(script)
     return script_parser.split_scenes(res.paragraphs), res
+
+
+CLASSIFY_KINDS = ("script", "idea", "unsure")
+IDEA_MAX_CHARS, IDEA_MAX_LINES, UNSURE_MIN_CHARS = 400, 6, 1500
+
+
+def classify(text: str) -> Dict:
+    """S14.21 (Đợt 3): is this a written SCRIPT (→ the old 0 USD split) or an IDEA (→ the Biên kịch, paid turns behind priced buttons)?
+    0 USD, the same test the Biên kịch's own output must pass (parse → real scene headings). Grey zone → "unsure": the screen asks, it
+    never guesses (luật 3). {"kind", "scenes", "why": [...]}."""
+    from .script_parser import _DIALOGUE
+    body = (text or "").strip()
+    if not body:
+        return {"kind": "unsure", "scenes": 0, "why": ["chưa có chữ"]}
+    try:
+        scenes, _ = parse(body)
+    except Exception:  # noqa: BLE001 - unreadable → ask
+        scenes = []
+    if scenes and not (len(scenes) == 1 and scenes[0].heading == "Mở đầu"):
+        heads = [s for s in scenes if s.heading != "Mở đầu"]
+        return {"kind": "script", "scenes": len(scenes), "why": [f"thấy {len(heads)} tiêu đề cảnh"]}
+    lines = [ln for ln in body.splitlines() if ln.strip()]
+    talk = sum(1 for ln in lines if _DIALOGUE.match(ln))
+    if talk >= 2 or len(body) > UNSURE_MIN_CHARS:
+        why = ([f"{talk} dòng thoại"] if talk >= 2 else []) + ([f"{len(body)} ký tự"] if len(body) > UNSURE_MIN_CHARS else [])
+        return {"kind": "unsure", "scenes": 0, "why": ["không có tiêu đề cảnh"] + why}
+    if len(body) < IDEA_MAX_CHARS and len(lines) < IDEA_MAX_LINES and talk == 0:
+        return {"kind": "idea", "scenes": 0, "why": ["không có tiêu đề cảnh", f"{len(lines)} dòng ngắn, không có thoại"]}
+    return {"kind": "unsure", "scenes": 0, "why": ["không có tiêu đề cảnh", f"{len(body)} ký tự · {len(lines)} dòng"]}
 
 
 def _on_screen(name: str) -> bool:
@@ -330,7 +396,7 @@ def check_script(conn, pid: int, script: str, inputs: Dict) -> Dict:
     return {"ok": not problems, "scenes": len(scenes), "problems": problems, "flags": sorted(set(flags))}
 
 
-def write(conn, pid: int, client) -> Dict:
+def write(conn, pid: int, client, wish: str = "") -> Dict:
     state = get_state(conn, pid)
     if not state.get("beats"):
         raise IdeaError("duyệt dàn ý trước")
@@ -341,7 +407,7 @@ def write(conn, pid: int, client) -> Dict:
         if not scenes or (len(scenes) == 1 and scenes[0].heading == "Mở đầu"):
             raise ValueError("kịch bản không tách được cảnh: mỗi cảnh phải có tiêu đề bắt đầu bằng 'CẢNH <số> - '")
         return obj
-    obj = _ask(conn, pid, state, 4, client, ok)
+    obj = _ask(conn, pid, state, 4, client, ok, wish)
     state["script"], state["added"], state["notes"] = obj["script"].strip(), obj.get("added") or [], obj.get("notes") or ""
     state["script_checks"] = check_script(conn, pid, state["script"], state["inputs"])
     return save_state(conn, pid, state)
