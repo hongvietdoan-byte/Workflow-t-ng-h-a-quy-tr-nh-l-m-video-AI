@@ -5,15 +5,16 @@ awakening), every pet (biography, skill) and the weapons of every category (stat
 ("whitelist check failed") and is NOT used or bypassed: instead the pages are read the way a visitor moves through them, following the
 "previous / next" links of the character and pet pages and opening each weapon category. A short pause is kept between requests.
 
-Safety (S14.5 Gói C2): only `https` addresses on garena.com / *.garena.com are opened (pictures also from the CDN hosts in
-FF_SITE_IMAGE_HOSTS, default cdn.wildflamestudio.com); the host is checked before opening, after EVERY redirect, when the items are
-collected and again right before a picture is downloaded. A refused address is counted and named in the summary, never dropped silently.
+Safety (S14.5 Gói C2, rà bảo mật 06/10): pages are opened only from https://ff.garena.com (port 443); pictures also from garena.com /
+*.garena.com and the CDN hosts in FF_SITE_IMAGE_HOSTS (default cdn.wildflamestudio.com). The address is checked before opening, after
+EVERY redirect, when the items are collected and again right before a picture is downloaded. A refused address is counted, named in the
+summary and written to the error log; a page that cannot be opened or read is counted the same way and the run goes on.
 
-Each page carries its data as a script (`window.__NUXT__`). It is read in two tiers: as plain JSON when it is JSON; otherwise (the
-real pages use the form `(function(a,b,…){return {…}}(…))`) by Node.js run with the permission model (`--permission`: no file
-access, no child processes, no workers, no native addons), an EMPTY environment, a throw-away working folder and a 30 s limit.
-A Node.js without the permission model is refused with a message (never run unrestricted). The old `vm.runInContext` sandbox is
-gone: it was escapable (`window.constructor.constructor('return process')()` read files).
+Each page carries its data as a script (`window.__NUXT__`). It is READ, never run: plain JSON directly, otherwise (the real pages use
+`(function(a,b,…){…return {…}}(…))`) by the static reader core/nuxt_static.py, which understands only literals, the function's
+parameters and assignments into them. Running the script was dropped: `vm.runInContext` was escapable (read files) and Node.js 24
+`--permission` does not block the network (a page could call `fetch` into localhost / the internal network). The static reader gives
+exactly what Node.js gave on ten real pages (06/10).
 Existing library entries are enriched, never overwritten: the site text goes into a marked block at the end of the description, which a
 later run replaces, and pictures already present are not added twice. The website text reaches Claude wrapped by
 `core.prompts.external_block` (reference material, not instructions).
@@ -22,16 +23,14 @@ import html as htmllib
 import json
 import os
 import re
-import shutil
-import subprocess
-import tempfile
 import time
 import urllib.parse
 import urllib.request
 from datetime import datetime, timezone
 from typing import Dict, List, Optional, Tuple
 
-from . import assets
+from . import assets, nuxt_static
+from .nuxt_static import NuxtError
 
 BASE = "https://ff.garena.com/vn"
 MARK = "[ff.garena.com]"
@@ -41,30 +40,18 @@ ARTICLES = 12                          # newest news articles kept
 ARTICLE_CHARS = 8000
 MAX_WALK = 400                         # safety stop when following next-links
 PAUSE = 0.25                           # seconds between page requests: be gentle with the website
-PAGE_HOSTS = ("garena.com",)           # pages: garena.com and every *.garena.com, https only
-DEFAULT_IMAGE_HOSTS = "cdn.wildflamestudio.com"   # where the official pictures really live (all 484 site pictures in the library, 06/10)
-NODE_TIMEOUT = 30                      # seconds for one page's script
+PAGE_HOSTS = ("ff.garena.com",)       # pages: exactly the host BASE uses (rà bảo mật 06/10: not every *.garena.com), https on port 443
+IMAGE_SITE_HOSTS = ("garena.com",)     # pictures may also come from garena.com / *.garena.com …
+DEFAULT_IMAGE_HOSTS = "cdn.wildflamestudio.com"   # … and the CDN they really live on (all 484 site pictures in the library, 06/10)
 NUXT = "window.__NUXT__="
-# Reads ONE expression (the right-hand side of `window.__NUXT__=`) from stdin and prints it as JSON. The names below are shadowed
-# only as a second fence; the real fence is the permission model of the Node process (no files, no child processes).
-_NODE = r"""
-const out = process.stdout; let h = '';
-process.stdin.setEncoding('utf8');
-process.stdin.on('data', d => h += d).on('end', () => {
-  let v;
-  try {
-    v = new Function('process', 'require', 'module', 'exports', 'global', 'globalThis', 'window',
-                     '"use strict"; return (' + h + '\n);')(undefined, undefined, undefined, undefined, undefined, undefined, {});
-    out.write(JSON.stringify({ ok: v === undefined ? null : v }));
-  } catch (e) {
-    out.write(JSON.stringify({ error: String((e && e.message) || e).slice(0, 300) }));
-  }
-});
-"""
 
 
 class FfSiteError(Exception):
     """A message that can be shown to the person."""
+
+
+class UrlRefused(FfSiteError):
+    """An address outside the allowed list (before opening, or where a redirect wanted to go)."""
 
 
 # ---- which addresses may be opened ------------------------------------------------------------------------------------
@@ -79,25 +66,33 @@ def _host_ok(host: str, allowed) -> bool:
 
 
 def refusal(url: str, images: bool = False) -> Optional[str]:
-    """Why `url` may not be opened (None when it may): https only, host garena.com / *.garena.com (+ picture hosts for pictures)."""
+    """Why `url` may not be opened (None when it may): https on port 443; pages only ff.garena.com; pictures also garena.com /
+    *.garena.com and the hosts of FF_SITE_IMAGE_HOSTS (and their subdomains)."""
     try:
         parts = urllib.parse.urlsplit(str(url))
         host = (parts.hostname or "").lower().rstrip(".")
     except ValueError:
         return f"địa chỉ không đọc được: {str(url)[:120]}"
-    allowed = PAGE_HOSTS + (image_hosts() if images else ())
+    allowed = PAGE_HOSTS + ((IMAGE_SITE_HOSTS + image_hosts()) if images else ())
     if parts.scheme != "https":
         return f"chỉ mở địa chỉ https, bị từ chối: {str(url)[:120]}"
-    if parts.username or parts.password or not host or not _host_ok(host, allowed):
+    try:
+        port = parts.port
+    except ValueError:
+        port = -1
+    if port not in (None, 443):
+        return f"chỉ mở cổng 443, bị từ chối: {str(url)[:120]}"
+    ok = _host_ok(host, allowed) if images else host in PAGE_HOSTS
+    if parts.username or parts.password or not host or not ok:
         return (f"máy chủ '{host or '?'}' không nằm trong danh sách cho phép ({', '.join(allowed)}), bị từ chối: {str(url)[:120]}"
-                + ("" if images else " — chỉ trang của garena.com"))
+                + ("" if images else " — chỉ trang của ff.garena.com"))
     return None
 
 
 def check_url(url: str, images: bool = False) -> None:
     why = refusal(url, images)
     if why:
-        raise FfSiteError(f"Địa chỉ bị từ chối — {why}. Thêm máy chủ ảnh vào FF_SITE_IMAGE_HOSTS nếu đó là máy chủ ảnh chính thức.")
+        raise UrlRefused(f"Địa chỉ bị từ chối — {why}. Thêm máy chủ ảnh vào FF_SITE_IMAGE_HOSTS nếu đó là máy chủ ảnh chính thức.")
 
 
 class _RedirectGuard(urllib.request.HTTPRedirectHandler):
@@ -127,44 +122,6 @@ def fetch(url: str, binary: bool = False, timeout: int = 40):
 
 
 # ---- reading the page's data --------------------------------------------------------------------------------------------
-_PERMISSION_FLAG: Dict[str, Optional[str]] = {}
-
-
-def _node_env() -> Dict[str, str]:
-    """The environment Node.js gets: nothing on Linux/macOS; on Windows only SystemRoot (06/10: Node 24 aborts at start with
-    'Assertion failed: ncrypto::CSPRNG' when the environment block is completely empty). No keys, no PATH, no user folders."""
-    if os.name == "nt":
-        root = os.environ.get("SystemRoot") or os.environ.get("SYSTEMROOT") or r"C:\Windows"
-        return {"SystemRoot": root}
-    return {}
-
-
-def _permission_flag(node: str) -> str:
-    """'--permission' (Node ≥ 22.13/23.5) or '--experimental-permission' (Node 20–22); FfSiteError when the Node has neither."""
-    if node not in _PERMISSION_FLAG:
-        found = None
-        for flag in ("--permission", "--experimental-permission"):
-            try:
-                proc = subprocess.run([node, flag, "-e", "process.stdout.write(String(process.permission && "
-                                       "!process.permission.has('fs.read') && !process.permission.has('child')))"],
-                                      capture_output=True, timeout=NODE_TIMEOUT, env=_node_env(), cwd=tempfile.gettempdir())
-            except (OSError, subprocess.TimeoutExpired):
-                continue
-            if proc.returncode == 0 and proc.stdout.strip() == b"true":
-                found = flag
-                break
-        _PERMISSION_FLAG[node] = found
-    flag = _PERMISSION_FLAG[node]
-    if not flag:
-        try:
-            ver = subprocess.run([node, "--version"], capture_output=True, timeout=10).stdout.decode().strip()
-        except (OSError, subprocess.TimeoutExpired):
-            ver = "?"
-        raise FfSiteError(f"Node.js {ver} không có chế độ giới hạn quyền (--permission, cần Node.js ≥ 20) — không chạy dữ liệu website "
-                          "khi không giới hạn được. Cập nhật Node.js (https://nodejs.org) rồi bấm lại.")
-    return flag
-
-
 def _payload(page: str) -> Optional[str]:
     i = page.find(NUXT)
     if i < 0:
@@ -173,45 +130,33 @@ def _payload(page: str) -> Optional[str]:
     return page[i + len(NUXT): j if j >= 0 else len(page)].strip().rstrip(";").strip()
 
 
-def _node_eval(code: str) -> Optional[Dict]:
-    node = shutil.which("node")
-    if not node:
-        raise FfSiteError("Cần Node.js trên máy để đọc dữ liệu từ website (https://nodejs.org).")
-    flag = _permission_flag(node)
-    with tempfile.TemporaryDirectory(prefix="ff_site_") as cwd:
-        try:
-            proc = subprocess.run([node, flag, "-e", _NODE], input=code.encode("utf-8"), capture_output=True,
-                                  timeout=NODE_TIMEOUT, env=_node_env(), cwd=cwd)
-        except subprocess.TimeoutExpired:
-            raise FfSiteError(f"Dữ liệu trang chạy quá {NODE_TIMEOUT} giây — đã dừng Node.js, bỏ trang này.") from None
-        except OSError as e:
-            raise FfSiteError(f"Không chạy được Node.js: {e}") from None
-    out = proc.stdout.decode("utf-8", "replace").strip()
-    try:
-        res = json.loads(out) if out else None
-    except ValueError:
-        res = None
-    if not isinstance(res, dict) or ("ok" not in res and "error" not in res):
-        err = proc.stderr.decode("utf-8", "replace").strip().splitlines()
-        raise FfSiteError(f"Không đọc được dữ liệu trang (Node.js thoát mã {proc.returncode}"
-                          + (f": {err[-1][:200]}" if err else "") + ").")
-    if "error" in res:
-        raise FfSiteError(f"Không đọc được dữ liệu trang: {res['error']}")
-    return res["ok"] if isinstance(res["ok"], dict) else None
-
-
 def nuxt_state(page: str) -> Optional[Dict]:
-    """The page's data object; None when the page carries none. Plain JSON is read directly; the function form of the real pages is
-    run by Node.js under the permission model (see the module note). FfSiteError when the data cannot be read."""
+    """The page's data object; None when the page carries none. Plain JSON is read directly; the function form of the real pages by
+    the static reader core/nuxt_static.py. Nothing is ever run. FfSiteError when the data is not in a shape the reader knows."""
     code = _payload(page)
     if code is None:
         return None
     try:
         value = json.loads(code)
-        return value if isinstance(value, dict) else None
     except ValueError:
-        pass
-    return _node_eval(code)
+        try:
+            value = nuxt_static.read(code)
+        except NuxtError as e:
+            raise FfSiteError(f"Không đọc được dữ liệu trang (dạng lạ, không chạy mã): {e}") from None
+        except RecursionError:
+            raise FfSiteError("Không đọc được dữ liệu trang: lồng quá sâu") from None
+    return value if isinstance(value, dict) else None
+
+
+class _Recorder:
+    """The page getter of one run, remembering every page that could not be opened or read (instead of losing them silently)."""
+
+    def __init__(self, getter):
+        self.getter = getter.getter if isinstance(getter, _Recorder) else getter
+        self.errors: List[str] = getter.errors if isinstance(getter, _Recorder) else []
+
+    def __call__(self, url: str):
+        return self.getter(url)
 
 
 def _text(fragment) -> str:
@@ -221,7 +166,15 @@ def _text(fragment) -> str:
 
 
 def _page_data(url: str, getter) -> List:
-    state = nuxt_state(getter(url))
+    """The page's data blocks. Under a _Recorder a page that fails is noted in `getter.errors` and gives [] (the rest of the run goes
+    on); with a plain getter the FfSiteError is raised as before."""
+    try:
+        state = nuxt_state(getter(url))
+    except FfSiteError as e:
+        if isinstance(getter, _Recorder):
+            getter.errors.append(f"{url}: {e}")
+            return []
+        raise
     return (state or {}).get("data") or []
 
 
@@ -336,7 +289,8 @@ def _weapons(getter) -> List[Dict]:
 
 
 def collect_articles(getter=fetch, limit: int = ARTICLES) -> List[Dict]:
-    """The newest news / version articles (title, category, date, plain text): events, collaborations and new characters of each version."""
+    """The newest news / version articles (title, category, date, plain text): events, collaborations and new characters of each version.
+    Under a _Recorder, articles that cannot be read are noted in `getter.errors`."""
     listing = []
     for block in _page_data(f"{BASE}/news/", getter):
         if isinstance(block, dict) and block.get("newsList"):
@@ -345,7 +299,9 @@ def collect_articles(getter=fetch, limit: int = ARTICLES) -> List[Dict]:
     for n in listing[:limit]:
         try:
             detail = _detail(f"{BASE}/article/{n['id']}/", "detail", getter)
-        except (FfSiteError, KeyError):
+        except (FfSiteError, KeyError) as e:
+            if isinstance(getter, _Recorder):
+                getter.errors.append(f"bài tin tức {n.get('id') if isinstance(n, dict) else n}: {e}")
             continue
         text = _text(detail.get("content", ""))
         if not text:
@@ -367,8 +323,10 @@ def sync_articles(conn, getter=fetch) -> int:
     return n
 
 
-def collect(getter=fetch) -> List[Dict]:
-    """Items from the public pages: {kind, name, aliases, text, images, url}. `getter(url)` returns page HTML (replaceable for tests)."""
+def collect(getter=fetch, errors: Optional[List[str]] = None) -> List[Dict]:
+    """Items from the public pages: {kind, name, aliases, text, images, rejected, url}. `getter(url)` returns page HTML (replaceable for
+    tests). A page that cannot be opened or read is skipped and named in `errors` (when given) — the other pages are still read."""
+    getter = _Recorder(getter)
     items: List[Dict] = []
     for block in _page_data(f"{BASE}/maps/", getter):
         for m in (block or {}).get("mapList", []) or []:
@@ -387,6 +345,8 @@ def collect(getter=fetch) -> List[Dict]:
     for item in items:                                   # picture links from the page: only allowed hosts, the rest named in `rejected`
         item["rejected"] = [u for u in item["images"] if refusal(u, images=True)]
         item["images"] = [u for u in item["images"] if u not in item["rejected"]]
+    if errors is not None:
+        errors.extend(getter.errors)
     return items
 
 
@@ -407,7 +367,8 @@ def sync(conn, game: str = "FF", created_by: Optional[str] = None, getter=fetch,
     """Read the website and add / enrich entries. Returns counts {created, enriched, pictures, skipped, rejected} (+ rejected_urls:
     picture addresses outside the allowed hosts, never downloaded; they are also written to the error log)."""
     download = download or (lambda url: fetch(url, binary=True))
-    report = {"created": 0, "enriched": 0, "pictures": 0, "skipped": 0, "rejected": 0, "rejected_urls": []}
+    report = {"created": 0, "enriched": 0, "pictures": 0, "skipped": 0, "rejected": 0, "rejected_urls": [], "page_errors": 0}
+    getter = _Recorder(getter)
 
     def refuse(url: str) -> None:
         report["rejected"] += 1
@@ -442,14 +403,21 @@ def sync(conn, game: str = "FF", created_by: Optional[str] = None, getter=fetch,
                 assets.add_image(conn, aid, os.path.basename(url.split("?")[0]) or "site.png", download(url), src_path=url,
                                  status="pending")                       # G2: downloaded without a person looking
                 report["pictures"] += 1
+            except UrlRefused:                                           # a redirect wanted to leave the allowed list
+                refuse(url)
             except (assets.AssetError, FfSiteError):
                 report["skipped"] += 1
     try:
         report["articles"] = sync_articles(conn, getter)
-    except (FfSiteError, OSError):
+    except (FfSiteError, OSError) as e:
         report["articles"] = 0
+        getter.errors.append(f"tin tức: {e}")
+    from . import diag
+    report["page_errors"] = len(getter.errors)
+    if getter.errors:
+        diag.record(conn, "system", "warn", f"đọc website Free Fire: {len(getter.errors)} trang không đọc được, ví dụ {getter.errors[0][:300]}",
+                    "ff_site_page")
     if report["rejected"]:
-        from . import diag
         diag.record(conn, "system", "warn", f"đọc website Free Fire: {report['rejected']} địa chỉ ảnh ngoài danh sách cho phép bị từ chối "
                     f"(không tải), ví dụ {report['rejected_urls'][0]} — nếu đó là máy chủ ảnh chính thức, thêm vào FF_SITE_IMAGE_HOSTS",
                     "ff_site_url")
@@ -459,7 +427,8 @@ def sync(conn, game: str = "FF", created_by: Optional[str] = None, getter=fetch,
 def summary(report: Dict) -> str:
     return (f"{report['created']} mục mới, {report['enriched']} mục được bổ sung mô tả, {report['pictures']} ảnh chính thức, "
             f"{report.get('articles', 0)} bài tin tức" + (f", {report['skipped']} bỏ qua" if report["skipped"] else "")
-            + (f", {report['rejected']} địa chỉ bị từ chối (ngoài danh sách máy chủ cho phép, xem Nhật ký lỗi)" if report.get("rejected") else ""))
+            + (f", {report['rejected']} địa chỉ bị từ chối (ngoài danh sách máy chủ cho phép, xem Nhật ký lỗi)" if report.get("rejected") else "")
+            + (f", {report['page_errors']} trang không đọc được (xem Nhật ký lỗi)" if report.get("page_errors") else ""))
 
 
 # ---- running it: a button (or once a month) starts it in the background; the outcome is kept for the panel ----------------
