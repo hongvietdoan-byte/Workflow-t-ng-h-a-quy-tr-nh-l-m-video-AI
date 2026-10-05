@@ -246,10 +246,12 @@ def main(argv=None):
             a.kelly = bool(json.load(open(meta, encoding="utf-8")).get("kelly"))
     if a.kelly:
         os.environ["FEATURE_KELLY_KNOWLEDGE"] = "1"
-    from core import idea_to_script as I
+    from core import assets, idea_to_script as I
     from core.db import connect
     from core.pipeline import Pipeline
-    items =json.load(open(a.ideas, encoding="utf-8"))
+    # the Kho's pictures are stored relative to the repository that owns the database (a worktree run reads the main machine's data)
+    assets.REPO = os.path.dirname(os.path.dirname(os.path.abspath(a.db)))
+    items = json.load(open(a.ideas, encoding="utf-8"))
     if a.limit:
         items = items[:a.limit]
     usd = len(items) * TURNS * I.TURN_USD
