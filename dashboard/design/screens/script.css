@@ -35,3 +35,11 @@
 
 /* một dòng tóm tắt + ⓘ (components.line) */
 .script-sum { color: var(--muted); font-size: 13.5px; }
+
+/* S14.36: thẻ ① lấy khung chat làm trung tâm — trạng thái rỗng thành một dòng nhỏ, khung nhập cao hơn, các nút phụ (📎 ✍ ⋯) gọn */
+[class*="st-key-card-script-a-"] .v2-empty { padding: 6px 12px; text-align: left; border-width: 1px; }
+[class*="st-key-card-script-a-"] .v2-empty b, [class*="st-key-card-script-a-"] .v2-empty span { display: inline; font-size: 13.5px; margin: 0; }
+[class*="st-key-card-script-a-"] .v2-empty b::after { content: " · "; font-weight: 400; }
+[class*="st-key-card-script-a-"] [data-testid="stChatInput"] textarea { min-height: 88px; font-size: 15px; }
+[class*="st-key-card-script-a-"] [data-testid="stChatInput"] { border-radius: var(--r-lg); }
+[class*="st-key-card-script-a-"] [data-testid="stPopover"] button { min-height: 2.2rem; font-size: 13px; }

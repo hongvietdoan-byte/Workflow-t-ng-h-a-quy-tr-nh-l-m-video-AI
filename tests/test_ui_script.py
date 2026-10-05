@@ -405,6 +405,31 @@ class ScriptBoxTests(unittest.TestCase):
         at.button(key=f"box_wish_drop_{pid}").click().run()
         self.assertNotIn(f"box_wish_{pid}", at.session_state)
 
+    def test_s14_36_receipt_recognises_a_pasted_script_without_pixels(self):
+        from dashboard.steps.step1_box import receipt
+        r = receipt(SCRIPT)
+        self.assertIn("Đã nhận kịch bản 3 cảnh", r)
+        self.assertIn("0 USD", r)
+        self.assertEqual(receipt(IDEA), "")                                      # a raw idea is not a script
+        self.assertEqual(receipt(""), "")
+        self.assertEqual(receipt("Hai người cãi nhau.\nKELLY: Của tôi!\nMAXIM: Không!"), "")   # grey zone: asked, not assumed
+
+    def test_s14_36_chat_is_the_centre_small_popovers_instead_of_big_blocks(self):
+        pid = self.p.create_project("Bố cục chat")
+        at = self.app(pid)
+        labels = [x.proto.popover.label for x in at.get("popover")]
+        self.assertTrue(any(l.startswith("⋯ Cách khác") for l in labels), labels)         # 3 "sắp có" buttons → one menu
+        self.assertTrue(any(l.startswith("✍ Sửa toàn văn") for l in labels), labels)     # was a big always-open block
+        self.assertTrue(any(l.startswith("📎 Đính kèm") for l in labels), labels)
+        self.assertNotIn(f"fold_box_full_{pid}_btn", tree_keys(at))
+        coming = [b for b in at.button if (b.key or "").startswith("coming_")]
+        self.assertEqual(len(coming), 3)
+        self.assertTrue(all(b.disabled for b in coming))
+        self.assertIn(f"paste_{pid}", tree_keys(at))                                      # old keys kept
+        at = self.say(at, SCRIPT)
+        self.assertIn("Đã nhận kịch bản 3 cảnh", self.html(at))                           # the card in the chat flow
+        self.assertTrue(any(l.startswith("✍ Sửa toàn văn · ") for l in [x.proto.popover.label for x in at.get("popover")]))
+
     def test_flag_off_is_the_old_two_tabs(self):
         with mock.patch.dict(os.environ, {"FEATURE_IDEA_TO_SCRIPT": "0"}):
             pid = self.p.create_project("Tắt")
