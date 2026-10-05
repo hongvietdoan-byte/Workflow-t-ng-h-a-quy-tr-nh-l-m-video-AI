@@ -216,11 +216,17 @@ RULES = """## Ràng buộc DỰNG ĐƯỢC (xưởng chỉ dựng chắc đượ
 - Mỗi kịch bản phải có MỘT điểm nhấn (khoảnh khắc người xem nhớ): hình ảnh, câu thoại hoặc cú xoay — nêu rõ ở `notes`."""
 
 
+def _aka(item: Dict) -> str:
+    """' (tên khác: …)' — S14.43 mục 1: the other names of a Kho entry travel with it, so the idea's word maps to the real name."""
+    other = [n for n in (item.get("names") or [])[1:] if n.strip() and assets.fold(n) != assets.fold(item["name"])]
+    return f" (tên khác: {', '.join(other)})" if other else ""
+
+
 def kit_block(k: Dict) -> str:
     lines = ["## Thứ dựng chắc được (CHỈ chọn trong danh sách này)"]
-    lines.append("Nơi (map — khu vực): " + ("; ".join(f"{p['name']} — " + (", ".join(p["spots"]) or "mặc định") for p in k["places"]) or "(trống)"))
+    lines.append("Nơi (map — khu vực): " + ("; ".join(f"{p['name']}{_aka(p)} — " + (", ".join(p["spots"]) or "mặc định") for p in k["places"]) or "(trống)"))
     lines.append("Nhân vật (trang phục mặc định): " + ("; ".join(
-        f"{c['name']} — " + (f"{c['outfit']} (hồ sơ chưa duyệt — lấy từ mô tả, chưa chắc đúng)" if c.get("draft") else
+        f"{c['name']}{_aka(c)} — " + (f"{c['outfit']} (hồ sơ chưa duyệt — lấy từ mô tả, chưa chắc đúng)" if c.get("draft") else
                              c["outfit"] or "chưa có hồ sơ trang phục") for c in k["characters"]) or "(trống)"))
     lines.append("Kỹ năng có hồ sơ: " + ("; ".join(f"{s['character']} — {s['skill']}" for s in k["skills"]) or "(không có)"))
     if k.get("excluded"):
@@ -249,9 +255,36 @@ def custom_place_block(conn, pid: int, k: Dict, inputs: Dict) -> str:
             "tả rõ vật dụng và góc nhìn cần có trong bối cảnh (bàn, tủ, quạt trần…) để tạo bối cảnh đủ; không thêm nơi đời thường khác.")
 
 
-def blocks(conn, pid: int, inputs: Dict) -> str:
+def names_block(conn, pid: int, inputs: Dict, extra: str = "", k: Optional[Dict] = None, game: str = "FF") -> str:
+    """S14.43 mục 1 (phiếu 05d: 'chim cánh cụt là pet Mr. Waggor'): the Kho entries the idea (+ key points, answers, wishes = `extra`)
+    names — by their name OR another name — with the REAL name and the other names, so the Biên kịch calls things by their FF name.
+    Only what is named (a few lines, not the Kho); nothing named → "" (prompt unchanged). 0 USD."""
+    a = clean_anchors((inputs or {}).get("anchors"))
+    text = "\n".join([str((inputs or {}).get("idea") or ""), a["plot"], a["ending"], a["costume"], a["place"], extra or ""])
+    if not text.strip():
+        return ""
+    hits = assets.find_in_text(conn, text, game, pid)
+    if not hits:
+        return ""
+    k = k if k is not None else kit(conn, pid)
+    built = {assets.fold(x["name"]) for x in k["characters"] + k["places"]}
+    lines = ["## Tên thật trong Kho FF (ý tưởng nhắc tới — gọi ĐÚNG tên thật này trong mô tả và thoại, không gọi chung chung)"]
+    for h in hits[:12]:
+        other = [n for n in assets.names_of(h)[1:] if n.strip()]
+        if assets.fold(h["name"]) in built and not other:
+            continue                                     # already in the buildable list under its real name — said once
+        kind = assets.KINDS.get(h["kind"], h["kind"])
+        where = ("có trong danh sách dựng được" if assets.fold(h["name"]) in built else
+                 "chưa có trong danh sách dựng được — dùng thì ghi vào `notes` (bảng kê tài nguyên bổ sung)"
+                 if h["kind"] in ("character", "pet", "location") else "đồ / vật có trong Kho")
+        lines.append(f"- {kind}: **{h['name']}**" + (f" (tên khác: {', '.join(o.strip() for o in other)})" if other else "") + f" — {where}")
+    return "\n".join(lines) if len(lines) > 1 else ""
+
+
+def blocks(conn, pid: int, inputs: Dict, extra: str = "") -> str:
     k = kit(conn, pid)
-    return "\n\n".join(x for x in (RULES, kit_block(k), custom_place_block(conn, pid, k, inputs), anchors_block(inputs)) if x)
+    return "\n\n".join(x for x in (RULES, kit_block(k), names_block(conn, pid, inputs, extra, k), custom_place_block(conn, pid, k, inputs),
+                                   anchors_block(inputs)) if x)
 
 
 # ---- the code check after the writing turn (0 USD) ------------------------------------------------------------------------------------

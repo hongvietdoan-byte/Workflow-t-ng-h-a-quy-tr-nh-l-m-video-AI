@@ -161,6 +161,39 @@ class SparseScriptS1443(unittest.TestCase):
         self.assertIn("Kelly khoe rank.", m.prompts[-1])
 
 
+class RealFFNamesS1443(unittest.TestCase):
+    """Mục 1: Biên kịch nhận TÊN THẬT + tên khác của các mục Kho mà ý tưởng nhắc tới (gọn: chỉ mục liên quan), và danh sách 'dựng được'
+    có cả tên khác — để gọi 'Mr. Waggor' thay vì 'chim cánh cụt'. Không thêm lời gọi Claude."""
+
+    def setUp(self):
+        self.p = Pipeline(connect())
+        self.pid = self.p.create_project("tên thật", operating_mode="human_qc")
+        make_kit(self.p.conn)
+        assets.create(self.p.conn, "FF", "pet", "Mr. Waggor", "pet chim cánh cụt", aliases="chim cánh cụt, Waggor")
+        assets.create(self.p.conn, "FF", "weapon", "M1887", "shotgun hai nòng", aliases="súng hai nòng")
+        kid = self.p.conn.execute("SELECT id FROM assets WHERE name='KELLY'").fetchone()[0]
+        self.p.conn.execute("UPDATE assets SET aliases='Kelly Tốc Độ' WHERE id=?", (kid,))
+        self.p.conn.commit()
+        self.m = Recorder()
+
+    def test_kho_entries_named_in_the_idea_go_in_with_real_name_and_aliases(self):
+        idea = "Kelly và Maxim tranh nhau một thùng thính ở Đảo Quân Sự, chim cánh cụt lẻn tới ăn mất, mở ra thì trống trơn."
+        I.start(self.p.conn, self.pid, idea, anchors=ANCHORS)
+        I.questions(self.p.conn, self.pid, self.m)
+        pr = self.m.prompts[0]
+        self.assertIn("Tên thật trong Kho FF", pr)
+        block = pr.split("Tên thật trong Kho FF", 1)[1].split("\n## ", 1)[0]
+        self.assertIn("Mr. Waggor", block)
+        self.assertIn("chim cánh cụt", block)
+        self.assertNotIn("M1887", pr)                                       # gọn: only what the idea is about
+
+    def test_buildable_list_carries_aliases(self):
+        self.assertIn("Kelly Tốc Độ", B.kit_block(B.kit(self.p.conn, self.pid)))
+
+    def test_no_named_entry_no_block(self):
+        self.assertEqual(B.names_block(self.p.conn, self.pid, {"idea": "Hai người ngồi uống trà."}), "")
+
+
 try:
     from tests.test_ui_script import ScriptBoxTests, tree_keys
 except Exception:  # noqa: BLE001 - streamlit testing missing → the pure tests above still run

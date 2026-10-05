@@ -43,10 +43,22 @@ def missing_anchors(anchors) -> List[str]:
     return idea_buildable.missing_anchors(anchors)
 
 
-def buildable_blocks(conn, pid: int, inputs: Dict) -> str:
-    """S14.31: the rules of "chỉ viết thứ dựng được" + the kit (not the whole Kho) + the person's key points — right after CHUNG."""
+def buildable_blocks(conn, pid: int, inputs: Dict, extra: str = "") -> str:
+    """S14.31: the rules of "chỉ viết thứ dựng được" + the kit (not the whole Kho) + the person's key points — right after CHUNG.
+    S14.43 mục 1: `extra` (answers, wishes, chosen direction) is searched too for Kho entries named by another name."""
     from . import idea_buildable
-    return idea_buildable.blocks(conn, pid, inputs)
+    return idea_buildable.blocks(conn, pid, inputs, extra)
+
+
+def _said_text(state: Dict, wish: str = "") -> str:
+    """What the person said after the idea (answers, wishes, the chosen direction + note) — where a Kho name may also appear."""
+    parts = [f"{a.get('q', '')} {a.get('a', '')}" for a in state.get("answers") or []]
+    parts += [str(v) for v in (state.get("wishes") or {}).values()] + ([wish] if wish else [])
+    if state.get("chosen") is not None and state.get("directions"):
+        d = state["directions"][state["chosen"]]
+        parts.append(" ".join(str(d.get(k) or "") for k in ("title", "logline", "hook_3s", "payoff")))
+    parts.append(str(state.get("choice_note") or ""))
+    return "\n".join(p for p in parts if p.strip())
 
 
 def enabled() -> bool:
@@ -160,7 +172,7 @@ def wish_block(state: Dict, turn: int, wish: str = "") -> str:
 def build_prompt(conn, pid: int, state: Dict, turn: int, wish: str = "") -> str:
     from .prompts import _read
     inp = state["inputs"]
-    parts = [f"# Biên kịch — Lượt {turn}", _section("CHUNG"), buildable_blocks(conn, pid, inp), "## Vai của bạn", _read("knowledge", "roles", "screenwriter.md"),
+    parts = [f"# Biên kịch — Lượt {turn}", _section("CHUNG"), buildable_blocks(conn, pid, inp, _said_text(state, wish)), "## Vai của bạn", _read("knowledge", "roles", "screenwriter.md"),
              "## Viết thoại", _read("knowledge", "dialogue_craft.md"), "## Thể loại", _read("knowledge", "genre_guides.md"),
              "## Đầu vào của người dùng",
              f"Ý tưởng: {inp['idea']}\nThời lượng mục tiêu: {inp['duration_s']} s · khung {inp['aspect']} · nền tảng {inp['platform']}"
