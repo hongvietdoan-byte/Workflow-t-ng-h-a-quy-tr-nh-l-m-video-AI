@@ -1,0 +1,71 @@
+{
+ "video_id": "7289320309457456386",
+ "title": "Maxim, I didn't know you could run so fast! 😮#freefire #freefire_love.",
+ "source": "7289320309457456386.mp4",
+ "style": "KELLY_SHOW",
+ "method": "doc-anh-trong-phien",
+ "analyzed_at": "2026-10-05T10:14:41+00:00",
+ "duration_sec": 9.29,
+ "width": 720,
+ "height": 1280,
+ "shots": [
+  {
+   "i": 1,
+   "start": 0.0,
+   "end": 2.03,
+   "dur": 2.03,
+   "size": "WS",
+   "angle": "eye",
+   "camera_move": "static",
+   "role": "setup",
+   "subject": "đường quê, Kelly và Tatsuya bò, pet xa",
+   "text_on_screen": false,
+   "game_ui": false,
+   "vfx": false
+  },
+  {
+   "i": 2,
+   "start": 2.03,
+   "end": 5.07,
+   "dur": 3.04,
+   "size": "MCU",
+   "angle": "eye",
+   "camera_move": "track",
+   "role": "action",
+   "subject": "hai icon kỹ năng hình thoi trên đầu khi chạy",
+   "text_on_screen": false,
+   "game_ui": true,
+   "vfx": true,
+   "transition_in": "cut"
+  },
+  {
+   "i": 3,
+   "start": 5.07,
+   "end": 9.29,
+   "dur": 4.22,
+   "size": "WS",
+   "angle": "low",
+   "camera_move": "track",
+   "role": "ending",
+   "subject": "Maxim chạy với burger treo cần câu trên đầu pet, icon bực mình",
+   "text_on_screen": false,
+   "game_ui": true,
+   "vfx": true,
+   "transition_in": "cut"
+  }
+ ],
+ "overall": {
+  "dd": "tiểu phẩm rượt đuổi 'chạy nhanh' (3 shot)",
+  "hook": "Kelly và Tatsuya bò trên đường",
+  "bg": "đường quê, bầu trời xanh",
+  "ne": "kỹ năng chạy = 2 icon hình thoi trên đầu (giày cánh + người chạy), không cần màn hình",
+  "nv": "Kelly, Tatsuya, Maxim, pet cánh cụt",
+  "gm": "toàn → cận → toàn thấp bám",
+  "lp": "icon kỹ năng, icon bực mình",
+  "chot": "Maxim chạy với burger treo trên đầu pet",
+  "dung": "⚠ 3 shot nhưng chạy nhanh + đuổi 4 nhân vật"
+ },
+ "views": 7000000,
+ "reason": "theme:maxim",
+ "channel": "freefire_kelly_official"
+}

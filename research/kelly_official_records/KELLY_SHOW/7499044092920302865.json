@@ -1,0 +1,71 @@
+{
+ "video_id": "7499044092920302865",
+ "title": "Technology😎👍#freefire #freefire_lover #freefirekelly #gaming #funny #f",
+ "source": "7499044092920302865.mp4",
+ "style": "KELLY_SHOW",
+ "method": "doc-anh-trong-phien",
+ "analyzed_at": "2026-10-05T10:14:41+00:00",
+ "duration_sec": 8.41,
+ "width": 720,
+ "height": 1280,
+ "shots": [
+  {
+   "i": 1,
+   "start": 0.0,
+   "end": 1.13,
+   "dur": 1.13,
+   "size": "CU",
+   "angle": "eye",
+   "camera_move": "static",
+   "role": "hook",
+   "subject": "Kelly 3D cầm bút nói với máy",
+   "text_on_screen": false,
+   "game_ui": false,
+   "vfx": false
+  },
+  {
+   "i": 2,
+   "start": 1.13,
+   "end": 7.13,
+   "dur": 6.0,
+   "size": "CU",
+   "angle": "high",
+   "camera_move": "handheld",
+   "role": "insert",
+   "subject": "điện thoại thật cầm ngang, gameplay container, bút vẽ lên màn hình, VICTORY",
+   "text_on_screen": false,
+   "game_ui": true,
+   "vfx": false,
+   "transition_in": "cut"
+  },
+  {
+   "i": 3,
+   "start": 7.13,
+   "end": 8.41,
+   "dur": 1.28,
+   "size": "MCU",
+   "angle": "eye",
+   "camera_move": "static",
+   "role": "ending",
+   "subject": "Kelly 3D mỉm cười nhìn máy",
+   "text_on_screen": false,
+   "game_ui": false,
+   "vfx": false,
+   "transition_in": "cut"
+  }
+ ],
+ "overall": {
+  "dd": "demo công nghệ 8 s: 3D + người thật quay điện thoại",
+  "hook": "Kelly 3D cầm bút nói với máy",
+  "bg": "bàn gỗ, nền cam ấm (cận người thật)",
+  "ne": "gameplay quay trên điện thoại thật cầm ngang trong tay người thật; bút vẽ lên màn hình",
+  "nv": "Kelly 3D bookend",
+  "gm": "cận → cận điện thoại từ trên → cận Kelly",
+  "lp": "không",
+  "chot": "Kelly mỉm cười nhìn máy",
+  "dung": "⚠ cần cảnh quay điện thoại thật (live-action) — ngoài pipeline"
+ },
+ "views": 14900000,
+ "reason": "top_view",
+ "channel": "freefire_kelly_official"
+}

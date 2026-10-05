@@ -1,0 +1,41 @@
+{
+ "video_id": "7175123026009214210",
+ "title": "BR new season just started! Good luck to you all! >3< #everybodyscrea.",
+ "source": "7175123026009214210.mp4",
+ "style": "KELLY_SHOW",
+ "method": "doc-anh-trong-phien",
+ "analyzed_at": "2026-10-05T10:14:41+00:00",
+ "duration_sec": 14.08,
+ "width": 720,
+ "height": 1280,
+ "shots": [
+  {
+   "i": 1,
+   "start": 0.0,
+   "end": 14.08,
+   "dur": 14.08,
+   "size": "CU",
+   "angle": "eye",
+   "camera_move": "static",
+   "role": "hook",
+   "subject": "Kelly cận đập tay vào máy; huy hiệu hạng trên đầu đổi xanh→vàng→đỏ",
+   "text_on_screen": false,
+   "game_ui": true,
+   "vfx": false
+  }
+ ],
+ "overall": {
+  "dd": "trend nhạc, 1 take selfie",
+  "hook": "Kelly đập nắm tay vào máy ngay giây 0",
+  "bg": "phòng họp tường xám có sọc đỏ + bảng trắng — chưa có",
+  "ne": "trạng thái rank thể hiện bằng huy hiệu hạng lơ lửng trên đầu (xanh→vàng→đỏ Huyền thoại), không cần màn hình",
+  "nv": "Kelly áo vàng; nhân vật tai mèo ngồi hậu cảnh",
+  "gm": "cận gần như selfie, máy tĩnh 14 s",
+  "lp": "huy hiệu hạng trên đầu",
+  "chot": "đạt hạng cao nhất + Kelly nhìn điện thoại",
+  "dung": "✅ 1 shot cận + huy hiệu overlay; ⚠ lời hát khớp môi theo bài trend"
+ },
+ "views": 31400000,
+ "reason": "top_view",
+ "channel": "freefire_kelly_official"
+}

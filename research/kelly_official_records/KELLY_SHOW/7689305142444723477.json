@@ -1,0 +1,41 @@
+{
+ "video_id": "7689305142444723477",
+ "title": "Let's take a shooting Age Test! #FreeFire #freefire #freefire_lover #.",
+ "source": "7689305142444723477.mp4",
+ "style": "KELLY_SHOW",
+ "method": "doc-anh-trong-phien",
+ "analyzed_at": "2026-10-05T10:14:41+00:00",
+ "duration_sec": 7.79,
+ "width": 1080,
+ "height": 1920,
+ "shots": [
+  {
+   "i": 1,
+   "start": 0.0,
+   "end": 7.79,
+   "dur": 7.79,
+   "size": "CU",
+   "angle": "eye",
+   "camera_move": "handheld",
+   "role": "hook",
+   "subject": "ống ngắm + thanh Shooting Age Test, hộp đạn đầu lâu, kết AGE 25",
+   "text_on_screen": true,
+   "game_ui": true,
+   "vfx": true
+  }
+ ],
+ "overall": {
+  "dd": "trend 'Shooting Age Test'",
+  "hook": "ống ngắm + thanh tuổi hiện trên mặt Kelly ngay giây 0",
+  "bg": "phòng mờ",
+  "ne": "'bắn' = ống ngắm chữ thập chồng lên mặt + hộp đạn đầu lâu rơi + thẻ kết quả, không cảnh gameplay",
+  "nv": "Kelly cận",
+  "gm": "cận 7,8 s, cuối nghiêng/cận nằm",
+  "lp": "chữ thập, thanh 35→18, thẻ AGE 25",
+  "chot": "thẻ kết quả 'ABOVE AVERAGE'",
+  "dung": "✅ 1 shot cận + overlay (dễ)"
+ },
+ "views": 43000,
+ "reason": "newest",
+ "channel": "freefire_kelly_official"
+}

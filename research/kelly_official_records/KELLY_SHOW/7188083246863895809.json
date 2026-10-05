@@ -1,0 +1,56 @@
+{
+ "video_id": "7188083246863895809",
+ "title": "Cooking is not my thing but #freefire #freefire_lover #freefirekelly .",
+ "source": "7188083246863895809.mp4",
+ "style": "KELLY_SHOW",
+ "method": "doc-anh-trong-phien",
+ "analyzed_at": "2026-10-05T10:14:41+00:00",
+ "duration_sec": 9.69,
+ "width": 1080,
+ "height": 1920,
+ "shots": [
+  {
+   "i": 1,
+   "start": 0.0,
+   "end": 3.27,
+   "dur": 3.27,
+   "size": "MS",
+   "angle": "eye",
+   "camera_move": "static",
+   "role": "setup",
+   "subject": "Kelly cầm chảo bánh trong bếp",
+   "text_on_screen": false,
+   "game_ui": false,
+   "vfx": false
+  },
+  {
+   "i": 2,
+   "start": 3.27,
+   "end": 9.69,
+   "dur": 6.42,
+   "size": "MS",
+   "angle": "eye",
+   "camera_move": "static",
+   "role": "action",
+   "subject": "người đàn ông râu vừa chơi điện thoại vừa lật bánh, tay phát sáng cam",
+   "text_on_screen": false,
+   "game_ui": false,
+   "vfx": true,
+   "transition_in": "cut"
+  }
+ ],
+ "overall": {
+  "dd": "tiểu phẩm 'nấu ăn' 2 shot",
+  "hook": "Kelly cầm chảo tay kia cầm bánh",
+  "bg": "bếp hiện đại trắng — chưa có",
+  "ne": "'chơi game' thể hiện bằng người đàn ông vừa nhìn điện thoại (không thấy màn hình) vừa lật bánh nhờ tay phát sáng",
+  "nv": "Kelly, người đàn ông râu vest da",
+  "gm": "trung, máy tĩnh",
+  "lp": "hiệu ứng tay phát sáng cam",
+  "chot": "Kelly bịt miệng nhìn",
+  "dung": "✅ 2 shot tĩnh, nền bếp + 2 nhân vật; hiệu ứng tay hậu kỳ"
+ },
+ "views": 23000000,
+ "reason": "top_view",
+ "channel": "freefire_kelly_official"
+}

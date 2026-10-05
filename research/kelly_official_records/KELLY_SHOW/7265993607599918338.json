@@ -1,0 +1,56 @@
+{
+ "video_id": "7265993607599918338",
+ "title": "Ace! How do you feel after a quadra? 😆 #freefire #freefire_lover #fre.",
+ "source": "7265993607599918338.mp4",
+ "style": "KELLY_SHOW",
+ "method": "doc-anh-trong-phien",
+ "analyzed_at": "2026-10-05T10:14:41+00:00",
+ "duration_sec": 12.91,
+ "width": 720,
+ "height": 1280,
+ "shots": [
+  {
+   "i": 1,
+   "start": 0.0,
+   "end": 7.77,
+   "dur": 7.77,
+   "size": "MS",
+   "angle": "eye",
+   "camera_move": "static",
+   "role": "action",
+   "subject": "nam tóc buộc chơi, Kelly cầu nguyện; bảng đội 4 dòng, đầu lâu, bộ đếm X1→X4",
+   "text_on_screen": true,
+   "game_ui": true,
+   "vfx": false
+  },
+  {
+   "i": 2,
+   "start": 7.77,
+   "end": 12.91,
+   "dur": 5.14,
+   "size": "MS",
+   "angle": "eye",
+   "camera_move": "static",
+   "role": "ending",
+   "subject": "Kelly mắt long lanh hoa lấp lánh; nam uống sữa (có cắt sót)",
+   "text_on_screen": false,
+   "game_ui": false,
+   "vfx": true,
+   "transition_in": "cut"
+  }
+ ],
+ "overall": {
+  "dd": "tiểu phẩm 'Ace/quadra' (bảng kill chồng lên khung)",
+  "hook": "bảng đội 4 dòng + X1💀 hiện ngay giây 0",
+  "bg": "bàn tròn đen + tường xám — chưa có",
+  "ne": "quadra thể hiện bằng bảng đội 4 dòng (3 đầu lâu) + bộ đếm X1→X4 trên dòng 'Me'; nhân vật chỉ cầm điện thoại",
+  "nv": "nam tóc buộc vệt xám (giáp đỏ), Kelly chắp tay cầu nguyện",
+  "gm": "trung tĩnh → cận Kelly → cận nam uống sữa",
+  "lp": "bảng đội + bộ đếm kill",
+  "chot": "nam uống chai sữa (gag 'nhàn')",
+  "dung": "✅ 2–3 shot + overlay bảng kill (rất dễ)"
+ },
+ "views": 11700000,
+ "reason": "top_view",
+ "channel": "freefire_kelly_official"
+}
