@@ -113,6 +113,37 @@ class WriteFunctionScanTests(unittest.TestCase):
         self.assertEqual(sorted(found - self.KNOWN), [], "hàm ghi mới thiếu access.need_* (thêm kiểm quyền ở đầu hàm)")
 
 
+class MissingEmailIsClosedTests(unittest.TestCase):
+    """S14.7 (D1, kế hoạch 3.5 ý 3): có danh tính nhưng thiếu e-mail → KHÔNG có quyền (trước đây = hệ thống, mọi quyền)."""
+
+    def setUp(self):
+        self.conn, self.pid, self.sid, self.jid = make_world()
+        self.orphan = Pipeline(self.conn).create_project("dự án cũ không chủ")
+
+    def test_identity_without_email_has_no_right(self):
+        for ident in ({"email": ""}, {"email": "", "role": "member"}, {"email": "  ", "role": "owner"}, {"role": "member"}, {},
+                      Identity("", "x", "member", [])):
+            self.assertIsNotNone(access.user_of(ident), ident)
+            self.assertIsNone(access.level(self.conn, self.pid, ident), ident)
+            self.assertFalse(access.can_view(self.conn, self.orphan, ident), ident)
+            self.assertEqual(access.visible_ids(self.conn, ident), set(), ident)
+            self.assertEqual(access.levels_for(self.conn, ident), {}, ident)
+
+    def test_a_pipeline_whose_user_has_no_email_is_refused(self):
+        p = Pipeline(self.conn)
+        p.user = {"email": "", "role": "owner"}
+        with self.assertRaises(AccessDenied):
+            p.set_paused(self.pid, True)
+
+    def test_system_and_sign_in_off_stay_unrestricted(self):
+        self.assertIsNone(access.user_of(None))
+        self.assertIsNone(access.user_of({"email": "local", "name": "Local (đăng nhập tắt)", "role": "owner", "perms": []}))
+        self.assertEqual(access.level(self.conn, self.pid, None), "admin")
+        p = Pipeline(self.conn)                                         # autopilot / worker: p.user None, only p.actor is set
+        p.actor = "chu@garena.vn"
+        p.set_paused(self.pid, True)
+
+
 class LevelTests(unittest.TestCase):
     def setUp(self):
         self.conn, self.pid, self.sid, self.jid = make_world()
@@ -195,7 +226,8 @@ class CoreEntryPointMatrix(unittest.TestCase):
                 "audio_lib.submit_sfx(p=p)": lambda: audio_lib.submit_sfx(None, _TMP, "x", p=p, project_id=pid),
                 "audio_lib.submit_tts(p=p)": lambda: audio_lib.submit_tts(None, _TMP, "x", 1, p=p, project_id=pid),
             },
-            "view": {"compare.clone_project (nhân bản)": lambda: compare.clone_project(p, pid, "bản sao")},
+            "view": {"compare.clone_project (nhân bản)": lambda: compare.clone_project(p, pid, "bản sao"),
+                     "Pipeline.history (S14.7)": lambda: p.history(jid)},
             "manage": {
                 "archive.archive (cất)": lambda: archive.archive(p, pid),
                 "archive.restore": lambda: archive.restore(p, pid),

@@ -652,6 +652,11 @@ class Pipeline:
 
     # ---- queries -------------------------------------------------------
     def history(self, job_id: int):
+        if getattr(self, "user", None) is not None:              # S14.7: read-only → the VIEW right on the job's project
+            pid = access.project_of_job(self.conn, job_id)
+            if pid is None:
+                raise access.AccessDenied(f"Không tìm thấy việc #{job_id} để xem lịch sử.")
+            access.need_view(self, pid, "xem lịch sử việc")
         return self.conn.execute(
             "SELECT from_state, to_state, actor, note FROM job_events WHERE job_id=? ORDER BY id",
             (job_id,)).fetchall()
