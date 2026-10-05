@@ -69,8 +69,10 @@ def reset(conn, pid: int) -> None:
 
 
 def start(conn, pid: int, idea: str, duration_s: int = 30, aspect: str = "9:16", platform: str = "TikTok", tone: str = "",
-          characters: Optional[List[str]] = None, cta: str = "", trend: str = "off") -> Dict:
+          characters: Optional[List[str]] = None, cta: str = "", trend: str = "off", p=None) -> Dict:
     """A new idea (forgets the previous one's turns)."""
+    if p is not None:                                   # rà S14.21: a viewer must not spend on (or change) the Biên kịch
+        access.need_edit(p, pid, "chạy Biên kịch")
     idea = (idea or "").strip()
     if len(idea) < 10:
         raise IdeaError("Ý tưởng quá ngắn — viết ít nhất một câu: ai, ở đâu, chuyện gì")
@@ -208,7 +210,9 @@ def _need(obj, key, kind):
     return obj[key]
 
 
-def questions(conn, pid: int, client, wish: str = "") -> Dict:
+def questions(conn, pid: int, client, wish: str = "", p=None) -> Dict:
+    if p is not None:                                   # rà S14.21: a viewer must not spend on (or change) the Biên kịch
+        access.need_edit(p, pid, "chạy Biên kịch")
     state = get_state(conn, pid)
     if not state.get("inputs"):
         raise IdeaError("chưa nhập ý tưởng")
@@ -246,7 +250,9 @@ def directions_input_changed(state: Dict, replies: List[str], wish: str = "") ->
     return now != [a.get("a") for a in state.get("answers") or []]
 
 
-def directions(conn, pid: int, client, wish: str = "") -> Dict:
+def directions(conn, pid: int, client, wish: str = "", p=None) -> Dict:
+    if p is not None:                                   # rà S14.21: a viewer must not spend on (or change) the Biên kịch
+        access.need_edit(p, pid, "chạy Biên kịch")
     state = get_state(conn, pid)
     if "answers" not in state:
         state = answer(conn, pid, [])
@@ -297,7 +303,9 @@ def check_outline(beats: List[Dict], duration_s: float) -> List[Dict]:
     return out
 
 
-def outline(conn, pid: int, client, choice: int, note: str = "", wish: str = "") -> Dict:
+def outline(conn, pid: int, client, choice: int, note: str = "", wish: str = "", p=None) -> Dict:
+    if p is not None:                                   # rà S14.21: a viewer must not spend on (or change) the Biên kịch
+        access.need_edit(p, pid, "chạy Biên kịch")
     state = get_state(conn, pid)
     if not state.get("directions") or not 0 <= choice < len(state["directions"]):
         raise IdeaError("chọn một trong 3 hướng trước")
@@ -396,7 +404,9 @@ def check_script(conn, pid: int, script: str, inputs: Dict) -> Dict:
     return {"ok": not problems, "scenes": len(scenes), "problems": problems, "flags": sorted(set(flags))}
 
 
-def write(conn, pid: int, client, wish: str = "") -> Dict:
+def write(conn, pid: int, client, wish: str = "", p=None) -> Dict:
+    if p is not None:                                   # rà S14.21: a viewer must not spend on (or change) the Biên kịch
+        access.need_edit(p, pid, "chạy Biên kịch")
     state = get_state(conn, pid)
     if not state.get("beats"):
         raise IdeaError("duyệt dàn ý trước")
@@ -413,8 +423,10 @@ def write(conn, pid: int, client, wish: str = "") -> Dict:
     return save_state(conn, pid, state)
 
 
-def edit(conn, pid: int, script: str) -> Dict:
+def edit(conn, pid: int, script: str, p=None) -> Dict:
     """The person's own edit of the script: kept, checked again (0 USD)."""
+    if p is not None:                                   # rà S14.21: a viewer must not spend on (or change) the Biên kịch
+        access.need_edit(p, pid, "chạy Biên kịch")
     state = get_state(conn, pid)
     state["script"] = (script or "").strip()
     state["edited"] = True

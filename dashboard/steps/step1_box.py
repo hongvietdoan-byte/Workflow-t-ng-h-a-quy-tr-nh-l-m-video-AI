@@ -32,7 +32,8 @@ def _take(p: Pipeline, pid: int, got) -> None:
         return
     started = bool(I.get_state(p.conn, pid).get("inputs"))
     mode = ss.get(k["mode"]) or I.classify(ss.get(k["text"], "")).get("kind")
-    if started and mode == "idea" and not files and I.classify(text)["kind"] == "idea":
+    if (started and mode == "idea" and not files and I.classify(text)["kind"] != "script"
+            and len(text.strip()) < I.IDEA_MAX_CHARS):                   # rà: "Lưu ý: …" / "Kelly: nói nhẹ hơn" is a wish, not a script
         ss[k["wish"]] = text.strip()                                   # "nói thêm" for the next paid turn (shown, removable)
         return
     ss[k["text"]] = ss[k["paste"]] = text                              # paste_ is drawn later in this run → may be set now

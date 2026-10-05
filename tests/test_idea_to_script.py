@@ -215,3 +215,40 @@ class WishTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class ReviewFixesS1421(unittest.TestCase):
+    """Rà độc lập S14.21 (05/10): khóa prompt bằng sha256 từng khối; lời "nói thêm" có dấu hai chấm; người chỉ xem không chi tiền."""
+
+    PINNED = {"CHUNG": "6214cbec322cd630", "LƯỢT 1": "83dc981e224c7c48", "LƯỢT 2": "82d2f86afcee5e03",
+              "LƯỢT 3": "abda8a0259d2fe91", "LƯỢT 4": "19179b6558f1e72e"}   # = prompts/23 at 43f5162 (the S11.2 replay recording)
+
+    def test_the_prompt_blocks_are_pinned(self):
+        import hashlib
+        for name, want in self.PINNED.items():
+            got = hashlib.sha256(I._section(name).encode("utf-8")).hexdigest()[:16]
+            self.assertEqual(got, want, f"khối {name} của prompts/23 đổi → replay S11.2 sẽ miss (đổi có chủ ý thì ghi lại bản ghi)")
+
+    def test_a_wish_with_a_colon_is_still_a_wish(self):
+        from unittest import mock
+        from dashboard.steps import step1_box
+        p = Pipeline(connect())
+        pid = p.create_project("ý", operating_mode="human_qc")
+        I.start(p.conn, pid, "Kelly và Maxim tranh nhau hộp thính")
+        fake = mock.MagicMock()
+        fake.session_state = {f"in_mode_{pid}": "idea", f"box_text_{pid}": "Kelly và Maxim tranh nhau hộp thính"}
+        with mock.patch.object(step1_box, "st", fake):
+            step1_box._take(p, pid, "Lưu ý: cho Maxim thắng")
+        self.assertEqual(fake.session_state.get(f"box_wish_{pid}"), "Lưu ý: cho Maxim thắng")
+        self.assertEqual(fake.session_state[f"box_text_{pid}"], "Kelly và Maxim tranh nhau hộp thính")   # the idea is kept
+
+    def test_a_viewer_cannot_spend_on_the_screenwriter(self):
+        from core import access
+        p = Pipeline(connect())
+        pid = p.create_project("ý", operating_mode="human_qc")
+        I.start(p.conn, pid, "Kelly và Maxim tranh nhau hộp thính")
+        p.user = {"email": "la@garena.vn", "role": "member"}
+        m = Recorder()
+        with self.assertRaises(access.AccessDenied):
+            I.questions(p.conn, pid, m, p=p)
+        self.assertEqual(m.prompts, [])

@@ -67,7 +67,7 @@ def idea_settings_form(p: Pipeline, pid: int, idea: str) -> None:
             new = st.form_submit_button("💡 Ý tưởng mới (bắt đầu lại từ lượt 1)" if inp else "💡 Bắt đầu")
         if inp and idea.strip() and idea.strip() != inp.get("idea"):
             cap("Chữ trong khung khác ý tưởng đang làm — bấm 💡 Ý tưởng mới để bắt đầu lại với chữ mới (các lượt cũ bị bỏ).")
-    if new and act(lambda: I.start(p.conn, pid, idea, dur, aspect, platform, tone, chars, cta, trend)):
+    if new and act(lambda: I.start(p.conn, pid, idea, dur, aspect, platform, tone, chars, cta, trend, p=p)):
         st.rerun()
 
 
@@ -77,7 +77,7 @@ def turn_questions(p, pid, state, client, wish, used) -> list:
     st.markdown("**1 · Hỏi lại**")
     if not state.get("questions"):
         if _paid("▶ Lượt 1: Biên kịch đọc ý tưởng + hỏi lại", f"idea_q_{pid}", state) \
-                and act(lambda: I.questions(p.conn, pid, client, wish=wish)):
+                and act(lambda: I.questions(p.conn, pid, client, wish=wish, p=p)):
             used()
             st.rerun()
         return None
@@ -100,7 +100,7 @@ def turn_directions(p, pid, state, client, wish, used, replies):
         if _paid("▶ Lượt 2: 3 hướng", f"idea_d_{pid}", state):
             def go():
                 I.answer(p.conn, pid, replies)
-                I.directions(p.conn, pid, client, wish=wish)
+                I.directions(p.conn, pid, client, wish=wish, p=p)
             if act(go):
                 used()
                 st.rerun()
@@ -114,7 +114,7 @@ def turn_directions(p, pid, state, client, wish, used, replies):
                  help=None if changed else "Đổi câu trả lời ở lượt 1 hoặc nói thêm ở khung bên dưới trước — hỏi lại y hệt là trả tiền cho cùng một câu hỏi."):
         def redo():
             I.answer(p.conn, pid, replies)
-            I.directions(p.conn, pid, client, wish=wish)
+            I.directions(p.conn, pid, client, wish=wish, p=p)
         if act(redo):
             used()
             st.rerun()
@@ -126,7 +126,7 @@ def turn_outline(p, pid, state, client, wish, used, choice, note) -> bool:
     st.markdown("**3 · Dàn ý theo giây**")
     if not state.get("beats") or state.get("chosen") != choice:
         if _paid("▶ Lượt 3: dàn ý theo giây cho hướng này", f"idea_o_{pid}", state) \
-                and act(lambda: I.outline(p.conn, pid, client, choice, note, wish=wish)):
+                and act(lambda: I.outline(p.conn, pid, client, choice, note, wish=wish, p=p)):
             used()
             st.rerun()
         return False
@@ -149,7 +149,7 @@ def turn_script(p, pid, state, client, wish, used) -> None:
     inp = state["inputs"]
     st.markdown("**4 · Kịch bản**")
     if not state.get("script"):
-        if _paid("▶ Lượt 4: viết kịch bản đầy đủ", f"idea_w_{pid}", state) and act(lambda: I.write(p.conn, pid, client, wish=wish)):
+        if _paid("▶ Lượt 4: viết kịch bản đầy đủ", f"idea_w_{pid}", state) and act(lambda: I.write(p.conn, pid, client, wish=wish, p=p)):
             used()
             st.rerun()
         return
@@ -173,7 +173,7 @@ def turn_script(p, pid, state, client, wish, used) -> None:
         ui.html(_marked_html(inp["idea"], state["script"]))
     edited = st.text_area("Sửa tay kịch bản (giữ khuôn CẢNH n - …)", state["script"], height=220, key=f"idea_edit_{pid}")
     if edited.strip() != state["script"] and st.button("💾 Lưu bản sửa + kiểm lại", key=f"idea_save_{pid}"):
-        if act(lambda: I.edit(p.conn, pid, edited)):
+        if act(lambda: I.edit(p.conn, pid, edited, p=p)):
             st.rerun()
     chk = state.get("script_checks") or {}
     for t in chk.get("problems") or []:
