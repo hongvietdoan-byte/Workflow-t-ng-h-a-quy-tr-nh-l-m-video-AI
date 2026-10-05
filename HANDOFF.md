@@ -42,3 +42,16 @@ Nhánh `s14-2-price-labels` (từ `b15522a`). Không sửa TODO.md, không push,
 - Nhãn Claude dùng trung bình đo của khâu "director" cho các việc nhỏ (rà thoại, Lock…) → số có thể cao hơn thật (tính dư, cố ý).
 - Script thử nghiệm cũ: chạm trần ở lời gọi Claude giữa chừng → CapReached dừng script (tóm tắt in lúc thoát); file đã ghi được giữ.
 - `areas.json`: thêm `core/script_cap.py`, `tests/test_price_label_scan.py`, `tests/test_script_cap.py` vào khu vực `budget` (không tăng version).
+
+## Sửa theo rà soát độc lập A2 (05/10, sau `git merge main` có S14.19)
+1. (chặn) `devsys/app.py`: nút "Chấm N khu vực bằng Claude" spawn qua `scorer.score_command` (+ `--max-usd` = `usd_max` làm tròn lên
+   cent); `scorer.run_state(log)` → lần chấm bị từ chối / DỪNG / lỗi hiện `st.error` + nhật ký trên trang. Test `DevsysScoreSpawn`.
+2. (lỗ khóa) `core/storyboard_frames.run(..., conn=)`: mỗi khung hỏi `script_cap` (CapReached) + `budget.check_image` (hết tiền)
+   TRƯỚC khi gửi; khung đã gửi vẫn được lấy về, `res["stopped"]` nói lý do. storyboard_test / scene_wide_test truyền `conn=p.conn`.
+   `test_spend_gate_scan` PENDING_B thêm `storyboard_frames.run` (chưa có project_budget — S14.1 A1 phần còn lại). Test `ScriptCapTests`.
+3. (a) `runner.submit_pending`: trần script đã dừng → hủy job queued (lịch sử ghi lý do), hết job đang chạy → CapReached kết thúc vòng chờ.
+   (b) `cap.start()` cài excepthook: CapReached in một câu tiếng Việt, không traceback (mã thoát ≠ 0).
+   (c) ví dụ lệnh / câu "thêm --yes" trong script + dòng S16 kế hoạch ghi `--max-usd`.
+   (d) `llm_tag` ghi "(ước tính)"; `video_batch_tag` thêm "tự gen lại tối đa 2 lần ≈ …" (AUTO_REGEN_LIMIT video).
+   (e) test quét giá: `form_submit_button`, `on_click=` (lambda / def), `idea_to_script.*`; PRICE = `≈\s*\$?[\d,.]+|chưa có giá`.
+   (f) `cost._memo`: giá nhãn (video_batch_tag, lượt viết lại prompt của image_button_tag) nhớ tới khi CSDL đổi (total_changes + data_version).
