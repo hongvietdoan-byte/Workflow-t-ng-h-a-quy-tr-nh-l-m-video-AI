@@ -134,6 +134,50 @@ class ReadOnlyModeTests(AccessUiBase):
         self.assertFalse(at.text_area(key=f"fb_text_{self.pid}").proto.disabled)
         self.assertFalse(keys["fb_screen_send"])
         self.assertTrue(keys[f"deliver_{self.pid}"])                       # the delivery itself stays locked
+    @staticmethod
+    def crafted(at, values):
+        """What a crafted browser message would send: the current widget states + `values` ({widget id: (field, value)}).
+        AppTest refuses to set a disabled widget, so the message is built by hand like a modified client would."""
+        ws = at._tree.get_widget_states()
+        for wid, (field, value) in values.items():
+            w = next((x for x in ws.widgets if x.id == wid), None) or ws.widgets.add()
+            w.id = wid
+            setattr(w, field, value)
+        return at._run(ws)
+
+    def test_streamlit_drops_values_sent_for_a_disabled_widget(self):
+        """S14.7 (D1, kế hoạch 3.5 ý 4): khóa "chỉ xem" có hiệu lực ở SERVER vì Streamlit bỏ giá trị gửi lên của widget `disabled`
+        (đã kiểm trên 1.64.0). Ghim bản tối thiểu trong requirements.txt để một lần hạ cấp không mở lại lỗ này."""
+        script = ("import streamlit as st\n"
+                  "v = st.text_input('x', key='t', disabled={d})\n"
+                  "c = st.button('b', key='b', disabled={d})\n"
+                  "st.markdown(f'v={{v!r}} c={{c}}')\n")
+        for disabled, want in ((False, "v='hack' c=True"), (True, "v='' c=False")):     # control first: the crafted message works
+            at = AppTest.from_string(script.format(d=disabled))
+            at.run()
+            self.crafted(at, {at.text_input(key="t").id: ("string_value", "hack"), at.button(key="b").id: ("trigger_value", True)})
+            self.assertFalse(at.exception, at.exception)
+            self.assertEqual(at.markdown[-1].value, want, f"disabled={disabled}")
+        # the real screen: a click sent for the disabled ⏸ never reaches the core (no refusal message, nothing written)
+        real = self.sign_in(WVIEW, "1")
+        pause = next(b for b in real.button if b.key == "btn_pause")
+        self.assertTrue(pause.proto.disabled)
+        before = [e.value for e in real.error]     # (a viewer already sees one refusal: the format panel auto-fills an empty aspect)
+        self.crafted(real, {pause.id: ("trigger_value", True)})
+        self.assertFalse(real.exception, real.exception)
+        self.assertEqual([e.value for e in real.error], before)          # no new refusal: the core was never even asked
+        self.assertEqual(self.conn.execute("SELECT paused FROM projects WHERE id=?", (self.pid,)).fetchone()[0], 0)
+
+    def test_requirements_pin_the_streamlit_that_drops_disabled_values(self):
+        import re
+        import streamlit
+        req = open(os.path.join(os.path.dirname(__file__), "..", "requirements.txt"), encoding="utf-8").read()
+        m = re.search(r"^streamlit\s*>=\s*([\d.]+)", req, re.M)
+        self.assertIsNotNone(m, "requirements.txt không ghim streamlit")
+        pin = tuple(int(x) for x in m.group(1).split("."))
+        self.assertGreaterEqual(pin, (1, 64), "ghim streamlit thấp hơn bản đã kiểm (1.64)")
+        self.assertGreaterEqual(tuple(int(x) for x in streamlit.__version__.split(".")[:2]), pin[:2])
+
     def test_a_press_that_slips_through_is_refused_by_the_core(self):
         at = self.sign_in(WVIEW, "1")
         self.assertTrue(next(b for b in at.button if b.key == "btn_pause").proto.disabled)
@@ -215,6 +259,135 @@ class ManageWatchersTests(AccessUiBase):
         at = self.sign_in(CREATOR, "team")
         self.assertFalse(at.exception, at.exception)
         self.assertNotIn("team_rm_", " ".join(str(b.key) for b in at.button))
+
+
+class UiHoleTests(AccessUiBase):
+    """S14.7 (D1, kế hoạch 3.5 ý 1): hai nút ghi đi ngoài kiểm quyền — mở lại dịch vụ hết tiền và khôi phục thùng rác."""
+
+    def halt(self):
+        from core import budget
+        budget.halt(self.conn, "clipai", "hết tiền (thử)")
+
+    def test_a_member_without_money_rights_gets_no_reopen_button(self):
+        self.halt()
+        at = self.sign_in(CREATOR, "1")
+        keys = {b.key: b.proto.disabled for b in at.button}
+        self.assertFalse(keys.get("mc_reopen_clipai") is False, "người không có quyền 'Cài đặt & bảng giá' bấm được mở lại dịch vụ")
+        from core import budget
+        self.assertTrue(budget.halted(self.conn, "clipai"))
+
+    def test_the_budget_dialog_checks_the_right_again_when_drawn(self):
+        self.halt()
+        at = self.sign_in(CREATOR, "1")
+        at.session_state["dlg_budget"] = True                          # a stale flag (or a crafted rerun) opens the dialog
+        at.run()
+        self.assertFalse(at.exception, at.exception)
+        keys = {b.key for b in at.button}
+        self.assertNotIn("reopen_clipai", keys)
+        self.assertNotIn("budget_usd", {w.key for w in at.number_input})
+        self.assertTrue(any("Cài đặt & bảng giá" in e.value for e in at.error), [e.value for e in at.error])
+
+    def test_the_owner_still_reopens(self):
+        self.halt()
+        at = self.sign_in(OWNER, "1")
+        b = next(b for b in at.button if b.key == "mc_reopen_clipai")
+        self.assertFalse(b.proto.disabled)
+        b.click().run()
+        from core import budget
+        self.assertFalse(budget.halted(self.conn, "clipai"))
+
+    def trashed(self):
+        from core import trash
+        data = os.path.join(self.tmp, "projects")
+        img = os.path.join(data, str(self.pid), "images", "job_99.png")
+        os.makedirs(os.path.dirname(img), exist_ok=True)
+        with open(img, "wb") as f:
+            f.write(b"x")
+        trash.move_to_trash(img, data, self.pid, "images", "bị loại", 99, 1)
+        return img
+
+    def test_a_view_only_watcher_cannot_restore_from_the_trash(self):
+        img = self.trashed()
+        at = self.sign_in(WVIEW, "1")
+        at.session_state["dlg_history"] = True
+        at.run()
+        self.assertFalse(at.exception, at.exception)
+        btns = [b for b in at.button if str(b.key).startswith("tr_images_")]
+        self.assertTrue(btns, "không thấy nút khôi phục")
+        self.assertTrue(all(b.proto.disabled for b in btns), "người chỉ xem bấm được ↩ Khôi phục")
+        self.assertFalse(os.path.exists(img))
+
+    def test_an_edit_watcher_restores(self):
+        img = self.trashed()
+        at = self.sign_in(WEDIT, "1")
+        at.session_state["dlg_history"] = True
+        at.run()
+        b = next(b for b in at.button if str(b.key).startswith("tr_images_"))
+        self.assertFalse(b.proto.disabled)
+        b.click().run()
+        self.assertFalse(at.exception, at.exception)
+        self.assertTrue(os.path.exists(img))
+
+
+class MachineLoginUiTests(AccessUiBase):
+    """S14.7 (D1, 6b ý 2): DASHBOARD_LAN=1 → thành viên chỉ vào từ máy Owner đã duyệt; cả lối ?login= cũng qua kiểm máy.
+    AppTest không có IP → trình duyệt coi như trên chính máy chủ (tên máy = socket.gethostname, ở đây thay bằng tên giả)."""
+
+    def setUp(self):
+        super().setUp()
+        from core import machine_auth
+        machine_auth.clear_cache()
+        self.addCleanup(machine_auth.clear_cache)
+        for patcher in (mock.patch.dict(os.environ, {"DASHBOARD_LAN": "1", "DASHBOARD_OWNER_PASSCODE": "ma"}),
+                        mock.patch("core.machine_auth.socket.gethostname", return_value="may-chu.vn.corp")):
+            patcher.start()
+            self.addCleanup(patcher.stop)
+
+    def try_in(self, email, link=False) -> AppTest:
+        at = AppTest.from_file(APP, default_timeout=60)
+        at.query_params["step"] = "1"
+        if link:
+            at.query_params["login"] = email
+        at.run()
+        if not link:
+            at.text_input(key="login_email").set_value(email)
+            next(b for b in at.button if b.key == "login_btn").click().run()
+        self.assertFalse(at.exception, at.exception)
+        return at
+
+    def signed_in(self, at) -> bool:
+        return not any(b.key == "login_btn" for b in at.button)
+
+    def status(self):
+        r = self.conn.execute("SELECT status FROM machine_approvals WHERE email=? AND machine='MAY-CHU'", (CREATOR,)).fetchone()
+        return r[0] if r else None
+
+    def test_a_member_waits_until_the_owner_approves_the_machine(self):
+        at = self.try_in(CREATOR)
+        self.assertFalse(self.signed_in(at))
+        self.assertTrue(any("chờ Owner duyệt máy MAY-CHU" in i.value for i in at.info), [i.value for i in at.info])
+        self.assertEqual(self.status(), "pending")
+        owner = self.sign_in(OWNER, "team")                                    # the Owner on the server machine: as before
+        self.assertTrue(self.signed_in(owner))
+        btn = next(b for b in owner.button if b.key == f"mach_ok_{CREATOR}_MAY-CHU")
+        btn.click().run()
+        self.assertFalse(owner.exception, owner.exception)
+        self.assertEqual(self.status(), "approved")
+        self.assertTrue(self.signed_in(self.try_in(CREATOR)))
+
+    def test_an_old_login_link_goes_through_the_machine_check(self):
+        at = self.try_in(CREATOR, link=True)
+        self.assertFalse(self.signed_in(at))
+        self.assertEqual(self.status(), "pending")
+
+    def test_a_revoked_machine_ends_the_open_session(self):
+        from core import machine_auth
+        machine_auth.approve(self.conn, OWNER, CREATOR, "MAY-CHU")
+        at = self.try_in(CREATOR)
+        self.assertTrue(self.signed_in(at))
+        machine_auth.revoke(self.conn, OWNER, CREATOR, "MAY-CHU")
+        at.run()
+        self.assertFalse(self.signed_in(at))
 
 
 class LegacyLookTests(AccessUiBase):

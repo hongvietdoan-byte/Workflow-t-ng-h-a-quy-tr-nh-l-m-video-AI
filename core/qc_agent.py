@@ -16,6 +16,7 @@ import os
 import re
 from typing import Dict, List, Optional, Tuple
 
+from . import access
 from . import features
 
 FEATURE = "qc_agent"
@@ -709,6 +710,7 @@ def review_scene(p, pid: int, story_scene, client, data_dir: str, frames: Option
     """Run the agent on one scene (all its frames as context, `focus` = the job ids to record) and apply its verdicts the qc_scene way
     (not trusted yet → every frame held with the verdict as note). A frame already APPROVED that the agent blocks or doubts is said
     (diag warn) — the playbook F1 asks to look at them again (review 2026-09-28: it went only to reviews.json)."""
+    access.need_edit(p, pid, "chạy QC cảnh")
     from . import diag, qc_scene
     frames = frames or qc_scene.scene_frames(p, pid, story_scene, data_dir)
     if not frames:

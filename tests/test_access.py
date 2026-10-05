@@ -7,12 +7,15 @@ import tempfile
 import unittest
 
 from core import access, archive, auth, autopilot, batch, compare, delivery, end_frames, inbox, llm_runner, pilot, project_budget
+from core import (audio_lib, claude_tasks, costume, editor_apply, editor_review, experiments, llm_io, model_router, music, previz, qc_agent,
+                  voice, voice_check)
 from core.access import AccessDenied
 from core.auth import Identity
 from core.db import connect
 from core.pipeline import Pipeline
 
 OWNER = auth.OWNER_EMAIL
+_TMP = tempfile.mkdtemp(prefix="access_matrix_")          # data dir for the core calls of the matrix: never the repo folder
 CREATOR, WVIEW, WEDIT, STRANGER = "chu@garena.vn", "xem@garena.vn", "sua@garena.vn", "la@garena.vn"
 WHO = {"owner": {"email": OWNER, "role": "owner"}, "creator": {"email": CREATOR, "role": "member"},
        "watch_edit": {"email": WEDIT, "role": "member"}, "watch_view": {"email": WVIEW, "role": "member"},
@@ -63,6 +66,82 @@ def outcome(fn) -> str:
     except Exception:  # noqa: BLE001 - past the guard; the call itself may fail for lack of a provider / script
         return "ok"
     return "ok"
+
+
+class ConnFunctionsWithoutPTests(unittest.TestCase):
+    """S14.7 (D1): p=None (autopilot / hệ thống) = hành vi cũ — không kiểm quyền."""
+
+    def test_no_p_means_no_check(self):
+        conn, pid, sid, _jid = make_world()
+        project_budget.set_target(conn, pid, 5.0)
+        model_router.set_override(conn, sid, None)
+        self.assertEqual(outcome(lambda: voice.generate(conn, pid, None, _TMP)), "ok")
+
+
+class WriteFunctionScanTests(unittest.TestCase):
+    """S14.7 (D1, nguyên tắc 3 — test quét): một hàm lõi công khai nhận `p`/`pipeline` + mã dự án và GHI vào CSDL phải kiểm quyền
+    (access.need_* / access.require, hoặc đi qua claude_tasks._run). Danh sách KNOWN = các hàm cũ chưa kiểm (ghi nhận 05/10, chỉ được
+    co lại): hàm MỚI ghi mà thiếu kiểm quyền làm test đỏ."""
+    KNOWN = {"hero_takes.step", "llm_io.unlock_scene_fields", "llm_io.store_motion_prompts", "music.set_off", "previz.compose_scene",
+             "script_parser.import_scenes", "script_parser.store_end_card", "seedance_refs.code_motion", "shots.save_story_scenes",
+             "shots.replace_from", "shots.store_plan", "style.save", "style.save_preset", "subjects.link", "subjects.unlink",
+             "subtitles.save_settings"}
+
+    def test_new_write_functions_check_the_right(self):
+        import ast
+        import glob
+        import re
+        write = re.compile(r"^\s*(INSERT|UPDATE|DELETE|REPLACE)\b")
+        root = os.path.join(os.path.dirname(__file__), "..", "core")
+        found = set()
+        for path in sorted(glob.glob(os.path.join(root, "*.py"))):
+            mod = os.path.splitext(os.path.basename(path))[0]
+            with open(path, encoding="utf-8") as fh:
+                tree = ast.parse(fh.read())
+            for n in tree.body:
+                if not isinstance(n, ast.FunctionDef) or n.name.startswith("_"):
+                    continue
+                args = [a.arg for a in n.args.args]
+                if len(args) < 2 or args[0] not in ("p", "pipeline") or args[1] not in ("pid", "project_id"):
+                    continue
+                if not any(isinstance(c, ast.Constant) and isinstance(c.value, str) and write.match(c.value) for c in ast.walk(n)):
+                    continue
+                src = ast.unparse(n)
+                if "need_" in src or "access.require" in src or "_run(" in src:
+                    continue
+                found.add(f"{mod}.{n.name}")
+        self.assertEqual(sorted(found - self.KNOWN), [], "hàm ghi mới thiếu access.need_* (thêm kiểm quyền ở đầu hàm)")
+
+
+class MissingEmailIsClosedTests(unittest.TestCase):
+    """S14.7 (D1, kế hoạch 3.5 ý 3): có danh tính nhưng thiếu e-mail → KHÔNG có quyền (trước đây = hệ thống, mọi quyền)."""
+
+    def setUp(self):
+        self.conn, self.pid, self.sid, self.jid = make_world()
+        self.orphan = Pipeline(self.conn).create_project("dự án cũ không chủ")
+
+    def test_identity_without_email_has_no_right(self):
+        for ident in ({"email": ""}, {"email": "", "role": "member"}, {"email": "  ", "role": "owner"}, {"role": "member"}, {},
+                      Identity("", "x", "member", [])):
+            self.assertIsNotNone(access.user_of(ident), ident)
+            self.assertIsNone(access.level(self.conn, self.pid, ident), ident)
+            self.assertFalse(access.can_view(self.conn, self.orphan, ident), ident)
+            self.assertEqual(access.visible_ids(self.conn, ident), set(), ident)
+            self.assertEqual(access.levels_for(self.conn, ident), {}, ident)
+
+    def test_a_pipeline_whose_user_has_no_email_is_refused(self):
+        p = Pipeline(self.conn)
+        p.user = {"email": "", "role": "owner"}
+        with self.assertRaises(AccessDenied):
+            p.set_paused(self.pid, True)
+
+    def test_system_and_sign_in_off_stay_unrestricted(self):
+        self.assertIsNone(access.user_of(None))
+        self.assertIsNone(access.user_of({"email": "local", "name": "Local (đăng nhập tắt)", "role": "owner", "perms": []}))
+        self.assertEqual(access.level(self.conn, self.pid, None), "admin")
+        p = Pipeline(self.conn)                                         # autopilot / worker: p.user None, only p.actor is set
+        p.actor = "chu@garena.vn"
+        p.set_paused(self.pid, True)
 
 
 class LevelTests(unittest.TestCase):
@@ -123,8 +202,32 @@ class CoreEntryPointMatrix(unittest.TestCase):
                 "project_budget.approve": lambda: project_budget.approve(p, pid, "x"),
                 "pilot.start": lambda: pilot.start(p, pid),
                 "end_frames.queue": lambda: end_frames.queue(p, pid),
+                # S14.7 (D1, kế hoạch 3.5 ý 2): lớp lõi — hàm nhận `p`
+                "llm_io.update_scene": lambda: llm_io.update_scene(p, pid, 1, {"title": "y"}),
+                "llm_io.add_character": lambda: llm_io.add_character(p, pid, "Mới", "mô tả"),
+                "llm_io.update_character": lambda: llm_io.update_character(p, pid, "Mới", "mô tả"),
+                "llm_io.lock_character_bible": lambda: llm_io.lock_character_bible(p, pid),
+                "llm_io.unlock_character_bible": lambda: llm_io.unlock_character_bible(p, pid),
+                "llm_io.store_scene_analysis": lambda: llm_io.store_scene_analysis(p, pid, {}),
+                "previz.plan_layouts": lambda: previz.plan_layouts(p, pid, None, _TMP),
+                "qc_agent.review_scene": lambda: qc_agent.review_scene(p, pid, 1, None, _TMP),
+                "costume.make_character_set": lambda: costume.make_character_set(p, pid, "Mới", None, _TMP),
+                "editor_review.run": lambda: editor_review.run(p, pid, None, _TMP),
+                "editor_apply.apply": lambda: editor_apply.apply(p, pid, _TMP, []),
+                "experiments.kling_multishot": lambda: experiments.kling_multishot(p, pid, 1, None, _TMP),
+                "claude_tasks._run (cả nhóm)": lambda: claude_tasks._run(p, pid, "director", "x", None, None),
+                # hàm nhận conn/provider: dashboard truyền p=p (autopilot / hệ thống không truyền → như cũ)
+                "voice.generate(p=p)": lambda: voice.generate(p.conn, pid, None, _TMP, p=p),
+                "voice_check.redo(p=p)": lambda: voice_check.redo(p.conn, pid, None, _TMP, p=p),
+                "model_router.set_override(p=p)": lambda: model_router.set_override(p.conn, sid, None, p=p),
+                "project_budget.set_target(p=p)": lambda: project_budget.set_target(p.conn, pid, 5.0, p=p),
+                "project_budget.raise_cap(p=p)": lambda: project_budget.raise_cap(p.conn, pid, "image", 1.0, "x", "lý do", p=p),
+                "music.submit_drafts(p=p)": lambda: music.submit_drafts(None, _TMP, "x", None, True, p=p, project_id=pid),
+                "audio_lib.submit_sfx(p=p)": lambda: audio_lib.submit_sfx(None, _TMP, "x", p=p, project_id=pid),
+                "audio_lib.submit_tts(p=p)": lambda: audio_lib.submit_tts(None, _TMP, "x", 1, p=p, project_id=pid),
             },
-            "view": {"compare.clone_project (nhân bản)": lambda: compare.clone_project(p, pid, "bản sao")},
+            "view": {"compare.clone_project (nhân bản)": lambda: compare.clone_project(p, pid, "bản sao"),
+                     "Pipeline.history (S14.7)": lambda: p.history(jid)},
             "manage": {
                 "archive.archive (cất)": lambda: archive.archive(p, pid),
                 "archive.restore": lambda: archive.restore(p, pid),

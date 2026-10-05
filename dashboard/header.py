@@ -177,10 +177,18 @@ def _risk_body(notes) -> None:
 
 
 def sign_in(conn, email: str, passcode: str = None) -> bool:
-    """Try to sign this browser session in. True on success (the address remembers the e-mail for reloads)."""
+    """Try to sign this browser session in. True on success (the address remembers the e-mail for reloads).
+    The one way in, for the form and for an old ?login= link alike: with DASHBOARD_LAN=1 it goes through core/machine_auth (try limit,
+    a member only from a machine the Owner approved, audit with the machine name); otherwise auth.login exactly as before."""
+    from core import machine_auth
     source, local = request_source()
+    st.session_state.pop("login_notice", None)
     try:
-        st.session_state["auth_token"] = auth.login(conn, email, source, local, passcode)
+        st.session_state["auth_token"] = machine_auth.sign_in(conn, email, C.request_ip(), local, source, passcode)
+    except machine_auth.MachinePending as e:            # S14.7: not an error — the Owner has to approve this PC first
+        st.session_state.pop("login_error", None)
+        st.session_state["login_notice"] = str(e)
+        return False
     except auth.AuthError as e:
         st.session_state["login_error"] = str(e)
         return False
@@ -203,9 +211,16 @@ def login_screen(conn) -> None:
             passcode = st.text_input("Mã Owner (khi đăng nhập Owner từ máy khác)", type="password", key="login_passcode")
         if st.button("Vào Dashboard", key="login_btn", type="primary") and sign_in(conn, email, passcode):
             st.rerun()
+        if st.session_state.get("login_notice"):
+            st.info("⏳ " + st.session_state["login_notice"])
         if st.session_state.get("login_error"):
             st.error(st.session_state["login_error"])
-        st.caption("Chỉ cần nhập e-mail. E-mail công ty được vào với quyền làm video; quyền khác do Owner cấp.")
+        from core import machine_auth
+        if machine_auth.lan_on():
+            st.caption("Chỉ cần nhập e-mail. Dashboard đang mở cho mạng LAN: thành viên chỉ vào được từ máy PC đã được Owner duyệt "
+                       "(lần đầu từ một máy → gửi yêu cầu duyệt, chờ Owner ở 👥 Nhóm).")
+        else:
+            st.caption("Chỉ cần nhập e-mail. E-mail công ty được vào với quyền làm video; quyền khác do Owner cấp.")
 
 
 def require_login(conn) -> None:
@@ -236,6 +251,15 @@ def require_login(conn) -> None:
         if ident is None:
             login_screen(conn)
             st.stop()
+    from core import machine_auth                          # S14.7: a member's session works only from a machine approved for them
+    refused = machine_auth.session_refusal(conn, ident.email, ident.role, C.request_ip(), request_source()[1])
+    if refused:
+        for key in ("auth_token", "identity"):
+            st.session_state.pop(key, None)
+        st.query_params.pop("s", None)
+        st.session_state["login_error"] = refused
+        login_screen(conn)
+        st.stop()
     st.session_state["identity"] = {"email": ident.email, "name": ident.name, "role": ident.role, "perms": ident.perms}
 
 
@@ -472,9 +496,13 @@ def money_card(p: Pipeline, pid) -> None:
     with st.popover(label + flag, help="Tiền còn lại theo dịch vụ + dự án; duyệt ngân sách dự án; bảng giá"):
         for service, h in halts.items():
             st.error(f"**{service}** báo HẾT TIỀN lúc {h.get('at')} — mọi lượt gửi tới dịch vụ này đang dừng.")
-            if st.button(f"Đã nạp tiền — mở lại {service}", key=f"mc_reopen_{service}"):
-                budget.reopen(p.conn, service)
-                st.rerun()
+            # S14.7 (D1): mở lại một dịch vụ là việc tiền → chỉ người có quyền "Cài đặt & bảng giá" (hoặc Owner)
+            if allowed("settings"):
+                if st.button(f"Đã nạp tiền — mở lại {service}", key=f"mc_reopen_{service}"):
+                    budget.reopen(p.conn, service)
+                    st.rerun()
+            else:
+                st.caption("Nhờ Owner (hoặc người có quyền “Cài đặt & bảng giá”) mở lại dịch vụ sau khi nạp tiền.")
         more = []                                        # v2: P3 details collected here, drawn once in a "ⓘ Chi tiết" fold at the end
         if s["enabled"]:
             frac = min(s["spent"] / s["usd"], 1.0) if s["usd"] else 0.0
@@ -661,6 +689,9 @@ def _dialog_assets(p: Pipeline) -> None:
 @st.dialog("💵 Ngân sách thử", on_dismiss=lambda: close_dialog("dlg_budget"))
 def _dialog_budget(p: Pipeline) -> None:
     """Hard spending limit of a test round (kế hoạch v3: ≤ $50): jobs that would pass it stay queued."""
+    if not allowed("settings"):        # S14.7 (D1): the flag may be stale / crafted — the right is checked again when drawn
+        st.error("Ngân sách thử chỉ dành cho Owner hoặc người có quyền “Cài đặt & bảng giá”. Nhờ Owner cấp quyền ở 👥 Nhóm.")
+        return
     p = _own(p)
     from core import budget
     s = budget.status(p.conn)
@@ -735,6 +766,9 @@ def _dialog_clone(p: Pipeline, pid: int) -> None:
 
 @st.dialog("💲 Bảng giá", on_dismiss=lambda: close_dialog("dlg_pricing"))
 def _dialog_pricing() -> None:
+    if not allowed("settings"):        # S14.7 (D1): same re-check as the budget dialog (a stale flag opens it for anyone)
+        st.error("Bảng giá chỉ dành cho Owner hoặc người có quyền “Cài đặt & bảng giá”.")
+        return
     price_editor()
 
 

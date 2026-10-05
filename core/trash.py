@@ -118,6 +118,13 @@ def restore(data_dir: str, project_id: int, kind: str, file_name: str) -> str:
     return target
 
 
+def restore_as(p, data_dir: str, project_id: int, kind: str, file_name: str) -> str:
+    """`restore` done by the person behind `p` (dashboard): needs the edit right on the project (S14.7, D1)."""
+    from . import access
+    access.need_edit(p, project_id, "khôi phục từ thùng rác")
+    return restore(data_dir, project_id, kind, file_name)
+
+
 DELETED_DIR = "_deleted"          # whole folders of deleted projects wait here for the same retention period
 
 

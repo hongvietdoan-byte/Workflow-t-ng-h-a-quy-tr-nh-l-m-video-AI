@@ -9,6 +9,7 @@ import os
 from datetime import datetime, timezone
 from typing import Dict, List
 
+from . import access
 from .pipeline import Pipeline
 from .providers import ProviderError
 
@@ -78,6 +79,7 @@ def kling_multishot(p: Pipeline, project_id: int, sequence: int, provider, data_
     """Send one Kling multi-shot generation for the sequence (costs credit like one clip of the summed length, max 15 s).
     Goes through the money gate (core.spend_gate) like every clip: refused (ValueError, nothing sent) only when the service is out
     of credit; PipelinePaused when the project is paused. The trial cap / the project's budget only warn (S14.16, money_policy)."""
+    access.need_edit(p, project_id, "gửi Kling multi-shot")
     from . import formats, spend_gate
     scenes, shots, total = _plan(p, project_id, sequence)
     first = os.path.join(data_dir, str(project_id), "images", f"job_{scenes[0]['jid']}.png")

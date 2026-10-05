@@ -10,6 +10,7 @@ import math
 import os
 from typing import Dict, List, Optional
 
+from . import access
 from . import dialogue
 from .memo import read_json
 
@@ -299,8 +300,10 @@ def total(rows: List[Dict]) -> Optional[float]:
     return None if any(c is None for c in costs) else sum(costs)
 
 
-def set_override(conn, scene_id: int, alias: Optional[str]) -> None:
+def set_override(conn, scene_id: int, alias: Optional[str], p=None) -> None:
     """The person's own model for one scene (None = back to the recommendation)."""
+    if p is not None:
+        access.need_edit_scene(p, scene_id, "đổi model của cảnh")
     if alias and alias not in api_models():
         raise ValueError(f"model '{alias}' không gửi được qua API")
     conn.execute("UPDATE motion_prompts SET video_model=? WHERE scene_id=?", (alias or None, scene_id))

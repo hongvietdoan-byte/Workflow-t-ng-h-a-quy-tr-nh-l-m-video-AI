@@ -1,6 +1,8 @@
 """Settings / monitoring panels: knowledge base, asset library, users, pricing, monitor, lessons, history."""
 from dashboard.common import *  # noqa: F401,F403  (shared imports + helpers)
 from dashboard import common as C
+import contextlib
+from dashboard import access_ui
 
 
 
@@ -890,9 +892,11 @@ def asset_library_panel(p: Pipeline) -> None:
 
 
 # ---- history -------------------------------------------------------------------------
-def trash_section(pid: int) -> None:
-    """Deleted/rejected images and clips, kept for the retention period; restorable."""
-    with st.container(border=True):
+def trash_section(pid: int, p: Pipeline = None) -> None:
+    """Deleted/rejected images and clips, kept for the retention period; restorable. With `p` (the signed-in person) the restore
+    buttons follow their right on the project (S14.7, D1): "Chỉ xem" → disabled, and the core refuses anyway (trash.restore_as)."""
+    ro = bool(p is not None and auth_on() and C.read_only(p, pid))
+    with access_ui.read_only(ro) if ro else contextlib.nullcontext(), st.container(border=True):
         ui.html(ui.card_title("🗑 Thùng rác", f"ảnh và video bị xóa/loại · tự xóa vĩnh viễn sau {trash.retention_days()} ngày"))
         t_img, t_vid = st.tabs(["Ảnh", "Video"])
         for tab, kind in ((t_img, "images"), (t_vid, "videos")):
@@ -912,7 +916,8 @@ def trash_section(pid: int) -> None:
                         st.caption(f"{scene}{e['reason']} · xóa {time.strftime('%d/%m/%Y %H:%M', time.localtime(e['deleted_at']))}"
                                    f" · còn {e['days_left']} ngày · {e['original']}")
                     if b.button("↩ Khôi phục", key=f"tr_{kind}_{e['file']}"):
-                        if act(lambda: trash.restore(C.DATA, pid, kind, e["file"]), "Đã khôi phục"):
+                        if act(lambda: (trash.restore_as(p, C.DATA, pid, kind, e["file"]) if p is not None
+                                        else trash.restore(C.DATA, pid, kind, e["file"])), "Đã khôi phục"):
                             st.rerun()
 
 
@@ -1257,7 +1262,7 @@ def history(p: Pipeline, pid: int):
     scenes = p.conn.execute("SELECT id, idx, title FROM scenes WHERE project_id=? ORDER BY idx", (pid,)).fetchall()
     if not scenes:
         st.caption("Chưa có cảnh.")
-        trash_section(pid)
+        trash_section(pid, p)
         return
     sid = st.selectbox("Cảnh", [s["id"] for s in scenes],
                        format_func=lambda i: next(f"{s['idx']} · {s['title']}" for s in scenes if s["id"] == i))
@@ -1283,7 +1288,7 @@ def history(p: Pipeline, pid: int):
         for j in jobs:
             st.markdown(f"**job #{j['id']} {j['type']}** — {j['state']} (retry {j['retry_count']})")
             data_table([dict(h) for h in p.history(j["id"])], width="stretch")
-    trash_section(pid)
+    trash_section(pid, p)
 
 
 # ---- header --------------------------------------------------------------------------

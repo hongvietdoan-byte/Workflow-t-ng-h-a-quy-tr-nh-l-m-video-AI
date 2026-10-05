@@ -26,14 +26,24 @@ class AccessDenied(PermissionError):
     """Thiếu quyền trên một dự án. `str(e)` là câu tiếng Việt cho người dùng thấy."""
 
 
+NOBODY_ROLE = "none"        # an identity with no e-mail: holds no right at all (S14.7)
+
+
 def user_of(identity) -> Optional[Dict]:
-    """{'email','role'} from an auth.Identity or the session's identity dict; None for 'no one' (system / sign-in off)."""
+    """{'email','role'} from an auth.Identity or the session's identity dict; None for 'no one' (system / sign-in off).
+
+    S14.7 (D1, kế hoạch 3.5 ý 3): an identity that IS there but has no e-mail (a broken / half-built session) is CLOSED — it gets
+    {'email': '', 'role': 'none'} and no right on any project — instead of being taken for the system (every right). Where identities
+    are made (checked 05/10): dashboard header.require_login ("local" when sign-in is off, else auth.identity → always an e-mail);
+    autopilot / worker never set p.user (only p.actor, a plain name) → None = system, unchanged."""
     if identity is None:
         return None
     get = identity.get if isinstance(identity, dict) else (lambda k, d=None: getattr(identity, k, d))
     email = (get("email") or "").strip().lower()
-    if not email or email == "local":                         # sign-in off: dashboard puts a pseudo-owner "local"
+    if email == "local":                                      # sign-in off: dashboard puts a pseudo-owner "local"
         return None
+    if not email:
+        return {"email": "", "role": NOBODY_ROLE}
     return {"email": email, "role": get("role") or "member"}
 
 
@@ -46,6 +56,8 @@ def level(conn, project_id: int, user) -> Optional[str]:
     u = user_of(user)
     if u is None:
         return "admin"
+    if not u.get("email"):
+        return None
     if u.get("role") == "owner":
         return "admin"
     row = _row(conn, project_id)
@@ -150,9 +162,11 @@ def need_edit_scene(p, scene_id: int, action: str = "") -> None:
 def visible_ids(conn, user) -> Optional[Set[int]]:
     """Project ids this person may view; None = all of them (Owner / system)."""
     u = user_of(user)
-    if u is None or u.get("role") == "owner":
+    if u is None or (u.get("email") and u.get("role") == "owner"):
         return None
     email = (u.get("email") or "").strip().lower()
+    if not email:
+        return set()
     ids = {r["id"] for r in conn.execute("SELECT id FROM projects WHERE LOWER(TRIM(COALESCE(created_by,'')))=?", (email,))}
     ids |= {r["project_id"] for r in conn.execute("SELECT project_id FROM project_watchers WHERE email=?", (email,))}
     return ids
@@ -166,9 +180,11 @@ def filter_rows(conn, rows: Iterable, user, key: str = "id") -> List:
 def levels_for(conn, user) -> Dict[int, str]:
     """{project_id: level} for the projects the person can see (Owner: every project as 'admin')."""
     u = user_of(user)
-    if u is None or u.get("role") == "owner":
+    if u is None or (u.get("email") and u.get("role") == "owner"):
         return {r["id"]: "admin" for r in conn.execute("SELECT id FROM projects")}
     email = (u.get("email") or "").strip().lower()
+    if not email:
+        return {}
     out = {r["project_id"]: r["level"] for r in conn.execute("SELECT project_id, level FROM project_watchers WHERE email=?", (email,))}
     for r in conn.execute("SELECT id FROM projects WHERE LOWER(TRIM(COALESCE(created_by,'')))=?", (email,)):
         out[r["id"]] = "own"

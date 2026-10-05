@@ -18,6 +18,7 @@ import os
 import re
 from typing import Dict, List, Optional, Tuple
 
+from . import access
 from . import claude_tasks, cost, director_two_pass, features, llm_runner, rough_cut, shots as shots_mod, sound_intent
 
 STAGE = "editor"
@@ -268,6 +269,7 @@ def fingerprint(res: Dict) -> str:
 def run(p, project_id: int, client, data_dir: str, force: bool = False) -> Dict:
     """Review the newest rough cut. Same render + same intent → the saved review (no call). Raises ValueError without a render and
     llm_runner.LlmError when Claude is not configured, a lock refuses, or an answer is invalid twice — nothing is half-saved."""
+    access.need_edit(p, project_id, "duyệt bản thô")
     res = rough_cut.build(p, project_id, data_dir)
     fp = fingerprint(res)
     saved = load(data_dir, project_id)

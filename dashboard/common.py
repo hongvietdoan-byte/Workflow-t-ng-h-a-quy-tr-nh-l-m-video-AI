@@ -332,6 +332,14 @@ def request_source() -> tuple:
         local = host.split(":")[0].strip("[]") in ("localhost", "127.0.0.1", "::1", "")
     return f"host={host} ip={ip}", local
 
+def request_ip() -> str:
+    """The connecting address of this browser session ("" when Streamlit gives none, i.e. a browser on this machine / a test runner)."""
+    try:
+        ip = st.context.ip_address
+    except Exception:  # noqa: BLE001 - an older Streamlit or a test runner
+        return ""
+    return ip if isinstance(ip, str) else ""         # AppTest hands a stand-in object, not an address
+
 def lan_address() -> str:
     import socket
     try:

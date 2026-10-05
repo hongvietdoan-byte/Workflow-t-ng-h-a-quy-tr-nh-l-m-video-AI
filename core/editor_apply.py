@@ -23,6 +23,7 @@ import shutil
 from datetime import datetime, timezone
 from typing import Callable, Dict, List, Optional, Tuple
 
+from . import access
 from . import delivery, editor_review, final_qc, lineage, rough_cut, shots as shots_mod
 
 MAX_ATTEMPTS = 2          # applications per review (kept or not) — luật 6: gen again only with a changed input, ≤ 2
@@ -179,6 +180,7 @@ def _total(man: Dict) -> float:
 def apply(p, project_id: int, data_dir: str, ids: List[str], render_fn: Optional[Callable] = None, qc_fn: Optional[Callable] = None) -> Dict:
     """Apply the ticked proposals. Raises ValueError (nothing changed) when the review is old, the limits are used up, or nothing can be
     applied; a render that fails puts the old cut back and raises. Returns the outcome (also appended to data/<pid>/editor_apply.json)."""
+    access.need_edit(p, project_id, "áp đề xuất dựng")
     render_fn = render_fn or delivery.render
     qc_fn = qc_fn or (lambda: final_qc.run(p, project_id, data_dir, layers=False))
     with delivery.render_lock(data_dir, project_id):

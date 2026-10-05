@@ -1,5 +1,5 @@
 mcp>=2.0,<3
-streamlit>=1.40
+streamlit>=1.64  # S14.7: 1.64 drops values sent for a disabled widget (the read-only lock relies on it)
 openpyxl>=3.1
 fonttools>=4.40
 onnxruntime>=1.18

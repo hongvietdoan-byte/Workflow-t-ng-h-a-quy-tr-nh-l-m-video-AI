@@ -14,6 +14,7 @@ import os
 from datetime import datetime, timezone
 from typing import Dict, List, Optional
 
+from . import access
 from . import assets, diag, layout
 from .llm_runner import LlmError, ask_json, tagged
 from .pipeline import Pipeline
@@ -93,6 +94,7 @@ def _validator(candidates: Dict[int, List[int]], casts: Dict[int, List[str]]):
 def plan_layouts(p: Pipeline, project_id: int, client, data_dir: str) -> Dict:
     """Lay out every scene that has a place with pictures, compose its layout and the storyboard.
     Returns {"laid_out": [idx...], "skipped": [idx...] (no place picture), "moved": [(idx, name)...], "storyboard": path|None}."""
+    access.need_edit(p, project_id, "dựng layout")
     scenes = _scenes(p, project_id)
     todo, skipped, pictures = [], [], {}
     for s in scenes:

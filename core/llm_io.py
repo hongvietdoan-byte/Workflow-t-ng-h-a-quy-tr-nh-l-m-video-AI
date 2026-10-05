@@ -6,6 +6,7 @@ Either way it passes through the same validators, so the runner is swappable.
 import json
 from typing import Any, Dict, List, Mapping, Optional
 
+from . import access
 from .pipeline import Pipeline
 
 
@@ -252,6 +253,7 @@ def store_scene_analysis(pipeline: Pipeline, project_id: int, data: Any) -> Dict
     """Save the Director's analysis. Never overwrites what the person set by hand: a field listed in the scene's `_user_locked`
     is kept, and an empty / null value from the Director never replaces a value that is there (re-running the Director used to
     wipe a hand-picked Background). A locked character keeps its description; a Character Lock is only filled in when empty."""
+    access.need_edit(pipeline, project_id, "lưu phân tích của Director")
     obj = validate_scene_analysis(_normalized(pipeline, project_id, _load(data)))
     conn = pipeline.conn
     try:
@@ -335,6 +337,7 @@ def unlock_scene_fields(pipeline: Pipeline, project_id: int, idx: int, keys: Opt
 
 def lock_character_bible(pipeline: Pipeline, project_id: int) -> int:
     """Approve & Lock (Step 1): freeze characters and mark scenes 'ready' for image generation."""
+    access.need_edit(pipeline, project_id, "khóa Character Bible")
     conn = pipeline.conn
     conn.execute("UPDATE characters SET locked=1 WHERE project_id=?", (project_id,))
     n = conn.execute("UPDATE scenes SET state='ready' WHERE project_id=? AND state!='needs_attention'",
@@ -351,6 +354,7 @@ def update_scene(pipeline: Pipeline, project_id: int, idx: int, fields: Mapping[
     """Edit one scene's spec (and optionally its script text). `characters` must be names from the Character Bible.
     Every field whose value really changes is remembered as set by hand (`_user_locked`), so a later Director run keeps it.
     Results made from the old spec are then shown as outdated (core.lineage). Returns the changed field names."""
+    access.need_edit(pipeline, project_id, "sửa cảnh")
     conn = pipeline.conn
     row = conn.execute("SELECT id, data FROM scenes WHERE project_id=? AND idx=?", (project_id, idx)).fetchone()
     if row is None:
@@ -441,6 +445,7 @@ def add_character(pipeline: Pipeline, project_id: int, name: str, description: s
                   wardrobe: Optional[str] = None) -> None:
     """Add an entry to the Character Bible by hand: not only people, also creatures, mascots, props or anything else
     that must look the same in every scene. New entries start unlocked."""
+    access.need_edit(pipeline, project_id, "thêm nhân vật")
     name, description = (name or "").strip(), (description or "").strip()
     if not name or not description:
         raise ValueError("Tên và mô tả nhân vật không được để trống — điền đủ cả hai rồi bấm lại.")
@@ -454,6 +459,7 @@ def add_character(pipeline: Pipeline, project_id: int, name: str, description: s
 def update_character(pipeline: Pipeline, project_id: int, name: str, description: str,
                      wardrobe: Optional[str] = None, new_name: Optional[str] = None) -> None:
     """Edit one Character Bible entry (only while unlocked). A rename also updates the scene cast lists."""
+    access.need_edit(pipeline, project_id, "sửa nhân vật")
     conn = pipeline.conn
     row = conn.execute("SELECT id, locked FROM characters WHERE project_id=? AND name=?", (project_id, name)).fetchone()
     if row is None:
@@ -489,6 +495,7 @@ def update_character(pipeline: Pipeline, project_id: int, name: str, description
 
 def unlock_character_bible(pipeline: Pipeline, project_id: int) -> int:
     """Allow editing again. Images already generated keep the old look; the caller should warn about that."""
+    access.need_edit(pipeline, project_id, "mở khóa Character Bible")
     n = pipeline.conn.execute("UPDATE characters SET locked=0 WHERE project_id=?", (project_id,)).rowcount
     pipeline.conn.commit()
     return n

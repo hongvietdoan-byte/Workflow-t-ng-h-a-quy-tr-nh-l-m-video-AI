@@ -60,6 +60,21 @@ class TrashFilesTests(unittest.TestCase):
             trash.restore(self.data, 1, "videos", item["file"])
         self.assertEqual(open(p, "rb").read(), b"new")
 
+    def test_restore_as_checks_the_edit_right(self):
+        """S14.7 (D1): khôi phục từ dashboard đi qua quyền sửa của người đang thao tác (người chỉ xem / người lạ bị từ chối)."""
+        from core import access
+        from tests.test_access import as_user, make_world
+        conn, pid, _sid, _jid = make_world()
+        img = write(os.path.join(self.data, str(pid), "images", "job_7.png"))
+        trash.move_to_trash(img, self.data, pid, "images", "x", 7, 1)
+        (item,) = trash.items(self.data, pid, "images")
+        for role in ("stranger", "watch_view"):
+            with self.assertRaises(access.AccessDenied):
+                trash.restore_as(as_user(conn, role), self.data, pid, "images", item["file"])
+            self.assertFalse(os.path.exists(img), role)
+        self.assertEqual(trash.restore_as(as_user(conn, "watch_edit"), self.data, pid, "images", item["file"]), img)
+        self.assertTrue(os.path.exists(img))
+
     def test_purge_removes_only_entries_older_than_30_days_across_projects(self):
         now = time.time()
         old = write(os.path.join(self.data, "1", "images", "job_1.png"))
