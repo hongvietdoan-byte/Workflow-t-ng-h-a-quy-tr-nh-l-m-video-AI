@@ -85,18 +85,18 @@ def short_name(host: str) -> str:
 
 
 def _dns_name(ip: str) -> Optional[str]:
-    """Reverse DNS, then forward: the name must resolve back to this very IP (a stale record maps other IPs to the name). Raises
-    LookupError with the reason when there is no trustworthy name. Replaced in tests (no real DNS there)."""
+    """The PC name of `ip` from the company's reverse DNS (PTR). Raises LookupError with the reason when there is none.
+    Replaced in tests (no real DNS there).
+
+    Thử thật 05/10 trên mạng công ty: the reverse record is kept right by DHCP, the FORWARD record is often stale — DC49MP2 → 10.7.36.56
+    (now DVTR053) while 10.7.30.38 → DC49MP2 is right; GKP8Q03 → 10.7.18.46 (no reverse name) while 10.7.30.21 → GKP8Q03 is right; one
+    PC with two network cards has two addresses with the same reverse name (10.7.30.31 + .36 → 5KSFMP2). Requiring the forward record
+    to match refused real colleagues, so the reverse name is trusted; a person still signs in only from a machine the Owner approved
+    (or the first one, logged), and the Owner can take it back at 👥 Nhóm."""
     try:
         host, _aliases, _addrs = socket.gethostbyaddr(ip)
     except (socket.herror, socket.gaierror, OSError) as e:
         raise LookupError(f"DNS nội bộ không có tên cho IP {ip} ({e.__class__.__name__})") from e
-    try:
-        forward = {normalize_ip(info[4][0]) for info in socket.getaddrinfo(host, None)}
-    except (socket.gaierror, OSError) as e:
-        raise LookupError(f"tên {host} không tra ngược lại được ({e.__class__.__name__})") from e
-    if ip not in forward:
-        raise LookupError(f"tên {host} trỏ tới {', '.join(sorted(forward)) or 'không IP nào'}, không khớp IP {ip} (bản ghi DNS cũ?)")
     return host
 
 

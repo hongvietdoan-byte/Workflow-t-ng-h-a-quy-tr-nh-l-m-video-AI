@@ -48,20 +48,21 @@ class NameLookupTests(unittest.TestCase):
         machine_auth.clear_cache()
         self.addCleanup(machine_auth.clear_cache)
 
-    def test_reverse_name_must_resolve_back_to_the_same_ip(self):
-        rev = mock.patch("core.machine_auth.socket.gethostbyaddr", return_value=("gkp8q03.vn.corp.seagroup.com", [], [IP]))
-        fwd = mock.patch("core.machine_auth.socket.getaddrinfo", return_value=[(2, 1, 6, "", (IP, 0))])
+    def test_the_reverse_name_is_trusted_even_when_the_forward_record_is_stale(self):
+        """Thử thật 05/10: 10.7.30.38 → DC49MP2 (đúng) dù DC49MP2 → 10.7.36.56 (cũ, nay là DVTR053); 10.7.30.21 → GKP8Q03 dù
+        GKP8Q03 → 10.7.18.46 (cũ). Đòi chiều thuận khớp đã từ chối nhầm đồng nghiệp thật."""
+        ptr = {"10.7.30.38": "DC49MP2.vn.corp.seagroup.com", "10.7.30.21": "GKP8Q03.vn.corp.seagroup.com"}
+        rev = mock.patch("core.machine_auth.socket.gethostbyaddr", side_effect=lambda ip: (ptr[ip], [], [ip]))
+        fwd = mock.patch("core.machine_auth.socket.getaddrinfo", side_effect=AssertionError("forward lookup is not used"))
         with rev, fwd:
-            self.assertEqual(machine_auth.machine_of(IP, False), ("GKP8Q03", ""))
+            self.assertEqual(machine_auth.machine_of("10.7.30.38", False), ("DC49MP2", ""))
+            self.assertEqual(machine_auth.machine_of("10.7.30.21", False), ("GKP8Q03", ""))
 
-    def test_a_stale_dns_record_is_not_trusted(self):
-        """Đã gặp thật 05/10: hai IP (.31, .36) cùng trả một tên → bản ghi cũ. Chiều thuận không chứa IP → không xác định được máy."""
-        rev = mock.patch("core.machine_auth.socket.gethostbyaddr", return_value=("gkp8q03.vn.corp.seagroup.com", [], ["10.20.0.36"]))
-        fwd = mock.patch("core.machine_auth.socket.getaddrinfo", return_value=[(2, 1, 6, "", ("10.20.0.31", 0))])
-        with rev, fwd:
-            name, why = machine_auth.machine_of("10.20.0.36", False)
-        self.assertIsNone(name)
-        self.assertIn("không khớp", why)
+    def test_one_pc_with_two_network_cards_has_one_name(self):
+        rev = mock.patch("core.machine_auth.socket.gethostbyaddr", return_value=("5ksfmp2.vn.corp.seagroup.com", [], []))
+        with rev:
+            self.assertEqual(machine_auth.machine_of("10.7.30.31", False)[0], "5KSFMP2")
+            self.assertEqual(machine_auth.machine_of("10.7.30.36", False)[0], "5KSFMP2")
 
     def test_no_reverse_record(self):
         with mock.patch("core.machine_auth.socket.gethostbyaddr", side_effect=socket.herror(1, "not found")):
