@@ -793,5 +793,56 @@ class LibraryKhoUiTests(unittest.TestCase):
         self.assertTrue(any("Không tải lại được" in e.value for e in at.error))
 
 
+class OutfitKindTests(unittest.TestCase):
+    """S14.28: loại tài nguyên 'Trang phục' — lưu vào Kho, nối set_outfit cho đúng nhân vật, không bị gửi nhầm làm ảnh nhân vật / địa điểm."""
+    def setUp(self):
+        self.dir = tempfile.mkdtemp()
+        os.environ["ASSET_DIR"] = os.path.join(self.dir, "assets")
+        self.p = Pipeline(connect(os.path.join(self.dir, "m.sqlite")))
+        self.conn = self.p.conn
+        self.pid = self.p.create_project("trang phục")
+        self.conn.execute("INSERT INTO characters (project_id, name, description) VALUES (?,?,?)", (self.pid, "KELLY", "nữ"))
+        self.conn.commit()
+
+    def tearDown(self):
+        os.environ.pop("ASSET_DIR", None)
+        shutil.rmtree(self.dir, ignore_errors=True)
+
+    def test_s14_28_outfit_kind_and_folder_aliases(self):
+        self.assertEqual(assets.KINDS["outfit"], "Trang phục")
+        for word in ("Trang phục", "trang phuc", "outfit", "Outfits", "costume", "skin"):
+            self.assertEqual(assets.kind_from_word(word), "outfit", word)
+
+    def test_s14_28_outfit_saved_to_kho_and_set_for_the_character(self):
+        rep = assets.add_outfit_images(self.conn, self.pid, "FF", "Kelly đồ bơi", [("a.png", PNG)], shared=False, character="KELLY")
+        self.assertTrue(rep["outfit_set"], rep)
+        a = assets.get(self.conn, rep["asset_id"])
+        self.assertEqual(a["kind"], "outfit")
+        self.assertEqual([i["id"] for i in assets.outfit_images(self.conn, self.pid, "KELLY")], [a["images"][0]["id"]])
+        self.assertIn(rep["asset_id"], [x["id"] for x in assets.list_assets(self.conn, "FF", "outfit", self.pid)])   # Kho: dùng lại được
+        self.assertEqual(assets.outfit_label(self.conn, self.pid, "KELLY"), "Kelly đồ bơi")
+
+    def test_s14_28_shared_outfit_waits_for_approval_and_says_so(self):
+        rep = assets.add_outfit_images(self.conn, self.pid, "FF", "Kelly đồ bơi", [("a.png", PNG)], shared=True, character="KELLY")
+        self.assertFalse(rep["outfit_set"])
+        self.assertIn("chờ duyệt", rep["note"])
+        self.assertEqual(assets.outfit_images(self.conn, self.pid, "KELLY"), [])
+        self.assertIsNone(assets.outfit_label(self.conn, self.pid, "KELLY"))
+
+    def test_s14_28_unknown_character_is_refused_before_saving(self):
+        with self.assertRaises(AssetError):
+            assets.add_outfit_images(self.conn, self.pid, "FF", "Đồ X", [("a.png", PNG)], shared=False, character="AI ĐÓ")
+        self.assertEqual(assets.list_assets(self.conn, "FF", "outfit", self.pid), [])
+
+    def test_s14_28_outfit_asset_is_never_sent_as_character_or_object(self):
+        rep = assets.add_outfit_images(self.conn, self.pid, "FF", "Kelly", [("a.png", PNG)], shared=False, character="KELLY")
+        chosen = assets.project_assets(self.conn, self.pid)
+        self.assertIsNone(assets.match_character(chosen, "Kelly"))                 # same name as the character: still not her face
+        refs = assets.scene_references(self.conn, self.pid, {"text": "Kelly bơi", "characters": []})
+        self.assertEqual(refs, [])                                                 # not an "object" reference of the scene either
+        self.assertIn("không phải nhân vật", assets.context_text(self.conn, self.pid))
+        self.assertTrue(rep["outfit_set"])
+
+
 if __name__ == "__main__":
     unittest.main()
