@@ -196,6 +196,38 @@ class SignInTests(Base):
         self.assertEqual([r["machine"] for r in machine_auth.requests(self.conn)], ["GKP8Q03"])
 
 
+class ReviewFixTests(Base):
+    """Rà độc lập D1 (05/10): 3 lỗi nên sửa."""
+    def test_rejecting_a_pending_request_does_not_sign_the_person_out(self):
+        with self.assertRaises(machine_auth.MachinePending):
+            self.sign_in(ip="10.20.0.36")
+        machine_auth.approve(self.conn, OWNER, MEMBER, "GKP8Q04")
+        token = self.sign_in(ip="10.20.0.36")                        # signed in on the approved PC
+        with self.assertRaises(machine_auth.MachinePending):          # someone types this e-mail on another PC
+            self.sign_in()
+        machine_auth.reject(self.conn, OWNER, MEMBER, "GKP8Q03")
+        self.assertIsNotNone(auth.identity(self.conn, token))         # the real person is not thrown out
+        machine_auth.revoke(self.conn, OWNER, MEMBER, "GKP8Q04")      # revoking an APPROVED machine still ends sessions
+        self.assertIsNone(auth.identity(self.conn, token))
+
+    def test_too_many_lookups_in_flight_answer_at_once(self):
+        called = []
+        with mock.patch.object(machine_auth, "_dns_name", lambda ip: called.append(ip) or "X"),                 mock.patch.object(machine_auth, "_inflight", machine_auth.MAX_INFLIGHT):
+            name, why = machine_auth.machine_of("10.20.0.77", False)
+        self.assertIsNone(name)
+        self.assertIn("bận", why)
+        self.assertEqual(called, [])
+        self.assertNotIn("10.20.0.77", machine_auth._cache)             # not remembered: the next try looks up again
+
+    def test_only_the_configured_owner_email_skips_the_machine_check(self):
+        old_owner = "cu@garena.vn"                                     # a stale users row with role owner
+        gate = machine_auth._gate(self.conn, "10.99.0.1", False)
+        with self.assertRaises(auth.AuthError):
+            gate(old_owner, "owner")
+        self.assertIsNotNone(machine_auth.session_refusal(self.conn, old_owner, "owner", "10.99.0.1", False))
+        self.assertIsNone(machine_auth.session_refusal(self.conn, OWNER, "owner", "10.99.0.1", False))
+
+
 class LanOffTests(unittest.TestCase):
     def test_without_lan_the_old_sign_in_is_kept(self):
         conn = connect()

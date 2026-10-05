@@ -187,6 +187,8 @@ def machines_block(p: Pipeline) -> None:
                     f" · IP gần nhất {escape(r['last_ip'] or '—')}</small>", unsafe_allow_html=True)
         c2.markdown(MACHINE_STATUS.get(r["status"], r["status"]) + (f"  \n<small>{escape(r['decided_by'] or '')} · "
                     f"{escape(r['decided_at'] or '')}</small>" if r["decided_at"] else ""), unsafe_allow_html=True)
+        if not machine_auth.is_owner(owner):    # rà D1: "monitor" sees the list; only the Owner gets the buttons (the core refuses others)
+            continue
         try:
             if r["status"] != "approved" and c3.button("Duyệt", key=f"mach_ok_{tag}", type="primary" if r["status"] == "pending" else "secondary"):
                 machine_auth.approve(p.conn, owner, r["email"], r["machine"])

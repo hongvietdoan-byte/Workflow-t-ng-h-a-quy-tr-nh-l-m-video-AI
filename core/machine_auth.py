@@ -30,7 +30,7 @@ from typing import Dict, List, Optional, Tuple
 from . import auth
 
 TIMEOUT = 2.0                 # seconds for one name lookup (reverse + forward), in a worker thread
-CACHE_SECONDS = 300           # a found name is kept this long per IP
+CACHE_SECONDS = 60            # a found name is kept this long per IP (rà D1: short — DHCP may give the IP to another PC)
 CACHE_MISS_SECONDS = 30       # "no name" is kept shorter: the person may fix the network and try again
 MAX_FAILS = 5                 # refused sign-ins from one IP …
 FAIL_WINDOW = 600             # … within this many seconds → wait
@@ -39,6 +39,15 @@ LOCAL_IPS = ("127.0.0.1", "::1")
 _cache: Dict[str, Tuple[float, Optional[str], str]] = {}
 _cache_lock = threading.Lock()
 _pool = concurrent.futures.ThreadPoolExecutor(max_workers=4, thread_name_prefix="machine-dns")
+MAX_INFLIGHT = 8              # lookups queued or running; beyond this answer "busy" at once (many strange IPs cannot starve real people)
+_inflight = 0
+_inflight_lock = threading.Lock()
+
+
+def _done(_fut) -> None:
+    global _inflight
+    with _inflight_lock:
+        _inflight -= 1
 
 
 class MachinePending(auth.AuthError):
@@ -107,11 +116,18 @@ def machine_of(ip: Optional[str], local: Optional[bool] = None) -> Tuple[Optiona
         hit = _cache.get(ip)
     if hit and hit[0] > now:
         return hit[1], hit[2]
+    global _inflight
+    with _inflight_lock:
+        if _inflight >= MAX_INFLIGHT:          # not cached: the next try looks up again
+            return None, "máy chủ đang bận tra tên máy cho quá nhiều địa chỉ — thử lại sau ít giây"
+        _inflight += 1
     fut = _pool.submit(_dns_name, ip)
+    fut.add_done_callback(_done)
     try:
         host = fut.result(timeout=TIMEOUT)
         name, why = (short_name(host) or None), ("" if host else f"DNS nội bộ không có tên cho IP {ip}")
     except concurrent.futures.TimeoutError:
+        fut.cancel()                           # still queued → never runs (a running lookup cannot be stopped; the pool is bounded)
         name, why = None, f"tra tên máy quá {TIMEOUT:g} s"
     except LookupError as e:
         name, why = None, str(e)
@@ -163,13 +179,14 @@ def _decide(conn, actor, email: str, machine: str, new: str, action: str) -> Non
     if who != auth.OWNER_EMAIL:
         raise auth.AuthError("Chỉ Owner được duyệt / từ chối / thu hồi máy đăng nhập.")
     email = (email or "").strip().lower()
-    if conn.execute("SELECT 1 FROM machine_approvals WHERE email=? AND machine=?", (email, machine)).fetchone() is None:
+    old = status(conn, email, machine)
+    if old is None:
         conn.execute("INSERT INTO machine_approvals (email, machine, status, requested_at) VALUES (?,?,?,?)",
                      (email, machine, new, _stamp()))
     conn.execute("UPDATE machine_approvals SET status=?, decided_at=?, decided_by=? WHERE email=? AND machine=?",
                  (new, _stamp(), who, email, machine))
     conn.commit()
-    if new != "approved":
+    if new != "approved" and old == "approved":   # rà D1: refusing a mere request must not sign the real person out everywhere
         auth.revoke_sessions(conn, email)       # an open session ends at once (the other machines' sessions too: they sign in again)
     auth.audit(conn, who, action, f"{email} @ {machine}")
 
@@ -210,10 +227,16 @@ HOW_TO = ("Cách xử lý: dùng máy PC công ty nối thẳng mạng nội b�
           "Owner địa chỉ IP trên để kiểm tra DNS nội bộ.")
 
 
+def is_owner(email: str) -> bool:
+    """The configured DASHBOARD_OWNER_EMAIL only — not the users-table role: an old owner row is not demoted when the setting changes
+    (rà D1), and it must not skip the machine check."""
+    return (email or "").strip().lower() == auth.OWNER_EMAIL
+
+
 def _gate(conn, ip: str, local: bool):
     def gate(email: str, role: str) -> str:
         name, why = machine_of(ip, local)
-        if role == "owner":                     # the Owner: passcode / local rule already passed (auth.owner_remote_check)
+        if is_owner(email):                    # the Owner: passcode / local rule already passed (auth.owner_remote_check)
             return f"machine={name or '?'}"
         if name is None:
             auth.audit(conn, email, "login_refused_machine", f"? ip={ip} ({why})")
@@ -260,7 +283,7 @@ def sign_in(conn, email: str, ip: str, local: bool, source: str = "", passcode: 
 
 def session_refusal(conn, email: str, role: str, ip: str, local: bool) -> Optional[str]:
     """Checked on every page load of a signed-in member (LAN on): None = fine, else why the session may not be used from here."""
-    if not lan_on() or role == "owner":
+    if not lan_on() or is_owner(email):
         return None
     name, why = machine_of(ip, local)
     if name is None:
