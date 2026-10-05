@@ -365,6 +365,7 @@ def add_image(conn, asset_id: int, filename: str, data: bytes, src_path: Optiona
     have = _count(conn, asset_id)
     if have >= limit:
         raise AssetError(f"Mỗi tài nguyên tối đa {limit} ảnh")
+    root_warning()                                                    # S14.43B: every Kho writer (Dashboard, tools) logs a split once
     folder = os.path.join(root(), str(asset_id))
     os.makedirs(folder, exist_ok=True)
     taken = _held_paths(conn, asset_id)

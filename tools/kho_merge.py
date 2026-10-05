@@ -266,6 +266,24 @@ def _backup_path(db: str, keep: int, merge: int) -> str:
     return path
 
 
+def _drop_thumbnails(plan: Dict) -> None:
+    """assets.thumbnail caches <library>/_thumbs/<id>_<side>_<file>.jpg and trusts its mtime: a moved picture keeps its own (older)
+    mtime, so an old thumbnail of the target slot would be shown. Remove those of the moved pictures and of the target slots."""
+    thumbs = os.path.join(assets.root(), "_thumbs")
+    if not os.path.isdir(thumbs):
+        return
+    merge = str(plan["merge"]["id"])
+    targets = {f"{plan['keep']['id']}_{os.path.basename(mv['dst'])}" for mv in plan["moves"]}
+    for f in os.listdir(thumbs):
+        head, _, rest = f.partition("_")
+        side, _, name = rest.partition("_")
+        if side.isdigit() and (head == merge or f"{head}_{name[:-4]}" in targets):
+            try:
+                os.remove(os.path.join(thumbs, f))
+            except OSError:
+                pass                                # only a cache: rebuilt when its picture is newer
+
+
 def _write_audit(conn, plan: Dict) -> None:
     k, m = plan["keep"], plan["merge"]
     conn.execute("INSERT INTO audit_log (at, email, action, detail) VALUES (datetime('now'), ?, 'kho_merge', ?)",
@@ -331,6 +349,7 @@ def apply(conn, plan: Dict, db: str) -> Dict:
             except OSError as e:                      # said, never silent: the database is back, this file is not
                 print(f"⚠ KHÔNG dời lại được {dst_} → {src}: {e} — dời tay (CSDL đã hoàn tác; sao lưu: {backup})", file=sys.stderr)
         raise
+    _drop_thumbnails(plan)
     folder = plan["merge_folder"]
     removed_folder = False
     if folder and os.path.isdir(folder) and not os.listdir(folder):
@@ -376,6 +395,9 @@ def main(argv=None) -> int:
         return 2
     os.environ["PIPELINE_DB"] = db                  # pictures next to THIS database, whatever the working folder
     os.environ.pop("ASSET_DIR", None)
+    split = assets.root_warning()
+    if split:                                       # cannot happen after the two lines above — said anyway, never silent
+        print(f"⚠ {split}")
     from core.db import connect
     conn = connect(db)
     try:

@@ -425,5 +425,49 @@ class MergeJsonAndFileRefsTests(_MergeHome):
         self.assertIn("models3d", str(e.exception))
 
 
+class MergeDropsStaleThumbnailsTests(_MergeHome):
+    def test_thumbnails_of_moved_pictures_and_of_the_target_slots_are_removed(self):
+        thumbs = os.path.join(self.home, "data", "assets", "_thumbs")
+        os.makedirs(thumbs)
+        stale = [os.path.join(thumbs, f"{self.keep}_220_3.png.jpg"), os.path.join(thumbs, f"{self.merge}_220_1.png.jpg")]
+        other = os.path.join(thumbs, f"{self.keep}_220_1.png.jpg")
+        for f in stale + [other]:
+            open(f, "wb").write(b"jpg")
+        kho_merge.apply(self.conn, kho_merge.make_plan(self.conn, self.keep, self.merge, self.db), self.db)
+        self.assertEqual([os.path.exists(f) for f in stale], [False, False])
+        self.assertTrue(os.path.exists(other))
+
+
+class RootWarningIsSaidTests(unittest.TestCase):
+    """Lỗi 4: root_warning() phải được gọi thật — Dashboard khi mở, và mọi đường ghi ảnh Kho (tools nhập Kho)."""
+
+    def setUp(self):
+        self.tmp = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, self.tmp, True)
+        assets._WARNED.clear()
+
+    def test_writing_a_picture_with_a_split_library_logs_the_warning(self):
+        env = {"PIPELINE_DB": os.path.join(self.tmp, "m.sqlite"), "ASSET_DIR": os.path.join(self.tmp, "elsewhere")}
+        with mock.patch.dict(os.environ, env):
+            conn = connect(env["PIPELINE_DB"])
+            aid = assets.create(conn, "FF", "pet", "Kactus")
+            with self.assertLogs("core.assets", "WARNING") as logs:
+                assets.add_image(conn, aid, "a.png", PNG)
+            conn.close()
+        self.assertTrue(any("KHÁC gốc" in m for m in logs.output))
+
+    def test_dashboard_shows_the_warning_when_it_opens(self):
+        from streamlit.testing.v1 import AppTest
+        from tests.test_step1_flow import split_only
+        tmp, db, data, p, _pid = split_only()
+        env = mock.patch.dict(os.environ, {"PIPELINE_DB": db, "PIPELINE_DATA": data, "ASSET_DIR": os.path.join(self.tmp, "x"),
+                                           "FEATURE_UI_V2": "1"})
+        env.start()
+        self.addCleanup(env.stop)
+        at = AppTest.from_file(os.path.join(os.path.dirname(__file__), "..", "dashboard", "app.py"), default_timeout=40).run()
+        self.assertFalse(at.exception)
+        self.assertTrue(any("KHÁC gốc" in w.value for w in at.warning))
+
+
 if __name__ == "__main__":
     unittest.main()
