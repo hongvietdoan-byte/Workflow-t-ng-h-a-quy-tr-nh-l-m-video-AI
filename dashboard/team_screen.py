@@ -41,7 +41,7 @@ def people_rows(p: Pipeline, days) -> list:
                     "videos_ok": s.get("videos_ok", 0), "videos": s.get("videos", 0), "failed": s.get("videos_failed", 0),
                     "retry": s.get("videos_retry", 0), "seconds": s.get("seconds", 0), "images": s.get("images", 0),
                     "projects": s.get("projects", 0), "last": last or (u or {}).get("last_login") or "—",
-                    "usd": money.get(k, 0.0), "limit": lim, "share": (month.get(k, 0.0) / lim) if lim else None, "inactive": inactive})
+                    "usd": money.get(k, 0.0), "month_usd": month.get(k, 0.0), "limit": lim, "share": (month.get(k, 0.0) / lim) if lim else None, "inactive": inactive})
     return out
 
 
@@ -60,7 +60,7 @@ def _hero(slot, rows: list, period: str) -> None:
 def _money_cell(r: dict) -> Raw:
     html = f"<b>{r['usd']:.2f}</b> USD"
     if r["limit"]:
-        html = f'<div class="team-money"><small>{r["usd"]:.2f} USD · hạn mức {r["limit"]:g}/tháng</small>' + D.meter(
+        html = f'<div class="team-money"><small>{r.get("month_usd", r["usd"]):.2f} USD / 30 ngày · hạn mức {r["limit"]:g}/tháng</small>' + D.meter(
             r["share"] or 0.0, invert=True) + "</div>"
         if (r["share"] or 0) >= team.LIMIT_WARN:
             html += D.pill("gần hết hạn mức", "bad")
