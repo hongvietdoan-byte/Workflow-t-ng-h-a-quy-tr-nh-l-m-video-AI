@@ -214,7 +214,7 @@ def get(p, pid: int) -> Optional[Dict]:
     row = p.conn.execute("SELECT value FROM app_settings WHERE key=?", (_key(pid),)).fetchone()
     make = to_create_rows(p.conn, pid)         # S14.35: sets the idea needs made (Đạo diễn ảnh ref / Meshy 3D) — listed, never run here
     if not row:
-        if not make:
+        if not any(r.get("choice") != "screen_mock" for r in make):   # rà S14.43: screen rows alone ≠ a checklist made (button / caption stay)
             return None
         return {"rows": make, "missing": [], "to_create": [r["name"] for r in make], "warnings": [], "stale": False, "library_size": 0}
     try:

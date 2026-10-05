@@ -43,8 +43,10 @@ def checklist_panel(p: Pipeline, pid: int, scope: str = "dir") -> None:
         for w in res["warnings"]:
             st.warning(w)
         n_miss = len(res["missing"])
+        make = res.get("to_create") or []                            # rà S14.43: things to create (set / simulated screen) are not "đủ"
         st.markdown(f"{len(res['rows'])} thứ kịch bản cần · " + (f"⚠️ **{n_miss} thiếu**: {', '.join(res['missing'])}" if n_miss
-                                                                  else "✅ Kho đã có đủ"))
+                                                                  else "✅ Kho đã có đủ" if not make else "✅ Kho có đủ thứ đã có sẵn")
+                    + (f" · 🛠 **{len(make)} cần tạo**: {', '.join(make)}" if make else ""))
         for i, r in enumerate(res["rows"]):
             c1, c2 = st.columns([6, 1])
             c1.markdown(_row_text(r))

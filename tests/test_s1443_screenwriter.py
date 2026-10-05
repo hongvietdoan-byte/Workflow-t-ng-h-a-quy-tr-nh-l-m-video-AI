@@ -95,12 +95,28 @@ class PhoneScreenS1443(unittest.TestCase):
         self.assertEqual([n["scene"] for n in need], [1])
         self.assertGreater(need[0]["est_usd"], 0)
         from core import asset_checklist
+        self.p.conn.execute("INSERT INTO app_settings (key, value) VALUES (?,?)",            # a checklist was made (rà 8: needed now)
+                            (f"asset_checklist:{self.pid}", json.dumps({"rows": [], "library_size": 3})))
+        self.p.conn.commit()
         with mock.patch.dict(os.environ, {"FEATURE_ASSET_CHECKLIST": "1"}):
             res = asset_checklist.get(self.p, self.pid)
         row = next(r for r in res["rows"] if r["status"] == "to_create")
         self.assertIn("màn hình", row["status_label"])
         self.assertIn("USD", row["status_label"])
         self.assertEqual(row["scenes"], [1])
+
+    def test_screen_rows_alone_do_not_make_the_checklist_look_done(self):
+        """Rà 8: only simulated-screen rows (no checklist made) → get() is None: '📋 Lập bảng kê' + 'Chưa lập bảng kê' stay, no false
+        '✅ Kho đã có đủ'."""
+        self.p.conn.execute("UPDATE projects SET script_text=? WHERE id=?",
+                            (HEAD + "Cận màn hình điện thoại: filter đoán trình độ.\nKELLY: Ơ…", self.pid))
+        self.p.conn.commit()
+        self.assertEqual(len(B.screen_needs(self.p.conn, self.pid)), 1)
+        from core import asset_checklist
+        with mock.patch.dict(os.environ, {"FEATURE_ASSET_CHECKLIST": "1"}):
+            self.assertIsNone(asset_checklist.get(self.p, self.pid))
+        src = open(os.path.join(ROOT, "dashboard", "steps", "step1_checklist.py"), encoding="utf-8").read()
+        self.assertIn('res.get("to_create")', src)                         # a made checklist with things to create never says "đủ" alone
 
     def test_writer_is_told_the_new_screen_rule(self):
         self.assertIn("TỪ XA", B.RULES)
