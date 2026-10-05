@@ -30,7 +30,7 @@ Mục tiêu: làm hết một đợt dài mà không để phiên chính đầy 
 - **Tiền:** việc tốn tiền (ClipAI, Deepix, Kling, Claude API, TTS…) **không tự chạy**. Liệt kê trần từng việc và hỏi người dùng trước. Mọi lời gọi tốn tiền phải qua sổ chi và có ước tính trước.
 
 ## 3. Đo ngưỡng
-Đo sau mỗi nhánh gộp xong và **trước khi mở phiên con mới**.
+Đo **trước MỌI lần cho phiên con chạy** — mở phiên mới HOẶC đánh thức phiên cũ (SendMessage) — và sau mỗi nhánh gộp. Bài học 05/10: chỉ đo khi phiên con báo về là quá thưa; một phiên con sửa + chạy cả bộ test tiêu 15–25 % hạn mức 5 giờ, hai phiên đánh thức liên tiếp không đo đã đẩy từ ~65 % lên 100 % và bị cắt giữa chừng. Phiên rà KHÔNG chạy cả bộ test khi phiên làm đã chạy, trừ khi phải thử bản gộp với nhánh khác.
 - **Desktop (tab Code):** `mcp__ccd_session_mgmt__get_usage` (session `self`). Tool bị hoãn thì nạp bằng `ToolSearch select:mcp__ccd_session_mgmt__get_usage`. Xem `context.percentUsed` và `plan.windows` (5 giờ, tuần).
 - **Dự phòng khi không có tool đó** (Claude Code dòng lệnh, môi trường khác): nhờ người dùng gõ `/context` (và `/usage` nếu có) rồi đọc số họ dán. Không có số thì coi như đã gần ngưỡng sau khoảng 3 nhánh lớn và dừng ở điểm nghỉ.
 
@@ -38,7 +38,8 @@ Mục tiêu: làm hết một đợt dài mà không để phiên chính đầy 
 |---|---|
 | Context phiên chính **65–75 %** | điểm nghỉ |
 | Hạn mức 5 giờ **≥ 90 %** hoặc tuần **≥ 90 %** | điểm nghỉ |
-| Hạn mức 5 giờ **≥ 80 %** | không mở phiên con mới, cho các phiên đang chạy làm xong |
+| Hạn mức 5 giờ **≥ 60 %** | chỉ cho **1** phiên con chạy cùng lúc |
+| Hạn mức 5 giờ **≥ 70 %** | không cho phiên con nào chạy THÊM (kể cả đánh thức phiên cũ bằng SendMessage để sửa theo rà); chờ phiên đang chạy xong, phiên chính tự gộp + chạy test |
 | Hạn mức tuần thấp mà còn nhiều việc | làm theo thứ tự giá trị (lỗ tiền, mất dữ liệu trước; giao diện, dọn dẹp sau) |
 
 ## 4. Điểm nghỉ

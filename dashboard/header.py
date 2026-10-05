@@ -678,15 +678,15 @@ def _dialog_budget(p: Pipeline) -> None:
     else:
         st.markdown("**Đang tắt** — không giới hạn chi (dùng cho làm video thật).")
     st.caption("Giá theo bảng giá (ước tính từ slide ClipAI, chưa đo thật; ảnh Deepix giá tạm). Nhà cung cấp giả lập không tính. Việc "
-               "vượt trần được giữ trong hàng đợi và báo lý do ở 📊 Theo dõi. Khi đợt thử bật: model/mức chưa có giá bị TỪ CHỐI (không "
-               "tính là \\$0); âm thanh chưa có giá nên chỉ giới hạn theo số lượt; dự án mới tự bật 🧪 Thử rẻ.")
+               "vượt trần chỉ CẢNH BÁO (vẫn gửi, có số liệu ở 📥 và thanh 💵); chỉ chặn khi nhà cung cấp hết tiền, dự án tạm dừng hoặc "
+               "trần ngày của chạy tự động. Model/mức chưa có giá được ước tính dư (không tính là \\$0); âm thanh chưa có giá "
+               "nên chỉ đếm lượt; dự án mới tự bật 🧪 Thử rẻ.")
     usd = st.number_input("Trần (USD)", 1.0, 1000.0, float(s["usd"]), 5.0, key="budget_usd")
     cap = st.number_input("Tối đa số ảnh Deepix (ảnh có giá tạm — cũng tính vào trần USD)", 0, 1000, int(s["image_cap"]), 10, key="budget_imgs")
     acap = st.number_input("Tối đa số âm thanh — giọng/nhạc/SFX (chưa có giá)", 0, 5000, int(s["audio_cap"]), 50, key="budget_audio")
     c1, c2 = st.columns(2)
-    if c1.button("▶ Bắt đầu đợt thử (tính từ bây giờ)", key="budget_start", type="primary"):
-        budget.save(p.conn, image_cap=int(cap), audio_cap=int(acap))
-        budget.restart(p.conn, usd)
+    from dashboard.design.screens import money_days   # S14.2: the trial start opens a budget round (bars and round stay in step)
+    if money_days.trial_start_button(p.conn, me(), usd, cap, acap, c1):
         st.rerun()
     if s["enabled"] and c2.button("■ Tắt giới hạn", key="budget_stop"):
         budget.stop(p.conn)
