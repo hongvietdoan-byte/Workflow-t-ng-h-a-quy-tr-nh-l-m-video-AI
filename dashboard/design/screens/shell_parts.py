@@ -58,8 +58,8 @@ def next_line(p, pid: int, screen_index: int, data_dir: str) -> Tuple[str, str]:
     return res if res else ("Chưa có việc nào đang chờ.", "done")
 
 
-def short_text(text: str, limit: int = 96) -> str:
-    """One-line version of a longer sentence (cut at a word, with …); the caller puts the full text in a ⓘ when this differs."""
+def cut_words(text: str, limit: int = 96) -> str:
+    """S14.8 U5 (đổi tên từ short_text — khác components.short_text vốn tìm câu/mệnh đề đầu): one-line version of a longer sentence (cut at a word, with …); the caller puts the full text in a ⓘ when this differs."""
     text = " ".join(str(text).split())
     if len(text) <= limit:
         return text
@@ -96,7 +96,7 @@ def project_hero(p, pid: int, done: list, screen_index: int, data_dir: str, leve
     frac = overall_progress(p, pid, done)
     text, level = next_line(p, pid, screen_index, data_dir)
     icon = {"wait": "⏸ ", "todo": "👉 Việc tiếp theo: ", "done": "✅ ", "warn": "⚠ "}.get(level, "")
-    short = short_text(text)
+    short = cut_words(text)
     with D.hero("shell"):
         # 02/10 (rà soát #10): hai CỘT liền thay cho hai hàng × hai cột — trước đây "Việc tiếp theo" bị căn giữa theo khối 🎚 cao bên phải
         # nên cách xa các pill; nay mỗi cột xếp sát từ trên xuống.

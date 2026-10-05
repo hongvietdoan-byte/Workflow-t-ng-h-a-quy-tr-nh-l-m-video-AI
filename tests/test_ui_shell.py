@@ -225,3 +225,17 @@ class NextLineErrorTests(ShellBase):
         self.assertFalse(at.exception, at.exception)
         self.assertIn("Không đọc được việc tiếp theo", self.html_text(at))
         self.assertIn('class="nextband warn"', band)
+
+
+class CutWordsTests(unittest.TestCase):
+    """S14.8 U5: shell_parts.cut_words (đổi tên từ short_text) chỉ cắt ở ranh giới từ + …; khác components.short_text (câu/mệnh đề đầu)."""
+
+    def test_cuts_at_a_word_and_differs_from_components_short_text(self):
+        from dashboard.design.screens import shell_parts
+        from dashboard.design import components
+        self.assertFalse(hasattr(shell_parts, "short_text"))
+        self.assertEqual(shell_parts.cut_words("  một   hai\nba "), "một hai ba")
+        self.assertEqual(shell_parts.cut_words("aaa bbb, ccc ddd", limit=9), "aaa bbb…")
+        long = "Câu đầu khá dài để có hơn ba mươi ký tự. Câu sau nữa"
+        self.assertEqual(shell_parts.cut_words(long), long)
+        self.assertEqual(components.short_text(long), "Câu đầu khá dài để có hơn ba mươi ký tự")

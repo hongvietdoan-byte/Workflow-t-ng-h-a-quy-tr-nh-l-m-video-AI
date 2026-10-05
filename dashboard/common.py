@@ -154,6 +154,12 @@ def show_estimate(est, runner) -> bool:
     if est["items"] == 0:
         return True
     st.info("Ước tính chi phí: " + cost.format_estimate(est))
+    return _confirm_big_batch(est, runner)
+
+
+def _confirm_big_batch(est, runner) -> bool:
+    """S14.8 U5: dùng chung cho common.show_estimate + storyboard_cards.show_estimate — provider thật + lô ≥ confirm_batch_at → phải tick
+    xác nhận. Giữ khóa `confirm_{kind}` (tools/ui_v2_acceptance.py so khóa widget)."""
     if runner is None or runner.provider.name.startswith("mock"):
         return True
     if est["items"] >= cost.load_pricing()["confirm_batch_at"]:

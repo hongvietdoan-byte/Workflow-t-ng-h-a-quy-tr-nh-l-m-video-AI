@@ -71,11 +71,7 @@ def show_estimate(est, runner) -> bool:
     if est is None or est["items"] == 0:
         return True
     note("💰 Ước tính: " + estimate_short(est), cost.format_estimate(est), f"sb-est-{est['kind']}")
-    if runner is None or runner.provider.name.startswith("mock"):
-        return True
-    if est["items"] >= cost.load_pricing()["confirm_batch_at"]:
-        return st.checkbox(f"Tôi xác nhận batch {est['items']} mục này sẽ tốn credit", key=f"confirm_{est['kind']}")
-    return True
+    return C._confirm_big_batch(est, runner)
 
 
 def known_issues(active_issues) -> None:
