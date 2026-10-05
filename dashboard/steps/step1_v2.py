@@ -1,7 +1,7 @@
 """UI v2 (S13, lane E): the Kịch bản screen re-composed — same panels, same widget keys, fewer scrolls.
 
-Order: hero (title · pills · the ONE primary action of the moment · "Việc tiếp theo") → 📎 Đầu vào & tham chiếu → ① Kịch bản →
-② Chuẩn bị · Director · Nhân vật → ③ Chạy (tự động hoàn toàn + ngân sách). Rarely used things sit in a labelled "🔧 Tinh chỉnh" fold at
+Order (S14.28): hero (title · pills · the ONE primary action of the moment · "Việc tiếp theo") → ① Kịch bản (ways in on one line, the
+script box, the scene analysis) → 🖼 Tham chiếu (after the analysis, folded; one hint line before a script) → ② Chuẩn bị · Director · Nhân vật → ③ Chạy (tự động hoàn toàn + ngân sách). Rarely used things sit in a labelled "🔧 Tinh chỉnh" fold at
 the bottom of their card. Only used when `ui.v2_on()`; the old composition stays in step1.step1()."""
 from dashboard.common import *  # noqa: F401,F403  (shared imports + helpers)
 from dashboard import common as C
@@ -207,7 +207,7 @@ def _tune(pid: int, name: str, summary: str):
 
 def step1_v2(p: Pipeline, pid: int, proj, scenes, chars, risky, char_names, locked: bool, stale: int) -> None:
     from dashboard.steps import step1 as S
-    from dashboard.steps.step1_refs import inputs_and_refs_v2
+    from dashboard.steps.step1_refs import inputs_and_refs_v2, modes_line
     st.session_state["_script_cap_seen"] = {}                           # one count of equal captions per run (unique ⓘ keys)
     nxt = next_panel(p, pid, scenes, chars, locked)                     # the one panel of card ② drawn open (everything else: one line)
     st.session_state["_script_next"] = nxt
@@ -217,11 +217,11 @@ def step1_v2(p: Pipeline, pid: int, proj, scenes, chars, risky, char_names, lock
     if inherited:
         say("info", "↪ " + inherited + " — đổi ở màn Kịch bản · Định dạng nếu dự án này khác.", f"script-inherited-{pid}",
              "Dự án này kế thừa thiết lập từ dự án trước")
-    inputs_and_refs_v2(p, pid, bool(scenes))
 
-    # ① Kịch bản (1a)
+    # ① Kịch bản (1a) — S14.28: first card in the script mode (S11 video-ref / dance modes: their VIDEO ref box goes before it)
     with D.card(f"script-a-{pid}"):
         _card_head("1", "Kịch bản", [(S._script_summary(p, pid, scenes).replace("📜 ", ""), "ok" if scenes else "mute")])
+        modes_line(pid)
         if st.session_state.get("parse_warn") and scenes:
             say("warning", st.session_state["parse_warn"], f"script-parse-warn-{pid}", "Không thấy tiêu đề cảnh — cả kịch bản thành 1 cảnh")
         if not scenes:
@@ -237,6 +237,9 @@ def step1_v2(p: Pipeline, pid: int, proj, scenes, chars, risky, char_names, lock
                 if tune_open:
                     cap("↺ Làm lại: xóa các cảnh chưa có ảnh/video và nhân vật chưa khóa để tách lại kịch bản.")
                     S.reset_script_button(p, pid)
+
+    # 🖼 Tham chiếu — S14.28: after the scene analysis, folded; per recognised character / place (Kho still matches by name)
+    inputs_and_refs_v2(p, pid, bool(scenes))
 
     # ② Chuẩn bị · Director · Nhân vật (1b–1f)
     with D.card(f"script-b-{pid}"):

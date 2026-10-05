@@ -73,10 +73,10 @@ class ScriptScreenV2Tests(unittest.TestCase):
         self.assertIn("v2-hero-title", html)                               # hero with the project title
         self.assertIn("Dự án trống", html)
         self.assertIn("v2-empty", html)                                    # the "no script yet" state
-        self.assertIn("Đầu vào", html)                                     # the 📎 input panel is the first card
+        self.assertIn("Gắn ảnh tham chiếu sau khi phân tích cảnh", html)  # S14.28: only a hint line before a script (no form)
         keys = tree_keys(at)
         for k in OLD_KEYS:
-            if k.startswith(("lock_go", "ap_gate")):                       # need scenes / characters
+            if k.startswith(("lock_go", "ap_gate", "ref_go")):             # need scenes / characters (ref_go_: S14.28, after the analysis)
                 continue
             self.assertIn(k.format(p=pid), keys, k)
         self.assertNotIn(f"script-cta_{pid}", keys)                         # nothing to plan before a script exists
@@ -240,7 +240,7 @@ class ScriptScreenV2Tests(unittest.TestCase):
         refs = [e for e in at.expander if e.label.startswith("🖼 Tham chiếu")]
         self.assertEqual(len(refs), 1)
         self.assertFalse(refs[0].proto.expanded)                              # folded by default
-        self.assertIn("LYRA", at.selectbox(key=f"ref_for_{pid}").options)    # attach per recognised character / place
+        self.assertIn("LYRA (nhân vật)", at.selectbox(key=f"ref_for_{pid}").options)    # attach per recognised character / place
 
     def test_s14_28_outfit_kind_asks_which_character(self):
         pid = self.prepared(lock=False)
@@ -284,13 +284,18 @@ class ScriptScreenOldUiTests(unittest.TestCase):
 
     def test_s14_28_old_ui_script_fold_before_references(self):
         pid = self.p.create_project("Cũ")
-        at = self.run_app()
+        pid2 = self.prepared(lock=False)                                  # both made before the app reads the project list
+        at = AppTest.from_file(APP, default_timeout=90)
+        at.session_state["global_pid"] = pid
+        at.run()
+        self.assertFalse(at.exception, at.exception)
         keys = ordered_keys(at)
         self.assertNotIn(f"ref_go_{pid}", keys)
         self.assertNotIn(f"fold_refs_{pid}_btn", keys)
-        pid2 = self.prepared(lock=False)
+        at = AppTest.from_file(APP, default_timeout=90)
         at.session_state["global_pid"] = pid2
         at.run()
+        self.assertFalse(at.exception, at.exception)
         keys = ordered_keys(at)
         self.assertLess(keys.index(f"fold_script_{pid2}_btn"), keys.index(f"fold_refs_{pid2}_btn"))
 

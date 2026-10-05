@@ -55,17 +55,36 @@ def character_reference_panel(p: Pipeline, pid: int, chars) -> None:
                 outfit_panel(p, pid, c["name"], right)
 
 
+def outfit_line(p: Pipeline, pid: int, name: str) -> str:
+    """S14.28: "👗 Trang phục: mặc định FF" / "👗 Trang phục: <tên bộ>" — the outfit a character wears, said in the character list."""
+    label = assets.outfit_label(p.conn, pid, name)
+    return "👗 Trang phục: " + (label if label else "mặc định " + ((p.project(pid)["game"] or "FF") if p.project(pid) else "FF"))
+
+
+def outfit_pool(p: Pipeline, pid: int) -> list:
+    """S14.28: the pictures an outfit can be picked from — the project's own resources AND every "Trang phục" of the Kho (same game),
+    not only what is attached to the project."""
+    pool = [a for a in assets.project_assets(p.conn, pid) if a["images"]]
+    have = {a["id"] for a in pool}
+    game = (p.project(pid)["game"] if p.project(pid) else None) or "FF"
+    pool += [a for a in assets.list_assets(p.conn, game, "outfit", pid) if a["images"] and a["id"] not in have]
+    return sorted(pool, key=lambda a: (a["kind"] != "outfit", assets.fold(a["name"])))       # outfits first
+
+
 def outfit_panel(p: Pipeline, pid: int, name: str, box) -> None:
     """A different outfit for this video, from pictures + text: pick outfit picture(s) from the library (another skin, a costume photo),
-    optionally generate a 2-picture character set wearing it (it then becomes the reference; nothing to approve)."""
+    optionally generate a 2-picture character set wearing it (it then becomes the reference; nothing to approve).
+    S14.28: the popover label IS the character-list line "👗 Trang phục: mặc định FF / <tên bộ> · chọn bộ khác"; the Kho's outfits are offered too."""
     current = assets.outfit_images(p.conn, pid, name)
-    with box.popover("👗 Trang phục cho video này" + (f" — đang dùng {len(current)} ảnh" if current else ""), width="stretch"):
+    with box.popover(outfit_line(p, pid, name) + " · chọn bộ khác", width="stretch"):
         cap("Muốn nhân vật mặc trang phục khác (skin khác, đồ theo kịch bản): chọn ảnh trang phục trong kho. Khi gen, mặt/tóc lấy từ ảnh "
-                   "nhân vật, quần áo lấy từ ảnh trang phục. Mô tả thêm bằng chữ ở ô “Trang phục / dấu hiệu” (mục ✏ Sửa nhân vật).")
-        pool = [a for a in assets.project_assets(p.conn, pid) if a["images"]]
+                   "nhân vật, quần áo lấy từ ảnh trang phục. Mô tả thêm bằng chữ ở ô “Trang phục / dấu hiệu” (mục ✏ Sửa nhân vật). "
+                   "Ảnh trang phục mới: tải lên ở khối 🖼 Tham chiếu, chọn loại “Trang phục”.")
+        pool = outfit_pool(p, pid)
         by_id = {img["id"]: (a, n) for a in pool for n, img in enumerate(a["images"], 1)}
         chosen = st.multiselect("Ảnh trang phục", list(by_id), [i["id"] for i in current if i["id"] in by_id],
-                                format_func=lambda i: f"{by_id[i][0]['name']} · ảnh {by_id[i][1]}", key=f"outfit_{pid}_{name}",
+                                format_func=lambda i: (f"{by_id[i][0]['kind_label']}: " if by_id[i][0]["kind"] == "outfit" else "")
+                                + f"{by_id[i][0]['name']} · ảnh {by_id[i][1]}", key=f"outfit_{pid}_{name}",
                                 max_selections=2)
         if chosen:
             st.image([assets.thumbnail(by_id[i][0]["images"][by_id[i][1] - 1]["path"], 160) for i in chosen], width=70)
@@ -372,6 +391,7 @@ def character_bible_panel(p: Pipeline, pid: int, chars, risky) -> None:
             bible_rows = ([{"Nhân vật / đối tượng": r["name"],
                            "Mô tả": r["description"] + (f" · {r['wardrobe']}" if r["wardrobe"] else ""),
                            "Ảnh tham chiếu": (f"✔ {linked[r['name']]['name']} · {len(linked[r['name']]['refs'])} ảnh" if linked.get(r["name"]) else "— vẽ theo mô tả"),
+                           "Trang phục": outfit_line(p, pid, r["name"]).replace("👗 Trang phục: ", ""),     # S14.28
                            "Lock": "✔" if r["lock_rules"] else "—",
                            "Giọng": (voice.get_profile(r).get("voice_name") or ("—" if not voice.get_profile(r).get("voice_id") else "✔"))
                                     + (" · 🔁 dùng chung" if voice.get_profile(r).get("voice_id") in shared else ""),

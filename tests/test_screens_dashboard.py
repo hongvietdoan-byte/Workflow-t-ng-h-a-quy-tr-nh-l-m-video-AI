@@ -106,7 +106,9 @@ class ScreensTests(unittest.TestCase):
         at.session_state["global_pid"] = self.a
         at.run()
         self.assertFalse(at.exception, at.exception)
-        self.assertTrue(any(b.key == f"ref_go_{self.a}" for b in at.button))              # open by default: no script yet
+        self.assertFalse(any(b.key == f"ref_go_{self.a}" for b in at.button))             # S14.28: no form before the scene analysis…
+        self.assertTrue(any("Gắn ảnh tham chiếu sau khi phân tích cảnh" in (c.value or "") for c in at.caption)
+                        or any("Gắn ảnh tham chiếu sau khi phân tích cảnh" in (getattr(e.proto, "body", "") or "") for e in at.get("html")))  # …one hint line
         self.assertTrue(any(b.key.startswith("coming_") and b.disabled for b in at.button))   # video-ref / dance / trend: "sắp có"
 
 

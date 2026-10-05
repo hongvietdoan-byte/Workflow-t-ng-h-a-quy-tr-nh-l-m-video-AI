@@ -143,19 +143,20 @@ def step1(p: Pipeline, pid: int):
     from dashboard import next_step                                     # S9 E0.1: the next thing to do, one line
     ui.html(next_step.band(p, pid, 1, C.DATA))
 
-    from dashboard.steps.step1_refs import inputs_and_refs                # đợt 3: ways in + attach reference pictures
-    inputs_and_refs(p, pid, bool(scenes))
+    from dashboard.steps.step1_refs import inputs_and_refs, modes_line    # đợt 3: ways in + attach reference pictures
     # S9.1 (người dùng, sau #8): once the script is split the card folds to one line; open again with "▸ Mở"
     with ui.fold("1a · 📜 Kịch bản", _script_summary(p, pid, scenes), f"script_{pid}",
                  default_open=not scenes or bool(st.session_state.get("parse_warn")),
                  sub="toàn văn (trái) · chia theo cảnh (phải)") as script_open:
         if script_open:
+            modes_line(pid)                                             # S14.28: the ways in, one line, inside the script card
             if st.session_state.get("parse_warn") and scenes:
                 st.warning(st.session_state["parse_warn"])
             has_input = script_input(p, pid, True)
             if st.session_state.get("parse_info") and scenes:
                 parse_info_box()
             script_views(p, pid, proj, scenes, char_names)
+    inputs_and_refs(p, pid, bool(scenes))                               # S14.28: references AFTER the script / scene analysis
     ui.html(ui.card_title("1b · 🧰 Chuẩn bị", "làm TRƯỚC Director: định dạng, tài nguyên, phong cách"))
     project_format_panel(p, pid)
     if scenes:
