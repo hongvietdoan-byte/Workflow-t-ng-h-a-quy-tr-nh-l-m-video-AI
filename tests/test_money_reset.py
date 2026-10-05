@@ -113,6 +113,37 @@ class ResetTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             money_reset.reset(self.conn, OWNER, ["user"], "  ", email="lan@x")
 
+    def test_user_baseline_audit_names_email_and_old_new_point(self):
+        self.spend(5, "2000-01-01 00:00:00")
+        done = money_reset.reset(self.conn, OWNER, ["user"], "tháng mới", email="Lan@x")
+        row = self.conn.execute("SELECT email, detail FROM audit_log WHERE action='reset_money'").fetchone()
+        self.assertEqual(row["email"], "boss@x")
+        self.assertIn("lan@x", row["detail"])
+        self.assertIn(f"không có → {done['user']['since']}", row["detail"])
+        self.assertIsNone(done["user"]["old_since"])
+
+    def test_clear_user_baseline_owner_only_and_ledger_untouched(self):
+        self.spend(5, "2000-01-01 00:00:00")
+        full = money_reset.user_bar(self.conn, "lan@x")["month_usd"]
+        money_reset.reset(self.conn, OWNER, ["user"], "tháng mới", email="lan@x")
+        since = team.user_baseline(self.conn, "lan@x")
+        ledger = self.ledger()
+        with self.assertRaises(auth.AuthError):                                          # the core refuses a non-Owner
+            money_reset.clear_user(self.conn, MEMBER, "lan@x", "x")
+        self.assertEqual(team.user_baseline(self.conn, "lan@x"), since)
+        with self.assertRaises(ValueError):
+            money_reset.clear_user(self.conn, OWNER, "lan@x", " ")
+        done = money_reset.clear_user(self.conn, OWNER, "lan@x", "đặt nhầm")
+        self.assertIsNone(team.user_baseline(self.conn, "lan@x"))
+        self.assertEqual((done["before_usd"], done["after_usd"], done["old_since"]), (0.0, full, since))
+        self.assertEqual(self.ledger(), ledger)                                          # the ledger never changes
+        row = self.conn.execute("SELECT email, detail FROM audit_log WHERE action='clear_money_baseline'").fetchone()
+        self.assertEqual(row["email"], "boss@x")
+        self.assertIn(f"lan@x {since} → không có", row["detail"])
+        self.assertIn("đặt nhầm", money_reset.last(self.conn, "user", "lan@x")["why"])
+        with self.assertRaises(ValueError):                                              # nothing to clear
+            money_reset.clear_user(self.conn, OWNER, "lan@x", "lại")
+
     def test_audit_row_written(self):
         money_reset.reset(self.conn, auth.Identity("boss@x", "B", "owner", []), ["trial"], "ghi vết")
         row = self.conn.execute("SELECT email, detail FROM audit_log WHERE action='reset_money'").fetchone()

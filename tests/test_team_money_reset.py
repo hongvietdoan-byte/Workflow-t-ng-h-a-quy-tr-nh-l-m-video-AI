@@ -64,7 +64,13 @@ class TeamMoneyResetTests(unittest.TestCase):
         self.assertFalse(at.exception, at.exception)
         self.assertIsNotNone(team.user_baseline(self.conn, "lan@x.vn"))
         self.assertEqual(money_reset.last(self.conn, "user", "lan@x.vn")["why"], "sang tháng mới")
-        self.assertTrue(any(f"{self.before:.2f} USD → 0.00 USD" in s.value for s in at.success))         # before -> after shown
+        since = team.user_baseline(self.conn, "lan@x.vn")
+        self.assertTrue(any(f"Đặt mốc 0 cho lan@x.vn: thanh trước đó ${self.before:.2f} (ước tính) → 0 từ {since}" in s.value
+                            for s in at.success), [s.value for s in at.success])                   # before -> after shown
+        from dashboard import team_screen
+        row = next(r for r in team_screen.people_rows(self.p, 30) if r["who"] == "lan@x.vn")
+        self.assertEqual(row["month_usd"], 0.0)                                                         # the Team table bar shows 0
+        self.assertGreater(row["usd"], 0)                                                               # the ledger total still counts
         self.assertEqual(money_reset.user_bar(self.conn, "lan@x.vn")["limit"], 1.0)                      # limit untouched
         self.assertEqual(self.conn.execute("SELECT COUNT(*) FROM usage_events").fetchone()[0], 1)     # ledger untouched
         self.assertEqual(self.conn.execute("SELECT COUNT(*) FROM audit_log WHERE action='reset_money'").fetchone()[0], 1)
@@ -77,6 +83,26 @@ class TeamMoneyResetTests(unittest.TestCase):
         at.button(key="team_mr_go_lan@x.vn_no").click().run()
         self.assertIsNone(team.user_baseline(self.conn, "lan@x.vn"))
         self.assertIsNone(money_reset.last(self.conn, "user", "lan@x.vn"))
+
+    def test_owner_clears_the_point_with_confirmation(self):
+        money_reset.reset(self.conn, BOSS, ["user"], "tháng mới", email="lan@x.vn")
+        at = self.run_team()
+        at.button(key="team_mr_lan@x.vn").click().run()
+        self.assertTrue(at.button(key="team_mr_clear_lan@x.vn").disabled)                   # no reason -> cannot even ask
+        at.text_input(key="team_mr_why_lan@x.vn").set_value("đặt nhầm").run()
+        at.button(key="team_mr_clear_lan@x.vn").click().run()
+        self.assertIsNotNone(team.user_baseline(self.conn, "lan@x.vn"))                      # asked, nothing done yet
+        at.button(key="team_mr_clear_lan@x.vn_yes").click().run()
+        self.assertFalse(at.exception, at.exception)
+        self.assertIsNone(team.user_baseline(self.conn, "lan@x.vn"))
+        self.assertTrue(any("Bỏ mốc 0 của lan@x.vn" in s.value for s in at.success), [s.value for s in at.success])
+        self.assertEqual(self.conn.execute("SELECT COUNT(*) FROM usage_events").fetchone()[0], 1)
+        self.assertEqual(self.conn.execute("SELECT COUNT(*) FROM audit_log WHERE action='clear_money_baseline'").fetchone()[0], 1)
+
+    def test_no_clear_button_without_a_point(self):
+        at = self.run_team()
+        at.button(key="team_mr_lan@x.vn").click().run()
+        self.assertNotIn("team_mr_clear_lan@x.vn", [b.key for b in at.button])
 
     def test_monitor_only_person_sees_no_reset_button(self):
         def page():                                      # the block as a non-Owner with the "monitor" permission would reach it
