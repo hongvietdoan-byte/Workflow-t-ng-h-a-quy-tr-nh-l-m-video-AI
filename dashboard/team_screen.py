@@ -27,7 +27,7 @@ def people_rows(p: Pipeline, days) -> list:
     users = {u["email"]: u for u in auth.list_users(conn)}
     sent = {r["who"]: r for r in perf.by_user(conn, days)}
     money = team.spend_by_user(conn, days)
-    month = team.spend_by_user(conn, 30)
+    month = team.spend_by_user(conn, 30, since_baseline=True)   # thanh theo người tôn trọng mốc 0 Owner đã đặt
     keys = list(users) + [k for k in sent if k not in users]
     out = []
     for k in keys:
