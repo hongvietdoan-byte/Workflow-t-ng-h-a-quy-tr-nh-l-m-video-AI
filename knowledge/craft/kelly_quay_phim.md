@@ -9,3 +9,4 @@
 - **Tư thế nhìn xuống điện thoại:** nhân vật cầm điện thoại nhưng màn hình không vào khung; mặt cận thấy phản ứng. Cận màn hình điện thoại khó dựng đúng, nên cân nhắc cách này khi cần né.
 - **Độ dài shot theo vai:** hành động 1,0-2,4 s, insert 0,8-1,7 s, phản ứng 0,9-1,7 s, mở móc có thể dài (clip 1 cú máy), kết 1,4-3,3 s. Chỉ là khoảng tham khảo; shot nói thoại phải đủ thời gian nói.
 - **Nhất quán mặt qua nhiều shot:** clip nhiều shot dễ đổi mặt nhẹ; ít shot, cùng cỡ cảnh và cùng ánh sáng giúp giữ nhân vật. Với clip có lớp đồ hoạ, nên cân nhắc giữ góc ổn định.
+- **Cắt theo chuyển động, giữ liền mạch (gợi ý):** nơi kịch bản ghi nối liền, nên cân nhắc cắt khi nhân vật đang chuyển động (bước, quay đầu, với tay) thay vì cắt cứng lúc đứng yên; giữ trục 180 độ, hướng nhìn và vị trí so với vật mốc như ở cuối shot trước, khung đầu shot sau lấy từ khung cuối shot trước nếu có.

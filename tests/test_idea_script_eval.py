@@ -31,7 +31,7 @@ class EvalTests(unittest.TestCase):
         st = out["results"]["1"]
         self.assertTrue(all(a["defaulted"] for a in st["answers"]))                       # the eval answers nothing: defaults, written down
         self.assertEqual(st["chosen"], 0)
-        self.assertEqual(st["script_checks"]["scenes"], 2)
+        self.assertEqual(st["script_checks"]["scenes"], 1)                          # S14.35: 2 same-place scenes joined by code
         again = E.run_all(self.p, self.pid, ITEMS, E.ReplayClient(calls), 1.0, log=lambda *a, **k: None)
         self.assertEqual(again["results"]["2"]["script"], out["results"]["2"]["script"])
         self.assertEqual(again["errors"], [])

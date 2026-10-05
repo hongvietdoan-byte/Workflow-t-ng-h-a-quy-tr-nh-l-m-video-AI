@@ -19,6 +19,15 @@ Trận đấu -> HUD/bảng kill/icon trên đầu; màn hình game -> nhân v�
 - Cú chốt = phản ứng/gag bất ngờ ngắn (mặt sốc, người "ghi 4 mạng" uống sữa nhàn nhã), CTA hiếm (2/40) nên chỉ thêm khi người dùng đưa.
 - Đội diễn viên lặp lại tạo quen thuộc (Kelly, Maxim, Alvaro, pet) nhưng chỉ dùng người CÓ trong Kho.
 
+## Cú chốt = tiết lộ rõ, có twist (gợi ý)
+- Cú chốt hay thường là một cú đảo ngược kỳ vọng: lộ thủ phạm, hoặc nhân quả bất ngờ mà người xem vẫn kịp hiểu. Nên cân nhắc để người xem hiểu CHUYỆN GÌ ĐÃ XẢY RA ngay ở khung cuối, không chỉ thấy mặt ngơ ngác.
+- Ví dụ: con gà nướng biến mất khỏi bàn, hai người tìm khắp bếp; cú chốt cho thấy chim cánh cụt (pet trong game) núp trên quạt trần, ăn mất gà, nhét đầy mồm. Có thể gieo manh mối nhỏ sớm (bóng đen trên quạt, vụn gà rơi) để cú chốt vừa bất ngờ vừa hợp lý.
+- Cú chốt nên chốt cả hai vế: ai/cái gì là nguyên nhân + phản ứng của người trong chuyện. Khi twist cần vật hoặc nơi, kiểm trước Kho có dựng được không.
+
+## "Wow" cho clip 15 s
+- Với 15 s, một khoảnh khắc wow thường đủ: một hình ảnh lạ mà vẫn rõ, một cú lộ ở khoảng giây 11-13, rồi 1-2 s phản ứng. Nên cân nhắc dồn thời lượng cho hook (0-3 s) và cú chốt, thay vì rải đều cho các nhịp giữa.
+- Wow là thứ người xem kể lại được trong một câu; nếu chưa kể được thì có thể đơn giản hoá.
+
 ## Cách viết thành cảnh (khi hợp)
 - Nhịp của dàn ý không nhất thiết là một CẢNH. Khi các nhịp liền nhau cùng một nơi, nên cân nhắc gộp thành một cảnh dài hơn (nhiều dòng mô tả theo thứ tự thời gian) thay vì mỗi nhịp một cảnh; chỉ tách cảnh khi đổi nơi hoặc đổi thời điểm. Clip 15 s thường chỉ 1-3 cảnh.
 - Giữ nhãn kỹ thuật ngoài lời mô tả: các nhãn như "Điểm xoay:", "Hậu kỳ:", "Cận mặt X:" có thể ghi bằng câu thường ("Lớp hậu kỳ: ..."), không đặt đầu dòng dưới dạng `Nhãn: ...` vì dễ bị đọc nhầm là người nói; tên cấu trúc (hook, điểm xoay) thuộc dàn ý, không đưa vào mô tả cảnh.

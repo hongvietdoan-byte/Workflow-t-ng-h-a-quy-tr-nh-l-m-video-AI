@@ -37,6 +37,15 @@ def clean_anchors(raw: Optional[Dict]) -> Dict:
         out[k] = str(raw.get(k) or "").strip()
     g = assets.fold(str(raw.get("gameplay_ui") or ""))
     out["gameplay_ui"] = "co" if g in YES or g.startswith("co ") else "khong" if g in NO or g.startswith("khong") else ""
+    # S14.35: a place outside the Kho — what kind it is (the person says; never guessed) and how the set is made
+    pk = assets.fold(str(raw.get("place_kind") or "")).replace("_", " ")
+    kind = "real_life" if pk.startswith(("doi thuong", "real life", "ngoai game")) else "game_map" if pk.startswith(("map", "game")) else ""
+    sc = assets.fold(str(raw.get("scene_choice") or "")).replace("_", " ")
+    choice = "meshy" if sc.startswith(("meshy", "3d")) else "ref_image" if sc.startswith(("ref", "anh", "image", "dao dien")) else ""
+    if kind:
+        out["place_kind"] = kind
+    if kind == "real_life" and choice:
+        out["scene_choice"] = choice
     return out
 
 
@@ -109,6 +118,60 @@ def place_in_kit(k: Dict, where: str) -> Optional[Dict]:
     return next((p for p in k["places"] if any(has_phrase(where, s) for s in p["spots"])), None)
 
 
+# ---- S14.35: a place outside the game that the Kho does not have yet -----------------------------------------------------------------
+SCENE_CHOICES = {"ref_image": "Đạo diễn tạo ảnh bối cảnh làm tham chiếu", "meshy": "Meshy dựng 3D bối cảnh (tốn tiền — chỉ ghi, chưa chạy)"}
+
+
+def kho_place(conn, pid: int, name: str, game: str = "FF") -> Optional[Dict]:
+    """The Kho location (any, with or without 3D) whose name or alias is in `name` — the Kho's own 'loại tài sản' says it is a game map."""
+    items = []
+    for a in assets.list_assets(conn, game, None, pid):
+        if a["kind"] == "location":
+            items.append({"name": a["name"], "names": [a["name"]] + [x.strip() for x in str(a.get("aliases") or "").split(",") if x.strip()]})
+    return _find(items, name)
+
+
+def place_state(conn, pid: int, k: Dict, anchors: Optional[Dict]) -> Dict:
+    """{"state": empty / in_kit / kho_no_3d / game_map_no_3d / needs_scene / ask}. A place not in the Kho at all is a game map or a
+    real-life place only because the person SAID so (`place_kind`); not said → ask (0 USD), never guessed from the words."""
+    a = clean_anchors(anchors)
+    place = a["place"]
+    if not place:
+        return {"state": "empty"}
+    if place_in_kit(k, place):
+        return {"state": "in_kit"}
+    if kho_place(conn, pid, place):
+        return {"state": "kho_no_3d"}
+    if a.get("place_kind") == "real_life":
+        return {"state": "needs_scene", "choice": a.get("scene_choice") or ""}
+    if a.get("place_kind") == "game_map":
+        return {"state": "game_map_no_3d"}
+    return {"state": "ask"}
+
+
+def scene_est_usd(choice: str) -> Optional[float]:
+    """Meshy: 'model' credits × USD per credit × up to MAX_TRIES (1 + 2 redo — counted high). A reference picture: inside the picture step."""
+    if choice != "meshy":
+        return None
+    from . import meshy
+    return round(meshy.CREDITS["model"] * meshy.usd_per_credit() * meshy.MAX_TRIES_PER_CHARACTER, 2)
+
+
+def scene_needs(conn, pid: int) -> List[Dict]:
+    """Sets the idea needs made (listed in the asset checklist; nothing is run): [{name, choice, label, est_usd, note}]."""
+    from . import idea_to_script
+    inputs = idea_to_script.get_state(conn, pid).get("inputs") or {}
+    a = clean_anchors(inputs.get("anchors"))
+    if place_state(conn, pid, kit(conn, pid), a)["state"] != "needs_scene":
+        return []
+    ch = a.get("scene_choice") or ""
+    est = scene_est_usd(ch)
+    note = ("chưa chọn cách tạo — Đạo diễn mặc định tạo ảnh bối cảnh; muốn Meshy 3D thì chọn ở khung nhập" if not ch else
+            f"ước ≤ {est:.2f} USD (1 + 2 lần dựng lại), CHƯA chạy — người dùng duyệt giá rồi mới dựng" if ch == "meshy" else
+            "ảnh bối cảnh nằm trong bước tạo ảnh của Đạo diễn (giá tính ở ước giá ảnh)")
+    return [{"name": a["place"], "choice": ch, "label": SCENE_CHOICES.get(ch, "chưa chọn (mặc định: Đạo diễn tạo ảnh)"), "est_usd": est, "note": note}]
+
+
 def gate(conn, pid: int, inputs: Dict) -> List[str]:
     """Why the Biên kịch must not be called yet (0 USD): missing key points, or key points outside what can be built."""
     a = clean_anchors((inputs or {}).get("anchors"))
@@ -120,7 +183,13 @@ def gate(conn, pid: int, inputs: Dict) -> List[str]:
     for c in list(dict.fromkeys(a["characters"] + box)):
         if not _find(k["characters"], c):
             why.append(f"nhân vật {c} chưa có ảnh chuẩn đã duyệt trong Kho — chọn nhân vật khác hoặc bổ sung ảnh chuẩn")
-    if a["place"] and not place_in_kit(k, a["place"]):
+    st = place_state(conn, pid, k, a)["state"]
+    if st == "ask":
+        why.append(f"nơi {a['place']} không có trong Kho — cho biết đây là map game hay nơi đời thường (ngoài game); "
+                   "đời thường thì chọn cách tạo bối cảnh (ảnh do Đạo diễn tạo / Meshy 3D)")
+    elif st == "game_map_no_3d":
+        why.append(f"nơi {a['place']} là map game nhưng chưa có mô hình 3D trong Kho — chọn nơi khác hoặc bổ sung tư liệu")
+    elif st == "kho_no_3d":
         gone = next((x for x in k["excluded"] if has_phrase(a["place"], x["name"])), None)
         why.append(f"nơi {a['place']} " + (f"bị loại khỏi danh sách dựng được: {gone['why']}" if gone else
                                            "chưa có mô hình 3D / nền ngang tầm mắt trong Kho") + " — chọn nơi khác hoặc bổ sung tư liệu")
@@ -165,8 +234,19 @@ def anchors_block(inputs: Dict) -> str:
             f"- Cú chốt / kết: {a['ending']}\n- Gameplay / giao diện: {'CÓ' if a['gameplay_ui'] == 'co' else 'KHÔNG (cấm hoàn toàn)'}")
 
 
+def custom_place_block(conn, pid: int, k: Dict, inputs: Dict) -> str:
+    """S14.35: the one real-life place the person said needs a set made. Empty (prompt unchanged) for every other idea."""
+    a = clean_anchors((inputs or {}).get("anchors"))
+    if place_state(conn, pid, k, a)["state"] != "needs_scene":
+        return ""
+    return (f"## Nơi ngoài game cần tạo bối cảnh\n- {a['place']}: nơi đời thường chưa có trong Kho; xưởng sẽ tạo bối cảnh riêng "
+            f"({SCENE_CHOICES.get(a.get('scene_choice') or '', 'Đạo diễn tạo ảnh bối cảnh làm tham chiếu')}). Chỉ dùng ĐÚNG nơi này làm bối cảnh; "
+            "tả rõ vật dụng và góc nhìn cần có trong bối cảnh (bàn, tủ, quạt trần…) để tạo bối cảnh đủ; không thêm nơi đời thường khác.")
+
+
 def blocks(conn, pid: int, inputs: Dict) -> str:
-    return "\n\n".join(x for x in (RULES, kit_block(kit(conn, pid)), anchors_block(inputs)) if x)
+    k = kit(conn, pid)
+    return "\n\n".join(x for x in (RULES, kit_block(k), custom_place_block(conn, pid, k, inputs), anchors_block(inputs)) if x)
 
 
 # ---- the code check after the writing turn (0 USD) ------------------------------------------------------------------------------------
@@ -215,9 +295,9 @@ def _where(heading: str) -> str:
     return "" if _only_time(where) else where
 
 
-def check_scenes(scenes, k: Dict, anchors: Dict) -> Tuple[List[str], List[str], List[Dict]]:
+def check_scenes(scenes, k: Dict, anchors: Dict, custom_place: str = "") -> Tuple[List[str], List[str], List[Dict]]:
     """(problems, flags, blocked_scenes) — interface / gameplay scenes and places outside the kit. The person's 'có gameplay' turns the
-    first into a flag (said, not silent)."""
+    first into a flag (said, not silent). `custom_place` (S14.35) = the real-life place that needs a set made: its scenes are flagged, not blocked."""
     problems, flags, blocked = [], [], []
     allowed = clean_anchors(anchors)["gameplay_ui"] == "co"
     for s in scenes:
@@ -230,6 +310,9 @@ def check_scenes(scenes, k: Dict, anchors: Dict) -> Tuple[List[str], List[str], 
         where = _where(s.heading)
         if not where:
             why.append("thiếu nơi quay — tiêu đề cảnh chỉ có thời gian, cần 'CẢNH n - <thời gian>, <nơi trong Kho>'")
+        elif not place_in_kit(k, where) and custom_place and (has_phrase(where, custom_place) or has_phrase(custom_place, where)):
+            flags.append(f"cảnh {s.idx}: nơi {custom_place} ngoài game, chưa có trong Kho — cần tạo bối cảnh (ảnh ref do Đạo diễn tạo hoặc Meshy 3D, "
+                         "xem bảng kê tài nguyên)")
         elif not place_in_kit(k, where):
             why.append(f"nơi {where} chưa có mô hình 3D / gói bối cảnh trong Kho")
         if why:

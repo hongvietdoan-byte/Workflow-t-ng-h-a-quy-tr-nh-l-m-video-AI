@@ -9,3 +9,4 @@
 - **Mở bằng giây 0:** chữ hoặc HUD hoặc hành động ngay; cú chốt là phản ứng. Đạo diễn ghi `money_shot` ở cú chốt đó.
 - **Âm thanh:** nhạc trend phủ gần cả clip, thoại gốc hiếm, hiệu ứng game đánh dấu sự kiện (kill, súng, chuông). Ghi ý đồ âm thanh theo sự kiện của HUD; nhạc cần rõ bản quyền (ghi cờ cho người dùng).
 - **Khó dựng chắc hiện nay:** cận điện thoại thật, tổng kết ghép cảnh cũ, hợp tác người thật, chuyển động mạnh nhiều nền, video bên thứ ba; có thể cân nhắc cách khác cho cùng ý. Một kỹ thuật không có nghĩa cố định: chọn theo ý đồ của cảnh, có thể trộn với phong cách khác, không cần áp cả bộ.
+- **Nối liền mạch giữa cảnh/shot (gợi ý):** khi hai cảnh cùng nơi liền nhau (kịch bản có dòng "Liền mạch với cảnh sau"), có thể cân nhắc dựng liền: shot sau bắt đầu từ vị trí + tư thế cuối shot trước, đánh dấu `continuous_with_next` và chung `sequence`, để nhân vật không khựng hoặc "dịch chuyển" ở điểm cắt.

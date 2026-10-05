@@ -66,7 +66,7 @@ def idea_settings_form(p: Pipeline, pid: int, idea: str) -> None:
             gone = [c for c in an.get("characters", []) if c.upper() not in [x["name"].upper() for x in k["characters"]]]
             if gone:                                              # rà: a saved choice that left the Kho is said, not dropped silently
                 st.warning("Nhân vật đã chọn không còn trong danh sách dựng được: " + ", ".join(gone) + " — chọn lại.")
-            if an.get("place") and an["place"] not in [x["name"] for x in k["places"]]:
+            if an.get("place") and an["place"] not in [x["name"] for x in k["places"]] and an.get("place_kind") != "real_life":
                 st.warning(f"Nơi đã chọn ({an['place']}) không còn trong danh sách dựng được — chọn lại.")
             st.markdown("**Điểm then chốt** — bắt buộc; Biên kịch chỉ mở rộng chi tiết quanh các điểm này (thiếu thì không chạy, 0 USD)")
             e1, e2 = st.columns(2)
@@ -76,6 +76,18 @@ def idea_settings_form(p: Pipeline, pid: int, idea: str) -> None:
             kplaces = [pl["name"] for pl in k["places"]]
             place = e1.selectbox("Nơi quay (map có 3D / nền trong Kho)", [""] + kplaces,
                                  index=([""] + kplaces).index(an["place"]) if an.get("place") in kplaces else 0)
+            # S14.35: a place outside the game that the Kho does not have yet -> "cần tạo bối cảnh" (ảnh ref do Đạo diễn tạo HOẶC Meshy 3D); only written down
+            other = e1.text_input("…hoặc nơi KHÔNG có trong danh sách (ngoài game)", "" if an.get("place") in kplaces else an.get("place", ""),
+                                  placeholder="bếp căn tin, văn phòng, lớp học…",
+                                  help="Chỉ dùng khi nơi không có trong ô trên. Nếu nhập, phải nói rõ loại nơi — code không đoán.")
+            pk_opts = ["", "đời thường (ngoài game)", "map game"]
+            pk_cur = {"real_life": 1, "game_map": 2}.get(an.get("place_kind"), 0)
+            place_kind = e2.radio("Loại nơi vừa nhập", pk_opts, index=pk_cur, horizontal=True,
+                                  help="Map game chưa có file 3D vẫn bị chặn. Đời thường: đi tiếp, ghi vào bảng kê tài nguyên là 'cần tạo bối cảnh'.")
+            sc_opts = ["", "Đạo diễn tạo ảnh bối cảnh làm ref", "Meshy dựng 3D (tốn tiền — chỉ ghi lựa chọn, chưa chạy)"]
+            scene_choice = e2.radio("Cách tạo bối cảnh (nơi đời thường)", sc_opts, horizontal=True,
+                                    index={"ref_image": 1, "meshy": 2}.get(an.get("scene_choice"), 0),
+                                    help="Chưa chọn = Đạo diễn mặc định tạo ảnh. Meshy: chỉ ghi lựa chọn + ước giá vào bảng kê tài nguyên.")
             gp = e2.radio("Có cảnh gameplay / giao diện game?", ["", "không", "có"], horizontal=True,
                           index=["", "khong", "co"].index(an.get("gameplay_ui", "")) if an.get("gameplay_ui", "") in ("", "khong", "co") else 0,
                           help="'có' = chấp nhận rủi ro: chưa có tư liệu chứng minh dựng được màn hình điện thoại / sảnh / combat gameplay.")
@@ -85,8 +97,9 @@ def idea_settings_form(p: Pipeline, pid: int, idea: str) -> None:
         if inp and idea.strip() and idea.strip() != inp.get("idea"):
             cap("Chữ trong khung khác ý tưởng đang làm — bấm 💡 Ý tưởng mới để bắt đầu lại với chữ mới (các lượt cũ bị bỏ).")
     if new and act(lambda: I.start(p.conn, pid, idea, dur, aspect, platform, tone, achars, cta, trend, p=p,
-                                      anchors={"characters": achars, "costume": costume, "place": place, "plot": plot, "ending": ending,
-                                               "gameplay_ui": gp})):
+                                      anchors={"characters": achars, "costume": costume, "place": (other.strip() or place), "plot": plot,
+                                               "ending": ending, "gameplay_ui": gp, "place_kind": place_kind if other.strip() else "",
+                                               "scene_choice": scene_choice if other.strip() else ""})):
         st.rerun()
 
 
