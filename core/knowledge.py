@@ -437,7 +437,7 @@ def distill_inputs(group: str, include_builtin: bool) -> List[tuple]:
     docs = []
     for d in user_docs(group):
         if d["enabled"]:
-            docs.append((d["title"], _read(d["path"]).strip()))
+            docs.append((d["title"], _wrap_research(_read(d["path"]).strip())))   # rà 06/10: web research wrapped here too
     if include_builtin:
         for rel, title, _ in GROUPS[group][2]:
             if rel in _FOLDABLE[group]:

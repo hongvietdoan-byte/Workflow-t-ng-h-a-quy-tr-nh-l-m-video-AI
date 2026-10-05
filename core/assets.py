@@ -1273,9 +1273,11 @@ def location_landmark(conn, place: Dict, scene: Optional[Dict]) -> Optional[Dict
             or next((i for i in place["images"] if i.get("role") == "low_angle"), None))
 
 
-def location_text(conn, place: Dict) -> str:
+def location_text(conn, place: Dict, for_llm: bool = False) -> str:
     """B1: the place in words for the image prompt — its description and, from the set analyses already read or rendered, the real
-    heights of its landmarks (so people get the right size next to a wall or a door without copying a picture's camera)."""
+    heights of its landmarks (so people get the right size next to a wall or a door without copying a picture's camera).
+    for_llm=True (the QC agent's brief, read by Claude): the website part of the description goes wrapped by prompts.external_block
+    (rà bảo mật 06/10); the image model gets plain words (a tag and a Vietnamese note would only pollute the picture prompt)."""
     marks, light = [], ""
     for img in place["images"]:
         try:
@@ -1290,15 +1292,21 @@ def location_text(conn, place: Dict) -> str:
             name, h = str(lm.get("name") or "").strip(), lm.get("height_m")
             if name and isinstance(h, (int, float)) and name not in [m[0] for m in marks]:
                 marks.append((name, float(h)))
-    desc = re.sub(r"\s+", " ", (place.get("description") or "").split("[AI đọc ảnh]")[0]).strip()[:600]   # S5.2: 300 cut the
-    # tower's "No stacked terraces, no fortress." off its layout sentence
+    head = (place.get("description") or "").split("[AI đọc ảnh]")[0]
+    desc = re.sub(r"\s+", " ", head).strip()[:600]   # S5.2: 300 cut the tower's "No stacked terraces, no fortress." off its layout sentence
+    web_part = ""
+    own, web = split_web(head)
+    if for_llm and web:
+        from .prompts import external_block
+        desc = re.sub(r"\s+", " ", own).strip()[:600]
+        web_part = external_block("ff.garena.com — mô tả bối cảnh", re.sub(r"\s+", " ", web).strip()[:max(600 - len(desc), 120)])
     bits = [f"Setting: {place['name']}" + (f" — {desc}" if desc else "")]
     if marks:
         bits.append("Real sizes: " + ", ".join(f"{n} about {h:g} m tall" for n, h in marks[:6])
                     + "; an adult is about 1.7 m, keep people in proportion to these")
     if light and not light.startswith("3D render"):
         bits.append(f"Light: {light[:120]}")
-    return ". ".join(bits) + "."
+    return ". ".join(bits) + "." + (f"\n{web_part}" if web_part else "")
 
 
 def gap_severity(gap: str) -> str:
