@@ -262,10 +262,6 @@ class KhoMergeTests(_MergeHome):
         self.conn = connect(self.db)
 
 
-if __name__ == "__main__":
-    unittest.main()
-
-
 # ---- rà độc lập 06/10 ------------------------------------------------------------------------------------------------------------
 class MergeNeverTouchesAnotherInstallTests(_MergeHome):
     """Lỗi 1: chạy --db <bản sao> từ thư mục repo thật — resolve() dò cwd / REPO và kho_merge dời ẢNH THẬT của máy chính."""
@@ -373,3 +369,61 @@ class BatchFlowsJoinTheExistingEntryTests(unittest.TestCase):
         rep = assets.add_reference_images(self.conn, self.project(), "FF", "pet", "Mr. Waggor", [("a.png", PNG)], shared=True)
         self.assertEqual(rep["asset_id"], self.waggor)
         self.assertFalse(rep["created"])
+
+
+class MergeJsonAndFileRefsTests(_MergeHome):
+    """Lỗi 3: tham chiếu mục Kho nằm trong JSON (location_asset, bảng kê) / file (establish, models3d)."""
+
+    def add_json_refs(self):
+        c = self.conn
+        ref = json.dumps({"location_asset": self.merge, "location": "bãi biển"}, ensure_ascii=False)
+        c.execute("INSERT INTO scenes (project_id, idx, data) VALUES (?, 1, ?)", (self.p1, ref))
+        c.execute("INSERT INTO story_scenes (project_id, idx, data) VALUES (?, 1, ?)", (self.p1, ref))
+        c.execute("INSERT INTO scenes (project_id, idx, data) VALUES (?, 2, ?)", (self.p1, json.dumps({"location_asset": 99})))
+        c.execute("INSERT INTO app_settings (key, value) VALUES (?, ?)", (f"asset_checklist:{self.p1}",
+                  json.dumps({"rows": [{"asset_id": self.merge, "name": "PET"}, {"asset_id": self.keep, "name": "X"}]})))
+        c.commit()
+
+    def test_dry_run_lists_every_kind_of_reference_even_when_zero(self):
+        text = kho_merge.plan_text(kho_merge.make_plan(self.conn, self.keep, self.merge, self.db))
+        for word in ("scenes.data.location_asset: 0", "story_scenes.data.location_asset: 0", "app_settings asset_checklist: 0",
+                     "establish/index.json: 0", "models3d: 0"):
+            self.assertIn(word, text)
+
+    def test_json_references_move_in_the_same_transaction(self):
+        self.add_json_refs()
+        plan = kho_merge.make_plan(self.conn, self.keep, self.merge, self.db)
+        text = kho_merge.plan_text(plan)
+        self.assertIn("scenes.data.location_asset: 1", text)
+        self.assertIn("app_settings asset_checklist: 1", text)
+        with mock.patch.object(kho_merge, "_write_audit", side_effect=RuntimeError("boom")):
+            with self.assertRaises(RuntimeError):
+                kho_merge.apply(self.conn, plan, self.db)
+        self.assertEqual(json.loads(self.conn.execute("SELECT data FROM scenes WHERE idx=1").fetchone()[0])["location_asset"], self.merge)
+        kho_merge.apply(self.conn, kho_merge.make_plan(self.conn, self.keep, self.merge, self.db), self.db)
+        for t in ("scenes", "story_scenes"):
+            d = json.loads(self.conn.execute(f"SELECT data FROM {t} WHERE idx=1").fetchone()[0])
+            self.assertEqual(d, {"location_asset": self.keep, "location": "bãi biển"})
+        self.assertEqual(json.loads(self.conn.execute("SELECT data FROM scenes WHERE idx=2").fetchone()[0])["location_asset"], 99)
+        rows = json.loads(self.conn.execute("SELECT value FROM app_settings WHERE key=?", (f"asset_checklist:{self.p1}",)).fetchone()[0])["rows"]
+        self.assertEqual([r["asset_id"] for r in rows], [self.keep, self.keep])
+
+    def test_establish_or_models3d_references_refuse_unless_forced(self):
+        est = os.path.join(self.home, "data", "projects", str(self.p1), "establish")
+        os.makedirs(est)
+        with open(os.path.join(est, "index.json"), "w", encoding="utf-8") as f:
+            json.dump({"1": {"refs": [os.path.join("data", "assets", str(self.merge), "1.png")]}}, f)
+        with self.assertRaises(kho_merge.MergeError) as e:
+            kho_merge.make_plan(self.conn, self.keep, self.merge, self.db)
+        self.assertIn("establish", str(e.exception))
+        plan = kho_merge.make_plan(self.conn, self.keep, self.merge, self.db, force_refs=True)
+        self.assertIn("CẢNH BÁO", kho_merge.plan_text(plan))
+        shutil.rmtree(est)
+        os.makedirs(os.path.join(self.home, "data", "models3d", f"CHIM_C_NH_C_T_{self.merge}"))
+        with self.assertRaises(kho_merge.MergeError) as e:
+            kho_merge.make_plan(self.conn, self.keep, self.merge, self.db)
+        self.assertIn("models3d", str(e.exception))
+
+
+if __name__ == "__main__":
+    unittest.main()

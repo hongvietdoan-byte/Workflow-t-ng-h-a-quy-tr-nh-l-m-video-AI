@@ -97,7 +97,57 @@ def _check_folder(db: str) -> str:
     return folder
 
 
-def make_plan(conn, keep: int, merge: int, db: str, keep_name: bool = False) -> Dict:
+JSON_TABLES = ("scenes", "story_scenes")                           # data JSON with "location_asset": <asset id>
+CHECKLIST_PREFIX = "asset_checklist:"                               # app_settings: {"rows": [{"asset_id": …}]}
+
+
+def _json_refs(conn, merge: int) -> Dict[str, List]:
+    """Rows whose JSON names the merged entry: {"scenes": [ids], "story_scenes": [ids], "asset_checklist": [keys]}."""
+    out = {}
+    for t in JSON_TABLES:
+        ids = []
+        for r in conn.execute(f'SELECT id, data FROM "{t}" WHERE data LIKE ?', (f"%location_asset%{merge}%",)):
+            try:
+                if json.loads(r[1]).get("location_asset") == merge:
+                    ids.append(r[0])
+            except (ValueError, AttributeError):
+                continue
+        out[t] = ids
+    keys = []
+    for r in conn.execute("SELECT key, value FROM app_settings WHERE key LIKE ?", (CHECKLIST_PREFIX + "%",)):
+        try:
+            if any(isinstance(x, dict) and x.get("asset_id") == merge for x in json.loads(r[1]).get("rows") or []):
+                keys.append(r[0])
+        except (ValueError, AttributeError):
+            continue
+    out["asset_checklist"] = keys
+    return out
+
+
+def _file_refs(db: str, merge: int) -> Dict[str, List[str]]:
+    """Files that name the merged entry and cannot be rewritten safely: establish pictures (their key = the reference paths — a change
+    can make the pipeline draw them again = money) and 3D model folders <models3d>/<name>_<id> (meshy.folder_for)."""
+    data = os.path.dirname(os.path.abspath(db))
+    pat = re.compile(r"assets[\\/]+" + str(merge) + r"[\\/]")       # JSON doubles the backslashes: [\\/]+ takes both forms
+    est = []
+    projects = os.environ.get("PIPELINE_DATA") or os.path.join(data, "projects")
+    if os.path.isdir(projects):
+        for pid in sorted(os.listdir(projects)):
+            f = os.path.join(projects, pid, "establish", "index.json")
+            if os.path.isfile(f):
+                try:
+                    with open(f, encoding="utf-8") as fh:
+                        if pat.search(fh.read()):
+                            est.append(f)
+                except OSError:
+                    est.append(f)
+    models = os.path.join(data, "models3d")
+    m3d = [os.path.join(models, d) for d in sorted(os.listdir(models))
+           if d.endswith(f"_{merge}") and os.path.isdir(os.path.join(models, d))] if os.path.isdir(models) else []
+    return {"establish": est, "models3d": m3d}
+
+
+def make_plan(conn, keep: int, merge: int, db: str, keep_name: bool = False, force_refs: bool = False) -> Dict:
     """Everything the merge would do, without changing anything. MergeError when it must not run."""
     if keep == merge:
         raise MergeError("--keep và --merge phải là hai mục khác nhau")
@@ -151,6 +201,14 @@ def make_plan(conn, keep: int, merge: int, db: str, keep_name: bool = False) -> 
             dropped = conn.execute(f'SELECT COUNT(*) FROM "{t}" a WHERE a."{c}"=? AND EXISTS (SELECT 1 FROM "{t}" b'
                                    f' WHERE b.project_id=a.project_id AND b."{c}"=?)', (merge, keep)).fetchone()[0]
         links.append({"table": t, "column": c, "rows": total, "dropped": dropped})
+    files = _file_refs(db, merge)
+    meshy_rows = next((x["rows"] for x in links if x["table"] == "meshy_tasks"), 0)
+    risky = [f"{len(files['establish'])} establish/index.json"] if files["establish"] else []
+    risky += [f"{len(files['models3d'])} thư mục models3d"] if files["models3d"] else []
+    risky += [f"{meshy_rows} dòng meshy_tasks (thư mục 3D đặt theo tên+id)"] if meshy_rows else []
+    if risky and not force_refs:
+        raise MergeError(f"#{merge} còn được tham chiếu ở chỗ không dời an toàn được: {', '.join(risky)} — dời có thể làm mất mô hình 3D "
+                         "hoặc làm pipeline vẽ lại ảnh establish (tốn tiền). Xem rồi chạy lại với --force-refs nếu chấp nhận. Chưa đổi gì.")
     leftovers = []
     mfolder = assets.asset_folder(merge)
     if mfolder and os.path.isdir(mfolder):
@@ -159,7 +217,8 @@ def make_plan(conn, keep: int, merge: int, db: str, keep_name: bool = False) -> 
         leftovers = [f for f in sorted(os.listdir(mfolder)) if same(os.path.join(mfolder, f)) not in planned]
     return {"keep": k, "merge": m, "name": new_name, "aliases": ", ".join(names), "description": description,
             "profile_action": profile_action, "profile": m["profile"] if profile_action == "lấy của mục bỏ" else None,
-            "moves": moves, "links": links, "merge_folder": mfolder, "leftovers": leftovers, "db": os.path.abspath(db)}
+            "moves": moves, "links": links, "merge_folder": mfolder, "leftovers": leftovers, "db": os.path.abspath(db),
+            "json_refs": _json_refs(conn, merge), "file_refs": files, "forced": risky}
 
 
 def plan_text(plan: Dict) -> str:
@@ -180,6 +239,18 @@ def plan_text(plan: Dict) -> str:
                    + (f" ({ln['dropped']} dòng bỏ vì dự án đã có mục giữ)" if ln["dropped"] else ""))
     out.append(f"  asset_images: {len(plan['moves'])} dòng đổi asset_id; assets: 1 dòng sửa (#{k['id']}), 1 dòng xóa (#{m['id']}); "
                "audit_log: +1")
+    j, f = plan["json_refs"], plan["file_refs"]
+    out.append("  tham chiếu trong JSON (dời cùng giao dịch):")
+    for t in JSON_TABLES:
+        out.append(f"    {t}.data.location_asset: {len(j[t])} dòng")
+    out.append(f"    app_settings asset_checklist: {len(j['asset_checklist'])} dòng" + (f" ({', '.join(j['asset_checklist'])})" if j["asset_checklist"] else ""))
+    out.append("  tham chiếu trong file (KHÔNG dời):")
+    out.append(f"    establish/index.json: {len(f['establish'])}")
+    out += [f"      {x}" for x in f["establish"]]
+    out.append(f"    models3d: {len(f['models3d'])}")
+    out += [f"      {x}" for x in f["models3d"]]
+    if plan["forced"]:
+        out.append(f"  ⚠ CẢNH BÁO (--force-refs): {', '.join(plan['forced'])} vẫn trỏ #{m['id']} — kiểm tay sau khi gộp")
     if plan["leftovers"]:
         out.append(f"  ⚠ thư mục {plan['merge_folder']} còn file không thuộc hàng nào: {', '.join(plan['leftovers'])} — giữ lại, không xóa")
     return "\n".join(out)
@@ -232,6 +303,17 @@ def apply(conn, plan: Dict, db: str) -> Dict:
                 conn.execute(f'DELETE FROM "{t}" WHERE "{c}"=? AND project_id IN (SELECT project_id FROM "{t}" WHERE "{c}"=?)', (merge, keep))
             conn.execute(f'UPDATE "{t}" SET "{c}"=? WHERE "{c}"=?', (keep, merge))
         conn.execute("UPDATE assets SET name=?, aliases=?, description=? WHERE id=?", (plan["name"], plan["aliases"], plan["description"], keep))
+        for t in JSON_TABLES:
+            for rid in plan["json_refs"][t]:
+                d = json.loads(conn.execute(f'SELECT data FROM "{t}" WHERE id=?', (rid,)).fetchone()[0])
+                d["location_asset"] = keep
+                conn.execute(f'UPDATE "{t}" SET data=? WHERE id=?', (json.dumps(d, ensure_ascii=False), rid))
+        for key in plan["json_refs"]["asset_checklist"]:
+            d = json.loads(conn.execute("SELECT value FROM app_settings WHERE key=?", (key,)).fetchone()[0])
+            for r in d.get("rows") or []:
+                if isinstance(r, dict) and r.get("asset_id") == merge:
+                    r["asset_id"] = keep
+            conn.execute("UPDATE app_settings SET value=? WHERE key=?", (json.dumps(d, ensure_ascii=False), key))
         if plan["profile"]:
             conn.execute("UPDATE assets SET profile=? WHERE id=?", (plan["profile"], keep))
         left = conn.execute("SELECT COUNT(*) FROM asset_images WHERE asset_id=?", (merge,)).fetchone()[0]
@@ -284,6 +366,7 @@ def main(argv=None) -> int:
     ap.add_argument("--merge", type=int)
     ap.add_argument("--yes", action="store_true", help="làm thật (mặc định chỉ chạy thử)")
     ap.add_argument("--keep-name", action="store_true", help="không chuẩn hóa cách viết tên mục giữ")
+    ap.add_argument("--force-refs", action="store_true", help="vẫn gộp khi establish / models3d / meshy_tasks còn trỏ mục bỏ (có cảnh báo)")
     ap.add_argument("--find-duplicates", action="store_true")
     ap.add_argument("--game", default=None)
     a = ap.parse_args(argv)
@@ -302,7 +385,7 @@ def main(argv=None) -> int:
         if a.keep is None or a.merge is None:
             ap.error("cần --keep và --merge (hoặc --find-duplicates)")
         try:
-            plan = make_plan(conn, a.keep, a.merge, db, keep_name=a.keep_name)
+            plan = make_plan(conn, a.keep, a.merge, db, keep_name=a.keep_name, force_refs=a.force_refs)
         except MergeError as e:
             print(f"KHÔNG GỘP: {e}")
             return 1
