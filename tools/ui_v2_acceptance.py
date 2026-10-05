@@ -40,6 +40,17 @@ def _app():
     return at
 
 
+def _type_script(at, pid: int = 1):
+    """Dán kịch bản như người dùng: khung chat của step1_box (cờ idea_to_script — bật mặc định từ S14.43, cả v1 lẫn v2) hoặc ô dán cũ
+    paste_<pid> (cờ tắt). Một lần nhập, không phải một click — giống ô dán cũ."""
+    box = [c for c in at.get("chat_input") if c.key == f"box_in_{pid}"]
+    if box:
+        box[0].set_value(SCRIPT).run()
+    else:
+        at.text_area(key=f"paste_{pid}").set_value(SCRIPT).run()
+    return at
+
+
 # ---------------------------------------------------------------- 1. số click
 class Scenario:
     """Người dùng đi tay đường ngắn nhất từ dự án trống tới clip video đầu. Mỗi bước có vài khóa nút (bản cũ | bản v2)."""
@@ -72,7 +83,7 @@ def measure_clicks(v2: str) -> dict:
             at.text_input(key="new_name").set_value("Thử nghiệm").run()
             inputs += 1
         if name == "Phân tích kịch bản":
-            at.text_area(key="paste_1").set_value(SCRIPT).run()
+            _type_script(at, 1)
             inputs += 1
         if pats == ["RADIO:Video"]:
             at.radio(key="step").set_value("Video").run()
@@ -107,7 +118,7 @@ def measure_auto_path(v2: str) -> dict:
     at = _app()
     at.text_input(key="new_name").set_value("Tự động").run()
     at.button(key="new_project_go").click().run()
-    at.text_area(key="paste_1").set_value(SCRIPT).run()
+    _type_script(at, 1)
     at.button(key="btn_analyse_1").click().run()
     btn = next((b for b in at.button if b.key == "ap_start_1" and not b.disabled), None)
     if btn is None:
