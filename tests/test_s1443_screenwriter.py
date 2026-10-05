@@ -90,5 +90,113 @@ class PhoneScreenS1443(unittest.TestCase):
         self.assertIn("màn hình mô phỏng", B.RULES)
 
 
+SPARSE = ("CẢNH 1 - NGÀY, ĐẢO QUÂN SỰ\nKelly khoe rank.\n\nCẢNH 2 - NGÀY, ĐẢO QUÂN SỰ\nMàn hình lộ.\n\n"
+          "CẢNH 3 - NGÀY, ĐẢO QUÂN SỰ\nKelly tắt máy.")
+RICH = ("CẢNH 1 - NGÀY, ĐẢO QUÂN SỰ — BÃI CỎ TRƯỚC NHÀ KHO\nMáy trung cảnh: Kelly ngồi trên thùng gỗ, giơ điện thoại khoe với Maxim, mặt tỉnh "
+        "bơ như chuyện thường; Maxim ghé sát, mắt tròn xoe, tay cầm dở ổ bánh mì.\nKELLY: Cày nhẹ thôi mà, lên hạng rồi nè.\n"
+        "MAXIM: Thật hả? Cho tớ xem với!\n\nCẢNH 2 - NGÀY, ĐẢO QUÂN SỰ — BÃI CỎ TRƯỚC NHÀ KHO\nMaxim chộp lấy điện thoại, nhấc cao khỏi tầm "
+        "với của Kelly, cười khoái trí; Kelly nhảy lên với theo, tóc bay, dép tuột một chiếc.\nMAXIM: Haha, để tớ xem kỹ nhé!")
+
+
+class SparseScriptS1443(unittest.TestCase):
+    """Mục 5: kịch bản có tiêu đề cảnh nhưng sơ sài (0 USD, ngưỡng có căn cứ) → hỏi trong khung chat; ý định 'viết chi tiết từ dàn ý' nhận
+    bằng luật; `idea_to_script` bật mặc định (người dùng duyệt 06/10, TB 4,20 phiếu 05d)."""
+
+    def test_sparse_outline_is_detected_with_numbers(self):
+        s = I.sparse(SPARSE)
+        self.assertTrue(s["sparse"])
+        self.assertTrue(any(ch.isdigit() for ch in " ".join(s["why"])), s["why"])     # lý do có số liệu
+        self.assertFalse(I.sparse(RICH)["sparse"])
+        self.assertFalse(I.sparse("Kelly khoe rank rồi bị lộ.")["sparse"])            # an idea is not a 'sparse script'
+
+    def test_scripts_people_wrote_and_the_scored_scripts_are_not_sparse(self):
+        import glob
+        import re
+        for f in glob.glob(os.path.join(ROOT, "samples", "*.md")) + glob.glob(os.path.join(ROOT, "samples", "*.txt")):
+            with self.subTest(f=os.path.basename(f)):
+                self.assertFalse(I.sparse(open(f, encoding="utf-8").read())["sparse"])
+        doc = open(os.path.join(ROOT, "docs", "DO_S11_2_Y_TUONG_2026-10-05d.md"), encoding="utf-8").read()
+        blocks = re.findall(r"\*\*Kịch bản\*\*.*?```\n(.*?)```", doc, re.S)
+        self.assertGreaterEqual(len(blocks), 3)
+        for b in blocks:
+            text = "\n".join(re.sub(r"^\+ ?", "", ln) for ln in b.splitlines())
+            self.assertFalse(I.sparse(text)["sparse"], text[:80])
+
+    def test_expand_request_in_the_chat_is_recognised_by_rule(self):
+        for said in ("viết kịch bản chi tiết từ dàn ý này", "Viết chi tiết từ dàn ý này giúp mình", "hãy viết bổ sung cho chi tiết",
+                     "Phát triển dàn ý này thành kịch bản đầy đủ", "mở rộng kịch bản này cho chi tiết hơn", "giúp mình viết lại chi tiết hơn"):
+            with self.subTest(said=said):
+                self.assertIsNotNone(I.expand_request(said))
+        r = I.expand_request("viết kịch bản chi tiết từ dàn ý này:\n" + SPARSE)
+        self.assertEqual(r["rest"].strip(), SPARSE)
+        for not_said in ("KELLY: Viết chi tiết đi!", "Kelly viết nhật ký chi tiết về trận đấu ở Đảo Quân Sự.", SPARSE, RICH,
+                         "cho Maxim thắng ở cuối", ""):
+            with self.subTest(not_said=not_said[:30]):
+                self.assertIsNone(I.expand_request(not_said))
+
+    def test_feature_is_verified_on_by_default_with_the_gate_result(self):
+        from core import features
+        f = features.FEATURES["idea_to_script"]
+        self.assertTrue(f["verified"])
+        self.assertIn("4,20", f["why"])
+        self.assertIn("05d", f["why"])
+
+    def test_expand_estimate_is_the_four_paid_turns_within_the_cap(self):
+        self.assertAlmostEqual(I.expand_usd(), 4 * I.TURN_USD)
+        self.assertLessEqual(I.expand_usd(), I.RUN_CAP_USD)
+
+    def test_writer_given_a_script_keeps_its_scenes_and_an_idea_prompt_is_unchanged(self):
+        p = Pipeline(connect())
+        pid = p.create_project("dàn ý", operating_mode="human_qc")
+        make_kit(p.conn)
+        m = Recorder()
+        I.start(p.conn, pid, IDEA, anchors=ANCHORS)
+        self.assertNotIn("from_script", I.get_state(p.conn, pid)["inputs"])
+        I.questions(p.conn, pid, m)
+        self.assertNotIn("DÀN Ý SƠ SÀI", m.prompts[-1])
+        I.start(p.conn, pid, SPARSE, anchors=ANCHORS)
+        self.assertTrue(I.get_state(p.conn, pid)["inputs"]["from_script"])
+        I.questions(p.conn, pid, m)
+        self.assertIn("DÀN Ý SƠ SÀI", m.prompts[-1])
+        self.assertIn("Kelly khoe rank.", m.prompts[-1])
+
+
+try:
+    from tests.test_ui_script import ScriptBoxTests, tree_keys
+except Exception:  # noqa: BLE001 - streamlit testing missing → the pure tests above still run
+    ScriptBoxTests = None
+
+if ScriptBoxTests is not None:
+    class SparseChatS1443(unittest.TestCase):
+        """The question in the chat (no model call — ScriptBoxTests' setUp fails any MockLlm call). Borrows its helpers, not its tests."""
+        setUp, app, say, html = ScriptBoxTests.setUp, ScriptBoxTests.app, ScriptBoxTests.say, ScriptBoxTests.html
+
+        def test_sparse_script_asks_in_the_chat_and_yes_goes_to_the_writer_without_paying(self):
+            pid = self.p.create_project("Sơ sài")
+            at = self.say(self.app(pid), SPARSE)
+            html = self.html(at)
+            self.assertIn("sơ sài", html)
+            self.assertIn("muốn mình viết bổ sung", html)
+            self.assertIn(f"{I.expand_usd():.2f}", html)
+            at.button(key=f"box_expand_yes_{pid}").click().run()
+            self.assertFalse(at.exception, at.exception)
+            self.assertEqual(at.session_state[f"in_mode_{pid}"], "idea")
+            self.assertIn(f"idea_form_{pid}", tree_keys(at))                    # the Biên kịch path, every turn behind a priced button
+            self.assertEqual(I.get_state(self.p.conn, pid), {})                  # nothing started, nothing paid
+
+        def test_rich_script_is_not_asked(self):
+            pid = self.p.create_project("Đủ")
+            at = self.say(self.app(pid), RICH)
+            self.assertNotIn(f"box_expand_yes_{pid}", tree_keys(at))
+
+        def test_typed_expand_request_takes_the_outline_to_the_writer(self):
+            pid = self.p.create_project("Yêu cầu")
+            at = self.say(self.app(pid), "viết kịch bản chi tiết từ dàn ý này:\n" + SPARSE)
+            self.assertEqual(at.session_state[f"in_mode_{pid}"], "idea")
+            self.assertEqual(at.session_state[f"box_text_{pid}"].strip(), SPARSE)
+            self.assertIn(f"idea_form_{pid}", tree_keys(at))
+            self.assertEqual(I.get_state(self.p.conn, pid), {})
+
+
 if __name__ == "__main__":
     unittest.main()
