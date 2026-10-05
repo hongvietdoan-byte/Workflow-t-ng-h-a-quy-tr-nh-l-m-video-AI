@@ -126,6 +126,15 @@ class SparseScriptS1443(unittest.TestCase):
         self.assertFalse(I.sparse(RICH)["sparse"])
         self.assertFalse(I.sparse("Kelly khoe rank rồi bị lộ.")["sparse"])            # an idea is not a 'sparse script'
 
+    def test_dialogue_counts_toward_how_full_a_scene_is(self):
+        """Rà 7: 3 cảnh, 7 dòng thoại, mô tả ngắn, không cảnh trơ — đó là một kịch bản thoại, không phải dàn ý."""
+        talky = ("CẢNH 1 - NGÀY, ĐẢO QUÂN SỰ\nKelly giơ điện thoại.\nKELLY: Nhìn nè, rank mới của tớ đó!\nMAXIM: Thật hả, cho tớ xem với!\n\n"
+                 "CẢNH 2 - NGÀY, ĐẢO QUÂN SỰ\nMaxim giật máy.\nMAXIM: Haha, của tớ nhé!\nKELLY: Trả đây coi, Maxim!\n\n"
+                 "CẢNH 3 - NGÀY, ĐẢO QUÂN SỰ\nMàn hình bật video kế.\nKELLY: Ơ… khoan đã nào.\nMAXIM: Video người khác à?\nKELLY: Thôi tắt đi!")
+        s = I.sparse(talky)
+        self.assertEqual((s["talk"], s["bare"]), (7, 0))
+        self.assertFalse(s["sparse"], s)
+
     def test_scripts_people_wrote_and_the_scored_scripts_are_not_sparse(self):
         import glob
         import re

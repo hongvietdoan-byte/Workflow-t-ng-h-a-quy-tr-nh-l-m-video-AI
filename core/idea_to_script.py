@@ -430,6 +430,8 @@ def classify(text: str) -> Dict:
 #   kịch bản Biên kịch được chấm TB 4,20 (phiếu 05d): TB 33–131 chữ / cảnh, cảnh mỏng nhất 29 chữ; các phiếu 05/05b/05c: cảnh mỏng nhất 17.
 # → SPARSE_AVG_WORDS = 12 (≈ một nửa trung bình của kịch bản người viết mỏng nhất, 21) và một cảnh "trơ" = < 10 chữ mô tả VÀ không thoại
 #   (dưới 2/3 cảnh mỏng nhất từng thấy, 15): sơ sài khi TB < 12 hoặc ≥ một nửa số cảnh trơ. Một dàn ý "CẢNH n + 1 câu" có TB 2–5 chữ.
+#   Rà 06/10: độ dày một cảnh = chữ mô tả + chữ THOẠI (lời nói cũng là nội dung quay được; kịch bản 3 cảnh × 2–3 câu thoại ≈ 15–20 chữ / cảnh
+#   không phải dàn ý). Các mốc trên đo bằng chữ mô tả nên cộng thoại chỉ làm kịch bản thật dày thêm — không bắt nhầm thêm.
 SPARSE_AVG_WORDS = 12
 BARE_SCENE_WORDS = 10
 
@@ -450,14 +452,15 @@ def sparse(text: str) -> Dict:
         rows = [r for r in s.text.splitlines() if r.strip()]
         said = [r for r in rows if lines(r)]
         n = sum(len(r.split()) for r in rows if r not in said)
-        words.append(n)
+        spoken = sum(len(x.split()) for r in said for _, x in lines(r))
+        words.append(n + spoken)                        # rà 7: what is said fills a scene too — a dialogue script is not an outline
         talk += len(said)
         bare += 1 if n < BARE_SCENE_WORDS and not said else 0
     avg = sum(words) / len(words)
     out.update(scenes=len(scenes), avg_words=round(avg, 1), bare=bare, talk=talk)
     why = []
     if avg < SPARSE_AVG_WORDS:
-        why.append(f"trung bình {avg:.0f} chữ mô tả / cảnh (kịch bản đủ chi tiết thường ≥ 21; ngưỡng {SPARSE_AVG_WORDS})")
+        why.append(f"trung bình {avg:.0f} chữ mô tả + thoại / cảnh (kịch bản đủ chi tiết thường ≥ 21; ngưỡng {SPARSE_AVG_WORDS})")
     if bare * 2 >= len(scenes):
         why.append(f"{bare}/{len(scenes)} cảnh chỉ có tiêu đề + dưới {BARE_SCENE_WORDS} chữ, không thoại")
     if why:
