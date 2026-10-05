@@ -472,9 +472,13 @@ def money_card(p: Pipeline, pid) -> None:
     with st.popover(label + flag, help="Tiền còn lại theo dịch vụ + dự án; duyệt ngân sách dự án; bảng giá"):
         for service, h in halts.items():
             st.error(f"**{service}** báo HẾT TIỀN lúc {h.get('at')} — mọi lượt gửi tới dịch vụ này đang dừng.")
-            if st.button(f"Đã nạp tiền — mở lại {service}", key=f"mc_reopen_{service}"):
-                budget.reopen(p.conn, service)
-                st.rerun()
+            # S14.7 (D1): mở lại một dịch vụ là việc tiền → chỉ người có quyền "Cài đặt & bảng giá" (hoặc Owner)
+            if allowed("settings"):
+                if st.button(f"Đã nạp tiền — mở lại {service}", key=f"mc_reopen_{service}"):
+                    budget.reopen(p.conn, service)
+                    st.rerun()
+            else:
+                st.caption("Nhờ Owner (hoặc người có quyền “Cài đặt & bảng giá”) mở lại dịch vụ sau khi nạp tiền.")
         more = []                                        # v2: P3 details collected here, drawn once in a "ⓘ Chi tiết" fold at the end
         if s["enabled"]:
             frac = min(s["spent"] / s["usd"], 1.0) if s["usd"] else 0.0
@@ -661,6 +665,9 @@ def _dialog_assets(p: Pipeline) -> None:
 @st.dialog("💵 Ngân sách thử", on_dismiss=lambda: close_dialog("dlg_budget"))
 def _dialog_budget(p: Pipeline) -> None:
     """Hard spending limit of a test round (kế hoạch v3: ≤ $50): jobs that would pass it stay queued."""
+    if not allowed("settings"):        # S14.7 (D1): the flag may be stale / crafted — the right is checked again when drawn
+        st.error("Ngân sách thử chỉ dành cho Owner hoặc người có quyền “Cài đặt & bảng giá”. Nhờ Owner cấp quyền ở 👥 Nhóm.")
+        return
     p = _own(p)
     from core import budget
     s = budget.status(p.conn)
@@ -735,6 +742,9 @@ def _dialog_clone(p: Pipeline, pid: int) -> None:
 
 @st.dialog("💲 Bảng giá", on_dismiss=lambda: close_dialog("dlg_pricing"))
 def _dialog_pricing() -> None:
+    if not allowed("settings"):        # S14.7 (D1): same re-check as the budget dialog (a stale flag opens it for anyone)
+        st.error("Bảng giá chỉ dành cho Owner hoặc người có quyền “Cài đặt & bảng giá”.")
+        return
     price_editor()
 
 

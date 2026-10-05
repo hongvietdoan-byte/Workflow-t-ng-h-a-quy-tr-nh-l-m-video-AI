@@ -217,6 +217,74 @@ class ManageWatchersTests(AccessUiBase):
         self.assertNotIn("team_rm_", " ".join(str(b.key) for b in at.button))
 
 
+class UiHoleTests(AccessUiBase):
+    """S14.7 (D1, kế hoạch 3.5 ý 1): hai nút ghi đi ngoài kiểm quyền — mở lại dịch vụ hết tiền và khôi phục thùng rác."""
+
+    def halt(self):
+        from core import budget
+        budget.halt(self.conn, "clipai", "hết tiền (thử)")
+
+    def test_a_member_without_money_rights_gets_no_reopen_button(self):
+        self.halt()
+        at = self.sign_in(CREATOR, "1")
+        keys = {b.key: b.proto.disabled for b in at.button}
+        self.assertFalse(keys.get("mc_reopen_clipai") is False, "người không có quyền 'Cài đặt & bảng giá' bấm được mở lại dịch vụ")
+        from core import budget
+        self.assertTrue(budget.halted(self.conn, "clipai"))
+
+    def test_the_budget_dialog_checks_the_right_again_when_drawn(self):
+        self.halt()
+        at = self.sign_in(CREATOR, "1")
+        at.session_state["dlg_budget"] = True                          # a stale flag (or a crafted rerun) opens the dialog
+        at.run()
+        self.assertFalse(at.exception, at.exception)
+        keys = {b.key for b in at.button}
+        self.assertNotIn("reopen_clipai", keys)
+        self.assertNotIn("budget_usd", {w.key for w in at.number_input})
+        self.assertTrue(any("Cài đặt & bảng giá" in e.value for e in at.error), [e.value for e in at.error])
+
+    def test_the_owner_still_reopens(self):
+        self.halt()
+        at = self.sign_in(OWNER, "1")
+        b = next(b for b in at.button if b.key == "mc_reopen_clipai")
+        self.assertFalse(b.proto.disabled)
+        b.click().run()
+        from core import budget
+        self.assertFalse(budget.halted(self.conn, "clipai"))
+
+    def trashed(self):
+        from core import trash
+        data = os.path.join(self.tmp, "projects")
+        img = os.path.join(data, str(self.pid), "images", "job_99.png")
+        os.makedirs(os.path.dirname(img), exist_ok=True)
+        with open(img, "wb") as f:
+            f.write(b"x")
+        trash.move_to_trash(img, data, self.pid, "images", "bị loại", 99, 1)
+        return img
+
+    def test_a_view_only_watcher_cannot_restore_from_the_trash(self):
+        img = self.trashed()
+        at = self.sign_in(WVIEW, "1")
+        at.session_state["dlg_history"] = True
+        at.run()
+        self.assertFalse(at.exception, at.exception)
+        btns = [b for b in at.button if str(b.key).startswith("tr_images_")]
+        self.assertTrue(btns, "không thấy nút khôi phục")
+        self.assertTrue(all(b.proto.disabled for b in btns), "người chỉ xem bấm được ↩ Khôi phục")
+        self.assertFalse(os.path.exists(img))
+
+    def test_an_edit_watcher_restores(self):
+        img = self.trashed()
+        at = self.sign_in(WEDIT, "1")
+        at.session_state["dlg_history"] = True
+        at.run()
+        b = next(b for b in at.button if str(b.key).startswith("tr_images_"))
+        self.assertFalse(b.proto.disabled)
+        b.click().run()
+        self.assertFalse(at.exception, at.exception)
+        self.assertTrue(os.path.exists(img))
+
+
 class LegacyLookTests(AccessUiBase):
     V2 = "0"
 
