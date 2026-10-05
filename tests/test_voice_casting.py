@@ -255,5 +255,48 @@ class GenerateTests(Base):
         self.assertNotIn("pitch_semitones", a)
 
 
+class ScreenTests(unittest.TestCase):
+    """Character Bible (giao diện cũ và v2 dùng chung step1_characters): vai dùng chung giọng được nói rõ; nút luật 0 USD chỉ gắn vai
+    chưa có giọng; nút '🤖 Claude chọn giọng' không đổi (khóa cast_{pid})."""
+
+    def page(db, pid):  # noqa: N805 - run by AppTest.from_function
+        import streamlit as st
+        from core import voice
+        from core.db import connect
+        from core.pipeline import Pipeline
+        from dashboard.steps import step1_characters as S
+        p = Pipeline(connect(db))
+        rows = p.conn.execute("SELECT * FROM characters WHERE project_id=?", (pid,)).fetchall()
+        speakers = {ln["speaker"].upper() for ln in voice.planned_lines(p.conn, pid) if ln["speaker"]}
+        S.voice_rule_box(p, pid, rows, speakers)
+        for r in rows:
+            S.voice_cast_note(p, pid, r, voice.get_profile(r))
+        st.session_state["_profiles"] = {r["name"]: voice.get_profile(r).get("voice_id") for r in
+                                         p.conn.execute("SELECT * FROM characters WHERE project_id=?", (pid,))}
+
+    def test_shared_voices_are_named_and_the_rule_button_fills_only_empty_roles(self):
+        from streamlit.testing.v1 import AppTest
+        db = os.path.join(tempfile.mkdtemp(), "v.sqlite")
+        p = Pipeline(connect(db))
+        pid = p.create_project("t")
+        p.create_scene(pid, 1, "CẢNH 1")
+        with mock.patch.object(voice, "voice_config", return_value=CONFIG), mock.patch.dict(os.environ, {"FEATURE_AUTO_VOICE_CAST": "0"}):
+            store_scene_analysis(p, pid, analysis([("A", "nam"), ("B", "nam"), ("C", "nam")], ["A", "A", "B", "C"]))
+        voice.set_profile(p.conn, pid, "A", {"voice_id": 72, "voice_name": "voice boy ingame VN", "persona": "tự chọn"})
+        voice.set_profile(p.conn, pid, "B", {"voice_id": 72, "voice_name": "voice boy ingame VN",
+                                             "auto": True, "variant": {"pitch": 3, "speed": 1.05}})
+        with mock.patch.object(voice, "voice_config", return_value=CONFIG), mock.patch.dict(os.environ, ON):
+            at = AppTest.from_function(ScreenTests.page, args=(db, pid), default_timeout=40).run()
+            self.assertFalse(at.exception)
+            text = " ".join(c.value for c in at.caption)
+            self.assertIn("Vai dùng chung giọng", text)
+            self.assertIn("B (biến thể +3 nửa cung", text)
+            self.assertIn("A (gốc)", text)
+            at.button(key=f"vrule_{pid}").click().run()
+            self.assertFalse(at.exception)
+        self.assertEqual(at.session_state["_profiles"]["A"], 72)            # the person's choice kept
+        self.assertEqual(at.session_state["_profiles"]["C"], 30168)         # the empty role got the free male voice
+
+
 if __name__ == "__main__":
     unittest.main()

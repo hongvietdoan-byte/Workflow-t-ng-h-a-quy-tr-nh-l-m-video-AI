@@ -1,6 +1,7 @@
 """Step 1 · 1e: Character Bible — reference pictures, outfits, subjects, voices, Lock, anchors (split from step1.py, S9.5)."""
 from dashboard.common import *  # noqa: F401,F403  (shared imports + helpers)
 from dashboard import common as C
+from core import voice_casting  # noqa: E402  (S14.26: voices cast by rule from the scene analysis)
 from dashboard.steps.step1_v2 import cap, say, is_next  # noqa: F401  (v2: long captions / notes become a one-line summary + ⓘ)
 
 
@@ -228,6 +229,7 @@ def character_detail_panel(p: Pipeline, pid: int, c, voices, client, locked: boo
                         st.session_state.pop(f"{k}_{suffix}", None)
                     st.rerun()
         st.markdown("**🎙 Giọng nói (TTS)** — thoại tiếng Việt được đọc bằng giọng này (tab Motion)")
+        voice_cast_note(p, pid, c, prof)
         if voices:
             ordered = voice.vietnamese_first(voices)          # v3: voices that list Vietnamese first (🇻🇳)
             ids = [None] + [v.get("id") for v in ordered]
@@ -264,6 +266,51 @@ def character_detail_panel(p: Pipeline, pid: int, c, voices, client, locked: boo
             p.conn.execute("UPDATE characters SET anchor_approved=1 WHERE project_id=? AND name=?", (pid, c["name"]))
             p.conn.commit()
             st.rerun()
+
+
+def voice_cast_note(p: Pipeline, pid: int, c, prof) -> None:
+    """S14.26: what the Director wrote about the voice (gender / age / personality), whether the voice was cast by rule, and the
+    other roles on the same voice (with this role's pitch variant)."""
+    traits = voice_casting.get_traits(c)
+    bits = []
+    if traits:
+        bits.append("🧬 " + (voice_casting.persona(traits) or "giới tính không rõ"))
+    if prof.get("voice_id") and prof.get("auto"):
+        bits.append("🤖 tự gắn theo luật (0 USD) — chọn giọng khác rồi 💾 Lưu để giữ cố định")
+    others = [n for n in voice_casting.shared_voices(p.conn, pid).get(prof.get("voice_id"), []) if n != c["name"]]
+    if others:
+        bits.append(f"🔁 dùng chung giọng với {', '.join(others)}"
+                    + (f" · {voice_casting.variant_text(prof)}" if voice_casting.variant_text(prof) else " · giọng gốc"))
+    if bits:
+        cap(" · ".join(bits), f"vcast-{pid}-{c['name']}")
+
+
+def voice_rule_box(p: Pipeline, pid: int, rows, speakers) -> None:
+    """S14.26: roles sharing a voice said plainly, and the 0 USD rule (data/voices_vi.json) run by hand — fills only roles without a
+    voice (or with an auto one that no longer fits); a voice the person chose is never changed."""
+    shared = voice_casting.shared_voices(p.conn, pid)
+    if shared:
+        profs = {r["name"]: voice.get_profile(r) for r in rows}
+
+        def who(n: str) -> str:
+            v = voice_casting.variant_text(profs[n])
+            return n + (f" ({v})" if v else " (gốc)")
+        st.caption("🔁 Vai dùng chung giọng: " + "; ".join(
+            f"{profs[names[0]].get('voice_name') or '#' + str(vid)} — " + ", ".join(who(n) for n in names)
+            for vid, names in shared.items()) + ". Biến thể cao độ chỉnh bằng ffmpeg sau TTS (0 USD) để hai vai nghe khác nhau.")
+    if not voice_casting.enabled():
+        return
+    todo = [r["name"] for r in rows if r["name"].upper() in speakers and not voice.get_profile(r).get("voice_id")]
+    if todo and st.button(f"🎙 Gắn giọng theo luật cho {len(todo)} vai (0 USD, data/voices_vi.json)", key=f"vrule_{pid}",
+                          help="Nam ↔ 2 giọng nam, nữ ↔ 2 giọng nữ, vai nhiều thoại nhất lấy giọng đầu; giọng bạn đã chọn giữ nguyên."):
+        res = voice_casting.apply(p.conn, pid)
+        for r in rows:                         # the voice pickers must show the new choice, not their old widget value
+            st.session_state.pop(f"voice_{pid}_{r['name']}", None)
+            st.session_state.pop(f"persona_{pid}_{r['name']}", None)
+        st.session_state[f"vrule_msg_{pid}"] = res["problems"]
+        st.rerun()
+    for msg in st.session_state.get(f"vrule_msg_{pid}") or []:
+        st.warning(msg)
 
 
 def bible_check_box(p: Pipeline, pid: int, rows, client, locked: bool) -> None:
@@ -315,11 +362,13 @@ def character_bible_panel(p: Pipeline, pid: int, chars, risky) -> None:
                 if risky:
                     status.caption(f"⚠ {len(risky)} mục có thể vướng IP (xem “⚠ Rủi ro” ở góc trên)")
             linked = assets.link_characters(p.conn, pid, char_names)
+            shared = voice_casting.shared_voices(p.conn, pid)          # S14.26: which roles share one voice
             bible_rows = ([{"Nhân vật / đối tượng": r["name"],
                            "Mô tả": r["description"] + (f" · {r['wardrobe']}" if r["wardrobe"] else ""),
                            "Ảnh tham chiếu": (f"✔ {linked[r['name']]['name']} · {len(linked[r['name']]['refs'])} ảnh" if linked.get(r["name"]) else "— vẽ theo mô tả"),
                            "Lock": "✔" if r["lock_rules"] else "—",
-                           "Giọng": voice.get_profile(r).get("voice_name") or ("—" if not voice.get_profile(r).get("voice_id") else "✔"),
+                           "Giọng": (voice.get_profile(r).get("voice_name") or ("—" if not voice.get_profile(r).get("voice_id") else "✔"))
+                                    + (" · 🔁 dùng chung" if voice.get_profile(r).get("voice_id") in shared else ""),
                            "Ảnh mốc": "✔" if r["anchor_approved"] else "—",
                            "IP": "⚠" if r["name"] in risky else "",
                            } for r in rows])
@@ -347,6 +396,7 @@ def character_bible_panel(p: Pipeline, pid: int, chars, risky) -> None:
                               " — chưa thấy giọng clone Việt của team (⭐): kiểm tra nhóm FF ở AI Audio → Voice Actors")
                            + ". Nên nghe thử câu mẫu. Từ tiếng Anh/tên riêng được đọc theo `data/pronunciation_vi.json`."
                            + (f" ⚠ {len(speakers)} nhân vật có thoại nhưng chỉ {len(vi_pool)} giọng tiếng Việt: sẽ phải dùng chung giọng." if 0 < len(vi_pool) < len(speakers) else ""))
+            voice_rule_box(p, pid, rows, speakers)
             if no_voice and voices and client is not None:
                 if st.button(f"🤖 Claude chọn giọng cho {len(no_voice)} nhân vật có thoại" + cost.llm_button_tag(p.conn, "director", 1),
                              key=f"cast_{pid}"):

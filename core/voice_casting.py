@@ -177,6 +177,7 @@ def after_analysis(conn, project_id: int, obj: Dict) -> Optional[Dict]:
     """Called once the Director's answer is stored: traits saved, missing ones reported, voices cast by rule. None when the feature is
     off. A failure is written to diag and returned — the paid analysis stays saved."""
     if not enabled():
+        store_traits(conn, project_id, obj.get("characters") or [])     # kept if given (e.g. pasted JSON); nothing is cast
         return None
     from . import diag
     try:
