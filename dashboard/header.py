@@ -529,7 +529,8 @@ def money_card(p: Pipeline, pid) -> None:
         if s["enabled"]:
             frac = min(s["spent"] / s["usd"], 1.0) if s["usd"] else 0.0
             if v2:
-                st.html(SP.money_meter(s["spent"], s["usd"], f"Đợt thử: ${s['spent']:.2f} / mức dự tính ${s['usd']:.0f}"))
+                st.html(SP.money_meter(s["spent"], s["usd"], f"Đợt thử: ${s['spent']:.2f} / mức dự tính ${s['usd']:.0f}"
+                                       + (" — vượt (vẫn gọi)" if s["spent"] > s["usd"] else "")))
                 more.append(f"- **Đợt thử:** {s['images']}/{s['image_cap']} ảnh · {s['audios']}/{s['audio_cap']} âm thanh")
                 more.append(SP.last_reset_md(p.conn, "trial", "Đợt thử"))
             else:
@@ -541,7 +542,7 @@ def money_card(p: Pipeline, pid) -> None:
         if s["llm_usd"] > 0:
             if v2:
                 st.html(SP.money_meter(s["llm_spent"], s["llm_usd"], f"Claude API: ${s['llm_spent']:.2f} / mức dự tính ${s['llm_usd']:.2f}"
-                                       + (" — đã vượt (vẫn gọi)" if claude_out else "")))
+                                       + (" — vượt (vẫn gọi)" if s["llm_spent"] > s["llm_usd"] else "")))
                 more.append(SP.last_reset_md(p.conn, "claude", "Claude API"))
             else:
                 st.markdown(f"**Claude API:** \\${s['llm_spent']:.2f} / \\${s['llm_usd']:.2f}" + (" — **đã hết**" if claude_out else ""))
@@ -555,9 +556,7 @@ def money_card(p: Pipeline, pid) -> None:
             if data.get("locked"):
                 caps = data.get("caps") or {}
                 total = float(project_budget.planned(p.conn, pid) or 0)
-                if v2:
-                    st.html(D.pill("Ngân sách dự án đã duyệt", "ok") + SP.money_meter(sum(spent.values()), total,
-                            f"Dự án này: đã chi {sum(spent.values()):.2f} / mức dự tính {total:.2f} USD"))
+                if v2:                                   # S14.39: ONE summary line (SP.project_line) below; by-stage numbers are in the fold
                     more.append(SP.last_reset_md(p.conn, "project", "Ngân sách dự án này", pid))
                 else:
                     st.markdown(f"**Dự án này 🔒** đã chi {sum(spent.values()):.2f} / trần {total:.2f} USD")
@@ -570,11 +569,12 @@ def money_card(p: Pipeline, pid) -> None:
             else:
                 try:
                     prop = project_budget.propose(p, pid)
-                    st.markdown(f"**Dự án này:** chưa duyệt · dự tính ≈ {prop['total']:.2f} USD · đã chi {sum(spent.values()):.2f}")
-                    try:                                                   # S14.16: the approval shows the TOTAL estimated cost (tính dư)
-                        st.markdown("💵 " + project_budget.cost_summary(p, pid)["text"])
-                    except Exception as e:  # noqa: BLE001 - the approval still works; the missing estimate is said
-                        st.caption(f"Chưa tính được phần đã chi + ước tính phần còn lại: {str(e)[:160] or type(e).__name__}. Cách xử lý: kiểm tra dự án đã tách cảnh và bảng giá (⚙ Cài đặt), rồi tải lại trang; vẫn lỗi thì gửi báo cáo ở ⚙ Chẩn đoán.")
+                    if not v2:
+                        st.markdown(f"**Dự án này:** chưa duyệt · dự tính ≈ {prop['total']:.2f} USD · đã chi {sum(spent.values()):.2f}")
+                        try:                                               # S14.16: the approval shows the TOTAL estimated cost (tính dư)
+                            st.markdown("💵 " + project_budget.cost_summary(p, pid)["md"])
+                        except Exception as e:  # noqa: BLE001 - the approval still works; the missing estimate is said
+                            st.caption(SP.summary_error(e))
                     if confirm_all(f"mc_ok_{pid}", ["go"], f"✔ Duyệt & KHÓA ngân sách ≈ {prop['total']:.2f} USD",
                                    f"Khóa ngân sách dự án ≈ {prop['total']:.2f} USD (trần từng khâu theo bảng ở màn Kịch bản)? Sau khi khóa, mọi lời "
                                    "gọi trả tiền vượt mức sẽ được CẢNH BÁO (vẫn gửi); chỉ người được nâng mức, kèm lý do.", st, "Có, khóa"):
@@ -585,22 +585,39 @@ def money_card(p: Pipeline, pid) -> None:
                     diag.record(p.conn, "system", "warn", f"thẻ ngân sách dự án: {type(e).__name__}: {e}", "budget_card", pid)
                     st.caption(f"Chưa tính được ngân sách dự án: {str(e)[:160] or type(e).__name__}. Cách xử lý: kiểm tra dự án đã "
                                "tách cảnh và bảng giá (⚙ Cài đặt), rồi tải lại trang; vẫn lỗi thì gửi báo cáo ở ⚙ Chẩn đoán.")
+        if v2 and pid is not None:                       # S14.39: ONE line for the open project + the per-stage detail in the fold
+            try:
+                cs = project_budget.cost_summary(p, pid)
+                st.markdown("💵 **Dự án đang mở:** " + project_budget.md_safe(cs["line"]))
+                more.insert(0, "**Đã chi + ước tính phần còn lại** (ước tính, tính dư)\n\n" + SP.summary_detail_md(cs))
+            except Exception as e:  # noqa: BLE001 - the card must never break the bar; the missing estimate is said
+                st.caption(SP.summary_error(e))
         if v2 and (stage_table or any(more)):
-            with st.expander("Chi tiết từng khâu · lịch sử đặt lại"):
+            with st.expander("Chi tiết"):
                 if stage_table:
                     st.html(stage_table)
                 st.markdown("\n".join(x for x in more if x))
         from dashboard.design.screens import money_days as MD
-        if MD.can_view(me()):                                             # S14.6 Gói K: sổ chi MỌI dự án → người có quyền tiền / theo dõi
-            MD.open_button()                                              # mức dùng theo ngày + đợt ngân sách
-        if allowed("settings"):
-            b1, b2 = st.columns(2)
-            if b1.button("⚙ Đợt thử & Claude", key="mc_budget", width="stretch"):
+        can_days, can_set = MD.can_view(me()), allowed("settings")        # S14.6 Gói K: sổ chi MỌI dự án → người có quyền tiền / theo dõi
+        if v2 and can_days and can_set:                                   # S14.39: three small buttons in one row
+            c1, c2, c3 = st.columns(3)
+            with c1:
+                MD.open_button()                                          # mức dùng theo ngày + đợt ngân sách
+            if c2.button("⚙ Đợt thử & Claude", key="mc_budget", width="stretch"):
                 open_dialog("dlg_budget")
-            if b2.button("💲 Bảng giá", key="mc_pricing", width="stretch"):
+            if c3.button("💲 Bảng giá", key="mc_pricing", width="stretch"):
                 open_dialog("dlg_pricing")
+        else:
+            if can_days:
+                MD.open_button()                                          # mức dùng theo ngày + đợt ngân sách
+            if can_set:
+                b1, b2 = st.columns(2)
+                if b1.button("⚙ Đợt thử & Claude", key="mc_budget", width="stretch"):
+                    open_dialog("dlg_budget")
+                if b2.button("💲 Bảng giá", key="mc_pricing", width="stretch"):
+                    open_dialog("dlg_pricing")
         if v2:
-            SP.money_reset_block(p, pid, project_has_budget, me())           # Owner only (the block draws nothing for anyone else)
+            SP.reset_two_button(p, me())                                     # Owner: working button; others: locked + the reason
     from dashboard.design.screens import money_days as MD
     MD.dialog_if_open(me())
 

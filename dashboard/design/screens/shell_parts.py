@@ -1,4 +1,4 @@
-"""Khung ứng dụng v2 (S13 nhánh B): dải hero của dự án + khối "Đặt lại thanh tiền" (chỉ Owner). Chỉ được gọi khi cờ ui_v2 bật.
+"""Khung ứng dụng v2 (S13 nhánh B): dải hero của dự án + nút "Đặt lại 2 thanh về 0" (chỉ Owner, S14.39). Chỉ được gọi khi cờ ui_v2 bật.
 
 Không đụng core: số liệu lấy từ những hàm app.py/header.py đã dùng (lineage, autopilot, project_budget, money_reset)."""
 from html import escape
@@ -154,38 +154,40 @@ def last_reset_md(conn, bar: str, label: str, key=None) -> str:
     return f"- **{label}** — đặt lại lần cuối: {rec.get('at', '')} bởi {rec.get('who', '?')} — {rec.get('why', '')}"
 
 
-def money_reset_block(p, pid, project_has_budget: bool, actor: dict) -> None:
-    """Owner-only block in the 💵 card. Tick the bars, give a REQUIRED reason, confirm twice; core.money_reset does the work (and refuses
-    anyone who is not the Owner, so hiding this block is a convenience, not the guard)."""
-    from core import money_reset
+def summary_error(e: Exception) -> str:
+    """Caption for "the estimate could not be computed" (what failed + what to do)."""
+    return (f"Chưa tính được phần đã chi + ước tính phần còn lại: {str(e)[:160] or type(e).__name__}. Cách xử lý: kiểm tra dự án đã tách "
+            "cảnh và bảng giá (⚙ Cài đặt), rồi tải lại trang; vẫn lỗi thì gửi báo cáo ở ⚙ Chẩn đoán.")
+
+
+def summary_detail_md(cs: dict) -> str:
+    """Per-part lines of project_budget.cost_summary for the "Chi tiết" fold (markdown, every `$` escaped)."""
+    from core import project_budget
+    audio = f"≈ ${cs['audio']:.2f}" if cs.get("audio") is not None else f"{cs.get('audio_items', 0)} lượt (chưa có giá USD, tính theo lượt)"
+    rows = [f"- Ảnh ≈ ${cs['images']:.2f}", f"- Video ≈ ${cs['videos']:.2f}", f"- Âm thanh {audio}", f"- Claude ≈ ${cs['claude']:.2f}"]
+    note = (f"{cs['unpriced']} mục chưa có giá được ước bằng giá cao nhất × 1,5." if cs.get("unpriced")
+            else "Mọi mục đều có giá (giá cao nhất × 1,5 chỉ dùng khi thiếu giá).")
+    return project_budget.md_safe("\n".join(rows) + f"\n\n{note}")
+
+
+def reset_two_button(p, actor: dict) -> None:
+    """S14.39: the ONE reset of the 💵 card: "↺ Đặt lại 2 thanh về 0" = Đợt thử starts a new budget round + Claude API restarts its count
+    (core.budget_rounds.reset_two). Owner: one yes/no question, no reason to type (default reason, written to the audit log); anyone
+    else sees the locked button with the reason. The ledger is untouched. core refuses non-owners too (this is not the guard)."""
+    from core import budget_rounds
     from dashboard.common import confirm_all
-    if actor.get("role") != "owner":
+    if (actor or {}).get("role") != "owner":
+        st.button("↺ Đặt lại 2 thanh về 0", key="shell_mr_two", disabled=True, width="stretch",
+                  help="Chỉ Owner được đặt lại thanh tiền — nhờ Owner nếu cần.")
         return
-    with st.expander("↺ Đặt lại thanh tiền (chỉ Owner)"):
-        st.caption("Thanh đếm lại từ bây giờ; sổ chi giữ nguyên, mỗi lần đặt lại được ghi nhật ký.")
-        bars = []
-        # S14.6 (rà soát 04/10): mốc thanh đợt thử = mốc của ĐỢT ngân sách → chỉ đổi qua "▶ Bắt đầu đợt ngân sách mới" (core.budget_rounds),
-        # nếu không đợt và thanh lệch nhau. Giữ khóa shell-mr-trial (ô bị khóa, chỉ đường sang đợt mới).
-        st.checkbox("Đợt thử (tổng tiền cả đợt) — đặt lại bằng đợt mới", key="shell-mr-trial", value=False, disabled=True,
-                    help="Thanh đợt thử đếm theo đợt ngân sách: mở 📅 Mức dùng theo ngày · đợt ngân sách → ▶ Bắt đầu đợt ngân sách mới.")
-        st.caption("Thanh đợt thử: dùng 📅 Mức dùng theo ngày · đợt ngân sách → ▶ Bắt đầu đợt ngân sách mới (đóng đợt cũ + lưu tóm tắt).")
-        if st.checkbox("Claude API", key="shell-mr-claude"):
-            bars.append("claude")
-        if project_has_budget and pid is not None:
-            if st.checkbox("Ngân sách dự án này", key=f"shell-mr-project-{pid}"):
-                bars.append("project")
-        why = (st.text_input("Lý do (bắt buộc)", key="shell-mr-why", placeholder="ví dụ: nạp thêm tiền, bắt đầu đợt thử mới") or "").strip()
-        ready = bool(bars) and bool(why)
-        if not ready:
-            st.caption("Cần chọn một thanh và nhập lý do.")
-        names = ", ".join(money_reset.BARS[b].split(" (")[0] for b in bars)
-        ids = (tuple(bars) + (why,)) if ready else ()
-        if confirm_all("shell_mr_go", ids, "↺ Đặt lại các thanh đã chọn",
-                       f"Đặt lại {names}? Thanh đếm lại từ bây giờ (sổ chi giữ nguyên). Lý do: {why}", st, "Có, đặt lại"):
-            try:
-                done = money_reset.reset(p.conn, actor, bars, why, project_id=pid if "project" in bars else None)
-            except Exception as e:  # noqa: BLE001 - shown, never a crash of the bar
-                st.error(f"Không đặt lại được: {e}")
-                return
-            st.toast("Đã đặt lại: " + ", ".join(sorted(done)))
-            st.rerun()
+    if confirm_all("shell_mr_two", ("two",), "↺ Đặt lại 2 thanh về 0",
+                   "Đặt lại 2 thanh (Đợt thử + Claude API) về 0? Đợt thử bắt đầu đợt ngân sách mới (đóng đợt cũ + lưu tóm tắt), "
+                   "Claude API đếm lại từ bây giờ. Mức dự tính giữ nguyên, sổ chi giữ nguyên, việc này được ghi nhật ký.",
+                   st, "Có, đặt lại"):
+        try:
+            out = budget_rounds.reset_two(p.conn, actor)
+        except Exception as e:  # noqa: BLE001 - shown, never a crash of the bar
+            st.error(f"Không đặt lại được: {e}")
+            return
+        st.toast(f"Đã đặt lại 2 thanh · mở «{out['opened']['name']}»")
+        st.rerun()

@@ -385,3 +385,15 @@ def start_trial(conn, actor, usd: float, reason: str, image_cap: Optional[int] =
     if caps:
         budget.save(conn, **caps)
     return out
+
+
+DEFAULT_RESET_WHY = "Owner đặt lại thanh tiền từ nút"
+
+
+def reset_two(conn, actor, reason: Optional[str] = None, pricing: Optional[Dict] = None) -> Dict:
+    """S14.39: MỘT nút "↺ Đặt lại 2 thanh về 0": thanh Đợt thử bắt đầu ĐỢT ngân sách mới (đóng đợt cũ + lưu tóm tắt), thanh Claude API
+    đặt lại mốc đếm; hai mức dự tính hiện có được giữ. Đi qua start_new (cùng nhật ký audit + "Đặt lại lần cuối"); sổ chi giữ nguyên,
+    không xóa gì. Chỉ Owner; lý do mặc định DEFAULT_RESET_WHY (không bắt nhập)."""
+    cur = budget.get(conn)
+    return start_new(conn, actor, trial_name(), float(cur.get("usd") or 0.0), float(cur.get("llm_usd") or 0.0),
+                     str(reason or "").strip() or DEFAULT_RESET_WHY, pricing=pricing)
