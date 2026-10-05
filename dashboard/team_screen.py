@@ -161,6 +161,47 @@ def user_reset_block(p: Pipeline, actor: dict, rows: list, v2: bool) -> None:
                 st.rerun()
 
 
+MACHINE_NOTE = ("Chỉ áp khi Dashboard mở cho mạng LAN (DASHBOARD_LAN=1). Thành viên chỉ đăng nhập được từ máy PC Owner đã duyệt cho e-mail đó "
+                "(một người có thể có nhiều máy). Máy nhận qua DNS nội bộ (tên tra ngược từ IP, kiểm lại chiều thuận); không xác định được "
+                "tên máy → bị từ chối kèm lý do. Owner: trên máy chạy Dashboard như cũ, từ máy khác cần mã Owner. **Lưu ý:** reverse proxy "
+                "/ tunnel chạy trên cùng máy làm mọi người trông như đến từ máy chủ — đừng đặt Dashboard sau proxy khi dựa vào lớp này.")
+MACHINE_STATUS = {"pending": "⏳ chờ duyệt", "approved": "✅ đã duyệt", "rejected": "⛔ từ chối / thu hồi"}
+
+
+def machines_block(p: Pipeline) -> None:
+    """S14.7 (D1): the Owner approves / refuses / takes back the PCs each e-mail may sign in from (core/machine_auth)."""
+    from core import machine_auth
+    rows = machine_auth.requests(p.conn)
+    waiting = sum(1 for r in rows if r["status"] == "pending")
+    st.markdown(f"**Máy được duyệt (đăng nhập LAN)**" + (f" — {waiting} yêu cầu chờ" if waiting else ""), help=MACHINE_NOTE)
+    if not machine_auth.lan_on():
+        st.caption("Dashboard đang chỉ mở trên máy này (không bật DASHBOARD_LAN) — không cần duyệt máy.")
+    if not rows:
+        st.caption("Chưa có yêu cầu nào.")
+        return
+    owner = me().get("email")
+    for r in rows:
+        tag = f"{r['email']}_{r['machine']}"
+        c1, c2, c3, c4 = st.columns([3, 2.2, 1, 1], vertical_alignment="center")
+        c1.markdown(f"**{escape(r['email'])}** · máy **{escape(r['machine'])}**  \n<small>yêu cầu {escape(r['requested_at'] or '')}"
+                    f" · IP gần nhất {escape(r['last_ip'] or '—')}</small>", unsafe_allow_html=True)
+        c2.markdown(MACHINE_STATUS.get(r["status"], r["status"]) + (f"  \n<small>{escape(r['decided_by'] or '')} · "
+                    f"{escape(r['decided_at'] or '')}</small>" if r["decided_at"] else ""), unsafe_allow_html=True)
+        try:
+            if r["status"] != "approved" and c3.button("Duyệt", key=f"mach_ok_{tag}", type="primary" if r["status"] == "pending" else "secondary"):
+                machine_auth.approve(p.conn, owner, r["email"], r["machine"])
+                st.rerun()
+            if r["status"] == "pending" and c4.button("Từ chối", key=f"mach_no_{tag}"):
+                machine_auth.reject(p.conn, owner, r["email"], r["machine"])
+                st.rerun()
+            if r["status"] == "approved" and c4.button("Thu hồi", key=f"mach_rv_{tag}",
+                                                       help="Người này bị đăng xuất ngay; máy này không vào được nữa cho tới khi duyệt lại"):
+                machine_auth.revoke(p.conn, owner, r["email"], r["machine"])
+                st.rerun()
+        except auth.AuthError as e:
+            st.error(str(e))
+
+
 def team_screen(p: Pipeline, pid: int):
     if not (me().get("role") == "owner" or allowed("monitor")):
         st.warning("Màn Nhóm dành cho Owner hoặc người có quyền “Theo dõi hiệu suất”.")
@@ -246,6 +287,8 @@ def team_screen(p: Pipeline, pid: int):
                 st.error(str(e))
             else:
                 st.rerun()
+    with (D.card("team-machines") if v2 else st.container(border=True)):      # S14.7: LAN sign-in only from approved PCs
+        machines_block(p)
     with (D.card("team-access") if v2 else st.container(border=True)):        # đợt F: who watches which project, and projects with no creator
         st.markdown("**Quyền theo dự án**", help=ACCESS_NOTE)
         access_ui.team_panel(p)

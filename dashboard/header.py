@@ -177,10 +177,18 @@ def _risk_body(notes) -> None:
 
 
 def sign_in(conn, email: str, passcode: str = None) -> bool:
-    """Try to sign this browser session in. True on success (the address remembers the e-mail for reloads)."""
+    """Try to sign this browser session in. True on success (the address remembers the e-mail for reloads).
+    The one way in, for the form and for an old ?login= link alike: with DASHBOARD_LAN=1 it goes through core/machine_auth (try limit,
+    a member only from a machine the Owner approved, audit with the machine name); otherwise auth.login exactly as before."""
+    from core import machine_auth
     source, local = request_source()
+    st.session_state.pop("login_notice", None)
     try:
-        st.session_state["auth_token"] = auth.login(conn, email, source, local, passcode)
+        st.session_state["auth_token"] = machine_auth.sign_in(conn, email, C.request_ip(), local, source, passcode)
+    except machine_auth.MachinePending as e:            # S14.7: not an error — the Owner has to approve this PC first
+        st.session_state.pop("login_error", None)
+        st.session_state["login_notice"] = str(e)
+        return False
     except auth.AuthError as e:
         st.session_state["login_error"] = str(e)
         return False
@@ -203,9 +211,16 @@ def login_screen(conn) -> None:
             passcode = st.text_input("Mã Owner (khi đăng nhập Owner từ máy khác)", type="password", key="login_passcode")
         if st.button("Vào Dashboard", key="login_btn", type="primary") and sign_in(conn, email, passcode):
             st.rerun()
+        if st.session_state.get("login_notice"):
+            st.info("⏳ " + st.session_state["login_notice"])
         if st.session_state.get("login_error"):
             st.error(st.session_state["login_error"])
-        st.caption("Chỉ cần nhập e-mail. E-mail công ty được vào với quyền làm video; quyền khác do Owner cấp.")
+        from core import machine_auth
+        if machine_auth.lan_on():
+            st.caption("Chỉ cần nhập e-mail. Dashboard đang mở cho mạng LAN: thành viên chỉ vào được từ máy PC đã được Owner duyệt "
+                       "(lần đầu từ một máy → gửi yêu cầu duyệt, chờ Owner ở 👥 Nhóm).")
+        else:
+            st.caption("Chỉ cần nhập e-mail. E-mail công ty được vào với quyền làm video; quyền khác do Owner cấp.")
 
 
 def require_login(conn) -> None:
@@ -236,6 +251,15 @@ def require_login(conn) -> None:
         if ident is None:
             login_screen(conn)
             st.stop()
+    from core import machine_auth                          # S14.7: a member's session works only from a machine approved for them
+    refused = machine_auth.session_refusal(conn, ident.email, ident.role, C.request_ip(), request_source()[1])
+    if refused:
+        for key in ("auth_token", "identity"):
+            st.session_state.pop(key, None)
+        st.query_params.pop("s", None)
+        st.session_state["login_error"] = refused
+        login_screen(conn)
+        st.stop()
     st.session_state["identity"] = {"email": ident.email, "name": ident.name, "role": ident.role, "perms": ident.perms}
 
 

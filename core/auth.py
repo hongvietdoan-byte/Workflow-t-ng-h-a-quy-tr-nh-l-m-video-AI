@@ -150,9 +150,11 @@ def owner_remote_check(email: str, local: bool, passcode: Optional[str] = None) 
     return None
 
 
-def login(conn, email: str, source: str = "", local: bool = True, passcode: Optional[str] = None) -> str:
+def login(conn, email: str, source: str = "", local: bool = True, passcode: Optional[str] = None, gate=None) -> str:
     """Sign in with just an e-mail (the owner, from another machine, also with the owner passcode — see owner_remote_check).
-    Returns a session token. `source` (address the request came from) goes to the audit log."""
+    Returns a session token. `source` (address the request came from) goes to the audit log.
+    `gate(email, role)` (S14.7, core/machine_auth): called once the account is known to be allowed and before any session is made;
+    it raises AuthError to refuse (e.g. a machine not approved yet) or returns a note added to the audit line (the machine name)."""
     email = normalize_email(email)
     ensure_owner(conn)
     refused = owner_remote_check(email, local, passcode)
@@ -173,6 +175,10 @@ def login(conn, email: str, source: str = "", local: bool = True, passcode: Opti
     if not row["active"]:
         audit(conn, email, "login_refused", f"deactivated ({source})")
         raise AuthError("Tài khoản này đã bị vô hiệu hóa. Liên hệ Owner.")
+    if gate is not None:
+        note = gate(email, row["role"])
+        if note:
+            source = f"{source} {note}".strip()
     token = secrets.token_urlsafe(32)
     conn.execute("INSERT INTO sessions (token_hash, email, created_at, expires_at) VALUES (?,?,?,?)",
                  (_hash(token), email, _now(), _now() + SESSION_SECONDS))

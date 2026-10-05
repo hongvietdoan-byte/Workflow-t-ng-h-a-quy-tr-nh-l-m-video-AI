@@ -405,6 +405,25 @@ CREATE TABLE IF NOT EXISTS user_feedback (
     handled TEXT                       -- NULL | 'mistake:<id>' | 'bỏ qua: <lý do>'
 );
 CREATE INDEX IF NOT EXISTS idx_feedback_at ON user_feedback(at);
+CREATE TABLE IF NOT EXISTS machine_approvals (
+    email TEXT NOT NULL,               -- S14.7 core/machine_auth.py: with DASHBOARD_LAN=1 a member signs in only from a machine the Owner approved
+    machine TEXT NOT NULL,             -- PC name from reverse DNS confirmed forward (part before the first dot, upper case)
+    status TEXT NOT NULL CHECK (status IN ('pending','approved','rejected')),
+    requested_at TEXT NOT NULL,
+    decided_at TEXT,
+    decided_by TEXT,
+    last_ip TEXT,
+    last_seen TEXT,
+    PRIMARY KEY (email, machine)
+);
+CREATE TABLE IF NOT EXISTS login_attempts (
+    id INTEGER PRIMARY KEY,            -- S14.7: failed / refused sign-ins per address, for the try limit
+    at REAL NOT NULL,
+    ip TEXT,
+    email TEXT,
+    ok INTEGER NOT NULL DEFAULT 0
+);
+CREATE INDEX IF NOT EXISTS idx_login_attempts_ip ON login_attempts(ip, at);
 """
 
 

@@ -329,6 +329,67 @@ class UiHoleTests(AccessUiBase):
         self.assertTrue(os.path.exists(img))
 
 
+class MachineLoginUiTests(AccessUiBase):
+    """S14.7 (D1, 6b ý 2): DASHBOARD_LAN=1 → thành viên chỉ vào từ máy Owner đã duyệt; cả lối ?login= cũng qua kiểm máy.
+    AppTest không có IP → trình duyệt coi như trên chính máy chủ (tên máy = socket.gethostname, ở đây thay bằng tên giả)."""
+
+    def setUp(self):
+        super().setUp()
+        from core import machine_auth
+        machine_auth.clear_cache()
+        self.addCleanup(machine_auth.clear_cache)
+        for patcher in (mock.patch.dict(os.environ, {"DASHBOARD_LAN": "1", "DASHBOARD_OWNER_PASSCODE": "ma"}),
+                        mock.patch("core.machine_auth.socket.gethostname", return_value="may-chu.vn.corp")):
+            patcher.start()
+            self.addCleanup(patcher.stop)
+
+    def try_in(self, email, link=False) -> AppTest:
+        at = AppTest.from_file(APP, default_timeout=60)
+        at.query_params["step"] = "1"
+        if link:
+            at.query_params["login"] = email
+        at.run()
+        if not link:
+            at.text_input(key="login_email").set_value(email)
+            next(b for b in at.button if b.key == "login_btn").click().run()
+        self.assertFalse(at.exception, at.exception)
+        return at
+
+    def signed_in(self, at) -> bool:
+        return not any(b.key == "login_btn" for b in at.button)
+
+    def status(self):
+        r = self.conn.execute("SELECT status FROM machine_approvals WHERE email=? AND machine='MAY-CHU'", (CREATOR,)).fetchone()
+        return r[0] if r else None
+
+    def test_a_member_waits_until_the_owner_approves_the_machine(self):
+        at = self.try_in(CREATOR)
+        self.assertFalse(self.signed_in(at))
+        self.assertTrue(any("chờ Owner duyệt máy MAY-CHU" in i.value for i in at.info), [i.value for i in at.info])
+        self.assertEqual(self.status(), "pending")
+        owner = self.sign_in(OWNER, "team")                                    # the Owner on the server machine: as before
+        self.assertTrue(self.signed_in(owner))
+        btn = next(b for b in owner.button if b.key == f"mach_ok_{CREATOR}_MAY-CHU")
+        btn.click().run()
+        self.assertFalse(owner.exception, owner.exception)
+        self.assertEqual(self.status(), "approved")
+        self.assertTrue(self.signed_in(self.try_in(CREATOR)))
+
+    def test_an_old_login_link_goes_through_the_machine_check(self):
+        at = self.try_in(CREATOR, link=True)
+        self.assertFalse(self.signed_in(at))
+        self.assertEqual(self.status(), "pending")
+
+    def test_a_revoked_machine_ends_the_open_session(self):
+        from core import machine_auth
+        machine_auth.approve(self.conn, OWNER, CREATOR, "MAY-CHU")
+        at = self.try_in(CREATOR)
+        self.assertTrue(self.signed_in(at))
+        machine_auth.revoke(self.conn, OWNER, CREATOR, "MAY-CHU")
+        at.run()
+        self.assertFalse(self.signed_in(at))
+
+
 class LegacyLookTests(AccessUiBase):
     V2 = "0"
 
