@@ -20,6 +20,9 @@ sys.path.insert(0, os.path.join(ROOT, "tools", "experiments"))
 EVAL_PROJECT = "Nghiệm thu agent QC"
 
 
+from core import script_cap  # noqa: E402  (S14.2: trần cứng --max-usd)
+
+
 def main(argv=None):
     try:
         sys.stdout.reconfigure(encoding="utf-8")
@@ -31,10 +34,11 @@ def main(argv=None):
     ap.add_argument("--limit", type=int, default=0, help="chỉ N khung đầu (thử nhỏ)")
     ap.add_argument("--db", default=os.path.join("data", "manifest.sqlite"))
     ap.add_argument("--yes", action="store_true")
-    ap.add_argument("--max-usd", type=float, default=0.5)
+    script_cap.add_argument(ap)          # S14.2: trần CỨNG cả lần chạy, bắt buộc khi --yes
     ap.add_argument("--bill-project", default="new")
     ap.add_argument("--replay", default=None)
     a = ap.parse_args(argv)
+    hard = script_cap.from_args(argparse.Namespace(yes=a.yes and not a.replay, max_usd=a.max_usd), "đo Tổ QC")
     from core import qc_golden, qc_team
     from core.db import connect
     from core.pipeline import Pipeline
@@ -55,7 +59,7 @@ def main(argv=None):
     usd = qc_team.estimate_usd(len(frames))
     print(f"bộ {a.set}: {len(items)} khung có nhãn, {len(frames)} chạy được · ước tính C1 ≈ ${usd:.2f} (chưa đo, mục 16)")
     if not a.yes and not a.replay:
-        print("(chưa chạy — thêm --yes để chạy thật, hoặc --replay <calls.jsonl> để chạy lại 0 USD)")
+        print("(chưa chạy — thêm --yes --max-usd <USD> để chạy thật, hoặc --replay <calls.jsonl> để chạy lại 0 USD)")
         return
     run_dir = os.path.join(os.path.dirname(os.path.abspath(a.db)), "qc_golden", "runs", time.strftime("%Y%m%d-%H%M%S"))
     os.makedirs(run_dir, exist_ok=True)
@@ -79,10 +83,13 @@ def main(argv=None):
         if over:
             raise SystemExit(f"dừng trước khi chạy: {over}")
         print(f"tiền tính vào dự án #{bill}; trần cứng ${a.max_usd:.2f}")
+        hard.start()
     results, errors = {}, []
     entities = {}
-    with llm_runner.tagged("qc_team", bill), llm_runner.spend_cap(a.max_usd, "đo Tổ QC") as cap:
+    with llm_runner.tagged("qc_team", bill), llm_runner.spend_cap(a.max_usd or float("inf"), "đo Tổ QC") as cap:
         for f in frames:
+            if not hard.allow(qc_team.estimate_usd(1), f"khung job {f['job_id']}"):
+                break
             d = f["data"]
             scene_key = (f["project"], d.get("story_scene"))
             if scene_key not in entities:                       # one cached entity block per scene: same people, all its frames excluded
@@ -94,6 +101,9 @@ def main(argv=None):
                                                             [f"S{g['data'].get('story_scene')}·{g['data'].get('shot_no')}" for g in same])
             try:
                 res = qc_team.review_frame(p, f["project"], data_dir, f, client, entity=entities[scene_key])
+            except script_cap.CapReached as e:      # chạm --max-usd giữa khung: giữ kết quả các khung đã xong
+                errors.append({"job": f["job_id"], "error": str(e), "code": "script_cap"})
+                break
             except llm_runner.LlmError as e:
                 errors.append({"job": f["job_id"], "error": str(e), "code": e.code})
                 print(f"job {f['job_id']}: lỗi {e.code}: {e}")

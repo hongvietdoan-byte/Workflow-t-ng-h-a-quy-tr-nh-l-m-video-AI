@@ -211,6 +211,8 @@ def image_group_v2(p, pid: int, history: list, proj, stale_reason=None) -> None:
     is_latest = pointer == n - 1
     jid, state = j["id"], j["state"]
     busy = state in ("queued", "running", "retryable")
+    from core import image_models
+    retake = cost.image_button_tag(image_models.of_project(proj), 1, retake_conn=p.conn) if is_latest else ""   # S14.2 A2
     with D.card(f"sb-{sid}"):
         img = C.job_image(pid, jid)
         if img and not busy:
@@ -246,6 +248,7 @@ def image_group_v2(p, pid: int, history: list, proj, stale_reason=None) -> None:
         elif state in REVIEWABLE:
             note = st.text_input("Câu sửa (tiếng Anh)", key=f"note_{jid}", placeholder="vd: Kelly wears the yellow jacket")
             b1, b2, b3, b4 = pair()
+            st.caption("↻ Vẽ lại 1 ảnh" + retake)
             if b1.button("✔ Duyệt", key=f"a_{jid}", type="primary", width="stretch"):
                 act(lambda: p.approve(jid, "user"))
                 st.rerun()
@@ -272,6 +275,7 @@ def image_group_v2(p, pid: int, history: list, proj, stale_reason=None) -> None:
             b1, b2, b3, b4 = pair()
             b1.button("✔ Duyệt", key=f"a_{jid}", disabled=True, width="stretch")
             b2.button("✖ Loại", key=f"dd_{jid}", disabled=True, width="stretch")
+            st.caption("↻ Vẽ lại 1 ảnh" + retake)
             if b3.button("↻ Vẽ lại", key=f"dretry_{jid}", width="stretch",
                          help="Gen lại với câu sửa" if fix.strip() else "Gửi lại y nguyên — chỉ khi lỗi do nhà cung cấp"):
                 act(lambda: p.retry(jid, "người dùng gen lại với câu sửa" if fix.strip() else "gửi lại (lỗi nhà cung cấp)", fix=fix, by_user=True))
@@ -283,13 +287,14 @@ def image_group_v2(p, pid: int, history: list, proj, stale_reason=None) -> None:
             b1, b2, b3, b4 = pair()
             b1.button("✔ Duyệt", key=f"a_{jid}", disabled=True, width="stretch")
             b2.button("✖ Loại", key=f"dd_{jid}", disabled=True, width="stretch")
+            st.caption("↻ Vẽ lại 1 ảnh" + retake)
             if b3.button("↻ Vẽ lại", key=f"reopen_{jid}", width="stretch",
                          help="Bỏ duyệt và gen lại ảnh (motion/video làm từ ảnh này sẽ hiện ⚠ cũ)"):
                 if act(_spin(lambda: p.reopen_approved(jid, r_note or None)), "Đã bỏ duyệt, xếp hàng gen lại"):
                     st.rerun()
             if b4.button("✎ Sửa", key=f"sel_btn_{jid}", width="stretch"):
                 _open_detail(pid, jid)
-            if stale_reason and st.button("↻ Gen lại theo nội dung mới", key=f"stale_{jid}", type="primary", width="stretch"):
+            if stale_reason and st.button("↻ Gen lại theo nội dung mới" + retake, key=f"stale_{jid}", type="primary", width="stretch"):
                 if act(lambda: p.reopen_approved(jid, f"Nội dung cảnh đã đổi: {stale_reason}", fix=""), "Đã xếp hàng gen lại"):
                     st.rerun()
         else:                                               # rejected / cancelled / escalated failed
@@ -297,6 +302,7 @@ def image_group_v2(p, pid: int, history: list, proj, stale_reason=None) -> None:
             b1.button("✔ Duyệt", key=f"a_{jid}", disabled=True, width="stretch")
             b2.button("✖ Loại", key=f"dd_{jid}", disabled=True, width="stretch")
             if j["escalated"]:
+                st.caption("↺ Làm lại 1 ảnh" + retake)
                 if b3.button("↺ Làm lại", key=f"rs_{jid}", type="primary", width="stretch", help="Đã hết số lần thử: bắt đầu lại cảnh này"):
                     if act(lambda: p.restart_job(jid), "Đã xếp hàng ảnh mới cho cảnh"):
                         st.rerun()
@@ -364,7 +370,11 @@ def action_bar(p, pid: int) -> None:
                     st.markdown(pills, unsafe_allow_html=True)
             if mid is not None:
                 with mid:
-                    if st.button("✔ Duyệt storyboard → gửi video", key=f"board_ok_{pid}", type="secondary" if pending else "primary", width="stretch"):
+                    try:                                         # S14.2 A2: the clips this sends, priced on the button
+                        board_tag = cost.video_batch_tag(p, pid)
+                    except Exception:  # noqa: BLE001 - the button stays; the label says the price is missing
+                        board_tag = " · chưa có giá (không ước tính được)"
+                    if st.button("✔ Duyệt storyboard → gửi video" + board_tag, key=f"board_ok_{pid}", type="secondary" if pending else "primary", width="stretch"):
                         autopilot.resume(p, pid, p.actor)
                         autopilot_manager(C.DB, C.DATA).start(pid, user=C.access_user())
                         st.rerun()

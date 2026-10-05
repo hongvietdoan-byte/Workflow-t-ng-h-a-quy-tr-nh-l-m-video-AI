@@ -365,7 +365,10 @@ def main():
     ap.add_argument("arm", nargs="?", default="ref", choices=("ref", "kling"))
     ap.add_argument("only", nargs="?", type=int)
     ap.add_argument("--project", type=int)
+    from core import script_cap  # noqa: E402  (S14.2: trần CỨNG --max-usd, bắt buộc khi gọi API trả tiền)
+    script_cap.add_argument(ap)
     a = ap.parse_args()
+    script_cap.require(a, "s42_s46_take_closeup").start()
     extra = {"FEATURE_CLOSEUP_START_FRAME": "1" if a.arm == "kling" and a.step in ("plan", "closeup") else "0"}
     p = _p(extra)
     if a.step == "setup":

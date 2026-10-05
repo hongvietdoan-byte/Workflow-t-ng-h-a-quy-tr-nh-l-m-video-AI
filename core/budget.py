@@ -322,8 +322,9 @@ def _hard(conn, provider_name: str) -> Optional[str]:
 
 def check_video(conn, provider_name: str, model: str, tier: str, seconds: float) -> Optional[str]:
     """A reason NOT to send this clip, else None. Chính sách tiền 04/10 (S14.16): only a service out of credit refuses; the trial cap,
-    a model/tier without a price and a broken price table only warn (warn_video)."""
-    return _hard(conn, provider_name)
+    a model/tier without a price and a broken price table only warn (warn_video). S14.2: a command-line run's --max-usd refuses."""
+    from . import script_cap
+    return _hard(conn, provider_name) or script_cap.send_refusal("video", provider_name, model, tier, seconds)
 
 
 def warn_video(conn, provider_name: str, model: str, tier: str, seconds: float) -> Optional[str]:
@@ -341,7 +342,8 @@ def warn_video(conn, provider_name: str, model: str, tier: str, seconds: float) 
 
 def check_audio(conn, provider_name: str) -> Optional[str]:
     """A reason NOT to send one audio job, else None: only a service out of credit (S14.16). The trial's count cap warns (warn_audio)."""
-    return _hard(conn, provider_name)
+    from . import script_cap
+    return _hard(conn, provider_name) or script_cap.send_refusal("audio", provider_name)
 
 
 def warn_audio(conn, provider_name: str) -> Optional[str]:
@@ -375,8 +377,9 @@ def audio_tag(conn, count: int = 1) -> str:
 
 def check_image(conn, provider_name: str, model: Optional[str] = None, count: int = 1) -> Optional[str]:
     """A reason NOT to send `count` more pictures, else None: only a service out of credit (S14.16). The trial's count and money caps
-    and a picture model without a price only warn (warn_image)."""
-    return _hard(conn, provider_name)
+    and a picture model without a price only warn (warn_image). S14.2: a command-line run's --max-usd refuses."""
+    from . import script_cap
+    return _hard(conn, provider_name) or script_cap.send_refusal("image", provider_name, model, None, count)
 
 
 def warn_image(conn, provider_name: str, model: Optional[str] = None, count: int = 1) -> Optional[str]:

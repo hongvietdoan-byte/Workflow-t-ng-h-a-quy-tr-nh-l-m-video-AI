@@ -51,7 +51,10 @@ def main():
     ap.add_argument("--shots", type=int, nargs="+", required=True)
     ap.add_argument("--db", default=os.environ.get("PIPELINE_DB", os.path.join("data", "manifest.sqlite")))   # run from the main folder
     ap.add_argument("--yes", action="store_true")
+    from core import script_cap  # noqa: E402  (S14.2: trần CỨNG --max-usd, bắt buộc khi gọi API trả tiền)
+    script_cap.add_argument(ap)
     a = ap.parse_args()
+    script_cap.from_args(a, "storyboard_test").start()
     p = Pipeline(connect(a.db))
     prompts, refs, story, proj = build(p, a.project, a.shots)
     model = image_models.of_project(proj)
@@ -62,7 +65,7 @@ def main():
     for i, t in enumerate(prompts, 1):
         print(f"  khung {i}: {t[:180]}…")
     if not a.yes:
-        print("(chưa gửi — thêm --yes)")
+        print("(chưa gửi — thêm --yes --max-usd <USD>)")
         return
     if used is not None and used + len(prompts) > b["image_cap"]:
         sys.exit("vượt trần ảnh đợt thử — dừng")
@@ -75,7 +78,10 @@ def main():
         cost.record_usage(p.conn, None, "image", provider.name, model, "image", 1, "image", project_id=a.project, stage="storyboard_test")
         print(f"  gửi khung {i + 1}: {mid}", flush=True)
 
-    res = storyboard_frames.run(provider, prompts, refs, story, os.path.join(out, "run"), size="1152x2048", model=model, on_submit=ledger)
+    res = storyboard_frames.run(provider, prompts, refs, story, os.path.join(out, "run"), size="1152x2048", model=model, on_submit=ledger,
+                                conn=p.conn)   # rà soát A2: trần --max-usd + hết tiền kiểm TRƯỚC mỗi khung
+    if res.get("stopped"):
+        print(res["stopped"])
     final = os.path.join(out, res["storyboard_id"])
     os.replace(os.path.join(out, "run"), final)
     print(json.dumps({"storyboard_id": res["storyboard_id"], "frames": [{k: v for k, v in f.items() if k != "path"} for f in res["frames"]]},

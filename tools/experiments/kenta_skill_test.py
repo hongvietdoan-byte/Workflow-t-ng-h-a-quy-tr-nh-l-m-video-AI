@@ -352,7 +352,10 @@ def main() -> None:
     ap.add_argument("step", choices=("setup", "frames", "approve", "redraw", "ends", "plan", "submit", "poll", "t1", "t2", "t3"))
     ap.add_argument("shots", nargs="?", default="")
     ap.add_argument("--refvideo", action="store_true", help="gửi kèm đoạn video kỹ năng thật làm tham chiếu chuyển động (Kling video_list)")
+    from core import script_cap  # noqa: E402  (S14.2: trần CỨNG --max-usd, bắt buộc khi gọi API trả tiền)
+    script_cap.add_argument(ap)
     a = ap.parse_args()
+    script_cap.require(a, "kenta_skill_test").start()
     from tools.experiments.group_test import cmd_poll, load_env
     load_env(os.getcwd())
     os.environ.update(ENV)

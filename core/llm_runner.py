@@ -264,6 +264,8 @@ def _check_caps(model: str, payload: Dict) -> Optional[str]:
 
 
 def _count_caps(usd: float) -> None:
+    from . import script_cap                  # S14.2: the --max-usd lock of a command-line run (no-op in the dashboard)
+    script_cap.llm_spent(usd)
     for e in getattr(_CAPS, "stack", None) or []:
         e["spent"] += usd
         e["last"] = max(usd, e["last"] * 0.5)
@@ -528,6 +530,12 @@ class AnthropicClient:
         every call in flight in any process (holds in the database) — all WARN. Refused only when Anthropic is out of credit (code
         'out_of_credit') or paid calls could not be written to the ledger (code 'ledger'). Returns the hold id (release it after)."""
         warns = []
+        if payload is not None:                   # S14.2: a command-line run's hard --max-usd (core.script_cap) — the only Claude refusal
+            from . import script_cap               # by money besides out_of_credit; no lock active (dashboard) → nothing
+            guess = dict(payload, max_tokens=min(int(payload.get("max_tokens") or 0), script_cap.LLM_GUESS_OUTPUT))
+            why = script_cap.llm_refusal(worst_usd(self.model, guess))
+            if why:
+                raise script_cap.CapReached(why)
         caps = _check_caps(self.model, payload) if payload is not None else None
         if caps:
             warns.append(caps)

@@ -37,7 +37,10 @@ def main():
     ap.add_argument("--shots", type=int, nargs="+", required=True, help="scene ids (bảng scenes)")
     ap.add_argument("--db", default=os.path.join("data", "manifest.sqlite"))
     ap.add_argument("--yes", action="store_true")
+    from core import script_cap  # noqa: E402  (S14.2: trần CỨNG --max-usd, bắt buộc khi gọi API trả tiền)
+    script_cap.add_argument(ap)
     a = ap.parse_args()
+    script_cap.from_args(a, "tower_layout_test").start()
     from group_test import load_env
     load_env(".")
     p = Pipeline(connect(a.db))
@@ -62,7 +65,7 @@ def main():
     need = 2 * len(plan)
     print(f"model {model} · {need} ảnh · trần ảnh {used}/{b['image_cap']}")
     if not a.yes:
-        print("(chưa gửi — thêm --yes)")
+        print("(chưa gửi — thêm --yes --max-usd <USD>)")
         return
     if used is not None and used + need > b["image_cap"]:
         sys.exit("vượt trần ảnh — dừng")

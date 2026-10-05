@@ -20,6 +20,7 @@ import time
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.path.insert(0, ROOT)
 sys.path.insert(0, os.path.join(ROOT, "tools", "experiments"))
+from core import script_cap  # noqa: E402  (S14.2: trần cứng --max-usd)
 EVAL_PROJECT = "Nghiệm thu Biên kịch"
 IDEAS = os.path.join(ROOT, "data", "idea_golden", "ideas.json")
 CRITERIA = ("giữ ý", "hook", "logic", "độ dài", "quay được")
@@ -83,13 +84,21 @@ def run_idea(p, pid: int, item: dict, client) -> dict:
     return I.get_state(p.conn, pid)
 
 
-def run_all(p, pid: int, items, client, max_usd: float, log=print) -> dict:
-    from core import idea_to_script as I, llm_runner
+def run_all(p, pid: int, items, client, max_usd, log=print) -> dict:
+    """max_usd: the run's hard lock is core.script_cap (main); here it only labels llm_runner.spend_cap (None = replay, 0 USD)."""
+    from core import idea_to_script as I, llm_runner, script_cap
     results, errors = {}, []
-    with llm_runner.tagged(I.STAGE, pid), llm_runner.spend_cap(max_usd, "đo Biên kịch") as cap:
+    hard = script_cap.active() or script_cap.NO_CAP
+    with llm_runner.tagged(I.STAGE, pid), llm_runner.spend_cap(max_usd or float("inf"), "đo Biên kịch") as cap:
         for it in items:
+            if not hard.allow(TURNS * I.TURN_USD, f"ý tưởng {it['id']} ({TURNS} lượt)"):
+                errors.append({"id": it["id"], "error": hard.stopped, "code": "script_cap"})
+                break
             try:
                 st = run_idea(p, pid, it, client)
+            except script_cap.CapReached as e:          # S14.2: chạm --max-usd giữa ý tưởng — giữ các ý tưởng đã xong
+                errors.append({"id": it["id"], "error": str(e), "code": "script_cap"})
+                break
             except (llm_runner.LlmError, I.IdeaError) as e:
                 st = I.get_state(p.conn, pid)
                 st["error"] = str(e)
@@ -213,7 +222,7 @@ def main(argv=None):
     ap.add_argument("--ideas", default=IDEAS)
     ap.add_argument("--limit", type=int, default=0)
     ap.add_argument("--yes", action="store_true")
-    ap.add_argument("--max-usd", type=float, default=1.0)
+    script_cap.add_argument(ap)          # S14.2: trần CỨNG, bắt buộc khi --yes
     ap.add_argument("--replay", default=None)
     ap.add_argument("--score", default=None, help="phiếu đã chấm (.md)")
     ap.add_argument("--run", default=None, help="thư mục bản chạy (với --score)")
@@ -236,9 +245,11 @@ def main(argv=None):
     if a.limit:
         items = items[:a.limit]
     usd = len(items) * TURNS * I.TURN_USD
-    print(f"{len(items)} ý tưởng × {TURNS} lượt · ước tính ≈ ${usd:.2f} (trần mỗi ý tưởng ${I.RUN_CAP_USD:.2f}, trần cả bộ ${a.max_usd:.2f})")
+    print(f"{len(items)} ý tưởng × {TURNS} lượt · ước tính ≈ ${usd:.2f} (trần mỗi ý tưởng ${I.RUN_CAP_USD:.2f}, trần cả bộ "
+          + (f"${a.max_usd:.2f})" if a.max_usd is not None else "chưa khai --max-usd)"))
+    hard = script_cap.from_args(argparse.Namespace(yes=a.yes and not a.replay, max_usd=a.max_usd), "đo Biên kịch")
     if not a.yes and not a.replay:
-        print("(chưa chạy — thêm --yes để chạy thật, hoặc --replay <calls.jsonl> để chạy lại 0 USD)")
+        print("(chưa chạy — thêm --yes --max-usd <USD> để chạy thật, hoặc --replay <calls.jsonl> để chạy lại 0 USD)")
         return None
     p = Pipeline(connect(a.db))
     run_dir = os.path.join(os.path.dirname(os.path.abspath(a.db)), "idea_golden", "runs", time.strftime("%Y%m%d-%H%M%S"))
@@ -258,6 +269,7 @@ def main(argv=None):
         if over:
             raise SystemExit(f"dừng trước khi chạy: {over}")
         client = RecordingClient(real, os.path.join(run_dir, "calls.jsonl"))
+        hard.start()
         print(f"tiền tính vào dự án #{pid} '{EVAL_PROJECT}'")
     out = run_all(p, pid, items, client, a.max_usd)
     out.update(ideas=items, replay_misses=getattr(client, "misses", 0), model=getattr(client, "model", ""))

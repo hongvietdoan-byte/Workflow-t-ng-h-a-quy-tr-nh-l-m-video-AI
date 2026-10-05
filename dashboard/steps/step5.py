@@ -728,6 +728,11 @@ def editor_review_panel(p: Pipeline, pid: int, measured: dict) -> None:
             if not ok:
                 return
             saved = editor_review.load(C.DATA, pid)
+        else:                                       # J6: never silent — why nothing happened and how to fix it
+            st.error("Chưa duyệt được bản thô: chưa kết nối được Claude (Biên tập viên + Đạo diễn là hai lời gọi Claude). "
+                     "Cách xử lý: đặt ANTHROPIC_API_KEY (Claude API) hoặc LLM_PROVIDER=claude_cli (Claude Code trên máy) trong "
+                     "dashboard.env rồi khởi động lại dashboard; nếu ngay trên có dòng lỗi “Claude: …” thì sửa theo dòng đó. "
+                     "Chưa gọi gì, chưa tốn tiền.")
     if saved:
         if saved.get("rough_cut") != measured.get("fingerprint"):
             _note("Kết quả duyệt này là của bản dựng / ý đồ trước — bấm duyệt lại.")
@@ -880,6 +885,9 @@ def exports_panel(p: Pipeline, pid: int, preset_ext: str = None) -> None:
 
 def _deliver_button(p: Pipeline, pid: int, chosen, durations, label: str = "📦 Xuất bản đầy đủ (dựng → phụ đề → card → các kích thước)") -> None:
     """The one button of the chain: render → subtitles → end card → every size in the export list."""
+    sub = subtitles.get_settings(p, pid)                 # S14.2 A2: the only paid part is translating subtitle lines never translated
+    label += (cost.llm_button_tag(p.conn, "subtitles", 1) + " (dịch phụ đề)" if sub["enabled"] and sub["lang"] != "src"
+              else " · ≈ 0.00 USD (ước tính)")
     if st.button(label, type="primary", key=f"deliver_{pid}", disabled=not chosen, width="stretch"):
         with st.spinner("Đang xuất bản…"):
             ok = act(lambda: st.session_state.__setitem__(f"deliver_res_{pid}", delivery.deliver(p, pid, C.DATA, llm_client(),

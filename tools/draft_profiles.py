@@ -4,7 +4,7 @@
                                                    nhiều ngoại hình, nhân vật chưa có hồ sơ
     py tools/draft_profiles.py --apply             ghi phần miễn phí: ảnh gần như trùng → "chờ duyệt" (KHÔNG xóa), đoán vai trò ảnh theo tỉ lệ
     py tools/draft_profiles.py --draft --limit 5   ƯỚC TÍNH tiền Claude để soạn nháp hồ sơ cho 5 nhân vật (không gọi gì)
-    py tools/draft_profiles.py --draft --limit 5 --yes   gọi Claude (có sổ chi + trần Claude): 1 lượt / nhân vật, lưu NHÁP (chưa duyệt)
+    py tools/draft_profiles.py --draft --limit 5 --yes --max-usd 0.3   gọi Claude (có sổ chi + trần Claude): 1 lượt / nhân vật, lưu NHÁP (chưa duyệt)
 
 Thứ tự soạn: nhân vật đã dùng trong dự án → nhân vật còn lại (thú cưng sau cùng). Nháp không bao giờ tự duyệt — người duyệt ở
 ⚙ → 📁 Kho → 📋 Hồ sơ chuẩn. Luật tuổi (người dùng chốt 2026-09-25): KHÔNG ghi số tuổi dưới 18 — tả "young, not yet 20".
@@ -155,7 +155,10 @@ def main():
     ap.add_argument("--skip", default="", help="bỏ các mục này (tên, cách nhau bằng dấu phẩy)")
     ap.add_argument("--no-pets", action="store_true", help="bỏ thú cưng (người dùng 02/10: chỉ làm hồ sơ nhân vật)")
     ap.add_argument("--only", default="", help="chỉ soạn các nhân vật này (tên, cách nhau bằng dấu phẩy)")
+    from core import script_cap  # noqa: E402  (S14.2: trần CỨNG --max-usd, bắt buộc khi gọi API trả tiền)
+    script_cap.add_argument(ap)
     a = ap.parse_args()
+    script_cap.from_args(a, "draft_profiles").start()
     from core.db import connect
     conn = connect(a.db)
     rep = report(conn, a.game)
@@ -178,7 +181,7 @@ def main():
         print(f"soạn nháp {len(todo)} hồ sơ: " + ", ".join(c["name"] for c in todo)
               + f"\nƯớc tính ≈ ${EST_USD_PER_CHARACTER * len(todo):.2f} Claude API (tính vào trần Claude, ⚙ → 💵)")
         if not a.yes:
-            print("(chưa gọi Claude — thêm --yes để chạy)")
+            print("(chưa gọi Claude — thêm --yes --max-usd <USD> để chạy)")
             return
         from core import budget, llm_runner
         from core.adapters.check import load_dashboard_env

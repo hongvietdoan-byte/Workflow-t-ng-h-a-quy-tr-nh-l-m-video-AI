@@ -311,7 +311,10 @@ def main() -> None:
     ap.add_argument("step", choices=("frames", "plan", "submit", "poll"))
     ap.add_argument("--methods", default=",".join(METHODS))
     ap.add_argument("--single", action="store_true", help="one clip per shot for every method (S4.6 action A/B)")
+    from core import script_cap  # noqa: E402  (S14.2: trần CỨNG --max-usd, bắt buộc khi gọi API trả tiền)
+    script_cap.add_argument(ap)
     a = ap.parse_args()
+    script_cap.require(a, "group_test").start()
     global SINGLE
     SINGLE = a.single
     root = os.getcwd()

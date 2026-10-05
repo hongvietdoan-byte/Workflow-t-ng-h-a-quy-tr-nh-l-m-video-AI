@@ -29,7 +29,8 @@ def distill_panel(group: str, ov: dict) -> None:
         st.info("Cẩm nang đang TẮT: bước này dùng tài liệu gốc.")
     client = llm_client()
     if client is not None and inputs:
-        if st.button(f"🤖 Chắt lọc bằng {llm_label(client)}", type="primary", key=f"kb_distill_{group}"):
+        price = cost.llm_tokens_tag(knowledge.approx_tokens(src), knowledge.approx_tokens(knowledge.TARGET_CHARS[group]) * 2)  # S14.2 A2
+        if st.button(f"🤖 Chắt lọc bằng {llm_label(client)}" + price, type="primary", key=f"kb_distill_{group}"):
             with st.spinner("Claude đang đọc và tổng kết tài liệu…"):
                 ok = act(lambda: st.session_state.__setitem__("llm_res", llm_runner.run_distill(group, client, include)))
             if ok:
@@ -1208,7 +1209,7 @@ def lessons_tab(p: Pipeline, pid: int) -> None:
             st.error(str(e))
     monthly = st.checkbox("Tự nghiên cứu hàng tháng (khi mở Dashboard và đã đến hạn)", value=research.enabled(conn), key="ls_monthly",
                           help="Mặc định tắt vì tốn phí. Máy phải mở Dashboard ít nhất một lần trong tháng, hoặc dùng "
-                               "tools/monthly_research.py với Task Scheduler.")
+                               "tools/monthly_research.py --max-usd <USD> (trần cứng, bắt buộc) với Task Scheduler.")
     if monthly != research.enabled(conn):
         lessons.set_meta(conn, "research_monthly", "1" if monthly else "0")
     last = lessons.meta(conn, "research_last_run")

@@ -63,6 +63,31 @@ class RunTests(unittest.TestCase):
         self.assertEqual(prov.sent[2]["mode"], "sequential")
 
 
+class ScriptCapTests(unittest.TestCase):
+    """Rà soát A2 (lỗ khóa): storyboard frames were sent without asking the cap — the --max-usd of a command-line run was blind here."""
+
+    def test_frames_stop_at_the_cap_and_the_sent_ones_are_kept(self):
+        from core import script_cap
+        d = tempfile.mkdtemp()
+        prov = FakeStoryboard()
+        with script_cap.ScriptCap(0.13, "sb", log=lambda *_: None) as cap:     # gpt-image-2 = 0.052 → 2 frames fit, the 3rd not
+            res = storyboard_frames.run(prov, ["a", "b", "c", "d"], [{"path": os.path.join(d, "r.png"), "label": "R"}], "story",
+                                        os.path.join(d, "out"), model="gpt-image-2", on_submit=lambda i, m: cap.add(0.052),
+                                        poll=0, sleep=lambda s: None)
+        self.assertEqual(len(prov.sent), 2)
+        self.assertEqual([bool(f["path"]) for f in res["frames"]], [True, True, False, False])
+        self.assertIn("--max-usd", res["stopped"])
+        self.assertIn("--max-usd", res["frames"][2]["error"])
+
+    def test_nothing_sent_when_the_first_frame_does_not_fit(self):
+        from core import script_cap
+        prov = FakeStoryboard()
+        with script_cap.ScriptCap(0.01, "sb", log=lambda *_: None):
+            with self.assertRaises(script_cap.CapReached):
+                storyboard_frames.run(prov, ["a", "b"], [], "story", tempfile.mkdtemp(), model="gpt-image-2", poll=0, sleep=lambda s: None)
+        self.assertEqual(prov.sent, [])
+
+
 class AdapterTests(unittest.TestCase):
     def test_storyboard_frame_request_matches_the_web_canvas(self):
         t = FakeTransport()

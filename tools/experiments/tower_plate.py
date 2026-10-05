@@ -100,7 +100,10 @@ def main():
         g.add_argument("--out", required=True)
         if name == "plate":
             g.add_argument("--plate", required=True, help="ảnh render 3D làm nền")
+    from core import script_cap  # noqa: E402  (S14.2: trần CỨNG --max-usd, bắt buộc khi gọi API trả tiền)
+    script_cap.add_argument(ap)
     args = ap.parse_args()
+    script_cap.require(args, "tower_plate").start()
     if args.cmd == "render":
         render(args)
     elif args.cmd == "plate":

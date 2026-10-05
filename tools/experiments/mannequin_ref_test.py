@@ -130,7 +130,10 @@ def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--project", type=int)
     ap.add_argument("step", choices=("setup", "plan", "submit", "poll"))
+    from core import script_cap  # noqa: E402  (S14.2: trần CỨNG --max-usd, bắt buộc khi gọi API trả tiền)
+    script_cap.add_argument(ap)
     a = ap.parse_args()
+    script_cap.require(a, "mannequin_ref_test").start()
     from tools.experiments.group_test import cmd_poll, load_env
     load_env(os.getcwd())
     data_dir = os.environ.get("PIPELINE_DATA") or os.path.join("data", "projects")

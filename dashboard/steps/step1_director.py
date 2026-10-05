@@ -40,20 +40,27 @@ def director_panel(p: Pipeline, pid: int, chars) -> None:
                 if two:
                     cap("🧪 Director hai lượt (cờ `director_two_pass`, chưa thử thật): Tầng A Đạo diễn viết Bible + ý đồ từng cảnh → "
                                "Tầng B Quay phim chia shot mỗi cảnh một lượt (phần chung cache) → code Đạo diễn duyệt bảng shot so với ý đồ.")
+                usd, scene_usd = None, None            # S14.2 A2: the estimate goes on the buttons too
                 try:                                   # luật chi phí: the estimate before the click (both ways, so the choice is informed)
                     est = director_two_pass.estimate(p, pid, client)
                     usd = (est.get(est["active"]) or est["single"]).get("usd")
+                    two_est = est.get("two_pass") or {}
+                    if two_est.get("usd") is not None and est.get("scenes"):
+                        scene_usd = two_est["usd"] / est["scenes"]
                     cap("💵 " + director_two_pass.estimate_text(est),            # v2: the figure stays outside, the breakdown goes in ⓘ
                         summary=("💵 Ước tính Director ≈ " + f"{usd:.2f}".replace(".", ",") + " USD") if usd is not None else "💵 Ước tính Director: model chưa có giá")
                 except Exception as e:  # noqa: BLE001 - an estimate that cannot be made is said, never hidden
                     cap(f"💵 Chưa ước tính được chi phí Director ({type(e).__name__}: {e})")
+                label += f" · Claude ≈ {usd:.2f} USD (ước tính)" if usd is not None else " · Claude: chưa có giá"
                 go = (confirm_all(f"llm_dir_{pid}", ["again"], label + " (chạy lại)",
                                   "Character Bible đã khóa: chạy lại chỉ cập nhật thông số cảnh (trường bạn đã sửa tay được giữ), nhân vật đã khóa "
                                   "không đổi. Chạy?", st, "Có, chạy lại") if locked
                       else st.button(label, type="primary", key=f"llm_dir_{pid}"))
                 pending = director_two_pass.pending_scenes(p, pid) if two else []
                 resume = bool(pending) and st.button(
-                    f"↻ Chỉ hỏi lại {len(pending)} cảnh lỗi (cảnh {', '.join(map(str, pending))})", key=f"llm_dir_resume_{pid}",
+                    f"↻ Chỉ hỏi lại {len(pending)} cảnh lỗi (cảnh {', '.join(map(str, pending))})"
+                    + (f" · Claude ≈ {scene_usd * len(pending):.2f} USD (ước tính)" if scene_usd is not None
+                       else cost.llm_button_tag(p.conn, "director", len(pending))), key=f"llm_dir_resume_{pid}",
                     help="Lần chạy trước dừng vì Quay phim chưa chia được các cảnh này. Dùng lại ý đồ Tầng A và các cảnh đã chia (đã trả tiền) "
                          "khi kịch bản/luật không đổi — chỉ trả tiền cho các cảnh lỗi.")
                 if go or resume:
@@ -103,7 +110,7 @@ def dialogue_review_panel(p: Pipeline, pid: int) -> None:
             dialogue.extend(p, entries)
             st.rerun()
         client = llm_client()
-        if st.button("🤖 Claude rà thoại (6 lỗi thoại + độ dài)", key=f"dlg_ai_{pid}", disabled=client is None,
+        if st.button("🤖 Claude rà thoại (6 lỗi thoại + độ dài)" + cost.llm_button_tag(p.conn, "director", 1), key=f"dlg_ai_{pid}", disabled=client is None,
                      help=None if client else claude_hint()):
             with st.spinner("Claude đang đọc thoại…"):
                 act(lambda: st.session_state.__setitem__(key, claude_tasks.review_dialogue(p, pid, client)))
@@ -135,7 +142,7 @@ def _replan_button(p: Pipeline, pid: int, scene_idx: int, col) -> None:
     client = llm_client()
     if client is None:
         return
-    if col.button("↻ Chia shot lại cảnh này", key=f"replan_{pid}_{scene_idx}",
+    if col.button("↻ Chia shot lại cảnh này" + cost.llm_button_tag(p.conn, "director", 1), key=f"replan_{pid}_{scene_idx}",
                   help="Một lượt Claude chỉ cho cảnh này (phần luật chung được cache) — vài cent thay vì ~$0,3 của cả kịch bản. "
                        "Cảnh sau được ghi lại theo thứ tự phim, không đổi nội dung. Director hai lượt: Quay phim chia lại theo ý đồ "
                        "Tầng A đã lưu (không hỏi lại Đạo diễn)."):

@@ -80,7 +80,10 @@ def main(argv=None) -> int:
     ap.add_argument("--minutes", type=float, default=25)
     ap.add_argument("cmd")
     ap.add_argument("args", nargs="*")
+    from core import script_cap  # noqa: E402  (S14.2: trần CỨNG --max-usd, bắt buộc khi gọi API trả tiền)
+    script_cap.add_argument(ap)
     a = ap.parse_args(argv)
+    script_cap.from_args(argparse.Namespace(paid=a.cmd not in ("status", "approve", "relink"), max_usd=a.max_usd), "pilot_run").start()
     p = Pipeline(db.connect(a.db))
     pid, data_dir = a.project, a.data
     only = {int(x) for x in a.only.split(",") if x.strip()}

@@ -16,7 +16,7 @@ import sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
-from core import assets  # noqa: E402
+from core import assets, script_cap  # noqa: E402
 
 EST_USD = 0.015
 MAX_IMAGES = 8
@@ -85,12 +85,13 @@ def main() -> None:
     ap.add_argument("--repo", default=None)
     ap.add_argument("--game", default="FF")
     ap.add_argument("--yes", action="store_true")
-    ap.add_argument("--max-usd", type=float, default=0.9)
+    script_cap.add_argument(ap)          # S14.2: trần CỨNG, bắt buộc khi --yes
     ap.add_argument("--redo", action="store_true")
     ap.add_argument("--apply", action="store_true")
     ap.add_argument("--only", default="")
     ap.add_argument("--results", default=os.path.join("data", "library_check.json"))
     a = ap.parse_args()
+    cap = script_cap.from_args(a, "kiểm ảnh kho nhân vật")
     if a.repo:
         assets.REPO = a.repo
     from core.db import connect
@@ -109,7 +110,7 @@ def main() -> None:
     todo = [c for c in targets(conn, a.game) if (a.redo or c["name"] not in done) and (not only or c["name"].lower() in only)]
     print(f"{len(todo)} nhân vật cần xem · ước tính ≈ ${EST_USD * len(todo):.2f} Claude (1 ảnh ghép + câu hỏi mỗi người)")
     if not a.yes:
-        print("(chưa gọi Claude — thêm --yes để chạy)")
+        print("(chưa gọi Claude — thêm --yes --max-usd <USD> để chạy)")
         return
     from core import budget, llm_runner
     from core.adapters.check import load_dashboard_env
@@ -121,10 +122,10 @@ def main() -> None:
         sys.exit("Chưa cấu hình Claude API.")
     import tempfile
     start = budget.llm_spent(conn)
+    cap.start()
     for c in todo:
-        if budget.llm_spent(conn) - start + EST_USD > a.max_usd:
-            print("dừng: chạm trần --max-usd của lượt này")
-            break
+        if not cap.allow(max(EST_USD, cap.estimate_llm("library_check", images=1))):
+            break                                    # script_cap đã in: đã chi bao nhiêu, vì sao dừng
         prof = assets.get_profile(conn, c["id"])
         official = (c.get("description") or "").split("[ff.garena.com]")[-1] if "[ff.garena.com]" in (c.get("description") or "") else ""
         imgs = c["images"][:MAX_IMAGES]

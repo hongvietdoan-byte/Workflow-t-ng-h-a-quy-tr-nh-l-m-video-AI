@@ -382,7 +382,10 @@ def main():
     ap.add_argument("--project", type=int)
     ap.add_argument("step", choices=("setup", "pics", "subjects", "plan", "submit", "poll", "measure"))
     ap.add_argument("case", nargs="?", default="A25")
+    from core import script_cap  # noqa: E402  (S14.2: trần CỨNG --max-usd, bắt buộc khi gọi API trả tiền)
+    script_cap.add_argument(ap)
     a = ap.parse_args()
+    script_cap.require(a, "s47_s410_test").start()
     p = _p()
     if a.step == "setup":
         setup(p)

@@ -12,7 +12,7 @@ import tempfile
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
-from core import assets  # noqa: E402
+from core import assets, script_cap  # noqa: E402
 
 EST_USD = 0.012
 BATCH = 12
@@ -57,8 +57,9 @@ def main() -> None:
     ap.add_argument("--repo", default=None)
     ap.add_argument("--game", default="FF")
     ap.add_argument("--yes", action="store_true")
-    ap.add_argument("--max-usd", type=float, default=0.25)
+    script_cap.add_argument(ap)          # S14.2: trần CỨNG, bắt buộc khi --yes
     a = ap.parse_args()
+    cap = script_cap.from_args(a, "gắn góc máy ảnh địa điểm")
     if a.repo:
         assets.REPO = a.repo
     from core.db import connect
@@ -71,7 +72,7 @@ def main() -> None:
     batches = [todo[k:k + BATCH] for k in range(0, len(todo), BATCH)]
     print(f"{len(todo)} ảnh địa điểm chưa có góc máy · {len(batches)} lượt · ước tính ≈ ${EST_USD * len(batches):.2f} Claude")
     if not a.yes:
-        print("(chưa gọi Claude — thêm --yes)")
+        print("(chưa gọi Claude — thêm --yes --max-usd <USD>)")
         return
     from core import budget, llm_io, llm_runner
     from core.adapters.check import load_dashboard_env
@@ -88,8 +89,9 @@ def main() -> None:
             raise llm_io.SchemaError(f"root: {{images: [{{id, role in {ROLES}}}]}}")
 
     start, set_n, left = budget.llm_spent(conn), 0, 0
+    cap.start()
     for b in batches:
-        if budget.llm_spent(conn) - start + EST_USD > a.max_usd:
+        if not cap.allow(max(EST_USD, cap.estimate_llm("library_check", images=1))):
             left += len(b)
             continue
         out = sheet(b, os.path.join(tempfile.gettempdir(), f"locroles_{b[0]['id']}.jpg"))

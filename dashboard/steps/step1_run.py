@@ -41,6 +41,10 @@ def autopilot_progress(pid: int) -> None:
             st.rerun()
     elif state in ("needs_attention", "stopped", "error", "waiting") or stale:
         label = "✔ Đã duyệt — tiếp tục" if state == "waiting" else "▶ Tiếp tục"
+        try:                                       # S14.2 A2: what is left of the run, priced before the click
+            label += f" · phần còn lại ≈ {cost.estimate_run(p, pid)['total']:.2f} USD (ước tính)"
+        except Exception:  # noqa: BLE001 - the button stays; the label says the price is missing
+            label += " · chưa có giá (không ước tính được phần còn lại)"
         if st.button(label, key=f"ap_resume_{pid}", type="primary"):
             autopilot.resume(p, pid, p.actor)
             autopilot_manager(C.DB, C.DATA).start(pid, user=C.access_user())

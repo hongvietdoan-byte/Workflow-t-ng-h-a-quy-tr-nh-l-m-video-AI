@@ -168,7 +168,10 @@ def main(argv=None):
     ap = argparse.ArgumentParser()
     ap.add_argument("step", choices=("setup", "plates", "plan", "frames", "redraw", "measure"))
     ap.add_argument("--project", type=int)
+    from core import script_cap  # noqa: E402  (S14.2: trần CỨNG --max-usd, bắt buộc khi gọi API trả tiền)
+    script_cap.add_argument(ap)
     a = ap.parse_args(argv)
+    script_cap.require(a, "place_refs_trial").start()
     p = _p()
     if a.step == "setup":
         return setup(p)

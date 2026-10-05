@@ -326,7 +326,10 @@ def main():
     ap.add_argument("--project", type=int)
     ap.add_argument("step", choices=("setup", "frames", "approve", "plan", "video", "t5", "t6"))
     ap.add_argument("shots", nargs="?", default="1")
+    from core import script_cap  # noqa: E402  (S14.2: trần CỨNG --max-usd, bắt buộc khi gọi API trả tiền)
+    script_cap.add_argument(ap)
     a = ap.parse_args()
+    script_cap.require(a, "skill_multi_test").start()
     p = _p()
     shots = {int(x) for x in a.shots.split(",") if x}
     if a.step == "setup":

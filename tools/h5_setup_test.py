@@ -28,7 +28,10 @@ def main(argv=None) -> int:
     ap.add_argument("--data", default=os.environ.get("PIPELINE_DATA", os.path.join("data", "projects")))
     ap.add_argument("--minutes", type=float, default=20)
     ap.add_argument("--task", help="theo dõi tiếp task đã gửi (mã thật, vd omni:9322…) — không gửi lại, không ghi sổ lần nữa")
+    from core import script_cap  # noqa: E402  (S14.2: trần CỨNG --max-usd, bắt buộc khi gọi API trả tiền)
+    script_cap.add_argument(ap)
     a = ap.parse_args(argv)
+    script_cap.from_args(argparse.Namespace(paid=not a.task, max_usd=a.max_usd), "h5_setup_test").start()
     p = Pipeline(db.connect(a.db))
     pid, idxs = a.project, [int(x) for x in a.shots.split(",")]
     rows = [p.conn.execute("SELECT id, idx FROM scenes WHERE project_id=? AND idx=?", (pid, i)).fetchone() for i in idxs]

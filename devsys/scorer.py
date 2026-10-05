@@ -342,6 +342,27 @@ def estimate(bundles: Sequence[Dict], model: Optional[str] = None) -> Dict:
             "usd_max": round(sum(r["usd_max"] for r in rows), 4) if known else None}
 
 
+def score_command(areas: Sequence[str], provider: str, est: Dict) -> List[str]:
+    """Arguments of `tools/devsys_score.py` for the page's "Chấm" button. Claude API: the hard lock `--max-usd` (core/script_cap.py,
+    S14.2) = the worst case of the estimate rounded UP to the cent — without it the script refuses to run (rà soát A2)."""
+    cmd = [os.path.join("tools", "devsys_score.py"), "--areas", ",".join(areas), "--provider", provider, "--yes"]
+    if provider != "mock":
+        cap = math.ceil(float(est.get("usd_max") or 0.0) * 100 - 1e-9) / 100
+        cmd += ["--max-usd", f"{max(cap, 0.01):.2f}"]
+    return cmd
+
+
+_FAILED = re.compile(r"^(Từ chối chạy|DỪNG|Lỗi:|Không chấm|Traceback|SystemExit|\w*Error\b)", re.M)
+
+
+def run_state(log: str) -> str:
+    """'failed' | 'done' | 'running' from the log of a spawned scoring run (a refusal / stop / crash is a failure to SHOW on the page,
+    not only in the log — rà soát A2)."""
+    if _FAILED.search(log or ""):
+        return "failed"
+    return "done" if re.search(r"^Xong:", log or "", re.M) else "running"
+
+
 def _n(value: int) -> str:
     return f"{int(value):,}".replace(",", ".")
 

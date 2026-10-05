@@ -45,7 +45,10 @@ def main():
     ap.add_argument("--db", default=os.environ.get("PIPELINE_DB", os.path.join("data", "manifest.sqlite")))
     ap.add_argument("--yes", action="store_true")
     ap.add_argument("--model", help="model ảnh (mặc định: model của dự án); 4 frame #7 dùng gpt-image-2.5-sunburst")
+    from core import script_cap  # noqa: E402  (S14.2: trần CỨNG --max-usd, bắt buộc khi gọi API trả tiền)
+    script_cap.add_argument(ap)
     a = ap.parse_args()
+    script_cap.from_args(a, "scene_wide_test").start()
     import storyboard_test
     p = Pipeline(connect(a.db))
     prompts, refs, story, proj = storyboard_test.build(p, a.project, a.shots)
@@ -68,7 +71,7 @@ def main():
     print(f"trần ảnh: {used}/{b['image_cap']} → sau lần này {None if used is None else used + need}")
     print("ảnh ngang:", wide_prompt[:300])
     if not a.yes:
-        print("(chưa gửi — thêm --yes)")
+        print("(chưa gửi — thêm --yes --max-usd <USD>)")
         return
     if used is not None and used + need > b["image_cap"]:
         sys.exit("vượt trần ảnh — dừng")
@@ -93,7 +96,10 @@ def main():
         cost.record_usage(p.conn, None, "image", provider.name, model, "image", 1, "image", project_id=a.project, stage="scene_wide_test")
         print(f"  gửi khung {i + 1}: {m}", flush=True)
 
-    res = storyboard_frames.run(provider, prompts, refs, story, out, size="1152x2048", model=model, on_submit=ledger)
+    res = storyboard_frames.run(provider, prompts, refs, story, out, size="1152x2048", model=model, on_submit=ledger,
+                                conn=p.conn)   # rà soát A2: trần --max-usd + hết tiền kiểm TRƯỚC mỗi khung
+    if res.get("stopped"):
+        print(res["stopped"])
     final = os.path.join(os.path.dirname(out), res["storyboard_id"])
     os.replace(out, final)
     print(json.dumps({"storyboard_id": res["storyboard_id"], "frames": [{k: v for k, v in f.items() if k != "path"} for f in res["frames"]]},

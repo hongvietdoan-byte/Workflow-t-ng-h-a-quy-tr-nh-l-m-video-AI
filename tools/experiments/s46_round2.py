@@ -313,7 +313,10 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("step", choices=("setup", "voice", "plan", "submit"))
     ap.add_argument("--cases", default=",".join(CASES))
+    from core import script_cap  # noqa: E402  (S14.2: trần CỨNG --max-usd, bắt buộc khi gọi API trả tiền)
+    script_cap.add_argument(ap)
     a = ap.parse_args()
+    script_cap.require(a, "s46_round2").start()
     cases = [c.strip() for c in a.cases.split(",") if c.strip()]
     bad = [c for c in cases if c not in CASES]
     if bad:

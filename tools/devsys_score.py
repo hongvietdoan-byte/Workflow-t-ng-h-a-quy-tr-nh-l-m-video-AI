@@ -1,8 +1,8 @@
 """Chấm điểm AI khách quan cho từng khu vực của hệ thống (AI Development System). Thang: devsys/rubric.md.
 
     py tools/devsys_score.py                      ước tính cho các khu vực đã đổi từ lần chấm trước (KHÔNG gọi gì)
-    py tools/devsys_score.py --yes                chấm các khu vực đó (Claude API, ghi sổ chi stage "devsys", trần Claude)
-    py tools/devsys_score.py --all --yes          chấm lại mọi khu vực
+    py tools/devsys_score.py --yes --max-usd 0.5  chấm các khu vực đó (Claude API, ghi sổ chi stage "devsys", trần Claude)
+    py tools/devsys_score.py --all --yes --max-usd 2  chấm lại mọi khu vực (--max-usd: trần CỨNG, bắt buộc khi --yes)
     py tools/devsys_score.py --areas step1,step5  chỉ các khu vực này
     py tools/devsys_score.py --provider mock --yes   người chấm giả lập (không mạng, không tiền) — thử luồng
     py tools/devsys_score.py --export step1       ghi dữ liệu đầu vào ra devsys/data/exports/step1.md cho người chấm ngoài (miễn phí)
@@ -94,7 +94,10 @@ def main(argv=None) -> int:
     ap.add_argument("--import", dest="import_file", metavar="FILE", help="nhập file điểm của người chấm ngoài")
     ap.add_argument("--scorer", help="tên người chấm khi --import (vd. claude-code-session)")
     ap.add_argument("--db", default=None, help="sổ chi (mặc định data/manifest.sqlite hoặc PIPELINE_DB)")
+    from core import script_cap  # noqa: E402  (S14.2: trần CỨNG --max-usd, bắt buộc khi gọi API trả tiền)
+    script_cap.add_argument(ap)
     args = ap.parse_args(argv)
+    script_cap.from_args(argparse.Namespace(paid=args.yes and args.provider != "mock", max_usd=args.max_usd), "devsys_score").start()
 
     cfg = collect.load_areas()
     if args.report is not None or args.compare or args.stability:
@@ -148,7 +151,7 @@ def main(argv=None) -> int:
     if not p["todo"]:
         return 0
     if not args.yes:
-        print("Chưa gọi gì. Thêm --yes để đồng ý chi phí trên và chấm.")
+        print("Chưa gọi gì. Thêm --yes --max-usd <USD> để đồng ý chi phí trên và chấm.")
         return 1
     try:
         res = scorer.run(ROOT, cfg, snap, p["todo"], args.provider, yes=True, db_path=args.db)
