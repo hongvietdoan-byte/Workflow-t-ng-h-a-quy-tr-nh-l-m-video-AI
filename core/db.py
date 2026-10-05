@@ -308,6 +308,16 @@ CREATE TABLE IF NOT EXISTS outputs (
     created_by TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_outputs_project ON outputs(project_id, kind, id);
+CREATE TABLE IF NOT EXISTS deliveries (
+    id INTEGER PRIMARY KEY,            -- S14.30 core/delivered.py: the project was DELIVERED (Bản giao exported) = "hoàn thiện"
+    project_id INTEGER NOT NULL,
+    path TEXT NOT NULL,                -- the delivered file (the most finished version) or the delivery folder (backfill)
+    source TEXT NOT NULL,              -- 'deliver' | 'backfill_folder' | 'backfill_deliver' | 'backfill_autopilot_done'
+    manifest TEXT NOT NULL DEFAULT '{}',
+    delivered_at TEXT NOT NULL,
+    delivered_by TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_deliveries_project ON deliveries(project_id, id);
 CREATE TABLE IF NOT EXISTS app_settings (
     key TEXT PRIMARY KEY,              -- small settings of the whole app (v3: 'budget' = the test spending limit, core.budget)
     value TEXT

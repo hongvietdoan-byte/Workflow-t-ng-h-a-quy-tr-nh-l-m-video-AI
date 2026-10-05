@@ -174,6 +174,8 @@ class PerfTests(Setup):
         self.assertEqual(finished["step_label"], "✅ Hoàn tất")
         self.assertTrue(os.path.exists(finished["final_video"]))
         self.assertFalse(fresh["done"])
+        self.assertTrue(finished["delivered"])          # S14.30: the automatic run's last step exports the delivery → finished
+        self.assertFalse(fresh["delivered"])
         self.assertIsNone(fresh["final_video"])
         self.assertEqual((fresh["step_label"], fresh["scenes"]), ("① Kịch bản", 0))
 

@@ -27,6 +27,11 @@ class HomeLogicTests(unittest.TestCase):
         self.assertEqual(home.status_of(self.row(active=1), False), "run")
         self.assertEqual(home.status_of(self.row(), False), "idle")
 
+    def test_rendered_but_not_delivered_is_waiting_not_done(self):
+        """S14.30: "✔ Xong" = đã xuất bản giao; chỉ có bản cuối → "Chờ bạn" (xuất bản giao để tính là xong)."""
+        self.assertEqual(home.status_of(self.row(done=True, delivered=False), False), "wait")
+        self.assertEqual(home.status_of(self.row(done=True, delivered=True), False), "done")
+
     def test_filters_and_sorts(self):
         rs = [{"id": 1, "name": "A Kenta", "creator": "viet", "mine": True, "status": "done", "screen": "deliver", "warn": False, "spent": 5.0},
               {"id": 2, "name": "B Kelly", "creator": "lan", "mine": False, "status": "wait", "screen": "video", "warn": True, "spent": 2.0},
