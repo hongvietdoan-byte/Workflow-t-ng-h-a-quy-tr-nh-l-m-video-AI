@@ -908,10 +908,12 @@ def deliver(p: Pipeline, project_id: int, data_dir: str, llm=None, music_path: O
     except Exception as e:  # noqa: BLE001
         warnings.append(f"nhãn AI: {e}")
         diag.record(p.conn, "render", "warn", f"nhãn AI thất bại (bản giao KHÔNG có nhãn): {e}", "ai_label", project_id)
+    export_failed = []
     for spec in get_settings(p, project_id)["exports"]:
         try:
             layers.append(("export", export_layer(p, project_id, data_dir, spec)["path"]))
         except Exception as e:  # noqa: BLE001
+            export_failed.append(f"{spec.get('w')}x{spec.get('h')}")
             warnings.append(f"xuất {spec.get('w')}x{spec.get('h')}: {e}")
             diag.record(p.conn, "render", "warn", f"xuất bản {spec} thất bại: {e}", "export", project_id)
     from . import final_qc                       # S1.9: measured before anyone is told "done" (trial #8)
@@ -930,7 +932,31 @@ def deliver(p: Pipeline, project_id: int, data_dir: str, llm=None, music_path: O
             p.conn.commit()
         except ValueError:
             pass
+    _mark_delivered(p, project_id, final_path, layers, warnings, qc, export_failed, fin)
     return {"final": final_path, "layers": layers, "warnings": warnings, "qc": qc}
+
+
+def _mark_delivered(p: Pipeline, project_id: int, final_path: str, layers, warnings: List[str], qc: Dict, export_failed: List[str],
+                    fin) -> None:
+    """S14.30: the project counts as finished ("hoàn thiện") only from here — the delivery was exported. A size of the export list
+    that failed = the delivery is not complete: nothing recorded, and the person is told (warning + diag), never silent."""
+    from . import delivered
+    if export_failed:
+        msg = (f"Bản giao chưa đủ (lỗi xuất {', '.join(export_failed)}) — dự án chưa tính là xong; sửa lỗi rồi bấm “📦 Xuất bản đầy đủ” "
+               "lại để tính là xong.")
+        warnings.append(msg)
+        diag.record(p.conn, "render", "warn", msg, "not_delivered", project_id)
+        return
+    best = latest_layer(p, project_id)
+    path = best["path"] if best is not None and os.path.exists(best["path"]) else final_path
+    if not path or not os.path.exists(path):
+        msg = f"Không thấy file bản giao ({path}) — dự án chưa tính là xong."
+        warnings.append(msg)
+        diag.record(p.conn, "render", "warn", msg, "not_delivered", project_id)
+        return
+    delivered.mark(p.conn, project_id, path, by=p.actor, source="deliver",
+                   manifest={"final_id": fin["id"] if fin is not None else None, "files": [x[1] for x in layers],
+                             "qc_blocks": qc.get("blocks", 0), "warnings": warnings[:10]})
 
 
 # ---- animatic: the film's rhythm before any video credit ------------------------------------------------------------------

@@ -317,6 +317,7 @@ class FinishedMeansDelivered(Base):
     """S14.30: "hoàn thiện" = đã xuất bản giao; bản ghép cuối đầu tiên chưa tính."""
 
     def test_a_rendered_but_not_delivered_project_still_takes_an_open_place(self):
+        PL.set_limits(self.conn, {"email": OWNER, "role": "owner"}, MEM, daily=10)   # the daily limit is not what is tested here
         a, b = self.make("A"), self.make("B")
         render_only(self.conn, a)
         self.assertFalse(PL.is_finished(self.conn, a))

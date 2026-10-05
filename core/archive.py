@@ -30,7 +30,7 @@ def archived_projects(conn, user=None) -> List:
 
 
 def finished_projects(conn, user=None) -> List:
-    """S14.18 "Kho dự án đã xong": put-away projects whose delivery was rendered — kept to look things up, never limited."""
+    """S14.18 "Kho dự án đã xong": put-away projects whose delivery was EXPORTED (S14.30 core/delivered) — kept to look things up, never limited."""
     from .person_limits import is_finished
     return [r for r in archived_projects(conn, user) if is_finished(conn, r["id"])]
 

@@ -24,8 +24,8 @@ def status_of(r: dict, waiting_note: bool) -> str:
         return "pause"
     if r.get("autopilot_state") == "error":
         return "err"
-    if r["done"]:
-        return "done"
+    if r["done"]:                       # S14.30: "✔ Xong" only once the delivery was exported; a final cut alone waits for the person
+        return "done" if r.get("delivered", True) else "wait"
     if r["needs_review"] or waiting_note:
         return "wait"
     if r["active"] or r["running_auto"]:
@@ -237,7 +237,7 @@ def _rows(shown: list) -> None:
 
 
 def _finished(shown: list) -> None:
-    finished = [r for r in shown if r["done"] and r["final_video"] and os.path.exists(r["final_video"])]
+    finished = [r for r in shown if r["done"] and r.get("delivered", True) and r["final_video"] and os.path.exists(r["final_video"])]
     if finished:
         with st.expander(f"🎬 Sản phẩm đã hoàn tất ({len(finished)})", expanded=False):
             for r in finished:

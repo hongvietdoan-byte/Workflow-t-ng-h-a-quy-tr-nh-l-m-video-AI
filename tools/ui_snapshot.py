@@ -233,6 +233,8 @@ def build_sample_data(out_dir: str, primary: str = "rich", n_projects: int = 50,
             os.makedirs(out, exist_ok=True)
             with open(os.path.join(out, "FINAL_VIDEO.mp4"), "wb") as f:
                 f.write(b"\x00\x00\x00\x18ftypmp42" + b"\x00" * 64)       # đủ để "có bản giao" — không phải video thật
+            from core import delivered                                         # S14.30: "Xong" = đã xuất bản giao
+            delivered.mark(p.conn, pid, os.path.join(out, "FINAL_VIDEO.mp4"), source="deliver")
         p.conn.commit()
         return pid
 

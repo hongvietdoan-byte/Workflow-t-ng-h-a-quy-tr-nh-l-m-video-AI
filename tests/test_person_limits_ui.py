@@ -7,7 +7,7 @@ from unittest import mock
 
 from streamlit.testing.v1 import AppTest
 
-from core import archive, person_limits as PL
+from core import archive, delivered, person_limits as PL
 from core.db import connect
 from core.pipeline import Pipeline
 from tests.test_access import CREATOR, OWNER, make_world
@@ -70,7 +70,7 @@ class CreateFlow(Base):
         second = self.conn.execute("SELECT id FROM projects WHERE name='Thứ hai'").fetchone()[0]
         third = self.conn.execute("SELECT id FROM projects WHERE name='Thứ ba'").fetchone()[0]
         for pid in (second, third):
-            self.conn.execute("INSERT INTO outputs (project_id, kind, path, manifest, created_at) VALUES (?, 'final', 'x', '{}', 'now')", (pid,))
+            delivered.mark(self.conn, pid, 'x')            # S14.30: xong = đã xuất bản giao
         self.conn.commit()
         self.create(at, "Thứ tư")                                    # (b) 3rd of the day
         self.assertIn(f"Hôm nay bạn đã tạo 2/2 dự án: #{second}, #{third}", self.warnings(at))
@@ -133,7 +133,7 @@ class ArchiveFlow(Base):
         self.assertTrue(archive.is_archived(q.project(self.pid)))
         self.assertFalse(archive.is_archived(q.project(parked)))
         # a finished project is put away without limit and listed in the "Kho dự án đã xong"
-        self.conn.execute("INSERT INTO outputs (project_id, kind, path, manifest, created_at) VALUES (?, 'final', 'x', '{}', 'now')", (parked,))
+        delivered.mark(self.conn, parked, 'x')         # S14.30: xong = đã xuất bản giao
         self.conn.commit()
         archive.archive(p, parked)
         at.run()

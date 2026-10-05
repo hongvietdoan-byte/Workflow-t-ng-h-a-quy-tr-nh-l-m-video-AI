@@ -5,7 +5,7 @@ compare.clone_project, archive.archive / restore / swap gọi vào đây, nên m
 Script dòng lệnh / chạy nền (Pipeline.user = None) và Owner KHÔNG bị giới hạn.
 
 Ba mức cơ bản (Owner nâng riêng cho từng người ở 👥 Nhóm, lưu app_settings 'person_limits:<email>'):
-  open   = 2  dự án DỞ cùng lúc (dở = chưa có bản giao 'final'; đã cất 📦 hoặc đã xóa không tính)
+  open   = 2  dự án DỞ cùng lúc (dở = chưa XUẤT BẢN GIAO — S14.30 core/delivered; đã cất 📦 hoặc đã xóa không tính)
   daily  = 2  dự án tạo mới trong một ngày (ngày theo giờ máy chạy Dashboard; xóa dự án không trả lại lượt). Thứ 3 trở đi: gửi yêu cầu
               kèm lý do → Owner duyệt / từ chối ở 👥 Nhóm (📥 của Owner báo có yêu cầu) → một lần duyệt = một dự án, trong ngày duyệt.
   parked = 1  dự án DỞ đang cất 📦. Dự án ĐÃ XONG cất vào "Kho dự án đã xong" — không giới hạn, không tính vào `open`.
@@ -13,7 +13,6 @@ Mỗi lần chặn: LimitReached (một AccessDenied) với câu tiếng Việt 
 ghi nhật ký audit 'limit_block'. Trần job/ngày chung cả máy (AUTOPILOT_DAILY_JOBS) đã bỏ cùng việc này.
 """
 import json
-import os
 import threading
 from datetime import datetime
 from typing import Dict, List, Optional
@@ -117,12 +116,11 @@ def set_limits(conn, actor, email: str, open: Optional[int] = None, daily: Optio
 
 # ---- đếm ------------------------------------------------------------------------------------------------------------------------------
 def is_finished(conn, project_id: int, data_dir: Optional[str] = None) -> bool:
-    """'Hoàn thiện' = the "Bản giao" step is done, as the automatic run's step list counts it (autopilot.progress): an outputs row
-    'final', or a pre-v2 <data>/<id>/output/FINAL_VIDEO.mp4 rendered before the outputs table existed (effectiveness.finished_projects)."""
-    if conn.execute("SELECT 1 FROM outputs WHERE project_id=? AND kind='final' LIMIT 1", (project_id,)).fetchone() is not None:
-        return True
-    data_dir = data_dir or os.environ.get("PIPELINE_DATA", os.path.join("data", "projects"))
-    return os.path.exists(os.path.join(data_dir, str(project_id), "output", "FINAL_VIDEO.mp4"))
+    """'Hoàn thiện' = the delivery was EXPORTED (S14.30, người dùng chốt 05/10): core/delivered — one answer for the limits, the
+    "Kho dự án đã xong" and 📥. A final cut alone (outputs 'final' / FINAL_VIDEO.mp4) is NOT finished any more. `data_dir` is kept
+    for callers; it is not needed now."""
+    from . import delivered
+    return delivered.is_delivered(conn, project_id)
 
 
 def _describe(conn, r) -> Dict:
@@ -137,7 +135,9 @@ def _describe(conn, r) -> Dict:
         step = perf.step_label(conn, r["id"])
     except Exception:  # noqa: BLE001
         step = "?"
-    return {"id": r["id"], "name": r["name"], "step": step, "spent": spent, "archived": bool(r["archived"])}
+    from . import delivered
+    return {"id": r["id"], "name": r["name"], "step": step, "spent": spent, "archived": bool(r["archived"]),
+            "rendered": delivered.has_render(conn, r["id"])}          # S14.30: has a final cut, not delivered → told how to finish it
 
 
 def _mine(conn, email: str, archived: int) -> List[Dict]:
@@ -162,7 +162,18 @@ def created_today(conn, email: str) -> List[int]:
 
 
 def _list(rows: List[Dict]) -> str:
-    return "; ".join(f"#{r['id']} “{r['name']}” — {r['step']} — đã chi ≈ ${r['spent']:.2f}" for r in rows)
+    return "; ".join(f"#{r['id']} “{r['name']}” — {r['step']} — đã chi ≈ ${r['spent']:.2f}"
+                     + (" — có bản cuối, chưa xuất bản giao" if r.get("rendered") else "") for r in rows)
+
+
+def _deliver_hint(rows: List[Dict]) -> str:
+    """S14.30: a project held back only because its delivery was never exported — say how to count it as done."""
+    ids = [f"#{r['id']}" for r in rows if r.get("rendered")]
+    if not ids:
+        return ""
+    from .delivered import HINT
+    return (f" Dự án {', '.join(ids)} đã có bản cuối nhưng chưa xuất bản giao — bấm “📦 Xuất bản đầy đủ” ở bước Bản giao: "
+            f"{HINT} (không còn tính vào giới hạn).")
 
 
 def _pending(conn, email: str, kind: str) -> Optional[int]:
@@ -189,7 +200,8 @@ def _block(conn, email: str, err: LimitReached) -> LimitReached:
 def _open_error(conn, email: str, rows: List[Dict], lim: int, action: str) -> LimitReached:
     return _block(conn, email, LimitReached(
         "open", f"Bạn đang có {len(rows)}/{lim} dự án dở (chưa xuất bản giao): {_list(rows)}. {action}: GIỮ — quay lại làm tiếp "
-                f"một dự án dở (không tạo mới), hoặc BỎ — cất 📦 một dự án dở (khôi phục được) để có chỗ.", rows, len(rows), lim))
+                f"một dự án dở (không tạo mới), hoặc BỎ — cất 📦 một dự án dở (khôi phục được) để có chỗ." + _deliver_hint(rows),
+        rows, len(rows), lim))
 
 
 # ---- kiểm trước khi làm ---------------------------------------------------------------------------------------------------------------
@@ -263,7 +275,9 @@ def check_archive(conn, user, project_id: int, bringing_back: Optional[int] = No
     pending = _pending(conn, email, "parked")
     msg = (f"Bạn đang cất {len(rows)}/{lim} dự án dở: {_list(rows)}. Muốn cất thêm dự án #{project_id}: khôi phục dự án đang cất để làm "
            "tiếp, xóa hẳn một dự án dở (vào thùng rác), hoặc xin Owner duyệt"
-           + (f" (yêu cầu #{pending} đang chờ)" if pending else "") + ". Dự án đã xong cất vào “Kho dự án đã xong”, không giới hạn.")
+           + (f" (yêu cầu #{pending} đang chờ)" if pending else "") + ". Dự án đã xong cất vào “Kho dự án đã xong”, không giới hạn."
+           + _deliver_hint(rows + [_describe(conn, conn.execute("SELECT id, name, COALESCE(archived, 0) archived FROM projects WHERE id=?",
+                                                                   (project_id,)).fetchone())]))
     raise _block(conn, email, LimitReached("parked", msg, rows, len(rows), lim, pending))
 
 

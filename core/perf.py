@@ -113,7 +113,9 @@ def step_label(conn, pid: int, done: bool = False) -> str:
 
 def portfolio_rows(conn, data_dir: str) -> List[Dict]:
     """Every project (auto or step-by-step, running or idle) with its current step and final output, so a
-    portfolio of many projects (e.g. 10 auto, or 3 semi-auto + 7 auto) can be tracked from one table."""
+    portfolio of many projects (e.g. 10 auto, or 3 semi-auto + 7 auto) can be tracked from one table.
+    `done` = has the final cut (the step "✅ Hoàn tất" of the progress bar); `delivered` = the delivery was exported (S14.30: "Xong")."""
+    from . import delivered
     out = []
     for r in conn.execute("SELECT id, name, operating_mode, autopilot_state, autopilot_note, paused, created_by"
                           " FROM projects ORDER BY id DESC").fetchall():
@@ -132,7 +134,8 @@ def portfolio_rows(conn, data_dir: str) -> List[Dict]:
                     "paused": bool(r["paused"]), "created_by": r["created_by"] or "",
                     "scenes": scenes, "images": images, "motion": motion, "videos": videos,
                     "active": active, "needs_review": needs_review, "step": step, "step_label": STEP_LABELS[step],
-                    "done": done, "final_video": final_video if done else None})
+                    "done": done, "final_video": final_video if done else None,
+                    "delivered": delivered.is_delivered(conn, r["id"])})   # S14.30: "hoàn thiện" = đã xuất bản giao
     return out
 
 
