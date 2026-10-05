@@ -286,7 +286,7 @@ def model_plan_panel(p: Pipeline, pid: int) -> None:
                                 format_func=lambda a: f"Đề xuất: {api.get(r['recommended']['model'], {}).get('label', r['recommended']['model'])}"
                                 if a is None else api[a]["label"])
             if pick != cur:
-                act(lambda: model_router.set_override(p.conn, r["scene_id"], pick))
+                act(lambda: model_router.set_override(p.conn, r["scene_id"], pick, p=p))
                 st.rerun()
             c2.caption(r["reason"])
             c3.caption(f"{r['seconds']:g}s · " + (f"\\${r['cost']:.2f}" if r["cost"] is not None else "chưa có giá"))

@@ -106,7 +106,8 @@ def step5a(p: Pipeline, pid: int):
                 count = c3.number_input("Số bản nháp", 1, 5, 3, key=f"mcount_{pid}")
                 b1, b2 = st.columns(2)
                 if b1.button(f"✨ Tạo {int(count)} bản nháp" + budget.audio_tag(p.conn, int(count)), type="primary", disabled=not prompt.strip(), key=f"mdraft_{pid}"):
-                    n = music.submit_drafts(provider, drafts_dir, prompt, int(seconds) * 1000, instrumental, int(count), ledger=(p.conn, pid))
+                    n = music.submit_drafts(provider, drafts_dir, prompt, int(seconds) * 1000, instrumental, int(count), ledger=(p.conn, pid),
+                                             p=p, project_id=pid)
                     st.toast(f"Đã gửi {n} bản")
                     st.rerun()
                 if b2.button("⟳ Kiểm tra + tải nhạc về", key=f"mrefresh_{pid}"):
@@ -158,7 +159,7 @@ def extras_section(p: Pipeline, pid: int, provider):
                 s_sec = c1.number_input("Độ dài (giây, 0.5–30)", 0.5, 30.0, 3.0, 0.5, key=f"sfx_d_{pid}")
                 s_loop = c2.checkbox("Loop", False, key=f"sfx_l_{pid}")
                 if c3.button("✨ Tạo SFX" + budget.audio_tag(p.conn), disabled=not s_prompt.strip(), key=f"sfx_go_{pid}"):
-                    entry = audio_lib.submit_sfx(provider, directory, s_prompt, s_sec, s_loop, ledger=(p.conn, pid))
+                    entry = audio_lib.submit_sfx(provider, directory, s_prompt, s_sec, s_loop, ledger=(p.conn, pid), p=p, project_id=pid)
                     st.toast("Đã gửi SFX" if entry["asset_id"] else f"Lỗi: {entry['message']}")
                     st.rerun()
             with t_tts:
@@ -182,7 +183,7 @@ def extras_section(p: Pipeline, pid: int, provider):
                     t_lang = d2.text_input("Mã ngôn ngữ (tùy chọn, vd vi, en)", key=f"tts_l_{pid}")
                     if st.button("✨ Tạo giọng đọc" + budget.audio_tag(p.conn), disabled=not t_text.strip(), key=f"tts_go_{pid}"):
                         entry = audio_lib.submit_tts(provider, directory, t_text, int(v["id"]), str(v.get("name", "")),
-                                                     t_model, t_lang.strip() or None, ledger=(p.conn, pid))
+                                                     t_model, t_lang.strip() or None, ledger=(p.conn, pid), p=p, project_id=pid)
                         st.toast("Đã gửi giọng đọc" if entry["asset_id"] else f"Lỗi: {entry['message']}")
                         st.rerun()
             if st.button("⟳ Kiểm tra + tải về", key=f"ax_refresh_{pid}"):

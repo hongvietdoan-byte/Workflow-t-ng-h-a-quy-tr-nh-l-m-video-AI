@@ -202,14 +202,18 @@ def approve(p, pid: int, who: str, proposal: Optional[Dict] = None) -> Dict:
     return _save(p.conn, pid, data)
 
 
-def set_target(conn, pid: int, usd: Optional[float]) -> Dict:
+def set_target(conn, pid: int, usd: Optional[float], p=None) -> Dict:
+    if p is not None:
+        access.need_edit(p, pid, "đặt mục tiêu ngân sách")
     data = get(conn, pid) or {}
     data["target"] = float(usd) if usd else None
     return _save(conn, pid, data)
 
 
-def raise_cap(conn, pid: int, stage: str, add_usd: float, who: str, why: str) -> Dict:
+def raise_cap(conn, pid: int, stage: str, add_usd: float, who: str, why: str, p=None) -> Dict:
     """Only a person raises a locked cap, with a reason (kept)."""
+    if p is not None:
+        access.need_edit(p, pid, "nâng trần ngân sách")
     if stage not in STAGES:
         raise ValueError(f"không có khâu {stage}")
     if not str(why or "").strip():

@@ -8,6 +8,7 @@ import json
 import os
 from typing import Dict, List, Optional
 
+from . import access
 from .music import _ext, audio_refusal, record_audio_usage
 from .providers import ProviderError
 
@@ -68,7 +69,9 @@ def add_local(directory: str, src_path: str, label: str, start: float = 0.0, vol
 
 
 def submit_sfx(provider, directory: str, prompt: str, duration_seconds: Optional[float] = None,
-               loop: bool = False, ledger=None) -> Dict:
+               loop: bool = False, ledger=None, p=None, project_id=None) -> Dict:
+    if p is not None and project_id is not None:
+        access.need_edit(p, project_id, "gửi hiệu ứng âm thanh")
     refused = audio_refusal(ledger, provider)
     if refused:
         return _add(directory, "sound_effect", prompt, None, refused)
@@ -82,9 +85,11 @@ def submit_sfx(provider, directory: str, prompt: str, duration_seconds: Optional
 
 def submit_tts(provider, directory: str, text: str, voice_actor_id: int, voice_name: str = "",
                model: str = "eleven_v3", language_code: Optional[str] = None, ledger=None, extra: Optional[Dict] = None,
-               params: Optional[Dict] = None) -> Dict:
+               params: Optional[Dict] = None, p=None, project_id=None) -> Dict:
     """`extra` tags a dialogue line (scene_id, line, speaker, text, voice_id) so it can be placed on the timeline and
     subtitled from its real timing. Do not pass language_code for Vietnamese: ElevenLabs answers HTTP 400 (auto-detect works)."""
+    if p is not None and project_id is not None:
+        access.need_edit(p, project_id, "gửi giọng đọc")
     label = (f"[{voice_name}] " if voice_name else "") + text
     refused = audio_refusal(ledger, provider)
     if refused:                                  # never sent (spending cap / ledger): not a provider failure, nothing was paid

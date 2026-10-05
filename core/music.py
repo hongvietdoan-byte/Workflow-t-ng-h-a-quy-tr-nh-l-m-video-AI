@@ -12,6 +12,7 @@ import struct
 import wave
 from typing import Dict, List, Optional
 
+from . import access
 from .pipeline import Pipeline
 from .providers import ProviderError
 
@@ -161,8 +162,10 @@ def audio_refusal(ledger, provider) -> Optional[str]:
 
 
 def submit_drafts(provider, drafts_dir: str, prompt: str, length_ms: Optional[int], instrumental: bool,
-                  count: int = 3, ledger=None) -> int:
+                  count: int = 3, ledger=None, p=None, project_id=None) -> int:
     """Submit `count` drafts; stops on the first submission error (kept in the manifest) and returns how many went out."""
+    if p is not None and project_id is not None:
+        access.need_edit(p, project_id, "gửi nhạc nháp")
     drafts = load_drafts(drafts_dir)
     sent = 0
     for _ in range(count):

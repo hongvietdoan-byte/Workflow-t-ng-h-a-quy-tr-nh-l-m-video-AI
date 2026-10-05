@@ -222,7 +222,7 @@ def voice_panel(p: Pipeline, pid: int) -> None:
                      help="Mỗi câu một lần gọi TTS (tốn credit âm thanh; âm thanh chưa có giá nên trần đợt thử tính theo số lượt). "
                           "Câu đã có giọng và không đổi thì bỏ qua. Câu LỖI được gửi lại y nguyên — chỉ có ích khi lỗi do nhà cung cấp; "
                           "lỗi do câu/giọng thì sửa trước."):
-            r = voice.generate(p.conn, pid, provider, C.DATA, by_person=True)
+            r = voice.generate(p.conn, pid, provider, C.DATA, by_person=True, p=p)
             st.toast(f"Đã gửi {r['sent']} câu, bỏ qua {r['skipped']}" + (f" · thiếu giọng: {', '.join(r['no_voice'])}" if r["no_voice"] else ""))
             st.rerun()
         if c2.button("⟳ Kiểm tra + tải về", key=f"tts_refresh_{pid}", disabled=provider is None):
@@ -266,7 +266,7 @@ def voice_panel(p: Pipeline, pid: int) -> None:
                         "Giọng cũ được giữ cho tới khi có bản mới.")
             if confirm_all(key=f"tts_redo_{pid}", ids=ids, label=f"🔁 Tạo lại {len(bad)} câu nghi lỗi (đã dùng {used}/{allowed} lượt)" + budget.audio_tag(p.conn, len(bad)),
                            question=question, container=k2, yes_label="Có, tạo lại"):
-                r = voice_check.redo(p.conn, pid, provider, C.DATA)
+                r = voice_check.redo(p.conn, pid, provider, C.DATA, p=p)
                 st.toast(f"Đã gửi lại {r['sent']} câu" + (f" · không tạo lại {len(r['refused'])} câu: {r['refused'][0]}"
                                                            if r.get("refused") else ""))
                 st.rerun()

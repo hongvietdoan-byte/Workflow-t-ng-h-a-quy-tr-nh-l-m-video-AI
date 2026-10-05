@@ -16,6 +16,7 @@ import re
 import subprocess
 from typing import Callable, Dict, List, Optional
 
+from . import access
 from . import audio_lib, dialogue, ffmpeg_studio
 
 SYLL_PER_SEC_MAX = 6.5      # faster than this, words were dropped / the audio was cut (trial 2A: a cut Kenta line ran 7,8/s;
@@ -242,10 +243,12 @@ def settle_redos(directory: str) -> int:
     return settled
 
 
-def redo(conn, project_id: int, provider, data_dir: str) -> Dict:
+def redo(conn, project_id: int, provider, data_dir: str, p=None) -> Dict:
     """Make the flagged lines again (one TTS call each — counted against the audio cap). The old voice is kept (hidden) until the new
     one is made (settle_redos); a line already redone MAX_REDOS times with the same text + voice is refused, said in "refused".
     Returns voice.generate's result + "refused"."""
+    if p is not None:
+        access.need_edit(p, project_id, "làm lại câu thoại")
     import uuid
     from . import voice
     directory = audio_lib.assets_dir(data_dir, project_id)

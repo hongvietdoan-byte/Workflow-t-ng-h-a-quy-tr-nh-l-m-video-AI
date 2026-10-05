@@ -36,6 +36,7 @@ def _block(title: str, obj) -> str:
 
 
 def _run(p: Pipeline, project_id: int, stage: str, prompt: str, validate, client, images=()):
+    access.need_edit(p, project_id, "chạy việc Claude")
     if client is None:
         raise LlmError("Chưa cấu hình Claude (ANTHROPIC_API_KEY hoặc LLM_PROVIDER=claude_cli).", code="config")
     try:

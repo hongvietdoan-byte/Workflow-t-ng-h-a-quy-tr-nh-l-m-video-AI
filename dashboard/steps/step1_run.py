@@ -117,7 +117,7 @@ def project_budget_panel(p: Pipeline, pid: int) -> None:
             target = st.number_input("Ngân sách mục tiêu (USD, để Director chia shot trong mức này; 0 = không đặt)", min_value=0.0,
                                      value=float(data.get("target") or 0.0), step=1.0, key=f"pb_target_{pid}")
             if (target or None) != (data.get("target") or None):
-                project_budget.set_target(p.conn, pid, target or None)
+                project_budget.set_target(p.conn, pid, target or None, p=p)
             if data.get("target") and prop["total"] > float(data["target"]):
                 say("warning", f"Đề xuất ≈ {prop['total']:.2f} USD VƯỢT mục tiêu {float(data['target']):.2f} USD — bớt shot khớp môi / giây "
                     "video / số shot (chia shot lại) trước khi duyệt.", f"script-budget-over-{pid}",
@@ -134,7 +134,7 @@ def project_budget_panel(p: Pipeline, pid: int) -> None:
             add = c2.number_input("Thêm (USD)", min_value=0.0, value=0.0, step=0.5, key=f"pb_add_{pid}")
             why = c3.text_input("Lý do (bắt buộc)", key=f"pb_why_{pid}")
             if st.button("Nâng trần", key=f"pb_raise_{pid}", disabled=not (add > 0 and why.strip())):
-                project_budget.raise_cap(p.conn, pid, stage, add, p.actor, why)
+                project_budget.raise_cap(p.conn, pid, stage, add, p.actor, why, p=p)
                 st.rerun()
             for r in (data.get("raises") or [])[-5:]:
                 cap(f"{r['at']} · {r['who']}: +{r['add_usd']:.2f} USD cho {project_budget.STAGES.get(r['stage'], r['stage'])} — {r['why']}")

@@ -12,6 +12,7 @@ import os
 import time
 from typing import Callable, Dict, List
 
+from . import access
 from . import assets, spend_gate
 from .pipeline import Pipeline
 from .providers import ProviderError
@@ -43,6 +44,7 @@ def make_character_set(p: Pipeline, project_id: int, name: str, provider, data_d
                        poll_every: float = 6, sleep: Callable[[float], None] = time.sleep) -> Dict:
     """Generate the 2 pictures, store them as a project resource "<NAME> · trang phục N", make it this character's reference and
     clear the separate outfit pictures (the set already wears the outfit). Returns {"asset_id", "paths"}. Costs 2 image credits."""
+    access.need_edit(p, project_id, "tạo bộ ảnh trang phục")
     refs = _refs(p, project_id, name)
     prompts = [(key, set_prompt(p, project_id, name, view, refs)) for key, view in VIEWS]
     info = getattr(provider, "usage_info", None)

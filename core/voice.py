@@ -11,6 +11,7 @@ import math
 import os
 from typing import Dict, List, Optional
 
+from . import access
 from . import audio_lib, dialogue, ffmpeg_studio, final_cut
 
 # AU-a (GĐ-G): Multilingual v2 has no Vietnamese in ElevenLabs' language list (29 languages) — the model guessed the language and
@@ -239,11 +240,13 @@ def resend_block(entry: Dict, by_person: bool = False) -> Optional[str]:
 
 
 def generate(conn, project_id: int, provider, data_dir: str, scene_ids=None, ledger=True, slow=None, by_person: bool = False,
-             settle: bool = True) -> Dict:
+             settle: bool = True, p=None) -> Dict:
     """Voice every line that has no voice yet (or whose text / voice changed). Returns {"sent", "skipped", "no_voice": [speakers],
     "held": [why a failed line was not resent]}. slow: scene ids whose lines are sent with a trailing "…" (a redo of a line whose end
     was cut). A failed line with unchanged text/voice is resent only as `resend_block` allows (the automatic run used to delete and
     resend it on every tick, uncounted)."""
+    if p is not None:
+        access.need_edit(p, project_id, "tạo giọng")
     from . import features, voice_direction
     directory = audio_lib.assets_dir(data_dir, project_id)
     if settle:                                                # a redo decided since (voice_check.settle_redos): old voice back / gone
