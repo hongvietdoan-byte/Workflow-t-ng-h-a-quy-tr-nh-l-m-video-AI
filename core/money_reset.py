@@ -93,11 +93,15 @@ def reset(conn, actor, bars, reason: str, *, usd: Optional[float] = None, llm_us
         b = budget.restart_llm(conn, llm_usd if llm_usd is not None else budget.get(conn).get("llm_usd"))
         done["claude"] = {"llm_since": b.get("llm_since"), "llm_usd": b.get("llm_usd")}
         _put_last(conn, "claude", None, who, why, at)
+    detail = f"{bars} {why}"
     if "user" in bars:
         before = team.month_spend(conn, mail)
+        old = team.user_baseline(conn, mail)
         _put(conn, team._baseline_key(mail), at)
-        done["user"] = {"email": mail, "since": at, "before_usd": round(before, 4), "after_usd": round(team.month_spend(conn, mail), 4)}
+        done["user"] = {"email": mail, "since": at, "old_since": old, "before_usd": round(before, 4),
+                        "after_usd": round(team.month_spend(conn, mail), 4)}
         _put_last(conn, "user", mail, who, why, at)
+        detail = f"{bars} {mail} {old or 'không có'} → {at} ({before:.2f} USD → 0) {why}"
     if "project" in bars:
         pid = int(project_id)
         pdata["baseline"] = project_budget.ledger_by_stage(conn, pid)
@@ -106,8 +110,32 @@ def reset(conn, actor, bars, reason: str, *, usd: Optional[float] = None, llm_us
         project_budget._save(conn, pid, pdata)
         done["project"] = {"project_id": pid, "baseline": pdata["baseline"], "since": at}
         _put_last(conn, "project", pid, who, why, at)
-    auth.audit(conn, who, "reset_money", f"{bars} {why}")
+    auth.audit(conn, who, "reset_money", detail)
     return done
+
+
+def clear_user(conn, actor, email: str, reason: str) -> Dict:
+    """Take away one person's reset point (bỏ mốc 0): their monthly bar counts the whole 30 days again. Only the Owner, with a reason;
+    audited (who, e-mail, old point → none). Only the `user_reset:` setting is removed — the ledger is never touched.
+    Returns {email, old_since, before_usd, after_usd}."""
+    if _get(actor, "role") != "owner":
+        raise auth.AuthError("Chỉ Owner được bỏ mốc thanh tiền")
+    why = str(reason or "").strip()
+    if not why:
+        raise ValueError("bỏ mốc thanh tiền phải có lý do")
+    mail = str(email or "").strip().lower()
+    old = team.user_baseline(conn, mail) if mail else None
+    if not old:
+        raise ValueError(f"{mail or '(không e-mail)'} chưa có mốc 0 để bỏ")
+    before = team.month_spend(conn, mail)
+    conn.execute("DELETE FROM app_settings WHERE key=?", (team._baseline_key(mail),))
+    conn.commit()
+    after = team.month_spend(conn, mail)
+    who = str(_get(actor, "email") or "?")
+    at = _now()
+    _put_last(conn, "user", mail, who, f"bỏ mốc {old}: {why}", at)
+    auth.audit(conn, who, "clear_money_baseline", f"{mail} {old} → không có ({before:.2f} → {after:.2f} USD) {why}")
+    return {"email": mail, "old_since": old, "before_usd": round(before, 4), "after_usd": round(after, 4)}
 
 
 PLAN_BARS = ("trial", "claude", "project")

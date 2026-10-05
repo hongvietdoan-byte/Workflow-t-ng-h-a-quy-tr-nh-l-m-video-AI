@@ -117,9 +117,14 @@ def user_reset_block(p: Pipeline, actor: dict, rows: list, v2: bool) -> None:
         st.caption("Thanh tháng của người đó đếm lại từ bây giờ; sổ chi giữ nguyên, mỗi lần đặt lại được ghi nhật ký kèm lý do. "
                    "Hạn mức cá nhân vẫn chỉ cảnh báo.")
         if done:
-            u = done.get("user") or {}
-            st.success(f"Đã đặt lại thanh của {u.get('email', '?')}: {_usd(u.get('before_usd'))} → {_usd(u.get('after_usd'))} "
-                       f"(đếm lại từ {u.get('since', '?')} UTC).")
+            if "user" in done:
+                u = done["user"]
+                st.success(f"Đặt mốc 0 cho {u.get('email', '?')}: thanh trước đó ${float(u.get('before_usd') or 0):.2f} (ước tính) → 0 "
+                           f"từ {u.get('since', '?')} UTC (mốc cũ: {u.get('old_since') or 'không có'}). Sổ chi giữ nguyên.")
+            else:
+                st.success(f"Bỏ mốc 0 của {done.get('email', '?')} (mốc cũ {done.get('old_since')}): thanh "
+                           f"${float(done.get('before_usd') or 0):.2f} → ${float(done.get('after_usd') or 0):.2f} (ước tính, đủ 30 ngày). "
+                           "Sổ chi giữ nguyên.")
             ss["team_mr_done"] = None
         for who in people:
             bar = money_reset.user_bar(p.conn, who)
@@ -156,6 +161,18 @@ def user_reset_block(p: Pipeline, actor: dict, rows: list, v2: bool) -> None:
                 ss["team_mr_done"] = res
                 ss["team_mr_target"] = None
                 st.rerun()
+            if bar["since"]:                # bỏ mốc: the bar counts the full 30 days again (core.money_reset.clear_user, Owner only)
+                if C.confirm_all(f"team_mr_clear_{target}", ids, f"⊘ Bỏ mốc 0 ({bar['since']})",
+                                 f"Bỏ mốc 0 của {target} (đặt lúc {bar['since']} UTC)? Thanh sẽ tính đủ 30 ngày như chưa đặt lại. "
+                                 f"Sổ chi giữ nguyên. Lý do: {why}", st, "Có, bỏ mốc"):
+                    try:
+                        res = money_reset.clear_user(p.conn, actor, target, why)
+                    except Exception as e:  # noqa: BLE001 - shown, never a crash of the screen
+                        st.error(f"Không bỏ mốc được: {e}")
+                        return
+                    ss["team_mr_done"] = res
+                    ss["team_mr_target"] = None
+                    st.rerun()
             if st.button("Đóng", key="team_mr_close"):
                 ss["team_mr_target"] = None
                 st.rerun()
