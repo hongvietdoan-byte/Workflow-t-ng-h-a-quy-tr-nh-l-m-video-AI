@@ -102,7 +102,7 @@
       "weight": 0.8,
       "description": "Kho nhân vật/vũ khí/bối cảnh/phong cách, đọc ảnh tài nguyên bằng Claude, trang FF chính thức, hồ sơ chuẩn + bản rút gọn, đổi trang phục.",
       "code": ["core/assets.py", "core/asset_vision.py", "core/kho_review.py", "core/ff_site.py", "core/profile_digest.py", "core/costume.py", "core/looks.py", "dashboard/admin.py"],
-      "assets": ["data/games.json", "tools/draft_profiles.py", "tools/enrich_ff_role_difficulty.py", "mcp_servers/project_db.py"],
+      "assets": ["data/games.json", "tools/draft_profiles.py", "tools/enrich_ff_role_difficulty.py", "mcp_servers/project_db.py", "tools/kho_merge.py"],
       "docs": [],
       "tests": [],
       "flags": ["profile_digest"],
