@@ -916,6 +916,15 @@ def deliver(p: Pipeline, project_id: int, data_dir: str, llm=None, music_path: O
             export_failed.append(f"{spec.get('w')}x{spec.get('h')}")
             warnings.append(f"xuất {spec.get('w')}x{spec.get('h')}: {e}")
             diag.record(p.conn, "render", "warn", f"xuất bản {spec} thất bại: {e}", "export", project_id)
+    try:                                         # S14.42 tầng C: tài nguyên chỉ-Claude-duyệt đã vào bản giao → cảnh báo, KHÔNG chặn
+        from . import kho_review
+        names = [os.path.basename(x) for x in [selected_music(data_dir, project_id)] if x] \
+            + [os.path.basename(e["path"]) for e in audio_lib.mix_list(audio_lib.assets_dir(data_dir, project_id))]
+        for w in kho_review.delivery_warnings(p.conn, project_id, names):
+            warnings.append(w)
+            diag.record(p.conn, "render", "warn", w, "claude_only_assets", project_id)
+    except Exception as e:  # noqa: BLE001 - a broken list never costs the delivery
+        diag.record(p.conn, "render", "info", f"không kiểm được tài nguyên chỉ-Claude-duyệt: {e}", "claude_only_assets", project_id)
     from . import final_qc                       # S1.9: measured before anyone is told "done" (trial #8)
     try:
         qc = final_qc.run(p, project_id, data_dir)

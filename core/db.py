@@ -234,6 +234,15 @@ CREATE TABLE IF NOT EXISTS sounds (
     voice INTEGER NOT NULL DEFAULT 0
 );
 CREATE INDEX IF NOT EXISTS idx_sounds_kind ON sounds(kind, category);
+CREATE TABLE IF NOT EXISTS kho_review_log (   -- S14.42: duyệt Kho 3 tầng; mỗi dòng một lần đổi (ảnh: status nằm ở asset_images; âm thanh: trạng thái = dòng cuối)
+    id INTEGER PRIMARY KEY,
+    item_kind TEXT NOT NULL,                  -- image / sound
+    item_id INTEGER NOT NULL,
+    action TEXT NOT NULL,                     -- claude_ok / reject / user_ok / revoke
+    note TEXT,
+    at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_kho_review_item ON kho_review_log(item_kind, item_id);
 CREATE TABLE IF NOT EXISTS asset_sources (
     id INTEGER PRIMARY KEY,
     game TEXT NOT NULL,

@@ -159,7 +159,7 @@ def library_views(imgs: List[Dict]) -> tuple:
     from . import assets
     groups: Dict[str, List[Dict]] = {}
     for i in imgs:
-        if i["status"] == "approved" and i["role"] in FRONT_ROLES + ("side", "back"):
+        if i["status"] in ("approved", "claude_ok") and i["role"] in FRONT_ROLES + ("side", "back"):
             groups.setdefault(i.get("variant") or "", []).append(i)
     best = None
     for variant, items in groups.items():
@@ -196,7 +196,7 @@ def plan(conn, asset_id: int, sheet_image_id: Optional[int] = None, work_dir: Op
         problems.append("hồ sơ chuẩn của nhân vật chưa được duyệt — câu texture lấy từ hồ sơ (hoặc tự viết câu texture)")
     imgs = _images(conn, asset_id)
     sheets = [i for i in imgs if i["role"] == "design_sheet" and (i["id"] == sheet_image_id or
-                                                                   (sheet_image_id is None and i["status"] == "approved"))]
+                                                                   (sheet_image_id is None and i["status"] in ("approved", "claude_ok")))]
     views, source = [], None
     if sheet_image_id is None:                          # real in-game views of several sides beat a cut-out of a drawn sheet
         views, source = library_views(imgs)
@@ -206,7 +206,7 @@ def plan(conn, asset_id: int, sheet_image_id: Optional[int] = None, work_dir: Op
             views, source = cut, f"bảng #{s['id']} (cắt 4 hướng)"
             break
     if not views:
-        front = [i for i in imgs if i["role"] == "front_standard" and i["status"] == "approved"]
+        front = [i for i in imgs if i["role"] == "front_standard" and i["status"] in ("approved", "claude_ok")]
         if front:
             from PIL import Image
             p = assets.resolve(front[0]["path"])

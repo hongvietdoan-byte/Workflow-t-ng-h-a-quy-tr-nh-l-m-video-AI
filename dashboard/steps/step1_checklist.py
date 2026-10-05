@@ -12,7 +12,8 @@ def _row_text(r) -> str:
     where = f" · cảnh {', '.join(map(str, r['scenes']))}" if r.get("scenes") else ""
     main = " · chính" if r.get("main") else " · phụ"
     extra = " — ".join(x for x in [r.get("why"), r.get("note")] if x)
-    return f"{r['status_label']} · **{r['name']}**{who} [{kind}]{where}{main}" + (f" — {extra}" if extra else "")
+    mark = f" · 🔎 Claude duyệt ({r['claude_only']} ảnh, chưa xác nhận)" if r.get("claude_only") else ""
+    return f"{r['status_label']}{mark} · **{r['name']}**{who} [{kind}]{where}{main}" + (f" — {extra}" if extra else "")
 
 
 def checklist_panel(p: Pipeline, pid: int, scope: str = "dir") -> None:
@@ -47,6 +48,17 @@ def checklist_panel(p: Pipeline, pid: int, scope: str = "dir") -> None:
         for i, r in enumerate(res["rows"]):
             c1, c2 = st.columns([6, 1])
             c1.markdown(_row_text(r))
+            if r.get("claude_only") and r.get("asset_id") is not None:
+                from core import kho_review
+                if c2.button("Xác nhận", key=f"asset_chk_cf_{scope}_{pid}_{i}", help="Xác nhận ảnh Claude đã duyệt sơ bộ của mục này (→ đã duyệt)."):
+                    if act(lambda aid=r["asset_id"]: kho_review.confirm_asset(p.conn, aid), f"Đã xác nhận ảnh của {r['name']}"):
+                        st.rerun()
+                if c2.button("Thu hồi", key=f"asset_chk_rv_{scope}_{pid}_{i}", help="Đưa ảnh Claude duyệt của mục này về chờ duyệt (không dùng nữa)."):
+                    def _revoke(aid=r["asset_id"]):
+                        for x in kho_review.claude_only_images(p.conn, [aid]):
+                            kho_review.revoke(p.conn, "image", x["id"])
+                    if act(_revoke, f"Đã thu hồi ảnh của {r['name']}"):
+                        st.rerun()
             if r["status"] == "in_library":
                 if c2.button("Gắn", key=f"asset_chk_att_{scope}_{pid}_{i}",
                              help="Gắn mục Kho này vào dự án — Director sẽ đọc nó trong 'Tài nguyên có sẵn'."):

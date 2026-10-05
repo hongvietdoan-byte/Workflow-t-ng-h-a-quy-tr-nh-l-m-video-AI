@@ -63,9 +63,10 @@ def library(conn, pid: int) -> List[Dict]:
     """Every library entry (shared + this project's) the script could need — names only, no picture read; `anh` = approved pictures."""
     rows = conn.execute(
         "SELECT a.id, a.kind, a.name, a.aliases, (SELECT COUNT(*) FROM asset_images i WHERE i.asset_id=a.id AND "
-        "(i.status IS NULL OR i.status='approved')) AS n FROM assets a WHERE (a.project_id IS NULL OR a.project_id=?) AND a.game=? "
+        "(i.status IS NULL OR i.status IN ('approved','claude_ok'))) AS n, "
+        "(SELECT COUNT(*) FROM asset_images i WHERE i.asset_id=a.id AND i.status='claude_ok') AS nc FROM assets a WHERE (a.project_id IS NULL OR a.project_id=?) AND a.game=? "
         "AND a.kind IN (" + ",".join("?" * len(KINDS)) + ") ORDER BY a.kind, lower(a.name)", (pid, _game(conn, pid), *KINDS)).fetchall()
-    return [{"id": r["id"], "kind": r["kind"], "name": r["name"], "aliases": r["aliases"] or "", "images": r["n"]} for r in rows]
+    return [{"id": r["id"], "kind": r["kind"], "name": r["name"], "aliases": r["aliases"] or "", "images": r["n"], "claude_only": r["nc"]} for r in rows]
 
 
 def _attached(conn, pid: int) -> set:
@@ -221,7 +222,8 @@ def get(p, pid: int) -> Optional[Dict]:
     except ValueError:
         return {"rows": [], "missing": [], "stale": True, "warnings": ["Bảng kê đã lưu bị hỏng — bấm lập lại."]}
     attached = _attached(p.conn, pid)
-    lib_ids = {a["id"] for a in library(p.conn, pid)}      # rà: the same Kho as at run time (this game / this project)
+    libs = {a["id"]: a for a in library(p.conn, pid)}      # rà: the same Kho as at run time (this game / this project)
+    lib_ids = set(libs)
     rows = []
     for r in state.get("rows") or []:
         r = dict(r)
@@ -229,6 +231,7 @@ def get(p, pid: int) -> Optional[Dict]:
             r["note"] = "; ".join(x for x in [r.get("note"), f"mục Kho {r['asset_id']} đã bị xóa"] if x)
         r["status"] = _status(r, attached, lib_ids)
         r["status_label"] = STATUS_LABEL[r["status"]]
+        r["claude_only"] = (libs.get(r.get("asset_id")) or {}).get("claude_only") or 0   # S14.42 tầng C: ảnh chỉ-Claude-duyệt của mục này
         rows.append(r)
     missing = [r["name"] for r in rows if r["status"] == "missing"]
     warnings = []
