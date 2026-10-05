@@ -32,6 +32,9 @@ class Base(unittest.TestCase):
         dns.start()
         self.addCleanup(dns.stop)
         self.addCleanup(machine_auth.clear_cache)
+        first = mock.patch.object(machine_auth, "AUTO_FIRST_MACHINE", False)    # these tests check the approval flow itself
+        first.start()
+        self.addCleanup(first.stop)
 
     def sign_in(self, email=MEMBER, ip=IP, local=False, passcode=None):
         return machine_auth.sign_in(self.conn, email, ip, local, f"ip={ip}", passcode)
@@ -226,6 +229,40 @@ class ReviewFixTests(Base):
             gate(old_owner, "owner")
         self.assertIsNotNone(machine_auth.session_refusal(self.conn, old_owner, "owner", "10.99.0.1", False))
         self.assertIsNone(machine_auth.session_refusal(self.conn, OWNER, "owner", "10.99.0.1", False))
+
+
+class FirstMachineTests(Base):
+    """Người dùng chọn 05/10: người đã có vai trò → máy ĐẦU TIÊN tự duyệt (ghi nhật ký); máy thứ 2 trở đi chờ Owner."""
+    def setUp(self):
+        super().setUp()
+        on = mock.patch.object(machine_auth, "AUTO_FIRST_MACHINE", True)
+        on.start()
+        self.addCleanup(on.stop)
+
+    def test_the_first_machine_of_a_listed_member_is_approved_by_itself(self):
+        token = self.sign_in()
+        self.assertEqual(auth.identity(self.conn, token).email, MEMBER)
+        row = self.conn.execute("SELECT * FROM machine_approvals").fetchone()
+        self.assertEqual((row["machine"], row["status"]), ("GKP8Q03", "approved"))
+        self.assertIn("tự duyệt", row["decided_by"])
+        self.assertIn("machine_auto_approve", self.actions())
+        with self.assertRaises(machine_auth.MachinePending):           # the second PC waits for the Owner
+            self.sign_in(ip="10.20.0.36")
+
+    def test_after_any_decision_no_machine_is_approved_by_itself(self):
+        self.sign_in()
+        machine_auth.revoke(self.conn, OWNER, MEMBER, "GKP8Q03")
+        with self.assertRaises(auth.AuthError):
+            self.sign_in()
+        with self.assertRaises(machine_auth.MachinePending):
+            self.sign_in(ip="10.20.0.36")
+
+    def test_strangers_and_unknown_machines_get_nothing(self):
+        with self.assertRaises(auth.AuthError):
+            self.sign_in("la@gmail.com")
+        with self.assertRaises(auth.AuthError):
+            self.sign_in(ip="10.99.0.1")
+        self.assertEqual(self.conn.execute("SELECT COUNT(*) FROM machine_approvals").fetchone()[0], 0)
 
 
 class LanOffTests(unittest.TestCase):

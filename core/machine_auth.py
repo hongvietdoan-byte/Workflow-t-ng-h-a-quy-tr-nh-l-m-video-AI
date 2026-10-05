@@ -32,6 +32,7 @@ from . import auth
 TIMEOUT = 2.0                 # seconds for one name lookup (reverse + forward), in a worker thread
 CACHE_SECONDS = 60            # a found name is kept this long per IP (rà D1: short — DHCP may give the IP to another PC)
 CACHE_MISS_SECONDS = 30       # "no name" is kept shorter: the person may fix the network and try again
+AUTO_FIRST_MACHINE = True     # người dùng chọn 05/10: a listed member's FIRST machine is approved by itself (logged); the 2nd waits for the Owner
 MAX_FAILS = 5                 # refused sign-ins from one IP …
 FAIL_WINDOW = 600             # … within this many seconds → wait
 LOCAL_IPS = ("127.0.0.1", "::1")
@@ -227,6 +228,19 @@ HOW_TO = ("Cách xử lý: dùng máy PC công ty nối thẳng mạng nội b�
           "Owner địa chỉ IP trên để kiểm tra DNS nội bộ.")
 
 
+def _first_machine(conn, email: str) -> bool:
+    """No row at all for this e-mail (no request, approval, refusal or revoke yet) → this is the person's first machine."""
+    return conn.execute("SELECT 1 FROM machine_approvals WHERE email=? LIMIT 1", ((email or "").strip().lower(),)).fetchone() is None
+
+
+def _auto_approve(conn, email: str, machine: str, ip: str) -> None:
+    email = (email or "").strip().lower()
+    conn.execute("INSERT INTO machine_approvals (email, machine, status, requested_at, decided_at, decided_by, last_ip, last_seen) "
+                 "VALUES (?,?,?,?,?,?,?,?)", (email, machine, "approved", _stamp(), _stamp(), "tự duyệt máy đầu", ip, _stamp()))
+    conn.commit()
+    auth.audit(conn, email, "machine_auto_approve", f"{machine} ip={ip} (máy đầu tiên của người đã có vai trò — Owner thu hồi được ở 👥 Nhóm)")
+
+
 def is_owner(email: str) -> bool:
     """The configured DASHBOARD_OWNER_EMAIL only — not the users-table role: an old owner row is not demoted when the setting changes
     (rà D1), and it must not skip the machine check."""
@@ -250,6 +264,9 @@ def _gate(conn, ip: str, local: bool):
             auth.audit(conn, email, "login_refused_machine", f"{name} ip={ip} (đã bị từ chối / thu hồi)")
             raise auth.AuthError(f"Máy {name} chưa được phép đăng nhập bằng {email} (Owner đã từ chối hoặc thu hồi). Nhờ Owner duyệt "
                                  "lại ở 👥 Nhóm → Máy được duyệt, hoặc dùng máy đã được duyệt.")
+        if st is None and AUTO_FIRST_MACHINE and _first_machine(conn, email):
+            _auto_approve(conn, email, name, ip)
+            return f"machine={name} (tự duyệt máy đầu)"
         first = st is None
         request(conn, email, name, ip)
         if first:

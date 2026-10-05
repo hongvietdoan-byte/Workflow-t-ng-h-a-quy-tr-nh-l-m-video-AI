@@ -339,7 +339,8 @@ class MachineLoginUiTests(AccessUiBase):
         machine_auth.clear_cache()
         self.addCleanup(machine_auth.clear_cache)
         for patcher in (mock.patch.dict(os.environ, {"DASHBOARD_LAN": "1", "DASHBOARD_OWNER_PASSCODE": "ma"}),
-                        mock.patch("core.machine_auth.socket.gethostname", return_value="may-chu.vn.corp")):
+                        mock.patch("core.machine_auth.socket.gethostname", return_value="may-chu.vn.corp"),
+                        mock.patch.object(machine_auth, "AUTO_FIRST_MACHINE", False)):   # these check the approval flow
             patcher.start()
             self.addCleanup(patcher.stop)
 
