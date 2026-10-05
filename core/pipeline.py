@@ -113,7 +113,8 @@ class Pipeline:
             used =[self.conn.execute(sql).fetchone()[0] or 0 for sql in (
                 "SELECT MAX(id) FROM projects", "SELECT MAX(project_id) FROM usage_events", "SELECT MAX(deleted_project_id) FROM usage_events",
                 "SELECT MAX(project_id) FROM outputs",
-                "SELECT MAX(project_id) FROM diag_events")]
+                "SELECT MAX(project_id) FROM diag_events",
+                "SELECT MAX(project_id) FROM deliveries")]     # rà S14.30: a new project must never inherit an old delivery
             try:
                 cur = self.conn.execute(
                     "INSERT INTO projects (id, name, operating_mode, qc_auto_pass_threshold, max_retry_count, created_at, created_by,"
@@ -163,7 +164,7 @@ class Pipeline:
         detach(c, project_id=project_id)
         c.execute("UPDATE user_feedback SET project_id=NULL WHERE project_id=?", (project_id,))
         c.execute("DELETE FROM effectiveness_snapshots WHERE project_id=?", (project_id,))
-        for table in ("prompt_versions", "scenes", "story_scenes", "characters", "project_assets", "outputs", "diag_events"):
+        for table in ("prompt_versions", "scenes", "story_scenes", "characters", "project_assets", "outputs", "diag_events", "deliveries"):
             c.execute(f"DELETE FROM {table} WHERE project_id=?", (project_id,))
         for r in c.execute("SELECT id FROM assets WHERE project_id=?", (project_id,)).fetchall():
             assets.delete(c, r["id"])

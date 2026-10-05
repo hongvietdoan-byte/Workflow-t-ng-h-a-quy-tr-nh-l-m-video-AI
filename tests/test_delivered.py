@@ -141,3 +141,46 @@ class Backfill(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class ReviewFixes(unittest.TestCase):
+    """Rà độc lập S14.30 (05/10): N1 mã dự án dùng lại, N2 giao lỗi xuất, N3 bằng chứng yếu, N4 chạy thử không ghi CSDL."""
+
+    def setUp(self):
+        self.data, self.root = tempfile.mkdtemp(), tempfile.mkdtemp()
+        self.p = Pipeline(connect())
+
+    def test_a_deleted_delivered_project_does_not_lend_its_signal_to_a_new_one(self):
+        pid = self.p.create_project("cu", "human_qc", 0.85, 2)
+        delivered.mark(self.p.conn, pid, "x.mp4")
+        self.p.delete_project(pid)
+        new = self.p.create_project("moi", "human_qc", 0.85, 2)       # the id may be reused: its delivery row went with the project
+        self.assertFalse(delivered.is_delivered(self.p.conn, new))
+
+    def test_a_delivery_whose_export_failed_is_not_proof(self):
+        pid = self.p.create_project("loi", "human_qc", 0.85, 2)
+        delivery.record(self.p, pid, "final", fake_render(self.p, pid, self.data, None),
+                        manifest={"final_qc": {"blocks": 0, "warns": 0, "issues": []}})
+        self.p.conn.execute("INSERT INTO diag_events (at, last_at, stage, severity, code, message, project_id) "
+                            "VALUES ('2026-10-01','2026-10-01','render','warn','export','xuất 9:16 lỗi',?)", (pid,))
+        self.p.conn.commit()
+        res = delivered.backfill(self.p.conn, self.data, self.root, apply=False)
+        self.assertEqual(res["marked"], [])
+        self.assertEqual(res["rendered_only"], [pid])
+
+    def test_the_automatic_run_alone_is_marked_as_weak_proof(self):
+        pid = self.p.create_project("tu", "human_qc", 0.85, 2)
+        self.p.conn.execute("UPDATE projects SET autopilot_state='done' WHERE id=?", (pid,))
+        fake_render(self.p, pid, self.data, None)
+        self.p.conn.commit()
+        res = delivered.backfill(self.p.conn, self.data, self.root, apply=False)
+        self.assertTrue(res["marked"][0].get("weak"))
+        self.assertIn("yếu", res["summary"].lower())
+
+    def test_the_dry_run_opens_the_database_read_only(self):
+        from tools import backfill_delivered
+        db = os.path.join(tempfile.mkdtemp(), "m.sqlite")
+        connect(db).close()
+        with mock.patch.object(backfill_delivered, "connect", side_effect=AssertionError("dry run must not migrate/write")):
+            out = backfill_delivered.main(["--db", db, "--data", self.data, "--output-root", self.root])
+        self.assertFalse(json.loads(out)["apply"])

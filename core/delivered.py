@@ -87,7 +87,10 @@ def _evidence(conn, pid: int, folders: Dict[int, str], data_dir: str) -> Optiona
     3. the automatic run reached DONE (its last step is delivery.deliver) and the final cut is there."""
     if pid in folders:
         return {"source": "backfill_folder", "path": folders[pid]}
-    for row in conn.execute("SELECT path, manifest FROM outputs WHERE project_id=? AND kind='final' ORDER BY id DESC", (pid,)):
+    export_failed = conn.execute("SELECT 1 FROM diag_events WHERE project_id=? AND code='export' AND severity IN ('warn','error') LIMIT 1",
+                                 (pid,)).fetchone() is not None    # rà: final_qc is written even when one export size failed
+    for row in ([] if export_failed else
+                conn.execute("SELECT path, manifest FROM outputs WHERE project_id=? AND kind='final' ORDER BY id DESC", (pid,))):
         try:
             if "final_qc" in json.loads(row["manifest"] or "{}"):
                 return {"source": "backfill_deliver", "path": row["path"]}
@@ -96,7 +99,7 @@ def _evidence(conn, pid: int, folders: Dict[int, str], data_dir: str) -> Optiona
     st = conn.execute("SELECT autopilot_state FROM projects WHERE id=?", (pid,)).fetchone()
     if st is not None and st["autopilot_state"] == "done" and has_render(conn, pid, data_dir):
         fin = conn.execute("SELECT path FROM outputs WHERE project_id=? AND kind='final' ORDER BY id DESC LIMIT 1", (pid,)).fetchone()
-        return {"source": "backfill_autopilot_done",
+        return {"source": "backfill_autopilot_done", "weak": True,    # rà: an old run could be DONE with only a cut — the person checks
                 "path": fin["path"] if fin else os.path.join(data_dir, str(pid), "output", "FINAL_VIDEO.mp4")}
     return None
 
@@ -110,9 +113,10 @@ def backfill(conn, data_dir: Optional[str] = None, output_root: Optional[str] = 
     output_root = output_root if output_root is not None else os.environ.get("DELIVERY_OUTPUT_ROOT", DEFAULT_OUTPUT_ROOT)
     folders = _folders(output_root)
     marked, already, rendered_only = [], [], []
+    has_table = conn.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='deliveries'").fetchone() is not None   # read-only dry run
     for r in conn.execute("SELECT id FROM projects ORDER BY id").fetchall():
         pid = r[0]
-        if is_delivered(conn, pid):
+        if has_table and is_delivered(conn, pid):
             already.append(pid)
             continue
         ev = _evidence(conn, pid, folders, data_dir)
@@ -124,10 +128,13 @@ def backfill(conn, data_dir: Optional[str] = None, output_root: Optional[str] = 
         for m in marked:
             mark(conn, m["project_id"], m["path"], by="backfill S14.30", source=m["source"], manifest={"evidence": m["path"]})
     ids = lambda xs: ", ".join(f"#{i}" for i in xs) or "—"      # noqa: E731
+    weak = [m["project_id"] for m in marked if m.get("weak")]
     summary = (f"S14.30 chuyển đổi 'hoàn thiện' = đã xuất bản giao ({'ĐÃ GHI' if apply else 'chạy thử, chưa ghi'}): "
                f"{len(marked)} dự án ghi là đã giao ({ids([m['project_id'] for m in marked])}); "
                f"{len(rendered_only)} dự án có bản cuối nhưng chưa xuất bản giao — KHÔNG còn tính là xong ({ids(rendered_only)}); "
-               f"{len(already)} dự án đã có tín hiệu từ trước. Thư mục giao: {output_root} ({len(folders)} thư mục _du-an-<id> có video).")
+               + (f"⚠ {len(weak)} dự án chỉ có bằng chứng YẾU (chạy tự động xong, không thấy bản giao) — xem lại trước khi ghi: {ids(weak)}; "
+                  if weak else "")
+               + f"{len(already)} dự án đã có tín hiệu từ trước. Thư mục giao: {output_root} ({len(folders)} thư mục _du-an-<id> có video).")
     if apply:
         from . import diag
         diag.record(conn, "render", "info", summary, "delivered_backfill")

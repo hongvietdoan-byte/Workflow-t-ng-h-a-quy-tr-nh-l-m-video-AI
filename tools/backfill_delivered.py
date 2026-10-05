@@ -14,6 +14,7 @@ hoặc D:\\AI-Video-Output. Sao lưu: cp data/manifest.sqlite data/backup/manife
 import argparse
 import json
 import os
+import sqlite3
 import sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -33,7 +34,11 @@ def main(argv=None) -> str:
     a = ap.parse_args(argv)
     if not os.path.exists(a.db):
         raise SystemExit(f"Không thấy CSDL {a.db}")
-    conn = connect(a.db)
+    if a.apply:
+        conn = connect(a.db)
+    else:                                   # rà S14.30: the dry run writes nothing — not even the migration connect() would run
+        conn = sqlite3.connect(f"file:{os.path.abspath(a.db)}?mode=ro", uri=True)
+        conn.row_factory = sqlite3.Row
     try:
         res = delivered.backfill(conn, a.data, a.output_root, apply=a.apply)
     finally:
