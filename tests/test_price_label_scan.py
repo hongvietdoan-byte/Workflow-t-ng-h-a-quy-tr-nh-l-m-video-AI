@@ -216,6 +216,51 @@ class CostButtonTags(unittest.TestCase):
             self.assertIn("chưa có giá — ước tính dư", cost.llm_button_tag(None, "qc", 1, pricing=self.PRICING))
         self.assertEqual(" · Claude: chưa có giá", cost.llm_tokens_tag(10, 10, {"per_million_tokens": {}}))
 
+    def test_llm_tag_says_it_is_an_estimate(self):
+        from core import cost
+        self.assertEqual(" · Claude ≈ 0.05 USD (ước tính)", cost.llm_tag(0.05))
+
+    def _video_project(self):
+        from unittest import mock
+        from core import cost
+        from core.db import connect
+        from core.pipeline import Pipeline
+        p = Pipeline(connect())
+        pid = p.create_project("v")
+        est = {"items": 2, "min": 0.5, "max": 1.5}
+        return p, pid, mock.patch.object(cost, "estimate_videos_by_scene", return_value=est)
+
+    def test_video_batch_counts_the_automatic_retakes_high(self):
+        from core import cost
+        from core.pipeline import AUTO_REGEN_LIMIT
+        p, pid, patch = self._video_project()
+        with patch:
+            tag = cost.video_batch_tag(p, pid)
+        top = 0.5 * (1 + AUTO_REGEN_LIMIT["video_gen"])
+        self.assertEqual(f" · 2 clip ≈ 0.50 USD (ước tính; tự gen lại tối đa {AUTO_REGEN_LIMIT['video_gen']} lần ≈ {top:.2f})", tag)
+
+    def test_video_batch_tag_is_computed_once_per_draw(self):
+        """(f) 194 ms on #8 for every rerun: the result is kept until the database changes."""
+        from core import cost
+        p, pid, patch = self._video_project()
+        with patch as est:
+            cost.video_batch_tag(p, pid)
+            cost.video_batch_tag(p, pid)
+            self.assertEqual(est.call_count, 1)
+            p.create_scene(pid, 1, "S1")                                       # any write → computed again
+            cost.video_batch_tag(p, pid)
+            self.assertEqual(est.call_count, 2)
+
+    def test_retake_rewrite_estimate_is_computed_once_per_draw(self):
+        from unittest import mock
+        from core import cost
+        from core.db import connect
+        conn = connect()
+        with mock.patch.object(cost, "rewrite_estimate", return_value=(0.01, 0.04)) as rw:
+            for _ in range(5):                                                  # five picture cards on one page
+                cost.image_button_tag("img-a", 1, self.PRICING, retake_conn=conn)
+        self.assertEqual(rw.call_count, 1)
+
 
 class EditorReviewWithoutClaude(unittest.TestCase):
     """J6 (mục 8): the rough-cut review button said nothing when Claude was not set up — now it says why and what to do."""

@@ -341,7 +341,34 @@ def llm_tag(usd: Optional[float], calls: int = 1) -> str:
     """Text for a Claude button: ' · Claude ≈ 0.05 USD' (luật chi phí: the estimate is shown before the click)."""
     if calls <= 0:
         return ""
-    return f" · Claude ≈ {usd:.2f} USD" if usd is not None else " · Claude: chưa có giá"
+    return f" · Claude ≈ {usd:.2f} USD (ước tính)" if usd is not None else " · Claude: chưa có giá"   # rà soát A2 (d)
+
+
+_MEMO: Dict = {}
+
+
+def _db_mark(conn):
+    """Changes when anything is written to the database — by this connection (total_changes) or another one (data_version)."""
+    try:
+        version = conn.execute("PRAGMA data_version").fetchone()[0]
+    except Exception:  # noqa: BLE001 - a fake connection in a test: only this connection's own writes count
+        version = None
+    return id(conn), getattr(conn, "total_changes", None), version
+
+
+def _memo(conn, key, fn):
+    """Rà soát A2 (f): a label price is computed once per draw — kept until the database changes (a rerun with no write reuses it)."""
+    if conn is None:
+        return fn()
+    mark = _db_mark(conn)
+    hit = _MEMO.get(key)
+    if hit is not None and hit[2] is conn and hit[0] == mark:      # the same connection object (an id may be reused after it closes)
+        return hit[1]
+    value = fn()
+    if len(_MEMO) > 256:
+        _MEMO.clear()
+    _MEMO[key] = (_db_mark(conn), value, conn)
+    return value
 
 
 def _over_tag(est: Dict, what: str = "", extra: float = 0.0) -> str:
@@ -362,7 +389,8 @@ def image_button_tag(model: Optional[str], count: int = 1, pricing: Optional[Dic
     if count <= 0:
         return ""
     from . import money_policy
-    extra = rewrite_estimate(retake_conn, count, 0, 0, 0, pricing)[0] if retake_conn is not None else 0.0
+    extra = (_memo(retake_conn, ("rewrite", id(retake_conn), count),
+                   lambda: rewrite_estimate(retake_conn, count, 0, 0, 0, pricing)[0]) if retake_conn is not None else 0.0)
     return _over_tag(money_policy.estimate("image", model, None, count, pricing), extra=extra)
 
 
@@ -382,12 +410,19 @@ def video_button_tag(conn, scene_ids, pricing: Optional[Dict] = None, seconds: O
 def video_batch_tag(pipeline: Pipeline, project_id: int, pricing: Optional[Dict] = None) -> str:
     """S14.2 A2: price text for a button that sends the project's ready clips (estimate_videos_by_scene: each shot its model, ⭐ twice);
     a model/mức without a price is estimated high per clip (clip_estimate → money_policy), said as such."""
+    return _memo(pipeline.conn, ("video_batch", id(pipeline.conn), project_id), lambda: _video_batch_tag(pipeline, project_id, pricing))
+
+
+def _video_batch_tag(pipeline: Pipeline, project_id: int, pricing: Optional[Dict] = None) -> str:
+    from .pipeline import AUTO_REGEN_LIMIT
     pricing = pricing or load_pricing()
     est = estimate_videos_by_scene(pipeline, project_id, pricing)
     if not est["items"]:
         return ""
+    redo = AUTO_REGEN_LIMIT["video_gen"]            # rà soát A2 (d): tính dư — the run may remake each clip up to this many times
     if est.get("min") is not None:
-        return f" · {est['items']} clip ≈ {est['min']:.2f} USD (ước tính)"
+        return (f" · {est['items']} clip ≈ {est['min']:.2f} USD (ước tính; tự gen lại tối đa {redo} lần ≈ "
+                f"{est['min'] * (1 + redo):.2f})")
     from . import hero_takes
     conn = pipeline.conn
     live = {r["scene_id"] for r in conn.execute(
@@ -398,7 +433,8 @@ def video_batch_tag(pipeline: Pipeline, project_id: int, pricing: Optional[Dict]
     vals = [(clip_estimate(conn, r["scene_id"], pricing), 2 if r["scene_id"] in hero else 1) for r in rows]
     if not vals or any(v is None for v, _ in vals):
         return f" · {est['items']} clip, chưa có giá"
-    return f" · {est['items']} clip, chưa có giá — ước tính dư ≈ {sum(v * n for v, n in vals):.2f} USD"
+    base = sum(v * n for v, n in vals)
+    return f" · {est['items']} clip, chưa có giá — ước tính dư ≈ {base:.2f} USD (tự gen lại tối đa {redo} lần ≈ {base * (1 + redo):.2f})"
 
 
 def llm_button_tag(conn, stage: str, calls: int = 1, images: int = 0, pricing: Optional[Dict] = None,
