@@ -169,6 +169,10 @@ def build_prompt(conn, pid: int, state: Dict, turn: int, wish: str = "") -> str:
     tb = trend_block(conn, inp.get("trend", "off"))
     if tb:
         parts.append(tb)
+    from . import knowledge
+    kelly = knowledge.kelly_blocks("screenwriter")      # S14.34 (flag kelly_knowledge): suggestions only; off → [] → prompt byte-identical
+    if kelly:
+        parts.insert(3, "## Gợi ý từ kênh Kelly (trộn được, không bắt buộc)\n" + kelly[0])
     if turn >= 2 and state.get("answers"):
         parts.append("## Trả lời của người dùng (câu ghi [mặc định] = người dùng để trống, dùng đáp án mặc định)\n" + "\n".join(
             f"- {a['q']} → {a['a']}" + (" [mặc định]" if a.get("defaulted") else "") for a in state["answers"]))

@@ -229,7 +229,8 @@ def editor_prompt(res: Dict) -> Tuple[str, List[Tuple[str, str]]]:
     """(text, images): the sheets are the images (never more than the API takes — rough_cut already packed them under the limit)."""
     sound = dict(res.get("sound") or {})
     cov = res.get("coverage") or {}
-    parts = [claude_tasks._read("prompts", PROMPT_EDITOR), editor_text(),
+    from . import knowledge
+    parts = [claude_tasks._read("prompts", PROMPT_EDITOR), editor_text(), *knowledge.kelly_blocks("editor"),   # S14.34 (flag kelly_knowledge)
              f"# Nguồn ý đồ Đạo diễn: {res.get('source')}" + (" (ĐÃ CŨ — không đáng tin)" if res.get("stale") else "")
              + ("\n(không có `target_s` / `peak` / `focus` — chỉ có cảm xúc từng cảnh; đừng đề xuất theo thời lượng / đỉnh)"
                 if res.get("source") != "director_intent_raw" else ""),

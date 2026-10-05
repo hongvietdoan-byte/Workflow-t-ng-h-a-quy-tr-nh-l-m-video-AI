@@ -349,6 +349,13 @@ FEATURES: Dict[str, Dict] = {
         "why": "S14.23 (05/10): chưa chạy Claude thật; nghiệm thu = 2 kịch bản thật (Kho đủ / Kho thiếu) — báo đúng cái thiếu, "
                "không báo nhầm cái đã có (core/asset_checklist.py, prompts/27_asset_checklist.md)",
     },
+    "kelly_knowledge": {
+        "label": "Tri thức kênh Kelly (GỢI Ý trộn được): Biên kịch đọc 4 khuôn kịch bản dựng chắc được + kỹ thuật né + hook/nhịp/cú chốt; "
+                 "Đạo diễn, Quay phim, Biên tập (Dựng) mỗi vai đọc một tài liệu ngắn",
+        "verified": False,
+        "why": "S14.34 (05/10): mẫu MỘT kênh, 40 clip (độ tin tối đa 'có thể'); chỉ thêm ≈ 3,5 nghìn ký tự mỗi vai; chưa so kịch bản/shot "
+               "thật khi bật (cần bản ghi Claude thật S14.34 bước 3)",
+    },
     "risk_tags": {
         "label": "Bài học lỗi: tách tag 'motion' thành 6 trục rủi ro I2V (face_morph, body_deform, wardrobe_drift, background_drift, "
                  "motion_overload, text_logo_corrupt) + identity/physics/lipsync/audio; lỗi không gán được tag hiện ở 'Chưa phân loại' + diag",

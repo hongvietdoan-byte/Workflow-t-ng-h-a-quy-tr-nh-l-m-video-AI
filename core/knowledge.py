@@ -158,6 +158,41 @@ def murch_blocks(group: str) -> List[str]:
     return out
 
 
+# S14.34 (cờ `kelly_knowledge`, TẮT mặc định): the Kelly channel analysis (S14.32) as one short suggestion book per role. The Biên kịch
+# is not a knowledge group (its prompt is built in core/idea_to_script.py), so its book is listed here only for reading it.
+KELLY_DOCS = {
+    "screenwriter": [("knowledge/craft/kelly_bien_kich.md", "Kelly -> Biên kịch", "cờ kelly_knowledge: 4 khuôn kịch bản, kỹ thuật né, hook/nhịp/cú chốt")],
+    "director": [("knowledge/craft/kelly_dao_dien.md", "Kelly -> Đạo diễn", "cờ kelly_knowledge: lớp thông tin thay cảnh trận, ý đồ phản ứng mặt")],
+    "dp": [("knowledge/craft/kelly_quay_phim.md", "Kelly -> Quay phim", "cờ kelly_knowledge: máy tĩnh, ngang mắt, chừa chỗ đồ hoạ")],
+    "editor": [("knowledge/craft/kelly_dung.md", "Kelly -> Dựng và âm thanh", "cờ kelly_knowledge: nhịp, lớp hậu kỳ, nhạc/hiệu ứng")],
+}
+KELLY_LISTED_IN = {"director": ("director",), "dp": ("director",), "editor": ("director",)}   # knowledge-page group that shows each book
+
+
+def _kelly_on() -> bool:
+    from . import features
+    try:
+        return features.on("kelly_knowledge")
+    except KeyError:
+        return False
+
+
+def kelly_blocks(role: str) -> List[str]:
+    """The text of the Kelly book of `role` (screenwriter / director / dp / editor) when the flag is on, else []. A listed file that cannot
+    be read is said aloud (CHUAN luật 1)."""
+    if role not in KELLY_DOCS:
+        raise ValueError(f"unknown Kelly role '{role}'")
+    if not _kelly_on():
+        return []
+    out = []
+    for rel, title, _ in KELLY_DOCS[role]:
+        text = _read(os.path.join(ROOT, *rel.split("/"))).strip()
+        if not text:
+            raise FileNotFoundError(f"Cờ kelly_knowledge bật nhưng không đọc được '{rel}' ({title}) — tắt cờ hoặc khôi phục file.")
+        out.append(text)
+    return out
+
+
 def builtin_docs(group: str) -> List[Dict]:
     out = []
     crew = _film_crew()
@@ -179,6 +214,13 @@ def builtin_docs(group: str) -> List[Dict]:
         text = _read(path)
         out.append({"source": "builtin", "title": title, "note": note, "file": rel, "path": os.path.abspath(path),
                     "chars": len(text), "enabled": True, "exists": bool(text), "crew_replaced": False})
+    if _kelly_on():                                                       # S14.34: the books the Director / DP / Editor read
+        for role, groups in KELLY_LISTED_IN.items():
+            for rel, title, note in (KELLY_DOCS[role] if group in groups else []):
+                path = os.path.join(ROOT, *rel.split("/"))
+                text = _read(path)
+                out.append({"source": "builtin", "title": title, "note": note, "file": rel, "path": os.path.abspath(path),
+                            "chars": len(text), "enabled": True, "exists": bool(text), "crew_replaced": False})
     return out
 
 
