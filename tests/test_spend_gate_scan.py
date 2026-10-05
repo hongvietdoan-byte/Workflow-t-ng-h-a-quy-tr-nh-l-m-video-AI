@@ -40,7 +40,8 @@ CALLEE_OK = {
     "submit_model": "Meshy — sổ credit riêng (core/meshy.py), không qua bảng giá USD",
     "submit_rig": "Meshy — sổ credit riêng (core/meshy.py)",
 }
-RECEIVER_OK = {"pool": "ThreadPoolExecutor.submit — không phải lời gọi trả tiền"}
+RECEIVER_OK = {"pool": "ThreadPoolExecutor.submit — không phải lời gọi trả tiền",
+               "_pool": "ThreadPoolExecutor.submit (core/machine_auth.py tra tên máy DNS, S14.7) — không phải lời gọi trả tiền"}
 # (file, function qualname) → (why, a text that must stay in the function so the reason does not rot)
 FUNC_OK = {
     ("core/runner.py", "_Runner._submit_pending"): ("mẫu cũ giữ nguyên: SPEND_LOCK + self._over_budget (ImageRunner/VideoRunner gọi "
