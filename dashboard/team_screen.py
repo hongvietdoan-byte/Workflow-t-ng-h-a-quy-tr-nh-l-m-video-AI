@@ -3,7 +3,7 @@
 Reads what already exists (core/perf.by_user, core/auth users + audit log) and adds: money per person (core/team.spend_by_user), a soft
 monthly limit (warning only), role presets (core/team.ROLES over the 5 permissions), invite by e-mail. Only the Owner changes people."""
 from dashboard.common import *  # noqa: F401,F403  (shared imports + helpers)
-from dashboard import access_ui, common as C
+from dashboard import access_ui, common as C, limits_ui
 from contextlib import ExitStack
 
 from core import access, perf, team
@@ -291,6 +291,8 @@ def team_screen(p: Pipeline, pid: int):
                 st.rerun()
     with (D.card("team-machines") if v2 else st.container(border=True)):      # S14.7: LAN sign-in only from approved PCs
         machines_block(p)
+    with (D.card("team-limits") if v2 else st.container(border=True)):        # S14.18: per-person project limits + requests
+        limits_ui.team_block(p, [r["user"]["email"] for r in members])
     with (D.card("team-access") if v2 else st.container(border=True)):        # đợt F: who watches which project, and projects with no creator
         st.markdown("**Quyền theo dự án**", help=ACCESS_NOTE)
         access_ui.team_panel(p)

@@ -180,10 +180,10 @@
       "name": "Chẩn đoán, hiệu năng & giới hạn",
       "weight": 0.6,
       "description": "Ghi lỗi/cảnh báo khi chạy thật, số đo tải, giới hạn hệ thống đo từ lịch sử job, hiệu quả quy trình.",
-      "code": ["core/diag.py", "core/perf.py", "core/capacity.py", "core/effectiveness.py", "core/feedback.py", "core/inbox.py", "core/team.py", "core/access.py", "core/machine_auth.py", "dashboard/access_ui.py", "dashboard/home.py", "dashboard/team_screen.py"],
+      "code": ["core/diag.py", "core/perf.py", "core/capacity.py", "core/effectiveness.py", "core/feedback.py", "core/inbox.py", "core/team.py", "core/access.py", "core/machine_auth.py", "core/person_limits.py", "dashboard/access_ui.py", "dashboard/home.py", "dashboard/team_screen.py", "dashboard/limits_ui.py"],
       "assets": ["tools/diagnose.py", "tools/audit_run.py", "tools/load_test.py", "tools/effectiveness_baseline.py"],
       "docs": [],
-      "tests": ["tests/test_team_money_reset.py", "tests/test_access.py", "tests/test_access_ui.py", "tests/test_machine_auth.py", "tests/test_feedback.py", "tests/test_effectiveness_history.py"],
+      "tests": ["tests/test_team_money_reset.py", "tests/test_access.py", "tests/test_access_ui.py", "tests/test_machine_auth.py", "tests/test_person_limits.py", "tests/test_person_limits_ui.py", "tests/test_feedback.py", "tests/test_effectiveness_history.py"],
       "flags": [],
       "diag_stages": [],
       "keywords": ["chẩn đoán", "diag", "hiệu năng", "giới hạn hệ thống", "capacity", "perf"]

@@ -1,7 +1,7 @@
 """Header: login, account bar, settings gear + dialogs, project bar (picker, risk, project settings, pause/cancel)."""
 from dashboard.common import *  # noqa: F401,F403  (shared imports + helpers)
 from core import access, archive
-from dashboard import access_ui, common as C
+from dashboard import access_ui, common as C, limits_ui
 from dashboard.admin import asset_library_panel, history, knowledge_panel, lessons_tab, price_editor, users_tab
 
 
@@ -291,18 +291,33 @@ def new_project_control(p: Pipeline) -> None:
                      format_func=lambda k: catalog[k][0])
         st.button("Tạo dự án", key="new_project_go", type="primary", disabled=not (st.session_state.get("new_name") or "").strip(),
                   on_click=_create_project, args=(p,))
+        limits_ui.usage_caption(p)                   # S14.18: dở x/2 · hôm nay y/2 · đang cất z/1 (Owner: không giới hạn)
+        limits_ui.panel(p, "create")
 
 
 def _restore_project(project_id: int) -> None:
     """Button callback (runs before the widgets, so it may still switch the picker to the restored project)."""
-    archive.restore(C.scoped(Pipeline(connect(C.DB))), project_id)     # a callback runs in another thread than the one that made `p`
+    from core import person_limits
+    try:
+        archive.restore(C.scoped(Pipeline(connect(C.DB))), project_id)  # a callback runs in another thread than the one that made `p`
+    except person_limits.LimitReached as e:              # S14.18: 2 unfinished open already — GIỮ / BỎ (BỎ = swap in one move)
+        limits_ui.remember(e, "restore", project_id)
+        return
+    limits_ui.clear()
     st.session_state["global_pid"] = project_id
     st.toast("Đã khôi phục dự án — dự án vẫn đang tạm dừng, bấm ▶ Tiếp tục khi muốn chạy tiếp")
 
 
 def archived_list(p: Pipeline) -> None:
-    """⚙ → 📦 Dự án đã cất: every put-away project with a restore button (nothing was deleted)."""
-    rows = archive.archived_projects(p.conn, C.access_user())
+    """⚙ → 📦 Dự án đã cất: every put-away project with a restore button (nothing was deleted). S14.18: finished ones are listed apart
+    in the "🏁 Kho dự án đã xong" (no limit); the 📦 list is the unfinished ones (a person keeps at most 1, core/person_limits)."""
+    limits_ui.panel(p, "restore")
+    done = archive.finished_projects(p.conn, C.access_user())
+    if done:
+        with st.expander(f"🏁 Kho dự án đã xong ({len(done)})"):
+            st.caption("Dự án đã xuất bản giao rồi cất: giữ quá trình job, sổ chi, bản giao để tra cứu. Không giới hạn số lượng.")
+            _archived_rows(p, done)
+    rows = archive.parked_projects(p.conn, C.access_user())
     if not rows:
         return
     if ui.v2_on():                                   # v2: a fold (the list can be long) whose note is the old one-line caption
@@ -443,9 +458,16 @@ def _settings_project_body(p: Pipeline, pid: int) -> None:
     if confirm_all(f"proj_archive_{pid}", [pid], "📦 Cất dự án này",
                    f"Cất dự án “{proj['name']}”? Dự án ẩn khỏi danh sách, tạm dừng và không chạy tự động; KHÔNG xóa gì "
                    "(ảnh, clip, chi tiêu giữ nguyên). Khôi phục bất cứ lúc nào ở ⚙ → Dự án → “📦 Dự án đã cất”.", st, "Có, cất"):
-        archive.archive(p, pid)
-        st.toast(f"Đã cất dự án “{proj['name']}”")
-        st.rerun()
+        from core import person_limits
+        try:
+            archive.archive(p, pid)
+        except person_limits.LimitReached as e:      # S14.18: 1 unfinished project put away already — restore / delete / ask the Owner
+            limits_ui.remember(e, "archive", pid)
+        else:
+            limits_ui.clear()
+            st.toast(f"Đã cất dự án “{proj['name']}”")
+            st.rerun()
+    limits_ui.panel(p, "archive")
     if not can_delete_project(proj):
         who = proj["created_by"]
         st.caption("Dự án này do " + (escape(who) if who else "người dùng cũ") + " tạo nên bạn không xóa được.")
@@ -761,8 +783,15 @@ def _dialog_clone(p: Pipeline, pid: int) -> None:
     rows = st.checkbox("Giữ nguyên các cảnh/shot hiện tại (cùng kế hoạch của Director)", True, key="clone_rows",
                        help="Bỏ chọn để chạy lại Director ở bản sao (ví dụ đổi từ 'một clip mỗi cảnh' sang 'chia shot').")
     if st.button("🧬 Tạo bản sao", key="clone_go", type="primary", disabled=not name.strip()):
-        new = compare.clone_project(p, pid, name.strip(), mode, with_rows=rows)
-        st.success(f"Đã tạo dự án #{new} “{name.strip()}” — chọn ở ô Dự án trên cùng.")
+        from core import person_limits
+        try:
+            new = compare.clone_project(p, pid, name.strip(), mode, with_rows=rows)
+        except person_limits.LimitReached as e:      # S14.18: a copy is a new project — same limits as ➕ Dự án mới
+            limits_ui.remember(e, "clone")
+        else:
+            limits_ui.clear()
+            st.success(f"Đã tạo dự án #{new} “{name.strip()}” — chọn ở ô Dự án trên cùng.")
+    limits_ui.panel(p, "clone")
 
 
 @st.dialog("💲 Bảng giá", on_dismiss=lambda: close_dialog("dlg_pricing"))
@@ -1124,9 +1153,15 @@ def _create_project(p: Pipeline) -> None:
     if not name:
         return
     p = C.scoped(Pipeline(connect(C.DB)))                     # a callback runs in another thread than the one that made `p`
-    pid = p.create_project(name, created_by=me()["email"], aspect=st.session_state.get("new_aspect"),
-                           genre=st.session_state.get("new_genre"), model_priority=st.session_state.get("new_prio"),
-                           game=st.session_state.get("new_game"))
+    from core import person_limits
+    try:
+        pid = p.create_project(name, created_by=me()["email"], aspect=st.session_state.get("new_aspect"),
+                               genre=st.session_state.get("new_genre"), model_priority=st.session_state.get("new_prio"),
+                               game=st.session_state.get("new_game"))
+    except person_limits.LimitReached as e:                   # S14.18: said with its numbers + GIỮ / BỎ or the request to the Owner
+        limits_ui.remember(e, "create")
+        return
+    limits_ui.clear()
     qc_policy.apply(p, pid, "balanced")
     from core import project_defaults             # S3.8: start from the way of working settled in the latest project
     copied = project_defaults.inherit(p.conn, pid, me()["email"])
