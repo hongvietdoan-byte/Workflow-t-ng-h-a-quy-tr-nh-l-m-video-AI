@@ -68,6 +68,7 @@ Lưu ý chung: nút **↺ Làm lại từ đầu** xuất hiện ở job đã h�
 | Job kẹt `running` rất lâu | Nền tảng chậm; job không tìm thấy trong danh sách gần nhất | *Submit + Poll 1 lần*; nếu vẫn không thấy sau ~12 lần hỏi, job tự đánh `failed` (`not_found`) → kiểm tra trên web Clip AI/Deepix |
 | Nhạc/SFX **failed** | Lỗi nhà cung cấp | Đọc thông điệp lỗi, sửa prompt, tạo lại thủ công (không tự gửi lại) |
 | Ảnh hiện "Không đọc được ảnh" | File tải về hỏng | Retry job ảnh |
+| ⚠ "chưa chỉnh được cao độ biến thể" (Character Bible) | Vai dùng chung giọng (S14.26, cờ `auto_voice_cast`): ffmpeg thiếu/lỗi khi chỉnh cao độ sau TTS | Kiểm tra ffmpeg; lần cập nhật giọng sau tự chỉnh lại từ file gốc `*.raw.*` (0 USD, không gửi TTS lại). Hồ sơ giọng đã có `variant` vẫn được chỉnh cao độ cả khi đã tắt cờ; muốn bỏ biến thể thì chọn giọng khác rồi 💾 Lưu |
 
 ## 6. Chi phí
 - Trước mỗi lô gen, Dashboard hiện **ước tính** (min và max nếu mọi mục retry đủ lần). Lô ≥ `confirm_batch_at` (mặc định 10) phải tick xác nhận.

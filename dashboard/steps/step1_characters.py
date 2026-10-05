@@ -244,7 +244,7 @@ def character_detail_panel(p: Pipeline, pid: int, c, voices, client, locked: boo
             persona = v2.text_input("Cách nói (persona)", prof.get("persona", ""), key=f"persona_{pid}_{c['name']}",
                                     placeholder="câu ngắn, hay cà khịa, nói 'nha'…")
             if (pick, persona) != (cur, prof.get("persona", "")) and st.button("💾 Lưu giọng", key=f"voice_save_{pid}_{c['name']}"):
-                voice.set_profile(p.conn, pid, c["name"], {"voice_id": pick, "voice_name": names.get(pick), "persona": persona} if pick else None)
+                voice.set_profile(p.conn, pid, c["name"], voice_casting.saved_profile(prof, pick, names.get(pick), persona))   # S14.26: same voice keeps its variant
                 st.rerun()
             voice_preview_row(p, pid, c["name"], cur, names.get(cur))
         else:
@@ -285,7 +285,7 @@ def voice_cast_note(p: Pipeline, pid: int, c, prof) -> None:
         cap(" · ".join(bits), f"vcast-{pid}-{c['name']}")
 
 
-def voice_rule_box(p: Pipeline, pid: int, rows, speakers) -> None:
+def voice_rule_box(p: Pipeline, pid: int, rows, speakers, data_dir: Optional[str] = None) -> None:
     """S14.26: roles sharing a voice said plainly, and the 0 USD rule (data/voices_vi.json) run by hand — fills only roles without a
     voice (or with an auto one that no longer fits); a voice the person chose is never changed."""
     shared = voice_casting.shared_voices(p.conn, pid)
@@ -298,6 +298,12 @@ def voice_rule_box(p: Pipeline, pid: int, rows, speakers) -> None:
         st.caption("🔁 Vai dùng chung giọng: " + "; ".join(
             f"{profs[names[0]].get('voice_name') or '#' + str(vid)} — " + ", ".join(who(n) for n in names)
             for vid, names in shared.items()) + ". Biến thể cao độ chỉnh bằng ffmpeg sau TTS (0 USD) để hai vai nghe khác nhau.")
+    lines_dir = os.path.join(data_dir or C.DATA, str(pid), "audio_assets")       # = audio_lib.assets_dir, without creating it
+    bad = [e for e in audio_lib.load(lines_dir) if e.get("kind") == "tts" and e.get("pitch_failed") and e.get("state") != "superseded"]
+    if bad:                                    # S14.26: a pitch that failed is retried at 0 USD on the next refresh — said meanwhile
+        st.warning(f"⚠ {len(bad)} câu thoại chưa chỉnh được cao độ biến thể (nghe giống vai dùng chung giọng): "
+                   + "; ".join(f"{e.get('speaker') or '?'} — {(e.get('message') or '')[:120]}" for e in bad[:3])
+                   + " — tự thử lại (0 USD) ở lần cập nhật giọng sau; kiểm tra ffmpeg.")
     if not voice_casting.enabled():
         return
     todo = [r["name"] for r in rows if r["name"].upper() in speakers and not voice.get_profile(r).get("voice_id")]
