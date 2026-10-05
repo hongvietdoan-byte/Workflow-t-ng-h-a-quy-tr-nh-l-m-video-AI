@@ -279,8 +279,13 @@ def sync_knowledge(conn, group: str) -> Optional[Dict]:
                                       "tải lại trang rồi bấm lại.") from e
         return None
     lines = ["# Bài học rút ra từ các dự án trước (đã được người duyệt)", ""]
-    for r in reversed(approved):
+    for r in reversed([r for r in approved if r.get("source") != "research"]):
         lines.append(f"- **{r['title']}**: {r['body'].strip()}")
+    research = [r for r in approved if r.get("source") == "research"]
+    if research:            # S14.5 C2b: found on the web → after the mark, sent wrapped as reference material (knowledge.user_text)
+        lines += ["", knowledge.RESEARCH_MARK, "## Bài học từ nguồn nghiên cứu trên web (đã được người duyệt)", ""]
+        for r in reversed(research):
+            lines.append(f"- **{r['title']}**: {r['body'].strip()}")
     try:
         return knowledge.replace_doc(group, DOC_TITLE, "bai_hoc.md", "\n".join(lines).encode("utf-8"), title=DOC_TITLE,
                                      note="tự sinh từ tab Bài học; đừng sửa tay")

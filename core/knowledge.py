@@ -20,6 +20,9 @@ ROOT = os.path.join(os.path.dirname(__file__), "..")
 MAX_DOC_CHARS = 50_000       # one uploaded document
 MAX_USER_CHARS = 150_000     # all uploaded documents of one step
 ALLOWED = (".md", ".txt", ".docx")
+# S14.5 C2b: in the auto lessons document (core/lessons.py) the lessons found by web research come after this line; user_text
+# sends that part wrapped by prompts.external_block (reference material, not instructions). Uploaded documents are sent as they are.
+RESEARCH_MARK = "<!-- research: nguồn web -->"
 
 # step -> (label, what it does, built-in files [(relative path, title, note)])
 GROUPS: Dict[str, tuple] = {
@@ -371,6 +374,15 @@ def remove_doc(group: str, file: str) -> None:
         pass
 
 
+def _wrap_research(text: str) -> str:
+    """The part after RESEARCH_MARK (lessons found on the web) wrapped as outside material; text without the mark is unchanged."""
+    if RESEARCH_MARK not in text:
+        return text
+    from .prompts import external_block
+    head, _, tail = text.partition(RESEARCH_MARK)
+    return (head.rstrip() + "\n\n" + external_block("bài học từ nguồn nghiên cứu trên web", tail)).strip()
+
+
 def user_text(group: str) -> str:
     """What is appended to the step's prompt: the distilled playbook when one is active, else the enabled uploaded
     documents as they are ('' when there is nothing)."""
@@ -378,7 +390,7 @@ def user_text(group: str) -> str:
     if active:
         return ("# Cẩm nang kiến thức đã chắt lọc (từ tài liệu do người dùng cung cấp)\n\nÁp dụng cẩm nang dưới đây cùng "
                 "với hướng dẫn ở trên; nếu mâu thuẫn, ưu tiên cẩm nang.\n\n" + active["text"])
-    parts = [f"## {d['title']}\n\n{_read(d['path']).strip()}" for d in user_docs(group) if d["enabled"]]
+    parts = [f"## {d['title']}\n\n{_wrap_research(_read(d['path']).strip())}" for d in user_docs(group) if d["enabled"]]
     if not parts:
         return ""
     return ("# Tài liệu bổ sung do người dùng cung cấp\n\nÁp dụng các tài liệu dưới đây cùng với hướng dẫn ở trên; "
@@ -425,7 +437,7 @@ def distill_inputs(group: str, include_builtin: bool) -> List[tuple]:
     docs = []
     for d in user_docs(group):
         if d["enabled"]:
-            docs.append((d["title"], _read(d["path"]).strip()))
+            docs.append((d["title"], _wrap_research(_read(d["path"]).strip())))   # rà 06/10: web research wrapped here too
     if include_builtin:
         for rel, title, _ in GROUPS[group][2]:
             if rel in _FOLDABLE[group]:

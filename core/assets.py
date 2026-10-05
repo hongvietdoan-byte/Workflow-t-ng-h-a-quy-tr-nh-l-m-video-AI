@@ -1273,9 +1273,11 @@ def location_landmark(conn, place: Dict, scene: Optional[Dict]) -> Optional[Dict
             or next((i for i in place["images"] if i.get("role") == "low_angle"), None))
 
 
-def location_text(conn, place: Dict) -> str:
+def location_text(conn, place: Dict, for_llm: bool = False) -> str:
     """B1: the place in words for the image prompt — its description and, from the set analyses already read or rendered, the real
-    heights of its landmarks (so people get the right size next to a wall or a door without copying a picture's camera)."""
+    heights of its landmarks (so people get the right size next to a wall or a door without copying a picture's camera).
+    for_llm=True (the QC agent's brief, read by Claude): the website part of the description goes wrapped by prompts.external_block
+    (rà bảo mật 06/10); the image model gets plain words (a tag and a Vietnamese note would only pollute the picture prompt)."""
     marks, light = [], ""
     for img in place["images"]:
         try:
@@ -1290,15 +1292,21 @@ def location_text(conn, place: Dict) -> str:
             name, h = str(lm.get("name") or "").strip(), lm.get("height_m")
             if name and isinstance(h, (int, float)) and name not in [m[0] for m in marks]:
                 marks.append((name, float(h)))
-    desc = re.sub(r"\s+", " ", (place.get("description") or "").split("[AI đọc ảnh]")[0]).strip()[:600]   # S5.2: 300 cut the
-    # tower's "No stacked terraces, no fortress." off its layout sentence
+    head = (place.get("description") or "").split("[AI đọc ảnh]")[0]
+    desc = re.sub(r"\s+", " ", head).strip()[:600]   # S5.2: 300 cut the tower's "No stacked terraces, no fortress." off its layout sentence
+    web_part = ""
+    own, web = split_web(head)
+    if for_llm and web:
+        from .prompts import external_block
+        desc = re.sub(r"\s+", " ", own).strip()[:600]
+        web_part = external_block("ff.garena.com — mô tả bối cảnh", re.sub(r"\s+", " ", web).strip()[:max(600 - len(desc), 120)])
     bits = [f"Setting: {place['name']}" + (f" — {desc}" if desc else "")]
     if marks:
         bits.append("Real sizes: " + ", ".join(f"{n} about {h:g} m tall" for n, h in marks[:6])
                     + "; an adult is about 1.7 m, keep people in proportion to these")
     if light and not light.startswith("3D render"):
         bits.append(f"Light: {light[:120]}")
-    return ". ".join(bits) + "."
+    return ". ".join(bits) + "." + (f"\n{web_part}" if web_part else "")
 
 
 def gap_severity(gap: str) -> str:
@@ -1506,7 +1514,11 @@ def _news_for(conn, items: List[Dict], limit: int = 3, around: int = 170) -> str
         used.add(row["id"])
         if len(lines) >= limit:
             break
-    return ("\n\n## Tin tức chính thức liên quan (tham khảo bối cảnh, không bắt buộc)\n" + "\n".join(lines) + "\n") if lines else ""
+    if not lines:
+        return ""
+    from .prompts import external_block                                 # S14.5 C2b: website text is reference, not instruction
+    return ("\n\n## Tin tức chính thức liên quan (tham khảo bối cảnh, không bắt buộc)\n"
+            + external_block("ff.garena.com — tin tức", "\n".join(lines)) + "\n")
 
 
 CONTEXT_DESC_CHARS = 320
@@ -1528,6 +1540,22 @@ def replace_block(description: str, mark: str, text: str) -> str:
     out = [base] if base else []
     out += [f"{m} {blocks[m]}" for m in BLOCK_MARKS if blocks.get(m)]
     return "\n\n".join(out)
+
+
+WEB_MARK = BLOCK_MARKS[0]           # the block written by core/ff_site.py from the website
+
+
+def split_web(description: str):
+    """(the description without the website block, the website block's text) — S14.5 C2b: the person's words and our own tools'
+    blocks stay as they are; only the website text is sent wrapped as outside material."""
+    parts = re.split("(" + "|".join(re.escape(m) for m in BLOCK_MARKS) + ")", description or "")
+    own, web = ([parts[0].rstrip()] if parts[0].strip() else []), ""
+    for m, body in zip(parts[1::2], parts[2::2]):
+        if m == WEB_MARK:
+            web = body.strip()
+        elif body.strip():
+            own.append(f"{m} {body.strip()}")
+    return "\n\n".join(own), web
 
 
 def _brief(text: str, limit: int = CONTEXT_DESC_CHARS) -> str:
@@ -1553,16 +1581,23 @@ def context_text(conn, project_id: int) -> str:
     items = project_assets(conn, project_id)
     if not items:
         return ""
-    lines = []
+    from .prompts import external_block
+    lines, web_lines = [], []
     for a in items:
         also = f" (tên khác: {a['aliases']})" if a["aliases"].strip() else ""
         pics = f" — có {len(a['images'])} ảnh tham khảo" if a["images"] else ""
-        desc = f": {_brief(a['description'])}" if a["description"] else ""
+        own, web = split_web(a["description"])
+        own_brief = _brief(own) if own else ""
+        desc = f": {own_brief}" if own_brief else ""
+        if web:                                          # same total budget as before: the website part gets what the own text left
+            web_lines.append(f"- {a['name']}: {_brief(web, max(CONTEXT_DESC_CHARS - len(own_brief), 120))}")
         ident = f" (id {a['id']})" if a["kind"] == "location" and a["images"] else ""
         worn = " — trang phục để nhân vật mặc, không phải nhân vật (không thêm vào Character Bible)" if a["kind"] == "outfit" else ""
         lines.append(f"- [{a['kind_label']}] **{a['name']}**{ident}{also}{desc}{pics}{worn}")
     news = _news_for(conn, items)
-    return ("# Tài nguyên có sẵn cho dự án này (BẮT BUỘC dùng)\n" + "\n".join(lines) + news +
+    site = ("\n\n## Mô tả từ website chính thức (ff.garena.com) của các mục trên\n"
+            + external_block("ff.garena.com — mô tả mục Kho", "\n".join(web_lines))) if web_lines else ""
+    return ("# Tài nguyên có sẵn cho dự án này (BẮT BUỘC dùng)\n" + "\n".join(lines) + site + news +
             "\nDùng đúng tên và thiết kế ở trên cho Character Bible và các cảnh; không tự bịa lại ngoại hình của những mục này. "
             "Chỉ thêm nhân vật/đạo cụ mới khi kịch bản cần mà danh sách không có. "
             "Cảnh diễn ra ở một địa điểm có `id` ở trên thì ghi đúng số đó vào `location_asset` của cảnh (ảnh địa điểm sẽ được "

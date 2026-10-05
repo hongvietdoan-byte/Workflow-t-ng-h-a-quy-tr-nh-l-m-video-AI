@@ -88,8 +88,11 @@ def kit(conn, pid: int, game: str = "FF") -> Dict[str, List[Dict]]:
                 continue
             prof = assets.get_profile(conn, a["id"])
             approved = _brief(prof.get("must_keep") or prof.get("identity") or "") if prof.get("approved") else ""
-            draft = "" if approved else _brief(a.get("description") or "")
-            out["characters"].append({"name": a["name"], "names": names, "outfit": approved or draft, "draft": bool(draft)})
+            own, web = assets.split_web(a.get("description") or "")     # rà bảo mật 06/10: website text goes wrapped (kit_block)
+            draft = "" if approved else _brief(own)
+            web = "" if approved else _brief(web)
+            out["characters"].append({"name": a["name"], "names": names, "outfit": approved or draft, "draft": bool(draft or web),
+                                      "web": web})
     have = {assets.fold(c["name"]) for c in out["characters"]}
     for d in (skill_dossier.load(n) for n in skill_dossier.names()):
         if d and d.get("active", True) and assets.fold(d.get("character") or "") in have:
@@ -227,13 +230,19 @@ def kit_block(k: Dict) -> str:
     lines = ["## Thứ dựng chắc được (CHỈ chọn trong danh sách này)"]
     lines.append("Nơi (map — khu vực): " + ("; ".join(f"{p['name']}{_aka(p)} — " + (", ".join(p["spots"]) or "mặc định") for p in k["places"]) or "(trống)"))
     lines.append("Nhân vật (trang phục mặc định): " + ("; ".join(
-        f"{c['name']}{_aka(c)} — " + (f"{c['outfit']} (hồ sơ chưa duyệt — lấy từ mô tả, chưa chắc đúng)" if c.get("draft") else
+        f"{c['name']}{_aka(c)} — " + (f"{c['outfit'] or 'xem mô tả website bên dưới'} (hồ sơ chưa duyệt — lấy từ mô tả, chưa chắc đúng)"
+                                      if c.get("draft") else
                              c["outfit"] or "chưa có hồ sơ trang phục") for c in k["characters"]) or "(trống)"))
     lines.append("Kỹ năng có hồ sơ: " + ("; ".join(f"{s['character']} — {s['skill']}" for s in k["skills"]) or "(không có)"))
     if k.get("excluded"):
         lines.append("Đã loại, KHÔNG dùng: " + "; ".join(f"{x['name']} ({x['why']})" for x in k["excluded"]))
     if not k["places"] or not k["characters"]:
         lines.append("Danh sách trống một phần: KHÔNG được tự bịa nơi / nhân vật — ghi vào `notes` rằng Kho thiếu gì.")
+    web = [f"- {c['name']}: {c['web']}" for c in k["characters"] if c.get("web")]
+    if web:
+        from .prompts import external_block
+        lines.append("Mô tả nhân vật từ website chính thức (hồ sơ chưa duyệt):\n"
+                     + external_block("ff.garena.com — mô tả nhân vật", "\n".join(web)))
     return "\n".join(lines)
 
 

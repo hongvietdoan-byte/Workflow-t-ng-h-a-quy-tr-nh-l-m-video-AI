@@ -571,7 +571,7 @@ class QcAgent:
         place = ""
         try:
             loc = assets.scene_location(self.p.conn, self.pid, self.frames[0]["data"])
-            place = assets.location_text(self.p.conn, loc) if loc is not None else ""
+            place = assets.location_text(self.p.conn, loc, for_llm=True) if loc is not None else ""   # rà 06/10: web part wrapped
         except Exception:  # noqa: BLE001 - the brief goes without it
             place = ""
         per_frame = (f"# Cách làm (khóa cứng)\nChấm TỪNG KHUNG, mỗi khung một phiên ngắn tối đa {FRAME_TURNS} lượt (tối đa {LOOKS_PER_TURN} "
