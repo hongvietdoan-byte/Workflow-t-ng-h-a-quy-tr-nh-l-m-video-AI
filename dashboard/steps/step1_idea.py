@@ -64,10 +64,27 @@ def idea_settings_form(p: Pipeline, pid: int, idea: str) -> None:
                                    default=[c for c in inp.get("characters", []) if c in {n.upper() for n in lib["characters"]}])
             tone = d2.text_input("Giọng điệu", inp.get("tone", ""), placeholder="hài, dễ thương")
             cta = d3.text_input("CTA (đúng chữ, cảnh cuối)", inp.get("cta", ""), placeholder="Tải Free Fire ngay")
+            from core import idea_buildable as B
+            k, an = B.kit(p.conn, pid), inp.get("anchors") or {}
+            st.markdown("**Điểm then chốt** — bắt buộc; Biên kịch chỉ mở rộng chi tiết quanh các điểm này (thiếu thì không chạy, 0 USD)")
+            e1, e2 = st.columns(2)
+            kchars = [c["name"].upper() for c in k["characters"]]
+            achars = e1.multiselect("Nhân vật (chỉ nhân vật có ảnh chuẩn trong Kho)", kchars, default=[c for c in an.get("characters", []) if c in kchars])
+            costume = e2.text_input("Trang phục", an.get("costume", ""), placeholder="mặc định (hoặc tên bộ có hồ sơ)")
+            kplaces = [pl["name"] for pl in k["places"]]
+            place = e1.selectbox("Nơi quay (map có 3D / nền trong Kho)", [""] + kplaces,
+                                 index=([""] + kplaces).index(an["place"]) if an.get("place") in kplaces else 0)
+            gp = e2.radio("Có cảnh gameplay / giao diện game?", ["", "không", "có"], horizontal=True,
+                          index=["", "khong", "co"].index(an.get("gameplay_ui", "")) if an.get("gameplay_ui", "") in ("", "khong", "co") else 0,
+                          help="'có' = chấp nhận rủi ro: chưa có tư liệu chứng minh dựng được màn hình điện thoại / sảnh / combat gameplay.")
+            plot = st.text_input("Diễn biến chính / mâu thuẫn", an.get("plot", ""), placeholder="Kelly và Maxim tranh nhau thùng thính")
+            ending = st.text_input("Cú chốt / kết", an.get("ending", ""), placeholder="mở thùng ra thì trống trơn")
             new = st.form_submit_button("💡 Ý tưởng mới (bắt đầu lại từ lượt 1)" if inp else "💡 Bắt đầu")
         if inp and idea.strip() and idea.strip() != inp.get("idea"):
             cap("Chữ trong khung khác ý tưởng đang làm — bấm 💡 Ý tưởng mới để bắt đầu lại với chữ mới (các lượt cũ bị bỏ).")
-    if new and act(lambda: I.start(p.conn, pid, idea, dur, aspect, platform, tone, chars, cta, trend, p=p)):
+    if new and act(lambda: I.start(p.conn, pid, idea, dur, aspect, platform, tone, chars, cta, trend, p=p,
+                                      anchors={"characters": achars, "costume": costume, "place": place, "plot": plot, "ending": ending,
+                                               "gameplay_ui": gp})):
         st.rerun()
 
 
@@ -76,6 +93,12 @@ def turn_questions(p, pid, state, client, wish, used) -> list:
     from core import idea_to_script as I
     st.markdown("**1 · Hỏi lại**")
     if not state.get("questions"):
+        from core import idea_buildable as B
+        why = B.gate(p.conn, pid, state.get("inputs") or {})
+        if why:                                                    # S14.31 ý 6: ask for what is missing — no paid button, no call
+            for n, t in enumerate(why):
+                say("warning", t, f"script-idea-gate-{pid}-{n}")
+            return None
         if _paid("▶ Lượt 1: Biên kịch đọc ý tưởng + hỏi lại", f"idea_q_{pid}", state) \
                 and act(lambda: I.questions(p.conn, pid, client, wish=wish, p=p)):
             used()

@@ -7,6 +7,26 @@ from core.db import connect
 from core.pipeline import Pipeline
 
 IDEA = "Kelly và Maxim tranh nhau một thùng thính ở Đảo Quân Sự, cuối cùng mở ra thì trống trơn."
+ANCHORS = {"characters": ["KELLY", "MAXIM"], "costume": "mặc định", "place": "Đảo Quân Sự",
+           "plot": "Kelly và Maxim tranh nhau thùng thính", "ending": "mở thùng ra thì trống trơn", "gameplay_ui": "khong"}
+
+
+def make_kit(conn):
+    """S14.31: what the Biên kịch may use = a place with a 3D model + characters with an approved standard picture and a default outfit."""
+    import os
+    import tempfile
+    pic = os.path.join(tempfile.mkdtemp(), "front.png")
+    open(pic, "wb").write(b"x")
+    for name, outfit in (("KELLY", "áo cam, quần jean"), ("MAXIM", "áo giáp xanh, không áo choàng")):
+        aid = assets.create(conn, "FF", "character", name)
+        conn.execute("INSERT INTO asset_images (asset_id, path, label, sort, status, role) VALUES (?,?,?,?,?,?)",
+                     (aid, pic, name, 0, "approved", "front_standard"))
+        conn.commit()
+        assets.set_profile(conn, aid, {"identity": name, "must_keep": outfit}, True)
+    lid = assets.create(conn, "FF", "location", "Đảo Quân Sự")
+    conn.execute("UPDATE assets SET profile=? WHERE id=?", (json.dumps({"model3d": {"path": pic, "default_spot": "bai_co", "spots": {
+        "bai_co": {"at": [0, 0, 0], "label": "bãi cỏ trước nhà kho"}}}}), lid))
+    conn.commit()
 
 
 class Recorder:
@@ -24,13 +44,11 @@ class IdeaTests(unittest.TestCase):
     def setUp(self):
         self.p = Pipeline(connect())
         self.pid = self.p.create_project("ý tưởng", operating_mode="human_qc")
-        for name in ("KELLY", "MAXIM"):
-            assets.create(self.p.conn, "FF", "character", name)
-        assets.create(self.p.conn, "FF", "location", "Đảo Quân Sự")
+        make_kit(self.p.conn)
         self.m = Recorder()
 
     def run_all(self, **kw):
-        I.start(self.p.conn, self.pid, IDEA, **kw)
+        I.start(self.p.conn, self.pid, IDEA, anchors=ANCHORS, **kw)
         I.questions(self.p.conn, self.pid, self.m)
         I.answer(self.p.conn, self.pid, ["vui", ""])
         I.directions(self.p.conn, self.pid, self.m)
@@ -59,7 +77,7 @@ class IdeaTests(unittest.TestCase):
         self.run_all(trend="off")
         self.assertNotIn("## Xu hướng dùng được", "".join(self.m.prompts))
         self.m.prompts.clear()
-        I.start(self.p.conn, self.pid, IDEA, trend="suggest")
+        I.start(self.p.conn, self.pid, IDEA, trend="suggest", anchors=ANCHORS)
         I.questions(self.p.conn, self.pid, self.m)
         self.assertIn("Chưa có thẻ trend nào được duyệt", self.m.prompts[0])
 
@@ -91,7 +109,7 @@ class IdeaTests(unittest.TestCase):
     def test_the_run_has_a_hard_cap_and_bad_inputs_are_refused(self):
         with self.assertRaises(I.IdeaError):
             I.start(self.p.conn, self.pid, "ngắn")
-        I.start(self.p.conn, self.pid, IDEA)
+        I.start(self.p.conn, self.pid, IDEA, anchors=ANCHORS)
         st = I.get_state(self.p.conn, self.pid)
         st["spent"] = I.RUN_CAP_USD
         I.save_state(self.p.conn, self.pid, st)
@@ -105,7 +123,7 @@ class IdeaTests(unittest.TestCase):
                 llm_runner._CAPS.stack[-1]["spent"] += 0.05                    # what the ledger adds for a real call
                 return llm_runner.LlmReply("không phải json", 10, 10)
 
-        I.start(self.p.conn, self.pid, IDEA)
+        I.start(self.p.conn, self.pid, IDEA, anchors=ANCHORS)
         with self.assertRaises(llm_runner.LlmError):
             I.questions(self.p.conn, self.pid, PaidJunk())
         self.assertAlmostEqual(I.get_state(self.p.conn, self.pid)["spent"], 0.10)
@@ -127,15 +145,14 @@ def _legacy_build_prompt(conn, pid, state, turn):
     from core.prompts import _read
     inp = state["inputs"]
     lib = I.library(conn, pid)
-    parts = [f"# Biên kịch — Lượt {turn}", I._section("CHUNG"), "## Vai của bạn", _read("knowledge", "roles", "screenwriter.md"),
+    parts = [f"# Biên kịch — Lượt {turn}", I._section("CHUNG"), I.buildable_blocks(conn, pid, inp), "## Vai của bạn", _read("knowledge", "roles", "screenwriter.md"),
              "## Viết thoại", _read("knowledge", "dialogue_craft.md"), "## Thể loại", _read("knowledge", "genre_guides.md"),
              "## Đầu vào của người dùng",
              f"Ý tưởng: {inp['idea']}\nThời lượng mục tiêu: {inp['duration_s']} s · khung {inp['aspect']} · nền tảng {inp['platform']}"
              + (f"\nGiọng điệu: {inp['tone']}" if inp.get("tone") else "")
              + (f"\nNhân vật người dùng chọn: {', '.join(inp['characters'])}" if inp.get("characters") else "")
              + (f"\nCTA (đúng chữ, ở cảnh cuối): {inp['cta']}" if inp.get("cta") else ""),
-             "## Kho FF (ưu tiên dùng)\nNhân vật: " + (", ".join(sorted(set(lib["characters"]))) or "(trống)")
-             + "\nNơi: " + (", ".join(sorted(set(lib["places"]))) or "(trống)")]
+             ]
     tb = I.trend_block(conn, inp.get("trend", "off"))
     if tb:
         parts.append(tb)
@@ -159,14 +176,12 @@ class WishTests(unittest.TestCase):
     def setUp(self):
         self.p = Pipeline(connect())
         self.pid = self.p.create_project("ý tưởng", operating_mode="human_qc")
-        for name in ("KELLY", "MAXIM"):
-            assets.create(self.p.conn, "FF", "character", name)
-        assets.create(self.p.conn, "FF", "location", "Đảo Quân Sự")
+        make_kit(self.p.conn)
         self.m = Recorder()
 
     def run_all(self, wishes=None):
         wishes = wishes or {}
-        I.start(self.p.conn, self.pid, IDEA, cta="Tải Free Fire ngay")
+        I.start(self.p.conn, self.pid, IDEA, cta="Tải Free Fire ngay", anchors=ANCHORS)
         I.questions(self.p.conn, self.pid, self.m, wish=wishes.get(1, ""))
         I.answer(self.p.conn, self.pid, ["vui", ""])
         I.directions(self.p.conn, self.pid, self.m, wish=wishes.get(2, ""))
@@ -252,3 +267,82 @@ class ReviewFixesS1421(unittest.TestCase):
         with self.assertRaises(access.AccessDenied):
             I.questions(p.conn, pid, m, p=p)
         self.assertEqual(m.prompts, [])
+
+
+class BuildableKitS1431(unittest.TestCase):
+    """S14.31 (05/10, người dùng chấm CHƯA QUA): Biên kịch chỉ nhận 'thứ dựng chắc được'; cảnh giao diện/gameplay bị chặn; điểm then chốt
+    người dùng chốt phải còn; thiếu điểm then chốt → hỏi lại 0 USD, không gọi Claude."""
+
+    def setUp(self):
+        self.p = Pipeline(connect())
+        self.pid = self.p.create_project("ý tưởng", operating_mode="human_qc")
+        make_kit(self.p.conn)
+        assets.create(self.p.conn, "FF", "location", "Thành Phố")                   # in the Kho but no 3D / plate / pack
+        assets.create(self.p.conn, "FF", "character", "LUNA")                       # in the Kho but no standard picture
+        self.m = Recorder()
+
+    def test_missing_key_points_are_asked_back_and_claude_is_not_called(self):
+        I.start(self.p.conn, self.pid, IDEA)
+        with self.assertRaises(I.IdeaError) as cm:
+            I.questions(self.p.conn, self.pid, self.m)
+        for word in ("nhân vật", "nơi", "diễn biến", "cú chốt", "gameplay"):
+            self.assertIn(word, str(cm.exception))
+        self.assertEqual(self.m.prompts, [])
+        self.assertEqual(I.get_state(self.p.conn, self.pid)["spent"], 0)
+        part = dict(ANCHORS, ending="", gameplay_ui="")
+        I.start(self.p.conn, self.pid, IDEA, anchors=part)
+        self.assertEqual(len(I.missing_anchors(I.get_state(self.p.conn, self.pid)["inputs"]["anchors"])), 2)
+        self.assertEqual(I.missing_anchors(ANCHORS), [])
+
+    def test_key_point_outside_the_kit_is_asked_back_too(self):
+        I.start(self.p.conn, self.pid, IDEA, anchors=dict(ANCHORS, place="Thành Phố"))
+        with self.assertRaisesRegex(I.IdeaError, "Thành Phố"):
+            I.questions(self.p.conn, self.pid, self.m)
+        I.start(self.p.conn, self.pid, IDEA, anchors=dict(ANCHORS, characters=["KELLY", "LUNA"]))
+        with self.assertRaisesRegex(I.IdeaError, "LUNA"):
+            I.questions(self.p.conn, self.pid, self.m)
+        self.assertEqual(self.m.prompts, [])
+
+    def test_the_writer_reads_the_buildable_kit_not_the_whole_library(self):
+        I.start(self.p.conn, self.pid, IDEA, anchors=ANCHORS)
+        I.questions(self.p.conn, self.pid, self.m)
+        pr = self.m.prompts[0]
+        self.assertIn("Đảo Quân Sự", pr)
+        self.assertIn("bãi cỏ trước nhà kho", pr)                                  # map + area (spot)
+        self.assertIn("không áo choàng", pr)                                       # the default outfit of MAXIM
+        self.assertNotIn("Thành Phố", pr)
+        self.assertNotIn("LUNA", pr)
+        self.assertIn("màn hình điện thoại", pr)                                   # the ban ...
+        self.assertIn("thanh máu", pr)                                             # ... and the way around it
+        self.assertIn("KHÔNG ĐƯỢC ĐỔI", pr)                                        # the user's key points
+        self.assertIn("mở thùng ra thì trống trơn", pr)
+
+    def test_scenes_with_the_game_interface_or_gameplay_are_blocked(self):
+        bad = "CẢNH 1 - NGÀY, ĐẢO QUÂN SỰ\nCận màn hình điện thoại: Kelly bấm nút bắn trong giao diện Free Fire.\nKELLY: Trúng rồi!"
+        ok = "CẢNH 1 - NGÀY, ĐẢO QUÂN SỰ\nMaxim đứng ở bãi cỏ, thanh máu, tên và số đội hiện trên đầu.\nMAXIM: Đội mình còn bốn người!"
+        inputs = {"duration_s": 15, "anchors": dict(ANCHORS, characters=["MAXIM"], plot="", ending="")}
+        c = I.check_script(self.p.conn, self.pid, bad, inputs)
+        self.assertFalse(c["ok"])
+        self.assertEqual(c["blocked_scenes"][0]["scene"], 1)
+        self.assertTrue(any("giao diện" in t or "màn hình điện thoại" in t for t in c["problems"]))
+        self.assertTrue(I.check_script(self.p.conn, self.pid, ok, inputs)["ok"])
+        said_yes = dict(inputs, anchors=dict(ANCHORS, characters=["MAXIM"], plot="", ending="", gameplay_ui="co"))
+        c2 = I.check_script(self.p.conn, self.pid, bad, said_yes)
+        self.assertEqual(c2["blocked_scenes"], [])                                 # the user chose to have it: said, not blocked
+        self.assertTrue(any("giao diện" in t or "màn hình điện thoại" in t for t in c2["flags"]))
+
+    def test_a_place_without_3d_is_blocked_and_a_lost_key_point_is_blocked(self):
+        script = "CẢNH 1 - NGÀY, THÀNH PHỐ\nKelly chạy qua phố.\nKELLY: Đi nào!"
+        c = I.check_script(self.p.conn, self.pid, script, {"duration_s": 15, "anchors": ANCHORS})
+        self.assertTrue(any("THÀNH PHỐ" in t.upper() and "3D" in t for t in c["problems"]))
+        self.assertEqual(c["blocked_scenes"][0]["scene"], 1)
+        self.assertTrue(any("điểm then chốt" in t for t in c["problems"]))         # no Đảo Quân Sự, no thùng thính, no ending
+        good = ("CẢNH 1 - NGÀY, ĐẢO QUÂN SỰ\nThùng thính rơi giữa Kelly và Maxim.\nKELLY: Của tôi!\n\n"
+                "CẢNH 2 - NGÀY, ĐẢO QUÂN SỰ\nHai người mở thùng ra thì trống trơn.\nMAXIM: Ủa?")
+        self.assertTrue(I.check_script(self.p.conn, self.pid, good, {"duration_s": 15, "anchors": ANCHORS})["ok"])
+        no_end = "CẢNH 1 - NGÀY, ĐẢO QUÂN SỰ\nThùng thính rơi giữa Kelly và Maxim.\nKELLY: Của tôi!\nMAXIM: Còn lâu!"
+        got = I.check_script(self.p.conn, self.pid, no_end, {"duration_s": 15, "anchors": ANCHORS})["problems"]
+        self.assertTrue(any("cú chốt" in t for t in got))
+
+    def test_turn_estimate_covers_the_real_cost(self):
+        self.assertGreaterEqual(I.TURN_USD, 0.045)                                 # real ≈ 0.037 / turn (05/10 record)

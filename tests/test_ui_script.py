@@ -391,7 +391,9 @@ class ScriptBoxTests(unittest.TestCase):
         from core import idea_to_script as I
         pid = self.p.create_project("Nói thêm")
         at = self.say(self.app(pid), IDEA)
-        I.start(self.p.conn, pid, IDEA)                                         # as if "💡 Bắt đầu" was pressed
+        from tests.test_idea_to_script import ANCHORS, make_kit
+        make_kit(self.p.conn)                                                   # S14.31: the Biên kịch needs a kit + key points
+        I.start(self.p.conn, pid, IDEA, anchors=ANCHORS)                         # as if "💡 Bắt đầu" was pressed
         before = I.get_state(self.p.conn, pid)
         at = self.say(at, "cho Maxim thắng ở cuối")
         self.assertEqual(at.session_state[f"box_wish_{pid}"], "cho Maxim thắng ở cuối")
@@ -399,7 +401,7 @@ class ScriptBoxTests(unittest.TestCase):
         self.assertEqual(at.text_area(key=f"paste_{pid}").value, IDEA)          # the idea itself is untouched
         self.assertEqual(I.get_state(self.p.conn, pid), before)                  # nothing sent, nothing paid
         self.assertIn(f"idea_q_{pid}", tree_keys(at))                           # the next turn: a priced button
-        self.assertIn("≈ 0.03 USD", at.button(key=f"idea_q_{pid}").label)
+        self.assertIn("≈ 0.045 USD", at.button(key=f"idea_q_{pid}").label)
         at.button(key=f"box_wish_drop_{pid}").click().run()
         self.assertNotIn(f"box_wish_{pid}", at.session_state)
 
