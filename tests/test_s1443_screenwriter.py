@@ -213,6 +213,17 @@ class RealFFNamesS1443(unittest.TestCase):
     def test_buildable_list_carries_aliases(self):
         self.assertIn("Kelly Tốc Độ", B.kit_block(B.kit(self.p.conn, self.pid)))
 
+    def test_short_names_need_their_accents_no_false_weapon(self):
+        """Rà 5: 'nó' must not match the crossbow Nỏ, 'dạo' not the blade Đao, 'tiếng nổ' not Nỏ (folded compare was too loose)."""
+        assets.create(self.p.conn, "FF", "weapon", "Nỏ", "nỏ bắn tên")
+        assets.create(self.p.conn, "FF", "weapon", "Đao", "đao dài")
+        idea = "Kelly khoe rank với Maxim, nó cười rồi đi dạo ra quảng trường, nghe tiếng nổ."
+        block = B.names_block(self.p.conn, self.pid, {"idea": idea})
+        self.assertNotIn("Nỏ", block)
+        self.assertNotIn("Đao", block)
+        self.assertIn("Nỏ", B.names_block(self.p.conn, self.pid, {"idea": "Kelly giương Nỏ bắn quả táo."}))
+        self.assertIn("Mr. Waggor", B.names_block(self.p.conn, self.pid, {"idea": "chim cánh cụt lẻn vào bếp"}))
+
     def test_no_named_entry_no_block(self):
         self.assertEqual(B.names_block(self.p.conn, self.pid, {"idea": "Hai người ngồi uống trà."}), "")
 

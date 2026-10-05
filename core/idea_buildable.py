@@ -256,6 +256,18 @@ def custom_place_block(conn, pid: int, k: Dict, inputs: Dict) -> str:
             "tả rõ vật dụng và góc nhìn cần có trong bối cảnh (bàn, tủ, quạt trần…) để tạo bối cảnh đủ; không thêm nơi đời thường khác.")
 
 
+SHORT_NAME = 3        # a name / other name this short (folded) must match WITH its accents: 'nó' ≠ Nỏ, 'dạo' ≠ Đao (rà 06/10)
+
+
+def _named(text: str, name: str) -> bool:
+    """`name` is in `text` as whole words — short names with the same accents (case ignored), longer ones accents ignored."""
+    import unicodedata
+    if len(assets.fold(name).replace(" ", "")) > SHORT_NAME:
+        return has_phrase(text, name)
+    t, n = (unicodedata.normalize("NFC", x or "").lower().strip() for x in (text, name))
+    return bool(n) and re.search(r"(?<!\w)" + re.escape(n) + r"(?!\w)", t) is not None
+
+
 def names_block(conn, pid: int, inputs: Dict, extra: str = "", k: Optional[Dict] = None, game: str = "FF") -> str:
     """S14.43 mục 1 (phiếu 05d: 'chim cánh cụt là pet Mr. Waggor'): the Kho entries the idea (+ key points, answers, wishes = `extra`)
     names — by their name OR another name — with the REAL name and the other names, so the Biên kịch calls things by their FF name.
@@ -264,7 +276,7 @@ def names_block(conn, pid: int, inputs: Dict, extra: str = "", k: Optional[Dict]
     text = "\n".join([str((inputs or {}).get("idea") or ""), a["plot"], a["ending"], a["costume"], a["place"], extra or ""])
     if not text.strip():
         return ""
-    hits = assets.find_in_text(conn, text, game, pid)
+    hits = [h for h in assets.find_in_text(conn, text, game, pid) if any(_named(text, n) for n in assets.names_of(h))]
     if not hits:
         return ""
     k = k if k is not None else kit(conn, pid)
