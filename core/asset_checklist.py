@@ -100,6 +100,8 @@ def _validate(obj):
         if not str(row.get("ten") or "").strip():
             raise ValueError("mỗi dòng cần `ten`")
         k = row.get("trong_kho")
+        if isinstance(k, str) and k.strip().isdigit():          # "12" → 12: not worth a paid retry
+            row["trong_kho"] = k = int(k.strip())
         if k is not None and not (isinstance(k, int) and not isinstance(k, bool)):
             raise ValueError("`trong_kho` là id (số) hoặc null")
     return obj
