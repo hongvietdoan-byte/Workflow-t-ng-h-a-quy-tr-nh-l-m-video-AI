@@ -21,7 +21,7 @@ os.chdir(ROOT)
 import pandas as pd  # noqa: E402
 import streamlit as st  # noqa: E402
 
-from devsys import collect, metrics, plan_progress, scorer, scores  # noqa: E402
+from devsys import answers, collect, metrics, plan_progress, scorer, scores  # noqa: E402
 
 st.set_page_config(page_title="AI Development System", page_icon="🧭", layout="wide")
 
@@ -775,12 +775,79 @@ def _task_row(t: dict, key: str, detail: bool = True) -> None:
                 st.markdown(t["note"])
 
 
-def _wave_body(w: dict, r: dict, key: str) -> None:
-    """Not-done tasks first (waiting → running → not started), the done ones folded below."""
+def _rel(path: str) -> str:
+    """Path relative to the repo for display; a path on another drive (Windows) is shown whole."""
+    try:
+        return os.path.relpath(path, ROOT)
+    except ValueError:
+        return path
+
+
+ANSWER_CHOICES = ["—", *answers.CHOICES]
+
+
+def _save_answer(task_id: str, key: str) -> None:
+    """Form callback (runs before the page redraws, so the new state shows at once). Errors are kept and shown, never dropped."""
+    import getpass
+    choice = st.session_state.get(f"ans-choice-{key}")
+    text = st.session_state.get(f"ans-text-{key}") or ""
+    try:
+        answers.answer(task_id, text, source="devsys", who=getpass.getuser(), choice=None if choice in (None, "—") else choice)
+        st.session_state[f"ans-msg-{key}"] = ("ok", f"Đã lưu câu trả lời cho {task_id}.")
+    except (answers.AnswersError, OSError) as e:
+        st.session_state[f"ans-msg-{key}"] = ("err", f"Chưa lưu được: {e}")
+
+
+def _answer_state(rec) -> str:
+    """'✅ đã trả lời — chờ Claude áp dụng' / '✔ đã áp dụng (…)' + the answer and its time."""
+    when = escape((rec.get("at") or "")[:16].replace("T", " "))
+    body = escape(" · ".join(x for x in (rec.get("choice"), rec.get("text")) if x))
+    if rec.get("status") == "applied":
+        note = escape(rec.get("applied_note") or "")
+        return f"<div class='row'><span class='chip ok'>✔ đã áp dụng</span> ({note}) <span class='muted'>· {body} · trả lời {when}</span></div>"
+    who = escape(rec.get("who") or rec.get("source") or "")
+    return (f"<div class='row'><span class='chip warn'>✅ đã trả lời — chờ Claude áp dụng</span> {body} "
+            f"<span class='muted'>· {who} · {when}</span></div>")
+
+
+def _answer_form(t: dict, key: str, rec) -> None:
+    """Quick choice + free text + 💾 Lưu, prefilled with the saved answer (editable)."""
+    rec = rec or {}
+    with st.form(f"ans-form-{key}", border=False):
+        cur = rec.get("choice")
+        st.radio("Chọn nhanh", ANSWER_CHOICES, index=ANSWER_CHOICES.index(cur) if cur in ANSWER_CHOICES else 0, horizontal=True,
+                 key=f"ans-choice-{key}")
+        st.text_area("Trả lời (ghi chữ tự do)", value=rec.get("text") or "", height=68, key=f"ans-text-{key}",
+                     placeholder="Vd. duyệt trần 10 USD; hoặc lý do không duyệt…")
+        st.form_submit_button("💾 Lưu", key=f"ans-save-{key}", on_click=_save_answer, args=(t["id"], key))
+    msg = st.session_state.pop(f"ans-msg-{key}", None)
+    if msg:
+        (st.success if msg[0] == "ok" else st.error)(msg[1])
+
+
+def _answer_box(t: dict, key: str, ans, inline: bool) -> None:
+    """S14.27: under a ⏸ task — the saved answer's state and a box to answer/edit it. `ans` None = the answers file is unreadable
+    (the error is shown once above; no box, so a broken file is never overwritten). An answer never changes the plan file itself:
+    the Claude session applies it, updates docs/KE_HOACH_SUA_SAU_DU_AN_8.md and marks it applied (`py -m devsys.answers applied`)."""
+    if t["status"] != "⏸" or ans is None:
+        return
+    rec = ans.get(t["id"])
+    if rec:
+        st.markdown(_answer_state(rec), unsafe_allow_html=True)
+    if inline:
+        _answer_form(t, key, rec)
+    else:
+        with st.popover("✏ Sửa trả lời" if rec else "✍ Trả lời", help="Trả lời việc này ngay tại đây (Claude đọc ở đầu phiên)"):
+            _answer_form(t, key, rec)
+
+
+def _wave_body(w: dict, r: dict, key: str, ans=None) -> None:
+    """Not-done tasks first (waiting → running → not started), the done ones folded below; ⏸ tasks get an answer box."""
     todo = sorted([t for t in w["tasks"] if t["status"] not in ("✅", "✖")], key=lambda t: ORDER[t["status"]])
     done = [t for t in w["tasks"] if t["status"] in ("✅", "✖")]
     for t in todo:
         _task_row(t, f"{key}-{t['id']}")
+        _answer_box(t, f"{key}-{t['id']}", ans, inline=False)
     if not todo:
         st.caption("Không còn việc nào chưa xong.")
     if done:
@@ -799,10 +866,10 @@ def page_plan():
     path = plan_progress.PLAN_FILE
     plan = plan_progress.load(path)
     if plan is None:
-        st.info(f"Chưa có file kế hoạch `{os.path.relpath(path, ROOT)}`.")
+        st.info(f"Chưa có file kế hoạch `{_rel(path)}`.")
         return
     with t2.popover("ⓘ", help="Nguồn và cách tính"):
-        st.markdown(f"Nguồn: `{os.path.relpath(path, ROOT)}`. % do code tính từ danh sách việc: ✅ tính đủ, 🔄 tính nửa, ✖ không tính; "
+        st.markdown(f"Nguồn: `{_rel(path)}`. Câu trả lời cho việc ⏸: `{_rel(answers.default_path())}` (không vào git). % do code tính từ danh sách việc: ✅ tính đủ, 🔄 tính nửa, ✖ không tính; "
                     "trọng số nặng 1/2/3. Đặt tay đợt hiện tại bằng dòng `> Đợt ưu tiên: S13` ở đầu file.")
     if plan["bad"]:
         st.error("Dòng việc không đọc được (sửa trong file kế hoạch):\n\n" + "\n".join(f"- {b}" for b in plan["bad"]))
@@ -830,11 +897,20 @@ def page_plan():
     finished = [wid for wid, (w, r) in waves.items() if r["pct"] is not None and r["pct"] >= 100]
     others = [wid for wid in waves if wid not in finished and wid != s["current"]]
 
+    ans, ans_err = None, None
+    try:
+        ans = answers.load()
+    except answers.AnswersError as e:
+        ans_err = str(e)
     if s["waiting"]:
         with st.container(border=True):
-            st.markdown("**⏸ Đang chờ bạn**")
+            st.markdown("**⏸ Đang chờ bạn** <span class='muted'>— trả lời ngay dưới mỗi việc; Claude đọc ở đầu phiên, áp dụng rồi "
+                        "mới đổi trạng thái việc trong kế hoạch</span>", unsafe_allow_html=True)
+            if ans_err:
+                st.error(ans_err)
             for t in s["waiting"]:
                 _task_row(t, "w-" + t["id"])
+                _answer_box(t, "w-" + t["id"], ans, inline=True)
     if s["current"] in waves:
         w, r = waves[s["current"]]
         with st.container(border=True):
@@ -843,13 +919,13 @@ def page_plan():
                         f"{' · ' + str(r['doing']) + ' đang làm' if r['doing'] else ''}</span>", unsafe_allow_html=True)
             c2.markdown(f"<div style='text-align:right;font-weight:800'>{_pct_text(r['pct'])}</div>", unsafe_allow_html=True)
             st.progress(min(1.0, (r["pct"] or 0.0) / 100.0))
-            _wave_body(w, r, "cur")
+            _wave_body(w, r, "cur", ans)
     for wid in others:
         w, r = waves[wid]
         with st.expander(f"{wid} — {_wave_name(w['name'])} · {_pct_text(r['pct'])} · {r['done']}/{r['n']} xong"
                          + (f" · {r['waiting']} chờ bạn" if r["waiting"] else ""), expanded=False):
             st.progress(min(1.0, (r["pct"] or 0.0) / 100.0))
-            _wave_body(w, r, wid)
+            _wave_body(w, r, wid, ans)
     if finished:
         with st.expander(f"✅ Đã xong ({len(finished)} đợt)", expanded=False):
             st.markdown("".join(f"<div class='row'><span class='chip ok'>✅ 100 %</span> <b>{escape(wid)}</b> "

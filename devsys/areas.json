@@ -206,10 +206,10 @@
       "name": "Hệ thống phát triển (AI Development System)",
       "weight": 0.3,
       "description": "Chính web theo dõi tiến độ này: bản đồ khu vực, dòng thời gian, sức khỏe đo bằng code, chấm điểm AI.",
-      "code": ["devsys/*.py", "tools/devsys_score.py", "tools/devsys_collect.py", "tools/devsys_hook.py", "tools/devsys_ui_metrics.py", "tools/plan_progress.py"],
+      "code": ["devsys/*.py", "devsys/answers.py", "tools/devsys_score.py", "tools/devsys_collect.py", "tools/devsys_hook.py", "tools/devsys_ui_metrics.py", "tools/plan_progress.py"],
       "assets": ["devsys/areas.json", "devsys/rubric.md", "devsys/rubric_v1.md", "Start-DevSystem.bat", "tools/launch_devsys.ps1"],
       "docs": [],
-      "tests": ["tests/test_devsys.py", "tests/test_devsys_v2.py"],
+      "tests": ["tests/test_devsys.py", "tests/test_devsys_v2.py", "tests/test_devsys_answers.py"],
       "flags": [],
       "diag_stages": [],
       "keywords": ["devsys", "AI Development System"]
