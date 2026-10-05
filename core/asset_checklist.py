@@ -261,6 +261,17 @@ def to_create_rows(conn, pid: int) -> List[Dict]:
         rows.append({"kind": "location", "name": n["name"], "scenes": [], "main": True, "asset_id": None, "for_character": None,
                      "why": "nơi ngoài game, chưa có trong Kho", "note": n["note"], "status": "to_create", "choice": n["choice"],
                      "est_usd": n.get("est_usd"), "status_label": f"🛠 cần tạo bối cảnh — {n['label']}{price}"})
+    try:                                       # S14.43 mục 4: an exposed phone screen = a simulated screen to draw (listed, never run here)
+        screens = idea_buildable.screen_needs(conn, pid)
+    except Exception as e:  # noqa: BLE001 - said in the table, never a silent skip
+        screens = [{"scene": None, "name": "Màn hình điện thoại mô phỏng", "what": "", "est_usd": None,
+                    "note": f"không kiểm được màn hình trong kịch bản: {e}"}]
+    for n in screens:
+        price = f" · ước ≤ {n['est_usd']:.2f} USD" if n.get("est_usd") else " · chưa ước được giá"
+        rows.append({"kind": "prop", "name": n["name"], "scenes": [n["scene"]] if n.get("scene") else [], "main": True, "asset_id": None,
+                     "for_character": None, "why": "lộ góc nhìn màn hình điện thoại: " + n["what"] if n.get("what") else "lộ màn hình",
+                     "note": n["note"], "status": "to_create", "choice": "screen_mock", "est_usd": n.get("est_usd"),
+                     "status_label": f"🛠 cần vẽ màn hình mô phỏng{price}"})
     return rows
 
 

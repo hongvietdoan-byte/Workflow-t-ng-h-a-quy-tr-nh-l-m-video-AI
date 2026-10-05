@@ -5,7 +5,8 @@ Ba việc, đều bằng code:
                             + trang phục mặc định, kỹ năng có hồ sơ. Biên kịch đọc danh sách này thay vì cả Kho.
   2. anchors               các điểm then chốt người dùng chốt (nhân vật + trang phục, nơi, diễn biến, cú chốt, có/không gameplay-giao diện).
                             Thiếu hoặc nằm ngoài kit → hỏi lại (gate), KHÔNG gọi Claude.
-  3. check_scenes(...)     sau lượt viết: cảnh giao diện / màn hình điện thoại / sảnh / combat gameplay, nơi ngoài kit → cảnh bị CHẶN;
+  3. check_scenes(...)     sau lượt viết: cảnh giao diện / sảnh / combat gameplay, nơi ngoài kit → cảnh bị CHẶN; màn hình điện thoại (S14.43):
+                            từ xa = không chặn, LỘ màn hình = "cần tài nguyên màn hình mô phỏng" (screen_needs → bảng kê tài nguyên);
                             check_anchors(...): điểm then chốt phải còn trong kịch bản.
 """
 import os
@@ -201,10 +202,14 @@ RULES = """## Ràng buộc DỰNG ĐƯỢC (xưởng chỉ dựng chắc đượ
 - Chỉ dùng NƠI, NHÂN VẬT, KỸ NĂNG trong danh sách "Thứ dựng chắc được". Nơi ghi rõ **map + khu vực**; không dùng nơi chung chung ("phòng khách", "thành phố").
   Ngoài danh sách = không dựng được → không viết, hoặc hỏi lại người dùng.
 - Trang phục nhân vật = trang phục mặc định ghi trong danh sách (không thêm áo choàng, mũ, phụ kiện không có trong hồ sơ).
-- CẤM viết cảnh phải dựng lại giao diện game: màn hình điện thoại đang chơi Free Fire, sảnh chờ, menu, bảng xếp hạng, nút bấm, HUD đầy đủ,
+- CẤM viết cảnh phải dựng lại giao diện game như một bối cảnh: sảnh chờ, menu, bảng xếp hạng, nút bấm, HUD đầy đủ chiếm khung,
   và combat gameplay (nhảy dù, bắn nhau có cover, góc nhìn người chơi, vòng bo). Chưa có tư liệu chứng minh dựng được. Chỉ khi người dùng
   ghi "có gameplay/giao diện" mới được viết, và vẫn ghi rõ trong `notes` đó là phần rủi ro.
-- Kỹ thuật NÉ: quay người chơi NGOÀI ĐỜI (nhân vật 3D ở nơi trong danh sách), KHÔNG quay màn hình điện thoại; muốn người xem hiểu tình huống trong
+- Cảnh có màn hình điện thoại (người dùng 06/10): nhân vật cầm / cúi nhìn / chỉ vào điện thoại mà máy nhìn **TỪ XA** (không đọc được nội dung) thì
+  dùng thoải mái — ghi rõ "từ xa" / "toàn cảnh". LỘ góc nhìn màn hình (cận màn hình, "màn hình hiện…", giơ điện thoại về phía máy) vẫn viết
+  được nhưng xưởng phải VẼ màn hình mô phỏng (ảnh tham khảo trên mạng) → tốn thêm một tài nguyên: chỉ dùng khi màn hình CHÍNH LÀ cú hài /
+  manh mối (vd. khoe rank rồi màn hình tự lộ), tả rõ màn hình hiện gì, và ghi trong `notes` là cần màn hình mô phỏng.
+- Kỹ thuật NÉ: quay người chơi NGOÀI ĐỜI (nhân vật 3D ở nơi trong danh sách); muốn người xem hiểu tình huống trong
   trận thì cho **thanh máu + tên + số đội hiện trên đầu nhân vật** thay vì dựng giao diện. Một cảnh = một nơi, một việc, camera xa/trung/cận rõ.
 - Nhịp và nhân quả phải hợp lý: việc lớn cần đủ thời gian và bước đệm (nhảy dù → đáp đất → tìm đồ → giao tranh → thắng; không thể vừa
   nhảy dù bắn một chút đã Booyah). Thời lượng cảnh tương xứng việc xảy ra trong cảnh.
@@ -251,8 +256,9 @@ def blocks(conn, pid: int, inputs: Dict) -> str:
 
 # ---- the code check after the writing turn (0 USD) ------------------------------------------------------------------------------------
 # Heuristic by design (rà S14.31): only specific game phrases, and only in the description / heading — never in what a person says.
-_UI = [("màn hình điện thoại", r"man hinh (dien thoai|choi game|game)|cam dien thoai (choi|ngam)|dien thoai dang choi"),
-       ("giao diện game", r"giao dien (game|free fire|ff|tran dau|nguoi choi|choi game)|\bmenu (game|chinh|free fire|chon)|bang xep hang|joystick|minimap|"
+# S14.43 mục 4 (người dùng 06/10): the phone screen is no longer blocked — seen from afar it is free, an exposed screen is a resource
+# to draw (screen_view / screen_needs below). Only the game interface as a SET (no phone) and combat gameplay stay blocked.
+_UI = [("giao diện game", r"giao dien (game|free fire|ff|tran dau|nguoi choi|choi game)|\bmenu (game|chinh|free fire|chon)|bang xep hang|joystick|minimap|"
                           r"nut ban (tren|trong) |ban do nho"),
        ("sảnh chờ", r"sanh cho|sanh game|\blobby\b|man hinh (cho|chon nhan vat)")]
 _GAMEPLAY = [("combat gameplay", r"nhay du|vong bo|thu hep bo|goc nhin (nguoi choi|thu nhat)|bat cover|ban ha guc|ha guc (doi thu|ke dich)")]
@@ -265,10 +271,39 @@ def _said(line: str) -> bool:
     return bool(sep and rest.strip() and 1 < len(who) <= 30 and who == who.upper() and any(c.isalpha() for c in who))
 
 
+# ---- S14.43 mục 4: how the camera sees a phone screen (0 USD, folded phrases; order: close > far > content > unclear) ----------------
+_SCREEN_OVERLAY = r"^\s*chu tren man"                                  # "CHỮ TRÊN MÀN (HÌNH): …" = post-production text, not a phone
+_SCREEN_MENTION = r"man hinh|gio (dien thoai|dt)\b|(can|zoom|phong to)( canh)? (vao |sat )?(dien thoai|dt)\b"
+_SCREEN_CLOSE = (r"\bcan( canh)? (vao |sat )?(man hinh|dien thoai)|(zoom|phong to|day may|lia) (vao |sat |toi )?(man hinh|dien thoai)|"
+                 r"quay man hinh|chen (canh )?man hinh|insert man hinh|goc nhin (cua |tu |qua )?man hinh|man hinh (chiem|day|lap day) (ca )?khung|"
+                 r"gio (dien thoai|man hinh)( \w+)? (ve phia|vao|truoc|huong ve|len truoc) (may|ong kinh|camera|nguoi xem)")
+_SCREEN_FAR = (r"tu xa|toan canh|canh rong|khong (thay|doc duoc|doc|lo)( ro)? (noi dung|man hinh|chu)|lung dien thoai|"
+               r"man hinh (quay|huong) (ve phia|vao)|anh (sang|hat)( tu)? man hinh|sang man hinh hat")
+_SCREEN_CONTENT = (r"man hinh( dien thoai| game| choi game)?( cua [a-z]+)? (hien|hien thi|bao|ghi|co dong|co chu|chay|nhay|la)\b|"
+                   r"tren man hinh (hien|la|co|chay|nhay)|noi dung man hinh")
+SCREEN_RESOURCE = "cần tài nguyên màn hình mô phỏng"
+
+
+def screen_view(line: str) -> str:
+    """'' (no phone screen in this line) · 'far' (seen from afar: unreadable → free) · 'exposed' (the viewer reads the screen → a
+    simulated screen must be drawn) · 'unclear' (a screen is named, nothing says near or far → treated as far, and SAID)."""
+    t = assets.fold(line or "")
+    if re.search(_SCREEN_OVERLAY, t) or not re.search(_SCREEN_MENTION, t):
+        return ""
+    if re.search(_SCREEN_CLOSE, t):
+        return "exposed"
+    if re.search(_SCREEN_FAR, t):
+        return "far"
+    if re.search(_SCREEN_CONTENT, t):
+        return "exposed"
+    return "unclear"
+
+
 def _scene_hits(heading: str, body: str) -> List[str]:
-    """Hits in the heading + the description lines; a line someone SAYS ("NAME: …") is dialogue, not what the camera shows."""
-    shown = [ln for ln in body.splitlines() if not _said(ln)]
-    raw = heading + "\n" + "\n".join(shown)
+    """Hits in the heading + the description lines; a line someone SAYS ("NAME: …") is dialogue, not what the camera shows. A line
+    that exposes a phone screen is that screen's content (a simulated screen to draw — S14.43), not a game set: it is left out here."""
+    shown = [ln for ln in [heading] + body.splitlines() if not _said(ln) and screen_view(ln) != "exposed"]
+    raw = "\n".join(shown)
     t = assets.fold(raw)
     hits = [name for name, rx in _UI + _GAMEPLAY if re.search(rx, t)]
     if re.search(r"\bUI\b", raw):                         # the capitals only: "ui da" is an exclamation
@@ -307,6 +342,7 @@ def check_scenes(scenes, k: Dict, anchors: Dict, custom_place: str = "") -> Tupl
             why.append("cảnh dựng giao diện / gameplay chưa có tư liệu dựng được: " + ", ".join(hits))
         elif hits:
             flags.append(f"cảnh {s.idx}: có {', '.join(hits)} — rủi ro (chưa có tư liệu dựng được), người dùng đã chọn 'có'")
+        flags += screen_flags(s)
         where = _where(s.heading)
         if not where:
             why.append("thiếu nơi quay — tiêu đề cảnh chỉ có thời gian, cần 'CẢNH n - <thời gian>, <nơi trong Kho>'")
@@ -319,6 +355,70 @@ def check_scenes(scenes, k: Dict, anchors: Dict, custom_place: str = "") -> Tupl
             blocked.append({"scene": s.idx, "why": why})
             problems += [f"cảnh {s.idx}: {w}" for w in why]
     return problems, sorted(set(flags)), blocked
+
+
+def screen_lines(scene) -> Dict[str, List[str]]:
+    """{'exposed': [lines], 'unclear': [lines]} — the description lines (and heading) of a scene that show a phone screen."""
+    out: Dict[str, List[str]] = {"exposed": [], "unclear": []}
+    for ln in [scene.heading] + scene.text.splitlines():
+        v = "" if _said(ln) else screen_view(ln)
+        if v in out:
+            out[v].append(ln.strip())
+    return out
+
+
+def screen_flags(scene) -> List[str]:
+    """Said, never silent (CHUAN luật 1): an exposed screen is a resource to draw; an unclear one is read as 'from afar'."""
+    got = screen_lines(scene)
+    out = []
+    if got["exposed"]:
+        out.append(f"cảnh {scene.idx}: lộ màn hình điện thoại (\"{got['exposed'][0][:90]}\") — {SCREEN_RESOURCE} (vẽ mô phỏng nội dung "
+                   "màn hình, ảnh tham khảo trên mạng) — xem bảng kê tài nguyên")
+    elif got["unclear"]:
+        out.append(f"cảnh {scene.idx}: nhắc màn hình điện thoại nhưng không rõ nhìn xa hay cận — coi là nhìn TỪ XA (không đọc được, không "
+                   "vẽ màn hình); muốn người xem đọc được thì ghi 'cận màn hình …' (tốn thêm một ảnh màn hình mô phỏng)")
+    return out
+
+
+def _script_of(conn, pid: int) -> str:
+    """The script the project uses (Step 1) — else the one the Biên kịch is writing."""
+    row = conn.execute("SELECT script_text FROM projects WHERE id=?", (pid,)).fetchone()
+    text = ((row[0] if row else "") or "").strip()
+    if text:
+        return text
+    from . import idea_to_script
+    return str(idea_to_script.get_state(conn, pid).get("script") or "")
+
+
+def screen_est_usd(conn, pid: int) -> Optional[float]:
+    """One simulated screen = one picture of the project's model × (1 + the project's redraws) — counted high (money_policy)."""
+    from . import image_models, money_policy
+    proj = conn.execute("SELECT * FROM projects WHERE id=?", (pid,)).fetchone()
+    retries = int((proj["max_retry_count"] if proj is not None and "max_retry_count" in proj.keys() else 0) or 0)
+    return money_policy.estimate("image", image_models.of_project(proj), None, 1 + retries).get("usd")
+
+
+def screen_needs(conn, pid: int) -> List[Dict]:
+    """S14.43 mục 4: the simulated phone screens the script needs (listed in the asset checklist; nothing is run):
+    [{scene, name, what, est_usd, note}]."""
+    from . import idea_to_script
+    text = _script_of(conn, pid)
+    if not text.strip():
+        return []
+    try:
+        scenes, _ = idea_to_script.parse(text)
+    except Exception:  # noqa: BLE001 - an unreadable script has no screens to list (the split itself reports it)
+        return []
+    out, est = [], None
+    for s in scenes:
+        got = screen_lines(s)["exposed"]
+        if not got:
+            continue
+        if est is None:
+            est = screen_est_usd(conn, pid)
+        out.append({"scene": s.idx, "name": f"Màn hình điện thoại mô phỏng — cảnh {s.idx}", "what": " / ".join(got)[:200], "est_usd": est,
+                    "note": "vẽ mô phỏng nội dung màn hình (ảnh tham khảo lấy trên mạng) — CHƯA chạy, giá nằm trong bước tạo ảnh"})
+    return out
 
 
 def _words(text: str) -> List[str]:
