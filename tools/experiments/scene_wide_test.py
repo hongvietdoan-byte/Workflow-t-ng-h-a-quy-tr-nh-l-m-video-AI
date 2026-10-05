@@ -71,7 +71,7 @@ def main():
     print(f"trần ảnh: {used}/{b['image_cap']} → sau lần này {None if used is None else used + need}")
     print("ảnh ngang:", wide_prompt[:300])
     if not a.yes:
-        print("(chưa gửi — thêm --yes)")
+        print("(chưa gửi — thêm --yes --max-usd <USD>)")
         return
     if used is not None and used + need > b["image_cap"]:
         sys.exit("vượt trần ảnh — dừng")

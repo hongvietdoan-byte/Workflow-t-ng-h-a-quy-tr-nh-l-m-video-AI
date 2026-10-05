@@ -59,7 +59,7 @@ def main(argv=None):
     usd = qc_team.estimate_usd(len(frames))
     print(f"bộ {a.set}: {len(items)} khung có nhãn, {len(frames)} chạy được · ước tính C1 ≈ ${usd:.2f} (chưa đo, mục 16)")
     if not a.yes and not a.replay:
-        print("(chưa chạy — thêm --yes để chạy thật, hoặc --replay <calls.jsonl> để chạy lại 0 USD)")
+        print("(chưa chạy — thêm --yes --max-usd <USD> để chạy thật, hoặc --replay <calls.jsonl> để chạy lại 0 USD)")
         return
     run_dir = os.path.join(os.path.dirname(os.path.abspath(a.db)), "qc_golden", "runs", time.strftime("%Y%m%d-%H%M%S"))
     os.makedirs(run_dir, exist_ok=True)

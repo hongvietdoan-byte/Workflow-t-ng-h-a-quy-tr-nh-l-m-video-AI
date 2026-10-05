@@ -65,7 +65,7 @@ def main():
     need = 2 * len(plan)
     print(f"model {model} · {need} ảnh · trần ảnh {used}/{b['image_cap']}")
     if not a.yes:
-        print("(chưa gửi — thêm --yes)")
+        print("(chưa gửi — thêm --yes --max-usd <USD>)")
         return
     if used is not None and used + need > b["image_cap"]:
         sys.exit("vượt trần ảnh — dừng")

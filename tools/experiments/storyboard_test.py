@@ -65,7 +65,7 @@ def main():
     for i, t in enumerate(prompts, 1):
         print(f"  khung {i}: {t[:180]}…")
     if not a.yes:
-        print("(chưa gửi — thêm --yes)")
+        print("(chưa gửi — thêm --yes --max-usd <USD>)")
         return
     if used is not None and used + len(prompts) > b["image_cap"]:
         sys.exit("vượt trần ảnh đợt thử — dừng")

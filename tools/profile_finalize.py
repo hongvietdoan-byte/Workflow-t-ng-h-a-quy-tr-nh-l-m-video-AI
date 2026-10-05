@@ -2,7 +2,7 @@
 
     py tools/profile_finalize.py                      chỉ ước tính
     py tools/profile_finalize.py --yes --max-usd 0.5  gọi Claude (chỉ chữ, không ảnh): 1 lượt / nhân vật
-    py tools/profile_finalize.py --yes --approve      duyệt luôn hồ sơ nào đủ ý chính (giới tính, tuổi/độ tuổi, vai trò)
+    py tools/profile_finalize.py --yes --max-usd 0.5 --approve   duyệt luôn hồ sơ nào đủ ý chính (giới tính, tuổi/độ tuổi, vai trò)
 
 Ý chính lấy từ khối `[ff.garena.com]` của mô tả (danh hiệu, giới tính, tuổi, tiểu sử) và `[Độ khó & vai trò gameplay]`: câu `identity` phải nêu
 giới tính + tuổi (hoặc 'adult' / 'young, not yet 20' — luật tuổi: không ghi số dưới 18) + danh hiệu/vai trò + một nét tính cách hoặc tiểu sử.
@@ -80,7 +80,7 @@ def main() -> None:
             todo.append((c, prof))
     print(f"{len(todo)} hồ sơ nháp có thông tin chính thức · ước tính ≈ ${EST_USD * len(todo):.2f} Claude (chỉ chữ)")
     if not a.yes:
-        print("(chưa gọi Claude — thêm --yes)")
+        print("(chưa gọi Claude — thêm --yes --max-usd <USD>)")
         return
     from core import budget, llm_io, llm_runner
     from core.adapters.check import load_dashboard_env

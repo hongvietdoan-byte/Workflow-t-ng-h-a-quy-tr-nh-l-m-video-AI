@@ -81,7 +81,7 @@ def main():
     for s in scenes:
         print(f"cảnh {s}: {len(by_scene[s])} khung — nhãn: " + ", ".join(f"{f['data'].get('shot_no')}:{f['label_verdict']}" for f in by_scene[s]))
     if not a.yes:
-        print("(chưa chạy — thêm --yes; tốn Claude API)")
+        print("(chưa chạy — thêm --yes --max-usd <USD>; tốn Claude API)")
         return
     from group_test import load_env
     load_env(".")

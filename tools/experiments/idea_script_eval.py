@@ -249,7 +249,7 @@ def main(argv=None):
           + (f"${a.max_usd:.2f})" if a.max_usd is not None else "chưa khai --max-usd)"))
     hard = script_cap.from_args(argparse.Namespace(yes=a.yes and not a.replay, max_usd=a.max_usd), "đo Biên kịch")
     if not a.yes and not a.replay:
-        print("(chưa chạy — thêm --yes để chạy thật, hoặc --replay <calls.jsonl> để chạy lại 0 USD)")
+        print("(chưa chạy — thêm --yes --max-usd <USD> để chạy thật, hoặc --replay <calls.jsonl> để chạy lại 0 USD)")
         return None
     p = Pipeline(connect(a.db))
     run_dir = os.path.join(os.path.dirname(os.path.abspath(a.db)), "idea_golden", "runs", time.strftime("%Y%m%d-%H%M%S"))

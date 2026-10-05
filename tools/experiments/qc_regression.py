@@ -79,7 +79,7 @@ def main():
     for s, fr in scenes.items():
         print(f"cảnh {s}: {len(fr)} khung, lỗi đã biết: " + ", ".join(f"K{k} {BAD[r['job_id']]}" for k, r in enumerate(fr, 1) if r["job_id"] in BAD))
     if not a.yes:
-        print("(chưa chạy — thêm --yes)")
+        print("(chưa chạy — thêm --yes --max-usd <USD>)")
         return
     client = llm_runner.client_from_env(ledger=a.db)
     results, caught, missed, false_alarm, good = {}, [], [], [], 0

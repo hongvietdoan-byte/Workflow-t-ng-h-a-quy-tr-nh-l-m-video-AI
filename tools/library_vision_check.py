@@ -110,7 +110,7 @@ def main() -> None:
     todo = [c for c in targets(conn, a.game) if (a.redo or c["name"] not in done) and (not only or c["name"].lower() in only)]
     print(f"{len(todo)} nhân vật cần xem · ước tính ≈ ${EST_USD * len(todo):.2f} Claude (1 ảnh ghép + câu hỏi mỗi người)")
     if not a.yes:
-        print("(chưa gọi Claude — thêm --yes để chạy)")
+        print("(chưa gọi Claude — thêm --yes --max-usd <USD> để chạy)")
         return
     from core import budget, llm_runner
     from core.adapters.check import load_dashboard_env

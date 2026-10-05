@@ -1,8 +1,8 @@
 """Chấm điểm AI khách quan cho từng khu vực của hệ thống (AI Development System). Thang: devsys/rubric.md.
 
     py tools/devsys_score.py                      ước tính cho các khu vực đã đổi từ lần chấm trước (KHÔNG gọi gì)
-    py tools/devsys_score.py --yes                chấm các khu vực đó (Claude API, ghi sổ chi stage "devsys", trần Claude)
-    py tools/devsys_score.py --all --yes          chấm lại mọi khu vực
+    py tools/devsys_score.py --yes --max-usd 0.5  chấm các khu vực đó (Claude API, ghi sổ chi stage "devsys", trần Claude)
+    py tools/devsys_score.py --all --yes --max-usd 2  chấm lại mọi khu vực (--max-usd: trần CỨNG, bắt buộc khi --yes)
     py tools/devsys_score.py --areas step1,step5  chỉ các khu vực này
     py tools/devsys_score.py --provider mock --yes   người chấm giả lập (không mạng, không tiền) — thử luồng
     py tools/devsys_score.py --export step1       ghi dữ liệu đầu vào ra devsys/data/exports/step1.md cho người chấm ngoài (miễn phí)
@@ -151,7 +151,7 @@ def main(argv=None) -> int:
     if not p["todo"]:
         return 0
     if not args.yes:
-        print("Chưa gọi gì. Thêm --yes để đồng ý chi phí trên và chấm.")
+        print("Chưa gọi gì. Thêm --yes --max-usd <USD> để đồng ý chi phí trên và chấm.")
         return 1
     try:
         res = scorer.run(ROOT, cfg, snap, p["todo"], args.provider, yes=True, db_path=args.db)

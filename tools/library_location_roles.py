@@ -72,7 +72,7 @@ def main() -> None:
     batches = [todo[k:k + BATCH] for k in range(0, len(todo), BATCH)]
     print(f"{len(todo)} ảnh địa điểm chưa có góc máy · {len(batches)} lượt · ước tính ≈ ${EST_USD * len(batches):.2f} Claude")
     if not a.yes:
-        print("(chưa gọi Claude — thêm --yes)")
+        print("(chưa gọi Claude — thêm --yes --max-usd <USD>)")
         return
     from core import budget, llm_io, llm_runner
     from core.adapters.check import load_dashboard_env
