@@ -39,14 +39,14 @@ Mục tiêu: làm hết một đợt dài mà không để phiên chính đầy 
 | Chỉ số | Hành động |
 |---|---|
 | Context phiên chính **65–75 %** | điểm nghỉ |
-| Hạn mức 5 giờ **≥ 90 %** hoặc tuần **≥ 90 %** | điểm nghỉ |
+| Hạn mức 5 giờ **≥ 90 %** hoặc tuần **≥ 95 %** (người dùng nâng ngưỡng tuần 05/10) | điểm nghỉ |
 | Hạn mức 5 giờ **≥ 60 %** | chỉ cho **1** phiên con chạy cùng lúc |
 | Hạn mức 5 giờ **≥ 70 %** | không cho phiên con nào chạy THÊM (kể cả đánh thức phiên cũ bằng SendMessage để sửa theo rà); chờ phiên đang chạy xong, phiên chính tự gộp + chạy test |
 | Hạn mức tuần thấp mà còn nhiều việc | làm theo thứ tự giá trị (lỗ tiền, mất dữ liệu trước; giao diện, dọn dẹp sau) |
 
 ## 4. Điểm nghỉ
 **Hai loại dừng, đừng lẫn:**
-- **Dừng vì hạn mức gói** (5 giờ / tuần ≥ 90 %), context còn thấp → KHÔNG cần `/clear`. Làm bước 1–4 bên dưới, rồi đặt lịch `CronCreate` một lần (vài phút sau giờ hạn mức đặt lại, lấy từ `resetsAt`) để tự làm tiếp TRONG CÙNG phiên, và báo người dùng giờ chạy lại.
+- **Dừng vì hạn mức gói** (5 giờ ≥ 90 % / tuần ≥ 95 %), context còn thấp → KHÔNG cần `/clear`. Làm bước 1–4 bên dưới, rồi đặt lịch `CronCreate` một lần (vài phút sau giờ hạn mức đặt lại, lấy từ `resetsAt`) để tự làm tiếp TRONG CÙNG phiên, và báo người dùng giờ chạy lại.
 - **Dừng vì context** (65–75 %) → làm bước 1–5: người dùng `/clear` rồi gõ "tiếp tục".
 
 1. Chờ mọi phiên con xong (không bỏ dở giữa chừng).
