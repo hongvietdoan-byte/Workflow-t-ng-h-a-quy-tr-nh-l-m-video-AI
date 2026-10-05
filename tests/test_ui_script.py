@@ -338,8 +338,9 @@ class ScriptBoxTests(unittest.TestCase):
                 pid = self.p.create_project(f"Hộp {v2}")
                 at = self.app(pid)
                 keys = tree_keys(at)
-                for k in ("up_{p}", "paste_{p}", "btn_analyse_{p}"):
-                    self.assertIn(k.format(p=pid), keys, k)
+                self.assertIn(f"btn_analyse_{pid}", keys)
+                for gone in (f"up_{pid}", f"paste_{pid}"):                       # S14.38: the chat is the only door in
+                    self.assertNotIn(gone, keys, gone)
                 self.assertEqual([c.key for c in at.get("chat_input")], [f"box_in_{pid}"])
                 self.assertNotIn("📎 Tải file", [t.label for t in at.tabs], "the box replaces the 3 tabs")
 
@@ -349,14 +350,15 @@ class ScriptBoxTests(unittest.TestCase):
         self.assertIn(f"box_in_{pid}", tree_keys(at))
         self.assertTrue(any(e.label.startswith("📥 Nhập / thay kịch bản (khung hội thoại") for e in at.expander))
         for k in OLD_KEYS:
-            self.assertIn(k.format(p=pid), tree_keys(at), k)
+            if k.split("_{")[0] not in ("up", "paste"):                           # S14.38: those two are gone from the chat box
+                self.assertIn(k.format(p=pid), tree_keys(at), k)
 
     def test_pasted_script_is_read_as_script_and_goes_to_the_full_text_box(self):
         pid = self.p.create_project("Kịch bản dán")
         at = self.say(self.app(pid), SCRIPT)
         self.assertIn("Hiểu là **KỊCH BẢN**", self.html(at))
         self.assertIn("3 tiêu đề cảnh", self.html(at))
-        self.assertEqual(at.text_area(key=f"paste_{pid}").value, SCRIPT)
+        self.assertEqual(at.session_state[f"box_text_{pid}"], SCRIPT)           # S14.38: the chat is the source, no text_area
         self.assertFalse(at.button(key=f"btn_analyse_{pid}").disabled)
         self.assertIn(f"box_mode_idea_{pid}", tree_keys(at))                    # the override "không phải, đây là ý tưởng"
         at.button(key=f"btn_analyse_{pid}").click().run()
@@ -398,7 +400,7 @@ class ScriptBoxTests(unittest.TestCase):
         at = self.say(at, "cho Maxim thắng ở cuối")
         self.assertEqual(at.session_state[f"box_wish_{pid}"], "cho Maxim thắng ở cuối")
         self.assertIn("Nói thêm cho lượt kế", self.html(at))
-        self.assertEqual(at.text_area(key=f"paste_{pid}").value, IDEA)          # the idea itself is untouched
+        self.assertEqual(at.session_state[f"box_text_{pid}"], IDEA)             # the idea itself is untouched
         self.assertEqual(I.get_state(self.p.conn, pid), before)                  # nothing sent, nothing paid
         self.assertIn(f"idea_q_{pid}", tree_keys(at))                           # the next turn: a priced button
         self.assertIn("≈ 0.045 USD", at.button(key=f"idea_q_{pid}").label)
@@ -414,21 +416,87 @@ class ScriptBoxTests(unittest.TestCase):
         self.assertEqual(receipt(""), "")
         self.assertEqual(receipt("Hai người cãi nhau.\nKELLY: Của tôi!\nMAXIM: Không!"), "")   # grey zone: asked, not assumed
 
-    def test_s14_36_chat_is_the_centre_small_popovers_instead_of_big_blocks(self):
+    def test_s14_38_chat_is_the_centre_no_paste_popover_no_attach_popover(self):
         pid = self.p.create_project("Bố cục chat")
         at = self.app(pid)
         labels = [x.proto.popover.label for x in at.get("popover")]
         self.assertTrue(any(l.startswith("⋯ Cách khác") for l in labels), labels)         # 3 "sắp có" buttons → one menu
-        self.assertTrue(any(l.startswith("✍ Sửa toàn văn") for l in labels), labels)     # was a big always-open block
-        self.assertTrue(any(l.startswith("📎 Đính kèm") for l in labels), labels)
-        self.assertNotIn(f"fold_box_full_{pid}_btn", tree_keys(at))
-        coming = [b for b in at.button if (b.key or "").startswith("coming_")]
-        self.assertEqual(len(coming), 3)
-        self.assertTrue(all(b.disabled for b in coming))
-        self.assertIn(f"paste_{pid}", tree_keys(at))                                      # old keys kept
+        self.assertFalse(any("Sửa toàn văn" in l for l in labels), labels)                # S14.38: gone
+        self.assertFalse(any("Đính kèm" in l for l in labels), labels)                    # S14.38: the chat input takes the file
+        self.assertNotIn(f"paste_{pid}", tree_keys(at))
+        self.assertNotIn(f"up_{pid}", tree_keys(at))
+        self.assertEqual(len(at.get("chat_input")), 1)
+        self.assertNotIn("Dán / gõ vào khung bên dưới hoặc", self.html(at))
+        self.assertEqual(len([b for b in at.button if (b.key or "").startswith("coming_")]), 3)
         at = self.say(at, SCRIPT)
         self.assertIn("Đã nhận kịch bản 3 cảnh", self.html(at))                           # the card in the chat flow
-        self.assertTrue(any(l.startswith("✍ Sửa toàn văn · ") for l in [x.proto.popover.label for x in at.get("popover")]))
+
+    def test_s14_38_decide_is_pure_and_never_guesses(self):
+        from dashboard.steps.step1_box import decide
+        self.assertEqual(decide(0, SCRIPT)["action"], "set")                              # nothing in use → as before
+        self.assertEqual(decide(3, SCRIPT)["action"], "replace")                          # full script over one in use → confirm once
+        self.assertEqual(decide(10, SCRIPT)["action"], "ask")                             # 3 scenes over 10 → a part? ask
+        self.assertEqual(decide(3, "Hai người cãi nhau.\nKELLY: Của tôi!\nMAXIM: Không!")["action"], "ask")
+        self.assertEqual(decide(3, IDEA)["action"], "set")                                # an idea keeps the Biên kịch path
+
+    def _with_script(self, n_scenes=3):
+        pid = self.p.create_project("Có kịch bản")
+        from dashboard.steps import step1
+        at = self.say(self.app(pid), SCRIPT)
+        at.button(key=f"btn_analyse_{pid}").click().run()
+        self.assertFalse(at.exception, at.exception)
+        self.assertEqual(self.p.conn.execute("SELECT COUNT(*) FROM scenes WHERE project_id=?", (pid,)).fetchone()[0], n_scenes)
+        return pid, at
+
+    NEW = "CẢNH 1 - SÁNG, ĐẢO\nGió.\nKELLY: Chạy!\n\nCẢNH 2 - TRƯA, ĐẢO\nMAXIM: Tới rồi.\n\nCẢNH 3 - TỐI, ĐẢO\nIm lặng.\n\nCẢNH 4 - ĐÊM, ĐẢO\nHết."
+
+    def test_s14_38_full_script_over_one_in_use_asks_once_then_replaces_or_cancels(self):
+        pid, at = self._with_script()
+        before = self.p.project(pid)["script_text"]
+        at = self.say(at, self.NEW)
+        self.assertIn("Thay kịch bản hiện tại bằng bản mới 4 cảnh?", self.html(at))
+        self.assertEqual(self.p.project(pid)["script_text"], before)                      # nothing changed yet
+        self.assertEqual(self.p.conn.execute("SELECT COUNT(*) FROM scenes WHERE project_id=?", (pid,)).fetchone()[0], 3)
+        at.button(key=f"box_replace_no_{pid}").click().run()                              # Hủy
+        self.assertNotIn("Thay kịch bản hiện tại", self.html(at))
+        self.assertEqual(self.p.conn.execute("SELECT COUNT(*) FROM scenes WHERE project_id=?", (pid,)).fetchone()[0], 3)
+        at = self.say(at, self.NEW)
+        at.button(key=f"box_replace_yes_{pid}").click().run()                             # Thay
+        self.assertFalse(at.exception, at.exception)
+        self.assertEqual(self.p.conn.execute("SELECT COUNT(*) FROM scenes WHERE project_id=?", (pid,)).fetchone()[0], 0)
+        self.assertIn("Đã nhận kịch bản 4 cảnh", self.html(at))
+        at.button(key=f"btn_analyse_{pid}").click().run()
+        self.assertEqual(self.p.conn.execute("SELECT COUNT(*) FROM scenes WHERE project_id=?", (pid,)).fetchone()[0], 4)
+
+    def test_s14_38_short_paste_over_one_in_use_asks_add_or_replace(self):
+        pid, at = self._with_script()
+        at = self.say(at, "CẢNH 4 - SÁNG, ĐẢO\nGió.")
+        self.assertIn("Thêm vào kịch bản hiện tại hay thay thế?", self.html(at))
+        self.assertNotIn(f"box_replace_yes_{pid}", tree_keys(at))                          # not guessed
+        self.assertEqual(self.p.conn.execute("SELECT COUNT(*) FROM scenes WHERE project_id=?", (pid,)).fetchone()[0], 3)
+        at.button(key=f"box_ask_add_{pid}").click().run()
+        self.assertIn(f"box_replace_yes_{pid}", tree_keys(at))                             # the combined script, confirmed once
+        self.assertIn("bản mới 4 cảnh", self.html(at))
+        at.button(key=f"box_replace_no_{pid}").click().run()
+        at = self.say(at, "CẢNH 4 - SÁNG, ĐẢO\nGió.")
+        at.button(key=f"box_ask_no_{pid}").click().run()
+        self.assertNotIn("Thêm vào kịch bản hiện tại", self.html(at))
+
+    def test_s14_38_read_only_view_with_copy_and_view_only_is_blocked(self):
+        pid, at = self._with_script()
+        self.assertTrue(any(e.label == "Xem kịch bản (3 cảnh)" for e in at.expander), [e.label for e in at.expander])
+        self.assertTrue(any(SCRIPT.splitlines()[0] in (c.value or "") for c in at.get("code")))
+        from core import access
+        at = self.say(at, self.NEW)
+        with mock.patch.object(access, "need_edit", side_effect=PermissionError("Chỉ xem")):
+            at.button(key=f"box_replace_yes_{pid}").click().run()
+        self.assertEqual(self.p.conn.execute("SELECT COUNT(*) FROM scenes WHERE project_id=?", (pid,)).fetchone()[0], 3)
+
+    def test_s14_38_nothing_reads_paste_key_in_the_box_source(self):
+        src = open(os.path.join(os.path.dirname(__file__), "..", "dashboard", "steps", "step1_box.py"), encoding="utf-8").read()
+        self.assertNotIn('f"paste_', src)
+        self.assertNotIn("st.text_area", src)
+        self.assertNotIn("file_uploader", src)
 
     def test_flag_off_is_the_old_two_tabs(self):
         with mock.patch.dict(os.environ, {"FEATURE_IDEA_TO_SCRIPT": "0"}):

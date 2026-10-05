@@ -227,14 +227,17 @@ def step1_v2(p: Pipeline, pid: int, proj, scenes, chars, risky, char_names, lock
         if st.session_state.get("parse_warn") and scenes:
             say("warning", st.session_state["parse_warn"], f"script-parse-warn-{pid}", "Không thấy tiêu đề cảnh — cả kịch bản thành 1 cảnh")
         if not scenes:
-            st.html(D.empty_state("Chưa có kịch bản", "dán vào khung chat, gõ ý thô hoặc 📎 file rồi bấm ▶ Phân tích"))   # S14.36: one line (CSS .script-a)
+            st.html(D.empty_state("Chưa có kịch bản", "dán vào khung chat, gõ ý thô hoặc thả file rồi bấm ▶ Phân tích"))   # S14.36: one line (CSS .script-a)
             S.script_input(p, pid, with_reset=False)
         else:
             from core import idea_to_script
-            label = ("📥 Nhập / thay kịch bản (khung hội thoại: dán · ý tưởng · 📎 file)" if idea_to_script.enabled()   # S14.21: the box
+            label = ("📥 Nhập / thay kịch bản (khung hội thoại: dán · ý tưởng · thả file)" if idea_to_script.enabled()   # S14.21: the box
                      else "📥 Nhập / thay kịch bản (tải file · dán văn bản · ý tưởng thô)")   # (no expander inside it — C2)
             with st.expander(label, expanded=bool(st.session_state.get("parse_warn"))):
                 S.script_input(p, pid, with_reset=False)
+            if idea_to_script.enabled():
+                from dashboard.steps.step1_box import script_view
+                script_view(p, pid, scenes)
             if st.session_state.get("parse_info"):
                 S.parse_info_box()
             S.script_views(p, pid, proj, scenes, char_names)

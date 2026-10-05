@@ -4,8 +4,10 @@
 A conversation shell around priced widgets, NOT a free chat: one `st.chat_input` is the single way in for text (a pasted script, a raw
 idea, or a "nói thêm" for the Biên kịch) and it NEVER calls a model. Code decides for 0 USD what the text is (idea_to_script.classify:
 script → the old ▶ Phân tích split; idea → the Biên kịch's turns, each behind a button with its price; grey zone → ask, never guess —
-luật 3), always with a one-click override. Old keys kept: up_ (📎 popover, same uploader), paste_ (✍ Sửa toàn văn, a popover since S14.36 — the box
-sits inside the v2 "Nhập / thay" expander, so no expander here: C2), btn_analyse_, btn_bad_reset_."""
+luật 3), always with a one-click override. S14.38: the chat is the ONLY door in — no ✍ Sửa toàn văn (paste_) and no 📎 popover (up_): a file is dropped on the chat input
+(same file types), the script in use is read-only under "Xem kịch bản" (st.code → copy, edit elsewhere, paste back into the chat).
+A full script pasted while one is in use asks once before replacing it. Keys kept: btn_analyse_, btn_bad_reset_ (the flag-off tabs of
+step1.script_input keep up_/paste_). No expander in the box itself: it sits inside the v2 "Nhập / thay" expander (C2)."""
 from dashboard.common import *  # noqa: F401,F403  (shared imports + helpers)
 from dashboard.steps.step1_v2 import cap, say  # noqa: F401
 
@@ -15,7 +17,7 @@ _KIND_TEXT = {"script": "KỊCH BẢN", "idea": "Ý TƯỞNG"}
 
 def _keys(pid: int) -> dict:
     return {"text": f"box_text_{pid}", "mode": f"in_mode_{pid}", "wish": f"box_wish_{pid}", "file": f"box_file_{pid}",
-            "paste": f"paste_{pid}", "chat": f"box_in_{pid}"}
+            "pending": f"box_pending_{pid}", "ask": f"box_ask_{pid}", "chat": f"box_in_{pid}"}
 
 
 def _take(p: Pipeline, pid: int, got) -> None:
@@ -36,9 +38,64 @@ def _take(p: Pipeline, pid: int, got) -> None:
             and len(text.strip()) < I.IDEA_MAX_CHARS):                   # rà: "Lưu ý: …" / "Kelly: nói nhẹ hơn" is a wish, not a script
         ss[k["wish"]] = text.strip()                                   # "nói thêm" for the next paid turn (shown, removable)
         return
-    ss[k["text"]] = ss[k["paste"]] = text                              # paste_ is drawn later in this run → may be set now
+    if not files:
+        d = decide(_scene_count(p, pid), text)
+        if d["action"] == "replace":                                   # S14.38: a full script over one in use → ask once
+            ss[k["pending"]] = text
+            ss.pop(k["ask"], None)
+            return
+        if d["action"] == "ask":                                       # a few scenes / a snippet over one in use → never guess
+            ss[k["ask"]] = text
+            ss.pop(k["pending"], None)
+            return
+    ss[k["text"]] = text
     if not files:
         ss.pop(k["mode"], None)                                        # a new text is classified again
+
+
+def _scene_count(p: Pipeline, pid: int) -> int:
+    return int(p.conn.execute("SELECT COUNT(*) FROM scenes WHERE project_id=?", (pid,)).fetchone()[0])
+
+
+def decide(existing: int, text: str) -> dict:
+    """S14.38 (0 USD, no model): what to do with a text typed / pasted into the chat. {"action": "set" | "replace" | "ask", "scenes"}.
+    No script in use → "set" (as before). A script in use: a FULL script (>= half as many scenes) → "replace" (one confirm card); a few
+    scenes or a snippet with dialogue → "ask" (add or replace? never guess); a raw idea → "set" (the Biên kịch path, unchanged)."""
+    from core import idea_to_script as I
+    c = I.classify(text)
+    if existing <= 0 or not (text or "").strip():
+        return {"action": "set", "scenes": c.get("scenes", 0)}
+    if c["kind"] == "script":
+        full = c.get("scenes", 0) >= max(2, (existing + 1) // 2)
+        return {"action": "replace" if full else "ask", "scenes": c.get("scenes", 0)}
+    if c["kind"] == "unsure":
+        return {"action": "ask", "scenes": 0}
+    return {"action": "set", "scenes": 0}
+
+
+def resolve(p: Pipeline, pid: int, choice: str) -> None:
+    """The buttons of the two cards. choice: "replace" (confirm the pending script: clear the scenes without work like ↺ Làm lại, keep
+    the text for ▶ Phân tích) · "swap" / "add" (from the ask card → become the pending replace; "add" = script in use + the new part)
+    · "cancel"."""
+    from core import access
+    k, ss = _keys(pid), st.session_state
+    if choice == "cancel":
+        ss.pop(k["pending"], None)
+        ss.pop(k["ask"], None)
+        return
+    if choice in ("swap", "add"):
+        new = (ss.pop(k["ask"], "") or "").strip()
+        cur = ((p.project(pid)["script_text"] or "") if choice == "add" else "").strip()
+        ss[k["pending"]] = (cur + "\n\n" + new) if cur else new
+        return
+    new = ss.get(k["pending"]) or ""
+    access.need_edit(p, pid, "thay kịch bản")                           # 'Chỉ xem' stays blocked
+    from dashboard.steps.step1 import reset_unworked_scenes
+    reset_unworked_scenes(p, pid)
+    ss[k["text"]] = new
+    ss.pop(k["pending"], None)
+    ss.pop(k["mode"], None)
+    ss.pop(k["file"], None)
 
 
 def _set_mode(pid: int, mode: str) -> None:
@@ -47,14 +104,14 @@ def _set_mode(pid: int, mode: str) -> None:
 
 def _wish_to_idea(pid: int) -> None:
     k, ss = _keys(pid), st.session_state
-    ss[k["text"]] = ss[k["paste"]] = ss.pop(k["wish"], "")
+    ss[k["text"]] = ss.pop(k["wish"], "")
     ss.pop(k["mode"], None)
 
 
 def _preview(text: str) -> str:
     lines = text.strip().splitlines()
     out = "\n".join(lines[:_SHOW_LINES])[:_SHOW_CHARS]
-    return out + (f"\n… (+{len(lines) - _SHOW_LINES} dòng — xem / sửa ở ✍ Sửa toàn văn)" if len(lines) > _SHOW_LINES else "")
+    return out + (f"\n… (+{len(lines) - _SHOW_LINES} dòng — xem nguyên văn ở “Xem kịch bản”)" if len(lines) > _SHOW_LINES else "")
 
 
 def _verdict(pid: int, mode: str, forced: bool, why) -> None:
@@ -87,6 +144,42 @@ def receipt(text: str, c: dict = None) -> str:
             + " — bấm ▶ Phân tích để tách cảnh (0 USD).")
 
 
+def _cards(p: Pipeline, pid: int) -> None:
+    """S14.38: the one-time confirm (full script over the one in use) and the ask (a few scenes / a snippet) — both 0 USD."""
+    from core import idea_to_script as I
+    k, ss = _keys(pid), st.session_state
+    pend, ask = ss.get(k["pending"]), ss.get(k["ask"])
+    if pend:
+        n = I.classify(pend).get("scenes", 0)
+        with st.chat_message("assistant"):
+            st.markdown(f"**Thay kịch bản hiện tại bằng bản mới {n} cảnh?** Các cảnh chưa có ảnh/video của bản cũ sẽ bị xóa (như ↺ Làm lại); "
+                        "cảnh đã có ảnh được giữ.")
+            a, b = st.columns(2)
+            if a.button("Thay", key=f"box_replace_yes_{pid}", type="primary", width="stretch"):
+                if act(lambda: resolve(p, pid, "replace")):
+                    st.rerun()
+            b.button("Hủy", key=f"box_replace_no_{pid}", on_click=resolve, args=(None, pid, "cancel"), width="stretch")
+    elif ask:
+        with st.chat_message("assistant"):
+            st.markdown("Bạn dán một đoạn / vài cảnh khi đã có kịch bản. **Thêm vào kịch bản hiện tại hay thay thế?** Chưa có gì bị đổi.")
+            a, b, c = st.columns(3)
+            for col, choice, label in ((a, "add", "➕ Thêm vào"), (b, "swap", "🔁 Thay thế")):
+                if col.button(label, key=f"box_ask_{choice}_{pid}", width="stretch"):    # in-run (not on_click): uses this run's Pipeline
+                    resolve(p, pid, choice)
+                    st.rerun()
+            c.button("Hủy", key=f"box_ask_no_{pid}", on_click=resolve, args=(None, pid, "cancel"), width="stretch")
+
+
+def script_view(p: Pipeline, pid: int, scenes) -> None:
+    """S14.38: the script in use, read-only and folded — copy it (st.code has the button), edit it anywhere, paste it back into the chat."""
+    text = (p.project(pid)["script_text"] or "").strip()
+    if not text:
+        return
+    with st.expander(f"Xem kịch bản ({len(scenes)} cảnh)"):
+        cap("Chỉ đọc. Bấm biểu tượng sao chép ở góc khung, sửa ở nơi bạn quen, rồi dán lại vào khung chat.")
+        st.code(text, language=None, wrap_lines=True)
+
+
 def script_box(p: Pipeline, pid: int, with_reset: bool = True) -> bool:
     """Same contract as step1.script_input (keys, return value: is there an input).
     S14.36 layout: the chat is the centre — messages on top, the input under them; 📎 and ✍ Sửa toàn văn are two small popovers beside
@@ -96,41 +189,27 @@ def script_box(p: Pipeline, pid: int, with_reset: bool = True) -> bool:
     k, ss = _keys(pid), st.session_state
     body, foot = st.container(), st.container()                        # drawn in this order; the chat input is read FIRST (below)
     with foot:
-        a, b, b2 = st.columns([6, 1.3, 1.6], vertical_alignment="bottom")
-        with a:
-            got = st.chat_input("Dán kịch bản, gõ ý tưởng, hoặc nói thêm cho Biên kịch…", key=k["chat"], accept_file=True,
-                                file_type=list(script_reader.SUPPORTED))
+        got = st.chat_input("Dán kịch bản, gõ ý tưởng, nói thêm cho Biên kịch, hoặc thả file (" +
+                            " ".join(sorted(script_reader.SUPPORTED)) + ")…", key=k["chat"], accept_file=True,
+                            file_type=list(script_reader.SUPPORTED))
         if got:
             _take(p, pid, got)
-        if k["paste"] not in ss:
-            ss[k["paste"]] = ss.get(k["text"], "")
-        with b.popover("📎 Đính kèm", width="stretch"):
-            up = st.file_uploader("Kịch bản", type=list(script_reader.SUPPORTED), key=f"up_{pid}", label_visibility="collapsed",
-                                  help="Word (.docx, kể cả kịch bản viết trong bảng), Excel (.xlsx), CSV/TSV, .txt, .md")
-            cap("Đọc được: Word (.docx, cả bảng), Excel (.xlsx), CSV/TSV, .txt, .md. Kịch bản dạng bảng cần dòng tiêu đề cột như "
-                "Cảnh, Mô tả, Nhân vật, Lời thoại, Bối cảnh, Thời gian, Góc máy.")
-        n_chars = len(ss.get(k["paste"]) or "")
-        with b2.popover("✍ Sửa toàn văn" + (f" · {n_chars:,}".replace(",", ".") if n_chars else ""), width="stretch"):
-            pasted = st.text_area("Gõ hoặc dán kịch bản", key=k["paste"], height=300, label_visibility="collapsed",
-                                  placeholder="CẢNH 1 - ĐÊM, RỪNG ELDER\nSương mù phủ kín khu rừng…\nLYRA: Có thứ gì đó đang theo chúng ta.\n\n"
-                                              "Dán cả bảng copy từ Excel / Google Sheets cũng được (300 dòng cũng được).")
-        ss[k["text"]] = pasted
     state = I.get_state(p.conn, pid)
     with body:
         if state.get("inputs"):                                        # the ceiling of this idea (mẫu step1_v2 meter)
             from dashboard.design import components as D
             spent = float(state.get("spent") or 0)
             st.html(D.meter(spent / I.RUN_CAP_USD, f"Biên kịch: đã dùng ≈ {spent:.3f} / {I.RUN_CAP_USD:g} USD cho ý tưởng này", invert=True))
-        text, file = pasted or "", ss.get(k["file"])
-        mode = "script" if (up is not None or file) else None
-        if up is None and not file and not text.strip() and not state.get("inputs"):
+        text, file = ss.get(k["text"], "") or "", ss.get(k["file"])
+        mode = "script" if file else None
+        if not file and not text.strip() and not state.get("inputs") and not ss.get(k["pending"]) and not ss.get(k["ask"]):
             with st.chat_message("assistant"):
-                st.markdown("Dán kịch bản (có tiêu đề **CẢNH 1 - …**) hoặc gõ vài dòng ý tưởng vào khung bên dưới; file thì bấm 📎. "
+                st.markdown("Dán kịch bản (có tiêu đề **CẢNH 1 - …**) hoặc gõ vài dòng ý tưởng vào khung bên dưới; file thì thả vào khung. "
                             "Gõ vào khung không tốn tiền — chỉ nút có ghi giá mới gọi Claude.")
         else:
             with st.chat_message("user"):
-                if up is not None or file:
-                    st.markdown(f"📎 {escape(up.name if up is not None else file[0])}")
+                if file:
+                    st.markdown(f"📎 {escape(file[0])}")
                 if text.strip():
                     st.text(_preview(text))
                 elif state.get("inputs"):
@@ -139,9 +218,9 @@ def script_box(p: Pipeline, pid: int, with_reset: bool = True) -> bool:
                 c = I.classify(text if text.strip() else (state.get("inputs") or {}).get("idea", ""))
                 forced = ss.get(k["mode"])
                 mode = mode or forced or c["kind"]
-                if up is not None or file:
+                if file:
                     st.markdown("Có file → đọc như **KỊCH BẢN** (▶ Phân tích tách cảnh, 0 USD). Nếu có cả file lẫn văn bản, hệ thống dùng file.")
-                    if file and up is None:
+                    if file:
                         st.button("✕ Bỏ file này", key=f"box_file_drop_{pid}", on_click=lambda: (ss.pop(k["file"], None), ss.pop(k["mode"], None)))
                 else:
                     if mode == "script" and text.strip():
@@ -158,20 +237,21 @@ def script_box(p: Pipeline, pid: int, with_reset: bool = True) -> bool:
                     w1, w2 = st.columns(2)
                     w1.button("✕ Bỏ lời này", key=f"box_wish_drop_{pid}", on_click=lambda: ss.pop(k["wish"], None))
                     w2.button("↪ Không, đây là ý tưởng mới", key=f"box_wish_as_idea_{pid}", on_click=_wish_to_idea, args=(pid,))
-        has_input = up is not None or bool(file) or bool(text.strip())
-        ready = up is not None or bool(file) or (bool(text.strip()) and (mode or ss.get(k["mode"]) or I.classify(text)["kind"]) == "script")
+        _cards(p, pid)
+        has_input = bool(file) or bool(text.strip())
+        ready = bool(file) or (bool(text.strip()) and (mode or ss.get(k["mode"]) or I.classify(text)["kind"]) == "script")
         if with_reset:
             u2, u3, u4 = st.columns([2.4, 1.2, 4], vertical_alignment="center")
         else:
             u2, u4 = st.columns([2.4, 5.2], vertical_alignment="center")
             u3 = None
         if u2.button("▶ Phân tích (tách cảnh)", disabled=not ready, type="primary", key=f"btn_analyse_{pid}"):
-            if act(lambda: analyse_script(p, pid, up, text, None if up is not None else file)):
+            if act(lambda: analyse_script(p, pid, None, text, file)):
                 ss.pop(k["file"], None)
                 st.rerun()
         u4.caption("Sẵn sàng · bấm ▶ Phân tích (0 USD)" if ready else
                    ("Ý tưởng → làm qua Biên kịch ở trên, hoặc bấm 'không phải, đây là kịch bản' để tách thẳng." if has_input
-                    else "Dán / gõ vào khung bên dưới hoặc 📎 đính kèm file, rồi bấm Phân tích."))
+                    else "Dán kịch bản vào khung chat, rồi bấm Phân tích."))
         if with_reset:
             with u3:
                 reset_script_button(p, pid)

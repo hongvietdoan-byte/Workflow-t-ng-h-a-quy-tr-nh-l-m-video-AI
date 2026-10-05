@@ -33,7 +33,7 @@ def _summary(p: Pipeline, pid: int) -> str:
 def modes_line(pid: int) -> None:
     """S14.28: the ways in on ONE line — the script (in use) + the three "sắp có" buttons (disabled, same keys coming_…)."""
     cols = st.columns([5, 1.6], vertical_alignment="center")
-    cols[0].caption("📝 **Kịch bản / ý tưởng** — đang dùng (dán, gõ hoặc 📎 file ở khung chat bên dưới)")
+    cols[0].caption("📝 **Kịch bản / ý tưởng** — đang dùng (dán, gõ hoặc thả file vào khung chat bên dưới)")
     with cols[1].popover("⋯ Cách khác", width="stretch", help="Sắp có: " + " · ".join(t for t, _ in COMING)):     # S14.36: three buttons → one small menu
         for title, why in COMING:
             st.button(title, key=f"coming_{title[:2]}_{pid}", disabled=True, width="stretch", help="Sắp có — " + why)
