@@ -5,9 +5,18 @@ awakening), every pet (biography, skill) and the weapons of every category (stat
 ("whitelist check failed") and is NOT used or bypassed: instead the pages are read the way a visitor moves through them, following the
 "previous / next" links of the character and pet pages and opening each weapon category. A short pause is kept between requests.
 
-Each page carries its data as a script (`window.__NUXT__`); it is evaluated by Node.js in an empty sandbox (no network, no files).
+Safety (S14.5 Gói C2): only `https` addresses on garena.com / *.garena.com are opened (pictures also from the CDN hosts in
+FF_SITE_IMAGE_HOSTS, default cdn.wildflamestudio.com); the host is checked before opening, after EVERY redirect, when the items are
+collected and again right before a picture is downloaded. A refused address is counted and named in the summary, never dropped silently.
+
+Each page carries its data as a script (`window.__NUXT__`). It is read in two tiers: as plain JSON when it is JSON; otherwise (the
+real pages use the form `(function(a,b,…){return {…}}(…))`) by Node.js run with the permission model (`--permission`: no file
+access, no child processes, no workers, no native addons), an EMPTY environment, a throw-away working folder and a 30 s limit.
+A Node.js without the permission model is refused with a message (never run unrestricted). The old `vm.runInContext` sandbox is
+gone: it was escapable (`window.constructor.constructor('return process')()` read files).
 Existing library entries are enriched, never overwritten: the site text goes into a marked block at the end of the description, which a
-later run replaces, and pictures already present are not added twice.
+later run replaces, and pictures already present are not added twice. The website text reaches Claude wrapped by
+`core.prompts.external_block` (reference material, not instructions).
 """
 import html as htmllib
 import json
@@ -15,10 +24,12 @@ import os
 import re
 import shutil
 import subprocess
+import tempfile
 import time
+import urllib.parse
 import urllib.request
 from datetime import datetime, timezone
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Tuple
 
 from . import assets
 
@@ -30,15 +41,24 @@ ARTICLES = 12                          # newest news articles kept
 ARTICLE_CHARS = 8000
 MAX_WALK = 400                         # safety stop when following next-links
 PAUSE = 0.25                           # seconds between page requests: be gentle with the website
+PAGE_HOSTS = ("garena.com",)           # pages: garena.com and every *.garena.com, https only
+DEFAULT_IMAGE_HOSTS = "cdn.wildflamestudio.com"   # where the official pictures really live (all 484 site pictures in the library, 06/10)
+NODE_TIMEOUT = 30                      # seconds for one page's script
+NUXT = "window.__NUXT__="
+# Reads ONE expression (the right-hand side of `window.__NUXT__=`) from stdin and prints it as JSON. The names below are shadowed
+# only as a second fence; the real fence is the permission model of the Node process (no files, no child processes).
 _NODE = r"""
-const vm = require('vm'); let h = '';
+const out = process.stdout; let h = '';
 process.stdin.setEncoding('utf8');
 process.stdin.on('data', d => h += d).on('end', () => {
-  const i = h.indexOf('window.__NUXT__='); if (i < 0) { console.log('null'); return; }
-  const j = h.indexOf('</script>', i);
-  const ctx = { window: {} }; vm.createContext(ctx);
-  vm.runInContext(h.slice(i, j).replace(/;?\s*$/, ''), ctx, { timeout: 3000 });
-  console.log(JSON.stringify(ctx.window.__NUXT__));
+  let v;
+  try {
+    v = new Function('process', 'require', 'module', 'exports', 'global', 'globalThis', 'window',
+                     '"use strict"; return (' + h + '\n);')(undefined, undefined, undefined, undefined, undefined, undefined, {});
+    out.write(JSON.stringify({ ok: v === undefined ? null : v }));
+  } catch (e) {
+    out.write(JSON.stringify({ error: String((e && e.message) || e).slice(0, 300) }));
+  }
 });
 """
 
@@ -47,30 +67,151 @@ class FfSiteError(Exception):
     """A message that can be shown to the person."""
 
 
-def fetch(url: str, binary: bool = False, timeout: int = 40):
-    req = urllib.request.Request(url, headers={"User-Agent": UA, "Accept-Language": "vi"})
+# ---- which addresses may be opened ------------------------------------------------------------------------------------
+def image_hosts() -> Tuple[str, ...]:
+    """Picture hosts besides garena.com: FF_SITE_IMAGE_HOSTS (comma separated) or the CDN the website really uses."""
+    raw = os.environ.get("FF_SITE_IMAGE_HOSTS", DEFAULT_IMAGE_HOSTS)
+    return tuple(h.strip().lower().lstrip(".") for h in raw.split(",") if h.strip())
+
+
+def _host_ok(host: str, allowed) -> bool:
+    return any(host == d or host.endswith("." + d) for d in allowed)
+
+
+def refusal(url: str, images: bool = False) -> Optional[str]:
+    """Why `url` may not be opened (None when it may): https only, host garena.com / *.garena.com (+ picture hosts for pictures)."""
     try:
-        with urllib.request.urlopen(req, timeout=timeout) as resp:
+        parts = urllib.parse.urlsplit(str(url))
+        host = (parts.hostname or "").lower().rstrip(".")
+    except ValueError:
+        return f"địa chỉ không đọc được: {str(url)[:120]}"
+    allowed = PAGE_HOSTS + (image_hosts() if images else ())
+    if parts.scheme != "https":
+        return f"chỉ mở địa chỉ https, bị từ chối: {str(url)[:120]}"
+    if parts.username or parts.password or not host or not _host_ok(host, allowed):
+        return (f"máy chủ '{host or '?'}' không nằm trong danh sách cho phép ({', '.join(allowed)}), bị từ chối: {str(url)[:120]}"
+                + ("" if images else " — chỉ trang của garena.com"))
+    return None
+
+
+def check_url(url: str, images: bool = False) -> None:
+    why = refusal(url, images)
+    if why:
+        raise FfSiteError(f"Địa chỉ bị từ chối — {why}. Thêm máy chủ ảnh vào FF_SITE_IMAGE_HOSTS nếu đó là máy chủ ảnh chính thức.")
+
+
+class _RedirectGuard(urllib.request.HTTPRedirectHandler):
+    """Checks the target of EVERY redirect against the same list before following it."""
+
+    def __init__(self, images: bool = False):
+        super().__init__()
+        self.images = images
+
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        check_url(urllib.parse.urljoin(req.full_url, newurl), self.images)
+        return super().redirect_request(req, fp, code, msg, headers, newurl)
+
+
+def fetch(url: str, binary: bool = False, timeout: int = 40):
+    """GET one allowed address (a page, or with binary=True a picture). Refused addresses raise FfSiteError before any request."""
+    check_url(url, images=binary)
+    req = urllib.request.Request(url, headers={"User-Agent": UA, "Accept-Language": "vi"})
+    opener = urllib.request.build_opener(_RedirectGuard(images=binary))
+    try:
+        with opener.open(req, timeout=timeout) as resp:
+            check_url(resp.geturl(), images=binary)                      # where we actually ended up
             body = resp.read()
     except OSError as e:
         raise FfSiteError(f"Không mở được {url}: {e}") from None
     return body if binary else body.decode("utf-8", "replace")
 
 
-def nuxt_state(page: str) -> Optional[Dict]:
-    """The page's data object (evaluated by Node.js in an empty sandbox); None when the page carries none."""
+# ---- reading the page's data --------------------------------------------------------------------------------------------
+_PERMISSION_FLAG: Dict[str, Optional[str]] = {}
+
+
+def _node_env() -> Dict[str, str]:
+    """The environment Node.js gets: nothing on Linux/macOS; on Windows only SystemRoot (06/10: Node 24 aborts at start with
+    'Assertion failed: ncrypto::CSPRNG' when the environment block is completely empty). No keys, no PATH, no user folders."""
+    if os.name == "nt":
+        root = os.environ.get("SystemRoot") or os.environ.get("SYSTEMROOT") or r"C:\Windows"
+        return {"SystemRoot": root}
+    return {}
+
+
+def _permission_flag(node: str) -> str:
+    """'--permission' (Node ≥ 22.13/23.5) or '--experimental-permission' (Node 20–22); FfSiteError when the Node has neither."""
+    if node not in _PERMISSION_FLAG:
+        found = None
+        for flag in ("--permission", "--experimental-permission"):
+            try:
+                proc = subprocess.run([node, flag, "-e", "process.stdout.write(String(process.permission && "
+                                       "!process.permission.has('fs.read') && !process.permission.has('child')))"],
+                                      capture_output=True, timeout=NODE_TIMEOUT, env=_node_env(), cwd=tempfile.gettempdir())
+            except (OSError, subprocess.TimeoutExpired):
+                continue
+            if proc.returncode == 0 and proc.stdout.strip() == b"true":
+                found = flag
+                break
+        _PERMISSION_FLAG[node] = found
+    flag = _PERMISSION_FLAG[node]
+    if not flag:
+        try:
+            ver = subprocess.run([node, "--version"], capture_output=True, timeout=10).stdout.decode().strip()
+        except (OSError, subprocess.TimeoutExpired):
+            ver = "?"
+        raise FfSiteError(f"Node.js {ver} không có chế độ giới hạn quyền (--permission, cần Node.js ≥ 20) — không chạy dữ liệu website "
+                          "khi không giới hạn được. Cập nhật Node.js (https://nodejs.org) rồi bấm lại.")
+    return flag
+
+
+def _payload(page: str) -> Optional[str]:
+    i = page.find(NUXT)
+    if i < 0:
+        return None
+    j = page.find("</script>", i)
+    return page[i + len(NUXT): j if j >= 0 else len(page)].strip().rstrip(";").strip()
+
+
+def _node_eval(code: str) -> Optional[Dict]:
     node = shutil.which("node")
     if not node:
         raise FfSiteError("Cần Node.js trên máy để đọc dữ liệu từ website (https://nodejs.org).")
-    try:
-        proc = subprocess.run([node, "-e", _NODE], input=page.encode("utf-8"), capture_output=True, timeout=30)
-    except (OSError, subprocess.TimeoutExpired) as e:
-        raise FfSiteError(f"Không chạy được Node.js: {e}") from None
+    flag = _permission_flag(node)
+    with tempfile.TemporaryDirectory(prefix="ff_site_") as cwd:
+        try:
+            proc = subprocess.run([node, flag, "-e", _NODE], input=code.encode("utf-8"), capture_output=True,
+                                  timeout=NODE_TIMEOUT, env=_node_env(), cwd=cwd)
+        except subprocess.TimeoutExpired:
+            raise FfSiteError(f"Dữ liệu trang chạy quá {NODE_TIMEOUT} giây — đã dừng Node.js, bỏ trang này.") from None
+        except OSError as e:
+            raise FfSiteError(f"Không chạy được Node.js: {e}") from None
     out = proc.stdout.decode("utf-8", "replace").strip()
     try:
-        return json.loads(out) if out else None
+        res = json.loads(out) if out else None
     except ValueError:
+        res = None
+    if not isinstance(res, dict) or ("ok" not in res and "error" not in res):
+        err = proc.stderr.decode("utf-8", "replace").strip().splitlines()
+        raise FfSiteError(f"Không đọc được dữ liệu trang (Node.js thoát mã {proc.returncode}"
+                          + (f": {err[-1][:200]}" if err else "") + ").")
+    if "error" in res:
+        raise FfSiteError(f"Không đọc được dữ liệu trang: {res['error']}")
+    return res["ok"] if isinstance(res["ok"], dict) else None
+
+
+def nuxt_state(page: str) -> Optional[Dict]:
+    """The page's data object; None when the page carries none. Plain JSON is read directly; the function form of the real pages is
+    run by Node.js under the permission model (see the module note). FfSiteError when the data cannot be read."""
+    code = _payload(page)
+    if code is None:
         return None
+    try:
+        value = json.loads(code)
+        return value if isinstance(value, dict) else None
+    except ValueError:
+        pass
+    return _node_eval(code)
 
 
 def _text(fragment) -> str:
@@ -243,6 +384,9 @@ def collect(getter=fetch) -> List[Dict]:
     items += _pets(getter)
     items += _weapons(getter)
     items += _characters(getter)
+    for item in items:                                   # picture links from the page: only allowed hosts, the rest named in `rejected`
+        item["rejected"] = [u for u in item["images"] if refusal(u, images=True)]
+        item["images"] = [u for u in item["images"] if u not in item["rejected"]]
     return items
 
 
@@ -260,10 +404,19 @@ def _with_block(description: str, text: str) -> str:
 
 
 def sync(conn, game: str = "FF", created_by: Optional[str] = None, getter=fetch, download=None) -> Dict:
-    """Read the website and add / enrich entries. Returns counts {created, enriched, pictures, skipped}."""
+    """Read the website and add / enrich entries. Returns counts {created, enriched, pictures, skipped, rejected} (+ rejected_urls:
+    picture addresses outside the allowed hosts, never downloaded; they are also written to the error log)."""
     download = download or (lambda url: fetch(url, binary=True))
-    report = {"created": 0, "enriched": 0, "pictures": 0, "skipped": 0}
+    report = {"created": 0, "enriched": 0, "pictures": 0, "skipped": 0, "rejected": 0, "rejected_urls": []}
+
+    def refuse(url: str) -> None:
+        report["rejected"] += 1
+        if len(report["rejected_urls"]) < 20:
+            report["rejected_urls"].append(url)
+
     for item in collect(getter):
+        for url in item.get("rejected", []):
+            refuse(url)
         found = _existing(conn, game, item)
         try:
             if found is None:
@@ -282,6 +435,9 @@ def sync(conn, game: str = "FF", created_by: Optional[str] = None, getter=fetch,
         for url in item["images"][:PICS_PER_ITEM]:
             if url in have:
                 continue
+            if refusal(url, images=True):                                # checked again right before the download
+                refuse(url)
+                continue
             try:
                 assets.add_image(conn, aid, os.path.basename(url.split("?")[0]) or "site.png", download(url), src_path=url,
                                  status="pending")                       # G2: downloaded without a person looking
@@ -292,12 +448,18 @@ def sync(conn, game: str = "FF", created_by: Optional[str] = None, getter=fetch,
         report["articles"] = sync_articles(conn, getter)
     except (FfSiteError, OSError):
         report["articles"] = 0
+    if report["rejected"]:
+        from . import diag
+        diag.record(conn, "system", "warn", f"đọc website Free Fire: {report['rejected']} địa chỉ ảnh ngoài danh sách cho phép bị từ chối "
+                    f"(không tải), ví dụ {report['rejected_urls'][0]} — nếu đó là máy chủ ảnh chính thức, thêm vào FF_SITE_IMAGE_HOSTS",
+                    "ff_site_url")
     return report
 
 
 def summary(report: Dict) -> str:
     return (f"{report['created']} mục mới, {report['enriched']} mục được bổ sung mô tả, {report['pictures']} ảnh chính thức, "
-            f"{report.get('articles', 0)} bài tin tức" + (f", {report['skipped']} bỏ qua" if report["skipped"] else ""))
+            f"{report.get('articles', 0)} bài tin tức" + (f", {report['skipped']} bỏ qua" if report["skipped"] else "")
+            + (f", {report['rejected']} địa chỉ bị từ chối (ngoài danh sách máy chủ cho phép, xem Nhật ký lỗi)" if report.get("rejected") else ""))
 
 
 # ---- running it: a button (or once a month) starts it in the background; the outcome is kept for the panel ----------------
