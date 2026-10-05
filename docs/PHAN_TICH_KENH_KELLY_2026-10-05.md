@@ -46,3 +46,44 @@
 - Bổ sung định dạng A–D vào S14.31, đo lại 5 ý tưởng S14.22 bằng khuôn A/B.
 - Đợt 2 (40 clip thêm theo dạng còn thiếu) chỉ khi Đợt 1 có ích; cần cân nhắc vì mẫu "view cao" lệch theo thời gian — nên lấy thêm clip 2026 nhiều view.
 - Nghe tai các chỗ "nghe bằng số" (nhạc to lên giây 3–4, khoảng lặng K10).
+
+---
+
+# Đợt 2 (S14.33, 05/10/2026) — 40 clip bổ sung + thu tài nguyên
+
+> Người dùng duyệt 05/10: kênh thuộc quyền dùng của họ. **Mục đích:** (1) mở rộng phong cách làm + dựng, mở rộng Kho tài nguyên FF dùng lại được (ưu tiên âm thanh, HUD / icon, nền, đồ vật, biểu cảm); (2) mọi quy định né tránh / việc có thể làm chỉ là **GỢI Ý** — trong knowledge viết "có thể / khi nào hợp / điều kiện", không "cấm / bắt buộc". Chi phí **0 USD** (không gọi Claude API / dịch vụ trả phí; gán nhãn trong phiên).
+
+## Tải về
+- **40 clip** từ `@freefire_kelly_official` bằng yt-dlp (2026.08.19): 32 clip 2026 nhiều view (4,8 triệu … 381 nghìn) + 8 clip theo dạng còn thiếu (collab Jujutsu / Naruto / Gintama, bóng đá, quiz Solo/Duo, ghép khán đài, gift drop…). Tổng **92,8 MB**, 519 s, không clip nào lỗi. Lưu `D:\AI-Video-Pipeline\data\ref_kelly\<id>.mp4` (ngoài git), nối `list.tsv` (cột lý do `dot2`), thư mục làm việc `data/ref_kelly/work/E01…E40` (bảng khung đều, bảng shot, nghe bằng số).
+- Đã kiểm độ dài tiếng ≈ độ dài hình ở cả 40 clip (lệch ≤ 0,04 s; không có hiện tượng tiếng cụt như S0.12).
+- Danh sách id / view / tiêu đề + ghi chú hình + âm thanh từng clip: `research/kelly_official/phieu_dot2_40_clip.md`.
+
+## Số đo (cận dưới do bộ cắt tự động bỏ sót cắt)
+Trung vị 13,0 s (5–30 s); 4 shot / clip (8/40 là một cú máy); shot TB ≈ 2,4 s; ≈ 25 shot/phút; nhạc có ở 40/40 clip (46–100 % thời lượng).
+
+## Phát hiện mới (chi tiết + clip dẫn chứng: `knowledge/ff_styles/kelly_official.md` mục "Đợt 2" và `knowledge/craft/ne_canh_kho_dung.md` mục 12–20)
+1. 2026 vẫn dùng lớp đồ hoạ trạng thái làm cách kể "trong trận": 17/40 tiểu phẩm 3D có HUD / icon / thẻ / huy hiệu / tỉ số; thêm 5/40 xen UI / gameplay quay màn hình (E32 bản đồ, E39 gameplay, E29 TikTok / redeem, E16 chế độ chibi, E03 hồ sơ ĐT).
+2. **Tỉ số / bộ đếm / dải DEFEAT** là đồ hoạ dễ làm (E38, E40, E12, E07, E01); **huy hiệu hạng đổi theo hành động** (E14, E15, E17, E18, E19).
+3. **Đạo cụ lớn làm tâm điểm gag** (E27, E25, E26, E24, E11, E21); **khuôn A vs B chia dọc** (E07, E27, E33); **cú chốt glitch / emoji** (8 clip).
+4. **Quảng bá collab / sự kiện** có khuôn riêng (logo cố định + nhân vật 2D ghép 3D + thẻ chốt: E02, E21, E26, E36) và tập trung ở nửa view thấp của mẫu 2026 (8/20 so với 1/20) — số đo, không phải nhân quả.
+5. **Giọng thông báo kill** có thêm ở E01 (Double / Triple kill) và E12 (Unstoppable) ngoài K14 → ≥ 3 clip, đủ làm gợi ý.
+6. Cơ cấu định dạng gần Đợt 1: "một cận + đồ hoạ" và "tiểu phẩm 2–4 shot + HUD" vẫn là hai nhóm dễ dựng nhất; ngoài pipeline: sự kiện thật (E31), bicycle kick / chuyển động mạnh (E34), ghép khán đài thật (E33).
+
+## Tài nguyên đã thu về Kho (CHỜ DUYỆT, không tự duyệt)
+- **Kho âm thanh:** nguồn mới `D:\AI-Video-Pipeline\data\ref_kelly\kho_am_thanh` (sound_sources id 2, quét bằng `core/sound_lib`): **14 nhạc trend** (nguyên mix, kèm lời hát; mood theo tên) + **3 giọng thông báo kill** (E01 4,3–5,8 s Double kill; E01 10,4–11,5 s Triple kill; E12 10,2–12,4 s Unstoppable — cắt từ stem giọng demucs, CHƯA nghe tai). Nguồn id clip + mốc giây + ghi "người dùng xác nhận quyền dùng 05/10/2026" ở `kho_am_thanh/NGUON.tsv`. Không tách sạch nhạc khỏi lời hát → nhạc là bản gốc kèm lời.
+- **Kho ảnh:** **18 mục / 33 ảnh** (kind prop / location / character / style; status `pending`; created_by `S14.33`): HUD ô vũ khí + đếm đạn (3), kill + chip tên (2), thẻ Revival / Super Revival (2), BOOYAH (2), Solo / Duo (2), TEAM INVITE (1), icon kỹ năng giày (1), huy hiệu hạng (4), pin yếu (2), UI hồ sơ + phần thưởng (2), bản đồ + vòng bo (1), bảng điểm + DEFEAT (3), nền bãi cỏ + hòm đạn (1), nền khung thành (1), lựu đạn xanh (1), máy đấm hơi BOOYAH (1), Top Criminal (1), biểu cảm Kelly / Maxim (3). Cắt từ khung 1080×1920, lưu `data/ref_kelly/khung_sach/` + bản trong `data/assets/<id>/`. Vài HUD còn dính phần nhân vật phía sau — người duyệt nên xem. Ảnh `pending` tổng: 37 → 70.
+- Sao lưu `data/backup/manifest.before_s14_33_2026-10-05.sqlite` trước khi ghi.
+
+## Tài nguyên nên tạo 3D (chỉ liệt kê, KHÔNG tạo; chờ hỏi tiền)
+Ước theo `docs/RESEARCH_3D_PREVIZ.md` (ảnh → 3D có texture ≈ 30 credit / vật, rig ≈ 5; Pro 1.000 credit / tháng): ~10 vật ≈ 300 credit (~1/3 hạn mức Pro tháng), chưa gồm làm lại.
+1. Đồ vật đời thường (≈ 8): cốc minh hoạ nhân vật, đĩa khoai + bao lì xì F, burger, bóng rổ / bóng đá, vali nhiều màu, bao rác + túi xu, ghế đá công viên, bàn tròn gỗ.
+2. Máy đấm hơi BOOYAH arcade, hòm đạn đầu lâu (≈ 2; đã có ảnh tham chiếu trong Kho).
+3. Nhân vật phụ thiếu bộ chuẩn (≈ 4, tốn hơn vật): Top Criminal, nữ tai mèo đồng phục, nữ kính bay cam, nữ tóc tết xanh–tím.
+4. Nền (không phải việc của Meshy): canteen, văn phòng, phòng ngủ, công viên, sân bóng rổ có mural, tiệm tóc, thang cuốn — ảnh nền Kho / gen ảnh.
+5. HUD hoạt hình hậu kỳ (module Dựng).
+
+## Việc mở
+- Người dùng duyệt / loại 33 ảnh `pending`, nghe thử 17 âm thanh; nghe tai các mốc "nhạc to lên".
+- Quyết định có nạp mục 12–20 vào prompt Biên kịch / Đạo diễn (cờ TẮT) hay không.
+- Logo / nhân vật IP đối tác (Naruto, Gintama, Jujutsu) ở E02 / E21 / E26 / E36 KHÔNG thu vào Kho (tài sản bên thứ ba, cần phép riêng).
+- Chưa gán nhãn từng shot (JSON KELLY_SHOW) cho 40 clip Đợt 2; nếu cần số đo shot chính xác, chạy `reference_video.py save` ở phiên sau.

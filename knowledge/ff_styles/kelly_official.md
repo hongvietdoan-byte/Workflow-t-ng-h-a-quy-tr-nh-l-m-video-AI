@@ -30,7 +30,7 @@ Nhân vật 3D tả thực (da, tóc, vải) ghép vào cảnh ảnh thật / re
 ## Khi dùng cho AI video (gợi ý)
 - **Dễ nhất, nên thử đầu tiên:** 1 shot cận + lớp đồ hoạ trend (mục 5 trong `ne_canh_kho_dung.md`): K12, K27, K15, K40, K31, K34, K05.
 - **Tiểu phẩm 2–4 shot tĩnh, 1–2 nhân vật, 1 nền đời thường + HUD** (K01, K06, K11, K14, K33, K36): thiếu nhất là nền đời thường nhất quán và lớp HUD hoạt hình.
-- **Tránh (ngoài khả năng hiện tại):** hợp tác người thật [K25], giáo viên người thật [K39], cận điện thoại thật [K09, K10, K28], tổng kết ghép cảnh cũ [K07…], chuyển động mạnh nhiều nền [K30, K26], video bên thứ ba [K24 mèo thật, K17 flycam stock].
+- **Khó với khả năng hiện tại (gợi ý: có thể làm nếu người dùng cung cấp tài nguyên / footage):** hợp tác người thật [K25], giáo viên người thật [K39], cận điện thoại thật [K09, K10, K28], tổng kết ghép cảnh cũ [K07…], chuyển động mạnh nhiều nền [K30, K26], video bên thứ ba [K24 mèo thật, K17 flycam stock].
 - Giao diện / HUD làm ở hậu kỳ, không bắt model video vẽ (khớp `INGAME.md`).
 
 > Các con số dưới đây là **khoảng tham khảo** đo từ video Free Fire thật, không phải nhịp cố định: độ dài từng shot do kịch bản quyết định.
@@ -45,5 +45,26 @@ Nhân vật 3D tả thực (da, tóc, vải) ghép vào cảnh ảnh thật / re
 - Chữ trên hình 21 % shot · giao diện game / HUD 17 % shot (20/33 clip có HUD ở ít nhất 1 shot) · hiệu ứng 13 %
 - Mở bằng: mở móc ×24, thiết lập ×8 · kết bằng: kết ×23, mở móc ×9 (clip 1 shot)
 
-## Nguồn đã phân tích (40 clip, `data/ref_kelly/`, ngoài git)
+## Đợt 2 (S14.33, 05/10/2026) — 40 clip bổ sung, ưu tiên clip 2026
+
+> **Địa vị:** vẫn là GỢI Ý theo phong cách ("có thể / khi nào hợp / điều kiện"), không áp đặt. Mục đích người dùng: mở rộng phong cách làm + dựng, và mở rộng Kho tài nguyên FF dùng lại được. Mã **E01–E40**, phiếu `research/kelly_official/phieu_dot2_40_clip.md`. Mẫu: 32 clip 2026 nhiều view (top 4,8 triệu → 380 nghìn view + vài clip 214–209 nghìn) + 8 clip chọn theo dạng còn thiếu (collab, bóng đá, quiz…); tổng 519 s, 92,8 MB. Bộ cắt tự động đếm cận dưới: trung vị 4 shot / clip (8/40 clip một cú máy), shot TB ≈ 2,4 s, ≈ 25 shot/phút; clip trung vị 13,0 s (5–30 s). Âm thanh: 40/40 clip có nhạc (46–100 % thời lượng).
+
+### Điều mới so với Đợt 1 (mỗi mục ≥ 3 clip; **có thể** áp dụng, trộn được)
+1. **Lớp đồ hoạ trạng thái game vẫn là cách kể "trong trận" chủ đạo ở 2026:** 17/40 clip dùng HUD / icon / thẻ / huy hiệu / tỉ số chồng lên cảnh 3D (E01, E03, E06, E07, E08, E09, E12, E13, E14, E15, E17, E18, E19, E22, E35, E38, E40) và thêm 5/40 xen quay màn hình / UI thật (E16, E29, E32, E37, E39). Cách chọn: HUD khi cần "biết ai sống / thắng", huy hiệu hạng khi kể "lên hạng", thẻ UI (TEAM INVITE) khi kể "rủ chơi".
+2. **Tỉ số / bộ đếm đổi theo nhịp là dạng đồ hoạ dễ làm nhất sau chữ cố định:** E38 (0:1 → 102:6 + DEFEAT), E40 (bảng 3 hàng), E12 (kill 1…25), E07 (đạn 36 → 4 → 42), E01 (thanh máu + đầu lâu + thẻ REVIVAL). Có thể làm hậu kỳ, nhân vật chỉ cần nhìn điện thoại.
+3. **Bối cảnh vẫn là đời thường, nhưng thêm hai kiểu mới:** (a) nền ngoài trời rộng một cú máy (công viên ghế dài E10, bãi cỏ E20, sân bóng E04 / E14) với đạo cụ lớn làm gag; (b) cảnh nội thất nhiều tầng (canteen E11 / E12 / E38, sofa lounge E28, phòng ngủ E22 / E40). Map FF xuất hiện như HUD (E32), không như cảnh.
+4. **Đạo cụ lớn / lệch tỉ lệ làm tâm điểm gag** (E27 vali, E25 bánh số 9 + salad, E26 ramen, E24 túi xu, E11 khoai + bao lì xì, E21 kem): vật đơn ở giữa khung, nhân vật phản ứng.
+5. **Quảng bá collab / sự kiện có khuôn riêng** (E02, E21, E25, E26, E29, E36, E37, E39, E31): logo đối tác cố định + dòng bản quyền + nhân vật 2D ghép cảnh 3D + thẻ chốt; trong mẫu 2026 nhóm này tập trung ở nửa view thấp (8/20 clip nửa dưới so với 1/20 ở nửa trên) — số đo, KHÔNG phải nhân quả (thời điểm đăng, nội dung khác nhau). Gợi ý: tiểu phẩm gag nhẹ có thể là điểm xuất phát an toàn hơn clip quảng bá.
+6. **Emoji / glitch / chớp trắng làm cú chốt hoặc cảm xúc** (E01, E03, E04, E05, E15, E17, E19, E22 — 8 clip): mặt cận + emoji trên đỉnh khung hoặc trên đầu; thay cho cảnh hậu quả.
+7. **Khuôn "A vs B" chia dọc + nhãn ngắn** (E07, E27, E33): mỗi nửa một nhân vật cùng việc.
+8. **Kelly dạng ảnh thật / photoreal + đồ hoạ** (E05, E15, E18, E31 — thật hay AI khó phân biệt): cận mặt, một nền thật, thẻ / huy hiệu / emoji chồng lên; phù hợp clip 5–19 s.
+9. **Vai phụ và pet lặp lại:** Maxim ở ≥ 10/40 clip (E03, E04, E06, E07, E08, E11, E19, E23, E27, E33, E36), Alvaro (E01, E10, E16), Hayato (E09, E13, E17 — nhận theo ngoại hình, chưa có chữ xác nhận tên), nữ tóc tết xanh–tím (E14, E22), nữ kính bay cam (E04, E28, E32), nữ tai mèo đồng phục (E30), chim cánh cụt (E13), nhân vật hề áo đỏ "Top Criminal" (E16, E24). Trang phục Kelly vẫn áo khoác vàng (ngoại lệ: áo hồng jeans ở sự kiện Songkran E31, trang phục chơi ở E39).
+10. **Nhạc "to lên" ở giây 3–4 và 9–12** (E01 4 s, E05 4 s, E08 3 s, E12 4 s + 11 s, E16 3 + 6 + 9 s, E22 5 + 11 s, E27 6 + 16 s, E39 7 + 17 s) — khớp cắt / đổi đồ hoạ vào các điểm này **có thể** làm clip có nhịp; nhạc 46–100 % thời lượng. Thoại gốc hiếm; vài clip quảng bá có câu nói (E02, E39, E24).
+11. **Cơ cấu định dạng (các nhóm giao nhau, đếm gần đúng):** tiểu phẩm 3D có lớp đồ hoạ trạng thái 17 clip; một cận / selfie + đồ hoạ 5 (E05, E15, E18, E23, E35); quảng bá collab / sự kiện 9; ghép người thật / chuyển động mạnh 3 (E31, E33, E34) → cơ cấu gần Đợt 1: một cận + đồ hoạ và tiểu phẩm có HUD vẫn là nhóm dễ dựng nhất.
+
+### Tài nguyên thu về Kho (S14.33, CHỜ DUYỆT — người dùng xác nhận quyền dùng kênh 05/10/2026)
+- Âm thanh: 14 bản nhạc trend + 3 đoạn giọng thông báo kill vào Kho âm thanh (nguồn id clip + giây ở `data/ref_kelly/kho_am_thanh/NGUON.tsv`).
+- Ảnh: 18 mục / 33 ảnh (HUD ô vũ khí, đếm đạn, kill, thẻ REVIVAL, BOOYAH, Solo / Duo, TEAM INVITE, huy hiệu hạng, pin yếu, UI hồ sơ + phần thưởng, bản đồ + vòng bo, bảng điểm + DEFEAT; nền bãi cỏ + hòm đạn, khung thành; lựu đạn, máy đấm hơi BOOYAH; nhân vật Top Criminal; biểu cảm Kelly / Maxim) ở trạng thái CHỜ DUYỆT; chưa chỗ nào trong pipeline tự dùng.
+
+## Nguồn đã phân tích (40 clip Đợt 1 + 40 clip Đợt 2, `data/ref_kelly/`, ngoài git)
 Mã K01–K40 theo thứ tự `list.tsv`; id đầy đủ + tiêu đề + view trong `research/kelly_official/phieu_40_clip.md`.
