@@ -27,7 +27,9 @@ NOT_SPEAKERS = {"TEXT CUỐI", "CARD CUỐI", "CHỮ CUỐI", "END CARD", "GHI C
                 "TEXT", "CHỮ", "CAPTION", "ON-SCREEN TEXT", "ON SCREEN TEXT",
                 # S14.4 C1b (04/10): text cards of a short ad are not a voice either (one list for every reader)
                 "CTA", "CTA TEXT", "CTA_TEXT", "TITLE", "SUPER", "SUBTITLE", "LOGO", "CHỮ TRÊN MÀN", "CHỮ MÀN HÌNH",
-                "CHỮ TRÊN MÀN HÌNH", "TIÊU ĐỀ", "PHỤ ĐỀ"}
+                "CHỮ TRÊN MÀN HÌNH", "TIÊU ĐỀ", "PHỤ ĐỀ",
+                # S14.34: scene-description labels the Biên kịch writes (not a voice)
+                "HẬU KỲ", "ĐIỂM XOAY", "HOOK"}
 # Names that only mean "on-screen text" WITH their accents: 'CHỮ' folds to 'chu', which is also a person's name (Chu).
 _ACCENT_ONLY = {"chu"}
 

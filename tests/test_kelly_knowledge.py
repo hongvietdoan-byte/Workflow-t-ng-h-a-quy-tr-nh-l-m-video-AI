@@ -161,5 +161,29 @@ class CrewPromptTests(_Base):
         self.assertIn("Kelly -> Dựng", on)
 
 
+class MetaLabelTests(unittest.TestCase):
+    """S14.34 Bước A: dòng mô tả bắt đầu bằng nhãn ("Cận mặt Kelly: ...", "Hậu kỳ: ...", "Điểm xoay: ...") KHÔNG là người nói."""
+    SCRIPT = ["CẢNH 1 - NGÀY, CÔNG VIÊN", "Cận mặt Kelly: cười gượng, mắt né tránh.", "Hậu kỳ: icon Đồng sáng lên.",
+              "Điểm xoay: cột dừng khựng.", "Hậu Kỳ: chữ hiện ra.", "KELLY: Chắc chắn Heroic!", "Maxim: Thôi xong."]
+
+    def test_labels_are_not_characters_but_speakers_still_are(self):
+        from core.script_parser import split_scenes
+        chars = split_scenes(self.SCRIPT)[0].characters
+        self.assertEqual(sorted(chars), ["KELLY", "MAXIM"])
+
+    def test_check_script_raises_no_false_new_character_flag(self):
+        p = Pipeline(connect())
+        pid = p.create_project("meta", operating_mode="human_qc")
+        make_kit(p.conn)
+        script = "\n".join(self.SCRIPT).replace("CÔNG VIÊN", "ĐẢO QUÂN SỰ")
+        out = I.check_script(p.conn, pid, script, {"anchors": ANCHORS})
+        self.assertFalse([f for f in out["flags"] if "CẬN MẶT" in f or "HẬU KỲ" in f or "ĐIỂM XOAY" in f], out["flags"])
+
+    def test_the_writing_advice_merges_beats_and_keeps_labels_out(self):
+        text = open(os.path.join(ROOT, "knowledge", "craft", "kelly_bien_kich.md"), encoding="utf-8").read()
+        self.assertIn("gộp", text)
+        self.assertIn("nhãn", text)
+
+
 if __name__ == "__main__":
     unittest.main()

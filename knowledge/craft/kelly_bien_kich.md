@@ -19,5 +19,9 @@ Trận đấu -> HUD/bảng kill/icon trên đầu; màn hình game -> nhân v�
 - Cú chốt = phản ứng/gag bất ngờ ngắn (mặt sốc, người "ghi 4 mạng" uống sữa nhàn nhã), CTA hiếm (2/40) nên chỉ thêm khi người dùng đưa.
 - Đội diễn viên lặp lại tạo quen thuộc (Kelly, Maxim, Alvaro, pet) nhưng chỉ dùng người CÓ trong Kho.
 
+## Cách viết thành cảnh (khi hợp)
+- Nhịp của dàn ý không nhất thiết là một CẢNH. Khi các nhịp liền nhau cùng một nơi, nên cân nhắc gộp thành một cảnh dài hơn (nhiều dòng mô tả theo thứ tự thời gian) thay vì mỗi nhịp một cảnh; chỉ tách cảnh khi đổi nơi hoặc đổi thời điểm. Clip 15 s thường chỉ 1-3 cảnh.
+- Giữ nhãn kỹ thuật ngoài lời mô tả: các nhãn như "Điểm xoay:", "Hậu kỳ:", "Cận mặt X:" có thể ghi bằng câu thường ("Lớp hậu kỳ: ..."), không đặt đầu dòng dưới dạng `Nhãn: ...` vì dễ bị đọc nhầm là người nói; tên cấu trúc (hook, điểm xoay) thuộc dàn ý, không đưa vào mô tả cảnh.
+
 ## Cách triển khai nội dung (thứ tự nghĩ)
 1. Chọn 1 tình huống đời thường dễ thấy, có nguyên nhân người xem hiểu ngay. 2. Chọn lớp thông tin nói thay game (HUD/chữ/icon). 3. Đặt 1 nhân vật phản ứng làm cú chốt. 4. Cắt bỏ mọi thứ không phục vụ cú chốt. Khuôn là gợi ý: trộn A+B hoặc bỏ khuôn nếu ý người dùng cần khác, và nói rõ trong `notes`.
