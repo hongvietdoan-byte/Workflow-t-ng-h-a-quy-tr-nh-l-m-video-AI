@@ -97,8 +97,17 @@ class ScriptCap:
     def start(self) -> "ScriptCap":
         """Bật cho tới hết tiến trình (script cũ không muốn thụt lề cả thân vào `with`): in tóm tắt lúc thoát."""
         import atexit
+        import sys
         self.__enter__()
         atexit.register(self.finish)
+        previous = sys.excepthook
+
+        def hook(kind, value, tb):          # rà soát A2 (b): chạm trần = một câu tiếng Việt (đã in lúc chặn), không traceback
+            if isinstance(value, CapReached):
+                self.log("Đã dừng lệnh vì chạm trần --max-usd; kết quả đã có được giữ.")
+                return
+            previous(kind, value, tb)
+        sys.excepthook = hook
         return self
 
     def finish(self) -> None:

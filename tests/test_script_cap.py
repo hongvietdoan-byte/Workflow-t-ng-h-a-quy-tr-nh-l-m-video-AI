@@ -145,6 +145,28 @@ class ScriptScan(unittest.TestCase):
         self.assertEqual([], [f for f in SCRIPT_OK if f not in found or found[f]])
 
 
+class StartedCapEndsCleanly(unittest.TestCase):
+    """Rà soát A2 (b): a script started with cap.start() that hits the cap prints one Vietnamese line, not a traceback."""
+
+    def test_cap_reached_in_a_started_script_prints_one_line(self):
+        import subprocess
+        import sys
+        code = ("import sys; sys.path.insert(0, r'%s')\n"
+                "from core import script_cap\n"
+                "cap = script_cap.ScriptCap(0.1, 'thử').start()\n"
+                "cap.add(0.09)\n"
+                "cap.guard(0.05)\n"
+                "print('không tới đây')\n") % str(ROOT)
+        r = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, encoding="utf-8",
+                           env=dict(os.environ, PYTHONUTF8="1"))
+        out = r.stdout + r.stderr
+        self.assertNotIn("Traceback", out)
+        self.assertNotIn("không tới đây", out)
+        self.assertIn("DỪNG (thử)", out)
+        self.assertIn("đã chi ≈ $0.09 / trần --max-usd $0.10", out)       # the summary, once
+        self.assertNotEqual(r.returncode, 0)                                 # a stopped run is not a success
+
+
 class RunnerAtTheCap(unittest.TestCase):
     """Rà soát A2 (a): a script waiting on runner jobs past its cap waited 40–45 minutes for jobs that would never be sent."""
 
