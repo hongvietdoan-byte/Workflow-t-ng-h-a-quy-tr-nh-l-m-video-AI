@@ -31,7 +31,7 @@ class CleanWordsS1441(unittest.TestCase):
                 self.assertIn(want, words(line))
 
     def test_does_not_catch_clean_words_that_share_letters(self):
-        clean = ("Máy hất lên quạt trần. Kelly tạo dáng, cầm quả táo. Maxim mày mò cái hộp, nhíu lông mày. "
+        clean = ("Máy hất lên quạt trần. Kelly tạo dáng, cầm quả táo. Maxim mày mò cái hộp, nhíu lông mày. Maxim cau mày, Kelly chau mày rồi nhíu mày, mặt mày hớn hở. "
                  "Chúc may mắn! Tảo biển. Đeo kính vào. Lớn quá. Model DM-2. Vlog của Kelly. Đầm xanh.")
         self.assertEqual(C.find(clean), [])
 
