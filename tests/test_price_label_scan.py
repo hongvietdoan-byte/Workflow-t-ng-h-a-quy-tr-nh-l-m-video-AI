@@ -1,8 +1,8 @@
 """S14.2 A2 — scan test (docs/KE_HOACH_NANG_CAP_DASHBOARD_2026-10-03.md mục 4 A2, mục 6c ý 4): a paid button must show its price.
 
-Every `st.button` / `confirm_all` in dashboard/ whose branch (the body of the `if` it sits in, or the `if` that tests the name it is
+Every `st.button` / `form_submit_button` / `confirm_all` (and its `on_click=` callback) in dashboard/ whose branch (the body of the `if` it sits in, or the `if` that tests the name it is
 assigned to) calls a paid function (PAID below: runner/provider sends, Claude tasks, TTS/music/SFX sends, delivery…) must carry the
-estimated price ON its label (regex PRICE: "≈", "$", "USD", "chưa có giá"; or a call of a price helper — cost.price_tag / llm_tag /
+estimated price ON its label (regex PRICE: "≈ <số>" or "chưa có giá" — f-string fields read as 0; or a call of a price helper — cost.price_tag / llm_tag /
 llm_button_tag / image_button_tag, budget.audio_tag) or in the nearest plain statement (a caption / an assignment) before it in the same block — sibling
 `if …button` rows in between are skipped, so one caption can price a row of small card buttons. Otherwise it must be in ALLOWED below,
 named by (file, key) with the reason. Entries that no longer match a paid button are reported too (a stale list hides nothing)."""
@@ -14,7 +14,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 
-PRICE = re.compile(r"≈|\$|USD|chưa có giá")
+PRICE = re.compile(r"≈\s*\$?[\d,.]+|chưa có giá")      # rà soát A2 (e): a real figure (f-string fields read as 0), not a lone "$"
 PRICE_FUNCS = {"price_tag", "llm_tag", "audio_tag", "llm_button_tag", "llm_tokens_tag", "image_button_tag", "video_button_tag",
                "video_batch_tag"}
 
@@ -23,7 +23,7 @@ PAID = ("runner.submit_pending", "*.submit_pending", "costume.make_character_set
         "claude_tasks.*", "llm_runner.run_*", "voice_check.redo", "voice.fit_durations", "run_director_now", "music.submit_*", "audio_lib.submit_*", "meshy.submit_*",
         "research.run", "video_analysis.analyze", "style.analyse", "editor_review.run", "sfx_plan.propose", "subtitles.localize",
         "delivery.deliver", "regen.regenerate_video", "p.reject", "p.retry", "p.reopen_approved", "p.restart_job",
-        "autopilot_manager(*).start")
+        "autopilot_manager(*).start", "idea_to_script.*")
 FREE = {   # matched by a PAID pattern but costs nothing (each with why)
     "claude_tasks.set_lock": "chỉ ghi Lock vào DB",
     "claude_tasks.apply_dialogue_fix": "chỉ áp câu thoại đã có",
@@ -66,7 +66,7 @@ def _is_button(n) -> bool:
         return False
     f = n.func
     name = f.attr if isinstance(f, ast.Attribute) else f.id if isinstance(f, ast.Name) else ""
-    return name in ("button", "confirm_all")
+    return name in ("button", "confirm_all", "form_submit_button")
 
 
 def _label(call: ast.Call):
@@ -93,6 +93,10 @@ def _priced(expr, assigns, depth=0) -> bool:
     for n in ast.walk(expr):
         if isinstance(n, ast.Constant) and isinstance(n.value, str) and PRICE.search(n.value):
             return True
+        if isinstance(n, ast.JoinedStr):              # f"≈ {usd:.2f} USD" → "≈ 0 USD"
+            text = "".join(v.value if isinstance(v, ast.Constant) else "0" for v in n.values)
+            if PRICE.search(text):
+                return True
         if isinstance(n, ast.Call):
             f = n.func
             name = f.attr if isinstance(f, ast.Attribute) else f.id if isinstance(f, ast.Name) else ""
@@ -163,6 +167,14 @@ def scan(root: Path = ROOT):
                 for b in buttons:
                     ok = _priced(_label(b), assigns) or (isinstance(prev, (ast.Expr, ast.Assign)) and _priced(prev, assigns))
                     found.append((rel, b.lineno, _key(b), sorted(set(paid)), ok))
+        # rà soát A2 (e): a paid call in the on_click= callback (a lambda, or a def of this file)
+        defs = {f.name: f for f in funcs}
+        for b in (c for c in ast.walk(tree) if _is_button(c)):
+            cb = next((k.value for k in b.keywords if k.arg == "on_click"), None)
+            target = cb.body if isinstance(cb, ast.Lambda) else defs.get(cb.id) if isinstance(cb, ast.Name) else None
+            paid = _paid_calls([target]) if target is not None else []
+            if paid:
+                found.append((rel, b.lineno, _key(b), sorted(set(paid)), _priced(_label(b), scope(b.lineno))))
     return found
 
 
@@ -192,6 +204,26 @@ class PriceLabelScan(unittest.TestCase):
             (Path(d) / "dashboard" / "x.py").write_text(src, encoding="utf-8")
             rows = scan(Path(d))
         self.assertEqual([("'x'", False), ("'y'", True)], [(r[2], r[4]) for r in rows])
+
+    def test_scanner_sees_forms_callbacks_idea_to_script_and_wants_a_real_price(self):
+        """Rà soát A2 (e): form_submit_button, on_click= callbacks and idea_to_script were not looked at; a lone '$' counted as a price."""
+        src = ("def go(p):\n"
+               "    p.retry(1, 'r')\n"
+               "def f(p, jid, usd):\n"
+               "    if st.form_submit_button('Viết kịch bản', key='form'):\n"
+               "        idea_to_script.run(p, 1)\n"
+               "    st.button('Gen lại', key='cb', on_click=go, args=(p,))\n"
+               "    st.button('Gen lại', key='lam', on_click=lambda: p.retry(jid, 'r'))\n"
+               "    if st.button('Gen lại (tốn $)', key='dollar'):\n"
+               "        p.retry(jid, 'r')\n"
+               "    if st.button(f'Gen lại · ≈ {usd:.2f} USD', key='real'):\n"
+               "        p.retry(jid, 'r')\n")
+        import tempfile
+        with tempfile.TemporaryDirectory() as d:
+            (Path(d) / "dashboard").mkdir()
+            (Path(d) / "dashboard" / "x.py").write_text(src, encoding="utf-8")
+            rows = {r[2]: r[4] for r in scan(Path(d))}
+        self.assertEqual({"'form'": False, "'cb'": False, "'lam'": False, "'dollar'": False, "'real'": True}, rows)
 
 
 class CostButtonTags(unittest.TestCase):
