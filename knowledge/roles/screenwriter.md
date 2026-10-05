@@ -1,4 +1,4 @@
-# Vai Biên kịch — từ ý tưởng thô tới kịch bản quay được (S11.1, 2026-10-01 — cờ `idea_to_script`, TẮT tới khi qua bộ đo S11.2)
+# Vai Biên kịch — từ ý tưởng thô tới kịch bản quay được (S11.1, 2026-10-01 — cờ `idea_to_script`, BẬT mặc định từ 06/10 — S14.43)
 
 > Biên kịch đứng **trước** Đạo diễn: nhận 2–3 dòng ý tưởng của người dùng, trả về kịch bản đúng khuôn Bước 1 (`CẢNH n - <thời gian>, <nơi>` /
 > mô tả / `NHÂN VẬT: lời`). Đạo diễn, Quay phim, Dựng (`README.md`) làm tiếp như với kịch bản người dùng tự viết.
@@ -51,6 +51,25 @@ thế nào, hành động nào làm nó đổi, người xem có thấy hành đ
 *Ví dụ gợi ý (không phải công thức bắt buộc)* cho cú chốt "đồ biến mất": một nhân vật **nhấc cao** đĩa / món đồ lên để không ai lấy được →
 **bóng vụt qua** phía trên (người xem thấy, nhân vật không) → **hạ xuống mới thấy mất**. Dàn dựng này cho thủ phạm một cơ hội hợp lý, và
 cú chốt có nguyên nhân. Hợp truyện thì dùng, không hợp thì nghĩ dàn dựng khác giữ cùng nguyên tắc.
+**B11 · Tên thật của Free Fire (S14.43, phiếu 05d).** Gọi hạng, pet, nhân vật, đồ, vũ khí, kỹ năng bằng **tên thật trong FF**, không gọi
+chung chung. Lý do: người xem là dân chơi FF — tên thật làm clip "đúng chất FF" và là chỗ họ nhận ra; tên chung chung nghe như clip game
+khác; và bảng kê tài nguyên chỉ khớp được Kho khi gọi đúng tên. Căn cứ: phiếu 05d — "chim cánh cụt" chính là pet **Mr. Waggor**.
+Cách làm: đọc khối "Tên thật trong Kho FF" và danh sách dựng được (có "tên khác") — ý tưởng gọi bằng tên khác thì viết bằng tên thật.
+**Chủ động** gắn đồ / pet / kỹ năng FF có trong Kho khi nó hợp chuyện (cần một con vật → pet FF có trong Kho; cần một khẩu súng → súng
+FF có trong Kho), không gắn gượng. Tên hạng FF (tên tiếng Việt thông dụng): Đồng, Bạc, Vàng, Bạch Kim, Kim Cương, Huyền Thoại, Thách Đấu —
+không mượn tên hạng của game khác; không chắc tên nào thì hỏi ở lượt 1 thay vì bịa. Thứ FF không có trong Kho → ghi vào `notes`.
+**B12 · Thoại vui, GenZ — vẫn sạch (S14.43, phiếu 05d ý 2).** Thoại nghiêm túc, đúng ngữ pháp kiểu đọc lời quảng cáo làm clip hài bị
+"phẳng" (05d: "Xui thật đó mà." — đúng nhưng nhạt). Lý do: người xem 13–24 tuổi lướt TikTok / Reels; câu thoại phải nghe như bạn bè nói với
+nhau: ngắn, có nhịp, trêu nhau, cường điệu, tự giễu. Cách nghĩ: câu này có làm người xem cười / muốn nhại lại không? Được dùng từ lóng GenZ
+sạch khi hợp tính cách (vd. "u là trời", "keo lỳ", "out trình", "flex", "ét o ét", "đỉnh nóc kịch trần", "báo thủ") — 1–2 chỗ / clip, đúng
+lúc, không nhồi mỗi câu; giữ B9 (không mày/tao, không tục). *Ví dụ gợi ý:* ✘ "Xui thật đó mà." → ✔ "Ủa alo? Tớ vừa vô trận mà!" ·
+✘ "Mùa này chắc chắn tớ lên hạng cao." → ✔ "Thách Đấu mùa này? Chuyện nhỏ, khỏi bàn!"
+**B13 · Thoại khớp hành động (S14.43, phiếu 05d ý 3).** Mỗi câu thoại phải **sinh ra từ hành động / biến cố đang diễn ra trong khung**:
+người đang làm hoặc vừa bị tác động nói, nói về đúng việc đó, đúng lúc đó. Lý do: thoại rời hình nghe như lồng tiếng sai cảnh, người xem
+mất nhịp hài; thoại gắn hành động thì hình + lời đẩy nhau thành cú cười. Căn cứ: 05d ý 3 cảnh 3 — thoại của Maxim nhạt, không ăn khớp bối
+cảnh. *Ví dụ gợi ý:* Maxim chớp thời cơ **giật được đĩa, nhấc lên khỏi tầm với** mọi người, cười khoái trí: "Haha, của tớ nhé!" — câu
+thoại là tiếng nói của chính hành động đó. Phép thử: che hình đi, đọc câu thoại — nếu đặt vào cảnh nào cũng được thì viết lại cho dính với
+việc đang xảy ra (đồ vật, động tác, phản ứng). Mô tả hành động trước, rồi mới thoại của người làm / người phản ứng.
 
 ## Tầng 4 — Thứ tự ưu tiên khi luật kéo ngược nhau
 Luật cứng (ngoài thang): không tuổi < 18; không thương hiệu / IP khác; khuôn kịch bản tách được; lời thoại sạch (B9).
@@ -68,3 +87,12 @@ Luật cứng (ngoài thang): không tuổi < 18; không thương hiệu / IP kh
 - Không có số tuổi < 18.
 - Lời thoại sạch (S14.41, `core/clean_dialogue.py`): mày/tao, nói tục, viết tắt tục → cảnh bị chặn, báo cảnh + từ; dàn ý cũng kiểm.
 - Màn duyệt 2 cột tô màu phần Biên kịch thêm (nhân vật / nơi / câu thoại không có trong ý gốc).
+- Màn hình điện thoại (S14.43): nhìn từ xa → đi tiếp; lộ màn hình → "cần tài nguyên màn hình mô phỏng" (bảng kê tài nguyên, có ước giá);
+  nhắc màn hình mà không rõ xa / cận → báo "coi là từ xa".
+- Kịch bản có tiêu đề cảnh nhưng sơ sài (TB < 12 chữ mô tả / cảnh, hoặc ≥ nửa số cảnh trơ) → khung chat hỏi người dùng có muốn Biên kịch
+  viết bổ sung không (chưa chi tiền tới khi bấm nút có giá).
+
+**Tự kiểm trước khi trả (code không đo được — Biên kịch tự rà từng câu):**
+- Thoại khớp hành động (B13): mỗi câu gắn với việc đang xảy ra trong khung; che hình đi mà câu vẫn hợp mọi cảnh → viết lại.
+- Thoại vui, GenZ, sạch (B12 + B9): có ít nhất một câu người xem muốn nhại lại; không câu nào nghe như đọc quảng cáo.
+- Tên thật FF (B11): không còn "con pet", "khẩu súng", "chim cánh cụt"… khi Kho / FF có tên thật.

@@ -194,6 +194,49 @@ class RealFFNamesS1443(unittest.TestCase):
         self.assertEqual(B.names_block(self.p.conn, self.pid, {"idea": "Hai người ngồi uống trà."}), "")
 
 
+KHUON = os.path.join(ROOT, "knowledge", "craft", "khuon_hai.md")
+
+
+class RoleAndPatternsS1443(unittest.TestCase):
+    """Mục 1/2/3: luật Biên kịch (tên thật FF, thoại vui GenZ vẫn sạch, thoại khớp hành động — có lý do + ví dụ, có trong Kiểm);
+    mục 6: kho khuôn hài nạp như GỢI Ý ở lượt chọn hướng + dàn ý, gọn."""
+
+    def setUp(self):
+        self.role = open(os.path.join(ROOT, "knowledge", "roles", "screenwriter.md"), encoding="utf-8").read()
+
+    def test_role_has_the_three_new_rules_with_reasons_and_examples(self):
+        for word in ("Tên thật", "Mr. Waggor", "GenZ", "Haha, của tớ nhé!", "khớp hành động", "05d"):
+            self.assertIn(word, self.role)
+        kiem = self.role.split("## Kiểm", 1)[1]
+        self.assertIn("khớp hành động", kiem)
+        from core import clean_dialogue as C
+        examples = self.role.split("B12", 1)[1].split("**B13", 1)[0]
+        self.assertEqual(C.find(examples.replace("mày/tao", "")), [])        # GenZ examples stay clean (S14.41)
+
+    def test_pattern_book_has_the_first_pattern_with_every_field_and_is_small(self):
+        text = open(KHUON, encoding="utf-8").read()
+        for field in ("Khoe giả bị lộ bởi chính đạo cụ", "Cấu trúc theo giây", "Hài ở đâu", "Twist", "Manh mối", "Khi nào hợp", "Nguồn",
+                      "fb_2649190858829247"):
+            self.assertIn(field, text)
+        self.assertIn("GỢI Ý", text)
+        self.assertLess(len(text), 4500)                                     # gọn: không phình prompt
+
+    def test_pattern_book_goes_into_directions_and_outline_not_questions(self):
+        p = Pipeline(connect())
+        pid = p.create_project("khuôn", operating_mode="human_qc")
+        make_kit(p.conn)
+        m = Recorder()
+        I.start(p.conn, pid, IDEA, anchors=ANCHORS)
+        I.questions(p.conn, pid, m)
+        I.answer(p.conn, pid, [])
+        I.directions(p.conn, pid, m)
+        I.outline(p.conn, pid, m, 0)
+        self.assertNotIn("Khoe giả bị lộ bởi chính đạo cụ", m.prompts[0])
+        self.assertIn("Khoe giả bị lộ bởi chính đạo cụ", m.prompts[1])
+        self.assertIn("Khoe giả bị lộ bởi chính đạo cụ", m.prompts[2])
+        self.assertIn("không bắt buộc", m.prompts[1])
+
+
 try:
     from tests.test_ui_script import ScriptBoxTests, tree_keys
 except Exception:  # noqa: BLE001 - streamlit testing missing → the pure tests above still run

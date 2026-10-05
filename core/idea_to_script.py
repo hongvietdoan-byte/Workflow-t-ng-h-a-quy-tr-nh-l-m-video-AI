@@ -169,6 +169,19 @@ def wish_block(state: Dict, turn: int, wish: str = "") -> str:
             + "\n".join(f"- (lượt {n}) {v}" for n, v in said))
 
 
+PATTERN_FILE = ("knowledge", "craft", "khuon_hai.md")
+PATTERN_TURNS = (2, 3)          # the turns that pick the shape of the story; turn 1 (questions) and 4 (follows the outline) do not need it
+
+
+def pattern_block() -> str:
+    """S14.43 mục 6: the reusable comedy patterns (knowledge/craft/khuon_hai.md), as SUGGESTIONS. A missing file is said (CHUAN luật 1)."""
+    from .prompts import _read
+    text = (_read(*PATTERN_FILE) or "").strip()
+    if not text:
+        raise IdeaError("không đọc được knowledge/craft/khuon_hai.md (kho khuôn hài của Biên kịch) — khôi phục file")
+    return "## Kho khuôn hài (GỢI Ý — trộn được, không bắt buộc)\n" + text
+
+
 def build_prompt(conn, pid: int, state: Dict, turn: int, wish: str = "") -> str:
     from .prompts import _read
     inp = state["inputs"]
@@ -190,6 +203,8 @@ def build_prompt(conn, pid: int, state: Dict, turn: int, wish: str = "") -> str:
     kelly = knowledge.kelly_blocks("screenwriter")      # S14.34 (flag kelly_knowledge): suggestions only; off → [] → prompt byte-identical
     if kelly:
         parts.insert(3, "## Gợi ý từ kênh Kelly (trộn được, không bắt buộc)\n" + kelly[0])
+    if turn in PATTERN_TURNS:                           # S14.43 mục 6: comedy patterns where the shape is chosen (directions + outline)
+        parts.append(pattern_block())
     if turn >= 2 and state.get("answers"):
         parts.append("## Trả lời của người dùng (câu ghi [mặc định] = người dùng để trống, dùng đáp án mặc định)\n" + "\n".join(
             f"- {a['q']} → {a['a']}" + (" [mặc định]" if a.get("defaulted") else "") for a in state["answers"]))

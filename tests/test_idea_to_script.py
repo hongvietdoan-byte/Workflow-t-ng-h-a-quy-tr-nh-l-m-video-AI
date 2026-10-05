@@ -156,6 +156,8 @@ def _legacy_build_prompt(conn, pid, state, turn):
     tb = I.trend_block(conn, inp.get("trend", "off"))
     if tb:
         parts.append(tb)
+    if turn in I.PATTERN_TURNS:                                          # S14.43 mục 6: kho khuôn hài (gợi ý) at turns 2–3
+        parts.append(I.pattern_block())
     if turn >= 2 and state.get("answers"):
         parts.append("## Trả lời của người dùng (câu ghi [mặc định] = người dùng để trống, dùng đáp án mặc định)\n" + "\n".join(
             f"- {a['q']} → {a['a']}" + (" [mặc định]" if a.get("defaulted") else "") for a in state["answers"]))
