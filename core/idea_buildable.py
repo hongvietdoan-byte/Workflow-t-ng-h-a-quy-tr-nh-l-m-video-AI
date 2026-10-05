@@ -1,7 +1,7 @@
 """S14.31 · Biên kịch chỉ viết thứ DỰNG ĐƯỢC (người dùng chấm 05/10: 5/5 kịch bản khó quay chuẩn). 0 USD, không gọi model.
 
 Ba việc, đều bằng code:
-  1. kit(conn, pid)        'thứ dựng chắc được' của Kho — nơi có mô hình 3D / nền ngang tầm mắt (map + khu vực), nhân vật có ảnh chuẩn đã duyệt
+  1. kit(conn, pid)        'thứ dựng chắc được' của Kho — nơi có file 3D dựng bối cảnh (map + khu vực; ảnh Kho đơn thuần không đủ — người dùng 05/10), nhân vật có ảnh chuẩn đã duyệt
                             + trang phục mặc định, kỹ năng có hồ sơ. Biên kịch đọc danh sách này thay vì cả Kho.
   2. anchors               các điểm then chốt người dùng chốt (nhân vật + trang phục, nơi, diễn biến, cú chốt, có/không gameplay-giao diện).
                             Thiếu hoặc nằm ngoài kit → hỏi lại (gate), KHÔNG gọi Claude.
@@ -68,7 +68,9 @@ def kit(conn, pid: int, game: str = "FF") -> Dict[str, List[Dict]]:
                 out["excluded"].append({"name": a["name"], "why": f"file 3D không còn trên đĩa ({entry['path']})"
                                         + ("" if plates else " và không có nền ngang tầm mắt")})
                 entry = None
-            if entry or plates:
+            if not entry and plates and not any(x["name"] == a["name"] for x in out["excluded"]):                    # người dùng 05/10: ảnh Kho làm ref cho bối cảnh đều bị lệch → chỉ nơi có file 3D dựng bối cảnh
+                out["excluded"].append({"name": a["name"], "why": "chưa có file 3D dựng bối cảnh (chỉ có ảnh Kho làm tham chiếu — dễ bị lệch)"})
+            if entry:
                 spots = [str(v.get("label") or k) for k, v in ((entry or {}).get("spots") or {}).items()]
                 out["places"].append({"name": a["name"], "names": names, "spots": spots, "has_3d": bool(entry)})
         elif a["kind"] in ("character", "pet"):
