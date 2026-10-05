@@ -94,31 +94,21 @@ class MoneyResetTests(ShellBase):
         rows = self.p.conn.execute("SELECT COUNT(*) FROM usage_events").fetchone()[0]
         at = self.run_app()
         self.assertFalse(at.exception, at.exception)
-        self.assertIn("shell-mr-claude", [c.key for c in at.checkbox])
-        at.checkbox(key="shell-mr-claude").set_value(True)
-        at.text_input(key="shell-mr-why").set_value("nạp thêm tiền Claude")
-        at.run()
-        at.button(key="shell_mr_go").click().run()                           # step 1: ask
-        self.assertIn("shell_mr_go_yes", [b.key for b in at.button])
+        self.assertIn("shell_mr_two", [b.key for b in at.button])            # S14.39: ONE button replaces the ticks + reason
+        at.button(key="shell_mr_two").click().run()                          # step 1: ask
+        self.assertIn("shell_mr_two_yes", [b.key for b in at.button])
         self.assertIsNone(money_reset.last(connect(self.db), "claude"))       # nothing done before the yes
-        at.button(key="shell_mr_go_yes").click().run()                       # step 2: confirm
+        at.button(key="shell_mr_two_yes").click().run()                      # step 2: confirm
         self.assertFalse(at.exception, at.exception)
         conn = connect(self.db)
         self.assertEqual(conn.execute("SELECT COUNT(*) FROM usage_events").fetchone()[0], rows)     # the ledger is untouched
-        self.assertEqual(money_reset.last(conn, "claude")["why"], "nạp thêm tiền Claude")
+        self.assertEqual(money_reset.last(conn, "claude")["why"], "Owner đặt lại thanh tiền từ nút")
         self.assertGreater(budget.get(conn)["llm_since"], "2026-09-30 00:00:00")
 
-    def test_trial_bar_only_moves_through_a_new_budget_round(self):
-        """S14.6 (rà soát 04/10): ô thanh đợt thử ở khối cũ bị khóa (giữ khóa) và chỉ sang ▶ Bắt đầu đợt ngân sách mới."""
+    def test_no_reason_box_and_no_tick_boxes_any_more(self):
         at = self.run_app()
-        box = at.checkbox(key="shell-mr-trial")
-        self.assertTrue(box.proto.disabled)
-        self.assertTrue(any("Bắt đầu đợt ngân sách mới" in c.value for c in at.caption))
-
-    def test_reason_is_required(self):
-        at = self.run_app()
-        at.checkbox(key="shell-mr-claude").set_value(True).run()
-        self.assertTrue(at.button(key="shell_mr_go").disabled)
+        self.assertFalse([c.key for c in at.checkbox if (c.key or "").startswith("shell-mr")])
+        self.assertNotIn("shell-mr-why", [t.key for t in at.text_input])
 
 
 class SlimInfoTests(ShellBase):
@@ -159,9 +149,8 @@ class SlimInfoTests(ShellBase):
         self.assertFalse(at.exception, at.exception)
         meter = [e for e in at.get("html") if "Đợt thử: $" in str(e.proto.body)]
         self.assertTrue(meter and "âm thanh" not in str(meter[0].proto.body) and "Đặt lại lần cuối" not in self.html_text(at))
-        self.assertTrue(any("Chi tiết từng khâu" in x.label for x in at.expander))
+        self.assertTrue(any(x.label == "Chi tiết" for x in at.expander))
         self.assertTrue(any("ảnh" in m.value and "đặt lại lần cuối" in m.value for m in at.markdown))      # nothing dropped, only moved
-        self.assertIn("shell-mr-trial", [c.key for c in at.checkbox])                                      # keys unchanged
 
     def test_inbox_keeps_three_items_outside_and_folds_the_rest(self):
         its = [{"kind": "Ảnh", "project_id": self.pid, "project": "x", "text": f"Duyệt {n} ảnh", "screen": "storyboard", "level": "todo",
@@ -203,7 +192,8 @@ class MemberSignInTests(ShellBase):
         next(b for b in at.button if b.key == "login_btn").click().run()
         self.assertFalse(at.exception, at.exception)
         self.assertEqual(at.session_state["identity"]["role"], "member")
-        self.assertNotIn("shell-mr-trial", [c.key for c in at.checkbox])
+        two = [b for b in at.button if b.key == "shell_mr_two"]
+        self.assertTrue(not two or two[0].proto.disabled)                    # locked for non-owners
 
 
 if __name__ == "__main__":

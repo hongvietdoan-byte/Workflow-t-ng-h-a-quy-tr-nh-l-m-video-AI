@@ -282,6 +282,12 @@ def warning(conn, pid: Optional[int], stage: str, usd: Optional[float]) -> Optio
     return None
 
 
+def md_safe(text: str) -> str:
+    """S14.39: a sentence with USD amounts for st.markdown. Streamlit reads `$a ... $b` as a formula (the 05/10 screenshot showed
+    code-like fragments between two amounts), so every `$` is escaped."""
+    return str(text).replace("\\$", "$").replace("$", "\\$")
+
+
 def cost_summary(p, pid: int) -> Dict:
     """Người dùng 04/10 (S14.16): "Đã chi + ước tính phần còn lại" for the approval gate — spent (ledger) + what is left (images,
     videos, audio, Claude), total,
@@ -310,7 +316,8 @@ def cost_summary(p, pid: int) -> Dict:
         text += " — mọi mục đều có giá (giá cao nhất × 1,5 chỉ dùng khi thiếu giá)"
     return {"images": round(images, 2), "videos": round(videos, 2), "audio": None if audio is None else round(audio, 2),
             "audio_items": audio_items, "claude": round(claude, 2), "remaining": remaining, "spent": spent, "total": total,
-            "unpriced": unpriced, "text": text}
+            "unpriced": unpriced, "text": text, "md": md_safe(text),
+            "line": f"Đã chi ${spent:.2f} · còn lại ≈ ${remaining:.2f} · tổng ≈ ${total:.2f}"}
 
 
 def approval_pending(p, pid: int) -> bool:
