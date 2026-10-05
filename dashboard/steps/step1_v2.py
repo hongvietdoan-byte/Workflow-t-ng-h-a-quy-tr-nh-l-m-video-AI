@@ -228,7 +228,10 @@ def step1_v2(p: Pipeline, pid: int, proj, scenes, chars, risky, char_names, lock
             st.html(D.empty_state("Chưa có kịch bản", "Tải file, dán văn bản hoặc gõ ý thô, rồi bấm ▶ Phân tích để tách cảnh."))
             S.script_input(p, pid, with_reset=False)
         else:
-            with st.expander("📥 Nhập / thay kịch bản (tải file · dán văn bản · ý tưởng thô)", expanded=bool(st.session_state.get("parse_warn"))):
+            from core import idea_to_script
+            label = ("📥 Nhập / thay kịch bản (khung hội thoại: dán · ý tưởng · 📎 file)" if idea_to_script.enabled()   # S14.21: the box
+                     else "📥 Nhập / thay kịch bản (tải file · dán văn bản · ý tưởng thô)")   # (no expander inside it — C2)
+            with st.expander(label, expanded=bool(st.session_state.get("parse_warn"))):
                 S.script_input(p, pid, with_reset=False)
             if st.session_state.get("parse_info"):
                 S.parse_info_box()

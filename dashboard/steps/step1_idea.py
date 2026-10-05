@@ -1,5 +1,8 @@
 """Step 1 · 💡 Ý tưởng thô → kịch bản (S11.1, core/idea_to_script.py; cờ `idea_to_script`). Four turns, each one approved by the person,
-then a 2-column review (idea | script, what the Biên kịch added marked) and "Dùng kịch bản này" → Step 1 like a pasted script."""
+then a 2-column review (idea | script, what the Biên kịch added marked) and "Dùng kịch bản này" → Step 1 like a pasted script.
+
+S14.21 (Đợt 3): drawn inside the script box (step1_box.py) — the idea comes from the box's chat input, the settings are a folded
+`st.form` (⚙ Thiết lập), and the box's free "nói thêm" (`wish`) goes into the next paid turn. Every paid call stays behind `_paid`."""
 from dashboard.common import *  # noqa: F401,F403  (shared imports + helpers)
 from dashboard import common as C
 from dashboard.steps.step1_v2 import cap, say, is_next  # noqa: F401  (v2: long captions / notes become a one-line summary + ⓘ)
@@ -31,44 +34,53 @@ def _paid(label: str, key: str, state) -> bool:
     return st.button(f"{label} (≈ {I.TURN_USD:g} USD · còn {left:.2f} / {I.RUN_CAP_USD:g} USD cho ý tưởng này)", key=key, type="primary")
 
 
-def idea_panel(p: Pipeline, pid: int) -> None:
+def settings_summary(inp) -> str:
+    """'30 s · 9:16 · TikTok · trend Tắt' — the folded ⚙ Thiết lập card in one line."""
     from core import idea_to_script as I
-    ui.html(_CSS)
-    state = I.get_state(p.conn, pid)
-    inp = state.get("inputs") or {}
-    cap("Viết 2–3 dòng ý tưởng; Biên kịch (Claude) hỏi lại, đưa 3 hướng, dàn ý theo giây rồi viết kịch bản đúng khuôn. Bạn duyệt từng "
-               "bước; phần Biên kịch thêm được tô màu. Mọi lời gọi vào sổ chi, trần " + f"{I.RUN_CAP_USD:g} USD / ý tưởng.")
-    with st.form(key=f"idea_form_{pid}"):
-        idea = st.text_area("Ý tưởng", inp.get("idea", ""), height=90, placeholder="Kelly và Maxim tranh một thùng thính ở Đảo Quân Sự…")
-        c1, c2, c3, c4 = st.columns(4)
-        dur = c1.selectbox("Thời lượng (s)", I.DURATIONS, index=I.DURATIONS.index(inp.get("duration_s", 30)) if inp.get("duration_s") in I.DURATIONS else 1)
-        aspect = c2.selectbox("Khung", ["9:16", "16:9", "1:1"], index=["9:16", "16:9", "1:1"].index(inp.get("aspect", "9:16")))
-        platform = c3.selectbox("Nền tảng", I.PLATFORMS, index=I.PLATFORMS.index(inp["platform"]) if inp.get("platform") in I.PLATFORMS else 0)
-        trend = c4.selectbox("Dùng trend", list(I.TREND_MODES), format_func=I.TREND_MODES.get,
-                             index=list(I.TREND_MODES).index(inp.get("trend", "off")))
-        lib = I.library(p.conn, pid)
-        d1, d2, d3 = st.columns([2, 1.2, 1.4])
-        chars = d1.multiselect("Nhân vật (Kho FF, để trống được)", sorted(set(n.upper() for n in lib["characters"])),
-                               default=[c for c in inp.get("characters", []) if c in {n.upper() for n in lib["characters"]}])
-        tone = d2.text_input("Giọng điệu", inp.get("tone", ""), placeholder="hài, dễ thương")
-        cta = d3.text_input("CTA (đúng chữ, cảnh cuối)", inp.get("cta", ""), placeholder="Tải Free Fire ngay")
-        new = st.form_submit_button("💡 Ý tưởng mới (bắt đầu lại từ lượt 1)" if inp else "💡 Bắt đầu")
+    if not inp:
+        return "chưa đặt — mở, chọn rồi bấm 💡 Bắt đầu"
+    return f"{inp.get('duration_s')} s · {inp.get('aspect')} · {inp.get('platform')} · trend {I.TREND_MODES.get(inp.get('trend', 'off'), '?')}"
+
+
+def idea_settings_form(p: Pipeline, pid: int, idea: str) -> None:
+    """Ngăn 0: the 6 settings in ONE st.form (enums → always valid; one rerun instead of six), folded to a line once started. The idea
+    itself is not in the form any more: it is the text of the box (`idea`)."""
+    from core import idea_to_script as I
+    inp = I.get_state(p.conn, pid).get("inputs") or {}
+    with ui.fold("⚙ Thiết lập", settings_summary(inp), f"idea_set_{pid}", default_open=not inp,
+                 sub="thời lượng · khung · nền tảng · trend · nhân vật · giọng · CTA") as is_open:
+        if not is_open:
+            return
+        with st.form(key=f"idea_form_{pid}"):
+            c1, c2, c3, c4 = st.columns(4)
+            dur = c1.selectbox("Thời lượng (s)", I.DURATIONS, index=I.DURATIONS.index(inp.get("duration_s", 30)) if inp.get("duration_s") in I.DURATIONS else 1)
+            aspect = c2.selectbox("Khung", ["9:16", "16:9", "1:1"], index=["9:16", "16:9", "1:1"].index(inp.get("aspect", "9:16")))
+            platform = c3.selectbox("Nền tảng", I.PLATFORMS, index=I.PLATFORMS.index(inp["platform"]) if inp.get("platform") in I.PLATFORMS else 0)
+            trend = c4.selectbox("Dùng trend", list(I.TREND_MODES), format_func=I.TREND_MODES.get,
+                                 index=list(I.TREND_MODES).index(inp.get("trend", "off")))
+            lib = I.library(p.conn, pid)
+            d1, d2, d3 = st.columns([2, 1.2, 1.4])
+            chars = d1.multiselect("Nhân vật (Kho FF, để trống được)", sorted(set(n.upper() for n in lib["characters"])),
+                                   default=[c for c in inp.get("characters", []) if c in {n.upper() for n in lib["characters"]}])
+            tone = d2.text_input("Giọng điệu", inp.get("tone", ""), placeholder="hài, dễ thương")
+            cta = d3.text_input("CTA (đúng chữ, cảnh cuối)", inp.get("cta", ""), placeholder="Tải Free Fire ngay")
+            new = st.form_submit_button("💡 Ý tưởng mới (bắt đầu lại từ lượt 1)" if inp else "💡 Bắt đầu")
+        if inp and idea.strip() and idea.strip() != inp.get("idea"):
+            cap("Chữ trong khung khác ý tưởng đang làm — bấm 💡 Ý tưởng mới để bắt đầu lại với chữ mới (các lượt cũ bị bỏ).")
     if new and act(lambda: I.start(p.conn, pid, idea, dur, aspect, platform, tone, chars, cta, trend)):
         st.rerun()
-    if not state.get("inputs"):
-        return
-    client = C.llm_client()
-    if client is None:
-        say("info", "Chưa có Claude (LLM_PROVIDER / ANTHROPIC_API_KEY) — không chạy được Biên kịch.", f"script-idea-noclaude-{pid}")
-        return
-    cap(f"Đã dùng ≈ {float(state.get('spent') or 0):.3f} USD cho ý tưởng này.")
 
-    # 1 — questions
+
+def turn_questions(p, pid, state, client, wish, used) -> list:
+    """Lượt 1 + the answers. Returns the replies (None = stop drawing: the turn is not done yet)."""
+    from core import idea_to_script as I
     st.markdown("**1 · Hỏi lại**")
     if not state.get("questions"):
-        if _paid("▶ Lượt 1: Biên kịch đọc ý tưởng + hỏi lại", f"idea_q_{pid}", state) and act(lambda: I.questions(p.conn, pid, client)):
+        if _paid("▶ Lượt 1: Biên kịch đọc ý tưởng + hỏi lại", f"idea_q_{pid}", state) \
+                and act(lambda: I.questions(p.conn, pid, client, wish=wish)):
+            used()
             st.rerun()
-        return
+        return None
     if state.get("have"):
         cap("Đã có: " + "; ".join(state["have"]) + (" · Còn thiếu: " + "; ".join(state["missing"]) if state.get("missing") else ""))
     replies = []
@@ -77,34 +89,47 @@ def idea_panel(p: Pipeline, pid: int) -> None:
         replies.append(st.text_input(f"{q['q']} — mặc định: {q['default']}", "" if prev.get("defaulted") else prev.get("a", ""),
                                      key=f"idea_a_{pid}_{i}", help=q.get("why") or None))
     cap("Để trống = dùng đáp án mặc định (được ghi lại).")
+    return replies
 
-    # 2 — directions
+
+def turn_directions(p, pid, state, client, wish, used, replies):
+    """Lượt 2. Returns (choice, note) or None. "↻ Hỏi lại" only when the input changed (C8: same prompt = money for nothing)."""
+    from core import idea_to_script as I
     st.markdown("**2 · Ba hướng**")
     if not state.get("directions"):
         if _paid("▶ Lượt 2: 3 hướng", f"idea_d_{pid}", state):
             def go():
                 I.answer(p.conn, pid, replies)
-                I.directions(p.conn, pid, client)
+                I.directions(p.conn, pid, client, wish=wish)
             if act(go):
+                used()
                 st.rerun()
-        return
+        return None
     labels = [f"{d['title']} — {d['logline']} · hook 3 s: {d['hook_3s']} · chốt: {d['payoff']}" + (f" · 📈 {d['trend_card']}" if d.get("trend_card") else "")
               for d in state["directions"]]
     choice = st.radio("Chọn hướng", range(3), format_func=lambda i: labels[i], index=state.get("chosen") or 0, key=f"idea_ch_{pid}")
     note = st.text_input("Ghi chú cho hướng đã chọn (không bắt buộc)", state.get("choice_note", ""), key=f"idea_note_{pid}")
-    if st.button("↻ Hỏi lại 3 hướng khác", key=f"idea_redo_d_{pid}"):
+    changed = I.directions_input_changed(state, replies, wish)
+    if st.button(f"↻ Hỏi lại 3 hướng khác (≈ {I.TURN_USD:g} USD)", key=f"idea_redo_d_{pid}", disabled=not changed,
+                 help=None if changed else "Đổi câu trả lời ở lượt 1 hoặc nói thêm ở khung bên dưới trước — hỏi lại y hệt là trả tiền cho cùng một câu hỏi."):
         def redo():
             I.answer(p.conn, pid, replies)
-            I.directions(p.conn, pid, client)
+            I.directions(p.conn, pid, client, wish=wish)
         if act(redo):
+            used()
             st.rerun()
+    return choice, note
 
-    # 3 — outline
+
+def turn_outline(p, pid, state, client, wish, used, choice, note) -> bool:
+    from core import idea_to_script as I
     st.markdown("**3 · Dàn ý theo giây**")
     if not state.get("beats") or state.get("chosen") != choice:
-        if _paid("▶ Lượt 3: dàn ý theo giây cho hướng này", f"idea_o_{pid}", state) and act(lambda: I.outline(p.conn, pid, client, choice, note)):
+        if _paid("▶ Lượt 3: dàn ý theo giây cho hướng này", f"idea_o_{pid}", state) \
+                and act(lambda: I.outline(p.conn, pid, client, choice, note, wish=wish)):
+            used()
             st.rerun()
-        return
+        return False
     rows = [{"Nhịp": b["name"], "Giây": f"{b['start']:g}–{b['end']:g}", "Nơi": b.get("place", ""), "Ai": ", ".join(b.get("who") or []),
              "Chuyện gì": b.get("what", ""), "Thoại": " / ".join(f"{d.get('speaker')}: {d.get('line')}" for d in b.get("dialogue") or [])}
             for b in state["beats"]]
@@ -116,11 +141,16 @@ def idea_panel(p: Pipeline, pid: int) -> None:
             st.error(c["text"])
         else:
             say("warning", c["text"], f"script-idea-outline-{pid}-{n}")
+    return True
 
-    # 4 — script
+
+def turn_script(p, pid, state, client, wish, used) -> None:
+    from core import idea_to_script as I
+    inp = state["inputs"]
     st.markdown("**4 · Kịch bản**")
     if not state.get("script"):
-        if _paid("▶ Lượt 4: viết kịch bản đầy đủ", f"idea_w_{pid}", state) and act(lambda: I.write(p.conn, pid, client)):
+        if _paid("▶ Lượt 4: viết kịch bản đầy đủ", f"idea_w_{pid}", state) and act(lambda: I.write(p.conn, pid, client, wish=wish)):
+            used()
             st.rerun()
         return
     left, right = st.columns(2, gap="large")
@@ -160,3 +190,26 @@ def idea_panel(p: Pipeline, pid: int) -> None:
                  key=f"idea_use_{pid}", type="primary", disabled=not chk.get("ok") or has_scenes):
         if act(lambda: st.toast(f"Đã đưa {I.use_script(p, pid)} cảnh vào màn Kịch bản")):
             st.rerun()
+
+
+def idea_turns(p: Pipeline, pid: int, wish: str = "", used=lambda: None) -> None:
+    """The 4 paid turns after "💡 Bắt đầu". `wish` = the box's pending "nói thêm" (goes into the next paid turn; empty → the prompt is
+    exactly the old one); `used()` is called once a turn that read it went through."""
+    from core import idea_to_script as I
+    ui.html(_CSS)
+    state = I.get_state(p.conn, pid)
+    if not state.get("inputs"):
+        return
+    client = C.llm_client()
+    if client is None:
+        say("info", "Chưa có Claude (LLM_PROVIDER / ANTHROPIC_API_KEY) — không chạy được Biên kịch.", f"script-idea-noclaude-{pid}")
+        return
+    cap(f"Đã dùng ≈ {float(state.get('spent') or 0):.3f} USD cho ý tưởng này.")
+    replies = turn_questions(p, pid, state, client, wish, used)
+    if replies is None:
+        return
+    picked = turn_directions(p, pid, state, client, wish, used, replies)
+    if picked is None:
+        return
+    if turn_outline(p, pid, state, client, wish, used, *picked):
+        turn_script(p, pid, state, client, wish, used)

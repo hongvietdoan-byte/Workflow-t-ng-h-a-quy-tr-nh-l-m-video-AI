@@ -347,13 +347,14 @@ class ScriptBoxTests(unittest.TestCase):
         pid = self.project_with_bible(lock=False)
         at = self.app(pid)                                                       # an expander inside an expander would raise
         self.assertIn(f"box_in_{pid}", tree_keys(at))
+        self.assertTrue(any(e.label.startswith("📥 Nhập / thay kịch bản (khung hội thoại") for e in at.expander))
         for k in OLD_KEYS:
             self.assertIn(k.format(p=pid), tree_keys(at), k)
 
     def test_pasted_script_is_read_as_script_and_goes_to_the_full_text_box(self):
         pid = self.p.create_project("Kịch bản dán")
         at = self.say(self.app(pid), SCRIPT)
-        self.assertIn("Hiểu là KỊCH BẢN", self.html(at))
+        self.assertIn("Hiểu là **KỊCH BẢN**", self.html(at))
         self.assertIn("3 tiêu đề cảnh", self.html(at))
         self.assertEqual(at.text_area(key=f"paste_{pid}").value, SCRIPT)
         self.assertFalse(at.button(key=f"btn_analyse_{pid}").disabled)
@@ -366,7 +367,7 @@ class ScriptBoxTests(unittest.TestCase):
     def test_short_idea_goes_to_the_writer_with_folded_settings_and_priced_turns(self):
         pid = self.p.create_project("Ý tưởng")
         at = self.say(self.app(pid), IDEA)
-        self.assertIn("Hiểu là Ý TƯỞNG", self.html(at))
+        self.assertIn("Hiểu là **Ý TƯỞNG**", self.html(at))
         self.assertIn(f"box_mode_script_{pid}", tree_keys(at))                  # override the other way
         self.assertIn(f"idea_form_{pid}", tree_keys(at))                        # the settings form kept (st.form)
         self.assertNotIn(f"idea_q_{pid}", tree_keys(at))                        # nothing paid before "Bắt đầu"
@@ -380,11 +381,27 @@ class ScriptBoxTests(unittest.TestCase):
         keys = tree_keys(at)
         self.assertIn(f"box_mode_script_{pid}", keys)
         self.assertIn(f"box_mode_idea_{pid}", keys)
-        self.assertIn("Đây là kịch bản hay ý tưởng", self.html(at))
+        self.assertIn("Đây là kịch bản hay ý tưởng?", self.html(at))
         at.button(key=f"box_mode_idea_{pid}").click().run()
         self.assertFalse(at.exception, at.exception)
         self.assertEqual(at.session_state[f"in_mode_{pid}"], "idea")
-        self.assertIn("Hiểu là Ý TƯỞNG", self.html(at))
+        self.assertIn("Hiểu là **Ý TƯỞNG**", self.html(at))
+
+    def test_short_text_while_an_idea_runs_is_a_wish_for_the_next_paid_turn(self):
+        from core import idea_to_script as I
+        pid = self.p.create_project("Nói thêm")
+        at = self.say(self.app(pid), IDEA)
+        I.start(self.p.conn, pid, IDEA)                                         # as if "💡 Bắt đầu" was pressed
+        before = I.get_state(self.p.conn, pid)
+        at = self.say(at, "cho Maxim thắng ở cuối")
+        self.assertEqual(at.session_state[f"box_wish_{pid}"], "cho Maxim thắng ở cuối")
+        self.assertIn("Nói thêm cho lượt kế", self.html(at))
+        self.assertEqual(at.text_area(key=f"paste_{pid}").value, IDEA)          # the idea itself is untouched
+        self.assertEqual(I.get_state(self.p.conn, pid), before)                  # nothing sent, nothing paid
+        self.assertIn(f"idea_q_{pid}", tree_keys(at))                           # the next turn: a priced button
+        self.assertIn("≈ 0.03 USD", at.button(key=f"idea_q_{pid}").label)
+        at.button(key=f"box_wish_drop_{pid}").click().run()
+        self.assertNotIn(f"box_wish_{pid}", at.session_state)
 
     def test_flag_off_is_the_old_two_tabs(self):
         with mock.patch.dict(os.environ, {"FEATURE_IDEA_TO_SCRIPT": "0"}):
