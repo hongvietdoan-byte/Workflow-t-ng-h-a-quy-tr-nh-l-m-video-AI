@@ -67,3 +67,34 @@ class EstablishTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class PlacePicturesPathTests(unittest.TestCase):
+    """06/10: place_pictures checked the stored RELATIVE path ("data/assets/…") against the working folder, so a Dashboard / tool
+    started elsewhere (a worktree, another folder) found no place picture — the wide establishing shot then went out with no place
+    reference. It now goes through assets.resolve (S14.43B: anchored at the install folder of PIPELINE_DB)."""
+
+    def test_relative_library_picture_found_from_another_working_folder(self):
+        import sqlite3
+        home = tempfile.mkdtemp()
+        os.makedirs(os.path.join(home, "data", "assets", "7"))
+        with open(os.path.join(home, "data", "assets", "7", "1.png"), "wb") as f:
+            f.write(b"x")
+        conn = sqlite3.connect(":memory:")
+        conn.row_factory = sqlite3.Row
+        conn.execute("CREATE TABLE asset_images (id INTEGER PRIMARY KEY, asset_id INT, path TEXT, status TEXT, role TEXT)")
+        conn.execute("INSERT INTO asset_images (asset_id, path, status, role) VALUES (7, ?, 'approved', 'eye_level')",
+                     (os.path.join("data", "assets", "7", "1.png"),))
+        old_env, old_cwd = os.environ.get("PIPELINE_DB"), os.getcwd()
+        os.environ["PIPELINE_DB"] = os.path.join(home, "data", "manifest.sqlite")
+        elsewhere = tempfile.mkdtemp()
+        os.chdir(elsewhere)
+        try:
+            pics = scene_establish.place_pictures(conn, 7)
+        finally:
+            os.chdir(old_cwd)
+            if old_env is None:
+                os.environ.pop("PIPELINE_DB", None)
+            else:
+                os.environ["PIPELINE_DB"] = old_env
+        self.assertEqual(pics, [os.path.join(home, "data", "assets", "7", "1.png")])

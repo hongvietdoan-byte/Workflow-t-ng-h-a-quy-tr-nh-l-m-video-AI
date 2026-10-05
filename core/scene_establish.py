@@ -86,7 +86,9 @@ def place_pictures(conn, asset_id) -> List[str]:
         return []
     rows = conn.execute("SELECT path FROM asset_images WHERE asset_id=? AND status IN ('approved','claude_ok')"
                         " ORDER BY (role='eye_level') DESC, (role='detail') ASC, id", (asset_id,)).fetchall()
-    return [r["path"] for r in rows if r["path"] and os.path.exists(r["path"])][:MAX_PLACE_PICTURES]
+    from . import assets                                             # 06/10: stored paths are relative to the install folder
+    paths = [assets.resolve(r["path"]) for r in rows if r["path"]]
+    return [p for p in paths if os.path.exists(p)][:MAX_PLACE_PICTURES]
 
 
 RENDER_NOTE = (" The FIRST reference picture is the exact 3D model of the real game map seen from this scene's main camera: keep the "
