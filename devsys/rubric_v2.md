@@ -1,23 +1,15 @@
-# Thang chấm cố định — AI Development System (bản 2.1, 2026-10-06)
+# Thang chấm cố định — AI Development System (bản 2, 2026-10-03)
 
-Bản 1 (2026-09-26) lưu ở `devsys/rubric_v1.md`, bản 2 (2026-10-03) ở `devsys/rubric_v2.md`; điểm cũ vẫn đọc được (code giữ cách tính của
-chúng: bản 2 chỉ hỏi K1–K10) và hiện "khác thang" — **tổng có trọng số chỉ cộng điểm cùng thang**, nên sau khi đổi thang phải chấm lại.
-Lý do bản 2: bản 1 chạm trần (điểm trung bình 79 → 88 dù lỗi nặng còn đó), mọi khoản trừ chỉ 1–3 điểm bất kể nặng hay nhẹ, không đo gì bằng code,
+Bản 1 (2026-09-26) lưu ở `devsys/rubric_v1.md`; điểm chấm theo bản 1 vẫn đọc được (code giữ nguyên cách tính của chúng) và hiện "khác thang".
+Lý do đổi: bản 1 chạm trần (điểm trung bình 79 → 88 dù lỗi nặng còn đó), mọi khoản trừ chỉ 1–3 điểm bất kể nặng hay nhẹ, không đo gì bằng code,
 và bỏ sót lớp lỗi như 6 bug B1–B6 của rà soát 01/10 (xem `docs/DANH_GIA_CACH_CHAM_DEVSYS_2026-10-03.md`).
-
-**Bản 2.1 (S14.10, Gói F1 + Đợt 6b — đổi MỘT lần):** thêm K11 vòng đời job + K12 phá hủy-trước-khi-có-bản-mới, mỗi loại lỗi có tiêu chí mặc định;
-khu vực chỉ có tài liệu không chấm `test` (chia lại trên 88 điểm); `bao_tri` tự động mỗi file trừ một lần, trần chung −4; `except` có chú thích lý do
-không tính nuốt lỗi; `todo_mo` chia điểm cho các khu vực cùng dòng và chỉ tính việc code; `bang_chung` đòi DÒNG ghi lần chạy thật; luật
-`hieu_qua_tut` / `gop_y_lap` đo chất lượng đầu ra thật từ CSDL (bằng chứng `db:` — chỉ khoản tự động); bằng chứng `test:` kiểm tới lớp/hàm;
-nhập điểm ngoài phải kèm `fingerprint` + `input_hash` của bản xuất; độ ổn định chỉ gọi "nhiễu" khi cùng người chấm.
 
 Mỗi khu vực trong `devsys/areas.json` được chấm 0–100 theo **8 tiêu chí cố định**. Điểm gồm hai nguồn, **cả hai do code tính**:
 1. **Khoản trừ của người chấm**: người chấm chỉ *phân loại* mỗi khoản trừ (`muc` = chan / lon / nho, `loai` = loại lỗi) và dẫn bằng chứng.
    **Người chấm không ghi số điểm** — code gán điểm theo mức.
 2. **Khoản trừ tự động do code đo** (mục "Khoản trừ do code tính"): người chấm không được trừ lại.
 
-Điểm tiêu chí = điểm tối đa − tổng khoản trừ (không âm); điểm khu vực = tổng 8 tiêu chí, rồi code áp các giới hạn. Khu vực chỉ có tài liệu
-(không có `code` trong `areas.json`): `test` **không áp dụng**, điểm khu vực = tổng 7 tiêu chí còn lại × 100 / 88.
+Điểm tiêu chí = điểm tối đa − tổng khoản trừ (không âm); điểm khu vực = tổng 8 tiêu chí, rồi code áp các giới hạn.
 
 | Mã | Tiêu chí | Tối đa | Được trọn điểm khi | Người chấm trừ khi (ví dụ) |
 |---|---|---|---|---|
@@ -49,13 +41,11 @@ Code đo bằng `ast` / grep có cấu trúc (`devsys/metrics.py`), người ch�
 | Luật | Tiêu chí | Mỗi lần | Tối đa | Đo gì |
 |---|---|---|---|---|
 | `file_dai` | `bao_tri` | −1,0 | −3 | file code > 900 dòng |
-| `ham_dai` | `bao_tri` | −0,4 | −2 | file (chưa bị trừ vì dài) có hàm > 150 dòng — mỗi file một lần |
-| `ham_phuc_tap` | `bao_tri` | −0,4 | −2 | file (chưa bị trừ ở hai luật trên) có hàm độ phức tạp (số nhánh + 1) > 30 — mỗi file một lần |
-| `todo_mo` | `chuc_nang` | −0,3 | −3 | dòng `TODO.md` còn mở là **việc code** của khu vực; dòng gán cho N khu vực trừ mỗi khu vực −0,3/N (không tính dòng chờ người dùng quyết, việc người dùng làm 👤, quy ước) |
-| `co_bat_chua_thu` | `bang_chung` | −0,5 | −4 | cờ của khu vực đang BẬT (theo đúng luật `core.features.on`: màn 🧪 / preset / `dashboard.env`) mà `verified=False` |
-| `nuot_loi` | `tin_cay` | −0,4 | −4 | `except` / `except Exception` chỉ có pass / continue / return hằng, không log, không raise, **không có chú thích lý do** (≥ 8 ký tự sau `noqa`) |
-| `hieu_qua_tut` | `bang_chung` | −1 | −2 | tỉ lệ qua lần đầu của khâu khu vực (ảnh / video) tụt > 10 điểm % giữa hai mốc hiệu quả toàn hệ thống liền nhau mà cờ bật + kiến thức **không đổi** (bằng chứng `db:effectiveness_snapshots:<id>`) |
-| `gop_y_lap` | `trai_nghiem` | −1 mỗi khâu | −2 | ≥ 3 góp ý ≤ 2/5 cùng khâu của khu vực trong 30 ngày chưa xử lý (bằng chứng `db:user_feedback:<id>`) |
+| `ham_dai` | `bao_tri` | −0,4 | −2 | hàm > 150 dòng |
+| `ham_phuc_tap` | `bao_tri` | −0,4 | −2 | hàm có độ phức tạp (số nhánh + 1) > 30 |
+| `todo_mo` | `chuc_nang` | −0,3 | −3 | dòng `TODO.md` còn mở gán cho khu vực (không tính dòng chờ người dùng quyết) |
+| `co_bat_chua_thu` | `bang_chung` | −0,5 | −4 | cờ của khu vực đang BẬT mà `verified=False` |
+| `nuot_loi` | `tin_cay` | −0,4 | −4 | `except` / `except Exception` chỉ có pass / continue / return hằng, không log, không raise |
 | `tien_khong_qua_so` | `tuan_thu` | −0,5 | −2 | lời gọi `submit` / `generate_*` của nhà cung cấp trong hàm không có từ khóa ngân sách / sổ chi / ước tính (dấu hiệu — người chấm xác minh) |
 | `module_khong_test` | `test` | −0,6 | −3 | module của khu vực không có test nào import tới |
 | `ham_khong_test` | `test` | −1 / −2 / −3 | −3 | > 50 % / 75 % / 90 % hàm công khai (≥ 5 hàm) không được test nhắc tới tên (dấu hiệu) |
@@ -64,64 +54,47 @@ Code đo bằng `ast` / grep có cấu trúc (`devsys/metrics.py`), người ch�
 | `chu_nho` | `trai_nghiem` | −0,05 | −1 | chữ nhỏ hơn 12,5 px (đo thật) |
 | `ui_nhieu_click` | `trai_nghiem` | −1 | −1 | số click "Dự án mới → video đầu" của v2 lớn hơn bản cũ (`tools/ui_v2_acceptance.py`) |
 | `ui_cham` | `trai_nghiem` | −1 | −1 | rerun giao diện chậm hơn bản cũ > 20 % |
-`tuong_phan` / `chu_nho` / `ui_*` chỉ áp cho khu vực đánh dấu `"ui_metrics": true` trong `areas.json` (bản 2.1: mọi khu vực có màn
-Bước 1–3 + giao diện chung), khi có file đo `devsys/data/ui_metrics.json` (tạo bằng `py tools/devsys_ui_metrics.py`).
-Ba luật `file_dai` / `ham_dai` / `ham_phuc_tap` cộng lại tối đa **−4** (`bao_tri` không bị code đo trừ quá nửa).
-`hieu_qua_tut` / `gop_y_lap` đọc CSDL thật chỉ đọc (`effectiveness_snapshots`, `user_feedback`) theo khâu `ops_stages` của khu vực trong `areas.json`;
-không có CSDL → không trừ và dữ liệu chấm ghi rõ "không có".
+Hai luật cuối cùng và `tuong_phan` / `chu_nho` / `ui_*` chỉ áp cho khu vực đánh dấu `"ui_metrics": true` trong `areas.json`, khi có file đo
+`devsys/data/ui_metrics.json` (tạo bằng `py tools/devsys_ui_metrics.py`).
 
 ## Giới hạn do code áp (người chấm không vượt được)
-- `test` (giới hạn đặt cho tiêu chí 15 điểm, nhân tỉ lệ 12/15): không có test file nào → tối đa 2,4; chưa có lần chạy test lưu lại → tối đa 6,4
-  (bản sao không có `devsys/data/runs` — worktree / clone mới — được ghi rõ là thiếu dữ liệu, không phải "chưa từng chạy"); lần chạy mới nhất có
-  test của khu vực lỗi → tối đa 5,6.
-- `bang_chung`: điểm > 0 chỉ khi mục `evidence_for` có ≥ 1 trích dẫn kiểm được trỏ tới **dòng** của `TODO.md`, `docs/`, `PLAN.md`, `data/`,
-  `tests/fixtures/`, `research/` hoặc `eval/` ghi lần chạy thật: trong các dòng trích (bỏ tiêu đề `#`, dòng trống, kẻ bảng) có số / ngày /
-  "đã chạy" / "chạy thật"… hoặc tên / từ khóa của khu vực. Cả file `.md` không số dòng, tiêu đề, dòng trống → không tính. File dữ liệu
-  (json, csv, ảnh… — không phải `.md` / `.txt`) ở các nơi trên được tính cả file. Không có → code hạ về 0. Commit message **không** bao giờ được gửi cho người chấm.
+- `test` (giới hạn đặt cho tiêu chí 15 điểm, nhân tỉ lệ 12/15): không có test file nào → tối đa 2,4; chưa có lần chạy test lưu lại → tối đa 6,4; lần chạy mới nhất có test của khu vực lỗi → tối đa 5,6.
+- `bang_chung`: điểm > 0 chỉ khi mục `evidence_for` có ≥ 1 trích dẫn kiểm được trỏ tới `TODO.md`, `docs/`, `PLAN.md`, `data/`, `tests/fixtures/`, `research/` hoặc `eval/`.
+  Không có → code hạ về 0. Commit message **không** bao giờ được gửi cho người chấm.
 - `trai_nghiem`: khu vực giao diện (`"ui_metrics": true`) chưa có `devsys/data/ui_metrics.json` → tối đa 6/10.
 - Lỗi `chan` còn lại: khu vực tối đa 89 (một lỗi) / 79 (hai lỗi trở lên).
-- Khu vực chỉ có tài liệu (không có code): `test` không áp dụng (xem trên).
+- Khu vực chỉ có tài liệu (không có code): `test` áp giới hạn như trên.
 
 ## Bằng chứng hợp lệ (mỗi khoản trừ ≥ 1)
 - `đường/dẫn/file.py:123` hoặc `đường/dẫn/file.py:120-140` — dòng trong repo (code kiểm file có thật và số dòng không vượt độ dài file).
 - `TODO.md:456` — dòng TODO (có trong dữ liệu gửi kèm).
-- `test:tests/test_x.py::Lop::test_y` — tên test (đang lỗi, hoặc chứng minh có/không có kiểm). Code đọc file test bằng `ast`: lớp và hàm phải có
-  thật (`::test_y` một mình được nếu là hàm cấp đầu hoặc phương thức của một lớp); `test:` không có đường dẫn `tests/…py` là không kiểm được.
+- `test:tests/test_x.py::Lop::test_y` — tên test (đang lỗi, hoặc chứng minh có/không có kiểm).
 - `flag:ten_co` — cờ trong `core/features.py`.
 - `absent:<điều đã tìm mà không thấy>` — chỉ dùng khi lỗi là **sự vắng mặt** (vd. `absent:không test nào import core/lipsync.py`).
-- `db:<bảng>:<id>` — một dòng của CSDL thật (`effectiveness_snapshots`, `user_feedback`). **Chỉ khoản trừ tự động do code đo được dùng**;
-  người chấm dẫn `db:` thì bị đánh dấu không kiểm được và **không bao giờ** đủ để giữ mức `chan`.
-Bằng chứng không kiểm được (file không có, dòng vượt độ dài file, test không có) vẫn được lưu nhưng bị đánh dấu ⚠ trong web để người kiểm lại.
+Bằng chứng không kiểm được (file không có, dòng vượt độ dài file) vẫn được lưu nhưng bị đánh dấu ⚠ trong web để người kiểm lại.
 
 ## Checklist các loại lỗi đã gặp — BẮT BUỘC trả lời đủ
-Mỗi loại dưới đây từng thật sự xảy ra (B1–B6 của rà soát 01/10, lỗi người chấm tìm 26/09, rà soát 04/10). Người chấm phải trả lời **cả 12** cho khu vực
-(điểm cũ thang bản 2 chỉ có K1–K10: không bị từ chối, coi K11/K12 là chưa hỏi). Cột "Tiêu chí mặc định" = tiêu chí ghi khoản trừ của loại lỗi đó,
-trừ khi lỗi cụ thể rõ ràng thuộc tiêu chí khác (ghi lý do trong `reason`); không trừ trùng một lỗi ở hai tiêu chí.
+Mỗi loại dưới đây từng thật sự xảy ra (B1–B6 của rà soát 01/10, lỗi người chấm tìm 26/09). Người chấm phải trả lời **cả 10** cho khu vực:
 `"tra_loi"` = `co` (thấy lỗi loại này — **phải có ít nhất một khoản trừ cùng `loai`**), `khong` (đã tìm, không thấy), `khong_ap_dung` (khu vực không có
 chỗ nào thuộc loại này) và `"ghi_chu"` (≥ 8 ký tự: đã tìm ở đâu / vì sao không áp dụng). Thiếu một mục hoặc `co` không có khoản trừ → bị từ chối.
 
-| `loai` | Loại lỗi | Tiêu chí mặc định | Đã gặp |
-|---|---|---|---|
-| `K1_khai_bao_chung` | Bảng/danh mục khai báo chung (khâu Claude, cờ, giá, luật model, bản đồ khu vực) không khớp nơi dùng thật | `bao_tri` | B1: 11 khâu Claude thiếu `max_tokens` riêng → luôn bị chặn; B6 |
-| `K2_cong_do_sai` | Công thức đo / cổng tin cậy / ngưỡng sai mẫu số, sai chiều, tự bỏ qua cổng | `tin_cay` | B2: `look_trust` chia sai mẫu số → có thể bỏ cổng storyboard |
-| `K3_rang_buoc_ben_ngoai` | Ràng buộc của nhà cung cấp (tỉ lệ ảnh, độ dài, định dạng) không kiểm trước khi gửi tốn tiền | `tin_cay` | B3: ảnh tỉ lệ 3,74 bị Seedance từ chối sau khi gửi |
-| `K4_dien_giai_dau_ra_model` | Code diễn giải đầu ra LLM/QC sai ở biên | `chuc_nang` | B4: `CTA_TEXT` bị coi là nhân vật mới |
-| `K5_du_lieu_mat` | File/dữ liệu tham chiếu mất, lỗi lặp lại mà giao diện không có đường sửa | `trai_nghiem` | B5: 6 ảnh Kho mất file, ~30 lần báo lỗi |
-| `K6_bo_do_sot` | Bộ đo/dò (devsys, diag, QC) bỏ sót một cách viết hợp lệ nên báo sai | `bang_chung` | B6: dò cờ bỏ sót `features.on(FEATURE)` |
-| `K7_tien_ngoai_so` | Lời gọi tốn tiền không qua sổ chi / ước tính / trần | `tuan_thu` | 26/09: `experiments.kling_multishot`, nút Claude không giá |
-| `K8_im_lang` | Nuốt lỗi, bỏ qua đầu vào thiếu mà không báo | `tuan_thu` | 26/09: `diag.record` nuốt lỗi SQLite; `ensure_plates` |
-| `K9_quyen_bi_mat` | Quyền theo dự án (`core/access.py`), khóa/API key, dữ liệu web/ngoài coi là đáng tin | `tin_cay` | chưa có lỗi thật — vẫn phải tìm (đường phụ không `need_edit`, khóa trong log, nội dung web vào prompt) |
-| `K10_giao_dien_do_that` | Giao diện chưa đo thật: tương phản, cỡ chữ, số click, hiệu năng, màn quá nhiều nút | `trai_nghiem` | 01/10: ~250 điều khiển trên 5 bước |
-| `K11_vong_doi_job` | Vòng đời job: job kẹt / gửi lại job đã trả tiền / hủy không tới nhà cung cấp / không dừng khi lỗi / ffmpeg chết mà không báo | `tin_cay` | 04/10 B1: 6 chỗ `p.start`, `stale_paid`, `runner.cancel_all` |
-| `K12_pha_huy_truoc_ban_moi` | Phá hủy-trước-khi-có-bản-mới: xóa / ghi đè bản cũ (file, dòng CSDL, tài liệu) trước khi bản mới chắc chắn có — bước sau lỗi là mất dữ liệu | `tin_cay` | 04/10: `replace_doc`, gộp/xóa ảnh Kho, thùng rác dự án |
+| `loai` | Loại lỗi | Đã gặp |
+|---|---|---|
+| `K1_khai_bao_chung` | Bảng/danh mục khai báo chung (khâu Claude, cờ, giá, luật model, bản đồ khu vực) không khớp nơi dùng thật | B1: 11 khâu Claude thiếu `max_tokens` riêng → luôn bị chặn; B6 |
+| `K2_cong_do_sai` | Công thức đo / cổng tin cậy / ngưỡng sai mẫu số, sai chiều, tự bỏ qua cổng | B2: `look_trust` chia sai mẫu số → có thể bỏ cổng storyboard |
+| `K3_rang_buoc_ben_ngoai` | Ràng buộc của nhà cung cấp (tỉ lệ ảnh, độ dài, định dạng) không kiểm trước khi gửi tốn tiền | B3: ảnh tỉ lệ 3,74 bị Seedance từ chối sau khi gửi |
+| `K4_dien_giai_dau_ra_model` | Code diễn giải đầu ra LLM/QC sai ở biên | B4: `CTA_TEXT` bị coi là nhân vật mới |
+| `K5_du_lieu_mat` | File/dữ liệu tham chiếu mất, lỗi lặp lại mà giao diện không có đường sửa | B5: 6 ảnh Kho mất file, ~30 lần báo lỗi |
+| `K6_bo_do_sot` | Bộ đo/dò (devsys, diag, QC) bỏ sót một cách viết hợp lệ nên báo sai | B6: dò cờ bỏ sót `features.on(FEATURE)` |
+| `K7_tien_ngoai_so` | Lời gọi tốn tiền không qua sổ chi / ước tính / trần | 26/09: `experiments.kling_multishot`, nút Claude không giá |
+| `K8_im_lang` | Nuốt lỗi, bỏ qua đầu vào thiếu mà không báo | 26/09: `diag.record` nuốt lỗi SQLite; `ensure_plates` |
+| `K9_quyen_bi_mat` | Quyền theo dự án (`core/access.py`), khóa/API key, dữ liệu web/ngoài coi là đáng tin | chưa có lỗi thật — vẫn phải tìm (đường phụ không `need_edit`, khóa trong log, nội dung web vào prompt) |
+| `K10_giao_dien_do_that` | Giao diện chưa đo thật: tương phản, cỡ chữ, số click, hiệu năng, màn quá nhiều nút | 01/10: ~250 điều khiển trên 5 bước |
 
 ## Độ ổn định (chống chấm lệch giữa các lần)
-Nếu khu vực đã có điểm trước đó **cùng thang** (cùng `rubric_hash`), dữ liệu gửi kèm điểm và **các khoản trừ lần trước**. Điểm lần này **chưa tính khoản trừ tự động**
+Nếu khu vực đã có điểm bản 2 trước đó (cùng thang), dữ liệu gửi kèm điểm và **các khoản trừ lần trước**. Điểm lần này **chưa tính khoản trừ tự động**
 không được lệch quá **5 điểm** so với lần trước, trừ khi trả lời có `giai_thich_chenh`: danh sách `{"criterion", "why", "evidence"}` nói khoản trừ nào
-bị bỏ/thêm và vì sao (code thật đã đổi, hay lần trước chấm sai); mỗi mục phải có **≥ 1 bằng chứng code kiểm được** (file:dòng có thật, test có thật).
-Không có → bị từ chối (hỏi lại). Khoản trừ lần trước còn đúng thì **giữ nguyên**. Quy tắc này áp cả khi người chấm khác lần trước (có giải thích thì nhận).
-Thống kê ổn định (`--stability`): "nhiễu" chỉ tính hai lần chấm liền nhau **cùng người chấm** mà dấu vân tay không đổi; cặp khác người chấm đã giải thích
-không vào trung bình lệch.
+bị bỏ/thêm và vì sao (code thật đã đổi, hay lần trước chấm sai). Không có → bị từ chối (hỏi lại). Khoản trừ lần trước còn đúng thì **giữ nguyên**.
 
 ## Cách giữ khách quan
 1. Thang cố định (file này, lưu `rubric_hash` trong mỗi file điểm — đổi thang thì mọi điểm cũ hiện "khác thang").
@@ -131,22 +104,16 @@ không vào trung bình lệch.
 4. Điểm = code gán theo mức + code đo tự động; giới hạn do code áp; bằng chứng được code kiểm; checklist và độ ổn định do code ép.
 5. Model hiện tại (claude-sonnet-5 / opus-5) **không nhận tham số `temperature`** (API trả 400) → dùng `effort` thấp (stage `devsys`),
    prompt cố định, thang cố định. Lưu model, ngày, commit, `input_hash` và toàn bộ JSON trả về.
-6. Chấm tăng dần: chỉ chấm lại khu vực có dấu vân tay (nội dung file + dòng TODO + test có lỗi / có test hay không + cờ + thang + file đo UI +
-   mốc hiệu quả mới nhất + số góp ý chưa xử lý) đổi so với lần chấm trước. Số test **qua** không vào vân tay (thêm test không bắt chấm lại).
-7. Tổng có trọng số (trang Tổng quan, xu hướng) chỉ cộng điểm **cùng thang**; khu vực còn điểm thang cũ được liệt kê riêng ("chấm lại").
+6. Chấm tăng dần: chỉ chấm lại khu vực có dấu vân tay (nội dung file + dòng TODO + kết quả test + cờ + thang + file đo UI) đổi so với lần chấm trước.
 
 ## Định dạng câu trả lời / file điểm (dùng chung cho người chấm ngoài)
 Một Claude Code session / subagent có thể chấm miễn phí (dùng gói của người dùng) và ghi file vào `devsys/data/scores/`, web hiện như điểm
 của Claude API. Lấy dữ liệu đầu vào bằng `py tools/devsys_score.py --export <khu_vực>` (ghi ra `devsys/data/exports/<khu_vực>.md`), chấm
-theo thang này, rồi nhập **ở repo gốc** (không ở worktree — bị từ chối): `py tools/devsys_score.py --import file.json --scorer claude-code-session`.
-JSON phải chép nguyên `fingerprint` và `input_hash` ở cuối file xuất: thiếu → từ chối; khác bản hiện tại (code / TODO / test / cờ / điểm trước
-đã đổi sau lúc xuất) → từ chối, xuất lại rồi chấm lại. File phải là JSON:
+theo thang này, rồi nhập: `py tools/devsys_score.py --import file.json --scorer claude-code-session`. File phải là JSON:
 
 ```json
 {
-  "format": "devsys-score/2.1",
-  "fingerprint": "<chép từ cuối file xuất>",
-  "input_hash": "<chép từ cuối file xuất>",
+  "format": "devsys-score/2",
   "scorer": "claude-code-session",
   "model": "claude-opus-5-5",
   "area": "step1",
@@ -170,8 +137,7 @@ JSON phải chép nguyên `fingerprint` và `input_hash` ở cuối file xuất:
     "K4_dien_giai_dau_ra_model": {"tra_loi": "khong", "ghi_chu": "…"}, "K5_du_lieu_mat": {"tra_loi": "khong", "ghi_chu": "…"},
     "K6_bo_do_sot": {"tra_loi": "khong", "ghi_chu": "…"}, "K7_tien_ngoai_so": {"tra_loi": "khong", "ghi_chu": "…"},
     "K8_im_lang": {"tra_loi": "khong", "ghi_chu": "…"}, "K9_quyen_bi_mat": {"tra_loi": "khong", "ghi_chu": "…"},
-    "K10_giao_dien_do_that": {"tra_loi": "khong_ap_dung", "ghi_chu": "…"},
-    "K11_vong_doi_job": {"tra_loi": "khong", "ghi_chu": "…"}, "K12_pha_huy_truoc_ban_moi": {"tra_loi": "khong", "ghi_chu": "…"}
+    "K10_giao_dien_do_that": {"tra_loi": "khong_ap_dung", "ghi_chu": "…"}
   },
   "giai_thich_chenh": [],
   "can_kiem_lai": [{"what": "…", "why": "…", "evidence": ["core/x.py:10"]}],
@@ -179,4 +145,4 @@ JSON phải chép nguyên `fingerprint` và `input_hash` ở cuối file xuất:
 }
 ```
 `muc` là mức nghiêm trọng (chan / lon / nho); **không ghi số điểm** — trường `points` nếu có sẽ bị bỏ qua, trường `score` cũng vậy: code tự tính lại.
-`commit` và `date` luôn lấy từ máy lúc nhập (giá trị trong file, nếu có, chỉ được lưu lại ở `claimed`).
+`commit`, `date`, `input_hash` được điền khi nhập.

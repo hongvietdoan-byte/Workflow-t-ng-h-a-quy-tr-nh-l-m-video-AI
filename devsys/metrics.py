@@ -36,7 +36,12 @@ RULES = {   # rule: (criterion, điểm mỗi lần, tổng tối đa của rule
     "chu_nho": ("trai_nghiem", 0.05, 1.0),
     "ui_nhieu_click": ("trai_nghiem", 1.0, 1.0),
     "ui_cham": ("trai_nghiem", 1.0, 1.0),
+    "hieu_qua_tut": ("bang_chung", 1.0, 2.0),      # thang 2.1 (Đợt 6b): qua-lần-đầu tụt > 10 điểm % giữa 2 mốc mà cờ + kiến thức không đổi
+    "gop_y_lap": ("trai_nghiem", 1.0, 2.0),        # thang 2.1 (Đợt 6b): ≥ 3 góp ý ≤ 2/5 cùng khâu trong 30 ngày chưa xử lý
 }
+BAO_TRI_AUTO_CAP = 4.0          # thang 2.1 (S10): tổng khoản trừ tự động của bao_tri (file_dai + ham_dai + ham_phuc_tap) tối đa
+OPS_DROP_PCT = 10.0             # hieu_qua_tut: tụt hơn ngần này điểm phần trăm
+OPS_REPEAT_MIN = 3              # gop_y_lap: từ ngần này góp ý không hài lòng cùng khâu
 PAID_CALLS = {"submit", "submit_final_from_sample", "submit_video_edit", "submit_storyboard_frame", "generate_music", "generate_seed_audio",
               "generate_sfx", "generate_tts"}
 PAID_IMPLEMENTATIONS = ("core/adapters/", "core/providers.py", "mcp_servers/", "tools/", "tests/")
@@ -80,12 +85,38 @@ def _broad(h: ast.ExceptHandler) -> bool:
     return any(isinstance(e, ast.Name) and e.id in ("Exception", "BaseException") for e in names)
 
 
-def swallowed_excepts(tree: ast.AST) -> List[int]:
+_NOQA = re.compile(r"^\s*(?:noqa(?::\s*[A-Z]+\d+(?:\s*,\s*[A-Z]+\d+)*)?|pragma:[^-–—]*|type:\s*ignore\S*)\s*[-–—:]?\s*", re.I)
+
+
+def _comments(src: str) -> Dict[int, str]:
+    """{line: comment text} of a source (tokenize: a '#' inside a string is not a comment)."""
+    import io
+    import tokenize
+    out: Dict[int, str] = {}
+    try:
+        for tok in tokenize.generate_tokens(io.StringIO(src).readline):
+            if tok.type == tokenize.COMMENT:
+                out[tok.start[0]] = tok.string.lstrip("#").strip()
+    except (tokenize.TokenError, IndentationError, SyntaxError):
+        pass
+    return out
+
+
+def _explained(h: ast.ExceptHandler, comments: Dict[int, str]) -> bool:
+    """S10 (thang 2.1): the handler says WHY the error is let go — a comment of ≥ 8 characters on the `except` line or in its body,
+    once the bare 'noqa: BLE001' / 'pragma' tag is taken off."""
+    end = getattr(h, "end_lineno", h.lineno) or h.lineno
+    return any(len(_NOQA.sub("", comments.get(ln, ""), count=1).strip()) >= 8 for ln in range(h.lineno, end + 1))
+
+
+def swallowed_excepts(tree: ast.AST, src: Optional[str] = None) -> List[int]:
     """Lines of `except:` / `except Exception:` handlers that do nothing with the error: no raise, no call (so no log / record / print),
-    only pass / continue / return-a-constant / assign-a-constant — the 'nuốt lỗi im lặng' of docs/CHUAN_XAY_DUNG.md."""
+    only pass / continue / return-a-constant / assign-a-constant — the 'nuốt lỗi im lặng' of docs/CHUAN_XAY_DUNG.md. With the source,
+    a handler whose comment gives the reason (thang 2.1, S10) is a decision, not silence."""
+    comments = _comments(src) if src else {}
     out = []
     for n in ast.walk(tree):
-        if isinstance(n, ast.ExceptHandler) and _broad(n) and all(_silent_stmt(s) for s in n.body):
+        if isinstance(n, ast.ExceptHandler) and _broad(n) and all(_silent_stmt(s) for s in n.body) and not _explained(n, comments):
             out.append(n.lineno)
     return sorted(out)
 
@@ -197,7 +228,7 @@ def area_metrics(root: str, cfg: Dict, area: Dict, snap: Dict) -> Dict:
         tree, src = _parse(root, rel)
         if tree is None:
             continue
-        for ln in swallowed_excepts(tree):
+        for ln in swallowed_excepts(tree, src):
             m["swallowed"].append(f"{rel}:{ln}")
         lg, cx = long_and_complex(tree)
         m["long_funcs"] += [f"{rel}:{ln} {name} ({n} dòng)" for ln, name, n in lg]
@@ -240,7 +271,29 @@ def area_metrics(root: str, cfg: Dict, area: Dict, snap: Dict) -> Dict:
     m["flags_on_unverified"] = [f["name"] for f in snap["flags"] if area["id"] in f["areas"] and f["on"] and not f["verified"]]
     m["has_ui"] = any(f.startswith("dashboard/") for f in mods)
     m["ui_measured"] = bool(area.get("ui_metrics"))
+    m.update(ops_measures(snap.get("ops") or {}, area))
     return m
+
+
+def ops_measures(ops: Dict, area: Dict) -> Dict:
+    """Thang 2.1 (Đợt 6b): from the read-only ops summary — `ops_drop`: the area's first-pass figure fell > OPS_DROP_PCT points between
+    the two latest system snapshots while the flags ON and the knowledge fingerprint stayed the same (nothing we changed explains it);
+    `ops_repeat`: {stage: feedback ids} with ≥ OPS_REPEAT_MIN unhandled complaints (≤ 2/5) in 30 days."""
+    from . import collect
+    mine = collect.ops_for_area(ops, area)
+    out: Dict = {"ops_drop": [], "ops_repeat": {}}
+    rows = ops.get("trend") or []
+    if len(rows) >= 2:
+        a, b = rows[-2], rows[-1]
+        if sorted(a.get("flags_on") or []) == sorted(b.get("flags_on") or []) and (a.get("knowledge_fp") or "") == (b.get("knowledge_fp") or ""):
+            for fig in mine["figures"]:
+                x, y = a.get(fig), b.get(fig)
+                if x is not None and y is not None and (float(x) - float(y)) * 100 > OPS_DROP_PCT:
+                    out["ops_drop"].append({"figure": fig, "from_id": a["id"], "to_id": b["id"], "before": x, "after": y})
+    for st, v in mine["feedback"].items():
+        if len(v.get("low_open_30d") or []) >= OPS_REPEAT_MIN:
+            out["ops_repeat"][st] = list(v["low_open_30d"])
+    return out
 
 
 def _untested_func_points(ratio: float, n_public: int) -> float:
@@ -268,9 +321,30 @@ def _ev(path_lines: Sequence[str]) -> List[str]:
 
 def auto_deductions(m: Dict, ui: Optional[Dict] = None) -> List[Dict]:
     out: List[Dict] = []
-    _auto(out, "file_dai", _ev(m["big_files"]), f"{len(m['big_files'])} file code dài hơn {BIG_FILE_LINES} dòng (khó đọc, khó sửa)")
-    _auto(out, "ham_dai", _ev(m["long_funcs"]), f"{len(m['long_funcs'])} hàm dài hơn {LONG_FUNC_LINES} dòng")
-    _auto(out, "ham_phuc_tap", _ev(m["complex_funcs"]), f"{len(m['complex_funcs'])} hàm có độ phức tạp > {COMPLEX_FUNC}")
+    # S10 (thang 2.1): a file costs bao_tri ONCE — a long file is not charged again for its long / complex functions, a file with long
+    # functions not again for complex ones; each rule counts files (first offending line as evidence); the three share BAO_TRI_AUTO_CAP.
+    seen: set = set()
+
+    def per_file(items: Sequence[str]) -> List[str]:
+        firsts: Dict[str, str] = {}
+        for it in _ev(items):
+            f = it.split(":")[0]
+            if f not in seen:
+                firsts.setdefault(f, it)
+        seen.update(firsts)
+        return list(firsts.values())
+
+    big, long_, cx = per_file(m["big_files"]), per_file(m["long_funcs"]), per_file(m["complex_funcs"])
+    before = len(out)
+    _auto(out, "file_dai", big, f"{len(big)} file code dài hơn {BIG_FILE_LINES} dòng (khó đọc, khó sửa)")
+    _auto(out, "ham_dai", long_, f"{len(long_)} file (không tính file đã bị trừ vì dài) có hàm dài hơn {LONG_FUNC_LINES} dòng "
+          f"({len(m['long_funcs'])} hàm)")
+    _auto(out, "ham_phuc_tap", cx, f"{len(cx)} file (chưa bị trừ ở trên) có hàm độ phức tạp > {COMPLEX_FUNC} ({len(m['complex_funcs'])} hàm)")
+    room = BAO_TRI_AUTO_CAP
+    for a in out[before:]:
+        a["points"] = round(min(a["points"], room), 1)
+        room = max(0.0, room - a["points"])
+    out[before:] = [a for a in out[before:] if a["points"] > 0]
     if m["todo_open"]:
         crit, each, cap = RULES["todo_mo"]
         n_shared = len(m.get("todo_shared_lines") or [])
@@ -290,6 +364,15 @@ def auto_deductions(m: Dict, ui: Optional[Dict] = None) -> List[Dict]:
               f"{m['funcs_untested']}/{m['funcs_public']} hàm công khai không được test nhắc tới tên (dấu hiệu)", heuristic=True, points=p)
     crowded = [f"{f}:1" for f, n in sorted(m["controls"].items()) if n > CROWDED_SCREEN_CONTROLS]
     _auto(out, "man_nhieu_nut", crowded, f"{len(crowded)} file màn hình có hơn {CROWDED_SCREEN_CONTROLS} điều khiển (nút / ô / khối gập)")
+    for d in m.get("ops_drop") or []:                 # thang 2.1 (Đợt 6b): evidence = the two rows of the real database (db:)
+        _auto(out, "hieu_qua_tut", [f"db:effectiveness_snapshots:{d['from_id']}", f"db:effectiveness_snapshots:{d['to_id']}"],
+              f"{d['figure']} tụt {100 * (float(d['before']) - float(d['after'])):.0f} điểm % ({100 * float(d['before']):.0f} → "
+              f"{100 * float(d['after']):.0f} %) giữa hai mốc mà cờ bật + kiến thức không đổi", points=RULES["hieu_qua_tut"][1])
+    if m.get("ops_repeat"):
+        ids = [i for st in sorted(m["ops_repeat"]) for i in m["ops_repeat"][st]]
+        _auto(out, "gop_y_lap", [f"db:user_feedback:{i}" for i in ids],
+              "; ".join(f"{len(v)} góp ý không hài lòng (≤ 2/5) chưa xử lý trong 30 ngày ở khâu {st}" for st, v in sorted(m["ops_repeat"].items())),
+              points=min(RULES["gop_y_lap"][2], RULES["gop_y_lap"][1] * len(m["ops_repeat"])))
     if m.get("ui_measured") and ui:
         if ui.get("contrast_fail"):
             _auto(out, "tuong_phan", [UI_FILE.replace("\\", "/")] * int(ui["contrast_fail"]), f"{ui['contrast_fail']} phần tử chữ có tương phản < 4,5:1 (đo thật)")
@@ -365,4 +448,4 @@ def facts_extra(root: str, cfg: Dict, area: Dict, snap: Dict) -> Dict:
     m = area_metrics(root, cfg, area, snap)
     ui = ui_metrics(root) if area.get("ui_metrics") else None
     return {"metrics": m, "auto": auto_deductions(m, ui), "ui_measured": bool(area.get("ui_metrics")), "ui_present": ui is not None,
-            "ui": ui or {}}
+            "ui": ui or {}, "doc_only": not area.get("code") and bool(area.get("docs"))}   # S6: an area of documents only

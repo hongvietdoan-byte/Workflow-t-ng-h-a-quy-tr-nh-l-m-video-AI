@@ -242,6 +242,8 @@ class RealRunEvidenceTests(unittest.TestCase):
         self.assertEqual(self.bang_chung("docs/bao_cao.md:3-5")["score"], 16)
         self.assertEqual(self.bang_chung("TODO.md:3")["score"], 16)           # "… cho giọng Việt": names the area (keyword 'giọng')
         self.assertEqual(self.bang_chung("docs/bao_cao.md:1", "docs/bao_cao.md:5")["score"], 16)
+        _write(self.root, "tests/fixtures/run4.json", "{\n  \"x\": 1\n}\n")
+        self.assertEqual(self.bang_chung("tests/fixtures/run4.json:1")["score"], 16)   # a fixture / data file is the record as a whole
 
 
 def _ops_db(rows=(), feedback=()):
@@ -318,6 +320,177 @@ class OpsSummaryTests(unittest.TestCase):
         snap2 = collect.collect(self.root, self.cfg, db_path=db2)
         self.assertNotEqual(scorer.fingerprint(self.root, area, snap, health["voice"]),
                             scorer.fingerprint(self.root, area, snap2, collect.area_health(snap2, self.cfg)["voice"]))
+
+
+FULL = {"test_files": 1, "has_run": True, "failed": 0}
+
+
+def _a21_full(area, **over):
+    from devsys import scores
+    raw = _a21(area, **over)
+    raw["format"] = scores.FORMAT_V21
+    return raw
+
+
+class RubricV21Tests(unittest.TestCase):
+    """Thang v2.1 (S14.10, đổi MỘT lần): K11/K12, tiêu chí mặc định cho mỗi loại lỗi, `db:` chỉ cho khoản tự động, khu vực chỉ tài liệu
+    không chấm `test`, điểm cũ bản 2 vẫn đọc được với số cũ."""
+
+    def setUp(self):
+        self.root = _mini_repo()
+        self.ids = ["voice", "ui", "infra"]
+
+    def norm(self, raw, facts=FULL, **kw):
+        from devsys import scores
+        return scores.normalize(raw, self.root, self.ids, facts, **kw)
+
+    def test_the_rubric_file_is_v21_and_names_what_code_enforces(self):
+        from devsys import metrics, scores
+        text = open(os.path.join(collect.ROOT, "devsys", "rubric.md"), encoding="utf-8").read()
+        self.assertIn("bản 2.1", text)
+        self.assertIn(scores.FORMAT_V21, text)
+        for k in ("K11_vong_doi_job", "K12_pha_huy_truoc_ban_moi"):
+            self.assertIn(k, scores.CHECKLIST_IDS)
+            self.assertIn(k, text)
+        for k in scores.CHECKLIST_IDS:
+            self.assertIn(scores.CHECKLIST_CRITERION[k], scores.CRITERIA_MAX_V2, k)
+        for rule in ("hieu_qua_tut", "gop_y_lap"):
+            self.assertIn(rule, metrics.RULES)
+            self.assertIn(f"`{rule}`", text)
+        self.assertIn("db:", text)
+        self.assertEqual(scores.version_of({"format": scores.FORMAT_V21}), 2.1)
+
+    def test_a_v21_answer_must_answer_k11_and_k12_but_an_old_v2_file_need_not(self):
+        from devsys import scores
+        old = _a21("voice", bang_chung={"evidence_for": ["TODO.md:3"]})          # format devsys-score/2
+        for k in ("K11_vong_doi_job", "K12_pha_huy_truoc_ban_moi"):
+            old["checklist"].pop(k, None)
+        self.assertEqual(self.norm(old)["format"], scores.FORMAT_V2)            # old files keep loading
+        new = dict(old, format=scores.FORMAT_V21)
+        with self.assertRaises(scores.ScoreError) as cm:
+            self.norm(new)
+        self.assertIn("K11_vong_doi_job", str(cm.exception))
+        with self.assertRaises(scores.ScoreError):
+            self.norm(old, version=2.1)                                         # a NEW answer is checked by the current rubric
+
+    def test_db_evidence_is_only_for_automatic_deductions(self):
+        from devsys import scores
+        self.assertIsNotNone(scores.check_evidence("db:user_feedback:3", self.root))
+        raw = _a21_full("voice", bang_chung={"evidence_for": ["TODO.md:3"]},
+                        tin_cay={"deductions": [{"muc": "chan", "reason": "x", "evidence": ["db:user_feedback:3"], "feedback": FIX}]})
+        d = self.norm(raw)["criteria"]["tin_cay"]["deductions"][0]
+        self.assertEqual(d["muc"], "lon")                                       # db: never proves a blocker
+        self.assertIn("db:user_feedback:3", d["unverified"])
+
+    def test_a_docs_only_area_has_no_test_criterion_and_is_rescaled(self):
+        raw = _a21_full("voice", bang_chung={"evidence_for": ["TODO.md:3"]}, chuc_nang={"deductions": [{"muc": "lon", "reason": "x",
+                                                                                                         "evidence": ["TODO.md:3"], "feedback": FIX}]})
+        s = self.norm(raw, {"test_files": 0, "has_run": False, "failed": 0, "doc_only": True})
+        self.assertTrue(s["criteria"]["test"]["khong_ap_dung"])
+        self.assertEqual(s["criteria"]["test"]["max"], 0)
+        self.assertAlmostEqual(s["score"], round((88 - 3.1) * 100 / 88, 1), places=1)    # no 2.4 / 12 cap, rescaled to 100
+        code_area = self.norm(raw, {"test_files": 0, "has_run": False, "failed": 0})
+        self.assertEqual(code_area["criteria"]["test"]["score"], 2.4)
+
+
+class MeasureV21Tests(unittest.TestCase):
+    """S10 bảo trì: mỗi file trừ một lần, trần chung; except có chú thích lý do không bị coi là nuốt lỗi. 6b: hieu_qua_tut / gop_y_lap."""
+
+    def test_an_except_with_a_reason_comment_is_not_swallowing(self):
+        import ast
+        from devsys import metrics
+        src = ("def a():\n    try:\n        x()\n    except Exception:  # noqa: BLE001 - chỉ là dòng trạng thái, lỗi đã hiện ở trên\n        pass\n"
+               "def b():\n    try:\n        x()\n    except Exception:  # noqa: BLE001\n        pass\n"
+               "def c():\n    try:\n        x()\n    except Exception:\n        # bỏ qua: tệp tạm có thể đã bị xóa\n        pass\n")
+        self.assertEqual(metrics.swallowed_excepts(ast.parse(src), src), [9])
+
+    def test_maintenance_deductions_count_each_file_once_and_share_one_cap(self):
+        from devsys import metrics
+        m = {"big_files": ["core/a.py:1200", "core/b.py:950"], "long_funcs": [f"core/a.py:{i} f{i} (200 dòng)" for i in range(1, 5)]
+             + ["core/c.py:3 g (160 dòng)", "core/c.py:90 h (170 dòng)"], "complex_funcs": ["core/c.py:3 g (40)", "core/d.py:5 k (35)"],
+             "todo_open": [], "flags_on_unverified": [], "swallowed": [], "paid_unguarded": [], "modules_untested": [], "funcs_untested_ratio": 0,
+             "funcs_public": 0, "funcs_untested": 0, "untested_names": [], "controls": {}}
+        auto = {a["rule"]: a for a in metrics.auto_deductions(m)}
+        self.assertEqual(auto["file_dai"]["points"], 2.0)
+        self.assertEqual(auto["ham_dai"]["count"], 1)                            # only core/c.py (core/a.py is already a long file)
+        self.assertEqual(auto["ham_phuc_tap"]["count"], 1)                       # only core/d.py
+        self.assertLessEqual(sum(a["points"] for a in auto.values() if a["criterion"] == "bao_tri"), metrics.BAO_TRI_AUTO_CAP)
+
+    def test_effectiveness_drop_and_repeated_complaints_become_automatic_deductions(self):
+        from devsys import metrics
+        root = _mini_repo()
+        _write(root, "devsys/areas.json", json.dumps(OPS_AREAS, ensure_ascii=False))
+        cfg = collect.load_areas(os.path.join(root, "devsys", "areas.json"))
+        db = _ops_db(rows=[(_recent(9), 0.80, 0.5, ["a"], "k1"), (_recent(2), 0.60, 0.5, ["a"], "k1")],
+                     feedback=[(_recent(1), "image", 1, None), (_recent(3), "image", 2, None), (_recent(4), "image", 2, None)])
+        snap = collect.collect(root, cfg, db_path=db)
+        m = metrics.area_metrics(root, cfg, collect.area_by_id(cfg)["voice"], snap)
+        auto = {a["rule"]: a for a in metrics.auto_deductions(m)}
+        self.assertEqual(auto["hieu_qua_tut"]["criterion"], "bang_chung")
+        self.assertTrue(all(e.startswith("db:effectiveness_snapshots:") for e in auto["hieu_qua_tut"]["evidence"]))
+        self.assertEqual(auto["gop_y_lap"]["criterion"], "trai_nghiem")
+        self.assertEqual(len(auto["gop_y_lap"]["evidence"]), 3)
+        # the same drop while a flag was switched (or the knowledge changed) is explained by that change: no deduction
+        db2 = _ops_db(rows=[(_recent(9), 0.80, 0.5, ["a"], "k1"), (_recent(2), 0.60, 0.5, ["a", "b"], "k1")])
+        snap2 = collect.collect(root, cfg, db_path=db2)
+        m2 = metrics.area_metrics(root, cfg, collect.area_by_id(cfg)["voice"], snap2)
+        self.assertNotIn("hieu_qua_tut", {a["rule"] for a in metrics.auto_deductions(m2)})
+
+
+class AggregateV21Tests(unittest.TestCase):
+    """S14 tổng chỉ cộng cùng thang (cờ mixed); S17 vân tay không đổi vì số test qua; S5 ổn định chỉ so cùng người chấm."""
+
+    def test_overall_averages_only_one_scale_and_says_when_mixed(self):
+        from devsys import scores
+        cfg = base.AREAS
+        latest = {"voice": {"area": "voice", "score": 80.0, "rubric_hash": "moi", "scorer": "s"},
+                  "ui": {"area": "ui", "score": 40.0, "rubric_hash": "cu", "scorer": "s"}}
+        o = scores.overall(latest, cfg, rubric="moi")
+        self.assertEqual((o["score"], o["covered"], o["mixed"], o["other_scale"]), (80.0, ["voice"], True, ["ui"]))
+        self.assertFalse(scores.overall({"voice": latest["voice"]}, cfg, rubric="moi")["mixed"])
+
+    def test_the_fingerprint_does_not_move_with_the_number_of_passing_tests(self):
+        from devsys import scorer
+        root = _mini_repo()
+        cfg = collect.load_areas(os.path.join(root, "devsys", "areas.json"))
+        snap = collect.collect(root, cfg, db_path=os.path.join(root, "x.sqlite"))
+        area = collect.area_by_id(cfg)["voice"]
+        t = snap["tests_by_area"]["voice"]
+        fp = scorer.fingerprint(root, area, snap, {})
+        t["passed"] += 7
+        self.assertEqual(scorer.fingerprint(root, area, snap, {}), fp)
+        t["failed"] += 1
+        self.assertNotEqual(scorer.fingerprint(root, area, snap, {}), fp)
+
+    def test_stability_noise_only_counts_the_same_scorer(self):
+        from devsys import scores
+        a = {"area": "voice", "score": 80.0, "rubric_hash": "h", "fingerprint": "f", "scorer": "claude-api", "date": "1"}
+        b = dict(a, score=70.0, scorer="claude-code-session", date="2")
+        c = dict(a, score=78.0, scorer="claude-code-session", date="3")
+        st = scores.stability([a, b, c])
+        self.assertEqual(st["n"], 2)
+        self.assertEqual([p["delta"] for p in st["noise"]], [8.0])              # b → c: same scorer, same fingerprint
+        self.assertEqual(st["cross_scorer"], 1)
+
+
+class ImportPlaceTests(unittest.TestCase):
+    """S4: an import from a git worktree is refused (its devsys/data and data/ are not the real ones); a missing devsys/data/runs is said
+    as such, not as 'never ran the tests'."""
+
+    def test_import_from_a_worktree_is_refused(self):
+        from devsys import scorer, scores
+        with mock.patch.object(scorer, "worktree_of", return_value="D:/repo"):
+            with self.assertRaises(scores.ScoreError) as cm:
+                scorer.check_import_place(collect.ROOT)
+        self.assertIn("D:/repo", str(cm.exception))
+        with mock.patch.object(scorer, "worktree_of", return_value=None):
+            scorer.check_import_place(collect.ROOT)
+
+    def test_the_test_cap_says_when_devsys_data_is_missing(self):
+        from devsys import scores
+        s = scores.normalize(_a21_full("voice", bang_chung={"evidence_for": ["TODO.md:3"]}), _mini_repo(), ["voice", "ui", "infra"],
+                             {"test_files": 2, "has_run": False, "failed": 0, "runs_dir": False})
+        self.assertTrue(any("devsys/data/runs" in c for c in s["criteria"]["test"]["code_caps"]), s["criteria"]["test"]["code_caps"])
 
 
 if __name__ == "__main__":

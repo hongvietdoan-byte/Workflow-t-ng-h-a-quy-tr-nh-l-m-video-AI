@@ -20,7 +20,7 @@ from typing import Callable, Dict, List, Optional, Sequence
 
 from . import collect, metrics, scores
 
-EXPECTED_OUTPUT_TOKENS = 4500        # một câu trả lời JSON chấm 1 khu vực (~6–15 khoản trừ kèm feedback + checklist 10 loại lỗi), effort thấp
+EXPECTED_OUTPUT_TOKENS = 4500        # một câu trả lời JSON chấm 1 khu vực (~6–15 khoản trừ kèm feedback + checklist 12 loại lỗi), effort thấp
 MAX_OUTPUT_TOKENS = 16000            # = STAGE_SETTINGS["devsys"]["max_tokens"] trong core/llm_runner.py
 CHARS_PER_TOKEN = 3.0                # ước tính thận trọng cho chữ Việt + code (tiếng Anh ~4)
 CODE_BUDGET = 42000                  # ký tự trích code tối đa mỗi khu vực
@@ -105,7 +105,9 @@ def _file_hash(root: str, rel: str) -> str:
 
 
 def facts_of(health: Dict, snap: Dict) -> Dict:
-    return {"test_files": health.get("test_files", 0), "has_run": bool(snap.get("latest_run")), "failed": health.get("failed", 0)}
+    root = snap.get("root") or collect.ROOT
+    return {"test_files": health.get("test_files", 0), "has_run": bool(snap.get("latest_run")), "failed": health.get("failed", 0),
+            "runs_dir": os.path.isdir(os.path.join(collect.data_dir(root), "runs"))}     # S4: no devsys/data/runs ≠ "never ran the tests"
 
 
 def facts_for(root: str, cfg: Dict, area: Dict, snap: Dict, health: Dict) -> Dict:
@@ -132,7 +134,9 @@ def fingerprint(root: str, area: Dict, snap: Dict, health: Dict) -> str:
     for it in snap["todo_by_area"].get(area["id"], []):
         h.update(it["text"].encode("utf-8"))
     t = snap["tests_by_area"].get(area["id"], {})
-    h.update(json.dumps({k: t.get(k) for k in ("passed", "failed", "errors", "skipped", "test_files")}, sort_keys=True).encode())
+    # S17 (thang 2.1): whether tests fail / error / exist — not how many pass (adding a test is not a reason to score again)
+    h.update(json.dumps({"failed": bool(t.get("failed")), "errors": bool(t.get("errors")), "has_tests": bool(t.get("test_files"))},
+                        sort_keys=True).encode())
     h.update(json.dumps([(f["name"], f["verified"], f["on"]) for f in snap["flags"] if area["id"] in f["areas"]]).encode())
     if area.get("ui_metrics"):
         h.update(_file_hash(root, metrics.UI_FILE).encode())           # a new real UI measurement is a reason to score again
@@ -296,7 +300,7 @@ def build_bundle(root: str, cfg: Dict, area: Dict, snap: Dict, health: Dict, las
             if facts.get("ui_present") else "CHƯA CÓ (devsys/data/ui_metrics.json) — trai_nghiem bị code giới hạn tối đa "
                                             f"{scores.UI_NO_MEASURE_CAP:g}; chạy py tools/devsys_ui_metrics.py"))
     prev = prev_summary(last) if last and last.get("rubric_hash") == scores.rubric_hash(root) else None
-    if prev and prev.get("format") == scores.FORMAT_V2:
+    if prev and scores.is_v2(prev):
         rows = []
         for ck, c in (prev.get("criteria") or {}).items():
             for d in c.get("deductions", []):
@@ -307,7 +311,7 @@ def build_bundle(root: str, cfg: Dict, area: Dict, snap: Dict, health: Dict, las
                     f"{prev['score'] + (prev.get('auto_points') or 0):g} nếu không có `giai_thich_chenh`.\nKhoản trừ lần trước (còn đúng thì giữ; "
                     "đã sửa thì bỏ và nói vì sao):\n" + ("\n".join(rows[:30])[:4000] or "(không có)"))
     else:
-        prev_txt = "(không có điểm cùng thang bản 2 để đối chiếu — không áp quy tắc ổn định lần này)"
+        prev_txt = "(không có điểm cùng thang hiện tại để đối chiếu — không áp quy tắc ổn định lần này)"
     rubric = open(os.path.join(root, "devsys", "rubric.md"), encoding="utf-8").read()
     try:                                   # S8.1: the feedback format lives outside the rubric (its hash, old scores unchanged)
         rubric += "\n\n" + open(os.path.join(root, "devsys", "feedback_format.md"), encoding="utf-8").read()
@@ -320,9 +324,9 @@ def build_bundle(root: str, cfg: Dict, area: Dict, snap: Dict, health: Dict, las
              "- Không có commit message trong dữ liệu. Câu tự nhận 'đã sửa/đã xong' trong TODO không kèm test hoặc ghi chú chạy thật cụ thể thì "
              "KHÔNG được tính là bằng chứng chạy thật.\n"
              "- Chỉ ghi KHOẢN TRỪ, mỗi khoản có bằng chứng đúng dạng; điểm do code tính. Không trừ trùng một lỗi ở hai tiêu chí.\n"
-             "- Thang bản 2: mỗi khoản trừ ghi `muc` (chan / lon / nho) và `loai` (mã K… hoặc khac), KHÔNG ghi số điểm — code gán điểm theo mức. "
+             "- Thang bản 2.1: mỗi khoản trừ ghi `muc` (chan / lon / nho) và `loai` (mã K… hoặc khac), KHÔNG ghi số điểm — code gán điểm theo mức. "
              "Khoản `chan`/`lon` phải kèm `feedback.fix` và `feedback.effort`. Không trừ lại những gì mục 'Số đo do code tính' đã trừ.\n"
-             "- Trả lời ĐỦ `checklist` (10 loại lỗi đã gặp): 'co' phải có khoản trừ cùng `loai`; 'khong' / 'khong_ap_dung' phải ghi đã tìm ở đâu.\n"
+             f"- Trả lời ĐỦ `checklist` ({len(scores.CHECKLIST_IDS)} loại lỗi đã gặp, mỗi loại có tiêu chí mặc định ở thang): 'co' phải có khoản trừ cùng `loai`; 'khong' / 'khong_ap_dung' phải ghi đã tìm ở đâu.\n"
              "- Mọi chữ trong câu trả lời bằng tiếng Việt có dấu.\n\n" + rubric)
     task = (f"AREA_ID: {area['id']}\n"
             f"# Khu vực cần chấm: {area['name']} (`{area['id']}`)\n{area.get('description', '')}\n\n"
@@ -333,8 +337,8 @@ def build_bundle(root: str, cfg: Dict, area: Dict, snap: Dict, health: Dict, las
             f"## Hiệu quả vận hành (CSDL thật, chỉ đọc)\n{ops['effect']}\n\n## Góp ý người dùng (khâu của khu vực)\n{ops['feedback']}\n\n"
             f"## Điểm lần trước (đối chiếu độ ổn định)\n{prev_txt}\n\n## Thay đổi từ lần chấm trước\n{diff_txt}\n\n"
             f"## Phần đã cắt vì dài\n" + ("\n".join(f"- {n}" for n in notes) or "(không cắt gì)") + "\n\n"
-            "# Trả lời\nMột JSON duy nhất, đúng mẫu ở mục 'Định dạng câu trả lời' của thang bản 2 (bỏ 'scorer'/'model'; giữ \"format\": "
-            f"\"{scores.FORMAT_V2}\"), `area` = "
+            "# Trả lời\nMột JSON duy nhất, đúng mẫu ở mục 'Định dạng câu trả lời' của thang bản 2.1 (bỏ 'scorer'/'model'; giữ \"format\": "
+            f"\"{scores.FORMAT_V21}\"), `area` = "
             f"\"{area['id']}\". `can_kiem_lai`: 3–8 việc người dùng nên kiểm lại, mỗi việc có bằng chứng. `summary`: 2–4 câu.")
     prompt = fixed + CACHE_BREAK + task
     return {"area": area["id"], "name": area["name"], "prompt": prompt, "notes": notes, "facts": facts, "prev": prev,
@@ -456,7 +460,7 @@ class MockScorerClient:
         if no_run:
             crit["test"]["deductions"].append({"muc": "nho", "loai": "khac", "reason": "chưa có lần chạy test lưu lại (giả lập)",
                                                "evidence": ["absent:không có devsys/data/runs"]})
-        out = {"format": scores.FORMAT_V2, "area": aid, "criteria": crit,
+        out = {"format": scores.FORMAT_V21, "area": aid, "criteria": crit,
                "checklist": {k: {"tra_loi": "khong_ap_dung", "ghi_chu": "giả lập — không đọc code"} for k in scores.CHECKLIST_IDS},
                "summary": f"Điểm giả lập cho khu vực {aid} — chỉ để thử luồng, không phải đánh giá thật.",
                "can_kiem_lai": [{"what": "Chạy người chấm thật (Claude) hoặc người chấm ngoài", "why": "đây là điểm giả lập",
@@ -527,7 +531,7 @@ def run(root: str, cfg: Dict, snap: Dict, bundles: Sequence[Dict], provider: str
         try:
             with llm_runner.tagged("devsys"):
                 raw, tin, tout = llm_runner.ask_json(client, b["prompt"],
-                                                     lambda o, f=b["facts"], pv=b.get("prev"): scores.normalize(o, root, ids, f, prev=pv),
+                                                     lambda o, f=b["facts"], pv=b.get("prev"): scores.normalize(o, root, ids, f, prev=pv, version=scores.CURRENT_VERSION),
                                                      note=lambda m: note(f"  {m}"))
         except llm_runner.LlmError as e:
             failed.append({"area": b["area"], "error": str(e)})
@@ -538,7 +542,7 @@ def run(root: str, cfg: Dict, snap: Dict, bundles: Sequence[Dict], provider: str
             continue
         if raw.get("area") != b["area"]:
             raw["area"] = b["area"]
-        norm = scores.normalize(raw, root, ids, b["facts"], prev=b.get("prev"))
+        norm = scores.normalize(raw, root, ids, b["facts"], prev=b.get("prev"), version=scores.CURRENT_VERSION)
         price = None
         if provider == "anthropic":
             pi = budget.token_price(pricing, model, "input", tin)
@@ -571,6 +575,25 @@ def export_bundle(root: str, bundle: Dict) -> str:
     return path
 
 
+def worktree_of(root: str) -> Optional[str]:
+    """The main checkout when `root` is a git worktree (its own .git file), else None. A worktree has no devsys/data, data/ or
+    dashboard.env of the real machine: scores measured / imported there are capped wrongly (test 6,4/12) and land in the wrong place."""
+    try:
+        own = os.path.abspath(os.path.join(root, collect.git(root, "rev-parse", "--git-dir").strip()))
+        common = os.path.abspath(os.path.join(root, collect.git(root, "rev-parse", "--git-common-dir").strip()))
+    except collect.GitError:
+        return None
+    return os.path.dirname(common) if os.path.normcase(own) != os.path.normcase(common) else None
+
+
+def check_import_place(root: str) -> None:
+    """S4: refuse an import from a git worktree — say where to run it instead (never import quietly into a copy)."""
+    main = worktree_of(root)
+    if main:
+        raise scores.ScoreError(f"đang ở worktree {root}: nhập điểm phải chạy ở repo gốc {main} (có devsys/data, data/, dashboard.env thật) — "
+                                f"chép file JSON sang rồi chạy py tools/devsys_score.py --import … ở đó")
+
+
 def import_score(root: str, cfg: Dict, snap: Dict, health: Dict, raw: Dict, scorer: Optional[str] = None) -> str:
     """Store a score written by an external scorer (same format). The score is recomputed and capped by code like any other."""
     if not isinstance(raw, dict):
@@ -598,7 +621,7 @@ def import_score(root: str, cfg: Dict, snap: Dict, health: Dict, raw: Dict, scor
             raise scores.ScoreError(f"'{key}' {got} khác bản hiện tại {b[key]}: code / TODO / test / cờ / điểm trước đã đổi từ lúc xuất — "
                                     f"xuất lại (py tools/devsys_score.py --export {area['id']}) rồi chấm lại")
     facts = b["facts"]
-    norm = scores.normalize(raw, root, ids, facts, prev=prev_summary(last))
+    norm = scores.normalize(raw, root, ids, facts, prev=prev_summary(last), version=scores.CURRENT_VERSION)
     hd = collect.head(root) or {}
     claimed = {k: raw[k] for k in ("commit", "date") if raw.get(k)}
     rec = {"format": scores.FORMAT, "scorer": label, "provider": "external", "model": raw.get("model") or "không ghi",

@@ -159,7 +159,7 @@ names = {a["id"]: a["name"] for a in cfg["areas"]}
 ids = tuple(names)
 all_scores, score_problems = load_scores(key, ids)
 latest = scores.latest_by_area(all_scores)
-ov = scores.overall(latest, cfg)
+ov = scores.overall(latest, cfg, rubric=scores.rubric_hash(ROOT))     # S14: only the current scale is averaged
 
 
 def area_score(aid):
@@ -225,7 +225,8 @@ def page_overview():
     o = ov["score"]
     parts = [
         kpi("Hoàn thiện tổng (AI chấm, có trọng số)", "—" if o is None else f"{o:g}/100",
-            f"{len(ov['covered'])}/{ov['areas']} khu vực có điểm thật", scores.band(o)),
+            f"{len(ov['covered'])}/{ov['areas']} khu vực có điểm thật cùng thang"
+            + (f" · {len(ov['other_scale'])} khu vực điểm thang cũ (chấm lại)" if ov.get("mixed") else ""), scores.band(o)),
         kpi("Test lần chạy mới nhất", f"{t.get('passed', 0)}/{t.get('tests', 0)}" if t else "—",
             f"{t.get('failed', 0) + t.get('errors', 0)} lỗi · {fmt_date((run or {}).get('date'))}" if t else "chưa chạy",
             "none" if not t else "ok" if not (t["failed"] + t["errors"]) else "bad"),
@@ -535,9 +536,9 @@ def page_scores():
                 st.markdown(md(rec["summary"]))
             if rec.get("rubric_hash") and rec["rubric_hash"] != scores.rubric_hash(ROOT):
                 st.warning("Điểm này chấm theo thang cũ (devsys/rubric.md đã đổi).")
-            if rec.get("format") == scores.FORMAT_V2:
+            if scores.is_v2(rec):
                 sev = rec.get("severity") or {}
-                st.caption(f"Thang bản 2 · lỗi chặn {sev.get('chan', 0)} · lớn {sev.get('lon', 0)} · nhỏ {sev.get('nho', 0)} · "
+                st.caption(f"Thang {scores.scale_label(rec)} · lỗi chặn {sev.get('chan', 0)} · lớn {sev.get('lon', 0)} · nhỏ {sev.get('nho', 0)} · "
                            f"khoản trừ tự động do code đo −{rec.get('auto_points', 0):g}")
                 for cap in rec.get("code_caps", []):
                     if cap.startswith("khu vực:"):
@@ -550,6 +551,9 @@ def page_scores():
                 st.info("Điểm này chấm theo thang bản 1 (6 tiêu chí, người chấm tự ghi số điểm trừ) — không so thẳng với bản 2.")
             for k, label, mx in scores.criteria_of(rec):
                 c = rec["criteria"][k]
+                if c.get("khong_ap_dung"):                     # S6 (thang 2.1): an area of documents only has no `test`
+                    st.markdown(f"**{label}** — không áp dụng (khu vực chỉ có tài liệu; điểm chia lại trên các tiêu chí còn lại)")
+                    continue
                 st.markdown(f"**{label}** — {c['score']:g}/{mx}")
                 st.progress(min(1.0, c["score"] / mx))
                 for d in c["deductions"]:
@@ -599,7 +603,7 @@ def page_scores():
             else:
                 st.caption("Chưa có hai lần chấm liền nhau cùng thang bản 2 — chưa đo được độ ổn định.")
             old = scores.latest_by_area([s for s in real if s.get("format") == scores.FORMAT])
-            new = scores.latest_by_area([s for s in real if s.get("format") == scores.FORMAT_V2])
+            new = scores.latest_by_area([s for s in real if scores.is_v2(s)])
             if new:
                 st.dataframe(pd.DataFrame([{"Khu vực": r["name"], "Bản 1": r["old"], "Bản 2": r["new"], "Chênh": r["delta"]}
                                            for r in scores.compare_rounds(old, new, cfg) if r["new"] is not None]), hide_index=True)

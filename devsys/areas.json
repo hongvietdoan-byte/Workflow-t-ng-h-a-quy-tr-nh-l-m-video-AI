@@ -17,6 +17,7 @@
       "flags": ["idea_to_script", "film_crew", "camera_setups", "director_two_pass", "story_check", "asset_checklist"],
       "diag_stages": ["director"],
       "ops_stages": ["director"],
+      "ui_metrics": true,
       "keywords": ["Director", "Đạo diễn", "kịch bản", "phân shot", "chia shot", "Bible", "llm_runner", "shot_normalize", "director_report", "continuity", "performance", "bàn đo"]
     },
     {
@@ -31,6 +32,7 @@
       "flags": ["place_render_refs", "skill_dossier", "qc_team", "layout_to_model", "chain_previous_auto", "storyboard_api", "scene_establishing", "scene_qc", "scene_qc_claude", "scene_qc_trusted", "qc_agent", "end_frames", "storyboard_auto_trust", "setcheck_autofix", "profile_digest", "director_rewrite"],
       "diag_stages": ["previz", "image", "qc"],
       "ops_stages": ["image"],
+      "ui_metrics": true,
       "keywords": ["ảnh", "QC", "storyboard", "Deepix", "layout", "previz", "khung cuối", "end_frame", "autoqc"]
     },
     {
@@ -45,6 +47,7 @@
       "flags": ["voice_direction", "voice_check_redo", "j_cut", "audio_first", "auto_voice_cast"],
       "diag_stages": ["motion", "voice"],
       "ops_stages": ["motion", "audio"],
+      "ui_metrics": true,
       "keywords": ["motion", "giọng", "TTS", "voice", "lồng tiếng", "ElevenLabs", "delivery"]
     },
     {
@@ -213,7 +216,7 @@
       "weight": 0.3,
       "description": "Chính web theo dõi tiến độ này: bản đồ khu vực, dòng thời gian, sức khỏe đo bằng code, chấm điểm AI.",
       "code": ["devsys/*.py", "devsys/answers.py", "tools/devsys_score.py", "tools/devsys_collect.py", "tools/devsys_hook.py", "tools/devsys_ui_metrics.py", "tools/plan_progress.py"],
-      "assets": ["devsys/areas.json", "devsys/rubric.md", "devsys/rubric_v1.md", "Start-DevSystem.bat", "tools/launch_devsys.ps1"],
+      "assets": ["devsys/areas.json", "devsys/rubric.md", "devsys/rubric_v1.md", "devsys/rubric_v2.md", "Start-DevSystem.bat", "tools/launch_devsys.ps1"],
       "docs": [],
       "tests": ["tests/test_devsys.py", "tests/test_devsys_v2.py", "tests/test_devsys_answers.py", "tests/test_devsys_f1.py"],
       "flags": [],

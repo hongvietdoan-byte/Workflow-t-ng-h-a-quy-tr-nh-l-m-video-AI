@@ -59,7 +59,7 @@ def _read_only(args, cfg) -> int:
                       + ("· đã giải thích" if p["explained"] else ""))
     if args.compare:
         old = scores.latest_by_area([s for s in real if s.get("format") == scores.FORMAT])
-        new = scores.latest_by_area([s for s in real if s.get("format") == scores.FORMAT_V2])
+        new = scores.latest_by_area([s for s in real if scores.is_v2(s)])
         if not new:
             print("Chưa có điểm bản 2 — chấm theo devsys/rubric.md (bản 2) rồi chạy lại.")
         for r in scores.compare_rounds(old, new, cfg):
@@ -109,6 +109,7 @@ def main(argv=None) -> int:
         with open(args.import_file, encoding="utf-8") as f:
             raw = json.load(f)
         try:
+            scorer.check_import_place(ROOT)                     # S14.10 S4: not from a worktree
             path = scorer.import_score(ROOT, cfg, snap, health, raw, args.scorer)
         except scores.ScoreError as e:
             print(f"Không nhập được: {e}")
