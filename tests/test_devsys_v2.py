@@ -426,6 +426,7 @@ class ScorerV2Tests(unittest.TestCase):
         self.assertIn("checklist", text)
         raw = _a2("voice", chuc_nang={"deductions": [_ded("lon")]}, bang_chung=REAL_RUN)
         raw["score"] = 99
+        raw.update(fingerprint=b["fingerprint"], input_hash=b["input_hash"])                    # S14.10 S3: tied to the export
         out = scorer.import_score(self.root, self.cfg, self.snap, self.health, raw, "claude-code-session")
         rec = json.load(open(out, encoding="utf-8"))
         self.assertEqual(rec["format"], scores.FORMAT_V2)
@@ -434,6 +435,7 @@ class ScorerV2Tests(unittest.TestCase):
         with self.assertRaises(scores.ScoreError):                                             # a missing checklist is refused at import too
             bad = _a2("voice")
             del bad["checklist"]
+            bad.update(fingerprint=b["fingerprint"], input_hash=b["input_hash"])
             scorer.import_score(self.root, self.cfg, self.snap, self.health, bad, "claude-code-session")
 
 

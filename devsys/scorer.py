@@ -516,7 +516,9 @@ def export_bundle(root: str, bundle: Dict) -> str:
     path = os.path.join(d, f"{bundle['area']}.md")
     text = bundle["prompt"].replace("\n\n<<<cache>>>\n\n", "\n\n---\n\n")
     text += (f"\n\n---\nfingerprint: {bundle['fingerprint']} · input_hash: {bundle['input_hash']}\n"
-             "Ghi câu trả lời thành file JSON rồi: py tools/devsys_score.py --import <file.json> --scorer claude-code-session\n")
+             "Ghi câu trả lời thành file JSON — CHÉP NGUYÊN hai trường sau vào gốc JSON (S14.10 S3: thiếu hoặc lệch → không nhập được):\n"
+             f"\"fingerprint\": \"{bundle['fingerprint']}\", \"input_hash\": \"{bundle['input_hash']}\"\n"
+             "rồi: py tools/devsys_score.py --import <file.json> --scorer claude-code-session (chạy ở thư mục repo gốc, không ở worktree)\n")
     with open(path, "w", encoding="utf-8") as f:
         f.write(text)
     return path
@@ -535,14 +537,27 @@ def import_score(root: str, cfg: Dict, snap: Dict, health: Dict, raw: Dict, scor
     area = collect.area_by_id(cfg).get(raw.get("area"))
     if area is None:
         raise scores.ScoreError(f"khu vực '{raw.get('area')}' không có trong devsys/areas.json")
-    facts = facts_for(root, cfg, area, snap, health[area["id"]])
     all_scores, _ = scores.load_all(root)
     last = scores.latest_by_area([s for s in all_scores if not str(s.get("scorer", "")).startswith("mock")]).get(area["id"])
+    # S14.10 S3: the score must be of THIS export — the data the scorer read (fingerprint: files + TODO + tests + flags + rubric;
+    # input_hash: the whole prompt incl. the previous score and the diff). Code / TODO changed since → score again on a new export.
+    b = build_bundle(root, cfg, area, snap, health[area["id"]], last)
+    for key in ("fingerprint", "input_hash"):
+        got = str(raw.get(key) or "").strip()
+        if not got:
+            raise scores.ScoreError(f"thiếu '{key}' — chép nguyên \"fingerprint\" và \"input_hash\" ở cuối file xuất "
+                                    f"(devsys/data/exports/{area['id']}.md) vào JSON; không nhập điểm không rõ chấm trên dữ liệu nào")
+        if got != b[key]:
+            raise scores.ScoreError(f"'{key}' {got} khác bản hiện tại {b[key]}: code / TODO / test / cờ / điểm trước đã đổi từ lúc xuất — "
+                                    f"xuất lại (py tools/devsys_score.py --export {area['id']}) rồi chấm lại")
+    facts = b["facts"]
     norm = scores.normalize(raw, root, ids, facts, prev=prev_summary(last))
     hd = collect.head(root) or {}
+    claimed = {k: raw[k] for k in ("commit", "date") if raw.get(k)}
     rec = {"format": scores.FORMAT, "scorer": label, "provider": "external", "model": raw.get("model") or "không ghi",
-           "date": raw.get("date") or collect.now_iso(), "commit": raw.get("commit") or hd.get("hash"), "dirty": bool(snap.get("working")),
-           "input_hash": raw.get("input_hash"), "rubric_hash": scores.rubric_hash(root),
-           "fingerprint": fingerprint(root, area, snap, health[area["id"]]), "facts": facts, "usage": raw.get("usage"),
-           **norm, "raw": {k: v for k, v in raw.items() if k not in ("raw",)}}
+           "date": collect.now_iso(), "commit": hd.get("hash"), "dirty": bool(snap.get("working")),   # S3: this machine's, never the file's
+           "input_hash": b["input_hash"], "rubric_hash": scores.rubric_hash(root), "fingerprint": b["fingerprint"], "facts": facts,
+           "usage": raw.get("usage"), **norm, "raw": {k: v for k, v in raw.items() if k not in ("raw",)}}
+    if claimed:
+        rec["claimed"] = claimed
     return scores.save(rec, root)

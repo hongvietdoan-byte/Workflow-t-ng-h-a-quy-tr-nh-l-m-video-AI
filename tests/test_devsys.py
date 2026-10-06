@@ -416,6 +416,8 @@ class ScorerTests(unittest.TestCase):
     def test_external_score_is_imported_and_recomputed(self):
         raw = _answer("ui", trai_nghiem={"deductions": [{"points": 4, "reason": "nút tốn tiền không ghi giá", "evidence": ["dashboard/app.py:2"]}]})
         raw["score"] = 99
+        b = scorer.build_bundle(self.root, self.cfg, collect.area_by_id(self.cfg)["ui"], self.snap, self.health["ui"], None)
+        raw.update(fingerprint=b["fingerprint"], input_hash=b["input_hash"])           # S14.10 S3: an import is tied to its export
         with self.assertRaises(scores.ScoreError):
             scorer.import_score(self.root, self.cfg, self.snap, self.health, dict(raw))            # no scorer name
         path = scorer.import_score(self.root, self.cfg, self.snap, self.health, raw, "claude-code-session")

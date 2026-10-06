@@ -121,5 +121,56 @@ class EvidenceTests(unittest.TestCase):
         self.assertTrue(s["drift"]["explained"])
 
 
+class ImportTests(unittest.TestCase):
+    """S3: an external score is tied to the export it was written from (fingerprint + input_hash of the export footer); commit and date
+    always come from this machine, never from the file."""
+
+    def setUp(self):
+        self.root = _mini_repo()
+        self.cfg = collect.load_areas(os.path.join(self.root, "devsys", "areas.json"))
+        self.snap = collect.collect(self.root, self.cfg, db_path=os.path.join(self.root, "khong_co.sqlite"))
+        self.health = collect.area_health(self.snap, self.cfg)
+
+    def bundle(self):
+        from devsys import scorer
+        return scorer.build_bundle(self.root, self.cfg, collect.area_by_id(self.cfg)["voice"], self.snap, self.health["voice"], None)
+
+    def imp(self, raw):
+        from devsys import scorer
+        return scorer.import_score(self.root, self.cfg, self.snap, self.health, raw, "claude-code-session")
+
+    def test_the_export_footer_carries_both_hashes(self):
+        from devsys import scorer
+        b = self.bundle()
+        text = open(scorer.export_bundle(self.root, b), encoding="utf-8").read()
+        self.assertIn(f'"fingerprint": "{b["fingerprint"]}"', text)
+        self.assertIn(f'"input_hash": "{b["input_hash"]}"', text)
+
+    def test_a_score_without_the_export_fingerprint_is_refused(self):
+        from devsys import scores
+        with self.assertRaises(scores.ScoreError) as cm:
+            self.imp(_a21("voice", bang_chung={"evidence_for": ["TODO.md:3"]}))
+        self.assertIn("fingerprint", str(cm.exception))
+
+    def test_a_score_of_an_older_export_is_refused(self):
+        from devsys import scores
+        b = self.bundle()
+        raw = dict(_a21("voice", bang_chung={"evidence_for": ["TODO.md:3"]}), fingerprint=b["fingerprint"], input_hash=b["input_hash"])
+        _write(self.root, "core/voice.py", "def speak(text):\n    return text.upper()\n")       # the code changed after the export
+        with self.assertRaises(scores.ScoreError) as cm:
+            self.imp(raw)
+        self.assertIn("xuất lại", str(cm.exception))
+
+    def test_commit_and_date_come_from_the_system(self):
+        b = self.bundle()
+        raw = dict(_a21("voice", bang_chung={"evidence_for": ["TODO.md:3"]}), fingerprint=b["fingerprint"], input_hash=b["input_hash"],
+                   commit="deadbeef", date="2020-01-01T00:00:00+07:00")
+        rec = json.load(open(self.imp(raw), encoding="utf-8"))
+        self.assertEqual(rec["commit"], (collect.head(self.root) or {}).get("hash"))
+        self.assertNotEqual(rec["date"], "2020-01-01T00:00:00+07:00")
+        self.assertEqual(rec["claimed"], {"commit": "deadbeef", "date": "2020-01-01T00:00:00+07:00"})
+        self.assertEqual((rec["fingerprint"], rec["input_hash"]), (b["fingerprint"], b["input_hash"]))
+
+
 if __name__ == "__main__":
     unittest.main()
