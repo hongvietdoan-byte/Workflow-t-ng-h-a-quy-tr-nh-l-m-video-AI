@@ -18,6 +18,19 @@ mặc vào; Kelly vào thấy → "hô biến" mặc bộ nữ (cặp đôi); ch
 - Clip nhảy: 1 người thật, toàn thân, máy đứng yên, 34,43 s, 576×1024 30 fps. Đã cắt + nâng 720×1280 (Kling cần cạnh ≥ 700, 3–15,5 s):
   `KHO TÀI NGUYÊN\video ref test\khung_long_do\nhay_doan1.mp4` (0–11,5) · `nhay_doan2.mp4` (11,5–23) · `nhay_doan3.mp4` (23–34,43) · `nhac_goc_34s.m4a`.
 
+## 2b. Thử trước khi chạy thật (06/10 tối, `tools/experiments/dance_ref_test.py`, dự án thử #21, đã chi 2,76 USD)
+| Bài | Kết quả |
+|---|---|
+| 1 · clip trend người THẬT (đoạn 9–14 s, 576×1024) → Seedance 2.5, 1 nhân vật Maxim, `reference_only` (bối cảnh + ảnh nhân vật) + video ref `feature` | **ĐẠT** — ClipAI nhận (không bị lọc người thật), Maxim nhảy khớp từng giây với mẫu, đúng mặt/đồ, máy đứng yên, toàn thân. 1,38 USD. Clip: `data/projects/21/experiments/multishot_seq1_1_cgt-20261006221505-1drvn.mp4` |
+| 2 · bản đen trắng không mặt | **KHÔNG CẦN** (bài 1 đạt). Ghi chú: trừ nền bằng trung vị khung HỎNG (người luôn ở giữa khung, áo trắng trùng tủ) — muốn làm thì cần mô hình tách người (MediaPipe segmenter, phải tải ~5–10 MB) |
+| 3 · 1 người mẫu → 2 nhân vật Maxim (trái) + Kelly (phải) | **ĐẠT** — cả hai cùng nhảy đồng đều theo mẫu (giơ tay, đặt tay ngực, dang tay cùng nhịp), không đổi mặt/đồ/chỗ; Maxim đôi lúc biên độ tay thấp hơn mẫu. 1,38 USD. Clip: `…/multishot_seq1_2_cgt-20261006222020-iezzk.mp4` |
+
+**Hệ quả cho bản chạy thật:** phần nhảy dùng **Seedance 2.5 + video ref người thật** (không cần Kling, không cần chuyển không mặt), 2 nhân vật giữ nguyên.
+Seedance 2.5 nhận video ref 2–30 s / cạnh 300–6000 → cắt 3 đoạn ~11,5 s dùng thẳng bản gốc 576×1024. Đổi ước tính mục 5: nhảy 34,4 s
+Seedance 2.5 ≈ 0,277 USD/s (công thức giá web có tính giây ref) ≈ 9,5 dự tính (× 1,3 gen lại ≈ 12,4) thay cho dòng Kling + bỏ dòng thử (B).
+Dashboard: Bước 3 "🎥 Video tham chiếu chuyển động" hiện gửi theo đường Kling — cần kiểm khi chạy thật xem ô này có đi được Seedance 2.5
+không; nếu không → ghi việc code nhỏ (cho phép video ref ở Seedance 2.5 trong Bước 3).
+
 ## 3. Kịch bản (dán vào khung chat Bước 1 — có tiêu đề CẢNH nên được nhận là kịch bản, không bị hỏi lại)
 ```
 KHỦNG LONG ĐỎ — khoảng 50 giây, dọc 9:16, look in-game Free Fire. Nhân vật: MAXIM, KELLY.
