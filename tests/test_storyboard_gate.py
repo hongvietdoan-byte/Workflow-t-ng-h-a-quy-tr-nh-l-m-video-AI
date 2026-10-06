@@ -91,7 +91,8 @@ class StoryboardPanelTest(unittest.TestCase):
         from streamlit.testing.v1 import AppTest
         tmp = tempfile.mkdtemp()
         db = os.path.join(tmp, "m.sqlite")
-        env = {"PIPELINE_DB": db, "PIPELINE_DATA": os.path.join(tmp, "projects"), "KNOWLEDGE_USER_DIR": os.path.join(tmp, "k")}
+        env = {"PIPELINE_DB": db, "PIPELINE_DATA": os.path.join(tmp, "projects"), "KNOWLEDGE_USER_DIR": os.path.join(tmp, "k"),
+               "FEATURE_UI_V2": "0"}         # S14.14 G-a: ui_v2 ON by default — this is the classic Storyboard panel (nhóm nặng, G-b)
         with mock.patch.dict(os.environ, env):
             p = Pipeline(connect(db))
             pid = p.create_project("Board", operating_mode="auto", threshold=0.5)

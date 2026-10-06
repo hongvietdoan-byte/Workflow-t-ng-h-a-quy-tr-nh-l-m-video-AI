@@ -332,6 +332,9 @@ class ChoiceTests(ReferenceTests):
         at = AppTest.from_file(APP, default_timeout=60)
         at.run()
         self.assertFalse(at.exception)
+        # S14.14 G-a: the Kịch bản screen is v2 only — the Character Bible is a fold drawn open only when it is the next job (here the
+        # format is: genre not chosen), so open it like a person would
+        at.button(key=f"fold_bible_{self.pid}_btn").click().run()
         self.assertTrue(any("Ảnh tham chiếu của từng nhân vật — 2/3 đã có" in e.label for e in at.expander))
         at.selectbox(key=f"cref_{self.pid}_Kelly").set_value("none").run()
         self.assertFalse(at.exception)

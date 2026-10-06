@@ -2,6 +2,7 @@
 import os
 import tempfile
 import unittest
+from unittest import mock
 
 from streamlit.testing.v1 import AppTest
 
@@ -101,7 +102,8 @@ class ScreensTests(unittest.TestCase):
     def test_team_screen_renders_for_the_owner(self):
         at = AppTest.from_file(APP, default_timeout=40)
         at.session_state["step"] = "👥 Nhóm"
-        at.run()
+        with mock.patch.dict(os.environ, {"FEATURE_UI_V2": "0"}):     # S14.14 G-a: v2 default; classic 👥 Nhóm (nhóm nặng, G-b)
+            at.run()
         self.assertFalse(at.exception, at.exception)
         self.assertTrue(any("Nhóm" in m.value for m in at.markdown))
         self.assertTrue(len(at.dataframe) >= 1)
@@ -113,6 +115,7 @@ class ScreensTests(unittest.TestCase):
         self.assertFalse(at.exception, at.exception)
         self.assertFalse(any(b.key == f"ref_go_{self.a}" for b in at.button))             # S14.28: no form before the scene analysis…
         self.assertTrue(any("Gắn ảnh tham chiếu sau khi phân tích cảnh" in (c.value or "") for c in at.caption)
+                        or any("Gắn ảnh tham chiếu sau khi phân tích cảnh" in (m.value or "") for m in at.markdown)   # v2 D.line (S14.14 G-a)
                         or any("Gắn ảnh tham chiếu sau khi phân tích cảnh" in (getattr(e.proto, "body", "") or "") for e in at.get("html")))  # …one hint line
         self.assertTrue(any(b.key.startswith("coming_") and b.disabled for b in at.button))   # video-ref / dance / trend: "sắp có"
 

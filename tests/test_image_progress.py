@@ -13,6 +13,11 @@ class ImageProgressTests(unittest.TestCase):
             self.p.create_job(r["id"], "image_gen")
         os.environ.update({"PIPELINE_DB": self.db, "PIPELINE_DATA": self.data, "IMAGE_PROVIDER": ""})
         os.environ.pop("DEEPIX_TOKEN", None)
+        # S14.14 G-a: ui_v2 is ON by default now; these tests describe the classic Storyboard screen (nhóm nặng, G-b converts them)
+        from unittest import mock
+        flag = mock.patch.dict(os.environ, {"FEATURE_UI_V2": "0"})
+        flag.start()
+        self.addCleanup(flag.stop)
 
     def tearDown(self):
         for k in ("PIPELINE_DB", "PIPELINE_DATA", "IMAGE_PROVIDER"):

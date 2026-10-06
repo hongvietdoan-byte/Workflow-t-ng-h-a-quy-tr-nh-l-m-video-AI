@@ -76,6 +76,11 @@ class NameBarTests(unittest.TestCase):
         os.environ["PIPELINE_DATA"] = os.path.join(self.tmp, "projects")
         p = Pipeline(connect(os.environ["PIPELINE_DB"]))
         p.create_project("demo")
+        # S14.14 G-a: ui_v2 is ON by default now; these tests read the classic 👥 Nhóm table (team_screen, nhóm nặng — G-b)
+        from unittest import mock
+        flag = mock.patch.dict(os.environ, {"FEATURE_UI_V2": "0"})
+        flag.start()
+        self.addCleanup(flag.stop)
 
     def tearDown(self):
         os.environ.pop("PIPELINE_DB", None)

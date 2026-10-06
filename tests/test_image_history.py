@@ -23,6 +23,11 @@ class ImageHistoryTests(unittest.TestCase):
             self.p.conn.execute("UPDATE scenes SET data=? WHERE id=?", ('{"image_prompt": "a hero"}', r["id"]))
         self.p.conn.commit()
         os.environ.update({"PIPELINE_DB": self.db, "PIPELINE_DATA": self.data})
+        # S14.14 G-a: ui_v2 is ON by default now; these tests describe the classic Storyboard grid (nhóm nặng, G-b converts them)
+        from unittest import mock
+        flag = mock.patch.dict(os.environ, {"FEATURE_UI_V2": "0"})
+        flag.start()
+        self.addCleanup(flag.stop)
 
     def tearDown(self):
         os.environ.pop("PIPELINE_DB", None)

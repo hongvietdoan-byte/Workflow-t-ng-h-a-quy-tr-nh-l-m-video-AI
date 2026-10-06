@@ -129,6 +129,9 @@ class PanelTests(unittest.TestCase):
             Pipeline(connect(os.environ["PIPELINE_DB"])).create_project("demo")
             at = AppTest.from_file(APP, default_timeout=30).run()
             self.assertFalse(at.exception)
+            # S14.14 G-a: v2 only — the World Bible sits in card ②'s "🔧 Tinh chỉnh" fold (expert mode), closed by default
+            pid = Pipeline(connect(os.environ["PIPELINE_DB"])).conn.execute("SELECT id FROM projects").fetchone()[0]
+            at.button(key=f"fold_tune_prep_{pid}_btn").click().run()
             self.assertTrue(any("Phong cách hình ảnh" in e.label for e in at.expander))
         finally:
             os.environ.pop("PIPELINE_DB", None)
