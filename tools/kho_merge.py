@@ -130,7 +130,10 @@ def _file_refs(db: str, merge: int) -> Dict[str, List[str]]:
     data = os.path.dirname(os.path.abspath(db))
     pat = re.compile(r"assets[\\/]+" + str(merge) + r"[\\/]")       # JSON doubles the backslashes: [\\/]+ takes both forms
     est = []
-    projects = os.environ.get("PIPELINE_DATA") or os.path.join(data, "projects")
+    # 06/10: the install of --db first (its own data/projects); PIPELINE_DATA only when that install has none — a PIPELINE_DATA of
+    # another install (or of the test run) must not hide the merged entry's establish files
+    own = os.path.join(data, "projects")
+    projects = own if os.path.isdir(own) else (os.environ.get("PIPELINE_DATA") or own)
     if os.path.isdir(projects):
         for pid in sorted(os.listdir(projects)):
             f = os.path.join(projects, pid, "establish", "index.json")
