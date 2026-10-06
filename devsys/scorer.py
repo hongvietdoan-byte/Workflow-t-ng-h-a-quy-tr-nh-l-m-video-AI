@@ -136,6 +136,10 @@ def fingerprint(root: str, area: Dict, snap: Dict, health: Dict) -> str:
     h.update(json.dumps([(f["name"], f["verified"], f["on"]) for f in snap["flags"] if area["id"] in f["areas"]]).encode())
     if area.get("ui_metrics"):
         h.update(_file_hash(root, metrics.UI_FILE).encode())           # a new real UI measurement is a reason to score again
+    if area.get("ops_stages"):                                         # S14.10 Đợt 6b: a new effectiveness snapshot / new unhandled feedback
+        ops = snap.get("ops") or {}
+        mine = collect.ops_for_area(ops, area)
+        h.update(json.dumps([(ops.get("latest") or {}).get("id"), len(mine["low_open_30d"])]).encode())
     return h.hexdigest()[:20]
 
 
@@ -146,6 +150,45 @@ def test_ref(file: str, junit_name: str) -> str:
     cls = classname.rsplit(".", 1)[-1] if classname else ""
     stem = os.path.splitext(os.path.basename(file))[0]
     return f"test:{file}::{cls}::{name}" if cls and cls != stem else f"test:{file}::{name}"
+
+
+def _pct(v) -> str:
+    return "—" if v is None else f"{100 * float(v):.0f} %"
+
+
+def ops_text(snap: Dict, area: Dict) -> Dict[str, str]:
+    """S14.10 Đợt 6b: the two bundle sections on the OUTPUT of real runs — "Hiệu quả vận hành" (effectiveness snapshots: first-pass,
+    minutes and cost per second, satisfaction, what changed between snapshots) and "Góp ý người dùng" (feedback of the area's stages).
+    No database → says so (a missing input is never silent)."""
+    ops = snap.get("ops") or {}
+    if not ops.get("available"):
+        note = f"(không có: {ops.get('note') or 'chưa thu số đo hiệu quả'})"
+        return {"effect": note, "feedback": note}
+    mine = collect.ops_for_area(ops, area)
+    if not mine["stages"]:
+        return {"effect": "(khu vực không gắn khâu vận hành — areas.json không có 'ops_stages')",
+                "feedback": "(khu vực không gắn khâu vận hành)"}
+    rows = ops.get("trend") or []
+    if rows:
+        lines = [f"- db:effectiveness_snapshots:{r['id']} · {r['at']} · ảnh qua lần đầu {_pct(r.get('image_first_pass'))} · video qua lần đầu "
+                 f"{_pct(r.get('video_first_pass'))} · {r.get('wall_min_per_sec') or '—'} phút/giây · {r.get('cost_per_sec') or '—'} $/giây · "
+                 f"hài lòng {_pct(r.get('satisfaction'))} ({r.get('feedback_n') or 0} góp ý) · {len(r.get('flags_on') or [])} cờ bật"
+                 for r in rows[-8:]]
+        marks = [f"- {m['at']} [{m['kind']}] {m['text']}" for m in (ops.get("markers") or [])[-10:]]
+        effect = (f"Khâu của khu vực: {', '.join(mine['stages'])}; chỉ số gắn khu vực: {', '.join(mine['figures']) or '—'}.\n"
+                  + "\n".join(lines) + ("\nThay đổi giữa các mốc:\n" + "\n".join(marks) if marks else ""))
+    else:
+        effect = f"(chưa có mốc hiệu quả toàn hệ thống trong {ops.get('days', 90)} ngày — {ops.get('note')})"
+    fb = mine["feedback"]
+    if fb:
+        lines = [f"- {st}: {v['n']} góp ý, {v['rated']} có điểm, {v['positive']} hài lòng (≥ 4), {v['low']} không hài lòng (≤ 2), "
+                 f"{len(v['low_open_30d'])} không hài lòng chưa xử lý trong 30 ngày" for st, v in fb.items()]
+        rec = [f"- db:user_feedback:{f['id']} {f['at']} [{f['stage']}] {f['rating'] or '—'}/5{' (đã xử lý)' if f['handled'] else ''}: {f['text']}"
+               for f in (ops.get("feedback") or {}).get("recent", []) if f.get("stage") in mine["stages"]][:12]
+        feedback = "\n".join(lines) + ("\nGần đây:\n" + "\n".join(rec) if rec else "")
+    else:
+        feedback = f"(không có góp ý nào cho khâu {', '.join(mine['stages'])} trong {ops.get('days', 90)} ngày)"
+    return {"effect": effect, "feedback": feedback}
 
 
 def _cap(parts: List[str], budget: int, what: str, notes: List[str]) -> str:
@@ -235,7 +278,8 @@ def build_bundle(root: str, cfg: Dict, area: Dict, snap: Dict, health: Dict, las
             diff_txt = f"(không lấy được diff từ commit {str(last['commit'])[:9]}: {e})"
 
     facts = facts_for(root, cfg, area, snap, health)
-    auto_txt = "\n".join(f"- −{a['points']:g} ({a['criterion']}) {a['reason']}"
+    ops = ops_text(snap, area)
+    auto_txt ="\n".join(f"- −{a['points']:g} ({a['criterion']}) {a['reason']}"
                          f"{' [dấu hiệu, cần xác minh]' if a.get('heuristic') else ''} — " + ", ".join(a["evidence"][:4]) for a in facts["auto"]) \
         or "(code không đo thấy khoản trừ nào)"
     m = facts["metrics"]
@@ -286,6 +330,7 @@ def build_bundle(root: str, cfg: Dict, area: Dict, snap: Dict, health: Dict, las
             f"## Trích tài liệu (tiêu đề + dòng trạng thái)\n{docs_txt}\n\n## Test\n{test_txt}\n\n## Cờ tính năng (core/features.py)\n{flag_txt}\n\n"
             f"## Dòng TODO.md còn mở gán cho khu vực ({len(todo_items)})\n{todo_txt}\n\n## Cảnh báo diag khi chạy thật\n{diag_txt}\n\n"
             f"## File quá dài\n{big_txt}\n\n## Số đo do code tính (khoản trừ tự động — KHÔNG trừ lại)\n{auto_txt}\n\n"
+            f"## Hiệu quả vận hành (CSDL thật, chỉ đọc)\n{ops['effect']}\n\n## Góp ý người dùng (khâu của khu vực)\n{ops['feedback']}\n\n"
             f"## Điểm lần trước (đối chiếu độ ổn định)\n{prev_txt}\n\n## Thay đổi từ lần chấm trước\n{diff_txt}\n\n"
             f"## Phần đã cắt vì dài\n" + ("\n".join(f"- {n}" for n in notes) or "(không cắt gì)") + "\n\n"
             "# Trả lời\nMột JSON duy nhất, đúng mẫu ở mục 'Định dạng câu trả lời' của thang bản 2 (bỏ 'scorer'/'model'; giữ \"format\": "

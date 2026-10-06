@@ -1,7 +1,7 @@
 {
   "version": 20,
   "updated": "2026-10-03",
-  "_note": "Bản đồ hệ thống của AI Development System. Mỗi file .py dưới core/ và dashboard/ phải thuộc ít nhất một khu vực (thiếu = cảnh báo). 'code' / 'assets' / 'docs' là mẫu đường dẫn (fnmatch, '*' khớp cả '/'). 'tests' thêm tay ngoài các test tự dò theo import. 'flags' = tên trong core/features.py. 'diag_stages' = stage của bảng diag_events. 'keywords' dùng để gán dòng TODO.md vào khu vực (không phân biệt hoa thường). Sửa file này khi thêm module mới rồi tăng 'version'.",
+  "_note": "Bản đồ hệ thống của AI Development System. Mỗi file .py dưới core/ và dashboard/ phải thuộc ít nhất một khu vực (thiếu = cảnh báo). 'code' / 'assets' / 'docs' là mẫu đường dẫn (fnmatch, '*' khớp cả '/'). 'tests' thêm tay ngoài các test tự dò theo import. 'flags' = tên trong core/features.py. 'diag_stages' = stage của bảng diag_events. 'ops_stages' (S14.10 Đợt 6b) = khâu của góp ý người dùng / số đo hiệu quả vận hành (core/feedback.STAGES: director, image, motion, audio, render, ui). 'keywords' dùng để gán dòng TODO.md vào khu vực (không phân biệt hoa thường). Sửa file này khi thêm module mới rồi tăng 'version'.",
   "scan_roots": ["core", "dashboard"],
   "infra_modules": ["core/__init__.py", "core/db.py", "core/pipeline.py", "core/providers.py", "core/states.py", "core/adapters/http.py", "core/adapters/__init__.py", "dashboard/__init__.py"],
   "areas": [
@@ -16,6 +16,7 @@
       "tests": ["tests/test_idea_to_script.py", "tests/test_asset_checklist.py", "tests/test_s1435_scene_extras.py", "tests/test_build_kitchen.py", "tests/test_s1441_clean_dialogue.py", "tests/test_s1443_screenwriter.py"],
       "flags": ["idea_to_script", "film_crew", "camera_setups", "director_two_pass", "story_check", "asset_checklist"],
       "diag_stages": ["director"],
+      "ops_stages": ["director"],
       "keywords": ["Director", "Đạo diễn", "kịch bản", "phân shot", "chia shot", "Bible", "llm_runner", "shot_normalize", "director_report", "continuity", "performance", "bàn đo"]
     },
     {
@@ -29,6 +30,7 @@
       "tests": ["tests/test_place_refs.py", "tests/test_skill_dossier.py", "tests/test_experience.py", "tests/test_qc_team.py", "tests/test_qc_prefilter.py", "tests/test_meshy.py", "tests/test_qc_team_pipeline.py"],
       "flags": ["place_render_refs", "skill_dossier", "qc_team", "layout_to_model", "chain_previous_auto", "storyboard_api", "scene_establishing", "scene_qc", "scene_qc_claude", "scene_qc_trusted", "qc_agent", "end_frames", "storyboard_auto_trust", "setcheck_autofix", "profile_digest", "director_rewrite"],
       "diag_stages": ["previz", "image", "qc"],
+      "ops_stages": ["image"],
       "keywords": ["ảnh", "QC", "storyboard", "Deepix", "layout", "previz", "khung cuối", "end_frame", "autoqc"]
     },
     {
@@ -42,6 +44,7 @@
       "tests": [],
       "flags": ["voice_direction", "voice_check_redo", "j_cut", "audio_first", "auto_voice_cast"],
       "diag_stages": ["motion", "voice"],
+      "ops_stages": ["motion", "audio"],
       "keywords": ["motion", "giọng", "TTS", "voice", "lồng tiếng", "ElevenLabs", "delivery"]
     },
     {
@@ -55,6 +58,7 @@
       "tests": ["tests/test_skill_route.py"],
       "flags": ["camera_setups", "seedance_ref_groups", "continuous_takes", "closeup_start_frame", "speaker_tags", "hero_takes", "seedance_sample_mode", "seedance_video_edit", "seedance_subjects"],
       "diag_stages": ["video"],
+      "ops_stages": ["motion"],
       "keywords": ["video", "clip", "Kling", "Seedance", "ClipAI", "Clip AI", "model_router", "multi-shot"]
     },
     {
@@ -68,6 +72,7 @@
       "tests": ["tests/test_rough_cut.py", "tests/test_editor_review.py", "tests/test_editor_apply.py"],
       "flags": ["loudness_normalize", "shot_color_match", "j_cut", "music_breath", "sound_intent", "impact_shake", "ambience_bed", "motion_trim", "speed_ramp", "flashback_fx", "end_hold", "music_fit", "shot_transitions", "ai_label", "rough_cut_review"],
       "diag_stages": ["music", "render"],
+      "ops_stages": ["audio", "render"],
       "keywords": ["nhạc", "âm thanh", "hiệu ứng", "phụ đề", "render", "dựng", "LUFS", "độ to", "khớp màu", "bản giao", "delivery", "subtitle", "sfx"]
     },
     {
@@ -147,6 +152,7 @@
       "ui_metrics": true,
       "flags": ["ui_v2"],
       "diag_stages": [],
+      "ops_stages": ["ui"],
       "keywords": ["dashboard", "giao diện", "đăng nhập", "Chế độ chuyên gia", "thanh trên", "màn chính"]
     },
     {

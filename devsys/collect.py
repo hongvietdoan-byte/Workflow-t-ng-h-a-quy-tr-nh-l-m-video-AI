@@ -56,7 +56,7 @@ def load_areas(path: Optional[str] = None) -> Dict:
     if len(ids) != len(set(ids)):
         raise ValueError("devsys/areas.json: trùng id khu vực")
     for a in cfg["areas"]:
-        for k in KINDS + ("flags", "diag_stages", "keywords"):
+        for k in KINDS + ("flags", "diag_stages", "ops_stages", "keywords"):
             a.setdefault(k, [])
         a.setdefault("weight", 1.0)
         a.setdefault("description", "")
@@ -749,6 +749,115 @@ def diag_summary(db_path: Optional[str] = None, days: int = 14, root: str = ROOT
     return {"available": True, "note": f"{len(rows)} dòng diag trong {days} ngày", "by_stage": by_stage, "recent": recent, "days": days}
 
 
+# ---- hiệu quả vận hành (Đợt 6b: effectiveness_snapshots + user_feedback, CSDL thật, chỉ đọc) ---------------------------
+OPS_FIGURES = ("image_first_pass", "video_first_pass", "wall_min_per_sec", "gen_min_per_sec", "cost_per_sec", "satisfaction", "feedback_n",
+               "qc_agreement", "touches_per_scene", "lessons_on")
+OPS_LOW_RATING = 2                     # góp ý ≤ 2/5 = không hài lòng
+
+
+def ops_summary(db_path: Optional[str] = None, root: str = ROOT, days: int = 90) -> Dict:
+    """S14.10 Đợt 6b: what the real runs say about the OUTPUT — the whole-system effectiveness snapshots (core/effectiveness.snapshot,
+    project_id NULL) of the last `days` days, oldest first, with what was ON when each was taken (flags, knowledge fingerprint), and the
+    person's feedback (core/feedback) per stage. Opened read-only like diag_summary; no database / no table → available False + why."""
+    db_path = db_path or default_db(root)
+    empty = {"available": False, "latest": None, "trend": [], "feedback": {"by_stage": {}, "recent": []}, "markers": []}
+    if not os.path.exists(db_path):
+        return {**empty, "note": "không có CSDL (máy này chưa chạy Dashboard thật) — không có số đo hiệu quả vận hành"}
+    since = (datetime.now(timezone.utc) - timedelta(days=days)).strftime("%Y-%m-%dT%H:%M")
+    since30 = (datetime.now(timezone.utc) - timedelta(days=30)).strftime("%Y-%m-%dT%H:%M")
+    try:
+        conn = sqlite3.connect("file:" + db_path.replace("\\", "/") + "?mode=ro", uri=True, timeout=5)
+        conn.row_factory = sqlite3.Row
+        try:
+            snaps = [dict(r) for r in conn.execute(
+                "SELECT id, at, trigger, " + ", ".join(OPS_FIGURES) + ", flags_on, knowledge_fp FROM effectiveness_snapshots "
+                "WHERE project_id IS NULL AND at>=? ORDER BY at, id", (since,)).fetchall()]
+            fb = [dict(r) for r in conn.execute(
+                "SELECT id, at, kind, stage, rating, text, handled FROM user_feedback WHERE at>=? ORDER BY at DESC, id DESC LIMIT 500",
+                (since,)).fetchall()]
+            try:
+                lessons = [dict(r) for r in conn.execute(
+                    "SELECT decided_at, title FROM lessons WHERE state='approved' AND decided_at>=? ORDER BY decided_at", (since,)).fetchall()]
+            except sqlite3.Error:
+                lessons = []
+        finally:
+            conn.close()
+    except sqlite3.Error as e:
+        return {**empty, "note": f"không đọc được effectiveness_snapshots / user_feedback ({type(e).__name__}: {e})"}
+    for s in snaps:
+        try:
+            s["flags_on"] = sorted(json.loads(s["flags_on"])) if s.get("flags_on") else []
+        except ValueError:
+            s["flags_on"] = []
+    markers = []
+    for a, b in zip(snaps, snaps[1:]):                  # what changed between two snapshots = the reason a line may move
+        on, off = sorted(set(b["flags_on"]) - set(a["flags_on"])), sorted(set(a["flags_on"]) - set(b["flags_on"]))
+        if on or off:
+            markers.append({"at": b["at"], "kind": "cờ", "text": " ".join(["+" + x for x in on] + ["−" + x for x in off])})
+        if (a.get("knowledge_fp") or "") != (b.get("knowledge_fp") or ""):
+            markers.append({"at": b["at"], "kind": "kiến thức", "text": "kiến thức Director/motion đổi"})
+    markers += [{"at": str(x["decided_at"])[:16], "kind": "bài học", "text": f"duyệt: {str(x['title'])[:60]}"} for x in lessons]
+    by_stage: Dict[str, Dict] = {}
+    for f in fb:
+        st = by_stage.setdefault(f.get("stage") or "khác", {"n": 0, "rated": 0, "positive": 0, "low": 0, "low_open_30d": [], "low_open_ids": []})
+        st["n"] += 1
+        if f.get("rating") is not None:
+            st["rated"] += 1
+            st["positive"] += int(f["rating"] >= 4)
+            if f["rating"] <= OPS_LOW_RATING:
+                st["low"] += 1
+                if f.get("handled") is None and str(f.get("at") or "") >= since30:
+                    st["low_open_30d"].append(f["id"])
+    recent = []
+    try:
+        if ROOT not in sys.path:
+            sys.path.insert(0, ROOT)
+        from core.diag import redact
+    except Exception:  # noqa: BLE001 - redaction is best effort; texts are cut short anyway
+        def redact(t):
+            return str(t)
+    for f in fb[:40]:
+        recent.append({"id": f["id"], "at": f["at"], "kind": f["kind"], "stage": f.get("stage"), "rating": f.get("rating"),
+                       "handled": f.get("handled"), "text": redact(f.get("text") or "")[:200]})
+    return {"available": True, "note": f"{len(snaps)} mốc hiệu quả toàn hệ thống, {len(fb)} góp ý trong {days} ngày",
+            "latest": snaps[-1] if snaps else None, "trend": snaps, "markers": sorted(markers, key=lambda m: m["at"]),
+            "feedback": {"by_stage": by_stage, "recent": recent}, "days": days}
+
+
+def effect_series(score_points: Sequence[Dict], ops: Dict) -> Dict:
+    """S14.10 Đợt 6b, trang Hiệu quả: three lines on ONE time axis — (1) the weighted devsys score after each scoring
+    (scores.trend), (2) first-pass of pictures / clips (%), (3) the share of satisfied feedback (%) — plus the vertical markers (flags
+    switched, knowledge changed, lessons approved). Without the markers the lines cannot be tied to a cause.
+    → {"points": [{"at", "series", "value"}], "markers": [...], "notes": [...]}"""
+    pts, notes = [], []
+    for p in score_points:
+        if p.get("overall") is not None and p.get("date"):
+            pts.append({"at": str(p["date"])[:16], "series": "Điểm devsys (có trọng số)", "value": float(p["overall"])})
+    if not pts:
+        notes.append("chưa có điểm devsys thật để vẽ đường 1")
+    rows = (ops or {}).get("trend") or []
+    for r in rows:
+        for key, label in (("image_first_pass", "Ảnh qua lần đầu (%)"), ("video_first_pass", "Video qua lần đầu (%)"),
+                           ("satisfaction", "Góp ý hài lòng (%)")):
+            if r.get(key) is not None:
+                pts.append({"at": str(r["at"])[:16], "series": label, "value": round(100 * float(r[key]), 1)})
+    if not (ops or {}).get("available"):
+        notes.append((ops or {}).get("note") or "không có số đo hiệu quả vận hành")
+    elif not rows:
+        notes.append("chưa có mốc hiệu quả toàn hệ thống (core/effectiveness.snapshot, project_id trống) — chụp mốc ở Dashboard")
+    return {"points": sorted(pts, key=lambda x: x["at"]), "markers": list((ops or {}).get("markers") or []), "notes": notes}
+
+
+def ops_for_area(ops: Dict, area: Dict) -> Dict:
+    """The part of ops_summary an area answers for (areas.json `ops_stages`): its feedback stages and the first-pass figure of its
+    stage (image → image_first_pass, motion → video_first_pass)."""
+    stages = list(area.get("ops_stages") or [])
+    fb = (ops or {}).get("feedback", {}).get("by_stage", {})
+    figures = [f for st, f in (("image", "image_first_pass"), ("motion", "video_first_pass")) if st in stages]
+    return {"stages": stages, "feedback": {s: fb[s] for s in stages if s in fb}, "figures": figures,
+            "low_open_30d": sorted(i for s in stages for i in (fb.get(s) or {}).get("low_open_30d", []))}
+
+
 # ---- ảnh chụp toàn bộ -------------------------------------------------------------------------------------------------
 def collect(root: str = ROOT, cfg: Optional[Dict] = None, db_path: Optional[str] = None, log_limit: int = 150) -> Dict:
     t0 = time.time()
@@ -771,7 +880,7 @@ def collect(root: str = ROOT, cfg: Optional[Dict] = None, db_path: Optional[str]
         "test_map": tmap, "latest_run": latest, "runs": [{k: r.get(k) for k in ("date", "short", "commit", "totals", "duration_s",
                                                                                 "returncode", "_file")} for r in runs],
         "todo": todo, "todo_note": todo_note, "todo_by_area": todo_by_area(todo, cfg), "flags": flags_state(root, cfg, files),
-        "diag": diag_summary(db_path, root=root), "line_counts": lines,
+        "diag": diag_summary(db_path, root=root), "ops": ops_summary(db_path, root=root), "line_counts": lines,
         "big_files": sorted(([f, n] for f, n in lines.items() if n > BIG_FILE_LINES and (f.startswith("core/") or f.startswith("dashboard/"))),
                             key=lambda x: -x[1]),
         "tests_by_area": tests_by_area(latest, tmap, cfg), "files": files,

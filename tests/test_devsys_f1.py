@@ -244,5 +244,81 @@ class RealRunEvidenceTests(unittest.TestCase):
         self.assertEqual(self.bang_chung("docs/bao_cao.md:1", "docs/bao_cao.md:5")["score"], 16)
 
 
+def _ops_db(rows=(), feedback=()):
+    """A real-schema database (core.db.connect) with system-wide effectiveness snapshots and feedback."""
+    import tempfile
+    from core.db import connect
+    path = os.path.join(tempfile.mkdtemp(prefix="devsys_ops_"), "m.sqlite")
+    conn = connect(path)
+    for at, img, vid, flags, kfp in rows:
+        conn.execute("INSERT INTO effectiveness_snapshots (at, project_id, trigger, image_first_pass, video_first_pass, satisfaction, feedback_n,"
+                     " flags_on, knowledge_fp) VALUES (?, NULL, 'manual', ?, ?, 0.8, 3, ?, ?)", (at, img, vid, json.dumps(flags), kfp))
+    for at, stage, rating, handled in feedback:
+        conn.execute("INSERT INTO user_feedback (at, kind, stage, rating, text, handled) VALUES (?, 'delivery', ?, ?, 'ảnh lệch mặt nhân vật', ?)",
+                     (at, stage, rating, handled))
+    conn.commit()
+    conn.close()
+    return path
+
+
+def _recent(days_ago: int) -> str:
+    from datetime import datetime, timedelta, timezone
+    return (datetime.now(timezone.utc) - timedelta(days=days_ago)).strftime("%Y-%m-%dT%H:%M")
+
+
+OPS_AREAS = {**base.AREAS, "areas": [dict(a, ops_stages=["image"]) if a["id"] == "voice" else a for a in base.AREAS["areas"]]}
+
+
+class OpsSummaryTests(unittest.TestCase):
+    """Đợt 6b: devsys reads what real runs say about the output (effectiveness snapshots + feedback), read-only, and the scorer sees it."""
+
+    def setUp(self):
+        self.root = _mini_repo()
+        _write(self.root, "devsys/areas.json", json.dumps(OPS_AREAS, ensure_ascii=False))
+        self.cfg = collect.load_areas(os.path.join(self.root, "devsys", "areas.json"))
+        self.db = _ops_db(rows=[(_recent(9), 0.80, 0.5, ["a"], "k1"), (_recent(2), 0.60, 0.5, ["a", "b"], "k1")],
+                          feedback=[(_recent(1), "image", 1, None), (_recent(3), "image", 2, None), (_recent(4), "image", 5, None),
+                                    (_recent(5), "image", 1, "bỏ qua: đã sửa")])
+
+    def test_ops_summary_reads_snapshots_feedback_and_what_changed(self):
+        ops = collect.ops_summary(self.db, self.root)
+        self.assertTrue(ops["available"])
+        self.assertEqual([r["image_first_pass"] for r in ops["trend"]], [0.8, 0.6])
+        self.assertEqual(ops["latest"]["flags_on"], ["a", "b"])
+        self.assertEqual([m["text"] for m in ops["markers"]], ["+b"])
+        img = ops["feedback"]["by_stage"]["image"]
+        self.assertEqual((img["n"], img["low"], len(img["low_open_30d"]), img["positive"]), (4, 3, 2, 1))
+        none = collect.ops_summary(os.path.join(self.root, "khong_co.sqlite"), self.root)
+        self.assertFalse(none["available"])
+        self.assertIn("không có CSDL", none["note"])
+
+    def test_the_effect_page_puts_three_lines_and_the_markers_on_one_axis(self):
+        ops = collect.ops_summary(self.db, self.root)
+        d = collect.effect_series([{"date": _recent(3), "overall": 71.5}], ops)
+        self.assertEqual({p["series"] for p in d["points"]},
+                         {"Điểm devsys (có trọng số)", "Ảnh qua lần đầu (%)", "Video qua lần đầu (%)", "Góp ý hài lòng (%)"})
+        self.assertEqual([m["text"] for m in d["markers"]], ["+b"])
+        self.assertEqual(d["notes"], [])
+        none = collect.effect_series([], collect.ops_summary(os.path.join(self.root, "x.sqlite"), self.root))
+        self.assertEqual(len(none["notes"]), 2)                                 # both missing inputs are said, not silently empty
+
+    def test_the_bundle_has_the_two_sections_and_the_fingerprint_follows_new_data(self):
+        from devsys import scorer
+        snap = collect.collect(self.root, self.cfg, db_path=self.db)
+        health = collect.area_health(snap, self.cfg)
+        area = collect.area_by_id(self.cfg)["voice"]
+        b = scorer.build_bundle(self.root, self.cfg, area, snap, health["voice"])
+        self.assertIn("## Hiệu quả vận hành", b["prompt"])
+        self.assertIn("## Góp ý người dùng", b["prompt"])
+        self.assertIn(f"db:effectiveness_snapshots:{snap['ops']['latest']['id']}", b["prompt"])
+        self.assertLess(b["prompt"].index("## Hiệu quả vận hành"), b["prompt"].index("## Điểm lần trước"))
+        ui = scorer.build_bundle(self.root, self.cfg, collect.area_by_id(self.cfg)["ui"], snap, health["ui"])
+        self.assertIn("không gắn khâu vận hành", ui["prompt"])
+        db2 = _ops_db(rows=[(_recent(9), 0.80, 0.5, ["a"], "k1"), (_recent(2), 0.60, 0.5, ["a", "b"], "k1"), (_recent(1), 0.6, 0.5, ["a"], "k1")])
+        snap2 = collect.collect(self.root, self.cfg, db_path=db2)
+        self.assertNotEqual(scorer.fingerprint(self.root, area, snap, health["voice"]),
+                            scorer.fingerprint(self.root, area, snap2, collect.area_health(snap2, self.cfg)["voice"]))
+
+
 if __name__ == "__main__":
     unittest.main()

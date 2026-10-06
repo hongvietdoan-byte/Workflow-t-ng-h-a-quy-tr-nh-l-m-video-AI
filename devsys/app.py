@@ -183,7 +183,7 @@ with st.sidebar:
     if st.button("🔄 Làm mới", help="Đọc lại repo (bình thường tự làm mới khi có commit / file đổi)"):
         st.cache_data.clear()
         st.rerun()
-    page = st.radio("Trang", ["📋 Kế hoạch đang chạy", "Tổng quan", "Bản đồ hệ thống", "Dòng thời gian", "Sức khỏe (đo bằng code)", "Chấm điểm AI",
+    page = st.radio("Trang", ["📋 Kế hoạch đang chạy", "Tổng quan", "Bản đồ hệ thống", "Dòng thời gian", "Sức khỏe (đo bằng code)", "Chấm điểm AI", "Hiệu quả vận hành",
                               "Bộ kỹ năng 3 vai"], label_visibility="collapsed")
     st.divider()
     st.markdown("**Test**")
@@ -933,6 +933,37 @@ def page_plan():
                                 for wid in finished), unsafe_allow_html=True)
 
 
+# ---- trang: Hiệu quả (S14.10 Đợt 6b) -----------------------------------------------------------------------------------
+def page_effect():
+    st.title("Hiệu quả — điểm devsys ↔ chất lượng đầu ra thật")
+    st.caption("Ba đường cùng một trục thời gian: điểm devsys có trọng số, tỉ lệ ảnh/video qua lần đầu, tỉ lệ góp ý hài lòng. Vạch dọc = "
+               "lúc bật/tắt cờ, đổi kiến thức, duyệt bài học — chỉ khi có vạch dọc mới quy được đường nào đổi vì đâu. Đọc CSDL thật, chỉ đọc, miễn phí.")
+    ops = snap.get("ops") or {}
+    data = collect.effect_series(scores.trend(all_scores, cfg), ops)
+    for n in data["notes"]:
+        st.info(n)
+    if data["points"]:
+        import altair as alt
+        df = pd.DataFrame(data["points"])
+        df["thời điểm"] = pd.to_datetime(df["at"], errors="coerce")
+        chart = alt.Chart(df).mark_line(point=True).encode(
+            x=alt.X("thời điểm:T", title=None), y=alt.Y("value:Q", title="%", scale=alt.Scale(domain=[0, 100])),
+            color=alt.Color("series:N", title=None, legend=alt.Legend(orient="bottom")), tooltip=["series", "value", "at"])
+        if data["markers"]:
+            mk = pd.DataFrame(data["markers"])
+            mk["thời điểm"] = pd.to_datetime(mk["at"], errors="coerce")
+            chart = chart + alt.Chart(mk).mark_rule(strokeDash=[4, 3], color="#98A2B3").encode(x="thời điểm:T", tooltip=["kind", "text", "at"])
+        st.altair_chart(chart, width="stretch")
+    if data["markers"]:
+        st.markdown("#### Mốc thay đổi")
+        st.dataframe(pd.DataFrame(data["markers"]).rename(columns={"at": "Lúc", "kind": "Loại", "text": "Nội dung"}), hide_index=True)
+    fb = (ops.get("feedback") or {}).get("by_stage") or {}
+    if fb:
+        st.markdown("#### Góp ý theo khâu")
+        st.dataframe(pd.DataFrame([{"Khâu": k, "Góp ý": v["n"], "Có điểm": v["rated"], "Hài lòng (≥ 4)": v["positive"], "Không hài lòng (≤ 2)": v["low"],
+                                    "Chưa xử lý 30 ngày": len(v["low_open_30d"])} for k, v in fb.items()]), hide_index=True)
+
+
 PAGES = {"📋 Kế hoạch đang chạy": page_plan, "Tổng quan": page_overview, "Bản đồ hệ thống": page_map, "Dòng thời gian": page_timeline, "Sức khỏe (đo bằng code)": page_health,
-         "Chấm điểm AI": page_scores, "Bộ kỹ năng 3 vai": page_skills}
+         "Chấm điểm AI": page_scores, "Hiệu quả vận hành": page_effect, "Bộ kỹ năng 3 vai": page_skills}
 PAGES[page]()
