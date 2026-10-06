@@ -45,6 +45,9 @@ def finish(conn, pid: int) -> None:
 
 class Base(unittest.TestCase):
     def setUp(self):
+        _data = __import__("tempfile").mkdtemp(prefix="limits_data_")      # 06/10: never the real data/projects of this computer
+        _env = __import__("unittest.mock", fromlist=["patch"]).patch.dict(os.environ, {"PIPELINE_DATA": _data})
+        _env.start(); self.addCleanup(_env.stop)
         self.conn = connect()
         auth.ensure_owner(self.conn)
         auth.add_user(self.conn, owner_id(), MEM, [])

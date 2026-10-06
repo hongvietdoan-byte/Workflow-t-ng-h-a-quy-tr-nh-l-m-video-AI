@@ -16,4 +16,7 @@ for _f in ("IMPACT_SHAKE", "MUSIC_BREATH", "SOUND_INTENT", "FLASHBACK_FX", "END_
 # (tower pack) — tests get their own lock file (test_concurrency_v4 still sets its own per test)
 import tempfile as _tempfile  # noqa: E402
 
+# 06/10: a test project #1, #2… must never see this computer's real data/projects/<id>/output/FINAL_VIDEO.mp4 (core.delivered.has_render)
+# — on the main machine 2 tests failed only there. Tests that need their own data folder still set PIPELINE_DATA themselves.
+os.environ.setdefault("PIPELINE_DATA", os.path.join(_tempfile.mkdtemp(prefix="pipeline_data_test_"), "projects"))
 os.environ.setdefault("PLATES3D_LOCK", os.path.join(_tempfile.mkdtemp(prefix="plates3d_test_"), "blender.lock"))

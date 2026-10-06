@@ -61,6 +61,9 @@ class PresenceTests(unittest.TestCase):
 
 class InboxTests(unittest.TestCase):
     def setUp(self):
+        _data = __import__("tempfile").mkdtemp(prefix="inbox_data_")      # 06/10: never the real data/projects of this computer
+        _env = __import__("unittest.mock", fromlist=["patch"]).patch.dict(__import__("os").environ, {"PIPELINE_DATA": _data})
+        _env.start(); self.addCleanup(_env.stop)
         self.p = Pipeline(connect())
         self.mine = self.p.create_project("của Việt", created_by="viet@garena.vn")
         self.other = self.p.create_project("của Lan", created_by="lan@garena.vn")
