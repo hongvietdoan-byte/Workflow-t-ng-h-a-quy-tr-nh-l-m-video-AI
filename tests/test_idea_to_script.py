@@ -416,3 +416,29 @@ class BuildableKitS1431(unittest.TestCase):
         I.start(self.p.conn, self.pid, IDEA, characters=["LUNA"], anchors=ANCHORS)
         with self.assertRaisesRegex(I.IdeaError, "LUNA"):
             I.questions(self.p.conn, self.pid, self.m)
+
+
+class SkillMechanismInKitTests(unittest.TestCase):
+    """Người dùng 06/10: Biên kịch chỉ thấy TÊN kỹ năng ('KENTA — Đột Kích Lốc Xoáy') nên viết thiếu điểm đặc biệt (Kenta dịch chuyển
+    tới vị trí lốc). Bộ 'thứ dựng được' phải mang cả CƠ CHẾ từ hồ sơ kỹ năng (`mechanism_vi`)."""
+
+    def test_kit_carries_the_dossier_mechanism_and_the_block_prints_it(self):
+        from unittest import mock
+        from core import idea_buildable as B, assets, skill_dossier
+        fake_char = {"id": 1, "kind": "character", "name": "KENTA", "aliases": "", "description": "",
+                     "images": [{"role": "front_standard", "path": "x.png"}]}
+        dossier = {"character": "KENTA", "skill_vi": "Đột Kích Lốc Xoáy", "active": True,
+                   "mechanism_vi": "Vung tay phóng lốc; bấm lại: Kenta DỊCH CHUYỂN TỨC THÌ tới vị trí cơn lốc."}
+        with mock.patch.object(assets, "list_assets", return_value=[fake_char]), \
+                mock.patch.object(assets, "get_profile", return_value={}), mock.patch.object(assets, "is_skin", return_value=False), \
+                mock.patch.object(skill_dossier, "names", return_value=["KENTA"]), mock.patch.object(skill_dossier, "load", return_value=dossier):
+            k = B.kit(None, 1)
+        self.assertEqual(k["skills"][0]["how"], dossier["mechanism_vi"])
+        block = B.kit_block(k)
+        self.assertIn("KENTA — Đột Kích Lốc Xoáy: Vung tay phóng lốc; bấm lại: Kenta DỊCH CHUYỂN TỨC THÌ tới vị trí cơn lốc.", block)
+
+    def test_a_dossier_without_mechanism_prints_the_name_only(self):
+        from core import idea_buildable as B
+        block = B.kit_block({"places": [], "characters": [], "skills": [{"character": "ORION", "skill": "Lá Chắn"}]})
+        self.assertIn("ORION — Lá Chắn", block)
+        self.assertNotIn("ORION — Lá Chắn:", block)
