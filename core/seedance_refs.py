@@ -52,10 +52,25 @@ def face_closeup(data: Dict) -> bool:
 
 
 def eligible(data: Dict) -> bool:
-    """A shot that goes by reference pictures: a v3 shot, not sent to Kling after refusals, not a green-screen plate shot (the green
-    picture must be the start frame so it can be keyed), not a face close-up that keeps its start frame (S4.1)."""
-    return (bool(data.get("shot_no")) and route(data) != "kling" and data.get("plate_mode") != "green"
-            and not face_closeup(data))
+    """A shot that goes by reference pictures: a v3 shot, not sent to Kling after refusals, not a face close-up that keeps its start
+    frame (S4.1). S14.44: an old row's `plate_mode` (green-screen plates, removed in S14.9) no longer changes the route — said once
+    per project by groups() (diag plate_mode_ignored)."""
+    return bool(data.get("shot_no")) and route(data) != "kling" and not face_closeup(data)
+
+
+def _say_plate_mode_ignored(conn, project_id: int, rows: List[Dict]) -> None:
+    """S14.44: old rows that still carry `plate_mode` — the value is read nowhere for behaviour any more; said once per project."""
+    if not any((r.get("data") or {}).get("plate_mode") not in (None, "") for r in rows):
+        return
+    from . import diag
+    try:                    # groups() runs on every runner tick: said once, the counter is not blown up
+        seen = conn.execute("SELECT 1 FROM diag_events WHERE code='plate_mode_ignored' AND COALESCE(project_id,0)=? LIMIT 1",
+                            (project_id or 0,)).fetchone()
+    except Exception:  # noqa: BLE001 - no diag table: record() keeps it (_keep_lost)
+        seen = None
+    if not seen:
+        diag.record(conn, "video", "info", "Shot cũ có `plate_mode` (phông xanh, đã bỏ từ S14.9) — bỏ qua giá trị, shot đi đường ảnh "
+                    "tham chiếu như shot thường; hash/nhóm shot giữ nguyên.", "plate_mode_ignored", project_id)
 
 
 def _lip_sync(data: Dict) -> bool:
@@ -80,7 +95,9 @@ def groups(conn, project_id: int) -> List[List[Dict]]:
             out.append(list(cur))
         cur.clear()
 
-    for r in _rows(conn, project_id):
+    rows = _rows(conn, project_id)
+    _say_plate_mode_ignored(conn, project_id, rows)
+    for r in rows:
         d = r["data"]
         if not d.get("shot_no") or not _groupable(d):
             close()

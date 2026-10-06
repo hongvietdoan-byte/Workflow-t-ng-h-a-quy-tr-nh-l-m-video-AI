@@ -210,7 +210,8 @@ def shot_data(scene: Dict, s: Dict, k: int) -> Dict:
     # weather of the shot / its scene and the spot / mode on a location pack (GĐ2)
     if isinstance(s.get("lip_sync"), bool):
         data["lip_sync"] = s["lip_sync"]
-    for key in ("weather", "plate_spot", "plate_mode"):
+    # S14.44: `plate_mode` (green-screen plates, removed in S14.9) is never stored on a new row — see _drop_plate_mode
+    for key in ("weather", "plate_spot"):
         value = s.get(key) or scene.get(key)
         if isinstance(value, str) and value.strip():
             data[key] = value.strip()
@@ -272,6 +273,20 @@ def has_work(conn, project_id: int) -> bool:
     return bool(conn.execute("SELECT 1 FROM jobs WHERE project_id=? AND scene_id IS NOT NULL LIMIT 1", (project_id,)).fetchone())
 
 
+def _drop_plate_mode(conn, project_id: int, scenes: List[Dict], rows: List[Dict]) -> None:
+    """S14.44 (người dùng 06/10): the green-screen plates are gone (S14.9) — a `plate_mode` the Director still writes (on a shot or a
+    scene, or a hand-locked one carried over from a replaced row) is not stored, so a new row never has the field and nothing can
+    switch the old behaviour back on from it. Said once per stored plan (diag), not silently."""
+    found = any(s.get("plate_mode") not in (None, "") for s in scenes) or any(
+        isinstance(sh, dict) and sh.get("plate_mode") not in (None, "") for s in scenes for sh in s.get("shots") or [])
+    for d in rows:
+        found = d.pop("plate_mode", None) is not None or found
+    if found:
+        from . import diag
+        diag.record(conn, "director", "info", "Đạo diễn ghi `plate_mode` (phông xanh) — đã bỏ từ S14.9, không lưu vào shot; "
+                    "ảnh/video làm như shot không có trường này.", "plate_mode_ignored", project_id)
+
+
 def replace_from(pipeline: Pipeline, project_id: int, scenes: List[Dict], from_scene: int) -> int:
     """1.4 "↻ Chia shot lại cảnh này": replace the shot rows of script scene `from_scene` and every later scene with the plan in `scenes`
     (the whole plan), keeping the rows of earlier scenes untouched — they may already have pictures and clips. Rows are appended in
@@ -304,16 +319,21 @@ def replace_from(pipeline: Pipeline, project_id: int, scenes: List[Dict], from_s
         conn.execute(f"DELETE FROM scenes WHERE id IN ({marks})", [r["id"] for r in gone])
     n = conn.execute("SELECT COALESCE(MAX(idx), 0) FROM scenes WHERE project_id=?", (project_id,)).fetchone()[0]
     written = 0
-    for s in sorted((x for x in scenes if x["idx"] >= from_scene), key=lambda x: x["idx"]):
+    new = sorted((x for x in scenes if x["idx"] >= from_scene), key=lambda x: x["idx"])
+    built = []
+    for s in new:
         heading = (story.get(s["idx"]) or {}).get("heading") or f"CẢNH {s['idx']}"
         for k, shot in enumerate(s["shots"], 1):
-            n += 1
             data = shot_data(s, shot, k)
             if s["idx"] != from_scene:                   # only the re-planned scene may lose its hand edits (its shots changed)
                 data.update(kept.get((data.get("story_scene"), data.get("shot_no")), {}))
-            conn.execute("INSERT INTO scenes (project_id, idx, title, data) VALUES (?,?,?,?)",
-                         (project_id, n, f"{heading} · shot {k}", json.dumps(data, ensure_ascii=False)))
-            written += 1
+            built.append((f"{heading} · shot {k}", data))
+    _drop_plate_mode(conn, project_id, new, [d for _, d in built])
+    for title, data in built:
+        n += 1
+        conn.execute("INSERT INTO scenes (project_id, idx, title, data) VALUES (?,?,?,?)",
+                     (project_id, n, title, json.dumps(data, ensure_ascii=False)))
+        written += 1
     conn.commit()
     return written
 
@@ -347,14 +367,18 @@ def store_plan(pipeline: Pipeline, project_id: int, scenes: List[Dict], force: b
     detach(conn, project_id=project_id)
     conn.execute("DELETE FROM scenes WHERE project_id=?", (project_id,))
     n = 0
+    built = []
     for s in sorted(scenes, key=lambda x: x["idx"]):
         heading = (story.get(s["idx"]) or {}).get("heading") or f"CẢNH {s['idx']}"
         for k, shot in enumerate(s["shots"], 1):
-            n += 1
             data = shot_data(s, shot, k)
             data.update(kept.get((data.get("story_scene"), data.get("shot_no")), {}))
-            conn.execute("INSERT INTO scenes (project_id, idx, title, data) VALUES (?,?,?,?)",
-                         (project_id, n, f"{heading} · shot {k}", json.dumps(data, ensure_ascii=False)))
+            built.append((f"{heading} · shot {k}", data))
+    _drop_plate_mode(conn, project_id, scenes, [d for _, d in built])
+    for title, data in built:
+        n += 1
+        conn.execute("INSERT INTO scenes (project_id, idx, title, data) VALUES (?,?,?,?)",
+                     (project_id, n, title, json.dumps(data, ensure_ascii=False)))
     conn.commit()
     return n
 
