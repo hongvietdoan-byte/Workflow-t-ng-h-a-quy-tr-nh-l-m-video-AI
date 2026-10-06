@@ -9,7 +9,7 @@
   "copy": "bản 1080p dài 30,4 s — mốc giây trong hồ sơ theo bản này",
   "reviewed": "2026-09-30, toàn bộ khung gốc 30 khung/giây đoạn 15,8–29,2 s"
  },
- "mechanism_vi": "Vung tay giải phóng một cơn lốc bay về phía trước gây sát thương, xuyên qua Bom Keo. Bấm lại khi di chuyển: lốc bao quanh người khi lướt và nhận hiệu ứng giảm sát thương.",
+ "mechanism_vi": "KỸ NĂNG KHÔNG PHỤ THUỘC THANH KIẾM: tay Kenta KHÔNG cầm gì vẫn dùng được kỹ năng (lốc sinh ra từ cú vung tay trống, không rút/cầm/chạm katana); đang cầm súng cũng dùng được (người dùng 06/10). Vung tay giải phóng một cơn lốc bay về phía trước gây sát thương, xuyên qua Bom Keo; cơn lốc dừng lại xoáy tại chỗ ở cuối đường bay. Bấm lại: Kenta DỊCH CHUYỂN TỨC THÌ tới vị trí cơn lốc (hiện ra ngay giữa cột lốc, không chạy/lướt) và nhận hiệu ứng giảm sát thương (HUD: 'Kích hoạt khi dịch chuyển và nhận hiệu ứng giảm sát thương'; khung 23,4 s lốc trống → 24,4 s Kenta trong lốc; người dùng xác nhận 06/10).",
  "storyboard": "storyboard_ky_nang.jpg",
  "default_phase": "wind_fly",
  "phases": [
@@ -82,10 +82,12 @@
     24.6
    ],
    "frame": "crops/move_vortex_24.40.jpg",
-   "vi": "Bấm lại khi di chuyển: cột lốc xoắn trong suốt (cao ~2–3 m, nhiều vòng) bao quanh Kenta trong lúc lướt, vòng gió đồng tâm dưới chân.",
-   "image_en": "Dashing, Kenta is surrounded by a transparent spiralling wind column two to three metres tall, with concentric wind rings under his feet.",
-   "video_en": "Kenta dashes inside a transparent spiralling wind column two to three metres tall, concentric wind rings sliding under his feet.",
-   "frame_full": "frames/24.40.jpg"
+   "vi": "Bấm lại: cơn lốc đang xoáy tại chỗ (cột lốc xoắn trong suốt cao ~2–3 m, vòng gió đồng tâm dưới đất) — Kenta DỊCH CHUYỂN TỨC THÌ tới đó, hiện ra ngay giữa cột lốc (không chạy, không lướt, không bước). Khung 23,40 = lốc trống chưa có Kenta; 24,40 = Kenta đã đứng trong lốc. Người dùng xác nhận 06/10.",
+   "image_en": "Kenta has just teleported into the spot where his whirlwind landed: he stands inside a transparent spiralling wind column two to three metres tall, concentric wind rings flat on the ground under his feet.",
+   "video_en": "A transparent spiralling wind column two to three metres tall spins in place on the ground, empty; Kenta suddenly appears inside it — an instant teleport, no running, no dashing, no steps — concentric wind rings under his feet.",
+   "frame_full": "frames/24.40.jpg",
+   "label_en": "teleport into the whirlwind",
+   "frame_before": "frames/23.40.jpg"
   },
   {
    "id": "after_dash",
@@ -141,7 +143,11 @@
    "di chuyển",
    "dash",
    "running",
-   "moving"
+   "moving",
+   "dịch chuyển",
+   "teleport",
+   "hiện ra trong lốc",
+   "xuất hiện"
   ],
   "after_dash": [
    "giảm sát thương",
@@ -182,9 +188,10 @@
   "vệt đỏ lưỡi liềm trên tường / quanh người trúng đòn (đó là chỉ báo hướng sát thương của giao diện game)",
   "Kenta nhấc chân, bước đi khi tung lốc",
   "Kenta CẦM thanh / tấm sọc xanh trong suốt như cầm kiếm — đó là thanh định hướng kỹ năng của giao diện (lỗi model thử #11 T1/T6 và #12 T4)",
-  "lưỡi năng lượng, kiếm kính, kiếm pha lê trong tay; luồng năng lượng phụt thẳng lên trời (lỗi thử #11)"
+  "lưỡi năng lượng, kiếm kính, kiếm pha lê trong tay; luồng năng lượng phụt thẳng lên trời (lỗi thử #11)",
+  "Kenta chạy / lướt / bước tới vị trí lốc khi bấm lại — đúng là DỊCH CHUYỂN tức thì (người dùng 06/10)"
  ],
- "never_en": "drawn or unsheathed katana, slashing with the katana, any sword or blade in his hand, a striped translucent turquoise bar or panel held like a sword (it is the game's skill aiming indicator), glass or crystal blade, katana worn vertically at the hip, shield, barrier, dark or opaque tornado, dense white swirl, a jet of energy shooting upward, debris, dust or leaves swept up, cracked or shattered gloo wall, fire, lightning, purple or red wind, red crescent mark or red slash on the wall, damage-direction indicator or any HUD element",
+ "never_en": "drawn or unsheathed katana, slashing with the katana, any sword or blade in his hand, a striped translucent turquoise bar or panel held like a sword (it is the game's skill aiming indicator), glass or crystal blade, katana worn vertically at the hip, shield, barrier, dark or opaque tornado, dense white swirl, a jet of energy shooting upward, debris, dust or leaves swept up, cracked or shattered gloo wall, fire, lightning, purple or red wind, red crescent mark or red slash on the wall, damage-direction indicator or any HUD element, Kenta running or dashing to the whirlwind spot (he teleports into it instantly)",
  "script_contradictions": [
   "barrier",
   "chém bằng katana",
