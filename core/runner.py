@@ -58,10 +58,6 @@ class RedrawWithFix(Exception):
         self.fix = fix
 
 
-GREEN_FIX = ("Draw ONLY the characters on a perfectly flat, uniform pure chroma-key green (#00FF00) backdrop filling the whole frame "
-             "behind them — no building, no tower, no sky, no floor, no ground, no scenery at all.")
-
-
 def _turn(project_id: int, job_type: str) -> threading.RLock:
     """M3: one submitter/poller per project and job type in this process. The dashboard tab (every few seconds) and the autopilot
     thread used to poll the same job at once - the clip was downloaded twice and a follower job could be made twice. The thread
@@ -981,9 +977,6 @@ class VideoRunner(_Runner):
         if mp is None or img is None:
             return None
         path = os.path.join(self.data_dir, str(job["project_id"]), "images", f"job_{img['id']}.png")
-        green = self._green_source(job, img["id"])
-        if green:
-            path = green                              # V4 mode 2: the character acts on green, keyed onto the plate afterwards
         proj = self.p.project(job["project_id"])
         model = self._choice(job)["model"]            # per scene (ClipAI model guide) — see core.model_router
         duration = mp["duration_sec"]
@@ -1177,7 +1170,6 @@ class VideoRunner(_Runner):
         except Exception as e:  # noqa: BLE001 - a clip that cannot be cut is still a usable (longer) clip
             self._diag(job, "warn", "trim_error", f"không cắt được clip theo độ dài shot ({type(e).__name__}: {e}); dùng nguyên clip")
         if not group:
-            self._plate_video(job, path)
             from . import lipsync
             rec = lipsync.index(self.data_dir, job["project_id"]).get(str(job["scene_id"])) or {}
             if rec.get("state") == "generate_sent" and rec.get("job_id") == job["id"]:
@@ -1203,54 +1195,6 @@ class VideoRunner(_Runner):
         if rec.get("method") == "take" and rec.get("state") == "done" and rec.get("job_id") == leader:
             lipsync.mark(self.data_dir, job["project_id"], job["scene_id"], shift=round(float(rec.get("shift") or 0) + head, 3),
                          edge_head=round(head, 3))
-
-    def _plate_mode(self, job) -> Optional[str]:
-        """'green' (mode 2) / 'first_frame' (mode 1) for a shot with a location-pack plate, else None."""
-        from . import features, location_pack
-        if not features.on("location_plates") or location_pack.plate_of(self.data_dir, job["project_id"], job["scene_id"]) is None:
-            return None
-        data = json.loads(self.p.conn.execute("SELECT data FROM scenes WHERE id=?", (job["scene_id"],)).fetchone()["data"] or "{}")
-        return "green" if data.get("plate_mode") == "green" else "first_frame"
-
-    def _green_source(self, job, image_job_id: int) -> Optional[str]:
-        from . import location_pack
-        if self._plate_mode(job) != "green":
-            return None
-        path = location_pack.green_path(self.data_dir, job["project_id"], image_job_id)
-        return path if os.path.exists(path) else None
-
-    def _plate_video(self, job, path: str) -> None:
-        """V4: mode 2 — key the green clip onto the plate frame by frame; both modes — falling weather + lightning; mode 1 — how much of
-        the plate the video model kept (plate_qc), recorded for the automatic run's fallback to mode 2."""
-        mode = self._plate_mode(job)
-        if mode is None:
-            return
-        from . import composite, ffmpeg_studio, location_pack, plate_env, plate_qc, shots
-        plate = location_pack.plate_of(self.data_dir, job["project_id"], job["scene_id"])
-        env = plate.get("env") or {"time": "day", "weather": "clear"}
-        ffmpeg = ffmpeg_studio.find_ffmpeg()
-        tmp = path + ".plate.mp4"
-        try:
-            if mode == "green":
-                composite.composite_video(path, plate, tmp, ffmpeg, env)
-                os.replace(tmp, path)
-            done = plate_env.overlay_video(path, tmp, env, ffmpeg, seed=job["id"])
-            if done == tmp:
-                os.replace(tmp, path)
-            if mode == "first_frame":
-                img = self.p.conn.execute("SELECT id FROM jobs WHERE scene_id=? AND type='image_gen' AND state='approved' ORDER BY id DESC"
-                                          " LIMIT 1", (shots.image_scene(self.p.conn, job["scene_id"]),)).fetchone()
-                mask = location_pack.mask_path(self.data_dir, job["project_id"], img["id"]) if img else None
-                res = plate_qc.background_score(path, plate.get("shadow") or plate["plate"], ffmpeg, mask)
-                location_pack.record_video_qc(self.data_dir, job["project_id"], job["scene_id"], job["id"], res, mode)
-                if not res["ok"]:
-                    self._diag(job, "warn", "plate_redrawn", f"video vẽ lại nền (điểm giống nền {res['score']}) — lần gen lại sẽ diễn trên phông "
-                                                              "xanh rồi ghép (cách 2)")
-        except Exception as e:  # noqa: BLE001 - the clip is still usable as it came
-            self._diag(job, "warn", "plate_video", f"không xử lý được nền 3D cho clip ({type(e).__name__}: {e}) — dùng nguyên clip")
-        finally:
-            if os.path.exists(tmp):
-                os.remove(tmp)
 
     def _take_done(self, leader, group, starts) -> None:
         """S4.2: each take shot of this group clip is lip-synced; `shift` = where its part really starts in the clip minus where the
@@ -1412,17 +1356,11 @@ def framing_sentence(data: Dict) -> str:
     return ("Framing: " + ", ".join(bits) + ". ") if bits else ""
 
 
-def same_framing(a: Dict, b: Dict) -> bool:
-    """F8: a previous frame only helps when it was shot the same way (a wide frame drags its composition into a close-up)."""
-    return (assets.shot_size(a) == assets.shot_size(b)) and (a.get("angle") or "eye") == (b.get("angle") or "eye")
-
-
 def chain_previous(proj, scene_data) -> bool:
-    """Send the previous approved frame as an extra reference? storyboard_mode 1 = always, 2 = never, 0 (default) = automatic:
-    only inside a sequence (consecutive shots of one place / continuous action, as set by the Director or by hand)."""
-    from . import features
-    mode = proj["storyboard_mode"] or 0
-    return mode == 1 or (mode == 0 and bool(scene_data.get("sequence")) and features.on("chain_previous_auto"))
+    """Send the previous approved frame as an extra reference? storyboard_mode 1 = always; 0 (default) / 2 = never. S14.9 (06/10):
+    the automatic chaining inside a sequence (flag chain_previous_auto, GĐ6 F8/I2: a close-up dragged in the wide frame's layout)
+    was removed — `scene_data` is kept for the callers."""
+    return (proj["storyboard_mode"] or 0) == 1
 
 
 _MINOR_AGE = re.compile(r"\b(?:[1-9]|1[0-7])[- ]?(?:-|\s)?years?[- ]old\b[,]?\s*", re.IGNORECASE)
@@ -1598,18 +1536,10 @@ class ImageRunner(_Runner):
             spend_gate.warn(self.p.conn, warns, stage="image", project_id=job["project_id"], **_job_ids(job))
         return stop
 
-    def _plate(self, job, data=None):
-        """The location-pack plate of this shot (feature location_plates), else None."""
-        from . import features, location_pack
-        if not features.on("location_plates"):
-            return None
-        return location_pack.plate_of(self.data_dir, job["project_id"], job["scene_id"])
-
     def _wait(self, job) -> bool:
-        """v3: the picture of a shot that continues the previous one waits for that shot's approved picture (sent as reference).
-        V4: a shot set at a 3D place waits for its plate (rendered by the automatic run's plates phase)."""
+        """v3: the picture of a shot that continues the previous one waits for that shot's approved picture (sent as reference —
+        storyboard_mode 1 only since S14.9)."""
         from . import shots
-        from . import features
         from . import scene_storyboard
         from . import scene_establish
         from . import place_refs
@@ -1637,14 +1567,8 @@ class ImageRunner(_Runner):
         if scene_storyboard.enabled() and getattr(self.provider, "supports_storyboard", False) and \
                 scene_storyboard.waits(self.p.conn, self.data_dir, job["project_id"], job["scene_id"]):
             return True                                      # storyboard mode: the scene's anchor frame is drawn first
-        if features.on("location_plates"):
-            from . import location_pack
-            data = json.loads(self.p.conn.execute("SELECT data FROM scenes WHERE id=?", (job["scene_id"],)).fetchone()["data"] or "{}")
-            if location_pack.needs_plate(self.p.conn, job["project_id"], data) and self._plate(job) is None and \
-                    not location_pack.plate_failed(self.data_dir, job["project_id"], job["scene_id"]):
-                return True                                  # a failed render is not waited for: the shot draws a normal picture
         proj = self.p.project(job["project_id"])
-        chains = proj["storyboard_mode"] == 1 or (proj["storyboard_mode"] != 2 and features.on("chain_previous_auto"))
+        chains = proj["storyboard_mode"] == 1
         return bool(shots.mode(proj)) and chains and shots.waits_for_previous_image(self.p.conn, job["scene_id"])
 
     def _stamp(self, job, args) -> Dict:
@@ -1668,9 +1592,6 @@ class ImageRunner(_Runner):
             data["image_prompt"] = prompt = cleaned
         for gap in assets.reference_gaps(conn, job["project_id"], data):     # luật 1: a missing reference is said at generation time
             self._diag(job, assets.gap_severity(gap), "missing_reference", gap)
-        plate = self._plate(job)
-        if plate is not None:
-            return self._green_args(job, data, plate)
         prompt, _ = build_image_prompt(conn, job["project_id"], data, fix=model_fix(job["retry_reason"]))
         from . import scene_establish
         light = scene_establish.light_sentence(data)
@@ -1682,16 +1603,12 @@ class ImageRunner(_Runner):
             prompt = f"{prompt} {chosen}"
         proj = self.p.project(job["project_id"])
         chain = chain_previous(proj, data)
-        from . import features
-        plan = layout.layout_reference(self.data_dir, job["project_id"], scene["idx"], data) if features.on("layout_to_model") else None
         from . import image_models
         model = image_models.of_project(proj)
         sheets = image_models.accepts_sheets(model) and getattr(self.provider, "supports_model", False)
         limit = min(image_models.max_refs(model, assets.MAX_REFERENCES), 12) if sheets else assets.MAX_REFERENCES
-        refs = assets.scene_references(conn, job["project_id"], data,   # the layout and the previous frame keep their slots
-                                       limit=limit, reserve=(1 if chain else 0) + (1 if plan else 0), sheets=sheets)
-        if plan:
-            refs = [plan] + refs
+        refs = assets.scene_references(conn, job["project_id"], data,   # the previous frame keeps its slot
+                                       limit=limit, reserve=1 if chain else 0, sheets=sheets)
         from . import scene_establish
         est = scene_establish.reference(self.data_dir, job["project_id"], data.get("story_scene"))
         if est:                                        # the scene's wide establishing picture: the shared reference for the place
@@ -1718,41 +1635,13 @@ class ImageRunner(_Runner):
             # previous scene's approved picture in as an extra image-to-image reference instead, so style/lighting
             # carry over the way a real storyboard would.
             prev = previous_frame_job(conn, job["project_id"], scene["idx"], data.get("sequence"))
-            if prev is not None and proj["storyboard_mode"] != 1 and not same_framing(json.loads(prev["data"] or "{}"), data):
-                prev = None                            # F8: automatic chaining only between shots framed the same way
             if prev is not None:
                 prev_path = os.path.join(self.data_dir, str(job["project_id"]), "images", f"job_{prev['id']}.png")
                 if os.path.exists(prev_path):
                     refs = refs + [{"path": prev_path, "label": "previous scene", "role": "previous_scene"}]
         return self._finish_args(job, prompt, refs)
 
-    def _green_args(self, job, data, plate):
-        """V4 location pack: the character alone on flat green, framed and lit as the plate's camera; only the characters'
-        references go (the place is the plate — no place picture, no place words, no previous frame dragging a background)."""
-        from . import location_pack, looks
-        conn = self.p.conn
-        shot = location_pack.without_place(data)
-        prompt = framing_sentence(shot) + location_pack.place_free(data["image_prompt"])
-        blocking = location_pack.place_free(data.get("blocking") or "")
-        if blocking:
-            prompt = f"{prompt}. Blocking: {blocking}"
-        from . import performance
-        prompt += performance.image_sentence(data)
-        prompt += lock_note(conn, job["project_id"], data.get("characters"))
-        prompt += looks.image_sentence(self.p.project(job["project_id"]))
-        place = assets.scene_location(conn, job["project_id"], data)
-        entry = location_pack.model3d(conn, place["id"]) if place else None
-        prompt += " " + location_pack.green_prompt(data, plate, (entry or {}).get("sun_azimuth", 250.0))
-        fix = model_fix(job["retry_reason"])
-        if fix:
-            prompt = f"{prompt}. Fix: {fix}"
-        refs = assets.scene_references(conn, job["project_id"], shot, limit=assets.MAX_REFERENCES)
-        refs = [r for r in refs if r.get("role") != "location"]
-        prompt = no_minor_age(prompt)
-        return self._finish_args(job, prompt, refs, without_place=True,
-                                 extra_sent=[{"label": "plate", "role": "location_pack", "file": os.path.basename(plate["plate"])}])
-
-    def _finish_args(self, job, prompt: str, refs, without_place: bool = False, extra_sent=None):
+    def _finish_args(self, job, prompt: str, refs):
         """The picture job's (prompt, reference paths). Storyboard mode (feature storyboard_api, a provider that draws storyboard
         frames): the scene's shared references + the anchor frame replace the shot's own, and the storyboard fields go with the job
         (core/scene_storyboard.py, the web Weave Canvas way). Only the pictures that will really be sent are numbered in the note
@@ -1765,22 +1654,21 @@ class ImageRunner(_Runner):
             self._diag(job, "warn", "missing_reference", "ảnh tham chiếu không gửi được (bỏ khỏi yêu cầu và khỏi câu đánh số ảnh): "
                        + ", ".join(dropped))
         self._sent = getattr(self, "_sent", {})
-        self._sent[job["id"]] = [{"label": r["label"], "role": r["role"], "file": os.path.basename(r["path"])} for r in refs] + \
-            list(extra_sent or [])
+        self._sent[job["id"]] = [{"label": r["label"], "role": r["role"], "file": os.path.basename(r["path"])} for r in refs]
         from . import scene_storyboard
         if scene_storyboard.enabled() and getattr(self.provider, "supports_storyboard", False):
             g = scene_storyboard.group_of(self.p.conn, job["project_id"], job["scene_id"])
             if g is not None:
                 shared = scene_storyboard.shared_references(      # only this shot's people (S4.6 #10)
-                    self.p.conn, job["project_id"], g["shots"], without_place=without_place,
+                    self.p.conn, job["project_id"], g["shots"],
                     cast_of=next(s["data"] for s in g["shots"] if s["id"] == job["scene_id"]))
                 from . import scene_establish
-                est = None if without_place else scene_establish.reference(self.data_dir, job["project_id"], g["story_scene"])
+                est = scene_establish.reference(self.data_dir, job["project_id"], g["story_scene"])
                 if est:                                # the scene's wide establishing picture: the shared reference for the place
                     shared = ([r for r in shared if r.get("role") != "location"][:6]
                               + [r for r in shared if r.get("role") == "location"][:1] + [est])
                 from . import place_refs
-                if place_refs.enabled() and not without_place:        # this frame's own 3D render replaces the library's place picture
+                if place_refs.enabled():                # this frame's own 3D render replaces the library's place picture
                     shared = place_refs.swap_in(shared, place_refs.shot_ref(self.data_dir, job["project_id"], job["scene_id"]), 8)
                 from . import skill_dossier
                 if skill_dossier.enabled():            # the skill frame of THIS shot rides with the shared references
@@ -1790,8 +1678,7 @@ class ImageRunner(_Runner):
                 shared, dropped = sendable_references(shared, model)     # before the mapping text is built from the list
                 if dropped:
                     self._diag(job, "warn", "missing_reference", "ảnh tham chiếu storyboard không gửi được: " + ", ".join(dropped))
-                fields = scene_storyboard.job_fields(self.p.conn, self.data_dir, job["project_id"], job["scene_id"], shared, job["id"],
-                                                     green=without_place)
+                fields = scene_storyboard.job_fields(self.p.conn, self.data_dir, job["project_id"], job["scene_id"], shared, job["id"])
                 if fields is not None:
                     refs = fields["refs"]
                     prompt = prompt.rstrip() + fields.get("cast_note", "")
@@ -1806,54 +1693,31 @@ class ImageRunner(_Runner):
         return (prompt,)
 
     def _after_download(self, job, path: str) -> str:
-        """V4 location pack: the downloaded picture is the character on green — keep it (job_<id>_green.png, the video of mode 2
-        starts from it), composite it on the plate into the job's picture, add falling weather."""
-        plate = self._plate(job)
-        if plate is None:
-            from . import place_refs
-            if place_refs.enabled():                   # place_render_refs: did the model keep the place of the 3D render? (measured, said)
-                ref = place_refs.shot_ref(self.data_dir, job["project_id"], job["scene_id"])
-                if ref is not None:
-                    score = place_refs.background_match(path, ref["path"], ref["_rec"].get("subject_box"))
-                    sev, words = place_refs.match_note(score)
-                    self._diag(job, sev, "place_match", words)
-            from . import qc_scene
-            if qc_scene.enabled():                     # QC layer 0: code checks as the picture arrives (free)
-                data = json.loads(self.p.conn.execute("SELECT data FROM scenes WHERE id=?", (job["scene_id"],)).fetchone()["data"] or "{}")
-                flags = qc_scene.check_frame(path, data, assets.flat_place(self.p.conn, job["project_id"], data))
+        """After the picture arrives: how well it kept the 3D render of the place (place_render_refs) and QC layer 0. S14.9: the
+        location-pack green-screen composite (flag location_plates) was removed."""
+        from . import place_refs
+        if place_refs.enabled():                   # place_render_refs: did the model keep the place of the 3D render? (measured, said)
+            ref = place_refs.shot_ref(self.data_dir, job["project_id"], job["scene_id"])
+            if ref is not None:
+                score = place_refs.background_match(path, ref["path"], ref["_rec"].get("subject_box"))
+                sev, words = place_refs.match_note(score)
+                self._diag(job, sev, "place_match", words)
+        from . import qc_scene
+        if qc_scene.enabled():                     # QC layer 0: code checks as the picture arrives (free)
+            data = json.loads(self.p.conn.execute("SELECT data FROM scenes WHERE id=?", (job["scene_id"],)).fetchone()["data"] or "{}")
+            flags = qc_scene.check_frame(path, data, assets.flat_place(self.p.conn, job["project_id"], data))
+            qc_scene.record_flags(self.data_dir, job["project_id"], job["id"], flags)
+            sure = [f for f in flags if f["severity"] == "redraw"]
+            tried = str(job["retry_reason"] or "")
+            again = [f for f in sure if f["fix"] in tried]
+            if again:                              # luật 6: the same fault after its own fix → stop, a person decides (#8: CU
+                for f in again:                    # shots came out MCU 3 times running — 2 paid redraws for nothing)
+                    f["severity"] = "flag"
+                    f["problem"] += " (vẫn lỗi sau khi đã vẽ lại có câu sửa — để người xem)"
                 qc_scene.record_flags(self.data_dir, job["project_id"], job["id"], flags)
-                sure = [f for f in flags if f["severity"] == "redraw"]
-                tried = str(job["retry_reason"] or "")
-                again = [f for f in sure if f["fix"] in tried]
-                if again:                              # luật 6: the same fault after its own fix → stop, a person decides (#8: CU
-                    for f in again:                    # shots came out MCU 3 times running — 2 paid redraws for nothing)
-                        f["severity"] = "flag"
-                        f["problem"] += " (vẫn lỗi sau khi đã vẽ lại có câu sửa — để người xem)"
-                    qc_scene.record_flags(self.data_dir, job["project_id"], job["id"], flags)
-                    sure = [f for f in sure if f not in again]
-                if sure:
-                    raise RedrawWithFix("QC lớp 0: " + "; ".join(f["problem"] for f in sure), " ".join(f["fix"] for f in sure))
-            return path
-        from . import composite, location_pack, plate_env
-        green = location_pack.green_path(self.data_dir, job["project_id"], job["id"])
-        from . import composite as _composite
-        share = _composite.green_share(path)
-        if share is not None and share < _composite.MIN_GREEN_BORDER:
-            os.replace(path, green)
-            raise RedrawWithFix(f"model không vẽ phông xanh (viền ảnh chỉ {share:.0%} là xanh) — không ghép (sẽ thành khung chữ nhật dán lên "
-                                "nền 3D); vẽ lại", GREEN_FIX)
-        try:
-            os.replace(path, green)
-            res = composite.composite(green, plate, path, plate.get("env"),
-                                      mask_out=location_pack.mask_path(self.data_dir, job["project_id"], job["id"]))
-            plate_env.overlay_still(path, path, plate.get("env") or {"time": "day", "weather": "clear"}, seed=job["id"])
-        except Exception as e:  # noqa: BLE001 - a picture that cannot be composited is shown as it came (and said)
-            if os.path.exists(green) and not os.path.exists(path):
-                os.replace(green, path)
-            self._diag(job, "error", "composite", f"không ghép được nhân vật lên nền 3D ({type(e).__name__}: {e}) — ảnh giữ nguyên phông xanh")
-            return path
-        if res.get("occluded_share", 0) > 0.3:
-            self._diag(job, "warn", "occluded", f"nhân vật bị vật phía trước che {res['occluded_share']:.0%} — xem lại chỗ đứng / góc máy")
+                sure = [f for f in sure if f not in again]
+            if sure:
+                raise RedrawWithFix("QC lớp 0: " + "; ".join(f["problem"] for f in sure), " ".join(f["fix"] for f in sure))
         return path
 
     def _record_usage(self, job, args, kwargs=None) -> None:

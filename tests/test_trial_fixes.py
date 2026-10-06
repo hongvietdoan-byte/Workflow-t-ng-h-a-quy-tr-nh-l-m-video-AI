@@ -447,18 +447,19 @@ class MissingInputTests(Base):
         self.assertEqual(len(dropped), 2)
         self.assertIn("Image 1 is MAXIM", assets.reference_note(kept))           # used to say "Image 3 is MAXIM" with 1 picture sent
 
-    @mock.patch.dict(os.environ, {"FEATURE_SETCHECK_AUTOFIX": "1"})
-    def test_the_set_check_redo_loop_says_why_a_scene_was_not_redone(self):
+    @mock.patch.dict(os.environ, {"FEATURE_SETCHECK_AUTOFIX": "1"})       # an old env line: S14.9 removed the flag, it does nothing
+    def test_the_set_check_only_reports_even_with_an_old_autofix_line(self):
+        # S14.9 (06/10): setcheck_autofix removed (GĐ6 R3/I4) — outliers are said for the storyboard, never redrawn automatically
         from core import claude_tasks
         sid2 = self.p.create_scene(self.pid, 2, "S2")
         self.set_data({"image_prompt": "y"}, sid2)
         issues = {"issues": [{"idx": 1, "problem": "lệch", "fix": "Night light."}, {"idx": 2, "problem": "lệch", "fix": ""}]}
         ctx = autopilot.Context(self.dir, mock.Mock(provider=MockImageProvider()), None, None)
-        with mock.patch.object(claude_tasks, "set_consistency", return_value=issues), \
-                mock.patch.object(claude_tasks, "redo_from_set_check", side_effect=RuntimeError("boom")):
+        with mock.patch.object(claude_tasks, "set_consistency", return_value=issues),                 mock.patch.object(claude_tasks, "redo_from_set_check") as redo:
             autopilot._setcheck_phase(self.p, self.pid, ctx)
-        self.assertTrue(codes(self.p, "set_check_redo_failed"))                    # used to be `except: continue`
-        self.assertTrue(codes(self.p, "set_check_not_redone"))                      # no fix: not the same input again
+        redo.assert_not_called()
+        self.assertTrue(codes(self.p, "set_check_report"))
+        self.assertFalse(hasattr(autopilot, "_setcheck_block"))
 
 
 # ---- 8 ---------------------------------------------------------------------------------------------------------------------

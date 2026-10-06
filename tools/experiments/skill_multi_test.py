@@ -24,7 +24,7 @@ CAP_USD = 5.0          # T4 + T5 (≈ 3 USD) + vẽ lại ≤ 2 lần — trong 
 ASSETS = (24, 43, 23, 33, 263)          # KENTA, ORION, KELLY, MAXIM, Tháp Đồng Hồ
 PLACE = "Quanh Tháp Đồng Hồ (Đảo Quân Sự) — quảng trường trước tháp, ban ngày nắng"
 ENV = {"FEATURE_SKILL_DOSSIER": "1", "FEATURE_SEEDANCE_REF_GROUPS": "0", "FEATURE_END_FRAMES": "0", "FEATURE_STORYBOARD_API": "0",
-       "FEATURE_SCENE_ESTABLISHING": "0", "FEATURE_PLACE_RENDER_REFS": "0", "FEATURE_LOCATION_PLATES": "0", "FEATURE_LIP_SYNC": "0",
+       "FEATURE_SCENE_ESTABLISHING": "0", "FEATURE_PLACE_RENDER_REFS": "0", "FEATURE_LIP_SYNC": "0",
        "FEATURE_DIALOGUE_TAKE": "0"}
 SHOTS = [
     {"shot_no": 1, "size": "WS", "angle": "eye", "camera_move": "static", "duration_s": 5.0, "characters": ["KENTA", "ORION"],

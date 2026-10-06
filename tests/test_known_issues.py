@@ -18,13 +18,13 @@ class KnownIssuesTests(unittest.TestCase):
             for bug, fix in st["open"]:
                 self.assertTrue(bug.strip() and fix.strip(), key)
 
-    def test_turning_the_plates_back_on_shows_their_faults(self):
-        os.environ.pop("FEATURE_LOCATION_PLATES", None)
-        self.assertNotIn("location_plates", [s["key"] for s in known_issues.active(self.p.conn, self.pid)])
+    def test_the_removed_plates_stage_is_never_said(self):
+        # S14.9 (06/10): location_plates was removed from the code — its faults live in docs/TODO_LICH_SU.md, an old env line says nothing
+        self.assertNotIn("location_plates", known_issues.STAGES)
         os.environ["FEATURE_LOCATION_PLATES"] = "1"
         self.addCleanup(os.environ.pop, "FEATURE_LOCATION_PLATES", None)
-        lines = known_issues.warning_lines(self.p.conn, self.pid)
-        self.assertTrue(any("phông xanh" in line for line in lines))
+        self.assertNotIn("location_plates", [s["key"] for s in known_issues.active(self.p.conn, self.pid)])
+        self.assertFalse(any("phông xanh" in line for line in known_issues.warning_lines(self.p.conn, self.pid)))
 
     def test_per_image_qc_faults_until_the_scene_qc_is_on(self):
         os.environ.pop("FEATURE_SCENE_QC", None)

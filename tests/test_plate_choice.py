@@ -155,7 +155,7 @@ class PlanTests(PackTests):
         entry = location_pack.model3d(self.p.conn, self.place)
         self.assertEqual(entry["spots"]["lower_yard"]["direction"], "script")
         self.assertEqual(entry["landmark"], "the clock tower")
-        with mock.patch.dict(os.environ, {"FEATURE_LOCATION_PLATES": "1"}):
+        with mock.patch.dict(os.environ, {"FEATURE_PLACE_RENDER_REFS": "1"}):     # S14.9: location_plates removed
             pid, _ = self.one_shot({})
             assets.attach(self.p.conn, pid, self.place)
             block = location_pack.director_block(self.p.conn, pid)
@@ -206,7 +206,6 @@ class PlanTests(PackTests):
         self.assertEqual(rec["view"]["view"], "away")
         self.assertIn("quay lưng về mốc", rec["layout_vi"])
         self.assertIn("không thêm", rec["layout_vi"])
-        self.assertIn("moonlight", location_pack.green_prompt({"size": "MS"}, rec))
 
     def test_the_render_reference_route_holds_the_shot_and_says_why(self):
         from core import place_refs
@@ -218,15 +217,13 @@ class PlanTests(PackTests):
         self.assertFalse(place_refs.missing(self.p.conn, data, pid, sid, shot))         # planned: not re-started at every tick …
         self.assertIn("plate_view", place_refs.needs(data, pid, sid))                   # … held, with what to write
 
-    def test_the_green_prompt_names_the_chosen_light(self):
+    def test_the_chosen_light_goes_to_blender(self):
         pid, sid = self.one_shot({"plate_spot": "lower_yard", "time": "night", "plate_view": {"background": "landmark", "why": "x"},
                                   "practical_lights": [{"kind": "screen", "where": "front", "color": "cool", "why": "đọc tin nhắn"}]})
         data = os.path.join(self.tmp, "projects")
         idx = location_pack.ensure_plates(self.p.conn, pid, data, self.tmp, (W, H), blender="x", render=self.fake_render)
         self.assertEqual(self.calls[0]["cameras"][0]["lights"][0]["type"], "AREA")   # the light goes to Blender with the camera
-        text = location_pack.green_prompt({"size": "MS"}, idx[str(sid)])
-        self.assertIn("glow of a screen", text)
-        self.assertIn("#00FF00", text)
+        self.assertIn(str(sid), idx)
 
     def test_without_a_plate_the_prompt_still_says_direction_and_light(self):
         pid, _ = self.one_shot({})

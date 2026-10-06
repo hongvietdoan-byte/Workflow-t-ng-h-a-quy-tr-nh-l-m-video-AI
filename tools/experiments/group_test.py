@@ -168,15 +168,9 @@ def build(p, data_dir: str, pid: int, group, method: str, look: str):
 
 
 def cmd_frames(p, data_dir: str, pid: int, scene: int) -> None:
-    from core import features, location_pack
     from core.adapters import factory
     from core.runner import ImageRunner
-    rows = shots_of_scene(p, pid, scene)
-    if features.on("location_plates"):
-        location_pack.ensure_photo_plates(p.conn, pid, data_dir)                       # tier 2 plates (free, code only)
-        if location_pack.plan(p.conn, pid):
-            print("cần nền 3D (Blender) — chạy nền trước:", location_pack.ensure_plates(
-                p.conn, pid, data_dir, os.path.dirname(os.path.abspath(data_dir)), log=print).keys())
+    rows = shots_of_scene(p, pid, scene)            # S14.9: the location_plates pre-render (green screen) was removed with its flag
     for r in rows:
         if not p.conn.execute("SELECT 1 FROM jobs WHERE scene_id=? AND type='image_gen'", (r["id"],)).fetchone():
             p.create_job(r["id"], "image_gen")

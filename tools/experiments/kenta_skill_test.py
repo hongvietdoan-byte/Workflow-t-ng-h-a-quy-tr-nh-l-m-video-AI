@@ -27,7 +27,7 @@ IMAGE_USD = 0.052
 ASSETS = (24, 23, 263)          # KENTA, KELLY, Tháp Đồng Hồ (khu nhà dưới chân tháp — giống làng trong video kỹ năng)
 PLACE = "Quanh Tháp Đồng Hồ (Đảo Quân Sự) — khu nhà ở dưới chân tháp, ban ngày nắng"
 ENV = {"FEATURE_SKILL_DOSSIER": "1", "FEATURE_END_FRAMES": "1", "FEATURE_SEEDANCE_REF_GROUPS": "0",
-       "FEATURE_STORYBOARD_API": "0", "FEATURE_SCENE_ESTABLISHING": "0", "FEATURE_PLACE_RENDER_REFS": "0", "FEATURE_LOCATION_PLATES": "0"}
+       "FEATURE_STORYBOARD_API": "0", "FEATURE_SCENE_ESTABLISHING": "0", "FEATURE_PLACE_RENDER_REFS": "0"}
 SHOTS = [
     {"shot_no": 1, "size": "MS", "angle": "eye", "camera_move": "static", "duration_s": 3.0, "characters": ["KENTA"],
      "skill_phase": "KENTA:prepare", "skill_phase_end": "KENTA:swing_vortex",

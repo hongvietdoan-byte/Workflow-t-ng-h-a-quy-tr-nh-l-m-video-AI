@@ -306,8 +306,8 @@ class GraderRound2Tests(unittest.TestCase):
 
     def test_rgb_frames_are_converted_and_tagged_bt709_everywhere(self):
         import inspect
-        from core import composite, plate_env
-        for fn in (composite.composite_video, plate_env.overlay_video):
+        from core import plate_env
+        for fn in (plate_env.overlay_video,):
             src = inspect.getsource(fn)
             self.assertIn("TO_YUV709", src)
             self.assertIn("COLOR_TAGS", src)

@@ -25,26 +25,8 @@ def _per_image_qc(conn, pid) -> bool:
 
 
 STAGES: Dict[str, Dict] = {
-    "location_plates": {
-        "label": "Ghép nhân vật phông xanh lên nền 3D (gói bối cảnh)",
-        "status": "tạm ngưng 2026-09-27 — thay bằng ảnh toàn cảnh + storyboard tự vẽ cảnh (cờ scene_establishing)",
-        "used_when": _flag("location_plates"),
-        "open": [
-            ("Máy ảo cách nhân vật 1–2 m → khung chỉ thấy chân công trình, mất dáng mốc (tháp)",
-             "đặt máy theo cỡ cảnh NHƯNG ép khung thấy được mốc: lùi máy / hạ góc cho WS; hoặc chỉ dùng nền 3D cho WS"),
-            ("Bóng đổ = khối trụ thay người, một khối mỗi shot (3 người chỉ 1 bóng, không theo dáng)",
-             "bóng từ mặt nạ nhân vật chiếu theo hướng nắng của nền; hoặc để model video tạo bóng"),
-            ("Lớp màu đêm 60 % + kéo màu theo nền làm mặt bẹt, tối", "đèn chiếu mặt riêng (key ấm + viền lạnh), giảm GRADE_STRENGTH đêm"),
-            ("Phông xanh cố định #00FF00 → đồ xanh lá / xanh rêu bị thủng", "chọn phông theo bảng màu nhân vật (xanh dương / hồng tím)"),
-            ("Đo phông xanh chỉ ở cạnh trên → không bắt vật thể thừa ở giữa ảnh (tháp Big Ben giữ lại như nhân vật — S4·1)",
-             "đo thêm: vùng giữ lại lớn bất thường / không có mặt người trong vùng giữ lại"),
-            ("Chỗ đứng mặc định sát cột → toàn cảnh nhân vật chồng cột", "kiểm vật che theo ảnh độ sâu trước khi chọn chỗ đứng; thử chỗ khác tự động"),
-            ("Ảnh độ sâu 8-bit trên 0,1–208 m (~0,8 m/bậc) quá thô cho vật che", "xuất độ sâu 16-bit hoặc giới hạn dải quanh nhân vật"),
-            ("Tiến trình dashboard cũ render lại nền bằng code cũ sau khi sửa", "khởi động lại dashboard sau mỗi lần sửa code (quy tắc vận hành)"),
-        ],
-        "fixed": ["máy góc cao chúc 30° (3170a1f)", "lọc chữ nơi chốn khỏi prompt phông xanh + ảnh neo phông xanh + chặn ảnh không có phông "
-                  "xanh (54cd020)", "thân lơ lửng khi cắt mép dưới (3fd2097)", "mép trái/phải/trên thành đường cắt; sàn không che chân (501fe35)"],
-    },
+    # S14.9 (06/10): "location_plates" (ghép phông xanh lên nền 3D) bị bỏ hẳn khỏi code — 8 lỗi mở của nó ghi ở docs/TODO_LICH_SU.md
+    # (mục S14.9) và docs/BAI_HOC_GIAI_DOAN_ANH_2026-09-27.md; muốn làm lại phải đọc ở đó trước.
     "per_image_qc": {
         "label": "QC Claude từng ảnh (8 tiêu chí điểm 0–1)",
         "status": "thay bằng QC theo cảnh (cờ scene_qc) — vẫn chạy khi cờ đó tắt",

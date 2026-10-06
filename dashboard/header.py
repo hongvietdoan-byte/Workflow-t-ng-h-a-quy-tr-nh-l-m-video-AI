@@ -635,8 +635,10 @@ def _dialog_features(p: Pipeline) -> None:
         features.save_settings(preset=pick)
         st.rerun()
     if cur["preset"] == "experimental":
-        st.warning("Preset Thử nghiệm bật mọi tính năng chưa thử thật (trừ 3 cờ từng gây hại: " + ", ".join(features.HARMFUL)
-                   + "). Có thể tốn tiền và đổi kết quả — dùng cho dự án thử có trần.")
+        st.warning("Preset Thử nghiệm bật mọi tính năng chưa thử thật (các cờ từng gây hại đã bị bỏ khỏi code ở S14.9)."
+                   " Có thể tốn tiền và đổi kết quả — dùng cho dự án thử có trần.")
+    for note in features.removed_in_use().values():          # S14.9: an old choice naming a removed flag is ignored — said
+        st.info(note)
     q = st.text_input("Tìm", key="feat_q", placeholder="tên hoặc lý do…").strip().lower()
     only_unv = st.checkbox("Chỉ tính năng chưa thử thật", False, key="feat_unv")
     rows = []

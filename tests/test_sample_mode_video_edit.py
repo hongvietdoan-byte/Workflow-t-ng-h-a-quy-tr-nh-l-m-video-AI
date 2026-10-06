@@ -1,4 +1,4 @@
-"""S4.11 Sample Mode + S4.12 video edit (ClipAI Seedance 2.5, fields read from the ClipAI web app 2026-10-01) + the 2.5 first-frame
+"""S4.11 Sample Mode (removed in S14.9 — only the "it is gone" check stays) + S4.12 video edit (ClipAI Seedance 2.5, fields read from the ClipAI web app 2026-10-01) + the 2.5 first-frame
 ratio fix (real refusal 2026-10-01: "For first-frame … generation, the output ratio follows the first-frame image")."""
 import json
 import os
@@ -39,37 +39,18 @@ class SampleModeAndEditTests(unittest.TestCase):
         self.p.submit(None, "@Image 1", None, 5, model="seedance-2.5", aspect_ratio="9:16", reference_only=[self.image])
         self.assertEqual(ctx_of(self.t.calls[2])["ratio"], "9:16")                              # no first frame: ratio is free
 
-    # ---- S4.11 ----
-    def test_sample_is_off_by_default_and_sends_nothing(self):
-        with self.env(seedance_sample_mode="0"):
-            with self.assertRaises(ProviderError) as cm:
-                self.p.submit(self.image, "p", None, 4, model="seedance-2.5", draft=True)
-            self.assertEqual(cm.exception.code, "feature_off")
-            with self.assertRaises(ProviderError):
-                self.p.submit_final_from_sample("seedance:cgt-1")
+    # ---- S4.11 Sample Mode: removed in S14.9 (06/10) ----
+    def test_sample_mode_is_gone(self):
+        """S14.9: no `draft` argument, no final-from-sample call; a normal Seedance 2.5 clip carries no draft key (as with the flag off)."""
+        self.assertFalse(hasattr(self.p, "submit_final_from_sample"))
+        with self.assertRaises(TypeError):
+            self.p.submit(self.image, "p", None, 4, model="seedance-2.5", draft=True)
         self.assertEqual(self.t.calls, [])
-
-    def test_sample_is_480p_draft_on_seedance_2_5_only(self):
-        with self.env(seedance_sample_mode="1"):
-            ext = self.p.submit(self.image, "p", None, 4, model="seedance-2.5", resolution="720p", draft=True)
-            self.assertEqual(ext, "seedance:cgt-1")
-            ctx = ctx_of(self.t.calls[0])
-            self.assertEqual((ctx["draft"], ctx["resolution"], ctx["model_name"]), (True, "480p", "dreamina-seedance-2-5-260628"))
-            with self.assertRaises(ProviderError) as cm:
-                self.p.submit(self.image, "p", None, 4, model="seedance", draft=True)
-            self.assertEqual(cm.exception.code, "unsupported_option")
-        self.assertEqual(len(self.t.calls), 1)
-        self.p.submit(self.image, "p", None, 4, model="seedance-2.5")                           # a normal clip carries no draft key
-        self.assertNotIn("draft", ctx_of(self.t.calls[1]))
-
-    def test_final_from_sample_body(self):
-        with self.env(seedance_sample_mode="1"):
-            self.p.submit_final_from_sample("seedance:cgt-20260930185359-bkbcr")
-            ctx = ctx_of(self.t.calls[0])
-            self.assertEqual(ctx["content"], [{"type": "draft_task", "draft_task": {"id": "cgt-20260930185359-bkbcr"}}])
-            self.assertEqual((ctx["resolution"], ctx["video_num"], ctx["model_name"]), ("1080p", 1, "dreamina-seedance-2-5-260628"))
-            with self.assertRaises(ProviderError):
-                self.p.submit_final_from_sample("omni:T1")
+        with self.env(seedance_sample_mode="1"):                                                 # an old env line does nothing
+            self.p.submit(self.image, "p", None, 4, model="seedance-2.5", resolution="720p")
+        ctx = ctx_of(self.t.calls[0])
+        self.assertNotIn("draft", ctx)
+        self.assertEqual((ctx["resolution"], ctx["model_name"]), ("720p", "dreamina-seedance-2-5-260628"))
 
     # ---- S4.12 ----
     def test_video_edit_body(self):

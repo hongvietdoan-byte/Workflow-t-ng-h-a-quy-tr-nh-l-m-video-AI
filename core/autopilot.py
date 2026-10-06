@@ -28,7 +28,7 @@ from .pipeline import Pipeline, PipelinePaused
 RUNNING, WAITING, STOPPED, ATTENTION, DONE, ERROR = "running", "waiting", "stopped", "needs_attention", "done", "error"
 QUEUED = "queued"   # approved, waiting for a free slot (see Manager.max_parallel)
 PHASE_LABELS = {"director": "Director (Character Bible + thông số cảnh)", "previz": "Dựng layout / storyboard", "images": "Gen ảnh + QC",
-                "plates": "Nền 3D của bối cảnh (render theo góc máy)", "platefix": "Kiểm nền 3D trong clip", "lipsync": "Khớp môi (sau khi có clip)", "setcheck": "QC đồng bộ cả bộ ảnh", "endframes": "Ảnh khung cuối (shot đổi trạng thái)", "storyboard": "Duyệt storyboard trước khi gen video", "clips": "Xem clip còn lỗi", "motion": "Motion prompt", "voice": "Giọng thoại", "voicefirst": "Giọng trước hình (khóa timeline)", "storycheck": "Người xem lần đầu đọc bảng shot", "videos": "Gen video + QC video",
+                "plates": "Nền 3D của bối cảnh (render theo góc máy)", "lipsync": "Khớp môi (sau khi có clip)", "setcheck": "QC đồng bộ cả bộ ảnh", "endframes": "Ảnh khung cuối (shot đổi trạng thái)", "storyboard": "Duyệt storyboard trước khi gen video", "clips": "Xem clip còn lỗi", "motion": "Motion prompt", "voice": "Giọng thoại", "voicefirst": "Giọng trước hình (khóa timeline)", "storycheck": "Người xem lần đầu đọc bảng shot", "videos": "Gen video + QC video",
                 "music": "Nhạc nền", "sfx": "Hiệu ứng âm thanh", "render": "Xuất bản", "done": "Hoàn tất"}
 MAX_SCENES = int(os.environ.get("AUTOPILOT_MAX_SCENES", "12"))
 LOG_KEEP = 60
@@ -568,17 +568,14 @@ def _storyboard_phase(p: Pipeline, pid: int, ctx: Context) -> Optional[str]:
 
 
 def _plates_phase(p: Pipeline, pid: int, ctx: Context) -> Optional[str]:
-    """V4 location pack (feature location_plates): every shot set at a place with a registered 3D model gets its plate before any
-    picture (one Blender run per place + time/weather, shared cache). A place with no 3D model is said once, not skipped silently."""
-    from . import features, formats, location_pack, place_refs
-    if not features.on("location_plates") and not place_refs.enabled():
-        return None                                  # place_render_refs: the same renders, sent as reference pictures (no composite)
+    """place_render_refs: every shot set at a place with a registered 3D model gets its render before any picture (one Blender run per
+    place + time/weather, shared cache), sent as a reference picture. A place with no 3D model is said once, not skipped silently.
+    S14.9 (06/10): the green-screen location pack (flag location_plates, its in-game photo plates and its clip fallback) was removed."""
+    from . import formats, location_pack, place_refs
+    if not place_refs.enabled():
+        return None
     size = formats.spec(formats.project_aspect(p.project(pid)) or "9:16")["deepix"]
     w, h = (int(v) for v in str(size).lower().split("x"))
-    if features.on("location_plates"):
-        photos = location_pack.ensure_photo_plates(p.conn, pid, ctx.data_dir, (w, h))     # tier 2: in-game photo of the place
-        if photos:
-            _log(p, pid, f"Nền từ ảnh chụp trong game (cấp 2, chưa có mô hình 3D): {len(photos)} shot")
     items = location_pack.plan(p.conn, pid)
     if not items:
         return None
@@ -625,42 +622,6 @@ def _lipsync_phase(p: Pipeline, pid: int, ctx: Context) -> Optional[str]:
     _still_running(p, pid)
     c = lipsync.post_tick(p, pid, ctx.data_dir, provider, ffmpeg_studio.find_ffmpeg(), log=lambda m: _log(p, pid, m))
     return f"Khớp môi: còn {c['running'] + c['sent']} clip" if c["running"] or c["sent"] else None
-
-
-def _plate_fallback_phase(p: Pipeline, pid: int, ctx: Context) -> Optional[str]:
-    """V4: a mode-1 clip whose video model redrew the place (plate_qc below the threshold) is made again ONCE in mode 2 (the character
-    acts on green and is keyed onto the plate) — a changed input, counted as a regeneration."""
-    from . import features, location_pack, regen
-    if not features.on("location_plates"):
-        return None
-    store = location_pack.video_qc(ctx.data_dir, pid)
-    for sid, rec in store.items():
-        if rec.get("ok") or rec.get("mode") != "first_frame" or rec.get("fallback"):
-            continue
-        row = p.conn.execute("SELECT data FROM scenes WHERE id=?", (int(sid),)).fetchone()
-        job = p.conn.execute("SELECT * FROM jobs WHERE id=?", (rec["job_id"],)).fetchone()
-        if row is None or job is None or job["state"] not in ("succeeded", "approved"):
-            continue
-        if p._retries_exhausted(job):                      # S14.16: at the clip's automatic limit no new clip — the scene is not
-            p._limit_said(job)                             # switched to green screen either; the person decides (📥)
-            location_pack.record_video_qc(ctx.data_dir, pid, int(sid), rec["job_id"], dict(rec, fallback=True), rec["mode"])
-            continue
-        data = json.loads(row["data"] or "{}")
-        data["plate_mode"] = "green"
-        p.conn.execute("UPDATE scenes SET data=? WHERE id=?", (json.dumps(data, ensure_ascii=False), int(sid)))
-        p.conn.commit()
-        location_pack.record_video_qc(ctx.data_dir, pid, int(sid), rec["job_id"], dict(rec, fallback=True), rec["mode"])
-        try:
-            new = regen.regenerate_video(p, ctx.data_dir, rec["job_id"], f"nền bị vẽ lại (điểm {rec.get('score')}) → diễn trên phông xanh",
-                                         auto=True)              # S14.16: counted on the clip's automatic limit
-        except Exception as e:  # noqa: BLE001 - say it, never loop on it
-            _d(p, pid, "video", "warn", f"shot {sid}: không gen lại được sang cách 2 ({e})", "plate_fallback")
-            continue
-        if new is None:                                      # the clip's automatic limit: the person decides (📥)
-            continue
-        _log(p, pid, f"Shot {sid}: video vẽ lại nền 3D → gen lại cách 2 (phông xanh + ghép), job {new}")
-        return "Gen lại clip nền 3D (cách 2)"
-    return None
 
 
 def _end_frame_phase(p: Pipeline, pid: int, ctx: Context) -> Optional[str]:
@@ -1033,7 +994,7 @@ def _tick(p: Pipeline, project_id: int, ctx: Context) -> str:
     try:
         phases = [("director", _director_phase), ("storycheck", _story_check_phase), ("voicefirst", _voice_first_phase), ("previz", _previz_phase), ("plates", _plates_phase), ("images", _images_phase), ("setcheck", _setcheck_phase),
                   ("endframes", _end_frame_phase), ("storyboard", _storyboard_phase), ("motion", _motion_phase), ("voice", _voice_phase), ("videos", _videos_phase), ("music", _music_phase),
-                  ("platefix", _plate_fallback_phase), ("lipsync", _lipsync_phase), ("sfx", _sfx_phase)]
+                  ("lipsync", _lipsync_phase), ("sfx", _sfx_phase)]
         for name, fn in phases:
             progress_note = fn(p, project_id, ctx)
             if progress_note is not None:
@@ -1310,7 +1271,9 @@ def _marker(ctx: Context, pid: int, *parts: str) -> str:
 
 
 def _setcheck_phase(p: Pipeline, pid: int, ctx: Context) -> Optional[str]:
-    """One whole-set consistency look (once): outliers are redone with the fix sentence, within the job cap."""
+    """One whole-set consistency look (once): outliers are REPORTED only — the storyboard shows them to the person (O2/F3). S14.9
+    (06/10): the automatic redraw (flag setcheck_autofix, GĐ6 R3/I4: the set's majority made the wrong person right, then paid to
+    redraw) was removed; a person redraws from the storyboard (claude_tasks.redo_from_set_check)."""
     from . import qc_scene
     if qc_scene.enabled():
         return None                                         # the per-scene QC already looked at every scene's frames together
@@ -1319,60 +1282,18 @@ def _setcheck_phase(p: Pipeline, pid: int, ctx: Context) -> Optional[str]:
     if os.path.exists(marker) or len(_scene_rows(p, pid)) < 2:
         return None
     try:
-        from . import features
         r = claude_tasks.set_consistency(p, pid, ctx.llm, ctx.data_dir)
         issues = r.get("issues") or []
-        if not features.on("setcheck_autofix"):          # report only: the storyboard shows these to the person (O2/F3)
-            if issues:
-                _d(p, pid, "qc", "warn", "QC đồng bộ thấy lệch ở " + ", ".join(f"cảnh {it['idx']}" for it in issues)
-                   + " — xem cờ ⚑ ở storyboard (không tự gen lại)", "set_check_report")
-            _log(p, pid, "QC đồng bộ cả bộ ảnh: " + (f"{len(issues)} cảnh lệch, chờ bạn xem ở storyboard" if issues else "ổn"))
-            issues = []
-        redone = 0
-        for it in issues:
-            cap_why = _job_cap_reason(p, pid)
-            if cap_why:
-                _d(p, pid, "qc", "warn", f"QC đồng bộ: không gen lại cảnh {it['idx']} — {cap_why}", "set_check_cap")
-                break
-            why = _setcheck_block(p, pid, it, str(getattr(getattr(ctx.image_runner, "provider", None), "name", "") or ""))
-            if why:
-                _d(p, pid, "qc", "warn", f"QC đồng bộ: không tự gen lại cảnh {it['idx']} — {why}", "set_check_not_redone")
-                continue
-            try:
-                if claude_tasks.redo_from_set_check(p, pid, it["idx"], it["fix"], auto=True) != "escalated":
-                    redone += 1
-            except Exception as e:  # noqa: BLE001 - one scene that cannot be redone must not stop the run, but it is said
-                _d(p, pid, "qc", "warn", f"QC đồng bộ: không gen lại được cảnh {it['idx']} ({type(e).__name__}: {e})", "set_check_redo_failed")
-                continue
-        if redone or features.on("setcheck_autofix"):
-            _log(p, pid, "QC đồng bộ cả bộ ảnh: " + (f"làm lại {redone} cảnh lệch" if redone else "ổn"))
+        if issues:
+            _d(p, pid, "qc", "warn", "QC đồng bộ thấy lệch ở " + ", ".join(f"cảnh {it['idx']}" for it in issues)
+               + " — xem cờ ⚑ ở storyboard (không tự gen lại)", "set_check_report")
+        _log(p, pid, "QC đồng bộ cả bộ ảnh: " + (f"{len(issues)} cảnh lệch, chờ bạn xem ở storyboard" if issues else "ổn"))
     except (llm_runner.LlmError, ValueError, OSError) as e:
         _d(p, pid, "qc", "warn", f"autopilot bỏ qua QC đồng bộ: {e}", "set_check_skipped")
     with open(marker, "w") as f:
         f.write("1")
     return None if not _count(p, "SELECT COUNT(*) FROM jobs WHERE project_id=? AND type='image_gen' AND state IN ('queued','running')", pid) \
         else "QC đồng bộ: đang gen lại cảnh lệch"
-
-
-def _setcheck_block(p: Pipeline, pid: int, issue: Dict, provider_name: str = "") -> Optional[str]:
-    """Why a set-check outlier must not be redrawn automatically (setcheck_autofix): no English fix sentence (the same input again),
-    the shot's picture at its automatic limit (pipeline.AUTO_REGEN_LIMIT, S14.16), or the service is out of credit."""
-    from . import image_models, spend_gate
-    if not (issue.get("fix") or "").strip():
-        return "QC không nêu câu sửa — gen lại sẽ gửi y hệt đầu vào"
-    row = p.conn.execute("SELECT id FROM scenes WHERE project_id=? AND idx=?", (pid, issue.get("idx"))).fetchone()
-    if row is None:
-        return "không có cảnh này"
-    job = p.conn.execute("SELECT * FROM jobs WHERE scene_id=? AND type='image_gen' AND state='approved' ORDER BY id DESC LIMIT 1",
-                         (row["id"],)).fetchone()
-    if job is not None and p._retries_exhausted(job):
-        p._limit_said(job)                                  # 📥 "Cần bạn quyết — đã tự gen lại N lần"
-        return f"Cần bạn quyết — ảnh của shot đã tự gen lại {job['retry_count']} lần (tối đa {p.auto_limit(job)})"
-    # S14.1 A1b / S14.16: the money gate asked before queueing the redraw — only a real stop (the service out of credit) holds it; the
-    # caps only warn. The real send still goes through ImageRunner's own gate.
-    over = spend_gate.reason(p.conn, "image", provider_name or "deepix", project_id=pid, model=image_models.of_project(p.project(pid)),
-                             units=1, budget_stage="images")
-    return f"ngân sách: {over}" if over else None
 
 
 def _check_voices(p: Pipeline, pid: int, ctx: Context) -> None:

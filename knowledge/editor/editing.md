@@ -2,7 +2,7 @@
 
 > Dựng nhận **clip đã duyệt + giọng + chữ trên màn hình + nhạc** và làm ra bản giao. Phần lớn là **code** (`core/delivery.py`,
 > `final_cut.py`, `ffmpeg_studio.py`, `subtitles.py`, `text_placement.py`, `audio_lib.py`, `voice.py`, `music.py`, `music_timing.py`,
-> `sound_ai.py`, `sfx_plan.py`, `composite.py`, `plate_env.py`, `formats.py`). Tài liệu này để code và (khi cần mắt) Claude/người biết **vì sao** và
+> `sound_ai.py`, `sfx_plan.py`, `plate_env.py`, `formats.py`). Tài liệu này để code và (khi cần mắt) Claude/người biết **vì sao** và
 > **đặt ở đâu**. Không đổi shot, không gen lại hình — lỗi hình trả Quay phim, lỗi diễn/giọng trả Đạo diễn.
 > Mỗi kỹ năng: **Làm gì · vì sao** — **Trong pipeline** (✅ code có · ⚠ làm một phần · ❌ chưa có → việc code, README) — **Kiểm** — **Ví dụ FF**.
 > **Nạp vào prompt khi nào:** chỉ 7 khối `<!-- review -->` (phần phán đoán: E1, E3, E4, E6, E9, E12, Tầng 4) vào lời gọi Biên tập viên duyệt bản thô (`core/editor_review.py`, cờ `rough_cut_review`); `prompts.role_text` vẫn chỉ đọc `director.md` và `dp.md`; phần còn lại của thư mục `knowledge/editor/` là tài liệu cho người sửa code
@@ -110,16 +110,12 @@ xúc, âm thanh làm thế giới game "thật", màu các shot liền nhau như
 ### E5. Chỉnh màu và khớp màu giữa các shot
 - **Làm gì · vì sao.** **Sửa trước, look sau**: cân bằng trắng, phơi sáng, tương phản từng shot, rồi mới đặt look chung (Resolve Colorist Guide
   [E27]). **Khớp màu** các shot liền nhau/cùng nơi: điểm đen, điểm trắng, màu trung tính — người xem thấy ngay khi hai shot cùng chỗ khác
-  tông. **Shot ghép phông xanh**: khớp mức đen/trắng của người với nền, khử viền xanh, **light wrap** (ánh sáng nền tràn lên viền người,
-  áp trước khi ghép — Nuke [E26]), **khớp hạt** (thêm nhiễu cùng mức nền) [KN]. **Màu da**: vạch màu da trên vectorscope chỉ để tham khảo,
+  tông. **Màu da**: vạch màu da trên vectorscope chỉ để tham khảo,
   sửa cả shot trước [E27][E28]. Vignette nhẹ dẫn mắt, không làm tối vùng có chữ.
-- **Trong pipeline.** ✅ Ghép: `composite.match_colour` (màu người về phía ánh sáng quanh, 35%), `light_wrap` (0,28), cùng độ chỉnh màu giờ/thời
-  tiết cho người và nền (`plate_env.grade`, 60%). ✅ **Khớp màu giữa các shot** (`core/color_match.py`, D7): shot cùng cảnh + cùng nơi +
+- **Trong pipeline.** ✅ **Khớp màu giữa các shot** (`core/color_match.py`, D7): shot cùng cảnh + cùng nơi +
   cùng nhóm cỡ (xa/trung — cận) so với shot đầu nhóm (neo) bằng **điểm đen/trắng** (5% / 95% độ sáng) và **ám màu của điểm ảnh xám** —
   không so màu trung bình (áo vàng cận mặt không phải "ánh sáng ấm hơn"); mọi lần dựng đều đo (manifest `color_match`, hiện 🎨 ở Bước 5); bản
-  sao đã chỉnh (tăng/giảm từng kênh ≤ 20%, 70% đường tới neo) dùng khi cờ `shot_color_match` BẬT (người dùng duyệt 01/10/2026, đợt 4). ✅ **Khớp hạt** người–nền khi ghép
-  (D8, `composite.match_grain`: thêm nhiễu cho người tới mức hạt của nền, không bao giờ bớt; hạt mới mỗi khung của clip — hạt đứng yên trông
-  như vết bẩn). Đo trên nền render thật Tháp #263: người "sạch" 0,002 → 0,014, nền 0,016.
+  sao đã chỉnh (tăng/giảm từng kênh ≤ 20%, 70% đường tới neo) dùng khi cờ `shot_color_match` BẬT (người dùng duyệt 01/10/2026, đợt 4).
 - **Kiểm.** Code: độ lệch mỗi shot so với neo (ngưỡng ám màu 0,035, điểm đen/trắng 0,08). Đo thật #7 (2026-09-25): 2/7 shot lệch điểm
   đen/trắng 0,14–0,15, ám màu đều dưới ngưỡng; sửa thử đưa về ~0,04 — một phần độ lệch do nội dung khung (người xem quyết có bật không).
   Người: xem liền các shot cùng cảnh.

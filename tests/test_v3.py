@@ -226,12 +226,13 @@ def _approve_all_motion(p, pid, data):
 
 
 class ConsistencyTests(unittest.TestCase):
-    @mock.patch.dict(os.environ, {"FEATURE_CHAIN_PREVIOUS_AUTO": "1"})   # mechanism test; off by default until a real test (core/features.py)
     def test_a_continuing_shot_waits_for_the_previous_picture_and_ends_on_the_next_one(self):
+        # S14.9: chain_previous_auto removed — the previous picture is chained only in storyboard mode (storyboard_mode 1)
         from core import batch, shots
         from core.providers import MockImageProvider, MockVideoProvider
         from core.runner import ImageRunner, VideoRunner
         p, pid = kenta_project()
+        p.set_storyboard_mode(pid, True)
         data = tempfile.mkdtemp()
         llm_runner.run_director(p, pid, llm_runner.MockLlm())
         rows = shots.shots_of(p, pid)

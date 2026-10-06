@@ -3,7 +3,7 @@
 T2: a job that already has its provider task (paid) is moved to RUNNING in the same transaction as its external_id — the project
 being paused (Pipeline.start → PipelinePaused) or the job cancelled while `submit` was in flight must never leave a paid job queued
 (it would be sent and paid again). T3: runner.cancel_all — rights first, cancel at the provider, then cancel_all_active.
-T9: core.composite.composite_video checks the ffmpeg writer / reader and the output file.
+T9: (core.composite.composite_video — removed with the green-screen code, S14.9 06/10.)
 
 Fake providers, an in-memory database, 0 USD — no real API is called."""
 import os
@@ -314,107 +314,6 @@ class CancelButtons(unittest.TestCase):
         self.assertIsNone(self.p.project(self.pid))
 
 
-class _FakeProc:
-    """A Popen stand-in: `out` = bytes on stdout (the reader), `code` = exit code, `writes` = a file the writer leaves behind."""
-
-    def __init__(self, out=b"", code=0, writes=None):
-        import io
-        self.stdout = io.BytesIO(out)
-        self.stdin = io.BytesIO()
-        self.code, self.writes, self.returncode = code, writes, None
-
-    def wait(self, timeout=None):
-        if self.writes:
-            with open(self.writes, "wb") as f:
-                f.write(b"half a clip")
-        self.returncode = self.code
-        return self.code
-
-
-class CompositeVideoChecks(unittest.TestCase):
-    """T9: composite_video ignored the ffmpeg writer's exit code — a writer that died left a half-written file that the runner put in
-    place of the clip."""
-
-    def setUp(self):
-        from PIL import Image
-        self.dir = tempfile.mkdtemp()
-        self.plate = os.path.join(self.dir, "plate.png")
-        Image.new("RGB", (40, 20), (10, 20, 30)).save(self.plate)
-        self.green = os.path.join(self.dir, "green.mp4")
-        with open(self.green, "wb") as f:
-            f.write(b"ORIGINAL")
-        self.out = os.path.join(self.dir, "out.mp4")
-
-    def run_with(self, writer_code, reader_code=0, writes=True, frames=1):
-        from core import composite
-        procs = [_FakeProc(out=b"\x00" * (40 * 20 * 3) * frames, code=reader_code),
-                 _FakeProc(code=writer_code, writes=self.out if writes else None)]
-
-        def fake_composite(frame, plate, out_path, env=None, place=None, seed=1, **kw):
-            from PIL import Image
-            Image.new("RGB", (40, 20)).save(out_path)
-            return {"path": out_path, "placement": {"x": 0}}
-
-        probe = mock.Mock(stderr="Stream #0:0: Video: h264, yuv420p, 40x20, 24 fps")
-        with mock.patch.object(composite.subprocess, "run", return_value=probe), \
-                mock.patch.object(composite.subprocess, "Popen", side_effect=procs), \
-                mock.patch.object(composite, "composite", side_effect=fake_composite), \
-                mock.patch.object(composite.ffmpeg_studio, "probe_duration", return_value=frames / 24):
-            return composite.composite_video(self.green, {"plate": self.plate}, self.out, "ffmpeg")
-
-    def test_a_writer_that_exits_with_an_error_raises(self):
-        from core.composite import CompositeError
-        with self.assertRaises(CompositeError) as ctx:
-            self.run_with(writer_code=1)
-        self.assertIn("1", str(ctx.exception))
-
-    def test_a_reader_that_exits_with_an_error_raises(self):
-        from core.composite import CompositeError
-        with self.assertRaises(CompositeError):
-            self.run_with(writer_code=0, reader_code=1)
-
-    def test_a_missing_output_file_raises(self):
-        from core.composite import CompositeError
-        with self.assertRaises(CompositeError):
-            self.run_with(writer_code=0, writes=False)
-
-    def test_a_good_run_still_returns_the_clip(self):
-        self.assertEqual(self.run_with(writer_code=0)["frames"], 1)
-
-    def test_the_runner_keeps_the_original_clip_and_says_why(self):
-        """End to end through VideoRunner._plate_video (mode 2 'green'): the clip on disk is the one the provider made."""
-        from core import composite
-        p = Pipeline(connect())
-        pid = p.create_project("t9")
-        sid = p.create_scene(pid, 1, "S1")
-        jid = p.create_job(sid, "video_gen")
-        r = VideoRunner(p, MockVideoProvider(), self.dir)
-        clip = os.path.join(self.dir, "01.mp4")
-        with open(clip, "wb") as f:
-            f.write(b"PROVIDER CLIP")
-        procs = [_FakeProc(out=b"\x00" * (40 * 20 * 3)), _FakeProc(code=1, writes=clip + ".plate.mp4")]
-        probe = mock.Mock(stderr="Stream #0:0: Video: h264, 40x20, 24 fps")
-
-        def fake_composite(frame, plate, out_path, env=None, place=None, seed=1, **kw):
-            from PIL import Image
-            Image.new("RGB", (40, 20)).save(out_path)
-            return {"path": out_path, "placement": {"x": 0}}
-
-        with mock.patch.object(r, "_plate_mode", return_value="green"), \
-                mock.patch("core.location_pack.plate_of", return_value={"plate": self.plate}), \
-                mock.patch("core.ffmpeg_studio.find_ffmpeg", return_value="ffmpeg"), \
-                mock.patch("core.plate_env.overlay_video", side_effect=lambda v, out, *a, **k: v), \
-                mock.patch.object(composite.subprocess, "run", return_value=probe), \
-                mock.patch.object(composite.subprocess, "Popen", side_effect=procs), \
-                mock.patch.object(composite, "composite", side_effect=fake_composite), \
-                mock.patch.object(composite.ffmpeg_studio, "probe_duration", return_value=1 / 24):
-            r._plate_video(p.job(jid), clip)
-        with open(clip, "rb") as f:
-            self.assertEqual(f.read(), b"PROVIDER CLIP")
-        self.assertFalse(os.path.exists(clip + ".plate.mp4"))
-        self.assertIn("plate_video", _diag_codes(p, pid))
-
-
 class ReviewFixes(_Base):
     """Rà soát độc lập nhánh B1a (04/10): 2 lỗi phải sửa + 3 điểm nhỏ."""
 
@@ -520,53 +419,6 @@ class DeleteWhileBusy(CancelButtons):
         self.assertIsNotNone(self.p.project(self.pid))
         self.assertEqual(self.provider.cancelled, [])
         self.assertEqual(self.p.job(self.job)["state"], "running")
-
-
-class CompositeRealFfmpeg(unittest.TestCase):
-    """Rà soát B1a lỗi 1: when the loop stopped early (the writer died → BrokenPipe), the finally block waited on the ffmpeg reader
-    whose stdout pipe was full and unread → hung for ever (the poll thread kept the project's _turn lock, ■ Hủy hung behind it)."""
-
-    def test_a_dead_writer_raises_fast_with_real_ffmpeg_and_the_clip_is_kept(self):
-        import subprocess
-        import threading
-        import time
-        from PIL import Image
-        from core import composite, ffmpeg_studio
-        try:
-            ff = ffmpeg_studio.find_ffmpeg()
-        except Exception as e:  # noqa: BLE001
-            self.skipTest(f"không có ffmpeg trên máy này ({e}) — ca treo thật chỉ kiểm được khi có ffmpeg")
-        d = tempfile.mkdtemp()
-        green = os.path.join(d, "g.mp4")
-        subprocess.run([ff, "-y", "-loglevel", "error", "-f", "lavfi", "-i", "color=c=0x00ff00:s=320x240:d=5:r=24",
-                        "-pix_fmt", "yuv420p", green], check=True, timeout=60)
-        before = os.path.getsize(green)
-        plate = os.path.join(d, "p.png")
-        Image.new("RGB", (320, 240), (90, 90, 120)).save(plate)
-        out = os.path.join(d, "no_such_dir", "o.mp4")                     # the writer cannot open its output → dies
-
-        def cheap(frame, plate_, out_path, env=None, place=None, seed=1, **kw):     # the per-frame grade is not what is tested
-            Image.new("RGB", (320, 240)).save(out_path)
-            return {"path": out_path, "placement": {"x": 0}}
-
-        result = {}
-
-        def go():
-            try:
-                composite.composite_video(green, {"plate": plate}, out, ff)
-                result["ok"] = True
-            except Exception as e:  # noqa: BLE001
-                result["error"] = e
-
-        start = time.time()
-        with mock.patch.object(composite, "composite", side_effect=cheap):
-            t = threading.Thread(target=go, daemon=True)
-            t.start()
-            t.join(60)
-        self.assertFalse(t.is_alive(), "composite_video treo quá 60 s khi writer chết")
-        self.assertIsInstance(result.get("error"), composite.CompositeError, result)
-        self.assertEqual(os.path.getsize(green), before)
-        print(f"\n[ffmpeg thật] writer chết → CompositeError sau {time.time() - start:.1f} s")
 
 
 if __name__ == "__main__":

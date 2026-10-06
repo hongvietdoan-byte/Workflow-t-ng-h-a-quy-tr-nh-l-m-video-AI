@@ -12,7 +12,7 @@ from PIL import Image
 from core import assets, lineage, looks, prompts
 from core.db import connect
 from core.pipeline import Pipeline, hard_floors
-from core.runner import framing_sentence, same_framing
+from core.runner import framing_sentence
 
 
 class LookTests(unittest.TestCase):
@@ -90,11 +90,6 @@ class FramingTests(unittest.TestCase):
         self.assertIn("low angle looking up", framing_sentence({"size": "CU", "angle": "low"}))
         self.assertIn("mid-chest", framing_sentence({"shot": "medium close-up, eye level"}))
         self.assertEqual(framing_sentence({}), "")
-
-    def test_chaining_needs_the_same_framing(self):
-        self.assertTrue(same_framing({"size": "MS", "angle": "eye"}, {"size": "MS"}))
-        self.assertFalse(same_framing({"size": "WS"}, {"size": "CU"}))
-        self.assertFalse(same_framing({"size": "MS", "angle": "high"}, {"size": "MS", "angle": "eye"}))
 
     def test_framing_scale_and_set_have_floors(self):
         floors = hard_floors("image")

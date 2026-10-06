@@ -24,7 +24,7 @@ NAME = "Thử place_render_refs 1 cảnh (30/09)"
 SOURCE, KEEP = 8, range(20, 25)        # #8, shots 20–24: "khu nhà dưới chân tháp", day
 CAP_USD = 1.0                          # 5 shots + 1 establishing ≈ 0,31 USD; ≤ 2 redraws each — người dùng duyệt 30/09
 BASELINE = 0.073                       # mean background match of the 19 measurable #8 frames (docs/THU_PLACE_RENDER_REFS_2026-09-30.md)
-ENV = {"FEATURE_PLACE_RENDER_REFS": "1", "FEATURE_STORYBOARD_API": "0", "FEATURE_LOCATION_PLATES": "0"}
+ENV = {"FEATURE_PLACE_RENDER_REFS": "1", "FEATURE_STORYBOARD_API": "0"}
 DATA = os.path.join("data", "projects")
 
 

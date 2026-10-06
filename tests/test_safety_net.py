@@ -57,10 +57,56 @@ class DirectorBlindTests(unittest.TestCase):
 
 class FeatureFlagTests(unittest.TestCase):
     def test_unverified_features_are_off_and_can_be_switched_on_for_a_trial(self):
-        self.assertFalse(features.on("layout_to_model"))
-        self.assertIn("setcheck_autofix", features.pending())
-        with mock.patch.dict(os.environ, {"FEATURE_LAYOUT_TO_MODEL": "1"}):
-            self.assertTrue(features.on("layout_to_model"))
+        with mock.patch.dict(os.environ, {"FEATURE_SETTINGS_FILE": os.path.join(tempfile.mkdtemp(), "none.json")}):
+            os.environ.pop("FEATURE_J_CUT", None)
+            self.assertFalse(features.FEATURES["j_cut"]["verified"])
+            self.assertFalse(features.on("j_cut"))
+            self.assertIn("j_cut", features.pending())
+            with mock.patch.dict(os.environ, {"FEATURE_J_CUT": "1"}):
+                self.assertTrue(features.on("j_cut"))
+
+
+class RemovedFlagTests(unittest.TestCase):
+    """S14.9 (Gói L, 06/10): 5 flags taken out of the code. An old FEATURE_<NAME>=1 line or an old choice saved in
+    data/feature_settings.json never breaks anything: it is ignored (always off, as before) and said in 🧪."""
+    GONE = ("layout_to_model", "chain_previous_auto", "setcheck_autofix", "seedance_sample_mode", "location_plates")
+
+    def setUp(self):
+        self.file = os.path.join(tempfile.mkdtemp(), "feature_settings.json")
+        env = mock.patch.dict(os.environ, {"FEATURE_SETTINGS_FILE": self.file})
+        env.start()
+        self.addCleanup(env.stop)
+
+    def test_the_flags_are_gone_and_always_off(self):
+        self.assertEqual(set(self.GONE), set(features.REMOVED))
+        self.assertEqual(features.HARMFUL, ())
+        for name in self.GONE:
+            self.assertNotIn(name, features.FEATURES)
+            with mock.patch.dict(os.environ, {"FEATURE_" + name.upper(): "1"}):
+                self.assertFalse(features.on(name), name)
+                self.assertIn(name, features.removed_in_use())
+            self.assertNotIn(name, features.pending())
+        self.assertEqual(features.removed_in_use(), {})                # an "=0" / no line says nothing
+
+    def test_an_old_settings_file_naming_them_still_loads(self):
+        import json
+        with open(self.file, "w", encoding="utf-8") as f:
+            json.dump({"preset": "experimental", "flags": {"location_plates": True, "setcheck_autofix": True, "j_cut": True}}, f)
+        s = features.settings()                                           # no error
+        self.assertEqual((s["preset"], s["flags"]), ("experimental", {"j_cut": True}))
+        self.assertFalse(features.on("location_plates"))
+        self.assertFalse(features.on("setcheck_autofix"))
+        self.assertTrue(features.on("j_cut"))
+        said = features.removed_in_use()
+        self.assertEqual(sorted(said), ["location_plates", "setcheck_autofix"])
+        self.assertIn("S14.9", said["location_plates"])
+        features.save_settings(flags={"layout_to_model": True, "j_cut": None})   # an old page naming a removed flag: ignored
+        with open(self.file, encoding="utf-8") as f:
+            saved = json.load(f)
+        self.assertEqual(saved, {"preset": "experimental", "flags": {}})       # the stale keys are dropped on save
+        self.assertEqual(features.removed_in_use(), {})
+        with self.assertRaises(ValueError):
+            features.save_settings(flags={"no_such_flag": True})              # an unknown name is still an error
 
     def test_the_whole_set_check_only_reports_and_the_storyboard_shows_it(self):
         from tests.test_v3 import _approve_all_images, kenta_project

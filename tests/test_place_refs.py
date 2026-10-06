@@ -13,7 +13,7 @@ from PIL import Image, ImageDraw
 
 from core import assets, place_refs, scene_establish
 
-ON = {"FEATURE_PLACE_RENDER_REFS": "1", "FEATURE_LOCATION_PLATES": "0"}
+ON = {"FEATURE_PLACE_RENDER_REFS": "1"}
 REC = {"plate": "", "place": "Tháp Đồng Hồ", "subject_box": [0.40, 0.20, 0.60, 0.80], "distance_m": 6.5,
        "camera": {"height_m": 14.3, "horizon_y": 0.55},        # the render's height is after the model's lift — not used for the sentence
        "camera_plan": {"lens": 35, "location": [-217.0, 116.0, 11.0], "look_at": [-217.0, 132.0, 20.0],
@@ -41,13 +41,13 @@ class PlaceRefsTests(unittest.TestCase):
         self.dir = tempfile.mkdtemp()
         self.addCleanup(shutil.rmtree, self.dir, True)
 
-    def test_off_by_default_and_off_while_location_plates_is_on(self):
+    def test_off_by_default_and_only_its_own_flag_decides(self):
         with mock.patch.dict(os.environ, {"FEATURE_PLACE_RENDER_REFS": "0"}):
             self.assertFalse(place_refs.enabled())
         with mock.patch.dict(os.environ, ON):
             self.assertTrue(place_refs.enabled())
         with mock.patch.dict(os.environ, {"FEATURE_PLACE_RENDER_REFS": "1", "FEATURE_LOCATION_PLATES": "1"}):
-            self.assertFalse(place_refs.enabled())
+            self.assertTrue(place_refs.enabled())          # S14.9: location_plates removed — an old line no longer turns this off
 
     def test_render_takes_the_place_slot_but_the_establishing_picture_stays(self):
         refs = [{"path": "k.png", "label": "KELLY", "role": "character"},

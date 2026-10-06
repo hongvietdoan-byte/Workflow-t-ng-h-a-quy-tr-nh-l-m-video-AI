@@ -37,7 +37,7 @@ Plan (JSON):
   sky.sun_color    [r, g, b] of the sun / moon light (night = cold blue moonlight)
   camera.subject   {"location": [x, y, z] feet, "height_m": 1.7} — a stand-in of the character's size is put there for one more
                    picture, `shadow_<cam>.png`: the plate with the stand-in's shadow (the stand-in itself is invisible to the camera),
-                   so the composite can lay the real shadow of the character on the ground (core/composite.py)
+                   (used by the green-screen composite, removed in S14.9 — kept as a render option)
   heights          [[x, y] or [x, y, z_from], …] — no render: the ground height under each point (raw model frame), plants skipped;
                    z_from = start the ray there (a floor inside a house)
   rooms            [{"name", "lo": [x, y], "hi": [x, y], "floor_z"}] — no render: the best camera spot + view inside each house box
