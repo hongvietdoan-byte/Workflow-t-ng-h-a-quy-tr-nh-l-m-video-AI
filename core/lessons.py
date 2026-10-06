@@ -14,9 +14,9 @@ import re
 from datetime import datetime, timezone
 from typing import Dict, List, Optional
 
-from . import diag, knowledge
+from . import diag, knowledge, retired_topics
 
-DOC_TITLE = "Bài học đã duyệt (tự động cập nhật)"
+DOC_TITLE = knowledge.AUTO_LESSONS_TITLE     # S14.46: knowledge.user_text filters this document's lines
 MIN_EVENTS = 3          # same kind of mistake at least this many times ...
 MIN_PROJECTS = 2        # ... in at least this many projects
 # tag -> (label, keywords). A mistake can carry several tags.
@@ -153,7 +153,11 @@ def clusters(conn, min_events: int = MIN_EVENTS, min_projects: int = MIN_PROJECT
     buckets: Dict[tuple, List] = {}
     risk = _risk_on()
     table = active_tags()
-    for m in conn.execute("SELECT * FROM mistakes ORDER BY id").fetchall():
+    # S14.46: a retired mistake, or one about a removed feature (phông xanh…), never becomes a lesson — said once per call
+    rows = [dict(r) for r in conn.execute("SELECT * FROM mistakes ORDER BY id").fetchall()]
+    rows, n_drop, dropped = retired_topics.split(rows, lambda m: m["text"])
+    retired_topics.report(conn, "system", "lỗi đã ghi (mistakes)", n_drop, dropped)
+    for m in rows:
         tags = tags_of(m["text"])
         if not tags and risk:                 # S14.20: a mistake no tag matches is kept and shown, not dropped (CHUAN luật 1)
             buckets.setdefault((m["group_name"], UNCLASSIFIED), []).append(m)
@@ -231,9 +235,15 @@ def add_research(conn, group: str, title: str, body: str, url: str) -> bool:
 
 
 # ---- 3. decide ----------------------------------------------------------------------------------
-def list_lessons(conn, state: Optional[str] = None) -> List[Dict]:
-    sql = "SELECT * FROM lessons" + (" WHERE state=?" if state else "") + " ORDER BY id DESC"
-    return [dict(r) for r in conn.execute(sql, (state,) if state else ()).fetchall()]
+def list_lessons(conn, state: Optional[str] = None, include_retired: bool = False) -> List[Dict]:
+    """Lessons, newest first. A lesson retired by tools/lessons_retire.py (S14.46) is left out unless `include_retired`."""
+    where = [] if include_retired or not retired_topics.has_columns(conn, "lessons") else ["retired_at IS NULL"]
+    args = ()
+    if state:
+        where.append("state=?")
+        args = (state,)
+    sql = "SELECT * FROM lessons" + (" WHERE " + " AND ".join(where) if where else "") + " ORDER BY id DESC"
+    return [dict(r) for r in conn.execute(sql, args).fetchall()]
 
 
 def edit(conn, lesson_id: int, title: str, body: str) -> None:
@@ -268,6 +278,10 @@ def sync_knowledge(conn, group: str) -> Optional[Dict]:
     """(Re)write the step's auto-maintained knowledge document from all approved lessons. The new document is built and
     checked first; the old one is removed only once the new one is in place (knowledge.replace_doc)."""
     approved = [r for r in list_lessons(conn, "approved") if r["group_name"] == group]
+    # S14.46: an approved lesson about a removed feature stays approved in the list (the person sees it) but is not written into the
+    # document the prompts read — said once
+    approved, n_drop, dropped = retired_topics.split(approved, lambda r: f"{r['title']} — {r['body']}")
+    retired_topics.report(conn, "system", f"bài học đã duyệt của bước '{group}'", n_drop, dropped)
     if not approved:
         for d in knowledge.user_docs(group):
             if d["title"] == DOC_TITLE:

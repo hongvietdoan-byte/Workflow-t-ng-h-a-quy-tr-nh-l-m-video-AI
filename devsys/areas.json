@@ -163,10 +163,10 @@
       "name": "Kiến thức & bộ kỹ năng 3 vai",
       "weight": 0.8,
       "description": "Kho kiến thức cho các bước Claude, bài học lặp lại, nghiên cứu định kỳ, đọc video tham khảo, bộ kỹ năng Đạo diễn / Quay phim / Dựng.",
-      "code": ["core/knowledge.py", "core/lessons.py", "core/research.py", "core/reference_analysis.py", "core/video_analysis.py"],
+      "code": ["core/knowledge.py", "core/lessons.py", "core/research.py", "core/reference_analysis.py", "core/video_analysis.py", "core/retired_topics.py", "tools/lessons_retire.py"],
       "assets": ["knowledge/*", "prompts/05_*", "tools/monthly_research.py", "tools/ff_style_knowledge.py", "research/*", "samples/*"],
       "docs": ["docs/DANH_GIA_BO_NGUYEN_TAC_V4.md", "docs/FF_STYLE_RESEARCH.md"],
-      "tests": ["tests/test_role_knowledge.py", "tests/test_knowledge_murch.py", "tests/test_kelly_knowledge.py"],
+      "tests": ["tests/test_role_knowledge.py", "tests/test_knowledge_murch.py", "tests/test_kelly_knowledge.py", "tests/test_s1446_retired_lessons.py"],
       "flags": ["film_crew", "murch_knowledge", "kelly_knowledge", "risk_tags"],
       "diag_stages": [],
       "keywords": ["kiến thức", "kỹ năng", "3 vai", "Quay phim", "bài học", "knowledge", "film_crew", "nguyên tắc"]

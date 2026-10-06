@@ -655,6 +655,8 @@ def _migrate(conn: sqlite3.Connection) -> None:
         conn.execute("ALTER TABLE motion_prompts ADD COLUMN ref_video_path TEXT")
     if "ref_video_type" not in mp_cols:
         conn.execute("ALTER TABLE motion_prompts ADD COLUMN ref_video_type TEXT NOT NULL DEFAULT 'feature'")
+    from .retired_topics import ensure_columns       # S14.46: retired_at / retired_why on mistakes, lessons, experience_cases
+    ensure_columns(conn)
     _migrate_v2(conn)
 
 

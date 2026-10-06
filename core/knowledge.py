@@ -23,6 +23,7 @@ ALLOWED = (".md", ".txt", ".docx")
 # S14.5 C2b: in the auto lessons document (core/lessons.py) the lessons found by web research come after this line; user_text
 # sends that part wrapped by prompts.external_block (reference material, not instructions). Uploaded documents are sent as they are.
 RESEARCH_MARK = "<!-- research: nguồn web -->"
+AUTO_LESSONS_TITLE = "Bài học đã duyệt (tự động cập nhật)"    # the document core/lessons.py writes (lessons.DOC_TITLE)
 
 # step -> (label, what it does, built-in files [(relative path, title, note)])
 GROUPS: Dict[str, tuple] = {
@@ -383,14 +384,89 @@ def _wrap_research(text: str) -> str:
     return (head.rstrip() + "\n\n" + external_block("bài học từ nguồn nghiên cứu trên web", tail)).strip()
 
 
-def user_text(group: str) -> str:
+def _drop_retired_lines(text: str) -> tuple:
+    """S14.46: the auto lessons document minus its bullet lines about a removed feature → (text, lines dropped, {topic: n})."""
+    from . import retired_topics
+    keep, n, dropped = [], 0, {}
+    for line in text.splitlines():
+        hits = retired_topics.matches(line) if line.lstrip().startswith(("- ", "* ")) else []
+        if hits:
+            n += 1
+            for h in hits:
+                dropped[h] = dropped.get(h, 0) + 1
+            continue
+        keep.append(line)
+    return "\n".join(keep), n, dropped
+
+
+_RETIRED_WARNED = set()
+
+
+def _warn_retired(conn, group: str, flagged: List[Dict]) -> None:
+    """S14.46: a document the person uploaded / the distilled playbook names a removed feature — it is NOT cut (it is the person's
+    text, and distilling again costs money): said in diagnostics (or the log without a database), with what to do."""
+    if not flagged:
+        return
+    msg = ("Tài liệu kiến thức của bước '" + group + "' còn nhắc chủ đề đã bỏ: "
+           + "; ".join(f"{f['title']} ({', '.join(f['topics'])})" for f in flagged)
+           + " — vẫn gửi nguyên văn; sửa / tắt tài liệu hoặc chắt lọc lại cẩm nang (tab Kiến thức) để Đạo diễn không bị nhầm")
+    if conn is not None:
+        from . import diag
+        diag.record(conn, group, "warn", msg, code="knowledge_retired_topic")
+    elif msg not in _RETIRED_WARNED:
+        _RETIRED_WARNED.add(msg)
+        import logging
+        logging.getLogger(__name__).warning(msg)
+
+
+def retired_in_docs(group: str) -> List[Dict]:
+    """S14.46: uploaded documents (not the auto lessons one — its lines are filtered) and the distilled playbook in use that name a
+    removed feature: [{"title", "file", "topics"}]."""
+    from . import retired_topics
+    out = []
+    for d in user_docs(group):
+        if d["enabled"] and d["title"] != AUTO_LESSONS_TITLE:
+            hits = retired_topics.matches(_read(d["path"]))
+            if hits:
+                out.append({"title": d["title"], "file": d["file"], "topics": hits})
+    record = _load_distilled(group)
+    if record and record.get("use"):
+        hits = retired_topics.matches(record.get("text") or "")
+        if hits:
+            out.append({"title": "Cẩm nang đã chắt lọc (cũ — chắt lại)", "file": "distilled.json", "topics": hits})
+    return out
+
+
+def user_text(group: str, conn=None) -> str:
     """What is appended to the step's prompt: the distilled playbook when one is active, else the enabled uploaded
-    documents as they are ('' when there is nothing)."""
+    documents as they are ('' when there is nothing). S14.46: lines of the auto lessons document about a removed feature are left
+    out; other documents / the playbook naming one are sent but flagged (diag with `conn`, else the log)."""
+    from . import retired_topics
     active = distilled_active(group)
     if active:
+        hits = retired_topics.matches(active["text"])
+        _warn_retired(conn, group, [{"title": "Cẩm nang đã chắt lọc (cũ — chắt lại)", "topics": hits}] if hits else [])
         return ("# Cẩm nang kiến thức đã chắt lọc (từ tài liệu do người dùng cung cấp)\n\nÁp dụng cẩm nang dưới đây cùng "
                 "với hướng dẫn ở trên; nếu mâu thuẫn, ưu tiên cẩm nang.\n\n" + active["text"])
-    parts = [f"## {d['title']}\n\n{_wrap_research(_read(d['path']).strip())}" for d in user_docs(group) if d["enabled"]]
+    parts, n_drop, dropped, flagged = [], 0, {}, []
+    for d in user_docs(group):
+        if not d["enabled"]:
+            continue
+        text = _read(d["path"]).strip()
+        if d["title"] == AUTO_LESSONS_TITLE:
+            text, n, dr = _drop_retired_lines(text)
+            n_drop += n
+            for k, v in dr.items():
+                dropped[k] = dropped.get(k, 0) + v
+        else:
+            hits = retired_topics.matches(text)
+            if hits:
+                flagged.append({"title": d["title"], "topics": hits})
+        parts.append(f"## {d['title']}\n\n{_wrap_research(text)}")
+    retired_topics.report(conn, group, f"dòng bài học (tài liệu '{AUTO_LESSONS_TITLE}')", n_drop, dropped)
+    if n_drop and conn is None:
+        _warn_retired(None, group, [{"title": AUTO_LESSONS_TITLE + " — đã bỏ dòng", "topics": sorted(dropped)}])
+    _warn_retired(conn, group, flagged)
     if not parts:
         return ""
     return ("# Tài liệu bổ sung do người dùng cung cấp\n\nÁp dụng các tài liệu dưới đây cùng với hướng dẫn ở trên; "
