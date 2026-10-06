@@ -276,8 +276,15 @@ class FlagTests(unittest.TestCase):
         from core.pipeline import Pipeline
         Pipeline(connect(self.db)).create_project("v2")
 
-    def test_flag_is_off_by_default_and_loads_nothing_new(self):
+    def test_flag_is_on_by_default_and_zero_loads_no_design_css(self):
+        """S14.14 (người dùng duyệt 05/10): ui_v2 is ON by default (was: off until approved). FEATURE_UI_V2=0 still keeps the design CSS
+        out (ui.inject_css reads the flag until G-b removes the old shell)."""
+        os.environ.pop("FEATURE_UI_V2", None)                       # restored by the patch.dict of setUp
         at = AppTest.from_file(APP, default_timeout=60).run()
+        self.assertFalse(at.exception, at.exception)
+        self.assertTrue(any("--grad-primary" in (m.value or "") for m in at.markdown))
+        with mock.patch.dict(os.environ, {"FEATURE_UI_V2": "0"}):
+            at = AppTest.from_file(APP, default_timeout=60).run()
         self.assertFalse(at.exception, at.exception)
         self.assertFalse(any("--grad-primary" in (m.value or "") for m in at.markdown))
 

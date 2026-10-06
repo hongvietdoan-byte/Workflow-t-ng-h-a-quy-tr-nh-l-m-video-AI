@@ -154,16 +154,18 @@ class VideoV2Tests(VideoSeed):
         self.assertIn(f"vid-empty-go_{other}", {b.key for b in at.button})
 
 
-class VideoClassicTests(VideoSeed):
-    def test_flag_off_keeps_the_classic_card(self):
+class VideoFlagOffTests(VideoSeed):
+    def test_flag_off_still_draws_the_v2_cards(self):
+        """S14.14 G-a (người dùng duyệt 05/10): the classic clip card (step4.video_card) was removed — the Video screen is v2 only,
+        FEATURE_UI_V2=0 included; every key of the classic card lives on in video_card_v2."""
         at = self.open_video(v2=False)
         html = md(at)
-        self.assertNotIn("v2-pill", html)
+        self.assertIn("v2-pill", html)
         keys = {b.key for b in at.button}
         j = self.jobs
-        for k in (f"va_{j['pending_review']}", f"vr_rej_{j['pending_review']}", f"vr_{j['failed']}", f"vregen_{j['succeeded']}"):
+        for k in (f"va_{j['pending_review']}", f"vr_rej_{j['pending_review']}", f"vr_{j['failed']}", f"vregen_{j['succeeded']}",
+                  f"vfix_{j['pending_review']}"):
             self.assertIn(k, keys, k)
-        self.assertNotIn(f"vfix_{j['pending_review']}", keys)                 # the always-visible edit button is v2 only
 
 
 if __name__ == "__main__":

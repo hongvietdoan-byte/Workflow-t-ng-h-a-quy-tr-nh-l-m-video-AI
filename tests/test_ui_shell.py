@@ -70,9 +70,11 @@ class HeroTests(ShellBase):
         self.assertNotIn("btn_pause", [b.key for b in at.button])
 
     def test_flag_off_has_no_hero_and_the_old_bar(self):
+        # S14.14 G-a: the Kịch bản screen (nhóm nhẹ) is v2 only and draws its own hero — the shell's flag-off is checked on Storyboard
         with mock.patch.dict(os.environ, {"FEATURE_UI_V2": "0"}):
-            at = self.run_app()
+            at = self.run_app(step="Storyboard")
         self.assertFalse(at.exception, at.exception)
+        self.assertEqual(at.radio(key="step").value, "Storyboard")
         self.assertFalse(any("v2-hero-title" in str(e.proto.body) for e in at.get("html")))
         labels = [x.proto.popover.label for x in at.get("popover")]
         self.assertIn("⚙", labels)
@@ -175,8 +177,8 @@ class SlimInfoTests(ShellBase):
         self.assertTrue(any("Seedance 2.0/2.5 → Fast" in m.value for m in at.markdown))
 
     def test_flag_off_has_none_of_the_info_folds(self):
-        with mock.patch.dict(os.environ, {"FEATURE_UI_V2": "0"}):
-            at = self.run_app()
+        with mock.patch.dict(os.environ, {"FEATURE_UI_V2": "0"}):     # S14.14 G-a: on Storyboard (Kịch bản is v2 only now)
+            at = self.run_app(step="Storyboard")
         self.assertFalse(any(x.label.startswith("Chi tiết") or "việc nữa" in x.label for x in at.expander))
         self.assertNotIn("Chi tiết", self.popover_labels(at))
         self.assertTrue(any("Thử rẻ (ảnh cỡ nhỏ nhất" in c.label for c in at.checkbox))

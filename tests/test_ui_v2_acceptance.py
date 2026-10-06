@@ -22,9 +22,12 @@ class AcceptanceTests(unittest.TestCase):
         self.assertEqual(sorted(set(old) - set(new)), [], "khóa key= trong mã nguồn bị mất so với bản cũ")
 
     def test_click_count_new_project_to_first_video_not_more_than_old(self):
+        # S14.14 G-a: the Kịch bản screen has no old layout any more, so a FEATURE_UI_V2=0 run is no longer "the old one" — compare with
+        # the old screen's number measured just before G-a (U.OLD_CLICKS_BASELINE), and still with whatever =0 draws today
         old, new = U.child("clicks", "0"), U.child("clicks", "1")
         self.assertTrue(old["ok"], old)
         self.assertTrue(new["ok"], new)
+        self.assertLessEqual(new["clicks"], U.OLD_CLICKS_BASELINE)
         self.assertLessEqual(new["clicks"], old["clicks"])
 
     def test_dynamic_keys_only_documented_renames_missing(self):

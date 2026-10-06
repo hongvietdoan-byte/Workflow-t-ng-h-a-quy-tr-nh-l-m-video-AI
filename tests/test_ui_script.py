@@ -1,5 +1,6 @@
 """S13 lane E: the Kịch bản screen under the UI v2 flag — empty project and project with scenes + characters + locked Bible.
-Every widget key of the old screen must still exist; the flag off keeps the old screen (covered by test_step1_flow / test_dashboard)."""
+Every widget key of the old screen must still exist. S14.14 G-a (06/10): the old screen was removed — v2 is the only composition, flag
+off included (tests/test_ui_v2_default.py)."""
 import os
 import tempfile
 import unittest
@@ -174,7 +175,7 @@ class ScriptScreenV2Tests(unittest.TestCase):
         self.assertFalse(at.session_state[f"fold_director_{pid}"])
         self.assertEqual([e.label for e in at.expander if e.proto.expanded], [])
 
-    def test_notes_become_one_line_plus_info_and_old_boxes_when_flag_off(self):
+    def test_notes_become_one_line_plus_info_even_with_flag_off(self):
         def app():
             import streamlit as st
             from dashboard.steps.step1_v2 import say
@@ -194,8 +195,9 @@ class ScriptScreenV2Tests(unittest.TestCase):
         with mock.patch.dict(os.environ, {"FEATURE_UI_V2": "0"}):
             off = AppTest.from_function(app).run()
             self.assertFalse(off.exception, off.exception)
-            self.assertEqual((len(off.warning), len(off.success), len(off.info)), (1, 1, 1))     # flag off = the old boxes
-            self.assertEqual(len(off.get("popover")), 0)
+            # S14.14 G-a: the old st.warning/st.success/st.info branch of say() was removed — the Kịch bản screen is v2 only
+            self.assertEqual((len(off.warning), len(off.success), len(off.info)), (0, 0, 0))
+            self.assertEqual(len(off.get("popover")), 3)
 
     def test_cap_summary_keeps_the_figure_outside_and_the_text_inside(self):
         def app():
@@ -273,34 +275,6 @@ class ScriptScreenV2Tests(unittest.TestCase):
         self.assertIn("Trang phục", self.html(at))                                       # a column of the Character Bible table
         self.assertTrue(any("Đồ bơi hè" in o for o in at.multiselect(key=f"outfit_{pid}_KAEL").options))
         self.assertIn(f"outfit_set_{pid}_LYRA", tree_keys(at))                           # the paid 2-picture set button stays
-
-
-class ScriptScreenOldUiTests(unittest.TestCase):
-    """S14.28 on the old screen (flag off): the script fold first, the reference fold after it and absent before a script."""
-    run_app, prepared, project_with_bible = ScriptScreenV2Tests.run_app, ScriptScreenV2Tests.prepared, ScriptScreenV2Tests.project_with_bible
-
-    def setUp(self):
-        ScriptScreenV2Tests.setUp(self)
-        env = mock.patch.dict(os.environ, {"FEATURE_UI_V2": "0"})
-        env.start()
-        self.addCleanup(env.stop)
-
-    def test_s14_28_old_ui_script_fold_before_references(self):
-        pid = self.p.create_project("Cũ")
-        pid2 = self.prepared(lock=False)                                  # both made before the app reads the project list
-        at = AppTest.from_file(APP, default_timeout=90)
-        at.session_state["global_pid"] = pid
-        at.run()
-        self.assertFalse(at.exception, at.exception)
-        keys = ordered_keys(at)
-        self.assertNotIn(f"ref_go_{pid}", keys)
-        self.assertNotIn(f"fold_refs_{pid}_btn", keys)
-        at = AppTest.from_file(APP, default_timeout=90)
-        at.session_state["global_pid"] = pid2
-        at.run()
-        self.assertFalse(at.exception, at.exception)
-        keys = ordered_keys(at)
-        self.assertLess(keys.index(f"fold_script_{pid2}_btn"), keys.index(f"fold_refs_{pid2}_btn"))
 
 
 SCRIPT = "CẢNH 1 - ĐÊM, RỪNG\nSương mù.\nLYRA: Đi thôi.\n\nCẢNH 2 - NGÀY, LÀNG\nKAEL: Về rồi.\n\nCẢNH 3 - ĐÊM, LÀNG\nYên lặng."

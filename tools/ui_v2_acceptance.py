@@ -21,6 +21,9 @@ import time
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 APP = os.path.join(ROOT, "dashboard", "app.py")
 BASE_REV = "28d655f"          # commit ngay trước khi giao diện v2 vào dashboard/
+# S14.14 G-a (06/10): màn Kịch bản / Video / Theo dõi không còn bản cũ → phép đo FEATURE_UI_V2=0 không còn là "bản cũ". Mốc số click của
+# bản cũ, đo bằng `clicks` ở 7a7154f (ngay trước G-a, cũ 14 · v2 14): v2 phải không vượt mốc này.
+OLD_CLICKS_BASELINE = 14
 SCRIPT = ("CẢNH 1 - ĐÊM, RỪNG ELDER\nSương mù phủ kín khu rừng.\nLYRA: Có thứ gì đó đang theo chúng ta.\n\n"
           "CẢNH 2 - NGÀY, PHÁO ĐÀI\nKAEL đứng trên tường thành.\nKAEL: Chúng ta phải đi tiếp.")
 
@@ -383,12 +386,13 @@ def main() -> int:
     bad = False
     if a.mode in ("all", "clicks"):
         old, new = child("clicks", "0"), child("clicks", "1")
-        print(f"CLICK Dự án mới → video đầu: cũ {old['clicks']} · v2 {new['clicks']} (nhập liệu {old['inputs']} / {new['inputs']}) "
-              f"· video job cũ {old.get('video_jobs')} v2 {new.get('video_jobs')}")
-        print(f"   đường tự động (ap_start): cũ {old['auto']} · v2 {new['auto']}")
+        # "cũ N · v2 M" giữ nguyên dạng: devsys/metrics.py (_CLICK) đọc dòng này; "cũ" = mốc bản cũ đã lưu (OLD_CLICKS_BASELINE)
+        print(f"CLICK Dự án mới → video đầu: cũ {OLD_CLICKS_BASELINE} · v2 {new['clicks']} (nhập liệu {old['inputs']} / {new['inputs']}) "
+              f"· FEATURE_UI_V2=0 hôm nay {old['clicks']} · video job =0 {old.get('video_jobs')} v2 {new.get('video_jobs')}")
+        print(f"   đường tự động (ap_start): =0 {old['auto']} · v2 {new['auto']}")
         for (n, ko, _), (_, kn, _) in zip(old["log"], new["log"]):
-            print(f"   {n:28} cũ:{ko:26} v2:{kn}")
-        if not (old["ok"] and new["ok"]) or new["clicks"] > old["clicks"]:
+            print(f"   {n:28} =0:{ko:26} v2:{kn}")
+        if not (old["ok"] and new["ok"]) or new["clicks"] > OLD_CLICKS_BASELINE:
             bad = True
             print("   !! kịch bản hỏng hoặc v2 nhiều click hơn", old.get("exceptions"), new.get("exceptions"))
     if a.mode in ("all", "keys"):

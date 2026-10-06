@@ -67,6 +67,19 @@ class LightScreensAlwaysV2Tests(unittest.TestCase):
         self.assertIn("v2-hero-title", html)                  # G-a: no old composition left in step1
         self.assertNotIn("1b · 🧰 Chuẩn bị", html)            # the old card title of step1.step1()
 
+    def test_monitor_is_v2_even_with_flag_off(self):
+        tmp = tempfile.mkdtemp()
+        with mock.patch.dict(os.environ, _env_without_ui_flag(tmp, FEATURE_UI_V2="0"), clear=True):
+            Pipeline(connect(os.environ["PIPELINE_DB"])).create_project("Theo dõi")
+            at = AppTest.from_file(APP, default_timeout=90)
+            at.session_state["step"] = "📊 Theo dõi"
+            at.run()
+        self.assertFalse(at.exception, at.exception)
+        labels = [e.label for e in at.expander]
+        self.assertTrue(any("Tải theo loại job" in k for k in labels), labels)     # admin._monitor_v2 folds
+        self.assertIn("perf_refresh", [b.key for b in at.button])
+        self.assertIn("diag_dl", [b.key for b in at.get("download_button")])
+
 
 if __name__ == "__main__":
     unittest.main()

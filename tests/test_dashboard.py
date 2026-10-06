@@ -1,6 +1,7 @@
 import os
 import tempfile
 import unittest
+from unittest import mock
 
 from streamlit.testing.v1 import AppTest
 
@@ -16,6 +17,12 @@ class DashboardSmokeTests(unittest.TestCase):
     def setUp(self):
         os.environ["DASHBOARD_EXPERT"] = "1"      # these tests use the advanced panels (kế hoạch V4 5.3)
         self.addCleanup(os.environ.pop, "DASHBOARD_EXPERT", None)
+        # S14.14 G-a: ui_v2 is ON by default now. These smoke tests were written for the classic screens; the heavy screens (Storyboard,
+        # Bản giao, header — G-b) still have them behind FEATURE_UI_V2=0, the light ones (Kịch bản, Video, Theo dõi) are v2 only and their
+        # tests below open the v2 folds instead. G-b removes this line with the classic heavy screens.
+        flag = mock.patch.dict(os.environ, {"FEATURE_UI_V2": "0"})
+        flag.start()
+        self.addCleanup(flag.stop)
         self.tmp = tempfile.mkdtemp()
         self.db = os.path.join(self.tmp, "m.sqlite")
         os.environ["PIPELINE_DB"] = self.db
@@ -33,6 +40,22 @@ class DashboardSmokeTests(unittest.TestCase):
         p.create_scene(pid, 1, "CẢNH 1")
         store_scene_analysis(p, pid, ANALYSIS)
         return p, pid
+
+    @staticmethod
+    def open_all(at):
+        """S14.14 G-a: the v2 Kịch bản screen draws only the panel of the next job open (step1_v2.next_panel) — open every closed
+        ui.fold (Director, Character Bible, 🔧 Tinh chỉnh…) like a person clicking ▸ Mở, as tools/ui_v2_acceptance.py does."""
+        for _ in range(12):
+            closed = [b for b in at.button if (b.key or "").startswith("fold_") and (b.key or "").endswith("_btn") and b.label.startswith("▸")]
+            if not closed:
+                break
+            closed[0].click().run()
+        return at
+
+    @staticmethod
+    def notes(at) -> str:
+        """Text of the page's markdown (v2 step1 notes: step1_v2.say → pill + summary line + the whole message in the ⓘ popover)."""
+        return " ".join(m.value or "" for m in at.markdown)
 
     @staticmethod
     def with_lock(p, pid):
@@ -73,12 +96,13 @@ class DashboardSmokeTests(unittest.TestCase):
         """Kế hoạch V4 5.3: off by default, the steps show a normal run only; the ⚙ switch brings the advanced panels back."""
         os.environ.pop("DASHBOARD_EXPERT", None)
         self.seed()
-        at = AppTest.from_file(APP, default_timeout=30).run()
+        at = self.open_all(AppTest.from_file(APP, default_timeout=30).run())
         self.assertFalse(at.exception)
         labels = lambda: [e.label for e in at.expander]  # noqa: E731
         self.assertFalse(any("Nâng cao: prompt gửi Claude" in x for x in labels()))
         self.assertFalse(any("World Bible" in x for x in labels()))
         at.toggle(key="expert_mode").set_value(True).run()
+        self.open_all(at)                                  # v2: World Bible sits in card ②'s "🔧 Tinh chỉnh" fold (expert only)
         self.assertFalse(at.exception)
         self.assertTrue(any("World Bible" in x for x in labels()))
 
@@ -254,7 +278,7 @@ class DashboardSmokeTests(unittest.TestCase):
 
     def test_character_edit_and_unlock_from_dashboard(self):
         p, pid = self.seed()
-        at = AppTest.from_file(APP, default_timeout=30).run()
+        at = self.open_all(AppTest.from_file(APP, default_timeout=30).run())
         at.text_area(key=f"cd_{pid}_Lyra").set_value("Nữ, tóc đỏ").run()
         next(b for b in at.button if b.key == f"cs_{pid}_Lyra").click().run()
         self.assertFalse(at.exception)
@@ -262,7 +286,7 @@ class DashboardSmokeTests(unittest.TestCase):
         self.assertEqual(row["description"], "Nữ, tóc đỏ")
         from core.llm_io import lock_character_bible
         lock_character_bible(Pipeline(connect(self.db)), pid)
-        at = AppTest.from_file(APP, default_timeout=30).run()
+        at = self.open_all(AppTest.from_file(APP, default_timeout=30).run())
         next(b for b in at.button if b.key == "btn_bad_unlock").click().run()
         self.assertEqual(Pipeline(connect(self.db)).conn.execute(
             "SELECT COUNT(*) c FROM characters WHERE locked=1").fetchone()["c"], 0)
@@ -273,7 +297,7 @@ class DashboardSmokeTests(unittest.TestCase):
         p.create_scene(pid, 1, "CẢNH 1")
         os.environ["LLM_PROVIDER"] = "mock"
         try:
-            at = AppTest.from_file(APP, default_timeout=30).run()
+            at = self.open_all(AppTest.from_file(APP, default_timeout=30).run())
             next(b for b in at.button if b.key == f"llm_dir_{pid}").click().run()
             self.assertFalse(at.exception)
             self.assertFalse(at.error)
@@ -527,13 +551,13 @@ class DashboardSmokeTests(unittest.TestCase):
         assets.add_image(p.conn, loc, "wide.png", buf.getvalue())
         assets.attach(p.conn, pid, loc)
         llm_io.update_scene(p, pid, 1, {"location_asset": loc})
-        at = AppTest.from_file(APP, default_timeout=30).run()
+        at = self.open_all(AppTest.from_file(APP, default_timeout=30).run())
         at.button(key=f"pv_plan_{pid}").click().run()
         self.assertFalse(at.exception)
         self.assertTrue(os.path.exists(os.path.join(self.tmp, "projects", str(pid), "layouts", "storyboard.png")))
         at.button(key=f"pv_review_{pid}").click().run()
         self.assertFalse(at.exception)
-        self.assertTrue(any("không thấy lỗi" in s.value for s in at.success))
+        self.assertIn("không thấy lỗi", self.notes(at))                 # v2: say("success") = pill + one line + the text in ⓘ
 
     def test_an_outfit_is_picked_in_the_character_bible_and_a_character_set_made_from_it(self):
         import io
@@ -551,7 +575,7 @@ class DashboardSmokeTests(unittest.TestCase):
         assets.add_image(p.conn, skin, "skin.png", buf.getvalue())
         assets.attach(p.conn, pid, skin)
         img_id = assets.get(p.conn, skin)["images"][0]["id"]
-        at = AppTest.from_file(APP, default_timeout=30).run()
+        at = self.open_all(AppTest.from_file(APP, default_timeout=30).run())
         at.multiselect(key=f"outfit_{pid}_{name}").set_value([img_id]).run()
         at.button(key=f"outfit_save_{pid}_{name}").click().run()
         self.assertFalse(at.exception)
@@ -582,13 +606,13 @@ class DashboardSmokeTests(unittest.TestCase):
         os.environ["SHOW_SUBJECT_LIBRARY"] = "1"                 # hidden by default since the 2026-09-22 decision
         self.addCleanup(os.environ.pop, "SHOW_SUBJECT_LIBRARY", None)
         try:
-            at = AppTest.from_file(APP, default_timeout=30).run()
+            at = self.open_all(AppTest.from_file(APP, default_timeout=30).run())
             self.assertFalse(at.exception)
             self.assertEqual(at.selectbox(key=f"game_{pid}").value, "FF")
-            self.assertTrue(any("Free Fire đã ký thỏa thuận" in s.value for s in at.success))
+            self.assertIn("Free Fire đã ký thỏa thuận", self.notes(at))     # v2: say() notes, not st.success boxes
             at.selectbox(key=f"game_{pid}").set_value("AOV").run()
             self.assertEqual(Pipeline(connect(self.db)).project(pid)["game"], "AOV")
-            self.assertTrue(any("chưa có thỏa thuận" in w.value for w in at.warning))
+            self.assertIn("chưa có thỏa thuận", self.notes(at))
         finally:
             os.environ.pop("SUBJECT_PROVIDER", None)
         q = Pipeline(connect(self.db))
@@ -596,7 +620,7 @@ class DashboardSmokeTests(unittest.TestCase):
                                        "provider_status": "active", "name": "FF_Lyra"})
         os.environ["SUBJECT_PROVIDER"] = "mock"
         try:
-            at = AppTest.from_file(APP, default_timeout=30).run()
+            at = self.open_all(AppTest.from_file(APP, default_timeout=30).run())
             self.assertTrue(any("1/2 nhân vật đã có" in e.label for e in at.expander))
         finally:
             os.environ.pop("SUBJECT_PROVIDER", None)
@@ -629,20 +653,20 @@ class DashboardSmokeTests(unittest.TestCase):
         at.session_state[f"fold_script_{pid}"] = True
         return at.run()
 
-    def test_the_script_card_folds_to_one_line_and_opens_again(self):
-        """S9.1 (người dùng sau #8): "thêm nút thu gọn cho phần kịch bản"."""
+    def test_the_script_card_has_its_summary_and_the_input_folds_into_an_expander(self):
+        """S9.1 (người dùng sau #8): "thêm nút thu gọn cho phần kịch bản". S14.14 G-a: the old fold (fold_script_{pid}_btn, in RENAMED of
+        tools/ui_v2_acceptance.py) went with the old screen — in v2 card ① carries the one-line summary as a pill and the input box
+        sits in the closed "📥 Nhập / thay kịch bản" expander once the script is split."""
         p, pid = self.seed()
         p.set_script_text(pid, "TÊN KỊCH BẢN" + chr(10) + "CẢNH 1. ĐÊM" + chr(10) + "Lyra: Đi thôi.")
         at = AppTest.from_file(APP, default_timeout=30).run()
         self.assertFalse(at.exception)
-        markup = " ".join(m.value for m in at.markdown)
-        self.assertNotIn('class="scriptfull"', markup)            # folded: the script is not drawn
-        self.assertIn("📜 1 cảnh", markup)                          # ...its one-line summary is
-        btn = next(b for b in at.button if b.key == f"fold_script_{pid}_btn")
-        self.assertEqual(btn.label, "▸ Mở")
-        btn.click().run()
-        self.assertIn('class="scriptfull"', " ".join(m.value for m in at.markdown))
-        self.assertEqual(next(b for b in at.button if b.key == f"fold_script_{pid}_btn").label, "▾ Thu gọn")
+        html = " ".join(str(getattr(e.proto, "body", "")) for e in at.get("html"))
+        self.assertIn("1 cảnh", html)                              # the summary pill of card ①
+        self.assertNotIn(f"fold_script_{pid}_btn", [b.key for b in at.button])
+        box = [e for e in at.expander if e.label.startswith("📥 Nhập / thay kịch bản")]
+        self.assertEqual(len(box), 1)
+        self.assertFalse(box[0].proto.expanded)
 
     def test_step1_shows_the_full_script_next_to_the_scene_list(self):
         p, pid = self.seed()
@@ -669,7 +693,7 @@ class DashboardSmokeTests(unittest.TestCase):
 
     def test_bible_accepts_a_non_human_entry_from_the_dashboard(self):
         p, pid = self.seed()
-        at = AppTest.from_file(APP, default_timeout=30).run()
+        at = self.open_all(AppTest.from_file(APP, default_timeout=30).run())
         at.text_input(key=f"cadd_name_{pid}").set_value("Rồng lửa").run()
         at.text_area(key=f"cadd_desc_{pid}").set_value("Rồng đỏ cao 5m").run()
         next(b for b in at.button if b.key == f"cadd_{pid}").click().run()
@@ -764,7 +788,7 @@ class DashboardSmokeTests(unittest.TestCase):
             os.environ.pop(k, None)
         at = AppTest.from_file(APP, default_timeout=30).run()
         self.assertFalse(at.exception)
-        self.assertTrue(any("tự động hoàn toàn" in m.value for m in at.markdown))
+        self.assertTrue(any("Tự động hoàn toàn" in m.value for m in at.markdown))     # v2: card ③'s "🚀 Tự động hoàn toàn" panel
         self.assertTrue(any("✖" in m.value for m in at.markdown))     # reasons shown, no start possible
 
     def test_performance_monitor_tab_shows_load_and_health(self):
@@ -773,10 +797,12 @@ class DashboardSmokeTests(unittest.TestCase):
         at.query_params["step"] = "monitor"
         at.run()
         self.assertFalse(at.exception)
-        self.assertTrue(any("Theo dõi hiệu suất" in m.value for m in at.markdown))
-        self.assertTrue(any(m.label == "Lượt gửi thật hôm nay" for m in at.metric))
-        self.assertTrue(any("Gen video" in str(d.value) for d in at.dataframe))
-        self.assertTrue(any("Giám sát từng khâu" in m.value for m in at.markdown))
+        # S14.14 G-a: 📊 Theo dõi is v2 only — stats are D.stat tiles and the tables are HTML inside closed expanders
+        md = " ".join(m.value for m in at.markdown)
+        self.assertIn("Theo dõi hiệu suất", md)
+        self.assertIn("Lượt gửi thật hôm nay", md)
+        self.assertIn("Gen video", md)                                             # the per-job-kind table
+        self.assertTrue(any("Giám sát từng khâu" in e.label for e in at.expander))
         self.assertTrue(any("Báo cáo chẩn đoán" in c.value for c in at.code))     # the paste-into-chat report
 
     def test_lessons_tab_lists_proposals_and_approving_feeds_the_knowledge_base(self):
@@ -806,8 +832,10 @@ class DashboardSmokeTests(unittest.TestCase):
         record_failure(p.conn, job, "clipai", "Failure to pass the risk control system")
         at = AppTest.from_file(APP, default_timeout=30).run()
         self.assertFalse(at.exception)
-        bars = [x for x in at.get("popover") if not x.proto.popover.label.startswith("👗")]     # the per-character outfit popovers aside
-        self.assertEqual(len(bars), 6)                        # risk corner + 💬 góp ý (S14.19) + "new project" + 📥 inbox + 💵 card + ⚙
+        # the per-character outfit popovers, and (S14.14 G-a: the Kịch bản screen is v2 only) its "Chi tiết" ⓘ and "⋯ Cách khác" aside
+        bars = [x for x in at.get("popover") if not x.proto.popover.label.startswith("👗")
+                and x.proto.popover.label not in ("Chi tiết", "⋯ Cách khác")]
+        self.assertEqual(len(bars), 6)                    # risk corner + 💬 góp ý (S14.19) + "new project" + 📥 inbox + 💵 card + ⚙
         text = " ".join(m.value for m in at.markdown)
         self.assertIn("Cảnh 1 bị chặn (clipai)", text)      # risk-control block, with its scene
         self.assertIn("Nữ chiến binh Amazon", text)          # IP warning from the Character Bible

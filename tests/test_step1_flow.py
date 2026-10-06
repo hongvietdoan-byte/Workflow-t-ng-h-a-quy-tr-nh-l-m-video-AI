@@ -81,15 +81,26 @@ class Step1LayoutTests(unittest.TestCase):
         try:
             at = AppTest.from_file(APP, default_timeout=40).run()
             self.assertFalse(at.exception)
-            texts = [m.value for m in at.markdown]
+            # S14.14 G-a: the old 1a/1b/1c/1d card titles went with the old screen — the v2 order is ① Kịch bản → ② Chuẩn bị · Director ·
+            # Nhân vật (format before the Director, as before) → ③ Chạy (the automatic run; step by step = finish ② then lock)
+            texts = []
+
+            def walk(node):
+                v = getattr(node, "value", None)
+                body = getattr(getattr(node, "proto", None), "body", None)
+                if isinstance(v, str) or isinstance(body, str):
+                    texts.append(v if isinstance(v, str) else body)
+                for c in getattr(node, "children", {}).values():
+                    walk(c)
+            walk(at.main)
             index = lambda needle: next(i for i, t in enumerate(texts) if needle in t)  # noqa: E731
-            script, prep, choice = index("1a · 📜 Kịch bản"), index("1b · 🧰 Chuẩn bị"), index("1c · Chọn cách chạy")
-            self.assertLess(script, prep)                                       # v2: style/format are set before the Director
-            self.assertLess(prep, choice)
-            self.assertLess(choice, index('cardtitle">🚀 Tự động hoàn toàn'))     # (the "next thing" band may name it earlier, in plain words)
-            self.assertLess(index('cardtitle">🚀 Tự động hoàn toàn'), index("1d · 🎬 Director"))
+            script, prep, run = index('script-n">1<'), index('script-n">2<'), index('script-n">3<')
+            self.assertLess(script, prep)
+            self.assertLess(index("1d · 🎬 Director"), run)                        # the Director panel sits in card ②
+            self.assertLess(prep, index("1d · 🎬 Director"))
+            self.assertLess(run, index('cardtitle">🚀 Tự động hoàn toàn'))          # the automatic run is in card ③
             # S9 E1.10 (người dùng sau #8): the step-by-step path is one caption line, no card of its own
-            self.assertTrue(any("Hoặc lần lượt từng bước" in c.value for c in at.caption))
+            self.assertTrue(any("làm xong thẻ ② rồi bấm Duyệt & khóa" in t for t in texts))
             self.assertFalse(any("Lần lượt từng bước" in t and "cardtitle" in t for t in texts))
         finally:
             os.environ.pop("PIPELINE_DB", None)
