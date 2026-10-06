@@ -16,3 +16,10 @@ Dự án: Auto Pipeline sản xuất video AI (Streamlit dashboard + core Python
 - **Git:** làm trên nhánh riêng; gộp vào `main` chỉ sau khi cả bộ test xanh; tăng `devsys/areas.json` `version` một lần ở nhánh tích hợp; file mã mới khai vào `devsys/areas.json`.
 - **Sau khi gộp:** `git pull --ff-only` ở `D:\AI-Video-Pipeline`; đổi code `dashboard/` hoặc `core/` → khởi động lại Dashboard (`tools/stop_dashboard.ps1` + `tools/launch_dashboard.ps1`); đổi `devsys/` → khởi động lại cả AI Dev System cổng 8502 (`tools/launch_devsys.ps1`); kiểm `http://localhost:8501/_stcore/health` và `:8502`.
 - Ghi trạng thái sau MỖI việc gộp xong: đổi trạng thái trong kế hoạch (✅ + mã commit + bằng chứng) → `py tools/plan_progress.py --write` → `TODO.md` → commit → push.
+
+## Chạy LOCAL trên máy chính `D:\AI-Video-Pipeline` (thư mục này đang chạy Dashboard 8501 + AI Dev System 8502)
+- **KHÔNG đổi nhánh / checkout trong `D:\AI-Video-Pipeline`** (Dashboard đang chạy từ đó, luôn ở `main`). Làm mỗi việc trong worktree riêng: `git worktree add D:\AI-Video-Pipeline\.codex-wt\<việc> -b codex/<việc> origin/main`; xong thì gộp vào `main` từ worktree (`git push origin HEAD:main`) rồi `git pull --ff-only` ở `D:\AI-Video-Pipeline`.
+- **KHÔNG BAO GIỜ** chạy `git clean`, `git reset --hard`, `git checkout -- .`, `git stash` ở `D:\AI-Video-Pipeline`: có thư mục dữ liệu chưa theo dõi (`KHO TÀI NGUYÊN/`, `_plates3d/`, `data/backup/`, `data/ab_test/`…) và `data/` thật. Dùng `git stash` thì phải `push -m <tên riêng>` và `apply <sha>`.
+- Test cần dữ liệu thật (`data/`, `dashboard.env`) chạy ở `D:\AI-Video-Pipeline`; test thường chạy trong worktree. Cả bộ trên Windows bắt buộc trước khi gộp.
+- Khóa API nằm ở biến môi trường User + `dashboard.env`: không in, không ghi log, không commit.
+- Dừng và hỏi người dùng trước: mọi lời gọi tốn tiền; xóa/ghi đè dữ liệu thật (sao lưu vào `data/backup/` trước); force-push; đổi `dashboard.env`.
