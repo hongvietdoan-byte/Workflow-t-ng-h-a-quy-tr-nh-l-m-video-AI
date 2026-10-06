@@ -96,7 +96,8 @@ def kit(conn, pid: int, game: str = "FF") -> Dict[str, List[Dict]]:
     have = {assets.fold(c["name"]) for c in out["characters"]}
     for d in (skill_dossier.load(n) for n in skill_dossier.names()):
         if d and d.get("active", True) and assets.fold(d.get("character") or "") in have:
-            out["skills"].append({"character": d["character"], "skill": d.get("skill_vi") or d.get("skill_en") or ""})
+            out["skills"].append({"character": d["character"], "skill": d.get("skill_vi") or d.get("skill_en") or "",
+                                  "how": d.get("mechanism_vi") or ""})     # 06/10: Biên kịch phải biết CƠ CHẾ (vd Kenta dịch chuyển tới lốc), không chỉ tên
     return out
 
 
@@ -233,7 +234,8 @@ def kit_block(k: Dict) -> str:
         f"{c['name']}{_aka(c)} — " + (f"{c['outfit'] or 'xem mô tả website bên dưới'} (hồ sơ chưa duyệt — lấy từ mô tả, chưa chắc đúng)"
                                       if c.get("draft") else
                              c["outfit"] or "chưa có hồ sơ trang phục") for c in k["characters"]) or "(trống)"))
-    lines.append("Kỹ năng có hồ sơ: " + ("; ".join(f"{s['character']} — {s['skill']}" for s in k["skills"]) or "(không có)"))
+    lines.append("Kỹ năng có hồ sơ (viết cảnh kỹ năng ĐÚNG cơ chế này; muốn khoe kỹ năng thì dùng đủ các bước): " + ("; ".join(
+        f"{s['character']} — {s['skill']}" + (f": {s['how']}" if s.get("how") else "") for s in k["skills"]) or "(không có)"))
     if k.get("excluded"):
         lines.append("Đã loại, KHÔNG dùng: " + "; ".join(f"{x['name']} ({x['why']})" for x in k["excluded"]))
     if not k["places"] or not k["characters"]:

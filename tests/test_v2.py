@@ -232,6 +232,12 @@ class KnowledgeTests(Base):
                     encoding="utf-8").read()
         part = knowledge.ff_skills_for(["KENTA"])
         self.assertIn("KENTA", part)
+        # người dùng 06/10: Đạo diễn LUÔN đọc mục này (kể cả khi cờ skill_dossier tắt) → phải đúng cơ chế: tay không, đủ 3 chuỗi,
+        # bấm lại = DỊCH CHUYỂN tức thì tới vị trí lốc; không còn câu cũ "vung kiếm" / "lưỡi năng lượng ở tay phải" / "khi Kenta di chuyển"
+        for must in ("KỸ NĂNG KHÔNG PHỤ THUỘC THANH KIẾM", "tay Kenta KHÔNG cầm gì vẫn dùng được kỹ năng", "TAY KHÔNG", "DỊCH CHUYỂN TỨC THÌ tới vị trí cơn lốc", "`release`", "`hit_gloo`", "`move`", "xuyên qua"):
+            self.assertIn(must, part)
+        for stale in ("vung kiếm giải phóng", "ở tay phải hiện một **lưỡi năng lượng", "khi Kenta di chuyển, **vòng gió"):
+            self.assertNotIn(stale, part)
         self.assertLess(len(part), len(full) / 2)
         bundle = prompts.build_director_bundle(self.p, self.pid)
         self.assertIn("SHORT_FORM", bundle)
