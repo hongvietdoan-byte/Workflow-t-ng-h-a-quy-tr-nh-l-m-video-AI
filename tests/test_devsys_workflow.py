@@ -86,6 +86,16 @@ class ParseMeasureTests(unittest.TestCase):
         self.assertIn("S9.1", got["bad"][0])
         self.assertIn("S9.2", got["bad"][1])                                          # số token không có đơn vị k/nghìn → không đoán
 
+    def test_quoted_marker_on_a_done_task_is_prose_not_a_measure(self):
+        """06/10 (cả bộ trên Windows sau khi Codex đánh dấu S14.45 ✅): chữ 'Số đo:' TRONG NGOẶC là câu mô tả → bỏ qua, không báo hỏng;
+        số đo thật cùng dòng (không ngoặc) vẫn đọc được."""
+        got = workflow.parse_plan("- [x] S14.45 · nhập lại từ các dòng 'Số đo:' trong kế hoạch · nặng:2 · ✅ · 06/10: xong\n")
+        self.assertEqual((got["runs"], got["bad"]), ([], []))
+        self.assertIn("trong ngoặc", got["skipped"][0])
+        got = workflow.parse_plan("- [x] S9.9 · đọc dòng \"Số đo:\" · nặng:1 · ✅ · abc1234 · 06/10 · Số đo: làm 120k token, rà 0\n")
+        self.assertEqual(got["bad"], [])
+        self.assertEqual(len(got["runs"]), 1)
+
     def test_unfinished_task_and_prose_are_reported_as_skipped(self):
         got = workflow.parse_plan("- [ ] S14.45 · nhập lại từ các dòng 'Số đo:' trong kế hoạch · nặng:2 · ⬜\n"
                                   "| S0.7 | Số đo thành **chỉ số mục tiêu** |\n")

@@ -149,8 +149,11 @@ def parse_measure(seg: str) -> Dict:
             "bugs": int(b.group(1)) if b else None, "review": level, "note": "; ".join(notes)}
 
 
+_MARK = re.compile(r"(?<!['\"«“‘])Số đo:")       # 06/10: chữ 'Số đo:' trong ngoặc = câu mô tả (vd dòng S14.45), không phải số đo
+
+
 def _segment(line: str) -> str:
-    seg = line.split("Số đo:", 1)[1]
+    seg = line[_MARK.search(line).end():]
     seg = re.split(r"\.\s|\s·\s", seg + " ", maxsplit=1)[0]
     return seg.strip().rstrip(".")
 
@@ -169,6 +172,9 @@ def parse_plan(text: str, year: Optional[int] = None) -> Dict:
         st = _STATUS_DONE.search(line)
         if not st:
             skipped.append(f"dòng {n} {tid}: việc chưa làm — chữ 'Số đo:' chỉ là mô tả")
+            continue
+        if not _MARK.search(line):
+            skipped.append(f"dòng {n} {tid}: chữ 'Số đo:' trong ngoặc — chỉ là mô tả, dòng không có số đo")
             continue
         rest = line[st.end():]
         cm = re.match(r"[\s·]*([0-9a-f]{7,40})\b", rest)
