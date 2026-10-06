@@ -286,7 +286,7 @@ quyết định ở lại hay lướt trong vài giây đầu, nên cảm xúc p
  -->
 - **Kiểm.** Code: ảnh bìa lấy shot `money_shot`, không có thì shot ⭐, rồi shot có người diễn mạnh nhất. Người: xem ảnh bìa + 3 s đầu,
   "video này quảng bá gì?" trả lời được trong một câu không. Chưa có: đo tỉ lệ xem (cần video đã đăng).
-- **Ví dụ FF.** ✔ Video kỹ năng Kenta: money shot = cận thanh kiếm lúc kỹ năng bật (`money_shot: true`), kết bằng tên kỹ năng + logo. ✘ #6: đỉnh cảm xúc là
+- **Ví dụ FF.** ✔ Video kỹ năng Kenta: money shot = Kenta hiện ra giữa cột lốc lúc DỊCH CHUYỂN tới vị trí lốc (`money_shot: true`; katana luôn trong vỏ — kỹ năng tung bằng tay không), kết bằng tên kỹ năng + logo. ✘ #6: đỉnh cảm xúc là
   twist, nhưng không shot nào cho thấy rõ thứ đang quảng bá — hợp phim ngắn, không hợp video quảng bá nhân vật.
 
 ### Đ11. Thời gian trên màn hình — quay chậm, dừng hình — 2026-09-26
