@@ -34,6 +34,8 @@ def _now() -> str:
 
 def ensure(conn) -> None:
     conn.execute(SCHEMA)
+    from .retired_topics import ensure_columns          # S14.46: retired_at / retired_why (a retired case is kept, never shown)
+    ensure_columns(conn, ("experience_cases",))
 
 
 def record(conn, *, key: str, stage: str, outcome: str, note: str, source: str, project_id: Optional[int] = None,
@@ -43,9 +45,14 @@ def record(conn, *, key: str, stage: str, outcome: str, note: str, source: str, 
     if outcome not in OUTCOMES:
         raise ValueError(f"outcome ∈ {OUTCOMES}")
     ensure(conn)
-    verb = "INSERT OR REPLACE" if replace else "INSERT OR IGNORE"
-    cur = conn.execute(f"{verb} INTO experience_cases (key, at, stage, outcome, project_id, job_id, shot, subjects, view, kind, note, "
-                       "evidence, source, confirmed_by) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+    # S14.46: `replace` updates the row in place (upsert) instead of INSERT OR REPLACE — a case retired by tools/lessons_retire.py
+    # keeps its retired_at when its source is read again (QC labels are re-read with replace=True at every refresh)
+    tail = (" ON CONFLICT(key) DO UPDATE SET at=excluded.at, stage=excluded.stage, outcome=excluded.outcome, project_id=excluded.project_id,"
+            " job_id=excluded.job_id, shot=excluded.shot, subjects=excluded.subjects, view=excluded.view, kind=excluded.kind,"
+            " note=excluded.note, evidence=excluded.evidence, source=excluded.source, confirmed_by=excluded.confirmed_by"
+            if replace else " ON CONFLICT(key) DO NOTHING")
+    cur = conn.execute("INSERT INTO experience_cases (key, at, stage, outcome, project_id, job_id, shot, subjects, view, kind, note, "
+                       "evidence, source, confirmed_by) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)" + tail,
                        (key, _now(), stage, outcome, project_id, job_id, shot, json.dumps(sorted({str(s).upper() for s in subjects})),
                         view, kind, str(note or "")[:600], evidence, source, confirmed_by))
     conn.commit()
@@ -156,8 +163,13 @@ def relevant(conn, stages: Iterable[str], subjects: Iterable[str], views: Iterab
     ensure(conn)
     want, views, skip = {str(s).upper() for s in subjects}, {v for v in views if v}, set(exclude_jobs)
     skip_shots = {tuple(x) for x in exclude_shots}
-    rows = conn.execute(f"SELECT * FROM experience_cases WHERE stage IN ({','.join('?' * len(list(stages)))}) AND confirmed_by IS NOT NULL",
-                        list(stages)).fetchall()
+    stages = list(stages)
+    rows = conn.execute(f"SELECT * FROM experience_cases WHERE stage IN ({','.join('?' * len(stages))}) AND confirmed_by IS NOT NULL",
+                        stages).fetchall()
+    # S14.46: a retired case, or one about a removed feature (phông xanh…), is never shown — said once per call
+    from . import retired_topics
+    rows, n_drop, dropped = retired_topics.split([dict(r) for r in rows], lambda c: f"{c.get('kind') or ''} — {c.get('note') or ''}")
+    retired_topics.report(conn, "qc" if any(s.startswith("qc") for s in stages) else "system", "ca kinh nghiệm", n_drop, dropped)
     scored = []
     for r in rows:
         if r["job_id"] in skip or (r["project_id"], r["shot"]) in skip_shots:   # never the frames judged now, nor another take
@@ -167,7 +179,7 @@ def relevant(conn, stages: Iterable[str], subjects: Iterable[str], views: Iterab
             continue
         score = 2 * len(who & want) + (3 if r["view"] and r["view"] in views else 0) \
             + {"false_alarm": 4, "missed": 4, "failure": 2, "success": 0}[r["outcome"]] + (1 if r["evidence"] else 0)
-        scored.append((score, r["id"], dict(r)))
+        scored.append((score, r["id"], r))
     scored.sort(key=lambda x: (-x[0], -x[1]))
     # balance: at most half of the cases of one outcome — four false alarms alone would teach a checker to wave real flips through
     # (S7.1 01/10 dry run: cảnh 2 #8 has 2 real blocks)

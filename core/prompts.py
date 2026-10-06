@@ -281,7 +281,7 @@ def build_director_bundle(pipeline: Pipeline, project_id: int, only_scene: Optio
         standard_block(pipeline, project_id),
         bible_block(pipeline, project_id),
         world_bible_text(pipeline, project_id),
-        knowledge.user_text("director"),
+        knowledge.user_text("director", conn=pipeline.conn),
         few_shot_text(),
         locked_block(pipeline, project_id),
         script_preamble(proj),
@@ -366,7 +366,7 @@ def build_intent_bundle(pipeline: Pipeline, project_id: int) -> str:
         standard_block(pipeline, project_id),
         bible_block(pipeline, project_id),
         world_bible_text(pipeline, project_id),
-        knowledge.user_text("director"),
+        knowledge.user_text("director", conn=pipeline.conn),
         locked_block(pipeline, project_id),
         script_preamble(proj),
         "# Kịch bản đã tách cảnh\n\n" + _story_text(pipeline, project_id),
@@ -408,7 +408,7 @@ def dp_common(pipeline: Pipeline, project_id: int, intent: dict) -> str:
         standard_block(pipeline, project_id, names=names),
         ("# Character Bible (Đạo diễn vừa chốt ở Tầng A — dùng ĐÚNG các tên này trong `characters` và `speaker`)\n" + bible) if bible else "",
         world_bible_text(pipeline, project_id),
-        knowledge.user_text("director"),
+        knowledge.user_text("director", conn=pipeline.conn),
         locked_block(pipeline, project_id),
         script_preamble(proj),
         "# Kịch bản đã tách cảnh\n\n" + _story_text(pipeline, project_id),
@@ -578,7 +578,7 @@ def build_qc_bundle(pipeline: Pipeline, scene_id: int, data_dir: Optional[str] =
         "" if "knowledge/ai_image_failure_modes.md" in knowledge.folded_builtin("qc")
         else _read("knowledge", "ai_image_failure_modes.md"),
         _read("knowledge", "character_lock.md"),
-        knowledge.user_text("qc"),
+        knowledge.user_text("qc", conn=pipeline.conn),
     ], [                                                 # same for every picture of this project
         looks.qc_note(pipeline.project(scene["project_id"])),
         world_bible_text(pipeline, scene["project_id"]),
@@ -691,6 +691,6 @@ def build_motion_bundle(pipeline: Pipeline, project_id: int, only_missing: bool 
     wb = world_bible_text(pipeline, project_id)
     if wb:
         parts.append(wb)
-    extra = knowledge.user_text("motion")
+    extra = knowledge.user_text("motion", conn=pipeline.conn)
     return _SEP.join([x for x in parts if x] + ([extra] if extra else [])) + CACHE_BREAK + (       # rules repeat between batches (C2)
         "# Cảnh đã có ảnh được duyệt\n```json\n" + json.dumps(payload, ensure_ascii=False, indent=2) + "\n```")
