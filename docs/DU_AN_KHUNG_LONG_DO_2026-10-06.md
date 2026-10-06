@@ -91,3 +91,17 @@ _(điền sau khi chạy: mã dự án, chi thật theo sổ chi, cách A/B nh�
   ước tính Dashboard 13,86 USD (kế hoạch tính dư ≈ 24) — có thể chưa tính giá video ref Seedance 2.5.
 - **Dừng ở:** khóa ngân sách dự án (≈ 13,86 USD) — người dùng tự bấm. Tiếp: Storyboard ▶ Gen ảnh (≈ 0,6 USD) → motion prompt →
   bật chế độ chuyên gia, gắn `nhay_doan1/2/3.mp4` vào shot 7/8/9 (chưa thử: khung đầu + video ref trên Seedance 2.5) → gen video → dựng.
+**07/10 — lượt 2: storyboard đạt 9/9 (bản Thử rẻ) — bài học**
+- *Phân tích ảnh sai trước khi vẽ lại* (người dùng): dựng lại đúng prompt + tham chiếu đã gửi (`ImageRunner._submit_args` khô) → shot 4/6 "cùng khung"
+  sai vì 6 nguyên nhân hệ thống: (1) không gửi ảnh shot liền trước, ảnh neo shot 1 lại kèm câu "vẽ khoảnh khắc MỚI, góc máy KHÁC"; (2) prompt Director
+  cũ "medium shot + dép, quần jean" đứng cạnh "Framing: MCU"; (3) khóa nhận dạng MAXIM KL lấy hồ sơ Kho có đồ thường → mũ lưỡi trai đen thay mũ sừng;
+  (4) câu bối cảnh "quảng trường, cỏ, dừa, biển" chèn vào shot trong phòng; (5) ảnh toàn cảnh (nhà nhìn từ ngoài) gửi làm nền; (6) lần tự vẽ lại do QC
+  cỡ cảnh XÓA câu sửa của người. Đã sửa cả 5 lỗi code (370dacc) + viết lại prompt shot 4/6 → lần vẽ sau đúng khung.
+- Dashboard thiếu ô: cỡ shot / góc máy / chuyển động máy và đường gen video theo shot (446f33a); ô thời lượng chỉ nhận số nguyên (f9226f9);
+  chọn chỗ đứng 3D bỏ chữ "đông", "tầng 2" (62e0789, 61aca0a).
+- Chữ "xanh" (tiếng Việt) bị Director dịch "blue" trong khi trang phục là xanh lá → ghi rõ "xanh lá"/GREEN trong mô tả trang phục.
+- Ảnh toàn cảnh cảnh trong nhà vẽ thành ngôi nhà nhìn từ ngoài, 16:9 trong dự án dọc (chưa sửa gốc — TODO).
+- Gen thử chất lượng thấp tới khi đạt rồi mới gen chất lượng cao theo đúng cách đã đạt (người dùng, kinh nghiệm) — đang giữ "Thử rẻ".
+- Đường video: cảnh 1 → Kling khung đầu từng shot (giữ đúng khung cho cắt hô biến); cảnh nhảy → Seedance từng clip + video mẫu (mặc định Dashboard
+  gộp shot 1–4 thành 1 clip 10 s → dễ hụt shot ngắn khi dựng).
+- Chi đến lúc này ≈ 2,9 USD (Claude ≈ 1,0; ảnh ≈ 1,9).
