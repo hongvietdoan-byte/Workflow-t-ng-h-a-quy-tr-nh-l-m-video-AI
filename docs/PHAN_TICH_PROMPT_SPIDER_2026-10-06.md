@@ -23,7 +23,7 @@ trên ẢNH/CLIP tạo ra, không trên chữ.
 ## Hai việc lấy từ tài liệu (dòng đề xuất cho `docs/KE_HOACH_SUA_SAU_DU_AN_8.md` — phiên chính thêm khi gộp)
 ```
 - [ ] S14.47 · Bản đồ "Ai quyết" (ý 1 tài liệu Prompt Spider 06/10): devsys/decisions.json (76 điểm: code / claude / người, file:hàm, khâu, gợi ý chuyển sang code) + devsys/decisions.py (kiểm khớp code: khâu Claude thiếu, hàm không còn) + trang devsys 'Ai quyết' · nặng:1 · ✅ (cloud 06/10)
-- [ ] S14.48 · Màu chính nhân vật đo bằng code (ý 2 tài liệu Prompt Spider 06/10): bảng màu hex trong Character Lock, đo lệch màu vùng nhân vật trên ảnh tạo ra (QC lớp 0, 0 USD), sau cờ TẮT — ngưỡng hiệu chỉnh trên ảnh thật ở máy chính · nặng:2 · 🔄 (cloud: code + test; còn hiệu chỉnh)
+- [ ] S14.48 · Màu chính nhân vật đo bằng code (ý 2 tài liệu Prompt Spider 06/10): bảng màu hex trích từ ảnh tham chiếu đã duyệt (cột characters.palette, người sửa tay được), đo lệch màu vùng thân trên khung Tổ QC soi (0 USD, ghi chú), sau cờ TẮT — ngưỡng hiệu chỉnh trên ảnh thật ở máy chính · nặng:2 · 🔄 (cloud: code + test; còn hiệu chỉnh)
 ```
 
 ## Kết quả S14.47 lần đầu (06/10)
