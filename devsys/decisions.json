@@ -205,8 +205,15 @@
    "id": "d77",
    "step": "step2",
    "who": "code",
-   "what": "Đo lệch màu chính nhân vật so ảnh mốc (cờ palette_check, ghi chú)",
+   "what": "Đo lệch màu chính nhân vật so ảnh mốc (cờ palette_check, ghi chú; bỏ đêm/hoàng hôn/cận mặt)",
    "where": "core/palette.py:check"
+  },
+  {
+   "id": "d78",
+   "step": "step2",
+   "who": "code",
+   "what": "So màu trang phục giữa các khung cùng cảnh (cùng ánh sáng), chỉ ra khung lệch",
+   "where": "core/palette.py:scene_check"
   },
   {
    "id": "d26",

@@ -345,11 +345,13 @@ FEATURES: Dict[str, Dict] = {
                "lỗi không (không khớp vẫn ghi, hiện ở 'Chưa phân loại' + diag)",
     },
     "palette_check": {
-        "label": "Màu chính nhân vật đo bằng code (0 USD): trích bảng màu vùng thân từ ảnh tham chiếu đã duyệt, so với từng khung Tổ QC "
-                 "soi (khung một người) — ghi chú 'lệch màu trang phục' cho người xem, không tự từ chối / vẽ lại",
+        "label": "Màu chính nhân vật đo bằng code (0 USD): so sắc màu vùng thân (đã cân trắng) với ảnh tham chiếu đã duyệt và với các "
+                 "khung cùng cảnh; bỏ đêm / hoàng hôn / cận mặt / trang phục riêng — ghi chú 'lệch màu trang phục' cho người xem, "
+                 "không tự từ chối / vẽ lại",
         "verified": False,
-        "why": "S14.48 (06/10, ý từ tài liệu Prompt Spider): mới thử trên ảnh tổng hợp; ngưỡng ΔE 20 / giữ 35 % chưa hiệu chỉnh trên ảnh "
-               "thật (cần ~20 khung #8 có / không lệch màu ở máy chính); vùng thân ước theo hộp mặt — dáng nghiêng / cận mặt có thể đo sai",
+        "why": "S14.48 (06/10, ý từ tài liệu Prompt Spider): mới thử trên ảnh tổng hợp (sáng tối hơn 45 % bản đầu báo nhầm, bản nới thì "
+               "không); ngưỡng hue ±30° / giữ 25 % chưa hiệu chỉnh trên ảnh thật — bật khi ~20 khung #8 cho báo nhầm ≤ 10 %; vùng thân "
+               "ước theo hộp mặt — dáng nghiêng có thể đo sai",
     },
     "risk_tags": {
         "label": "Bài học lỗi: tách tag 'motion' thành 6 trục rủi ro I2V (face_morph, body_deform, wardrobe_drift, background_drift, "

@@ -37,3 +37,11 @@ luật `voice_casting` (khi cờ `auto_voice_cast` đã thử thật); `lint_mot
 (một lần theo sha ảnh; người đặt tay thì thắng), so với khung Tổ QC soi (`core/qc_team.review_frame` → `code["_palette"]`), chỉ khung MỘT
 người. Luôn 'uncertain' (ghi chú cho người), không tự từ chối. Test trên ảnh tổng hợp (`tests/test_s1448_palette.py`). **Còn ở máy chính:**
 hiệu chỉnh MATCH_DE / KEEP_RATIO trên ~20 khung #8 có / không lệch màu; xem vùng thân ước theo hộp mặt có sai ở dáng nghiêng / cận mặt.
+
+### S14.48 bản nới (người dùng hỏi 06/10: "màu có bị thời tiết, đèn ảnh hưởng, dễ báo nhầm?")
+Có — bản đầu so màu tuyệt đối (ΔE76 ≤ 20, giữ 35 %) báo nhầm khi chỉ tối hơn 45 %. Bản nới: (1) cân trắng theo cả khung + so SẮC MÀU
+(hue ±30°), màu đen/trắng/xám chỉ so 'không sắc'; (2) cảnh đêm / hoàng hôn / quá tối (`qc_measure.sky`, độ sáng < 60) không so; (3)
+`scene_check` so các khung cùng cảnh với nhau (cùng ánh sáng), chỉ chỉ ra khung lệch khi ≥ 3 khung và các khung còn lại khớp nhau; (4) giữ
+25 %, bỏ cận mặt, bỏ so ảnh mốc khi nhân vật mặc trang phục riêng của dự án. Sửa kèm: bản đầu không bao giờ tới người (review_frame bỏ khóa
+'_') — nay `res["palette"]` + `res["palette_scene"]`, một dòng "Màu (code, thử)" trong ghi chú Tổ QC chỉ khi có thể lệch. Thử (ảnh tổng
+hợp): đỏ tối hơn 45 % — bản đầu BÁO NHẦM, bản nới ok. Điều kiện bật cờ: báo nhầm ≤ 10 % trên ~20 khung #8 ở máy chính.
