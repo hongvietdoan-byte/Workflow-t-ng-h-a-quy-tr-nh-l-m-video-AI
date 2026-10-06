@@ -14,8 +14,9 @@
   test_references, test_screens_dashboard script); màn nặng ghim FEATURE_UI_V2=0 (test_image_history, test_image_progress,
   test_storyboard_gate, test_users NameBar, test_screens_dashboard team) — G-b bỏ các dòng ghim này.
 
-## Đang dở / bước kế
-- Chạy lại cả bộ, báo số.
+- Cả bộ lần 2 (94edc00): 2662 passed, 4 skipped, 0 failed (15 phút 32 giây).
+
+## Bước kế
 - G-b: gỡ nhánh cũ header.py, step2/grid_v2, step3, step5, team_screen*, home.py (home.py chưa nằm trong danh sách nhóm nào —
   vẫn đọc cờ, FlagOffTests của test_ui_home còn đúng); sau đó gỡ cờ ở ui.inject_css/dark_on/set_dark + app.shell_header, bỏ dòng
   FEATURE_UI_V2=0 trong setUp của tests/test_dashboard.py.
