@@ -193,7 +193,7 @@ def build_bundle(root: str, cfg: Dict, area: Dict, snap: Dict, health: Dict, las
 
     flags = [f for f in snap["flags"] if area["id"] in f["areas"]]
     flag_txt = "\n".join(f"- flag:{f['name']} · verified={f['verified']} · đang {'BẬT' if f['on'] else 'tắt'}"
-                         f"{' (biến môi trường ' + f['env'] + ')' if f['env'] else ''} · {f['label']} · vì sao chưa kiểm: {f['why']} · dùng ở: "
+                         f"{' (biến môi trường ' + f['env'] + ')' if f['env'] else ''}{' — ' + f['on_why'] if f.get('on_why') else ''} · {f['label']} · vì sao chưa kiểm: {f['why']} · dùng ở: "
                          f"{', '.join(f['sites'][:6]) or 'không thấy features.on(...) trong code'}" for f in flags) or "(khu vực không có cờ)"
 
     todo_items = [i for i in snap["todo_by_area"].get(area["id"], []) if i["kind"] != "recurring"]

@@ -634,13 +634,46 @@ def env_file_flags(root: str = ROOT, path: Optional[str] = None) -> Dict[str, st
     return out
 
 
+def _features_rule(root: str, from_file: Dict[str, str]):
+    """S14.10 S1: `name -> (on, why)` by the Dashboard's own rule — core/features.py OF THE MEASURED REPO loaded from its path (so
+    settings_path() is <root>/data/feature_settings.json: the 🧪 screen choice and preset), its `_env` widened to dashboard.env (the
+    environment still wins, as core/adapters/check.load_dashboard_env does). None when that file has no `on()` (another repo / a test
+    repo) — the caller then keeps the ast reading."""
+    import importlib.util
+    path = os.path.join(root, "core", "features.py")
+    try:
+        tag = hashlib.sha1(os.path.abspath(path).encode("utf-8")).hexdigest()[:10]
+        spec = importlib.util.spec_from_file_location(f"_devsys_features_{tag}", path)
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        on, why = mod.on, getattr(mod, "why_state", None)
+    except (OSError, ImportError, SyntaxError, AttributeError, ValueError, TypeError) as e:
+        return None, f"{type(e).__name__}: {e}"
+    env_of = getattr(mod, "_env", None)
+
+    def _env(name: str) -> str:
+        own = env_of(name) if env_of else os.environ.get("FEATURE_" + name.upper(), "").strip().lower()
+        return own or from_file.get(name, "")
+
+    mod._env = _env
+
+    def rule(name: str):
+        try:
+            return bool(on(name)), (why(name) if why else "core.features.on")
+        except KeyError:                         # in the ast FEATURES but not in the loaded module: say so, never guess silently
+            return None, "cờ không có trong FEATURES khi nạp core/features.py"
+    return rule, ""
+
+
 def flags_state(root: str, cfg: Dict, files: Optional[Sequence[str]] = None) -> List[Dict]:
     feats = read_features(root)
     from_file = env_file_flags(root)
+    rule, rule_note = _features_rule(root, from_file)
     files = files if files is not None else repo_files(root)
     sites: Dict[str, List[str]] = {k: [] for k in feats}
-    # B6 01/10: also the module constant `FEATURE = "name"` (core/director_two_pass.py, qc_team.py, project_budget.py … call features.on(FEATURE))
-    rx = re.compile(r"""features\.on\(\s*["']([a-z0-9_]+)["']|feature_on\(\s*["']([a-z0-9_]+)["']|^FEATURE\s*=\s*["']([a-z0-9_]+)["']""")
+    # B6 01/10: also the module constant `FEATURE = "name"` (core/director_two_pass.py, qc_team.py, project_budget.py … call features.on(FEATURE));
+    # S14.10 S1: and `FLAG = "…"` / `CLAUDE_FLAG = "…"` (core/hero_takes.py, qc_scene.py) — quoted names only (`DARK_FLAG = 0.20` is a number)
+    rx = re.compile(r"""features\.on\(\s*["']([a-z0-9_]+)["']|feature_on\(\s*["']([a-z0-9_]+)["']|^(?:\w*FLAG|FEATURE)\s*=\s*["']([a-z0-9_]+)["']""")
     for f in files:
         if not f.endswith(".py") or not (f.startswith("core/") or f.startswith("dashboard/")) or f == "core/features.py":
             continue
@@ -659,9 +692,12 @@ def flags_state(root: str, cfg: Dict, files: Optional[Sequence[str]] = None) -> 
         source = "môi trường" if env else None
         if not env and from_file.get(name):
             env, source = from_file[name], "dashboard.env"
-        on = True if env in ("1", "true", "on", "yes") else False if env in ("0", "false", "off", "no") else bool(meta.get("verified"))
+        on, on_why = rule(name) if rule else (None, "")
+        if on is None:                           # fallback: the ast reading (FEATURE_<NAME>, else `verified`) — and say why
+            on = True if env in ("1", "true", "on", "yes") else False if env in ("0", "false", "off", "no") else bool(meta.get("verified"))
+            on_why = f"đọc bằng ast (không nạp được luật core.features.on: {on_why or rule_note})"
         out.append({"name": name, "label": meta.get("label", ""), "why": meta.get("why", ""), "verified": bool(meta.get("verified")),
-                    "env": env or None, "env_source": source, "on": on, "sites": sites.get(name, []),
+                    "env": env or None, "env_source": source, "on": on, "on_why": on_why, "sites": sites.get(name, []),
                     "areas": [a["id"] for a in cfg["areas"] if name in a.get("flags", [])]})
     return out
 
