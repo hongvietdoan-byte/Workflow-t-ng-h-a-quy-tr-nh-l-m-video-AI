@@ -109,6 +109,7 @@ def backup(db: str, backup_dir: str) -> str:
     dst = sqlite3.connect(path)
     try:
         src.backup(dst)
+        dst.execute("PRAGMA journal_mode = DELETE")     # one self-contained file (the source is WAL: no -wal / -shm beside the copy)
     finally:
         dst.close()
         src.close()

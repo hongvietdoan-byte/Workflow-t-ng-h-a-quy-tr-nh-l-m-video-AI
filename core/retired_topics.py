@@ -31,11 +31,14 @@ COLUMNS = (("retired_at", "TEXT"), ("retired_why", "TEXT"))
 _BASE: Dict[str, Dict] = {
     "location_plates": {"patterns": [r"phông\s*xanh", r"green[\s_-]?screen", r"plate_mode", r"location_plates?\b", r"chroma[\s_-]?key",
                                      r"ghép\s+(?:lên\s+)?nền\s+3d"],
-                        "keep": [r"ghép\s+lộ"]},
+                        # kept: a fault that can still happen (QC D3 "ghép lộ"), and the mannequin / depth reference videos (01/10)
+                        # whose green backdrop must be named as "not taken" — a live lesson, not the removed plate workflow
+                        "keep": [r"ghép\s+lộ", r"mannequin", r"depth[\s_-]?map"]},
     "layout_to_model": {"patterns": [r"layout_to_model"]},
     "chain_previous_auto": {"patterns": [r"chain_previous_auto"]},
     "setcheck_autofix": {"patterns": [r"setcheck_autofix"]},
-    "seedance_sample_mode": {"patterns": [r"seedance_sample_mode", r"bản\s+mẫu\s+480p"]},
+    # only the flag's name: "bản mẫu 480p" (a cheap test render first) is still craft advice (knowledge/roles/dp.md)
+    "seedance_sample_mode": {"patterns": [r"seedance_sample_mode"]},
     "sync_so": {"why": "sync.so: người dùng chốt 26/09 không mở tài khoản — khớp môi chỉ bằng video kèm giọng (Seedance reference_audio)",
                 "patterns": [r"sync\.so\b", r"\bsyncso\b", r"\bsync\s+labs\b"]},
     "ff_site_vm": {"why": "S14.5: ff_site bỏ sandbox `vm` (Node) — không còn chạy mã trang web",
@@ -132,20 +135,21 @@ def has_columns(conn, table: str) -> bool:
 
 # ---- read-time filter + one diag per call -----------------------------------------------------------------------------------------
 def split(items: List[Dict], text_of) -> tuple:
-    """(kept, n dropped, {topic: count}) — rows with retired_at set or about a retired topic are dropped. ("chroma" alone is not a
-    topic word: it is also a colour-grading term.)"""
-    kept, dropped = [], {}
+    """(kept, n dropped by topic, {topic: count}). Rows with retired_at set are left out too but not counted: they were retired on
+    purpose with a written list (docs/BAI_HOC_DA_CAT_*.md) — counting them would add a diag row to every call forever. What IS counted
+    = a row about a removed topic not retired yet (written after the clean-up): the sign to run tools/lessons_retire.py again."""
+    kept, dropped, n = [], {}, 0
     for it in items:
         if it.get("retired_at"):
-            dropped["đã cất"] = dropped.get("đã cất", 0) + 1
             continue
         hit = matches(text_of(it))
         if hit:
+            n += 1
             for h in hit:
                 dropped[h] = dropped.get(h, 0) + 1
             continue
         kept.append(it)
-    return kept, len(items) - len(kept), dropped
+    return kept, n, dropped
 
 
 def report(conn, stage: str, what: str, n: int, dropped: Dict[str, int]) -> None:
@@ -156,8 +160,8 @@ def report(conn, stage: str, what: str, n: int, dropped: Dict[str, int]) -> None
     from . import diag
     if n:
         detail = ", ".join(f"{k} ×{v}" for k, v in sorted(dropped.items()))
-        diag.record(conn, stage, "info", f"Không đưa vào prompt {n} {what} thuộc chủ đề đã bỏ / đã cất ({detail}) — "
-                    "S14.46, xem tools/lessons_retire.py", code="lesson_retired_topic")
+        diag.record(conn, stage, "info", f"Không đưa vào prompt {n} {what} thuộc chủ đề đã bỏ ({detail}) — S14.46; "
+                    "chạy py tools/lessons_retire.py để xem / cất hẳn", code="lesson_retired_topic")
     if err:
         diag.record(conn, stage, "warn", f"Không đọc được danh sách chủ đề đã bỏ ({err}) — dùng danh sách có sẵn trong core/retired_topics.py",
                     code="retired_topics_file")

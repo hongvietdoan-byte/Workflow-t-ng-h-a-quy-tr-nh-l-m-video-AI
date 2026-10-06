@@ -46,6 +46,9 @@ class TopicTests(unittest.TestCase):
 
     def test_a_fault_that_can_still_happen_is_kept(self):
         self.assertEqual(retired_topics.matches("Ghép lộ: mảng chữ nhật dán, đường nối thẳng (#8 ghép phông xanh)"), [])
+        # live lessons found on the real knowledge files (dry run 06/10): mannequin ref video on a green backdrop, cheap 480p test render
+        self.assertEqual(retired_topics.matches("Video mannequin: nói rõ không lấy thân mannequin, phông xanh, tiếng"), [])
+        self.assertEqual(retired_topics.matches("quay thử rẻ trước (bản mẫu 480p) rồi mới làm bản cuối"), [])
 
     def test_decomposed_unicode_still_matches(self):
         import unicodedata
@@ -98,6 +101,7 @@ class ExperienceFilterTests(unittest.TestCase):
         self.assertEqual(row["note"], "nhãn mới")
         keys = [c["key"] for c in experience.relevant(self.conn, ["qc_image"], ["KENTA"], ["behind"])]
         self.assertEqual(keys, ["plain"])
+        self.assertFalse(diag_rows(self.conn, "lesson_retired_topic"))   # retired on purpose (listed in docs): no diag at every call
 
 
 class LessonFilterTests(unittest.TestCase):
