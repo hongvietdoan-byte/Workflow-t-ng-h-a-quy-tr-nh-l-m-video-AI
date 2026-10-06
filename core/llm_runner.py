@@ -98,6 +98,7 @@ STAGE_SETTINGS: Dict[str, Dict[str, Any]] = {
                                                               # default 32k made turn 1's estimate 0.43 USD > the 0.3 USD per-idea cap
     "director_rewrite": {"effort": "low", "max_tokens": 6000,   # S14.17 Đạo diễn viết lại prompt MỘT shot trước khi gen lại: JSON ngắn.
                          "timeout": 90, "retries": 1},          # The person waits on the button: 90 s, one retry, then the old "Fix:" way
+    "lesson_judge": {"effort": "low", "max_tokens": 4000},      # S14.24 agent chấm bài học (bóng): JSON khoản trừ ngắn của 5 tiêu chí
     "asset_checklist": {"effort": "low", "max_tokens": 6000},   # S14.23 bảng kê tài nguyên trước Director: JSON ngắn (≈ 1 dòng / thứ cần);
                                                               # own entry so the 32k default never makes the worst case refuse (S11.2)
 }
