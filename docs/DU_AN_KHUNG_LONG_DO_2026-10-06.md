@@ -105,3 +105,9 @@ _(điền sau khi chạy: mã dự án, chi thật theo sổ chi, cách A/B nh�
 - Đường video: cảnh 1 → Kling khung đầu từng shot (giữ đúng khung cho cắt hô biến); cảnh nhảy → Seedance từng clip + video mẫu (mặc định Dashboard
   gộp shot 1–4 thành 1 clip 10 s → dễ hụt shot ngắn khi dựng).
 - Chi đến lúc này ≈ 2,9 USD (Claude ≈ 1,0; ảnh ≈ 1,9).
+- 9/9 motion prompt đã duyệt: shot 7–9 viết lại (Claude tự bịa động tác nhảy, "quảng trường đá") → "nhảy đúng từng nhịp video tham chiếu,
+  đồng đều; người trong video chỉ cho động tác"; gắn `nhay_doan1/2/3.mp4` (chế độ chuyên gia tắt sau mỗi lần khởi động lại → bật lại).
+- **DỪNG 07/10:** bấm ▶ Gen video (thử rẻ ≈ 5,84 USD: Kling std ×6, Seedance 2.0 Fast 720p ×3 — chế độ thử rẻ hạ Seedance 2.5 xuống 2.0 Fast,
+  KHÁC model đã thử đạt) → ClipAI trả "Account balance not enough" (6 job failed, 3 queued, không tốn tiền). Chờ người dùng nạp ClipAI rồi bấm
+  "↻ Gửi lại clip lỗi" + ▶ Gen video. Vướng thêm: nhãn đường Kling chọn tay hiện "Seedance đã từ chối shot này"; shot thoại đi Kling →
+  "không khớp môi" (diag lipsync_not_applied) — xem lại cách khớp môi cho shot 3/5 khi gen thật.
