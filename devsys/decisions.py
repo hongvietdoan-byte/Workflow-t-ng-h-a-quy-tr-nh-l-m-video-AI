@@ -1,4 +1,4 @@
-"""S14.47 (ý 1 từ tài liệu 'Prompt Spider', 06/10): bản đồ AI QUYẾT ở mỗi điểm của pipeline — code / claude / human.
+"""S14.50 (ý 1 từ tài liệu 'Prompt Spider', 06/10): bản đồ AI QUYẾT ở mỗi điểm của pipeline — code / claude / human.
 
 Nguồn: devsys/decisions.json (liệt kê tay, mỗi điểm một dòng: bước, ai quyết, file:hàm, khâu Claude, gợi ý chuyển sang code). Module này
 kiểm bản đồ KHỚP code (không im lặng): khâu Claude nào có trong code mà thiếu trên bản đồ, 'where' nào trỏ tới hàm không còn, trường nào

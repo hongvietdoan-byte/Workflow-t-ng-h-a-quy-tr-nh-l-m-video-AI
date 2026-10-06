@@ -1,4 +1,4 @@
-"""S14.47 (ý 1 từ tài liệu 'Prompt Spider' 06/10): bản đồ AI QUYẾT — devsys/decisions.json + devsys/decisions.py + trang 'Ai quyết'.
+"""S14.50 (ý 1 từ tài liệu 'Prompt Spider' 06/10): bản đồ AI QUYẾT — devsys/decisions.json + devsys/decisions.py + trang 'Ai quyết'.
 Bản đồ phải khớp code: mọi khâu Claude có trong code (tagged("…"), _run(…, "…"), STAGE = "…", STAGE_SETTINGS) có ít nhất một điểm
 'claude'; mọi 'where' (file:hàm) tồn tại — đổi tên hàm mà quên bản đồ thì test đỏ."""
 import json

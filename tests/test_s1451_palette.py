@@ -1,4 +1,4 @@
-"""S14.48 (ý 2 từ tài liệu 'Prompt Spider' 06/10): màu chính nhân vật đo bằng CODE (0 USD), sau cờ `palette_check` TẮT; chỉ ghi chú
+"""S14.51 (ý 2 từ tài liệu 'Prompt Spider' 06/10): màu chính nhân vật đo bằng CODE (0 USD), sau cờ `palette_check` TẮT; chỉ ghi chú
 'uncertain', không tự từ chối. Người dùng hỏi 06/10 "màu có bị thời tiết, đèn ảnh hưởng, dễ báo nhầm?" → đo NỚI: cân trắng + so sắc màu
 (không so độ sáng), cảnh đêm / hoàng hôn / quá tối không so, bỏ cận mặt, so TRONG CẢNH, bỏ so ảnh mốc khi nhân vật mặc trang phục riêng.
 Không có bộ dò mặt trên máy test → thay bằng hộp mặt cố định; trời đọc 'day' trừ khi test nói khác."""
@@ -180,7 +180,7 @@ class StoreAndQcTeamTests(Base):
             self.assertEqual(other["_palette"]["status"], "not_measurable")
 
     def test_result_reaches_the_person_note(self):
-        """Lỗi bản đầu S14.48: review_frame bỏ mọi khóa '_' → _palette không bao giờ tới người. Nay kết quả giữ ở res['palette']."""
+        """Lỗi bản đầu S14.51: review_frame bỏ mọi khóa '_' → _palette không bao giờ tới người. Nay kết quả giữ ở res['palette']."""
         root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
         with open(os.path.join(root, "core", "qc_team.py"), encoding="utf-8") as f:
             src = f.read()

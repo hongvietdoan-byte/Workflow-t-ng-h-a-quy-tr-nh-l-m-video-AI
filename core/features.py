@@ -342,7 +342,7 @@ FEATURES: Dict[str, Dict] = {
                  "khung cùng cảnh; bỏ đêm / hoàng hôn / cận mặt / trang phục riêng — ghi chú 'lệch màu trang phục' cho người xem, "
                  "không tự từ chối / vẽ lại",
         "verified": False,
-        "why": "S14.48 (06/10, ý từ tài liệu Prompt Spider): mới thử trên ảnh tổng hợp (sáng tối hơn 45 % bản đầu báo nhầm, bản nới thì "
+        "why": "S14.51 (06/10, ý từ tài liệu Prompt Spider): mới thử trên ảnh tổng hợp (sáng tối hơn 45 % bản đầu báo nhầm, bản nới thì "
                "không); ngưỡng hue ±30° / giữ 25 % chưa hiệu chỉnh trên ảnh thật — bật khi ~20 khung #8 cho báo nhầm ≤ 10 %; vùng thân "
                "ước theo hộp mặt — dáng nghiêng có thể đo sai",
     },

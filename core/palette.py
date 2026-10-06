@@ -1,4 +1,4 @@
-"""S14.48 (ý 2 từ tài liệu 'Prompt Spider', 06/10): màu chính nhân vật đo bằng CODE — 0 USD, tất định. Cờ `palette_check` (TẮT).
+"""S14.51 (ý 2 từ tài liệu 'Prompt Spider', 06/10): màu chính nhân vật đo bằng CODE — 0 USD, tất định. Cờ `palette_check` (TẮT).
 
 Character Lock đã cấm "đổi bảng màu trang phục" (knowledge/character_lock.md) nhưng chỉ Claude soi bằng mắt. Ở đây:
   extract(ảnh)          màu chiếm nhiều nhất ở vùng THÂN (ngay dưới mặt) → [{"hex", "share"}]

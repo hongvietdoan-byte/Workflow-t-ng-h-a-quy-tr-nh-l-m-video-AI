@@ -1038,7 +1038,7 @@ def page_flow():
                "'thêm ≈ …k (đánh thức lại)' tính vào sửa. Mốc A/B lấy từ skill vong-lam-viec-theo-plan mục 2/2b.")
 
 
-# ---- trang: Ai quyết (S14.47) ------------------------------------------------------------------------------------------
+# ---- trang: Ai quyết (S14.50) ------------------------------------------------------------------------------------------
 def page_decisions():
     st.title("Ai quyết — code, Claude hay người ở mỗi điểm của pipeline")
     st.caption("Từ `devsys/decisions.json` (liệt kê tay, test buộc khớp code). Đếm theo LOẠI quyết định, không theo số lượt chạy. "

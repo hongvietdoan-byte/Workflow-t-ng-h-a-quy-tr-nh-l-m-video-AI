@@ -153,10 +153,11 @@ class ValveTests(unittest.TestCase):
         self.assertEqual(v["decision"], "reject")
         self.assertIn("chu_de_da_bo", v["valves"])
 
-    def test_retired_words_match_whole_words_with_accents(self):
-        self.assertEqual(lj.retired_topics("Dùng phông xanh để ghép nền"), ["phông xanh"])
-        self.assertIn("location_plates", lj.retired_topics("bật location_plates"))
+    def test_retired_topics_come_from_core_retired_topics(self):
+        self.assertEqual(lj.retired_topics("Dùng phông xanh để ghép nền"), ["location_plates"])      # S14.46: một nguồn chủ đề đã bỏ
+        self.assertIn("layout_to_model", lj.retired_topics("bật layout_to_model"))
         self.assertEqual(lj.retired_topics("phong cách xanh lá, ánh sáng dịu"), [])          # không bỏ dấu → không khớp nhầm
+        self.assertEqual(lj.retired_topics("QC bắt ghép lộ viền phông xanh"), [])            # 'keep': lỗi vẫn còn xảy ra
 
 
 class EstimateTests(unittest.TestCase):

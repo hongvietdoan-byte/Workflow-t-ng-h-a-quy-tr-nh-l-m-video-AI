@@ -39,9 +39,8 @@ MAX_AUTO_LESSONS = 12             # trần mềm mỗi nhóm
 SOFT_DOC_CHARS = 8_000            # trần mềm tài liệu bài học (trần cứng lessons.MAX_DOC_CHARS… để còn đường lùi)
 DOCS_PROMPT_CHARS = 12_000        # tài liệu gửi kèm để soát mâu thuẫn: cắt ở đây, và nói ra là đã cắt
 TRUST_PAIRS, TRUST_AGREEMENT = 10, 0.90
-# S14.46: tính năng đã bỏ — bài học về chúng coi là KHÔNG dùng. So nguyên dấu, cả từ (không bỏ dấu: "phong" ≠ "phông").
-RETIRED_WORDS = ("phông xanh", "green screen", "chroma key", "location_plates", "location plate", "layout_to_model", "chain_previous_auto",
-                 "setcheck_autofix", "seedance_sample_mode")
+# S14.46: tính năng đã bỏ — bài học về chúng coi là KHÔNG dùng. Dùng chung danh sách chủ đề của core/retired_topics (một nguồn, sửa
+# một chỗ; so nguyên dấu, có biên từ, có danh sách 'keep' cho lỗi vẫn còn xảy ra như "ghép lộ").
 VALVE_TEXT = {
     "research": "nguồn web (research) — UI hứa chỉ là đề xuất, agent không chấm thay người",
     "san_cung": "trượt sàn cứng hoặc có khoản chặn",
@@ -70,8 +69,8 @@ def _now() -> datetime:
 
 
 def retired_topics(text: str) -> List[str]:
-    low = (text or "").lower()
-    return [w for w in RETIRED_WORDS if re.search(rf"(?<!\w){re.escape(w)}(?!\w)", low)]
+    from . import retired_topics as _retired
+    return _retired.matches(text or "")
 
 
 def body_hash(lesson: Dict) -> str:

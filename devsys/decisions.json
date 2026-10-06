@@ -1,5 +1,5 @@
 {
- "_note": "S14.47 (ý từ tài liệu 'Prompt Spider', 06/10): bản đồ AI QUYẾT ở mỗi điểm của pipeline — code (0 USD, tất định), claude (tốn token), human (người duyệt). Nguồn duy nhất cho trang devsys 'Ai quyết'. tests/test_devsys_decisions.py kiểm: mọi khâu Claude tìm thấy trong code phải có ở đây, mọi 'where' (file:hàm) phải tồn tại. 'suggest' = chỗ có thể chuyển sang code / bỏ để cắt chi phí.",
+ "_note": "S14.50 (ý từ tài liệu 'Prompt Spider', 06/10): bản đồ AI QUYẾT ở mỗi điểm của pipeline — code (0 USD, tất định), claude (tốn token), human (người duyệt). Nguồn duy nhất cho trang devsys 'Ai quyết'. tests/test_devsys_decisions.py kiểm: mọi khâu Claude tìm thấy trong code phải có ở đây, mọi 'where' (file:hàm) phải tồn tại. 'suggest' = chỗ có thể chuyển sang code / bỏ để cắt chi phí.",
  "steps": {
   "step1": "Bước 1 · Kịch bản & Đạo diễn",
   "step2": "Bước 2 · Ảnh + QC",
@@ -453,8 +453,8 @@
    "id": "d57",
    "step": "ops",
    "who": "code",
-   "what": "Nhận máy đăng nhập (DNS / mã thiết bị)",
-   "where": "core/machine_auth.py:identify"
+   "what": "Nhận máy đăng nhập theo tên DNS",
+   "where": "core/machine_auth.py:machine_of"
   },
   {
    "id": "d58",
@@ -485,13 +485,6 @@
    "where": "core/lessons.py:propose",
    "stage": "lessons",
    "suggest": "Đã có mẫu chữ khi không có Claude (_write_rule client=None)"
-  },
-  {
-   "id": "d62",
-   "step": "knowledge",
-   "who": "code",
-   "what": "Góp ý chấm thấp → bảng lỗi",
-   "where": "core/feedback.py:to_mistakes"
   },
   {
    "id": "d63",
