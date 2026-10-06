@@ -116,6 +116,7 @@ _PLACE_NAMES = re.compile(r"\b(thap )?dong ho\b")
 
 def _words(text: str) -> set:
     folded = _PLACE_NAMES.sub(" ", assets.fold(text or ""))
+    folded = re.sub(r"\b(?:tang|floor) (\d)\b", r"tang t\1", folded)   # "tầng 2" names the `_t2` spot (a 1-char "2" is dropped below)
     return {w for w in re.findall(r"[a-z0-9]+", folded) if len(w) >= 2 and w not in _STOP}
 
 

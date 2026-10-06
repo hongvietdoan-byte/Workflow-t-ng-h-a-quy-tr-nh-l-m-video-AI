@@ -149,6 +149,7 @@ class PlaceRefsTests(unittest.TestCase):
         entry = {"default_spot": "plaza_front", "spots": {
             "plaza_front": {"at": [0, 0, 0], "label": "quảng trường trước tháp (cách 16 m)"},
             "trong_nha_qt_t2": {"at": [1, 0, 0], "label": "trong nhà 3 tầng trên quảng trường — tầng 2 (cầu thang, phòng ngủ)", "indoor": {"exposure": 1.5}},
+            "trong_nha_dong_t1": {"at": [2, 0, 0], "label": "trong nhà lớn phía đông — tầng 1 (bếp, tủ lạnh)", "indoor": {"exposure": 1.5}},
             "trong_nha_dong_t2": {"at": [2, 0, 0], "label": "trong nhà lớn phía đông — tầng 2", "indoor": {"exposure": 1.5}},
             "nha_lon_dong": {"at": [3, 0, 0], "label": "nhà lớn phía đông (hai tầng)"}}}
         room = {"location": "Phòng ngủ tầng 2 nhà lớn phía Đông, Tháp Đồng Hồ"}
