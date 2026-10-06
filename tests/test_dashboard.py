@@ -530,6 +530,29 @@ class DashboardSmokeTests(unittest.TestCase):
         self.assertEqual(data["duration_s"], 2.5)                                    # was cut to 2 by an int box
         self.assertNotIn("duration_s", data.get("_user_locked") or [])                # not changed by hand → not locked
 
+    def test_a_shot_size_angle_and_move_are_set_by_hand(self):
+        """07/10 (Khủng Long Đỏ): a "same frame as the previous shot" shot needs the previous shot's size — there was no box for it."""
+        import json
+        p, pid = self.seed()
+        row = p.conn.execute("SELECT data FROM scenes WHERE project_id=? AND idx=1", (pid,)).fetchone()
+        p.conn.execute("UPDATE scenes SET data=? WHERE project_id=? AND idx=1",
+                       (json.dumps(dict(json.loads(row["data"] or "{}"), shot_no=1, size="MS", angle="eye")), pid))
+        p.conn.commit()
+        at = self.script_open(pid)
+        at.toggle(key=f"sd_open_{pid}_1").set_value(True).run()
+        self.assertEqual(at.selectbox(key=f"sd_{pid}_1_size").value, "MS")
+        at.selectbox(key=f"sd_{pid}_1_size").set_value("MCU").run()
+        at.selectbox(key=f"sd_{pid}_1_move").set_value("static").run()
+        at.selectbox(key=f"sd_{pid}_1_route").set_value("kling").run()
+        next(b for b in at.button if b.key == f"sds_{pid}_1").click().run()
+        self.assertFalse(at.exception)
+        data = json.loads(Pipeline(connect(self.db)).conn.execute("SELECT data FROM scenes").fetchone()["data"])
+        self.assertEqual((data["size"], data["angle"], data["move"], data["video_route"]), ("MCU", "eye", "static", "kling"))
+        self.assertIn("size", data["_user_locked"])                                   # kept when the Director runs again
+        from core import llm_io
+        with self.assertRaises(llm_io.SchemaError):
+            llm_io.update_scene(Pipeline(connect(self.db)), pid, 1, {"size": "HUGE"})
+
     def test_a_scene_background_is_chosen_from_the_project_places_and_saved_by_id(self):
         import io
         import json

@@ -171,6 +171,22 @@ def scene_editor(p: Pipeline, pid: int, scene, char_names) -> None:
     location = c1.text_input("Địa điểm" + lk("location"), d.get("location", ""), key=f"{k}_location")
     time_ = c2.text_input("Thời gian" + lk("time"), d.get("time", ""), key=f"{k}_time")
     shot = c3.text_input("Cỡ cảnh / góc máy" + lk("shot"), d.get("shot", ""), key=f"{k}_shot")
+    camera = {}
+    if d.get("shot_no"):                                  # 07/10: a shot's size / angle / move could only be set by the Director
+        from core import shots as _cam
+        s1, s2, s3 = st.columns(3)
+        for col, key, label, names in ((s1, "size", "Cỡ shot", _cam.SIZES), (s2, "angle", "Góc máy", _cam.ANGLES),
+                                       (s3, "move", "Chuyển động máy", _cam.MOVES)):
+            opts = [None] + list(names)
+            camera[key] = col.selectbox(label + lk(key), opts, index=opts.index(d.get(key)) if d.get(key) in opts else 0,
+                                        format_func=lambda v: "—" if v is None else v, key=f"{k}_{key}")
+        routes = {None: "Tự động (gộp nhóm shot liền nhau)", "single": "Một clip riêng (Seedance, ảnh tham chiếu)",
+                  "kling": "Một clip riêng (Kling, ảnh shot làm khung đầu)"}
+        camera["video_route"] = st.selectbox("🎬 Đường gen video" + lk("video_route"), list(routes),
+                                             index=list(routes).index(d.get("video_route")) if d.get("video_route") in routes else 0,
+                                             format_func=routes.get, key=f"{k}_route",
+                                             help="Gộp nhóm: nhiều shot một lần gen (model tự chia thời gian, shot ngắn dễ bị hụt). Shot cần "
+                                                  "đúng khung với shot trước (cắt tại chỗ) nên đi khung đầu.")
     c4, c5 = st.columns(2)
     mood = c4.text_input("Mood" + lk("mood"), d.get("mood", ""), key=f"{k}_mood")
     lighting = c5.text_input("Ánh sáng" + lk("lighting"), d.get("lighting", ""), key=f"{k}_lighting")
@@ -258,6 +274,7 @@ def scene_editor(p: Pipeline, pid: int, scene, char_names) -> None:
             fields["dialogue"] = dlg
         if perf is not None:
             fields["performance"], fields["why"] = perf, why_text
+        fields.update(camera)
         if char_names:
             fields["characters"] = cast
         if act(lambda: llm_io.update_scene(p, pid, idx, fields, text=text), f"Đã lưu cảnh {idx}"):

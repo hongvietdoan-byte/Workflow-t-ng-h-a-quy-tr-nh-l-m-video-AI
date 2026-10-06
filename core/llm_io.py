@@ -416,6 +416,24 @@ def update_scene(pipeline: Pipeline, project_id: int, idx: int, fields: Mapping[
             kept.append(line)
         _check_dialogue(kept, "dialogue")
         data["dialogue"] = kept or None
+    for key, allowed in (("size", "SIZES"), ("angle", "ANGLES"), ("move", "MOVES")):   # a v3 shot's camera, set by hand (07/10:
+        if key in fields:                                  # "same frame as the previous shot" needs the same size — no box before)
+            from . import shots as _shots
+            value = fields[key] or None
+            if value is not None and value not in getattr(_shots, allowed):
+                raise SchemaError(f"{key}: chọn một trong {', '.join(getattr(_shots, allowed))}")
+            if value is None:
+                data.pop(key, None)
+            else:
+                data[key] = value
+    if "video_route" in fields:                            # 07/10: one clip per shot / Kling chosen by hand (was only set by refusals)
+        from .seedance_refs import ROUTES
+        if fields["video_route"] not in ROUTES:
+            raise SchemaError("video_route: chọn tự động (nhóm), 'single' hoặc 'kling'")
+        if fields["video_route"] is None:
+            data.pop("video_route", None)
+        else:
+            data["video_route"] = fields["video_route"]
     if "performance" in fields:
         from .performance import clean as clean_performance
         acting, _ = clean_performance(fields["performance"])
