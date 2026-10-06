@@ -20,8 +20,11 @@ GIỚI HẠN CẦN BIẾT: reverse proxy / tunnel (ngrok, cloudflared, IIS/nginx
 dựa vào lớp này. Tên máy cũng chỉ đáng tin bằng DNS nội bộ: ai sửa được DNS / mạo IP của máy đã duyệt thì qua được.
 """
 import concurrent.futures
+import hashlib
 import ipaddress
 import os
+import re
+import secrets
 import socket
 import threading
 import time
@@ -141,6 +144,51 @@ def machine_of(ip: Optional[str], local: Optional[bool] = None) -> Tuple[Optiona
     return name, why
 
 
+# ---- S14.29: mã thiết bị khi IP không có tên DNS ngược (người dùng duyệt thiết kế 05/10) --------------------------------------------
+# Thử thật 05/10: dải 10.7.168.x chỉ 1/39 IP có PTR → machine_of trả "không xác định được tên máy". Trình duyệt giữ một mã ngẫu nhiên
+# (cookie dài hạn, đặt bởi dashboard/header.py); 'máy' = DEV-<6 ký tự đầu của băm>. CSDL chỉ lưu băm; mã không vào URL, không vào nhật
+# ký. Xóa dữ liệu trình duyệt / đổi trình duyệt = máy mới (chờ duyệt lại). Có tên DNS thì vẫn dùng tên DNS.
+DEVICE_COOKIE = "vdp_device"
+_DEVICE_RE = re.compile(r"^[A-Za-z0-9_-]{32,64}$")
+
+
+def new_device_code() -> str:
+    return secrets.token_urlsafe(32)
+
+
+def valid_device_code(code) -> bool:
+    return isinstance(code, str) and bool(_DEVICE_RE.match(code))
+
+
+def device_hash(code: str) -> str:
+    return hashlib.sha256(("vdp-device:" + code).encode("utf-8")).hexdigest()
+
+
+def device_name(digest: str) -> str:
+    return "DEV-" + digest[:6].upper()
+
+
+def identify(ip: Optional[str], local: Optional[bool] = None, device: Optional[str] = None) -> Dict:
+    """{"name", "why", "kind" ('dns' | 'device' | None), "hash"}: the DNS name when there is one, else the browser's device code."""
+    name, why = machine_of(ip, local)
+    if name:
+        return {"name": name, "why": "", "kind": "dns", "hash": None}
+    if valid_device_code(device):
+        digest = device_hash(device)
+        return {"name": device_name(digest), "why": "", "kind": "device", "hash": digest}
+    return {"name": None, "kind": None, "hash": None,
+            "why": f"{why}; trình duyệt cũng chưa có mã thiết bị (cần bật cookie cho trang này rồi tải lại)"}
+
+
+def _hash_clash(conn, email: str, m: Dict) -> bool:
+    """A device row with this DEV- name but another code (6 hex shared by chance, or a guessed name) — never accepted."""
+    if m["kind"] != "device":
+        return False
+    r = conn.execute("SELECT device_hash FROM machine_approvals WHERE email=? AND machine=?",
+                     ((email or "").strip().lower(), m["name"])).fetchone()
+    return bool(r and r["device_hash"] and r["device_hash"] != m["hash"])
+
+
 # ---- bảng máy được duyệt ------------------------------------------------------------------------------------------------------------
 def status(conn, email: str, machine: str) -> Optional[str]:
     r = conn.execute("SELECT status FROM machine_approvals WHERE email=? AND machine=?",
@@ -148,11 +196,11 @@ def status(conn, email: str, machine: str) -> Optional[str]:
     return r["status"] if r else None
 
 
-def request(conn, email: str, machine: str, ip: str) -> None:
+def request(conn, email: str, machine: str, ip: str, kind: Optional[str] = None, digest: Optional[str] = None) -> None:
     """Ask the Owner to approve `machine` for `email` (idempotent: a second ask only refreshes the address / time seen)."""
-    conn.execute("INSERT INTO machine_approvals (email, machine, status, requested_at, last_ip, last_seen) VALUES (?,?,?,?,?,?)"
-                 " ON CONFLICT(email, machine) DO UPDATE SET last_ip=excluded.last_ip, last_seen=excluded.last_seen",
-                 (email, machine, "pending", _stamp(), ip, _stamp()))
+    conn.execute("INSERT INTO machine_approvals (email, machine, status, requested_at, last_ip, last_seen, kind, device_hash)"
+                 " VALUES (?,?,?,?,?,?,?,?) ON CONFLICT(email, machine) DO UPDATE SET last_ip=excluded.last_ip, last_seen=excluded.last_seen",
+                 (email, machine, "pending", _stamp(), ip, _stamp(), kind, digest))
     conn.commit()
 
 
@@ -233,10 +281,11 @@ def _first_machine(conn, email: str) -> bool:
     return conn.execute("SELECT 1 FROM machine_approvals WHERE email=? LIMIT 1", ((email or "").strip().lower(),)).fetchone() is None
 
 
-def _auto_approve(conn, email: str, machine: str, ip: str) -> None:
+def _auto_approve(conn, email: str, machine: str, ip: str, kind: Optional[str] = None, digest: Optional[str] = None) -> None:
     email = (email or "").strip().lower()
-    conn.execute("INSERT INTO machine_approvals (email, machine, status, requested_at, decided_at, decided_by, last_ip, last_seen) "
-                 "VALUES (?,?,?,?,?,?,?,?)", (email, machine, "approved", _stamp(), _stamp(), "tự duyệt máy đầu", ip, _stamp()))
+    conn.execute("INSERT INTO machine_approvals (email, machine, status, requested_at, decided_at, decided_by, last_ip, last_seen, kind,"
+                 " device_hash) VALUES (?,?,?,?,?,?,?,?,?,?)",
+                 (email, machine, "approved", _stamp(), _stamp(), "tự duyệt máy đầu", ip, _stamp(), kind, digest))
     conn.commit()
     auth.audit(conn, email, "machine_auto_approve", f"{machine} ip={ip} (máy đầu tiên của người đã có vai trò — Owner thu hồi được ở 👥 Nhóm)")
 
@@ -247,15 +296,20 @@ def is_owner(email: str) -> bool:
     return (email or "").strip().lower() == auth.OWNER_EMAIL
 
 
-def _gate(conn, ip: str, local: bool):
+def _gate(conn, ip: str, local: bool, device: Optional[str] = None):
     def gate(email: str, role: str) -> str:
-        name, why = machine_of(ip, local)
+        m = identify(ip, local, device)
+        name, why = m["name"], m["why"]
         if is_owner(email):                    # the Owner: passcode / local rule already passed (auth.owner_remote_check)
             return f"machine={name or '?'}"
         if name is None:
             auth.audit(conn, email, "login_refused_machine", f"? ip={ip} ({why})")
             raise auth.AuthError(f"Không xác định được tên máy của bạn (IP {ip or '?'}): {why}. Dashboard mở cho mạng LAN chỉ cho "
                                  f"đăng nhập từ máy PC đã được Owner duyệt. {HOW_TO}")
+        if _hash_clash(conn, email, m):
+            auth.audit(conn, email, "login_refused_machine", f"{name} ip={ip} (mã thiết bị không khớp)")
+            raise auth.AuthError(f"Mã thiết bị của trình duyệt này không khớp với máy {name} đã ghi cho {email}. Báo Owner kiểm tra ở "
+                                 "👥 Nhóm → Máy được duyệt.")
         st = status(conn, email, name)
         if st == "approved":
             touch(conn, email, name, ip)
@@ -265,10 +319,10 @@ def _gate(conn, ip: str, local: bool):
             raise auth.AuthError(f"Máy {name} chưa được phép đăng nhập bằng {email} (Owner đã từ chối hoặc thu hồi). Nhờ Owner duyệt "
                                  "lại ở 👥 Nhóm → Máy được duyệt, hoặc dùng máy đã được duyệt.")
         if st is None and AUTO_FIRST_MACHINE and _first_machine(conn, email):
-            _auto_approve(conn, email, name, ip)
+            _auto_approve(conn, email, name, ip, m["kind"], m["hash"])
             return f"machine={name} (tự duyệt máy đầu)"
         first = st is None
-        request(conn, email, name, ip)
+        request(conn, email, name, ip, m["kind"], m["hash"])
         if first:
             auth.audit(conn, email, "machine_request", f"{name} ip={ip}")
         raise MachinePending(f"{'Đã gửi yêu cầu' if first else 'Vẫn đang'} chờ Owner duyệt máy {name} cho {email}. Owner duyệt ở "
@@ -276,7 +330,7 @@ def _gate(conn, ip: str, local: bool):
     return gate
 
 
-def sign_in(conn, email: str, ip: str, local: bool, source: str = "", passcode: Optional[str] = None) -> str:
+def sign_in(conn, email: str, ip: str, local: bool, source: str = "", passcode: Optional[str] = None, device: Optional[str] = None) -> str:
     """The dashboard's one way in. LAN off → auth.login exactly as before. LAN on → try limit, machine check (members), audit with the
     machine. Returns the session token; raises auth.AuthError (MachinePending while the Owner has not decided)."""
     if not lan_on():
@@ -288,7 +342,7 @@ def sign_in(conn, email: str, ip: str, local: bool, source: str = "", passcode: 
         auth.audit(conn, (email or "")[:120], "login_rate_limited", f"ip={key}")
         raise auth.AuthError(refused)
     try:
-        token = auth.login(conn, email, source, local, passcode, gate=_gate(conn, ip, local))
+        token = auth.login(conn, email, source, local, passcode, gate=_gate(conn, ip, local, device))
     except MachinePending:
         raise
     except auth.AuthError:
@@ -298,13 +352,16 @@ def sign_in(conn, email: str, ip: str, local: bool, source: str = "", passcode: 
     return token
 
 
-def session_refusal(conn, email: str, role: str, ip: str, local: bool) -> Optional[str]:
+def session_refusal(conn, email: str, role: str, ip: str, local: bool, device: Optional[str] = None) -> Optional[str]:
     """Checked on every page load of a signed-in member (LAN on): None = fine, else why the session may not be used from here."""
     if not lan_on() or is_owner(email):
         return None
-    name, why = machine_of(ip, local)
+    m = identify(ip, local, device)
+    name, why = m["name"], m["why"]
     if name is None:
         return f"Không xác định được tên máy của bạn: {why}. {HOW_TO}"
+    if _hash_clash(conn, email, m):
+        return f"Mã thiết bị của trình duyệt này không khớp với máy {name} — đăng nhập lại."
     if status(conn, email, name) != "approved":
         return f"Máy {name} chưa được Owner duyệt cho {email} — đăng nhập lại từ máy này để gửi yêu cầu duyệt."
     return None

@@ -346,6 +346,30 @@ def request_ip() -> str:
         return ""
     return ip if isinstance(ip, str) else ""         # AppTest hands a stand-in object, not an address
 
+def request_device() -> str:
+    """S14.29: the device code this browser keeps (cookie core.machine_auth.DEVICE_COOKIE), "" when none / malformed / no cookies."""
+    from core import machine_auth
+    try:
+        code = st.context.cookies.get(machine_auth.DEVICE_COOKIE)
+    except Exception:  # noqa: BLE001 - an older Streamlit or a test runner
+        return ""
+    return code if machine_auth.valid_device_code(code) else ""
+
+def ensure_device_cookie() -> None:
+    """S14.29: a browser on another machine without a device code gets one (random, made here, written by a tiny script straight into
+    the cookie — never in the address, never logged), then the page reloads once so the server reads it. Only when the dashboard is
+    open to the LAN; the dashboard machine itself needs none."""
+    from core import machine_auth
+    if not machine_auth.lan_on() or request_source()[1] or request_device():
+        return
+    code = st.session_state.setdefault("_device_code_new", machine_auth.new_device_code())
+    import streamlit.components.v1 as components
+    components.html(
+        "<script>try{const d=window.parent.document;"
+        f"if(!d.cookie.split('; ').some(c=>c.startsWith('{machine_auth.DEVICE_COOKIE}='))){{"
+        f"d.cookie='{machine_auth.DEVICE_COOKIE}={code}; max-age=315360000; path=/; SameSite=Strict';"
+        "window.parent.location.reload();}}catch(e){}</script>", height=0)
+
 def lan_address() -> str:
     import socket
     try:

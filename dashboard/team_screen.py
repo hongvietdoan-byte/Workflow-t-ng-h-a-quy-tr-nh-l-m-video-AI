@@ -200,7 +200,8 @@ def machines_block(p: Pipeline) -> None:
     for r in rows:
         tag = f"{r['email']}_{r['machine']}"
         c1, c2, c3, c4 = st.columns([3, 2.2, 1, 1], vertical_alignment="center")
-        c1.markdown(f"**{escape(r['email'])}** · máy **{escape(r['machine'])}**  \n<small>yêu cầu {escape(r['requested_at'] or '')}"
+        how = " (mã thiết bị trong trình duyệt)" if r.get("kind") == "device" else ""
+        c1.markdown(f"**{escape(r['email'])}** · máy **{escape(r['machine'])}**{how}  \n<small>yêu cầu {escape(r['requested_at'] or '')}"
                     f" · IP gần nhất {escape(r['last_ip'] or '—')}</small>", unsafe_allow_html=True)
         c2.markdown(MACHINE_STATUS.get(r["status"], r["status"]) + (f"  \n<small>{escape(r['decided_by'] or '')} · "
                     f"{escape(r['decided_at'] or '')}</small>" if r["decided_at"] else ""), unsafe_allow_html=True)

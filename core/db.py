@@ -692,6 +692,9 @@ V2_COLUMNS = {
                        ("lint", "TEXT")),
     "end_frames": (("sent_refs", "TEXT"),   # which pictures went with the end frame request (like jobs.sent_refs)
                    ("fix", "TEXT")),        # the person's English fix of a redo (luật 6: a redo changes the input)
+    # S14.29: how the machine was recognised — NULL/'dns' = PC name from reverse DNS; 'device' = a code kept by the browser (no PTR
+    # record), machine = DEV-<6 of its hash>, device_hash = sha256 of the code (the code itself is never stored)
+    "machine_approvals": (("kind", "TEXT"), ("device_hash", "TEXT")),
 }
 
 

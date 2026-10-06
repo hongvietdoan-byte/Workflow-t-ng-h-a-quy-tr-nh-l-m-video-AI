@@ -184,7 +184,8 @@ def sign_in(conn, email: str, passcode: str = None) -> bool:
     source, local = request_source()
     st.session_state.pop("login_notice", None)
     try:
-        st.session_state["auth_token"] = machine_auth.sign_in(conn, email, C.request_ip(), local, source, passcode)
+        st.session_state["auth_token"] = machine_auth.sign_in(conn, email, C.request_ip(), local, source, passcode,
+                                                              device=C.request_device())
     except machine_auth.MachinePending as e:            # S14.7: not an error — the Owner has to approve this PC first
         st.session_state.pop("login_error", None)
         st.session_state["login_notice"] = str(e)
@@ -217,8 +218,11 @@ def login_screen(conn) -> None:
             st.error(st.session_state["login_error"])
         from core import machine_auth
         if machine_auth.lan_on():
+            C.ensure_device_cookie()                       # S14.29: a code for a PC the company DNS has no name for
             st.caption("Chỉ cần nhập e-mail. Dashboard đang mở cho mạng LAN: thành viên chỉ vào được từ máy PC đã được Owner duyệt "
-                       "(lần đầu từ một máy → gửi yêu cầu duyệt, chờ Owner ở 👥 Nhóm).")
+                       "(lần đầu từ một máy → gửi yêu cầu duyệt, chờ Owner ở 👥 Nhóm). Máy không có tên trong DNS nội bộ được nhận bằng "
+                       "mã thiết bị lưu trong trình duyệt này (tên DEV-…): xóa dữ liệu trình duyệt hoặc đổi trình duyệt = máy mới, phải "
+                       "chờ duyệt lại.")
         else:
             st.caption("Chỉ cần nhập e-mail. E-mail công ty được vào với quyền làm video; quyền khác do Owner cấp.")
 
@@ -252,7 +256,7 @@ def require_login(conn) -> None:
             login_screen(conn)
             st.stop()
     from core import machine_auth                          # S14.7: a member's session works only from a machine approved for them
-    refused = machine_auth.session_refusal(conn, ident.email, ident.role, C.request_ip(), request_source()[1])
+    refused = machine_auth.session_refusal(conn, ident.email, ident.role, C.request_ip(), request_source()[1], device=C.request_device())
     if refused:
         for key in ("auth_token", "identity"):
             st.session_state.pop(key, None)

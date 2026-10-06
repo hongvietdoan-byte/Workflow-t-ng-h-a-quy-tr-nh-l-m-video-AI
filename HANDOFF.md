@@ -14,6 +14,12 @@ Credit: người dùng báo còn $96/100 (06/10, sau S14.45); trần cứng $90 
 - S14.11: kịch bản `samples/du_an_thu_30s.txt` + `docs/DU_AN_THU_30S_2026-10-06.md` (bảng cờ chưa verified + trần từng việc,
   tính từ data/pricing.json), tests/test_s1411_trial_script.py. CHỜ người dùng duyệt trần → S14.12.
 
+- Test test_users: đọc query_params cả dạng chuỗi (Streamlit 1.65) lẫn danh sách (123c19f).
+- S14.29 (người dùng mở lại 06/10): mã thiết bị khi IP không có PTR — core/machine_auth (identify, DEV-<băm>, chỉ lưu băm, khớp băm),
+  2 cột machine_approvals.kind/device_hash (V2_COLUMNS), cookie do dashboard/common.ensure_device_cookie đặt + tải lại 1 lần;
+  tests/test_s1429_device_code.py; THỬ THẬT bằng Chromium trong cloud (DASHBOARD_LAN=1, IP 192.0.2.2 không PTR): cookie 43 ký tự,
+  không lên URL, máy đầu DEV-AD1E83 tự duyệt, trình duyệt thứ hai DEV-C5DA3E chờ duyệt. CHƯA thử trong mạng công ty (dải 10.7.168.x).
+
 ## Đang dở / bước kế
 - S14.24 giao diện: `lesson_judge_panel` trong tab Bài học (chỉ khi cờ bật; nút có giá, bảng kết quả bóng, độ đồng thuận) — test AppTest xanh; chưa nhìn trên Dashboard thật.
 - Không sửa core/lessons.py (S14.46 đang làm ở máy chính): decide(reviewer=…), sync_knowledge một bản/key, DOC_TITLE — để Đợt bật tự duyệt.
