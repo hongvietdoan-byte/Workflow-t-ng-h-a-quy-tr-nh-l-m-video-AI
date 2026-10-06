@@ -16,7 +16,7 @@ Mục tiêu: làm hết một đợt dài mà không để phiên chính đầy 
 6. Đo ngưỡng lần đầu (mục 3).
 
 ## 2. Làm việc
-- **Phiên chính chỉ điều phối.** Không tự sửa code của nhánh. Test chỉ lấy dòng cuối (`-q`, `tail`).
+- **Phiên chính chỉ điều phối.** Không tự sửa code của nhánh (ngoại lệ: lỗi nhỏ 1–3 dòng, mục 2b.4). Test chỉ lấy dòng cuối (`-q`, `tail`).
 - **Mỗi nhánh giao một phiên con** (`Agent`, `isolation: worktree`, chạy nền). Chạy **tối đa 2** cùng lúc. Prompt phải tự đủ:
   - việc cần làm + file:dòng + hàm nên tái dùng;
   - test cần **đỏ trước, xanh sau**;
@@ -31,10 +31,37 @@ Mục tiêu: làm hết một đợt dài mà không để phiên chính đầy 
 - **Ghi trạng thái ra file sau MỖI nhánh gộp xong:** đổi trạng thái việc trong `docs/KE_HOACH_SUA_SAU_DU_AN_8.md` (✅ + mã commit + bằng chứng) → `PYTHONUTF8=1 py tools/plan_progress.py --write` → cập nhật `TODO.md` → commit (dòng `Co-Authored-By` theo cấu hình session) → push.
 - **Tiền:** việc tốn tiền (ClipAI, Deepix, Kling, Claude API, TTS…) **không tự chạy**. Liệt kê trần từng việc và hỏi người dùng trước. Mọi lời gọi tốn tiền phải qua sổ chi và có ước tính trước.
 
+## 2b. Hạn chế phiên con (người dùng duyệt 06/10)
+Số đo 05–06/10 (5 nhánh rà kỹ): rà chỉ còn ≈ 20 % tổng và bắt ≈ 5 lỗi/nhánh, nhưng **vòng sửa ≈ 48 % tổng**: đánh thức lại phiên làm cũ phải nạp lại TOÀN BỘ context của nó mỗi lượt gọi (vd 8 lượt gọi tốn 287k vì context ≈ 280k), còn phiên mới phạm vi hẹp chỉ ≈ 80–100k (U5: 14 lượt 86k). Mốc so: 04–05/10 ≈ 443k/nhánh; 05–06/10 ≈ 653k/nhánh rà kỹ, ≈ 124k/nhánh rà nhẹ.
+1. **Mỗi nhánh tối đa 3 phiên:** 1 làm, 1 rà (chỉ khi RÀ KỸ), 1 vòng sửa. **Gom mọi việc sửa vào MỘT vòng**: chờ phiên rà xong mới giao, không giao lắt nhắt (lỗi test cả bộ tìm thấy trong lúc chờ → gom vào cùng vòng).
+2. **Chọn ai sửa theo context đang có** (xem `subagent_tokens` ở thông báo hoàn tất):
+   - Ưu tiên **đánh thức chính phiên RÀ** để sửa trong worktree của nhánh (context thường 110–150k, đã đọc đúng diff + chỗ gọi). Phiên chính đọc `git diff` phần sửa trước khi gộp (thay cho rà độc lập phần sửa).
+   - Phiên LÀM còn nhỏ (< ~150k) thì đánh thức nó.
+   - Cả hai lớn → **phiên sửa MỚI**, chỉ đưa danh sách lỗi kèm `file:dòng` + cách sửa phiên rà ghi; dặn "chỉ đọc các chỗ này".
+3. **Phiên rà ghi luôn cách sửa cụ thể** cho từng lỗi (`file:dòng` + thay đổi đề xuất + test chứng minh) để bên sửa không phải dò lại.
+4. **Lỗi nhỏ (1–3 dòng) phiên chính tự sửa** (ngoại lệ của "phiên chính chỉ điều phối"), chỉ khi context phiên chính < ~50 %; vẫn có test + cả bộ test trước khi gộp.
+5. **Gom việc nhỏ cùng vùng file vào một phiên**, và **phiên làm TỰ KIỂM trước khi bàn giao** theo các loại lỗi phiên rà hay bắt (đưa danh sách này vào prompt phiên làm): test bị nới để che lỗi; đường dẫn tương đối / phụ thuộc thư mục đang chạy (`data/…` từ worktree); chặn/kiểm mới làm vỡ luồng tự động hoặc hàng loạt (tải lô, tự đồng bộ, autopilot); bật mặc định đổi hành vi người không dùng tính năng; so chữ BỎ DẤU khớp nhầm từ ngắn; vùng cách ly (sandbox) chưa chặn mạng; tiêu đề/nhãn bị đọc nhầm là nội dung; lời gọi tốn tiền chạy khi người dùng chưa bấm đồng ý.
+6. Xếp RÀ NHẸ khi thay đổi nằm sau cờ đang TẮT và có so prompt/kết quả trước–sau giống hệt (như S14.9).
+
 ## 3. Đo ngưỡng
 Đo **trước MỌI lần cho phiên con chạy** — mở phiên mới HOẶC đánh thức phiên cũ (SendMessage) — và sau mỗi nhánh gộp. Bài học 05/10: chỉ đo khi phiên con báo về là quá thưa; một phiên con sửa + chạy cả bộ test tiêu 15–25 % hạn mức 5 giờ, hai phiên đánh thức liên tiếp không đo đã đẩy từ ~65 % lên 100 % và bị cắt giữa chừng. Phiên rà KHÔNG chạy cả bộ test khi phiên làm đã chạy, trừ khi phải thử bản gộp với nhánh khác.
 - **Desktop (tab Code):** `mcp__ccd_session_mgmt__get_usage` (session `self`). Tool bị hoãn thì nạp bằng `ToolSearch select:mcp__ccd_session_mgmt__get_usage`. Xem `context.percentUsed` và `plan.windows` (5 giờ, tuần).
 - **Dự phòng khi không có tool đó** (Claude Code dòng lệnh, môi trường khác): nhờ người dùng gõ `/context` (và `/usage` nếu có) rồi đọc số họ dán. Không có số thì coi như đã gần ngưỡng sau khoảng 3 nhánh lớn và dừng ở điểm nghỉ.
+
+**Hai chế độ tài khoản (người dùng dùng 2 tài khoản, 06/10).** Đầu phiên gọi `get_usage` rồi chọn chế độ, ghi chế độ vào khối bàn giao TODO:
+- **Chế độ GÓI** — `plan.windows` có "5-hour limit" / "Weekly": áp bảng ngưỡng gói bên dưới.
+- **Chế độ $** — `plan.windows` rỗng / `status` not_applicable, chỉ có `extraUsage` (spent / monthlyLimit, USD): bỏ qua ngưỡng 5 giờ/tuần, áp bảng ngưỡng $ bên dưới; **trước khi mở mỗi phiên con báo người dùng số USD còn lại**; mỗi phiên con ≈ 1–6 USD (ước theo token: làm ≈ 150–300k, rà ≈ 100–150k, sửa mới ≈ 80–120k). Ở chế độ $ mọi token là tiền thật → áp mục 2b chặt hơn: ưu tiên RÀ NHẸ khi đủ điều kiện, phiên chính tự sửa lỗi nhỏ, không mở phiên rà cho việc chỉ có tài liệu.
+- Không đọc được cả hai → dự phòng ở trên (nhờ người dùng `/usage`).
+
+**Ngưỡng chế độ $** (`extraUsage.percentUsed`):
+
+| Chỉ số | Hành động |
+|---|---|
+| Context phiên chính **65–75 %** | điểm nghỉ |
+| $ **≥ 80 %** | chỉ cho **1** phiên con chạy cùng lúc; báo USD còn lại mỗi lần |
+| $ **≥ 85 %** | điểm nghỉ (trần cứng) — TUYỆT ĐỐI tránh vượt 90–95 % (người dùng: đoạn này % tăng rất nhanh) |
+
+**Ngưỡng chế độ GÓI:**
 
 | Chỉ số | Hành động |
 |---|---|
