@@ -1,0 +1,592 @@
+{
+ "_note": "S14.47 (ý từ tài liệu 'Prompt Spider', 06/10): bản đồ AI QUYẾT ở mỗi điểm của pipeline — code (0 USD, tất định), claude (tốn token), human (người duyệt). Nguồn duy nhất cho trang devsys 'Ai quyết'. tests/test_devsys_decisions.py kiểm: mọi khâu Claude tìm thấy trong code phải có ở đây, mọi 'where' (file:hàm) phải tồn tại. 'suggest' = chỗ có thể chuyển sang code / bỏ để cắt chi phí.",
+ "steps": {
+  "step1": "Bước 1 · Kịch bản & Đạo diễn",
+  "step2": "Bước 2 · Ảnh + QC",
+  "step3": "Bước 3 · Motion & giọng",
+  "step4": "Bước 4 · Video + QC",
+  "step5": "Bước 5 · Âm thanh & xuất bản",
+  "ops": "Tiền, quyền, đăng nhập",
+  "knowledge": "Kiến thức & bài học",
+  "tools": "Công cụ dòng lệnh",
+  "devsys": "AI Dev System"
+ },
+ "items": [
+  {
+   "id": "d01",
+   "step": "step1",
+   "who": "code",
+   "what": "Tách kịch bản thành cảnh, bỏ khối chữ cuối (CTA)",
+   "where": "core/script_parser.py:split_scenes"
+  },
+  {
+   "id": "d02",
+   "step": "step1",
+   "who": "code",
+   "what": "Nhận ra người nói / nhãn CTA, TITLE không phải người nói",
+   "where": "core/dialogue.py:is_non_speaker"
+  },
+  {
+   "id": "d03",
+   "step": "step1",
+   "who": "code",
+   "what": "Phân loại ô nhập: kịch bản / ý tưởng / mơ hồ (0 USD)",
+   "where": "core/idea_to_script.py:classify"
+  },
+  {
+   "id": "d04",
+   "step": "step1",
+   "who": "claude",
+   "what": "Biên kịch: ý tưởng → câu hỏi → hướng → dàn ý → kịch bản",
+   "where": "core/idea_to_script.py:write",
+   "stage": "screenwriter"
+  },
+  {
+   "id": "d05",
+   "step": "step1",
+   "who": "human",
+   "what": "Duyệt từng lượt Biên kịch, dùng kịch bản",
+   "where": "core/idea_to_script.py:use_script"
+  },
+  {
+   "id": "d06",
+   "step": "step1",
+   "who": "code",
+   "what": "Kiểm kịch bản dựng được (nơi quay có trong Kho)",
+   "where": "core/idea_buildable.py:missing_anchors"
+  },
+  {
+   "id": "d07",
+   "step": "step1",
+   "who": "claude",
+   "what": "Bảng kê tài nguyên trước Director",
+   "where": "core/asset_checklist.py:run",
+   "stage": "asset_checklist"
+  },
+  {
+   "id": "d08",
+   "step": "step1",
+   "who": "code",
+   "what": "Đối chiếu bảng kê với Kho (id + loại)",
+   "where": "core/asset_checklist.py:reconcile"
+  },
+  {
+   "id": "d09",
+   "step": "step1",
+   "who": "claude",
+   "what": "Director phân tích kịch bản, chia shot (hai lượt)",
+   "where": "core/director_two_pass.py:run",
+   "stage": "director"
+  },
+  {
+   "id": "d10",
+   "step": "step1",
+   "who": "code",
+   "what": "Đạo diễn duyệt bảng shot so với ý đồ (code)",
+   "where": "core/director_two_pass.py:check_scene"
+  },
+  {
+   "id": "d11",
+   "step": "step1",
+   "who": "code",
+   "what": "Chuẩn hóa shot (độ dài, cỡ cảnh, trường bắt buộc)",
+   "where": "core/shot_normalize.py:normalize"
+  },
+  {
+   "id": "d12",
+   "step": "step1",
+   "who": "claude",
+   "what": "Rà thoại (người nói, câu thừa)",
+   "where": "core/claude_tasks.py:review_dialogue",
+   "stage": "director"
+  },
+  {
+   "id": "d13",
+   "step": "step1",
+   "who": "claude",
+   "what": "Character Lock từ ảnh tham chiếu",
+   "where": "core/claude_tasks.py:character_lock",
+   "stage": "director"
+  },
+  {
+   "id": "d14",
+   "step": "step1",
+   "who": "claude",
+   "what": "Kiểm Bible nhân vật so ảnh Kho",
+   "where": "core/claude_tasks.py:bible_check",
+   "stage": "director"
+  },
+  {
+   "id": "d15",
+   "step": "step1",
+   "who": "claude",
+   "what": "Chọn giọng cho vai",
+   "where": "core/claude_tasks.py:cast_voices",
+   "stage": "director",
+   "suggest": "Có luật 0 USD core/voice_casting.py (cờ auto_voice_cast): khi cờ đã thử thật, bỏ lượt Claude này"
+  },
+  {
+   "id": "d16",
+   "step": "step1",
+   "who": "code",
+   "what": "Gắn giọng theo giới/tuổi/tính cách (luật)",
+   "where": "core/voice_casting.py:apply"
+  },
+  {
+   "id": "d17",
+   "step": "step1",
+   "who": "claude",
+   "what": "Người xem lần đầu kể lại truyện",
+   "where": "core/story_check.py:run",
+   "stage": "director"
+  },
+  {
+   "id": "d18",
+   "step": "step1",
+   "who": "code",
+   "what": "Cảnh báo IP / tên nhân vật bị chặn",
+   "where": "core/preflight.py:check_text"
+  },
+  {
+   "id": "d19",
+   "step": "step1",
+   "who": "human",
+   "what": "Duyệt + khóa ngân sách dự án",
+   "where": "core/project_budget.py:approve"
+  },
+  {
+   "id": "d20",
+   "step": "step2",
+   "who": "claude",
+   "what": "Phân tích nền / bố cục previz",
+   "where": "core/previz.py:plan_layouts",
+   "stage": "layout"
+  },
+  {
+   "id": "d21",
+   "step": "step2",
+   "who": "claude",
+   "what": "Phân tích ảnh bối cảnh",
+   "where": "core/previz.py:analyze_background",
+   "stage": "set_analysis",
+   "suggest": "Kết quả đã nhớ theo sha ảnh (cached_analysis) — giữ"
+  },
+  {
+   "id": "d22",
+   "step": "step2",
+   "who": "claude",
+   "what": "Rà storyboard previz",
+   "where": "core/previz.py:review_storyboard",
+   "stage": "storyboard_review"
+  },
+  {
+   "id": "d23",
+   "step": "step2",
+   "who": "claude",
+   "what": "Mô tả ảnh Kho (asset_vision)",
+   "where": "core/asset_vision.py:describe",
+   "stage": "asset_vision"
+  },
+  {
+   "id": "d24",
+   "step": "step2",
+   "who": "code",
+   "what": "QC lớp 0: số mặt, cỡ cảnh, vùng an toàn, đủ sáng",
+   "where": "core/qc_scene.py:check_frame"
+  },
+  {
+   "id": "d25",
+   "step": "step2",
+   "who": "code",
+   "what": "Đo mặt / hướng mắt / màu trời",
+   "where": "core/qc_measure.py:measure_frame"
+  },
+  {
+   "id": "d26",
+   "step": "step2",
+   "who": "claude",
+   "what": "Tổ QC: chuyên viên Nhân vật trả lời mệnh đề",
+   "where": "core/qc_team.py:review_frame",
+   "stage": "qc_team"
+  },
+  {
+   "id": "d27",
+   "step": "step2",
+   "who": "code",
+   "what": "Bảng luật kết luận từ câu trả lời Tổ QC",
+   "where": "core/qc_rules.py:frame_verdict"
+  },
+  {
+   "id": "d28",
+   "step": "step2",
+   "who": "claude",
+   "what": "QC ảnh từng khung (cũ) / QC theo cảnh lớp 1",
+   "where": "core/llm_runner.py:run_qc",
+   "stage": "qc",
+   "suggest": "Lớp 0 bằng code đã bắt cỡ cảnh/mặt/sáng; nghiệm thu 27/09 lớp 1 báo nhầm 12/21 — S14.13 quyết bỏ"
+  },
+  {
+   "id": "d29",
+   "step": "step2",
+   "who": "claude",
+   "what": "Agent QC điều tra nhiều bước",
+   "where": "core/qc_agent.py:inspection_plan",
+   "stage": "qc_agent",
+   "suggest": "Thay bằng qc_team; S14.13 bỏ nếu qc_team đạt"
+  },
+  {
+   "id": "d30",
+   "step": "step2",
+   "who": "claude",
+   "what": "Đồng bộ bộ ảnh đã duyệt (set consistency)",
+   "where": "core/claude_tasks.py:set_consistency",
+   "stage": "qc"
+  },
+  {
+   "id": "d31",
+   "step": "step2",
+   "who": "claude",
+   "what": "Đạo diễn viết lại prompt trước khi gen lại",
+   "where": "core/prompt_rewrite.py:STAGE",
+   "stage": "director_rewrite"
+  },
+  {
+   "id": "d32",
+   "step": "step2",
+   "who": "code",
+   "what": "Cờ rủi ro storyboard (khớp môi, cast, điểm)",
+   "where": "core/storyboard_gate.py:flags"
+  },
+  {
+   "id": "d33",
+   "step": "step2",
+   "who": "human",
+   "what": "Cổng duyệt storyboard / duyệt ảnh",
+   "where": "core/pipeline.py:Pipeline.approve"
+  },
+  {
+   "id": "d34",
+   "step": "step2",
+   "who": "human",
+   "what": "Từ chối ảnh kèm ghi chú (gen lại)",
+   "where": "core/pipeline.py:Pipeline.reject"
+  },
+  {
+   "id": "d35",
+   "step": "step3",
+   "who": "claude",
+   "what": "Viết motion prompt",
+   "where": "core/llm_runner.py:run_motion",
+   "stage": "motion"
+  },
+  {
+   "id": "d36",
+   "step": "step3",
+   "who": "claude",
+   "what": "Rà motion prompt (lint)",
+   "where": "core/claude_tasks.py:lint_motion",
+   "stage": "motion",
+   "suggest": "Luật lint trong knowledge/motion_prompt_lint.md + data/motion_vocab.json: phần từ cấm / thiếu trường đo được bằng code trước"
+  },
+  {
+   "id": "d37",
+   "step": "step3",
+   "who": "claude",
+   "what": "Dịch trường Director sang tiếng Anh ngắn",
+   "where": "core/claude_tasks.py:translate_motion_fields",
+   "stage": "translate"
+  },
+  {
+   "id": "d38",
+   "step": "step3",
+   "who": "code",
+   "what": "Gắn tên người nói vào prompt Kling",
+   "where": "core/speaker_lint.py:apply"
+  },
+  {
+   "id": "d39",
+   "step": "step3",
+   "who": "code",
+   "what": "Kiểm giọng TTS (cắt, im lặng, độ dài, so chữ)",
+   "where": "core/voice_check.py:check_line"
+  },
+  {
+   "id": "d40",
+   "step": "step3",
+   "who": "claude",
+   "what": "Brief nhạc",
+   "where": "core/claude_tasks.py:music_brief",
+   "stage": "music"
+  },
+  {
+   "id": "d41",
+   "step": "step4",
+   "who": "code",
+   "what": "Chọn model video theo cảnh",
+   "where": "core/model_router.py:plan"
+  },
+  {
+   "id": "d42",
+   "step": "step4",
+   "who": "code",
+   "what": "Đo clip: trôi hình, giật, viền lạ, môi",
+   "where": "core/clip_measure.py:look_drift"
+  },
+  {
+   "id": "d43",
+   "step": "step4",
+   "who": "claude",
+   "what": "QC clip video",
+   "where": "core/claude_tasks.py:qc_video",
+   "stage": "video"
+  },
+  {
+   "id": "d44",
+   "step": "step4",
+   "who": "claude",
+   "what": "Đồng bộ các clip đã duyệt",
+   "where": "core/claude_tasks.py:clip_set_consistency",
+   "stage": "qc"
+  },
+  {
+   "id": "d45",
+   "step": "step4",
+   "who": "code",
+   "what": "Chọn bản ⭐ ít lỗi hơn (ngang thì để người)",
+   "where": "core/hero_takes.py:pick"
+  },
+  {
+   "id": "d46",
+   "step": "step4",
+   "who": "human",
+   "what": "Duyệt / từ chối clip",
+   "where": "core/pipeline.py:Pipeline.reject"
+  },
+  {
+   "id": "d47",
+   "step": "step4",
+   "who": "code",
+   "what": "Đánh dấu video cũ khi ảnh nguồn đổi",
+   "where": "core/lineage.py:video_hash_ok"
+  },
+  {
+   "id": "d48",
+   "step": "step5",
+   "who": "claude",
+   "what": "Biên tập viên + Đạo diễn duyệt bản thô (P2)",
+   "where": "core/editor_review.py:run",
+   "stage": "editor"
+  },
+  {
+   "id": "d49",
+   "step": "step5",
+   "who": "code",
+   "what": "Kiểm bản sửa bản thô không làm QC tệ hơn",
+   "where": "core/editor_apply.py:qc_worse"
+  },
+  {
+   "id": "d50",
+   "step": "step5",
+   "who": "human",
+   "what": "Áp / hoàn tác đề xuất bản thô",
+   "where": "core/editor_apply.py:apply"
+  },
+  {
+   "id": "d51",
+   "step": "step5",
+   "who": "claude",
+   "what": "Dịch phụ đề",
+   "where": "core/subtitles.py:localize",
+   "stage": "subtitles"
+  },
+  {
+   "id": "d52",
+   "step": "step5",
+   "who": "claude",
+   "what": "Đề xuất hiệu ứng âm thanh",
+   "where": "core/sfx_plan.py:propose",
+   "stage": "sfx"
+  },
+  {
+   "id": "d53",
+   "step": "step5",
+   "who": "code",
+   "what": "Đặt hiệu ứng âm thanh lên timeline",
+   "where": "core/sfx_plan.py:place_on_timeline"
+  },
+  {
+   "id": "d54",
+   "step": "ops",
+   "who": "code",
+   "what": "Cổng tiền chung: ước tính + cảnh báo trần",
+   "where": "core/spend_gate.py:assess"
+  },
+  {
+   "id": "d55",
+   "step": "ops",
+   "who": "human",
+   "what": "Mở đợt thử / đợt ngân sách",
+   "where": "core/budget_rounds.py:start_trial"
+  },
+  {
+   "id": "d56",
+   "step": "ops",
+   "who": "human",
+   "what": "Owner duyệt dự án thứ 3 trong ngày",
+   "where": "core/person_limits.py:approve"
+  },
+  {
+   "id": "d57",
+   "step": "ops",
+   "who": "code",
+   "what": "Nhận máy đăng nhập (DNS / mã thiết bị)",
+   "where": "core/machine_auth.py:identify"
+  },
+  {
+   "id": "d58",
+   "step": "ops",
+   "who": "human",
+   "what": "Owner duyệt máy đăng nhập",
+   "where": "core/machine_auth.py:approve"
+  },
+  {
+   "id": "d59",
+   "step": "ops",
+   "who": "human",
+   "what": "Duyệt hàng loạt (hỏi trước lô lớn)",
+   "where": "dashboard/common.py:confirm_all"
+  },
+  {
+   "id": "d60",
+   "step": "knowledge",
+   "who": "code",
+   "what": "Gom lỗi lặp theo loại (≥ 3 lần, ≥ 2 dự án)",
+   "where": "core/lessons.py:clusters"
+  },
+  {
+   "id": "d61",
+   "step": "knowledge",
+   "who": "claude",
+   "what": "Viết bài học từ lỗi lặp",
+   "where": "core/lessons.py:propose",
+   "stage": "lessons",
+   "suggest": "Đã có mẫu chữ khi không có Claude (_write_rule client=None)"
+  },
+  {
+   "id": "d62",
+   "step": "knowledge",
+   "who": "code",
+   "what": "Góp ý chấm thấp → bảng lỗi",
+   "where": "core/feedback.py:to_mistakes"
+  },
+  {
+   "id": "d63",
+   "step": "knowledge",
+   "who": "claude",
+   "what": "Agent chấm bài học (bóng)",
+   "where": "core/lesson_judge.py:judge",
+   "stage": "lesson_judge"
+  },
+  {
+   "id": "d64",
+   "step": "knowledge",
+   "who": "human",
+   "what": "Duyệt / bỏ bài học",
+   "where": "core/lessons.py:decide"
+  },
+  {
+   "id": "d65",
+   "step": "knowledge",
+   "who": "claude",
+   "what": "Nghiên cứu tài liệu mới hàng tháng",
+   "where": "core/research.py:run",
+   "stage": "research"
+  },
+  {
+   "id": "d66",
+   "step": "knowledge",
+   "who": "claude",
+   "what": "Chắt lọc cẩm nang kiến thức",
+   "where": "core/llm_runner.py:run_distill",
+   "stage": "distill"
+  },
+  {
+   "id": "d67",
+   "step": "knowledge",
+   "who": "claude",
+   "what": "Phân tích phong cách",
+   "where": "core/style.py:analyse",
+   "stage": "style"
+  },
+  {
+   "id": "d68",
+   "step": "knowledge",
+   "who": "claude",
+   "what": "Gắn nhãn shot video tham khảo",
+   "where": "core/reference_analysis.py:label",
+   "stage": "style_research"
+  },
+  {
+   "id": "d69",
+   "step": "knowledge",
+   "who": "code",
+   "what": "Cắt video tham khảo thành shot",
+   "where": "core/reference_analysis.py:detect_cuts"
+  },
+  {
+   "id": "d70",
+   "step": "knowledge",
+   "who": "claude",
+   "what": "Phân tích video tham khảo",
+   "where": "core/video_analysis.py:analyze",
+   "stage": "video_analysis"
+  },
+  {
+   "id": "d71",
+   "step": "tools",
+   "who": "claude",
+   "what": "Kiểm cấu hình Claude (dòng lệnh)",
+   "where": "core/adapters/check.py:check_llm",
+   "stage": "check"
+  },
+  {
+   "id": "d72",
+   "step": "tools",
+   "who": "claude",
+   "what": "Rà ảnh thư viện (dòng lệnh)",
+   "where": "tools/library_vision_check.py:main",
+   "stage": "library_check"
+  },
+  {
+   "id": "d73",
+   "step": "tools",
+   "who": "claude",
+   "what": "Nháp hồ sơ nhân vật (dòng lệnh)",
+   "where": "tools/draft_profiles.py:main",
+   "stage": "profile_draft"
+  },
+  {
+   "id": "d74",
+   "step": "tools",
+   "who": "claude",
+   "what": "QC video khi chạy thử (dòng lệnh)",
+   "where": "tools/pilot_run.py:main",
+   "stage": "video_qc"
+  },
+  {
+   "id": "d75",
+   "step": "devsys",
+   "who": "claude",
+   "what": "Chấm điểm khu vực bằng Claude",
+   "where": "devsys/scorer.py:build_bundle",
+   "stage": "devsys"
+  },
+  {
+   "id": "d76",
+   "step": "devsys",
+   "who": "code",
+   "what": "Luật trừ điểm tự động (số đo code)",
+   "where": "devsys/metrics.py:RULES"
+  }
+ ]
+}
