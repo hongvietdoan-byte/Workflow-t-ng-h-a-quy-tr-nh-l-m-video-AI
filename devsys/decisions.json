@@ -202,6 +202,13 @@
    "where": "core/qc_measure.py:measure_frame"
   },
   {
+   "id": "d77",
+   "step": "step2",
+   "who": "code",
+   "what": "Đo lệch màu chính nhân vật so ảnh mốc (cờ palette_check, ghi chú)",
+   "where": "core/palette.py:check"
+  },
+  {
    "id": "d26",
    "step": "step2",
    "who": "claude",

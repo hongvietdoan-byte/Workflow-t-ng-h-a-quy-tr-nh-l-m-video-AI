@@ -344,6 +344,13 @@ FEATURES: Dict[str, Dict] = {
         "why": "S14.25 Đợt 6a (06/10): mới thử bằng test; chưa có góp ý thật đủ nhiều để biết chữ người dùng viết có khớp từ khóa loại "
                "lỗi không (không khớp vẫn ghi, hiện ở 'Chưa phân loại' + diag)",
     },
+    "palette_check": {
+        "label": "Màu chính nhân vật đo bằng code (0 USD): trích bảng màu vùng thân từ ảnh tham chiếu đã duyệt, so với từng khung Tổ QC "
+                 "soi (khung một người) — ghi chú 'lệch màu trang phục' cho người xem, không tự từ chối / vẽ lại",
+        "verified": False,
+        "why": "S14.48 (06/10, ý từ tài liệu Prompt Spider): mới thử trên ảnh tổng hợp; ngưỡng ΔE 20 / giữ 35 % chưa hiệu chỉnh trên ảnh "
+               "thật (cần ~20 khung #8 có / không lệch màu ở máy chính); vùng thân ước theo hộp mặt — dáng nghiêng / cận mặt có thể đo sai",
+    },
     "risk_tags": {
         "label": "Bài học lỗi: tách tag 'motion' thành 6 trục rủi ro I2V (face_morph, body_deform, wardrobe_drift, background_drift, "
                  "motion_overload, text_logo_corrupt) + identity/physics/lipsync/audio; lỗi không gán được tag hiện ở 'Chưa phân loại' + diag",

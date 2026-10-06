@@ -217,6 +217,8 @@ def review_frame(p, pid: int, data_dir: str, frame: Dict, client, entity: Option
     from . import qc_measure, qc_rules, qc_spec
     spec = qc_spec.compile_frame(p.conn, pid, frame["job_id"], frame["data"], profiles=profiles)
     code = qc_measure.measure_frame(frame["path"], frame["data"], spec["assertions"])
+    from . import palette                    # S14.48 (cờ palette_check): màu chính nhân vật đo bằng code — ghi chú, không quyết
+    palette.attach(code, p.conn, pid, frame["path"], frame["data"])
     # an assertion of a role not running yet still counts when the code alone is certain (GĐ3 01/10: #8 job 325 — the code measured a
     # certain wrong gaze, the frame passed because gaze belongs to C2)
     mine = [a for a in spec["assertions"] if a["role"] in roles or a["role"] == "T0"
