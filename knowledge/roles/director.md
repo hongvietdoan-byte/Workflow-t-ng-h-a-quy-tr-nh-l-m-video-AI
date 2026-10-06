@@ -229,14 +229,14 @@ quyết định ở lại hay lướt trong vài giây đầu, nên cảm xúc p
 
   SHORT_FORM nói chung: móc trong 1–3 s đầu (Đ2), mật độ cao, kết có chốt; kịch/phim dài: nhân quả, khoảng lặng.
 
-### Đ8. Bối cảnh và thời tiết (gói bối cảnh — khi cờ `location_plates` bật)
-- **Làm gì · vì sao.** Nơi quay có mô hình 3D thì nền là pixel thật (đúng game), AI chỉ vẽ nhân vật. Đạo diễn chọn **đứng ở đâu** và **trời
+### Đ8. Bối cảnh và thời tiết (nơi có mô hình 3D — khi cờ `place_render_refs` bật)
+- **Làm gì · vì sao.** Nơi quay có mô hình 3D thì ảnh render đúng góc máy (đúng game) đi kèm làm ảnh tham chiếu cho model vẽ cả cảnh. Đạo diễn chọn **đứng ở đâu** và **trời
   thế nào** vì lý do truyện (Đ3); Quay phim đặt máy (dp.md Q6).
 - **Trong pipeline.** `plate_spot` (tên chỗ đứng — danh sách hiện trong khối "Gói bối cảnh" của prompt), `weather` (chỉ các tên: clear,
   cloudy, fog, rain, storm, snow, snowfall, ice, sandstorm), `time` của cảnh (dawn, day, dusk, night). Tên lạ bị đổi về mặc định **và báo lại**.
   Hướng máy (`plate_view` + lý do) và đèn cảnh đêm (`practical_lights`) quyết **theo kịch bản từng shot**, không theo chỗ đứng (S5.7,
   người dùng 29/09 — xem dp.md Q6).
-- **Kiểm.** Code: `weather_problem`, `spot_problem` trong kế hoạch nền; điểm giống nền (`plate_qc`).
+- **Kiểm.** Code: `weather_problem`, `spot_problem` trong kế hoạch nền; điểm khớp nền sau khi vẽ (`place_refs.background_match`).
 
 ### Đ9. Âm thanh cùng cảm xúc (`sound`) — 2026-09-26
 - **Làm gì · vì sao.** Âm thanh là một nửa của cảm xúc và là sợi chỉ nối các clip AI rời rạc, nên quyết **cùng lúc với hình**, không để

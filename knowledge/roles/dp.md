@@ -143,10 +143,9 @@ Làm cho người xem **thấy rõ** điều Đạo diễn muốn họ cảm —
 - **Ví dụ FF.** ✔ FF đo được: máy tĩnh 62%, bám theo 28%, còn lại đẩy/vòng/lia nhanh có chủ đích. ✘ Job 206 ở trên.
 
 ### Q6. Gói bối cảnh và shot khớp môi
-- **Làm gì · vì sao.** Nơi có mô hình 3D: nền là **render đúng máy của shot**, AI chỉ vẽ nhân vật trên phông xanh rồi ghép → mốc game giống
-  90–100%. Quay phim chọn **chỗ đứng** và **cách làm clip**: cách 1 (ảnh khung đầu đã ghép, model video diễn trên nền thật — rẻ, model có thể
-  vẽ lại nền; code chấm và tự chuyển cách 2 một lần) hay cách 2 (`plate_mode: "green"`: nhân vật diễn trên phông xanh, ghép từng khung —
-  cho shot mốc lớn trong khung, máy đứng yên). Shot cận ở chân công trình cao chỉ thấy chân → hạ máy ngửa lên, hoặc trung/toàn.
+- **Làm gì · vì sao.** Nơi có mô hình 3D: **ảnh render đúng máy của shot** đi kèm làm ảnh tham chiếu, model vẽ cả cảnh theo render đó
+  (cờ `place_render_refs`) → mốc game giống thật. Quay phim chọn **chỗ đứng**. Shot cận ở chân công trình cao chỉ thấy chân → hạ máy ngửa
+  lên, hoặc trung/toàn.
 - **Shot khớp môi** (cờ `lip_sync` bật): mặt người nói rõ, ngang mắt, không che miệng, ≤ 5 s, máy tĩnh hoặc đẩy rất chậm — khớp môi hỏng khi mặt
   quay nghiêng mạnh hoặc chuyển động nhanh (`docs/NGHIEN_CUU_KHOP_MOI.md`).
 - **Hướng máy và đèn đêm theo kịch bản (S5.7, người dùng 29/09).** Chỗ đứng KHÔNG quyết hướng máy: cùng một chỗ, kịch bản khác cần nền
@@ -156,10 +155,10 @@ Làm cho người xem **thấy rõ** điều Đạo diễn muốn họ cảm —
   `plate_view` → nền không render, shot chờ. Cảnh `night`: quyết `practical_lights` — `[]` = chỉ trăng, hoặc ≤ 3 đèn có lý do trong
   truyện (đèn tường, lửa, màn hình, đèn pin…; `where` nhìn từ máy, `color`). Đèn được đặt thật trong Blender, câu ánh sáng của prompt ảnh
   nhắc đúng đèn đó (nhân vật sáng khớp nền).
-- **Trong pipeline.** `plate_spot`, `plate_mode`, `weather`, `plate_view`, `practical_lights`; `lip_sync: true` chỉ ở câu then chốt cận
+- **Trong pipeline.** `plate_spot`, `weather`, `plate_view`, `practical_lights`; `lip_sync: true` chỉ ở câu then chốt cận
   (Đạo diễn N3). Máy ảo: `plate_camera.camera_for` từ `size/angle/start_frame/lens_mm/camera_setup` + hướng `plate_choice.view_of`.
-- **Kiểm.** Code: `plate_qc` (độ giống nền, tỉ lệ bị che), `spot_problem`/`weather_problem`/`view_problem`/`light_problem`, `needs`
-  (thiếu hướng ở chỗ "tùy kịch bản"); `py tools/location_pack.py plan --project N` in hướng + đèn đã chọn từng shot. Người: ảnh ghép (viền, bóng, màu).
+- **Kiểm.** Code: điểm khớp nền sau khi vẽ (`place_refs.background_match`), `spot_problem`/`weather_problem`/`view_problem`/`light_problem`, `needs`
+  (thiếu hướng ở chỗ "tùy kịch bản"); `py tools/location_pack.py plan --project N` in hướng + đèn đã chọn từng shot. Người: nền có giữ đúng render không.
 - **Ví dụ FF.** ✔ Tháp Đồng Hồ #263 (7 chỗ đứng): Kelly ghép lên nền ngày, đêm tuyết, sương. ✘ Thử "ảnh render làm tham chiếu" chỉ ~70% giống
   — model vẽ lại nền (lý do có cách ghép).
 
@@ -183,11 +182,11 @@ Làm cho người xem **thấy rõ** điều Đạo diễn muốn họ cảm —
 - **Bảng tham chiếu ánh sáng cho Đạo diễn** (mục 4.2 B7): trường cảnh `lighting` viết theo mẫu cố định *nguồn — phía — màu K — tỉ lệ —
   tông*, vd `"moonlight from frame-right (cold, ~7000K look), sodium street lamp behind as rim (~2000K), key:fill 8:1, low-key"` — mọi shot
   của cảnh kế thừa cùng một bảng, nên hướng sáng không đổi giữa các shot.
-- **Trong pipeline.** Cảnh `lighting`, `time`; shot `weather`. Nền 3D: `plate_env` đặt mặt trời/màu theo giờ + thời tiết và **cùng một độ chỉnh
-  màu** cho nhân vật (`composite`); prompt phông xanh ghi hướng sáng theo máy (`location_pack.green_prompt`). Không có nền 3D: tả nguồn sáng
+- **Trong pipeline.** Cảnh `lighting`, `time`; shot `weather`. Nền 3D: `plate_env` đặt mặt trời/màu theo giờ + thời tiết cho ảnh render;
+  prompt ảnh thêm hướng nắng + số đo máy thật (`place_refs.geometry_sentence`). Không có nền 3D: tả nguồn sáng
   bằng chữ trong `image_prompt` ("warm sodium street light from frame-left, cold moonlight rim").
-- **Kiểm.** Code: `composite.match_colour`/`light_wrap`; **mẫu `lighting`** (`continuity.lighting_warnings`, bàn đo + Bước 1 🧭): cảnh thiếu
-  `lighting` hoặc thiếu ≥ 2 phần của mẫu (nguồn — phía — màu K — key:fill — tông) → ⚠ (mềm, không từ chối). Người: ảnh ghép có "dính" nền không.
+- **Kiểm.** Code: **mẫu `lighting`** (`continuity.lighting_warnings`, bàn đo + Bước 1 🧭): cảnh thiếu
+  `lighting` hoặc thiếu ≥ 2 phần của mẫu (nguồn — phía — màu K — key:fill — tông) → ⚠ (mềm, không từ chối). Người: ánh sáng người có khớp nền không.
 - **Ví dụ FF.** ✔ GĐ2: nhân vật sáng quá trên nền đêm → chỉnh màu người theo giờ 60%. ✘ Shot đêm mà mặt sáng đều như studio, không nguồn.
 
 ### Q9. Coverage và liền mạch

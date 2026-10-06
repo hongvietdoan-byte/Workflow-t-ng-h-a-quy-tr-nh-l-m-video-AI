@@ -11,7 +11,7 @@ Vai Dựng phần lớn là code; tài liệu của nó dành cho người sửa
 | Vai | Nhận | Làm | Giao cho | Trường / sản phẩm |
 |---|---|---|---|---|
 | **Đạo diễn** | Kịch bản, hồ sơ nhân vật (Kho), thể loại, khung hình | Phân tích kịch bản, đường cảm xúc, cách kể bằng hình, diễn xuất, giọng, ghi chú kịch bản; duyệt chốt | Quay phim (cùng một lần gọi Director; cờ `director_two_pass`: lượt riêng — xem mục "Hai lượt"); người dùng (ghi chú) | cảnh: `beat`, `emotional_intent`, `time`, `mood`, `lighting`, `weather`; shot: `performance`, `role`, `hero`; câu: `delivery`; gốc: `tradeoffs`, `script_notes` |
-| **Quay phim** | Ý đồ + diễn xuất của Đạo diễn | Vị trí máy, cỡ/góc/ống kính, chuyển động, bố cục, ánh sáng, gói bối cảnh, khớp môi; lý do | Motion (prompt video), ảnh (prompt khung đầu), máy ảo Blender | shot: `size`, `angle`, `camera_move`, `lens_mm`, `start_frame`, `end_state`, `image_prompt`, `camera_setup`, `plate_spot`, `plate_mode`, `plate_view`, `practical_lights`, `lip_sync`, `why` |
+| **Quay phim** | Ý đồ + diễn xuất của Đạo diễn | Vị trí máy, cỡ/góc/ống kính, chuyển động, bố cục, ánh sáng, gói bối cảnh, khớp môi; lý do | Motion (prompt video), ảnh (prompt khung đầu), máy ảo Blender | shot: `size`, `angle`, `camera_move`, `lens_mm`, `start_frame`, `end_state`, `image_prompt`, `camera_setup`, `plate_spot`, `plate_view`, `practical_lights`, `lip_sync`, `why` |
 | **Dựng** | Clip đã duyệt, giọng, chữ, nhạc, SFX | Cắt, giọng, âm nhiều lớp, nhạc, màu + khớp màu, hiệu ứng, chữ + vùng an toàn, độ to, tự rà | Người dùng (bản giao) | bản dựng, phụ đề, bản xuất theo nền tảng |
 Trả ngược: lỗi hình → Quay phim (gen lại có đổi đầu vào, ≤ 2 lần); lỗi diễn/giọng → Đạo diễn; kịch bản yếu → người viết (chỉ đề xuất).
 
@@ -48,7 +48,7 @@ người xem, nên đứng trước nhịp cắt. Hy sinh mục thấp hơn → 
 | Cường độ diễn ở cận | Đạo diễn Đ2: `intensity` là đường cảm xúc (5 = đỉnh) | Đạo diễn Đ4: cận phóng đại biểu cảm | Đạo diễn ghi độ mạnh của khoảnh khắc; code vẽ ở CU/ECU thấp hơn một bậc (`performance.shown_intensity`) — một số, hai việc tách nhau |
 | Chuyển động máy | Đạo diễn: cảm xúc cần đẩy vào | Dữ liệu thật: push_in + nhân vật bước tới → "đi tại chỗ" | Nhân vật di chuyển → máy bám theo; đẩy vào khi nhân vật đứng |
 | Chữ và bố cục | Quay phim: chừa chỗ cho chữ, mắt dưới thanh giao diện | Dựng: vùng an toàn trên 15% / dưới 35% (code 36%, đệm) / phải 18% | Vị trí mắt: **một luật ở `dp.md` Q3** (dải 18–35%, máy ảo ~20/23/28/33% theo cỡ — `plate_camera.HEADROOM`); vùng chữ: một bộ số (`safe_zones.md`), code dùng chung (`subtitles.SAFE_*`) |
-| Thời tiết | Đạo diễn: mang cảm xúc (Đ3) | Quay phim: ánh sáng có nguồn (Q8); Dựng: âm + hiệu ứng thời tiết | Một trường `weather` → nền (`plate_env`), màu người (`composite`), lớp rơi, âm thời tiết (D4 ✅ `core/ambience.py`, cờ `ambience_bed`) |
+| Thời tiết | Đạo diễn: mang cảm xúc (Đ3) | Quay phim: ánh sáng có nguồn (Q8); Dựng: âm + hiệu ứng thời tiết | Một trường `weather` → nền (`plate_env`), lớp rơi, âm thời tiết (D4 ✅ `core/ambience.py`, cờ `ambience_bed`) |
 | Tiêu cự | Quay phim: bảng mm theo cảm xúc | Máy ảo: `FRAMING` theo cỡ | Mặc định theo `FRAMING`; `lens_mm` ghi đè, máy ảo giữ cỡ người và tự lùi/tiến |
 | Độ dài shot | Đạo diễn N2: thoại đủ thời gian nói | Dựng E1: cắt ngắn ở cao trào | Thoại thắng (ưu tiên 2); cao trào ngắn ở shot không thoại |
 | Thời gian nói | Đạo diễn N2, prompt 01 | prompt 17, code | Một số: âm tiết ÷ 3,5 + 0,5 s (`dialogue.BREATH`) — prompt 17 sửa từ 0,4 |
