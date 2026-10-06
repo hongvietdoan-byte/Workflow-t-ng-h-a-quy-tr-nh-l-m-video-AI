@@ -139,6 +139,15 @@ def fingerprint(root: str, area: Dict, snap: Dict, health: Dict) -> str:
     return h.hexdigest()[:20]
 
 
+def test_ref(file: str, junit_name: str) -> str:
+    """S14.10 S2: a failing test as the citation the rubric asks for — `test:tests/x.py::Lớp::tên` (the class comes from the JUnit
+    classname `tests.test_x.Lop`), so the scorer can cite it and code can check it."""
+    classname, _, name = str(junit_name).rpartition("::")
+    cls = classname.rsplit(".", 1)[-1] if classname else ""
+    stem = os.path.splitext(os.path.basename(file))[0]
+    return f"test:{file}::{cls}::{name}" if cls and cls != stem else f"test:{file}::{name}"
+
+
 def _cap(parts: List[str], budget: int, what: str, notes: List[str]) -> str:
     out, used, dropped = [], 0, []
     for p in parts:
@@ -177,7 +186,7 @@ def build_bundle(root: str, cfg: Dict, area: Dict, snap: Dict, health: Dict, las
                     f"Của khu vực ({len(t.get('test_files', []))} file test): {t.get('passed', 0)} qua, {t.get('failed', 0)} lỗi, "
                     f"{t.get('errors', 0)} lỗi chạy, {t.get('skipped', 0)} bỏ qua.")
         if t.get("failed_names"):
-            test_txt += "\nTest lỗi:\n" + "\n".join(f"- test:{n['file']}::{n['name'].split('::')[-1]} — {n.get('message', '')}"
+            test_txt += "\nTest lỗi:\n" + "\n".join(f"- {test_ref(n['file'], n['name'])} — {n.get('message', '')}"
                                                    for n in t["failed_names"][:25])
         stale = snap.get("tests_stale")
         if stale:

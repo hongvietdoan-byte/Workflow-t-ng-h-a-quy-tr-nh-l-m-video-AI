@@ -97,6 +97,7 @@ class ScoreV2Tests(unittest.TestCase):
         self.assertEqual(hard["criteria"]["chuc_nang"]["deductions"][0]["points"], 9.1)        # 35 % of 26
         self.assertEqual(hard["score"], 89.0)                                                  # 90.9 → capped at 89
         self.assertTrue(any("tối đa" in c or "giới hạn 89" in c for c in hard["code_caps"]))
+        _write(self.root, "tests/test_voice.py", "from core import voice\n\n\nclass T:\n    def t(self):\n        pass\n")   # S14.10 S2: a real test
         two = self.norm(_a2("voice", chuc_nang={"deductions": [_ded("chan")]}, tin_cay={"deductions": [_ded("chan", evidence=["test:tests/test_voice.py::T::t"])]},
                            bang_chung=REAL_RUN))
         self.assertEqual(two["severity"]["chan"], 2)

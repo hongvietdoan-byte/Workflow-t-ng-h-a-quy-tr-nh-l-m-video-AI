@@ -3,6 +3,7 @@
 Điểm luôn do code tính lại từ các khoản trừ (người chấm AI, người chấm ngoài hay file sửa tay đều như nhau), rồi áp giới hạn do code
 (thang: devsys/rubric.md). Một file = một khu vực của một lần chấm: devsys/data/scores/<giờ>_<khu_vực>.json
 """
+import ast
 import hashlib
 import json
 import os
@@ -77,16 +78,45 @@ def scores_dir(root: str = collect.ROOT) -> str:
     return os.path.join(collect.data_dir(root), "scores")
 
 
+def _test_ref_problem(item: str, root: str) -> Optional[str]:
+    """S14.10 S2: `test:tests/x.py[::Lớp][::tên]` names a test that EXISTS — the file, then each name read with ast (a class, then a
+    function inside it; `[param]` of a parametrised test is ignored). A lone name may be a top-level function or a method of any class
+    (the bundle used to print failing tests as file::method)."""
+    parts = [p.strip() for p in item[5:].strip().strip("`").split("::")]
+    path = parts[0]
+    if not (path.startswith("tests/") and path.endswith(".py")):
+        return "không đúng dạng test:tests/<file>.py::Lớp::tên"
+    full = os.path.join(root, path)
+    if not os.path.isfile(full):
+        return f"không có file test {path}"
+    names = [re.sub(r"\[.*\]$", "", n) for n in parts[1:] if n]
+    if not names:
+        return None
+    try:
+        with open(full, encoding="utf-8", errors="replace") as f:
+            tree = ast.parse(f.read())
+    except (OSError, SyntaxError, ValueError) as e:
+        return f"không đọc được {path} ({type(e).__name__})"
+    defs = (ast.ClassDef, ast.FunctionDef, ast.AsyncFunctionDef)
+    scope = tree.body
+    for i, n in enumerate(names):
+        found = next((x for x in scope if isinstance(x, defs) and x.name == n), None)
+        if found is None and i == 0 and len(names) == 1:
+            found = next((m for c in tree.body if isinstance(c, ast.ClassDef) for m in c.body if isinstance(m, defs) and m.name == n), None)
+        if found is None:
+            return f"không có {'::'.join(names[:i + 1])} trong {path}"
+        scope = found.body if isinstance(found, ast.ClassDef) else []
+    return None
+
+
 def check_evidence(item: str, root: str, todo_lines: Optional[int] = None) -> Optional[str]:
     """None when an evidence string can be verified in the repo, else why not."""
     item = str(item).strip()
     if not item:
         return "rỗng"
     if item.startswith(("test:", "flag:", "absent:")):
-        if item.startswith("test:") and "tests/" in item:
-            path = item[5:].split("::")[0].strip()
-            if not os.path.isfile(os.path.join(root, path)):
-                return f"không có file test {path}"
+        if item.startswith("test:"):
+            return _test_ref_problem(item, root)
         if item.startswith("flag:"):
             name = item[5:].strip()
             if name not in collect.read_features(root):
@@ -105,6 +135,10 @@ def check_evidence(item: str, root: str, todo_lines: Optional[int] = None) -> Op
         if last > n or int(m.group("a")) < 1:
             return f"dòng {last} vượt độ dài {path} ({n} dòng)"
     return None
+
+
+def _as_list(v) -> List[str]:
+    return [str(x) for x in v] if isinstance(v, list) else [str(v)] if v else []
 
 
 def _is_real_run_ref(item: str) -> bool:
@@ -409,13 +443,16 @@ def _normalize_v2(raw: Dict, root: str, area_ids: Optional[Sequence[str]], facts
            "severity": sev_count, "auto_points": round(auto_points, 1), "checklist": checklist}
     drift = drift_of(total + auto_points, prev, root)
     if drift:
+        # S14.10 S2: an explanation counts only with at least one evidence code can check (a file:line that exists, a real test, …)
         expl = [e for e in (raw.get("giai_thich_chenh") or []) if isinstance(e, dict) and str(e.get("why") or "").strip()
-                and (e.get("evidence") or e.get("evidence_for"))] if isinstance(raw.get("giai_thich_chenh") or [], list) else []
+                and any(not check_evidence(x, root) for x in _as_list(e.get("evidence") or e.get("evidence_for")))] \
+            if isinstance(raw.get("giai_thich_chenh") or [], list) else []
         if abs(drift["delta"]) > DRIFT_LIMIT:
             if not expl:
                 raise ScoreError(f"điểm (chưa tính khoản trừ tự động) lệch {drift['delta']:+g} so với lần chấm trước ({drift['prev_score']:g} → "
                                  f"{drift['now']:g}); lệch > {DRIFT_LIMIT:g} phải có 'giai_thich_chenh': danh sách {{criterion, why, evidence}} "
-                                 "nói khoản trừ nào bị bỏ / thêm và vì sao (code đổi hay trước đây chấm sai)")
+                                 "nói khoản trừ nào bị bỏ / thêm và vì sao (code đổi hay trước đây chấm sai), mỗi mục ≥ 1 bằng chứng kiểm "
+                                 "được (file:dòng có thật, test:tests/…::Lớp::tên có thật)")
             drift["explained"] = True
             drift["explanations"] = [{"criterion": str(e.get("criterion") or ""), "why": str(e["why"]).strip()[:400],
                                       "evidence": [str(x) for x in (e.get("evidence") or [])]} for e in expl]

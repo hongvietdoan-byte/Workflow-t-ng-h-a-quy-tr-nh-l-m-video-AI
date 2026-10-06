@@ -4,7 +4,7 @@ Phiên con đang làm (nhánh worktree). Xóa file này khi xong.
 
 ## Kế hoạch commit
 1. [x] S1 `collect.flags_state` dùng đúng luật `core.features.on()` (feature_settings.json + dashboard.env) + regex `*FLAG = "…"`
-2. [ ] S2 `check_evidence` kiểm `test:path::Lớp::tên` bằng ast; `giai_thich_chenh` phải có bằng chứng kiểm được
+2. [x] S2 `check_evidence` kiểm `test:path::Lớp::tên` bằng ast; `giai_thich_chenh` phải có bằng chứng kiểm được
 3. [ ] S3 `import_score` đối chiếu fingerprint/input_hash của export; commit/date luôn từ hệ thống
 4. [ ] S11 `todo_mo` chia điểm theo số khu vực trùng + phân loại việc code/người dùng/quy ước
 5. [ ] S15 `bang_chung` đòi dòng trích có dấu hiệu chạy thật

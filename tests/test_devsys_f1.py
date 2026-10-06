@@ -60,5 +60,66 @@ class FlagsStateTests(unittest.TestCase):
         self.assertIn("ast", f["on_why"])
 
 
+VOICE_TEST = "from core import (\n    db,\n    voice,\n)\n\n\nclass VoiceTests:\n    def test_speak(self):\n        pass\n\n\ndef test_top():\n    pass\n"
+
+
+def _a21(area, **over):
+    from devsys import scores
+    crit = {k: {"deductions": [], "evidence_for": []} for k in scores.CRITERIA_MAX_V2}
+    crit.update(over)
+    return {"format": scores.FORMAT_V2, "area": area, "criteria": crit, "summary": "ổn", "can_kiem_lai": [],
+            "checklist": {k: {"tra_loi": "khong", "ghi_chu": "đã đọc core/voice.py"} for k in scores.CHECKLIST_IDS}}
+
+
+FIX = {"why": "ảnh hưởng", "fix": "Sửa ở core/voice.py hàm speak", "effort": "💻", "priority": 1}
+
+
+class EvidenceTests(unittest.TestCase):
+    """S2: a `test:` citation names a test that exists (file, class, function — read with ast); an explanation of a big swing must cite
+    evidence that can be checked."""
+
+    def setUp(self):
+        self.root = _mini_repo()
+        _write(self.root, "tests/test_voice.py", VOICE_TEST)
+
+    def test_test_citations_are_checked_down_to_the_class_and_function(self):
+        from devsys import scores
+        ok = ("test:tests/test_voice.py", "test:tests/test_voice.py::VoiceTests::test_speak", "test:tests/test_voice.py::test_top",
+              "test:tests/test_voice.py::test_speak", "test:tests/test_voice.py::VoiceTests::test_speak[a-b]")
+        for e in ok:
+            self.assertIsNone(scores.check_evidence(e, self.root), e)
+        bad = ("test:tests/test_voice.py::VoiceTests::test_khong_co", "test:tests/test_voice.py::KhongCo::test_speak",
+               "test:tests/test_voice.py::test_khong_co", "test:tests/test_khong_co.py::A::b", "test:chạy pytest thấy lỗi")
+        for e in bad:
+            self.assertIsNotNone(scores.check_evidence(e, self.root), e)
+
+    def test_the_bundle_prints_failing_tests_with_their_class(self):
+        from devsys import scorer, scores
+        ref = scorer.test_ref("tests/test_voice.py", "tests.test_voice.VoiceTests::test_speak")
+        self.assertEqual(ref, "test:tests/test_voice.py::VoiceTests::test_speak")
+        self.assertIsNone(scores.check_evidence(ref, self.root))
+        self.assertEqual(scorer.test_ref("tests/test_voice.py", "tests.test_voice::test_top"), "test:tests/test_voice.py::test_top")
+
+    def test_a_blocking_deduction_citing_a_test_that_does_not_exist_is_not_blocking(self):
+        from devsys import scores
+        raw = _a21("voice", bang_chung={"evidence_for": ["TODO.md:3"]},
+                   tin_cay={"deductions": [{"muc": "chan", "reason": "lỗi", "evidence": ["test:tests/test_voice.py::VoiceTests::test_khong_co"],
+                                            "feedback": FIX}]})
+        s = scores.normalize(raw, self.root, ["voice", "ui", "infra"], {"test_files": 1, "has_run": True, "failed": 0})
+        self.assertEqual(s["criteria"]["tin_cay"]["deductions"][0]["muc"], "lon")
+
+    def test_a_swing_explained_only_with_unverifiable_evidence_is_refused(self):
+        from devsys import scores
+        prev = {"score": 100.0, "auto_points": 0.0, "rubric_hash": scores.rubric_hash(self.root), "format": scores.FORMAT_V2}
+        ded = {"muc": "lon", "reason": "lỗi", "evidence": ["core/voice.py:6"], "feedback": FIX}
+        raw = _a21("voice", bang_chung={"evidence_for": ["TODO.md:3"]}, chuc_nang={"deductions": [ded, ded, ded]})
+        raw["giai_thich_chenh"] = [{"criterion": "chuc_nang", "why": "lần trước bỏ sót", "evidence": ["core/khong_co.py:3"]}]
+        with self.assertRaises(scores.ScoreError):
+            scores.normalize(raw, self.root, ["voice", "ui", "infra"], {"test_files": 1, "has_run": True, "failed": 0}, prev=prev)
+        raw["giai_thich_chenh"][0]["evidence"] = ["core/voice.py:6"]
+        s = scores.normalize(raw, self.root, ["voice", "ui", "infra"], {"test_files": 1, "has_run": True, "failed": 0}, prev=prev)
+        self.assertTrue(s["drift"]["explained"])
+
+
 if __name__ == "__main__":
     unittest.main()
