@@ -157,6 +157,20 @@ def controls_in(tree: ast.AST) -> int:
     return sum(1 for n in ast.walk(tree) if isinstance(n, ast.Call) and isinstance(n.func, ast.Attribute) and n.func.attr in CONTROL_CALLS)
 
 
+PEOPLE_WORK = re.compile(r"👤|người dùng\s+(?:tự\s+)?(?:làm|chạy|xem|nghe|chấm|nạp|thử|bấm|kiểm|mở|chọn|quay|ghi)", re.I)
+CONVENTION = re.compile(r"quy ước|nguyên tắc", re.I)
+
+
+def todo_work_kind(item: Dict) -> str:
+    """S14.10 S11: 'code' (Claude Code can do it) · 'nguoi_dung' (a person must do it) · 'quy_uoc' (a standing rule of how to work)."""
+    text = f"{item.get('section', '')} {item.get('text', '')}"
+    if CONVENTION.search(text):
+        return "quy_uoc"
+    if PEOPLE_WORK.search(item.get("text", "")):
+        return "nguoi_dung"
+    return "code"
+
+
 # ---- số đo một khu vực --------------------------------------------------------------------------------------------------
 def area_metrics(root: str, cfg: Dict, area: Dict, snap: Dict) -> Dict:
     from . import collect
@@ -209,8 +223,20 @@ def area_metrics(root: str, cfg: Dict, area: Dict, snap: Dict) -> Dict:
         if rel not in covered:
             m["modules_untested"].append(rel)
     m["funcs_untested_ratio"] = round(m["funcs_untested"] / m["funcs_public"], 3) if m["funcs_public"] else 0.0
-    m["todo_open"] = [i["line"] for i in snap["todo_by_area"].get(area["id"], [])
-                      if i["kind"] == "open" and not i["waiting_user"]]
+    # S14.10 S11: a TODO line tied to N areas costs each 1/N (one job, counted once for the system); only CODE work counts — a person's
+    # job (👤, "người dùng nghe / chấm / chạy…") and a working convention ("quy ước") are listed apart, never as missing code.
+    shared: Dict[int, int] = {}
+    for aid, items in snap["todo_by_area"].items():
+        if aid != "_chung":
+            for i in items:
+                shared[i["line"]] = shared.get(i["line"], 0) + 1
+    open_items = [i for i in snap["todo_by_area"].get(area["id"], []) if i["kind"] == "open" and not i["waiting_user"]]
+    kinds = {i["line"]: todo_work_kind(i) for i in open_items}
+    m["todo_open"] = [i["line"] for i in open_items if kinds[i["line"]] == "code"]
+    m["todo_people"] = [i["line"] for i in open_items if kinds[i["line"]] == "nguoi_dung"]
+    m["todo_rules"] = [i["line"] for i in open_items if kinds[i["line"]] == "quy_uoc"]
+    m["todo_share"] = round(sum(1.0 / max(1, shared.get(n, 1)) for n in m["todo_open"]), 3)
+    m["todo_shared_lines"] = [n for n in m["todo_open"] if shared.get(n, 1) > 1]
     m["flags_on_unverified"] = [f["name"] for f in snap["flags"] if area["id"] in f["areas"] and f["on"] and not f["verified"]]
     m["has_ui"] = any(f.startswith("dashboard/") for f in mods)
     m["ui_measured"] = bool(area.get("ui_metrics"))
@@ -245,7 +271,13 @@ def auto_deductions(m: Dict, ui: Optional[Dict] = None) -> List[Dict]:
     _auto(out, "file_dai", _ev(m["big_files"]), f"{len(m['big_files'])} file code dài hơn {BIG_FILE_LINES} dòng (khó đọc, khó sửa)")
     _auto(out, "ham_dai", _ev(m["long_funcs"]), f"{len(m['long_funcs'])} hàm dài hơn {LONG_FUNC_LINES} dòng")
     _auto(out, "ham_phuc_tap", _ev(m["complex_funcs"]), f"{len(m['complex_funcs'])} hàm có độ phức tạp > {COMPLEX_FUNC}")
-    _auto(out, "todo_mo", [f"TODO.md:{n}" for n in m["todo_open"]], f"{len(m['todo_open'])} dòng TODO.md còn mở gán cho khu vực (không tính dòng chờ người dùng)")
+    if m["todo_open"]:
+        crit, each, cap = RULES["todo_mo"]
+        n_shared = len(m.get("todo_shared_lines") or [])
+        _auto(out, "todo_mo", [f"TODO.md:{n}" for n in m["todo_open"]],
+              f"{len(m['todo_open'])} dòng TODO.md còn mở là việc code của khu vực (không tính dòng chờ / việc người dùng / quy ước)"
+              + (f"; {n_shared} dòng chung nhiều khu vực → chia điểm theo số khu vực" if n_shared else ""),
+              points=min(cap, round(each * float(m.get("todo_share", len(m["todo_open"]))), 1)))
     _auto(out, "co_bat_chua_thu", [f"flag:{n}" for n in m["flags_on_unverified"]],
           f"{len(m['flags_on_unverified'])} cờ đang BẬT mà verified=False (chưa thử thật)")
     _auto(out, "nuot_loi", m["swallowed"], f"{len(m['swallowed'])} chỗ `except Exception` không báo / không ghi / không ném lại lỗi")

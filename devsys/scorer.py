@@ -206,7 +206,9 @@ def build_bundle(root: str, cfg: Dict, area: Dict, snap: Dict, health: Dict, las
                          f"{', '.join(f['sites'][:6]) or 'không thấy features.on(...) trong code'}" for f in flags) or "(khu vực không có cờ)"
 
     todo_items = [i for i in snap["todo_by_area"].get(area["id"], []) if i["kind"] != "recurring"]
+    work = {"nguoi_dung": " [việc người dùng]", "quy_uoc": " [quy ước]"}
     todo_txt = _cap([f"- TODO.md:{i['line']} [{', '.join(i['markers'])}]{' [chờ người dùng]' if i['waiting_user'] else ''}"
+                     f"{work.get(metrics.todo_work_kind(i), '')}"
                      f"{' [tạm gác]' if i['kind'] == 'paused' else ''} (mục: {i['section'][:60]}) "
                      f"{(i['focus'] or i['text'])[:400]}" for i in todo_items], TODO_BUDGET, "Dòng TODO", notes) or "(không có dòng TODO còn mở gán cho khu vực)"
 

@@ -172,5 +172,41 @@ class ImportTests(unittest.TestCase):
         self.assertEqual((rec["fingerprint"], rec["input_hash"]), (b["fingerprint"], b["input_hash"]))
 
 
+TODO_SHARED = """# TODO
+## Đang làm
+- [ ] Sửa `core/voice.py` và `core/db.py` cùng lúc
+- [ ] Sửa riêng `core/voice.py`
+- [ ] 👤 Người dùng nghe thử `core/voice.py` rồi chọn giọng
+- [ ] Quy ước: mọi câu `core/voice.py` đọc phải có dấu
+"""
+
+
+class TodoShareTests(unittest.TestCase):
+    """S11: one open TODO line tied to several areas costs the system once (its points are split between them), and only code work
+    counts — a person's job (👤, người dùng nghe/chấm…) or a working convention (quy ước) is not missing code."""
+
+    def setUp(self):
+        self.root = _mini_repo()
+        _write(self.root, "TODO.md", TODO_SHARED)
+        self.cfg = collect.load_areas(os.path.join(self.root, "devsys", "areas.json"))
+        self.snap = collect.collect(self.root, self.cfg, db_path=os.path.join(self.root, "khong_co.sqlite"))
+
+    def auto(self, aid):
+        from devsys import metrics
+        m = metrics.area_metrics(self.root, self.cfg, collect.area_by_id(self.cfg)[aid], self.snap)
+        return m, {a["rule"]: a for a in metrics.auto_deductions(m)}
+
+    def test_a_line_shared_by_two_areas_is_split_and_only_code_work_counts(self):
+        m, auto = self.auto("voice")
+        self.assertEqual(m["todo_open"], [3, 4])
+        self.assertEqual(m["todo_people"], [5])
+        self.assertEqual(m["todo_rules"], [6])
+        self.assertEqual(auto["todo_mo"]["points"], round(0.3 * 1.5, 1))   # 0.3 × (½ + 1): rounded once
+        m, auto = self.auto("infra")
+        self.assertEqual(m["todo_open"], [3])
+        self.assertEqual(auto["todo_mo"]["points"], round(0.3 * 0.5, 1))   # 0.3 × ½
+        self.assertIn("chia", auto["todo_mo"]["reason"])
+
+
 if __name__ == "__main__":
     unittest.main()
