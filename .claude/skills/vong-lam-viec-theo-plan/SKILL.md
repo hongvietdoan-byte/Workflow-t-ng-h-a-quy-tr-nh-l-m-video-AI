@@ -66,14 +66,14 @@ Số đo 05–06/10 (5 nhánh rà kỹ): rà chỉ còn ≈ 20 % tổng và bắ
 | Chỉ số | Hành động |
 |---|---|
 | Context phiên chính **65–75 %** | điểm nghỉ |
-| Hạn mức 5 giờ **≥ 90 %** hoặc tuần **≥ 95 %** (người dùng nâng ngưỡng tuần 05/10) | điểm nghỉ |
+| Hạn mức 5 giờ **90–95 %** hoặc tuần **≥ 95 %** (người dùng 06/10: dùng 5 giờ tới 90–95 %; tuần nâng 05/10) | điểm nghỉ — **TRÁNH VƯỢT 95 %**: đã ≥ 90 % thì không mở/đánh thức phiên con nào nữa, chỉ gộp phần đã xong |
 | Hạn mức 5 giờ **≥ 60 %** | chỉ cho **1** phiên con chạy cùng lúc |
-| Hạn mức 5 giờ **≥ 70 %** | không cho phiên con nào chạy THÊM (kể cả đánh thức phiên cũ bằng SendMessage để sửa theo rà); chờ phiên đang chạy xong, phiên chính tự gộp + chạy test |
+| Hạn mức 5 giờ **70–90 %** | chỉ cho chạy **việc NHỎ** (một phiên, phạm vi chặt, ≈ ≤ 30 lượt gọi công cụ / ≈ ≤ 100k token — ước mỗi việc nhỏ tốn ≈ 3–6 % hạn mức 5 giờ); trước khi mở ước xem có vượt 90–95 % không, có nguy cơ thì KHÔNG mở; không mở việc lớn, không đánh thức phiên có context lớn |
 | Hạn mức tuần thấp mà còn nhiều việc | làm theo thứ tự giá trị (lỗ tiền, mất dữ liệu trước; giao diện, dọn dẹp sau) |
 
 ## 4. Điểm nghỉ
 **Hai loại dừng, đừng lẫn:**
-- **Dừng vì hạn mức gói** (5 giờ ≥ 90 % / tuần ≥ 95 %), context còn thấp → KHÔNG cần `/clear`. Làm bước 1–4 bên dưới, rồi đặt lịch `CronCreate` một lần (vài phút sau giờ hạn mức đặt lại, lấy từ `resetsAt`) để tự làm tiếp TRONG CÙNG phiên, và báo người dùng giờ chạy lại.
+- **Dừng vì hạn mức gói** (5 giờ 90–95 % / tuần ≥ 95 %; tránh vượt 95 %), context còn thấp → KHÔNG cần `/clear`. Làm bước 1–4 bên dưới, rồi đặt lịch `CronCreate` một lần (vài phút sau giờ hạn mức đặt lại, lấy từ `resetsAt`) để tự làm tiếp TRONG CÙNG phiên, và báo người dùng giờ chạy lại.
 - **Dừng vì context** (65–75 %) → làm bước 1–5: người dùng `/clear` rồi gõ "tiếp tục".
 
 1. Chờ mọi phiên con xong (không bỏ dở giữa chừng).
