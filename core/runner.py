@@ -1377,8 +1377,14 @@ def lock_note(conn, project_id: int, cast) -> str:
     """Character Lock of the people in the shot, as one sentence for the image model (what must never drift)."""
     from . import features, profile_digest
     parts = []
-    for r in conn.execute("SELECT name, lock_rules FROM characters WHERE project_id=?", (project_id,)):
+    for r in conn.execute("SELECT name, lock_rules, outfit_image_ids FROM characters WHERE project_id=?", (project_id,)):
         if r["name"] not in (cast or []):
+            continue
+        if (r["outfit_image_ids"] or "").strip():
+            # 07/10 Khủng Long Đỏ: MAXIM KL's lock came from the library profile of MAXIM with his everyday clothes ("black baseball cap
+            # worn backwards, bomber jacket") and the costume's red horned cap was drawn as the black cap — face/hair/build only here
+            parts.append(f"{r['name']}: keep the face, hair and body build of the reference pictures; the clothes, cap and accessories "
+                         "come ONLY from the OUTFIT image, never from the everyday look")
             continue
         short = profile_digest.for_character(conn, project_id, r["name"], "lock_medium") if features.on("profile_digest") else None
         if short:                                   # V4 4.4: the ≤ 500-character form of the approved profile (feature profile_digest)
@@ -1469,9 +1475,26 @@ def build_image_prompt(conn, project_id: int, data: Dict, core: Optional[str] = 
     if fix:
         prompt = f"{prompt}. Fix: {fix}"
     place = assets.scene_location(conn, project_id, data)
-    if place is not None:                          # B1: the place in words (+ real landmark heights), whatever pictures go
+    room = indoor_spot(conn, project_id, data)
+    if room:                                       # 07/10 Khủng Long Đỏ: the place's outdoor words ("plaza, palms, sea") pulled a
+        prompt += (f" Setting: INSIDE a room — {room} ({place['name']} map). An interior with walls and ceiling as in the 3D render; "
+                   "no plaza, tower, sky or sea except what its windows show.")   # bedroom shot outside onto a balcony
+    elif place is not None:                        # B1: the place in words (+ real landmark heights), whatever pictures go
         prompt += " " + assets.location_text(conn, place)
     return no_minor_age(prompt), removed
+
+
+def indoor_spot(conn, project_id: int, data: Dict) -> Optional[str]:
+    """The label of the shot's 3D spot when it is an indoor one (place_render_refs), else None."""
+    from . import location_pack, place_refs
+    if not place_refs.enabled():
+        return None
+    place = assets.scene_location(conn, project_id, data)
+    entry = location_pack.model3d(conn, place["id"]) if place is not None else None
+    if not entry:
+        return None
+    sp = location_pack.spot_for(entry, data)
+    return (sp.get("label") or sp.get("name") or "indoor room") if sp.get("indoor") else None
 
 
 def sendable_references(refs, model: Optional[str], limit: Optional[int] = None) -> Tuple[list, list]:
@@ -1611,6 +1634,8 @@ class ImageRunner(_Runner):
                                        limit=limit, reserve=1 if chain else 0, sheets=sheets)
         from . import scene_establish
         est = scene_establish.reference(self.data_dir, job["project_id"], data.get("story_scene"))
+        if est and indoor_spot(conn, job["project_id"], data):   # an indoor shot: the 3D render of the room is the place, never the
+            est = None                                           # outdoor wide picture of the scene (07/10 Khủng Long Đỏ)
         if est:                                        # the scene's wide establishing picture: the shared reference for the place
             refs = ([r for r in refs if r.get("role") != "location"][:max(limit - 2, 1)]
                     + [r for r in refs if r.get("role") == "location"][:1] + [est])
@@ -1664,6 +1689,9 @@ class ImageRunner(_Runner):
                     cast_of=next(s["data"] for s in g["shots"] if s["id"] == job["scene_id"]))
                 from . import scene_establish
                 est = scene_establish.reference(self.data_dir, job["project_id"], g["story_scene"])
+                own = next((s["data"] for s in g["shots"] if s["id"] == job["scene_id"]), {})
+                if est and indoor_spot(self.p.conn, job["project_id"], own):   # indoor: the room render, not the outdoor wide picture
+                    est = None
                 if est:                                # the scene's wide establishing picture: the shared reference for the place
                     shared = ([r for r in shared if r.get("role") != "location"][:6]
                               + [r for r in shared if r.get("role") == "location"][:1] + [est])
@@ -1678,7 +1706,15 @@ class ImageRunner(_Runner):
                 shared, dropped = sendable_references(shared, model)     # before the mapping text is built from the list
                 if dropped:
                     self._diag(job, "warn", "missing_reference", "ảnh tham chiếu storyboard không gửi được: " + ", ".join(dropped))
-                fields = scene_storyboard.job_fields(self.p.conn, self.data_dir, job["project_id"], job["scene_id"], shared, job["id"])
+                previous = None
+                srow = self.p.conn.execute("SELECT idx, data FROM scenes WHERE id=?", (job["scene_id"],)).fetchone()
+                sdata = json.loads(srow["data"] or "{}") if srow else {}
+                if srow and chain_previous(proj, sdata):    # "always chain the previous shot" holds in storyboard mode too (07/10)
+                    prev = previous_frame_job(self.p.conn, job["project_id"], srow["idx"], sdata.get("sequence"))
+                    if prev is not None:
+                        previous = os.path.join(self.data_dir, str(job["project_id"]), "images", f"job_{prev['id']}.png")
+                fields = scene_storyboard.job_fields(self.p.conn, self.data_dir, job["project_id"], job["scene_id"], shared, job["id"],
+                                                     previous=previous)
                 if fields is not None:
                     refs = fields["refs"]
                     prompt = prompt.rstrip() + fields.get("cast_note", "")

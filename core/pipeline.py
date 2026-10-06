@@ -413,6 +413,11 @@ class Pipeline:
             return None
         self.transition(job_id, JobState.RETRYABLE, note=reason)
         fix = (fix or "").strip()
+        before = (self.job(job_id)["retry_reason"] or "").strip()
+        if fix and not by_user and before and before not in fix and not before.startswith((PLAIN_RESEND, REWRITE_NOTE, "gửi lại")):
+            # an automatic fix (QC: "Frame as a medium close-up") keeps the fix this take was already made with — 07/10 Khủng Long Đỏ: the
+            # person's "same frame as shot 3" was dropped by the size check's redraw and the next picture lost it
+            fix = f"{before} {fix}"
         carried = fix or (PLAIN_RESEND + (f" ({reason})" if reason else ""))
         return self._spawn_retry(job_id, carried, close_old=JobState.CANCELLED, auto=not by_user)
 

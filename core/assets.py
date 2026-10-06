@@ -1461,6 +1461,10 @@ def reference_note(refs: List[Dict]) -> str:
             bits.append(f"{tag} is related material of {g['label']} (e.g. their skill icon or skill in action): use it only for what the "
                         f"skill / effect / item looks like when the scene shows it — never draw it as an icon, a UI element or text, and "
                         f"never take {g['label']}'s appearance from it")
+        elif g["role"] == "same_frame":            # 07/10: the shot right before, when this shot keeps its frame (cut on the spot)
+            bits.append(f"{tag} is the shot RIGHT BEFORE this one: keep exactly its camera position, lens, framing and shot size, the "
+                        "character's spot and pose direction, the background and the light — change only what this shot's text says "
+                        "(e.g. the clothes)")
         elif g["role"] == "previous_scene":
             bits.append(f"{tag} is the PREVIOUS scene in this sequence (storyboard continuity): keep the same render style, "
                         "color palette, lighting mood and level of detail as this image, and keep any character/prop/location "

@@ -175,6 +175,38 @@ class SceneModeTests(unittest.TestCase):
         self.assertNotEqual(sid[redo], sid[frame["id"]])
         self.assertEqual(sid[resend], sid[frame["id"]])
 
+    def test_the_previous_shot_goes_with_the_anchor_when_the_project_chains(self):
+        """07/10 Khủng Long Đỏ: "same frame as shot 3" was drawn in another frame — storyboard mode sent only the anchor (shot 1)."""
+        from core import llm_io, llm_runner, scene_storyboard
+        from tests.test_v3 import kenta_project
+        p, pid = kenta_project()
+        llm_runner.run_director(p, pid, llm_runner.MockLlm())
+        llm_io.lock_character_bible(p, pid)
+        data = tempfile.mkdtemp()
+        os.makedirs(os.path.join(data, str(pid), "images"))
+        rows = [r["id"] for r in p.conn.execute("SELECT id FROM scenes WHERE project_id=? ORDER BY idx", (pid,))]
+        g = next(scene_storyboard.group_of(p.conn, pid, s) for s in rows if scene_storyboard.group_of(p.conn, pid, s)
+                 and len(scene_storyboard.group_of(p.conn, pid, s)["shots"]) >= 3)
+        paths = {}
+        for s in g["shots"]:
+            jid = p._insert_job(pid, s["id"], "image_gen")
+            p.conn.execute("UPDATE jobs SET state='approved' WHERE id=?", (jid,))
+            paths[s["id"]] = os.path.join(data, str(pid), "images", f"job_{jid}.png")
+            with open(paths[s["id"]], "wb") as f:
+                f.write(b"x")
+        p.conn.commit()
+        later = [s for s in g["shots"] if s["id"] != g["anchor"]["id"]]
+        shot, before = later[-1], later[-2]
+        shared = [{"path": paths[before["id"]] + ".ref", "label": "KENTA", "role": "character"}]
+        plain = scene_storyboard.job_fields(p.conn, data, pid, shot["id"], shared, 1)
+        chained = scene_storyboard.job_fields(p.conn, data, pid, shot["id"], shared, 1, previous=paths[before["id"]])
+        self.assertNotIn(paths[before["id"]], [r["path"] for r in plain["refs"]])
+        self.assertEqual(chained["refs"][-1]["path"], paths[before["id"]])
+        self.assertEqual(chained["refs"][-2]["label"], "frame 1 (scene anchor)")
+        self.assertIn(f"Image {len(chained['refs'])} is the shot right before this one", chained["storyboard"]["image_mapping"])
+        anchor_only = scene_storyboard.job_fields(p.conn, data, pid, shot["id"], shared, 1, previous=paths[g["anchor"]["id"]])
+        self.assertEqual(len(anchor_only["refs"]), len(plain["refs"]))         # the anchor is never sent twice
+
     def test_off_by_default_or_without_a_storyboard_provider(self):
         from core import scene_storyboard
         self.assertFalse(scene_storyboard.enabled())

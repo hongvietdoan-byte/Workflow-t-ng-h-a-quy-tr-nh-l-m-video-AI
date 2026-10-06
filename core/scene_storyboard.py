@@ -175,19 +175,30 @@ def fresh_session(conn, job_id: int) -> bool:
     return not (row["retry_reason"] or "").startswith(RESEND_NOTE)
 
 
-def job_fields(conn, data_dir: str, pid: int, scene_id: int, refs: List[Dict], job_id: int = 0) -> Optional[Dict]:
+PREVIOUS_NOTE = ("\nImage {n} is the shot right before this one: keep exactly its camera position, framing, shot size, the character's spot "
+                 "and the background — change only what this frame's text says.")
+
+
+def job_fields(conn, data_dir: str, pid: int, scene_id: int, refs: List[Dict], job_id: int = 0,
+               previous: Optional[str] = None) -> Optional[Dict]:
     """(storyboard kwargs for the provider, the reference list to send) for this shot's picture job, or None (not in storyboard mode).
-    refs = the shared references already chosen for the job; a non-anchor shot adds the anchor picture last."""
+    refs = the shared references already chosen for the job; a non-anchor shot adds the anchor picture last.
+    previous = the approved picture of the shot right before (project set to "always chain the previous shot"): sent after the anchor —
+    07/10 Khủng Long Đỏ: "same frame as shot 3" came out in another frame because storyboard mode sent only the anchor (shot 1)."""
     g = group_of(conn, pid, scene_id)
     if g is None:
         return None
     is_anchor = g["anchor"]["id"] == scene_id
     anchor_pic = None if is_anchor else anchor_picture(conn, data_dir, pid, g["anchor"]["id"])
     send = list(refs) + ([{"path": anchor_pic, "label": "frame 1 (scene anchor)", "role": "previous_scene"}] if anchor_pic else [])
+    prev_note = ""
+    if previous and os.path.exists(previous) and previous != anchor_pic:
+        send.append({"path": previous, "label": "previous shot (same camera)", "role": "same_frame"})
+        prev_note = PREVIOUS_NOTE.format(n=len(send))
     mode = "global" if refs else "sequential"
     anchor_job = job_id if is_anchor else int(os.path.basename(anchor_pic)[4:].split(".")[0].split("_")[0]) if anchor_pic else 0
     return {"storyboard": {"story_text": story_text(conn, pid, g), "storyboard_id": storyboard_id(pid, g, anchor_job, 0 if is_anchor or not fresh_session(conn, job_id) else job_id),
                            "frame_index": g["index"], "group_size": len(g["shots"]), "ref_mode": mode,
-                           "image_mapping": (mapping_text(send, len(refs)) + (anchor_note(g, scene_id, len(send)) if anchor_pic else ""))
-                            if send else ""},
+                           "image_mapping": (mapping_text(send, len(refs)) + (anchor_note(g, scene_id, len(refs) + 1) if anchor_pic else "")
+                                             + prev_note) if send else ""},
             "refs": send, "anchor": is_anchor, "cast_note": cast_note(g, scene_id)}

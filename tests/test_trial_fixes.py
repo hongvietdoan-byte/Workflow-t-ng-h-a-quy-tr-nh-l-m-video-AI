@@ -135,6 +135,63 @@ class NoVietnameseNoteToTheModelTests(Base):
 
 
 # ---- 3 ---------------------------------------------------------------------------------------------------------------------
+class SameFrameRedrawTests(Base):
+    """07/10 Khủng Long Đỏ: the 'same frame as shot 3' redraw of a bedroom shot came out in another frame, outdoors, in the wrong cap."""
+
+    def failed_image(self):
+        jid = self.p.create_job(self.sid)
+        self.p.start(jid)
+        self.p.fail(jid, "timeout: server busy")
+        return jid
+
+    def test_an_automatic_redraw_keeps_the_fix_the_take_was_made_with(self):
+        first = self.p.retry(self.failed_image(), "người dùng vẽ lại", fix="Same frame as the previous shot.", by_user=True)
+        self.p.start(first)
+        self.p.fail(first, "redraw: QC")
+        auto = self.p.retry(first, "QC lớp 0", fix="Frame as a medium close-up.")
+        self.assertEqual(self.p.job(auto)["retry_reason"], "Same frame as the previous shot. Frame as a medium close-up.")
+        self.p.start(auto)
+        self.p.fail(auto, "x")
+        again = self.p.retry(auto, "người dùng", fix="Only the clothes change.", by_user=True)   # a person's new sentence replaces
+        self.assertEqual(self.p.job(again)["retry_reason"], "Only the clothes change.")
+
+    def test_a_costumed_character_takes_its_clothes_only_from_the_outfit(self):
+        from core.runner import lock_note
+        self.p.conn.execute("INSERT INTO characters (project_id, name, description, lock_rules, outfit_image_ids) VALUES (?,?,?,?,?)",
+                            (self.pid, "MAXIM KL", "x", json.dumps({"must_keep": "black baseball cap worn backwards"}), "7"))
+        self.p.conn.commit()
+        note = lock_note(self.p.conn, self.pid, ["MAXIM KL"])
+        self.assertIn("ONLY from the OUTFIT image", note)
+        self.assertNotIn("black baseball cap", note)
+
+    def test_an_indoor_spot_gets_no_outdoor_words_nor_the_outdoor_wide_picture(self):
+        from core import location_pack, runner, scene_establish
+        from core.runner import build_image_prompt
+        place = {"id": 5, "name": "Tháp Đồng Hồ", "images": [], "description": "the clock tower stands on a wide open stone plaza, palms, sea"}
+        entry = {"default_spot": "plaza_front", "spots": {
+            "plaza_front": {"at": [0, 0, 0], "label": "quảng trường trước tháp"},
+            "trong_nha_dong_t2": {"at": [1, 0, 0], "label": "trong nhà lớn phía đông — tầng 2", "indoor": {"exposure": 1.5}}}}
+        room = {"image_prompt": "Maxim holds the hoodie", "location": "Phòng ngủ tầng 2 nhà lớn phía Đông, Tháp Đồng Hồ"}
+        square = {"image_prompt": "Maxim waves", "location": "Quảng trường trước tháp, Tháp Đồng Hồ"}
+        with mock.patch.object(assets, "scene_location", return_value=place), \
+                mock.patch.object(location_pack, "model3d", return_value=entry), \
+                mock.patch("core.place_refs.enabled", return_value=True):
+            inside, _ = build_image_prompt(self.p.conn, self.pid, room)
+            outside, _ = build_image_prompt(self.p.conn, self.pid, square)
+            self.assertEqual(runner.indoor_spot(self.p.conn, self.pid, room), "trong nhà lớn phía đông — tầng 2")
+            self.assertIsNone(runner.indoor_spot(self.p.conn, self.pid, square))
+        self.assertIn("INSIDE a room — trong nhà lớn phía đông — tầng 2", inside)
+        self.assertNotIn("stone plaza", inside)
+        self.assertIn("stone plaza", outside)
+        self.assertTrue(callable(scene_establish.reference))
+
+    def test_the_shot_right_before_is_named_as_the_frame_to_keep(self):
+        note = assets.reference_note([{"path": "a.png", "label": "previous shot (same camera)", "role": "same_frame"},
+                                      {"path": "b.png", "label": "frame 1 (scene anchor)", "role": "previous_scene"}])
+        self.assertIn("RIGHT BEFORE this one: keep exactly its camera position", note)
+        self.assertIn("draw a NEW moment", note)                        # the anchor keeps its own sentence
+
+
 class VoiceLoopTests(unittest.TestCase):
     def setUp(self):
         self.p = Pipeline(connect())
