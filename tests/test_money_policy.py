@@ -374,18 +374,6 @@ class InboxOnlyForTheLimit(unittest.TestCase):
         self.assertEqual(self.p.reopen_approved(job, "lệch", fix="match", auto=True), "escalated")
         self.assertTrue(any("đã tự gen lại 3 lần" in t for t in self.limit_items()), self.limit_items())
 
-    def test_the_set_check_block_at_the_limit_goes_to_the_inbox(self):
-        from core import autopilot
-        sid = self.p.create_scene(self.pid, 1)
-        job = self.p.create_job(sid)
-        self.p.start(job)
-        self.p.succeed(job)
-        self.p.approve(job)
-        self.p.conn.execute("UPDATE jobs SET retry_count=3 WHERE id=?", (job,))
-        self.p.conn.commit()
-        self.assertIn("Cần bạn quyết", autopilot._setcheck_block(self.p, self.pid, {"idx": 1, "fix": "x"}, "mock"))
-        self.assertTrue(self.limit_items())
-
     def test_a_job_held_for_another_reason_is_not_said_to_be_at_the_limit(self):
         sid = self.p.create_scene(self.pid, 1)
         job = self.p.create_job(sid)
@@ -399,27 +387,6 @@ class InboxOnlyForTheLimit(unittest.TestCase):
         self.assertEqual(self.p.apply_qc(child, dict(GOOD, mood=0.1), autofix=True), "needs_review")   # QC named no fix
         self.assertEqual(self.p.job(child)["escalated"], 1)
         self.assertEqual(self.limit_items(), [])
-
-
-class PlateFallbackAtTheLimit(unittest.TestCase):
-    def test_the_scene_is_not_switched_to_green_screen_when_no_new_clip_is_made(self):
-        from core import autopilot, location_pack
-        p = Pipeline(connect())
-        pid = p.create_project("g", "human_qc", 0.85, 9)
-        sid = p.create_scene(pid, 1)
-        job = p.create_job(sid, "video_gen")
-        p.start(job)
-        p.succeed(job)
-        p.conn.execute("UPDATE jobs SET retry_count=2 WHERE id=?", (job,))
-        p.conn.commit()
-        data = tempfile.mkdtemp()
-        rec = {"ok": False, "mode": "first_frame", "job_id": job, "score": 0.2}
-        from core import features
-        with mock.patch.object(location_pack, "video_qc", return_value={str(sid): rec}),                 mock.patch.object(location_pack, "record_video_qc"), mock.patch.object(features, "on", return_value=True):
-            self.assertIsNone(autopilot._plate_fallback_phase(p, pid, autopilot.Context(data, None, None, None)))
-        self.assertEqual(p.conn.execute("SELECT COUNT(*) FROM jobs").fetchone()[0], 1)            # no new clip
-        data_row = json.loads(p.conn.execute("SELECT data FROM scenes WHERE id=?", (sid,)).fetchone()[0] or "{}")
-        self.assertNotEqual(data_row.get("plate_mode"), "green")
 
 
 class InboxMoneyWarning(unittest.TestCase):

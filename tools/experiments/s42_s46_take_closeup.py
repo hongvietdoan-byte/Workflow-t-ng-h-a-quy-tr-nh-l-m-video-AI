@@ -36,7 +36,7 @@ CAP_USD = 4.0                                    # nhánh A1: tiền video + ả
 OUT = r"D:\AI-Video-Output\2026-10-01_s4-2_s4-6"
 DATA = os.path.join("data", "projects")
 BASE_ENV = {"FEATURE_SEEDANCE_REF_GROUPS": "1", "FEATURE_LIP_SYNC": "1", "FEATURE_DIALOGUE_TAKE": "1",
-            "FEATURE_CLOSEUP_START_FRAME": "0", "FEATURE_LOCATION_PLATES": "0", "FEATURE_PLACE_RENDER_REFS": "0",
+            "FEATURE_CLOSEUP_START_FRAME": "0", "FEATURE_PLACE_RENDER_REFS": "0",
             "FEATURE_SKILL_DOSSIER": "0"}
 
 

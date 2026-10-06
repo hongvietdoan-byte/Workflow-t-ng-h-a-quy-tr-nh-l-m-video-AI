@@ -61,7 +61,7 @@ def lip_sync_risk(shot: Dict) -> bool:
 
 def flags(p: Pipeline, project_id: int, data_dir: str = None) -> Dict[int, List[str]]:
     """{scene_id: [what looks wrong]} for every shot (empty list = nothing flagged). With `data_dir`, the whole-set check's findings
-    are shown too (it only reports: features.setcheck_autofix)."""
+    are shown too (it only reports — the automatic redraw was removed in S14.9)."""
     from . import shots
     set_issues: Dict[int, List[str]] = {}
     if data_dir:

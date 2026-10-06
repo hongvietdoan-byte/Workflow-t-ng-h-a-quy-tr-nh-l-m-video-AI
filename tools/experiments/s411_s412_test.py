@@ -1,11 +1,9 @@
 """S4.11 Chế độ bản mẫu + S4.12 Sửa clip (Advanced Edit) — thử có trả tiền (người dùng duyệt 01/10; trần nhánh CAP_USD, 0 ảnh Deepix,
 0 Claude). Tham số API đọc từ mã web ClipAI (docs/KET_QUA_S4_11_S4_12_2026-10-01.md). Không sửa dữ liệu dự án #1–#13: đọc clip / ảnh
-của #8, mọi lần gửi ghi sổ chi vào dự án thử mới, kết quả ở OUT.
+của #8, mọi lần gửi ghi sổ chi vào dự án thử mới, kết quả ở OUT. S14.9 (06/10): phần S4.11 bản mẫu (sample / final / final_probe)
+bị bỏ cùng cờ seedance_sample_mode — chỉ còn S4.12 sửa clip.
 
     py tools/experiments/s411_s412_test.py setup                  dự án thử (0 USD) — in mã dự án
-    py tools/experiments/s411_s412_test.py --project N sample     bản mẫu 480p 4 s cận Kelly (#8 shot 1, khung đầu = storyboard job 369)
-    py tools/experiments/s411_s412_test.py --project N final      bản cuối 1080p từ bản mẫu (bị trần chặn nếu không đủ tiền)
-    py tools/experiments/s411_s412_test.py --project N final_probe  gửi bản cuối với mã bản mẫu KHÔNG tồn tại: xem API có hiểu `draft_task`
     py tools/experiments/s411_s412_test.py --project N edit_prep  cắt 4 s đầu clip nhóm 01 của #8 + ảnh mặt Kelly sau điểm cắt (0 USD)
     py tools/experiments/s411_s412_test.py --project N edit       sửa clip 480p (cận Kelly kiểu anime → kiểu render 3D như sau điểm cắt)
     py tools/experiments/s411_s412_test.py --project N usage EXT  đọc token ClipAI tính cho một task (0 USD)
@@ -25,16 +23,9 @@ CAP_USD = 1.5
 MODEL = "dreamina-seedance-2-5-260628"
 OUT = r"D:\AI-Video-Output\2026-10-01_s4-11_s4-12"
 P8 = os.path.join("data", "projects", "8")
-FIRST_FRAME = os.path.join(P8, "images", "job_369.png")           # #8 shot 1 storyboard (CU Kelly, render 3D) — read only
 SOURCE = os.path.join(P8, "videos", "01_group.mp4")               # #8 group clip: 0–1.08 s = the anime-looking Kelly close-up (lỗi 1.3)
 STATE = os.path.join(OUT, "state.json")
-ENV = {"FEATURE_SEEDANCE_SAMPLE_MODE": "1", "FEATURE_SEEDANCE_VIDEO_EDIT": "1"}
-
-SAMPLE_PROMPT = (
-    "@Image 1 is the first frame: keep this girl's face, hair, choker, the 3D game-render look, the framing and the night light. "
-    "Close-up, eye level, the camera stays still. In the dark, a tear rolls slowly down her left cheek; her eyes stay red-rimmed and "
-    "glassy, fixed straight at the camera, unblinking; her lower lip presses tight; her chin lowers slightly. By the end the tear has "
-    "reached her jawline. Photoreal 3D game render, not anime, not an illustration.")
+ENV = {"FEATURE_SEEDANCE_VIDEO_EDIT": "1"}
 
 EDIT_PROMPT = (
     "Edit @Video 1. @Video 1 is the only editing master.\n"
@@ -142,61 +133,6 @@ def show_usage(provider, ext):
     return u
 
 
-def sample(p, pid):
-    from core import cost
-    from core.adapters import factory
-    if state().get("sample"):
-        raise SystemExit("đã gửi bản mẫu: " + state()["sample"] + " — không gửi lại (tránh trả 2 lần)")
-    usd = cost.seedance_estimate(MODEL, "480p", "9:16", 4)
-    provider = factory.video_provider()
-    ext, sent_at = _send(p, pid, provider, "480p", 4, usd, "bản mẫu 480p",
-                         lambda: provider.submit(FIRST_FRAME, SAMPLE_PROMPT, None, 4, "seedance-2.5", aspect_ratio="9:16",
-                                                 resolution="480p", draft=True))
-    if not ext:
-        return
-    save(sample=ext, sample_sent_at=sent_at, sample_estimate=usd)
-    ext, ok = wait(provider, ext, os.path.join(OUT, "s411_ban_mau_480p.mp4"), SAMPLE_PROMPT, sent_at)
-    save(sample=ext)
-    save(sample_usage=show_usage(provider, ext))
-    print("đã chi (sổ):", spent(p, pid))
-
-
-def final(p, pid):
-    from core import cost
-    from core.adapters import factory
-    s = state()
-    if not s.get("sample"):
-        raise SystemExit("chưa có bản mẫu")
-    if s.get("final"):
-        raise SystemExit("đã gửi bản cuối: " + s["final"])
-    usd = cost.seedance_estimate(MODEL, "1080p", "9:16", 4)
-    provider = factory.video_provider()
-    ext, sent_at = _send(p, pid, provider, "1080p", 4, usd, "bản cuối 1080p",
-                         lambda: provider.submit_final_from_sample(s["sample"]))
-    if not ext:
-        return
-    save(final=ext)
-    ext, ok = wait(provider, ext, os.path.join(OUT, "s411_ban_cuoi_1080p.mp4"))
-    save(final_usage=show_usage(provider, ext))
-
-
-def final_probe(p, pid):
-    """A final from a sample id that does not exist: a refusal naming the sample = the API reads `draft_task` (0 USD)."""
-    from core.adapters import factory
-    from core.providers import ProviderError
-    provider = factory.video_provider()
-    try:
-        ext = provider.submit_final_from_sample("seedance:cgt-20000101000000-zzzzz")
-    except ProviderError as e:
-        print(f"ClipAI trả lời (không tạo task): [{e.code}] {e}")
-        save(final_probe=str(e))
-        return
-    print("CÓ TASK ĐƯỢC TẠO (không mong đợi):", ext)
-    save(final_probe_task=ext)
-    from core.cost import record_usage
-    record_usage(p.conn, None, "video", provider.name, MODEL, "1080p", 4, "second", pid)
-
-
 def edit_prep():
     os.makedirs(OUT, exist_ok=True)
     src = os.path.join(OUT, "s412_nguon_4s.mp4")
@@ -235,7 +171,7 @@ def edit(p, pid):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--project", type=int)
-    ap.add_argument("step", choices=("setup", "sample", "final", "final_probe", "edit_prep", "edit", "usage"))
+    ap.add_argument("step", choices=("setup", "edit_prep", "edit", "usage"))
     ap.add_argument("ext", nargs="?")
     from core import script_cap  # noqa: E402  (S14.2: trần CỨNG --max-usd, bắt buộc khi gọi API trả tiền)
     script_cap.add_argument(ap)
@@ -252,7 +188,7 @@ def main():
     else:
         if not a.project:
             raise SystemExit("cần --project")
-        {"sample": sample, "final": final, "final_probe": final_probe, "edit": edit}[a.step](p, a.project)
+        edit(p, a.project)
 
 
 if __name__ == "__main__":

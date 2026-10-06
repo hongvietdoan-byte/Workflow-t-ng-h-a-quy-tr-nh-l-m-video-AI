@@ -39,11 +39,12 @@ class FeatureSettingsTests(unittest.TestCase):
             self.assertFalse(features.on(self.unverified))
             self.assertTrue(features.on(self.verified))
 
-    def test_experimental_preset_is_everything_but_the_harmful_three(self):
+    def test_experimental_preset_is_everything_and_the_removed_three_stay_off(self):
         with self._clean_env():
             features.save_settings(preset="experimental")
             self.assertTrue(features.on(self.unverified))
-            for h in features.HARMFUL:
+            for h in ("setcheck_autofix", "layout_to_model", "chain_previous_auto"):   # S14.9: removed from the code, not just held off
+                self.assertNotIn(h, features.FEATURES)
                 self.assertFalse(features.on(h), h)
             with mock.patch.dict(os.environ, {"FEATURE_" + self.unverified.upper(): "0"}):
                 self.assertFalse(features.on(self.unverified))            # an explicit off in the environment still holds

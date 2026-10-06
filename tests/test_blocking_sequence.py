@@ -5,6 +5,7 @@ import os
 import shutil
 import tempfile
 import unittest
+from unittest import mock
 
 from core import llm_io
 from core.db import connect
@@ -104,6 +105,19 @@ class BlockingSequenceTests(unittest.TestCase):
         self.conn.execute("UPDATE jobs SET state='rejected' WHERE id=?", (second,))
         self.conn.commit()
         self.assertIsNone(previous_frame_job(self.conn, self.pid, 3, None))            # only the scene right before counts
+
+    def test_the_automatic_mode_never_chains_even_with_an_old_env_line(self):
+        # S14.9 (06/10): chain_previous_auto removed (GĐ6 F8/I2) — mode 0 inside a sequence sends no previous frame, as with it off
+        self.scenes([{"idx": 1, "sequence": 1}, {"idx": 2, "sequence": 1}])
+        first = self.approve(1)
+        provider = MockImageProvider()
+        runner = ImageRunner(self.p, provider, self.data_dir)
+        sid = self.conn.execute("SELECT id FROM scenes WHERE project_id=? AND idx=2", (self.pid,)).fetchone()["id"]
+        self.p.create_job(sid, "image_gen")
+        with mock.patch.dict(os.environ, {"FEATURE_CHAIN_PREVIOUS_AUTO": "1"}):
+            self.assertEqual(runner.submit_pending(self.pid), 1)                   # no wait for the previous picture either
+        sent = [os.path.basename(x) for refs in provider.references.values() for x in (refs or [])]
+        self.assertNotIn(f"job_{first}.png", sent)
 
     def test_storyboard_mode_sends_the_frame_of_the_same_sequence(self):
         self.scenes([{"idx": 1, "sequence": 1}, {"idx": 2, "sequence": 2}, {"idx": 3, "sequence": 1}])

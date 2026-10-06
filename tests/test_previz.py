@@ -93,19 +93,19 @@ class PrevizTests(unittest.TestCase):
         self.assertEqual(previz.review_storyboard(self.p, self.pid, MockLlm(), self.data), {"ok": True, "issues": []})
         self.assertEqual(previz.last_review(self.data, self.pid)["ok"], True)
 
-    @mock.patch.dict(os.environ, {"FEATURE_LAYOUT_TO_MODEL": "1"})   # mechanism test; off by default until a real test (core/features.py)
-    def test_step_2_sends_the_layout_first_and_tells_the_model_to_follow_it(self):
+    @mock.patch.dict(os.environ, {"FEATURE_LAYOUT_TO_MODEL": "1"})   # an old env line: S14.9 removed the flag, it does nothing
+    def test_step_2_never_sends_the_layout_to_the_image_model(self):
+        # S14.9 (06/10): layout_to_model removed (GĐ6 R7/L1: the model copied the top-down camera + tiny people of the layout)
         previz.plan_layouts(self.p, self.pid, MockLlm(), self.data)
         sid = self.conn.execute("SELECT id FROM scenes WHERE project_id=? AND idx=1", (self.pid,)).fetchone()["id"]
         self.p.create_job(sid, "image_gen")
         provider = MockImageProvider()
         ImageRunner(self.p, provider, self.data).submit_pending(self.pid)
-        sent = next(iter(provider.references.values()))
-        self.assertEqual(sent[0], previz.layout_path(self.data, self.pid, 1))
+        sent = [x for refs in provider.references.values() for x in (refs or [])]
+        self.assertNotIn(previz.layout_path(self.data, self.pid, 1), sent)
         prompt = next(iter(provider.prompts.values()))
-        self.assertIn("Image 1 is the LAYOUT", prompt)
-        self.assertIn("the red figure is Kelly", prompt)
-        self.assertNotIn("EMPTY background", prompt)        # B2: a map picture whose camera nobody set is never sent as pixels
+        self.assertNotIn("Image 1 is the LAYOUT", prompt)
+        self.assertNotIn("EMPTY background", prompt)
 
     def test_the_qc_agent_compares_the_picture_with_the_layout_too(self):
         from core import llm_runner

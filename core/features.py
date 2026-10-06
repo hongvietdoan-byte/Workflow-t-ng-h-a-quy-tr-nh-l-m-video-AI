@@ -5,16 +5,6 @@ import os
 from typing import Dict
 
 FEATURES: Dict[str, Dict] = {
-    "layout_to_model": {
-        "label": "Gửi ảnh bố cục ghép (nền map + hình cắt nhân vật) cho model ảnh",
-        "verified": False,
-        "why": "GĐ6 (R7/L1): model chép luôn góc máy từ trên cao và cỡ người tí hon của ảnh ghép, bất kể cỡ cảnh của shot",
-    },
-    "chain_previous_auto": {
-        "label": "Tự nối ảnh shot trước làm ảnh tham chiếu trong cùng chuỗi",
-        "verified": False,
-        "why": "GĐ6 (F8/I2): nối bất kể cỡ cảnh/góc máy → shot cận kéo theo bố cục toàn cảnh của shot trước",
-    },
     "voice_check_redo": {
         "label": "Chạy tự động: tạo lại giọng thoại bị cờ lỗi (cắt/thiếu chữ/ngắt quãng) một lần",
         "verified": False,
@@ -255,11 +245,6 @@ FEATURES: Dict[str, Dict] = {
         "why": "Người dùng 2026-09-29: 6 ảnh Kho không đủ mọi góc; ghép phông xanh đã bỏ (#8). #7: ảnh render tháp làm tham chiếu cho kết "
                "quả tốt nhất. Chưa chạy thật trả tiền (Blender 0 USD; ảnh model vẫn tính tiền như thường)",
     },
-    "location_plates": {
-        "label": "Gói bối cảnh: nền là ảnh render 3D của bối cảnh (đúng góc máy shot), AI chỉ vẽ nhân vật trên phông xanh rồi ghép",
-        "verified": False,
-        "why": "Kế hoạch V4 mục 1: đã render + ghép thật miễn phí (2026-09-25); chưa thử ảnh phông xanh Deepix thật và clip thật (GĐ8)",
-    },
     "end_frames": {
         "label": "Ảnh khung cuối cho shot có end_state (vẽ thêm 1 ảnh, gửi clip khung đầu + cuối)",
         "verified": False,
@@ -274,11 +259,6 @@ FEATURES: Dict[str, Dict] = {
         "label": "Tự bỏ qua cổng duyệt storyboard khi QC đã đủ tin cậy (≥ 90% khớp người trên ≥ 50 ảnh cùng look) và storyboard không có cờ",
         "verified": False,
         "why": "W8 (kế hoạch tổng): chưa có đủ ảnh người duyệt cùng look để đo — bật khi số đo đạt và người dùng đồng ý",
-    },
-    "setcheck_autofix": {
-        "label": "QC đồng bộ cả bộ ảnh tự gen lại ảnh lệch (autopilot)",
-        "verified": False,
-        "why": "GĐ6 (R3/I4): chuẩn theo số đông của bộ ảnh, sửa sai người (Kenta→Maxim) rồi tự trả tiền gen lại",
     },
     "ai_label": {
         "label": "Nhãn \"nội dung có dùng AI\" góc trên bản dựng (và các bản xuất khổ khác) — cho thị trường bắt buộc nhãn; "
@@ -307,13 +287,6 @@ FEATURES: Dict[str, Dict] = {
         "verified": False,
         "why": "Người dùng 2026-09-30: #8 tả kỹ năng Kenta sai (rút katana, lốc phá tường) vì chỉ có vài dòng chữ. Hồ sơ Kenta xem 30 "
                "khung/giây video chính thức; chưa thử thật — thử trước 1 cảnh ngắn Kenta dùng kỹ năng",
-    },
-    "seedance_sample_mode": {
-        "label": "Chế độ bản mẫu Seedance 2.5 (S4.11): bản mẫu 480p (`draft: true`) → người duyệt → bản cuối 1080p từ bản mẫu "
-                 "(content `draft_task`, trong 7 ngày) — adapter ClipAI `submit(draft=True)` + `submit_final_from_sample`",
-        "verified": False,
-        "why": "S4.11 (2026-10-01, docs/KET_QUA_S4_11_S4_12_2026-10-01.md): tham số đọc từ mã web ClipAI; bản cuối tính giá đủ một clip "
-               "1080p (4 s ≈ 2,08 USD) — chưa chạy bản cuối thật, chưa đo bản cuối giữ đúng bản mẫu",
     },
     "seedance_video_edit": {
         "label": "Sửa clip bằng Seedance 2.5 (S4.12, Advanced Edit): gửi clip lỗi làm bản gốc duy nhất + câu sửa một chỗ "
@@ -372,8 +345,19 @@ FEATURES: Dict[str, Dict] = {
 # "stable" = only the flags that passed a real test (`verified`); "experimental" = every flag but the ones that did harm.
 # A per-flag choice made on screen wins over everything. Stored in data/feature_settings.json (this computer, not in git).
 PRESETS = {"custom": "Theo dashboard.env (hiện tại)", "stable": "Ổn định — chỉ tính năng đã thử thật",
-           "experimental": "Thử nghiệm — bật hết trừ 3 cờ từng gây hại"}
-HARMFUL = ("setcheck_autofix", "layout_to_model", "chain_previous_auto")     # GĐ6 / rà soát 01/10 mục 3.2
+           "experimental": "Thử nghiệm — bật hết các tính năng chưa thử thật"}
+# GĐ6 / rà soát 01/10 mục 3.2 named 3 harmful flags; S14.9 (Gói L, 06/10) removed them from the code — nothing left to keep off here.
+HARMFUL: tuple = ()
+# S14.9 (Gói L, 06/10, người dùng: cờ gây hại phải bị xóa, không chỉ tắt): flags taken out of the code — the code now always does
+# what it did with the flag OFF. An old choice in data/feature_settings.json or a FEATURE_<NAME> line in dashboard.env naming one is
+# ignored (said by `removed_in_use()`, never an error). Reasons + dates: docs/TODO_LICH_SU.md.
+REMOVED: Dict[str, str] = {
+    "layout_to_model": "GĐ6: model chép góc máy từ trên cao + người tí hon của ảnh bố cục ghép",
+    "chain_previous_auto": "GĐ6: nối ảnh shot trước bất kể cỡ cảnh → shot cận kéo theo bố cục toàn cảnh",
+    "setcheck_autofix": "GĐ6: QC đồng bộ chuẩn theo số đông, sửa sai người rồi tự trả tiền gen lại",
+    "seedance_sample_mode": "S4.11 bản mẫu 480p → bản cuối 1080p: chưa từng chạy thật, không luồng nào dùng",
+    "location_plates": "Ghép phông xanh lên nền 3D: tạm ngưng từ 27/09 (#8), thay bằng place_render_refs / scene_establishing",
+}
 _SETTINGS = {"stamp": None, "path": None, "data": None}
 
 
@@ -399,6 +383,7 @@ def settings() -> Dict:
                 if raw.get("preset") in PRESETS:
                     data["preset"] = raw["preset"]
                 data["flags"] = {k: bool(v) for k, v in (raw.get("flags") or {}).items() if k in FEATURES}
+                data["dropped"] = sorted(k for k in (raw.get("flags") or {}) if k in REMOVED)   # S14.9: ignored, said
             except (OSError, ValueError, AttributeError):
                 pass
         _SETTINGS.update(stamp=stamp, path=path, data=data)
@@ -408,13 +393,14 @@ def settings() -> Dict:
 def save_settings(preset: str = None, flags: Dict = None) -> Dict:
     """Write the choice (flags: {name: True|False|None}; None removes the single choice). Atomic."""
     import json
-    cur = dict(settings())
-    cur["flags"] = dict(cur["flags"])
+    cur = {"preset": settings()["preset"], "flags": dict(settings()["flags"])}    # a removed flag's old choice is dropped on save
     if preset is not None:
         if preset not in PRESETS:
             raise ValueError(f"preset không có: {preset}")
         cur["preset"] = preset
     for k, v in (flags or {}).items():
+        if k in REMOVED:                  # S14.9: an old page / script still naming a removed flag — nothing to set
+            continue
         if k not in FEATURES:
             raise ValueError(f"không có tính năng {k}")
         if v is None:
@@ -437,7 +423,9 @@ def _env(name: str) -> str:
 
 def on(name: str) -> bool:
     """True when the person chose it on screen (🧪), else by the preset: the feature passed its real test, or the person switched it on
-    with FEATURE_<NAME>=1 (0 switches it off)."""
+    with FEATURE_<NAME>=1 (0 switches it off). A flag removed in S14.9 (`REMOVED`) is always off — the code has no ON branch left."""
+    if name in REMOVED:
+        return False
     s = settings()
     if name in s["flags"]:
         return s["flags"][name]
@@ -497,6 +485,18 @@ def on_unverified() -> Dict[str, Dict]:
     """S6.3 (kế hoạch sau #8): features switched ON by the person (FEATURE_<NAME>=1) that have not passed a real test yet — what a cut
     made now is really trying out (#8 used 23 of them; nobody could tell which part of the film came from which)."""
     return {k: v for k, v in FEATURES.items() if on(k) and not v["verified"]}
+
+
+def removed_in_use() -> Dict[str, str]:
+    """S14.9: {removed flag: Vietnamese note} for every removed flag still named in data/feature_settings.json or switched ON by a
+    FEATURE_<NAME> env line — ignored (the code always runs as with it off), said in 🧪 instead of a silent no-op."""
+    out = {}
+    for k in settings().get("dropped") or []:
+        out[k] = f"'{k}' đã bị bỏ khỏi code (S14.9) — lựa chọn cũ trong data/feature_settings.json bị bỏ qua: {REMOVED[k]}"
+    for k in REMOVED:
+        if k not in out and _env(k) in ("1", "true", "on", "yes"):
+            out[k] = f"'{k}' đã bị bỏ khỏi code (S14.9) — dòng FEATURE_{k.upper()}=1 không còn tác dụng: {REMOVED[k]}"
+    return out
 
 
 def pending() -> Dict[str, Dict]:

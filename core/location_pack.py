@@ -175,12 +175,12 @@ SCRIPT_CHOICES = (
 
 
 def director_block(conn, pid: int) -> str:
-    """V4 GĐ4 (dp.md Q6): what the Director / DP must know to write `plate_spot`, `weather`, `plate_mode` for a project whose places
-    have a registered 3D model — the spots by name, the fixed weather / time names, the two ways of making the clip. Empty when the
-    feature is off or no place of the project has a model."""
-    from . import features, place_refs
-    refs_only = place_refs.enabled()
-    if not features.on("location_plates") and not refs_only:
+    """V4 GĐ4 (dp.md Q6): what the Director / DP must know to write `plate_spot`, `weather` for a project whose places have a
+    registered 3D model (renders as reference pictures, place_render_refs) — the spots by name, the fixed weather / time names. Empty
+    when the feature is off or no place of the project has a model. S14.9 (06/10): the green-screen version (flag location_plates,
+    `plate_mode`) was removed."""
+    from . import place_refs
+    if not place_refs.enabled():
         return ""
     rows = []
     for a in assets.project_assets(conn, pid):
@@ -193,20 +193,12 @@ def director_block(conn, pid: int) -> str:
         rows.append(f"- **{a['name']}**: chỗ đứng {spots} — mặc định `{entry.get('default_spot')}`")
     if not rows:
         return ""
-    if refs_only:                                    # 30/09: the renders are reference pictures — spot + time/weather matter, no plate_mode
-        return ("# Bối cảnh có mô hình 3D (ảnh render đúng góc máy từng shot đi kèm làm tham chiếu cho model vẽ)\n" + "\n".join(rows) + "\n"
-                "- `plate_spot`: chỗ đứng hợp với nơi của shot (quảng trường, khu nhà, trong nhà…) — không ghi thì code tự chọn theo chữ "
-                "mô tả nơi của shot, không khớp thì dùng mặc định. Các shot của một đoạn nối tiếp nên đứng cùng chỗ.\n"
-                f"- `weather` (shot hoặc cảnh): chỉ một trong {', '.join(plate_env.WEATHERS)}; `time` của cảnh: {', '.join(plate_env.TIMES)}.\n"
-                + SCRIPT_CHOICES)
-    return ("# Gói bối cảnh (nền là render 3D thật của nơi này — AI chỉ vẽ nhân vật)\n" + "\n".join(rows) + "\n"
-            f"- `plate_spot`: tên một chỗ đứng ở trên (không ghi = mặc định; tên lạ bị đổi về mặc định và báo lại).\n"
+    # 30/09: the renders are reference pictures — spot + time/weather matter, no plate_mode
+    return ("# Bối cảnh có mô hình 3D (ảnh render đúng góc máy từng shot đi kèm làm tham chiếu cho model vẽ)\n" + "\n".join(rows) + "\n"
+            "- `plate_spot`: chỗ đứng hợp với nơi của shot (quảng trường, khu nhà, trong nhà…) — không ghi thì code tự chọn theo chữ "
+            "mô tả nơi của shot, không khớp thì dùng mặc định. Các shot của một đoạn nối tiếp nên đứng cùng chỗ.\n"
             f"- `weather` (shot hoặc cảnh): chỉ một trong {', '.join(plate_env.WEATHERS)}; `time` của cảnh: {', '.join(plate_env.TIMES)}.\n"
-            "- `plate_mode`: bỏ trống = cách 1 (ảnh khung đầu ghép sẵn, model video diễn trên nền thật — rẻ, nhưng model có thể vẽ lại "
-            "nền; code chấm và tự chuyển cách 2 một lần); `\"green\"` = cách 2 (nhân vật diễn trên phông xanh, ghép từng khung lên nền — "
-            "dùng cho shot mà nền PHẢI giữ nguyên: mốc nổi tiếng chiếm lớn trong khung, máy đứng yên).\n"
-            "- Shot cận ở chân một công trình cao chỉ thấy chân công trình: muốn thấy mốc thì hạ máy (`angle: \"low\"`, ngửa lên) hoặc "
-            "dùng trung/toàn.\n" + SCRIPT_CHOICES)
+            + SCRIPT_CHOICES)
 
 
 

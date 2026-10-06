@@ -381,39 +381,6 @@ class CompositeVideoChecks(unittest.TestCase):
     def test_a_good_run_still_returns_the_clip(self):
         self.assertEqual(self.run_with(writer_code=0)["frames"], 1)
 
-    def test_the_runner_keeps_the_original_clip_and_says_why(self):
-        """End to end through VideoRunner._plate_video (mode 2 'green'): the clip on disk is the one the provider made."""
-        from core import composite
-        p = Pipeline(connect())
-        pid = p.create_project("t9")
-        sid = p.create_scene(pid, 1, "S1")
-        jid = p.create_job(sid, "video_gen")
-        r = VideoRunner(p, MockVideoProvider(), self.dir)
-        clip = os.path.join(self.dir, "01.mp4")
-        with open(clip, "wb") as f:
-            f.write(b"PROVIDER CLIP")
-        procs = [_FakeProc(out=b"\x00" * (40 * 20 * 3)), _FakeProc(code=1, writes=clip + ".plate.mp4")]
-        probe = mock.Mock(stderr="Stream #0:0: Video: h264, 40x20, 24 fps")
-
-        def fake_composite(frame, plate, out_path, env=None, place=None, seed=1, **kw):
-            from PIL import Image
-            Image.new("RGB", (40, 20)).save(out_path)
-            return {"path": out_path, "placement": {"x": 0}}
-
-        with mock.patch.object(r, "_plate_mode", return_value="green"), \
-                mock.patch("core.location_pack.plate_of", return_value={"plate": self.plate}), \
-                mock.patch("core.ffmpeg_studio.find_ffmpeg", return_value="ffmpeg"), \
-                mock.patch("core.plate_env.overlay_video", side_effect=lambda v, out, *a, **k: v), \
-                mock.patch.object(composite.subprocess, "run", return_value=probe), \
-                mock.patch.object(composite.subprocess, "Popen", side_effect=procs), \
-                mock.patch.object(composite, "composite", side_effect=fake_composite), \
-                mock.patch.object(composite.ffmpeg_studio, "probe_duration", return_value=1 / 24):
-            r._plate_video(p.job(jid), clip)
-        with open(clip, "rb") as f:
-            self.assertEqual(f.read(), b"PROVIDER CLIP")
-        self.assertFalse(os.path.exists(clip + ".plate.mp4"))
-        self.assertIn("plate_video", _diag_codes(p, pid))
-
 
 class ReviewFixes(_Base):
     """Rà soát độc lập nhánh B1a (04/10): 2 lỗi phải sửa + 3 điểm nhỏ."""

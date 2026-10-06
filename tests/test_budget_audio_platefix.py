@@ -1,5 +1,5 @@
-"""Tests that were missing: budget.check_audio (the count cap for audio, which has no price) and the autopilot phase
-`_plate_fallback_phase` (a clip that redrew the 3D place is made again ONCE on green screen)."""
+"""Tests that were missing: budget.check_audio (the count cap for audio, which has no price) and (S14.9) the removed autopilot
+phase `_plate_fallback_phase` (green-screen fallback of the flag location_plates) staying gone."""
 import json
 import os
 import tempfile
@@ -53,71 +53,28 @@ class CheckAudioTests(unittest.TestCase):
         self.assertIsNone(budget.check_audio(self.p.conn, "clipai"))
 
 
-class PlateFallbackPhaseTests(unittest.TestCase):
-    def setUp(self):
-        self.data = tempfile.mkdtemp()
-        self.p = Pipeline(connect())
-        self.pid = self.p.create_project("Nền 3D")
-        self.sid = self.p.create_scene(self.pid, 1, "CẢNH 1")
-        self.p.conn.execute("UPDATE scenes SET data=? WHERE id=?", (json.dumps({"text": "x", "plate_mode": "first_frame"}), self.sid))
-        self.p.conn.commit()
-        self.job = self.p.create_job(self.sid, "video_gen")
-        self.p.start(self.job)
-        self.p.succeed(self.job)
-        self.ctx = autopilot.Context(self.data, None, None, None)
-        os.environ["FEATURE_LOCATION_PLATES"] = "1"
-        self.addCleanup(os.environ.pop, "FEATURE_LOCATION_PLATES", None)
+class PlateFallbackGoneTests(unittest.TestCase):
+    """S14.9 (06/10): the green-screen fallback went with the flag location_plates — no phase left, a recorded 'place redrawn' clip
+    and an old FEATURE_LOCATION_PLATES=1 line make nothing happen (as with the flag off)."""
 
-    def qc(self, ok=False, mode="first_frame", fallback=False):
-        location_pack.record_video_qc(self.data, self.pid, self.sid, self.job, {"score": 0.31, "ok": ok, "fallback": fallback}, mode)
+    def test_the_phase_is_gone(self):
+        self.assertFalse(hasattr(autopilot, "_plate_fallback_phase"))
+        self.assertNotIn("platefix", autopilot.PHASE_LABELS)
 
-    def plate_mode(self):
-        return json.loads(self.p.conn.execute("SELECT data FROM scenes WHERE id=?", (self.sid,)).fetchone()["data"]).get("plate_mode")
-
-    def test_feature_off_does_nothing(self):
-        os.environ["FEATURE_LOCATION_PLATES"] = "0"
-        self.qc()
-        with mock.patch.object(regen, "regenerate_video") as again:
-            self.assertIsNone(autopilot._plate_fallback_phase(self.p, self.pid, self.ctx))
+    def test_an_old_record_and_env_line_regenerate_nothing(self):
+        data = tempfile.mkdtemp()
+        p = Pipeline(connect())
+        pid = p.create_project("Nền 3D")
+        sid = p.create_scene(pid, 1, "CẢNH 1")
+        job = p.create_job(sid, "video_gen")
+        p.start(job)
+        p.succeed(job)
+        location_pack.record_video_qc(data, pid, sid, job, {"score": 0.31, "ok": False}, "first_frame")
+        from core import features
+        with mock.patch.dict(os.environ, {"FEATURE_LOCATION_PLATES": "1"}), mock.patch.object(regen, "regenerate_video") as again:
+            self.assertFalse(features.on("location_plates"))
+            self.assertIsNone(autopilot._plates_phase(p, pid, autopilot.Context(data, None, None, None)))
         again.assert_not_called()
-        self.assertEqual(self.plate_mode(), "first_frame")
-
-    def test_a_clip_that_kept_the_place_is_left_alone(self):
-        for kwargs in ({"ok": True}, {"mode": "green"}, {"fallback": True}):
-            self.qc(**kwargs)
-            with mock.patch.object(regen, "regenerate_video") as again:
-                self.assertIsNone(autopilot._plate_fallback_phase(self.p, self.pid, self.ctx))
-            again.assert_not_called()
-
-    def test_a_redrawn_place_is_made_again_once_on_green(self):
-        self.qc()
-        with mock.patch.object(regen, "regenerate_video", return_value=999) as again:
-            msg = autopilot._plate_fallback_phase(self.p, self.pid, self.ctx)
-            self.assertIn("cách 2", msg)
-            self.assertIsNone(autopilot._plate_fallback_phase(self.p, self.pid, self.ctx))     # never twice for one shot
-        again.assert_called_once()
-        self.assertEqual(again.call_args[0][2], self.job)
-        self.assertIn("phông xanh", again.call_args[0][3])
-        self.assertEqual(self.plate_mode(), "green")                                           # the input changed
-        self.assertTrue(location_pack.video_qc(self.data, self.pid)[str(self.sid)]["fallback"])
-
-    def test_a_failed_regeneration_is_reported_and_not_retried(self):
-        self.qc()
-        with mock.patch.object(regen, "regenerate_video", side_effect=RuntimeError("hết lượt")) as again:
-            self.assertIsNone(autopilot._plate_fallback_phase(self.p, self.pid, self.ctx))
-            self.assertIsNone(autopilot._plate_fallback_phase(self.p, self.pid, self.ctx))
-        again.assert_called_once()
-        row = self.p.conn.execute("SELECT message FROM diag_events WHERE code='plate_fallback'").fetchone()
-        self.assertIn("hết lượt", row["message"])
-
-    def test_a_clip_that_is_not_usable_is_skipped(self):
-        self.p.conn.execute("UPDATE jobs SET state='failed' WHERE id=?", (self.job,))
-        self.p.conn.commit()
-        self.qc()
-        with mock.patch.object(regen, "regenerate_video") as again:
-            self.assertIsNone(autopilot._plate_fallback_phase(self.p, self.pid, self.ctx))
-        again.assert_not_called()
-        self.assertEqual(self.plate_mode(), "first_frame")
 
 
 if __name__ == "__main__":

@@ -199,7 +199,7 @@ class SafetyTests(Setup):
         autopilot.start(self.p, self.pid)
         names = ["_director_phase", "_story_check_phase", "_voice_first_phase", "_previz_phase", "_plates_phase", "_images_phase",
                  "_setcheck_phase", "_end_frame_phase", "_storyboard_phase", "_motion_phase", "_voice_phase", "_videos_phase",
-                 "_music_phase", "_plate_fallback_phase", "_lipsync_phase"]
+                 "_music_phase", "_lipsync_phase"]
         patches = [mock.patch.object(autopilot, n, return_value=None) for n in names]
         for x in patches:
             x.start()
@@ -239,20 +239,6 @@ class SafetyTests(Setup):
         self.assertEqual(llm_runner.cli_error_code("You've hit your session limit · resets 7:20am"), "usage_limit")
         self.assertEqual(llm_runner.cli_error_code("Please run /login to authenticate (oauth)"), "auth")
         self.assertEqual(llm_runner.cli_error_code("something else broke"), "cli_error")
-
-    def test_the_set_check_redo_is_held_only_when_the_service_is_out_of_credit(self):
-        # S14.16 (chính sách tiền 04/10): was "respects the locked project budget" (= held at a 0 images line) — the project amount
-        # only warns now; the redo waits only when the service is out of credit
-        from core import budget, project_budget
-        self.build()
-        project_budget.approve(self.p, self.pid, "a@x", {"stages": {k: {"cap": 0.0 if k == "images" else 5.0} for k in project_budget.STAGES},
-                                                         "total": 100.0})
-        with mock.patch.dict(os.environ, {"FEATURE_PROJECT_BUDGET": "1"}):
-            self.assertIsNone(autopilot._setcheck_block(self.p, self.pid, {"idx": 1, "fix": "make the jacket red"}, "deepix"))
-            budget.halt(self.p.conn, "deepix", "insufficient balance")
-            why = autopilot._setcheck_block(self.p, self.pid, {"idx": 1, "fix": "make the jacket red"}, "deepix")
-        self.assertIsNotNone(why)
-        self.assertIn("HẾT TIỀN", why)
 
     def test_render_failure_is_reported_not_swallowed(self):
         ctx = self.build()
@@ -390,8 +376,9 @@ class PrevizInAutopilotTests(Setup):
         llm_io.update_scene(self.p, self.pid, first, {"location_asset": loc})
         return first
 
-    @mock.patch.dict(os.environ, {"FEATURE_LAYOUT_TO_MODEL": "1"})   # mechanism test; off by default until a real test (core/features.py)
-    def test_the_run_lays_out_the_scene_with_a_background_and_its_picture_follows_the_layout(self):
+    def test_the_run_lays_out_the_scene_but_the_layout_never_goes_to_the_image_model(self):
+        # S14.9: layout_to_model removed (GĐ6: the model copied the top-down camera + tiny people) — the layout is still made for
+        # the previz screen, the picture never gets it as a reference (as with the flag off)
         image = MockImageProvider()
         self.build(image=image)
         first = self.place()
@@ -399,7 +386,7 @@ class PrevizInAutopilotTests(Setup):
         self.assertEqual(autopilot.run_until_done(self.p, self.pid, self.ctx), autopilot.DONE)
         layout = os.path.join(self.data, str(self.pid), "layouts", f"S{first:02d}.png")
         self.assertTrue(os.path.exists(layout))
-        self.assertIn(layout, [refs[0] for refs in image.references.values() if refs])
+        self.assertNotIn(layout, [r for refs in image.references.values() for r in (refs or [])])
         self.assertTrue(os.path.exists(os.path.join(self.data, str(self.pid), "layouts", ".autopilot_done")))   # only once per project
 
     def test_claude_failing_on_the_layout_does_not_stop_the_run(self):

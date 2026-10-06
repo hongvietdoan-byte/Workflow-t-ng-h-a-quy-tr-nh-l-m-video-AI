@@ -1,6 +1,6 @@
 """3D renders of the real place as REFERENCE pictures for the image model (feature `place_render_refs`, người dùng 2026-09-29).
 
-Why: green-screen compositing on 3D plates was dropped after trial #8 (no ground contact, light mismatch — `location_plates` off);
+Why: green-screen compositing on 3D plates was dropped after trial #8 (no ground contact, light mismatch);
 the model drawing the whole scene is what works (#7: the tower renders as references gave both the tower and the quality). But the
 library holds only 6 pictures per place, so a shot whose camera none of them matches got the nearest picture or words, and the model
 redrew the architecture (#8's stacked terraces). With a registered 3D model (location_pack) every shot can have a render taken from
@@ -15,7 +15,7 @@ ITS OWN camera — free (Blender), cached across projects — and the model draw
                    (0..1) — said in the diagnostics (a low score = the model redrew the place); measured, never an automatic redraw.
 - `ensure_async`   renders missing plates in a background thread (the Step 2 buttons have no automatic plates phase); the shot waits.
 
-Only when `location_plates` is off (with it on, the green-screen path owns the plates)."""
+S14.9 (06/10): the green-screen flag `location_plates` was removed from the code — this is the only user of the plates now."""
 import os
 import sqlite3
 import threading
@@ -43,7 +43,7 @@ PRECEDENCE = ("The place is decided by the 3D render image of this shot, not by 
 
 
 def enabled() -> bool:
-    return features.on(FEATURE) and not features.on("location_plates")
+    return features.on(FEATURE)
 
 
 def wants_render(conn, pid: int, data: Dict) -> bool:

@@ -156,7 +156,7 @@ class SeedanceRefTests(unittest.TestCase):
         from unittest import mock
         vr = self._ready()
         job = self.p.job(self.p.create_job(self.ids[-1], "video_gen"))
-        with mock.patch.object(vr, "_sends_group", return_value=None), mock.patch.object(vr, "_refs", return_value=True),                 mock.patch("core.shots.trim_clip") as trim, mock.patch.object(vr, "_plate_video"):
+        with mock.patch.object(vr, "_sends_group", return_value=None), mock.patch.object(vr, "_refs", return_value=True),                 mock.patch("core.shots.trim_clip") as trim:
             try:
                 vr._after_download(job, os.path.join(self.data, "x.mp4"))
             except Exception:  # noqa: BLE001 - only whether it cut matters here

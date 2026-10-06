@@ -198,36 +198,27 @@ class PackTests(unittest.TestCase):
         self.assertIn("mm lens", text)
         self.assertIn("moonlight", text)
 
-    @mock.patch.dict(os.environ, {"FEATURE_LOCATION_PLATES": "1"})
-    def test_the_image_runner_waits_for_the_plate_then_composites_the_green_picture(self):
+    @mock.patch.dict(os.environ, {"FEATURE_LOCATION_PLATES": "1"})       # an old env line: S14.9 removed the flag, it does nothing
+    def test_the_image_runner_never_waits_for_a_plate_nor_composites_on_green(self):
+        """S14.9 (06/10): location_plates removed — with a rendered plate on disk the shot still draws a normal picture (no wait, no
+        green prompt, no composite), exactly as with the flag off."""
         from core.providers import MockImageProvider
         from core.runner import ImageRunner
         pid = self.project("d")
         data = os.path.join(self.tmp, "projects")
         sid = self.p.conn.execute("SELECT id FROM scenes WHERE project_id=? AND idx=1", (pid,)).fetchone()["id"]
         self.p.create_job(sid, "image_gen")
-        tmp = self.tmp
-
-        class GreenProvider(MockImageProvider):
-            def download(self, task_id, dest_path):
-                return green_char(os.path.dirname(dest_path) or tmp) and os.replace(os.path.join(os.path.dirname(dest_path), "green.png"),
-                                                                                   dest_path) or dest_path
-
-        provider = GreenProvider()
-        runner = ImageRunner(self.p, provider, data)
-        self.assertEqual(runner.submit_pending(pid), 0)                          # no plate yet: waits (not failed)
         location_pack.ensure_plates(self.p.conn, pid, data, self.tmp, (W, H), blender="x", render=self.fake_render)
-        self.assertEqual(runner.submit_pending(pid), 1)
+        provider = MockImageProvider()
+        runner = ImageRunner(self.p, provider, data)
+        self.assertEqual(runner.submit_pending(pid), 1)                          # no wait for the plate
         prompt = next(iter(provider.prompts.values()))
-        self.assertIn("#00FF00", prompt)
-        self.assertNotIn("location", " ".join(r for r in next(iter(provider.references.values()))))
+        self.assertNotIn("#00FF00", prompt)
         os.makedirs(os.path.join(data, str(pid), "images"), exist_ok=True)
         runner.poll_once(pid)
         job = self.p.conn.execute("SELECT * FROM jobs WHERE scene_id=? AND type='image_gen'", (sid,)).fetchone()
         self.assertEqual(job["state"], "succeeded")
-        self.assertTrue(os.path.exists(location_pack.green_path(data, pid, job["id"])))
-        out = np.asarray(Image.open(job["result_path"]), np.float32) / 255
-        self.assertFalse(((out[..., 1] > 0.8) & (out[..., 0] < 0.2)).any())     # composited: no green backdrop left
+        self.assertFalse(os.path.exists(location_pack.green_path(data, pid, job["id"])))
 
 
 class PhotoPlateTests(PackTests):

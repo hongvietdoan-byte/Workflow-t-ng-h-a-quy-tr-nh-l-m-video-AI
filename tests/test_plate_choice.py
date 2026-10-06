@@ -155,7 +155,7 @@ class PlanTests(PackTests):
         entry = location_pack.model3d(self.p.conn, self.place)
         self.assertEqual(entry["spots"]["lower_yard"]["direction"], "script")
         self.assertEqual(entry["landmark"], "the clock tower")
-        with mock.patch.dict(os.environ, {"FEATURE_LOCATION_PLATES": "1"}):
+        with mock.patch.dict(os.environ, {"FEATURE_PLACE_RENDER_REFS": "1"}):     # S14.9: location_plates removed
             pid, _ = self.one_shot({})
             assets.attach(self.p.conn, pid, self.place)
             block = location_pack.director_block(self.p.conn, pid)

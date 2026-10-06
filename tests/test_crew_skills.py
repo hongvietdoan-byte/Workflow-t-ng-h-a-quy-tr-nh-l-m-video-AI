@@ -237,7 +237,8 @@ class LocationBlockTests(unittest.TestCase):
         from core.pipeline import Pipeline
         tmp = tempfile.mkdtemp()
         self.addCleanup(shutil.rmtree, tmp, True)
-        with mock.patch.dict(os.environ, {"ASSET_DIR": os.path.join(tmp, "assets"), "FEATURE_LOCATION_PLATES": "1"}):
+        # S14.9: the block now only comes with place_render_refs (location_plates and its `plate_mode` were removed)
+        with mock.patch.dict(os.environ, {"ASSET_DIR": os.path.join(tmp, "assets"), "FEATURE_PLACE_RENDER_REFS": "1"}):
             p = Pipeline(connect(os.path.join(tmp, "m.sqlite")))
             pid = p.create_project("tower")
             aid = assets.create(p.conn, "FF", "location", "Tháp Đồng Hồ", "", "", None, "x")
@@ -249,8 +250,8 @@ class LocationBlockTests(unittest.TestCase):
             block = location_pack.director_block(p.conn, pid)
             self.assertIn("`plaza_front` (sân trước)", block)
             self.assertIn("snowfall", block)
-            self.assertIn('"green"', block)
-        with mock.patch.dict(os.environ, {"FEATURE_LOCATION_PLATES": "0"}):
+            self.assertNotIn("plate_mode", block)
+        with mock.patch.dict(os.environ, {"FEATURE_PLACE_RENDER_REFS": "0", "FEATURE_LOCATION_PLATES": "1"}):   # an old line: nothing
             self.assertEqual(location_pack.director_block(p.conn, pid), "")
 
 
