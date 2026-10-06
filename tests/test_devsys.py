@@ -225,6 +225,14 @@ def _answer(area, **over):
     return {"area": area, "criteria": crit, "summary": "ổn", "can_kiem_lai": []}
 
 
+def _answer21(area, **over):
+    """S14.10: a NEW answer (Claude API / external scorer) is checked by the current rubric, bản 2.1."""
+    crit = {k: {"deductions": [], "evidence_for": []} for k in scores.CRITERIA_MAX_V2}
+    crit.update(over)
+    return {"format": scores.FORMAT_V21, "area": area, "criteria": crit, "summary": "ổn", "can_kiem_lai": [],
+            "checklist": {k: {"tra_loi": "khong", "ghi_chu": "đã đọc code khu vực"} for k in scores.CHECKLIST_IDS}}
+
+
 class ScoreTests(unittest.TestCase):
     def setUp(self):
         self.root = _mini_repo()
@@ -379,7 +387,7 @@ class ScorerTests(unittest.TestCase):
         def send(method, url, headers, body, timeout):
             payload = json.loads(body)
             calls.append(payload)
-            answer = _answer("voice", chuc_nang={"deductions": [{"points": 6, "reason": "chưa có TTS", "evidence": ["core/voice.py:6"]}]})
+            answer = _answer21("voice", chuc_nang={"deductions": [{"muc": "nho", "reason": "chưa có TTS", "evidence": ["core/voice.py:6"]}]})
             return HttpResponse(200, json.dumps({"content": [{"type": "text", "text": json.dumps(answer, ensure_ascii=False)}],
                                                  "stop_reason": "end_turn", "usage": {"input_tokens": 5000, "output_tokens": 800}}).encode())
 
@@ -395,7 +403,7 @@ class ScorerTests(unittest.TestCase):
         self.assertEqual({(r["provider"], r["stage"], r["tier"], r["quantity"]) for r in rows},
                          {("anthropic", "devsys", "input", 5000), ("anthropic", "devsys", "output", 800)})
         saved = json.load(open(res["saved"][0], encoding="utf-8"))
-        self.assertEqual((saved["scorer"], saved["model"], saved["criteria"]["chuc_nang"]["score"]), ("claude-api", "claude-sonnet-5", 24))
+        self.assertEqual((saved["scorer"], saved["model"], saved["criteria"]["chuc_nang"]["score"]), ("claude-api", "claude-sonnet-5", 24.7))   # nhỏ −1,0 (4 % of 26) + todo_mo tự động −0,3
         self.assertAlmostEqual(saved["usage"]["usd"], (5000 * 2 + 800 * 10) / 1e6, places=6)
 
     def test_claude_scoring_refuses_without_a_ledger_or_over_the_claude_cap(self):
@@ -414,16 +422,19 @@ class ScorerTests(unittest.TestCase):
         self.assertEqual(self.usage_rows(), [])
 
     def test_external_score_is_imported_and_recomputed(self):
-        raw = _answer("ui", trai_nghiem={"deductions": [{"points": 4, "reason": "nút tốn tiền không ghi giá", "evidence": ["dashboard/app.py:2"]}]})
+        raw = _answer21("ui", trai_nghiem={"deductions": [{"muc": "lon", "reason": "nút tốn tiền không ghi giá", "evidence": ["dashboard/app.py:2"],
+                                                          "feedback": {"fix": "Ghi giá trên nhãn nút ở dashboard/app.py", "effort": "💻"}}]})   # S14.10: thang 2.1
         raw["score"] = 99
+        b = scorer.build_bundle(self.root, self.cfg, collect.area_by_id(self.cfg)["ui"], self.snap, self.health["ui"], None)
+        raw.update(fingerprint=b["fingerprint"], input_hash=b["input_hash"])           # S14.10 S3: an import is tied to its export
         with self.assertRaises(scores.ScoreError):
             scorer.import_score(self.root, self.cfg, self.snap, self.health, dict(raw))            # no scorer name
         path = scorer.import_score(self.root, self.cfg, self.snap, self.health, raw, "claude-code-session")
         loaded, problems = scores.load_all(self.root, ["voice", "ui", "infra"])
         self.assertEqual(problems, [])
         self.assertEqual(loaded[0]["scorer"], "claude-code-session")
-        self.assertEqual(loaded[0]["criteria"]["trai_nghiem"]["score"], 6)
-        self.assertEqual(loaded[0]["score"], 30 + 0 + 3 + 15 + 6 + 10)       # no test file for ui → test capped at 3; no real-run → 0
+        self.assertEqual(loaded[0]["criteria"]["trai_nghiem"]["score"], 8.8)                       # lớn = 12 % of 10
+        self.assertEqual((loaded[0]["criteria"]["test"]["score"], loaded[0]["criteria"]["bang_chung"]["score"]), (2.4, 0))   # no test file; no real run
         self.assertTrue(os.path.basename(path).endswith("_ui.json"))
 
     def test_cli_shows_the_estimate_and_calls_nothing_without_yes(self):

@@ -97,6 +97,7 @@ class ScoreV2Tests(unittest.TestCase):
         self.assertEqual(hard["criteria"]["chuc_nang"]["deductions"][0]["points"], 9.1)        # 35 % of 26
         self.assertEqual(hard["score"], 89.0)                                                  # 90.9 → capped at 89
         self.assertTrue(any("tối đa" in c or "giới hạn 89" in c for c in hard["code_caps"]))
+        _write(self.root, "tests/test_voice.py", "from core import voice\n\n\nclass T:\n    def t(self):\n        pass\n")   # S14.10 S2: a real test
         two = self.norm(_a2("voice", chuc_nang={"deductions": [_ded("chan")]}, tin_cay={"deductions": [_ded("chan", evidence=["test:tests/test_voice.py::T::t"])]},
                            bang_chung=REAL_RUN))
         self.assertEqual(two["severity"]["chan"], 2)
@@ -286,7 +287,7 @@ class MetricsTests(unittest.TestCase):
                 self.assertIsNone(scores.check_evidence(ev, root, None), f"{a['rule']}: {ev}")
         self.assertTrue(all(0 < a["points"] <= metrics.RULES[a["rule"]][2] for a in auto))
         f = metrics.facts_extra(root, cfg, area, snap)
-        self.assertEqual(set(f), {"metrics", "auto", "ui_measured", "ui_present", "ui"})
+        self.assertEqual(set(f), {"metrics", "auto", "ui_measured", "ui_present", "ui", "doc_only"})
         json.dumps(f)                                                                          # stored in the score file
 
     def test_a_module_no_test_imports_costs_points(self):
@@ -377,9 +378,9 @@ class ScorerV2Tests(unittest.TestCase):
         res = scorer.run(self.root, self.cfg, self.snap, p["todo"], "mock", yes=True, db_path=self.db, note=lambda m: None)
         self.assertEqual((len(res["saved"]), res["failed"]), (3, []))
         saved = json.load(open(res["saved"][0], encoding="utf-8"))
-        self.assertEqual(saved["format"], scores.FORMAT_V2)
+        self.assertEqual(saved["format"], scores.FORMAT_V21)
         self.assertIn("auto", saved["facts"])
-        self.assertEqual(len(saved["checklist"]), 10)
+        self.assertEqual(len(saved["checklist"]), 12)
         loaded, problems = scores.load_all(self.root, ["voice", "ui", "infra"])
         self.assertEqual(problems, [])
         self.assertTrue(all(0 < s["score"] <= 100 for s in loaded))
@@ -396,7 +397,7 @@ class ScorerV2Tests(unittest.TestCase):
                             note=lambda m: None)
         self.assertEqual((len(calls), r1["failed"]), (1, []))
         s1 = json.load(open(r1["saved"][0], encoding="utf-8"))
-        self.assertEqual((s1["format"], s1["scorer"]), (scores.FORMAT_V2, "claude-api"))
+        self.assertEqual((s1["format"], s1["scorer"]), (scores.FORMAT_V21, "claude-api"))       # S14.10: new answers = thang 2.1
         self.assertNotIn("drift", s1)
         # the second scoring of the same area knows the first one and its deductions
         p2 = scorer.plan(self.root, self.cfg, self.snap, self.health, ["voice"])
@@ -425,14 +426,16 @@ class ScorerV2Tests(unittest.TestCase):
         self.assertIn("checklist", text)
         raw = _a2("voice", chuc_nang={"deductions": [_ded("lon")]}, bang_chung=REAL_RUN)
         raw["score"] = 99
+        raw.update(fingerprint=b["fingerprint"], input_hash=b["input_hash"])                    # S14.10 S3: tied to the export
         out = scorer.import_score(self.root, self.cfg, self.snap, self.health, raw, "claude-code-session")
         rec = json.load(open(out, encoding="utf-8"))
-        self.assertEqual(rec["format"], scores.FORMAT_V2)
+        self.assertEqual(rec["format"], scores.FORMAT_V21)
         self.assertLess(rec["score"], 99)
         self.assertEqual(rec["rubric_hash"], scores.rubric_hash(self.root))
         with self.assertRaises(scores.ScoreError):                                             # a missing checklist is refused at import too
             bad = _a2("voice")
             del bad["checklist"]
+            bad.update(fingerprint=b["fingerprint"], input_hash=b["input_hash"])
             scorer.import_score(self.root, self.cfg, self.snap, self.health, bad, "claude-code-session")
 
 

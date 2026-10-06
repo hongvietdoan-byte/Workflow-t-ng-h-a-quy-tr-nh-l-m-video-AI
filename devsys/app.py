@@ -159,7 +159,7 @@ names = {a["id"]: a["name"] for a in cfg["areas"]}
 ids = tuple(names)
 all_scores, score_problems = load_scores(key, ids)
 latest = scores.latest_by_area(all_scores)
-ov = scores.overall(latest, cfg)
+ov = scores.overall(latest, cfg, rubric=scores.rubric_hash(ROOT))     # S14: only the current scale is averaged
 
 
 def area_score(aid):
@@ -183,7 +183,7 @@ with st.sidebar:
     if st.button("🔄 Làm mới", help="Đọc lại repo (bình thường tự làm mới khi có commit / file đổi)"):
         st.cache_data.clear()
         st.rerun()
-    page = st.radio("Trang", ["📋 Kế hoạch đang chạy", "Tổng quan", "Bản đồ hệ thống", "Dòng thời gian", "Sức khỏe (đo bằng code)", "Chấm điểm AI",
+    page = st.radio("Trang", ["📋 Kế hoạch đang chạy", "Tổng quan", "Bản đồ hệ thống", "Dòng thời gian", "Sức khỏe (đo bằng code)", "Chấm điểm AI", "Hiệu quả vận hành",
                               "Bộ kỹ năng 3 vai"], label_visibility="collapsed")
     st.divider()
     st.markdown("**Test**")
@@ -225,7 +225,8 @@ def page_overview():
     o = ov["score"]
     parts = [
         kpi("Hoàn thiện tổng (AI chấm, có trọng số)", "—" if o is None else f"{o:g}/100",
-            f"{len(ov['covered'])}/{ov['areas']} khu vực có điểm thật", scores.band(o)),
+            f"{len(ov['covered'])}/{ov['areas']} khu vực có điểm thật cùng thang"
+            + (f" · {len(ov['other_scale'])} khu vực điểm thang cũ (chấm lại)" if ov.get("mixed") else ""), scores.band(o)),
         kpi("Test lần chạy mới nhất", f"{t.get('passed', 0)}/{t.get('tests', 0)}" if t else "—",
             f"{t.get('failed', 0) + t.get('errors', 0)} lỗi · {fmt_date((run or {}).get('date'))}" if t else "chưa chạy",
             "none" if not t else "ok" if not (t["failed"] + t["errors"]) else "bad"),
@@ -535,9 +536,9 @@ def page_scores():
                 st.markdown(md(rec["summary"]))
             if rec.get("rubric_hash") and rec["rubric_hash"] != scores.rubric_hash(ROOT):
                 st.warning("Điểm này chấm theo thang cũ (devsys/rubric.md đã đổi).")
-            if rec.get("format") == scores.FORMAT_V2:
+            if scores.is_v2(rec):
                 sev = rec.get("severity") or {}
-                st.caption(f"Thang bản 2 · lỗi chặn {sev.get('chan', 0)} · lớn {sev.get('lon', 0)} · nhỏ {sev.get('nho', 0)} · "
+                st.caption(f"Thang {scores.scale_label(rec)} · lỗi chặn {sev.get('chan', 0)} · lớn {sev.get('lon', 0)} · nhỏ {sev.get('nho', 0)} · "
                            f"khoản trừ tự động do code đo −{rec.get('auto_points', 0):g}")
                 for cap in rec.get("code_caps", []):
                     if cap.startswith("khu vực:"):
@@ -550,6 +551,9 @@ def page_scores():
                 st.info("Điểm này chấm theo thang bản 1 (6 tiêu chí, người chấm tự ghi số điểm trừ) — không so thẳng với bản 2.")
             for k, label, mx in scores.criteria_of(rec):
                 c = rec["criteria"][k]
+                if c.get("khong_ap_dung"):                     # S6 (thang 2.1): an area of documents only has no `test`
+                    st.markdown(f"**{label}** — không áp dụng (khu vực chỉ có tài liệu; điểm chia lại trên các tiêu chí còn lại)")
+                    continue
                 st.markdown(f"**{label}** — {c['score']:g}/{mx}")
                 st.progress(min(1.0, c["score"] / mx))
                 for d in c["deductions"]:
@@ -599,7 +603,7 @@ def page_scores():
             else:
                 st.caption("Chưa có hai lần chấm liền nhau cùng thang bản 2 — chưa đo được độ ổn định.")
             old = scores.latest_by_area([s for s in real if s.get("format") == scores.FORMAT])
-            new = scores.latest_by_area([s for s in real if s.get("format") == scores.FORMAT_V2])
+            new = scores.latest_by_area([s for s in real if scores.is_v2(s)])
             if new:
                 st.dataframe(pd.DataFrame([{"Khu vực": r["name"], "Bản 1": r["old"], "Bản 2": r["new"], "Chênh": r["delta"]}
                                            for r in scores.compare_rounds(old, new, cfg) if r["new"] is not None]), hide_index=True)
@@ -933,6 +937,37 @@ def page_plan():
                                 for wid in finished), unsafe_allow_html=True)
 
 
+# ---- trang: Hiệu quả (S14.10 Đợt 6b) -----------------------------------------------------------------------------------
+def page_effect():
+    st.title("Hiệu quả — điểm devsys ↔ chất lượng đầu ra thật")
+    st.caption("Ba đường cùng một trục thời gian: điểm devsys có trọng số, tỉ lệ ảnh/video qua lần đầu, tỉ lệ góp ý hài lòng. Vạch dọc = "
+               "lúc bật/tắt cờ, đổi kiến thức, duyệt bài học — chỉ khi có vạch dọc mới quy được đường nào đổi vì đâu. Đọc CSDL thật, chỉ đọc, miễn phí.")
+    ops = snap.get("ops") or {}
+    data = collect.effect_series(scores.trend(all_scores, cfg), ops)
+    for n in data["notes"]:
+        st.info(n)
+    if data["points"]:
+        import altair as alt
+        df = pd.DataFrame(data["points"])
+        df["thời điểm"] = pd.to_datetime(df["at"], errors="coerce")
+        chart = alt.Chart(df).mark_line(point=True).encode(
+            x=alt.X("thời điểm:T", title=None), y=alt.Y("value:Q", title="%", scale=alt.Scale(domain=[0, 100])),
+            color=alt.Color("series:N", title=None, legend=alt.Legend(orient="bottom")), tooltip=["series", "value", "at"])
+        if data["markers"]:
+            mk = pd.DataFrame(data["markers"])
+            mk["thời điểm"] = pd.to_datetime(mk["at"], errors="coerce")
+            chart = chart + alt.Chart(mk).mark_rule(strokeDash=[4, 3], color="#98A2B3").encode(x="thời điểm:T", tooltip=["kind", "text", "at"])
+        st.altair_chart(chart, width="stretch")
+    if data["markers"]:
+        st.markdown("#### Mốc thay đổi")
+        st.dataframe(pd.DataFrame(data["markers"]).rename(columns={"at": "Lúc", "kind": "Loại", "text": "Nội dung"}), hide_index=True)
+    fb = (ops.get("feedback") or {}).get("by_stage") or {}
+    if fb:
+        st.markdown("#### Góp ý theo khâu")
+        st.dataframe(pd.DataFrame([{"Khâu": k, "Góp ý": v["n"], "Có điểm": v["rated"], "Hài lòng (≥ 4)": v["positive"], "Không hài lòng (≤ 2)": v["low"],
+                                    "Chưa xử lý 30 ngày": len(v["low_open_30d"])} for k, v in fb.items()]), hide_index=True)
+
+
 PAGES = {"📋 Kế hoạch đang chạy": page_plan, "Tổng quan": page_overview, "Bản đồ hệ thống": page_map, "Dòng thời gian": page_timeline, "Sức khỏe (đo bằng code)": page_health,
-         "Chấm điểm AI": page_scores, "Bộ kỹ năng 3 vai": page_skills}
+         "Chấm điểm AI": page_scores, "Hiệu quả vận hành": page_effect, "Bộ kỹ năng 3 vai": page_skills}
 PAGES[page]()
