@@ -60,6 +60,11 @@ body.v2-nofx [data-testid="stVerticalBlock"][class*="st-key-card-"] { backdrop-f
 div[role="group"], [data-testid="stTextInputRootElement"], [data-testid="stNumberInputContainer"], [data-testid="stTextAreaRootElement"] {
     background: var(--glass-strong) !important; border: 1.5px solid var(--border) !important; border-radius: var(--r-md) !important; }
 input, textarea { color: var(--text) !important; }
+/* S14.47: ô chat (st.chat_input) giữ nền trắng của theme gốc → chữ sáng ở nền tối tàng hình khi dán kịch bản; nền đặc --surface */
+[data-testid="stChatInput"], [data-testid="stChatInput"] > div { background: var(--surface) !important; border-color: var(--border) !important; }
+[data-testid="stChatInput"] textarea { color: var(--text) !important; -webkit-text-fill-color: var(--text) !important; caret-color: var(--text) !important; }
+[data-testid="stChatInput"] textarea::placeholder { color: var(--muted) !important; -webkit-text-fill-color: var(--muted) !important; opacity: 1; }
+[data-testid="stChatInput"] button svg { color: var(--text); }
 
 /* thanh bước = viên thuốc có số trong vòng tròn */
 .st-key-step [data-testid="stRadioGroup"] { gap: 8px; flex-wrap: wrap; counter-reset: stp 0; }

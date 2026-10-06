@@ -1,0 +1,179 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Khung chat Kịch bản</title>
+<style>
+:root{--bg:#0B0D14;--surface:#141824;--raised:#1B2030;--border:#3A4257;--text:#F2F4FA;--muted:#AEB8CE;--primary:#8B7CFF;--primary-soft:#221F45;
+--ok:#6EE7A0;--warn:#FBBF55;--info:#8FB2FF;--user:#2A2F55;--r:14px;font-family:Inter,"Segoe UI",system-ui,sans-serif}
+:root[data-theme="light"]{--bg:#F4F6FB;--surface:#FFFFFF;--raised:#FFFFFF;--border:#C7CEDB;--text:#111827;--muted:#4B5563;--primary:#4F46E5;--primary-soft:#EEF0FF;
+--ok:#15803D;--warn:#B45309;--info:#1D4ED8;--user:#E8EAFF}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font-size:14.5px;line-height:1.5}
+.wrap{max-width:1180px;margin:0 auto;padding:20px 16px 40px}
+h1{font-size:20px;margin:0 0 4px}
+.sub{color:var(--muted);margin:0 0 18px}
+.grid{display:grid;grid-template-columns:minmax(0,1.35fr) minmax(0,1fr);gap:18px}
+@media(max-width:900px){.grid{grid-template-columns:1fr}}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:16px}
+.cardhead{display:flex;align-items:center;gap:8px;margin-bottom:12px;font-weight:600}
+.pill{font-size:12.5px;font-weight:600;padding:2px 9px;border-radius:999px;background:var(--primary-soft);color:var(--info)}
+.thread{display:flex;flex-direction:column;gap:12px;max-height:560px;overflow:auto;padding-right:4px}
+.msg{display:flex;gap:10px;align-items:flex-start}
+.msg.me{flex-direction:row-reverse}
+.av{flex:none;width:28px;height:28px;border-radius:50%;display:grid;place-items:center;font-size:13px;font-weight:700;background:var(--raised);border:1px solid var(--border)}
+.me .av{background:var(--primary);color:#fff;border:0}
+.bub{max-width:82%;background:var(--raised);border:1px solid var(--border);border-radius:14px;border-top-left-radius:4px;padding:10px 12px}
+.me .bub{background:var(--user);border-top-left-radius:14px;border-top-right-radius:4px}
+.time{font-size:12.5px;color:var(--muted);margin-top:4px}
+.paste{border:1px dashed var(--border);border-radius:10px;padding:8px 10px;margin-top:2px;font-family:ui-monospace,Consolas,monospace;font-size:13px;white-space:pre-wrap;color:var(--muted)}
+.paste b{color:var(--text)}
+.more{color:var(--info);font-size:13px;cursor:pointer;margin-top:4px;display:inline-block}
+.acts{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+.btn{font:inherit;font-size:13.5px;border-radius:999px;padding:5px 12px;border:1px solid var(--border);background:var(--surface);color:var(--text);cursor:pointer}
+.btn.pri{background:var(--primary);border-color:var(--primary);color:#fff;font-weight:600}
+.btn .cost{opacity:.85;font-weight:500}
+.btn.ghost{background:transparent;color:var(--muted)}
+.note{font-size:13px;color:var(--muted);margin-top:6px}
+.sys{align-self:center;font-size:12.5px;color:var(--muted);background:var(--surface);border:1px solid var(--border);border-radius:999px;padding:3px 12px}
+.done{color:var(--ok)}
+.composer{margin-top:14px;border:1.5px solid var(--border);border-radius:16px;background:var(--surface);padding:8px 8px 8px 12px;display:flex;gap:8px;align-items:flex-end}
+.composer:focus-within{border-color:var(--primary)}
+.composer textarea{flex:1;resize:none;border:0;outline:0;background:transparent;color:var(--text);font:inherit;min-height:24px;max-height:180px;padding:4px 0}
+.composer textarea::placeholder{color:var(--muted)}
+.ic{flex:none;width:34px;height:34px;border-radius:10px;border:1px solid var(--border);background:var(--raised);color:var(--text);display:grid;place-items:center;cursor:pointer}
+.send{background:var(--primary);border-color:var(--primary);color:#fff}
+.hint{font-size:12.5px;color:var(--muted);margin-top:6px;display:flex;gap:14px;flex-wrap:wrap}
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin:4px 0 10px}
+.side h3{font-size:15px;margin:0 0 8px}
+.side ol,.side ul{margin:0;padding-left:20px}
+.side li{margin-bottom:6px}
+.q{border-left:3px solid var(--warn);padding:6px 10px;background:var(--raised);border-radius:6px;margin-top:10px}
+.tag{font-size:12.5px;font-weight:600;color:var(--warn)}
+.topbar{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:14px;flex-wrap:wrap}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="topbar">
+    <div>
+      <h1>Mockup S14.47 — Khung chat màn Kịch bản (UI v2)</h1>
+      <p class="sub">Bản nháp để duyệt thiết kế, chưa code. Bấm nút trong mockup không làm gì.</p>
+    </div>
+    <button class="btn" onclick="const r=document.documentElement;r.dataset.theme=r.dataset.theme==='light'?'dark':'light'">🌓 Đổi nền sáng / tối</button>
+  </div>
+
+  <div class="grid">
+    <div class="card">
+      <div class="cardhead">① Kịch bản <span class="pill">Trailer Ep.1 · 8 cảnh</span></div>
+
+      <div class="thread">
+        <div class="sys">Lịch sử hội thoại của dự án này · lưu theo dự án</div>
+
+        <div class="msg me">
+          <div class="av">V</div>
+          <div class="bub">
+            <div class="paste"><b>📄 Đã dán 1 240 chữ · 32 dòng</b>
+CẢNH 1. ĐÊM — RỪNG ELDER
+Lyra xuất hiện trong khung cảnh u ám…
+CẢNH 2. ĐÊM — RỪNG ELDER
+Lyra, Kael xuất hiện…</div>
+            <span class="more">Xem đủ ▾</span>
+            <div class="time">20:14</div>
+          </div>
+        </div>
+
+        <div class="msg">
+          <div class="av">C</div>
+          <div class="bub">
+            Mình đọc thấy đây là <b>kịch bản</b>: 8 cảnh, 12 câu thoại, 4 nhân vật. Tách cảnh luôn nhé?
+            <div class="acts">
+              <button class="btn pri">▶ Phân tích · <span class="cost">0 USD</span></button>
+              <button class="btn">Không, đây là ý tưởng</button>
+            </div>
+            <div class="note">Đọc bằng luật, không gọi Claude — 0 USD.</div>
+          </div>
+        </div>
+
+        <div class="sys done">✓ Đã tách 8 cảnh · 20:15</div>
+
+        <div class="msg me">
+          <div class="av">V</div>
+          <div class="bub">sửa cảnh 2 cho Kelly nói ít hơn, thêm câu "Đi thôi!"<div class="time">20:17</div></div>
+        </div>
+
+        <div class="msg">
+          <div class="av">C</div>
+          <div class="bub">
+            Hiểu là: <b>sửa thoại cảnh 2</b> — rút lời Kelly, thêm câu "Đi thôi!".
+            <div class="acts">
+              <button class="btn pri">✍ Biên kịch viết lại cảnh 2 · <span class="cost">≈ $0,04</span></button>
+              <button class="btn">Tự sửa tay cảnh 2</button>
+              <button class="btn ghost">Không phải ý này</button>
+            </div>
+            <div class="note">Nhận ý định bằng luật (0 USD). Chỉ khi bạn bấm nút có giá mới gọi Claude và ghi sổ chi.</div>
+          </div>
+        </div>
+
+        <div class="msg me">
+          <div class="av">V</div>
+          <div class="bub">nhịp cảnh 5 có nhanh quá không?<div class="time">20:19</div></div>
+        </div>
+
+        <div class="msg">
+          <div class="av">C</div>
+          <div class="bub">
+            Câu này cần Claude đọc kịch bản mới trả lời được.
+            <div class="acts">
+              <button class="btn pri">💬 Hỏi Claude · <span class="cost">≈ $0,01</span></button>
+              <button class="btn ghost">Thôi</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="composer">
+        <button class="ic" title="Thả / chọn file (csv docx md tsv txt xlsx)">📎</button>
+        <textarea rows="1" placeholder="Dán kịch bản, gõ ý tưởng, hoặc nói 'sửa cảnh 2…'"></textarea>
+        <button class="ic send" title="Gửi">↑</button>
+      </div>
+      <div class="hint"><span>Enter gửi · Shift+Enter xuống dòng</span><span>Ô tự giãn tới 8 dòng</span><span>Kịch bản dài tự thu gọn trong bong bóng</span></div>
+    </div>
+
+    <div class="card side">
+      <h3>Dự án mới (chưa có gì)</h3>
+      <div class="msg"><div class="av">C</div><div class="bub">Chào bạn — dán kịch bản, hoặc kể vài dòng ý tưởng, mình giúp viết tiếp.
+        <div class="chips" style="margin-top:8px">
+          <button class="btn">📄 Dán kịch bản</button>
+          <button class="btn">💡 Tôi có ý tưởng</button>
+          <button class="btn">📎 Thả file</button>
+        </div></div></div>
+
+      <div class="msg me" style="margin-top:10px"><div class="av">V</div><div class="bub">Kelly và Kenta tranh nhau con pet Mr. Waggor trong trận rank, kết hài</div></div>
+      <div class="msg" style="margin-top:10px"><div class="av">C</div><div class="bub">Đây là <b>ý tưởng</b>. Biên kịch viết 3 bản 20–30 s để bạn chọn?
+        <div class="acts"><button class="btn pri">💡 Viết 3 bản · <span class="cost">≈ $0,12</span></button><button class="btn">Không, đây là kịch bản</button></div></div></div>
+
+      <h3 style="margin-top:20px">Giữ nguyên từ bản hiện tại</h3>
+      <ul>
+        <li>Không lượt nào tự chi tiền — mọi lần gọi Claude nằm sau nút có giá, qua sổ chi + ước tính trước.</li>
+        <li>Phân loại kịch bản / ý tưởng / dàn ý mỏng bằng luật 0 USD (<code>idea_to_script.classify</code>), luôn có nút đổi.</li>
+        <li>Dán kịch bản mới khi đã có → hỏi một lần trước khi thay.</li>
+        <li>Giữ khóa nút cũ (<code>btn_analyse_</code>…); đổi có chủ ý thì ghi RENAMED.</li>
+      </ul>
+
+      <div class="q"><span class="tag">CẦN BẠN CHỌN</span>
+        <ol style="margin-top:6px">
+          <li>Câu hỏi tự do không khớp luật (vd "nhịp cảnh 5 có nhanh không?") → hiện nút <b>💬 Hỏi Claude ≈ $0,01</b> như mockup, hay chỉ trả lời "chưa hiểu, chọn một trong các việc…" (0 USD)?</li>
+          <li>Lịch sử chat: giữ toàn bộ theo dự án, hay chỉ 30 tin gần nhất (cũ hơn gập lại)?</li>
+          <li>Bỏ hẳn nút "▶ Phân tích (tách cảnh)" đứng riêng phía trên — chỉ còn nút trong bong bóng?</li>
+        </ol>
+      </div>
+    </div>
+  </div>
+</div>
+<script>
+document.querySelectorAll('textarea').forEach(t=>t.addEventListener('input',()=>{t.style.height='auto';t.style.height=Math.min(t.scrollHeight,180)+'px'}));
+</script>
+</body>
+</html>

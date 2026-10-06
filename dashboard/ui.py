@@ -144,6 +144,9 @@ DARK_CSS = """
 .stButton>button:hover{border-color:var(--primary);color:var(--primary)}
 [data-testid="stTextInputRootElement"],[data-testid="stTextAreaRootElement"],[data-testid="stNumberInputContainer"]{background:var(--surface)!important;border-color:var(--border)!important}
 input,textarea{color:var(--text)!important}
+[data-testid="stChatInput"],[data-testid="stChatInput"]>div{background:var(--surface)!important;border-color:var(--border)!important}
+[data-testid="stChatInput"] textarea{color:var(--text)!important;-webkit-text-fill-color:var(--text)!important;caret-color:var(--text)!important}
+[data-testid="stChatInput"] textarea::placeholder{color:var(--muted)!important;-webkit-text-fill-color:var(--muted)!important;opacity:1}
 :is([data-testid="stSelectbox"],[data-testid="stMultiSelect"]) svg:not([data-testid="stTooltipIcon"] svg){color:var(--text)!important}
 [data-testid="stTooltipIcon"] svg,[data-testid="stTooltipIcon"] svg *{stroke:var(--muted)!important}
 [data-testid="stTooltipContent"]{background:var(--surface)!important;border:1px solid var(--border)}

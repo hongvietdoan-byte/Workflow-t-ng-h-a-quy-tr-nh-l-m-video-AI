@@ -51,6 +51,22 @@ class TokenTests(unittest.TestCase):
         self.assertEqual(small, [])
         self.assertEqual(len(re.findall(r"(?:^|[}\n])\.badge\{", ui.CSS)), 1)
 
+    def test_chat_input_follows_the_theme(self):
+        """S14.47 (người dùng 06/10, ảnh chụp màn Kịch bản tối): ô st.chat_input giữ nền trắng của theme gốc Streamlit trong khi
+        `textarea` đã nhận chữ sáng → dán kịch bản vào KHÔNG thấy chữ. Ô chat phải lấy nền đặc theo token (--surface, đủ tương phản
+        với --text ở cả 2 theme) và chữ/con trỏ/placeholder theo token — ở cả lớp v2 (theme.css) lẫn nền tối cũ (ui.DARK_CSS)."""
+        from dashboard import ui
+        css = re.sub(r"/\*.*?\*/", "", open(os.path.join(os.path.dirname(__file__), "..", "dashboard", "design", "theme.css"),
+                                            encoding="utf-8").read(), flags=re.S)
+        for name, src in (("theme.css", css), ("DARK_CSS", ui.DARK_CSS)):
+            with self.subTest(name):
+                self.assertRegex(src, r'\[data-testid="stChatInput"\][^{]*\{[^}]*background:\s*var\(--surface\)')
+                self.assertRegex(src, r'\[data-testid="stChatInput"\] textarea[^{]*\{[^}]*color:\s*var\(--text\)[^}]*caret-color:\s*var\(--text\)')
+                self.assertRegex(src, r'\[data-testid="stChatInput"\] textarea::placeholder[^{]*\{[^}]*color:\s*var\(--muted\)')
+        for theme in ("dark", "light"):
+            t = tokens.DARK if theme == "dark" else tokens.LIGHT
+            self.assertGreaterEqual(tokens.contrast_ratio(t["text"], t["surface"]), 4.5)
+
     def test_portals_and_folds_follow_the_theme(self):
         """Rà soát 02/10: hộp thoại st.dialog / menu nằm ngoài .stApp (cổng) → phải nhận token, nếu không ở nền tối chữ sáng nằm trên
         nền sáng = tàng hình (tiêu đề mục gập, ô chọn ▾, nhãn trong ⚙ → Kho tài nguyên / Tính năng thử)."""
