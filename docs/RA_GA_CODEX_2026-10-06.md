@@ -18,8 +18,8 @@ Dashboard không import được vì `voice_rule_box` dùng `Optional[str]` như
 
 - `tests/test_ui_v2_default.py`, `test_ui_script.py`, `test_ui_video.py`, `test_ui_v2_acceptance.py`: 49 qua, 2 subtest qua.
 - `tools/ui_v2_acceptance.py clicks`: UI v2 **14 lần bấm** từ Dự án mới tới video đầu, bằng mốc cũ 14; cả hai cấu hình cờ tạo 2 job video mock. Nút `ap_start` có và bấm không gây exception (đây chỉ là kiểm UI, không chứng minh autopilot chạy hoàn tất).
-- Cả bộ lần đầu: 2 lỗi, 2658 qua, 8 bỏ qua, 66 subtest qua (12 phút 19 giây). Hai lỗi ở test: chọn font phụ thuộc máy Windows và `query_params` trả chuỗi ở Streamlit 1.65. Sửa fixture font riêng cho test điều khiển Bản giao, giữ nguyên assertion về khóa; nhận chuỗi hoặc danh sách cho query parameter. Bộ `test_ui_deliver` + `test_users` sau sửa: 15 qua (12,14 s). Chờ cả bộ bản tích hợp xanh trước khi push.
+- Cả bộ lần đầu: 2 lỗi, 2658 qua, 8 bỏ qua, 66 subtest qua (12 phút 19 giây). Hai lỗi ở test: chọn font phụ thuộc máy Windows và `query_params` trả chuỗi ở Streamlit 1.65. Sửa fixture font riêng cho test điều khiển Bản giao, giữ nguyên assertion về khóa; nhận chuỗi hoặc danh sách cho query parameter. Bộ `test_ui_deliver` + `test_users` sau sửa: 15 qua (12,14 s). Cả bộ bản cuối `12d2779`: **2748 qua, 8 bỏ qua, 66 subtest qua, 0 lỗi** (748,27 s; 12 phút 28 giây; 10 cảnh báo thư viện).
 - Môi trường Linux, Python 3.12, Streamlit 1.65.0; công cụ nằm trong venv `/tmp/codex-video-venv`. Không gọi nhà cung cấp trả phí, không có dữ liệu máy chính.
 - Chưa thử bằng trình duyệt thật trên máy Windows; chưa pull hoặc khởi động lại Dashboard 8501 / AI Dev System 8502 tại máy chính.
 
-S14.14 chỉ hoàn tất G-a sau khi cả bộ xanh và push. G-b, G-c, S13.3 và S13.10 vẫn mở.
+S14.14 hoàn tất phần code G-a; bản tích hợp `12d2779` đã xanh và được gộp/push main cùng cập nhật bàn giao. G-b, G-c, S13.3 và S13.10 vẫn mở.

@@ -26,6 +26,7 @@ Lỗi thiếu import `Optional` ở `step1_characters` đã lấy sửa vào G-a
 - Trước sửa: 77 test cloud qua; ba test hồi quy mới đỏ đúng nguyên nhân.
 - Sau sửa: 80 test (`lesson_judge`, `s1451_palette`, `p1_llm_latency`, `devsys_workflow`, `devsys_decisions`) qua; 90 test (`s1425_feedback_mistakes`, `lessons`, `lesson_judge`, `devsys`) qua.
 - Test thứ tư được bổ sung trong lúc rà bản tích hợp. Lượt cả bộ đang chạy đã dừng để sửa và kiểm lại đúng bản cuối; 1622 test đã qua trước lúc dừng, chưa có lỗi.
-- Chưa chạy cả bộ bản tích hợp G-a + hai nhánh cloud. Chưa gộp/push `main`.
+- Sau sửa thứ tư: 81 test trong năm bộ liên quan qua.
+- Cả bộ bản cuối G-a + hai nhánh cloud tại `12d2779`: **2748 qua, 8 bỏ qua, 66 subtest qua, 0 lỗi** (748,27 s; 12 phút 28 giây; 10 cảnh báo thư viện). Gộp/push `main` cùng cập nhật bàn giao.
 - Không gọi API trả phí, không có dữ liệu máy chính; chưa chạy UI thật trên Windows hoặc khởi động lại 8501/8502.
 - Không có công cụ đo token Codex tương ứng số đo Claude; không bịa token làm/rà/sửa để ghi vào workflow.

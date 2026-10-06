@@ -35,7 +35,7 @@ luật `voice_casting` (khi cờ `auto_voice_cast` đã thử thật); `lint_mot
 ## Kết quả S14.51 (06/10, cloud)
 `core/palette.py` + cột `characters.palette` + cờ `palette_check` (TẮT): trích bảng màu vùng thân (ngay dưới mặt) từ ảnh tham chiếu đã duyệt
 (một lần theo sha ảnh; người đặt tay thì thắng), so với khung Tổ QC soi (`core/qc_team.review_frame` → `code["_palette"]`), chỉ khung MỘT
-người. Luôn 'uncertain' (ghi chú cho người), không tự từ chối. Test trên ảnh tổng hợp (`tests/test_s1448_palette.py`). **Còn ở máy chính:**
+người. Luôn 'uncertain' (ghi chú cho người), không tự từ chối. Test trên ảnh tổng hợp (`tests/test_s1451_palette.py`). **Còn ở máy chính:**
 hiệu chỉnh MATCH_DE / KEEP_RATIO trên ~20 khung #8 có / không lệch màu; xem vùng thân ước theo hộp mặt có sai ở dáng nghiêng / cận mặt.
 
 ### S14.51 bản nới (người dùng hỏi 06/10: "màu có bị thời tiết, đèn ảnh hưởng, dễ báo nhầm?")
