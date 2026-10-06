@@ -7,13 +7,14 @@ Người dùng có một tài khoản **Cloud session credits $100** (hết hạ
 - **Không:** `data/`, `data/manifest.sqlite`, `dashboard.env`, khóa ClipAI / Claude API, Blender, PowerShell, Dashboard thật, dữ liệu `devsys/data` của máy chính. Không chạy gì tốn tiền API.
 - Test chỉ chạy trên Windows (đường dẫn `D:\`, PowerShell) có thể bỏ qua/đỏ trên Linux → ghi rõ trong báo cáo, KHÔNG sửa test cho xanh trên Linux nếu làm hỏng trên Windows.
 
-## Ngân sách credit — tránh vượt ngưỡng 90–95 $ (hết credit = không commit/push được → mất việc)
-| Credit đã dùng (của $100) | Làm gì |
-|---|---|
-| < $60 | chạy bình thường, 1 việc/phiên |
-| $60–80 | chỉ việc nhỏ hoặc tiếp việc đang dở; commit + push sau MỖI bước |
-| $80–85 | **dừng mở việc mới**: hoàn tất bước đang làm, commit, push, cập nhật `HANDOFF.md` |
-| ≥ $85 | **điểm dừng cứng** — không chạy thêm gì; TUYỆT ĐỐI tránh vượt 90–95 $ |
+## Ngân sách credit — dừng cứng $90, không vượt 95 $ (hết credit = không commit/push được → mất việc)
+| Credit đã dùng (của $100) | Làm gì | Hỏi người dùng số credit |
+|---|---|---|
+| < $60 | chạy bình thường, 1 việc/phiên | trước mỗi việc + mỗi ~30 lượt gọi |
+| $60–80 | chỉ việc nhỏ hoặc tiếp việc đang dở; commit + push sau MỖI bước | mỗi ~20 lượt gọi |
+| $80–85 | không mở bước mới lớn; làm bước nhỏ đang dở | **mỗi ~10–15 lượt gọi** |
+| $85–90 | chỉ hoàn tất bước đang dở → commit, push, cập nhật `HANDOFF.md`, báo cáo | **mỗi ~5–10 lượt gọi** |
+| **≥ $90** | **dừng cứng** (người dùng chọn 06/10 để luyện kiểm soát chặt) — không chạy thêm gì; TUYỆT ĐỐI không vượt 95 $ | — |
 
 - Phiên cloud **không tự đọc được số credit** → người dùng xem ở trang credit và báo trong chat ("đã dùng $X"); phiên cloud hỏi người dùng số credit **trước khi bắt đầu mỗi việc** và **sau mỗi ~30 lượt gọi công cụ**.
 - Ước chi mỗi việc (Opus, ước theo token, có thể lệch): việc vừa ≈ $8–15, việc lớn ≈ $15–25. Chưa chắc đủ → làm phần nhỏ trước.
@@ -28,7 +29,7 @@ Luật dự án (bắt buộc):
 - KHÔNG gọi API tốn tiền (Claude/ClipAI/TTS…) — chỉ mock. Không có data/ máy chính: dùng fixture trong tests/.
 - Test ĐỎ TRƯỚC, XANH SAU cho từng mục; chỉ chạy test liên quan: `python -m pytest -q -p no:cacheprovider tests/<file>.py` (Linux dùng python3; PYTHONUTF8=1).
 - Commit nhỏ, dòng cuối: `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>`; `git push -u origin <nhánh>` NGAY sau mỗi commit; cập nhật HANDOFF.md (đã xong / đang dở / bước kế) mỗi commit; xóa HANDOFF.md ở commit cuối khi xong hẳn.
-- Credit: hỏi người dùng số credit đã dùng trước khi bắt đầu và sau mỗi ~30 lượt gọi công cụ; ≥ $80 dừng mở bước mới (commit+push+HANDOFF); ≥ $85 dừng hẳn. Không mở phiên con (Agent).
+- Credit (dừng cứng $90): hỏi người dùng "đã dùng bao nhiêu $" trước khi bắt đầu, rồi mỗi ~30 lượt gọi (< $60) / ~20 ($60–80) / ~10–15 ($80–85) / ~5–10 ($85–90); từ $85 chỉ hoàn tất bước đang dở rồi commit + push + HANDOFF; ≥ $90 dừng hẳn, không vượt 95 $. Ghi số credit vào HANDOFF.md mỗi lần hỏi. Không mở phiên con (Agent).
 - Tự kiểm trước bàn giao: test bị nới để che lỗi; đường dẫn tương đối / phụ thuộc thư mục đang chạy; chặn mới làm vỡ luồng tự động/hàng loạt; bật mặc định đổi hành vi; so chữ bỏ dấu khớp nhầm từ ngắn; tiêu đề/nhãn đọc nhầm thành nội dung; lời gọi tốn tiền chạy khi chưa có đồng ý.
 - Kết thúc: báo cáo ≤ 25 dòng: nhánh, commit cuối, file sửa, test đỏ→xanh (tên), test bỏ qua vì Linux, rủi ro/việc mở.
 ```
