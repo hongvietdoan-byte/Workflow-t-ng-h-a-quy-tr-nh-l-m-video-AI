@@ -208,5 +208,41 @@ class TodoShareTests(unittest.TestCase):
         self.assertIn("chia", auto["todo_mo"]["reason"])
 
 
+REPORT = """# Báo cáo chạy thử giọng
+
+## Kết quả
+
+Đã chạy thật 05/10 dự án #12: 14 câu, 2 câu đọc sai dấu.
+Một dòng chung chung không nói gì.
+"""
+
+
+class RealRunEvidenceTests(unittest.TestCase):
+    """S15: `bang_chung` > 0 only with a cited LINE that records a real run (a number / date / 'đã chạy') or names the area — a
+    heading, a blank line or a whole file without a line number is not a record of a run."""
+
+    def setUp(self):
+        self.root = _mini_repo()
+        _write(self.root, "docs/bao_cao.md", REPORT)
+
+    def bang_chung(self, *ev):
+        from devsys import scores
+        s = scores.normalize(_a21("voice", bang_chung={"evidence_for": list(ev)}), self.root, ["voice", "ui", "infra"],
+                             {"test_files": 1, "has_run": True, "failed": 0})
+        return s["criteria"]["bang_chung"]
+
+    def test_heading_blank_whole_file_and_vague_lines_do_not_count(self):
+        for ev in ("docs/bao_cao.md:1", "docs/bao_cao.md:2", "docs/bao_cao.md:3", "docs/bao_cao.md", "docs/bao_cao.md:6", "docs/bao_cao.md:1-4"):
+            c = self.bang_chung(ev)
+            self.assertEqual(c["score"], 0, ev)
+            self.assertTrue(any("chạy thật" in x for x in c["code_caps"]), c["code_caps"])
+
+    def test_a_line_with_numbers_or_naming_the_area_counts(self):
+        self.assertEqual(self.bang_chung("docs/bao_cao.md:5")["score"], 16)
+        self.assertEqual(self.bang_chung("docs/bao_cao.md:3-5")["score"], 16)
+        self.assertEqual(self.bang_chung("TODO.md:3")["score"], 16)           # "… cho giọng Việt": names the area (keyword 'giọng')
+        self.assertEqual(self.bang_chung("docs/bao_cao.md:1", "docs/bao_cao.md:5")["score"], 16)
+
+
 if __name__ == "__main__":
     unittest.main()

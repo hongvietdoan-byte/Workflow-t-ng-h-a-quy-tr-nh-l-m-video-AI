@@ -146,6 +146,63 @@ def _is_real_run_ref(item: str) -> bool:
     return any(path == p or path.startswith(p) for p in REAL_RUN_PLACES)
 
 
+REAL_RUN_SIGN = re.compile(r"\d|đã chạy|chạy thật|đã thử|đo được|nghe thật|xem thật", re.I)
+_TEXT_EXT = (".md", ".txt", "")
+_AREA_TERMS: Dict[str, Tuple] = {}
+
+
+def _area_terms(root: str, area: str) -> List[re.Pattern]:
+    """The words that name an area (id, name, keywords of devsys/areas.json of `root`) — read once per file version."""
+    path = os.path.join(root, "devsys", "areas.json")
+    try:
+        stamp = os.stat(path).st_mtime_ns
+    except OSError:
+        stamp = None
+    key = f"{path}|{area}"
+    if key not in _AREA_TERMS or _AREA_TERMS[key][0] != stamp:
+        words = [area]
+        try:
+            with open(path, encoding="utf-8") as f:
+                for a in json.load(f).get("areas", []):
+                    if a.get("id") == area:
+                        words += [a.get("name", "")] + list(a.get("keywords", []))
+        except (OSError, ValueError):
+            pass
+        rx = [re.compile(r"(?<!\w)" + re.escape(collect.nfc(w)) + r"(?!\w)", re.I) for w in words if str(w).strip()]
+        _AREA_TERMS[key] = (stamp, rx)
+    return _AREA_TERMS[key][1]
+
+
+def real_run_problem(item: str, root: str, area: str) -> Optional[str]:
+    """S14.10 S15: None when `item` cites a record of a REAL run: a place where runs are written down (REAL_RUN_PLACES), a line number
+    for a text file, and among the cited lines (headings, blank lines and table rules left out) one with a sign of a real run — a
+    number / date, 'đã chạy', 'chạy thật'… — or naming the area. A data file (json, image…) under data/ or eval/ counts as a whole."""
+    item = str(item).strip()
+    if not _is_real_run_ref(item):
+        return "không trỏ tới nơi ghi lần chạy thật (TODO.md / docs / PLAN.md / data / tests/fixtures / research / eval)"
+    why = check_evidence(item, root)
+    if why:
+        return why
+    m = _LINE_REF.match(item)
+    path = m.group("path").strip("`")
+    if not m.group("a"):
+        return "thiếu số dòng: trích dòng ghi lần chạy thật (file:dòng)" if os.path.splitext(path)[1].lower() in _TEXT_EXT else None
+    a = int(m.group("a"))
+    b = min(int(m.group("b") or a), a + 40)
+    try:
+        with open(os.path.join(root, path), encoding="utf-8", errors="replace") as f:
+            lines = f.read().splitlines()[a - 1:b]
+    except OSError as e:
+        return f"không đọc được {path} ({type(e).__name__})"
+    body = [collect.nfc(x.strip()) for x in lines if x.strip() and not x.lstrip().startswith("#") and not re.fullmatch(r"[|:\-\s]+", x)]
+    if not body:
+        return "dòng trống / tiêu đề — không phải ghi chép chạy thật"
+    text = " ".join(body)
+    if REAL_RUN_SIGN.search(text) or any(r.search(text) for r in _area_terms(root, area)):
+        return None
+    return "dòng không có dấu hiệu chạy thật (số / ngày / 'đã chạy') và không nhắc tên khu vực"
+
+
 FEEDBACK_TEXT = ("why", "fix", "verify")
 EFFORTS = ("💻", "💵", "👤")
 
@@ -402,9 +459,11 @@ def _normalize_v2(raw: Dict, root: str, area_ids: Optional[Sequence[str]], facts
         score = max(0.0, mx - sum(d["points"] for d in clean))
         crit_caps = []
         if key == "bang_chung" and score > 0:
-            ok = [e for e in ev_for if _is_real_run_ref(e) and not check_evidence(e, root)]
-            if not ok:
-                crit_caps.append("code hạ về 0: không có trích dẫn chạy thật kiểm được (TODO.md / docs / data / tests/fixtures) trong evidence_for")
+            why_not = [(e, real_run_problem(e, root, area)) for e in ev_for]      # S14.10 S15: the cited LINE must record a real run
+            if not any(w is None for _, w in why_not):
+                crit_caps.append("code hạ về 0: không có trích dẫn chạy thật kiểm được (dòng TODO.md / docs / data / tests/fixtures có số, ngày, "
+                                 "'đã chạy' hoặc nhắc khu vực) trong evidence_for"
+                                 + (" — " + "; ".join(f"{e}: {w}" for e, w in why_not[:4]) if why_not else ""))
                 score = 0.0
         if key == "test" and facts:
             limit = None
