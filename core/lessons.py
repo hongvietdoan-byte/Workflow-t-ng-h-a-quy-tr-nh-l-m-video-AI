@@ -35,7 +35,14 @@ TAGS = {
     "motion": ("Chuyển động giật / biến dạng", ("giật", "morph", "flicker", "jitter", "biến dạng", "artifact")),
     "risk_control": ("Bị risk control chặn", ("risk_control", "risk control", "moderation", "content policy")),
 }
-GROUP_OF_STAGE = {"image": "director", "video": "motion"}
+GROUP_OF_STAGE = {"image": "director", "video": "motion",
+                  "director": "director", "motion": "motion"}       # the last two: user_feedback stages (S14.25, cờ feedback_to_mistakes)
+# S14.25 (Bộ não prompt Đợt 6a, cờ `feedback_to_mistakes`, TẮT mặc định): which remarks of core/feedback.py become mistakes.
+# 'screen' remarks are about the software, not the film — devsys reads them (Đợt 6b), never the lessons.
+FEEDBACK_KINDS = ("delivery", "scene")
+FEEDBACK_STAGES = ("director", "image", "motion")
+FEEDBACK_MAX_RATING = 2
+FEEDBACK_MIN_TEXT = 15
 
 # S14.20 (Bộ não prompt Đợt 2b, cờ `risk_tags`, TẮT mặc định): the one "motion" tag split into the 6 risk axes of the I2V Risk
 # Assessment (knowledge/i2v_motion_discipline.md mục 1 — the same dictionary the motion writer uses in check_flags) + 4 feedback tags.
@@ -138,7 +145,47 @@ def harvest(conn) -> int:
             pass
         added += _add(conn, "moderation", r["id"], r["at"], r["project_id"], stage,
                       _clean(f"risk_control: {r['error_message']} | prompt: {prompt}"))
+    added += harvest_feedback(conn)
     conn.commit()
+    return added
+
+
+def _feedback_on() -> bool:
+    from . import features
+    try:
+        return features.on("feedback_to_mistakes")
+    except KeyError:
+        return False
+
+
+def harvest_feedback(conn) -> int:
+    """S14.25: low-rated remarks about the film (≤ 2/5, a sentence long, stage director/image/motion) → `mistakes` (source 'feedback',
+    ref_id = user_feedback.id; UNIQUE(source, ref_id) keeps it once). Flag `feedback_to_mistakes` off → nothing. The usual thresholds
+    (MIN_EVENTS / MIN_PROJECTS) still decide whether a lesson is proposed: one complaint in one project is not a lesson.
+    A remark no tag matches is still recorded (shown as 'Chưa phân loại' with risk_tags) and said in diag — not dropped."""
+    if not _feedback_on():
+        return 0
+    marks = ",".join("?" * len(FEEDBACK_KINDS)), ",".join("?" * len(FEEDBACK_STAGES))
+    rows = conn.execute(
+        f"SELECT id, at, project_id, stage, text FROM user_feedback WHERE kind IN ({marks[0]}) AND stage IN ({marks[1]})"
+        " AND rating IS NOT NULL AND rating <= ? AND text IS NOT NULL",
+        (*FEEDBACK_KINDS, *FEEDBACK_STAGES, FEEDBACK_MAX_RATING)).fetchall()
+    added, untagged = 0, 0
+    for r in rows:
+        raw = (r["text"] or "").strip()
+        if len(raw) < FEEDBACK_MIN_TEXT:
+            continue
+        text = diag.redact(raw)[:300]
+        if not _add(conn, "feedback", r["id"], r["at"], r["project_id"], r["stage"], text):
+            continue                                         # already a mistake
+        added += 1
+        mid = conn.execute("SELECT id FROM mistakes WHERE source='feedback' AND ref_id=?", (r["id"],)).fetchone()[0]
+        conn.execute("UPDATE user_feedback SET handled=? WHERE id=? AND handled IS NULL", (f"mistake:{mid}", r["id"]))
+        if not tags_of(text):
+            untagged += 1
+            diag.record(conn, "system", "warn", f"Góp ý #{r['id']} (khâu {r['stage']}) đã ghi vào lỗi nhưng không khớp loại lỗi nào —"
+                        " xem 'Chưa phân loại' ở tab Bài học (bật cờ risk_tags) hoặc thêm từ khóa", code="feedback_untagged",
+                        project_id=r["project_id"])
     return added
 
 
