@@ -274,6 +274,25 @@ class ShadowRunTests(unittest.TestCase):
         self.assertEqual(a["pairs"], 2)                                                     # chỉ bài người đã duyệt/bỏ, agent không 'cần người'
         self.assertFalse(a["ready"])                                                         # < 10 cặp
 
+    def test_transport_failure_records_the_no_claude_valve(self):
+        client = mock.Mock()
+        client.complete.side_effect = llm_runner.LlmError("mất kết nối", code="network", transient=True)
+        before = self._lessons()
+        with mock.patch.object(features, "on", side_effect=lambda n: n == "lesson_judge"):
+            out = lj.judge_all(self.conn, client)
+        self.assertEqual(self._lessons(), before)
+        self.assertEqual(out["judged"], 4)
+        row = self.conn.execute("SELECT decision, detail FROM lesson_reviews WHERE lesson_id=1").fetchone()
+        self.assertEqual(row["decision"], "needs_human")
+        self.assertIn("khong_goi_duoc_claude", json.loads(row["detail"])["valves"])
+
+    def test_agreement_ignores_a_review_of_the_previous_body(self):
+        with mock.patch.object(features, "on", side_effect=lambda n: n == "lesson_judge"):
+            lj.judge_all(self.conn, lj.MockJudge())
+        self.conn.execute("UPDATE lessons SET body='Nội dung mới, chưa được agent chấm.' WHERE key='mistake:face'")
+        self.conn.commit()
+        self.assertEqual(lj.agreement(self.conn)["pairs"], 1)
+
 
 if __name__ == "__main__":
     unittest.main()

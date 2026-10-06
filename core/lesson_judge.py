@@ -318,12 +318,20 @@ def judge(conn, lesson: Dict, client, threshold: float = AUTO_PASS_DEFAULT, quot
         v = verdict(None, f, no_claude=halt, **ctx)
         _record(conn, lesson, f, v, None, threshold, model, f"chế độ bóng — {halt}")
         return {**v, "score": None, "called": 0}
-    from .llm_runner import tagged
+    from .llm_runner import LlmError, tagged
     result, err = None, None
     for _ in range(2):                                    # một lần hỏi lại khi trả lời sai dạng (như devsys)
         called += 1
-        with tagged(STAGE):
-            reply = client.complete(build_prompt(lesson, f))
+        try:
+            with tagged(STAGE):
+                reply = client.complete(build_prompt(lesson, f))
+        except LlmError as e:
+            why = str(e)
+            diag.record(conn, "system", "warn", f"agent chấm bài học #{lesson['id']} không gọi được Claude: {why} — chờ người",
+                        code="lesson_judge_no_claude")
+            v = verdict(None, f, no_claude=why, **ctx)
+            _record(conn, lesson, f, v, None, threshold, model, f"chế độ bóng — {why}")
+            return {**v, "score": None, "called": called}
         try:
             result = normalize(reply.text, f)
             break
@@ -384,9 +392,17 @@ def estimate(conn, calls: int) -> Dict:
 
 def agreement(conn) -> Dict:
     """Agent ↔ người trên bài người đã duyệt/bỏ (state approved/rejected), lần chấm agent mới nhất; 'needs_human' không tính cặp."""
-    rows = conn.execute(
-        "SELECT l.id, l.state, (SELECT r.decision FROM lesson_reviews r WHERE r.lesson_id=l.id AND r.reviewer_type='ai_agent'"
-        " ORDER BY r.id DESC LIMIT 1) AS ai FROM lessons l WHERE l.state IN ('approved','rejected')").fetchall()
+    rows = []
+    for row in conn.execute(
+        "SELECT l.*, r.decision AS ai, r.detail AS review_detail FROM lessons l JOIN lesson_reviews r ON r.id="
+        "(SELECT MAX(id) FROM lesson_reviews WHERE lesson_id=l.id AND reviewer_type='ai_agent')"
+        " WHERE l.state IN ('approved','rejected')"):
+        try:
+            detail = json.loads(row["review_detail"] or "{}")
+        except ValueError:
+            continue
+        if isinstance(detail, dict) and detail.get("body_hash") == body_hash(dict(row)):
+            rows.append(row)
     pairs = [(r["ai"] == "approve", r["state"] == "approved") for r in rows if r["ai"] in ("approve", "reject")]
     held = sum(1 for r in rows if r["ai"] == "needs_human")
     if not pairs:

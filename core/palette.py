@@ -292,7 +292,10 @@ def character_palette(conn, pid: int, name: str) -> Dict:
     ref = _reference_path(conn, pid, row["name"])               # the stored spelling (the shot may write "Kelly")
     if not ref:
         return {"colors": [], "note": "nhân vật chưa có ảnh tham chiếu"}
-    sha = file_sha(ref)
+    try:
+        sha = file_sha(ref)
+    except OSError as e:
+        return {"colors": [], "note": f"không đọc được ảnh tham chiếu ({type(e).__name__}) — kiểm lại file trong Kho"}
     if stored.get("ref_sha") == sha:
         return stored
     data = {**extract(ref), "by": "auto", "ref_sha": sha, "at": datetime.now(timezone.utc).isoformat(timespec="seconds")}

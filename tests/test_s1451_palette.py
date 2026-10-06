@@ -159,6 +159,14 @@ class StoreAndQcTeamTests(Base):
         with self.assertRaises(ValueError):
             palette.set_palette(self.conn, 1, "KELLY", ["xanh"])
 
+    def test_missing_reference_reports_not_measurable_without_breaking_qc(self):
+        os.remove(self.ref)
+        code = {}
+        with mock.patch.object(features, "on", side_effect=lambda n: n == "palette_check"):
+            palette.attach(code, self.conn, 1, self.pic("frame.png", RED), {"characters": ["Kelly"]})
+        self.assertEqual(code["_palette"]["status"], "not_measurable")
+        self.assertIn("tham chiếu", code["_palette"]["note"])
+
     def test_project_outfit_skips_the_reference_comparison(self):
         with mock.patch.object(palette, "_has_outfit", return_value=True):
             pal = palette.character_palette(self.conn, 1, "KELLY")
