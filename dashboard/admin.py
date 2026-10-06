@@ -1108,7 +1108,8 @@ def monitor(p: Pipeline, pid: int) -> None:
                "Trang này chỉ giữ sức khỏe hệ thống: hàng đợi, tốc độ, lỗi, hiệu quả.")
     st.caption("Ngưỡng cảnh báo chỉnh bằng biến môi trường: PERF_MAX_ACTIVE, PERF_FAIL_WARN, PERF_SLOW_WARN; "
                "song song: AUTOPILOT_MAX_PARALLEL. "
-               "Chưa đo thời gian gọi Claude (QC/motion).")
+               "Thời gian gọi Claude theo khâu: mục ⏱ bên dưới.")
+    llm_time_block(p)
 
 
     st.markdown("---")
@@ -1169,7 +1170,7 @@ def _monitor_v2(p: Pipeline, pid: int) -> None:
                + "\n\n👥 Số video / tiền theo người dùng → màn **Nhóm**. 📁 Bảng tất cả dự án và 🎬 sản phẩm đã hoàn tất → màn **⌂ Tất cả dự án**. "
                "Trang này chỉ giữ sức khỏe hệ thống: hàng đợi, tốc độ, lỗi, hiệu quả.\n\n"
                "Ngưỡng cảnh báo chỉnh bằng biến môi trường: `PERF_MAX_ACTIVE`, `PERF_FAIL_WARN`, `PERF_SLOW_WARN`; song song: `AUTOPILOT_MAX_PARALLEL`. "
-               "Chưa đo thời gian gọi Claude (QC/motion).\n\n"
+               "**Thời gian gọi Claude** theo khâu (7 ngày, từ sổ chi `llm_calls`): mục ⏱ bên dưới.\n\n"
                "Giám sát luôn chạy nền khi có thao tác gọi nhà cung cấp/Claude; ngưỡng: `DIAG_STUCK_IMAGE_MIN`, `DIAG_STUCK_VIDEO_MIN`, "
                "`DIAG_QUEUED_MIN`, `DIAG_RETRY_WARN`.")
     with D.hero("mon"):
@@ -1189,6 +1190,7 @@ def _monitor_v2(p: Pipeline, pid: int) -> None:
                 st.markdown(explain)
     for msg in snap["alerts"]:                       # only when there is one
         st.markdown(D.pill("Cảnh báo", "warn") + f" {escape(msg)}", unsafe_allow_html=True)
+    llm_time_block(p)
     with D.card("mon-status"):
         stage_pill = (D.pill(f"Khâu: {n_bad} lỗi", "bad") if n_bad else "") + (" " + D.pill(f"{n_warn} cảnh báo", "warn") if n_warn else "")
         found = (D.pill(f"{len(findings)} vấn đề phát hiện", "bad" if any(f["severity"] == "error" for f in findings) else "warn")
@@ -1243,6 +1245,19 @@ def _monitor_v2(p: Pipeline, pid: int) -> None:
         st.markdown("Bấm nút copy ở góc khung dưới (hoặc tải file), dán vào chat để mình sửa. Đã che khóa/token và đường dẫn cá nhân.")
         st.download_button("⬇ Tải báo cáo (.md)", text, file_name="bao_cao_chan_doan.md", key="diag_dl")
         st.code(text, language=None)
+
+
+def llm_time_block(p: Pipeline, days: int = 7) -> None:
+    """TODO Tồn đọng P1: how long Claude calls take per stage (llm_calls.latency_ms) — the slow stage is where a person waits."""
+    rows = perf.llm_latency(p.conn, days)
+    with st.expander(f"⏱ Thời gian gọi Claude theo khâu ({days} ngày)" + (f" — chậm nhất {max(r['max_s'] for r in rows):g} s" if rows else "")):
+        if rows:
+            data_table([{"Khâu": r["stage"], "Lượt": r["calls"], "Trung bình (s)": r["avg_s"], "Chậm nhất (s)": r["max_s"]} for r in rows],
+                       hide_index=True, use_container_width=True)
+            st.caption("Đo từ lúc gửi tới khi nhận đủ câu trả lời (một lần gửi; lần thử lại tính riêng). request-id của Anthropic lưu ở "
+                       "sổ chi `llm_calls.request_id` — gửi kèm khi hỏi hỗ trợ Anthropic về một lời gọi lỗi/chậm.")
+        else:
+            st.caption("Chưa có lời gọi Claude nào được đo thời gian (đo từ bản này trở đi).")
 
 
 def lesson_judge_panel(conn, llm) -> None:

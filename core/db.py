@@ -695,6 +695,8 @@ V2_COLUMNS = {
                        ("lint", "TEXT")),
     "end_frames": (("sent_refs", "TEXT"),   # which pictures went with the end frame request (like jobs.sent_refs)
                    ("fix", "TEXT")),        # the person's English fix of a redo (luật 6: a redo changes the input)
+    "llm_calls": (("latency_ms", "INTEGER"),          # TODO Tồn đọng P1: time of the call (send → whole answer, one attempt)
+                  ("request_id", "TEXT")),            # Anthropic's 'request-id' header (what their support asks for)
 }
 
 

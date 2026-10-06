@@ -1,34 +1,27 @@
 # HANDOFF — cloud (nhánh `claude/read-s14-45-cloud-tasks-ngb0q2`)
 
-Credit: người dùng báo còn $96/100 (06/10, sau S14.45); trần cứng $90 đã dùng.
+Nhánh DỰNG LẠI 06/10 chiều trên `main` 52c08f6 (main đã có S14.11, S14.46, S14.47 khung chat; phiên khác đang làm S14.25). Credit cloud:
+người dùng báo còn $73/100. Bản cũ trước khi dựng lại: commit 4dfea0f (chỉ còn trong reflog / nhánh cục bộ cloud).
 
-## Đã xong
-- S14.45 (commit 31a7fe2, 1bf20d1): devsys/workflow.py + workflow_runs.jsonl + trang "Hiệu quả quy trình".
-- S14.24 (chế độ bóng): core/lesson_judge.py (facts, build_prompt, normalize, verdict = 8 van + chủ đề đã bỏ, judge, judge_all,
-  estimate, agreement, MockJudge), cờ `lesson_judge` TẮT, STAGE_SETTINGS/LLM_STAGE_TOKENS "lesson_judge", tests/test_lesson_judge.py.
+## Trên nhánh (chưa có trên main) — phiên chính rà + cả bộ test Windows rồi gộp
+- **S14.45** bảng chấm hiệu quả quy trình: `devsys/workflow.py`, `devsys/workflow_runs.jsonl` (19 nhánh nhập từ 'Số đo:'), trang devsys
+  'Hiệu quả quy trình', skill mục 2 ghi số đo sau mỗi nhánh gộp. Rà nhẹ.
+- **S14.24** agent chấm bài học CHẾ ĐỘ BÓNG: `core/lesson_judge.py` (cờ `lesson_judge` TẮT, ghi `lesson_reviews` ai_agent, không đổi bài
+  học/knowledge; chủ đề đã bỏ đọc qua `core/retired_topics.matches`), khối trong tab Bài học (nút có giá). **RÀ KỸ** (lời gọi Claude tốn tiền).
+- Sửa lỗi có sẵn: `dashboard/steps/step1_characters.py` thiếu `from typing import Optional` (Dashboard không import được trên Linux).
+- Test `test_users`: đọc `query_params` cả dạng chuỗi (Streamlit 1.65) lẫn danh sách.
+- **S14.50** (đổi từ S14.47) bản đồ 'Ai quyết' code / Claude / người: `devsys/decisions.json` + `devsys/decisions.py` + trang devsys.
+- **S14.51** (đổi từ S14.48) màu nhân vật đo bằng code: `core/palette.py`, cột `characters.palette`, cờ `palette_check` TẮT, nối Tổ QC;
+  bản nới theo ánh sáng + so trong cảnh. Còn: hiệu chỉnh ngưỡng trên ~20 khung #8 (báo nhầm ≤ 10 % mới bật).
+- **TODO P1** đo thời gian gọi Claude: `llm_calls.latency_ms` / `request_id`, `HttpResponse.headers`, lỗi HTTP kèm request-id,
+  `perf.llm_latency` + mục ⏱ ở Giám sát.
+- **S14.29 bỏ hẳn**: gỡ khỏi kế hoạch + TODO; code cất ở `docs/cat_giu/S14_29_ma_thiet_bi/`.
+- Tài liệu: `docs/PHAN_TICH_PROMPT_SPIDER_2026-10-06.md` (dòng việc đề xuất S14.50, S14.51 — phiên chính thêm vào kế hoạch).
 
-- S14.25 Đợt 6a: core/feedback.to_mistakes() (cờ `feedback_to_mistakes` TẮT), gọi ở cuối lessons.harvest() (1 dòng, không đụng
-  phần lọc S14.46), tests/test_feedback_mistakes.py.
+## KHÔNG mang sang (trùng main / phiên khác)
+- S14.25 Đợt 6a (phiên khác đang làm trên `cloud/S14.25`), S14.11 (main đã có bản riêng).
 
-- Sửa lỗi có sẵn: step1_characters.py thiếu `from typing import Optional` (20ae3cc) — 117 test giao diện đỏ → xanh.
-- S14.11: kịch bản `samples/du_an_thu_30s.txt` + `docs/DU_AN_THU_30S_2026-10-06.md` (bảng cờ chưa verified + trần từng việc,
-  tính từ data/pricing.json), tests/test_s1411_trial_script.py. CHỜ người dùng duyệt trần → S14.12.
-
-- Test test_users: đọc query_params cả dạng chuỗi (Streamlit 1.65) lẫn danh sách (123c19f).
-- S14.29 (người dùng mở lại 06/10): mã thiết bị khi IP không có PTR — core/machine_auth (identify, DEV-<băm>, chỉ lưu băm, khớp băm),
-  2 cột machine_approvals.kind/device_hash (V2_COLUMNS), cookie do dashboard/common.ensure_device_cookie đặt + tải lại 1 lần;
-  tests/test_s1429_device_code.py; THỬ THẬT bằng Chromium trong cloud (DASHBOARD_LAN=1, IP 192.0.2.2 không PTR): cookie 43 ký tự,
-  không lên URL, máy đầu DEV-AD1E83 tự duyệt, trình duyệt thứ hai DEV-C5DA3E chờ duyệt. CHƯA thử trong mạng công ty (dải 10.7.168.x).
-
-- Phân tích tài liệu Prompt Spider: docs/PHAN_TICH_PROMPT_SPIDER_2026-10-06.md (dòng việc đề xuất S14.47, S14.48 — phiên chính thêm vào kế hoạch).
-- S14.47: devsys/decisions.json + devsys/decisions.py + trang devsys 'Ai quyết', tests/test_devsys_decisions.py.
-
-- S14.48: core/palette.py (màu chính nhân vật đo bằng code, cờ palette_check TẮT), cột characters.palette, nối qc_team.review_frame;
-  tests/test_s1448_palette.py. CÒN: hiệu chỉnh ngưỡng trên ảnh thật ở máy chính.
-
-- S14.48 bản nới: cân trắng + so sắc màu, bỏ đêm/hoàng hôn/quá tối/cận mặt/trang phục riêng, scene_check so trong cảnh; sửa lỗi
-  kết quả màu không tới người (review_frame bỏ khóa '_') → res['palette'], res['palette_scene'], dòng trong note_of.
-
-## Đang dở / bước kế
-- S14.24 giao diện: `lesson_judge_panel` trong tab Bài học (chỉ khi cờ bật; nút có giá, bảng kết quả bóng, độ đồng thuận) — test AppTest xanh; chưa nhìn trên Dashboard thật.
-- Không sửa core/lessons.py (S14.46 đang làm ở máy chính): decide(reviewer=…), sync_knowledge một bản/key, DOC_TITLE — để Đợt bật tự duyệt.
+## Khi gộp
+- `devsys/areas.json`: file mới đã khai (lesson_judge, palette, workflow, decisions + test); KHÔNG tăng version (tăng ở nhánh tích hợp).
+- Kiểm lại số S14.50 / S14.51 chưa bị phiên khác dùng.
+- Ghi số đo nhánh: `py -m devsys.workflow add … --mode cloud`.
