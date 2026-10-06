@@ -61,7 +61,7 @@ class PlateFallbackGoneTests(unittest.TestCase):
         self.assertFalse(hasattr(autopilot, "_plate_fallback_phase"))
         self.assertNotIn("platefix", autopilot.PHASE_LABELS)
 
-    def test_an_old_record_and_env_line_regenerate_nothing(self):
+    def test_an_old_env_line_regenerates_nothing(self):
         data = tempfile.mkdtemp()
         p = Pipeline(connect())
         pid = p.create_project("Nền 3D")
@@ -69,7 +69,6 @@ class PlateFallbackGoneTests(unittest.TestCase):
         job = p.create_job(sid, "video_gen")
         p.start(job)
         p.succeed(job)
-        location_pack.record_video_qc(data, pid, sid, job, {"score": 0.31, "ok": False}, "first_frame")
         from core import features
         with mock.patch.dict(os.environ, {"FEATURE_LOCATION_PLATES": "1"}), mock.patch.object(regen, "regenerate_video") as again:
             self.assertFalse(features.on("location_plates"))

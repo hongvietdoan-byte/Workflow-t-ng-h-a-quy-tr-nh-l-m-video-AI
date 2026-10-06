@@ -133,16 +133,6 @@ class EffectsTests(unittest.TestCase):
                             {"kind": "sound_effect", "label": "Nổ lớn", "start": 5.0, "use": False, "state": "succeeded"}])
         self.assertEqual(delivery.impact_times(d), [3.2])
 
-    def test_grain_is_added_to_a_clean_character_up_to_the_plate(self):
-        from core import composite
-        rnd = np.random.RandomState(3)
-        plate = np.clip(0.5 + rnd.normal(0, 0.03, (80, 60, 3)), 0, 1).astype(np.float32)
-        clean = np.full((80, 60, 3), 0.5, np.float32)
-        alpha = np.ones((80, 60), np.float32)
-        out = composite.match_grain(clean, alpha, plate)
-        self.assertGreater(composite.grain(out, alpha), composite.grain(plate) * 0.6)
-        self.assertIs(composite.match_grain(plate, alpha, clean), plate)            # never removes grain
-
     def test_no_name_cards_and_no_hud_line_in_the_srt(self):
         """Trial #8 (2026-09-28, người dùng): character name cards removed; the .srt holds spoken lines only."""
         from core import subtitles

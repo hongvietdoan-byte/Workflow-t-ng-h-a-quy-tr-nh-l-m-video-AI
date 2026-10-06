@@ -434,14 +434,7 @@ def ensure_plates(conn, pid: int, data_dir: str, data_root: str, resolution=(115
     return idx
 
 
-# ---- the green-screen picture of a shot ----------------------------------------------------------------------------------------
-_TIME_LIGHT = {"night": "night scene: dim cold blue moonlight, darker exposure, deep shadows",
-               "dusk": "warm low golden-orange sunset light", "dawn": "soft pink low morning light", "day": "clear daylight"}
-_WEATHER_ON_BODY = {"rain": "hair and clothes wet, raindrops on skin and clothes", "storm": "hair and clothes soaked, raindrops on them",
-                    "snow": "a little snow on hair and shoulders, cold breath visible", "snowfall": "snow on hair and shoulders, cold breath visible",
-                    "ice": "frost on the clothes, cold breath visible", "sandstorm": "dust on clothes and skin, squinting against the wind"}
-
-
+# ---- light of a 3D render (place_render_refs prompt sentence) ----
 def light_words(rec: Dict, sun_azimuth: float) -> str:
     """Where the sun/moon comes from, seen from this camera (the render's own light: tools/render_plates.py points the sun from
     azimuth a toward (cos a, sin a) on the ground plane)."""
@@ -458,30 +451,6 @@ def light_words(rec: Dict, sun_azimuth: float) -> str:
     where = "from behind them (rim light on hair and shoulders)" if ahead > 0.35 else "from the front" if ahead < -0.35 else ""
     lr = "from the right of the frame" if side > 0.3 else "from the left of the frame" if side < -0.3 else ""
     return "Main light " + " and ".join(w for w in (where, lr) if w) + "." if (where or lr) else ""
-
-
-def green_prompt(data: Dict, rec: Dict, sun_azimuth: float = 250.0) -> str:
-    """What is added to a shot's picture prompt when the place comes from its 3D plate: the character alone on flat green, framed and
-    lit exactly as the plate's camera and light (so the composite needs no guessing)."""
-    cam = rec.get("camera_plan") or {}
-    env = rec.get("env") or {"time": "day", "weather": "clear"}
-    x0, y0, x1, y1 = rec.get("subject_box") or (0.4, 0.1, 0.6, 0.9)
-    height = (cam.get("location") or [0, 0, 1.5])[2] - ((cam.get("subject") or {}).get("location") or [0, 0, 0])[2]
-    where = (f"head top at about {max(y0, 0) * 100:.0f}% from the top of the frame, "
-             + (f"feet at {y1 * 100:.0f}% from the top (whole body visible)" if y1 <= 1.0 else "body cut by the bottom of the frame")
-             + f", body centred at {((x0 + x1) / 2) * 100:.0f}% from the left")
-    parts = [f"Camera: {cam.get('lens', 35):g} mm lens, {height:.1f} m above the ground, the character {rec.get('distance_m', 3):.1f} m away; "
-             f"{where}.", f"Light: {_TIME_LIGHT.get(env['time'], '')}. {light_words(rec, sun_azimuth)}".strip()]
-    from . import plate_choice
-    practical = plate_choice.light_sentence(rec.get("lights") or [], bool(rec.get("lights_decided")), env["time"])
-    if practical:
-        parts.append(practical)                          # S5.7: the extra lights the plate was rendered with, chosen for this shot
-    if env["weather"] in _WEATHER_ON_BODY:
-        parts.append(f"Weather on the character: {_WEATHER_ON_BODY[env['weather']]}.")
-    parts.append("BACKGROUND: a perfectly flat, uniform pure chroma-key green (#00FF00) studio backdrop filling everything behind the "
-                 "character — no floor, no shadow on the backdrop, no gradient, no objects, no green light on the character. Crisp clean "
-                 "hair edges. The place is NOT drawn: it is added afterwards.")
-    return " ".join(p for p in parts if p)
 
 
 def script_sentence(conn, pid: int, data: Dict) -> str:
@@ -506,75 +475,6 @@ def script_sentence(conn, pid: int, data: Dict) -> str:
     if light:
         bits.append(light)
     return " ".join(bits)
-
-
-def needs_plate(conn, pid: int, data: Dict) -> bool:
-    """The shot's place gives a plate: a registered 3D model (tier 1) or a tagged in-game photo (tier 2)."""
-    place = assets.scene_location(conn, pid, data)
-    return bool(place and (model3d(conn, place["id"]) or photo_for(place, data)))
-
-
-_PLACE_CLAUSE = re.compile(r"\b(behind (him|her|them|it)|behind\s*$|in (the )?background|background|backdrop|skyline|horizon|"
-                           r"tower|plaza|parapet|building|barrack|warehouse|island|street|road|dirt path|alley|courtyard|yard|"
-                           r"battlefield|ruins|house|housing|wall|sky)\b", re.I)
-
-
-_PREPOSITION = re.compile(r"\b(across|through|down|along|near|beside|in front of|at|below|under|between|on|against|by|inside|"
-                          r"outside|behind|around|toward|towards|past|over|from|into|onto)\b", re.I)
-
-
-def place_free(text: str) -> str:
-    """The Director's picture words without the clauses that describe the place (split at , ; .): with a plate the place is drawn by
-    the 3D render, and a clause like "the stone clock tower behind" made the image model draw a whole background instead of green
-    (trial #8). A clause that is only place words is dropped; the character / action clauses stay."""
-    parts = re.split(r"(?<=[,;.])\s+", (text or "").strip())
-    keep = []
-    for p in parts:
-        hit = _PLACE_CLAUSE.search(p)
-        if not p or hit is None:
-            keep.append(p)
-            continue
-        # "three characters running side by side across the stone plaza ..." keeps "three characters running side by side"
-        preps = [m for m in _PREPOSITION.finditer(p[:hit.start()])]
-        head = p[:preps[-1].start()].strip(" ,;") if preps else ""
-        if len(head.split()) >= 3:
-            keep.append(head + p[-1] if p[-1] in ",;." else head)
-    out = " ".join(keep).strip().rstrip(",;")
-    return re.sub(r"\s+([,;.])", r"\1", out)
-
-
-def without_place(data: Dict) -> Dict:
-    """Shot data for the green picture: no place pictures / words go to the image model (the plate is the place)."""
-    return {k: v for k, v in data.items() if k not in ("location", "location_asset", "layout")}
-
-
-def _qc_path(data_dir: str, pid: int) -> str:
-    return os.path.join(data_dir, str(pid), "plates", "video_qc.json")
-
-
-def video_qc(data_dir: str, pid: int) -> Dict[str, Dict]:
-    try:
-        with open(_qc_path(data_dir, pid), encoding="utf-8") as f:
-            return json.load(f)
-    except (OSError, ValueError):
-        return {}
-
-
-def record_video_qc(data_dir: str, pid: int, scene_id: int, job_id: int, result: Dict, mode: str) -> None:
-    store = video_qc(data_dir, pid)
-    store[str(scene_id)] = {"job_id": job_id, "score": result.get("score"), "ok": result.get("ok"), "mode": mode,
-                            "frames": result.get("frames", [])[:30], "fallback": bool(result.get("fallback"))}
-    os.makedirs(os.path.dirname(_qc_path(data_dir, pid)), exist_ok=True)
-    with open(_qc_path(data_dir, pid), "w", encoding="utf-8") as f:
-        json.dump(store, f, ensure_ascii=False, indent=1)
-
-
-def green_path(data_dir: str, pid: int, image_job_id: int) -> str:
-    return os.path.join(data_dir, str(pid), "images", f"job_{image_job_id}_green.png")
-
-
-def mask_path(data_dir: str, pid: int, image_job_id: int) -> str:
-    return os.path.join(data_dir, str(pid), "images", f"job_{image_job_id}_mask.png")
 
 
 def propose_spots(probe: Dict, anchor: Optional[List[float]] = None, min_area_m2: float = 20.0, limit: int = 6,
@@ -602,75 +502,6 @@ def propose_spots(probe: Dict, anchor: Optional[List[float]] = None, min_area_m2
             name = f"{base}_{chr(96 + n)}"
         out[name] = {"at": [round(x, 3), round(y, 3), round(z, 3)], "facing": facing, "label": f"mặt phẳng cao {z:.1f} m ({a['area_m2']:.0f} m²)"}
     return out
-
-
-# ---- tier 2: an in-game photo of the library as the plate (no 3D model for the place) -----------------------------------------
-PHOTO_ROLES = {"low": "low_angle", "high": "high_angle", "overhead": "high_angle"}
-ZOOM = {"EWS": 1.0, "WS": 1.0, "GAME_TPS": 1.0, "MLS": 1.2, "MS": 1.4, "MCU": 1.7, "CU": 2.0, "ECU": 2.4}
-
-
-def photo_for(place: Dict, data: Dict) -> Optional[Dict]:
-    """The place's approved in-game background photo for this shot's camera kind (eye level unless the shot is low / high); a map
-    screenshot from above is never a plate (R7)."""
-    want = PHOTO_ROLES.get(str(data.get("angle") or "").lower(), "eye_level")
-    pics = [i for i in place.get("images") or [] if i.get("role") in ("eye_level", "low_angle", "high_angle")]
-    pick = next((i for i in pics if i["role"] == want), None) or next((i for i in pics if i["role"] == "eye_level"), None)
-    return pick
-
-
-def photo_plate(photo_path: str, out_path: str, data: Dict, env: Dict, resolution=(1152, 2048)) -> str:
-    """Crop the photo to the frame (9:16 from a 16:9 screenshot keeps the middle), closer for closer shots, graded for the time and
-    weather. No depth: no fog by distance, no occlusion; no shadow pass (tier 2 is weaker than a 3D plate and says so)."""
-    from PIL import Image
-    w, h = resolution
-    with Image.open(photo_path) as im:
-        im = im.convert("RGB")
-        zoom = ZOOM.get(plate_camera.size_of(data), 1.4)
-        ch = im.height / zoom
-        cw = min(im.width, ch * w / h)
-        ch = cw * h / w
-        cx, cy = im.width / 2, im.height * 0.55
-        box = (int(max(0, cx - cw / 2)), int(max(0, min(im.height - ch, cy - ch / 2))),
-               int(min(im.width, cx + cw / 2)), int(min(im.height, max(ch, cy + ch / 2))))
-        crop = im.crop(box).resize((w, h), Image.LANCZOS)
-    tmp = out_path + ".raw.png"
-    crop.save(tmp)
-    plate_env.finish_plate(tmp, out_path, env)
-    os.remove(tmp)
-    return out_path
-
-
-def ensure_photo_plates(conn, pid: int, data_dir: str, resolution=(1152, 2048)) -> Dict[str, Dict]:
-    """Tier 2 for the shots whose place has no 3D model but has a tagged in-game photo. Added to the project's index with
-    "tier": 2 (the composite uses them the same way, without shadow / occlusion / distance fog)."""
-    idx = index(data_dir, pid)
-    added = {}
-    for s in conn.execute("SELECT id, idx, data FROM scenes WHERE project_id=? ORDER BY idx", (pid,)).fetchall():
-        data = json.loads(s["data"] or "{}")
-        place = assets.scene_location(conn, pid, data)
-        if place is None or model3d(conn, place["id"]):
-            continue
-        photo = photo_for(place, data)
-        if photo is None:
-            continue
-        env = plate_env.env_of(data)
-        key = hashlib.sha1(json.dumps({"photo": photo["path"], "size": plate_camera.size_of(data), "env": env, "res": list(resolution)},
-                                      sort_keys=True).encode()).hexdigest()[:20]
-        out = os.path.join(data_dir, str(pid), "plates", f"photo_{key}.png")
-        if not os.path.exists(out):
-            os.makedirs(os.path.dirname(out), exist_ok=True)
-            photo_plate(photo["path"], out, data, env, resolution)
-        frame = plate_camera.camera_for(data, (0.0, 0.0, 0.0), 0.0, _height(conn, pid, data), resolution[0] / resolution[1])
-        added[str(s["id"])] = {"plate": out, "tier": 2, "key": key, "env": env, "subject_box": frame["subject_box"],
-                               "distance_m": frame["distance_m"], "place": place["name"], "photo": photo["path"],
-                               "camera_plan": dict(frame["camera"], subject={"location": [0, 0, 0]})}
-    if added:
-        idx.update(added)
-        path = _index_path(data_dir, pid)
-        os.makedirs(os.path.dirname(path), exist_ok=True)
-        with open(path, "w", encoding="utf-8") as f:
-            json.dump(idx, f, ensure_ascii=False, indent=1)
-    return added
 
 
 def _font(px: int):

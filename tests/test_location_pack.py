@@ -1,5 +1,6 @@
-"""Kế hoạch V4 GĐ2 — location pack: time/weather (plate_env), compositing (composite), plate checks (plate_qc), the registry + cached
-renders shared by projects (location_pack), and the image runner making green-screen pictures composited on the plate."""
+"""Kế hoạch V4 GĐ2 — location pack: time/weather (plate_env), the registry + cached renders shared by projects (location_pack). S14.9
+(06/10): the green-screen composite (core/composite.py, core/plate_qc.py, tier-2 photo plates) was removed with the flag location_plates —
+only the check that the image runner never takes that path stays."""
 import io
 import json
 import os
@@ -10,7 +11,7 @@ from unittest import mock
 import numpy as np
 from PIL import Image
 
-from core import assets, composite, location_pack, plate_env, plate_qc
+from core import assets, location_pack, plate_env
 from core.db import connect
 from core.pipeline import Pipeline
 
@@ -40,14 +41,6 @@ def plate_files(d, sky_transparent=True):
     depth[:, 40:50, :3] = 0.3
     dpath = save(depth, os.path.join(d, "depth.png"), "RGBA")
     return raw, dpath
-
-
-def green_char(d, box=(30, 40, 60, 150)):
-    img = np.zeros((H, W, 3), np.float32)
-    img[:] = (0, 1, 0)
-    x0, y0, x1, y1 = box
-    img[y0:y1, x0:x1] = (0.9, 0.8, 0.1)                      # a yellow "tracksuit"
-    return save(img, os.path.join(d, "green.png"))
 
 
 class EnvTests(unittest.TestCase):
@@ -87,45 +80,6 @@ class EnvTests(unittest.TestCase):
         self.assertEqual(plate_env.overlay_still(base, os.path.join(d, "n.png"), {"time": "day", "weather": "clear"}),
                          os.path.join(d, "n.png"))
         self.assertTrue(plate_env.flash_times(10, seed=1))
-
-
-class CompositeTests(unittest.TestCase):
-    def setUp(self):
-        self.d = tempfile.mkdtemp()
-        raw, depth = plate_files(self.d, sky_transparent=False)
-        self.plate = {"plate": raw, "depth": depth, "depth_range_m": [0.1, 60], "subject_box": [0.3, 0.2, 0.7, 0.95],
-                      "distance_m": 6.0, "env": {"time": "day", "weather": "clear"}}
-
-    def test_the_character_is_keyed_placed_and_the_background_kept(self):
-        res = composite.composite(green_char(self.d), self.plate, os.path.join(self.d, "c.png"), mask_out=os.path.join(self.d, "m.png"))
-        out = np.asarray(Image.open(res["path"]), np.float32) / 255
-        mask = np.asarray(Image.open(res["mask"]), np.float32) / 255
-        self.assertLess(out[..., 1].max() - np.maximum(out[..., 0], out[..., 2]).min(), 1.0)
-        self.assertFalse(((out[..., 1] > 0.8) & (out[..., 0] < 0.2) & (out[..., 2] < 0.2)).any())   # no green left
-        ys, xs = np.where(mask > 0.5)
-        self.assertAlmostEqual(ys.max() / H, 0.95, delta=0.04)                 # feet on the camera's feet line
-        self.assertAlmostEqual((xs.min() + xs.max()) / 2 / W, 0.5, delta=0.05)
-        self.assertEqual(plate_qc.picture_score(res["path"], self.plate["plate"], res["mask"]), 1.0)
-
-    def test_something_nearer_than_the_character_stays_in_front(self):
-        self.plate["distance_m"] = 40.0                                         # the "tower" stripe (depth 0.3) is nearer
-        res = composite.composite(green_char(self.d), self.plate, os.path.join(self.d, "c.png"), mask_out=os.path.join(self.d, "m.png"))
-        self.assertGreater(res["occluded_share"], 0.05)
-
-    def test_an_empty_green_picture_is_refused_with_a_reason(self):
-        empty = save(np.tile(np.array([0, 1, 0], np.float32), (H, W, 1)), os.path.join(self.d, "e.png"))
-        with self.assertRaises(composite.CompositeError):
-            composite.composite(empty, self.plate, os.path.join(self.d, "x.png"))
-
-
-class QcTests(unittest.TestCase):
-    def test_a_redrawn_background_scores_low(self):
-        d = tempfile.mkdtemp()
-        raw, _ = plate_files(d, sky_transparent=False)
-        other = np.random.RandomState(1).rand(H, W, 3).astype(np.float32)
-        redrawn = save(other, os.path.join(d, "r.png"))
-        self.assertEqual(plate_qc.picture_score(raw, raw), 1.0)
-        self.assertLess(plate_qc.picture_score(redrawn, raw), plate_qc.THRESHOLD)
 
 
 class PackTests(unittest.TestCase):
@@ -188,16 +142,6 @@ class PackTests(unittest.TestCase):
         location_pack.ensure_plates(self.p.conn, other, data, self.tmp, (W, H), blender="x", render=self.fake_render)
         self.assertEqual(len(self.calls), 2)                                    # nothing rendered again
 
-    def test_green_prompt_frames_and_lights_the_character_like_the_plate(self):
-        pid = self.project("c")
-        data = os.path.join(self.tmp, "projects")
-        idx = location_pack.ensure_plates(self.p.conn, pid, data, self.tmp, (W, H), blender="x", render=self.fake_render)
-        rec = next(iter(idx.values()))
-        text = location_pack.green_prompt({"size": "MS"}, rec)
-        self.assertIn("#00FF00", text)
-        self.assertIn("mm lens", text)
-        self.assertIn("moonlight", text)
-
     @mock.patch.dict(os.environ, {"FEATURE_LOCATION_PLATES": "1"})       # an old env line: S14.9 removed the flag, it does nothing
     def test_the_image_runner_never_waits_for_a_plate_nor_composites_on_green(self):
         """S14.9 (06/10): location_plates removed — with a rendered plate on disk the shot still draws a normal picture (no wait, no
@@ -218,33 +162,7 @@ class PackTests(unittest.TestCase):
         runner.poll_once(pid)
         job = self.p.conn.execute("SELECT * FROM jobs WHERE scene_id=? AND type='image_gen'", (sid,)).fetchone()
         self.assertEqual(job["state"], "succeeded")
-        self.assertFalse(os.path.exists(location_pack.green_path(data, pid, job["id"])))
-
-
-class PhotoPlateTests(PackTests):
-    """Tier 2: a place with no 3D model but a tagged in-game photo gives the plate (cropped to the frame, graded)."""
-    def test_a_tagged_photo_becomes_the_plate(self):
-        other = assets.create(self.p.conn, "FF", "location", "Forest Red")
-        buf = io.BytesIO()
-        Image.new("RGB", (320, 180), (120, 60, 40)).save(buf, "PNG")
-        assets.add_image(self.p.conn, other, "p.png", buf.getvalue())
-        self.p.conn.execute("UPDATE asset_images SET status='approved', role='eye_level' WHERE asset_id=?", (other,))
-        self.p.conn.commit()
-        pid = self.p.create_project("photo", aspect="9:16")
-        sid = self.p.create_scene(pid, 1, "s1")
-        self.p.conn.execute("UPDATE scenes SET data=? WHERE id=?", (json.dumps({"size": "MS", "location_asset": other, "time": "day"}), sid))
-        self.p.conn.commit()
-        data = os.path.join(self.tmp, "projects")
-        self.assertTrue(location_pack.needs_plate(self.p.conn, pid, {"size": "MS", "location_asset": other}))
-        added = location_pack.ensure_photo_plates(self.p.conn, pid, data, (W, H))
-        rec = added[str(sid)]
-        self.assertEqual(rec["tier"], 2)
-        self.assertEqual(Image.open(rec["plate"]).size, (W, H))
-        self.assertEqual(location_pack.plate_of(data, pid, sid)["tier"], 2)
-
-
-if __name__ == "__main__":
-    unittest.main()
+        self.assertFalse(os.path.exists(os.path.join(data, str(pid), "images", f"job_{job['id']}_green.png")))
 
 
 class DayLightTests(unittest.TestCase):

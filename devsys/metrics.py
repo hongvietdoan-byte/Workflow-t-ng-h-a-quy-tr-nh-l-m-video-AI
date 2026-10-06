@@ -37,7 +37,7 @@ RULES = {   # rule: (criterion, điểm mỗi lần, tổng tối đa của rule
     "ui_nhieu_click": ("trai_nghiem", 1.0, 1.0),
     "ui_cham": ("trai_nghiem", 1.0, 1.0),
 }
-PAID_CALLS = {"submit", "submit_final_from_sample", "submit_video_edit", "submit_storyboard_frame", "generate_music", "generate_seed_audio",
+PAID_CALLS = {"submit", "submit_video_edit", "submit_storyboard_frame", "generate_music", "generate_seed_audio",
               "generate_sfx", "generate_tts"}
 PAID_IMPLEMENTATIONS = ("core/adapters/", "core/providers.py", "mcp_servers/", "tools/", "tests/")
 GUARD_WORDS = ("budget.", "check_video", "check_audio", "check_image", "check_llm", "record_usage", "SPEND_LOCK", "estimate", "cost.", "ledger",

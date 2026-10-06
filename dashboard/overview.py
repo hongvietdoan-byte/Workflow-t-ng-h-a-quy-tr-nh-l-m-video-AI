@@ -30,14 +30,10 @@ def _counts(p: Pipeline, pid: int) -> dict:
 
 
 def _plates(pid: int) -> str:
-    """Background kept by the video model on 3D-place shots (mode 1) and the lip-synced shots, from their per-project records."""
+    """The lip-synced shots, from their per-project record (S14.9: the green-screen clip check of location_plates was removed)."""
     bits = []
     try:
-        from core import location_pack, lipsync
-        qc = location_pack.video_qc(C.DATA, pid)
-        scores = [r.get("score") for r in qc.values() if isinstance(r.get("score"), (int, float))]
-        if scores:
-            bits.append(f"nền giữ {sum(scores) / len(scores):.0%} ({len(scores)} clip)")
+        from core import lipsync
         synced = lipsync.synced_scene_ids(C.DATA, pid)
         if synced:
             bits.append(f"khớp môi {len(synced)} shot")

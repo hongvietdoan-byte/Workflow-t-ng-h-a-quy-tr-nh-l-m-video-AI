@@ -49,11 +49,6 @@ class CastRefsTests(unittest.TestCase):
         refs = scene_storyboard.shared_references(None, 10, g["shots"], cast_of=three)
         self.assertEqual({r["label"] for r in refs if r["role"] == "character"}, {"KELLY", "Kenta ở OB55", "MAXIM"})
 
-    def test_the_green_pass_drops_the_place_but_keeps_the_filter(self):
-        g = scene()
-        refs = scene_storyboard.shared_references(None, 10, g["shots"], without_place=True, cast_of=g["shots"][1]["data"])
-        self.assertEqual([r["label"] for r in refs], ["Kenta ở OB55"])
-
     def test_the_anchor_frame_is_said_to_give_the_place_not_its_people(self):
         g = scene()
         note = scene_storyboard.anchor_note(g, 172, 3)

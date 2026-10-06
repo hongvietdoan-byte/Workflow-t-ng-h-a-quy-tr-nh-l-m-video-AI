@@ -54,19 +54,13 @@ def group_of(conn, pid: int, scene_id: int) -> Optional[Dict]:
             "story_scene": d["story_scene"]}
 
 
-def anchor_picture(conn, data_dir: str, pid: int, anchor_id: int, green: bool = False) -> Optional[str]:
-    """The anchor shot's picture as soon as it exists (made, waiting for review, or approved) — the Canvas uses frame 1 right away.
-    green: the anchor's character-on-green picture (location pack) — the composited one carries the plate, and a later frame drawn
-    from it drew a whole background instead of green (trial #8, 2026-09-27: 12/33 frames pasted as a rectangle)."""
+def anchor_picture(conn, data_dir: str, pid: int, anchor_id: int) -> Optional[str]:
+    """The anchor shot's picture as soon as it exists (made, waiting for review, or approved) — the Canvas uses frame 1 right away."""
     j = conn.execute("SELECT id FROM jobs WHERE scene_id=? AND type='image_gen' AND state IN ('succeeded','pending_review','approved')"
                      " ORDER BY (state='approved') DESC, id DESC LIMIT 1", (anchor_id,)).fetchone()
     if j is None:
         return None
     path = os.path.join(data_dir, str(pid), "images", f"job_{j['id']}.png")
-    if green:
-        green_path = os.path.join(data_dir, str(pid), "images", f"job_{j['id']}_green.png")
-        if os.path.exists(green_path):
-            return green_path
     return path if os.path.exists(path) else None
 
 
@@ -79,8 +73,7 @@ def waits(conn, data_dir: str, pid: int, scene_id: int) -> bool:
 PERSON_ROLES = ("character", "outfit") + assets.STANDARD_ROLES
 
 
-def shared_references(conn, pid: int, shots: List[Dict], limit: int = 8, without_place: bool = False,
-                      cast_of: Optional[Dict] = None) -> List[Dict]:
+def shared_references(conn, pid: int, shots: List[Dict], limit: int = 8, cast_of: Optional[Dict] = None) -> List[Dict]:
     """The pictures every frame of the scene shares: each character once (the scene's cast), the place once.
     cast_of = the data of the shot being drawn: only ITS people's pictures go (the place and props stay shared). S4.6 (#10,
     2026-09-29): a KELLY-only and a KENTA-only frame were sent the pictures of Kelly, Kenta and Maxim (jobs 453-456 sent_refs) and came
@@ -88,20 +81,12 @@ def shared_references(conn, pid: int, shots: List[Dict], limit: int = 8, without
     keep = None
     if cast_of is not None:
         own = dict(cast_of)
-        if without_place:
-            for k in ("location", "location_asset", "layout"):
-                own.pop(k, None)
         keep = {r["label"] for r in assets.scene_references(conn, pid, own, limit=99) if r.get("role") in PERSON_ROLES}
     out, seen = [], set()
     for s in shots:
         data = dict(s["data"])
-        if without_place:
-            for k in ("location", "location_asset", "layout"):
-                data.pop(k, None)
         for r in assets.scene_references(conn, pid, data, limit=assets.MAX_REFERENCES):
             if r["path"] in seen or len(out) >= limit:
-                continue
-            if without_place and r.get("role") == "location":
                 continue
             if keep is not None and r.get("role") in PERSON_ROLES and r["label"] not in keep:
                 continue                               # a person of another frame of the scene: not sent with this frame
@@ -125,25 +110,22 @@ def anchor_note(g: Dict, scene_id: int, image_no: int) -> str:
             f"{'is' if len(theirs) == 1 else 'are'} in frame 1 but NOT in this frame.")
 
 
-def story_text(conn, pid: int, g: Dict, green: bool = False) -> str:
+def story_text(conn, pid: int, g: Dict) -> str:
     from .runner import no_minor_age
+    from . import scene_establish
     row = conn.execute("SELECT heading, text FROM story_scenes WHERE project_id=? AND idx=?", (pid, g["story_scene"])).fetchone()
     head = f"{row['heading']}: " if row and row["heading"] else ""
     beats = " ".join(f"Frame {i + 1}{_in_frame(s['data'])}: {(s['data'].get('action') or s['data'].get('image_prompt') or '')[:140]}"
                      for i, s in enumerate(g["shots"]))
-    frame = ("The same people and outfits wherever they appear, each drawn alone on a flat chroma-key green backdrop — no place, no floor, "
-             "no sky (the place is added afterwards)." if green else
-             "One continuous scene — same place, same light, the same people and outfits wherever they appear; each frame shows only "
+    frame = ("One continuous scene — same place, same light, the same people and outfits wherever they appear; each frame shows only "
              "the people it names.")
-    if not green:
-        from . import scene_establish
-        datas = [s["data"] for s in g.get("shots") or []]
-        # the scene's light: a flashback sentence only when EVERY frame is one (a flashback shot gets its own sentence in its prompt)
-        if datas and not all(scene_establish.is_flashback(d) for d in datas):
-            datas = [d for d in datas if not scene_establish.is_flashback(d)]
-        light = scene_establish.light_sentence(datas[0] if datas else {})
-        if light:
-            frame += " " + light
+    datas = [s["data"] for s in g.get("shots") or []]
+    # the scene's light: a flashback sentence only when EVERY frame is one (a flashback shot gets its own sentence in its prompt)
+    if datas and not all(scene_establish.is_flashback(d) for d in datas):
+        datas = [d for d in datas if not scene_establish.is_flashback(d)]
+    light = scene_establish.light_sentence(datas[0] if datas else {})
+    if light:
+        frame += " " + light
     return no_minor_age(f"{head}{frame} {beats}")[:3000]
 
 
@@ -193,18 +175,18 @@ def fresh_session(conn, job_id: int) -> bool:
     return not (row["retry_reason"] or "").startswith(RESEND_NOTE)
 
 
-def job_fields(conn, data_dir: str, pid: int, scene_id: int, refs: List[Dict], job_id: int = 0, green: bool = False) -> Optional[Dict]:
+def job_fields(conn, data_dir: str, pid: int, scene_id: int, refs: List[Dict], job_id: int = 0) -> Optional[Dict]:
     """(storyboard kwargs for the provider, the reference list to send) for this shot's picture job, or None (not in storyboard mode).
     refs = the shared references already chosen for the job; a non-anchor shot adds the anchor picture last."""
     g = group_of(conn, pid, scene_id)
     if g is None:
         return None
     is_anchor = g["anchor"]["id"] == scene_id
-    anchor_pic = None if is_anchor else anchor_picture(conn, data_dir, pid, g["anchor"]["id"], green=green)
+    anchor_pic = None if is_anchor else anchor_picture(conn, data_dir, pid, g["anchor"]["id"])
     send = list(refs) + ([{"path": anchor_pic, "label": "frame 1 (scene anchor)", "role": "previous_scene"}] if anchor_pic else [])
     mode = "global" if refs else "sequential"
     anchor_job = job_id if is_anchor else int(os.path.basename(anchor_pic)[4:].split(".")[0].split("_")[0]) if anchor_pic else 0
-    return {"storyboard": {"story_text": story_text(conn, pid, g, green), "storyboard_id": storyboard_id(pid, g, anchor_job, 0 if is_anchor or not fresh_session(conn, job_id) else job_id),
+    return {"storyboard": {"story_text": story_text(conn, pid, g), "storyboard_id": storyboard_id(pid, g, anchor_job, 0 if is_anchor or not fresh_session(conn, job_id) else job_id),
                            "frame_index": g["index"], "group_size": len(g["shots"]), "ref_mode": mode,
                            "image_mapping": (mapping_text(send, len(refs)) + (anchor_note(g, scene_id, len(send)) if anchor_pic else ""))
                             if send else ""},

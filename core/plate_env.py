@@ -151,7 +151,7 @@ def fog_amount(env: Dict) -> float:
 def finish_plate(render_path: str, out_path: str, env: Dict, seed: int = 1, depth_path: Optional[str] = None,
                  depth_range=None) -> str:
     """A rendered plate -> the background of the shot: painted sky behind a transparent sky, fog laid by distance (depth picture),
-    then the colour grade of the time and weather (the character gets the same grade and fog in core/composite.py)."""
+    then the colour grade of the time and weather (the green-screen composite that graded the character the same way was removed in S14.9)."""
     np = _np()
     from PIL import Image
     with Image.open(render_path) as im:
