@@ -107,12 +107,16 @@ def set_script_view(conn, asset_id: int, spot_names: List[str], on: bool = True,
     return entry
 
 
-_STOP = {"khu", "vuc", "cho", "tai", "o", "va", "cua", "the", "a", "of", "and", "at", "in", "on", "dao", "quan", "su", "thap", "dong", "ho",
+_STOP = {"khu", "vuc", "cho", "tai", "o", "va", "cua", "the", "a", "of", "and", "at", "in", "on", "dao", "quan", "su", "thap", "ho",
          "phia", "nhin", "canh", "tren", "duoi", "chan", "trong", "sau", "truoc", "ben", "voi", "mot", "cac"}
+# The place's own name is dropped as a phrase, not word by word: "dong" stopped as a word also dropped "đông" (east) — "phòng ngủ tầng 2
+# nhà lớn phía Đông" then stood in the square's 3-storey house (Khủng Long Đỏ, 06/10)
+_PLACE_NAMES = re.compile(r"\b(thap )?dong ho\b")
 
 
 def _words(text: str) -> set:
-    return {w for w in re.findall(r"[a-z0-9]+", assets.fold(text or "")) if len(w) >= 2 and w not in _STOP}
+    folded = _PLACE_NAMES.sub(" ", assets.fold(text or ""))
+    return {w for w in re.findall(r"[a-z0-9]+", folded) if len(w) >= 2 and w not in _STOP}
 
 
 def auto_spot(entry: Dict, data: Dict) -> Optional[str]:

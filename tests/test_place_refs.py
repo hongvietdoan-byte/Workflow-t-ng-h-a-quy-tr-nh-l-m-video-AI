@@ -143,6 +143,19 @@ class PlaceRefsTests(unittest.TestCase):
         self.assertEqual(location_pack.spot_for(entry, old)["name"], "nha_do_nam")
         self.assertIn("'nha_do_nam' (khớp chữ mô tả shot)", location_pack.spot_problem(entry, old))
 
+    def test_east_in_the_place_words_is_not_dropped_with_the_tower_name(self):
+        """Khủng Long Đỏ 06/10: "đông" (east) was a stop word because of "Tháp Đồng Hồ" — the east house's bedroom lost to the square's."""
+        from core import location_pack
+        entry = {"default_spot": "plaza_front", "spots": {
+            "plaza_front": {"at": [0, 0, 0], "label": "quảng trường trước tháp (cách 16 m)"},
+            "trong_nha_qt_t2": {"at": [1, 0, 0], "label": "trong nhà 3 tầng trên quảng trường — tầng 2 (cầu thang, phòng ngủ)", "indoor": {"exposure": 1.5}},
+            "trong_nha_dong_t2": {"at": [2, 0, 0], "label": "trong nhà lớn phía đông — tầng 2", "indoor": {"exposure": 1.5}},
+            "nha_lon_dong": {"at": [3, 0, 0], "label": "nhà lớn phía đông (hai tầng)"}}}
+        room = {"location": "Phòng ngủ tầng 2 nhà lớn phía Đông, Tháp Đồng Hồ"}
+        self.assertEqual(location_pack.spot_for(entry, room)["name"], "trong_nha_dong_t2")
+        self.assertEqual(location_pack.spot_for(entry, {"location": "Trước nhà lớn phía Đông, Tháp Đồng Hồ"})["name"], "nha_lon_dong")
+        self.assertEqual(location_pack.spot_for(entry, {"location": "Tháp Đồng Hồ"})["name"], "plaza_front")
+
     def test_every_shot_of_a_scene_stands_at_the_same_spot(self):
         """S5.5' 30/09: the scene's place words decide before each shot's prompt words; a spot NAMED by the words beats one that only
         mentions them in its side description."""
