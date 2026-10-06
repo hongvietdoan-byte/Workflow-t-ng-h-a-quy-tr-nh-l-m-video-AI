@@ -113,6 +113,61 @@ def summary(conn, stage: Optional[str] = None, days: Optional[int] = 30) -> Dict
             "latest": [r for r in rows if r["text"]][:10]}
 
 
+# ---- S14.25 (Đợt 6a, cờ `feedback_to_mistakes`, TẮT mặc định): góp ý chấm thấp → bảng `mistakes` ------------------------------
+# Chỉ góp ý về SẢN PHẨM (delivery / scene) của các khâu có bài học; góp ý về phần mềm (screen) là việc của devsys. Van MIN_EVENTS /
+# MIN_PROJECTS của core/lessons giữ nguyên: một lời phàn nàn ở một dự án không thành bài học.
+FLOW_KINDS = ("delivery", "scene")
+LEARN_GROUP = {"director": "director", "image": "director", "motion": "motion"}    # khâu góp ý → nhóm knowledge của bài học
+LOW_RATING = 2
+MIN_TEXT = 15
+
+
+def _norm_text(text: str) -> str:
+    import re
+    return " ".join(re.sub(r"[^\w\s]", " ", (text or "").lower()).split())
+
+
+def to_mistakes(conn) -> Dict:
+    """Góp ý chấm ≤ 2 có chữ (≥ 15 ký tự) về khâu director / image / motion → một dòng `mistakes` (source 'feedback', ref_id = id
+    góp ý, stage = khâu góp ý), đánh dấu `handled = 'mistake:<id>'`. Trùng chữ cùng dự án + khâu → không ghi lại, đánh dấu
+    'bỏ qua: trùng …'. Cờ tắt → không ghi gì. Trả {"added", "skipped": {lý do: số}} — góp ý không chảy vào được đếm, không im lặng."""
+    from . import diag, features, lessons
+    if not features.on("feedback_to_mistakes"):
+        return {"added": 0, "skipped": {}, "off": True}
+    skipped: Dict[str, int] = {}
+    added = 0
+    marks = ",".join("?" * len(FLOW_KINDS))
+    rows = conn.execute(f"SELECT * FROM user_feedback WHERE kind IN ({marks}) AND rating IS NOT NULL AND rating<=? AND handled IS NULL"
+                        " ORDER BY id", (*FLOW_KINDS, LOW_RATING)).fetchall()
+    for r in rows:
+        text = (r["text"] or "").strip()
+        why = ("chữ quá ngắn" if len(text) < MIN_TEXT else "thiếu khâu" if not r["stage"]
+               else "khâu không học" if r["stage"] not in LEARN_GROUP else None)
+        if why:
+            skipped[why] = skipped.get(why, 0) + 1
+            continue
+        clean = diag.redact(text)[:300]
+        key = _norm_text(clean)
+        dup = next((m["id"] for m in conn.execute("SELECT id, text FROM mistakes WHERE source='feedback' AND stage=? AND"
+                                                  " COALESCE(project_id, -1)=COALESCE(?, -1)", (r["stage"], r["project_id"]))
+                    if _norm_text(m["text"]) == key), None)
+        if dup is not None:
+            conn.execute("UPDATE user_feedback SET handled=? WHERE id=?", (f"bỏ qua: trùng lỗi đã ghi mistake:{dup}", r["id"]))
+            skipped["trùng"] = skipped.get("trùng", 0) + 1
+            continue
+        cur = conn.execute("INSERT OR IGNORE INTO mistakes (source, ref_id, at, project_id, stage, group_name, text)"
+                           " VALUES ('feedback',?,?,?,?,?,?)", (r["id"], r["at"], r["project_id"], r["stage"], LEARN_GROUP[r["stage"]], clean))
+        mid = cur.lastrowid if cur.rowcount else conn.execute("SELECT id FROM mistakes WHERE source='feedback' AND ref_id=?",
+                                                              (r["id"],)).fetchone()[0]
+        conn.execute("UPDATE user_feedback SET handled=? WHERE id=?", (f"mistake:{mid}", r["id"]))
+        added += cur.rowcount
+        if not lessons.tags_of(clean):
+            diag.record(conn, "system", "warn", f"góp ý #{r['id']} (khâu {r['stage']}) đã vào bảng lỗi nhưng không khớp loại lỗi nào —"
+                        " xem 'Chưa phân loại' ở tab Bài học", code="feedback_unclassified", project_id=r["project_id"])
+    conn.commit()
+    return {"added": added, "skipped": skipped}
+
+
 def detach(conn, project_id: Optional[int] = None, scene_ids: Optional[builtins.list] = None) -> None:
     """Before a project / scene rows are deleted: the remarks stay (they are what the person said), without the link to the rows that
     go away (user_feedback.project_id / scene_id are foreign keys). No commit — part of the caller's delete."""

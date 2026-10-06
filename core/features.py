@@ -337,6 +337,13 @@ FEATURES: Dict[str, Dict] = {
         "why": "S14.24 (06/10): mới thử bằng MockJudge; ngưỡng 0,85 mượn QC ảnh. Bật tự duyệt (cờ sau) chỉ khi ≥ 10 cặp agent↔người, "
                "đồng thuận ≥ 90 %, agent-lỏng-quá = 0 (core/lesson_judge.py agreement())",
     },
+    "feedback_to_mistakes": {
+        "label": "Góp ý chấm thấp → bảng lỗi: góp ý ≤ 2/5 có ghi chú (≥ 15 ký tự) về bản giao / cảnh, khâu Đạo diễn / Ảnh / Chuyển động, "
+                 "thành một lỗi đã ghi (nguồn = góp ý, có khử trùng) để gom bài học như ảnh/video bị loại; góp ý về giao diện không vào",
+        "verified": False,
+        "why": "S14.25 Đợt 6a (06/10): mới thử bằng test; chưa có góp ý thật đủ nhiều để biết chữ người dùng viết có khớp từ khóa loại "
+               "lỗi không (không khớp vẫn ghi, hiện ở 'Chưa phân loại' + diag)",
+    },
     "risk_tags": {
         "label": "Bài học lỗi: tách tag 'motion' thành 6 trục rủi ro I2V (face_morph, body_deform, wardrobe_drift, background_drift, "
                  "motion_overload, text_logo_corrupt) + identity/physics/lipsync/audio; lỗi không gán được tag hiện ở 'Chưa phân loại' + diag",

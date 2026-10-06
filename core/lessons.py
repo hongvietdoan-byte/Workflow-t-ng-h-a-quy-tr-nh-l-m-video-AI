@@ -138,6 +138,8 @@ def harvest(conn) -> int:
             pass
         added += _add(conn, "moderation", r["id"], r["at"], r["project_id"], stage,
                       _clean(f"risk_control: {r['error_message']} | prompt: {prompt}"))
+    from . import feedback
+    added += feedback.to_mistakes(conn)["added"]          # S14.25: góp ý chấm thấp (cờ feedback_to_mistakes, tắt = không ghi gì)
     conn.commit()
     return added
 
