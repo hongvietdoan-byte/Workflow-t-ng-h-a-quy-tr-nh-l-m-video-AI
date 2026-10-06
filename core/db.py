@@ -677,7 +677,8 @@ V2_COLUMNS = {
     "characters": (("lock_rules", "TEXT"), ("voice_profile", "TEXT"), ("anchor_approved", "INTEGER NOT NULL DEFAULT 0"),
                    ("user_edited", "TEXT"),
                    ("bible_check", "TEXT"),
-                   ("voice_traits", "TEXT")),         # S14.26: {gender nam|nữ|không rõ, age, personality} from the Director (core/voice_casting.py)         # F1: {key: sha of pictures + description, ok, mismatches, fixed_description}         # fields the person edited by hand (description, wardrobe): the Director keeps them
+                   ("voice_traits", "TEXT"),
+                   ("palette", "TEXT")),             # S14.51: {by auto|user, ref_sha, colors:[{hex, share}]} — core/palette.py (đo, không vào prompt)         # S14.26: {gender nam|nữ|không rõ, age, personality} from the Director (core/voice_casting.py)         # F1: {key: sha of pictures + description, ok, mismatches, fixed_description}         # fields the person edited by hand (description, wardrobe): the Director keeps them
     "jobs": (("input_hash", "TEXT"), ("source_job_id", "INTEGER"), ("model", "TEXT"),
              ("group_leader", "INTEGER"),
              ("task_seen", "INTEGER NOT NULL DEFAULT 0"), ("task_unseen", "INTEGER NOT NULL DEFAULT 0"),
@@ -694,6 +695,8 @@ V2_COLUMNS = {
                        ("lint", "TEXT")),
     "end_frames": (("sent_refs", "TEXT"),   # which pictures went with the end frame request (like jobs.sent_refs)
                    ("fix", "TEXT")),        # the person's English fix of a redo (luật 6: a redo changes the input)
+    "llm_calls": (("latency_ms", "INTEGER"),          # TODO Tồn đọng P1: time of the call (send → whole answer, one attempt)
+                  ("request_id", "TEXT")),            # Anthropic's 'request-id' header (what their support asks for)
 }
 
 

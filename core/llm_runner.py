@@ -98,6 +98,7 @@ STAGE_SETTINGS: Dict[str, Dict[str, Any]] = {
                                                               # default 32k made turn 1's estimate 0.43 USD > the 0.3 USD per-idea cap
     "director_rewrite": {"effort": "low", "max_tokens": 6000,   # S14.17 Đạo diễn viết lại prompt MỘT shot trước khi gen lại: JSON ngắn.
                          "timeout": 90, "retries": 1},          # The person waits on the button: 90 s, one retry, then the old "Fix:" way
+    "lesson_judge": {"effort": "low", "max_tokens": 4000},      # S14.24 agent chấm bài học (bóng): JSON khoản trừ ngắn của 5 tiêu chí
     "asset_checklist": {"effort": "low", "max_tokens": 6000},   # S14.23 bảng kê tài nguyên trước Director: JSON ngắn (≈ 1 dòng / thứ cần);
                                                               # own entry so the 32k default never makes the worst case refuse (S11.2)
 }
@@ -133,6 +134,8 @@ class LlmReply:
     cache_read_tokens: int = 0
     web_searches: int = 0          # server-side web search requests (billed per search, not per token)
     blocks: Optional[list] = None  # the raw content blocks (tool use: core/qc_agent.py)
+    request_id: str = ""           # Data Pack P1: Anthropic's 'request-id' header (what their support asks for)
+    latency_ms: int = 0            # time from sending to the whole answer, this attempt
 
 
 # ---- what each paid call is for (C1/C7): stage + project go into the cost ledger ----------------------------------------------
@@ -463,12 +466,21 @@ class AnthropicClient:
         retries = min(self.retries, int(stage["retries"])) if "retries" in stage else self.retries
         for attempt in range(retries + 1):
             try:
+                started = time.monotonic()
                 try:
                     resp = self.transport("POST", self.base + "/v1/messages", headers, body, wait)
                 except ProviderError as e:
                     _count_caps(worst_usd(self.model, payload))
                     raise LlmError(f"lỗi mạng khi gọi Claude: {e}", code="network", transient=True) from None
-                reply = self._parse(resp)
+                latency = int(round((time.monotonic() - started) * 1000))
+                rid = str((getattr(resp, "headers", None) or {}).get("request-id") or "")
+                try:
+                    reply = self._parse(resp)
+                except LlmError as e:
+                    if rid:                                   # P1: the id Anthropic support asks for, on every failed call
+                        e.args = (f"{e.args[0]} (request-id {rid})",) + tuple(e.args[1:])
+                    raise
+                reply.request_id, reply.latency_ms = rid, latency
                 self._record(reply)
                 check(reply)
                 return reply
@@ -589,10 +601,12 @@ class AnthropicClient:
                     from .llm_sources import in_text
                     try:                             # which skill files this call carried (rà soát 2026-09-27)
                         conn.execute("INSERT INTO llm_calls (at, project_id, stage, model, sources, input_tokens, output_tokens,"
-                                     " cache_read_tokens, cache_write_tokens) VALUES (datetime('now'),?,?,?,?,?,?,?,?)",
+                                     " cache_read_tokens, cache_write_tokens, latency_ms, request_id)"
+                                     " VALUES (datetime('now'),?,?,?,?,?,?,?,?,?,?)",
                                      (project_id, stage, self.model, json.dumps(in_text(getattr(self, "_last_prompt", "")),
                                                                                 ensure_ascii=False), reply.input_tokens,
-                                      reply.output_tokens, reply.cache_read_tokens, reply.cache_write_tokens))
+                                      reply.output_tokens, reply.cache_read_tokens, reply.cache_write_tokens,
+                                      reply.latency_ms or None, reply.request_id or None))
                         conn.commit()
                     except Exception:  # noqa: BLE001 - an older ledger without the table: the tokens are recorded already
                         pass

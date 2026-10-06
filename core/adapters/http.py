@@ -11,7 +11,7 @@ import urllib.error
 import urllib.parse
 import urllib.request
 import uuid
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Callable, Dict, List, Optional, Tuple
 
 from ..providers import ProviderError
@@ -32,6 +32,7 @@ def out_of_credit(message: str) -> bool:
 class HttpResponse:
     status: int
     body: bytes
+    headers: Dict[str, str] = field(default_factory=dict)   # Data Pack P1: lower-case names (Anthropic 'request-id')
 
 
 Transport = Callable[[str, str, Dict[str, str], Optional[bytes], float], HttpResponse]
@@ -42,9 +43,9 @@ def urllib_transport(method: str, url: str, headers: Dict[str, str], body: Optio
     req = urllib.request.Request(url, data=body, method=method, headers=headers)
     try:
         with urllib.request.urlopen(req, timeout=timeout) as resp:
-            return HttpResponse(resp.status, resp.read())
+            return HttpResponse(resp.status, resp.read(), {k.lower(): v for k, v in resp.headers.items()})
     except urllib.error.HTTPError as e:
-        return HttpResponse(e.code, e.read())
+        return HttpResponse(e.code, e.read(), {k.lower(): v for k, v in (e.headers or {}).items()})
     except (urllib.error.URLError, TimeoutError, OSError) as e:
         raise ProviderError(f"network error: {e}", code="network", transient=True) from None
 

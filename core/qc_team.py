@@ -217,6 +217,8 @@ def review_frame(p, pid: int, data_dir: str, frame: Dict, client, entity: Option
     from . import qc_measure, qc_rules, qc_spec
     spec = qc_spec.compile_frame(p.conn, pid, frame["job_id"], frame["data"], profiles=profiles)
     code = qc_measure.measure_frame(frame["path"], frame["data"], spec["assertions"])
+    from . import palette                    # S14.51 (cờ palette_check): màu chính nhân vật đo bằng code — ghi chú, không quyết
+    palette.attach(code, p.conn, pid, frame["path"], frame["data"])
     # an assertion of a role not running yet still counts when the code alone is certain (GĐ3 01/10: #8 job 325 — the code measured a
     # certain wrong gaze, the frame passed because gaze belongs to C2)
     mine = [a for a in spec["assertions"] if a["role"] in roles or a["role"] == "T0"
@@ -242,7 +244,8 @@ def review_frame(p, pid: int, data_dir: str, frame: Dict, client, entity: Option
     return {"job_id": frame["job_id"], "verdict": verdict["verdict"], "arbiter": verdict["arbiter"], "fails": verdict["fails"],
             "plan_conflicts": spec["plan_conflicts"], "missing_profiles": spec["missing_profiles"], "other_issues": other,
             "problems": problems, "usage": usage, "asked": [a["id"] for a in ask],
-            "code": {k: v for k, v in code.items() if not k.startswith("_")}}
+            "code": {k: v for k, v in code.items() if not k.startswith("_")},
+            "palette": code.get("_palette")}          # S14.51: kept apart — the "_" keys above are dropped
 
 
 def estimate_usd(n_frames: int, assertions_per_frame: int = 12, model_in: float = 2.0, model_out: float = 10.0) -> float:
@@ -271,6 +274,10 @@ def note_of(res: Dict) -> str:
         parts.append(f"trái/phải cần người xem ({len(side)})")
     if res.get("plan_conflicts"):
         parts.append("bảng shot tự mâu thuẫn: " + "; ".join(res["plan_conflicts"]))
+    from . import palette
+    colour = palette.note(res)                # S14.51: only when a colour may be off
+    if colour:
+        parts.append(colour)
     return " · ".join(parts)[:600]
 
 
@@ -290,6 +297,8 @@ def review_scene(p, pid: int, story_scene, client, data_dir: str, frames: List[D
     shots = [f"S{r['data'].get('story_scene')}·{r['data'].get('shot_no')}" for r in frames]
     entity = entity_blocks(p, pid, names, views, [r["job_id"] for r in frames], data_dir, shots)
     applied, results = {}, {}
+    from . import palette                  # S14.51 (cờ palette_check): khung cùng cảnh so màu với nhau (cùng ánh sáng) — ghi chú
+    scene_colours = palette.scene_check([r for r in frames if os.path.exists(r["path"])]) if palette.on() else {}
     with llm_runner.tagged("qc_team", pid):
         for k, r in enumerate(frames, 1):
             if r not in todo:
@@ -305,6 +314,8 @@ def review_scene(p, pid: int, story_scene, client, data_dir: str, frames: List[D
                     return {"stopped": llm_runner.fail_text(e), "blocked": True, "applied": applied, "results": results}
                 applied[f"K{k}"] = f"lỗi Claude: {e}"
                 continue
+            if scene_colours.get(r["job_id"]):
+                res["palette_scene"] = scene_colours[r["job_id"]]
             results[r["job_id"]] = res
             qc_scene._hold(p, r["job_id"], note_of(res))
             applied[f"K{k}"] = f"giữ cho người ({res['verdict']})"

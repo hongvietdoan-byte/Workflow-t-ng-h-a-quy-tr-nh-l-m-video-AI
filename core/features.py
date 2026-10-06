@@ -332,12 +332,35 @@ FEATURES: Dict[str, Dict] = {
         "why": "S14.34 (05/10): mẫu MỘT kênh, 40 clip (độ tin tối đa 'có thể'); chỉ thêm ≈ 3,5 nghìn ký tự mỗi vai; chưa so kịch bản/shot "
                "thật khi bật (cần bản ghi Claude thật S14.34 bước 3)",
     },
+    "lesson_judge": {
+        "label": "Agent chấm bài học (CHẾ ĐỘ BÓNG): Claude chấm mỗi bài học theo 6 tiêu chí (AI ghi khoản trừ + bằng chứng, code tính "
+                 "điểm), ghi vào lịch sử duyệt để so với người — KHÔNG tự duyệt, không đổi bài học hay kiến thức nào",
+        "verified": False,
+        "why": "S14.24 (06/10): mới thử bằng MockJudge; ngưỡng 0,85 mượn QC ảnh. Bật tự duyệt (cờ sau) chỉ khi ≥ 10 cặp agent↔người, "
+               "đồng thuận ≥ 90 %, agent-lỏng-quá = 0 (core/lesson_judge.py agreement())",
+    },
+    "palette_check": {
+        "label": "Màu chính nhân vật đo bằng code (0 USD): so sắc màu vùng thân (đã cân trắng) với ảnh tham chiếu đã duyệt và với các "
+                 "khung cùng cảnh; bỏ đêm / hoàng hôn / cận mặt / trang phục riêng — ghi chú 'lệch màu trang phục' cho người xem, "
+                 "không tự từ chối / vẽ lại",
+        "verified": False,
+        "why": "S14.51 (06/10, ý từ tài liệu Prompt Spider): mới thử trên ảnh tổng hợp (sáng tối hơn 45 % bản đầu báo nhầm, bản nới thì "
+               "không); ngưỡng hue ±30° / giữ 25 % chưa hiệu chỉnh trên ảnh thật — bật khi ~20 khung #8 cho báo nhầm ≤ 10 %; vùng thân "
+               "ước theo hộp mặt — dáng nghiêng có thể đo sai",
+    },
     "risk_tags": {
         "label": "Bài học lỗi: tách tag 'motion' thành 6 trục rủi ro I2V (face_morph, body_deform, wardrobe_drift, background_drift, "
                  "motion_overload, text_logo_corrupt) + identity/physics/lipsync/audio; lỗi không gán được tag hiện ở 'Chưa phân loại' + diag",
         "verified": False,
         "why": "S14.20 (05/10): bảng lessons còn 0 bài học, từ khóa chưa đo trên lỗi thật; tag hiếm hơn → có thể không đủ ngưỡng 3 lần / "
                "2 dự án (chưa hạ ngưỡng, chờ Đợt 5 có phân bố thật)",
+    },
+    "feedback_to_mistakes": {
+        "label": "Bài học lỗi: góp ý của bạn (Bước 5 'dùng được chứ?' / góp ý cảnh, chấm ≤ 2/5, khâu Đạo diễn / Ảnh / Chuyển động, "
+                 "viết ≥ 15 ký tự) được ghi thành lỗi để gom bài học (vẫn cần 3 lần / 2 dự án + bạn duyệt)",
+        "verified": False,
+        "why": "S14.25 (06/10, Đợt 6a): chưa có góp ý thật nào qua luồng này; chưa đo góp ý của người có khớp từ khóa loại lỗi "
+               "(lỗi không khớp → 'Chưa phân loại' + diag)",
     },
 }
 

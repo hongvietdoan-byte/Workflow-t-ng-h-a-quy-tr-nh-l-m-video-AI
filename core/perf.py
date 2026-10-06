@@ -181,6 +181,18 @@ def by_user(conn, days: Optional[float] = None) -> List[Dict]:
     return out
 
 
+def llm_latency(conn, days: float = 7) -> List[Dict]:
+    """TODO Tồn đọng P1: Claude call time per stage over the last `days` (llm_calls.latency_ms; calls without a time are left out).
+    [{"stage", "calls", "avg_s", "max_s"}], slowest average first; [] on an old ledger without the column."""
+    try:
+        rows = conn.execute("SELECT COALESCE(stage, 'other') AS stage, COUNT(*) AS n, AVG(latency_ms) AS a, MAX(latency_ms) AS m"
+                            " FROM llm_calls WHERE latency_ms IS NOT NULL AND at >= datetime('now', ?) GROUP BY 1 ORDER BY a DESC",
+                            (f"-{float(days)} days",)).fetchall()
+    except Exception:  # noqa: BLE001 - an older database (no llm_calls / no latency_ms column)
+        return []
+    return [{"stage": r["stage"], "calls": r["n"], "avg_s": round(r["a"] / 1000, 1), "max_s": round(r["m"] / 1000, 1)} for r in rows]
+
+
 def alerts(kinds: List[Dict], queued_projects: int, running_projects: int, max_parallel: int) -> List[str]:
     out = []
     labels = dict(KINDS)

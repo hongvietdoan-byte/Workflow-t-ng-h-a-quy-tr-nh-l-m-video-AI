@@ -2,6 +2,9 @@
 
 Các mục bên dưới là nhật ký theo ngày và danh sách đã xong, chuyển khỏi `TODO.md` để file chính ngắn (rà soát 01/10, mục 5.3 ý 4). Nội dung giữ nguyên, mới nhất ở trên.
 
+## 🗑 S14.29 (2026-10-06) — đăng nhập bằng mã thiết bị: BỎ, code cất ở `docs/cat_giu/S14_29_ma_thiet_bi/`
+Người dùng bỏ (IT mở mạng dải 10.7.168.x); dòng việc + ghi chú cũ chuyển nguyên văn vào `docs/cat_giu/S14_29_ma_thiet_bi/README.md`, patch code + test (thử Chromium trong cloud) ở cùng thư mục.
+
 ## 🗑 S14.9 (Gói L, 2026-10-06) — 5 cờ bỏ HẲN khỏi code (người dùng: cờ gây hại phải bị xóa, không chỉ tắt)
 Kế hoạch: `docs/KE_HOACH_NANG_CAP_DASHBOARD_2026-10-03.md` mục 8 "Gói L mới". Máy chính lúc bỏ: cả 5 cờ TẮT (`dashboard.env` =0, `seedance_sample_mode` theo mặc định TẮT) → code giữ đúng nhánh TẮT; đã so chuỗi prompt + ảnh tham chiếu gửi model ảnh trước/sau (dự án mẫu Kenta, 25 ảnh × storyboard_mode 0 và 1): **giống hệt**. Dòng `FEATURE_<TÊN>=…` cũ trong `dashboard.env` / lựa chọn cũ trong `data/feature_settings.json` **không làm vỡ**: bị bỏ qua (luôn tắt), báo ở 🧪 (`features.removed_in_use()`), lưu lại thì khóa cũ bị xóa khỏi file. Danh sách + lý do ngắn: `core/features.py` `REMOVED`.
 - **`layout_to_model`** — lý do: GĐ6 (R7/L1) model ảnh chép luôn góc máy từ trên cao + cỡ người tí hon của ảnh bố cục ghép, bất kể cỡ cảnh. Bỏ: ảnh layout không bao giờ gửi cho model ảnh (`runner.ImageRunner._submit_args`). GIỮ: dựng layout (previz) + QC so với layout (`prompts.qc_references`).

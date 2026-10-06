@@ -21,7 +21,7 @@ os.chdir(ROOT)
 import pandas as pd  # noqa: E402
 import streamlit as st  # noqa: E402
 
-from devsys import answers, collect, metrics, plan_progress, scorer, scores  # noqa: E402
+from devsys import answers, collect, decisions, metrics, plan_progress, scorer, scores, workflow  # noqa: E402
 
 st.set_page_config(page_title="AI Development System", page_icon="🧭", layout="wide")
 
@@ -184,7 +184,7 @@ with st.sidebar:
         st.cache_data.clear()
         st.rerun()
     page = st.radio("Trang", ["📋 Kế hoạch đang chạy", "Tổng quan", "Bản đồ hệ thống", "Dòng thời gian", "Sức khỏe (đo bằng code)", "Chấm điểm AI", "Hiệu quả vận hành",
-                              "Bộ kỹ năng 3 vai"], label_visibility="collapsed")
+                              "Hiệu quả quy trình", "Ai quyết", "Bộ kỹ năng 3 vai"], label_visibility="collapsed")
     st.divider()
     st.markdown("**Test**")
     running = collect.tests_running(ROOT)
@@ -968,6 +968,112 @@ def page_effect():
                                     "Chưa xử lý 30 ngày": len(v["low_open_30d"])} for k, v in fb.items()]), hide_index=True)
 
 
+# ---- trang: Hiệu quả quy trình (S14.45) --------------------------------------------------------------------------------
+def _flow_table(groups: dict, label) -> "pd.DataFrame":
+    return pd.DataFrame([{label[0]: label[1](k), "Nhánh": g["n"], "Tổng (nghìn)": g["total_k"], "Token/nhánh": g["per_branch_k"],
+                          "% rà": g["pct_review"], "% sửa": g["pct_fix"], "Lỗi rà bắt": g["bugs"], "Token rà / lỗi": g["review_per_bug_k"],
+                          "Vòng sửa / nhánh": g["fix_rounds_per_branch"]} for k, g in groups.items()])
+
+
+def page_flow():
+    st.title("Hiệu quả quy trình — token mỗi nhánh của vòng làm việc nhiều phiên")
+    st.caption("Số đo mỗi nhánh đã gộp (phiên làm / rà / sửa, lỗi rà bắt) từ `devsys/workflow_runs.jsonl` trong git. Ghi sau mỗi nhánh gộp: "
+               "`python -m devsys.workflow add S14.x --mode goi|usd|cloud --review ky|nhe --work … --review-k … --fix … --bugs …`. Miễn phí.")
+    try:
+        rows = workflow.load()
+    except workflow.WorkflowError as e:
+        st.error(f"File số đo hỏng: {e}")
+        return
+    try:
+        with open(plan_progress.PLAN_FILE, encoding="utf-8") as f:
+            got = workflow.parse_plan(f.read())
+    except OSError:
+        got = {"bad": [], "runs": []}
+    if got["bad"]:
+        st.warning("Dòng 'Số đo:' trong kế hoạch KHÔNG đọc được (sửa lại cho đúng dạng 'làm ≈ 200k + sửa ≈ 50k, rà ≈ 100k, rà bắt 3'):\n\n"
+                   + "\n".join(f"- {b}" for b in got["bad"]))
+    have = {(r.get("task"), r.get("part") or "") for r in rows}
+    missing = [r for r in got["runs"] if (r["task"], r.get("part") or "") not in have]
+    if missing:
+        st.info(f"{len(missing)} nhánh có 'Số đo:' trong kế hoạch nhưng chưa có trong file: "
+                + ", ".join(r["task"] + (" " + r["part"] if r.get("part") else "") for r in missing) + " — `python -m devsys.workflow import-plan --write`")
+    if not rows:
+        st.info("Chưa có số đo nào.")
+        return
+    s = workflow.summarize(rows)
+    al, ky, nhe = s["all"], s["by_review"].get("ky") or {}, s["by_review"].get("nhe") or {}
+    b = workflow.BASELINES
+
+    def band(v, ref, lower_better=True):
+        if v is None:
+            return "none"
+        return "ok" if (v <= ref if lower_better else v >= ref) else "warn"
+    st.markdown("<div class='kpis'>" + "".join([
+        kpi("Nhánh đã ghi", al["n"], f"tổng {al['total_k']:,}k token".replace(",", ".")),
+        kpi("Token/nhánh rà kỹ", f"{ky.get('per_branch_k') or '—'}k", f"mốc B {b['B']['per_branch_ky_k']}k", band(ky.get("per_branch_k"), b["B"]["per_branch_ky_k"])),
+        kpi("Token/nhánh rà nhẹ", f"{nhe.get('per_branch_k') or '—'}k", f"mốc B {b['B']['per_branch_nhe_k']}k", band(nhe.get("per_branch_k"), b["B"]["per_branch_nhe_k"])),
+        kpi("% rà (rà kỹ)", f"{ky.get('pct_review') if ky.get('pct_review') is not None else '—'} %", f"mốc A {b['A']['pct_review']:.0f} % · B {b['B']['pct_review']:.0f} %"),
+        kpi("% sửa (rà kỹ)", f"{ky.get('pct_fix') if ky.get('pct_fix') is not None else '—'} %", f"mốc B {b['B']['pct_fix']:.0f} %", band(ky.get("pct_fix"), b["B"]["pct_fix"])),
+        kpi("Token rà / lỗi bắt", f"{ky.get('review_per_bug_k') or '—'}k", "rà kỹ, chỉ nhánh có ghi số lỗi"),
+    ]) + "</div>", unsafe_allow_html=True)
+    st.markdown("#### So với 2 mốc")
+    st.dataframe(pd.DataFrame(workflow.compare(s)).astype(str), hide_index=True)
+    st.markdown("#### Từng nhánh")
+    st.dataframe(pd.DataFrame([{"Việc": r["task"] + (" " + r["part"] if r.get("part") else ""), "Ngày": r.get("date"),
+                                "Chế độ": workflow.MODE_LABEL.get(r.get("mode"), "?"), "Mức rà": workflow.REVIEW_LABEL[r.get("review") or "?"],
+                                "Làm": r.get("work_k"), "Rà": r.get("review_k"), "Sửa": r.get("fix_k"), "Tổng": workflow.total_k(r),
+                                "Vòng sửa": r.get("fix_rounds"), "Lỗi rà bắt": r.get("bugs"), "Lỗi nặng": r.get("bugs_major"),
+                                "Commit": r.get("commit"), "Ghi chú": r.get("note")} for r in rows]), hide_index=True)
+    c1, c2, c3 = st.columns(3)
+    with c1:
+        st.markdown("#### Theo mức rà")
+        st.dataframe(_flow_table(s["by_review"], ("Mức rà", lambda k: workflow.REVIEW_LABEL.get(k, k))), hide_index=True)
+    with c2:
+        st.markdown("#### Theo ngày")
+        st.dataframe(_flow_table(s["by_date"], ("Ngày", str)), hide_index=True)
+    with c3:
+        st.markdown("#### Theo chế độ tài khoản")
+        st.dataframe(_flow_table(s["by_mode"], ("Chế độ", lambda k: workflow.MODE_LABEL.get(k, k))), hide_index=True)
+    st.caption("Nhánh nhập từ kế hoạch: chế độ ghi 'gói' (giả định — kế hoạch không ghi), mức rà 'không rõ' khi dòng Số đo không nhắc tới rà; "
+               "'thêm ≈ …k (đánh thức lại)' tính vào sửa. Mốc A/B lấy từ skill vong-lam-viec-theo-plan mục 2/2b.")
+
+
+# ---- trang: Ai quyết (S14.50) ------------------------------------------------------------------------------------------
+def page_decisions():
+    st.title("Ai quyết — code, Claude hay người ở mỗi điểm của pipeline")
+    st.caption("Từ `devsys/decisions.json` (liệt kê tay, test buộc khớp code). Đếm theo LOẠI quyết định, không theo số lượt chạy. "
+               "Mục tiêu: điểm nào đang trả tiền Claude mà code làm được → chuyển sang code (0 USD, tất định). Miễn phí.")
+    try:
+        doc = decisions.load()
+    except (OSError, ValueError) as e:
+        st.error(f"Không đọc được devsys/decisions.json: {e}")
+        return
+    bad = decisions.problems(doc) + decisions.broken_wheres(doc) + [f"khâu Claude '{s}' có trong code nhưng chưa có trên bản đồ"
+                                                                   for s in decisions.unmapped_stages(doc)]
+    if bad:
+        st.warning("Bản đồ lệch code:\n\n" + "\n".join(f"- {b}" for b in bad))
+    s = decisions.summary(doc)
+    al = s["all"]
+    st.markdown("<div class='kpis'>" + "".join([
+        kpi("Điểm quyết định", al["n"]),
+        kpi("Code", f"{al['code']} · {al['pct']['code']} %", "0 USD, tất định", "ok"),
+        kpi("Claude", f"{al['claude']} · {al['pct']['claude']} %", "tốn token", "warn"),
+        kpi("Người duyệt", f"{al['human']} · {al['pct']['human']} %", "điểm chặn"),
+        kpi("Gợi ý chuyển sang code", len(s["suggest"]), "xem bảng dưới"),
+    ]) + "</div>", unsafe_allow_html=True)
+    steps = doc.get("steps") or {}
+    st.markdown("#### Theo bước")
+    st.dataframe(pd.DataFrame([{"Bước": steps[k], "Điểm": v["n"], "Code": v["code"], "Claude": v["claude"], "Người": v["human"],
+                                "% Claude": v["pct"]["claude"]} for k, v in s["by_step"].items() if v["n"]]), hide_index=True)
+    st.markdown("#### Gợi ý: Claude → code / bỏ")
+    st.dataframe(pd.DataFrame([{"Bước": steps.get(d["step"], d["step"]), "Việc": d["what"], "Khâu": d.get("stage"), "Ở đâu": d["where"],
+                                "Gợi ý": d["suggest"]} for d in s["suggest"]]), hide_index=True)
+    st.markdown("#### Toàn bộ")
+    st.dataframe(pd.DataFrame([{"Bước": steps.get(d["step"], d["step"]), "Ai": decisions.WHO[d["who"]], "Việc": d["what"],
+                                "Khâu": d.get("stage") or "", "Ở đâu": d["where"]} for d in doc.get("items", [])]), hide_index=True)
+
+
 PAGES = {"📋 Kế hoạch đang chạy": page_plan, "Tổng quan": page_overview, "Bản đồ hệ thống": page_map, "Dòng thời gian": page_timeline, "Sức khỏe (đo bằng code)": page_health,
-         "Chấm điểm AI": page_scores, "Hiệu quả vận hành": page_effect, "Bộ kỹ năng 3 vai": page_skills}
+         "Chấm điểm AI": page_scores, "Hiệu quả vận hành": page_effect, "Hiệu quả quy trình": page_flow, "Ai quyết": page_decisions,
+         "Bộ kỹ năng 3 vai": page_skills}
 PAGES[page]()
