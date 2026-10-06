@@ -161,7 +161,7 @@ def body(conn, actor: Dict) -> None:
                                + (f" (gồm ước tính dư ${est:.2f})" if est else "")))
     else:
         st.markdown(f"**Tổng trong đợt{' — dự án #' + str(pid) if pid else ''}:** ${total:.2f}" + (f" (gồm ước tính dư ${est:.2f})" if est else ""))
-    rows = [{"Ngày": d["day"], **{R.KIND_LABEL[k]: _money(d[k]) for k in R.KINDS}, "Tổng (USD)": f"{d['total_usd']:.2f}",
+    rows = [{"Ngày": d["day"], **{R.KIND_LABEL[k]: _money(d[k]) for k in R.KINDS}, "chat Kịch bản (trong Claude)": f"{d.get('chat_usd', 0):.4f}", "Tổng (USD)": f"{d['total_usd']:.2f}",
              "Chưa có giá": R.unpriced_note(d)} for d in days]
     D.data_table(rows, empty="Chưa có dòng sổ chi nào trong đợt này.", hide_index=True, width="stretch")
     st.caption("Ngày theo giờ Việt Nam. Dòng chưa có giá trong bảng giá được ước tính DƯ (giá cao nhất đã biết × hệ số an toàn) và cộng "

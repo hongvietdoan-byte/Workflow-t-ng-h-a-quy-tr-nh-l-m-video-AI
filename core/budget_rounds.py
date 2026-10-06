@@ -186,10 +186,12 @@ def daily(conn, since: Optional[str] = None, until: Optional[str] = None, projec
     cache: Dict = {}
     for r in _rows(conn, since, until, project_id):
         day = _local(r["at"]).strftime("%Y-%m-%d")
-        d = days.setdefault(day, {"day": day, **_empty(), "_unpriced": set(), "no_estimate_counts": {}, "events": 0})
+        d = days.setdefault(day, {"day": day, **_empty(), "_unpriced": set(), "no_estimate_counts": {}, "events": 0, "chat_usd": 0.0})
         usd, est = price(pricing, r, cache)
         _add(d, r, usd, est, d["_unpriced"], d["no_estimate_counts"])
         d["events"] += 1
+        if r["stage"] == "script_chat":
+            d["chat_usd"] += usd or 0.0
     out = []
     for day in sorted(days, reverse=True):
         d = days[day]
@@ -236,7 +238,7 @@ def day_detail(conn, day: str, project_id: Optional[int] = None, since: Optional
         usd, est = price(pricing, r, cache)
         pid = r["project_id"]
         out.append({"time": _local(r["at"]).strftime("%H:%M:%S"), "project": f"#{pid} {names.get(pid, '(đã xóa)')}" if pid else "-",
-                    "stage": r["stage"] or "", "provider": r["provider"], "model": r["model"], "tier": r["tier"],
+                    "stage": "chat Kịch bản" if r["stage"] == "script_chat" else (r["stage"] or ""), "provider": r["provider"], "model": r["model"], "tier": r["tier"],
                     "quantity": r["quantity"], "unit": r["unit"], "kind": r["kind"],
                     "usd": None if usd is None else round(usd, 4), "estimated": est})
     return out

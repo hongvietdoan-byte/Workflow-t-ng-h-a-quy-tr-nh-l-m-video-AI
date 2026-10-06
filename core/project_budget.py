@@ -23,7 +23,7 @@ from . import features
 
 FEATURE = "project_budget"
 STAGES = {"images": "Ảnh", "videos": "Video", "claude_director": "Claude — Director", "claude_qc": "Claude — QC",
-          "claude_motion": "Claude — motion", "claude_other": "Claude — khác"}
+          "claude_motion": "Claude — motion", "claude_other": "Claude — khác", "claude_chat": "chat Kịch bản"}
 IMAGE_REDO = 0.35          # #8: 11 of 33 frames redrawn in the first pass (+ scenes' wide pictures)
 VIDEO_REDO = 0.30
 LLM_MARGIN = 1.3
@@ -60,6 +60,8 @@ def _save(conn, pid: int, data: Dict) -> Dict:
 
 def claude_stage(tag: Optional[str]) -> str:
     t = str(tag or "")
+    if t == "script_chat":
+        return "claude_chat"
     if t.startswith("director") or t in ("screenwriter", "asset_checklist"):   # S11.1 Biên kịch / S14.23 bảng kê: before the Director, same line
         return "claude_director"
     if t in ("qc", "qc_agent", "video", "video_qc", "video_analysis", "storyboard_review", "check", "scene_qc", "editor") or t.startswith("qc"):
@@ -151,7 +153,8 @@ def remaining(p, pid: int) -> Dict[str, float]:
             "claude_qc": round(qc * LLM_MARGIN, 2),
             "claude_motion": round(((cost.llm_estimate(conn, "motion", 1 if est["counts"]["clips"] else 0, pricing) or 0.0)
                                     + (_translate_worst(conn, pid) if est["counts"]["clips"] else 0.0)) * LLM_MARGIN, 2),
-            "claude_other": OTHER_CLAUDE_USD}
+            "claude_other": OTHER_CLAUDE_USD,
+            "claude_chat": cost.llm_estimate(conn, "script_chat", 1, pricing) or 0.0}
 
 
 def _translate_worst(conn, pid: int) -> float:
@@ -302,6 +305,8 @@ def cost_summary(p, pid: int) -> Dict:
     except Exception:  # noqa: BLE001 - no voice plan yet: the music only
         audio_items = 1
     audio = money_policy.estimate("audio", None, None, audio_items)["usd"]
+    chat_est = cost.llm_estimate(p.conn, "script_chat", 1) or 0.0
+    claude += chat_est
     unpriced = len(run.get("unknown") or [])
     remaining = round(images + videos + claude + (audio or 0.0), 2)
     spent = round(sum(ledger_by_stage(p.conn, pid).values()), 2)          # from the ledger (all the project's paid rows)
@@ -309,13 +314,14 @@ def cost_summary(p, pid: int) -> Dict:
     text = (f"Đã chi + ước tính phần còn lại ≈ ${total:.2f}: đã chi ${spent:.2f} (theo sổ chi) + còn lại ≈ ${remaining:.2f} "
             f"(ước tính, tính dư): Ảnh ≈ ${images:.2f} · Video ≈ ${videos:.2f} · "
             + (f"Âm thanh ≈ ${audio:.2f}" if audio is not None else f"Âm thanh {audio_items} lượt (chưa có giá USD, tính theo lượt)")
-            + f" · Claude ≈ ${claude:.2f} · Tổng ≈ ${total:.2f}")
+            + f" · Claude ≈ ${claude:.2f} (chat Kịch bản lượt kế ≈ ${chat_est:.2f}) · Tổng ≈ ${total:.2f}")
     if unpriced:
         text += (f" — {unpriced} mục chưa có giá được ước bằng giá cao nhất × 1,5 ({', '.join(run['unknown'])})")
     else:
         text += " — mọi mục đều có giá (giá cao nhất × 1,5 chỉ dùng khi thiếu giá)"
     return {"images": round(images, 2), "videos": round(videos, 2), "audio": None if audio is None else round(audio, 2),
-            "audio_items": audio_items, "claude": round(claude, 2), "remaining": remaining, "spent": spent, "total": total,
+            "audio_items": audio_items, "claude": round(claude, 2), "chat_est": chat_est,
+            "chat_spent": ledger_by_stage(p.conn, pid)["claude_chat"], "remaining": remaining, "spent": spent, "total": total,
             "unpriced": unpriced, "text": text, "md": md_safe(text),
             "line": f"Đã chi ${spent:.2f} · còn lại ≈ ${remaining:.2f} · tổng ≈ ${total:.2f}"}
 

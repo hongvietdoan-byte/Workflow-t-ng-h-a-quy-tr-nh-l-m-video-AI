@@ -169,6 +169,7 @@ def summary_detail_md(cs: dict) -> str:
     from core import project_budget
     audio = f"≈ ${cs['audio']:.2f}" if cs.get("audio") is not None else f"{cs.get('audio_items', 0)} lượt (chưa có giá USD, tính theo lượt)"
     rows = [f"- Ảnh ≈ ${cs['images']:.2f}", f"- Video ≈ ${cs['videos']:.2f}", f"- Âm thanh {audio}", f"- Claude ≈ ${cs['claude']:.2f}"]
+    rows.append(f"- chat Kịch bản: đã chi ${cs.get('chat_spent', 0):.2f} · lượt kế ≈ ${cs.get('chat_est', 0):.2f} (đã nằm trong Claude, không cộng lần hai)")
     note = (f"{cs['unpriced']} mục chưa có giá được ước bằng giá cao nhất × 1,5." if cs.get("unpriced")
             else "Mọi mục đều có giá (giá cao nhất × 1,5 chỉ dùng khi thiếu giá).")
     return project_budget.md_safe("\n".join(rows) + f"\n\n{note}")

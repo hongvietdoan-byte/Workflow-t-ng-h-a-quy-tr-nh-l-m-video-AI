@@ -1,7 +1,8 @@
 """Step 1 · khung nhập kịch bản hội thoại (S14.21, docs/KE_HOACH_BO_NAO_PROMPT_TU_HOC_2026-10-04.md Đợt 3; behind the flag
 `idea_to_script` — off → the old 2 tabs of step1.script_input, exactly).
 
-A conversation shell around priced widgets, NOT a free chat: one `st.chat_input` is the single way in for text (a pasted script, a raw
+S14.47: lịch sử theo dự án, chat tự do gửi Claude qua sổ chi; các việc viết/gen giữ nút có giá.
+Thiết kế cũ (S14.21): one `st.chat_input` is the single way in for text (a pasted script, a raw
 idea, or a "nói thêm" for the Biên kịch) and it NEVER calls a model. Code decides for 0 USD what the text is (idea_to_script.classify:
 script → the old ▶ Phân tích split; idea → the Biên kịch's turns, each behind a button with its price; grey zone → ask, never guess —
 luật 3), always with a one-click override. S14.38: the chat is the ONLY door in — no ✍ Sửa toàn văn (paste_) and no 📎 popover (up_): a file is dropped on the chat input
@@ -247,13 +248,34 @@ def script_box(p: Pipeline, pid: int, with_reset: bool = True) -> bool:
     from core import idea_to_script as I
     from dashboard.steps.step1 import analyse_script, reset_script_button
     k, ss = _keys(pid), st.session_state
-    body, foot = st.container(), st.container()                        # drawn in this order; the chat input is read FIRST (below)
+    from core import script_chat as Chat
+    body, foot = st.container(), st.container()
     with foot:
-        got = st.chat_input("Dán kịch bản, gõ ý tưởng, nói thêm cho Biên kịch, hoặc thả file (" +
-                            " ".join(sorted(script_reader.SUPPORTED)) + ")…", key=k["chat"], accept_file=True,
+        got = st.chat_input("Dán kịch bản, gõ ý tưởng, trao đổi với Claude hoặc thả file…", key=k["chat"], accept_file=True,
                             file_type=list(script_reader.SUPPORTED))
         if got:
-            _take(p, pid, got)
+            incoming = got if isinstance(got, str) else (getattr(got, "text", None) or "")
+            files = [] if isinstance(got, str) else list(getattr(got, "files", None) or [])
+            kind = "script" if files else Chat.intent(incoming)
+            if kind == "chat":
+                with st.spinner("Claude đang trả lời…"):
+                    act(lambda: Chat.send(p, pid, incoming, llm_client()))
+            else:
+                Chat.append(p, pid, "user", incoming or f"📎 {files[0].name}")
+                if kind == "edit":
+                    # Understanding is free; rewriting remains a separate priced action.
+                    ss[k["wish"]] = incoming
+                    Chat.append(p, pid, "assistant", "Đã nhận yêu cầu sửa cảnh. Kịch bản chưa đổi; dùng nút viết lại có giá ở trình sửa cảnh bên dưới.")
+                else:
+                    _take(p, pid, got)
+                    Chat.append(p, pid, "assistant", "Đã nhận file kịch bản — bấm ▶ Phân tích (0 USD)." if files else
+                                (receipt(incoming) or "Đã nhận nội dung. Chọn ý tưởng/kịch bản hoặc dùng các nút Biên kịch có giá bên dưới."))
+    with body:
+        older, recent = Chat.window(p, pid)
+        if older:
+            with st.expander(f"Xem {len(older)} tin cũ hơn"):
+                _messages(older)
+        _messages(recent)
     state = I.get_state(p.conn, pid)
     with body:
         if state.get("inputs"):                                        # the ceiling of this idea (mẫu step1_v2 meter)
@@ -262,18 +284,11 @@ def script_box(p: Pipeline, pid: int, with_reset: bool = True) -> bool:
             st.html(D.meter(spent / I.RUN_CAP_USD, f"Biên kịch: đã dùng ≈ {spent:.3f} / {I.RUN_CAP_USD:g} USD cho ý tưởng này", invert=True))
         text, file = ss.get(k["text"], "") or "", ss.get(k["file"])
         mode = "script" if file else None
-        if not file and not text.strip() and not state.get("inputs") and not ss.get(k["pending"]) and not ss.get(k["ask"]):
+        if not file and not text.strip() and not state.get("inputs") and not ss.get(k["pending"]) and not ss.get(k["ask"]) and not recent:
             with st.chat_message("assistant"):
                 st.markdown("Dán kịch bản (có tiêu đề **CẢNH 1 - …**) hoặc gõ vài dòng ý tưởng vào khung bên dưới; file thì thả vào khung. "
-                            "Gõ vào khung không tốn tiền — chỉ nút có ghi giá mới gọi Claude.")
-        else:
-            with st.chat_message("user"):
-                if file:
-                    st.markdown(f"📎 {escape(file[0])}")
-                if text.strip():
-                    st.text(_preview(text))
-                elif state.get("inputs"):
-                    st.text(_preview(state["inputs"]["idea"]))
+                            "Kịch bản và ý tưởng được nhận diện miễn phí; chat tự do gửi ngay tới Claude (chi phí ở 💵).")
+        elif file or text.strip() or state.get("inputs"):
             with st.chat_message("assistant"):
                 c = I.classify(text if text.strip() else (state.get("inputs") or {}).get("idea", ""))
                 forced = ss.get(k["mode"])
@@ -310,19 +325,24 @@ def script_box(p: Pipeline, pid: int, with_reset: bool = True) -> bool:
         _cards(p, pid)
         has_input = bool(file) or bool(text.strip())
         ready = bool(file) or (bool(text.strip()) and (mode or ss.get(k["mode"]) or I.classify(text)["kind"]) == "script")
+        with st.chat_message("assistant"):
+            if st.button("▶ Phân tích (tách cảnh) · 0 USD", disabled=not ready, type="primary", key=f"btn_analyse_{pid}"):
+                if act(lambda: analyse_script(p, pid, None, text, file)):
+                    ss.pop(k["file"], None)
+                    Chat.append(p, pid, "assistant", "Đã phân tích và tách cảnh (0 USD).")
+                    st.rerun()
         if with_reset:
-            u2, u3, u4 = st.columns([2.4, 1.2, 4], vertical_alignment="center")
-        else:
-            u2, u4 = st.columns([2.4, 5.2], vertical_alignment="center")
-            u3 = None
-        if u2.button("▶ Phân tích (tách cảnh)", disabled=not ready, type="primary", key=f"btn_analyse_{pid}"):
-            if act(lambda: analyse_script(p, pid, None, text, file)):
-                ss.pop(k["file"], None)
-                st.rerun()
-        u4.caption("Sẵn sàng · bấm ▶ Phân tích (0 USD)" if ready else
-                   ("Ý tưởng → làm qua Biên kịch ở trên, hoặc bấm 'không phải, đây là kịch bản' để tách thẳng." if has_input
-                    else "Dán kịch bản vào khung chat, rồi bấm Phân tích."))
-        if with_reset:
-            with u3:
-                reset_script_button(p, pid)
+            reset_script_button(p, pid)
     return has_input
+
+
+def _messages(messages):
+    for message in messages:
+        with st.chat_message(message["role"]):
+            text = message["text"]
+            if len(text) > _SHOW_CHARS or len(text.splitlines()) > _SHOW_LINES:
+                st.text(_preview(text))
+                with st.expander("Xem đầy đủ"):
+                    st.markdown(text)
+            else:
+                st.markdown(text)

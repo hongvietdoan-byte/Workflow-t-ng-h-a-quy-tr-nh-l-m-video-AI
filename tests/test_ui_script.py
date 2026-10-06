@@ -354,6 +354,17 @@ class ScriptBoxTests(unittest.TestCase):
         from core import idea_to_script as I
         self.assertEqual(I.get_state(self.p.conn, pid), {})                      # chat_input never starts / pays anything
 
+    def test_s1447_free_chat_calls_once_and_survives_rerun(self):
+        from core import script_chat, llm_runner
+        pid = self.p.create_project("Hội thoại")
+        with mock.patch.object(llm_runner.MockLlm, "complete", return_value=llm_runner.LlmReply("Nên giữ nhịp ngắn.")) as complete:
+            at = self.say(self.app(pid), "Bạn nghĩ nhịp thế nào?")
+            self.assertEqual(complete.call_count, 1)
+            self.assertIn("Nên giữ nhịp ngắn.", self.html(at))
+            at.run()
+            self.assertEqual(complete.call_count, 1)
+            self.assertEqual(len(script_chat.history(self.p, pid)), 2)
+
     def test_grey_zone_asks_two_buttons_and_runs_nothing(self):
         pid = self.p.create_project("Xám")
         at = self.say(self.app(pid), "Hai người cãi nhau.\nKELLY: Của tôi!\nMAXIM: Không, của tôi!")

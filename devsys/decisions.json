@@ -12,6 +12,14 @@
   "devsys": "AI Dev System"
  },
  "items": [
+{
+  "id": "s1447_chat",
+  "step": "step1",
+  "who": "claude",
+  "what": "Trả lời chat Kịch bản sau khi người dùng gửi; tư vấn, không tự sửa/gen",
+  "where": "core/script_chat.py:send",
+  "stage": "script_chat"
+},
   {
    "id": "d01",
    "step": "step1",

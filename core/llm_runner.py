@@ -84,6 +84,7 @@ def cli_error_code(detail: str) -> str:
 # are billed as output: the Director at the default effort ran out of 32k tokens on a 58-second per-shot script (2026-09-24).
 # Override one stage with CLAUDE_EFFORT_<STAGE> / CLAUDE_MAX_TOKENS_<STAGE> (e.g. CLAUDE_EFFORT_DIRECTOR=high).
 STAGE_SETTINGS: Dict[str, Dict[str, Any]] = {
+    "script_chat": {"effort": "low", "max_tokens": 1500, "retries": 0},
     "director": {"effort": "medium", "max_tokens": 64000},     # shot plan of a whole script: long answer
     "motion": {"effort": "medium", "max_tokens": 48000},
     "translate": {"effort": "low", "max_tokens": 8000},        # the Director's Vietnamese fields → short English (28/09: the default
