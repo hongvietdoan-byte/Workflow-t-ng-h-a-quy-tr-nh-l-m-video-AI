@@ -11,7 +11,7 @@ def character_reference_panel(p: Pipeline, pid: int, chars) -> None:
     pool = [a for a in assets.project_assets(p.conn, pid) if a["kind"] in ("character", "pet") and a["images"]]
     saved = {r["name"]: r for r in p.conn.execute("SELECT name, ref_asset_id, ref_image_id, ref_image_ids FROM characters WHERE project_id=?", (pid,))}
     have = sum(1 for a in linked.values() if a)
-    with st.expander(f"🖼 Ảnh tham chiếu của từng nhân vật — {have}/{len(chars)} đã có", expanded=is_next("refs", have < len(chars) or not pool)):   # v2: the label carries the count
+    with st.expander(f"🖼 Ảnh tham chiếu của từng nhân vật — {have}/{len(chars)} đã có", expanded=is_next("refs")):   # v2: the label carries the count
         cap("Đây là (những) ảnh mà bước gen ảnh sẽ **bám theo** (gương mặt, tóc, trang phục). Mặc định tự chọn theo tên, ưu tiên ảnh MỘT người rõ mặt "
                    "(không phải cả tấm bảng nhiều tư thế) và lấy thêm góc/chi tiết thứ hai nếu có, để nhân vật không bị lẫn với người khác trong cảnh. "
                    "Bạn đổi được sang tài nguyên khác, hoặc tự chọn 1-2 ảnh cụ thể. Muốn thêm tài nguyên, chọn ở mục “🧰 Tài nguyên đi kèm kịch bản” phía trên.")
@@ -376,16 +376,10 @@ def character_bible_panel(p: Pipeline, pid: int, chars, risky) -> None:
     locked = any(c["locked"] for c in chars)
     rows = p.conn.execute("SELECT * FROM characters WHERE project_id=?", (pid,)).fetchall()
     with ui.fold("1e · 👥 Character Bible", _bible_summary(rows, locked), f"bible_{pid}",
-                 default_open=is_next("bible", not locked or any(not r["anchor_approved"] for r in rows))) as bible_open:  # E1.15
+                 default_open=is_next("bible")) as bible_open:  # E1.15
         if bible_open:
-            if ui.v2_on():           # v2: the fold title above already says "1e · Character Bible" and the counts (P4: no second heading)
-                if risky:
-                    st.caption(f"⚠ {len(risky)} mục có thể vướng IP (xem “⚠ Rủi ro” ở góc trên)")
-            else:
-                head, status = st.columns([3, 2], vertical_alignment="center")
-                head.markdown(ui.card_title("1e · 👥 Character Bible", f"{len(chars)} mục" + (" · 🔒 đã khóa" if locked else "")), unsafe_allow_html=True)
-                if risky:
-                    status.caption(f"⚠ {len(risky)} mục có thể vướng IP (xem “⚠ Rủi ro” ở góc trên)")
+            if risky:                # the fold title above already says "1e · Character Bible" and the counts (P4: no second heading)
+                st.caption(f"⚠ {len(risky)} mục có thể vướng IP (xem “⚠ Rủi ro” ở góc trên)")
             linked = assets.link_characters(p.conn, pid, char_names)
             shared = voice_casting.shared_voices(p.conn, pid)          # S14.26: which roles share one voice
             bible_rows = ([{"Nhân vật / đối tượng": r["name"],
@@ -398,14 +392,12 @@ def character_bible_panel(p: Pipeline, pid: int, chars, risky) -> None:
                            "Ảnh mốc": "✔" if r["anchor_approved"] else "—",
                            "IP": "⚠" if r["name"] in risky else "",
                            } for r in rows])
-            if ui.v2_on():                         # v2: a table that follows light/dark; long descriptions clipped (full text: ✏ Sửa / thêm below)
-                from dashboard.design import components as D
-                def clip(t: str) -> "D.Raw":
-                    return D.Raw(f'<span title="{escape(t)}">{escape(t if len(t) <= 70 else t[:69].rstrip() + "…")}</span>')
-                heads = list(bible_rows[0]) if bible_rows else []
-                st.html(D.table(heads, [[clip(v) if h == "Mô tả" else v for h, v in row.items()] for row in bible_rows]))
-            else:
-                data_table(bible_rows, width="stretch", hide_index=True, height=min(38 * (len(rows) + 1) + 3, 260))
+            from dashboard.design import components as D       # a table that follows light/dark; long descriptions clipped (full text: ✏ Sửa / thêm below)
+
+            def clip(t: str) -> "D.Raw":
+                return D.Raw(f'<span title="{escape(t)}">{escape(t if len(t) <= 70 else t[:69].rstrip() + "…")}</span>')
+            heads = list(bible_rows[0]) if bible_rows else []
+            st.html(D.table(heads, [[clip(v) if h == "Mô tả" else v for h, v in row.items()] for row in bible_rows]))
             client = llm_client()
             bible_check_box(p, pid, rows, client, locked)
             character_reference_panel(p, pid, chars)

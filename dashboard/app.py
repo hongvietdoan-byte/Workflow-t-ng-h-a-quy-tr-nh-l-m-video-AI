@@ -166,11 +166,14 @@ def main():
     else:
         st.session_state.pop("step", None)
     done = step_done(p, pid)
-    if ui.v2_on():                                      # S13 nhánh B: hero of the project + 🎚 level + status line sit between the bar and the stepper
+    # S13 nhánh B: hero of the project + 🎚 level + status line sit between the bar and the stepper. Still behind the flag (S14.14 G-a):
+    # it pairs with header.global_bar (nhóm nặng, G-b) — with FEATURE_UI_V2=0 the old bar already draws level_bar + status_line, and a
+    # second level_bar would reuse its widget key (StreamlitWidgetAlreadyInstantiatedError, tests/test_ui_v2_default.py).
+    if ui.v2_on():
         shell_header(p, pid, done, cur)
     step = st.radio("Màn", visible, horizontal=True, key="step", label_visibility="collapsed", format_func=step_label(done))
     st.session_state["_step_keep"] = step
-    if deep == "design" and ui.v2_on():                   # G1 (S13): the real-Streamlit vertical slice of UI v2, for the owner to approve
+    if deep == "design":                                  # G1 (S13): the real-Streamlit vertical slice of UI v2, for the owner to approve
         from dashboard.design import preview
         preview.render()
         return

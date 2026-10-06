@@ -184,7 +184,7 @@ def dark_on() -> bool:
     try:
         if "dark_mode" not in st.session_state:
             qp = st.query_params.get("theme")
-            st.session_state["dark_mode"] = qp == "dark" or (v2_on() and qp != "light")      # v2 opens dark unless ?theme=light
+            st.session_state["dark_mode"] = qp != "light"                    # UI v2 (mặc định từ S14.14): opens dark unless ?theme=light
     except Exception:  # noqa: BLE001 - no request context (tests, tools): light
         return False
     return bool(st.session_state.get("dark_mode"))
@@ -193,18 +193,15 @@ def dark_on() -> bool:
 def set_dark(on: bool) -> None:
     st.session_state["dark_mode"] = bool(on)
     try:
-        if on:
-            st.query_params["theme"] = "dark"
-        elif v2_on():
-            st.query_params["theme"] = "light"
-        elif "theme" in st.query_params:
-            del st.query_params["theme"]
+        st.query_params["theme"] = "dark" if on else "light"          # v2 opens dark, so light must be said in the address
     except Exception:  # noqa: BLE001
         pass
 
 
 def v2_on() -> bool:
-    """UI v2 (cờ ui_v2): the design layer of dashboard/design/ on top of the old CSS."""
+    """UI v2 (cờ ui_v2, mặc định BẬT từ S14.14 — người dùng duyệt 05/10). G-a (06/10) gỡ luồng cũ ở nhóm nhẹ (app, ui, admin, step1_*,
+    step4): ở đó giao diện v2 luôn vẽ, không hỏi cờ. Chỉ các màn nhóm nặng chưa gỡ (team_screen*, header, step2, step3, step5 — G-b)
+    còn đọc cờ này; FEATURE_UI_V2=0 chỉ đổi bố cục của các màn đó."""
     try:
         from core import features
         return features.on("ui_v2")
@@ -236,8 +233,7 @@ def inject_css() -> None:
     dark = dark_on()
     if dark:
         st.markdown(DARK_CSS, unsafe_allow_html=True)
-    if v2_on():
-        st.markdown(_v2_css(dark), unsafe_allow_html=True)
+    st.markdown(_v2_css(dark), unsafe_allow_html=True)              # UI v2: always (S14.14 G-a) — the light screens have no old layout left
 
 
 def html(markup: str) -> None:

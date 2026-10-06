@@ -8,8 +8,7 @@ def _director_summary(p: Pipeline, pid: int, chars) -> str:
     if not chars:
         return "chưa chạy"
     n = p.conn.execute("SELECT COUNT(*) FROM scenes WHERE project_id=?", (pid,)).fetchone()[0]
-    paid = None if ui.v2_on() else _paid_line(p, pid)           # v2 (P3): the paid-seconds line lives in "📋 Báo cáo Director" and the panel body
-    return f"✅ đã chạy · {n} shot · {len(chars)} nhân vật" + (f" · {paid}" if paid else "")
+    return f"✅ đã chạy · {n} shot · {len(chars)} nhân vật"     # v2 (P3): the paid-seconds line lives in "📋 Báo cáo Director" and the panel body
 
 
 def run_director_now(p: Pipeline, pid: int, client, resume: bool = False) -> None:
@@ -27,7 +26,7 @@ def run_director_now(p: Pipeline, pid: int, client, resume: bool = False) -> Non
 def director_panel(p: Pipeline, pid: int, chars) -> None:
     locked = any(c["locked"] for c in chars)
     kept = llm_io.locked_fields(p.conn, pid)
-    with ui.fold("1d · 🎬 Director", _director_summary(p, pid, chars), f"director_{pid}", default_open=is_next("director", not chars),
+    with ui.fold("1d · 🎬 Director", _director_summary(p, pid, chars), f"director_{pid}", default_open=is_next("director"),
                  sub="Character Bible + thông số, ý đồ, thoại từng cảnh") as director_open:  # E1.12
         if director_open:
             if kept:
@@ -91,7 +90,7 @@ def dialogue_review_panel(p: Pipeline, pid: int) -> None:
     bad = dialogue.problems(entries)
     key = f"dlg_review_{pid}"
     with st.expander(f"1f · 🗣 Rà thoại — {len(entries)} cảnh có thoại" + (f", {len(bad)} cần chú ý" if bad else ", độ dài đều vừa"),
-                     expanded=(key in st.session_state) if ui.v2_on() else (bool(bad) or key in st.session_state)):   # v2: the count is in the label
+                     expanded=key in st.session_state):   # v2: the count is in the label
         def entry_md(e) -> str:
             icon = {"ok": "✔", "tight": "◐", "extend": "⚠", "split": "✖"}[e["status"]]
             color = {"ok": "green", "tight": "orange", "extend": "orange", "split": "red"}[e["status"]]
@@ -100,7 +99,7 @@ def dialogue_review_panel(p: Pipeline, pid: int) -> None:
                     + (f"giọng thật ≈ {e['needed']:g}s" if e["measured"] else f"{e['syllables']} âm tiết ≈ {e['needed']:g}s")
                     + f" / clip {e['planned']:g}s (model tối đa {e['max']}s)" + (f" — {escape(e['advice'])}" if e["advice"] else ""))
         shown = entries
-        if ui.v2_on() and len(entries) > 3:          # v2 (P3, list > 3): only the lines that need attention outside, the whole list in ⓘ
+        if len(entries) > 3:       # v2 (P3, list > 3): only the lines that need attention outside, the whole list in ⓘ
             from dashboard.design import components as D
             shown = bad
             D.line(f'<span class="script-sum">{len(entries) - len(bad)}/{len(entries)} cảnh vừa độ dài thoại</span>',

@@ -1,5 +1,5 @@
 """UI v2 helpers of the Video screen (lane G, S13). Pure presentation: job state -> the fixed review vocabulary, small HTML chips,
-the numbers of the hero. Nothing here changes the pipeline; `dashboard/steps/step4.py` calls these only when `ui.v2_on()`."""
+the numbers of the hero. Nothing here changes the pipeline; `dashboard/steps/step4.py` calls these (UI v2 — the only layout of the Video screen since S14.14 G-a)."""
 from html import escape
 from typing import Dict, List, Optional, Tuple
 

@@ -1068,83 +1068,11 @@ def compare_panel(p: Pipeline) -> None:
 
 def monitor(p: Pipeline, pid: int) -> None:
     """Load and performance of the whole system (all projects), to spot overload before it costs credit."""
-    if ui.v2_on():
-        return _monitor_v2(p, pid)
-    mgr = autopilot_manager(C.DB, C.DATA)
-    snap = perf.snapshot(p.conn, mgr.queue_length(), mgr.running_count(), mgr.max_parallel)
-    snap["projects"] = access.filter_rows(p.conn, snap["projects"], C.access_user())     # only the projects this person may see
-    ui.html(ui.card_title("📊 Theo dõi hiệu suất & tải hệ thống", "toàn bộ dự án, làm mới bằng nút bên phải"))
-    compare_panel(p)
-    if st.button("↻ Làm mới", key="perf_refresh"):
-        st.rerun()
-    for msg in snap["alerts"]:
-        st.markdown(colored("warn", f"⚠ {escape(str(msg))}"), unsafe_allow_html=True)
-    if not snap["alerts"]:
-        st.markdown(colored("ok", "✔ Chưa thấy dấu hiệu quá tải."), unsafe_allow_html=True)
-    c1, c2, c3, c4 = st.columns(4)
-    c1.metric("Dự án chạy tự động", f"{mgr.running_count()}/{mgr.max_parallel}", help="AUTOPILOT_MAX_PARALLEL")
-    c2.metric("Đang xếp hàng", mgr.queue_length())
-    c3.metric("Lượt gửi thật hôm nay", f"{snap['sends_today']}",
-              help=f"Ảnh + video đã gửi trả tiền từ 00:00 UTC (sổ chi, mọi dự án, không tính mock); {snap['jobs_today']} job tạo hôm nay. "
-                   "Không còn trần chung mỗi ngày (S14.18) — giới hạn theo người ở 👥 Nhóm")
-    c4.metric("Job đang chạy/chờ", sum(k["running"] + k["queued"] for k in snap["kinds"]))
-    rows = []
-    for k in snap["kinds"]:
-        total = k["ok_24h"] + k["failed_24h"]
-        rows.append({"Loại": dict(perf.KINDS)[k["kind"]], "Đang chạy": k["running"], "Chờ": k["queued"],
-                     "Xong 1h": k["ok_1h"], "Lỗi 1h": k["failed_1h"], "Xong 24h": k["ok_24h"], "Lỗi 24h": k["failed_24h"],
-                     "Tỉ lệ lỗi 24h": f"{k['failed_24h'] / total:.0%}" if total else "-",
-                     "Thời gian TB": f"{k['avg_sec']:.0f}s" if k["avg_sec"] else "-",
-                     "Gần đây / trước đó": (f"{k['recent_sec']:.0f}s / {k['earlier_sec']:.0f}s"
-                                            if k["recent_sec"] and k["earlier_sec"] else "-")})
-    data_table(rows, hide_index=True, use_container_width=True)
-    st.caption("Mức song song tự học (tăng dần khi chạy êm, giảm một nửa khi nhà cung cấp báo quá tải 429): " + "; ".join(
-        f"{dict(perf.KINDS)[k]}: {v['limit']} job cùng lúc, đã bị giới hạn {v['hits']} lần" for k, v in snap["learned"].items()))
-    if snap["usage_today"]:
-        st.caption("Dùng hôm nay: " + ", ".join(f"{q:g} {unit} ({kind})" for kind, unit, q in snap["usage_today"]))
-    effectiveness_panel(p, pid)
-    st.caption("👥 Số video / tiền theo người dùng → màn **Nhóm**. 📁 Bảng tất cả dự án và 🎬 sản phẩm đã hoàn tất → màn **⌂ Tất cả dự án**. "
-               "Trang này chỉ giữ sức khỏe hệ thống: hàng đợi, tốc độ, lỗi, hiệu quả.")
-    st.caption("Ngưỡng cảnh báo chỉnh bằng biến môi trường: PERF_MAX_ACTIVE, PERF_FAIL_WARN, PERF_SLOW_WARN; "
-               "song song: AUTOPILOT_MAX_PARALLEL. "
-               "Chưa đo thời gian gọi Claude (QC/motion).")
-
-
-    st.markdown("---")
-    ui.html(ui.card_title("🩺 Giám sát từng khâu", "lỗi, lỗi âm thầm và chỗ chưa trơn tru trong 24h qua"))
-    stages = diag.stage_table(p.conn)
-    data_table([{"": diag.health(s), "Khâu": s["label"], "Job": "-" if s["jobs"] is None else str(s["jobs"]),
-                   "Xong": "-" if s["ok"] is None else str(s["ok"]), "Lỗi": "-" if s["failed"] is None else str(s["failed"]),
-                   "Gen lại": "-" if s["retried"] is None else str(s["retried"]), "Cảnh báo": s["warn"],
-                   "Lỗi ghi nhận": s["error"]} for s in stages], hide_index=True, use_container_width=True)
-    findings = diag.scan(p.conn, C.DATA, float(os.environ.get("AUTOPILOT_POLL_SEC", "15")))
-    st.markdown(f"**Vấn đề phát hiện ({len(findings)})** — gồm cả lỗi không ai báo (job kẹt, file mất, tiến trình chết, gen lại nhiều...)")
-    if not findings:
-        st.markdown(colored("ok", "✔ Chưa thấy vấn đề âm thầm."), unsafe_allow_html=True)
-    for f in findings[:30]:
-        color = "bad" if f["severity"] == "error" else "warn"
-        st.markdown(colored(color, f"● {escape(diag.STAGE_LABEL.get(f['stage'], f['stage']))}") + f" {escape(diag.redact(f['title']))}"
-                    + (f" — {escape(diag.redact(f['detail']))}" if f["detail"] else ""), unsafe_allow_html=True)
-    if diag.lost():
-        st.warning(f"⚠ {diag.lost()} sự kiện chẩn đoán không ghi được vào CSDL (bận/lỗi) từ lúc mở Dashboard — xem file "
-                   "`data/manifest.sqlite.diag_lost.log`")
-    events = diag.recent(p.conn, 24, 40)
-    with st.expander(f"Sự kiện lỗi/cảnh báo gần đây ({len(events)})"):
-        data_table([{"Giờ": e["last_at"][11:19], "Mức": e["severity"], "Khâu": e["stage"], "Mã": e["code"] or "",
-                       "Lần": e["count"], "Dự án": str(e["project_id"] or ""), "Nội dung": e["message"]} for e in events],
-                     hide_index=True, use_container_width=True)
-    text = diag.report(p.conn, C.DATA, {"Đang chạy/xếp hàng": f"{mgr.running_count()}/{mgr.queue_length()}",
-                                      "Mức song song tự học": {k: v["limit"] for k, v in snap["learned"].items()}})
-    st.markdown("**📋 Báo cáo chẩn đoán** — bấm nút copy ở góc khung dưới (hoặc tải file), dán vào chat để mình sửa. "
-                "Đã che khóa/token và đường dẫn cá nhân.")
-    st.download_button("⬇ Tải báo cáo (.md)", text, file_name="bao_cao_chan_doan.md", key="diag_dl")
-    st.code(text, language="markdown")
-    st.caption("Giám sát luôn chạy nền khi có thao tác gọi nhà cung cấp/Claude; ngưỡng: DIAG_STUCK_IMAGE_MIN, "
-               "DIAG_STUCK_VIDEO_MIN, DIAG_QUEUED_MIN, DIAG_RETRY_WARN.")
+    return _monitor_v2(p, pid)                       # UI v2: the only layout since S14.14 G-a (06/10)
 
 
 def _monitor_v2(p: Pipeline, pid: int) -> None:
-    """UI v2 (flag ui_v2): same data and controls as `monitor`. Outside: 4 stats + system status (+ alerts/findings only when there are any);
+    """UI v2 (the only layout since S14.14 G-a): same data and controls the old layout had. Outside: 4 stats + system status (+ alerts/findings only when there are any);
     every detail table / explanation sits in a labelled expander (closed) or an ⓘ."""
     from dashboard.design import components as D
     from dashboard.design.screens.v2_tables import Raw, table

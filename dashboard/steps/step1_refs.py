@@ -70,18 +70,6 @@ def _has_picture(chosen, name: str, kind: str):
     return next((a for a in chosen if a["kind"] == "location" and a["images"] and key in {assets.fold(n) for n in assets.names_of(a)}), None)
 
 
-def inputs_and_refs(p: Pipeline, pid: int, has_script: bool) -> None:
-    """Old screen: drawn AFTER the 1a script fold (S14.28). No script yet → one hint line; else a fold, closed by default."""
-    if not has_script:
-        st.caption(HINT)
-        return
-    with ui.fold("🖼 Tham chiếu & gắn ảnh nhân vật / nơi", _summary(p, pid), f"refs_{pid}", default_open=False,
-                 sub="gắn theo từng nhân vật / nơi đã nhận ra · Kho tự ghép theo tên") as opened:
-        if not opened:
-            return
-        attach_form(p, pid)
-
-
 def attach_form(p: Pipeline, pid: int) -> None:
     """The attached references + the form that adds one (keys ref_up_/ref_kind_/ref_name_/ref_shared_/ref_go_/ref_kho_;
     S14.28: ref_for_ = which recognised character / place, ref_outfit_for_ = the character an outfit is for)."""
@@ -95,7 +83,7 @@ def attach_form(p: Pipeline, pid: int) -> None:
         cap("Đã nhận ra: " + " · ".join(parts), f"script-refs-recognised-{pid}", summary=f"Đã nhận ra {len(names)} nhân vật / nơi · "
             f"{sum(1 for n, k in names if _has_picture(chosen, n, k))} đã có ảnh")
     st.markdown("**🖼 Tham chiếu đang gắn cho dự án**")
-    if chosen and ui.v2_on() and len(chosen) > 3:          # v2 (P3): one summary line + the whole list inside ⓘ
+    if len(chosen) > 3:         # v2 (P3): one summary line + the whole list inside ⓘ
         from dashboard.design import components as D
         rows = [f"- **{a['kind_label']}** {a['name']} — {len(a['images'])} ảnh ("
                 + ("chỉ dự án này" if a.get("project_id") else "Kho chung") + ")"

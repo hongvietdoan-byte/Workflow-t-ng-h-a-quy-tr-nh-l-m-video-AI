@@ -196,7 +196,7 @@ def turn_script(p, pid, state, client, wish, used) -> None:
         st.markdown("**Ý tưởng gốc**")
         ui.html('<div class="idea-col">' + escape(inp["idea"]) + "</div>")
         if state.get("added"):
-            if ui.v2_on() and len(state["added"]) > 3:                 # v2 (list > 3): a count outside, the list in ⓘ
+            if len(state["added"]) > 3:               # v2 (list > 3): a count outside, the list in ⓘ
                 from dashboard.design import components as D
                 D.line(f'<span class="script-sum">Biên kịch tự ghi thêm {len(state["added"])} phần</span>',
                        "Biên kịch tự ghi phần thêm:\n\n" + "\n".join(f"- {a.get('kind')}: {a.get('text')}" for a in state["added"]),
@@ -217,7 +217,7 @@ def turn_script(p, pid, state, client, wish, used) -> None:
     for t in chk.get("problems") or []:
         st.error(t)
     flags = chk.get("flags") or []
-    if ui.v2_on() and len(flags) > 2:                                  # v2 (list > 2): one line + the whole list in ⓘ
+    if len(flags) > 2:                               # v2 (list > 2): one line + the whole list in ⓘ
         from dashboard.design import components as D
         D.line(f'<span class="script-sum">{len(flags)} lưu ý về kịch bản</span>', "\n".join(f"- {t}" for t in flags), f"script-idea-flags-{pid}")
     else:

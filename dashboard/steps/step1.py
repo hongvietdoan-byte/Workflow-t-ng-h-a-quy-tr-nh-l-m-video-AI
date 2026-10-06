@@ -81,16 +81,13 @@ def script_input(p: Pipeline, pid: int, with_reset: bool = True) -> bool:
     if u2.button("▶ Phân tích (tách cảnh)", disabled=not has_input, type="primary", key=f"btn_analyse_{pid}"):
         if act(lambda: analyse_script(p, pid, up, pasted)):
             st.rerun()
-    if ui.v2_on():                                   # v2: the hint about "file wins" is P3 → ⓘ; the state of the input stays as one line
-        from dashboard.design import components as D
-        with u4:
-            if has_input:
-                D.line('<span class="script-sum">Sẵn sàng · bấm ▶ Phân tích</span>', "Nếu có cả file lẫn văn bản, hệ thống dùng file.",
-                       f"script-input-hint-{pid}")
-            else:
-                st.caption("Chọn file hoặc dán văn bản, rồi bấm Phân tích.")
-    else:
-        u4.caption("Nếu có cả file lẫn văn bản, hệ thống dùng file." if has_input else "Chọn file hoặc dán văn bản, rồi bấm Phân tích.")
+    from dashboard.design import components as D                   # v2: the hint about "file wins" is P3 → ⓘ; the state of the input stays as one line
+    with u4:
+        if has_input:
+            D.line('<span class="script-sum">Sẵn sàng · bấm ▶ Phân tích</span>', "Nếu có cả file lẫn văn bản, hệ thống dùng file.",
+                   f"script-input-hint-{pid}")
+        else:
+            st.caption("Chọn file hoặc dán văn bản, rồi bấm Phân tích.")
     if with_reset:
         with u3:
             reset_script_button(p, pid)
@@ -138,57 +135,8 @@ def step1(p: Pipeline, pid: int):
     char_names = [c["name"] for c in chars]
     locked = any(c["locked"] for c in chars)
     stale = len(lineage.stale_scene_ids(p.conn, pid)) if scenes else 0
-    if ui.v2_on():                                                      # S13 lane E: the re-composed screen (same widgets, same keys)
-        from dashboard.steps.step1_v2 import step1_v2
-        return step1_v2(p, pid, proj, scenes, chars, risky, char_names, locked, stale)
-    step_header("Kịch bản & đạo diễn", "tách cảnh → chuẩn bị → Director → nhân vật → thoại → khóa",
-                _count_label(p, pid, scenes) + f" · {len(chars)} nhân vật" + (" · đã khóa" if locked else ""), stale)
-    note = st.session_state.pop("inherited_note", None)                 # S3.8: said once, right after the project was made
-    if note:
-        st.info("↪ " + note + " — đổi ở màn Kịch bản · Định dạng nếu dự án này khác.")
-    from dashboard import next_step                                     # S9 E0.1: the next thing to do, one line
-    ui.html(next_step.band(p, pid, 1, C.DATA))
-
-    from dashboard.steps.step1_refs import inputs_and_refs, modes_line    # đợt 3: ways in + attach reference pictures
-    # S9.1 (người dùng, sau #8): once the script is split the card folds to one line; open again with "▸ Mở"
-    with ui.fold("1a · 📜 Kịch bản", _script_summary(p, pid, scenes), f"script_{pid}",
-                 default_open=not scenes or bool(st.session_state.get("parse_warn")),
-                 sub="toàn văn (trái) · chia theo cảnh (phải)") as script_open:
-        if script_open:
-            modes_line(pid)                                             # S14.28: the ways in, one line, inside the script card
-            if st.session_state.get("parse_warn") and scenes:
-                st.warning(st.session_state["parse_warn"])
-            has_input = script_input(p, pid, True)
-            if st.session_state.get("parse_info") and scenes:
-                parse_info_box()
-            script_views(p, pid, proj, scenes, char_names)
-    inputs_and_refs(p, pid, bool(scenes))                               # S14.28: references AFTER the script / scene analysis
-    ui.html(ui.card_title("1b · 🧰 Chuẩn bị", "làm TRƯỚC Director: định dạng, tài nguyên, phong cách"))
-    project_format_panel(p, pid)
-    if scenes:
-        assets_panel(p, pid)
-    if C.expert():
-        world_bible_panel(p, pid)
-
-    if scenes:
-        ui.html(ui.card_title("1c · Chọn cách chạy", "tự động hoàn toàn, hoặc lần lượt từng bước"))
-        autopilot_panel(p, pid)
-        cap("🧭 Hoặc lần lượt từng bước: 1d Director → 1e Character Bible → 1f Rà thoại → khóa & sang màn Storyboard → tab Motion (Storyboard) motion + "
-                   "giọng → màn Video video → màn Bản giao âm thanh & xuất bản.")                     # E1.10: no card for text only
-        director_panel(p, pid, chars)
-    if chars:
-        character_bible_panel(p, pid, chars, risky)
-        dialogue_review_panel(p, pid)
-        if C.expert():
-            storyboard_panel(p, pid)
-        with st.container(border=True):
-            a, b = st.columns([2, 1], vertical_alignment="center")
-            missing_anchor = [c["name"] for c in chars if not c["anchor_approved"]]
-            a.caption("Xong nhân vật (và storyboard nếu dựng): duyệt & khóa rồi sang màn Storyboard."
-                      + (f" Chưa duyệt ảnh mốc: {', '.join(missing_anchor)}." if missing_anchor else ""))
-            b.button("✔ Duyệt & khóa → Storyboard", type="primary", key=f"lock_go_{pid}", on_click=_lock_and_go, args=(p, pid))
-            if st.session_state.get("lock_error"):
-                st.error(st.session_state.pop("lock_error"))
+    from dashboard.steps.step1_v2 import step1_v2                       # S13 lane E (v2, the only composition since S14.14 G-a)
+    return step1_v2(p, pid, proj, scenes, chars, risky, char_names, locked, stale)
 
 
 def _acting_inputs(d, k, lk):
@@ -337,7 +285,7 @@ def scene_list(p: Pipeline, pid: int, scenes, char_names) -> None:
     by_idx = {r["idx"]: r for r in status.values()}
     with_bg = sum(1 for s in scenes if assets.scene_location(p.conn, pid, json.loads(s["data"] or "{}")))
     unit = "shot" if scenes and any(json.loads(s["data"] or "{}").get("shot_no") for s in scenes) else "cảnh"
-    if not (ui.v2_on() and with_bg == len(scenes)):       # v2 (P4): "all of them have one" is not worth a line
+    if with_bg != len(scenes):                            # v2 (P4): "all of them have one" is not worth a line
         cap(f"🏞 {with_bg}/{len(scenes)} {unit} đã có Background"
             + ("" if with_bg == len(scenes) else f" — {unit} chưa có thì không dựng được layout; chọn trong từng {unit} hoặc gắn địa điểm ở 1b"),
             summary=f"🏞 {with_bg}/{len(scenes)} {unit} đã có Background")
@@ -378,7 +326,7 @@ def scene_list(p: Pipeline, pid: int, scenes, char_names) -> None:
                 _director_review(p, pid)
     from contextlib import nullcontext
     # v2 (P3, long list): more than 6 rows scroll inside a labelled box instead of making the card as tall as the list
-    with (st.container(height=460, key=f"script-rows-{pid}") if ui.v2_on() and len(scenes) > 6 else nullcontext()):
+    with (st.container(height=460, key=f"script-rows-{pid}") if len(scenes) > 6 else nullcontext()):
         cur_story = None
         for s in scenes:
             d = json.loads(s["data"] or "{}")

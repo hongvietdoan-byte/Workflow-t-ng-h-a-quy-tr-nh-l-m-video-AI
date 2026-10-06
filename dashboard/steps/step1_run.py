@@ -13,7 +13,7 @@ def autopilot_progress(pid: int) -> None:
     state = info["state"]
     tag = {"queued": ("xếp hàng", "b-warn"), "running": ("đang chạy", "b-info"), "done": ("hoàn tất", "b-ok"), "needs_attention": ("cần bạn xử lý", "b-warn"),
            "stopped": ("đã dừng", "b-warn"), "error": ("lỗi", "b-bad"), "waiting": ("chờ bạn duyệt", "b-pri")}.get(state, (state, ""))
-    if ui.v2_on() and len(info["note"]) > 90:              # v2: the state badge + one line; the whole note in ⓘ
+    if len(info["note"]) > 90:            # v2: the state badge + one line; the whole note in ⓘ
         from dashboard.design import components as D
         from dashboard.steps.step1_v2 import _short
         D.line(ui.badge(*tag) + f' <span class="script-sum">{escape(_short(info["note"], 80))}</span>', info["note"], f"script-auto-progress-{pid}")
@@ -79,10 +79,10 @@ def project_budget_panel(p: Pipeline, pid: int) -> None:
     data = project_budget.get(p.conn, pid) or {}
     locked = bool(data.get("locked"))
     title = "💵 Ngân sách dự án" + (" — 🔒 ĐÃ KHÓA" if locked else
-                                     (" — chưa duyệt" if ui.v2_on() else " — chưa duyệt (chạy tự động sẽ chờ trước khi gen ảnh)"))
+                                     " — chưa duyệt")
     # v2: closed with one summary line (the hero button approves it); the "waits before pictures" sentence moves to the sub-title
-    with ui.fold(title, _budget_summary(p, pid, data), f"budget_{pid}", default_open=is_next("budget", not locked),
-                 sub="chạy tự động chờ bước này trước khi gen ảnh" if ui.v2_on() and not locked else "") as budget_open:  # E1.3
+    with ui.fold(title, _budget_summary(p, pid, data), f"budget_{pid}", default_open=is_next("budget"),
+                 sub="" if locked else "chạy tự động chờ bước này trước khi gen ảnh") as budget_open:  # E1.3
         if budget_open:
             try:
                 prop = project_budget.propose(p, pid)
@@ -94,11 +94,8 @@ def project_budget_panel(p: Pipeline, pid: int) -> None:
             rows = [{"Khâu": label, "Đã chi": f"{spent[k]:.2f}", "Còn cần (ước)": f"{prop['stages'][k]['left_estimate']:.2f}",
                      "Đề xuất trần": f"{prop['stages'][k]['cap']:.2f}", "Trần đã khóa": (f"{caps[k]:.2f}" if k in caps else "—")}
                     for k, label in project_budget.STAGES.items()]
-            if ui.v2_on():                       # v2: a table that follows light/dark (st.dataframe is a canvas that stays light)
-                from dashboard.design import components as D
-                st.html(D.table(list(rows[0]), [list(r.values()) for r in rows], num_cols=(1, 2, 3, 4)))
-            else:
-                data_table(rows, hide_index=True, use_container_width=True)
+            from dashboard.design import components as D     # a table that follows light/dark (st.dataframe is a canvas that stays light)
+            st.html(D.table(list(rows[0]), [list(r.values()) for r in rows], num_cols=(1, 2, 3, 4)))
             try:                                                   # S14.16: the approval shows the TOTAL estimated cost (tính dư)
                 st.markdown("💵 " + project_budget.cost_summary(p, pid)["md"])
             except Exception as e:  # noqa: BLE001 - the approval still works; the missing estimate is said
@@ -161,9 +158,8 @@ def autopilot_panel(p: Pipeline, pid: int) -> None:
                    "(dừng để bạn duyệt storyboard, nếu bật) → motion prompt + rà prompt → giọng thoại → chọn model từng cảnh → video + QC video → nhạc, hiệu ứng → "
                    "bản giao (phụ đề, card cuối, bản xuất theo thiết lập ở màn Bản giao). Gặp việc cần người thì **dừng và báo**.")
         gates = autopilot.get_gates(p, pid)
-        from contextlib import nullcontext
         # v2: the labels of the three gates may wrap (the core theme clips checkbox labels to one line and would hide half the sentence)
-        with (st.container(key=f"script-gates-{pid}") if ui.v2_on() else nullcontext()):
+        with st.container(key=f"script-gates-{pid}"):
             g1, g2 = st.columns(2)
             bible = g1.checkbox("Dừng để duyệt Character Bible + Character Lock + giọng + ảnh mốc trước khi gen", gates["bible"],
                                 key=f"ap_gate_bible_{pid}", help="Nên bật: sai mô tả nhân vật sẽ lan ra MỌI cảnh (bài học từ lần hậu kiểm 2026-09-23).")

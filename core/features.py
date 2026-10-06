@@ -252,8 +252,10 @@ FEATURES: Dict[str, Dict] = {
     },
     "ui_v2": {
         "label": "Giao diện v2 kiểu “AI product”: nền tối aurora, thẻ kính, nút gradient + glow, thanh bước viên thuốc, pill trạng thái, chữ gradient (lớp thiết kế dashboard/design/, chạy trên cùng các màn hiện có)",
-        "verified": False,
-        "why": "S13 (01/10, docs/KE_HOACH_GIAO_DIEN_V2_2026-10-01.md): đang dựng theo giai đoạn; mặc định TẮT cho tới khi người dùng duyệt ảnh chụp trên Dashboard thật (cổng G1) — bật/tắt ở ⚙ → Hệ thống → 🧪 để so với giao diện cũ và quay lại tức thì",
+        "verified": True,
+        "why": "2026-10-05 người dùng duyệt (S14.14): ui_v2 thành mặc định, gỡ giao diện cũ. G-a (06/10) đã gỡ luồng cũ ở nhóm nhẹ (Kịch bản "
+               "step1_*, Video step4, Theo dõi admin, khung app/ui) — ở đó cờ không còn tác dụng; nhóm nặng (Storyboard, Bản giao, Nhóm, header) "
+               "vẫn đọc cờ tới khi G-b gỡ nốt (S13: docs/KE_HOACH_GIAO_DIEN_V2_2026-10-01.md)",
     },
     "storyboard_auto_trust": {
         "label": "Tự bỏ qua cổng duyệt storyboard khi QC đã đủ tin cậy (≥ 90% khớp người trên ≥ 50 ảnh cùng look) và storyboard không có cờ",

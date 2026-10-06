@@ -2,7 +2,7 @@
 
 Order (S14.28): hero (title · pills · the ONE primary action of the moment · "Việc tiếp theo") → ① Kịch bản (ways in on one line, the
 script box, the scene analysis) → 🖼 Tham chiếu (after the analysis, folded; one hint line before a script) → ② Chuẩn bị · Director · Nhân vật → ③ Chạy (tự động hoàn toàn + ngân sách). Rarely used things sit in a labelled "🔧 Tinh chỉnh" fold at
-the bottom of their card. Only used when `ui.v2_on()`; the old composition stays in step1.step1()."""
+the bottom of their card. The only composition since S14.14 G-a (06/10: the old one in step1.step1() was removed; step1.step1() calls this)."""
 from dashboard.common import *  # noqa: F401,F403  (shared imports + helpers)
 from dashboard import common as C
 from dashboard.design import components as D
@@ -36,22 +36,17 @@ def _auto_key(text: str, key: str = "") -> str:
 
 
 def cap(text: str, key: str = "", summary: str = "", scope: str = "") -> None:
-    """st.caption that, under UI v2, turns a LONG explanation into one summary line + a ⓘ holding the full text (nothing is lost).
-    `summary` overrides the automatic first-clause summary (use it when a figure must stay visible). Short captions, and everything
-    while the flag is off, are plain st.caption exactly as before."""
-    if not ui.v2_on() or (len(text) <= LONG_CAPTION and not summary):
+    """st.caption that turns a LONG explanation into one summary line + a ⓘ holding the full text (nothing is lost).
+    `summary` overrides the automatic first-clause summary (use it when a figure must stay visible). Short captions stay plain st.caption."""
+    if len(text) <= LONG_CAPTION and not summary:
         st.caption(text)
         return
     D.line(f'<span class="script-sum">{escape(summary or _short(text))}</span>', text, _uniq(_auto_key(text, key), scope))
 
 
 def say(kind: str, text: str, key: str = "", summary: str = "", scope: str = "") -> None:
-    """st.info / st.warning / st.success that, under UI v2, becomes a pill + ONE summary line + a ⓘ with the whole message
-    (P2 outside, P3 inside — docs/QUY_TAC_BO_CUC_UI_V2.md §5). Flag off: the plain Streamlit box, exactly as before.
-    Blocking errors are NOT routed here (they stay st.error / red lines: P1)."""
-    if not ui.v2_on():
-        {"info": st.info, "warning": st.warning, "success": st.success}[kind](text)
-        return
+    """st.info / st.warning / st.success as a pill + ONE summary line + a ⓘ with the whole message
+    (P2 outside, P3 inside — docs/QUY_TAC_BO_CUC_UI_V2.md §5). Blocking errors are NOT routed here (they stay st.error / red lines: P1)."""
     D.note(kind, text, summary or _short(text), _uniq(_auto_key(text, key), scope))
 
 
@@ -69,10 +64,8 @@ def next_panel(p: Pipeline, pid: int, scenes, chars, locked: bool) -> str:
     return ""
 
 
-def is_next(name: str, legacy: bool) -> bool:
-    """`expanded=` / `default_open=` of a panel: the old rule while the flag is off; under v2 only the panel that is the next job."""
-    if not ui.v2_on():
-        return legacy
+def is_next(name: str) -> bool:
+    """`expanded=` / `default_open=` of a panel: only the panel that is the next job (next_panel) is drawn open."""
     return st.session_state.get("_script_next") == name
 
 

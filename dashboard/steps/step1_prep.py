@@ -90,7 +90,7 @@ def assets_panel(p: Pipeline, pid: int) -> None:
     suggested = [a for a in assets.find_in_text(p.conn, text, game, pid) if a["id"] not in chosen_ids]
     label = f"🧰 Tài nguyên đi kèm kịch bản — {len(chosen)} đã chọn" + (f" · {len(suggested)} gợi ý mới" if suggested else "")
     # S9 E1.5: open only while the project has nothing attached (suggestions alone no longer unfold it — #8 showed 3 wrong ones)
-    with st.expander(label, expanded=is_next("assets", not chosen)):     # v2: optional → never open on its own
+    with st.expander(label, expanded=is_next("assets")):     # v2: optional → never open on its own
         cap("Chọn nhân vật, vũ khí, thú cưng, bản đồ… có sẵn trong kho (hoặc tải ảnh riêng) để dùng cùng kịch bản. Director sẽ dùng đúng "
                    "tên và thiết kế này thay vì tự nghĩ ra, và ảnh của chúng là ảnh tham khảo khi gen. **Không bấm cũng được:** lúc chạy "
                    "Director, tài nguyên kịch bản nhắc đúng tên (có dấu) được tự gắn; tên trùng nhiều tài nguyên thì để bạn chọn; cái bạn đã "
@@ -161,7 +161,7 @@ def project_format_panel(p: Pipeline, pid: int) -> None:
     prio = model_router.priority_of(proj)
     label = f"📐 Định dạng: {formats.label(aspect)} · thể loại {llm_io.GENRES.get(genre, 'chưa chọn')} · model: " \
             f"{model_router.load_profiles()['priorities'][prio]['label']}"
-    with st.expander(label, expanded=is_next("format", aspect is None or not genre)):
+    with st.expander(label, expanded=is_next("format")):
         c1, c2, c3 = st.columns(3)
         aspects = list(formats.ASPECTS)
         new_aspect = c1.selectbox("Tỉ lệ khung", aspects, index=aspects.index(aspect) if aspect else aspects.index(formats.DEFAULT_NEW),
