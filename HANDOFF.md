@@ -26,6 +26,9 @@ Credit: người dùng báo còn $96/100 (06/10, sau S14.45); trần cứng $90 
 - S14.48: core/palette.py (màu chính nhân vật đo bằng code, cờ palette_check TẮT), cột characters.palette, nối qc_team.review_frame;
   tests/test_s1448_palette.py. CÒN: hiệu chỉnh ngưỡng trên ảnh thật ở máy chính.
 
+- S14.48 bản nới: cân trắng + so sắc màu, bỏ đêm/hoàng hôn/quá tối/cận mặt/trang phục riêng, scene_check so trong cảnh; sửa lỗi
+  kết quả màu không tới người (review_frame bỏ khóa '_') → res['palette'], res['palette_scene'], dòng trong note_of.
+
 ## Đang dở / bước kế
 - S14.24 giao diện: `lesson_judge_panel` trong tab Bài học (chỉ khi cờ bật; nút có giá, bảng kết quả bóng, độ đồng thuận) — test AppTest xanh; chưa nhìn trên Dashboard thật.
 - Không sửa core/lessons.py (S14.46 đang làm ở máy chính): decide(reviewer=…), sync_knowledge một bản/key, DOC_TITLE — để Đợt bật tự duyệt.
