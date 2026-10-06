@@ -288,7 +288,9 @@ def _approved_this_week(conn) -> int:
 
 
 def _record(conn, lesson: Dict, f: Dict, v: Dict, result: Optional[Dict], threshold: float, model: Optional[str], note: str) -> None:
-    detail = {"shadow": True, "valves": v["valves"], "why": v["why"], "model": model, "body_hash": body_hash(lesson),
+    # Lượt không gọi được Claude chưa phải đánh giá: nút Chấm phải cho thử lại khi có kết nối/credit.
+    detail = {"shadow": True, "valves": v["valves"], "why": v["why"], "model": model,
+              "body_hash": None if "khong_goi_duoc_claude" in v["valves"] else body_hash(lesson),
               "criteria": (result or {}).get("criteria") or {}, "total": (result or {}).get("total"),
               "summary": (result or {}).get("summary"),
               "facts": {k: f[k] for k in ("events", "projects", "examples", "examples_found", "duplicates", "retired", "doc_chars",

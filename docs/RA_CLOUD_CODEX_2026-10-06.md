@@ -17,6 +17,7 @@ Nguồn: `claude/read-s14-45-cloud-tasks-ngb0q2-v2` (`95f7a6d`) và `cloud/S14.2
 1. `lesson_judge.judge`: client ném `LlmError` làm dừng cả lượt chấm, không ghi van không gọi được Claude. Bắt đúng lỗi, ghi diag + `needs_human`, không tự gọi lại khi lỗi này; bài học/knowledge không đổi. Test `test_transport_failure_records_the_no_claude_valve`.
 2. `lesson_judge.agreement`: bài học đã sửa nội dung vẫn được so với đánh giá cũ, có thể báo đủ chỉ tiêu sai. Chỉ tính đánh giá mới nhất có `body_hash` khớp bản hiện tại. Test `test_agreement_ignores_a_review_of_the_previous_body`.
 3. `palette.character_palette`: file tham chiếu mất/không đọc được làm phép QC ném lỗi ở bước SHA. Trả lý do không đo được; không dùng bảng màu cũ để đoán. Test `test_missing_reference_reports_not_measurable_without_breaking_qc`.
+4. `lesson_judge._record`: van không gọi được Claude vẫn ghi dấu vân tay như bài đã chấm, khiến `pending_count` về 0 và không thử lại được khi kết nối/credit phục hồi. Không ghi dấu vân tay đánh giá cho lượt chưa gọi được; việc thử lại vẫn do người bấm nút. Test `test_a_network_failure_can_be_judged_again_after_recovery` đỏ (0 thay vì 2 bài chờ) → xanh.
 
 Lỗi thiếu import `Optional` ở `step1_characters` đã lấy sửa vào G-a vì chặn Dashboard ngay từ lúc import.
 
@@ -24,6 +25,7 @@ Lỗi thiếu import `Optional` ở `step1_characters` đã lấy sửa vào G-a
 
 - Trước sửa: 77 test cloud qua; ba test hồi quy mới đỏ đúng nguyên nhân.
 - Sau sửa: 80 test (`lesson_judge`, `s1451_palette`, `p1_llm_latency`, `devsys_workflow`, `devsys_decisions`) qua; 90 test (`s1425_feedback_mistakes`, `lessons`, `lesson_judge`, `devsys`) qua.
+- Test thứ tư được bổ sung trong lúc rà bản tích hợp. Lượt cả bộ đang chạy đã dừng để sửa và kiểm lại đúng bản cuối; 1622 test đã qua trước lúc dừng, chưa có lỗi.
 - Chưa chạy cả bộ bản tích hợp G-a + hai nhánh cloud. Chưa gộp/push `main`.
 - Không gọi API trả phí, không có dữ liệu máy chính; chưa chạy UI thật trên Windows hoặc khởi động lại 8501/8502.
 - Không có công cụ đo token Codex tương ứng số đo Claude; không bịa token làm/rà/sửa để ghi vào workflow.

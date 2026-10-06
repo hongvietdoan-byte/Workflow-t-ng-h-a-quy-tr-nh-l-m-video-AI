@@ -293,6 +293,16 @@ class ShadowRunTests(unittest.TestCase):
         self.conn.commit()
         self.assertEqual(lj.agreement(self.conn)["pairs"], 1)
 
+    def test_a_network_failure_can_be_judged_again_after_recovery(self):
+        client = mock.Mock()
+        client.complete.side_effect = llm_runner.LlmError("mất kết nối", code="network", transient=True)
+        with mock.patch.object(features, "on", side_effect=lambda n: n == "lesson_judge"):
+            lj.judge_all(self.conn, client)
+            self.assertEqual(lj.pending_count(self.conn), 2)
+            out = lj.judge_all(self.conn, lj.MockJudge())
+        self.assertEqual(out["calls"], 2)
+        self.assertEqual(lj.pending_count(self.conn), 0)
+
 
 if __name__ == "__main__":
     unittest.main()
