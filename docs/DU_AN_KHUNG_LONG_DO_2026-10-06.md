@@ -76,3 +76,18 @@ Mức dự tính đợt ngân sách: **25 USD** (vượt chỉ cảnh báo). Kh�
 
 ## 6. Kết quả chạy
 _(điền sau khi chạy: mã dự án, chi thật theo sổ chi, cách A/B nhảy nào đạt, lỗi Dashboard gặp)_
+**06/10 tối — lượt 1 qua Dashboard (dự án #22, đã chi ≈ 0,99 USD Claude; chưa gen ảnh/video):**
+- Bước 1: kịch bản nhận đúng là KỊCH BẢN (0 USD). Director lần 1 ở chế độ mặc định "mỗi cảnh một clip" → 2 clip 15 s + tự bịa áo liền thân thú bông.
+  Đổi "Cách chia cảnh" = Chia shot + thêm mô tả 2 bộ đồ vào đầu kịch bản → Director (2 lượt) ra 10 shot, mô tả đúng bộ đồ.
+- Character Bible 4 dòng: MAXIM / KELLY (đồ thường) + MAXIM KL / KELLY KL (tự lấy ảnh Kho 33/23 + trang phục riêng dự án Kho 416/417).
+  Shot 4, 6 → KL; shot 7–9 → MAXIM KL + KELLY KL, mỗi shot 11,5 s; gộp shot 10 (3,4 s) vào shot 9; tổng 9 shot · 51 s. Kelly giọng 70.
+- Gỡ đạo cụ "mũ" (mũ bảo hiểm) Director tự gắn chỉ vì chữ "mũ đỏ có sừng".
+- Người dùng đồng ý BẬT cờ `place_render_refs` → shot 1–6 đứng `trong_nha_dong_t2`, shot 7–9 `nha_lon_dong`.
+- **Lỗi Dashboard đã sửa (main):** ô "Thời lượng đề xuất" chỉ nhận số nguyên (Lưu cảnh cắt 2,5 → 2 s); chọn chỗ đứng 3D bỏ chữ "đông"
+  và "tầng 2" (phòng ngủ phía Đông lạc sang nhà quảng trường / tầng 1). Cả bộ 2771 qua.
+- **Vướng chưa sửa (ghi lại):** tin bot trong khung chat bị lặp đôi; bấm ▶ Phân tích trước "Thay" hiện `ValueError` thô; các mục mở
+  (sửa/thêm nhân vật, tham chiếu) tự đóng sau mỗi lần lưu; form thêm nhân vật/ô upload giữ giá trị cũ sau khi lưu (dễ gắn trùng);
+  mở lại Dashboard vào "Test 1/10" thay vì dự án vừa làm; Director gắn đạo cụ theo một chữ trùng; ô video tham chiếu chỉ hiện ở chế độ chuyên gia;
+  ước tính Dashboard 13,86 USD (kế hoạch tính dư ≈ 24) — có thể chưa tính giá video ref Seedance 2.5.
+- **Dừng ở:** khóa ngân sách dự án (≈ 13,86 USD) — người dùng tự bấm. Tiếp: Storyboard ▶ Gen ảnh (≈ 0,6 USD) → motion prompt →
+  bật chế độ chuyên gia, gắn `nhay_doan1/2/3.mp4` vào shot 7/8/9 (chưa thử: khung đầu + video ref trên Seedance 2.5) → gen video → dựng.
