@@ -3,6 +3,7 @@ from dashboard.common import *  # noqa: F401,F403  (shared imports + helpers)
 from dashboard import common as C
 import contextlib
 from dashboard import access_ui
+from core import features, lesson_judge  # noqa: E402  (S14.24: agent chấm bài học, chế độ bóng)
 
 
 
@@ -1244,6 +1245,40 @@ def _monitor_v2(p: Pipeline, pid: int) -> None:
         st.code(text, language=None)
 
 
+def lesson_judge_panel(conn, llm) -> None:
+    """S14.24 (cờ `lesson_judge`): agent chấm bài học CHẾ ĐỘ BÓNG — chỉ ghi điểm để so với người, không duyệt / bỏ / sửa bài học nào."""
+    n = lesson_judge.pending_count(conn) if llm is not None else 0
+    est = lesson_judge.estimate(conn, n)
+    with st.container(border=True):
+        st.markdown("**🤖 Agent chấm bài học — chế độ bóng**")
+        st.caption("Claude chấm mỗi bài học theo 6 tiêu chí (AI ghi khoản trừ + bằng chứng, code tính điểm) và ghi lại ý kiến. Bạn vẫn "
+                   "bấm Duyệt/Bỏ như cũ — agent KHÔNG tự duyệt và không đổi bài học hay kiến thức nào. Bài nguồn web và chủ đề tính "
+                   "năng đã bỏ được code quyết, không tốn lượt Claude.")
+        if st.button(f"🤖 Chấm {n} bài học" + cost.llm_button_tag(conn, lesson_judge.STAGE, n), key="ls_judge", disabled=llm is None or n == 0,
+                     help="Cần ANTHROPIC_API_KEY." if llm is None else
+                     (f"Tối đa ≈ {est['usd_max']:.2f} USD nếu phải hỏi lại mọi bài (trả lời sai dạng)." if est["usd_max"] is not None
+                      else "Model chưa có giá trong bảng giá — xem ⚙ → Bảng giá.")):
+            try:
+                out = lesson_judge.judge_all(conn, llm)
+                st.success(f"Đã chấm {out['judged']} bài ({out['calls']} lượt Claude) — chế độ bóng, bài học giữ nguyên.")
+            except (lesson_judge.JudgeOff, *ERRORS) as e:
+                st.error(str(e))
+        a = lesson_judge.agreement(conn)
+        st.caption(f"Đồng thuận agent ↔ người: {a['pairs']} cặp"
+                   + (f", khớp {a['agreement']:.0%}, agent duyệt bài người đã bỏ: {a['ai_too_lenient']}" if a["pairs"] else "")
+                   + f" · chỉ tiêu bật tự duyệt: ≥ {lesson_judge.TRUST_PAIRS} cặp, khớp ≥ {lesson_judge.TRUST_AGREEMENT:.0%}, "
+                     "agent-lỏng-quá = 0" + (" — ĐÃ ĐẠT" if a["ready"] else ""))
+        rows = conn.execute(
+            "SELECT l.title, l.state, r.decision, r.score, r.detail, r.decided_at FROM lesson_reviews r JOIN lessons l ON l.id=r.lesson_id"
+            " WHERE r.reviewer_type='ai_agent' AND r.id IN (SELECT MAX(id) FROM lesson_reviews WHERE reviewer_type='ai_agent' GROUP BY lesson_id)"
+            " ORDER BY r.id DESC").fetchall()
+        if rows:
+            label = {"approve": "duyệt", "reject": "bỏ", "needs_human": "cần người"}
+            data_table([{"Bài học": r["title"], "Người": r["state"], "Agent": label.get(r["decision"], r["decision"]),
+                         "Điểm": None if r["score"] is None else round(r["score"] * 100), "Vì sao": json.loads(r["detail"] or "{}").get("why", ""),
+                         "Lúc": r["decided_at"]} for r in rows], hide_index=True, use_container_width=True)
+
+
 def lessons_tab(p: Pipeline, pid: int) -> None:
     """Learning across projects: repeated mistakes and monthly research become lessons a person approves."""
     conn = p.conn
@@ -1276,6 +1311,8 @@ def lessons_tab(p: Pipeline, pid: int) -> None:
         lessons.set_meta(conn, "research_monthly", "1" if monthly else "0")
     last = lessons.meta(conn, "research_last_run")
     st.caption(f"Lần nghiên cứu gần nhất: {last or 'chưa có'}. Nội dung web coi là không đáng tin: chỉ thành đề xuất, không tự áp dụng.")
+    if features.on("lesson_judge"):
+        lesson_judge_panel(conn, llm)
     proposed = lessons.list_lessons(conn, "proposed")
     st.markdown(f"**Đề xuất chờ duyệt ({len(proposed)})**")
     for row in proposed:

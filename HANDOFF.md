@@ -8,5 +8,5 @@ Credit: người dùng báo còn $96/100 (06/10, sau S14.45); trần cứng $90 
   estimate, agreement, MockJudge), cờ `lesson_judge` TẮT, STAGE_SETTINGS/LLM_STAGE_TOKENS "lesson_judge", tests/test_lesson_judge.py.
 
 ## Đang dở / bước kế
-- Nút "🤖 Chấm điểm đề xuất" + bảng kết quả ở dashboard/admin.py (tab Bài học) — CHƯA làm (cần Dashboard thật để thử, để phiên chính).
+- S14.24 giao diện: `lesson_judge_panel` trong tab Bài học (chỉ khi cờ bật; nút có giá, bảng kết quả bóng, độ đồng thuận) — test AppTest xanh; chưa nhìn trên Dashboard thật.
 - Không sửa core/lessons.py (S14.46 đang làm ở máy chính): decide(reviewer=…), sync_knowledge một bản/key, DOC_TITLE — để Đợt bật tự duyệt.
