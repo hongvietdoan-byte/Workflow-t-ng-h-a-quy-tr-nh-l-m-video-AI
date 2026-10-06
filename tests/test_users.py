@@ -87,7 +87,8 @@ class NameBarTests(unittest.TestCase):
         self.assertTrue(any("Nhập tên" in m.value for m in at.markdown))     # asks for a name while empty
         at.text_input(key="user_input").set_value("  Viet   Doan ").run()
         self.assertEqual(at.session_state["user_name"], "Viet Doan")          # tidied
-        self.assertIn("Viet Doan", list(at.query_params["user"]))
+        user = at.query_params["user"]                                         # AppTest: a list (≤ 1.64) or one string (1.65)
+        self.assertIn("Viet Doan", [user] if isinstance(user, str) else list(user))
         self.assertFalse(any("Nhập tên" in m.value for m in at.markdown))
 
     def test_name_from_the_address_is_used(self):
