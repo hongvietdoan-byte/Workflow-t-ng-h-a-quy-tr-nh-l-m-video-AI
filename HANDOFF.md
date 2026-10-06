@@ -23,6 +23,9 @@ Credit: người dùng báo còn $96/100 (06/10, sau S14.45); trần cứng $90 
 - Phân tích tài liệu Prompt Spider: docs/PHAN_TICH_PROMPT_SPIDER_2026-10-06.md (dòng việc đề xuất S14.47, S14.48 — phiên chính thêm vào kế hoạch).
 - S14.47: devsys/decisions.json + devsys/decisions.py + trang devsys 'Ai quyết', tests/test_devsys_decisions.py.
 
+- S14.48: core/palette.py (màu chính nhân vật đo bằng code, cờ palette_check TẮT), cột characters.palette, nối qc_team.review_frame;
+  tests/test_s1448_palette.py. CÒN: hiệu chỉnh ngưỡng trên ảnh thật ở máy chính.
+
 ## Đang dở / bước kế
 - S14.24 giao diện: `lesson_judge_panel` trong tab Bài học (chỉ khi cờ bật; nút có giá, bảng kết quả bóng, độ đồng thuận) — test AppTest xanh; chưa nhìn trên Dashboard thật.
 - Không sửa core/lessons.py (S14.46 đang làm ở máy chính): decide(reviewer=…), sync_knowledge một bản/key, DOC_TITLE — để Đợt bật tự duyệt.
