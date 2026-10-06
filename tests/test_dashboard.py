@@ -513,6 +513,23 @@ class DashboardSmokeTests(unittest.TestCase):
         data = json.loads(Pipeline(connect(self.db)).conn.execute("SELECT data FROM scenes").fetchone()["data"])
         self.assertEqual((data["image_prompt"], data["text"]), ("dark forest, low fog", "CẢNH 1. Nội dung sửa"))
 
+    def test_saving_a_shot_keeps_its_half_second_duration(self):
+        import json
+        p, pid = self.seed()
+        row = p.conn.execute("SELECT data FROM scenes WHERE project_id=? AND idx=1", (pid,)).fetchone()
+        p.conn.execute("UPDATE scenes SET data=? WHERE project_id=? AND idx=1",
+                       (json.dumps(dict(json.loads(row["data"] or "{}"), duration_s=2.5)), pid))
+        p.conn.commit()
+        at = self.script_open(pid)
+        at.toggle(key=f"sd_open_{pid}_1").set_value(True).run()
+        self.assertEqual(at.number_input(key=f"sd_{pid}_1_dur").value, 2.5)
+        at.text_area(key=f"sd_{pid}_1_prompt").set_value("dark forest, low fog").run()
+        next(b for b in at.button if b.key == f"sds_{pid}_1").click().run()
+        self.assertFalse(at.exception)
+        data = json.loads(Pipeline(connect(self.db)).conn.execute("SELECT data FROM scenes").fetchone()["data"])
+        self.assertEqual(data["duration_s"], 2.5)                                    # was cut to 2 by an int box
+        self.assertNotIn("duration_s", data.get("_user_locked") or [])                # not changed by hand → not locked
+
     def test_a_scene_background_is_chosen_from_the_project_places_and_saved_by_id(self):
         import io
         import json

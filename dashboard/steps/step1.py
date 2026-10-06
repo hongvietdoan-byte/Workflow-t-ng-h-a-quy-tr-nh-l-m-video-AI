@@ -195,8 +195,9 @@ def scene_editor(p: Pipeline, pid: int, scene, char_names) -> None:
                         index=role_opts.index(d.get("shot_role")) if d.get("shot_role") in role_opts else 0,
                         format_func=lambda v: {None: "—", "hero": "⭐ Then chốt", "normal": "Thường", "transition": "Chuyển tiếp"}[v],
                         key=f"{k}_role")
-    duration = c10.number_input("Thời lượng đề xuất (giây)" + lk("duration_s"), 0, 15, int(d.get("duration_s") or 0), 1, key=f"{k}_dur",
-                                help="0 = để Director/Motion quyết")
+    # 0.5 s steps: the Director plans 2.5 s / 11.5 s shots — an int box cut them to 2 / 11 on every save (Khủng Long Đỏ, 06/10)
+    duration = c10.number_input("Thời lượng đề xuất (giây)" + lk("duration_s"), 0.0, 15.0, float(d.get("duration_s") or 0), 0.5,
+                                format="%.1f", key=f"{k}_dur", help="0 = để Director/Motion quyết")
     places = {a["id"]: a for a in assets.project_assets(p.conn, pid) if a["kind"] == "location" and a["images"]}
     current = d.get("location_asset")
     if isinstance(current, int) and current not in places:
@@ -252,7 +253,7 @@ def scene_editor(p: Pipeline, pid: int, scene, char_names) -> None:
         fields = {"location": location, "time": time_, "shot": shot, "mood": mood, "lighting": lighting,
                   "image_prompt": image_prompt, "location_asset": bg, "blocking": blocking, "emotional_intent": intent,
                   "sequence": int(sequence) or None, "camera_complexity": complexity, "shot_role": role,
-                  "duration_s": int(duration) or None}
+                  "duration_s": round(float(duration), 2) or None}
         if rows or dlg:
             fields["dialogue"] = dlg
         if perf is not None:
