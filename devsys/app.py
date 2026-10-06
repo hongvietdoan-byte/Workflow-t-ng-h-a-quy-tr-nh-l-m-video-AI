@@ -21,7 +21,7 @@ os.chdir(ROOT)
 import pandas as pd  # noqa: E402
 import streamlit as st  # noqa: E402
 
-from devsys import answers, collect, metrics, plan_progress, scorer, scores, workflow  # noqa: E402
+from devsys import answers, collect, decisions, metrics, plan_progress, scorer, scores, workflow  # noqa: E402
 
 st.set_page_config(page_title="AI Development System", page_icon="🧭", layout="wide")
 
@@ -184,7 +184,7 @@ with st.sidebar:
         st.cache_data.clear()
         st.rerun()
     page = st.radio("Trang", ["📋 Kế hoạch đang chạy", "Tổng quan", "Bản đồ hệ thống", "Dòng thời gian", "Sức khỏe (đo bằng code)", "Chấm điểm AI", "Hiệu quả vận hành",
-                              "Hiệu quả quy trình", "Bộ kỹ năng 3 vai"], label_visibility="collapsed")
+                              "Hiệu quả quy trình", "Ai quyết", "Bộ kỹ năng 3 vai"], label_visibility="collapsed")
     st.divider()
     st.markdown("**Test**")
     running = collect.tests_running(ROOT)
@@ -1038,7 +1038,42 @@ def page_flow():
                "'thêm ≈ …k (đánh thức lại)' tính vào sửa. Mốc A/B lấy từ skill vong-lam-viec-theo-plan mục 2/2b.")
 
 
+# ---- trang: Ai quyết (S14.47) ------------------------------------------------------------------------------------------
+def page_decisions():
+    st.title("Ai quyết — code, Claude hay người ở mỗi điểm của pipeline")
+    st.caption("Từ `devsys/decisions.json` (liệt kê tay, test buộc khớp code). Đếm theo LOẠI quyết định, không theo số lượt chạy. "
+               "Mục tiêu: điểm nào đang trả tiền Claude mà code làm được → chuyển sang code (0 USD, tất định). Miễn phí.")
+    try:
+        doc = decisions.load()
+    except (OSError, ValueError) as e:
+        st.error(f"Không đọc được devsys/decisions.json: {e}")
+        return
+    bad = decisions.problems(doc) + decisions.broken_wheres(doc) + [f"khâu Claude '{s}' có trong code nhưng chưa có trên bản đồ"
+                                                                   for s in decisions.unmapped_stages(doc)]
+    if bad:
+        st.warning("Bản đồ lệch code:\n\n" + "\n".join(f"- {b}" for b in bad))
+    s = decisions.summary(doc)
+    al = s["all"]
+    st.markdown("<div class='kpis'>" + "".join([
+        kpi("Điểm quyết định", al["n"]),
+        kpi("Code", f"{al['code']} · {al['pct']['code']} %", "0 USD, tất định", "ok"),
+        kpi("Claude", f"{al['claude']} · {al['pct']['claude']} %", "tốn token", "warn"),
+        kpi("Người duyệt", f"{al['human']} · {al['pct']['human']} %", "điểm chặn"),
+        kpi("Gợi ý chuyển sang code", len(s["suggest"]), "xem bảng dưới"),
+    ]) + "</div>", unsafe_allow_html=True)
+    steps = doc.get("steps") or {}
+    st.markdown("#### Theo bước")
+    st.dataframe(pd.DataFrame([{"Bước": steps[k], "Điểm": v["n"], "Code": v["code"], "Claude": v["claude"], "Người": v["human"],
+                                "% Claude": v["pct"]["claude"]} for k, v in s["by_step"].items() if v["n"]]), hide_index=True)
+    st.markdown("#### Gợi ý: Claude → code / bỏ")
+    st.dataframe(pd.DataFrame([{"Bước": steps.get(d["step"], d["step"]), "Việc": d["what"], "Khâu": d.get("stage"), "Ở đâu": d["where"],
+                                "Gợi ý": d["suggest"]} for d in s["suggest"]]), hide_index=True)
+    st.markdown("#### Toàn bộ")
+    st.dataframe(pd.DataFrame([{"Bước": steps.get(d["step"], d["step"]), "Ai": decisions.WHO[d["who"]], "Việc": d["what"],
+                                "Khâu": d.get("stage") or "", "Ở đâu": d["where"]} for d in doc.get("items", [])]), hide_index=True)
+
+
 PAGES = {"📋 Kế hoạch đang chạy": page_plan, "Tổng quan": page_overview, "Bản đồ hệ thống": page_map, "Dòng thời gian": page_timeline, "Sức khỏe (đo bằng code)": page_health,
-         "Chấm điểm AI": page_scores, "Hiệu quả vận hành": page_effect, "Hiệu quả quy trình": page_flow,
+         "Chấm điểm AI": page_scores, "Hiệu quả vận hành": page_effect, "Hiệu quả quy trình": page_flow, "Ai quyết": page_decisions,
          "Bộ kỹ năng 3 vai": page_skills}
 PAGES[page]()

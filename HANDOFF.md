@@ -20,6 +20,9 @@ Credit: người dùng báo còn $96/100 (06/10, sau S14.45); trần cứng $90 
   tests/test_s1429_device_code.py; THỬ THẬT bằng Chromium trong cloud (DASHBOARD_LAN=1, IP 192.0.2.2 không PTR): cookie 43 ký tự,
   không lên URL, máy đầu DEV-AD1E83 tự duyệt, trình duyệt thứ hai DEV-C5DA3E chờ duyệt. CHƯA thử trong mạng công ty (dải 10.7.168.x).
 
+- Phân tích tài liệu Prompt Spider: docs/PHAN_TICH_PROMPT_SPIDER_2026-10-06.md (dòng việc đề xuất S14.47, S14.48 — phiên chính thêm vào kế hoạch).
+- S14.47: devsys/decisions.json + devsys/decisions.py + trang devsys 'Ai quyết', tests/test_devsys_decisions.py.
+
 ## Đang dở / bước kế
 - S14.24 giao diện: `lesson_judge_panel` trong tab Bài học (chỉ khi cờ bật; nút có giá, bảng kết quả bóng, độ đồng thuận) — test AppTest xanh; chưa nhìn trên Dashboard thật.
 - Không sửa core/lessons.py (S14.46 đang làm ở máy chính): decide(reviewer=…), sync_knowledge một bản/key, DOC_TITLE — để Đợt bật tự duyệt.
