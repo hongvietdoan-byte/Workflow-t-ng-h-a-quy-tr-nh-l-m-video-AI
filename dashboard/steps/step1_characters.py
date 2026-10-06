@@ -1,6 +1,7 @@
 """Step 1 · 1e: Character Bible — reference pictures, outfits, subjects, voices, Lock, anchors (split from step1.py, S9.5)."""
 from dashboard.common import *  # noqa: F401,F403  (shared imports + helpers)
 from dashboard import common as C
+from typing import Optional  # noqa: E402  (voice_rule_box: data_dir — common does not export it)
 from core import voice_casting  # noqa: E402  (S14.26: voices cast by rule from the scene analysis)
 from dashboard.steps.step1_v2 import cap, say, is_next  # noqa: F401  (v2: long captions / notes become a one-line summary + ⓘ)
 
