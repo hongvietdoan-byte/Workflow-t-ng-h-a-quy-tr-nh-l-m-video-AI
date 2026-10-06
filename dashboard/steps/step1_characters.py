@@ -1,4 +1,6 @@
 """Step 1 · 1e: Character Bible — reference pictures, outfits, subjects, voices, Lock, anchors (split from step1.py, S9.5)."""
+from typing import Optional
+
 from dashboard.common import *  # noqa: F401,F403  (shared imports + helpers)
 from dashboard import common as C
 from core import voice_casting  # noqa: E402  (S14.26: voices cast by rule from the scene analysis)

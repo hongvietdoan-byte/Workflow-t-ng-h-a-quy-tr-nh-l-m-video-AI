@@ -77,7 +77,10 @@ class DeliverV2Tests(DeliverSeed):
 
     def test_every_old_control_group_is_still_reachable(self):
         self.with_clip()
-        at = self.open_deliver()
+        # Kiểm điều khiển khi có font, không phụ thuộc font Windows cài trên máy chạy test.
+        font = subtitles.Font("test.ttf", "Test Sans", "Test Sans", True)
+        with mock.patch.object(subtitles, "discover", return_value=[font]):
+            at = self.open_deliver()
         pid = self.pid
         for key in (f"sub_lang_{pid}", f"sub_font_{pid}", f"sub_size_{pid}", f"sub_pos_{pid}", f"sub_color_{pid}", f"sub_platform_{pid}",
                     f"exp_fit_{pid}", f"tr_{pid}", f"fade_{pid}", f"vol_{pid}"):
