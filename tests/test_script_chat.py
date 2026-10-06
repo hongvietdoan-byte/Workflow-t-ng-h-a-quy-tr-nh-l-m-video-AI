@@ -27,6 +27,11 @@ class ScriptChatTests(unittest.TestCase):
         for text, intent in [('CẢNH 1 - NHÀ\nKENTA: Chào.', 'script'), ('sửa cảnh 2 cho vui hơn', 'edit'), ('ý tưởng: Kenta đi chợ', 'idea')]:
             self.assertEqual(script_chat.intent(text), intent)
         self.assertEqual(script_chat.intent('Bạn nghĩ nhịp phim này thế nào?'), 'chat')
+        # người dùng 06/10: không chắc → 'ask' (hỏi lại, 0 USD) thay vì tự đoán ý tưởng / chat
+        self.assertEqual(script_chat.intent('Kelly và Maxim tranh một thùng thính ở Đảo Quân Sự.'), 'ask')
+        self.assertEqual(script_chat.intent('Kelly và Kenta tranh nhau con pet Mr. Waggor?'), 'ask')
+        self.assertEqual(script_chat.intent('ok'), 'ask')
+        self.assertEqual(script_chat.intent('Có nên cắt cảnh 3 không?'), 'chat')
 
     def test_free_chat_tags_one_call_and_does_not_mutate_script(self):
         class Client:

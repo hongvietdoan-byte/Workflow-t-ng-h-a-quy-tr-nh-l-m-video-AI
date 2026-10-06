@@ -21,7 +21,8 @@ _KIND_TEXT = {"script": "KỊCH BẢN", "idea": "Ý TƯỞNG"}
 def _keys(pid: int) -> dict:
     return {"text": f"box_text_{pid}", "mode": f"in_mode_{pid}", "wish": f"box_wish_{pid}", "file": f"box_file_{pid}",
             "pending": f"box_pending_{pid}", "ask": f"box_ask_{pid}", "chat": f"box_in_{pid}",
-            "expand": f"box_expand_{pid}", "expand_off": f"box_expand_off_{pid}", "expand_msg": f"box_expand_msg_{pid}"}
+            "expand": f"box_expand_{pid}", "expand_off": f"box_expand_off_{pid}", "expand_msg": f"box_expand_msg_{pid}",
+            "chatask": f"box_chatask_{pid}"}
 
 
 def _take(p: Pipeline, pid: int, got) -> None:
@@ -210,6 +211,8 @@ def _cards(p: Pipeline, pid: int) -> None:
     from core import idea_to_script as I
     k, ss = _keys(pid), st.session_state
     pend, ask = ss.get(k["pending"]), ss.get(k["ask"])
+    if ss.get(k["chatask"]):
+        _chat_ask(p, pid)
     if pend:
         n = I.classify(pend).get("scenes", 0)
         with st.chat_message("assistant"):
@@ -229,6 +232,42 @@ def _cards(p: Pipeline, pid: int) -> None:
                     resolve(p, pid, choice)
                     st.rerun()
             c.button("Hủy", key=f"box_ask_no_{pid}", on_click=resolve, args=(None, pid, "cancel"), width="stretch")
+
+
+def _chat_ask(p: Pipeline, pid: int) -> None:
+    """Người dùng 06/10: tin nhắn chưa rõ ý (vd một ý tưởng ngắn không kèm câu yêu cầu) → HỎI LẠI bằng nút, chưa làm gì (0 USD).
+    Chỉ nút 💬 gọi Claude (giá trên nhãn); 💡 / 📜 đi đúng luồng cũ (ý tưởng → Biên kịch với nút có giá; kịch bản → ▶ Phân tích)."""
+    from core import script_chat as Chat, cost
+    k, ss = _keys(pid), st.session_state
+    text = ss.get(k["chatask"]) or ""
+    est = cost.llm_estimate(p.conn, Chat.STAGE, 1) or 0.0
+    with st.chat_message("assistant"):
+        st.markdown("**Bạn muốn làm gì với tin này?** Mình chưa chắc nên hỏi lại — chưa có gì chạy, chưa tốn tiền.")
+        a, b, c, d = st.columns([1.3, 1.3, 1.1, 0.7])
+        if a.button("💡 Dùng làm ý tưởng", key=f"box_chatask_idea_{pid}", width="stretch"):
+            _chat_choose(p, pid, "idea")
+            st.rerun()
+        if b.button(f"💬 Hỏi Claude · ≈ ${est:.2f}", key=f"box_chatask_chat_{pid}", width="stretch"):
+            ss.pop(k["chatask"], None)
+            act(lambda: Chat.send(p, pid, text, llm_client(), record_user=False))
+            st.rerun()
+        if c.button("📜 Đây là kịch bản", key=f"box_chatask_script_{pid}", width="stretch"):
+            _chat_choose(p, pid, "script")
+            st.rerun()
+        if d.button("Hủy", key=f"box_chatask_no_{pid}", width="stretch"):
+            ss.pop(k["chatask"], None)
+            Chat.append(p, pid, "assistant", "Đã bỏ qua tin này — chưa làm gì.")
+            st.rerun()
+
+
+def _chat_choose(p: Pipeline, pid: int, mode: str) -> None:
+    from core import script_chat as Chat
+    k, ss = _keys(pid), st.session_state
+    text = ss.pop(k["chatask"], "") or ""
+    _take(p, pid, text)
+    ss[k["mode"]] = mode
+    Chat.append(p, pid, "assistant", "Dùng làm **ý tưởng** — Biên kịch viết thành kịch bản; mỗi lượt có nút ghi giá, chưa chạy gì."
+                if mode == "idea" else "Coi là **kịch bản** — bấm ▶ Phân tích để tách cảnh (0 USD).")
 
 
 def script_view(p: Pipeline, pid: int, scenes) -> None:
@@ -257,7 +296,12 @@ def script_box(p: Pipeline, pid: int, with_reset: bool = True) -> bool:
             incoming = got if isinstance(got, str) else (getattr(got, "text", None) or "")
             files = [] if isinstance(got, str) else list(getattr(got, "files", None) or [])
             kind = "script" if files else Chat.intent(incoming)
-            if kind == "chat":
+            if kind == "ask" and I.get_state(p.conn, pid).get("inputs"):
+                kind = "idea"                                          # đang viết một ý tưởng: câu ngắn = "nói thêm" cho lượt kế (như cũ)
+            if kind == "ask":                                          # người dùng 06/10: không chắc → hỏi lại, chưa làm gì, 0 USD
+                Chat.append(p, pid, "user", incoming)
+                ss[k["chatask"]] = incoming
+            elif kind == "chat":
                 with st.spinner("Claude đang trả lời…"):
                     act(lambda: Chat.send(p, pid, incoming, llm_client()))
             else:

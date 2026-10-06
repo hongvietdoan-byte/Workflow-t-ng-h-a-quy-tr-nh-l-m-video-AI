@@ -346,6 +346,7 @@ if ScriptBoxTests is not None:
             from tests.test_idea_to_script import ANCHORS as A2, make_kit as mk
             pid = self.p.create_project("Đang viết")
             at = self.say(self.app(pid), IDEA)
+            at.button(key=f"box_chatask_idea_{pid}").click().run()
             mk(self.p.conn)
             I.start(self.p.conn, pid, IDEA, anchors=A2)
             at = self.say(at, "viết lại kịch bản này chi tiết hơn")

@@ -346,6 +346,11 @@ class ScriptBoxTests(unittest.TestCase):
     def test_short_idea_goes_to_the_writer_with_folded_settings_and_priced_turns(self):
         pid = self.p.create_project("Ý tưởng")
         at = self.say(self.app(pid), IDEA)
+        # người dùng 06/10: ý tưởng ngắn KHÔNG kèm câu yêu cầu → hỏi lại trước (0 USD), chưa tự đi luồng Biên kịch
+        self.assertIn("Bạn muốn làm gì với tin này?", self.html(at))
+        self.assertNotIn(f"idea_form_{pid}", tree_keys(at))
+        at.button(key=f"box_chatask_idea_{pid}").click().run()
+        self.assertFalse(at.exception, at.exception)
         self.assertIn("Hiểu là **Ý TƯỞNG**", self.html(at))
         self.assertIn(f"box_mode_script_{pid}", tree_keys(at))                  # override the other way
         self.assertIn(f"idea_form_{pid}", tree_keys(at))                        # the settings form kept (st.form)
@@ -365,6 +370,32 @@ class ScriptBoxTests(unittest.TestCase):
             self.assertEqual(complete.call_count, 1)
             self.assertEqual(len(script_chat.history(self.p, pid)), 2)
 
+    def test_unclear_message_asks_first_then_each_choice_does_only_its_own_thing(self):
+        """Người dùng 06/10: không chắc → hỏi lại trước khi tự quyết. Ý tưởng ngắn không kèm yêu cầu / câu có '?' đọc như ý tưởng
+        → bong bóng 4 nút, chưa gọi model; 💬 gọi Claude ĐÚNG 1 lần (tin người dùng không ghi 2 lần); Hủy không làm gì."""
+        from core import script_chat, llm_runner
+        from core import idea_to_script as I
+        pid = self.p.create_project("Hỏi lại")
+        with mock.patch.object(llm_runner.MockLlm, "complete", return_value=llm_runner.LlmReply("Ý này hợp video 20 s.")) as complete:
+            at = self.say(self.app(pid), "Kelly và Kenta tranh nhau con pet Mr. Waggor?")
+            keys = tree_keys(at)
+            for key in ("idea", "chat", "script", "no"):
+                self.assertIn(f"box_chatask_{key}_{pid}", keys)
+            self.assertEqual(complete.call_count, 0)
+            self.assertEqual(I.get_state(self.p.conn, pid), {})
+            at.button(key=f"box_chatask_chat_{pid}").click().run()
+            self.assertFalse(at.exception, at.exception)
+            self.assertEqual(complete.call_count, 1)
+            at.run()
+            self.assertEqual(complete.call_count, 1)                                        # vẽ lại không gọi lần hai
+            self.assertEqual([m["role"] for m in script_chat.history(self.p, pid)], ["user", "assistant"])
+            self.assertNotIn(f"box_chatask_chat_{pid}", tree_keys(at))
+            at = self.say(at, "Maxim ăn vụng bánh")
+            at.button(key=f"box_chatask_no_{pid}").click().run()
+            self.assertEqual(complete.call_count, 1)
+            self.assertNotIn(f"box_chatask_idea_{pid}", tree_keys(at))
+            self.assertNotIn(f"box_text_{pid}", at.session_state)
+
     def test_grey_zone_asks_two_buttons_and_runs_nothing(self):
         pid = self.p.create_project("Xám")
         at = self.say(self.app(pid), "Hai người cãi nhau.\nKELLY: Của tôi!\nMAXIM: Không, của tôi!")
@@ -381,6 +412,7 @@ class ScriptBoxTests(unittest.TestCase):
         from core import idea_to_script as I
         pid = self.p.create_project("Nói thêm")
         at = self.say(self.app(pid), IDEA)
+        at.button(key=f"box_chatask_idea_{pid}").click().run()
         from tests.test_idea_to_script import ANCHORS, make_kit
         make_kit(self.p.conn)                                                   # S14.31: the Biên kịch needs a kit + key points
         I.start(self.p.conn, pid, IDEA, anchors=ANCHORS)                         # as if "💡 Bắt đầu" was pressed

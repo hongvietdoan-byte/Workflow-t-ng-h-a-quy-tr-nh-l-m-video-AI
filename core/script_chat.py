@@ -42,15 +42,20 @@ def intent(text):
         return 'script'
     if re.match(r'^\s*(?:ý tưởng|viết kịch bản|dàn ý)\b', text, re.I):
         return 'idea'
-    # A question is conversational even if the short-text classifier calls it an idea.
-    if '?' in text or re.match(r'^\s*(?:bạn|tại sao|vì sao|thế nào|chào|cảm ơn|hãy giải thích)\b', text, re.I):
+    # A clear question / greeting is conversation.
+    if re.match(r'^\s*(?:bạn|tại sao|vì sao|thế nào|làm sao|có nên|nên|chào|cảm ơn|hãy giải thích)\b', text, re.I):
         return 'chat'
-    return 'idea' if idea_to_script.classify(text)['kind'] == 'idea' else 'chat'
+    if '?' in text and classification['kind'] != 'idea':
+        return 'chat'
+    # Người dùng 06/10: không chắc thì HỎI LẠI (0 USD) thay vì tự quyết — vd một ý tưởng ngắn không kèm câu yêu cầu, hay một câu có "?"
+    # mà đọc như ý tưởng → hỏi "dùng làm ý tưởng / hỏi Claude / đây là kịch bản" trước khi đi tiếp.
+    return 'ask'
 
 
-def send(p, pid, text, client):
+def send(p, pid, text, client, record_user=True):
     access.need_edit(p, pid, 'gửi chat Kịch bản')
-    append(p, pid, 'user', text)
+    if record_user:                                     # False: tin đã ghi lúc hỏi lại (intent 'ask')
+        append(p, pid, 'user', text)
     if client is None:
         append(p, pid, 'assistant', 'Chưa kết nối Claude — kiểm tra Cài đặt rồi gửi lại. Chưa gọi model.')
         raise ValueError('Chưa kết nối Claude — kiểm tra Cài đặt rồi gửi lại.')
