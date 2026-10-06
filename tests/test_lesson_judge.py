@@ -276,3 +276,57 @@ class ShadowRunTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class LessonsTabUiTests(unittest.TestCase):
+    """Tab Bài học: cờ tắt → không có gì mới; cờ bật → nút chấm có giá trên nhãn, bấm thì ghi kết quả bóng, bài học không đổi."""
+    APP = os.path.join(os.path.dirname(__file__), "..", "dashboard", "app.py")
+
+    def setUp(self):
+        try:
+            from streamlit.testing.v1 import AppTest  # noqa: F401
+        except ImportError:  # pragma: no cover
+            self.skipTest("streamlit.testing không có")
+        self.tmp = tempfile.mkdtemp()
+        self.db = os.path.join(self.tmp, "m.sqlite")
+        env = {"DASHBOARD_EXPERT": "1", "PIPELINE_DB": self.db, "PIPELINE_DATA": os.path.join(self.tmp, "projects"),
+               "KNOWLEDGE_USER_DIR": os.path.join(self.tmp, "knowledge_user"), "LLM_PROVIDER": "mock"}
+        patcher = mock.patch.dict(os.environ, env)
+        patcher.start()
+        self.addCleanup(patcher.stop)
+        self.addCleanup(shutil.rmtree, self.tmp, True)
+        from core.pipeline import Pipeline
+        p = Pipeline(connect(self.db))
+        p.create_project("Demo")
+        ev = json.dumps({"events": 4, "projects": 2, "examples": []}, ensure_ascii=False)
+        p.conn.execute("INSERT INTO lessons (created_at, group_name, key, title, body, source, evidence, state) VALUES (?,?,?,?,?,?,?,?)",
+                       ("2026-10-02T00:00:00+00:00", "director", "mistake:hands", "Tránh lỗi lặp: Bàn tay",
+                        "Ghi rõ năm ngón mỗi bàn tay, tránh cận cảnh bàn tay cầm vật nhỏ.", "mistakes", ev, "proposed"))
+        p.conn.commit()
+
+    def _run(self, flag: str):
+        from streamlit.testing.v1 import AppTest
+        with mock.patch.dict(os.environ, {"FEATURE_LESSON_JUDGE": flag}):
+            at = AppTest.from_file(self.APP, default_timeout=60)
+            at.query_params["step"] = "lessons"
+            at.run()
+        return at
+
+    def test_flag_off_shows_nothing_new(self):
+        at = self._run("0")
+        self.assertFalse(at.exception)
+        self.assertFalse([b for b in at.button if b.key == "ls_judge"])
+
+    def test_flag_on_button_has_price_and_click_records_shadow_review(self):
+        at = self._run("1")
+        self.assertFalse(at.exception)
+        btn = next(b for b in at.button if b.key == "ls_judge")
+        self.assertRegex(btn.label, r"≈\s*[\d.,]+|chưa có giá")
+        with mock.patch.dict(os.environ, {"FEATURE_LESSON_JUDGE": "1"}):
+            btn.click().run()
+        self.assertFalse(at.exception)
+        conn = connect(self.db)
+        self.assertEqual(conn.execute("SELECT COUNT(*) FROM lesson_reviews WHERE reviewer_type='ai_agent'").fetchone()[0], 1)
+        self.assertEqual(conn.execute("SELECT state FROM lessons").fetchone()[0], "proposed")          # bóng: bài học không đổi
+        text = " ".join(m.value for m in at.markdown) + " ".join(c.value for c in at.caption)
+        self.assertIn("chế độ bóng", text)

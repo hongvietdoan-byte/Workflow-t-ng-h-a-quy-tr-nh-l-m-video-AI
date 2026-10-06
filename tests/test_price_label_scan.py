@@ -23,7 +23,7 @@ PAID = ("runner.submit_pending", "*.submit_pending", "costume.make_character_set
         "claude_tasks.*", "llm_runner.run_*", "voice_check.redo", "voice.fit_durations", "run_director_now", "music.submit_*", "audio_lib.submit_*", "meshy.submit_*",
         "research.run", "video_analysis.analyze", "style.analyse", "editor_review.run", "sfx_plan.propose", "subtitles.localize",
         "delivery.deliver", "regen.regenerate_video", "p.reject", "p.retry", "p.reopen_approved", "p.restart_job",
-        "autopilot_manager(*).start", "idea_to_script.*", "asset_checklist.run")
+        "autopilot_manager(*).start", "idea_to_script.*", "asset_checklist.run", "lesson_judge.judge_all")
 FREE = {   # matched by a PAID pattern but costs nothing (each with why)
     "claude_tasks.set_lock": "chỉ ghi Lock vào DB",
     "claude_tasks.apply_dialogue_fix": "chỉ áp câu thoại đã có",

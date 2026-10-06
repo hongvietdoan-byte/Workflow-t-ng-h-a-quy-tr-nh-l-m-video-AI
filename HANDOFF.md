@@ -15,5 +15,5 @@ Credit: người dùng báo còn $96/100 (06/10, sau S14.45); trần cứng $90 
   tính từ data/pricing.json), tests/test_s1411_trial_script.py. CHỜ người dùng duyệt trần → S14.12.
 
 ## Đang dở / bước kế
-- Nút "🤖 Chấm điểm đề xuất" + bảng kết quả ở dashboard/admin.py (tab Bài học) — CHƯA làm (cần Dashboard thật để thử, để phiên chính).
+- S14.24 giao diện: `lesson_judge_panel` trong tab Bài học (chỉ khi cờ bật; nút có giá, bảng kết quả bóng, độ đồng thuận) — test AppTest xanh; chưa nhìn trên Dashboard thật.
 - Không sửa core/lessons.py (S14.46 đang làm ở máy chính): decide(reviewer=…), sync_knowledge một bản/key, DOC_TITLE — để Đợt bật tự duyệt.
