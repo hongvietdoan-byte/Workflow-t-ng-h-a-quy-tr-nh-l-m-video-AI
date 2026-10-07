@@ -290,9 +290,25 @@ def script_box(p: Pipeline, pid: int, with_reset: bool = True) -> bool:
     from core import script_chat as Chat
     body, foot = st.container(), st.container()
     with foot:
-        got = st.chat_input("Dán kịch bản, gõ ý tưởng, trao đổi với Claude hoặc thả file…", key=k["chat"], accept_file=True,
-                            file_type=list(script_reader.SUPPORTED))
-        if got:
+        from core import chat_intake as Intake
+        wide = Intake.enabled()                                        # 07/10 cờ chat_first: ảnh / video / nhạc cũng vào đây
+        got = st.chat_input("Dán kịch bản, gõ ý tưởng, hỏi Claude, hoặc thả ảnh · video · nhạc · file kịch bản…" if wide else
+                            "Dán kịch bản, gõ ý tưởng, trao đổi với Claude hoặc thả file…", key=k["chat"],
+                            accept_file="multiple" if wide else True, file_type=list(Intake.ACCEPT if wide else script_reader.SUPPORTED))
+        media = []
+        if got and wide and not isinstance(got, str):
+            media = [f for f in (getattr(got, "files", None) or []) if Intake.file_type(f.name) != "script"]
+        if media:
+            from dashboard.steps.step1_intake import handle_files
+            incoming = getattr(got, "text", None) or ""
+            scripts = [f for f in got.files if Intake.file_type(f.name) == "script"]
+            Chat.append(p, pid, "user", (incoming + "\n\n" if incoming else "") + "📎 " + ", ".join(f.name for f in got.files))
+            handle_files(p, pid, media, incoming)                      # chữ đi kèm tệp = lời ghi chú để xếp loại, không phải kịch bản
+            if scripts:
+                ss[k["file"]] = (scripts[0].name, scripts[0].getvalue())
+                ss[k["mode"]] = "script"
+                Chat.append(p, pid, "assistant", "Đã nhận file kịch bản — bấm ▶ Phân tích (0 USD).")
+        elif got:
             incoming = got if isinstance(got, str) else (getattr(got, "text", None) or "")
             files = [] if isinstance(got, str) else list(getattr(got, "files", None) or [])
             kind = "script" if files else Chat.intent(incoming)
@@ -320,6 +336,10 @@ def script_box(p: Pipeline, pid: int, with_reset: bool = True) -> bool:
             with st.expander(f"Xem {len(older)} tin cũ hơn"):
                 _messages(older)
         _messages(recent)
+        if Intake.enabled():
+            from dashboard.steps.step1_intake import pending_cards, style_offer
+            pending_cards(p, pid)
+            style_offer(p, pid)
     state = I.get_state(p.conn, pid)
     with body:
         if state.get("inputs"):                                        # the ceiling of this idea (mẫu step1_v2 meter)

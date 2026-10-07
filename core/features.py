@@ -182,6 +182,13 @@ FEATURES: Dict[str, Dict] = {
         "why": "Nghiệm thu 2026-09-27 trên 33 khung có nhãn của #8 không đạt (bỏ lọt 6 khung dán, báo nhầm 12/21 khung tốt); chấm lại cả "
                "cảnh sau mỗi lần vẽ lại tốn ~0,5 USD Claude chỉ để ghi chú (docs/CHAY_THU_2026-09-27_NHAT_KY.md phát hiện 44)",
     },
+    "chat_first": {
+        "label": "Tab Kịch bản kiểu chat: khung chat lớn ở giữa nhận chữ + ảnh + video + nhạc + file kịch bản; code xếp loại tệp 0 USD "
+                 "(chắc thì gắn ngay vào Kho / video ref cảnh / thư mục nhạc, không chắc thì hỏi lại trong chat); các thẻ chi tiết gấp vào ⚙ Chi tiết",
+        "verified": False,
+        "why": "Người dùng 07/10 (Khủng Long Đỏ mục 10, Đợt 1): code + test ở cloud, chưa thử trên Dashboard thật. Không đổi gì gửi tới "
+               "model trả phí; bật để thử bố cục mới, tắt = màn cũ y nguyên",
+    },
     "idea_to_script": {
         "label": "💡 Ý tưởng thô → kịch bản ở Bước 1: Biên kịch (Claude) hỏi lại ≤ 5 câu → 3 hướng → dàn ý theo giây → kịch bản đúng khuôn, "
                  "code kiểm, người duyệt từng lượt + màn 2 cột tô phần thêm (S11.1)",
