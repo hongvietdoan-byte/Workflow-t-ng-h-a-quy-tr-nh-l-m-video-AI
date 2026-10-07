@@ -225,7 +225,8 @@ def _shot_voice(data_dir: str, pid: int, scene_id: int, clip: str):
     if clip_s and wav_s and abs(clip_s - wav_s) > 0.2:
         return None, None, f"clip dài {clip_s:.2f} s ≠ giọng {wav_s:.2f} s (đã cắt sau khi sinh) — không so từng câu"
     turns = [{"speaker": e.get("speaker"), "start": o, "end": o + (e.get("duration_ms") or 0) / 1000.0}
-             for e, o in zip(lines, lipsync.line_offsets(lines))]
+             for e, o in zip(lines, (lipsync.index(data_dir, pid).get(str(scene_id)) or {}).get("offsets")   # where shot_audio put them
+                             or lipsync.line_offsets(lines))]
     return wav, [t for t in turns if t["end"] > t["start"]] or None, None
 
 

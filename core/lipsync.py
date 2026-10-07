@@ -119,9 +119,10 @@ def synced_scene_ids(data_dir: str, pid: int) -> set:
     return {int(k) for k, v in index(data_dir, pid).items() if v.get("state") == "done"}
 
 
-def line_offsets(entries: List[Dict]) -> List[float]:
-    """Where each line starts inside its shot — the same rule as voice.place_on_timeline for a shot whose previous shot is quiet."""
-    out, cursor = [], voice.LEAD
+def line_offsets(entries: List[Dict], lead: Optional[float] = None) -> List[float]:
+    """Where each line starts inside its shot — the same rule as voice.place_on_timeline for a shot whose previous shot is quiet.
+    lead: voice.LIP_LEAD for a shot made with its voice (the line on a whole second), else voice.LEAD."""
+    out, cursor = [], voice.LEAD if lead is None else lead
     for e in entries:
         out.append(round(cursor, 3))
         cursor += (e.get("duration_ms") or 0) / 1000.0 + voice.GAP
@@ -139,7 +140,7 @@ def shot_audio(data_dir: str, pid: int, scene_id: int, length_s: float, ffmpeg: 
     lines = shot_lines(data_dir, pid, scene_id)
     if not lines:
         return None
-    offsets = line_offsets(lines)
+    offsets = line_offsets(lines, voice.LIP_LEAD)
     adir = audio_lib.assets_dir(data_dir, pid)
     out = os.path.join(_dir(data_dir, pid), f"shot_{scene_id}.wav")
     cmd = [ffmpeg, "-y", "-loglevel", "error"]

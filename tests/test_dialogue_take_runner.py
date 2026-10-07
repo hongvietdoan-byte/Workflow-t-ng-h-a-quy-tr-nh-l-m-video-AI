@@ -80,10 +80,10 @@ class DialogueTakeRunnerTests(unittest.TestCase):
         self.assertIn("DIALOGUE TIMELINE", args[1])
         self.assertIn('"Của anh à?"', args[1])
         self.assertIn('"Không ai lấy được!"', args[1])
-        self.assertIn("[00:00 - 00:02] Dialogue (KELLY", args[1])
+        self.assertIn("[00:01 - 00:02] Dialogue (KELLY", args[1])          # 07/10: the line starts on a whole second
         segs = vr._take_segments(leader, shots.group_of(self.p.conn, self.ids[0]))
         self.assertEqual([s["scene_id"] for s in segs], self.ids)
-        self.assertAlmostEqual(segs[0]["start"], voice.LEAD)
+        self.assertAlmostEqual(segs[0]["start"], voice.LIP_LEAD)     # 07/10: on a whole second
         self.assertGreater(segs[1]["start"], segs[0]["end"])            # the second shot's line after its shot start
         problems = vr._ref_lint(leader)
         self.assertFalse(problems and "tiếng Việt" in problems, problems)   # the spoken lines stay Vietnamese on purpose
@@ -109,8 +109,8 @@ class DialogueTakeRunnerTests(unittest.TestCase):
         with mock.patch("core.final_cut.collect_clips_for_render", return_value=clips):
             voice.place_on_timeline(self.p.conn, self.pid, self.data, durations=[2.0, 2.0])
         items = {e["scene_id"]: e for e in audio_lib.load(audio_lib.assets_dir(self.data, self.pid))}
-        self.assertAlmostEqual(items[self.ids[0]]["start"], voice.LEAD)
-        self.assertAlmostEqual(items[self.ids[1]]["start"], round(2.0 + voice.LEAD - 0.4, 2))   # moved back onto the mouth
+        self.assertAlmostEqual(items[self.ids[0]]["start"], voice.LIP_LEAD)
+        self.assertAlmostEqual(items[self.ids[1]]["start"], round(2.0 + voice.LIP_LEAD - 0.4, 2))   # moved back onto the mouth
 
     def test_without_voiced_lines_nothing_is_attached(self):
         audio_lib._save(audio_lib.assets_dir(self.data, self.pid), [])

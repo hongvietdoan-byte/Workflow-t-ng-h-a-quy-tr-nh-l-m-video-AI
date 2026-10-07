@@ -60,7 +60,7 @@ class ShotAudioTests(unittest.TestCase):
         audio_lib._save(adir, [{"kind": "tts", "scene_id": 7, "line": n, "state": "succeeded", "file": f"l{n}.wav", "duration_ms": 800}
                                for n in (1, 2)])
         seg = lipsync.shot_audio(data, 1, 7, 4.0, ff)
-        self.assertEqual(seg["offsets"], [0.3, 1.25])
+        self.assertEqual(seg["offsets"], [1.0, 1.95])          # 07/10: the first line on a whole second (voice.LIP_LEAD)
         probe = subprocess.run([ff, "-i", seg["path"]], capture_output=True, text=True, errors="replace").stderr
         self.assertIn("Duration: 00:00:04.0", probe)
         self.assertIsNone(lipsync.shot_audio(data, 1, 99, 4.0, ff))                              # no voiced line: None
@@ -188,3 +188,27 @@ def _raw(body):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class WholeSecondLeadTests(unittest.TestCase):
+    """07/10 Khủng Long Đỏ: the voice of a lip-synced shot sat at 0.3 s and the prompt said [00:00 - 00:03] (Seedance 2.5 reads whole
+    seconds) — the mouth ran late (0.14). The line now starts on a whole second; a clip made before keeps its recorded 0.3 s."""
+
+    def test_the_edit_lays_each_line_where_its_clip_was_made_to_speak_it(self):
+        from core.db import connect
+        from core.pipeline import Pipeline
+        data = tempfile.mkdtemp()
+        p = Pipeline(connect())
+        pid = p.create_project("lead")
+        old, new = p.create_scene(pid, 1, "a"), p.create_scene(pid, 2, "b")
+        adir = audio_lib.assets_dir(data, pid)
+        os.makedirs(adir, exist_ok=True)
+        audio_lib._save(adir, [{"kind": "tts", "scene_id": sid, "line": 1, "state": "succeeded", "file": f"{sid}.mp3", "duration_ms": 1500}
+                               for sid in (old, new)])
+        lipsync.mark(data, pid, old, state="done", method="generate", offsets=[0.3])        # made before 07/10
+        lipsync.mark(data, pid, new, state="done", method="generate", offsets=[voice.LIP_LEAD])
+        clips = [{"scene_id": sid, "path": "x", "requested_sec": 3.0} for sid in (old, new)]
+        with mock.patch("core.final_cut.collect_clips_for_render", return_value=clips):
+            voice.place_on_timeline(p.conn, pid, data, durations=[3.0, 3.0])
+        at = {e["scene_id"]: e["start"] for e in audio_lib.load(adir)}
+        self.assertEqual((at[old], at[new]), (0.3, 4.0))

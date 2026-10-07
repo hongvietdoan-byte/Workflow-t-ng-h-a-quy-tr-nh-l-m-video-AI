@@ -26,6 +26,8 @@ def vi_model(model: Optional[str]) -> str:
 _PRON = os.path.join(os.path.dirname(__file__), "..", "data", "pronunciation_vi.json")
 SAMPLE_VI = "Xin chào, tôi là {name}. Trận này mình đi loot trước rồi leo rank nhé, Booyah!"
 LEAD = 0.3          # seconds of picture before the first line of a clip
+LIP_LEAD = 1.0      # 07/10 Khủng Long Đỏ: a lip-synced line starts ON a whole second — Seedance 2.5 reads whole seconds, the 0.3 s start
+                    # was written [00:00 - 00:03] for a voice at 0.3–2.26 s and the mouth ran late (measured 0.14)
 TAIL = 0.4          # seconds after the last line
 GAP = 0.15          # between two lines
 J_LEAD = 0.25       # D1 (editing.md E1): a new speaker is heard this long before the cut to their shot (J-cut, ~6 frames at 24 fps)
@@ -346,13 +348,21 @@ def fit_durations(conn, project_id: int, data_dir: str, with_clips: bool = False
             continue
         if not with_clips and has_clip(conn, sid):
             continue
-        need = math.ceil(LEAD + secs + TAIL)
+        need = math.ceil(_lead(conn, sid) + secs + TAIL)
         target = min(need, max_clip_seconds(p, project_id, sid))
         if target > float(row["duration_sec"] or 0):
             conn.execute("UPDATE motion_prompts SET duration_sec=? WHERE scene_id=?", (target, sid))
             changes.append({"scene_id": sid, "from": row["duration_sec"], "to": target, "short": need > target})
     conn.commit()
     return changes
+
+
+def _lead(conn, scene_id: int) -> float:
+    """Picture before the first line: LIP_LEAD for a shot made WITH its voice (lip sync), LEAD otherwise."""
+    from . import lipsync
+    row = conn.execute("SELECT data FROM scenes WHERE id=?", (scene_id,)).fetchone()
+    data = json.loads(row["data"] or "{}") if row else {}
+    return LIP_LEAD if lipsync.enabled() and lipsync.voiced(lipsync.method_for(data)) else LEAD
 
 
 def pending_fits(conn, project_id: int, data_dir: str) -> List[Dict]:
@@ -363,7 +373,7 @@ def pending_fits(conn, project_id: int, data_dir: str) -> List[Dict]:
         row = conn.execute("SELECT duration_sec FROM motion_prompts WHERE scene_id=?", (sid,)).fetchone()
         if row is None or not has_clip(conn, sid):
             continue
-        need = math.ceil(LEAD + secs + TAIL)
+        need = math.ceil(_lead(conn, sid) + secs + TAIL)
         if need > float(row["duration_sec"] or 0):
             out.append({"scene_id": sid, "have": float(row["duration_sec"] or 0), "need": need})
     return out
@@ -387,6 +397,8 @@ def place_on_timeline(conn, project_id: int, data_dir: str, transition: str = "c
     from . import lipsync
     synced = lipsync.synced_scene_ids(data_dir, project_id)
     shifts = {int(k): float(v.get("shift") or 0) for k, v in lipsync.index(data_dir, project_id).items() if v.get("state") == "done"}
+    leads = {int(k): float((v.get("offsets") or [LEAD])[0]) for k, v in lipsync.index(data_dir, project_id).items()   # where the line
+             if v.get("state") == "done"}                                                                   # really is in the clip
     from . import features
     j_cut = features.on("j_cut")
     t, placed, prev_end, prev_speaker = 0.0, 0, -1.0, None
@@ -395,7 +407,7 @@ def place_on_timeline(conn, project_id: int, data_dir: str, transition: str = "c
         lines = sorted([e for e in items if e["kind"] == "tts" and e.get("scene_id") == clip.get("scene_id")
                         and e["state"] == "succeeded" and e.get("file")], key=lambda e: e.get("line") or 0)
         # a lip-synced clip speaks its lines at fixed seconds (lipsync.shot_audio): they are laid there, never pushed later
-        cursor = (t + LEAD - shifts.get(clip.get("scene_id"), 0.0) if clip.get("scene_id") in synced   # S4.2: a group take's part
+        cursor = (t + leads.get(clip.get("scene_id"), LEAD) - shifts.get(clip.get("scene_id"), 0.0) if clip.get("scene_id") in synced   # S4.2: a group take's part
                   else max(t + LEAD, prev_end + GAP))                          # may start later / earlier in the clip than planned
         if (j_cut and lines and t > 0 and clip.get("scene_id") not in synced and prev_speaker
                 and (lines[0].get("speaker") or "") != prev_speaker):
