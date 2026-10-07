@@ -996,6 +996,11 @@ def effectiveness_panel(p: Pipeline, pid: int, nested: bool = False) -> None:
               help=f"Trên {r['qc']['pairs']} ảnh có cả điểm QC lẫn quyết định của người; AI chặt quá {r['qc']['ai_too_strict']}, "
                    f"lỏng quá {r['qc']['ai_too_lenient']} lần. Dùng để chỉnh ngưỡng QC.")
     c5.metric("Thao tác tay / cảnh", num(r["touches_per_scene"]), help=f"Duyệt / loại / hủy do người bấm: {r['touches']} lần")
+    w = r["waste"]
+    if w["spent"]:                                  # TODO P4: money paid for pictures / clips that were not used
+        st.caption(f"💸 Tiền lãng phí (ảnh/clip không dùng): **{w['wasted']:.2f} / {w['spent']:.2f} {r['currency']}** ({w['share']:.0%}) — "
+                   + (", ".join(f"{k} {v:.2f}" for k, v in w["by_reason"].items() if v) or "chưa có")
+                   + (f" · {w['unpriced']} lượt chưa có giá (không tính)" if w["unpriced"] else ""))
     manual = st.number_input("Làm tay mất bao nhiêu phút cho 1 giây video (mặc định chung 30 phút — người dùng chốt; sửa để so thử, không lưu)",
                              min_value=0.0, value=effectiveness.MANUAL_MIN_PER_SEC, step=1.0, key=f"eff_manual_{pid}")
     summary = "\n".join(effectiveness.summary_lines(r, manual or None))

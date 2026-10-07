@@ -115,6 +115,53 @@ def look_trust(conn, look: Optional[str], image_model: Optional[str]) -> Dict:
                         and lenient is not None and lenient <= TRUST_LENIENT)}
 
 
+WASTE_REASONS = {"rejected": "bị loại", "superseded": "bị thay", "failed": "lỗi / hủy"}
+_DONE_OK = ("succeeded", "pending_review", "approved")
+_DEAD = ("failed", "cancelled", "retryable")
+
+
+def waste(conn, project_id: int, pricing: Dict) -> Dict:
+    """TODO Tồn đọng P4: money paid for pictures / clips that are not used — {"spent", "wasted", "share", "by_kind": {kind: {spent,
+    wasted}}, "by_reason": {bị loại / bị thay / lỗi / hủy: usd}, "unpriced": rows without a price (counted, not valued)}.
+    A job is waste when rejected, when it failed / was cancelled after being sent (usage recorded), or when a NEWER job of the same scene
+    and type was approved (it was replaced). Approved jobs and jobs still in progress are not waste. Claude calls are not tied to a job."""
+    from . import budget
+    jobs = {r["id"]: dict(r) for r in conn.execute("SELECT id, scene_id, type, state FROM jobs WHERE project_id=?", (project_id,))}
+    approved_after = {}
+    for j in sorted(jobs.values(), key=lambda j: j["id"]):
+        if j["state"] == "approved":
+            approved_after[(j["scene_id"], j["type"])] = j["id"]          # the newest approved take of the scene
+
+    def reason(j) -> Optional[str]:
+        if j["state"] == "rejected":
+            return "rejected"
+        if j["state"] in _DEAD:
+            return "failed"
+        newest = approved_after.get((j["scene_id"], j["type"]))
+        if j["state"] in _DONE_OK and j["state"] != "approved" and newest and newest > j["id"]:
+            return "superseded"
+        return None
+    out = {"spent": 0.0, "wasted": 0.0, "by_kind": {}, "by_reason": {v: 0.0 for v in WASTE_REASONS.values()}, "unpriced": 0}
+    for r in conn.execute("SELECT * FROM usage_events WHERE project_id=? AND job_id IS NOT NULL AND kind IN ('image','video')", (project_id,)):
+        j = jobs.get(r["job_id"])
+        if j is None:
+            continue
+        why = reason(j)
+        usd = budget.row_usd(pricing, r)
+        if usd is None:
+            out["unpriced"] += 1 if why else 0
+            continue
+        k = out["by_kind"].setdefault(r["kind"], {"spent": 0.0, "wasted": 0.0})
+        k["spent"] += usd
+        out["spent"] += usd
+        if why:
+            k["wasted"] += usd
+            out["wasted"] += usd
+            out["by_reason"][WASTE_REASONS[why]] += usd
+    out["share"] = out["wasted"] / out["spent"] if out["spent"] else None
+    return out
+
+
 def report(conn, project_id: int, pricing: Dict) -> Dict:
     seconds = _finished_video_seconds(conn, project_id)
     times = _times(conn, project_id)
@@ -132,6 +179,7 @@ def report(conn, project_id: int, pricing: Dict) -> Dict:
         "image": _first_pass(conn, project_id, "image_gen"), "video": _first_pass(conn, project_id, "video_gen"),
         "qc": _agreement(conn, project_id),
         "touches": touches, "touches_per_scene": touches / scenes if scenes else None,
+        "waste": waste(conn, project_id, pricing),
     }
 
 
@@ -153,6 +201,11 @@ def summary_lines(r: Dict, manual_min_per_sec: Optional[float] = MANUAL_MIN_PER_
              f"4. QC Agent đồng ý với người: {pct(r['qc']['agreement'])} ({r['qc']['pairs']} ảnh; AI chặt quá {r['qc']['ai_too_strict']}, "
              f"lỏng quá {r['qc']['ai_too_lenient']})",
              f"5. Thao tác tay: {num(r['touches_per_scene'], 'lần/cảnh')} ({r['touches']} lần)"]
+    w = r.get("waste")
+    if w and w["spent"]:
+        lines.append(f"6. Tiền lãng phí (ảnh/clip không dùng): {w['wasted']:.2f} / {w['spent']:.2f} {r['currency']} ({w['share']:.0%}) — "
+                     + ", ".join(f"{k} {v:.2f}" for k, v in w["by_reason"].items() if v)
+                     + (f"; {w['unpriced']} lượt chưa có giá" if w["unpriced"] else ""))
     if manual_min_per_sec and r["wall_min_per_sec"]:
         lines.append(f"So với làm tay ({manual_min_per_sec:g} phút/giây video): nhanh gấp {manual_min_per_sec / r['wall_min_per_sec']:.1f} lần")
     return lines

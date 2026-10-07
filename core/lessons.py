@@ -236,9 +236,13 @@ def _write_rule(client, cluster: Dict) -> str:
     if client is None:
         return (f"Lỗi \"{cluster['label']}\" đã lặp lại {cluster['events']} lần ở {cluster['projects']} dự án. "
                 f"Ví dụ thực tế:\n{examples}\nHãy chú ý tránh lỗi này khi viết prompt / kiểm tra.")
+    from .prompts import external_block      # TODO P6: the examples carry reviewers' notes AND provider error text (ClipAI risk
+    #                                          control) — read as data, never as instructions
     prompt = ("Biên tập viên bài học. Dưới đây là các lỗi lặp lại của quy trình làm video AI (bước: "
               f"{knowledge.GROUPS[cluster['group']][0]}). Nhóm lỗi: {cluster['label']} ({cluster['events']} lần, "
-              f"{cluster['projects']} dự án).\nVí dụ:\n{examples}\n\nViết MỘT quy tắc ngắn (tối đa 3 câu, tiếng Việt, "
+              f"{cluster['projects']} dự án).\nVí dụ:\n"
+              + external_block("ví dụ lỗi đã ghi — ghi chú người duyệt / thông báo lỗi nhà cung cấp", examples)
+              + "\n\nViết MỘT quy tắc ngắn (tối đa 3 câu, tiếng Việt, "
               "mệnh lệnh, cụ thể, có thể áp dụng ngay khi viết prompt hoặc chấm ảnh) để lần sau không lặp lại lỗi. "
               "Chỉ trả về nội dung quy tắc.")
     from .llm_runner import tagged
