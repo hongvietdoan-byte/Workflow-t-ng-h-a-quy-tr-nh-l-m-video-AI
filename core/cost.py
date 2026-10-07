@@ -102,9 +102,20 @@ def seedance_token_usd(model: str, tokens: float, has_video_input: bool) -> Opti
     return max(0.0, float(tokens)) / 1000 * rates["video_in" if has_video_input else "no_video"]
 
 
+# Khủng Long Đỏ mục 6 (07/10): the token formula overstates some tiers. A (model, resolution) with a REAL ClipAI price gets a factor —
+# rounded UP so the estimate stays at or above the real price (money policy: tính dư). One measured point only; others keep the formula.
+SEEDANCE_MEASURED = {
+    ("dreamina-seedance-2-0-260128", "1080p"): {
+        "factor": 0.72,     # 2,93 / 4,082 = 0,7178 → 0,72
+        "source": "ClipAI web 07/10 (ảnh người dùng chụp): Seedance 2.0 · 12 s · 1080p · 9:16 · không âm thanh = 2,93 USD; công thức ra 4,08"},
+}
+
+
 def seedance_estimate(model: str, resolution: str, ratio: str, output_s: float, input_video_s: float = 0.0) -> Optional[float]:
     """USD of one Seedance clip as ClipAI prices it before sending (a request carrying a video pays the lower rate on more tokens)."""
-    return seedance_token_usd(model, seedance_tokens(resolution, ratio, output_s, input_video_s), input_video_s > 0)
+    usd = seedance_token_usd(model, seedance_tokens(resolution, ratio, output_s, input_video_s), input_video_s > 0)
+    measured = SEEDANCE_MEASURED.get((model, resolution))
+    return usd * measured["factor"] if usd is not None and measured else usd
 
 
 def _cost(units: float, clips: int, price: Dict) -> Optional[float]:
