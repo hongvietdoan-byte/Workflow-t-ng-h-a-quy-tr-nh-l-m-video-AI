@@ -225,7 +225,7 @@ ef_kelly\`. Thứ tự lượt sau: S14.31 (luật Biên kịch) song song S14.3
     sẵn ở `usage_events` + `jobs.state`/`parent_job_id`); đặt ở Giám sát cạnh "Phút / giây video".
   - [x] **P5 — Lỗi hết tiền (402 / hết credit) dừng hẳn + cảnh báo** *(xong 30/09: `budget.halt/reopen`, HTTP 402 + lời "余额不足 / insufficient balance / credit balance is too low" → khóa dịch vụ đó, nút mở lại ở 💵 Ngân sách thử; test_out_of_credit)*: `llm_runner.py:507` xử lý 401/403; chưa kiểm ClipAI/Claude hết credit
     có dừng autopilot và báo rõ không (không thử lại, không coi là lỗi tạm). Rà `core/adapters/clipai.py` + autopilot, thêm test.
-  - [ ] **P6 — Test "chèn lệnh qua kết quả trả về"**: không thấy biện pháp/test coi nội dung web (`core/research.py`, `ff_site.py`) và phản hồi
+  - [x] *(xong cloud 07/10: `tests/test_p6_injection.py`; vá đường hở — ví dụ lỗi (ghi chú người duyệt + thông báo lỗi ClipAI) trong prompt viết bài học `lessons._write_rule` nay bọc `prompts.external_block`; web/research đã bọc từ S14.5)* **P6 — Test "chèn lệnh qua kết quả trả về"**: không thấy biện pháp/test coi nội dung web (`core/research.py`, `ff_site.py`) và phản hồi
     ClipAI là dữ liệu không tin cậy. Thêm test hồi quy: văn bản kiểu "ignore previous instructions…" trong kết quả nghiên cứu không đổi
     hành vi/luật; cân nhắc bọc nội dung ngoài trong khối đánh dấu "dữ liệu" trong prompt.
 - [x] *(bỏ 2026-09-27: Figma hết hạn mức, mockup HTML đủ)* Figma: component **Stepper đang chồng lên Screen 1** trên canvas — dời vị trí (Figma MCP đang hết hạn mức Starter; sửa tay hoặc chờ reset)
