@@ -42,6 +42,16 @@ MODEL_ALIASES = {
     "seedance-fast": "dreamina-seedance-2-0-fast-260128", "seedance-2.5": "dreamina-seedance-2-5-260628",
 }
 KLING_MODELS = {"kling-v3-omni", "kling-video-o1"}
+# 07/10 Khủng Long Đỏ: alias 'seedance' = Seedance 2.0 (not 2.5) — gen nhầm 2 lần ≈ 3,6 USD. Every button / card says the REAL model.
+DISPLAY_NAMES = {"kling-v3-omni": "Kling 3.0 Omni", "kling-video-o1": "Kling O1", "dreamina-seedance-2-5-260628": "Seedance 2.5",
+                 "dreamina-seedance-2-0-260128": "Seedance 2.0", "dreamina-seedance-2-0-fast-260128": "Seedance 2.0 Fast"}
+
+
+def display_name(model: Optional[str], resolution: Optional[str] = None) -> str:
+    """'Seedance 2.0 · 720p' for an alias or a model id (never the bare alias); an unknown name is said as such."""
+    canonical = MODEL_ALIASES.get((model or "kling").strip().lower(), (model or "").strip())
+    name = DISPLAY_NAMES.get(canonical) or f"model lạ '{model}'"
+    return f"{name} · {resolution}" if resolution else name
 SEEDANCE_MODELS = {"dreamina-seedance-2-5-260628", "dreamina-seedance-2-0-260128", "dreamina-seedance-2-0-fast-260128"}
 MIN_REFERENCE_VIDEO_S = 3.0      # ClipAI refused a 2.2 s reference video (thử #11, 2026-09-30): "Video duration can not less than 3s"
 REFERENCE_VIDEO_WIDTH = (700, 4553)   # "The video width should not be less than 700px and larger than 4553px" (thử #11, 30/09)

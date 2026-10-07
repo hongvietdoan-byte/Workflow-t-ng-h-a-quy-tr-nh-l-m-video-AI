@@ -121,16 +121,26 @@ def _video_settings(p: Pipeline, pid: int, proj, runner) -> None:
 def _video_batch(p: Pipeline, pid: int, runner) -> None:
     """Estimate, the batch buttons (gen / resend failed / approve all) and the notes about lip sync and the automatic check."""
     allowed_run = show_estimate(cost.estimate_videos_by_scene(p, pid, cost.load_pricing()), runner)
-    stale_videos = [r for r in lineage.scan(p.conn, pid).values() if r["video_stale"]]
+    # 07/10 Khủng Long Đỏ: the button sent the 'đã cũ' scenes too (scene 248, 249 ≈ 1,2 USD) and showed the alias 'seedance' (= 2.0,
+    # not 2.5). Now: the list of what goes, with the REAL model + resolution; an outdated scene is remade only when ticked.
+    plan = batch.video_plan(p, pid)
+    new_rows = [r for r in plan if r["kind"] == "new"]
+    stale_rows = {r["scene_id"]: r for r in plan if r["kind"] == "stale"}
+    picked = st.multiselect(f"Làm lại cảnh đã cũ ({len(stale_rows)}) — chỉ cảnh bạn chọn mới được gửi", list(stale_rows),
+                            format_func=lambda sid: stale_rows[sid]["label"], key=f"gen_vid_stale_{pid}") if stale_rows else []
+    send = new_rows + [stale_rows[s] for s in picked]
+    if send:
+        st.caption("Sẽ gửi: " + "; ".join(r["label"] for r in send))
+    for line in batch.chain_waits(p, pid).values():
+        st.info("⏳ " + line)
     c1, c2 = st.columns([2.6, 2])
-    todo = batch.videos_to_make(p, pid)
     queued = p.conn.execute("SELECT COUNT(*) FROM jobs WHERE project_id=? AND type='video_gen' AND state='queued'", (pid,)).fetchone()[0]
-    if c1.button(f"▶ Gen video ({len(todo)} cảnh sẵn sàng" + (f", {len(stale_videos)} đã cũ" if stale_videos else "")
+    if c1.button(f"▶ Gen video ({len(new_rows)} cảnh mới" + (f", làm lại {len(picked)}/{len(stale_rows)} cảnh đã cũ" if stale_rows else "")
                  + (f", {queued} clip đang chờ gửi" if queued else "") + ")"     # 07/10: resent / redone clips only wait in the queue
                  + cost.video_batch_tag(p, pid),
-                 type="primary", key=f"gen_vid_{pid}", disabled=runner is None or not allowed_run or not (todo or stale_videos or queued)):
+                 type="primary", key=f"gen_vid_{pid}", disabled=runner is None or not allowed_run or not (send or queued)):
         def go():
-            r = batch.queue_videos(p, pid, C.DATA)
+            r = batch.queue_videos(p, pid, C.DATA, only={x["scene_id"] for x in send})
             sent = runner.submit_pending(pid)
             st.toast(f"Xếp hàng {r['created']} clip mới, {r['redo']} clip làm lại · đã gửi {sent}")
         if act(go):

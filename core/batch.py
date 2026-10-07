@@ -1,5 +1,7 @@
 """One action per step instead of "create jobs" + "submit": queue what is missing or outdated, then send it.
 Shared by the dashboard buttons and the automatic run, so both redo exactly the parts a change affected (core.lineage)."""
+import json
+
 from . import access
 from typing import Dict, List
 
@@ -71,20 +73,68 @@ def videos_to_make(p: Pipeline, project_id: int) -> List[Dict]:
                                   (r["scene_id"],)).fetchone()]
 
 
-def queue_videos(p: Pipeline, project_id: int, data_dir: str) -> Dict:
-    """Video jobs for scenes whose image + motion prompt are approved and current, and a redo for clips made from old inputs."""
+def _stale_redos(p: Pipeline, project_id: int) -> List[Dict]:
+    """Clips made from old inputs that a batch would remake (lineage 'video_stale', motion current + approved, no new take waiting)."""
+    out = []
+    for sid, r in lineage.scan(p.conn, project_id).items():
+        if r["video_stale"] and r["video_job_id"] and not r["motion_stale"] and r["motion_state"] == "approved" \
+                and r["video_state"] in ("succeeded", "approved", "pending_review") and not p.has_pending_take(sid, "video_gen"):
+            out.append({"scene_id": sid, "job_id": r["video_job_id"], "why": r["video_stale"]})
+    return out
+
+
+def video_plan(p: Pipeline, project_id: int) -> List[Dict]:
+    """07/10 Khủng Long Đỏ: what '▶ Gen video' would send, one row per scene: {"scene_id", "idx", "kind": new|stale, "model_name",
+    "label", "why"}. The model is the REAL one (alias 'seedance' = Seedance 2.0) with its resolution, so a person sees the price level."""
+    from . import model_router
+    from .adapters import clipai
+    rows = [{"scene_id": r["scene_id"], "kind": "new", "why": ""} for r in videos_to_make(p, project_id)]
+    rows += [{"scene_id": r["scene_id"], "kind": "stale", "why": f"đã cũ: {r['why']}"} for r in _stale_redos(p, project_id)]
+    for r in rows:
+        r["idx"] = p.conn.execute("SELECT idx FROM scenes WHERE id=?", (r["scene_id"],)).fetchone()["idx"]
+        try:
+            ch = model_router.scene_choice(p.conn, r["scene_id"])
+            r["model_name"] = clipai.display_name(ch.get("model"), ch.get("resolution") or "mặc định")
+        except Exception as e:  # noqa: BLE001 - a scene whose model cannot be read is said, not hidden
+            r["model_name"] = f"không đọc được model ({type(e).__name__})"
+        r["label"] = f"S{r['idx']:02d} · {r['model_name']}" + (f" · {r['why']}" if r["why"] else "")
+    return sorted(rows, key=lambda r: (r["kind"] != "new", r["idx"]))
+
+
+def chain_waits(p: Pipeline, project_id: int) -> Dict[int, str]:
+    """07/10: queued clips of shots marked start_from_prev_clip that wait for the previous shot's clip to be APPROVED (VideoRunner
+    sends them only then) → {scene_id: 'S03 chờ duyệt clip cảnh S02'}, so the screen says why nothing is sent."""
+    out: Dict[int, str] = {}
+    rows = p.conn.execute("SELECT s.id, s.idx, s.data FROM jobs j JOIN scenes s ON s.id=j.scene_id WHERE j.project_id=? AND "
+                          "j.type='video_gen' AND j.state='queued'", (project_id,)).fetchall()
+    for r in rows:
+        if not json.loads(r["data"] or "{}").get("start_from_prev_clip"):
+            continue
+        prev = p.conn.execute("SELECT s.idx, (SELECT j.state FROM jobs j WHERE j.scene_id=s.id AND j.type='video_gen' ORDER BY j.id DESC"
+                              " LIMIT 1) AS st FROM scenes s WHERE s.project_id=? AND s.idx<? ORDER BY s.idx DESC LIMIT 1",
+                              (project_id, r["idx"])).fetchone()
+        if prev is not None and prev["st"] != "approved":
+            out[r["id"]] = f"S{r['idx']:02d} chờ duyệt clip cảnh S{prev['idx']:02d} (cảnh này bắt đầu từ khung cuối clip đó)" + (
+                "" if prev["st"] else " — cảnh trước chưa có clip")
+    return out
+
+
+def queue_videos(p: Pipeline, project_id: int, data_dir: str, only=None) -> Dict:
+    """Video jobs for scenes whose image + motion prompt are approved and current, and a redo for clips made from old inputs.
+    `only` (07/10 Khủng Long Đỏ): the scene ids the person ticked — nothing else is created or remade (None = every scene: autopilot)."""
     access.need_edit(p, project_id, "gửi gen video")
     conn = p.conn
     created = 0
     for r in llm_io.ready_for_video(p, project_id):
+        if only is not None and r["scene_id"] not in only:
+            continue
         if not conn.execute(f"SELECT 1 FROM jobs WHERE scene_id=? AND type='video_gen' AND state IN {LIVE}", (r["scene_id"],)).fetchone():
             p.create_job(r["scene_id"], "video_gen")
             created += 1
     redo = 0
-    for sid, r in lineage.scan(conn, project_id).items():
-        if r["video_stale"] and r["video_job_id"] and not r["motion_stale"] and r["motion_state"] == "approved" \
-                and r["video_state"] in ("succeeded", "approved", "pending_review") and not p.has_pending_take(sid, "video_gen"):
-            # S14.17 rà #2: a new take already waits (e.g. the Director rewrote the motion prompt) — redoing the older clip = 2nd paid job
-            regen.regenerate_video(p, data_dir, r["video_job_id"], f"làm lại vì {r['video_stale']}")   # input changed: no fix
-            redo += 1
+    for r in _stale_redos(p, project_id):        # S14.17 rà #2: a new take already waits → not remade (that would be a 2nd paid job)
+        if only is not None and r["scene_id"] not in only:
+            continue
+        regen.regenerate_video(p, data_dir, r["job_id"], f"làm lại vì {r['why']}")   # input changed: no fix
+        redo += 1
     return {"created": created, "redo": redo}
