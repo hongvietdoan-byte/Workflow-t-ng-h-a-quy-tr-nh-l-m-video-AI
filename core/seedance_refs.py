@@ -251,8 +251,26 @@ def whole_marks(secs: List[float]) -> List[tuple]:
     return out
 
 
+def place_pictures(data_dir: str, project_id: int, rows: List[Dict]) -> List[Dict]:
+    """Local renders only, appended after identities; a shared file keeps one Image number."""
+    from . import place_refs
+    if not place_refs.enabled():
+        return []
+    out, seen = [], {}
+    for number, row in enumerate(rows, 1):
+        ref = place_refs.shot_ref(data_dir, project_id, row["id"])
+        if not ref or not os.path.isfile(ref["path"]):
+            continue
+        key = os.path.normcase(os.path.abspath(ref["path"]))
+        if key not in seen:
+            seen[key] = {"path": ref["path"], "shots": []}
+            out.append(seen[key])
+        seen[key]["shots"].append(number)
+    return out
+
+
 def prompt(parts: List[tuple], identities: List[tuple], look: str = "", clip_seconds: Optional[float] = None,
-           model: Optional[str] = None) -> str:
+           model: Optional[str] = None, places: Optional[List[Dict]] = None) -> str:
     """parts: [(motion prompt, seconds)] in film order. The wording of the tested P2m prompt: the cut rule, which picture is which
     shot / whose identity, then the shots. clip_seconds: the length really asked for (Seedance makes ≥ 4 s) — the shots' marks are
     stretched to it, so the last shot does not end before the clip does (review 2026-09-27). model: time marks only for a model that
@@ -281,6 +299,12 @@ def prompt(parts: List[tuple], identities: List[tuple], look: str = "", clip_sec
             return f"{name}: identity only (face, hair, body build) — NOT the clothes, which come only from the OUTFIT picture"
         return f"{name}: identity only (face, hair, outfit) — not the framing"
     mapping += " " + " ".join(f"Image {n + k} is {says(name)}." for k, (name, _) in enumerate(identities, 1))
+    for k, place in enumerate(places or [], 1):
+        targets = ", ".join(f"Shot {i}" for i in place["shots"])
+        mapping += (f" Image {n + len(identities) + k} is the PLACE render for {targets}: keep the buildings, tower, walls and ground "
+                    "exactly as in this image throughout those shots, including during camera movement. "
+                    "It decides architecture over conflicting text or storyboard details; people, outfits and starting framing "
+                    "still follow their own references. Never move, add or remove a building.")
     marks = whole_marks([float(sec) for _, sec in parts]) if reads_seconds(model) else [None] * n
     shots = [f"Shot {i}" + (f" ({mk[0]}–{mk[1]} s)" if mk else "") + f": {str(motion).strip().rstrip('.')}."
              for i, ((motion, _), mk) in enumerate(zip(parts, marks), 1)]
@@ -479,6 +503,8 @@ def lint_group(text: str, n_frames: int, n_pictures: int, n_expected_pictures: i
         out.append("prompt còn chữ tiếng Việt (chưa dịch trường Director)")
     if n_pictures != n_expected_pictures:
         out.append(f"gửi {n_pictures} ảnh nhưng bảng Image↔Shot ghi {n_expected_pictures} (thiếu khung / ảnh nhận diện)")
+    if n_pictures > MAX_PICTURES:
+        out.append(f"{n_pictures} ảnh vượt giới hạn {MAX_PICTURES}; tách nhóm shot trước khi gửi, không bỏ ảnh trang phục/địa điểm")
     if audio and "no sound" in text:
         out.append("có gửi giọng nhưng prompt ghi 'no sound'")
     return out

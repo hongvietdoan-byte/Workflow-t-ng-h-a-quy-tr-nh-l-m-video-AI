@@ -6,6 +6,7 @@ import os
 import subprocess
 import tempfile
 import unittest
+from unittest import mock
 
 from core import end_frames, llm_runner, model_router, seedance_refs, shots
 from tests.test_v3 import _approve_all_images, _approve_all_motion, kenta_project
@@ -51,6 +52,68 @@ class SeedanceRefTests(unittest.TestCase):
             self.assertEqual(shots.image_scene(self.p.conn, sid), sid)
         choice = model_router.scene_choice(self.p.conn, self.ids[0])
         self.assertIn("seedance", choice["model"])
+
+    def test_place_render_reaches_video_and_its_image_number_matches_prompt(self):
+        vr = self._ready()
+        job = self.p.job(self.p.create_job(self.ids[0], "video_gen"))
+        plate = os.path.join(self.data, "clock_tower.png")
+        real_png(plate)
+        ref = {"path": plate, "label": "Clock Tower", "role": "place_render"}
+        with mock.patch.dict(os.environ, {"FEATURE_PLACE_RENDER_REFS": "1"}), \
+                mock.patch("core.place_refs.shot_ref", return_value=ref), \
+                mock.patch("core.seedance_refs.mark", side_effect=lambda p, *a, **k: p):
+            pictures = vr._submit_kwargs(job)["reference_only"]
+            self.assertEqual(pictures.count(plate), 1, "shared render is sent once")
+            number = pictures.index(plate) + 1
+            prompt = vr._submit_args(job)[1]
+            self.assertIn(f"Image {number} is the PLACE", prompt)
+            self.assertIn("buildings, tower, walls and ground", prompt)
+            self.assertIn("Shot 1", prompt)
+            self.assertIsNone(vr._ref_lint(job))
+        with mock.patch.dict(os.environ, {"FEATURE_PLACE_RENDER_REFS": "0"}), \
+                mock.patch("core.place_refs.shot_ref", return_value=ref), \
+                mock.patch("core.seedance_refs.mark", side_effect=lambda p, *a, **k: p):
+            self.assertNotIn(plate, vr._submit_kwargs(job)["reference_only"])
+            self.assertNotIn("is the PLACE", vr._submit_args(job)[1])
+
+    def test_place_render_cannot_silently_drop_outfits_or_overflow_provider_limit(self):
+        vr = self._ready()
+        job = self.p.job(self.p.create_job(self.ids[0], "video_gen"))
+        plate = os.path.join(self.data, "place.png")
+        real_png(plate)
+        identities = [(f"PERSON {i} OUTFIT", plate) for i in range(seedance_refs.MAX_PICTURES - len(self.ids))]
+        with mock.patch.dict(os.environ, {"FEATURE_PLACE_RENDER_REFS": "1"}), \
+                mock.patch("core.place_refs.shot_ref", return_value={"path": plate, "label": "Place"}), \
+                mock.patch("core.seedance_refs.identity_pictures", return_value=identities):
+            self.assertIsNotNone(vr._ref_lint(job), "over-limit request must be blocked before payment")
+            self.assertIn(identities[-1][0][:-len(seedance_refs.OUTFIT_TAG)], vr._submit_args(job)[1])
+
+    def test_missing_required_place_render_blocks_before_submission(self):
+        vr = self._ready()
+        job = self.p.job(self.p.create_job(self.ids[0], "video_gen"))
+        with mock.patch.dict(os.environ, {"FEATURE_PLACE_RENDER_REFS": "1"}), \
+                mock.patch("core.place_refs.shot_ref", return_value=None), \
+                mock.patch("core.place_refs.wants_render", return_value=True):
+            self.assertIn("thiếu render địa điểm 3D", vr._ref_lint(job))
+
+    def test_distinct_place_renders_keep_shot_mapping_in_hosted_path(self):
+        vr = self._ready()
+        job = self.p.job(self.p.create_job(self.ids[0], "video_gen"))
+        plates = {}
+        for sid in self.ids:
+            path = os.path.join(self.data, f"place_{sid}.png")
+            real_png(path)
+            plates[sid] = {"path": path}
+        def hosted(_job, pictures, **kw):
+            return [path for _, path in pictures]
+        with mock.patch.dict(os.environ, {"FEATURE_PLACE_RENDER_REFS": "1"}), \
+                mock.patch("core.place_refs.shot_ref", side_effect=lambda d, p, sid: plates[sid]), \
+                mock.patch.object(vr, "_hosted_pictures", side_effect=hosted):
+            pictures = vr._submit_kwargs(job)["reference_only"]
+            prompt = vr._submit_args(job)[1]
+            for shot, sid in enumerate(self.ids, 1):
+                number = pictures.index(plates[sid]["path"]) + 1
+                self.assertIn(f"Image {number} is the PLACE render for Shot {shot}:", prompt)
 
     def test_a_face_close_up_keeps_its_start_frame_when_the_flag_is_on(self):
         """S4.1 (#8: a close-up of Kelly redrawn from references came out as anime)."""

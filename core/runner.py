@@ -523,10 +523,18 @@ class VideoRunner(_Runner):
         from . import shots as _sh
         frames = [self._start_frame(job["project_id"], r["id"]) for r in rows]
         ids = seedance_refs.identity_pictures(self.p.conn, job["project_id"], rows, seedance_refs.MAX_PICTURES - len(rows))
+        places = seedance_refs.place_pictures(self.data_dir, job["project_id"], rows)
         secs = [self._cut_seconds(r) for r in group] if group else [float(args[3])]
         audio = bool(self._take_segments(job, rows)) if group else bool(self._lip_sync_audio_planned(job))
-        problems = seedance_refs.lint_group(args[1], len(rows), len([f for f in frames if f]) + len(ids), len(rows) + len(ids), secs, audio,
+        problems = seedance_refs.lint_group(args[1], len(rows), len([f for f in frames if f]) + len(ids) + len(places),
+                                            len(rows) + len(ids) + len(places), secs, audio,
                                             model=args[4])
+        from . import place_refs
+        if place_refs.enabled():
+            rendered = {i for ref in places for i in ref["shots"]}
+            for i, row in enumerate(rows, 1):
+                if i not in rendered and place_refs.wants_render(self.p.conn, job["project_id"], row["data"]):
+                    problems.append(f"Shot {i} thiếu render địa điểm 3D; tạo lại render trước khi gửi video.")
         busy = seedance_refs.busy_shots(rows)
         if busy:
             self._diag(job, "warn", "busy_shot", "shot dồn ≥ 3 hành động (tài liệu Seedance 2.5: tả khái quát, chi tiết 1–2 điểm nhấn): "
@@ -754,13 +762,16 @@ class VideoRunner(_Runner):
         frames = [self._start_frame(job["project_id"], r["id"]) for r in rows]
         labels = [f"P{job['project_id']}_S{r['id']}_frame" for r, f in zip(rows, frames) if f]
         frames = [f for f in frames if f]
-        ids = seedance_refs.identity_pictures(conn, job["project_id"], rows, seedance_refs.MAX_PICTURES - len(frames))
+        ids = seedance_refs.identity_pictures(conn, job["project_id"], rows, seedance_refs.MAX_PICTURES - len(rows))
+        places = seedance_refs.place_pictures(self.data_dir, job["project_id"], rows)
+        extras = [(f"P{job['project_id']}_{n}", path) for n, path in ids]
+        extras += [(f"P{job['project_id']}_place_{k}", ref["path"]) for k, ref in enumerate(places, 1)]
         hosted = self._hosted_pictures(job, list(zip(labels, frames))
-                                       + [(f"P{job['project_id']}_{n}", path) for n, path in ids], clean=True)
+                                       + extras, clean=True)
         if hosted:
             return hosted
         out_dir = os.path.join(self.data_dir, str(job["project_id"]), "refs_marked")
-        return [seedance_refs.mark(p, out_dir) for p in frames + [path for _, path in ids]]
+        return [seedance_refs.mark(p, out_dir) for p in frames + [path for _, path in extras]]
 
     subject_library = None          # S4.7: the Seedance Subject Library (tests set a double; else core.adapters.factory's)
 
@@ -1042,7 +1053,8 @@ class VideoRunner(_Runner):
             rows = self._ref_rows(job, group)
             parts = [((self._motion(r["id"]) or {"motion_prompt": ""})["motion_prompt"], s) for r, s in zip(rows, secs)]
             ids = seedance_refs.identity_pictures(conn, job["project_id"], rows, seedance_refs.MAX_PICTURES - len(rows))
-            motion = no_minor_age(seedance_refs.prompt(parts, ids, clip_seconds=duration, model=model))
+            places = seedance_refs.place_pictures(self.data_dir, job["project_id"], rows)
+            motion = no_minor_age(seedance_refs.prompt(parts, ids, clip_seconds=duration, model=model, places=places))
             segs = self._take_segments(job, rows)
             if segs:                                   # S4.2: who says which line at which second (the lines stay in Vietnamese)
                 from . import dialogue_take
