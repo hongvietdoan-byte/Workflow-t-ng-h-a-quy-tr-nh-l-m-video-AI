@@ -1,0 +1,487 @@
+{
+ "label": "ban_thu_2",
+ "db": "manifest.sqlite",
+ "git": "50130d4",
+ "project": {
+  "name": "Khủng Long Đỏ",
+  "aspect": "9:16",
+  "genre": "SHORT_FORM",
+  "image_model": "gpt-image-2.5-sunburst",
+  "test_quality": 1,
+  "shot_mode": "per_shot",
+  "render_settings": "{\"transition\": \"cut\", \"fade\": 1.0, \"music_volume\": 0.6, \"music_start\": 1.8, \"music2_start\": 18.08, \"beat_pulse\": true, \"keep_audio\": false, \"end_card\": {\"enabled\": false, \"title\": \"\", \"subtitle\": \"\", \"seconds\": 3.0, \"bg\": \"#000000\", \"color\": \"#FFFFFF\", \"font\": \"\"}, \"exports\": []}",
+  "model_priority": "balanced",
+  "look": "FF_INGAME"
+ },
+ "characters": [
+  {
+   "name": "KELLY",
+   "description": "Nữ, 17 tuổi (not yet 20), tóc bob đen ngắn, mái bằng, mắt nâu, dáng người thon gọn, trẻ trung năng động.",
+   "lock_rules": "{\"must_keep\": \"face, short black bob hairstyle with blunt bangs, body proportions, age (young, not yet 20)\", \"may_change\": \"outfit (default yellow tracksuit vs red dinosaur costume), pose, expression, hand gestures\", \"forbidden\": \"ponytail or changed hair color, plush full-body dinosaur suit, tail, adult aged-up face\"}",
+   "outfit_image_ids": null
+  },
+  {
+   "name": "KELLY KL",
+   "description": "Chính là KELLY (cùng mặt, cùng tóc): Nữ, 17 tuổi (not yet 20), tóc bob đen ngắn, mái bằng, mắt nâu, dáng người thon gọn — sau khi mặc bộ Khủng Long Đỏ nữ.",
+   "lock_rules": null,
+   "outfit_image_ids": "1117"
+  },
+  {
+   "name": "MAXIM",
+   "description": "Nam, 17 tuổi (not yet 20), tóc xám bạc ngắn, mắt xanh nhạt, dáng người cao gầy trẻ trung.",
+   "lock_rules": "{\"must_keep\": \"face, short silver-gray hair, light blue eyes, body proportions, age (young, not yet 20)\", \"may_change\": \"outfit (default bomber jacket vs red dinosaur costume), pose, expression, hand gestures\", \"forbidden\": \"hair color change, plush full-body dinosaur suit, tail, adult aged-up face\"}",
+   "outfit_image_ids": null
+  },
+  {
+   "name": "MAXIM KL",
+   "description": "Chính là MAXIM (cùng mặt, cùng tóc): Nam, 17 tuổi (not yet 20), tóc xám bạc ngắn, mắt xanh nhạt, dáng người cao gầy trẻ trung — sau khi mặc bộ Khủng Long Đỏ nam.",
+   "lock_rules": null,
+   "outfit_image_ids": "1116"
+  }
+ ],
+ "shots": [
+  {
+   "idx": 1,
+   "scene_id": 248,
+   "spec": {
+    "text": "Maxim (đồ thường) bước vào phòng ngủ tầng 2 từ mép trái khung qua lối vào không có cánh cửa (như nhà trong Free Fire), khựng lại khi nhìn thấy thứ gì đó trên giường. Nền đúng render 3D: tường gỗ, cửa sổ, ghế bành xanh.",
+    "dialogue": null,
+    "characters": [
+     "MAXIM"
+    ],
+    "location": "Phòng ngủ tầng 2 nhà lớn phía Đông, Tháp Đồng Hồ",
+    "size": "MS",
+    "angle": "eye",
+    "move": null,
+    "video_route": "single",
+    "transition_in": null,
+    "shake_in": null,
+    "start_from_prev_clip": null,
+    "duration_s": 2.5,
+    "image_prompt": "Free Fire in-game 3D render, stylized proportions, medium shot, Maxim (silver-white messy hair, backwards black cap, silver bomber jacket over a red hoodie, ripped dark pants) walking into the 2nd-floor bedroom from the LEFT edge of the frame through the room's open doorway (Free Fire houses have open doorways with no door leaf; the doorway itself is off-screen left), mid-step, looking toward the bed off-screen right. The room is exactly the 3D render: pale wood-panel walls, a window, a green armchair; daylight only through the window; no door to the outside, no sky or plaza seen through any doorway. Moderate texture detail, clear gameplay lighting, everything in focus, not a movie still, not blurred background."
+   },
+   "motion_prompt": {
+    "motion_prompt": "Maxim walks into the bedroom from the left edge of the frame, weight shifting heel-to-toe with no foot sliding, arms swinging loosely; mid-step he notices something on the bed off-screen right and stops, eyes widening, mouth slightly open. Static camera.",
+    "duration_sec": 2.5,
+    "state": "approved"
+   },
+   "approved_image": {
+    "type": "image_gen",
+    "id": 525,
+    "state": "approved",
+    "model": "gpt-image-2.5-sunburst",
+    "retry_count": 0,
+    "retry_reason": null,
+    "result_path": "data\\projects\\22\\images\\job_525.png"
+   },
+   "approved_video": {
+    "type": "video_gen",
+    "id": 537,
+    "state": "approved",
+    "model": "seedance-fast",
+    "retry_count": 0,
+    "retry_reason": null,
+    "result_path": "data\\projects\\22\\videos\\01.mp4"
+   },
+   "takes": {
+    "image": 3,
+    "video": 3
+   }
+  },
+  {
+   "idx": 2,
+   "scene_id": 249,
+   "spec": {
+    "text": "Cận bộ đồ Khủng Long Đỏ nam xếp gọn trên giường, không có người",
+    "dialogue": [],
+    "characters": [],
+    "location": "Phòng ngủ tầng 2 nhà lớn phía Đông, Tháp Đồng Hồ",
+    "size": "CU",
+    "angle": "high",
+    "move": null,
+    "video_route": "single",
+    "transition_in": null,
+    "shake_in": null,
+    "start_from_prev_clip": null,
+    "duration_s": 2.0,
+    "image_prompt": "Free Fire in-game 3D render, stylized proportions, close-up from a high angle of the male Red Dinosaur outfit Khủng Long Đỏ nam laid neatly on a bed in the 2nd-floor bedroom (pale wood-panel walls), exactly the garments of the outfit picture: red hoodie with the GREEN fire-breathing dinosaur print and black sleeves, ripped black jeans, red cap with two small white horns, black shark-tooth mask, red dinosaur slippers; soft window light from the side, nobody in frame, moderate texture detail, everything in focus, not a movie still."
+   },
+   "motion_prompt": {
+    "motion_prompt": "Static close-up of the folded red dinosaur outfit on the bed; soft window light drifts slowly across the fabric; nothing else moves.",
+    "duration_sec": 2.0,
+    "state": "approved"
+   },
+   "approved_image": {
+    "type": "image_gen",
+    "id": 526,
+    "state": "approved",
+    "model": "gpt-image-2.5-sunburst",
+    "retry_count": 0,
+    "retry_reason": null,
+    "result_path": "data\\projects\\22\\images\\job_526.png"
+   },
+   "approved_video": {
+    "type": "video_gen",
+    "id": 538,
+    "state": "approved",
+    "model": "seedance-fast",
+    "retry_count": 0,
+    "retry_reason": null,
+    "result_path": "data\\projects\\22\\videos\\02.mp4"
+   },
+   "takes": {
+    "image": 3,
+    "video": 3
+   }
+  },
+  {
+   "idx": 3,
+   "scene_id": 250,
+   "spec": {
+    "text": "Maxim cầm áo hoodie đỏ ướm vào người, mắt sáng rỡ, nói câu thoại\nMAXIM: Ủa, đồ này ở đâu ra mà nhìn hay zậy? Để mặc thử coi!",
+    "dialogue": [
+     {
+      "speaker": "MAXIM",
+      "text": "Ủa, đồ này ở đâu ra mà nhìn hay zậy? Để mặc thử coi!"
+     }
+    ],
+    "characters": [
+     "MAXIM"
+    ],
+    "location": "Phòng ngủ tầng 2 nhà lớn phía Đông, Tháp Đồng Hồ",
+    "size": "MCU",
+    "angle": "eye",
+    "move": null,
+    "video_route": "single",
+    "transition_in": null,
+    "shake_in": null,
+    "start_from_prev_clip": null,
+    "duration_s": 3.0,
+    "image_prompt": "Free Fire in-game 3D render, stylized proportions, medium close-up, Maxim (silver-white hair, backwards black cap, silver bomber jacket) holding up a red dinosaur-print hoodie to his chest, excited bright-eyed expression, warm window light from frame-right, moderate texture detail, clear gameplay lighting, everything in focus, not a movie still, not blurred background"
+   },
+   "motion_prompt": {
+    "motion_prompt": "MAXIM holds the red dinosaur hoodie up against his chest and says his line with bright, excited eyes and a small bounce in his shoulders; his mouth moves only while he speaks. Static camera.",
+    "duration_sec": 4.0,
+    "state": "approved"
+   },
+   "approved_image": {
+    "type": "image_gen",
+    "id": 533,
+    "state": "approved",
+    "model": "gpt-image-2.5-sunburst",
+    "retry_count": 0,
+    "retry_reason": null,
+    "result_path": "data\\projects\\22\\images\\job_533.png"
+   },
+   "approved_video": {
+    "type": "video_gen",
+    "id": 539,
+    "state": "approved",
+    "model": "seedance-2.5",
+    "retry_count": 0,
+    "retry_reason": null,
+    "result_path": "data\\projects\\22\\videos\\03.mp4"
+   },
+   "takes": {
+    "image": 2,
+    "video": 3
+   }
+  },
+  {
+   "idx": 4,
+   "scene_id": 251,
+   "spec": {
+    "text": "Cùng khung, Maxim đã biến thành MAXIM KHỦNG LONG, xoay người ngắm bộ đồ, gật gù hài lòng",
+    "dialogue": [],
+    "characters": [
+     "MAXIM KL"
+    ],
+    "location": "Phòng ngủ tầng 2 nhà lớn phía Đông, Tháp Đồng Hồ",
+    "size": "MCU",
+    "angle": "eye",
+    "move": null,
+    "video_route": "single",
+    "transition_in": "flash",
+    "shake_in": true,
+    "start_from_prev_clip": null,
+    "duration_s": 2.5,
+    "image_prompt": "Free Fire in-game 3D render, stylized proportions, medium close-up from mid-chest up, no legs, inside the 2nd-floor bedroom of the big east house exactly as the 3D render (pale wood-panel walls, green armchair, window), same camera and same spot as the previous shot: MAXIM KL in the male Red Dinosaur outfit (red cap with two small white horns, black shark-tooth mask worn UP over his mouth and nose (never pulled down), red hoodie with a GREEN fire-breathing dinosaur print, black sleeves), turning slightly to admire the hoodie, nodding, warm window light, everything in focus, not blurred background"
+   },
+   "motion_prompt": {
+    "motion_prompt": "In the same framing as the previous shot, Maxim — now in the full red dinosaur outfit with the black shark-tooth mask worn UP over the mouth and nose (it never comes down) — turns his torso side to side admiring himself, then settles facing the camera, nodding with a satisfied look, hands on his hips. Static camera.",
+    "duration_sec": 2.5,
+    "state": "approved"
+   },
+   "approved_image": {
+    "type": "image_gen",
+    "id": 527,
+    "state": "approved",
+    "model": "gpt-image-2.5-sunburst",
+    "retry_count": 0,
+    "retry_reason": null,
+    "result_path": "data\\projects\\22\\images\\job_527.png"
+   },
+   "approved_video": {
+    "type": "video_gen",
+    "id": 540,
+    "state": "approved",
+    "model": "seedance-fast",
+    "retry_count": 0,
+    "retry_reason": null,
+    "result_path": "data\\projects\\22\\videos\\04.mp4"
+   },
+   "takes": {
+    "image": 7,
+    "video": 3
+   }
+  },
+  {
+   "idx": 5,
+   "scene_id": 252,
+   "spec": {
+    "text": "Kelly (đồ thường) đứng tựa mép lối vào phòng (không có cánh cửa), khoanh tay nhìn Maxim khủng long, nói câu thoại\nKELLY: Ê, mặc đồ đôi mà hổng rủ tui hả?",
+    "dialogue": [
+     {
+      "speaker": "KELLY",
+      "text": "Ê, mặc đồ đôi mà hổng rủ tui hả?"
+     }
+    ],
+    "characters": [
+     "KELLY"
+    ],
+    "location": "Phòng ngủ tầng 2 nhà lớn phía Đông, Tháp Đồng Hồ",
+    "size": "MCU",
+    "angle": "eye",
+    "move": null,
+    "video_route": "single",
+    "transition_in": null,
+    "shake_in": null,
+    "start_from_prev_clip": null,
+    "duration_s": 3.5,
+    "image_prompt": "Free Fire in-game 3D render, stylized proportions, medium close-up, Kelly (dark brown bob haircut, blunt bangs, black choker, yellow tracksuit) leaning against the side of the bedroom's open doorway (no door leaf, Free Fire house), arms crossed, playful teasing look with a light smile, soft daylight, moderate texture detail, clear gameplay lighting, everything in focus, not a movie still, not blurred background"
+   },
+   "motion_prompt": {
+    "motion_prompt": "KELLY leans against the side of the open doorway with her arms crossed and says her line with a playful teasing look, one eyebrow raised; her mouth moves only while she speaks. Static camera.",
+    "duration_sec": 4.0,
+    "state": "approved"
+   },
+   "approved_image": {
+    "type": "image_gen",
+    "id": 528,
+    "state": "approved",
+    "model": "gpt-image-2.5-sunburst",
+    "retry_count": 0,
+    "retry_reason": null,
+    "result_path": "data\\projects\\22\\images\\job_528.png"
+   },
+   "approved_video": {
+    "type": "video_gen",
+    "id": 541,
+    "state": "approved",
+    "model": "seedance-2.5",
+    "retry_count": 0,
+    "retry_reason": null,
+    "result_path": "data\\projects\\22\\videos\\05.mp4"
+   },
+   "takes": {
+    "image": 5,
+    "video": 3
+   }
+  },
+  {
+   "idx": 6,
+   "scene_id": 253,
+   "spec": {
+    "text": "Cùng khung, Kelly đã biến thành KELLY KHỦNG LONG, chống hông tạo dáng tự tin, khẩu trang răng cá mập đeo kín miệng mũi",
+    "dialogue": null,
+    "characters": [
+     "KELLY KL"
+    ],
+    "location": "Phòng ngủ tầng 2 nhà lớn phía Đông, Tháp Đồng Hồ",
+    "size": "MCU",
+    "angle": "eye",
+    "move": null,
+    "video_route": "single",
+    "transition_in": "flash",
+    "shake_in": true,
+    "start_from_prev_clip": null,
+    "duration_s": 3.0,
+    "image_prompt": "Free Fire in-game 3D render, stylized proportions, medium close-up from mid-chest up, no legs, inside the 2nd-floor bedroom of the big east house exactly as the 3D render, same camera and same spot as the previous shot: KELLY KL leaning on the side of the same open doorway, wearing the female Red Dinosaur outfit (black cap, black shark-tooth mask worn UP over her mouth and nose (never pulled down), red croptop with a GREEN dinosaur print, red jacket with black striped sleeves), hands on hips, confident pose, eyes smiling above the mask, warm daylight, everything in focus, not blurred background KELLY KL keeps Kelly's OWN hair from her reference picture: a dark brown / black bob with blunt bangs, one solid colour — no silver, white or two-tone strands (the hair of the outfit picture is not hers)."
+   },
+   "motion_prompt": {
+    "motion_prompt": "Same camera and framing as the previous shot: KELLY KL, now in the female Red Dinosaur outfit with the black shark-tooth mask worn UP over the mouth and nose (it never comes down), puts her hands on her hips and strikes a confident pose, eyes smiling above the mask; feet planted, no sliding. Static camera. KELLY KL keeps Kelly's own dark bob hair (one solid dark colour, no silver or white strands).",
+    "duration_sec": 3.0,
+    "state": "approved"
+   },
+   "approved_image": {
+    "type": "image_gen",
+    "id": 535,
+    "state": "approved",
+    "model": "gpt-image-2.5-sunburst",
+    "retry_count": 0,
+    "retry_reason": null,
+    "result_path": "data\\projects\\22\\images\\job_535.png"
+   },
+   "approved_video": {
+    "type": "video_gen",
+    "id": 542,
+    "state": "approved",
+    "model": "seedance-fast",
+    "retry_count": 0,
+    "retry_reason": null,
+    "result_path": "data\\projects\\22\\videos\\06.mp4"
+   },
+   "takes": {
+    "image": 10,
+    "video": 4
+   }
+  },
+  {
+   "idx": 7,
+   "scene_id": 254,
+   "spec": {
+    "text": "Maxim Khủng Long và Kelly Khủng Long đứng cạnh nhau trên sân đá trước nhà lớn, bắt đầu nhảy đồng đều theo nhịp nhạc (đoạn 1).",
+    "dialogue": [],
+    "characters": [
+     "MAXIM KL",
+     "KELLY KL"
+    ],
+    "location": "Trước nhà lớn phía Đông, Tháp Đồng Hồ",
+    "size": "WS",
+    "angle": "eye",
+    "move": null,
+    "video_route": "single",
+    "transition_in": null,
+    "shake_in": null,
+    "start_from_prev_clip": null,
+    "duration_s": 11.5,
+    "image_prompt": "Free Fire in-game 3D render, vertical frame, wide shot, two stylized young characters in red dinosaur (both with the black shark-tooth mask worn UP over mouth and nose)-themed outfits dancing side by side on a flat stone plaza in front of a clock tower and low red-roof house, bright warm midday sunlight from upper-front, stylized proportions, moderate texture detail, clear gameplay lighting, everything in focus, not a movie still, not blurred background, not a realistic shooter game KELLY KL keeps Kelly's OWN hair from her reference picture: a dark brown / black bob with blunt bangs, one solid colour — no silver, white or two-tone strands (the hair of the outfit picture is not hers)."
+   },
+   "motion_prompt": {
+    "motion_prompt": "MAXIM KL (frame-left) and KELLY KL (frame-right), in their Red Dinosaur outfits exactly as in the reference pictures (Maxim: red horned cap, black shark-tooth mask worn UP over the mouth and nose (it never comes down), red hoodie with the green fire-breathing dinosaur, ripped black jeans, red dinosaur slippers; Kelly: black cap, red croptop with the green dinosaur, red jacket with black striped sleeves, black mini skirt, red-black socks, red devil slippers), stand side by side in front of the big east house of the Clock Tower map as in the 3D render, full bodies with feet visible. Both dance exactly the moves of the reference video, beat by beat, perfectly in sync with each other (part 1 of the dance). The dancer in the reference video only gives the motion — never take her face, clothes or room. Camera: one slow, smooth push-in from the full-body wide toward a slightly closer full-body framing over the whole clip, no cut. KELLY KL keeps Kelly's own dark bob hair (one solid dark colour, no silver or white strands).",
+    "duration_sec": 11.5,
+    "state": "approved"
+   },
+   "approved_image": {
+    "type": "image_gen",
+    "id": 536,
+    "state": "approved",
+    "model": "gpt-image-2.5-sunburst",
+    "retry_count": 0,
+    "retry_reason": null,
+    "result_path": "data\\projects\\22\\images\\job_536.png"
+   },
+   "approved_video": {
+    "type": "video_gen",
+    "id": 543,
+    "state": "approved",
+    "model": "seedance-fast",
+    "retry_count": 0,
+    "retry_reason": null,
+    "result_path": "data\\projects\\22\\videos\\07.mp4"
+   },
+   "takes": {
+    "image": 4,
+    "video": 5
+   }
+  },
+  {
+   "idx": 8,
+   "scene_id": 255,
+   "spec": {
+    "text": "Hai người tiếp tục nhảy đồng đều, chuyển sang đoạn nhạc 2 với động tác mạnh và dứt khoát hơn.",
+    "dialogue": [],
+    "characters": [
+     "MAXIM KL",
+     "KELLY KL"
+    ],
+    "location": "Trước nhà lớn phía Đông, Tháp Đồng Hồ",
+    "size": "WS",
+    "angle": "eye",
+    "move": null,
+    "video_route": "single",
+    "transition_in": null,
+    "shake_in": null,
+    "start_from_prev_clip": true,
+    "duration_s": 11.5,
+    "image_prompt": "Free Fire in-game 3D render, vertical frame, wide shot, same two stylized characters in red dinosaur (both with the black shark-tooth mask worn UP over mouth and nose) outfits dancing on the stone plaza in front of the clock tower, bright midday sunlight, stylized proportions, moderate texture detail, clear gameplay lighting, everything in focus, not a movie still, not blurred background"
+   },
+   "motion_prompt": {
+    "motion_prompt": "MAXIM KL (frame-left) and KELLY KL (frame-right), in their Red Dinosaur outfits exactly as in the reference pictures (Maxim: red horned cap, black shark-tooth mask worn UP over the mouth and nose (it never comes down), red hoodie with the green fire-breathing dinosaur, ripped black jeans, red dinosaur slippers; Kelly: black cap, red croptop with the green dinosaur, red jacket with black striped sleeves, black mini skirt, red-black socks, red devil slippers), stand side by side at the same spot in front of the big east house of the Clock Tower map as in the 3D render, full bodies with feet visible. Both keep dancing exactly the moves of the reference video, beat by beat, perfectly in sync with each other (part 2 of the dance, continuing from the previous shot). The dancer in the reference video only gives the motion — never take her face, clothes or room. The clip starts exactly on the pose and framing of the first image. Camera: a slow smooth arc around the pair from front-left to front-right, both full bodies and feet always in frame, no cut. KELLY KL keeps Kelly's own dark bob hair (one solid dark colour, no silver or white strands).",
+    "duration_sec": 11.5,
+    "state": "approved"
+   },
+   "approved_image": {
+    "type": "image_gen",
+    "id": 531,
+    "state": "approved",
+    "model": "gpt-image-2.5-sunburst",
+    "retry_count": 0,
+    "retry_reason": null,
+    "result_path": "data\\projects\\22\\images\\job_531.png"
+   },
+   "approved_video": {
+    "type": "video_gen",
+    "id": 546,
+    "state": "approved",
+    "model": "seedance-fast",
+    "retry_count": 1,
+    "retry_reason": "Fix Kelly's hair to solid dark bob color at frame 2 (2.6s), frame 3 (4.7s) and frame 4 (6.8s) — hair currently shows silvery/grey streaks mixed with dark, must be one solid dark colour with no silver or white strands. Fix both characters' shark-tooth masks in all frames (0.5s, 2.6s, 4.7s, 6.8s, 8.9s, 11.0s) — masks are shown pulled down covering mouth/nose, but motion prompt requires masks worn UP over the mouth and nose at all times, never coming down. Check for a jerky discontinuous pose jump between frame 5 (8.9s) and frame 6 (11.0s) — smooth out the transition so the arm/leg positions change gradually instead of snapping.",
+    "result_path": "data\\projects\\22\\videos\\08.mp4"
+   },
+   "takes": {
+    "image": 3,
+    "video": 4
+   }
+  },
+  {
+   "idx": 9,
+   "scene_id": 256,
+   "spec": {
+    "text": "Hai người bước vào đoạn nhạc 3, động tác nhảy dồn dập hơn, cuối đoạn bật thẳng người, tạo dáng chốt, nhìn thẳng máy quay.",
+    "dialogue": null,
+    "characters": [
+     "MAXIM KL",
+     "KELLY KL"
+    ],
+    "location": "Trước nhà lớn phía Đông, Tháp Đồng Hồ",
+    "size": "WS",
+    "angle": "eye",
+    "move": null,
+    "video_route": "single",
+    "transition_in": null,
+    "shake_in": null,
+    "start_from_prev_clip": true,
+    "duration_s": 11.5,
+    "image_prompt": "Free Fire in-game 3D render, vertical frame, wide shot, two stylized characters in red dinosaur (both with the black shark-tooth mask worn UP over mouth and nose) outfits crouching mid-dance on the stone plaza in front of the clock tower, bright midday sunlight, stylized proportions, moderate texture detail, clear gameplay lighting, everything in focus, not a movie still, not blurred background"
+   },
+   "motion_prompt": {
+    "motion_prompt": "MAXIM KL (frame-left) and KELLY KL (frame-right), in their Red Dinosaur outfits exactly as in the reference pictures (Maxim: red horned cap, black shark-tooth mask worn UP over the mouth and nose (it never comes down), red hoodie with the green fire-breathing dinosaur, ripped black jeans, red dinosaur slippers; Kelly: black cap, red croptop with the green dinosaur, red jacket with black striped sleeves, black mini skirt, red-black socks, red devil slippers), stand side by side at the same spot in front of the big east house of the Clock Tower map as in the 3D render, full bodies with feet visible. Both keep dancing exactly the moves of the reference video, beat by beat, perfectly in sync with each other (part 3, the end of the dance) and finish holding the final pose of the video together, facing the camera. The dancer in the reference video only gives the motion — never take her face, clothes or room. The clip starts exactly on the pose and framing of the first image. Camera: starts at a low angle and slowly rises while pulling back as they hit the final pose; both full bodies always in frame, no cut. KELLY KL keeps Kelly's own dark bob hair (one solid dark colour, no silver or white strands).",
+    "duration_sec": 11.5,
+    "state": "approved"
+   },
+   "approved_image": {
+    "type": "image_gen",
+    "id": 532,
+    "state": "approved",
+    "model": "gpt-image-2.5-sunburst",
+    "retry_count": 0,
+    "retry_reason": null,
+    "result_path": "data\\projects\\22\\images\\job_532.png"
+   },
+   "approved_video": {
+    "type": "video_gen",
+    "id": 547,
+    "state": "approved",
+    "model": "seedance-fast",
+    "retry_count": 1,
+    "retry_reason": "Fix Kelly's hair in frames 2 (2.6s), 3 (4.7s), 4 (6.8s) and 6 (11.0s): it shows silver-grey streaks mixed into the bob — redraw as one solid dark brown colour with no silver/white strands, per the lock and motion prompt. Smooth the whole-frame motion jerk around 2.1s-2.7s and 6.9s so the dance transitions flow continuously instead of jumping between poses.",
+    "result_path": "data\\projects\\22\\videos\\09.mp4"
+   },
+   "takes": {
+    "image": 3,
+    "video": 4
+   }
+  }
+ ]
+}
