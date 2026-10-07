@@ -30,6 +30,10 @@ Lượt 1 theo skill 2b.5: không nới test, đổi kỳ vọng có chốt ngư
 
 Lượt 2: access → feature → trần → trạng thái cũ → metadata/hash → spend_gate → JSON trước POST → POST → task → ledger. Kiểm RLock lồng, bấm lại, mạng lỗi, paused, hết hạn. Bắt/sửa: thiếu look/negative v2; lọc shot thoại/video ref tránh thiếu giá; candidates cần data_dir thật; hash phải có negative; giữ phí chưa xác định. Không migration hay tự gen lại.
 
+## Triển khai
+
+Code `d264b23` đã push main và pull --ff-only máy chính. Sao lưu SQLite `data/backup/manifest.before_kld_quality_20261007_160032.sqlite`; restart theo launchers, bỏ thao tác tự mở browser vì site bị chặn. Health 8501/8502: HTTP 200, ok. Cờ vẫn chưa bật, chưa gọi API trả phí.
+
 ## Còn mở
 
-Chưa API trả phí, chưa có A+/B thật. Quyền site đã lưu vẫn chặn localhost:8501 dù người dùng mở tab/yêu cầu tiếp tục. Không dùng đường vòng. Người dùng cần Settings → Browser → bỏ localhost khỏi Blocked sites. Sau đó backup → bật cờ UI → chọn shot 6 → gửi A/mẫu B → lấy kết quả → final B → phóng A 1440×2560 → cắt cận mặt cùng giây → người dùng chọn trước cả phim. Chưa kết luận final giữ chuyển động/độ nét tốt hơn.
+Chưa API trả phí, chưa có A+/B thật. Quyền site đã lưu vẫn chặn localhost:8501 dù người dùng mở tab/yêu cầu tiếp tục. Không dùng đường vòng. Ảnh Settings của người dùng cho thấy Browser bật, Agent permissions mặc định Always allow, không có dòng riêng. Thử lại vẫn bị chính sách saved preference từ chối. Đã hướng dẫn + Add ngoại lệ http://localhost:8501, Browsing Always allow; chờ người dùng thao tác, không tự sửa quyền. Sau đó backup → bật cờ UI → chọn shot 6 → gửi A/mẫu B → lấy kết quả → final B → phóng A 1440×2560 → cắt cận mặt cùng giây → người dùng chọn trước cả phim. Chưa kết luận final giữ chuyển động/độ nét tốt hơn.
