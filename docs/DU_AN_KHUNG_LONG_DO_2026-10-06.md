@@ -115,4 +115,10 @@ _(điền sau khi chạy: mã dự án, chi thật theo sổ chi, cách A/B nh�
 - Nguyên nhân shot 7 (job 514/516) mặc đồ thường: đường 'chỉ ảnh tham chiếu' gửi ảnh mặt Kho của MAXIM/KELLY (đồ thường) với câu "identity only (face, hair, outfit)" và không gửi ảnh OUTFIT; khung 0 của clip đã là đồ thường. Câu sửa QC lần 2 còn tả lại đồ thường ("yellow tracksuit…") → càng kéo vào. Sửa 3f1ebf9: gửi kèm ảnh OUTFIT, ảnh mặt chỉ giữ mặt/tóc/dáng.
 - Đổi Đường gen video shot 1–6 Kling → Seedance qua trình sửa shot (ô chọn gõ được: bấm, gõ "Seedance", Enter). Giọng TTS 2/2 xong; shot 3/5 gửi kèm giọng.
 - Vướng Dashboard: mở lại vẫn vào "Test 1/10"; trình sửa shot phải bấm mở từng shot rồi bật công tắc riêng — đổi một ô cho 6 shot mất ~30 thao tác (nên có đổi hàng loạt).
+**07/10 ~09:40 — bản thử rẻ hoàn chỉnh (gửi người dùng duyệt):**
+- Gen: 6 clip cảnh 1 + shot 7 (≈ 5,2 USD ước tính, người dùng duyệt). Shot 7 với ảnh OUTFIT: đúng đồ suốt 12 s. Shot 3/5 gửi kèm giọng (Seedance 2.5); đo khớp môi Kelly tương quan 0,45.
+- Shot 6 lần 1 QC tự loại vì có cú cắt bên trong clip ở 2,7 s → tự gen lại 1 lần, đạt.
+- Dựng: chớp trắng + rung khung ở shot 4 và 6 (ô mới trong trình sửa shot), nhạc gốc `nhac_goc_34s.m4a` vào từ 17,04 s (ô mới 'Nhạc bắt đầu ở giây'). Kiểm bằng số: khung trắng đúng 7,5 s / 14,04 s; tiếng: giọng 4–8 s, 10–14 s, nhạc từ 17 s.
+- Vướng Dashboard đã sửa: nút gửi lại / loại & gen lại chỉ xếp hàng, ▶ Gen video khóa (ca2260e); thiếu ô chuyển cảnh/rung (17754f0); thiếu ô điểm vào nhạc (c71b761).
+- Bài học: kiểm khô prompt video ngoài Dashboard phải nạp `dashboard.env` (cờ khác → ra đường gửi khác); câu sửa QC tả lại lỗi ("yellow tracksuit") kéo lỗi vào lần gen sau — câu sửa của người chỉ tả cái ĐÚNG.
 
