@@ -172,10 +172,91 @@ quality_samples_panel(p,pid,SimpleNamespace(provider=None))
             labels=[b.label for b in app.button]
             self.assertTrue(any("720p" in x and "$" in x for x in labels))
             self.assertTrue(any("480p" in x and "$" in x for x in labels))
-            self.assertFalse(any("1080p" in x for x in labels))
+            self.assertFalse(any("bản cuối" in x for x in labels))   # C (gen thẳng 1080p) có nút riêng
         entries=[{"scene_id":1,"kind":"draft","state":"succeeded","usd":0.415}]
         with mock.patch.object(q,"candidates",return_value=[{"id":1,"idx":6}]), \
                 mock.patch.object(q,"load",return_value=entries):
             app=AppTest.from_string(source).run(timeout=30)
             self.assertEqual(len(app.exception),0)
-            self.assertTrue(any("1080p" in b.label for b in app.button))
+            self.assertTrue(any("bản cuối" in b.label and "1080p" in b.label for b in app.button))
+
+    # ---- C · 1080p gen thẳng (07/10): cùng đầu vào với A/B, chỉ khi bật cờ, API từ chối thì ghi rõ và không ghi nợ ----
+    def test_high_sends_non_draft_1080p_with_same_hash_and_expected_estimate(self):
+        q = self.module()
+        self.assertAlmostEqual(q.estimate("high"), 2.08, places=2)
+        self.assertIn("1080p", q.LABELS["high"])
+        a, b, c = self.send("direct"), self.send("draft"), self.send("high")
+        self.assertEqual({a["input_hash"], b["input_hash"], c["input_hash"]}, {a["input_hash"]})
+        kwargs = self.provider.calls[-1][1]
+        self.assertEqual((kwargs["resolution"], kwargs["draft"], kwargs["high_res_sample"]), ("1080p", False, True))
+        self.assertNotIn("high_res_sample", self.provider.calls[0][1])          # A/B không đổi hành vi
+        self.assertEqual(self.send("high")["external_id"], c["external_id"])      # bấm lại không POST lần hai
+        self.assertEqual(len(self.provider.calls), 3)
+        tiers = [r[0] for r in self.p.conn.execute("SELECT tier FROM usage_events WHERE stage='quality_sample' ORDER BY id")]
+        self.assertEqual(tiers, ["720p", "480p", "1080p"])
+
+    def test_high_blocked_when_switch_off_before_network(self):
+        with mock.patch.dict(os.environ, {"FEATURE_SEEDANCE_SAMPLE_MODE": "0"}):
+            with self.assertRaises(ValueError):
+                self.send("high")
+        self.assertEqual(self.provider.calls, [])
+
+    def test_cap_counts_c_a_b_c_fits_but_a_b_final_c_does_not(self):
+        q = self.module()
+        self.send("direct"); self.send("draft")
+        self.send("high")                                   # 0,92 + 0,41 + 2,08 = 3,41 <= 4
+        self.assertEqual(len(self.provider.calls), 3)
+        q.refresh(self.p, self.pid, self.provider, self.data)
+        with self.assertRaises(ValueError):                 # + bản cuối 1080p của B = 5,49 > 4
+            self.send("final")
+        self.assertEqual(len(self.provider.calls), 3)
+
+    def test_cap_blocks_c_when_it_would_exceed(self):
+        q = self.module()
+        self.send("direct"); self.send("draft")
+        q.refresh(self.p, self.pid, self.provider, self.data)
+        self.send("final")                                  # 0,92 + 0,41 + 2,08 = 3,41
+        with self.assertRaises(ValueError):                 # thêm C sẽ là 5,49
+            self.send("high")
+        self.assertEqual(len(self.provider.calls), 3)
+        with self.assertRaises(ValueError):                 # trần nhỏ hơn cũng chặn
+            self.send("high", max_usd=2.0)
+
+    def test_api_rejection_is_recorded_clearly_not_billed_and_never_resent(self):
+        err = ProviderError("HTTP 400: resolution 1080p not supported", code="http_error")
+        with mock.patch.object(self.provider, "submit", side_effect=err) as fn:
+            with self.assertRaises(ProviderError):
+                self.send("high")
+            again = self.send("high")
+            self.assertEqual(fn.call_count, 1)
+        entry = self.module().load(self.data, self.pid)[0]
+        self.assertEqual(entry["state"], "failed")
+        self.assertIn("1080p", entry["message"])
+        self.assertTrue(entry.get("rejected"))
+        self.assertEqual(entry["usd"], 0)
+        self.assertEqual(again["state"], "failed")
+        self.assertEqual(self.p.conn.execute("SELECT COUNT(*) FROM usage_events WHERE stage='quality_sample'").fetchone()[0], 0)
+
+    def test_network_failure_on_high_stays_uncertain_and_is_reserved(self):
+        with mock.patch.object(self.provider, "submit", side_effect=ProviderError("lost", code="network", transient=True)) as fn:
+            with self.assertRaises(ProviderError):
+                self.send("high")
+            self.send("high")
+            self.assertEqual(fn.call_count, 1)
+        self.assertEqual(self.module().load(self.data, self.pid)[0]["state"], "uncertain")
+        self.assertEqual(self.p.conn.execute("SELECT COUNT(*) FROM usage_events WHERE stage='quality_sample'").fetchone()[0], 1)
+
+    def test_dashboard_has_c_button_with_estimate(self):
+        from streamlit.testing.v1 import AppTest
+        q = self.module()
+        source = """
+from types import SimpleNamespace
+from tests.test_v3 import kenta_project
+from dashboard.steps.step4 import quality_samples_panel
+p,pid=kenta_project()
+quality_samples_panel(p,pid,SimpleNamespace(provider=None))
+"""
+        with mock.patch.object(q, "candidates", return_value=[{"id": 1, "idx": 6}]), mock.patch.object(q, "load", return_value=[]):
+            app = AppTest.from_string(source).run(timeout=30)
+            self.assertEqual(len(app.exception), 0)
+            self.assertTrue(any("C" in b.label and "1080p" in b.label and "$2.08" in b.label for b in app.button))

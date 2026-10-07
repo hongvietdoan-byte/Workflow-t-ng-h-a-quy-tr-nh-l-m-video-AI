@@ -130,5 +130,39 @@ class SampleModeAndEditTests(unittest.TestCase):
         self.assertAlmostEqual(u["usd"], 0.4112, places=3)
 
 
+class HighResSampleAdapterTests(unittest.TestCase):
+    """1080p gen thẳng của 2.5 chỉ mở bằng cờ tường minh cho phép so; luồng thường vẫn bị luật chặn."""
+    def setUp(self):
+        self.t = FakeTransport()
+        self.dir = tempfile.mkdtemp()
+        self.image = os.path.join(self.dir, "img.png")
+        with open(self.image, "wb") as f:
+            f.write(b"\x89PNG-fake")
+        self.p = ClipAIVideoProvider(TOKEN, "https://clipai.example", self.t)
+        self.t.on("POST", "/api/kling/seedance-video-submit", ok({"tasks": [{"task_id": "cgt-1", "task_status": "submitted"}]}))
+
+    def test_normal_flow_still_refuses_1080p_for_2_5(self):
+        with self.assertRaises(ProviderError) as cm:
+            self.p.submit(self.image, "p", None, 4, model="seedance-2.5", resolution="1080p")
+        self.assertEqual(cm.exception.code, "rule_violation")
+        self.assertEqual(self.t.calls, [])
+
+    def test_high_res_sample_sends_1080p_non_draft_only_with_flag_and_2_5(self):
+        with mock.patch.dict(os.environ, {"FEATURE_SEEDANCE_SAMPLE_MODE": "1"}):
+            self.p.submit(self.image, "p", None, 4, model="seedance-2.5", resolution="1080p", high_res_sample=True)
+            ctx = ctx_of(self.t.calls[0])
+            self.assertEqual(ctx["resolution"], "1080p")
+            self.assertNotIn("draft", ctx)
+            for args in ({"model": "seedance-2.5", "resolution": "720p"}, {"model": "seedance", "resolution": "1080p"}):
+                with self.assertRaises(ProviderError):
+                    self.p.submit(self.image, "p", None, 4, high_res_sample=True, **args)
+        self.assertEqual(len(self.t.calls), 1)
+        with mock.patch.dict(os.environ, {"FEATURE_SEEDANCE_SAMPLE_MODE": "0"}):
+            with self.assertRaises(ProviderError) as cm:
+                self.p.submit(self.image, "p", None, 4, model="seedance-2.5", resolution="1080p", high_res_sample=True)
+            self.assertEqual(cm.exception.code, "feature_off")
+        self.assertEqual(len(self.t.calls), 1)
+
+
 if __name__ == "__main__":
     unittest.main()

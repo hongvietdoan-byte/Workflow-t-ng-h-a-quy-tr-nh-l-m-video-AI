@@ -331,7 +331,8 @@ class ClipAIVideoProvider:
               aspect_ratio: Optional[str] = None, resolution: Optional[str] = None,
               multi_prompt: Optional[list] = None, last_frame: Optional[str] = None, kling_mode: Optional[str] = None,
               kling_image_refs: bool = False,
-              reference_audio: Optional[list] = None, reference_only: Optional[list] = None, draft: bool = False) -> str:
+              reference_audio: Optional[list] = None, reference_only: Optional[list] = None, draft: bool = False,
+              high_res_sample: bool = False) -> str:
         """aspect_ratio / resolution override the provider defaults for this job (project frame format, per-scene tier).
         image_references: this project's own resource-library pictures (local files, [{"path","label","role"}], from
         `assets.scene_references`) — no separate Subject Library upload/approval needed. `subjects`: Subject Library entries
@@ -355,6 +356,15 @@ class ClipAIVideoProvider:
         if draft:
             self._check_sample_mode(canonical)
             resolution = "480p"
+        rule_resolution = (resolution or self.resolution) if family == "seedance" else None
+        if high_res_sample:
+            # 07/10: web ClipAI lets Seedance 2.5 pick 1080p directly; provider_rules still says 480p/720p, so this one
+            # explicit override exists ONLY for the quality-comparison path (core/quality_samples.py kind "high").
+            self._check_sample_mode(canonical)
+            if draft or resolution != "1080p":
+                raise ProviderError("gen thẳng 1080p của phép so chỉ nhận độ phân giải 1080p, không phải bản nháp",
+                                    code="unsupported_option")
+            rule_resolution = None                       # normal flow keeps the rule table untouched
         videos = reference_video if isinstance(reference_video, list) else ([reference_video] if reference_video else [])
         reference_video = videos[0] if videos else None      # the Kling fields read the first; Seedance sends every one
         if with_audio and canonical == "kling-video-o1":
@@ -367,7 +377,7 @@ class ClipAIVideoProvider:
         if reference_audio and family != "seedance":
             raise ProviderError("âm thanh tham chiếu (khớp môi) chỉ có ở Seedance", code="unsupported_option")
         broken = video_rules.problems(canonical, float(duration_sec),
-                                      resolution=(resolution or self.resolution) if family == "seedance" else None,
+                                      resolution=rule_resolution,
                                       kling_mode=(kling_mode or self.kling_mode) if family == "omni" else None,
                                       reference_video=bool(reference_video), with_audio=bool(with_audio),
                                       last_frame=bool(last_frame), audios=len(reference_audio or []))

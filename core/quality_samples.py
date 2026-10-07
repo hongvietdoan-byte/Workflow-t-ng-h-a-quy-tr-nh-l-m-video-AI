@@ -9,8 +9,11 @@ from pathlib import Path
 from . import access, budget, cost, dialogue, features, place_refs, seedance_refs, shots, spend_gate
 
 MODEL = "dreamina-seedance-2-5-260628"
-TIERS = {"direct": "720p", "draft": "480p", "final": "1080p"}
-LABELS = {"direct": "A · 720p", "draft": "B · bản mẫu 480p", "final": "B · bản cuối 1080p"}
+TIERS = {"direct": "720p", "draft": "480p", "final": "1080p", "high": "1080p"}
+LABELS = {"direct": "A · 720p", "draft": "B · bản mẫu 480p", "final": "B · bản cuối 1080p", "high": "C · 1080p gen thẳng"}
+# API từ chối rõ ràng (chưa tạo task) → không ghi nợ; lỗi mạng/không rõ vẫn giữ "uncertain" và tạm tính tiền.
+REJECTED_CODES = {"rule_violation", "unsupported_option", "feature_off", "prompt_too_long", "missing_image", "bad_input",
+                  "http_error", "api_error", "too_large", "auth", "config"}
 
 
 def _path(data_dir, pid):
@@ -153,6 +156,8 @@ def send(p, pid, sid, kind, provider, data_dir, max_usd=4.0):
                     ext = slot.send(provider.submit_final_from_sample, source["external_id"])
                 else:
                     kwargs = {"aspect_ratio": "9:16", "resolution": TIERS[kind], "draft": kind == "draft"}
+                    if kind == "high":
+                        kwargs["high_res_sample"] = True    # explicit 1080p override for 2.5, this path only
                     if input_plan["reference_only"]:
                         marked = os.path.join(data_dir, str(pid), "experiments", "quality_refs")
                         kwargs["reference_only"] = [seedance_refs.mark(path, marked) for path in input_plan["pictures"]]
@@ -163,6 +168,13 @@ def send(p, pid, sid, kind, provider, data_dir, max_usd=4.0):
                 _save(data_dir, pid, items)  # durable task before ledger / later polling
                 slot.record()
             except Exception as ex:
+                if kind == "high" and not entry.get("external_id") and getattr(ex, "code", None) in REJECTED_CODES \
+                        and not getattr(ex, "transient", False):
+                    # Definite refusal (e.g. API does not take 1080p for 2.5): say it clearly, nothing was created → no charge, no retry.
+                    entry.update(state="failed", rejected=True, usd=0, usd_estimated=usd,
+                                 message=f"Nhà cung cấp từ chối gen thẳng 1080p: {str(ex)[:300]}")
+                    _save(data_dir, pid, items)
+                    raise
                 if not entry.get("external_id"):
                     entry.update(state="uncertain", message=str(ex)[:400])
                 _save(data_dir, pid, items)

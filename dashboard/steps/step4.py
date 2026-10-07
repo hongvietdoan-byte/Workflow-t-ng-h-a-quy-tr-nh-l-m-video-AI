@@ -449,14 +449,14 @@ def quality_samples_panel(p: Pipeline, pid: int, runner) -> None:
     if not features.on("seedance_sample_mode"):
         return
     with st.expander("🧪 So độ nét · Seedance 2.5", expanded=True):
-        st.caption("Thử shot không thoại, không video tham chiếu, 4 giây: A là 720p để phóng AI; B là bản mẫu 480p rồi bản cuối 1080p. "
+        st.caption("Thử shot không thoại, không video tham chiếu, 4 giây: A là 720p để phóng AI; B là bản mẫu 480p rồi bản cuối 1080p; C là gen thẳng 1080p (chưa biết API có nhận, nếu từ chối thì ghi lỗi, không tính tiền). "
                    "Giữ ảnh và motion đã duyệt. Kết quả thử riêng; trần cả phép so 4 USD, mỗi bước gửi một lần.")
         rows = q.candidates(p, pid, C.DATA)
         items = q.load(C.DATA, pid)
         if rows and runner is not None:
             sid = st.selectbox("Shot thử độ nét", [r["id"] for r in rows], key=f"quality_scene_{pid}",
                                format_func=lambda x: f"Shot {next(r['idx'] for r in rows if r['id'] == x)}")
-            for kind in ("direct", "draft", "final"):
+            for kind in ("direct", "draft", "final", "high"):
                 entry = next((e for e in items if e["scene_id"] == sid and e["kind"] == kind), None)
                 if entry:
                     st.caption(f"{q.LABELS[kind]} · {ui.state_label(entry['state'])}" +
