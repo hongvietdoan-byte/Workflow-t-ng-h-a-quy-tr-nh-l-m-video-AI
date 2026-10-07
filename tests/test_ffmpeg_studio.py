@@ -62,7 +62,9 @@ class FFmpegStudioTests(unittest.TestCase):
         clicks, video, out = (os.path.join(d, n) for n in ("c.wav", "v.mp4", "o.mp4"))
         subprocess.run([ff, "-y", "-loglevel", "error", "-f", "lavfi", "-i",
                         "aevalsrc='if(lt(mod(t,0.5),0.03),sin(2*PI*1000*t),0)':s=22050:d=8", clicks], check=True)   # 120 BPM clicks
-        beats = f.music_beats(clicks, start=1.0, until=8.0)
+        m4a = os.path.join(d, "c.m4a")                                         # 07/10: the dance song was .m4a (librosa failed)
+        subprocess.run([ff, "-y", "-loglevel", "error", "-i", clicks, "-c:a", "aac", m4a], check=True)
+        beats = f.music_beats(m4a, start=1.0, until=8.0)
         self.assertGreater(len(beats), 8)
         gaps = np.diff(beats)
         self.assertLess(abs(float(np.median(gaps)) - 0.5), 0.05)                # the 0.5 s beat found

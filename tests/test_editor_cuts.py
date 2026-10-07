@@ -91,9 +91,9 @@ class SecondMusicTests(unittest.TestCase):
 
     def test_the_first_music_stops_where_the_second_comes_in(self):
         from core import ffmpeg_studio
-        cmd = " ".join(ffmpeg_studio.build_mux_music_cmd("v", "m", "o", 51.5, fade=1.0, end=17.04))
+        cmd = " ".join(ffmpeg_studio.build_mux_music_cmd("v", "m", "o", 51.5, fade=1.5, end=17.04))
         self.assertIn("atrim=0:17.04", cmd)
-        self.assertIn("afade=t=out:st=16.04", cmd)
+        self.assertIn("afade=t=out:st=16.74:d=0.3", cmd)                    # a short fade at the hand-over, no hole
 
     def test_the_second_music_is_cut_to_the_rest_of_the_film(self):
         import subprocess

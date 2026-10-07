@@ -158,8 +158,12 @@ PULSE_S, PULSE_ZOOM, PULSE_PX = 0.35, 0.03, 4    # 07/10 (Khủng Long Đỏ): o
 def music_beats(path: str, start: float = 0.0, until: Optional[float] = None) -> List[float]:
     """The beats of a music file (librosa beat tracker, DSP — no model) on the FILM's timeline: + `start` (the second the music comes
     in), only those before `until`."""
+    import tempfile
     import librosa
-    y, sr = librosa.load(path, sr=22050, mono=True)
+    with tempfile.TemporaryDirectory() as d:      # 07/10: librosa (soundfile) cannot open .m4a — decode with ffmpeg first
+        wav = os.path.join(d, "beats.wav")
+        run([find_ffmpeg(), "-y", "-loglevel", "error", "-i", path, "-ac", "1", "-ar", "22050", wav])
+        y, sr = librosa.load(wav, sr=22050, mono=True)
     _, frames = librosa.beat.beat_track(y=y, sr=sr)
     times = [round(float(t) + float(start or 0), 3) for t in librosa.frames_to_time(frames, sr=sr)]
     return [t for t in times if until is None or t < until - PULSE_S]
@@ -339,6 +343,7 @@ def build_mux_music_cmd(video: str, music: str, output: str, video_duration: flo
     comes in (07/10 Khủng Long Đỏ: the dance's own 34 s track under the dance only, from 16 s) — silent before it."""
     if end is not None and 0.5 < float(end) < video_duration:   # 07/10: a second music comes in at `end` — this one fades out there
         video_duration = float(end)
+        fade = min(fade, END_FADE)                    # a short fade right at the hand-over, not a 1.5 s hole before the next song
     start = min(max(float(start or 0), 0.0), max(video_duration - 0.5, 0.0))
     if start:                            # the music's own timeline: breaths / silences planned on the film's move back by `start`
         breaths = [t - start for t in breaths if t - start > 0]
@@ -369,6 +374,7 @@ def build_mux_music_cmd(video: str, music: str, output: str, video_duration: flo
 
 
 MUSIC_FADE_IN = 0.3
+END_FADE = 0.3          # the first music's fade where the second music comes in (07/10: 1.5 s left ~1 s of silence before the dance)
 # The music dips 8–12 dB while someone speaks (the person chose 2026-09-26; editing.md E4). Measured on 3 real TTS lines of #7 under its
 # chosen music: threshold 0.05 / ratio 3 → 9.4–11.5 dB (0.02 / 8, the setting before, pressed it 18.6–22.3 dB — nearly silent).
 DUCK = "sidechaincompress=threshold=0.05:ratio=3:attack=20:release=400"
