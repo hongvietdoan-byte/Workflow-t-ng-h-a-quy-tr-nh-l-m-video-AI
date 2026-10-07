@@ -22,8 +22,8 @@
 | S9 Dashboard gọn, dễ nhìn | 6 | 6 | 0 | 0 | 0 | 100 % |
 | S2 Timeline theo âm thanh + animatic | 6 | 5 | 0 | 0 | 1 | 100 % |
 | S3 Director kể chuyện + Quay phim | 8 | 7 | 0 | 0 | 1 | 100 % |
-| S4 Video chất lượng | 12 | 11 | 0 | 0 | 1 | 100 % |
-| S5 Bối cảnh theo file 3D Tháp Đồng Hồ | 7 | 7 | 0 | 0 | 0 | 100 % |
+| S4 Video chất lượng | 12 | 11 | 0 | 0 | 0 | 90 % |
+| S5 Bối cảnh theo file 3D Tháp Đồng Hồ | 8 | 8 | 0 | 0 | 0 | 100 % |
 | S6 Ước tính, ngân sách, dashboard | 6 | 5 | 0 | 0 | 1 | 100 % |
 | S7 Agent QC | 3 | 1 | 0 | 0 | 2 | 100 % |
 | S10 Kỹ năng nhân vật & tham chiếu | 12 | 12 | 0 | 0 | 0 | 100 % |
@@ -33,7 +33,7 @@
 | S14 Nâng cấp dashboard sau chấm lại 03/10 (`docs/KE_HOACH_NANG_CAP_DASHBOARD_2026-10-03.md`; người dùng duyệt 04/10) | 50 | 44 | 2 | 2 | 1 | 91,8 % |
 | K Chạy kiểm kịch bản hài 20–30 s — ⏸ KHÔNG ƯU TIÊN (người dùng 30/09: các việc test kịch bản không làm trước nữa) | 3 | 0 | 0 | 0 | 3 | — |
 | S8 Chấm lại bằng AI Development System (cuối cùng) | 5 | 2 | 0 | 0 | 0 | 42,9 % |
-| **Tổng** | **184** | **150** | **2** | **13** | **15** | **89,8 %** |
+| **Tổng** | **185** | **151** | **2** | **13** | **14** | **89,3 %** |
 
 Đợt hiện tại: **S14** · việc kế: **S14.15** I1 — tài liệu khớp trạng thái cuối + chấm lại toàn bộ bằng AI Dev System
 <!-- /tien-do -->
@@ -115,7 +115,7 @@
 - [x] S4.8 · Prompt Seedance 2.0/Fast theo 'Shot 1 / Shot 2' thay vì mốc giây · nặng:1 · ✅ · 2026-09-29: seedance_refs.prompt(model=) — 2.0/Fast chỉ số shot, 2.5 giây nguyên liên tục; test
 - [x] S4.9 · Prompt theo tài liệu chính thức (vai trò ảnh theo thứ tự xuất hiện, hành động khái quát, biểu cảm dịu + chặn mắt phát sáng, ảnh tham chiếu ≤ 1280 px) · nặng:1 · ✅ · 2026-09-29: seedance_refs (soften, busy_shots ⚠, REF_MAX_SIDE), knowledge/seedance_prompting.md; 1345 test qua; chưa chạy thật (cần lần sinh video kế)
 - [x] S4.10 · A/B Seedance 2.5 (720P) vs Fast: cận, chạy, thoại có tham chiếu âm thanh tiếng Việt · nặng:2 · ✅ · 01/10 nhánh A2 (3 clip 4 s, 2,32 USD gồm S4.7): Fast KHÔNG dùng cho shot thoại thấy mặt (miệng mấp máy cả lúc im); 2.5 + âm thanh tham chiếu một mình trễ 1,33 s; 2.5 + mốc giây (khối S4.2) 0,39, trễ 0,62 s, ngậm khi hết câu — chưa đạt 0,65; hướng tiếp: mốc 0,1 s / dời giọng theo miệng đo được ở khâu dựng (miễn phí) · trước đó: người dùng 30/09 duyệt làm (tốn tiền: ước tính + trần riêng trước khi gửi) · chờ người dùng duyệt (~3–4 USD)
-- [ ] S4.11 · Chế độ bản mẫu (Sample Mode): xác minh API, bản mẫu → duyệt → bản cuối 1080P · nặng:2 · ✖ · người dùng 01/10: bỏ (bản cuối 1080p không chạy; bản mẫu qua API đã xác minh — cờ `seedance_sample_mode` giữ TẮT); 01/10 nhánh B (#16): API CÓ — bản mẫu `draft: true` 480p (0,42 USD, cận Kelly đạt, giữ render 3D) và bản cuối `draft_task` 1080p (xác minh 0 USD bằng mã giả); bản cuối chưa chạy (≈ 2,08 USD > trần nhánh) → CHỜ NGƯỜI DÙNG duyệt ≈ 2,1 USD (bản mẫu hết hạn ~07/10); mẫu+cuối 4 s ≈ 2,50 vs thẳng 720p ≈ 0,92 → chỉ lợi khi cần 1080p + thử nhiều; cờ `seedance_sample_mode` TẮT; docs/KET_QUA_S4_11_S4_12_2026-10-01.md · trước đó: người dùng 30/09 duyệt làm (tốn tiền: ước tính + trần riêng trước khi gửi) · PDF đã có: mẫu chỉ 480p (Seedance 2.5), bản cuối chỉ 1080p, mẫu hết hạn ~7 ngày; còn thử API
+- [ ] S4.11 · Khôi phục bản mẫu Seedance 2.5 → bản cuối 1080p, so A+/B shot 6 Kelly dự án #22 · nặng:2 · ⬜ · người dùng 07/10 DUYỆT khôi phục B sau khi phát hiện S14.9 đã gỡ luồng; giữ mẫu riêng, không tự thay bản v2; thử A+: 720p + Real-ESRGAN 2K, B: draft 480p + final 1080p; người dùng chọn trước khi gen cả phim. Lịch sử 01/10: mẫu 0,42 USD, final chưa chạy thật (≈ 2,08 USD/4 s), docs/KET_QUA_S4_11_S4_12_2026-10-01.md.
 - [x] S4.12 · Advanced Edit: sửa clip lỗi (cận Kelly #8) thay vì sinh lại — kiểm API, thử 1 clip · nặng:1 · ✅ · 01/10 nhánh B: API CÓ (Seedance 2.5 `omni_reference_task_type: edit`), thử 1 lần 0,47 USD — clip ra mất điểm cắt, mặt gần như không đổi → KHÔNG đưa vào luồng; cờ `seedance_video_edit` TẮT; chỉ thử lại với clip nguồn 1 shot ≥ 4 s không điểm cắt · trước đó: người dùng 30/09 duyệt làm (tốn tiền: ước tính + trần riêng trước khi gửi) · chờ người dùng duyệt (docs/PHAN_TICH_CLIP_MAU_CLIPAI_2026-09-28.md, ~0,5 USD)
 
 ### S5 — Bối cảnh theo file 3D Tháp Đồng Hồ
@@ -126,6 +126,8 @@
 - [x] S5.5 · 💵 Thử 1 cảnh `place_render_refs` (3–5 shot ở Tháp, render 3D đúng góc làm ảnh tham chiếu) — thay việc vẽ lại khung FFXN cũ; so độ khớp nền với mốc 0,073 · nặng:1 · ✅ · 30/09 tối vẽ lại 1/2 (tổng 0,572 USD): 5/5 khung đổi đúng loại nơi (cỏ + nhà đá mái đỏ thay quảng trường lát đá), độ khớp TB 0,202 → 0,242; bố cục nền chưa theo render (nhà nhỏ ở hậu cảnh, góc ngược shot 22 không theo) — kết luận + việc tồn (sửa cách đo, bỏ câu Setting chung khi có render) ở docs/THU_PLACE_RENDER_REFS_2026-09-30.md mục 7; trước đó: 30/09 chiều: thử trả tiền #13 (0,312 USD): ảnh toàn cảnh khớp render, 5/5 khung shot theo chữ cũ "stone plaza + tower" thay vì render → sửa `auto_spot` (cả cảnh một chỗ) + câu "render quyết định nơi chốn" (`place_refs.PRECEDENCE`); số background_match không phân biệt được (0,202 vs 0,208) — chờ người dùng cho vẽ lại 5 khung ≈ 0,26 USD (docs/THU_PLACE_RENDER_REFS_2026-09-30.md mục 7); chạy khô #8 xong 30/09 (33/33 shot có render + câu số đo); ≈ 0,5 USD, hỏi trước
 - [x] S5.6 · Render tháp GLB thành video white-model làm tham chiếu cho Seedance 2.5 · nặng:1 · ✅ · 2026-09-29 (người dùng: 'tự làm kèm video'): 3 đường máy (đi bộ vào, vòng quanh, cần cẩu) × bản chất liệu + white-model; đã sửa đường đi bộ xuyên tường
 - [x] S5.7 · Hướng máy + đèn đêm ở bối cảnh 3D theo kịch bản (người dùng 29/09) · nặng:2 · ✅ · 2026-09-29: core/plate_choice.py — shot ghi plate_view (nền: landmark/away/left/right/spot:/độ + lý do) + practical_lights (đêm: [] hoặc ≤ 3 đèn); chỗ đứng 'tùy kịch bản' thiếu hướng → không render, shot chờ; đèn đặt thật trong Blender, vào khóa cache + dấu vân tay ảnh + câu ánh sáng prompt; render thử 2 nền lower_yard đêm ở D:/AI-Video-Output/2026-09-29_bo-boi-canh-thap-dong-ho/theo_kich_ban; 3 hướng cố định cũ chỉ còn là tư liệu; 30/09 gắn vào luồng place_render_refs (render tham chiếu theo shot) + hướng 'scenery'; còn: chỉ chỗ đứng dưới mái che trong FBX mới rồi script-view + thử thật 1 shot · 30/09 người dùng chốt: (c) không bắt buộc chỗ đứng nào "hướng theo kịch bản"; KHÔNG căn đèn Blender — render chỉ là tham chiếu nơi chốn, ánh sáng ảnh do model vẽ theo câu ánh sáng của Director (place_refs.PRECEDENCE); render đêm chỉ cần đọc được hình khối (bản chỉ trăng FBX đạt, D:/AI-Video-Output/2026-09-30_den-dem-fbx/); kiểm ở shot đêm thật đầu tiên — chỉ xử lý render khi model bị kéo sai ánh sáng
+
+- [x] S5.8 · Render địa điểm 3D cho video Seedance chỉ ảnh tham chiếu (Khủng Long Đỏ #22, người dùng 07/10) · nặng:1 · ✅ · c8f7a69 · đỏ→xanh 2 hồi quy; cả bộ Windows 2796 qua, 4 bỏ qua, 66 subtest qua (14 phút 03 giây); kiểm chỉ đọc shot 7–9: đủ mặt/OUTFIT, render nha_lon_dong ở Image 6; 8501/8502 restart, health ok; rà hai lượt docs/RA_KLD_PLACE_REFS_CODEX_2026-10-07.md; chưa gen video thật để nghiệm thu độ giữ nền.
 
 ### S6 — Ước tính, ngân sách, dashboard
 - [x] S6.1 · Dự tính tổng dự án ngay khi Director trả bảng shot · nặng:2 · ✅ · 2026-09-29: Bước 1 hiện 💵 dự tính chia khâu (project_budget.propose) ngay dưới kết quả Director + dòng tóm tắt lượt chạy; nghiệm thu lệch ≤ 20 % chờ lần chạy kiểm

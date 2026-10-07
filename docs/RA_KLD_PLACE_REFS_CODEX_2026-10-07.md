@@ -33,3 +33,7 @@ Chưa có bằng chứng video thật giữ nền tốt hơn: cần gen và xem 
 Mục 2 có lệch bàn giao: `seedance_sample_mode`/`submit_final_from_sample` đã bị gỡ S14.9, test hiện tại yêu cầu chúng không tồn tại. **Người dùng 07/10 đã chọn khôi phục B và so đủ A+/B**. Làm ở worktree kế tiếp sau khi gộp sửa nền, test đỏ→xanh + cả bộ; kết quả thử riêng, không tự thay clip đã duyệt của phim. Dashboard đang bị quyền trình duyệt đã lưu chặn `http://localhost:8501`; người dùng đang mở lại quyền. Chưa có API trả phí nào trong phiên này.
 
 Chuẩn bị A+ miễn phí: Real-ESRGAN bản Windows 20220424 từ release chính thức `xinntao/Real-ESRGAN` v0.2.5.0, lưu ở `D:\AI-Video-Tools\realesrgan-20220424`. SHA256 ZIP: `ABC02804E17982A3BE33675E4D471E91EA374E65B70167ABC09E31ACB412802D`. Chạy mẫu kèm gói `input.jpg` 220×220 → `verification-x4.png` 880×880 thành công với model `realesrgan-x4plus`; nhận GPU GTX 1070 Ti. Chưa upscale clip dự án, chưa đánh giá độ nét mặt Kelly.
+
+## Triển khai
+
+Commit `c8f7a69` đã push main, máy chính pull ff-only. Sao lưu SQLite trước restart: `data/backup/manifest.before_kld_place_20261007_153243.sqlite`. Chạy nội dung hai launcher theo AGENTS, bỏ thao tác tự mở trình duyệt vì quyền site còn bị chặn; server 8501 + 8502 đã restart, `_stcore/health` cả hai trả `ok`. Không đổi nhánh trên máy chính.
