@@ -124,9 +124,11 @@ def _video_batch(p: Pipeline, pid: int, runner) -> None:
     stale_videos = [r for r in lineage.scan(p.conn, pid).values() if r["video_stale"]]
     c1, c2 = st.columns([2.6, 2])
     todo = batch.videos_to_make(p, pid)
-    if c1.button(f"▶ Gen video ({len(todo)} cảnh sẵn sàng" + (f", {len(stale_videos)} đã cũ" if stale_videos else "") + ")"
+    queued = p.conn.execute("SELECT COUNT(*) FROM jobs WHERE project_id=? AND type='video_gen' AND state='queued'", (pid,)).fetchone()[0]
+    if c1.button(f"▶ Gen video ({len(todo)} cảnh sẵn sàng" + (f", {len(stale_videos)} đã cũ" if stale_videos else "")
+                 + (f", {queued} clip đang chờ gửi" if queued else "") + ")"     # 07/10: resent / redone clips only wait in the queue
                  + cost.video_batch_tag(p, pid),
-                 type="primary", key=f"gen_vid_{pid}", disabled=runner is None or not allowed_run or not (todo or stale_videos)):
+                 type="primary", key=f"gen_vid_{pid}", disabled=runner is None or not allowed_run or not (todo or stale_videos or queued)):
         def go():
             r = batch.queue_videos(p, pid, C.DATA)
             sent = runner.submit_pending(pid)
@@ -142,6 +144,8 @@ def _video_batch(p: Pipeline, pid: int, runner) -> None:
                       "không nằm trong nút này: sửa prompt trước."):
         for j in failed:
             act(lambda: p.retry(j["id"], "gửi lại clip lỗi (lỗi nhà cung cấp)", by_user=True))
+        if runner is not None:
+            act(lambda: runner.submit_pending(pid))   # 07/10: the retries only waited in the queue — nothing else sends them
         st.rerun()
     from core import lipsync as _lipsync
     if _lipsync.enabled() and not _lipsync.post_available():
@@ -364,6 +368,8 @@ def video_card_v2(p: Pipeline, pid: int, j, runner, stale_reason) -> None:
         if r4.button("✖ Loại & gen lại" + tag, key=f"vr_rej_{jid}", disabled=not reviewable, width="stretch",
                      help="Loại clip này và xếp hàng gen lại (kèm câu sửa nếu bạn nhập)."):
             act(_spin(lambda: p.reject(jid, "user", st.session_state.get(f"vnote_{jid}") or None)))
+            if runner is not None:
+                act(lambda: runner.submit_pending(j["project_id"]))   # 07/10: the redo only waited in the queue
             st.rerun()
         # ---- rare actions: one popover ------------------------------------------------------------------------------------------
         can_cancel = state in ("queued", "running")

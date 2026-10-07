@@ -154,6 +154,22 @@ class VideoV2Tests(VideoSeed):
         self.assertIn(f"vid-empty-go_{other}", {b.key for b in at.button})
 
 
+class QueuedClipsAreSentTests(VideoSeed):
+    """07/10 Khủng Long Đỏ: "↻ Gửi lại clip lỗi" / "✖ Loại & gen lại" only QUEUED the clips and "▶ Gen video" stayed disabled with
+    "0 cảnh sẵn sàng" — 7 paid-for clips waited with no button to send them."""
+
+    def test_gen_video_is_enabled_and_sends_the_queued_clips(self):
+        with mock.patch.dict(os.environ, {"VIDEO_PROVIDER": "mock"}):
+            at = self.open_video()
+            btn = next(b for b in at.button if b.key == f"gen_vid_{self.pid}")
+            self.assertFalse(btn.disabled)
+            self.assertIn("đang chờ gửi", btn.label)
+            sent = []
+            with mock.patch("core.runner.VideoRunner.submit_pending", lambda self_, pid: sent.append(pid) or 1):
+                btn.click().run()
+        self.assertEqual(sent, [self.pid])
+
+
 class VideoFlagOffTests(VideoSeed):
     def test_flag_off_still_draws_the_v2_cards(self):
         """S14.14 G-a (người dùng duyệt 05/10): the classic clip card (step4.video_card) was removed — the Video screen is v2 only,
