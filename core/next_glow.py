@@ -55,7 +55,7 @@ def css(targets: List[Target], steps: List[str]) -> str:
     sel = []
     for kind, val in targets:
         if kind == "key" and isinstance(val, str) and _SAFE.match(val):
-            sel.append((f".st-key-{val} button, .st-key-{val} textarea", f".st-key-{val}"))
+            sel.append((f".st-key-{val} button, .st-key-{val}_yes button, .st-key-{val} textarea", f".st-key-{val}"))   # _yes: câu hỏi Có/Không
         elif kind == "step" and val in steps:
             sel.append((f'.st-key-step [role="radiogroup"] > label:nth-child({steps.index(val) + 1})', None))
         elif kind == "tab" and isinstance(val, int):
@@ -71,3 +71,16 @@ def css(targets: List[Target], steps: List[str]) -> str:
         out += f"{labels} {{ {_LABEL} }}\n"
     out += f"@media (prefers-reduced-motion: reduce) {{ {glow} {{ {_STILL} }} }}\n"
     return out
+
+
+MAIN = ("script-cta_{}", "script-cta-budget_{}", "script-cta-lock_{}", "script-cta-next_{}", "gen_img_{}", "approve_all", "llm_mot_{}",
+        "btn_ok_all", "gen_vid_{}")
+
+
+def big_css(pid: int) -> str:
+    """Người dùng 07/10: nút bước chính ở các màn làm việc to và rõ (cao hơn, chữ lớn đậm, đầy bề ngang khung chứa) — sáng hay không."""
+    keys = [k.format(pid) for k in MAIN]
+    sel = ", ".join(f".st-key-{k} button" for k in keys)
+    return (f"{sel} {{ min-height: 3.1rem !important; font-size: 17px !important; font-weight: 700 !important; width: 100% !important; "
+            "letter-spacing: .01em; }\n"
+            f"{', '.join(f'.st-key-{k} button p' for k in keys)} {{ font-size: 17px !important; font-weight: 700 !important; }}\n")

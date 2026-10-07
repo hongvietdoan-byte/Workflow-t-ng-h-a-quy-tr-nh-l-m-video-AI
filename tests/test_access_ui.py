@@ -13,7 +13,7 @@ from tests.test_access import CREATOR, OWNER, STRANGER, WEDIT, WVIEW, make_world
 
 APP = os.path.join(os.path.dirname(__file__), "..", "dashboard", "app.py")
 # widgets that stay usable in read-only mode because they only navigate / look, or belong to the person (not the project)
-FREE_KEYS = {"global_pid", "step", "logout_btn", "settings_limits", "settings_history", "dark_toggle", "expert_mode", "new_name", "new_aspect",
+FREE_KEYS = {"global_pid", "step", "logout_btn", "settings_limits", "settings_history", "dark_toggle", "expert_mode", "pref_next_glow", "new_name", "new_aspect",
              "new_genre", "new_prio", "new_game", "new_project_go", "home_q", "home_sort", "home_scope", "home_status", "home_step",
              "home_creator", "home_warn", "home_reset", "inbox_scope", "inbox_kind"}
 # S14.19: the remarks (💬 Góp ý màn này, "Bản này dùng được chứ?" — keys fb_*) stay open to a view-only person: they change nothing

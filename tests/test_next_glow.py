@@ -72,7 +72,8 @@ class ScreenTests(unittest.TestCase):
         styles = [h.proto.body for h in at.get("html") if "next-glow" in h.proto.body]
         self.assertEqual(len(styles), 1)
         self.assertIn(f".st-key-script-cta_{pid} button", styles[0])
-        os.environ["FEATURE_CHAT_FIRST"] = "0"
+        os.environ["FEATURE_NEXT_GLOW"] = "0"                                   # 07/10: own flag (on by default), not chat_first
+        self.addCleanup(os.environ.pop, "FEATURE_NEXT_GLOW", None)
         at = AppTest.from_file(os.path.join(os.path.dirname(__file__), "..", "dashboard", "app.py"), default_timeout=30).run()
         self.assertFalse([h for h in at.get("html") if "next-glow" in h.proto.body])     # flag off: nothing lit
 
@@ -92,7 +93,8 @@ class BandTests(unittest.TestCase):
         text, level = shell_parts.next_line(p, pid, 1, "")
         self.assertEqual(level, "todo")
         self.assertTrue(text.startswith("🟢 Nút sáng xanh: "), text)
-        os.environ["FEATURE_CHAT_FIRST"] = "0"
+        os.environ["FEATURE_NEXT_GLOW"] = "0"
+        self.addCleanup(os.environ.pop, "FEATURE_NEXT_GLOW", None)
         self.assertFalse(shell_parts.next_line(p, pid, 1, "")[0].startswith("🟢"))
 
     def test_no_lit_claim_when_nothing_is_lit(self):

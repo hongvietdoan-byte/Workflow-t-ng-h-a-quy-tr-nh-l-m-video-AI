@@ -42,15 +42,18 @@ def image_progress(p: Pipeline, pid: int, runner) -> None:
             st.caption(("🖼 Ảnh tham chiếu gửi kèm mỗi cảnh: " + ", ".join(have) + "." if have else
                         "🖼 Chưa có nhân vật nào gắn tài nguyên: ảnh sẽ vẽ chỉ theo mô tả chữ (dễ lệch thiết kế).")
                        + (f" Chưa có ảnh tham chiếu cho: {', '.join(lack)}." if have and lack else ""))
+        from core import chat_intake
+        merged = chat_intake.enabled()                    # 07/10 cờ chat_first: thanh % + bảng trạng thái = bản đồ tiến độ + thẻ ảnh
         total = summ["total"] or 1
-        ui.progress_bar(min(done / total, 1.0), text=f"{done}/{summ['total']} cảnh có ảnh đã duyệt · {queued} chờ gen · {running} đang gen · "
-                                                  f"{failed} lỗi" + (f" · ⚠ {stale} ảnh cũ" if stale else ""))
+        if not merged:
+            ui.progress_bar(min(done / total, 1.0), text=f"{done}/{summ['total']} cảnh có ảnh đã duyệt · {queued} chờ gen · {running} đang gen · "
+                                                    f"{failed} lỗi" + (f" · ⚠ {stale} ảnh cũ" if stale else ""))
         rows = p.conn.execute(
             "SELECT j.state, j.retry_count, j.escalated, s.idx, s.id sid, (SELECT AVG(score) FROM qc_results WHERE job_id=j.id) AS qc "
             "FROM jobs j JOIN scenes s ON s.id=j.scene_id WHERE j.project_id=? AND j.type='image_gen' AND j.state NOT IN ('rejected','cancelled') "
             "ORDER BY s.idx", (pid,)).fetchall()
         status = lineage.scan(p.conn, pid)
-        if rows:
+        if rows and not merged:
             client_ready = llm_client() is not None
             def label(r):
                 if r["state"] == "succeeded":
