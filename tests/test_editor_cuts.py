@@ -53,6 +53,23 @@ class BreathTests(unittest.TestCase):
         self.assertEqual(delivery.twist_times(p, pid, rows, [3.0, 2.5, 4.0], "crossfade", 0.5), [4.5])
 
 
+    def test_the_frame_shakes_where_a_marked_shot_starts(self):
+        """07/10 Khủng Long Đỏ: shake on the "hô biến" shots without an impact sound."""
+        from core import delivery
+        from core.db import connect
+        from core.pipeline import Pipeline
+        p = Pipeline(connect())
+        pid = p.create_project("shake")
+        rows = []
+        for idx, mark in ((1, False), (2, True), (3, True)):
+            sid = p.create_scene(pid, idx, f"s{idx}")
+            p.conn.execute("UPDATE scenes SET data=? WHERE id=?", (json.dumps({"shot_no": idx, **({"shake_in": True} if mark else {})}), sid))
+            rows.append({"scene_id": sid, "path": f"{idx}.mp4"})
+        p.conn.commit()
+        self.assertEqual(delivery.shake_in_times(p, rows, [3.0, 2.5, 4.0]), [3.0, 5.5])
+        self.assertEqual(delivery.shake_in_times(p, rows, [3.0, 2.5, 4.0], "crossfade", 0.5), [2.5, 4.5])
+
+
 class JCutTests(unittest.TestCase):
     def _items(self, data):
         from core import audio_lib

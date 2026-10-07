@@ -187,6 +187,16 @@ def scene_editor(p: Pipeline, pid: int, scene, char_names) -> None:
                                              format_func=routes.get, key=f"{k}_route",
                                              help="Gộp nhóm: nhiều shot một lần gen (model tự chia thời gian, shot ngắn dễ bị hụt). Shot cần "
                                                   "đúng khung với shot trước (cắt tại chỗ) nên đi khung đầu.")
+        from core.delivery import TRANSITIONS_IN       # 07/10: the cut into the shot + a frame shake were set by no box
+        names = {"cut": "Cắt thẳng", "match": "Khớp hình", "occlusion": "Che máy", "flash": "Chớp trắng", "dip": "Tối đi rồi sáng",
+                 "whip": "Lia nhòe", "zoom_through": "Lao vào khung", "j_cut": "J-cut (tiếng vào trước)", "l_cut": "L-cut (tiếng kéo sau)"}
+        t1, t2 = st.columns([3, 2])
+        now = d.get("transition_in") if d.get("transition_in") in TRANSITIONS_IN else "cut"
+        camera["transition_in"] = t1.selectbox("✨ Chuyển cảnh vào shot" + lk("transition_in"), list(TRANSITIONS_IN),
+                                               index=list(TRANSITIONS_IN).index(now), format_func=lambda v: names.get(v, v),
+                                               key=f"{k}_trans", help="Vẽ ở chỗ nối với shot trước khi dựng (Bản giao).")
+        camera["shake_in"] = t2.checkbox("📳 Rung khung khi vào shot" + lk("shake_in"), bool(d.get("shake_in")), key=f"{k}_shake",
+                                         help="Khung hình rung ngắn ngay lúc shot bắt đầu (như khi có tiếng va chạm) — vd khoảnh khắc hô biến.")
     c4, c5 = st.columns(2)
     mood = c4.text_input("Mood" + lk("mood"), d.get("mood", ""), key=f"{k}_mood")
     lighting = c5.text_input("Ánh sáng" + lk("lighting"), d.get("lighting", ""), key=f"{k}_lighting")

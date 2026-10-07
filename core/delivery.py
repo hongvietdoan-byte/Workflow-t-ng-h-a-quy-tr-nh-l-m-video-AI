@@ -271,6 +271,18 @@ def twist_times(p: Pipeline, project_id: int, rows: List[Dict], durations: List[
     return (marked or ([hero] if hero is not None else []))[:2]
 
 
+def shake_in_times(p: Pipeline, rows: List[Dict], durations: List[float], transition: str = "cut", fade: float = 1.0) -> List[float]:
+    """07/10 (Khủng Long Đỏ, "hô biến"): the starts of the shots marked `shake_in` on the render's own timeline — the frame shakes there
+    like on an impact sound."""
+    overlap = fade if transition in ffmpeg_studio.OVERLAP_STYLES else 0.0
+    t, out = 0.0, []
+    for r, d in zip([r for r in rows if r.get("path")], durations):
+        if scene_data(p, r.get("scene_id")).get("shake_in"):
+            out.append(round(t, 2))
+        t += float(d) - overlap
+    return out
+
+
 def scene_data(p: Pipeline, scene_id, edits: Optional[Dict] = None) -> Dict:
     """The data of one shot row as a render reads it. `edits` (editor_apply, P3): {"music": {scene_id: "keep|cut|in|breath"}} overrides that
     shot's `sound.music` for THIS render only — the Director's plan in the database is not touched (the person approved the edit, it is
@@ -527,6 +539,7 @@ def render(p: Pipeline, project_id: int, data_dir: str, music_path: Optional[str
                                extras, keep_audio, formats.spec(aspect)["render"] if aspect else None, breaths=breaths,
                                music_off=music_off)
     hits = impact_times(audio_lib.assets_dir(data_dir, project_id)) if features.on("impact_shake") else []
+    hits = sorted(set(hits) | set(shake_in_times(p, rows, durations, settings["transition"], settings["fade"])))   # a shake the person set
     shake_error = None
     if hits:                              # D9: the frame shakes on the hits the sound design placed
         staged = out + ".shake.mp4"

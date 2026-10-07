@@ -553,6 +553,28 @@ class DashboardSmokeTests(unittest.TestCase):
         with self.assertRaises(llm_io.SchemaError):
             llm_io.update_scene(Pipeline(connect(self.db)), pid, 1, {"size": "HUGE"})
 
+    def test_a_flash_and_a_shake_into_the_shot_are_set_by_hand(self):
+        """07/10 (Khủng Long Đỏ, "hô biến"): the cut into a shot (chớp trắng) and a frame shake had no box — only the Director/an impact
+        sound could set them."""
+        import json
+        p, pid = self.seed()
+        row = p.conn.execute("SELECT data FROM scenes WHERE project_id=? AND idx=1", (pid,)).fetchone()
+        p.conn.execute("UPDATE scenes SET data=? WHERE project_id=? AND idx=1",
+                       (json.dumps(dict(json.loads(row["data"] or "{}"), shot_no=1)), pid))
+        p.conn.commit()
+        at = self.script_open(pid)
+        at.toggle(key=f"sd_open_{pid}_1").set_value(True).run()
+        self.assertEqual(at.selectbox(key=f"sd_{pid}_1_trans").value, "cut")
+        at.selectbox(key=f"sd_{pid}_1_trans").set_value("flash").run()
+        at.checkbox(key=f"sd_{pid}_1_shake").check().run()
+        next(b for b in at.button if b.key == f"sds_{pid}_1").click().run()
+        self.assertFalse(at.exception)
+        data = json.loads(Pipeline(connect(self.db)).conn.execute("SELECT data FROM scenes").fetchone()["data"])
+        self.assertEqual((data["transition_in"], data["shake_in"]), ("flash", True))
+        from core import llm_io
+        with self.assertRaises(llm_io.SchemaError):
+            llm_io.update_scene(Pipeline(connect(self.db)), pid, 1, {"transition_in": "spin"})
+
     def test_a_scene_background_is_chosen_from_the_project_places_and_saved_by_id(self):
         import io
         import json

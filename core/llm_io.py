@@ -434,6 +434,20 @@ def update_scene(pipeline: Pipeline, project_id: int, idx: int, fields: Mapping[
             data.pop("video_route", None)
         else:
             data["video_route"] = fields["video_route"]
+    if "transition_in" in fields:                          # 07/10: the cut INTO the shot (flash on a "hô biến") — no box before
+        from .delivery import TRANSITIONS_IN
+        value = fields["transition_in"] or None
+        if value is not None and value not in TRANSITIONS_IN:
+            raise SchemaError(f"transition_in: chọn một trong {', '.join(TRANSITIONS_IN)}")
+        if value is None or value == "cut":
+            data.pop("transition_in", None)
+        else:
+            data["transition_in"] = value
+    if "shake_in" in fields:                               # 07/10: the frame shakes as the shot starts (no impact sound needed)
+        if fields["shake_in"]:
+            data["shake_in"] = True
+        else:
+            data.pop("shake_in", None)
     if "performance" in fields:
         from .performance import clean as clean_performance
         acting, _ = clean_performance(fields["performance"])
