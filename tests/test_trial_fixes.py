@@ -681,5 +681,31 @@ class CheapModeTests(Base):
         self.assertEqual(self.p.project(self.p.create_project("during the trial"))["test_quality"], 1)
 
 
+class ChainFromPreviousClipTests(Base):
+    """07/10 Khủng Long Đỏ: the three dance clips were made apart — at 28 s and 39 s the moves and the clothes jumped. A shot marked
+    start_from_prev_clip waits for the previous clip and starts on its last frame."""
+
+    def test_the_clip_waits_then_starts_on_the_previous_clips_last_frame(self):
+        import subprocess
+        from core import ffmpeg_studio
+        second = self.p.create_scene(self.pid, 2, "S2")
+        self.p.conn.execute("UPDATE scenes SET data=? WHERE id=?", (json.dumps({"start_from_prev_clip": True}), second))
+        self.p.conn.commit()
+        vr = VideoRunner(self.p, MockVideoProvider(), self.dir)
+        job2 = self.p.job(self.p.create_job(second, "video_gen"))
+        self.assertTrue(vr._wait(job2))                                          # no approved clip before it yet
+        clip = os.path.join(self.dir, "prev.mp4")
+        subprocess.run([ffmpeg_studio.find_ffmpeg(), "-y", "-loglevel", "error", "-f", "lavfi", "-i", "color=c=red:s=64x64:d=1",
+                        "-c:v", "libx264", "-pix_fmt", "yuv420p", clip], check=True)
+        j1 = self.p.create_job(self.sid, "video_gen")
+        self.p.conn.execute("UPDATE jobs SET state='approved', result_path=? WHERE id=?", (clip, j1))
+        self.p.conn.commit()
+        self.assertFalse(vr._wait(job2))
+        frame = vr._start_frame(self.pid, second)
+        self.assertTrue(frame.endswith(f"scene_{second}_from_job_{j1}.png") and os.path.exists(frame))
+        from PIL import Image
+        self.assertGreater(Image.open(frame).convert("RGB").getpixel((32, 32))[0], 200)   # the red last frame
+
+
 if __name__ == "__main__":
     unittest.main()

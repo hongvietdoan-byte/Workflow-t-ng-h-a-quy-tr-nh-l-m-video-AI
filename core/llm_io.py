@@ -443,6 +443,11 @@ def update_scene(pipeline: Pipeline, project_id: int, idx: int, fields: Mapping[
             data.pop("transition_in", None)
         else:
             data["transition_in"] = value
+    if "start_from_prev_clip" in fields:                   # 07/10: the clip starts on the previous clip's last frame (dance cuts)
+        if fields["start_from_prev_clip"]:
+            data["start_from_prev_clip"] = True
+        else:
+            data.pop("start_from_prev_clip", None)
     if "shake_in" in fields:                               # 07/10: the frame shakes as the shot starts (no impact sound needed)
         if fields["shake_in"]:
             data["shake_in"] = True

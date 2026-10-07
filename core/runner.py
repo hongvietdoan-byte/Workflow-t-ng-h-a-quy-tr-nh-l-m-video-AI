@@ -9,6 +9,7 @@ import json
 import math
 import os
 import re
+import subprocess
 import threading
 import time
 from typing import Callable, Dict, Optional, Tuple
@@ -520,7 +521,7 @@ class VideoRunner(_Runner):
         group = self._sends_group(job) or []
         rows = self._ref_rows(job, group)
         from . import shots as _sh
-        frames = [_sh.approved_image_path(self.p.conn, self.data_dir, job["project_id"], r["id"]) for r in rows]
+        frames = [self._start_frame(job["project_id"], r["id"]) for r in rows]
         ids = seedance_refs.identity_pictures(self.p.conn, job["project_id"], rows, seedance_refs.MAX_PICTURES - len(rows))
         secs = [self._cut_seconds(r) for r in group] if group else [float(args[3])]
         audio = bool(self._take_segments(job, rows)) if group else bool(self._lip_sync_audio_planned(job))
@@ -576,7 +577,8 @@ class VideoRunner(_Runner):
             if lipsync.method_for(r["data"]) != "take":
                 continue
             lines = lipsync.shot_lines(self.data_dir, job["project_id"], r["id"])
-            offs = lipsync.line_offsets(lines)
+            from . import voice as _voice
+            offs = lipsync.line_offsets(lines, _voice.LIP_LEAD)     # a take shot is made with its voice: the line on a whole second
             for e, o in zip(lines, offs):
                 a = round(st + o, 3)
                 out.append({"speaker": e.get("speaker") or "", "text": e.get("text") or "", "file": e["file"], "start": a,
@@ -749,7 +751,7 @@ class VideoRunner(_Runner):
         from . import seedance_refs, shots
         conn = self.p.conn
         rows = self._ref_rows(job, group)
-        frames = [shots.approved_image_path(conn, self.data_dir, job["project_id"], r["id"]) for r in rows]
+        frames = [self._start_frame(job["project_id"], r["id"]) for r in rows]
         labels = [f"P{job['project_id']}_S{r['id']}_frame" for r, f in zip(rows, frames) if f]
         frames = [f for f in frames if f]
         ids = seedance_refs.identity_pictures(conn, job["project_id"], rows, seedance_refs.MAX_PICTURES - len(frames))
@@ -903,11 +905,43 @@ class VideoRunner(_Runner):
                 return run if len(run) >= 2 else None
         return None
 
+    def _chain_frame(self, project_id: int, scene_id: int) -> Optional[str]:
+        """07/10 Khủng Long Đỏ: a shot marked `start_from_prev_clip` starts on the LAST frame of the previous shot's approved clip — the
+        three dance clips were made apart and the cuts jumped in moves and clothes. The frame is cut once per clip (file named by the
+        clip's job). None when the shot is not marked or the previous clip is not approved yet."""
+        from . import ffmpeg_studio
+        row = self.p.conn.execute("SELECT idx, data FROM scenes WHERE id=?", (scene_id,)).fetchone()
+        if row is None or not json.loads(row["data"] or "{}").get("start_from_prev_clip"):
+            return None
+        prev = self.p.conn.execute("SELECT j.id, j.result_path FROM jobs j JOIN scenes s ON s.id=j.scene_id WHERE s.project_id=? "
+                                   "AND s.idx<? AND j.type='video_gen' AND j.state='approved' AND s.idx=(SELECT MAX(idx) FROM scenes "
+                                   "WHERE project_id=? AND idx<?) ORDER BY j.id DESC LIMIT 1",
+                                   (project_id, row["idx"], project_id, row["idx"])).fetchone()
+        if prev is None or not prev["result_path"] or not os.path.exists(prev["result_path"]):
+            return None
+        out = os.path.join(self._dir(project_id, "chain"), f"scene_{scene_id}_from_job_{prev['id']}.png")
+        if not os.path.exists(out):
+            subprocess.run([ffmpeg_studio.find_ffmpeg(), "-y", "-loglevel", "error", "-sseof", "-0.1", "-i", prev["result_path"],
+                            "-frames:v", "1", "-update", "1", out], capture_output=True)
+        return out if os.path.exists(out) else None
+
+    def _start_frame(self, project_id: int, scene_id: int) -> Optional[str]:
+        """The picture a shot's clip starts on: the previous clip's last frame (start_from_prev_clip), else its approved storyboard."""
+        from . import shots
+        return self._chain_frame(project_id, scene_id) or shots.approved_image_path(self.p.conn, self.data_dir, project_id, scene_id)
+
+    def _waits_for_prev_clip(self, job) -> bool:
+        row = self.p.conn.execute("SELECT data FROM scenes WHERE id=?", (job["scene_id"],)).fetchone()
+        return bool(row and json.loads(row["data"] or "{}").get("start_from_prev_clip")
+                    and self._chain_frame(job["project_id"], job["scene_id"]) is None)
+
     def _wait(self, job) -> bool:
         """Kling multi-shot: the first shot of a group sends for the whole group once every shot of it has an approved motion
         prompt; the other shots wait for their part of that clip (unless the first shot already has its clip: then a remade
         shot is sent on its own). K1: a shot whose end frame is still being drawn waits for it."""
         from . import end_frames, shots
+        if self._waits_for_prev_clip(job):
+            return True                   # 07/10: starts on the previous clip's last frame — that clip is approved first
         if end_frames.enabled():
             row = end_frames.current(self.p.conn, job["scene_id"])
             if row is not None and row["state"] in ("queued", "running"):
@@ -977,7 +1011,7 @@ class VideoRunner(_Runner):
                            " ORDER BY id DESC LIMIT 1", (shots.image_scene(conn, job["scene_id"]),)).fetchone()   # group has no picture
         if mp is None or img is None:
             return None
-        path = os.path.join(self.data_dir, str(job["project_id"]), "images", f"job_{img['id']}.png")
+        path = self._chain_frame(job["project_id"], job["scene_id"]) or             os.path.join(self.data_dir, str(job["project_id"]), "images", f"job_{img['id']}.png")
         proj = self.p.project(job["project_id"])
         model = self._choice(job)["model"]            # per scene (ClipAI model guide) — see core.model_router
         duration = mp["duration_sec"]

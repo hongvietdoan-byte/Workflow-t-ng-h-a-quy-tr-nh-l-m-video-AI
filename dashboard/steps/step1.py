@@ -197,6 +197,9 @@ def scene_editor(p: Pipeline, pid: int, scene, char_names) -> None:
                                                key=f"{k}_trans", help="Vẽ ở chỗ nối với shot trước khi dựng (Bản giao).")
         camera["shake_in"] = t2.checkbox("📳 Rung khung khi vào shot" + lk("shake_in"), bool(d.get("shake_in")), key=f"{k}_shake",
                                          help="Khung hình rung ngắn ngay lúc shot bắt đầu (như khi có tiếng va chạm) — vd khoảnh khắc hô biến.")
+        camera["start_from_prev_clip"] = st.checkbox(
+            "🔗 Clip bắt đầu từ khung cuối clip của shot trước" + lk("start_from_prev_clip"), bool(d.get("start_from_prev_clip")),
+            key=f"{k}_chain", help="Chỗ nối hai clip liền mạch (động tác, trang phục): gen sau khi clip shot trước đã duyệt.")
     c4, c5 = st.columns(2)
     mood = c4.text_input("Mood" + lk("mood"), d.get("mood", ""), key=f"{k}_mood")
     lighting = c5.text_input("Ánh sáng" + lk("lighting"), d.get("lighting", ""), key=f"{k}_lighting")
