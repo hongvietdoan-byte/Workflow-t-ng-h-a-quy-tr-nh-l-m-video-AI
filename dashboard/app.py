@@ -173,6 +173,11 @@ def main():
         shell_header(p, pid, done, cur)
     step = st.radio("Màn", visible, horizontal=True, key="step", label_visibility="collapsed", format_func=step_label(done))
     st.session_state["_step_keep"] = step
+    if step in (STEPS[1], STEPS[2], STEPS[3], STEPS[4]):              # cờ chat_first (Đợt 3): bản đồ shot × khâu, gập thành một dòng
+        from dashboard import stage_map_ui
+        stage_map_ui.render(p.conn, pid)
+        from dashboard import glow_ui                                  # nút của bước kế sáng xanh (một đích mỗi lúc)
+        glow_ui.render(p, pid, step, visible)
     if deep == "design":                                  # G1 (S13): the real-Streamlit vertical slice of UI v2, for the owner to approve
         from dashboard.design import preview
         preview.render()

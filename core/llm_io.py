@@ -353,6 +353,28 @@ def lock_character_bible(pipeline: Pipeline, project_id: int) -> int:
 SCENE_FIELDS = ("location", "time", "mood", "lighting", "shot", "image_prompt", "blocking", "emotional_intent")
 
 
+BULK_FIELDS = ("video_route", "transition_in", "shake_in", "start_from_prev_clip")
+
+
+def update_scenes_bulk(pipeline: Pipeline, project_id: int, idxs, fields: Mapping[str, Any]) -> Dict[int, List[str]]:
+    """07/10 (Khủng Long Đỏ, 'BỐ CỤC GỌN' 3): the same values on several shots at once — one box for 6 shots was ~30 clicks. Only the
+    BULK_FIELDS; each scene goes through update_scene (same checks, same 🔒 hand-edit lock, same ⚠ cũ). {idx: changed fields}."""
+    idxs = [int(i) for i in idxs or []]
+    if not idxs:
+        raise SchemaError("chọn ít nhất một shot")
+    extra = sorted(set(fields) - set(BULK_FIELDS))
+    if extra:
+        raise SchemaError(f"sửa hàng loạt chỉ nhận {', '.join(BULK_FIELDS)} (không nhận: {', '.join(extra)})")
+    if fields.get("transition_in") not in (None, "") + tuple(_transitions()):
+        raise SchemaError(f"transition_in: chọn một trong {', '.join(_transitions())}")
+    return {i: update_scene(pipeline, project_id, i, dict(fields)) for i in idxs}
+
+
+def _transitions():
+    from .delivery import TRANSITIONS_IN
+    return TRANSITIONS_IN
+
+
 def update_scene(pipeline: Pipeline, project_id: int, idx: int, fields: Mapping[str, Any],
                  text: Optional[str] = None) -> List[str]:
     """Edit one scene's spec (and optionally its script text). `characters` must be names from the Character Bible.

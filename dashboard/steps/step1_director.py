@@ -20,6 +20,14 @@ def run_director_now(p: Pipeline, pid: int, client, resume: bool = False) -> Non
         st.toast(f"Đã lưu {r['characters']} nhân vật, {r['scenes']} cảnh ({tokens_text(r)})"
                  + (f" · {r['calls']} lượt Claude" if r.get("two_pass") else "")
                  + (f" · Đạo diễn duyệt: cảnh {', '.join(map(str, r['flagged']))} cần xem" if r.get("flagged") else ""))
+        from core import chat_intake
+        if chat_intake.enabled():                                   # cờ chat_first (Đợt 2): kết quả kể lại trong luồng chat, không chỉ toast
+            from core import asset_checklist, chat_flow, script_chat
+            try:
+                missing = (asset_checklist.get(p, pid) or {}).get("missing") or []
+            except Exception:  # noqa: BLE001 - a hint only
+                missing = []
+            script_chat.append(p, pid, "assistant", chat_flow.director_note(r, chat_flow.state(p, pid), missing))
         st.rerun()
 
 

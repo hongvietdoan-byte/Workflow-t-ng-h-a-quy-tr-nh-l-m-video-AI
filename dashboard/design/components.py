@@ -264,16 +264,28 @@ def version_strip(n: int, current: int) -> str:
     return '<div class="v2-vers">' + "".join(f'<span class="v2-ver{" on" if i == cur else ""}">v{i + 1}</span>' for i in range(n)) + "</div>"
 
 
+ONE_CLICK = ("approve_all", "btn_ok_all", "script-cta-budget_")    # chỉ việc DUYỆT (đảo lại được); xóa / bỏ vẫn hỏi Có/Không
+
+
+def one_click(key: str) -> bool:
+    """Người dùng 07/10 (Đợt 3, 'nhiều nút thành 1 nút'): with chat_first on, the approve-everything buttons act on one click — the label
+    already says how many (or how much); delete-type confirmations keep their question."""
+    from core import chat_intake
+    return chat_intake.enabled() and any(key == k or (k.endswith("_") and key.startswith(k)) for k in ONE_CLICK)
+
+
 def confirm_all(key: str, ids, label: str, question: str, container=st, yes_label: str = "Có, duyệt hết", primary: bool = False,
                 stretch: bool = False) -> bool:
     """MỘT nút (“duyệt hết”, “xóa”…) rồi hỏi Có/Không; True chỉ khi người dùng bấm Có. Câu hỏi gắn với đúng tập `ids`: tập đổi → hỏi lại.
     Bản dùng chung của common.confirm_all (cùng khóa `key`, `key_yes`, `key_no`, `ask_<key>`); `primary` = nút đầu là nút chính của vùng."""
     ids = tuple(ids)
+    extra = {"width": "stretch"} if stretch else {}
+    if one_click(key):                                    # cờ chat_first (Đợt 3): duyệt hàng loạt = một click, số lượng đã ghi trên nút
+        return container.button(label, key=key, disabled=not ids, type="primary" if primary else "secondary", **extra)
     pending_key = f"ask_{key}"
     if st.session_state.get(pending_key) not in (None, ids):
         st.session_state[pending_key] = None  # the list changed since the question: forget it
     if st.session_state.get(pending_key) != ids:
-        extra = {"width": "stretch"} if stretch else {}
         if container.button(label, key=key, disabled=not ids, type="primary" if primary else "secondary", **extra):
             st.session_state[pending_key] = ids
             st.rerun()

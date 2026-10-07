@@ -24,20 +24,25 @@ def next_action(p: Pipeline, pid: int, step: int, data_dir: str = "") -> Optiona
     conn = p.conn
     scenes = _count(conn, "SELECT COUNT(*) FROM scenes WHERE project_id=?", (pid,))
     if step == 1:
+        from core import chat_intake
+        chat = chat_intake.enabled()                # cờ chat_first: các thẻ 1a/1c/1d không còn — chỉ vào khung chat
         if not scenes:
-            return "Tải file hoặc dán kịch bản ở 1a rồi bấm ▶ Phân tích", "todo"
+            return ("Dán kịch bản hoặc thả file vào khung chat rồi bấm ▶ Phân tích" if chat else
+                    "Tải file hoặc dán kịch bản ở 1a rồi bấm ▶ Phân tích"), "todo"
         chars = conn.execute("SELECT locked, anchor_approved FROM characters WHERE project_id=?", (pid,)).fetchall()
         if not chars:
-            return "Chạy Director ở 1d (hoặc 🚀 Tự động hoàn toàn ở 1c)", "todo"
+            return ("Bấm 🤖 Lập kế hoạch trong khung chat (Đạo diễn chia shot + Character Bible)" if chat else
+                    "Chạy Director ở 1d (hoặc 🚀 Tự động hoàn toàn ở 1c)"), "todo"
         from core import project_budget
         if project_budget.enabled() and not (project_budget.get(conn, pid) or {}).get("locked"):
-            return "Duyệt & KHÓA ngân sách dự án (💵 ở 1c) — chạy tự động chờ bước này trước khi gen ảnh", "todo"
+            return ("Duyệt & KHÓA ngân sách dự án " + ("trong khung chat" if chat else "(💵 ở 1c)")
+                    + " — chạy tự động chờ bước này trước khi gen ảnh"), "todo"
         if any(c["locked"] for c in chars):         # locked = approved (a locked Bible may use the Kho pictures, no anchor)
             return "Kịch bản xong — sang màn Storyboard", "done"
         waiting_anchor = sum(1 for c in chars if not c["anchor_approved"])
         if waiting_anchor:
-            return f"Duyệt ảnh mốc của {waiting_anchor} nhân vật ở 1e", "todo"
-        return "Bấm ✔ Duyệt & khóa → Storyboard (cuối trang)", "todo"
+            return f"Duyệt ảnh mốc của {waiting_anchor} nhân vật ở " + ("⚙ Chi tiết › Nhân vật" if chat else "1e"), "todo"
+        return "Bấm ✔ Duyệt & khóa → Storyboard " + ("trong khung chat" if chat else "(cuối trang)"), "todo"
     if not scenes:
         return "Chưa có kịch bản — bắt đầu ở màn Kịch bản", "todo"
     summ = lineage.summary(conn, pid)

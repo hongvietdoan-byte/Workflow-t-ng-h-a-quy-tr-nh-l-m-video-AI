@@ -290,9 +290,28 @@ def script_box(p: Pipeline, pid: int, with_reset: bool = True) -> bool:
     from core import script_chat as Chat
     body, foot = st.container(), st.container()
     with foot:
-        got = st.chat_input("Dán kịch bản, gõ ý tưởng, trao đổi với Claude hoặc thả file…", key=k["chat"], accept_file=True,
-                            file_type=list(script_reader.SUPPORTED))
-        if got:
+        from core import chat_intake as Intake
+        wide = Intake.enabled()                                        # 07/10 cờ chat_first: ảnh / video / nhạc cũng vào đây
+        got = st.chat_input("Dán kịch bản, gõ ý tưởng, hỏi Claude, hoặc thả ảnh · video · nhạc · file kịch bản…" if wide else
+                            "Dán kịch bản, gõ ý tưởng, trao đổi với Claude hoặc thả file…", key=k["chat"],
+                            accept_file="multiple" if wide else True, file_type=list(Intake.ACCEPT if wide else script_reader.SUPPORTED))
+        seed = ss.pop(f"chat_seed_{pid}", None)                       # Đợt 2: tin đầu gõ ở màn ⌂ (chat_start) → như vừa gõ ở đây
+        if not got and seed and wide:
+            got = seed
+        media = []
+        if got and wide and not isinstance(got, str):
+            media = [f for f in (getattr(got, "files", None) or []) if Intake.file_type(f.name) != "script"]
+        if media:
+            from dashboard.steps.step1_intake import handle_files
+            incoming = getattr(got, "text", None) or ""
+            scripts = [f for f in got.files if Intake.file_type(f.name) == "script"]
+            Chat.append(p, pid, "user", (incoming + "\n\n" if incoming else "") + "📎 " + ", ".join(f.name for f in got.files))
+            handle_files(p, pid, media, incoming)                      # chữ đi kèm tệp = lời ghi chú để xếp loại, không phải kịch bản
+            if scripts:
+                ss[k["file"]] = (scripts[0].name, scripts[0].getvalue())
+                ss[k["mode"]] = "script"
+                Chat.append(p, pid, "assistant", "Đã nhận file kịch bản — bấm ▶ Phân tích (0 USD).")
+        elif got:
             incoming = got if isinstance(got, str) else (getattr(got, "text", None) or "")
             files = [] if isinstance(got, str) else list(getattr(got, "files", None) or [])
             kind = "script" if files else Chat.intent(incoming)
@@ -312,14 +331,23 @@ def script_box(p: Pipeline, pid: int, with_reset: bool = True) -> bool:
                     Chat.append(p, pid, "assistant", "Đã nhận yêu cầu sửa cảnh. Kịch bản chưa đổi; dùng nút viết lại có giá ở trình sửa cảnh bên dưới.")
                 else:
                     _take(p, pid, got)
-                    Chat.append(p, pid, "assistant", "Đã nhận file kịch bản — bấm ▶ Phân tích (0 USD)." if files else
-                                (receipt(incoming) or "Đã nhận nội dung. Chọn ý tưởng/kịch bản hoặc dùng các nút Biên kịch có giá bên dưới."))
+                    split_now = wide and (files or kind == "script") and not p.conn.execute(
+                        "SELECT 1 FROM scenes WHERE project_id=? LIMIT 1", (pid,)).fetchone()
+                    if not split_now:                                  # Đợt 3: tách luôn ngay dưới → không ghi lời 'bấm ▶ Phân tích' thừa
+                        Chat.append(p, pid, "assistant", "Đã nhận file kịch bản — bấm ▶ Phân tích (0 USD)." if files else
+                                    (receipt(incoming) or "Đã nhận nội dung. Chọn ý tưởng/kịch bản hoặc dùng các nút Biên kịch có giá bên dưới."))
     with body:
         older, recent = Chat.window(p, pid)
         if older:
             with st.expander(f"Xem {len(older)} tin cũ hơn"):
                 _messages(older)
         _messages(recent)
+        if Intake.enabled():
+            from dashboard.steps.step1_intake import pending_cards, style_offer
+            pending_cards(p, pid)
+            style_offer(p, pid)
+            from dashboard.steps.step1_intake import guide_bubble
+            guide_bubble(p, pid)                                       # Đợt 2: Đạo diễn nói việc kế + MỘT nút chính, trong luồng chat
     state = I.get_state(p.conn, pid)
     with body:
         if state.get("inputs"):                                        # the ceiling of this idea (mẫu step1_v2 meter)
@@ -369,12 +397,25 @@ def script_box(p: Pipeline, pid: int, with_reset: bool = True) -> bool:
         _cards(p, pid)
         has_input = bool(file) or bool(text.strip())
         ready = bool(file) or (bool(text.strip()) and (mode or ss.get(k["mode"]) or I.classify(text)["kind"]) == "script")
-        with st.chat_message("assistant"):
-            if st.button("▶ Phân tích (tách cảnh) · 0 USD", disabled=not ready, type="primary", key=f"btn_analyse_{pid}"):
-                if act(lambda: analyse_script(p, pid, None, text, file)):
-                    ss.pop(k["file"], None)
-                    Chat.append(p, pid, "assistant", "Đã phân tích và tách cảnh (0 USD).")
-                    st.rerun()
+        if wide and ready and not p.conn.execute("SELECT 1 FROM scenes WHERE project_id=? LIMIT 1", (pid,)).fetchone():
+            # Đợt 3 (người dùng 07/10 'nhiều nút thành 1 nút'): kịch bản có tiêu đề cảnh, dự án chưa có cảnh → tách luôn (0 USD, code)
+            if act(lambda: analyse_script(p, pid, None, text, file)):
+                for key in ("file", "text", "mode"):
+                    ss.pop(k[key], None)
+                n = p.conn.execute("SELECT COUNT(*) FROM scenes WHERE project_id=?", (pid,)).fetchone()[0]
+                Chat.append(p, pid, "assistant", f"✂ Đã tự tách {n} cảnh (0 USD, code đọc tiêu đề cảnh — không gọi model). Tách sai hoặc "
+                                                 "đây là ý tưởng: ↺ Làm lại ở 🎬 Kịch bản & các cảnh.")
+                st.rerun()
+        if has_input or not wide:                                      # cờ chat_first: không có gì để tách → không treo nút xám trong chat
+            with st.chat_message("assistant"):
+                if st.button("▶ Phân tích (tách cảnh) · 0 USD", disabled=not ready, type="primary", key=f"btn_analyse_{pid}"):
+                    if act(lambda: analyse_script(p, pid, None, text, file)):
+                        ss.pop(k["file"], None)
+                        if wide:                                       # đã tách: lời nhận + nút cũ không còn treo trong chat
+                            ss.pop(k["text"], None)
+                            ss.pop(k["mode"], None)
+                        Chat.append(p, pid, "assistant", "Đã phân tích và tách cảnh (0 USD).")
+                        st.rerun()
         if with_reset:
             reset_script_button(p, pid)
     return has_input

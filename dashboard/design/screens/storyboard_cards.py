@@ -122,8 +122,17 @@ def hero(p, pid: int, summ: dict, proj) -> None:
         pills.append((f"{s['review']} cần duyệt", "warn"))
     if stale:
         pills.append((f"⚠ {stale} ảnh cũ", "warn"))
+    from core import chat_intake
+    merged = chat_intake.enabled()                        # 07/10 cờ chat_first: bản đồ tiến độ đã nói số → nhãn chỉ khi có chuyện
+    if merged:
+        if s["failed"]:
+            pills.append((f"{s['failed']} lỗi", "bad"))
+        if s["busy"]:
+            pills.append((f"{s['busy']} đang gen", "info"))
     with D.hero("sb"):
         st.markdown(D.hero_html("Storyboard · Ảnh + QC", "mỗi cảnh một ảnh đúng nhân vật, đúng bối cảnh, đã duyệt", pills), unsafe_allow_html=True)
+        if merged:
+            return
         c = st.columns(4)
         c[0].markdown(D.stat("Đã duyệt", f"{done} / {total}", f"{(done / total * 100) if total else 0:.0f} %"), unsafe_allow_html=True)
         c[1].markdown(D.stat("Chờ duyệt", str(s["review"])), unsafe_allow_html=True)

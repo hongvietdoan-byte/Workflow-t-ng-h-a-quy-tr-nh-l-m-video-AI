@@ -76,6 +76,7 @@ def sync_folds(pid: int, nxt: str) -> None:
     st.session_state["_script_next_seen"] = (pid, nxt)
     for name in ("director", "bible"):
         st.session_state[f"fold_{name}_{pid}"] = name == nxt
+    st.session_state[f"fold_script_details_{pid}"] = nxt in ("format", "bible")     # cờ chat_first: ⚙ Chi tiết mở khi việc kế ở trong đó
 
 
 _AUTO_BUSY =("queued", "running", "waiting", "needs_attention", "stopped", "error")
@@ -107,7 +108,7 @@ def next_kind(p: Pipeline, pid: int, scenes, chars, locked: bool, budget_locked:
     return "next" if locked else "lock"
 
 
-def _hero(p: Pipeline, pid: int, proj, scenes, chars, locked: bool, stale: int) -> None:
+def _hero(p: Pipeline, pid: int, proj, scenes, chars, locked: bool, stale: int, cta: bool = True) -> None:
     from dashboard.steps.step1 import _count_label, _lock_and_go
     b_on, b_locked, b_total, b_spent = _budget_state(p, pid)
     kind = next_kind(p, pid, scenes, chars, locked, b_locked, b_on)
@@ -123,6 +124,11 @@ def _hero(p: Pipeline, pid: int, proj, scenes, chars, locked: bool, stale: int) 
         with a:
             st.html(D.hero_html(proj["name"] or "Dự án", "Kịch bản & đạo diễn · tách cảnh → chuẩn bị → Director → nhân vật → thoại → khóa", pills))
             # the "Việc tiếp theo" band is drawn once by the shell header in v2 (integrator, lane B) — not repeated here
+        if not cta:                                                 # cờ chat_first: nút chính nằm trong luồng chat (step1_intake.guide_bubble)
+            with b:
+                if b_total:
+                    st.html(D.meter(b_spent / b_total, f"Ngân sách: đã chi {b_spent:.2f} / {b_total:.2f} USD", invert=True))
+            return
         with b, D.cta_box("script"):
             _primary_action(p, pid, kind, scenes, chars, b_total, b_spent, _lock_and_go)
 
@@ -166,12 +172,13 @@ def _primary_action(p: Pipeline, pid: int, kind: str, scenes, chars, b_total: fl
             st.markdown("💵 " + project_budget.cost_summary(p, pid)["md"])
         except Exception as e:  # noqa: BLE001 - the approval still works; the missing estimate is said
             st.caption(f"Chưa tính được phần đã chi + ước tính phần còn lại: {str(e)[:160] or type(e).__name__}. Cách xử lý: kiểm tra dự án đã tách cảnh và bảng giá (⚙ Cài đặt), rồi tải lại trang; vẫn lỗi thì gửi báo cáo ở ⚙ Chẩn đoán.")
-        if confirm_all(f"script-cta-budget_{pid}", ["go"], f"✔ Duyệt & khóa ngân sách ≈ {prop['total']:.2f} USD",
+        if confirm_all(f"script-cta-budget_{pid}", ["go"], f"✔ Duyệt & khóa trần ngân sách {prop['total']:.2f} USD",
                        f"Khóa ngân sách dự án ≈ {prop['total']:.2f} USD (trần từng khâu như bảng ở thẻ ③)? Sau khi khóa, mọi lời gọi trả tiền "
                        "vượt mức khâu hoặc tổng sẽ được CẢNH BÁO (vẫn gửi); chỉ người được nâng mức, kèm lý do.", st, "Có, khóa"):
             project_budget.approve(p, pid, p.actor, prop)
             st.rerun()
-        D.line('<span class="script-sum">Chạy tự động chờ bước này trước khi gen ảnh</span>',
+        D.line('<span class="script-sum">Trần = mức chặn trên (tính trường hợp xấu nhất), cao hơn số dự tính ở trên · chạy tự động chờ bước '
+               'này trước khi gen ảnh</span>',
                "Chạy tự động chờ bước này trước khi gen ảnh. Chi tiết từng khâu ở thẻ ③.", f"script-budget-note-{pid}")
     elif kind == "lock":
         st.button("✔ Duyệt & khóa → Storyboard", type="primary", key=f"script-cta-lock_{pid}", width="stretch",
@@ -207,11 +214,15 @@ def step1_v2(p: Pipeline, pid: int, proj, scenes, chars, risky, char_names, lock
     nxt = next_panel(p, pid, scenes, chars, locked)                     # the one panel of card ② drawn open (everything else: one line)
     st.session_state["_script_next"] = nxt
     sync_folds(pid, nxt)
-    _hero(p, pid, proj, scenes, chars, locked, stale)
+    from core import chat_intake
+    _hero(p, pid, proj, scenes, chars, locked, stale, cta=not chat_intake.enabled())
     inherited = st.session_state.pop("inherited_note", None)            # S3.8: said once, right after the project was made
     if inherited:
         say("info", "↪ " + inherited + " — đổi ở màn Kịch bản · Định dạng nếu dự án này khác.", f"script-inherited-{pid}",
              "Dự án này kế thừa thiết lập từ dự án trước")
+
+    if chat_intake.enabled():                                           # 07/10 cờ chat_first: khung chat lớn thay phần lớn các thẻ
+        return _chat_first(p, pid, proj, scenes, chars, risky, char_names, locked, nxt)
 
     # ① Kịch bản (1a) — S14.28: first card in the script mode (S11 video-ref / dance modes: their VIDEO ref box goes before it)
     with D.card(f"script-a-{pid}"):
@@ -278,3 +289,43 @@ def step1_v2(p: Pipeline, pid: int, proj, scenes, chars, risky, char_names, lock
             cap("🎚 Mức tự động (ai duyệt, cổng dừng, độ chặt QC) chọn ở thanh trên cùng. Chạy tự động bên dưới; "
                        "muốn đi từng bước thì làm xong thẻ ② rồi bấm Duyệt & khóa → Storyboard.")
             S.autopilot_panel(p, pid)
+
+
+def _chat_first(p: Pipeline, pid: int, proj, scenes, chars, risky, char_names, locked: bool, nxt: str) -> None:
+    """Người dùng 07/10 (Khủng Long Đỏ mục 10, Đợt 1; cờ chat_first): một khung chat lớn là lối vào duy nhất — chữ, ý tưởng, câu hỏi,
+    ảnh / video / nhạc / file kịch bản (step1_intake). Còn lại hai phần gấp: 🎬 Kịch bản & cảnh (sửa shot) và ⚙ Chi tiết (định dạng,
+    tham chiếu, Director, nhân vật, chạy tự động) — mở sẵn khi việc kế ở trong đó. Nút chính của lúc này vẫn chỉ một, ở thẻ đầu."""
+    from dashboard.steps import step1 as S
+    from dashboard.steps.step1_refs import attach_form
+    with D.card(f"script-a-{pid}"):
+        _card_head("💬", "Trò chuyện với Đạo diễn", [(S._script_summary(p, pid, scenes).replace("📜 ", ""), "ok" if scenes else "mute")])
+        if st.session_state.get("parse_warn") and scenes:
+            say("warning", st.session_state["parse_warn"], f"script-parse-warn-{pid}", "Không thấy tiêu đề cảnh — cả kịch bản thành 1 cảnh")
+        S.script_input(p, pid, with_reset=False)
+        if st.session_state.get("parse_info") and scenes:
+            S.parse_info_box()
+    if scenes:
+        with ui.fold("🎬 Kịch bản & các cảnh", f"{len(scenes)} cảnh — mở để xem và sửa từng shot", f"script_scenes_{pid}",
+                     default_open=True) as open_:
+            if open_:
+                S.script_views(p, pid, proj, scenes, char_names)
+                cap("↺ Làm lại: xóa các cảnh chưa có ảnh/video và nhân vật chưa khóa để tách lại kịch bản.")
+                S.reset_script_button(p, pid)
+    with ui.fold("⚙ Chi tiết", "định dạng · tham chiếu · Director · nhân vật · chạy tự động", f"script_details_{pid}",
+                 default_open=nxt in ("format", "bible"), sub="ít khi cần — ảnh/video/nhạc thả thẳng vào khung chat ở trên") as open_:
+        if open_:
+            S.project_format_panel(p, pid)
+            if scenes:
+                with st.expander("🖼 Tham chiếu đã gắn & gắn tay"):
+                    attach_form(p, pid)
+                S.assets_panel(p, pid)
+                S.director_panel(p, pid, chars)
+            if chars:
+                S.character_bible_panel(p, pid, chars, risky)
+                S.dialogue_review_panel(p, pid)
+            if C.expert() or st.session_state.get(f"wb_draft_{pid}"):
+                S.world_bible_panel(p, pid)
+            if C.expert() and chars:
+                S.storyboard_panel(p, pid)
+            if scenes:
+                S.autopilot_panel(p, pid)

@@ -377,6 +377,8 @@ def settings_menu(p: Pipeline, pid, label: str = "⚙") -> None:
             st.toggle("🧠 Chế độ chuyên gia", key="expert_mode",
                       help="Hiện mọi tùy chọn nâng cao: dán JSON tay, nối ảnh, World Bible, storyboard layout, chính sách QC, video tham chiếu, "
                            "kế hoạch model, thử nghiệm, bảng làm tay ở màn Bản giao. Tắt: mỗi bước chỉ hiện việc của một lần chạy thường.")
+            from dashboard import glow_ui
+            glow_ui.person_switch(p)                                    # 07/10: tắt nút sáng cho riêng mình (bật sẵn mọi tài khoản)
             if allowed("settings") and st.button("🧪 Tính năng thử", key="settings_features", width="stretch",
                                                  help="Bật / tắt từng tính năng chưa thử thật, hoặc chọn preset Ổn định / Thử nghiệm"):
                 open_dialog("dlg_features")
@@ -907,6 +909,8 @@ def global_bar(p: Pipeline):
             put_away = len(archive.archived_projects(p.conn, C.access_user()))
             st.info("Chưa có dự án. Bấm “➕ Dự án mới” để bắt đầu."
                     + (f" ({put_away} dự án đã cất — mở ⚙ → “📦 Dự án đã cất” để khôi phục.)" if put_away else ""))
+            from dashboard.chat_start import start_box
+            start_box(p)                                        # cờ chat_first: bắt đầu bằng một tin chat
             return None
         ids = [r["id"] for r in projects]
         default_pid = current_pid(p)
@@ -964,6 +968,8 @@ def _global_bar_v2(p: Pipeline, projects):
             put_away = len(archive.archived_projects(p.conn, C.access_user()))
             st.info("Chưa có dự án. Bấm “➕ Dự án mới” để bắt đầu."
                     + (f" ({put_away} dự án đã cất — mở ⚙ → “📦 Dự án đã cất” để khôi phục.)" if put_away else ""))
+            from dashboard.chat_start import start_box
+            start_box(p)                                        # cờ chat_first: bắt đầu bằng một tin chat
             return None
         ids = [r["id"] for r in projects]
         default_pid = current_pid(p)

@@ -163,6 +163,8 @@ def home(p: Pipeline, pid: int):
     email = who.get("email", "") if auth_on() else ""
     is_owner = who.get("role") == "owner"
     allrows = rows(p, email, is_owner)
+    from dashboard.chat_start import start_box
+    start_box(p)                                                # cờ chat_first: dự án mới bắt đầu bằng một tin chat (tắt: không vẽ gì)
     if not allrows:
         st.info("Chưa có dự án nào đang dùng. Bấm “➕ Dự án mới” ở thanh trên (dự án đã cất khôi phục ở ⚙ → Dự án).")
         return

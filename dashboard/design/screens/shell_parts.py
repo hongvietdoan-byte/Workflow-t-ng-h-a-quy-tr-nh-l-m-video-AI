@@ -55,7 +55,17 @@ def next_line(p, pid: int, screen_index: int, data_dir: str) -> Tuple[str, str]:
     except Exception as e:  # noqa: BLE001 - the strip must never break the page; S14.8 U3: say so + diag, not "nothing to do"
         next_step.note_error(p, pid, step, e)
         return NEXT_ERROR, "warn"
-    return res if res else ("Chưa có việc nào đang chờ.", "done")
+    if not res:
+        return "Chưa có việc nào đang chờ.", "done"
+    if res[1] == "todo":                                  # cờ chat_first: nói 'nút sáng xanh' chỉ khi glow_ui thật sự thắp một nút
+        from dashboard import glow_ui
+        try:
+            lit = glow_ui.targets(p, pid, screen_index)
+        except Exception:  # noqa: BLE001 - a hint only; the line itself still shows
+            lit = []
+        if lit:
+            return "🟢 Nút sáng xanh: " + res[0], res[1]
+    return res
 
 
 def cut_words(text: str, limit: int = 96) -> str:
