@@ -314,3 +314,13 @@ người nói đúng lượt với 3 người trong khung; storyboard phải ghi
 - Khớp môi Seedance 2.5 chỉ-ảnh-tham-chiếu + giọng ở giây chẵn: 0,03 / 0,44 — người dùng TẠM CHẤP NHẬN cho dự án này; muốn thử lại (clip chung cả đoạn thoại, cách #10) thì dùng ở dự án sau.
 - Dashboard: chỉ hỏi trạng thái clip khi trang đang ở tab Video; vướng bố cục ghi ở TODO.
 **Source**: chạy thật 07/10, ≈ 34,5 USD đợt thử lũy kế (dự án ≈ 35 USD).
+
+## Bài học 07/10 (Khủng Long Đỏ #22): đổi chỗ đứng cảnh + phép so độ nét - 2026-10-07
+**Context**: đổi 3 cảnh nhảy (scene 254-256) sang chân cầu thang nhiều tầng giữa nhà 3 tầng và Tháp Đồng Hồ; vẽ lại ảnh khung đầu lần 1 sai (sân phẳng, hàng cọ, không cầu thang).
+**Finding**:
+- Đổi chỗ đứng phải sửa ĐỒNG BỘ `location`, `image_prompt`, `blocking`, `spatial_state`, `action` của cảnh + thêm câu khóa nền; `image_prompt` cũ ("sân đá phẳng, nhà mái đỏ thấp") và ảnh toàn cảnh `establish/scene_N.png` vẽ từ ngoài tường thắng render 3D (render chỉ là một tham chiếu, ~70 %).
+- Ảnh toàn cảnh phải CÙNG hướng với camera ảnh khung đầu; không cùng hướng thì loại (establish/index.json state failed) hoặc render đồng trục từ map 3D.
+- Vòng khoanh của người dùng trên ảnh = chỗ nhân vật đứng, không phải camera; hỏi lại một câu trước khi render. Chỗ `bac_thang_giua` = (-253,7; 144,1; 3,925), mặt 298°, nền 118°.
+- Bản nháp 480p không bắt buộc khi dự án đã nháp; tiền chỉ tiêu cho bước người dùng đã duyệt. Phóng AI từng khung (Real-ESRGAN ~1 giờ/clip 4 s) bỏ khỏi dây chuyền.
+- Phép so độ nét: A 720p (0,92) + B mẫu 480p (0,41) shot 6 scene 253 cùng hash đầu vào; thêm kind `high` (C, 1080p gen thẳng, 2,08 USD) — web ClipAI cho 1080p trên 2.5, API chưa kiểm; lỗi lần gửi đầu phải đối chiếu task trên web trước khi coi không tính tiền.
+**Source**: phiên Claude 07/10 + người dùng sửa trực tiếp; chi tiết ở memory cá nhân (feedback_scene_location_change_checklist, feedback_confirm_before_paid_and_dont_assume).
