@@ -111,3 +111,8 @@ _(điền sau khi chạy: mã dự án, chi thật theo sổ chi, cách A/B nh�
   KHÁC model đã thử đạt) → ClipAI trả "Account balance not enough" (6 job failed, 3 queued, không tốn tiền). Chờ người dùng nạp ClipAI rồi bấm
   "↻ Gửi lại clip lỗi" + ▶ Gen video. Vướng thêm: nhãn đường Kling chọn tay hiện "Seedance đã từ chối shot này"; shot thoại đi Kling →
   "không khớp môi" (diag lipsync_not_applied) — xem lại cách khớp môi cho shot 3/5 khi gen thật.
+**07/10 sáng — lượt 3 (Seedance toàn bộ):**
+- Nguyên nhân shot 7 (job 514/516) mặc đồ thường: đường 'chỉ ảnh tham chiếu' gửi ảnh mặt Kho của MAXIM/KELLY (đồ thường) với câu "identity only (face, hair, outfit)" và không gửi ảnh OUTFIT; khung 0 của clip đã là đồ thường. Câu sửa QC lần 2 còn tả lại đồ thường ("yellow tracksuit…") → càng kéo vào. Sửa 3f1ebf9: gửi kèm ảnh OUTFIT, ảnh mặt chỉ giữ mặt/tóc/dáng.
+- Đổi Đường gen video shot 1–6 Kling → Seedance qua trình sửa shot (ô chọn gõ được: bấm, gõ "Seedance", Enter). Giọng TTS 2/2 xong; shot 3/5 gửi kèm giọng.
+- Vướng Dashboard: mở lại vẫn vào "Test 1/10"; trình sửa shot phải bấm mở từng shot rồi bật công tắc riêng — đổi một ô cho 6 shot mất ~30 thao tác (nên có đổi hàng loạt).
+
