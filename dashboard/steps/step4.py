@@ -413,6 +413,7 @@ def video_card_v2(p: Pipeline, pid: int, j, runner, stale_reason) -> None:
 def experiments_panel(p: Pipeline, pid: int, runner) -> None:
     """Experiment (off the main path): Kling multi-shot for one sequence, to compare continuity with the per-scene clips."""
     from core import experiments, shots
+    quality_samples_panel(p, pid, runner)
     items = experiments.load(C.DATA, pid)
     if shots.active(p, pid):       # v3 shot projects have the real multi-shot (shot_mode); only the grouped-generation tests are shown
         group_tests_panel([e for e in items if e.get("kind") == "group_test"])
@@ -441,6 +442,45 @@ def experiments_panel(p: Pipeline, pid: int, runner) -> None:
                         + (f" · {escape(e.get('message') or '')}" if e["state"] == "failed" else ""))
             if e.get("file") and os.path.exists(e["file"]):
                 show_video(e["file"])
+
+
+def quality_samples_panel(p: Pipeline, pid: int, runner) -> None:
+    from core import features, quality_samples as q
+    if not features.on("seedance_sample_mode"):
+        return
+    with st.expander("🧪 So độ nét · Seedance 2.5", expanded=True):
+        st.caption("Thử shot không thoại, không video tham chiếu, 4 giây: A là 720p để phóng AI; B là bản mẫu 480p rồi bản cuối 1080p. "
+                   "Giữ ảnh và motion đã duyệt. Kết quả thử riêng; trần cả phép so 4 USD, mỗi bước gửi một lần.")
+        rows = q.candidates(p, pid, C.DATA)
+        items = q.load(C.DATA, pid)
+        if rows and runner is not None:
+            sid = st.selectbox("Shot thử độ nét", [r["id"] for r in rows], key=f"quality_scene_{pid}",
+                               format_func=lambda x: f"Shot {next(r['idx'] for r in rows if r['id'] == x)}")
+            for kind in ("direct", "draft", "final"):
+                entry = next((e for e in items if e["scene_id"] == sid and e["kind"] == kind), None)
+                if entry:
+                    st.caption(f"{q.LABELS[kind]} · {ui.state_label(entry['state'])}" +
+                               (f" · {escape(entry.get('message') or '')}" if entry.get("message") else ""))
+                    if entry.get("charge_uncertain"):
+                        st.caption("Kết quả gửi chưa xác định; sổ chi tạm tính theo ước lượng, cần đối chiếu task trước khi gửi thêm.")
+                    continue
+                ready = kind != "final" or any(e["scene_id"] == sid and e["kind"] == "draft" and e["state"] == "succeeded"
+                                              for e in items)
+                if ready and confirm_all(f"quality_go_{pid}_{sid}_{kind}", [sid],
+                                         f"Gen {q.LABELS[kind]} · ≈ ${q.estimate(kind):.2f}",
+                                         f"Gen {q.LABELS[kind]} cho shot này, 4 giây, ≈ ${q.estimate(kind):.2f}?", st, "Có, gen thử"):
+                    act(lambda: q.send(p, pid, sid, kind, runner.provider, C.DATA), "Đã xử lý lần gửi phép thử")
+                    st.rerun()
+        elif not rows:
+            st.caption("Cần một shot ≤ 4 giây có ảnh và motion đã duyệt.")
+        if runner is not None and any(e["state"] == "running" for e in items):
+            if st.button("⟳ Lấy kết quả thử độ nét", key=f"quality_refresh_{pid}"):
+                act(lambda: q.refresh(p, pid, runner.provider, C.DATA))
+                st.rerun()
+        for entry in items:
+            if entry.get("file") and os.path.isfile(entry["file"]):
+                st.caption(f"Scene {entry['scene_id']} · {q.LABELS[entry['kind']]}")
+                show_video(entry["file"])
 
 
 def group_tests_panel(items) -> None:

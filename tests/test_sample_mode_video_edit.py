@@ -39,18 +39,37 @@ class SampleModeAndEditTests(unittest.TestCase):
         self.p.submit(None, "@Image 1", None, 5, model="seedance-2.5", aspect_ratio="9:16", reference_only=[self.image])
         self.assertEqual(ctx_of(self.t.calls[2])["ratio"], "9:16")                              # no first frame: ratio is free
 
-    # ---- S4.11 Sample Mode: removed in S14.9 (06/10) ----
-    def test_sample_mode_is_gone(self):
-        """S14.9: no `draft` argument, no final-from-sample call; a normal Seedance 2.5 clip carries no draft key (as with the flag off)."""
-        self.assertFalse(hasattr(self.p, "submit_final_from_sample"))
-        with self.assertRaises(TypeError):
-            self.p.submit(self.image, "p", None, 4, model="seedance-2.5", draft=True)
+    # 07/10: người dùng duyệt khôi phục để so A+/B Khủng Long Đỏ.
+    def test_sample_is_off_and_sends_nothing_without_its_flag(self):
+        with self.env(seedance_sample_mode="0"):
+            with self.assertRaises(ProviderError) as cm:
+                self.p.submit(self.image, "p", None, 4, model="seedance-2.5", draft=True)
+            self.assertEqual(cm.exception.code, "feature_off")
+            with self.assertRaises(ProviderError):
+                self.p.submit_final_from_sample("seedance:cgt-1")
         self.assertEqual(self.t.calls, [])
-        with self.env(seedance_sample_mode="1"):                                                 # an old env line does nothing
-            self.p.submit(self.image, "p", None, 4, model="seedance-2.5", resolution="720p")
-        ctx = ctx_of(self.t.calls[0])
-        self.assertNotIn("draft", ctx)
-        self.assertEqual((ctx["resolution"], ctx["model_name"]), ("720p", "dreamina-seedance-2-5-260628"))
+
+    def test_sample_forces_480p_and_normal_video_keeps_its_body(self):
+        with self.env(seedance_sample_mode="1"):
+            self.p.submit(self.image, "p", None, 4, model="seedance-2.5", resolution="720p", draft=True)
+            ctx = ctx_of(self.t.calls[0])
+            self.assertEqual((ctx["draft"], ctx["resolution"], ctx["ratio"]), (True, "480p", "adaptive"))
+            with self.assertRaises(ProviderError):
+                self.p.submit(self.image, "p", None, 4, model="seedance", draft=True)
+        self.p.submit(self.image, "p", None, 4, model="seedance-2.5", resolution="720p")
+        self.assertNotIn("draft", ctx_of(self.t.calls[1]))
+        self.assertEqual(len(self.t.calls), 2)
+
+    def test_final_from_sample_body_and_invalid_id_never_posts(self):
+        with self.env(seedance_sample_mode="1"):
+            self.p.submit_final_from_sample("seedance:cgt-1")
+            ctx = ctx_of(self.t.calls[0])
+            self.assertEqual(ctx["content"], [{"type": "draft_task", "draft_task": {"id": "cgt-1"}}])
+            self.assertEqual((ctx["resolution"], ctx["video_num"]), ("1080p", 1))
+            for bad in ("omni:T1", "seedance:", "seedance:cgt-1:other"):
+                with self.assertRaises(ProviderError):
+                    self.p.submit_final_from_sample(bad)
+        self.assertEqual(len(self.t.calls), 1)
 
     # ---- S4.12 ----
     def test_video_edit_body(self):

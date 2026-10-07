@@ -69,7 +69,7 @@ class FeatureFlagTests(unittest.TestCase):
 class RemovedFlagTests(unittest.TestCase):
     """S14.9 (Gói L, 06/10): 5 flags taken out of the code. An old FEATURE_<NAME>=1 line or an old choice saved in
     data/feature_settings.json never breaks anything: it is ignored (always off, as before) and said in 🧪."""
-    GONE = ("layout_to_model", "chain_previous_auto", "setcheck_autofix", "seedance_sample_mode", "location_plates")
+    GONE = ("layout_to_model", "chain_previous_auto", "setcheck_autofix", "location_plates")
 
     def setUp(self):
         self.file = os.path.join(tempfile.mkdtemp(), "feature_settings.json")

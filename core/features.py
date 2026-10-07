@@ -5,6 +5,11 @@ import os
 from typing import Dict
 
 FEATURES: Dict[str, Dict] = {
+    "seedance_sample_mode": {
+        "label": "Thử độ nét Seedance 2.5: 720p hoặc bản mẫu 480p → bản cuối 1080p; kết quả thử riêng",
+        "verified": False,
+        "why": "Người dùng 07/10 duyệt khôi phục S4.11 để so A+/B Khủng Long Đỏ; bản cuối chưa chạy thật. Mỗi bước ghi sổ chi.",
+    },
     "voice_check_redo": {
         "label": "Chạy tự động: tạo lại giọng thoại bị cờ lỗi (cắt/thiếu chữ/ngắt quãng) một lần",
         "verified": False,
@@ -380,7 +385,6 @@ REMOVED: Dict[str, str] = {
     "layout_to_model": "GĐ6: model chép góc máy từ trên cao + người tí hon của ảnh bố cục ghép",
     "chain_previous_auto": "GĐ6: nối ảnh shot trước bất kể cỡ cảnh → shot cận kéo theo bố cục toàn cảnh",
     "setcheck_autofix": "GĐ6: QC đồng bộ chuẩn theo số đông, sửa sai người rồi tự trả tiền gen lại",
-    "seedance_sample_mode": "S4.11 bản mẫu 480p → bản cuối 1080p: chưa từng chạy thật, không luồng nào dùng",
     "location_plates": "Ghép phông xanh lên nền 3D: tạm ngưng từ 27/09 (#8), thay bằng place_render_refs / scene_establishing",
 }
 _SETTINGS = {"stamp": None, "path": None, "data": None}

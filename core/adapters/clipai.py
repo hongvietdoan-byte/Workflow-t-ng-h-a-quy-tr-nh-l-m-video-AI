@@ -331,7 +331,7 @@ class ClipAIVideoProvider:
               aspect_ratio: Optional[str] = None, resolution: Optional[str] = None,
               multi_prompt: Optional[list] = None, last_frame: Optional[str] = None, kling_mode: Optional[str] = None,
               kling_image_refs: bool = False,
-              reference_audio: Optional[list] = None, reference_only: Optional[list] = None) -> str:
+              reference_audio: Optional[list] = None, reference_only: Optional[list] = None, draft: bool = False) -> str:
         """aspect_ratio / resolution override the provider defaults for this job (project frame format, per-scene tier).
         image_references: this project's own resource-library pictures (local files, [{"path","label","role"}], from
         `assets.scene_references`) — no separate Subject Library upload/approval needed. `subjects`: Subject Library entries
@@ -350,8 +350,11 @@ class ClipAIVideoProvider:
         sent). Seedance refuses first/last frames mixed with reference pictures (real run 2026-09-24), so this is the way to give every
         shot of a grouped generation its own storyboard picture (docs/PHAN_TICH_GOP_SHOT_2026-09-27.md, P2). The caller's prompt names
         each picture ("Image 1 … Image N"). 2.0: ≤ 9 pictures; 2.5: ≤ 30.
-        S14.9 (06/10): the S4.11 Sample Mode (`draft`, flag seedance_sample_mode) was removed — never run for real, no caller."""
+        draft: 07/10 restored S4.11 for an explicit comparison: 480p sample, then separately paid 1080p final."""
         canonical, family = resolve_model(model)
+        if draft:
+            self._check_sample_mode(canonical)
+            resolution = "480p"
         videos = reference_video if isinstance(reference_video, list) else ([reference_video] if reference_video else [])
         reference_video = videos[0] if videos else None      # the Kling fields read the first; Seedance sends every one
         if with_audio and canonical == "kling-video-o1":
@@ -479,6 +482,8 @@ class ClipAIVideoProvider:
             files = ([("image_files", name, data) for name, data in refs]
                      + [("video_files", name, data) for name, data in video_files]
                      + [("audio_files", name, data) for name, data in audio_files])
+            if draft:
+                ctx["draft"] = True
             data = self.client.post_multipart(PATH_SEEDANCE, {"ctx": json.dumps(ctx, ensure_ascii=False)}, files)
             return self._task_of(data, family)
         if not os.path.exists(image_path):
@@ -554,8 +559,30 @@ class ClipAIVideoProvider:
                  + [("image_files", name, data) for name, data in extra_files]
                 + [("video_files", name, data) for name, data in video_files]
                 + [("audio_files", name, data) for name, data in audio_files])
+        if draft:
+            ctx["draft"] = True
         data = self.client.post_multipart(path, {"ctx": json.dumps(ctx, ensure_ascii=False)}, files)
         return self._task_of(data, family)
+
+    SAMPLE_MODEL = "dreamina-seedance-2-5-260628"
+
+    def _check_sample_mode(self, canonical: str) -> None:
+        from .. import features
+        if not features.on("seedance_sample_mode"):
+            raise ProviderError("Chế độ bản mẫu đang tắt (FEATURE_SEEDANCE_SAMPLE_MODE)", code="feature_off")
+        if canonical != self.SAMPLE_MODEL:
+            raise ProviderError("Chế độ bản mẫu chỉ có ở Seedance 2.5", code="unsupported_option")
+
+    def submit_final_from_sample(self, sample_external_id: str) -> str:
+        """Separately billed final. The caller checks successful draft, expiry and budget before this send."""
+        self._check_sample_mode(self.SAMPLE_MODEL)
+        family, _, task_id = sample_external_id.partition(":")
+        if family != "seedance" or not task_id or ":" in task_id:
+            raise ProviderError("không phải mã bản mẫu Seedance", code="bad_id")
+        ctx = {"model_name": self.SAMPLE_MODEL, "content": [{"type": "draft_task", "draft_task": {"id": task_id}}],
+               "resolution": "1080p", "video_num": 1}
+        data = self.client.post_multipart(PATH_SEEDANCE, {"ctx": json.dumps(ctx, ensure_ascii=False)}, [])
+        return self._task_of(data, "seedance")
 
     # ---- S4.12 video edit (Seedance 2.5) --------------------------------------------------------------------------------------------
     # Read from the ClipAI web app (2026-10-01, bundle 3634): a video edit is a Seedance 2.5 body with ONE source video (role

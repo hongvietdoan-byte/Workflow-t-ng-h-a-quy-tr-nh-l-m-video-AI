@@ -37,8 +37,6 @@ _BASE: Dict[str, Dict] = {
     "layout_to_model": {"patterns": [r"layout_to_model"]},
     "chain_previous_auto": {"patterns": [r"chain_previous_auto"]},
     "setcheck_autofix": {"patterns": [r"setcheck_autofix"]},
-    # only the flag's name: "bản mẫu 480p" (a cheap test render first) is still craft advice (knowledge/roles/dp.md)
-    "seedance_sample_mode": {"patterns": [r"seedance_sample_mode"]},
     "sync_so": {"why": "sync.so: người dùng chốt 26/09 không mở tài khoản — khớp môi chỉ bằng video kèm giọng (Seedance reference_audio)",
                 "patterns": [r"sync\.so\b", r"\bsyncso\b", r"\bsync\s+labs\b"]},
     "ff_site_vm": {"why": "S14.5: ff_site bỏ sandbox `vm` (Node) — không còn chạy mã trang web",
