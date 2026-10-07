@@ -28,6 +28,29 @@ class FFmpegStudioTests(unittest.TestCase):
         self.assertIn("[v1][2:v]xfade=transition=fade:duration=1.0:offset=8.0[v2]", graph)
         self.assertEqual(cmd[cmd.index("-map") + 1], "[v2]")
 
+    def test_music_comes_in_at_the_chosen_second(self):
+        """07/10 Khủng Long Đỏ: the dance's own 34 s track must start with the dance (16 s), not with the film — real ffmpeg run."""
+        import subprocess
+        import tempfile
+        import wave
+        import numpy as np
+        ff = f.find_ffmpeg()
+        d = tempfile.mkdtemp()
+        video, music, out, wav = (os.path.join(d, n) for n in ("v.mp4", "m.wav", "o.mp4", "o.wav"))
+        subprocess.run([ff, "-y", "-loglevel", "error", "-f", "lavfi", "-i", "color=c=black:s=64x64:d=4", "-c:v", "libx264", video], check=True)
+        subprocess.run([ff, "-y", "-loglevel", "error", "-f", "lavfi", "-i", "sine=frequency=440:duration=4", music], check=True)
+        subprocess.run(f.build_mux_music_cmd(video, music, out, 4.0, fade=0.2, volume=1.0, ffmpeg=ff, start=2.0), check=True,
+                       capture_output=True)
+        subprocess.run([ff, "-y", "-loglevel", "error", "-i", out, "-ac", "1", "-ar", "8000", wav], check=True)
+        with wave.open(wav) as w:
+            x = np.frombuffer(w.readframes(w.getnframes()), np.int16).astype(np.float32)
+        rms = lambda a, b: float(np.sqrt(np.mean(x[int(a * 8000):int(b * 8000)] ** 2)))  # noqa: E731
+        self.assertLess(rms(0.2, 1.8), 50)                     # silent before 2 s
+        self.assertGreater(rms(2.5, 3.5), 1000)                # the music from 2 s
+        graph = f.build_mux_music_cmd("v", "m", "o", 51.5, start=16)
+        self.assertIn("adelay=16000:all=1", " ".join(graph))
+        self.assertIn("atrim=0:35.5", " ".join(graph))         # trimmed to what is left of the film
+
     def test_crossfade_validation(self):
         with self.assertRaises(ValueError):
             f.build_crossfade_cmd(["a"], [5], "o.mp4")

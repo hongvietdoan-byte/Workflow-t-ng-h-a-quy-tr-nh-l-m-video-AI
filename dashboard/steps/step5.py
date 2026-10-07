@@ -618,19 +618,24 @@ def render_panel(p: Pipeline, pid: int, chosen, durations) -> None:
         tr_names = {"cut": "Cắt", "crossfade": "Hòa tan", "dip_to_black": "Tối dần"}
         track = delivery.selected_music(C.DATA, pid)
         transition, fade, volume, keep = s["transition"], float(s["fade"]), float(s["music_volume"]), bool(s["keep_audio"])
+        start = float(s.get("music_start") or 0)
         with ui.fold("⚙ Thiết lập dựng", f"{tr_names[s['transition']]} · nhạc {float(s['music_volume']):g} · "
-                     + ("giữ âm clip" if s["keep_audio"] else "không giữ âm clip") + (f" · {os.path.basename(track)}" if track else " · không nhạc"),
+                     + ("giữ âm clip" if s["keep_audio"] else "không giữ âm clip") + (f" · {os.path.basename(track)}" if track else " · không nhạc")
+                     + (f" từ {start:g} s" if track and start else ""),
                      f"render_set_{pid}", default_open=False) as set_open:          # S9 E5.6: saved in the project; folded = those
             if set_open:
                 transition = st.radio("Chuyển cảnh", opts, index=opts.index(s["transition"]), horizontal=True, key=f"tr_{pid}",
                                       format_func=lambda t: tr_names[t])
                 fade = st.slider("Thời gian chuyển cảnh (giây)", 0.3, 2.0, float(s["fade"]), 0.1, key=f"fade_{pid}", disabled=transition == "cut")
                 volume = st.slider("Âm lượng nhạc nền", 0.0, 1.0, float(s["music_volume"]), 0.05, key=f"vol_{pid}", disabled=not track)
+                start = st.number_input("Nhạc bắt đầu ở giây", 0.0, 600.0, start, 0.1, format="%.2f", key=f"mstart_{pid}", disabled=not track,
+                                        help="Trước giây này phim không có nhạc — vd nhạc gốc của đoạn nhảy chỉ vào từ cảnh nhảy.")
                 _note(f"Nhạc nền: {os.path.basename(track)}" if track else "Không có nhạc nền (chọn ở 5.2).")
                 keep = st.checkbox("🔊 Giữ âm thanh gốc của clip (tiếng động do model tạo)", bool(s["keep_audio"]), key=f"keepaud_{pid}",
                                    help="Nhạc và giọng thoại được trộn lên trên. Cần MỌI clip đã chọn có âm thanh.")
-        new = dict(s, transition=transition, fade=fade, music_volume=volume, keep_audio=keep)
-        if (transition, fade, volume, keep) != (s["transition"], s["fade"], s["music_volume"], s["keep_audio"]):
+        new = dict(s, transition=transition, fade=fade, music_volume=volume, keep_audio=keep, music_start=start)
+        if (transition, fade, volume, keep, start) != (s["transition"], s["fade"], s["music_volume"], s["keep_audio"],
+                                                       float(s.get("music_start") or 0)):
             delivery.save_settings(p, pid, new)
         if keep and chosen:
             silent_clips = [os.path.basename(c) for c in chosen if not _has_audio(c, os.path.getmtime(c))]

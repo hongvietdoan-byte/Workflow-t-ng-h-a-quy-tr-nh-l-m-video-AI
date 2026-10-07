@@ -22,7 +22,7 @@ from . import audio_lib, diag, ffmpeg_studio, final_cut, formats, lineage, music
 from .pipeline import Pipeline
 
 DEFAULT_CARD = {"enabled": False, "title": "", "subtitle": "", "seconds": 3.0, "bg": "#000000", "color": "#FFFFFF", "font": ""}
-DEFAULTS = {"transition": "cut", "fade": 1.0, "music_volume": 0.6, "keep_audio": None, "end_card": DEFAULT_CARD, "exports": []}
+DEFAULTS = {"transition": "cut", "fade": 1.0, "music_volume": 0.6, "music_start": 0.0, "keep_audio": None, "end_card": DEFAULT_CARD, "exports": []}
 
 
 def _now() -> str:
@@ -51,12 +51,14 @@ def save_settings(p: Pipeline, project_id: int, settings: Dict) -> None:
         raise ValueError("transition phải là cut / crossfade / dip_to_black")
     clean["fade"] = min(max(float(clean["fade"]), 0.3), 2.0)
     clean["music_volume"] = min(max(float(clean["music_volume"]), 0.0), 1.0)
+    clean["music_start"] = max(float(clean["music_start"] or 0), 0.0)
     p.set_project_field(project_id, "render_settings", json.dumps(clean, ensure_ascii=False))
 
 
 def render_hash(settings: Dict) -> str:
     """The part of the settings that changes the render itself (card / exports are layers of their own)."""
-    return lineage.settings_hash({k: settings.get(k) for k in ("transition", "fade", "music_volume", "keep_audio")})
+    return lineage.settings_hash({k: settings.get(k) for k in ("transition", "fade", "music_volume", "keep_audio")}
+                               | ({"music_start": settings["music_start"]} if settings.get("music_start") else {}))   # old hashes stay
 
 
 def selected_music(data_dir: str, project_id: int) -> Optional[str]:
@@ -537,7 +539,7 @@ def render(p: Pipeline, project_id: int, data_dir: str, music_path: Optional[str
                       "why": "cờ sound_intent đang TẮT" if track else "bản dựng không có nhạc nền"}
     ffmpeg_studio.render_final(paths, out, durations, settings["transition"], settings["fade"], track, settings["music_volume"],
                                extras, keep_audio, formats.spec(aspect)["render"] if aspect else None, breaths=breaths,
-                               music_off=music_off)
+                               music_off=music_off, music_start=float(settings.get("music_start") or 0))
     hits = impact_times(audio_lib.assets_dir(data_dir, project_id)) if features.on("impact_shake") else []
     hits = sorted(set(hits) | set(shake_in_times(p, rows, durations, settings["transition"], settings["fade"])))   # a shake the person set
     shake_error = None

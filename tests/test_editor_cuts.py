@@ -70,6 +70,22 @@ class BreathTests(unittest.TestCase):
         self.assertEqual(delivery.shake_in_times(p, rows, [3.0, 2.5, 4.0], "crossfade", 0.5), [2.5, 4.5])
 
 
+class MusicStartSettingTests(unittest.TestCase):
+    def test_the_music_start_is_saved_and_changes_the_render_hash(self):
+        from core import delivery
+        from core.db import connect
+        from core.pipeline import Pipeline
+        p = Pipeline(connect())
+        pid = p.create_project("music start")
+        before = delivery.render_hash(delivery.get_settings(p, pid))
+        delivery.save_settings(p, pid, dict(delivery.get_settings(p, pid), music_start=16))
+        s = delivery.get_settings(p, pid)
+        self.assertEqual(s["music_start"], 16.0)
+        self.assertNotEqual(delivery.render_hash(s), before)
+        delivery.save_settings(p, pid, dict(s, music_start=0))
+        self.assertEqual(delivery.render_hash(delivery.get_settings(p, pid)), before)   # 0 = the old renders stay current
+
+
 class JCutTests(unittest.TestCase):
     def _items(self, data):
         from core import audio_lib
