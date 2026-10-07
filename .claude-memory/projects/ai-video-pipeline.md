@@ -300,3 +300,17 @@ người nói đúng lượt với 3 người trong khung; storyboard phải ghi
 **Context**: R-B cover nhảy cần ref không mặt (Seedance chặn video có mặt người).
 **Finding**: web + API đều nhận mannequin / depth map. Thử #20 (1,38 USD): đỏ → Kelly, trắng xám → Maxim đúng, động tác đúng, không lọt phông xanh; khung máy KHÔNG theo ref (trung cảnh + lia thay vì toàn cảnh tĩnh) — người dùng: dùng được, sửa sau. Sổ chi Seedance có video đầu vào phải tính cả giây video (công thức web) — script ghi quantity tương đương.
 **Source**: test thật `tools/experiments/mannequin_ref_test.py`, ảnh chụp web của người dùng
+
+## Dự án Khủng Long Đỏ #22 — bản thử 1, 2 qua Dashboard - 2026-10-07
+**Context**: chạy trọn dự án qua Dashboard; người dùng duyệt v2 "khá ok", cho gen chất lượng cao ở phiên sau (TODO điểm nghỉ 07/10 ~15:00).
+**Finding**:
+- So sánh từng lượt: `docs/kld_runs/README.md` + ảnh chụp `ban_thu_1/2.json` (`py tools/project_snapshot.py <db> 22 <nhãn> docs/kld_runs --git <commit>`). Bản giao ở `D:\AI-Video-Output\2026-10-07_du-an-22\`.
+- Storyboard nhân vật FF: GPT Image 2.5 Sunburst đẹp hơn Seedream 5 Pro mặc định (cùng 0,052 USD).
+- Ảnh trang phục Kho có người mẫu → tóc người mẫu lẫn vào nhân vật; phải ghi rõ tóc nhân vật trong prompt ảnh + motion.
+- Nhà trong Free Fire hầu như không có cánh cửa → không viết "mở cửa"; cho nhân vật vào từ mép khung để nền giữ đúng render 3D.
+- Khẩu trang của trang phục KL luôn đeo kín (người dùng). Thoại viết như nói thường, không câu kích hoạt kiểu "Hô biến!".
+- Clip nhảy dài: chia ~11,5 s/clip theo đoạn video mẫu; nối bằng khung cuối clip trước (cờ shot `start_from_prev_clip`) → liền tư thế + trang phục; tháp đồng hồ vẫn trôi dần — việc kế: gửi render 3D chỗ đứng làm tham chiếu nơi.
+- Hậu kỳ: rung/nhún chỉ khi đã vào nhạc nhảy; chớp trắng ở cú biến hình OK. Nhạc 2 đoạn: ClipAI cho cảnh mở đầu + nhạc gốc là "Nhạc đoạn 2".
+- Khớp môi Seedance 2.5 chỉ-ảnh-tham-chiếu + giọng ở giây chẵn: 0,03 / 0,44 — người dùng TẠM CHẤP NHẬN cho dự án này; muốn thử lại (clip chung cả đoạn thoại, cách #10) thì dùng ở dự án sau.
+- Dashboard: chỉ hỏi trạng thái clip khi trang đang ở tab Video; vướng bố cục ghi ở TODO.
+**Source**: chạy thật 07/10, ≈ 34,5 USD đợt thử lũy kế (dự án ≈ 35 USD).
