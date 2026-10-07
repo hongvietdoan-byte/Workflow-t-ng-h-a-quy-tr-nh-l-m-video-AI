@@ -221,7 +221,7 @@ ef_kelly\`. Thứ tự lượt sau: S14.31 (luật Biên kịch) song song S14.3
   - [x] *(đóng 30/09: CSDL thật 7 lần hỏi lại / 179 lời gọi, 0 lần JSON hỏng — đều là lỗi ý nghĩa; Structured Outputs không hỗ trợ minimum/maximum/minLength → chỉ 1/7 chặn được; giữ validator)* **P3 — Structured Outputs (JSON theo schema) thay "hỏi lại khi JSON hỏng"**: 6 chỗ ghi `bad_json_retry` (`llm_runner`, `claude_tasks`,
     `director_two_pass`, `previz`, `step1_prep`), mỗi lần hỏi lại tốn token. **Trước tiên đếm `diag_events` code `bad_json_retry` trên CSDL thật**;
     nhiều mới chuyển, và kiểm tài liệu chính thức model đang dùng có hỗ trợ + giới hạn schema. Giữ validator hiện có làm lớp kiểm thứ hai.
-  - [ ] **P4 — Chỉ số "chi phí / video đạt" và "tiền lãng phí"**: tiền đã chi cho ảnh/clip bị loại, gen lại, bỏ dở — chia theo khâu (dữ liệu có
+  - [x] *(xong cloud 07/10: `effectiveness.waste` — bị loại / bị thay / lỗi-hủy theo ảnh/video, dòng 💸 ở 🎯 Hiệu quả workflow + mục 6 bản tóm tắt; 'chi phí / giây' đã có)* **P4 — Chỉ số "chi phí / video đạt" và "tiền lãng phí"**: tiền đã chi cho ảnh/clip bị loại, gen lại, bỏ dở — chia theo khâu (dữ liệu có
     sẵn ở `usage_events` + `jobs.state`/`parent_job_id`); đặt ở Giám sát cạnh "Phút / giây video".
   - [x] **P5 — Lỗi hết tiền (402 / hết credit) dừng hẳn + cảnh báo** *(xong 30/09: `budget.halt/reopen`, HTTP 402 + lời "余额不足 / insufficient balance / credit balance is too low" → khóa dịch vụ đó, nút mở lại ở 💵 Ngân sách thử; test_out_of_credit)*: `llm_runner.py:507` xử lý 401/403; chưa kiểm ClipAI/Claude hết credit
     có dừng autopilot và báo rõ không (không thử lại, không coi là lỗi tạm). Rà `core/adapters/clipai.py` + autopilot, thêm test.
