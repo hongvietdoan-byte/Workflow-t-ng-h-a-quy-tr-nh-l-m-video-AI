@@ -51,6 +51,34 @@ class FFmpegStudioTests(unittest.TestCase):
         self.assertIn("adelay=16000:all=1", " ".join(graph))
         self.assertIn("atrim=0:35.5", " ".join(graph))         # trimmed to what is left of the film
 
+    def test_the_frame_punches_in_on_the_beats_of_the_music(self):
+        """07/10 Khủng Long Đỏ (người dùng): the camera zooms in a little and shakes on the song's beats — real librosa + ffmpeg run."""
+        import subprocess
+        import tempfile
+        import numpy as np
+        from PIL import Image
+        ff = f.find_ffmpeg()
+        d = tempfile.mkdtemp()
+        clicks, video, out = (os.path.join(d, n) for n in ("c.wav", "v.mp4", "o.mp4"))
+        subprocess.run([ff, "-y", "-loglevel", "error", "-f", "lavfi", "-i",
+                        "aevalsrc='if(lt(mod(t,0.5),0.03),sin(2*PI*1000*t),0)':s=22050:d=8", clicks], check=True)   # 120 BPM clicks
+        beats = f.music_beats(clicks, start=1.0, until=8.0)
+        self.assertGreater(len(beats), 8)
+        gaps = np.diff(beats)
+        self.assertLess(abs(float(np.median(gaps)) - 0.5), 0.05)                # the 0.5 s beat found
+        self.assertGreaterEqual(beats[0], 1.0)                                   # on the film timeline (music from 1 s)
+        subprocess.run([ff, "-y", "-loglevel", "error", "-f", "lavfi", "-i", "color=c=black:s=160x288:d=8:r=24",
+                        "-vf", "drawbox=x=0:y=114:w=160:h=60:c=white:t=fill", "-c:v", "libx264", "-pix_fmt", "yuv420p", video], check=True)
+        f.add_pulse(video, out, [2.0], ff)
+        def white_rows(sec):
+            frame = os.path.join(d, f"f{sec}.png")
+            subprocess.run([ff, "-y", "-loglevel", "error", "-ss", str(sec), "-i", out, "-frames:v", "1", frame], check=True)
+            col = np.asarray(Image.open(frame).convert("L"))[:, 80]
+            return int((col > 128).sum())
+        self.assertEqual(f.probe_size(out), (160, 288))                          # same frame size, no border
+        self.assertGreater(white_rows(2.02), white_rows(1.5))                    # the bar is bigger on the beat (zoomed in)
+        self.assertEqual(f.pulse_filter([], 160, 288), "")
+
     def test_crossfade_validation(self):
         with self.assertRaises(ValueError):
             f.build_crossfade_cmd(["a"], [5], "o.mp4")

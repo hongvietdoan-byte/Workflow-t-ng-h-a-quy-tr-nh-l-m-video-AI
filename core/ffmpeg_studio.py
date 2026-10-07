@@ -152,6 +152,36 @@ def add_shake(src: str, dst: str, times: Sequence[float], ffmpeg: Optional[str] 
     return dst
 
 
+PULSE_S, PULSE_ZOOM, PULSE_PX = 0.35, 0.03, 4    # 07/10 (Khủng Long Đỏ): on each beat the frame punches in 3 % and shakes ~4 px, easing out
+
+
+def music_beats(path: str, start: float = 0.0, until: Optional[float] = None) -> List[float]:
+    """The beats of a music file (librosa beat tracker, DSP — no model) on the FILM's timeline: + `start` (the second the music comes
+    in), only those before `until`."""
+    import librosa
+    y, sr = librosa.load(path, sr=22050, mono=True)
+    _, frames = librosa.beat.beat_track(y=y, sr=sr)
+    times = [round(float(t) + float(start or 0), 3) for t in librosa.frames_to_time(frames, sr=sr)]
+    return [t for t in times if until is None or t < until - PULSE_S]
+
+
+def pulse_filter(beats: Sequence[float], w: int, h: int) -> str:
+    """A slight zoom punch + shake on each beat: the frame is scaled up by the beat's envelope (per frame) and cut back to w×h around the
+    centre, so no border ever shows. Envelope (1-(t-b)/PULSE_S)^2: in at once, easing out."""
+    if not beats:
+        return ""
+    env = "+".join(f"between(t,{b:.3f},{b + PULSE_S:.3f})*pow(1-(t-{b:.3f})/{PULSE_S},2)" for b in beats)
+    return (f"scale=w='trunc({w}*(1+{PULSE_ZOOM}*({env}))/2)*2':h='trunc({h}*(1+{PULSE_ZOOM}*({env}))/2)*2':eval=frame,"
+            f"crop={w}:{h}:x='(iw-{w})/2+{PULSE_PX}*({env})*sin(t*83)':y='(ih-{h})/2+{PULSE_PX}*({env})*cos(t*71)'")
+
+
+def add_pulse(src: str, dst: str, beats: Sequence[float], ffmpeg: Optional[str] = None) -> str:
+    ff = ffmpeg or find_ffmpeg()
+    w, h = probe_size(src) or (1080, 1920)
+    run([ff, "-y", "-i", src, "-vf", pulse_filter(beats, w, h), *_ENCODE, "-c:a", "copy", dst])
+    return dst
+
+
 FLASHBACK_FLASH = 0.25          # white flash in and out of a flashback shot (seconds)
 FLASHBACK_LOOK = "eq=saturation=0.55:gamma=1.05,colorbalance=rs=0.08:gs=0.03:bs=-0.08:rm=0.06:bm=-0.06,vignette=angle=PI/4.5"
 
@@ -301,12 +331,14 @@ def build_mux_music_cmd(video: str, music: str, output: str, video_duration: flo
                         fade: float = 1.5, volume: float = 0.6, ffmpeg: str = "ffmpeg",
                         has_audio: bool = False, breaths: Sequence[float] = (),
                         music_off: Sequence[Tuple[float, float]] = (), music_len: Optional[float] = None,
-                        audio_codec: Sequence[str] = AAC, start: float = 0.0) -> List[str]:
+                        audio_codec: Sequence[str] = AAC, start: float = 0.0, end: Optional[float] = None) -> List[str]:
     """Music under the video. has_audio: the video already carries sound (dialogue): the music is MIXED with it
     instead of replacing it. breaths: turn times with a short silence before them (D6). music_len: the track's length — a track
     shorter than the film plays again from the start, crossfaded (trial #8, 2026-09-28: 68 s of music under 83 s of film = the last
     15 s silent). audio_codec: PCM when another mixing step follows (one AAC encode only). start: the second of the film the music
     comes in (07/10 Khủng Long Đỏ: the dance's own 34 s track under the dance only, from 16 s) — silent before it."""
+    if end is not None and 0.5 < float(end) < video_duration:   # 07/10: a second music comes in at `end` — this one fades out there
+        video_duration = float(end)
     start = min(max(float(start or 0), 0.0), max(video_duration - 0.5, 0.0))
     if start:                            # the music's own timeline: breaths / silences planned on the film's move back by `start`
         breaths = [t - start for t in breaths if t - start > 0]
@@ -599,7 +631,7 @@ def render_final(clips: Sequence[str], output: str, durations: Optional[Sequence
                  transition: str = "cut", fade: float = 1.0, music: Optional[str] = None,
                  music_volume: float = 0.6, extras: Optional[Sequence[dict]] = None,
                  keep_audio: bool = False, size=None, breaths: Sequence[float] = (),
-                 music_off: Sequence[Tuple[float, float]] = (), music_start: float = 0.0) -> str:
+                 music_off: Sequence[Tuple[float, float]] = (), music_start: float = 0.0, music_end: Optional[float] = None) -> str:
     """Concat clips (in scene order), optionally crossfade, mux music, then lay extra audio over it.
     keep_audio: keep the clips' own sound (needs an audio stream in EVERY clip; otherwise it is ignored and the
     result is silent before music/extras). size (W, H): the project frame — every clip is brought to it (clips from
@@ -607,18 +639,18 @@ def render_final(clips: Sequence[str], output: str, durations: Optional[Sequence
     file or the complete new one."""
     with atomic_output(output) as staged:
         _render_final(clips, staged, durations, transition, fade, music, music_volume, extras, keep_audio, size, breaths, music_off,
-                      music_start)
+                      music_start, music_end)
     return output
 
 
 def _render_final(clips, output, durations, transition, fade, music, music_volume, extras, keep_audio, size, breaths=(),
-                  music_off=(), music_start=0.0) -> None:
+                  music_off=(), music_start=0.0, music_end=None) -> None:
     ffmpeg = find_ffmpeg()
     extras = list(extras or [])
     padded = []
     try:
         _render_steps(clips, output, durations, transition, fade, music, music_volume, extras, keep_audio, size, ffmpeg, padded,
-                      breaths, music_off, music_start)
+                      breaths, music_off, music_start, music_end)
     finally:
         for tmp in padded:     # also when a later step failed (they used to stay behind)
             try:
@@ -628,7 +660,7 @@ def _render_final(clips, output, durations, transition, fade, music, music_volum
 
 
 def _render_steps(clips, output, durations, transition, fade, music, music_volume, extras, keep_audio, size, ffmpeg, padded,
-                  breaths=(), music_off=(), music_start=0.0) -> None:
+                  breaths=(), music_off=(), music_start=0.0, music_end=None) -> None:
     if keep_audio and clips:
         # D4: a clip made without sound used to silence EVERY clip; it gets a silent track so the others keep theirs
         clips = list(clips)
@@ -664,7 +696,7 @@ def _render_steps(clips, output, durations, transition, fade, music, music_volum
         try:
             run(build_mux_music_cmd(current, music, target, total, volume=music_volume, ffmpeg=ffmpeg,
                                     has_audio=keep_audio, breaths=breaths, music_off=music_off, music_len=probe_duration(music),
-                                    audio_codec=PCM if extras else AAC, start=music_start))
+                                    audio_codec=PCM if extras else AAC, start=music_start, end=music_end))
         finally:
             os.remove(current)
         current = target

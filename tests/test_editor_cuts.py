@@ -86,6 +86,42 @@ class MusicStartSettingTests(unittest.TestCase):
         self.assertEqual(delivery.render_hash(delivery.get_settings(p, pid)), before)   # 0 = the old renders stay current
 
 
+class SecondMusicTests(unittest.TestCase):
+    """07/10 Khủng Long Đỏ: one music for the room scene (0–17 s), the dance's own song from 17.04 s — the edit held only one."""
+
+    def test_the_first_music_stops_where_the_second_comes_in(self):
+        from core import ffmpeg_studio
+        cmd = " ".join(ffmpeg_studio.build_mux_music_cmd("v", "m", "o", 51.5, fade=1.0, end=17.04))
+        self.assertIn("atrim=0:17.04", cmd)
+        self.assertIn("afade=t=out:st=16.04", cmd)
+
+    def test_the_second_music_is_cut_to_the_rest_of_the_film(self):
+        import subprocess
+        import tempfile
+        from core import delivery, ffmpeg_studio
+        d = tempfile.mkdtemp()
+        song = os.path.join(d, "s.wav")
+        subprocess.run([ffmpeg_studio.find_ffmpeg(), "-y", "-loglevel", "error", "-f", "lavfi", "-i", "sine=frequency=440:duration=40", song],
+                       check=True)
+        e = delivery._second_music_extra(song, 17.04, 51.5, 0.6, d)
+        self.assertEqual((e["start"], e["volume"]), (17.04, 0.6))
+        self.assertAlmostEqual(ffmpeg_studio.probe_duration(e["path"]), 34.46, delta=0.05)
+
+    def test_second_music_and_its_start_are_kept_by_the_project(self):
+        import tempfile
+        from core import delivery
+        from core.db import connect
+        from core.pipeline import Pipeline
+        d = tempfile.mkdtemp()
+        p = Pipeline(connect())
+        pid = p.create_project("m2")
+        self.assertIsNone(delivery.second_music(d, pid))
+        open(os.path.join(delivery.second_music_dir(d, pid), "second.m4a"), "wb").write(b"x")
+        self.assertTrue(delivery.second_music(d, pid).endswith("second.m4a"))
+        delivery.save_settings(p, pid, dict(delivery.get_settings(p, pid), music2_start=17.04))
+        self.assertEqual(delivery.get_settings(p, pid)["music2_start"], 17.04)
+
+
 class JCutTests(unittest.TestCase):
     def _items(self, data):
         from core import audio_lib

@@ -22,7 +22,7 @@ from . import audio_lib, diag, ffmpeg_studio, final_cut, formats, lineage, music
 from .pipeline import Pipeline
 
 DEFAULT_CARD = {"enabled": False, "title": "", "subtitle": "", "seconds": 3.0, "bg": "#000000", "color": "#FFFFFF", "font": ""}
-DEFAULTS = {"transition": "cut", "fade": 1.0, "music_volume": 0.6, "music_start": 0.0, "keep_audio": None, "end_card": DEFAULT_CARD, "exports": []}
+DEFAULTS = {"transition": "cut", "fade": 1.0, "music_volume": 0.6, "music_start": 0.0, "music2_start": 0.0, "beat_pulse": False, "keep_audio": None, "end_card": DEFAULT_CARD, "exports": []}
 
 
 def _now() -> str:
@@ -52,13 +52,40 @@ def save_settings(p: Pipeline, project_id: int, settings: Dict) -> None:
     clean["fade"] = min(max(float(clean["fade"]), 0.3), 2.0)
     clean["music_volume"] = min(max(float(clean["music_volume"]), 0.0), 1.0)
     clean["music_start"] = max(float(clean["music_start"] or 0), 0.0)
+    clean["beat_pulse"] = bool(clean["beat_pulse"])
+    clean["music2_start"] = max(float(clean["music2_start"] or 0), 0.0)
     p.set_project_field(project_id, "render_settings", json.dumps(clean, ensure_ascii=False))
 
 
 def render_hash(settings: Dict) -> str:
     """The part of the settings that changes the render itself (card / exports are layers of their own)."""
     return lineage.settings_hash({k: settings.get(k) for k in ("transition", "fade", "music_volume", "keep_audio")}
-                               | ({"music_start": settings["music_start"]} if settings.get("music_start") else {}))   # old hashes stay
+                               | ({"music_start": settings["music_start"]} if settings.get("music_start") else {})
+                               | ({"beat_pulse": True} if settings.get("beat_pulse") else {})
+                               | ({"music2_start": settings["music2_start"]} if settings.get("music2_start") else {}))   # old hashes stay
+
+
+def second_music_dir(data_dir: str, project_id: int) -> str:
+    """07/10 (Khủng Long Đỏ): a second music for a later part of the film (the dance's own song from the dance on)."""
+    d = os.path.join(data_dir, str(project_id), "music2")
+    os.makedirs(d, exist_ok=True)
+    return d
+
+
+def second_music(data_dir: str, project_id: int) -> Optional[str]:
+    d = second_music_dir(data_dir, project_id)
+    files = sorted(os.listdir(d))
+    return os.path.join(d, files[0]) if files else None
+
+
+def _second_music_extra(track2: str, start: float, film_s: float, volume: float, work_dir: str) -> Dict:
+    """The second music as one extra of the mix: cut to what is left of the film from `start`, faded out at the film's end."""
+    left = max(film_s - start, 0.5)
+    out = os.path.join(work_dir, "music2_fit.wav")
+    fade = min(1.5, left / 3)
+    ffmpeg_studio.run([ffmpeg_studio.find_ffmpeg(), "-y", "-loglevel", "error", "-i", track2, "-af",
+                       f"atrim=0:{left:.3f},afade=t=in:d=0.05,afade=t=out:st={max(left - fade, 0):.3f}:d={fade:.3f}", out])
+    return {"path": out, "start": round(start, 3), "volume": volume, "key": False}
 
 
 def selected_music(data_dir: str, project_id: int) -> Optional[str]:
@@ -72,8 +99,10 @@ def audio_hash(data_dir: str, project_id: int) -> str:
     track = selected_music(data_dir, project_id)
     extras = audio_lib.mix_list(audio_lib.assets_dir(data_dir, project_id))
     stamp = lambda path: round(os.path.getmtime(path), 2) if path and os.path.exists(path) else None  # noqa: E731
+    track2 = second_music(data_dir, project_id)
     return lineage.settings_hash({"music": [os.path.basename(track) if track else None, stamp(track)],
-                                  "extras": [[os.path.basename(e["path"]), e["start"], e["volume"], stamp(e["path"])] for e in extras]})
+                                  "extras": [[os.path.basename(e["path"]), e["start"], e["volume"], stamp(e["path"])] for e in extras],
+                                  **({"music2": [os.path.basename(track2), stamp(track2)]} if track2 else {})})
 
 
 # ---- outputs table ------------------------------------------------------------------------------------------------------
@@ -537,9 +566,29 @@ def render(p: Pipeline, project_id: int, data_dir: str, music_path: Optional[str
         else:                                  # CHUAN luật 1: planned and not applied is said, not dropped in silence
             intent = {"applied": False, "planned": plan["planned"],
                       "why": "cờ sound_intent đang TẮT" if track else "bản dựng không có nhạc nền"}
+    track2 = second_music(data_dir, project_id)
+    start2 = float(settings.get("music2_start") or 0)
+    if track2:                                 # 07/10: the second music from its second; the first one fades out there
+        film_s = sum(durations) - (settings["fade"] * (len(paths) - 1) if settings["transition"] in ffmpeg_studio.OVERLAP_STYLES else 0)
+        extras = list(extras) + [_second_music_extra(track2, start2, film_s, float(settings["music_volume"]),
+                                                     output_dir(data_dir, project_id))]
     ffmpeg_studio.render_final(paths, out, durations, settings["transition"], settings["fade"], track, settings["music_volume"],
                                extras, keep_audio, formats.spec(aspect)["render"] if aspect else None, breaths=breaths,
-                               music_off=music_off, music_start=float(settings.get("music_start") or 0))
+                               music_off=music_off, music_start=float(settings.get("music_start") or 0),
+                               music_end=start2 if track2 and start2 else None)
+    pulse, pulse_error = [], None
+    if settings.get("beat_pulse") and (track2 or track):   # 07/10: the camera punches in and shakes slightly on the song's beats
+        staged = out + ".pulse.mp4"
+        try:
+            pulse = ffmpeg_studio.music_beats(track2 or track, start2 if track2 else float(settings.get("music_start") or 0),
+                                              ffmpeg_studio.probe_duration(out))
+            if pulse:
+                ffmpeg_studio.add_pulse(out, staged, pulse)
+                os.replace(staged, out)
+        except Exception as e:  # noqa: BLE001 - the render without the pulse is kept; the reason goes into the manifest
+            pulse_error, pulse = str(e)[:200], []
+            if os.path.exists(staged):
+                os.remove(staged)
     hits = impact_times(audio_lib.assets_dir(data_dir, project_id)) if features.on("impact_shake") else []
     hits = sorted(set(hits) | set(shake_in_times(p, rows, durations, settings["transition"], settings["fade"])))   # a shake the person set
     shake_error = None
@@ -571,6 +620,10 @@ def render(p: Pipeline, project_id: int, data_dir: str, music_path: Optional[str
         manifest["sound_intent"] = intent
     if hits:
         manifest["shakes"] = hits
+    if pulse:
+        manifest["beat_pulse"] = len(pulse)
+    if pulse_error:
+        manifest["beat_pulse_error"] = pulse_error
     if shake_error:
         manifest["shake_error"] = shake_error
     if amb is not None:

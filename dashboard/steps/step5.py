@@ -24,6 +24,37 @@ def preview_with_track(p: Pipeline, pid: int, music_path: str, tag: str) -> None
         st.rerun()
 
 
+def second_music_box(p: Pipeline, pid: int, selected_dir: str, files) -> None:
+    """07/10 (Khủng Long Đỏ): a second music from a chosen second (the dance's own song under the dance); the first one fades out there."""
+    track2 = delivery.second_music(C.DATA, pid)
+    d2 = delivery.second_music_dir(C.DATA, pid)
+    s = delivery.get_settings(p, pid)
+    with st.container(border=True):
+        st.markdown(ui.card_title("🎵 Nhạc đoạn 2", "một bài khác cho phần sau của phim — nhạc nền ở trên tắt dần khi bài này vào")
+                    + (ui.badge(os.path.basename(track2), "b-ok") if track2 else ui.badge("không dùng")), unsafe_allow_html=True)
+        if track2:
+            st.audio(track2)
+            start2 = st.number_input("Nhạc đoạn 2 vào ở giây", 0.0, 600.0, float(s.get("music2_start") or 0), 0.1, format="%.2f",
+                                     key=f"m2start_{pid}")
+            if start2 != float(s.get("music2_start") or 0):
+                delivery.save_settings(p, pid, dict(s, music2_start=start2))
+            if st.button("Bỏ nhạc đoạn 2", key=f"m2none_{pid}"):
+                music.clear_selected(d2)
+                st.rerun()
+        c1, c2 = st.columns(2)
+        if files and c1.button("↪ Chuyển nhạc nền đang chọn thành nhạc đoạn 2", key=f"m2move_{pid}",
+                               help="Vd nhạc gốc của đoạn nhảy đang là nhạc nền: chuyển xuống đây, rồi chọn/tạo nhạc khác cho phần đầu."):
+            music.clear_selected(d2)
+            os.replace(os.path.join(selected_dir, files[0]), os.path.join(d2, files[0]))
+            st.rerun()
+        up = c2.file_uploader("Tải nhạc đoạn 2", type=["mp3", "wav", "m4a"], key=f"music2_{pid}")
+        if up and c2.button("Dùng làm nhạc đoạn 2", key=f"m2up_{pid}"):
+            music.clear_selected(d2)
+            with open(os.path.join(d2, "second" + os.path.splitext(up.name)[1]), "wb") as f:
+                f.write(up.getvalue())
+            st.rerun()
+
+
 def step5a(p: Pipeline, pid: int):
     """Background music: brief written by Claude from the scenes (or the template), drafts, choice; own file or none."""
     drafts_dir, selected_dir = music.project_dirs(C.DATA, pid)
@@ -61,6 +92,7 @@ def step5a(p: Pipeline, pid: int):
                 music.clear_selected(selected_dir)
                 music.set_off(p, pid, True)
                 st.rerun()
+    second_music_box(p, pid, selected_dir, files)
     shown = st.session_state.get(f"prev5a_{pid}")
     if shown and os.path.exists(shown[0]):
         with st.container(border=True):
@@ -619,6 +651,7 @@ def render_panel(p: Pipeline, pid: int, chosen, durations) -> None:
         track = delivery.selected_music(C.DATA, pid)
         transition, fade, volume, keep = s["transition"], float(s["fade"]), float(s["music_volume"]), bool(s["keep_audio"])
         start = float(s.get("music_start") or 0)
+        pulse = bool(s.get("beat_pulse"))
         with ui.fold("⚙ Thiết lập dựng", f"{tr_names[s['transition']]} · nhạc {float(s['music_volume']):g} · "
                      + ("giữ âm clip" if s["keep_audio"] else "không giữ âm clip") + (f" · {os.path.basename(track)}" if track else " · không nhạc")
                      + (f" từ {start:g} s" if track and start else ""),
@@ -630,12 +663,14 @@ def render_panel(p: Pipeline, pid: int, chosen, durations) -> None:
                 volume = st.slider("Âm lượng nhạc nền", 0.0, 1.0, float(s["music_volume"]), 0.05, key=f"vol_{pid}", disabled=not track)
                 start = st.number_input("Nhạc bắt đầu ở giây", 0.0, 600.0, start, 0.1, format="%.2f", key=f"mstart_{pid}", disabled=not track,
                                         help="Trước giây này phim không có nhạc — vd nhạc gốc của đoạn nhảy chỉ vào từ cảnh nhảy.")
+                pulse = st.checkbox("🥁 Máy nhún theo nhịp nhạc (zoom vào nhẹ + rung nhẹ ở mỗi nhịp)", pulse, key=f"pulse_{pid}",
+                                    disabled=not track, help="Dò nhịp trên chính bài nhạc nền (từ giây nhạc bắt đầu). Miễn phí, dựng trên máy.")
                 _note(f"Nhạc nền: {os.path.basename(track)}" if track else "Không có nhạc nền (chọn ở 5.2).")
                 keep = st.checkbox("🔊 Giữ âm thanh gốc của clip (tiếng động do model tạo)", bool(s["keep_audio"]), key=f"keepaud_{pid}",
                                    help="Nhạc và giọng thoại được trộn lên trên. Cần MỌI clip đã chọn có âm thanh.")
-        new = dict(s, transition=transition, fade=fade, music_volume=volume, keep_audio=keep, music_start=start)
-        if (transition, fade, volume, keep, start) != (s["transition"], s["fade"], s["music_volume"], s["keep_audio"],
-                                                       float(s.get("music_start") or 0)):
+        new = dict(s, transition=transition, fade=fade, music_volume=volume, keep_audio=keep, music_start=start, beat_pulse=pulse)
+        if (transition, fade, volume, keep, start, pulse) != (s["transition"], s["fade"], s["music_volume"], s["keep_audio"],
+                                                              float(s.get("music_start") or 0), bool(s.get("beat_pulse"))):
             delivery.save_settings(p, pid, new)
         if keep and chosen:
             silent_clips = [os.path.basename(c) for c in chosen if not _has_audio(c, os.path.getmtime(c))]
