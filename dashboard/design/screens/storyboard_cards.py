@@ -197,6 +197,14 @@ def _version_strip(pid: int, sid: int, key: str, n: int, pointer: int) -> None:
             st.rerun()
 
 
+def _send_queued(p, pid: int) -> None:
+    """07/10 (Khủng Long Đỏ): a redraw / retry only QUEUED the picture — with nothing else running, no poll sent it and ▶ Gen ảnh had
+    nothing "to make", so it waited forever. Send what is queued now (the runner keeps its own limits)."""
+    runner = C.image_runner(p)
+    if runner is not None:
+        act(lambda: runner.submit_pending(pid))
+
+
 def image_group_v2(p, pid: int, history: list, proj, stale_reason=None) -> None:
     """Một thẻ kính cho mỗi CẢNH: ảnh · nhãn · pill trạng thái · chip QC · dải phiên bản · 4 nút luôn hiện; mọi chi tiết (điểm QC từng tiêu chí, lý do gen lại, kịch bản) trong MỘT ⓘ."""
     sid = history[0]["scene_id"]
@@ -253,6 +261,7 @@ def image_group_v2(p, pid: int, history: list, proj, stale_reason=None) -> None:
                 st.rerun()
             if b3.button("↻ Vẽ lại", key=f"r_{jid}", width="stretch"):
                 act(_spin(lambda: p.reject(jid, "user", note or None)))
+                _send_queued(p, pid)
                 st.rerun()
             if b4.button("✎ Sửa", key=f"sel_btn_{jid}", width="stretch"):
                 _open_detail(pid, jid)
@@ -275,6 +284,7 @@ def image_group_v2(p, pid: int, history: list, proj, stale_reason=None) -> None:
             if b3.button("↻ Vẽ lại", key=f"dretry_{jid}", width="stretch",
                          help="Gen lại với câu sửa" if fix.strip() else "Gửi lại y nguyên — chỉ khi lỗi do nhà cung cấp"):
                 act(lambda: p.retry(jid, "người dùng gen lại với câu sửa" if fix.strip() else "gửi lại (lỗi nhà cung cấp)", fix=fix, by_user=True))
+                _send_queued(p, pid)
                 st.rerun()
             if b4.button("✎ Sửa", key=f"sel_btn_{jid}", width="stretch"):
                 _open_detail(pid, jid)
@@ -287,11 +297,13 @@ def image_group_v2(p, pid: int, history: list, proj, stale_reason=None) -> None:
             if b3.button("↻ Vẽ lại", key=f"reopen_{jid}", width="stretch",
                          help="Bỏ duyệt và gen lại ảnh (motion/video làm từ ảnh này sẽ hiện ⚠ cũ)"):
                 if act(_spin(lambda: p.reopen_approved(jid, r_note or None)), "Đã bỏ duyệt, xếp hàng gen lại"):
+                    _send_queued(p, pid)
                     st.rerun()
             if b4.button("✎ Sửa", key=f"sel_btn_{jid}", width="stretch"):
                 _open_detail(pid, jid)
             if stale_reason and st.button("↻ Gen lại theo nội dung mới" + retake, key=f"stale_{jid}", type="primary", width="stretch"):
                 if act(lambda: p.reopen_approved(jid, f"Nội dung cảnh đã đổi: {stale_reason}", fix=""), "Đã xếp hàng gen lại"):
+                    _send_queued(p, pid)
                     st.rerun()
         else:                                               # rejected / cancelled / escalated failed
             b1, b2, b3, b4 = pair()
@@ -301,6 +313,7 @@ def image_group_v2(p, pid: int, history: list, proj, stale_reason=None) -> None:
                 st.caption("↺ Làm lại 1 ảnh" + retake)
                 if b3.button("↺ Làm lại", key=f"rs_{jid}", type="primary", width="stretch", help="Đã hết số lần thử: bắt đầu lại cảnh này"):
                     if act(lambda: p.restart_job(jid), "Đã xếp hàng ảnh mới cho cảnh"):
+                        _send_queued(p, pid)
                         st.rerun()
             else:
                 b3.button("↻ Vẽ lại", key=f"r_{jid}", disabled=True, width="stretch")

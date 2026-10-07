@@ -132,6 +132,16 @@ class StoryboardV2Tests(unittest.TestCase):
         next(x for x in at.button if x.key == "approve_all_yes").click().run()
         self.assertEqual({s for _, s in self.states(self.db)}, {"approved"})
 
+    def test_a_redraw_is_sent_not_only_queued(self):
+        """07/10 Khủng Long Đỏ: ↻ Vẽ lại queued the picture and, with nothing else running, nobody sent it."""
+        p, pid, sc = self.seed(1)
+        a = self.job_in(p, sc[0], "pending_review")
+        sent = []
+        with mock.patch.dict(os.environ, {"IMAGE_PROVIDER": "mock"}),                 mock.patch("core.runner.ImageRunner.submit_pending", lambda self_, pid_: sent.append(pid_) or 1):
+            at = self.board()
+            next(x for x in at.button if x.key == f"r_{a}").click().run()
+        self.assertEqual(sent, [pid])
+
     def test_approve_reject_and_redraw_call_the_same_pipeline_functions(self):
         p, pid, sc = self.seed(3)
         a, b, c = (self.job_in(p, sc[i], "pending_review") for i in range(3))

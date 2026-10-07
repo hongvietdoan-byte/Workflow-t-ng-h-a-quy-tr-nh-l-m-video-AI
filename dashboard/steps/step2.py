@@ -168,8 +168,10 @@ def step2(p: Pipeline, pid: int):
                 forced = st.checkbox("Tôi đã xem, vẫn gen ảnh (ghi lại vào 📊 Theo dõi)", key=f"gen_img_force_{pid}")
         unit = est.get("unit_over", est["unit_price"])            # S14.16: a missing price shows its high estimate
         img_price = None if unit is None else unit * est["items"]
-        if c1.button("▶ Gen ảnh các cảnh chưa có / đã cũ" + cost.price_tag(img_price, est["items"]), type="primary", key=f"gen_img_{pid}",
-                     disabled=not est_ok or (bool(gates["block"]) and not forced)):
+        queued = p.conn.execute("SELECT COUNT(*) FROM jobs WHERE project_id=? AND type='image_gen' AND state='queued'", (pid,)).fetchone()[0]
+        if c1.button("▶ Gen ảnh các cảnh chưa có / đã cũ" + (f" · gửi {queued} ảnh đang chờ" if queued else "")   # 07/10: queued
+                     + cost.price_tag(img_price, est["items"]), type="primary", key=f"gen_img_{pid}",    # redraws waited
+                     disabled=(not est_ok and not queued) or (bool(gates["block"]) and not forced)):
             def go():
                 r = batch.queue_images(p, pid, confirmed=forced)
                 sent = runner.submit_pending(pid) if runner is not None else 0
