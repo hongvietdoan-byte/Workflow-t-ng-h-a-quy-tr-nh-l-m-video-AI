@@ -264,7 +264,7 @@ def version_strip(n: int, current: int) -> str:
     return '<div class="v2-vers">' + "".join(f'<span class="v2-ver{" on" if i == cur else ""}">v{i + 1}</span>' for i in range(n)) + "</div>"
 
 
-ONE_CLICK = ("approve_all", "btn_ok_all", "script-cta-budget_")    # chỉ việc DUYỆT (đảo lại được); xóa / bỏ vẫn hỏi Có/Không
+ONE_CLICK = ("approve_all", "btn_ok_all", "script-cta-budget_", "vid_ok_all_")    # chỉ việc DUYỆT (đảo lại được); xóa / bỏ vẫn hỏi Có/Không
 
 
 def one_click(key: str) -> bool:

@@ -53,19 +53,28 @@ def step4_v2(p: Pipeline, pid: int, runner, proj, summ) -> None:
     ordered = sorted(latest.values(), key=lambda x: x["idx"])
     done, total, waiting, failed, busy = V.hero_stats(ordered, summ, 0.0)
     spend = V.video_spend(p.conn, pid)
+    from core import chat_intake
+    merged = chat_intake.enabled()                       # 07/10 cờ chat_first: bản đồ tiến độ đã nói số → chỉ nhãn khi có chuyện
+    checking = sum(1 for j in ordered if j["state"] == "succeeded")
+    if merged:                                           # chụp màn 07/10: '3 cần duyệt' nhưng nút 'Duyệt tất cả (2 clip)' — clip
+        waiting -= checking                              # vừa gen còn đang tự kiểm (succeeded) không phải việc của người duyệt
     with hero_c, D.hero("vid"):
         pills = [(f"{waiting} cần duyệt", "warn")] if waiting else []
+        pills += [(f"{checking} đang tự kiểm", "info")] if merged and checking else []
         pills += [(f"{failed} lỗi/loại", "bad")] if failed else []
         pills += [(f"{busy} đang chờ/gen", "info")] if busy else []
         pills += [(f"{blocked} bị chặn nội dung", "bad")] if blocked else []
+        pills += [(f"đã chi {spend:.2f} USD", "mute")] if merged and spend else []   # thông tin riêng của thẻ số, giữ dạng nhãn
         st.markdown(D.hero_html("Video · gen & kiểm clip", "mỗi cảnh một clip đúng nhân vật, đúng vật lý, khớp motion prompt",
                                 pills or [("Chưa có việc chờ", "mute")]), unsafe_allow_html=True)
-        c = st.columns(4)
-        c[0].markdown(D.stat("Clip dùng được", f"{done} / {total}", f"{summ['videos'][1]} mục cũ" if summ["videos"][1] else ""), unsafe_allow_html=True)
-        c[1].markdown(D.stat("Chờ duyệt", str(waiting)), unsafe_allow_html=True)
-        c[2].markdown(D.stat("Lỗi / đã loại", str(failed)), unsafe_allow_html=True)
-        c[3].markdown(D.stat("Tiền video đã chi", f"{spend:.2f} USD"), unsafe_allow_html=True)
-        st.markdown(D.meter(done / total if total else 0, "Tiến độ clip"), unsafe_allow_html=True)
+        if not merged:
+            c = st.columns(4)
+            c[0].markdown(D.stat("Clip dùng được", f"{done} / {total}", f"{summ['videos'][1]} mục cũ" if summ["videos"][1] else ""),
+                          unsafe_allow_html=True)
+            c[1].markdown(D.stat("Chờ duyệt", str(waiting)), unsafe_allow_html=True)
+            c[2].markdown(D.stat("Lỗi / đã loại", str(failed)), unsafe_allow_html=True)
+            c[3].markdown(D.stat("Tiền video đã chi", f"{spend:.2f} USD"), unsafe_allow_html=True)
+            st.markdown(D.meter(done / total if total else 0, "Tiến độ clip"), unsafe_allow_html=True)
         try:
             from core import budget
             b = budget.status(p.conn)
@@ -78,10 +87,11 @@ def step4_v2(p: Pipeline, pid: int, runner, proj, summ) -> None:
         if not latest:
             st.markdown(D.empty_state("Chưa có clip nào", "Duyệt motion prompt ở tab Motion (Storyboard) rồi bấm “▶ Gen video” ở thanh trên."), unsafe_allow_html=True)
             st.button("✏ Mở Motion prompt (tab Motion)", key=f"vid-empty-go_{pid}", on_click=_go_step3)
-        cols = st.columns(3)
-        for n, j in enumerate(ordered):
-            with cols[n % 3]:
-                video_card_v2(p, pid, j, runner, (status.get(j["scene_id"]) or {}).get("video_stale"))
+        with st.container(key="vid-grid"):              # 07/10 khung hẹp: theo HÀNG — xuống dòng vẫn đúng thứ tự cảnh (theme.css)
+            for start in range(0, len(ordered), 3):
+                for col, j in zip(st.columns(3), ordered[start:start + 3]):
+                    with col:
+                        video_card_v2(p, pid, j, runner, (status.get(j["scene_id"]) or {}).get("video_stale"))
     with set_c:
         clip_set_panel(p, pid)
     if C.expert():

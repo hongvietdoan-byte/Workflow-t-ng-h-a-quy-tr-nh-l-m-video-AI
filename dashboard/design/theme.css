@@ -292,3 +292,16 @@ body:has([data-testid="stDialog"]) [data-testid="stPopoverBody"]:has(.st-key-dar
 .stMarkdownColoredText[style*="rgb(49, 51, 63)"] { color: var(--muted) !important; filter: none !important; }
 /* nút gửi form (st.form_submit_button): chữ theo màu nút (trước: chữ trắng trên nền trắng trong hộp thoại tối) */
 [data-testid="stBaseButton-secondaryFormSubmit"] p { color: inherit !important; }
+
+/* 07/10 khung hẹp (người dùng, điểm 4: "chữ tí hon, cột lệch"; chụp màn 640/900 px): thanh trên XUỐNG DÒNG thay vì cắt chữ
+   ('Khủng Lon', '⚙ C…'); lưới thẻ ảnh / clip 2 thẻ một hàng (3 thẻ chen nhau làm ảnh tí hon). Dưới 640 px Streamlit tự xếp dọc. */
+@media (max-width: 1100px) {
+  .st-key-shell-bar [data-testid="stHorizontalBlock"] { flex-wrap: wrap !important; row-gap: .5rem; }
+  .st-key-shell-bar [data-testid="stColumn"] { flex: 1 1 auto !important; width: auto !important; min-width: max-content !important; }
+  /* chỉ hàng thẻ ngoài cùng (con trực tiếp): hàng nút trong thẻ (‹ Bản x/y ›, Duyệt / Loại) giữ nguyên */
+  .st-key-vid-grid > [data-testid="stLayoutWrapper"] > [data-testid="stHorizontalBlock"],
+  .st-key-sb-grid > [data-testid="stLayoutWrapper"] > [data-testid="stHorizontalBlock"] { flex-wrap: wrap !important; row-gap: 1rem; }
+  .st-key-vid-grid > [data-testid="stLayoutWrapper"] > [data-testid="stHorizontalBlock"] > [data-testid="stColumn"],
+  .st-key-sb-grid > [data-testid="stLayoutWrapper"] > [data-testid="stHorizontalBlock"] > [data-testid="stColumn"] {
+    flex: 0 1 calc(50% - 1rem) !important; min-width: calc(50% - 1rem) !important; }   /* 0: thẻ lẻ cuối không giãn gấp đôi */
+}
