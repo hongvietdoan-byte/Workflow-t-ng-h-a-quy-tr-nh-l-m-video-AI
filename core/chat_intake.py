@@ -109,7 +109,14 @@ def guess(ftype: str, filename: str, text: str, names: List[str], n_scenes: int)
 def known_names(conn, pid: int) -> List[str]:
     rows = conn.execute("SELECT name FROM characters WHERE project_id=? UNION SELECT a.name FROM assets a JOIN project_assets pa "
                         "ON pa.asset_id=a.id WHERE pa.project_id=? AND a.kind IN ('character','location','prop')", (pid, pid)).fetchall()
-    return [r[0] for r in rows if r[0]]
+    names = [r[0] for r in rows if r[0]]
+    for (data,) in conn.execute("SELECT data FROM scenes WHERE project_id=?", (pid,)):    # tên trong cảnh đã tách: biết trước khi Director chạy
+        try:
+            names += [n for n in (json.loads(data or "{}").get("characters") or []) if isinstance(n, str)]
+        except ValueError:
+            continue
+    seen = set()
+    return [n for n in names if n and not (n.lower() in seen or seen.add(n.lower()))]
 
 
 def _dir(data_dir: str, pid: int) -> str:
@@ -155,7 +162,12 @@ def receive(p, data_dir: str, pid: int, files: List[tuple], text: str) -> List[D
         with open(path, "wb") as f:
             f.write(data)
         ftype = file_type(name)
-        it = {**guess(ftype, name, text, names, n_scenes), "id": iid, "file": name, "path": path, "type": ftype, "text": text or ""}
+        g = guess(ftype, name, text, names, n_scenes)
+        if len(files) > 1 and g["sure"]:                        # one caption, several files: sure only when the FILE NAME agrees too
+            own = guess(ftype, name, "", names, n_scenes)
+            if (own["role"], own["name"], own["who"]) != (g["role"], g["name"], g["who"]):
+                g.update(sure=False, why=g["why"] + " — nhưng câu ghi chung cho nhiều tệp, tên tệp không khớp")
+        it = {**g, "id": iid, "file": name, "path": path, "type": ftype, "text": text or ""}
         items.append(it)
         out.append(it)
     _save(data_dir, pid, items)

@@ -80,6 +80,14 @@ class InboxTests(unittest.TestCase):
         I.drop(self.dir, self.pid, items[1]["id"])
         self.assertEqual([x["id"] for x in I.pending(self.dir, self.pid)], [items[0]["id"]])
 
+    def test_one_caption_for_several_files_is_not_applied_to_all_of_them(self):
+        """Chụp màn 07/10: 'ảnh kelly là ảnh của Kelly, ảnh còn lại để tham khảo' + 2 ảnh → cả 2 bị gắn KELLY. Nhiều tệp một câu: chỉ
+        tệp mà TÊN TỆP cũng khớp mới chắc; tệp kia hỏi lại."""
+        a, b = I.receive(self.p, self.dir, self.pid, [("kelly.png", PNG), ("IMG_2041.png", PNG)],
+                         "ảnh kelly là ảnh của Kelly, ảnh còn lại để tham khảo")
+        self.assertEqual((a["role"], a["name"], a["sure"]), ("character", "Kelly", True))
+        self.assertFalse(b["sure"])
+
     def test_unknown_file_types_are_refused_and_said(self):
         with self.assertRaises(ValueError):
             I.receive(self.p, self.dir, self.pid, [("a.exe", b"MZ")], "")
@@ -167,9 +175,8 @@ class ChatFirstScreenTests(unittest.TestCase):
     def test_a_waiting_picture_is_asked_in_the_chat_and_attached_by_one_click(self):
         it = I.receive(self.p, self.data, self.pid, [("IMG_9.png", PNG)], "")[0]
         at = self.open()
-        role = at.get("segmented_control")
-        self.assertTrue(any(r.key == f"ci_{self.pid}_{it['id']}_role" for r in role))
-        next(r for r in role if r.key == f"ci_{self.pid}_{it['id']}_role").set_value("location").run()
+        self.assertTrue(any(r.key == f"ci_{self.pid}_{it['id']}_role" for r in at.radio))
+        at.radio(key=f"ci_{self.pid}_{it['id']}_role").set_value("location").run()
         at.selectbox(key=f"ci_{self.pid}_{it['id']}_name").set_value("Kelly").run()
         next(b for b in at.button if b.key == f"ci_{self.pid}_{it['id']}_go").click().run()
         self.assertFalse(at.exception)

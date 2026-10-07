@@ -394,12 +394,16 @@ def script_box(p: Pipeline, pid: int, with_reset: bool = True) -> bool:
         _cards(p, pid)
         has_input = bool(file) or bool(text.strip())
         ready = bool(file) or (bool(text.strip()) and (mode or ss.get(k["mode"]) or I.classify(text)["kind"]) == "script")
-        with st.chat_message("assistant"):
-            if st.button("▶ Phân tích (tách cảnh) · 0 USD", disabled=not ready, type="primary", key=f"btn_analyse_{pid}"):
-                if act(lambda: analyse_script(p, pid, None, text, file)):
-                    ss.pop(k["file"], None)
-                    Chat.append(p, pid, "assistant", "Đã phân tích và tách cảnh (0 USD).")
-                    st.rerun()
+        if has_input or not wide:                                      # cờ chat_first: không có gì để tách → không treo nút xám trong chat
+            with st.chat_message("assistant"):
+                if st.button("▶ Phân tích (tách cảnh) · 0 USD", disabled=not ready, type="primary", key=f"btn_analyse_{pid}"):
+                    if act(lambda: analyse_script(p, pid, None, text, file)):
+                        ss.pop(k["file"], None)
+                        if wide:                                       # đã tách: lời nhận + nút cũ không còn treo trong chat
+                            ss.pop(k["text"], None)
+                            ss.pop(k["mode"], None)
+                        Chat.append(p, pid, "assistant", "Đã phân tích và tách cảnh (0 USD).")
+                        st.rerun()
         if with_reset:
             reset_script_button(p, pid)
     return has_input

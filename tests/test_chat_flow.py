@@ -119,3 +119,43 @@ class ScreenTests(unittest.TestCase):
         self.assertEqual(len(ctas), 1)                                              # drawn once — in the chat, not again in the hero
         self.assertTrue(any("Bước kế" in m.value or "Duyệt & khóa" in m.value or "ảnh mốc" in m.value for m in at.markdown),
                         [m.value for m in at.markdown][-6:])
+
+
+class SeenOnScreenTests(ScreenTests):
+    """Lỗi thấy khi chụp màn thật 07/10 (cờ chat_first): (1) 'ảnh của Kelly' không nhận ra Kelly vì Director chưa chạy (tên chỉ có trong
+    cảnh đã tách); (2) sau ▶ Phân tích, lời nhận kịch bản + nút ▶ Phân tích cũ vẫn treo trong chat; (3) ô chọn vai vẽ trắng không chữ."""
+
+    def test_names_of_the_analysed_scenes_are_known_before_the_director(self):
+        pid = self.p.create_project("x")
+        sid = self.p.create_scene(pid, 1, "CẢNH 1")
+        self.p.conn.execute("UPDATE scenes SET data=? WHERE id=?", ('{"characters": ["KELLY"]}', sid))
+        self.p.conn.commit()
+        self.assertIn("KELLY", I.known_names(self.p.conn, pid))
+        g = I.guess("image", "kelly.png", "ảnh của Kelly", I.known_names(self.p.conn, pid), 1)
+        self.assertEqual((g["role"], g["name"], g["sure"]), ("character", "KELLY", True))
+
+    def test_after_the_analysis_the_old_receipt_and_button_are_gone(self):
+        at = self.app().run()
+        at.chat_input(key="home_start").set_value("Khủng Long Đỏ\nCẢNH 1 - NGÀY, SÂN\nKelly chạy ra sân.\nCẢNH 2 - ĐÊM, PHÒNG\nMaxim ngủ.").run()
+        pid = Pipeline(connect(os.environ["PIPELINE_DB"])).conn.execute("SELECT id FROM projects").fetchone()[0]
+        next(b for b in at.button if b.key == f"btn_analyse_{pid}").click().run()
+        self.assertFalse(at.exception)
+        self.assertFalse(any(b.key == f"btn_analyse_{pid}" for b in at.button))
+        self.assertFalse(any("Hiểu là" in m.value for m in at.markdown))
+
+    def test_the_role_choice_is_a_plain_radio(self):
+        pid = self.p.create_project("x")
+        d = os.environ["PIPELINE_DATA"]
+        it = I.receive(self.p, d, pid, [("IMG_1.png", b"\x89PNG")], "")[0]
+        at = self.app().run()
+        self.assertFalse(at.exception, [e.value for e in at.exception])
+        self.assertTrue(any(r.key == f"ci_{pid}_{it['id']}_role" for r in at.radio))
+
+    def test_the_top_next_step_line_points_into_the_chat(self):
+        from dashboard import next_step
+        pid = self.p.create_project("x")
+        self.assertIn("khung chat", next_step.next_action(self.p, pid, 1)[0])            # was "… ở 1a" (a card that is gone)
+        self.p.create_scene(pid, 1, "CẢNH 1")
+        text = next_step.next_action(self.p, pid, 1)[0]
+        self.assertIn("Lập kế hoạch", text)
+        self.assertNotIn("1d", text)

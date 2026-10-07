@@ -34,7 +34,10 @@ def handle_files(p: Pipeline, pid: int, files, text: str) -> None:
 
 def _preview(it) -> None:
     if it["type"] == "image":
-        st.image(it["path"], width=110)
+        try:
+            st.image(it["path"], width=110)
+        except Exception as e:  # noqa: BLE001 - a broken picture must not take the whole tab down; said instead
+            st.caption(f"⚠ Không xem trước được ảnh ({type(e).__name__}) — tệp có thể hỏng.")
     elif it["type"] == "audio":
         st.audio(it["path"])
     else:
@@ -63,8 +66,8 @@ def pending_cards(p: Pipeline, pid: int) -> None:
             with b:
                 st.markdown(f"**{escape(it['file'])}** dùng làm gì?")
                 roles = list(I.ROLES_BY_TYPE[it["type"]])
-                role = st.segmented_control("Dùng làm", roles, default=it["role"] if it["role"] in roles else None,
-                                            format_func=I.ROLES.get, key=f"{k}_role", label_visibility="collapsed")
+                role = st.radio("Dùng làm", roles, index=roles.index(it["role"]) if it["role"] in roles else None, horizontal=True,
+                                format_func=I.ROLES.get, key=f"{k}_role", label_visibility="collapsed")
                 name = who = scene = None
                 if role in I.NEEDS_NAME:
                     opts = names

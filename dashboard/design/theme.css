@@ -65,6 +65,9 @@ input, textarea { color: var(--text) !important; }
 [data-testid="stChatInput"] textarea { color: var(--text) !important; -webkit-text-fill-color: var(--text) !important; caret-color: var(--text) !important; }
 [data-testid="stChatInput"] textarea::placeholder { color: var(--muted) !important; -webkit-text-fill-color: var(--muted) !important; opacity: 1; }
 [data-testid="stChatInput"] button svg { color: var(--text); }
+/* 07/10 (chụp màn cờ chat_first): tin người dùng lấy nền xám sáng của theme gốc → chữ sáng khó đọc; nền đặc --surface + viền */
+[data-testid="stChatMessage"]:has([data-testid="stChatMessageAvatarUser"]) { background: var(--surface) !important; border: 1px solid var(--border); }
+[data-testid="stChatMessage"] [data-testid="stText"], [data-testid="stChatMessage"] [data-testid="stText"] * { color: var(--text) !important; }
 
 /* thanh bước = viên thuốc có số trong vòng tròn */
 .st-key-step [data-testid="stRadioGroup"] { gap: 8px; flex-wrap: wrap; counter-reset: stp 0; }
