@@ -331,8 +331,11 @@ def script_box(p: Pipeline, pid: int, with_reset: bool = True) -> bool:
                     Chat.append(p, pid, "assistant", "Đã nhận yêu cầu sửa cảnh. Kịch bản chưa đổi; dùng nút viết lại có giá ở trình sửa cảnh bên dưới.")
                 else:
                     _take(p, pid, got)
-                    Chat.append(p, pid, "assistant", "Đã nhận file kịch bản — bấm ▶ Phân tích (0 USD)." if files else
-                                (receipt(incoming) or "Đã nhận nội dung. Chọn ý tưởng/kịch bản hoặc dùng các nút Biên kịch có giá bên dưới."))
+                    split_now = wide and (files or kind == "script") and not p.conn.execute(
+                        "SELECT 1 FROM scenes WHERE project_id=? LIMIT 1", (pid,)).fetchone()
+                    if not split_now:                                  # Đợt 3: tách luôn ngay dưới → không ghi lời 'bấm ▶ Phân tích' thừa
+                        Chat.append(p, pid, "assistant", "Đã nhận file kịch bản — bấm ▶ Phân tích (0 USD)." if files else
+                                    (receipt(incoming) or "Đã nhận nội dung. Chọn ý tưởng/kịch bản hoặc dùng các nút Biên kịch có giá bên dưới."))
     with body:
         older, recent = Chat.window(p, pid)
         if older:
@@ -394,6 +397,15 @@ def script_box(p: Pipeline, pid: int, with_reset: bool = True) -> bool:
         _cards(p, pid)
         has_input = bool(file) or bool(text.strip())
         ready = bool(file) or (bool(text.strip()) and (mode or ss.get(k["mode"]) or I.classify(text)["kind"]) == "script")
+        if wide and ready and not p.conn.execute("SELECT 1 FROM scenes WHERE project_id=? LIMIT 1", (pid,)).fetchone():
+            # Đợt 3 (người dùng 07/10 'nhiều nút thành 1 nút'): kịch bản có tiêu đề cảnh, dự án chưa có cảnh → tách luôn (0 USD, code)
+            if act(lambda: analyse_script(p, pid, None, text, file)):
+                for key in ("file", "text", "mode"):
+                    ss.pop(k[key], None)
+                n = p.conn.execute("SELECT COUNT(*) FROM scenes WHERE project_id=?", (pid,)).fetchone()[0]
+                Chat.append(p, pid, "assistant", f"✂ Đã tự tách {n} cảnh (0 USD, code đọc tiêu đề cảnh — không gọi model). Tách sai hoặc "
+                                                 "đây là ý tưởng: ↺ Làm lại ở 🎬 Kịch bản & các cảnh.")
+                st.rerun()
         if has_input or not wide:                                      # cờ chat_first: không có gì để tách → không treo nút xám trong chat
             with st.chat_message("assistant"):
                 if st.button("▶ Phân tích (tách cảnh) · 0 USD", disabled=not ready, type="primary", key=f"btn_analyse_{pid}"):

@@ -105,7 +105,10 @@ class ScreenTests(unittest.TestCase):
         from core import script_chat
         msgs = script_chat.history(Pipeline(connect(os.environ["PIPELINE_DB"])), row["id"])
         self.assertTrue(any("Kelly chạy ra sân" in m["text"] for m in msgs if m["role"] == "user"))
-        self.assertTrue(any(b.key == f"btn_analyse_{row['id']}" and not b.disabled for b in at.button))   # ready for ▶ Phân tích
+        n = Pipeline(connect(os.environ["PIPELINE_DB"])).conn.execute("SELECT COUNT(*) FROM scenes WHERE project_id=?", (row["id"],)).fetchone()[0]
+        self.assertEqual(n, 1)                                                      # Đợt 3: a script with headings is split at once (0 USD)
+        self.assertFalse(any(b.key == f"btn_analyse_{row['id']}" for b in at.button))
+        self.assertTrue(any(m["text"].startswith("✂ Đã tự tách 1 cảnh") for m in msgs))
 
     def test_the_one_primary_button_is_in_the_chat(self):
         from core.llm_io import store_scene_analysis
@@ -138,7 +141,6 @@ class SeenOnScreenTests(ScreenTests):
         at = self.app().run()
         at.chat_input(key="home_start").set_value("Khủng Long Đỏ\nCẢNH 1 - NGÀY, SÂN\nKelly chạy ra sân.\nCẢNH 2 - ĐÊM, PHÒNG\nMaxim ngủ.").run()
         pid = Pipeline(connect(os.environ["PIPELINE_DB"])).conn.execute("SELECT id FROM projects").fetchone()[0]
-        next(b for b in at.button if b.key == f"btn_analyse_{pid}").click().run()
         self.assertFalse(at.exception)
         self.assertFalse(any(b.key == f"btn_analyse_{pid}" for b in at.button))
         self.assertFalse(any("Hiểu là" in m.value for m in at.markdown))
@@ -159,3 +161,26 @@ class SeenOnScreenTests(ScreenTests):
         text = next_step.next_action(self.p, pid, 1)[0]
         self.assertIn("Lập kế hoạch", text)
         self.assertNotIn("1d", text)
+
+    def test_no_stale_receipt_when_the_script_is_split_at_once(self):
+        """Chụp màn 07/10 (Đợt 3): sau khi tự tách, tin 'Đã nhận kịch bản… bấm ▶ Phân tích' vẫn nằm trong lịch sử chat."""
+        at = self.app().run()
+        at.chat_input(key="home_start").set_value("Khủng Long Đỏ\nCẢNH 1 - NGÀY, SÂN\nKelly chạy.").run()
+        from core import script_chat
+        pp = Pipeline(connect(os.environ["PIPELINE_DB"]))
+        pid = pp.conn.execute("SELECT id FROM projects").fetchone()[0]
+        texts = [m["text"] for m in script_chat.history(pp, pid) if m["role"] == "assistant"]
+        self.assertFalse(any("bấm ▶ Phân tích" in t for t in texts), texts)
+
+    def test_the_budget_line_points_into_the_chat_and_the_button_says_cap(self):
+        from dashboard import next_step
+        from core.llm_io import store_scene_analysis
+        from tests.test_llm_io_preflight import ANALYSIS
+        pid = self.p.create_project("x")
+        self.p.create_scene(pid, 1, "CẢNH 1")
+        store_scene_analysis(self.p, pid, ANALYSIS)
+        text = next_step.next_action(self.p, pid, 1)[0]
+        if "ngân sách" in text:
+            self.assertNotIn("1c", text)
+        src = open(os.path.join(os.path.dirname(__file__), "..", "dashboard", "steps", "step1_v2.py"), encoding="utf-8").read()
+        self.assertNotIn("Duyệt & khóa ngân sách ≈", src)                     # a cap is not an estimate: say "trần"
