@@ -159,6 +159,24 @@ def _acting_inputs(d, k, lk):
     return {x: v for x, v in perf.items() if v}, why
 
 
+def motion_box(p: Pipeline, pid: int, scene, k: str) -> None:
+    """07/10 'BỐ CỤC GỌN' 7: the motion prompt sat on another tab (Storyboard › Motion) from the shot it moves — edited here too, saved
+    the same way (llm_io.store_motion_prompts: camera / duration / negative kept; a changed prompt goes back to 'chờ duyệt')."""
+    row = p.conn.execute("SELECT m.* FROM motion_prompts m JOIN scenes s ON s.id=m.scene_id WHERE s.project_id=? AND s.idx=?",
+                         (pid, scene["idx"])).fetchone()
+    if row is None:
+        cap("🎬 Motion prompt: chưa có (viết ở Storyboard › Motion sau khi ảnh shot được duyệt).")
+        return
+    new = st.text_area("🎬 Motion prompt (cùng ô ở Storyboard › Motion)" + (" · ✔ đã duyệt" if row["state"] == "approved" else " · chờ duyệt"),
+                       row["motion_prompt"], key=f"{k}_motion", height=80)
+    if st.button("💾 Lưu motion prompt", key=f"{k}_mps", disabled=new == row["motion_prompt"]):
+        if act(lambda: llm_io.store_motion_prompts(p, pid, {"scenes": [{"idx": scene["idx"], "motion_prompt": new, "camera": row["camera"],
+                                                                       "duration_sec": row["duration_sec"],
+                                                                       "negative_prompt": row["negative_prompt"]}]}),
+               "Đã lưu motion prompt — duyệt lại ở Storyboard › Motion"):
+            st.rerun()
+
+
 def scene_editor(p: Pipeline, pid: int, scene, char_names) -> None:
     """Detail of one scene: script text and spec (all editable). A field you change is kept when the Director runs again (🔒)."""
     idx = scene["idx"]
@@ -257,6 +275,7 @@ def scene_editor(p: Pipeline, pid: int, scene, char_names) -> None:
                                     "Ngắt trước": st.column_config.CheckboxColumn(width="small")})
     perf, why_text = _acting_inputs(d, k, lk) if d.get("shot_no") else (None, None)
     image_prompt = st.text_area("Prompt ảnh" + lk("image_prompt"), d.get("image_prompt", ""), key=f"{k}_prompt", height=80)
+    motion_box(p, pid, scene, k)
     if locked:
         cap("🔒 = bạn đã sửa tay, Director chạy lại sẽ giữ nguyên.")
         if st.button("🔓 Cho Director điền lại các trường 🔒 của cảnh này", key=f"{k}_unlock"):
@@ -311,6 +330,41 @@ def scene_editor_box(pid: int, idx: int, char_names) -> None:
         scene_editor(p, pid, row, char_names)
 
 
+def rows_box_height(n_rows: int, editing: bool):
+    """07/10 'BỐ CỤC GỌN' 1: > 6 rows scroll inside a 460 px box — but an editor opened inside it hid its 💾 Lưu cảnh button (scroll
+    the inner box, not the page). While a scene is being edited the list is laid out on the page itself."""
+    return 460 if n_rows > 6 and not editing else None
+
+
+def bulk_editor(p: Pipeline, pid: int, scenes) -> None:
+    """07/10 'BỐ CỤC GỌN' 3: one value on several shots at once (video route, cut in, shake, chain from the previous clip)."""
+    from core.delivery import TRANSITIONS_IN
+    shots_ = [s for s in scenes if json.loads(s["data"] or "{}").get("shot_no")]
+    if len(shots_) < 2:
+        return
+    with st.expander(f"🧰 Sửa hàng loạt ({len(shots_)} shot) — đặt cùng một giá trị cho nhiều shot"):
+        from core import shots as _shots
+        pick = st.multiselect("Chọn shot", [s["idx"] for s in shots_], key=f"bulk_pick_{pid}",
+                              format_func=lambda i: _shots.label(json.loads(next(s["data"] for s in shots_ if s["idx"] == i) or "{}"), i))
+        keep = "— giữ nguyên —"
+        routes = {keep: keep, None: "Tự động (gộp nhóm shot liền nhau)", "single": "Một clip riêng (Seedance, ảnh tham chiếu)",
+                  "kling": "Một clip riêng (Kling, ảnh shot làm khung đầu)"}
+        trans_names = {"cut": "Cắt thẳng", "match": "Khớp hình", "occlusion": "Che máy", "flash": "Chớp trắng", "dip": "Tối đi rồi sáng",
+                       "whip": "Lia nhòe", "zoom_through": "Lao vào khung", "j_cut": "J-cut", "l_cut": "L-cut"}
+        onoff = {keep: keep, True: "Bật", False: "Tắt"}
+        c1, c2, c3, c4 = st.columns(4)
+        route = c1.selectbox("🎬 Đường gen video", list(routes), format_func=routes.get, key=f"bulk_route_{pid}")
+        trans = c2.selectbox("✨ Chuyển cảnh vào", [keep] + list(TRANSITIONS_IN), format_func=lambda v: trans_names.get(v, v),
+                             key=f"bulk_trans_{pid}")
+        shake = c3.selectbox("📳 Rung khi vào", list(onoff), format_func=onoff.get, key=f"bulk_shake_{pid}")
+        chain = c4.selectbox("🔗 Nối clip shot trước", list(onoff), format_func=onoff.get, key=f"bulk_chain_{pid}")
+        fields = {k: v for k, v in (("video_route", route), ("transition_in", trans), ("shake_in", shake), ("start_from_prev_clip", chain))
+                  if v != keep}
+        if st.button(f"✔ Áp cho {len(pick)} shot", key=f"bulk_apply_{pid}", disabled=not (pick and fields)):
+            if act(lambda: llm_io.update_scenes_bulk(p, pid, pick, fields), f"Đã đặt {len(fields)} giá trị cho {len(pick)} shot"):
+                st.rerun()
+
+
 def scene_list(p: Pipeline, pid: int, scenes, char_names) -> None:
     status = lineage.scan(p.conn, pid)
     by_idx = {r["idx"]: r for r in status.values()}
@@ -356,8 +410,12 @@ def scene_list(p: Pipeline, pid: int, scenes, char_names) -> None:
                 _crew_notes(p, pid)
                 _director_review(p, pid)
     from contextlib import nullcontext
-    # v2 (P3, long list): more than 6 rows scroll inside a labelled box instead of making the card as tall as the list
-    with (st.container(height=460, key=f"script-rows-{pid}") if len(scenes) > 6 else nullcontext()):
+    bulk_editor(p, pid, scenes)
+    # v2 (P3, long list): more than 6 rows scroll inside a labelled box instead of making the card as tall as the list — not while a scene
+    # is being edited (07/10: its 💾 Lưu cảnh sat out of reach inside the box)
+    editing = any(st.session_state.get(f"sd_open_{pid}_{s['idx']}") for s in scenes)
+    height = rows_box_height(len(scenes), editing)
+    with (st.container(height=height, key=f"script-rows-{pid}") if height else nullcontext()):
         cur_story = None
         for s in scenes:
             d = json.loads(s["data"] or "{}")
@@ -378,14 +436,15 @@ def scene_list(p: Pipeline, pid: int, scenes, char_names) -> None:
                 head = [f"{_shots.label(d, s['idx'])} · {d.get('size')} · {d.get('role')} · {float(d.get('duration_s') or 0):g}s"
                         + (" · ⭐" if d.get("shot_role") == "hero" else ""),
                         (d.get("action") or "")[:60], lines[:70], scene_status_text(st_row) if st_row else ""]
-                with st.expander("   |   ".join(x for x in head if x)):
+                with st.expander("   |   ".join(x for x in head if x),     # 07/10: stays open after 💾 (its label changes)
+                                 expanded=bool(st.session_state.get(f"sd_open_{pid}_{s['idx']}"))):
                     scene_editor_box(pid, s["idx"], char_names)
                 continue
             bits = [f"S{s['idx']:02d}" + (f" · nhóm {d['sequence']}" if d.get("sequence") else "")
                     + (" · ⭐" if d.get("shot_role") == "hero" else "") + (" · 🌀 phức tạp" if d.get("camera_complexity") == "complex" else ""),
                     " · ".join(filter(None, [d.get("time"), d.get("location")])), ", ".join(d.get("characters") or []),
                     scene_status_text(st_row) if st_row else ""]
-            with st.expander("   |   ".join(x for x in bits if x)):
+            with st.expander("   |   ".join(x for x in bits if x), expanded=bool(st.session_state.get(f"sd_open_{pid}_{s['idx']}"))):
                 scene_editor_box(pid, s["idx"], char_names)
     if st.button("➕ Thêm cảnh", key=f"scene_add_{pid}", help="Cho kịch bản mà công cụ không tự tách được"):
         act(lambda: p.add_scene_next(pid))
