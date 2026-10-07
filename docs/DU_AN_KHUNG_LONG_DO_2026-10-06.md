@@ -121,4 +121,12 @@ _(điền sau khi chạy: mã dự án, chi thật theo sổ chi, cách A/B nh�
 - Dựng: chớp trắng + rung khung ở shot 4 và 6 (ô mới trong trình sửa shot), nhạc gốc `nhac_goc_34s.m4a` vào từ 17,04 s (ô mới 'Nhạc bắt đầu ở giây'). Kiểm bằng số: khung trắng đúng 7,5 s / 14,04 s; tiếng: giọng 4–8 s, 10–14 s, nhạc từ 17 s.
 - Vướng Dashboard đã sửa: nút gửi lại / loại & gen lại chỉ xếp hàng, ▶ Gen video khóa (ca2260e); thiếu ô chuyển cảnh/rung (17754f0); thiếu ô điểm vào nhạc (c71b761).
 - Bài học: kiểm khô prompt video ngoài Dashboard phải nạp `dashboard.env` (cờ khác → ra đường gửi khác); câu sửa QC tả lại lỗi ("yellow tracksuit") kéo lỗi vào lần gen sau — câu sửa của người chỉ tả cái ĐÚNG.
+**07/10 chiều — lượt 4 (theo 6 góp ý của người dùng), bản thử rẻ v2:**
+- Kelly kém xinh hơn #8: #8 vẽ storyboard bằng GPT Image 2.5, #22 dùng Seedream 5 Pro mặc định (cùng giá 0,052 USD) + cận MCU + biểu cảm mạnh → đổi model, vẽ lại 9/9.
+- Ảnh trang phục có người mẫu tóc bạc → Kelly KL bị tóc hai màu (ảnh + clip 8, 9: QC tự gen lại). Cần ghi rõ tóc của nhân vật trong prompt khi có ảnh OUTFIT.
+- Nhà Free Fire hầu như không có cánh cửa (người dùng) → không viết 'mở cửa'; shot 1 cho nhân vật vào từ mép khung để nền giữ đúng render 3D.
+- Shot không người nhắc tên trang phục Kho → nay gửi kèm ảnh trang phục (40f6111): bộ đồ trên giường đúng hình khủng long xanh.
+- Nối clip nhảy bằng khung cuối clip trước (ba2ab9f, 5b2a1d8): chỗ nối 28/39 s cùng tư thế + trang phục; máy đẩy/lượn/hạ thấp theo prompt.
+- Khớp môi: đặt giọng ở giây 1,0 (1ded677) — mốc trong prompt khớp giọng nhưng Seedance 2.5 'chỉ ảnh tham chiếu' vẫn không nhép (đo 0,03 / 0,44). Chưa giải quyết.
+- Nhạc: ClipAI tạo 3 bản (1 lỗi 429), chọn 31143 (đoạn mạnh 10–16,2 s), vào ở 1,8 s để đuôi bài chạm 18,0 s; nhạc gốc đoạn nhảy là 'Nhạc đoạn 2' từ 18,08 s (6aeee4d, 337d0c8).
 
