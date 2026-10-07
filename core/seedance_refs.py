@@ -24,6 +24,7 @@ MAX_PICTURES = 9              # Seedance 2.0: at most 9 reference pictures
 BANNER = "CHARACTER SHEET REFERENCE"
 REF_MAX_SIDE = 1280           # reference pictures at or under the 720p output (Volcengine Seedance 2.5 提示词指南, 2026-09-29)
 ROUTES = (None, "single", "kling")
+OUTFIT_TAG = " OUTFIT"         # identity_pictures: the costume picture of a character, named "<NAME> OUTFIT"
 
 
 def enabled(conn, project_id: int) -> bool:
@@ -199,6 +200,9 @@ def identity_pictures(conn, project_id: int, rows: List[Dict], room: int) -> Lis
         ref = (links.get(n) or {}).get("ref")
         if ref and os.path.exists(ref.get("path", "")):
             out.append((n, ref["path"]))
+        outfit = assets.outfit_images(conn, project_id, n)
+        if outfit:     # 07/10 Khủng Long Đỏ: MAXIM KL / KELLY KL danced in their everyday clothes — only the library face picture
+            out.append((n + OUTFIT_TAG, outfit[0]["path"]))   # (everyday look) went, the costume picture never did
     _say_speakers_without_picture(conn, project_id, rows, {n for n, _ in out})
     return out[:max(room, 0)]
 
@@ -266,8 +270,17 @@ def prompt(parts: List[tuple], identities: List[tuple], look: str = "", clip_sec
     head += "The buildings and the landmark behind the people keep exactly the shape they have in the storyboard frames."   # 28/09: a spire became a dome
     mapping = " ".join(f"Image {i} is the storyboard frame of Shot {i}: Shot {i} starts with exactly this composition, framing and "
                        f"these character positions." for i in range(1, n + 1))
-    mapping += " " + " ".join(f"Image {n + k} is {name}: identity only (face, hair, outfit) — not the framing."
-                              for k, (name, _) in enumerate(identities, 1))
+    dressed = {name[:-len(OUTFIT_TAG)] for name, _ in identities if name.endswith(OUTFIT_TAG)}
+
+    def says(name: str) -> str:
+        if name.endswith(OUTFIT_TAG):
+            who = name[:-len(OUTFIT_TAG)]
+            return (f"the OUTFIT {who} wears in this video: dress {who} exactly in these clothes, cap, shoes and accessories "
+                    "— not the framing")
+        if name in dressed:
+            return f"{name}: identity only (face, hair, body build) — NOT the clothes, which come only from the OUTFIT picture"
+        return f"{name}: identity only (face, hair, outfit) — not the framing"
+    mapping += " " + " ".join(f"Image {n + k} is {says(name)}." for k, (name, _) in enumerate(identities, 1))
     marks = whole_marks([float(sec) for _, sec in parts]) if reads_seconds(model) else [None] * n
     shots = [f"Shot {i}" + (f" ({mk[0]}–{mk[1]} s)" if mk else "") + f": {str(motion).strip().rstrip('.')}."
              for i, ((motion, _), mk) in enumerate(zip(parts, marks), 1)]

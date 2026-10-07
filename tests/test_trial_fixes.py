@@ -164,6 +164,28 @@ class SameFrameRedrawTests(Base):
         self.assertIn("ONLY from the OUTFIT image", note)
         self.assertNotIn("black baseball cap", note)
 
+    def test_a_reference_only_video_also_sends_the_outfit_picture(self):
+        """07/10 Khủng Long Đỏ shot 7: the Seedance clip got only the library face picture of MAXIM KL (everyday clothes) and danced
+        in them — the costume picture has to go with it, and the face picture must not dictate the clothes."""
+        from core import assets, seedance_refs as sr
+        pic = os.path.join(self.dir, "kl.png")
+        open(pic, "wb").write(b"x")
+        aid = assets.create(self.p.conn, "FF", "outfit", "KL TEST")
+        cur = self.p.conn.execute("INSERT INTO asset_images (asset_id, path, label, sort, status) VALUES (?,?,?,?,?)",
+                                  (aid, pic, "x", 1, "approved"))
+        self.p.conn.execute("INSERT INTO characters (project_id, name, description, outfit_image_ids) VALUES (?,?,?,?)",
+                            (self.pid, "MAXIM KL", "x", str(cur.lastrowid)))
+        self.p.conn.commit()
+        ids = sr.identity_pictures(self.p.conn, self.pid, [{"data": {"characters": ["MAXIM KL"]}}], 8)
+        self.assertIn(("MAXIM KL OUTFIT", pic), ids)
+        text = sr.prompt([("dance", 3)], [("MAXIM KL", "face.png"), ("MAXIM KL OUTFIT", pic)])
+        self.assertIn("Image 3 is the OUTFIT MAXIM KL wears", text)
+        self.assertIn("Image 2 is MAXIM KL: identity only (face, hair, body build) — NOT the clothes", text)
+
+    def test_clipai_account_balance_not_enough_is_out_of_credit(self):
+        from core.adapters.http import out_of_credit
+        self.assertTrue(out_of_credit("Account balance not enough"))      # 07/10: ClipAI's words; the queue kept re-sending
+
     def test_an_indoor_spot_gets_no_outdoor_words_nor_the_outdoor_wide_picture(self):
         from core import location_pack, runner, scene_establish
         from core.runner import build_image_prompt

@@ -707,7 +707,8 @@ class VideoRunner(_Runner):
             return None
         rows = [{"id": job["scene_id"], "data": json.loads(conn.execute("SELECT data FROM scenes WHERE id=?", (job["scene_id"],))
                                                           .fetchone()["data"] or "{}")}]
-        people = seedance_refs.identity_pictures(conn, job["project_id"], rows, 8)
+        people = [(n, path) for n, path in seedance_refs.identity_pictures(conn, job["project_id"], rows, 8)
+                  if not n.endswith(seedance_refs.OUTFIT_TAG)]      # one identity picture per PERSON (the outfit picture is not a person)
         have = {skill_dossier._key(n) for n, _ in people}
         from . import assets
         links = assets.link_characters(conn, job["project_id"], [n for n, _ in people])
@@ -1011,7 +1012,7 @@ class VideoRunner(_Runner):
             segs = self._take_segments(job, rows)
             if segs:                                   # S4.2: who says which line at which second (the lines stay in Vietnamese)
                 from . import dialogue_take
-                motion += "\n" + dialogue_take.group_block(segs, [n for n, _ in ids])
+                motion += "\n" + dialogue_take.group_block(segs, [n for n, _ in ids if not n.endswith(seedance_refs.OUTFIT_TAG)])
         stretch = self._stretch(group) if setup else None
         if stretch:
             motion = no_minor_age(shots.stretch_motion(stretch, [r["id"] for r in group], str(group[0]["data"].get("shot") or "")))

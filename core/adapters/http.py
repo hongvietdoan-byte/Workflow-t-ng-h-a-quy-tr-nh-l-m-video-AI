@@ -19,7 +19,7 @@ from ..providers import ProviderError
 
 # Data Pack P5: how the services say "no money left" (HTTP 402 aside). Kept narrow — a false stop halts every paid send.
 _OUT_OF_CREDIT = ("insufficient balance", "insufficient credit", "insufficient funds", "credit balance is too low", "not enough credit",
-                  "not enough balance", "balance is not enough", "out of credit", "余额不足", "积分不足",
+                  "not enough balance", "balance is not enough", "balance not enough", "out of credit", "余额不足", "积分不足",
                   "额度不足", "欠费")
 
 
